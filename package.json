@@ -15,9 +15,11 @@
     "mz": "2.2.0",
     "node-uuid": "1.4.7",
     "npm-package-arg": "4.1.0",
+    "object-assign": "4.0.1",
     "observatory": "1.0.0",
     "read-pkg-up": "1.0.1",
-    "semver": "5.1.0"
+    "semver": "5.1.0",
+    "throat": "2.0.2"
   },
   "bin": {
     "unpm-install": "bin/unpm-install"
