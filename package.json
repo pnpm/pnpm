@@ -1,5 +1,5 @@
 {
-  "name": "cnpm",
+  "name": "unpm",
   "version": "1.0.0",
   "description": "",
   "main": "index.js",
@@ -20,7 +20,7 @@
     "semver": "5.1.0"
   },
   "bin": {
-    "cnpm-install": "bin/cnpm-install"
+    "unpm-install": "bin/unpm-install"
   },
   "devDependencies": {
     "debug": "2.2.0",

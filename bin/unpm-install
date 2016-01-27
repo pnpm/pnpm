@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-var debug = require('debug')('cnpm:install')
+var debug = require('debug')('unpm:install')
 var dirname = require('path').dirname
 var join = require('path').join
 
@@ -10,8 +10,8 @@ var Promise = require('../lib/promise')
 
 const cli = require('meow')([
   'Usage:',
-  '  $ cnpm install',
-  '  $ cnpm install <name>',
+  '  $ unpm install',
+  '  $ unpm install <name>',
   '',
   'Options:',
   '  -S, --save            save into package.json under dependencies',
@@ -50,7 +50,7 @@ if (!module.parent) {
   var ctx = {}
 
   getPath()
-    .then(_ => updateContext(_))
+    .then(path => updateContext(path))
     .then(_ => mkdirp(ctx.modules))
     .then(_ => installMultiple(ctx, cli.input, cli.flags))
     .catch(require('../lib/err'))
