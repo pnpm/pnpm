@@ -5,7 +5,7 @@ var join = require('path').join
 
 var mkdirp = require('../lib/mkdirp')
 var getPath = require('../lib/get_path')
-var install = require('../lib/install').install
+var install = require('../lib/install')
 var Promise = require('../lib/promise')
 
 const cli = require('meow')([
@@ -36,9 +36,9 @@ const cli = require('meow')([
  * Install multiple modules
  */
 
-function installMultiple (modPath, pkgs, options) {
+function installMultiple (ctx, pkgs, options) {
   return Promise.all(pkgs.map(function (pkg) {
-    return install(modPath, pkg, options)
+    return install(ctx, pkg, options)
   }))
 }
 
@@ -47,8 +47,16 @@ function installMultiple (modPath, pkgs, options) {
  */
 
 if (!module.parent) {
+  var ctx = {}
+
   getPath()
-    .then(_ => mkdirp(join(_, 'node_modules')))
-    .then(_ => installMultiple(_, cli.input, cli.flags))
+    .then(_ => updateContext(_))
+    .then(_ => mkdirp(ctx.modules))
+    .then(_ => installMultiple(ctx, cli.input, cli.flags))
     .catch(require('../lib/err'))
+
+  function updateContext (root) {
+    ctx.root = root
+    ctx.modules = join(root, 'node_modules')
+  }
 }

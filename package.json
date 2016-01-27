@@ -9,11 +9,13 @@
   "author": "Rico Sta. Cruz <rico@ricostacruz.com>",
   "license": "MIT",
   "dependencies": {
+    "chalk": "1.1.1",
     "got": "6.1.1",
     "meow": "3.7.0",
     "mz": "2.2.0",
     "node-uuid": "1.4.7",
     "npm-package-arg": "4.1.0",
+    "observatory": "1.0.0",
     "read-pkg-up": "1.0.1",
     "semver": "5.1.0"
   },
