@@ -1,10 +1,12 @@
 #!/usr/bin/env node
-var readPkgUp = require('read-pkg-up')
-var npa = require('npm-package-arg')
 var debug = require('debug')('cnpm:install')
 var dirname = require('path').dirname
 var join = require('path').join
+
 var mkdirp = require('../lib/mkdirp')
+var getPath = require('../lib/get_path')
+var install = require('../lib/install').install
+var Promise = require('../lib/promise')
 
 const cli = require('meow')([
   'Usage:',
@@ -12,25 +14,23 @@ const cli = require('meow')([
   '  $ cnpm install <name>',
   '',
   'Options:',
-  '  -D, --save-dev',
-  '  -S, --save',
-  '  -E, --save-exact',
-  '      --dry-run'
+  '  -S, --save            save into package.json under dependencies',
+  '  -D, --save-dev        save into package.json under devDependencies',
+  '  -E, --save-exact      save exact spec',
+  '',
+  '      --dry-run         simulate',
+  '  -g, --global          install globally',
+  '',
+  '      --production      don\'t install devDependencies'
 ].join('\n'), {
-  boolean: ['save-dev', 'save', 'save-exact', 'dry-run']
+  boolean: [ 'save-dev', 'save', 'save-exact', 'dry-run', 'global' ],
+  alias: {
+    D: 'save-dev',
+    S: 'save',
+    E: 'save-exact',
+    g: 'global'
+  }
 })
-// console.log(cli.flags, cli.input)
-
-/*
- * Installs a package
- *
- *     install(path, 'underscore@latest')
- */
-
-function install (modPath, pkg, options) {
-  debug('installing ' + pkg)
-  return Promise.resolve(true)
-}
 
 /*
  * Install multiple modules
@@ -43,16 +43,8 @@ function installMultiple (modPath, pkgs, options) {
 }
 
 /*
- * Returns the path of package.json
+ * Perform
  */
-
-function getPath () {
-  return readPkgUp()
-    .then(function (pkg) {
-      debug('root: ' + dirname(pkg.path))
-      return dirname(pkg.path)
-    })
-}
 
 if (!module.parent) {
   getPath()
