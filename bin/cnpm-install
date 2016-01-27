@@ -1,0 +1,62 @@
+#!/usr/bin/env node
+var readPkgUp = require('read-pkg-up')
+var npa = require('npm-package-arg')
+var debug = require('debug')('cnpm:install')
+var dirname = require('path').dirname
+var join = require('path').join
+var mkdirp = require('../lib/mkdirp')
+
+const cli = require('meow')([
+  'Usage:',
+  '  $ cnpm install',
+  '  $ cnpm install <name>',
+  '',
+  'Options:',
+  '  -D, --save-dev',
+  '  -S, --save',
+  '  -E, --save-exact',
+  '      --dry-run'
+].join('\n'), {
+  boolean: ['save-dev', 'save', 'save-exact', 'dry-run']
+})
+// console.log(cli.flags, cli.input)
+
+/*
+ * Installs a package
+ *
+ *     install(path, 'underscore@latest')
+ */
+
+function install (modPath, pkg, options) {
+  debug('installing ' + pkg)
+  return Promise.resolve(true)
+}
+
+/*
+ * Install multiple modules
+ */
+
+function installMultiple (modPath, pkgs, options) {
+  return Promise.all(pkgs.map(function (pkg) {
+    return install(modPath, pkg, options)
+  }))
+}
+
+/*
+ * Returns the path of package.json
+ */
+
+function getPath () {
+  return readPkgUp()
+    .then(function (pkg) {
+      debug('root: ' + dirname(pkg.path))
+      return dirname(pkg.path)
+    })
+}
+
+if (!module.parent) {
+  getPath()
+    .then(_ => mkdirp(join(_, 'node_modules')))
+    .then(_ => installMultiple(_, cli.input, cli.flags))
+    .catch(require('../lib/err'))
+}

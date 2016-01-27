@@ -1,0 +1,24 @@
+{
+  "name": "cnpm",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "Rico Sta. Cruz <rico@ricostacruz.com>",
+  "license": "MIT",
+  "dependencies": {
+    "meow": "3.7.0",
+    "npm-package-arg": "4.1.0",
+    "read-pkg-up": "1.0.1"
+  },
+  "bin": {
+    "cnpm-install": "bin/cnpm-install"
+  },
+  "devDependencies": {
+    "debug": "2.2.0",
+    "mkdirp": "0.5.1",
+    "thenify": "3.1.1"
+  }
+}
