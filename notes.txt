@@ -1,3 +1,9 @@
+todo:
+
+  - [ ] put in proper node_modules
+  - [ ] dedupe by default
+  - [ ] npm install "rimraf@>2 <3"
+
 how it should look like:
 
     $ unpm install rimraf@2

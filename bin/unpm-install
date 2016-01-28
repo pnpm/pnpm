@@ -41,13 +41,11 @@ if (!module.parent) {
 
   getPath()
     .then(path => updateContext(path))
-    .then(_ => mkdirp(ctx.modules))
-    .then(_ => installMultiple(ctx, cli.input, cli.flags))
+    .then(_ => installMultiple(ctx, cli.input, join(ctx.root, 'node_modules'), cli.flags))
     .catch(require('../lib/err'))
 
   function updateContext (root) {
     ctx.root = root
-    ctx.modules = join(root, 'node_modules')
     ctx.tmp = join(root, 'node_modules', '.tmp')
   }
 }
