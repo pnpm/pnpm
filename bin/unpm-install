@@ -36,16 +36,19 @@ const cli = require('meow')([
  * Perform
  */
 
-if (!module.parent) {
+function run (cli) {
   var ctx = {}
 
-  getPath()
+  return getPath()
     .then(path => updateContext(path))
     .then(_ => installMultiple(ctx, cli.input, join(ctx.root, 'node_modules'), cli.flags))
-    .catch(require('../lib/err'))
 
   function updateContext (root) {
     ctx.root = root
     ctx.tmp = join(root, 'node_modules', '.tmp')
   }
 }
+
+module.exports = run
+
+if (!module.parent) run(cli).catch(require('../lib/err'))
