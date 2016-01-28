@@ -5,7 +5,7 @@ var prepare = require('./support/prepare')
 var install = require('../bin/pnpm-install')
 require('./support/sepia')
 
-test('small with dependencies (rimraf)', function (t) {
+test.only('small with dependencies (rimraf)', function (t) {
   prepare()
   install({ input: ['rimraf@2.5.1'], flags: { quiet: true } })
   .then(function () {
