@@ -1,3 +1,11 @@
+## [v0.2.0]
+> Jan 28, 2016
+
+- Improve atomicness of operations.
+- Symlink bins into `node_modules/.bin`.
+
+[v0.2.0]: https://github.com/rstacruz/pnpm/compare/v0.1.0...v0.2.0
+
 ## [v0.1.0]
 > Jan 28, 2016
 

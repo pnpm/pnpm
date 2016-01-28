@@ -1,14 +1,3 @@
-todo:
-
-  - [x] put in proper node_modules
-  - [ ] npm install "rimraf@>2 <3"
-  - [ ] symlink .bin
-  - [ ] scoped modules
-  - prefer global warning
-  - .bin
-  - cache resolution
-  - proper mutexing
-
 how it should look like:
 
     $ unpm install rimraf@2
@@ -50,10 +39,3 @@ from registry:
          tarball: 'http://registry.npmjs.org/rimraf/-/rimraf-2.5.1.tgz' },
       maintainers: [ { name: 'isaacs', email: 'i@izs.me' } ],
       directories: {} }
-
-observatory:
-
-     t = observatory.add('rimraf@2.5.1')
-
-     t.details('10%')
-     t.status('downloading')
