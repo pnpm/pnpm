@@ -5,7 +5,7 @@ var join = require('path').join
 
 var mkdirp = require('../lib/mkdirp')
 var getPath = require('../lib/get_path')
-var install = require('../lib/install')
+var installMultiple = require('../lib/install_multiple')
 var Promise = require('../lib/promise')
 
 const cli = require('meow')([
@@ -31,16 +31,6 @@ const cli = require('meow')([
     g: 'global'
   }
 })
-
-/*
- * Install multiple modules
- */
-
-function installMultiple (ctx, pkgs, options) {
-  return Promise.all(pkgs.map(function (pkg) {
-    return install(ctx, pkg, options)
-  }))
-}
 
 /*
  * Perform
