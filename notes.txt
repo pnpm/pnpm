@@ -53,11 +53,3 @@ observatory:
 
      t.details('10%')
      t.status('downloading')
-
-reporter api:
-
-     t.resolving()
-     t.resolved('2.8.2')
-     t.downloading(3928, 29400)
-     t.done()
-     t.fail('msg')

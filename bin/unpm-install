@@ -2,6 +2,7 @@
 var debug = require('debug')('unpm:install')
 var dirname = require('path').dirname
 var join = require('path').join
+var chalk = require('chalk')
 
 var mkdirp = require('../lib/mkdirp')
 var getPath = require('../lib/get_path')
@@ -37,6 +38,11 @@ const cli = require('meow')([
  */
 
 function run (cli) {
+  var observatory = require('observatory')
+  observatory.settings({
+    prefix: '  '
+  })
+
   var ctx = {}
 
   return getPath()
@@ -46,6 +52,45 @@ function run (cli) {
   function updateContext (root) {
     ctx.root = root
     ctx.tmp = join(root, 'node_modules', '.tmp')
+    ctx.log = function (pkg) {
+      var pkgData
+
+      var t = observatory.add(pkg.name + ' ' + chalk.gray(pkg.rawSpec || 'latest'))
+      t.status(chalk.yellow('·'))
+      return status
+
+      // log('resolved', pkgData)
+      // log('downloading')
+      // log('downloading', { done: 1, total: 200 })
+      // log('depnedencies')
+      // log('error', err)
+      function status (status, args) {
+        if (status === 'resolved') {
+          pkgData = args
+        } else if (status === 'downloading') {
+          t.status(chalk.yellow('downloading ' + pkgData.version + ' ·'))
+          if (args && args.done) {
+            t.details('' + Math.round(args.done / args.total * 100) + '%')
+          } else {
+            t.details('')
+          }
+        } else if (status === 'done') {
+          if (pkgData) {
+            t.status(chalk.green('' + pkgData.version + ' ✓'))
+              .details('')
+          } else {
+            t.status(chalk.green('OK ✓'))
+              .details('')
+          }
+        } else if (status === 'dependencies') {
+          t.status(chalk.gray('' + pkgData.version + ' ·'))
+            .details('')
+        } else {
+          t.status(status)
+            .details('')
+        }
+      }
+    }
   }
 }
 
