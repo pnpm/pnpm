@@ -1,5 +1,6 @@
 var test = require('tape')
 var join = require('path').join
+var fs = require('fs')
 var prepare = require('./support/prepare')
 var install = require('../bin/pnpm-install')
 require('./support/sepia')
@@ -10,6 +11,13 @@ test('small with dependencies (rimraf)', function (t) {
   .then(function () {
     var rimraf = require(join(process.cwd(), 'node_modules', 'rimraf'))
     t.ok(typeof rimraf === 'function', 'rimraf is available')
+
+    var stat = fs.statSync(join(process.cwd(), 'node_modules', 'rimraf', 'bin.js'))
+    t.equal(stat.mode, 0o100755, 'rimraf is executable')
+
+    stat = fs.statSync(join(process.cwd(), 'node_modules', '.bin', 'rimraf'))
+    t.ok(stat, '.bin/rimraf is available')
+
     t.end()
   }, t.end)
 })

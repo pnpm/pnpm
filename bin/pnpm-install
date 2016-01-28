@@ -1,4 +1,9 @@
 #!/usr/bin/env node
+if (~process.argv.indexOf('--debug')) {
+  process.env.DEBUG = 'pnpm:*'
+  process.argv.push('--quiet')
+}
+
 var debug = require('debug')('pnpm:install')
 var dirname = require('path').dirname
 var join = require('path').join
@@ -26,7 +31,9 @@ const cli = require('meow')([
   '      --production      don\'t install devDependencies',
   '      --quiet           don\'t print progress'
 ].join('\n'), {
-  boolean: [ 'save-dev', 'save', 'save-exact', 'dry-run', 'global', 'quiet' ],
+  boolean: [
+    'save-dev', 'save', 'save-exact', 'dry-run', 'global', 'quiet', 'debug',
+  ],
   alias: {
     'no-progress': 'quiet',
     D: 'save-dev',
@@ -35,6 +42,10 @@ const cli = require('meow')([
     g: 'global'
   }
 })
+
+if (cli.flags.debug) {
+  cli.flags.quiet = true
+}
 
 var observatory = require('observatory')
 observatory.settings({ prefix: '  ', width: 74 })

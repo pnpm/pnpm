@@ -33,7 +33,7 @@ pnpm install lodash
   - [ ] tarball packages
   - [ ] compiled packages
   - [ ] file packages
-  - [ ] bin executables
+  - [x] bin executables
   - [ ] `--global` installs
   - [ ] `--save` et al
 - [ ] `pnpm uninstall`
