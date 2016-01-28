@@ -32,6 +32,7 @@ pnpm install lodash
   - [ ] @scoped packages
   - [ ] tarball packages
   - [ ] compiled packages
+  - [ ] bundled dependencies: handle bins (fsevents@1.0.6)
   - [ ] file packages
   - [x] bin executables
   - [ ] `--global` installs
