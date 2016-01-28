@@ -1,13 +1,15 @@
 {
   "name": "pnpm.js",
-  "version": "0.2.2",
   "description": "A fast implementation of npm install",
-  "main": "index.js",
-  "scripts": {
-    "test": "node test | tap-spec"
-  },
+  "version": "0.2.2",
   "author": "Rico Sta. Cruz <rico@ricostacruz.com>",
-  "license": "MIT",
+  "bin": {
+    "pnpm": "bin/pnpm",
+    "pnpm-install": "bin/pnpm-install"
+  },
+  "bugs": {
+    "url": "https://github.com/rstacruz/pnpm/issues"
+  },
   "dependencies": {
     "chalk": "1.1.1",
     "debug": "2.2.0",
@@ -26,11 +28,6 @@
     "tar-fs": "1.9.0",
     "thenify": "3.1.1"
   },
-  "preferGlobal": true,
-  "bin": {
-    "pnpm": "bin/pnpm",
-    "pnpm-install": "bin/pnpm-install"
-  },
   "devDependencies": {
     "@rstacruz/tap-spec": "4.1.1",
     "eslint": "1.10.3",
@@ -40,5 +37,23 @@
     "sepia": "2.0.1",
     "tape": "4.4.0",
     "tape-eslint": "1.2.1"
+  },
+  "directories": {
+    "test": "test"
+  },
+  "homepage": "https://github.com/rstacruz/pnpm#readme",
+  "keywords": [
+    "install",
+    "npm"
+  ],
+  "license": "MIT",
+  "main": "index.js",
+  "preferGlobal": true,
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/rstacruz/pnpm.git"
+  },
+  "scripts": {
+    "test": "node test | tap-spec"
   }
 }
