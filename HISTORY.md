@@ -1,3 +1,10 @@
+## [v0.2.1]
+> Jan 28, 2016
+
+- Fix "can't find module 'debug'" error.
+
+[v0.2.1]: https://github.com/rstacruz/pnpm/compare/v0.2.0...v0.2.1
+
 ## [v0.2.0]
 > Jan 28, 2016
 
