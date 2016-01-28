@@ -1,3 +1,10 @@
+## [v0.2.2]
+> Jan 28, 2016
+
+- Fix dependency problems.
+
+[v0.2.2]: https://github.com/rstacruz/pnpm/compare/v0.2.1...v0.2.2
+
 ## [v0.2.1]
 > Jan 28, 2016
 
