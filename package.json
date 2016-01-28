@@ -1,7 +1,7 @@
 {
   "name": "pnpm.js",
   "version": "0.2.2",
-  "description": "",
+  "description": "A fast implementation of npm install",
   "main": "index.js",
   "scripts": {
     "test": "node test | tap-spec"
