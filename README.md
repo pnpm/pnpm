@@ -1,6 +1,6 @@
 # pnpm
 
-> High **p**erformance **npm**
+> **P**erformant **npm**
 
 pnpm is a fast implementation of `npm install`.
 
@@ -28,12 +28,12 @@ pnpm install lodash
 
 - [ ] `pnpm install`
   - [x] npm packages
-  - [ ] GitHub packages
-  - [ ] @scoped packages
-  - [ ] tarball packages
-  - [ ] compiled packages
-  - [ ] bundled dependencies: handle bins (fsevents@1.0.6)
-  - [ ] file packages
+  - [ ] GitHub-hosted packages (`npm i rstacruz/scourjs`)
+  - [ ] @scoped packages (`npm i @rstacruz/tap-spec`)
+  - [ ] tarball release packages (`npm i http://foo.com/tar.tgz`)
+  - [ ] compiled packages (`npm i node-sass`)
+  - [ ] bundled dependencies: handle bins (`npm i fsevents@1.0.6`)
+  - [ ] file packages (`npm i file:../path`)
   - [x] bin executables
   - [ ] `--global` installs
   - [ ] `--save` et al
@@ -43,7 +43,7 @@ pnpm install lodash
 ## Design
 
 `pnpm` maintains a flat storage of all your dependencies in `node_modules/.store`. They are then symlinked whereever they're needed.
-This is like `npm@2`'s recursive module handling (without the disk space bloat), and like `npm3`s flat dependency tree (except with each module being predictably atomic).
+This is like `npm@2`'s recursive module handling (without the disk space bloat), and like `npm@3`s flat dependency tree (except with each module being predictably atomic).
 To illustrate, an installation of [chalk][]@1.1.1 may look like this:
 
 ```
@@ -73,9 +73,11 @@ time pnpm i babel-preset-es2015 browserify chalk debug minimist mkdirp
     11.04 real         6.85 user         2.85 sys
 ```
 
-## Acknowledgements
+## Prior art
 
-[ied](https://www.npmjs.com/package/ied) is built on a very similar premise.
+[ied](https://www.npmjs.com/package/ied) is built on a very similar premise. `pnpm` takes huge inspiration from ied.
+
+Unlike ied, however, `pnpm` will eventually be made to support a globally-shared store so you can keep all your npm modules in one place. With this goal in mind, `pnpm` also doesn't care much about `npm@3`'s flat dependency tree style.
 
 ## Thanks
 
