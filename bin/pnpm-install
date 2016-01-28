@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-var debug = require('debug')('unpm:install')
+var debug = require('debug')('pnpm:install')
 var dirname = require('path').dirname
 var join = require('path').join
 var chalk = require('chalk')
@@ -11,8 +11,8 @@ var Promise = require('../lib/promise')
 
 const cli = require('meow')([
   'Usage:',
-  '  $ unpm install',
-  '  $ unpm install <name>',
+  '  $ pnpm install',
+  '  $ pnpm install <name>',
   '',
   'Options:',
   '  -S, --save            save into package.json under dependencies',

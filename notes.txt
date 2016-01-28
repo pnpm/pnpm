@@ -4,6 +4,10 @@ todo:
   - [ ] npm install "rimraf@>2 <3"
   - [ ] symlink .bin
   - [ ] scoped modules
+  - prefer global warning
+  - .bin
+  - cache resolution
+  - proper mutexing
 
 how it should look like:
 
