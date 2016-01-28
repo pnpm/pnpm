@@ -9,6 +9,10 @@ case $cmd in
     cmd=$args
     args=--help
     ;;
+  -v | --version)
+    cmd=install
+    args=--version
+    ;;
 esac
 
 case $cmd in
