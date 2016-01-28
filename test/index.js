@@ -5,6 +5,8 @@ var prepare = require('./support/prepare')
 var install = require('../bin/pnpm-install')
 require('./support/sepia')
 
+test('eslint', require('tape-eslint')())
+
 test('small with dependencies (rimraf)', function (t) {
   prepare()
   install({ input: ['rimraf@2.5.1'], flags: { quiet: true } })
