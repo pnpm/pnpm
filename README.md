@@ -29,8 +29,9 @@ pnpm install lodash
 - [ ] `pnpm install`
   - [x] npm packages
   - [ ] GitHub packages
-  - [ ] @scoped modules
+  - [ ] @scoped packages
   - [ ] tarball packages
+  - [ ] compiled packages
   - [ ] file packages
   - [ ] bin executables
   - [ ] `--global` installs
@@ -60,6 +61,16 @@ To illustrate, an installation of [chalk][]@1.1.1 may look like this:
 ```
 
 [chalk]: https://github.com/chalk/chalk
+
+## Benchmark
+
+```
+time npm i babel-preset-es2015 browserify chalk debug minimist mkdirp
+    66.15 real        15.60 user         3.54 sys
+
+time pnpm i babel-preset-es2015 browserify chalk debug minimist mkdirp
+    11.04 real         6.85 user         2.85 sys
+```
 
 ## Acknowledgements
 
