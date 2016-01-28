@@ -22,10 +22,12 @@ const cli = require('meow')([
   '      --dry-run         simulate',
   '  -g, --global          install globally',
   '',
-  '      --production      don\'t install devDependencies'
+  '      --production      don\'t install devDependencies',
+  '      --quiet           don\'t print progress'
 ].join('\n'), {
-  boolean: [ 'save-dev', 'save', 'save-exact', 'dry-run', 'global' ],
+  boolean: [ 'save-dev', 'save', 'save-exact', 'dry-run', 'global', 'quiet' ],
   alias: {
+    'no-progress': 'quiet',
     D: 'save-dev',
     S: 'save',
     E: 'save-exact',
@@ -39,9 +41,7 @@ const cli = require('meow')([
 
 function run (cli) {
   var observatory = require('observatory')
-  observatory.settings({
-    prefix: '  '
-  })
+  observatory.settings({ prefix: '  ' })
 
   var ctx = {}
 
@@ -52,11 +52,17 @@ function run (cli) {
   function updateContext (root) {
     ctx.root = root
     ctx.tmp = join(root, 'node_modules', '.tmp')
-    ctx.log = function (pkg) {
+    if (!cli.flags.quiet) { ctx.log = logger() }
+    else { ctx.log = function () { return function () {} } }
+  }
+
+  function logger () {
+    return function (pkg) {
       var pkgData
 
-      var t = observatory.add(pkg.name + ' ' + chalk.gray(pkg.rawSpec || 'latest'))
-      t.status(chalk.yellow('·'))
+      var t = observatory.add(pkg.name + ' ' +
+        chalk.gray(pkg.rawSpec || '*'))
+        .status(chalk.yellow('·'))
       return status
 
       // log('resolved', pkgData)
