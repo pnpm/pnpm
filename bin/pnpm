@@ -4,13 +4,16 @@ shift
 args=$*
 
 case $cmd in
-  i)
-    cmd=install
-    ;;
   h | help | -h | --help)
     shift
+    cmd=$args
     args=--help
-    cmd=$1
+    ;;
+esac
+
+case $cmd in
+  i)
+    cmd=install
     ;;
 esac
 
