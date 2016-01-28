@@ -41,19 +41,22 @@ pnpm install lodash
 ## Design
 
 `pnpm` maintains a flat storage of all your dependencies in `node_modules/.store`. They are then symlinked whereever they're needed.
-For instance, an installation of [chalk][]@1.1.1 may look like this:
+This is like `npm@2`'s recursive module handling (without the disk space bloat), and like `npm3`s flat dependency tree (except with each module being predictably atomic).
+To illustrate, an installation of [chalk][]@1.1.1 may look like this:
 
 ```
 .
-├─ node_modules/
-│  ├─ .store/
-│  │  ├─ chalk@1.1.1/
-│  │  │  └─ node_modules/
-│  │  │     ├─ ansi-styles      -> ../../ansi-styles@2.1.0
-│  │  │     └─ supports-color   -> ../../supports-color@2.0.0
-│  │  ├─ ansi-styles@2.1.0/
-│  │  └─ supports-color@2.0.0/
-│  └─ chalk                     -> .store/chalk@1.1.1
+└─ node_modules/
+   ├─ .store/
+   │  ├─ chalk@1.1.1/
+   │  │  └─ node_modules/
+   │  │     ├─ ansi-styles      -> ../../ansi-styles@2.1.0
+   │  │     ├─ has-ansi         -> ../../has-ansi@2.0.0
+   │  │     └─ supports-color   -> ../../supports-color@2.0.0
+   │  ├─ ansi-styles@2.1.0/
+   │  ├─ has-ansi@2.0.0/
+   │  └─ supports-color@2.0.0/
+   └─ chalk                     -> .store/chalk@1.1.1
 ```
 
 [chalk]: https://github.com/chalk/chalk
