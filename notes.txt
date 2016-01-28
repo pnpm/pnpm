@@ -2,6 +2,7 @@ todo:
 
   - [x] put in proper node_modules
   - [ ] npm install "rimraf@>2 <3"
+  - [ ] symlink .bin
   - [ ] scoped modules
 
 how it should look like:
