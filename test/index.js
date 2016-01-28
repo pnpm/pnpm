@@ -1,7 +1,7 @@
 var test = require('tape')
 var join = require('path').join
 var prepare = require('./support/prepare')
-var install = require('../bin/unpm-install')
+var install = require('../bin/pnpm-install')
 require('./support/sepia')
 
 test('small with dependencies (rimraf)', function (t) {
