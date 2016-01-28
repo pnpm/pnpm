@@ -1,3 +1,9 @@
 {
-  extends: ['standard']
+  extends: ['standard'],
+  rules: {
+    "arrow-parens": [2, "as-needed"],
+    "no-unused-vars": [2, {
+      "argsIgnorePattern": "_"
+    }]
+  }
 }
