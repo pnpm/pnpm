@@ -59,5 +59,6 @@ if (!module.parent) {
     ctx.root = root
     ctx.modules = join(root, 'node_modules')
     ctx.store = join(root, 'node_modules', '.store')
+    ctx.tmp = join(root, 'node_modules', '.tmp')
   }
 }
