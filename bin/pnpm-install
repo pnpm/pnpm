@@ -41,7 +41,7 @@ const cli = require('meow')([
 
 function run (cli) {
   var observatory = require('observatory')
-  observatory.settings({ prefix: '  ' })
+  observatory.settings({ prefix: '  ', width: 74 })
 
   var ctx = {}
 
@@ -61,7 +61,7 @@ function run (cli) {
       var pkgData
 
       var t = observatory.add(pkg.name + ' ' +
-        chalk.gray(pkg.rawSpec || '*'))
+        chalk.gray(pkg.rawSpec || ''))
         .status(chalk.yellow('·'))
       return status
 
@@ -75,7 +75,7 @@ function run (cli) {
           pkgData = args
         } else if (status === 'downloading') {
           t.status(chalk.yellow('downloading ' + pkgData.version + ' ·'))
-          if (args && args.done) {
+          if (args && args.total && args.done < args.total) {
             t.details('' + Math.round(args.done / args.total * 100) + '%')
           } else {
             t.details('')
