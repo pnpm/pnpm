@@ -1,0 +1,21 @@
+#!/usr/bin/env sh
+cmd=$1
+shift
+args=$*
+
+case $cmd in
+  i)
+    cmd=install
+    ;;
+  h | help | -h | --help)
+    shift
+    args=--help
+    cmd=$1
+    ;;
+esac
+
+if which pnpm-${cmd} 2>&1 >/dev/null; then
+  pnpm-${cmd} $args
+else
+  npm ${cmd} $args
+fi
