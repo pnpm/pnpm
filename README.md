@@ -83,6 +83,7 @@ Unlike ied, however, `pnpm` will eventually be made to support a globally-shared
 
 ## Limitations
 
+- Windows is [not supported](https://github.com/rstacruz/pnpm/issues/6).
 - You can't [shrinkwrap][].
 - `node_modules` managed by pnpm can't be queried properly by [npm ls][].
 - You can't use [npm prune][] or [npm dedupe][].
