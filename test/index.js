@@ -45,6 +45,18 @@ test('scoped modules (@rstacruz/tap-spec@*)', function (t) {
   }, t.end)
 })
 
+test('multiple scoped modules (@rstacruz/...)', function (t) {
+  prepare()
+  install({ input: ['@rstacruz/tap-spec@*', '@rstacruz/travis-encrypt@*'], flags: { quiet: true } })
+  .then(function () {
+    var _ = require(join(process.cwd(), 'node_modules', '@rstacruz/tap-spec'))
+    t.ok(typeof _ === 'function', 'tap-spec is available')
+    _ = require(join(process.cwd(), 'node_modules', '@rstacruz/travis-encrypt'))
+    t.ok(typeof _ === 'function', 'travis-encrypt is available')
+    t.end()
+  }, t.end)
+})
+
 test('idempotency (rimraf)', function (t) {
   prepare()
   install({ input: ['rimraf@2.5.1'], flags: { quiet: true } })
