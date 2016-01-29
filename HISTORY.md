@@ -1,3 +1,10 @@
+## [v0.8.0]
+> Jan 30, 2016
+
+- Support `node-gyp`.
+
+[v0.8.0]: https://github.com/rstacruz/pnpm/compare/v0.7.0...v0.8.0
+
 ## [v0.7.0]
 > Jan 30, 2016
 
