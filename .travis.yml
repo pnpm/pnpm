@@ -4,3 +4,4 @@ node_js:
 cache:
   directories:
   - node_modules
+  - fixtures
