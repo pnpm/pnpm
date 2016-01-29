@@ -106,6 +106,11 @@ test('bundleDependencies (fsevents@1.0.6)', function (t) {
 })
 
 test('compiled modules (ursa@0.9.1)', function (t) {
+  if (!process.env.CI) {
+    t.skip('only ran on CI')
+    t.end()
+  }
+
   prepare()
   install({ input: ['ursa@0.9.1'], flags: { quiet: true } })
   .then(function () {
