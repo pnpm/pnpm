@@ -1,3 +1,11 @@
+## [v0.3.0]
+> Jan 29, 2016
+
+- Warn on unsupported flags (eg, `pnpm i --save x`).
+- Cleanups and refactoring.
+
+[v0.3.0]: https://github.com/rstacruz/pnpm/compare/v0.2.2...v0.3.0
+
 ## [v0.2.2]
 > Jan 28, 2016
 
