@@ -1,4 +1,3 @@
-process.env.DEBUG = 'pnpm:*'
 var test = require('tape')
 var join = require('path').join
 var fs = require('fs')
