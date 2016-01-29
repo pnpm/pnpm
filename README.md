@@ -2,7 +2,7 @@
 
 > **P**erformant **npm**
 
-pnpm is a fast implementation of `npm install`.
+pnpm is a fast implementation of `npm install`. It is loosely based off [ied].
 
 ![](https://raw.githubusercontent.com/rstacruz/pnpm/gh-pages/screencast.gif)
 
@@ -75,9 +75,11 @@ time pnpm i babel-preset-es2015 browserify chalk debug minimist mkdirp
 
 ## Prior art
 
-[ied](https://www.npmjs.com/package/ied) is built on a very similar premise. `pnpm` takes huge inspiration from ied.
+[ied][] is built on a very similar premise. `pnpm` takes huge inspiration from ied.
 
 Unlike ied, however, `pnpm` will eventually be made to support a globally-shared store so you can keep all your npm modules in one place. With this goal in mind, `pnpm` also doesn't care much about `npm@3`'s flat dependency tree style.
+
+[ied]: https://github.com/alexanderGugel/ied
 
 ## Thanks
 
