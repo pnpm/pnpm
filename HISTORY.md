@@ -1,3 +1,10 @@
+## [v0.4.1]
+> Jan 29, 2016
+
+- [#11] - Fix using multiple scoped modules from the same scope.
+
+[v0.4.1]: https://github.com/rstacruz/pnpm/compare/v0.4.0...v0.4.1
+
 ## [v0.4.0]
 > Jan 29, 2016
 
