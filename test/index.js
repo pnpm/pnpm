@@ -68,7 +68,7 @@ test('idempotency (rimraf)', function (t) {
   }, t.end)
 })
 
-test('big with dependencies (babel-preset-2015)', function (t) {
+test('big with dependencies and circular deps (babel-preset-2015)', function (t) {
   prepare()
   install({ input: ['babel-preset-es2015@6.3.13'], flags: { quiet: true } })
   .then(function () {
