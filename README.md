@@ -81,6 +81,20 @@ Unlike ied, however, `pnpm` will eventually be made to support a globally-shared
 
 [ied]: https://github.com/alexanderGugel/ied
 
+## Limitations
+
+- You can't [shrinkwrap][].
+- `node_modules` managed by pnpm can't be queried properly by [npm ls][].
+- You can't use [npm prune][] or [npm dedupe][].
+- Things not ticked off in the [to do list](#preview-release) are obviously not feature-complete.
+
+Got an idea for workarounds for these issues? [Share them.](https://github.com/rstacruz/pnpm/issues/new)
+
+[shrinkwrap]: https://docs.npmjs.com/cli/shrinkwrap
+[npm ls]: https://docs.npmjs.com/cli/ls
+[npm prune]: https://docs.npmjs.com/cli/prune
+[npm dedupe]: https://docs.npmjs.com/cli/dedupe
+
 ## Thanks
 
 **pnpm** © 2016+, Rico Sta. Cruz. Released under the [MIT] License.<br>
