@@ -11,6 +11,7 @@
     "url": "https://github.com/rstacruz/pnpm/issues"
   },
   "dependencies": {
+    "bluebird": "3.1.5",
     "chalk": "1.1.1",
     "commondir": "1.0.1",
     "debug": "2.2.0",
