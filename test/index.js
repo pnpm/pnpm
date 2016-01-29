@@ -108,14 +108,14 @@ test('bundleDependencies (fsevents@1.0.6)', function (t) {
 test('compiled modules (ursa@0.9.1)', function (t) {
   if (!process.env.CI) {
     t.skip('only ran on CI')
-    t.end()
+    return t.end()
   }
 
   prepare()
   install({ input: ['ursa@0.9.1'], flags: { quiet: true } })
   .then(function () {
     var ursa = require(join(process.cwd(), 'node_modules', 'ursa'))
-    t.ok(typeof ursa === 'function', 'ursa() is available')
+    t.ok(typeof ursa === 'object', 'ursa() is available')
     t.end()
   }, t.end)
 })
