@@ -1,3 +1,11 @@
+## [v0.5.0]
+> Jan 30, 2016
+
+- Support scoped modules without version spec (eg, `pnpm i @rstacruz/tap-spec`).
+- Lots of internal cleanups.
+
+[v0.5.0]: https://github.com/rstacruz/pnpm/compare/v0.4.1...v0.5.0
+
 ## [v0.4.1]
 > Jan 29, 2016
 
