@@ -4,21 +4,23 @@ var fs = require('fs')
 var prepare = require('./support/prepare')
 var install = require('../bin/pnpm-install')
 require('./support/sepia')
+var stat
 
 test('eslint', require('tape-eslint')())
 
-test('small with dependencies (rimraf)', function (t) {
+test.only('small with dependencies (rimraf)', function (t) {
   prepare()
   install({ input: ['rimraf@2.5.1'], flags: { quiet: true } })
   .then(function () {
     var rimraf = require(join(process.cwd(), 'node_modules', 'rimraf'))
-    t.ok(typeof rimraf === 'function', 'rimraf is available')
+    t.ok(typeof rimraf === 'function', 'rimraf() is available')
 
-    var stat = fs.statSync(join(process.cwd(), 'node_modules', 'rimraf', 'bin.js'))
+    stat = fs.lstatSync(join(process.cwd(), 'node_modules', '.bin', 'rimraf'))
+    t.ok(stat.isSymbolicLink(), '.bin/rimraf symlink is available')
+
+    stat = fs.statSync(join(process.cwd(), 'node_modules', 'rimraf', 'bin.js'))
     t.equal(stat.mode, 0o100755, 'rimraf is executable')
-
-    stat = fs.statSync(join(process.cwd(), 'node_modules', '.bin', 'rimraf'))
-    t.ok(stat, '.bin/rimraf is available')
+    t.ok(stat.isFile(), '.bin/rimraf refers to a file')
 
     t.end()
   }, t.end)
@@ -84,6 +86,21 @@ test('big with dependencies and circular deps (babel-preset-2015)', function (t)
   .then(function () {
     var b = require(join(process.cwd(), 'node_modules', 'babel-preset-es2015'))
     t.ok(typeof b === 'object', 'babel-preset-es2015 is available')
+    t.end()
+  }, t.end)
+})
+
+test('bundleDependencies (fsevents@1.0.6)', function (t) {
+  prepare()
+  install({ input: ['fsevents@1.0.6'], flags: { quiet: true } })
+  .then(function () {
+    stat = fs.lstatSync(
+      join(process.cwd(), 'node_modules', 'fsevents', 'node_modules', '.bin', 'mkdirp'))
+    t.ok(stat.isSymbolicLink(), '.bin/mkdirp is available')
+
+    stat = fs.statSync(
+      join(process.cwd(), 'node_modules', 'fsevents', 'node_modules', '.bin', 'mkdirp'))
+    t.ok(stat.isFile(), '.bin/mkdirp refers to a file')
     t.end()
   }, t.end)
 })
