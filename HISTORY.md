@@ -1,3 +1,12 @@
+## [v0.6.0]
+> Jan 30, 2016
+
+- You can now safely rebuild from interrupted `pnpm install`s and pnpm will pick up where it left off.
+- Add support for `bundleDependencies`.
+- Throw errors when doing `pnpm i github/repo`—this isn't supported yet (but will be!).
+
+[v0.6.0]: https://github.com/rstacruz/pnpm/compare/v0.5.0...v0.6.0
+
 ## [v0.5.0]
 > Jan 30, 2016
 

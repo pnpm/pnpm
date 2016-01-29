@@ -32,7 +32,7 @@ pnpm install lodash
   - [x] @scoped packages (`npm i @rstacruz/tap-spec`)
   - [ ] tarball release packages (`npm i http://foo.com/tar.tgz`)
   - [ ] compiled packages (`npm i node-sass`)
-  - [ ] bundled dependencies: handle bins (`npm i fsevents@1.0.6`)
+  - [x] bundled dependencies (`npm i fsevents@1.0.6`)
   - [ ] file packages (`npm i file:../path`)
   - [x] bin executables
   - [ ] `--global` installs
