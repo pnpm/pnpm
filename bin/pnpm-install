@@ -130,6 +130,9 @@ function logger () {
       } else if (status === 'dependencies') {
         t.status(chalk.gray('' + pkgData.version + ' ·'))
           .details('')
+      } else if (status === 'error') {
+        t.status(chalk.red('ERROR ✗'))
+          .details(args && (args.message || args))
       } else {
         t.status(status)
           .details('')
