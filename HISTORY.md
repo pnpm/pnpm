@@ -1,3 +1,10 @@
+## [v0.4.0]
+> Jan 29, 2016
+
+- [#9] - Add preliminary support for scoped modules. ([#11], [@indexzero])
+
+[v0.4.0]: https://github.com/rstacruz/pnpm/compare/v0.3.0...v0.4.0
+
 ## [v0.3.0]
 > Jan 29, 2016
 
@@ -34,4 +41,6 @@
 - Initial preview release.
 
 [v0.1.0]: https://github.com/rstacruz/pnpm/blob/v0.1.0
-
+[#9]: https://github.com/rstacruz/pnpm/issues/9
+[#11]: https://github.com/rstacruz/pnpm/issues/11
+[@indexzero]: https://github.com/indexzero
