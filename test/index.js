@@ -104,3 +104,13 @@ test('bundleDependencies (fsevents@1.0.6)', function (t) {
     t.end()
   }, t.end)
 })
+
+test('compiled modules (fsevents@1.0.6)', function (t) {
+  prepare()
+  install({ input: ['fsevents@1.0.6'], flags: { quiet: true } })
+  .then(function () {
+    var fsevents = require(join(process.cwd(), 'node_modules', 'fsevents'))
+    t.ok(typeof fsevents === 'function', 'fsevents() is available')
+    t.end()
+  }, t.end)
+})

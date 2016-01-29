@@ -31,7 +31,7 @@ pnpm install lodash
   - [ ] GitHub-hosted packages (`npm i rstacruz/scourjs`)
   - [x] @scoped packages (`npm i @rstacruz/tap-spec`)
   - [ ] tarball release packages (`npm i http://foo.com/tar.tgz`)
-  - [ ] compiled packages (`npm i node-sass`)
+  - [x] compiled packages (`npm i node-sass`)
   - [x] bundled dependencies (`npm i fsevents@1.0.6`)
   - [ ] file packages (`npm i file:../path`)
   - [x] bin executables
@@ -77,7 +77,10 @@ time pnpm i babel-preset-es2015 browserify chalk debug minimist mkdirp
 
 [ied][] is built on a very similar premise. `pnpm` takes huge inspiration from ied.
 
-Unlike ied, however, `pnpm` will eventually be made to support a globally-shared store so you can keep all your npm modules in one place. With this goal in mind, `pnpm` also doesn't care much about `npm@3`'s flat dependency tree style.
+Unlike ied, however:
+
+- `pnpm` will eventually be made to support a globally-shared store so you can keep all your npm modules in one place. With this goal in mind, `pnpm` also doesn't care much about `npm@3`'s flat dependency tree style.
+- pnpm also supports circular dependencies.
 
 [ied]: https://github.com/alexanderGugel/ied
 

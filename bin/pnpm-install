@@ -133,6 +133,10 @@ function logger () {
       } else if (status === 'error') {
         t.status(chalk.red('ERROR ✗'))
           .details(args && (args.message || args))
+      } else if (status === 'stdout') {
+        observatory.add(chalk.blue(args.name) + '  ' + chalk.gray(args.line))
+      } else if (status === 'stderr') {
+        observatory.add(chalk.blue(args.name) + '! ' + chalk.gray(args.line))
       } else {
         t.status(status)
           .details('')
