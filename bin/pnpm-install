@@ -47,6 +47,13 @@ if (cli.flags.debug) {
   cli.flags.quiet = true
 }
 
+['saveDev', 'save', 'saveExact', 'dryRun', 'global'].forEach((flag) => {
+  if (cli.flags[flag]) {
+    console.error("Error: '" + flag + "' is not supported yet, sorry!")
+    process.exit(1)
+  }
+})
+
 var observatory = require('observatory')
 observatory.settings({ prefix: '  ', width: 74 })
 
