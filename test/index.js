@@ -112,7 +112,7 @@ test('compiled modules (ursa@0.9.1)', function (t) {
   }
 
   prepare()
-  install({ input: ['ursa@0.9.1'], flags: { quiet: true } })
+  install({ input: ['ursa@0.9.1'], flags: { quiet: false } })
   .then(function () {
     var ursa = require(join(process.cwd(), 'node_modules', 'ursa'))
     t.ok(typeof ursa === 'object', 'ursa() is available')
