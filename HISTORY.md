@@ -1,3 +1,10 @@
+## [v0.7.0]
+> Jan 30, 2016
+
+- Support lifecycle hooks and compiled modules.
+
+[v0.7.0]: https://github.com/rstacruz/pnpm/compare/v0.6.1...v0.7.0
+
 ## [v0.6.1]
 > Jan 30, 2016
 
