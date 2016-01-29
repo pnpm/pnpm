@@ -58,6 +58,7 @@
     "url": "git+https://github.com/rstacruz/pnpm.git"
   },
   "scripts": {
+    "lol": "which node-gyp",
     "test": "node test | tap-spec"
   }
 }
