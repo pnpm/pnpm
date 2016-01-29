@@ -83,7 +83,6 @@ function run (cli) {
   function updateContext (packageJson) {
     var root = dirname(packageJson)
     ctx.root = root
-    ctx.tmp = join(root, 'node_modules', '.tmp')
     if (!cli.flags.quiet) { ctx.log = logger() }
     else { ctx.log = function () { return function () {} } }
   }
