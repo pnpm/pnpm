@@ -1,3 +1,10 @@
+## [v0.8.2]
+> Jan 30, 2016
+
+- Fix using `pnpm install` from dirs without package.json.
+
+[v0.8.2]: https://github.com/rstacruz/pnpm/compare/v0.8.1...v0.8.2
+
 ## [v0.8.1]
 > Jan 30, 2016
 
