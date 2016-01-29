@@ -8,7 +8,7 @@ var stat
 
 test('eslint', require('tape-eslint')())
 
-test.only('small with dependencies (rimraf)', function (t) {
+test('small with dependencies (rimraf)', function (t) {
   prepare()
   install({ input: ['rimraf@2.5.1'], flags: { quiet: true } })
   .then(function () {
