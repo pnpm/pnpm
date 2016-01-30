@@ -2,7 +2,7 @@
 > Jan 31, 2016
 
 - [#24], [#34] - Limit download concurrency.
-- [#10], [#35] - Allow custom registries.
+- [#10], [#35] - Allow custom registries (`npm config set registry http://npmjs.eu`).
 
 [v0.11.0]: https://github.com/rstacruz/pnpm/compare/v0.10.1...v0.11.0
 
