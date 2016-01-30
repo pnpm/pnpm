@@ -118,8 +118,7 @@ Unlike ied, however:
 ## Limitations
 
 - Windows is [not supported](https://github.com/rstacruz/pnpm/issues/6) (yet).
-- You can't [shrinkwrap][] (yet).
-- You can't use [npm prune][] or [npm dedupe][] (yet?).
+- You can't install from [shrinkwrap][] (yet).
 - Things not ticked off in the [to do list](#preview-release) are obviously not feature-complete.
 
 Got an idea for workarounds for these issues? [Share them.](https://github.com/rstacruz/pnpm/issues/new)
