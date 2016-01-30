@@ -131,6 +131,8 @@
 [#24]: https://github.com/rstacruz/pnpm/issues/24
 [#25]: https://github.com/rstacruz/pnpm/issues/25
 [#31]: https://github.com/rstacruz/pnpm/issues/31
+[#32]: https://github.com/rstacruz/pnpm/issues/32
+[#33]: https://github.com/rstacruz/pnpm/issues/33
 [#34]: https://github.com/rstacruz/pnpm/issues/34
 [#35]: https://github.com/rstacruz/pnpm/issues/35
 [@indexzero]: https://github.com/indexzero
