@@ -60,7 +60,7 @@ pnpm install @mycompany/foo
   - [ ] `--global` installs
   - [ ] `--save` et al
 - [ ] `pnpm uninstall`
-- [ ] `pnpm ls`
+- [x] `pnpm ls`
 
 ## Design
 
