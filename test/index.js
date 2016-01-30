@@ -130,16 +130,50 @@ test('compiled modules (ursa@0.9.1)', function (t) {
   }, t.end)
 })
 
-test('save to package.json (rimraf)', function (t) {
+test('save to package.json (rimraf@2.5.1)', function (t) {
   prepare()
-  install({ input: ['rimraf@2.5.1'], flags: { quiet: true, saveDev: true } })
+  install({ input: ['rimraf@2.5.1'], flags: { quiet: true, save: true } })
   .then(function () {
     var rimraf = require(join(process.cwd(), 'node_modules', 'rimraf'))
     t.ok(typeof rimraf === 'function', 'rimraf() is available')
 
     var pkgJson = fs.readFileSync(join(process.cwd(), 'package.json'), 'utf8')
+    var dependencies = JSON.parse(pkgJson).dependencies
+    t.deepEqual(dependencies, {rimraf: '2.5.1'}, 'rimraf has been added to dependencies')
+
+    t.end()
+  }, t.end)
+})
+
+test('saveDev scoped module to package.json (@rstacruz/tap-spec)', function (t) {
+  prepare()
+  install({ input: ['@rstacruz/tap-spec'], flags: { quiet: true, saveDev: true } })
+  .then(function () {
+    var _ = require(join(process.cwd(), 'node_modules', '@rstacruz/tap-spec'))
+    t.ok(typeof _ === 'function', 'tap-spec is available')
+
+    var pkgJson = fs.readFileSync(join(process.cwd(), 'package.json'), 'utf8')
     var devDependencies = JSON.parse(pkgJson).devDependencies
-    t.deepEqual(devDependencies, {rimraf: '^2.5.1'}, 'rimraf has been added to devDependencies')
+    t.deepEqual(devDependencies, { '@rstacruz/tap-spec': '^4.1.1' }, 'tap-spec has been added to devDependencies')
+
+    t.end()
+  }, t.end)
+})
+
+test.only('multiple mixed save to package.json (@rstacruz/tap-spec & rimraf@2.5.1)', function (t) {
+  prepare()
+  install({ input: ['@rstacruz/tap-spec', 'rimraf@2.5.1'], flags: { quiet: true, save: true } })
+  .then(function () {
+    var _ = require(join(process.cwd(), 'node_modules', '@rstacruz/tap-spec'))
+    t.ok(typeof _ === 'function', 'tap-spec is available')
+
+    var pkgJson = fs.readFileSync(join(process.cwd(), 'package.json'), 'utf8')
+    var dependencies = JSON.parse(pkgJson).dependencies
+    var expectedDeps = {
+      rimraf: '2.5.1',
+      '@rstacruz/tap-spec': '^4.1.1'
+    }
+    t.deepEqual(dependencies, expectedDeps, 'tap-spec has been added to devDependencies')
 
     t.end()
   }, t.end)

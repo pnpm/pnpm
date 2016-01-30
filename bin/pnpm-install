@@ -8,6 +8,7 @@ var dirname = require('path').dirname
 var join = require('path').join
 var readPkgUp = require('read-pkg-up')
 var assign = require('object-assign')
+var npa = require('npm-package-arg')
 
 var logger = require('../lib/logger')
 var installMultiple = require('../lib/install_multiple')
@@ -67,7 +68,6 @@ function run (cli) {
     .then(pkg_ => { pkg = pkg_ })
     .then(_ => updateContext(pkg.path))
     .then(_ => install())
-    .then(_ => savePkg())
 
   function install () {
     installType = cli.input && cli.input.length ? 'named' : 'general'
@@ -84,6 +84,7 @@ function run (cli) {
       packagesToInstall,
       join(ctx.root, 'node_modules'),
       cli.flags)
+      .then(savePkgs)
   }
 
   function updateContext (packageJson) {
@@ -94,10 +95,12 @@ function run (cli) {
     else ctx.log = function () { return function () {} }
   }
 
-  function savePkg () {
+  function savePkgs (packages) {
     var saveType = cli.flags.save ? 'dependencies' : cli.flags.saveDev ? 'devDependencies' : null
     if (saveType && installType === 'named') {
-      return save(pkg, packagesToInstall, saveType)
+      var inputNames = cli.input.map(pkgName => npa(pkgName).name)
+      var savedPackages = packages.filter(pkg => inputNames.indexOf(pkg.name) > -1)
+      return save(pkg, savedPackages, saveType)
     }
   }
 }
