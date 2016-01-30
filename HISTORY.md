@@ -1,3 +1,10 @@
+## [v0.10.1]
+> Jan 30, 2016
+
+- [#33] - Fix instances of running pnpm in directories without package.json.
+
+[v0.10.1]: https://github.com/rstacruz/pnpm/compare/v0.10.0...v0.10.1
+
 ## [v0.10.0]
 > Jan 30, 2016
 
