@@ -12,6 +12,7 @@ var assign = require('object-assign')
 var logger = require('../lib/logger')
 var installMultiple = require('../lib/install_multiple')
 var config = require('../lib/config')
+var save = require('../lib/save')
 
 const cli = require('meow')([
   'Usage:',
@@ -59,25 +60,28 @@ if (cli.flags.debug) {
 function run (cli) {
   var ctx = {}
   var pkg
+  var packagesToInstall
+  var installType
 
   return readPkgUp()
     .then(pkg_ => { pkg = pkg_ })
     .then(_ => updateContext(pkg.path))
     .then(_ => install())
+    .then(_ => savePkg())
 
   function install () {
-    var packages
+    installType = cli.input && cli.input.length ? 'named' : 'general'
 
-    if (cli.input && cli.input.length) {
-      packages = cli.input
+    if (installType === 'named') {
+      packagesToInstall = cli.input
     } else {
-      packages = assign({},
+      packagesToInstall = assign({},
         pkg.pkg.dependencies || {},
         pkg.pkg.devDependencies || {})
     }
 
     return installMultiple(ctx,
-      packages,
+      packagesToInstall,
       join(ctx.root, 'node_modules'),
       cli.flags)
   }
@@ -88,6 +92,13 @@ function run (cli) {
     ctx.store = join(root, config.pnpm_store_path)
     if (!cli.flags.quiet) ctx.log = logger()
     else ctx.log = function () { return function () {} }
+  }
+
+  function savePkg () {
+    var saveType = cli.flags.save ? 'dependencies' : cli.flags.saveDev ? 'devDependencies' : null
+    if (saveType && installType === 'named') {
+      return save(pkg, packagesToInstall, saveType)
+    }
   }
 }
 
