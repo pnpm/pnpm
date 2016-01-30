@@ -118,6 +118,7 @@ Unlike ied, however:
 ## Limitations
 
 - Windows is [not supported](https://github.com/rstacruz/pnpm/issues/6) (yet).
+- `npm@3`-style [flattened dependency trees](https://docs.npmjs.com/how-npm-works/npm3) are not supported (yet).
 - You can't install from [shrinkwrap][] (yet).
 - Things not ticked off in the [to do list](#preview-release) are obviously not feature-complete.
 
