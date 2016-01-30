@@ -2,6 +2,7 @@
 > Jan 31, 2016
 
 - [#24], [#34] - Limit download concurrency.
+- [#10], [#35] - Allow custom registries.
 
 [v0.11.0]: https://github.com/rstacruz/pnpm/compare/v0.10.1...v0.11.0
 
@@ -121,6 +122,8 @@
 - Initial preview release.
 
 [v0.1.0]: https://github.com/rstacruz/pnpm/blob/v0.1.0
+[#9]: https://github.com/rstacruz/pnpm/issues/9
+[#10]: https://github.com/rstacruz/pnpm/issues/10
 [#11]: https://github.com/rstacruz/pnpm/issues/11
 [#16]: https://github.com/rstacruz/pnpm/issues/16
 [#17]: https://github.com/rstacruz/pnpm/issues/17
@@ -129,6 +132,6 @@
 [#25]: https://github.com/rstacruz/pnpm/issues/25
 [#31]: https://github.com/rstacruz/pnpm/issues/31
 [#34]: https://github.com/rstacruz/pnpm/issues/34
-[#9]: https://github.com/rstacruz/pnpm/issues/9
+[#35]: https://github.com/rstacruz/pnpm/issues/35
 [@indexzero]: https://github.com/indexzero
 [@rstacruz]: https://github.com/rstacruz
