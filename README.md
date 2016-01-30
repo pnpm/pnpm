@@ -22,6 +22,28 @@ Use `pnpm` in place of `npm`. It overrides `pnpm i` and `pnpm install`—all oth
 pnpm install lodash
 ```
 
+## Custom registries
+
+pnpm follows whatever is configured as npm registries. To use a custom registry (like the [strongloop npm registry](https://strongloop.com/strongblog/node-js-registry-mirror-rackspace/)), use:
+
+```sh
+# updates ~/.npmrc
+npm config set registry http://npmjs.eu
+```
+
+Or to use it for just one command:
+
+```
+env npm_registry=http://npmjs.eu
+```
+
+Private registries are supported, as well.
+
+```sh
+npm config set @mycompany:registry https://npm.mycompany.com
+pnpm install @mycompany/foo
+```
+
 ## Preview release
 
 `pnpm` will stay in `<1.0.0` until it's achieved feature parity with `npm install`.
