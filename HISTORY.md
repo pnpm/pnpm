@@ -1,3 +1,10 @@
+## [v0.11.1]
+> Jan 31, 2016
+
+- [#9], [#36] - Support exact versions in scoped packages (`pnpm i @rstacruz/tap-spec@4.1.1`).
+
+[v0.11.1]: https://github.com/rstacruz/pnpm/compare/v0.11.0...v0.11.1
+
 ## [v0.11.0]
 > Jan 31, 2016
 
@@ -135,5 +142,6 @@
 [#33]: https://github.com/rstacruz/pnpm/issues/33
 [#34]: https://github.com/rstacruz/pnpm/issues/34
 [#35]: https://github.com/rstacruz/pnpm/issues/35
+[#36]: https://github.com/rstacruz/pnpm/issues/36
 [@indexzero]: https://github.com/indexzero
 [@rstacruz]: https://github.com/rstacruz
