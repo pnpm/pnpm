@@ -30,7 +30,7 @@ pnpm install lodash
   - [x] npm packages
   - [ ] GitHub-hosted packages (`npm i rstacruz/scourjs`)
   - [x] @scoped packages (`npm i @rstacruz/tap-spec`)
-  - [ ] tarball release packages (`npm i http://foo.com/tar.tgz`)
+  - [x] tarball release packages (`npm i http://foo.com/tar.tgz`)
   - [x] compiled packages (`npm i node-sass`)
   - [x] bundled dependencies (`npm i fsevents@1.0.6`)
   - [ ] file packages (`npm i file:../path`)
