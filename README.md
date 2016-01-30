@@ -60,7 +60,7 @@ pnpm install @mycompany/foo
   - [ ] `--global` installs
   - [ ] `--save` et al
 - [ ] `pnpm uninstall`
-- [ ] `pnpm ls`
+- [x] `pnpm ls`
 
 ## Design
 
@@ -74,14 +74,22 @@ To illustrate, an installation of [chalk][]@1.1.1 may look like this:
    ├─ .store/
    │  ├─ chalk@1.1.1/
    │  │  └─ node_modules/
-   │  │     ├─ ansi-styles      -> ../../ansi-styles@2.1.0
-   │  │     ├─ has-ansi         -> ../../has-ansi@2.0.0
-   │  │     └─ supports-color   -> ../../supports-color@2.0.0
+   │  │     ├─ ansi-styles      -> ../../ansi-styles@2.1.0/_
+   │  │     ├─ has-ansi         -> ../../has-ansi@2.0.0/_
+   │  │     └─ supports-color   -> ../../supports-color@2.0.0/_
    │  ├─ ansi-styles@2.1.0/
+   │  │  ├─ _/
+   │  │  └─ node_modules/
    │  ├─ has-ansi@2.0.0/
+   │  │  ├─ _/
+   │  │  └─ node_modules/
    │  └─ supports-color@2.0.0/
-   └─ chalk                     -> .store/chalk@1.1.1
+   │     ├─ _/
+   │     └─ node_modules/
+   └─ chalk                     -> .store/chalk@1.1.1/_
 ```
+
+The intermediate `_` directories are needed to hide `node_modules` from npm utilities like `npm ls`, `npm prune`, `npm shrinkwrap` and so on. The name `_` is chosen because it helps make stack traces readable.
 
 [chalk]: https://github.com/chalk/chalk
 
@@ -103,15 +111,15 @@ Unlike ied, however:
 
 - `pnpm` will eventually be made to support a globally-shared store so you can keep all your npm modules in one place. With this goal in mind, `pnpm` also doesn't care much about `npm@3`'s flat dependency tree style.
 - pnpm also supports circular dependencies.
+- pnpm aims to achieve compatibility with npm utilities (eg, shrinkwrap), and so deviates from ied's store schema (see [§ Design](#design)).
 
 [ied]: https://github.com/alexanderGugel/ied
 
 ## Limitations
 
-- Windows is [not supported](https://github.com/rstacruz/pnpm/issues/6).
-- You can't [shrinkwrap][].
-- `node_modules` managed by pnpm can't be queried properly by [npm ls][].
-- You can't use [npm prune][] or [npm dedupe][].
+- Windows is [not supported](https://github.com/rstacruz/pnpm/issues/6) (yet).
+- You can't [shrinkwrap][] (yet).
+- You can't use [npm prune][] or [npm dedupe][] (yet?).
 - Things not ticked off in the [to do list](#preview-release) are obviously not feature-complete.
 
 Got an idea for workarounds for these issues? [Share them.](https://github.com/rstacruz/pnpm/issues/new)

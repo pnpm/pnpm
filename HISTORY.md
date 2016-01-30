@@ -1,3 +1,16 @@
+## [v0.12.0]
+> Jan 31, 2016
+
+- **Semi-breaking** - store format was slightly changed. pnpm will continue to be compatible with the old store format, but rebuilding `node_modules` is recommended to take advantage of new features.
+- [#38] - Allow compatibility with npm utilities:
+  - npm dedupe
+  - npm shrinkwrap
+  - npm prune
+  - npm ls
+  - npm rebuild
+
+[v0.12.0]: https://github.com/rstacruz/pnpm/compare/v0.11.1...v0.12.0
+
 ## [v0.11.1]
 > Jan 31, 2016
 
@@ -143,5 +156,6 @@
 [#34]: https://github.com/rstacruz/pnpm/issues/34
 [#35]: https://github.com/rstacruz/pnpm/issues/35
 [#36]: https://github.com/rstacruz/pnpm/issues/36
+[#38]: https://github.com/rstacruz/pnpm/issues/38
 [@indexzero]: https://github.com/indexzero
 [@rstacruz]: https://github.com/rstacruz

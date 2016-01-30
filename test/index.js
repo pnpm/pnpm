@@ -147,3 +147,19 @@ test('tarballs (is-array-1.0.1.tgz)', function (t) {
   }, t.end)
 })
 
+test('shrinkwrap compatibility', function (t) {
+  prepare()
+  fs.writeFileSync('package.json',
+    JSON.stringify({ dependencies: { rimraf: '*' } }),
+    'utf-8')
+
+  install({ input: ['rimraf@2.5.1'], flags: { quiet: true } })
+  .then(function () {
+    var npm = JSON.stringify(require.resolve('npm/bin/npm-cli.js'))
+    require('child_process').execSync('node ' + npm + ' shrinkwrap')
+    var wrap = JSON.parse(fs.readFileSync('npm-shrinkwrap.json', 'utf-8'))
+    t.ok(wrap.dependencies.rimraf.version === '2.5.1',
+      'npm shrinkwrap is successful')
+    t.end()
+  }, t.end)
+})
