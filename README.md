@@ -117,6 +117,12 @@ Unlike ied, however:
 
 [ied]: https://github.com/alexanderGugel/ied
 
+## Will pnpm replace npm?
+
+**No!** pnpm is not a _replacement_ for npm; rather, think of it as a _supplement_ to npm.
+
+It's simply a rewrite of the `npm install` command that uses an alternate way to store your modules. It won't reimplement other things npm is used for (publishing, node_modules management, and so on).
+
 ## Limitations
 
 - Windows is [not supported](https://github.com/rstacruz/pnpm/issues/6) (yet).
