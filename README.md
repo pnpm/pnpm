@@ -31,7 +31,7 @@ pnpm follows whatever is configured as npm registries. To use a custom registry,
 npm config set registry http://npmjs.eu
 ```
 
-Or to use it for just one command:
+Or to use it for just one command, use environment variables:
 
 ```
 env npm_registry=http://npmjs.eu
