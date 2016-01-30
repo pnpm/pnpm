@@ -24,7 +24,7 @@ pnpm install lodash
 
 ## Custom registries
 
-pnpm follows whatever is configured as npm registries. To use a custom registry (like the [strongloop npm registry](https://strongloop.com/strongblog/node-js-registry-mirror-rackspace/)), use:
+pnpm follows whatever is configured as npm registries. To use a custom registry, use `npm config`:
 
 ```sh
 # updates ~/.npmrc
