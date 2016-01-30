@@ -34,7 +34,7 @@ npm config set registry http://npmjs.eu
 Or to use it for just one command, use environment variables:
 
 ```
-env npm_registry=http://npmjs.eu
+env npm_registry=http://npmjs.eu pnpm install
 ```
 
 Private registries are supported, as well.
@@ -55,6 +55,8 @@ pnpm install @mycompany/foo
   - [x] tarball release packages (`npm i http://foo.com/tar.tgz`)
   - [x] compiled packages (`npm i node-sass`)
   - [x] bundled dependencies (`npm i fsevents@1.0.6`)
+  - [ ] optional dependencies (`npm i escodegen@1.8.0` wants `source-map@~0.2.0`)
+  - [ ] install from packages
   - [ ] file packages (`npm i file:../path`)
   - [x] bin executables
   - [ ] `--global` installs
