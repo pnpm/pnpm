@@ -26,6 +26,7 @@
     "npm-package-arg": "4.1.0",
     "object-assign": "4.0.1",
     "observatory": "1.0.0",
+    "rc": "1.1.6",
     "read-pkg-up": "1.0.1",
     "rimraf": "2.5.1",
     "semver": "5.1.0",
