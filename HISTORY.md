@@ -1,3 +1,10 @@
+## [v0.9.0]
+> Jan 30, 2016
+
+- [#31] - Improve `bundleDependencies` support.
+
+[v0.9.0]: https://github.com/rstacruz/pnpm/compare/v0.8.2...v0.9.0
+
 ## [v0.8.2]
 > Jan 30, 2016
 
@@ -8,29 +15,29 @@
 ## [v0.8.1]
 > Jan 30, 2016
 
-- Improve `node-gyp` support (with preliminary Windows support).
+- [#25] - Improve `node-gyp` support (with preliminary Windows support).
 
 [v0.8.1]: https://github.com/rstacruz/pnpm/compare/v0.8.0...v0.8.1
 
 ## [v0.8.0]
 > Jan 30, 2016
 
-- Support `node-gyp`.
+- [#25] - Support `node-gyp`.
 
 [v0.8.0]: https://github.com/rstacruz/pnpm/compare/v0.7.0...v0.8.0
 
 ## [v0.7.0]
 > Jan 30, 2016
 
-- Support lifecycle hooks and compiled modules.
+- [#18] - Support lifecycle hooks and compiled modules.
 
 [v0.7.0]: https://github.com/rstacruz/pnpm/compare/v0.6.1...v0.7.0
 
 ## [v0.6.1]
 > Jan 30, 2016
 
-- You can now safely rebuild from interrupted `pnpm install`s and pnpm will pick up where it left off.
-- Add support for `bundleDependencies`.
+- [#17] - You can now safely rebuild from interrupted `pnpm install`s and pnpm will pick up where it left off.
+- [#16] - Add support for `bundleDependencies`.
 - Throw errors when doing `pnpm i github/repo`—this isn't supported yet (but will be!).
 
 [v0.6.1]: https://github.com/rstacruz/pnpm/compare/v0.5.0...v0.6.1
@@ -38,7 +45,7 @@
 ## [v0.5.0]
 > Jan 30, 2016
 
-- Support scoped modules without version spec (eg, `pnpm i @rstacruz/tap-spec`).
+- Support scoped modules without version spec (eg, `pnpm i [@rstacruz]/tap-spec`).
 - Lots of internal cleanups.
 
 [v0.5.0]: https://github.com/rstacruz/pnpm/compare/v0.4.1...v0.5.0
@@ -96,3 +103,9 @@
 [#9]: https://github.com/rstacruz/pnpm/issues/9
 [#11]: https://github.com/rstacruz/pnpm/issues/11
 [@indexzero]: https://github.com/indexzero
+[#31]: https://github.com/rstacruz/pnpm/issues/31
+[#25]: https://github.com/rstacruz/pnpm/issues/25
+[#18]: https://github.com/rstacruz/pnpm/issues/18
+[#17]: https://github.com/rstacruz/pnpm/issues/17
+[#16]: https://github.com/rstacruz/pnpm/issues/16
+[@rstacruz]: https://github.com/rstacruz
