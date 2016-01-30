@@ -1,3 +1,10 @@
+## [v0.10.0]
+> Jan 30, 2016
+
+- [#32] - Install from tarballs (`pnpm i http://site.com/package.tgz`).
+
+[v0.10.0]: https://github.com/rstacruz/pnpm/compare/v0.9.0...v0.10.0
+
 ## [v0.9.0]
 > Jan 30, 2016
 
@@ -45,7 +52,7 @@
 ## [v0.5.0]
 > Jan 30, 2016
 
-- Support scoped modules without version spec (eg, `pnpm i [@rstacruz]/tap-spec`).
+- Support scoped modules without version spec (eg, `pnpm i @rstacruz/tap-spec`).
 - Lots of internal cleanups.
 
 [v0.5.0]: https://github.com/rstacruz/pnpm/compare/v0.4.1...v0.5.0
@@ -109,3 +116,4 @@
 [#17]: https://github.com/rstacruz/pnpm/issues/17
 [#16]: https://github.com/rstacruz/pnpm/issues/16
 [@rstacruz]: https://github.com/rstacruz
+[#32]: https://github.com/rstacruz/pnpm/issues/32

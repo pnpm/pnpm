@@ -119,3 +119,21 @@ test('compiled modules (ursa@0.9.1)', function (t) {
     t.end()
   }, t.end)
 })
+
+test('tarballs (is-array-1.0.1.tgz)', function (t) {
+  prepare()
+  install({ input: ['http://registry.npmjs.org/is-array/-/is-array-1.0.1.tgz'], flags: { quiet: true } })
+  .then(function () {
+    var isArray = require(
+      join(process.cwd(), 'node_modules', 'is-array'))
+
+    t.ok(isArray, 'isArray() is available')
+
+    stat = fs.statSync(
+      join(process.cwd(), 'node_modules', '.store',
+        'is-array-1.0.1@a83102a9c117983e6ff4d85311fb322231abe3d6'))
+    t.ok(stat.isDirectory(), 'stored in the proper location')
+    t.end()
+  }, t.end)
+})
+
