@@ -60,7 +60,7 @@ pnpm install @mycompany/foo
   - [ ] file packages (`npm i file:../path`)
   - [x] bin executables
   - [ ] `--global` installs
-  - [ ] `--save` et al
+  - [x] `--save`, `--save-dev` and `--save-exact`
 - [ ] `pnpm uninstall`
 - [x] `pnpm ls`
 
