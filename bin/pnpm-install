@@ -47,7 +47,7 @@ if (cli.flags.debug) {
   cli.flags.quiet = true
 }
 
-['saveDev', 'save', 'saveExact', 'dryRun', 'global'].forEach((flag) => {
+['dryRun', 'global'].forEach(flag => {
   if (cli.flags[flag]) {
     console.error("Error: '" + flag + "' is not supported yet, sorry!")
     process.exit(1)
@@ -100,7 +100,7 @@ function run (cli) {
     if (saveType && installType === 'named') {
       var inputNames = cli.input.map(pkgName => npa(pkgName).name)
       var savedPackages = packages.filter(pkg => inputNames.indexOf(pkg.name) > -1)
-      return save(pkg, savedPackages, saveType)
+      return save(pkg, savedPackages, saveType, cli.flags.saveExact)
     }
   }
 }

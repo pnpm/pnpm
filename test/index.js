@@ -139,7 +139,7 @@ test('save to package.json (rimraf@2.5.1)', function (t) {
 
     var pkgJson = fs.readFileSync(join(process.cwd(), 'package.json'), 'utf8')
     var dependencies = JSON.parse(pkgJson).dependencies
-    t.deepEqual(dependencies, {rimraf: '2.5.1'}, 'rimraf has been added to dependencies')
+    t.deepEqual(dependencies, {rimraf: '^2.5.1'}, 'rimraf has been added to dependencies')
 
     t.end()
   }, t.end)
@@ -149,8 +149,8 @@ test('saveDev scoped module to package.json (@rstacruz/tap-spec)', function (t) 
   prepare()
   install({ input: ['@rstacruz/tap-spec'], flags: { quiet: true, saveDev: true } })
   .then(function () {
-    var _ = require(join(process.cwd(), 'node_modules', '@rstacruz/tap-spec'))
-    t.ok(typeof _ === 'function', 'tap-spec is available')
+    var tapSpec = require(join(process.cwd(), 'node_modules', '@rstacruz/tap-spec'))
+    t.ok(typeof tapSpec === 'function', 'tapSpec() is available')
 
     var pkgJson = fs.readFileSync(join(process.cwd(), 'package.json'), 'utf8')
     var devDependencies = JSON.parse(pkgJson).devDependencies
@@ -160,20 +160,23 @@ test('saveDev scoped module to package.json (@rstacruz/tap-spec)', function (t) 
   }, t.end)
 })
 
-test.only('multiple mixed save to package.json (@rstacruz/tap-spec & rimraf@2.5.1)', function (t) {
+test('multiple save to package.json with `exact` versions (@rstacruz/tap-spec & rimraf@2.5.1)', function (t) {
   prepare()
-  install({ input: ['@rstacruz/tap-spec', 'rimraf@2.5.1'], flags: { quiet: true, save: true } })
+  install({ input: ['@rstacruz/tap-spec@latest', 'rimraf@2.5.1'], flags: { quiet: true, save: true, saveExact: true } })
   .then(function () {
-    var _ = require(join(process.cwd(), 'node_modules', '@rstacruz/tap-spec'))
-    t.ok(typeof _ === 'function', 'tap-spec is available')
+    var tapSpec = require(join(process.cwd(), 'node_modules', '@rstacruz/tap-spec'))
+    t.ok(typeof tapSpec === 'function', 'tapSpec() is available')
+
+    var rimraf = require(join(process.cwd(), 'node_modules', 'rimraf'))
+    t.ok(typeof rimraf === 'function', 'rimraf() is available')
 
     var pkgJson = fs.readFileSync(join(process.cwd(), 'package.json'), 'utf8')
     var dependencies = JSON.parse(pkgJson).dependencies
     var expectedDeps = {
       rimraf: '2.5.1',
-      '@rstacruz/tap-spec': '^4.1.1'
+      '@rstacruz/tap-spec': '4.1.1'
     }
-    t.deepEqual(dependencies, expectedDeps, 'tap-spec has been added to devDependencies')
+    t.deepEqual(dependencies, expectedDeps, 'tap-spec and rimraf have been added to dependencies')
 
     t.end()
   }, t.end)
