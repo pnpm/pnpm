@@ -4,7 +4,8 @@ var fs = require('fs')
 var prepare = require('./support/prepare')
 var install = require('../lib/cmd/install')
 require('./support/sepia')
-var stat
+
+var stat, _
 
 test('eslint', require('tape-eslint')())
 
@@ -30,7 +31,7 @@ test('no dependencies (lodash)', function (t) {
   prepare()
   install({ input: ['lodash@4.0.0'], flags: { quiet: true } })
   .then(function () {
-    var _ = require(join(process.cwd(), 'node_modules', 'lodash'))
+    _ = require(join(process.cwd(), 'node_modules', 'lodash'))
     t.ok(typeof _ === 'function', '_ is available')
     t.ok(typeof _.clone === 'function', '_.clone is available')
     t.end()
@@ -41,7 +42,7 @@ test('scoped modules without version spec (@rstacruz/tap-spec)', function (t) {
   prepare()
   install({ input: ['@rstacruz/tap-spec'], flags: { quiet: true } })
   .then(function () {
-    var _ = require(join(process.cwd(), 'node_modules', '@rstacruz/tap-spec'))
+    _ = require(join(process.cwd(), 'node_modules', '@rstacruz/tap-spec'))
     t.ok(typeof _ === 'function', 'tap-spec is available')
     t.end()
   }, t.end)
@@ -51,7 +52,7 @@ test('scoped modules with versions (@rstacruz/tap-spec@4.1.1)', function (t) {
   prepare()
   install({ input: ['@rstacruz/tap-spec@4.1.1'], flags: { quiet: true } })
   .then(function () {
-    var _ = require(join(process.cwd(), 'node_modules', '@rstacruz/tap-spec'))
+    _ = require(join(process.cwd(), 'node_modules', '@rstacruz/tap-spec'))
     t.ok(typeof _ === 'function', 'tap-spec is available')
     t.end()
   }, t.end)
@@ -61,7 +62,7 @@ test('scoped modules (@rstacruz/tap-spec@*)', function (t) {
   prepare()
   install({ input: ['@rstacruz/tap-spec@*'], flags: { quiet: true } })
   .then(function () {
-    var _ = require(join(process.cwd(), 'node_modules', '@rstacruz/tap-spec'))
+    _ = require(join(process.cwd(), 'node_modules', '@rstacruz/tap-spec'))
     t.ok(typeof _ === 'function', 'tap-spec is available')
     t.end()
   }, t.end)
@@ -71,7 +72,7 @@ test('multiple scoped modules (@rstacruz/...)', function (t) {
   prepare()
   install({ input: ['@rstacruz/tap-spec@*', '@rstacruz/travis-encrypt@*'], flags: { quiet: true } })
   .then(function () {
-    var _ = require(join(process.cwd(), 'node_modules', '@rstacruz/tap-spec'))
+    _ = require(join(process.cwd(), 'node_modules', '@rstacruz/tap-spec'))
     t.ok(typeof _ === 'function', 'tap-spec is available')
     _ = require(join(process.cwd(), 'node_modules', '@rstacruz/travis-encrypt'))
     t.ok(typeof _ === 'function', 'travis-encrypt is available')
@@ -215,3 +216,38 @@ test('multiple save to package.json with `exact` versions (@rstacruz/tap-spec & 
     t.end()
   }, t.end)
 })
+
+test('flattening symlinks (minimatch@3.0.0)', function (t) {
+  prepare()
+  install({ input: ['minimatch@3.0.0'], flags: { quiet: true } })
+  .then(function () {
+    stat = fs.lstatSync(join(process.cwd(), 'node_modules', '.store', 'node_modules', 'balanced-match'))
+    t.ok(stat.isSymbolicLink(), 'balanced-match is linked into store node_modules')
+
+    _ = exists(join(process.cwd(), 'node_modules', 'balanced-match'))
+    t.ok(!_, 'balanced-match is not linked into main node_modules')
+    t.end()
+  }, t.end)
+})
+
+test('flattening symlinks (minimatch + balanced-match)', function (t) {
+  prepare()
+  install({ input: ['minimatch@3.0.0'], flags: { quiet: true } })
+  .then(_ => install({ input: ['balanced-match@^0.3.0'], flags: { quiet: true } }))
+  .then(function () {
+    _ = exists(join(process.cwd(), 'node_modules', '.store', 'node_modules', 'balanced-match'))
+    t.ok(!_, 'balanced-match is removed from store node_modules')
+
+    _ = exists(join(process.cwd(), 'node_modules', 'balanced-match'))
+    t.ok(_, 'balanced-match now in main node_modules')
+    t.end()
+  }, t.end)
+})
+
+function exists (path) {
+  try {
+    return fs.statSync(path)
+  } catch (err) {
+    if (err.code !== 'ENOENT') throw err
+  }
+}
