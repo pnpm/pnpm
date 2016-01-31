@@ -2,7 +2,7 @@ var test = require('tape')
 var join = require('path').join
 var fs = require('fs')
 var prepare = require('./support/prepare')
-var install = require('../bin/pnpm-install')
+var install = require('../lib/cmd/install')
 require('./support/sepia')
 var stat
 

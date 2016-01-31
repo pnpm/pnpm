@@ -4,107 +4,53 @@ if (~process.argv.indexOf('--debug')) {
   process.argv.push('--quiet')
 }
 
-var dirname = require('path').dirname
-var join = require('path').join
-var readPkgUp = require('read-pkg-up')
-var assign = require('object-assign')
-var npa = require('npm-package-arg')
+var installCmd = require('../lib/cmd/install')
 
-var logger = require('../lib/logger')
-var installMultiple = require('../lib/install_multiple')
-var config = require('../lib/config')
-var save = require('../lib/save')
-
-const cli = require('meow')([
-  'Usage:',
-  '  $ pnpm install',
-  '  $ pnpm install <name>',
-  '',
-  'Options:',
-  '  -S, --save            save into package.json under dependencies',
-  '  -D, --save-dev        save into package.json under devDependencies',
-  '  -E, --save-exact      save exact spec',
-  '',
-  '      --dry-run         simulate',
-  '  -g, --global          install globally',
-  '',
-  '      --production      don\'t install devDependencies',
-  '      --quiet           don\'t print progress'
-].join('\n'), {
-  boolean: [
-    'save-dev', 'save', 'save-exact', 'dry-run', 'global', 'quiet', 'debug'
-  ],
-  alias: {
-    'no-progress': 'quiet',
-    D: 'save-dev',
-    S: 'save',
-    E: 'save-exact',
-    g: 'global'
-  }
-})
-
-if (cli.flags.debug) {
-  cli.flags.quiet = true
-}
-
-['dryRun', 'global'].forEach(flag => {
-  if (cli.flags[flag]) {
-    console.error("Error: '" + flag + "' is not supported yet, sorry!")
-    process.exit(1)
-  }
-})
-
-/*
- * Perform
- */
-
-function run (cli) {
-  var ctx = {}
-  var pkg
-  var packagesToInstall
-  var installType
-
-  return readPkgUp()
-    .then(pkg_ => { pkg = pkg_ })
-    .then(_ => updateContext(pkg.path))
-    .then(_ => install())
-
-  function install () {
-    installType = cli.input && cli.input.length ? 'named' : 'general'
-
-    if (installType === 'named') {
-      packagesToInstall = cli.input
-    } else {
-      packagesToInstall = assign({},
-        pkg.pkg.dependencies || {},
-        pkg.pkg.devDependencies || {})
+function run (argv) {
+  const cli = require('meow')({
+    argv: argv,
+    help: [
+      'Usage:',
+      '  $ pnpm install',
+      '  $ pnpm install <name>',
+      '',
+      'Options:',
+      '  -S, --save            save into package.json under dependencies',
+      '  -D, --save-dev        save into package.json under devDependencies',
+      '  -E, --save-exact      save exact spec',
+      '',
+      '      --dry-run         simulate',
+      '  -g, --global          install globally',
+      '',
+      '      --production      don\'t install devDependencies',
+      '      --quiet           don\'t print progress'
+    ].join('\n')
+  }, {
+    boolean: [
+      'save-dev', 'save', 'save-exact', 'dry-run', 'global', 'quiet', 'debug'
+    ],
+    alias: {
+      'no-progress': 'quiet',
+      D: 'save-dev',
+      S: 'save',
+      E: 'save-exact',
+      g: 'global'
     }
+  })
 
-    return installMultiple(ctx,
-      packagesToInstall,
-      join(ctx.root, 'node_modules'),
-      cli.flags)
-      .then(savePkgs)
+  if (cli.flags.debug) {
+    cli.flags.quiet = true
   }
 
-  function updateContext (packageJson) {
-    var root = packageJson ? dirname(packageJson) : process.cwd()
-    ctx.root = root
-    ctx.store = join(root, config.pnpm_store_path)
-    if (!cli.flags.quiet) ctx.log = logger()
-    else ctx.log = function () { return function () {} }
-  }
-
-  function savePkgs (packages) {
-    var saveType = cli.flags.save ? 'dependencies' : cli.flags.saveDev ? 'devDependencies' : null
-    if (saveType && installType === 'named') {
-      var inputNames = cli.input.map(pkgName => npa(pkgName).name)
-      var savedPackages = packages.filter(pkg => inputNames.indexOf(pkg.name) > -1)
-      return save(pkg, savedPackages, saveType, cli.flags.saveExact)
+  ['dryRun', 'global'].forEach(flag => {
+    if (cli.flags[flag]) {
+      console.error("Error: '" + flag + "' is not supported yet, sorry!")
+      process.exit(1)
     }
-  }
+  })
+
+  return installCmd(cli).catch(require('../lib/err'))
 }
 
 module.exports = run
-
-if (!module.parent) run(cli).catch(require('../lib/err'))
+if (!module.parent) run(process.argv.slice(2))
