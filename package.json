@@ -35,6 +35,7 @@
     "registry-url": "3.0.3",
     "rimraf": "2.5.1",
     "semver": "5.1.0",
+    "supports-color": "^3.1.2",
     "tar-fs": "1.9.0",
     "thenify": "3.1.1",
     "throat": "2.0.2"

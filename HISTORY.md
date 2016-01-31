@@ -3,6 +3,7 @@
 
 - [#41] - Support `--save`, `--save-dev` and `--save-exact`. ([@davej])
 - [#46] - Support modules being able to `require()` their peer dependencies (aka, emulate npm3-style flatness)
+- [#57] - Support simpler Windows terminals.
 
 [v0.13.0]: https://github.com/rstacruz/pnpm/compare/v0.12.1...v0.13.0
 
@@ -167,6 +168,7 @@
 [#38]: https://github.com/rstacruz/pnpm/issues/38
 [#41]: https://github.com/rstacruz/pnpm/issues/41
 [#46]: https://github.com/rstacruz/pnpm/issues/46
+[#57]: https://github.com/rstacruz/pnpm/issues/57
 [@indexzero]: https://github.com/indexzero
 [@rstacruz]: https://github.com/rstacruz
 [@davej]: https://github.com/davej
