@@ -1,4 +1,11 @@
 #!/usr/bin/env sh
+
+if [ "$#" -lt "1" ]; then
+  echo "You should pass at least 1 parameter to pnpm" 1>&2
+  pnpm-install --help
+  exit 1
+fi
+
 cmd=$1
 shift
 args=$*
