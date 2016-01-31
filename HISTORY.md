@@ -1,5 +1,5 @@
 ## [v0.13.0]
-> unreleased
+> Feb 1, 2016
 
 - [#41] - Support `--save`, `--save-dev`, `--save-optional` and `--save-exact`. ([@davej])
 - [#46] - Support modules being able to `require()` their peer dependencies (aka, emulate npm3-style flatness)
