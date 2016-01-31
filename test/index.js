@@ -130,36 +130,54 @@ test('compiled modules (ursa@0.9.1)', function (t) {
   }, t.end)
 })
 
-test('tarballs (is-array-1.0.1.tgz)', function (t) {
+test('save to package.json (rimraf@2.5.1)', function (t) {
   prepare()
-  install({ input: ['http://registry.npmjs.org/is-array/-/is-array-1.0.1.tgz'], flags: { quiet: true } })
+  install({ input: ['rimraf@2.5.1'], flags: { quiet: true, save: true } })
   .then(function () {
-    var isArray = require(
-      join(process.cwd(), 'node_modules', 'is-array'))
+    var rimraf = require(join(process.cwd(), 'node_modules', 'rimraf'))
+    t.ok(typeof rimraf === 'function', 'rimraf() is available')
 
-    t.ok(isArray, 'isArray() is available')
+    var pkgJson = fs.readFileSync(join(process.cwd(), 'package.json'), 'utf8')
+    var dependencies = JSON.parse(pkgJson).dependencies
+    t.deepEqual(dependencies, {rimraf: '^2.5.1'}, 'rimraf has been added to dependencies')
 
-    stat = fs.statSync(
-      join(process.cwd(), 'node_modules', '.store',
-        'is-array-1.0.1@a83102a9c117983e6ff4d85311fb322231abe3d6'))
-    t.ok(stat.isDirectory(), 'stored in the proper location')
     t.end()
   }, t.end)
 })
 
-test('shrinkwrap compatibility', function (t) {
+test('saveDev scoped module to package.json (@rstacruz/tap-spec)', function (t) {
   prepare()
-  fs.writeFileSync('package.json',
-    JSON.stringify({ dependencies: { rimraf: '*' } }),
-    'utf-8')
-
-  install({ input: ['rimraf@2.5.1'], flags: { quiet: true } })
+  install({ input: ['@rstacruz/tap-spec'], flags: { quiet: true, saveDev: true } })
   .then(function () {
-    var npm = JSON.stringify(require.resolve('npm/bin/npm-cli.js'))
-    require('child_process').execSync('node ' + npm + ' shrinkwrap')
-    var wrap = JSON.parse(fs.readFileSync('npm-shrinkwrap.json', 'utf-8'))
-    t.ok(wrap.dependencies.rimraf.version === '2.5.1',
-      'npm shrinkwrap is successful')
+    var tapSpec = require(join(process.cwd(), 'node_modules', '@rstacruz/tap-spec'))
+    t.ok(typeof tapSpec === 'function', 'tapSpec() is available')
+
+    var pkgJson = fs.readFileSync(join(process.cwd(), 'package.json'), 'utf8')
+    var devDependencies = JSON.parse(pkgJson).devDependencies
+    t.deepEqual(devDependencies, { '@rstacruz/tap-spec': '^4.1.1' }, 'tap-spec has been added to devDependencies')
+
+    t.end()
+  }, t.end)
+})
+
+test('multiple save to package.json with `exact` versions (@rstacruz/tap-spec & rimraf@2.5.1)', function (t) {
+  prepare()
+  install({ input: ['@rstacruz/tap-spec@latest', 'rimraf@2.5.1'], flags: { quiet: true, save: true, saveExact: true } })
+  .then(function () {
+    var tapSpec = require(join(process.cwd(), 'node_modules', '@rstacruz/tap-spec'))
+    t.ok(typeof tapSpec === 'function', 'tapSpec() is available')
+
+    var rimraf = require(join(process.cwd(), 'node_modules', 'rimraf'))
+    t.ok(typeof rimraf === 'function', 'rimraf() is available')
+
+    var pkgJson = fs.readFileSync(join(process.cwd(), 'package.json'), 'utf8')
+    var dependencies = JSON.parse(pkgJson).dependencies
+    var expectedDeps = {
+      rimraf: '2.5.1',
+      '@rstacruz/tap-spec': '4.1.1'
+    }
+    t.deepEqual(dependencies, expectedDeps, 'tap-spec and rimraf have been added to dependencies')
+
     t.end()
   }, t.end)
 })
