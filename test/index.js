@@ -130,6 +130,41 @@ test('compiled modules (ursa@0.9.1)', function (t) {
   }, t.end)
 })
 
+
+test('tarballs (is-array-1.0.1.tgz)', function (t) {
+  prepare()
+  install({ input: ['http://registry.npmjs.org/is-array/-/is-array-1.0.1.tgz'], flags: { quiet: true } })
+  .then(function () {
+    var isArray = require(
+      join(process.cwd(), 'node_modules', 'is-array'))
+
+    t.ok(isArray, 'isArray() is available')
+
+    stat = fs.statSync(
+      join(process.cwd(), 'node_modules', '.store',
+        'is-array-1.0.1@a83102a9c117983e6ff4d85311fb322231abe3d6'))
+    t.ok(stat.isDirectory(), 'stored in the proper location')
+    t.end()
+  }, t.end)
+})
+
+test('shrinkwrap compatibility', function (t) {
+  prepare()
+  fs.writeFileSync('package.json',
+    JSON.stringify({ dependencies: { rimraf: '*' } }),
+    'utf-8')
+
+  install({ input: ['rimraf@2.5.1'], flags: { quiet: true } })
+  .then(function () {
+    var npm = JSON.stringify(require.resolve('npm/bin/npm-cli.js'))
+    require('child_process').execSync('node ' + npm + ' shrinkwrap')
+    var wrap = JSON.parse(fs.readFileSync('npm-shrinkwrap.json', 'utf-8'))
+    t.ok(wrap.dependencies.rimraf.version === '2.5.1',
+      'npm shrinkwrap is successful')
+    t.end()
+  }, t.end)
+})
+
 test('save to package.json (rimraf@2.5.1)', function (t) {
   prepare()
   install({ input: ['rimraf@2.5.1'], flags: { quiet: true, save: true } })
