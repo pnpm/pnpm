@@ -17,6 +17,7 @@ function run (argv) {
       'Options:',
       '  -S, --save            save into package.json under dependencies',
       '  -D, --save-dev        save into package.json under devDependencies',
+      '  -O, --save-optional   save into package.json under optionalDependencies',
       '  -E, --save-exact      save exact spec',
       '',
       '      --dry-run         simulate',
@@ -27,13 +28,14 @@ function run (argv) {
     ].join('\n')
   }, {
     boolean: [
-      'save-dev', 'save', 'save-exact', 'dry-run', 'global', 'quiet', 'debug'
+      'save-dev', 'save', 'save-exact', 'save-optional', 'dry-run', 'global', 'quiet', 'debug'
     ],
     alias: {
       'no-progress': 'quiet',
       D: 'save-dev',
       S: 'save',
       E: 'save-exact',
+      O: 'save-optional',
       g: 'global'
     }
   })
@@ -42,7 +44,7 @@ function run (argv) {
     cli.flags.quiet = true
   }
 
-  ['dryRun', 'global'].forEach(flag => {
+  ['dryRun', 'global', 'production'].forEach(flag => {
     if (cli.flags[flag]) {
       console.error("Error: '" + flag + "' is not supported yet, sorry!")
       process.exit(1)
