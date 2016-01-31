@@ -130,7 +130,6 @@ test('compiled modules (ursa@0.9.1)', function (t) {
   }, t.end)
 })
 
-
 test('tarballs (is-array-1.0.1.tgz)', function (t) {
   prepare()
   install({ input: ['http://registry.npmjs.org/is-array/-/is-array-1.0.1.tgz'], flags: { quiet: true } })
