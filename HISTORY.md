@@ -164,6 +164,7 @@
 [#35]: https://github.com/rstacruz/pnpm/issues/35
 [#36]: https://github.com/rstacruz/pnpm/issues/36
 [#38]: https://github.com/rstacruz/pnpm/issues/38
+[#41]: https://github.com/rstacruz/pnpm/issues/41
 [@indexzero]: https://github.com/indexzero
 [@rstacruz]: https://github.com/rstacruz
 [@davej]: https://github.com/davej
