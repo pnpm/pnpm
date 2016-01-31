@@ -1,3 +1,10 @@
+## [v0.13.0]
+> unreleased
+
+- [#41] - Support `--save`, `--save-dev` and `--save-exact`. ([@davej])
+
+[v0.13.0]: https://github.com/rstacruz/pnpm/compare/v0.12.1...v0.13.0
+
 ## [v0.12.0]
 > Jan 31, 2016
 
@@ -159,3 +166,4 @@
 [#38]: https://github.com/rstacruz/pnpm/issues/38
 [@indexzero]: https://github.com/indexzero
 [@rstacruz]: https://github.com/rstacruz
+[@davej]: https://github.com/davej
