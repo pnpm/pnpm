@@ -79,14 +79,9 @@ To illustrate, an installation of [chalk][]@1.1.1 may look like this:
    │  │     ├─ ansi-styles      -> ../../ansi-styles@2.1.0/_
    │  │     ├─ has-ansi         -> ../../has-ansi@2.0.0/_
    │  │     └─ supports-color   -> ../../supports-color@2.0.0/_
-   │  ├─ ansi-styles@2.1.0/
-   │  │  ├─ _/
-   │  │  └─ node_modules/
-   │  ├─ has-ansi@2.0.0/
-   │  │  ├─ _/
-   │  │  └─ node_modules/
-   │  └─ supports-color@2.0.0/
-   │     ├─ _/
+   │  ├─ ansi-styles@2.1.0/_/
+   │  ├─ has-ansi@2.0.0/_/
+   │  └─ supports-color@2.0.0/_/
    │     └─ node_modules/
    └─ chalk                     -> .store/chalk@1.1.1/_
 ```
@@ -125,8 +120,7 @@ It's simply a rewrite of the `npm install` command that uses an alternate way to
 
 ## Limitations
 
-- Windows is [not supported](https://github.com/rstacruz/pnpm/issues/6) (yet).
-- `npm@3`-style [flattened dependency trees](https://docs.npmjs.com/how-npm-works/npm3) are not supported (yet).
+- Windows is [not fully supported](https://github.com/rstacruz/pnpm/issues/6) (yet).
 - You can't install from [shrinkwrap][] (yet).
 - Things not ticked off in the [to do list](#preview-release) are obviously not feature-complete.
 
