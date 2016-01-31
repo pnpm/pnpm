@@ -74,15 +74,14 @@ To illustrate, an installation of [chalk][]@1.1.1 may look like this:
 .
 └─ node_modules/
    ├─ .store/
-   │  ├─ chalk@1.1.1/
+   │  ├─ chalk@1.1.1/_/
    │  │  └─ node_modules/
-   │  │     ├─ ansi-styles      -> ../../ansi-styles@2.1.0/_
-   │  │     ├─ has-ansi         -> ../../has-ansi@2.0.0/_
-   │  │     └─ supports-color   -> ../../supports-color@2.0.0/_
+   │  │     ├─ ansi-styles      -> ../../../ansi-styles@2.1.0/_
+   │  │     ├─ has-ansi         -> ../../../has-ansi@2.0.0/_
+   │  │     └─ supports-color   -> ../../../supports-color@2.0.0/_
    │  ├─ ansi-styles@2.1.0/_/
    │  ├─ has-ansi@2.0.0/_/
    │  └─ supports-color@2.0.0/_/
-   │     └─ node_modules/
    └─ chalk                     -> .store/chalk@1.1.1/_
 ```
 
