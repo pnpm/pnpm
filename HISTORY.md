@@ -1,9 +1,11 @@
 ## [v0.13.0]
 > Feb 1, 2016
 
+- **Semi-breaking** - store format was slightly changed (to support peer dependencies, [#46]). pnpm will continue to be compatible with the old store format, but rebuilding `node_modules` is recommended to take advantage of new features.
 - [#41] - Support `--save`, `--save-dev`, `--save-optional` and `--save-exact`. ([@davej])
 - [#46] - Support modules being able to `require()` their peer dependencies (aka, emulate npm3-style flatness)
 - [#57] - Support simpler Windows terminals.
+- Improve logging appearance (show which packages are being fetched and which are queued).
 
 [v0.13.0]: https://github.com/rstacruz/pnpm/compare/v0.12.1...v0.13.0
 
