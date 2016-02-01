@@ -11,7 +11,7 @@ npm performs its action in stages. It performs one stage for all dependencies in
 0. __Extracting__: extracting module contents from .tar.gz (no network IO)
 0. __Building__: build compiled modules (no network IO)
 
-pnpm will eagerly move onto the next stage for a module even if other modules are stuck in earlier stages. This allows you to pnpm to more efficiently manage network IO: for instance, it can build compiled modules in the background while resolutions/fetches are still happening.
+pnpm will eagerly move onto the next stage for a module even if other modules are stuck in earlier stages. This allows pnpm to more efficiently manage network IO: for instance, it can build compiled modules in the background while resolutions/fetches are still happening.
 
 There's more to it than this, but this is one of the big reasons.
 
@@ -21,9 +21,7 @@ _(This article is a stub. you can help by expanding it.)_
 
 ## Will pnpm replace npm?
 
-**No!** pnpm is not a _replacement_ for npm; rather, think of it as a _supplement_ to npm.
-
-It's simply a rewrite of the `npm install` command that uses an alternate way to store your modules. It won't reimplement other things npm is used for (publishing, node_modules management, and so on).
+**No!** pnpm is not a _replacement_ for npm; rather, think of it as a _supplement_ to npm. It's simply a rewrite of the `npm install` command that uses an alternate way to store your modules. It won't reimplement other things npm is used for (publishing, node_modules management, and so on).
 
 ## Limitations
 
