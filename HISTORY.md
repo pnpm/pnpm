@@ -1,3 +1,11 @@
+## [v0.16.0]
+> Feb  2, 2016
+
+- [#74] - The package has been renamed from `pnpm.js` to `pnpm`. Update accordingly!
+- No functional changes since v0.15.0.
+
+[v0.16.0]: https://github.com/rstacruz/pnpm/compare/v0.15.0...v0.16.0
+
 ## [v0.15.0]
 > Feb  2, 2016
 
@@ -191,6 +199,7 @@
 [#64]: https://github.com/rstacruz/pnpm/issues/64
 [#72]: https://github.com/rstacruz/pnpm/issues/72
 [#73]: https://github.com/rstacruz/pnpm/issues/73
+[#74]: https://github.com/rstacruz/pnpm/issues/74
 [@indexzero]: https://github.com/indexzero
 [@rstacruz]: https://github.com/rstacruz
 [@davej]: https://github.com/davej
