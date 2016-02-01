@@ -2,6 +2,7 @@ var test = require('tape')
 var join = require('path').join
 var fs = require('fs')
 var prepare = require('./support/prepare')
+var basicPackageJson = require('./support/simple-package.json')
 var install = require('../lib/cmd/install')
 require('./support/sepia')
 
@@ -242,6 +243,51 @@ test('flattening symlinks (minimatch + balanced-match)', function (t) {
     t.ok(_, 'balanced-match now in main node_modules')
     t.end()
   }, t.end)
+})
+
+test('production install (with --production flag)', function (t) {
+  prepare()
+  fs.writeFileSync('package.json', JSON.stringify(basicPackageJson), 'utf-8')
+
+  return install({ input: [], flags: { quiet: true, production: true } })
+    .then(function () {
+      var rimrafDir = fs.statSync(join(process.cwd(), 'node_modules', 'rimraf'))
+
+      var tapStatErrCode
+      try {
+        fs.statSync(join(process.cwd(), 'node_modules', '@rstacruz'))
+      } catch (err) { tapStatErrCode = err.code }
+
+      t.ok(rimrafDir.isSymbolicLink, 'rimraf exists')
+      t.is(tapStatErrCode, 'ENOENT', 'tap-spec does not exist')
+
+      t.end()
+    }, t.end)
+})
+
+test.only('production install (with production NODE_ENV)', function (t) {
+  var originalNODE_ENV = process.env.NODE_ENV
+  process.env.NODE_ENV = 'production'
+  prepare()
+  fs.writeFileSync('package.json', JSON.stringify(basicPackageJson), 'utf-8')
+
+  return install({ input: [], flags: { quiet: true } })
+    .then(function () {
+      // reset NODE_ENV
+      process.env.NODE_ENV = originalNODE_ENV
+
+      var rimrafDir = fs.statSync(join(process.cwd(), 'node_modules', 'rimraf'))
+
+      var tapStatErrCode
+      try {
+        fs.statSync(join(process.cwd(), 'node_modules', '@rstacruz'))
+      } catch (err) { tapStatErrCode = err.code }
+
+      t.ok(rimrafDir.isSymbolicLink, 'rimraf exists')
+      t.is(tapStatErrCode, 'ENOENT', 'tap-spec does not exist')
+
+      t.end()
+    }, t.end)
 })
 
 function exists (path) {
