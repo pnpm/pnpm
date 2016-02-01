@@ -21,7 +21,7 @@ test('small with dependencies (rimraf)', function (t) {
     t.ok(stat.isSymbolicLink(), '.bin/rimraf symlink is available')
 
     stat = fs.statSync(join(process.cwd(), 'node_modules', 'rimraf', 'bin.js'))
-    t.equal(stat.mode, 0o100755, 'rimraf is executable')
+    t.equal(stat.mode, parseInt('100755', 8), 'rimraf is executable')
     t.ok(stat.isFile(), '.bin/rimraf refers to a file')
 
     t.end()
