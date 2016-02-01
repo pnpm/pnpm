@@ -265,7 +265,7 @@ test('production install (with --production flag)', function (t) {
     }, t.end)
 })
 
-test.only('production install (with production NODE_ENV)', function (t) {
+test('production install (with production NODE_ENV)', function (t) {
   var originalNODE_ENV = process.env.NODE_ENV
   process.env.NODE_ENV = 'production'
   prepare()
