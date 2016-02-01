@@ -73,7 +73,7 @@
     "url": "git+https://github.com/rstacruz/pnpm.git"
   },
   "scripts": {
-    "build": "if [ ! -d lib~ ]; then mv lib lib~; babel -D lib~ -d lib; fi",
+    "build": "if [ ! -d lib~ ]; then mv lib lib~; babel --retain-lines -D lib~ -d lib; fi",
     "test": "node test | tap-spec",
     "test:babel": "babel-node test | tap-spec",
     "prepublish": "if in-publish; then npm run build; fi",
