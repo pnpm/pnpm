@@ -1,3 +1,11 @@
+## [v0.15.0]
+> Feb  2, 2016
+
+- [#72] - Expose a programatic API via `require('pnpm.js')` (not documented for now).
+- [#73] - Fix Node v0.12 compatibility.
+
+[v0.15.0]: https://github.com/rstacruz/pnpm/compare/v0.14.0...v0.15.0
+
 ## [v0.14.0]
 > Feb  1, 2016
 
@@ -181,6 +189,8 @@
 [#46]: https://github.com/rstacruz/pnpm/issues/46
 [#57]: https://github.com/rstacruz/pnpm/issues/57
 [#64]: https://github.com/rstacruz/pnpm/issues/64
+[#72]: https://github.com/rstacruz/pnpm/issues/72
+[#73]: https://github.com/rstacruz/pnpm/issues/73
 [@indexzero]: https://github.com/indexzero
 [@rstacruz]: https://github.com/rstacruz
 [@davej]: https://github.com/davej
