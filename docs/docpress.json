@@ -1,0 +1,16 @@
+{
+  "github": "rstacruz/pnpm",
+  "css": [
+    "http://ricostacruz.com/docpress-rsc/style.css"
+  ],
+  "markdown": {
+    "typographer": true,
+    "plugins": {
+      "decorate": {}
+    }
+  },
+  "googleAnalytics": {
+    "id": "UA-20473929-1",
+    "domain": "ricostacruz.com"
+  }
+}
