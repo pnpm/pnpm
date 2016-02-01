@@ -65,7 +65,7 @@ See [store layout](docs/store-layout.md) for an explanation.
 
 ## Prior art
 
-* [Compared to ied](docs/vs-npm.md)
+* [Compared to ied](docs/vs-ied.md)
 * [Compared to npm](docs/vs-npm.md)
 
 ## Thanks
