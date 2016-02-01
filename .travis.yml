@@ -1,10 +1,10 @@
 language: node_js
 node_js:
 - '4'
-# cache:
-#   directories:
-#   - node_modules
-#   - fixtures
+cache:
+  directories:
+  - node_modules
+  - fixtures
 sudo: false
 script:
 - npm test
