@@ -7,12 +7,12 @@ if [ "$#" -lt "1" ]; then
 fi
 
 cmd=$1
-shift
+shift $(( $# > 0 ? 1 : 0 ))
 args=$*
 
 case $cmd in
   h | help | -h | --help)
-    shift
+    shift $(( $# > 0 ? 1 : 0 ))
     cmd=$args
     args=--help
     ;;
