@@ -8,7 +8,7 @@ pnpm is a fast implementation of `npm install`. It is loosely based off [ied].
 
 ![](docs/images/screencast.gif)
 
-[![npm version](https://badge.fury.io/js/pnpm.js.svg)](https://badge.fury.io/js/pnpm.js)
+[![npm version](https://badge.fury.io/js/pnpm.svg)](https://badge.fury.io/js/pnpm)
 [![Status](https://travis-ci.org/rstacruz/pnpm.svg?branch=master)](https://travis-ci.org/rstacruz/pnpm "See test builds")
 
 ## Install
@@ -16,7 +16,7 @@ pnpm is a fast implementation of `npm install`. It is loosely based off [ied].
 Install it via npm.
 
 ```
-npm install -g pnpm.js
+npm install -g pnpm
 ```
 
 Use `pnpm` in place of `npm`. It overrides `pnpm i` and `pnpm install`—all other commands will passthru to `npm`.

@@ -1,5 +1,5 @@
 {
-  "name": "pnpm.js",
+  "name": "pnpm",
   "description": "A fast implementation of npm install",
   "version": "0.15.0",
   "author": "Rico Sta. Cruz <rico@ricostacruz.com>",
