@@ -6,7 +6,7 @@
 
 pnpm is a fast implementation of `npm install`. It is loosely based off [ied].
 
-![](https://raw.githubusercontent.com/rstacruz/pnpm/gh-pages/screencast.gif)
+![](docs/images/screencast.gif)
 
 [![npm version](https://badge.fury.io/js/pnpm.js.svg)](https://badge.fury.io/js/pnpm.js)
 [![Status](https://travis-ci.org/rstacruz/pnpm.svg?branch=master)](https://travis-ci.org/rstacruz/pnpm "See test builds")
