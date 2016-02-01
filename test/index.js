@@ -235,7 +235,7 @@ test('flattening symlinks (minimatch + balanced-match)', function (t) {
   prepare()
   install(['minimatch@3.0.0'], { quiet: true })
   .then(function () {
-    return install({ ['balanced-match@^0.3.0'], { quiet: true })
+    return install(['balanced-match@^0.3.0'], { quiet: true })
   })
   .then(function () {
     _ = exists(join(process.cwd(), 'node_modules', '.store', 'node_modules', 'balanced-match'))
