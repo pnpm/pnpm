@@ -1,14 +1,15 @@
 language: node_js
 node_js:
-- '4'
+- '0.10'
+- '4.2.6'
 cache:
   directories:
   - node_modules
 sudo: false
 script:
-- npm test
+- npm run test:babel
 - rm -rf .tmp
-- ./node_modules/.bin/docpress build
+- if [ "$(node -v)" = "v4.2.6" ]; then ./node_modules/.bin/docpress build; fi
 after_success:
 - if [ "$TRAVIS_BRANCH" = "master" -a "$TRAVIS_PULL_REQUEST" = "false" ]; then ./node_modules/.bin/git-update-ghpages -e; fi
 env:

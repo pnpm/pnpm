@@ -21,7 +21,7 @@ test('small with dependencies (rimraf)', function (t) {
     t.ok(stat.isSymbolicLink(), '.bin/rimraf symlink is available')
 
     stat = fs.statSync(join(process.cwd(), 'node_modules', 'rimraf', 'bin.js'))
-    t.equal(stat.mode, 0o100755, 'rimraf is executable')
+    t.equal(stat.mode, parseInt('100755', 8), 'rimraf is executable')
     t.ok(stat.isFile(), '.bin/rimraf refers to a file')
 
     t.end()
@@ -158,11 +158,13 @@ test('shrinkwrap compatibility', function (t) {
   install(['rimraf@2.5.1'], { quiet: true })
   .then(function () {
     var npm = JSON.stringify(require.resolve('npm/bin/npm-cli.js'))
-    require('child_process').execSync('node ' + npm + ' shrinkwrap')
-    var wrap = JSON.parse(fs.readFileSync('npm-shrinkwrap.json', 'utf-8'))
-    t.ok(wrap.dependencies.rimraf.version === '2.5.1',
-      'npm shrinkwrap is successful')
-    t.end()
+    require('child_process').exec('node ' + npm + ' shrinkwrap', function (err) {
+      if (err) return t.end(err)
+      var wrap = JSON.parse(fs.readFileSync('npm-shrinkwrap.json', 'utf-8'))
+      t.ok(wrap.dependencies.rimraf.version === '2.5.1',
+        'npm shrinkwrap is successful')
+      t.end()
+    })
   }, t.end)
 })
 
@@ -234,7 +236,9 @@ test('flattening symlinks (minimatch@3.0.0)', function (t) {
 test('flattening symlinks (minimatch + balanced-match)', function (t) {
   prepare()
   install(['minimatch@3.0.0'], { quiet: true })
-  .then(_ => install(['balanced-match@^0.3.0'], { quiet: true }))
+  .then(function () {
+    return install(['balanced-match@^0.3.0'], { quiet: true })
+  })
   .then(function () {
     _ = exists(join(process.cwd(), 'node_modules', '.store', 'node_modules', 'balanced-match'))
     t.ok(!_, 'balanced-match is removed from store node_modules')

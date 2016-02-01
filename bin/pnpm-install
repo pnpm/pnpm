@@ -44,7 +44,7 @@ function run (argv) {
     cli.flags.quiet = true
   }
 
-  ['dryRun', 'global', 'production'].forEach(flag => {
+  ['dryRun', 'global', 'production'].forEach(function (flag) {
     if (cli.flags[flag]) {
       console.error("Error: '" + flag + "' is not supported yet, sorry!")
       process.exit(1)
