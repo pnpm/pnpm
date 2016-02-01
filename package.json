@@ -42,7 +42,8 @@
   },
   "devDependencies": {
     "babel-cli": "6.4.5",
-    "babel-preset-es2015": "6.3.13",
+    "babel-plugin-transform-es2015-arrow-functions": "6.3.13",
+    "babel-plugin-transform-es2015-literals": "6.3.13",
     "docpress": "0.6.10",
     "eslint": "1.10.3",
     "eslint-config-standard": "4.4.0",
@@ -79,8 +80,9 @@
     "postpublish": "rm -rf lib; mv lib~ lib"
   },
   "babel": {
-    "presets": [
-      "es2015"
+    "plugins": [
+      "transform-es2015-arrow-functions",
+      "transform-es2015-literals"
     ]
   }
 }
