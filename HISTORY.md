@@ -1,3 +1,11 @@
+## [v0.14.0]
+> Feb  1, 2016
+
+- [#6], [#64] - Experimental Windows support.
+- Documentation is now available at <http://ricostacruz.com/pnpm>.
+
+[v0.14.0]: https://github.com/rstacruz/pnpm/compare/v0.13.0...v0.14.0
+
 ## [v0.13.0]
 > Feb 1, 2016
 
@@ -153,6 +161,7 @@
 - Initial preview release.
 
 [v0.1.0]: https://github.com/rstacruz/pnpm/blob/v0.1.0
+[#6]: https://github.com/rstacruz/pnpm/issues/6
 [#9]: https://github.com/rstacruz/pnpm/issues/9
 [#10]: https://github.com/rstacruz/pnpm/issues/10
 [#11]: https://github.com/rstacruz/pnpm/issues/11
@@ -171,6 +180,7 @@
 [#41]: https://github.com/rstacruz/pnpm/issues/41
 [#46]: https://github.com/rstacruz/pnpm/issues/46
 [#57]: https://github.com/rstacruz/pnpm/issues/57
+[#64]: https://github.com/rstacruz/pnpm/issues/64
 [@indexzero]: https://github.com/indexzero
 [@rstacruz]: https://github.com/rstacruz
 [@davej]: https://github.com/davej
