@@ -19,6 +19,12 @@ There's more to it than this, but this is one of the big reasons.
 
 _(This article is a stub. you can help by expanding it.)_
 
+## npm3's flat tree
+
+npm now maintains a [flattened dependency tree](https://github.com/npm/npm/issues/6912) as of version 3. This leads to less disk space bloat, with a messy `node_modules` directory as a side effect.
+
+On the other hand, pnpm manages `node_modules` as an addressable storage in its [store layout](store-layout.md). This nets you the benefits of less disk space usage, while keeping your `node_modules` clean.
+
 ## Will pnpm replace npm?
 
 **No!** pnpm is not a _replacement_ for npm; rather, think of it as a _supplement_ to npm. It's simply a rewrite of the `npm install` command that uses an alternate way to store your modules. It won't reimplement other things npm is used for (publishing, node_modules management, and so on).
