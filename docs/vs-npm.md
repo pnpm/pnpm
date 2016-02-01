@@ -12,6 +12,7 @@ npm performs its action in stages. That is, it performs one stage for all depend
 
 - Resolving: get package data and what dependencies it has. (high requests, low bandwidth)
 - Fetching: fetch module contents (low requests, high bandwidth)
+- Extracting: extracting module contents from .tar.gz (no network IO)
 - Building: build compiled modules (no network IO)
 
 On the other hand, pnpm will eagerly move onto the next stage for a module even if other modules are stuck in earlier stages. This allows you to pnpm to more efficiently manage network IO: for instance, it can build compiled modules in the background while resolutions/fetches are still happening.

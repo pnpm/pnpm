@@ -6,5 +6,18 @@ node_js:
 #   - node_modules
 #   - fixtures
 sudo: false
+script:
+- npm test
+- ./node_modules/.bin/docpress build
+after_success:
+- if [ "$TRAVIS_BRANCH" = "master" -a "$TRAVIS_PULL_REQUEST" = "false" ]; then ./node_modules/.bin/git-update-ghpages -e; fi
+cache:
+  directories:
+  - node_modules
 env:
+  global:
   - CC=clang CXX=clang++ npm_config_clang=1
+  - GIT_NAME: Travis CI
+  - GIT_EMAIL: nobody@nobody.org
+  - GITHUB_REPO: rstacruz/pnpm
+  - GIT_SOURCE: _docpress
