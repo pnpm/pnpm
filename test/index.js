@@ -158,11 +158,13 @@ test('shrinkwrap compatibility', function (t) {
   install(['rimraf@2.5.1'], { quiet: true })
   .then(function () {
     var npm = JSON.stringify(require.resolve('npm/bin/npm-cli.js'))
-    require('child_process').execSync('node ' + npm + ' shrinkwrap')
-    var wrap = JSON.parse(fs.readFileSync('npm-shrinkwrap.json', 'utf-8'))
-    t.ok(wrap.dependencies.rimraf.version === '2.5.1',
-      'npm shrinkwrap is successful')
-    t.end()
+    require('child_process').exec('node ' + npm + ' shrinkwrap', function (err) {
+      if (err) return t.end(err)
+      var wrap = JSON.parse(fs.readFileSync('npm-shrinkwrap.json', 'utf-8'))
+      t.ok(wrap.dependencies.rimraf.version === '2.5.1',
+        'npm shrinkwrap is successful')
+      t.end()
+    })
   }, t.end)
 })
 
