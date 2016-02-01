@@ -13,7 +13,7 @@ pnpm is a fast implementation of `npm install`. It is loosely based off [ied].
 
 ----
 
-> #### ⚠ Name change
+> #### :warning: Name change
 
 > The npm package was changed from `pnpm.js` (0.15 and below) to `pnpm`. The old package will no longer be updated. For old users, uninstall the old version and install the new one:
 > 
