@@ -51,7 +51,7 @@ function run (argv) {
     }
   })
 
-  return installCmd(cli).catch(require('../lib/err'))
+  return installCmd(cli.input, cli.flags).catch(require('../lib/err'))
 }
 
 module.exports = run
