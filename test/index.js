@@ -3,7 +3,7 @@ var join = require('path').join
 var fs = require('fs')
 var prepare = require('./support/prepare')
 var basicPackageJson = require('./support/simple-package.json')
-var install = require('../lib/cmd/install')
+var install = require('../index').install
 require('./support/sepia')
 
 var stat, _
@@ -249,7 +249,7 @@ test('production install (with --production flag)', function (t) {
   prepare()
   fs.writeFileSync('package.json', JSON.stringify(basicPackageJson), 'utf-8')
 
-  return install({ input: [], flags: { quiet: true, production: true } })
+  return install([], { quiet: true, production: true })
     .then(function () {
       var rimrafDir = fs.statSync(join(process.cwd(), 'node_modules', 'rimraf'))
 
@@ -271,7 +271,7 @@ test('production install (with production NODE_ENV)', function (t) {
   prepare()
   fs.writeFileSync('package.json', JSON.stringify(basicPackageJson), 'utf-8')
 
-  return install({ input: [], flags: { quiet: true } })
+  return install([], { quiet: true })
     .then(function () {
       // reset NODE_ENV
       process.env.NODE_ENV = originalNODE_ENV
