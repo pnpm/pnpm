@@ -2,7 +2,7 @@
 
 <!-- {.massive-header.-with-tagline} -->
 
-> **P**erformant **npm**
+> Performant npm installations
 
 pnpm is a fast implementation of `npm install`. It is loosely based off [ied].
 
@@ -33,11 +33,22 @@ pnpm uses whatever npm's configured to use as its registry. See: [custom registr
 
 `pnpm` will stay in `<1.0.0` until it's achieved feature parity with `npm install`. See [roadmap](docs/roadmap.md) for details.
 
+## Benchmark
+
+```
+time npm i babel-preset-es2015 browserify chalk debug minimist mkdirp
+    66.15 real        15.60 user         3.54 sys
+```
+
+```
+time pnpm i babel-preset-es2015 browserify chalk debug minimist mkdirp
+    11.04 real         6.85 user         2.85 sys
+```
+
 ## Design
 
 `pnpm` maintains a flat storage of all your dependencies in `node_modules/.store`. They are then symlinked whereever they're needed.
-This is like `npm@2`'s recursive module handling (without the disk space bloat), and like `npm@3`s flat dependency tree (except with each module being predictably atomic).
-To illustrate, an installation of [chalk][]@1.1.1 may look like this:
+See [store layout](docs/store-layout.md) for an explanation.
 
 ```
 .
@@ -46,26 +57,10 @@ To illustrate, an installation of [chalk][]@1.1.1 may look like this:
    │  ├─ chalk@1.1.1/_/
    │  │  └─ node_modules/
    │  │     ├─ ansi-styles      -> ../../../ansi-styles@2.1.0/_
-   │  │     ├─ has-ansi         -> ../../../has-ansi@2.0.0/_
-   │  │     └─ supports-color   -> ../../../supports-color@2.0.0/_
+   │  │     └─ has-ansi         -> ../../../has-ansi@2.0.0/_
    │  ├─ ansi-styles@2.1.0/_/
-   │  ├─ has-ansi@2.0.0/_/
-   │  └─ supports-color@2.0.0/_/
+   │  └─ has-ansi@2.0.0/_/
    └─ chalk                     -> .store/chalk@1.1.1/_
-```
-
-The intermediate `_` directories are needed to hide `node_modules` from npm utilities like `npm ls`, `npm prune`, `npm shrinkwrap` and so on. The name `_` is chosen because it helps make stack traces readable.
-
-[chalk]: https://github.com/chalk/chalk
-
-## Benchmark
-
-```
-time npm i babel-preset-es2015 browserify chalk debug minimist mkdirp
-    66.15 real        15.60 user         3.54 sys
-
-time pnpm i babel-preset-es2015 browserify chalk debug minimist mkdirp
-    11.04 real         6.85 user         2.85 sys
 ```
 
 ## Prior art
@@ -84,3 +79,4 @@ Authored and maintained by Rico Sta. Cruz with help from contributors ([list][co
 
 [MIT]: http://mit-license.org/
 [contributors]: http://github.com/rstacruz/pnpm/contributors
+[ied]: https://github.com/alexanderGugel/ied
