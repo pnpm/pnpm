@@ -12,6 +12,7 @@
   - [ ] git-hosted packages (`npm i rstacruz/scourjs`)
   - [ ] optional dependencies (`npm i escodegen@1.8.0` wants `source-map@~0.2.0`)
   - [ ] file packages (`npm i file:../path`)
+  - [x] windows support
   - [x] bin executables
   - [ ] `--global` installs
   - [x] `--save` (et al)

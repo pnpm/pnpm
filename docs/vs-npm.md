@@ -31,7 +31,6 @@ On the other hand, pnpm manages `node_modules` as an addressable storage in its 
 
 ## Limitations
 
-- Windows is [not fully supported](https://github.com/rstacruz/pnpm/issues/6) (yet).
 - You can't install from [shrinkwrap][] (yet).
 - Peer dependencies are a little trickier to deal with.
 - You can't publish npm modules with `bundleDependencies` managed by pnpm.
