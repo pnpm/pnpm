@@ -6,8 +6,8 @@ pnpm is a reimplementation of `npm install`.
 
 npm performs its action in stages. It performs one stage for all dependencies in the tree before moving onto the next stage. In general, these are:
 
-0. __Resolving__: get package data and what dependencies it has. (high requests, low bandwidth)
-0. __Fetching__: fetch module contents (low requests, high bandwidth)
+0. __Resolving__: get package data and what dependencies it has. (many requests, low bandwidth)
+0. __Fetching__: fetch module contents (less requests, high bandwidth)
 0. __Extracting__: extracting module contents from .tar.gz (no network IO)
 0. __Building__: build compiled modules (no network IO)
 
