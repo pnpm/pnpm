@@ -1,3 +1,10 @@
+## [v0.17.0]
+> Unreleased
+
+- [#45] - Improve support for 3rd-party registries like GemFury.
+
+[v0.17.0]: https://github.com/rstacruz/pnpm/compare/v0.16.0...v0.17.0
+
 ## [v0.16.0]
 > Feb  2, 2016
 
@@ -194,6 +201,7 @@
 [#36]: https://github.com/rstacruz/pnpm/issues/36
 [#38]: https://github.com/rstacruz/pnpm/issues/38
 [#41]: https://github.com/rstacruz/pnpm/issues/41
+[#45]: https://github.com/rstacruz/pnpm/issues/45
 [#46]: https://github.com/rstacruz/pnpm/issues/46
 [#57]: https://github.com/rstacruz/pnpm/issues/57
 [#64]: https://github.com/rstacruz/pnpm/issues/64
