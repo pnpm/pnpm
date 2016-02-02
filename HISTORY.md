@@ -2,7 +2,7 @@
 > Unreleased
 
 - [#45] - Improve support for 3rd-party registries like GemFury. ([@misterbyrne])
-- [#76] - Fix `pnpm --help. ([@asbjornenge])
+- [#76] - Fix `pnpm --help`. ([@asbjornenge])
 
 [v0.17.0]: https://github.com/rstacruz/pnpm/compare/v0.16.0...v0.17.0
 
@@ -209,6 +209,7 @@
 [#72]: https://github.com/rstacruz/pnpm/issues/72
 [#73]: https://github.com/rstacruz/pnpm/issues/73
 [#74]: https://github.com/rstacruz/pnpm/issues/74
+[#76]: https://github.com/rstacruz/pnpm/issues/76
 [@asbjornenge]: https://github.com/asbjornenge
 [@davej]: https://github.com/davej
 [@indexzero]: https://github.com/indexzero
