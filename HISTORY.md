@@ -1,7 +1,8 @@
 ## [v0.17.0]
-> Unreleased
+> Feb  3, 2016
 
 - [#45] - Improve support for 3rd-party registries like GemFury. ([@misterbyrne])
+- [#80] - Use official npm registry endpoints.
 - [#76] - Fix `pnpm --help`. ([@asbjornenge])
 
 [v0.17.0]: https://github.com/rstacruz/pnpm/compare/v0.16.0...v0.17.0
@@ -210,6 +211,7 @@
 [#73]: https://github.com/rstacruz/pnpm/issues/73
 [#74]: https://github.com/rstacruz/pnpm/issues/74
 [#76]: https://github.com/rstacruz/pnpm/issues/76
+[#80]: https://github.com/rstacruz/pnpm/issues/80
 [@asbjornenge]: https://github.com/asbjornenge
 [@davej]: https://github.com/davej
 [@indexzero]: https://github.com/indexzero
