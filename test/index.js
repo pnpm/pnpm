@@ -92,6 +92,17 @@ test('idempotency (rimraf)', function (t) {
   }, t.end)
 })
 
+test.only('overwriting (lodash@3.10.1 and @4.0.0)', function (t) {
+  prepare()
+  install(['lodash@3.10.1'], { quiet: true })
+  .then(function () { return install([ 'lodash@4.0.0' ], { quiet: true }) })
+  .then(function () {
+    _ = require(join(process.cwd(), 'node_modules', 'lodash', 'package.json'))
+    t.ok(_.version === '4.0.0', 'lodash is 4.0.0')
+    t.end()
+  }, t.end)
+})
+
 test('big with dependencies and circular deps (babel-preset-2015)', function (t) {
   prepare()
   install(['babel-preset-es2015@6.3.13'], { quiet: true })
