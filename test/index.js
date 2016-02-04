@@ -92,7 +92,7 @@ test('idempotency (rimraf)', function (t) {
   }, t.end)
 })
 
-test.only('overwriting (lodash@3.10.1 and @4.0.0)', function (t) {
+test('overwriting (lodash@3.10.1 and @4.0.0)', function (t) {
   prepare()
   install(['lodash@3.10.1'], { quiet: true })
   .then(function () { return install([ 'lodash@4.0.0' ], { quiet: true }) })
