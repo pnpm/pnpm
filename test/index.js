@@ -209,9 +209,9 @@ test('saveDev scoped module to package.json (@rstacruz/tap-spec)', function (t) 
   }, t.end)
 })
 
-test('multiple save to package.json with `exact` versions (@rstacruz/tap-spec & rimraf@2.5.1)', function (t) {
+test.only('multiple save to package.json with `exact` versions (@rstacruz/tap-spec & rimraf@2.5.1) (in sorted order)', function (t) {
   prepare()
-  install(['@rstacruz/tap-spec@latest', 'rimraf@2.5.1'], { quiet: true, save: true, saveExact: true })
+  install(['rimraf@2.5.1', '@rstacruz/tap-spec@latest'], { quiet: true, save: true, saveExact: true })
   .then(function () {
     var tapSpec = require(join(process.cwd(), 'node_modules', '@rstacruz/tap-spec'))
     t.ok(typeof tapSpec === 'function', 'tapSpec() is available')
@@ -222,10 +222,11 @@ test('multiple save to package.json with `exact` versions (@rstacruz/tap-spec & 
     var pkgJson = fs.readFileSync(join(process.cwd(), 'package.json'), 'utf8')
     var dependencies = JSON.parse(pkgJson).dependencies
     var expectedDeps = {
-      rimraf: '2.5.1',
-      '@rstacruz/tap-spec': '4.1.1'
+      '@rstacruz/tap-spec': '4.1.1',
+      rimraf: '2.5.1'
     }
     t.deepEqual(dependencies, expectedDeps, 'tap-spec and rimraf have been added to dependencies')
+    t.deepEqual(Object.keys(dependencies), Object.keys(expectedDeps), 'tap-spec and rimraf have been added to dependencies in sorted order')
 
     t.end()
   }, t.end)
