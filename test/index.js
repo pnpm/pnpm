@@ -209,7 +209,7 @@ test('saveDev scoped module to package.json (@rstacruz/tap-spec)', function (t) 
   }, t.end)
 })
 
-test.only('multiple save to package.json with `exact` versions (@rstacruz/tap-spec & rimraf@2.5.1) (in sorted order)', function (t) {
+test('multiple save to package.json with `exact` versions (@rstacruz/tap-spec & rimraf@2.5.1) (in sorted order)', function (t) {
   prepare()
   install(['rimraf@2.5.1', '@rstacruz/tap-spec@latest'], { quiet: true, save: true, saveExact: true })
   .then(function () {
