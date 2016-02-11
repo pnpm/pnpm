@@ -1,3 +1,14 @@
+## [v0.18.0]
+> Feb 12, 2016
+
+- [#107] - sort dependencies in `--save`. ([@iamstarkov])
+- [#93] - (internal) Resolve store_path. ([@kesla])
+- [#94] - Fix `--production`. ([@kesla])
+- [#86] - Enable HTTPS keepalive. ([@fengmk2])
+- [#81] - Allow installing new versions of existing deps.
+
+[v0.18.0]: https://github.com/rstacruz/pnpm/compare/v0.17.0...v0.18.0
+
 ## [v0.17.0]
 > Feb  3, 2016
 
@@ -58,7 +69,7 @@
 ## [v0.11.1]
 > Jan 31, 2016
 
-- [#9], [#36] - Support exact versions in scoped packages (`pnpm i @rstacruz/tap-spec@4.1.1`).
+- [#9], [#36] - Support exact versions in scoped packages.
 
 [v0.11.1]: https://github.com/rstacruz/pnpm/compare/v0.11.0...v0.11.1
 
@@ -131,7 +142,7 @@
 ## [v0.5.0]
 > Jan 30, 2016
 
-- Support scoped modules without version spec (eg, `pnpm i @rstacruz/tap-spec`).
+- Support scoped modules without version spec (eg, `pnpm i [@rstacruz]/tap-spec`).
 - Lots of internal cleanups.
 
 [v0.5.0]: https://github.com/rstacruz/pnpm/compare/v0.4.1...v0.5.0
@@ -212,8 +223,14 @@
 [#74]: https://github.com/rstacruz/pnpm/issues/74
 [#76]: https://github.com/rstacruz/pnpm/issues/76
 [#80]: https://github.com/rstacruz/pnpm/issues/80
+[#86]: https://github.com/rstacruz/pnpm/issues/86
+[#93]: https://github.com/rstacruz/pnpm/issues/93
+[#107]: https://github.com/rstacruz/pnpm/issues/107
 [@asbjornenge]: https://github.com/asbjornenge
 [@davej]: https://github.com/davej
 [@indexzero]: https://github.com/indexzero
 [@misterbyrne]: https://github.com/misterbyrne
 [@rstacruz]: https://github.com/rstacruz
+[@iamstarkov]: https://github.com/iamstarkov
+[@kesla]: https://github.com/kesla
+[@fengmk2]: https://github.com/fengmk2
