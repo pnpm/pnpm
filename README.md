@@ -58,7 +58,7 @@ time pnpm i babel-preset-es2015 browserify chalk debug minimist mkdirp
 
 ## Design
 
-`pnpm` maintains a flat storage of all your dependencies in `node_modules/.store`. They are then symlinked whereever they're needed.
+`pnpm` maintains a flat storage of all your dependencies in `node_modules/.store`. They are then symlinked wherever they're needed.
 See [store layout](docs/store-layout.md) for an explanation.
 
 ```
