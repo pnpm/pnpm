@@ -1,10 +1,14 @@
 var test = require('tape')
 var join = require('path').join
 var fs = require('fs')
+var caw = require('caw')
 var prepare = require('./support/prepare')
 var basicPackageJson = require('./support/simple-package.json')
 var install = require('../index').install
-require('./support/sepia')
+
+if (!caw()) {
+  require('./support/sepia')
+}
 
 var stat, _
 
