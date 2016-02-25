@@ -15,7 +15,7 @@
     "bin"
   ],
   "dependencies": {
-    "bluebird": "3.3.1",
+    "bluebird": "3.3.2",
     "byline": "4.2.1",
     "caw": "^1.2.0",
     "chalk": "1.1.1",
