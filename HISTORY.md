@@ -1,3 +1,10 @@
+## [v0.19.0]
+> Mar 22, 2016
+
+- [#78] - Fix symlink installation errors. ([#138], [@misterbyrne])
+
+[v0.19.0]: https://github.com/rstacruz/pnpm/compare/v1.18.0...v0.19.0
+
 ## [v0.18.0]
 > Feb 12, 2016
 
@@ -197,10 +204,11 @@
 - Initial preview release.
 
 [v0.1.0]: https://github.com/rstacruz/pnpm/blob/v0.1.0
-[#6]: https://github.com/rstacruz/pnpm/issues/6
-[#9]: https://github.com/rstacruz/pnpm/issues/9
+
+[#107]: https://github.com/rstacruz/pnpm/issues/107
 [#10]: https://github.com/rstacruz/pnpm/issues/10
 [#11]: https://github.com/rstacruz/pnpm/issues/11
+[#138]: https://github.com/rstacruz/pnpm/issues/138
 [#16]: https://github.com/rstacruz/pnpm/issues/16
 [#17]: https://github.com/rstacruz/pnpm/issues/17
 [#18]: https://github.com/rstacruz/pnpm/issues/18
@@ -218,19 +226,21 @@
 [#46]: https://github.com/rstacruz/pnpm/issues/46
 [#57]: https://github.com/rstacruz/pnpm/issues/57
 [#64]: https://github.com/rstacruz/pnpm/issues/64
+[#6]: https://github.com/rstacruz/pnpm/issues/6
 [#72]: https://github.com/rstacruz/pnpm/issues/72
 [#73]: https://github.com/rstacruz/pnpm/issues/73
 [#74]: https://github.com/rstacruz/pnpm/issues/74
 [#76]: https://github.com/rstacruz/pnpm/issues/76
+[#78]: https://github.com/rstacruz/pnpm/issues/78
 [#80]: https://github.com/rstacruz/pnpm/issues/80
 [#86]: https://github.com/rstacruz/pnpm/issues/86
 [#93]: https://github.com/rstacruz/pnpm/issues/93
-[#107]: https://github.com/rstacruz/pnpm/issues/107
+[#9]: https://github.com/rstacruz/pnpm/issues/9
 [@asbjornenge]: https://github.com/asbjornenge
 [@davej]: https://github.com/davej
+[@fengmk2]: https://github.com/fengmk2
+[@iamstarkov]: https://github.com/iamstarkov
 [@indexzero]: https://github.com/indexzero
+[@kesla]: https://github.com/kesla
 [@misterbyrne]: https://github.com/misterbyrne
 [@rstacruz]: https://github.com/rstacruz
-[@iamstarkov]: https://github.com/iamstarkov
-[@kesla]: https://github.com/kesla
-[@fengmk2]: https://github.com/fengmk2
