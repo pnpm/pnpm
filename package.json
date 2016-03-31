@@ -38,7 +38,7 @@
     "semver": "5.1.0",
     "sorted-object": "^1.0.0",
     "supports-color": "^3.1.2",
-    "tar-fs": "1.11.0",
+    "tar-fs": "1.12.0",
     "thenify": "3.1.1",
     "throat": "2.0.2"
   },
