@@ -1,3 +1,10 @@
+## [v0.20.0]
+> Apr  3, 2016
+
+- [#155] - Print user-friendly errors when `package.json` isn't present.
+
+[v0.20.0]: https://github.com/rstacruz/pnpm/compare/v0.19.0...v0.20.0
+
 ## [v0.19.0]
 > Mar 22, 2016
 
