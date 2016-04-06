@@ -1,3 +1,10 @@
+## [v0.21.0]
+> Apr  6, 2016
+
+- [#174] - Fix some rare symlink problems.
+
+[v0.21.0]: https://github.com/rstacruz/pnpm/compare/v0.20.0...v0.21.0
+
 ## [v0.20.0]
 > Apr  3, 2016
 
@@ -251,3 +258,4 @@
 [@kesla]: https://github.com/kesla
 [@misterbyrne]: https://github.com/misterbyrne
 [@rstacruz]: https://github.com/rstacruz
+[#174]: https://github.com/rstacruz/pnpm/issues/174
