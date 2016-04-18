@@ -24,7 +24,8 @@ function run (argv) {
       '  -g, --global          install globally',
       '',
       '      --production      don\'t install devDependencies',
-      '      --quiet           don\'t print progress'
+      '      --quiet           don\'t print progress',
+      '      --debug           print verbose debug message'
     ].join('\n')
   }, {
     boolean: [
