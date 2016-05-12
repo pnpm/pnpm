@@ -1,6 +1,7 @@
 ## Next version
 
 - [#200] - Add support for `--ignore-scripts`. ([@ratson])
+
 ## [v0.21.0]
 > Apr  6, 2016
 
