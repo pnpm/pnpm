@@ -251,8 +251,10 @@
 [#76]: https://github.com/rstacruz/pnpm/issues/76
 [#78]: https://github.com/rstacruz/pnpm/issues/78
 [#80]: https://github.com/rstacruz/pnpm/issues/80
+[#81]: https://github.com/rstacruz/pnpm/issues/81
 [#86]: https://github.com/rstacruz/pnpm/issues/86
 [#93]: https://github.com/rstacruz/pnpm/issues/93
+[#94]: https://github.com/rstacruz/pnpm/issues/94
 [#9]: https://github.com/rstacruz/pnpm/issues/9
 [@asbjornenge]: https://github.com/asbjornenge
 [@davej]: https://github.com/davej
@@ -263,5 +265,6 @@
 [@misterbyrne]: https://github.com/misterbyrne
 [@rstacruz]: https://github.com/rstacruz
 [@ratson]: https://github.com/ratson
+[#155]: https://github.com/rstacruz/pnpm/issues/155
 [#174]: https://github.com/rstacruz/pnpm/issues/174
 [#200]: https://github.com/rstacruz/pnpm/issues/200
