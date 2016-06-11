@@ -28,7 +28,7 @@
     "mz": "2.4.0",
     "node-gyp": "3.3.0",
     "node-uuid": "1.4.7",
-    "npm-package-arg": "4.1.0",
+    "npm-package-arg": "4.1.1",
     "object-assign": "4.0.1",
     "observatory": "1.0.0",
     "rc": "1.1.6",
