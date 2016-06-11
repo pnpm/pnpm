@@ -44,7 +44,7 @@
   },
   "devDependencies": {
     "babel-cli": "6.10.1",
-    "babel-plugin-transform-es2015-arrow-functions": "6.5.0",
+    "babel-plugin-transform-es2015-arrow-functions": "6.5.2",
     "babel-plugin-transform-es2015-literals": "6.3.13",
     "docpress": "0.6.11",
     "eslint": "1.10.3",
