@@ -286,7 +286,7 @@ test('production install (with --production flag)', function (t) {
 })
 
 test('production install (with production NODE_ENV)', function (t) {
-  var originalNODE_ENV = process.env.NODE_ENV
+  var originalNodeEnv = process.env.NODE_ENV
   process.env.NODE_ENV = 'production'
   prepare()
   fs.writeFileSync('package.json', JSON.stringify(basicPackageJson), 'utf-8')
@@ -294,7 +294,7 @@ test('production install (with production NODE_ENV)', function (t) {
   return install([], { quiet: true })
     .then(function () {
       // reset NODE_ENV
-      process.env.NODE_ENV = originalNODE_ENV
+      process.env.NODE_ENV = originalNodeEnv
 
       var rimrafDir = fs.statSync(join(process.cwd(), 'node_modules', 'rimraf'))
 
