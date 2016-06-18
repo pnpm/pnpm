@@ -1,11 +1,11 @@
-## [v0.22.0]
+## [v0.22.1]
 > Jun 19, 2016
 
 - [#200] - Add support for `--ignore-scripts`. ([@ratson])
 - [#199] - Add support for GitHub packages. ([@andreypopp])
 - [#167], [#105] - Add support for private npm modules. ([#161], [@rexxars])
 
-[v0.22.0]: https://github.com/rstacruz/pnpm/compare/v0.21.0...v0.22.0
+[v0.22.1]: https://github.com/rstacruz/pnpm/compare/v0.21.0...v0.22.1
 
 ## [v0.21.0]
 > Apr  6, 2016
