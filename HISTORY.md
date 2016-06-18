@@ -1,6 +1,11 @@
-## Next version
+## [v0.22.0]
+> Jun 19, 2016
 
 - [#200] - Add support for `--ignore-scripts`. ([@ratson])
+- [#199] - Add support for GitHub packages. ([@andreypopp])
+- [#167], [#105] - Add support for private npm modules. ([#161], [@rexxars])
+
+[v0.22.0]: https://github.com/rstacruz/pnpm/compare/v0.21.0...v0.22.0
 
 ## [v0.21.0]
 > Apr  6, 2016
@@ -223,13 +228,20 @@
 
 [v0.1.0]: https://github.com/rstacruz/pnpm/blob/v0.1.0
 
+[#105]: https://github.com/rstacruz/pnpm/issues/105
 [#107]: https://github.com/rstacruz/pnpm/issues/107
 [#10]: https://github.com/rstacruz/pnpm/issues/10
 [#11]: https://github.com/rstacruz/pnpm/issues/11
 [#138]: https://github.com/rstacruz/pnpm/issues/138
+[#155]: https://github.com/rstacruz/pnpm/issues/155
+[#161]: https://github.com/rstacruz/pnpm/issues/161
+[#167]: https://github.com/rstacruz/pnpm/issues/167
 [#16]: https://github.com/rstacruz/pnpm/issues/16
+[#174]: https://github.com/rstacruz/pnpm/issues/174
 [#17]: https://github.com/rstacruz/pnpm/issues/17
 [#18]: https://github.com/rstacruz/pnpm/issues/18
+[#199]: https://github.com/rstacruz/pnpm/issues/199
+[#200]: https://github.com/rstacruz/pnpm/issues/200
 [#24]: https://github.com/rstacruz/pnpm/issues/24
 [#25]: https://github.com/rstacruz/pnpm/issues/25
 [#31]: https://github.com/rstacruz/pnpm/issues/31
@@ -256,6 +268,7 @@
 [#93]: https://github.com/rstacruz/pnpm/issues/93
 [#94]: https://github.com/rstacruz/pnpm/issues/94
 [#9]: https://github.com/rstacruz/pnpm/issues/9
+[@andreypopp]: https://github.com/andreypopp
 [@asbjornenge]: https://github.com/asbjornenge
 [@davej]: https://github.com/davej
 [@fengmk2]: https://github.com/fengmk2
@@ -263,8 +276,6 @@
 [@indexzero]: https://github.com/indexzero
 [@kesla]: https://github.com/kesla
 [@misterbyrne]: https://github.com/misterbyrne
-[@rstacruz]: https://github.com/rstacruz
 [@ratson]: https://github.com/ratson
-[#155]: https://github.com/rstacruz/pnpm/issues/155
-[#174]: https://github.com/rstacruz/pnpm/issues/174
-[#200]: https://github.com/rstacruz/pnpm/issues/200
+[@rexxars]: https://github.com/rexxars
+[@rstacruz]: https://github.com/rstacruz
