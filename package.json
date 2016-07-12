@@ -20,6 +20,7 @@
     "caw": "1.2.0",
     "chalk": "1.1.3",
     "commondir": "1.0.1",
+    "cross-spawn": "^4.0.0",
     "debug": "2.2.0",
     "got": "5.4.1",
     "gunzip-maybe": "1.3.1",
