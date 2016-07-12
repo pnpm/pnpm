@@ -85,6 +85,16 @@ test('multiple scoped modules (@rstacruz/...)', function (t) {
   }, t.end)
 })
 
+test('nested scoped modules (test-pnpm-issue219 -> @zkochan/test-pnpm-issue219)', function (t) {
+  prepare()
+  install(['test-pnpm-issue219@1.0.2'], { quiet: true })
+  .then(function () {
+    _ = require(join(process.cwd(), 'node_modules', 'test-pnpm-issue219'))
+    t.ok(_ === 'test-pnpm-issue219,@zkochan/test-pnpm-issue219', 'nested scoped package is available')
+    t.end()
+  }, t.end)
+})
+
 test('idempotency (rimraf)', function (t) {
   prepare()
   install(['rimraf@2.5.1'], { quiet: true })
