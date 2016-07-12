@@ -1,3 +1,23 @@
+## [v0.23.0]
+> Jul 12, 2016
+
+- [#246] - Fix infinite loop issue on Windows.
+- [#50] - Fix post-install script not being executed. ([#241], [@zkochan])
+- [#237] - Fix some issues with nested scope packages. ([@zkochan])
+- [#242] - Fix cases when .bin binstubs aren't created. ([#243], [@zkochan])
+- [#244] - Use `--preserve-symlinks` on binstubs. ([#245], [@zkochan])
+
+[#246]: https://github.com/rstacruz/pnpm/issues/246
+[#50]: https://github.com/rstacruz/pnpm/issues/50
+[#241]: https://github.com/rstacruz/pnpm/issues/241
+[#237]: https://github.com/rstacruz/pnpm/issues/237
+[#242]: https://github.com/rstacruz/pnpm/issues/242
+[#243]: https://github.com/rstacruz/pnpm/issues/243
+[#244]: https://github.com/rstacruz/pnpm/issues/244
+[#245]: https://github.com/rstacruz/pnpm/issues/245
+[@zkochan]: https://github.com/zkochan
+[v0.23.0]: https://github.com/rstacruz/pnpm/compare/v0.22.0...v0.23.0
+
 ## [v0.22.1]
 > Jun 19, 2016
 
@@ -5,6 +25,14 @@
 - [#199] - Add support for GitHub packages. ([@andreypopp])
 - [#167], [#105] - Add support for private npm modules. ([#161], [@rexxars])
 
+[#105]: https://github.com/rstacruz/pnpm/issues/105
+[#161]: https://github.com/rstacruz/pnpm/issues/161
+[#167]: https://github.com/rstacruz/pnpm/issues/167
+[#199]: https://github.com/rstacruz/pnpm/issues/199
+[#200]: https://github.com/rstacruz/pnpm/issues/200
+[@ratson]: https://github.com/ratson
+[@andreypopp]: https://github.com/andreypopp
+[@rexxars]: https://github.com/rexxars
 [v0.22.1]: https://github.com/rstacruz/pnpm/compare/v0.21.0...v0.22.1
 
 ## [v0.21.0]
@@ -12,6 +40,7 @@
 
 - [#174] - Fix some rare symlink problems.
 
+[#174]: https://github.com/rstacruz/pnpm/issues/174
 [v0.21.0]: https://github.com/rstacruz/pnpm/compare/v0.20.0...v0.21.0
 
 ## [v0.20.0]
@@ -19,6 +48,7 @@
 
 - [#155] - Print user-friendly errors when `package.json` isn't present.
 
+[#155]: https://github.com/rstacruz/pnpm/issues/155
 [v0.20.0]: https://github.com/rstacruz/pnpm/compare/v0.19.0...v0.20.0
 
 ## [v0.19.0]
@@ -26,6 +56,9 @@
 
 - [#78] - Fix symlink installation errors. ([#138], [@misterbyrne])
 
+[#78]: https://github.com/rstacruz/pnpm/issues/78
+[#138]: https://github.com/rstacruz/pnpm/issues/138
+[@misterbyrne]: https://github.com/misterbyrne
 [v0.19.0]: https://github.com/rstacruz/pnpm/compare/v1.18.0...v0.19.0
 
 ## [v0.18.0]
@@ -37,6 +70,14 @@
 - [#86] - Enable HTTPS keepalive. ([@fengmk2])
 - [#81] - Allow installing new versions of existing deps.
 
+[#81]: https://github.com/rstacruz/pnpm/issues/81
+[#86]: https://github.com/rstacruz/pnpm/issues/86
+[#93]: https://github.com/rstacruz/pnpm/issues/93
+[#94]: https://github.com/rstacruz/pnpm/issues/94
+[#107]: https://github.com/rstacruz/pnpm/issues/107
+[@kesla]: https://github.com/kesla
+[@fengmk2]: https://github.com/fengmk2
+[@iamstarkov]: https://github.com/iamstarkov
 [v0.18.0]: https://github.com/rstacruz/pnpm/compare/v0.17.0...v0.18.0
 
 ## [v0.17.0]
@@ -228,20 +269,11 @@
 
 [v0.1.0]: https://github.com/rstacruz/pnpm/blob/v0.1.0
 
-[#105]: https://github.com/rstacruz/pnpm/issues/105
-[#107]: https://github.com/rstacruz/pnpm/issues/107
 [#10]: https://github.com/rstacruz/pnpm/issues/10
 [#11]: https://github.com/rstacruz/pnpm/issues/11
-[#138]: https://github.com/rstacruz/pnpm/issues/138
-[#155]: https://github.com/rstacruz/pnpm/issues/155
-[#161]: https://github.com/rstacruz/pnpm/issues/161
-[#167]: https://github.com/rstacruz/pnpm/issues/167
 [#16]: https://github.com/rstacruz/pnpm/issues/16
-[#174]: https://github.com/rstacruz/pnpm/issues/174
 [#17]: https://github.com/rstacruz/pnpm/issues/17
 [#18]: https://github.com/rstacruz/pnpm/issues/18
-[#199]: https://github.com/rstacruz/pnpm/issues/199
-[#200]: https://github.com/rstacruz/pnpm/issues/200
 [#24]: https://github.com/rstacruz/pnpm/issues/24
 [#25]: https://github.com/rstacruz/pnpm/issues/25
 [#31]: https://github.com/rstacruz/pnpm/issues/31
@@ -261,21 +293,9 @@
 [#73]: https://github.com/rstacruz/pnpm/issues/73
 [#74]: https://github.com/rstacruz/pnpm/issues/74
 [#76]: https://github.com/rstacruz/pnpm/issues/76
-[#78]: https://github.com/rstacruz/pnpm/issues/78
 [#80]: https://github.com/rstacruz/pnpm/issues/80
-[#81]: https://github.com/rstacruz/pnpm/issues/81
-[#86]: https://github.com/rstacruz/pnpm/issues/86
-[#93]: https://github.com/rstacruz/pnpm/issues/93
-[#94]: https://github.com/rstacruz/pnpm/issues/94
 [#9]: https://github.com/rstacruz/pnpm/issues/9
-[@andreypopp]: https://github.com/andreypopp
 [@asbjornenge]: https://github.com/asbjornenge
 [@davej]: https://github.com/davej
-[@fengmk2]: https://github.com/fengmk2
-[@iamstarkov]: https://github.com/iamstarkov
 [@indexzero]: https://github.com/indexzero
-[@kesla]: https://github.com/kesla
-[@misterbyrne]: https://github.com/misterbyrne
-[@ratson]: https://github.com/ratson
-[@rexxars]: https://github.com/rexxars
 [@rstacruz]: https://github.com/rstacruz
