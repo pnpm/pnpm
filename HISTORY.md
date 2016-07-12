@@ -1,3 +1,10 @@
+## Next version
+
+- [#180] - Add `--debug` to `--help`. ([@PeterDaveHello])
+
+[#180]: https://github.com/rstacruz/pnpm/issues/180
+[@PeterDaveHello]: https://github.com/PeterDaveHello
+
 ## [v0.23.0]
 > Jul 12, 2016
 
