@@ -1,9 +1,14 @@
-## Next version
+## [v0.24.0]
+> Jul 17, 2016
 
 - [#180] - Add `--debug` to `--help`. ([@PeterDaveHello])
+- [#39] - Support `optionalDependencies`. ([#256], [@zkochan])
 
+[#39]: https://github.com/rstacruz/pnpm/issues/39
 [#180]: https://github.com/rstacruz/pnpm/issues/180
+[#256]: https://github.com/rstacruz/pnpm/issues/256
 [@PeterDaveHello]: https://github.com/PeterDaveHello
+[v0.24.0]: https://github.com/rstacruz/pnpm/compare/v0.23.0...v0.24.0
 
 ## [v0.23.0]
 > Jul 12, 2016
