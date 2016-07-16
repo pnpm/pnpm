@@ -95,6 +95,16 @@ test('nested scoped modules (test-pnpm-issue219 -> @zkochan/test-pnpm-issue219)'
   }, t.end)
 })
 
+test('skip failing optional dependencies', function (t) {
+  prepare()
+  install(['pkg-with-failing-optional-dependency@1.0.1'], { quiet: true })
+  .then(function () {
+    var isNegative = require(join(process.cwd(), 'node_modules', 'pkg-with-failing-optional-dependency'))
+    t.ok(isNegative(-1), 'package with failed optional dependency has the dependencies installed correctly')
+    t.end()
+  }, t.end)
+})
+
 test('idempotency (rimraf)', function (t) {
   prepare()
   install(['rimraf@2.5.1'], { quiet: true })
