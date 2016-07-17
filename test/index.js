@@ -184,6 +184,20 @@ test('tarballs (is-array-1.0.1.tgz)', function (t) {
   }, t.end)
 })
 
+test('local file', function (t) {
+  prepare()
+  var localPkgPath = join(__dirname, 'local-pkg')
+  install(['file:' + localPkgPath], { quiet: true })
+  .then(function () {
+    var localPkg = require(
+      join(process.cwd(), 'node_modules', 'local-pkg'))
+
+    t.ok(localPkg, 'localPkg() is available')
+
+    t.end()
+  }, t.end)
+})
+
 test('shrinkwrap compatibility', function (t) {
   prepare()
   fs.writeFileSync('package.json',
