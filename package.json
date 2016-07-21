@@ -17,6 +17,7 @@
   "dependencies": {
     "bluebird": "3.4.1",
     "byline": "4.2.1",
+    "camelcase-keys": "3.0.0",
     "caw": "1.2.0",
     "chalk": "1.1.3",
     "commondir": "1.0.1",
