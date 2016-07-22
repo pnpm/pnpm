@@ -4,6 +4,9 @@ if (~process.argv.indexOf('--debug')) {
   process.argv.push('--quiet')
 }
 
+var rc = require('rc')
+var camelcaseKeys = require('camelcase-keys')
+
 var installCmd = require('../lib/cmd/install')
 
 function run (argv) {
@@ -52,7 +55,18 @@ function run (argv) {
     }
   })
 
-  return installCmd(cli.input, cli.flags).catch(require('../lib/err'))
+  var opts = Object.assign({}, getRC('npm'), getRC('pnpm'))
+
+  // This is needed because the arg values should be used only if they were passed
+  Object.keys(cli.flags).forEach(key => {
+    opts[key] = opts[key] || cli.flags[key]
+  })
+
+  return installCmd(cli.input, opts).catch(require('../lib/err'))
+}
+
+function getRC (appName) {
+  return camelcaseKeys(rc(appName))
 }
 
 module.exports = run
