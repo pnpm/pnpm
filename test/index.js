@@ -2,11 +2,14 @@ var test = require('tape')
 var join = require('path').join
 var fs = require('fs')
 var caw = require('caw')
+var isexe = require('isexe')
 var prepare = require('./support/prepare')
 var basicPackageJson = require('./support/simple-package.json')
 var install = require('../index').install
 
-if (!caw()) {
+var isWindows = process.platform === 'win32'
+
+if (!caw() && !isWindows) {
   require('./support/sepia')
 }
 
@@ -21,12 +24,16 @@ test('small with dependencies (rimraf)', function (t) {
     var rimraf = require(join(process.cwd(), 'node_modules', 'rimraf'))
     t.ok(typeof rimraf === 'function', 'rimraf() is available')
 
-    stat = fs.lstatSync(join(process.cwd(), 'node_modules', '.bin', 'rimraf'))
-    t.ok(stat.isSymbolicLink(), '.bin/rimraf symlink is available')
+    if (!isWindows) {
+      stat = fs.lstatSync(join(process.cwd(), 'node_modules', '.bin', 'rimraf'))
+      t.ok(stat.isSymbolicLink(), '.bin/rimraf symlink is available')
 
-    stat = fs.statSync(join(process.cwd(), 'node_modules', 'rimraf', 'bin.js'))
-    t.equal(stat.mode, parseInt('100755', 8), 'rimraf is executable')
-    t.ok(stat.isFile(), '.bin/rimraf refers to a file')
+      stat = fs.statSync(join(process.cwd(), 'node_modules', 'rimraf', 'bin.js'))
+      t.equal(stat.mode, parseInt('100755', 8), 'rimraf is executable')
+      t.ok(stat.isFile(), '.bin/rimraf refers to a file')
+    } else {
+      t.ok(isexe(join(process.cwd(), 'node_modules', '.bin', 'rimraf')), 'rimraf is executable')
+    }
 
     t.end()
   }, t.end)
@@ -137,23 +144,26 @@ test('big with dependencies and circular deps (babel-preset-2015)', function (t)
   }, t.end)
 })
 
-test('bundleDependencies (fsevents@1.0.6)', function (t) {
-  prepare()
-  install(['fsevents@1.0.6'], { quiet: true })
-  .then(function () {
-    stat = fs.lstatSync(
-      join(process.cwd(), 'node_modules', 'fsevents', 'node_modules', '.bin', 'mkdirp'))
-    t.ok(stat.isSymbolicLink(), '.bin/mkdirp is available')
+// NOTE: fsevents can't be installed on Windows
+if (!isWindows) {
+  test('bundleDependencies (fsevents@1.0.6)', function (t) {
+    prepare()
+    install(['fsevents@1.0.6'], { quiet: true })
+    .then(function () {
+      stat = fs.lstatSync(
+        join(process.cwd(), 'node_modules', 'fsevents', 'node_modules', '.bin', 'mkdirp'))
+      t.ok(stat.isSymbolicLink(), '.bin/mkdirp is available')
 
-    stat = fs.statSync(
-      join(process.cwd(), 'node_modules', 'fsevents', 'node_modules', '.bin', 'mkdirp'))
-    t.ok(stat.isFile(), '.bin/mkdirp refers to a file')
-    t.end()
-  }, t.end)
-})
+      stat = fs.statSync(
+        join(process.cwd(), 'node_modules', 'fsevents', 'node_modules', '.bin', 'mkdirp'))
+      t.ok(stat.isFile(), '.bin/mkdirp refers to a file')
+      t.end()
+    }, t.end)
+  })
+}
 
 test('compiled modules (ursa@0.9.1)', function (t) {
-  if (!process.env.CI) {
+  if (!process.env.CI || isWindows) {
     t.skip('only ran on CI')
     return t.end()
   }
