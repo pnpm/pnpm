@@ -7,11 +7,12 @@
 - [#265] - Respect configuration from `.npmrc`. ([@zkochan])
 
 [#21]: https://github.com/rstacruz/pnpm/issues/21
+[#257]: https://github.com/rstacruz/pnpm/issues/257
 [#258]: https://github.com/rstacruz/pnpm/issues/258
 [#259]: https://github.com/rstacruz/pnpm/issues/259
 [#262]: https://github.com/rstacruz/pnpm/issues/262
 [#265]: https://github.com/rstacruz/pnpm/issues/265
-[v0.25.0]: https://github.com/rstacruz/pnpm/compare/v0.2420...v0.25.0
+[v0.25.0]: https://github.com/rstacruz/pnpm/compare/v0.24.0...v0.25.0
 
 ## [v0.24.0]
 > Jul 17, 2016
