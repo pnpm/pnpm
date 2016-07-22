@@ -3,10 +3,14 @@
 
 - [#21] - Support installing from files. ([#257], [@zkochan])
 - [#258] - Improve support for Windows. ([#259], [@zkochan])
+- [#262] - Improve support for build scripts that use npm config variables. ([@zkochan])
+- [#265] - Respect configuration from `.npmrc`. ([@zkochan])
 
 [#21]: https://github.com/rstacruz/pnpm/issues/21
 [#258]: https://github.com/rstacruz/pnpm/issues/258
 [#259]: https://github.com/rstacruz/pnpm/issues/259
+[#262]: https://github.com/rstacruz/pnpm/issues/262
+[#265]: https://github.com/rstacruz/pnpm/issues/265
 [v0.25.0]: https://github.com/rstacruz/pnpm/compare/v0.2420...v0.25.0
 
 ## [v0.24.0]
