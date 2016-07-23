@@ -1,0 +1,60 @@
+#!/usr/bin/env node
+if (~process.argv.indexOf('--debug')) {
+  process.env.DEBUG = 'pnpm:*'
+}
+
+var rc = require('rc')
+var camelcaseKeys = require('camelcase-keys')
+
+var uninstallCmd = require('../lib/cmd/uninstall')
+
+function run (argv) {
+  const cli = require('meow')({
+    argv: argv,
+    help: [
+      'Usage:',
+      '  $ pnpm uninstall',
+      '  $ pnpm uninstall <name>',
+      '',
+      'Options:',
+      '  -S, --save            remove from dependencies',
+      '  -D, --save-dev        remove from devDependencies',
+      '  -O, --save-optional   remove from optionalDependencies',
+      '  -g, --global          uninstall globally',
+      '      --debug           print verbose debug message'
+    ].join('\n')
+  }, {
+    boolean: [
+      'save-dev', 'save', 'save-optional', 'global', 'debug'
+    ],
+    alias: {
+      D: 'save-dev',
+      S: 'save',
+      O: 'save-optional',
+      g: 'global'
+    }
+  })
+
+  ;['global'].forEach(function (flag) {
+    if (cli.flags[flag]) {
+      console.error("Error: '" + flag + "' is not supported yet, sorry!")
+      process.exit(1)
+    }
+  })
+
+  var opts = Object.assign({}, getRC('npm'), getRC('pnpm'))
+
+  // This is needed because the arg values should be used only if they were passed
+  Object.keys(cli.flags).forEach(key => {
+    opts[key] = opts[key] || cli.flags[key]
+  })
+
+  return uninstallCmd(cli.input, opts).catch(require('../lib/err'))
+}
+
+function getRC (appName) {
+  return camelcaseKeys(rc(appName))
+}
+
+module.exports = run
+if (!module.parent) run(process.argv.slice(2))

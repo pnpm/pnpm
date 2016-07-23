@@ -5,7 +5,8 @@
   "author": "Rico Sta. Cruz <rico@ricostacruz.com>",
   "bin": {
     "pnpm": "bin/pnpm",
-    "pnpm-install": "bin/pnpm-install"
+    "pnpm-install": "bin/pnpm-install",
+    "pnpm-uninstall": "bin/pnpm-uninstall"
   },
   "bugs": {
     "url": "https://github.com/rstacruz/pnpm/issues"

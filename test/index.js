@@ -3,10 +3,11 @@ var join = require('path').join
 var fs = require('fs')
 var caw = require('caw')
 var isexe = require('isexe')
+var semver = require('semver')
 var prepare = require('./support/prepare')
 var basicPackageJson = require('./support/simple-package.json')
 var install = require('../index').install
-var semver = require('semver')
+var uninstall = require('../index').uninstall
 
 var isWindows = process.platform === 'win32'
 var preserveSymlinks = semver.satisfies(process.version, '>=6.3.0')
@@ -392,9 +393,108 @@ test('production install (with production NODE_ENV)', function (t) {
     }, t.end)
 })
 
+test('uninstall package with no dependencies', function (t) {
+  prepare()
+  install(['is-negative@2.1.0'], { quiet: true, save: true })
+  .then(_ => uninstall(['is-negative'], { save: true }))
+  .then(function () {
+    stat = exists(join(process.cwd(), 'node_modules', '.store', 'is-negative@2.1.0'))
+    t.ok(!stat, 'is-negative is removed from store')
+
+    stat = existsSymlink(join(process.cwd(), 'node_modules', 'is-negative'))
+    t.ok(!stat, 'is-negative is removed from node_modules')
+
+    var pkgJson = fs.readFileSync(join(process.cwd(), 'package.json'), 'utf8')
+    var dependencies = JSON.parse(pkgJson).dependencies
+    var expectedDeps = {}
+    t.deepEqual(dependencies, expectedDeps, 'is-negative has been removed from dependencies')
+
+    t.end()
+  }, t.end)
+})
+
+test('uninstall package with dependencies and do not touch other deps', function (t) {
+  prepare()
+  install(['is-negative@2.1.0', 'camelcase-keys@3.0.0'], { quiet: true, save: true })
+  .then(_ => uninstall(['camelcase-keys'], { save: true }))
+  .then(function () {
+    stat = exists(join(process.cwd(), 'node_modules', '.store', 'camelcase-keys@2.1.0'))
+    t.ok(!stat, 'camelcase-keys is removed from store')
+
+    stat = existsSymlink(join(process.cwd(), 'node_modules', 'camelcase-keys'))
+    t.ok(!stat, 'camelcase-keys is removed from node_modules')
+
+    stat = exists(join(process.cwd(), 'node_modules', '.store', 'camelcase@3.0.0'))
+    t.ok(!stat, 'camelcase is removed from store')
+
+    stat = existsSymlink(join(process.cwd(), 'node_modules', 'camelcase'))
+    t.ok(!stat, 'camelcase is removed from node_modules')
+
+    stat = exists(join(process.cwd(), 'node_modules', '.store', 'map-obj@1.0.1'))
+    t.ok(!stat, 'map-obj is removed from store')
+
+    stat = existsSymlink(join(process.cwd(), 'node_modules', 'map-obj'))
+    t.ok(!stat, 'map-obj is removed from node_modules')
+
+    stat = exists(join(process.cwd(), 'node_modules', '.store', 'is-negative@2.1.0'))
+    t.ok(stat, 'is-negative is not removed from store')
+
+    stat = existsSymlink(join(process.cwd(), 'node_modules', 'is-negative'))
+    t.ok(stat, 'is-negative is not removed from node_modules')
+
+    var pkgJson = fs.readFileSync(join(process.cwd(), 'package.json'), 'utf8')
+    var dependencies = JSON.parse(pkgJson).dependencies
+    var expectedDeps = {
+      'is-negative': '^2.1.0'
+    }
+    t.deepEqual(dependencies, expectedDeps, 'camelcase-keys has been removed from dependencies')
+
+    t.end()
+  }, t.end)
+})
+
+test('keep dependencies used by others', function (t) {
+  prepare()
+  install(['hastscript@3.0.0', 'camelcase-keys@3.0.0'], { quiet: true, save: true })
+  .then(_ => uninstall(['camelcase-keys'], { save: true }))
+  .then(function () {
+    stat = exists(join(process.cwd(), 'node_modules', '.store', 'camelcase-keys@2.1.0'))
+    t.ok(!stat, 'camelcase-keys is removed from store')
+
+    stat = existsSymlink(join(process.cwd(), 'node_modules', 'camelcase-keys'))
+    t.ok(!stat, 'camelcase-keys is removed from node_modules')
+
+    stat = exists(join(process.cwd(), 'node_modules', '.store', 'camelcase@3.0.0'))
+    t.ok(stat, 'camelcase is not removed from store')
+
+    stat = exists(join(process.cwd(), 'node_modules', '.store', 'map-obj@1.0.1'))
+    t.ok(!stat, 'map-obj is removed from store')
+
+    stat = existsSymlink(join(process.cwd(), 'node_modules', 'map-obj'))
+    t.ok(!stat, 'map-obj is removed from node_modules')
+
+    var pkgJson = fs.readFileSync(join(process.cwd(), 'package.json'), 'utf8')
+    var dependencies = JSON.parse(pkgJson).dependencies
+    var expectedDeps = {
+      'hastscript': '^3.0.0'
+    }
+    t.deepEqual(dependencies, expectedDeps, 'camelcase-keys has been removed from dependencies')
+
+    t.end()
+  }, t.end)
+})
+
 function exists (path) {
   try {
     return fs.statSync(path)
+  } catch (err) {
+    if (err.code !== 'ENOENT') throw err
+  }
+}
+
+function existsSymlink (path) {
+  try {
+    return fs.lstatSync(path)
   } catch (err) {
     if (err.code !== 'ENOENT') throw err
   }
