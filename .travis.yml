@@ -1,21 +1,22 @@
 language: node_js
 node_js:
-- '0.10'
-- '4.2.6'
+  - 0.10
+  - 4
+  - 6
 cache:
   directories:
-  - node_modules
+    - node_modules
 sudo: false
 script:
-- npm run test:babel
-- rm -rf .tmp
-- if [ "$(node -v)" = "v4.2.6" ]; then ./node_modules/.bin/docpress build; fi
+  - npm run test:babel
+  - rm -rf .tmp
+  - if [[ $TRAVIS_NODE_VERSION == "4" ]]; then ./node_modules/.bin/docpress build; fi
 after_success:
-- if [ "$TRAVIS_BRANCH" = "master" -a "$TRAVIS_PULL_REQUEST" = "false" ]; then ./node_modules/.bin/git-update-ghpages -e; fi
+  - if [ "$TRAVIS_BRANCH" = "master" -a "$TRAVIS_PULL_REQUEST" = "false" ]; then ./node_modules/.bin/git-update-ghpages -e; fi
 env:
   global:
-  - CC=clang CXX=clang++ npm_config_clang=1
-  - GIT_NAME: Travis CI
-  - GIT_EMAIL: nobody@nobody.org
-  - GITHUB_REPO: rstacruz/pnpm
-  - GIT_SOURCE: _docpress
+    - CC=clang CXX=clang++ npm_config_clang=1
+    - GIT_NAME: Travis CI
+    - GIT_EMAIL: nobody@nobody.org
+    - GITHUB_REPO: rstacruz/pnpm
+    - GIT_SOURCE: _docpress
