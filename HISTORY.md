@@ -10,10 +10,12 @@
 - [#270] - Support basic authorization. ([#278], [@leipert])
 - [#144] - Uninstall support. ([#268], [@zkochan])
 - [#23] - Reimplement bin/pnpm to .js. ([#268], [@zkochan])
+- [#82] - Lock store when running commands. ([#268], [@zkochan])
 
 [#6]: https://github.com/rstacruz/pnpm/issues/6
 [#21]: https://github.com/rstacruz/pnpm/issues/21
 [#23]: https://github.com/rstacruz/pnpm/issues/23
+[#82]: https://github.com/rstacruz/pnpm/issues/82
 [#144]: https://github.com/rstacruz/pnpm/issues/144
 [#257]: https://github.com/rstacruz/pnpm/issues/257
 [#258]: https://github.com/rstacruz/pnpm/issues/258

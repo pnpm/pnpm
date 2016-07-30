@@ -484,6 +484,28 @@ test('keep dependencies used by others', function (t) {
   }, t.end)
 })
 
+test('fail when trying to install into the same store simultaneously', function (t) {
+  prepare()
+  install(['browserify'], { quiet: true })
+  install(['rimraf@2.5.1'], { quiet: true })
+    .then(_ => t.fail('the store should have been locked'))
+    .catch(err => {
+      t.ok(err, 'store is locked')
+      t.end()
+    })
+})
+
+test('fail when trying to install and uninstall from the same store simultaneously', function (t) {
+  prepare()
+  install(['browserify'], { quiet: true })
+  uninstall(['rimraf@2.5.1'], { quiet: true })
+    .then(_ => t.fail('the store should have been locked'))
+    .catch(err => {
+      t.ok(err, 'store is locked')
+      t.end()
+    })
+})
+
 function exists (path) {
   try {
     return fs.statSync(path)
