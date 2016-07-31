@@ -6,8 +6,10 @@ var isexe = require('isexe')
 var prepare = require('./support/prepare')
 var basicPackageJson = require('./support/simple-package.json')
 var install = require('../index').install
+var semver = require('semver')
 
 var isWindows = process.platform === 'win32'
+var preserveSymlinks = semver.satisfies(process.version, '>=6.3.0')
 
 if (!caw() && !isWindows) {
   require('./support/sepia')
@@ -17,6 +19,19 @@ var stat, _
 
 test('eslint', require('tape-eslint')())
 
+function isExecutable (t, filePath) {
+  if (!isWindows && !preserveSymlinks) {
+    stat = fs.lstatSync(filePath)
+    t.ok(stat.isSymbolicLink(), filePath + ' symlink is available')
+
+    stat = fs.statSync(filePath)
+    t.equal(stat.mode, parseInt('100755', 8), filePath + ' is executable')
+    t.ok(stat.isFile(), filePath + ' refers to a file')
+    return
+  }
+  t.ok(isexe(filePath), filePath + ' is executable')
+}
+
 test('small with dependencies (rimraf)', function (t) {
   prepare()
   install(['rimraf@2.5.1'], { quiet: true })
@@ -24,16 +39,7 @@ test('small with dependencies (rimraf)', function (t) {
     var rimraf = require(join(process.cwd(), 'node_modules', 'rimraf'))
     t.ok(typeof rimraf === 'function', 'rimraf() is available')
 
-    if (!isWindows) {
-      stat = fs.lstatSync(join(process.cwd(), 'node_modules', '.bin', 'rimraf'))
-      t.ok(stat.isSymbolicLink(), '.bin/rimraf symlink is available')
-
-      stat = fs.statSync(join(process.cwd(), 'node_modules', 'rimraf', 'bin.js'))
-      t.equal(stat.mode, parseInt('100755', 8), 'rimraf is executable')
-      t.ok(stat.isFile(), '.bin/rimraf refers to a file')
-    } else {
-      t.ok(isexe(join(process.cwd(), 'node_modules', '.bin', 'rimraf')), 'rimraf is executable')
-    }
+    isExecutable(t, join(process.cwd(), 'node_modules', '.bin', 'rimraf'))
 
     t.end()
   }, t.end)
@@ -150,13 +156,7 @@ if (!isWindows) {
     prepare()
     install(['fsevents@1.0.6'], { quiet: true })
     .then(function () {
-      stat = fs.lstatSync(
-        join(process.cwd(), 'node_modules', 'fsevents', 'node_modules', '.bin', 'mkdirp'))
-      t.ok(stat.isSymbolicLink(), '.bin/mkdirp is available')
-
-      stat = fs.statSync(
-        join(process.cwd(), 'node_modules', 'fsevents', 'node_modules', '.bin', 'mkdirp'))
-      t.ok(stat.isFile(), '.bin/mkdirp refers to a file')
+      isExecutable(t, join(process.cwd(), 'node_modules', 'fsevents', 'node_modules', '.bin', 'mkdirp'))
       t.end()
     }, t.end)
   })
