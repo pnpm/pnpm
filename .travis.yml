@@ -9,7 +9,7 @@ sudo: false
 script:
   - npm run test:babel
   - rm -rf .tmp
-  - if [ "$(node -v)" = "v4.2.6" ]; then ./node_modules/.bin/docpress build; fi
+  - if [[ $TRAVIS_NODE_VERSION == "4" ]]; then ./node_modules/.bin/docpress build; fi
 after_success:
   - if [ "$TRAVIS_BRANCH" = "master" -a "$TRAVIS_PULL_REQUEST" = "false" ]; then ./node_modules/.bin/git-update-ghpages -e; fi
 env:
