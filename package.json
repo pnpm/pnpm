@@ -61,7 +61,7 @@
     "npm": "3.10.2",
     "sepia": "2.0.1",
     "tap-spec": "4.1.1",
-    "tape": "4.5.1",
+    "tape": "4.6.0",
     "tape-eslint": "1.2.1"
   },
   "directories": {
