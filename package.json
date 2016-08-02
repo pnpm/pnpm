@@ -49,7 +49,7 @@
     "babel-cli": "6.10.1",
     "babel-plugin-transform-es2015-arrow-functions": "6.8.0",
     "babel-plugin-transform-es2015-literals": "6.8.0",
-    "docpress": "0.6.11",
+    "docpress": "0.6.13",
     "eslint": "2.13.0",
     "eslint-config-standard": "5.3.5",
     "eslint-plugin-promise": "2.0.0",
