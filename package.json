@@ -46,7 +46,7 @@
     "throat": "3.0.0"
   },
   "devDependencies": {
-    "babel-cli": "6.10.1",
+    "babel-cli": "6.11.4",
     "babel-plugin-transform-es2015-arrow-functions": "6.8.0",
     "babel-plugin-transform-es2015-literals": "6.8.0",
     "docpress": "0.6.13",
