@@ -453,6 +453,22 @@ test('uninstall package with dependencies and do not touch other deps', function
   }, t.end)
 })
 
+test('uninstall package with its bin files', function (t) {
+  prepare()
+  install(['sh-hello-world@1.0.0'], { quiet: true, save: true })
+  .then(_ => uninstall(['sh-hello-world'], { save: true }))
+  .then(function () {
+    // check for both a symlink and a file because in some cases the file will be a proxied not symlinked
+    stat = existsSymlink(join(process.cwd(), 'node_modules', '.bin', 'sh-hello-world'))
+    t.ok(!stat, 'sh-hello-world is removed from .bin')
+
+    stat = exists(join(process.cwd(), 'node_modules', '.bin', 'sh-hello-world'))
+    t.ok(!stat, 'sh-hello-world is removed from .bin')
+
+    t.end()
+  }, t.end)
+})
+
 test('keep dependencies used by others', function (t) {
   prepare()
   install(['hastscript@3.0.0', 'camelcase-keys@3.0.0'], { quiet: true, save: true })
