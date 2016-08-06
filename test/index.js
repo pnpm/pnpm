@@ -206,6 +206,19 @@ test('local file', function (t) {
   }, t.end)
 })
 
+test('from a github repo', function (t) {
+  prepare()
+  install(['kevva/is-negative'], { quiet: true })
+  .then(function () {
+    var localPkg = require(
+      join(process.cwd(), 'node_modules', 'is-negative'))
+
+    t.ok(localPkg, 'isNegative() is available')
+
+    t.end()
+  }, t.end)
+})
+
 test('shrinkwrap compatibility', function (t) {
   prepare()
   fs.writeFileSync('package.json',
