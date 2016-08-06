@@ -225,6 +225,33 @@ test('shrinkwrap compatibility', function (t) {
   }, t.end)
 })
 
+test('run pre/postinstall scripts', function (t) {
+  prepare()
+  var pkgPath = join(__dirname, 'packages/pre-and-postinstall-scripts-example')
+  install(['file:' + pkgPath], { quiet: true })
+  .then(function () {
+    var generatedByPreinstall = require(join(process.cwd(), 'node_modules', 'pre-and-postinstall-scripts-example/generated-by-preinstall'))
+    t.ok(typeof generatedByPreinstall === 'function', 'generatedByPreinstall() is available')
+
+    var generatedByPostinstall = require(join(process.cwd(), 'node_modules', 'pre-and-postinstall-scripts-example/generated-by-postinstall'))
+    t.ok(typeof generatedByPostinstall === 'function', 'generatedByPostinstall() is available')
+
+    t.end()
+  }, t.end)
+})
+
+test('run install scripts', function (t) {
+  prepare()
+  var pkgPath = join(__dirname, 'packages/install-script-example')
+  install(['file:' + pkgPath], { quiet: true })
+  .then(function () {
+    var generatedByInstall = require(join(process.cwd(), 'node_modules', 'install-script-example/generated-by-install'))
+    t.ok(typeof generatedByInstall === 'function', 'generatedByInstall() is available')
+
+    t.end()
+  }, t.end)
+})
+
 test('save to package.json (rimraf@2.5.1)', function (t) {
   prepare()
   install(['rimraf@2.5.1'], { quiet: true, save: true })

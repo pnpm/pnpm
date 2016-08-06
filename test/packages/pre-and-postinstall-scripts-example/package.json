@@ -1,0 +1,16 @@
+{
+  "name": "pre-and-postinstall-scripts-example",
+  "version": "1.0.0",
+  "description": "A package that creates files by pre- and postinstall scripts",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "preinstall": "node create generated-by-preinstall",
+    "postinstall": "node create generated-by-postinstall"
+  },
+  "author": "Zoltan Kochan <zoltan.kochan@gmail.com> (http://kochan.io/)",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/rstacruz/pnpm/tree/master/test/packages/postinstall-example"
+  }
+}
