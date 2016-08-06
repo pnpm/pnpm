@@ -34,6 +34,7 @@
     "npm-package-arg": "4.2.0",
     "object-assign": "4.1.0",
     "observatory": "1.0.0",
+    "os-homedir": "1.0.1",
     "rc": "1.1.6",
     "read-pkg-up": "1.0.1",
     "registry-auth-token": "3.0.1",
