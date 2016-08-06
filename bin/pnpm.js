@@ -44,7 +44,8 @@ function run (argv) {
       S: 'save',
       E: 'save-exact',
       O: 'save-optional',
-      g: 'global'
+      g: 'global',
+      v: 'version'
     }
   })
 
