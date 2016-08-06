@@ -57,12 +57,12 @@
     "git-update-ghpages": "1.3.0",
     "in-publish": "2.0.0",
     "isexe": "1.1.2",
+    "istanbul": "^0.4.4",
     "nixt": "0.5.0",
     "npm": "3.10.2",
     "sepia": "2.0.1",
     "tap-spec": "4.1.1",
-    "tape": "4.5.1",
-    "tape-eslint": "1.2.1"
+    "tape": "4.5.1"
   },
   "directories": {
     "test": "test"
@@ -81,7 +81,9 @@
   },
   "scripts": {
     "build": "if [ ! -d lib~ ]; then mv lib lib~; babel --source-maps inline -D lib~ -d lib; fi",
-    "test": "node test | tap-spec",
+    "cover": "istanbul cover test/index.js",
+    "lint": "eslint bin/ test/ lib/",
+    "test": "npm run lint && node test | tap-spec",
     "posttest": "rimraf .tmp",
     "test:babel": "babel-node test | tap-spec",
     "prepublish": "in-publish && npm run build || not-in-publish",

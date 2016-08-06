@@ -17,8 +17,6 @@ if (!caw() && !isWindows) {
 
 var stat, _
 
-test('eslint', require('tape-eslint')())
-
 function isExecutable (t, filePath) {
   if (!isWindows && !preserveSymlinks) {
     stat = fs.lstatSync(filePath)
