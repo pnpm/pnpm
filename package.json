@@ -35,7 +35,7 @@
     "observatory": "1.0.0",
     "rc": "1.1.6",
     "read-pkg-up": "1.0.1",
-    "registry-auth-token": "3.0.0",
+    "registry-auth-token": "3.0.1",
     "registry-url": "3.1.0",
     "rimraf": "2.5.4",
     "semver": "5.3.0",
