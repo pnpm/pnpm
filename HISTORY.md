@@ -7,6 +7,7 @@
 - [#262] - Improve support for build scripts that use npm config variables. ([@zkochan])
 - [#265] - Respect configuration from `.npmrc`. ([@zkochan])
 - [#6] - Use junctions on Windows. ([#269], [@zkochan])
+- [#270] - Support basic authorization. ([#278], [@leipert])
 
 [#6]: https://github.com/rstacruz/pnpm/issues/6
 [#21]: https://github.com/rstacruz/pnpm/issues/21
@@ -16,6 +17,9 @@
 [#262]: https://github.com/rstacruz/pnpm/issues/262
 [#265]: https://github.com/rstacruz/pnpm/issues/265
 [#269]: https://github.com/rstacruz/pnpm/issues/269
+[#270]: https://github.com/rstacruz/pnpm/issues/270
+[#278]: https://github.com/rstacruz/pnpm/pull/278
+[@leipert]: https://github.com/leipert
 [v0.25.0]: https://github.com/rstacruz/pnpm/compare/v0.24.0...v0.25.0
 
 ## [v0.24.0]
