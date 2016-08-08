@@ -10,5 +10,9 @@
   "license": "MIT",
   "dependencies": {
     "@zkochan/test-pnpm-issue219": "^1.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/rstacruz/pnpm/tree/master/test/packages/test-pnpm-issue219"
   }
 }

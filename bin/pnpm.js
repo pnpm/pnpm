@@ -6,8 +6,10 @@ if (~process.argv.indexOf('--debug')) {
 
 var rc = require('rc')
 var camelcaseKeys = require('camelcase-keys')
+var spawnSync = require('cross-spawn').sync
 
 var installCmd = require('../lib/cmd/install')
+var uninstallCmd = require('../lib/cmd/uninstall')
 
 function run (argv) {
   const cli = require('meow')({
@@ -16,6 +18,8 @@ function run (argv) {
       'Usage:',
       '  $ pnpm install',
       '  $ pnpm install <name>',
+      '  $ pnpm uninstall',
+      '  $ pnpm uninstall <name>',
       '',
       'Options:',
       '  -S, --save            save into package.json under dependencies',
@@ -40,9 +44,17 @@ function run (argv) {
       S: 'save',
       E: 'save-exact',
       O: 'save-optional',
-      g: 'global'
+      g: 'global',
+      v: 'version'
     }
   })
+
+  var installCmds = ['install', 'i']
+  var supportedCmds = installCmds.concat(['uninstall', 'r', 'rm', 'un', 'unlink', 'help'])
+  if (supportedCmds.indexOf(cli.input[0]) === -1) {
+    spawnSync('npm', argv, { stdio: 'inherit' })
+    return
+  }
 
   if (cli.flags.debug) {
     cli.flags.quiet = true
@@ -62,7 +74,8 @@ function run (argv) {
     opts[key] = opts[key] || cli.flags[key]
   })
 
-  return installCmd(cli.input, opts).catch(require('../lib/err'))
+  var cmd = installCmds.indexOf(cli.input[0]) === -1 ? uninstallCmd : installCmd
+  return cmd(cli.input.slice(1), opts).catch(require('../lib/err'))
 }
 
 function getRC (appName) {

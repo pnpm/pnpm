@@ -7,5 +7,9 @@
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "author": "Zoltan Kochan <zoltan.kochan@gmail.com> (http://kochan.io/)",
-  "license": "MIT"
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/rstacruz/pnpm/tree/master/test/packages/zkochan~test-pnpm-issue219"
+  }
 }

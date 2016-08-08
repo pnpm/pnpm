@@ -16,5 +16,5 @@
   - [x] bin executables
   - [ ] `--global` installs
   - [x] `--save` (et al)
-- [ ] `pnpm uninstall`
+- [x] `pnpm uninstall`
 - [x] `pnpm ls`

@@ -7,4 +7,11 @@ Object.defineProperty(pnpm, 'install', {
   }
 })
 
+Object.defineProperty(pnpm, 'uninstall', {
+  enumerable: true,
+  get: function () {
+    return require('./lib/cmd/uninstall')
+  }
+})
+
 module.exports = pnpm
