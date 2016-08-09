@@ -197,8 +197,7 @@ test('tarballs (is-array-1.0.1.tgz)', function (t) {
 
 test('local file', function (t) {
   prepare()
-  var localPkgPath = join(__dirname, 'local-pkg')
-  install(['file:' + localPkgPath], { quiet: true })
+  install([local('local-pkg')], { quiet: true })
   .then(function () {
     var localPkg = require(
       join(process.cwd(), 'node_modules', 'local-pkg'))
@@ -246,8 +245,7 @@ test('shrinkwrap compatibility', function (t) {
 
 test('run pre/postinstall scripts', function (t) {
   prepare()
-  var pkgPath = join(__dirname, 'packages/pre-and-postinstall-scripts-example')
-  install(['file:' + pkgPath], { quiet: true })
+  install([local('pre-and-postinstall-scripts-example')], { quiet: true })
   .then(function () {
     var generatedByPreinstall = require(join(process.cwd(), 'node_modules', 'pre-and-postinstall-scripts-example/generated-by-preinstall'))
     t.ok(typeof generatedByPreinstall === 'function', 'generatedByPreinstall() is available')
@@ -261,8 +259,7 @@ test('run pre/postinstall scripts', function (t) {
 
 test('run install scripts', function (t) {
   prepare()
-  var pkgPath = join(__dirname, 'packages/install-script-example')
-  install(['file:' + pkgPath], { quiet: true })
+  install([local('install-script-example')], { quiet: true })
   .then(function () {
     var generatedByInstall = require(join(process.cwd(), 'node_modules', 'install-script-example/generated-by-install'))
     t.ok(typeof generatedByInstall === 'function', 'generatedByInstall() is available')
@@ -530,23 +527,43 @@ test('fail when trying to install and uninstall from the same store simultaneous
 if (preserveSymlinks) {
   test('packages should find the plugins they use when symlinks are preserved', function (t) {
     prepare()
-    var pkgPath = join(__dirname, 'packages/pkg-that-uses-plugins')
-    var pluginPkgPath = join(__dirname, 'packages/plugin-example')
-    install(['file:' + pkgPath, 'file:' + pluginPkgPath], { quiet: true, save: true })
+    install([local('pkg-that-uses-plugins'), local('plugin-example')], { quiet: true, save: true })
       .then(_ => {
-        var env = {
-          PATH: [
-            join(process.cwd(), 'node_modules', '.bin'),
-            process.env.PATH
-          ].join(delimiter)
-        }
         var result = spawnSync('pkg-that-uses-plugins', [], {
-          env: env
+          env: extendPathWithLocalBin()
         })
-        t.equal(result.status, 0)
+        t.equal(result.stdout.toString(), 'plugin-example\n', 'package executable have found its plugin')
+        t.equal(result.status, 0, 'executable exited with success')
         t.end()
       }, t.end)
   })
+}
+
+test('run js bin file', function (t) {
+  prepare()
+  install([local('hello-world-js-bin')], { quiet: true, save: true })
+    .then(_ => {
+      var result = spawnSync('hello-world-js-bin', [], {
+        env: extendPathWithLocalBin()
+      })
+      t.equal(result.stdout.toString(), 'Hello world!\n', 'package executable printed its message')
+      t.equal(result.status, 0, 'executable exited with success')
+      t.end()
+    }, t.end)
+})
+
+function extendPathWithLocalBin () {
+  return {
+    PATH: [
+      join(process.cwd(), 'node_modules', '.bin'),
+      process.env.PATH
+    ].join(delimiter)
+  }
+}
+
+function local (pkgName) {
+  var pkgPath = join(__dirname, 'packages', pkgName)
+  return 'file:' + pkgPath
 }
 
 function exists (path) {
