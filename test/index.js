@@ -1,9 +1,11 @@
 var test = require('tape')
 var join = require('path').join
+var delimiter = require('path').delimiter
 var fs = require('fs')
 var caw = require('caw')
 var isexe = require('isexe')
 var semver = require('semver')
+var spawnSync = require('cross-spawn').sync
 var prepare = require('./support/prepare')
 var basicPackageJson = require('./support/simple-package.json')
 var install = require('../index').install
@@ -524,6 +526,28 @@ test('fail when trying to install and uninstall from the same store simultaneous
       t.end()
     })
 })
+
+if (preserveSymlinks) {
+  test('packages should find the plugins they use when symlinks are preserved', function (t) {
+    prepare()
+    var pkgPath = join(__dirname, 'packages/pkg-that-uses-plugins')
+    var pluginPkgPath = join(__dirname, 'packages/plugin-example')
+    install(['file:' + pkgPath, 'file:' + pluginPkgPath], { quiet: true, save: true })
+      .then(_ => {
+        var env = {
+          PATH: [
+            join(process.cwd(), 'node_modules', '.bin'),
+            process.env.PATH
+          ].join(delimiter)
+        }
+        var result = spawnSync('pkg-that-uses-plugins', [], {
+          env: env
+        })
+        t.equal(result.status, 0)
+        t.end()
+      }, t.end)
+  })
+}
 
 function exists (path) {
   try {
