@@ -225,10 +225,7 @@ if (!process.env.CI) {
 }
 
 test('shrinkwrap compatibility', function (t) {
-  prepare()
-  fs.writeFileSync('package.json',
-    JSON.stringify({ dependencies: { rimraf: '*' } }),
-    'utf-8')
+  prepare({ dependencies: { rimraf: '*' } })
 
   install(['rimraf@2.5.1'], { quiet: true })
   .then(function () {
@@ -351,8 +348,7 @@ test('flattening symlinks (minimatch + balanced-match)', function (t) {
 })
 
 test('production install (with --production flag)', function (t) {
-  prepare()
-  fs.writeFileSync('package.json', JSON.stringify(basicPackageJson), 'utf-8')
+  prepare(basicPackageJson)
 
   return install([], { quiet: true, production: true })
     .then(function () {
@@ -373,8 +369,7 @@ test('production install (with --production flag)', function (t) {
 test('production install (with production NODE_ENV)', function (t) {
   var originalNodeEnv = process.env.NODE_ENV
   process.env.NODE_ENV = 'production'
-  prepare()
-  fs.writeFileSync('package.json', JSON.stringify(basicPackageJson), 'utf-8')
+  prepare(basicPackageJson)
 
   return install([], { quiet: true })
     .then(function () {
@@ -502,26 +497,30 @@ test('keep dependencies used by others', function (t) {
   }, t.end)
 })
 
+const wait = ms => new Promise(resolve => setTimeout(resolve, ms))
+
 test('fail when trying to install into the same store simultaneously', function (t) {
   prepare()
-  install(['browserify'], { quiet: true })
-  install(['rimraf@2.5.1'], { quiet: true })
-    .then(_ => t.fail('the store should have been locked'))
-    .catch(err => {
-      t.ok(err, 'store is locked')
-      t.end()
-    })
+  Promise.all([
+    install([local('pkg-that-installs-slowly')], { quiet: true }),
+    wait(500) // to be sure that lock was created
+      .then(_ => install(['rimraf@2.5.1'], { quiet: true }))
+      .then(_ => t.fail('the store should have been locked'))
+      .catch(err => t.ok(err, 'store is locked'))
+  ])
+  .then(_ => t.end(), t.end)
 })
 
 test('fail when trying to install and uninstall from the same store simultaneously', function (t) {
   prepare()
-  install(['browserify'], { quiet: true })
-  uninstall(['rimraf@2.5.1'], { quiet: true })
-    .then(_ => t.fail('the store should have been locked'))
-    .catch(err => {
-      t.ok(err, 'store is locked')
-      t.end()
-    })
+  Promise.all([
+    install([local('pkg-that-installs-slowly')], { quiet: true }),
+    wait(500) // to be sure that lock was created
+      .then(_ => uninstall(['rimraf@2.5.1'], { quiet: true }))
+      .then(_ => t.fail('the store should have been locked'))
+      .catch(err => t.ok(err, 'store is locked'))
+  ])
+  .then(_ => t.end(), t.end)
 })
 
 if (preserveSymlinks) {
@@ -549,7 +548,63 @@ test('run js bin file', function (t) {
       t.equal(result.stdout.toString(), 'Hello world!\n', 'package executable printed its message')
       t.equal(result.status, 0, 'executable exited with success')
       t.end()
-    }, t.end)
+    })
+    .catch(t.end)
+})
+
+const pnpmBin = join(__dirname, '../bin/pnpm.js')
+
+test('installation via the CLI', t => {
+  prepare()
+  const result = spawnSync('node', [pnpmBin, 'install', 'rimraf@2.5.1'])
+
+  t.equal(result.status, 0, 'install successful')
+
+  const rimraf = require(join(process.cwd(), 'node_modules', 'rimraf'))
+  t.ok(typeof rimraf === 'function', 'rimraf() is available')
+
+  isExecutable(t, join(process.cwd(), 'node_modules', '.bin', 'rimraf'))
+
+  t.end()
+})
+
+test('pass through to npm CLI for commands that are not supported by npm', t => {
+  const result = spawnSync('node', [pnpmBin, 'config', 'get', 'user-agent'])
+
+  t.equal(result.status, 0, 'command was successfull')
+  t.ok(result.stdout.toString().indexOf('npm/') !== -1, 'command returned correct result')
+
+  t.end()
+})
+
+test('postinstall is executed after installation', t => {
+  prepare({
+    scripts: {
+      postinstall: 'echo "Hello world!"'
+    }
+  })
+
+  const result = spawnSync('node', [pnpmBin, 'install', 'is-negative'])
+
+  t.equal(result.status, 0, 'installation was successfull')
+  t.ok(result.stdout.toString().indexOf('Hello world!') !== -1, 'postinstall script was executed')
+
+  t.end()
+})
+
+test('prepublish is executed after installation', t => {
+  prepare({
+    scripts: {
+      prepublish: 'echo "Hello world!"'
+    }
+  })
+
+  const result = spawnSync('node', [pnpmBin, 'install', 'is-negative'])
+
+  t.equal(result.status, 0, 'installation was successfull')
+  t.ok(result.stdout.toString().indexOf('Hello world!') !== -1, 'prepublish script was executed')
+
+  t.end()
 })
 
 function extendPathWithLocalBin () {
