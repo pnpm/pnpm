@@ -607,6 +607,18 @@ test('prepublish is executed after installation', t => {
   t.end()
 })
 
+test('global installation', t => {
+  const globalPath = join(process.cwd(), '.tmp', 'global')
+  install(['is-positive'], {quiet: true, globalPath, global: true})
+    .then(_ => {
+      const isPositive = require(join(globalPath, 'node_modules', 'is-positive'))
+      t.ok(typeof isPositive === 'function', 'isPositive() is available')
+
+      t.end()
+    })
+    .catch(t.end)
+})
+
 function extendPathWithLocalBin () {
   return {
     PATH: [
