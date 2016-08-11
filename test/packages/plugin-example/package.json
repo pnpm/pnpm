@@ -1,0 +1,10 @@
+{
+  "name": "plugin-example",
+  "version": "1.0.0",
+  "author": "Zoltan Kochan <zoltan.kochan@gmail.com> (http://kochan.io/)",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/rstacruz/pnpm/tree/master/test/packages/plugin-example"
+  }
+}

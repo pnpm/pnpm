@@ -2,6 +2,7 @@
 > Unreleased
 
 - **Breaking** - the API expects `opts.storePath` instead of `opts.store_path`.
+- **Breaking** - drop support for node < 4.
 - [#21] - Support installing from files. ([#257], [@zkochan])
 - [#258] - Improve support for Windows. ([#259], [@zkochan])
 - [#262] - Improve support for build scripts that use npm config variables. ([@zkochan])

@@ -1,6 +1,5 @@
 environment:
   matrix:
-    - nodejs_version: 0.10
     - nodejs_version: 4
     - nodejs_version: 6
 install:
@@ -14,5 +13,4 @@ version: '{build}'
 test_script:
   - node --version
   - npm --version
-  - npm run test:babel
-  - rm -rf .tmp
+  - npm test
