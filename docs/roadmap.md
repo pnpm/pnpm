@@ -6,6 +6,7 @@
   - [x] npm packages
   - [x] install from packages (`npm i`)
   - [x] @scoped packages (`npm i @rstacruz/tap-spec`)
+  - [ ] tarball local packages (`npm i ~/mypackage.tar.gz`)
   - [x] tarball release packages (`npm i http://foo.com/tar.tgz`)
   - [x] compiled packages (`npm i node-sass`)
   - [x] bundled dependencies (`npm i fsevents@1.0.6`)
