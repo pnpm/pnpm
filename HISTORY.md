@@ -14,11 +14,13 @@
 - [#82] - Lock store when running commands. ([#268], [@zkochan])
 - [#214] - Possibility to use a global store by starting the `store-path` config value with `~/`. The `~/` means the path will be relative to the `HOME` directory. ([#268], [@zkochan])
 - [#283] - Support global install. ([@zkochan])
+- [#125] - Add a public API. ([#294], [@zkochan])
 
 [#6]: https://github.com/rstacruz/pnpm/issues/6
 [#21]: https://github.com/rstacruz/pnpm/issues/21
 [#23]: https://github.com/rstacruz/pnpm/issues/23
 [#82]: https://github.com/rstacruz/pnpm/issues/82
+[#125]: https://github.com/rstacruz/pnpm/issues/125
 [#144]: https://github.com/rstacruz/pnpm/issues/144
 [#214]: https://github.com/rstacruz/pnpm/issues/214
 [#257]: https://github.com/rstacruz/pnpm/issues/257
@@ -31,6 +33,7 @@
 [#270]: https://github.com/rstacruz/pnpm/issues/270
 [#278]: https://github.com/rstacruz/pnpm/pull/278
 [#283]: https://github.com/rstacruz/pnpm/issues/283
+[#294]: https://github.com/rstacruz/pnpm/issues/294
 [@leipert]: https://github.com/leipert
 [v0.25.0]: https://github.com/rstacruz/pnpm/compare/v0.24.0...v0.25.0
 

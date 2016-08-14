@@ -8,8 +8,8 @@ var semver = require('semver')
 var spawnSync = require('cross-spawn').sync
 var prepare = require('./support/prepare')
 var basicPackageJson = require('./support/simple-package.json')
-var install = require('../index').install
-var uninstall = require('../index').uninstall
+var install = require('../lib/cmd/install')
+var uninstall = require('../lib/cmd/uninstall')
 
 var isWindows = process.platform === 'win32'
 var preserveSymlinks = semver.satisfies(process.version, '>=6.3.0')
@@ -43,7 +43,8 @@ test('small with dependencies (rimraf)', function (t) {
     isExecutable(t, join(process.cwd(), 'node_modules', '.bin', 'rimraf'))
 
     t.end()
-  }, t.end)
+  })
+  .catch(t.end)
 })
 
 test('no dependencies (lodash)', function (t) {

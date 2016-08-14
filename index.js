@@ -1,17 +1,11 @@
-var pnpm = {}
+'use strict'
+const install = require('./lib/api/install')
+const uninstall = require('./lib/api/install')
 
-Object.defineProperty(pnpm, 'install', {
-  enumerable: true,
-  get: function () {
-    return require('./lib/cmd/install')
-  }
-})
-
-Object.defineProperty(pnpm, 'uninstall', {
-  enumerable: true,
-  get: function () {
-    return require('./lib/cmd/uninstall')
-  }
-})
-
-module.exports = pnpm
+module.exports = {
+  install,
+  installPkgDeps (opts) {
+    return install({}, opts)
+  },
+  uninstall
+}

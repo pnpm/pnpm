@@ -1,0 +1,49 @@
+# API
+
+## `pnpm.install(pkgsToInstall, [options])`
+
+Install packages.
+
+**Arguments:**
+
+* `pkgsToInstall` - *Object | String[]* - either an object that maps package names to version ranges or inputs usually passed to `npm install` (e.g., `foo@1.0.0`, `foo`).
+* `options.save` - *Boolean* - package will appear in `dependencies`.
+* `options.saveDev` - *Boolean* - package will appear in `devDependencies`.
+* `options.saveOptional` - *Boolean* - package will appear in `optionalDependencies`.
+* `options.saveExact` - *Boolean* - saved dependencies will be configured with an exact version rather than using npm's default semver range operator.
+* `options.global` - *Boolean* - the packages will be installed globally rather than locally.
+* `options.cwd` - *String* - the directory in which the installation will be performed. By default the `process.cwd()` value is used.
+* `options.quiet` - *Boolean* - `false` by default. No output to the console.
+
+**Returns:** a Promise
+
+**Example:**
+
+```js
+const pnpm = require('pnpm')
+
+pnpm.install({
+  'is-positive': '1.0.0',
+  'hello-world': '^2.3.1'
+}, { save: true, quiet: true })
+```
+
+## `pnpm.installPkgDeps([options])`
+
+Install all modules listed as dependencies in `package.json`.
+
+**Arguments:** (same as in named install and additionally)
+
+* `options.production` - *Boolean* - `false` by default or `true` when the `NODE_ENV` environment variable is set to `production`. Modules listed in `devDependencies` will not be installed.
+
+## `pnpm.uninstall(pkgsToUninstall, [options])`
+
+Uninstalls a package, completely removing everything pnpm installed on its behalf.
+
+**Arguments:**
+
+* `pkgsToUninstall` - *String[]* - the package names to be uninstalled.
+* `options.save` - *Boolean* - the package will be removed from `dependencies`.
+* `options.saveDev` - *Boolean* - the package will be removed from `devDependencies`.
+* `options.saveOptional` - *Boolean* - the package will be removed from `optionalDependencies`.
+* `options.global` - *Boolean* - the packages will be uninstalled globally.

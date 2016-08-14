@@ -1,6 +1,7 @@
 # Table of contents
 
 * [pnpm](../README.md)
+* [API][./api.md]
 * Features
   * [Custom registries](custom-registries.md)
   * [Store layout](store-layout.md)
