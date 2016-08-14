@@ -5,12 +5,12 @@ if (~process.argv.indexOf('--debug')) {
   process.argv.push('--quiet')
 }
 
-var rc = require('rc')
-var camelcaseKeys = require('camelcase-keys')
-var spawnSync = require('cross-spawn').sync
+const rc = require('rc')
+const camelcaseKeys = require('camelcase-keys')
+const spawnSync = require('cross-spawn').sync
 
-var installCmd = require('../lib/cmd/install')
-var uninstallCmd = require('../lib/cmd/uninstall')
+const installCmd = require('../lib/cmd/install')
+const uninstallCmd = require('../lib/cmd/uninstall')
 
 const supportedCmds = new Set(['install', 'uninstall', 'help'])
 
@@ -52,7 +52,7 @@ function run (argv) {
     }
   })
 
-  var cmd = getCommandFullName(cli.input[0])
+  const cmd = getCommandFullName(cli.input[0])
   if (!supportedCmds.has(cmd)) {
     spawnSync('npm', argv, { stdio: 'inherit' })
     return Promise.resolve()
@@ -62,9 +62,9 @@ function run (argv) {
     cli.flags.quiet = true
   }
 
-  ['dryRun'].forEach(function (flag) {
+  ['dryRun'].forEach(flag => {
     if (cli.flags[flag]) {
-      console.error("Error: '" + flag + "' is not supported yet, sorry!")
+      console.error(`Error: '${flag}' is not supported yet, sorry!`)
       process.exit(1)
     }
   })
@@ -72,7 +72,7 @@ function run (argv) {
   var opts = Object.assign({}, getRC('npm'), getRC('pnpm'))
 
   // This is needed because the arg values should be used only if they were passed
-  Object.keys(cli.flags).forEach(function (key) {
+  Object.keys(cli.flags).forEach(key => {
     opts[key] = opts[key] || cli.flags[key]
   })
 
