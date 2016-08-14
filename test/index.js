@@ -1,4 +1,5 @@
 var test = require('tape')
+var path = require('path')
 var join = require('path').join
 var delimiter = require('path').delimiter
 var fs = require('fs')
@@ -6,13 +7,18 @@ var caw = require('caw')
 var isexe = require('isexe')
 var semver = require('semver')
 var spawnSync = require('cross-spawn').sync
+var thenify = require('thenify')
+var ncp = thenify(require('ncp').ncp)
+const mkdirp = require('mkdirp')
 var prepare = require('./support/prepare')
 var basicPackageJson = require('./support/simple-package.json')
 var install = require('../lib/cmd/install')
 var uninstall = require('../lib/cmd/uninstall')
+var link = require('../lib/cmd/link')
 
 var isWindows = process.platform === 'win32'
 var preserveSymlinks = semver.satisfies(process.version, '>=6.3.0')
+const globalPath = join(process.cwd(), '.tmp', 'global')
 
 if (!caw() && !isWindows) {
   require('./support/sepia')
@@ -39,6 +45,9 @@ test('API', t => {
   t.equal(typeof pnpm.install, 'function', 'exports install()')
   t.equal(typeof pnpm.install, 'function', 'exports installPkgDeps()')
   t.equal(typeof pnpm.uninstall, 'function', 'exports uninstall()')
+  t.equal(typeof pnpm.linkFromGlobal, 'function', 'exports linkFromGlobal()')
+  t.equal(typeof pnpm.linkFromRelative, 'function', 'exports linkFromRelative()')
+  t.equal(typeof pnpm.linkToGlobal, 'function', 'exports linkToGlobal()')
   t.end()
 })
 
@@ -618,11 +627,48 @@ test('prepublish is executed after installation', t => {
 })
 
 test('global installation', t => {
-  const globalPath = join(process.cwd(), '.tmp', 'global')
   install(['is-positive'], {quiet: true, globalPath, global: true})
     .then(_ => {
       const isPositive = require(join(globalPath, 'node_modules', 'is-positive'))
       t.ok(typeof isPositive === 'function', 'isPositive() is available')
+
+      t.end()
+    })
+    .catch(t.end)
+})
+
+test('relative link', t => {
+  prepare()
+  const tmpDir = path.resolve(__dirname, '..', '.tmp')
+  const linkedPkgName = 'hello-world-js-bin'
+  const linkedPkgDirName = linkedPkgName + Math.random().toString()
+  const linkedPkgPath = path.resolve(tmpDir, linkedPkgDirName)
+  ncp(pathToLocalPkg(linkedPkgName), linkedPkgPath)
+    .then(_ => link([`../${linkedPkgDirName}`], { quiet: true }))
+    .then(_ => {
+      isExecutable(t, join(process.cwd(), 'node_modules', '.bin', 'hello-world-js-bin'))
+
+      t.end()
+    })
+    .catch(t.end)
+})
+
+test('global link', t => {
+  const tmpDir = path.resolve(__dirname, '..', '.tmp')
+  mkdirp.sync(tmpDir)
+  const linkedPkgName = 'hello-world-js-bin'
+  const linkedPkgPath = path.resolve(tmpDir, linkedPkgName + Math.random().toString())
+  ncp(pathToLocalPkg(linkedPkgName), linkedPkgPath)
+    .then(_ => {
+      process.chdir(linkedPkgPath)
+      return link([], { globalPath, quiet: true })
+    })
+    .then(_ => {
+      prepare()
+      return link([linkedPkgName], { globalPath, quiet: true })
+    })
+    .then(_ => {
+      isExecutable(t, join(process.cwd(), 'node_modules', '.bin', 'hello-world-js-bin'))
 
       t.end()
     })
@@ -638,9 +684,12 @@ function extendPathWithLocalBin () {
   }
 }
 
+function pathToLocalPkg (pkgName) {
+  return join(__dirname, 'packages', pkgName)
+}
+
 function local (pkgName) {
-  var pkgPath = join(__dirname, 'packages', pkgName)
-  return 'file:' + pkgPath
+  return `file:${pathToLocalPkg(pkgName)}`
 }
 
 function exists (path) {

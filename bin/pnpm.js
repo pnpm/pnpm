@@ -9,10 +9,13 @@ const rc = require('rc')
 const camelcaseKeys = require('camelcase-keys')
 const spawnSync = require('cross-spawn').sync
 
-const installCmd = require('../lib/cmd/install')
-const uninstallCmd = require('../lib/cmd/uninstall')
+const pnpmCmds = {
+  install: require('../lib/cmd/install'),
+  uninstall: require('../lib/cmd/uninstall'),
+  link: require('../lib/cmd/link')
+}
 
-const supportedCmds = new Set(['install', 'uninstall', 'help'])
+const supportedCmds = new Set(['install', 'uninstall', 'help', 'link'])
 
 function run (argv) {
   const cli = require('meow')({
@@ -77,8 +80,7 @@ function run (argv) {
   })
 
   const cliArgs = cli.input.slice(1)
-  const cmdfn = cmd === 'install' ? installCmd : uninstallCmd
-  return cmdfn(cliArgs, opts)
+  return pnpmCmds[cmd](cliArgs, opts)
 }
 
 function getCommandFullName (cmd) {
@@ -94,6 +96,9 @@ function getCommandFullName (cmd) {
       return 'uninstall'
     case 'help':
       return 'help'
+    case 'link':
+    case 'ln':
+      return 'link'
     default:
       return cmd
   }
