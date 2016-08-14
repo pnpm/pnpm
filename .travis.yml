@@ -8,7 +8,7 @@ cache:
 sudo: false
 script:
   - npm test
-  - if [[ $TRAVIS_NODE_VERSION == "4" ]]; then ./node_modules/.bin/docpress build; fi
+  - if [[ $TRAVIS_NODE_VERSION == "4" ]]; then npm run docs:build; fi
 after_success:
   - if [ "$TRAVIS_BRANCH" = "master" -a "$TRAVIS_PULL_REQUEST" = "false" ]; then ./node_modules/.bin/git-update-ghpages -e; fi
 env:

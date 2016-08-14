@@ -79,6 +79,7 @@
     "url": "git+https://github.com/rstacruz/pnpm.git"
   },
   "scripts": {
+    "docs:build": "docpress build",
     "cover": "istanbul cover test/index.js",
     "lint": "eslint bin/ test/ lib/",
     "test": "npm run lint && node test | tap-spec",
