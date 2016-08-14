@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+'use strict'
 if (~process.argv.indexOf('--debug')) {
   process.env.DEBUG = 'pnpm:*'
   process.argv.push('--quiet')
@@ -10,6 +11,8 @@ var spawnSync = require('cross-spawn').sync
 
 var installCmd = require('../lib/cmd/install')
 var uninstallCmd = require('../lib/cmd/uninstall')
+
+const supportedCmds = new Set(['install', 'uninstall', 'help'])
 
 function run (argv) {
   const cli = require('meow')({
@@ -49,11 +52,10 @@ function run (argv) {
     }
   })
 
-  var installCmds = ['install', 'i']
-  var supportedCmds = installCmds.concat(['uninstall', 'r', 'rm', 'un', 'unlink', 'help'])
-  if (supportedCmds.indexOf(cli.input[0]) === -1) {
+  var cmd = getCommandFullName(cli.input[0])
+  if (!supportedCmds.has(cmd)) {
     spawnSync('npm', argv, { stdio: 'inherit' })
-    return
+    return Promise.resolve()
   }
 
   if (cli.flags.debug) {
@@ -74,8 +76,27 @@ function run (argv) {
     opts[key] = opts[key] || cli.flags[key]
   })
 
-  var cmd = installCmds.indexOf(cli.input[0]) === -1 ? uninstallCmd : installCmd
-  return cmd(cli.input.slice(1), opts).catch(require('../lib/err'))
+  const cliArgs = cli.input.slice(1)
+  const cmdfn = cmd === 'install' ? installCmd : uninstallCmd
+  return cmdfn(cliArgs, opts)
+}
+
+function getCommandFullName (cmd) {
+  switch (cmd) {
+    case 'install':
+    case 'i':
+      return 'install'
+    case 'uninstall':
+    case 'r':
+    case 'rm':
+    case 'un':
+    case 'unlink':
+      return 'uninstall'
+    case 'help':
+      return 'help'
+    default:
+      return cmd
+  }
 }
 
 function getRC (appName) {
@@ -83,4 +104,4 @@ function getRC (appName) {
 }
 
 module.exports = run
-if (!module.parent) run(process.argv.slice(2))
+if (!module.parent) run(process.argv.slice(2)).catch(require('../lib/err'))
