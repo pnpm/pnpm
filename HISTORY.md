@@ -13,6 +13,7 @@
 - [#23] - Reimplement bin/pnpm to .js. ([#268], [@zkochan])
 - [#82] - Lock store when running commands. ([#268], [@zkochan])
 - [#214] - Possibility to use a global store by starting the `store-path` config value with `~/`. The `~/` means the path will be relative to the `HOME` directory. ([#268], [@zkochan])
+- [#283] - Support global install. ([@zkochan])
 
 [#6]: https://github.com/rstacruz/pnpm/issues/6
 [#21]: https://github.com/rstacruz/pnpm/issues/21
@@ -29,6 +30,7 @@
 [#269]: https://github.com/rstacruz/pnpm/issues/269
 [#270]: https://github.com/rstacruz/pnpm/issues/270
 [#278]: https://github.com/rstacruz/pnpm/pull/278
+[#283]: https://github.com/rstacruz/pnpm/issues/283
 [@leipert]: https://github.com/leipert
 [v0.25.0]: https://github.com/rstacruz/pnpm/compare/v0.24.0...v0.25.0
 

@@ -60,7 +60,7 @@ function run (argv) {
     cli.flags.quiet = true
   }
 
-  ['dryRun', 'global'].forEach(function (flag) {
+  ['dryRun'].forEach(function (flag) {
     if (cli.flags[flag]) {
       console.error("Error: '" + flag + "' is not supported yet, sorry!")
       process.exit(1)

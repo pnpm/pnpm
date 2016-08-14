@@ -14,7 +14,7 @@
   - [x] file packages (`npm i file:../path`)
   - [x] windows support
   - [x] bin executables
-  - [ ] `--global` installs
+  - [x] `--global` installs
   - [x] `--save` (et al)
 - [x] `pnpm uninstall`
 - [x] `pnpm ls`
