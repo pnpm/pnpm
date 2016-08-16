@@ -33,6 +33,15 @@ function isExecutable (t, filePath) {
   t.ok(isexe(filePath), filePath + ' is executable')
 }
 
+test('API', t => {
+  const pnpm = require('..')
+
+  t.equal(typeof pnpm.install, 'function', 'exports install()')
+  t.equal(typeof pnpm.install, 'function', 'exports installPkgDeps()')
+  t.equal(typeof pnpm.uninstall, 'function', 'exports uninstall()')
+  t.end()
+})
+
 test('small with dependencies (rimraf)', function (t) {
   prepare()
   install(['rimraf@2.5.1'], { quiet: true })
