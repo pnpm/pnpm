@@ -1,5 +1,5 @@
 ## [v0.25.0]
-> Unreleased
+> Aug 18, 2016
 
 - **Breaking** - the API expects `opts.storePath` instead of `opts.store_path`.
 - **Breaking** - drop support for node < 4.
