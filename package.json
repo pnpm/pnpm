@@ -46,11 +46,14 @@
     "throat": "3.0.0"
   },
   "devDependencies": {
+    "commitizen": "^2.8.6",
+    "cz-conventional-changelog": "^1.2.0",
     "docpress": "0.6.13",
     "eslint": "3.2.2",
     "eslint-config-standard": "5.3.5",
     "eslint-plugin-promise": "2.0.1",
     "eslint-plugin-standard": "2.0.0",
+    "ghooks": "^1.3.2",
     "git-update-ghpages": "1.3.0",
     "isexe": "1.1.2",
     "istanbul": "^0.4.4",
@@ -59,7 +62,8 @@
     "npm": "3.10.5",
     "sepia": "2.0.1",
     "tap-spec": "4.1.1",
-    "tape": "4.6.0"
+    "tape": "4.6.0",
+    "validate-commit-msg": "^2.7.0"
   },
   "directories": {
     "test": "test"
@@ -81,9 +85,18 @@
   },
   "scripts": {
     "docs:build": "docpress build",
+    "commit": "git-cz",
     "cover": "istanbul cover test/index.js",
     "lint": "eslint bin/ test/ lib/",
     "test": "npm run lint && node test | tap-spec",
     "posttest": "rimraf .tmp"
+  },
+  "config": {
+    "commitizen": {
+      "path": "./node_modules/cz-conventional-changelog"
+    },
+    "ghooks": {
+      "commit-msg": "node ./node_modules/validate-commit-msg/index.js"
+    }
   }
 }
