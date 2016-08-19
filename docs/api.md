@@ -47,3 +47,25 @@ Uninstalls a package, completely removing everything pnpm installed on its behal
 * `options.saveDev` - *Boolean* - the package will be removed from `devDependencies`.
 * `options.saveOptional` - *Boolean* - the package will be removed from `optionalDependencies`.
 * `options.global` - *Boolean* - the packages will be uninstalled globally.
+
+## `pnpm.linkFromRelative(lintTo, [options])`
+
+Create a symbolic link from the linked package to the current working directory's `node_modules` (and to the `node_modules/.bin`).
+
+**Arguments:**
+
+* `options.cwd` - *String* - by default `process.cwd()`.
+
+## `pnpm.linkToGlobal([options])`
+
+Create a symbolic link from the package in the current working directory to the global `node_modules`.
+
+**Arguments:**
+
+* `options.cwd` - *String* - by default `process.cwd()`.
+
+## `pnpm.linkFromGlobal(pkgName, [options])`
+
+Create a symbolic link to the specified package from the global `node_modules` to the current working directory's `node_modules`.
+
+* `options.cwd` - *String* - by default `process.cwd()`.

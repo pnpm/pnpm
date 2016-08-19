@@ -19,7 +19,7 @@
   - [x] `--save` (et al)
 - [x] `pnpm uninstall`
 - [x] `pnpm ls`
-- [ ] `pnpm link`
+- [x] `pnpm link`
 - [ ] `pnpm unlink`
 - [ ] `pnpm prune`
 - [ ] `pnpm update`

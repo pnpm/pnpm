@@ -1,3 +1,12 @@
+## [v0.26.0]
+> Pending
+
+- [#235] - `pnpm link` ([#302], [@zkochan])
+
+[#235]: https://github.com/rstacruz/pnpm/issues/235
+[#302]: https://github.com/rstacruz/pnpm/pull/302
+[v0.26.0]: https://github.com/rstacruz/pnpm/compare/v0.25.0...v0.26.0
+
 ## [v0.25.0]
 > Aug 18, 2016
 
