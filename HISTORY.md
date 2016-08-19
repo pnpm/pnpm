@@ -1,5 +1,5 @@
 ## [v0.26.0]
-> Pending
+> Aug 19, 2016
 
 - [#235] - `pnpm link` ([#302], [@zkochan])
 
