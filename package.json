@@ -10,8 +10,10 @@
     "url": "https://github.com/rstacruz/pnpm/issues"
   },
   "files": [
-    "lib",
-    "bin"
+    "lib/",
+    "bin/",
+    ".scripts/",
+    "cached_node_modules/"
   ],
   "dependencies": {
     "byline": "5.0.0",
@@ -87,9 +89,12 @@
     "docs:build": "docpress build",
     "commit": "git-cz",
     "cover": "istanbul cover test/index.js",
-    "lint": "eslint bin/ test/ lib/",
+    "lint": "eslint bin/ test/ lib/ .scripts/",
     "test": "npm run lint && node test | tap-spec",
-    "posttest": "rimraf .tmp"
+    "posttest": "rimraf .tmp",
+    "preinstall": "node .scripts/try_rename cached_node_modules node_modules",
+    "prerelease": "npm test",
+    "release": "sh .scripts/release.sh"
   },
   "config": {
     "commitizen": {
