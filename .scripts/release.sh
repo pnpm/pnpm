@@ -10,19 +10,25 @@ echo "install just the dependencies and don't run any pre/post install scripts";
 npm install --production --ignore-scripts;
 set +e;
 
+publish () {
+  if [[ $1 ]]; then
+    npm publish --tag $1;
+  else
+    npm publish;
+  fi
+}
+
+echo "publish pnpm $1";
+publish;
+
 echo "rename node_modules to cached_node_modules";
 node .scripts/rename node_modules cached_node_modules;
 
 echo "remove the dependencies section from package.json";
 node .scripts/hide_deps;
 
-echo "publish $1";
-
-if [[ $1 ]]; then
-  npm publish --tag $1;
-else
-  npm publish;
-fi
+echo "publish pnpm-rocket $1";
+publish;
 
 echo "return the dependencies section to package.json";
 node .scripts/unhide_deps;

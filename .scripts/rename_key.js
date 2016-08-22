@@ -12,7 +12,7 @@ module.exports = opts => {
   for (let i = 0; i < keys.length; i++) {
     if (keys[i] === 'scripts') {
       newPkgJSON.scripts = pkgJSON.scripts
-      if (opts.addPreinstall) {
+      if (opts.pkgName === 'pnpm-rocket') {
         newPkgJSON.scripts.preinstall = 'node .scripts/rename cached_node_modules node_modules'
         continue
       }
@@ -25,6 +25,7 @@ module.exports = opts => {
     }
     newPkgJSON[keys[i]] = pkgJSON[keys[i]]
   }
+  newPkgJSON.name = opts.pkgName
 
   fs.writeFileSync(pkgPath, JSON.stringify(newPkgJSON, null, 2), 'UTF8')
 }
