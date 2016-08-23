@@ -72,7 +72,7 @@ function run (argv) {
     }
   })
 
-  var opts = Object.assign({}, getRC('npm'), getRC('pnpm'))
+  const opts = Object.assign({}, getRC('npm'), getRC('pnpm'))
 
   // This is needed because the arg values should be used only if they were passed
   Object.keys(cli.flags).forEach(key => {

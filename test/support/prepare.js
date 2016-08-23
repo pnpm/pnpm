@@ -1,13 +1,14 @@
-var mkdirp = require('mkdirp')
-var fs = require('fs')
-var join = require('path').join
-var root = process.cwd()
+'use strict'
+const mkdirp = require('mkdirp')
+const fs = require('fs')
+const join = require('path').join
+const root = process.cwd()
 process.env.ROOT = root
 
 module.exports = function prepare (pkg) {
-  var tmpPath = join(root, '.tmp', Math.random().toString())
+  const tmpPath = join(root, '.tmp', Math.random().toString())
   mkdirp.sync(tmpPath)
-  var json = JSON.stringify(pkg || {})
+  const json = JSON.stringify(pkg || {})
   fs.writeFileSync(join(tmpPath, 'package.json'), json, 'utf-8')
   process.chdir(tmpPath)
 }

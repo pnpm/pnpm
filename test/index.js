@@ -1,30 +1,31 @@
-var test = require('tape')
-var path = require('path')
-var join = require('path').join
-var delimiter = require('path').delimiter
-var fs = require('fs')
-var caw = require('caw')
-var isexe = require('isexe')
-var semver = require('semver')
-var spawnSync = require('cross-spawn').sync
-var thenify = require('thenify')
-var ncp = thenify(require('ncp').ncp)
+'use strict'
+const test = require('tape')
+const path = require('path')
+const join = require('path').join
+const delimiter = require('path').delimiter
+const fs = require('fs')
+const caw = require('caw')
+const isexe = require('isexe')
+const semver = require('semver')
+const spawnSync = require('cross-spawn').sync
+const thenify = require('thenify')
+const ncp = thenify(require('ncp').ncp)
 const mkdirp = require('mkdirp')
-var prepare = require('./support/prepare')
-var basicPackageJson = require('./support/simple-package.json')
-var install = require('../lib/cmd/install')
-var uninstall = require('../lib/cmd/uninstall')
-var link = require('../lib/cmd/link')
+const prepare = require('./support/prepare')
+const basicPackageJson = require('./support/simple-package.json')
+const install = require('../lib/cmd/install')
+const uninstall = require('../lib/cmd/uninstall')
+const link = require('../lib/cmd/link')
 
-var isWindows = process.platform === 'win32'
-var preserveSymlinks = semver.satisfies(process.version, '>=6.3.0')
+const isWindows = process.platform === 'win32'
+const preserveSymlinks = semver.satisfies(process.version, '>=6.3.0')
 const globalPath = join(process.cwd(), '.tmp', 'global')
 
 if (!caw() && !isWindows) {
   require('./support/sepia')
 }
 
-var stat, _
+let stat, _
 
 function isExecutable (t, filePath) {
   if (!isWindows && !preserveSymlinks) {
@@ -51,11 +52,11 @@ test('API', t => {
   t.end()
 })
 
-test('small with dependencies (rimraf)', function (t) {
+test('small with dependencies (rimraf)', t => {
   prepare()
   install(['rimraf@2.5.1'], { quiet: true })
-  .then(function () {
-    var rimraf = require(join(process.cwd(), 'node_modules', 'rimraf'))
+  .then(() => {
+    const rimraf = require(join(process.cwd(), 'node_modules', 'rimraf'))
     t.ok(typeof rimraf === 'function', 'rimraf() is available')
 
     isExecutable(t, join(process.cwd(), 'node_modules', '.bin', 'rimraf'))
@@ -65,10 +66,10 @@ test('small with dependencies (rimraf)', function (t) {
   .catch(t.end)
 })
 
-test('no dependencies (lodash)', function (t) {
+test('no dependencies (lodash)', t => {
   prepare()
   install(['lodash@4.0.0'], { quiet: true })
-  .then(function () {
+  .then(() => {
     _ = require(join(process.cwd(), 'node_modules', 'lodash'))
     t.ok(typeof _ === 'function', '_ is available')
     t.ok(typeof _.clone === 'function', '_.clone is available')
@@ -76,40 +77,40 @@ test('no dependencies (lodash)', function (t) {
   }, t.end)
 })
 
-test('scoped modules without version spec (@rstacruz/tap-spec)', function (t) {
+test('scoped modules without version spec (@rstacruz/tap-spec)', t => {
   prepare()
   install(['@rstacruz/tap-spec'], { quiet: true })
-  .then(function () {
+  .then(() => {
     _ = require(join(process.cwd(), 'node_modules', '@rstacruz/tap-spec'))
     t.ok(typeof _ === 'function', 'tap-spec is available')
     t.end()
   }, t.end)
 })
 
-test('scoped modules with versions (@rstacruz/tap-spec@4.1.1)', function (t) {
+test('scoped modules with versions (@rstacruz/tap-spec@4.1.1)', t => {
   prepare()
   install(['@rstacruz/tap-spec@4.1.1'], { quiet: true })
-  .then(function () {
+  .then(() => {
     _ = require(join(process.cwd(), 'node_modules', '@rstacruz/tap-spec'))
     t.ok(typeof _ === 'function', 'tap-spec is available')
     t.end()
   }, t.end)
 })
 
-test('scoped modules (@rstacruz/tap-spec@*)', function (t) {
+test('scoped modules (@rstacruz/tap-spec@*)', t => {
   prepare()
   install(['@rstacruz/tap-spec@*'], { quiet: true })
-  .then(function () {
+  .then(() => {
     _ = require(join(process.cwd(), 'node_modules', '@rstacruz/tap-spec'))
     t.ok(typeof _ === 'function', 'tap-spec is available')
     t.end()
   }, t.end)
 })
 
-test('multiple scoped modules (@rstacruz/...)', function (t) {
+test('multiple scoped modules (@rstacruz/...)', t => {
   prepare()
   install(['@rstacruz/tap-spec@*', '@rstacruz/travis-encrypt@*'], { quiet: true })
-  .then(function () {
+  .then(() => {
     _ = require(join(process.cwd(), 'node_modules', '@rstacruz/tap-spec'))
     t.ok(typeof _ === 'function', 'tap-spec is available')
     _ = require(join(process.cwd(), 'node_modules', '@rstacruz/travis-encrypt'))
@@ -118,53 +119,53 @@ test('multiple scoped modules (@rstacruz/...)', function (t) {
   }, t.end)
 })
 
-test('nested scoped modules (test-pnpm-issue219 -> @zkochan/test-pnpm-issue219)', function (t) {
+test('nested scoped modules (test-pnpm-issue219 -> @zkochan/test-pnpm-issue219)', t => {
   prepare()
   install(['test-pnpm-issue219@1.0.2'], { quiet: true })
-  .then(function () {
+  .then(() => {
     _ = require(join(process.cwd(), 'node_modules', 'test-pnpm-issue219'))
     t.ok(_ === 'test-pnpm-issue219,@zkochan/test-pnpm-issue219', 'nested scoped package is available')
     t.end()
   }, t.end)
 })
 
-test('skip failing optional dependencies', function (t) {
+test('skip failing optional dependencies', t => {
   prepare()
   install(['pkg-with-failing-optional-dependency@1.0.1'], { quiet: true })
-  .then(function () {
-    var isNegative = require(join(process.cwd(), 'node_modules', 'pkg-with-failing-optional-dependency'))
+  .then(() => {
+    const isNegative = require(join(process.cwd(), 'node_modules', 'pkg-with-failing-optional-dependency'))
     t.ok(isNegative(-1), 'package with failed optional dependency has the dependencies installed correctly')
     t.end()
   }, t.end)
 })
 
-test('idempotency (rimraf)', function (t) {
+test('idempotency (rimraf)', t => {
   prepare()
   install(['rimraf@2.5.1'], { quiet: true })
-  .then(function () { return install([ 'rimraf@2.5.1' ], { quiet: true }) })
-  .then(function () {
-    var rimraf = require(join(process.cwd(), 'node_modules', 'rimraf'))
+  .then(() => install([ 'rimraf@2.5.1' ], { quiet: true }))
+  .then(() => {
+    const rimraf = require(join(process.cwd(), 'node_modules', 'rimraf'))
     t.ok(typeof rimraf === 'function', 'rimraf is available')
     t.end()
   }, t.end)
 })
 
-test('overwriting (lodash@3.10.1 and @4.0.0)', function (t) {
+test('overwriting (lodash@3.10.1 and @4.0.0)', t => {
   prepare()
   install(['lodash@3.10.1'], { quiet: true })
-  .then(function () { return install([ 'lodash@4.0.0' ], { quiet: true }) })
-  .then(function () {
+  .then(() => install([ 'lodash@4.0.0' ], { quiet: true }))
+  .then(() => {
     _ = require(join(process.cwd(), 'node_modules', 'lodash', 'package.json'))
     t.ok(_.version === '4.0.0', 'lodash is 4.0.0')
     t.end()
   }, t.end)
 })
 
-test('big with dependencies and circular deps (babel-preset-2015)', function (t) {
+test('big with dependencies and circular deps (babel-preset-2015)', t => {
   prepare()
   install(['babel-preset-es2015@6.3.13'], { quiet: true })
-  .then(function () {
-    var b = require(join(process.cwd(), 'node_modules', 'babel-preset-es2015'))
+  .then(() => {
+    const b = require(join(process.cwd(), 'node_modules', 'babel-preset-es2015'))
     t.ok(typeof b === 'object', 'babel-preset-es2015 is available')
     t.end()
   }, t.end)
@@ -172,17 +173,17 @@ test('big with dependencies and circular deps (babel-preset-2015)', function (t)
 
 // NOTE: fsevents can't be installed on Windows
 if (!isWindows) {
-  test('bundleDependencies (fsevents@1.0.6)', function (t) {
+  test('bundleDependencies (fsevents@1.0.6)', t => {
     prepare()
     install(['fsevents@1.0.6'], { quiet: true })
-    .then(function () {
+    .then(() => {
       isExecutable(t, join(process.cwd(), 'node_modules', 'fsevents', 'node_modules', '.bin', 'mkdirp'))
       t.end()
     }, t.end)
   })
 }
 
-test('compiled modules (ursa@0.9.1)', function (t) {
+test('compiled modules (ursa@0.9.1)', t => {
   if (!process.env.CI || isWindows) {
     t.skip('only ran on CI')
     return t.end()
@@ -190,18 +191,18 @@ test('compiled modules (ursa@0.9.1)', function (t) {
 
   prepare()
   install(['ursa@0.9.1'], { quiet: false })
-  .then(function () {
-    var ursa = require(join(process.cwd(), 'node_modules', 'ursa'))
+  .then(() => {
+    const ursa = require(join(process.cwd(), 'node_modules', 'ursa'))
     t.ok(typeof ursa === 'object', 'ursa() is available')
     t.end()
   }, t.end)
 })
 
-test('tarballs (is-array-1.0.1.tgz)', function (t) {
+test('tarballs (is-array-1.0.1.tgz)', t => {
   prepare()
   install(['http://registry.npmjs.org/is-array/-/is-array-1.0.1.tgz'], { quiet: true })
-  .then(function () {
-    var isArray = require(
+  .then(() => {
+    const isArray = require(
       join(process.cwd(), 'node_modules', 'is-array'))
 
     t.ok(isArray, 'isArray() is available')
@@ -214,11 +215,11 @@ test('tarballs (is-array-1.0.1.tgz)', function (t) {
   }, t.end)
 })
 
-test('local file', function (t) {
+test('local file', t => {
   prepare()
   install([local('local-pkg')], { quiet: true })
-  .then(function () {
-    var localPkg = require(
+  .then(() => {
+    const localPkg = require(
       join(process.cwd(), 'node_modules', 'local-pkg'))
 
     t.ok(localPkg, 'localPkg() is available')
@@ -229,11 +230,11 @@ test('local file', function (t) {
 
 // Skipping on CI as failing frequently there, due to environment issues
 if (!process.env.CI) {
-  test('from a github repo', function (t) {
+  test('from a github repo', t => {
     prepare()
     install(['kevva/is-negative'], { quiet: true })
-    .then(function () {
-      var localPkg = require(
+    .then(() => {
+      const localPkg = require(
         join(process.cwd(), 'node_modules', 'is-negative'))
 
       t.ok(localPkg, 'isNegative() is available')
@@ -243,15 +244,15 @@ if (!process.env.CI) {
   })
 }
 
-test('shrinkwrap compatibility', function (t) {
+test('shrinkwrap compatibility', t => {
   prepare({ dependencies: { rimraf: '*' } })
 
   install(['rimraf@2.5.1'], { quiet: true })
-  .then(function () {
-    var npm = JSON.stringify(require.resolve('npm/bin/npm-cli.js'))
-    require('child_process').exec('node ' + npm + ' shrinkwrap', function (err) {
+  .then(() => {
+    const npm = JSON.stringify(require.resolve('npm/bin/npm-cli.js'))
+    require('child_process').exec('node ' + npm + ' shrinkwrap', err => {
       if (err) return t.end(err)
-      var wrap = JSON.parse(fs.readFileSync('npm-shrinkwrap.json', 'utf-8'))
+      const wrap = JSON.parse(fs.readFileSync('npm-shrinkwrap.json', 'utf-8'))
       t.ok(wrap.dependencies.rimraf.version === '2.5.1',
         'npm shrinkwrap is successful')
       t.end()
@@ -259,74 +260,74 @@ test('shrinkwrap compatibility', function (t) {
   }, t.end)
 })
 
-test('run pre/postinstall scripts', function (t) {
+test('run pre/postinstall scripts', t => {
   prepare()
   install([local('pre-and-postinstall-scripts-example')], { quiet: true })
-  .then(function () {
-    var generatedByPreinstall = require(join(process.cwd(), 'node_modules', 'pre-and-postinstall-scripts-example/generated-by-preinstall'))
+  .then(() => {
+    const generatedByPreinstall = require(join(process.cwd(), 'node_modules', 'pre-and-postinstall-scripts-example/generated-by-preinstall'))
     t.ok(typeof generatedByPreinstall === 'function', 'generatedByPreinstall() is available')
 
-    var generatedByPostinstall = require(join(process.cwd(), 'node_modules', 'pre-and-postinstall-scripts-example/generated-by-postinstall'))
+    const generatedByPostinstall = require(join(process.cwd(), 'node_modules', 'pre-and-postinstall-scripts-example/generated-by-postinstall'))
     t.ok(typeof generatedByPostinstall === 'function', 'generatedByPostinstall() is available')
 
     t.end()
   }, t.end)
 })
 
-test('run install scripts', function (t) {
+test('run install scripts', t => {
   prepare()
   install([local('install-script-example')], { quiet: true })
-  .then(function () {
-    var generatedByInstall = require(join(process.cwd(), 'node_modules', 'install-script-example/generated-by-install'))
+  .then(() => {
+    const generatedByInstall = require(join(process.cwd(), 'node_modules', 'install-script-example/generated-by-install'))
     t.ok(typeof generatedByInstall === 'function', 'generatedByInstall() is available')
 
     t.end()
   }, t.end)
 })
 
-test('save to package.json (rimraf@2.5.1)', function (t) {
+test('save to package.json (rimraf@2.5.1)', t => {
   prepare()
   install(['rimraf@2.5.1'], { quiet: true, save: true })
-  .then(function () {
-    var rimraf = require(join(process.cwd(), 'node_modules', 'rimraf'))
+  .then(() => {
+    const rimraf = require(join(process.cwd(), 'node_modules', 'rimraf'))
     t.ok(typeof rimraf === 'function', 'rimraf() is available')
 
-    var pkgJson = fs.readFileSync(join(process.cwd(), 'package.json'), 'utf8')
-    var dependencies = JSON.parse(pkgJson).dependencies
+    const pkgJson = fs.readFileSync(join(process.cwd(), 'package.json'), 'utf8')
+    const dependencies = JSON.parse(pkgJson).dependencies
     t.deepEqual(dependencies, {rimraf: '^2.5.1'}, 'rimraf has been added to dependencies')
 
     t.end()
   }, t.end)
 })
 
-test('saveDev scoped module to package.json (@rstacruz/tap-spec)', function (t) {
+test('saveDev scoped module to package.json (@rstacruz/tap-spec)', t => {
   prepare()
   install(['@rstacruz/tap-spec'], { quiet: true, saveDev: true })
-  .then(function () {
-    var tapSpec = require(join(process.cwd(), 'node_modules', '@rstacruz/tap-spec'))
+  .then(() => {
+    const tapSpec = require(join(process.cwd(), 'node_modules', '@rstacruz/tap-spec'))
     t.ok(typeof tapSpec === 'function', 'tapSpec() is available')
 
-    var pkgJson = fs.readFileSync(join(process.cwd(), 'package.json'), 'utf8')
-    var devDependencies = JSON.parse(pkgJson).devDependencies
+    const pkgJson = fs.readFileSync(join(process.cwd(), 'package.json'), 'utf8')
+    const devDependencies = JSON.parse(pkgJson).devDependencies
     t.deepEqual(devDependencies, { '@rstacruz/tap-spec': '^4.1.1' }, 'tap-spec has been added to devDependencies')
 
     t.end()
   }, t.end)
 })
 
-test('multiple save to package.json with `exact` versions (@rstacruz/tap-spec & rimraf@2.5.1) (in sorted order)', function (t) {
+test('multiple save to package.json with `exact` versions (@rstacruz/tap-spec & rimraf@2.5.1) (in sorted order)', t => {
   prepare()
   install(['rimraf@2.5.1', '@rstacruz/tap-spec@latest'], { quiet: true, save: true, saveExact: true })
-  .then(function () {
-    var tapSpec = require(join(process.cwd(), 'node_modules', '@rstacruz/tap-spec'))
+  .then(() => {
+    const tapSpec = require(join(process.cwd(), 'node_modules', '@rstacruz/tap-spec'))
     t.ok(typeof tapSpec === 'function', 'tapSpec() is available')
 
-    var rimraf = require(join(process.cwd(), 'node_modules', 'rimraf'))
+    const rimraf = require(join(process.cwd(), 'node_modules', 'rimraf'))
     t.ok(typeof rimraf === 'function', 'rimraf() is available')
 
-    var pkgJson = fs.readFileSync(join(process.cwd(), 'package.json'), 'utf8')
-    var dependencies = JSON.parse(pkgJson).dependencies
-    var expectedDeps = {
+    const pkgJson = fs.readFileSync(join(process.cwd(), 'package.json'), 'utf8')
+    const dependencies = JSON.parse(pkgJson).dependencies
+    const expectedDeps = {
       '@rstacruz/tap-spec': '4.1.1',
       rimraf: '2.5.1'
     }
@@ -337,10 +338,10 @@ test('multiple save to package.json with `exact` versions (@rstacruz/tap-spec & 
   }, t.end)
 })
 
-test('flattening symlinks (minimatch@3.0.0)', function (t) {
+test('flattening symlinks (minimatch@3.0.0)', t => {
   prepare()
   install(['minimatch@3.0.0'], { quiet: true })
-  .then(function () {
+  .then(() => {
     stat = fs.lstatSync(join(process.cwd(), 'node_modules', '.store', 'node_modules', 'balanced-match'))
     t.ok(stat.isSymbolicLink(), 'balanced-match is linked into store node_modules')
 
@@ -350,13 +351,11 @@ test('flattening symlinks (minimatch@3.0.0)', function (t) {
   }, t.end)
 })
 
-test('flattening symlinks (minimatch + balanced-match)', function (t) {
+test('flattening symlinks (minimatch + balanced-match)', t => {
   prepare()
   install(['minimatch@3.0.0'], { quiet: true })
-  .then(function () {
-    return install(['balanced-match@^0.3.0'], { quiet: true })
-  })
-  .then(function () {
+  .then(() => install(['balanced-match@^0.3.0'], { quiet: true }))
+  .then(() => {
     _ = exists(join(process.cwd(), 'node_modules', '.store', 'node_modules', 'balanced-match'))
     t.ok(!_, 'balanced-match is removed from store node_modules')
 
@@ -366,14 +365,14 @@ test('flattening symlinks (minimatch + balanced-match)', function (t) {
   }, t.end)
 })
 
-test('production install (with --production flag)', function (t) {
+test('production install (with --production flag)', t => {
   prepare(basicPackageJson)
 
   return install([], { quiet: true, production: true })
-    .then(function () {
-      var rimrafDir = fs.statSync(join(process.cwd(), 'node_modules', 'rimraf'))
+    .then(() => {
+      const rimrafDir = fs.statSync(join(process.cwd(), 'node_modules', 'rimraf'))
 
-      var tapStatErrCode
+      let tapStatErrCode
       try {
         fs.statSync(join(process.cwd(), 'node_modules', '@rstacruz'))
       } catch (err) { tapStatErrCode = err.code }
@@ -385,19 +384,19 @@ test('production install (with --production flag)', function (t) {
     }, t.end)
 })
 
-test('production install (with production NODE_ENV)', function (t) {
-  var originalNodeEnv = process.env.NODE_ENV
+test('production install (with production NODE_ENV)', t => {
+  const originalNodeEnv = process.env.NODE_ENV
   process.env.NODE_ENV = 'production'
   prepare(basicPackageJson)
 
   return install([], { quiet: true })
-    .then(function () {
+    .then(() => {
       // reset NODE_ENV
       process.env.NODE_ENV = originalNodeEnv
 
-      var rimrafDir = fs.statSync(join(process.cwd(), 'node_modules', 'rimraf'))
+      const rimrafDir = fs.statSync(join(process.cwd(), 'node_modules', 'rimraf'))
 
-      var tapStatErrCode
+      let tapStatErrCode
       try {
         fs.statSync(join(process.cwd(), 'node_modules', '@rstacruz'))
       } catch (err) { tapStatErrCode = err.code }
@@ -409,31 +408,31 @@ test('production install (with production NODE_ENV)', function (t) {
     }, t.end)
 })
 
-test('uninstall package with no dependencies', function (t) {
+test('uninstall package with no dependencies', t => {
   prepare()
   install(['is-negative@2.1.0'], { quiet: true, save: true })
   .then(_ => uninstall(['is-negative'], { save: true }))
-  .then(function () {
+  .then(() => {
     stat = exists(join(process.cwd(), 'node_modules', '.store', 'is-negative@2.1.0'))
     t.ok(!stat, 'is-negative is removed from store')
 
     stat = existsSymlink(join(process.cwd(), 'node_modules', 'is-negative'))
     t.ok(!stat, 'is-negative is removed from node_modules')
 
-    var pkgJson = fs.readFileSync(join(process.cwd(), 'package.json'), 'utf8')
-    var dependencies = JSON.parse(pkgJson).dependencies
-    var expectedDeps = {}
+    const pkgJson = fs.readFileSync(join(process.cwd(), 'package.json'), 'utf8')
+    const dependencies = JSON.parse(pkgJson).dependencies
+    const expectedDeps = {}
     t.deepEqual(dependencies, expectedDeps, 'is-negative has been removed from dependencies')
 
     t.end()
   }, t.end)
 })
 
-test('uninstall package with dependencies and do not touch other deps', function (t) {
+test('uninstall package with dependencies and do not touch other deps', t => {
   prepare()
   install(['is-negative@2.1.0', 'camelcase-keys@3.0.0'], { quiet: true, save: true })
   .then(_ => uninstall(['camelcase-keys'], { save: true }))
-  .then(function () {
+  .then(() => {
     stat = exists(join(process.cwd(), 'node_modules', '.store', 'camelcase-keys@2.1.0'))
     t.ok(!stat, 'camelcase-keys is removed from store')
 
@@ -458,9 +457,9 @@ test('uninstall package with dependencies and do not touch other deps', function
     stat = existsSymlink(join(process.cwd(), 'node_modules', 'is-negative'))
     t.ok(stat, 'is-negative is not removed from node_modules')
 
-    var pkgJson = fs.readFileSync(join(process.cwd(), 'package.json'), 'utf8')
-    var dependencies = JSON.parse(pkgJson).dependencies
-    var expectedDeps = {
+    const pkgJson = fs.readFileSync(join(process.cwd(), 'package.json'), 'utf8')
+    const dependencies = JSON.parse(pkgJson).dependencies
+    const expectedDeps = {
       'is-negative': '^2.1.0'
     }
     t.deepEqual(dependencies, expectedDeps, 'camelcase-keys has been removed from dependencies')
@@ -469,11 +468,11 @@ test('uninstall package with dependencies and do not touch other deps', function
   }, t.end)
 })
 
-test('uninstall package with its bin files', function (t) {
+test('uninstall package with its bin files', t => {
   prepare()
   install(['sh-hello-world@1.0.0'], { quiet: true, save: true })
   .then(_ => uninstall(['sh-hello-world'], { save: true }))
-  .then(function () {
+  .then(() => {
     // check for both a symlink and a file because in some cases the file will be a proxied not symlinked
     stat = existsSymlink(join(process.cwd(), 'node_modules', '.bin', 'sh-hello-world'))
     t.ok(!stat, 'sh-hello-world is removed from .bin')
@@ -485,11 +484,11 @@ test('uninstall package with its bin files', function (t) {
   }, t.end)
 })
 
-test('keep dependencies used by others', function (t) {
+test('keep dependencies used by others', t => {
   prepare()
   install(['hastscript@3.0.0', 'camelcase-keys@3.0.0'], { quiet: true, save: true })
   .then(_ => uninstall(['camelcase-keys'], { save: true }))
-  .then(function () {
+  .then(() => {
     stat = exists(join(process.cwd(), 'node_modules', '.store', 'camelcase-keys@2.1.0'))
     t.ok(!stat, 'camelcase-keys is removed from store')
 
@@ -505,9 +504,9 @@ test('keep dependencies used by others', function (t) {
     stat = existsSymlink(join(process.cwd(), 'node_modules', 'map-obj'))
     t.ok(!stat, 'map-obj is removed from node_modules')
 
-    var pkgJson = fs.readFileSync(join(process.cwd(), 'package.json'), 'utf8')
-    var dependencies = JSON.parse(pkgJson).dependencies
-    var expectedDeps = {
+    const pkgJson = fs.readFileSync(join(process.cwd(), 'package.json'), 'utf8')
+    const dependencies = JSON.parse(pkgJson).dependencies
+    const expectedDeps = {
       'hastscript': '^3.0.0'
     }
     t.deepEqual(dependencies, expectedDeps, 'camelcase-keys has been removed from dependencies')
@@ -518,7 +517,7 @@ test('keep dependencies used by others', function (t) {
 
 const wait = ms => new Promise(resolve => setTimeout(resolve, ms))
 
-test('fail when trying to install into the same store simultaneously', function (t) {
+test('fail when trying to install into the same store simultaneously', t => {
   prepare()
   Promise.all([
     install([local('pkg-that-installs-slowly')], { quiet: true }),
@@ -530,7 +529,7 @@ test('fail when trying to install into the same store simultaneously', function 
   .then(_ => t.end(), t.end)
 })
 
-test('fail when trying to install and uninstall from the same store simultaneously', function (t) {
+test('fail when trying to install and uninstall from the same store simultaneously', t => {
   prepare()
   Promise.all([
     install([local('pkg-that-installs-slowly')], { quiet: true }),
@@ -543,11 +542,11 @@ test('fail when trying to install and uninstall from the same store simultaneous
 })
 
 if (preserveSymlinks) {
-  test('packages should find the plugins they use when symlinks are preserved', function (t) {
+  test('packages should find the plugins they use when symlinks are preserved', t => {
     prepare()
     install([local('pkg-that-uses-plugins'), local('plugin-example')], { quiet: true, save: true })
       .then(_ => {
-        var result = spawnSync('pkg-that-uses-plugins', [], {
+        const result = spawnSync('pkg-that-uses-plugins', [], {
           env: extendPathWithLocalBin()
         })
         t.equal(result.stdout.toString(), 'plugin-example\n', 'package executable have found its plugin')
@@ -557,11 +556,11 @@ if (preserveSymlinks) {
   })
 }
 
-test('run js bin file', function (t) {
+test('run js bin file', t => {
   prepare()
   install([local('hello-world-js-bin')], { quiet: true, save: true })
     .then(_ => {
-      var result = spawnSync('hello-world-js-bin', [], {
+      const result = spawnSync('hello-world-js-bin', [], {
         env: extendPathWithLocalBin()
       })
       t.equal(result.stdout.toString(), 'Hello world!\n', 'package executable printed its message')
