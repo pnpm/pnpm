@@ -1,6 +1,7 @@
 'use strict'
 const fs = require('fs')
 const path = require('path')
+const eof = require('os').EOL
 
 module.exports = opts => {
   const pkgPath = path.resolve(process.cwd(), 'package.json')
@@ -27,5 +28,5 @@ module.exports = opts => {
   }
   newPkgJSON.name = opts.pkgName
 
-  fs.writeFileSync(pkgPath, JSON.stringify(newPkgJSON, null, 2), 'UTF8')
+  fs.writeFileSync(pkgPath, JSON.stringify(newPkgJSON, null, 2) + eof, 'UTF8')
 }
