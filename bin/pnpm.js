@@ -1,10 +1,5 @@
 #!/usr/bin/env node
 'use strict'
-if (~process.argv.indexOf('--debug')) {
-  process.env.DEBUG = 'pnpm:*'
-  process.argv.push('--quiet')
-}
-
 const rc = require('rc')
 const camelcaseKeys = require('camelcase-keys')
 const spawnSync = require('cross-spawn').sync
@@ -62,6 +57,7 @@ function run (argv) {
   }
 
   if (cli.flags.debug) {
+    process.env.DEBUG = 'pnpm:*'
     cli.flags.quiet = true
   }
 
