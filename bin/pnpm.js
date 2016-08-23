@@ -3,6 +3,7 @@
 const rc = require('rc')
 const camelcaseKeys = require('camelcase-keys')
 const spawnSync = require('cross-spawn').sync
+const isCI = require('is-ci')
 
 const pnpmCmds = {
   install: require('../lib/cmd/install'),
@@ -56,9 +57,10 @@ function run (argv) {
     return Promise.resolve()
   }
 
+  cli.flags.quiet = cli.flags.quiet || cli.flags.debug || isCI
+
   if (cli.flags.debug) {
     process.env.DEBUG = 'pnpm:*'
-    cli.flags.quiet = true
   }
 
   ['dryRun'].forEach(flag => {
