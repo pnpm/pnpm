@@ -11,7 +11,7 @@ npm install --production --ignore-scripts;
 set +e;
 
 echo "rename node_modules to cached_node_modules";
-mv node_modules cached_node_modules;
+node .scripts/rename node_modules cached_node_modules;
 
 echo "remove the dependencies section from package.json";
 node .scripts/hide_deps;
