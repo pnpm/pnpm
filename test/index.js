@@ -7,7 +7,8 @@ const fs = require('fs')
 const caw = require('caw')
 const isexe = require('isexe')
 const semver = require('semver')
-const spawnSync = require('cross-spawn').sync
+const crossSpawn = require('cross-spawn')
+const spawnSync = crossSpawn.sync
 const thenify = require('thenify')
 const ncp = thenify(require('ncp').ncp)
 const mkdirp = require('mkdirp')
@@ -249,15 +250,21 @@ test('shrinkwrap compatibility', t => {
 
   install(['rimraf@2.5.1'], { quiet: true })
   .then(() => {
-    const npm = JSON.stringify(require.resolve('npm/bin/npm-cli.js'))
-    require('child_process').exec('node ' + npm + ' shrinkwrap', err => {
-      if (err) return t.end(err)
-      const wrap = JSON.parse(fs.readFileSync('npm-shrinkwrap.json', 'utf-8'))
-      t.ok(wrap.dependencies.rimraf.version === '2.5.1',
-        'npm shrinkwrap is successful')
-      t.end()
+    return new Promise((resolve, reject) => {
+      const proc = crossSpawn.spawn('npm', ['shrinkwrap'])
+
+      proc.on('error', reject)
+
+      proc.on('close', code => {
+        if (code > 0) return reject(new Error('Exit code ' + code))
+        const wrap = JSON.parse(fs.readFileSync('npm-shrinkwrap.json', 'utf-8'))
+        t.ok(wrap.dependencies.rimraf.version === '2.5.1',
+          'npm shrinkwrap is successful')
+        t.end()
+      })
     })
-  }, t.end)
+  })
+  .catch(t.end)
 })
 
 test('run pre/postinstall scripts', t => {
