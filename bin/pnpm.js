@@ -1,13 +1,9 @@
 #!/usr/bin/env node
 'use strict'
-if (~process.argv.indexOf('--debug')) {
-  process.env.DEBUG = 'pnpm:*'
-  process.argv.push('--quiet')
-}
-
 const rc = require('rc')
 const camelcaseKeys = require('camelcase-keys')
 const spawnSync = require('cross-spawn').sync
+const isCI = require('is-ci')
 
 const pnpmCmds = {
   install: require('../lib/cmd/install'),
@@ -61,8 +57,10 @@ function run (argv) {
     return Promise.resolve()
   }
 
+  cli.flags.quiet = cli.flags.quiet || cli.flags.debug || isCI
+
   if (cli.flags.debug) {
-    cli.flags.quiet = true
+    process.env.DEBUG = 'pnpm:*'
   }
 
   ['dryRun'].forEach(flag => {
