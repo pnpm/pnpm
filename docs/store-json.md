@@ -2,6 +2,10 @@
 
 `store.json` contains information about all the different internal/external dependencies that the packages in the store have. This is especially useful because `pnpm` allows to use shared stores.
 
+## pnpm
+
+The last compatible pnpm version that has modified the store.
+
 ## dependents
 
 A dictionary that shows what packages are dependent on each of the package from the store. The dependent packages can be other packages from the store, or packages that use the store to install their dependencies.
