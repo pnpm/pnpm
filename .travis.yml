@@ -6,7 +6,7 @@ sudo: false
 before_install:
   - npm install -g pnpm
 install:
-  - pnpm install --quiet
+  - pnpm install
 script:
   - npm test
   - if [[ $TRAVIS_NODE_VERSION == "4" ]]; then npm run docs:build; fi
