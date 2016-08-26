@@ -130,6 +130,19 @@ test('nested scoped modules (test-pnpm-issue219 -> @zkochan/test-pnpm-issue219)'
   }, t.end)
 })
 
+test('scoped modules from a directory', t => {
+  prepare()
+  install([local('local-scoped-pkg')], { quiet: true })
+  .then(() => {
+    const localPkg = require(
+      join(process.cwd(), 'node_modules', '@scope', 'local-scoped-pkg'))
+
+    t.equal(localPkg(), '@scope/local-scoped-pkg', 'localScopedPkg() is available')
+
+    t.end()
+  }, t.end)
+})
+
 test('skip failing optional dependencies', t => {
   prepare()
   install(['pkg-with-failing-optional-dependency@1.0.1'], { quiet: true })
