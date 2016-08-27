@@ -92,7 +92,6 @@
     "lint": "eslint bin/ test/ lib/ .scripts/",
     "test": "npm run lint && node test | tap-spec",
     "posttest": "rimraf .tmp",
-    "preinstall": "node .scripts/rename cached_node_modules node_modules",
     "prerelease": "npm test",
     "release": "sh .scripts/release.sh"
   },

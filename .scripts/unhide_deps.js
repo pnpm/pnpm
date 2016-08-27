@@ -3,5 +3,6 @@ const renameKey = require('./rename_key')
 
 renameKey({
   currentKeyName: '__dependencies',
-  newKeyName: 'dependencies'
+  newKeyName: 'dependencies',
+  addPreinstall: false
 })
