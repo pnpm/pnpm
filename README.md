@@ -12,17 +12,6 @@ pnpm is a fast implementation of `npm install`. It is loosely based off [ied].
 [![Status](https://travis-ci.org/rstacruz/pnpm.svg?branch=master)](https://travis-ci.org/rstacruz/pnpm "See test builds")
 [![Windows build status](https://ci.appveyor.com/api/projects/status/i30tealekiaesltb/branch/master?svg=true)](https://ci.appveyor.com/project/zkochan/pnpm/branch/master)
 
-----
-
-> #### :warning: Name change
-
-> The npm package was changed from `pnpm.js` (0.15 and below) to `pnpm`. The old package will no longer be updated. For old users, uninstall the old version and install the new one:
->
->     npm uninstall -g pnpm.js
->     npm install -g pnpm
-
-----
-
 ## Install
 
 Install it via npm.
