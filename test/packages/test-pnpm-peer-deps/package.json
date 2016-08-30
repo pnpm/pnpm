@@ -1,0 +1,11 @@
+{
+  "name": "test-pnpm-peer-deps",
+  "version": "1.0.0",
+  "peerDependencies": {
+    "is-negative": "2.x.x"
+  },
+  "dependencies": {
+    "is-negative": "2.0.0",
+    "peer-deps-in-child-pkg": "file:../peer-deps-in-child-pkg"
+  }
+}

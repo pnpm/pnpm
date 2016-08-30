@@ -756,6 +756,13 @@ test('tarball local package', t => {
   .catch(t.end)
 })
 
+test("don't fail when peer dependency is fetched from GitHub", t => {
+  prepare()
+  install([local('test-pnpm-peer-deps')], { quiet: true })
+    .then(() => t.end())
+    .catch(t.end)
+})
+
 function extendPathWithLocalBin () {
   return {
     PATH: [

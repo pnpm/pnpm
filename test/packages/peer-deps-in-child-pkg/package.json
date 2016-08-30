@@ -1,0 +1,10 @@
+{
+  "name": "peer-deps-in-child-pkg",
+  "version": "1.0.0",
+  "peerDependencies": {
+    "is-negative": "2.x.x"
+  },
+  "dependencies": {
+    "is-negative": "kevva/is-negative#2.1.0"
+  }
+}
