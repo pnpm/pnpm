@@ -742,6 +742,20 @@ test('global link', t => {
     .catch(t.end)
 })
 
+test('tarball local package', t => {
+  prepare()
+  install([pathToLocalPkg('tar-pkg/tar-pkg-1.0.0.tgz')], { quiet: true })
+  .then(() => {
+    const localPkg = require(
+      join(process.cwd(), 'node_modules', 'tar-pkg'))
+
+    t.equal(localPkg(), 'tar-pkg', 'tarPkg() is available')
+
+    t.end()
+  })
+  .catch(t.end)
+})
+
 function extendPathWithLocalBin () {
   return {
     PATH: [
