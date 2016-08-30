@@ -1,1 +1,1 @@
-module.exports = () => {}
+module.exports = () => require('./package.json').name

@@ -1,0 +1,7 @@
+{
+  "name": "pkg-with-local-dep",
+  "version": "1.0.0",
+  "dependencies": {
+    "local-pkg": "file:../local-pkg"
+  }
+}

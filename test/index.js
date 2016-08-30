@@ -257,6 +257,22 @@ test('local file', t => {
   .catch(t.end)
 })
 
+test('nested local dependency of a local dependency', t => {
+  prepare()
+  install([local('pkg-with-local-dep')], { quiet: true })
+  .then(() => {
+    const pkgWithLocalDep = require(
+      join(process.cwd(), 'node_modules', 'pkg-with-local-dep'))
+
+    t.ok(pkgWithLocalDep, 'pkgWithLocalDep() is available')
+
+    t.equal(pkgWithLocalDep(), 'local-pkg', 'pkgWithLocalDep() returns data from local-pkg')
+
+    t.end()
+  })
+  .catch(t.end)
+})
+
 // Skipping on CI as failing frequently there, due to environment issues
 if (!process.env.CI) {
   test('from a github repo', t => {
