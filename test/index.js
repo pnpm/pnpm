@@ -75,7 +75,8 @@ test('no dependencies (lodash)', t => {
     t.ok(typeof _ === 'function', '_ is available')
     t.ok(typeof _.clone === 'function', '_.clone is available')
     t.end()
-  }, t.end)
+  })
+  .catch(t.end)
 })
 
 test('scoped modules without version spec (@rstacruz/tap-spec)', t => {
@@ -85,7 +86,8 @@ test('scoped modules without version spec (@rstacruz/tap-spec)', t => {
     _ = require(join(process.cwd(), 'node_modules', '@rstacruz/tap-spec'))
     t.ok(typeof _ === 'function', 'tap-spec is available')
     t.end()
-  }, t.end)
+  })
+  .catch(t.end)
 })
 
 test('scoped modules with versions (@rstacruz/tap-spec@4.1.1)', t => {
@@ -95,7 +97,8 @@ test('scoped modules with versions (@rstacruz/tap-spec@4.1.1)', t => {
     _ = require(join(process.cwd(), 'node_modules', '@rstacruz/tap-spec'))
     t.ok(typeof _ === 'function', 'tap-spec is available')
     t.end()
-  }, t.end)
+  })
+  .catch(t.end)
 })
 
 test('scoped modules (@rstacruz/tap-spec@*)', t => {
@@ -105,7 +108,8 @@ test('scoped modules (@rstacruz/tap-spec@*)', t => {
     _ = require(join(process.cwd(), 'node_modules', '@rstacruz/tap-spec'))
     t.ok(typeof _ === 'function', 'tap-spec is available')
     t.end()
-  }, t.end)
+  })
+  .catch(t.end)
 })
 
 test('multiple scoped modules (@rstacruz/...)', t => {
@@ -117,7 +121,8 @@ test('multiple scoped modules (@rstacruz/...)', t => {
     _ = require(join(process.cwd(), 'node_modules', '@rstacruz/travis-encrypt'))
     t.ok(typeof _ === 'function', 'travis-encrypt is available')
     t.end()
-  }, t.end)
+  })
+  .catch(t.end)
 })
 
 test('nested scoped modules (test-pnpm-issue219 -> @zkochan/test-pnpm-issue219)', t => {
@@ -127,7 +132,8 @@ test('nested scoped modules (test-pnpm-issue219 -> @zkochan/test-pnpm-issue219)'
     _ = require(join(process.cwd(), 'node_modules', 'test-pnpm-issue219'))
     t.ok(_ === 'test-pnpm-issue219,@zkochan/test-pnpm-issue219', 'nested scoped package is available')
     t.end()
-  }, t.end)
+  })
+  .catch(t.end)
 })
 
 test('scoped modules from a directory', t => {
@@ -140,7 +146,8 @@ test('scoped modules from a directory', t => {
     t.equal(localPkg(), '@scope/local-scoped-pkg', 'localScopedPkg() is available')
 
     t.end()
-  }, t.end)
+  })
+  .catch(t.end)
 })
 
 test('skip failing optional dependencies', t => {
@@ -150,7 +157,8 @@ test('skip failing optional dependencies', t => {
     const isNegative = require(join(process.cwd(), 'node_modules', 'pkg-with-failing-optional-dependency'))
     t.ok(isNegative(-1), 'package with failed optional dependency has the dependencies installed correctly')
     t.end()
-  }, t.end)
+  })
+  .catch(t.end)
 })
 
 test('idempotency (rimraf)', t => {
@@ -161,7 +169,8 @@ test('idempotency (rimraf)', t => {
     const rimraf = require(join(process.cwd(), 'node_modules', 'rimraf'))
     t.ok(typeof rimraf === 'function', 'rimraf is available')
     t.end()
-  }, t.end)
+  })
+  .catch(t.end)
 })
 
 test('overwriting (lodash@3.10.1 and @4.0.0)', t => {
@@ -172,7 +181,8 @@ test('overwriting (lodash@3.10.1 and @4.0.0)', t => {
     _ = require(join(process.cwd(), 'node_modules', 'lodash', 'package.json'))
     t.ok(_.version === '4.0.0', 'lodash is 4.0.0')
     t.end()
-  }, t.end)
+  })
+  .catch(t.end)
 })
 
 test('big with dependencies and circular deps (babel-preset-2015)', t => {
@@ -182,7 +192,8 @@ test('big with dependencies and circular deps (babel-preset-2015)', t => {
     const b = require(join(process.cwd(), 'node_modules', 'babel-preset-es2015'))
     t.ok(typeof b === 'object', 'babel-preset-es2015 is available')
     t.end()
-  }, t.end)
+  })
+  .catch(t.end)
 })
 
 // NOTE: fsevents can't be installed on Windows
@@ -193,7 +204,8 @@ if (!isWindows) {
     .then(() => {
       isExecutable(t, join(process.cwd(), 'node_modules', 'fsevents', 'node_modules', '.bin', 'mkdirp'))
       t.end()
-    }, t.end)
+    })
+    .catch(t.end)
   })
 }
 
@@ -209,7 +221,8 @@ test('compiled modules (ursa@0.9.1)', t => {
     const ursa = require(join(process.cwd(), 'node_modules', 'ursa'))
     t.ok(typeof ursa === 'object', 'ursa() is available')
     t.end()
-  }, t.end)
+  })
+  .catch(t.end)
 })
 
 test('tarballs (is-array-1.0.1.tgz)', t => {
@@ -226,7 +239,8 @@ test('tarballs (is-array-1.0.1.tgz)', t => {
         'is-array-1.0.1#a83102a9c117983e6ff4d85311fb322231abe3d6'))
     t.ok(stat.isDirectory(), 'stored in the proper location')
     t.end()
-  }, t.end)
+  })
+  .catch(t.end)
 })
 
 test('local file', t => {
@@ -239,7 +253,8 @@ test('local file', t => {
     t.ok(localPkg, 'localPkg() is available')
 
     t.end()
-  }, t.end)
+  })
+  .catch(t.end)
 })
 
 // Skipping on CI as failing frequently there, due to environment issues
@@ -254,7 +269,8 @@ if (!process.env.CI) {
       t.ok(localPkg, 'isNegative() is available')
 
       t.end()
-    }, t.end)
+    })
+    .catch(t.end)
   })
 }
 
@@ -291,7 +307,8 @@ test('run pre/postinstall scripts', t => {
     t.ok(typeof generatedByPostinstall === 'function', 'generatedByPostinstall() is available')
 
     t.end()
-  }, t.end)
+  })
+  .catch(t.end)
 })
 
 test('run install scripts', t => {
@@ -302,7 +319,8 @@ test('run install scripts', t => {
     t.ok(typeof generatedByInstall === 'function', 'generatedByInstall() is available')
 
     t.end()
-  }, t.end)
+  })
+  .catch(t.end)
 })
 
 test('save to package.json (rimraf@2.5.1)', t => {
@@ -317,7 +335,8 @@ test('save to package.json (rimraf@2.5.1)', t => {
     t.deepEqual(dependencies, {rimraf: '^2.5.1'}, 'rimraf has been added to dependencies')
 
     t.end()
-  }, t.end)
+  })
+  .catch(t.end)
 })
 
 test('saveDev scoped module to package.json (@rstacruz/tap-spec)', t => {
@@ -332,7 +351,8 @@ test('saveDev scoped module to package.json (@rstacruz/tap-spec)', t => {
     t.deepEqual(devDependencies, { '@rstacruz/tap-spec': '^4.1.1' }, 'tap-spec has been added to devDependencies')
 
     t.end()
-  }, t.end)
+  })
+  .catch(t.end)
 })
 
 test('multiple save to package.json with `exact` versions (@rstacruz/tap-spec & rimraf@2.5.1) (in sorted order)', t => {
@@ -355,7 +375,8 @@ test('multiple save to package.json with `exact` versions (@rstacruz/tap-spec & 
     t.deepEqual(Object.keys(dependencies), Object.keys(expectedDeps), 'tap-spec and rimraf have been added to dependencies in sorted order')
 
     t.end()
-  }, t.end)
+  })
+  .catch(t.end)
 })
 
 test('flattening symlinks (minimatch@3.0.0)', t => {
@@ -368,7 +389,8 @@ test('flattening symlinks (minimatch@3.0.0)', t => {
     _ = exists(join(process.cwd(), 'node_modules', 'balanced-match'))
     t.ok(!_, 'balanced-match is not linked into main node_modules')
     t.end()
-  }, t.end)
+  })
+  .catch(t.end)
 })
 
 test('flattening symlinks (minimatch + balanced-match)', t => {
@@ -382,7 +404,8 @@ test('flattening symlinks (minimatch + balanced-match)', t => {
     _ = exists(join(process.cwd(), 'node_modules', 'balanced-match'))
     t.ok(_, 'balanced-match now in main node_modules')
     t.end()
-  }, t.end)
+  })
+  .catch(t.end)
 })
 
 test('production install (with --production flag)', t => {
@@ -401,7 +424,8 @@ test('production install (with --production flag)', t => {
       t.is(tapStatErrCode, 'ENOENT', 'tap-spec does not exist')
 
       t.end()
-    }, t.end)
+    })
+    .catch(t.end)
 })
 
 test('production install (with production NODE_ENV)', t => {
@@ -425,7 +449,8 @@ test('production install (with production NODE_ENV)', t => {
       t.is(tapStatErrCode, 'ENOENT', 'tap-spec does not exist')
 
       t.end()
-    }, t.end)
+    })
+    .catch(t.end)
 })
 
 test('uninstall package with no dependencies', t => {
@@ -445,7 +470,8 @@ test('uninstall package with no dependencies', t => {
     t.deepEqual(dependencies, expectedDeps, 'is-negative has been removed from dependencies')
 
     t.end()
-  }, t.end)
+  })
+  .catch(t.end)
 })
 
 test('uninstall package with dependencies and do not touch other deps', t => {
@@ -485,7 +511,8 @@ test('uninstall package with dependencies and do not touch other deps', t => {
     t.deepEqual(dependencies, expectedDeps, 'camelcase-keys has been removed from dependencies')
 
     t.end()
-  }, t.end)
+  })
+  .catch(t.end)
 })
 
 test('uninstall package with its bin files', t => {
@@ -501,7 +528,8 @@ test('uninstall package with its bin files', t => {
     t.ok(!stat, 'sh-hello-world is removed from .bin')
 
     t.end()
-  }, t.end)
+  })
+  .catch(t.end)
 })
 
 test('keep dependencies used by others', t => {
@@ -532,7 +560,8 @@ test('keep dependencies used by others', t => {
     t.deepEqual(dependencies, expectedDeps, 'camelcase-keys has been removed from dependencies')
 
     t.end()
-  }, t.end)
+  })
+  .catch(t.end)
 })
 
 const wait = ms => new Promise(resolve => setTimeout(resolve, ms))
@@ -546,7 +575,8 @@ test('fail when trying to install into the same store simultaneously', t => {
       .then(_ => t.fail('the store should have been locked'))
       .catch(err => t.ok(err, 'store is locked'))
   ])
-  .then(_ => t.end(), t.end)
+  .then(_ => t.end())
+  .catch(t.end)
 })
 
 test('fail when trying to install and uninstall from the same store simultaneously', t => {
@@ -558,7 +588,8 @@ test('fail when trying to install and uninstall from the same store simultaneous
       .then(_ => t.fail('the store should have been locked'))
       .catch(err => t.ok(err, 'store is locked'))
   ])
-  .then(_ => t.end(), t.end)
+  .then(_ => t.end())
+  .catch(t.end)
 })
 
 if (preserveSymlinks) {
@@ -572,7 +603,8 @@ if (preserveSymlinks) {
         t.equal(result.stdout.toString(), 'plugin-example\n', 'package executable have found its plugin')
         t.equal(result.status, 0, 'executable exited with success')
         t.end()
-      }, t.end)
+      })
+      .catch(t.end)
   })
 }
 
