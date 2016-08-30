@@ -15,7 +15,7 @@ const npmrc = [
 fs.writeFileSync(join(tmpPath, '.npmrc'), npmrc, 'utf-8')
 
 module.exports = function prepare (pkg) {
-  const pkgTmpPath = join(tmpPath, Math.random().toString())
+  const pkgTmpPath = join(tmpPath, Number(new Date()).toString())
   mkdirp.sync(pkgTmpPath)
   const json = JSON.stringify(pkg || {})
   fs.writeFileSync(join(pkgTmpPath, 'package.json'), json, 'utf-8')
