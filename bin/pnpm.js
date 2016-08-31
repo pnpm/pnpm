@@ -51,6 +51,12 @@ function run (argv) {
     }
   })
 
+  if (!isCI) {
+    const pkg = require('../package.json')
+    const updateNotifier = require('update-notifier')
+    updateNotifier({pkg}).notify()
+  }
+
   const cmd = getCommandFullName(cli.input[0])
   if (!supportedCmds.has(cmd)) {
     spawnSync('npm', argv, { stdio: 'inherit' })
