@@ -757,6 +757,11 @@ test('tarball local package', t => {
 })
 
 test("don't fail when peer dependency is fetched from GitHub", t => {
+  if (process.env.CI) {
+    t.skip('cannot run on CI because of exceeding rate limit')
+    return t.end()
+  }
+
   prepare()
   install([local('test-pnpm-peer-deps')], { quiet: true })
     .then(() => t.end())
