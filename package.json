@@ -48,7 +48,8 @@
     "supports-color": "3.1.2",
     "tar-fs": "1.13.2",
     "thenify": "3.2.0",
-    "throat": "3.0.0"
+    "throat": "3.0.0",
+    "update-notifier": "1.0.2"
   },
   "devDependencies": {
     "commitizen": "^2.8.6",
