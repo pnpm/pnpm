@@ -5,10 +5,9 @@ if [ -d node_modules ]; then
   mv node_modules prev_node_modules;
 fi
 
-set -e; # if installation will fail, fail the whole script
+set -e;
 echo "install just the dependencies and don't run any pre/post install scripts";
 npm install --production --ignore-scripts;
-set +e;
 
 publish () {
   if [[ $1 ]]; then
@@ -26,6 +25,7 @@ node .scripts/rename node_modules cached_node_modules;
 
 echo "remove the dependencies section from package.json";
 node .scripts/hide_deps;
+set +e;
 
 echo "publish pnpm-rocket $1";
 publish;
