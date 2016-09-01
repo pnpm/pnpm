@@ -8,6 +8,10 @@ If your issue is a bug, please follow the format below:
 
 ### Code to reproduce the issue:
 
+<!--
+If there was a fatal error also include a gist of your pnpm-debug.log file.
+-->
+
 ### Expected behavior:
 
 ### Actual behavior:

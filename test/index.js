@@ -768,6 +768,18 @@ test("don't fail when peer dependency is fetched from GitHub", t => {
     .catch(t.end)
 })
 
+test('create a pnpm-debug.log file when the command fails', t => {
+  prepare()
+
+  const result = spawnSync('node', [pnpmBin, 'install', '@zkochan/i-do-not-exist'])
+
+  t.equal(result.status, 1, 'install failed')
+
+  exists('pnpm-debug.log')
+
+  t.end()
+})
+
 function extendPathWithLocalBin () {
   return {
     PATH: [

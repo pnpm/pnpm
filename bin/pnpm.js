@@ -11,6 +11,7 @@ const rc = require('rc')
 const camelcaseKeys = require('camelcase-keys')
 const spawnSync = require('cross-spawn').sync
 const isCI = require('is-ci')
+require('../lib/file_logger')
 
 const pnpmCmds = {
   install: require('../lib/cmd/install'),
