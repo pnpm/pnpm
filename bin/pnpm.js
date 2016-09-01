@@ -1,5 +1,12 @@
 #!/usr/bin/env node
 'use strict'
+// NOTE: This should be done as soon as possible because the debug
+// package reads the env variable only once
+if (~process.argv.indexOf('--debug')) {
+  process.env.DEBUG = 'pnpm:*'
+  process.argv.push('--quiet')
+}
+
 const rc = require('rc')
 const camelcaseKeys = require('camelcase-keys')
 const spawnSync = require('cross-spawn').sync
@@ -65,11 +72,7 @@ function run (argv) {
 
   cli.flags.quiet = cli.flags.quiet || cli.flags.debug || isCI
 
-  if (cli.flags.debug) {
-    process.env.DEBUG = 'pnpm:*'
-  }
-
-  ['dryRun'].forEach(flag => {
+  ;['dryRun'].forEach(flag => {
     if (cli.flags[flag]) {
       console.error(`Error: '${flag}' is not supported yet, sorry!`)
       process.exit(1)
