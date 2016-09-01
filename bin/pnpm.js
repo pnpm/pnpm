@@ -1,9 +1,11 @@
 #!/usr/bin/env node
 'use strict'
+const pkg = require('../package.json')
 const rc = require('rc')
 const camelcaseKeys = require('camelcase-keys')
 const spawnSync = require('cross-spawn').sync
 const isCI = require('is-ci')
+const updateNotifier = require('update-notifier')
 
 const pnpmCmds = {
   install: require('../lib/cmd/install'),
@@ -50,6 +52,8 @@ function run (argv) {
       v: 'version'
     }
   })
+
+  updateNotifier({pkg}).notify()
 
   const cmd = getCommandFullName(cli.input[0])
   if (!supportedCmds.has(cmd)) {
