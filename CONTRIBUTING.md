@@ -2,6 +2,7 @@
 
 ## Table of contents
 
+- [Collaborative Etiquette](#collaborative-etiquette)
 - [Submitting a Pull Request (PR)](#submitting-a-pull-request-pr)
   - [After your pull request is merged](#after-your-pull-request-is-merged)
 - [Coding Style Guidelines](#coding-style-guidelines)
@@ -13,6 +14,12 @@
     - [Subject](#subject)
     - [Body](#body)
     - [Footer](#footer)
+
+## Collaborative Etiquette
+
+[![](https://img.shields.io/badge/%E2%9C%93-collaborative_etiquette-brightgreen.svg)](https://git.io/col)
+
+This project follows [collaborative etiquette](http://git.io/col) guidelines.
 
 ## Submitting a Pull Request (PR)
 
