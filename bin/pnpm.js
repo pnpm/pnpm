@@ -7,6 +7,7 @@ if (~process.argv.indexOf('--debug')) {
   process.argv.push('--quiet')
 }
 
+require('loud-rejection')()
 const rc = require('rc')
 const camelcaseKeys = require('camelcase-keys')
 const spawnSync = require('cross-spawn').sync

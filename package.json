@@ -30,6 +30,7 @@
     "is-retry-allowed": "1.1.0",
     "json2yaml": "1.1.0",
     "lockfile": "1.0.1",
+    "loud-rejection": "1.6.0",
     "meow": "3.7.0",
     "mkdirp": "0.5.1",
     "mz": "2.4.0",
