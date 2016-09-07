@@ -243,6 +243,20 @@ test('tarballs (is-array-1.0.1.tgz)', t => {
   .catch(t.end)
 })
 
+test('tarballs from GitHub (is-negative)', t => {
+  prepare()
+  install(['is-negative@https://github.com/kevva/is-negative/archive/1d7e288222b53a0cab90a331f1865220ec29560c.tar.gz'], { quiet: true })
+  .then(() => {
+    const isNegative = require(
+      join(process.cwd(), 'node_modules', 'is-negative'))
+
+    t.ok(isNegative, 'isNegative() is available')
+
+    t.end()
+  })
+  .catch(t.end)
+})
+
 test('local file', t => {
   prepare()
   install([local('local-pkg')], { quiet: true })
