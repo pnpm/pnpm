@@ -16,8 +16,8 @@ const stripIndent = require('common-tags').stripIndent
 require('../lib/file_logger')
 
 const pnpmCmds = {
-  install: require('../lib/cmd/install'),
-  uninstall: require('../lib/cmd/uninstall'),
+  install: require('../lib/cmd/install').default,
+  uninstall: require('../lib/cmd/uninstall').default,
   link: require('../lib/cmd/link')
 }
 
@@ -118,4 +118,4 @@ function getRC (appName) {
 }
 
 module.exports = run
-if (!module.parent) run(process.argv.slice(2)).catch(require('../lib/err'))
+if (!module.parent) run(process.argv.slice(2)).catch(require('../lib/err').default)

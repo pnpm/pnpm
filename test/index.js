@@ -14,9 +14,9 @@ const ncp = thenify(require('ncp').ncp)
 const mkdirp = require('mkdirp')
 const prepare = require('./support/prepare')
 const basicPackageJson = require('./support/simple-package.json')
-const install = require('../lib/cmd/install')
-const uninstall = require('../lib/cmd/uninstall')
-const link = require('../lib/cmd/link')
+const install = require('../lib/cmd/install').default
+const uninstall = require('../lib/cmd/uninstall').default
+const link = require('../lib/cmd/link').default
 
 const isWindows = process.platform === 'win32'
 const preserveSymlinks = semver.satisfies(process.version, '>=6.3.0')
@@ -42,7 +42,7 @@ function isExecutable (t, filePath) {
 }
 
 test('API', t => {
-  const pnpm = require('..')
+  const pnpm = require('../lib')
 
   t.equal(typeof pnpm.install, 'function', 'exports install()')
   t.equal(typeof pnpm.install, 'function', 'exports installPkgDeps()')

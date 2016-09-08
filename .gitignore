@@ -12,3 +12,5 @@ coverage
 fixtures
 .tmp
 _docpress
+
+lib

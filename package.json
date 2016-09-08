@@ -9,6 +9,8 @@
   "bugs": {
     "url": "https://github.com/rstacruz/pnpm/issues"
   },
+  "main": "lib/index.js",
+  "typings": "lib/index.d.ts",
   "files": [
     "lib/",
     "bin/",
@@ -72,6 +74,7 @@
     "sepia": "2.0.1",
     "tap-spec": "4.1.1",
     "tape": "4.6.0",
+    "typescript": "2.0.2",
     "validate-commit-msg": "^2.7.0"
   },
   "directories": {
@@ -83,7 +86,6 @@
     "npm"
   ],
   "license": "MIT",
-  "main": "index.js",
   "preferGlobal": true,
   "engines": {
     "node": ">=4"
@@ -96,11 +98,12 @@
     "docs:build": "docpress build",
     "commit": "git-cz",
     "cover": "istanbul cover test/index.js",
-    "lint": "eslint bin/ test/ lib/ .scripts/",
-    "test": "npm run lint && node test | tap-spec",
+    "lint": "eslint bin/ test/ .scripts/",
+    "test": "tsc && npm run lint && node test | tap-spec",
     "posttest": "rimraf .tmp",
     "prerelease": "npm test",
-    "release": "sh .scripts/release.sh"
+    "release": "sh .scripts/release.sh",
+    "tsc": "tsc"
   },
   "config": {
     "commitizen": {
