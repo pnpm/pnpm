@@ -9,9 +9,6 @@ const debug = createDebug('pnpm:mkdirp')
 export default function (path) {
   return new Promise((resolve, reject) => {
     debug(path)
-    mkdirp(path, err => {
-      if (err) reject(err)
-      else resolve(path)
-    })
+    mkdirp(path, err => err ? reject(err) : resolve(path))
   })
 }

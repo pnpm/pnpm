@@ -50,9 +50,10 @@ export default function uninstallCmd (pkgsToUninstall, opts) {
   }
 
   function tryUninstall (pkgFullNames) {
+    let numberOfUninstalls
     do {
-      var numberOfUninstalls = 0
-      for (let i = 0; i < pkgFullNames.length;) {
+      numberOfUninstalls = 0
+      for (let i = 0; i < pkgFullNames.length; ) {
         if (canBeUninstalled(pkgFullNames[i])) {
           const uninstalledPkg = pkgFullNames.splice(i, 1)[0]
           removeBins(uninstalledPkg)

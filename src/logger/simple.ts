@@ -82,7 +82,7 @@ export default function () {
           s.bold(Math.round(percent * 100) + '%') + ' ' +
           s.green(Array(bar).join('=') + '>') +
           Array(BAR_LENGTH - bar).join(' ') + ' ' +
-          s.gray(lastStatus.substr(0, 40))) + ' '
+          s.gray(lastStatus.substr(0, 40)))
       }
     }
   })

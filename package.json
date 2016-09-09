@@ -74,6 +74,7 @@
     "sepia": "2.0.1",
     "tap-spec": "4.1.1",
     "tape": "4.6.0",
+    "tslint": "3.15.1",
     "typescript": "2.0.2",
     "validate-commit-msg": "^2.7.0"
   },
@@ -98,7 +99,7 @@
     "docs:build": "docpress build",
     "commit": "git-cz",
     "cover": "istanbul cover test/index.js",
-    "lint": "eslint bin/ test/ .scripts/",
+    "lint": "eslint bin/ test/ .scripts/ && tslint -c tslint.json ./src/**/*.ts",
     "test": "tsc && npm run lint && node test | tap-spec",
     "posttest": "rimraf .tmp",
     "prerelease": "npm test",
