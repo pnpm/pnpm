@@ -48,7 +48,7 @@
     "retry": "0.10.0",
     "rimraf": "2.5.4",
     "semver": "5.3.0",
-    "sorted-object": "2.0.0",
+    "sorted-object": "2.0.1",
     "supports-color": "3.1.2",
     "tar-fs": "1.13.2",
     "thenify": "3.2.0",
