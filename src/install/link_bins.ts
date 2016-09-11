@@ -55,7 +55,7 @@ function isScopedPkgsDir (dirPath: string) {
 export function linkPkgBins (modules: string, target: string) {
   const pkg = tryRequire(path.join(target, 'package.json'))
 
-  if (!pkg || !pkg.bin) return
+  if (!pkg || !pkg.bin) return Promise.resolve()
 
   const bins = binify(pkg)
   const binDir = path.join(modules, '.bin')
@@ -140,5 +140,5 @@ function cmdShim (proxyPath: string, targetPath: string) {
  */
 
 function tryRequire (path: string) {
-  try { return requireJson(path) } catch (e) { }
+  try { return requireJson(path) } catch (e) { return null }
 }

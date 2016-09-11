@@ -5,7 +5,7 @@
     "sourceMap": true,
     "declaration": true,
     "noImplicitAny": true,
-    "noImplicitReturns": false,
+    "noImplicitReturns": true,
     "suppressImplicitAnyIndexErrors": true,
     "target": "es6",
     "outDir": "lib",

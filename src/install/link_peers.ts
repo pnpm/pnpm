@@ -10,7 +10,7 @@ import {InstalledPackages} from '../api/install'
  */
 
 export default function linkPeers (store: string, installs: InstalledPackages) {
-  if (!installs) return
+  if (!installs) return Promise.resolve()
   const peers = {}
   const roots = {}
 

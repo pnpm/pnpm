@@ -5,4 +5,5 @@ export default function getSaveType (opts: PublicInstallationOptions): Dependenc
   if (opts.save || opts.global) return 'dependencies'
   if (opts.saveDev) return 'devDependencies'
   if (opts.saveOptional) return 'optionalDependencies'
+  return null
 }
