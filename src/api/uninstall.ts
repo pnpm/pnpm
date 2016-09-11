@@ -1,23 +1,24 @@
 import cbRimraf = require('rimraf')
 import path = require('path')
 
-import initCmd from './init_cmd'
+import initCmd, {CommandNamespace} from './init_cmd'
 import getSaveType from '../get_save_type'
 import removeDeps from '../remove_deps'
 import binify from '../binify'
 import defaults from '../defaults'
 import requireJson from '../fs/require_json'
+import {PublicInstallationOptions} from './install'
 
-export default function uninstallCmd (pkgsToUninstall, opts) {
+export default function uninstallCmd (pkgsToUninstall: string[], opts: PublicInstallationOptions) {
   opts = Object.assign({}, defaults, opts)
 
-  let cmd
-  const uninstalledPkgs = []
+  let cmd: CommandNamespace
+  const uninstalledPkgs: string[] = []
   const saveType = getSaveType(opts)
 
   return initCmd(opts)
     .then(_ => { cmd = _ })
-    .then(_ => {
+    .then(() => {
       cmd.pkg.pkg.dependencies = cmd.pkg.pkg.dependencies || {}
       const pkgFullNames = pkgsToUninstall.map(dep => cmd.ctx.dependencies[cmd.pkg.path].find(_ => _.indexOf(dep + '@') === 0))
       tryUninstall(pkgFullNames.slice())
@@ -31,26 +32,26 @@ export default function uninstallCmd (pkgsToUninstall, opts) {
       }
       return Promise.all(uninstalledPkgs.map(removePkgFromStore))
     })
-    .then(_ => cmd.storeJsonCtrl.save({
+    .then(() => cmd.storeJsonCtrl.save({
       pnpm: cmd.ctx.pnpm,
       dependents: cmd.ctx.dependents,
       dependencies: cmd.ctx.dependencies
     }))
-    .then(_ => Promise.all(pkgsToUninstall.map(dep => rimraf(path.join(cmd.ctx.root, 'node_modules', dep)))))
-    .then(_ => saveType && removeDeps(cmd.pkg, pkgsToUninstall, saveType))
-    .then(_ => cmd.unlock())
-    .catch(err => {
+    .then(() => Promise.all(pkgsToUninstall.map(dep => rimraf(path.join(cmd.ctx.root, 'node_modules', dep)))))
+    .then(() => saveType && removeDeps(cmd.pkg.path, pkgsToUninstall, saveType))
+    .then(() => cmd.unlock())
+    .catch((err: Error) => {
       if (cmd && cmd.unlock) cmd.unlock()
       throw err
     })
 
-  function canBeUninstalled (pkgFullName) {
+  function canBeUninstalled (pkgFullName: string) {
     return !cmd.ctx.dependents[pkgFullName] || !cmd.ctx.dependents[pkgFullName].length ||
       cmd.ctx.dependents[pkgFullName].length === 1 && cmd.ctx.dependents[pkgFullName].indexOf(cmd.pkg.path) !== -1
   }
 
-  function tryUninstall (pkgFullNames) {
-    let numberOfUninstalls
+  function tryUninstall (pkgFullNames: string[]) {
+    let numberOfUninstalls: number
     do {
       numberOfUninstalls = 0
       for (let i = 0; i < pkgFullNames.length; ) {
@@ -61,7 +62,7 @@ export default function uninstallCmd (pkgsToUninstall, opts) {
           const deps = cmd.ctx.dependencies[uninstalledPkg] || []
           delete cmd.ctx.dependencies[uninstalledPkg]
           delete cmd.ctx.dependents[uninstalledPkg]
-          deps.forEach(dep => removeDependency(dep, uninstalledPkg))
+          deps.forEach((dep: string) => removeDependency(dep, uninstalledPkg))
           tryUninstall(deps)
           numberOfUninstalls++
           continue
@@ -71,7 +72,7 @@ export default function uninstallCmd (pkgsToUninstall, opts) {
     } while (numberOfUninstalls)
   }
 
-  function removeDependency (dependentPkgName, uninstalledPkg) {
+  function removeDependency (dependentPkgName: string, uninstalledPkg: string) {
     if (!cmd.ctx.dependents[dependentPkgName]) return
     cmd.ctx.dependents[dependentPkgName].splice(cmd.ctx.dependents[dependentPkgName].indexOf(uninstalledPkg), 1)
     if (!cmd.ctx.dependents[dependentPkgName].length) {
@@ -79,19 +80,19 @@ export default function uninstallCmd (pkgsToUninstall, opts) {
     }
   }
 
-  function removeBins (uninstalledPkg) {
+  function removeBins (uninstalledPkg: string) {
     const uninstalledPkgJson = requireJson(path.join(cmd.ctx.store, uninstalledPkg, '_/package.json'))
     const bins = binify(uninstalledPkgJson)
     Object.keys(bins).forEach(bin => cbRimraf.sync(path.join(cmd.ctx.root, 'node_modules/.bin', bin)))
   }
 
-  function removePkgFromStore (pkgFullName) {
+  function removePkgFromStore (pkgFullName: string) {
     return rimraf(path.join(cmd.ctx.store, pkgFullName))
   }
 
-  function rimraf (filePath) {
+  function rimraf (filePath: string) {
     return new Promise((resolve, reject) => {
-      cbRimraf(filePath, err => err ? reject(err) : resolve())
+      cbRimraf(filePath, (err: Error) => err ? reject(err) : resolve())
     })
   }
 }

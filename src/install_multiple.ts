@@ -1,5 +1,14 @@
-import install from './install'
+import install, {PackageContext, InstallationOptions} from './install'
 import pkgFullName from './pkg_full_name'
+import {InstallContext} from './api/install'
+
+export type Dependencies = {
+  [name: string]: string
+}
+
+export type MultipleInstallationOptions = InstallationOptions & {
+  dependent: string
+}
 
 /*
  * Install multiple modules into `modules`.
@@ -8,7 +17,7 @@ import pkgFullName from './pkg_full_name'
  *     installMultiple(ctx, { minimatch: '^2.0.0' }, {chokidar: '^1.6.0'}, './node_modules')
  */
 
-export default function installMultiple (ctx, requiredPkgsMap, optionalPkgsMap, modules, options) {
+export default function installMultiple (ctx: InstallContext, requiredPkgsMap: Dependencies, optionalPkgsMap: Dependencies, modules: string, options: MultipleInstallationOptions): Promise<PackageContext[]> {
   requiredPkgsMap = requiredPkgsMap || {}
   optionalPkgsMap = optionalPkgsMap || {}
 
@@ -23,7 +32,7 @@ export default function installMultiple (ctx, requiredPkgsMap, optionalPkgsMap, 
   ctx.dependencies = ctx.dependencies || {}
 
   return Promise.all(optionalPkgs.concat(requiredPkgs).map(pkg => install(ctx, pkg, modules, options)
-    .then(dependency => {
+    .then((dependency: PackageContext) => {
       const depFullName = pkgFullName(dependency)
       ctx.dependents[depFullName] = ctx.dependents[depFullName] || []
       if (ctx.dependents[depFullName].indexOf(options.dependent) === -1) {
@@ -45,7 +54,7 @@ export default function installMultiple (ctx, requiredPkgsMap, optionalPkgsMap, 
     })))
 }
 
-function pkgMeta (name, version, optional) {
+function pkgMeta (name: string, version: string, optional: boolean) {
   return {
     rawSpec: version ? '' + name + '@' + version : name,
     optional

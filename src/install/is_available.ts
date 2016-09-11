@@ -1,6 +1,8 @@
 import semver = require('semver')
 import path = require('path')
 import fs = require('mz/fs')
+import {PackageSpec} from '../install'
+import {Package} from '../api/init_cmd'
 
 /*
  * Check if a module exists (eg, `node_modules/node-pre-gyp`). This is the case when
@@ -13,7 +15,7 @@ import fs = require('mz/fs')
  *     isAvailable(spec, 'path/to/node_modules')
  */
 
-export default function isAvailable (spec, modules) {
+export default function isAvailable (spec: PackageSpec, modules: string) {
   const name = spec && spec.name
   if (!name) return Promise.resolve(false)
 
@@ -23,12 +25,12 @@ export default function isAvailable (spec, modules) {
     .then(_ => fs.readFile(packageJsonPath))
     .then(_ => JSON.parse(_))
     .then(_ => verify(spec, _))
-    .catch(err => {
+    .catch((err: NodeJS.ErrnoException) => {
       if (err.code !== 'ENOENT') throw err
       return false
     })
 
-  function verify (spec, packageJson) {
+  function verify (spec: PackageSpec, packageJson: Package) {
     return packageJson.name === spec.name &&
       ((spec.type !== 'range' && spec.type !== 'version') ||
       semver.satisfies(packageJson.version, spec.spec))

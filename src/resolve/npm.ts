@@ -3,6 +3,8 @@ const enc = encodeURIComponent
 import pkgFullName from '../pkg_full_name'
 import registryUrl = require('registry-url')
 import semver = require('semver')
+import {PackageToResolve, ResolveOptions, PackageDist} from '../resolve'
+import {Package} from '../api/init_cmd'
 
 /**
  * Resolves a package in the NPM registry. Done as part of `install()`.
@@ -18,7 +20,7 @@ import semver = require('semver')
  *       })
  */
 
-export default function resolveNpm (pkg, opts) {
+export default function resolveNpm (pkg: PackageToResolve, opts: ResolveOptions) {
   // { raw: 'rimraf@2', scope: null, name: 'rimraf', rawSpec: '2' || '' }
   return Promise.resolve()
     .then(_ => toUri(pkg))
@@ -34,17 +36,32 @@ export default function resolveNpm (pkg, opts) {
       version: res.version, // used for displaying
       dist: res.dist
     }))
-    .catch(err => errify(err, pkg))
+    .catch((err: Error) => errify(err, pkg))
 }
 
-function errify (err, pkg) {
-  if (err.statusCode === 404) {
+function errify (err: Error, pkg: PackageToResolve) {
+  if (err['statusCode'] === 404) {
     throw new Error("Module '" + pkg.raw + "' not found")
   }
   throw err
 }
 
-function pickVersionFromRegistryDocument (pkg, dep) {
+type StringDict = {
+  [name: string]: string
+}
+
+type PackageInRegistry = Package & {
+  dist: PackageDist
+}
+
+type PackageDocument = {
+  'dist-tag': StringDict,
+  versions: {
+    [name: string]: PackageInRegistry
+  }
+}
+
+function pickVersionFromRegistryDocument (pkg: PackageDocument, dep: PackageToResolve) {
   const versions = Object.keys(pkg.versions)
 
   if (dep.type === 'tag') {
@@ -74,8 +91,8 @@ function pickVersionFromRegistryDocument (pkg, dep) {
  *     // => 'https://registry.npmjs.org/rimraf/2'
  */
 
-function toUri (pkg) {
-  let name
+function toUri (pkg: PackageToResolve) {
+  let name: string
 
   if (pkg.name.substr(0, 1) === '@') {
     name = '@' + enc(pkg.name.substr(1))

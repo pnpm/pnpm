@@ -1,7 +1,22 @@
 import path = require('path')
 import fs = require('fs')
 
-export default function storeJsonController (storePath) {
+export type StoreDependencies = {
+  [name: string]: string[]
+}
+
+export type StoreJson = {
+  pnpm: string,
+  dependents: StoreDependencies,
+  dependencies: StoreDependencies
+}
+
+export type StoreJsonCtrl = {
+  read(): StoreJson,
+  save(storeJson: StoreJson): void
+}
+
+export default function storeJsonController (storePath: string): StoreJsonCtrl {
   const storeJsonPath = path.join(storePath, 'store.json')
 
   return {
@@ -12,7 +27,7 @@ export default function storeJsonController (storePath) {
         return null
       }
     },
-    save (storeJson) {
+    save (storeJson: StoreJson) {
       fs.writeFileSync(storeJsonPath, JSON.stringify(storeJson, null, 2), 'utf8')
     }
   }

@@ -8,7 +8,31 @@ import caw = require('caw')
 import getAuthToken = require('registry-auth-token')
 import getRetrier from './get_retrier'
 
-export default opts => {
+export type GotOptions = {
+  fetchRetries?: number,
+  fetchRetryFactor?: number,
+  fetchRetryMintimeout?: number,
+  fetchRetryMaxtimeout?: number,
+  concurrency?: number,
+  headers?: {
+    authorization: string
+  },
+  agent?: any
+}
+
+export type HttpResponse = {
+  body: string
+}
+
+export type GetFunc = (url: string, options?: GotOptions) => Promise<HttpResponse>
+
+export type Got = {
+  get: GetFunc,
+  getStream: (url: string, options?: GotOptions) => Promise<NodeJS.ReadableStream>,
+  getJSON: (url: string) => Promise<string>
+}
+
+export default (opts: GotOptions): Got => {
   opts = opts || {}
   const concurrency = +opts.concurrency || 16
   const forcedRequestOptions = {
@@ -42,7 +66,7 @@ export default opts => {
    * waits in line
    */
 
-  const get: any = retrier((url, options?) => {
+  const get: GetFunc = retrier((url: string, options?: GotOptions) => {
     const throater = getThroater()
     const key = JSON.stringify([ url, options ])
     if (!cache[key]) {
@@ -54,9 +78,9 @@ export default opts => {
     return cache[key]
   })
 
-  function getJSON (url) {
+  function getJSON (url: string) {
     return get(url)
-      .then(res => {
+      .then((res: HttpResponse) => {
         const body = JSON.parse(res.body)
         return body
       })
@@ -66,10 +90,10 @@ export default opts => {
    * like require('got').stream, but throated
    */
 
-  const getStream = retrier((url, options) => {
+  const getStream = retrier((url: string, options?: GotOptions) => {
     const throater = getThroater()
     return new Promise((resolve, reject) => {
-      throater(_ => {
+      throater(() => {
         debug(url, '[stream]')
         const stream = got.stream(url, extend(url, options))
         resolve(stream)
@@ -79,7 +103,7 @@ export default opts => {
     })
   })
 
-  function waiter (stream) {
+  function waiter (stream: NodeJS.ReadableStream) {
     return new Promise((resolve, reject) => {
       stream
         .on('end', resolve)
@@ -91,7 +115,7 @@ export default opts => {
    * Extends `got` options with User Agent headers and stuff
    */
 
-  function extend (url, options) {
+  function extend (url: string, options: GotOptions): GotOptions {
     if (!options) options = Object.assign({}, forcedRequestOptions)
     if (url.indexOf('https://') === 0) {
       options.agent = caw({ protocol: 'https' }) || httpsKeepaliveAgent

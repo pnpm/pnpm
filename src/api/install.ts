@@ -5,8 +5,8 @@ import createDebug = require('debug')
 
 import requireJson from '../fs/require_json'
 import createGot from '../network/got'
-import initCmd from './init_cmd'
-import installMultiple from '../install_multiple'
+import initCmd, {CommandContext, CommandNamespace, BasicOptions} from './init_cmd'
+import installMultiple, {Dependencies} from '../install_multiple'
 import save from '../save'
 import linkPeers from '../install/link_peers'
 import runtimeError from '../runtime_error'
@@ -15,8 +15,47 @@ import {sync as runScriptSync} from '../run_script'
 import postInstall from '../install/post_install'
 import linkBins from '../install/link_bins'
 import defaults from '../defaults'
+import {PackageContext} from '../install'
 
 const pnpmPkgJson = requireJson(path.resolve(__dirname, '../../package.json'))
+
+export type PackageInstallationResult = {
+  path: string,
+  pkgFullname: string
+}
+
+export type CachedPromises = {
+  [name: string]: Promise<any>
+}
+
+export type InstalledPackages = {
+  [name: string]: PackageContext
+}
+
+export type InstallContext = CommandContext & {
+  installs?: InstalledPackages,
+  piq?: PackageInstallationResult[],
+  got?: any,
+  builds?: CachedPromises,
+  fetches?: CachedPromises
+}
+
+export type InstallNamespace = CommandNamespace & {
+  ctx: InstallContext
+}
+
+export type PublicInstallationOptions = BasicOptions & {
+  save: boolean,
+  saveDev: boolean,
+  saveOptional: boolean,
+  production: boolean,
+  concurrency: number,
+  fetchRetries: number,
+  fetchRetryFactor: number,
+  fetchRetryMintimeout: number,
+  fetchRetryMaxtimeout: number,
+  saveExact: boolean
+}
 
 /*
  * Perform installation.
@@ -24,21 +63,21 @@ const pnpmPkgJson = requireJson(path.resolve(__dirname, '../../package.json'))
  *     install({'lodash': '1.0.0', 'foo': '^2.1.0' }, { quiet: true })
  */
 
-export default function install (packagesToInstall, opts) {
-  packagesToInstall = mapify(packagesToInstall)
+export default function install (fuzzyDeps: string[] | Dependencies, opts: PublicInstallationOptions) {
+  let packagesToInstall = mapify(fuzzyDeps)
   const installType = packagesToInstall && Object.keys(packagesToInstall).length ? 'named' : 'general'
   opts = Object.assign({}, defaults, opts)
 
-  let cmd
+  let cmd: InstallNamespace
   const isProductionInstall = opts.production || process.env.NODE_ENV === 'production'
 
   return initCmd(opts)
     .then(_ => { cmd = _ })
-    .then(_ => install())
-    .then(_ => linkPeers(cmd.pkg, cmd.ctx.store, cmd.ctx.installs))
+    .then(() => install())
+    .then(() => linkPeers(cmd.ctx.store, cmd.ctx.installs))
     // postinstall hooks
-    .then(_ => {
-      if (cmd.ctx.ignoreScripts || !cmd.ctx.piq || !cmd.ctx.piq.length) return
+    .then(() => {
+      if (opts.ignoreScripts || !cmd.ctx.piq || !cmd.ctx.piq.length) return
       return seq(
         cmd.ctx.piq.map(pkg => () => linkBins(path.join(pkg.path, '_', 'node_modules'))
             .then(() => postInstall(pkg.path, installLogger(pkg.pkgFullname)))
@@ -53,10 +92,10 @@ export default function install (packagesToInstall, opts) {
         )
       )
     })
-    .then(_ => linkBins(path.join(cmd.ctx.root, 'node_modules')))
-    .then(_ => mainPostInstall())
-    .then(_ => cmd.unlock())
-    .catch(err => {
+    .then(() => linkBins(path.join(cmd.ctx.root, 'node_modules')))
+    .then(() => mainPostInstall())
+    .then(() => cmd.unlock())
+    .catch((err: Error) => {
       if (cmd && cmd.unlock) cmd.unlock()
       throw err
     })
@@ -89,23 +128,23 @@ export default function install (packagesToInstall, opts) {
       }))
   }
 
-  function savePkgs (packages) {
+  function savePkgs (packages: PackageContext[]) {
     const saveType = getSaveType(opts)
     if (saveType && installType === 'named') {
       const inputNames = Object.keys(packagesToInstall)
       const savedPackages = packages.filter(pkg => inputNames.indexOf(pkg.name) > -1)
-      return save(cmd.pkg, savedPackages, saveType, opts.saveExact)
+      return save(cmd.pkg.path, savedPackages, saveType, opts.saveExact)
     }
   }
 
   function mainPostInstall () {
-    if (cmd.ctx.ignoreScripts) return
+    if (opts.ignoreScripts) return
     const scripts = cmd.pkg.pkg && cmd.pkg.pkg.scripts || {}
-    if (scripts.postinstall) npmRun('postinstall')
-    if (!isProductionInstall && scripts.prepublish) npmRun('prepublish')
+    if (scripts['postinstall']) npmRun('postinstall')
+    if (!isProductionInstall && scripts['prepublish']) npmRun('prepublish')
     return
 
-    function npmRun (scriptName) {
+    function npmRun (scriptName: string) {
       const result = runScriptSync('npm', ['run', scriptName], {
         cwd: path.dirname(cmd.pkg.path),
         stdio: 'inherit'
@@ -118,8 +157,8 @@ export default function install (packagesToInstall, opts) {
   }
 }
 
-function installLogger (pkgFullname) {
-  return (stream, line) => {
+function installLogger (pkgFullname: string) {
+  return (stream: string, line: string) => {
     createDebug('pnpm:post_install')(`${pkgFullname} ${line}`)
 
     if (stream === 'stderr') {
@@ -130,10 +169,10 @@ function installLogger (pkgFullname) {
   }
 }
 
-function mapify (pkgs) {
+function mapify (pkgs: string[] | Dependencies): Dependencies {
   if (!pkgs) return {}
   if (Array.isArray(pkgs)) {
-    return pkgs.reduce((pkgsMap, pkgFullName) => {
+    return pkgs.reduce((pkgsMap: Dependencies, pkgFullName: string) => {
       const matches = /(@?[^@]+)@(.*)/.exec(pkgFullName)
       if (!matches) {
         pkgsMap[pkgFullName] = null

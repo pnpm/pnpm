@@ -5,7 +5,7 @@ const slice = Array.prototype.slice
 
 const logFilePath = 'pnpm-debug.log'
 
-const logs = []
+const logs: Object[][] = []
 
 logger.onAny(function () {
   const args = slice.call(arguments).slice(2)
@@ -14,11 +14,11 @@ logger.onAny(function () {
   }
 })
 
-function isUsefulLog (level) {
+function isUsefulLog (level: string) {
   return level !== 'progress' || arguments[2] !== 'downloading'
 }
 
-process.on('exit', code => {
+process.on('exit', (code: number) => {
   if (code === 0) {
     fs.unlink(logFilePath)
     return
@@ -39,7 +39,7 @@ function getPrettyLogs () {
   return logObj
 }
 
-function stringify (obj) {
+function stringify (obj: Object): string {
   if (obj instanceof Error) {
     let logMsg = obj.toString()
     if (obj.stack) {
@@ -47,11 +47,11 @@ function stringify (obj) {
     }
     return logMsg
   }
-  return obj
+  return obj.toString()
 }
 
-function mergeStrings (arr) {
-  const mergedArr = []
+function mergeStrings (arr: Object[]) {
+  const mergedArr: Object[] = []
   let prevWasString = false
   arr.forEach(el => {
     const currentIsString = typeof el === 'string'

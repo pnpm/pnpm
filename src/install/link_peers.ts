@@ -3,12 +3,13 @@ import unsymlink from '../fs/unsymlink'
 import relSymlink from '../fs/rel_symlink'
 import path = require('path')
 import semver = require('semver')
+import {InstalledPackages} from '../api/install'
 
 /*
  * Links into `.store/node_modules`
  */
 
-export default function linkPeers (pkg, store, installs) {
+export default function linkPeers (store: string, installs: InstalledPackages) {
   if (!installs) return
   const peers = {}
   const roots = {}
@@ -37,7 +38,7 @@ export default function linkPeers (pkg, store, installs) {
     })))
     .then(_ => Promise.all(Object.keys(peers).map(name =>
       unsymlink(path.join(modules, peers[name].spec.escapedName))
-      .then(_ =>
+      .then(() =>
         relSymlink(
           path.join(store, peers[name].fullname, '_'),
           path.join(modules, peers[name].spec.escapedName)))

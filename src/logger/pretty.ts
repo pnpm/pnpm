@@ -3,6 +3,8 @@ import logger = require('@zkochan/logger')
 import observatory = require('observatory')
 observatory.settings({ prefix: '  ', width: 74 })
 
+import {PackageSpec} from '../install'
+
 /*
  * Logger.
  *
@@ -19,7 +21,7 @@ observatory.settings({ prefix: '  ', width: 74 })
 export default function () {
   const tasks = {}
 
-  function getTask (pkg) {
+  function getTask (pkg: PackageSpec) {
     if (tasks[pkg.rawSpec]) return tasks[pkg.rawSpec]
     const task = observatory.add(
       (pkg.name ? (pkg.name + ' ') : '') +
@@ -32,7 +34,7 @@ export default function () {
   const pkgDataMap = {}
   const resMap = {}
 
-  logger.on('progress', (pkg, level, pkgSpec, status, args) => {
+  logger.on('progress', (pkg: PackageSpec, level: string, pkgSpec: string, status: string, args: any) => {
     const pkgData = pkgDataMap[pkgSpec] // package.json
     const res = resMap[pkgSpec] // resolution
 

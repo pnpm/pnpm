@@ -11,7 +11,7 @@ import binify from '../binify'
 const preserveSymlinks = semver.satisfies(process.version, '>=6.3.0')
 const isWindows = process.platform === 'win32'
 
-export default function linkAllBins (modules) {
+export default function linkAllBins (modules: string) {
   return Promise.all(
     getDirectories(modules)
       .reduce((pkgDirs, dir) => pkgDirs.concat(isScopedPkgsDir(dir) ? getDirectories(dir) : dir), [])
@@ -19,12 +19,12 @@ export default function linkAllBins (modules) {
   )
 }
 
-function getDirectories (srcPath) {
-  let dirs
+function getDirectories (srcPath: string) {
+  let dirs: string[]
   try {
     dirs = fs.readdirSync(srcPath)
   } catch (err) {
-    if (err.code !== 'ENOENT') {
+    if ((<NodeJS.ErrnoException>err).code !== 'ENOENT') {
       throw err
     }
     dirs = []
@@ -34,7 +34,7 @@ function getDirectories (srcPath) {
     .filter(absolutePath => fs.statSync(absolutePath).isDirectory())
 }
 
-function isScopedPkgsDir (dirPath) {
+function isScopedPkgsDir (dirPath: string) {
   return path.basename(dirPath)[0] === '@'
 }
 
@@ -52,7 +52,7 @@ function isScopedPkgsDir (dirPath) {
  *     // node_modules/.bin/rimraf -> ../.store/rimraf@2.5.1/cmd.js
  */
 
-export function linkPkgBins (modules, target) {
+export function linkPkgBins (modules: string, target: string) {
   const pkg = tryRequire(path.join(target, 'package.json'))
 
   if (!pkg || !pkg.bin) return
@@ -77,7 +77,7 @@ export function linkPkgBins (modules, target) {
 
       if (!preserveSymlinks) {
         return makeExecutable(path.join(target, actualBin))
-          .then(_ => relSymlink(
+          .then(() => relSymlink(
             path.join(target, actualBin),
             externalBinPath))
       }
@@ -86,11 +86,11 @@ export function linkPkgBins (modules, target) {
     })))
 }
 
-function makeExecutable (filePath) {
+function makeExecutable (filePath: string) {
   return fs.chmod(filePath, 0o755)
 }
 
-function proxy (proxyPath, targetPath) {
+function proxy (proxyPath: string, targetPath: string) {
   const proxyContent = stripIndent`
     #!/bin/sh
     ":" //# comment; exec /usr/bin/env node --preserve-symlinks "$0" "$@"
@@ -99,7 +99,7 @@ function proxy (proxyPath, targetPath) {
   return makeExecutable(proxyPath)
 }
 
-function cmdShim (proxyPath, targetPath) {
+function cmdShim (proxyPath: string, targetPath: string) {
   const nodeOptions = preserveSymlinks ? '--preserve-symlinks' : ''
   const cmdContent = stripIndent`
     @IF EXIST "%~dp0\\node.exe" (
@@ -139,6 +139,6 @@ function cmdShim (proxyPath, targetPath) {
  * Like `require()`, but returns `undefined` when it fails
  */
 
-function tryRequire (path) {
+function tryRequire (path: string) {
   try { return requireJson(path) } catch (e) { }
 }

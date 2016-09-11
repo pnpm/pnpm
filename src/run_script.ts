@@ -4,10 +4,15 @@ import path = require('path')
 import byline = require('byline')
 import spawn = require('cross-spawn')
 
-export default function runScript (command, args, opts) {
-  opts = opts || {}
+export type RunScriptOptions = {
+  cwd: string,
+  log: Function
+}
+
+export default function runScript (command: string, args: string[], opts: RunScriptOptions) {
+  opts = Object.assign({log: (() => {})}, opts)
   args = args || []
-  const log = opts.log || (() => {})
+  const log = opts.log
   const script = `${command}${args.length ? ' ' + args.join(' ') : ''}`
   if (script) debug('runscript', script)
   if (!command) return Promise.resolve()
@@ -20,24 +25,29 @@ export default function runScript (command, args, opts) {
     log('stderr', '$ ' + script)
 
     proc.on('error', reject)
-    byline(proc.stdout).on('data', line => log('stdout', line))
-    byline(proc.stderr).on('data', line => log('stderr', line))
+    byline(proc.stdout).on('data', (line: string) => log('stdout', line))
+    byline(proc.stderr).on('data', (line: string) => log('stderr', line))
 
-    proc.on('close', code => {
+    proc.on('close', (code: number) => {
       if (code > 0) return reject(new Error('Exit code ' + code))
       return resolve()
     })
   })
 }
 
-export function sync (command, args, opts) {
-  opts = opts || {}
+export type RunSyncScriptOptions = {
+  cwd: string,
+  stdio: string
+}
+
+export function sync (command: string, args: string[], opts: RunSyncScriptOptions) {
+  opts = Object.assign({}, opts)
   return spawn.sync(command, args, Object.assign({}, opts, {
     env: createEnv(opts.cwd)
   }))
 }
 
-function createEnv (cwd) {
+function createEnv (cwd: string) {
   const env = Object.create(process.env)
   env.PATH = [
     path.join(cwd, 'node_modules', '.bin'),

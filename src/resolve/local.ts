@@ -3,12 +3,13 @@ import spawn = require('cross-spawn')
 import pkgFullName, {delimiter} from '../pkg_full_name'
 import getTarballName from './get_tarball_name'
 import requireJson from '../fs/require_json'
+import {PackageToResolve} from '../resolve'
 
 /**
  * Resolves a package hosted on the local filesystem
  */
 
-export default function resolveLocal (pkg) {
+export default function resolveLocal (pkg: PackageToResolve) {
   const dependencyPath = resolve(pkg.root, pkg.spec)
 
   if (dependencyPath.slice(-4) === '.tgz' || dependencyPath.slice(-7) === '.tar.gz') {
@@ -34,7 +35,7 @@ export default function resolveLocal (pkg) {
   return resolveFolder(dependencyPath)
 }
 
-function resolveFolder (dependencyPath) {
+function resolveFolder (dependencyPath: string) {
   return new Promise((resolve, reject) => {
     const proc = spawn('npm', ['pack'], {
       cwd: dependencyPath
@@ -42,13 +43,13 @@ function resolveFolder (dependencyPath) {
 
     let stdout = ''
 
-    proc.stdout.on('data', data => {
+    proc.stdout.on('data', (data: Object) => {
       stdout += data.toString()
     })
 
     proc.on('error', reject)
 
-    proc.on('close', code => {
+    proc.on('close', (code: number) => {
       if (code > 0) return reject(new Error('Exit code ' + code))
       const tgzFilename = stdout.trim()
       return resolve(tgzFilename)
@@ -76,6 +77,6 @@ function resolveFolder (dependencyPath) {
   })
 }
 
-function removeLeadingSlash (pkgPath) {
+function removeLeadingSlash (pkgPath: string) {
   return pkgPath.replace(/^[/\\]/, '')
 }

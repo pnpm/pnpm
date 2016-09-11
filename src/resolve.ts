@@ -2,6 +2,31 @@ import resolveNpm from './resolve/npm'
 import resolveTarball from './resolve/tarball'
 import resolveGithub from './resolve/github'
 import resolveLocal from './resolve/local'
+import {PackageSpec} from './install'
+
+export type PackageDist = {
+  local: boolean,
+  remove: boolean,
+  tarball: string,
+  shasum: string
+}
+
+export type ResolveResult = {
+  name: string,
+  fullname: string,
+  version: string,
+  dist: PackageDist,
+  root: string
+}
+
+export type PackageToResolve = PackageSpec & {
+  root: string
+}
+
+export type ResolveOptions = {
+  log(msg: string): void,
+  got: any
+}
 
 /**
  * Resolves a package in the NPM registry. Done as part of `install()`.
@@ -17,7 +42,7 @@ import resolveLocal from './resolve/local'
  *       })
  */
 
-export default function resolve (pkg, opts) {
+export default function resolve (pkg: PackageToResolve, opts: ResolveOptions): Promise<ResolveResult> {
   if (pkg.type === 'range' || pkg.type === 'version' || pkg.type === 'tag') {
     return resolveNpm(pkg, opts)
   } else if (pkg.type === 'remote') {

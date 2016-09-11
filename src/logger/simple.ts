@@ -1,5 +1,6 @@
 import chalk = require('chalk')
 import logger = require('@zkochan/logger')
+import {PackageSpec} from '../install'
 
 const UPDATERS = [
   'resolving', 'resolved', 'download-start', 'dependencies'
@@ -20,16 +21,16 @@ const s = {
 export default function () {
   const out = process.stdout
   const progress = { done: 0, total: 0 }
-  let lastStatus
+  let lastStatus: string
   const done = {}
 
-  process.on('exit', _ => {
+  process.on('exit', () => {
     out.write(reset())
   })
 
   const pkgDataMap = {}
 
-  logger.on('progress', (pkg, level, pkgSpec, status, args) => {
+  logger.on('progress', (pkg: PackageSpec, level: string, pkgSpec: string, status: string, args: any) => {
     const name = pkg.name
       ? (pkg.name + ' ' + pkg.rawSpec)
       : pkg.rawSpec
@@ -68,7 +69,7 @@ export default function () {
       }
     }
 
-    function update (line?) {
+    function update (line?: string) {
       if (line && !done[line]) {
         done[line] = true
         out.write(reset() + line + '\n')

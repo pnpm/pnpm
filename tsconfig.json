@@ -4,7 +4,7 @@
     "preserveConstEnums": true,
     "sourceMap": true,
     "declaration": true,
-    "noImplicitAny": false,
+    "noImplicitAny": true,
     "noImplicitReturns": false,
     "suppressImplicitAnyIndexErrors": true,
     "target": "es6",

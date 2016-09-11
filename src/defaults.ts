@@ -6,5 +6,6 @@ export default {
   fetchRetryMaxtimeout: 6e4, // 1 minute
   storePath: 'node_modules/.store',
   globalPath: '~/.pnpm',
-  logger: 'pretty'
+  logger: 'pretty',
+  ignoreScripts: false
 }

@@ -1,6 +1,7 @@
 import * as link from '../api/link'
+import {PublicInstallationOptions} from '../api/install'
 
-export default (input, opts) => {
+export default (input: string[], opts: PublicInstallationOptions) => {
   if (!input || !input.length) {
     return link.linkToGlobal(opts)
   }

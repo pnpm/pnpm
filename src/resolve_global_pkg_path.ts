@@ -1,3 +1,3 @@
 import expandTilde from './fs/expand_tilde'
 
-export default globalPath => expandTilde(globalPath || '~/.pnpm')
+export default (globalPath: string): string => expandTilde(globalPath || '~/.pnpm')

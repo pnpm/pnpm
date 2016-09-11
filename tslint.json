@@ -5,7 +5,7 @@
     "align": [true, "parameters"],
     "class-name": true,
     "indent": [true, "spaces"],
-    "max-line-length": [true, 150],
+    "max-line-length": false,
     "no-any": false,
     "no-consecutive-blank-lines": true,
     "no-trailing-whitespace": true,

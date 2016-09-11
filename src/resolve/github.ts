@@ -1,4 +1,6 @@
 import pkgFullName, {delimiter} from '../pkg_full_name'
+import {PackageToResolve, ResolveOptions} from '../resolve'
+import {Package} from '../api/init_cmd'
 
 /**
  * Resolves a 'hosted' package hosted on 'github'.
@@ -6,12 +8,12 @@ import pkgFullName, {delimiter} from '../pkg_full_name'
 
 const PARSE_GITHUB_RE = /^github:([^\/]+)\/([^#]+)(#(.+))?$/
 
-export default function resolveGithub (pkg, opts) {
+export default function resolveGithub (pkg: PackageToResolve, opts: ResolveOptions) {
   const getJSON = opts.got.getJSON
   const spec = parseGithubSpec(pkg)
-  return resolveRef(spec).then(ref => {
+  return resolveRef(spec).then((ref: string) => {
     spec.ref = ref
-    return resolvePackageJson(spec).then(pkg => ({
+    return resolvePackageJson(spec).then((pkg: Package) => ({
       name: pkg.name,
       version: pkg.version,
       fullname: pkgFullName({
@@ -30,20 +32,28 @@ export default function resolveGithub (pkg, opts) {
     }))
   })
 
-  function resolvePackageJson (spec) {
+  type GitHubContentResponse = {
+    content: string
+  }
+
+  function resolvePackageJson (spec: GitHubSpec) {
     const url = [
       'https://api.github.com/repos',
       spec.owner,
       spec.repo,
       'contents/package.json?ref=' + spec.ref
     ].join('/')
-    return getJSON(url).then(body => {
+    return getJSON(url).then((body: GitHubContentResponse) => {
       const content = new Buffer(body.content, 'base64').toString('utf8')
       return JSON.parse(content)
     })
   }
 
-  function resolveRef (spec) {
+  type GitHubRepoResponse = {
+    sha: string
+  }
+
+  function resolveRef (spec: GitHubSpec) {
     const url = [
       'https://api.github.com/repos',
       spec.owner,
@@ -51,11 +61,11 @@ export default function resolveGithub (pkg, opts) {
       'commits',
       spec.ref
     ].join('/')
-    return getJSON(url).then(body => body.sha)
+    return getJSON(url).then((body: GitHubRepoResponse) => body.sha)
   }
 }
 
-function parseGithubSpec (pkg) {
+function parseGithubSpec (pkg: PackageToResolve): GitHubSpec {
   const m = PARSE_GITHUB_RE.exec(pkg.hosted.shortcut)
   if (!m) {
     throw new Error('cannot parse: ' + pkg.hosted.shortcut)
@@ -64,4 +74,10 @@ function parseGithubSpec (pkg) {
   const repo = m[2]
   const ref = m[4] || 'HEAD'
   return {owner, repo, ref}
+}
+
+type GitHubSpec = {
+  owner: string,
+  repo: string,
+  ref: string
 }

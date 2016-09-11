@@ -1,4 +1,4 @@
-import install from '../api/install'
+import install, {PublicInstallationOptions} from '../api/install'
 
 /*
  * Perform installation.
@@ -6,6 +6,6 @@ import install from '../api/install'
  *     installCmd([ 'lodash', 'foo' ], { quiet: true })
  */
 
-export default function installCmd (input, opts) {
+export default function installCmd (input: string[], opts: PublicInstallationOptions) {
   return install(input, opts)
 }

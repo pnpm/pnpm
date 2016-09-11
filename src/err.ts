@@ -1,15 +1,22 @@
 import chalk = require('chalk')
 import logger = require('@zkochan/logger')
 
-export default function err (error) {
+type HttpError = Error & {
+  host: string,
+  path: string,
+  method: string
+}
+
+export default function err (error: Error) {
   logger.error('', error)
   console.error('')
-  if (error.host && error.path) {
-    console.error('' + error.message)
-    console.error('' + error.method + ' ' + error.host + error.path)
+  if ((<HttpError>error).host && (<HttpError>error).path) {
+    const httpError = <HttpError>error
+    console.error('' + httpError.message)
+    console.error('' + httpError.method + ' ' + httpError.host + httpError.path)
   } else {
     console.error(chalk.red(' ! ' + (error.message || error)))
-    if (process.env.DEBUG_PROMISE && error.stack && !error.silent) {
+    if (process.env.DEBUG_PROMISE && error.stack && !error['silent']) {
       console.error(chalk.red(error.stack))
     }
   }
