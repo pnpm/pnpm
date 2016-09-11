@@ -3,6 +3,7 @@ import resolveTarball from './resolve/tarball'
 import resolveGithub from './resolve/github'
 import resolveLocal from './resolve/local'
 import {PackageSpec} from './install'
+import {Got} from './network/got'
 
 export type PackageDist = {
   local: boolean,
@@ -16,7 +17,7 @@ export type ResolveResult = {
   fullname: string,
   version: string,
   dist: PackageDist,
-  root: string
+  root?: string
 }
 
 export type PackageToResolve = PackageSpec & {
@@ -25,7 +26,7 @@ export type PackageToResolve = PackageSpec & {
 
 export type ResolveOptions = {
   log(msg: string): void,
-  got: any
+  got: Got
 }
 
 /**

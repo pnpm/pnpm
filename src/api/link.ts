@@ -7,15 +7,15 @@ import {linkPkgBins} from '../install/link_bins'
 import mkdirp from '../fs/mkdirp'
 import {PublicInstallationOptions} from './install'
 
-export function linkFromRelative (linkTo: string, opts: PublicInstallationOptions) {
+export async function linkFromRelative (linkTo: string, opts: PublicInstallationOptions) {
   const cwd = opts && opts.cwd || process.cwd()
   const linkedPkgPath = path.resolve(cwd, linkTo)
   const currentModules = path.resolve(cwd, 'node_modules')
-  return installPkgDeps(Object.assign({}, opts, { cwd: linkedPkgPath }))
-    .then(() => mkdirp(currentModules))
-    .then(() => readPkgUp({ cwd: linkedPkgPath }))
-    .then(pkg => relSymlink(linkedPkgPath, path.resolve(currentModules, pkg.pkg.name)))
-    .then(() => linkPkgBins(currentModules, linkedPkgPath))
+  await installPkgDeps(Object.assign({}, opts, { cwd: linkedPkgPath }))
+  await mkdirp(currentModules)
+  const pkg = await readPkgUp({ cwd: linkedPkgPath })
+  await relSymlink(linkedPkgPath, path.resolve(currentModules, pkg.pkg.name))
+  return linkPkgBins(currentModules, linkedPkgPath)
 }
 
 export function linkFromGlobal (pkgName: string, opts: PublicInstallationOptions) {

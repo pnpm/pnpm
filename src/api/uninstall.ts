@@ -9,41 +9,42 @@ import defaults from '../defaults'
 import requireJson from '../fs/require_json'
 import {PublicInstallationOptions} from './install'
 
-export default function uninstallCmd (pkgsToUninstall: string[], opts: PublicInstallationOptions) {
+export default async function uninstallCmd (pkgsToUninstall: string[], opts: PublicInstallationOptions) {
   opts = Object.assign({}, defaults, opts)
 
-  let cmd: CommandNamespace
   const uninstalledPkgs: string[] = []
   const saveType = getSaveType(opts)
+  let cmd: CommandNamespace
 
-  return initCmd(opts)
-    .then(_ => { cmd = _ })
-    .then(() => {
-      cmd.pkg.pkg.dependencies = cmd.pkg.pkg.dependencies || {}
-      const pkgFullNames = pkgsToUninstall.map(dep => cmd.ctx.dependencies[cmd.pkg.path].find(_ => _.indexOf(dep + '@') === 0))
-      tryUninstall(pkgFullNames.slice())
-      if (cmd.ctx.dependencies[cmd.pkg.path]) {
-        pkgFullNames.forEach(dep => {
-          cmd.ctx.dependencies[cmd.pkg.path].splice(cmd.ctx.dependencies[cmd.pkg.path].indexOf(dep), 1)
-        })
-        if (!cmd.ctx.dependencies[cmd.pkg.path].length) {
-          delete cmd.ctx.dependencies[cmd.pkg.path]
-        }
+  try {
+    cmd = await initCmd(opts)
+    cmd.pkg.pkg.dependencies = cmd.pkg.pkg.dependencies || {}
+    const pkgFullNames = pkgsToUninstall.map(dep => cmd.ctx.dependencies[cmd.pkg.path].find(_ => _.indexOf(dep + '@') === 0))
+    tryUninstall(pkgFullNames.slice())
+    if (cmd.ctx.dependencies[cmd.pkg.path]) {
+      pkgFullNames.forEach(dep => {
+        cmd.ctx.dependencies[cmd.pkg.path].splice(cmd.ctx.dependencies[cmd.pkg.path].indexOf(dep), 1)
+      })
+      if (!cmd.ctx.dependencies[cmd.pkg.path].length) {
+        delete cmd.ctx.dependencies[cmd.pkg.path]
       }
-      return Promise.all(uninstalledPkgs.map(removePkgFromStore))
-    })
-    .then(() => cmd.storeJsonCtrl.save({
+    }
+    await Promise.all(uninstalledPkgs.map(removePkgFromStore))
+
+    cmd.storeJsonCtrl.save({
       pnpm: cmd.ctx.pnpm,
       dependents: cmd.ctx.dependents,
       dependencies: cmd.ctx.dependencies
-    }))
-    .then(() => Promise.all(pkgsToUninstall.map(dep => rimraf(path.join(cmd.ctx.root, 'node_modules', dep)))))
-    .then(() => saveType && removeDeps(cmd.pkg.path, pkgsToUninstall, saveType))
-    .then(() => cmd.unlock())
-    .catch((err: Error) => {
-      if (cmd && cmd.unlock) cmd.unlock()
-      throw err
     })
+    await Promise.all(pkgsToUninstall.map(dep => rimraf(path.join(cmd.ctx.root, 'node_modules', dep))))
+    if (saveType) {
+      await removeDeps(cmd.pkg.path, pkgsToUninstall, saveType)
+    }
+    await cmd.unlock()
+  } catch (err) {
+    if (cmd && cmd.unlock) await cmd.unlock()
+    throw err
+  }
 
   function canBeUninstalled (pkgFullName: string) {
     return !cmd.ctx.dependents[pkgFullName] || !cmd.ctx.dependents[pkgFullName].length ||

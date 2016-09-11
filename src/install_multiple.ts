@@ -31,8 +31,9 @@ export default function installMultiple (ctx: InstallContext, requiredPkgsMap: D
   ctx.dependents = ctx.dependents || {}
   ctx.dependencies = ctx.dependencies || {}
 
-  return Promise.all(optionalPkgs.concat(requiredPkgs).map(pkg => install(ctx, pkg, modules, options)
-    .then((dependency: PackageContext) => {
+  return Promise.all(optionalPkgs.concat(requiredPkgs).map(async function (pkg) {
+    try {
+      const dependency = await install(ctx, pkg, modules, options)
       const depFullName = pkgFullName(dependency)
       ctx.dependents[depFullName] = ctx.dependents[depFullName] || []
       if (ctx.dependents[depFullName].indexOf(options.dependent) === -1) {
@@ -43,15 +44,15 @@ export default function installMultiple (ctx: InstallContext, requiredPkgsMap: D
         ctx.dependencies[options.dependent].push(depFullName)
       }
       return dependency
-    })
-    .catch(err => {
+    } catch (err) {
       if (pkg.optional) {
         console.log('Skipping failed optional dependency ' + pkg.rawSpec + ':')
         console.log(err.message || err)
-        return
+        return null // is it OK to return null?
       }
       throw err
-    })))
+    }
+  }))
 }
 
 function pkgMeta (name: string, version: string, optional: boolean) {

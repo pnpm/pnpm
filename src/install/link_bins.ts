@@ -52,38 +52,38 @@ function isScopedPkgsDir (dirPath: string) {
  *     // node_modules/.bin/rimraf -> ../.store/rimraf@2.5.1/cmd.js
  */
 
-export function linkPkgBins (modules: string, target: string) {
+export async function linkPkgBins (modules: string, target: string) {
   const pkg = tryRequire(path.join(target, 'package.json'))
 
-  if (!pkg || !pkg.bin) return Promise.resolve()
+  if (!pkg || !pkg.bin) return
 
   const bins = binify(pkg)
   const binDir = path.join(modules, '.bin')
 
-  return mkdirp(binDir)
-    .then(() => Promise.all(Object.keys(bins).map(bin => {
-      const actualBin = bins[bin]
-      const externalBinPath = path.join(binDir, bin)
+  await mkdirp(binDir)
+  await Promise.all(Object.keys(bins).map(async function (bin) {
+    const actualBin = bins[bin]
+    const externalBinPath = path.join(binDir, bin)
 
-      const targetPath = normalizePath(path.join(pkg.name, actualBin))
-      if (isWindows) {
-        if (!preserveSymlinks) {
-          return cmdShim(externalBinPath, '../' + targetPath)
-        }
-        const proxyFilePath = path.join(binDir, bin + '.proxy')
-        fs.writeFileSync(proxyFilePath, 'require("../' + targetPath + '")', 'utf8')
-        return cmdShim(externalBinPath, path.relative(binDir, proxyFilePath))
-      }
-
+    const targetPath = normalizePath(path.join(pkg.name, actualBin))
+    if (isWindows) {
       if (!preserveSymlinks) {
-        return makeExecutable(path.join(target, actualBin))
-          .then(() => relSymlink(
-            path.join(target, actualBin),
-            externalBinPath))
+        return cmdShim(externalBinPath, '../' + targetPath)
       }
+      const proxyFilePath = path.join(binDir, bin + '.proxy')
+      fs.writeFileSync(proxyFilePath, 'require("../' + targetPath + '")', 'utf8')
+      return cmdShim(externalBinPath, path.relative(binDir, proxyFilePath))
+    }
 
-      return proxy(externalBinPath, targetPath)
-    })))
+    if (!preserveSymlinks) {
+      await makeExecutable(path.join(target, actualBin))
+      return relSymlink(
+        path.join(target, actualBin),
+        externalBinPath)
+    }
+
+    return proxy(externalBinPath, targetPath)
+  }))
 }
 
 function makeExecutable (filePath: string) {

@@ -60,18 +60,17 @@ export type BasicOptions = {
   ignoreScripts: boolean
 }
 
-export default (opts: BasicOptions): Promise<CommandNamespace> => {
+export default async function (opts: BasicOptions): Promise<CommandNamespace> {
   const cwd = opts.cwd || process.cwd()
   const cmd: CommandNamespace = {
     ctx: {}
   }
   let lockfile: string
-  return (opts.global ? readGlobalPkg(opts.globalPath) : readPkgUp({ cwd }))
-    .then((_: PackageAndPath) => { cmd.pkg = _ })
-    .then(() => updateContext())
-    .then(() => mkdirp(cmd.ctx.store))
-    .then(() => lock(lockfile))
-    .then(() => cmd)
+  cmd.pkg = await (opts.global ? readGlobalPkg(opts.globalPath) : readPkgUp({ cwd }))
+  updateContext()
+  await mkdirp(cmd.ctx.store)
+  await lock(lockfile)
+  return cmd
 
   function updateContext () {
     const root = cmd.pkg.path ? path.dirname(cmd.pkg.path) : cwd
@@ -109,25 +108,25 @@ function failIfNotCompatible (storeVersion: string) {
   }
 }
 
-function readGlobalPkg (globalPath: string) {
+async function readGlobalPkg (globalPath: string) {
   if (!globalPath) throw new Error('globalPath is required')
   const globalPnpm = resolveGlobalPkgPath(globalPath)
   const globalPkgPath = path.resolve(globalPnpm, 'package.json')
-  return readGlobalPkgJson(globalPkgPath)
-    .then(globalPkgJson => ({
-      pkg: globalPkgJson,
-      path: globalPkgPath
-    }))
+  const globalPkgJson = await readGlobalPkgJson(globalPkgPath)
+  return {
+    pkg: globalPkgJson,
+    path: globalPkgPath
+  }
 }
 
-function readGlobalPkgJson (globalPkgPath: string) {
+async function readGlobalPkgJson (globalPkgPath: string) {
   try {
     const globalPkgJson = requireJson(globalPkgPath)
-    return Promise.resolve(globalPkgJson)
+    return globalPkgJson
   } catch (err) {
     const pkgJson = {}
-    return mkdirp(path.dirname(globalPkgPath))
-      .then(_ => writeJson(globalPkgPath, pkgJson))
-      .then(_ => pkgJson)
+    await mkdirp(path.dirname(globalPkgPath))
+    await writeJson(globalPkgPath, pkgJson)
+    return pkgJson
   }
 }

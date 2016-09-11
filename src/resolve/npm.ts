@@ -3,7 +3,7 @@ const enc = encodeURIComponent
 import pkgFullName from '../pkg_full_name'
 import registryUrl = require('registry-url')
 import semver = require('semver')
-import {PackageToResolve, ResolveOptions, PackageDist} from '../resolve'
+import {PackageToResolve, ResolveOptions, PackageDist, ResolveResult} from '../resolve'
 import {Package} from '../api/init_cmd'
 
 /**
@@ -20,30 +20,26 @@ import {Package} from '../api/init_cmd'
  *       })
  */
 
-export default function resolveNpm (pkg: PackageToResolve, opts: ResolveOptions) {
+export default async function resolveNpm (pkg: PackageToResolve, opts: ResolveOptions): Promise<ResolveResult> {
   // { raw: 'rimraf@2', scope: null, name: 'rimraf', rawSpec: '2' || '' }
-  return Promise.resolve()
-    .then(_ => toUri(pkg))
-    .then(url => {
-      if (opts.log) opts.log('resolving')
-      return opts.got.get(url)
-    })
-    .then(res => JSON.parse(res.body))
-    .then(res => pickVersionFromRegistryDocument(res, pkg))
-    .then(res => ({
-      name: res.name,
-      fullname: pkgFullName(res),
-      version: res.version, // used for displaying
-      dist: res.dist
-    }))
-    .catch((err: Error) => errify(err, pkg))
-}
-
-function errify (err: Error, pkg: PackageToResolve) {
-  if (err['statusCode'] === 404) {
-    throw new Error("Module '" + pkg.raw + "' not found")
+  try {
+    const url = toUri(pkg)
+    if (opts.log) opts.log('resolving')
+    const res = await opts.got.get(url)
+    const parsedBody = JSON.parse(res.body)
+    const correctPkg = pickVersionFromRegistryDocument(parsedBody, pkg)
+    return {
+      name: correctPkg.name,
+      fullname: pkgFullName(correctPkg),
+      version: correctPkg.version, // used for displaying
+      dist: correctPkg.dist
+    }
+  } catch (err) {
+    if (err['statusCode'] === 404) {
+      throw new Error("Module '" + pkg.raw + "' not found")
+    }
+    throw err
   }
-  throw err
 }
 
 type StringDict = {

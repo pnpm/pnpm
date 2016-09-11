@@ -9,21 +9,19 @@ export type SymlinkType = 'junction' | 'dir'
  * srcPath. API compatible with [`fs#symlink`](https://nodejs.org/api/fs.html#fs_fs_symlink_srcpath_dstpath_type_callback).
  */
 
-export default function forceSymlink (srcPath: string, dstPath: string, type: SymlinkType) {
+export default async function forceSymlink (srcPath: string, dstPath: string, type: SymlinkType) {
   debug(`${srcPath} -> ${dstPath}`)
   try {
     fs.symlinkSync(srcPath, dstPath, type)
-    return Promise.resolve()
+    return
   } catch (err) {
-    if ((<NodeJS.ErrnoException>err).code !== 'EEXIST') return Promise.reject(err)
+    if ((<NodeJS.ErrnoException>err).code !== 'EEXIST') throw err
 
-    return fs.readlink(dstPath)
-      .then((linkString: string) => {
-        if (srcPath === linkString) {
-          return Promise.resolve()
-        }
-        return fs.unlink(dstPath)
-          .then(() => forceSymlink(srcPath, dstPath, type))
-      })
+    const linkString = await fs.readlink(dstPath)
+    if (srcPath === linkString) {
+      return
+    }
+    await fs.unlink(dstPath)
+    await forceSymlink(srcPath, dstPath, type)
   }
 }

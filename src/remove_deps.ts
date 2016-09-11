@@ -2,10 +2,10 @@ import requireJson from './fs/require_json'
 import writeJson from './fs/write_json'
 import {DependenciesType} from './get_save_type'
 
-export default (pkgJsonPath: string, removedPackages: string[], saveType: DependenciesType) => {
+export default async function (pkgJsonPath: string, removedPackages: string[], saveType: DependenciesType) {
   const packageJson = requireJson(pkgJsonPath)
   packageJson[saveType] = packageJson[saveType]
-  if (!packageJson[saveType]) return Promise.resolve()
+  if (!packageJson[saveType]) return
 
   removedPackages.forEach(dependency => {
     delete packageJson[saveType][dependency]

@@ -15,20 +15,20 @@ import {Package} from '../api/init_cmd'
  *     isAvailable(spec, 'path/to/node_modules')
  */
 
-export default function isAvailable (spec: PackageSpec, modules: string) {
+export default async function isAvailable (spec: PackageSpec, modules: string) {
   const name = spec && spec.name
-  if (!name) return Promise.resolve(false)
+  if (!name) return false
 
   const packageJsonPath = path.join(modules, name, 'package.json')
 
-  return Promise.resolve()
-    .then(_ => fs.readFile(packageJsonPath))
-    .then(_ => JSON.parse(_))
-    .then(_ => verify(spec, _))
-    .catch((err: NodeJS.ErrnoException) => {
-      if (err.code !== 'ENOENT') throw err
-      return false
-    })
+  try {
+    const content = await fs.readFile(packageJsonPath)
+    const pkgJson = JSON.parse(content)
+    return verify(spec, pkgJson)
+  } catch (err) {
+    if ((<NodeJS.ErrnoException>err).code !== 'ENOENT') throw err
+    return false
+  }
 
   function verify (spec: PackageSpec, packageJson: Package) {
     return packageJson.name === spec.name &&

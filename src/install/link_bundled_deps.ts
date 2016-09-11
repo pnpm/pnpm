@@ -18,11 +18,12 @@ function symlinkBundledDep (nodeModules: string, submod: string) {
   return linkBins(nodeModules)
 }
 
-function isDir (path: string, fn: () => Promise<any>) {
-  return fs.stat(path)
-  .then((stat: Stats) => {
-    if (!stat.isDirectory()) return Promise.resolve()
+async function isDir (path: string, fn: () => Promise<any>) {
+  try {
+    const stat = await fs.stat(path)
+    if (!stat.isDirectory()) return
     return fn()
-  })
-  .catch((err: NodeJS.ErrnoException) => { if (err.code !== 'ENOENT') throw err })
+  } catch (err) {
+    if ((<NodeJS.ErrnoException>err).code !== 'ENOENT') throw err
+  }
 }

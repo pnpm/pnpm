@@ -9,12 +9,12 @@ import {PackageToResolve} from '../resolve'
  * Resolves a package hosted on the local filesystem
  */
 
-export default function resolveLocal (pkg: PackageToResolve) {
+export default async function resolveLocal (pkg: PackageToResolve) {
   const dependencyPath = resolve(pkg.root, pkg.spec)
 
   if (dependencyPath.slice(-4) === '.tgz' || dependencyPath.slice(-7) === '.tar.gz') {
     const name = getTarballName(dependencyPath)
-    return Promise.resolve({
+    return {
       name,
       fullname: pkgFullName({
         name,
@@ -29,7 +29,7 @@ export default function resolveLocal (pkg: PackageToResolve) {
         local: true,
         tarball: dependencyPath
       }
-    })
+    }
   }
 
   return resolveFolder(dependencyPath)

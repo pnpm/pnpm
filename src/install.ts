@@ -2,6 +2,7 @@ import createDebug from './debug'
 const debug = createDebug('pnpm:install')
 import npa = require('npm-package-arg')
 import fs = require('mz/fs')
+import {Stats} from 'fs'
 import logger = require('@zkochan/logger')
 
 import path = require('path')
@@ -88,7 +89,7 @@ export type InstallLog = (msg: string, data?: any) => void
  * - symlink bins
  */
 
-export default function install (ctx: InstallContext, pkgMeta: PackageMeta, modules: string, options: InstallationOptions): Promise<PackageContext> {
+export default async function install (ctx: InstallContext, pkgMeta: PackageMeta, modules: string, options: InstallationOptions): Promise<PackageContext> {
   debug('installing ' + pkgMeta.rawSpec)
   if (!ctx.builds) ctx.builds = {}
   if (!ctx.fetches) ctx.fetches = {}
@@ -135,33 +136,35 @@ export default function install (ctx: InstallContext, pkgMeta: PackageMeta, modu
 
   const log: InstallLog = logger.fork(pkg.spec).log.bind(null, 'progress', pkgMeta.rawSpec)
 
-  // it might be a bundleDependency, in which case, don't bother
-  return isAvailable(pkg.spec, modules)
-    .then(_ => _
-      ? saveCachedResolution()
-        .then(data => log('package.json', data))
-      : resolve(Object.assign({}, pkg.spec, {root: options.parentRoot || ctx.root}), {log, got: ctx.got})
-        .then(saveResolution)
-        .then(() => log('resolved', pkg))
-        .then(() => buildToStoreCached(ctx, paths, pkg, log))
-        .then(() => mkdirp(paths.modules))
-        .then(() => symlinkToModules(join(paths.target, '_'), paths.modules))
-        .then(() => log('package.json', requireJson(join(paths.target, '_', 'package.json')))))
-    // done
-    .then(_ => {
-      if (!ctx.installs) ctx.installs = {}
-      if (!ctx.installs[pkg.fullname]) {
-        ctx.installs[pkg.fullname] = pkg
-        return
-      }
+  try {
+    // it might be a bundleDependency, in which case, don't bother
+    const available = await isAvailable(pkg.spec, modules)
+    if (available) {
+      const data = await saveCachedResolution()
+      log('package.json', data)
+    } else {
+      const res = await resolve(Object.assign({}, pkg.spec, {root: options.parentRoot || ctx.root}), {log, got: ctx.got})
+      saveResolution(res)
+      log('resolved', pkg)
+      await buildToStoreCached(ctx, paths, pkg, log)
+      await mkdirp(paths.modules)
+      await symlinkToModules(join(paths.target, '_'), paths.modules)
+      log('package.json', requireJson(join(paths.target, '_', 'package.json')))
+    }
+
+    if (!ctx.installs) ctx.installs = {}
+    if (!ctx.installs[pkg.fullname]) {
+      ctx.installs[pkg.fullname] = pkg
+    } else {
       ctx.installs[pkg.fullname].optional = ctx.installs[pkg.fullname].optional && pkg.optional
-    })
-    .then(_ => log('done'))
-    .then(_ => pkg)
-    .catch(err => {
-      log('error', err)
-      throw err
-    })
+    }
+
+    log('done')
+    return pkg
+  } catch (err) {
+    log('error', err)
+    throw err
+  }
 
   // set metadata as fetched from resolve()
   function saveResolution (res: ResolveResult) {
@@ -173,17 +176,14 @@ export default function install (ctx: InstallContext, pkgMeta: PackageMeta, modu
     paths.target = join(ctx.store, res.fullname)
   }
 
-  function saveCachedResolution (): Promise<Package> {
+  async function saveCachedResolution (): Promise<Package> {
     const target = join(modules, pkg.spec.name)
-    return fs.lstat(target)
-      .then((stat: any) => {
-        if (stat.isSymbolicLink()) {
-          return fs.readlink(target)
-            .then((path: string) => save(abspath(path, target)))
-        } else {
-          return save(target)
-        }
-      })
+    const stat: Stats = await fs.lstat(target)
+    if (stat.isSymbolicLink()) {
+      const path = await fs.readlink(target)
+      return save(abspath(path, target))
+    }
+    return save(target)
 
     function save (fullpath: string): Package {
       const data = requireJson(join(fullpath, 'package.json'))
@@ -209,12 +209,11 @@ function buildToStoreCached (ctx: InstallContext, paths: InstallationPaths, pkg:
   if (ctx.fetches[pkg.fullname]) return ctx.fetches[pkg.fullname]
 
   return make(paths.target, () =>
-    memoize(ctx.builds, pkg.fullname, () =>
-      Promise.resolve()
-        .then(_ => memoize(ctx.fetches, pkg.fullname, () =>
-          fetchToStore(ctx, paths, pkg, log)))
-        .then(_ => buildInStore(ctx, paths, pkg, log))
-  ))
+    memoize(ctx.builds, pkg.fullname, async function () {
+      await memoize(ctx.fetches, pkg.fullname, () => fetchToStore(ctx, paths, pkg, log))
+      return buildInStore(ctx, paths, pkg, log)
+    })
+  )
 }
 
 /*
@@ -222,53 +221,51 @@ function buildToStoreCached (ctx: InstallContext, paths: InstallationPaths, pkg:
  * Fetches from npm, recurses to dependencies, runs lifecycle scripts, etc
  */
 
-function fetchToStore (ctx: InstallContext, paths: InstallationPaths, pkg: PackageContext, log: InstallLog) {
-  return Promise.resolve()
-    // download and untar
-    .then(_ => log('download-queued'))
-    .then(_ => mkdirp(join(paths.target, '_')))
-    .then(_ => fetch(join(paths.target, '_'), pkg.dist, {log, got: ctx.got}))
-    .then(_ => pkg.dist.local && pkg.dist.remove ? fs.unlink(pkg.dist.tarball) : Promise.resolve())
+async function fetchToStore (ctx: InstallContext, paths: InstallationPaths, pkg: PackageContext, log: InstallLog) {
+  // download and untar
+  log('download-queued')
+  await mkdirp(join(paths.target, '_'))
+  await fetch(join(paths.target, '_'), pkg.dist, {log, got: ctx.got})
+  if (pkg.dist.local && pkg.dist.remove) {
+    await fs.unlink(pkg.dist.tarball)
+  }
 
-    // TODO: this is the point it becomes partially useable.
-    // ie, it can now be symlinked into .store/foo@1.0.0.
-    // it is only here that it should be available for ciruclar dependencies.
+  // TODO: this is the point it becomes partially useable.
+  // ie, it can now be symlinked into .store/foo@1.0.0.
+  // it is only here that it should be available for ciruclar dependencies.
 }
 
-function buildInStore (ctx: InstallContext, paths: InstallationPaths, pkg: PackageContext, log: InstallLog) {
+async function buildInStore (ctx: InstallContext, paths: InstallationPaths, pkg: PackageContext, log: InstallLog) {
   let fulldata: Package
 
-  return Promise.resolve()
-    .then(_ => { fulldata = requireJson(abspath(join(paths.target, '_', 'package.json'))) })
-    .then(_ => log('package.json', fulldata))
+  fulldata = requireJson(abspath(join(paths.target, '_', 'package.json')))
+  log('package.json', fulldata)
 
-    .then(_ => linkBundledDeps(join(paths.target, '_')))
+  await linkBundledDeps(join(paths.target, '_'))
 
-    // recurse down to dependencies
-    .then(_ => log('dependencies'))
-    .then(_ => installAll(ctx,
-      fulldata.dependencies,
-      fulldata.optionalDependencies,
-      join(paths.target, '_', 'node_modules'),
-      {
-        keypath: pkg.keypath.concat([ pkg.fullname ]),
-        dependent: pkg.fullname,
-        parentRoot: pkg.root,
-        optional: pkg.optional,
-        ignoreScripts: pkg.ignoreScripts
-      }))
-
-    // symlink itself; . -> node_modules/lodash@4.0.0
-    // this way it can require itself
-    .then(_ => symlinkSelf(paths.target, fulldata, pkg.keypath.length))
-
-    .then(_ => {
-      ctx.piq = ctx.piq || []
-      ctx.piq.push({
-        path: paths.target,
-        pkgFullname: pkg.fullname
-      })
+  // recurse down to dependencies
+  log('dependencies')
+  await installAll(ctx,
+    fulldata.dependencies,
+    fulldata.optionalDependencies,
+    join(paths.target, '_', 'node_modules'),
+    {
+      keypath: pkg.keypath.concat([ pkg.fullname ]),
+      dependent: pkg.fullname,
+      parentRoot: pkg.root,
+      optional: pkg.optional,
+      ignoreScripts: pkg.ignoreScripts
     })
+
+  // symlink itself; . -> node_modules/lodash@4.0.0
+  // this way it can require itself
+  await symlinkSelf(paths.target, fulldata, pkg.keypath.length)
+
+  ctx.piq = ctx.piq || []
+  ctx.piq.push({
+    path: paths.target,
+    pkgFullname: pkg.fullname
+  })
 }
 
 /*
@@ -276,16 +273,15 @@ function buildInStore (ctx: InstallContext, paths: InstallationPaths, pkg: Packa
  * require('babel-runtime') within itself.
  */
 
-function symlinkSelf (target: string, pkg: Package, depth: number) {
+async function symlinkSelf (target: string, pkg: Package, depth: number) {
   debug(`symlinkSelf ${pkg.name}`)
   if (depth === 0) {
-    return Promise.resolve()
-  } else {
-    return mkdirp(join(target, 'node_modules'))
-      .then(_ => relSymlink(
-        join('..', '_'),
-        join(target, 'node_modules', escapeName(pkg.name))))
+    return
   }
+  await mkdirp(join(target, 'node_modules'))
+  await relSymlink(
+    join('..', '_'),
+    join(target, 'node_modules', escapeName(pkg.name)))
 }
 
 function escapeName (name: string) {
@@ -300,7 +296,7 @@ function escapeName (name: string) {
  *     symlinkToModules(fullname, modules)
  */
 
-function symlinkToModules (target: string, modules: string) {
+async function symlinkToModules (target: string, modules: string) {
   // TODO: uncomment to make things fail
   const pkgData = requireJson(join(target, 'package.json'))
   if (!pkgData.name) { throw new Error('Invalid package.json for ' + target) }
@@ -308,8 +304,8 @@ function symlinkToModules (target: string, modules: string) {
   // lodash -> .store/lodash@4.0.0
   // .store/foo@1.0.0/node_modules/lodash -> ../../../.store/lodash@4.0.0
   const out = join(modules, pkgData.name)
-  return mkdirp(dirname(out))
-    .then(_ => relSymlink(target, out))
+  await mkdirp(dirname(out))
+  await relSymlink(target, out)
 }
 
 /*
@@ -317,12 +313,13 @@ function symlinkToModules (target: string, modules: string) {
  * If it exists, don't do anything.
  */
 
-function make (path: string, fn: Function) {
-  return fs.stat(path)
-    .catch((err: NodeJS.ErrnoException) => {
-      if (err.code !== 'ENOENT') throw err
-      return fn()
-    })
+async function make (path: string, fn: Function) {
+  try {
+    await fs.stat(path)
+  } catch (err) {
+    if ((<NodeJS.ErrnoException>err).code !== 'ENOENT') throw err
+    return fn()
+  }
 }
 
 /*

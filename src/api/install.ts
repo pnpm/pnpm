@@ -63,44 +63,42 @@ export type PublicInstallationOptions = BasicOptions & {
  *     install({'lodash': '1.0.0', 'foo': '^2.1.0' }, { quiet: true })
  */
 
-export default function install (fuzzyDeps: string[] | Dependencies, opts: PublicInstallationOptions) {
+export default async function install (fuzzyDeps: string[] | Dependencies, opts: PublicInstallationOptions) {
   let packagesToInstall = mapify(fuzzyDeps)
   const installType = packagesToInstall && Object.keys(packagesToInstall).length ? 'named' : 'general'
   opts = Object.assign({}, defaults, opts)
 
-  let cmd: InstallNamespace
   const isProductionInstall = opts.production || process.env.NODE_ENV === 'production'
+  let cmd: InstallNamespace
 
-  return initCmd(opts)
-    .then(_ => { cmd = _ })
-    .then(() => install())
-    .then(() => linkPeers(cmd.ctx.store, cmd.ctx.installs))
+  try {
+    cmd = await initCmd(opts)
+    await install()
+    await linkPeers(cmd.ctx.store, cmd.ctx.installs)
     // postinstall hooks
-    .then(() => {
-      if (opts.ignoreScripts || !cmd.ctx.piq || !cmd.ctx.piq.length) return
-      return seq(
-        cmd.ctx.piq.map(pkg => () => linkBins(path.join(pkg.path, '_', 'node_modules'))
-            .then(() => postInstall(pkg.path, installLogger(pkg.pkgFullname)))
-            .catch(err => {
-              if (cmd.ctx.installs[pkg.pkgFullname].optional) {
-                console.log('Skipping failed optional dependency ' + pkg.pkgFullname + ':')
-                console.log(err.message || err)
-                return
-              }
-              throw err
-            })
-        )
-      )
-    })
-    .then(() => linkBins(path.join(cmd.ctx.root, 'node_modules')))
-    .then(() => mainPostInstall())
-    .then(() => cmd.unlock())
-    .catch((err: Error) => {
+      if (!(opts.ignoreScripts || !cmd.ctx.piq || !cmd.ctx.piq.length)) {
+        await seq(
+          cmd.ctx.piq.map(pkg => () => linkBins(path.join(pkg.path, '_', 'node_modules'))
+              .then(() => postInstall(pkg.path, installLogger(pkg.pkgFullname)))
+              .catch(err => {
+                if (cmd.ctx.installs[pkg.pkgFullname].optional) {
+                  console.log('Skipping failed optional dependency ' + pkg.pkgFullname + ':')
+                  console.log(err.message || err)
+                  return
+                }
+                throw err
+              })
+          ))
+      }
+      await linkBins(path.join(cmd.ctx.root, 'node_modules'))
+      await mainPostInstall()
+      await cmd.unlock()
+    } catch (err) {
       if (cmd && cmd.unlock) cmd.unlock()
       throw err
-    })
+    }
 
-  function install () {
+  async function install () {
     if (installType !== 'named') {
       if (!cmd.pkg.pkg) throw runtimeError('No package.json found')
       packagesToInstall = Object.assign({}, cmd.pkg.pkg.dependencies || {})
@@ -114,18 +112,21 @@ export default function install (fuzzyDeps: string[] | Dependencies, opts: Publi
       fetchRetryMintimeout: opts.fetchRetryMintimeout,
       fetchRetryMaxtimeout: opts.fetchRetryMaxtimeout
     })
-    return installMultiple(cmd.ctx,
-        packagesToInstall,
-        cmd.pkg.pkg && cmd.pkg.pkg.optionalDependencies,
-        path.join(cmd.ctx.root, 'node_modules'),
-        Object.assign({}, opts, { dependent: cmd.pkg && cmd.pkg.path })
-      )
-      .then(savePkgs)
-      .then(_ => cmd.storeJsonCtrl.save({
-        pnpm: pnpmPkgJson.version,
-        dependents: cmd.ctx.dependents,
-        dependencies: cmd.ctx.dependencies
-      }))
+
+    const pkgs = await installMultiple(cmd.ctx,
+      packagesToInstall,
+      cmd.pkg.pkg && cmd.pkg.pkg.optionalDependencies,
+      path.join(cmd.ctx.root, 'node_modules'),
+      Object.assign({}, opts, { dependent: cmd.pkg && cmd.pkg.path })
+    )
+
+    await savePkgs(pkgs)
+
+    cmd.storeJsonCtrl.save({
+      pnpm: pnpmPkgJson.version,
+      dependents: cmd.ctx.dependents,
+      dependencies: cmd.ctx.dependencies
+    })
   }
 
   function savePkgs (packages: PackageContext[]) {

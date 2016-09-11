@@ -29,7 +29,7 @@ export type GetFunc = (url: string, options?: GotOptions) => Promise<HttpRespons
 export type Got = {
   get: GetFunc,
   getStream: (url: string, options?: GotOptions) => Promise<NodeJS.ReadableStream>,
-  getJSON: (url: string) => Promise<string>
+  getJSON<T>(url: string): Promise<T>
 }
 
 export default (opts: GotOptions): Got => {
