@@ -18,7 +18,7 @@ function symlinkBundledDep (nodeModules: string, submod: string) {
   return linkBins(nodeModules)
 }
 
-async function isDir (path: string, fn: () => Promise<any>) {
+async function isDir (path: string, fn: () => Promise<void>) {
   try {
     const stat = await fs.stat(path)
     if (!stat.isDirectory()) return

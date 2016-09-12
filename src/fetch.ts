@@ -35,7 +35,7 @@ function fetchStream (dir: string, tarball: string, shasum: string, log: Install
     unpackStream(
       stream
         .on('response', start)
-        .on('data', (_: any) => { actualShasum.update(_) })
+        .on('data', (_: Buffer) => { actualShasum.update(_) })
         .on('error', reject), dir
     ).then(finish)
 

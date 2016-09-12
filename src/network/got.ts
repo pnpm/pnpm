@@ -17,7 +17,7 @@ export type GotOptions = {
   headers?: {
     authorization: string
   },
-  agent?: any
+  agent?: HttpAgent
 }
 
 export type HttpResponse = {

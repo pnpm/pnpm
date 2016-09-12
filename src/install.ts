@@ -60,14 +60,14 @@ export type PackageContext = {
   keypath: string[],
   fullname?: string,
   dist?: PackageDist,
-  data: any,
+  data: Object,
   name: string,
   version: string,
   root?: string,
   ignoreScripts: boolean
 }
 
-export type InstallLog = (msg: string, data?: any) => void
+export type InstallLog = (msg: string, data?: Object) => void
 
 /*
  * Installs a package.
@@ -326,7 +326,7 @@ async function make (path: string, fn: Function) {
  * Save promises for later
  */
 
-function memoize (locks: CachedPromises, key: string, fn: () => Promise<any>) {
+function memoize (locks: CachedPromises, key: string, fn: () => Promise<void>) {
   if (locks && locks[key]) return locks[key]
   locks[key] = fn()
   return locks[key]

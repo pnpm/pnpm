@@ -34,7 +34,12 @@ export default function () {
   const pkgDataMap = {}
   const resMap = {}
 
-  logger.on('progress', (pkg: PackageSpec, level: string, pkgSpec: string, status: string, args: any) => {
+  type DownloadStatus = {
+    done: number,
+    total: number
+  }
+
+  logger.on('progress', (pkg: PackageSpec, level: string, pkgSpec: string, status: string, args: DownloadStatus | Object) => {
     const pkgData = pkgDataMap[pkgSpec] // package.json
     const res = resMap[pkgSpec] // resolution
 
@@ -61,8 +66,9 @@ export default function () {
       } else {
         t().status(chalk.yellow('downloading ↓'))
       }
-      if (args && args.total && args.done < args.total) {
-        t().details('' + Math.round(args.done / args.total * 100) + '%')
+      const downloadStatus: DownloadStatus = <DownloadStatus>args
+      if (downloadStatus && downloadStatus.total && downloadStatus.done < downloadStatus.total) {
+        t().details('' + Math.round(downloadStatus.done / downloadStatus.total * 100) + '%')
       } else {
         t().details('')
       }

@@ -16,6 +16,7 @@ import postInstall from '../install/post_install'
 import linkBins from '../install/link_bins'
 import defaults from '../defaults'
 import {PackageContext} from '../install'
+import {Got} from '../network/got'
 
 const pnpmPkgJson = requireJson(path.resolve(__dirname, '../../package.json'))
 
@@ -25,7 +26,7 @@ export type PackageInstallationResult = {
 }
 
 export type CachedPromises = {
-  [name: string]: Promise<any>
+  [name: string]: Promise<void>
 }
 
 export type InstalledPackages = {
@@ -35,7 +36,7 @@ export type InstalledPackages = {
 export type InstallContext = CommandContext & {
   installs?: InstalledPackages,
   piq?: PackageInstallationResult[],
-  got?: any,
+  got?: Got,
   builds?: CachedPromises,
   fetches?: CachedPromises
 }

@@ -30,7 +30,7 @@ export default function () {
 
   const pkgDataMap = {}
 
-  logger.on('progress', (pkg: PackageSpec, level: string, pkgSpec: string, status: string, args: any) => {
+  logger.on('progress', (pkg: PackageSpec, level: string, pkgSpec: string, status: string, args: Object) => {
     const name = pkg.name
       ? (pkg.name + ' ' + pkg.rawSpec)
       : pkg.rawSpec

@@ -9,7 +9,7 @@ export default (type: string) => {
   return logger.debug.bind(null, type)
 }
 
-logger.on('debug', function (ctx: any, level: string, type: string) {
+logger.on('debug', function (ctx: Object, level: string, type: string) {
   if (debugMap[type]) {
     const args = slice.call(arguments)
     debugMap[type].apply(debugMap[type], args.slice(3))
