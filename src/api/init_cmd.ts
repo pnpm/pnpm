@@ -14,7 +14,8 @@ import initLogger, {LoggerType} from '../logger'
 import storeJsonController, {StoreJsonCtrl} from '../fs/store_json_controller'
 import mkdirp from '../fs/mkdirp'
 import {Dependencies} from '../install_multiple'
-import {StoreDependencies} from '../fs/store_json_controller';
+import {StoreJson} from '../fs/store_json_controller'
+import pnpmPkgJson from '../pnpm_pkg_json'
 
 export type Package = {
   name: string,
@@ -36,18 +37,16 @@ export type PackageAndPath = {
 }
 
 export type CommandContext = {
-  store?: string,
-  root?: string,
-  pnpm?: string,
-  dependents?: StoreDependencies,
-  dependencies?: StoreDependencies
+  store: string,
+  root: string,
+  storeJson: StoreJson
 }
 
 export type CommandNamespace = {
   pkg?: PackageAndPath,
   ctx: CommandContext,
-  unlock?(): void,
-  storeJsonCtrl?: StoreJsonCtrl
+  unlock(): void,
+  storeJsonCtrl: StoreJsonCtrl
 }
 
 export type BasicOptions = {
@@ -62,39 +61,35 @@ export type BasicOptions = {
 
 export default async function (opts: BasicOptions): Promise<CommandNamespace> {
   const cwd = opts.cwd || process.cwd()
-  const cmd: CommandNamespace = {
-    ctx: {}
+  const pkg = await (opts.global ? readGlobalPkg(opts.globalPath) : readPkgUp({ cwd }))
+  const root = pkg.path ? path.dirname(pkg.path) : cwd
+  const store = resolveStorePath(opts.storePath, root)
+  const lockfile: string = path.resolve(store, 'lock')
+  const storeJsonCtrl = storeJsonController(store)
+  const storeJson = storeJsonCtrl.read()
+  if (storeJson) {
+    failIfNotCompatible(storeJson.pnpm)
   }
-  let lockfile: string
-  cmd.pkg = await (opts.global ? readGlobalPkg(opts.globalPath) : readPkgUp({ cwd }))
-  updateContext()
+  const cmd: CommandNamespace = {
+    pkg,
+    ctx: {
+      root,
+      store,
+      storeJson: storeJson || {
+        pnpm: pnpmPkgJson.version,
+        dependents: {},
+        dependencies: {}
+      }
+    },
+    unlock: () => unlock(lockfile),
+    storeJsonCtrl
+  }
+
+  if (!opts.quiet) initLogger(opts.logger)
+
   await mkdirp(cmd.ctx.store)
   await lock(lockfile)
   return cmd
-
-  function updateContext () {
-    const root = cmd.pkg.path ? path.dirname(cmd.pkg.path) : cwd
-    cmd.ctx.root = root
-    cmd.ctx.store = resolveStorePath(opts.storePath)
-    lockfile = path.resolve(cmd.ctx.store, 'lock')
-    cmd.unlock = () => unlock(lockfile)
-    cmd.storeJsonCtrl = storeJsonController(cmd.ctx.store)
-    const storeJson = cmd.storeJsonCtrl.read()
-
-    if (storeJson) {
-      failIfNotCompatible(storeJson.pnpm)
-    }
-
-    Object.assign(cmd.ctx, storeJson)
-    if (!opts.quiet) initLogger(opts.logger)
-
-    function resolveStorePath (storePath: string) {
-      if (storePath.indexOf('~/') === 0) {
-        return expandTilde(storePath)
-      }
-      return path.resolve(root, storePath)
-    }
-  }
 }
 
 function failIfNotCompatible (storeVersion: string) {
@@ -129,4 +124,11 @@ async function readGlobalPkgJson (globalPkgPath: string) {
     await writeJson(globalPkgPath, pkgJson)
     return pkgJson
   }
+}
+
+function resolveStorePath (storePath: string, pkgRoot: string) {
+  if (storePath.indexOf('~/') === 0) {
+    return expandTilde(storePath)
+  }
+  return path.resolve(pkgRoot, storePath)
 }

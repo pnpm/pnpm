@@ -14,12 +14,12 @@ const isWindows = process.platform === 'win32'
 export default function linkAllBins (modules: string) {
   return Promise.all(
     getDirectories(modules)
-      .reduce((pkgDirs, dir) => pkgDirs.concat(isScopedPkgsDir(dir) ? getDirectories(dir) : dir), [])
+      .reduce((pkgDirs: string[], dir: string): string[] => pkgDirs.concat(isScopedPkgsDir(dir) ? getDirectories(dir) : [dir]), [])
       .map(pkgDir => linkPkgBins(modules, pkgDir))
   )
 }
 
-function getDirectories (srcPath: string) {
+function getDirectories (srcPath: string): string[] {
   let dirs: string[]
   try {
     dirs = fs.readdirSync(srcPath)

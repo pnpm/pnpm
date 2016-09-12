@@ -7,6 +7,7 @@ import { Agent as HttpsAgent } from 'https'
 import caw = require('caw')
 import getAuthToken = require('registry-auth-token')
 import getRetrier from './get_retrier'
+import defaults from '../defaults'
 
 export type GotOptions = {
   fetchRetries?: number,
@@ -40,11 +41,12 @@ export default (opts: GotOptions): Got => {
     // the retry package is used for that purpose
     retries: 0
   }
+  const sharedOpts = opts
   const retrier = getRetrier({
-    retries: opts.fetchRetries,
-    factor: opts.fetchRetryFactor,
-    minTimeout: opts.fetchRetryMintimeout,
-    maxTimeout: opts.fetchRetryMaxtimeout
+    retries: opts.fetchRetries || defaults.fetchRetries,
+    factor: opts.fetchRetryFactor || defaults.fetchRetryFactor,
+    minTimeout: opts.fetchRetryMintimeout || defaults.fetchRetryMintimeout,
+    maxTimeout: opts.fetchRetryMaxtimeout || defaults.fetchRetryMaxtimeout
   })
 
   const cache = {}
@@ -72,7 +74,7 @@ export default (opts: GotOptions): Got => {
     if (!cache[key]) {
       cache[key] = throater(() => {
         debug(url)
-        return got(url, extend(url, options))
+        return got(url, extend(url, options || sharedOpts))
       })
     }
     return cache[key]
@@ -95,7 +97,7 @@ export default (opts: GotOptions): Got => {
     return new Promise((resolve, reject) => {
       throater(() => {
         debug(url, '[stream]')
-        const stream = got.stream(url, extend(url, options))
+        const stream = got.stream(url, extend(url, options || sharedOpts))
         resolve(stream)
         return waiter(stream)
       })

@@ -28,20 +28,20 @@ export default function installMultiple (ctx: InstallContext, requiredPkgsMap: D
     .filter(pkgName => !optionalPkgsMap[pkgName])
     .map(pkgName => pkgMeta(pkgName, requiredPkgsMap[pkgName], false))
 
-  ctx.dependents = ctx.dependents || {}
-  ctx.dependencies = ctx.dependencies || {}
+  ctx.storeJson.dependents = ctx.storeJson.dependents || {}
+  ctx.storeJson.dependencies = ctx.storeJson.dependencies || {}
 
   return Promise.all(optionalPkgs.concat(requiredPkgs).map(async function (pkg) {
     try {
       const dependency = await install(ctx, pkg, modules, options)
       const depFullName = pkgFullName(dependency)
-      ctx.dependents[depFullName] = ctx.dependents[depFullName] || []
-      if (ctx.dependents[depFullName].indexOf(options.dependent) === -1) {
-        ctx.dependents[depFullName].push(options.dependent)
+      ctx.storeJson.dependents[depFullName] = ctx.storeJson.dependents[depFullName] || []
+      if (ctx.storeJson.dependents[depFullName].indexOf(options.dependent) === -1) {
+        ctx.storeJson.dependents[depFullName].push(options.dependent)
       }
-      ctx.dependencies[options.dependent] = ctx.dependencies[options.dependent] || []
-      if (ctx.dependencies[options.dependent].indexOf(depFullName) === -1) {
-        ctx.dependencies[options.dependent].push(depFullName)
+      ctx.storeJson.dependencies[options.dependent] = ctx.storeJson.dependencies[options.dependent] || []
+      if (ctx.storeJson.dependencies[options.dependent].indexOf(depFullName) === -1) {
+        ctx.storeJson.dependencies[options.dependent].push(depFullName)
       }
       return dependency
     } catch (err) {
@@ -57,7 +57,7 @@ export default function installMultiple (ctx: InstallContext, requiredPkgsMap: D
 
 function pkgMeta (name: string, version: string, optional: boolean) {
   return {
-    rawSpec: version ? '' + name + '@' + version : name,
+    rawSpec: version === '*' ? name : `${name}@${version}`,
     optional
   }
 }

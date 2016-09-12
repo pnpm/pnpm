@@ -24,6 +24,13 @@ export type PackageToResolve = PackageSpec & {
   root: string
 }
 
+export type HostedPackageToResolve = PackageToResolve & {
+  hosted: {
+    type: string,
+    shortcut: string
+  }
+}
+
 export type ResolveOptions = {
   log(msg: string): void,
   got: Got
@@ -48,8 +55,8 @@ export default function resolve (pkg: PackageToResolve, opts: ResolveOptions): P
     return resolveNpm(pkg, opts)
   } else if (pkg.type === 'remote') {
     return resolveTarball(pkg)
-  } else if (pkg.type === 'hosted' && pkg.hosted.type === 'github') {
-    return resolveGithub(pkg, opts)
+  } else if (pkg.type === 'hosted' && (<HostedPackageToResolve>pkg).hosted.type === 'github') {
+    return resolveGithub(<HostedPackageToResolve>pkg, opts)
   } else if (pkg.type === 'local') {
     return resolveLocal(pkg)
   } else {

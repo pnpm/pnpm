@@ -29,10 +29,10 @@ export default async function isAvailable (spec: PackageSpec, modules: string) {
     if ((<NodeJS.ErrnoException>err).code !== 'ENOENT') throw err
     return false
   }
+}
 
-  function verify (spec: PackageSpec, packageJson: Package) {
-    return packageJson.name === spec.name &&
-      ((spec.type !== 'range' && spec.type !== 'version') ||
-      semver.satisfies(packageJson.version, spec.spec))
-  }
+function verify (spec: PackageSpec, packageJson: Package) {
+  return packageJson.name === spec.name &&
+    ((spec.type !== 'range' && spec.type !== 'version') ||
+    semver.satisfies(packageJson.version, spec.spec))
 }

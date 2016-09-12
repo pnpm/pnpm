@@ -1,5 +1,5 @@
 import pkgFullName, {delimiter} from '../pkg_full_name'
-import {PackageToResolve, ResolveOptions} from '../resolve'
+import {HostedPackageToResolve, ResolveOptions} from '../resolve'
 import {Package} from '../api/init_cmd'
 
 /**
@@ -8,7 +8,7 @@ import {Package} from '../api/init_cmd'
 
 const PARSE_GITHUB_RE = /^github:([^\/]+)\/([^#]+)(#(.+))?$/
 
-export default async function resolveGithub (pkg: PackageToResolve, opts: ResolveOptions) {
+export default async function resolveGithub (pkg: HostedPackageToResolve, opts: ResolveOptions) {
   const getJSON = opts.got.getJSON
   const spec = parseGithubSpec(pkg)
   spec.ref = await resolveRef(spec)
@@ -64,7 +64,7 @@ export default async function resolveGithub (pkg: PackageToResolve, opts: Resolv
   }
 }
 
-function parseGithubSpec (pkg: PackageToResolve): GitHubSpec {
+function parseGithubSpec (pkg: HostedPackageToResolve): GitHubSpec {
   const m = PARSE_GITHUB_RE.exec(pkg.hosted.shortcut)
   if (!m) {
     throw new Error('cannot parse: ' + pkg.hosted.shortcut)

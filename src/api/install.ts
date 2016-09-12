@@ -3,7 +3,6 @@ import seq = require('promisequence')
 import chalk = require('chalk')
 import createDebug = require('debug')
 
-import requireJson from '../fs/require_json'
 import createGot from '../network/got'
 import initCmd, {CommandContext, CommandNamespace, BasicOptions} from './init_cmd'
 import installMultiple, {Dependencies} from '../install_multiple'
@@ -17,8 +16,7 @@ import linkBins from '../install/link_bins'
 import defaults from '../defaults'
 import {PackageContext} from '../install'
 import {Got} from '../network/got'
-
-const pnpmPkgJson = requireJson(path.resolve(__dirname, '../../package.json'))
+import pnpmPkgJson from '../pnpm_pkg_json'
 
 export type PackageInstallationResult = {
   path: string,
@@ -34,11 +32,11 @@ export type InstalledPackages = {
 }
 
 export type InstallContext = CommandContext & {
-  installs?: InstalledPackages,
+  installs: InstalledPackages,
   piq?: PackageInstallationResult[],
-  got?: Got,
-  builds?: CachedPromises,
-  fetches?: CachedPromises
+  got: Got,
+  builds: CachedPromises,
+  fetches: CachedPromises
 }
 
 export type InstallNamespace = CommandNamespace & {
@@ -64,98 +62,97 @@ export type PublicInstallationOptions = BasicOptions & {
  *     install({'lodash': '1.0.0', 'foo': '^2.1.0' }, { quiet: true })
  */
 
-export default async function install (fuzzyDeps: string[] | Dependencies, opts: PublicInstallationOptions) {
+export default async function (fuzzyDeps: string[] | Dependencies, opts: PublicInstallationOptions) {
   let packagesToInstall = mapify(fuzzyDeps)
   const installType = packagesToInstall && Object.keys(packagesToInstall).length ? 'named' : 'general'
   opts = Object.assign({}, defaults, opts)
 
   const isProductionInstall = opts.production || process.env.NODE_ENV === 'production'
-  let cmd: InstallNamespace
+
+  const baseCmd = await initCmd(opts)
+  const cmd: InstallNamespace = Object.assign(baseCmd, {
+    ctx: Object.assign({}, baseCmd.ctx, {
+      fetches: {},
+      builds: {},
+      installs: {},
+      got: createGot({
+        concurrency: opts.concurrency,
+        fetchRetries: opts.fetchRetries,
+        fetchRetryFactor: opts.fetchRetryFactor,
+        fetchRetryMintimeout: opts.fetchRetryMintimeout,
+        fetchRetryMaxtimeout: opts.fetchRetryMaxtimeout
+      })
+    })
+  })
 
   try {
-    cmd = await initCmd(opts)
-    await install()
-    await linkPeers(cmd.ctx.store, cmd.ctx.installs)
-    // postinstall hooks
-      if (!(opts.ignoreScripts || !cmd.ctx.piq || !cmd.ctx.piq.length)) {
-        await seq(
-          cmd.ctx.piq.map(pkg => () => linkBins(path.join(pkg.path, '_', 'node_modules'))
-              .then(() => postInstall(pkg.path, installLogger(pkg.pkgFullname)))
-              .catch(err => {
-                if (cmd.ctx.installs[pkg.pkgFullname].optional) {
-                  console.log('Skipping failed optional dependency ' + pkg.pkgFullname + ':')
-                  console.log(err.message || err)
-                  return
-                }
-                throw err
-              })
-          ))
-      }
-      await linkBins(path.join(cmd.ctx.root, 'node_modules'))
-      await mainPostInstall()
-      await cmd.unlock()
-    } catch (err) {
-      if (cmd && cmd.unlock) cmd.unlock()
-      throw err
-    }
-
-  async function install () {
     if (installType !== 'named') {
-      if (!cmd.pkg.pkg) throw runtimeError('No package.json found')
+      if (!cmd.pkg || !cmd.pkg.pkg) throw runtimeError('No package.json found')
       packagesToInstall = Object.assign({}, cmd.pkg.pkg.dependencies || {})
       if (!isProductionInstall) Object.assign(packagesToInstall, cmd.pkg.pkg.devDependencies || {})
     }
-
-    cmd.ctx.got = createGot({
-      concurrency: opts.concurrency,
-      fetchRetries: opts.fetchRetries,
-      fetchRetryFactor: opts.fetchRetryFactor,
-      fetchRetryMintimeout: opts.fetchRetryMintimeout,
-      fetchRetryMaxtimeout: opts.fetchRetryMaxtimeout
-    })
-
-    const pkgs = await installMultiple(cmd.ctx,
+    const pkgs: PackageContext[] = await installMultiple(cmd.ctx,
       packagesToInstall,
-      cmd.pkg.pkg && cmd.pkg.pkg.optionalDependencies,
+      cmd.pkg && cmd.pkg.pkg && cmd.pkg.pkg.optionalDependencies || {},
       path.join(cmd.ctx.root, 'node_modules'),
-      Object.assign({}, opts, { dependent: cmd.pkg && cmd.pkg.path })
+      Object.assign({}, opts, { dependent: cmd.pkg && cmd.pkg.path || cmd.ctx.root })
     )
 
-    await savePkgs(pkgs)
-
-    cmd.storeJsonCtrl.save({
-      pnpm: pnpmPkgJson.version,
-      dependents: cmd.ctx.dependents,
-      dependencies: cmd.ctx.dependencies
-    })
-  }
-
-  function savePkgs (packages: PackageContext[]) {
-    const saveType = getSaveType(opts)
-    if (saveType && installType === 'named') {
-      const inputNames = Object.keys(packagesToInstall)
-      const savedPackages = packages.filter(pkg => inputNames.indexOf(pkg.name) > -1)
-      return save(cmd.pkg.path, savedPackages, saveType, opts.saveExact)
-    }
-  }
-
-  function mainPostInstall () {
-    if (opts.ignoreScripts) return
-    const scripts = cmd.pkg.pkg && cmd.pkg.pkg.scripts || {}
-    if (scripts['postinstall']) npmRun('postinstall')
-    if (!isProductionInstall && scripts['prepublish']) npmRun('prepublish')
-    return
-
-    function npmRun (scriptName: string) {
-      const result = runScriptSync('npm', ['run', scriptName], {
-        cwd: path.dirname(cmd.pkg.path),
-        stdio: 'inherit'
-      })
-      if (result.status !== 0) {
-        process.exit(result.status)
-        return
+    if (installType === 'named') {
+      const saveType = getSaveType(opts)
+      if (saveType) {
+        if (!cmd.pkg) {
+          throw new Error('Cannot save because no package.json found')
+        }
+        const inputNames = Object.keys(packagesToInstall)
+        const savedPackages = pkgs.filter(pkg => inputNames.indexOf(pkg.name) > -1)
+        await save(cmd.pkg.path, savedPackages, saveType, opts.saveExact)
       }
     }
+
+    cmd.storeJsonCtrl.save(Object.assign(cmd.ctx.storeJson, {
+      pnpm: pnpmPkgJson.version
+    }))
+
+    await linkPeers(cmd.ctx.store, cmd.ctx.installs)
+    // postinstall hooks
+    if (!(opts.ignoreScripts || !cmd.ctx.piq || !cmd.ctx.piq.length)) {
+      await seq(
+        cmd.ctx.piq.map(pkg => () => linkBins(path.join(pkg.path, '_', 'node_modules'))
+            .then(() => postInstall(pkg.path, installLogger(pkg.pkgFullname)))
+            .catch(err => {
+              if (cmd.ctx.installs[pkg.pkgFullname].optional) {
+                console.log('Skipping failed optional dependency ' + pkg.pkgFullname + ':')
+                console.log(err.message || err)
+                return
+              }
+              throw err
+            })
+        ))
+    }
+    await linkBins(path.join(cmd.ctx.root, 'node_modules'))
+    if (!opts.ignoreScripts && cmd.pkg) {
+      await mainPostInstall(cmd.pkg.pkg && cmd.pkg.pkg.scripts || {}, cmd.ctx.root, isProductionInstall)
+    }
+    await cmd.unlock()
+  } catch (err) {
+    if (cmd && cmd.unlock) cmd.unlock()
+    throw err
+  }
+}
+
+function mainPostInstall (scripts: Object, pkgRoot: string, isProductionInstall: boolean) {
+  if (scripts['postinstall']) npmRun('postinstall', pkgRoot)
+  if (!isProductionInstall && scripts['prepublish']) npmRun('prepublish', pkgRoot)
+}
+
+function npmRun (scriptName: string, pkgRoot: string) {
+  const result = runScriptSync('npm', ['run', scriptName], {
+    cwd: pkgRoot,
+    stdio: 'inherit'
+  })
+  if (result.status !== 0) {
+    process.exit(result.status)
   }
 }
 
@@ -177,7 +174,7 @@ function mapify (pkgs: string[] | Dependencies): Dependencies {
     return pkgs.reduce((pkgsMap: Dependencies, pkgFullName: string) => {
       const matches = /(@?[^@]+)@(.*)/.exec(pkgFullName)
       if (!matches) {
-        pkgsMap[pkgFullName] = null
+        pkgsMap[pkgFullName] = '*'
       } else {
         pkgsMap[matches[1]] = matches[2]
       }
