@@ -4,6 +4,17 @@ import path = require('path')
 import byline = require('byline')
 import spawn = require('cross-spawn')
 
+let PATH: string
+// windows calls it's path 'Path' usually, but this is not guaranteed.
+if (process.platform === 'win32') {
+  PATH = 'Path'
+  Object.keys(process.env).forEach(e => {
+    if (e.match(/^PATH$/i)) {
+      PATH = e
+    }
+  })
+}
+
 export type RunScriptOptions = {
   cwd: string,
   log: Function
@@ -49,11 +60,11 @@ export function sync (command: string, args: string[], opts: RunSyncScriptOption
 
 function createEnv (cwd: string) {
   const env = Object.create(process.env)
-  env.PATH = [
+  env[PATH] = [
     path.join(cwd, 'node_modules', '.bin'),
     path.dirname(require.resolve('../bin/node-gyp-bin/node-gyp')),
     path.dirname(process.execPath),
-    process.env.PATH
+    process.env[PATH]
   ].join(path.delimiter)
   return env
 }
