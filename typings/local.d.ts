@@ -191,3 +191,13 @@ declare module 'update-notifier' {
   const anything: any;
   export = anything;
 }
+
+declare module 'isexe' {
+  const anything: any;
+  export = anything;
+}
+
+declare module 'ncp' {
+  const anything: any;
+  export = anything;
+}

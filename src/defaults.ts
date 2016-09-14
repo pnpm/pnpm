@@ -1,4 +1,6 @@
-export default {
+import {StrictPublicInstallationOptions} from './api/install'
+
+export default <StrictPublicInstallationOptions>{
   concurrency: 16,
   fetchRetries: 2,
   fetchRetryFactor: 10,

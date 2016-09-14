@@ -4,7 +4,7 @@ import chalk = require('chalk')
 import createDebug = require('debug')
 
 import createGot from '../network/got'
-import initCmd, {CommandContext, CommandNamespace, BasicOptions} from './init_cmd'
+import initCmd, {CommandContext, CommandNamespace, BasicOptions, StrictBasicOptions} from './init_cmd'
 import installMultiple, {Dependencies} from '../install_multiple'
 import save from '../save'
 import linkPeers from '../install/link_peers'
@@ -44,6 +44,19 @@ export type InstallNamespace = CommandNamespace & {
 }
 
 export type PublicInstallationOptions = BasicOptions & {
+  save?: boolean,
+  saveDev?: boolean,
+  saveOptional?: boolean,
+  production?: boolean,
+  concurrency?: number,
+  fetchRetries?: number,
+  fetchRetryFactor?: number,
+  fetchRetryMintimeout?: number,
+  fetchRetryMaxtimeout?: number,
+  saveExact?: boolean
+}
+
+export type StrictPublicInstallationOptions = StrictBasicOptions & {
   save: boolean,
   saveDev: boolean,
   saveOptional: boolean,
@@ -62,10 +75,10 @@ export type PublicInstallationOptions = BasicOptions & {
  *     install({'lodash': '1.0.0', 'foo': '^2.1.0' }, { quiet: true })
  */
 
-export default async function (fuzzyDeps: string[] | Dependencies, opts: PublicInstallationOptions) {
+export default async function (fuzzyDeps: string[] | Dependencies, optsNullable: PublicInstallationOptions) {
   let packagesToInstall = mapify(fuzzyDeps)
   const installType = packagesToInstall && Object.keys(packagesToInstall).length ? 'named' : 'general'
-  opts = Object.assign({}, defaults, opts)
+  const opts: StrictPublicInstallationOptions = Object.assign({}, defaults, optsNullable)
 
   const isProductionInstall = opts.production || process.env.NODE_ENV === 'production'
 

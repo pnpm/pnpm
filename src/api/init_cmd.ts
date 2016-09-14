@@ -50,6 +50,16 @@ export type CommandNamespace = {
 }
 
 export type BasicOptions = {
+  cwd?: string,
+  global?: boolean,
+  globalPath?: string,
+  storePath?: string,
+  quiet?: boolean,
+  logger?: LoggerType,
+  ignoreScripts?: boolean
+}
+
+export type StrictBasicOptions = {
   cwd: string,
   global: boolean,
   globalPath: string,
@@ -59,7 +69,7 @@ export type BasicOptions = {
   ignoreScripts: boolean
 }
 
-export default async function (opts: BasicOptions): Promise<CommandNamespace> {
+export default async function (opts: StrictBasicOptions): Promise<CommandNamespace> {
   const cwd = opts.cwd || process.cwd()
   const pkg = await (opts.global ? readGlobalPkg(opts.globalPath) : readPkgUp({ cwd }))
   const root = pkg.path ? path.dirname(pkg.path) : cwd

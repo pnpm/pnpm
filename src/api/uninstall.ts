@@ -7,11 +7,11 @@ import removeDeps from '../remove_deps'
 import binify from '../binify'
 import defaults from '../defaults'
 import requireJson from '../fs/require_json'
-import {PublicInstallationOptions} from './install'
+import {PublicInstallationOptions, StrictPublicInstallationOptions} from './install'
 import {StoreJson} from '../fs/store_json_controller'
 
-export default async function uninstallCmd (pkgsToUninstall: string[], opts: PublicInstallationOptions) {
-  opts = Object.assign({}, defaults, opts)
+export default async function uninstallCmd (pkgsToUninstall: string[], optsNullable: PublicInstallationOptions) {
+  const opts: StrictPublicInstallationOptions = Object.assign({}, defaults, optsNullable)
 
   const saveType = getSaveType(opts)
   const cmd: CommandNamespace = await initCmd(opts)

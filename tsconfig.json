@@ -73,6 +73,7 @@
     "src/save.ts",
     "typings/globals/node/index.d.ts",
     "typings/index.d.ts",
-    "typings/local.d.ts"
+    "typings/local.d.ts",
+    "typings/tape.d.ts"
   ]
 }
