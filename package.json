@@ -101,7 +101,7 @@
     "posttest": "rimraf .tmp",
     "prerelease": "npm test",
     "release": "sh .scripts/release.sh",
-    "tsc": "tsc",
+    "tsc": "rimraf lib && tsc",
     "prepublish": "npm run tsc"
   },
   "config": {
