@@ -1,10 +1,10 @@
 import url = require('url')
 const enc = encodeURIComponent
-import pkgFullName from '../pkg_full_name'
+import pkgFullName from '../pkgFullName'
 import registryUrl = require('registry-url')
 import semver = require('semver')
 import {PackageToResolve, ResolveOptions, PackageDist, ResolveResult} from '../resolve'
-import {Package} from '../api/init_cmd'
+import {Package} from '../api/initCmd'
 
 /**
  * Resolves a package in the NPM registry. Done as part of `install()`.

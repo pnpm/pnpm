@@ -1,6 +1,6 @@
-import pkgFullName, {delimiter} from '../pkg_full_name'
+import pkgFullName, {delimiter} from '../pkgFullName'
 import {HostedPackageToResolve, ResolveOptions} from '../resolve'
-import {Package} from '../api/init_cmd'
+import {Package} from '../api/initCmd'
 
 /**
  * Resolves a 'hosted' package hosted on 'github'.

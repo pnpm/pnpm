@@ -2,10 +2,10 @@ import path = require('path')
 import semver = require('semver')
 import normalizePath = require('normalize-path')
 import {stripIndent} from 'common-tags'
-import relSymlink from '../fs/rel_symlink'
+import relSymlink from '../fs/relSymlink'
 import fs = require('mz/fs')
 import mkdirp from '../fs/mkdirp'
-import requireJson from '../fs/require_json'
+import requireJson from '../fs/requireJson'
 import binify from '../binify'
 
 const preserveSymlinks = semver.satisfies(process.version, '>=6.3.0')

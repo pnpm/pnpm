@@ -1,4 +1,4 @@
-import getTarballName from './get_tarball_name'
+import getTarballName from './getTarballName'
 import crypto = require('crypto')
 import {PackageToResolve} from '../resolve'
 

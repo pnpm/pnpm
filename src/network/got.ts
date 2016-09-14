@@ -6,7 +6,7 @@ import { Agent as HttpAgent } from 'http'
 import { Agent as HttpsAgent } from 'https'
 import caw = require('caw')
 import getAuthToken = require('registry-auth-token')
-import getRetrier from './get_retrier'
+import getRetrier from './getRetrier'
 import defaults from '../defaults'
 
 export type GotOptions = {

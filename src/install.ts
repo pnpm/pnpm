@@ -15,14 +15,14 @@ import fetch from './fetch'
 import resolve, {ResolveResult, PackageDist} from './resolve'
 
 import mkdirp from './fs/mkdirp'
-import requireJson from './fs/require_json'
-import relSymlink from './fs/rel_symlink'
+import requireJson from './fs/requireJson'
+import relSymlink from './fs/relSymlink'
 
-import linkBundledDeps from './install/link_bundled_deps'
-import isAvailable from './install/is_available'
-import installAll from './install_multiple'
+import linkBundledDeps from './install/linkBundledDeps'
+import isAvailable from './install/isAvailable'
+import installAll from './installMultiple'
 import {InstallContext, CachedPromises} from './api/install'
-import {Package} from './api/init_cmd'
+import {Package} from './api/initCmd'
 
 export type PackageMeta = {
   rawSpec: string,

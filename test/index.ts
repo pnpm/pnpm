@@ -13,7 +13,7 @@ import ncpCB = require('ncp')
 const ncp = thenify(ncpCB.ncp)
 import mkdirp = require('mkdirp')
 import prepare from './support/prepare'
-import requireJson from '../src/fs/require_json'
+import requireJson from '../src/fs/requireJson'
 const basicPackageJson = requireJson(path.join(__dirname, './support/simple-package.json'))
 import install from '../src/cmd/install'
 import uninstall from '../src/cmd/uninstall'

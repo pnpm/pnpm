@@ -1,6 +1,6 @@
 import mkdirp from '../fs/mkdirp'
 import unsymlink from '../fs/unsymlink'
-import relSymlink from '../fs/rel_symlink'
+import relSymlink from '../fs/relSymlink'
 import path = require('path')
 import semver = require('semver')
 import {InstalledPackages} from '../api/install'

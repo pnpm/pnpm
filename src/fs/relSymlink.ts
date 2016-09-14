@@ -1,4 +1,4 @@
-import symlink, {SymlinkType} from './force_symlink'
+import symlink, {SymlinkType} from './forceSymlink'
 import path = require('path')
 import os = require('os')
 

@@ -5,17 +5,17 @@ import lockfile = require('lockfile')
 const lock = thenify(lockfile.lock)
 const unlock = thenify(lockfile.unlock)
 import semver = require('semver')
-import requireJson from '../fs/require_json'
-import writeJson from '../fs/write_json'
-import expandTilde from '../fs/expand_tilde'
-import resolveGlobalPkgPath from '../resolve_global_pkg_path'
+import requireJson from '../fs/requireJson'
+import writeJson from '../fs/writeJson'
+import expandTilde from '../fs/expandTilde'
+import resolveGlobalPkgPath from '../resolveGlobalPkgPath'
 
 import initLogger, {LoggerType} from '../logger'
-import storeJsonController, {StoreJsonCtrl} from '../fs/store_json_controller'
+import storeJsonController, {StoreJsonCtrl} from '../fs/storeJsonController'
 import mkdirp from '../fs/mkdirp'
-import {Dependencies} from '../install_multiple'
-import {StoreJson} from '../fs/store_json_controller'
-import pnpmPkgJson from '../pnpm_pkg_json'
+import {Dependencies} from '../installMultiple'
+import {StoreJson} from '../fs/storeJsonController'
+import pnpmPkgJson from '../pnpmPkgJson'
 
 export type Package = {
   name: string,

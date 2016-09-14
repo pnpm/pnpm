@@ -1,5 +1,5 @@
 import install, {PackageContext, InstallationOptions} from './install'
-import pkgFullName from './pkg_full_name'
+import pkgFullName from './pkgFullName'
 import {InstallContext} from './api/install'
 
 export type Dependencies = {

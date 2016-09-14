@@ -1,4 +1,4 @@
-import {Package} from './api/init_cmd'
+import {Package} from './api/initCmd'
 
 export const delimiter = '+'
 

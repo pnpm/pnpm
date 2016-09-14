@@ -1,7 +1,7 @@
-import requireJson from './fs/require_json'
-import writeJson from './fs/write_json'
+import requireJson from './fs/requireJson'
+import writeJson from './fs/writeJson'
 import sortedObject = require('sorted-object')
-import {DependenciesType} from './get_save_type'
+import {DependenciesType} from './getSaveType'
 import {PackageContext} from './install'
 
 export default function save (pkgJsonPath: string, installedPackages: PackageContext[], saveType: DependenciesType, useExactVersion: boolean) {

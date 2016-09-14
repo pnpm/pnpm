@@ -4,19 +4,19 @@ import chalk = require('chalk')
 import createDebug = require('debug')
 
 import createGot from '../network/got'
-import initCmd, {CommandContext, CommandNamespace, BasicOptions, StrictBasicOptions} from './init_cmd'
-import installMultiple, {Dependencies} from '../install_multiple'
+import initCmd, {CommandContext, CommandNamespace, BasicOptions, StrictBasicOptions} from './initCmd'
+import installMultiple, {Dependencies} from '../installMultiple'
 import save from '../save'
-import linkPeers from '../install/link_peers'
-import runtimeError from '../runtime_error'
-import getSaveType from '../get_save_type'
-import {sync as runScriptSync} from '../run_script'
-import postInstall from '../install/post_install'
-import linkBins from '../install/link_bins'
+import linkPeers from '../install/linkPeers'
+import runtimeError from '../runtimeError'
+import getSaveType from '../getSaveType'
+import {sync as runScriptSync} from '../runScript'
+import postInstall from '../install/postInstall'
+import linkBins from '../install/linkBins'
 import defaults from '../defaults'
 import {PackageContext} from '../install'
 import {Got} from '../network/got'
-import pnpmPkgJson from '../pnpm_pkg_json'
+import pnpmPkgJson from '../pnpmPkgJson'
 
 export type PackageInstallationResult = {
   path: string,

@@ -1,9 +1,9 @@
 import path = require('path')
 import readPkgUp = require('read-pkg-up')
-import relSymlink from '../fs/rel_symlink'
-import installPkgDeps from './install_pkg_deps'
-import resolveGlobalPkgPath from '../resolve_global_pkg_path'
-import {linkPkgBins} from '../install/link_bins'
+import relSymlink from '../fs/relSymlink'
+import installPkgDeps from './installPkgDeps'
+import resolveGlobalPkgPath from '../resolveGlobalPkgPath'
+import {linkPkgBins} from '../install/linkBins'
 import mkdirp from '../fs/mkdirp'
 import {PublicInstallationOptions, StrictPublicInstallationOptions} from './install'
 import defaults from '../defaults'

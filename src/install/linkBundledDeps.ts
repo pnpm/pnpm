@@ -1,7 +1,7 @@
 import fs = require('mz/fs')
 import {Stats} from 'fs'
 import path = require('path')
-import linkBins from './link_bins'
+import linkBins from './linkBins'
 
 export default function linkBundledDeps (root: string) {
   const nodeModules = path.join(root, 'node_modules')

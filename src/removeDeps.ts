@@ -1,6 +1,6 @@
-import requireJson from './fs/require_json'
-import writeJson from './fs/write_json'
-import {DependenciesType} from './get_save_type'
+import requireJson from './fs/requireJson'
+import writeJson from './fs/writeJson'
+import {DependenciesType} from './getSaveType'
 
 export default async function (pkgJsonPath: string, removedPackages: string[], saveType: DependenciesType) {
   const packageJson = requireJson(pkgJsonPath)

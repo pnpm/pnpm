@@ -2,8 +2,8 @@ import path = require('path')
 import createDebug from '../debug'
 const debug = createDebug('pnpm:post_install')
 import fs = require('mz/fs')
-import runScript from '../run_script'
-import requireJson from '../fs/require_json'
+import runScript from '../runScript'
+import requireJson from '../fs/requireJson'
 
 export default async function postInstall (root_: string, log: Function) {
   const root = path.join(root_, '_')

@@ -13,7 +13,7 @@ const camelcaseKeys = require('camelcase-keys')
 const spawnSync = require('cross-spawn').sync
 const isCI = require('is-ci')
 const stripIndent = require('common-tags').stripIndent
-require('../lib/file_logger')
+require('../lib/fileLogger')
 
 const pnpmCmds = {
   install: require('../lib/cmd/install').default,

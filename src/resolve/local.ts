@@ -1,8 +1,8 @@
 import {resolve} from 'path'
 import spawn = require('cross-spawn')
-import pkgFullName, {delimiter} from '../pkg_full_name'
-import getTarballName from './get_tarball_name'
-import requireJson from '../fs/require_json'
+import pkgFullName, {delimiter} from '../pkgFullName'
+import getTarballName from './getTarballName'
+import requireJson from '../fs/requireJson'
 import {PackageToResolve} from '../resolve'
 
 /**

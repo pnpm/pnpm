@@ -1,14 +1,14 @@
 import cbRimraf = require('rimraf')
 import path = require('path')
 
-import initCmd, {CommandNamespace} from './init_cmd'
-import getSaveType from '../get_save_type'
-import removeDeps from '../remove_deps'
+import initCmd, {CommandNamespace} from './initCmd'
+import getSaveType from '../getSaveType'
+import removeDeps from '../removeDeps'
 import binify from '../binify'
 import defaults from '../defaults'
-import requireJson from '../fs/require_json'
+import requireJson from '../fs/requireJson'
 import {PublicInstallationOptions, StrictPublicInstallationOptions} from './install'
-import {StoreJson} from '../fs/store_json_controller'
+import {StoreJson} from '../fs/storeJsonController'
 
 export default async function uninstallCmd (pkgsToUninstall: string[], optsNullable: PublicInstallationOptions) {
   const opts: StrictPublicInstallationOptions = Object.assign({}, defaults, optsNullable)
