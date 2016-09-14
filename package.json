@@ -4,7 +4,7 @@
   "version": "0.31.2",
   "author": "Rico Sta. Cruz <rico@ricostacruz.com>",
   "bin": {
-    "pnpm": "bin/pnpm.js"
+    "pnpm": "lib/bin/pnpm.js"
   },
   "bugs": {
     "url": "https://github.com/rstacruz/pnpm/issues"
@@ -13,7 +13,6 @@
   "typings": "lib/index.d.ts",
   "files": [
     "lib/",
-    "bin/",
     ".scripts/",
     "cached_node_modules/"
   ],

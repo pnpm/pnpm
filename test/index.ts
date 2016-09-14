@@ -650,12 +650,13 @@ test('run js bin file', t => {
     .catch(t.end)
 })
 
-const pnpmBin = path.join(__dirname, '../bin/pnpm.js')
+const pnpmBin = path.join(__dirname, '../src/bin/pnpm.ts')
 
 test('installation via the CLI', t => {
   prepare()
-  const result = spawnSync('node', [pnpmBin, 'install', 'rimraf@2.5.1'])
+  const result = spawnSync('ts-node', [pnpmBin, 'install', 'rimraf@2.5.1'])
 
+  console.log(result.stderr.toString())
   t.equal(result.status, 0, 'install successful')
 
   const rimraf = require(path.join(process.cwd(), 'node_modules', 'rimraf'))
@@ -667,7 +668,7 @@ test('installation via the CLI', t => {
 })
 
 test('pass through to npm CLI for commands that are not supported by npm', t => {
-  const result = spawnSync('node', [pnpmBin, 'config', 'get', 'user-agent'])
+  const result = spawnSync('ts-node', [pnpmBin, 'config', 'get', 'user-agent'])
 
   t.equal(result.status, 0, 'command was successfull')
   t.ok(result.stdout.toString().indexOf('npm/') !== -1, 'command returned correct result')
@@ -682,7 +683,7 @@ test('postinstall is executed after installation', t => {
     }
   })
 
-  const result = spawnSync('node', [pnpmBin, 'install', 'is-negative'])
+  const result = spawnSync('ts-node', [pnpmBin, 'install', 'is-negative'])
 
   t.equal(result.status, 0, 'installation was successfull')
   t.ok(result.stdout.toString().indexOf('Hello world!') !== -1, 'postinstall script was executed')
@@ -697,7 +698,7 @@ test('prepublish is executed after installation', t => {
     }
   })
 
-  const result = spawnSync('node', [pnpmBin, 'install', 'is-negative'])
+  const result = spawnSync('ts-node', [pnpmBin, 'install', 'is-negative'])
 
   t.equal(result.status, 0, 'installation was successfull')
   t.ok(result.stdout.toString().indexOf('Hello world!') !== -1, 'prepublish script was executed')
@@ -783,7 +784,7 @@ test("don't fail when peer dependency is fetched from GitHub", t => {
 test('create a pnpm-debug.log file when the command fails', t => {
   prepare()
 
-  const result = spawnSync('node', [pnpmBin, 'install', '@zkochan/i-do-not-exist'])
+  const result = spawnSync('ts-node', [pnpmBin, 'install', '@zkochan/i-do-not-exist'])
 
   t.equal(result.status, 1, 'install failed')
 

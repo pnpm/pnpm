@@ -1,5 +1,4 @@
 #!/usr/bin/env node
-'use strict'
 // NOTE: This should be done as soon as possible because the debug
 // package reads the env variable only once
 if (~process.argv.indexOf('--debug')) {
@@ -7,24 +6,31 @@ if (~process.argv.indexOf('--debug')) {
   process.argv.push('--quiet')
 }
 
-require('loud-rejection')()
-const rc = require('rc')
-const camelcaseKeys = require('camelcase-keys')
-const spawnSync = require('cross-spawn').sync
-const isCI = require('is-ci')
-const stripIndent = require('common-tags').stripIndent
-require('../lib/fileLogger')
+import loudRejection = require('loud-rejection')
+loudRejection()
+import rc = require('rc')
+import meow = require('meow')
+import updateNotifier = require('update-notifier')
+import camelcaseKeys = require('camelcase-keys')
+import crossSpawn = require('cross-spawn')
+import isCI = require('is-ci')
+import {stripIndent} from 'common-tags'
+import '../fileLogger'
+import pkg from '../pnpmPkgJson'
+import installCmd from '../cmd/install'
+import uninstallCmd from '../cmd/uninstall'
+import linkCmd from '../cmd/link'
 
 const pnpmCmds = {
-  install: require('../lib/cmd/install').default,
-  uninstall: require('../lib/cmd/uninstall').default,
-  link: require('../lib/cmd/link')
+  install: installCmd,
+  uninstall: uninstallCmd,
+  link: linkCmd
 }
 
 const supportedCmds = new Set(['install', 'uninstall', 'help', 'link'])
 
-function run (argv) {
-  const cli = require('meow')({
+function run (argv: string[]) {
+  const cli = meow({
     argv: argv,
     help: stripIndent`
       Usage:
@@ -61,20 +67,18 @@ function run (argv) {
   })
 
   if (!isCI) {
-    const pkg = require('../package.json')
-    const updateNotifier = require('update-notifier')
     updateNotifier({pkg}).notify()
   }
 
   const cmd = getCommandFullName(cli.input[0])
   if (!supportedCmds.has(cmd)) {
-    spawnSync('npm', argv, { stdio: 'inherit' })
+    crossSpawn.sync('npm', argv, { stdio: 'inherit' })
     return Promise.resolve()
   }
 
   cli.flags.quiet = cli.flags.quiet || cli.flags.debug || isCI
 
-  ;['dryRun'].forEach(flag => {
+  ; ['dryRun'].forEach(flag => {
     if (cli.flags[flag]) {
       console.error(`Error: '${flag}' is not supported yet, sorry!`)
       process.exit(1)
@@ -92,7 +96,7 @@ function run (argv) {
   return pnpmCmds[cmd](cliArgs, opts)
 }
 
-function getCommandFullName (cmd) {
+function getCommandFullName (cmd: string) {
   switch (cmd) {
     case 'install':
     case 'i':
@@ -113,9 +117,11 @@ function getCommandFullName (cmd) {
   }
 }
 
-function getRC (appName) {
+function getRC (appName: string) {
   return camelcaseKeys(rc(appName))
 }
 
-module.exports = run
-if (!module.parent) run(process.argv.slice(2)).catch(require('../lib/err').default)
+export default run
+
+import errorHandler from '../err'
+if (!module.parent) run(process.argv.slice(2)).catch(errorHandler)

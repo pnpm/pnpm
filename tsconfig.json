@@ -26,6 +26,7 @@
     "src/api/installPkgDeps.ts",
     "src/api/link.ts",
     "src/api/uninstall.ts",
+    "src/bin/pnpm.ts",
     "src/binify.ts",
     "src/cmd/install.ts",
     "src/cmd/link.ts",
