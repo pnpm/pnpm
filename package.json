@@ -12,6 +12,7 @@
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
   "files": [
+    "bin/",
     "lib/",
     ".scripts/",
     "cached_node_modules/"
