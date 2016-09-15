@@ -6,5 +6,5 @@ export type LoggerType = 'pretty' | 'simple'
 
 export default (loggerType: LoggerType) =>
   ((loggerType === 'pretty' && supportsColor)
-    ? pretty
+    ? pretty()
     : simple())
