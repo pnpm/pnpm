@@ -93,6 +93,7 @@
     "url": "git+https://github.com/rstacruz/pnpm.git"
   },
   "scripts": {
+    "start": "npm run tsc -- --watch",
     "docs:build": "docpress build",
     "commit": "git-cz",
     "cover": "istanbul cover test/index.js",
