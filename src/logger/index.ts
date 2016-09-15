@@ -1,6 +1,6 @@
 import supportsColor = require('supports-color')
-import pretty from './logger/pretty'
-import simple from './logger/simple'
+import pretty from './pretty'
+import simple from './simple'
 
 export type LoggerType = 'pretty' | 'simple'
 

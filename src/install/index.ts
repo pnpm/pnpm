@@ -1,4 +1,4 @@
-import createDebug from './debug'
+import createDebug from '../debug'
 const debug = createDebug('pnpm:install')
 import npa = require('npm-package-arg')
 import fs = require('mz/fs')
@@ -11,18 +11,18 @@ const dirname = path.dirname
 const basename = path.basename
 const abspath = path.resolve
 
-import fetch from './fetch'
-import resolve, {ResolveResult, PackageDist} from './resolve'
+import fetch from '../fetch'
+import resolve, {ResolveResult, PackageDist} from '../resolve'
 
-import mkdirp from './fs/mkdirp'
-import requireJson from './fs/requireJson'
-import relSymlink from './fs/relSymlink'
+import mkdirp from '../fs/mkdirp'
+import requireJson from '../fs/requireJson'
+import relSymlink from '../fs/relSymlink'
 
-import linkBundledDeps from './install/linkBundledDeps'
-import isAvailable from './install/isAvailable'
-import installAll from './installMultiple'
-import {InstallContext, CachedPromises} from './api/install'
-import {Package} from './api/initCmd'
+import linkBundledDeps from './linkBundledDeps'
+import isAvailable from './isAvailable'
+import installAll from '../installMultiple'
+import {InstallContext, CachedPromises} from '../api/install'
+import {Package} from '../api/initCmd'
 
 export type PackageMeta = {
   rawSpec: string,

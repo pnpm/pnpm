@@ -1,9 +1,9 @@
-import resolveNpm from './resolve/npm'
-import resolveTarball from './resolve/tarball'
-import resolveGithub from './resolve/github'
-import resolveLocal from './resolve/local'
-import {PackageSpec} from './install'
-import {Got} from './network/got'
+import resolveNpm from './npm'
+import resolveTarball from './tarball'
+import resolveGithub from './github'
+import resolveLocal from './local'
+import {PackageSpec} from '../install'
+import {Got} from '../network/got'
 
 export type PackageDist = {
   local: boolean,
