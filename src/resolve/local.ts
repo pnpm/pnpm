@@ -3,14 +3,15 @@ import spawn = require('cross-spawn')
 import pkgFullName, {delimiter} from '../pkgFullName'
 import getTarballName from './getTarballName'
 import requireJson from '../fs/requireJson'
-import {PackageToResolve} from '../resolve'
+import {PackageSpec} from '../install'
+import {ResolveOptions} from '.'
 
 /**
  * Resolves a package hosted on the local filesystem
  */
 
-export default async function resolveLocal (pkg: PackageToResolve) {
-  const dependencyPath = resolve(pkg.root, pkg.spec)
+export default async function resolveLocal (spec: PackageSpec, opts: ResolveOptions) {
+  const dependencyPath = resolve(opts.root, spec.spec)
 
   if (dependencyPath.slice(-4) === '.tgz' || dependencyPath.slice(-7) === '.tar.gz') {
     const name = getTarballName(dependencyPath)

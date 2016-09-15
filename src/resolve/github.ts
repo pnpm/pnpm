@@ -1,32 +1,31 @@
 import pkgFullName, {delimiter} from '../pkgFullName'
-import {HostedPackageToResolve, ResolveOptions} from '../resolve'
+import {HostedPackageSpec, ResolveOptions} from '.'
 import {Package} from '../api/initCmd'
 
 /**
  * Resolves a 'hosted' package hosted on 'github'.
  */
-
 const PARSE_GITHUB_RE = /^github:([^\/]+)\/([^#]+)(#(.+))?$/
 
-export default async function resolveGithub (pkg: HostedPackageToResolve, opts: ResolveOptions) {
+export default async function resolveGithub (spec: HostedPackageSpec, opts: ResolveOptions) {
   const getJSON = opts.got.getJSON
-  const spec = parseGithubSpec(pkg)
-  spec.ref = await resolveRef(spec)
-  const resPkg: Package = await resolvePackageJson(spec)
+  const ghSpec = parseGithubSpec(spec)
+  ghSpec.ref = await resolveRef(ghSpec)
+  const resPkg: Package = await resolvePackageJson(ghSpec)
   return {
     name: resPkg.name,
     version: resPkg.version,
     fullname: pkgFullName({
       name: resPkg.name,
-      version: ['github', spec.owner, spec.repo, spec.ref].join(delimiter)
+      version: ['github', ghSpec.owner, ghSpec.repo, ghSpec.ref].join(delimiter)
     }),
     dist: {
       tarball: [
         'https://api.github.com/repos',
-        spec.owner,
-        spec.repo,
+        ghSpec.owner,
+        ghSpec.repo,
         'tarball',
-        spec.ref
+        ghSpec.ref
       ].join('/')
     }
   }
@@ -64,7 +63,7 @@ export default async function resolveGithub (pkg: HostedPackageToResolve, opts: 
   }
 }
 
-function parseGithubSpec (pkg: HostedPackageToResolve): GitHubSpec {
+function parseGithubSpec (pkg: HostedPackageSpec): GitHubSpec {
   const m = PARSE_GITHUB_RE.exec(pkg.hosted.shortcut)
   if (!m) {
     throw new Error('cannot parse: ' + pkg.hosted.shortcut)

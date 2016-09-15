@@ -1,7 +1,7 @@
-import resolveNpm from './npm'
-import resolveTarball from './tarball'
-import resolveGithub from './github'
-import resolveLocal from './local'
+import resolveFromNpm from './npm'
+import resolveFromTarball from './tarball'
+import resolveFromGithub from './github'
+import resolveFromLocal from './local'
 import {PackageSpec} from '../install'
 import {Got} from '../network/got'
 
@@ -20,11 +20,7 @@ export type ResolveResult = {
   root?: string
 }
 
-export type PackageToResolve = PackageSpec & {
-  root: string
-}
-
-export type HostedPackageToResolve = PackageToResolve & {
+export type HostedPackageSpec = PackageSpec & {
   hosted: {
     type: string,
     shortcut: string
@@ -33,7 +29,8 @@ export type HostedPackageToResolve = PackageToResolve & {
 
 export type ResolveOptions = {
   log(msg: string): void,
-  got: Got
+  got: Got,
+  root: string
 }
 
 /**
@@ -49,17 +46,21 @@ export type ResolveOptions = {
  *         }
  *       })
  */
-
-export default function resolve (pkg: PackageToResolve, opts: ResolveOptions): Promise<ResolveResult> {
-  if (pkg.type === 'range' || pkg.type === 'version' || pkg.type === 'tag') {
-    return resolveNpm(pkg, opts)
-  } else if (pkg.type === 'remote') {
-    return resolveTarball(pkg)
-  } else if (pkg.type === 'hosted' && (<HostedPackageToResolve>pkg).hosted.type === 'github') {
-    return resolveGithub(<HostedPackageToResolve>pkg, opts)
-  } else if (pkg.type === 'local') {
-    return resolveLocal(pkg)
-  } else {
-    throw new Error('' + pkg.rawSpec + ': ' + pkg.type + ' packages not supported')
+export default function (spec: PackageSpec, opts: ResolveOptions): Promise<ResolveResult> {
+  switch (spec.type) {
+    case 'range':
+    case 'version':
+    case 'tag':
+      return resolveFromNpm(spec, opts)
+    case 'remote':
+      return resolveFromTarball(spec)
+    case 'hosted':
+      if ((<HostedPackageSpec>spec).hosted.type === 'github') {
+        return resolveFromGithub(<HostedPackageSpec>spec, opts)
+      }
+    case 'local':
+      return resolveFromLocal(spec, opts)
+    default:
+      throw new Error(`${spec.rawSpec}: ${spec.type} packages not supported`)
   }
 }

@@ -3,8 +3,9 @@ const enc = encodeURIComponent
 import pkgFullName from '../pkgFullName'
 import registryUrl = require('registry-url')
 import semver = require('semver')
-import {PackageToResolve, ResolveOptions, PackageDist, ResolveResult} from '../resolve'
+import {ResolveOptions, PackageDist, ResolveResult} from '.'
 import {Package} from '../api/initCmd'
+import {PackageSpec} from '../install'
 
 /**
  * Resolves a package in the NPM registry. Done as part of `install()`.
@@ -19,15 +20,14 @@ import {Package} from '../api/initCmd'
  *         }
  *       })
  */
-
-export default async function resolveNpm (pkg: PackageToResolve, opts: ResolveOptions): Promise<ResolveResult> {
+export default async function resolveNpm (spec: PackageSpec, opts: ResolveOptions): Promise<ResolveResult> {
   // { raw: 'rimraf@2', scope: null, name: 'rimraf', rawSpec: '2' || '' }
   try {
-    const url = toUri(pkg)
+    const url = toUri(spec)
     if (opts.log) opts.log('resolving')
     const res = await opts.got.get(url)
     const parsedBody = JSON.parse(res.body)
-    const correctPkg = pickVersionFromRegistryDocument(parsedBody, pkg)
+    const correctPkg = pickVersionFromRegistryDocument(parsedBody, spec)
     return {
       name: correctPkg.name,
       fullname: pkgFullName(correctPkg),
@@ -36,7 +36,7 @@ export default async function resolveNpm (pkg: PackageToResolve, opts: ResolveOp
     }
   } catch (err) {
     if (err['statusCode'] === 404) {
-      throw new Error("Module '" + pkg.raw + "' not found")
+      throw new Error("Module '" + spec.raw + "' not found")
     }
     throw err
   }
@@ -57,7 +57,7 @@ type PackageDocument = {
   }
 }
 
-function pickVersionFromRegistryDocument (pkg: PackageDocument, dep: PackageToResolve) {
+function pickVersionFromRegistryDocument (pkg: PackageDocument, dep: PackageSpec) {
   const versions = Object.keys(pkg.versions)
 
   if (dep.type === 'tag') {
@@ -87,14 +87,14 @@ function pickVersionFromRegistryDocument (pkg: PackageDocument, dep: PackageToRe
  *     // => 'https://registry.npmjs.org/rimraf/2'
  */
 
-function toUri (pkg: PackageToResolve) {
+function toUri (spec: PackageSpec) {
   let name: string
 
-  if (pkg.name.substr(0, 1) === '@') {
-    name = '@' + enc(pkg.name.substr(1))
+  if (spec.name.substr(0, 1) === '@') {
+    name = '@' + enc(spec.name.substr(1))
   } else {
-    name = enc(pkg.name)
+    name = enc(spec.name)
   }
 
-  return url.resolve(registryUrl(pkg.scope), name)
+  return url.resolve(registryUrl(spec.scope), name)
 }

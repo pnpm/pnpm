@@ -110,7 +110,7 @@ export default async function install (ctx: InstallContext, pkgMeta: PackageMeta
       pkg = await saveCachedResolution()
       log('package.json', pkg)
     } else {
-      const res = await resolve(Object.assign({}, spec, {root: options.parentRoot || ctx.root}), {log, got: ctx.got})
+      const res = await resolve(spec, {log, got: ctx.got, root: options.parentRoot || ctx.root})
       const freshPkg: FreshPackageContext = saveResolution(res)
       pkg = freshPkg
       log('resolved', freshPkg)
