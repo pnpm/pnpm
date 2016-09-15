@@ -20,7 +20,10 @@ function isUsefulLog (level: string) {
 
 process.on('exit', (code: number) => {
   if (code === 0) {
-    fs.unlink(logFilePath)
+    // it might not exist, so it is OK if it fails
+    try {
+      fs.unlinkSync(logFilePath)
+    } catch (err) {}
     return
   }
 
