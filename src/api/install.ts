@@ -14,7 +14,7 @@ import {sync as runScriptSync} from '../runScript'
 import postInstall from '../install/postInstall'
 import linkBins from '../install/linkBins'
 import defaults from '../defaults'
-import {PackageContext} from '../install'
+import {InstalledPackage} from '../install'
 import {Got} from '../network/got'
 import pnpmPkgJson from '../pnpmPkgJson'
 
@@ -28,7 +28,7 @@ export type CachedPromises = {
 }
 
 export type InstalledPackages = {
-  [name: string]: PackageContext
+  [name: string]: InstalledPackage
 }
 
 export type InstallContext = CommandContext & {
@@ -104,7 +104,7 @@ export default async function (fuzzyDeps: string[] | Dependencies, optsNullable:
       packagesToInstall = Object.assign({}, cmd.pkg.pkg.dependencies || {})
       if (!isProductionInstall) Object.assign(packagesToInstall, cmd.pkg.pkg.devDependencies || {})
     }
-    const pkgs: PackageContext[] = await installMultiple(cmd.ctx,
+    const pkgs: InstalledPackage[] = await installMultiple(cmd.ctx,
       packagesToInstall,
       cmd.pkg && cmd.pkg.pkg && cmd.pkg.pkg.optionalDependencies || {},
       path.join(cmd.ctx.root, 'node_modules'),
@@ -118,7 +118,7 @@ export default async function (fuzzyDeps: string[] | Dependencies, optsNullable:
           throw new Error('Cannot save because no package.json found')
         }
         const inputNames = Object.keys(packagesToInstall)
-        const savedPackages = pkgs.filter(pkg => inputNames.indexOf(pkg.name) > -1)
+        const savedPackages = pkgs.filter((pkg: InstalledPackage) => inputNames.indexOf(pkg.pkg.name) > -1)
         await save(cmd.pkg.path, savedPackages, saveType, opts.saveExact)
       }
     }

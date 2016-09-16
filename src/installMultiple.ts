@@ -1,5 +1,4 @@
-import install, {PackageContext, InstallationOptions} from './install'
-import pkgFullName from './pkgFullName'
+import install, {InstalledPackage, InstallationOptions} from './install'
 import {InstallContext} from './api/install'
 
 export type Dependencies = {
@@ -17,7 +16,7 @@ export type MultipleInstallationOptions = InstallationOptions & {
  *     installMultiple(ctx, { minimatch: '^2.0.0' }, {chokidar: '^1.6.0'}, './node_modules')
  */
 
-export default function installMultiple (ctx: InstallContext, requiredPkgsMap: Dependencies, optionalPkgsMap: Dependencies, modules: string, options: MultipleInstallationOptions): Promise<PackageContext[]> {
+export default function installMultiple (ctx: InstallContext, requiredPkgsMap: Dependencies, optionalPkgsMap: Dependencies, modules: string, options: MultipleInstallationOptions): Promise<InstalledPackage[]> {
   requiredPkgsMap = requiredPkgsMap || {}
   optionalPkgsMap = optionalPkgsMap || {}
 
@@ -34,7 +33,7 @@ export default function installMultiple (ctx: InstallContext, requiredPkgsMap: D
   return Promise.all(optionalPkgs.concat(requiredPkgs).map(async function (pkg) {
     try {
       const dependency = await install(ctx, pkg, modules, options)
-      const depFullName = pkgFullName(dependency)
+      const depFullName = dependency.fullname
       ctx.storeJson.dependents[depFullName] = ctx.storeJson.dependents[depFullName] || []
       if (ctx.storeJson.dependents[depFullName].indexOf(options.dependent) === -1) {
         ctx.storeJson.dependents[depFullName].push(options.dependent)

@@ -4,29 +4,34 @@ import relSymlink from '../fs/relSymlink'
 import path = require('path')
 import semver = require('semver')
 import {InstalledPackages} from '../api/install'
+import {Package} from '../api/initCmd'
+import {InstalledPackage} from '.'
+
+type Dict<T> = {
+  [index: string]: T
+}
 
 /*
  * Links into `.store/node_modules`
  */
-
 export default async function linkPeers (store: string, installs: InstalledPackages) {
   if (!installs) return
-  const peers = {}
-  const roots = {}
+  const peers: Dict<InstalledPackage> = {}
+  const roots: Dict<Package> = {}
 
   Object.keys(installs).forEach(name => {
     const pkgData = installs[name]
-    const realname = pkgData.name
+    const realname = pkgData.pkg.name
 
     if (pkgData.keypath.length === 0) {
-      roots[realname] = pkgData
+      roots[realname] = pkgData.pkg
       return
     }
 
     // NOTE: version is not always available
     // version is guaranteed to be there only for packages loaded from the npm registry
-    if (!peers[realname] || peers[realname].version && pkgData.version &&
-      semver.gt(pkgData.version, peers[realname].version)) {
+    if (!peers[realname] || peers[realname].pkg.version && pkgData.pkg.version &&
+      semver.gt(pkgData.pkg.version, peers[realname].pkg.version)) {
       peers[realname] = pkgData
     }
   })
@@ -38,9 +43,9 @@ export default async function linkPeers (store: string, installs: InstalledPacka
   }))
 
   await Promise.all(Object.keys(peers).map(async function (name) {
-    await unsymlink(path.join(modules, peers[name].spec.escapedName))
+    await unsymlink(path.join(modules, peers[name].escapedName))
     return relSymlink(
       path.join(store, peers[name].fullname, '_'),
-      path.join(modules, peers[name].spec.escapedName))
+      path.join(modules, peers[name].escapedName))
   }))
 }

@@ -3,7 +3,7 @@ const enc = encodeURIComponent
 import pkgFullName from '../pkgFullName'
 import registryUrl = require('registry-url')
 import semver = require('semver')
-import {ResolveOptions, PackageDist, ResolveResult} from '.'
+import {ResolveOptions, ResolveResult} from '.'
 import {Package} from '../api/initCmd'
 import {PackageSpec} from '../install'
 
@@ -29,10 +29,12 @@ export default async function resolveNpm (spec: PackageSpec, opts: ResolveOption
     const parsedBody = JSON.parse(res.body)
     const correctPkg = pickVersionFromRegistryDocument(parsedBody, spec)
     return {
-      name: correctPkg.name,
       fullname: pkgFullName(correctPkg),
-      version: correctPkg.version, // used for displaying
-      dist: correctPkg.dist
+      dist: {
+        location: 'remote',
+        shasum: correctPkg.dist.shasum,
+        tarball: correctPkg.dist.tarball
+      }
     }
   } catch (err) {
     if (err['statusCode'] === 404) {
@@ -47,7 +49,10 @@ type StringDict = {
 }
 
 type PackageInRegistry = Package & {
-  dist: PackageDist
+  dist: {
+    shasum: string,
+    tarball: string
+  }
 }
 
 type PackageDocument = {

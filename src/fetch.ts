@@ -19,14 +19,14 @@ export type FetchOptions = {
  */
 
 export default function fetch (dir: string, dist: PackageDist, opts: FetchOptions) {
-  if (!dist.local) {
+  if (dist.location === 'remote') {
     return opts.got.getStream(dist.tarball)
-      .then((stream: NodeJS.ReadableStream) => fetchStream(dir, dist.tarball, dist.shasum, opts.log, stream))
+      .then((stream: NodeJS.ReadableStream) => fetchStream(dir, dist, opts.log, stream))
   }
   return unpackStream(fs.createReadStream(dist.tarball), dir)
 }
 
-function fetchStream (dir: string, tarball: string, shasum: string, log: InstallLog, stream: NodeJS.ReadableStream) {
+function fetchStream (dir: string, dist: PackageDist, log: InstallLog, stream: NodeJS.ReadableStream) {
   return new Promise((resolve, reject) => {
     const actualShasum = crypto.createHash('sha1')
     let size = 0
@@ -41,7 +41,7 @@ function fetchStream (dir: string, tarball: string, shasum: string, log: Install
 
     function start (res: IncomingMessage) {
       if (res.statusCode !== 200) {
-        return reject(new Error('' + tarball + ': invalid response ' + res.statusCode))
+        return reject(new Error('' + dist.tarball + ': invalid response ' + res.statusCode))
       }
 
       log('download-start')
@@ -56,9 +56,9 @@ function fetchStream (dir: string, tarball: string, shasum: string, log: Install
 
     function finish () {
       const digest = actualShasum.digest('hex')
-      debug(`finish ${shasum} ${tarball}`)
-      if (shasum && digest !== shasum) {
-        return reject(new Error('' + tarball + ': incorrect shasum (expected ' + shasum + ', got ' + digest + ')'))
+      debug(`finish ${dist.shasum} ${dist.tarball}`)
+      if (dist.shasum && digest !== dist.shasum) {
+        return reject(new Error('' + dist.tarball + ': incorrect shasum (expected ' + dist.shasum + ', got ' + digest + ')'))
       }
 
       return resolve(dir)

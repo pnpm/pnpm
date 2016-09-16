@@ -6,18 +6,14 @@ import {PackageSpec} from '../install'
 import {Got} from '../network/got'
 
 export type PackageDist = {
-  local: boolean,
-  remove: boolean,
+  location: 'local' | 'remote' | 'dir',
   tarball: string,
-  shasum: string
+  shasum?: string
 }
 
 export type ResolveResult = {
-  name: string,
   fullname: string,
-  version: string,
-  dist: PackageDist,
-  root?: string
+  dist: PackageDist
 }
 
 export type HostedPackageSpec = PackageSpec & {
