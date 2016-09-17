@@ -8,6 +8,11 @@ declare module '@zkochan/logger' {
   export = anything;
 }
 
+declare module 'delocalize-dependencies' {
+  const anything: any;
+  export = anything;
+}
+
 declare module 'byline' {
   const anything: any;
   export = anything;

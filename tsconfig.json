@@ -30,6 +30,7 @@
     "src/binify.ts",
     "src/cmd/install.ts",
     "src/cmd/link.ts",
+    "src/cmd/publish.ts",
     "src/cmd/uninstall.ts",
     "src/debug.ts",
     "src/defaults.ts",

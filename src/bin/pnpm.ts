@@ -20,14 +20,16 @@ import pkg from '../pnpmPkgJson'
 import installCmd from '../cmd/install'
 import uninstallCmd from '../cmd/uninstall'
 import linkCmd from '../cmd/link'
+import publishCmd from '../cmd/publish'
 
 const pnpmCmds = {
   install: installCmd,
   uninstall: uninstallCmd,
-  link: linkCmd
+  link: linkCmd,
+  publish: publishCmd
 }
 
-const supportedCmds = new Set(['install', 'uninstall', 'help', 'link'])
+const supportedCmds = new Set(['install', 'uninstall', 'help', 'link', 'publish'])
 
 function run (argv: string[]) {
   const cli = meow({
@@ -112,6 +114,8 @@ function getCommandFullName (cmd: string) {
     case 'link':
     case 'ln':
       return 'link'
+    case 'publish':
+      return 'publish'
     default:
       return cmd
   }
