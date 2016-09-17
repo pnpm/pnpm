@@ -285,22 +285,19 @@ test('nested local dependency of a local dependency', t => {
   .catch(t.end)
 })
 
-// Skipping on CI as failing frequently there, due to environment issues
-if (!process.env.CI) {
-  test('from a github repo', t => {
-    prepare()
-    install(['kevva/is-negative'], { quiet: true })
-    .then(() => {
-      const localPkg = require(
-        path.join(process.cwd(), 'node_modules', 'is-negative'))
+test('from a github repo', t => {
+  prepare()
+  install(['kevva/is-negative'], { quiet: true })
+  .then(() => {
+    const localPkg = require(
+      path.join(process.cwd(), 'node_modules', 'is-negative'))
 
-      t.ok(localPkg, 'isNegative() is available')
+    t.ok(localPkg, 'isNegative() is available')
 
-      t.end()
-    })
-    .catch(t.end)
+    t.end()
   })
-}
+  .catch(t.end)
+})
 
 test('shrinkwrap compatibility', t => {
   prepare({ dependencies: { rimraf: '*' } })
@@ -770,11 +767,6 @@ test('tarball local package', t => {
 })
 
 test("don't fail when peer dependency is fetched from GitHub", t => {
-  if (process.env.CI) {
-    t.skip('cannot run on CI because of exceeding rate limit')
-    return t.end()
-  }
-
   prepare()
   install([local('test-pnpm-peer-deps')], { quiet: true })
     .then(() => t.end())

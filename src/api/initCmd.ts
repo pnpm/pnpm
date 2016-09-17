@@ -5,6 +5,7 @@ import lockfile = require('lockfile')
 const lock = thenify(lockfile.lock)
 const unlock = thenify(lockfile.unlock)
 import semver = require('semver')
+import {stripIndent} from 'common-tags'
 import requireJson from '../fs/requireJson'
 import writeJson from '../fs/writeJson'
 import expandTilde from '../fs/expandTilde'
@@ -104,13 +105,28 @@ export default async function (opts: StrictBasicOptions): Promise<CommandNamespa
 
 function failIfNotCompatible (storeVersion: string) {
   if (!storeVersion || !semver.satisfies(storeVersion, '>=0.28')) {
-    throw new Error(`The store structure was changed.
-      Remove it and run pnpm again.
-      More info about what was changed at: https://github.com/rstacruz/pnpm/issues/276
-      TIPS:
-        If you have a shared store, remove both the node_modules and the shared shore.
-        Otherwise just run \`rm -rf node_modules\``)
+    const msg = structureChangeMsg('More info about what was changed at: https://github.com/rstacruz/pnpm/issues/276')
+    throw new Error(msg)
   }
+  if (!semver.satisfies(storeVersion, '>=0.33')) {
+    const msg = structureChangeMsg(stripIndent`
+      The change was needed to fix the GitHub rate limit issue:
+        Issue: https://github.com/rstacruz/pnpm/issues/361
+        PR: https://github.com/rstacruz/pnpm/pull/363
+    `)
+    throw new Error(msg)
+  }
+}
+
+function structureChangeMsg (moreInfo: string): string {
+  return stripIndent`
+    The store structure was changed.
+    Remove it and run pnpm again.
+    ${moreInfo}
+    TIPS:
+      If you have a shared store, remove both the node_modules and the shared shore.
+      Otherwise just run \`rm -rf node_modules\`
+  `
 }
 
 async function readGlobalPkg (globalPath: string) {
