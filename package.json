@@ -20,7 +20,7 @@
   "dependencies": {
     "@zkochan/logger": "0.1.0",
     "byline": "5.0.0",
-    "camelcase-keys": "3.0.0",
+    "camelcase-keys": "4.0.0",
     "caw": "2.0.0",
     "chalk": "1.1.3",
     "common-tags": "1.3.1",
