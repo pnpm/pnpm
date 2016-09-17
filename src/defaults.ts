@@ -9,5 +9,6 @@ export default <StrictPublicInstallationOptions>{
   storePath: 'node_modules/.store',
   globalPath: '~/.pnpm',
   logger: 'pretty',
-  ignoreScripts: false
+  ignoreScripts: false,
+  linkLocal: false
 }

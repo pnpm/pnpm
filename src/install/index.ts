@@ -32,7 +32,8 @@ export type PackageMeta = {
 export type InstallationOptions = {
   optional?: boolean,
   keypath?: string[],
-  parentRoot?: string
+  parentRoot?: string,
+  linkLocal: boolean
 }
 
 export type PackageSpec = {
@@ -54,6 +55,7 @@ export type InstalledPackage = {
 
 export type PackageContext = {
   optional: boolean,
+  linkLocal: boolean,
   keypath: string[],
   fullname: string,
   dist: PackageDist
@@ -107,12 +109,25 @@ export default async function install (ctx: InstallContext, pkgMeta: PackageMeta
       installedPkg = await saveCachedResolution()
       log('package.json', installedPkg.pkg)
     } else {
-      const res = await resolve(spec, {log, got: ctx.got, root: options.parentRoot || ctx.root})
+      const res = await resolve(spec, {
+        log,
+        got: ctx.got,
+        root: options.parentRoot || ctx.root,
+        linkLocal: options.linkLocal
+      })
       const freshPkg: PackageContext = saveResolution(res)
       log('resolved', freshPkg)
-      const target = join(ctx.store, res.fullname)
-      await buildToStoreCached(ctx, target, freshPkg, log)
-      const pkg = requireJson(join(target, '_', 'package.json'))
+      await mkdirp(modules)
+      let pkg: Package
+      if (res.dist.location === 'dir' && options.linkLocal) {
+        pkg = requireJson(join(res.dist.tarball, 'package.json'))
+        await symlinkToModules(res.dist.tarball, modules)
+      } else {
+        const target = join(ctx.store, res.fullname)
+        await buildToStoreCached(ctx, target, freshPkg, log)
+        pkg = requireJson(join(target, '_', 'package.json'))
+        await symlinkToModules(join(target, '_'), modules)
+      }
       installedPkg = {
         pkg,
         optional,
@@ -120,8 +135,6 @@ export default async function install (ctx: InstallContext, pkgMeta: PackageMeta
         fullname: freshPkg.fullname,
         escapedName: spec.escapedName
       }
-      await mkdirp(modules)
-      await symlinkToModules(join(target, '_'), modules)
       log('package.json', pkg)
     }
 
@@ -143,6 +156,7 @@ export default async function install (ctx: InstallContext, pkgMeta: PackageMeta
     return {
       optional,
       keypath,
+      linkLocal: options.linkLocal,
 
       // Full name of package as it should be put in the store. Aim to make
       // this as friendly as possible as this will appear in stack traces.
@@ -237,7 +251,8 @@ async function buildInStore (ctx: InstallContext, target: string, buildInfo: Pac
       dependent: buildInfo.fullname,
       parentRoot: buildInfo.dist.location !== 'remote'
         ? path.dirname(buildInfo.dist.tarball) : undefined,
-      optional: buildInfo.optional
+      optional: buildInfo.optional,
+      linkLocal: buildInfo.linkLocal
     })
 
   // symlink itself; . -> node_modules/lodash@4.0.0

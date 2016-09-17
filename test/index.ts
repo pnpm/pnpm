@@ -285,6 +285,22 @@ test('nested local dependency of a local dependency', t => {
   .catch(t.end)
 })
 
+test('link local package if link-local = true', t => {
+  prepare()
+  const tmpDir = path.resolve(__dirname, '..', '.tmp')
+  const linkedPkgName = 'hello-world-js-bin'
+  const linkedPkgDirName = linkedPkgName + Math.random().toString()
+  const linkedPkgPath = path.resolve(tmpDir, linkedPkgDirName)
+  ncp(pathToLocalPkg(linkedPkgName), linkedPkgPath)
+    .then(() => install([`file:../${linkedPkgDirName}`], { quiet: true, linkLocal: true }))
+    .then(() => {
+      isExecutable(t, path.join(process.cwd(), 'node_modules', '.bin', 'hello-world-js-bin'))
+
+      t.end()
+    })
+    .catch(t.end)
+})
+
 test('from a github repo', t => {
   prepare()
   install(['kevva/is-negative'], { quiet: true })

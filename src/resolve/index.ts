@@ -26,7 +26,8 @@ export type HostedPackageSpec = PackageSpec & {
 export type ResolveOptions = {
   log(msg: string): void,
   got: Got,
-  root: string
+  root: string,
+  linkLocal: boolean
 }
 
 /**

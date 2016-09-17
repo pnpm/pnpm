@@ -24,6 +24,16 @@ export default async function resolveLocal (spec: PackageSpec, opts: ResolveOpti
     }
   }
 
+  if (opts.linkLocal) {
+    const localPkg = requireJson(resolve(dependencyPath, 'package.json'))
+    return {
+      fullname: getFullName(localPkg.name, dependencyPath),
+      dist: {
+        location: 'dir',
+        tarball: dependencyPath,
+      }
+    }
+  }
   return resolveFolder(dependencyPath)
 }
 

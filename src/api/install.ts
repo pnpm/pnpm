@@ -53,7 +53,8 @@ export type PublicInstallationOptions = BasicOptions & {
   fetchRetryFactor?: number,
   fetchRetryMintimeout?: number,
   fetchRetryMaxtimeout?: number,
-  saveExact?: boolean
+  saveExact?: boolean,
+  linkLocal?: boolean
 }
 
 export type StrictPublicInstallationOptions = StrictBasicOptions & {
@@ -66,7 +67,8 @@ export type StrictPublicInstallationOptions = StrictBasicOptions & {
   fetchRetryFactor: number,
   fetchRetryMintimeout: number,
   fetchRetryMaxtimeout: number,
-  saveExact: boolean
+  saveExact: boolean,
+  linkLocal: boolean
 }
 
 /*
