@@ -6,10 +6,9 @@ import os = require('os')
 // lack permission to create them
 const symlinkType: SymlinkType = os.platform() === 'win32' ? 'junction' : 'dir'
 
-/*
+/**
  * Relative symlink
  */
-
 export default function relSymlink (src: string, dest: string) {
   // Junction points can't be relative
   const rel = symlinkType !== 'junction' ? path.relative(path.dirname(dest), src) : src

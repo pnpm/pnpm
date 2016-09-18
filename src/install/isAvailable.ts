@@ -4,17 +4,17 @@ import fs = require('mz/fs')
 import {PackageSpec} from '../install'
 import {Package} from '../api/initCmd'
 
-/*
+/**
  * Check if a module exists (eg, `node_modules/node-pre-gyp`). This is the case when
  * it's part of bundleDependencies.
  *
  * This check is also responsible for stopping `pnpm i lodash` from doing anything when
  * 'node_modules/lodash' already exists.
  *
+ * @example
  *     spec = { name: 'lodash', spec: '^3.0.2' }
  *     isAvailable(spec, 'path/to/node_modules')
  */
-
 export default async function isAvailable (spec: PackageSpec, modules: string) {
   const name = spec && spec.name
   if (!name) return false

@@ -4,11 +4,10 @@ const debug = createDebug('pnpm:symlink')
 
 export type SymlinkType = 'junction' | 'dir'
 
-/*
+/**
  * Creates a symlink. Re-link if a symlink already exists at the supplied
  * srcPath. API compatible with [`fs#symlink`](https://nodejs.org/api/fs.html#fs_fs_symlink_srcpath_dstpath_type_callback).
  */
-
 export default async function forceSymlink (srcPath: string, dstPath: string, type: SymlinkType) {
   debug(`${srcPath} -> ${dstPath}`)
   try {

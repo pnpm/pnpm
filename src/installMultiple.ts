@@ -9,13 +9,13 @@ export type MultipleInstallationOptions = InstallationOptions & {
   dependent: string
 }
 
-/*
+/**
  * Install multiple modules into `modules`.
  *
+ * @example
  *     ctx = { }
  *     installMultiple(ctx, { minimatch: '^2.0.0' }, {chokidar: '^1.6.0'}, './node_modules')
  */
-
 export default function installMultiple (ctx: InstallContext, requiredPkgsMap: Dependencies, optionalPkgsMap: Dependencies, modules: string, options: MultipleInstallationOptions): Promise<InstalledPackage[]> {
   requiredPkgsMap = requiredPkgsMap || {}
   optionalPkgsMap = optionalPkgsMap || {}

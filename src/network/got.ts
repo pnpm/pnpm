@@ -67,7 +67,6 @@ export default (opts: GotOptions): Got => {
   /*
    * waits in line
    */
-
   const get: GetFunc = retrier((url: string, options?: GotOptions) => {
     const throater = getThroater()
     const key = JSON.stringify([ url, options ])
@@ -91,7 +90,6 @@ export default (opts: GotOptions): Got => {
   /*
    * like require('got').stream, but throated
    */
-
   const getStream = retrier((url: string, options?: GotOptions) => {
     const throater = getThroater()
     return new Promise((resolve, reject) => {
@@ -116,7 +114,6 @@ export default (opts: GotOptions): Got => {
   /*
    * Extends `got` options with User Agent headers and stuff
    */
-
   function extend (url: string, options: GotOptions): GotOptions {
     if (!options) options = Object.assign({}, forcedRequestOptions)
     if (url.indexOf('https://') === 0) {

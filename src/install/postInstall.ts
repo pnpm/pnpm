@@ -29,11 +29,10 @@ export default async function postInstall (root_: string, log: Function) {
   }
 }
 
-/*
+/**
  * Run node-gyp when binding.gyp is available. Only do this when there's no
  * `install` script (see `npm help scripts`).
  */
-
 async function checkBindingGyp (root: string, log: Function) {
   try {
     await fs.stat(path.join(root, 'binding.gyp'))

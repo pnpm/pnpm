@@ -6,6 +6,7 @@ import {ResolveResult} from '.'
 /**
  * Resolves a 'remote' package.
  *
+ * @example
  *     pkg = {
  *       raw: 'http://registry.npmjs.org/is-array/-/is-array-1.0.1.tgz',
  *       scope: null,

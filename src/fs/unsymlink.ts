@@ -1,10 +1,9 @@
 import fs = require('mz/fs')
 import {Stats} from 'fs'
 
-/*
+/**
  * Removes a symlink
  */
-
 export default function unsymlink (path: string) {
   return fs.lstat(path)
   .then((stat: Stats) => {

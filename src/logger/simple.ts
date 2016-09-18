@@ -14,10 +14,9 @@ const s = {
   bold: chalk.bold
 }
 
-/*
+/**
  * Simple percent logger
  */
-
 export default function () {
   const out = process.stdout
   const progress = { done: 0, total: 0 }

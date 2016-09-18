@@ -12,10 +12,9 @@ export type RequireJsonOptions = {
 
 const cache: PackagesCache = {}
 
-/*
+/**
  * Works identically to require('/path/to/file.json'), but safer.
  */
-
 export default function requireJson (pkgJsonPath: string, opts?: RequireJsonOptions): Package {
   opts = opts || {ignoreCache: false}
   pkgJsonPath = path.resolve(pkgJsonPath)

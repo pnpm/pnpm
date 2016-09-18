@@ -33,6 +33,7 @@ export type ResolveOptions = {
 /**
  * Resolves a package in the NPM registry. Done as part of `install()`.
  *
+ * @example
  *     var npa = require('npm-package-arg')
  *     resolve(npa('rimraf@2'))
  *       .then((res) => {

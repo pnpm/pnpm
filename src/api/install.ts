@@ -71,12 +71,12 @@ export type StrictPublicInstallationOptions = StrictBasicOptions & {
   linkLocal: boolean
 }
 
-/*
+/**
  * Perform installation.
- *
+ * 
+ * @example
  *     install({'lodash': '1.0.0', 'foo': '^2.1.0' }, { quiet: true })
  */
-
 export default async function (fuzzyDeps: string[] | Dependencies, optsNullable: PublicInstallationOptions) {
   let packagesToInstall = mapify(fuzzyDeps)
   const installType = packagesToInstall && Object.keys(packagesToInstall).length ? 'named' : 'general'

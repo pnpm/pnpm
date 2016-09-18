@@ -10,6 +10,7 @@ import {PackageSpec} from '../install'
 /**
  * Resolves a package in the NPM registry. Done as part of `install()`.
  *
+ * @example
  *     var npa = require('npm-package-arg')
  *     resolve(npa('rimraf@2'))
  *       .then((res) => {
@@ -88,10 +89,10 @@ function pickVersionFromRegistryDocument (pkg: PackageDocument, dep: PackageSpec
 /**
  * Converts package data (from `npa()`) to a URI
  *
+ * @example
  *     toUri({ name: 'rimraf', rawSpec: '2' })
  *     // => 'https://registry.npmjs.org/rimraf/2'
  */
-
 function toUri (spec: PackageSpec) {
   let name: string
 

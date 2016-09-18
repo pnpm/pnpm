@@ -14,10 +14,9 @@ export type FetchOptions = {
   got: Got
 }
 
-/*
+/**
  * Fetches a tarball `tarball` and extracts it into `dir`
  */
-
 export default function fetch (dir: string, dist: PackageDist, opts: FetchOptions) {
   if (dist.location === 'remote') {
     return opts.got.getStream(dist.tarball)

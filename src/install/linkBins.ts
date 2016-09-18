@@ -38,20 +38,19 @@ function isScopedPkgsDir (dirPath: string) {
   return path.basename(dirPath)[0] === '@'
 }
 
-/*
+/**
  * Links executable into `node_modules/.bin`.
  *
- * - `modules` (String) - the node_modules path
- * - `target` (String) - where the module is now; read package.json from here
- * - `fullname` (String) - fullname of the module (`rimraf@2.5.1`)
+ * @param {String} modules - the node_modules path
+ * @param {String} target - where the module is now; read package.json from here
  *
+ * @example
  *     module = 'project/node_modules'
  *     target = 'project/node_modules/.store/rimraf@2.5.1'
  *     linkPkgBins(module, target)
  *
  *     // node_modules/.bin/rimraf -> ../.store/rimraf@2.5.1/cmd.js
  */
-
 export async function linkPkgBins (modules: string, target: string) {
   const pkg = tryRequire(path.join(target, 'package.json'))
 
@@ -135,10 +134,9 @@ function cmdShim (proxyPath: string, targetPath: string) {
   ])
 }
 
-/*
+/**
  * Like `require()`, but returns `undefined` when it fails
  */
-
 function tryRequire (path: string) {
   try { return requireJson(path) } catch (e) { return null }
 }

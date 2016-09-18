@@ -5,9 +5,10 @@ observatory.settings({ prefix: '  ', width: 74 })
 
 import {PackageSpec} from '../install'
 
-/*
+/**
  * Logger.
  *
+ * @example
  *     add = logger()
  *
  *     log = add({ name: 'rimraf', rawSpec: 'rimraf@2.5.1' })
@@ -17,7 +18,6 @@ import {PackageSpec} from '../install'
  *     log('depnedencies')
  *     log('error', err)
  */
-
 export default function () {
   const tasks = {}
 

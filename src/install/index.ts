@@ -63,16 +63,8 @@ export type PackageContext = {
 
 export type InstallLog = (msg: string, data?: Object) => void
 
-/*
+/**
  * Installs a package.
- *
- *     install(ctx, 'rimraf@2', './node_modules')
- *
- * Parameters:
- *
- * - `ctx` (Object) - the context.
- *   - `root` (String) - root path of the package.
- *   - `log` (Function) - logger
  *
  * What it does:
  *
@@ -80,9 +72,13 @@ export type InstallLog = (msg: string, data?: Object) => void
  * - fetch() - download tarball into node_modules/.store/{name}@{version}
  * - recurse into its dependencies
  * - symlink node_modules/{name}
- * - symlink bins
+ *
+ * @param {Object} ctx - the context.
+ * @param {Object} pkgMeta - meta info about the package to install.
+ *
+ * @example
+ *     install(ctx, 'rimraf@2', './node_modules')
  */
-
 export default async function install (ctx: InstallContext, pkgMeta: PackageMeta, modules: string, options: InstallationOptions): Promise<InstalledPackage> {
   debug('installing ' + pkgMeta.rawSpec)
   if (!ctx.builds) ctx.builds = {}
@@ -193,12 +189,11 @@ export default async function install (ctx: InstallContext, pkgMeta: PackageMeta
   }
 }
 
-/*
+/**
  * Builds to `.store/lodash@4.0.0` (paths.target)
  * If an ongoing build is already working, use it. Also, if that ongoing build
  * is part of the dependency chain (ie, it's a circular dependency), use its stub
  */
-
 function buildToStoreCached (ctx: InstallContext, target: string, buildInfo: PackageContext, log: InstallLog): Promise<Package> {
   // If a package is requested for a second time (usually when many packages depend
   // on the same thing), only resolve until it's fetched (not built).
@@ -212,11 +207,10 @@ function buildToStoreCached (ctx: InstallContext, target: string, buildInfo: Pac
   )
 }
 
-/*
+/**
  * Builds to `.store/lodash@4.0.0` (paths.target)
  * Fetches from npm, recurses to dependencies, runs lifecycle scripts, etc
  */
-
 async function fetchToStore (ctx: InstallContext, target: string, dist: PackageDist, log: InstallLog) {
   // download and untar
   log('download-queued')
@@ -266,11 +260,10 @@ async function buildInStore (ctx: InstallContext, target: string, buildInfo: Pac
   })
 }
 
-/*
+/**
  * Symlink a package into its own node_modules. this way, babel-runtime@5 can
  * require('babel-runtime') within itself.
  */
-
 async function symlinkSelf (target: string, pkg: Package, depth: number) {
   debug(`symlinkSelf ${pkg.name}`)
   if (depth === 0) {
@@ -286,14 +279,14 @@ function escapeName (name: string) {
   return name && name.replace('/', '%2f')
 }
 
-/*
+/**
  * Perform the final symlinking of ./.store/x@1.0.0 -> ./x.
  *
+ * @example
  *     target = '/node_modules/.store/lodash@4.0.0'
  *     modules = './node_modules'
  *     symlinkToModules(fullname, modules)
  */
-
 async function symlinkToModules (target: string, modules: string) {
   // TODO: uncomment to make things fail
   const pkgData = requireJson(join(target, 'package.json'))
@@ -306,11 +299,10 @@ async function symlinkToModules (target: string, modules: string) {
   await relSymlink(target, out)
 }
 
-/*
+/**
  * If `path` doesn't exist, run `fn()`.
  * If it exists, don't do anything.
  */
-
 async function make (path: string, fn: Function) {
   try {
     await fs.stat(path)
@@ -320,10 +312,9 @@ async function make (path: string, fn: Function) {
   }
 }
 
-/*
+/**
  * Save promises for later
  */
-
 function memoize (locks: CachedPromises, key: string, fn: () => Promise<void>) {
   if (locks && locks[key]) return locks[key]
   locks[key] = fn()
