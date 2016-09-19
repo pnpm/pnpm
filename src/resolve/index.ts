@@ -4,16 +4,12 @@ import resolveFromGithub from './github'
 import resolveFromLocal from './local'
 import {PackageSpec} from '../install'
 import {Got} from '../network/got'
-
-export type PackageDist = {
-  location: 'local' | 'remote' | 'dir',
-  tarball: string,
-  shasum?: string
-}
+import {FetchOptions} from './fetch'
 
 export type ResolveResult = {
   fullname: string,
-  dist: PackageDist
+  fetch(target: string, opts: FetchOptions): Promise<void>,
+  root?: string
 }
 
 export type HostedPackageSpec = PackageSpec & {

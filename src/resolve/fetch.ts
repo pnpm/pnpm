@@ -1,12 +1,11 @@
-import createDebug from './debug'
+import createDebug from '../debug'
 const debug = createDebug('pnpm:fetch')
 import crypto = require('crypto')
 import gunzip = require('gunzip-maybe')
 import tar = require('tar-fs')
 import fs = require('fs')
-import {PackageDist} from './resolve'
-import {Got} from './network/got'
-import {InstallLog} from './install'
+import {Got} from '../network/got'
+import {InstallLog} from '../install'
 import {IncomingMessage} from 'http'
 
 export type FetchOptions = {
@@ -14,14 +13,28 @@ export type FetchOptions = {
   got: Got
 }
 
+export type PackageDist = {
+  tarball: string,
+  shasum?: string
+}
+
+export function createRemoteTarballFetcher (dist: PackageDist) {
+  return (target: string, opts: FetchOptions) => fetchFromRemoteTarball(target, dist, opts)
+}
+
+export function createLocalTarballFetcher (dist: PackageDist) {
+  return (target: string, opts: FetchOptions) => fetchFromLocalTarball(target, dist, opts)
+}
+
 /**
  * Fetches a tarball `tarball` and extracts it into `dir`
  */
-export default function fetch (dir: string, dist: PackageDist, opts: FetchOptions) {
-  if (dist.location === 'remote') {
-    return opts.got.getStream(dist.tarball)
-      .then((stream: NodeJS.ReadableStream) => fetchStream(dir, dist, opts.log, stream))
-  }
+export function fetchFromRemoteTarball (dir: string, dist: PackageDist, opts: FetchOptions) {
+  return opts.got.getStream(dist.tarball)
+    .then((stream: NodeJS.ReadableStream) => fetchStream(dir, dist, opts.log, stream))
+}
+
+export function fetchFromLocalTarball (dir: string, dist: PackageDist, opts: FetchOptions) {
   return unpackStream(fs.createReadStream(dist.tarball), dir)
 }
 

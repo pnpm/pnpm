@@ -1,17 +1,18 @@
 import {delimiter} from '../pkgFullName'
 import {HostedPackageSpec, ResolveOptions, ResolveResult} from '.'
+import {fetchFromRemoteTarball, FetchOptions} from './fetch'
 
 /**
  * Resolves a 'hosted' package hosted on 'github'.
  */
 export default async function resolveGithub (spec: HostedPackageSpec, opts: ResolveOptions): Promise<ResolveResult> {
   const ghSpec = parseGithubSpec(spec)
+  const dist = {
+    tarball: `https://codeload.github.com/${ghSpec.owner}/${ghSpec.repo}/tar.gz/${ghSpec.ref}`
+  }
   return {
     fullname: ['github', ghSpec.owner, ghSpec.repo, ghSpec.ref].join(delimiter),
-    dist: {
-      location: 'remote',
-      tarball: `https://codeload.github.com/${ghSpec.owner}/${ghSpec.repo}/tar.gz/${ghSpec.ref}`
-    }
+    fetch: (target: string, opts: FetchOptions) => fetchFromRemoteTarball(target, dist, opts)
   }
 }
 

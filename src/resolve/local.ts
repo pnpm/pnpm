@@ -1,10 +1,15 @@
 import {resolve} from 'path'
+import * as path from 'path'
 import spawn = require('cross-spawn')
 import pkgFullName, {delimiter} from '../pkgFullName'
 import getTarballName from './getTarballName'
 import requireJson from '../fs/requireJson'
+import mkdirp from '../fs/mkdirp'
 import {PackageSpec} from '../install'
 import {ResolveOptions, ResolveResult} from '.'
+import {createLocalTarballFetcher, fetchFromLocalTarball, FetchOptions} from './fetch'
+import fs = require('mz/fs')
+import relSymlink from '../fs/relSymlink'
 
 /**
  * Resolves a package hosted on the local filesystem
@@ -15,12 +20,11 @@ export default async function resolveLocal (spec: PackageSpec, opts: ResolveOpti
   if (dependencyPath.slice(-4) === '.tgz' || dependencyPath.slice(-7) === '.tar.gz') {
     const name = getTarballName(dependencyPath)
     return {
-      name,
       fullname: getFullName(name, dependencyPath),
-      dist: {
-        location: 'local',
+      root: path.dirname(dependencyPath),
+      fetch: createLocalTarballFetcher({
         tarball: dependencyPath
-      }
+      })
     }
   }
 
@@ -28,9 +32,10 @@ export default async function resolveLocal (spec: PackageSpec, opts: ResolveOpti
     const localPkg = requireJson(resolve(dependencyPath, 'package.json'))
     return {
       fullname: getFullName(localPkg.name, dependencyPath),
-      dist: {
-        location: 'dir',
-        tarball: dependencyPath,
+      root: dependencyPath,
+      fetch: async function (target: string, opts: FetchOptions) {
+        await mkdirp(path.dirname(target))
+        return relSymlink(dependencyPath, target)
       }
     }
   }
@@ -59,11 +64,15 @@ function resolveFolder (dependencyPath: string): Promise<ResolveResult> {
   })
   .then(tgzFilename => {
     const localPkg = requireJson(resolve(dependencyPath, 'package.json'))
+    const dist = {
+      tarball: resolve(dependencyPath, tgzFilename)
+    }
     return {
       fullname: getFullName(localPkg.name, dependencyPath),
-      dist: {
-        location: 'dir',
-        tarball: resolve(dependencyPath, tgzFilename)
+      root: dependencyPath,
+      fetch: async function (target: string, opts: FetchOptions) {
+        await fetchFromLocalTarball(target, dist, opts)
+        return fs.unlink(dist.tarball)
       }
     }
   })

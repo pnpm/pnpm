@@ -11,8 +11,7 @@ const dirname = path.dirname
 const basename = path.basename
 const abspath = path.resolve
 
-import fetch from '../fetch'
-import resolve, {ResolveResult, PackageDist} from '../resolve'
+import resolve, {ResolveResult} from '../resolve'
 
 import mkdirp from '../fs/mkdirp'
 import requireJson from '../fs/requireJson'
@@ -53,12 +52,11 @@ export type InstalledPackage = {
   escapedName: string
 }
 
-export type PackageContext = {
+export type PackageContext = ResolveResult & {
   optional: boolean,
   linkLocal: boolean,
   keypath: string[],
-  fullname: string,
-  dist: PackageDist
+  fullname: string
 }
 
 export type InstallLog = (msg: string, data?: Object) => void
@@ -114,16 +112,10 @@ export default async function install (ctx: InstallContext, pkgMeta: PackageMeta
       const freshPkg: PackageContext = saveResolution(res)
       log('resolved', freshPkg)
       await mkdirp(modules)
-      let pkg: Package
-      if (res.dist.location === 'dir' && options.linkLocal) {
-        pkg = requireJson(join(res.dist.tarball, 'package.json'))
-        await symlinkToModules(res.dist.tarball, modules)
-      } else {
-        const target = join(ctx.store, res.fullname)
-        await buildToStoreCached(ctx, target, freshPkg, log)
-        pkg = requireJson(join(target, '_', 'package.json'))
-        await symlinkToModules(join(target, '_'), modules)
-      }
+      const target = join(ctx.store, res.fullname)
+      await buildToStoreCached(ctx, target, freshPkg, log)
+      const pkg = requireJson(join(target, '_', 'package.json'))
+      await symlinkToModules(join(target, '_'), modules)
       installedPkg = {
         pkg,
         optional,
@@ -161,9 +153,8 @@ export default async function install (ctx: InstallContext, pkgMeta: PackageMeta
       // => 'rstacruz!pnpm@0a1b382da'
       // => 'foobar@9a3b283ac'
       fullname: res.fullname,
-
-      // Distribution data from resolve() => { shasum, tarball }
-      dist: res.dist
+      root: res.root,
+      fetch: res.fetch
     }
   }
 
@@ -201,7 +192,7 @@ function buildToStoreCached (ctx: InstallContext, target: string, buildInfo: Pac
 
   return make(target, () =>
     memoize(ctx.builds, buildInfo.fullname, async function () {
-      await memoize(ctx.fetches, buildInfo.fullname, () => fetchToStore(ctx, target, buildInfo.dist, log))
+      await memoize(ctx.fetches, buildInfo.fullname, () => fetchToStore(ctx, target, buildInfo, log))
       return buildInStore(ctx, target, buildInfo, log)
     })
   )
@@ -211,17 +202,10 @@ function buildToStoreCached (ctx: InstallContext, target: string, buildInfo: Pac
  * Builds to `.store/lodash@4.0.0` (paths.target)
  * Fetches from npm, recurses to dependencies, runs lifecycle scripts, etc
  */
-async function fetchToStore (ctx: InstallContext, target: string, dist: PackageDist, log: InstallLog) {
+async function fetchToStore (ctx: InstallContext, target: string, buildInfo: PackageContext, log: InstallLog) {
   // download and untar
   log('download-queued')
-  await mkdirp(join(target, '_'))
-  await fetch(join(target, '_'), dist, {log, got: ctx.got})
-
-  // if the dependency is a directory, the tarball was created temporarily
-  // in order to mimic npm publish
-  if (dist.location === 'dir') {
-    await fs.unlink(dist.tarball)
-  }
+  return buildInfo.fetch(join(target, '_'), {log, got: ctx.got})
 
   // TODO: this is the point it becomes partially useable.
   // ie, it can now be symlinked into .store/foo@1.0.0.
@@ -243,8 +227,7 @@ async function buildInStore (ctx: InstallContext, target: string, buildInfo: Pac
     {
       keypath: buildInfo.keypath.concat([ buildInfo.fullname ]),
       dependent: buildInfo.fullname,
-      parentRoot: buildInfo.dist.location !== 'remote'
-        ? path.dirname(buildInfo.dist.tarball) : undefined,
+      parentRoot: buildInfo.root,
       optional: buildInfo.optional,
       linkLocal: buildInfo.linkLocal
     })
