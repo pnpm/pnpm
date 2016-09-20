@@ -1,4 +1,4 @@
-import {delimiter} from '../pkgFullName'
+import {delimiter} from './pkgFullName'
 import {HostedPackageSpec, ResolveOptions, ResolveResult} from '.'
 import {fetchFromRemoteTarball, FetchOptions} from './fetch'
 

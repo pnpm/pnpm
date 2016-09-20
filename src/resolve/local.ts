@@ -1,7 +1,7 @@
 import {resolve} from 'path'
 import * as path from 'path'
 import spawn = require('cross-spawn')
-import pkgFullName, {delimiter} from '../pkgFullName'
+import pkgFullName, {delimiter} from './pkgFullName'
 import getTarballName from './getTarballName'
 import requireJson from '../fs/requireJson'
 import mkdirp from '../fs/mkdirp'

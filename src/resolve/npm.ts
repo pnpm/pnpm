@@ -1,6 +1,6 @@
 import url = require('url')
 const enc = encodeURIComponent
-import pkgFullName from '../pkgFullName'
+import pkgFullName from './pkgFullName'
 import registryUrl = require('registry-url')
 import semver = require('semver')
 import {ResolveOptions, ResolveResult} from '.'
