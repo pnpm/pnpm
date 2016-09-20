@@ -12,6 +12,7 @@ import thenify = require('thenify')
 import ncpCB = require('ncp')
 const ncp = thenify(ncpCB.ncp)
 import mkdirp = require('mkdirp')
+import isCI = require('is-ci')
 import prepare from './support/prepare'
 import requireJson from '../src/fs/requireJson'
 const basicPackageJson = requireJson(path.join(__dirname, './support/simple-package.json'))
@@ -208,7 +209,7 @@ if (!isWindows) {
 }
 
 test('compiled modules (ursa@0.9.1)', t => {
-  if (!process.env.CI || isWindows) {
+  if (!isCI || isWindows) {
     t.skip('only ran on CI')
     return t.end()
   }
@@ -304,6 +305,24 @@ test('link local package if link-local = true', t => {
 test('from a github repo', t => {
   prepare()
   install(['kevva/is-negative'], { quiet: true })
+  .then(() => {
+    const localPkg = require(
+      path.join(process.cwd(), 'node_modules', 'is-negative'))
+
+    t.ok(localPkg, 'isNegative() is available')
+
+    t.end()
+  })
+  .catch(t.end)
+})
+
+test('from a git repo', t => {
+  if (isCI) {
+    t.skip('not testing the SSH GIT access via CI')
+    return t.end()
+  }
+  prepare()
+  install(['git+ssh://git@github.com/kevva/is-negative.git'], { quiet: true })
   .then(() => {
     const localPkg = require(
       path.join(process.cwd(), 'node_modules', 'is-negative'))

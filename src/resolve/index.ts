@@ -2,6 +2,7 @@ import resolveFromNpm from './npm'
 import resolveFromTarball from './tarball'
 import resolveFromGithub from './github'
 import resolveFromLocal from './local'
+import resolveFromGit from './git'
 import {PackageSpec} from '../install'
 import {Got} from '../network/got'
 import {FetchOptions} from './fetch'
@@ -15,7 +16,8 @@ export type ResolveResult = {
 export type HostedPackageSpec = PackageSpec & {
   hosted: {
     type: string,
-    shortcut: string
+    shortcut: string,
+    sshUrl: string
   }
 }
 
@@ -48,13 +50,22 @@ export default function (spec: PackageSpec, opts: ResolveOptions): Promise<Resol
       return resolveFromNpm(spec, opts)
     case 'remote':
       return resolveFromTarball(spec)
-    case 'hosted':
-      if ((<HostedPackageSpec>spec).hosted.type === 'github') {
-        return resolveFromGithub(<HostedPackageSpec>spec, opts)
-      }
     case 'local':
       return resolveFromLocal(spec, opts)
+    case 'hosted':
+      const hspec = <HostedPackageSpec>spec
+      if (hspec.hosted.type === 'github' && !isSsh(hspec.spec)) {
+        return resolveFromGithub(hspec, opts)
+      }
+      return resolveFromGit(spec, opts)
+    case 'git':
+      return resolveFromGit(spec, opts)
     default:
       throw new Error(`${spec.rawSpec}: ${spec.type} packages not supported`)
   }
+}
+
+function isSsh (gitSpec: string): boolean {
+  return gitSpec.substr(0, 10) === 'git+ssh://'
+    || gitSpec.substr(0, 4) === 'git@'
 }
