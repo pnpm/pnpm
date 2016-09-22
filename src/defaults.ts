@@ -1,3 +1,4 @@
+import {StrictBasicOptions} from './api/initCmd' // tslint:disable-line
 import {StrictPublicInstallationOptions} from './api/install'
 
 export default <StrictPublicInstallationOptions>{
