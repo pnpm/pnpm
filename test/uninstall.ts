@@ -3,19 +3,10 @@ import promisifyTape = require('tape-promise')
 const test = promisifyTape(tape)
 import path = require('path')
 import fs = require('fs')
-import exists from './support/exists'
+import exists, {existsSymlink} from './support/exists'
 import prepare from './support/prepare'
 import install from '../src/cmd/install'
 import uninstall from '../src/cmd/uninstall'
-
-function existsSymlink (path: string) {
-  try {
-    return fs.lstatSync(path)
-  } catch (err) {
-    if (err.code !== 'ENOENT') throw err
-  }
-  return null
-}
 
 test('uninstall package with no dependencies', async function (t) {
   prepare()

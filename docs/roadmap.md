@@ -21,5 +21,5 @@
 - [x] `pnpm ls`
 - [x] `pnpm link`
 - [ ] `pnpm unlink`
-- [ ] `pnpm prune`
+- [x] `pnpm prune`
 - [ ] `pnpm update`
