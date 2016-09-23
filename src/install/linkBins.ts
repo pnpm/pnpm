@@ -6,6 +6,7 @@ import relSymlink from '../fs/relSymlink'
 import fs = require('mz/fs')
 import mkdirp from '../fs/mkdirp'
 import requireJson from '../fs/requireJson'
+import getPkgDirs from '../fs/getPkgDirs'
 import binify from '../binify'
 
 const preserveSymlinks = semver.satisfies(process.version, '>=6.3.0')
@@ -13,29 +14,8 @@ const isWindows = process.platform === 'win32'
 
 export default function linkAllBins (modules: string) {
   return Promise.all(
-    getDirectories(modules)
-      .reduce((pkgDirs: string[], dir: string): string[] => pkgDirs.concat(isScopedPkgsDir(dir) ? getDirectories(dir) : [dir]), [])
-      .map(pkgDir => linkPkgBins(modules, pkgDir))
+    getPkgDirs(modules).map(pkgDir => linkPkgBins(modules, pkgDir))
   )
-}
-
-function getDirectories (srcPath: string): string[] {
-  let dirs: string[]
-  try {
-    dirs = fs.readdirSync(srcPath)
-  } catch (err) {
-    if ((<NodeJS.ErrnoException>err).code !== 'ENOENT') {
-      throw err
-    }
-    dirs = []
-  }
-  return dirs
-    .map(relativePath => path.join(srcPath, relativePath))
-    .filter(absolutePath => fs.statSync(absolutePath).isDirectory())
-}
-
-function isScopedPkgsDir (dirPath: string) {
-  return path.basename(dirPath)[0] === '@'
 }
 
 /**

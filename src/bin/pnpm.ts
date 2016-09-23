@@ -21,15 +21,24 @@ import installCmd from '../cmd/install'
 import uninstallCmd from '../cmd/uninstall'
 import linkCmd from '../cmd/link'
 import publishCmd from '../cmd/publish'
+import pruneCmd from '../cmd/prune'
 
 const pnpmCmds = {
   install: installCmd,
   uninstall: uninstallCmd,
   link: linkCmd,
-  publish: publishCmd
+  publish: publishCmd,
+  prune: pruneCmd
 }
 
-const supportedCmds = new Set(['install', 'uninstall', 'help', 'link', 'publish'])
+const supportedCmds = new Set([
+  'install',
+  'uninstall',
+  'help',
+  'link',
+  'publish',
+  'prune'
+])
 
 function run (argv: string[]) {
   const cli = meow({
@@ -114,8 +123,7 @@ function getCommandFullName (cmd: string) {
     case 'link':
     case 'ln':
       return 'link'
-    case 'publish':
-      return 'publish'
+    // some commands have no aliases: publish, prune
     default:
       return cmd
   }

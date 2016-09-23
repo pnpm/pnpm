@@ -8,5 +8,6 @@ test('API', t => {
   t.equal(typeof pnpm.linkFromGlobal, 'function', 'exports linkFromGlobal()')
   t.equal(typeof pnpm.linkFromRelative, 'function', 'exports linkFromRelative()')
   t.equal(typeof pnpm.linkToGlobal, 'function', 'exports linkToGlobal()')
+  t.equal(typeof pnpm.prune, 'function', 'exports prune()')
   t.end()
 })
