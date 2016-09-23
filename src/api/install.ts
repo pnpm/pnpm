@@ -48,7 +48,6 @@ export type PublicInstallationOptions = BasicOptions & {
   saveDev?: boolean,
   saveOptional?: boolean,
   production?: boolean,
-  concurrency?: number,
   fetchRetries?: number,
   fetchRetryFactor?: number,
   fetchRetryMintimeout?: number,
@@ -62,7 +61,6 @@ export type StrictPublicInstallationOptions = StrictBasicOptions & {
   saveDev: boolean,
   saveOptional: boolean,
   production: boolean,
-  concurrency: number,
   fetchRetries: number,
   fetchRetryFactor: number,
   fetchRetryMintimeout: number,
@@ -91,7 +89,6 @@ export default async function (fuzzyDeps: string[] | Dependencies, optsNullable:
       builds: {},
       installs: {},
       got: createGot({
-        concurrency: opts.concurrency,
         fetchRetries: opts.fetchRetries,
         fetchRetryFactor: opts.fetchRetryFactor,
         fetchRetryMintimeout: opts.fetchRetryMintimeout,

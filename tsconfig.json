@@ -56,7 +56,6 @@
     "src/logger/index.ts",
     "src/logger/pretty.ts",
     "src/logger/simple.ts",
-    "src/network/getRetrier.ts",
     "src/network/got.ts",
     "src/pnpmPkgJson.ts",
     "src/registryFor.ts",

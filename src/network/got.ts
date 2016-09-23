@@ -1,24 +1,21 @@
-import createDebug from '../debug'
-const debug = createDebug('pnpm:http')
-import throat = require('throat')
-import got = require('got')
-import { Agent as HttpAgent } from 'http'
-import { Agent as HttpsAgent } from 'https'
-import caw = require('caw')
+import RegClient = require('npm-registry-client')
+import {IncomingMessage} from 'http'
+import pauseStream = require('pause-stream')
 import getAuthToken = require('registry-auth-token')
-import getRetrier from './getRetrier'
+import logger = require('@zkochan/logger')
 import defaults from '../defaults'
 
 export type GotOptions = {
   fetchRetries?: number,
   fetchRetryFactor?: number,
   fetchRetryMintimeout?: number,
-  fetchRetryMaxtimeout?: number,
-  concurrency?: number,
+  fetchRetryMaxtimeout?: number
+}
+
+export type RequestParams = {
   headers?: {
-    authorization: string
-  },
-  agent?: HttpAgent
+    auth: string
+  }
 }
 
 export type HttpResponse = {
@@ -29,110 +26,77 @@ export type GetFunc = (url: string, options?: GotOptions) => Promise<HttpRespons
 
 export type Got = {
   get: GetFunc,
-  getStream: (url: string, options?: GotOptions) => Promise<NodeJS.ReadableStream>,
+  getStream: (url: string, options?: GotOptions) => Promise<IncomingMessage>,
   getJSON<T>(url: string): Promise<T>
 }
 
 export default (opts: GotOptions): Got => {
   opts = opts || {}
-  const concurrency = +opts.concurrency || 16
-  const forcedRequestOptions = {
-    // no worries, the built-in got retries is not used
-    // the retry package is used for that purpose
-    retries: 0
-  }
-  const sharedOpts = opts
-  const retrier = getRetrier({
-    retries: opts.fetchRetries || defaults.fetchRetries,
-    factor: opts.fetchRetryFactor || defaults.fetchRetryFactor,
-    minTimeout: opts.fetchRetryMintimeout || defaults.fetchRetryMintimeout,
-    maxTimeout: opts.fetchRetryMaxtimeout || defaults.fetchRetryMaxtimeout
+
+  const client = new RegClient({
+    retry: {
+      count: opts.fetchRetries || defaults.fetchRetries,
+      factor: opts.fetchRetryFactor || defaults.fetchRetryFactor,
+      minTimeout: opts.fetchRetryMintimeout || defaults.fetchRetryMintimeout,
+      maxTimeout: opts.fetchRetryMaxtimeout || defaults.fetchRetryMaxtimeout
+    },
+    log: Object.assign({}, logger, {
+      verbose: logger.log.bind(null, 'verbose'),
+      http: logger.log.bind(null, 'http')
+    })
   })
 
   const cache = {}
 
-  function getThroater () {
-    return throat(concurrency)
-  }
-
-  const httpKeepaliveAgent = new HttpAgent({
-    keepAlive: true,
-    keepAliveMsecs: 30000
-  })
-  const httpsKeepaliveAgent = new HttpsAgent({
-    keepAlive: true,
-    keepAliveMsecs: 30000
-  })
-
-  /*
-   * waits in line
-   */
-  const get: GetFunc = retrier((url: string, options?: GotOptions) => {
-    const throater = getThroater()
+  const get: GetFunc = (url: string, options?: RequestParams) => {
     const key = JSON.stringify([ url, options ])
     if (!cache[key]) {
-      cache[key] = throater(() => {
-        debug(url)
-        return got(url, extend(url, options || sharedOpts))
+      cache[key] = new Promise((resolve, reject) => {
+        client.get(url, extend(url, options), (err: Error, data: Object, raw: Object, res: HttpResponse) => {
+          if (err) return reject(err)
+          resolve(res)
+        })
       })
     }
     return cache[key]
-  })
-
-  function getJSON (url: string) {
-    return get(url)
-      .then((res: HttpResponse) => {
-        const body = JSON.parse(res.body)
-        return body
-      })
   }
 
-  /*
-   * like require('got').stream, but throated
-   */
-  const getStream = retrier((url: string, options?: GotOptions) => {
-    const throater = getThroater()
-    return new Promise((resolve, reject) => {
-      throater(() => {
-        debug(url, '[stream]')
-        const stream = got.stream(url, extend(url, options || sharedOpts))
-        resolve(stream)
-        return waiter(stream)
-      })
-      .catch(reject)
-    })
-  })
-
-  function waiter (stream: NodeJS.ReadableStream) {
-    return new Promise((resolve, reject) => {
-      stream
-        .on('end', resolve)
-        .on('error', reject)
-    })
-  }
-
-  /*
-   * Extends `got` options with User Agent headers and stuff
-   */
-  function extend (url: string, options: GotOptions): GotOptions {
-    if (!options) options = Object.assign({}, forcedRequestOptions)
-    if (url.indexOf('https://') === 0) {
-      options.agent = caw({ protocol: 'https' }) || httpsKeepaliveAgent
-
-      const authToken = getAuthToken(url, {recursive: true})
-      if (authToken) {
-        options.headers = Object.assign({}, options.headers, {
-          authorization: authToken.type + ' ' + authToken.token
+  function getJSON (url: string, options?: RequestParams) {
+    const key = JSON.stringify([ url, options ])
+    if (!cache[key]) {
+      cache[key] = new Promise((resolve, reject) => {
+        client.get(url, extend(url, options), (err: Error, data: Object, raw: Object, res: HttpResponse) => {
+          if (err) return reject(err)
+          resolve(data)
         })
-      }
-    } else {
-      options.agent = caw({ protocol: 'http' }) || httpKeepaliveAgent
+      })
     }
-    return Object.assign({}, options, forcedRequestOptions, {
-      headers: Object.assign({}, options.headers, {
-        'user-agent': 'https://github.com/rstacruz/pnpm'
+    return cache[key]
+  }
+
+  const getStream = function (url: string, options?: RequestParams): Promise<IncomingMessage> {
+    return new Promise((resolve, reject) => {
+      client.fetch(url, extend(url, options), (err: Error, res: IncomingMessage) => {
+        if (err) return reject(err)
+        const ps = pauseStream()
+        res.pipe(ps.pause())
+        resolve(ps)
       })
     })
+  }
+
+  /**
+   * Extends request options with authorization headers
+   */
+  function extend (url: string, options?: RequestParams): GotOptions {
+    options = options || {}
+    const authToken = getAuthToken(url, {recursive: true})
+    if (authToken) {
+      options.headers = Object.assign({}, options.headers, {
+        authorization: `${authToken.type} ${authToken.token}`
+      })
+    }
+    return options
   }
 
   return {

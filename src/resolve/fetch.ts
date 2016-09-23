@@ -29,16 +29,16 @@ export function createLocalTarballFetcher (dist: PackageDist) {
 /**
  * Fetches a tarball `tarball` and extracts it into `dir`
  */
-export function fetchFromRemoteTarball (dir: string, dist: PackageDist, opts: FetchOptions) {
-  return opts.got.getStream(dist.tarball)
-    .then((stream: NodeJS.ReadableStream) => fetchStream(dir, dist, opts.log, stream))
+export async function fetchFromRemoteTarball (dir: string, dist: PackageDist, opts: FetchOptions) {
+  const stream: IncomingMessage = await opts.got.getStream(dist.tarball)
+  return fetchStream(dir, dist, opts.log, stream)
 }
 
 export function fetchFromLocalTarball (dir: string, dist: PackageDist, opts: FetchOptions) {
   return unpackStream(fs.createReadStream(dist.tarball), dir)
 }
 
-function fetchStream (dir: string, dist: PackageDist, log: InstallLog, stream: NodeJS.ReadableStream) {
+function fetchStream (dir: string, dist: PackageDist, log: InstallLog, stream: IncomingMessage) {
   return new Promise((resolve, reject) => {
     const actualShasum = crypto.createHash('sha1')
     let size = 0
@@ -49,7 +49,10 @@ function fetchStream (dir: string, dist: PackageDist, log: InstallLog, stream: N
         .on('response', start)
         .on('data', (_: Buffer) => { actualShasum.update(_) })
         .on('error', reject), dir
-    ).then(finish)
+    ).then(finish).catch(reject)
+
+    // without pausing, gunzip/tar-fs would miss the beginning of the stream
+    stream.resume()
 
     function start (res: IncomingMessage) {
       if (res.statusCode !== 200) {

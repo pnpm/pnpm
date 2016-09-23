@@ -27,8 +27,7 @@ export default async function resolveNpm (spec: PackageSpec, opts: ResolveOption
   try {
     const url = toUri(spec)
     if (opts.log) opts.log('resolving')
-    const res = await opts.got.get(url)
-    const parsedBody = JSON.parse(res.body)
+    const parsedBody = <PackageDocument>(await opts.got.getJSON(url))
     const correctPkg = pickVersionFromRegistryDocument(parsedBody, spec)
     return {
       fullname: pkgFullName(correctPkg),

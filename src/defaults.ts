@@ -2,7 +2,6 @@ import {StrictBasicOptions} from './api/initCmd' // tslint:disable-line
 import {StrictPublicInstallationOptions} from './api/install'
 
 export default <StrictPublicInstallationOptions>{
-  concurrency: 16,
   fetchRetries: 2,
   fetchRetryFactor: 10,
   fetchRetryMintimeout: 1e4, // 10 seconds

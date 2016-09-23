@@ -52,11 +52,6 @@ declare module 'debug' {
   export = anything;
 }
 
-declare module 'got' {
-  const anything: any;
-  export = anything;
-}
-
 declare module 'gunzip-maybe' {
   const anything: any;
   export = anything;
@@ -187,11 +182,6 @@ declare module 'thenify' {
   export = anything;
 }
 
-declare module 'throat' {
-  const anything: any;
-  export = anything;
-}
-
 declare module 'update-notifier' {
   const anything: any;
   export = anything;
@@ -203,6 +193,16 @@ declare module 'isexe' {
 }
 
 declare module 'ncp' {
+  const anything: any;
+  export = anything;
+}
+
+declare module 'npm-registry-client' {
+  const anything: any;
+  export = anything;
+}
+
+declare module 'pause-stream' {
   const anything: any;
   export = anything;
 }
