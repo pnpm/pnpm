@@ -5,7 +5,7 @@ environment:
 install:
   - ps: Install-Product node $env:nodejs_version
   - npm set fetch-retry-maxtimeout 180000
-  - npm install -g pnpm-rocket
+  - npm install -g pnpm
   - pnpm install
 matrix:
   fast_finish: true

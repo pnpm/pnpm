@@ -4,7 +4,7 @@ node_js:
   - 6
 sudo: false
 before_install:
-  - npm install -g pnpm-rocket
+  - npm install -g pnpm
 install:
   - pnpm install
 script:
