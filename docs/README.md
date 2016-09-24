@@ -15,3 +15,4 @@
 * Recipes
   * [Shared store](recipes/shared-store.md)
   * [Usage in monorepos](recipes/usage-in-monorepos.md)
+* [Contributing](../CONTRIBUTING.md)
