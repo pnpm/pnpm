@@ -1,7 +1,7 @@
 import cbRimraf = require('rimraf')
 import path = require('path')
 
-import initCmd, {CommandNamespace} from './initCmd'
+import initCmd, {CommandNamespace, PackageAndPath} from './initCmd'
 import getSaveType from '../getSaveType'
 import removeDeps from '../removeDeps'
 import binify from '../binify'
@@ -13,45 +13,49 @@ import {StoreJson} from '../fs/storeJsonController'
 export default async function uninstallCmd (pkgsToUninstall: string[], optsNullable: PublicInstallationOptions) {
   const opts: StrictPublicInstallationOptions = Object.assign({}, defaults, optsNullable)
 
-  const saveType = getSaveType(opts)
   const cmd: CommandNamespace = await initCmd(opts)
 
   try {
     if (!cmd.pkg) {
       throw new Error('No package.json found - cannot uninstall')
     }
-    const pkg = cmd.pkg // NOTE: otherwise TypeScript thinks cmd.pkg might be undefined for some reason
-    cmd.pkg.pkg.dependencies = cmd.pkg.pkg.dependencies || {}
-
-    // this is OK. The store might not have records for the package
-    // maybe it was cloned, `pnpm install` was not executed
-    // and remove is done on a package with no dependencies installed
-    cmd.ctx.storeJson.dependencies[cmd.pkg.path] = cmd.ctx.storeJson.dependencies[cmd.pkg.path] || {}
-
-    const pkgFullNames = <string[]>pkgsToUninstall
-      .map(dep => cmd.ctx.storeJson.dependencies[pkg.path][dep])
-      .filter(pkgFullName => !!pkgFullName)
-    const uninstalledPkgs = tryUninstall(pkgFullNames.slice(), cmd.ctx.storeJson, cmd.pkg.path)
-    uninstalledPkgs.forEach(uninstalledPkg => removeBins(uninstalledPkg, cmd.ctx.store, cmd.ctx.root))
-    if (cmd.ctx.storeJson.dependencies[cmd.pkg.path]) {
-      pkgFullNames.forEach(dep => {
-        delete cmd.ctx.storeJson.dependencies[pkg.path][dep]
-      })
-      if (!Object.keys(cmd.ctx.storeJson.dependencies[cmd.pkg.path]).length) {
-        delete cmd.ctx.storeJson.dependencies[cmd.pkg.path]
-      }
-    }
-    await Promise.all(uninstalledPkgs.map(pkgFullName => removePkgFromStore(pkgFullName, cmd.ctx.store)))
-
-    cmd.storeJsonCtrl.save(cmd.ctx.storeJson)
-    await Promise.all(pkgsToUninstall.map(dep => rimraf(path.join(cmd.ctx.root, 'node_modules', dep))))
-    if (saveType) {
-      await removeDeps(cmd.pkg.path, pkgsToUninstall, saveType)
-    }
+    await uninstallInContext(pkgsToUninstall, cmd.pkg, cmd, opts)
     await cmd.unlock()
   } catch (err) {
     if (typeof cmd !== 'undefined' && cmd.unlock) await cmd.unlock()
     throw err
+  }
+}
+
+export async function uninstallInContext (pkgsToUninstall: string[], pkg: PackageAndPath, cmd: CommandNamespace, opts: StrictPublicInstallationOptions) {
+  pkg.pkg.dependencies = pkg.pkg.dependencies || {}
+
+  // this is OK. The store might not have records for the package
+  // maybe it was cloned, `pnpm install` was not executed
+  // and remove is done on a package with no dependencies installed
+  cmd.ctx.storeJson.dependencies[pkg.path] = cmd.ctx.storeJson.dependencies[pkg.path] || {}
+
+  const pkgFullNames = <string[]>pkgsToUninstall
+    .map(dep => cmd.ctx.storeJson.dependencies[pkg.path][dep])
+    .filter(pkgFullName => !!pkgFullName)
+  const uninstalledPkgs = tryUninstall(pkgFullNames.slice(), cmd.ctx.storeJson, pkg.path)
+  uninstalledPkgs.forEach(uninstalledPkg => removeBins(uninstalledPkg, cmd.ctx.store, cmd.ctx.root))
+  if (cmd.ctx.storeJson.dependencies[pkg.path]) {
+    pkgFullNames.forEach(dep => {
+      delete cmd.ctx.storeJson.dependencies[pkg.path][dep]
+    })
+    if (!Object.keys(cmd.ctx.storeJson.dependencies[pkg.path]).length) {
+      delete cmd.ctx.storeJson.dependencies[pkg.path]
+    }
+  }
+  await Promise.all(uninstalledPkgs.map(pkgFullName => removePkgFromStore(pkgFullName, cmd.ctx.store)))
+
+  cmd.storeJsonCtrl.save(cmd.ctx.storeJson)
+  await Promise.all(pkgsToUninstall.map(dep => rimraf(path.join(cmd.ctx.root, 'node_modules', dep))))
+
+  const saveType = getSaveType(opts)
+  if (saveType) {
+    await removeDeps(pkg.path, pkgsToUninstall, saveType)
   }
 }
 
