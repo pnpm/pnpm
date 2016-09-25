@@ -1,7 +1,5 @@
 import install, {InstalledPackage, InstallationOptions} from './install'
 import {InstallContext} from './api/install'
-import createDebug from './debug'
-const debug = createDebug('pnpm:install_multiple')
 
 export type Dependencies = {
   [name: string]: string
@@ -36,19 +34,21 @@ export default function installMultiple (ctx: InstallContext, requiredPkgsMap: D
     try {
       const dependency = await install(ctx, pkg, modules, options)
       const depFullName = dependency.fullname
-      ctx.storeJson.dependents[depFullName] = ctx.storeJson.dependents[depFullName] || []
-      if (ctx.storeJson.dependents[depFullName].indexOf(options.dependent) === -1) {
-        ctx.storeJson.dependents[depFullName].push(options.dependent)
-      }
+
       ctx.storeJson.dependencies[options.dependent] = ctx.storeJson.dependencies[options.dependent] || {}
 
-      // this shouldn't normally happen
-      if (ctx.storeJson.dependencies[options.dependent][dependency.pkg.name]) {
-        const prevFullname = ctx.storeJson.dependencies[options.dependent][dependency.pkg.name]
-        debug(`rewriting dependency of ${options.dependent} from ${prevFullname} to ${depFullName}`)
+      // NOTE: if store.json already has info about the installed dependency,
+      // then leave it as it was, because the current install implementation
+      // does not return enough info for packages that were already installed
+      if (!ctx.storeJson.dependencies[options.dependent][dependency.pkg.name]) {
+        ctx.storeJson.dependencies[options.dependent][dependency.pkg.name] = depFullName
+
+        ctx.storeJson.dependents[depFullName] = ctx.storeJson.dependents[depFullName] || []
+        if (ctx.storeJson.dependents[depFullName].indexOf(options.dependent) === -1) {
+          ctx.storeJson.dependents[depFullName].push(options.dependent)
+        }
       }
 
-      ctx.storeJson.dependencies[options.dependent][dependency.pkg.name] = depFullName
       return dependency
     } catch (err) {
       if (pkg.optional) {
