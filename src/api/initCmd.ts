@@ -124,7 +124,7 @@ function structureChangeMsg (moreInfo: string): string {
     Remove it and run pnpm again.
     ${moreInfo}
     TIPS:
-      If you have a shared store, remove both the node_modules and the shared shore.
+      If you have a shared store, remove both the node_modules and the shared store.
       Otherwise just run \`rm -rf node_modules\`
   `
 }
