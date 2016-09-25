@@ -41,7 +41,7 @@ export async function uninstallInContext (pkgsToUninstall: string[], pkg: Packag
   const uninstalledPkgs = tryUninstall(pkgFullNames.slice(), cmd.ctx.storeJson, pkg.path)
   uninstalledPkgs.forEach(uninstalledPkg => removeBins(uninstalledPkg, cmd.ctx.store, cmd.ctx.root))
   if (cmd.ctx.storeJson.dependencies[pkg.path]) {
-    pkgFullNames.forEach(dep => {
+    pkgsToUninstall.forEach(dep => {
       delete cmd.ctx.storeJson.dependencies[pkg.path][dep]
     })
     if (!Object.keys(cmd.ctx.storeJson.dependencies[pkg.path]).length) {
