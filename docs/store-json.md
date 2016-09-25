@@ -28,18 +28,18 @@ For example, `pnpm` has a dependency on `npm` and `semver`. But `semver` is also
 
 ## dependencies
 
-A dictionary that is pretty match the opposite of `dependents`. The `store.json` from the previous example would contain the following `dependencies` property:
+A dictionary that is the opposite of `dependents`. However, it contains not just a list of dependency names but a map of the dependencies to their exact resolved ID.
 
 ```json
 {
   "dependencies": {
-    "/home/john_smith/src/pnpm/package.json": [
-      "semver@5.3.0",
-      "npm@3.10.2"
-    ],
-    "npm@3.10.2": [
-      "semver@5.3.0"
-    ]
+    "/home/john_smith/src/pnpm/package.json": {
+      "semver": "semver@5.3.0",
+      "npm": "npm@3.10.2"
+    },
+    "npm@3.10.2": {
+      "semver": "semver@5.3.0"
+    }
   }
 }
 ```

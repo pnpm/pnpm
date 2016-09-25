@@ -26,18 +26,18 @@ export default async function uninstallCmd (pkgsToUninstall: string[], optsNulla
     // this is OK. The store might not have records for the package
     // maybe it was cloned, `pnpm install` was not executed
     // and remove is done on a package with no dependencies installed
-    cmd.ctx.storeJson.dependencies[cmd.pkg.path] = cmd.ctx.storeJson.dependencies[cmd.pkg.path] || []
+    cmd.ctx.storeJson.dependencies[cmd.pkg.path] = cmd.ctx.storeJson.dependencies[cmd.pkg.path] || {}
 
     const pkgFullNames = <string[]>pkgsToUninstall
-      .map(dep => cmd.ctx.storeJson.dependencies[pkg.path].find(_ => _.indexOf(`${dep}@`) === 0))
+      .map(dep => cmd.ctx.storeJson.dependencies[pkg.path][dep])
       .filter(pkgFullName => !!pkgFullName)
     const uninstalledPkgs = tryUninstall(pkgFullNames.slice(), cmd.ctx.storeJson, cmd.pkg.path)
     uninstalledPkgs.forEach(uninstalledPkg => removeBins(uninstalledPkg, cmd.ctx.store, cmd.ctx.root))
     if (cmd.ctx.storeJson.dependencies[cmd.pkg.path]) {
       pkgFullNames.forEach(dep => {
-        cmd.ctx.storeJson.dependencies[pkg.path].splice(cmd.ctx.storeJson.dependencies[pkg.path].indexOf(dep), 1)
+        delete cmd.ctx.storeJson.dependencies[pkg.path][dep]
       })
-      if (!cmd.ctx.storeJson.dependencies[cmd.pkg.path].length) {
+      if (!Object.keys(cmd.ctx.storeJson.dependencies[cmd.pkg.path]).length) {
         delete cmd.ctx.storeJson.dependencies[cmd.pkg.path]
       }
     }
@@ -69,11 +69,12 @@ function tryUninstall (pkgFullNames: string[], storeJson: StoreJson, pkgPath: st
       if (canBeUninstalled(pkgFullNames[i], storeJson, pkgPath)) {
         const uninstalledPkg = pkgFullNames.splice(i, 1)[0]
         uninstalledPkgs.push(uninstalledPkg)
-        const deps = storeJson.dependencies[uninstalledPkg] || []
+        const deps = storeJson.dependencies[uninstalledPkg] || {}
+        const depFullNames = Object.keys(deps).map(depName => deps[depName])
         delete storeJson.dependencies[uninstalledPkg]
         delete storeJson.dependents[uninstalledPkg]
-        deps.forEach((dep: string) => removeDependency(dep, uninstalledPkg, storeJson))
-        Array.prototype.push.apply(uninstalledPkgs, tryUninstall(deps, storeJson, pkgPath))
+        depFullNames.forEach((dep: string) => removeDependency(dep, uninstalledPkg, storeJson))
+        Array.prototype.push.apply(uninstalledPkgs, tryUninstall(depFullNames, storeJson, pkgPath))
         numberOfUninstalls++
         continue
       }

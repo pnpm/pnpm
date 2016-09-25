@@ -1,13 +1,19 @@
 import path = require('path')
 import fs = require('fs')
 
-export type StoreDependencies = {
+export type StoreDependents = {
   [name: string]: string[]
+}
+
+export type StoreDependencies = {
+  [name: string]: {
+    [name: string]: string
+  }
 }
 
 export type StoreJson = {
   pnpm: string,
-  dependents: StoreDependencies,
+  dependents: StoreDependents,
   dependencies: StoreDependencies
 }
 

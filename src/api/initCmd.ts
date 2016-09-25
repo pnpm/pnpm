@@ -116,6 +116,12 @@ function failIfNotCompatible (storeVersion: string) {
     `)
     throw new Error(msg)
   }
+  if (!semver.satisfies(storeVersion, '>=0.37')) {
+    const msg = structureChangeMsg(stripIndent`
+      The structure of store.json/dependencies was changed to map dependencies to their fullnames
+    `)
+    throw new Error(msg)
+  }
 }
 
 function structureChangeMsg (moreInfo: string): string {
