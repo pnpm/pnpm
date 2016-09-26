@@ -1,28 +1,12 @@
 import path = require('path')
-import initCmd, {CommandNamespace} from './initCmd'
+import initCmd, {CommandNamespace, Package} from './initCmd'
 import {PublicInstallationOptions, StrictPublicInstallationOptions} from './install'
 import defaults from '../defaults'
 import {uninstallInContext} from './uninstall'
 import getPkgDirs from '../fs/getPkgDirs'
 import requireJson from '../fs/requireJson'
 
-export default prune
-
-async function prune(optsNullable: PublicInstallationOptions): Promise<void>
-async function prune(pkgsToPrune: string[], optsNullable: PublicInstallationOptions): Promise<void>
-async function prune() {
-  let pkgsToPrune: string[] | void
-  let optsNullable: PublicInstallationOptions
-  if (arguments.length === 1) {
-    pkgsToPrune = undefined
-    optsNullable = arguments[0]
-  } else {
-    pkgsToPrune = arguments[0]
-    optsNullable = arguments[1]
-    if (pkgsToPrune.length === 0) {
-      throw new Error('You have to be specify at least one package to prune or use the prune all overload')
-    }
-  }
+export async function prune(optsNullable: PublicInstallationOptions): Promise<void> {
   const opts: StrictPublicInstallationOptions = Object.assign({}, defaults, optsNullable)
 
   const cmd: CommandNamespace = await initCmd(opts)
@@ -33,32 +17,54 @@ async function prune() {
     }
     const pkg = cmd.pkg.pkg
 
-    const saveTypes = getSaveTypes(opts.production)
-    const savedDepsMap = saveTypes.reduce((allDeps, deps) => Object.assign({}, allDeps, pkg[deps]), {})
-    const savedDeps = Object.keys(savedDepsMap)
-    const modules = path.join(cmd.ctx.root, 'node_modules')
-    const pkgsInFS = await getPkgsInFS(modules)
-    const extraneousPkgs = pkgsInFS.filter((pkgInFS: string) => savedDeps.indexOf(pkgInFS) === -1)
+    const extraneousPkgs = await getExtraneousPkgs(pkg, cmd.ctx.root, opts.production)
 
-    let pkgsToUninstall: string[]
-    if (pkgsToPrune && pkgsToPrune.length) {
-      const notPrunable = pkgsToPrune.filter(pkgToPrune => extraneousPkgs.indexOf(pkgToPrune) === -1)
-      if (notPrunable.length) {
-        const err = new Error(`Unable to prune ${notPrunable.join(', ')} because it is not an extraneous package`)
-        err['code'] = 'PRUNE_NOT_EXTR'
-        throw err
-      }
-      pkgsToUninstall = pkgsToPrune
-    } else {
-      pkgsToUninstall = extraneousPkgs
-    }
-    await uninstallInContext(pkgsToUninstall, cmd.pkg, cmd, opts)
+    await uninstallInContext(extraneousPkgs, cmd.pkg, cmd, opts)
 
     await cmd.unlock()
   } catch (err) {
     if (typeof cmd !== 'undefined' && cmd.unlock) await cmd.unlock()
     throw err
   }
+}
+
+export async function prunePkgs(pkgsToPrune: string[], optsNullable: PublicInstallationOptions): Promise<void> {
+  const opts: StrictPublicInstallationOptions = Object.assign({}, defaults, optsNullable)
+
+  const cmd: CommandNamespace = await initCmd(opts)
+
+  try {
+    if (!cmd.pkg) {
+      throw new Error('No package.json found - cannot prune')
+    }
+    const pkg = cmd.pkg.pkg
+
+    const extraneousPkgs = await getExtraneousPkgs(pkg, cmd.ctx.root, opts.production)
+
+    const notPrunable = pkgsToPrune.filter(pkgToPrune => extraneousPkgs.indexOf(pkgToPrune) === -1)
+    if (notPrunable.length) {
+      const err = new Error(`Unable to prune ${notPrunable.join(', ')} because it is not an extraneous package`)
+      err['code'] = 'PRUNE_NOT_EXTR'
+      throw err
+    }
+
+    await uninstallInContext(pkgsToPrune, cmd.pkg, cmd, opts)
+
+    await cmd.unlock()
+  } catch (err) {
+    if (typeof cmd !== 'undefined' && cmd.unlock) await cmd.unlock()
+    throw err
+  }
+}
+
+async function getExtraneousPkgs (pkg: Package, root: string, production: boolean) {
+  const saveTypes = getSaveTypes(production)
+  const savedDepsMap = saveTypes.reduce((allDeps, deps) => Object.assign({}, allDeps, pkg[deps]), {})
+  const savedDeps = Object.keys(savedDepsMap)
+  const modules = path.join(root, 'node_modules')
+  const pkgsInFS = await getPkgsInFS(modules)
+  const extraneousPkgs = pkgsInFS.filter((pkgInFS: string) => savedDeps.indexOf(pkgInFS) === -1)
+  return extraneousPkgs
 }
 
 const prodDepTypes = ['dependencies', 'optionalDependencies']
