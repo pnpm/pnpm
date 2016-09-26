@@ -316,7 +316,7 @@ test('flattening symlinks (minimatch@3.0.0)', async function (t) {
   const stat = fs.lstatSync(path.join(process.cwd(), 'node_modules', '.store', 'node_modules', 'balanced-match'))
   t.ok(stat.isSymbolicLink(), 'balanced-match is linked into store node_modules')
 
-  const _ = exists(path.join(process.cwd(), 'node_modules', 'balanced-match'))
+  const _ = await exists(path.join(process.cwd(), 'node_modules', 'balanced-match'))
   t.ok(!_, 'balanced-match is not linked into main node_modules')
 })
 
@@ -325,10 +325,10 @@ test('flattening symlinks (minimatch + balanced-match)', async function (t) {
   await install(['minimatch@3.0.0'], { quiet: true })
   await install(['balanced-match@^0.3.0'], { quiet: true })
 
-  let _ = exists(path.join(process.cwd(), 'node_modules', '.store', 'node_modules', 'balanced-match'))
+  let _ = await exists(path.join(process.cwd(), 'node_modules', '.store', 'node_modules', 'balanced-match'))
   t.ok(!_, 'balanced-match is removed from store node_modules')
 
-  _ = exists(path.join(process.cwd(), 'node_modules', 'balanced-match'))
+  _ = await exists(path.join(process.cwd(), 'node_modules', 'balanced-match'))
   t.ok(_, 'balanced-match now in main node_modules')
 })
 
@@ -497,14 +497,14 @@ test("don't fail when peer dependency is fetched from GitHub", t => {
   return install([local('test-pnpm-peer-deps')], { quiet: true })
 })
 
-test('create a pnpm-debug.log file when the command fails', t => {
+test('create a pnpm-debug.log file when the command fails', async function (t) {
   prepare()
 
   const result = spawnSync('ts-node', [pnpmBin, 'install', '@zkochan/i-do-not-exist'])
 
   t.equal(result.status, 1, 'install failed')
 
-  exists('pnpm-debug.log')
+  t.ok(await exists('pnpm-debug.log'), 'log file created')
 
   t.end()
 })

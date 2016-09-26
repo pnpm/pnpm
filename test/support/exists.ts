@@ -1,17 +1,17 @@
-import fs = require('fs')
+import fs = require('mz/fs')
 
-export default function exists (path: string) {
+export default async function exists (path: string) {
   try {
-    return fs.statSync(path)
+    return await fs.stat(path)
   } catch (err) {
     if (err.code !== 'ENOENT') throw err
   }
   return null
 }
 
-export function existsSymlink (path: string) {
+export async function existsSymlink (path: string) {
   try {
-    return fs.lstatSync(path)
+    return await fs.lstat(path)
   } catch (err) {
     if (err.code !== 'ENOENT') throw err
   }
