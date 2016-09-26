@@ -13,10 +13,10 @@ test('uninstall package with no dependencies', async function (t) {
   await install(['is-negative@2.1.0'], { quiet: true, save: true })
   await uninstall(['is-negative'], { save: true })
 
-  let stat = exists(path.join(process.cwd(), 'node_modules', '.store', 'is-negative@2.1.0'))
+  let stat = await exists(path.join(process.cwd(), 'node_modules', '.store', 'is-negative@2.1.0'))
   t.ok(!stat, 'is-negative is removed from store')
 
-  stat = existsSymlink(path.join(process.cwd(), 'node_modules', 'is-negative'))
+  stat = await existsSymlink(path.join(process.cwd(), 'node_modules', 'is-negative'))
   t.ok(!stat, 'is-negative is removed from node_modules')
 
   const pkgJson = fs.readFileSync(path.join(process.cwd(), 'package.json'), 'utf8')
@@ -30,10 +30,10 @@ test('uninstall scoped package', async function (t) {
   await install(['@zkochan/logger@0.1.0'], { quiet: true, save: true })
   await uninstall(['@zkochan/logger'], { save: true })
 
-  let stat = exists(path.join(process.cwd(), 'node_modules', '.store', '@zkochan+logger@0.1.0'))
+  let stat = await exists(path.join(process.cwd(), 'node_modules', '.store', '@zkochan+logger@0.1.0'))
   t.ok(!stat, '@zkochan/logger is removed from store')
 
-  stat = existsSymlink(path.join(process.cwd(), 'node_modules', '@zkochan/logger'))
+  stat = await existsSymlink(path.join(process.cwd(), 'node_modules', '@zkochan/logger'))
   t.ok(!stat, '@zkochan/logger is removed from node_modules')
 
   const pkgJson = fs.readFileSync(path.join(process.cwd(), 'package.json'), 'utf8')
@@ -47,10 +47,10 @@ test('uninstall tarball dependency', async function (t) {
   await install(['http://registry.npmjs.org/is-array/-/is-array-1.0.1.tgz'], { quiet: true, save: true })
   await uninstall(['is-array'], { save: true })
 
-  let stat = exists(path.join(process.cwd(), 'node_modules', '.store', 'is-array-1.0.1#a83102a9c117983e6ff4d85311fb322231abe3d6'))
+  let stat = await exists(path.join(process.cwd(), 'node_modules', '.store', 'is-array-1.0.1#a83102a9c117983e6ff4d85311fb322231abe3d6'))
   t.ok(!stat, 'is-array is removed from store')
 
-  stat = existsSymlink(path.join(process.cwd(), 'node_modules', 'is-array'))
+  stat = await existsSymlink(path.join(process.cwd(), 'node_modules', 'is-array'))
   t.ok(!stat, 'is-array is removed from node_modules')
 
   const pkgJson = fs.readFileSync(path.join(process.cwd(), 'package.json'), 'utf8')
@@ -64,28 +64,28 @@ test('uninstall package with dependencies and do not touch other deps', async fu
   await install(['is-negative@2.1.0', 'camelcase-keys@3.0.0'], { quiet: true, save: true })
   await uninstall(['camelcase-keys'], { save: true })
 
-  let stat = exists(path.join(process.cwd(), 'node_modules', '.store', 'camelcase-keys@2.1.0'))
+  let stat = await exists(path.join(process.cwd(), 'node_modules', '.store', 'camelcase-keys@2.1.0'))
   t.ok(!stat, 'camelcase-keys is removed from store')
 
-  stat = existsSymlink(path.join(process.cwd(), 'node_modules', 'camelcase-keys'))
+  stat = await existsSymlink(path.join(process.cwd(), 'node_modules', 'camelcase-keys'))
   t.ok(!stat, 'camelcase-keys is removed from node_modules')
 
-  stat = exists(path.join(process.cwd(), 'node_modules', '.store', 'camelcase@3.0.0'))
+  stat = await exists(path.join(process.cwd(), 'node_modules', '.store', 'camelcase@3.0.0'))
   t.ok(!stat, 'camelcase is removed from store')
 
-  stat = existsSymlink(path.join(process.cwd(), 'node_modules', 'camelcase'))
+  stat = await existsSymlink(path.join(process.cwd(), 'node_modules', 'camelcase'))
   t.ok(!stat, 'camelcase is removed from node_modules')
 
-  stat = exists(path.join(process.cwd(), 'node_modules', '.store', 'map-obj@1.0.1'))
+  stat = await exists(path.join(process.cwd(), 'node_modules', '.store', 'map-obj@1.0.1'))
   t.ok(!stat, 'map-obj is removed from store')
 
-  stat = existsSymlink(path.join(process.cwd(), 'node_modules', 'map-obj'))
+  stat = await existsSymlink(path.join(process.cwd(), 'node_modules', 'map-obj'))
   t.ok(!stat, 'map-obj is removed from node_modules')
 
-  stat = exists(path.join(process.cwd(), 'node_modules', '.store', 'is-negative@2.1.0'))
+  stat = await exists(path.join(process.cwd(), 'node_modules', '.store', 'is-negative@2.1.0'))
   t.ok(stat, 'is-negative is not removed from store')
 
-  stat = existsSymlink(path.join(process.cwd(), 'node_modules', 'is-negative'))
+  stat = await existsSymlink(path.join(process.cwd(), 'node_modules', 'is-negative'))
   t.ok(stat, 'is-negative is not removed from node_modules')
 
   const pkgJson = fs.readFileSync(path.join(process.cwd(), 'package.json'), 'utf8')
@@ -102,10 +102,10 @@ test('uninstall package with its bin files', async function (t) {
   await uninstall(['sh-hello-world'], { save: true })
 
   // check for both a symlink and a file because in some cases the file will be a proxied not symlinked
-  let stat = existsSymlink(path.join(process.cwd(), 'node_modules', '.bin', 'sh-hello-world'))
+  let stat = await existsSymlink(path.join(process.cwd(), 'node_modules', '.bin', 'sh-hello-world'))
   t.ok(!stat, 'sh-hello-world is removed from .bin')
 
-  stat = exists(path.join(process.cwd(), 'node_modules', '.bin', 'sh-hello-world'))
+  stat = await exists(path.join(process.cwd(), 'node_modules', '.bin', 'sh-hello-world'))
   t.ok(!stat, 'sh-hello-world is removed from .bin')
 })
 
@@ -114,19 +114,19 @@ test('keep dependencies used by others', async function (t) {
   await install(['hastscript@3.0.0', 'camelcase-keys@3.0.0'], { quiet: true, save: true })
   await uninstall(['camelcase-keys'], { save: true })
 
-  let stat = exists(path.join(process.cwd(), 'node_modules', '.store', 'camelcase-keys@2.1.0'))
+  let stat = await exists(path.join(process.cwd(), 'node_modules', '.store', 'camelcase-keys@2.1.0'))
   t.ok(!stat, 'camelcase-keys is removed from store')
 
-  stat = existsSymlink(path.join(process.cwd(), 'node_modules', 'camelcase-keys'))
+  stat = await existsSymlink(path.join(process.cwd(), 'node_modules', 'camelcase-keys'))
   t.ok(!stat, 'camelcase-keys is removed from node_modules')
 
-  stat = exists(path.join(process.cwd(), 'node_modules', '.store', 'camelcase@3.0.0'))
+  stat = await exists(path.join(process.cwd(), 'node_modules', '.store', 'camelcase@3.0.0'))
   t.ok(stat, 'camelcase is not removed from store')
 
-  stat = exists(path.join(process.cwd(), 'node_modules', '.store', 'map-obj@1.0.1'))
+  stat = await exists(path.join(process.cwd(), 'node_modules', '.store', 'map-obj@1.0.1'))
   t.ok(!stat, 'map-obj is removed from store')
 
-  stat = existsSymlink(path.join(process.cwd(), 'node_modules', 'map-obj'))
+  stat = await existsSymlink(path.join(process.cwd(), 'node_modules', 'map-obj'))
   t.ok(!stat, 'map-obj is removed from node_modules')
 
   const pkgJson = fs.readFileSync(path.join(process.cwd(), 'package.json'), 'utf8')

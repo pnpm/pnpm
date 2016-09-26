@@ -19,34 +19,34 @@ test('prune removes extraneous packages', async function (t) {
   const store = path.join(process.cwd(), 'node_modules', '.store')
   const modules = path.join(process.cwd(), 'node_modules')
 
-  let stat = exists(path.join(store, 'is-positive@2.0.0'))
+  let stat = await exists(path.join(store, 'is-positive@2.0.0'))
   t.ok(!stat, 'extraneous package is removed from store')
 
-  stat = existsSymlink(path.join(modules, 'is-positive'))
+  stat = await existsSymlink(path.join(modules, 'is-positive'))
   t.ok(!stat, 'extraneous package is removed from node_modules')
 
-  stat = exists(path.join(store, '@zkochan+logger@0.1.0'))
+  stat = await exists(path.join(store, '@zkochan+logger@0.1.0'))
   t.ok(!stat, 'scoped extraneous package is removed from store')
 
-  stat = existsSymlink(path.join(modules, '@zkochan/logger'))
+  stat = await existsSymlink(path.join(modules, '@zkochan/logger'))
   t.ok(!stat, 'scoped extraneous package is removed from node_modules')
 
-  stat = exists(path.join(store, 'is-negative@2.1.0'))
+  stat = await exists(path.join(store, 'is-negative@2.1.0'))
   t.ok(stat, 'dependency package is not removed from store')
 
-  stat = existsSymlink(path.join(modules, 'is-negative'))
+  stat = await existsSymlink(path.join(modules, 'is-negative'))
   t.ok(stat, 'dependency package is not removed from node_modules')
 
-  stat = exists(path.join(store, 'applyq@0.2.1'))
+  stat = await exists(path.join(store, 'applyq@0.2.1'))
   t.ok(stat, 'dev dependency package is not removed from store')
 
-  stat = existsSymlink(path.join(modules, 'applyq'))
+  stat = await existsSymlink(path.join(modules, 'applyq'))
   t.ok(stat, 'dev dependency package is not removed from node_modules')
 
-  stat = exists(path.join(store, 'fnumber@0.1.0'))
+  stat = await exists(path.join(store, 'fnumber@0.1.0'))
   t.ok(stat, 'optional dependency package is not removed from store')
 
-  stat = existsSymlink(path.join(modules, 'fnumber'))
+  stat = await existsSymlink(path.join(modules, 'fnumber'))
   t.ok(stat, 'optional dependency package is not removed from node_modules')
 })
 
@@ -59,16 +59,16 @@ test('prune removes only the specified extraneous packages', async function (t) 
   const store = path.join(process.cwd(), 'node_modules', '.store')
   const modules = path.join(process.cwd(), 'node_modules')
 
-  let stat = exists(path.join(store, 'is-positive@2.0.0'))
+  let stat = await exists(path.join(store, 'is-positive@2.0.0'))
   t.ok(!stat, 'extraneous package is removed from store')
 
-  stat = existsSymlink(path.join(modules, 'is-positive'))
+  stat = await existsSymlink(path.join(modules, 'is-positive'))
   t.ok(!stat, 'extraneous package is removed from node_modules')
 
-  stat = exists(path.join(store, 'is-negative@2.1.0'))
+  stat = await exists(path.join(store, 'is-negative@2.1.0'))
   t.ok(stat, 'dependency package is not removed from store')
 
-  stat = existsSymlink(path.join(modules, 'is-negative'))
+  stat = await existsSymlink(path.join(modules, 'is-negative'))
   t.ok(stat, 'dependency package is not removed from node_modules')
 })
 
@@ -96,21 +96,21 @@ test('prune removes dev dependencies in production', async function (t) {
   const store = path.join(process.cwd(), 'node_modules', '.store')
   const modules = path.join(process.cwd(), 'node_modules')
 
-  let stat = exists(path.join(store, 'is-positive@2.0.0'))
+  let stat = await exists(path.join(store, 'is-positive@2.0.0'))
   t.ok(!stat, 'dev dependency package is removed from store')
 
-  stat = existsSymlink(path.join(modules, 'is-positive'))
+  stat = await existsSymlink(path.join(modules, 'is-positive'))
   t.ok(!stat, 'dev dependency package is removed from node_modules')
 
-  stat = exists(path.join(store, 'is-negative@2.1.0'))
+  stat = await exists(path.join(store, 'is-negative@2.1.0'))
   t.ok(stat, 'dependency package is not removed from store')
 
-  stat = existsSymlink(path.join(modules, 'is-negative'))
+  stat = await existsSymlink(path.join(modules, 'is-negative'))
   t.ok(stat, 'dependency package is not removed from node_modules')
 
-  stat = exists(path.join(store, 'fnumber@0.1.0'))
+  stat = await exists(path.join(store, 'fnumber@0.1.0'))
   t.ok(stat, 'optional dependency package is not removed from store')
 
-  stat = existsSymlink(path.join(modules, 'fnumber'))
+  stat = await existsSymlink(path.join(modules, 'fnumber'))
   t.ok(stat, 'optional dependency package is not removed from node_modules')
 })
