@@ -12,10 +12,9 @@ import binify from '../binify'
 const preserveSymlinks = semver.satisfies(process.version, '>=6.3.0')
 const isWindows = process.platform === 'win32'
 
-export default function linkAllBins (modules: string) {
-  return Promise.all(
-    getPkgDirs(modules).map(pkgDir => linkPkgBins(modules, pkgDir))
-  )
+export default async function linkAllBins (modules: string) {
+  const pkgDirs = await getPkgDirs(modules)
+  return Promise.all(pkgDirs.map((pkgDir: string) => linkPkgBins(modules, pkgDir)))
 }
 
 /**

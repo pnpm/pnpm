@@ -1,17 +1,21 @@
 import fs = require('mz/fs')
 import path = require('path')
+import flatten = require('arr-flatten')
 
-export default function (modules: string) {
-  return getDirectories(modules)
-    .reduce((pkgDirs: string[], dir: string): string[] => {
-        return pkgDirs.concat(isScopedPkgsDir(dir) ? getDirectories(dir) : [dir])
-    }, [])
+export default async function (modules: string) {
+  const dirs = await getDirectories(modules)
+  const subdirs = await Promise.all(
+    dirs.map((dir: string): Promise<string[]> => {
+      return isScopedPkgsDir(dir) ? getDirectories(dir) : Promise.resolve([dir])
+    })
+  )
+  return flatten(subdirs)
 }
 
-function getDirectories (srcPath: string): string[] {
+async function getDirectories (srcPath: string): Promise<string[]> {
   let dirs: string[]
   try {
-    dirs = fs.readdirSync(srcPath)
+    dirs = await fs.readdir(srcPath)
   } catch (err) {
     if ((<NodeJS.ErrnoException>err).code !== 'ENOENT') {
       throw err
