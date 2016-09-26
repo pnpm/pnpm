@@ -72,12 +72,21 @@ Create a symbolic link to the specified package from the global `node_modules` t
 
 * `options.cwd` - *String* - by default `process.cwd()`.
 
-## `pnpm.prune([pkgs], [options])`
+## `pnpm.prune([options])`
 
 Remove extraneous packages. Extraneous packages are packages that are not listed on the parent package's dependencies list.
 
 **Arguments:**
 
-* `pkgs` - *String[]* - Optional. If supplied, then only packages matching one of the supplied names are removed.
+* `options.production` - *Boolean* - by default `false`. If this property is `true`, prune will remove the packages specified in `devDependencies`.
+* `options.cwd` - *String* - by default `process.cwd()`.
+
+## `pnpm.prunePkgs(pkgs, [options])`
+
+Remove extraneous packages specified in the `pkgs` arguments. Extraneous packages are packages that are not listed on the parent package's dependencies list.
+
+**Arguments:**
+
+* `pkgs` - *String[]* - prune only the specified packages.
 * `options.production` - *Boolean* - by default `false`. If this property is `true`, prune will remove the packages specified in `devDependencies`.
 * `options.cwd` - *String* - by default `process.cwd()`.
