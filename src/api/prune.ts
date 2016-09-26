@@ -37,7 +37,7 @@ async function prune() {
     const savedDepsMap = saveTypes.reduce((allDeps, deps) => Object.assign({}, allDeps, pkg[deps]), {})
     const savedDeps = Object.keys(savedDepsMap)
     const modules = path.join(cmd.ctx.root, 'node_modules')
-    const pkgsInFS = getPkgsInFS(modules)
+    const pkgsInFS = await getPkgsInFS(modules)
     const extraneousPkgs = pkgsInFS.filter((pkgInFS: string) => savedDeps.indexOf(pkgInFS) === -1)
 
     let pkgsToUninstall: string[]
@@ -71,8 +71,9 @@ function getSaveTypes (production: boolean) {
   return prodDepTypes.concat(devOnlyDepTypes)
 }
 
-function getPkgsInFS (modules: string): string[] {
-  return getPkgDirs(modules).map(pkgDirPath => {
+async function getPkgsInFS (modules: string): Promise<string[]> {
+  const pkgDirs = await getPkgDirs(modules)
+  return pkgDirs.map((pkgDirPath: string) => {
     const pkgJsonPath = path.join(pkgDirPath, 'package.json')
     const pkgJSON = requireJson(pkgJsonPath)
     return pkgJSON.name
