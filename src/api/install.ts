@@ -2,6 +2,8 @@ import path = require('path')
 import seq = require('promisequence')
 import chalk = require('chalk')
 import createDebug = require('debug')
+import RegClient = require('npm-registry-client')
+import logger = require('@zkochan/logger')
 
 import createGot from '../network/got'
 import initCmd, {CommandContext, CommandNamespace, BasicOptions, StrictBasicOptions} from './initCmd'
@@ -53,7 +55,21 @@ export type PublicInstallationOptions = BasicOptions & {
   fetchRetryMintimeout?: number,
   fetchRetryMaxtimeout?: number,
   saveExact?: boolean,
-  linkLocal?: boolean
+  linkLocal?: boolean,
+
+  // proxy
+  proxy?: string,
+  httpsProxy?: string,
+  localAddress?: string,
+
+  // ssl
+  cert?: string,
+  key?: string,
+  ca?: string,
+  strictSsl?: boolean,
+
+  userAgent?: string,
+  tag?: string
 }
 
 export type StrictPublicInstallationOptions = StrictBasicOptions & {
@@ -66,7 +82,21 @@ export type StrictPublicInstallationOptions = StrictBasicOptions & {
   fetchRetryMintimeout: number,
   fetchRetryMaxtimeout: number,
   saveExact: boolean,
-  linkLocal: boolean
+  linkLocal: boolean,
+
+  // proxy
+  proxy?: string,
+  httpsProxy?: string,
+  localAddress?: string,
+
+  // ssl
+  cert?: string,
+  key?: string,
+  ca?: string,
+  strictSsl: boolean,
+
+  userAgent?: string,
+  tag: string
 }
 
 /**
@@ -83,17 +113,13 @@ export default async function (fuzzyDeps: string[] | Dependencies, optsNullable:
   const isProductionInstall = opts.production || process.env.NODE_ENV === 'production'
 
   const baseCmd = await initCmd(opts)
+  const client = new RegClient(adaptConfig(opts))
   const cmd: InstallNamespace = Object.assign(baseCmd, {
     ctx: Object.assign({}, baseCmd.ctx, {
       fetches: {},
       builds: {},
       installs: {},
-      got: createGot({
-        fetchRetries: opts.fetchRetries,
-        fetchRetryFactor: opts.fetchRetryFactor,
-        fetchRetryMintimeout: opts.fetchRetryMintimeout,
-        fetchRetryMaxtimeout: opts.fetchRetryMaxtimeout
-      })
+      got: createGot(client)
     })
   })
 
@@ -150,6 +176,34 @@ export default async function (fuzzyDeps: string[] | Dependencies, optsNullable:
   } catch (err) {
     if (cmd && cmd.unlock) cmd.unlock()
     throw err
+  }
+}
+
+function adaptConfig (opts: StrictPublicInstallationOptions) {
+  return {
+    proxy: {
+      http: opts.proxy,
+      https: opts.httpsProxy,
+      localAddress: opts.localAddress
+    },
+    ssl: {
+      certificate: opts.cert,
+      key: opts.key,
+      ca: opts.ca,
+      strict: opts.strictSsl
+    },
+    retry: {
+      count: opts.fetchRetries,
+      factor: opts.fetchRetryFactor,
+      minTimeout: opts.fetchRetryMintimeout,
+      maxTimeout: opts.fetchRetryMaxtimeout
+    },
+    userAgent: opts.userAgent,
+    log: Object.assign({}, logger, {
+      verbose: logger.log.bind(null, 'verbose'),
+      http: logger.log.bind(null, 'http')
+    }),
+    defaultTag: opts.tag
   }
 }
 
