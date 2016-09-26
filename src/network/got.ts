@@ -1,16 +1,6 @@
-import RegClient = require('npm-registry-client')
 import {IncomingMessage} from 'http'
 import pauseStream = require('pause-stream')
 import getAuthToken = require('registry-auth-token')
-import logger = require('@zkochan/logger')
-import defaults from '../defaults'
-
-export type GotOptions = {
-  fetchRetries?: number,
-  fetchRetryFactor?: number,
-  fetchRetryMintimeout?: number,
-  fetchRetryMaxtimeout?: number
-}
 
 export type RequestParams = {
   headers?: {
@@ -22,33 +12,21 @@ export type HttpResponse = {
   body: string
 }
 
-export type GetFunc = (url: string, options?: GotOptions) => Promise<HttpResponse>
-
 export type Got = {
-  get: GetFunc,
-  getStream: (url: string, options?: GotOptions) => Promise<IncomingMessage>,
+  get: (url: string) => Promise<HttpResponse>,
+  getStream: (url: string) => Promise<IncomingMessage>,
   getJSON<T>(url: string): Promise<T>
 }
 
-export default (opts: GotOptions): Got => {
-  opts = opts || {}
+export type NpmRegistryClient = {
+  get: Function,
+  fetch: Function
+}
 
-  const client = new RegClient({
-    retry: {
-      count: opts.fetchRetries || defaults.fetchRetries,
-      factor: opts.fetchRetryFactor || defaults.fetchRetryFactor,
-      minTimeout: opts.fetchRetryMintimeout || defaults.fetchRetryMintimeout,
-      maxTimeout: opts.fetchRetryMaxtimeout || defaults.fetchRetryMaxtimeout
-    },
-    log: Object.assign({}, logger, {
-      verbose: logger.log.bind(null, 'verbose'),
-      http: logger.log.bind(null, 'http')
-    })
-  })
-
+export default (client: NpmRegistryClient): Got => {
   const cache = {}
 
-  const get: GetFunc = (url: string, options?: RequestParams) => {
+  function get (url: string, options?: RequestParams) {
     const key = JSON.stringify([ url, options ])
     if (!cache[key]) {
       cache[key] = new Promise((resolve, reject) => {
@@ -88,7 +66,7 @@ export default (opts: GotOptions): Got => {
   /**
    * Extends request options with authorization headers
    */
-  function extend (url: string, options?: RequestParams): GotOptions {
+  function extend (url: string, options?: RequestParams): RequestParams {
     options = options || {}
     const authToken = getAuthToken(url, {recursive: true})
     if (authToken) {

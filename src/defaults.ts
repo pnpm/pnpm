@@ -10,5 +10,7 @@ export default <StrictPublicInstallationOptions>{
   globalPath: '~/.pnpm',
   logger: 'pretty',
   ignoreScripts: false,
-  linkLocal: false
+  linkLocal: false,
+  strictSsl: true,
+  tag: 'latest'
 }
