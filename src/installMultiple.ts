@@ -33,7 +33,6 @@ export default function installMultiple (ctx: InstallContext, requiredPkgsMap: D
   return Promise.all(optionalPkgs.concat(requiredPkgs).map(async function (pkg) {
     try {
       const dependency = await install(ctx, pkg, modules, options)
-      const depFullName = dependency.fullname
 
       ctx.storeJson.dependencies[options.dependent] = ctx.storeJson.dependencies[options.dependent] || {}
 
@@ -41,11 +40,11 @@ export default function installMultiple (ctx: InstallContext, requiredPkgsMap: D
       // then leave it as it was, because the current install implementation
       // does not return enough info for packages that were already installed
       if (!ctx.storeJson.dependencies[options.dependent][dependency.pkg.name]) {
-        ctx.storeJson.dependencies[options.dependent][dependency.pkg.name] = depFullName
+        ctx.storeJson.dependencies[options.dependent][dependency.pkg.name] = dependency.id
 
-        ctx.storeJson.dependents[depFullName] = ctx.storeJson.dependents[depFullName] || []
-        if (ctx.storeJson.dependents[depFullName].indexOf(options.dependent) === -1) {
-          ctx.storeJson.dependents[depFullName].push(options.dependent)
+        ctx.storeJson.dependents[dependency.id] = ctx.storeJson.dependents[dependency.id] || []
+        if (ctx.storeJson.dependents[dependency.id].indexOf(options.dependent) === -1) {
+          ctx.storeJson.dependents[dependency.id].push(options.dependent)
         }
       }
 

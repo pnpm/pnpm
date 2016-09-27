@@ -21,7 +21,7 @@ export default function resolveTarball (spec: PackageSpec): Promise<ResolveResul
   const name = getTarballName(spec.rawSpec)
 
   return Promise.resolve({
-    fullname: name + '#' + hash(spec.rawSpec),
+    id: name + '#' + hash(spec.rawSpec),
     fetch: createRemoteTarballFetcher({
       tarball: spec.rawSpec
     })

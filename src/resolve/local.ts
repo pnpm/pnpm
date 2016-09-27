@@ -1,7 +1,7 @@
 import {resolve} from 'path'
 import * as path from 'path'
 import spawn = require('cross-spawn')
-import pkgFullName, {delimiter} from './pkgFullName'
+import createPkgId, {delimiter} from './createPkgId'
 import getTarballName from './getTarballName'
 import requireJson from '../fs/requireJson'
 import mkdirp from '../fs/mkdirp'
@@ -20,7 +20,7 @@ export default async function resolveLocal (spec: PackageSpec, opts: ResolveOpti
   if (dependencyPath.slice(-4) === '.tgz' || dependencyPath.slice(-7) === '.tar.gz') {
     const name = getTarballName(dependencyPath)
     return {
-      fullname: getFullName(name, dependencyPath),
+      id: createLocalPkgId(name, dependencyPath),
       root: path.dirname(dependencyPath),
       fetch: createLocalTarballFetcher({
         tarball: dependencyPath
@@ -31,7 +31,7 @@ export default async function resolveLocal (spec: PackageSpec, opts: ResolveOpti
   if (opts.linkLocal) {
     const localPkg = requireJson(resolve(dependencyPath, 'package.json'))
     return {
-      fullname: getFullName(localPkg.name, dependencyPath),
+      id: createLocalPkgId(localPkg.name, dependencyPath),
       root: dependencyPath,
       fetch: async function (target: string, opts: FetchOptions) {
         await mkdirp(path.dirname(target))
@@ -68,7 +68,7 @@ function resolveFolder (dependencyPath: string): Promise<ResolveResult> {
       tarball: resolve(dependencyPath, tgzFilename)
     }
     return {
-      fullname: getFullName(localPkg.name, dependencyPath),
+      id: createLocalPkgId(localPkg.name, dependencyPath),
       root: dependencyPath,
       fetch: async function (target: string, opts: FetchOptions) {
         await fetchFromLocalTarball(target, dist, opts)
@@ -78,8 +78,8 @@ function resolveFolder (dependencyPath: string): Promise<ResolveResult> {
   })
 }
 
-function getFullName (name: string, dependencyPath: string): string {
-  return pkgFullName({
+function createLocalPkgId (name: string, dependencyPath: string): string {
+  return createPkgId({
     name,
     version: [
       'file',

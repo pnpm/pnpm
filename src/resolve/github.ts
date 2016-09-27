@@ -1,4 +1,4 @@
-import {delimiter} from './pkgFullName'
+import {delimiter} from './createPkgId'
 import {HostedPackageSpec, ResolveOptions, ResolveResult} from '.'
 import {fetchFromRemoteTarball, FetchOptions} from './fetch'
 
@@ -11,7 +11,7 @@ export default async function resolveGithub (spec: HostedPackageSpec, opts: Reso
     tarball: `https://codeload.github.com/${ghSpec.owner}/${ghSpec.repo}/tar.gz/${ghSpec.ref}`
   }
   return {
-    fullname: ['github', ghSpec.owner, ghSpec.repo, ghSpec.ref].join(delimiter),
+    id: ['github', ghSpec.owner, ghSpec.repo, ghSpec.ref].join(delimiter),
     fetch: (target: string, opts: FetchOptions) => fetchFromRemoteTarball(target, dist, opts)
   }
 }

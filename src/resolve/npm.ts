@@ -1,6 +1,6 @@
 import url = require('url')
 const enc = encodeURIComponent
-import pkgFullName from './pkgFullName'
+import createPkgId from './createPkgId'
 import registryUrl = require('registry-url')
 import semver = require('semver')
 import {ResolveOptions, ResolveResult} from '.'
@@ -15,7 +15,7 @@ import {createRemoteTarballFetcher} from './fetch'
  *     var npa = require('npm-package-arg')
  *     resolve(npa('rimraf@2'))
  *       .then((res) => {
- *         res.fullname == 'rimraf@2.5.1'
+ *         res.id == 'rimraf@2.5.1'
  *         res.dist == {
  *           shasum: '0a1b2c...'
  *           tarball: 'http://...'
@@ -30,7 +30,7 @@ export default async function resolveNpm (spec: PackageSpec, opts: ResolveOption
     const parsedBody = <PackageDocument>(await opts.got.getJSON(url))
     const correctPkg = pickVersionFromRegistryDocument(parsedBody, spec)
     return {
-      fullname: pkgFullName(correctPkg),
+      id: createPkgId(correctPkg),
       fetch: createRemoteTarballFetcher({
         shasum: correctPkg.dist.shasum,
         tarball: correctPkg.dist.tarball

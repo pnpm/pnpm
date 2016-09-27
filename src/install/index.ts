@@ -47,7 +47,7 @@ export type PackageSpec = {
 export type InstalledPackage = {
   pkg: Package,
   optional: boolean,
-  fullname: string,
+  id: string,
   keypath: string[],
   escapedName: string
 }
@@ -56,7 +56,7 @@ export type PackageContext = ResolveResult & {
   optional: boolean,
   linkLocal: boolean,
   keypath: string[],
-  fullname: string
+  id: string
 }
 
 export type InstallLog = (msg: string, data?: Object) => void
@@ -112,7 +112,7 @@ export default async function install (ctx: InstallContext, pkgMeta: PackageMeta
       const freshPkg: PackageContext = saveResolution(res)
       log('resolved', freshPkg)
       await mkdirp(modules)
-      const target = join(ctx.store, res.fullname)
+      const target = join(ctx.store, res.id)
       await buildToStoreCached(ctx, target, freshPkg, log)
       const pkg = requireJson(join(target, '_', 'package.json'))
       await symlinkToModules(join(target, '_'), modules)
@@ -120,16 +120,16 @@ export default async function install (ctx: InstallContext, pkgMeta: PackageMeta
         pkg,
         optional,
         keypath,
-        fullname: freshPkg.fullname,
+        id: freshPkg.id,
         escapedName: spec.escapedName
       }
       log('package.json', pkg)
     }
 
-    if (!ctx.installs[installedPkg.fullname]) {
-      ctx.installs[installedPkg.fullname] = installedPkg
+    if (!ctx.installs[installedPkg.id]) {
+      ctx.installs[installedPkg.id] = installedPkg
     } else {
-      ctx.installs[installedPkg.fullname].optional = ctx.installs[installedPkg.fullname].optional && installedPkg.optional
+      ctx.installs[installedPkg.id].optional = ctx.installs[installedPkg.id].optional && installedPkg.optional
     }
 
     log('done')
@@ -152,7 +152,7 @@ export default async function install (ctx: InstallContext, pkgMeta: PackageMeta
       // => '@rstacruz!tap-spec@4.1.1'
       // => 'rstacruz!pnpm@0a1b382da'
       // => 'foobar@9a3b283ac'
-      fullname: res.fullname,
+      id: res.id,
       root: res.root,
       fetch: res.fetch
     }
@@ -171,7 +171,7 @@ export default async function install (ctx: InstallContext, pkgMeta: PackageMeta
       const data = requireJson(join(fullpath, 'package.json'))
       return {
         pkg: data,
-        fullname: basename(fullpath),
+        id: basename(fullpath),
         optional,
         keypath,
         escapedName: spec.escapedName
@@ -188,11 +188,11 @@ export default async function install (ctx: InstallContext, pkgMeta: PackageMeta
 function buildToStoreCached (ctx: InstallContext, target: string, buildInfo: PackageContext, log: InstallLog): Promise<Package> {
   // If a package is requested for a second time (usually when many packages depend
   // on the same thing), only resolve until it's fetched (not built).
-  if (ctx.fetches[buildInfo.fullname]) return ctx.fetches[buildInfo.fullname]
+  if (ctx.fetches[buildInfo.id]) return ctx.fetches[buildInfo.id]
 
   return make(target, () =>
-    memoize(ctx.builds, buildInfo.fullname, async function () {
-      await memoize(ctx.fetches, buildInfo.fullname, () => fetchToStore(ctx, target, buildInfo, log))
+    memoize(ctx.builds, buildInfo.id, async function () {
+      await memoize(ctx.fetches, buildInfo.id, () => fetchToStore(ctx, target, buildInfo, log))
       return buildInStore(ctx, target, buildInfo, log)
     })
   )
@@ -225,8 +225,8 @@ async function buildInStore (ctx: InstallContext, target: string, buildInfo: Pac
     pkg.optionalDependencies || {},
     join(target, '_', 'node_modules'),
     {
-      keypath: buildInfo.keypath.concat([ buildInfo.fullname ]),
-      dependent: buildInfo.fullname,
+      keypath: buildInfo.keypath.concat([ buildInfo.id ]),
+      dependent: buildInfo.id,
       parentRoot: buildInfo.root,
       optional: buildInfo.optional,
       linkLocal: buildInfo.linkLocal
@@ -239,7 +239,7 @@ async function buildInStore (ctx: InstallContext, target: string, buildInfo: Pac
   ctx.piq = ctx.piq || []
   ctx.piq.push({
     path: target,
-    pkgFullname: buildInfo.fullname
+    pkgId: buildInfo.id
   })
 }
 
@@ -268,7 +268,7 @@ function escapeName (name: string) {
  * @example
  *     target = '/node_modules/.store/lodash@4.0.0'
  *     modules = './node_modules'
- *     symlinkToModules(fullname, modules)
+ *     symlinkToModules(target, modules)
  */
 async function symlinkToModules (target: string, modules: string) {
   // TODO: uncomment to make things fail

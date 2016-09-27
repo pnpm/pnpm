@@ -8,7 +8,7 @@ import {Got} from '../network/got'
 import {FetchOptions} from './fetch'
 
 export type ResolveResult = {
-  fullname: string,
+  id: string,
   fetch(target: string, opts: FetchOptions): Promise<void>,
   root?: string
 }
@@ -35,7 +35,7 @@ export type ResolveOptions = {
  *     var npa = require('npm-package-arg')
  *     resolve(npa('rimraf@2'))
  *       .then((res) => {
- *         res.fullname == 'rimraf@2.5.1'
+ *         res.id == 'rimraf@2.5.1'
  *         res.dist == {
  *           shasum: '0a1b2c...'
  *           tarball: 'http://...'

@@ -22,7 +22,7 @@ import pnpmPkgJson from '../pnpmPkgJson'
 
 export type PackageInstallationResult = {
   path: string,
-  pkgFullname: string
+  pkgId: string
 }
 
 export type CachedPromises = {
@@ -157,10 +157,10 @@ export default async function (fuzzyDeps: string[] | Dependencies, optsNullable:
     if (!(opts.ignoreScripts || !cmd.ctx.piq || !cmd.ctx.piq.length)) {
       await seq(
         cmd.ctx.piq.map(pkg => () => linkBins(path.join(pkg.path, '_', 'node_modules'))
-            .then(() => postInstall(pkg.path, installLogger(pkg.pkgFullname)))
+            .then(() => postInstall(pkg.path, installLogger(pkg.pkgId)))
             .catch(err => {
-              if (cmd.ctx.installs[pkg.pkgFullname].optional) {
-                console.log('Skipping failed optional dependency ' + pkg.pkgFullname + ':')
+              if (cmd.ctx.installs[pkg.pkgId].optional) {
+                console.log('Skipping failed optional dependency ' + pkg.pkgId + ':')
                 console.log(err.message || err)
                 return
               }
@@ -222,25 +222,25 @@ function npmRun (scriptName: string, pkgRoot: string) {
   }
 }
 
-function installLogger (pkgFullname: string) {
+function installLogger (pkgId: string) {
   return (stream: string, line: string) => {
-    createDebug('pnpm:post_install')(`${pkgFullname} ${line}`)
+    createDebug('pnpm:post_install')(`${pkgId} ${line}`)
 
     if (stream === 'stderr') {
-      console.log(chalk.blue(pkgFullname) + '! ' + chalk.gray(line))
+      console.log(chalk.blue(pkgId) + '! ' + chalk.gray(line))
       return
     }
-    console.log(chalk.blue(pkgFullname) + '  ' + chalk.gray(line))
+    console.log(chalk.blue(pkgId) + '  ' + chalk.gray(line))
   }
 }
 
 function mapify (pkgs: string[] | Dependencies): Dependencies {
   if (!pkgs) return {}
   if (Array.isArray(pkgs)) {
-    return pkgs.reduce((pkgsMap: Dependencies, pkgFullName: string) => {
-      const matches = /(@?[^@]+)@(.*)/.exec(pkgFullName)
+    return pkgs.reduce((pkgsMap: Dependencies, pkgRequest: string) => {
+      const matches = /(@?[^@]+)@(.*)/.exec(pkgRequest)
       if (!matches) {
-        pkgsMap[pkgFullName] = '*'
+        pkgsMap[pkgRequest] = '*'
       } else {
         pkgsMap[matches[1]] = matches[2]
       }

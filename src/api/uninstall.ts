@@ -35,10 +35,10 @@ export async function uninstallInContext (pkgsToUninstall: string[], pkg: Packag
   // and remove is done on a package with no dependencies installed
   cmd.ctx.storeJson.dependencies[pkg.path] = cmd.ctx.storeJson.dependencies[pkg.path] || {}
 
-  const pkgFullNames = <string[]>pkgsToUninstall
+  const pkgIds = <string[]>pkgsToUninstall
     .map(dep => cmd.ctx.storeJson.dependencies[pkg.path][dep])
-    .filter(pkgFullName => !!pkgFullName)
-  const uninstalledPkgs = tryUninstall(pkgFullNames.slice(), cmd.ctx.storeJson, pkg.path)
+    .filter(pkgId => !!pkgId)
+  const uninstalledPkgs = tryUninstall(pkgIds.slice(), cmd.ctx.storeJson, pkg.path)
   uninstalledPkgs.forEach(uninstalledPkg => removeBins(uninstalledPkg, cmd.ctx.store, cmd.ctx.root))
   if (cmd.ctx.storeJson.dependencies[pkg.path]) {
     pkgsToUninstall.forEach(dep => {
@@ -48,7 +48,7 @@ export async function uninstallInContext (pkgsToUninstall: string[], pkg: Packag
       delete cmd.ctx.storeJson.dependencies[pkg.path]
     }
   }
-  await Promise.all(uninstalledPkgs.map(pkgFullName => removePkgFromStore(pkgFullName, cmd.ctx.store)))
+  await Promise.all(uninstalledPkgs.map(pkgId => removePkgFromStore(pkgId, cmd.ctx.store)))
 
   cmd.storeJsonCtrl.save(cmd.ctx.storeJson)
   await Promise.all(pkgsToUninstall.map(dep => rimraf(path.join(cmd.ctx.root, 'node_modules', dep))))
@@ -59,26 +59,26 @@ export async function uninstallInContext (pkgsToUninstall: string[], pkg: Packag
   }
 }
 
-function canBeUninstalled (pkgFullName: string, storeJson: StoreJson, pkgPath: string) {
-  return !storeJson.dependents[pkgFullName] || !storeJson.dependents[pkgFullName].length ||
-    storeJson.dependents[pkgFullName].length === 1 && storeJson.dependents[pkgFullName].indexOf(pkgPath) !== -1
+function canBeUninstalled (pkgId: string, storeJson: StoreJson, pkgPath: string) {
+  return !storeJson.dependents[pkgId] || !storeJson.dependents[pkgId].length ||
+    storeJson.dependents[pkgId].length === 1 && storeJson.dependents[pkgId].indexOf(pkgPath) !== -1
 }
 
-function tryUninstall (pkgFullNames: string[], storeJson: StoreJson, pkgPath: string) {
+function tryUninstall (pkgIds: string[], storeJson: StoreJson, pkgPath: string) {
   const uninstalledPkgs: string[] = []
   let numberOfUninstalls: number
   do {
     numberOfUninstalls = 0
-    for (let i = 0; i < pkgFullNames.length; ) {
-      if (canBeUninstalled(pkgFullNames[i], storeJson, pkgPath)) {
-        const uninstalledPkg = pkgFullNames.splice(i, 1)[0]
+    for (let i = 0; i < pkgIds.length; ) {
+      if (canBeUninstalled(pkgIds[i], storeJson, pkgPath)) {
+        const uninstalledPkg = pkgIds.splice(i, 1)[0]
         uninstalledPkgs.push(uninstalledPkg)
         const deps = storeJson.dependencies[uninstalledPkg] || {}
-        const depFullNames = Object.keys(deps).map(depName => deps[depName])
+        const depIds = Object.keys(deps).map(depName => deps[depName])
         delete storeJson.dependencies[uninstalledPkg]
         delete storeJson.dependents[uninstalledPkg]
-        depFullNames.forEach((dep: string) => removeDependency(dep, uninstalledPkg, storeJson))
-        Array.prototype.push.apply(uninstalledPkgs, tryUninstall(depFullNames, storeJson, pkgPath))
+        depIds.forEach((dep: string) => removeDependency(dep, uninstalledPkg, storeJson))
+        Array.prototype.push.apply(uninstalledPkgs, tryUninstall(depIds, storeJson, pkgPath))
         numberOfUninstalls++
         continue
       }
@@ -102,8 +102,8 @@ function removeBins (uninstalledPkg: string, store: string, root: string) {
   Object.keys(bins).forEach(bin => cbRimraf.sync(path.join(root, 'node_modules/.bin', bin)))
 }
 
-function removePkgFromStore (pkgFullName: string, store: string) {
-  return rimraf(path.join(store, pkgFullName))
+function removePkgFromStore (pkgId: string, store: string) {
+  return rimraf(path.join(store, pkgId))
 }
 
 function rimraf (filePath: string) {

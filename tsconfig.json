@@ -40,6 +40,7 @@
     "src/fileLogger.ts",
     "src/fs/expandTilde.ts",
     "src/fs/forceSymlink.ts",
+    "src/fs/getPkgDirs.ts",
     "src/fs/mkdirp.ts",
     "src/fs/relSymlink.ts",
     "src/fs/requireJson.ts",
@@ -62,6 +63,7 @@
     "src/pnpmPkgJson.ts",
     "src/registryFor.ts",
     "src/removeDeps.ts",
+    "src/resolve/createPkgId.ts",
     "src/resolve/fetch.ts",
     "src/resolve/getTarballName.ts",
     "src/resolve/git.ts",
@@ -69,7 +71,6 @@
     "src/resolve/index.ts",
     "src/resolve/local.ts",
     "src/resolve/npm.ts",
-    "src/resolve/pkgFullName.ts",
     "src/resolve/tarball.ts",
     "src/resolveGlobalPkgPath.ts",
     "src/runScript.ts",
@@ -78,6 +79,7 @@
     "typings/globals/node/index.d.ts",
     "typings/index.d.ts",
     "typings/local.d.ts",
+    "typings/tape-promise.d.ts",
     "typings/tape.d.ts"
   ]
 }
