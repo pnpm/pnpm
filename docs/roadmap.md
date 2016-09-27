@@ -20,6 +20,5 @@
 - [x] `pnpm uninstall`
 - [x] `pnpm ls`
 - [x] `pnpm link`
-- [ ] `pnpm unlink`
 - [x] `pnpm prune`
 - [ ] `pnpm update`
