@@ -22,6 +22,7 @@
   },
   "files": [
     "src/api/extendOptions.ts",
+    "src/api/index.ts",
     "src/api/initCmd.ts",
     "src/api/install.ts",
     "src/api/link.ts",
