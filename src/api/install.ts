@@ -4,9 +4,9 @@ import chalk = require('chalk')
 import createDebug = require('debug')
 import RegClient = require('npm-registry-client')
 import logger = require('@zkochan/logger')
-
+import {PnpmOptions, StrictPnpmOptions} from '../types'
 import createGot from '../network/got'
-import initCmd, {CommandContext, CommandNamespace, BasicOptions, StrictBasicOptions} from './initCmd'
+import initCmd, {CommandContext, CommandNamespace} from './initCmd'
 import installMultiple, {Dependencies} from '../installMultiple'
 import save from '../save'
 import linkPeers from '../install/linkPeers'
@@ -45,70 +45,16 @@ export type InstallNamespace = CommandNamespace & {
   ctx: InstallContext
 }
 
-export type PublicInstallationOptions = BasicOptions & {
-  save?: boolean,
-  saveDev?: boolean,
-  saveOptional?: boolean,
-  production?: boolean,
-  fetchRetries?: number,
-  fetchRetryFactor?: number,
-  fetchRetryMintimeout?: number,
-  fetchRetryMaxtimeout?: number,
-  saveExact?: boolean,
-  linkLocal?: boolean,
-
-  // proxy
-  proxy?: string,
-  httpsProxy?: string,
-  localAddress?: string,
-
-  // ssl
-  cert?: string,
-  key?: string,
-  ca?: string,
-  strictSsl?: boolean,
-
-  userAgent?: string,
-  tag?: string
-}
-
-export type StrictPublicInstallationOptions = StrictBasicOptions & {
-  save: boolean,
-  saveDev: boolean,
-  saveOptional: boolean,
-  production: boolean,
-  fetchRetries: number,
-  fetchRetryFactor: number,
-  fetchRetryMintimeout: number,
-  fetchRetryMaxtimeout: number,
-  saveExact: boolean,
-  linkLocal: boolean,
-
-  // proxy
-  proxy?: string,
-  httpsProxy?: string,
-  localAddress?: string,
-
-  // ssl
-  cert?: string,
-  key?: string,
-  ca?: string,
-  strictSsl: boolean,
-
-  userAgent?: string,
-  tag: string
-}
-
 /**
  * Perform installation.
  * 
  * @example
  *     install({'lodash': '1.0.0', 'foo': '^2.1.0' }, { quiet: true })
  */
-export default async function (fuzzyDeps: string[] | Dependencies, optsNullable: PublicInstallationOptions) {
+export default async function (fuzzyDeps: string[] | Dependencies, optsNullable: PnpmOptions) {
   let packagesToInstall = mapify(fuzzyDeps)
   const installType = packagesToInstall && Object.keys(packagesToInstall).length ? 'named' : 'general'
-  const opts: StrictPublicInstallationOptions = Object.assign({}, defaults, optsNullable)
+  const opts: StrictPnpmOptions = Object.assign({}, defaults, optsNullable)
 
   const isProductionInstall = opts.production || process.env.NODE_ENV === 'production'
 
@@ -179,7 +125,7 @@ export default async function (fuzzyDeps: string[] | Dependencies, optsNullable:
   }
 }
 
-function adaptConfig (opts: StrictPublicInstallationOptions) {
+function adaptConfig (opts: StrictPnpmOptions) {
   return {
     proxy: {
       http: opts.proxy,

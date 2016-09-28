@@ -5,3 +5,5 @@ export * from './api/link'
 export * from './api/prune'
 
 export {install, installPkgDeps, uninstall}
+
+export {PnpmOptions} from './types'

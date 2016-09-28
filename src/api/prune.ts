@@ -1,13 +1,13 @@
 import path = require('path')
 import initCmd, {CommandNamespace, Package} from './initCmd'
-import {PublicInstallationOptions, StrictPublicInstallationOptions} from './install'
+import {PnpmOptions, StrictPnpmOptions} from '../types'
 import defaults from '../defaults'
 import {uninstallInContext} from './uninstall'
 import getPkgDirs from '../fs/getPkgDirs'
 import requireJson from '../fs/requireJson'
 
-export async function prune(optsNullable: PublicInstallationOptions): Promise<void> {
-  const opts: StrictPublicInstallationOptions = Object.assign({}, defaults, optsNullable)
+export async function prune(optsNullable: PnpmOptions): Promise<void> {
+  const opts: StrictPnpmOptions = Object.assign({}, defaults, optsNullable)
 
   const cmd: CommandNamespace = await initCmd(opts)
 
@@ -28,8 +28,8 @@ export async function prune(optsNullable: PublicInstallationOptions): Promise<vo
   }
 }
 
-export async function prunePkgs(pkgsToPrune: string[], optsNullable: PublicInstallationOptions): Promise<void> {
-  const opts: StrictPublicInstallationOptions = Object.assign({}, defaults, optsNullable)
+export async function prunePkgs(pkgsToPrune: string[], optsNullable: PnpmOptions): Promise<void> {
+  const opts: StrictPnpmOptions = Object.assign({}, defaults, optsNullable)
 
   const cmd: CommandNamespace = await initCmd(opts)
 

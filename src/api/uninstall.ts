@@ -7,11 +7,11 @@ import removeDeps from '../removeDeps'
 import binify from '../binify'
 import defaults from '../defaults'
 import requireJson from '../fs/requireJson'
-import {PublicInstallationOptions, StrictPublicInstallationOptions} from './install'
+import {PnpmOptions, StrictPnpmOptions} from '../types'
 import {StoreJson} from '../fs/storeJsonController'
 
-export default async function uninstallCmd (pkgsToUninstall: string[], optsNullable: PublicInstallationOptions) {
-  const opts: StrictPublicInstallationOptions = Object.assign({}, defaults, optsNullable)
+export default async function uninstallCmd (pkgsToUninstall: string[], optsNullable: PnpmOptions) {
+  const opts: StrictPnpmOptions = Object.assign({}, defaults, optsNullable)
 
   const cmd: CommandNamespace = await initCmd(opts)
 
@@ -27,7 +27,7 @@ export default async function uninstallCmd (pkgsToUninstall: string[], optsNulla
   }
 }
 
-export async function uninstallInContext (pkgsToUninstall: string[], pkg: PackageAndPath, cmd: CommandNamespace, opts: StrictPublicInstallationOptions) {
+export async function uninstallInContext (pkgsToUninstall: string[], pkg: PackageAndPath, cmd: CommandNamespace, opts: StrictPnpmOptions) {
   pkg.pkg.dependencies = pkg.pkg.dependencies || {}
 
   // this is OK. The store might not have records for the package

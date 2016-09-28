@@ -10,8 +10,8 @@ import requireJson from '../fs/requireJson'
 import writeJson from '../fs/writeJson'
 import expandTilde from '../fs/expandTilde'
 import resolveGlobalPkgPath from '../resolveGlobalPkgPath'
-
-import initLogger, {LoggerType} from '../logger'
+import {StrictPnpmOptions} from '../types'
+import initLogger from '../logger'
 import storeJsonController, {StoreJsonCtrl} from '../fs/storeJsonController'
 import mkdirp from '../fs/mkdirp'
 import {Dependencies} from '../installMultiple'
@@ -50,27 +50,7 @@ export type CommandNamespace = {
   storeJsonCtrl: StoreJsonCtrl
 }
 
-export type BasicOptions = {
-  cwd?: string,
-  global?: boolean,
-  globalPath?: string,
-  storePath?: string,
-  quiet?: boolean,
-  logger?: LoggerType,
-  ignoreScripts?: boolean
-}
-
-export type StrictBasicOptions = {
-  cwd: string,
-  global: boolean,
-  globalPath: string,
-  storePath: string,
-  quiet: boolean,
-  logger: LoggerType,
-  ignoreScripts: boolean
-}
-
-export default async function (opts: StrictBasicOptions): Promise<CommandNamespace> {
+export default async function (opts: StrictPnpmOptions): Promise<CommandNamespace> {
   const cwd = opts.cwd || process.cwd()
   const pkg = await (opts.global ? readGlobalPkg(opts.globalPath) : readPkgUp({ cwd }))
   const root = pkg.path ? path.dirname(pkg.path) : cwd

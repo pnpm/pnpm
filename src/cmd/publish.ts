@@ -2,10 +2,10 @@ import crossSpawn = require('cross-spawn')
 import path = require('path')
 import delocalizeDeps = require('delocalize-dependencies')
 import readPkgUp = require('read-pkg-up')
-import {PublicInstallationOptions} from '../api/install'
+import {PnpmOptions} from '../types'
 import writeJson from '../fs/writeJson'
 
-export default async function (input: string[], opts: PublicInstallationOptions) {
+export default async function (input: string[], opts: PnpmOptions) {
   if (!opts.linkLocal) {
     runNpmPublish()
   }

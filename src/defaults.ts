@@ -1,7 +1,6 @@
-import {StrictBasicOptions} from './api/initCmd' // tslint:disable-line
-import {StrictPublicInstallationOptions} from './api/install'
+import {StrictPnpmOptions} from './types'
 
-export default <StrictPublicInstallationOptions>{
+export default <StrictPnpmOptions>{
   fetchRetries: 2,
   fetchRetryFactor: 10,
   fetchRetryMintimeout: 1e4, // 10 seconds

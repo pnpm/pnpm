@@ -1,4 +1,4 @@
 import install from './install'
-import {PublicInstallationOptions} from './install'
+import {PnpmOptions} from '../types'
 
-export default (opts: PublicInstallationOptions) => install({}, opts)
+export default (opts: PnpmOptions) => install({}, opts)

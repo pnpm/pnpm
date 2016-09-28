@@ -1,6 +1,6 @@
 import uninstall from '../api/uninstall'
-import {PublicInstallationOptions} from '../api/install'
+import {PnpmOptions} from '../types'
 
-export default function uninstallCmd (input: string[], opts: PublicInstallationOptions) {
+export default function uninstallCmd (input: string[], opts: PnpmOptions) {
   return uninstall(input, opts)
 }
