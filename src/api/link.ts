@@ -5,11 +5,11 @@ import installPkgDeps from './installPkgDeps'
 import resolveGlobalPkgPath from '../resolveGlobalPkgPath'
 import {linkPkgBins} from '../install/linkBins'
 import mkdirp from '../fs/mkdirp'
-import {PnpmOptions, StrictPnpmOptions} from '../types'
-import defaults from '../defaults'
+import {PnpmOptions} from '../types'
+import extendOptions from './extendOptions'
 
-export async function linkFromRelative (linkTo: string, optsNullable: PnpmOptions) {
-  const opts: StrictPnpmOptions = Object.assign({}, defaults, optsNullable)
+export async function linkFromRelative (linkTo: string, maybeOpts?: PnpmOptions) {
+  const opts = extendOptions(maybeOpts)
   const cwd = opts && opts.cwd || process.cwd()
   const linkedPkgPath = path.resolve(cwd, linkTo)
   const currentModules = path.resolve(cwd, 'node_modules')
@@ -20,15 +20,15 @@ export async function linkFromRelative (linkTo: string, optsNullable: PnpmOption
   return linkPkgBins(currentModules, linkedPkgPath)
 }
 
-export function linkFromGlobal (pkgName: string, optsNullable: PnpmOptions) {
-  const opts: StrictPnpmOptions = Object.assign({}, defaults, optsNullable)
+export function linkFromGlobal (pkgName: string, maybeOpts?: PnpmOptions) {
+  const opts = extendOptions(maybeOpts)
   const globalPkgPath = resolveGlobalPkgPath(opts.globalPath)
   const linkedPkgPath = path.join(globalPkgPath, 'node_modules', pkgName)
   return linkFromRelative(linkedPkgPath, opts)
 }
 
-export function linkToGlobal (optsNullable: PnpmOptions) {
-  const opts: StrictPnpmOptions = Object.assign({}, defaults, optsNullable)
+export function linkToGlobal (maybeOpts?: PnpmOptions) {
+  const opts = extendOptions(maybeOpts)
   const globalPkgPath = resolveGlobalPkgPath(opts.globalPath)
   const cwd = opts.cwd || process.cwd()
   return linkFromRelative(cwd, Object.assign({

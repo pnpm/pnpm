@@ -15,7 +15,7 @@ import getSaveType from '../getSaveType'
 import {sync as runScriptSync} from '../runScript'
 import postInstall from '../install/postInstall'
 import linkBins from '../install/linkBins'
-import defaults from '../defaults'
+import extendOptions from './extendOptions'
 import {InstalledPackage} from '../install'
 import {Got} from '../network/got'
 import pnpmPkgJson from '../pnpmPkgJson'
@@ -51,10 +51,10 @@ export type InstallNamespace = CommandNamespace & {
  * @example
  *     install({'lodash': '1.0.0', 'foo': '^2.1.0' }, { quiet: true })
  */
-export default async function (fuzzyDeps: string[] | Dependencies, optsNullable: PnpmOptions) {
+export default async function (fuzzyDeps: string[] | Dependencies, maybeOpts?: PnpmOptions) {
   let packagesToInstall = mapify(fuzzyDeps)
   const installType = packagesToInstall && Object.keys(packagesToInstall).length ? 'named' : 'general'
-  const opts: StrictPnpmOptions = Object.assign({}, defaults, optsNullable)
+  const opts = extendOptions(maybeOpts)
 
   const isProductionInstall = opts.production || process.env.NODE_ENV === 'production'
 

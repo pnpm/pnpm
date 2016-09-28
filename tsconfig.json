@@ -21,6 +21,7 @@
     "rewriteTsconfig": true
   },
   "files": [
+    "src/api/extendOptions.ts",
     "src/api/initCmd.ts",
     "src/api/install.ts",
     "src/api/installPkgDeps.ts",
@@ -35,7 +36,6 @@
     "src/cmd/publish.ts",
     "src/cmd/uninstall.ts",
     "src/debug.ts",
-    "src/defaults.ts",
     "src/err.ts",
     "src/fileLogger.ts",
     "src/fs/expandTilde.ts",

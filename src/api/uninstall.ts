@@ -5,13 +5,13 @@ import initCmd, {CommandNamespace, PackageAndPath} from './initCmd'
 import getSaveType from '../getSaveType'
 import removeDeps from '../removeDeps'
 import binify from '../binify'
-import defaults from '../defaults'
+import extendOptions from './extendOptions'
 import requireJson from '../fs/requireJson'
 import {PnpmOptions, StrictPnpmOptions} from '../types'
 import {StoreJson} from '../fs/storeJsonController'
 
-export default async function uninstallCmd (pkgsToUninstall: string[], optsNullable: PnpmOptions) {
-  const opts: StrictPnpmOptions = Object.assign({}, defaults, optsNullable)
+export default async function uninstallCmd (pkgsToUninstall: string[], maybeOpts?: PnpmOptions) {
+  const opts = extendOptions(maybeOpts)
 
   const cmd: CommandNamespace = await initCmd(opts)
 

@@ -1,6 +1,6 @@
-import {StrictPnpmOptions} from './types'
+import {StrictPnpmOptions, PnpmOptions} from '../types'
 
-export default <StrictPnpmOptions>{
+const defaults = <StrictPnpmOptions>{
   fetchRetries: 2,
   fetchRetryFactor: 10,
   fetchRetryMintimeout: 1e4, // 10 seconds
@@ -12,4 +12,8 @@ export default <StrictPnpmOptions>{
   linkLocal: false,
   strictSsl: true,
   tag: 'latest'
+}
+
+export default (opts?: PnpmOptions): StrictPnpmOptions => {
+  return Object.assign({}, defaults, opts)
 }
