@@ -1,6 +1,6 @@
 import path = require('path')
-import initCmd, {CommandNamespace, Package} from './initCmd'
-import {PnpmOptions} from '../types'
+import initCmd, {CommandNamespace} from './initCmd'
+import {PnpmOptions, Package} from '../types'
 import extendOptions from './extendOptions'
 import {uninstallInContext} from './uninstall'
 import getPkgDirs from '../fs/getPkgDirs'

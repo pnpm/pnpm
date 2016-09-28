@@ -1,6 +1,6 @@
 import path = require('path')
 import fs = require('fs')
-import {Package} from '../api/initCmd'
+import {Package} from '../types'
 
 type PackagesCache = {
   [path: string]: Package

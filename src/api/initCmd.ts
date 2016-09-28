@@ -14,23 +14,9 @@ import {StrictPnpmOptions} from '../types'
 import initLogger from '../logger'
 import storeJsonController, {StoreJsonCtrl} from '../fs/storeJsonController'
 import mkdirp from '../fs/mkdirp'
-import {Dependencies} from '../installMultiple'
+import {Package} from '../types'
 import {StoreJson} from '../fs/storeJsonController'
 import pnpmPkgJson from '../pnpmPkgJson'
-
-export type Package = {
-  name: string,
-  version: string,
-  bin?: string | {
-    [name: string]: string
-  },
-  dependencies?: Dependencies,
-  devDependencies?: Dependencies,
-  optionalDependencies?: Dependencies,
-  scripts?: {
-    [name: string]: string
-  }
-}
 
 export type PackageAndPath = {
   pkg: Package,

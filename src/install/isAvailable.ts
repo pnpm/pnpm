@@ -2,7 +2,7 @@ import semver = require('semver')
 import path = require('path')
 import fs = require('mz/fs')
 import {PackageSpec} from '../install'
-import {Package} from '../api/initCmd'
+import {Package} from '../types'
 
 /**
  * Check if a module exists (eg, `node_modules/node-pre-gyp`). This is the case when

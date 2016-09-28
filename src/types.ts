@@ -67,3 +67,21 @@ export type StrictPnpmOptions = {
   userAgent?: string,
   tag: string
 }
+
+export type Dependencies = {
+  [name: string]: string
+}
+
+export type Package = {
+  name: string,
+  version: string,
+  bin?: string | {
+    [name: string]: string
+  },
+  dependencies?: Dependencies,
+  devDependencies?: Dependencies,
+  optionalDependencies?: Dependencies,
+  scripts?: {
+    [name: string]: string
+  }
+}

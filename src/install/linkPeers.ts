@@ -4,7 +4,7 @@ import relSymlink from '../fs/relSymlink'
 import path = require('path')
 import semver = require('semver')
 import {InstalledPackages} from '../api/install'
-import {Package} from '../api/initCmd'
+import {Package} from '../types'
 import {InstalledPackage} from '.'
 
 type Dict<T> = {

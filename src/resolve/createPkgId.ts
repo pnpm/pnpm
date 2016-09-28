@@ -1,4 +1,4 @@
-import {Package} from '../api/initCmd'
+import {Package} from '../types'
 
 export const delimiter = '+'
 

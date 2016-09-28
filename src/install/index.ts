@@ -21,7 +21,7 @@ import linkBundledDeps from './linkBundledDeps'
 import isAvailable from './isAvailable'
 import installAll from '../installMultiple'
 import {InstallContext, CachedPromises} from '../api/install'
-import {Package} from '../api/initCmd'
+import {Package} from '../types'
 
 export type PackageMeta = {
   rawSpec: string,

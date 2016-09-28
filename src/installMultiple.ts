@@ -1,9 +1,6 @@
 import install, {InstalledPackage, InstallationOptions} from './install'
 import {InstallContext} from './api/install'
-
-export type Dependencies = {
-  [name: string]: string
-}
+import {Dependencies} from './types'
 
 export type MultipleInstallationOptions = InstallationOptions & {
   dependent: string

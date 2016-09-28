@@ -4,10 +4,10 @@ import chalk = require('chalk')
 import createDebug = require('debug')
 import RegClient = require('npm-registry-client')
 import logger = require('@zkochan/logger')
-import {PnpmOptions, StrictPnpmOptions} from '../types'
+import {PnpmOptions, StrictPnpmOptions, Dependencies} from '../types'
 import createGot from '../network/got'
 import initCmd, {CommandContext, CommandNamespace} from './initCmd'
-import installMultiple, {Dependencies} from '../installMultiple'
+import installMultiple from '../installMultiple'
 import save from '../save'
 import linkPeers from '../install/linkPeers'
 import runtimeError from '../runtimeError'

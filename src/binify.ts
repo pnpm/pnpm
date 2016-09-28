@@ -1,4 +1,4 @@
-import {Package} from './api/initCmd'
+import {Package} from './types'
 
 /**
  * Returns bins for a package in a standard object format. This normalizes

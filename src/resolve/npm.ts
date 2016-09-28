@@ -4,7 +4,7 @@ import createPkgId from './createPkgId'
 import registryUrl = require('registry-url')
 import semver = require('semver')
 import {ResolveOptions, ResolveResult} from '.'
-import {Package} from '../api/initCmd'
+import {Package} from '../types'
 import {PackageSpec} from '../install'
 import {createRemoteTarballFetcher} from './fetch'
 
