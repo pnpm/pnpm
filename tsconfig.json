@@ -24,7 +24,6 @@
     "src/api/extendOptions.ts",
     "src/api/initCmd.ts",
     "src/api/install.ts",
-    "src/api/installPkgDeps.ts",
     "src/api/link.ts",
     "src/api/prune.ts",
     "src/api/uninstall.ts",

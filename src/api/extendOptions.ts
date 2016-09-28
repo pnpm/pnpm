@@ -1,6 +1,6 @@
 import {StrictPnpmOptions, PnpmOptions} from '../types'
 
-const defaults = <StrictPnpmOptions>{
+const defaults = () => (<StrictPnpmOptions>{
   fetchRetries: 2,
   fetchRetryFactor: 10,
   fetchRetryMintimeout: 1e4, // 10 seconds
@@ -11,9 +11,10 @@ const defaults = <StrictPnpmOptions>{
   ignoreScripts: false,
   linkLocal: false,
   strictSsl: true,
-  tag: 'latest'
-}
+  tag: 'latest',
+  production: process.env.NODE_ENV === 'production'
+})
 
 export default (opts?: PnpmOptions): StrictPnpmOptions => {
-  return Object.assign({}, defaults, opts)
+  return Object.assign({}, defaults(), opts)
 }

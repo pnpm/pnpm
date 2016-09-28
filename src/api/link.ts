@@ -1,7 +1,7 @@
 import path = require('path')
 import readPkgUp = require('read-pkg-up')
 import relSymlink from '../fs/relSymlink'
-import installPkgDeps from './installPkgDeps'
+import {install} from './install'
 import resolveGlobalPkgPath from '../resolveGlobalPkgPath'
 import {linkPkgBins} from '../install/linkBins'
 import mkdirp from '../fs/mkdirp'
@@ -13,7 +13,7 @@ export async function linkFromRelative (linkTo: string, maybeOpts?: PnpmOptions)
   const cwd = opts && opts.cwd || process.cwd()
   const linkedPkgPath = path.resolve(cwd, linkTo)
   const currentModules = path.resolve(cwd, 'node_modules')
-  await installPkgDeps(Object.assign({}, opts, { cwd: linkedPkgPath }))
+  await install(Object.assign({}, opts, { cwd: linkedPkgPath }))
   await mkdirp(currentModules)
   const pkg = await readPkgUp({ cwd: linkedPkgPath })
   await relSymlink(linkedPkgPath, path.resolve(currentModules, pkg.pkg.name))

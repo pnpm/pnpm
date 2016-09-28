@@ -1,6 +1,6 @@
 # API
 
-## `pnpm.install(pkgsToInstall, [options])`
+## `pnpm.installPkgs(pkgsToInstall, [options])`
 
 Install packages.
 
@@ -28,7 +28,7 @@ pnpm.install({
 }, { save: true, quiet: true })
 ```
 
-## `pnpm.installPkgDeps([options])`
+## `pnpm.install([options])`
 
 Install all modules listed as dependencies in `package.json`.
 

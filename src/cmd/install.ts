@@ -1,5 +1,5 @@
 import {PnpmOptions} from '../types'
-import install from '../api/install'
+import {install, installPkgs} from '../api/install'
 
 /**
  * Perform installation.
@@ -7,5 +7,8 @@ import install from '../api/install'
  *     installCmd([ 'lodash', 'foo' ], { quiet: true })
  */
 export default function installCmd (input: string[], opts: PnpmOptions) {
-  return install(input, opts)
+  if (!input || !input.length) {
+    return install(opts)
+  }
+  return installPkgs(input, opts)
 }
