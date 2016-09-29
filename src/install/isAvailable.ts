@@ -34,5 +34,5 @@ export default async function isAvailable (spec: PackageSpec, modules: string) {
 function verify (spec: PackageSpec, packageJson: Package) {
   return packageJson.name === spec.name &&
     ((spec.type !== 'range' && spec.type !== 'version') ||
-    semver.satisfies(packageJson.version, spec.spec))
+    semver.satisfies(packageJson.version, spec.spec, true))
 }

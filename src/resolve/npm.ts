@@ -71,7 +71,7 @@ function pickVersionFromRegistryDocument (pkg: PackageDocument, dep: PackageSpec
       return pkg.versions[tagVersion]
     }
   } else {
-    const maxVersion = semver.maxSatisfying(versions, dep.spec)
+    const maxVersion = semver.maxSatisfying(versions, dep.spec, true)
     if (maxVersion) {
       return pkg.versions[maxVersion]
     }

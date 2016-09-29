@@ -31,7 +31,7 @@ export default async function linkPeers (store: string, installs: InstalledPacka
     // NOTE: version is not always available
     // version is guaranteed to be there only for packages loaded from the npm registry
     if (!peers[realname] || peers[realname].pkg.version && pkgData.pkg.version &&
-      semver.gt(pkgData.pkg.version, peers[realname].pkg.version)) {
+      semver.gt(pkgData.pkg.version, peers[realname].pkg.version, true)) {
       peers[realname] = pkgData
     }
   })
