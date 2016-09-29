@@ -2,19 +2,18 @@ import tape = require('tape')
 import promisifyTape = require('tape-promise')
 const test = promisifyTape(tape)
 import path = require('path')
-import prune from '../src/cmd/prune'
-import install from '../src/cmd/install'
+import {installPkgs, prune, prunePkgs} from '../src'
 import prepare from './support/prepare'
 import exists, {existsSymlink} from './support/exists'
 
 test('prune removes extraneous packages', async function (t) {
   prepare()
 
-  await install(['is-negative@2.1.0'], {save: true, quiet: true})
-  await install(['applyq@0.2.1'], {saveDev: true, quiet: true})
-  await install(['fnumber@0.1.0'], {saveOptional: true, quiet: true})
-  await install(['is-positive@2.0.0', '@zkochan/logger@0.1.0'], {quiet: true})
-  await prune([], {})
+  await installPkgs(['is-negative@2.1.0'], {save: true})
+  await installPkgs(['applyq@0.2.1'], {saveDev: true})
+  await installPkgs(['fnumber@0.1.0'], {saveOptional: true})
+  await installPkgs(['is-positive@2.0.0', '@zkochan/logger@0.1.0'])
+  await prune()
 
   const store = path.join(process.cwd(), 'node_modules', '.store')
   const modules = path.join(process.cwd(), 'node_modules')
@@ -53,8 +52,8 @@ test('prune removes extraneous packages', async function (t) {
 test('prune removes only the specified extraneous packages', async function (t) {
   prepare()
 
-  await install(['is-positive@2.0.0', 'is-negative@2.1.0'], {quiet: true})
-  await prune(['is-positive'], {})
+  await installPkgs(['is-positive@2.0.0', 'is-negative@2.1.0'])
+  await prunePkgs(['is-positive'])
 
   const store = path.join(process.cwd(), 'node_modules', '.store')
   const modules = path.join(process.cwd(), 'node_modules')
@@ -75,10 +74,10 @@ test('prune removes only the specified extraneous packages', async function (t) 
 test('prune throws error when trying to removes not an extraneous package', async function (t) {
   prepare()
 
-  await install(['is-positive@2.0.0'], {quiet: true, save: true})
+  await installPkgs(['is-positive@2.0.0'], {save: true})
 
   try {
-    await prune(['is-positive'], {})
+    await prunePkgs(['is-positive'])
     t.fail('prune had to fail')
   } catch (err) {
     t.equal(err['code'], 'PRUNE_NOT_EXTR', 'cannot prune non-extraneous package error thrown')
@@ -88,10 +87,10 @@ test('prune throws error when trying to removes not an extraneous package', asyn
 test('prune removes dev dependencies in production', async function (t) {
   prepare()
 
-  await install(['is-positive@2.0.0'], {quiet: true, saveDev: true})
-  await install(['is-negative@2.1.0'], {quiet: true, save: true})
-  await install(['fnumber@0.1.0'], {quiet: true, saveOptional: true})
-  await prune([], {production: true})
+  await installPkgs(['is-positive@2.0.0'], {saveDev: true})
+  await installPkgs(['is-negative@2.1.0'], {save: true})
+  await installPkgs(['fnumber@0.1.0'], {saveOptional: true})
+  await prune({production: true})
 
   const store = path.join(process.cwd(), 'node_modules', '.store')
   const modules = path.join(process.cwd(), 'node_modules')

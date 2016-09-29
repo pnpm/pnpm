@@ -5,12 +5,11 @@ import path = require('path')
 import fs = require('fs')
 import exists, {existsSymlink} from './support/exists'
 import prepare from './support/prepare'
-import install from '../src/cmd/install'
-import uninstall from '../src/cmd/uninstall'
+import {installPkgs, uninstall} from '../src'
 
 test('uninstall package with no dependencies', async function (t) {
   prepare()
-  await install(['is-negative@2.1.0'], { quiet: true, save: true })
+  await installPkgs(['is-negative@2.1.0'], { save: true })
   await uninstall(['is-negative'], { save: true })
 
   let stat = await exists(path.join(process.cwd(), 'node_modules', '.store', 'is-negative@2.1.0'))
@@ -27,7 +26,7 @@ test('uninstall package with no dependencies', async function (t) {
 
 test('uninstall scoped package', async function (t) {
   prepare()
-  await install(['@zkochan/logger@0.1.0'], { quiet: true, save: true })
+  await installPkgs(['@zkochan/logger@0.1.0'], { save: true })
   await uninstall(['@zkochan/logger'], { save: true })
 
   let stat = await exists(path.join(process.cwd(), 'node_modules', '.store', '@zkochan+logger@0.1.0'))
@@ -44,7 +43,7 @@ test('uninstall scoped package', async function (t) {
 
 test('uninstall tarball dependency', async function (t) {
   prepare()
-  await install(['http://registry.npmjs.org/is-array/-/is-array-1.0.1.tgz'], { quiet: true, save: true })
+  await installPkgs(['http://registry.npmjs.org/is-array/-/is-array-1.0.1.tgz'], { save: true })
   await uninstall(['is-array'], { save: true })
 
   let stat = await exists(path.join(process.cwd(), 'node_modules', '.store', 'is-array-1.0.1#a83102a9c117983e6ff4d85311fb322231abe3d6'))
@@ -61,7 +60,7 @@ test('uninstall tarball dependency', async function (t) {
 
 test('uninstall package with dependencies and do not touch other deps', async function (t) {
   prepare()
-  await install(['is-negative@2.1.0', 'camelcase-keys@3.0.0'], { quiet: true, save: true })
+  await installPkgs(['is-negative@2.1.0', 'camelcase-keys@3.0.0'], { save: true })
   await uninstall(['camelcase-keys'], { save: true })
 
   let stat = await exists(path.join(process.cwd(), 'node_modules', '.store', 'camelcase-keys@2.1.0'))
@@ -98,7 +97,7 @@ test('uninstall package with dependencies and do not touch other deps', async fu
 
 test('uninstall package with its bin files', async function (t) {
   prepare()
-  await install(['sh-hello-world@1.0.0'], { quiet: true, save: true })
+  await installPkgs(['sh-hello-world@1.0.0'], { save: true })
   await uninstall(['sh-hello-world'], { save: true })
 
   // check for both a symlink and a file because in some cases the file will be a proxied not symlinked
@@ -111,7 +110,7 @@ test('uninstall package with its bin files', async function (t) {
 
 test('keep dependencies used by others', async function (t) {
   prepare()
-  await install(['hastscript@3.0.0', 'camelcase-keys@3.0.0'], { quiet: true, save: true })
+  await installPkgs(['hastscript@3.0.0', 'camelcase-keys@3.0.0'], { save: true })
   await uninstall(['camelcase-keys'], { save: true })
 
   let stat = await exists(path.join(process.cwd(), 'node_modules', '.store', 'camelcase-keys@2.1.0'))

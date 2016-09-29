@@ -8,8 +8,12 @@ import mkdirp = require('mkdirp')
 import thenify = require('thenify')
 import ncpCB = require('ncp')
 const ncp = thenify(ncpCB.ncp)
-import link from '../src/cmd/link'
-import install from '../src/cmd/install'
+import {
+  linkFromRelative,
+  linkToGlobal,
+  linkFromGlobal,
+  installPkgs
+} from '../src'
 import globalPath from './support/globalPath'
 import {pathToLocalPkg} from './support/localPkg'
 
@@ -21,7 +25,7 @@ test('relative link', async function (t) {
   const linkedPkgPath = path.resolve(tmpDir, linkedPkgDirName)
 
   await ncp(pathToLocalPkg(linkedPkgName), linkedPkgPath)
-  await link([`../${linkedPkgDirName}`], { quiet: true })
+  await linkFromRelative(`../${linkedPkgDirName}`)
 
   isExecutable(t, path.join(process.cwd(), 'node_modules', '.bin', 'hello-world-js-bin'))
 })
@@ -35,10 +39,10 @@ test('global link', async function (t) {
   await ncp(pathToLocalPkg(linkedPkgName), linkedPkgPath)
 
   process.chdir(linkedPkgPath)
-  await link([], { globalPath, quiet: true })
+  await linkToGlobal({ globalPath })
 
   prepare()
-  await link([linkedPkgName], { globalPath, quiet: true })
+  await linkFromGlobal(linkedPkgName, { globalPath })
 
   isExecutable(t, path.join(process.cwd(), 'node_modules', '.bin', 'hello-world-js-bin'))
 })
@@ -51,7 +55,7 @@ test('link local package if link-local = true', async function (t) {
   const linkedPkgPath = path.resolve(tmpDir, linkedPkgDirName)
 
   await ncp(pathToLocalPkg(linkedPkgName), linkedPkgPath)
-  await install([`file:../${linkedPkgDirName}`], { quiet: true, linkLocal: true })
+  await installPkgs([`file:../${linkedPkgDirName}`], { linkLocal: true })
 
   isExecutable(t, path.join(process.cwd(), 'node_modules', '.bin', 'hello-world-js-bin'))
 })
