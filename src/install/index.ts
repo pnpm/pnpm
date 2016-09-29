@@ -4,19 +4,11 @@ import npa = require('npm-package-arg')
 import fs = require('mz/fs')
 import {Stats} from 'fs'
 import logger = require('@zkochan/logger')
-
 import path = require('path')
-const join = path.join
-const dirname = path.dirname
-const basename = path.basename
-const abspath = path.resolve
-
 import resolve, {ResolveResult} from '../resolve'
-
 import mkdirp from '../fs/mkdirp'
 import requireJson from '../fs/requireJson'
 import relSymlink from '../fs/relSymlink'
-
 import linkBundledDeps from './linkBundledDeps'
 import isAvailable from './isAvailable'
 import installAll from '../installMultiple'
@@ -112,10 +104,10 @@ export default async function install (ctx: InstallContext, pkgMeta: PackageMeta
       const freshPkg: PackageContext = saveResolution(res)
       log('resolved', freshPkg)
       await mkdirp(modules)
-      const target = join(ctx.store, res.id)
+      const target = path.join(ctx.store, res.id)
       await buildToStoreCached(ctx, target, freshPkg, log)
-      const pkg = requireJson(join(target, '_', 'package.json'))
-      await symlinkToModules(join(target, '_'), modules)
+      const pkg = requireJson(path.join(target, '_', 'package.json'))
+      await symlinkToModules(path.join(target, '_'), modules)
       installedPkg = {
         pkg,
         optional,
@@ -159,19 +151,19 @@ export default async function install (ctx: InstallContext, pkgMeta: PackageMeta
   }
 
   async function saveCachedResolution (): Promise<InstalledPackage> {
-    const target = join(modules, spec.name)
+    const target = path.join(modules, spec.name)
     const stat: Stats = await fs.lstat(target)
     if (stat.isSymbolicLink()) {
-      const path = await fs.readlink(target)
-      return save(abspath(path, target))
+      const linkPath = await fs.readlink(target)
+      return save(path.resolve(linkPath, target))
     }
     return save(target)
 
     function save (fullpath: string): InstalledPackage {
-      const data = requireJson(join(fullpath, 'package.json'))
+      const data = requireJson(path.join(fullpath, 'package.json'))
       return {
         pkg: data,
-        id: basename(fullpath),
+        id: path.basename(fullpath),
         optional,
         keypath,
         escapedName: spec.escapedName
@@ -205,7 +197,7 @@ function buildToStoreCached (ctx: InstallContext, target: string, buildInfo: Pac
 async function fetchToStore (ctx: InstallContext, target: string, buildInfo: PackageContext, log: InstallLog) {
   // download and untar
   log('download-queued')
-  return buildInfo.fetch(join(target, '_'), {log, got: ctx.got})
+  return buildInfo.fetch(path.join(target, '_'), {log, got: ctx.got})
 
   // TODO: this is the point it becomes partially useable.
   // ie, it can now be symlinked into .store/foo@1.0.0.
@@ -213,17 +205,17 @@ async function fetchToStore (ctx: InstallContext, target: string, buildInfo: Pac
 }
 
 async function buildInStore (ctx: InstallContext, target: string, buildInfo: PackageContext, log: InstallLog) {
-  const pkg = requireJson(abspath(join(target, '_', 'package.json')))
+  const pkg = requireJson(path.resolve(path.join(target, '_', 'package.json')))
   log('package.json', pkg)
 
-  await linkBundledDeps(join(target, '_'))
+  await linkBundledDeps(path.join(target, '_'))
 
   // recurse down to dependencies
   log('dependencies')
   await installAll(ctx,
     pkg.dependencies || {},
     pkg.optionalDependencies || {},
-    join(target, '_', 'node_modules'),
+    path.join(target, '_', 'node_modules'),
     {
       keypath: buildInfo.keypath.concat([ buildInfo.id ]),
       dependent: buildInfo.id,
@@ -252,10 +244,10 @@ async function symlinkSelf (target: string, pkg: Package, depth: number) {
   if (depth === 0) {
     return
   }
-  await mkdirp(join(target, 'node_modules'))
+  await mkdirp(path.join(target, 'node_modules'))
   await relSymlink(
-    join('..', '_'),
-    join(target, 'node_modules', escapeName(pkg.name)))
+    path.join('..', '_'),
+    path.join(target, 'node_modules', escapeName(pkg.name)))
 }
 
 function escapeName (name: string) {
@@ -272,13 +264,13 @@ function escapeName (name: string) {
  */
 async function symlinkToModules (target: string, modules: string) {
   // TODO: uncomment to make things fail
-  const pkgData = requireJson(join(target, 'package.json'))
+  const pkgData = requireJson(path.join(target, 'package.json'))
   if (!pkgData.name) { throw new Error('Invalid package.json for ' + target) }
 
   // lodash -> .store/lodash@4.0.0
   // .store/foo@1.0.0/node_modules/lodash -> ../../../.store/lodash@4.0.0
-  const out = join(modules, pkgData.name)
-  await mkdirp(dirname(out))
+  const out = path.join(modules, pkgData.name)
+  await mkdirp(path.dirname(out))
   await relSymlink(target, out)
 }
 
