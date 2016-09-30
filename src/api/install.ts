@@ -6,7 +6,7 @@ import RegClient = require('npm-registry-client')
 import logger = require('@zkochan/logger')
 import {PnpmOptions, StrictPnpmOptions, Dependencies} from '../types'
 import createGot from '../network/got'
-import initCmd, {CommandNamespace} from './initCmd'
+import getContext, {PnpmContext} from './getContext'
 import installMultiple from '../installMultiple'
 import save from '../save'
 import linkPeers from '../install/linkPeers'
@@ -46,14 +46,14 @@ export type InstallContext = {
 
 export async function install (maybeOpts?: PnpmOptions) {
   const opts = extendOptions(maybeOpts)
-  const cmd = await initCmd(opts)
-  const installCtx = await createInstallCmd(opts, cmd.storeJson)
+  const ctx = await getContext(opts)
+  const installCtx = await createInstallCmd(opts, ctx.storeJson)
 
-  if (!cmd.pkg) throw runtimeError('No package.json found')
-  const packagesToInstall = Object.assign({}, cmd.pkg.dependencies || {})
-  if (!opts.production) Object.assign(packagesToInstall, cmd.pkg.devDependencies || {})
+  if (!ctx.pkg) throw runtimeError('No package.json found')
+  const packagesToInstall = Object.assign({}, ctx.pkg.dependencies || {})
+  if (!opts.production) Object.assign(packagesToInstall, ctx.pkg.devDependencies || {})
 
-  return lock(cmd.store, () => installInContext('general', packagesToInstall, cmd, installCtx, opts))
+  return lock(ctx.store, () => installInContext('general', packagesToInstall, ctx, installCtx, opts))
 }
 
 /**
@@ -68,43 +68,43 @@ export async function installPkgs (fuzzyDeps: string[] | Dependencies, maybeOpts
     throw new Error('At least one package has to be installed')
   }
   const opts = extendOptions(maybeOpts)
-  const cmd = await initCmd(opts)
-  const installCtx = await createInstallCmd(opts, cmd.storeJson)
+  const ctx = await getContext(opts)
+  const installCtx = await createInstallCmd(opts, ctx.storeJson)
 
-  return lock(cmd.store, () => installInContext('named', packagesToInstall, cmd, installCtx, opts))
+  return lock(ctx.store, () => installInContext('named', packagesToInstall, ctx, installCtx, opts))
 }
 
-async function installInContext (installType: string, packagesToInstall: Dependencies, cmd: CommandNamespace, installCtx: InstallContext, opts: StrictPnpmOptions) {
+async function installInContext (installType: string, packagesToInstall: Dependencies, ctx: PnpmContext, installCtx: InstallContext, opts: StrictPnpmOptions) {
   const pkgs: InstalledPackage[] = await installMultiple(installCtx,
     packagesToInstall,
-    cmd.pkg && cmd.pkg && cmd.pkg.optionalDependencies || {},
-    path.join(cmd.root, 'node_modules'),
+    ctx.pkg && ctx.pkg && ctx.pkg.optionalDependencies || {},
+    path.join(ctx.root, 'node_modules'),
     {
       linkLocal: opts.linkLocal,
-      dependent: cmd.root,
-      root: cmd.root,
-      store: cmd.store
+      dependent: ctx.root,
+      root: ctx.root,
+      store: ctx.store
     }
   )
 
   if (installType === 'named') {
     const saveType = getSaveType(opts)
     if (saveType) {
-      if (!cmd.pkg) {
+      if (!ctx.pkg) {
         throw new Error('Cannot save because no package.json found')
       }
       const inputNames = Object.keys(packagesToInstall)
       const savedPackages = pkgs.filter((pkg: InstalledPackage) => inputNames.indexOf(pkg.pkg.name) > -1)
-      const pkgJsonPath = path.join(cmd.root, 'package.json')
+      const pkgJsonPath = path.join(ctx.root, 'package.json')
       await save(pkgJsonPath, savedPackages, saveType, opts.saveExact)
     }
   }
 
-  cmd.storeJsonCtrl.save(Object.assign(cmd.storeJson, {
+  ctx.storeJsonCtrl.save(Object.assign(ctx.storeJson, {
     pnpm: pnpmPkgJson.version
   }))
 
-  await linkPeers(cmd.store, installCtx.installs)
+  await linkPeers(ctx.store, installCtx.installs)
   // postinstall hooks
   if (!(opts.ignoreScripts || !installCtx.piq || !installCtx.piq.length)) {
     await seq(
@@ -120,9 +120,9 @@ async function installInContext (installType: string, packagesToInstall: Depende
           })
       ))
   }
-  await linkBins(path.join(cmd.root, 'node_modules'))
-  if (!opts.ignoreScripts && cmd.pkg) {
-    await mainPostInstall(cmd.pkg && cmd.pkg.scripts || {}, cmd.root, opts.production)
+  await linkBins(path.join(ctx.root, 'node_modules'))
+  if (!opts.ignoreScripts && ctx.pkg) {
+    await mainPostInstall(ctx.pkg && ctx.pkg.scripts || {}, ctx.root, opts.production)
   }
 }
 

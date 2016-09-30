@@ -14,7 +14,7 @@ import {StoreJson} from '../fs/storeJsonController'
 import pnpmPkgJson from '../pnpmPkgJson'
 import normalizePath = require('normalize-path')
 
-export type CommandNamespace = {
+export type PnpmContext = {
   pkg?: Package,
   storeJsonCtrl: StoreJsonCtrl,
   store: string,
@@ -22,7 +22,7 @@ export type CommandNamespace = {
   storeJson: StoreJson
 }
 
-export default async function (opts: StrictPnpmOptions): Promise<CommandNamespace> {
+export default async function (opts: StrictPnpmOptions): Promise<PnpmContext> {
   const pkg = await (opts.global ? readGlobalPkg(opts.globalPath) : readPkgUp({ cwd: opts.cwd }))
   const root = normalizePath(pkg.path ? path.dirname(pkg.path) : opts.cwd)
   const store = resolveStorePath(opts.storePath, root)
@@ -31,7 +31,7 @@ export default async function (opts: StrictPnpmOptions): Promise<CommandNamespac
   if (storeJson) {
     failIfNotCompatible(storeJson.pnpm)
   }
-  const cmd: CommandNamespace = {
+  const ctx: PnpmContext = {
     pkg: pkg.pkg,
     root,
     store,
@@ -45,8 +45,8 @@ export default async function (opts: StrictPnpmOptions): Promise<CommandNamespac
 
   if (!opts.quiet) initLogger(opts.logger)
 
-  await mkdirp(cmd.store)
-  return cmd
+  await mkdirp(ctx.store)
+  return ctx
 }
 
 function failIfNotCompatible (storeVersion: string) {

@@ -1,5 +1,5 @@
 import path = require('path')
-import initCmd, {CommandNamespace} from './initCmd'
+import getContext from './getContext'
 import {PnpmOptions, Package} from '../types'
 import extendOptions from './extendOptions'
 import {uninstallInContext} from './uninstall'
@@ -10,33 +10,33 @@ import lock from './lock'
 export async function prune(maybeOpts?: PnpmOptions): Promise<void> {
   const opts = extendOptions(maybeOpts)
 
-  const cmd: CommandNamespace = await initCmd(opts)
+  const ctx = await getContext(opts)
 
-  return lock(cmd.store, async function () {
-    if (!cmd.pkg) {
+  return lock(ctx.store, async function () {
+    if (!ctx.pkg) {
       throw new Error('No package.json found - cannot prune')
     }
 
-    const pkg = cmd.pkg
+    const pkg = ctx.pkg
 
-    const extraneousPkgs = await getExtraneousPkgs(pkg, cmd.root, opts.production)
+    const extraneousPkgs = await getExtraneousPkgs(pkg, ctx.root, opts.production)
 
-    await uninstallInContext(extraneousPkgs, cmd.pkg, cmd, opts)
+    await uninstallInContext(extraneousPkgs, ctx.pkg, ctx, opts)
   })
 }
 
 export async function prunePkgs(pkgsToPrune: string[], maybeOpts?: PnpmOptions): Promise<void> {
   const opts = extendOptions(maybeOpts)
 
-  const cmd: CommandNamespace = await initCmd(opts)
+  const ctx = await getContext(opts)
 
-  return lock(cmd.store, async function () {
-    if (!cmd.pkg) {
+  return lock(ctx.store, async function () {
+    if (!ctx.pkg) {
       throw new Error('No package.json found - cannot prune')
     }
-    const pkg = cmd.pkg
+    const pkg = ctx.pkg
 
-    const extraneousPkgs = await getExtraneousPkgs(pkg, cmd.root, opts.production)
+    const extraneousPkgs = await getExtraneousPkgs(pkg, ctx.root, opts.production)
 
     const notPrunable = pkgsToPrune.filter(pkgToPrune => extraneousPkgs.indexOf(pkgToPrune) === -1)
     if (notPrunable.length) {
@@ -45,7 +45,7 @@ export async function prunePkgs(pkgsToPrune: string[], maybeOpts?: PnpmOptions):
       throw err
     }
 
-    await uninstallInContext(pkgsToPrune, cmd.pkg, cmd, opts)
+    await uninstallInContext(pkgsToPrune, ctx.pkg, ctx, opts)
   })
 }
 
