@@ -73,7 +73,6 @@
     "src/resolve/local.ts",
     "src/resolve/npm.ts",
     "src/resolve/tarball.ts",
-    "src/resolveGlobalPkgPath.ts",
     "src/runScript.ts",
     "src/runtimeError.ts",
     "src/save.ts",

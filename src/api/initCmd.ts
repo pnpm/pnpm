@@ -5,7 +5,6 @@ import {stripIndent} from 'common-tags'
 import requireJson from '../fs/requireJson'
 import writeJson from '../fs/writeJson'
 import expandTilde from '../fs/expandTilde'
-import resolveGlobalPkgPath from '../resolveGlobalPkgPath'
 import {StrictPnpmOptions} from '../types'
 import initLogger from '../logger'
 import storeJsonController, {StoreJsonCtrl} from '../fs/storeJsonController'
@@ -90,7 +89,7 @@ function structureChangeMsg (moreInfo: string): string {
 
 async function readGlobalPkg (globalPath: string) {
   if (!globalPath) throw new Error('globalPath is required')
-  const globalPnpm = resolveGlobalPkgPath(globalPath)
+  const globalPnpm = expandTilde(globalPath)
   const globalPkgPath = path.resolve(globalPnpm, 'package.json')
   const globalPkgJson = await readGlobalPkgJson(globalPkgPath)
   return {

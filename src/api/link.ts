@@ -2,7 +2,7 @@ import path = require('path')
 import readPkgUp = require('read-pkg-up')
 import relSymlink from '../fs/relSymlink'
 import {install} from './install'
-import resolveGlobalPkgPath from '../resolveGlobalPkgPath'
+import expandTilde from '../fs/expandTilde'
 import {linkPkgBins} from '../install/linkBins'
 import mkdirp from '../fs/mkdirp'
 import {PnpmOptions} from '../types'
@@ -22,14 +22,14 @@ export async function linkFromRelative (linkTo: string, maybeOpts?: PnpmOptions)
 
 export function linkFromGlobal (pkgName: string, maybeOpts?: PnpmOptions) {
   const opts = extendOptions(maybeOpts)
-  const globalPkgPath = resolveGlobalPkgPath(opts.globalPath)
+  const globalPkgPath = expandTilde(opts.globalPath)
   const linkedPkgPath = path.join(globalPkgPath, 'node_modules', pkgName)
   return linkFromRelative(linkedPkgPath, opts)
 }
 
 export function linkToGlobal (maybeOpts?: PnpmOptions) {
   const opts = extendOptions(maybeOpts)
-  const globalPkgPath = resolveGlobalPkgPath(opts.globalPath)
+  const globalPkgPath = expandTilde(opts.globalPath)
   return linkFromRelative(opts.cwd, Object.assign({}, opts, {
     cwd: globalPkgPath
   }))
