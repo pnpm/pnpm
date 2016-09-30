@@ -12,14 +12,14 @@ export async function prune(maybeOpts?: PnpmOptions): Promise<void> {
 
   const cmd: CommandNamespace = await initCmd(opts)
 
-  return lock(cmd.ctx.store, async function () {
+  return lock(cmd.store, async function () {
     if (!cmd.pkg) {
       throw new Error('No package.json found - cannot prune')
     }
 
     const pkg = cmd.pkg.pkg
 
-    const extraneousPkgs = await getExtraneousPkgs(pkg, cmd.ctx.root, opts.production)
+    const extraneousPkgs = await getExtraneousPkgs(pkg, cmd.root, opts.production)
 
     await uninstallInContext(extraneousPkgs, cmd.pkg, cmd, opts)
   })
@@ -30,13 +30,13 @@ export async function prunePkgs(pkgsToPrune: string[], maybeOpts?: PnpmOptions):
 
   const cmd: CommandNamespace = await initCmd(opts)
 
-  return lock(cmd.ctx.store, async function () {
+  return lock(cmd.store, async function () {
     if (!cmd.pkg) {
       throw new Error('No package.json found - cannot prune')
     }
     const pkg = cmd.pkg.pkg
 
-    const extraneousPkgs = await getExtraneousPkgs(pkg, cmd.ctx.root, opts.production)
+    const extraneousPkgs = await getExtraneousPkgs(pkg, cmd.root, opts.production)
 
     const notPrunable = pkgsToPrune.filter(pkgToPrune => extraneousPkgs.indexOf(pkgToPrune) === -1)
     if (notPrunable.length) {

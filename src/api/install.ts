@@ -6,7 +6,7 @@ import RegClient = require('npm-registry-client')
 import logger = require('@zkochan/logger')
 import {PnpmOptions, StrictPnpmOptions, Dependencies} from '../types'
 import createGot from '../network/got'
-import initCmd, {CommandContext, CommandNamespace} from './initCmd'
+import initCmd, {CommandNamespace} from './initCmd'
 import installMultiple from '../installMultiple'
 import save from '../save'
 import linkPeers from '../install/linkPeers'
@@ -20,6 +20,7 @@ import {InstalledPackage} from '../install'
 import {Got} from '../network/got'
 import pnpmPkgJson from '../pnpmPkgJson'
 import lock from './lock'
+import {StoreJson} from '../fs/storeJsonController'
 
 export type PackageInstallationResult = {
   path: string,
@@ -34,27 +35,25 @@ export type InstalledPackages = {
   [name: string]: InstalledPackage
 }
 
-export type InstallContext = CommandContext & {
+export type InstallContext = {
   installs: InstalledPackages,
   piq?: PackageInstallationResult[],
   got: Got,
   builds: CachedPromises,
-  fetches: CachedPromises
-}
-
-export type InstallNamespace = CommandNamespace & {
-  ctx: InstallContext
+  fetches: CachedPromises,
+  storeJson: StoreJson
 }
 
 export async function install (maybeOpts?: PnpmOptions) {
   const opts = extendOptions(maybeOpts)
-  const cmd = await createInstallCmd(opts)
+  const cmd = await initCmd(opts)
+  const installCtx = await createInstallCmd(opts, cmd.storeJson)
 
   if (!cmd.pkg || !cmd.pkg.pkg) throw runtimeError('No package.json found')
   const packagesToInstall = Object.assign({}, cmd.pkg.pkg.dependencies || {})
   if (!opts.production) Object.assign(packagesToInstall, cmd.pkg.pkg.devDependencies || {})
 
-  return lock(cmd.ctx.store, () => installInContext('general', packagesToInstall, cmd, opts))
+  return lock(cmd.store, () => installInContext('general', packagesToInstall, cmd, installCtx, opts))
 }
 
 /**
@@ -69,19 +68,22 @@ export async function installPkgs (fuzzyDeps: string[] | Dependencies, maybeOpts
     throw new Error('At least one package has to be installed')
   }
   const opts = extendOptions(maybeOpts)
-  const cmd = await createInstallCmd(opts)
+  const cmd = await initCmd(opts)
+  const installCtx = await createInstallCmd(opts, cmd.storeJson)
 
-  return lock(cmd.ctx.store, () => installInContext('named', packagesToInstall, cmd, opts))
+  return lock(cmd.store, () => installInContext('named', packagesToInstall, cmd, installCtx, opts))
 }
 
-async function installInContext (installType: string, packagesToInstall: Dependencies, cmd: InstallNamespace, opts: StrictPnpmOptions) {
-  const pkgs: InstalledPackage[] = await installMultiple(cmd.ctx,
+async function installInContext (installType: string, packagesToInstall: Dependencies, cmd: CommandNamespace, installCtx: InstallContext, opts: StrictPnpmOptions) {
+  const pkgs: InstalledPackage[] = await installMultiple(installCtx,
     packagesToInstall,
     cmd.pkg && cmd.pkg.pkg && cmd.pkg.pkg.optionalDependencies || {},
-    path.join(cmd.ctx.root, 'node_modules'),
+    path.join(cmd.root, 'node_modules'),
     {
       linkLocal: opts.linkLocal,
-      dependent: cmd.pkg && cmd.pkg.path || cmd.ctx.root
+      dependent: cmd.pkg && cmd.pkg.path || cmd.root,
+      root: cmd.root,
+      store: cmd.store
     }
   )
 
@@ -97,18 +99,18 @@ async function installInContext (installType: string, packagesToInstall: Depende
     }
   }
 
-  cmd.storeJsonCtrl.save(Object.assign(cmd.ctx.storeJson, {
+  cmd.storeJsonCtrl.save(Object.assign(cmd.storeJson, {
     pnpm: pnpmPkgJson.version
   }))
 
-  await linkPeers(cmd.ctx.store, cmd.ctx.installs)
+  await linkPeers(cmd.store, installCtx.installs)
   // postinstall hooks
-  if (!(opts.ignoreScripts || !cmd.ctx.piq || !cmd.ctx.piq.length)) {
+  if (!(opts.ignoreScripts || !installCtx.piq || !installCtx.piq.length)) {
     await seq(
-      cmd.ctx.piq.map(pkg => () => linkBins(path.join(pkg.path, '_', 'node_modules'))
+      installCtx.piq.map(pkg => () => linkBins(path.join(pkg.path, '_', 'node_modules'))
           .then(() => postInstall(pkg.path, installLogger(pkg.pkgId)))
           .catch(err => {
-            if (cmd.ctx.installs[pkg.pkgId].optional) {
+            if (installCtx.installs[pkg.pkgId].optional) {
               console.log('Skipping failed optional dependency ' + pkg.pkgId + ':')
               console.log(err.message || err)
               return
@@ -117,24 +119,21 @@ async function installInContext (installType: string, packagesToInstall: Depende
           })
       ))
   }
-  await linkBins(path.join(cmd.ctx.root, 'node_modules'))
+  await linkBins(path.join(cmd.root, 'node_modules'))
   if (!opts.ignoreScripts && cmd.pkg) {
-    await mainPostInstall(cmd.pkg.pkg && cmd.pkg.pkg.scripts || {}, cmd.ctx.root, opts.production)
+    await mainPostInstall(cmd.pkg.pkg && cmd.pkg.pkg.scripts || {}, cmd.root, opts.production)
   }
 }
 
-async function createInstallCmd (opts: StrictPnpmOptions): Promise<InstallNamespace> {
-  const baseCmd = await initCmd(opts)
+async function createInstallCmd (opts: StrictPnpmOptions, storeJson: StoreJson): Promise<InstallContext> {
   const client = new RegClient(adaptConfig(opts))
-  const cmd: InstallNamespace = Object.assign(baseCmd, {
-    ctx: Object.assign({}, baseCmd.ctx, {
-      fetches: {},
-      builds: {},
-      installs: {},
-      got: createGot(client)
-    })
-  })
-  return cmd
+  return {
+    fetches: {},
+    builds: {},
+    installs: {},
+    got: createGot(client),
+    storeJson
+  }
 }
 
 function adaptConfig (opts: StrictPnpmOptions) {

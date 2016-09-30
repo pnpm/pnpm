@@ -19,16 +19,12 @@ export type PackageAndPath = {
   path: string
 }
 
-export type CommandContext = {
+export type CommandNamespace = {
+  pkg?: PackageAndPath,
+  storeJsonCtrl: StoreJsonCtrl,
   store: string,
   root: string,
   storeJson: StoreJson
-}
-
-export type CommandNamespace = {
-  pkg?: PackageAndPath,
-  ctx: CommandContext,
-  storeJsonCtrl: StoreJsonCtrl
 }
 
 export default async function (opts: StrictPnpmOptions): Promise<CommandNamespace> {
@@ -43,21 +39,19 @@ export default async function (opts: StrictPnpmOptions): Promise<CommandNamespac
   }
   const cmd: CommandNamespace = {
     pkg,
-    ctx: {
-      root,
-      store,
-      storeJson: storeJson || {
-        pnpm: pnpmPkgJson.version,
-        dependents: {},
-        dependencies: {}
-      }
+    root,
+    store,
+    storeJson: storeJson || {
+      pnpm: pnpmPkgJson.version,
+      dependents: {},
+      dependencies: {}
     },
     storeJsonCtrl
   }
 
   if (!opts.quiet) initLogger(opts.logger)
 
-  await mkdirp(cmd.ctx.store)
+  await mkdirp(cmd.store)
   return cmd
 }
 

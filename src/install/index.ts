@@ -24,7 +24,9 @@ export type InstallationOptions = {
   optional?: boolean,
   keypath?: string[],
   parentRoot?: string,
-  linkLocal: boolean
+  linkLocal: boolean,
+  root: string,
+  store: string
 }
 
 export type PackageSpec = {
@@ -48,7 +50,9 @@ export type PackageContext = ResolveResult & {
   optional: boolean,
   linkLocal: boolean,
   keypath: string[],
-  id: string
+  id: string,
+  installationRoot: string,
+  store: string
 }
 
 export type InstallLog = (msg: string, data?: Object) => void
@@ -98,13 +102,13 @@ export default async function install (ctx: InstallContext, pkgMeta: PackageMeta
       const res = await resolve(spec, {
         log,
         got: ctx.got,
-        root: options.parentRoot || ctx.root,
+        root: options.parentRoot || options.root,
         linkLocal: options.linkLocal
       })
       const freshPkg: PackageContext = saveResolution(res)
       log('resolved', freshPkg)
       await mkdirp(modules)
-      const target = path.join(ctx.store, res.id)
+      const target = path.join(options.store, res.id)
       await buildToStoreCached(ctx, target, freshPkg, log)
       const pkg = requireJson(path.join(target, '_', 'package.json'))
       await symlinkToModules(path.join(target, '_'), modules)
@@ -146,7 +150,9 @@ export default async function install (ctx: InstallContext, pkgMeta: PackageMeta
       // => 'foobar@9a3b283ac'
       id: res.id,
       root: res.root,
-      fetch: res.fetch
+      fetch: res.fetch,
+      installationRoot: options.root,
+      store: options.store
     }
   }
 
@@ -221,7 +227,9 @@ async function buildInStore (ctx: InstallContext, target: string, buildInfo: Pac
       dependent: buildInfo.id,
       parentRoot: buildInfo.root,
       optional: buildInfo.optional,
-      linkLocal: buildInfo.linkLocal
+      linkLocal: buildInfo.linkLocal,
+      root: buildInfo.installationRoot,
+      store: buildInfo.store
     })
 
   // symlink itself; . -> node_modules/lodash@4.0.0
