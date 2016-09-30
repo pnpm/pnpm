@@ -5,27 +5,24 @@ import extendOptions from './extendOptions'
 import {uninstallInContext} from './uninstall'
 import getPkgDirs from '../fs/getPkgDirs'
 import requireJson from '../fs/requireJson'
+import lock from './lock'
 
 export async function prune(maybeOpts?: PnpmOptions): Promise<void> {
   const opts = extendOptions(maybeOpts)
 
   const cmd: CommandNamespace = await initCmd(opts)
 
-  try {
+  return lock(cmd.ctx.store, async function () {
     if (!cmd.pkg) {
       throw new Error('No package.json found - cannot prune')
     }
+
     const pkg = cmd.pkg.pkg
 
     const extraneousPkgs = await getExtraneousPkgs(pkg, cmd.ctx.root, opts.production)
 
     await uninstallInContext(extraneousPkgs, cmd.pkg, cmd, opts)
-
-    await cmd.unlock()
-  } catch (err) {
-    if (typeof cmd !== 'undefined' && cmd.unlock) await cmd.unlock()
-    throw err
-  }
+  })
 }
 
 export async function prunePkgs(pkgsToPrune: string[], maybeOpts?: PnpmOptions): Promise<void> {
@@ -33,7 +30,7 @@ export async function prunePkgs(pkgsToPrune: string[], maybeOpts?: PnpmOptions):
 
   const cmd: CommandNamespace = await initCmd(opts)
 
-  try {
+  return lock(cmd.ctx.store, async function () {
     if (!cmd.pkg) {
       throw new Error('No package.json found - cannot prune')
     }
@@ -49,12 +46,7 @@ export async function prunePkgs(pkgsToPrune: string[], maybeOpts?: PnpmOptions):
     }
 
     await uninstallInContext(pkgsToPrune, cmd.pkg, cmd, opts)
-
-    await cmd.unlock()
-  } catch (err) {
-    if (typeof cmd !== 'undefined' && cmd.unlock) await cmd.unlock()
-    throw err
-  }
+  })
 }
 
 async function getExtraneousPkgs (pkg: Package, root: string, production: boolean) {

@@ -1,9 +1,5 @@
 import readPkgUp = require('read-pkg-up')
 import path = require('path')
-import thenify = require('thenify')
-import lockfile = require('lockfile')
-const lock = thenify(lockfile.lock)
-const unlock = thenify(lockfile.unlock)
 import semver = require('semver')
 import {stripIndent} from 'common-tags'
 import requireJson from '../fs/requireJson'
@@ -32,7 +28,6 @@ export type CommandContext = {
 export type CommandNamespace = {
   pkg?: PackageAndPath,
   ctx: CommandContext,
-  unlock(): void,
   storeJsonCtrl: StoreJsonCtrl
 }
 
@@ -41,7 +36,6 @@ export default async function (opts: StrictPnpmOptions): Promise<CommandNamespac
   const pkg = await (opts.global ? readGlobalPkg(opts.globalPath) : readPkgUp({ cwd }))
   const root = pkg.path ? path.dirname(pkg.path) : cwd
   const store = resolveStorePath(opts.storePath, root)
-  const lockfile: string = path.resolve(store, 'lock')
   const storeJsonCtrl = storeJsonController(store)
   const storeJson = storeJsonCtrl.read()
   if (storeJson) {
@@ -58,14 +52,12 @@ export default async function (opts: StrictPnpmOptions): Promise<CommandNamespac
         dependencies: {}
       }
     },
-    unlock: () => unlock(lockfile),
     storeJsonCtrl
   }
 
   if (!opts.quiet) initLogger(opts.logger)
 
   await mkdirp(cmd.ctx.store)
-  await lock(lockfile)
   return cmd
 }
 

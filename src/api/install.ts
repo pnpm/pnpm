@@ -19,6 +19,7 @@ import extendOptions from './extendOptions'
 import {InstalledPackage} from '../install'
 import {Got} from '../network/got'
 import pnpmPkgJson from '../pnpmPkgJson'
+import lock from './lock'
 
 export type PackageInstallationResult = {
   path: string,
@@ -49,17 +50,11 @@ export async function install (maybeOpts?: PnpmOptions) {
   const opts = extendOptions(maybeOpts)
   const cmd = await createInstallCmd(opts)
 
-  try {
-    if (!cmd.pkg || !cmd.pkg.pkg) throw runtimeError('No package.json found')
-    const packagesToInstall = Object.assign({}, cmd.pkg.pkg.dependencies || {})
-    if (!opts.production) Object.assign(packagesToInstall, cmd.pkg.pkg.devDependencies || {})
+  if (!cmd.pkg || !cmd.pkg.pkg) throw runtimeError('No package.json found')
+  const packagesToInstall = Object.assign({}, cmd.pkg.pkg.dependencies || {})
+  if (!opts.production) Object.assign(packagesToInstall, cmd.pkg.pkg.devDependencies || {})
 
-    await installInContext('general', packagesToInstall, cmd, opts)
-    await cmd.unlock()
-  } catch (err) {
-    if (cmd && cmd.unlock) cmd.unlock()
-    throw err
-  }
+  return lock(cmd.ctx.store, () => installInContext('general', packagesToInstall, cmd, opts))
 }
 
 /**
@@ -76,13 +71,7 @@ export async function installPkgs (fuzzyDeps: string[] | Dependencies, maybeOpts
   const opts = extendOptions(maybeOpts)
   const cmd = await createInstallCmd(opts)
 
-  try {
-    await installInContext('named', packagesToInstall, cmd, opts)
-    await cmd.unlock()
-  } catch (err) {
-    if (cmd && cmd.unlock) cmd.unlock()
-    throw err
-  }
+  return lock(cmd.ctx.store, () => installInContext('named', packagesToInstall, cmd, opts))
 }
 
 async function installInContext (installType: string, packagesToInstall: Dependencies, cmd: InstallNamespace, opts: StrictPnpmOptions) {
@@ -90,7 +79,10 @@ async function installInContext (installType: string, packagesToInstall: Depende
     packagesToInstall,
     cmd.pkg && cmd.pkg.pkg && cmd.pkg.pkg.optionalDependencies || {},
     path.join(cmd.ctx.root, 'node_modules'),
-    Object.assign({}, opts, { dependent: cmd.pkg && cmd.pkg.path || cmd.ctx.root })
+    {
+      linkLocal: opts.linkLocal,
+      dependent: cmd.pkg && cmd.pkg.path || cmd.ctx.root
+    }
   )
 
   if (installType === 'named') {

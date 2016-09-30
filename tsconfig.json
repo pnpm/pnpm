@@ -26,6 +26,7 @@
     "src/api/initCmd.ts",
     "src/api/install.ts",
     "src/api/link.ts",
+    "src/api/lock.ts",
     "src/api/prune.ts",
     "src/api/uninstall.ts",
     "src/bin/pnpm.ts",

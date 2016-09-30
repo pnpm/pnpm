@@ -9,22 +9,19 @@ import extendOptions from './extendOptions'
 import requireJson from '../fs/requireJson'
 import {PnpmOptions, StrictPnpmOptions} from '../types'
 import {StoreJson} from '../fs/storeJsonController'
+import lock from './lock'
 
 export default async function uninstallCmd (pkgsToUninstall: string[], maybeOpts?: PnpmOptions) {
   const opts = extendOptions(maybeOpts)
 
   const cmd: CommandNamespace = await initCmd(opts)
 
-  try {
-    if (!cmd.pkg) {
-      throw new Error('No package.json found - cannot uninstall')
-    }
-    await uninstallInContext(pkgsToUninstall, cmd.pkg, cmd, opts)
-    await cmd.unlock()
-  } catch (err) {
-    if (typeof cmd !== 'undefined' && cmd.unlock) await cmd.unlock()
-    throw err
+  if (!cmd.pkg) {
+    throw new Error('No package.json found - cannot uninstall')
   }
+
+  const pkg = cmd.pkg
+  return lock(cmd.ctx.store, () => uninstallInContext(pkgsToUninstall, pkg, cmd, opts))
 }
 
 export async function uninstallInContext (pkgsToUninstall: string[], pkg: PackageAndPath, cmd: CommandNamespace, opts: StrictPnpmOptions) {
