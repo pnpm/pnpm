@@ -70,7 +70,7 @@
     "ncp": "^2.0.0",
     "nixt": "0.5.0",
     "sepia": "2.0.1",
-    "standard": "8.1.0",
+    "standard": "8.2.0",
     "tap-diff": "0.1.1",
     "tape": "4.6.0",
     "tape-promise": "1.1.0",
