@@ -24,9 +24,8 @@ export type CommandNamespace = {
 }
 
 export default async function (opts: StrictPnpmOptions): Promise<CommandNamespace> {
-  const cwd = opts.cwd || process.cwd()
-  const pkg = await (opts.global ? readGlobalPkg(opts.globalPath) : readPkgUp({ cwd }))
-  const root = normalizePath(pkg.path ? path.dirname(pkg.path) : cwd)
+  const pkg = await (opts.global ? readGlobalPkg(opts.globalPath) : readPkgUp({ cwd: opts.cwd }))
+  const root = normalizePath(pkg.path ? path.dirname(pkg.path) : opts.cwd)
   const store = resolveStorePath(opts.storePath, root)
   const storeJsonCtrl = storeJsonController(store)
   const storeJson = storeJsonCtrl.read()

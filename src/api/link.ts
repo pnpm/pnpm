@@ -30,8 +30,7 @@ export function linkFromGlobal (pkgName: string, maybeOpts?: PnpmOptions) {
 export function linkToGlobal (maybeOpts?: PnpmOptions) {
   const opts = extendOptions(maybeOpts)
   const globalPkgPath = resolveGlobalPkgPath(opts.globalPath)
-  const cwd = opts.cwd || process.cwd()
-  return linkFromRelative(cwd, Object.assign({
+  return linkFromRelative(opts.cwd, Object.assign({}, opts, {
     cwd: globalPkgPath
-  }, opts))
+  }))
 }
