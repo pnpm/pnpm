@@ -1,13 +1,13 @@
 import cbRimraf = require('rimraf')
 import path = require('path')
 
-import initCmd, {CommandNamespace, PackageAndPath} from './initCmd'
+import initCmd, {CommandNamespace} from './initCmd'
 import getSaveType from '../getSaveType'
 import removeDeps from '../removeDeps'
 import binify from '../binify'
 import extendOptions from './extendOptions'
 import requireJson from '../fs/requireJson'
-import {PnpmOptions, StrictPnpmOptions} from '../types'
+import {PnpmOptions, StrictPnpmOptions, Package} from '../types'
 import {StoreJson} from '../fs/storeJsonController'
 import lock from './lock'
 
@@ -24,25 +24,25 @@ export default async function uninstallCmd (pkgsToUninstall: string[], maybeOpts
   return lock(cmd.store, () => uninstallInContext(pkgsToUninstall, pkg, cmd, opts))
 }
 
-export async function uninstallInContext (pkgsToUninstall: string[], pkg: PackageAndPath, cmd: CommandNamespace, opts: StrictPnpmOptions) {
-  pkg.pkg.dependencies = pkg.pkg.dependencies || {}
+export async function uninstallInContext (pkgsToUninstall: string[], pkg: Package, cmd: CommandNamespace, opts: StrictPnpmOptions) {
+  pkg.dependencies = pkg.dependencies || {}
 
   // this is OK. The store might not have records for the package
   // maybe it was cloned, `pnpm install` was not executed
   // and remove is done on a package with no dependencies installed
-  cmd.storeJson.dependencies[pkg.path] = cmd.storeJson.dependencies[pkg.path] || {}
+  cmd.storeJson.dependencies[cmd.root] = cmd.storeJson.dependencies[cmd.root] || {}
 
   const pkgIds = <string[]>pkgsToUninstall
-    .map(dep => cmd.storeJson.dependencies[pkg.path][dep])
+    .map(dep => cmd.storeJson.dependencies[cmd.root][dep])
     .filter(pkgId => !!pkgId)
-  const uninstalledPkgs = tryUninstall(pkgIds.slice(), cmd.storeJson, pkg.path)
+  const uninstalledPkgs = tryUninstall(pkgIds.slice(), cmd.storeJson, cmd.root)
   uninstalledPkgs.forEach(uninstalledPkg => removeBins(uninstalledPkg, cmd.store, cmd.root))
-  if (cmd.storeJson.dependencies[pkg.path]) {
+  if (cmd.storeJson.dependencies[cmd.root]) {
     pkgsToUninstall.forEach(dep => {
-      delete cmd.storeJson.dependencies[pkg.path][dep]
+      delete cmd.storeJson.dependencies[cmd.root][dep]
     })
-    if (!Object.keys(cmd.storeJson.dependencies[pkg.path]).length) {
-      delete cmd.storeJson.dependencies[pkg.path]
+    if (!Object.keys(cmd.storeJson.dependencies[cmd.root]).length) {
+      delete cmd.storeJson.dependencies[cmd.root]
     }
   }
   await Promise.all(uninstalledPkgs.map(pkgId => removePkgFromStore(pkgId, cmd.store)))
@@ -52,7 +52,8 @@ export async function uninstallInContext (pkgsToUninstall: string[], pkg: Packag
 
   const saveType = getSaveType(opts)
   if (saveType) {
-    await removeDeps(pkg.path, pkgsToUninstall, saveType)
+    const pkgJsonPath = path.join(cmd.root, 'package.json')
+    await removeDeps(pkgJsonPath, pkgsToUninstall, saveType)
   }
 }
 

@@ -49,9 +49,9 @@ export async function install (maybeOpts?: PnpmOptions) {
   const cmd = await initCmd(opts)
   const installCtx = await createInstallCmd(opts, cmd.storeJson)
 
-  if (!cmd.pkg || !cmd.pkg.pkg) throw runtimeError('No package.json found')
-  const packagesToInstall = Object.assign({}, cmd.pkg.pkg.dependencies || {})
-  if (!opts.production) Object.assign(packagesToInstall, cmd.pkg.pkg.devDependencies || {})
+  if (!cmd.pkg) throw runtimeError('No package.json found')
+  const packagesToInstall = Object.assign({}, cmd.pkg.dependencies || {})
+  if (!opts.production) Object.assign(packagesToInstall, cmd.pkg.devDependencies || {})
 
   return lock(cmd.store, () => installInContext('general', packagesToInstall, cmd, installCtx, opts))
 }
@@ -77,11 +77,11 @@ export async function installPkgs (fuzzyDeps: string[] | Dependencies, maybeOpts
 async function installInContext (installType: string, packagesToInstall: Dependencies, cmd: CommandNamespace, installCtx: InstallContext, opts: StrictPnpmOptions) {
   const pkgs: InstalledPackage[] = await installMultiple(installCtx,
     packagesToInstall,
-    cmd.pkg && cmd.pkg.pkg && cmd.pkg.pkg.optionalDependencies || {},
+    cmd.pkg && cmd.pkg && cmd.pkg.optionalDependencies || {},
     path.join(cmd.root, 'node_modules'),
     {
       linkLocal: opts.linkLocal,
-      dependent: cmd.pkg && cmd.pkg.path || cmd.root,
+      dependent: cmd.root,
       root: cmd.root,
       store: cmd.store
     }
@@ -95,7 +95,8 @@ async function installInContext (installType: string, packagesToInstall: Depende
       }
       const inputNames = Object.keys(packagesToInstall)
       const savedPackages = pkgs.filter((pkg: InstalledPackage) => inputNames.indexOf(pkg.pkg.name) > -1)
-      await save(cmd.pkg.path, savedPackages, saveType, opts.saveExact)
+      const pkgJsonPath = path.join(cmd.root, 'package.json')
+      await save(pkgJsonPath, savedPackages, saveType, opts.saveExact)
     }
   }
 
@@ -121,7 +122,7 @@ async function installInContext (installType: string, packagesToInstall: Depende
   }
   await linkBins(path.join(cmd.root, 'node_modules'))
   if (!opts.ignoreScripts && cmd.pkg) {
-    await mainPostInstall(cmd.pkg.pkg && cmd.pkg.pkg.scripts || {}, cmd.root, opts.production)
+    await mainPostInstall(cmd.pkg && cmd.pkg.scripts || {}, cmd.root, opts.production)
   }
 }
 

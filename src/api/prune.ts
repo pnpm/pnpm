@@ -17,7 +17,7 @@ export async function prune(maybeOpts?: PnpmOptions): Promise<void> {
       throw new Error('No package.json found - cannot prune')
     }
 
-    const pkg = cmd.pkg.pkg
+    const pkg = cmd.pkg
 
     const extraneousPkgs = await getExtraneousPkgs(pkg, cmd.root, opts.production)
 
@@ -34,7 +34,7 @@ export async function prunePkgs(pkgsToPrune: string[], maybeOpts?: PnpmOptions):
     if (!cmd.pkg) {
       throw new Error('No package.json found - cannot prune')
     }
-    const pkg = cmd.pkg.pkg
+    const pkg = cmd.pkg
 
     const extraneousPkgs = await getExtraneousPkgs(pkg, cmd.root, opts.production)
 

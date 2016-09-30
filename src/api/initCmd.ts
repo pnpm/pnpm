@@ -13,14 +13,10 @@ import mkdirp from '../fs/mkdirp'
 import {Package} from '../types'
 import {StoreJson} from '../fs/storeJsonController'
 import pnpmPkgJson from '../pnpmPkgJson'
-
-export type PackageAndPath = {
-  pkg: Package,
-  path: string
-}
+import normalizePath = require('normalize-path')
 
 export type CommandNamespace = {
-  pkg?: PackageAndPath,
+  pkg?: Package,
   storeJsonCtrl: StoreJsonCtrl,
   store: string,
   root: string,
@@ -30,7 +26,7 @@ export type CommandNamespace = {
 export default async function (opts: StrictPnpmOptions): Promise<CommandNamespace> {
   const cwd = opts.cwd || process.cwd()
   const pkg = await (opts.global ? readGlobalPkg(opts.globalPath) : readPkgUp({ cwd }))
-  const root = pkg.path ? path.dirname(pkg.path) : cwd
+  const root = normalizePath(pkg.path ? path.dirname(pkg.path) : cwd)
   const store = resolveStorePath(opts.storePath, root)
   const storeJsonCtrl = storeJsonController(store)
   const storeJson = storeJsonCtrl.read()
@@ -38,7 +34,7 @@ export default async function (opts: StrictPnpmOptions): Promise<CommandNamespac
     failIfNotCompatible(storeJson.pnpm)
   }
   const cmd: CommandNamespace = {
-    pkg,
+    pkg: pkg.pkg,
     root,
     store,
     storeJson: storeJson || {
@@ -71,6 +67,12 @@ function failIfNotCompatible (storeVersion: string) {
   if (!semver.satisfies(storeVersion, '>=0.37')) {
     const msg = structureChangeMsg(stripIndent`
       The structure of store.json/dependencies was changed to map dependencies to their fullnames
+    `)
+    throw new Error(msg)
+  }
+  if (!semver.satisfies(storeVersion, '>=0.38')) {
+    const msg = structureChangeMsg(stripIndent`
+      The structure of store.json/dependencies was changed to not include the redundunt package.json at the end
     `)
     throw new Error(msg)
   }
