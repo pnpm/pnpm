@@ -42,7 +42,7 @@
     "npm-package-arg": "4.2.0",
     "npm-registry-client": "7.2.1",
     "observatory": "1.0.0",
-    "os-homedir": "1.0.1",
+    "os-homedir": "1.0.2",
     "pause-stream": "0.0.11",
     "promisequence": "1.1.6",
     "rc": "1.1.6",
