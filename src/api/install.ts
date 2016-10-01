@@ -21,6 +21,7 @@ import {Got} from '../network/got'
 import pnpmPkgJson from '../pnpmPkgJson'
 import lock from './lock'
 import {StoreJson} from '../fs/storeJsonController'
+import {save as saveStoreJson} from '../fs/storeJsonController'
 
 export type PackageInstallationResult = {
   path: string,
@@ -100,7 +101,7 @@ async function installInContext (installType: string, packagesToInstall: Depende
     }
   }
 
-  ctx.storeJsonCtrl.save(Object.assign(ctx.storeJson, {
+  saveStoreJson(ctx.store, Object.assign(ctx.storeJson, {
     pnpm: pnpmPkgJson.version
   }))
 

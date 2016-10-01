@@ -7,16 +7,14 @@ import writeJson from '../fs/writeJson'
 import expandTilde from '../fs/expandTilde'
 import {StrictPnpmOptions} from '../types'
 import initLogger from '../logger'
-import storeJsonController, {StoreJsonCtrl} from '../fs/storeJsonController'
+import {read as readStoreJson} from '../fs/storeJsonController'
 import mkdirp from '../fs/mkdirp'
 import {Package} from '../types'
 import {StoreJson} from '../fs/storeJsonController'
-import pnpmPkgJson from '../pnpmPkgJson'
 import normalizePath = require('normalize-path')
 
 export type PnpmContext = {
   pkg?: Package,
-  storeJsonCtrl: StoreJsonCtrl,
   store: string,
   root: string,
   storeJson: StoreJson
@@ -26,8 +24,7 @@ export default async function (opts: StrictPnpmOptions): Promise<PnpmContext> {
   const pkg = await (opts.global ? readGlobalPkg(opts.globalPath) : readPkgUp({ cwd: opts.cwd }))
   const root = normalizePath(pkg.path ? path.dirname(pkg.path) : opts.cwd)
   const store = resolveStorePath(opts.storePath, root)
-  const storeJsonCtrl = storeJsonController(store)
-  const storeJson = storeJsonCtrl.read()
+  const storeJson = readStoreJson(store)
   if (storeJson) {
     failIfNotCompatible(storeJson.pnpm)
   }
@@ -35,12 +32,7 @@ export default async function (opts: StrictPnpmOptions): Promise<PnpmContext> {
     pkg: pkg.pkg,
     root,
     store,
-    storeJson: storeJson || {
-      pnpm: pnpmPkgJson.version,
-      dependents: {},
-      dependencies: {}
-    },
-    storeJsonCtrl
+    storeJson
   }
 
   if (!opts.quiet) initLogger(opts.logger)

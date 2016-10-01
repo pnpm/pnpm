@@ -1,5 +1,6 @@
 import path = require('path')
 import fs = require('fs')
+import pnpmPkgJson from '../pnpmPkgJson'
 
 export type StoreDependents = {
   [name: string]: string[]
@@ -17,24 +18,20 @@ export type StoreJson = {
   dependencies: StoreDependencies
 }
 
-export type StoreJsonCtrl = {
-  read(): StoreJson,
-  save(storeJson: StoreJson): void
-}
-
-export default function storeJsonController (storePath: string): StoreJsonCtrl {
+export function read (storePath: string) {
   const storeJsonPath = path.join(storePath, 'store.json')
-
-  return {
-    read () {
-      try {
-        return JSON.parse(fs.readFileSync(storeJsonPath, 'utf8'))
-      } catch (err) {
-        return null
-      }
-    },
-    save (storeJson: StoreJson) {
-      fs.writeFileSync(storeJsonPath, JSON.stringify(storeJson, null, 2), 'utf8')
+  try {
+    return JSON.parse(fs.readFileSync(storeJsonPath, 'utf8'))
+  } catch (err) {
+    return {
+      pnpm: pnpmPkgJson.version,
+      dependents: {},
+      dependencies: {}
     }
   }
+}
+
+export function save (storePath: string, storeJson: StoreJson) {
+  const storeJsonPath = path.join(storePath, 'store.json')
+  fs.writeFileSync(storeJsonPath, JSON.stringify(storeJson, null, 2), 'utf8')
 }
