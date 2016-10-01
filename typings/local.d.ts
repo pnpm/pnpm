@@ -211,3 +211,8 @@ declare module 'arr-flatten' {
   const anything: any;
   export = anything;
 }
+
+declare module 'lodash.clonedeep' {
+  const anything: any;
+  export = anything;
+}

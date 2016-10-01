@@ -63,7 +63,7 @@ function canBeUninstalled (pkgId: string, storeJson: StoreJson, pkgPath: string)
     storeJson.dependents[pkgId].length === 1 && storeJson.dependents[pkgId].indexOf(pkgPath) !== -1
 }
 
-function tryUninstall (pkgIds: string[], storeJson: StoreJson, pkgPath: string) {
+export function tryUninstall (pkgIds: string[], storeJson: StoreJson, pkgPath: string) {
   const uninstalledPkgs: string[] = []
   let numberOfUninstalls: number
   do {
@@ -101,7 +101,7 @@ function removeBins (uninstalledPkg: string, store: string, root: string) {
   Object.keys(bins).forEach(bin => cbRimraf.sync(path.join(root, 'node_modules/.bin', bin)))
 }
 
-function removePkgFromStore (pkgId: string, store: string) {
+export function removePkgFromStore (pkgId: string, store: string) {
   return rimraf(path.join(store, pkgId))
 }
 

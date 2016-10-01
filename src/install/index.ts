@@ -43,7 +43,8 @@ export type InstalledPackage = {
   optional: boolean,
   id: string,
   keypath: string[],
-  escapedName: string
+  escapedName: string,
+  fromCache: boolean
 }
 
 export type PackageContext = ResolveResult & {
@@ -117,7 +118,8 @@ export default async function install (ctx: InstallContext, pkgMeta: PackageMeta
         optional,
         keypath,
         id: freshPkg.id,
-        escapedName: spec.escapedName
+        escapedName: spec.escapedName,
+        fromCache: false
       }
       log('package.json', pkg)
     }
@@ -172,7 +174,8 @@ export default async function install (ctx: InstallContext, pkgMeta: PackageMeta
         id: path.basename(fullpath),
         optional,
         keypath,
-        escapedName: spec.escapedName
+        escapedName: spec.escapedName,
+        fromCache: true
       }
     }
   }

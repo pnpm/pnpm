@@ -112,13 +112,21 @@ test('idempotency (rimraf)', async function (t) {
   t.ok(typeof rimraf === 'function', 'rimraf is available')
 })
 
-test('overwriting (lodash@3.10.1 and @4.0.0)', async function (t) {
+test('overwriting (magic-hook@2.0.0 and @0.1.0)', async function (t) {
   prepare()
-  await installPkgs(['lodash@3.10.1'])
-  await installPkgs(['lodash@4.0.0'])
+  await installPkgs(['magic-hook@2.0.0'])
 
-  const _ = require(path.join(process.cwd(), 'node_modules', 'lodash', 'package.json'))
-  t.ok(_.version === '4.0.0', 'lodash is 4.0.0')
+  const flattenPathInStore = path.join(process.cwd(), 'node_modules', '.store', 'flatten@1.0.2')
+  let flattenExists = await exists(flattenPathInStore)
+  t.ok(flattenExists, 'flatten@1.0.2 is in the store')
+
+  await installPkgs(['magic-hook@0.1.0'])
+
+  flattenExists = await exists(flattenPathInStore)
+  t.ok(!flattenExists, 'dependency of magic-hook@2.0.0 is removed')
+
+  const _ = require(path.join(process.cwd(), 'node_modules', 'magic-hook', 'package.json'))
+  t.ok(_.version === '0.1.0', 'magic-hook is 0.1.0')
 })
 
 test('big with dependencies and circular deps (babel-preset-2015)', async function (t) {

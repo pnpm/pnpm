@@ -33,10 +33,9 @@ export default function installMultiple (ctx: InstallContext, requiredPkgsMap: D
 
       ctx.storeJson.dependencies[options.dependent] = ctx.storeJson.dependencies[options.dependent] || {}
 
-      // NOTE: if store.json already has info about the installed dependency,
-      // then leave it as it was, because the current install implementation
+      // NOTE: the current install implementation
       // does not return enough info for packages that were already installed
-      if (!ctx.storeJson.dependencies[options.dependent][dependency.pkg.name]) {
+      if (!dependency.fromCache) {
         ctx.storeJson.dependencies[options.dependent][dependency.pkg.name] = dependency.id
 
         ctx.storeJson.dependents[dependency.id] = ctx.storeJson.dependents[dependency.id] || []

@@ -4,6 +4,7 @@ import chalk = require('chalk')
 import createDebug = require('debug')
 import RegClient = require('npm-registry-client')
 import logger = require('@zkochan/logger')
+import cloneDeep = require('lodash.clonedeep')
 import {PnpmOptions, StrictPnpmOptions, Dependencies} from '../types'
 import createGot from '../network/got'
 import getContext, {PnpmContext} from './getContext'
@@ -22,6 +23,7 @@ import pnpmPkgJson from '../pnpmPkgJson'
 import lock from './lock'
 import {StoreJson} from '../fs/storeJsonController'
 import {save as saveStoreJson} from '../fs/storeJsonController'
+import {tryUninstall, removePkgFromStore} from './uninstall'
 
 export type PackageInstallationResult = {
   path: string,
@@ -76,6 +78,8 @@ export async function installPkgs (fuzzyDeps: string[] | Dependencies, maybeOpts
 }
 
 async function installInContext (installType: string, packagesToInstall: Dependencies, ctx: PnpmContext, installCtx: InstallContext, opts: StrictPnpmOptions) {
+  // TODO: ctx.storeJson should not be muted. installMultiple should return a new storeJson
+  const oldStoreJson: StoreJson = cloneDeep(ctx.storeJson)
   const pkgs: InstalledPackage[] = await installMultiple(installCtx,
     packagesToInstall,
     ctx.pkg && ctx.pkg && ctx.pkg.optionalDependencies || {},
@@ -101,9 +105,11 @@ async function installInContext (installType: string, packagesToInstall: Depende
     }
   }
 
-  saveStoreJson(ctx.store, Object.assign(ctx.storeJson, {
+  const newStoreJson = Object.assign({}, ctx.storeJson, {
     pnpm: pnpmPkgJson.version
-  }))
+  })
+  await removeOrphanPkgs(oldStoreJson, newStoreJson, ctx.root, ctx.store)
+  saveStoreJson(ctx.store, newStoreJson)
 
   await linkPeers(ctx.store, installCtx.installs)
   // postinstall hooks
@@ -125,6 +131,19 @@ async function installInContext (installType: string, packagesToInstall: Depende
   if (!opts.ignoreScripts && ctx.pkg) {
     await mainPostInstall(ctx.pkg && ctx.pkg.scripts || {}, ctx.root, opts.production)
   }
+}
+
+function removeOrphanPkgs (oldStoreJson: StoreJson, newStoreJson: StoreJson, root: string, store: string) {
+  const oldDeps = oldStoreJson.dependencies[root] || {}
+  const newDeps = newStoreJson.dependencies[root] || {}
+
+  const maybeUninstallPkgs = Object.keys(oldDeps)
+    .filter(depName => oldDeps[depName] !== newDeps[depName])
+    .map(depName => oldDeps[depName])
+
+  const uninstallPkgs = tryUninstall(maybeUninstallPkgs, newStoreJson, root)
+
+  return Promise.all(uninstallPkgs.map(pkgId => removePkgFromStore(pkgId, store)))
 }
 
 async function createInstallCmd (opts: StrictPnpmOptions, storeJson: StoreJson): Promise<InstallContext> {
