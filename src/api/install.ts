@@ -88,7 +88,8 @@ async function installInContext (installType: string, packagesToInstall: Depende
       linkLocal: opts.linkLocal,
       dependent: ctx.root,
       root: ctx.root,
-      store: ctx.store
+      store: ctx.store,
+      force: opts.force
     }
   )
 

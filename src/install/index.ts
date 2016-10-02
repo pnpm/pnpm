@@ -25,6 +25,7 @@ export type InstallationOptions = {
   keypath?: string[],
   parentRoot?: string,
   linkLocal: boolean,
+  force: boolean,
   root: string,
   store: string
 }
@@ -53,7 +54,8 @@ export type PackageContext = ResolveResult & {
   keypath: string[],
   id: string,
   installationRoot: string,
-  store: string
+  store: string,
+  force: boolean
 }
 
 export type InstallLog = (msg: string, data?: Object) => void
@@ -95,7 +97,7 @@ export default async function install (ctx: InstallContext, pkgMeta: PackageMeta
 
   try {
     // it might be a bundleDependency, in which case, don't bother
-    const available = await isAvailable(spec, modules)
+    const available = !options.force && await isAvailable(spec, modules)
     if (available) {
       installedPkg = await saveCachedResolution()
       log('package.json', installedPkg.pkg)
@@ -154,7 +156,8 @@ export default async function install (ctx: InstallContext, pkgMeta: PackageMeta
       root: res.root,
       fetch: res.fetch,
       installationRoot: options.root,
-      store: options.store
+      store: options.store,
+      force: options.force
     }
   }
 
@@ -195,7 +198,8 @@ function buildToStoreCached (ctx: InstallContext, target: string, buildInfo: Pac
     memoize(ctx.builds, buildInfo.id, async function () {
       await memoize(ctx.fetches, buildInfo.id, () => fetchToStore(ctx, target, buildInfo, log))
       return buildInStore(ctx, target, buildInfo, log)
-    })
+    }),
+    buildInfo.force
   )
 }
 
@@ -232,7 +236,8 @@ async function buildInStore (ctx: InstallContext, target: string, buildInfo: Pac
       optional: buildInfo.optional,
       linkLocal: buildInfo.linkLocal,
       root: buildInfo.installationRoot,
-      store: buildInfo.store
+      store: buildInfo.store,
+      force: buildInfo.force
     })
 
   // symlink itself; . -> node_modules/lodash@4.0.0
@@ -287,11 +292,12 @@ async function symlinkToModules (target: string, modules: string) {
 
 /**
  * If `path` doesn't exist, run `fn()`.
- * If it exists, don't do anything.
+ * If it exists (and installation is not forced), don't do anything.
  */
-async function make (path: string, fn: Function) {
+async function make (path: string, fn: Function, force: boolean) {
   try {
     await fs.stat(path)
+    if (force) return fn()
   } catch (err) {
     if ((<NodeJS.ErrnoException>err).code !== 'ENOENT') throw err
     return fn()

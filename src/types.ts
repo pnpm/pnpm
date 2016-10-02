@@ -17,6 +17,7 @@ export type PnpmOptions = {
   fetchRetryMintimeout?: number,
   fetchRetryMaxtimeout?: number,
   saveExact?: boolean,
+  force?: boolean,
   linkLocal?: boolean,
 
   // proxy
@@ -51,6 +52,7 @@ export type StrictPnpmOptions = {
   fetchRetryMintimeout: number,
   fetchRetryMaxtimeout: number,
   saveExact: boolean,
+  force: boolean,
   linkLocal: boolean,
 
   // proxy

@@ -9,6 +9,7 @@ import semver = require('semver')
 import crossSpawn = require('cross-spawn')
 const spawnSync = crossSpawn.sync
 import isCI = require('is-ci')
+import rimraf = require('rimraf-then')
 import prepare from './support/prepare'
 import requireJson from '../src/fs/requireJson'
 const basicPackageJson = requireJson(path.join(__dirname, './support/simple-package.json'))
@@ -127,6 +128,32 @@ test('overwriting (magic-hook@2.0.0 and @0.1.0)', async function (t) {
 
   const _ = require(path.join(process.cwd(), 'node_modules', 'magic-hook', 'package.json'))
   t.ok(_.version === '0.1.0', 'magic-hook is 0.1.0')
+})
+
+test('forcing', async function (t) {
+  prepare()
+  await installPkgs(['magic-hook@2.0.0'])
+
+  const distPath = path.join(process.cwd(), 'node_modules/.store/magic-hook@2.0.0/_/dist')
+  await rimraf(distPath)
+
+  await installPkgs(['magic-hook@2.0.0'], {force: true})
+
+  const distPathExists = await exists(distPath)
+  t.ok(distPathExists, 'magic-hook@2.0.0 dist folder reinstalled')
+})
+
+test('no forcing', async function (t) {
+  prepare()
+  await installPkgs(['magic-hook@2.0.0'])
+
+  const distPath = path.join(process.cwd(), 'node_modules/.store/magic-hook@2.0.0/_/dist')
+  await rimraf(distPath)
+
+  await installPkgs(['magic-hook@2.0.0'])
+
+  const distPathExists = await exists(distPath)
+  t.ok(!distPathExists, 'magic-hook@2.0.0 dist folder not reinstalled')
 })
 
 test('big with dependencies and circular deps (babel-preset-2015)', async function (t) {

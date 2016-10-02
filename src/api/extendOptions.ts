@@ -13,7 +13,8 @@ const defaults = () => (<StrictPnpmOptions>{
   strictSsl: true,
   tag: 'latest',
   production: process.env.NODE_ENV === 'production',
-  cwd: process.cwd()
+  cwd: process.cwd(),
+  force: false
 })
 
 export default (opts?: PnpmOptions): StrictPnpmOptions => {
