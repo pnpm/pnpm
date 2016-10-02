@@ -1,4 +1,4 @@
-import cbRimraf = require('rimraf')
+import rimraf = require('rimraf-then')
 import path = require('path')
 
 import getContext, {PnpmContext} from './getContext'
@@ -37,7 +37,9 @@ export async function uninstallInContext (pkgsToUninstall: string[], pkg: Packag
     .map(dep => ctx.storeJson.dependencies[ctx.root][dep])
     .filter(pkgId => !!pkgId)
   const uninstalledPkgs = tryUninstall(pkgIds.slice(), ctx.storeJson, ctx.root)
-  uninstalledPkgs.forEach(uninstalledPkg => removeBins(uninstalledPkg, ctx.store, ctx.root))
+  await Promise.all(
+    uninstalledPkgs.map(uninstalledPkg => removeBins(uninstalledPkg, ctx.store, ctx.root))
+  )
   if (ctx.storeJson.dependencies[ctx.root]) {
     pkgsToUninstall.forEach(dep => {
       delete ctx.storeJson.dependencies[ctx.root][dep]
@@ -98,15 +100,11 @@ function removeDependency (dependentPkgName: string, uninstalledPkg: string, sto
 function removeBins (uninstalledPkg: string, store: string, root: string) {
   const uninstalledPkgJson = requireJson(path.join(store, uninstalledPkg, '_/package.json'))
   const bins = binify(uninstalledPkgJson)
-  Object.keys(bins).forEach(bin => cbRimraf.sync(path.join(root, 'node_modules/.bin', bin)))
+  return Promise.all(
+    Object.keys(bins).map(bin => rimraf(path.join(root, 'node_modules/.bin', bin)))
+  )
 }
 
 export function removePkgFromStore (pkgId: string, store: string) {
   return rimraf(path.join(store, pkgId))
-}
-
-function rimraf (filePath: string) {
-  return new Promise((resolve, reject) => {
-    cbRimraf(filePath, (err: Error) => err ? reject(err) : resolve())
-  })
 }

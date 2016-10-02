@@ -51,7 +51,7 @@
     "registry-auth-token": "3.0.1",
     "registry-url": "3.1.0",
     "retry": "0.10.0",
-    "rimraf": "2.5.4",
+    "rimraf-then": "1.0.0",
     "semver": "5.3.0",
     "sorted-object": "2.0.1",
     "supports-color": "3.1.2",
@@ -60,6 +60,7 @@
     "update-notifier": "1.0.2"
   },
   "devDependencies": {
+    "cash-rm": "0.2.0",
     "caw": "2.0.0",
     "commitizen": "^2.8.6",
     "cz-conventional-changelog": "^1.2.0",
@@ -104,10 +105,10 @@
     "cover": "istanbul cover test/index.js",
     "lint": "standard && tslint -c tslint.json ./src/**/*.ts ./test/**/*.ts",
     "test": "npm run lint && ts-node test | tap-diff",
-    "posttest": "rimraf .tmp",
+    "posttest": "rm -rf .tmp",
     "prerelease": "npm test",
     "release": "sh .scripts/release.sh",
-    "tsc": "rimraf lib && tsc",
+    "tsc": "rm -rf lib && tsc",
     "prepublish": "npm run tsc"
   },
   "config": {

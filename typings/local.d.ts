@@ -157,7 +157,7 @@ declare module 'retry' {
   export = anything;
 }
 
-declare module 'rimraf' {
+declare module 'rimraf-then' {
   const anything: any;
   export = anything;
 }
