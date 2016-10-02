@@ -135,8 +135,8 @@ async function installInContext (installType: string, packagesToInstall: Depende
 }
 
 function removeOrphanPkgs (oldStoreJson: StoreJson, newStoreJson: StoreJson, root: string, store: string) {
-  const oldDeps = oldStoreJson.dependencies[root] || {}
-  const newDeps = newStoreJson.dependencies[root] || {}
+  const oldDeps = oldStoreJson.packages[root] && oldStoreJson.packages[root].dependencies || {}
+  const newDeps = newStoreJson.packages[root] && newStoreJson.packages[root].dependencies || {}
 
   const maybeUninstallPkgs = Object.keys(oldDeps)
     .filter(depName => oldDeps[depName] !== newDeps[depName])

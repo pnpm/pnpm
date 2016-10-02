@@ -24,23 +24,24 @@ export default function installMultiple (ctx: InstallContext, requiredPkgsMap: D
     .filter(pkgName => !optionalPkgsMap[pkgName])
     .map(pkgName => pkgMeta(pkgName, requiredPkgsMap[pkgName], false))
 
-  ctx.storeJson.dependents = ctx.storeJson.dependents || {}
-  ctx.storeJson.dependencies = ctx.storeJson.dependencies || {}
+  ctx.storeJson.packages = ctx.storeJson.packages || {}
 
   return Promise.all(optionalPkgs.concat(requiredPkgs).map(async function (pkg) {
     try {
       const dependency = await install(ctx, pkg, modules, options)
 
-      ctx.storeJson.dependencies[options.dependent] = ctx.storeJson.dependencies[options.dependent] || {}
+      ctx.storeJson.packages[options.dependent] = ctx.storeJson.packages[options.dependent] || {}
+      ctx.storeJson.packages[options.dependent].dependencies = ctx.storeJson.packages[options.dependent].dependencies || {}
 
       // NOTE: the current install implementation
       // does not return enough info for packages that were already installed
       if (!dependency.fromCache) {
-        ctx.storeJson.dependencies[options.dependent][dependency.pkg.name] = dependency.id
+        ctx.storeJson.packages[options.dependent].dependencies[dependency.pkg.name] = dependency.id
 
-        ctx.storeJson.dependents[dependency.id] = ctx.storeJson.dependents[dependency.id] || []
-        if (ctx.storeJson.dependents[dependency.id].indexOf(options.dependent) === -1) {
-          ctx.storeJson.dependents[dependency.id].push(options.dependent)
+        ctx.storeJson.packages[dependency.id] = ctx.storeJson.packages[dependency.id] || {}
+        ctx.storeJson.packages[dependency.id].dependents = ctx.storeJson.packages[dependency.id].dependents || []
+        if (ctx.storeJson.packages[dependency.id].dependents.indexOf(options.dependent) === -1) {
+          ctx.storeJson.packages[dependency.id].dependents.push(options.dependent)
         }
       }
 

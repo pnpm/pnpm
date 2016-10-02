@@ -6,7 +6,7 @@
 
 The last compatible pnpm version that has modified the store.
 
-## dependents
+## packages[packageId].dependents
 
 A dictionary that shows what packages are dependent on each of the package from the store. The dependent packages can be other packages from the store, or packages that use the store to install their dependencies.
 
@@ -14,31 +14,39 @@ For example, `pnpm` has a dependency on `npm` and `semver`. But `semver` is also
 
 ```json
 {
-  "dependents": {
-    "semver@5.3.0": [
-      "/home/john_smith/src/pnpm/package.json",
-      "npm@3.10.2"
-    ],
-    "npm@3.10.2": [
-      "/home/john_smith/src/pnpm/package.json"
-    ]
+  "packages": {
+    "semver@5.3.0": {
+      "dependents": [
+        "/home/john_smith/src/pnpm",
+        "npm@3.10.2"
+      ]
+    },
+    "npm@3.10.2": {
+      "dependents": [
+        "/home/john_smith/src/pnpm"
+      ]
+    }
   }
 }
 ```
 
-## dependencies
+## packages[packageId].dependencies
 
 A dictionary that is the opposite of `dependents`. However, it contains not just a list of dependency names but a map of the dependencies to their exact resolved ID.
 
 ```json
 {
-  "dependencies": {
-    "/home/john_smith/src/pnpm/package.json": {
-      "semver": "semver@5.3.0",
-      "npm": "npm@3.10.2"
+  "packages": {
+    "/home/john_smith/src/pnpm": {
+      "dependencies": {
+        "semver": "semver@5.3.0",
+        "npm": "npm@3.10.2"
+      }
     },
     "npm@3.10.2": {
-      "semver": "semver@5.3.0"
+      "dependencies": {
+        "semver": "semver@5.3.0"
+      }
     }
   }
 }

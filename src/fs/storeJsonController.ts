@@ -2,31 +2,28 @@ import path = require('path')
 import fs = require('fs')
 import pnpmPkgJson from '../pnpmPkgJson'
 
-export type StoreDependents = {
-  [name: string]: string[]
-}
-
-export type StoreDependencies = {
-  [name: string]: {
+export type StorePackage = {
+  dependents: string[],
+  dependencies: {
     [name: string]: string
   }
 }
 
 export type StoreJson = {
   pnpm: string,
-  dependents: StoreDependents,
-  dependencies: StoreDependencies
+  packages: {
+    [name: string]: StorePackage
+  }
 }
 
-export function read (storePath: string) {
+export function read (storePath: string): StoreJson {
   const storeJsonPath = path.join(storePath, 'store.json')
   try {
     return JSON.parse(fs.readFileSync(storeJsonPath, 'utf8'))
   } catch (err) {
     return {
       pnpm: pnpmPkgJson.version,
-      dependents: {},
-      dependencies: {}
+      packages: {}
     }
   }
 }
