@@ -80,7 +80,9 @@ async function install (pkgRawSpec: string, modules: string, ctx: InstallContext
     ctx.store.packages[dependency.id].dependents.push(options.dependent)
   }
 
-  if (!(dependency.justFetched || dependency.firstFetch && options.keypath.length <= options.depth)) {
+  // when a package was already installed, update the subdependencies only to the specified depth.
+  // justFetched is really just hack to avoid executing installation of subdependencies many times.
+  if (!dependency.justFetched && (!dependency.firstFetch || options.keypath.length >= options.depth)) {
     return dependency
   }
 

@@ -42,6 +42,7 @@
     "src/cmd/publish.ts",
     "src/cmd/runNpm.ts",
     "src/cmd/uninstall.ts",
+    "src/cmd/update.ts",
     "src/debug.ts",
     "src/err.ts",
     "src/fileLogger.ts",

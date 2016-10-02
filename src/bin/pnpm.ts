@@ -18,6 +18,7 @@ import '../fileLogger'
 import pkg from '../pnpmPkgJson'
 import runNpm from '../cmd/runNpm'
 import installCmd from '../cmd/install'
+import updateCmd from '../cmd/update'
 import uninstallCmd from '../cmd/uninstall'
 import linkCmd from '../cmd/link'
 import publishCmd from '../cmd/publish'
@@ -27,6 +28,7 @@ import cacheCmd from '../cmd/cache'
 
 const pnpmCmds = {
   install: installCmd,
+  update: updateCmd,
   uninstall: uninstallCmd,
   link: linkCmd,
   publish: publishCmd,
@@ -38,6 +40,7 @@ const pnpmCmds = {
 const supportedCmds = new Set([
   'install',
   'uninstall',
+  'update',
   'help',
   'link',
   'publish',
@@ -112,6 +115,13 @@ function run (argv: string[]) {
   })
 
   const opts = Object.assign({}, getRC('npm'), getRC('pnpm'))
+
+  if (opts.depth === 'Infinity') {
+    opts.depth = Infinity
+  }
+  if (opts.cacheTtl !== undefined && opts.cacheTTL === undefined) {
+    opts.cacheTTL = opts.cacheTtl
+  }
 
   // This is needed because the arg values should be used only if they were passed
   Object.keys(cli.flags).forEach(key => {
