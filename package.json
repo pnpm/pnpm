@@ -1,7 +1,7 @@
 {
   "name": "pnpm",
   "description": "A fast implementation of npm install",
-  "version": "0.38.1",
+  "version": "0.38.2",
   "author": "Rico Sta. Cruz <rico@ricostacruz.com>",
   "bin": {
     "pnpm": "lib/bin/pnpm.js"
