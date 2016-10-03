@@ -35,7 +35,7 @@ export default async function (opts: StrictPnpmOptions): Promise<PnpmContext> {
     storeJson
   }
 
-  if (!opts.quiet) initLogger(opts.logger)
+  if (!opts.silent) initLogger(opts.logger)
 
   await mkdirp(ctx.store)
   return ctx

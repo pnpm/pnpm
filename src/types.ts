@@ -5,7 +5,7 @@ export type PnpmOptions = {
   global?: boolean,
   globalPath?: string,
   storePath?: string,
-  quiet?: boolean,
+  silent?: boolean,
   logger?: LoggerType,
   ignoreScripts?: boolean
   save?: boolean,
@@ -40,7 +40,7 @@ export type StrictPnpmOptions = {
   global: boolean,
   globalPath: string,
   storePath: string,
-  quiet: boolean,
+  silent: boolean,
   logger: LoggerType,
   ignoreScripts: boolean
   save: boolean,

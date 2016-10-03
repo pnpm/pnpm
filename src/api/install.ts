@@ -63,7 +63,7 @@ export async function install (maybeOpts?: PnpmOptions) {
  * Perform installation.
  * 
  * @example
- *     install({'lodash': '1.0.0', 'foo': '^2.1.0' }, { quiet: true })
+ *     install({'lodash': '1.0.0', 'foo': '^2.1.0' }, { silent: true })
  */
 export async function installPkgs (fuzzyDeps: string[] | Dependencies, maybeOpts?: PnpmOptions) {
   let packagesToInstall = mapify(fuzzyDeps)

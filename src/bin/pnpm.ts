@@ -3,7 +3,7 @@
 // package reads the env variable only once
 if (~process.argv.indexOf('--debug')) {
   process.env.DEBUG = 'pnpm:*'
-  process.argv.push('--quiet')
+  process.argv.push('--silent')
 }
 
 import loudRejection = require('loud-rejection')
@@ -60,14 +60,15 @@ function run (argv: string[]) {
         -g, --global          install globally
 
             --production      don't install devDependencies
-            --quiet           don't print progress
+            --silent           don't print progress
             --debug           print verbose debug message`
   }, {
     boolean: [
-      'save-dev', 'save', 'save-exact', 'save-optional', 'dry-run', 'global', 'quiet', 'debug'
+      'save-dev', 'save', 'save-exact', 'save-optional', 'dry-run', 'global', 'silent', 'debug'
     ],
     alias: {
-      'no-progress': 'quiet',
+      quiet: 'silent',
+      'no-progress': 'silent',
       D: 'save-dev',
       S: 'save',
       E: 'save-exact',
@@ -87,7 +88,7 @@ function run (argv: string[]) {
     return Promise.resolve()
   }
 
-  cli.flags.quiet = cli.flags.quiet || cli.flags.debug || isCI
+  cli.flags.silent = cli.flags.silent || cli.flags.debug || isCI
 
   ; ['dryRun'].forEach(flag => {
     if (cli.flags[flag]) {
