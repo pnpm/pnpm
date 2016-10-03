@@ -11,8 +11,7 @@ export type SymlinkType = 'junction' | 'dir'
 export default async function forceSymlink (srcPath: string, dstPath: string, type: SymlinkType) {
   debug(`${srcPath} -> ${dstPath}`)
   try {
-    fs.symlinkSync(srcPath, dstPath, type)
-    return
+    await fs.symlink(srcPath, dstPath, type)
   } catch (err) {
     if ((<NodeJS.ErrnoException>err).code !== 'EEXIST') throw err
 
