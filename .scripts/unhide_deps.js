@@ -1,9 +1,7 @@
 'use strict'
-const renameKey = require('./rename_key')
+const renameKeys = require('./rename_keys')
 
-renameKey({
-  pkgName: 'pnpm',
-  currentKeyName: '__dependencies',
-  newKeyName: 'dependencies',
-  addPreinstall: false
+renameKeys({
+  __dependencies: 'dependencies',
+  __scripts: 'scripts'
 })
