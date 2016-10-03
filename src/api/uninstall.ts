@@ -62,7 +62,7 @@ export async function uninstallInContext (pkgsToUninstall: string[], pkg: Packag
 }
 
 function canBeUninstalled (pkgId: string, storeJson: StoreJson, pkgPath: string) {
-  return !storeJson.packages[pkgId].dependents || !storeJson.packages[pkgId].dependents.length ||
+  return !storeJson.packages[pkgId] || !storeJson.packages[pkgId].dependents || !storeJson.packages[pkgId].dependents.length ||
     storeJson.packages[pkgId].dependents.length === 1 && storeJson.packages[pkgId].dependents.indexOf(pkgPath) !== -1
 }
 
