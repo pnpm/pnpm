@@ -1,4 +1,3 @@
-import semver = require('semver')
 import path = require('path')
 import fs = require('mz/fs')
 import {PackageSpec} from '../install'
@@ -22,6 +21,11 @@ export default async function isAvailable (spec: PackageSpec, modules: string) {
   const packageJsonPath = path.join(modules, name, 'package.json')
 
   try {
+    const stat = await fs.lstat(path.join(modules, name))
+    if (stat.isDirectory()) {
+      return true
+    }
+
     const content = await fs.readFile(packageJsonPath)
     const pkgJson = JSON.parse(content)
     return verify(spec, pkgJson)
@@ -33,6 +37,6 @@ export default async function isAvailable (spec: PackageSpec, modules: string) {
 
 function verify (spec: PackageSpec, packageJson: Package) {
   return packageJson.name === spec.name &&
-    ((spec.type !== 'range' && spec.type !== 'version') ||
-    semver.satisfies(packageJson.version, spec.spec, true))
+    ((spec.type !== 'range' && spec.type !== 'version' && spec.type !== 'tag') ||
+    packageJson.version === spec.spec)
 }

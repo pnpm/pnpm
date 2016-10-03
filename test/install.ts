@@ -130,6 +130,19 @@ test('overwriting (magic-hook@2.0.0 and @0.1.0)', async function (t) {
   t.ok(_.version === '0.1.0', 'magic-hook is 0.1.0')
 })
 
+test('overwriting (is-positive@3.0.0 with is-positive@latest)', async function (t) {
+  prepare()
+  await installPkgs(['is-positive@3.0.0'], {save: true})
+
+  let _ = await exists(path.join(process.cwd(), 'node_modules/.store/is-positive@3.0.0'))
+  t.ok(_, 'magic-hook@3.0.0 exists')
+
+  await installPkgs(['is-positive@latest'], {save: true})
+
+  _ = await exists(path.join(process.cwd(), 'node_modules/.store/is-positive@3.1.0'))
+  t.ok(_, 'magic-hook@3.1.0 exists after installing the latest')
+})
+
 test('forcing', async function (t) {
   prepare()
   await installPkgs(['magic-hook@2.0.0'])
