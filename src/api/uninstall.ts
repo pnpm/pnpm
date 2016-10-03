@@ -79,7 +79,7 @@ export function tryUninstall (pkgIds: string[], storeJson: StoreJson, pkgPath: s
         const depIds = Object.keys(deps).map(depName => deps[depName])
         delete storeJson.packages[uninstalledPkg]
         depIds.forEach((dep: string) => removeDependency(dep, uninstalledPkg, storeJson))
-        Array.prototype.push.apply(uninstalledPkgs, tryUninstall(depIds, storeJson, pkgPath))
+        Array.prototype.push.apply(uninstalledPkgs, tryUninstall(depIds, storeJson, uninstalledPkg))
         numberOfUninstalls++
         continue
       }

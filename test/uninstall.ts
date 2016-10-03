@@ -135,3 +135,12 @@ test('keep dependencies used by others', async function (t) {
   }
   t.deepEqual(dependencies, expectedDeps, 'camelcase-keys has been removed from dependencies')
 })
+
+test('keep dependency used by package', async function (t) {
+  prepare()
+  await installPkgs(['is-not-positive@1.0.0', 'is-positive@3.1.0'], { save: true })
+  await uninstall(['is-not-positive'], { save: true })
+
+  let stat = await exists(path.join(process.cwd(), 'node_modules', '.store', 'is-positive@3.1.0'))
+  t.ok(stat, 'is-positive is not removed from store')
+})
