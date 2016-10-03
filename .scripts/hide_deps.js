@@ -1,9 +1,7 @@
 'use strict'
-const renameKey = require('./rename_key')
+const renameKeys = require('./rename_keys')
 
-renameKey({
-  pkgName: 'pnpm-rocket',
-  currentKeyName: 'dependencies',
-  newKeyName: '__dependencies',
-  addPreinstall: true
+renameKeys({
+  dependencies: '__dependencies',
+  scripts: '__scripts'
 })
