@@ -44,7 +44,7 @@ export type InstalledPackage = {
   optional: boolean,
   id: string,
   keypath: string[],
-  escapedName: string,
+  name: string,
   fromCache: boolean
 }
 
@@ -120,7 +120,7 @@ export default async function install (ctx: InstallContext, pkgMeta: PackageMeta
         optional,
         keypath,
         id: freshPkg.id,
-        escapedName: spec.escapedName,
+        name: spec.name,
         fromCache: false
       }
       log('package.json', pkg)
@@ -177,7 +177,7 @@ export default async function install (ctx: InstallContext, pkgMeta: PackageMeta
         id: path.basename(fullpath),
         optional,
         keypath,
-        escapedName: spec.escapedName,
+        name: spec.name,
         fromCache: true
       }
     }
@@ -261,13 +261,16 @@ async function symlinkSelf (target: string, pkg: Package, depth: number) {
     return
   }
   await mkdirp(path.join(target, 'node_modules'))
+  const src = isScoped(pkg.name)
+    ? path.join('..', '..', '_')
+    : path.join('..', '_')
   await relSymlink(
-    path.join('..', '_'),
-    path.join(target, 'node_modules', escapeName(pkg.name)))
+    src,
+    path.join(target, 'node_modules', pkg.name))
 }
 
-function escapeName (name: string) {
-  return name && name.replace('/', '%2f')
+function isScoped (pkgName: string): boolean {
+  return pkgName.indexOf('/') !== -1
 }
 
 /**

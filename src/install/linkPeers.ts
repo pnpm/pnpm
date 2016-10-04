@@ -43,9 +43,9 @@ export default async function linkPeers (store: string, installs: InstalledPacka
   }))
 
   await Promise.all(Object.keys(peers).map(async function (name) {
-    await unsymlink(path.join(modules, peers[name].escapedName))
+    await unsymlink(path.join(modules, peers[name].name))
     return relSymlink(
       path.join(store, peers[name].id, '_'),
-      path.join(modules, peers[name].escapedName))
+      path.join(modules, peers[name].name))
   }))
 }
