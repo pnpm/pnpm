@@ -14,7 +14,8 @@ const defaults = () => (<StrictPnpmOptions>{
   tag: 'latest',
   production: process.env.NODE_ENV === 'production',
   cwd: process.cwd(),
-  force: false
+  force: false,
+  silent: true
 })
 
 export default (opts?: PnpmOptions): StrictPnpmOptions => {
