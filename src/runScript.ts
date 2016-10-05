@@ -33,7 +33,7 @@ export default function runScript (command: string, args: string[], opts: RunScr
       env: createEnv(opts.cwd)
     })
 
-    log('stderr', '$ ' + script)
+    log('stdout', '$ ' + script)
 
     proc.on('error', reject)
     byline(proc.stdout).on('data', (line: string) => log('stdout', line))
@@ -62,7 +62,6 @@ function createEnv (cwd: string) {
   const env = Object.create(process.env)
   env[PATH] = [
     path.join(cwd, 'node_modules', '.bin'),
-    path.dirname(require.resolve('../bin/node-gyp-bin/node-gyp')),
     path.dirname(process.execPath),
     process.env[PATH]
   ].join(path.delimiter)

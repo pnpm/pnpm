@@ -216,3 +216,8 @@ declare module 'lodash.clonedeep' {
   const anything: any;
   export = anything;
 }
+
+declare module 'find-up' {
+  const anything: any;
+  export = anything;
+}

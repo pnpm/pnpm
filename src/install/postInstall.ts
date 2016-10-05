@@ -1,9 +1,13 @@
 import path = require('path')
+import findUp = require('find-up')
 import createDebug from '../debug'
 const debug = createDebug('pnpm:post_install')
 import fs = require('mz/fs')
 import runScript from '../runScript'
 import requireJson from '../fs/requireJson'
+
+const pnpmNodeModules = findUp.sync('node_modules', {cwd: __dirname})
+const nodeGyp = path.resolve(pnpmNodeModules, 'node-gyp/bin/node-gyp.js')
 
 export default async function postInstall (root_: string, log: Function) {
   const root = path.join(root_, '_')
@@ -36,8 +40,10 @@ export default async function postInstall (root_: string, log: Function) {
 async function checkBindingGyp (root: string, log: Function) {
   try {
     await fs.stat(path.join(root, 'binding.gyp'))
-    await runScript('node-gyp', ['rebuild'], { cwd: root, log })
   } catch (err) {
-    if ((<NodeJS.ErrnoException>err).code !== 'ENOENT') throw err
+    if ((<NodeJS.ErrnoException>err).code === 'ENOENT') {
+      return
+    }
   }
+  return runScript(nodeGyp, ['rebuild'], { cwd: root, log })
 }

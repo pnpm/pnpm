@@ -556,6 +556,14 @@ test('create a pnpm-debug.log file when the command fails', async function (t) {
   t.end()
 })
 
+test('building native addons', async function (t) {
+  prepare()
+
+  await installPkgs(['runas@3.1.1'])
+
+  t.ok(await exists('node_modules/.store/runas@3.1.1/_/build'), 'build folder created')
+})
+
 function extendPathWithLocalBin () {
   return {
     PATH: [
