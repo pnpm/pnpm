@@ -84,7 +84,8 @@ function run (argv: string[]) {
 
   const cmd = getCommandFullName(cli.input[0])
   if (!supportedCmds.has(cmd)) {
-    crossSpawn.sync('npm', argv, { stdio: 'inherit' })
+    const result = crossSpawn.sync('npm', argv, { stdio: 'inherit' })
+    process.exit(result.status)
     return Promise.resolve()
   }
 
