@@ -12,23 +12,25 @@ import rc = require('rc')
 import meow = require('meow')
 import updateNotifier = require('update-notifier')
 import camelcaseKeys = require('camelcase-keys')
-import crossSpawn = require('cross-spawn')
 import isCI = require('is-ci')
 import {stripIndent} from 'common-tags'
 import '../fileLogger'
 import pkg from '../pnpmPkgJson'
+import runNpm from '../cmd/runNpm'
 import installCmd from '../cmd/install'
 import uninstallCmd from '../cmd/uninstall'
 import linkCmd from '../cmd/link'
 import publishCmd from '../cmd/publish'
 import pruneCmd from '../cmd/prune'
+import installTestCmd from '../cmd/installTest'
 
 const pnpmCmds = {
   install: installCmd,
   uninstall: uninstallCmd,
   link: linkCmd,
   publish: publishCmd,
-  prune: pruneCmd
+  prune: pruneCmd,
+  'install-test': installTestCmd
 }
 
 const supportedCmds = new Set([
@@ -37,7 +39,8 @@ const supportedCmds = new Set([
   'help',
   'link',
   'publish',
-  'prune'
+  'prune',
+  'install-test'
 ])
 
 function run (argv: string[]) {
@@ -84,8 +87,7 @@ function run (argv: string[]) {
 
   const cmd = getCommandFullName(cli.input[0])
   if (!supportedCmds.has(cmd)) {
-    const result = crossSpawn.sync('npm', argv, { stdio: 'inherit' })
-    process.exit(result.status)
+    runNpm(argv)
     return Promise.resolve()
   }
 
@@ -125,6 +127,9 @@ function getCommandFullName (cmd: string) {
     case 'link':
     case 'ln':
       return 'link'
+    case 'install-test':
+    case 'it':
+      return 'install-test'
     // some commands have no aliases: publish, prune
     default:
       return cmd
