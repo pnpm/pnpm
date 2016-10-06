@@ -508,7 +508,7 @@ test('postinstall is executed after installation', t => {
   t.end()
 })
 
-test('prepublish is executed after installation', t => {
+test('prepublish is not executed after installation with arguments', t => {
   prepare({
     scripts: {
       prepublish: 'echo "Hello world!"'
@@ -516,6 +516,21 @@ test('prepublish is executed after installation', t => {
   })
 
   const result = spawnSync('ts-node', [pnpmBin, 'install', 'is-negative'])
+
+  t.equal(result.status, 0, 'installation was successfull')
+  t.ok(result.stdout.toString().indexOf('Hello world!') === -1, 'prepublish script was not executed')
+
+  t.end()
+})
+
+test('prepublish is executed after argumentless installation', t => {
+  prepare({
+    scripts: {
+      prepublish: 'echo "Hello world!"'
+    }
+  })
+
+  const result = spawnSync('ts-node', [pnpmBin, 'install'])
 
   t.equal(result.status, 0, 'installation was successfull')
   t.ok(result.stdout.toString().indexOf('Hello world!') !== -1, 'prepublish script was executed')

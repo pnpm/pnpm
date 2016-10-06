@@ -130,7 +130,14 @@ async function installInContext (installType: string, packagesToInstall: Depende
   }
   await linkBins(path.join(ctx.root, 'node_modules'))
   if (!opts.ignoreScripts && ctx.pkg) {
-    await mainPostInstall(ctx.pkg && ctx.pkg.scripts || {}, ctx.root, opts.production)
+    const scripts = ctx.pkg && ctx.pkg.scripts || {}
+
+    if (scripts['postinstall']) {
+      npmRun('postinstall', ctx.root)
+    }
+    if (installType === 'general' && scripts['prepublish']) {
+      npmRun('prepublish', ctx.root)
+    }
   }
 }
 
@@ -184,11 +191,6 @@ function adaptConfig (opts: StrictPnpmOptions) {
     }),
     defaultTag: opts.tag
   }
-}
-
-function mainPostInstall (scripts: Object, pkgRoot: string, isProductionInstall: boolean) {
-  if (scripts['postinstall']) npmRun('postinstall', pkgRoot)
-  if (!isProductionInstall && scripts['prepublish']) npmRun('prepublish', pkgRoot)
 }
 
 function npmRun (scriptName: string, pkgRoot: string) {
