@@ -108,7 +108,7 @@
     "prerelease": "npm run tsc && npm test",
     "release": "sh .scripts/release.sh",
     "tsc": "rm -rf lib && tsc",
-    "prepublish": "in-publish && echo 'You need to use \"npm run release\" to publish pnpm' && false || not-in-publish"
+    "prepublish": "in-publish && echo 'You need to use \"npm run release\" to publish pnpm' && false || npm run tsc"
   },
   "config": {
     "commitizen": {
