@@ -169,6 +169,15 @@ test('no forcing', async function (t) {
   t.ok(!distPathExists, 'magic-hook@2.0.0 dist folder not reinstalled')
 })
 
+test('circular deps', async function (t) {
+  prepare()
+  await installPkgs(['circular-deps-1-of-2'])
+
+  const dep = require(path.join(process.cwd(), 'node_modules/circular-deps-1-of-2/mirror'))
+
+  t.equal(dep(), 'circular-deps-1-of-2', 'circular dependencies can access each other')
+})
+
 test('big with dependencies and circular deps (babel-preset-2015)', async function (t) {
   prepare()
   await installPkgs(['babel-preset-es2015@6.3.13'])
