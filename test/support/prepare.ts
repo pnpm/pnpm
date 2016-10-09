@@ -12,7 +12,7 @@ const npmrc = stripIndent`
   store-path = ./node_modules/.store
   fetch-retries = 5
   fetch-retry-maxtimeout = 180000
-  registry =  https://registry.npmjs.org/
+  registry = http://localhost:4873/
   quiet = true
 `
 fs.writeFileSync(path.join(tmpPath, '.npmrc'), npmrc, 'utf-8')

@@ -59,6 +59,7 @@
     "update-notifier": "1.0.2"
   },
   "devDependencies": {
+    "@zkochan/sinopia": "1.0.0",
     "cash-rm": "0.2.0",
     "caw": "2.0.0",
     "commitizen": "^2.8.6",
@@ -72,6 +73,7 @@
     "istanbul": "^0.4.5",
     "ncp": "^2.0.0",
     "nixt": "0.5.0",
+    "npm-run-all": "3.1.0",
     "sepia": "2.0.1",
     "standard": "8.3.0",
     "tap-diff": "0.1.1",
@@ -105,7 +107,9 @@
     "commit": "git-cz",
     "cover": "istanbul cover test/index.js",
     "lint": "standard && tslint -c tslint.json ./src/**/*.ts ./test/**/*.ts",
-    "test": "npm run lint && ts-node test | tap-diff",
+    "sinopia": "sinopia -c ./sinopia/config.yaml",
+    "test:e2e": "ts-node test | tap-diff",
+    "test": "npm-run-all lint -p -r sinopia test:e2e",
     "posttest": "rm -rf .tmp",
     "prerelease": "npm run tsc && npm test",
     "release": "sh .scripts/release.sh",
