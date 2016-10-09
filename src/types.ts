@@ -19,6 +19,7 @@ export type PnpmOptions = {
   saveExact?: boolean,
   force?: boolean,
   linkLocal?: boolean,
+  depth?: number,
 
   // proxy
   proxy?: string,
@@ -54,6 +55,7 @@ export type StrictPnpmOptions = {
   saveExact: boolean,
   force: boolean,
   linkLocal: boolean,
+  depth: number,
 
   // proxy
   proxy?: string,

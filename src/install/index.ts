@@ -28,7 +28,9 @@ export type InstallationOptions = {
   linkLocal: boolean,
   force: boolean,
   root: string,
-  store: string
+  store: string,
+  depth: number,
+  tag: string
 }
 
 export type PackageSpec = {
@@ -56,7 +58,9 @@ export type PackageContext = ResolveResult & {
   id: string,
   installationRoot: string,
   store: string,
-  force: boolean
+  force: boolean,
+  depth: number,
+  tag: string
 }
 
 export type InstallLog = (msg: string, data?: Object) => void
@@ -107,7 +111,8 @@ export default async function install (ctx: InstallContext, pkgMeta: PackageMeta
         log,
         got: ctx.got,
         root: options.parentRoot || options.root,
-        linkLocal: options.linkLocal
+        linkLocal: options.linkLocal,
+        tag: options.tag
       })
       const freshPkg: PackageContext = saveResolution(res)
       log('resolved', freshPkg)
@@ -158,7 +163,9 @@ export default async function install (ctx: InstallContext, pkgMeta: PackageMeta
       fetch: res.fetch,
       installationRoot: options.root,
       store: options.store,
-      force: options.force
+      force: options.force,
+      depth: options.depth,
+      tag: options.tag
     }
   }
 
@@ -202,6 +209,10 @@ async function buildToStoreCached (ctx: InstallContext, target: string, buildInf
     })
     return
   }
+  if (buildInfo.keypath.length <= buildInfo.depth) {
+    const pkg = requireJson(path.resolve(path.join(target, '_', 'package.json')))
+    await installSubDeps(ctx, target, buildInfo, pkg, log)
+  }
 }
 
 /**
@@ -224,6 +235,20 @@ async function buildInStore (ctx: InstallContext, target: string, buildInfo: Pac
 
   await linkBundledDeps(path.join(target, '_'))
 
+  await installSubDeps(ctx, target, buildInfo, pkg, log)
+
+  // symlink itself; . -> node_modules/lodash@4.0.0
+  // this way it can require itself
+  await symlinkSelf(target, pkg, buildInfo.keypath.length)
+
+  ctx.piq = ctx.piq || []
+  ctx.piq.push({
+    path: target,
+    pkgId: buildInfo.id
+  })
+}
+
+async function installSubDeps (ctx: InstallContext, target: string, buildInfo: PackageContext, pkg: Package, log: InstallLog) {
   // recurse down to dependencies
   log('dependencies')
   await installAll(ctx,
@@ -238,18 +263,10 @@ async function buildInStore (ctx: InstallContext, target: string, buildInfo: Pac
       linkLocal: buildInfo.linkLocal,
       root: buildInfo.installationRoot,
       store: buildInfo.store,
-      force: buildInfo.force
+      force: buildInfo.force,
+      depth: buildInfo.depth,
+      tag: buildInfo.tag
     })
-
-  // symlink itself; . -> node_modules/lodash@4.0.0
-  // this way it can require itself
-  await symlinkSelf(target, pkg, buildInfo.keypath.length)
-
-  ctx.piq = ctx.piq || []
-  ctx.piq.push({
-    path: target,
-    pkgId: buildInfo.id
-  })
 }
 
 /**

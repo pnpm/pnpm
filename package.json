@@ -60,6 +60,7 @@
   },
   "devDependencies": {
     "@zkochan/sinopia": "1.0.0",
+    "anonymous-npm-registry-client": "0.1.2",
     "cash-rm": "0.2.0",
     "caw": "2.0.0",
     "commitizen": "^2.8.6",
@@ -109,7 +110,7 @@
     "lint": "standard && tslint -c tslint.json ./src/**/*.ts ./test/**/*.ts",
     "sinopia": "sinopia -c ./sinopia/config.yaml",
     "test:e2e": "ts-node test | tap-diff",
-    "test": "npm-run-all lint -p -r sinopia test:e2e",
+    "test": "node node_modules/npm-run-all/bin/npm-run-all lint -p -r sinopia test:e2e",
     "posttest": "rm -rf .tmp",
     "prerelease": "npm run tsc && npm test",
     "release": "sh .scripts/release.sh",

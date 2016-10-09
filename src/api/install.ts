@@ -89,7 +89,9 @@ async function installInContext (installType: string, packagesToInstall: Depende
       dependent: ctx.root,
       root: ctx.root,
       store: ctx.store,
-      force: opts.force
+      force: opts.force,
+      depth: opts.depth,
+      tag: opts.tag
     }
   )
 
