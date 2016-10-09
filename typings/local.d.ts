@@ -202,6 +202,11 @@ declare module 'npm-registry-client' {
   export = anything;
 }
 
+declare module 'anonymous-npm-registry-client' {
+  const anything: any;
+  export = anything;
+}
+
 declare module 'pause-stream' {
   const anything: any;
   export = anything;

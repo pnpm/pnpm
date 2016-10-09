@@ -25,7 +25,8 @@ export type ResolveOptions = {
   log(msg: string): void,
   got: Got,
   root: string,
-  linkLocal: boolean
+  linkLocal: boolean,
+  tag: string
 }
 
 /**

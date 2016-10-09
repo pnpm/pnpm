@@ -28,7 +28,7 @@ export default async function resolveNpm (spec: PackageSpec, opts: ResolveOption
     const url = toUri(spec)
     if (opts.log) opts.log('resolving')
     const parsedBody = <PackageDocument>(await opts.got.getJSON(url))
-    const correctPkg = pickVersionFromRegistryDocument(parsedBody, spec)
+    const correctPkg = pickVersionFromRegistryDocument(parsedBody, spec, opts.tag)
     return {
       id: createPkgId(correctPkg),
       fetch: createRemoteTarballFetcher({
@@ -62,7 +62,7 @@ type PackageDocument = {
   }
 }
 
-function pickVersionFromRegistryDocument (pkg: PackageDocument, dep: PackageSpec) {
+function pickVersionFromRegistryDocument (pkg: PackageDocument, dep: PackageSpec, latestTag: string) {
   const versions = Object.keys(pkg.versions)
 
   if (dep.type === 'tag') {
@@ -71,6 +71,10 @@ function pickVersionFromRegistryDocument (pkg: PackageDocument, dep: PackageSpec
       return pkg.versions[tagVersion]
     }
   } else {
+    const latest = pkg['dist-tags'][latestTag]
+    if (semver.satisfies(latest, dep.spec, true)) {
+      return pkg.versions[latest]
+    }
     const maxVersion = semver.maxSatisfying(versions, dep.spec, true)
     if (maxVersion) {
       return pkg.versions[maxVersion]
