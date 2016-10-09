@@ -9,6 +9,7 @@ import resolve, {ResolveResult} from '../resolve'
 import mkdirp from '../fs/mkdirp'
 import requireJson from '../fs/requireJson'
 import relSymlink from '../fs/relSymlink'
+import exists = require('exists-file')
 import linkBundledDeps from './linkBundledDeps'
 import isAvailable from './isAvailable'
 import installAll from '../installMultiple'
@@ -189,18 +190,18 @@ export default async function install (ctx: InstallContext, pkgMeta: PackageMeta
  * If an ongoing build is already working, use it. Also, if that ongoing build
  * is part of the dependency chain (ie, it's a circular dependency), use its stub
  */
-function buildToStoreCached (ctx: InstallContext, target: string, buildInfo: PackageContext, log: InstallLog): Promise<Package> {
+async function buildToStoreCached (ctx: InstallContext, target: string, buildInfo: PackageContext, log: InstallLog): Promise<void> {
   // If a package is requested for a second time (usually when many packages depend
   // on the same thing), only resolve until it's fetched (not built).
   if (ctx.fetches[buildInfo.id]) return ctx.fetches[buildInfo.id]
 
-  return make(target, () =>
-    memoize(ctx.builds, buildInfo.id, async function () {
+  if (!await exists(target) || buildInfo.force) {
+    await memoize(ctx.builds, buildInfo.id, async function () {
       await memoize(ctx.fetches, buildInfo.id, () => fetchToStore(ctx, target, buildInfo, log))
       return buildInStore(ctx, target, buildInfo, log)
-    }),
-    buildInfo.force
-  )
+    })
+    return
+  }
 }
 
 /**
@@ -291,20 +292,6 @@ async function symlinkToModules (target: string, modules: string) {
   const out = path.join(modules, pkgData.name)
   await mkdirp(path.dirname(out))
   await relSymlink(target, out)
-}
-
-/**
- * If `path` doesn't exist, run `fn()`.
- * If it exists (and installation is not forced), don't do anything.
- */
-async function make (path: string, fn: Function, force: boolean) {
-  try {
-    await fs.stat(path)
-    if (force) return fn()
-  } catch (err) {
-    if ((<NodeJS.ErrnoException>err).code !== 'ENOENT') throw err
-    return fn()
-  }
 }
 
 /**

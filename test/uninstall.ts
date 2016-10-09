@@ -3,7 +3,8 @@ import promisifyTape = require('tape-promise')
 const test = promisifyTape(tape)
 import path = require('path')
 import fs = require('fs')
-import exists, {existsSymlink} from './support/exists'
+import exists = require('exists-file')
+import existsSymlink = require('exists-link')
 import prepare from './support/prepare'
 import {installPkgs, uninstall} from '../src'
 

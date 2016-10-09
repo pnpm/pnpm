@@ -15,7 +15,7 @@ import requireJson from '../src/fs/requireJson'
 const basicPackageJson = requireJson(path.join(__dirname, './support/simple-package.json'))
 import {install, installPkgs, uninstall} from '../src'
 import isExecutable from './support/isExecutable'
-import exists from './support/exists'
+import exists = require('exists-file')
 import globalPath from './support/globalPath'
 import {pathToLocalPkg, local} from './support/localPkg'
 

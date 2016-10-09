@@ -221,3 +221,13 @@ declare module 'find-up' {
   const anything: any;
   export = anything;
 }
+
+declare module 'exists-file' {
+  const anything: any;
+  export = anything;
+}
+
+declare module 'exists-link' {
+  const anything: any;
+  export = anything;
+}

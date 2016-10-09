@@ -4,7 +4,8 @@ const test = promisifyTape(tape)
 import path = require('path')
 import {installPkgs, prune, prunePkgs} from '../src'
 import prepare from './support/prepare'
-import exists, {existsSymlink} from './support/exists'
+import exists = require('exists-file')
+import existsSymlink = require('exists-link')
 
 test('prune removes extraneous packages', async function (t) {
   prepare()
