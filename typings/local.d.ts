@@ -236,3 +236,18 @@ declare module 'exists-link' {
   const anything: any;
   export = anything;
 }
+
+declare module 'cache-manager' {
+  const anything: any;
+  export = anything;
+}
+
+declare module 'cache-manager-fs' {
+  const anything: any;
+  export = anything;
+}
+
+declare module 'lodash.memoize' {
+  const anything: any;
+  export = anything;
+}

@@ -40,7 +40,8 @@ export default function () {
   }
 
   logger.on('progress', (pkg: PackageSpec, level: string, pkgSpec: string, status: string, args: DownloadStatus | Object) => {
-    const pkgData = pkgDataMap[pkgSpec] // package.json
+    // the `|| {}` is a temporal fix. For some reason package.json is not logged when it is taken from cache
+    const pkgData = pkgDataMap[pkgSpec] || {} // package.json
     const res = resMap[pkgSpec] // resolution
 
     // lazy get task

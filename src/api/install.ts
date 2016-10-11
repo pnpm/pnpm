@@ -50,7 +50,7 @@ export type InstallContext = {
 export async function install (maybeOpts?: PnpmOptions) {
   const opts = extendOptions(maybeOpts)
   const ctx = await getContext(opts)
-  const installCtx = await createInstallCmd(opts, ctx.storeJson)
+  const installCtx = await createInstallCmd(opts, ctx.storeJson, ctx.cache)
 
   if (!ctx.pkg) throw runtimeError('No package.json found')
   const packagesToInstall = Object.assign({}, ctx.pkg.dependencies || {})
@@ -72,7 +72,7 @@ export async function installPkgs (fuzzyDeps: string[] | Dependencies, maybeOpts
   }
   const opts = extendOptions(maybeOpts)
   const ctx = await getContext(opts)
-  const installCtx = await createInstallCmd(opts, ctx.storeJson)
+  const installCtx = await createInstallCmd(opts, ctx.storeJson, ctx.cache)
 
   return lock(ctx.store, () => installInContext('named', packagesToInstall, ctx, installCtx, opts))
 }
@@ -156,13 +156,16 @@ function removeOrphanPkgs (oldStoreJson: StoreJson, newStoreJson: StoreJson, roo
   return Promise.all(uninstallPkgs.map(pkgId => removePkgFromStore(pkgId, store)))
 }
 
-async function createInstallCmd (opts: StrictPnpmOptions, storeJson: StoreJson): Promise<InstallContext> {
+async function createInstallCmd (opts: StrictPnpmOptions, storeJson: StoreJson, cache: string): Promise<InstallContext> {
   const client = new RegClient(adaptConfig(opts))
   return {
     fetches: {},
     builds: {},
     installs: {},
-    got: createGot(client),
+    got: createGot(client, {
+      cachePath: cache,
+      cacheTTL: opts.cacheTTL
+    }),
     storeJson
   }
 }

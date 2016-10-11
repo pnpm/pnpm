@@ -15,6 +15,7 @@ import normalizePath = require('normalize-path')
 
 export type PnpmContext = {
   pkg?: Package,
+  cache: string,
   store: string,
   root: string,
   storeJson: StoreJson
@@ -31,12 +32,14 @@ export default async function (opts: StrictPnpmOptions): Promise<PnpmContext> {
   const ctx: PnpmContext = {
     pkg: pkg.pkg,
     root,
+    cache: path.join(expandTilde(opts.globalPath), 'cache'),
     store,
     storeJson
   }
 
   if (!opts.silent) initLogger(opts.logger)
 
+  await mkdirp(ctx.cache)
   await mkdirp(ctx.store)
   return ctx
 }

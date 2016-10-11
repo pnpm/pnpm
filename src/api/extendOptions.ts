@@ -16,7 +16,8 @@ const defaults = () => (<StrictPnpmOptions>{
   cwd: process.cwd(),
   force: false,
   silent: true,
-  depth: 0
+  depth: 0,
+  cacheTTL: 60 * 60 * 24, // 1 day
 })
 
 export default (opts?: PnpmOptions): StrictPnpmOptions => {

@@ -14,6 +14,7 @@ Install packages.
 * `options.global` - *Boolean* - the packages will be installed globally rather than locally.
 * `options.cwd` - *String* - the directory in which the installation will be performed. By default the `process.cwd()` value is used.
 * `options.quiet` - *Boolean* - `false` by default. No output to the console.
+* `options.cacheTTL` - *Number* - 1 day by default. The time (in seconds) during which HTTP requests are cached (except the ones that request tarballs).
 
 **Returns:** a Promise
 

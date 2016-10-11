@@ -33,7 +33,9 @@ export type PnpmOptions = {
   strictSsl?: boolean,
 
   userAgent?: string,
-  tag?: string
+  tag?: string,
+
+  cacheTTL?: number
 }
 
 export type StrictPnpmOptions = {
@@ -69,7 +71,9 @@ export type StrictPnpmOptions = {
   strictSsl: boolean,
 
   userAgent?: string,
-  tag: string
+  tag: string,
+
+  cacheTTL: number
 }
 
 export type Dependencies = {

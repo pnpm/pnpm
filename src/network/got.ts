@@ -1,10 +1,12 @@
 import {IncomingMessage} from 'http'
 import pauseStream = require('pause-stream')
 import getAuthToken = require('registry-auth-token')
+import createCache from './createCache'
+import memoize = require('lodash.memoize')
 
 export type RequestParams = {
   headers?: {
-    auth: string
+    authorization: string
   }
 }
 
@@ -23,38 +25,41 @@ export type NpmRegistryClient = {
   fetch: Function
 }
 
-export default (client: NpmRegistryClient): Got => {
-  const cache = {}
+export default (client: NpmRegistryClient, opts: {cachePath: string, cacheTTL: number}): Got => {
+  const cache = createCache({
+    ttl: opts.cacheTTL,
+    path: opts.cachePath
+  })
 
-  function get (url: string, options?: RequestParams) {
-    const key = JSON.stringify([ url, options ])
-    if (!cache[key]) {
-      cache[key] = new Promise((resolve, reject) => {
-        client.get(url, extend(url, options), (err: Error, data: Object, raw: Object, res: HttpResponse) => {
-          if (err) return reject(err)
-          resolve(res)
-        })
+  async function get (url: string) {
+    const cachedValue = await cache.get(url)
+    if (cachedValue) return cachedValue
+    const value = await new Promise((resolve, reject) => {
+      client.get(url, createOptions(url), (err: Error, data: Object, raw: Object, res: HttpResponse) => {
+        if (err) return reject(err)
+        resolve(res)
       })
-    }
-    return cache[key]
+    })
+    cache.set(url, value)
+    return value
   }
 
-  function getJSON (url: string, options?: RequestParams) {
-    const key = JSON.stringify([ url, options ])
-    if (!cache[key]) {
-      cache[key] = new Promise((resolve, reject) => {
-        client.get(url, extend(url, options), (err: Error, data: Object, raw: Object, res: HttpResponse) => {
-          if (err) return reject(err)
-          resolve(data)
-        })
+  async function getJSON (url: string) {
+    const cachedValue = await cache.get(url)
+    if (cachedValue) return cachedValue
+    const value = await new Promise((resolve, reject) => {
+      client.get(url, createOptions(url), (err: Error, data: Object, raw: Object, res: HttpResponse) => {
+        if (err) return reject(err)
+        resolve(data)
       })
-    }
-    return cache[key]
+    })
+    cache.set(url, value)
+    return value
   }
 
-  const getStream = function (url: string, options?: RequestParams): Promise<IncomingMessage> {
+  const getStream = function (url: string): Promise<IncomingMessage> {
     return new Promise((resolve, reject) => {
-      client.fetch(url, extend(url, options), (err: Error, res: IncomingMessage) => {
+      client.fetch(url, createOptions(url), (err: Error, res: IncomingMessage) => {
         if (err) return reject(err)
         const ps = pauseStream()
         res.pipe(ps.pause())
@@ -63,23 +68,19 @@ export default (client: NpmRegistryClient): Got => {
     })
   }
 
-  /**
-   * Extends request options with authorization headers
-   */
-  function extend (url: string, options?: RequestParams): RequestParams {
-    options = options || {}
+  function createOptions (url: string): RequestParams {
     const authToken = getAuthToken(url, {recursive: true})
-    if (authToken) {
-      options.headers = Object.assign({}, options.headers, {
+    if (!authToken) return {}
+    return {
+      headers: {
         authorization: `${authToken.type} ${authToken.token}`
-      })
+      }
     }
-    return options
   }
 
   return {
-    get: get,
-    getJSON: getJSON,
+    get: memoize(get),
+    getJSON: memoize(getJSON),
     getStream: getStream
   }
 }

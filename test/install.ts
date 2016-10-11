@@ -603,13 +603,13 @@ test('should update subdep on second install', async function (t) {
   await new Promise((resolve, reject) => client.distTags.rm('http://localhost:4873', {package: 'dep-of-pkg-with-1-dep', distTag: latest}, (err: Error) => err ? reject(err) : resolve()))
   await new Promise((resolve, reject) => client.distTags.add('http://localhost:4873', {package: 'dep-of-pkg-with-1-dep', version: '1.0.0', distTag: latest}, (err: Error) => err ? reject(err) : resolve()))
 
-  await installPkgs(['pkg-with-1-dep'], {save: true, tag: latest})
+  await installPkgs(['pkg-with-1-dep'], {save: true, tag: latest, cacheTTL: 0})
 
   t.ok(await exists('node_modules/.store/dep-of-pkg-with-1-dep@1.0.0'), 'should install dep-of-pkg-with-1-dep@1.0.0')
 
   await new Promise((resolve, reject) => client.distTags.add('http://localhost:4873', {package: 'dep-of-pkg-with-1-dep', version: '1.1.0', distTag: latest}, (err: Error) => err ? reject(err) : resolve()))
 
-  await install({depth: 1, tag: latest})
+  await install({depth: 1, tag: latest, cacheTTL: 0})
 
   t.ok(await exists('node_modules/.store/dep-of-pkg-with-1-dep@1.1.0'), 'should update to dep-of-pkg-with-1-dep@1.1.0')
 })
