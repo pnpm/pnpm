@@ -54,7 +54,7 @@
     "semver": "5.3.0",
     "sorted-object": "2.0.1",
     "supports-color": "3.1.2",
-    "tar-fs": "1.13.2",
+    "tar-fs": "1.14.0",
     "thenify": "3.2.0",
     "update-notifier": "1.0.2"
   },
