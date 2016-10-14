@@ -11,6 +11,7 @@ import {read as readStoreJson} from '../fs/storeJsonController'
 import mkdirp from '../fs/mkdirp'
 import {Package} from '../types'
 import {StoreJson} from '../fs/storeJsonController'
+import {getCachePath} from './cache'
 import normalizePath = require('normalize-path')
 
 export type PnpmContext = {
@@ -32,7 +33,7 @@ export default async function (opts: StrictPnpmOptions): Promise<PnpmContext> {
   const ctx: PnpmContext = {
     pkg: pkg.pkg,
     root,
-    cache: path.join(expandTilde(opts.globalPath), 'cache'),
+    cache: getCachePath(opts.globalPath),
     store,
     storeJson
   }

@@ -21,6 +21,8 @@
     "rewriteTsconfig": true
   },
   "files": [
+    "src/api/cache.ts",
+    "src/api/constantDefaults.ts",
     "src/api/extendOptions.ts",
     "src/api/getContext.ts",
     "src/api/index.ts",
@@ -31,6 +33,7 @@
     "src/api/uninstall.ts",
     "src/bin/pnpm.ts",
     "src/binify.ts",
+    "src/cmd/cache.ts",
     "src/cmd/install.ts",
     "src/cmd/installTest.ts",
     "src/cmd/link.ts",

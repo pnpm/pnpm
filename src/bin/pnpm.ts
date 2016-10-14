@@ -23,6 +23,7 @@ import linkCmd from '../cmd/link'
 import publishCmd from '../cmd/publish'
 import pruneCmd from '../cmd/prune'
 import installTestCmd from '../cmd/installTest'
+import cacheCmd from '../cmd/cache'
 
 const pnpmCmds = {
   install: installCmd,
@@ -30,7 +31,8 @@ const pnpmCmds = {
   link: linkCmd,
   publish: publishCmd,
   prune: pruneCmd,
-  'install-test': installTestCmd
+  'install-test': installTestCmd,
+  cache: cacheCmd,
 }
 
 const supportedCmds = new Set([
@@ -40,7 +42,8 @@ const supportedCmds = new Set([
   'link',
   'publish',
   'prune',
-  'install-test'
+  'install-test',
+  'cache',
 ])
 
 function run (argv: string[]) {

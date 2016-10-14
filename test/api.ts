@@ -10,5 +10,6 @@ test('API', t => {
   t.equal(typeof pnpm.linkToGlobal, 'function', 'exports linkToGlobal()')
   t.equal(typeof pnpm.prune, 'function', 'exports prune()')
   t.equal(typeof pnpm.prunePkgs, 'function', 'exports prunePkgs()')
+  t.equal(typeof pnpm.cleanCache, 'function', 'exports cleanCache()')
   t.end()
 })

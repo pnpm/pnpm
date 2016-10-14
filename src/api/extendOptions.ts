@@ -1,4 +1,5 @@
 import {StrictPnpmOptions, PnpmOptions} from '../types'
+import {GlobalPath as globalPath} from './constantDefaults'
 
 const defaults = () => (<StrictPnpmOptions>{
   fetchRetries: 2,
@@ -6,7 +7,7 @@ const defaults = () => (<StrictPnpmOptions>{
   fetchRetryMintimeout: 1e4, // 10 seconds
   fetchRetryMaxtimeout: 6e4, // 1 minute
   storePath: 'node_modules/.store',
-  globalPath: '~/.pnpm',
+  globalPath,
   logger: 'pretty',
   ignoreScripts: false,
   linkLocal: false,

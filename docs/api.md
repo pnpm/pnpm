@@ -91,3 +91,7 @@ Remove extraneous packages specified in the `pkgs` arguments. Extraneous package
 * `pkgs` - *String[]* - prune only the specified packages.
 * `options.production` - *Boolean* - by default `false`. If this property is `true`, prune will remove the packages specified in `devDependencies`.
 * `options.cwd` - *String* - by default `process.cwd()`.
+
+## `pnpm.cleanCache([globalPath])`
+
+Remove cache.
