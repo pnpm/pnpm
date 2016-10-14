@@ -1,5 +1,4 @@
 import path = require('path')
-import semver = require('semver')
 import normalizePath = require('normalize-path')
 import {stripIndent} from 'common-tags'
 import relSymlink from '../fs/relSymlink'
@@ -8,9 +7,7 @@ import mkdirp from '../fs/mkdirp'
 import requireJson from '../fs/requireJson'
 import getPkgDirs from '../fs/getPkgDirs'
 import binify from '../binify'
-
-const preserveSymlinks = semver.satisfies(process.version, '>=6.3.0')
-const isWindows = process.platform === 'win32'
+import {isWindows, preserveSymlinks} from '../env'
 
 export default async function linkAllBins (modules: string) {
   const pkgDirs = await getPkgDirs(modules)
