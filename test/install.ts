@@ -119,7 +119,7 @@ test('overwriting (magic-hook@2.0.0 and @0.1.0)', async function (t) {
   prepare()
   await installPkgs(['magic-hook@2.0.0'], testDefaults())
 
-  const flattenPathInStore = path.join(process.cwd(), 'node_modules', '.store', 'flatten@1.0.2')
+  const flattenPathInStore = path.join(process.cwd(), 'node_modules/.store/nested/flatten@1.0.2')
   let flattenExists = await exists(flattenPathInStore)
   t.ok(flattenExists, 'flatten@1.0.2 is in the store')
 
@@ -136,12 +136,12 @@ test('overwriting (is-positive@3.0.0 with is-positive@latest)', async function (
   prepare()
   await installPkgs(['is-positive@3.0.0'], testDefaults({save: true}))
 
-  let _ = await exists(path.join(process.cwd(), 'node_modules/.store/is-positive@3.0.0'))
+  let _ = await exists(path.join(process.cwd(), 'node_modules/.store/nested/is-positive@3.0.0'))
   t.ok(_, 'magic-hook@3.0.0 exists')
 
   await installPkgs(['is-positive@latest'], testDefaults({save: true}))
 
-  _ = await exists(path.join(process.cwd(), 'node_modules/.store/is-positive@3.1.0'))
+  _ = await exists(path.join(process.cwd(), 'node_modules/.store/nested/is-positive@3.1.0'))
   t.ok(_, 'magic-hook@3.1.0 exists after installing the latest')
 })
 
@@ -149,7 +149,7 @@ test('forcing', async function (t) {
   prepare()
   await installPkgs(['magic-hook@2.0.0'], testDefaults())
 
-  const distPath = path.join(process.cwd(), 'node_modules/.store/magic-hook@2.0.0/_/dist')
+  const distPath = path.join(process.cwd(), 'node_modules/.store/nested/magic-hook@2.0.0/_/dist')
   await rimraf(distPath)
 
   await installPkgs(['magic-hook@2.0.0'], testDefaults({force: true}))
@@ -162,7 +162,7 @@ test('no forcing', async function (t) {
   prepare()
   await installPkgs(['magic-hook@2.0.0'], testDefaults())
 
-  const distPath = path.join(process.cwd(), 'node_modules/.store/magic-hook@2.0.0/_/dist')
+  const distPath = path.join(process.cwd(), 'node_modules/.store/nested/magic-hook@2.0.0/_/dist')
   await rimraf(distPath)
 
   await installPkgs(['magic-hook@2.0.0'], testDefaults())
@@ -223,7 +223,7 @@ test('tarballs (is-array-1.0.1.tgz)', async function (t) {
   t.ok(isArray, 'isArray() is available')
 
   const stat = fs.statSync(
-    path.join(process.cwd(), 'node_modules', '.store',
+    path.join(process.cwd(), 'node_modules/.store/nested',
       'is-array-1.0.1#a83102a9c117983e6ff4d85311fb322231abe3d6'))
   t.ok(stat.isDirectory(), 'stored in the proper location')
 })
@@ -371,7 +371,7 @@ test('flattening symlinks (minimatch@3.0.0)', async function (t) {
   prepare()
   await installPkgs(['minimatch@3.0.0'], testDefaults())
 
-  const stat = fs.lstatSync(path.join(process.cwd(), 'node_modules', '.store', 'node_modules', 'balanced-match'))
+  const stat = fs.lstatSync(path.join(process.cwd(), 'node_modules/.store/nested/node_modules/balanced-match'))
   t.ok(stat.isSymbolicLink(), 'balanced-match is linked into store node_modules')
 
   const _ = await exists(path.join(process.cwd(), 'node_modules', 'balanced-match'))
@@ -383,7 +383,7 @@ test('flattening symlinks (minimatch + balanced-match)', async function (t) {
   await installPkgs(['minimatch@3.0.0'], testDefaults())
   await installPkgs(['balanced-match@^0.3.0'], testDefaults())
 
-  let _ = await exists(path.join(process.cwd(), 'node_modules', '.store', 'node_modules', 'balanced-match'))
+  let _ = await exists(path.join(process.cwd(), 'node_modules/.store/nested/node_modules/balanced-match'))
   t.ok(!_, 'balanced-match is removed from store node_modules')
 
   _ = await exists(path.join(process.cwd(), 'node_modules', 'balanced-match'))
@@ -606,7 +606,7 @@ test('building native addons', async function (t) {
 
   await installPkgs(['runas@3.1.1'], testDefaults())
 
-  t.ok(await exists('node_modules/.store/runas@3.1.1/_/build'), 'build folder created')
+  t.ok(await exists('node_modules/.store/nested/runas@3.1.1/_/build'), 'build folder created')
 })
 
 test('should update subdep on second install', async function (t) {
@@ -618,11 +618,31 @@ test('should update subdep on second install', async function (t) {
 
   await installPkgs(['pkg-with-1-dep'], testDefaults({save: true, tag: latest, cacheTTL: 0}))
 
-  t.ok(await exists('node_modules/.store/dep-of-pkg-with-1-dep@1.0.0'), 'should install dep-of-pkg-with-1-dep@1.0.0')
+  t.ok(await exists('node_modules/.store/nested/dep-of-pkg-with-1-dep@1.0.0'), 'should install dep-of-pkg-with-1-dep@1.0.0')
 
   await addDistTag('dep-of-pkg-with-1-dep', '1.1.0', latest)
 
   await install(testDefaults({depth: 1, tag: latest, cacheTTL: 0}))
 
-  t.ok(await exists('node_modules/.store/dep-of-pkg-with-1-dep@1.1.0'), 'should update to dep-of-pkg-with-1-dep@1.1.0')
+  t.ok(await exists('node_modules/.store/nested/dep-of-pkg-with-1-dep@1.1.0'), 'should update to dep-of-pkg-with-1-dep@1.1.0')
+})
+
+test('should install flat tree', async function (t) {
+  if (!preserveSymlinks) {
+    t.skip('this test only for NodeJS with --preserve-symlinks support')
+    return
+  }
+
+  prepare()
+  await installPkgs(['rimraf@2.5.1'], testDefaults({flatTree: true}))
+
+  isAvailable('balanced-match')
+  isAvailable('rimraf')
+  isAvailable('brace-expansion')
+  isAvailable('concat-map')
+
+  function isAvailable (depName: string) {
+    const dep = require(path.join(process.cwd(), 'node_modules', depName))
+    t.ok(dep, `${depName} is available`)
+  }
 })

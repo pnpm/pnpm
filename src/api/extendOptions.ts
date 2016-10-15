@@ -21,6 +21,7 @@ const defaults = () => (<StrictPnpmOptions>{
   silent: true,
   depth: 0,
   cacheTTL: 60 * 60 * 24, // 1 day
+  flatTree: false,
 })
 
 function getDefaultStorePath () {
@@ -29,5 +30,9 @@ function getDefaultStorePath () {
 }
 
 export default (opts?: PnpmOptions): StrictPnpmOptions => {
+  opts = opts || {}
+  if (opts.flatTree === true && !preserveSymlinks) {
+    throw new TypeError('Flat tree is supported only on Node.js >= 6.3.0')
+  }
   return Object.assign({}, defaults(), opts)
 }

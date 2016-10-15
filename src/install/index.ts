@@ -15,6 +15,7 @@ import isAvailable from './isAvailable'
 import installAll from '../installMultiple'
 import {InstallContext, CachedPromises} from '../api/install'
 import {Package} from '../types'
+import symlinkToModules from './symlinkToModules'
 
 export type PackageMeta = {
   rawSpec: string,
@@ -48,7 +49,8 @@ export type InstalledPackage = {
   id: string,
   keypath: string[],
   name: string,
-  fromCache: boolean
+  fromCache: boolean,
+  dependencies: InstalledPackage[], // is needed to support flat tree
 }
 
 export type PackageContext = ResolveResult & {
@@ -118,7 +120,7 @@ export default async function install (ctx: InstallContext, pkgMeta: PackageMeta
       log('resolved', freshPkg)
       await mkdirp(modules)
       const target = path.join(options.store, res.id)
-      await buildToStoreCached(ctx, target, freshPkg, log)
+      let installedPkgs = await buildToStoreCached(ctx, target, freshPkg, log)
       const pkg = requireJson(path.join(target, '_', 'package.json'))
       await symlinkToModules(path.join(target, '_'), modules)
       installedPkg = {
@@ -127,7 +129,8 @@ export default async function install (ctx: InstallContext, pkgMeta: PackageMeta
         keypath,
         id: freshPkg.id,
         name: spec.name,
-        fromCache: false
+        fromCache: false,
+        dependencies: installedPkgs,
       }
       log('package.json', pkg)
     }
@@ -186,7 +189,8 @@ export default async function install (ctx: InstallContext, pkgMeta: PackageMeta
         optional,
         keypath,
         name: spec.name,
-        fromCache: true
+        fromCache: true,
+        dependencies: [],
       }
     }
   }
@@ -197,22 +201,25 @@ export default async function install (ctx: InstallContext, pkgMeta: PackageMeta
  * If an ongoing build is already working, use it. Also, if that ongoing build
  * is part of the dependency chain (ie, it's a circular dependency), use its stub
  */
-async function buildToStoreCached (ctx: InstallContext, target: string, buildInfo: PackageContext, log: InstallLog): Promise<void> {
+async function buildToStoreCached (ctx: InstallContext, target: string, buildInfo: PackageContext, log: InstallLog): Promise<InstalledPackage[]> {
   // If a package is requested for a second time (usually when many packages depend
   // on the same thing), only resolve until it's fetched (not built).
-  if (ctx.fetches[buildInfo.id]) return ctx.fetches[buildInfo.id]
+  if (ctx.fetches[buildInfo.id]) {
+    await ctx.fetches[buildInfo.id]
+    return []
+  }
 
   if (!await exists(target) || buildInfo.force) {
-    await memoize(ctx.builds, buildInfo.id, async function () {
+    return memoize(ctx.builds, buildInfo.id, async function () {
       await memoize(ctx.fetches, buildInfo.id, () => fetchToStore(ctx, target, buildInfo, log))
       return buildInStore(ctx, target, buildInfo, log)
     })
-    return
   }
   if (buildInfo.keypath.length <= buildInfo.depth) {
     const pkg = requireJson(path.resolve(path.join(target, '_', 'package.json')))
-    await installSubDeps(ctx, target, buildInfo, pkg, log)
+    return installSubDeps(ctx, target, buildInfo, pkg, log)
   }
+  return []
 }
 
 /**
@@ -229,13 +236,13 @@ async function fetchToStore (ctx: InstallContext, target: string, buildInfo: Pac
   // it is only here that it should be available for ciruclar dependencies.
 }
 
-async function buildInStore (ctx: InstallContext, target: string, buildInfo: PackageContext, log: InstallLog) {
+async function buildInStore (ctx: InstallContext, target: string, buildInfo: PackageContext, log: InstallLog): Promise<InstalledPackage[]> {
   const pkg = requireJson(path.resolve(path.join(target, '_', 'package.json')))
   log('package.json', pkg)
 
   await linkBundledDeps(path.join(target, '_'))
 
-  await installSubDeps(ctx, target, buildInfo, pkg, log)
+  const installedPkgs = await installSubDeps(ctx, target, buildInfo, pkg, log)
 
   // symlink itself; . -> node_modules/lodash@4.0.0
   // this way it can require itself
@@ -246,12 +253,14 @@ async function buildInStore (ctx: InstallContext, target: string, buildInfo: Pac
     path: target,
     pkgId: buildInfo.id
   })
+
+  return installedPkgs
 }
 
-async function installSubDeps (ctx: InstallContext, target: string, buildInfo: PackageContext, pkg: Package, log: InstallLog) {
+async function installSubDeps (ctx: InstallContext, target: string, buildInfo: PackageContext, pkg: Package, log: InstallLog): Promise<InstalledPackage[]> {
   // recurse down to dependencies
   log('dependencies')
-  await installAll(ctx,
+  return installAll(ctx,
     pkg.dependencies || {},
     pkg.optionalDependencies || {},
     path.join(target, '_', 'node_modules'),
@@ -292,29 +301,9 @@ function isScoped (pkgName: string): boolean {
 }
 
 /**
- * Perform the final symlinking of ./.store/x@1.0.0 -> ./x.
- *
- * @example
- *     target = '/node_modules/.store/lodash@4.0.0'
- *     modules = './node_modules'
- *     symlinkToModules(target, modules)
- */
-async function symlinkToModules (target: string, modules: string) {
-  // TODO: uncomment to make things fail
-  const pkgData = requireJson(path.join(target, 'package.json'))
-  if (!pkgData.name) { throw new Error('Invalid package.json for ' + target) }
-
-  // lodash -> .store/lodash@4.0.0
-  // .store/foo@1.0.0/node_modules/lodash -> ../../../.store/lodash@4.0.0
-  const out = path.join(modules, pkgData.name)
-  await mkdirp(path.dirname(out))
-  await relSymlink(target, out)
-}
-
-/**
  * Save promises for later
  */
-function memoize (locks: CachedPromises, key: string, fn: () => Promise<void>) {
+function memoize <T>(locks: CachedPromises<T>, key: string, fn: () => Promise<T>) {
   if (locks && locks[key]) return locks[key]
   locks[key] = fn()
   return locks[key]

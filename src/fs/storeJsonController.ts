@@ -2,18 +2,22 @@ import path = require('path')
 import fs = require('fs')
 import pnpmPkgJson from '../pnpmPkgJson'
 
+export type StorePackageMap = {
+  [name: string]: StorePackage
+}
+
 export type StorePackage = {
   dependents: string[],
-  dependencies: {
-    [name: string]: string
-  }
+  dependencies: DependenciesResolution
+}
+
+export type DependenciesResolution = {
+  [name: string]: string
 }
 
 export type StoreJson = {
   pnpm: string,
-  packages: {
-    [name: string]: StorePackage
-  }
+  packages: StorePackageMap
 }
 
 export function read (storePath: string): StoreJson {

@@ -14,7 +14,7 @@ test('uninstall package with no dependencies', async function (t) {
   await installPkgs(['is-negative@2.1.0'], testDefaults({ save: true }))
   await uninstall(['is-negative'], testDefaults({ save: true }))
 
-  let stat = await exists(path.join(process.cwd(), 'node_modules', '.store', 'is-negative@2.1.0'))
+  let stat = await exists(path.join(process.cwd(), 'node_modules/.store/nested/is-negative@2.1.0'))
   t.ok(!stat, 'is-negative is removed from store')
 
   stat = await existsSymlink(path.join(process.cwd(), 'node_modules', 'is-negative'))
@@ -31,7 +31,7 @@ test('uninstall scoped package', async function (t) {
   await installPkgs(['@zkochan/logger@0.1.0'], testDefaults({ save: true }))
   await uninstall(['@zkochan/logger'], testDefaults({ save: true }))
 
-  let stat = await exists(path.join(process.cwd(), 'node_modules', '.store', '@zkochan+logger@0.1.0'))
+  let stat = await exists(path.join(process.cwd(), 'node_modules/.store/nested/@zkochan+logger@0.1.0'))
   t.ok(!stat, '@zkochan/logger is removed from store')
 
   stat = await existsSymlink(path.join(process.cwd(), 'node_modules', '@zkochan/logger'))
@@ -48,7 +48,7 @@ test('uninstall tarball dependency', async function (t) {
   await installPkgs(['http://registry.npmjs.org/is-array/-/is-array-1.0.1.tgz'], testDefaults({ save: true }))
   await uninstall(['is-array'], testDefaults({ save: true }))
 
-  let stat = await exists(path.join(process.cwd(), 'node_modules', '.store', 'is-array-1.0.1#a83102a9c117983e6ff4d85311fb322231abe3d6'))
+  let stat = await exists(path.join(process.cwd(), 'node_modules/.store/nested/is-array-1.0.1#a83102a9c117983e6ff4d85311fb322231abe3d6'))
   t.ok(!stat, 'is-array is removed from store')
 
   stat = await existsSymlink(path.join(process.cwd(), 'node_modules', 'is-array'))
@@ -65,25 +65,25 @@ test('uninstall package with dependencies and do not touch other deps', async fu
   await installPkgs(['is-negative@2.1.0', 'camelcase-keys@3.0.0'], testDefaults({ save: true }))
   await uninstall(['camelcase-keys'], testDefaults({ save: true }))
 
-  let stat = await exists(path.join(process.cwd(), 'node_modules', '.store', 'camelcase-keys@2.1.0'))
+  let stat = await exists(path.join(process.cwd(), 'node_modules/.store/nested/camelcase-keys@2.1.0'))
   t.ok(!stat, 'camelcase-keys is removed from store')
 
   stat = await existsSymlink(path.join(process.cwd(), 'node_modules', 'camelcase-keys'))
   t.ok(!stat, 'camelcase-keys is removed from node_modules')
 
-  stat = await exists(path.join(process.cwd(), 'node_modules', '.store', 'camelcase@3.0.0'))
+  stat = await exists(path.join(process.cwd(), 'node_modules/.store/nested/camelcase@3.0.0'))
   t.ok(!stat, 'camelcase is removed from store')
 
   stat = await existsSymlink(path.join(process.cwd(), 'node_modules', 'camelcase'))
   t.ok(!stat, 'camelcase is removed from node_modules')
 
-  stat = await exists(path.join(process.cwd(), 'node_modules', '.store', 'map-obj@1.0.1'))
+  stat = await exists(path.join(process.cwd(), 'node_modules/.store/nested/map-obj@1.0.1'))
   t.ok(!stat, 'map-obj is removed from store')
 
   stat = await existsSymlink(path.join(process.cwd(), 'node_modules', 'map-obj'))
   t.ok(!stat, 'map-obj is removed from node_modules')
 
-  stat = await exists(path.join(process.cwd(), 'node_modules', '.store', 'is-negative@2.1.0'))
+  stat = await exists(path.join(process.cwd(), 'node_modules/.store/nested/is-negative@2.1.0'))
   t.ok(stat, 'is-negative is not removed from store')
 
   stat = await existsSymlink(path.join(process.cwd(), 'node_modules', 'is-negative'))
@@ -115,16 +115,16 @@ test('keep dependencies used by others', async function (t) {
   await installPkgs(['hastscript@3.0.0', 'camelcase-keys@3.0.0'], testDefaults({ save: true }))
   await uninstall(['camelcase-keys'], testDefaults({ save: true }))
 
-  let stat = await exists(path.join(process.cwd(), 'node_modules', '.store', 'camelcase-keys@2.1.0'))
+  let stat = await exists(path.join(process.cwd(), 'node_modules/.store/nested/camelcase-keys@2.1.0'))
   t.ok(!stat, 'camelcase-keys is removed from store')
 
   stat = await existsSymlink(path.join(process.cwd(), 'node_modules', 'camelcase-keys'))
   t.ok(!stat, 'camelcase-keys is removed from node_modules')
 
-  stat = await exists(path.join(process.cwd(), 'node_modules', '.store', 'camelcase@3.0.0'))
+  stat = await exists(path.join(process.cwd(), 'node_modules/.store/nested/camelcase@3.0.0'))
   t.ok(stat, 'camelcase is not removed from store')
 
-  stat = await exists(path.join(process.cwd(), 'node_modules', '.store', 'map-obj@1.0.1'))
+  stat = await exists(path.join(process.cwd(), 'node_modules/.store/nested/map-obj@1.0.1'))
   t.ok(!stat, 'map-obj is removed from store')
 
   stat = await existsSymlink(path.join(process.cwd(), 'node_modules', 'map-obj'))
@@ -143,6 +143,6 @@ test('keep dependency used by package', async function (t) {
   await installPkgs(['is-not-positive@1.0.0', 'is-positive@3.1.0'], testDefaults({ save: true }))
   await uninstall(['is-not-positive'], testDefaults({ save: true }))
 
-  let stat = await exists(path.join(process.cwd(), 'node_modules', '.store', 'is-positive@3.1.0'))
+  let stat = await exists(path.join(process.cwd(), 'node_modules/.store/nested/is-positive@3.1.0'))
   t.ok(stat, 'is-positive is not removed from store')
 })

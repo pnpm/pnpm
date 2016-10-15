@@ -35,7 +35,8 @@ export type PnpmOptions = {
   userAgent?: string,
   tag?: string,
 
-  cacheTTL?: number
+  cacheTTL?: number,
+  flatTree?: boolean,
 }
 
 export type StrictPnpmOptions = {
@@ -73,7 +74,8 @@ export type StrictPnpmOptions = {
   userAgent?: string,
   tag: string,
 
-  cacheTTL: number
+  cacheTTL: number,
+  flatTree: boolean,
 }
 
 export type Dependencies = {

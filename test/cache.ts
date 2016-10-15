@@ -34,13 +34,13 @@ test('should fail to update when requests are cached', async function (t) {
 
   await installPkgs(['pkg-with-1-dep'], testDefaults({save: true, tag: latest, cacheTTL}))
 
-  t.ok(await exists('node_modules/.store/dep-of-pkg-with-1-dep@1.0.0'), 'should install dep-of-pkg-with-1-dep@1.0.0')
+  t.ok(await exists('node_modules/.store/nested/dep-of-pkg-with-1-dep@1.0.0'), 'should install dep-of-pkg-with-1-dep@1.0.0')
 
   await addDistTag('dep-of-pkg-with-1-dep', '1.1.0', latest)
 
   await install(testDefaults({depth: 1, tag: latest, cacheTTL}))
 
-  t.ok(await exists('node_modules/.store/dep-of-pkg-with-1-dep@1.0.0'), 'should not update to dep-of-pkg-with-1-dep@1.1.0')
+  t.ok(await exists('node_modules/.store/nested/dep-of-pkg-with-1-dep@1.0.0'), 'should not update to dep-of-pkg-with-1-dep@1.1.0')
 })
 
 test('should skip cahe even if it exists when cacheTTL = 0', async function (t) {
@@ -54,11 +54,11 @@ test('should skip cahe even if it exists when cacheTTL = 0', async function (t) 
 
   await installPkgs(['pkg-with-1-dep'], testDefaults({save: true, tag: latest, cacheTTL: 60 * 60}))
 
-  t.ok(await exists('node_modules/.store/dep-of-pkg-with-1-dep@1.0.0'), 'should install dep-of-pkg-with-1-dep@1.0.0')
+  t.ok(await exists('node_modules/.store/nested/dep-of-pkg-with-1-dep@1.0.0'), 'should install dep-of-pkg-with-1-dep@1.0.0')
 
   await addDistTag('dep-of-pkg-with-1-dep', '1.1.0', latest)
 
   await install(testDefaults({depth: 1, tag: latest, cacheTTL: 0}))
 
-  t.ok(await exists('node_modules/.store/dep-of-pkg-with-1-dep@1.1.0'), 'should update to dep-of-pkg-with-1-dep@1.1.0')
+  t.ok(await exists('node_modules/.store/nested/dep-of-pkg-with-1-dep@1.1.0'), 'should update to dep-of-pkg-with-1-dep@1.1.0')
 })

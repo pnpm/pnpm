@@ -25,7 +25,7 @@ export type PnpmContext = {
 export default async function (opts: StrictPnpmOptions): Promise<PnpmContext> {
   const pkg = await (opts.global ? readGlobalPkg(opts.globalPath) : readPkgUp({ cwd: opts.cwd }))
   const root = normalizePath(pkg.path ? path.dirname(pkg.path) : opts.cwd)
-  const store = resolveStorePath(opts.storePath, root)
+  const store = path.join(resolveStorePath(opts.storePath, root), opts.flatTree ? 'flat' : 'nested')
   const storeJson = readStoreJson(store)
   if (storeJson) {
     failIfNotCompatible(storeJson.pnpm)

@@ -24,14 +24,15 @@ import lock from './lock'
 import {StoreJson} from '../fs/storeJsonController'
 import {save as saveStoreJson} from '../fs/storeJsonController'
 import {tryUninstall, removePkgFromStore} from './uninstall'
+import flattenDependencies from '../install/flattenDependencies'
 
 export type PackageInstallationResult = {
   path: string,
   pkgId: string
 }
 
-export type CachedPromises = {
-  [name: string]: Promise<void>
+export type CachedPromises<T> = {
+  [name: string]: Promise<T>
 }
 
 export type InstalledPackages = {
@@ -42,8 +43,8 @@ export type InstallContext = {
   installs: InstalledPackages,
   piq?: PackageInstallationResult[],
   got: Got,
-  builds: CachedPromises,
-  fetches: CachedPromises,
+  builds: CachedPromises<InstalledPackage[]>,
+  fetches: CachedPromises<void>,
   storeJson: StoreJson
 }
 
@@ -94,6 +95,11 @@ async function installInContext (installType: string, packagesToInstall: Depende
       tag: opts.tag
     }
   ))
+
+  if (opts.flatTree) {
+    console.log('Flattening the dependency tree')
+    await flattenDependencies(ctx.root, ctx.store, pkgs, ctx.storeJson.packages)
+  }
 
   if (installType === 'named') {
     const saveType = getSaveType(opts)

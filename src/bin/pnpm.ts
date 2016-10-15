@@ -70,7 +70,15 @@ function run (argv: string[]) {
             --debug           print verbose debug message`
   }, {
     boolean: [
-      'save-dev', 'save', 'save-exact', 'save-optional', 'dry-run', 'global', 'silent', 'debug'
+      'save-dev',
+      'save',
+      'save-exact',
+      'save-optional',
+      'dry-run',
+      'global',
+      'silent',
+      'debug',
+      'flat-tree',
     ],
     alias: {
       quiet: 'silent',

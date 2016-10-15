@@ -55,6 +55,7 @@
     "src/fs/writeJson.ts",
     "src/getSaveType.ts",
     "src/index.ts",
+    "src/install/flattenDependencies.ts",
     "src/install/index.ts",
     "src/install/isAvailable.ts",
     "src/install/linkBins.ts",
