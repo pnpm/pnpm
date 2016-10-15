@@ -436,7 +436,7 @@ test('fail when trying to install into the same store simultaneously', t => {
   return Promise.all([
     installPkgs([local('pkg-that-installs-slowly')], testDefaults()),
     wait(500) // to be sure that lock was created
-      .then(_ => installPkgs(['rimraf@2.5.1']))
+      .then(_ => installPkgs(['rimraf@2.5.1'], testDefaults()))
       .then(_ => t.fail('the store should have been locked'))
       .catch(err => t.ok(err, 'store is locked'))
   ])
