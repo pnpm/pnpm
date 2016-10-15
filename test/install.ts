@@ -147,7 +147,7 @@ test('overwriting (is-positive@3.0.0 with is-positive@latest)', async function (
 
 test('forcing', async function (t) {
   prepare()
-  await installPkgs(['magic-hook@2.0.0'])
+  await installPkgs(['magic-hook@2.0.0'], testDefaults())
 
   const distPath = path.join(process.cwd(), 'node_modules/.store/magic-hook@2.0.0/_/dist')
   await rimraf(distPath)
@@ -458,27 +458,46 @@ test('packages should find the plugins they use when symlinks are preserved', as
     t.skip('this test only for NodeJS with --preserve-symlinks support')
     return
   }
-  prepare()
-  await installPkgs([local('pkg-that-uses-plugins'), local('plugin-example')], testDefaults({ save: true }))
-  const result = spawnSync('pkg-that-uses-plugins', [], {
-    env: extendPathWithLocalBin()
+  prepare({
+    scripts: {
+      test: 'pkg-that-uses-plugins'
+    }
   })
-  t.equal(result.stdout.toString(), 'plugin-example\n', 'package executable have found its plugin')
+  await installPkgs([local('pkg-that-uses-plugins'), local('plugin-example')], testDefaults({ save: true }))
+  const result = spawnSync('npm', ['test'])
+  t.ok(result.stdout.toString().indexOf('My plugin is plugin-example') !== -1, 'package executable have found its plugin')
   t.equal(result.status, 0, 'executable exited with success')
 })
 
 test('run js bin file', async function (t) {
-  prepare()
+  prepare({
+    scripts: {
+      test: 'hello-world-js-bin'
+    }
+  })
   await installPkgs([local('hello-world-js-bin')], testDefaults({ save: true }))
 
-  const result = spawnSync('hello-world-js-bin', [], {
-    env: extendPathWithLocalBin()
-  })
-  t.equal(result.stdout.toString(), 'Hello world!\n', 'package executable printed its message')
+  const result = spawnSync('npm', ['test'])
+  t.ok(result.stdout.toString().indexOf('Hello world!') !== -1, 'package executable printed its message')
   t.equal(result.status, 0, 'executable exited with success')
 })
 
 const pnpmBin = path.join(__dirname, '../src/bin/pnpm.ts')
+
+test('bin files are found by lifecycle scripts', t => {
+  prepare({
+    scripts: {
+      postinstall: 'hello-world-js-bin'
+    }
+  })
+
+  const result = spawnSync('ts-node', [pnpmBin, 'install', local('hello-world-js-bin')])
+
+  t.equal(result.status, 0, 'installation was successfull')
+  t.ok(result.stdout.toString().indexOf('Hello world!') !== -1, 'postinstall script was executed')
+
+  t.end()
+})
 
 test('installation via the CLI', t => {
   prepare()
@@ -607,12 +626,3 @@ test('should update subdep on second install', async function (t) {
 
   t.ok(await exists('node_modules/.store/dep-of-pkg-with-1-dep@1.1.0'), 'should update to dep-of-pkg-with-1-dep@1.1.0')
 })
-
-function extendPathWithLocalBin () {
-  return {
-    PATH: [
-      path.join(process.cwd(), 'node_modules', '.bin'),
-      process.env.PATH
-    ].join(path.delimiter)
-  }
-}

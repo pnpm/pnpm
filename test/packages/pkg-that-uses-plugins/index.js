@@ -1,3 +1,3 @@
 #!/usr/bin/env node
 'use strict'
-console.log(require('../plugin-example/package.json').name)
+console.log('My plugin is', require('../plugin-example/package.json').name)

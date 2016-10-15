@@ -2,6 +2,7 @@ import mkdirp = require('mkdirp')
 import fs = require('fs')
 import path = require('path')
 import {stripIndent} from 'common-tags'
+import globalPath from './globalPath'
 
 const root = process.cwd()
 process.env.ROOT = root
@@ -14,6 +15,7 @@ const npmrc = stripIndent`
   fetch-retry-maxtimeout = 180000
   registry = http://localhost:4873/
   quiet = true
+  global-path = ${globalPath}
 `
 fs.writeFileSync(path.join(tmpPath, '.npmrc'), npmrc, 'utf-8')
 

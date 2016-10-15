@@ -13,6 +13,8 @@ if (process.platform === 'win32') {
       PATH = e
     }
   })
+} else {
+  PATH = 'PATH'
 }
 
 export type RunScriptOptions = {
