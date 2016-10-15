@@ -10,7 +10,7 @@ import crossSpawn = require('cross-spawn')
 const spawnSync = crossSpawn.sync
 import isCI = require('is-ci')
 import rimraf = require('rimraf-then')
-import RegClient = require('anonymous-npm-registry-client')
+import {add as addDistTag} from './support/distTags'
 import prepare from './support/prepare'
 import requireJson from '../src/fs/requireJson'
 const basicPackageJson = requireJson(path.join(__dirname, './support/simple-package.json'))
@@ -594,20 +594,13 @@ test('should update subdep on second install', async function (t) {
 
   const latest = 'stable'
 
-  const client = new RegClient()
-
-  // just to make sinopia cache the package
-  await new Promise((resolve, reject) => client.distTags.fetch('http://localhost:4873', {package: 'dep-of-pkg-with-1-dep'}, (err: Error) => err ? reject(err) : resolve()))
-
-  // the tag has to be removed first because in sinopia it is an array of versions
-  await new Promise((resolve, reject) => client.distTags.rm('http://localhost:4873', {package: 'dep-of-pkg-with-1-dep', distTag: latest}, (err: Error) => err ? reject(err) : resolve()))
-  await new Promise((resolve, reject) => client.distTags.add('http://localhost:4873', {package: 'dep-of-pkg-with-1-dep', version: '1.0.0', distTag: latest}, (err: Error) => err ? reject(err) : resolve()))
+  await addDistTag('dep-of-pkg-with-1-dep', '1.0.0', latest)
 
   await installPkgs(['pkg-with-1-dep'], {save: true, tag: latest, cacheTTL: 0})
 
   t.ok(await exists('node_modules/.store/dep-of-pkg-with-1-dep@1.0.0'), 'should install dep-of-pkg-with-1-dep@1.0.0')
 
-  await new Promise((resolve, reject) => client.distTags.add('http://localhost:4873', {package: 'dep-of-pkg-with-1-dep', version: '1.1.0', distTag: latest}, (err: Error) => err ? reject(err) : resolve()))
+  await addDistTag('dep-of-pkg-with-1-dep', '1.1.0', latest)
 
   await install({depth: 1, tag: latest, cacheTTL: 0})
 
