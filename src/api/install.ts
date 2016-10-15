@@ -80,7 +80,7 @@ export async function installPkgs (fuzzyDeps: string[] | Dependencies, maybeOpts
 async function installInContext (installType: string, packagesToInstall: Dependencies, ctx: PnpmContext, installCtx: InstallContext, opts: StrictPnpmOptions) {
   // TODO: ctx.storeJson should not be muted. installMultiple should return a new storeJson
   const oldStoreJson: StoreJson = cloneDeep(ctx.storeJson)
-  const pkgs: InstalledPackage[] = await installMultiple(installCtx,
+  const pkgs: InstalledPackage[] = await lock(ctx.cache, () => installMultiple(installCtx,
     packagesToInstall,
     ctx.pkg && ctx.pkg && ctx.pkg.optionalDependencies || {},
     path.join(ctx.root, 'node_modules'),
@@ -93,7 +93,7 @@ async function installInContext (installType: string, packagesToInstall: Depende
       depth: opts.depth,
       tag: opts.tag
     }
-  )
+  ))
 
   if (installType === 'named') {
     const saveType = getSaveType(opts)
