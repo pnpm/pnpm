@@ -14,8 +14,8 @@ import {
   linkFromGlobal,
   installPkgs
 } from '../src'
-import globalPath from './support/globalPath'
 import {pathToLocalPkg} from './support/localPkg'
+import testDefaults from './support/testDefaults'
 
 test('relative link', async function (t) {
   prepare()
@@ -25,7 +25,7 @@ test('relative link', async function (t) {
   const linkedPkgPath = path.resolve(tmpDir, linkedPkgDirName)
 
   await ncp(pathToLocalPkg(linkedPkgName), linkedPkgPath)
-  await linkFromRelative(`../${linkedPkgDirName}`)
+  await linkFromRelative(`../${linkedPkgDirName}`, testDefaults())
 
   isExecutable(t, path.join(process.cwd(), 'node_modules', '.bin', 'hello-world-js-bin'))
 })
@@ -39,10 +39,10 @@ test('global link', async function (t) {
   await ncp(pathToLocalPkg(linkedPkgName), linkedPkgPath)
 
   process.chdir(linkedPkgPath)
-  await linkToGlobal({ globalPath })
+  await linkToGlobal(testDefaults())
 
   prepare()
-  await linkFromGlobal(linkedPkgName, { globalPath })
+  await linkFromGlobal(linkedPkgName, testDefaults())
 
   isExecutable(t, path.join(process.cwd(), 'node_modules', '.bin', 'hello-world-js-bin'))
 })
@@ -55,7 +55,7 @@ test('link local package if link-local = true', async function (t) {
   const linkedPkgPath = path.resolve(tmpDir, linkedPkgDirName)
 
   await ncp(pathToLocalPkg(linkedPkgName), linkedPkgPath)
-  await installPkgs([`file:../${linkedPkgDirName}`], { linkLocal: true })
+  await installPkgs([`file:../${linkedPkgDirName}`], testDefaults({ linkLocal: true }))
 
   isExecutable(t, path.join(process.cwd(), 'node_modules', '.bin', 'hello-world-js-bin'))
 })

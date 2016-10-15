@@ -45,7 +45,7 @@ test('uninstall scoped package', async function (t) {
 
 test('uninstall tarball dependency', async function (t) {
   prepare()
-  await installPkgs(['http://registry.npmjs.org/is-array/-/is-array-1.0.1.tgz'], { save: true })
+  await installPkgs(['http://registry.npmjs.org/is-array/-/is-array-1.0.1.tgz'], testDefaults({ save: true }))
   await uninstall(['is-array'], testDefaults({ save: true }))
 
   let stat = await exists(path.join(process.cwd(), 'node_modules', '.store', 'is-array-1.0.1#a83102a9c117983e6ff4d85311fb322231abe3d6'))

@@ -586,7 +586,7 @@ test('tarball local package', async function (t) {
 
 test("don't fail when peer dependency is fetched from GitHub", t => {
   prepare()
-  return installPkgs([local('test-pnpm-peer-deps')])
+  return installPkgs([local('test-pnpm-peer-deps')], testDefaults())
 })
 
 test('create a pnpm-debug.log file when the command fails', async function (t) {
