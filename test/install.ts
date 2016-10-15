@@ -16,6 +16,7 @@ import requireJson from '../src/fs/requireJson'
 const basicPackageJson = requireJson(path.join(__dirname, './support/simple-package.json'))
 import {install, installPkgs, uninstall} from '../src'
 import isExecutable from './support/isExecutable'
+import testDefaults from './support/testDefaults'
 import exists = require('exists-file')
 import globalPath from './support/globalPath'
 import {pathToLocalPkg, local} from './support/localPkg'
@@ -29,7 +30,7 @@ if (!caw() && !isWindows) {
 
 test('small with dependencies (rimraf)', async function (t) {
   prepare()
-  await installPkgs(['rimraf@2.5.1'])
+  await installPkgs(['rimraf@2.5.1'], testDefaults())
 
   const rimraf = require(path.join(process.cwd(), 'node_modules', 'rimraf'))
   t.ok(typeof rimraf === 'function', 'rimraf() is available')
@@ -38,7 +39,7 @@ test('small with dependencies (rimraf)', async function (t) {
 
 test('no dependencies (lodash)', async function (t) {
   prepare()
-  await installPkgs(['lodash@4.0.0'])
+  await installPkgs(['lodash@4.0.0'], testDefaults())
 
   const _ = require(path.join(process.cwd(), 'node_modules', 'lodash'))
   t.ok(typeof _ === 'function', '_ is available')
@@ -47,7 +48,7 @@ test('no dependencies (lodash)', async function (t) {
 
 test('scoped modules without version spec (@rstacruz/tap-spec)', async function (t) {
   prepare()
-  await installPkgs(['@rstacruz/tap-spec'])
+  await installPkgs(['@rstacruz/tap-spec'], testDefaults())
 
   const _ = require(path.join(process.cwd(), 'node_modules', '@rstacruz/tap-spec'))
   t.ok(typeof _ === 'function', 'tap-spec is available')
@@ -55,7 +56,7 @@ test('scoped modules without version spec (@rstacruz/tap-spec)', async function 
 
 test('scoped modules with versions (@rstacruz/tap-spec@4.1.1)', async function (t) {
   prepare()
-  await installPkgs(['@rstacruz/tap-spec@4.1.1'])
+  await installPkgs(['@rstacruz/tap-spec@4.1.1'], testDefaults())
 
   const _ = require(path.join(process.cwd(), 'node_modules', '@rstacruz/tap-spec'))
   t.ok(typeof _ === 'function', 'tap-spec is available')
@@ -63,7 +64,7 @@ test('scoped modules with versions (@rstacruz/tap-spec@4.1.1)', async function (
 
 test('scoped modules (@rstacruz/tap-spec@*)', async function (t) {
   prepare()
-  await installPkgs(['@rstacruz/tap-spec@*'])
+  await installPkgs(['@rstacruz/tap-spec@*'], testDefaults())
 
   const _ = require(path.join(process.cwd(), 'node_modules', '@rstacruz/tap-spec'))
   t.ok(typeof _ === 'function', 'tap-spec is available')
@@ -71,7 +72,7 @@ test('scoped modules (@rstacruz/tap-spec@*)', async function (t) {
 
 test('multiple scoped modules (@rstacruz/...)', async function (t) {
   prepare()
-  await installPkgs(['@rstacruz/tap-spec@*', '@rstacruz/travis-encrypt@*'])
+  await installPkgs(['@rstacruz/tap-spec@*', '@rstacruz/travis-encrypt@*'], testDefaults())
 
   const tapSpec = require(path.join(process.cwd(), 'node_modules', '@rstacruz/tap-spec'))
   t.ok(typeof tapSpec === 'function', 'tap-spec is available')
@@ -81,7 +82,7 @@ test('multiple scoped modules (@rstacruz/...)', async function (t) {
 
 test('nested scoped modules (test-pnpm-issue219 -> @zkochan/test-pnpm-issue219)', async function (t) {
   prepare()
-  await installPkgs(['test-pnpm-issue219@1.0.2'])
+  await installPkgs(['test-pnpm-issue219@1.0.2'], testDefaults())
 
   const _ = require(path.join(process.cwd(), 'node_modules', 'test-pnpm-issue219'))
   t.ok(_ === 'test-pnpm-issue219,@zkochan/test-pnpm-issue219', 'nested scoped package is available')
@@ -89,7 +90,7 @@ test('nested scoped modules (test-pnpm-issue219 -> @zkochan/test-pnpm-issue219)'
 
 test('scoped modules from a directory', async function (t) {
   prepare()
-  await installPkgs([local('local-scoped-pkg')])
+  await installPkgs([local('local-scoped-pkg')], testDefaults())
 
   const localPkg = require(
     path.join(process.cwd(), 'node_modules', '@scope', 'local-scoped-pkg'))
@@ -99,7 +100,7 @@ test('scoped modules from a directory', async function (t) {
 
 test('skip failing optional dependencies', async function (t) {
   prepare()
-  await installPkgs(['pkg-with-failing-optional-dependency@1.0.1'])
+  await installPkgs(['pkg-with-failing-optional-dependency@1.0.1'], testDefaults())
 
   const isNegative = require(path.join(process.cwd(), 'node_modules', 'pkg-with-failing-optional-dependency'))
   t.ok(isNegative(-1), 'package with failed optional dependency has the dependencies installed correctly')
@@ -107,8 +108,8 @@ test('skip failing optional dependencies', async function (t) {
 
 test('idempotency (rimraf)', async function (t) {
   prepare()
-  await installPkgs(['rimraf@2.5.1'])
-  await installPkgs(['rimraf@2.5.1'])
+  await installPkgs(['rimraf@2.5.1'], testDefaults())
+  await installPkgs(['rimraf@2.5.1'], testDefaults())
 
   const rimraf = require(path.join(process.cwd(), 'node_modules', 'rimraf'))
   t.ok(typeof rimraf === 'function', 'rimraf is available')
@@ -116,13 +117,13 @@ test('idempotency (rimraf)', async function (t) {
 
 test('overwriting (magic-hook@2.0.0 and @0.1.0)', async function (t) {
   prepare()
-  await installPkgs(['magic-hook@2.0.0'])
+  await installPkgs(['magic-hook@2.0.0'], testDefaults())
 
   const flattenPathInStore = path.join(process.cwd(), 'node_modules', '.store', 'flatten@1.0.2')
   let flattenExists = await exists(flattenPathInStore)
   t.ok(flattenExists, 'flatten@1.0.2 is in the store')
 
-  await installPkgs(['magic-hook@0.1.0'])
+  await installPkgs(['magic-hook@0.1.0'], testDefaults())
 
   flattenExists = await exists(flattenPathInStore)
   t.ok(!flattenExists, 'dependency of magic-hook@2.0.0 is removed')
@@ -133,12 +134,12 @@ test('overwriting (magic-hook@2.0.0 and @0.1.0)', async function (t) {
 
 test('overwriting (is-positive@3.0.0 with is-positive@latest)', async function (t) {
   prepare()
-  await installPkgs(['is-positive@3.0.0'], {save: true})
+  await installPkgs(['is-positive@3.0.0'], testDefaults({save: true}))
 
   let _ = await exists(path.join(process.cwd(), 'node_modules/.store/is-positive@3.0.0'))
   t.ok(_, 'magic-hook@3.0.0 exists')
 
-  await installPkgs(['is-positive@latest'], {save: true})
+  await installPkgs(['is-positive@latest'], testDefaults({save: true}))
 
   _ = await exists(path.join(process.cwd(), 'node_modules/.store/is-positive@3.1.0'))
   t.ok(_, 'magic-hook@3.1.0 exists after installing the latest')
@@ -151,7 +152,7 @@ test('forcing', async function (t) {
   const distPath = path.join(process.cwd(), 'node_modules/.store/magic-hook@2.0.0/_/dist')
   await rimraf(distPath)
 
-  await installPkgs(['magic-hook@2.0.0'], {force: true})
+  await installPkgs(['magic-hook@2.0.0'], testDefaults({force: true}))
 
   const distPathExists = await exists(distPath)
   t.ok(distPathExists, 'magic-hook@2.0.0 dist folder reinstalled')
@@ -159,12 +160,12 @@ test('forcing', async function (t) {
 
 test('no forcing', async function (t) {
   prepare()
-  await installPkgs(['magic-hook@2.0.0'])
+  await installPkgs(['magic-hook@2.0.0'], testDefaults())
 
   const distPath = path.join(process.cwd(), 'node_modules/.store/magic-hook@2.0.0/_/dist')
   await rimraf(distPath)
 
-  await installPkgs(['magic-hook@2.0.0'])
+  await installPkgs(['magic-hook@2.0.0'], testDefaults())
 
   const distPathExists = await exists(distPath)
   t.ok(!distPathExists, 'magic-hook@2.0.0 dist folder not reinstalled')
@@ -172,7 +173,7 @@ test('no forcing', async function (t) {
 
 test('circular deps', async function (t) {
   prepare()
-  await installPkgs(['circular-deps-1-of-2'])
+  await installPkgs(['circular-deps-1-of-2'], testDefaults())
 
   const dep = require(path.join(process.cwd(), 'node_modules/circular-deps-1-of-2/mirror'))
 
@@ -181,7 +182,7 @@ test('circular deps', async function (t) {
 
 test('big with dependencies and circular deps (babel-preset-2015)', async function (t) {
   prepare()
-  await installPkgs(['babel-preset-es2015@6.3.13'])
+  await installPkgs(['babel-preset-es2015@6.3.13'], testDefaults())
 
   const b = require(path.join(process.cwd(), 'node_modules', 'babel-preset-es2015'))
   t.ok(typeof b === 'object', 'babel-preset-es2015 is available')
@@ -194,7 +195,7 @@ test('bundleDependencies (fsevents@1.0.6)', async function (t) {
   }
 
   prepare()
-  await installPkgs(['fsevents@1.0.6'])
+  await installPkgs(['fsevents@1.0.6'], testDefaults())
 
   isExecutable(t, path.join(process.cwd(), 'node_modules', 'fsevents', 'node_modules', '.bin', 'mkdirp'))
 })
@@ -206,7 +207,7 @@ test('compiled modules (ursa@0.9.1)', async function (t) {
   }
 
   prepare()
-  await installPkgs(['ursa@0.9.1'])
+  await installPkgs(['ursa@0.9.1'], testDefaults())
 
   const ursa = require(path.join(process.cwd(), 'node_modules', 'ursa'))
   t.ok(typeof ursa === 'object', 'ursa() is available')
@@ -214,7 +215,7 @@ test('compiled modules (ursa@0.9.1)', async function (t) {
 
 test('tarballs (is-array-1.0.1.tgz)', async function (t) {
   prepare()
-  await installPkgs(['http://registry.npmjs.org/is-array/-/is-array-1.0.1.tgz'])
+  await installPkgs(['http://registry.npmjs.org/is-array/-/is-array-1.0.1.tgz'], testDefaults())
 
   const isArray = require(
     path.join(process.cwd(), 'node_modules', 'is-array'))
@@ -229,7 +230,7 @@ test('tarballs (is-array-1.0.1.tgz)', async function (t) {
 
 test('tarballs from GitHub (is-negative)', async function (t) {
   prepare()
-  await installPkgs(['is-negative@https://github.com/kevva/is-negative/archive/1d7e288222b53a0cab90a331f1865220ec29560c.tar.gz'])
+  await installPkgs(['is-negative@https://github.com/kevva/is-negative/archive/1d7e288222b53a0cab90a331f1865220ec29560c.tar.gz'], testDefaults())
 
   const isNegative = require(
     path.join(process.cwd(), 'node_modules', 'is-negative'))
@@ -239,7 +240,7 @@ test('tarballs from GitHub (is-negative)', async function (t) {
 
 test('local file', async function (t) {
   prepare()
-  await installPkgs([local('local-pkg')])
+  await installPkgs([local('local-pkg')], testDefaults())
 
   const localPkg = require(
     path.join(process.cwd(), 'node_modules', 'local-pkg'))
@@ -249,7 +250,7 @@ test('local file', async function (t) {
 
 test('nested local dependency of a local dependency', async function (t) {
   prepare()
-  await installPkgs([local('pkg-with-local-dep')])
+  await installPkgs([local('pkg-with-local-dep')], testDefaults())
 
   const pkgWithLocalDep = require(
     path.join(process.cwd(), 'node_modules', 'pkg-with-local-dep'))
@@ -261,7 +262,7 @@ test('nested local dependency of a local dependency', async function (t) {
 
 test('from a github repo', async function (t) {
   prepare()
-  await installPkgs(['kevva/is-negative'])
+  await installPkgs(['kevva/is-negative'], testDefaults())
 
   const localPkg = require(
     path.join(process.cwd(), 'node_modules', 'is-negative'))
@@ -275,7 +276,7 @@ test('from a git repo', async function (t) {
     return t.end()
   }
   prepare()
-  await installPkgs(['git+ssh://git@github.com/kevva/is-negative.git'])
+  await installPkgs(['git+ssh://git@github.com/kevva/is-negative.git'], testDefaults())
 
   const localPkg = require(
     path.join(process.cwd(), 'node_modules', 'is-negative'))
@@ -286,7 +287,7 @@ test('from a git repo', async function (t) {
 test('shrinkwrap compatibility', async function (t) {
   prepare({ dependencies: { rimraf: '*' } })
 
-  await installPkgs(['rimraf@2.5.1'])
+  await installPkgs(['rimraf@2.5.1'], testDefaults())
 
   return new Promise((resolve, reject) => {
     const proc = crossSpawn.spawn('npm', ['shrinkwrap'])
@@ -305,7 +306,7 @@ test('shrinkwrap compatibility', async function (t) {
 
 test('run pre/postinstall scripts', async function (t) {
   prepare()
-  await installPkgs([local('pre-and-postinstall-scripts-example')])
+  await installPkgs([local('pre-and-postinstall-scripts-example')], testDefaults())
 
   const generatedByPreinstall = require(path.join(process.cwd(), 'node_modules', 'pre-and-postinstall-scripts-example/generated-by-preinstall'))
   t.ok(typeof generatedByPreinstall === 'function', 'generatedByPreinstall() is available')
@@ -316,7 +317,7 @@ test('run pre/postinstall scripts', async function (t) {
 
 test('run install scripts', async function (t) {
   prepare()
-  await installPkgs([local('install-script-example')])
+  await installPkgs([local('install-script-example')], testDefaults())
 
   const generatedByInstall = require(path.join(process.cwd(), 'node_modules', 'install-script-example/generated-by-install'))
   t.ok(typeof generatedByInstall === 'function', 'generatedByInstall() is available')
@@ -324,7 +325,7 @@ test('run install scripts', async function (t) {
 
 test('save to package.json (rimraf@2.5.1)', async function (t) {
   prepare()
-  await installPkgs(['rimraf@2.5.1'], { save: true })
+  await installPkgs(['rimraf@2.5.1'], testDefaults({ save: true }))
 
   const rimraf = require(path.join(process.cwd(), 'node_modules', 'rimraf'))
   t.ok(typeof rimraf === 'function', 'rimraf() is available')
@@ -336,7 +337,7 @@ test('save to package.json (rimraf@2.5.1)', async function (t) {
 
 test('saveDev scoped module to package.json (@rstacruz/tap-spec)', async function (t) {
   prepare()
-  await installPkgs(['@rstacruz/tap-spec'], { saveDev: true })
+  await installPkgs(['@rstacruz/tap-spec'], testDefaults({ saveDev: true }))
 
   const tapSpec = require(path.join(process.cwd(), 'node_modules', '@rstacruz/tap-spec'))
   t.ok(typeof tapSpec === 'function', 'tapSpec() is available')
@@ -348,7 +349,7 @@ test('saveDev scoped module to package.json (@rstacruz/tap-spec)', async functio
 
 test('multiple save to package.json with `exact` versions (@rstacruz/tap-spec & rimraf@2.5.1) (in sorted order)', async function (t) {
   prepare()
-  await installPkgs(['rimraf@2.5.1', '@rstacruz/tap-spec@latest'], { save: true, saveExact: true })
+  await installPkgs(['rimraf@2.5.1', '@rstacruz/tap-spec@latest'], testDefaults({ save: true, saveExact: true }))
 
   const tapSpec = require(path.join(process.cwd(), 'node_modules', '@rstacruz/tap-spec'))
   t.ok(typeof tapSpec === 'function', 'tapSpec() is available')
@@ -368,7 +369,7 @@ test('multiple save to package.json with `exact` versions (@rstacruz/tap-spec & 
 
 test('flattening symlinks (minimatch@3.0.0)', async function (t) {
   prepare()
-  await installPkgs(['minimatch@3.0.0'])
+  await installPkgs(['minimatch@3.0.0'], testDefaults())
 
   const stat = fs.lstatSync(path.join(process.cwd(), 'node_modules', '.store', 'node_modules', 'balanced-match'))
   t.ok(stat.isSymbolicLink(), 'balanced-match is linked into store node_modules')
@@ -379,8 +380,8 @@ test('flattening symlinks (minimatch@3.0.0)', async function (t) {
 
 test('flattening symlinks (minimatch + balanced-match)', async function (t) {
   prepare()
-  await installPkgs(['minimatch@3.0.0'])
-  await installPkgs(['balanced-match@^0.3.0'])
+  await installPkgs(['minimatch@3.0.0'], testDefaults())
+  await installPkgs(['balanced-match@^0.3.0'], testDefaults())
 
   let _ = await exists(path.join(process.cwd(), 'node_modules', '.store', 'node_modules', 'balanced-match'))
   t.ok(!_, 'balanced-match is removed from store node_modules')
@@ -392,7 +393,7 @@ test('flattening symlinks (minimatch + balanced-match)', async function (t) {
 test('production install (with --production flag)', async function (t) {
   prepare(basicPackageJson)
 
-  await install({ production: true })
+  await install(testDefaults({ production: true }))
 
   const rimrafDir = fs.statSync(path.join(process.cwd(), 'node_modules', 'rimraf'))
 
@@ -412,7 +413,7 @@ test('production install (with production NODE_ENV)', async function (t) {
   process.env.NODE_ENV = 'production'
   prepare(basicPackageJson)
 
-  await install()
+  await install(testDefaults())
 
   // reset NODE_ENV
   process.env.NODE_ENV = originalNodeEnv
@@ -433,7 +434,7 @@ const wait = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
 test('fail when trying to install into the same store simultaneously', t => {
   prepare()
   return Promise.all([
-    installPkgs([local('pkg-that-installs-slowly')]),
+    installPkgs([local('pkg-that-installs-slowly')], testDefaults()),
     wait(500) // to be sure that lock was created
       .then(_ => installPkgs(['rimraf@2.5.1']))
       .then(_ => t.fail('the store should have been locked'))
@@ -444,9 +445,9 @@ test('fail when trying to install into the same store simultaneously', t => {
 test('fail when trying to install and uninstall from the same store simultaneously', t => {
   prepare()
   return Promise.all([
-    installPkgs([local('pkg-that-installs-slowly')]),
+    installPkgs([local('pkg-that-installs-slowly')], testDefaults()),
     wait(500) // to be sure that lock was created
-      .then(_ => uninstall(['rimraf@2.5.1']))
+      .then(_ => uninstall(['rimraf@2.5.1'], testDefaults()))
       .then(_ => t.fail('the store should have been locked'))
       .catch(err => t.ok(err, 'store is locked'))
   ])
@@ -458,7 +459,7 @@ test('packages should find the plugins they use when symlinks are preserved', as
     return
   }
   prepare()
-  await installPkgs([local('pkg-that-uses-plugins'), local('plugin-example')], { save: true })
+  await installPkgs([local('pkg-that-uses-plugins'), local('plugin-example')], testDefaults({ save: true }))
   const result = spawnSync('pkg-that-uses-plugins', [], {
     env: extendPathWithLocalBin()
   })
@@ -468,7 +469,7 @@ test('packages should find the plugins they use when symlinks are preserved', as
 
 test('run js bin file', async function (t) {
   prepare()
-  await installPkgs([local('hello-world-js-bin')], { save: true })
+  await installPkgs([local('hello-world-js-bin')], testDefaults({ save: true }))
 
   const result = spawnSync('hello-world-js-bin', [], {
     env: extendPathWithLocalBin()
@@ -549,7 +550,7 @@ test('prepublish is executed after argumentless installation', t => {
 })
 
 test('global installation', async function (t) {
-  await installPkgs(['is-positive'], {globalPath, global: true})
+  await installPkgs(['is-positive'], testDefaults({globalPath, global: true}))
 
   const isPositive = require(path.join(globalPath, 'node_modules', 'is-positive'))
   t.ok(typeof isPositive === 'function', 'isPositive() is available')
@@ -557,7 +558,7 @@ test('global installation', async function (t) {
 
 test('tarball local package', async function (t) {
   prepare()
-  await installPkgs([pathToLocalPkg('tar-pkg/tar-pkg-1.0.0.tgz')])
+  await installPkgs([pathToLocalPkg('tar-pkg/tar-pkg-1.0.0.tgz')], testDefaults())
 
   const localPkg = require(path.join(process.cwd(), 'node_modules', 'tar-pkg'))
 
@@ -584,7 +585,7 @@ test('create a pnpm-debug.log file when the command fails', async function (t) {
 test('building native addons', async function (t) {
   prepare()
 
-  await installPkgs(['runas@3.1.1'])
+  await installPkgs(['runas@3.1.1'], testDefaults())
 
   t.ok(await exists('node_modules/.store/runas@3.1.1/_/build'), 'build folder created')
 })
@@ -596,13 +597,13 @@ test('should update subdep on second install', async function (t) {
 
   await addDistTag('dep-of-pkg-with-1-dep', '1.0.0', latest)
 
-  await installPkgs(['pkg-with-1-dep'], {save: true, tag: latest, cacheTTL: 0})
+  await installPkgs(['pkg-with-1-dep'], testDefaults({save: true, tag: latest, cacheTTL: 0}))
 
   t.ok(await exists('node_modules/.store/dep-of-pkg-with-1-dep@1.0.0'), 'should install dep-of-pkg-with-1-dep@1.0.0')
 
   await addDistTag('dep-of-pkg-with-1-dep', '1.1.0', latest)
 
-  await install({depth: 1, tag: latest, cacheTTL: 0})
+  await install(testDefaults({depth: 1, tag: latest, cacheTTL: 0}))
 
   t.ok(await exists('node_modules/.store/dep-of-pkg-with-1-dep@1.1.0'), 'should update to dep-of-pkg-with-1-dep@1.1.0')
 })
