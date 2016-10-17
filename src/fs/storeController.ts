@@ -1,6 +1,7 @@
 import path = require('path')
 import fs = require('fs')
 import pnpmPkgJson from '../pnpmPkgJson'
+import yaml = require('js-yaml')
 
 export type StorePackageMap = {
   [name: string]: StorePackage
@@ -15,15 +16,15 @@ export type DependenciesResolution = {
   [name: string]: string
 }
 
-export type StoreJson = {
+export type Store = {
   pnpm: string,
   packages: StorePackageMap
 }
 
-export function read (storePath: string): StoreJson {
-  const storeJsonPath = path.join(storePath, 'store.json')
+export function read (storePath: string): Store {
+  const storeYamlPath = path.join(storePath, 'store.yaml')
   try {
-    return JSON.parse(fs.readFileSync(storeJsonPath, 'utf8'))
+    return yaml.safeLoad(fs.readFileSync(storeYamlPath, 'utf8'))
   } catch (err) {
     return {
       pnpm: pnpmPkgJson.version,
@@ -32,7 +33,7 @@ export function read (storePath: string): StoreJson {
   }
 }
 
-export function save (storePath: string, storeJson: StoreJson) {
-  const storeJsonPath = path.join(storePath, 'store.json')
-  fs.writeFileSync(storeJsonPath, JSON.stringify(storeJson, null, 2), 'utf8')
+export function save (storePath: string, store: Store) {
+  const storeYamlPath = path.join(storePath, 'store.yaml')
+  fs.writeFileSync(storeYamlPath, yaml.safeDump(store), 'utf8')
 }

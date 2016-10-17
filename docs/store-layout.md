@@ -8,7 +8,7 @@ To illustrate, an installation of [chalk][]@1.1.1 may look like this:
 .
 └─ node_modules/
    ├─ .store/
-   |  ├─ store.json
+   |  ├─ store.yaml
    │  ├─ chalk@1.1.1/_/
    │  │  └─ node_modules/
    │  │     ├─ ansi-styles      -> ../../../ansi-styles@2.1.0/_
@@ -22,7 +22,7 @@ To illustrate, an installation of [chalk][]@1.1.1 may look like this:
 
 The intermediate `_` directories are needed to hide `node_modules` from npm utilities like `npm ls`, `npm prune`, `npm shrinkwrap` and so on. The name `_` is chosen because it helps make stack traces readable.
 
-[store.json](store-json.md) contains information about all the different internal/external dependencies that the packages in the store have.
+[store.yaml](store-yaml.md) contains information about all the different internal/external dependencies that the packages in the store have.
 
 [chalk]: https://github.com/chalk/chalk
 
@@ -34,7 +34,7 @@ Symlinks to deep dependencies are stored in `node_modules/.store/node_modules`, 
 .
 └─ node_modules/
    ├─ .store/
-   |  ├─ store.json
+   |  ├─ store.yaml
    │  ├─ chalk@1.1.1/_/
    │  ├─ ansi-styles@2.1.0/_/
    │  ├─ has-ansi@2.0.0/_/

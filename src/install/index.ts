@@ -29,7 +29,7 @@ export type InstallationOptions = {
   linkLocal: boolean,
   force: boolean,
   root: string,
-  store: string,
+  storePath: string,
   depth: number,
   tag: string
 }
@@ -59,7 +59,7 @@ export type PackageContext = ResolveResult & {
   keypath: string[],
   id: string,
   installationRoot: string,
-  store: string,
+  storePath: string,
   force: boolean,
   depth: number,
   tag: string
@@ -119,7 +119,7 @@ export default async function install (ctx: InstallContext, pkgMeta: PackageMeta
       const freshPkg: PackageContext = saveResolution(res)
       log('resolved', freshPkg)
       await mkdirp(modules)
-      const target = path.join(options.store, res.id)
+      const target = path.join(options.storePath, res.id)
       let installedPkgs = await buildToStoreCached(ctx, target, freshPkg, log)
       const pkg = requireJson(path.join(target, '_', 'package.json'))
       await symlinkToModules(path.join(target, '_'), modules)
@@ -165,7 +165,7 @@ export default async function install (ctx: InstallContext, pkgMeta: PackageMeta
       root: res.root,
       fetch: res.fetch,
       installationRoot: options.root,
-      store: options.store,
+      storePath: options.storePath,
       force: options.force,
       depth: options.depth,
       tag: options.tag
@@ -271,7 +271,7 @@ async function installSubDeps (ctx: InstallContext, target: string, buildInfo: P
       optional: buildInfo.optional,
       linkLocal: buildInfo.linkLocal,
       root: buildInfo.installationRoot,
-      store: buildInfo.store,
+      storePath: buildInfo.storePath,
       force: buildInfo.force,
       depth: buildInfo.depth,
       tag: buildInfo.tag

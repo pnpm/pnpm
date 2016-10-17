@@ -12,7 +12,7 @@ export async function prune(maybeOpts?: PnpmOptions): Promise<void> {
 
   const ctx = await getContext(opts)
 
-  return lock(ctx.store, async function () {
+  return lock(ctx.storePath, async function () {
     if (!ctx.pkg) {
       throw new Error('No package.json found - cannot prune')
     }
@@ -30,7 +30,7 @@ export async function prunePkgs(pkgsToPrune: string[], maybeOpts?: PnpmOptions):
 
   const ctx = await getContext(opts)
 
-  return lock(ctx.store, async function () {
+  return lock(ctx.storePath, async function () {
     if (!ctx.pkg) {
       throw new Error('No package.json found - cannot prune')
     }

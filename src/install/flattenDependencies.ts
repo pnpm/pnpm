@@ -2,7 +2,7 @@ import path = require('path')
 import {InstalledPackage} from '.'
 import mkdirp from '../fs/mkdirp'
 import symlinkToModules from './symlinkToModules'
-import {StorePackageMap} from '../fs/storeJsonController'
+import {StorePackageMap} from '../fs/storeController'
 
 export default function flattenDependencies (id: string, store: string, pkgs: InstalledPackage[], storePkg: StorePackageMap) {
   const newPkgs = getNewPkgs(pkgs, [id])

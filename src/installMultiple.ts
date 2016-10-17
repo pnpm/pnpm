@@ -24,24 +24,24 @@ export default function installMultiple (ctx: InstallContext, requiredPkgsMap: D
     .filter(pkgName => !optionalPkgsMap[pkgName])
     .map(pkgName => pkgMeta(pkgName, requiredPkgsMap[pkgName], false))
 
-  ctx.storeJson.packages = ctx.storeJson.packages || {}
+  ctx.store.packages = ctx.store.packages || {}
 
   return Promise.all(optionalPkgs.concat(requiredPkgs).map(async function (pkg) {
     try {
       const dependency = await install(ctx, pkg, modules, options)
 
-      ctx.storeJson.packages[options.dependent] = ctx.storeJson.packages[options.dependent] || {}
-      ctx.storeJson.packages[options.dependent].dependencies = ctx.storeJson.packages[options.dependent].dependencies || {}
+      ctx.store.packages[options.dependent] = ctx.store.packages[options.dependent] || {}
+      ctx.store.packages[options.dependent].dependencies = ctx.store.packages[options.dependent].dependencies || {}
 
       // NOTE: the current install implementation
       // does not return enough info for packages that were already installed
       if (!dependency.fromCache) {
-        ctx.storeJson.packages[options.dependent].dependencies[dependency.pkg.name] = dependency.id
+        ctx.store.packages[options.dependent].dependencies[dependency.pkg.name] = dependency.id
 
-        ctx.storeJson.packages[dependency.id] = ctx.storeJson.packages[dependency.id] || {}
-        ctx.storeJson.packages[dependency.id].dependents = ctx.storeJson.packages[dependency.id].dependents || []
-        if (ctx.storeJson.packages[dependency.id].dependents.indexOf(options.dependent) === -1) {
-          ctx.storeJson.packages[dependency.id].dependents.push(options.dependent)
+        ctx.store.packages[dependency.id] = ctx.store.packages[dependency.id] || {}
+        ctx.store.packages[dependency.id].dependents = ctx.store.packages[dependency.id].dependents || []
+        if (ctx.store.packages[dependency.id].dependents.indexOf(options.dependent) === -1) {
+          ctx.store.packages[dependency.id].dependents.push(options.dependent)
         }
       }
 

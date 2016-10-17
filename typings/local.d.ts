@@ -251,3 +251,9 @@ declare module 'lodash.memoize' {
   const anything: any;
   export = anything;
 }
+
+declare module 'js-yaml' {
+  const anything: any;
+  export = anything;
+}
+

@@ -8,9 +8,8 @@ import binify from '../binify'
 import extendOptions from './extendOptions'
 import requireJson from '../fs/requireJson'
 import {PnpmOptions, StrictPnpmOptions, Package} from '../types'
-import {StoreJson} from '../fs/storeJsonController'
 import lock from './lock'
-import {save as saveStoreJson} from '../fs/storeJsonController'
+import {save as saveStoreJson, Store} from '../fs/storeController'
 
 export default async function uninstallCmd (pkgsToUninstall: string[], maybeOpts?: PnpmOptions) {
   const opts = extendOptions(maybeOpts)
@@ -22,7 +21,7 @@ export default async function uninstallCmd (pkgsToUninstall: string[], maybeOpts
   }
 
   const pkg = ctx.pkg
-  return lock(ctx.store, () => uninstallInContext(pkgsToUninstall, pkg, ctx, opts))
+  return lock(ctx.storePath, () => uninstallInContext(pkgsToUninstall, pkg, ctx, opts))
 }
 
 export async function uninstallInContext (pkgsToUninstall: string[], pkg: Package, ctx: PnpmContext, opts: StrictPnpmOptions) {
@@ -31,27 +30,27 @@ export async function uninstallInContext (pkgsToUninstall: string[], pkg: Packag
   // this is OK. The store might not have records for the package
   // maybe it was cloned, `pnpm install` was not executed
   // and remove is done on a package with no dependencies installed
-  ctx.storeJson.packages[ctx.root] = ctx.storeJson.packages[ctx.root] || {}
-  ctx.storeJson.packages[ctx.root].dependencies = ctx.storeJson.packages[ctx.root].dependencies || {}
+  ctx.store.packages[ctx.root] = ctx.store.packages[ctx.root] || {}
+  ctx.store.packages[ctx.root].dependencies = ctx.store.packages[ctx.root].dependencies || {}
 
   const pkgIds = <string[]>pkgsToUninstall
-    .map(dep => ctx.storeJson.packages[ctx.root].dependencies[dep])
+    .map(dep => ctx.store.packages[ctx.root].dependencies[dep])
     .filter(pkgId => !!pkgId)
-  const uninstalledPkgs = tryUninstall(pkgIds.slice(), ctx.storeJson, ctx.root)
+  const uninstalledPkgs = tryUninstall(pkgIds.slice(), ctx.store, ctx.root)
   await Promise.all(
-    uninstalledPkgs.map(uninstalledPkg => removeBins(uninstalledPkg, ctx.store, ctx.root))
+    uninstalledPkgs.map(uninstalledPkg => removeBins(uninstalledPkg, ctx.storePath, ctx.root))
   )
-  if (ctx.storeJson.packages[ctx.root].dependencies) {
+  if (ctx.store.packages[ctx.root].dependencies) {
     pkgsToUninstall.forEach(dep => {
-      delete ctx.storeJson.packages[ctx.root].dependencies[dep]
+      delete ctx.store.packages[ctx.root].dependencies[dep]
     })
-    if (!Object.keys(ctx.storeJson.packages[ctx.root].dependencies).length) {
-      delete ctx.storeJson.packages[ctx.root].dependencies
+    if (!Object.keys(ctx.store.packages[ctx.root].dependencies).length) {
+      delete ctx.store.packages[ctx.root].dependencies
     }
   }
-  await Promise.all(uninstalledPkgs.map(pkgId => removePkgFromStore(pkgId, ctx.store)))
+  await Promise.all(uninstalledPkgs.map(pkgId => removePkgFromStore(pkgId, ctx.storePath)))
 
-  saveStoreJson(ctx.store, ctx.storeJson)
+  saveStoreJson(ctx.storePath, ctx.store)
   await Promise.all(pkgsToUninstall.map(dep => rimraf(path.join(ctx.root, 'node_modules', dep))))
 
   const saveType = getSaveType(opts)
@@ -61,25 +60,25 @@ export async function uninstallInContext (pkgsToUninstall: string[], pkg: Packag
   }
 }
 
-function canBeUninstalled (pkgId: string, storeJson: StoreJson, pkgPath: string) {
-  return !storeJson.packages[pkgId] || !storeJson.packages[pkgId].dependents || !storeJson.packages[pkgId].dependents.length ||
-    storeJson.packages[pkgId].dependents.length === 1 && storeJson.packages[pkgId].dependents.indexOf(pkgPath) !== -1
+function canBeUninstalled (pkgId: string, store: Store, pkgPath: string) {
+  return !store.packages[pkgId] || !store.packages[pkgId].dependents || !store.packages[pkgId].dependents.length ||
+    store.packages[pkgId].dependents.length === 1 && store.packages[pkgId].dependents.indexOf(pkgPath) !== -1
 }
 
-export function tryUninstall (pkgIds: string[], storeJson: StoreJson, pkgPath: string) {
+export function tryUninstall (pkgIds: string[], store: Store, pkgPath: string) {
   const uninstalledPkgs: string[] = []
   let numberOfUninstalls: number
   do {
     numberOfUninstalls = 0
     for (let i = 0; i < pkgIds.length; ) {
-      if (canBeUninstalled(pkgIds[i], storeJson, pkgPath)) {
+      if (canBeUninstalled(pkgIds[i], store, pkgPath)) {
         const uninstalledPkg = pkgIds.splice(i, 1)[0]
         uninstalledPkgs.push(uninstalledPkg)
-        const deps = storeJson.packages[uninstalledPkg] && storeJson.packages[uninstalledPkg].dependencies || {}
+        const deps = store.packages[uninstalledPkg] && store.packages[uninstalledPkg].dependencies || {}
         const depIds = Object.keys(deps).map(depName => deps[depName])
-        delete storeJson.packages[uninstalledPkg]
-        depIds.forEach((dep: string) => removeDependency(dep, uninstalledPkg, storeJson))
-        Array.prototype.push.apply(uninstalledPkgs, tryUninstall(depIds, storeJson, uninstalledPkg))
+        delete store.packages[uninstalledPkg]
+        depIds.forEach((dep: string) => removeDependency(dep, uninstalledPkg, store))
+        Array.prototype.push.apply(uninstalledPkgs, tryUninstall(depIds, store, uninstalledPkg))
         numberOfUninstalls++
         continue
       }
@@ -89,11 +88,11 @@ export function tryUninstall (pkgIds: string[], storeJson: StoreJson, pkgPath: s
   return uninstalledPkgs
 }
 
-function removeDependency (dependentPkgName: string, uninstalledPkg: string, storeJson: StoreJson) {
-  if (!storeJson.packages[dependentPkgName].dependents) return
-  storeJson.packages[dependentPkgName].dependents.splice(storeJson.packages[dependentPkgName].dependents.indexOf(uninstalledPkg), 1)
-  if (!storeJson.packages[dependentPkgName].dependents.length) {
-    delete storeJson.packages[dependentPkgName].dependents
+function removeDependency (dependentPkgName: string, uninstalledPkg: string, store: Store) {
+  if (!store.packages[dependentPkgName].dependents) return
+  store.packages[dependentPkgName].dependents.splice(store.packages[dependentPkgName].dependents.indexOf(uninstalledPkg), 1)
+  if (!store.packages[dependentPkgName].dependents.length) {
+    delete store.packages[dependentPkgName].dependents
   }
 }
 

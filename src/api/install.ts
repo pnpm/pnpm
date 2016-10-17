@@ -21,8 +21,7 @@ import {InstalledPackage} from '../install'
 import {Got} from '../network/got'
 import pnpmPkgJson from '../pnpmPkgJson'
 import lock from './lock'
-import {StoreJson} from '../fs/storeJsonController'
-import {save as saveStoreJson} from '../fs/storeJsonController'
+import {save as saveStore, Store} from '../fs/storeController'
 import {tryUninstall, removePkgFromStore} from './uninstall'
 import flattenDependencies from '../install/flattenDependencies'
 
@@ -45,19 +44,19 @@ export type InstallContext = {
   got: Got,
   builds: CachedPromises<InstalledPackage[]>,
   fetches: CachedPromises<void>,
-  storeJson: StoreJson
+  store: Store,
 }
 
 export async function install (maybeOpts?: PnpmOptions) {
   const opts = extendOptions(maybeOpts)
   const ctx = await getContext(opts)
-  const installCtx = await createInstallCmd(opts, ctx.storeJson, ctx.cache)
+  const installCtx = await createInstallCmd(opts, ctx.store, ctx.cache)
 
   if (!ctx.pkg) throw runtimeError('No package.json found')
   const packagesToInstall = Object.assign({}, ctx.pkg.dependencies || {})
   if (!opts.production) Object.assign(packagesToInstall, ctx.pkg.devDependencies || {})
 
-  return lock(ctx.store, () => installInContext('general', packagesToInstall, ctx, installCtx, opts))
+  return lock(ctx.storePath, () => installInContext('general', packagesToInstall, ctx, installCtx, opts))
 }
 
 /**
@@ -73,14 +72,14 @@ export async function installPkgs (fuzzyDeps: string[] | Dependencies, maybeOpts
   }
   const opts = extendOptions(maybeOpts)
   const ctx = await getContext(opts)
-  const installCtx = await createInstallCmd(opts, ctx.storeJson, ctx.cache)
+  const installCtx = await createInstallCmd(opts, ctx.store, ctx.cache)
 
-  return lock(ctx.store, () => installInContext('named', packagesToInstall, ctx, installCtx, opts))
+  return lock(ctx.storePath, () => installInContext('named', packagesToInstall, ctx, installCtx, opts))
 }
 
 async function installInContext (installType: string, packagesToInstall: Dependencies, ctx: PnpmContext, installCtx: InstallContext, opts: StrictPnpmOptions) {
-  // TODO: ctx.storeJson should not be muted. installMultiple should return a new storeJson
-  const oldStoreJson: StoreJson = cloneDeep(ctx.storeJson)
+  // TODO: ctx.store should not be muted. installMultiple should return a new store
+  const oldStore: Store = cloneDeep(ctx.store)
   const pkgs: InstalledPackage[] = await lock(ctx.cache, () => installMultiple(installCtx,
     packagesToInstall,
     ctx.pkg && ctx.pkg && ctx.pkg.optionalDependencies || {},
@@ -89,7 +88,7 @@ async function installInContext (installType: string, packagesToInstall: Depende
       linkLocal: opts.linkLocal,
       dependent: ctx.root,
       root: ctx.root,
-      store: ctx.store,
+      storePath: ctx.storePath,
       force: opts.force,
       depth: opts.depth,
       tag: opts.tag
@@ -98,7 +97,7 @@ async function installInContext (installType: string, packagesToInstall: Depende
 
   if (opts.flatTree) {
     console.log('Flattening the dependency tree')
-    await flattenDependencies(ctx.root, ctx.store, pkgs, ctx.storeJson.packages)
+    await flattenDependencies(ctx.root, ctx.storePath, pkgs, ctx.store.packages)
   }
 
   if (installType === 'named') {
@@ -114,13 +113,13 @@ async function installInContext (installType: string, packagesToInstall: Depende
     }
   }
 
-  const newStoreJson = Object.assign({}, ctx.storeJson, {
+  const newStore = Object.assign({}, ctx.store, {
     pnpm: pnpmPkgJson.version
   })
-  await removeOrphanPkgs(oldStoreJson, newStoreJson, ctx.root, ctx.store)
-  saveStoreJson(ctx.store, newStoreJson)
+  await removeOrphanPkgs(oldStore, newStore, ctx.root, ctx.storePath)
+  saveStore(ctx.storePath, newStore)
 
-  await linkPeers(ctx.store, installCtx.installs)
+  await linkPeers(ctx.storePath, installCtx.installs)
   // postinstall hooks
   if (!(opts.ignoreScripts || !installCtx.piq || !installCtx.piq.length)) {
     await seq(
@@ -149,7 +148,7 @@ async function installInContext (installType: string, packagesToInstall: Depende
   }
 }
 
-function removeOrphanPkgs (oldStoreJson: StoreJson, newStoreJson: StoreJson, root: string, store: string) {
+function removeOrphanPkgs (oldStoreJson: Store, newStoreJson: Store, root: string, store: string) {
   const oldDeps = oldStoreJson.packages[root] && oldStoreJson.packages[root].dependencies || {}
   const newDeps = newStoreJson.packages[root] && newStoreJson.packages[root].dependencies || {}
 
@@ -162,7 +161,7 @@ function removeOrphanPkgs (oldStoreJson: StoreJson, newStoreJson: StoreJson, roo
   return Promise.all(uninstallPkgs.map(pkgId => removePkgFromStore(pkgId, store)))
 }
 
-async function createInstallCmd (opts: StrictPnpmOptions, storeJson: StoreJson, cache: string): Promise<InstallContext> {
+async function createInstallCmd (opts: StrictPnpmOptions, store: Store, cache: string): Promise<InstallContext> {
   const client = new RegClient(adaptConfig(opts))
   return {
     fetches: {},
@@ -172,7 +171,7 @@ async function createInstallCmd (opts: StrictPnpmOptions, storeJson: StoreJson, 
       cachePath: cache,
       cacheTTL: opts.cacheTTL
     }),
-    storeJson
+    store,
   }
 }
 

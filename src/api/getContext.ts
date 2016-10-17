@@ -7,41 +7,40 @@ import writeJson from '../fs/writeJson'
 import expandTilde from '../fs/expandTilde'
 import {StrictPnpmOptions} from '../types'
 import initLogger from '../logger'
-import {read as readStoreJson} from '../fs/storeJsonController'
+import {read as readStore, Store} from '../fs/storeController'
 import mkdirp from '../fs/mkdirp'
 import {Package} from '../types'
-import {StoreJson} from '../fs/storeJsonController'
 import {getCachePath} from './cache'
 import normalizePath = require('normalize-path')
 
 export type PnpmContext = {
   pkg?: Package,
   cache: string,
-  store: string,
+  storePath: string,
   root: string,
-  storeJson: StoreJson
+  store: Store
 }
 
 export default async function (opts: StrictPnpmOptions): Promise<PnpmContext> {
   const pkg = await (opts.global ? readGlobalPkg(opts.globalPath) : readPkgUp({ cwd: opts.cwd }))
   const root = normalizePath(pkg.path ? path.dirname(pkg.path) : opts.cwd)
-  const store = path.join(resolveStorePath(opts.storePath, root), opts.flatTree ? 'flat' : 'nested')
-  const storeJson = readStoreJson(store)
-  if (storeJson) {
-    failIfNotCompatible(storeJson.pnpm)
+  const storePath = path.join(resolveStorePath(opts.storePath, root), opts.flatTree ? 'flat' : 'nested')
+  const store = readStore(storePath)
+  if (store) {
+    failIfNotCompatible(store.pnpm)
   }
   const ctx: PnpmContext = {
     pkg: pkg.pkg,
     root,
     cache: getCachePath(opts.globalPath),
+    storePath,
     store,
-    storeJson
   }
 
   if (!opts.silent) initLogger(opts.logger)
 
   await mkdirp(ctx.cache)
-  await mkdirp(ctx.store)
+  await mkdirp(ctx.storePath)
   return ctx
 }
 
