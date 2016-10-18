@@ -22,8 +22,10 @@ import {Got} from '../network/got'
 import pnpmPkgJson from '../pnpmPkgJson'
 import lock from './lock'
 import {save as saveStore, Store} from '../fs/storeController'
+import {save as saveModules} from '../fs/modulesController'
 import {tryUninstall, removePkgFromStore} from './uninstall'
 import flattenDependencies from '../install/flattenDependencies'
+import mkdirp from '../fs/mkdirp'
 
 export type PackageInstallationResult = {
   path: string,
@@ -80,10 +82,12 @@ export async function installPkgs (fuzzyDeps: string[] | Dependencies, maybeOpts
 async function installInContext (installType: string, packagesToInstall: Dependencies, ctx: PnpmContext, installCtx: InstallContext, opts: StrictPnpmOptions) {
   // TODO: ctx.store should not be muted. installMultiple should return a new store
   const oldStore: Store = cloneDeep(ctx.store)
+  const nodeModulesPath = path.join(ctx.root, 'node_modules')
+  await mkdirp(nodeModulesPath)
   const pkgs: InstalledPackage[] = await lock(ctx.cache, () => installMultiple(installCtx,
     packagesToInstall,
     ctx.pkg && ctx.pkg && ctx.pkg.optionalDependencies || {},
-    path.join(ctx.root, 'node_modules'),
+    nodeModulesPath,
     {
       linkLocal: opts.linkLocal,
       dependent: ctx.root,
@@ -118,6 +122,9 @@ async function installInContext (installType: string, packagesToInstall: Depende
   })
   await removeOrphanPkgs(oldStore, newStore, ctx.root, ctx.storePath)
   saveStore(ctx.storePath, newStore)
+  if (ctx.isFirstInstallation) {
+    saveModules(path.join(ctx.root, 'node_modules'), {storePath: ctx.storePath})
+  }
 
   await linkPeers(ctx.storePath, installCtx.installs)
   // postinstall hooks

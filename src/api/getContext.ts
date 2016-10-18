@@ -7,7 +7,15 @@ import writeJson from '../fs/writeJson'
 import expandTilde from '../fs/expandTilde'
 import {StrictPnpmOptions} from '../types'
 import initLogger from '../logger'
-import {read as readStore, Store} from '../fs/storeController'
+import {
+  read as readStore,
+  create as createStore,
+  Store,
+  TreeType,
+} from '../fs/storeController'
+import {
+  read as readModules
+} from '../fs/modulesController'
 import mkdirp from '../fs/mkdirp'
 import {Package} from '../types'
 import {getCachePath} from './cache'
@@ -18,14 +26,31 @@ export type PnpmContext = {
   cache: string,
   storePath: string,
   root: string,
-  store: Store
+  store: Store,
+  isFirstInstallation: boolean,
 }
 
 export default async function (opts: StrictPnpmOptions): Promise<PnpmContext> {
   const pkg = await (opts.global ? readGlobalPkg(opts.globalPath) : readPkgUp({ cwd: opts.cwd }))
   const root = normalizePath(pkg.path ? path.dirname(pkg.path) : opts.cwd)
-  const storePath = path.join(resolveStorePath(opts.storePath, root), opts.flatTree ? 'flat' : 'nested')
-  const store = readStore(storePath)
+  const storeBasePath = resolveStoreBasePath(opts.storePath, root)
+  const treeType: TreeType = opts.flatTree ? 'flat' : 'nested'
+  const storePath = getStorePath(treeType, storeBasePath)
+
+  let modules = readModules(path.join(root, 'node_modules'))
+  const isFirstInstallation: boolean = !modules
+  if (modules && modules.storePath !== storePath) {
+    const err = new Error(`The package's modules are from store at ${modules.storePath} and you are trying to use store at ${storePath}`)
+    err['code'] = 'ALIEN_STORE'
+    throw err
+  }
+
+  const store = readStore(storePath) || createStore(treeType)
+  if (store.type !== treeType) {
+    const err = new Error(`Cannot use a ${store.type} store for a ${treeType} installation`)
+    err['code'] = 'INCONSISTENT_TREE_TYPE'
+    throw err
+  }
   if (store) {
     failIfNotCompatible(store.pnpm)
   }
@@ -35,6 +60,7 @@ export default async function (opts: StrictPnpmOptions): Promise<PnpmContext> {
     cache: getCachePath(opts.globalPath),
     storePath,
     store,
+    isFirstInstallation,
   }
 
   if (!opts.silent) initLogger(opts.logger)
@@ -105,9 +131,18 @@ async function readGlobalPkgJson (globalPkgPath: string) {
   }
 }
 
-function resolveStorePath (storePath: string, pkgRoot: string) {
+function resolveStoreBasePath (storePath: string, pkgRoot: string) {
   if (storePath.indexOf('~/') === 0) {
     return expandTilde(storePath)
   }
   return path.resolve(pkgRoot, storePath)
+}
+
+function getStorePath (treeType: TreeType, storeBasePath: string): string {
+  // potentially shared stores have to have separate subdirs for different
+  // dependency tree types 
+  if (storeBasePath.split(path.sep).indexOf('node_modules') === -1) {
+    return path.join(storeBasePath, treeType)
+  }
+  return storeBasePath
 }

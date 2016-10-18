@@ -17,7 +17,7 @@ test('prune removes extraneous packages', async function (t) {
   await installPkgs(['is-positive@2.0.0', '@zkochan/logger@0.1.0'], testDefaults())
   await prune(testDefaults())
 
-  const store = path.join(process.cwd(), 'node_modules/.store/nested')
+  const store = path.join(process.cwd(), 'node_modules/.store')
   const modules = path.join(process.cwd(), 'node_modules')
 
   let stat = await exists(path.join(store, 'is-positive@2.0.0'))
@@ -57,7 +57,7 @@ test('prune removes only the specified extraneous packages', async function (t) 
   await installPkgs(['is-positive@2.0.0', 'is-negative@2.1.0'], testDefaults())
   await prunePkgs(['is-positive'], testDefaults())
 
-  const store = path.join(process.cwd(), 'node_modules/.store/nested')
+  const store = path.join(process.cwd(), 'node_modules/.store')
   const modules = path.join(process.cwd(), 'node_modules')
 
   let stat = await exists(path.join(store, 'is-positive@2.0.0'))
@@ -94,7 +94,7 @@ test('prune removes dev dependencies in production', async function (t) {
   await installPkgs(['fnumber@0.1.0'], testDefaults({saveOptional: true}))
   await prune(testDefaults({production: true}))
 
-  const store = path.join(process.cwd(), 'node_modules/.store/nested')
+  const store = path.join(process.cwd(), 'node_modules/.store')
   const modules = path.join(process.cwd(), 'node_modules')
 
   let stat = await exists(path.join(store, 'is-positive@2.0.0'))

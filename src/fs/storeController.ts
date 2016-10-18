@@ -1,7 +1,11 @@
 import path = require('path')
-import fs = require('fs')
 import pnpmPkgJson from '../pnpmPkgJson'
-import yaml = require('js-yaml')
+import {
+  read as readYaml,
+  write as writeYaml
+} from './yamlfs'
+
+const storeFileName = 'store.yaml'
 
 export type StorePackageMap = {
   [name: string]: StorePackage
@@ -18,22 +22,30 @@ export type DependenciesResolution = {
 
 export type Store = {
   pnpm: string,
+  type: TreeType,
   packages: StorePackageMap
 }
 
-export function read (storePath: string): Store {
-  const storeYamlPath = path.join(storePath, 'store.yaml')
+export type TreeType = 'flat' | 'nested'
+
+export function create (treeType: TreeType): Store {
+  return {
+    pnpm: pnpmPkgJson.version,
+    type: treeType,
+    packages: {}
+  }
+}
+
+export function read (storePath: string): Store | null {
+  const storeYamlPath = path.join(storePath, storeFileName)
   try {
-    return yaml.safeLoad(fs.readFileSync(storeYamlPath, 'utf8'))
+    return readYaml<Store>(storeYamlPath)
   } catch (err) {
-    return {
-      pnpm: pnpmPkgJson.version,
-      packages: {}
-    }
+    return null
   }
 }
 
 export function save (storePath: string, store: Store) {
-  const storeYamlPath = path.join(storePath, 'store.yaml')
-  fs.writeFileSync(storeYamlPath, yaml.safeDump(store), 'utf8')
+  const storeYamlPath = path.join(storePath, storeFileName)
+  writeYaml(storeYamlPath, store)
 }
