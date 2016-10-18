@@ -34,6 +34,12 @@ export default async function (opts: StrictPnpmOptions): Promise<PnpmContext> {
   const pkg = await (opts.global ? readGlobalPkg(opts.globalPath) : readPkgUp({ cwd: opts.cwd }))
   const root = normalizePath(pkg.path ? path.dirname(pkg.path) : opts.cwd)
   const storeBasePath = resolveStoreBasePath(opts.storePath, root)
+
+  // to avoid orphan packages created with pnpm v0.41.0 and earlier
+  if (!underNodeModules(storeBasePath) && readStore(storeBasePath)) {
+    throw new Error(structureChangeMsg('Shared stores were divided into types, flat and nested. https://github.com/rstacruz/pnpm/pull/429'))
+  }
+
   const treeType: TreeType = opts.flatTree ? 'flat' : 'nested'
   const storePath = getStorePath(treeType, storeBasePath)
 
@@ -46,6 +52,7 @@ export default async function (opts: StrictPnpmOptions): Promise<PnpmContext> {
   }
 
   const store = readStore(storePath) || createStore(treeType)
+  store.type = store.type || 'nested' // for backward compatibility with v0.41.0 and earlier
   if (store.type !== treeType) {
     const err = new Error(`Cannot use a ${store.type} store for a ${treeType} installation`)
     err['code'] = 'INCONSISTENT_TREE_TYPE'
@@ -141,8 +148,12 @@ function resolveStoreBasePath (storePath: string, pkgRoot: string) {
 function getStorePath (treeType: TreeType, storeBasePath: string): string {
   // potentially shared stores have to have separate subdirs for different
   // dependency tree types 
-  if (storeBasePath.split(path.sep).indexOf('node_modules') === -1) {
+  if (!underNodeModules(storeBasePath)) {
     return path.join(storeBasePath, treeType)
   }
   return storeBasePath
+}
+
+function underNodeModules (dirpath: string): boolean {
+  return dirpath.split(path.sep).indexOf('node_modules') !== -1
 }
