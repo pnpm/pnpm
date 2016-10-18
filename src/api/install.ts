@@ -121,9 +121,9 @@ async function installInContext (installType: string, packagesToInstall: Depende
     pnpm: pnpmPkgJson.version
   })
   await removeOrphanPkgs(oldStore, newStore, ctx.root, ctx.storePath)
-  saveStore(ctx.storePath, newStore)
+  await saveStore(ctx.storePath, newStore)
   if (ctx.isFirstInstallation) {
-    saveModules(path.join(ctx.root, 'node_modules'), {storePath: ctx.storePath})
+    await saveModules(path.join(ctx.root, 'node_modules'), {storePath: ctx.storePath})
   }
 
   await linkPeers(ctx.storePath, installCtx.installs)

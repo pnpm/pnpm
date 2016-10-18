@@ -36,14 +36,14 @@ export default async function (opts: StrictPnpmOptions): Promise<PnpmContext> {
   const storeBasePath = resolveStoreBasePath(opts.storePath, root)
 
   // to avoid orphan packages created with pnpm v0.41.0 and earlier
-  if (!underNodeModules(storeBasePath) && readStore(storeBasePath)) {
+  if (!underNodeModules(storeBasePath) && await readStore(storeBasePath)) {
     throw new Error(structureChangeMsg('Shared stores were divided into types, flat and nested. https://github.com/rstacruz/pnpm/pull/429'))
   }
 
   const treeType: TreeType = opts.flatTree ? 'flat' : 'nested'
   const storePath = getStorePath(treeType, storeBasePath)
 
-  let modules = readModules(path.join(root, 'node_modules'))
+  let modules = await readModules(path.join(root, 'node_modules'))
   const isFirstInstallation: boolean = !modules
   if (modules && modules.storePath !== storePath) {
     const err = new Error(`The package's modules are from store at ${modules.storePath} and you are trying to use store at ${storePath}`)
@@ -51,7 +51,7 @@ export default async function (opts: StrictPnpmOptions): Promise<PnpmContext> {
     throw err
   }
 
-  const store = readStore(storePath) || createStore(treeType)
+  const store = await readStore(storePath) || createStore(treeType)
   store.type = store.type || 'nested' // for backward compatibility with v0.41.0 and earlier
   if (store.type !== treeType) {
     const err = new Error(`Cannot use a ${store.type} store for a ${treeType} installation`)

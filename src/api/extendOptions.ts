@@ -32,7 +32,7 @@ function getDefaultStorePath () {
 export default (opts?: PnpmOptions): StrictPnpmOptions => {
   opts = opts || {}
   if (opts.flatTree === true && !preserveSymlinks) {
-    throw new TypeError('Flat tree is supported only on Node.js >= 6.3.0')
+    throw new Error('`--preserve-symlinks` and so `--flat-tree` are not supported on your system, make sure you are running on Node ≽ 6.3.0')
   }
   return Object.assign({}, defaults(), opts)
 }

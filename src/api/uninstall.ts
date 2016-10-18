@@ -9,7 +9,7 @@ import extendOptions from './extendOptions'
 import requireJson from '../fs/requireJson'
 import {PnpmOptions, StrictPnpmOptions, Package} from '../types'
 import lock from './lock'
-import {save as saveStoreJson, Store} from '../fs/storeController'
+import {save as saveStore, Store} from '../fs/storeController'
 
 export default async function uninstallCmd (pkgsToUninstall: string[], maybeOpts?: PnpmOptions) {
   const opts = extendOptions(maybeOpts)
@@ -50,7 +50,7 @@ export async function uninstallInContext (pkgsToUninstall: string[], pkg: Packag
   }
   await Promise.all(uninstalledPkgs.map(pkgId => removePkgFromStore(pkgId, ctx.storePath)))
 
-  saveStoreJson(ctx.storePath, ctx.store)
+  await saveStore(ctx.storePath, ctx.store)
   await Promise.all(pkgsToUninstall.map(dep => rimraf(path.join(ctx.root, 'node_modules', dep))))
 
   const saveType = getSaveType(opts)

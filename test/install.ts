@@ -290,7 +290,7 @@ test('shrinkwrap compatibility', async function (t) {
   await installPkgs(['rimraf@2.5.1'], testDefaults())
 
   return new Promise((resolve, reject) => {
-    const proc = crossSpawn.spawn('npm', ['shrinkwrap'], {stdio: 'inherit'})
+    const proc = crossSpawn.spawn('npm', ['shrinkwrap'])
 
     proc.on('error', reject)
 
@@ -659,7 +659,7 @@ test('should throw error when trying to install flat tree on Node.js < 6.3.0', a
     await installPkgs(['rimraf@2.5.1'], testDefaults({flatTree: true}))
     t.fail('installation should have failed')
   } catch (err) {
-    t.equal(err.message, 'Flat tree is supported only on Node.js >= 6.3.0')
+    t.equal(err.message, '`--preserve-symlinks` and so `--flat-tree` are not supported on your system, make sure you are running on Node ≽ 6.3.0')
   }
 })
 

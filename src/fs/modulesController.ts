@@ -12,16 +12,19 @@ export type Modules = {
   storePath: string,
 }
 
-export function read (modulesPath: string): Modules | null {
+export async function read (modulesPath: string): Promise<Modules | null> {
   const modulesYamlPath = path.join(modulesPath, modulesFileName)
   try {
-    return readYaml<Modules>(modulesYamlPath)
+    return await readYaml<Modules>(modulesYamlPath)
   } catch (err) {
+    if ((<NodeJS.ErrnoException>err).code !== 'ENOENT') {
+      throw err
+    }
     return null
   }
 }
 
 export function save (modulesPath: string, modules: Modules) {
   const modulesYamlPath = path.join(modulesPath, modulesFileName)
-  writeYaml(modulesYamlPath, modules)
+  return writeYaml(modulesYamlPath, modules)
 }

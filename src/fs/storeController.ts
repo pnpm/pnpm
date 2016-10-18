@@ -36,16 +36,19 @@ export function create (treeType: TreeType): Store {
   }
 }
 
-export function read (storePath: string): Store | null {
+export async function read (storePath: string): Promise<Store | null> {
   const storeYamlPath = path.join(storePath, storeFileName)
   try {
-    return readYaml<Store>(storeYamlPath)
+    return await readYaml<Store>(storeYamlPath)
   } catch (err) {
+    if ((<NodeJS.ErrnoException>err).code !== 'ENOENT') {
+      throw err
+    }
     return null
   }
 }
 
 export function save (storePath: string, store: Store) {
   const storeYamlPath = path.join(storePath, storeFileName)
-  writeYaml(storeYamlPath, store)
+  return writeYaml(storeYamlPath, store)
 }

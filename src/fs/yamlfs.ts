@@ -1,10 +1,11 @@
-import fs = require('fs')
+import fs = require('mz/fs')
 import yaml = require('js-yaml')
 
-export function read <T>(yamlPath: string): T {
-  return yaml.safeLoad(fs.readFileSync(yamlPath, 'utf8'))
+export async function read <T>(yamlPath: string): Promise<T> {
+  const rawYaml = await fs.readFile(yamlPath, 'utf8')
+  return yaml.safeLoad(rawYaml)
 }
 
 export function write <T>(yamlPath: string, yamlObj: T) {
-  fs.writeFileSync(yamlPath, yaml.safeDump(yamlObj), 'utf8')
+  return fs.writeFile(yamlPath, yaml.safeDump(yamlObj), 'utf8')
 }
