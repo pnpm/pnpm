@@ -647,6 +647,22 @@ test('should install flat tree', async function (t) {
   }
 })
 
+test('should throw error when trying to install flat tree on Node.js < 6.3.0', async function (t) {
+  if (preserveSymlinks) {
+    t.skip()
+    return
+  }
+
+  prepare()
+
+  try {
+    await installPkgs(['rimraf@2.5.1'], testDefaults({flatTree: true}))
+    t.fail('installation should have failed')
+  } catch (err) {
+    t.equal(err.message, 'Flat tree is supported only on Node.js >= 6.3.0')
+  }
+})
+
 test('should throw error when trying to install with a different tree type using a dedicated store', async function(t) {
   if (!preserveSymlinks) {
     t.skip('flat trees are supported only on Node.js with --preserve-symlinks support')
