@@ -111,7 +111,7 @@
     "docs:build": "docpress build",
     "commit": "git-cz",
     "cover": "istanbul cover test/index.js",
-    "lint": "standard && tslint -c tslint.json ./src/**/*.ts ./test/**/*.ts",
+    "lint": "standard && tslint -c tslint.json --project .",
     "sinopia": "sinopia -c ./sinopia/config.yaml",
     "test:e2e": "ts-node test | tap-diff",
     "test": "node node_modules/npm-run-all/bin/npm-run-all lint -p -r sinopia test:e2e",
