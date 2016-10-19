@@ -1,12 +1,15 @@
 import {IncomingMessage} from 'http'
 import pauseStream = require('pause-stream')
-import getAuthToken = require('registry-auth-token')
+import getRegistryAuthInfo = require('registry-auth-token')
 import createCache from './createCache'
 import memoize = require('lodash.memoize')
 
 export type RequestParams = {
-  headers?: {
-    authorization: string
+  auth?: {
+    token: string
+  } | {
+    username: string,
+    password: string
   }
 }
 
@@ -69,12 +72,24 @@ export default (client: NpmRegistryClient, opts: {cachePath: string, cacheTTL: n
   }
 
   function createOptions (url: string): RequestParams {
-    const authToken = getAuthToken(url, {recursive: true})
-    if (!authToken) return {}
-    return {
-      headers: {
-        authorization: `${authToken.type} ${authToken.token}`
-      }
+    const authInfo = getRegistryAuthInfo(url, {recursive: true})
+    if (!authInfo) return {}
+    switch (authInfo.type) {
+      case 'Bearer':
+        return {
+          auth: {
+            token: authInfo.token
+          }
+        }
+      case 'Basic':
+        return {
+          auth: {
+            username: authInfo.username,
+            password: authInfo.password
+          }
+        }
+      default:
+        throw new Error(`Unsupported authorization type '${authInfo.type}'`)
     }
   }
 
