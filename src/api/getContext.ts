@@ -4,7 +4,7 @@ import semver = require('semver')
 import {stripIndent} from 'common-tags'
 import requireJson from '../fs/requireJson'
 import writeJson from '../fs/writeJson'
-import expandTilde from '../fs/expandTilde'
+import expandTilde, {isHomepath} from '../fs/expandTilde'
 import {StrictPnpmOptions} from '../types'
 import initLogger from '../logger'
 import {
@@ -139,7 +139,7 @@ async function readGlobalPkgJson (globalPkgPath: string) {
 }
 
 function resolveStoreBasePath (storePath: string, pkgRoot: string) {
-  if (storePath.indexOf('~/') === 0) {
+  if (isHomepath(storePath)) {
     return expandTilde(storePath)
   }
   return path.resolve(pkgRoot, storePath)
