@@ -3,19 +3,7 @@ const debug = createDebug('pnpm:run_script')
 import path = require('path')
 import byline = require('byline')
 import spawn = require('cross-spawn')
-
-let PATH: string
-// windows calls it's path 'Path' usually, but this is not guaranteed.
-if (process.platform === 'win32') {
-  PATH = 'Path'
-  Object.keys(process.env).forEach(e => {
-    if (e.match(/^PATH$/i)) {
-      PATH = e
-    }
-  })
-} else {
-  PATH = 'PATH'
-}
+import PATH = require('path-name')
 
 export type RunScriptOptions = {
   cwd: string,

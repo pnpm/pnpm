@@ -257,3 +257,7 @@ declare module 'js-yaml' {
   export = anything;
 }
 
+declare module 'path-name' {
+  const anything: any;
+  export = anything;
+}
