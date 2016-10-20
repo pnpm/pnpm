@@ -6,7 +6,7 @@ import {StorePackageMap} from '../fs/storeController'
 
 export default function flattenDependencies (id: string, store: string, pkgs: InstalledPackage[], storePkg: StorePackageMap) {
   const newPkgs = getNewPkgs(pkgs, [id])
-  const todo = newPkgs.map(newPkg => newPkg.id).concat([id])
+  const todo = new Set(newPkgs.map(newPkg => newPkg.id).concat([id]))
   const tree: FlatTree = {}
   flattenPkgs(id, storePkg, 1, [], tree)
   return createFlatTree(id, store, id, storePkg, todo, tree, 1)
@@ -20,9 +20,9 @@ function getNewPkgs (pkgs: InstalledPackage[], keypath: string[]): InstalledPack
         newPkgs.concat(getNewPkgs(pkg.dependencies, keypath.concat([pkg.id]))), []))
 }
 
-async function createFlatTree (id: string, store: string, root: string, storePkg: StorePackageMap, todo: string[], tree: FlatTree, depth: number) {
-  if (todo.indexOf(id) === -1) return
-  todo.splice(todo.indexOf(id), 1)
+async function createFlatTree (id: string, store: string, root: string, storePkg: StorePackageMap, todo: Set<string>, tree: FlatTree, depth: number) {
+  if (!todo.has(id)) return
+  todo.delete(id)
 
   const modules = path.join(root, 'node_modules')
   await mkdirp(modules)
