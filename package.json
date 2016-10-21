@@ -15,6 +15,7 @@
     "lib/"
   ],
   "dependencies": {
+    "@zkochan/cmd-shim": "1.0.0",
     "@zkochan/logger": "0.1.0",
     "arr-flatten": "1.0.1",
     "byline": "5.0.0",
@@ -114,8 +115,9 @@
     "cover": "istanbul cover test/index.js",
     "lint": "standard && tslint -c tslint.json --project .",
     "sinopia": "sinopia -c ./sinopia/config.yaml",
-    "test:e2e": "ts-node test | tap-diff",
-    "test": "node node_modules/npm-run-all/bin/npm-run-all lint -p -r sinopia test:e2e",
+    "test:tap": "ts-node test | tap-diff",
+    "test:e2e": "node node_modules/npm-run-all/bin/npm-run-all -p -r sinopia test:tap",
+    "test": "npm run lint && npm run test:e2e",
     "posttest": "rm -rf .tmp",
     "prerelease": "npm run tsc && npm test",
     "release": "sh .scripts/release.sh",

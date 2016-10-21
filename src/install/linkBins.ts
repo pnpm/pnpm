@@ -1,6 +1,5 @@
 import path = require('path')
 import normalizePath = require('normalize-path')
-import {stripIndent} from 'common-tags'
 import relSymlink from '../fs/relSymlink'
 import fs = require('mz/fs')
 import mkdirp from '../fs/mkdirp'
@@ -8,6 +7,10 @@ import requireJson from '../fs/requireJson'
 import getPkgDirs from '../fs/getPkgDirs'
 import binify from '../binify'
 import {isWindows, preserveSymlinks} from '../env'
+import cbCmdShim = require('@zkochan/cmd-shim')
+import thenify = require('thenify')
+import {Package} from '../types'
+const cmdShim = thenify(cbCmdShim)
 
 export default async function linkAllBins (modules: string) {
   const pkgDirs = await getPkgDirs(modules)
@@ -28,9 +31,14 @@ export default async function linkAllBins (modules: string) {
  *     // node_modules/.bin/rimraf -> ../.store/rimraf@2.5.1/cmd.js
  */
 export async function linkPkgBins (modules: string, target: string) {
-  const pkg = tryRequire(path.join(target, 'package.json'))
+  const pkg = safeRequireJson(path.join(target, 'package.json'))
 
-  if (!pkg || !pkg.bin) return
+  if (!pkg) {
+    console.warn(`There's a directory in node_modules without package.json: ${target}`)
+    return
+  }
+
+  if (!pkg.bin) return
 
   const bins = binify(pkg)
   const binDir = path.join(modules, '.bin')
@@ -40,14 +48,15 @@ export async function linkPkgBins (modules: string, target: string) {
     const actualBin = bins[bin]
     const externalBinPath = path.join(binDir, bin)
 
-    const targetPath = normalizePath(path.join(pkg.name, actualBin))
+    const targetPath = path.join(pkg.name, actualBin)
+    const normalTargetPath = normalizePath(targetPath)
     if (isWindows) {
       if (!preserveSymlinks) {
-        return cmdShim(externalBinPath, '../' + targetPath)
+        return cmdShim(path.join(target, actualBin), externalBinPath, {preserveSymlinks})
       }
-      const proxyFilePath = path.join(binDir, bin + '.proxy')
-      fs.writeFileSync(proxyFilePath, 'require("../' + targetPath + '")', 'utf8')
-      return cmdShim(externalBinPath, path.relative(binDir, proxyFilePath))
+      const proxyFilePath = path.join(binDir, `${bin}.proxy`)
+      await fs.writeFile(proxyFilePath, `#!/usr/bin/env node\r\nrequire("../${normalTargetPath}")`, 'utf8')
+      return cmdShim(proxyFilePath, externalBinPath, {preserveSymlinks})
     }
 
     if (!preserveSymlinks) {
@@ -65,54 +74,24 @@ function makeExecutable (filePath: string) {
   return fs.chmod(filePath, 0o755)
 }
 
-function proxy (proxyPath: string, targetPath: string) {
-  const proxyContent = stripIndent`
-    #!/bin/sh
-    ":" //# comment; exec /usr/bin/env node --preserve-symlinks "$0" "$@"
-    require('../${targetPath}')`
-  fs.writeFileSync(proxyPath, proxyContent, 'utf8')
+async function proxy (proxyPath: string, targetPath: string) {
+  // NOTE: this will be used only on non-windows
+  // Hence, the \n line endings should be used
+  const proxyContent = '#!/bin/sh\n' +
+    '":" //# comment; exec /usr/bin/env node --preserve-symlinks "$0" "$@"\n' +
+    `require("../${targetPath}")`
+  await fs.writeFile(proxyPath, proxyContent, 'utf8')
   return makeExecutable(proxyPath)
 }
 
-function cmdShim (proxyPath: string, targetPath: string) {
-  const nodeOptions = preserveSymlinks ? '--preserve-symlinks' : ''
-  const cmdContent = stripIndent`
-    @IF EXIST "%~dp0\\node.exe" (
-      "%~dp0\\node.exe ${nodeOptions}"  "%~dp0/${targetPath}" %*
-    ) ELSE (
-      @SETLOCAL
-      @SET PATHEXT=%PATHEXT:;.JS;=;%
-      node ${nodeOptions}  "%~dp0/${targetPath}" %*
-    )`
-  fs.writeFileSync(proxyPath + '.cmd', cmdContent, 'utf8')
-
-  const shContent = stripIndent`
-    #!/bin/sh
-    basedir=$(dirname "$(echo "$0" | sed -e 's,\\,/,g')")
-
-    case \`uname\` in
-        *CYGWIN*) basedir=\`cygpath -w "$basedir"\`;;
-    esac
-
-    if [ -x "$basedir/node" ]; then
-      "$basedir/node ${nodeOptions}"  "$basedir/${targetPath}" "$@"
-      ret=$?
-    else
-      node ${nodeOptions}  "$basedir/${targetPath}" "$@"
-      ret=$?
-    fi
-    exit $ret
-    `
-  fs.writeFileSync(proxyPath, shContent, 'utf8')
-  return Promise.all([
-    makeExecutable(proxyPath + '.cmd'),
-    makeExecutable(proxyPath)
-  ])
-}
-
 /**
- * Like `require()`, but returns `undefined` when it fails
+ * Like `require()`, but returns `null` when it is not found
  */
-function tryRequire (path: string) {
-  try { return requireJson(path) } catch (e) { return null }
+function safeRequireJson (pkgJsonPath: string): Package | null {
+  try {
+    return requireJson(pkgJsonPath)
+  } catch (err) {
+    if ((<NodeJS.ErrnoException>err).code !== 'ENOENT') throw err
+    return null
+  }
 }

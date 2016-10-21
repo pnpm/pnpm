@@ -261,3 +261,8 @@ declare module 'path-name' {
   const anything: any;
   export = anything;
 }
+
+declare module '@zkochan/cmd-shim' {
+  const anything: any;
+  export = anything;
+}
