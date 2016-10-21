@@ -18,7 +18,7 @@
     "@zkochan/logger": "0.1.0",
     "arr-flatten": "1.0.1",
     "byline": "5.0.0",
-    "cache-manager": "2.1.2",
+    "cache-manager": "2.2.0",
     "cache-manager-fs": "1.0.5",
     "camelcase-keys": "4.0.0",
     "chalk": "1.1.3",
