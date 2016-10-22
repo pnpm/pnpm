@@ -1,6 +1,6 @@
 import mkdirp from '../fs/mkdirp'
 import unsymlink from '../fs/unsymlink'
-import relSymlink from '../fs/relSymlink'
+import linkDir from 'link-dir'
 import path = require('path')
 import semver = require('semver')
 import {InstalledPackages} from '../api/install'
@@ -44,7 +44,7 @@ export default async function linkPeers (store: string, installs: InstalledPacka
 
   await Promise.all(Object.keys(peers).map(async function (name) {
     await unsymlink(path.join(modules, peers[name].name))
-    return relSymlink(
+    return linkDir(
       path.join(store, peers[name].id, '_'),
       path.join(modules, peers[name].name))
   }))

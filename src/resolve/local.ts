@@ -9,7 +9,7 @@ import {PackageSpec} from '../install'
 import {ResolveOptions, ResolveResult} from '.'
 import {createLocalTarballFetcher, fetchFromLocalTarball, FetchOptions} from './fetch'
 import fs = require('mz/fs')
-import relSymlink from '../fs/relSymlink'
+import linkDir from 'link-dir'
 
 /**
  * Resolves a package hosted on the local filesystem
@@ -35,7 +35,7 @@ export default async function resolveLocal (spec: PackageSpec, opts: ResolveOpti
       root: dependencyPath,
       fetch: async function (target: string, opts: FetchOptions) {
         await mkdirp(path.dirname(target))
-        return relSymlink(dependencyPath, target)
+        return linkDir(dependencyPath, target)
       }
     }
   }

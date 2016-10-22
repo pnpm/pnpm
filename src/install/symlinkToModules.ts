@@ -1,6 +1,6 @@
 import path = require('path')
 import requireJson from '../fs/requireJson'
-import relSymlink from '../fs/relSymlink'
+import linkDir from 'link-dir'
 import mkdirp from '../fs/mkdirp'
 
 /**
@@ -20,5 +20,5 @@ export default async function symlinkToModules (target: string, modules: string)
   // .store/foo@1.0.0/node_modules/lodash -> ../../../.store/lodash@4.0.0
   const out = path.join(modules, pkgData.name)
   await mkdirp(path.dirname(out))
-  await relSymlink(target, out)
+  await linkDir(target, out)
 }

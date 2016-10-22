@@ -1,6 +1,6 @@
 import path = require('path')
 import normalizePath = require('normalize-path')
-import relSymlink from '../fs/relSymlink'
+import linkDir from 'link-dir'
 import fs = require('mz/fs')
 import mkdirp from '../fs/mkdirp'
 import requireJson from '../fs/requireJson'
@@ -61,7 +61,7 @@ export async function linkPkgBins (modules: string, target: string) {
 
     if (!preserveSymlinks) {
       await makeExecutable(path.join(target, actualBin))
-      return relSymlink(
+      return linkDir(
         path.join(target, actualBin),
         externalBinPath)
     }

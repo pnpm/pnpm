@@ -8,7 +8,7 @@ import path = require('path')
 import resolve, {ResolveResult} from '../resolve'
 import mkdirp from '../fs/mkdirp'
 import requireJson from '../fs/requireJson'
-import relSymlink from '../fs/relSymlink'
+import linkDir from 'link-dir'
 import exists = require('exists-file')
 import linkBundledDeps from './linkBundledDeps'
 import isAvailable from './isAvailable'
@@ -291,7 +291,7 @@ async function symlinkSelf (target: string, pkg: Package, depth: number) {
   const src = isScoped(pkg.name)
     ? path.join('..', '..', '_')
     : path.join('..', '_')
-  await relSymlink(
+  await linkDir(
     src,
     path.join(target, 'node_modules', pkg.name))
 }
