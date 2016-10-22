@@ -2,6 +2,7 @@ import path = require('path')
 import fs = require('mz/fs')
 import {PackageSpec} from '../install'
 import {Package} from '../types'
+import loadJsonFile = require('load-json-file')
 
 /**
  * Check if a module exists (eg, `node_modules/node-pre-gyp`). This is the case when
@@ -26,8 +27,7 @@ export default async function isAvailable (spec: PackageSpec, modules: string) {
       return true
     }
 
-    const content = await fs.readFile(packageJsonPath)
-    const pkgJson = JSON.parse(content)
+    const pkgJson = await loadJsonFile(packageJsonPath)
     return verify(spec, pkgJson)
   } catch (err) {
     if ((<NodeJS.ErrnoException>err).code !== 'ENOENT') throw err
