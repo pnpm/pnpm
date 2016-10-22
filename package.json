@@ -63,7 +63,8 @@
     "supports-color": "3.1.2",
     "tar-fs": "1.14.0",
     "thenify": "3.2.1",
-    "update-notifier": "1.0.2"
+    "update-notifier": "1.0.2",
+    "write-pkg": "2.0.0"
   },
   "devDependencies": {
     "@zkochan/sinopia": "1.0.0",

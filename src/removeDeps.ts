@@ -1,5 +1,5 @@
 import requireJson from './fs/requireJson'
-import writeJson from './fs/writeJson'
+import writePkg = require('write-pkg')
 import {DependenciesType} from './getSaveType'
 
 export default async function (pkgJsonPath: string, removedPackages: string[], saveType: DependenciesType) {
@@ -11,5 +11,5 @@ export default async function (pkgJsonPath: string, removedPackages: string[], s
     delete packageJson[saveType][dependency]
   })
 
-  return writeJson(pkgJsonPath, packageJson)
+  return writePkg(pkgJsonPath, packageJson)
 }

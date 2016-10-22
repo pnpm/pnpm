@@ -50,7 +50,6 @@
     "src/fs/requireJson.ts",
     "src/fs/storeController.ts",
     "src/fs/unsymlink.ts",
-    "src/fs/writeJson.ts",
     "src/getSaveType.ts",
     "src/index.ts",
     "src/install/flattenDependencies.ts",

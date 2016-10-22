@@ -3,7 +3,7 @@ import path = require('path')
 import semver = require('semver')
 import {stripIndent} from 'common-tags'
 import requireJson from '../fs/requireJson'
-import writeJson from '../fs/writeJson'
+import writePkg = require('write-pkg')
 import expandTilde, {isHomepath} from '../fs/expandTilde'
 import {StrictPnpmOptions} from '../types'
 import initLogger from '../logger'
@@ -133,7 +133,7 @@ async function readGlobalPkgJson (globalPkgPath: string) {
   } catch (err) {
     const pkgJson = {}
     await mkdirp(path.dirname(globalPkgPath))
-    await writeJson(globalPkgPath, pkgJson)
+    await writePkg(globalPkgPath, pkgJson)
     return pkgJson
   }
 }

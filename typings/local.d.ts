@@ -266,3 +266,8 @@ declare module '@zkochan/cmd-shim' {
   const anything: any;
   export = anything;
 }
+
+declare module 'write-pkg' {
+  const anything: any;
+  export = anything;
+}

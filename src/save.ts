@@ -1,5 +1,5 @@
 import requireJson from './fs/requireJson'
-import writeJson from './fs/writeJson'
+import writePkg = require('write-pkg')
 import sortedObject = require('sorted-object')
 import {DependenciesType} from './getSaveType'
 import {InstalledPackage} from './install'
@@ -14,5 +14,5 @@ export default function save (pkgJsonPath: string, installedPackages: InstalledP
   })
   packageJson[saveType] = sortedObject(packageJson[saveType])
 
-  return writeJson(pkgJsonPath, packageJson)
+  return writePkg(pkgJsonPath, packageJson)
 }

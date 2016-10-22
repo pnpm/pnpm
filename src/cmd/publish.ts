@@ -3,7 +3,7 @@ import path = require('path')
 import delocalizeDeps = require('delocalize-dependencies')
 import readPkgUp = require('read-pkg-up')
 import {PnpmOptions} from '../types'
-import writeJson from '../fs/writeJson'
+import writePkg = require('write-pkg')
 
 export default async function (input: string[], opts: PnpmOptions) {
   if (!opts.linkLocal) {
@@ -15,11 +15,11 @@ export default async function (input: string[], opts: PnpmOptions) {
     pkgDir: path.dirname(pkg.path),
     pkg: pkg.pkg
   })
-  await writeJson(pkg.path, newPkg)
+  await writePkg(pkg.path, newPkg)
   try {
     await runNpmPublish()
   } finally {
-    await writeJson(pkg.path, pkg.pkg)
+    await writePkg(pkg.path, pkg.pkg)
   }
 }
 
