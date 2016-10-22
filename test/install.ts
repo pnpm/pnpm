@@ -3,7 +3,7 @@ import tape = require('tape')
 import promisifyTape = require('tape-promise')
 const test = promisifyTape(tape)
 import path = require('path')
-import fs = require('fs')
+import fs = require('mz/fs')
 import caw = require('caw')
 import semver = require('semver')
 import crossSpawn = require('cross-spawn')
@@ -12,8 +12,8 @@ import isCI = require('is-ci')
 import rimraf = require('rimraf-then')
 import {add as addDistTag} from './support/distTags'
 import prepare from './support/prepare'
-import requireJson from '../src/fs/requireJson'
-const basicPackageJson = requireJson(path.join(__dirname, './support/simple-package.json'))
+import loadJsonFile = require('load-json-file')
+const basicPackageJson = loadJsonFile.sync(path.join(__dirname, './support/simple-package.json'))
 import {install, installPkgs, uninstall} from '../src'
 import isExecutable from './support/isExecutable'
 import testDefaults from './support/testDefaults'
@@ -702,10 +702,10 @@ test('should throw error when trying to install with a different tree type using
 test('should throw error when trying to install using a different store then the previous one', async function(t) {
   prepare()
 
-  await installPkgs(['rimraf@2.5.1'], testDefaults({storePath: 'node_modules/store1'}))
+  await installPkgs(['rimraf@2.5.1'], testDefaults({storePath: 'node_modules/.store1'}))
 
   try {
-    await installPkgs(['is-negative'], testDefaults({storePath: 'node_modules/store2'}))
+    await installPkgs(['is-negative'], testDefaults({storePath: 'node_modules/.store2'}))
     t.fail('installation should have failed')
   } catch (err) {
     t.equal(err.code, 'ALIEN_STORE', 'failed with correct error code')

@@ -1,12 +1,12 @@
-import requireJson from './fs/requireJson'
+import {ignoreCache as requireJson} from './fs/requireJson'
 import writePkg = require('write-pkg')
 import sortedObject = require('sorted-object')
 import {DependenciesType} from './getSaveType'
 import {InstalledPackage} from './install'
 
-export default function save (pkgJsonPath: string, installedPackages: InstalledPackage[], saveType: DependenciesType, useExactVersion: boolean) {
+export default async function save (pkgJsonPath: string, installedPackages: InstalledPackage[], saveType: DependenciesType, useExactVersion: boolean) {
   // Read the latest version of package.json to avoid accidental overwriting
-  const packageJson = requireJson(pkgJsonPath, { ignoreCache: true })
+  const packageJson = await requireJson(pkgJsonPath)
   packageJson[saveType] = packageJson[saveType] || {}
   installedPackages.forEach(dependency => {
     const semverCharacter = useExactVersion ? '' : '^'

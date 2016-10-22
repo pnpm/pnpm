@@ -31,7 +31,7 @@ export default async function linkAllBins (modules: string) {
  *     // node_modules/.bin/rimraf -> ../.store/rimraf@2.5.1/cmd.js
  */
 export async function linkPkgBins (modules: string, target: string) {
-  const pkg = safeRequireJson(path.join(target, 'package.json'))
+  const pkg = await safeRequireJson(path.join(target, 'package.json'))
 
   if (!pkg) {
     console.warn(`There's a directory in node_modules without package.json: ${target}`)

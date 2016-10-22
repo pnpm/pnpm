@@ -29,7 +29,7 @@ export default async function resolveLocal (spec: PackageSpec, opts: ResolveOpti
   }
 
   if (opts.linkLocal) {
-    const localPkg = requireJson(resolve(dependencyPath, 'package.json'))
+    const localPkg = await requireJson(resolve(dependencyPath, 'package.json'))
     return {
       id: createLocalPkgId(localPkg.name, dependencyPath),
       root: dependencyPath,
@@ -42,8 +42,8 @@ export default async function resolveLocal (spec: PackageSpec, opts: ResolveOpti
   return resolveFolder(dependencyPath)
 }
 
-function resolveFolder (dependencyPath: string): Promise<ResolveResult> {
-  return new Promise((resolve, reject) => {
+async function resolveFolder (dependencyPath: string): Promise<ResolveResult> {
+  const tgzFilename = await new Promise((resolve, reject) => {
     const proc = spawn('npm', ['pack'], {
       cwd: dependencyPath
     })
@@ -62,20 +62,18 @@ function resolveFolder (dependencyPath: string): Promise<ResolveResult> {
       return resolve(tgzFilename)
     })
   })
-  .then(tgzFilename => {
-    const localPkg = requireJson(resolve(dependencyPath, 'package.json'))
-    const dist = {
-      tarball: resolve(dependencyPath, tgzFilename)
+  const localPkg = await requireJson(resolve(dependencyPath, 'package.json'))
+  const dist = {
+    tarball: resolve(dependencyPath, tgzFilename)
+  }
+  return {
+    id: createLocalPkgId(localPkg.name, dependencyPath),
+    root: dependencyPath,
+    fetch: async function (target: string, opts: FetchOptions) {
+      await fetchFromLocalTarball(target, dist, opts)
+      return fs.unlink(dist.tarball)
     }
-    return {
-      id: createLocalPkgId(localPkg.name, dependencyPath),
-      root: dependencyPath,
-      fetch: async function (target: string, opts: FetchOptions) {
-        await fetchFromLocalTarball(target, dist, opts)
-        return fs.unlink(dist.tarball)
-      }
-    }
-  })
+  }
 }
 
 function createLocalPkgId (name: string, dependencyPath: string): string {

@@ -71,9 +71,11 @@ function getSaveTypes (production: boolean) {
 
 async function getPkgsInFS (modules: string): Promise<string[]> {
   const pkgDirs = await getPkgDirs(modules)
-  return pkgDirs.map((pkgDirPath: string) => {
-    const pkgJsonPath = path.join(pkgDirPath, 'package.json')
-    const pkgJSON = requireJson(pkgJsonPath)
-    return pkgJSON.name
-  })
+  return <Promise<string[]>>Promise.all(
+    pkgDirs.map(async function (pkgDirPath: string): Promise<string> {
+      const pkgJsonPath = path.join(pkgDirPath, 'package.json')
+      const pkgJSON = await requireJson(pkgJsonPath)
+      return pkgJSON.name
+    })
+  )
 }

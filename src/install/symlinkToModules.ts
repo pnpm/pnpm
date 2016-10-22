@@ -13,7 +13,7 @@ import mkdirp from '../fs/mkdirp'
  */
 export default async function symlinkToModules (target: string, modules: string) {
   // TODO: uncomment to make things fail
-  const pkgData = requireJson(path.join(target, 'package.json'))
+  const pkgData = await requireJson(path.join(target, 'package.json'))
   if (!pkgData.name) { throw new Error('Invalid package.json for ' + target) }
 
   // lodash -> .store/lodash@4.0.0

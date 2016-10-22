@@ -128,7 +128,7 @@ async function readGlobalPkg (globalPath: string) {
 
 async function readGlobalPkgJson (globalPkgPath: string) {
   try {
-    const globalPkgJson = requireJson(globalPkgPath)
+    const globalPkgJson = await requireJson(globalPkgPath)
     return globalPkgJson
   } catch (err) {
     const pkgJson = {}

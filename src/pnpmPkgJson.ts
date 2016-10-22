@@ -1,5 +1,5 @@
-import requireJson from './fs/requireJson'
+import loadJsonFile = require('load-json-file')
 import {Package} from './types' // tslint:disable-line
 import path = require('path')
 
-export default requireJson(path.resolve(__dirname, '../package.json'))
+export default loadJsonFile.sync(path.resolve(__dirname, '../package.json'))

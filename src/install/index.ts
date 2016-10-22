@@ -121,7 +121,7 @@ export default async function install (ctx: InstallContext, pkgMeta: PackageMeta
       await mkdirp(modules)
       const target = path.join(options.storePath, res.id)
       let installedPkgs = await buildToStoreCached(ctx, target, freshPkg, log)
-      const pkg = requireJson(path.join(target, '_', 'package.json'))
+      const pkg = await requireJson(path.join(target, '_', 'package.json'))
       await symlinkToModules(path.join(target, '_'), modules)
       installedPkg = {
         pkg,
@@ -181,8 +181,8 @@ export default async function install (ctx: InstallContext, pkgMeta: PackageMeta
     }
     return save(target)
 
-    function save (fullpath: string): InstalledPackage {
-      const data = requireJson(path.join(fullpath, 'package.json'))
+    async function save (fullpath: string): Promise<InstalledPackage> {
+      const data = await requireJson(path.join(fullpath, 'package.json'))
       return {
         pkg: data,
         id: path.basename(fullpath),
@@ -216,7 +216,7 @@ async function buildToStoreCached (ctx: InstallContext, target: string, buildInf
     })
   }
   if (buildInfo.keypath.length <= buildInfo.depth) {
-    const pkg = requireJson(path.resolve(path.join(target, '_', 'package.json')))
+    const pkg = await requireJson(path.resolve(path.join(target, '_', 'package.json')))
     return installSubDeps(ctx, target, buildInfo, pkg, log)
   }
   return []
@@ -237,7 +237,7 @@ async function fetchToStore (ctx: InstallContext, target: string, buildInfo: Pac
 }
 
 async function buildInStore (ctx: InstallContext, target: string, buildInfo: PackageContext, log: InstallLog): Promise<InstalledPackage[]> {
-  const pkg = requireJson(path.resolve(path.join(target, '_', 'package.json')))
+  const pkg = await requireJson(path.resolve(path.join(target, '_', 'package.json')))
   log('package.json', pkg)
 
   await linkBundledDeps(path.join(target, '_'))

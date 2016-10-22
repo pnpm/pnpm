@@ -271,3 +271,13 @@ declare module 'write-pkg' {
   const anything: any;
   export = anything;
 }
+
+declare module 'load-json-file' {
+  const anything: any;
+  export = anything;
+}
+
+declare module 'mem' {
+  const anything: any;
+  export = anything;
+}

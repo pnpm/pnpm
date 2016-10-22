@@ -1,24 +1,16 @@
 import path = require('path')
-import fs = require('fs')
 import {Package} from '../types'
+import mem = require('mem')
+import loadJsonFile = require('load-json-file')
 
-type PackagesCache = {
-  [path: string]: Package
-}
-
-export type RequireJsonOptions = {
-  ignoreCache: boolean
-}
-
-const cache: PackagesCache = {}
+const cachedReadPkg = mem(loadJsonFile)
 
 /**
  * Works identically to require('/path/to/file.json'), but safer.
  */
-export default function requireJson (pkgJsonPath: string, opts?: RequireJsonOptions): Package {
-  opts = opts || {ignoreCache: false}
+export default function requireJson (pkgJsonPath: string): Package {
   pkgJsonPath = path.resolve(pkgJsonPath)
-  if (!opts.ignoreCache && cache[pkgJsonPath]) return cache[pkgJsonPath]
-  cache[pkgJsonPath] = JSON.parse(fs.readFileSync(pkgJsonPath, 'utf-8'))
-  return cache[pkgJsonPath]
+  return cachedReadPkg(pkgJsonPath)
 }
+
+export const ignoreCache = loadJsonFile

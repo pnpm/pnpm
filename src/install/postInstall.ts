@@ -11,7 +11,7 @@ const nodeGyp = path.resolve(pnpmNodeModules, 'node-gyp/bin/node-gyp.js')
 
 export default async function postInstall (root_: string, log: Function) {
   const root = path.join(root_, '_')
-  const pkg = requireJson(path.join(root, 'package.json'))
+  const pkg = await requireJson(path.join(root, 'package.json'))
   debug('postinstall', pkg.name + '@' + pkg.version)
   const scripts = pkg && pkg.scripts || {}
 
