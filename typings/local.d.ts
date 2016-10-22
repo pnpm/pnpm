@@ -52,11 +52,6 @@ declare module 'debug' {
   export = anything;
 }
 
-declare module 'gunzip-maybe' {
-  const anything: any;
-  export = anything;
-}
-
 declare module 'is-ci' {
   const anything: any;
   export = anything;
@@ -172,11 +167,6 @@ declare module 'supports-color' {
   export = anything;
 }
 
-declare module 'tar-fs' {
-  const anything: any;
-  export = anything;
-}
-
 declare module 'thenify' {
   const anything: any;
   export = anything;
@@ -281,3 +271,9 @@ declare module 'mem' {
   const anything: any;
   export = anything;
 }
+
+declare module 'unpack-stream' {
+  const anything: any;
+  export = anything;
+}
+

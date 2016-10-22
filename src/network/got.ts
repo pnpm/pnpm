@@ -65,6 +65,7 @@ export default (client: NpmRegistryClient, opts: {cachePath: string, cacheTTL: n
       client.fetch(url, createOptions(url), (err: Error, res: IncomingMessage) => {
         if (err) return reject(err)
         const ps = pauseStream()
+        // without pausing, gunzip/tar-fs would miss the beginning of the stream
         res.pipe(ps.pause())
         resolve(ps)
       })
