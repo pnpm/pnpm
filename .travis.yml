@@ -3,6 +3,12 @@ node_js:
   - 4
   - 6
   - 7
+
+cache:
+  directories:
+    - $HOME/.pnpm-store
+    - $HOME/.pnpm-cache
+
 sudo: false
 before_install:
   - npm install -g pnpm

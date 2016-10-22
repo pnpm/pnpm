@@ -16,3 +16,6 @@ test_script:
   - node --version
   - npm --version
   - npm test
+cache:
+  - '%USERPROFILE%\.pnpm-store'
+  - '%USERPROFILE%\.pnpm-cache'
