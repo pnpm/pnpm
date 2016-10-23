@@ -136,7 +136,7 @@ async function installInContext (installType: string, packagesToInstall: Depende
   // postinstall hooks
   if (!(opts.ignoreScripts || !installCtx.piq || !installCtx.piq.length)) {
     await seq(
-      installCtx.piq.map(pkg => () => linkBins(path.join(pkg.path, '_', 'node_modules'))
+      installCtx.piq.map(pkg => () => linkBins(path.join(pkg.path, 'node_modules'))
           .then(() => postInstall(pkg.path, installLogger(pkg.pkgId)))
           .catch(err => {
             if (installCtx.installs[pkg.pkgId].optional) {

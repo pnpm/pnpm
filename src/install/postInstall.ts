@@ -9,8 +9,7 @@ import requireJson from '../fs/requireJson'
 const pnpmNodeModules = findUp.sync('node_modules', {cwd: __dirname})
 const nodeGyp = path.resolve(pnpmNodeModules, 'node-gyp/bin/node-gyp.js')
 
-export default async function postInstall (root_: string, log: Function) {
-  const root = path.join(root_, '_')
+export default async function postInstall (root: string, log: Function) {
   const pkg = await requireJson(path.join(root, 'package.json'))
   debug('postinstall', pkg.name + '@' + pkg.version)
   const scripts = pkg && pkg.scripts || {}
