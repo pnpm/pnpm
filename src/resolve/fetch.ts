@@ -16,12 +16,12 @@ export type PackageDist = {
   shasum?: string
 }
 
-export function createRemoteTarballFetcher (dist: PackageDist) {
-  return (target: string, opts: FetchOptions) => fetchFromRemoteTarball(target, dist, opts)
+export function createRemoteTarballFetcher (dist: PackageDist, opts: FetchOptions) {
+  return (target: string) => fetchFromRemoteTarball(target, dist, opts)
 }
 
 export function createLocalTarballFetcher (dist: PackageDist) {
-  return (target: string, opts: FetchOptions) => fetchFromLocalTarball(target, dist, opts)
+  return (target: string) => fetchFromLocalTarball(target, dist)
 }
 
 /**
@@ -37,6 +37,6 @@ export async function fetchFromRemoteTarball (dir: string, dist: PackageDist, op
   debug(`finish ${dist.shasum} ${dist.tarball}`)
 }
 
-export function fetchFromLocalTarball (dir: string, dist: PackageDist, opts: FetchOptions) {
+export function fetchFromLocalTarball (dir: string, dist: PackageDist) {
   return unpackStream.local(fs.createReadStream(dist.tarball), dir)
 }

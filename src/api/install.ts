@@ -17,7 +17,6 @@ import {sync as runScriptSync} from '../runScript'
 import postInstall from '../install/postInstall'
 import extendOptions from './extendOptions'
 import {InstalledPackage} from '../install'
-import {Got} from '../network/got'
 import pnpmPkgJson from '../pnpmPkgJson'
 import lock from './lock'
 import {save as saveStore, Store} from '../fs/storeController'
@@ -43,7 +42,6 @@ export type InstalledPackages = {
 export type InstallContext = {
   installs: InstalledPackages,
   piq?: PackageInstallationResult[],
-  got: Got,
   fetches: CachedPromises<void>,
   store: Store,
 }
@@ -83,6 +81,7 @@ async function installInContext (installType: string, packagesToInstall: Depende
   const oldStore: Store = cloneDeep(ctx.store)
   const nodeModulesPath = path.join(ctx.root, 'node_modules')
   await mkdirp(nodeModulesPath)
+  const client = new RegClient(adaptConfig(opts))
   const pkgs: InstalledPackage[] = await lock(ctx.cache, () => installMultiple(installCtx,
     packagesToInstall,
     ctx.pkg && ctx.pkg && ctx.pkg.optionalDependencies || {},
@@ -94,7 +93,11 @@ async function installInContext (installType: string, packagesToInstall: Depende
       storePath: ctx.storePath,
       force: opts.force,
       depth: opts.depth,
-      tag: opts.tag
+      tag: opts.tag,
+      got: createGot(client, {
+        cachePath: ctx.cache,
+        cacheTTL: opts.cacheTTL
+      }),
     }
   ))
 
@@ -171,15 +174,10 @@ function removeOrphanPkgs (oldStoreJson: Store, newStoreJson: Store, root: strin
 }
 
 async function createInstallCmd (opts: StrictPnpmOptions, store: Store, cache: string): Promise<InstallContext> {
-  const client = new RegClient(adaptConfig(opts))
   return {
     fetches: {},
     builds: {},
     installs: {},
-    got: createGot(client, {
-      cachePath: cache,
-      cacheTTL: opts.cacheTTL
-    }),
     store,
   }
 }

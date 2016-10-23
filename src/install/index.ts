@@ -11,9 +11,10 @@ import requireJson from '../fs/requireJson'
 import linkDir from 'link-dir'
 import exists = require('exists-file')
 import isAvailable from './isAvailable'
-import {InstallContext, CachedPromises} from '../api/install'
+import {CachedPromises} from '../api/install'
 import {Package} from '../types'
 import symlinkToModules from './symlinkToModules'
+import {Got} from '../network/got'
 
 export type PackageMeta = {
   rawSpec: string,
@@ -23,13 +24,13 @@ export type PackageMeta = {
 export type InstallationOptions = {
   optional?: boolean,
   keypath?: string[],
-  parentRoot?: string,
   linkLocal: boolean,
   force: boolean,
   root: string,
   storePath: string,
   depth: number,
-  tag: string
+  tag: string,
+  got: Got,
 }
 
 export type PackageSpec = {
@@ -55,12 +56,6 @@ export type InstalledPackage = {
   dependencies: InstalledPackage[], // is needed to support flat tree
 }
 
-export type PackageContext = ResolveResult & {
-  keypath: string[],
-  id: string,
-  force: boolean,
-}
-
 export type InstallLog = (msg: string, data?: Object) => void
 
 /**
@@ -79,9 +74,8 @@ export type InstallLog = (msg: string, data?: Object) => void
  * @example
  *     install(ctx, 'rimraf@2', './node_modules')
  */
-export default async function install (ctx: InstallContext, pkgMeta: PackageMeta, modules: string, options: InstallationOptions): Promise<InstalledPackage> {
+export default async function install (fetches: CachedPromises<void>, pkgMeta: PackageMeta, modules: string, options: InstallationOptions): Promise<InstalledPackage> {
   debug('installing ' + pkgMeta.rawSpec)
-  if (!ctx.fetches) ctx.fetches = {}
 
   // Preliminary spec data
   // => { raw, name, scope, type, spec, rawSpec }
@@ -95,79 +89,66 @@ export default async function install (ctx: InstallContext, pkgMeta: PackageMeta
   const keypath = (options && options.keypath || [])
 
   const log: InstallLog = logger.fork(spec).log.bind(null, 'progress', pkgMeta.rawSpec)
-  let installedPkg: InstalledPackage
 
   try {
     // it might be a bundleDependency, in which case, don't bother
     const available = !options.force && await isAvailable(spec, modules)
     if (available) {
-      installedPkg = await saveCachedResolution()
+      const installedPkg = await saveCachedResolution()
       log('package.json', installedPkg.pkg)
+      log('done')
+      return installedPkg
+    }
+    const res = await resolve(spec, {
+      log,
+      got: options.got,
+      root: options.root,
+      linkLocal: options.linkLocal,
+      tag: options.tag
+    })
+    log('resolved', res)
+    await mkdirp(modules)
+    const target = path.join(options.storePath, res.id)
+
+    let justFetched: boolean
+    let firstFetch: boolean
+    if (fetches[res.id]) {
+      await fetches[res.id]
+      justFetched = false
+      firstFetch = false
     } else {
-      const res = await resolve(spec, {
+      firstFetch = true
+      justFetched = await fetchToStoreCached({
+        fetches,
+        target,
+        resolution: res,
         log,
-        got: ctx.got,
-        root: options.parentRoot || options.root,
-        linkLocal: options.linkLocal,
-        tag: options.tag
-      })
-      const freshPkg: PackageContext = saveResolution(res)
-      log('resolved', freshPkg)
-      await mkdirp(modules)
-      const target = path.join(options.storePath, res.id)
-
-      let justFetched: boolean
-      let firstFetch: boolean
-      if (ctx.fetches[freshPkg.id]) {
-        await ctx.fetches[freshPkg.id]
-        justFetched = false
-        firstFetch = false
-      } else {
-        firstFetch = true
-        justFetched = await buildToStoreCached(ctx, target, freshPkg, log)
-      }
-
-      const pkg = await requireJson(path.join(target, '_', 'package.json'))
-      await symlinkToModules(path.join(target, '_'), modules)
-      installedPkg = {
-        pkg,
-        optional,
         keypath,
-        id: freshPkg.id,
-        name: spec.name,
-        fromCache: false,
-        dependencies: [], // maybe nullable?
-        path: path.join(target, '_'),
-        srcPath: freshPkg.root,
-        justFetched,
-        firstFetch,
-      }
-      log('package.json', pkg)
+        force: options.force,
+      })
     }
 
+    const pkg = await requireJson(path.join(target, '_', 'package.json'))
+    await symlinkToModules(path.join(target, '_'), modules)
+    const installedPkg = {
+      pkg,
+      optional,
+      keypath,
+      id: res.id,
+      name: spec.name,
+      fromCache: false,
+      dependencies: [], // maybe nullable?
+      path: path.join(target, '_'),
+      srcPath: res.root,
+      justFetched,
+      firstFetch,
+    }
+    log('package.json', pkg)
     log('done')
     return installedPkg
   } catch (err) {
     log('error', err)
     throw err
-  }
-
-  // set metadata as fetched from resolve()
-  function saveResolution (res: ResolveResult): PackageContext {
-    return {
-      keypath,
-
-      // Full name of package as it should be put in the store. Aim to make
-      // this as friendly as possible as this will appear in stack traces.
-      // => 'lodash@4.0.0'
-      // => '@rstacruz!tap-spec@4.1.1'
-      // => 'rstacruz!pnpm@0a1b382da'
-      // => 'foobar@9a3b283ac'
-      id: res.id,
-      root: res.root,
-      fetch: res.fetch,
-      force: options.force,
-    }
   }
 
   async function saveCachedResolution (): Promise<InstalledPackage> {
@@ -197,26 +178,35 @@ export default async function install (ctx: InstallContext, pkgMeta: PackageMeta
   }
 }
 
+type FetchToStoreOptions = {
+  fetches: CachedPromises<void>,
+  target: string,
+  resolution: ResolveResult,
+  log: InstallLog,
+  force: boolean,
+  keypath: string[],
+}
+
 /**
- * Builds to `.store/lodash@4.0.0` (paths.target)
+ * Fetch to `.store/lodash@4.0.0`
  * If an ongoing build is already working, use it. Also, if that ongoing build
  * is part of the dependency chain (ie, it's a circular dependency), use its stub
  */
-async function buildToStoreCached (ctx: InstallContext, target: string, buildInfo: PackageContext, log: InstallLog): Promise<boolean> {
-  return await memoize<boolean>(ctx.fetches, buildInfo.id, async function () {
-    if (await exists(target) && !buildInfo.force) {
+async function fetchToStoreCached (opts: FetchToStoreOptions): Promise<boolean> {
+  return await memoize<boolean>(opts.fetches, opts.resolution.id, async function () {
+    if (await exists(opts.target) && !opts.force) {
       return false
     }
-    log('download-queued')
-    await buildInfo.fetch(path.join(target, '_'), {log, got: ctx.got})
+    opts.log('download-queued')
+    await opts.resolution.fetch(path.join(opts.target, '_'))
 
-    const pkg = await requireJson(path.resolve(path.join(target, '_', 'package.json')))
+    const pkg = await requireJson(path.resolve(path.join(opts.target, '_', 'package.json')))
 
-    log('package.json', pkg)
+    opts.log('package.json', pkg)
 
     // symlink itself; . -> node_modules/lodash@4.0.0
     // this way it can require itself
-    await symlinkSelf(target, pkg, buildInfo.keypath.length)
+    await symlinkSelf(opts.target, pkg, opts.keypath.length)
     return true
   })
 }

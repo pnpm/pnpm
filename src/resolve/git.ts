@@ -1,7 +1,6 @@
 import spawn = require('cross-spawn')
 import {PackageSpec} from '../install'
 import {ResolveOptions, ResolveResult} from '.'
-import {FetchOptions} from './fetch'
 import {delimiter} from './createPkgId'
 import createDebug from '../debug'
 const debug = createDebug('pnpm:git')
@@ -12,7 +11,7 @@ export default async function resolveGithub (parsedSpec: PackageSpec, opts: Reso
   const ref = parts[1] || 'master'
   return {
     id: parsedSpec.spec.replace(/\//g, delimiter),
-    fetch: (target: string, opts: FetchOptions) => {
+    fetch: (target: string) => {
       return clone(repo, ref, target)
     }
   }

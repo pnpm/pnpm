@@ -31,7 +31,7 @@ export default async function installMultiple (ctx: InstallContext, requiredPkgs
   const installedPkgs: InstalledPackage[] = <InstalledPackage[]>(
     await Promise.all(optionalPkgs.concat(requiredPkgs).map(async function (pkg: PackageMeta) {
       try {
-        const dependency = await install(ctx, pkg, modules, options)
+        const dependency = await install(ctx.fetches, pkg, modules, options)
 
         addInstalledPkg(ctx.installs, dependency)
 
@@ -54,18 +54,12 @@ export default async function installMultiple (ctx: InstallContext, requiredPkgs
               dependency.pkg.dependencies || {},
               dependency.pkg.optionalDependencies || {},
               path.join(dependency.path, 'node_modules'),
-              {
+              Object.assign({}, options, {
                 keypath: dependency.keypath.concat([ dependency.id ]),
                 dependent: dependency.id,
-                parentRoot: dependency.srcPath,
                 optional: dependency.optional,
-                linkLocal: options.linkLocal,
-                root: options.root,
-                storePath: options.storePath,
-                force: options.force,
-                depth: options.depth,
-                tag: options.tag,
-              })
+                root: dependency.srcPath,
+              }))
             ctx.piq = ctx.piq || []
             ctx.piq.push({
               path: dependency.path,

@@ -5,11 +5,10 @@ import resolveFromLocal from './local'
 import resolveFromGit from './git'
 import {PackageSpec} from '../install'
 import {Got} from '../network/got'
-import {FetchOptions} from './fetch'
 
 export type ResolveResult = {
   id: string,
-  fetch(target: string, opts: FetchOptions): Promise<void>,
+  fetch(target: string): Promise<void>,
   root?: string
 }
 
@@ -50,7 +49,7 @@ export default function (spec: PackageSpec, opts: ResolveOptions): Promise<Resol
     case 'tag':
       return resolveFromNpm(spec, opts)
     case 'remote':
-      return resolveFromTarball(spec)
+      return resolveFromTarball(spec, opts)
     case 'local':
       return resolveFromLocal(spec, opts)
     case 'hosted':

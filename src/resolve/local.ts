@@ -7,7 +7,7 @@ import requireJson from '../fs/requireJson'
 import mkdirp from '../fs/mkdirp'
 import {PackageSpec} from '../install'
 import {ResolveOptions, ResolveResult} from '.'
-import {createLocalTarballFetcher, fetchFromLocalTarball, FetchOptions} from './fetch'
+import {createLocalTarballFetcher, fetchFromLocalTarball} from './fetch'
 import fs = require('mz/fs')
 import linkDir from 'link-dir'
 
@@ -33,7 +33,7 @@ export default async function resolveLocal (spec: PackageSpec, opts: ResolveOpti
     return {
       id: createLocalPkgId(localPkg.name, dependencyPath),
       root: dependencyPath,
-      fetch: async function (target: string, opts: FetchOptions) {
+      fetch: async function (target: string) {
         await mkdirp(path.dirname(target))
         return linkDir(dependencyPath, target)
       }
@@ -69,8 +69,8 @@ async function resolveFolder (dependencyPath: string): Promise<ResolveResult> {
   return {
     id: createLocalPkgId(localPkg.name, dependencyPath),
     root: dependencyPath,
-    fetch: async function (target: string, opts: FetchOptions) {
-      await fetchFromLocalTarball(target, dist, opts)
+    fetch: async function (target: string) {
+      await fetchFromLocalTarball(target, dist)
       return fs.unlink(dist.tarball)
     }
   }

@@ -34,7 +34,7 @@ export default async function resolveNpm (spec: PackageSpec, opts: ResolveOption
       fetch: createRemoteTarballFetcher({
         shasum: correctPkg.dist.shasum,
         tarball: correctPkg.dist.tarball
-      })
+      }, opts)
     }
   } catch (err) {
     if (err['statusCode'] === 404) {

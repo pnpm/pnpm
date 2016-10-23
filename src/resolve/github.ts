@@ -1,6 +1,6 @@
 import {delimiter} from './createPkgId'
 import {HostedPackageSpec, ResolveOptions, ResolveResult} from '.'
-import {fetchFromRemoteTarball, FetchOptions} from './fetch'
+import {fetchFromRemoteTarball} from './fetch'
 
 /**
  * Resolves a 'hosted' package hosted on 'github'.
@@ -12,7 +12,7 @@ export default async function resolveGithub (spec: HostedPackageSpec, opts: Reso
   }
   return {
     id: ['github', ghSpec.owner, ghSpec.repo, ghSpec.ref].join(delimiter),
-    fetch: (target: string, opts: FetchOptions) => fetchFromRemoteTarball(target, dist, opts)
+    fetch: (target: string) => fetchFromRemoteTarball(target, dist, opts)
   }
 }
 

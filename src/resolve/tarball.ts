@@ -1,7 +1,7 @@
 import getTarballName from './getTarballName'
 import crypto = require('crypto')
 import {PackageSpec} from '../install'
-import {ResolveResult} from '.'
+import {ResolveResult, ResolveOptions} from '.'
 import {createRemoteTarballFetcher} from './fetch'
 
 /**
@@ -17,14 +17,14 @@ import {createRemoteTarballFetcher} from './fetch'
  *       type: 'remote' }
  *     resolveTarball(pkg)
  */
-export default function resolveTarball (spec: PackageSpec): Promise<ResolveResult> {
+export default function resolveTarball (spec: PackageSpec, opts: ResolveOptions): Promise<ResolveResult> {
   const name = getTarballName(spec.rawSpec)
 
   return Promise.resolve({
     id: name + '#' + hash(spec.rawSpec),
     fetch: createRemoteTarballFetcher({
       tarball: spec.rawSpec
-    })
+    }, opts)
   })
 }
 
