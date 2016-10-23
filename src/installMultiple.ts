@@ -49,7 +49,7 @@ export default async function installMultiple (ctx: InstallContext, requiredPkgs
             ctx.store.packages[dependency.id].dependents.push(options.dependent)
           }
 
-          if (dependency.justFetched || dependency.keypath.length <= options.depth) {
+          if (dependency.justFetched || dependency.firstFetch && dependency.keypath.length <= options.depth) {
             dependency.dependencies = await installMultiple(ctx,
               dependency.pkg.dependencies || {},
               dependency.pkg.optionalDependencies || {},

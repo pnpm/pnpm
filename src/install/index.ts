@@ -50,7 +50,8 @@ export type InstalledPackage = {
   keypath: string[],
   name: string,
   fromCache: boolean,
-  justFetched: boolean, // TODO: maybe fromCache should be used 
+  justFetched: boolean, // TODO: maybe fromCache should be used
+  firstFetch: boolean,
   dependencies: InstalledPackage[], // is needed to support flat tree
 }
 
@@ -114,7 +115,18 @@ export default async function install (ctx: InstallContext, pkgMeta: PackageMeta
       log('resolved', freshPkg)
       await mkdirp(modules)
       const target = path.join(options.storePath, res.id)
-      await buildToStoreCached(ctx, target, freshPkg, log)
+
+      let justFetched: boolean
+      let firstFetch: boolean
+      if (ctx.fetches[freshPkg.id]) {
+        await ctx.fetches[freshPkg.id]
+        justFetched = false
+        firstFetch = false
+      } else {
+        firstFetch = true
+        justFetched = await buildToStoreCached(ctx, target, freshPkg, log)
+      }
+
       const pkg = await requireJson(path.join(target, '_', 'package.json'))
       await symlinkToModules(path.join(target, '_'), modules)
       installedPkg = {
@@ -127,7 +139,8 @@ export default async function install (ctx: InstallContext, pkgMeta: PackageMeta
         dependencies: [], // maybe nullable?
         path: path.join(target, '_'),
         srcPath: freshPkg.root,
-        justFetched: !!ctx.fetches[freshPkg.id],
+        justFetched,
+        firstFetch,
       }
       log('package.json', pkg)
     }
@@ -178,6 +191,7 @@ export default async function install (ctx: InstallContext, pkgMeta: PackageMeta
         dependencies: [],
         path: fullpath,
         justFetched: false,
+        firstFetch: false,
       }
     }
   }
@@ -188,20 +202,22 @@ export default async function install (ctx: InstallContext, pkgMeta: PackageMeta
  * If an ongoing build is already working, use it. Also, if that ongoing build
  * is part of the dependency chain (ie, it's a circular dependency), use its stub
  */
-async function buildToStoreCached (ctx: InstallContext, target: string, buildInfo: PackageContext, log: InstallLog) {
-  await memoize(ctx.fetches, buildInfo.id, async function () {
-    if (!await exists(target) || buildInfo.force) {
-      log('download-queued')
-      await buildInfo.fetch(path.join(target, '_'), {log, got: ctx.got})
-      
-      const pkg = await requireJson(path.resolve(path.join(target, '_', 'package.json')))
-      
-      log('package.json', pkg)
-
-      // symlink itself; . -> node_modules/lodash@4.0.0
-      // this way it can require itself
-      await symlinkSelf(target, pkg, buildInfo.keypath.length)
+async function buildToStoreCached (ctx: InstallContext, target: string, buildInfo: PackageContext, log: InstallLog): Promise<boolean> {
+  return await memoize<boolean>(ctx.fetches, buildInfo.id, async function () {
+    if (await exists(target) && !buildInfo.force) {
+      return false
     }
+    log('download-queued')
+    await buildInfo.fetch(path.join(target, '_'), {log, got: ctx.got})
+
+    const pkg = await requireJson(path.resolve(path.join(target, '_', 'package.json')))
+
+    log('package.json', pkg)
+
+    // symlink itself; . -> node_modules/lodash@4.0.0
+    // this way it can require itself
+    await symlinkSelf(target, pkg, buildInfo.keypath.length)
+    return true
   })
 }
 
