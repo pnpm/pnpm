@@ -56,7 +56,6 @@
     "src/install/index.ts",
     "src/install/isAvailable.ts",
     "src/install/linkBins.ts",
-    "src/install/linkBundledDeps.ts",
     "src/install/linkPeers.ts",
     "src/install/postInstall.ts",
     "src/installMultiple.ts",

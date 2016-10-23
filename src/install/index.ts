@@ -10,7 +10,6 @@ import mkdirp from '../fs/mkdirp'
 import requireJson from '../fs/requireJson'
 import linkDir from 'link-dir'
 import exists = require('exists-file')
-import linkBundledDeps from './linkBundledDeps'
 import isAvailable from './isAvailable'
 import {InstallContext, CachedPromises} from '../api/install'
 import {Package} from '../types'
@@ -223,8 +222,6 @@ async function fetchToStore (ctx: InstallContext, target: string, buildInfo: Pac
 async function buildInStore (ctx: InstallContext, target: string, buildInfo: PackageContext, log: InstallLog) {
   const pkg = await requireJson(path.resolve(path.join(target, '_', 'package.json')))
   log('package.json', pkg)
-
-  await linkBundledDeps(path.join(target, '_'))
 
   // symlink itself; . -> node_modules/lodash@4.0.0
   // this way it can require itself

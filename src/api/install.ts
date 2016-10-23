@@ -15,7 +15,6 @@ import runtimeError from '../runtimeError'
 import getSaveType from '../getSaveType'
 import {sync as runScriptSync} from '../runScript'
 import postInstall from '../install/postInstall'
-import linkBins from '../install/linkBins'
 import extendOptions from './extendOptions'
 import {InstalledPackage} from '../install'
 import {Got} from '../network/got'
@@ -136,8 +135,7 @@ async function installInContext (installType: string, packagesToInstall: Depende
   // postinstall hooks
   if (!(opts.ignoreScripts || !installCtx.piq || !installCtx.piq.length)) {
     await seq(
-      installCtx.piq.map(pkg => () => linkBins(path.join(pkg.path, 'node_modules'))
-          .then(() => postInstall(pkg.path, installLogger(pkg.pkgId)))
+      installCtx.piq.map(pkg => postInstall(pkg.path, installLogger(pkg.pkgId))
           .catch(err => {
             if (installCtx.installs[pkg.pkgId].optional) {
               console.log('Skipping failed optional dependency ' + pkg.pkgId + ':')
@@ -148,7 +146,6 @@ async function installInContext (installType: string, packagesToInstall: Depende
           })
       ))
   }
-  await linkBins(path.join(ctx.root, 'node_modules'))
   if (!opts.ignoreScripts && ctx.pkg) {
     const scripts = ctx.pkg && ctx.pkg.scripts || {}
 
