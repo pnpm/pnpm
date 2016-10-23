@@ -80,7 +80,6 @@ export type InstallLog = (msg: string, data?: Object) => void
  */
 export default async function install (ctx: InstallContext, pkgMeta: PackageMeta, modules: string, options: InstallationOptions): Promise<InstalledPackage> {
   debug('installing ' + pkgMeta.rawSpec)
-  if (!ctx.builds) ctx.builds = {}
   if (!ctx.fetches) ctx.fetches = {}
 
   // Preliminary spec data
@@ -128,7 +127,7 @@ export default async function install (ctx: InstallContext, pkgMeta: PackageMeta
         dependencies: [], // maybe nullable?
         path: path.join(target, '_'),
         srcPath: freshPkg.root,
-        justFetched: !!ctx.builds[freshPkg.id],
+        justFetched: !!ctx.fetches[freshPkg.id],
       }
       log('package.json', pkg)
     }
@@ -190,42 +189,20 @@ export default async function install (ctx: InstallContext, pkgMeta: PackageMeta
  * is part of the dependency chain (ie, it's a circular dependency), use its stub
  */
 async function buildToStoreCached (ctx: InstallContext, target: string, buildInfo: PackageContext, log: InstallLog) {
-  // If a package is requested for a second time (usually when many packages depend
-  // on the same thing), only resolve until it's fetched (not built).
-  if (ctx.fetches[buildInfo.id]) {
-    await ctx.fetches[buildInfo.id]
-    return
-  }
+  await memoize(ctx.fetches, buildInfo.id, async function () {
+    if (!await exists(target) || buildInfo.force) {
+      log('download-queued')
+      await buildInfo.fetch(path.join(target, '_'), {log, got: ctx.got})
+      
+      const pkg = await requireJson(path.resolve(path.join(target, '_', 'package.json')))
+      
+      log('package.json', pkg)
 
-  if (!await exists(target) || buildInfo.force) {
-    await memoize<InstalledPackage>(ctx.builds, buildInfo.id, async function () {
-      await memoize(ctx.fetches, buildInfo.id, () => fetchToStore(ctx, target, buildInfo, log))
-      return buildInStore(ctx, target, buildInfo, log)
-    })
-  }
-}
-
-/**
- * Builds to `.store/lodash@4.0.0` (paths.target)
- * Fetches from npm, recurses to dependencies, runs lifecycle scripts, etc
- */
-async function fetchToStore (ctx: InstallContext, target: string, buildInfo: PackageContext, log: InstallLog) {
-  // download and untar
-  log('download-queued')
-  return buildInfo.fetch(path.join(target, '_'), {log, got: ctx.got})
-
-  // TODO: this is the point it becomes partially useable.
-  // ie, it can now be symlinked into .store/foo@1.0.0.
-  // it is only here that it should be available for ciruclar dependencies.
-}
-
-async function buildInStore (ctx: InstallContext, target: string, buildInfo: PackageContext, log: InstallLog) {
-  const pkg = await requireJson(path.resolve(path.join(target, '_', 'package.json')))
-  log('package.json', pkg)
-
-  // symlink itself; . -> node_modules/lodash@4.0.0
-  // this way it can require itself
-  await symlinkSelf(target, pkg, buildInfo.keypath.length)
+      // symlink itself; . -> node_modules/lodash@4.0.0
+      // this way it can require itself
+      await symlinkSelf(target, pkg, buildInfo.keypath.length)
+    }
+  })
 }
 
 /**

@@ -44,7 +44,6 @@ export type InstallContext = {
   installs: InstalledPackages,
   piq?: PackageInstallationResult[],
   got: Got,
-  builds: CachedPromises<InstalledPackage[]>,
   fetches: CachedPromises<void>,
   store: Store,
 }

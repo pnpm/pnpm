@@ -83,8 +83,9 @@ export default async function installMultiple (ctx: InstallContext, requiredPkgs
         }
         throw err
       }
-    })))
-    .filter(pkg => pkg)
+    }))
+  )
+  .filter(pkg => pkg)
 
   await linkBins(modules)
 
