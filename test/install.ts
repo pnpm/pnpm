@@ -368,6 +368,10 @@ test('multiple save to package.json with `exact` versions (@rstacruz/tap-spec & 
 })
 
 test('flattening symlinks (minimatch@3.0.0)', async function (t) {
+  if (preserveSymlinks) {
+    t.skip('this is required only for Node.JS < 6.3.0')
+    return
+  }
   prepare()
   await installPkgs(['minimatch@3.0.0'], testDefaults())
 

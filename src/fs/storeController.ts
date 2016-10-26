@@ -4,6 +4,7 @@ import {
   read as readYaml,
   write as writeYaml
 } from './yamlfs'
+import {preserveSymlinks} from '../env'
 
 const storeFileName = 'store.yaml'
 
@@ -23,6 +24,7 @@ export type DependenciesResolution = {
 export type Store = {
   pnpm: string,
   type: TreeType,
+  preserveSymlinks: boolean,
   packages: StorePackageMap
 }
 
@@ -32,6 +34,7 @@ export function create (treeType: TreeType): Store {
   return {
     pnpm: pnpmPkgJson.version,
     type: treeType,
+    preserveSymlinks,
     packages: {}
   }
 }
