@@ -91,6 +91,7 @@ export type Package = {
   dependencies?: Dependencies,
   devDependencies?: Dependencies,
   optionalDependencies?: Dependencies,
+  peerDependencies?: Dependencies,
   scripts?: {
     [name: string]: string
   }

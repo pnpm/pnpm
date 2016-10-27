@@ -45,6 +45,7 @@ export type PackageSpec = {
 
 export type InstalledPackage = {
   pkg: Package,
+  path: string,
   optional: boolean,
   id: string,
   keypath: string[],
@@ -131,6 +132,7 @@ export default async function install (ctx: InstallContext, pkgMeta: PackageMeta
         name: spec.name,
         fromCache: false,
         dependencies: installedPkgs,
+        path: path.join(target, '_'),
       }
       log('package.json', pkg)
     }
@@ -191,6 +193,7 @@ export default async function install (ctx: InstallContext, pkgMeta: PackageMeta
         name: spec.name,
         fromCache: true,
         dependencies: [],
+        path: fullpath,
       }
     }
   }
