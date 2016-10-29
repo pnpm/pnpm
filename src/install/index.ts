@@ -16,11 +16,6 @@ import {Package} from '../types'
 import symlinkToModules from './symlinkToModules'
 import {Got} from '../network/got'
 
-export type PackageMeta = {
-  rawSpec: string,
-  optional: boolean
-}
-
 export type InstallationOptions = {
   optional?: boolean,
   keypath?: string[],
@@ -74,21 +69,21 @@ export type InstallLog = (msg: string, data?: Object) => void
  * @example
  *     install(ctx, 'rimraf@2', './node_modules')
  */
-export default async function install (fetches: CachedPromises<void>, pkgMeta: PackageMeta, modules: string, options: InstallationOptions): Promise<InstalledPackage> {
-  debug('installing ' + pkgMeta.rawSpec)
+export default async function install (fetches: CachedPromises<void>, pkgRawSpec: string, modules: string, options: InstallationOptions): Promise<InstalledPackage> {
+  debug('installing ' + pkgRawSpec)
 
   // Preliminary spec data
   // => { raw, name, scope, type, spec, rawSpec }
-  const spec = npa(pkgMeta.rawSpec)
+  const spec = npa(pkgRawSpec)
 
-  const optional: boolean = pkgMeta.optional || options.optional === true
+  const optional: boolean = options.optional === true
 
   // Dependency path to the current package. Not actually needed anmyore
   // outside getting its length
   // => ['babel-core@6.4.5', 'babylon@6.4.5', 'babel-runtime@5.8.35']
   const keypath = (options && options.keypath || [])
 
-  const log: InstallLog = logger.fork(spec).log.bind(null, 'progress', pkgMeta.rawSpec)
+  const log: InstallLog = logger.fork(spec).log.bind(null, 'progress', pkgRawSpec)
 
   try {
     // it might be a bundleDependency, in which case, don't bother

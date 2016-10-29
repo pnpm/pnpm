@@ -1,5 +1,5 @@
 import path = require('path')
-import install, {InstalledPackage, InstallationOptions, PackageMeta} from './install'
+import install, {InstalledPackage, InstallationOptions} from './install'
 import {InstallContext, InstalledPackages} from './api/install'
 import {Dependencies} from './types'
 import linkBins from './install/linkBins'
@@ -15,23 +15,17 @@ export type MultipleInstallationOptions = InstallationOptions & {
  *     ctx = { }
  *     installMultiple(ctx, { minimatch: '^2.0.0' }, {chokidar: '^1.6.0'}, './node_modules')
  */
-export default async function installMultiple (ctx: InstallContext, requiredPkgsMap: Dependencies, optionalPkgsMap: Dependencies, modules: string, options: MultipleInstallationOptions): Promise<InstalledPackage[]> {
-  requiredPkgsMap = requiredPkgsMap || {}
-  optionalPkgsMap = optionalPkgsMap || {}
+export default async function installMultiple (ctx: InstallContext, pkgsMap: Dependencies, modules: string, options: MultipleInstallationOptions): Promise<InstalledPackage[]> {
+  pkgsMap = pkgsMap || {}
 
-  const optionalPkgs = Object.keys(optionalPkgsMap)
-    .map(pkgName => pkgMeta(pkgName, optionalPkgsMap[pkgName], true))
-
-  const requiredPkgs = Object.keys(requiredPkgsMap)
-    .filter(pkgName => !optionalPkgsMap[pkgName])
-    .map(pkgName => pkgMeta(pkgName, requiredPkgsMap[pkgName], false))
+  const pkgs = Object.keys(pkgsMap).map(pkgName => getRawSpec(pkgName, pkgsMap[pkgName]))
 
   ctx.store.packages = ctx.store.packages || {}
 
   const installedPkgs: InstalledPackage[] = <InstalledPackage[]>(
-    await Promise.all(optionalPkgs.concat(requiredPkgs).map(async function (pkg: PackageMeta) {
+    await Promise.all(pkgs.map(async function (pkgRawSpec: string) {
       try {
-        const dependency = await install(ctx.fetches, pkg, modules, options)
+        const dependency = await install(ctx.fetches, pkgRawSpec, modules, options)
 
         addInstalledPkg(ctx.installs, dependency)
 
@@ -50,16 +44,24 @@ export default async function installMultiple (ctx: InstallContext, requiredPkgs
           }
 
           if (dependency.justFetched || dependency.firstFetch && dependency.keypath.length <= options.depth) {
-            dependency.dependencies = await installMultiple(ctx,
-              dependency.pkg.dependencies || {},
-              dependency.pkg.optionalDependencies || {},
-              path.join(dependency.path, 'node_modules'),
-              Object.assign({}, options, {
+            const nextInstallOpts = Object.assign({}, options, {
                 keypath: dependency.keypath.concat([ dependency.id ]),
                 dependent: dependency.id,
                 optional: dependency.optional,
                 root: dependency.srcPath,
-              }))
+              })
+            dependency.dependencies = (await installMultiple(ctx,
+                dependency.pkg.dependencies || {},
+                path.join(dependency.path, 'node_modules'),
+                nextInstallOpts)
+            ).concat(
+              await installMultiple(ctx,
+                dependency.pkg.optionalDependencies || {},
+                path.join(dependency.path, 'node_modules'),
+                Object.assign({}, nextInstallOpts, {
+                  optional: true
+                }))
+            )
             ctx.piq = ctx.piq || []
             ctx.piq.push({
               path: dependency.path,
@@ -70,8 +72,8 @@ export default async function installMultiple (ctx: InstallContext, requiredPkgs
 
         return dependency
       } catch (err) {
-        if (pkg.optional) {
-          console.log('Skipping failed optional dependency ' + pkg.rawSpec + ':')
+        if (options.optional) {
+          console.log(`Skipping failed optional dependency ${pkgRawSpec}:`)
           console.log(err.message || err)
           return null // is it OK to return null?  
         }
@@ -94,9 +96,6 @@ function addInstalledPkg (installs: InstalledPackages, newPkg: InstalledPackage)
   installs[newPkg.id].optional = installs[newPkg.id].optional && newPkg.optional
 }
 
-function pkgMeta (name: string, version: string, optional: boolean) {
-  return {
-    rawSpec: version === '*' ? name : `${name}@${version}`,
-    optional
-  }
+function getRawSpec (name: string, version: string) {
+  return version === '*' ? name : `${name}@${version}`
 }

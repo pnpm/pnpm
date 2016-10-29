@@ -82,11 +82,8 @@ async function installInContext (installType: string, packagesToInstall: Depende
   const nodeModulesPath = path.join(ctx.root, 'node_modules')
   await mkdirp(nodeModulesPath)
   const client = new RegClient(adaptConfig(opts))
-  const pkgs: InstalledPackage[] = await lock(ctx.cache, () => installMultiple(installCtx,
-    packagesToInstall,
-    ctx.pkg && ctx.pkg && ctx.pkg.optionalDependencies || {},
-    nodeModulesPath,
-    {
+  const pkgs: InstalledPackage[] = await lock(ctx.cache, async function () {
+    const installOpts = {
       linkLocal: opts.linkLocal,
       dependent: ctx.root,
       root: ctx.root,
@@ -99,7 +96,18 @@ async function installInContext (installType: string, packagesToInstall: Depende
         cacheTTL: opts.cacheTTL
       }),
     }
-  ))
+    return (
+      await installMultiple(installCtx,
+        packagesToInstall,
+        nodeModulesPath,
+        installOpts)
+    ).concat(
+      await installMultiple(installCtx,
+        ctx.pkg && ctx.pkg && ctx.pkg.optionalDependencies || {},
+        nodeModulesPath,
+        Object.assign({}, installOpts, {optional: true}))
+    )
+  })
 
   if (opts.flatTree) {
     console.log('Flattening the dependency tree')
