@@ -46,6 +46,7 @@
     "mz": "2.5.0",
     "node-gyp": "3.4.0",
     "normalize-path": "2.0.1",
+    "npm-install-checks": "3.0.0",
     "npm-package-arg": "4.2.0",
     "npm-registry-client": "7.3.0",
     "observatory": "1.0.0",

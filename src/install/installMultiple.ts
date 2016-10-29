@@ -7,11 +7,15 @@ import memoize from '../memoize'
 import {Package} from '../types'
 import symlinkToModules from './symlinkToModules'
 import mkdirp from '../fs/mkdirp'
+import thenify = require('thenify')
+import npmInstallChecks = require('npm-install-checks')
+const checkPlatform = thenify(npmInstallChecks.checkPlatform)
 
 export type InstallOptions = FetchOptions & {
   optional?: boolean,
   dependent: string,
   depth: number,
+  engineStrict: boolean,
 }
 
 export type MultipleInstallOpts = InstallOptions & {
@@ -104,6 +108,17 @@ async function install (pkgRawSpec: string, modules: string, ctx: InstallContext
   if (!dependency.justFetched && options.keypath.length >= options.depth) {
     await dependency.fetchingFiles
     return dependency
+  }
+
+  try {
+    await checkPlatform(dependency.pkg, options.force)
+  } catch (err) {
+    if (options.engineStrict) {
+      throw err
+    }
+    console.warn(`Unsupported system. Skipping dependency ${dependency.id}`)
+    await dependency.abort()
+    return null
   }
 
   // greedy installation does not work with bundled dependencies

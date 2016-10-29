@@ -22,6 +22,7 @@ const defaults = () => (<StrictPnpmOptions>{
   depth: 0,
   cacheTTL: 60 * 60 * 24, // 1 day
   flatTree: false,
+  engineStrict: false,
 })
 
 function getDefaultStorePath () {
