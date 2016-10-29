@@ -1,8 +1,8 @@
 import path = require('path')
-import install, {InstalledPackage, InstallationOptions} from './install'
-import {InstallContext, InstalledPackages} from './api/install'
-import {Dependencies} from './types'
-import linkBins from './install/linkBins'
+import install, {InstalledPackage, InstallationOptions} from './'
+import {InstallContext, InstalledPackages} from '../api/install'
+import {Dependencies} from '../types'
+import linkBins from './linkBins'
 
 export type MultipleInstallationOptions = InstallationOptions & {
   dependent: string

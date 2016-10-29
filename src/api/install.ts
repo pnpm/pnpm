@@ -8,7 +8,7 @@ import cloneDeep = require('lodash.clonedeep')
 import {PnpmOptions, StrictPnpmOptions, Dependencies} from '../types'
 import createGot from '../network/got'
 import getContext, {PnpmContext} from './getContext'
-import installMultiple from '../installMultiple'
+import installMultiple from '../install/installMultiple'
 import save from '../save'
 import linkPeers, {linkPeersWhenSymlinksPreserved} from '../install/linkPeers'
 import runtimeError from '../runtimeError'
