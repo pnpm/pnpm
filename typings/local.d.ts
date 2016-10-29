@@ -281,3 +281,8 @@ declare module 'link-dir' {
   const anything: any;
   export = anything;
 }
+
+declare module 'npm-install-checks' {
+  const anything: any;
+  export = anything;
+}

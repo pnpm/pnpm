@@ -5,6 +5,7 @@ import fs = require('mz/fs')
 import {Stats} from 'fs'
 import logger = require('@zkochan/logger')
 import path = require('path')
+import rimraf = require('rimraf-then')
 import resolve, {ResolveResult} from '../resolve'
 import mkdirp from '../fs/mkdirp'
 import requireJson from '../fs/requireJson'
@@ -36,6 +37,7 @@ export type FetchedPackage = {
   name: string,
   fromCache: boolean,
   justFetched: boolean,
+  abort(): Promise<void>,
 }
 
 export type InstallLog = (msg: string, data?: Object) => void
@@ -117,6 +119,7 @@ export default async function fetch (ctx: InstallContext, pkgRawSpec: string, mo
       path: pkgPath,
       srcPath: res.root,
       justFetched,
+      abort: () => rimraf(target),
     }
     fetchedPkg.fetchingPkg.then(pkg => log('package.json', pkg))
     fetchedPkg.fetchingFiles.then(() => log('done'))
@@ -145,6 +148,7 @@ export default async function fetch (ctx: InstallContext, pkgRawSpec: string, mo
         fromCache: true,
         path: fullpath,
         justFetched: false,
+        abort: () => Promise.resolve(),
       }
     }
   }
