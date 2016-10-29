@@ -3,9 +3,8 @@ const enc = encodeURIComponent
 import createPkgId from './createPkgId'
 import registryUrl = require('registry-url')
 import semver = require('semver')
-import {ResolveOptions, ResolveResult} from '.'
+import {PackageSpec, ResolveOptions, ResolveResult} from '.'
 import {Package} from '../types'
-import {PackageSpec} from '../install'
 import {createRemoteTarballFetcher} from './fetch'
 
 /**

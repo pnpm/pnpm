@@ -1,6 +1,5 @@
 import spawn = require('cross-spawn')
-import {PackageSpec} from '../install'
-import {ResolveOptions, ResolveResult} from '.'
+import {PackageSpec, ResolveOptions, ResolveResult} from '.'
 import {delimiter} from './createPkgId'
 import createDebug from '../debug'
 const debug = createDebug('pnpm:git')

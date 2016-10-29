@@ -28,15 +28,6 @@ export type InstallationOptions = {
   got: Got,
 }
 
-export type PackageSpec = {
-  raw: string,
-  name: string,
-  scope: string,
-  type: string,
-  spec: string,
-  rawSpec: string
-}
-
 export type InstalledPackage = {
   pkg: Package,
   path: string,
@@ -69,7 +60,7 @@ export type InstallLog = (msg: string, data?: Object) => void
  * @example
  *     install(ctx, 'rimraf@2', './node_modules')
  */
-export default async function install (fetches: CachedPromises<void>, pkgRawSpec: string, modules: string, options: InstallationOptions): Promise<InstalledPackage> {
+export default async function fetch (fetches: CachedPromises<void>, pkgRawSpec: string, modules: string, options: InstallationOptions): Promise<InstalledPackage> {
   debug('installing ' + pkgRawSpec)
 
   // Preliminary spec data

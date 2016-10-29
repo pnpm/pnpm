@@ -1,5 +1,5 @@
 import path = require('path')
-import {InstalledPackage} from '.'
+import {InstalledPackage} from './fetch'
 import mkdirp from '../fs/mkdirp'
 import symlinkToModules from './symlinkToModules'
 import {StorePackageMap} from '../fs/storeController'

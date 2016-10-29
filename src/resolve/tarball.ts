@@ -1,7 +1,6 @@
 import getTarballName from './getTarballName'
 import crypto = require('crypto')
-import {PackageSpec} from '../install'
-import {ResolveResult, ResolveOptions} from '.'
+import {PackageSpec, ResolveResult, ResolveOptions} from '.'
 import {createRemoteTarballFetcher} from './fetch'
 
 /**

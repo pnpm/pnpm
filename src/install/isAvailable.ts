@@ -1,6 +1,6 @@
 import path = require('path')
 import fs = require('mz/fs')
-import {PackageSpec} from '../install'
+import {PackageSpec} from '../resolve'
 import {Package} from '../types'
 import loadJsonFile = require('load-json-file')
 

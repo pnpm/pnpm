@@ -2,7 +2,7 @@ import createDebug from '../debug'
 const debug = createDebug('pnpm:fetch')
 import fs = require('fs')
 import {Got} from '../network/got'
-import {InstallLog} from '../install'
+import {InstallLog} from '../install/fetch'
 import {IncomingMessage} from 'http'
 import * as unpackStream from 'unpack-stream'
 

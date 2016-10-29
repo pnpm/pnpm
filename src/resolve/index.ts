@@ -3,13 +3,21 @@ import resolveFromTarball from './tarball'
 import resolveFromGithub from './github'
 import resolveFromLocal from './local'
 import resolveFromGit from './git'
-import {PackageSpec} from '../install'
 import {Got} from '../network/got'
 
 export type ResolveResult = {
   id: string,
   fetch(target: string): Promise<void>,
   root?: string
+}
+
+export type PackageSpec = {
+  raw: string,
+  name: string,
+  scope: string,
+  type: string,
+  spec: string,
+  rawSpec: string
 }
 
 export type HostedPackageSpec = PackageSpec & {

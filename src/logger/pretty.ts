@@ -3,7 +3,7 @@ import logger = require('@zkochan/logger')
 import observatory = require('observatory')
 observatory.settings({ prefix: '  ', width: 74 })
 
-import {PackageSpec} from '../install'
+import {PackageSpec} from '../resolve'
 
 /**
  * Logger.

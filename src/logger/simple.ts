@@ -1,6 +1,6 @@
 import chalk = require('chalk')
 import logger = require('@zkochan/logger')
-import {PackageSpec} from '../install'
+import {PackageSpec} from '../resolve'
 
 const UPDATERS = [
   'resolving', 'resolved', 'download-start', 'dependencies'
