@@ -2,7 +2,7 @@ import {ignoreCache as requireJson} from './fs/requireJson'
 import writePkg = require('write-pkg')
 import sortedObject = require('sorted-object')
 import {DependenciesType} from './getSaveType'
-import {InstalledPackage} from './install/fetch'
+import {InstalledPackage} from './install/installMultiple'
 
 export default async function save (pkgJsonPath: string, installedPackages: InstalledPackage[], saveType: DependenciesType, useExactVersion: boolean) {
   // Read the latest version of package.json to avoid accidental overwriting

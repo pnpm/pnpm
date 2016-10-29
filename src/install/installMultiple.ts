@@ -1,11 +1,19 @@
 import path = require('path')
-import fetch, {InstalledPackage, InstallationOptions} from './fetch'
+import fetch, {FetchedPackage, FetchOptions} from './fetch'
 import {InstallContext, InstalledPackages} from '../api/install'
 import {Dependencies} from '../types'
 import linkBins from './linkBins'
 
-export type MultipleInstallationOptions = InstallationOptions & {
-  dependent: string
+export type InstallOptions = FetchOptions & {
+  optional?: boolean,
+  dependent: string,
+  depth: number,
+}
+
+export type InstalledPackage = FetchedPackage & {
+  keypath: string[],
+  optional: boolean,
+  dependencies: InstalledPackage[], // is needed to support flat tree
 }
 
 /**
@@ -15,7 +23,7 @@ export type MultipleInstallationOptions = InstallationOptions & {
  *     ctx = { }
  *     installMultiple(ctx, { minimatch: '^2.0.0' }, {chokidar: '^1.6.0'}, './node_modules')
  */
-export default async function installMultiple (ctx: InstallContext, pkgsMap: Dependencies, modules: string, options: MultipleInstallationOptions): Promise<InstalledPackage[]> {
+export default async function installMultiple (ctx: InstallContext, pkgsMap: Dependencies, modules: string, options: InstallOptions): Promise<InstalledPackage[]> {
   pkgsMap = pkgsMap || {}
 
   const pkgs = Object.keys(pkgsMap).map(pkgName => getRawSpec(pkgName, pkgsMap[pkgName]))
@@ -43,8 +51,15 @@ export default async function installMultiple (ctx: InstallContext, pkgsMap: Dep
   return installedPkgs
 }
 
-async function install (pkgRawSpec: string, modules: string, ctx: InstallContext, options: MultipleInstallationOptions) {
-  const dependency = await fetch(ctx.fetches, pkgRawSpec, modules, options)
+async function install (pkgRawSpec: string, modules: string, ctx: InstallContext, options: InstallOptions) {
+  options.keypath = options.keypath || []
+
+  const fetchedPkg = await fetch(ctx.fetches, pkgRawSpec, modules, options)
+  const dependency: InstalledPackage = Object.assign({}, fetchedPkg, {
+    keypath: options.keypath,
+    dependencies: [],
+    optional: options.optional === true,
+  })
 
   addInstalledPkg(ctx.installs, dependency)
 
@@ -53,41 +68,45 @@ async function install (pkgRawSpec: string, modules: string, ctx: InstallContext
 
   // NOTE: the current install implementation
   // does not return enough info for packages that were already installed
-  if (!dependency.fromCache) {
-    ctx.store.packages[options.dependent].dependencies[dependency.pkg.name] = dependency.id
-
-    ctx.store.packages[dependency.id] = ctx.store.packages[dependency.id] || {}
-    ctx.store.packages[dependency.id].dependents = ctx.store.packages[dependency.id].dependents || []
-    if (ctx.store.packages[dependency.id].dependents.indexOf(options.dependent) === -1) {
-      ctx.store.packages[dependency.id].dependents.push(options.dependent)
-    }
-
-    if (dependency.justFetched || dependency.firstFetch && dependency.keypath.length <= options.depth) {
-      const nextInstallOpts = Object.assign({}, options, {
-          keypath: dependency.keypath.concat([ dependency.id ]),
-          dependent: dependency.id,
-          optional: dependency.optional,
-          root: dependency.srcPath,
-        })
-      dependency.dependencies = (await installMultiple(ctx,
-          dependency.pkg.dependencies || {},
-          path.join(dependency.path, 'node_modules'),
-          nextInstallOpts)
-      ).concat(
-        await installMultiple(ctx,
-          dependency.pkg.optionalDependencies || {},
-          path.join(dependency.path, 'node_modules'),
-          Object.assign({}, nextInstallOpts, {
-            optional: true
-          }))
-      )
-      ctx.piq = ctx.piq || []
-      ctx.piq.push({
-        path: dependency.path,
-        pkgId: dependency.id
-      })
-    }
+  if (dependency.fromCache) {
+    return dependency
   }
+
+  ctx.store.packages[options.dependent].dependencies[dependency.pkg.name] = dependency.id
+
+  ctx.store.packages[dependency.id] = ctx.store.packages[dependency.id] || {}
+  ctx.store.packages[dependency.id].dependents = ctx.store.packages[dependency.id].dependents || []
+  if (ctx.store.packages[dependency.id].dependents.indexOf(options.dependent) === -1) {
+    ctx.store.packages[dependency.id].dependents.push(options.dependent)
+  }
+
+  if (!(dependency.justFetched || dependency.firstFetch && options.keypath.length <= options.depth)) {
+    return dependency
+  }
+
+  const nextInstallOpts = Object.assign({}, options, {
+      keypath: options.keypath.concat([ dependency.id ]),
+      dependent: dependency.id,
+      optional: dependency.optional,
+      root: dependency.srcPath,
+    })
+  dependency.dependencies = (await installMultiple(ctx,
+      dependency.pkg.dependencies || {},
+      path.join(dependency.path, 'node_modules'),
+      nextInstallOpts)
+  ).concat(
+    await installMultiple(ctx,
+      dependency.pkg.optionalDependencies || {},
+      path.join(dependency.path, 'node_modules'),
+      Object.assign({}, nextInstallOpts, {
+        optional: true
+      }))
+  )
+  ctx.piq = ctx.piq || []
+  ctx.piq.push({
+    path: dependency.path,
+    pkgId: dependency.id
+  })
 
   return dependency
 }

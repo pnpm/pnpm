@@ -5,7 +5,7 @@ import path = require('path')
 import semver = require('semver')
 import {InstalledPackages} from '../api/install'
 import {Package} from '../types'
-import {InstalledPackage} from './fetch'
+import {InstalledPackage} from './installMultiple'
 
 type Dict<T> = {
   [index: string]: T

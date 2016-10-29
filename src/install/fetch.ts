@@ -16,30 +16,25 @@ import {Package} from '../types'
 import symlinkToModules from './symlinkToModules'
 import {Got} from '../network/got'
 
-export type InstallationOptions = {
-  optional?: boolean,
+export type FetchOptions = {
   keypath?: string[],
   linkLocal: boolean,
   force: boolean,
   root: string,
   storePath: string,
-  depth: number,
   tag: string,
   got: Got,
 }
 
-export type InstalledPackage = {
+export type FetchedPackage = {
   pkg: Package,
   path: string,
   srcPath?: string,
-  optional: boolean,
   id: string,
-  keypath: string[],
   name: string,
   fromCache: boolean,
   justFetched: boolean, // TODO: maybe fromCache should be used
   firstFetch: boolean,
-  dependencies: InstalledPackage[], // is needed to support flat tree
 }
 
 export type InstallLog = (msg: string, data?: Object) => void
@@ -60,14 +55,12 @@ export type InstallLog = (msg: string, data?: Object) => void
  * @example
  *     install(ctx, 'rimraf@2', './node_modules')
  */
-export default async function fetch (fetches: CachedPromises<void>, pkgRawSpec: string, modules: string, options: InstallationOptions): Promise<InstalledPackage> {
+export default async function fetch (fetches: CachedPromises<void>, pkgRawSpec: string, modules: string, options: FetchOptions): Promise<FetchedPackage> {
   debug('installing ' + pkgRawSpec)
 
   // Preliminary spec data
   // => { raw, name, scope, type, spec, rawSpec }
   const spec = npa(pkgRawSpec)
-
-  const optional: boolean = options.optional === true
 
   // Dependency path to the current package. Not actually needed anmyore
   // outside getting its length
@@ -118,12 +111,9 @@ export default async function fetch (fetches: CachedPromises<void>, pkgRawSpec: 
     await symlinkToModules(path.join(target, '_'), modules)
     const installedPkg = {
       pkg,
-      optional,
-      keypath,
       id: res.id,
       name: spec.name,
       fromCache: false,
-      dependencies: [], // maybe nullable?
       path: path.join(target, '_'),
       srcPath: res.root,
       justFetched,
@@ -137,7 +127,7 @@ export default async function fetch (fetches: CachedPromises<void>, pkgRawSpec: 
     throw err
   }
 
-  async function saveCachedResolution (): Promise<InstalledPackage> {
+  async function saveCachedResolution (): Promise<FetchedPackage> {
     const target = path.join(modules, spec.name)
     const stat: Stats = await fs.lstat(target)
     if (stat.isSymbolicLink()) {
@@ -146,16 +136,13 @@ export default async function fetch (fetches: CachedPromises<void>, pkgRawSpec: 
     }
     return save(target)
 
-    async function save (fullpath: string): Promise<InstalledPackage> {
+    async function save (fullpath: string): Promise<FetchedPackage> {
       const data = await requireJson(path.join(fullpath, 'package.json'))
       return {
         pkg: data,
         id: path.basename(fullpath),
-        optional,
-        keypath,
         name: spec.name,
         fromCache: true,
-        dependencies: [],
         path: fullpath,
         justFetched: false,
         firstFetch: false,
