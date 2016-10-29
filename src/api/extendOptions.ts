@@ -2,6 +2,7 @@ import path = require('path')
 import {StrictPnpmOptions, PnpmOptions} from '../types'
 import {GlobalPath as globalPath} from './constantDefaults'
 import {preserveSymlinks} from '../env'
+import {LoggerType} from '../logger' // tslint:disable-line
 
 const defaults = () => (<StrictPnpmOptions>{
   fetchRetries: 2,
