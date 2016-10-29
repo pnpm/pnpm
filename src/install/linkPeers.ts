@@ -76,7 +76,7 @@ export async function linkPeersWhenSymlinksPreserved (store: string, installs: I
     const pkgData = installs[id]
     const peerDependencies = pkgData.pkg.peerDependencies || {}
     return Promise.all(Object.keys(peerDependencies).map(peerName => {
-      const version = semver.maxSatisfying(Object.keys(groupedPkgs[peerName]), peerDependencies[peerName], true)
+      const version = semver.maxSatisfying(Object.keys(groupedPkgs[peerName] || {}), peerDependencies[peerName], true)
       if (!version) {
         console.warn(`${pkgData.id} requires a peer of ${peerName}@${peerDependencies[peerName]} but none was installed.`)
         return
