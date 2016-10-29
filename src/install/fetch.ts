@@ -11,7 +11,7 @@ import requireJson from '../fs/requireJson'
 import linkDir from 'link-dir'
 import exists = require('exists-file')
 import isAvailable from './isAvailable'
-import {CachedPromises} from '../api/install'
+import memoize, {CachedPromises} from '../memoize'
 import {Package} from '../types'
 import symlinkToModules from './symlinkToModules'
 import {Got} from '../network/got'
@@ -204,13 +204,4 @@ async function symlinkSelf (target: string, pkg: Package, depth: number) {
 
 function isScoped (pkgName: string): boolean {
   return pkgName.indexOf('/') !== -1
-}
-
-/**
- * Save promises for later
- */
-function memoize <T>(locks: CachedPromises<T>, key: string, fn: () => Promise<T>) {
-  if (locks && locks[key]) return locks[key]
-  locks[key] = fn()
-  return locks[key]
 }

@@ -24,14 +24,11 @@ import {tryUninstall, removePkgFromStore} from './uninstall'
 import flattenDependencies from '../install/flattenDependencies'
 import mkdirp from '../fs/mkdirp'
 import {preserveSymlinks} from '../env'
+import {CachedPromises} from '../memoize'
 
 export type PackageInstallationResult = {
   path: string,
   pkgId: string
-}
-
-export type CachedPromises<T> = {
-  [name: string]: Promise<T>
 }
 
 export type InstalledPackages = {
