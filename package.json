@@ -99,8 +99,11 @@
   },
   "homepage": "https://github.com/rstacruz/pnpm#readme",
   "keywords": [
+    "dependency manager",
     "install",
-    "npm"
+    "modules",
+    "npm",
+    "package manager"
   ],
   "license": "MIT",
   "preferGlobal": true,
