@@ -66,7 +66,7 @@ pnpm uses whatever npm's configured to use as its registry. See: [custom registr
 
 ## Preview release
 
-`pnpm` will stay in `<1.0.0` until it's achieved feature parity with `npm install`. See [roadmap](docs/roadmap.md) for details.
+`pnpm` will stay in `<1.0.0` until it's achieved feature parity with `npm install`. See [roadmap](https://github.com/rstacruz/pnpm/milestone/1) for details.
 
 ## Benchmark
 
