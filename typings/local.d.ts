@@ -277,3 +277,7 @@ declare module 'unpack-stream' {
   export = anything;
 }
 
+declare module 'link-dir' {
+  const anything: any;
+  export = anything;
+}
