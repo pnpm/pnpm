@@ -19,11 +19,10 @@ Follow the [pnpm Twitter account](https://twitter.com/pnpmjs) for updates.
 * [Background](#background)
 * [Install](#install)
 * [Usage](#usage)
-* [Custom registries](#custom-registries)
-* [Preview release](#preview-release)
 * [Benchmark](#benchmark)
-* [Prior art](#prior-art)
-* [License](#license)
+* Recipes
+  * [Usage in monorepos](docs/recipes/usage-in-monorepos.md)
+  * [Continuous Integration](docs/recipes/continuous-integration.md)
 
 ## Background
 
@@ -52,6 +51,8 @@ Install it via npm.
 npm install -g pnpm
 ```
 
+> Do you wanna use pnpm on CI servers? See: [Continuous Integration](docs/recipes/continuous-integration.md).
+
 ## Usage
 
 Use `pnpm` in place of `npm`. It overrides `pnpm i`, `pnpm install` and some other command, the rest will passthru to `npm`.
@@ -60,13 +61,9 @@ Use `pnpm` in place of `npm`. It overrides `pnpm i`, `pnpm install` and some oth
 pnpm install lodash
 ```
 
-## Custom registries
+For using globally installed packages, see: [global install](docs/global-install.md).
 
-pnpm uses whatever npm's configured to use as its registry. See: [custom registries](docs/custom-registries.md).
-
-## Preview release
-
-`pnpm` will stay in `<1.0.0` until it's achieved feature parity with `npm install`. See [roadmap](https://github.com/rstacruz/pnpm/milestone/1) for details.
+For using the programmatic API, see: [API](docs/api.md).
 
 ## Benchmark
 
@@ -84,6 +81,10 @@ time pnpm i babel-preset-es2015 browserify chalk debug minimist mkdirp
 
 * [Compared to ied](docs/vs-ied.md)
 * [Compared to npm](docs/vs-npm.md)
+
+## Preview release
+
+`pnpm` will stay in `<1.0.0` until it's achieved feature parity with `npm install`. See [roadmap](https://github.com/rstacruz/pnpm/milestone/1) for details.
 
 ## License
 
