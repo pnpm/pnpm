@@ -1,5 +1,5 @@
 import tape = require('tape')
-import promisifyTape = require('tape-promise')
+import promisifyTape from 'tape-promise'
 const test = promisifyTape(tape)
 import path = require('path')
 import isExecutable from './support/isExecutable'

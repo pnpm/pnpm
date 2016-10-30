@@ -1,6 +1,6 @@
 import 'sepia'
 import tape = require('tape')
-import promisifyTape = require('tape-promise')
+import promisifyTape from 'tape-promise'
 const test = promisifyTape(tape)
 import path = require('path')
 import fs = require('mz/fs')

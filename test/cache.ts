@@ -3,7 +3,7 @@ import globalPath from './support/globalPath'
 import {add as addDistTag} from './support/distTags'
 import testDefaults from './support/testDefaults'
 import tape = require('tape')
-import promisifyTape = require('tape-promise')
+import promisifyTape from 'tape-promise'
 import exists = require('exists-file')
 import path = require('path')
 import prepare from './support/prepare'
