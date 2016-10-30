@@ -1,4 +1,4 @@
-# Continues Integration
+# Continuous Integration
 
 pnpm can easily be used in various continuous integration systems.
 
