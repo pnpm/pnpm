@@ -92,18 +92,22 @@ async function install (pkgRawSpec: string, modules: string, ctx: InstallContext
       optional: dependency.optional,
       root: dependency.srcPath,
     })
-  dependency.dependencies = (await installMultiple(ctx,
+  dependency.dependencies = Array.prototype.concat.apply([], await Promise.all([
+    installMultiple(
+      ctx,
       dependency.pkg.dependencies || {},
       path.join(dependency.path, 'node_modules'),
-      nextInstallOpts)
-  ).concat(
-    await installMultiple(ctx,
+      nextInstallOpts
+    ),
+    installMultiple(
+      ctx,
       dependency.pkg.optionalDependencies || {},
       path.join(dependency.path, 'node_modules'),
       Object.assign({}, nextInstallOpts, {
         optional: true
-      }))
-  )
+      })
+    ),
+  ]))
   ctx.piq = ctx.piq || []
   ctx.piq.push({
     path: dependency.path,

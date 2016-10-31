@@ -92,17 +92,20 @@ async function installInContext (installType: string, packagesToInstall: Depende
         cacheTTL: opts.cacheTTL
       }),
     }
-    return (
-      await installMultiple(installCtx,
+    return Array.prototype.concat.apply([], await Promise.all([
+      installMultiple(
+        installCtx,
         packagesToInstall,
         nodeModulesPath,
-        installOpts)
-    ).concat(
-      await installMultiple(installCtx,
+        installOpts
+      ),
+      installMultiple(
+        installCtx,
         ctx.pkg && ctx.pkg && ctx.pkg.optionalDependencies || {},
         nodeModulesPath,
-        Object.assign({}, installOpts, {optional: true}))
-    )
+        Object.assign({}, installOpts, {optional: true})
+      ),
+    ]))
   })
 
   if (opts.flatTree) {
