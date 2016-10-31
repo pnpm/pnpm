@@ -3,7 +3,11 @@ import crossSpawn = require('cross-spawn')
 
 const pnpmBin = path.join(__dirname, '../../src/bin/pnpm.ts')
 
-export default function (...args: string[]) {
+export default runCli
+
+function runCli (...args: string[]): Promise<void>
+function runCli () {
+  const args = Array.prototype.slice.call(arguments)
   return new Promise((resolve, reject) => {
     const proc = crossSpawn.spawn('ts-node', [pnpmBin].concat(args), {stdio: 'inherit'})
 
