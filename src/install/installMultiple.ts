@@ -33,7 +33,7 @@ export default async function installMultiple (ctx: InstallContext, pkgsMap: Dep
   const installedPkgs: InstalledPackage[] = <InstalledPackage[]>(
     await Promise.all(pkgs.map(async function (pkgRawSpec: string) {
       try {
-        return install(pkgRawSpec, modules, ctx, options)
+        return await install(pkgRawSpec, modules, ctx, options)
       } catch (err) {
         if (options.optional) {
           console.log(`Skipping failed optional dependency ${pkgRawSpec}:`)
