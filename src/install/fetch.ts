@@ -33,8 +33,7 @@ export type FetchedPackage = {
   id: string,
   name: string,
   fromCache: boolean,
-  justFetched: boolean, // TODO: maybe fromCache should be used
-  firstFetch: boolean,
+  justFetched: boolean,
 }
 
 export type InstallLog = (msg: string, data?: Object) => void
@@ -89,23 +88,14 @@ export default async function fetch (fetches: CachedPromises<void>, pkgRawSpec: 
     await mkdirp(modules)
     const target = path.join(options.storePath, res.id)
 
-    let justFetched: boolean
-    let firstFetch: boolean
-    if (fetches[res.id]) {
-      await fetches[res.id]
-      justFetched = false
-      firstFetch = false
-    } else {
-      firstFetch = true
-      justFetched = await fetchToStoreCached({
-        fetches,
-        target,
-        resolution: res,
-        log,
-        keypath,
-        force: options.force,
-      })
-    }
+    const justFetched = await fetchToStoreCached({
+      fetches,
+      target,
+      resolution: res,
+      log,
+      keypath,
+      force: options.force,
+    })
 
     const pkg = await requireJson(path.join(target, '_', 'package.json'))
     await symlinkToModules(path.join(target, '_'), modules)
@@ -117,7 +107,6 @@ export default async function fetch (fetches: CachedPromises<void>, pkgRawSpec: 
       path: path.join(target, '_'),
       srcPath: res.root,
       justFetched,
-      firstFetch,
     }
     log('package.json', pkg)
     log('done')
@@ -145,7 +134,6 @@ export default async function fetch (fetches: CachedPromises<void>, pkgRawSpec: 
         fromCache: true,
         path: fullpath,
         justFetched: false,
-        firstFetch: false,
       }
     }
   }

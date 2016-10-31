@@ -3,6 +3,7 @@ import fetch, {FetchedPackage, FetchOptions} from './fetch'
 import {InstallContext, InstalledPackages} from '../api/install'
 import {Dependencies} from '../types'
 import linkBins from './linkBins'
+import memoize from '../memoize'
 
 export type InstallOptions = FetchOptions & {
   optional?: boolean,
@@ -54,7 +55,7 @@ export default async function installMultiple (ctx: InstallContext, pkgsMap: Dep
 async function install (pkgRawSpec: string, modules: string, ctx: InstallContext, options: InstallOptions) {
   options.keypath = options.keypath || []
 
-  const fetchedPkg = await fetch(ctx.fetches, pkgRawSpec, modules, options)
+  const fetchedPkg = await fetch(ctx.fetchLocks, pkgRawSpec, modules, options)
   const dependency: InstalledPackage = Object.assign({}, fetchedPkg, {
     keypath: options.keypath,
     dependencies: [],
@@ -68,7 +69,7 @@ async function install (pkgRawSpec: string, modules: string, ctx: InstallContext
 
   // NOTE: the current install implementation
   // does not return enough info for packages that were already installed
-  if (dependency.fromCache) {
+  if (dependency.fromCache || options.keypath.indexOf(dependency.id) !== -1) {
     return dependency
   }
 
@@ -81,37 +82,41 @@ async function install (pkgRawSpec: string, modules: string, ctx: InstallContext
   }
 
   // when a package was already installed, update the subdependencies only to the specified depth.
-  // justFetched is really just hack to avoid executing installation of subdependencies many times.
-  if (!dependency.justFetched && (!dependency.firstFetch || options.keypath.length >= options.depth)) {
+  if (!dependency.justFetched && options.keypath.length >= options.depth) {
     return dependency
   }
 
-  const nextInstallOpts = Object.assign({}, options, {
-      keypath: options.keypath.concat([ dependency.id ]),
+  dependency.dependencies = await memoize(ctx.installLocks, dependency.id, async function () {
+    const nextInstallOpts = Object.assign({}, options, {
+      keypath: (options.keypath || []).concat([ dependency.id ]),
       dependent: dependency.id,
       optional: dependency.optional,
       root: dependency.srcPath,
     })
-  dependency.dependencies = Array.prototype.concat.apply([], await Promise.all([
-    installMultiple(
-      ctx,
-      dependency.pkg.dependencies || {},
-      path.join(dependency.path, 'node_modules'),
-      nextInstallOpts
-    ),
-    installMultiple(
-      ctx,
-      dependency.pkg.optionalDependencies || {},
-      path.join(dependency.path, 'node_modules'),
-      Object.assign({}, nextInstallOpts, {
-        optional: true
-      })
-    ),
-  ]))
-  ctx.piq = ctx.piq || []
-  ctx.piq.push({
-    path: dependency.path,
-    pkgId: dependency.id
+
+    const dependencies = Array.prototype.concat.apply([], await Promise.all([
+      installMultiple(
+        ctx,
+        dependency.pkg.dependencies || {},
+        path.join(dependency.path, 'node_modules'),
+        nextInstallOpts
+      ),
+      installMultiple(
+        ctx,
+        dependency.pkg.optionalDependencies || {},
+        path.join(dependency.path, 'node_modules'),
+        Object.assign({}, nextInstallOpts, {
+          optional: true
+        })
+      ),
+    ]))
+    ctx.piq = ctx.piq || []
+    ctx.piq.push({
+      path: dependency.path,
+      pkgId: dependency.id
+    })
+
+    return dependencies
   })
 
   return dependency

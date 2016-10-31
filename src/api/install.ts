@@ -38,7 +38,8 @@ export type InstalledPackages = {
 export type InstallContext = {
   installs: InstalledPackages,
   piq?: PackageInstallationResult[],
-  fetches: CachedPromises<void>,
+  fetchLocks: CachedPromises<void>,
+  installLocks: CachedPromises<void>,
   store: Store,
 }
 
@@ -182,8 +183,8 @@ function removeOrphanPkgs (oldStoreJson: Store, newStoreJson: Store, root: strin
 
 async function createInstallCmd (opts: StrictPnpmOptions, store: Store, cache: string): Promise<InstallContext> {
   return {
-    fetches: {},
-    builds: {},
+    fetchLocks: {},
+    installLocks: {},
     installs: {},
     store,
   }
