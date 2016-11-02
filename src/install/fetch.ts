@@ -72,10 +72,10 @@ export default async function fetch (fetches: CachedPromises<void>, pkgRawSpec: 
     // it might be a bundleDependency, in which case, don't bother
     const available = !options.force && await isAvailable(spec, modules)
     if (available) {
-      const installedPkg = await saveCachedResolution()
-      log('package.json', installedPkg.pkg)
+      const fetchedPkg = await saveCachedResolution()
+      log('package.json', fetchedPkg.pkg)
       log('done')
-      return installedPkg
+      return fetchedPkg
     }
     const res = await resolve(spec, {
       log,
@@ -87,6 +87,7 @@ export default async function fetch (fetches: CachedPromises<void>, pkgRawSpec: 
     log('resolved', res)
     await mkdirp(modules)
     const target = path.join(options.storePath, res.id)
+    const pkgPath = path.join(target, '_')
 
     const justFetched = await fetchToStoreCached({
       fetches,
@@ -97,20 +98,20 @@ export default async function fetch (fetches: CachedPromises<void>, pkgRawSpec: 
       force: options.force,
     })
 
-    const pkg = await requireJson(path.join(target, '_', 'package.json'))
-    await symlinkToModules(path.join(target, '_'), modules)
-    const installedPkg = {
+    const pkg = await requireJson(path.join(pkgPath, 'package.json'))
+    await symlinkToModules(pkgPath, modules)
+    const fetchedPkg = {
       pkg,
       id: res.id,
       name: spec.name,
       fromCache: false,
-      path: path.join(target, '_'),
+      path: pkgPath,
       srcPath: res.root,
       justFetched,
     }
     log('package.json', pkg)
     log('done')
-    return installedPkg
+    return fetchedPkg
   } catch (err) {
     log('error', err)
     throw err
