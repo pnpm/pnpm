@@ -93,6 +93,8 @@ export type Package = {
   devDependencies?: Dependencies,
   optionalDependencies?: Dependencies,
   peerDependencies?: Dependencies,
+  bundleDependencies?: string[],
+  bundledDependencies?: string[],
   scripts?: {
     [name: string]: string
   },

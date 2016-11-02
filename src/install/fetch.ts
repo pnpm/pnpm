@@ -84,12 +84,12 @@ export default async function fetch (fetches: CachedPromises<void>, pkgRawSpec: 
       tag: options.tag
     })
     log('resolved', res)
-    await mkdirp(modules)
+
     const target = path.join(options.storePath, res.id)
     const pkgPath = path.join(target, '_')
 
-    const shouldFetch = !!fetches[res.id] || options.force || !(await exists(target))
-    const fetchingFiles = !shouldFetch
+    const justFetched = !fetches[res.id] && (options.force || !(await exists(target)))
+    const fetchingFiles = !justFetched && !fetches[res.id]
       ? Promise.resolve()
       : fetchToStoreCached({
         fetches,
@@ -114,7 +114,7 @@ export default async function fetch (fetches: CachedPromises<void>, pkgRawSpec: 
       fromCache: false,
       path: pkgPath,
       srcPath: res.root,
-      justFetched: shouldFetch,
+      justFetched,
     }
     return fetchedPkg
   } catch (err) {

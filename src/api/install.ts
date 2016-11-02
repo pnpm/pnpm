@@ -92,6 +92,7 @@ async function installInContext (installType: string, packagesToInstall: Depende
         cachePath: ctx.cache,
         cacheTTL: opts.cacheTTL
       }),
+      fetchingFiles: Promise.resolve(),
     }
     return Array.prototype.concat.apply([], await Promise.all([
       installMultiple(

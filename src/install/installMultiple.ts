@@ -6,11 +6,16 @@ import linkBins from './linkBins'
 import memoize from '../memoize'
 import {Package} from '../types'
 import symlinkToModules from './symlinkToModules'
+import mkdirp from '../fs/mkdirp'
 
 export type InstallOptions = FetchOptions & {
   optional?: boolean,
   dependent: string,
   depth: number,
+}
+
+export type MultipleInstallOpts = InstallOptions & {
+  fetchingFiles: Promise<void>
 }
 
 export type InstalledPackage = FetchedPackage & {
@@ -27,7 +32,7 @@ export type InstalledPackage = FetchedPackage & {
  *     ctx = { }
  *     installMultiple(ctx, { minimatch: '^2.0.0' }, {chokidar: '^1.6.0'}, './node_modules')
  */
-export default async function installMultiple (ctx: InstallContext, pkgsMap: Dependencies, modules: string, options: InstallOptions): Promise<InstalledPackage[]> {
+export default async function installMultiple (ctx: InstallContext, pkgsMap: Dependencies, modules: string, options: MultipleInstallOpts): Promise<InstalledPackage[]> {
   pkgsMap = pkgsMap || {}
 
   const pkgs = Object.keys(pkgsMap).map(pkgName => getRawSpec(pkgName, pkgsMap[pkgName]))
@@ -50,6 +55,10 @@ export default async function installMultiple (ctx: InstallContext, pkgsMap: Dep
   )
   .filter(pkg => pkg)
 
+  await options.fetchingFiles
+
+  await mkdirp(modules)
+  await Promise.all(installedPkgs.filter(subdep => !subdep.fromCache).map(subdep => symlinkToModules(subdep.path, modules)))
   await linkBins(modules)
 
   return installedPkgs
@@ -91,13 +100,14 @@ async function install (pkgRawSpec: string, modules: string, ctx: InstallContext
     return dependency
   }
 
+  // greedy installation does not work with bundled dependencies
+  if (pkg.bundleDependencies && pkg.bundleDependencies.length || pkg.bundledDependencies && pkg.bundledDependencies.length) {
+    await dependency.fetchingFiles
+  }
+
   dependency.dependencies = await memoize(ctx.installLocks, dependency.id, () => {
     return installDependencies(pkg, dependency, ctx, options)
   })
-
-  await fetchedPkg.fetchingFiles
-
-  await symlinkToModules(fetchedPkg.path, modules)
 
   return dependency
 }
@@ -107,11 +117,12 @@ async function installDependencies (pkg: Package, dependency: InstalledPackage, 
     keypath: (opts.keypath || []).concat([ dependency.id ]),
     dependent: dependency.id,
     root: dependency.srcPath,
+    fetchingFiles: dependency.fetchingFiles,
   })
   const modules = path.join(dependency.path, 'node_modules')
   const optionalDependencies = pkg.optionalDependencies || {}
   const dependencies = pkg.dependencies || {}
-  const nonOptionalDependencies = Object.keys(pkg.dependencies || {})
+  const nonOptionalDependencies = Object.keys(dependencies)
     .reduce((deps, depName) => {
       if (!optionalDependencies[depName]) {
         deps[depName] = dependencies[depName]
