@@ -86,40 +86,46 @@ async function install (pkgRawSpec: string, modules: string, ctx: InstallContext
     return dependency
   }
 
-  dependency.dependencies = await memoize(ctx.installLocks, dependency.id, async function () {
-    const nextInstallOpts = Object.assign({}, options, {
-      keypath: (options.keypath || []).concat([ dependency.id ]),
-      dependent: dependency.id,
-      optional: dependency.optional,
-      root: dependency.srcPath,
-    })
-
-    const dependencies = Array.prototype.concat.apply([], await Promise.all([
-      installMultiple(
-        ctx,
-        dependency.pkg.dependencies || {},
-        path.join(dependency.path, 'node_modules'),
-        nextInstallOpts
-      ),
-      installMultiple(
-        ctx,
-        dependency.pkg.optionalDependencies || {},
-        path.join(dependency.path, 'node_modules'),
-        Object.assign({}, nextInstallOpts, {
-          optional: true
-        })
-      ),
-    ]))
-    ctx.piq = ctx.piq || []
-    ctx.piq.push({
-      path: dependency.path,
-      pkgId: dependency.id
-    })
-
-    return dependencies
+  dependency.dependencies = await memoize(ctx.installLocks, dependency.id, () => {
+    return installDependencies(dependency, ctx, options)
   })
 
   return dependency
+}
+
+async function installDependencies (dependency: InstalledPackage, ctx: InstallContext, opts: InstallOptions) {
+  const depsInstallOpts = Object.assign({}, opts, {
+    keypath: (opts.keypath || []).concat([ dependency.id ]),
+    dependent: dependency.id,
+    root: dependency.srcPath,
+  })
+  const modules = path.join(dependency.path, 'node_modules')
+
+  const dependencies = Array.prototype.concat.apply([], await Promise.all([
+    installMultiple(
+      ctx,
+      dependency.pkg.dependencies || {},
+      modules,
+      Object.assign({}, depsInstallOpts, {
+        optional: dependency.optional
+      })
+    ),
+    installMultiple(
+      ctx,
+      dependency.pkg.optionalDependencies || {},
+      modules,
+      Object.assign({}, depsInstallOpts, {
+        optional: true
+      })
+    ),
+  ]))
+  ctx.piq = ctx.piq || []
+  ctx.piq.push({
+    path: dependency.path,
+    pkgId: dependency.id
+  })
+
+  return dependencies
 }
 
 function addInstalledPkg (installs: InstalledPackages, newPkg: InstalledPackage) {
