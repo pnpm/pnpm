@@ -15,6 +15,7 @@ import memoize, {CachedPromises} from '../memoize'
 import {Package} from '../types'
 import symlinkToModules from './symlinkToModules'
 import {Got} from '../network/got'
+import {preserveSymlinks} from '../env'
 
 export type FetchOptions = {
   keypath?: string[],
@@ -166,9 +167,12 @@ async function fetchToStoreCached (opts: FetchToStoreOptions): Promise<boolean> 
 
     opts.log('package.json', pkg)
 
-    // symlink itself; . -> node_modules/lodash@4.0.0
-    // this way it can require itself
-    await symlinkSelf(opts.target, pkg, opts.keypath.length)
+    // this is not needed on Node.js >= 6.3.0
+    if (!preserveSymlinks) {
+      // symlink itself; . -> node_modules/lodash@4.0.0
+      // this way it can require itself
+      await symlinkSelf(opts.target, pkg, opts.keypath.length)
+    }
     return true
   })
 }
