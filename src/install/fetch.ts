@@ -13,7 +13,6 @@ import exists = require('exists-file')
 import isAvailable from './isAvailable'
 import memoize, {CachedPromises} from '../memoize'
 import {Package} from '../types'
-import symlinkToModules from './symlinkToModules'
 import {Got} from '../network/got'
 import {preserveSymlinks} from '../env'
 
@@ -28,7 +27,8 @@ export type FetchOptions = {
 }
 
 export type FetchedPackage = {
-  pkg: Package,
+  fetchingPkg: Promise<Package>,
+  fetchingFiles: Promise<void>,
   path: string,
   srcPath?: string,
   id: string,
@@ -74,8 +74,6 @@ export default async function fetch (fetches: CachedPromises<void>, pkgRawSpec: 
     const available = !options.force && await isAvailable(spec, modules)
     if (available) {
       const fetchedPkg = await saveCachedResolution()
-      log('package.json', fetchedPkg.pkg)
-      log('done')
       return fetchedPkg
     }
     const res = await resolve(spec, {
@@ -90,28 +88,34 @@ export default async function fetch (fetches: CachedPromises<void>, pkgRawSpec: 
     const target = path.join(options.storePath, res.id)
     const pkgPath = path.join(target, '_')
 
-    const justFetched = await fetchToStoreCached({
-      fetches,
-      target,
-      resolution: res,
-      log,
-      keypath,
-      force: options.force,
-    })
+    const shouldFetch = !!fetches[res.id] || options.force || !(await exists(target))
+    const fetchingFiles = !shouldFetch
+      ? Promise.resolve()
+      : fetchToStoreCached({
+        fetches,
+        target,
+        resolution: res,
+        log,
+        keypath,
+        force: options.force,
+      })
 
-    const pkg = await requireJson(path.join(pkgPath, 'package.json'))
-    await symlinkToModules(pkgPath, modules)
+    const fetchingPkg = res.pkg
+      ? Promise.resolve(res.pkg)
+      : fetchingFiles.then(() => {
+        return requireJson(path.join(pkgPath, 'package.json'))
+      })
+
     const fetchedPkg = {
-      pkg,
+      fetchingPkg,
+      fetchingFiles,
       id: res.id,
       name: spec.name,
       fromCache: false,
       path: pkgPath,
       srcPath: res.root,
-      justFetched,
+      justFetched: shouldFetch,
     }
-    log('package.json', pkg)
-    log('done')
     return fetchedPkg
   } catch (err) {
     log('error', err)
@@ -130,7 +134,8 @@ export default async function fetch (fetches: CachedPromises<void>, pkgRawSpec: 
     async function save (fullpath: string): Promise<FetchedPackage> {
       const data = await requireJson(path.join(fullpath, 'package.json'))
       return {
-        pkg: data,
+        fetchingPkg: Promise.resolve(data),
+        fetchingFiles: Promise.resolve(),
         id: path.basename(fullpath),
         name: spec.name,
         fromCache: true,
@@ -155,11 +160,8 @@ type FetchToStoreOptions = {
  * If an ongoing build is already working, use it. Also, if that ongoing build
  * is part of the dependency chain (ie, it's a circular dependency), use its stub
  */
-async function fetchToStoreCached (opts: FetchToStoreOptions): Promise<boolean> {
-  return await memoize<boolean>(opts.fetches, opts.resolution.id, async function () {
-    if (await exists(opts.target) && !opts.force) {
-      return false
-    }
+function fetchToStoreCached (opts: FetchToStoreOptions): Promise<void> {
+  return memoize(opts.fetches, opts.resolution.id, async function () {
     opts.log('download-queued')
     await opts.resolution.fetch(path.join(opts.target, '_'))
 
@@ -173,7 +175,6 @@ async function fetchToStoreCached (opts: FetchToStoreOptions): Promise<boolean> 
       // this way it can require itself
       await symlinkSelf(opts.target, pkg, opts.keypath.length)
     }
-    return true
   })
 }
 

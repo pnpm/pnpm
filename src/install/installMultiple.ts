@@ -4,6 +4,8 @@ import {InstallContext, InstalledPackages} from '../api/install'
 import {Dependencies} from '../types'
 import linkBins from './linkBins'
 import memoize from '../memoize'
+import {Package} from '../types'
+import symlinkToModules from './symlinkToModules'
 
 export type InstallOptions = FetchOptions & {
   optional?: boolean,
@@ -12,6 +14,7 @@ export type InstallOptions = FetchOptions & {
 }
 
 export type InstalledPackage = FetchedPackage & {
+  pkg: Package,
   keypath: string[],
   optional: boolean,
   dependencies: InstalledPackage[], // is needed to support flat tree
@@ -56,10 +59,12 @@ async function install (pkgRawSpec: string, modules: string, ctx: InstallContext
   options.keypath = options.keypath || []
 
   const fetchedPkg = await fetch(ctx.fetchLocks, pkgRawSpec, modules, options)
+  const pkg = await fetchedPkg.fetchingPkg
   const dependency: InstalledPackage = Object.assign({}, fetchedPkg, {
     keypath: options.keypath,
     dependencies: [],
     optional: options.optional === true,
+    pkg,
   })
 
   addInstalledPkg(ctx.installs, dependency)
@@ -73,7 +78,7 @@ async function install (pkgRawSpec: string, modules: string, ctx: InstallContext
     return dependency
   }
 
-  ctx.store.packages[options.dependent].dependencies[dependency.pkg.name] = dependency.id
+  ctx.store.packages[options.dependent].dependencies[pkg.name] = dependency.id
 
   ctx.store.packages[dependency.id] = ctx.store.packages[dependency.id] || {}
   ctx.store.packages[dependency.id].dependents = ctx.store.packages[dependency.id].dependents || []
@@ -87,24 +92,37 @@ async function install (pkgRawSpec: string, modules: string, ctx: InstallContext
   }
 
   dependency.dependencies = await memoize(ctx.installLocks, dependency.id, () => {
-    return installDependencies(dependency, ctx, options)
+    return installDependencies(pkg, dependency, ctx, options)
   })
+
+  await fetchedPkg.fetchingFiles
+
+  await symlinkToModules(fetchedPkg.path, modules)
 
   return dependency
 }
 
-async function installDependencies (dependency: InstalledPackage, ctx: InstallContext, opts: InstallOptions) {
+async function installDependencies (pkg: Package, dependency: InstalledPackage, ctx: InstallContext, opts: InstallOptions) {
   const depsInstallOpts = Object.assign({}, opts, {
     keypath: (opts.keypath || []).concat([ dependency.id ]),
     dependent: dependency.id,
     root: dependency.srcPath,
   })
   const modules = path.join(dependency.path, 'node_modules')
+  const optionalDependencies = pkg.optionalDependencies || {}
+  const dependencies = pkg.dependencies || {}
+  const nonOptionalDependencies = Object.keys(pkg.dependencies || {})
+    .reduce((deps, depName) => {
+      if (!optionalDependencies[depName]) {
+        deps[depName] = dependencies[depName]
+      }
+      return deps
+    }, {})
 
-  const dependencies = Array.prototype.concat.apply([], await Promise.all([
+  const installedDeps = Array.prototype.concat.apply([], await Promise.all([
     installMultiple(
       ctx,
-      dependency.pkg.dependencies || {},
+      nonOptionalDependencies,
       modules,
       Object.assign({}, depsInstallOpts, {
         optional: dependency.optional
@@ -112,7 +130,7 @@ async function installDependencies (dependency: InstalledPackage, ctx: InstallCo
     ),
     installMultiple(
       ctx,
-      dependency.pkg.optionalDependencies || {},
+      optionalDependencies,
       modules,
       Object.assign({}, depsInstallOpts, {
         optional: true
@@ -125,12 +143,12 @@ async function installDependencies (dependency: InstalledPackage, ctx: InstallCo
     pkgId: dependency.id
   })
 
-  return dependencies
+  return installedDeps
 }
 
 function addInstalledPkg (installs: InstalledPackages, newPkg: InstalledPackage) {
   if (!installs[newPkg.id]) {
-    installs[newPkg.id] = newPkg
+    installs[newPkg.id] = Object.assign({}, newPkg)
     return
   }
   installs[newPkg.id].optional = installs[newPkg.id].optional && newPkg.optional
