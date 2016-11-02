@@ -4,9 +4,11 @@ import resolveFromGithub from './github'
 import resolveFromLocal from './local'
 import resolveFromGit from './git'
 import {Got} from '../network/got'
+import {Package} from '../types'
 
 export type ResolveResult = {
   id: string,
+  pkg?: Package,
   fetch(target: string): Promise<void>,
   root?: string
 }

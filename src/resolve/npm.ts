@@ -30,6 +30,7 @@ export default async function resolveNpm (spec: PackageSpec, opts: ResolveOption
     const correctPkg = pickVersionFromRegistryDocument(parsedBody, spec, opts.tag)
     return {
       id: createPkgId(correctPkg),
+      pkg: correctPkg,
       fetch: createRemoteTarballFetcher({
         shasum: correctPkg.dist.shasum,
         tarball: correctPkg.dist.tarball
