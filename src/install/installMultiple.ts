@@ -159,7 +159,7 @@ async function installDependencies (pkg: Package, dependency: InstalledPackage, 
 
 function addInstalledPkg (installs: InstalledPackages, newPkg: InstalledPackage) {
   if (!installs[newPkg.id]) {
-    installs[newPkg.id] = Object.assign({}, newPkg)
+    installs[newPkg.id] = newPkg
     return
   }
   installs[newPkg.id].optional = installs[newPkg.id].optional && newPkg.optional
