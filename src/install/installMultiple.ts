@@ -58,7 +58,11 @@ export default async function installMultiple (ctx: InstallContext, pkgsMap: Dep
   await options.fetchingFiles
 
   await mkdirp(modules)
-  await Promise.all(installedPkgs.filter(subdep => !subdep.fromCache).map(subdep => symlinkToModules(subdep.path, modules)))
+  await Promise.all(
+    installedPkgs
+      .filter(subdep => !subdep.fromCache)
+      .map(subdep => symlinkToModules(subdep.path, modules))
+  )
   await linkBins(modules)
 
   return installedPkgs

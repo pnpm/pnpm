@@ -104,9 +104,7 @@ export default async function fetch (fetches: CachedPromises<void>, pkgRawSpec: 
 
     const fetchingPkg = res.pkg
       ? Promise.resolve(res.pkg)
-      : fetchingFiles.then(() => {
-        return requireJson(path.join(pkgPath, 'package.json'))
-      })
+      : fetchingFiles.then(() => requireJson(path.join(pkgPath, 'package.json')))
 
     const fetchedPkg = {
       fetchingPkg,
