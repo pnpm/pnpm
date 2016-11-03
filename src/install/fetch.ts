@@ -74,6 +74,8 @@ export default async function fetch (fetches: CachedPromises<void>, pkgRawSpec: 
     const available = !options.force && await isAvailable(spec, modules)
     if (available) {
       const fetchedPkg = await saveCachedResolution()
+      fetchedPkg.fetchingPkg.then(pkg => log('package.json', pkg))
+      fetchedPkg.fetchingFiles.then(() => log('done'))
       return fetchedPkg
     }
     const res = await resolve(spec, {
@@ -116,6 +118,8 @@ export default async function fetch (fetches: CachedPromises<void>, pkgRawSpec: 
       srcPath: res.root,
       justFetched,
     }
+    fetchedPkg.fetchingPkg.then(pkg => log('package.json', pkg))
+    fetchedPkg.fetchingFiles.then(() => log('done'))
     return fetchedPkg
   } catch (err) {
     log('error', err)
