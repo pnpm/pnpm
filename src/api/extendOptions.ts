@@ -1,6 +1,5 @@
-import path = require('path')
 import {StrictPnpmOptions, PnpmOptions} from '../types'
-import {GlobalPath as globalPath} from './constantDefaults'
+import {GlobalPath as globalPath, GlobalStorePath} from './constantDefaults'
 import {preserveSymlinks} from '../env'
 import {LoggerType} from '../logger' // tslint:disable-line
 
@@ -26,7 +25,7 @@ const defaults = () => (<StrictPnpmOptions>{
 })
 
 function getDefaultStorePath () {
-  if (preserveSymlinks) return path.join(globalPath, '.store')
+  if (preserveSymlinks) return GlobalStorePath
   return 'node_modules/.store'
 }
 

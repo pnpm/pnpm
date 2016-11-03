@@ -21,6 +21,7 @@ import {Package} from '../types'
 import {getCachePath} from './cache'
 import normalizePath = require('normalize-path')
 import {preserveSymlinks} from '../env'
+import {GlobalStorePath} from './constantDefaults'
 
 export type PnpmContext = {
   pkg?: Package,
@@ -132,15 +133,25 @@ async function readGlobalPkg (globalPath: string) {
   }
 }
 
+const DefaultGlobalPkg: Package = {
+  name: 'pnpm-global-pkg',
+  version: '1.0.0',
+  private: true,
+  config: {
+    npm: {
+      storePath: GlobalStorePath
+    }
+  }
+}
+
 async function readGlobalPkgJson (globalPkgPath: string) {
   try {
     const globalPkgJson = await requireJson(globalPkgPath)
     return globalPkgJson
   } catch (err) {
-    const pkgJson = {}
     await mkdirp(path.dirname(globalPkgPath))
-    await writePkg(globalPkgPath, pkgJson)
-    return pkgJson
+    await writePkg(globalPkgPath, DefaultGlobalPkg)
+    return DefaultGlobalPkg
   }
 }
 

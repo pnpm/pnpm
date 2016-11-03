@@ -85,6 +85,7 @@ export type Dependencies = {
 export type Package = {
   name: string,
   version: string,
+  private?: boolean,
   bin?: string | {
     [name: string]: string
   },
@@ -94,5 +95,6 @@ export type Package = {
   peerDependencies?: Dependencies,
   scripts?: {
     [name: string]: string
-  }
+  },
+  config?: Object,
 }
