@@ -15,6 +15,7 @@ import memoize, {CachedPromises} from '../memoize'
 import {Package} from '../types'
 import {Got} from '../network/got'
 import {preserveSymlinks} from '../env'
+import {InstallContext} from '../api/install'
 
 export type FetchOptions = {
   keypath?: string[],
@@ -55,7 +56,7 @@ export type InstallLog = (msg: string, data?: Object) => void
  * @example
  *     install(ctx, 'rimraf@2', './node_modules')
  */
-export default async function fetch (fetches: CachedPromises<void>, pkgRawSpec: string, modules: string, options: FetchOptions): Promise<FetchedPackage> {
+export default async function fetch (ctx: InstallContext, pkgRawSpec: string, modules: string, options: FetchOptions): Promise<FetchedPackage> {
   debug('installing ' + pkgRawSpec)
 
   // Preliminary spec data
@@ -90,11 +91,12 @@ export default async function fetch (fetches: CachedPromises<void>, pkgRawSpec: 
     const target = path.join(options.storePath, res.id)
     const pkgPath = path.join(target, '_')
 
-    const justFetched = !fetches[res.id] && (options.force || !(await exists(target)))
-    const fetchingFiles = !justFetched && !fetches[res.id]
+    const justFetched = !ctx.fetchLocks[res.id] &&
+      (options.force || !(await exists(target)) || !ctx.store.packages[res.id])
+    const fetchingFiles = !justFetched && !ctx.fetchLocks[res.id]
       ? Promise.resolve()
       : fetchToStoreCached({
-        fetches,
+        fetchLocks: ctx.fetchLocks,
         target,
         resolution: res,
         log,
@@ -149,7 +151,7 @@ export default async function fetch (fetches: CachedPromises<void>, pkgRawSpec: 
 }
 
 type FetchToStoreOptions = {
-  fetches: CachedPromises<void>,
+  fetchLocks: CachedPromises<void>,
   target: string,
   resolution: ResolveResult,
   log: InstallLog,
@@ -163,7 +165,7 @@ type FetchToStoreOptions = {
  * is part of the dependency chain (ie, it's a circular dependency), use its stub
  */
 function fetchToStoreCached (opts: FetchToStoreOptions): Promise<void> {
-  return memoize(opts.fetches, opts.resolution.id, async function () {
+  return memoize(opts.fetchLocks, opts.resolution.id, async function () {
     opts.log('download-queued')
     await opts.resolution.fetch(path.join(opts.target, '_'))
 

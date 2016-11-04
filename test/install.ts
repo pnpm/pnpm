@@ -719,3 +719,18 @@ test('should throw error when trying to install using a different store then the
 test('should not throw error if using a different store after all the packages were uninstalled', async function(t) {
   // TODO: implement
 })
+
+test('should reinstall package to the store if it is not in the store.yml', async function (t) {
+  prepare()
+
+  try {
+    await installPkgs(['is-positive@3.1.0', 'this-pkg-does-not-exist-3f49f4'], testDefaults())
+    t.fail('installation should have failed')
+  } catch (err) {}
+
+  await rimraf(path.join(process.cwd(), 'node_modules/.store/is-positive@3.1.0/_/index.js'))
+
+  await installPkgs(['is-positive@3.1.0'], testDefaults())
+
+  t.ok(await exists(path.join(process.cwd(), 'node_modules/.store/is-positive@3.1.0/_/index.js')))
+})

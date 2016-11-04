@@ -71,7 +71,7 @@ export default async function installMultiple (ctx: InstallContext, pkgsMap: Dep
 async function install (pkgRawSpec: string, modules: string, ctx: InstallContext, options: InstallOptions) {
   options.keypath = options.keypath || []
 
-  const fetchedPkg = await fetch(ctx.fetchLocks, pkgRawSpec, modules, options)
+  const fetchedPkg = await fetch(ctx, pkgRawSpec, modules, options)
   const pkg = await fetchedPkg.fetchingPkg
   const dependency: InstalledPackage = Object.assign({}, fetchedPkg, {
     keypath: options.keypath,
