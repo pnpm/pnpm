@@ -106,6 +106,17 @@ test('skip failing optional dependencies', async function (t) {
   t.ok(isNegative(-1), 'package with failed optional dependency has the dependencies installed correctly')
 })
 
+test('skip optional dependency that does not support the current OS', async function (t) {
+  prepare({
+    optionalDependencies: {
+      "not-compatible-with-any-os": "*"
+    }
+  })
+  await install(testDefaults())
+
+  t.ok(!(await exists(path.join(process.cwd(), 'node_modules', 'not-compatible-with-any-os'))))
+})
+
 test('idempotency (rimraf)', async function (t) {
   prepare()
   await installPkgs(['rimraf@2.5.1'], testDefaults())
