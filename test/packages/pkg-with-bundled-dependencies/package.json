@@ -1,0 +1,10 @@
+{
+  "name": "pkg-with-bundled-dependencies",
+  "version": "1.0.0",
+  "bundledDependencies": [
+    "hello-world-js-bin"
+  ],
+  "dependencies": {
+    "hello-world-js-bin": "*"
+  }
+}

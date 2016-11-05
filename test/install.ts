@@ -188,16 +188,11 @@ test('big with dependencies and circular deps (babel-preset-2015)', async functi
   t.ok(typeof b === 'object', 'babel-preset-es2015 is available')
 })
 
-test('bundleDependencies (fsevents@1.0.6)', async function (t) {
-  if (isWindows) {
-    t.skip("fsevents can't be installed on Windows")
-    return
-  }
-
+test('bundleDependencies (pkg-with-bundled-dependencies@1.0.0)', async function (t) {
   prepare()
-  await installPkgs(['fsevents@1.0.6'], testDefaults())
+  await installPkgs(['pkg-with-bundled-dependencies@1.0.0'], testDefaults())
 
-  isExecutable(t, path.join(process.cwd(), 'node_modules', 'fsevents', 'node_modules', '.bin', 'mkdirp'))
+  isExecutable(t, path.join(process.cwd(), 'node_modules', 'pkg-with-bundled-dependencies', 'node_modules', '.bin', 'hello-world-js-bin'))
 })
 
 test('compiled modules (ursa@0.9.1)', async function (t) {
