@@ -88,6 +88,7 @@ async function install (pkgRawSpec: string, modules: string, ctx: InstallContext
   // NOTE: the current install implementation
   // does not return enough info for packages that were already installed
   if (dependency.fromCache || options.keypath.indexOf(dependency.id) !== -1) {
+    await dependency.fetchingFiles
     return dependency
   }
 
@@ -101,6 +102,7 @@ async function install (pkgRawSpec: string, modules: string, ctx: InstallContext
 
   // when a package was already installed, update the subdependencies only to the specified depth.
   if (!dependency.justFetched && options.keypath.length >= options.depth) {
+    await dependency.fetchingFiles
     return dependency
   }
 
@@ -113,6 +115,7 @@ async function install (pkgRawSpec: string, modules: string, ctx: InstallContext
     return installDependencies(pkg, dependency, ctx, options)
   })
 
+  await dependency.fetchingFiles
   return dependency
 }
 

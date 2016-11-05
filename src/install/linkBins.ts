@@ -45,26 +45,24 @@ export async function linkPkgBins (modules: string, target: string) {
   await Promise.all(Object.keys(bins).map(async function (bin) {
     const actualBin = bins[bin]
     const externalBinPath = path.join(binDir, bin)
+    const targetPath = path.join(target, actualBin)
 
-    const targetPath = path.join(pkg.name, actualBin)
-    const normalTargetPath = normalizePath(targetPath)
+    const relTargetPath = normalizePath(path.join('..', pkg.name, actualBin))
     if (isWindows) {
       if (!preserveSymlinks) {
-        return cmdShim(path.join(target, actualBin), externalBinPath, {preserveSymlinks})
+        return cmdShim(targetPath, externalBinPath, {preserveSymlinks})
       }
       const proxyFilePath = path.join(binDir, `${bin}.proxy`)
-      await fs.writeFile(proxyFilePath, `#!/usr/bin/env node\r\nrequire("../${normalTargetPath}")`, 'utf8')
+      await fs.writeFile(proxyFilePath, `#!/usr/bin/env node\r\nrequire("${relTargetPath}")`, 'utf8')
       return cmdShim(proxyFilePath, externalBinPath, {preserveSymlinks})
     }
 
     if (!preserveSymlinks) {
-      await makeExecutable(path.join(target, actualBin))
-      return linkDir(
-        path.join(target, actualBin),
-        externalBinPath)
+      await makeExecutable(targetPath)
+      return linkDir(targetPath, externalBinPath)
     }
 
-    return proxy(externalBinPath, targetPath)
+    return proxy(externalBinPath, relTargetPath)
   }))
 }
 
@@ -72,12 +70,12 @@ function makeExecutable (filePath: string) {
   return fs.chmod(filePath, 0o755)
 }
 
-async function proxy (proxyPath: string, targetPath: string) {
+async function proxy (proxyPath: string, relTargetPath: string) {
   // NOTE: this will be used only on non-windows
   // Hence, the \n line endings should be used
   const proxyContent = '#!/bin/sh\n' +
     '":" //# comment; exec /usr/bin/env node --preserve-symlinks "$0" "$@"\n' +
-    `require("../${targetPath}")`
+    `require("${relTargetPath}")`
   await fs.writeFile(proxyPath, proxyContent, 'utf8')
   return makeExecutable(proxyPath)
 }
