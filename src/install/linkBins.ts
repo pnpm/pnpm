@@ -7,10 +7,8 @@ import requireJson from '../fs/requireJson'
 import getPkgDirs from '../fs/getPkgDirs'
 import binify from '../binify'
 import {isWindows, preserveSymlinks} from '../env'
-import cbCmdShim = require('@zkochan/cmd-shim')
-import thenify = require('thenify')
+import cmdShim = require('@zkochan/cmd-shim')
 import {Package} from '../types'
-const cmdShim = thenify(cbCmdShim)
 
 export default async function linkAllBins (modules: string) {
   const pkgDirs = await getPkgDirs(modules)

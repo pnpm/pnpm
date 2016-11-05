@@ -15,7 +15,7 @@
     "lib/"
   ],
   "dependencies": {
-    "@zkochan/cmd-shim": "1.0.0",
+    "@zkochan/cmd-shim": "2.0.0",
     "@zkochan/logger": "0.1.0",
     "arr-flatten": "1.0.1",
     "byline": "5.0.0",
