@@ -77,6 +77,18 @@ async function install (pkgRawSpec: string, modules: string, ctx: InstallContext
 
   const fetchedPkg = await fetch(ctx, pkgRawSpec, modules, options)
   const pkg = await fetchedPkg.fetchingPkg
+
+  try {
+    await checkPlatform(pkg, options.force)
+  } catch (err) {
+    if (options.engineStrict) {
+      throw err
+    }
+    console.warn(`Unsupported system. Skipping dependency ${fetchedPkg.id}`)
+    await fetchedPkg.abort()
+    return null
+  }
+
   const dependency: InstalledPackage = Object.assign({}, fetchedPkg, {
     keypath: options.keypath,
     dependencies: [],
@@ -108,17 +120,6 @@ async function install (pkgRawSpec: string, modules: string, ctx: InstallContext
   if (!dependency.justFetched && options.keypath.length >= options.depth) {
     await dependency.fetchingFiles
     return dependency
-  }
-
-  try {
-    await checkPlatform(dependency.pkg, options.force)
-  } catch (err) {
-    if (options.engineStrict) {
-      throw err
-    }
-    console.warn(`Unsupported system. Skipping dependency ${dependency.id}`)
-    await dependency.abort()
-    return null
   }
 
   // greedy installation does not work with bundled dependencies

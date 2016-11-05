@@ -109,12 +109,13 @@ test('skip failing optional dependencies', async function (t) {
 test('skip optional dependency that does not support the current OS', async function (t) {
   prepare({
     optionalDependencies: {
-      "not-compatible-with-any-os": "*"
+      'not-compatible-with-any-os': '*'
     }
   })
   await install(testDefaults())
 
   t.ok(!(await exists(path.join(process.cwd(), 'node_modules', 'not-compatible-with-any-os'))))
+  t.ok(!(await exists(path.join(process.cwd(), 'node_modules', '.store', 'not-compatible-with-any-os@1.0.0'))))
 })
 
 test('idempotency (rimraf)', async function (t) {
