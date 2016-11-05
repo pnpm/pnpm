@@ -1,0 +1,7 @@
+{
+  "name": "not-compatible-with-any-os",
+  "version": "1.0.0",
+  "os": [
+    "this-os-does-not-exist"
+  ]
+}

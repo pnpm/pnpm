@@ -12,3 +12,8 @@ cd ..;
 cd pkg-with-bundled-dependencies;
 npm install;
 npm publish;
+cd ..;
+
+cd not-compatible-with-any-os;
+npm publish;
+cd ..;
