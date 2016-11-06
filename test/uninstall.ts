@@ -99,7 +99,7 @@ test('uninstall package with dependencies and do not touch other deps', async fu
 
 test('uninstall package with its bin files', async function (t) {
   prepare()
-  await installPkgs(['sh-hello-world@1.0.0'], testDefaults({ save: true }))
+  await installPkgs(['sh-hello-world@1.0.1'], testDefaults({ save: true }))
   await uninstall(['sh-hello-world'], testDefaults({ save: true }))
 
   // check for both a symlink and a file because in some cases the file will be a proxied not symlinked

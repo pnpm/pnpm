@@ -26,3 +26,51 @@ cd ..;
 cd for-legacy-pnpm;
 npm publish;
 cd ..;
+
+cd circular-deps-1-of-2;
+npm publish;
+cd ..;
+
+cd circular-deps-2-of-2;
+npm publish;
+cd ..;
+
+cd dep-of-pkg-with-1-dep;
+npm publish;
+cd ..;
+
+cd pkg-with-1-dep;
+npm publish;
+cd ..;
+
+cd install-script-example;
+npm publish;
+cd ..;
+
+cd pre-and-postinstall-scripts-example;
+npm publish;
+cd ..;
+
+cd pkg-that-installs-slowly;
+npm publish;
+cd ..;
+
+cd pkg-that-uses-plugins;
+npm publish;
+cd ..;
+
+cd plugin-example;
+npm publish;
+cd ..;
+
+cd test-pnpm-peer-deps;
+npm publish;
+cd ..;
+
+cd peer-deps-in-child-pkg;
+npm publish;
+cd ..;
+
+cd sh-hello-world;
+npm publish;
+cd ..;

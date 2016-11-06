@@ -391,7 +391,7 @@ test('shrinkwrap compatibility', async function (t) {
 
 test('run pre/postinstall scripts', async function (t) {
   prepare()
-  await installPkgs([local('pre-and-postinstall-scripts-example')], testDefaults())
+  await installPkgs(['pre-and-postinstall-scripts-example'], testDefaults())
 
   const generatedByPreinstall = require(path.join(process.cwd(), 'node_modules', 'pre-and-postinstall-scripts-example/generated-by-preinstall'))
   t.ok(typeof generatedByPreinstall === 'function', 'generatedByPreinstall() is available')
@@ -402,7 +402,7 @@ test('run pre/postinstall scripts', async function (t) {
 
 test('run install scripts', async function (t) {
   prepare()
-  await installPkgs([local('install-script-example')], testDefaults())
+  await installPkgs(['install-script-example'], testDefaults())
 
   const generatedByInstall = require(path.join(process.cwd(), 'node_modules', 'install-script-example/generated-by-install'))
   t.ok(typeof generatedByInstall === 'function', 'generatedByInstall() is available')
@@ -523,7 +523,7 @@ const wait = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
 test('fail when trying to install into the same store simultaneously', t => {
   prepare()
   return Promise.all([
-    installPkgs([local('pkg-that-installs-slowly')], testDefaults()),
+    installPkgs(['pkg-that-installs-slowly'], testDefaults()),
     wait(500) // to be sure that lock was created
       .then(_ => installPkgs(['rimraf@2.5.1'], testDefaults()))
       .then(_ => t.fail('the store should have been locked'))
@@ -534,7 +534,7 @@ test('fail when trying to install into the same store simultaneously', t => {
 test('fail when trying to install and uninstall from the same store simultaneously', t => {
   prepare()
   return Promise.all([
-    installPkgs([local('pkg-that-installs-slowly')], testDefaults()),
+    installPkgs(['pkg-that-installs-slowly'], testDefaults()),
     wait(500) // to be sure that lock was created
       .then(_ => uninstall(['rimraf@2.5.1'], testDefaults()))
       .then(_ => t.fail('the store should have been locked'))
@@ -552,7 +552,7 @@ test('packages should find the plugins they use when symlinks are preserved', as
       test: 'pkg-that-uses-plugins'
     }
   })
-  await installPkgs([local('pkg-that-uses-plugins'), local('plugin-example')], testDefaults({ save: true }))
+  await installPkgs(['pkg-that-uses-plugins', 'plugin-example'], testDefaults({ save: true }))
   const result = spawnSync('npm', ['test'])
   t.ok(result.stdout.toString().indexOf('My plugin is plugin-example') !== -1, 'package executable have found its plugin')
   t.equal(result.status, 0, 'executable exited with success')
@@ -564,7 +564,7 @@ test('run js bin file', async function (t) {
       test: 'hello-world-js-bin'
     }
   })
-  await installPkgs([local('hello-world-js-bin')], testDefaults({ save: true }))
+  await installPkgs(['hello-world-js-bin'], testDefaults({ save: true }))
 
   const result = spawnSync('npm', ['test'])
   t.ok(result.stdout.toString().indexOf('Hello world!') !== -1, 'package executable printed its message')
@@ -580,7 +580,7 @@ test('bin files are found by lifecycle scripts', t => {
     }
   })
 
-  const result = spawnSync('ts-node', [pnpmBin, 'install', local('hello-world-js-bin')])
+  const result = spawnSync('ts-node', [pnpmBin, 'install', 'hello-world-js-bin'])
 
   t.equal(result.status, 0, 'installation was successfull')
   t.ok(result.stdout.toString().indexOf('Hello world!') !== -1, 'postinstall script was executed')
@@ -675,7 +675,7 @@ test('tarball local package', async function (t) {
 
 test("don't fail when peer dependency is fetched from GitHub", t => {
   prepare()
-  return installPkgs([local('test-pnpm-peer-deps')], testDefaults())
+  return installPkgs(['test-pnpm-peer-deps'], testDefaults())
 })
 
 test('create a pnpm-debug.log file when the command fails', async function (t) {

@@ -1,10 +1,10 @@
 {
   "name": "circular-deps-1-of-2",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "author": "Zoltan Kochan <zoltan.kochan@gmail.com> (http://kochan.io/)",
   "license": "MIT",
   "dependencies": {
-    "circular-deps-2-of-2": "1.0.1"
+    "circular-deps-2-of-2": "1.0.2"
   },
   "repository": {
     "type": "git",

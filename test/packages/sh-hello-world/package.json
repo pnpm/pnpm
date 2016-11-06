@@ -1,6 +1,6 @@
 {
   "name": "sh-hello-world",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "A package with a hello world bash script",
   "bin": "./sh-hello-world.sh",
   "scripts": {

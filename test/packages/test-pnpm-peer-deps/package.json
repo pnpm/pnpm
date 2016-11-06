@@ -6,6 +6,6 @@
   },
   "dependencies": {
     "is-negative": "2.0.0",
-    "peer-deps-in-child-pkg": "file:../peer-deps-in-child-pkg"
+    "peer-deps-in-child-pkg": "1.0.0"
   }
 }
