@@ -118,6 +118,84 @@ test('skip optional dependency that does not support the current OS', async func
   t.ok(!(await exists(path.join(process.cwd(), 'node_modules', '.store', 'not-compatible-with-any-os@1.0.0'))))
 })
 
+test('skip optional dependency that does not support the current Node version', async function (t) {
+  prepare({
+    optionalDependencies: {
+      'for-legacy-node': '*'
+    }
+  })
+
+  await install(testDefaults())
+
+  t.ok(!(await exists(path.join(process.cwd(), 'node_modules', 'for-legacy-node'))))
+  t.ok(!(await exists(path.join(process.cwd(), 'node_modules', '.store', 'for-legacy-node@1.0.0'))))
+})
+
+test('skip optional dependency that does not support the current pnpm version', async function (t) {
+  prepare({
+    optionalDependencies: {
+      'for-legacy-pnpm': '*'
+    }
+  })
+
+  await install(testDefaults())
+
+  t.ok(!(await exists(path.join(process.cwd(), 'node_modules', 'for-legacy-pnpm'))))
+  t.ok(!(await exists(path.join(process.cwd(), 'node_modules', '.store', 'for-legacy-pnpm@1.0.0'))))
+})
+
+test('don\'t skip optional dependency that does not support the current OS when forcing', async function (t) {
+  prepare({
+    optionalDependencies: {
+      'not-compatible-with-any-os': '*'
+    }
+  })
+
+  await install(testDefaults({
+    force: true
+  }))
+
+  t.ok(await exists(path.join(process.cwd(), 'node_modules', 'not-compatible-with-any-os')))
+  t.ok(await exists(path.join(process.cwd(), 'node_modules', '.store', 'not-compatible-with-any-os@1.0.0')))
+})
+
+test('fail if installed package does not support the current engine and engine-strict = true', async function (t) {
+  prepare()
+
+  try {
+    await installPkgs(['not-compatible-with-any-os'], testDefaults({
+      engineStrict: true
+    }))
+    t.fail()
+  } catch (err) {
+    t.ok(!(await exists(path.join(process.cwd(), 'node_modules', 'not-compatible-with-any-os'))))
+    t.ok(!(await exists(path.join(process.cwd(), 'node_modules', '.store', 'not-compatible-with-any-os@1.0.0'))))
+  }
+})
+
+test('do not fail if installed package does not support the current engine and engine-strict = false', async function (t) {
+  prepare()
+
+  await installPkgs(['not-compatible-with-any-os'], testDefaults({
+    engineStrict: false
+  }))
+
+  t.ok(await exists(path.join(process.cwd(), 'node_modules', 'not-compatible-with-any-os')))
+  t.ok(await exists(path.join(process.cwd(), 'node_modules', '.store', 'not-compatible-with-any-os@1.0.0')))
+})
+
+test('do not fail if installed package requires the node version that was passed in and engine-strict = true', async function (t) {
+  prepare()
+
+  await installPkgs(['for-legacy-node'], testDefaults({
+    engineStrict: true,
+    nodeVersion: '0.10.0'
+  }))
+
+  t.ok(await exists(path.join(process.cwd(), 'node_modules', 'for-legacy-node')))
+  t.ok(await exists(path.join(process.cwd(), 'node_modules', '.store', 'for-legacy-node@1.0.0')))
+})
+
 test('idempotency (rimraf)', async function (t) {
   prepare()
   await installPkgs(['rimraf@2.5.1'], testDefaults())

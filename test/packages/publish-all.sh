@@ -18,3 +18,11 @@ cd ..;
 cd not-compatible-with-any-os;
 npm publish;
 cd ..;
+
+cd for-legacy-node;
+npm publish;
+cd ..;
+
+cd for-legacy-pnpm;
+npm publish;
+cd ..;
