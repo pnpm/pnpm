@@ -119,7 +119,13 @@ export default async function fetch (ctx: InstallContext, pkgRawSpec: string, mo
       path: pkgPath,
       srcPath: res.root,
       justFetched,
-      abort: () => rimraf(target),
+      abort: async function () {
+        try {
+          await fetchingFiles
+        } finally {
+          return rimraf(target)
+        }
+      },
     }
     fetchedPkg.fetchingPkg.then(pkg => log('package.json', pkg))
     fetchedPkg.fetchingFiles.then(() => log('done'))

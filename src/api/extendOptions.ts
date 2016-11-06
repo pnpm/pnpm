@@ -17,6 +17,7 @@ const defaults = () => (<StrictPnpmOptions>{
   tag: 'latest',
   production: process.env.NODE_ENV === 'production',
   cwd: process.cwd(),
+  nodeVersion: process.version,
   force: false,
   silent: true,
   depth: 0,
