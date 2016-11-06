@@ -89,26 +89,20 @@ async function installInContext (installType: string, packagesToInstall: Depende
       depth: opts.depth,
       tag: opts.tag,
       engineStrict: opts.engineStrict,
+      nodeVersion: opts.nodeVersion,
       got: createGot(client, {
         cachePath: ctx.cache,
         cacheTTL: opts.cacheTTL
       }),
       fetchingFiles: Promise.resolve(),
     }
-    return Array.prototype.concat.apply([], await Promise.all([
-      installMultiple(
-        installCtx,
-        packagesToInstall,
-        nodeModulesPath,
-        installOpts
-      ),
-      installMultiple(
-        installCtx,
-        ctx.pkg && ctx.pkg && ctx.pkg.optionalDependencies || {},
-        nodeModulesPath,
-        Object.assign({}, installOpts, {optional: true})
-      ),
-    ]))
+    return await installMultiple(
+      installCtx,
+      packagesToInstall,
+      ctx.pkg && ctx.pkg && ctx.pkg.optionalDependencies || {},
+      nodeModulesPath,
+      installOpts
+    )
   })
 
   if (opts.flatTree) {

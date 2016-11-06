@@ -7,15 +7,15 @@ import memoize from '../memoize'
 import {Package} from '../types'
 import symlinkToModules from './symlinkToModules'
 import mkdirp from '../fs/mkdirp'
-import thenify = require('thenify')
-import npmInstallChecks = require('npm-install-checks')
-const checkPlatform = thenify(npmInstallChecks.checkPlatform)
+import installChecks = require('pnpm-install-checks')
+import pnpmPkg from '../pnpmPkgJson'
 
 export type InstallOptions = FetchOptions & {
   optional?: boolean,
   dependent: string,
   depth: number,
   engineStrict: boolean,
+  nodeVersion: string,
 }
 
 export type MultipleInstallOpts = InstallOptions & {
@@ -29,14 +29,36 @@ export type InstalledPackage = FetchedPackage & {
   dependencies: InstalledPackage[], // is needed to support flat tree
 }
 
-/**
- * Install multiple modules into `modules`.
- *
- * @example
- *     ctx = { }
- *     installMultiple(ctx, { minimatch: '^2.0.0' }, {chokidar: '^1.6.0'}, './node_modules')
- */
-export default async function installMultiple (ctx: InstallContext, pkgsMap: Dependencies, modules: string, options: MultipleInstallOpts): Promise<InstalledPackage[]> {
+export default async function installAll (ctx: InstallContext, dependencies: Dependencies, optionalDependencies: Dependencies, modules: string, options: MultipleInstallOpts): Promise<InstalledPackage[]> {
+  const nonOptionalDependencies = Object.keys(dependencies)
+    .reduce((deps, depName) => {
+      if (!optionalDependencies[depName]) {
+        deps[depName] = dependencies[depName]
+      }
+      return deps
+    }, {})
+
+  const installedPkgs: InstalledPackage[] = Array.prototype.concat.apply([], await Promise.all([
+    installMultiple(ctx, nonOptionalDependencies, modules, Object.assign({}, options, {optional: false})),
+    installMultiple(ctx, optionalDependencies, modules, Object.assign({}, options, {optional: true})),
+  ]))
+
+  if (options.fetchingFiles) {
+    await options.fetchingFiles
+  }
+
+  await mkdirp(modules)
+  await Promise.all(
+    installedPkgs
+      .filter(subdep => !subdep.fromCache)
+      .map(subdep => symlinkToModules(subdep.path, modules))
+  )
+  await linkBins(modules)
+
+  return installedPkgs
+}
+
+async function installMultiple (ctx: InstallContext, pkgsMap: Dependencies, modules: string, options: MultipleInstallOpts): Promise<InstalledPackage[]> {
   pkgsMap = pkgsMap || {}
 
   const pkgs = Object.keys(pkgsMap).map(pkgName => getRawSpec(pkgName, pkgsMap[pkgName]))
@@ -59,16 +81,6 @@ export default async function installMultiple (ctx: InstallContext, pkgsMap: Dep
   )
   .filter(pkg => pkg)
 
-  await options.fetchingFiles
-
-  await mkdirp(modules)
-  await Promise.all(
-    installedPkgs
-      .filter(subdep => !subdep.fromCache)
-      .map(subdep => symlinkToModules(subdep.path, modules))
-  )
-  await linkBins(modules)
-
   return installedPkgs
 }
 
@@ -78,15 +90,8 @@ async function install (pkgRawSpec: string, modules: string, ctx: InstallContext
   const fetchedPkg = await fetch(ctx, pkgRawSpec, modules, options)
   const pkg = await fetchedPkg.fetchingPkg
 
-  try {
-    await checkPlatform(pkg, options.force)
-  } catch (err) {
-    if (options.engineStrict) {
-      throw err
-    }
-    console.warn(`Unsupported system. Skipping dependency ${fetchedPkg.id}`)
-    await fetchedPkg.abort()
-    return null
+  if (!options.force) {
+    await isInstallable(pkg, fetchedPkg, options)
   }
 
   const dependency: InstalledPackage = Object.assign({}, fetchedPkg, {
@@ -127,7 +132,7 @@ async function install (pkgRawSpec: string, modules: string, ctx: InstallContext
     await dependency.fetchingFiles
   }
 
-  dependency.dependencies = await memoize(ctx.installLocks, dependency.id, () => {
+  dependency.dependencies = await memoize<InstalledPackage[]>(ctx.installLocks, dependency.id, () => {
     return installDependencies(pkg, dependency, ctx, options)
   })
 
@@ -135,7 +140,27 @@ async function install (pkgRawSpec: string, modules: string, ctx: InstallContext
   return dependency
 }
 
-async function installDependencies (pkg: Package, dependency: InstalledPackage, ctx: InstallContext, opts: InstallOptions) {
+async function isInstallable (pkg: Package, fetchedPkg: FetchedPackage, options: InstallOptions): Promise<void> {
+  const warn = await installChecks.checkPlatform(pkg) || await installChecks.checkEngine(pkg, {
+    pnpmVersion: pnpmPkg.version,
+    nodeVersion: options.nodeVersion
+  })
+  if (!warn) return
+  switch (warn.code) {
+    case 'EBADPLATFORM':
+      console.warn(`Unsupported system. Skipping dependency ${fetchedPkg.id}`)
+      break
+    case 'ENOTSUP':
+      console.warn(warn)
+      break
+  }
+  if (options.engineStrict || options.optional) {
+    await fetchedPkg.abort()
+    throw warn
+  }
+}
+
+async function installDependencies (pkg: Package, dependency: InstalledPackage, ctx: InstallContext, opts: InstallOptions): Promise<InstalledPackage[]> {
   const depsInstallOpts = Object.assign({}, opts, {
     keypath: (opts.keypath || []).concat([ dependency.id ]),
     dependent: dependency.id,
@@ -143,34 +168,8 @@ async function installDependencies (pkg: Package, dependency: InstalledPackage, 
     fetchingFiles: dependency.fetchingFiles,
   })
   const modules = path.join(dependency.path, 'node_modules')
-  const optionalDependencies = pkg.optionalDependencies || {}
-  const dependencies = pkg.dependencies || {}
-  const nonOptionalDependencies = Object.keys(dependencies)
-    .reduce((deps, depName) => {
-      if (!optionalDependencies[depName]) {
-        deps[depName] = dependencies[depName]
-      }
-      return deps
-    }, {})
 
-  const installedDeps = Array.prototype.concat.apply([], await Promise.all([
-    installMultiple(
-      ctx,
-      nonOptionalDependencies,
-      modules,
-      Object.assign({}, depsInstallOpts, {
-        optional: dependency.optional
-      })
-    ),
-    installMultiple(
-      ctx,
-      optionalDependencies,
-      modules,
-      Object.assign({}, depsInstallOpts, {
-        optional: true
-      })
-    ),
-  ]))
+  const installedDeps: InstalledPackage[] = await installAll(ctx, pkg.dependencies || {}, pkg.optionalDependencies || {}, modules, depsInstallOpts)
   ctx.piq = ctx.piq || []
   ctx.piq.push({
     path: dependency.path,

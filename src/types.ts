@@ -21,6 +21,7 @@ export type PnpmOptions = {
   linkLocal?: boolean,
   depth?: number,
   engineStrict?: boolean,
+  nodeVersion?: string,
 
   // proxy
   proxy?: string,
@@ -61,6 +62,7 @@ export type StrictPnpmOptions = {
   linkLocal: boolean,
   depth: number,
   engineStrict: boolean,
+  nodeVersion: string,
 
   // proxy
   proxy?: string,

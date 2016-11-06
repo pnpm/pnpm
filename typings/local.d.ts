@@ -282,7 +282,7 @@ declare module 'link-dir' {
   export = anything;
 }
 
-declare module 'npm-install-checks' {
+declare module 'pnpm-install-checks' {
   const anything: any;
   export = anything;
 }
