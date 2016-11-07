@@ -19,6 +19,7 @@ Follow the [pnpm Twitter account](https://twitter.com/pnpmjs) for updates.
 * [Background](#background)
 * [Install](#install)
 * [Usage](#usage)
+  * [Known issues](#known-issues)
 * [Benchmark](#benchmark)
 * Recipes
   * [Usage in monorepos](docs/recipes/usage-in-monorepos.md)
@@ -64,6 +65,21 @@ pnpm install lodash
 For using globally installed packages, see: [global install](docs/global-install.md).
 
 For using the programmatic API, see: [API](docs/api.md).
+
+### Known issues
+
+Some packages are trying to find and use other packages in `node_modules`.
+However, when installed via pnpm, all the dependencies in `node_modules` are
+just symlinks. Node's require ignores symlinks when resolving modules and this
+causes a lot of issues. Luckily, starting from v6.3.0, Node.js has a CLI option to
+preserve symlinks when resolving modules ([--preserve-symlinks](https://nodejs.org/api/cli.html#cli_preserve_symlinks)).
+
+Things to remember:
+
+* pnpm is best used on Node.js >= 6.3.0
+* it is recommended to run Node with the `--preserve-symlinks` option. E.g. `node --preserve-symlinks index`. Note: it is important that `--preserve-symlinks` is at the beginning of the command, otherwise it is ignored.
+* CLI apps installed with pnpm are configured to correctly work with symlinked dependency trees. If a global package is used to work with a pnpm package, the global package
+should be installed via pnpm.
 
 ## Benchmark
 
