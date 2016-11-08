@@ -83,6 +83,9 @@ should be installed via pnpm.
 
 ## Benchmark
 
+pnpm is usually 10 times faster than npm and 30% faster than yarn. See [this](https://github.com/zkochan/node-package-manager-benchmark)
+benchmark which compares the three package managers on different types of applications.
+
 ```
 time npm i babel-preset-es2015 browserify chalk debug minimist mkdirp
     66.15 real        15.60 user         3.54 sys
