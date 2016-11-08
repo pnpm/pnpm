@@ -55,5 +55,6 @@ function createEnv (cwd: string) {
     path.dirname(process.execPath),
     process.env[PATH]
   ].join(path.delimiter)
+  env['NODE_PRESERVE_SYMLINKS'] = '1'
   return env
 }
