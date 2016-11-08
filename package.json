@@ -92,7 +92,7 @@
     "tape-promise": "2.0.0",
     "ts-node": "1.6.1",
     "tslint": "3.15.1",
-    "typescript": "2.0.7",
+    "typescript": "2.0.8",
     "validate-commit-msg": "^2.7.0"
   },
   "directories": {
