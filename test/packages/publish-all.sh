@@ -74,3 +74,7 @@ cd ..;
 cd sh-hello-world;
 npm publish;
 cd ..;
+
+cd symlinks-preserved;
+npm publish;
+cd ..;
