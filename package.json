@@ -32,7 +32,7 @@
     "find-up": "2.0.0",
     "is-ci": "1.0.10",
     "is-retry-allowed": "1.1.0",
-    "js-yaml": "3.6.1",
+    "js-yaml": "3.7.0",
     "json2yaml": "1.1.0",
     "link-dir": "1.0.2",
     "load-json-file": "2.0.0",
