@@ -47,7 +47,7 @@
     "node-gyp": "3.4.0",
     "normalize-path": "2.0.1",
     "npm-package-arg": "4.2.0",
-    "npm-registry-client": "7.3.0",
+    "npm-registry-client": "7.4.1",
     "observatory": "1.0.0",
     "os-homedir": "1.0.2",
     "path-name": "1.0.0",
