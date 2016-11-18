@@ -2,7 +2,7 @@ import fs = require('mz/fs')
 import path = require('path')
 import flatten = require('arr-flatten')
 
-export default async function (modules: string) {
+export default async function (modules: string): Promise<string[]> {
   const dirs = await getDirectories(modules)
   const subdirs = await Promise.all(
     dirs.map((dir: string): Promise<string[]> => {

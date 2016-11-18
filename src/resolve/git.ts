@@ -29,8 +29,8 @@ function spawnGit (args: string[]) {
 /**
  * clone a git repository.
  */
-export function clone (repo: string, ref: string, dest: string) {
-  return new Promise((resolve, reject) => {
+export async function clone (repo: string, ref: string, dest: string) {
+  await new Promise((resolve, reject) => {
     const args = ['clone', '-b', ref, repo, dest, '--single-branch']
     debug(`cloning git repository from ${repo}`)
     const git = spawnGit(args)

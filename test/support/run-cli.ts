@@ -6,9 +6,9 @@ const pnpmBin = path.join(__dirname, '../../src/bin/pnpm.ts')
 export default runCli
 
 function runCli (...args: string[]): Promise<void>
-function runCli () {
+async function runCli () {
   const args = Array.prototype.slice.call(arguments)
-  return new Promise((resolve, reject) => {
+  await new Promise((resolve, reject) => {
     const proc = crossSpawn.spawn('ts-node', [pnpmBin].concat(args), {stdio: 'inherit'})
 
     proc.on('error', reject)
