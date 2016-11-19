@@ -40,7 +40,7 @@
     "common-tags": "1.4.0",
     "commondir": "1.0.1",
     "cross-spawn": "^5.0.0",
-    "debug": "2.3.2",
+    "debug": "2.3.3",
     "delocalize-dependencies": "0.1.0",
     "exists-file": "3.0.0",
     "find-up": "2.0.0",
