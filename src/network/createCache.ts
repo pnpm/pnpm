@@ -9,17 +9,14 @@ export type CacheOptions = {
 }
 
 export default function createCache (opts: CacheOptions) {
-  const diskCache = cacheManager.caching({
+  const cacheManagerOpts = {
     store: fsStore,
-    options: {
-      ttl: opts.ttl,
-      maxsize: 1000 * 1000 * 1000, // 1Gb, the max size in bytes on disk
-      path: opts.path,
-      preventfill: opts.ttl === 0,
-    },
-  })
-
-  const cacheManagerOpts: Object = {}
+    ttl: opts.ttl,
+    maxsize: 1000 * 1000 * 1000, // 1Gb, the max size in bytes on disk
+    path: opts.path,
+    preventfill: opts.ttl === 0,
+  }
+  const diskCache = cacheManager.caching(cacheManagerOpts)
 
   const getCache = thenify(diskCache.get.bind(diskCache))
   const setCache = thenify(diskCache.set.bind(diskCache))

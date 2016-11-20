@@ -88,10 +88,8 @@
     "src/runtimeError.ts",
     "src/save.ts",
     "src/types.ts",
-    "typings/globals/node/index.d.ts",
     "typings/index.d.ts",
     "typings/local.d.ts",
-    "typings/tape-promise.d.ts",
-    "typings/tape.d.ts"
+    "typings/tape-promise.d.ts"
   ]
 }

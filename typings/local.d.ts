@@ -13,11 +13,6 @@ declare module 'delocalize-dependencies' {
   export = anything;
 }
 
-declare module 'byline' {
-  const anything: any;
-  export = anything;
-}
-
 declare module 'camelcase-keys' {
   const anything: any;
   export = anything;
@@ -28,26 +23,12 @@ declare module 'caw' {
   export = anything;
 }
 
-declare module 'chalk' {
-  const anything: any;
-  export = anything;
-}
-
-declare module 'common-tags' {
-  export const stripIndent: any;
-}
-
 declare module 'commondir' {
   const anything: any;
   export = anything;
 }
 
 declare module 'cross-spawn' {
-  const anything: any;
-  export = anything;
-}
-
-declare module 'debug' {
   const anything: any;
   export = anything;
 }
@@ -63,11 +44,6 @@ declare module 'is-retry-allowed' {
 }
 
 declare module 'json2yaml' {
-  const anything: any;
-  export = anything;
-}
-
-declare module 'lockfile' {
   const anything: any;
   export = anything;
 }
@@ -227,22 +203,12 @@ declare module 'exists-link' {
   export = anything;
 }
 
-declare module 'cache-manager' {
-  const anything: any;
-  export = anything;
-}
-
 declare module 'cache-manager-fs' {
   const anything: any;
   export = anything;
 }
 
 declare module 'lodash.memoize' {
-  const anything: any;
-  export = anything;
-}
-
-declare module 'js-yaml' {
   const anything: any;
   export = anything;
 }
@@ -258,11 +224,6 @@ declare module '@zkochan/cmd-shim' {
 }
 
 declare module 'write-pkg' {
-  const anything: any;
-  export = anything;
-}
-
-declare module 'load-json-file' {
   const anything: any;
   export = anything;
 }

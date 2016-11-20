@@ -7,6 +7,6 @@ export async function read <T>(yamlPath: string): Promise<T> {
 }
 
 export function write <T>(yamlPath: string, yamlObj: T) {
-  const rawYaml = yaml.safeDump(yamlObj, {sortKeys: true})
+  const rawYaml = yaml.safeDump(yamlObj, <Object>{sortKeys: true})
   return fs.writeFile(yamlPath, rawYaml, 'utf8')
 }

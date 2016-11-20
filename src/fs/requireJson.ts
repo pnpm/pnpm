@@ -13,4 +13,4 @@ export default function requireJson (pkgJsonPath: string): Package {
   return cachedReadPkg(pkgJsonPath)
 }
 
-export const ignoreCache = loadJsonFile
+export const ignoreCache: Function = loadJsonFile
