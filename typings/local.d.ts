@@ -58,16 +58,6 @@ declare module 'meow' {
   export = anything;
 }
 
-declare module 'mkdirp' {
-  const anything: any;
-  export = anything;
-}
-
-declare module 'mz' {
-  const anything: any;
-  export = anything;
-}
-
 declare module 'mz/fs' {
   const anything: any;
   export = anything;
@@ -103,11 +93,6 @@ declare module 'promisequence' {
   export = anything;
 }
 
-declare module 'rc' {
-  const anything: any;
-  export = anything;
-}
-
 declare module 'read-pkg-up' {
   const anything: any;
   export = anything;
@@ -133,22 +118,12 @@ declare module 'rimraf-then' {
   export = anything;
 }
 
-declare module 'semver' {
-  const anything: any;
-  export = anything;
-}
-
 declare module 'supports-color' {
   const anything: any;
   export = anything;
 }
 
 declare module 'thenify' {
-  const anything: any;
-  export = anything;
-}
-
-declare module 'update-notifier' {
   const anything: any;
   export = anything;
 }

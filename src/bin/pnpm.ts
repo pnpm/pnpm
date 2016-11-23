@@ -99,7 +99,10 @@ function run (argv: string[]) {
   })
 
   if (!isCI) {
-    updateNotifier({pkg}).notify()
+    updateNotifier({
+      packageName: pkg.name,
+      packageVersion: pkg.version
+    }).notify()
   }
 
   const cmd = getCommandFullName(cli.input[0])
