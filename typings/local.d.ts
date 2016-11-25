@@ -208,16 +208,6 @@ declare module 'mem' {
   export = anything;
 }
 
-declare module 'unpack-stream' {
-  const anything: any;
-  export = anything;
-}
-
-declare module 'link-dir' {
-  const anything: any;
-  export = anything;
-}
-
 declare module 'pnpm-install-checks' {
   const anything: any;
   export = anything;

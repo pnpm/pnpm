@@ -37,6 +37,6 @@ export async function fetchFromRemoteTarball (dir: string, dist: PackageDist, op
   debug(`finish ${dist.shasum} ${dist.tarball}`)
 }
 
-export function fetchFromLocalTarball (dir: string, dist: PackageDist) {
-  return unpackStream.local(fs.createReadStream(dist.tarball), dir)
+export async function fetchFromLocalTarball (dir: string, dist: PackageDist) {
+  await unpackStream.local(fs.createReadStream(dist.tarball), dir)
 }
