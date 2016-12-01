@@ -138,7 +138,7 @@
     "lint": "standard && tslint -c tslint.json --project .",
     "sinopia": "sinopia -c ./sinopia/config.yaml",
     "test:tap": "sh test/packages/publish-all.sh && ts-node test | tap-diff",
-    "test:e2e": "node node_modules/npm-run-all/bin/npm-run-all -p -r sinopia test:tap",
+    "test:e2e": "npm-run-all -p -r sinopia test:tap",
     "test": "npm run lint && npm run test:e2e",
     "posttest": "rm -rf .tmp",
     "prerelease": "npm run tsc && npm test",
