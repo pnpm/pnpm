@@ -43,7 +43,7 @@
     "debug": "2.3.3",
     "delocalize-dependencies": "0.1.0",
     "exists-file": "3.0.0",
-    "find-up": "2.0.0",
+    "find-up": "2.1.0",
     "is-ci": "1.0.10",
     "is-retry-allowed": "1.1.0",
     "js-yaml": "3.7.0",
