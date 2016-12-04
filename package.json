@@ -79,7 +79,7 @@
     "supports-color": "3.1.2",
     "thenify": "3.2.1",
     "unpack-stream": "1.0.2",
-    "update-notifier": "1.0.2",
+    "update-notifier": "1.0.3",
     "write-pkg": "2.0.0"
   },
   "devDependencies": {
