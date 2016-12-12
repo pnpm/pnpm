@@ -72,7 +72,7 @@
     "read-pkg-up": "1.0.1",
     "registry-auth-token": "3.1.0",
     "registry-url": "3.1.0",
-    "retry": "0.10.0",
+    "retry": "0.10.1",
     "rimraf-then": "1.0.1",
     "semver": "5.3.0",
     "sorted-object": "2.0.1",
