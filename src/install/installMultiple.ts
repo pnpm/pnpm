@@ -9,6 +9,8 @@ import symlinkToModules from './symlinkToModules'
 import mkdirp from '../fs/mkdirp'
 import installChecks = require('pnpm-install-checks')
 import pnpmPkg from '../pnpmPkgJson'
+import linkDir from 'link-dir'
+import exists = require('exists-file')
 
 export type InstallOptions = FetchOptions & {
   optional?: boolean,
@@ -16,6 +18,7 @@ export type InstallOptions = FetchOptions & {
   depth: number,
   engineStrict: boolean,
   nodeVersion: string,
+  nodeModulesStore: string,
 }
 
 export type MultipleInstallOpts = InstallOptions & {
@@ -68,7 +71,10 @@ async function installMultiple (ctx: InstallContext, pkgsMap: Dependencies, modu
   const installedPkgs: InstalledPackage[] = <InstalledPackage[]>(
     await Promise.all(pkgs.map(async function (pkgRawSpec: string) {
       try {
-        return await install(pkgRawSpec, modules, ctx, options)
+        const pkg = await install(pkgRawSpec, modules, ctx, options)
+        const modulesInStore = path.join(options.nodeModulesStore, pkg.id)
+        await linkDir(modulesInStore, path.join(modules, pkg.pkg.name, 'node_modules'))
+        return pkg
       } catch (err) {
         if (options.optional) {
           console.log(`Skipping failed optional dependency ${pkgRawSpec}:`)
@@ -121,8 +127,10 @@ async function install (pkgRawSpec: string, modules: string, ctx: InstallContext
     ctx.store.packages[dependency.id].dependents.push(options.dependent)
   }
 
+  const modulesInStore = path.join(options.nodeModulesStore, dependency.id)
+
   // when a package was already installed, update the subdependencies only to the specified depth.
-  if (!dependency.justFetched && options.keypath.length >= options.depth) {
+  if ((await exists(modulesInStore)) && options.keypath.length >= options.depth) {
     await dependency.fetchingFiles
     return dependency
   }
@@ -133,7 +141,7 @@ async function install (pkgRawSpec: string, modules: string, ctx: InstallContext
   }
 
   dependency.dependencies = await memoize<InstalledPackage[]>(ctx.installLocks, dependency.id, () => {
-    return installDependencies(pkg, dependency, ctx, options)
+    return installDependencies(pkg, dependency, ctx, modulesInStore, options)
   })
 
   await dependency.fetchingFiles
@@ -160,14 +168,13 @@ async function isInstallable (pkg: Package, fetchedPkg: FetchedPackage, options:
   }
 }
 
-async function installDependencies (pkg: Package, dependency: InstalledPackage, ctx: InstallContext, opts: InstallOptions): Promise<InstalledPackage[]> {
+async function installDependencies (pkg: Package, dependency: InstalledPackage, ctx: InstallContext, modules: string, opts: InstallOptions): Promise<InstalledPackage[]> {
   const depsInstallOpts = Object.assign({}, opts, {
     keypath: (opts.keypath || []).concat([ dependency.id ]),
     dependent: dependency.id,
     root: dependency.srcPath,
     fetchingFiles: dependency.fetchingFiles,
   })
-  const modules = path.join(dependency.path, 'node_modules')
 
   const installedDeps: InstalledPackage[] = await installAll(ctx, pkg.dependencies || {}, pkg.optionalDependencies || {}, modules, depsInstallOpts)
   ctx.piq = ctx.piq || []

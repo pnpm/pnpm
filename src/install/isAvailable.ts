@@ -1,5 +1,4 @@
 import path = require('path')
-import fs = require('mz/fs')
 import {PackageSpec} from '../resolve'
 import {Package} from '../types'
 import loadJsonFile = require('load-json-file')
@@ -22,10 +21,11 @@ export default async function isAvailable (spec: PackageSpec, modules: string) {
   const packageJsonPath = path.join(modules, name, 'package.json')
 
   try {
+    /* TODO: what to do with bundled deps?
     const stat = await fs.lstat(path.join(modules, name))
     if (stat.isDirectory()) {
       return true
-    }
+    }*/
 
     const pkgJson = await loadJsonFile(packageJsonPath)
     return verify(spec, pkgJson)

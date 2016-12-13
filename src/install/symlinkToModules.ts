@@ -1,4 +1,5 @@
 import path = require('path')
+import fs = require('mz/fs')
 import requireJson from '../fs/requireJson'
 import linkDir from 'link-dir'
 import mkdirp from '../fs/mkdirp'
@@ -19,6 +20,20 @@ export default async function symlinkToModules (target: string, modules: string)
   // lodash -> .store/lodash@4.0.0
   // .store/foo@1.0.0/node_modules/lodash -> ../../../.store/lodash@4.0.0
   const out = path.join(modules, pkgData.name)
-  await mkdirp(path.dirname(out))
-  await linkDir(target, out)
+  await mkdirp(out)
+
+  const dirs = await fs.readdir(target)
+  await Promise.all(
+    dirs
+      .map((relativePath: string) => {
+        if (relativePath === 'node_modules') return
+        const absolutePath = path.join(target, relativePath)
+        const dest = path.join(out, relativePath);
+        if (fs.statSync(absolutePath).isDirectory()) {
+          return linkDir(absolutePath, dest)
+        }
+        const rel = path.relative(path.dirname(dest), absolutePath)
+        return fs.symlink(rel, dest)
+      })
+  )
 }

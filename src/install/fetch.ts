@@ -80,6 +80,9 @@ export default async function fetch (ctx: InstallContext, pkgRawSpec: string, mo
       fetchedPkg.fetchingFiles.then(() => log('done'))
       return fetchedPkg
     }
+    if (spec && spec.name) {
+      await rimraf(path.join(modules, spec && spec.name))
+    }
     const res = await resolve(spec, {
       log,
       got: options.got,
