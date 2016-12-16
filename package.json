@@ -106,7 +106,7 @@
     "tape": "4.6.3",
     "tape-promise": "2.0.1",
     "ts-node": "1.7.1",
-    "tslint": "4.0.2",
+    "tslint": "4.1.1",
     "typescript": "2.1.4",
     "validate-commit-msg": "^2.7.0"
   },
