@@ -16,7 +16,7 @@ test('run node in scripts with preserve symlinks mode', async function (t) {
     return
   }
 
-  prepare({
+  prepare(t, {
     scripts: {
       test: 'node index'
     }

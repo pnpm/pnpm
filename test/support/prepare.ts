@@ -3,6 +3,7 @@ import fs = require('fs')
 import path = require('path')
 import {stripIndent} from 'common-tags'
 import globalPath from './globalPath'
+import {Test} from 'tape'
 
 const root = process.cwd()
 process.env.ROOT = root
@@ -19,10 +20,15 @@ const npmrc = stripIndent`
 `
 fs.writeFileSync(path.join(tmpPath, '.npmrc'), npmrc, 'utf-8')
 
-export default function prepare (pkg?: Object) {
-  const pkgTmpPath = path.join(tmpPath, Number(new Date()).toString())
+let dirNumber = 0
+
+export default function prepare (t: Test, pkg?: Object) {
+  dirNumber++
+  const dirname = dirNumber.toString()
+  const pkgTmpPath = path.join(tmpPath, dirname)
   mkdirp.sync(pkgTmpPath)
   const json = JSON.stringify(pkg || {})
   fs.writeFileSync(path.join(pkgTmpPath, 'package.json'), json, 'utf-8')
   process.chdir(pkgTmpPath)
+  t.pass(`create testing package ${dirname}`)
 }

@@ -19,7 +19,7 @@ import testDefaults from './support/testDefaults'
 import globalPath from './support/globalPath'
 
 test('relative link', async function (t) {
-  prepare()
+  prepare(t)
   const tmpDir = path.resolve(__dirname, '..', '.tmp')
   const linkedPkgName = 'hello-world-js-bin'
   const linkedPkgDirName = linkedPkgName + Math.random().toString()
@@ -47,14 +47,14 @@ test('global link', async function (t) {
   process.chdir(linkedPkgPath)
   await linkToGlobal(testDefaults({storePath}))
 
-  prepare()
+  prepare(t)
   await linkFromGlobal(linkedPkgName, testDefaults({storePath}))
 
   isExecutable(t, path.join(process.cwd(), 'node_modules', '.bin', 'hello-world-js-bin'))
 })
 
 test('link local package if link-local = true', async function (t) {
-  prepare()
+  prepare(t)
   const tmpDir = path.resolve(__dirname, '..', '.tmp')
   const linkedPkgName = 'hello-world-js-bin'
   const linkedPkgDirName = linkedPkgName + Math.random().toString()

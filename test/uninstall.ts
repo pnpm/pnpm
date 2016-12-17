@@ -10,7 +10,7 @@ import testDefaults from './support/testDefaults'
 import {installPkgs, uninstall} from '../src'
 
 test('uninstall package with no dependencies', async function (t) {
-  prepare()
+  prepare(t)
   await installPkgs(['is-negative@2.1.0'], testDefaults({ save: true }))
   await uninstall(['is-negative'], testDefaults({ save: true }))
 
@@ -27,7 +27,7 @@ test('uninstall package with no dependencies', async function (t) {
 })
 
 test('uninstall scoped package', async function (t) {
-  prepare()
+  prepare(t)
   await installPkgs(['@zkochan/logger@0.1.0'], testDefaults({ save: true }))
   await uninstall(['@zkochan/logger'], testDefaults({ save: true }))
 
@@ -44,7 +44,7 @@ test('uninstall scoped package', async function (t) {
 })
 
 test('uninstall tarball dependency', async function (t) {
-  prepare()
+  prepare(t)
   await installPkgs(['http://registry.npmjs.org/is-array/-/is-array-1.0.1.tgz'], testDefaults({ save: true }))
   await uninstall(['is-array'], testDefaults({ save: true }))
 
@@ -61,7 +61,7 @@ test('uninstall tarball dependency', async function (t) {
 })
 
 test('uninstall package with dependencies and do not touch other deps', async function (t) {
-  prepare()
+  prepare(t)
   await installPkgs(['is-negative@2.1.0', 'camelcase-keys@3.0.0'], testDefaults({ save: true }))
   await uninstall(['camelcase-keys'], testDefaults({ save: true }))
 
@@ -98,7 +98,7 @@ test('uninstall package with dependencies and do not touch other deps', async fu
 })
 
 test('uninstall package with its bin files', async function (t) {
-  prepare()
+  prepare(t)
   await installPkgs(['sh-hello-world@1.0.1'], testDefaults({ save: true }))
   await uninstall(['sh-hello-world'], testDefaults({ save: true }))
 
@@ -111,7 +111,7 @@ test('uninstall package with its bin files', async function (t) {
 })
 
 test('keep dependencies used by others', async function (t) {
-  prepare()
+  prepare(t)
   await installPkgs(['hastscript@3.0.0', 'camelcase-keys@3.0.0'], testDefaults({ save: true }))
   await uninstall(['camelcase-keys'], testDefaults({ save: true }))
 
@@ -139,7 +139,7 @@ test('keep dependencies used by others', async function (t) {
 })
 
 test('keep dependency used by package', async function (t) {
-  prepare()
+  prepare(t)
   await installPkgs(['is-not-positive@1.0.0', 'is-positive@3.1.0'], testDefaults({ save: true }))
   await uninstall(['is-not-positive'], testDefaults({ save: true }))
 

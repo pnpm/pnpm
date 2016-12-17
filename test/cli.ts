@@ -19,7 +19,7 @@ test('return error status code when underlying command fails', t => {
 })
 
 test('update', async function (t) {
-  prepare()
+  prepare(t)
 
   const latest = 'stable'
 

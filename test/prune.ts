@@ -9,7 +9,7 @@ import existsSymlink = require('exists-link')
 import testDefaults from './support/testDefaults'
 
 test('prune removes extraneous packages', async function (t) {
-  prepare()
+  prepare(t)
 
   await installPkgs(['is-negative@2.1.0'], testDefaults({save: true}))
   await installPkgs(['applyq@0.2.1'], testDefaults({saveDev: true}))
@@ -52,7 +52,7 @@ test('prune removes extraneous packages', async function (t) {
 })
 
 test('prune removes only the specified extraneous packages', async function (t) {
-  prepare()
+  prepare(t)
 
   await installPkgs(['is-positive@2.0.0', 'is-negative@2.1.0'], testDefaults())
   await prunePkgs(['is-positive'], testDefaults())
@@ -74,7 +74,7 @@ test('prune removes only the specified extraneous packages', async function (t) 
 })
 
 test('prune throws error when trying to removes not an extraneous package', async function (t) {
-  prepare()
+  prepare(t)
 
   await installPkgs(['is-positive@2.0.0'], testDefaults({save: true}))
 
@@ -87,7 +87,7 @@ test('prune throws error when trying to removes not an extraneous package', asyn
 })
 
 test('prune removes dev dependencies in production', async function (t) {
-  prepare()
+  prepare(t)
 
   await installPkgs(['is-positive@2.0.0'], testDefaults({saveDev: true}))
   await installPkgs(['is-negative@2.1.0'], testDefaults({save: true}))

@@ -23,7 +23,7 @@ test('cache clean removes cache', async function (t) {
 })
 
 test('should fail to update when requests are cached', async function (t) {
-  prepare()
+  prepare(t)
 
   await cleanCache(globalPath)
 
@@ -44,7 +44,7 @@ test('should fail to update when requests are cached', async function (t) {
 })
 
 test('should skip cahe even if it exists when cacheTTL = 0', async function (t) {
-  prepare()
+  prepare(t)
 
   await cleanCache(globalPath)
 
