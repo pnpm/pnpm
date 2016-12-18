@@ -4,6 +4,9 @@ import path = require('path')
 import {stripIndent} from 'common-tags'
 import globalPath from './globalPath'
 import {Test} from 'tape'
+import exists = require('exists-file')
+import {Modules, read as readModules} from '../../src/fs/modulesController'
+import isExecutable from './isExecutable'
 
 const root = process.cwd()
 process.env.ROOT = root
@@ -31,4 +34,54 @@ export default function prepare (t: Test, pkg?: Object) {
   fs.writeFileSync(path.join(pkgTmpPath, 'package.json'), json, 'utf-8')
   process.chdir(pkgTmpPath)
   t.pass(`create testing package ${dirname}`)
+
+  const modules = path.join(pkgTmpPath, 'node_modules')
+  let cachedStorePath: string
+  const project = {
+    requireModule (pkgName: string) {
+      return require(path.join(modules, pkgName))
+    },
+    has: async function (pkgName: string) {
+      t.ok(await exists(path.join(modules, pkgName)), `${pkgName} is in node_modules`)
+    },
+    hasNot: async function (pkgName: string) {
+      t.ok(!await exists(path.join(modules, pkgName)), `${pkgName} is not in node_modules`)
+    },
+    getStorePath: async function () {
+      if (!cachedStorePath) {
+        const modulesYaml = await readModules(modules)
+        if (!modulesYaml) {
+          throw new Error('Cannot find module store')
+        }
+        cachedStorePath = modulesYaml.storePath
+      }
+      return cachedStorePath
+    },
+    resolve: async function (pkgName: string, version?: string, relativePath?: string) {
+      const escapedPkgName = pkgName.replace('/', '+')
+      const pkgFolder = version ? `${escapedPkgName}@${version}` : escapedPkgName
+      if (relativePath) {
+        return path.join(await project.getStorePath(), pkgFolder, '_', relativePath)
+      }
+      return path.join(await project.getStorePath(), pkgFolder, '_')
+    },
+    storeHas: async function (pkgName: string, version?: string) {
+      t.ok(await exists(await project.resolve(pkgName, version)), `${pkgName}@${version} is in store`)
+    },
+    storeHasNot: async function (pkgName: string, version?: string) {
+      try {
+        t.ok(!await exists(await project.resolve(pkgName, version)), `${pkgName}@${version} is not in store`)
+      } catch (err) {
+        if (err.message === 'Cannot find module store') {
+          t.pass(`${pkgName}@${version} is not in store`)
+          return
+        }
+        throw err
+      }
+    },
+    isExecutable: function (pathToExe: string) {
+      return isExecutable(t, path.join(modules, pathToExe))
+    },
+  }
+  return project
 }

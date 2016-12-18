@@ -10,15 +10,13 @@ import testDefaults from './support/testDefaults'
 import {installPkgs, uninstall} from '../src'
 
 test('uninstall package with no dependencies', async function (t) {
-  prepare(t)
+  const project = prepare(t)
   await installPkgs(['is-negative@2.1.0'], testDefaults({ save: true }))
   await uninstall(['is-negative'], testDefaults({ save: true }))
 
-  let stat = await exists(path.join(process.cwd(), 'node_modules/.store/is-negative@2.1.0'))
-  t.ok(!stat, 'is-negative is removed from store')
+  await project.storeHasNot('is-negative', '2.1.0')
 
-  stat = await existsSymlink(path.join(process.cwd(), 'node_modules', 'is-negative'))
-  t.ok(!stat, 'is-negative is removed from node_modules')
+  await project.hasNot('is-negative')
 
   const pkgJson = fs.readFileSync(path.join(process.cwd(), 'package.json'), 'utf8')
   const dependencies = JSON.parse(pkgJson).dependencies
@@ -27,15 +25,13 @@ test('uninstall package with no dependencies', async function (t) {
 })
 
 test('uninstall scoped package', async function (t) {
-  prepare(t)
+  const project = prepare(t)
   await installPkgs(['@zkochan/logger@0.1.0'], testDefaults({ save: true }))
   await uninstall(['@zkochan/logger'], testDefaults({ save: true }))
 
-  let stat = await exists(path.join(process.cwd(), 'node_modules/.store/@zkochan+logger@0.1.0'))
-  t.ok(!stat, '@zkochan/logger is removed from store')
+  await project.storeHasNot('@zkochan/logger', '0.1.0')
 
-  stat = await existsSymlink(path.join(process.cwd(), 'node_modules', '@zkochan/logger'))
-  t.ok(!stat, '@zkochan/logger is removed from node_modules')
+  await project.hasNot('@zkochan/logger')
 
   const pkgJson = fs.readFileSync(path.join(process.cwd(), 'package.json'), 'utf8')
   const dependencies = JSON.parse(pkgJson).dependencies
@@ -44,15 +40,13 @@ test('uninstall scoped package', async function (t) {
 })
 
 test('uninstall tarball dependency', async function (t) {
-  prepare(t)
+  const project = prepare(t)
   await installPkgs(['http://registry.npmjs.org/is-array/-/is-array-1.0.1.tgz'], testDefaults({ save: true }))
   await uninstall(['is-array'], testDefaults({ save: true }))
 
-  let stat = await exists(path.join(process.cwd(), 'node_modules/.store/is-array-1.0.1#a83102a9c117983e6ff4d85311fb322231abe3d6'))
-  t.ok(!stat, 'is-array is removed from store')
+  await project.storeHasNot('is-array-1.0.1#a83102a9c117983e6ff4d85311fb322231abe3d6')
 
-  stat = await existsSymlink(path.join(process.cwd(), 'node_modules', 'is-array'))
-  t.ok(!stat, 'is-array is removed from node_modules')
+  await project.hasNot('is-array')
 
   const pkgJson = fs.readFileSync(path.join(process.cwd(), 'package.json'), 'utf8')
   const dependencies = JSON.parse(pkgJson).dependencies
@@ -61,33 +55,21 @@ test('uninstall tarball dependency', async function (t) {
 })
 
 test('uninstall package with dependencies and do not touch other deps', async function (t) {
-  prepare(t)
+  const project = prepare(t)
   await installPkgs(['is-negative@2.1.0', 'camelcase-keys@3.0.0'], testDefaults({ save: true }))
   await uninstall(['camelcase-keys'], testDefaults({ save: true }))
 
-  let stat = await exists(path.join(process.cwd(), 'node_modules/.store/camelcase-keys@2.1.0'))
-  t.ok(!stat, 'camelcase-keys is removed from store')
+  await project.storeHasNot('camelcase-keys', '2.1.0')
+  await project.hasNot('camelcase-keys')
 
-  stat = await existsSymlink(path.join(process.cwd(), 'node_modules', 'camelcase-keys'))
-  t.ok(!stat, 'camelcase-keys is removed from node_modules')
+  await project.storeHasNot('camelcase', '3.0.0')
+  await project.hasNot('camelcase')
 
-  stat = await exists(path.join(process.cwd(), 'node_modules/.store/camelcase@3.0.0'))
-  t.ok(!stat, 'camelcase is removed from store')
+  await project.storeHasNot('map-obj', '1.0.1')
+  await project.hasNot('map-obj')
 
-  stat = await existsSymlink(path.join(process.cwd(), 'node_modules', 'camelcase'))
-  t.ok(!stat, 'camelcase is removed from node_modules')
-
-  stat = await exists(path.join(process.cwd(), 'node_modules/.store/map-obj@1.0.1'))
-  t.ok(!stat, 'map-obj is removed from store')
-
-  stat = await existsSymlink(path.join(process.cwd(), 'node_modules', 'map-obj'))
-  t.ok(!stat, 'map-obj is removed from node_modules')
-
-  stat = await exists(path.join(process.cwd(), 'node_modules/.store/is-negative@2.1.0'))
-  t.ok(stat, 'is-negative is not removed from store')
-
-  stat = await existsSymlink(path.join(process.cwd(), 'node_modules', 'is-negative'))
-  t.ok(stat, 'is-negative is not removed from node_modules')
+  await project.storeHas('is-negative', '2.1.0')
+  await project.has('is-negative')
 
   const pkgJson = fs.readFileSync(path.join(process.cwd(), 'package.json'), 'utf8')
   const dependencies = JSON.parse(pkgJson).dependencies
@@ -111,24 +93,17 @@ test('uninstall package with its bin files', async function (t) {
 })
 
 test('keep dependencies used by others', async function (t) {
-  prepare(t)
+  const project = prepare(t)
   await installPkgs(['hastscript@3.0.0', 'camelcase-keys@3.0.0'], testDefaults({ save: true }))
   await uninstall(['camelcase-keys'], testDefaults({ save: true }))
 
-  let stat = await exists(path.join(process.cwd(), 'node_modules/.store/camelcase-keys@2.1.0'))
-  t.ok(!stat, 'camelcase-keys is removed from store')
+  await project.storeHasNot('camelcase-keys', '2.1.0')
+  await project.hasNot('camelcase-keys')
 
-  stat = await existsSymlink(path.join(process.cwd(), 'node_modules', 'camelcase-keys'))
-  t.ok(!stat, 'camelcase-keys is removed from node_modules')
+  await project.storeHas('camelcase', '3.0.0')
 
-  stat = await exists(path.join(process.cwd(), 'node_modules/.store/camelcase@3.0.0'))
-  t.ok(stat, 'camelcase is not removed from store')
-
-  stat = await exists(path.join(process.cwd(), 'node_modules/.store/map-obj@1.0.1'))
-  t.ok(!stat, 'map-obj is removed from store')
-
-  stat = await existsSymlink(path.join(process.cwd(), 'node_modules', 'map-obj'))
-  t.ok(!stat, 'map-obj is removed from node_modules')
+  await project.storeHasNot('map-obj', '1.0.1')
+  await project.hasNot('map-obj')
 
   const pkgJson = fs.readFileSync(path.join(process.cwd(), 'package.json'), 'utf8')
   const dependencies = JSON.parse(pkgJson).dependencies
@@ -139,10 +114,9 @@ test('keep dependencies used by others', async function (t) {
 })
 
 test('keep dependency used by package', async function (t) {
-  prepare(t)
+  const project = prepare(t)
   await installPkgs(['is-not-positive@1.0.0', 'is-positive@3.1.0'], testDefaults({ save: true }))
   await uninstall(['is-not-positive'], testDefaults({ save: true }))
 
-  let stat = await exists(path.join(process.cwd(), 'node_modules/.store/is-positive@3.1.0'))
-  t.ok(stat, 'is-positive is not removed from store')
+  await project.storeHas('is-positive', '3.1.0')
 })

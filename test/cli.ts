@@ -19,7 +19,7 @@ test('return error status code when underlying command fails', t => {
 })
 
 test('update', async function (t) {
-  prepare(t)
+  const project = prepare(t)
 
   const latest = 'stable'
 
@@ -27,11 +27,11 @@ test('update', async function (t) {
 
   await runCli('install', 'pkg-with-1-dep', '-S', '--tag', latest, '--cache-ttl', '0')
 
-  t.ok(await exists('node_modules/.store/dep-of-pkg-with-1-dep@1.0.0'), 'should install dep-of-pkg-with-1-dep@1.0.0')
+  project.storeHas('dep-of-pkg-with-1-dep', '1.0.0')
 
   await addDistTag('dep-of-pkg-with-1-dep', '1.1.0', latest)
 
   await runCli('update', '--depth', '1', '--tag', latest)
 
-  t.ok(await exists('node_modules/.store/dep-of-pkg-with-1-dep@1.1.0'), 'should update to dep-of-pkg-with-1-dep@1.1.0')
+  project.storeHas('dep-of-pkg-with-1-dep', '1.1.0')
 })

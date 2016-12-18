@@ -15,7 +15,6 @@ import prepare from './support/prepare'
 import loadJsonFile = require('load-json-file')
 const basicPackageJson = loadJsonFile.sync(path.join(__dirname, './support/simple-package.json'))
 import {install, installPkgs, uninstall} from '../src'
-import isExecutable from './support/isExecutable'
 import testDefaults from './support/testDefaults'
 import exists = require('exists-file')
 import globalPath from './support/globalPath'
@@ -29,97 +28,97 @@ if (!caw() && !isWindows) {
 }
 
 test('small with dependencies (rimraf)', async function (t) {
-  prepare(t)
+  const project = prepare(t)
   await installPkgs(['rimraf@2.5.1'], testDefaults())
 
-  const rimraf = require(path.join(process.cwd(), 'node_modules', 'rimraf'))
+  const rimraf = project.requireModule('rimraf')
   t.ok(typeof rimraf === 'function', 'rimraf() is available')
-  isExecutable(t, path.join(process.cwd(), 'node_modules', '.bin', 'rimraf'))
+  await project.isExecutable('.bin/rimraf')
 })
 
 test('no dependencies (lodash)', async function (t) {
-  prepare(t)
+  const project = prepare(t)
   await installPkgs(['lodash@4.0.0'], testDefaults())
 
-  const _ = require(path.join(process.cwd(), 'node_modules', 'lodash'))
+  const _ = project.requireModule('lodash')
   t.ok(typeof _ === 'function', '_ is available')
   t.ok(typeof _.clone === 'function', '_.clone is available')
 })
 
 test('scoped modules without version spec (@rstacruz/tap-spec)', async function (t) {
-  prepare(t)
+  const project = prepare(t)
   await installPkgs(['@rstacruz/tap-spec'], testDefaults())
 
-  const _ = require(path.join(process.cwd(), 'node_modules', '@rstacruz/tap-spec'))
+  const _ = project.requireModule('@rstacruz/tap-spec')
   t.ok(typeof _ === 'function', 'tap-spec is available')
 })
 
 test('scoped modules with versions (@rstacruz/tap-spec@4.1.1)', async function (t) {
-  prepare(t)
+  const project = prepare(t)
   await installPkgs(['@rstacruz/tap-spec@4.1.1'], testDefaults())
 
-  const _ = require(path.join(process.cwd(), 'node_modules', '@rstacruz/tap-spec'))
+  const _ = project.requireModule('@rstacruz/tap-spec')
   t.ok(typeof _ === 'function', 'tap-spec is available')
 })
 
 test('scoped modules (@rstacruz/tap-spec@*)', async function (t) {
-  prepare(t)
+  const project = prepare(t)
   await installPkgs(['@rstacruz/tap-spec@*'], testDefaults())
 
-  const _ = require(path.join(process.cwd(), 'node_modules', '@rstacruz/tap-spec'))
+  const _ = project.requireModule('@rstacruz/tap-spec')
   t.ok(typeof _ === 'function', 'tap-spec is available')
 })
 
 test('multiple scoped modules (@rstacruz/...)', async function (t) {
-  prepare(t)
+  const project = prepare(t)
   await installPkgs(['@rstacruz/tap-spec@*', '@rstacruz/travis-encrypt@*'], testDefaults())
 
-  const tapSpec = require(path.join(process.cwd(), 'node_modules', '@rstacruz/tap-spec'))
+  const tapSpec = project.requireModule('@rstacruz/tap-spec')
   t.ok(typeof tapSpec === 'function', 'tap-spec is available')
-  const travisEncrypt = require(path.join(process.cwd(), 'node_modules', '@rstacruz/travis-encrypt'))
+
+  const travisEncrypt = project.requireModule('@rstacruz/travis-encrypt')
   t.ok(typeof travisEncrypt === 'function', 'travis-encrypt is available')
 })
 
 test('nested scoped modules (test-pnpm-issue219 -> @zkochan/test-pnpm-issue219)', async function (t) {
-  prepare(t)
+  const project = prepare(t)
   await installPkgs(['test-pnpm-issue219@1.0.2'], testDefaults())
 
-  const _ = require(path.join(process.cwd(), 'node_modules', 'test-pnpm-issue219'))
+  const _ = project.requireModule('test-pnpm-issue219')
   t.ok(_ === 'test-pnpm-issue219,@zkochan/test-pnpm-issue219', 'nested scoped package is available')
 })
 
 test('scoped modules from a directory', async function (t) {
-  prepare(t)
+  const project = prepare(t)
   await installPkgs([local('local-scoped-pkg')], testDefaults())
 
-  const localPkg = require(
-    path.join(process.cwd(), 'node_modules', '@scope', 'local-scoped-pkg'))
+  const localPkg = project.requireModule('@scope/local-scoped-pkg')
 
   t.equal(localPkg(), '@scope/local-scoped-pkg', 'localScopedPkg() is available')
 })
 
 test('skip failing optional dependencies', async function (t) {
-  prepare(t)
+  const project = prepare(t)
   await installPkgs(['pkg-with-failing-optional-dependency@1.0.1'], testDefaults())
 
-  const isNegative = require(path.join(process.cwd(), 'node_modules', 'pkg-with-failing-optional-dependency'))
+  const isNegative = project.requireModule('pkg-with-failing-optional-dependency')
   t.ok(isNegative(-1), 'package with failed optional dependency has the dependencies installed correctly')
 })
 
 test('skip optional dependency that does not support the current OS', async function (t) {
-  prepare(t, {
+  const project = prepare(t, {
     optionalDependencies: {
       'not-compatible-with-any-os': '*'
     }
   })
   await install(testDefaults())
 
-  t.ok(!(await exists(path.join(process.cwd(), 'node_modules', 'not-compatible-with-any-os'))))
-  t.ok(!(await exists(path.join(process.cwd(), 'node_modules', '.store', 'not-compatible-with-any-os@1.0.0'))))
+  await project.hasNot('not-compatible-with-any-os')
+  await project.storeHasNot('not-compatible-with-any-os', '1.0.0')
 })
 
 test('skip optional dependency that does not support the current Node version', async function (t) {
-  prepare(t, {
+  const project = prepare(t, {
     optionalDependencies: {
       'for-legacy-node': '*'
     }
@@ -127,12 +126,12 @@ test('skip optional dependency that does not support the current Node version', 
 
   await install(testDefaults())
 
-  t.ok(!(await exists(path.join(process.cwd(), 'node_modules', 'for-legacy-node'))))
-  t.ok(!(await exists(path.join(process.cwd(), 'node_modules', '.store', 'for-legacy-node@1.0.0'))))
+  await project.hasNot('for-legacy-node')
+  await project.storeHasNot('for-legacy-node', '1.0.0')
 })
 
 test('skip optional dependency that does not support the current pnpm version', async function (t) {
-  prepare(t, {
+  const project = prepare(t, {
     optionalDependencies: {
       'for-legacy-pnpm': '*'
     }
@@ -140,12 +139,12 @@ test('skip optional dependency that does not support the current pnpm version', 
 
   await install(testDefaults())
 
-  t.ok(!(await exists(path.join(process.cwd(), 'node_modules', 'for-legacy-pnpm'))))
-  t.ok(!(await exists(path.join(process.cwd(), 'node_modules', '.store', 'for-legacy-pnpm@1.0.0'))))
+  await project.hasNot('for-legacy-pnpm')
+  await project.storeHasNot('for-legacy-pnpm', '1.0.0')
 })
 
 test('don\'t skip optional dependency that does not support the current OS when forcing', async function (t) {
-  prepare(t, {
+  const project = prepare(t, {
     optionalDependencies: {
       'not-compatible-with-any-os': '*'
     }
@@ -155,12 +154,12 @@ test('don\'t skip optional dependency that does not support the current OS when 
     force: true
   }))
 
-  t.ok(await exists(path.join(process.cwd(), 'node_modules', 'not-compatible-with-any-os')))
-  t.ok(await exists(path.join(process.cwd(), 'node_modules', '.store', 'not-compatible-with-any-os@1.0.0')))
+  await project.has('not-compatible-with-any-os')
+  await project.storeHas('not-compatible-with-any-os', '1.0.0')
 })
 
 test('fail if installed package does not support the current engine and engine-strict = true', async function (t) {
-  prepare(t)
+  const project = prepare(t)
 
   try {
     await installPkgs(['not-compatible-with-any-os'], testDefaults({
@@ -168,78 +167,73 @@ test('fail if installed package does not support the current engine and engine-s
     }))
     t.fail()
   } catch (err) {
-    t.ok(!(await exists(path.join(process.cwd(), 'node_modules', 'not-compatible-with-any-os'))))
-    t.ok(!(await exists(path.join(process.cwd(), 'node_modules', '.store', 'not-compatible-with-any-os@1.0.0'))))
+    await project.hasNot('not-compatible-with-any-os')
+    await project.storeHasNot('not-compatible-with-any-os', '1.0.0')
   }
 })
 
 test('do not fail if installed package does not support the current engine and engine-strict = false', async function (t) {
-  prepare(t)
+  const project = prepare(t)
 
   await installPkgs(['not-compatible-with-any-os'], testDefaults({
     engineStrict: false
   }))
 
-  t.ok(await exists(path.join(process.cwd(), 'node_modules', 'not-compatible-with-any-os')))
-  t.ok(await exists(path.join(process.cwd(), 'node_modules', '.store', 'not-compatible-with-any-os@1.0.0')))
+  await project.has('not-compatible-with-any-os')
+  await project.storeHas('not-compatible-with-any-os', '1.0.0')
 })
 
 test('do not fail if installed package requires the node version that was passed in and engine-strict = true', async function (t) {
-  prepare(t)
+  const project = prepare(t)
 
   await installPkgs(['for-legacy-node'], testDefaults({
     engineStrict: true,
     nodeVersion: '0.10.0'
   }))
 
-  t.ok(await exists(path.join(process.cwd(), 'node_modules', 'for-legacy-node')))
-  t.ok(await exists(path.join(process.cwd(), 'node_modules', '.store', 'for-legacy-node@1.0.0')))
+  await project.has('for-legacy-node')
+  await project.storeHas('for-legacy-node', '1.0.0')
 })
 
 test('idempotency (rimraf)', async function (t) {
-  prepare(t)
+  const project = prepare(t)
   await installPkgs(['rimraf@2.5.1'], testDefaults())
   await installPkgs(['rimraf@2.5.1'], testDefaults())
 
-  const rimraf = require(path.join(process.cwd(), 'node_modules', 'rimraf'))
+  const rimraf = project.requireModule('rimraf')
   t.ok(typeof rimraf === 'function', 'rimraf is available')
 })
 
 test('overwriting (magic-hook@2.0.0 and @0.1.0)', async function (t) {
-  prepare(t)
+  const project = prepare(t)
   await installPkgs(['magic-hook@2.0.0'], testDefaults())
 
-  const flattenPathInStore = path.join(process.cwd(), 'node_modules/.store/flatten@1.0.2')
-  let flattenExists = await exists(flattenPathInStore)
-  t.ok(flattenExists, 'flatten@1.0.2 is in the store')
+  await project.storeHas('flatten', '1.0.2')
 
   await installPkgs(['magic-hook@0.1.0'], testDefaults())
 
-  flattenExists = await exists(flattenPathInStore)
-  t.ok(!flattenExists, 'dependency of magic-hook@2.0.0 is removed')
+  await project.storeHasNot('flatten', '1.0.2')
 
-  const _ = require(path.join(process.cwd(), 'node_modules', 'magic-hook', 'package.json'))
+  const _ = project.requireModule('magic-hook/package.json')
   t.ok(_.version === '0.1.0', 'magic-hook is 0.1.0')
 })
 
 test('overwriting (is-positive@3.0.0 with is-positive@latest)', async function (t) {
-  prepare(t)
+  const project = prepare(t)
   await installPkgs(['is-positive@3.0.0'], testDefaults({save: true}))
 
-  let _ = await exists(path.join(process.cwd(), 'node_modules/.store/is-positive@3.0.0'))
-  t.ok(_, 'magic-hook@3.0.0 exists')
+  await project.storeHas('is-positive', '3.0.0')
 
   await installPkgs(['is-positive@latest'], testDefaults({save: true}))
 
-  _ = await exists(path.join(process.cwd(), 'node_modules/.store/is-positive@3.1.0'))
-  t.ok(_, 'magic-hook@3.1.0 exists after installing the latest')
+  await project.storeHas('is-positive', '3.1.0')
 })
 
 test('forcing', async function (t) {
-  prepare(t)
+  const project = prepare(t)
   await installPkgs(['magic-hook@2.0.0'], testDefaults())
 
-  const distPath = path.join(process.cwd(), 'node_modules/.store/magic-hook@2.0.0/_/dist')
+  const distPath = await project.resolve('magic-hook', '2.0.0', 'dist')
   await rimraf(distPath)
 
   await installPkgs(['magic-hook@2.0.0'], testDefaults({force: true}))
@@ -249,10 +243,10 @@ test('forcing', async function (t) {
 })
 
 test('no forcing', async function (t) {
-  prepare(t)
+  const project = prepare(t)
   await installPkgs(['magic-hook@2.0.0'], testDefaults())
 
-  const distPath = path.join(process.cwd(), 'node_modules/.store/magic-hook@2.0.0/_/dist')
+  const distPath = await project.resolve('magic-hook', '2.0.0', 'dist')
   await rimraf(distPath)
 
   await installPkgs(['magic-hook@2.0.0'], testDefaults())
@@ -262,27 +256,27 @@ test('no forcing', async function (t) {
 })
 
 test('circular deps', async function (t) {
-  prepare(t)
+  const project = prepare(t)
   await installPkgs(['circular-deps-1-of-2'], testDefaults())
 
-  const dep = require(path.join(process.cwd(), 'node_modules/circular-deps-1-of-2/mirror'))
+  const dep = project.requireModule('circular-deps-1-of-2/mirror')
 
   t.equal(dep(), 'circular-deps-1-of-2', 'circular dependencies can access each other')
 })
 
 test('big with dependencies and circular deps (babel-preset-2015)', async function (t) {
-  prepare(t)
+  const project = prepare(t)
   await installPkgs(['babel-preset-es2015@6.3.13'], testDefaults())
 
-  const b = require(path.join(process.cwd(), 'node_modules', 'babel-preset-es2015'))
+  const b = project.requireModule('babel-preset-es2015')
   t.ok(typeof b === 'object', 'babel-preset-es2015 is available')
 })
 
 test('bundleDependencies (pkg-with-bundled-dependencies@1.0.0)', async function (t) {
-  prepare(t)
+  const project = prepare(t)
   await installPkgs(['pkg-with-bundled-dependencies@1.0.0'], testDefaults())
 
-  isExecutable(t, path.join(process.cwd(), 'node_modules', 'pkg-with-bundled-dependencies', 'node_modules', '.bin', 'hello-world-js-bin'))
+  await project.isExecutable('pkg-with-bundled-dependencies/node_modules/.bin/hello-world-js-bin')
 })
 
 test('compiled modules (ursa@0.9.1)', async function (t) {
@@ -292,54 +286,47 @@ test('compiled modules (ursa@0.9.1)', async function (t) {
     return
   }
 
-  prepare(t)
+  const project = prepare(t)
   await installPkgs(['ursa@0.9.1'], testDefaults())
 
-  const ursa = require(path.join(process.cwd(), 'node_modules', 'ursa'))
+  const ursa = project.requireModule('ursa')
   t.ok(typeof ursa === 'object', 'ursa() is available')
 })
 
 test('tarballs (is-array-1.0.1.tgz)', async function (t) {
-  prepare(t)
+  const project = prepare(t)
   await installPkgs(['http://registry.npmjs.org/is-array/-/is-array-1.0.1.tgz'], testDefaults())
 
-  const isArray = require(
-    path.join(process.cwd(), 'node_modules', 'is-array'))
+  const isArray = project.requireModule('is-array')
 
   t.ok(isArray, 'isArray() is available')
 
-  const stat = fs.statSync(
-    path.join(process.cwd(), 'node_modules/.store',
-      'is-array-1.0.1#a83102a9c117983e6ff4d85311fb322231abe3d6'))
-  t.ok(stat.isDirectory(), 'stored in the proper location')
+  await project.storeHas('is-array-1.0.1#a83102a9c117983e6ff4d85311fb322231abe3d6')
 })
 
 test('tarballs from GitHub (is-negative)', async function (t) {
-  prepare(t)
+  const project = prepare(t)
   await installPkgs(['is-negative@https://github.com/kevva/is-negative/archive/1d7e288222b53a0cab90a331f1865220ec29560c.tar.gz'], testDefaults())
 
-  const isNegative = require(
-    path.join(process.cwd(), 'node_modules', 'is-negative'))
+  const isNegative = project.requireModule('is-negative')
 
   t.ok(isNegative, 'isNegative() is available')
 })
 
 test('local file', async function (t) {
-  prepare(t)
+  const project = prepare(t)
   await installPkgs([local('local-pkg')], testDefaults())
 
-  const localPkg = require(
-    path.join(process.cwd(), 'node_modules', 'local-pkg'))
+  const localPkg = project.requireModule('local-pkg')
 
   t.ok(localPkg, 'localPkg() is available')
 })
 
 test('nested local dependency of a local dependency', async function (t) {
-  prepare(t)
+  const project = prepare(t)
   await installPkgs([local('pkg-with-local-dep')], testDefaults())
 
-  const pkgWithLocalDep = require(
-    path.join(process.cwd(), 'node_modules', 'pkg-with-local-dep'))
+  const pkgWithLocalDep = project.requireModule('pkg-with-local-dep')
 
   t.ok(pkgWithLocalDep, 'pkgWithLocalDep() is available')
 
@@ -347,11 +334,10 @@ test('nested local dependency of a local dependency', async function (t) {
 })
 
 test('from a github repo', async function (t) {
-  prepare(t)
+  const project = prepare(t)
   await installPkgs(['kevva/is-negative'], testDefaults())
 
-  const localPkg = require(
-    path.join(process.cwd(), 'node_modules', 'is-negative'))
+  const localPkg = project.requireModule('is-negative')
 
   t.ok(localPkg, 'isNegative() is available')
 })
@@ -361,17 +347,16 @@ test('from a git repo', async function (t) {
     t.skip('not testing the SSH GIT access via CI')
     return t.end()
   }
-  prepare(t)
+  const project = prepare(t)
   await installPkgs(['git+ssh://git@github.com/kevva/is-negative.git'], testDefaults())
 
-  const localPkg = require(
-    path.join(process.cwd(), 'node_modules', 'is-negative'))
+  const localPkg = project.requireModule('is-negative')
 
   t.ok(localPkg, 'isNegative() is available')
 })
 
 test('shrinkwrap compatibility', async function (t) {
-  prepare(t, { dependencies: { rimraf: '*' } })
+  const project = prepare(t, { dependencies: { rimraf: '*' } })
 
   await installPkgs(['rimraf@2.5.1'], testDefaults())
 
@@ -391,29 +376,29 @@ test('shrinkwrap compatibility', async function (t) {
 })
 
 test('run pre/postinstall scripts', async function (t) {
-  prepare(t)
+  const project = prepare(t)
   await installPkgs(['pre-and-postinstall-scripts-example'], testDefaults())
 
-  const generatedByPreinstall = require(path.join(process.cwd(), 'node_modules', 'pre-and-postinstall-scripts-example/generated-by-preinstall'))
+  const generatedByPreinstall = project.requireModule('pre-and-postinstall-scripts-example/generated-by-preinstall')
   t.ok(typeof generatedByPreinstall === 'function', 'generatedByPreinstall() is available')
 
-  const generatedByPostinstall = require(path.join(process.cwd(), 'node_modules', 'pre-and-postinstall-scripts-example/generated-by-postinstall'))
+  const generatedByPostinstall = project.requireModule('pre-and-postinstall-scripts-example/generated-by-postinstall')
   t.ok(typeof generatedByPostinstall === 'function', 'generatedByPostinstall() is available')
 })
 
 test('run install scripts', async function (t) {
-  prepare(t)
+  const project = prepare(t)
   await installPkgs(['install-script-example'], testDefaults())
 
-  const generatedByInstall = require(path.join(process.cwd(), 'node_modules', 'install-script-example/generated-by-install'))
+  const generatedByInstall = project.requireModule('install-script-example/generated-by-install')
   t.ok(typeof generatedByInstall === 'function', 'generatedByInstall() is available')
 })
 
 test('save to package.json (rimraf@2.5.1)', async function (t) {
-  prepare(t)
+  const project = prepare(t)
   await installPkgs(['rimraf@2.5.1'], testDefaults({ save: true }))
 
-  const rimraf = require(path.join(process.cwd(), 'node_modules', 'rimraf'))
+  const rimraf = project.requireModule('rimraf')
   t.ok(typeof rimraf === 'function', 'rimraf() is available')
 
   const pkgJson = fs.readFileSync(path.join(process.cwd(), 'package.json'), 'utf8')
@@ -422,10 +407,10 @@ test('save to package.json (rimraf@2.5.1)', async function (t) {
 })
 
 test('saveDev scoped module to package.json (@rstacruz/tap-spec)', async function (t) {
-  prepare(t)
+  const project = prepare(t)
   await installPkgs(['@rstacruz/tap-spec'], testDefaults({ saveDev: true }))
 
-  const tapSpec = require(path.join(process.cwd(), 'node_modules', '@rstacruz/tap-spec'))
+  const tapSpec = project.requireModule('@rstacruz/tap-spec')
   t.ok(typeof tapSpec === 'function', 'tapSpec() is available')
 
   const pkgJson = fs.readFileSync(path.join(process.cwd(), 'package.json'), 'utf8')
@@ -434,13 +419,13 @@ test('saveDev scoped module to package.json (@rstacruz/tap-spec)', async functio
 })
 
 test('multiple save to package.json with `exact` versions (@rstacruz/tap-spec & rimraf@2.5.1) (in sorted order)', async function (t) {
-  prepare(t)
+  const project = prepare(t)
   await installPkgs(['rimraf@2.5.1', '@rstacruz/tap-spec@latest'], testDefaults({ save: true, saveExact: true }))
 
-  const tapSpec = require(path.join(process.cwd(), 'node_modules', '@rstacruz/tap-spec'))
+  const tapSpec = project.requireModule('@rstacruz/tap-spec')
   t.ok(typeof tapSpec === 'function', 'tapSpec() is available')
 
-  const rimraf = require(path.join(process.cwd(), 'node_modules', 'rimraf'))
+  const rimraf = project.requireModule('rimraf')
   t.ok(typeof rimraf === 'function', 'rimraf() is available')
 
   const pkgJson = fs.readFileSync(path.join(process.cwd(), 'package.json'), 'utf8')
@@ -458,30 +443,28 @@ test('flattening symlinks (minimatch@3.0.0)', async function (t) {
     t.skip('this is required only for Node.JS < 6.3.0')
     return
   }
-  prepare(t)
+  const project = prepare(t)
   await installPkgs(['minimatch@3.0.0'], testDefaults())
 
-  const stat = fs.lstatSync(path.join(process.cwd(), 'node_modules/.store/node_modules/balanced-match'))
-  t.ok(stat.isSymbolicLink(), 'balanced-match is linked into store node_modules')
+  await rimraf(path.join(process.cwd(), 'node_modules/.store/is-positive@3.1.0/_/index.js'))
+  await rimraf(path.join(process.cwd(), 'node_modules/.store/is-positive@3.1.0/_/index.js'))
 
-  const _ = await exists(path.join(process.cwd(), 'node_modules', 'balanced-match'))
-  t.ok(!_, 'balanced-match is not linked into main node_modules')
+  await project.hasNot('balanced-match')
 })
 
 test('flattening symlinks (minimatch + balanced-match)', async function (t) {
-  prepare(t)
+  const project = prepare(t)
   await installPkgs(['minimatch@3.0.0'], testDefaults())
   await installPkgs(['balanced-match@^0.3.0'], testDefaults())
 
   let _ = await exists(path.join(process.cwd(), 'node_modules/.store/node_modules/balanced-match'))
   t.ok(!_, 'balanced-match is removed from store node_modules')
 
-  _ = await exists(path.join(process.cwd(), 'node_modules', 'balanced-match'))
-  t.ok(_, 'balanced-match now in main node_modules')
+  await project.has('balanced-match')
 })
 
 test('production install (with --production flag)', async function (t) {
-  prepare(t, basicPackageJson)
+  const project = prepare(t, basicPackageJson)
 
   await install(testDefaults({ production: true }))
 
@@ -501,7 +484,7 @@ test('production install (with --production flag)', async function (t) {
 test('production install (with production NODE_ENV)', async function (t) {
   const originalNodeEnv = process.env.NODE_ENV
   process.env.NODE_ENV = 'production'
-  prepare(t, basicPackageJson)
+  const project = prepare(t, basicPackageJson)
 
   await install(testDefaults())
 
@@ -522,23 +505,23 @@ test('production install (with production NODE_ENV)', async function (t) {
 const wait = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
 
 test('fail when trying to install into the same store simultaneously', t => {
-  prepare(t)
+  const project = prepare(t)
   return Promise.all([
     installPkgs(['pkg-that-installs-slowly'], testDefaults()),
     wait(500) // to be sure that lock was created
-      .then(_ => installPkgs(['rimraf@2.5.1'], testDefaults()))
-      .then(_ => t.fail('the store should have been locked'))
+      .then(() => installPkgs(['rimraf@2.5.1'], testDefaults()))
+      .then(() => t.fail('the store should have been locked'))
       .catch(err => t.ok(err, 'store is locked'))
   ])
 })
 
 test('fail when trying to install and uninstall from the same store simultaneously', t => {
-  prepare(t)
+  const project = prepare(t)
   return Promise.all([
     installPkgs(['pkg-that-installs-slowly'], testDefaults()),
     wait(500) // to be sure that lock was created
-      .then(_ => uninstall(['rimraf@2.5.1'], testDefaults()))
-      .then(_ => t.fail('the store should have been locked'))
+      .then(() => uninstall(['rimraf@2.5.1'], testDefaults()))
+      .then(() => t.fail('the store should have been locked'))
       .catch(err => t.ok(err, 'store is locked'))
   ])
 })
@@ -548,7 +531,7 @@ test('packages should find the plugins they use when symlinks are preserved', as
     t.skip('this test only for NodeJS with --preserve-symlinks support')
     return
   }
-  prepare(t, {
+  const project = prepare(t, {
     scripts: {
       test: 'pkg-that-uses-plugins'
     }
@@ -560,7 +543,7 @@ test('packages should find the plugins they use when symlinks are preserved', as
 })
 
 test('run js bin file', async function (t) {
-  prepare(t, {
+  const project = prepare(t, {
     scripts: {
       test: 'hello-world-js-bin'
     }
@@ -575,7 +558,7 @@ test('run js bin file', async function (t) {
 const pnpmBin = path.join(__dirname, '../src/bin/pnpm.ts')
 
 test('bin files are found by lifecycle scripts', t => {
-  prepare(t, {
+  const project = prepare(t, {
     scripts: {
       postinstall: 'hello-world-js-bin'
     }
@@ -589,19 +572,17 @@ test('bin files are found by lifecycle scripts', t => {
   t.end()
 })
 
-test('installation via the CLI', t => {
-  prepare(t)
+test('installation via the CLI', async function (t) {
+  const project = prepare(t)
   const result = spawnSync('ts-node', [pnpmBin, 'install', 'rimraf@2.5.1'])
 
   console.log(result.stderr.toString())
   t.equal(result.status, 0, 'install successful')
 
-  const rimraf = require(path.join(process.cwd(), 'node_modules', 'rimraf'))
+  const rimraf = project.requireModule('rimraf')
   t.ok(typeof rimraf === 'function', 'rimraf() is available')
 
-  isExecutable(t, path.join(process.cwd(), 'node_modules', '.bin', 'rimraf'))
-
-  t.end()
+  await project.isExecutable('.bin/rimraf')
 })
 
 test('pass through to npm CLI for commands that are not supported by npm', t => {
@@ -614,7 +595,7 @@ test('pass through to npm CLI for commands that are not supported by npm', t => 
 })
 
 test('postinstall is executed after installation', t => {
-  prepare(t, {
+  const project = prepare(t, {
     scripts: {
       postinstall: 'echo "Hello world!"'
     }
@@ -629,7 +610,7 @@ test('postinstall is executed after installation', t => {
 })
 
 test('prepublish is not executed after installation with arguments', t => {
-  prepare(t, {
+  const project = prepare(t, {
     scripts: {
       prepublish: 'echo "Hello world!"'
     }
@@ -644,7 +625,7 @@ test('prepublish is not executed after installation with arguments', t => {
 })
 
 test('prepublish is executed after argumentless installation', t => {
-  prepare(t, {
+  const project = prepare(t, {
     scripts: {
       prepublish: 'echo "Hello world!"'
     }
@@ -666,21 +647,21 @@ test('global installation', async function (t) {
 })
 
 test('tarball local package', async function (t) {
-  prepare(t)
+  const project = prepare(t)
   await installPkgs([pathToLocalPkg('tar-pkg/tar-pkg-1.0.0.tgz')], testDefaults())
 
-  const localPkg = require(path.join(process.cwd(), 'node_modules', 'tar-pkg'))
+  const localPkg = project.requireModule('tar-pkg')
 
   t.equal(localPkg(), 'tar-pkg', 'tarPkg() is available')
 })
 
 test("don't fail when peer dependency is fetched from GitHub", t => {
-  prepare(t)
+  const project = prepare(t)
   return installPkgs(['test-pnpm-peer-deps'], testDefaults())
 })
 
 test('create a pnpm-debug.log file when the command fails', async function (t) {
-  prepare(t)
+  const project = prepare(t)
 
   const result = spawnSync('ts-node', [pnpmBin, 'install', '@zkochan/i-do-not-exist'])
 
@@ -692,15 +673,15 @@ test('create a pnpm-debug.log file when the command fails', async function (t) {
 })
 
 test('building native addons', async function (t) {
-  prepare(t)
+  const project = prepare(t)
 
   await installPkgs(['runas@3.1.1'], testDefaults())
 
-  t.ok(await exists('node_modules/.store/runas@3.1.1/_/build'), 'build folder created')
+  t.ok(await exists(await project.resolve('runas', '3.1.1', 'build')), 'build folder created')
 })
 
 test('should update subdep on second install', async function (t) {
-  prepare(t)
+  const project = prepare(t)
 
   const latest = 'stable'
 
@@ -708,13 +689,13 @@ test('should update subdep on second install', async function (t) {
 
   await installPkgs(['pkg-with-1-dep'], testDefaults({save: true, tag: latest, cacheTTL: 0}))
 
-  t.ok(await exists('node_modules/.store/dep-of-pkg-with-1-dep@1.0.0'), 'should install dep-of-pkg-with-1-dep@1.0.0')
+  await project.storeHas('dep-of-pkg-with-1-dep', '1.0.0')
 
   await addDistTag('dep-of-pkg-with-1-dep', '1.1.0', latest)
 
   await install(testDefaults({depth: 1, tag: latest, cacheTTL: 0}))
 
-  t.ok(await exists('node_modules/.store/dep-of-pkg-with-1-dep@1.1.0'), 'should update to dep-of-pkg-with-1-dep@1.1.0')
+  await project.storeHas('dep-of-pkg-with-1-dep', '1.1.0')
 })
 
 test('should install flat tree', async function (t) {
@@ -723,7 +704,7 @@ test('should install flat tree', async function (t) {
     return
   }
 
-  prepare(t)
+  const project = prepare(t)
   await installPkgs(['rimraf@2.5.1'], testDefaults({flatTree: true}))
 
   isAvailable('balanced-match')
@@ -732,7 +713,7 @@ test('should install flat tree', async function (t) {
   isAvailable('concat-map')
 
   function isAvailable (depName: string) {
-    const dep = require(path.join(process.cwd(), 'node_modules', depName))
+    const dep = project.requireModule(depName)
     t.ok(dep, `${depName} is available`)
   }
 })
@@ -743,7 +724,7 @@ test('should throw error when trying to install flat tree on Node.js < 6.3.0', a
     return
   }
 
-  prepare(t)
+  const project = prepare(t)
 
   try {
     await installPkgs(['rimraf@2.5.1'], testDefaults({flatTree: true}))
@@ -759,7 +740,7 @@ test('should throw error when trying to install with a different tree type using
     return
   }
 
-  prepare(t)
+  const project = prepare(t)
 
   await installPkgs(['rimraf@2.5.1'], testDefaults({flatTree: false}))
 
@@ -777,7 +758,7 @@ test('should throw error when trying to install with a different tree type using
     return
   }
 
-  prepare(t)
+  const project = prepare(t)
 
   await installPkgs(['rimraf@2.5.1'], testDefaults({flatTree: false, global: true}))
 
@@ -790,7 +771,7 @@ test('should throw error when trying to install with a different tree type using
 })
 
 test('should throw error when trying to install using a different store then the previous one', async function(t) {
-  prepare(t)
+  const project = prepare(t)
 
   await installPkgs(['rimraf@2.5.1'], testDefaults({storePath: 'node_modules/.store1'}))
 
@@ -807,7 +788,7 @@ test('should not throw error if using a different store after all the packages w
 })
 
 test('should reinstall package to the store if it is not in the store.yml', async function (t) {
-  prepare(t)
+  const project = prepare(t)
 
   try {
     await installPkgs(['is-positive@3.1.0', 'this-pkg-does-not-exist-3f49f4'], testDefaults())
@@ -818,5 +799,5 @@ test('should reinstall package to the store if it is not in the store.yml', asyn
 
   await installPkgs(['is-positive@3.1.0'], testDefaults())
 
-  t.ok(await exists(path.join(process.cwd(), 'node_modules/.store/is-positive@3.1.0/_/index.js')))
+  t.ok(await exists(await project.resolve('is-positive', '3.1.0', 'index.js')))
 })
