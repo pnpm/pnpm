@@ -1,0 +1,152 @@
+{
+	"name": "circular-deps-1-of-2",
+	"versions": {
+		"1.0.0": {
+			"name": "circular-deps-1-of-2",
+			"version": "1.0.0",
+			"author": {
+				"name": "Zoltan Kochan",
+				"email": "zoltan.kochan@gmail.com",
+				"url": "http://kochan.io/"
+			},
+			"license": "MIT",
+			"bin": {
+				"circular-deps-1-of-2": "./index.js"
+			},
+			"dependencies": {
+				"circular-deps-2-of-2": "1.0.0"
+			},
+			"repository": {
+				"type": "git",
+				"url": "https://github.com/rstacruz/pnpm/tree/master/test/packages/circular-deps-1-of-2"
+			},
+			"_id": "circular-deps-1-of-2@1.0.0",
+			"scripts": {},
+			"_shasum": "27222cc8dc29c7d445ac5af78266f1bbfcf7a1e1",
+			"_from": ".",
+			"_npmVersion": "3.10.3",
+			"_nodeVersion": "6.5.0",
+			"_npmUser": {
+				"name": "zkochan",
+				"email": "zoltan.kochan@gmail.com"
+			},
+			"dist": {
+				"shasum": "27222cc8dc29c7d445ac5af78266f1bbfcf7a1e1",
+				"tarball": "https://registry.npmjs.org/circular-deps-1-of-2/-/circular-deps-1-of-2-1.0.0.tgz"
+			},
+			"maintainers": [
+				{
+					"name": "zkochan",
+					"email": "zoltan.kochan@gmail.com"
+				}
+			],
+			"_npmOperationalInternal": {
+				"host": "packages-12-west.internal.npmjs.com",
+				"tmp": "tmp/circular-deps-1-of-2-1.0.0.tgz_1475874736299_0.9206200123298913"
+			},
+			"directories": {}
+		},
+		"1.0.1": {
+			"name": "circular-deps-1-of-2",
+			"version": "1.0.1",
+			"author": {
+				"name": "Zoltan Kochan",
+				"email": "zoltan.kochan@gmail.com",
+				"url": "http://kochan.io/"
+			},
+			"license": "MIT",
+			"dependencies": {
+				"circular-deps-2-of-2": "1.0.1"
+			},
+			"repository": {
+				"type": "git",
+				"url": "https://github.com/rstacruz/pnpm/tree/master/test/packages/circular-deps-1-of-2"
+			},
+			"_id": "circular-deps-1-of-2@1.0.1",
+			"scripts": {},
+			"_shasum": "9073da26da2aeb962e19dff9cd25c14d12ccf0ba",
+			"_from": ".",
+			"_npmVersion": "3.10.3",
+			"_nodeVersion": "6.5.0",
+			"_npmUser": {
+				"name": "zkochan",
+				"email": "zoltan.kochan@gmail.com"
+			},
+			"dist": {
+				"shasum": "9073da26da2aeb962e19dff9cd25c14d12ccf0ba",
+				"tarball": "https://registry.npmjs.org/circular-deps-1-of-2/-/circular-deps-1-of-2-1.0.1.tgz"
+			},
+			"maintainers": [
+				{
+					"name": "zkochan",
+					"email": "zoltan.kochan@gmail.com"
+				}
+			],
+			"_npmOperationalInternal": {
+				"host": "packages-12-west.internal.npmjs.com",
+				"tmp": "tmp/circular-deps-1-of-2-1.0.1.tgz_1475875654139_0.5392674391623586"
+			},
+			"directories": {}
+		},
+		"1.0.2": {
+			"name": "circular-deps-1-of-2",
+			"version": "1.0.2",
+			"author": {
+				"name": "Zoltan Kochan",
+				"email": "zoltan.kochan@gmail.com",
+				"url": "http://kochan.io/"
+			},
+			"license": "MIT",
+			"dependencies": {
+				"circular-deps-2-of-2": "1.0.2"
+			},
+			"repository": {
+				"type": "git",
+				"url": "https://github.com/rstacruz/pnpm/tree/master/test/packages/circular-deps-1-of-2"
+			},
+			"_id": "circular-deps-1-of-2@1.0.2",
+			"scripts": {},
+			"_shasum": "386c271e484146383346d98b3fb18d2dda97a196",
+			"_from": ".",
+			"_npmVersion": "3.10.9",
+			"_nodeVersion": "6.9.1",
+			"_npmUser": {},
+			"dist": {
+				"shasum": "386c271e484146383346d98b3fb18d2dda97a196",
+				"tarball": "http://localhost:4873/circular-deps-1-of-2/-/circular-deps-1-of-2-1.0.2.tgz"
+			}
+		}
+	},
+	"dist-tags": {
+		"latest": [
+			"1.0.1",
+			"1.0.2"
+		]
+	},
+	"_distfiles": {
+		"circular-deps-1-of-2-1.0.0.tgz": {
+			"url": "https://registry.npmjs.org/circular-deps-1-of-2/-/circular-deps-1-of-2-1.0.0.tgz",
+			"sha": "27222cc8dc29c7d445ac5af78266f1bbfcf7a1e1",
+			"registry": "npmjs"
+		},
+		"circular-deps-1-of-2-1.0.1.tgz": {
+			"url": "https://registry.npmjs.org/circular-deps-1-of-2/-/circular-deps-1-of-2-1.0.1.tgz",
+			"sha": "9073da26da2aeb962e19dff9cd25c14d12ccf0ba",
+			"registry": "npmjs"
+		}
+	},
+	"_attachments": {
+		"circular-deps-1-of-2-1.0.2.tgz": {
+			"shasum": "386c271e484146383346d98b3fb18d2dda97a196",
+			"version": "1.0.2"
+		}
+	},
+	"_uplinks": {
+		"npmjs": {
+			"etag": "W/\"57f81347-a2f\"",
+			"fetched": 1482068196881
+		}
+	},
+	"_rev": "4-0777838951f956e8",
+	"readme": "ERROR: No README data found!"
+}

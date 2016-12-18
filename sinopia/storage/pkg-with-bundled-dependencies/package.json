@@ -1,0 +1,41 @@
+{
+	"name": "pkg-with-bundled-dependencies",
+	"versions": {
+		"1.0.0": {
+			"name": "pkg-with-bundled-dependencies",
+			"version": "1.0.0",
+			"dependencies": {
+				"hello-world-js-bin": "*"
+			},
+			"bundleDependencies": [
+				"hello-world-js-bin"
+			],
+			"_id": "pkg-with-bundled-dependencies@1.0.0",
+			"scripts": {},
+			"_shasum": "ef62423a55f0e1b29b6be329315f59cd114bcb68",
+			"_from": ".",
+			"_npmVersion": "3.10.9",
+			"_nodeVersion": "6.9.1",
+			"_npmUser": {},
+			"dist": {
+				"shasum": "ef62423a55f0e1b29b6be329315f59cd114bcb68",
+				"tarball": "http://localhost:4873/pkg-with-bundled-dependencies/-/pkg-with-bundled-dependencies-1.0.0.tgz"
+			}
+		}
+	},
+	"dist-tags": {
+		"latest": [
+			"1.0.0"
+		]
+	},
+	"_distfiles": {},
+	"_attachments": {
+		"pkg-with-bundled-dependencies-1.0.0.tgz": {
+			"shasum": "ef62423a55f0e1b29b6be329315f59cd114bcb68",
+			"version": "1.0.0"
+		}
+	},
+	"_uplinks": {},
+	"_rev": "3-488e8d235853befc",
+	"readme": "ERROR: No README data found!"
+}

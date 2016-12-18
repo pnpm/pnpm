@@ -1,0 +1,82 @@
+{
+	"name": "pkg-with-1-dep",
+	"versions": {
+		"1.0.0": {
+			"name": "pkg-with-1-dep",
+			"version": "1.0.0",
+			"dependencies": {
+				"dep-of-pkg-with-1-dep": "^1.0.0"
+			},
+			"_id": "pkg-with-1-dep@1.0.0",
+			"scripts": {},
+			"_shasum": "0d4ed129376f707bac0bf5f6a58410f663e27c80",
+			"_from": ".",
+			"_npmVersion": "3.10.3",
+			"_nodeVersion": "6.5.0",
+			"_npmUser": {
+				"name": "zkochan",
+				"email": "zoltan.kochan@gmail.com"
+			},
+			"dist": {
+				"shasum": "0d4ed129376f707bac0bf5f6a58410f663e27c80",
+				"tarball": "https://registry.npmjs.org/pkg-with-1-dep/-/pkg-with-1-dep-1.0.0.tgz"
+			},
+			"maintainers": [
+				{
+					"name": "zkochan",
+					"email": "zoltan.kochan@gmail.com"
+				}
+			],
+			"_npmOperationalInternal": {
+				"host": "packages-12-west.internal.npmjs.com",
+				"tmp": "tmp/pkg-with-1-dep-1.0.0.tgz_1476020269028_0.6072621596977115"
+			},
+			"directories": {}
+		},
+		"1.0.1": {
+			"name": "pkg-with-1-dep",
+			"version": "1.0.1",
+			"dependencies": {
+				"dep-of-pkg-with-1-dep": "^1.0.0"
+			},
+			"_id": "pkg-with-1-dep@1.0.1",
+			"scripts": {},
+			"_shasum": "1fdc5dc23f2e510912bb101c5c87d3204a526298",
+			"_from": ".",
+			"_npmVersion": "3.10.9",
+			"_nodeVersion": "6.9.1",
+			"_npmUser": {},
+			"dist": {
+				"shasum": "1fdc5dc23f2e510912bb101c5c87d3204a526298",
+				"tarball": "http://localhost:4873/pkg-with-1-dep/-/pkg-with-1-dep-1.0.1.tgz"
+			}
+		}
+	},
+	"dist-tags": {
+		"latest": [
+			"1.0.0",
+			"1.0.1"
+		]
+	},
+	"_distfiles": {
+		"pkg-with-1-dep-1.0.0.tgz": {
+			"url": "https://registry.npmjs.org/pkg-with-1-dep/-/pkg-with-1-dep-1.0.0.tgz",
+			"sha": "0d4ed129376f707bac0bf5f6a58410f663e27c80",
+			"registry": "npmjs"
+		}
+	},
+	"_attachments": {
+		"pkg-with-1-dep-1.0.1.tgz": {
+			"shasum": "1fdc5dc23f2e510912bb101c5c87d3204a526298",
+			"version": "1.0.1"
+		}
+	},
+	"_uplinks": {
+		"npmjs": {
+			"etag": "W/\"57fa482e-444\"",
+			"fetched": 1482068199013
+		}
+	},
+	"_rev": "4-8f2d93562b82ab1c",
+	"readme": "ERROR: No README data found!"
+}

@@ -1,0 +1,37 @@
+{
+	"name": "pkg-that-installs-slowly",
+	"versions": {
+		"1.0.0": {
+			"name": "pkg-that-installs-slowly",
+			"version": "1.0.0",
+			"scripts": {
+				"postinstall": "node postinstall.js"
+			},
+			"_id": "pkg-that-installs-slowly@1.0.0",
+			"_shasum": "c6525d7bfe57cc0a890defe11d070a63ebc9feb9",
+			"_from": ".",
+			"_npmVersion": "3.10.9",
+			"_nodeVersion": "6.9.1",
+			"_npmUser": {},
+			"dist": {
+				"shasum": "c6525d7bfe57cc0a890defe11d070a63ebc9feb9",
+				"tarball": "http://localhost:4873/pkg-that-installs-slowly/-/pkg-that-installs-slowly-1.0.0.tgz"
+			}
+		}
+	},
+	"dist-tags": {
+		"latest": [
+			"1.0.0"
+		]
+	},
+	"_distfiles": {},
+	"_attachments": {
+		"pkg-that-installs-slowly-1.0.0.tgz": {
+			"shasum": "c6525d7bfe57cc0a890defe11d070a63ebc9feb9",
+			"version": "1.0.0"
+		}
+	},
+	"_uplinks": {},
+	"_rev": "3-8960f997d849acdc",
+	"readme": "ERROR: No README data found!"
+}

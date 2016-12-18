@@ -1,0 +1,51 @@
+{
+	"name": "hello-world-js-bin",
+	"versions": {
+		"1.0.0": {
+			"name": "hello-world-js-bin",
+			"version": "1.0.0",
+			"description": "A package with a hello world js bin",
+			"bin": {
+				"hello-world-js-bin": "./index.js"
+			},
+			"scripts": {
+				"test": "echo \"Error: no test specified\" && exit 1"
+			},
+			"author": {
+				"name": "Zoltan Kochan",
+				"email": "zoltan.kochan@gmail.com",
+				"url": "http://kochan.io/"
+			},
+			"license": "MIT",
+			"repository": {
+				"type": "git",
+				"url": "https://github.com/rstacruz/pnpm/tree/master/test/packages/hello-world-js-bin"
+			},
+			"_id": "hello-world-js-bin@1.0.0",
+			"_shasum": "4ebfa8a2a971944208666ce0c0fbadd5ac006bc0",
+			"_from": ".",
+			"_npmVersion": "3.10.9",
+			"_nodeVersion": "6.9.1",
+			"_npmUser": {},
+			"dist": {
+				"shasum": "4ebfa8a2a971944208666ce0c0fbadd5ac006bc0",
+				"tarball": "http://localhost:4873/hello-world-js-bin/-/hello-world-js-bin-1.0.0.tgz"
+			}
+		}
+	},
+	"dist-tags": {
+		"latest": [
+			"1.0.0"
+		]
+	},
+	"_distfiles": {},
+	"_attachments": {
+		"hello-world-js-bin-1.0.0.tgz": {
+			"shasum": "4ebfa8a2a971944208666ce0c0fbadd5ac006bc0",
+			"version": "1.0.0"
+		}
+	},
+	"_uplinks": {},
+	"_rev": "3-b105c292823214fa",
+	"readme": "ERROR: No README data found!"
+}

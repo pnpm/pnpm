@@ -1,0 +1,38 @@
+{
+	"name": "not-compatible-with-any-os",
+	"versions": {
+		"1.0.0": {
+			"name": "not-compatible-with-any-os",
+			"version": "1.0.0",
+			"os": [
+				"this-os-does-not-exist"
+			],
+			"_id": "not-compatible-with-any-os@1.0.0",
+			"scripts": {},
+			"_shasum": "c1233bca2e0a0eb40fb01f8f298109f918de1c3d",
+			"_from": ".",
+			"_npmVersion": "3.10.9",
+			"_nodeVersion": "6.9.1",
+			"_npmUser": {},
+			"dist": {
+				"shasum": "c1233bca2e0a0eb40fb01f8f298109f918de1c3d",
+				"tarball": "http://localhost:4873/not-compatible-with-any-os/-/not-compatible-with-any-os-1.0.0.tgz"
+			}
+		}
+	},
+	"dist-tags": {
+		"latest": [
+			"1.0.0"
+		]
+	},
+	"_distfiles": {},
+	"_attachments": {
+		"not-compatible-with-any-os-1.0.0.tgz": {
+			"shasum": "c1233bca2e0a0eb40fb01f8f298109f918de1c3d",
+			"version": "1.0.0"
+		}
+	},
+	"_uplinks": {},
+	"_rev": "3-c9376918bd1403b5",
+	"readme": "ERROR: No README data found!"
+}

@@ -1,0 +1,108 @@
+{
+	"name": "sh-hello-world",
+	"versions": {
+		"1.0.0": {
+			"name": "sh-hello-world",
+			"version": "1.0.0",
+			"description": "A package with a hello world bash script",
+			"bin": {
+				"sh-hello-world": "./sh-hello-world.sh"
+			},
+			"scripts": {
+				"test": "echo \"Error: no test specified\" && exit 1"
+			},
+			"author": {
+				"name": "Zoltan Kochan",
+				"email": "zoltan.kochan@gmail.com",
+				"url": "http://kochan.io/"
+			},
+			"license": "MIT",
+			"repository": {
+				"type": "git",
+				"url": "https://github.com/rstacruz/pnpm/tree/master/test/packages/sh-hello-world"
+			},
+			"_id": "sh-hello-world@1.0.0",
+			"_shasum": "357fe957e592f385302cd794ea0c8ae2003c6d65",
+			"_from": ".",
+			"_npmVersion": "2.15.5",
+			"_nodeVersion": "4.4.5",
+			"_npmUser": {
+				"name": "zkochan",
+				"email": "zoltan.kochan@gmail.com"
+			},
+			"dist": {
+				"shasum": "357fe957e592f385302cd794ea0c8ae2003c6d65",
+				"tarball": "https://registry.npmjs.org/sh-hello-world/-/sh-hello-world-1.0.0.tgz"
+			},
+			"maintainers": [
+				{
+					"name": "zkochan",
+					"email": "zoltan.kochan@gmail.com"
+				}
+			],
+			"_npmOperationalInternal": {
+				"host": "packages-16-east.internal.npmjs.com",
+				"tmp": "tmp/sh-hello-world-1.0.0.tgz_1470422379071_0.5097258181776851"
+			},
+			"directories": {}
+		},
+		"1.0.1": {
+			"name": "sh-hello-world",
+			"version": "1.0.1",
+			"description": "A package with a hello world bash script",
+			"bin": {
+				"sh-hello-world": "./sh-hello-world.sh"
+			},
+			"scripts": {
+				"test": "echo \"Error: no test specified\" && exit 1"
+			},
+			"author": {
+				"name": "Zoltan Kochan",
+				"email": "zoltan.kochan@gmail.com",
+				"url": "http://kochan.io/"
+			},
+			"license": "MIT",
+			"repository": {
+				"type": "git",
+				"url": "https://github.com/rstacruz/pnpm/tree/master/test/packages/sh-hello-world"
+			},
+			"_id": "sh-hello-world@1.0.1",
+			"_shasum": "24bea983eb966555a27877d88dd0f2a5e5953ab1",
+			"_from": ".",
+			"_npmVersion": "3.10.9",
+			"_nodeVersion": "6.9.1",
+			"_npmUser": {},
+			"dist": {
+				"shasum": "24bea983eb966555a27877d88dd0f2a5e5953ab1",
+				"tarball": "http://localhost:4873/sh-hello-world/-/sh-hello-world-1.0.1.tgz"
+			}
+		}
+	},
+	"dist-tags": {
+		"latest": [
+			"1.0.0",
+			"1.0.1"
+		]
+	},
+	"_distfiles": {
+		"sh-hello-world-1.0.0.tgz": {
+			"url": "https://registry.npmjs.org/sh-hello-world/-/sh-hello-world-1.0.0.tgz",
+			"sha": "357fe957e592f385302cd794ea0c8ae2003c6d65",
+			"registry": "npmjs"
+		}
+	},
+	"_attachments": {
+		"sh-hello-world-1.0.1.tgz": {
+			"shasum": "24bea983eb966555a27877d88dd0f2a5e5953ab1",
+			"version": "1.0.1"
+		}
+	},
+	"_uplinks": {
+		"npmjs": {
+			"etag": "W/\"57a4dd6c-69f\"",
+			"fetched": 1482068209004
+		}
+	},
+	"_rev": "4-af6406b1db6b4eba",
+	"readme": "ERROR: No README data found!"
+}

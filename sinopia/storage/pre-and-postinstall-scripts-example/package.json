@@ -1,0 +1,51 @@
+{
+	"name": "pre-and-postinstall-scripts-example",
+	"versions": {
+		"1.0.0": {
+			"name": "pre-and-postinstall-scripts-example",
+			"version": "1.0.0",
+			"description": "A package that creates files by pre- and postinstall scripts",
+			"scripts": {
+				"test": "echo \"Error: no test specified\" && exit 1",
+				"preinstall": "node create generated-by-preinstall",
+				"postinstall": "node create generated-by-postinstall"
+			},
+			"author": {
+				"name": "Zoltan Kochan",
+				"email": "zoltan.kochan@gmail.com",
+				"url": "http://kochan.io/"
+			},
+			"license": "MIT",
+			"repository": {
+				"type": "git",
+				"url": "https://github.com/rstacruz/pnpm/tree/master/test/packages/postinstall-example"
+			},
+			"readmeFilename": "README.md",
+			"_id": "pre-and-postinstall-scripts-example@1.0.0",
+			"_shasum": "e317ee0e6c32a8f28bfe43458ec07df27efdbce3",
+			"_from": ".",
+			"_npmVersion": "3.10.9",
+			"_nodeVersion": "6.9.1",
+			"_npmUser": {},
+			"dist": {
+				"shasum": "e317ee0e6c32a8f28bfe43458ec07df27efdbce3",
+				"tarball": "http://localhost:4873/pre-and-postinstall-scripts-example/-/pre-and-postinstall-scripts-example-1.0.0.tgz"
+			}
+		}
+	},
+	"dist-tags": {
+		"latest": [
+			"1.0.0"
+		]
+	},
+	"_distfiles": {},
+	"_attachments": {
+		"pre-and-postinstall-scripts-example-1.0.0.tgz": {
+			"shasum": "e317ee0e6c32a8f28bfe43458ec07df27efdbce3",
+			"version": "1.0.0"
+		}
+	},
+	"_uplinks": {},
+	"_rev": "3-e5add415c29ee325",
+	"readme": "# pre-and-postinstall-scripts-example\n\nA package that creates files by pre- and postinstall scripts\n\n## Installation\n\n```\nnpm i pre-and-postinstall-scripts-example\n```\n\n# License\n\nMIT\n"
+}

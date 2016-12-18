@@ -1,0 +1,42 @@
+{
+	"name": "test-pnpm-peer-deps",
+	"versions": {
+		"1.0.0": {
+			"name": "test-pnpm-peer-deps",
+			"version": "1.0.0",
+			"peerDependencies": {
+				"is-negative": "2.x.x"
+			},
+			"dependencies": {
+				"is-negative": "2.0.0",
+				"peer-deps-in-child-pkg": "1.0.0"
+			},
+			"_id": "test-pnpm-peer-deps@1.0.0",
+			"scripts": {},
+			"_shasum": "fc45df20c4d70e1cb70d606f5e34d46ebef6f0d9",
+			"_from": ".",
+			"_npmVersion": "3.10.9",
+			"_nodeVersion": "6.9.1",
+			"_npmUser": {},
+			"dist": {
+				"shasum": "fc45df20c4d70e1cb70d606f5e34d46ebef6f0d9",
+				"tarball": "http://localhost:4873/test-pnpm-peer-deps/-/test-pnpm-peer-deps-1.0.0.tgz"
+			}
+		}
+	},
+	"dist-tags": {
+		"latest": [
+			"1.0.0"
+		]
+	},
+	"_distfiles": {},
+	"_attachments": {
+		"test-pnpm-peer-deps-1.0.0.tgz": {
+			"shasum": "fc45df20c4d70e1cb70d606f5e34d46ebef6f0d9",
+			"version": "1.0.0"
+		}
+	},
+	"_uplinks": {},
+	"_rev": "3-9afd78c7b838773b",
+	"readme": "ERROR: No README data found!"
+}

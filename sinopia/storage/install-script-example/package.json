@@ -1,0 +1,50 @@
+{
+	"name": "install-script-example",
+	"versions": {
+		"1.0.0": {
+			"name": "install-script-example",
+			"version": "1.0.0",
+			"description": "A package that creates a file by an install script",
+			"scripts": {
+				"test": "echo \"Error: no test specified\" && exit 1",
+				"install": "node create generated-by-install"
+			},
+			"author": {
+				"name": "Zoltan Kochan",
+				"email": "zoltan.kochan@gmail.com",
+				"url": "http://kochan.io/"
+			},
+			"license": "MIT",
+			"repository": {
+				"type": "git",
+				"url": "https://github.com/rstacruz/pnpm/tree/master/test/packages/install-script-example"
+			},
+			"readmeFilename": "README.md",
+			"_id": "install-script-example@1.0.0",
+			"_shasum": "b7c5f57998cbf634e98668203f95a11f1ef12853",
+			"_from": ".",
+			"_npmVersion": "3.10.9",
+			"_nodeVersion": "6.9.1",
+			"_npmUser": {},
+			"dist": {
+				"shasum": "b7c5f57998cbf634e98668203f95a11f1ef12853",
+				"tarball": "http://localhost:4873/install-script-example/-/install-script-example-1.0.0.tgz"
+			}
+		}
+	},
+	"dist-tags": {
+		"latest": [
+			"1.0.0"
+		]
+	},
+	"_distfiles": {},
+	"_attachments": {
+		"install-script-example-1.0.0.tgz": {
+			"shasum": "b7c5f57998cbf634e98668203f95a11f1ef12853",
+			"version": "1.0.0"
+		}
+	},
+	"_uplinks": {},
+	"_rev": "3-7ea3a16e8cc4c660",
+	"readme": "# install-script-example\n\nA package that creates a file by an install script\n\n## Installation\n\n```\nnpm i install-script-example\n```\n\n# License\n\nMIT\n"
+}

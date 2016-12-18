@@ -1,0 +1,48 @@
+{
+	"name": "pkg-that-uses-plugins",
+	"versions": {
+		"1.0.0": {
+			"name": "pkg-that-uses-plugins",
+			"version": "1.0.0",
+			"author": {
+				"name": "Zoltan Kochan",
+				"email": "zoltan.kochan@gmail.com",
+				"url": "http://kochan.io/"
+			},
+			"license": "MIT",
+			"bin": {
+				"pkg-that-uses-plugins": "./index.js"
+			},
+			"repository": {
+				"type": "git",
+				"url": "https://github.com/rstacruz/pnpm/tree/master/test/packages/pkg-that-uses-plugins"
+			},
+			"_id": "pkg-that-uses-plugins@1.0.0",
+			"scripts": {},
+			"_shasum": "e5860a1b35db8c48e3ecab58ba73727a6c4dae9b",
+			"_from": ".",
+			"_npmVersion": "3.10.9",
+			"_nodeVersion": "6.9.1",
+			"_npmUser": {},
+			"dist": {
+				"shasum": "e5860a1b35db8c48e3ecab58ba73727a6c4dae9b",
+				"tarball": "http://localhost:4873/pkg-that-uses-plugins/-/pkg-that-uses-plugins-1.0.0.tgz"
+			}
+		}
+	},
+	"dist-tags": {
+		"latest": [
+			"1.0.0"
+		]
+	},
+	"_distfiles": {},
+	"_attachments": {
+		"pkg-that-uses-plugins-1.0.0.tgz": {
+			"shasum": "e5860a1b35db8c48e3ecab58ba73727a6c4dae9b",
+			"version": "1.0.0"
+		}
+	},
+	"_uplinks": {},
+	"_rev": "3-45b721c689db2c23",
+	"readme": "ERROR: No README data found!"
+}

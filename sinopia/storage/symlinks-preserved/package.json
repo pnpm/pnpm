@@ -1,0 +1,35 @@
+{
+	"name": "symlinks-preserved",
+	"versions": {
+		"1.0.0": {
+			"name": "symlinks-preserved",
+			"version": "1.0.0",
+			"_id": "symlinks-preserved@1.0.0",
+			"scripts": {},
+			"_shasum": "28a05ea9206e3d4856a543490c53a9ae5d2b928d",
+			"_from": ".",
+			"_npmVersion": "3.10.9",
+			"_nodeVersion": "6.9.1",
+			"_npmUser": {},
+			"dist": {
+				"shasum": "28a05ea9206e3d4856a543490c53a9ae5d2b928d",
+				"tarball": "http://localhost:4873/symlinks-preserved/-/symlinks-preserved-1.0.0.tgz"
+			}
+		}
+	},
+	"dist-tags": {
+		"latest": [
+			"1.0.0"
+		]
+	},
+	"_distfiles": {},
+	"_attachments": {
+		"symlinks-preserved-1.0.0.tgz": {
+			"shasum": "28a05ea9206e3d4856a543490c53a9ae5d2b928d",
+			"version": "1.0.0"
+		}
+	},
+	"_uplinks": {},
+	"_rev": "3-e9156636f1c37ff0",
+	"readme": "ERROR: No README data found!"
+}

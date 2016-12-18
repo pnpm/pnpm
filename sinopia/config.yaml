@@ -7,7 +7,7 @@
 #
 
 # path to a directory with all packages
-storage: ../.tmp/storage
+storage: ./storage
 
 auth:
   htpasswd:
