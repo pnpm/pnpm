@@ -7,7 +7,7 @@
     "pnpm": "lib/bin/pnpm.js"
   },
   "bugs": {
-    "url": "https://github.com/rstacruz/pnpm/issues"
+    "url": "http://ghub.io/pnpm/issues"
   },
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
@@ -113,7 +113,7 @@
   "directories": {
     "test": "test"
   },
-  "homepage": "https://github.com/rstacruz/pnpm#readme",
+  "homepage": "http://ghub.io/pnpm#readme",
   "keywords": [
     "dependency manager",
     "install",
