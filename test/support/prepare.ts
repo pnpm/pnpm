@@ -61,9 +61,9 @@ export default function prepare (t: Test, pkg?: Object) {
       const escapedPkgName = pkgName.replace('/', '+')
       const pkgFolder = version ? `${escapedPkgName}@${version}` : escapedPkgName
       if (relativePath) {
-        return path.join(await project.getStorePath(), pkgFolder, '_', relativePath)
+        return path.join(await project.getStorePath(), pkgFolder, relativePath)
       }
-      return path.join(await project.getStorePath(), pkgFolder, '_')
+      return path.join(await project.getStorePath(), pkgFolder)
     },
     storeHas: async function (pkgName: string, version?: string) {
       t.ok(await exists(await project.resolve(pkgName, version)), `${pkgName}@${version} is in store`)

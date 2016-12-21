@@ -97,7 +97,7 @@ function removeDependency (dependentPkgName: string, uninstalledPkg: string, sto
 }
 
 async function removeBins (uninstalledPkg: string, store: string, root: string) {
-  const uninstalledPkgJson = await requireJson(path.join(store, uninstalledPkg, '_/package.json'))
+  const uninstalledPkgJson = await requireJson(path.join(store, uninstalledPkg, 'package.json'))
   const bins = binify(uninstalledPkgJson)
   return Promise.all(
     Object.keys(bins).map(bin => rimraf(path.join(root, 'node_modules/.bin', bin)))

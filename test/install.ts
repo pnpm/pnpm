@@ -745,7 +745,7 @@ test('should reinstall package to the store if it is not in the store.yml', asyn
     t.fail('installation should have failed')
   } catch (err) {}
 
-  await rimraf(path.join(process.cwd(), 'node_modules/.store/is-positive@3.1.0/_/index.js'))
+  await rimraf(path.join(process.cwd(), 'node_modules/.store/is-positive@3.1.0/index.js'))
 
   await installPkgs(['is-positive@3.1.0'], testDefaults())
 
