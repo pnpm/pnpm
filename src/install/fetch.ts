@@ -90,7 +90,6 @@ export default async function fetch (ctx: InstallContext, pkgRawSpec: string, mo
     log('resolved', res)
 
     const target = path.join(options.storePath, res.id)
-    const pkgPath = path.join(target)
 
     const justFetched = !ctx.fetchLocks[res.id] &&
       (options.force || !(await exists(target)) || !ctx.store.packages[res.id])
@@ -107,7 +106,7 @@ export default async function fetch (ctx: InstallContext, pkgRawSpec: string, mo
 
     const fetchingPkg = res.pkg
       ? Promise.resolve(res.pkg)
-      : fetchingFiles.then(() => requireJson(path.join(pkgPath, 'package.json')))
+      : fetchingFiles.then(() => requireJson(path.join(target, 'package.json')))
 
     const fetchedPkg = {
       fetchingPkg,
@@ -115,7 +114,7 @@ export default async function fetch (ctx: InstallContext, pkgRawSpec: string, mo
       id: res.id,
       name: spec.name,
       fromCache: false,
-      path: pkgPath,
+      path: target,
       srcPath: res.root,
       justFetched,
       abort: async function () {
@@ -176,32 +175,10 @@ type FetchToStoreOptions = {
 function fetchToStoreCached (opts: FetchToStoreOptions): Promise<void> {
   return memoize(opts.fetchLocks, opts.resolution.id, async function () {
     opts.log('download-queued')
-    await opts.resolution.fetch(path.join(opts.target))
+    await opts.resolution.fetch(opts.target)
 
     const pkg = await requireJson(path.resolve(path.join(opts.target, 'package.json')))
 
     opts.log('package.json', pkg)
   })
-}
-
-/**
- * Symlink a package into its own node_modules. this way, babel-runtime@5 can
- * require('babel-runtime') within itself.
- */
-async function symlinkSelf (target: string, pkg: Package, depth: number) {
-  debug(`symlinkSelf ${pkg.name}`)
-  if (depth === 0) {
-    return
-  }
-  await mkdirp(path.join(target, 'node_modules'))
-  const src = isScoped(pkg.name)
-    ? path.join('..', '..')
-    : path.join('..')
-  await linkDir(
-    src,
-    path.join(target, 'node_modules', pkg.name))
-}
-
-function isScoped (pkgName: string): boolean {
-  return pkgName.indexOf('/') !== -1
 }
