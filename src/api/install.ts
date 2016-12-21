@@ -10,7 +10,7 @@ import createGot from '../network/got'
 import getContext, {PnpmContext} from './getContext'
 import installMultiple, {InstalledPackage} from '../install/installMultiple'
 import save from '../save'
-import linkPeers, {linkPeersWhenSymlinksPreserved} from '../install/linkPeers'
+import {linkPeersWhenSymlinksPreserved} from '../install/linkPeers'
 import runtimeError from '../runtimeError'
 import getSaveType from '../getSaveType'
 import {sync as runScriptSync} from '../runScript'
@@ -23,7 +23,6 @@ import {save as saveModules} from '../fs/modulesController'
 import {tryUninstall, removePkgFromStore} from './uninstall'
 import flattenDependencies from '../install/flattenDependencies'
 import mkdirp from '../fs/mkdirp'
-import {preserveSymlinks} from '../env'
 import {CachedPromises} from '../memoize'
 
 export type PackageInstallationResult = {
@@ -132,11 +131,7 @@ async function installInContext (installType: string, packagesToInstall: Depende
     await saveModules(path.join(ctx.root, 'node_modules'), {storePath: ctx.storePath})
   }
 
-  if (!preserveSymlinks) {
-    await linkPeers(ctx.storePath, installCtx.installs)
-  } else {
-    await linkPeersWhenSymlinksPreserved(ctx.storePath, installCtx.installs)
-  }
+  await linkPeersWhenSymlinksPreserved(ctx.storePath, installCtx.installs)
 
   // postinstall hooks
   if (!(opts.ignoreScripts || !installCtx.piq || !installCtx.piq.length)) {

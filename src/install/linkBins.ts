@@ -6,7 +6,7 @@ import mkdirp from '../fs/mkdirp'
 import requireJson from '../fs/requireJson'
 import getPkgDirs from '../fs/getPkgDirs'
 import binify from '../binify'
-import {isWindows, preserveSymlinks} from '../env'
+import {isWindows} from '../env'
 import cmdShim = require('@zkochan/cmd-shim')
 import {Package} from '../types'
 
@@ -49,17 +49,9 @@ export async function linkPkgBins (modules: string, target: string) {
 
     const relTargetPath = normalizePath(path.join('..', pkg.name, actualBin))
     if (isWindows) {
-      if (!preserveSymlinks) {
-        return cmdShim(targetPath, externalBinPath, {preserveSymlinks})
-      }
       const proxyFilePath = path.join(binDir, `${bin}.proxy`)
       await fs.writeFile(proxyFilePath, `#!/usr/bin/env node\r\nrequire("${relTargetPath}")`, 'utf8')
-      return cmdShim(proxyFilePath, externalBinPath, {preserveSymlinks})
-    }
-
-    if (!preserveSymlinks) {
-      await makeExecutable(targetPath)
-      return linkDir(targetPath, externalBinPath)
+      return cmdShim(proxyFilePath, externalBinPath, {preserveSymlinks: true})
     }
 
     return proxy(externalBinPath, relTargetPath)

@@ -21,7 +21,6 @@ import globalPath from './support/globalPath'
 import {pathToLocalPkg, local} from './support/localPkg'
 
 const isWindows = process.platform === 'win32'
-const preserveSymlinks = semver.satisfies(process.version, '>=6.3.0')
 
 if (!caw() && !isWindows) {
   process.env.VCR_MODE = 'cache'
@@ -438,20 +437,6 @@ test('multiple save to package.json with `exact` versions (@rstacruz/tap-spec & 
   t.deepEqual(Object.keys(dependencies), Object.keys(expectedDeps), 'tap-spec and rimraf have been added to dependencies in sorted order')
 })
 
-test('flattening symlinks (minimatch@3.0.0)', async function (t) {
-  if (preserveSymlinks) {
-    t.skip('this is required only for Node.JS < 6.3.0')
-    return
-  }
-  const project = prepare(t)
-  await installPkgs(['minimatch@3.0.0'], testDefaults())
-
-  await rimraf(path.join(process.cwd(), 'node_modules/.store/is-positive@3.1.0/_/index.js'))
-  await rimraf(path.join(process.cwd(), 'node_modules/.store/is-positive@3.1.0/_/index.js'))
-
-  await project.hasNot('balanced-match')
-})
-
 test('flattening symlinks (minimatch + balanced-match)', async function (t) {
   const project = prepare(t)
   await installPkgs(['minimatch@3.0.0'], testDefaults())
@@ -527,10 +512,6 @@ test('fail when trying to install and uninstall from the same store simultaneous
 })
 
 test('packages should find the plugins they use when symlinks are preserved', async function (t) {
-  if (!preserveSymlinks) {
-    t.skip('this test only for NodeJS with --preserve-symlinks support')
-    return
-  }
   const project = prepare(t, {
     scripts: {
       test: 'pkg-that-uses-plugins'
@@ -699,11 +680,6 @@ test('should update subdep on second install', async function (t) {
 })
 
 test('should install flat tree', async function (t) {
-  if (!preserveSymlinks) {
-    t.skip('this test only for NodeJS with --preserve-symlinks support')
-    return
-  }
-
   const project = prepare(t)
   await installPkgs(['rimraf@2.5.1'], testDefaults({flatTree: true}))
 
@@ -718,28 +694,7 @@ test('should install flat tree', async function (t) {
   }
 })
 
-test('should throw error when trying to install flat tree on Node.js < 6.3.0', async function (t) {
-  if (preserveSymlinks) {
-    t.skip()
-    return
-  }
-
-  const project = prepare(t)
-
-  try {
-    await installPkgs(['rimraf@2.5.1'], testDefaults({flatTree: true}))
-    t.fail('installation should have failed')
-  } catch (err) {
-    t.equal(err.message, '`--preserve-symlinks` and so `--flat-tree` are not supported on your system, make sure you are running on Node ≽ 6.3.0')
-  }
-})
-
 test('should throw error when trying to install with a different tree type using a dedicated store', async function(t) {
-  if (!preserveSymlinks) {
-    t.skip('flat trees are supported only on Node.js with --preserve-symlinks support')
-    return
-  }
-
   const project = prepare(t)
 
   await installPkgs(['rimraf@2.5.1'], testDefaults({flatTree: false}))
@@ -753,11 +708,6 @@ test('should throw error when trying to install with a different tree type using
 })
 
 test('should throw error when trying to install with a different tree type using a global store', async function(t) {
-  if (!preserveSymlinks) {
-    t.skip('flat trees are supported only on Node.js with --preserve-symlinks support')
-    return
-  }
-
   const project = prepare(t)
 
   await installPkgs(['rimraf@2.5.1'], testDefaults({flatTree: false, global: true}))

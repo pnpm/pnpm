@@ -1,6 +1,5 @@
 import {StrictPnpmOptions, PnpmOptions} from '../types'
 import {GlobalPath as globalPath, GlobalStorePath} from './constantDefaults'
-import {preserveSymlinks} from '../env'
 import {LoggerType} from '../logger' // tslint:disable-line
 
 const defaults = () => (<StrictPnpmOptions>{
@@ -8,7 +7,7 @@ const defaults = () => (<StrictPnpmOptions>{
   fetchRetryFactor: 10,
   fetchRetryMintimeout: 1e4, // 10 seconds
   fetchRetryMaxtimeout: 6e4, // 1 minute
-  storePath: getDefaultStorePath(),
+  storePath: GlobalStorePath,
   globalPath,
   logger: 'pretty',
   ignoreScripts: false,
@@ -26,15 +25,7 @@ const defaults = () => (<StrictPnpmOptions>{
   engineStrict: false,
 })
 
-function getDefaultStorePath () {
-  if (preserveSymlinks) return GlobalStorePath
-  return 'node_modules/.store'
-}
-
 export default (opts?: PnpmOptions): StrictPnpmOptions => {
   opts = opts || {}
-  if (opts.flatTree === true && !preserveSymlinks) {
-    throw new Error('`--preserve-symlinks` and so `--flat-tree` are not supported on your system, make sure you are running on Node ≽ 6.3.0')
-  }
   return Object.assign({}, defaults(), opts)
 }

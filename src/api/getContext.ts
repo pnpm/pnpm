@@ -20,7 +20,6 @@ import mkdirp from '../fs/mkdirp'
 import {Package} from '../types'
 import {getCachePath} from './cache'
 import normalizePath = require('normalize-path')
-import {preserveSymlinks} from '../env'
 import {GlobalStorePath} from './constantDefaults'
 
 export type PnpmContext = {
@@ -58,11 +57,6 @@ export default async function (opts: StrictPnpmOptions): Promise<PnpmContext> {
   if (store.type !== treeType) {
     const err = new Error(`Cannot use a ${store.type} store for a ${treeType} installation`)
     err['code'] = 'INCONSISTENT_TREE_TYPE'
-    throw err
-  }
-  if (store.preserveSymlinks !== preserveSymlinks) {
-    const err = new Error(`Cannot use a store installed with preserveSymlinks = ${store.preserveSymlinks}. Need store with preserveSymlinks = ${preserveSymlinks}`)
-    err['code'] = 'INCONSISTENT_PRESERVE_SYMLINKS'
     throw err
   }
   if (store) {
@@ -166,12 +160,7 @@ function getStorePath (treeType: TreeType, storeBasePath: string): string {
   if (underNodeModules(storeBasePath)) {
     return storeBasePath
   }
-  // potentially shared stores have to have separate subdirs for different
-  // installation types
-  if (preserveSymlinks) {
-    return path.join(storeBasePath, treeType)
-  }
-  return path.join(storeBasePath, `${treeType}-node.v4`)
+  return path.join(storeBasePath, treeType)
 }
 
 function underNodeModules (dirpath: string): boolean {
