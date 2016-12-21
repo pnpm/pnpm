@@ -10,7 +10,7 @@ import createGot from '../network/got'
 import getContext, {PnpmContext} from './getContext'
 import installMultiple, {InstalledPackage} from '../install/installMultiple'
 import save from '../save'
-import {linkPeersWhenSymlinksPreserved} from '../install/linkPeers'
+import linkPeers from '../install/linkPeers'
 import runtimeError from '../runtimeError'
 import getSaveType from '../getSaveType'
 import {sync as runScriptSync} from '../runScript'
@@ -131,7 +131,7 @@ async function installInContext (installType: string, packagesToInstall: Depende
     await saveModules(path.join(ctx.root, 'node_modules'), {storePath: ctx.storePath})
   }
 
-  await linkPeersWhenSymlinksPreserved(ctx.storePath, installCtx.installs)
+  await linkPeers(ctx.storePath, installCtx.installs)
 
   // postinstall hooks
   if (!(opts.ignoreScripts || !installCtx.piq || !installCtx.piq.length)) {

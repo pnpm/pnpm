@@ -19,7 +19,7 @@ type InstalledPackageVersions = {
   [pkgName: string]: PackageVersions
 }
 
-export async function linkPeersWhenSymlinksPreserved (store: string, installs: InstalledPackages) {
+export default async function linkPeers (store: string, installs: InstalledPackages) {
   if (!installs) return
 
   const groupedPkgs: InstalledPackageVersions = {}
