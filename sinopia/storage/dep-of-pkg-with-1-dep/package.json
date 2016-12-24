@@ -1,35 +1,6 @@
 {
 	"name": "dep-of-pkg-with-1-dep",
 	"versions": {
-		"1.0.0": {
-			"name": "dep-of-pkg-with-1-dep",
-			"version": "1.0.0",
-			"_id": "dep-of-pkg-with-1-dep@1.0.0",
-			"scripts": {},
-			"_shasum": "a846a9c4f74479e65eb6b3770b4012bebcb68566",
-			"_from": ".",
-			"_npmVersion": "3.10.3",
-			"_nodeVersion": "6.5.0",
-			"_npmUser": {
-				"name": "zkochan",
-				"email": "zoltan.kochan@gmail.com"
-			},
-			"dist": {
-				"shasum": "a846a9c4f74479e65eb6b3770b4012bebcb68566",
-				"tarball": "https://registry.npmjs.org/dep-of-pkg-with-1-dep/-/dep-of-pkg-with-1-dep-1.0.0.tgz"
-			},
-			"maintainers": [
-				{
-					"name": "zkochan",
-					"email": "zoltan.kochan@gmail.com"
-				}
-			],
-			"_npmOperationalInternal": {
-				"host": "packages-16-east.internal.npmjs.com",
-				"tmp": "tmp/dep-of-pkg-with-1-dep-1.0.0.tgz_1476020223110_0.2565238233655691"
-			},
-			"directories": {}
-		},
 		"1.1.0": {
 			"name": "dep-of-pkg-with-1-dep",
 			"version": "1.1.0",
@@ -59,70 +30,45 @@
 			},
 			"directories": {}
 		},
-		"1.1.1": {
+		"100.0.0": {
 			"name": "dep-of-pkg-with-1-dep",
-			"version": "1.1.1",
-			"_id": "dep-of-pkg-with-1-dep@1.1.1",
+			"version": "100.0.0",
+			"_id": "dep-of-pkg-with-1-dep@100.0.0",
 			"scripts": {},
-			"_shasum": "164921db994bc958b58ec040aa5b5bfbc1f8fbc7",
+			"_shasum": "935d626f42774da795c740453892380922c8407c",
 			"_from": ".",
 			"_npmVersion": "3.10.9",
-			"_nodeVersion": "6.9.1",
+			"_nodeVersion": "8.0.0-pre",
 			"_npmUser": {},
 			"dist": {
-				"shasum": "164921db994bc958b58ec040aa5b5bfbc1f8fbc7",
-				"tarball": "http://localhost:4873/dep-of-pkg-with-1-dep/-/dep-of-pkg-with-1-dep-1.1.1.tgz"
+				"shasum": "935d626f42774da795c740453892380922c8407c",
+				"tarball": "http://localhost:4873/dep-of-pkg-with-1-dep/-/dep-of-pkg-with-1-dep-100.0.0.tgz"
+			}
+		},
+		"100.1.0": {
+			"name": "dep-of-pkg-with-1-dep",
+			"version": "100.1.0",
+			"_id": "dep-of-pkg-with-1-dep@100.1.0",
+			"scripts": {},
+			"_shasum": "300d1f9edb33196f0a08363b8c25a8a3a3d5e1e7",
+			"_from": ".",
+			"_npmVersion": "3.10.9",
+			"_nodeVersion": "8.0.0-pre",
+			"_npmUser": {},
+			"dist": {
+				"shasum": "300d1f9edb33196f0a08363b8c25a8a3a3d5e1e7",
+				"tarball": "http://localhost:4873/dep-of-pkg-with-1-dep/-/dep-of-pkg-with-1-dep-100.1.0.tgz"
 			}
 		}
 	},
 	"dist-tags": {
 		"latest": [
 			"1.1.0",
-			"1.1.1"
-		],
-		"stable": [
-			"1.1.0"
-		],
-		"latest0.551141932421368": [
-			"1.1.0"
-		],
-		"latest0.5175606653015332": [
-			"1.1.0"
-		],
-		"latest008981784593683684": [
-			"1.1.0"
-		],
-		"latest04562271037531931": [
-			"1.1.0"
-		],
-		"latest05814424228630279": [
-			"1.1.0"
-		],
-		"latest07448502102578836": [
-			"1.1.0"
-		],
-		"latest07854293699431689": [
-			"1.1.0"
-		],
-		"latest031745125924045237": [
-			"1.1.0"
-		],
-		"latest05654247860194166": [
-			"1.1.0"
-		],
-		"latest026854781938601646": [
-			"1.1.0"
-		],
-		"latest03541450835866222": [
-			"1.1.0"
+			"100.0.0",
+			"100.1.0"
 		]
 	},
 	"_distfiles": {
-		"dep-of-pkg-with-1-dep-1.0.0.tgz": {
-			"url": "https://registry.npmjs.org/dep-of-pkg-with-1-dep/-/dep-of-pkg-with-1-dep-1.0.0.tgz",
-			"sha": "a846a9c4f74479e65eb6b3770b4012bebcb68566",
-			"registry": "npmjs"
-		},
 		"dep-of-pkg-with-1-dep-1.1.0.tgz": {
 			"url": "https://registry.npmjs.org/dep-of-pkg-with-1-dep/-/dep-of-pkg-with-1-dep-1.1.0.tgz",
 			"sha": "67d3ac196cb08162e543b87b3b1829c76072c927",
@@ -130,17 +76,21 @@
 		}
 	},
 	"_attachments": {
-		"dep-of-pkg-with-1-dep-1.1.1.tgz": {
-			"shasum": "164921db994bc958b58ec040aa5b5bfbc1f8fbc7",
-			"version": "1.1.1"
+		"dep-of-pkg-with-1-dep-100.0.0.tgz": {
+			"shasum": "935d626f42774da795c740453892380922c8407c",
+			"version": "100.0.0"
+		},
+		"dep-of-pkg-with-1-dep-100.1.0.tgz": {
+			"shasum": "300d1f9edb33196f0a08363b8c25a8a3a3d5e1e7",
+			"version": "100.1.0"
 		}
 	},
 	"_uplinks": {
 		"npmjs": {
-			"etag": "W/\"57fb329b-896\"",
-			"fetched": 1482068198311
+			"etag": "W/\"585dc57f-468\"",
+			"fetched": 1482541753493
 		}
 	},
-	"_rev": "4-70e339ea6ff9eecb",
+	"_rev": "7-9c25707ca43f0fd2",
 	"readme": "ERROR: No README data found!"
 }

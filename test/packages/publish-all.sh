@@ -3,7 +3,7 @@
 set -e;
 
 cd test/packages;
-npm_config_registry=http://localhost:4873/;
+export npm_config_registry=http://localhost:4873/;
 npm config set "//localhost:4873/:_authToken=h6zsF82dzSCnFsws9nQXtxyKcBY";
 
 cd hello-world-js-bin;
@@ -35,7 +35,11 @@ cd circular-deps-2-of-2;
 npm publish;
 cd ..;
 
-cd dep-of-pkg-with-1-dep;
+cd dep-of-pkg-with-1-dep@100.0.0;
+npm publish;
+cd ..;
+
+cd dep-of-pkg-with-1-dep@100.1.0;
 npm publish;
 cd ..;
 

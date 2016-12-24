@@ -33,29 +33,29 @@
 			},
 			"directories": {}
 		},
-		"1.0.1": {
+		"100.0.0": {
 			"name": "pkg-with-1-dep",
-			"version": "1.0.1",
+			"version": "100.0.0",
 			"dependencies": {
-				"dep-of-pkg-with-1-dep": "^1.0.0"
+				"dep-of-pkg-with-1-dep": "^100.0.0"
 			},
-			"_id": "pkg-with-1-dep@1.0.1",
+			"_id": "pkg-with-1-dep@100.0.0",
 			"scripts": {},
-			"_shasum": "1fdc5dc23f2e510912bb101c5c87d3204a526298",
+			"_shasum": "10dad2856a9c64eef6371f1e1a1fe4afa6b67bb5",
 			"_from": ".",
 			"_npmVersion": "3.10.9",
-			"_nodeVersion": "6.9.1",
+			"_nodeVersion": "8.0.0-pre",
 			"_npmUser": {},
 			"dist": {
-				"shasum": "1fdc5dc23f2e510912bb101c5c87d3204a526298",
-				"tarball": "http://localhost:4873/pkg-with-1-dep/-/pkg-with-1-dep-1.0.1.tgz"
+				"shasum": "10dad2856a9c64eef6371f1e1a1fe4afa6b67bb5",
+				"tarball": "http://localhost:4873/pkg-with-1-dep/-/pkg-with-1-dep-100.0.0.tgz"
 			}
 		}
 	},
 	"dist-tags": {
 		"latest": [
 			"1.0.0",
-			"1.0.1"
+			"100.0.0"
 		]
 	},
 	"_distfiles": {
@@ -66,17 +66,17 @@
 		}
 	},
 	"_attachments": {
-		"pkg-with-1-dep-1.0.1.tgz": {
-			"shasum": "1fdc5dc23f2e510912bb101c5c87d3204a526298",
-			"version": "1.0.1"
+		"pkg-with-1-dep-100.0.0.tgz": {
+			"shasum": "10dad2856a9c64eef6371f1e1a1fe4afa6b67bb5",
+			"version": "100.0.0"
 		}
 	},
 	"_uplinks": {
 		"npmjs": {
 			"etag": "W/\"57fa482e-444\"",
-			"fetched": 1482068199013
+			"fetched": 1482541754671
 		}
 	},
-	"_rev": "4-8f2d93562b82ab1c",
+	"_rev": "4-2904b3d10e9f5782",
 	"readme": "ERROR: No README data found!"
 }

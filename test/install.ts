@@ -685,17 +685,17 @@ test('should update subdep on second install', async function (t) {
 
   const latest = 'stable'
 
-  await addDistTag('dep-of-pkg-with-1-dep', '1.0.0', latest)
+  await addDistTag('dep-of-pkg-with-1-dep', '100.0.0', latest)
 
   await installPkgs(['pkg-with-1-dep'], testDefaults({save: true, tag: latest, cacheTTL: 0}))
 
-  await project.storeHas('dep-of-pkg-with-1-dep', '1.0.0')
+  await project.storeHas('dep-of-pkg-with-1-dep', '100.0.0')
 
-  await addDistTag('dep-of-pkg-with-1-dep', '1.1.0', latest)
+  await addDistTag('dep-of-pkg-with-1-dep', '100.1.0', latest)
 
   await install(testDefaults({depth: 1, tag: latest, cacheTTL: 0}))
 
-  await project.storeHas('dep-of-pkg-with-1-dep', '1.1.0')
+  await project.storeHas('dep-of-pkg-with-1-dep', '100.1.0')
 })
 
 test('should install flat tree', async function (t) {

@@ -12,7 +12,7 @@
 			"_shasum": "21b11a369713c29f6a8adbd906fb53fc8aac40cf",
 			"_from": ".",
 			"_npmVersion": "3.10.9",
-			"_nodeVersion": "6.9.1",
+			"_nodeVersion": "8.0.0-pre",
 			"_npmUser": {},
 			"dist": {
 				"shasum": "21b11a369713c29f6a8adbd906fb53fc8aac40cf",
@@ -33,6 +33,6 @@
 		}
 	},
 	"_uplinks": {},
-	"_rev": "3-9df0f2f6f324ad1b",
+	"_rev": "3-3177127602565729",
 	"readme": "ERROR: No README data found!"
 }

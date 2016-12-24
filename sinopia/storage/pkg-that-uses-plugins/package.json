@@ -19,13 +19,13 @@
 			},
 			"_id": "pkg-that-uses-plugins@1.0.0",
 			"scripts": {},
-			"_shasum": "e5860a1b35db8c48e3ecab58ba73727a6c4dae9b",
+			"_shasum": "b68a6ac40d1fce417c8307aa42819a23f0d0f2e7",
 			"_from": ".",
 			"_npmVersion": "3.10.9",
-			"_nodeVersion": "6.9.1",
+			"_nodeVersion": "8.0.0-pre",
 			"_npmUser": {},
 			"dist": {
-				"shasum": "e5860a1b35db8c48e3ecab58ba73727a6c4dae9b",
+				"shasum": "b68a6ac40d1fce417c8307aa42819a23f0d0f2e7",
 				"tarball": "http://localhost:4873/pkg-that-uses-plugins/-/pkg-that-uses-plugins-1.0.0.tgz"
 			}
 		}
@@ -38,11 +38,11 @@
 	"_distfiles": {},
 	"_attachments": {
 		"pkg-that-uses-plugins-1.0.0.tgz": {
-			"shasum": "e5860a1b35db8c48e3ecab58ba73727a6c4dae9b",
+			"shasum": "b68a6ac40d1fce417c8307aa42819a23f0d0f2e7",
 			"version": "1.0.0"
 		}
 	},
 	"_uplinks": {},
-	"_rev": "3-45b721c689db2c23",
+	"_rev": "3-8bb890e7fc88901e",
 	"readme": "ERROR: No README data found!"
 }

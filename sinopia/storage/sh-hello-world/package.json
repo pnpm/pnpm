@@ -70,7 +70,7 @@
 			"_shasum": "24bea983eb966555a27877d88dd0f2a5e5953ab1",
 			"_from": ".",
 			"_npmVersion": "3.10.9",
-			"_nodeVersion": "6.9.1",
+			"_nodeVersion": "8.0.0-pre",
 			"_npmUser": {},
 			"dist": {
 				"shasum": "24bea983eb966555a27877d88dd0f2a5e5953ab1",
@@ -100,9 +100,9 @@
 	"_uplinks": {
 		"npmjs": {
 			"etag": "W/\"57a4dd6c-69f\"",
-			"fetched": 1482068209004
+			"fetched": 1482541763826
 		}
 	},
-	"_rev": "4-af6406b1db6b4eba",
+	"_rev": "4-a0001379f9910b7e",
 	"readme": "ERROR: No README data found!"
 }
