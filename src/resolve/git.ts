@@ -9,7 +9,10 @@ export default async function resolveGithub (parsedSpec: PackageSpec, opts: Reso
   const repo = parts[0]
   const ref = parts[1] || 'master'
   return {
-    id: parsedSpec.spec.replace(/[\/:]/g, delimiter),
+    id: parsedSpec.spec
+      .replace(/^.*:\/\/(git@)?/, '')
+      .replace(/:/g, delimiter)
+      .replace(/\.git$/, ''),
     fetch: (target: string) => {
       return clone(repo, ref, target)
     }
