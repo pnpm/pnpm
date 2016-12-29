@@ -28,6 +28,15 @@ export default async function resolveNpm (spec: PackageSpec, opts: ResolveOption
     if (opts.log) opts.log('resolving')
     const parsedBody = <PackageDocument>(await opts.got.getJSON(url))
     const correctPkg = pickVersionFromRegistryDocument(parsedBody, spec, opts.tag)
+    if (!correctPkg) {
+      const versions = Object.keys(parsedBody.versions)
+      const message = versions.length
+        ? 'Versions in registry:\n' + versions.join(', ') + '\n'
+        : 'No valid version found.'
+      const err = new Error('No compatible version found: ' +
+        spec.raw + '\n' + message)
+      throw err
+    }
     return {
       id: createPkgId(correctPkg),
       pkg: correctPkg,
@@ -63,30 +72,31 @@ type PackageDocument = {
 }
 
 function pickVersionFromRegistryDocument (pkg: PackageDocument, dep: PackageSpec, latestTag: string) {
-  const versions = Object.keys(pkg.versions)
-
   if (dep.type === 'tag') {
-    const tagVersion = pkg['dist-tags'][dep.spec]
-    if (pkg.versions[tagVersion]) {
-      return pkg.versions[tagVersion]
-    }
-  } else {
-    const latest = pkg['dist-tags'][latestTag]
-    if (semver.satisfies(latest, dep.spec, true)) {
-      return pkg.versions[latest]
-    }
-    const maxVersion = semver.maxSatisfying(versions, dep.spec, true)
-    if (maxVersion) {
-      return pkg.versions[maxVersion]
-    }
+    return pickVersionByTag(pkg, dep.spec)
   }
+  return pickVersionByVersionRange(pkg, dep.spec, latestTag)
+}
 
-  const message = versions.length
-              ? 'Versions in registry:\n' + versions.join(', ') + '\n'
-              : 'No valid version found.'
-  const er = new Error('No compatible version found: ' +
-                     dep.raw + '\n' + message)
-  throw er
+function pickVersionByTag(pkg: PackageDocument, tag: string) {
+  const tagVersion = pkg['dist-tags'][tag]
+  if (pkg.versions[tagVersion]) {
+    return pkg.versions[tagVersion]
+  }
+  return null
+}
+
+function pickVersionByVersionRange(pkg: PackageDocument, versionRange: string, latestTag: string) {
+  const latest = pkg['dist-tags'][latestTag]
+  if (semver.satisfies(latest, versionRange, true)) {
+    return pkg.versions[latest]
+  }
+  const versions = Object.keys(pkg.versions)
+  const maxVersion = semver.maxSatisfying(versions, versionRange, true)
+  if (maxVersion) {
+    return pkg.versions[maxVersion]
+  }
+  return null
 }
 
 /**
