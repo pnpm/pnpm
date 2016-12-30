@@ -14,6 +14,10 @@ import {
   TreeType,
 } from '../fs/storeController'
 import {
+  read as readShrinkwrap,
+  Shrinkwrap,
+} from '../fs/shrinkwrap'
+import {
   read as readModules
 } from '../fs/modulesController'
 import mkdirp from '../fs/mkdirp'
@@ -28,6 +32,7 @@ export type PnpmContext = {
   storePath: string,
   root: string,
   store: Store,
+  shrinkwrap: Shrinkwrap,
   isFirstInstallation: boolean,
 }
 
@@ -62,12 +67,14 @@ export default async function (opts: StrictPnpmOptions): Promise<PnpmContext> {
   if (store) {
     failIfNotCompatible(store.pnpm)
   }
+  const shrinkwrap = await readShrinkwrap(root) || {}
   const ctx: PnpmContext = {
     pkg: pkg.pkg,
     root,
     cache: getCachePath(opts.globalPath),
     storePath,
     store,
+    shrinkwrap,
     isFirstInstallation,
   }
 

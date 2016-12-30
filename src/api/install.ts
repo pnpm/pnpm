@@ -19,6 +19,7 @@ import extendOptions from './extendOptions'
 import pnpmPkgJson from '../pnpmPkgJson'
 import lock from './lock'
 import {save as saveStore, Store} from '../fs/storeController'
+import {save as saveShrinkwrap, Shrinkwrap} from '../fs/shrinkwrap'
 import {save as saveModules} from '../fs/modulesController'
 import {tryUninstall, removePkgFromStore} from './uninstall'
 import flattenDependencies from '../install/flattenDependencies'
@@ -40,12 +41,13 @@ export type InstallContext = {
   fetchLocks: CachedPromises<void>,
   installLocks: CachedPromises<InstalledPackage[]>,
   store: Store,
+  shrinkwrap: Shrinkwrap,
 }
 
 export async function install (maybeOpts?: PnpmOptions) {
   const opts = extendOptions(maybeOpts)
   const ctx = await getContext(opts)
-  const installCtx = await createInstallCmd(opts, ctx.store, ctx.cache)
+  const installCtx = await createInstallCmd(opts, ctx.store, ctx.shrinkwrap, ctx.cache)
 
   if (!ctx.pkg) throw runtimeError('No package.json found')
   const packagesToInstall = Object.assign({}, ctx.pkg.dependencies || {})
@@ -67,7 +69,7 @@ export async function installPkgs (fuzzyDeps: string[] | Dependencies, maybeOpts
   }
   const opts = extendOptions(maybeOpts)
   const ctx = await getContext(opts)
-  const installCtx = await createInstallCmd(opts, ctx.store, ctx.cache)
+  const installCtx = await createInstallCmd(opts, ctx.store, ctx.shrinkwrap, ctx.cache)
 
   return lock(ctx.storePath, () => installInContext('named', packagesToInstall, ctx, installCtx, opts))
 }
@@ -128,6 +130,7 @@ async function installInContext (installType: string, packagesToInstall: Depende
   })
   await removeOrphanPkgs(oldStore, newStore, ctx.root, ctx.storePath)
   await saveStore(ctx.storePath, newStore)
+  await saveShrinkwrap(ctx.root, ctx.shrinkwrap)
   if (ctx.isFirstInstallation) {
     await saveModules(path.join(ctx.root, 'node_modules'), {storePath: ctx.storePath})
   }
@@ -173,12 +176,13 @@ function removeOrphanPkgs (oldStoreJson: Store, newStoreJson: Store, root: strin
   return Promise.all(uninstallPkgs.map(pkgId => removePkgFromStore(pkgId, store)))
 }
 
-async function createInstallCmd (opts: StrictPnpmOptions, store: Store, cache: string): Promise<InstallContext> {
+async function createInstallCmd (opts: StrictPnpmOptions, store: Store, shrinkwrap: Shrinkwrap, cache: string): Promise<InstallContext> {
   return {
     fetchLocks: {},
     installLocks: {},
     installs: {},
     store,
+    shrinkwrap,
   }
 }
 

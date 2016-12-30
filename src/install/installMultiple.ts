@@ -92,8 +92,9 @@ async function installMultiple (ctx: InstallContext, pkgsMap: Dependencies, modu
 
 async function install (pkgRawSpec: string, modules: string, ctx: InstallContext, options: InstallOptions) {
   options.keypath = options.keypath || []
+  const update = options.keypath.length <= options.depth
 
-  const fetchedPkg = await fetch(ctx, pkgRawSpec, modules, options)
+  const fetchedPkg = await fetch(ctx, pkgRawSpec, modules, Object.assign({}, options, {update}))
   const pkg = await fetchedPkg.fetchingPkg
 
   if (!options.force) {

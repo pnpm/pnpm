@@ -26,6 +26,7 @@ export type FetchOptions = {
   storePath: string,
   tag: string,
   got: Got,
+  update: boolean,
 }
 
 export type FetchedPackage = {
@@ -84,13 +85,22 @@ export default async function fetch (ctx: InstallContext, pkgRawSpec: string, mo
     if (spec && spec.name) {
       await rimraf(path.join(modules, spec && spec.name))
     }
-    const resolution = await resolve(spec, {
-      log,
-      got: options.got,
-      root: options.root,
-      linkLocal: options.linkLocal,
-      tag: options.tag
-    })
+    let resolution = options.update ? null : ctx.shrinkwrap[pkgRawSpec]
+    if (!resolution) {
+      resolution = await resolve(spec, {
+        log,
+        got: options.got,
+        root: options.root,
+        linkLocal: options.linkLocal,
+        tag: options.tag
+      })
+      if (resolution.tarball || resolution.repo) {
+        ctx.shrinkwrap[pkgRawSpec] = Object.assign({}, resolution)
+        delete ctx.shrinkwrap[pkgRawSpec].pkg
+        delete ctx.shrinkwrap[pkgRawSpec].fetch
+        delete ctx.shrinkwrap[pkgRawSpec].root
+      }
+    }
     log('resolved', resolution)
 
     const target = path.join(options.storePath, resolution.id)
