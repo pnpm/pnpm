@@ -26,7 +26,7 @@ export type FetchOptions = {
   storePath: string,
   tag: string,
   got: Got,
-  update: boolean,
+  update?: boolean,
 }
 
 export type FetchedPackage = {
