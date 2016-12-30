@@ -27,11 +27,11 @@ test('update', async function (t) {
 
   await runCli('install', 'pkg-with-1-dep', '-S', '--tag', latest, '--cache-ttl', '0')
 
-  project.storeHas('dep-of-pkg-with-1-dep', '100.0.0')
+  await project.storeHas('dep-of-pkg-with-1-dep', '100.0.0')
 
   await addDistTag('dep-of-pkg-with-1-dep', '100.1.0', latest)
 
   await runCli('update', '--depth', '1', '--tag', latest)
 
-  project.storeHas('dep-of-pkg-with-1-dep', '100.1.0')
+  await project.storeHas('dep-of-pkg-with-1-dep', '100.1.0')
 })
