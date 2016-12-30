@@ -1,6 +1,5 @@
 import path = require('path')
 import {HostedPackageSpec, ResolveOptions, ResolveResult} from '.'
-import {fetchFromRemoteTarball} from './fetch'
 
 /**
  * Resolves a 'hosted' package hosted on 'github'.
@@ -10,12 +9,9 @@ export default async function resolveGithub (spec: HostedPackageSpec, opts: Reso
   // the ref should be a commit sha. Otherwise it would't be unique
   // and couldn't be saved in a machine store
   ghSpec.ref = await resolveRef(ghSpec)
-  const dist = {
-    tarball: `https://codeload.github.com/${ghSpec.owner}/${ghSpec.repo}/tar.gz/${ghSpec.ref}`
-  }
   return {
     id: path.join('github.com', ghSpec.owner, ghSpec.repo, ghSpec.ref),
-    fetch: (target: string) => fetchFromRemoteTarball(target, dist, opts)
+    tarball: `https://codeload.github.com/${ghSpec.owner}/${ghSpec.repo}/tar.gz/${ghSpec.ref}`
   }
 
   async function resolveRef (spec: GitHubSpec) {

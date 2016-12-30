@@ -5,7 +5,6 @@ import registryUrl = require('registry-url')
 import semver = require('semver')
 import {PackageSpec, ResolveOptions, ResolveResult} from '.'
 import {Package} from '../types'
-import {createRemoteTarballFetcher} from './fetch'
 
 /**
  * Resolves a package in the NPM registry. Done as part of `install()`.
@@ -40,10 +39,8 @@ export default async function resolveNpm (spec: PackageSpec, opts: ResolveOption
     return {
       id: createPkgId(correctPkg),
       pkg: correctPkg,
-      fetch: createRemoteTarballFetcher({
-        shasum: correctPkg.dist.shasum,
-        tarball: correctPkg.dist.tarball
-      }, opts)
+      shasum: correctPkg.dist.shasum,
+      tarball: correctPkg.dist.tarball,
     }
   } catch (err) {
     if (err['statusCode'] === 404) {

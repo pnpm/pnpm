@@ -16,6 +16,7 @@ import memoize, {CachedPromises} from '../memoize'
 import {Package} from '../types'
 import {Got} from '../network/got'
 import {InstallContext} from '../api/install'
+import fetchRes from './fetchResolution'
 
 export type FetchOptions = {
   keypath?: string[],
@@ -105,6 +106,7 @@ export default async function fetch (ctx: InstallContext, pkgRawSpec: string, mo
         log,
         keypath,
         force: options.force,
+        got: options.got,
       })
 
     const fetchingPkg = res.pkg
@@ -168,6 +170,7 @@ type FetchToStoreOptions = {
   log: InstallLog,
   force: boolean,
   keypath: string[],
+  got: Got,
 }
 
 /**
@@ -178,7 +181,7 @@ type FetchToStoreOptions = {
 function fetchToStoreCached (opts: FetchToStoreOptions): Promise<void> {
   return memoize(opts.fetchLocks, opts.resolution.id, async function () {
     opts.log('download-queued')
-    await opts.resolution.fetch(opts.target)
+    await fetchRes(opts.resolution, opts.target, {got: opts.got, log: opts.log})
 
     const pkg = await requireJson(path.resolve(path.join(opts.target, 'package.json')))
 
