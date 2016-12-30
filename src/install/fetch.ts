@@ -84,43 +84,43 @@ export default async function fetch (ctx: InstallContext, pkgRawSpec: string, mo
     if (spec && spec.name) {
       await rimraf(path.join(modules, spec && spec.name))
     }
-    const res = await resolve(spec, {
+    const resolution = await resolve(spec, {
       log,
       got: options.got,
       root: options.root,
       linkLocal: options.linkLocal,
       tag: options.tag
     })
-    log('resolved', res)
+    log('resolved', resolution)
 
-    const target = path.join(options.storePath, res.id)
+    const target = path.join(options.storePath, resolution.id)
 
-    const justFetched = !ctx.fetchLocks[res.id] &&
-      (options.force || !(await exists(target)) || !ctx.store.packages[res.id])
-    const fetchingFiles = !justFetched && !ctx.fetchLocks[res.id]
+    const justFetched = !ctx.fetchLocks[resolution.id] &&
+      (options.force || !(await exists(target)) || !ctx.store.packages[resolution.id])
+    const fetchingFiles = !justFetched && !ctx.fetchLocks[resolution.id]
       ? Promise.resolve()
       : fetchToStoreCached({
         fetchLocks: ctx.fetchLocks,
         target,
-        resolution: res,
+        resolution,
         log,
         keypath,
         force: options.force,
         got: options.got,
       })
 
-    const fetchingPkg = res.pkg
-      ? Promise.resolve(res.pkg)
+    const fetchingPkg = resolution.pkg
+      ? Promise.resolve(resolution.pkg)
       : fetchingFiles.then(() => requireJson(path.join(target, 'package.json')))
 
     const fetchedPkg = {
       fetchingPkg,
       fetchingFiles,
-      id: res.id,
+      id: resolution.id,
       name: spec.name,
       fromCache: false,
       path: target,
-      srcPath: res.root,
+      srcPath: resolution.root,
       justFetched,
       abort: async function () {
         try {
@@ -183,7 +183,7 @@ function fetchToStoreCached (opts: FetchToStoreOptions): Promise<void> {
     opts.log('download-queued')
     await fetchRes(opts.resolution, opts.target, {got: opts.got, log: opts.log})
 
-    const pkg = await requireJson(path.resolve(path.join(opts.target, 'package.json')))
+    const pkg = await requireJson(path.join(opts.target, 'package.json'))
 
     opts.log('package.json', pkg)
   })
