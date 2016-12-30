@@ -74,19 +74,21 @@ export default async function fetch (ctx: InstallContext, pkgRawSpec: string, mo
   const log: InstallLog = logger.fork(spec).log.bind(null, 'progress', pkgRawSpec)
 
   try {
-    // it might be a bundleDependency, in which case, don't bother
-    const available = !options.force && await isAvailable(spec, modules)
-    if (available) {
-      const fetchedPkg = await saveCachedResolution()
-      fetchedPkg.fetchingPkg.then(pkg => log('package.json', pkg))
-      fetchedPkg.fetchingFiles.then(() => log('done'))
-      return fetchedPkg
+    let resolution = ctx.shrinkwrap[pkgRawSpec]
+    if (!resolution) {
+      // it might be a bundleDependency, in which case, don't bother
+      const available = !options.force && await isAvailable(spec, modules)
+      if (available) {
+        const fetchedPkg = await saveCachedResolution()
+        fetchedPkg.fetchingPkg.then(pkg => log('package.json', pkg))
+        fetchedPkg.fetchingFiles.then(() => log('done'))
+        return fetchedPkg
+      }
     }
     if (spec && spec.name) {
       await rimraf(path.join(modules, spec && spec.name))
     }
-    let resolution = options.update ? null : ctx.shrinkwrap[pkgRawSpec]
-    if (!resolution) {
+    if (!resolution || options.update) {
       resolution = await resolve(spec, {
         log,
         got: options.got,
