@@ -766,3 +766,23 @@ test('should reinstall package to the store if it is not in the store.yml', asyn
 
   t.ok(await exists(await project.resolve('is-positive', '3.1.0', 'index.js')))
 })
+
+test('shrinkwrap locks npm dependencies', async function (t) {
+  const project = prepare(t)
+
+  await addDistTag('dep-of-pkg-with-1-dep', '100.0.0', 'latest')
+
+  await installPkgs(['pkg-with-1-dep'], testDefaults({save: true, cacheTTL: 0}))
+
+  await project.storeHas('dep-of-pkg-with-1-dep', '100.0.0')
+
+  await addDistTag('dep-of-pkg-with-1-dep', '100.1.0', 'latest')
+
+  await rimraf('node_modules')
+
+  await install(testDefaults({cacheTTL: 0}))
+
+  const pkg = project.requireModule('pkg-with-1-dep/node_modules/dep-of-pkg-with-1-dep/package.json')
+
+  t.equal(pkg.version, '100.0.0', 'dependency specified in shrinkwrap.yaml is installed')
+})
