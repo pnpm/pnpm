@@ -116,8 +116,6 @@ export default async function fetch (ctx: InstallContext, pkgRawSpec: string, mo
         target,
         resolution,
         log,
-        keypath,
-        force: options.force,
         got: options.got,
       })
 
@@ -180,8 +178,6 @@ type FetchToStoreOptions = {
   target: string,
   resolution: ResolveResult,
   log: InstallLog,
-  force: boolean,
-  keypath: string[],
   got: Got,
 }
 
