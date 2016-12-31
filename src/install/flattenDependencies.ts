@@ -2,14 +2,14 @@ import path = require('path')
 import {InstalledPackage} from './installMultiple'
 import mkdirp from '../fs/mkdirp'
 import symlinkToModules from './symlinkToModules'
-import {StorePackageMap} from '../fs/storeController'
+import {Graph} from '../fs/graphController'
 
-export default function flattenDependencies (id: string, store: string, pkgs: InstalledPackage[], storePkg: StorePackageMap) {
+export default function flattenDependencies (id: string, store: string, pkgs: InstalledPackage[], graph: Graph) {
   const newPkgs = getNewPkgs(pkgs, [id])
   const todo = new Set(newPkgs.map(newPkg => newPkg.id).concat([id]))
   const tree: FlatTree = {}
-  flattenPkgs(id, storePkg, 1, [], tree)
-  return createFlatTree(id, store, id, storePkg, todo, tree, 1)
+  flattenPkgs(id, graph, 1, [], tree)
+  return createFlatTree(id, store, id, graph, todo, tree, 1)
 }
 
 function getNewPkgs (pkgs: InstalledPackage[], keypath: string[]): InstalledPackage[] {
@@ -20,7 +20,7 @@ function getNewPkgs (pkgs: InstalledPackage[], keypath: string[]): InstalledPack
         newPkgs.concat(getNewPkgs(pkg.dependencies, keypath.concat([pkg.id]))), []))
 }
 
-async function createFlatTree (id: string, store: string, root: string, storePkg: StorePackageMap, todo: Set<string>, tree: FlatTree, depth: number) {
+async function createFlatTree (id: string, store: string, root: string, graph: Graph, todo: Set<string>, tree: FlatTree, depth: number) {
   if (!todo.has(id)) return
   todo.delete(id)
 
@@ -34,18 +34,18 @@ async function createFlatTree (id: string, store: string, root: string, storePkg
         if (tree[id][depName].depth > depth) {
           await symlinkToModules(target, modules)
         }
-        return createFlatTree(tree[id][depName].id, store, target, storePkg, todo, tree, depth + 1)
+        return createFlatTree(tree[id][depName].id, store, target, graph, todo, tree, depth + 1)
       })
   )
 }
 
-function flattenPkgs (id: string, storePkg: StorePackageMap, depth: number, keypath: string[], tree: FlatTree): DepResolutionAndDeps {
+function flattenPkgs (id: string, graph: Graph, depth: number, keypath: string[], tree: FlatTree): DepResolutionAndDeps {
   if (tree[id]) return tree[id]
   if (keypath.indexOf(id) !== -1) return {}
-  tree[id] = Object.keys(storePkg[id].dependencies || {})
+  tree[id] = Object.keys(graph[id].dependencies || {})
     .reduce((prev: DepResolutionAndDeps, depName: string) => {
-      const depId = storePkg[id].dependencies[depName]
-      const subdeps = flattenPkgs(depId, storePkg, depth + 1, keypath.concat([id]), tree)
+      const depId = graph[id].dependencies[depName]
+      const subdeps = flattenPkgs(depId, graph, depth + 1, keypath.concat([id]), tree)
       prev[depName] = {
         id: depId,
         depth,

@@ -63,8 +63,9 @@
 	},
 	"dist-tags": {
 		"latest": [
-			"1.1.0",
-			"100.0.0",
+			"100.1.0"
+		],
+		"stable": [
 			"100.1.0"
 		]
 	},
@@ -91,6 +92,6 @@
 			"fetched": 1482541753493
 		}
 	},
-	"_rev": "7-9c25707ca43f0fd2",
+	"_rev": "27-82b91977c3031e63",
 	"readme": "ERROR: No README data found!"
 }

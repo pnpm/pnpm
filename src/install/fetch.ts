@@ -108,7 +108,7 @@ export default async function fetch (ctx: InstallContext, pkgRawSpec: string, mo
     const target = path.join(options.storePath, resolution.id)
 
     const justFetched = !ctx.fetchLocks[resolution.id] &&
-      (options.force || !(await exists(target)) || !ctx.store.packages[resolution.id])
+      (options.force || !(await exists(target)) || !ctx.graph[resolution.id])
     const fetchingFiles = !justFetched && !ctx.fetchLocks[resolution.id]
       ? Promise.resolve()
       : fetchToStoreCached({

@@ -18,7 +18,7 @@ import postInstall from '../install/postInstall'
 import extendOptions from './extendOptions'
 import pnpmPkgJson from '../pnpmPkgJson'
 import lock from './lock'
-import {save as saveStore, Store} from '../fs/storeController'
+import {save as saveGraph, Graph} from '../fs/graphController'
 import {save as saveShrinkwrap, Shrinkwrap} from '../fs/shrinkwrap'
 import {save as saveModules} from '../fs/modulesController'
 import {tryUninstall, removePkgFromStore} from './uninstall'
@@ -40,14 +40,14 @@ export type InstallContext = {
   piq?: PackageInstallationResult[],
   fetchLocks: CachedPromises<void>,
   installLocks: CachedPromises<InstalledPackage[]>,
-  store: Store,
+  graph: Graph,
   shrinkwrap: Shrinkwrap,
 }
 
 export async function install (maybeOpts?: PnpmOptions) {
   const opts = extendOptions(maybeOpts)
   const ctx = await getContext(opts)
-  const installCtx = await createInstallCmd(opts, ctx.store, ctx.shrinkwrap, ctx.cache)
+  const installCtx = await createInstallCmd(opts, ctx.graph, ctx.shrinkwrap, ctx.cache)
 
   if (!ctx.pkg) throw runtimeError('No package.json found')
   const packagesToInstall = Object.assign({}, ctx.pkg.dependencies || {})
@@ -69,14 +69,14 @@ export async function installPkgs (fuzzyDeps: string[] | Dependencies, maybeOpts
   }
   const opts = extendOptions(maybeOpts)
   const ctx = await getContext(opts)
-  const installCtx = await createInstallCmd(opts, ctx.store, ctx.shrinkwrap, ctx.cache)
+  const installCtx = await createInstallCmd(opts, ctx.graph, ctx.shrinkwrap, ctx.cache)
 
   return lock(ctx.storePath, () => installInContext('named', packagesToInstall, ctx, installCtx, opts))
 }
 
 async function installInContext (installType: string, packagesToInstall: Dependencies, ctx: PnpmContext, installCtx: InstallContext, opts: StrictPnpmOptions) {
-  // TODO: ctx.store should not be muted. installMultiple should return a new store
-  const oldStore: Store = cloneDeep(ctx.store)
+  // TODO: ctx.graph should not be muted. installMultiple should return a new graph
+  const oldGraph: Graph = cloneDeep(ctx.graph)
   const nodeModulesPath = path.join(ctx.root, 'node_modules')
   await mkdirp(nodeModulesPath)
   const client = new RegClient(adaptConfig(opts))
@@ -109,7 +109,7 @@ async function installInContext (installType: string, packagesToInstall: Depende
 
   if (opts.flatTree) {
     console.log('Flattening the dependency tree')
-    await flattenDependencies(ctx.root, ctx.storePath, pkgs, ctx.store.packages)
+    await flattenDependencies(ctx.root, ctx.storePath, pkgs, ctx.graph)
   }
 
   if (installType === 'named') {
@@ -125,14 +125,16 @@ async function installInContext (installType: string, packagesToInstall: Depende
     }
   }
 
-  const newStore = Object.assign({}, ctx.store, {
-    pnpm: pnpmPkgJson.version
-  })
-  await removeOrphanPkgs(oldStore, newStore, ctx.root, ctx.storePath)
-  await saveStore(ctx.storePath, newStore)
+  const newGraph = Object.assign({}, ctx.graph)
+  await removeOrphanPkgs(oldGraph, newGraph, ctx.root, ctx.storePath)
+  await saveGraph(path.join(ctx.root, 'node_modules'), newGraph)
   await saveShrinkwrap(ctx.root, ctx.shrinkwrap)
   if (ctx.isFirstInstallation) {
-    await saveModules(path.join(ctx.root, 'node_modules'), {storePath: ctx.storePath})
+    await saveModules(path.join(ctx.root, 'node_modules'), {
+      packageManager: `${pnpmPkgJson.name}@${pnpmPkgJson.version}`,
+      storePath: ctx.storePath,
+      type: opts.flatTree ? 'flat' : 'nested',
+    })
   }
 
   await linkPeers(ctx.storePath, installCtx.installs)
@@ -163,25 +165,25 @@ async function installInContext (installType: string, packagesToInstall: Depende
   }
 }
 
-function removeOrphanPkgs (oldStoreJson: Store, newStoreJson: Store, root: string, store: string) {
-  const oldDeps = oldStoreJson.packages[root] && oldStoreJson.packages[root].dependencies || {}
-  const newDeps = newStoreJson.packages[root] && newStoreJson.packages[root].dependencies || {}
+function removeOrphanPkgs (oldGraphJson: Graph, newGraphJson: Graph, root: string, store: string) {
+  const oldDeps = oldGraphJson[root] && oldGraphJson[root].dependencies || {}
+  const newDeps = newGraphJson[root] && newGraphJson[root].dependencies || {}
 
   const maybeUninstallPkgs = Object.keys(oldDeps)
     .filter(depName => oldDeps[depName] !== newDeps[depName])
     .map(depName => oldDeps[depName])
 
-  const uninstallPkgs = tryUninstall(maybeUninstallPkgs, newStoreJson, root)
+  const uninstallPkgs = tryUninstall(maybeUninstallPkgs, newGraphJson, root)
 
   return Promise.all(uninstallPkgs.map(pkgId => removePkgFromStore(pkgId, store)))
 }
 
-async function createInstallCmd (opts: StrictPnpmOptions, store: Store, shrinkwrap: Shrinkwrap, cache: string): Promise<InstallContext> {
+async function createInstallCmd (opts: StrictPnpmOptions, graph: Graph, shrinkwrap: Shrinkwrap, cache: string): Promise<InstallContext> {
   return {
     fetchLocks: {},
     installLocks: {},
     installs: {},
-    store,
+    graph,
     shrinkwrap,
   }
 }

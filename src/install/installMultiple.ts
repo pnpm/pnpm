@@ -66,7 +66,7 @@ async function installMultiple (ctx: InstallContext, pkgsMap: Dependencies, modu
 
   const pkgs = Object.keys(pkgsMap).map(pkgName => getRawSpec(pkgName, pkgsMap[pkgName]))
 
-  ctx.store.packages = ctx.store.packages || {}
+  ctx.graph = ctx.graph || {}
 
   const installedPkgs: InstalledPackage[] = <InstalledPackage[]>(
     await Promise.all(pkgs.map(async function (pkgRawSpec: string) {
@@ -113,8 +113,8 @@ async function install (pkgRawSpec: string, modules: string, ctx: InstallContext
 
   addInstalledPkg(ctx.installs, dependency)
 
-  ctx.store.packages[options.dependent] = ctx.store.packages[options.dependent] || {}
-  ctx.store.packages[options.dependent].dependencies = ctx.store.packages[options.dependent].dependencies || {}
+  ctx.graph[options.dependent] = ctx.graph[options.dependent] || {}
+  ctx.graph[options.dependent].dependencies = ctx.graph[options.dependent].dependencies || {}
 
   // NOTE: the current install implementation
   // does not return enough info for packages that were already installed
@@ -123,12 +123,12 @@ async function install (pkgRawSpec: string, modules: string, ctx: InstallContext
     return dependency
   }
 
-  ctx.store.packages[options.dependent].dependencies[pkg.name] = dependency.id
+  ctx.graph[options.dependent].dependencies[pkg.name] = dependency.id
 
-  ctx.store.packages[dependency.id] = ctx.store.packages[dependency.id] || {}
-  ctx.store.packages[dependency.id].dependents = ctx.store.packages[dependency.id].dependents || []
-  if (ctx.store.packages[dependency.id].dependents.indexOf(options.dependent) === -1) {
-    ctx.store.packages[dependency.id].dependents.push(options.dependent)
+  ctx.graph[dependency.id] = ctx.graph[dependency.id] || {}
+  ctx.graph[dependency.id].dependents = ctx.graph[dependency.id].dependents || []
+  if (ctx.graph[dependency.id].dependents.indexOf(options.dependent) === -1) {
+    ctx.graph[dependency.id].dependents.push(options.dependent)
   }
 
   const modulesInStore = path.join(options.nodeModulesStore, dependency.id)
