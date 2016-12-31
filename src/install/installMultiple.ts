@@ -72,6 +72,9 @@ async function installMultiple (ctx: InstallContext, pkgsMap: Dependencies, modu
     await Promise.all(pkgs.map(async function (pkgRawSpec: string) {
       try {
         const pkg = await install(pkgRawSpec, modules, ctx, options)
+        if (options.keypath && options.keypath.indexOf(pkg.id) !== -1) {
+          return null
+        }
         const modulesInStore = path.join(options.nodeModulesStore, pkg.id)
         await linkDir(modulesInStore, path.join(modules, pkg.pkg.name, 'node_modules'))
         return pkg
