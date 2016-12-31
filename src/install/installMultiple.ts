@@ -11,6 +11,7 @@ import installChecks = require('pnpm-install-checks')
 import pnpmPkg from '../pnpmPkgJson'
 import linkDir from 'link-dir'
 import exists = require('exists-file')
+import {Graph} from '../fs/graphController'
 
 export type InstallOptions = FetchOptions & {
   optional?: boolean,
@@ -113,23 +114,14 @@ async function install (pkgRawSpec: string, modules: string, ctx: InstallContext
 
   addInstalledPkg(ctx.installs, dependency)
 
-  ctx.graph[options.dependent] = ctx.graph[options.dependent] || {}
-  ctx.graph[options.dependent].dependencies = ctx.graph[options.dependent].dependencies || {}
-
-  // NOTE: the current install implementation
-  // does not return enough info for packages that were already installed
   if (dependency.fromCache || options.keypath.indexOf(dependency.id) !== -1) {
     await dependency.fetchingFiles
     return dependency
   }
 
-  ctx.graph[options.dependent].dependencies[pkg.name] = dependency.id
-
-  ctx.graph[dependency.id] = ctx.graph[dependency.id] || {}
-  ctx.graph[dependency.id].dependents = ctx.graph[dependency.id].dependents || []
-  if (ctx.graph[dependency.id].dependents.indexOf(options.dependent) === -1) {
-    ctx.graph[dependency.id].dependents.push(options.dependent)
-  }
+  // NOTE: the current install implementation
+  // does not return enough info for packages that were already installed
+  addToGraph(ctx.graph, options.dependent, dependency)
 
   const modulesInStore = path.join(options.nodeModulesStore, dependency.id)
 
@@ -150,6 +142,36 @@ async function install (pkgRawSpec: string, modules: string, ctx: InstallContext
 
   await dependency.fetchingFiles
   return dependency
+}
+
+function addToGraph (graph: Graph, dependent: string, dependency: InstalledPackage) {
+  graph[dependent] = graph[dependent] || {}
+  graph[dependent].dependencies = graph[dependent].dependencies || {}
+
+  updateDependencyResolution(graph, dependent, dependency.pkg.name, dependency.id)
+
+  graph[dependency.id] = graph[dependency.id] || {}
+  graph[dependency.id].dependents = graph[dependency.id].dependents || []
+
+  if (graph[dependency.id].dependents.indexOf(dependent) === -1) {
+    graph[dependency.id].dependents.push(dependent)
+  }
+}
+
+function updateDependencyResolution (graph: Graph, dependent: string, depName: string, newDepId: string) {
+  if (graph[dependent].dependencies[depName] &&
+    graph[dependent].dependencies[depName] !== newDepId) {
+    removeIfNoDependents(graph, graph[dependent].dependencies[depName], dependent)
+  }
+  graph[dependent].dependencies[depName] = newDepId
+}
+
+function removeIfNoDependents(graph: Graph, id: string, removedDependent: string) {
+  if (graph[id] && graph[id].dependents && graph[id].dependents.length === 1 &&
+    graph[id].dependents[0] === removedDependent) {
+      Object.keys(graph[id].dependencies || {}).forEach(depName => removeIfNoDependents(graph, graph[id].dependencies[depName], id))
+      delete graph[id]
+  }
 }
 
 async function isInstallable (pkg: Package, fetchedPkg: FetchedPackage, options: InstallOptions): Promise<void> {

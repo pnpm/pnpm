@@ -1,3 +1,4 @@
+import rimraf = require('rimraf-then')
 import path = require('path')
 import seq = require('promisequence')
 import chalk = require('chalk')
@@ -19,6 +20,7 @@ import extendOptions from './extendOptions'
 import pnpmPkgJson from '../pnpmPkgJson'
 import lock from './lock'
 import {save as saveGraph, Graph} from '../fs/graphController'
+import {read as readStore, save as saveStore} from '../fs/storeController'
 import {save as saveShrinkwrap, Shrinkwrap} from '../fs/shrinkwrap'
 import {save as saveModules} from '../fs/modulesController'
 import {tryUninstall, removePkgFromStore} from './uninstall'
@@ -165,17 +167,39 @@ async function installInContext (installType: string, packagesToInstall: Depende
   }
 }
 
-function removeOrphanPkgs (oldGraphJson: Graph, newGraphJson: Graph, root: string, store: string) {
-  const oldDeps = oldGraphJson[root] && oldGraphJson[root].dependencies || {}
-  const newDeps = newGraphJson[root] && newGraphJson[root].dependencies || {}
+async function removeOrphanPkgs (oldGraphJson: Graph, newGraphJson: Graph, root: string, storePath: string) {
+  const oldPkgIds = new Set(Object.keys(oldGraphJson))
+  const newPkgIds = new Set(Object.keys(newGraphJson))
 
-  const maybeUninstallPkgs = Object.keys(oldDeps)
-    .filter(depName => oldDeps[depName] !== newDeps[depName])
-    .map(depName => oldDeps[depName])
+  const store = await readStore(storePath) || {}
+  const notDependents = difference(oldPkgIds, newPkgIds)
 
-  const uninstallPkgs = tryUninstall(maybeUninstallPkgs, newGraphJson, root)
+  await Promise.all([...notDependents].map(async function (notDependent) {
+    if (store[notDependent]) {
+      store[notDependent].splice(store[notDependent].indexOf(root), 1)
+      if (!store[notDependent].length) {
+        delete store[notDependent]
+        await rimraf(path.join(storePath, notDependent))
+      }
+    }
+  }))
 
-  return Promise.all(uninstallPkgs.map(pkgId => removePkgFromStore(pkgId, store)))
+  const newDependents = difference(newPkgIds, oldPkgIds)
+
+  newDependents.forEach(newDependent => {
+    store[newDependent] = store[newDependent] || []
+    store[newDependent].push(root)
+  })
+
+  await saveStore(storePath, store)
+}
+
+function difference<T> (setA: Set<T>, setB: Set<T>) {
+  const difference = new Set(setA)
+  for (const elem of setB) {
+    difference.delete(elem)
+  }
+  return difference
 }
 
 async function createInstallCmd (opts: StrictPnpmOptions, graph: Graph, shrinkwrap: Shrinkwrap, cache: string): Promise<InstallContext> {
