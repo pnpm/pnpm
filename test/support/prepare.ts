@@ -58,7 +58,7 @@ export default function prepare (t: Test, pkg?: Object) {
       return cachedStorePath
     },
     resolve: async function (pkgName: string, version?: string, relativePath?: string) {
-      const pkgFolder = version ? path.join(pkgName, version) : pkgName
+      const pkgFolder = version ? path.join('localhost+4873', pkgName, version) : pkgName
       if (relativePath) {
         return path.join(await project.getStorePath(), pkgFolder, relativePath)
       }

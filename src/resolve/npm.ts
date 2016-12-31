@@ -1,4 +1,5 @@
 import url = require('url')
+import path = require('path')
 const enc = encodeURIComponent
 import createPkgId from './createPkgId'
 import registryUrl = require('registry-url')
@@ -23,9 +24,9 @@ import {Package} from '../types'
 export default async function resolveNpm (spec: PackageSpec, opts: ResolveOptions): Promise<ResolveResult> {
   // { raw: 'rimraf@2', scope: null, name: 'rimraf', rawSpec: '2' || '' }
   try {
-    const url = toUri(spec)
+    const uri = toUri(spec)
     if (opts.log) opts.log('resolving')
-    const parsedBody = <PackageDocument>(await opts.got.getJSON(url))
+    const parsedBody = <PackageDocument>(await opts.got.getJSON(uri))
     const correctPkg = pickVersionFromRegistryDocument(parsedBody, spec, opts.tag)
     if (!correctPkg) {
       const versions = Object.keys(parsedBody.versions)
@@ -36,8 +37,13 @@ export default async function resolveNpm (spec: PackageSpec, opts: ResolveOption
         spec.raw + '\n' + message)
       throw err
     }
+    const id = path.join(
+      (url.parse(correctPkg.dist.tarball).host || '').replace(':', '+'),
+      correctPkg.name,
+      correctPkg.version
+    )
     return {
-      id: createPkgId(correctPkg),
+      id,
       pkg: correctPkg,
       shasum: correctPkg.dist.shasum,
       tarball: correctPkg.dist.tarball,
