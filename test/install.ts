@@ -261,6 +261,8 @@ test('circular deps', async function (t) {
   const dep = project.requireModule('circular-deps-1-of-2/mirror')
 
   t.equal(dep(), 'circular-deps-1-of-2', 'circular dependencies can access each other')
+
+  t.ok(!await exists(path.join('node_modules', 'circular-deps-1-of-2', 'node_modules', 'circular-deps-2-of-2', 'node_modules', 'circular-deps-1-of-2')), 'circular dependency is avoided')
 })
 
 test('big with dependencies and circular deps (babel-preset-2015)', async function (t) {
