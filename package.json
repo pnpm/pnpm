@@ -98,7 +98,7 @@
     "istanbul": "^0.4.5",
     "ncp": "^2.0.0",
     "nixt": "0.5.0",
-    "npm-run-all": "3.1.2",
+    "npm-run-all": "4.0.0",
     "npm-scripts-info": "0.3.6",
     "rimraf": "2.5.4",
     "sepia": "2.0.2",
