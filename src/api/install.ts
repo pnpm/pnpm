@@ -80,7 +80,6 @@ async function installInContext (installType: string, packagesToInstall: Depende
   // TODO: ctx.graph should not be muted. installMultiple should return a new graph
   const oldGraph: Graph = cloneDeep(ctx.graph)
   const nodeModulesPath = path.join(ctx.root, 'node_modules')
-  await mkdirp(nodeModulesPath)
   const client = new RegClient(adaptConfig(opts))
   const pkgs: InstalledPackage[] = await lock(ctx.cache, async function () {
     const installOpts = {
