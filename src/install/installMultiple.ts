@@ -135,9 +135,11 @@ async function install (pkgRawSpec: string, modules: string, ctx: InstallContext
     await dependency.fetchingFiles
   }
 
-  dependency.dependencies = await memoize<InstalledPackage[]>(ctx.installLocks, dependency.id, () => {
-    return installDependencies(pkg, dependency, ctx, modulesInStore, options)
-  })
+  if (!ctx.installLocks[fetchedPkg.id]) {
+    dependency.dependencies = await memoize<InstalledPackage[]>(ctx.installLocks, dependency.id, () => {
+      return installDependencies(pkg, dependency, ctx, modulesInStore, options)
+    })
+  }
 
   await dependency.fetchingFiles
   return dependency

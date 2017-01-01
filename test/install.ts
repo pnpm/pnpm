@@ -265,6 +265,15 @@ test('circular deps', async function (t) {
   t.ok(!await exists(path.join('node_modules', 'circular-deps-1-of-2', 'node_modules', 'circular-deps-2-of-2', 'node_modules', 'circular-deps-1-of-2')), 'circular dependency is avoided')
 })
 
+test('concurrent circular deps', async function (t) {
+  const project = prepare(t)
+  await installPkgs(['es6-iterator@2.0.0'], testDefaults())
+
+  const dep = project.requireModule('es6-iterator')
+
+  t.ok(dep, 'es6-iterator is installed')
+})
+
 test('big with dependencies and circular deps (babel-preset-2015)', async function (t) {
   const project = prepare(t)
   await installPkgs(['babel-preset-es2015@6.3.13'], testDefaults())
