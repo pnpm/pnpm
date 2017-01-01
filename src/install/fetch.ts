@@ -36,7 +36,6 @@ export type FetchedPackage = {
   srcPath?: string,
   id: string,
   fromCache: boolean,
-  justFetched: boolean,
   abort(): Promise<void>,
 }
 
@@ -106,17 +105,14 @@ export default async function fetch (ctx: InstallContext, pkgRawSpec: string, mo
 
     const target = path.join(options.storePath, resolution.id)
 
-    const justFetched = !ctx.fetchLocks[resolution.id] &&
-      (options.force || !(await exists(target)) || !ctx.graph[resolution.id])
-    const fetchingFiles = !justFetched && !ctx.fetchLocks[resolution.id]
-      ? Promise.resolve()
-      : fetchToStoreCached({
-        fetchLocks: ctx.fetchLocks,
-        target,
-        resolution,
-        log,
-        got: options.got,
-      })
+    const fetchingFiles = fetchToStoreCached({
+      fetchLocks: ctx.fetchLocks,
+      target,
+      resolution,
+      log,
+      got: options.got,
+      force: options.force,
+    })
 
     const fetchingPkg = resolution.pkg
       ? Promise.resolve(resolution.pkg)
@@ -129,7 +125,6 @@ export default async function fetch (ctx: InstallContext, pkgRawSpec: string, mo
       fromCache: false,
       path: target,
       srcPath: resolution.root,
-      justFetched,
       abort: async function () {
         try {
           await fetchingFiles
@@ -163,7 +158,6 @@ export default async function fetch (ctx: InstallContext, pkgRawSpec: string, mo
         id: path.basename(fullpath),
         fromCache: true,
         path: fullpath,
-        justFetched: false,
         abort: () => Promise.resolve(),
       }
     }
@@ -176,6 +170,7 @@ type FetchToStoreOptions = {
   resolution: ResolveResult,
   log: InstallLog,
   got: Got,
+  force: boolean,
 }
 
 /**
@@ -185,6 +180,8 @@ type FetchToStoreOptions = {
  */
 function fetchToStoreCached (opts: FetchToStoreOptions): Promise<void> {
   return memoize(opts.fetchLocks, opts.resolution.id, async function () {
+    if (!opts.force && await exists(opts.target)) return
+
     opts.log('download-queued')
     await fetchRes(opts.resolution, opts.target, {got: opts.got, log: opts.log})
 
