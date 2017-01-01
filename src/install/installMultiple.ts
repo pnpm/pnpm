@@ -35,11 +35,10 @@ export type InstalledPackage = FetchedPackage & {
 
 export default async function installAll (ctx: InstallContext, dependencies: Dependencies, optionalDependencies: Dependencies, modules: string, options: MultipleInstallOpts): Promise<InstalledPackage[]> {
   const nonOptionalDependencies = Object.keys(dependencies)
-    .reduce((deps, depName) => {
-      if (!optionalDependencies[depName]) {
-        deps[depName] = dependencies[depName]
-      }
-      return deps
+    .filter(depName => !optionalDependencies[depName])
+    .reduce((nonOptionalDependencies, depName) => {
+      nonOptionalDependencies[depName] = dependencies[depName]
+      return nonOptionalDependencies
     }, {})
 
   const installedPkgs: InstalledPackage[] = Array.prototype.concat.apply([], await Promise.all([
