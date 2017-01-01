@@ -1,2 +1,2 @@
 export const GlobalPath = '~/.pnpm'
-export const GlobalStorePath = GlobalPath + '/.store'
+export const GlobalStorePath = '~/.store'
