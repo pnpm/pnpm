@@ -187,7 +187,9 @@ async function removeOrphanPkgs (oldGraphJson: Graph, newGraphJson: Graph, root:
 
   newDependents.forEach(newDependent => {
     store[newDependent] = store[newDependent] || []
-    store[newDependent].push(root)
+    if (store[newDependent].indexOf(root) === -1) {
+      store[newDependent].push(root)
+    }
   })
 
   await saveStore(storePath, store)
