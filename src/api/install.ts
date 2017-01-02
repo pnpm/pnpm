@@ -41,9 +41,9 @@ export type InstallContext = {
   installs: InstalledPackages,
   piq?: PackageInstallationResult[],
   fetchLocks: CachedPromises<void>,
-  installLocks: CachedPromises<InstalledPackage[]>,
   graph: Graph,
   shrinkwrap: Shrinkwrap,
+  resolutionLinked: Set<string>,
 }
 
 export async function install (maybeOpts?: PnpmOptions) {
@@ -97,7 +97,7 @@ async function installInContext (installType: string, packagesToInstall: Depende
         cacheTTL: opts.cacheTTL
       }),
       fetchingFiles: Promise.resolve(),
-      nodeModulesStore: path.join(nodeModulesPath, '.node_modules'),
+      nodeModulesStore: path.join(nodeModulesPath, '.resolutions'),
     }
     return await installMultiple(
       installCtx,
@@ -210,6 +210,7 @@ async function createInstallCmd (opts: StrictPnpmOptions, graph: Graph, shrinkwr
     installs: {},
     graph,
     shrinkwrap,
+    resolutionLinked: new Set(),
   }
 }
 

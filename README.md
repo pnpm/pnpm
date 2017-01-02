@@ -27,21 +27,37 @@ Follow the [pnpm Twitter account](https://twitter.com/pnpmjs) for updates.
 
 ## Background
 
-`pnpm` maintains a flat storage of all your dependencies in `node_modules/.store`. They are then symlinked wherever they're needed.
+`pnpm` maintains a flat storage of all your dependencies in `~/.store`. They are then symlinked wherever they're needed.
 This nets you the benefits of less disk space usage, while keeping your `node_modules` clean.
 See [store layout](docs/store-layout.md) for an explanation.
 
 ```
+~/.store
+   ├─ chalk/1.1.1/
+   |  ├─ index.js
+   |  └─ package.json
+   ├─ ansi-styles/2.1.0/
+   |  ├─ index.js
+   |  └─ package.json
+   └─ has-ansi/2.0.0/
+      ├─ index.js
+      └─ package.json
 .
 └─ node_modules/
-   ├─ .store/
-   │  ├─ chalk@1.1.1/_/
-   │  │  └─ node_modules/
-   │  │     ├─ ansi-styles      -> ../../../ansi-styles@2.1.0/_
-   │  │     └─ has-ansi         -> ../../../has-ansi@2.0.0/_
-   │  ├─ ansi-styles@2.1.0/_/
-   │  └─ has-ansi@2.0.0/_/
-   └─ chalk                     -> .store/chalk@1.1.1/_
+   ├─ .resolutions/
+   |   ├─ chalk/1.1.1/
+   |   |  ├─ node_modules/
+   |   |  |  ├─ ansi-styles/ -> ../../ansi-styles/2.1.0/
+   |   |  |  └─ has-ansi/    -> ../../has-ansi/2.0.0/
+   |   |  ├─ index.js        -> ~/.store/chalk/1.1.1/index.js
+   |   |  └─ package.json    -> ~/.store/chalk/1.1.1/package.json
+   |   ├─ has-ansi/2.0.0/
+   |   |  ├─ index.js        -> ~/.store/has-ansi/2.0.0/index.js
+   |   |  └─ package.js      -> ~/.store/has-ansi/2.0.0/package.json
+   |   └─ ansi-styles/2.1.0/
+   |      ├─ index.js        -> ~/.store/ansi-styles/2.1.0/index.js
+   |      └─ package.js      -> ~/.store/ansi-styles/2.1.0/package.json
+   └─ chalk/                 -> ./.resolutions/chalk/1.1.1/
 ```
 
 ## Install

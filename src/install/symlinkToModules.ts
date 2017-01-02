@@ -16,12 +16,10 @@ const cpr = thenify(cbcpr)
  *     modules = './node_modules'
  *     symlinkToModules(target, modules)
  */
-export default async function symlinkToModules (target: string, modules: string) {
+export default async function symlinkToModules (target: string, out: string) {
   // TODO: uncomment to make things fail
   const pkgData = await requireJson(path.join(target, 'package.json'))
   if (!pkgData.name) { throw new Error('Invalid package.json for ' + target) }
-
-  const out = path.join(modules, pkgData.name)
 
   // some action, like running lifecycle events,
   // cannot be done on a symlinked package

@@ -60,7 +60,7 @@ export default async function installAll (ctx: InstallContext, dependencies: Dep
           path: path.join(modules, subdep.pkg.name),
           pkgId: subdep.id
         })
-        return symlinkToModules(subdep.path, modules)
+        return linkDir(subdep.path, path.join(modules, subdep.pkg.name))
       })
   )
   await linkBins(modules)
@@ -82,8 +82,6 @@ async function installMultiple (ctx: InstallContext, pkgsMap: Dependencies, modu
         if (options.keypath && options.keypath.indexOf(pkg.id) !== -1) {
           return null
         }
-        const modulesInStore = path.join(options.nodeModulesStore, pkg.id)
-        await linkDir(modulesInStore, path.join(modules, pkg.pkg.name, 'node_modules'))
         return pkg
       } catch (err) {
         if (options.optional) {
@@ -101,8 +99,8 @@ async function installMultiple (ctx: InstallContext, pkgsMap: Dependencies, modu
 }
 
 async function install (pkgRawSpec: string, modules: string, ctx: InstallContext, options: InstallOptions) {
-  options.keypath = options.keypath || []
-  const update = options.keypath.length <= options.depth
+  const keypath = options.keypath || []
+  const update = keypath.length <= options.depth
 
   const fetchedPkg = await fetch(ctx, pkgRawSpec, modules, Object.assign({}, options, {update}))
   const pkg = await fetchedPkg.fetchingPkg
@@ -112,44 +110,36 @@ async function install (pkgRawSpec: string, modules: string, ctx: InstallContext
   }
 
   const dependency: InstalledPackage = Object.assign({}, fetchedPkg, {
-    keypath: options.keypath,
+    keypath,
     dependencies: [],
     optional: options.optional === true,
     pkg,
   })
 
-  addInstalledPkg(ctx.installs, dependency)
-
-  if (dependency.fromCache || options.keypath.indexOf(dependency.id) !== -1) {
-    await dependency.fetchingFiles
+  if (dependency.fromCache || keypath.indexOf(dependency.id) !== -1) {
     return dependency
   }
+
+  addInstalledPkg(ctx.installs, dependency)
 
   // NOTE: the current install implementation
   // does not return enough info for packages that were already installed
   addToGraph(ctx.graph, options.dependent, dependency)
 
-  const modulesInStore = path.join(options.nodeModulesStore, dependency.id)
+  const resolutionPath = path.join(options.nodeModulesStore, dependency.id)
+  const modulesInStore = path.join(resolutionPath, 'node_modules')
 
-  // when a package was already installed, update the subdependencies only to the specified depth.
-  if ((await exists(modulesInStore)) && options.keypath.length >= options.depth) {
-    await dependency.fetchingFiles
-    return dependency
-  }
-
-  // greedy installation does not work with bundled dependencies
-  if (pkg.bundleDependencies && pkg.bundleDependencies.length || pkg.bundledDependencies && pkg.bundledDependencies.length) {
-    await dependency.fetchingFiles
-  }
-
-  if (!ctx.installLocks[fetchedPkg.id]) {
-    dependency.dependencies = await memoize<InstalledPackage[]>(ctx.installLocks, dependency.id, () => {
-      return installDependencies(pkg, dependency, ctx, modulesInStore, options)
-    })
-  }
+  dependency.dependencies = await installDependencies(pkg, dependency, ctx, modulesInStore, options)
 
   await dependency.fetchingFiles
-  return dependency
+  if (!ctx.resolutionLinked.has(resolutionPath)) {
+    ctx.resolutionLinked.add(resolutionPath)
+    if (!await exists(path.join(resolutionPath, 'package.json'))) { // in case it was created by a separate installation
+      await symlinkToModules(dependency.path, resolutionPath)
+    }
+  }
+
+  return {...dependency, path: resolutionPath}
 }
 
 function addToGraph (graph: Graph, dependent: string, dependency: InstalledPackage) {

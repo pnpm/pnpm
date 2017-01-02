@@ -32,7 +32,7 @@ async function createFlatTree (id: string, store: string, root: string, graph: G
         if (!tree || !tree[id] || !tree[id][depName]) throw new Error('Error during creating flat tree')
         const target = path.join(store, tree[id][depName].id)
         if (tree[id][depName].depth > depth) {
-          await symlinkToModules(target, modules)
+          await symlinkToModules(target, path.join(modules, depName))
         }
         return createFlatTree(tree[id][depName].id, store, target, graph, todo, tree, depth + 1)
       })
