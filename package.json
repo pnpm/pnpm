@@ -39,6 +39,7 @@
     "chalk": "1.1.3",
     "common-tags": "1.4.0",
     "commondir": "1.0.1",
+    "cpr": "2.0.2",
     "cross-spawn": "^5.0.0",
     "debug": "2.4.1",
     "delocalize-dependencies": "0.1.0",

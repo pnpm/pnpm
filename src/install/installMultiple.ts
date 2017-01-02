@@ -54,7 +54,14 @@ export default async function installAll (ctx: InstallContext, dependencies: Dep
   await Promise.all(
     installedPkgs
       .filter(subdep => !subdep.fromCache)
-      .map(subdep => symlinkToModules(subdep.path, modules))
+      .map(subdep => {
+        ctx.piq = ctx.piq || []
+        ctx.piq.push({
+          path: path.join(modules, subdep.pkg.name),
+          pkgId: subdep.id
+        })
+        return symlinkToModules(subdep.path, modules)
+      })
   )
   await linkBins(modules)
 
@@ -204,11 +211,6 @@ async function installDependencies (pkg: Package, dependency: InstalledPackage, 
   })
 
   const installedDeps: InstalledPackage[] = await installAll(ctx, pkg.dependencies || {}, pkg.optionalDependencies || {}, modules, depsInstallOpts)
-  ctx.piq = ctx.piq || []
-  ctx.piq.push({
-    path: dependency.path,
-    pkgId: dependency.id
-  })
 
   return installedDeps
 }

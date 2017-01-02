@@ -386,24 +386,22 @@ test('shrinkwrap compatibility', async function (t) {
 })
 
 test('run pre/postinstall scripts', async function (t) {
-  t.pass('temporarily skip test')
-  // const project = prepare(t)
-  // await installPkgs(['pre-and-postinstall-scripts-example'], testDefaults())
+  const project = prepare(t)
+  await installPkgs(['pre-and-postinstall-scripts-example'], testDefaults())
 
-  // const generatedByPreinstall = project.requireModule('pre-and-postinstall-scripts-example/generated-by-preinstall')
-  // t.ok(typeof generatedByPreinstall === 'function', 'generatedByPreinstall() is available')
+  const generatedByPreinstall = project.requireModule('pre-and-postinstall-scripts-example/generated-by-preinstall')
+  t.ok(typeof generatedByPreinstall === 'function', 'generatedByPreinstall() is available')
 
-  // const generatedByPostinstall = project.requireModule('pre-and-postinstall-scripts-example/generated-by-postinstall')
-  // t.ok(typeof generatedByPostinstall === 'function', 'generatedByPostinstall() is available')
+  const generatedByPostinstall = project.requireModule('pre-and-postinstall-scripts-example/generated-by-postinstall')
+  t.ok(typeof generatedByPostinstall === 'function', 'generatedByPostinstall() is available')
 })
 
 test('run install scripts', async function (t) {
-  t.pass('temporarily skip test')
-  // const project = prepare(t)
-  // await installPkgs(['install-script-example'], testDefaults())
+  const project = prepare(t)
+  await installPkgs(['install-script-example'], testDefaults())
 
-  // const generatedByInstall = project.requireModule('install-script-example/generated-by-install')
-  // t.ok(typeof generatedByInstall === 'function', 'generatedByInstall() is available')
+  const generatedByInstall = project.requireModule('install-script-example/generated-by-install')
+  t.ok(typeof generatedByInstall === 'function', 'generatedByInstall() is available')
 })
 
 test('save to package.json (rimraf@2.5.1)', async function (t) {
@@ -671,7 +669,7 @@ test('building native addons', async function (t) {
 
   await installPkgs(['runas@3.1.1'], testDefaults())
 
-  t.ok(await exists(await project.resolve('runas', '3.1.1', 'build')), 'build folder created')
+  t.ok(await exists(path.join('node_modules', 'runas', 'build')), 'build folder created')
 })
 
 test('should update subdep on second install', async function (t) {

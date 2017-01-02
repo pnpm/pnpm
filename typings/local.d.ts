@@ -212,3 +212,16 @@ declare module 'pnpm-install-checks' {
   const anything: any;
   export = anything;
 }
+
+declare module 'cpr' {
+  function cpr (from: string, to: string, options?: cpr.CprOptions, callback?: (err: any, files: string[]) => void): void;
+  namespace cpr {
+    interface CprOptions {
+      deleteFirst?: boolean;
+        overwrite?: boolean;
+        confirm?: boolean;
+        filter?: RegExp | Function;
+      }
+  }
+  export = cpr;
+}

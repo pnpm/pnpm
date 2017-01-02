@@ -3,6 +3,10 @@ import fs = require('mz/fs')
 import requireJson from '../fs/requireJson'
 import linkDir from 'link-dir'
 import mkdirp from '../fs/mkdirp'
+import {Package} from '../types'
+import thenify = require('thenify')
+import cbcpr = require('cpr')
+const cpr = thenify(cbcpr)
 
 /**
  * Perform the final symlinking of ./.store/x@1.0.0 -> ./x.
@@ -17,9 +21,17 @@ export default async function symlinkToModules (target: string, modules: string)
   const pkgData = await requireJson(path.join(target, 'package.json'))
   if (!pkgData.name) { throw new Error('Invalid package.json for ' + target) }
 
+  const out = path.join(modules, pkgData.name)
+
+  // some action, like running lifecycle events,
+  // cannot be done on a symlinked package
+  if (pkgShouldBeCopied(pkgData)) {
+    await cpr(target, out)
+    return
+  }
+
   // lodash -> .store/lodash@4.0.0
   // .store/foo@1.0.0/node_modules/lodash -> ../../../.store/lodash@4.0.0
-  const out = path.join(modules, pkgData.name)
   await mkdirp(out)
 
   const dirs = await fs.readdir(target)
@@ -36,4 +48,11 @@ export default async function symlinkToModules (target: string, modules: string)
         return fs.symlink(rel, dest)
       })
   )
+}
+
+function pkgShouldBeCopied (pkgData: Package) {
+  return pkgData.scripts && (
+    pkgData.scripts['install'] ||
+    pkgData.scripts['preinstall'] ||
+    pkgData.scripts['postinstall'])
 }
