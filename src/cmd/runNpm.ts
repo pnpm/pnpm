@@ -1,6 +1,9 @@
-import crossSpawn = require('cross-spawn')
+import {sync as runScriptSync} from '../runScript'
 
 export default function runNpm (args: string[]) {
-  const result = crossSpawn.sync('npm', args, { stdio: 'inherit' })
+  const result = runScriptSync('npm', args, {
+    cwd: process.cwd(),
+    stdio: 'inherit',
+  })
   process.exit(result.status)
 }
