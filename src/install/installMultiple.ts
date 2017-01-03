@@ -132,12 +132,11 @@ async function install (pkgRawSpec: string, modules: string, ctx: InstallContext
   dependency.dependencies = await installDependencies(pkg, dependency, ctx, modulesInStore, options)
 
   await dependency.fetchingFiles
-  if (!ctx.resolutionLinked.has(resolutionPath)) {
-    ctx.resolutionLinked.add(resolutionPath)
+  await memoize(ctx.resolutionLinked, resolutionPath, async function () {
     if (!await exists(path.join(resolutionPath, 'package.json'))) { // in case it was created by a separate installation
       await symlinkToModules(dependency.path, resolutionPath)
     }
-  }
+  })
 
   return {...dependency, path: resolutionPath}
 }

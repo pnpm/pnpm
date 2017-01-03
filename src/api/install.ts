@@ -43,7 +43,7 @@ export type InstallContext = {
   fetchLocks: CachedPromises<void>,
   graph: Graph,
   shrinkwrap: Shrinkwrap,
-  resolutionLinked: Set<string>,
+  resolutionLinked: CachedPromises<void>,
 }
 
 export async function install (maybeOpts?: PnpmOptions) {
@@ -210,7 +210,7 @@ async function createInstallCmd (opts: StrictPnpmOptions, graph: Graph, shrinkwr
     installs: {},
     graph,
     shrinkwrap,
-    resolutionLinked: new Set(),
+    resolutionLinked: {},
   }
 }
 
