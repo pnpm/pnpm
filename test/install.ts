@@ -274,6 +274,18 @@ test('concurrent circular deps', async function (t) {
   t.ok(dep, 'es6-iterator is installed')
 })
 
+test('concurrent installation of the same packages', async function (t) {
+  const project = prepare(t)
+
+  // the same version of core-js is required by two different dependencies
+  // of babek-core
+  await installPkgs(['babel-core@6.21.0'], testDefaults())
+
+  const dep = project.requireModule('babel-core')
+
+  t.ok(dep, 'babel-core is installed')
+})
+
 test('big with dependencies and circular deps (babel-preset-2015)', async function (t) {
   const project = prepare(t)
   await installPkgs(['babel-preset-es2015@6.3.13'], testDefaults())
