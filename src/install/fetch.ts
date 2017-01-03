@@ -83,9 +83,6 @@ export default async function fetch (ctx: InstallContext, pkgRawSpec: string, mo
         return fetchedPkg
       }
     }
-    if (spec && spec.name) {
-      await rimraf(path.join(modules, spec && spec.name))
-    }
     if (!resolution || options.update) {
       resolution = await resolve(spec, {
         log,
@@ -181,6 +178,8 @@ type FetchToStoreOptions = {
 function fetchToStoreCached (opts: FetchToStoreOptions): Promise<void> {
   return memoize(opts.fetchLocks, opts.resolution.id, async function () {
     if (!opts.force && await exists(opts.target)) return
+
+    await rimraf(opts.target)
 
     opts.log('download-queued')
     await fetchRes(opts.resolution, opts.target, {got: opts.got, log: opts.log})
