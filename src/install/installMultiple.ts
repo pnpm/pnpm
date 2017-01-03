@@ -54,13 +54,14 @@ export default async function installAll (ctx: InstallContext, dependencies: Dep
   await Promise.all(
     installedPkgs
       .filter(subdep => !subdep.fromCache)
-      .map(subdep => {
+      .map(async function (subdep) {
+        const dest = path.join(modules, subdep.pkg.name)
         ctx.piq = ctx.piq || []
         ctx.piq.push({
-          path: path.join(modules, subdep.pkg.name),
+          path: dest,
           pkgId: subdep.id
         })
-        return linkDir(subdep.path, path.join(modules, subdep.pkg.name))
+        await linkDir(subdep.path, dest)
       })
   )
   await linkBins(modules)
@@ -129,7 +130,10 @@ async function install (pkgRawSpec: string, modules: string, ctx: InstallContext
   const resolutionPath = path.join(options.nodeModulesStore, dependency.id)
   const modulesInStore = path.join(resolutionPath, 'node_modules')
 
-  dependency.dependencies = await installDependencies(pkg, dependency, ctx, modulesInStore, options)
+  if (!ctx.installed.has(dependency.id)) {
+    ctx.installed.add(dependency.id)
+    dependency.dependencies = await installDependencies(pkg, dependency, ctx, modulesInStore, options)
+  }
 
   await dependency.fetchingFiles
   await memoize(ctx.resolutionLinked, resolutionPath, async function () {
