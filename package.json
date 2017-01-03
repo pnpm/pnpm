@@ -50,6 +50,7 @@
     "js-yaml": "3.7.0",
     "json2yaml": "1.1.0",
     "link-dir": "1.0.3",
+    "lnk": "1.0.1",
     "load-json-file": "2.0.0",
     "lockfile": "1.0.3",
     "lodash.clonedeep": "4.5.0",

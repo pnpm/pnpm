@@ -5,6 +5,7 @@ import linkDir from 'link-dir'
 import mkdirp from '../fs/mkdirp'
 import {Package} from '../types'
 import thenify = require('thenify')
+import lnk = require('lnk')
 import cbcpr = require('cpr')
 const cpr = thenify(cbcpr)
 
@@ -42,8 +43,7 @@ export default async function symlinkToModules (target: string, out: string) {
         if (fs.statSync(absolutePath).isDirectory()) {
           return linkDir(absolutePath, dest)
         }
-        const rel = path.relative(path.dirname(dest), absolutePath)
-        return fs.symlink(rel, dest)
+        return lnk(absolutePath, out)
       })
   )
 }

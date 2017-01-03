@@ -225,3 +225,8 @@ declare module 'cpr' {
   }
   export = cpr;
 }
+
+declare module 'lnk' {
+  const anything: any;
+  export = anything;
+}
