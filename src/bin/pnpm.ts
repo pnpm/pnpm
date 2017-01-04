@@ -52,7 +52,7 @@ const supportedCmds = new Set([
   'run',
 ])
 
-function run (argv: string[]) {
+async function run (argv: string[]) {
   const cli = meow({
     argv: argv,
     help: stripIndent`
