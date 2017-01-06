@@ -32,6 +32,9 @@ This nets you the benefits of less disk space usage, while keeping your `node_mo
 See [store layout](docs/store-layout.md) for an explanation.
 
 ```
+=> - a link (also known as a hard link)
+-> - a symlink (or junction on Windows)
+
 ~/.store
    ├─ chalk/1.1.1/
    |  ├─ index.js
@@ -49,14 +52,14 @@ See [store layout](docs/store-layout.md) for an explanation.
    |   |  ├─ node_modules/
    |   |  |  ├─ ansi-styles/ -> ../../ansi-styles/2.1.0/
    |   |  |  └─ has-ansi/    -> ../../has-ansi/2.0.0/
-   |   |  ├─ index.js        -> ~/.store/chalk/1.1.1/index.js
-   |   |  └─ package.json    -> ~/.store/chalk/1.1.1/package.json
+   |   |  ├─ index.js        => ~/.store/chalk/1.1.1/index.js
+   |   |  └─ package.json    => ~/.store/chalk/1.1.1/package.json
    |   ├─ has-ansi/2.0.0/
-   |   |  ├─ index.js        -> ~/.store/has-ansi/2.0.0/index.js
-   |   |  └─ package.js      -> ~/.store/has-ansi/2.0.0/package.json
+   |   |  ├─ index.js        => ~/.store/has-ansi/2.0.0/index.js
+   |   |  └─ package.js      => ~/.store/has-ansi/2.0.0/package.json
    |   └─ ansi-styles/2.1.0/
-   |      ├─ index.js        -> ~/.store/ansi-styles/2.1.0/index.js
-   |      └─ package.js      -> ~/.store/ansi-styles/2.1.0/package.json
+   |      ├─ index.js        => ~/.store/ansi-styles/2.1.0/index.js
+   |      └─ package.js      => ~/.store/ansi-styles/2.1.0/package.json
    └─ chalk/                 -> ./.resolutions/chalk/1.1.1/
 ```
 

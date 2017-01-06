@@ -5,7 +5,7 @@ import {Dependencies} from '../types'
 import linkBins from './linkBins'
 import memoize from '../memoize'
 import {Package} from '../types'
-import symlinkToModules from './symlinkToModules'
+import hardlinkDir from '../fs/hardlinkDir'
 import mkdirp from '../fs/mkdirp'
 import installChecks = require('pnpm-install-checks')
 import pnpmPkg from '../pnpmPkgJson'
@@ -138,7 +138,7 @@ async function install (pkgRawSpec: string, modules: string, ctx: InstallContext
   await dependency.fetchingFiles
   await memoize(ctx.resolutionLinked, resolutionPath, async function () {
     if (!await exists(path.join(resolutionPath, 'package.json'))) { // in case it was created by a separate installation
-      await symlinkToModules(dependency.path, resolutionPath)
+      await hardlinkDir(dependency.path, resolutionPath)
     }
   })
 

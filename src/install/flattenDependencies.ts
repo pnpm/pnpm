@@ -1,7 +1,7 @@
 import path = require('path')
 import {InstalledPackage} from './installMultiple'
 import mkdirp from '../fs/mkdirp'
-import symlinkToModules from './symlinkToModules'
+import hardlinkDir from '../fs/hardlinkDir'
 import {Graph} from '../fs/graphController'
 
 export default function flattenDependencies (id: string, store: string, pkgs: InstalledPackage[], graph: Graph) {
@@ -32,7 +32,7 @@ async function createFlatTree (id: string, store: string, root: string, graph: G
         if (!tree || !tree[id] || !tree[id][depName]) throw new Error('Error during creating flat tree')
         const target = path.join(store, tree[id][depName].id)
         if (tree[id][depName].depth > depth) {
-          await symlinkToModules(target, path.join(modules, depName))
+          await hardlinkDir(target, path.join(modules, depName))
         }
         return createFlatTree(tree[id][depName].id, store, target, graph, todo, tree, depth + 1)
       })
