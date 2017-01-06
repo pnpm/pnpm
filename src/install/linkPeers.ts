@@ -19,7 +19,7 @@ type InstalledPackageVersions = {
   [pkgName: string]: PackageVersions
 }
 
-export default async function linkPeers (store: string, installs: InstalledPackages) {
+export default async function linkPeers (installs: InstalledPackages) {
   if (!installs) return
 
   const groupedPkgs: InstalledPackageVersions = {}
@@ -43,8 +43,8 @@ export default async function linkPeers (store: string, installs: InstalledPacka
         return
       }
       return linkDir(
-        groupedPkgs[peerName][version].path,
-        path.join(pkgData.path, 'node_modules', peerName)
+        groupedPkgs[peerName][version].hardlinkedLocation,
+        path.join(pkgData.hardlinkedLocation, 'node_modules', peerName)
       )
     }))
   }))

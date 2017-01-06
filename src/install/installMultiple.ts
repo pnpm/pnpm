@@ -31,6 +31,7 @@ export type InstalledPackage = FetchedPackage & {
   keypath: string[],
   optional: boolean,
   dependencies: InstalledPackage[], // is needed to support flat tree
+  hardlinkedLocation: string,
 }
 
 export default async function installAll (ctx: InstallContext, dependencies: Dependencies, optionalDependencies: Dependencies, modules: string, options: MultipleInstallOpts): Promise<InstalledPackage[]> {
@@ -61,7 +62,7 @@ export default async function installAll (ctx: InstallContext, dependencies: Dep
           path: dest,
           pkgId: subdep.id
         })
-        await linkDir(subdep.path, dest)
+        await linkDir(subdep.hardlinkedLocation, dest)
       })
   )
   await linkBins(modules)
@@ -115,6 +116,8 @@ async function install (pkgRawSpec: string, modules: string, ctx: InstallContext
     dependencies: [],
     optional: options.optional === true,
     pkg,
+    // TODO: what about bundled/cached deps?
+    hardlinkedLocation: path.join(options.nodeModulesStore, fetchedPkg.id),
   })
 
   if (dependency.fromCache || keypath.indexOf(dependency.id) !== -1) {
@@ -127,8 +130,7 @@ async function install (pkgRawSpec: string, modules: string, ctx: InstallContext
   // does not return enough info for packages that were already installed
   addToGraph(ctx.graph, options.dependent, dependency)
 
-  const resolutionPath = path.join(options.nodeModulesStore, dependency.id)
-  const modulesInStore = path.join(resolutionPath, 'node_modules')
+  const modulesInStore = path.join(dependency.hardlinkedLocation, 'node_modules')
 
   if (!ctx.installed.has(dependency.id)) {
     ctx.installed.add(dependency.id)
@@ -136,13 +138,13 @@ async function install (pkgRawSpec: string, modules: string, ctx: InstallContext
   }
 
   await dependency.fetchingFiles
-  await memoize(ctx.resolutionLinked, resolutionPath, async function () {
-    if (!await exists(path.join(resolutionPath, 'package.json'))) { // in case it was created by a separate installation
-      await hardlinkDir(dependency.path, resolutionPath)
+  await memoize(ctx.resolutionLinked, dependency.hardlinkedLocation, async function () {
+    if (!await exists(path.join(dependency.hardlinkedLocation, 'package.json'))) { // in case it was created by a separate installation
+      await hardlinkDir(dependency.path, dependency.hardlinkedLocation)
     }
   })
 
-  return {...dependency, path: resolutionPath}
+  return dependency
 }
 
 function addToGraph (graph: Graph, dependent: string, dependency: InstalledPackage) {

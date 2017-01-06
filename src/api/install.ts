@@ -139,7 +139,7 @@ async function installInContext (installType: string, packagesToInstall: Depende
     })
   }
 
-  await linkPeers(ctx.storePath, installCtx.installs)
+  await linkPeers(installCtx.installs)
 
   // postinstall hooks
   if (!(opts.ignoreScripts || !installCtx.piq || !installCtx.piq.length)) {

@@ -664,6 +664,13 @@ test("don't fail when peer dependency is fetched from GitHub", t => {
   return installPkgs(['test-pnpm-peer-deps'], testDefaults())
 })
 
+test('peer dependency is linked', async t => {
+  const project = prepare(t)
+  await installPkgs(['ajv@4.10.4', 'ajv-keywords@1.5.0'], testDefaults())
+
+  t.ok(await exists(path.join('node_modules', 'ajv-keywords', 'node_modules', 'ajv')), 'peer dependency is linked')
+})
+
 test('create a pnpm-debug.log file when the command fails', async function (t) {
   const project = prepare(t)
 
