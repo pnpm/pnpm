@@ -203,9 +203,23 @@ async function installDependencies (pkg: Package, dependency: InstalledPackage, 
     fetchingFiles: dependency.fetchingFiles,
   })
 
-  const installedDeps: InstalledPackage[] = await installAll(ctx, pkg.dependencies || {}, pkg.optionalDependencies || {}, modules, depsInstallOpts)
+  const bundledDeps = pkg.bundleDependencies || pkg.bundleDependencies || []
+  const filterDeps = getNotBundledDeps.bind(null, bundledDeps)
+  const deps = filterDeps(pkg.dependencies || {})
+  const optionalDeps = filterDeps(pkg.optionalDependencies || {})
+
+  const installedDeps: InstalledPackage[] = await installAll(ctx, deps, optionalDeps, modules, depsInstallOpts)
 
   return installedDeps
+}
+
+function getNotBundledDeps (bundledDeps: string[], deps: Dependencies) {
+  return Object.keys(deps)
+    .filter(depName => bundledDeps.indexOf(depName) === -1)
+    .reduce((notBundledDeps, depName) => {
+      notBundledDeps[depName] = deps[depName]
+      return notBundledDeps
+    }, {})
 }
 
 function addInstalledPkg (installs: InstalledPackages, newPkg: InstalledPackage) {
