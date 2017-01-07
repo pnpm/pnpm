@@ -55,7 +55,6 @@
     "src/fs/mkdirp.ts",
     "src/fs/modulesController.ts",
     "src/fs/requireJson.ts",
-    "src/fs/unsymlink.ts",
     "src/fs/yamlfs.ts",
     "src/getSaveType.ts",
     "src/index.ts",

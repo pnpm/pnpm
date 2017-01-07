@@ -1,5 +1,4 @@
 import mkdirp from '../fs/mkdirp'
-import unsymlink from '../fs/unsymlink'
 import linkDir from 'link-dir'
 import path = require('path')
 import semver = require('semver')
