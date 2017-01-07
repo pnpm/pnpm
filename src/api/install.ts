@@ -174,7 +174,7 @@ async function removeOrphanPkgs (oldGraphJson: Graph, newGraphJson: Graph, root:
   const store = await readStore(storePath) || {}
   const notDependents = difference(oldPkgIds, newPkgIds)
 
-  await Promise.all([...notDependents].map(async function (notDependent) {
+  await Promise.all(Array.from(notDependents).map(async function (notDependent) {
     if (store[notDependent]) {
       store[notDependent].splice(store[notDependent].indexOf(root), 1)
       if (!store[notDependent].length) {
