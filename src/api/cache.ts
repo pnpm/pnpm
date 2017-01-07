@@ -1,10 +1,10 @@
 import path = require('path')
 import rimraf = require('rimraf-then')
-import {GlobalPath as DefaultGlobalPath} from './constantDefaults'
+import {DEFAULT_GLOBAL_PATH} from './constantDefaults'
 import expandTilde from '../fs/expandTilde'
 
 export function cleanCache (globalPath?: string) {
-  globalPath = globalPath || DefaultGlobalPath
+  globalPath = globalPath || DEFAULT_GLOBAL_PATH
   const cachePath = getCachePath(globalPath)
   return rimraf(cachePath)
 }

@@ -23,7 +23,7 @@ import mkdirp from '../fs/mkdirp'
 import {Package} from '../types'
 import {getCachePath} from './cache'
 import normalizePath = require('normalize-path')
-import {GlobalStorePath} from './constantDefaults'
+import {DEFAULT_GLOBAL_STORE_PATH} from './constantDefaults'
 
 export type PnpmContext = {
   pkg?: Package,
@@ -133,7 +133,7 @@ const DefaultGlobalPkg: Package = {
   private: true,
   config: {
     npm: {
-      storePath: GlobalStorePath
+      storePath: DEFAULT_GLOBAL_STORE_PATH
     }
   }
 }
