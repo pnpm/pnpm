@@ -1,5 +1,7 @@
 # Store layout
 
+## This documentation is currently out of date!
+
 `pnpm` maintains a flat storage of all your dependencies in `node_modules/.store`. They are then symlinked whereever they're needed.
 This is like `npm@2`'s recursive module handling (without the disk space bloat), and like `npm@3`s flat dependency tree (except with each module being predictably atomic).
 To illustrate, an installation of [chalk][]@1.1.1 may look like this:
