@@ -27,7 +27,7 @@ Follow the [pnpm Twitter account](https://twitter.com/pnpmjs) for updates.
 
 ## Background
 
-`pnpm` maintains a flat storage of all your dependencies in `~/.store`. They are then symlinked wherever they're needed.
+`pnpm` maintains a flat storage of all your dependencies in `~/.pnpm-store`. They are then linked wherever they're needed.
 This nets you the benefits of less disk space usage, while keeping your `node_modules` clean.
 See [store layout](docs/store-layout.md) for an explanation.
 
