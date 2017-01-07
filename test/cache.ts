@@ -1,5 +1,4 @@
 import {cleanCache, installPkgs, install} from '../src'
-import globalPath from './support/globalPath'
 import {add as addDistTag} from './support/distTags'
 import testDefaults from './support/testDefaults'
 import tape = require('tape')
@@ -11,21 +10,23 @@ import prepare from './support/prepare'
 const test = promisifyTape(tape)
 
 test('cache clean removes cache', async function (t) {
-  await installPkgs(['is-positive'], testDefaults({globalPath, global: true}))
+  prepare(t)
 
-  const cache = path.join(globalPath, 'cache')
+  const opts = testDefaults({global: true})
+
+  await installPkgs(['is-positive'], opts)
+
+  const cache = path.join(opts.globalPath, 'cache')
 
   t.ok(await exists(cache), 'cache is created')
 
-  await cleanCache(globalPath)
+  await cleanCache(opts.globalPath)
 
   t.ok(!await exists(cache), 'cache is removed')
 })
 
 test('should fail to update when requests are cached', async function (t) {
   const project = prepare(t)
-
-  await cleanCache(globalPath)
 
   const latest = 'stable'
   const cacheTTL = 60 * 60
@@ -45,8 +46,6 @@ test('should fail to update when requests are cached', async function (t) {
 
 test('should skip cahe even if it exists when cacheTTL = 0', async function (t) {
   const project = prepare(t)
-
-  await cleanCache(globalPath)
 
   const latest = 'stable'
 

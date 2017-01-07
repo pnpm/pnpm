@@ -2,7 +2,6 @@ import mkdirp = require('mkdirp')
 import fs = require('fs')
 import path = require('path')
 import {stripIndent} from 'common-tags'
-import globalPath from './globalPath'
 import {Test} from 'tape'
 import exists = require('exists-file')
 import {Modules, read as readModules} from '../../src/fs/modulesController'
@@ -14,12 +13,12 @@ process.env.ROOT = root
 const tmpPath = path.join(root, '.tmp')
 mkdirp.sync(tmpPath)
 const npmrc = stripIndent` 
-  store-path = ./node_modules/.store
+  store-path = ../.store
   fetch-retries = 5
   fetch-retry-maxtimeout = 180000
   registry = http://localhost:4873/
   quiet = true
-  global-path = ${globalPath}
+  global-path = ${path.join(__dirname, '..', '..', '.tmp', 'global')}
 `
 fs.writeFileSync(path.join(tmpPath, '.npmrc'), npmrc, 'utf-8')
 
@@ -28,7 +27,7 @@ let dirNumber = 0
 export default function prepare (t: Test, pkg?: Object) {
   dirNumber++
   const dirname = dirNumber.toString()
-  const pkgTmpPath = path.join(tmpPath, dirname)
+  const pkgTmpPath = path.join(tmpPath, dirname, 'project')
   mkdirp.sync(pkgTmpPath)
   const json = JSON.stringify(pkg || {})
   fs.writeFileSync(path.join(pkgTmpPath, 'package.json'), json, 'utf-8')

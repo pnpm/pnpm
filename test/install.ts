@@ -17,7 +17,6 @@ const basicPackageJson = loadJsonFile.sync(path.join(__dirname, './support/simpl
 import {install, installPkgs, uninstall} from '../src'
 import testDefaults from './support/testDefaults'
 import exists = require('exists-file')
-import globalPath from './support/globalPath'
 import {pathToLocalPkg, local} from './support/localPkg'
 
 const isWindows = process.platform === 'win32'
@@ -644,9 +643,11 @@ test('prepublish is executed after argumentless installation', t => {
 })
 
 test('global installation', async function (t) {
-  await installPkgs(['is-positive'], testDefaults({globalPath, global: true}))
+  prepare(t)
+  const opts = testDefaults({global: true})
+  await installPkgs(['is-positive'], opts)
 
-  const isPositive = require(path.join(globalPath, 'node_modules', 'is-positive'))
+  const isPositive = require(path.join(opts.globalPath, 'node_modules', 'is-positive'))
   t.ok(typeof isPositive === 'function', 'isPositive() is available')
 })
 
