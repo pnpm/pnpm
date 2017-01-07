@@ -20,6 +20,7 @@ import exists = require('exists-file')
 import {pathToLocalPkg, local} from './support/localPkg'
 
 const isWindows = process.platform === 'win32'
+const preserveSymlinks = semver.satisfies(process.version, '>=6.3.0')
 
 if (!caw() && !isWindows) {
   process.env.VCR_MODE = 'cache'
@@ -724,6 +725,11 @@ test('should install dependency in second project', async function (t) {
 })
 
 test('should install flat tree', async function (t) {
+  if (!preserveSymlinks) {
+    t.skip('this test only for NodeJS with --preserve-symlinks support')
+    return
+  }
+
   const project = prepare(t)
   await installPkgs(['rimraf@2.5.1'], testDefaults({flatTree: true}))
 
@@ -738,7 +744,28 @@ test('should install flat tree', async function (t) {
   }
 })
 
+test('should throw error when trying to install flat tree on Node.js < 6.3.0', async function (t) {
+  if (preserveSymlinks) {
+    t.skip()
+    return
+  }
+
+  const project = prepare(t)
+
+  try {
+    await installPkgs(['rimraf@2.5.1'], testDefaults({flatTree: true}))
+    t.fail('installation should have failed')
+  } catch (err) {
+    t.equal(err.message, '`--preserve-symlinks` and so `--flat-tree` are not supported on your system, make sure you are running on Node ≽ 6.3.0')
+  }
+})
+
 test('should throw error when trying to install with a different tree type using a dedicated store', async function(t) {
+  if (!preserveSymlinks) {
+    t.skip('flat trees are supported only on Node.js with --preserve-symlinks support')
+    return
+  }
+
   const project = prepare(t)
 
   await installPkgs(['rimraf@2.5.1'], testDefaults({flatTree: false}))
@@ -752,6 +779,11 @@ test('should throw error when trying to install with a different tree type using
 })
 
 test('should throw error when trying to install with a different tree type using a global store', async function(t) {
+  if (!preserveSymlinks) {
+    t.skip('flat trees are supported only on Node.js with --preserve-symlinks support')
+    return
+  }
+
   const project = prepare(t)
 
   await installPkgs(['rimraf@2.5.1'], testDefaults({flatTree: false, global: true}))
