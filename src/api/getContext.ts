@@ -55,7 +55,14 @@ export default async function (opts: StrictPnpmOptions): Promise<PnpmContext> {
     err['code'] = 'INCONSISTENT_TREE_TYPE'
     throw err
   }
-  if (modules && modules.packageManager) {
+  if (modules) {
+    if (!modules.packageManager) {
+      const msg = structureChangeMsg(stripIndent`
+        The change was needed to allow machine stores and dependency locks:
+          PR: https://github.com/rstacruz/pnpm/pull/524
+      `)
+      throw new Error(msg)
+    }
     failIfNotCompatible(modules.packageManager.split('@')[1])
   }
 
