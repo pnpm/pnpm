@@ -134,6 +134,7 @@
   "scripts": {
     "info": "npm-scripts-info",
     "start": "npm run tsc -- --watch",
+    "predocs:build": "rimraf .tmp/",
     "?docs:build": "echo 'Generate the documentation website'",
     "docs:build": "docpress build",
     "?commit": "echo 'Run Git commit wizard'",
