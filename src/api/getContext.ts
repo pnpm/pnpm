@@ -8,27 +8,30 @@ import expandTilde, {isHomepath} from '../fs/expandTilde'
 import {StrictPnpmOptions} from '../types'
 import initLogger from '../logger'
 import {
-  read as readStore,
-  create as createStore,
-  Store,
-  TreeType,
-} from '../fs/storeController'
+  read as readGraph,
+  Graph,
+} from '../fs/graphController'
 import {
-  read as readModules
+  read as readShrinkwrap,
+  Shrinkwrap,
+} from '../fs/shrinkwrap'
+import {
+  read as readModules,
+  TreeType,
 } from '../fs/modulesController'
 import mkdirp from '../fs/mkdirp'
 import {Package} from '../types'
 import {getCachePath} from './cache'
 import normalizePath = require('normalize-path')
-import {preserveSymlinks} from '../env'
-import {GlobalStorePath} from './constantDefaults'
+import {DEFAULT_GLOBAL_STORE_PATH} from './constantDefaults'
 
 export type PnpmContext = {
   pkg?: Package,
   cache: string,
   storePath: string,
   root: string,
-  store: Store,
+  graph: Graph,
+  shrinkwrap: Shrinkwrap,
   isFirstInstallation: boolean,
 }
 
@@ -37,13 +40,8 @@ export default async function (opts: StrictPnpmOptions): Promise<PnpmContext> {
   const root = normalizePath(pkg.path ? path.dirname(pkg.path) : opts.cwd)
   const storeBasePath = resolveStoreBasePath(opts.storePath, root)
 
-  // to avoid orphan packages created with pnpm v0.41.0 and earlier
-  if (!underNodeModules(storeBasePath) && await readStore(storeBasePath)) {
-    throw new Error(structureChangeMsg('Shared stores were divided into types, flat and nested. https://github.com/rstacruz/pnpm/pull/429'))
-  }
-
   const treeType: TreeType = opts.flatTree ? 'flat' : 'nested'
-  const storePath = getStorePath(treeType, storeBasePath)
+  const storePath = getStorePath(storeBasePath)
 
   let modules = await readModules(path.join(root, 'node_modules'))
   const isFirstInstallation: boolean = !modules
@@ -52,28 +50,31 @@ export default async function (opts: StrictPnpmOptions): Promise<PnpmContext> {
     err['code'] = 'ALIEN_STORE'
     throw err
   }
-
-  const store = await readStore(storePath) || createStore(treeType)
-  store.type = store.type || 'nested' // for backward compatibility with v0.41.0 and earlier
-  if (store.type !== treeType) {
-    const err = new Error(`Cannot use a ${store.type} store for a ${treeType} installation`)
+  if (modules && modules.type !== treeType) {
+    const err = new Error(`Cannot use a ${modules.type} store for a ${treeType} installation`)
     err['code'] = 'INCONSISTENT_TREE_TYPE'
     throw err
   }
-  if (store.preserveSymlinks !== preserveSymlinks) {
-    const err = new Error(`Cannot use a store installed with preserveSymlinks = ${store.preserveSymlinks}. Need store with preserveSymlinks = ${preserveSymlinks}`)
-    err['code'] = 'INCONSISTENT_PRESERVE_SYMLINKS'
-    throw err
+  if (modules) {
+    if (!modules.packageManager) {
+      const msg = structureChangeMsg(stripIndent`
+        The change was needed to allow machine stores and dependency locks:
+          PR: https://github.com/rstacruz/pnpm/pull/524
+      `)
+      throw new Error(msg)
+    }
+    failIfNotCompatible(modules.packageManager.split('@')[1])
   }
-  if (store) {
-    failIfNotCompatible(store.pnpm)
-  }
+
+  const graph = await readGraph(path.join(root, 'node_modules')) || {}
+  const shrinkwrap = await readShrinkwrap(root) || {}
   const ctx: PnpmContext = {
     pkg: pkg.pkg,
     root,
     cache: getCachePath(opts.globalPath),
     storePath,
-    store,
+    graph,
+    shrinkwrap,
     isFirstInstallation,
   }
 
@@ -139,7 +140,7 @@ const DefaultGlobalPkg: Package = {
   private: true,
   config: {
     npm: {
-      storePath: GlobalStorePath
+      storePath: DEFAULT_GLOBAL_STORE_PATH
     }
   }
 }
@@ -162,16 +163,11 @@ function resolveStoreBasePath (storePath: string, pkgRoot: string) {
   return path.resolve(pkgRoot, storePath)
 }
 
-function getStorePath (treeType: TreeType, storeBasePath: string): string {
+function getStorePath (storeBasePath: string): string {
   if (underNodeModules(storeBasePath)) {
     return storeBasePath
   }
-  // potentially shared stores have to have separate subdirs for different
-  // installation types
-  if (preserveSymlinks) {
-    return path.join(storeBasePath, treeType)
-  }
-  return path.join(storeBasePath, `${treeType}-node.v4`)
+  return path.join(storeBasePath, '1')
 }
 
 function underNodeModules (dirpath: string): boolean {

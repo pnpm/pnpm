@@ -5,10 +5,13 @@ import {Dependencies} from '../types'
 import linkBins from './linkBins'
 import memoize from '../memoize'
 import {Package} from '../types'
-import symlinkToModules from './symlinkToModules'
+import hardlinkDir from '../fs/hardlinkDir'
 import mkdirp from '../fs/mkdirp'
 import installChecks = require('pnpm-install-checks')
 import pnpmPkg from '../pnpmPkgJson'
+import linkDir from 'link-dir'
+import exists = require('exists-file')
+import {Graph} from '../fs/graphController'
 
 export type InstallOptions = FetchOptions & {
   optional?: boolean,
@@ -16,6 +19,7 @@ export type InstallOptions = FetchOptions & {
   depth: number,
   engineStrict: boolean,
   nodeVersion: string,
+  nodeModulesStore: string,
 }
 
 export type MultipleInstallOpts = InstallOptions & {
@@ -27,15 +31,15 @@ export type InstalledPackage = FetchedPackage & {
   keypath: string[],
   optional: boolean,
   dependencies: InstalledPackage[], // is needed to support flat tree
+  hardlinkedLocation: string,
 }
 
 export default async function installAll (ctx: InstallContext, dependencies: Dependencies, optionalDependencies: Dependencies, modules: string, options: MultipleInstallOpts): Promise<InstalledPackage[]> {
   const nonOptionalDependencies = Object.keys(dependencies)
-    .reduce((deps, depName) => {
-      if (!optionalDependencies[depName]) {
-        deps[depName] = dependencies[depName]
-      }
-      return deps
+    .filter(depName => !optionalDependencies[depName])
+    .reduce((nonOptionalDependencies, depName) => {
+      nonOptionalDependencies[depName] = dependencies[depName]
+      return nonOptionalDependencies
     }, {})
 
   const installedPkgs: InstalledPackage[] = Array.prototype.concat.apply([], await Promise.all([
@@ -51,7 +55,15 @@ export default async function installAll (ctx: InstallContext, dependencies: Dep
   await Promise.all(
     installedPkgs
       .filter(subdep => !subdep.fromCache)
-      .map(subdep => symlinkToModules(subdep.path, modules))
+      .map(async function (subdep) {
+        const dest = path.join(modules, subdep.pkg.name)
+        ctx.piq = ctx.piq || []
+        ctx.piq.push({
+          path: dest,
+          pkgId: subdep.id
+        })
+        await linkDir(subdep.hardlinkedLocation, dest)
+      })
   )
   await linkBins(modules)
 
@@ -63,12 +75,16 @@ async function installMultiple (ctx: InstallContext, pkgsMap: Dependencies, modu
 
   const pkgs = Object.keys(pkgsMap).map(pkgName => getRawSpec(pkgName, pkgsMap[pkgName]))
 
-  ctx.store.packages = ctx.store.packages || {}
+  ctx.graph = ctx.graph || {}
 
   const installedPkgs: InstalledPackage[] = <InstalledPackage[]>(
     await Promise.all(pkgs.map(async function (pkgRawSpec: string) {
       try {
-        return await install(pkgRawSpec, modules, ctx, options)
+        const pkg = await install(pkgRawSpec, modules, ctx, options)
+        if (options.keypath && options.keypath.indexOf(pkg.id) !== -1) {
+          return null
+        }
+        return pkg
       } catch (err) {
         if (options.optional) {
           console.log(`Skipping failed optional dependency ${pkgRawSpec}:`)
@@ -85,9 +101,10 @@ async function installMultiple (ctx: InstallContext, pkgsMap: Dependencies, modu
 }
 
 async function install (pkgRawSpec: string, modules: string, ctx: InstallContext, options: InstallOptions) {
-  options.keypath = options.keypath || []
+  const keypath = options.keypath || []
+  const update = keypath.length <= options.depth
 
-  const fetchedPkg = await fetch(ctx, pkgRawSpec, modules, options)
+  const fetchedPkg = await fetch(ctx, pkgRawSpec, modules, Object.assign({}, options, {update}))
   const pkg = await fetchedPkg.fetchingPkg
 
   if (!options.force) {
@@ -95,49 +112,69 @@ async function install (pkgRawSpec: string, modules: string, ctx: InstallContext
   }
 
   const dependency: InstalledPackage = Object.assign({}, fetchedPkg, {
-    keypath: options.keypath,
+    keypath,
     dependencies: [],
     optional: options.optional === true,
     pkg,
+    // TODO: what about bundled/cached deps?
+    hardlinkedLocation: path.join(options.nodeModulesStore, fetchedPkg.id),
   })
+
+  if (dependency.fromCache || keypath.indexOf(dependency.id) !== -1) {
+    return dependency
+  }
 
   addInstalledPkg(ctx.installs, dependency)
 
-  ctx.store.packages[options.dependent] = ctx.store.packages[options.dependent] || {}
-  ctx.store.packages[options.dependent].dependencies = ctx.store.packages[options.dependent].dependencies || {}
-
   // NOTE: the current install implementation
   // does not return enough info for packages that were already installed
-  if (dependency.fromCache || options.keypath.indexOf(dependency.id) !== -1) {
-    await dependency.fetchingFiles
-    return dependency
+  addToGraph(ctx.graph, options.dependent, dependency)
+
+  const modulesInStore = path.join(dependency.hardlinkedLocation, 'node_modules')
+
+  if (!ctx.installed.has(dependency.id)) {
+    ctx.installed.add(dependency.id)
+    dependency.dependencies = await installDependencies(pkg, dependency, ctx, modulesInStore, options)
   }
-
-  ctx.store.packages[options.dependent].dependencies[pkg.name] = dependency.id
-
-  ctx.store.packages[dependency.id] = ctx.store.packages[dependency.id] || {}
-  ctx.store.packages[dependency.id].dependents = ctx.store.packages[dependency.id].dependents || []
-  if (ctx.store.packages[dependency.id].dependents.indexOf(options.dependent) === -1) {
-    ctx.store.packages[dependency.id].dependents.push(options.dependent)
-  }
-
-  // when a package was already installed, update the subdependencies only to the specified depth.
-  if (!dependency.justFetched && options.keypath.length >= options.depth) {
-    await dependency.fetchingFiles
-    return dependency
-  }
-
-  // greedy installation does not work with bundled dependencies
-  if (pkg.bundleDependencies && pkg.bundleDependencies.length || pkg.bundledDependencies && pkg.bundledDependencies.length) {
-    await dependency.fetchingFiles
-  }
-
-  dependency.dependencies = await memoize<InstalledPackage[]>(ctx.installLocks, dependency.id, () => {
-    return installDependencies(pkg, dependency, ctx, options)
-  })
 
   await dependency.fetchingFiles
+  await memoize(ctx.resolutionLinked, dependency.hardlinkedLocation, async function () {
+    if (!await exists(path.join(dependency.hardlinkedLocation, 'package.json'))) { // in case it was created by a separate installation
+      await hardlinkDir(dependency.path, dependency.hardlinkedLocation)
+    }
+  })
+
   return dependency
+}
+
+function addToGraph (graph: Graph, dependent: string, dependency: InstalledPackage) {
+  graph[dependent] = graph[dependent] || {}
+  graph[dependent].dependencies = graph[dependent].dependencies || {}
+
+  updateDependencyResolution(graph, dependent, dependency.pkg.name, dependency.id)
+
+  graph[dependency.id] = graph[dependency.id] || {}
+  graph[dependency.id].dependents = graph[dependency.id].dependents || []
+
+  if (graph[dependency.id].dependents.indexOf(dependent) === -1) {
+    graph[dependency.id].dependents.push(dependent)
+  }
+}
+
+function updateDependencyResolution (graph: Graph, dependent: string, depName: string, newDepId: string) {
+  if (graph[dependent].dependencies[depName] &&
+    graph[dependent].dependencies[depName] !== newDepId) {
+    removeIfNoDependents(graph, graph[dependent].dependencies[depName], dependent)
+  }
+  graph[dependent].dependencies[depName] = newDepId
+}
+
+function removeIfNoDependents(graph: Graph, id: string, removedDependent: string) {
+  if (graph[id] && graph[id].dependents && graph[id].dependents.length === 1 &&
+    graph[id].dependents[0] === removedDependent) {
+      Object.keys(graph[id].dependencies || {}).forEach(depName => removeIfNoDependents(graph, graph[id].dependencies[depName], id))
+      delete graph[id]
+  }
 }
 
 async function isInstallable (pkg: Package, fetchedPkg: FetchedPackage, options: InstallOptions): Promise<void> {
@@ -160,23 +197,31 @@ async function isInstallable (pkg: Package, fetchedPkg: FetchedPackage, options:
   }
 }
 
-async function installDependencies (pkg: Package, dependency: InstalledPackage, ctx: InstallContext, opts: InstallOptions): Promise<InstalledPackage[]> {
+async function installDependencies (pkg: Package, dependency: InstalledPackage, ctx: InstallContext, modules: string, opts: InstallOptions): Promise<InstalledPackage[]> {
   const depsInstallOpts = Object.assign({}, opts, {
     keypath: (opts.keypath || []).concat([ dependency.id ]),
     dependent: dependency.id,
     root: dependency.srcPath,
     fetchingFiles: dependency.fetchingFiles,
   })
-  const modules = path.join(dependency.path, 'node_modules')
 
-  const installedDeps: InstalledPackage[] = await installAll(ctx, pkg.dependencies || {}, pkg.optionalDependencies || {}, modules, depsInstallOpts)
-  ctx.piq = ctx.piq || []
-  ctx.piq.push({
-    path: dependency.path,
-    pkgId: dependency.id
-  })
+  const bundledDeps = pkg.bundleDependencies || pkg.bundleDependencies || []
+  const filterDeps = getNotBundledDeps.bind(null, bundledDeps)
+  const deps = filterDeps(pkg.dependencies || {})
+  const optionalDeps = filterDeps(pkg.optionalDependencies || {})
+
+  const installedDeps: InstalledPackage[] = await installAll(ctx, deps, optionalDeps, modules, depsInstallOpts)
 
   return installedDeps
+}
+
+function getNotBundledDeps (bundledDeps: string[], deps: Dependencies) {
+  return Object.keys(deps)
+    .filter(depName => bundledDeps.indexOf(depName) === -1)
+    .reduce((notBundledDeps, depName) => {
+      notBundledDeps[depName] = deps[depName]
+      return notBundledDeps
+    }, {})
 }
 
 function addInstalledPkg (installs: InstalledPackages, newPkg: InstalledPackage) {

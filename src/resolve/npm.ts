@@ -1,11 +1,11 @@
 import url = require('url')
+import path = require('path')
 const enc = encodeURIComponent
 import createPkgId from './createPkgId'
 import registryUrl = require('registry-url')
 import semver = require('semver')
 import {PackageSpec, ResolveOptions, ResolveResult} from '.'
 import {Package} from '../types'
-import {createRemoteTarballFetcher} from './fetch'
 
 /**
  * Resolves a package in the NPM registry. Done as part of `install()`.
@@ -24,17 +24,29 @@ import {createRemoteTarballFetcher} from './fetch'
 export default async function resolveNpm (spec: PackageSpec, opts: ResolveOptions): Promise<ResolveResult> {
   // { raw: 'rimraf@2', scope: null, name: 'rimraf', rawSpec: '2' || '' }
   try {
-    const url = toUri(spec)
+    const uri = toUri(spec)
     if (opts.log) opts.log('resolving')
-    const parsedBody = <PackageDocument>(await opts.got.getJSON(url))
+    const parsedBody = <PackageDocument>(await opts.got.getJSON(uri))
     const correctPkg = pickVersionFromRegistryDocument(parsedBody, spec, opts.tag)
+    if (!correctPkg) {
+      const versions = Object.keys(parsedBody.versions)
+      const message = versions.length
+        ? 'Versions in registry:\n' + versions.join(', ') + '\n'
+        : 'No valid version found.'
+      const err = new Error('No compatible version found: ' +
+        spec.raw + '\n' + message)
+      throw err
+    }
+    const id = path.join(
+      (url.parse(correctPkg.dist.tarball).host || '').replace(':', '+'),
+      correctPkg.name,
+      correctPkg.version
+    )
     return {
-      id: createPkgId(correctPkg),
+      id,
       pkg: correctPkg,
-      fetch: createRemoteTarballFetcher({
-        shasum: correctPkg.dist.shasum,
-        tarball: correctPkg.dist.tarball
-      }, opts)
+      shasum: correctPkg.dist.shasum,
+      tarball: correctPkg.dist.tarball,
     }
   } catch (err) {
     if (err['statusCode'] === 404) {
@@ -63,30 +75,31 @@ type PackageDocument = {
 }
 
 function pickVersionFromRegistryDocument (pkg: PackageDocument, dep: PackageSpec, latestTag: string) {
-  const versions = Object.keys(pkg.versions)
-
   if (dep.type === 'tag') {
-    const tagVersion = pkg['dist-tags'][dep.spec]
-    if (pkg.versions[tagVersion]) {
-      return pkg.versions[tagVersion]
-    }
-  } else {
-    const latest = pkg['dist-tags'][latestTag]
-    if (semver.satisfies(latest, dep.spec, true)) {
-      return pkg.versions[latest]
-    }
-    const maxVersion = semver.maxSatisfying(versions, dep.spec, true)
-    if (maxVersion) {
-      return pkg.versions[maxVersion]
-    }
+    return pickVersionByTag(pkg, dep.spec)
   }
+  return pickVersionByVersionRange(pkg, dep.spec, latestTag)
+}
 
-  const message = versions.length
-              ? 'Versions in registry:\n' + versions.join(', ') + '\n'
-              : 'No valid version found.'
-  const er = new Error('No compatible version found: ' +
-                     dep.raw + '\n' + message)
-  throw er
+function pickVersionByTag(pkg: PackageDocument, tag: string) {
+  const tagVersion = pkg['dist-tags'][tag]
+  if (pkg.versions[tagVersion]) {
+    return pkg.versions[tagVersion]
+  }
+  return null
+}
+
+function pickVersionByVersionRange(pkg: PackageDocument, versionRange: string, latestTag: string) {
+  const latest = pkg['dist-tags'][latestTag]
+  if (semver.satisfies(latest, versionRange, true)) {
+    return pkg.versions[latest]
+  }
+  const versions = Object.keys(pkg.versions)
+  const maxVersion = semver.maxSatisfying(versions, versionRange, true)
+  if (maxVersion) {
+    return pkg.versions[maxVersion]
+  }
+  return null
 }
 
 /**

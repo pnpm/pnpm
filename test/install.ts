@@ -17,7 +17,6 @@ const basicPackageJson = loadJsonFile.sync(path.join(__dirname, './support/simpl
 import {install, installPkgs, uninstall} from '../src'
 import testDefaults from './support/testDefaults'
 import exists = require('exists-file')
-import globalPath from './support/globalPath'
 import {pathToLocalPkg, local} from './support/localPkg'
 
 const isWindows = process.platform === 'win32'
@@ -262,6 +261,29 @@ test('circular deps', async function (t) {
   const dep = project.requireModule('circular-deps-1-of-2/mirror')
 
   t.equal(dep(), 'circular-deps-1-of-2', 'circular dependencies can access each other')
+
+  t.ok(!await exists(path.join('node_modules', 'circular-deps-1-of-2', 'node_modules', 'circular-deps-2-of-2', 'node_modules', 'circular-deps-1-of-2')), 'circular dependency is avoided')
+})
+
+test('concurrent circular deps', async function (t) {
+  const project = prepare(t)
+  await installPkgs(['es6-iterator@2.0.0'], testDefaults())
+
+  const dep = project.requireModule('es6-iterator')
+
+  t.ok(dep, 'es6-iterator is installed')
+})
+
+test('concurrent installation of the same packages', async function (t) {
+  const project = prepare(t)
+
+  // the same version of core-js is required by two different dependencies
+  // of babek-core
+  await installPkgs(['babel-core@6.21.0'], testDefaults())
+
+  const dep = project.requireModule('babel-core')
+
+  t.ok(dep, 'babel-core is installed')
 })
 
 test('big with dependencies and circular deps (babel-preset-2015)', async function (t) {
@@ -438,20 +460,6 @@ test('multiple save to package.json with `exact` versions (@rstacruz/tap-spec & 
   t.deepEqual(Object.keys(dependencies), Object.keys(expectedDeps), 'tap-spec and rimraf have been added to dependencies in sorted order')
 })
 
-test('flattening symlinks (minimatch@3.0.0)', async function (t) {
-  if (preserveSymlinks) {
-    t.skip('this is required only for Node.JS < 6.3.0')
-    return
-  }
-  const project = prepare(t)
-  await installPkgs(['minimatch@3.0.0'], testDefaults())
-
-  await rimraf(path.join(process.cwd(), 'node_modules/.store/is-positive@3.1.0/_/index.js'))
-  await rimraf(path.join(process.cwd(), 'node_modules/.store/is-positive@3.1.0/_/index.js'))
-
-  await project.hasNot('balanced-match')
-})
-
 test('flattening symlinks (minimatch + balanced-match)', async function (t) {
   const project = prepare(t)
   await installPkgs(['minimatch@3.0.0'], testDefaults())
@@ -527,10 +535,6 @@ test('fail when trying to install and uninstall from the same store simultaneous
 })
 
 test('packages should find the plugins they use when symlinks are preserved', async function (t) {
-  if (!preserveSymlinks) {
-    t.skip('this test only for NodeJS with --preserve-symlinks support')
-    return
-  }
   const project = prepare(t, {
     scripts: {
       test: 'pkg-that-uses-plugins'
@@ -640,9 +644,11 @@ test('prepublish is executed after argumentless installation', t => {
 })
 
 test('global installation', async function (t) {
-  await installPkgs(['is-positive'], testDefaults({globalPath, global: true}))
+  prepare(t)
+  const opts = testDefaults({global: true})
+  await installPkgs(['is-positive'], opts)
 
-  const isPositive = require(path.join(globalPath, 'node_modules', 'is-positive'))
+  const isPositive = require(path.join(opts.globalPath, 'node_modules', 'is-positive'))
   t.ok(typeof isPositive === 'function', 'isPositive() is available')
 })
 
@@ -658,6 +664,13 @@ test('tarball local package', async function (t) {
 test("don't fail when peer dependency is fetched from GitHub", t => {
   const project = prepare(t)
   return installPkgs(['test-pnpm-peer-deps'], testDefaults())
+})
+
+test('peer dependency is linked', async t => {
+  const project = prepare(t)
+  await installPkgs(['ajv@4.10.4', 'ajv-keywords@1.5.0'], testDefaults())
+
+  t.ok(await exists(path.join('node_modules', 'ajv-keywords', 'node_modules', 'ajv')), 'peer dependency is linked')
 })
 
 test('create a pnpm-debug.log file when the command fails', async function (t) {
@@ -677,7 +690,7 @@ test('building native addons', async function (t) {
 
   await installPkgs(['runas@3.1.1'], testDefaults())
 
-  t.ok(await exists(await project.resolve('runas', '3.1.1', 'build')), 'build folder created')
+  t.ok(await exists(path.join('node_modules', 'runas', 'build')), 'build folder created')
 })
 
 test('should update subdep on second install', async function (t) {
@@ -696,6 +709,19 @@ test('should update subdep on second install', async function (t) {
   await install(testDefaults({depth: 1, tag: latest, cacheTTL: 0}))
 
   await project.storeHas('dep-of-pkg-with-1-dep', '100.1.0')
+})
+
+test('should install dependency in second project', async function (t) {
+  const project1 = prepare(t)
+
+  await installPkgs(['pkg-with-1-dep'], testDefaults({save: true, storePath: '../store'}))
+  t.equal(project1.requireModule('pkg-with-1-dep')().name, 'dep-of-pkg-with-1-dep', 'can require in 1st pkg')
+
+  const project2 = prepare(t)
+
+  await installPkgs(['pkg-with-1-dep'], testDefaults({save: true, storePath: '../store'}))
+
+  t.equal(project2.requireModule('pkg-with-1-dep')().name, 'dep-of-pkg-with-1-dep', 'can require in 2nd pkg')
 })
 
 test('should install flat tree', async function (t) {
@@ -788,16 +814,39 @@ test('should not throw error if using a different store after all the packages w
 })
 
 test('should reinstall package to the store if it is not in the store.yml', async function (t) {
+  // TODO: review, might fail sometimes
   const project = prepare(t)
 
+  const opts = testDefaults()
+
   try {
-    await installPkgs(['is-positive@3.1.0', 'this-pkg-does-not-exist-3f49f4'], testDefaults())
+    await installPkgs(['is-positive@3.1.0', 'this-pkg-does-not-exist-3f49f4'], opts)
     t.fail('installation should have failed')
   } catch (err) {}
 
-  await rimraf(path.join(process.cwd(), 'node_modules/.store/is-positive@3.1.0/_/index.js'))
+  await rimraf(opts.storePath)
 
-  await installPkgs(['is-positive@3.1.0'], testDefaults())
+  await installPkgs(['is-positive@3.1.0'], opts)
 
   t.ok(await exists(await project.resolve('is-positive', '3.1.0', 'index.js')))
+})
+
+test('shrinkwrap locks npm dependencies', async function (t) {
+  const project = prepare(t)
+
+  await addDistTag('dep-of-pkg-with-1-dep', '100.0.0', 'latest')
+
+  await installPkgs(['pkg-with-1-dep'], testDefaults({save: true, cacheTTL: 0}))
+
+  await project.storeHas('dep-of-pkg-with-1-dep', '100.0.0')
+
+  await addDistTag('dep-of-pkg-with-1-dep', '100.1.0', 'latest')
+
+  await rimraf('node_modules')
+
+  await install(testDefaults({cacheTTL: 0}))
+
+  const pkg = project.requireModule('pkg-with-1-dep/node_modules/dep-of-pkg-with-1-dep/package.json')
+
+  t.equal(pkg.version, '100.0.0', 'dependency specified in shrinkwrap.yaml is installed')
 })

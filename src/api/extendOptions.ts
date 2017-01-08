@@ -1,5 +1,5 @@
 import {StrictPnpmOptions, PnpmOptions} from '../types'
-import {GlobalPath as globalPath, GlobalStorePath} from './constantDefaults'
+import {DEFAULT_GLOBAL_PATH, DEFAULT_GLOBAL_STORE_PATH} from './constantDefaults'
 import {preserveSymlinks} from '../env'
 import {LoggerType} from '../logger' // tslint:disable-line
 
@@ -8,8 +8,8 @@ const defaults = () => (<StrictPnpmOptions>{
   fetchRetryFactor: 10,
   fetchRetryMintimeout: 1e4, // 10 seconds
   fetchRetryMaxtimeout: 6e4, // 1 minute
-  storePath: getDefaultStorePath(),
-  globalPath,
+  storePath: DEFAULT_GLOBAL_STORE_PATH,
+  globalPath: DEFAULT_GLOBAL_PATH,
   logger: 'pretty',
   ignoreScripts: false,
   linkLocal: false,
@@ -25,11 +25,6 @@ const defaults = () => (<StrictPnpmOptions>{
   flatTree: false,
   engineStrict: false,
 })
-
-function getDefaultStorePath () {
-  if (preserveSymlinks) return GlobalStorePath
-  return 'node_modules/.store'
-}
 
 export default (opts?: PnpmOptions): StrictPnpmOptions => {
   opts = opts || {}

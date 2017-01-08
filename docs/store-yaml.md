@@ -1,5 +1,7 @@
 # store.yaml
 
+## This documentation is currently out of date!
+
 `store.yaml` contains information about all the different internal/external dependencies that the packages in the store have. This is especially useful because `pnpm` allows to use shared stores.
 
 ## pnpm

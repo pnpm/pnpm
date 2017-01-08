@@ -1,7 +1,6 @@
 import getTarballName from './getTarballName'
 import crypto = require('crypto')
 import {PackageSpec, ResolveResult, ResolveOptions} from '.'
-import {createRemoteTarballFetcher} from './fetch'
 
 /**
  * Resolves a 'remote' package.
@@ -21,9 +20,7 @@ export default function resolveTarball (spec: PackageSpec, opts: ResolveOptions)
 
   return Promise.resolve({
     id: name + '#' + hash(spec.rawSpec),
-    fetch: createRemoteTarballFetcher({
-      tarball: spec.rawSpec
-    }, opts)
+    tarball: spec.rawSpec,
   })
 }
 

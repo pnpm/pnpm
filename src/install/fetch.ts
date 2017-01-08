@@ -15,8 +15,8 @@ import isAvailable from './isAvailable'
 import memoize, {CachedPromises} from '../memoize'
 import {Package} from '../types'
 import {Got} from '../network/got'
-import {preserveSymlinks} from '../env'
 import {InstallContext} from '../api/install'
+import fetchRes from './fetchResolution'
 
 export type FetchOptions = {
   keypath?: string[],
@@ -26,6 +26,7 @@ export type FetchOptions = {
   storePath: string,
   tag: string,
   got: Got,
+  update?: boolean,
 }
 
 export type FetchedPackage = {
@@ -34,9 +35,7 @@ export type FetchedPackage = {
   path: string,
   srcPath?: string,
   id: string,
-  name: string,
   fromCache: boolean,
-  justFetched: boolean,
   abort(): Promise<void>,
 }
 
@@ -73,52 +72,56 @@ export default async function fetch (ctx: InstallContext, pkgRawSpec: string, mo
   const log: InstallLog = logger.fork(spec).log.bind(null, 'progress', pkgRawSpec)
 
   try {
-    // it might be a bundleDependency, in which case, don't bother
-    const available = !options.force && await isAvailable(spec, modules)
-    if (available) {
-      const fetchedPkg = await saveCachedResolution()
-      fetchedPkg.fetchingPkg.then(pkg => log('package.json', pkg))
-      fetchedPkg.fetchingFiles.then(() => log('done'))
-      return fetchedPkg
+    let resolution = ctx.shrinkwrap[pkgRawSpec]
+    if (!resolution) {
+      // it might be a bundleDependency, in which case, don't bother
+      const available = !options.force && await isAvailable(spec, modules)
+      if (available) {
+        const fetchedPkg = await saveCachedResolution()
+        fetchedPkg.fetchingPkg.then(pkg => log('package.json', pkg))
+        fetchedPkg.fetchingFiles.then(() => log('done'))
+        return fetchedPkg
+      }
     }
-    const res = await resolve(spec, {
+    if (!resolution || options.update) {
+      resolution = await resolve(spec, {
+        log,
+        got: options.got,
+        root: options.root,
+        linkLocal: options.linkLocal,
+        tag: options.tag
+      })
+      if (resolution.tarball || resolution.repo) {
+        ctx.shrinkwrap[pkgRawSpec] = Object.assign({}, resolution)
+        delete ctx.shrinkwrap[pkgRawSpec].pkg
+        delete ctx.shrinkwrap[pkgRawSpec].fetch
+        delete ctx.shrinkwrap[pkgRawSpec].root
+      }
+    }
+    log('resolved', resolution)
+
+    const target = path.join(options.storePath, resolution.id)
+
+    const fetchingFiles = fetchToStoreCached({
+      fetchLocks: ctx.fetchLocks,
+      target,
+      resolution,
       log,
       got: options.got,
-      root: options.root,
-      linkLocal: options.linkLocal,
-      tag: options.tag
+      force: options.force,
     })
-    log('resolved', res)
 
-    const target = path.join(options.storePath, res.id)
-    const pkgPath = path.join(target, '_')
-
-    const justFetched = !ctx.fetchLocks[res.id] &&
-      (options.force || !(await exists(target)) || !ctx.store.packages[res.id])
-    const fetchingFiles = !justFetched && !ctx.fetchLocks[res.id]
-      ? Promise.resolve()
-      : fetchToStoreCached({
-        fetchLocks: ctx.fetchLocks,
-        target,
-        resolution: res,
-        log,
-        keypath,
-        force: options.force,
-      })
-
-    const fetchingPkg = res.pkg
-      ? Promise.resolve(res.pkg)
-      : fetchingFiles.then(() => requireJson(path.join(pkgPath, 'package.json')))
+    const fetchingPkg = resolution.pkg
+      ? Promise.resolve(resolution.pkg)
+      : fetchingFiles.then(() => requireJson(path.join(target, 'package.json')))
 
     const fetchedPkg = {
       fetchingPkg,
       fetchingFiles,
-      id: res.id,
-      name: spec.name,
+      id: resolution.id,
       fromCache: false,
-      path: pkgPath,
-      srcPath: res.root,
-      justFetched,
+      path: target,
+      srcPath: resolution.root,
       abort: async function () {
         try {
           await fetchingFiles
@@ -150,10 +153,8 @@ export default async function fetch (ctx: InstallContext, pkgRawSpec: string, mo
         fetchingPkg: Promise.resolve(data),
         fetchingFiles: Promise.resolve(),
         id: path.basename(fullpath),
-        name: spec.name,
         fromCache: true,
         path: fullpath,
-        justFetched: false,
         abort: () => Promise.resolve(),
       }
     }
@@ -165,8 +166,8 @@ type FetchToStoreOptions = {
   target: string,
   resolution: ResolveResult,
   log: InstallLog,
+  got: Got,
   force: boolean,
-  keypath: string[],
 }
 
 /**
@@ -176,40 +177,15 @@ type FetchToStoreOptions = {
  */
 function fetchToStoreCached (opts: FetchToStoreOptions): Promise<void> {
   return memoize(opts.fetchLocks, opts.resolution.id, async function () {
-    opts.log('download-queued')
-    await opts.resolution.fetch(path.join(opts.target, '_'))
+    if (!opts.force && await exists(opts.target)) return
 
-    const pkg = await requireJson(path.resolve(path.join(opts.target, '_', 'package.json')))
+    await rimraf(opts.target)
+
+    opts.log('download-queued')
+    await fetchRes(opts.resolution, opts.target, {got: opts.got, log: opts.log})
+
+    const pkg = await requireJson(path.join(opts.target, 'package.json'))
 
     opts.log('package.json', pkg)
-
-    // this is not needed on Node.js >= 6.3.0
-    if (!preserveSymlinks) {
-      // symlink itself; . -> node_modules/lodash@4.0.0
-      // this way it can require itself
-      await symlinkSelf(opts.target, pkg, opts.keypath.length)
-    }
   })
-}
-
-/**
- * Symlink a package into its own node_modules. this way, babel-runtime@5 can
- * require('babel-runtime') within itself.
- */
-async function symlinkSelf (target: string, pkg: Package, depth: number) {
-  debug(`symlinkSelf ${pkg.name}`)
-  if (depth === 0) {
-    return
-  }
-  await mkdirp(path.join(target, 'node_modules'))
-  const src = isScoped(pkg.name)
-    ? path.join('..', '..', '_')
-    : path.join('..', '_')
-  await linkDir(
-    src,
-    path.join(target, 'node_modules', pkg.name))
-}
-
-function isScoped (pkgName: string): boolean {
-  return pkgName.indexOf('/') !== -1
 }

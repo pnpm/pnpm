@@ -1,10 +1,10 @@
 import {PnpmOptions} from '../../src'
-import globalPath from './globalPath'
+import path = require('path')
 
-export default function testDefaults (opts?: PnpmOptions): PnpmOptions {
+export default function testDefaults (opts?: PnpmOptions): PnpmOptions & {globalPath: string, storePath: string} {
   return Object.assign({
-    storePath: 'node_modules/.store',
+    storePath: path.join(process.cwd(), '..', '.store'),
     registry: 'http://localhost:4873/',
-    globalPath,
+    globalPath: path.join(process.cwd(), '..', 'global'),
   }, opts)
 }

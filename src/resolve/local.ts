@@ -1,7 +1,6 @@
 import {resolve} from 'path'
 import * as path from 'path'
 import spawn = require('cross-spawn')
-import createPkgId, {delimiter} from './createPkgId'
 import getTarballName from './getTarballName'
 import requireJson from '../fs/requireJson'
 import mkdirp from '../fs/mkdirp'
@@ -76,15 +75,5 @@ async function resolveFolder (dependencyPath: string): Promise<ResolveResult> {
 }
 
 function createLocalPkgId (name: string, dependencyPath: string): string {
-  return createPkgId({
-    name,
-    version: [
-      'file',
-      removeLeadingSlash(dependencyPath)
-    ].join(delimiter)
-  })
-}
-
-function removeLeadingSlash (pkgPath: string): string {
-  return pkgPath.replace(/^[/\\]/, '')
+  return 'local/' + encodeURIComponent(dependencyPath)
 }

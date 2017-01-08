@@ -9,8 +9,12 @@ import {Package} from '../types'
 export type ResolveResult = {
   id: string,
   pkg?: Package,
-  fetch(target: string): Promise<void>,
-  root?: string
+  tarball?: string,
+  shasum?: string
+  root?: string,
+  repo?: string,
+  ref?: string,
+  fetch?: (target: string) => Promise<void>,
 }
 
 export type PackageSpec = {

@@ -9,7 +9,7 @@ import extendOptions from './extendOptions'
 import requireJson from '../fs/requireJson'
 import {PnpmOptions, StrictPnpmOptions, Package} from '../types'
 import lock from './lock'
-import {save as saveStore, Store} from '../fs/storeController'
+import {save as saveGraph, Graph} from '../fs/graphController'
 
 export default async function uninstallCmd (pkgsToUninstall: string[], maybeOpts?: PnpmOptions) {
   const opts = extendOptions(maybeOpts)
@@ -30,27 +30,27 @@ export async function uninstallInContext (pkgsToUninstall: string[], pkg: Packag
   // this is OK. The store might not have records for the package
   // maybe it was cloned, `pnpm install` was not executed
   // and remove is done on a package with no dependencies installed
-  ctx.store.packages[ctx.root] = ctx.store.packages[ctx.root] || {}
-  ctx.store.packages[ctx.root].dependencies = ctx.store.packages[ctx.root].dependencies || {}
+  ctx.graph[ctx.root] = ctx.graph[ctx.root] || {}
+  ctx.graph[ctx.root].dependencies = ctx.graph[ctx.root].dependencies || {}
 
   const pkgIds = <string[]>pkgsToUninstall
-    .map(dep => ctx.store.packages[ctx.root].dependencies[dep])
+    .map(dep => ctx.graph[ctx.root].dependencies[dep])
     .filter(pkgId => !!pkgId)
-  const uninstalledPkgs = tryUninstall(pkgIds.slice(), ctx.store, ctx.root)
+  const uninstalledPkgs = tryUninstall(pkgIds.slice(), ctx.graph, ctx.root)
   await Promise.all(
     uninstalledPkgs.map(uninstalledPkg => removeBins(uninstalledPkg, ctx.storePath, ctx.root))
   )
-  if (ctx.store.packages[ctx.root].dependencies) {
+  if (ctx.graph[ctx.root].dependencies) {
     pkgsToUninstall.forEach(dep => {
-      delete ctx.store.packages[ctx.root].dependencies[dep]
+      delete ctx.graph[ctx.root].dependencies[dep]
     })
-    if (!Object.keys(ctx.store.packages[ctx.root].dependencies).length) {
-      delete ctx.store.packages[ctx.root].dependencies
+    if (!Object.keys(ctx.graph[ctx.root].dependencies).length) {
+      delete ctx.graph[ctx.root].dependencies
     }
   }
   await Promise.all(uninstalledPkgs.map(pkgId => removePkgFromStore(pkgId, ctx.storePath)))
 
-  await saveStore(ctx.storePath, ctx.store)
+  await saveGraph(path.join(ctx.root, 'node_modules'), ctx.graph)
   await Promise.all(pkgsToUninstall.map(dep => rimraf(path.join(ctx.root, 'node_modules', dep))))
 
   const saveType = getSaveType(opts)
@@ -60,25 +60,25 @@ export async function uninstallInContext (pkgsToUninstall: string[], pkg: Packag
   }
 }
 
-function canBeUninstalled (pkgId: string, store: Store, pkgPath: string) {
-  return !store.packages[pkgId] || !store.packages[pkgId].dependents || !store.packages[pkgId].dependents.length ||
-    store.packages[pkgId].dependents.length === 1 && store.packages[pkgId].dependents.indexOf(pkgPath) !== -1
+function canBeUninstalled (pkgId: string, graph: Graph, pkgPath: string) {
+  return !graph[pkgId] || !graph[pkgId].dependents || !graph[pkgId].dependents.length ||
+    graph[pkgId].dependents.length === 1 && graph[pkgId].dependents.indexOf(pkgPath) !== -1
 }
 
-export function tryUninstall (pkgIds: string[], store: Store, pkgPath: string) {
+export function tryUninstall (pkgIds: string[], graph: Graph, pkgPath: string) {
   const uninstalledPkgs: string[] = []
   let numberOfUninstalls: number
   do {
     numberOfUninstalls = 0
     for (let i = 0; i < pkgIds.length; ) {
-      if (canBeUninstalled(pkgIds[i], store, pkgPath)) {
+      if (canBeUninstalled(pkgIds[i], graph, pkgPath)) {
         const uninstalledPkg = pkgIds.splice(i, 1)[0]
         uninstalledPkgs.push(uninstalledPkg)
-        const deps = store.packages[uninstalledPkg] && store.packages[uninstalledPkg].dependencies || {}
+        const deps = graph[uninstalledPkg] && graph[uninstalledPkg].dependencies || {}
         const depIds = Object.keys(deps).map(depName => deps[depName])
-        delete store.packages[uninstalledPkg]
-        depIds.forEach((dep: string) => removeDependency(dep, uninstalledPkg, store))
-        Array.prototype.push.apply(uninstalledPkgs, tryUninstall(depIds, store, uninstalledPkg))
+        delete graph[uninstalledPkg]
+        depIds.forEach((dep: string) => removeDependency(dep, uninstalledPkg, graph))
+        Array.prototype.push.apply(uninstalledPkgs, tryUninstall(depIds, graph, uninstalledPkg))
         numberOfUninstalls++
         continue
       }
@@ -88,16 +88,16 @@ export function tryUninstall (pkgIds: string[], store: Store, pkgPath: string) {
   return uninstalledPkgs
 }
 
-function removeDependency (dependentPkgName: string, uninstalledPkg: string, store: Store) {
-  if (!store.packages[dependentPkgName].dependents) return
-  store.packages[dependentPkgName].dependents.splice(store.packages[dependentPkgName].dependents.indexOf(uninstalledPkg), 1)
-  if (!store.packages[dependentPkgName].dependents.length) {
-    delete store.packages[dependentPkgName].dependents
+function removeDependency (dependentPkgName: string, uninstalledPkg: string, graph: Graph) {
+  if (!graph[dependentPkgName].dependents) return
+  graph[dependentPkgName].dependents.splice(graph[dependentPkgName].dependents.indexOf(uninstalledPkg), 1)
+  if (!graph[dependentPkgName].dependents.length) {
+    delete graph[dependentPkgName].dependents
   }
 }
 
 async function removeBins (uninstalledPkg: string, store: string, root: string) {
-  const uninstalledPkgJson = await requireJson(path.join(store, uninstalledPkg, '_/package.json'))
+  const uninstalledPkgJson = await requireJson(path.join(store, uninstalledPkg, 'package.json'))
   const bins = binify(uninstalledPkgJson)
   return Promise.all(
     Object.keys(bins).map(bin => rimraf(path.join(root, 'node_modules/.bin', bin)))

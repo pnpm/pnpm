@@ -16,52 +16,46 @@ import {
 } from '../src'
 import {pathToLocalPkg} from './support/localPkg'
 import testDefaults from './support/testDefaults'
-import globalPath from './support/globalPath'
 
 test('relative link', async function (t) {
   prepare(t)
-  const tmpDir = path.resolve(__dirname, '..', '.tmp')
+
   const linkedPkgName = 'hello-world-js-bin'
-  const linkedPkgDirName = linkedPkgName + Math.random().toString()
-  const linkedPkgPath = path.resolve(tmpDir, linkedPkgDirName)
+  const linkedPkgPath = path.resolve(process.cwd(), '..', linkedPkgName)
 
   await ncp(pathToLocalPkg(linkedPkgName), linkedPkgPath)
-  await linkFromRelative(`../${linkedPkgDirName}`, testDefaults())
+  await linkFromRelative(`../${linkedPkgName}`, testDefaults())
 
   isExecutable(t, path.join(process.cwd(), 'node_modules', '.bin', 'hello-world-js-bin'))
 })
 
 test('global link', async function (t) {
-  // NOTE: the linked packages should use the same store.
-  // Otherwise it would be a mess the linked package could use a flat dependency tree
-  // while the parent package could use a nested one
-  const storePath = path.join(globalPath, '.store')
+  prepare(t)
+  const projectPath = process.cwd()
 
-  const tmpDir = path.resolve(__dirname, '..', '.tmp')
-  mkdirp.sync(tmpDir)
   const linkedPkgName = 'hello-world-js-bin'
-  const linkedPkgPath = path.resolve(tmpDir, linkedPkgName + Math.random().toString())
+  const linkedPkgPath = path.resolve(process.cwd(), '..', linkedPkgName)
 
   await ncp(pathToLocalPkg(linkedPkgName), linkedPkgPath)
 
   process.chdir(linkedPkgPath)
-  await linkToGlobal(testDefaults({storePath}))
+  await linkToGlobal(testDefaults())
 
-  prepare(t)
-  await linkFromGlobal(linkedPkgName, testDefaults({storePath}))
+  process.chdir(projectPath)
+
+  await linkFromGlobal(linkedPkgName, testDefaults())
 
   isExecutable(t, path.join(process.cwd(), 'node_modules', '.bin', 'hello-world-js-bin'))
 })
 
 test('link local package if link-local = true', async function (t) {
   prepare(t)
-  const tmpDir = path.resolve(__dirname, '..', '.tmp')
+
   const linkedPkgName = 'hello-world-js-bin'
-  const linkedPkgDirName = linkedPkgName + Math.random().toString()
-  const linkedPkgPath = path.resolve(tmpDir, linkedPkgDirName)
+  const linkedPkgPath = path.resolve(process.cwd(), '..', linkedPkgName)
 
   await ncp(pathToLocalPkg(linkedPkgName), linkedPkgPath)
-  await installPkgs([`file:../${linkedPkgDirName}`], testDefaults({ linkLocal: true }))
+  await installPkgs([`file:../${linkedPkgName}`], testDefaults({ linkLocal: true }))
 
   isExecutable(t, path.join(process.cwd(), 'node_modules', '.bin', 'hello-world-js-bin'))
 })
