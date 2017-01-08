@@ -10,7 +10,8 @@ import isExecutable from './isExecutable'
 const root = process.cwd()
 process.env.ROOT = root
 
-const tmpPath = path.join(root, '.tmp')
+// the testing folder should be outside of the project to avoid lookup in the project's node_modules
+const tmpPath = path.join(root, '..', '.tmp')
 mkdirp.sync(tmpPath)
 const npmrc = stripIndent` 
   store-path = ../.store
@@ -18,7 +19,7 @@ const npmrc = stripIndent`
   fetch-retry-maxtimeout = 180000
   registry = http://localhost:4873/
   quiet = true
-  global-path = ${path.join(__dirname, '..', '..', '.tmp', 'global')}
+  global-path = ${path.join(tmpPath, 'global')}
 `
 fs.writeFileSync(path.join(tmpPath, '.npmrc'), npmrc, 'utf-8')
 

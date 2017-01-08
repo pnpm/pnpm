@@ -134,7 +134,6 @@
   "scripts": {
     "info": "npm-scripts-info",
     "start": "npm run tsc -- --watch",
-    "predocs:build": "rimraf .tmp/",
     "?docs:build": "echo 'Generate the documentation website'",
     "docs:build": "docpress build",
     "?commit": "echo 'Run Git commit wizard'",
@@ -148,7 +147,7 @@
     "build-sinopia": "npm-run-all -p -r sinopia publish-test-packages",
     "test:tap": "ts-node test | tap-diff",
     "test:e2e": "npm-run-all -p -r sinopia test:tap",
-    "pretest": "rimraf .tmp/",
+    "pretest": "rimraf ../.tmp/",
     "test": "npm run lint && npm run test:e2e",
     "posttest": "git checkout -- sinopia/storage/",
     "prerelease": "npm run tsc && npm test",
