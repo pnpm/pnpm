@@ -18,6 +18,7 @@ import {install, installPkgs, uninstall} from '../src'
 import testDefaults from './support/testDefaults'
 import exists = require('exists-file')
 import {pathToLocalPkg, local} from './support/localPkg'
+import {sync as execPnpmSync} from './support/execPnpm'
 
 const isWindows = process.platform === 'win32'
 const preserveSymlinks = semver.satisfies(process.version, '>=6.3.0')
@@ -559,8 +560,6 @@ test('run js bin file', async function (t) {
   t.equal(result.status, 0, 'executable exited with success')
 })
 
-const pnpmBin = path.join(__dirname, '../src/bin/pnpm.ts')
-
 test('bin files are found by lifecycle scripts', t => {
   const project = prepare(t, {
     scripts: {
@@ -568,32 +567,10 @@ test('bin files are found by lifecycle scripts', t => {
     }
   })
 
-  const result = spawnSync('ts-node', [pnpmBin, 'install', 'hello-world-js-bin'])
+  const result = execPnpmSync('install', 'hello-world-js-bin')
 
   t.equal(result.status, 0, 'installation was successfull')
   t.ok(result.stdout.toString().indexOf('Hello world!') !== -1, 'postinstall script was executed')
-
-  t.end()
-})
-
-test('installation via the CLI', async function (t) {
-  const project = prepare(t)
-  const result = spawnSync('ts-node', [pnpmBin, 'install', 'rimraf@2.5.1'])
-
-  console.log(result.stderr.toString())
-  t.equal(result.status, 0, 'install successful')
-
-  const rimraf = project.requireModule('rimraf')
-  t.ok(typeof rimraf === 'function', 'rimraf() is available')
-
-  await project.isExecutable('.bin/rimraf')
-})
-
-test('pass through to npm CLI for commands that are not supported by npm', t => {
-  const result = spawnSync('ts-node', [pnpmBin, 'config', 'get', 'user-agent'])
-
-  t.equal(result.status, 0, 'command was successfull')
-  t.ok(result.stdout.toString().indexOf('npm/') !== -1, 'command returned correct result')
 
   t.end()
 })
@@ -605,7 +582,7 @@ test('postinstall is executed after installation', t => {
     }
   })
 
-  const result = spawnSync('ts-node', [pnpmBin, 'install', 'is-negative'])
+  const result = execPnpmSync('install', 'is-negative')
 
   t.equal(result.status, 0, 'installation was successfull')
   t.ok(result.stdout.toString().indexOf('Hello world!') !== -1, 'postinstall script was executed')
@@ -620,7 +597,7 @@ test('prepublish is not executed after installation with arguments', t => {
     }
   })
 
-  const result = spawnSync('ts-node', [pnpmBin, 'install', 'is-negative'])
+  const result = execPnpmSync('install', 'is-negative')
 
   t.equal(result.status, 0, 'installation was successfull')
   t.ok(result.stdout.toString().indexOf('Hello world!') === -1, 'prepublish script was not executed')
@@ -635,7 +612,7 @@ test('prepublish is executed after argumentless installation', t => {
     }
   })
 
-  const result = spawnSync('ts-node', [pnpmBin, 'install'])
+  const result = execPnpmSync('install')
 
   t.equal(result.status, 0, 'installation was successfull')
   t.ok(result.stdout.toString().indexOf('Hello world!') !== -1, 'prepublish script was executed')
@@ -676,7 +653,7 @@ test('peer dependency is linked', async t => {
 test('create a pnpm-debug.log file when the command fails', async function (t) {
   const project = prepare(t)
 
-  const result = spawnSync('ts-node', [pnpmBin, 'install', '@zkochan/i-do-not-exist'])
+  const result = execPnpmSync('install', '@zkochan/i-do-not-exist')
 
   t.equal(result.status, 1, 'install failed')
 

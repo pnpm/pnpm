@@ -147,7 +147,7 @@
     "build-sinopia": "npm-run-all -p -r sinopia publish-test-packages",
     "test:tap": "ts-node test | tap-diff",
     "test:e2e": "npm-run-all -p -r sinopia test:tap",
-    "pretest": "rimraf ../.tmp/",
+    "pretest": "rimraf ../.tmp/ && npm run tsc",
     "test": "npm run lint && npm run test:e2e",
     "posttest": "git checkout -- sinopia/storage/",
     "prerelease": "npm run tsc && npm test",

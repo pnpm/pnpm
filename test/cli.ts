@@ -6,12 +6,10 @@ import spawn = require('cross-spawn')
 import exists = require('exists-file')
 import {add as addDistTag} from './support/distTags'
 import prepare from './support/prepare'
-import runCli from './support/run-cli'
-
-const pnpmBin = path.join(__dirname, '../src/bin/pnpm.ts')
+import execPnpm, {sync as execPnpmSync} from './support/execPnpm'
 
 test('return error status code when underlying command fails', t => {
-  const result = spawn.sync('ts-node', [pnpmBin, 'invalid-command'])
+  const result = execPnpmSync('invalid-command')
 
   t.equal(result.status, 1, 'error status code returned')
 
@@ -25,13 +23,34 @@ test('update', async function (t) {
 
   await addDistTag('dep-of-pkg-with-1-dep', '100.0.0', latest)
 
-  await runCli('install', 'pkg-with-1-dep', '-S', '--tag', latest, '--cache-ttl', '0')
+  await execPnpm('install', 'pkg-with-1-dep', '-S', '--tag', latest, '--cache-ttl', '0')
 
   await project.storeHas('dep-of-pkg-with-1-dep', '100.0.0')
 
   await addDistTag('dep-of-pkg-with-1-dep', '100.1.0', latest)
 
-  await runCli('update', '--depth', '1', '--tag', latest)
+  await execPnpm('update', '--depth', '1', '--tag', latest)
 
   await project.storeHas('dep-of-pkg-with-1-dep', '100.1.0')
+})
+
+test('installation via the CLI', async function (t) {
+  const project = prepare(t)
+  const result = execPnpmSync('install', 'rimraf@2.5.1')
+
+  t.equal(result.status, 0, 'install successful')
+
+  const rimraf = project.requireModule('rimraf')
+  t.ok(typeof rimraf === 'function', 'rimraf() is available')
+
+  await project.isExecutable('.bin/rimraf')
+})
+
+test('pass through to npm CLI for commands that are not supported by npm', t => {
+  const result = execPnpmSync('config', 'get', 'user-agent')
+
+  t.equal(result.status, 0, 'command was successfull')
+  t.ok(result.stdout.toString().indexOf('npm/') !== -1, 'command returned correct result')
+
+  t.end()
 })
