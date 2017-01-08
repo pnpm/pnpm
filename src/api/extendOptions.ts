@@ -1,7 +1,9 @@
 import {StrictPnpmOptions, PnpmOptions} from '../types'
 import {DEFAULT_GLOBAL_PATH, DEFAULT_GLOBAL_STORE_PATH} from './constantDefaults'
-import {preserveSymlinks} from '../env'
 import {LoggerType} from '../logger' // tslint:disable-line
+import semver = require('semver')
+
+const CAN_PRESERVE_SYMLINKS = semver.satisfies(process.version, '>=6.3.0')
 
 const defaults = () => (<StrictPnpmOptions>{
   fetchRetries: 2,
@@ -24,12 +26,17 @@ const defaults = () => (<StrictPnpmOptions>{
   cacheTTL: 60 * 60 * 24, // 1 day
   flatTree: false,
   engineStrict: false,
+  preserveSymlinks: CAN_PRESERVE_SYMLINKS,
 })
 
 export default (opts?: PnpmOptions): StrictPnpmOptions => {
-  opts = opts || {}
-  if (opts.flatTree === true && !preserveSymlinks) {
+  if (opts && opts.preserveSymlinks && !CAN_PRESERVE_SYMLINKS) {
+    console.warn('The active Node version does not support --preserve-symlinks')
+    delete opts.preserveSymlinks
+  }
+  const extendedOpts = Object.assign({}, defaults(), opts)
+  if (extendedOpts.flatTree === true && !extendedOpts.preserveSymlinks) {
     throw new Error('`--preserve-symlinks` and so `--flat-tree` are not supported on your system, make sure you are running on Node ≽ 6.3.0')
   }
-  return Object.assign({}, defaults(), opts)
+  return extendedOpts
 }

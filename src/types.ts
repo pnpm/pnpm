@@ -22,6 +22,7 @@ export type PnpmOptions = {
   depth?: number,
   engineStrict?: boolean,
   nodeVersion?: string,
+  preserveSymlinks?: boolean,
 
   // proxy
   proxy?: string,
@@ -63,6 +64,7 @@ export type StrictPnpmOptions = {
   depth: number,
   engineStrict: boolean,
   nodeVersion: string,
+  preserveSymlinks: boolean,
 
   // proxy
   proxy?: string,

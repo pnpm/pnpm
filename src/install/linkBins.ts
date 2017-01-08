@@ -6,13 +6,13 @@ import mkdirp from '../fs/mkdirp'
 import requireJson from '../fs/requireJson'
 import getPkgDirs from '../fs/getPkgDirs'
 import binify from '../binify'
-import {isWindows, preserveSymlinks} from '../env'
+import {isWindows} from '../env'
 import cmdShim = require('@zkochan/cmd-shim')
 import {Package} from '../types'
 
-export default async function linkAllBins (modules: string) {
+export default async function linkAllBins (modules: string, preserveSymlinks: boolean) {
   const pkgDirs = await getPkgDirs(modules)
-  return Promise.all(pkgDirs.map((pkgDir: string) => linkPkgBins(modules, pkgDir)))
+  return Promise.all(pkgDirs.map((pkgDir: string) => linkPkgBins(modules, pkgDir, preserveSymlinks)))
 }
 
 /**
@@ -28,7 +28,7 @@ export default async function linkAllBins (modules: string) {
  *
  *     // node_modules/.bin/rimraf -> ../.store/rimraf@2.5.1/cmd.js
  */
-export async function linkPkgBins (modules: string, target: string) {
+export async function linkPkgBins (modules: string, target: string, preserveSymlinks: boolean) {
   const pkg = await safeRequireJson(path.join(target, 'package.json'))
 
   if (!pkg) {

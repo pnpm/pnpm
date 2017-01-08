@@ -93,6 +93,7 @@ async function installInContext (installType: string, packagesToInstall: Depende
       tag: opts.tag,
       engineStrict: opts.engineStrict,
       nodeVersion: opts.nodeVersion,
+      preserveSymlinks: opts.preserveSymlinks,
       got: createGot(client, {
         cachePath: ctx.cache,
         cacheTTL: opts.cacheTTL
