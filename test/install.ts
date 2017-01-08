@@ -535,7 +535,7 @@ test('fail when trying to install and uninstall from the same store simultaneous
   ])
 })
 
-test('packages should find the plugins they use when symlinks are preserved', async function (t) {
+test('top-level packages should find the plugins they use', async function (t) {
   const project = prepare(t, {
     scripts: {
       test: 'pkg-that-uses-plugins'
@@ -545,6 +545,19 @@ test('packages should find the plugins they use when symlinks are preserved', as
   const result = spawnSync('npm', ['test'])
   t.ok(result.stdout.toString().indexOf('My plugin is plugin-example') !== -1, 'package executable have found its plugin')
   t.equal(result.status, 0, 'executable exited with success')
+})
+
+test('not top-level packages should find the plugins they use', async function (t) {
+  // standard depends on eslint and eslint plugins
+  const project = prepare(t, {
+    scripts: {
+      test: 'standard'
+    }
+  })
+  await installPkgs(['standard@8.6.0'], testDefaults({ save: true }))
+  const result = spawnSync('npm', ['test'])
+  console.log(result.stdout.toString())
+  t.equal(result.status, 0, 'standard exited with success')
 })
 
 test('run js bin file', async function (t) {
