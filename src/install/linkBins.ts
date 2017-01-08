@@ -43,27 +43,30 @@ export async function linkPkgBins (modules: string, target: string) {
 
   await mkdirp(binDir)
   await Promise.all(Object.keys(bins).map(async function (bin) {
-    const actualBin = bins[bin]
     const externalBinPath = path.join(binDir, bin)
+    const actualBin = bins[bin]
     const targetPath = path.join(target, actualBin)
+
+    if (!preserveSymlinks) {
+      const nodePath = getNodePaths(targetPath).join(path.delimiter)
+      return cmdShim(targetPath, externalBinPath, {preserveSymlinks, nodePath})
+    }
 
     const relTargetPath = normalizePath(path.join('..', pkg.name, actualBin))
     if (isWindows) {
-      if (!preserveSymlinks) {
-        return cmdShim(targetPath, externalBinPath, {preserveSymlinks})
-      }
       const proxyFilePath = path.join(binDir, `${bin}.proxy`)
       await fs.writeFile(proxyFilePath, `#!/usr/bin/env node\r\nrequire("${relTargetPath}")`, 'utf8')
       return cmdShim(proxyFilePath, externalBinPath, {preserveSymlinks})
     }
 
-    if (!preserveSymlinks) {
-      await makeExecutable(targetPath)
-      return linkDir(targetPath, externalBinPath)
-    }
-
     return proxy(externalBinPath, relTargetPath)
   }))
+}
+
+function getNodePaths (filename: string): string[] {
+  const next = path.join(filename, '..')
+  if (filename === next) return []
+  return [path.join(filename, 'node_modules')].concat(getNodePaths(next))
 }
 
 function makeExecutable (filePath: string) {
