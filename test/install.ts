@@ -814,16 +814,19 @@ test('should not throw error if using a different store after all the packages w
 })
 
 test('should reinstall package to the store if it is not in the store.yml', async function (t) {
+  // TODO: review, might fail sometimes
   const project = prepare(t)
 
+  const opts = testDefaults()
+
   try {
-    await installPkgs(['is-positive@3.1.0', 'this-pkg-does-not-exist-3f49f4'], testDefaults())
+    await installPkgs(['is-positive@3.1.0', 'this-pkg-does-not-exist-3f49f4'], opts)
     t.fail('installation should have failed')
   } catch (err) {}
 
-  await rimraf(path.join(process.cwd(), 'node_modules/.store/is-positive@3.1.0/index.js'))
+  await rimraf(opts.storePath)
 
-  await installPkgs(['is-positive@3.1.0'], testDefaults())
+  await installPkgs(['is-positive@3.1.0'], opts)
 
   t.ok(await exists(await project.resolve('is-positive', '3.1.0', 'index.js')))
 })
