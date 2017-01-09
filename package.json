@@ -29,7 +29,7 @@
     "@types/rc": "0.0.1",
     "@types/semver": "5.3.30",
     "@types/update-notifier": "0.0.28",
-    "@zkochan/cmd-shim": "2.1.0",
+    "@zkochan/cmd-shim": "2.2.0",
     "@zkochan/logger": "0.1.0",
     "arr-flatten": "1.0.1",
     "byline": "5.0.0",
