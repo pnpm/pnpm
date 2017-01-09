@@ -67,8 +67,9 @@ export async function linkPkgBins (modules: string, target: string, preserveSyml
 
 function getNodePaths (filename: string): string[] {
   const next = path.join(filename, '..')
-  if (filename === next) return []
-  return [path.join(filename, 'node_modules')].concat(getNodePaths(next))
+  const modules = path.join(filename, 'node_modules')
+  if (filename === next) return [modules]
+  return [modules].concat(getNodePaths(next))
 }
 
 function makeExecutable (filePath: string) {
