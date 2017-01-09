@@ -1,5 +1,5 @@
 import {StrictPnpmOptions, PnpmOptions} from '../types'
-import {DEFAULT_GLOBAL_PATH, DEFAULT_GLOBAL_STORE_PATH} from './constantDefaults'
+import {DEFAULT_GLOBAL_PATH} from './constantDefaults'
 import {LoggerType} from '../logger' // tslint:disable-line
 import semver = require('semver')
 
@@ -10,7 +10,7 @@ const defaults = () => (<StrictPnpmOptions>{
   fetchRetryFactor: 10,
   fetchRetryMintimeout: 1e4, // 10 seconds
   fetchRetryMaxtimeout: 6e4, // 1 minute
-  storePath: DEFAULT_GLOBAL_STORE_PATH,
+  storePath: '~/.pnpm-store',
   globalPath: DEFAULT_GLOBAL_PATH,
   logger: 'pretty',
   ignoreScripts: false,

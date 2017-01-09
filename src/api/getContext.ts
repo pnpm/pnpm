@@ -23,7 +23,6 @@ import mkdirp from '../fs/mkdirp'
 import {Package} from '../types'
 import {getCachePath} from './cache'
 import normalizePath = require('normalize-path')
-import {DEFAULT_GLOBAL_STORE_PATH} from './constantDefaults'
 
 export type PnpmContext = {
   pkg?: Package,
@@ -138,11 +137,6 @@ const DefaultGlobalPkg: Package = {
   name: 'pnpm-global-pkg',
   version: '1.0.0',
   private: true,
-  config: {
-    npm: {
-      storePath: DEFAULT_GLOBAL_STORE_PATH
-    }
-  }
 }
 
 async function readGlobalPkgJson (globalPkgPath: string) {
