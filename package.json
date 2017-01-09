@@ -46,6 +46,7 @@
     "find-up": "2.1.0",
     "is-ci": "1.0.10",
     "is-retry-allowed": "1.1.0",
+    "is-windows": "1.0.0",
     "js-yaml": "3.7.0",
     "json2yaml": "1.1.0",
     "link-dir": "1.0.3",

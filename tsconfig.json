@@ -45,7 +45,6 @@
     "src/cmd/uninstall.ts",
     "src/cmd/update.ts",
     "src/debug.ts",
-    "src/env.ts",
     "src/err.ts",
     "src/fileLogger.ts",
     "src/fs/expandTilde.ts",

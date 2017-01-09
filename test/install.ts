@@ -19,11 +19,12 @@ import testDefaults from './support/testDefaults'
 import exists = require('exists-file')
 import {pathToLocalPkg, local} from './support/localPkg'
 import {sync as execPnpmSync} from './support/execPnpm'
+import isWindows = require('is-windows')
 
-const isWindows = process.platform === 'win32'
+const IS_WINDOWS = isWindows()
 const preserveSymlinks = semver.satisfies(process.version, '>=6.3.0')
 
-if (!caw() && !isWindows) {
+if (!caw() && !IS_WINDOWS) {
   process.env.VCR_MODE = 'cache'
 }
 
@@ -304,7 +305,7 @@ test('bundleDependencies (pkg-with-bundled-dependencies@1.0.0)', async function 
 
 test('compiled modules (ursa@0.9.1)', async function (t) {
   // TODO: fix this for Node.js v7
-  if (!isCI || isWindows || semver.satisfies(process.version, '>=7.0.0')) {
+  if (!isCI || IS_WINDOWS || semver.satisfies(process.version, '>=7.0.0')) {
     t.skip('runs only on CI')
     return
   }
