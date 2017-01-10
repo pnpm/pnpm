@@ -6,13 +6,13 @@
 			"version": "1.0.0",
 			"_id": "symlinks-preserved@1.0.0",
 			"scripts": {},
-			"_shasum": "28a05ea9206e3d4856a543490c53a9ae5d2b928d",
+			"_shasum": "bf987f377bf223c6109c6e046b08687d15018227",
 			"_from": ".",
 			"_npmVersion": "3.10.9",
-			"_nodeVersion": "8.0.0-pre",
+			"_nodeVersion": "6.9.1",
 			"_npmUser": {},
 			"dist": {
-				"shasum": "28a05ea9206e3d4856a543490c53a9ae5d2b928d",
+				"shasum": "bf987f377bf223c6109c6e046b08687d15018227",
 				"tarball": "http://localhost:4873/symlinks-preserved/-/symlinks-preserved-1.0.0.tgz"
 			}
 		}
@@ -25,11 +25,11 @@
 	"_distfiles": {},
 	"_attachments": {
 		"symlinks-preserved-1.0.0.tgz": {
-			"shasum": "28a05ea9206e3d4856a543490c53a9ae5d2b928d",
+			"shasum": "bf987f377bf223c6109c6e046b08687d15018227",
 			"version": "1.0.0"
 		}
 	},
 	"_uplinks": {},
-	"_rev": "3-6dba390f0cbd4341",
+	"_rev": "3-9acd790e138a4adb",
 	"readme": "ERROR: No README data found!"
 }

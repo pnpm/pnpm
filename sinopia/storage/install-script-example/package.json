@@ -24,7 +24,7 @@
 			"_shasum": "b7c5f57998cbf634e98668203f95a11f1ef12853",
 			"_from": ".",
 			"_npmVersion": "3.10.9",
-			"_nodeVersion": "8.0.0-pre",
+			"_nodeVersion": "6.9.1",
 			"_npmUser": {},
 			"dist": {
 				"shasum": "b7c5f57998cbf634e98668203f95a11f1ef12853",
@@ -45,6 +45,6 @@
 		}
 	},
 	"_uplinks": {},
-	"_rev": "3-647e4f5c5a439815",
+	"_rev": "3-8911eec5365b87a2",
 	"readme": "# install-script-example\n\nA package that creates a file by an install script\n\n## Installation\n\n```\nnpm i install-script-example\n```\n\n# License\n\nMIT\n"
 }

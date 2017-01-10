@@ -9,13 +9,13 @@
 			},
 			"_id": "for-legacy-node@1.0.0",
 			"scripts": {},
-			"_shasum": "c5f5ee88ec976d8e6b512243623e7b5e2a8db2bf",
+			"_shasum": "bd3dd149760c8287196ad76b656a5fad2bae71a5",
 			"_from": ".",
 			"_npmVersion": "3.10.9",
-			"_nodeVersion": "8.0.0-pre",
+			"_nodeVersion": "6.9.1",
 			"_npmUser": {},
 			"dist": {
-				"shasum": "c5f5ee88ec976d8e6b512243623e7b5e2a8db2bf",
+				"shasum": "bd3dd149760c8287196ad76b656a5fad2bae71a5",
 				"tarball": "http://localhost:4873/for-legacy-node/-/for-legacy-node-1.0.0.tgz"
 			}
 		}
@@ -28,11 +28,11 @@
 	"_distfiles": {},
 	"_attachments": {
 		"for-legacy-node-1.0.0.tgz": {
-			"shasum": "c5f5ee88ec976d8e6b512243623e7b5e2a8db2bf",
+			"shasum": "bd3dd149760c8287196ad76b656a5fad2bae71a5",
 			"version": "1.0.0"
 		}
 	},
 	"_uplinks": {},
-	"_rev": "3-b754f2de518992c1",
+	"_rev": "3-780539be746099f5",
 	"readme": "ERROR: No README data found!"
 }

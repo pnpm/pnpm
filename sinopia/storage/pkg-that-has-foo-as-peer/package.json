@@ -1,0 +1,38 @@
+{
+	"name": "pkg-that-has-foo-as-peer",
+	"versions": {
+		"1.0.0": {
+			"name": "pkg-that-has-foo-as-peer",
+			"version": "1.0.0",
+			"peerDependencies": {
+				"foo": "*"
+			},
+			"_id": "pkg-that-has-foo-as-peer@1.0.0",
+			"scripts": {},
+			"_shasum": "8adc0e44051cb25abad543e8d5855f229450cfc4",
+			"_from": ".",
+			"_npmVersion": "3.10.9",
+			"_nodeVersion": "6.9.1",
+			"_npmUser": {},
+			"dist": {
+				"shasum": "8adc0e44051cb25abad543e8d5855f229450cfc4",
+				"tarball": "http://localhost:4873/pkg-that-has-foo-as-peer/-/pkg-that-has-foo-as-peer-1.0.0.tgz"
+			}
+		}
+	},
+	"dist-tags": {
+		"latest": [
+			"1.0.0"
+		]
+	},
+	"_distfiles": {},
+	"_attachments": {
+		"pkg-that-has-foo-as-peer-1.0.0.tgz": {
+			"shasum": "8adc0e44051cb25abad543e8d5855f229450cfc4",
+			"version": "1.0.0"
+		}
+	},
+	"_uplinks": {},
+	"_rev": "3-2f0c5ce1302a3700",
+	"readme": "ERROR: No README data found!"
+}

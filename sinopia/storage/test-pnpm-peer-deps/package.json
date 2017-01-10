@@ -13,13 +13,13 @@
 			},
 			"_id": "test-pnpm-peer-deps@1.0.0",
 			"scripts": {},
-			"_shasum": "fc45df20c4d70e1cb70d606f5e34d46ebef6f0d9",
+			"_shasum": "98bfc6508961ee5fc7ee19508877b073da87f2b0",
 			"_from": ".",
 			"_npmVersion": "3.10.9",
-			"_nodeVersion": "8.0.0-pre",
+			"_nodeVersion": "6.9.1",
 			"_npmUser": {},
 			"dist": {
-				"shasum": "fc45df20c4d70e1cb70d606f5e34d46ebef6f0d9",
+				"shasum": "98bfc6508961ee5fc7ee19508877b073da87f2b0",
 				"tarball": "http://localhost:4873/test-pnpm-peer-deps/-/test-pnpm-peer-deps-1.0.0.tgz"
 			}
 		}
@@ -32,11 +32,11 @@
 	"_distfiles": {},
 	"_attachments": {
 		"test-pnpm-peer-deps-1.0.0.tgz": {
-			"shasum": "fc45df20c4d70e1cb70d606f5e34d46ebef6f0d9",
+			"shasum": "98bfc6508961ee5fc7ee19508877b073da87f2b0",
 			"version": "1.0.0"
 		}
 	},
 	"_uplinks": {},
-	"_rev": "3-45f8c82b4d9e7cff",
+	"_rev": "3-f54ff0e2c57e2f0f",
 	"readme": "ERROR: No README data found!"
 }
