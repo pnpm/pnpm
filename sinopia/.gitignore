@@ -19,3 +19,4 @@ storage/*
 !storage/sh-hello-world/
 !storage/symlinks-preserved/
 !storage/test-pnpm-peer-deps/
+!storage/pkg-that-has-foo-as-peer/

@@ -140,7 +140,14 @@ async function installInContext (installType: string, packagesToInstall: Depende
     })
   }
 
-  await linkPeers(installCtx.installs)
+  const project = {}
+  if (ctx.pkg) {
+    project[ctx.pkg.name] = {
+      pkg: ctx.pkg,
+      hardlinkedLocation: ctx.root,
+    }
+  }
+  await linkPeers(Object.assign({}, project, installCtx.installs))
 
   // postinstall hooks
   if (!(opts.ignoreScripts || !installCtx.piq || !installCtx.piq.length)) {

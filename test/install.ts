@@ -664,6 +664,18 @@ test('peer dependency is linked', async t => {
   t.ok(await exists(path.join('node_modules', 'ajv-keywords', 'node_modules', 'ajv')), 'peer dependency is linked')
 })
 
+test('peer dependency is linked when the peer dep is the project', async t => {
+  const project = prepare(t, {
+    name: 'foo',
+    version: '1.0.0',
+  })
+  fs.writeFile('index.js', 'module.exports = 23', 'utf8')
+
+  await installPkgs(['pkg-that-has-foo-as-peer'], testDefaults())
+
+  t.equal(project.requireModule('pkg-that-has-foo-as-peer'), 23, 'peer dep is accessible')
+})
+
 test('create a pnpm-debug.log file when the command fails', async function (t) {
   const project = prepare(t)
 
