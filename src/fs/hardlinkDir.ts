@@ -15,8 +15,18 @@ export default async function hardlinkDir(existingDir: string, newDir: string) {
           return hardlinkDir(existingPath, newPath)
         }
         if (stat.isFile()) {
-          return fs.link(existingPath, newPath)
+          return safeLink(existingPath, newPath)
         }
       })
   )
+}
+
+async function safeLink(existingPath: string, newPath: string) {
+  try {
+    await fs.link(existingPath, newPath)
+  } catch (err) {
+    // shouldn't normally happen, but if the file was already somehow linked,
+    // the installation should not fail
+    if (err.code !== 'EEXIST') throw err
+  }
 }
