@@ -82,3 +82,7 @@ cd ..;
 cd symlinks-preserved;
 npm publish;
 cd ..;
+
+cd pkg-that-has-foo-as-peer
+npm publish;
+cd ..;

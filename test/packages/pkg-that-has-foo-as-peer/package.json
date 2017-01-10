@@ -1,0 +1,7 @@
+{
+  "name": "pkg-that-has-foo-as-peer",
+  "version": "1.0.0",
+  "peerDependencies": {
+    "foo": "*"
+  }
+}
