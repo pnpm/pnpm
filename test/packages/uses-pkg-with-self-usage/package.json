@@ -1,0 +1,7 @@
+{
+  "name": "uses-pkg-with-self-usage",
+  "version": "1.0.0",
+  "dependencies": {
+    "babel-runtime": "5.8.38"
+  }
+}

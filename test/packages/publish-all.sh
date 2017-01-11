@@ -82,3 +82,7 @@ cd ..;
 cd symlinks-preserved;
 npm publish;
 cd ..;
+
+cd uses-pkg-with-self-usage;
+npm publish;
+cd ..;

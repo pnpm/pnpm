@@ -19,3 +19,4 @@ storage/*
 !storage/sh-hello-world/
 !storage/symlinks-preserved/
 !storage/test-pnpm-peer-deps/
+!storage/uses-pkg-with-self-usage/

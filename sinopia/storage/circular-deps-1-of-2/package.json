@@ -106,13 +106,13 @@
 			},
 			"_id": "circular-deps-1-of-2@1.0.2",
 			"scripts": {},
-			"_shasum": "386c271e484146383346d98b3fb18d2dda97a196",
+			"_shasum": "11919ea2ead2d7f31b0ed69ce04434f4f761a473",
 			"_from": ".",
 			"_npmVersion": "3.10.9",
-			"_nodeVersion": "8.0.0-pre",
+			"_nodeVersion": "6.9.1",
 			"_npmUser": {},
 			"dist": {
-				"shasum": "386c271e484146383346d98b3fb18d2dda97a196",
+				"shasum": "11919ea2ead2d7f31b0ed69ce04434f4f761a473",
 				"tarball": "http://localhost:4873/circular-deps-1-of-2/-/circular-deps-1-of-2-1.0.2.tgz"
 			}
 		}
@@ -137,16 +137,16 @@
 	},
 	"_attachments": {
 		"circular-deps-1-of-2-1.0.2.tgz": {
-			"shasum": "386c271e484146383346d98b3fb18d2dda97a196",
+			"shasum": "11919ea2ead2d7f31b0ed69ce04434f4f761a473",
 			"version": "1.0.2"
 		}
 	},
 	"_uplinks": {
 		"npmjs": {
 			"etag": "W/\"57f81347-a2f\"",
-			"fetched": 1482541752113
+			"fetched": 1484116058925
 		}
 	},
-	"_rev": "4-05de482d639d43a3",
+	"_rev": "4-e21103171d22ba88",
 	"readme": "ERROR: No README data found!"
 }

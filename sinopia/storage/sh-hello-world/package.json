@@ -67,13 +67,13 @@
 				"url": "https://github.com/rstacruz/pnpm/tree/master/test/packages/sh-hello-world"
 			},
 			"_id": "sh-hello-world@1.0.1",
-			"_shasum": "24bea983eb966555a27877d88dd0f2a5e5953ab1",
+			"_shasum": "c4c512e02e46de83e2f3e9990999e23c0f66b086",
 			"_from": ".",
 			"_npmVersion": "3.10.9",
-			"_nodeVersion": "8.0.0-pre",
+			"_nodeVersion": "6.9.1",
 			"_npmUser": {},
 			"dist": {
-				"shasum": "24bea983eb966555a27877d88dd0f2a5e5953ab1",
+				"shasum": "c4c512e02e46de83e2f3e9990999e23c0f66b086",
 				"tarball": "http://localhost:4873/sh-hello-world/-/sh-hello-world-1.0.1.tgz"
 			}
 		}
@@ -93,16 +93,16 @@
 	},
 	"_attachments": {
 		"sh-hello-world-1.0.1.tgz": {
-			"shasum": "24bea983eb966555a27877d88dd0f2a5e5953ab1",
+			"shasum": "c4c512e02e46de83e2f3e9990999e23c0f66b086",
 			"version": "1.0.1"
 		}
 	},
 	"_uplinks": {
 		"npmjs": {
 			"etag": "W/\"57a4dd6c-69f\"",
-			"fetched": 1482541763826
+			"fetched": 1484116071429
 		}
 	},
-	"_rev": "4-a0001379f9910b7e",
+	"_rev": "4-6cd8afffefaf9de2",
 	"readme": "ERROR: No README data found!"
 }
