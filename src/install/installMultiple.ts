@@ -118,7 +118,9 @@ async function install (pkgRawSpec: string, modules: string, ctx: InstallContext
     optional: options.optional === true,
     pkg,
     // TODO: what about bundled/cached deps?
-    hardlinkedLocation: path.join(options.nodeModulesStore, fetchedPkg.id),
+    // The package realpath should be under node_modules/<pkgname>. This way, babel-runtime@5 can		
+    // require('babel-runtime') within itself.
+    hardlinkedLocation: path.join(options.nodeModulesStore, fetchedPkg.id, 'node_modules', pkg.name),
   })
 
   if (dependency.fromCache || keypath.indexOf(dependency.id) !== -1) {

@@ -841,3 +841,11 @@ test('shrinkwrap locks npm dependencies', async function (t) {
 
   t.equal(pkg.version, '100.0.0', 'dependency specified in shrinkwrap.yaml is installed')
 })
+
+test('self-require should work', async function (t) {
+  const project = prepare(t)
+
+  await installPkgs(['uses-pkg-with-self-usage'], testDefaults())
+
+  t.ok(project.requireModule('uses-pkg-with-self-usage'))
+})
