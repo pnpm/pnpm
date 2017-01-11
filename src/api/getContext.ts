@@ -62,7 +62,9 @@ export default async function (opts: StrictPnpmOptions): Promise<PnpmContext> {
       `)
       throw new Error(msg)
     }
-    failIfNotCompatible(modules.packageManager.split('@')[1])
+    const pnpmVersion = modules.packageManager.split('@')[1]
+    failIfNotCompatibleStore(pnpmVersion)
+    failIfNotCompatibleNodeModules(pnpmVersion)
   }
 
   const graph = await readGraph(path.join(root, 'node_modules')) || {}
@@ -84,12 +86,12 @@ export default async function (opts: StrictPnpmOptions): Promise<PnpmContext> {
   return ctx
 }
 
-function failIfNotCompatible (storeVersion: string) {
-  if (!storeVersion || !semver.satisfies(storeVersion, '>=0.28')) {
+function failIfNotCompatibleStore (pnpmVersion: string) {
+  if (!pnpmVersion || !semver.satisfies(pnpmVersion, '>=0.28')) {
     const msg = structureChangeMsg('More info about what was changed at: https://github.com/rstacruz/pnpm/issues/276')
     throw new Error(msg)
   }
-  if (!semver.satisfies(storeVersion, '>=0.33')) {
+  if (!semver.satisfies(pnpmVersion, '>=0.33')) {
     const msg = structureChangeMsg(stripIndent`
       The change was needed to fix the GitHub rate limit issue:
         Issue: https://github.com/rstacruz/pnpm/issues/361
@@ -97,17 +99,28 @@ function failIfNotCompatible (storeVersion: string) {
     `)
     throw new Error(msg)
   }
-  if (!semver.satisfies(storeVersion, '>=0.37')) {
+  if (!semver.satisfies(pnpmVersion, '>=0.37')) {
     const msg = structureChangeMsg(stripIndent`
       The structure of store.json/dependencies was changed to map dependencies to their fullnames
     `)
     throw new Error(msg)
   }
-  if (!semver.satisfies(storeVersion, '>=0.38')) {
+  if (!semver.satisfies(pnpmVersion, '>=0.38')) {
     const msg = structureChangeMsg(stripIndent`
       The structure of store.json/dependencies was changed to not include the redundunt package.json at the end
     `)
     throw new Error(msg)
+  }
+}
+
+function failIfNotCompatibleNodeModules (pnpmVersion: string) {
+  if (!pnpmVersion || !semver.satisfies(pnpmVersion, '>=0.48')) {
+    throw new Error(stripIndent`
+      The node_modules structure was changed.
+      Remove it and run pnpm again.
+      Related PR: https://github.com/rstacruz/pnpm/pull/534
+      TIPS: you can run \`rm -rf node_modules\`
+    `)
   }
 }
 
