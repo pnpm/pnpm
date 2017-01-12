@@ -177,15 +177,14 @@ type FetchToStoreOptions = {
  */
 function fetchToStoreCached (opts: FetchToStoreOptions): Promise<void> {
   return memoize(opts.fetchLocks, opts.resolution.id, async function () {
-    if (!opts.force && await exists(opts.target)) return
+    if (opts.force || !await exists(opts.target)) {
+      await rimraf(opts.target)
 
-    await rimraf(opts.target)
-
-    opts.log('download-queued')
-    await fetchRes(opts.resolution, opts.target, {got: opts.got, log: opts.log})
+      opts.log('download-queued')
+      await fetchRes(opts.resolution, opts.target, {got: opts.got, log: opts.log})
+    }
 
     const pkg = await requireJson(path.join(opts.target, 'package.json'))
-
     opts.log('package.json', pkg)
   })
 }
