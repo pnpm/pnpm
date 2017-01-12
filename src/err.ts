@@ -1,5 +1,6 @@
 import chalk = require('chalk')
-import logger = require('@zkochan/logger')
+import bole = require('bole')
+const logger = bole('pnpm')
 
 type HttpError = Error & {
   host: string,

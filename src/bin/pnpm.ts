@@ -26,6 +26,9 @@ import pruneCmd from '../cmd/prune'
 import installTestCmd from '../cmd/installTest'
 import cacheCmd from '../cmd/cache'
 import runCmd from '../cmd/run'
+import bole = require('bole')
+
+bole.setFastTime()
 
 const pnpmCmds = {
   install: installCmd,

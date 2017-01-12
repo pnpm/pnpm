@@ -1,13 +1,14 @@
-import createDebug from '../debug'
-const debug = createDebug('pnpm:fetch')
+import bole = require('bole')
 import fs = require('fs')
 import {Got} from '../network/got'
-import {InstallLog} from '../install/fetch'
+import logStatus, {LoggedPkg} from '../logger/logInstallStatus'
 import {IncomingMessage} from 'http'
 import * as unpackStream from 'unpack-stream'
 
+const logger = bole('pnpm:fetch')
+
 export type FetchOptions = {
-  log: InstallLog,
+  loggedPkg: LoggedPkg,
   got: Got
 }
 
@@ -31,10 +32,10 @@ export async function fetchFromRemoteTarball (dir: string, dist: PackageDist, op
   const stream: IncomingMessage = await opts.got.getStream(dist.tarball)
   await unpackStream.remote(stream, dir, {
     shasum: dist.shasum,
-    onStart: () => opts.log('download-start'),
-    onProgress: (done: number, total: number) => opts.log('downloading', { done, total })
+    onStart: () => logStatus({status: 'download-start', pkg: opts.loggedPkg}),
+    onProgress: (done: number, total: number) => logStatus({status: 'downloading', pkg: opts.loggedPkg, downloadStatus: { done, total }})
   })
-  debug(`finish ${dist.shasum} ${dist.tarball}`)
+  logger.debug(`finish ${dist.shasum} ${dist.tarball}`)
 }
 
 export async function fetchFromLocalTarball (dir: string, dist: PackageDist) {

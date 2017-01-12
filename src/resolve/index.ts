@@ -5,6 +5,7 @@ import resolveFromLocal from './local'
 import resolveFromGit from './git'
 import {Got} from '../network/got'
 import {Package} from '../types'
+import {LoggedPkg} from '../logger/logInstallStatus'
 
 export type ResolveResult = {
   id: string,
@@ -35,7 +36,7 @@ export type HostedPackageSpec = PackageSpec & {
 }
 
 export type ResolveOptions = {
-  log(msg: string): void,
+  loggedPkg: LoggedPkg,
   got: Got,
   root: string,
   linkLocal: boolean,

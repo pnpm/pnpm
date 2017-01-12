@@ -1,6 +1,7 @@
 import chalk = require('chalk')
-import logger = require('@zkochan/logger')
+import streamParser from './streamParser'
 import {PackageSpec} from '../resolve'
+import {ProgressLog, DownloadStatus} from './logInstallStatus'
 
 const UPDATERS = [
   'resolving', 'resolved', 'download-start', 'dependencies'
@@ -27,44 +28,42 @@ export default function () {
     out.write(reset())
   })
 
-  const pkgDataMap = {}
+  streamParser.on('data', (obj: ProgressLog) => {
+    if (obj['name'] !== 'progress') return
+    logProgress(obj)
+  })
 
-  logger.on('progress', (pkg: PackageSpec, level: string, pkgSpec: string, status: string, args: Object) => {
-    const name = pkg.name
-      ? (pkg.name + ' ' + pkg.rawSpec)
-      : pkg.rawSpec
+  function logProgress (logObj: ProgressLog) {
+    const name = logObj.pkg.name
+      ? (logObj.pkg.name + ' ' + logObj.pkg.rawSpec)
+      : logObj.pkg.rawSpec
 
     update()
     progress.total += UPDATERS.length + 20
     let left = UPDATERS.length + 20
-    const pkgData = pkgDataMap[pkgSpec]
 
-    if (status === 'done') progress.done += left
+    if (logObj.status === 'done') progress.done += left
 
-    if (~UPDATERS.indexOf(status)) {
+    if (~UPDATERS.indexOf(logObj.status)) {
       progress.done += 1
       left -= 1
-    }
-
-    if (status === 'package.json') {
-      pkgDataMap[pkgSpec] = args
     }
 
     lastStatus = name
 
     if (process.env.VERBOSE) {
-      if (status !== 'downloading') update(getName() + ' ' + status)
-    } else if (status === 'done') {
+      if (logObj.status !== 'downloading') update(getName() + ' ' + logObj.status)
+    } else if (logObj.status === 'done') {
       update(getName())
     } else {
       update()
     }
 
     function getName () {
-      if (pkgData && pkgData.version) {
-        return pkgData.name + ' ' + s.gray(pkgData.version)
+      if (logObj.pkg && logObj.pkg.version) {
+        return logObj.pkg.name + ' ' + s.gray(logObj.pkg.version)
       } else {
-        return pkgData && pkgData.name || name
+        return logObj.pkg && logObj.pkg.name || name
       }
     }
 
@@ -85,7 +84,7 @@ export default function () {
           s.gray(lastStatus.substr(0, 40)))
       }
     }
-  })
+  }
 
   function reset () {
     return out['isTTY']
