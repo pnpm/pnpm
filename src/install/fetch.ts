@@ -1,12 +1,9 @@
-import createDebug from '../debug'
-const debug = createDebug('pnpm:install')
-import npa = require('npm-package-arg')
+import bole = require('bole')
 import fs = require('mz/fs')
 import {Stats} from 'fs'
-import logger = require('@zkochan/logger')
 import path = require('path')
 import rimraf = require('rimraf-then')
-import resolve, {ResolveResult} from '../resolve'
+import resolve, {ResolveResult, PackageSpec} from '../resolve'
 import mkdirp from '../fs/mkdirp'
 import requireJson from '../fs/requireJson'
 import linkDir from 'link-dir'
@@ -17,6 +14,9 @@ import {Package} from '../types'
 import {Got} from '../network/got'
 import {InstallContext} from '../api/install'
 import fetchRes from './fetchResolution'
+import logStatus, {LoggedPkg} from '../logger/logInstallStatus'
+
+const logger = bole('pnpm:install')
 
 export type FetchOptions = {
   keypath?: string[],
@@ -39,8 +39,6 @@ export type FetchedPackage = {
   abort(): Promise<void>,
 }
 
-export type InstallLog = (msg: string, data?: Object) => void
-
 /**
  * Installs a package.
  *
@@ -57,48 +55,44 @@ export type InstallLog = (msg: string, data?: Object) => void
  * @example
  *     install(ctx, 'rimraf@2', './node_modules')
  */
-export default async function fetch (ctx: InstallContext, pkgRawSpec: string, modules: string, options: FetchOptions): Promise<FetchedPackage> {
-  debug('installing ' + pkgRawSpec)
+export default async function fetch (ctx: InstallContext, spec: PackageSpec, modules: string, options: FetchOptions): Promise<FetchedPackage> {
+  logger.debug('installing ' + spec.raw)
 
-  // Preliminary spec data
-  // => { raw, name, scope, type, spec, rawSpec }
-  const spec = npa(pkgRawSpec)
+  const loggedPkg: LoggedPkg = {
+    rawSpec: spec.rawSpec,
+    name: spec.name,
+  }
 
   // Dependency path to the current package. Not actually needed anmyore
   // outside getting its length
   // => ['babel-core@6.4.5', 'babylon@6.4.5', 'babel-runtime@5.8.35']
   const keypath = (options && options.keypath || [])
 
-  const log: InstallLog = logger.fork(spec).log.bind(null, 'progress', pkgRawSpec)
-
   try {
-    let resolution = ctx.shrinkwrap[pkgRawSpec]
+    let resolution = ctx.shrinkwrap[spec.raw]
     if (!resolution) {
       // it might be a bundleDependency, in which case, don't bother
       const available = !options.force && await isAvailable(spec, modules)
       if (available) {
         const fetchedPkg = await saveCachedResolution()
-        fetchedPkg.fetchingPkg.then(pkg => log('package.json', pkg))
-        fetchedPkg.fetchingFiles.then(() => log('done'))
         return fetchedPkg
       }
     }
     if (!resolution || options.update) {
       resolution = await resolve(spec, {
-        log,
+        loggedPkg,
         got: options.got,
         root: options.root,
         linkLocal: options.linkLocal,
         tag: options.tag
       })
       if (resolution.tarball || resolution.repo) {
-        ctx.shrinkwrap[pkgRawSpec] = Object.assign({}, resolution)
-        delete ctx.shrinkwrap[pkgRawSpec].pkg
-        delete ctx.shrinkwrap[pkgRawSpec].fetch
-        delete ctx.shrinkwrap[pkgRawSpec].root
+        ctx.shrinkwrap[spec.raw] = Object.assign({}, resolution)
+        delete ctx.shrinkwrap[spec.raw].pkg
+        delete ctx.shrinkwrap[spec.raw].fetch
+        delete ctx.shrinkwrap[spec.raw].root
       }
     }
-    log('resolved', resolution)
 
     const target = path.join(options.storePath, resolution.id)
 
@@ -106,7 +100,7 @@ export default async function fetch (ctx: InstallContext, pkgRawSpec: string, mo
       fetchLocks: ctx.fetchLocks,
       target,
       resolution,
-      log,
+      loggedPkg,
       got: options.got,
       force: options.force,
     })
@@ -130,11 +124,9 @@ export default async function fetch (ctx: InstallContext, pkgRawSpec: string, mo
         }
       },
     }
-    fetchedPkg.fetchingPkg.then(pkg => log('package.json', pkg))
-    fetchedPkg.fetchingFiles.then(() => log('done'))
     return fetchedPkg
   } catch (err) {
-    log('error', err)
+    logStatus({status: 'error', pkg: loggedPkg})
     throw err
   }
 
@@ -165,7 +157,7 @@ type FetchToStoreOptions = {
   fetchLocks: CachedPromises<void>,
   target: string,
   resolution: ResolveResult,
-  log: InstallLog,
+  loggedPkg: LoggedPkg,
   got: Got,
   force: boolean,
 }
@@ -180,11 +172,10 @@ function fetchToStoreCached (opts: FetchToStoreOptions): Promise<void> {
     if (opts.force || !await exists(opts.target)) {
       await rimraf(opts.target)
 
-      opts.log('download-queued')
-      await fetchRes(opts.resolution, opts.target, {got: opts.got, log: opts.log})
+      logStatus({status: 'download-queued', pkg: opts.loggedPkg})
+      await fetchRes(opts.resolution, opts.target, {got: opts.got, loggedPkg: opts.loggedPkg})
     }
 
     const pkg = await requireJson(path.join(opts.target, 'package.json'))
-    opts.log('package.json', pkg)
   })
 }

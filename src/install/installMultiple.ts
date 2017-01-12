@@ -1,4 +1,5 @@
 import path = require('path')
+import npa = require('npm-package-arg')
 import fetch, {FetchedPackage, FetchOptions} from './fetch'
 import {InstallContext, InstalledPackages} from '../api/install'
 import {Dependencies} from '../types'
@@ -12,6 +13,7 @@ import pnpmPkg from '../pnpmPkgJson'
 import linkDir from 'link-dir'
 import exists = require('exists-file')
 import {Graph} from '../fs/graphController'
+import logStatus from '../logger/logInstallStatus'
 
 export type InstallOptions = FetchOptions & {
   optional?: boolean,
@@ -105,7 +107,11 @@ async function install (pkgRawSpec: string, modules: string, ctx: InstallContext
   const keypath = options.keypath || []
   const update = keypath.length <= options.depth
 
-  const fetchedPkg = await fetch(ctx, pkgRawSpec, modules, Object.assign({}, options, {update}))
+  // Preliminary spec data
+  // => { raw, name, scope, type, spec, rawSpec }
+  const spec = npa(pkgRawSpec)
+  const fetchedPkg = await fetch(ctx, spec, modules, Object.assign({}, options, {update}))
+  logFetchStatus(spec.rawSpec, fetchedPkg)
   const pkg = await fetchedPkg.fetchingPkg
 
   if (!options.force) {
@@ -148,6 +154,12 @@ async function install (pkgRawSpec: string, modules: string, ctx: InstallContext
   })
 
   return dependency
+}
+
+async function logFetchStatus(pkgRawSpec: string, fetchedPkg: FetchedPackage) {
+  const pkg = await fetchedPkg.fetchingPkg
+  await fetchedPkg.fetchingFiles
+  logStatus({ status: 'done', pkg: {rawSpec: pkgRawSpec, name: pkg.name, version: pkg.version}})
 }
 
 function addToGraph (graph: Graph, dependent: string, dependency: InstalledPackage) {

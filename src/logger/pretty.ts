@@ -1,97 +1,80 @@
 import chalk = require('chalk')
-import logger = require('@zkochan/logger')
 import observatory = require('observatory')
+import {ProgressLog, DownloadStatus} from './logInstallStatus'
+import streamParser from './streamParser'
+
 observatory.settings({ prefix: '  ', width: 74 })
 
-import {PackageSpec} from '../resolve'
-
-/**
- * Logger.
- *
- * @example
- *     add = logger()
- *
- *     log = add({ name: 'rimraf', rawSpec: 'rimraf@2.5.1' })
- *     log('resolved', pkgData)
- *     log('downloading')
- *     log('downloading', { done: 1, total: 200 })
- *     log('depnedencies')
- *     log('error', err)
- */
 export default function () {
   const tasks = {}
 
-  function getTask (pkg: PackageSpec) {
-    if (tasks[pkg.rawSpec]) return tasks[pkg.rawSpec]
+  function getTask (pkgRawSpec: string, pkgName: string) {
+    if (tasks[pkgRawSpec]) return tasks[pkgRawSpec]
     const task = observatory.add(
-      (pkg.name ? (pkg.name + ' ') : '') +
-      chalk.gray(pkg.rawSpec || ''))
+      (pkgName ? (pkgName + ' ') : '') +
+      chalk.gray(pkgRawSpec || ''))
     task.status(chalk.gray('·'))
-    tasks[pkg.rawSpec] = task
+    tasks[pkgRawSpec] = task
     return task
   }
 
-  const pkgDataMap = {}
-  const resMap = {}
+  streamParser.on('data', (obj: ProgressLog) => {
+    if (obj['name'] !== 'progress') return
+    logProgress(obj)
+  })
 
-  type DownloadStatus = {
-    done: number,
-    total: number
-  }
-
-  logger.on('progress', (pkg: PackageSpec, level: string, pkgSpec: string, status: string, args: DownloadStatus | Object) => {
-    // the `|| {}` is a temporal fix. For some reason package.json is not logged when it is taken from cache
-    const pkgData = pkgDataMap[pkgSpec] || {} // package.json
-    const res = resMap[pkgSpec] // resolution
-
+  function logProgress (logObj: ProgressLog) {
     // lazy get task
     function t () {
-      return getTask(pkg)
+      return getTask(logObj.pkg.rawSpec, logObj.pkg.name)
     }
 
     // the first thing it (probably) does is wait in queue to query the npm registry
 
-    if (status === 'resolving') {
-      t().status(chalk.yellow('finding ·'))
-    } else if (status === 'resolved') {
-      resMap[pkgSpec] = args
-    } else if (status === 'download-queued') {
-      if (res.version) {
-        t().status(chalk.gray('queued ' + res.version + ' ↓'))
-      } else {
+    switch (logObj.status) {
+      case 'resolving':
+        t().status(chalk.yellow('finding ·'))
+        return
+      case 'download-queued':
+        if (logObj.pkg.version) {
+          t().status(chalk.gray('queued ' + logObj.pkg.version + ' ↓'))
+          return
+        }
         t().status(chalk.gray('queued ↓'))
-      }
-    } else if (status === 'downloading' || status === 'download-start') {
-      if (res.version) {
-        t().status(chalk.yellow('downloading ' + res.version + ' ↓'))
-      } else {
-        t().status(chalk.yellow('downloading ↓'))
-      }
-      const downloadStatus: DownloadStatus = <DownloadStatus>args
-      if (downloadStatus && downloadStatus.total && downloadStatus.done < downloadStatus.total) {
-        t().details('' + Math.round(downloadStatus.done / downloadStatus.total * 100) + '%')
-      } else {
-        t().details('')
-      }
-    } else if (status === 'done') {
-      if (pkgData) {
-        t().status(chalk.green('' + pkgData.version + ' ✓'))
+        return
+      case 'downloading':
+      case 'download-start':
+        if (logObj.pkg.version) {
+          t().status(chalk.yellow('downloading ' + logObj.pkg.version + ' ↓'))
+        } else {
+          t().status(chalk.yellow('downloading ↓'))
+        }
+        if (logObj.downloadStatus && logObj.downloadStatus.total && logObj.downloadStatus.done < logObj.downloadStatus.total) {
+          t().details('' + Math.round(logObj.downloadStatus.done / logObj.downloadStatus.total * 100) + '%')
+        } else {
+          t().details('')
+        }
+        return
+      case 'done':
+        if (logObj.pkg.version) {
+          t().status(chalk.green('' + logObj.pkg.version + ' ✓'))
+            .details('')
+          return
+        }
+        t().status(chalk.green('OK ✓')).details('')
+        return
+      case 'dependencies':
+        t().status(chalk.gray('' + logObj.pkg.version + ' ·'))
           .details('')
-      } else {
-        t().status(chalk.green('OK ✓'))
+        return
+      case 'error':
+        t().status(chalk.red('ERROR ✗'))
           .details('')
-      }
-    } else if (status === 'package.json') {
-      pkgDataMap[pkgSpec] = args
-    } else if (status === 'dependencies') {
-      t().status(chalk.gray('' + pkgData.version + ' ·'))
-        .details('')
-    } else if (status === 'error') {
-      t().status(chalk.red('ERROR ✗'))
-        .details('')
-    } else {
-      t().status(status)
-        .details('')
+        return
+      default:
+        t().status(logObj.status)
+          .details('')
+        return
     }
-  })
+  }
 }

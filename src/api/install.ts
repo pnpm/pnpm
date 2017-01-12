@@ -2,9 +2,8 @@ import rimraf = require('rimraf-then')
 import path = require('path')
 import seq = require('promisequence')
 import chalk = require('chalk')
-import createDebug = require('debug')
 import RegClient = require('npm-registry-client')
-import logger = require('@zkochan/logger')
+import bole = require('bole')
 import cloneDeep = require('lodash.clonedeep')
 import {PnpmOptions, StrictPnpmOptions, Dependencies} from '../types'
 import createGot from '../network/got'
@@ -61,7 +60,7 @@ export async function install (maybeOpts?: PnpmOptions) {
 
 /**
  * Perform installation.
- * 
+ *
  * @example
  *     install({'lodash': '1.0.0', 'foo': '^2.1.0' }, { silent: true })
  */
@@ -145,16 +144,19 @@ async function installInContext (installType: string, packagesToInstall: Depende
   // postinstall hooks
   if (!(opts.ignoreScripts || !installCtx.piq || !installCtx.piq.length)) {
     await seq(
-      installCtx.piq.map(pkg => postInstall(pkg.path, installLogger(pkg.pkgId))
-          .catch(err => {
-            if (installCtx.installs[pkg.pkgId].optional) {
-              console.log('Skipping failed optional dependency ' + pkg.pkgId + ':')
-              console.log(err.message || err)
-              return
-            }
-            throw err
-          })
-      ))
+      installCtx.piq.map(async pkg => {
+        try {
+          await postInstall(pkg.path, installLogger(pkg.pkgId))
+        } catch (err) {
+          if (installCtx.installs[pkg.pkgId].optional) {
+            console.log('Skipping failed optional dependency ' + pkg.pkgId + ':')
+            console.log(err.message || err)
+            return
+          }
+          throw err
+        }
+      })
+    )
   }
   if (!opts.ignoreScripts && ctx.pkg) {
     const scripts = ctx.pkg && ctx.pkg.scripts || {}
@@ -218,6 +220,7 @@ async function createInstallCmd (opts: StrictPnpmOptions, graph: Graph, shrinkwr
 }
 
 function adaptConfig (opts: StrictPnpmOptions) {
+  const logger = bole('registry')
   return {
     proxy: {
       http: opts.proxy,
@@ -238,8 +241,8 @@ function adaptConfig (opts: StrictPnpmOptions) {
     },
     userAgent: opts.userAgent,
     log: Object.assign({}, logger, {
-      verbose: logger.log.bind(null, 'verbose'),
-      http: logger.log.bind(null, 'http')
+      verbose: logger.debug.bind(null, 'verbose'),
+      http: logger.debug.bind(null, 'http')
     }),
     defaultTag: opts.tag
   }
@@ -257,7 +260,7 @@ function npmRun (scriptName: string, pkgRoot: string) {
 
 function installLogger (pkgId: string) {
   return (stream: string, line: string) => {
-    createDebug('pnpm:post_install')(`${pkgId} ${line}`)
+    bole('pnpm:post_install').debug(`${pkgId} ${line}`)
 
     if (stream === 'stderr') {
       console.log(chalk.blue(pkgId) + '! ' + chalk.gray(line))

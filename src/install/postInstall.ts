@@ -1,17 +1,17 @@
 import path = require('path')
 import findUp = require('find-up')
-import createDebug from '../debug'
-const debug = createDebug('pnpm:post_install')
+import bole = require('bole')
 import fs = require('mz/fs')
 import runScript from '../runScript'
 import requireJson from '../fs/requireJson'
 
+const logger = bole('pnpm:post_install')
 const pnpmNodeModules = findUp.sync('node_modules', {cwd: __dirname})
 const nodeGyp = path.resolve(pnpmNodeModules, 'node-gyp/bin/node-gyp.js')
 
 export default async function postInstall (root: string, log: Function) {
   const pkg = await requireJson(path.join(root, 'package.json'))
-  debug('postinstall', pkg.name + '@' + pkg.version)
+  logger.debug('postinstall', pkg.name + '@' + pkg.version)
   const scripts = pkg && pkg.scripts || {}
 
   if (!scripts['install']) {

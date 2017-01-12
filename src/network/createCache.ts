@@ -1,7 +1,8 @@
 import cacheManager = require('cache-manager')
 import fsStore = require('cache-manager-fs')
 import thenify = require('thenify')
-import logger = require('@zkochan/logger')
+import bole = require('bole')
+const logger = bole('cache')
 
 export type CacheOptions = {
   path: string,

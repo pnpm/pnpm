@@ -3,11 +3,6 @@ declare module 'sorted-object' {
   export = anything;
 }
 
-declare module '@zkochan/logger' {
-  const anything: any;
-  export = anything;
-}
-
 declare module 'delocalize-dependencies' {
   const anything: any;
   export = anything;
@@ -216,4 +211,14 @@ declare module 'pnpm-install-checks' {
 declare module 'is-windows' {
   function isWindows(): boolean;
   export = isWindows;
+}
+
+declare module 'bole' {
+  const anything: any;
+  export = anything;
+}
+
+declare module 'ndjson' {
+  const anything: any;
+  export = anything;
 }

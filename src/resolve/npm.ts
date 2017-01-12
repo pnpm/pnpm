@@ -6,6 +6,7 @@ import registryUrl = require('registry-url')
 import semver = require('semver')
 import {PackageSpec, ResolveOptions, ResolveResult} from '.'
 import {Package} from '../types'
+import logStatus from '../logger/logInstallStatus'
 
 /**
  * Resolves a package in the NPM registry. Done as part of `install()`.
@@ -25,7 +26,7 @@ export default async function resolveNpm (spec: PackageSpec, opts: ResolveOption
   // { raw: 'rimraf@2', scope: null, name: 'rimraf', rawSpec: '2' || '' }
   try {
     const uri = toUri(spec)
-    if (opts.log) opts.log('resolving')
+    if (opts.loggedPkg) logStatus({ status: 'resolving', pkg: opts.loggedPkg })
     const parsedBody = <PackageDocument>(await opts.got.getJSON(uri))
     const correctPkg = pickVersionFromRegistryDocument(parsedBody, spec, opts.tag)
     if (!correctPkg) {
