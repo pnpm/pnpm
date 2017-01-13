@@ -1,6 +1,5 @@
 import {StrictPnpmOptions, PnpmOptions} from '../types'
 import {DEFAULT_GLOBAL_PATH} from './constantDefaults'
-import {ReporterType} from '../reporter' // tslint:disable-line
 import semver = require('semver')
 
 const CAN_PRESERVE_SYMLINKS = semver.satisfies(process.version, '>=6.3.0')
