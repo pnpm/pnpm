@@ -6,7 +6,6 @@ import requireJson from '../fs/requireJson'
 import writePkg = require('write-pkg')
 import expandTilde, {isHomepath} from '../fs/expandTilde'
 import {StrictPnpmOptions} from '../types'
-import initReporter from '../reporter'
 import {
   read as readGraph,
   Graph,
@@ -78,8 +77,6 @@ export default async function (opts: StrictPnpmOptions): Promise<PnpmContext> {
     shrinkwrap,
     isFirstInstallation,
   }
-
-  if (!opts.silent) initReporter(opts.reporter)
 
   await mkdirp(ctx.cache)
   await mkdirp(ctx.storePath)

@@ -27,6 +27,7 @@ import installTestCmd from '../cmd/installTest'
 import cacheCmd from '../cmd/cache'
 import runCmd from '../cmd/run'
 import bole = require('bole')
+import initReporter from '../reporter'
 
 bole.setFastTime()
 
@@ -136,6 +137,8 @@ async function run (argv: string[]) {
   Object.keys(cli.flags).forEach(key => {
     opts[key] = opts[key] || cli.flags[key]
   })
+
+  if (!opts.silent) initReporter(opts.reporter)
 
   const cliArgs = cli.input.slice(1)
   return pnpmCmds[cmd](cliArgs, opts)
