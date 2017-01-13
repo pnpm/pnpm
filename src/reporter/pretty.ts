@@ -1,6 +1,12 @@
 import chalk = require('chalk')
 import observatory = require('observatory')
-import {ProgressLog, DownloadStatus} from '../logging/logInstallStatus'
+import {
+  ProgressLog,
+  DownloadStatus,
+  LifecycleLog,
+  Log,
+  InstallCheckLog,
+} from '../logging/logInstallStatus'
 import streamParser from '../logging/streamParser'
 
 observatory.settings({ prefix: '  ', width: 74 })
@@ -18,12 +24,28 @@ export default function () {
     return task
   }
 
-  streamParser.on('data', (obj: ProgressLog) => {
-    if (obj['name'] !== 'progress') return
-    logProgress(obj)
+  streamParser.on('data', (obj: Log) => {
+    switch (obj.name) {
+      case 'progress':
+        reportProgress(<ProgressLog>obj)
+        return
+      case 'lifecycle':
+        reportLifecycle(<LifecycleLog>obj)
+        return
+      case 'install-check':
+        reportInstallCheck(<InstallCheckLog>obj)
+        return
+      case 'install':
+        if (obj.level === 'warn') {
+          printWarn(obj['message'])
+          return
+        }
+        console.log(obj['message'])
+        return
+    }
   })
 
-  function logProgress (logObj: ProgressLog) {
+  function reportProgress (logObj: ProgressLog) {
     // lazy get task
     function t () {
       return getTask(logObj.pkg.rawSpec, logObj.pkg.name)
@@ -77,4 +99,27 @@ export default function () {
         return
     }
   }
+}
+
+function reportLifecycle (logObj: LifecycleLog) {
+  if (logObj.level === 'error') {
+    console.log(chalk.blue(logObj.pkgId) + '! ' + chalk.gray(logObj.line))
+    return
+  }
+  console.log(chalk.blue(logObj.pkgId) + '  ' + chalk.gray(logObj.line))
+}
+
+function reportInstallCheck (logObj: InstallCheckLog) {
+  switch (logObj.code) {
+    case 'EBADPLATFORM':
+      printWarn(`Unsupported system. Skipping dependency ${logObj.pkgid}`)
+      break
+    case 'ENOTSUP':
+      console.warn(logObj)
+      break
+  }
+}
+
+function printWarn (message: string) {
+  console.log(chalk.yellow('WARN'), message)
 }

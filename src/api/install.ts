@@ -1,7 +1,6 @@
 import rimraf = require('rimraf-then')
 import path = require('path')
 import seq = require('promisequence')
-import chalk = require('chalk')
 import RegClient = require('npm-registry-client')
 import bole = require('bole')
 import cloneDeep = require('lodash.clonedeep')
@@ -110,7 +109,7 @@ async function installInContext (installType: string, packagesToInstall: Depende
   })
 
   if (opts.flatTree) {
-    console.log('Flattening the dependency tree')
+    bole('install').info('Flattening the dependency tree')
     await flattenDependencies(ctx.root, ctx.storePath, pkgs, ctx.graph)
   }
 
@@ -149,8 +148,10 @@ async function installInContext (installType: string, packagesToInstall: Depende
           await postInstall(pkg.path, installLogger(pkg.pkgId))
         } catch (err) {
           if (installCtx.installs[pkg.pkgId].optional) {
-            console.log('Skipping failed optional dependency ' + pkg.pkgId + ':')
-            console.log(err.message || err)
+            bole('install').warn({
+              message: `Skipping failed optional dependency ${pkg.pkgId}`,
+              err,
+            })
             return
           }
           throw err
@@ -258,15 +259,12 @@ function npmRun (scriptName: string, pkgRoot: string) {
   }
 }
 
+const lifecycleLogger = bole('lifecycle')
+
 function installLogger (pkgId: string) {
   return (stream: string, line: string) => {
-    bole('pnpm:post_install').debug(`${pkgId} ${line}`)
-
-    if (stream === 'stderr') {
-      console.log(chalk.blue(pkgId) + '! ' + chalk.gray(line))
-      return
-    }
-    console.log(chalk.blue(pkgId) + '  ' + chalk.gray(line))
+    const logLevel = stream === 'stderr' ? 'error' : 'info'
+    lifecycleLogger[logLevel]({pkgId, line})
   }
 }
 

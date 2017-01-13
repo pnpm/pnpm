@@ -51,13 +51,11 @@ export default function () {
 
     lastStatus = name
 
-    if (process.env.VERBOSE) {
-      if (logObj.status !== 'downloading') update(getName() + ' ' + logObj.status)
-    } else if (logObj.status === 'done') {
+    if (logObj.status === 'done') {
       update(getName())
-    } else {
-      update()
+      return
     }
+    update()
 
     function getName () {
       if (logObj.pkg && logObj.pkg.version) {

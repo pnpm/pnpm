@@ -5,6 +5,9 @@ import semver = require('semver')
 import {InstalledPackages} from '../api/install'
 import {Package} from '../types'
 import {InstalledPackage} from './installMultiple'
+import bole = require('bole')
+
+const logger = bole('install')
 
 type Dict<T> = {
   [index: string]: T
@@ -38,7 +41,7 @@ export default async function linkPeers (installs: InstalledPackages) {
     return Promise.all(Object.keys(peerDependencies).map(peerName => {
       const version = semver.maxSatisfying(Object.keys(groupedPkgs[peerName] || {}), peerDependencies[peerName], true)
       if (!version) {
-        console.warn(`${pkgData.id} requires a peer of ${peerName}@${peerDependencies[peerName]} but none was installed.`)
+        logger.warn(`${pkgData.id} requires a peer of ${peerName}@${peerDependencies[peerName]} but none was installed.`)
         return
       }
       return linkDir(

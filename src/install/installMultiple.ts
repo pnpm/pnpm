@@ -1,5 +1,6 @@
 import path = require('path')
 import npa = require('npm-package-arg')
+import bole = require('bole')
 import fetch, {FetchedPackage, FetchOptions} from './fetch'
 import {InstallContext, InstalledPackages} from '../api/install'
 import {Dependencies} from '../types'
@@ -14,6 +15,9 @@ import linkDir from 'link-dir'
 import exists = require('exists-file')
 import {Graph} from '../fs/graphController'
 import logStatus from '../logging/logInstallStatus'
+
+const logger = bole('install')
+const installCheckLogger = bole('install-check')
 
 export type InstallOptions = FetchOptions & {
   optional?: boolean,
@@ -82,17 +86,20 @@ async function installMultiple (ctx: InstallContext, pkgsMap: Dependencies, modu
 
   const installedPkgs: InstalledPackage[] = <InstalledPackage[]>(
     await Promise.all(pkgs.map(async function (pkgRawSpec: string) {
+      let pkg: InstalledPackage | void
       try {
-        const pkg = await install(pkgRawSpec, modules, ctx, options)
+        pkg = await install(pkgRawSpec, modules, ctx, options)
         if (options.keypath && options.keypath.indexOf(pkg.id) !== -1) {
           return null
         }
         return pkg
       } catch (err) {
         if (options.optional) {
-          console.log(`Skipping failed optional dependency ${pkgRawSpec}:`)
-          console.log(err.message || err)
-          return null // is it OK to return null?  
+          logger.warn({
+            message: `Skipping failed optional dependency ${pkg && pkg.id || pkgRawSpec}`,
+            err,
+          })
+          return null // is it OK to return null?
         }
         throw err
       }
@@ -198,14 +205,7 @@ async function isInstallable (pkg: Package, fetchedPkg: FetchedPackage, options:
     nodeVersion: options.nodeVersion
   })
   if (!warn) return
-  switch (warn.code) {
-    case 'EBADPLATFORM':
-      console.warn(`Unsupported system. Skipping dependency ${fetchedPkg.id}`)
-      break
-    case 'ENOTSUP':
-      console.warn(warn)
-      break
-  }
+  installCheckLogger.warn(warn)
   if (options.engineStrict || options.optional) {
     await fetchedPkg.abort()
     throw warn
