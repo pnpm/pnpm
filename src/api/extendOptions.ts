@@ -1,6 +1,9 @@
 import {StrictPnpmOptions, PnpmOptions} from '../types'
 import {DEFAULT_GLOBAL_PATH} from './constantDefaults'
 import semver = require('semver')
+import bole = require('bole')
+
+const logger = bole('install')
 
 const CAN_PRESERVE_SYMLINKS = semver.satisfies(process.version, '>=6.3.0')
 
@@ -28,7 +31,7 @@ const defaults = () => (<StrictPnpmOptions>{
 
 export default (opts?: PnpmOptions): StrictPnpmOptions => {
   if (opts && opts.preserveSymlinks && !CAN_PRESERVE_SYMLINKS) {
-    console.warn('The active Node version does not support --preserve-symlinks')
+    logger.warn('The active Node version does not support --preserve-symlinks')
     delete opts.preserveSymlinks
   }
   const extendedOpts = Object.assign({}, defaults(), opts)

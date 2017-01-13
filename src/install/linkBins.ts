@@ -9,7 +9,9 @@ import binify from '../binify'
 import isWindows = require('is-windows')
 import cmdShim = require('@zkochan/cmd-shim')
 import {Package} from '../types'
+import bole = require('bole')
 
+const logger = bole('install')
 const IS_WINDOWS = isWindows()
 
 export default async function linkAllBins (modules: string, preserveSymlinks: boolean) {
@@ -34,7 +36,7 @@ export async function linkPkgBins (modules: string, target: string, preserveSyml
   const pkg = await safeRequireJson(path.join(target, 'package.json'))
 
   if (!pkg) {
-    console.warn(`There's a directory in node_modules without package.json: ${target}`)
+    logger.warn(`There's a directory in node_modules without package.json: ${target}`)
     return
   }
 
