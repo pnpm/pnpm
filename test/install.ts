@@ -358,6 +358,10 @@ test('nested local dependency of a local dependency', async function (t) {
 })
 
 test('from a github repo', async function (t) {
+  if (isCI) {
+    t.skip('Skip till https://github.com/rstacruz/pnpm/issues/536 is not resolved')
+    return t.end()
+  }
   const project = prepare(t)
   await installPkgs(['kevva/is-negative'], testDefaults())
 
@@ -653,6 +657,10 @@ test('tarball local package', async function (t) {
 })
 
 test("don't fail when peer dependency is fetched from GitHub", t => {
+  if (isCI) {
+    t.skip('Skip till https://github.com/rstacruz/pnpm/issues/536 is not resolved')
+    return t.end()
+  }
   const project = prepare(t)
   return installPkgs(['test-pnpm-peer-deps'], testDefaults())
 })
