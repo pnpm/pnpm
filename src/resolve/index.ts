@@ -5,7 +5,7 @@ import resolveFromLocal from './local'
 import resolveFromGit from './git'
 import {Got} from '../network/got'
 import {Package} from '../types'
-import {LoggedPkg} from '../logger/logInstallStatus'
+import {LoggedPkg} from '../logging/logInstallStatus'
 
 export type ResolveResult = {
   id: string,

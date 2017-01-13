@@ -1,7 +1,7 @@
 import bole = require('bole')
 import fs = require('fs')
 import {Got} from '../network/got'
-import logStatus, {LoggedPkg} from '../logger/logInstallStatus'
+import logStatus, {LoggedPkg} from '../logging/logInstallStatus'
 import {IncomingMessage} from 'http'
 import * as unpackStream from 'unpack-stream'
 

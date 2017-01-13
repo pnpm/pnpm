@@ -14,7 +14,7 @@ import {Package} from '../types'
 import {Got} from '../network/got'
 import {InstallContext} from '../api/install'
 import fetchRes from './fetchResolution'
-import logStatus, {LoggedPkg} from '../logger/logInstallStatus'
+import logStatus, {LoggedPkg} from '../logging/logInstallStatus'
 
 const logger = bole('pnpm:install')
 

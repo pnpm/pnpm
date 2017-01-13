@@ -13,7 +13,7 @@ import pnpmPkg from '../pnpmPkgJson'
 import linkDir from 'link-dir'
 import exists = require('exists-file')
 import {Graph} from '../fs/graphController'
-import logStatus from '../logger/logInstallStatus'
+import logStatus from '../logging/logInstallStatus'
 
 export type InstallOptions = FetchOptions & {
   optional?: boolean,
