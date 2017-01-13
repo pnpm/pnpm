@@ -1,4 +1,4 @@
-import {LoggerType} from './logger'
+import {ReporterType} from './reporter'
 
 export type PnpmOptions = {
   cwd?: string,
@@ -6,7 +6,7 @@ export type PnpmOptions = {
   globalPath?: string,
   storePath?: string,
   silent?: boolean,
-  logger?: LoggerType,
+  reporter?: ReporterType,
   ignoreScripts?: boolean
   save?: boolean,
   saveDev?: boolean,
@@ -48,7 +48,7 @@ export type StrictPnpmOptions = {
   globalPath: string,
   storePath: string,
   silent: boolean,
-  logger: LoggerType,
+  reporter: ReporterType,
   ignoreScripts: boolean
   save: boolean,
   saveDev: boolean,

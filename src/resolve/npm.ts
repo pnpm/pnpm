@@ -6,7 +6,7 @@ import registryUrl = require('registry-url')
 import semver = require('semver')
 import {PackageSpec, ResolveOptions, ResolveResult} from '.'
 import {Package} from '../types'
-import logStatus from '../logger/logInstallStatus'
+import logStatus from '../logging/logInstallStatus'
 
 /**
  * Resolves a package in the NPM registry. Done as part of `install()`.

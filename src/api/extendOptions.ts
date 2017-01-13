@@ -1,6 +1,6 @@
 import {StrictPnpmOptions, PnpmOptions} from '../types'
 import {DEFAULT_GLOBAL_PATH} from './constantDefaults'
-import {LoggerType} from '../logger' // tslint:disable-line
+import {ReporterType} from '../reporter' // tslint:disable-line
 import semver = require('semver')
 
 const CAN_PRESERVE_SYMLINKS = semver.satisfies(process.version, '>=6.3.0')
@@ -12,7 +12,7 @@ const defaults = () => (<StrictPnpmOptions>{
   fetchRetryMaxtimeout: 6e4, // 1 minute
   storePath: '~/.pnpm-store',
   globalPath: DEFAULT_GLOBAL_PATH,
-  logger: 'pretty',
+  reporter: 'pretty',
   ignoreScripts: false,
   linkLocal: false,
   strictSsl: true,

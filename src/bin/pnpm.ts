@@ -14,7 +14,7 @@ import updateNotifier = require('update-notifier')
 import camelcaseKeys = require('camelcase-keys')
 import isCI = require('is-ci')
 import {stripIndent} from 'common-tags'
-import '../fileLogger'
+import '../logging/fileLogger'
 import pkg from '../pnpmPkgJson'
 import runNpm from '../cmd/runNpm'
 import installCmd from '../cmd/install'

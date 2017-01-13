@@ -1,6 +1,6 @@
 import fs = require('fs')
 import YAML = require('json2yaml')
-import streamParser from './logger/streamParser'
+import streamParser from './streamParser'
 
 const slice = Array.prototype.slice
 const logFilePath = 'pnpm-debug.log'

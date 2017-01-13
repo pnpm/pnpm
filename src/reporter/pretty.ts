@@ -1,7 +1,7 @@
 import chalk = require('chalk')
 import observatory = require('observatory')
-import {ProgressLog, DownloadStatus} from './logInstallStatus'
-import streamParser from './streamParser'
+import {ProgressLog, DownloadStatus} from '../logging/logInstallStatus'
+import streamParser from '../logging/streamParser'
 
 observatory.settings({ prefix: '  ', width: 74 })
 

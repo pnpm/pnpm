@@ -1,7 +1,7 @@
 import chalk = require('chalk')
-import streamParser from './streamParser'
+import streamParser from '../logging/streamParser'
 import {PackageSpec} from '../resolve'
-import {ProgressLog, DownloadStatus} from './logInstallStatus'
+import {ProgressLog, DownloadStatus} from '../logging/logInstallStatus'
 
 const UPDATERS = [
   'resolving', 'resolved', 'download-start', 'dependencies'
