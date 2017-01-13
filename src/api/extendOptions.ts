@@ -12,7 +12,6 @@ const defaults = () => (<StrictPnpmOptions>{
   fetchRetryMaxtimeout: 6e4, // 1 minute
   storePath: '~/.pnpm-store',
   globalPath: DEFAULT_GLOBAL_PATH,
-  reporter: 'pretty',
   ignoreScripts: false,
   linkLocal: false,
   strictSsl: true,
@@ -21,7 +20,6 @@ const defaults = () => (<StrictPnpmOptions>{
   cwd: process.cwd(),
   nodeVersion: process.version,
   force: false,
-  silent: true,
   depth: 0,
   cacheTTL: 60 * 60 * 24, // 1 day
   flatTree: false,

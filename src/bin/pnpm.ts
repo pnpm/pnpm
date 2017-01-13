@@ -1,11 +1,4 @@
 #!/usr/bin/env node
-// NOTE: This should be done as soon as possible because the debug
-// package reads the env variable only once
-if (~process.argv.indexOf('--debug')) {
-  process.env.DEBUG = 'pnpm:*'
-  process.argv.push('--silent')
-}
-
 import loudRejection = require('loud-rejection')
 loudRejection()
 import rc = require('rc')
@@ -76,8 +69,7 @@ async function run (argv: string[]) {
         -g, --global          install globally
 
             --production      don't install devDependencies
-            --silent           don't print progress
-            --debug           print verbose debug message`
+            --silent           don't print progress`
   }, {
     boolean: [
       'save-dev',
@@ -138,7 +130,7 @@ async function run (argv: string[]) {
     opts[key] = opts[key] || cli.flags[key]
   })
 
-  if (!opts.silent) initReporter(opts.reporter)
+  if (!opts.silent) initReporter(opts.reporter || 'pretty')
 
   const cliArgs = cli.input.slice(1)
   return pnpmCmds[cmd](cliArgs, opts)
