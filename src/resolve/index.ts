@@ -5,7 +5,7 @@ import resolveFromLocal from './local'
 import resolveFromGit from './git'
 import {Got} from '../network/got'
 import {Package} from '../types'
-import {LoggedPkg} from '../logging/logInstallStatus'
+import {LoggedPkg} from 'pnpm-logger'
 
 export type ResolveResult = {
   id: string,

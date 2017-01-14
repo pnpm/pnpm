@@ -1,10 +1,6 @@
-import supportsColor = require('supports-color')
-import pretty from './pretty'
-import simple from './simple'
+import defaultReporter from 'pnpm-reporter-default'
+import streamParser from '../logging/streamParser'
 
-export type ReporterType = 'pretty' | 'simple'
+export type ReporterType = 'default'
 
-export default (reporterType: ReporterType) =>
-  ((reporterType === 'pretty' && supportsColor)
-    ? pretty()
-    : simple())
+export default (reporterType: ReporterType) => defaultReporter(streamParser)

@@ -1,6 +1,6 @@
 import path = require('path')
 import npa = require('npm-package-arg')
-import logger from '../logger'
+import logger from 'pnpm-logger'
 import fetch, {FetchedPackage, FetchOptions} from './fetch'
 import {InstallContext, InstalledPackages} from '../api/install'
 import {Dependencies} from '../types'

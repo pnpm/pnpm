@@ -113,11 +113,6 @@ declare module 'rimraf-then' {
   export = anything;
 }
 
-declare module 'supports-color' {
-  const anything: any;
-  export = anything;
-}
-
 declare module 'thenify' {
   const anything: any;
   export = anything;

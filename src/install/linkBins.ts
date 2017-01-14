@@ -9,7 +9,7 @@ import binify from '../binify'
 import isWindows = require('is-windows')
 import cmdShim = require('@zkochan/cmd-shim')
 import {Package} from '../types'
-import logger from '../logger'
+import logger from 'pnpm-logger'
 
 const IS_WINDOWS = isWindows()
 

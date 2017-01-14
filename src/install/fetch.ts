@@ -1,4 +1,4 @@
-import logger from '../logger'
+import logger, {LoggedPkg} from 'pnpm-logger'
 import fs = require('mz/fs')
 import {Stats} from 'fs'
 import path = require('path')
@@ -14,7 +14,7 @@ import {Package} from '../types'
 import {Got} from '../network/got'
 import {InstallContext} from '../api/install'
 import fetchRes from './fetchResolution'
-import logStatus, {LoggedPkg} from '../logging/logInstallStatus'
+import logStatus from '../logging/logInstallStatus'
 
 export type FetchOptions = {
   keypath?: string[],

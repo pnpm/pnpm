@@ -2,7 +2,7 @@ import rimraf = require('rimraf-then')
 import path = require('path')
 import seq = require('promisequence')
 import RegClient = require('npm-registry-client')
-import logger from '../logger'
+import logger from 'pnpm-logger'
 import cloneDeep = require('lodash.clonedeep')
 import {PnpmOptions, StrictPnpmOptions, Dependencies} from '../types'
 import createGot from '../network/got'

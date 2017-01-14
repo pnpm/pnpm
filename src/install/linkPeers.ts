@@ -5,7 +5,7 @@ import semver = require('semver')
 import {InstalledPackages} from '../api/install'
 import {Package} from '../types'
 import {InstalledPackage} from './installMultiple'
-import logger from '../logger'
+import logger from 'pnpm-logger'
 
 type Dict<T> = {
   [index: string]: T

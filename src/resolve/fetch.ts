@@ -1,7 +1,7 @@
-import logger from '../logger'
+import logger, {LoggedPkg} from 'pnpm-logger'
 import fs = require('fs')
 import {Got} from '../network/got'
-import logStatus, {LoggedPkg} from '../logging/logInstallStatus'
+import logStatus from '../logging/logInstallStatus'
 import {IncomingMessage} from 'http'
 import * as unpackStream from 'unpack-stream'
 
