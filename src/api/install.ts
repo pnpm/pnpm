@@ -26,18 +26,13 @@ import flattenDependencies from '../install/flattenDependencies'
 import mkdirp from '../fs/mkdirp'
 import {CachedPromises} from '../memoize'
 
-export type PackageInstallationResult = {
-  path: string,
-  pkgId: string
-}
-
 export type InstalledPackages = {
   [name: string]: InstalledPackage
 }
 
 export type InstallContext = {
   installs: InstalledPackages,
-  piq?: PackageInstallationResult[],
+  installationSequence: string[],
   fetchLocks: CachedPromises<void>,
   graph: Graph,
   shrinkwrap: Shrinkwrap,
@@ -141,15 +136,15 @@ async function installInContext (installType: string, packagesToInstall: Depende
   await linkPeers(installCtx.installs)
 
   // postinstall hooks
-  if (!(opts.ignoreScripts || !installCtx.piq || !installCtx.piq.length)) {
+  if (!(opts.ignoreScripts || !installCtx.installationSequence || !installCtx.installationSequence.length)) {
     await seq(
-      installCtx.piq.map(async pkg => {
+      installCtx.installationSequence.map(async pkgId => {
         try {
-          await postInstall(pkg.path, installLogger(pkg.pkgId))
+          await postInstall(installCtx.installs[pkgId].hardlinkedLocation, installLogger(pkgId))
         } catch (err) {
-          if (installCtx.installs[pkg.pkgId].optional) {
+          if (installCtx.installs[pkgId].optional) {
             logger.warn({
-              message: `Skipping failed optional dependency ${pkg.pkgId}`,
+              message: `Skipping failed optional dependency ${pkgId}`,
               err,
             })
             return
@@ -217,6 +212,7 @@ async function createInstallCmd (opts: StrictPnpmOptions, graph: Graph, shrinkwr
     shrinkwrap,
     resolutionLinked: {},
     installed: new Set(),
+    installationSequence: [],
   }
 }
 
