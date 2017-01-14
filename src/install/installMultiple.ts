@@ -62,12 +62,10 @@ export default async function installAll (ctx: InstallContext, dependencies: Dep
     installedPkgs
       .filter(subdep => !subdep.fromCache)
       .map(async function (subdep) {
+        if (ctx.installationSequence.indexOf(subdep.id) === -1) {
+          ctx.installationSequence.push(subdep.id)
+        }
         const dest = path.join(modules, subdep.pkg.name)
-        ctx.piq = ctx.piq || []
-        ctx.piq.push({
-          path: dest,
-          pkgId: subdep.id
-        })
         await linkDir(subdep.hardlinkedLocation, dest)
       })
   )
