@@ -46,6 +46,10 @@ export default function (streamParser: Object) {
           printWarn(obj['message'])
           return
         }
+        if (obj.level === 'error') {
+            console.log(chalk.red('ERROR'), obj['err'] && obj['err'].message || obj['message'])
+            return
+        }
         console.log(obj['message'])
         return
     }
