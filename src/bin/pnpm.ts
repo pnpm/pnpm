@@ -130,7 +130,7 @@ async function run (argv: string[]) {
     opts[key] = opts[key] || cli.flags[key]
   })
 
-  if (!opts.silent) initReporter(opts.reporter || 'pretty')
+  if (!opts.silent) initReporter(opts.reporter || 'default')
 
   const cliArgs = cli.input.slice(1)
   return pnpmCmds[cmd](cliArgs, opts)
