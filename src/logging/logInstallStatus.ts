@@ -1,5 +1,6 @@
-import bole = require('bole')
-const logger = bole('progress')
+import logger from '../logger'
+
+const progressLogger = logger('progress')
 
 export type LifecycleMessage = {
   pkgId: string,
@@ -39,4 +40,4 @@ export type DownloadStatus = {
   total: number,
 }
 
-export default (loginfo: ProgressMessage) => logger.debug(loginfo)
+export default (loginfo: ProgressMessage) => progressLogger.debug(loginfo)

@@ -1,6 +1,6 @@
 import path = require('path')
 import npa = require('npm-package-arg')
-import bole = require('bole')
+import logger from '../logger'
 import fetch, {FetchedPackage, FetchOptions} from './fetch'
 import {InstallContext, InstalledPackages} from '../api/install'
 import {Dependencies} from '../types'
@@ -16,8 +16,7 @@ import exists = require('exists-file')
 import {Graph} from '../fs/graphController'
 import logStatus from '../logging/logInstallStatus'
 
-const logger = bole('install')
-const installCheckLogger = bole('install-check')
+const installCheckLogger = logger('install-check')
 
 export type InstallOptions = FetchOptions & {
   optional?: boolean,

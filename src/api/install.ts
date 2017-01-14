@@ -2,7 +2,7 @@ import rimraf = require('rimraf-then')
 import path = require('path')
 import seq = require('promisequence')
 import RegClient = require('npm-registry-client')
-import bole = require('bole')
+import logger from '../logger'
 import cloneDeep = require('lodash.clonedeep')
 import {PnpmOptions, StrictPnpmOptions, Dependencies} from '../types'
 import createGot from '../network/got'
@@ -109,7 +109,7 @@ async function installInContext (installType: string, packagesToInstall: Depende
   })
 
   if (opts.flatTree) {
-    bole('install').info('Flattening the dependency tree')
+    logger.info('Flattening the dependency tree')
     await flattenDependencies(ctx.root, ctx.storePath, pkgs, ctx.graph)
   }
 
@@ -148,7 +148,7 @@ async function installInContext (installType: string, packagesToInstall: Depende
           await postInstall(pkg.path, installLogger(pkg.pkgId))
         } catch (err) {
           if (installCtx.installs[pkg.pkgId].optional) {
-            bole('install').warn({
+            logger.warn({
               message: `Skipping failed optional dependency ${pkg.pkgId}`,
               err,
             })
@@ -221,7 +221,7 @@ async function createInstallCmd (opts: StrictPnpmOptions, graph: Graph, shrinkwr
 }
 
 function adaptConfig (opts: StrictPnpmOptions) {
-  const logger = bole('registry')
+  const registryLog = logger('registry')
   return {
     proxy: {
       http: opts.proxy,
@@ -241,9 +241,9 @@ function adaptConfig (opts: StrictPnpmOptions) {
       maxTimeout: opts.fetchRetryMaxtimeout
     },
     userAgent: opts.userAgent,
-    log: Object.assign({}, logger, {
-      verbose: logger.debug.bind(null, 'verbose'),
-      http: logger.debug.bind(null, 'http')
+    log: Object.assign({}, registryLog, {
+      verbose: registryLog.debug.bind(null, 'http'),
+      http: registryLog.debug.bind(null, 'http'),
     }),
     defaultTag: opts.tag
   }
@@ -259,7 +259,7 @@ function npmRun (scriptName: string, pkgRoot: string) {
   }
 }
 
-const lifecycleLogger = bole('lifecycle')
+const lifecycleLogger = logger('lifecycle')
 
 function installLogger (pkgId: string) {
   return (stream: string, line: string) => {

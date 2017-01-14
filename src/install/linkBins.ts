@@ -9,9 +9,8 @@ import binify from '../binify'
 import isWindows = require('is-windows')
 import cmdShim = require('@zkochan/cmd-shim')
 import {Package} from '../types'
-import bole = require('bole')
+import logger from '../logger'
 
-const logger = bole('install')
 const IS_WINDOWS = isWindows()
 
 export default async function linkAllBins (modules: string, preserveSymlinks: boolean) {

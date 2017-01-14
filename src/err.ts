@@ -1,6 +1,4 @@
-import bole = require('bole')
-
-const logger = bole('pnpm')
+import logger from './logger'
 
 export default function err (error: Error) {
   logger.error(error)

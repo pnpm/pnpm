@@ -29,7 +29,7 @@ export default function () {
   })
 
   streamParser.on('data', (obj: ProgressLog) => {
-    if (obj['name'] !== 'progress') return
+    if (obj['name'] !== 'pnpm:progress') return
     logProgress(obj)
   })
 

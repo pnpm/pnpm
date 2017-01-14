@@ -1,8 +1,9 @@
 import cacheManager = require('cache-manager')
 import fsStore = require('cache-manager-fs')
 import thenify = require('thenify')
-import bole = require('bole')
-const logger = bole('cache')
+import logger from '../logger'
+
+const cacheLogger = logger('cache')
 
 export type CacheOptions = {
   path: string,
@@ -28,7 +29,7 @@ export default function createCache (opts: CacheOptions) {
       try {
         return await getCache(id, cacheManagerOpts)
       } catch (err) {
-        logger.error('cache', id)
+        cacheLogger.error('cache', id)
         return null // ignore errors. The data can be requested.
       }
     },

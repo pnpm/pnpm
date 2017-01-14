@@ -26,16 +26,23 @@ export default function () {
 
   streamParser.on('data', (obj: Log) => {
     switch (obj.name) {
-      case 'progress':
+      case 'pnpm:progress':
         reportProgress(<ProgressLog>obj)
         return
-      case 'lifecycle':
+      case 'pnpm:lifecycle':
         reportLifecycle(<LifecycleLog>obj)
         return
-      case 'install-check':
+      case 'pnpm:install-check':
         reportInstallCheck(<InstallCheckLog>obj)
         return
-      case 'install':
+      case 'pnpm:registry':
+        if (obj.level === 'warn') {
+          printWarn(obj['message'])
+        }
+        return
+      default:
+        if (obj.level === 'debug') return
+        if (obj.name !== 'pnpm' && obj.name.indexOf('pnpm:') !== 0) return
         if (obj.level === 'warn') {
           printWarn(obj['message'])
           return

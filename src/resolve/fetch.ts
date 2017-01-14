@@ -1,11 +1,11 @@
-import bole = require('bole')
+import logger from '../logger'
 import fs = require('fs')
 import {Got} from '../network/got'
 import logStatus, {LoggedPkg} from '../logging/logInstallStatus'
 import {IncomingMessage} from 'http'
 import * as unpackStream from 'unpack-stream'
 
-const logger = bole('pnpm:fetch')
+const fetchLogger = logger('fetch')
 
 export type FetchOptions = {
   loggedPkg: LoggedPkg,
@@ -35,7 +35,7 @@ export async function fetchFromRemoteTarball (dir: string, dist: PackageDist, op
     onStart: () => logStatus({status: 'download-start', pkg: opts.loggedPkg}),
     onProgress: (done: number, total: number) => logStatus({status: 'downloading', pkg: opts.loggedPkg, downloadStatus: { done, total }})
   })
-  logger.debug(`finish ${dist.shasum} ${dist.tarball}`)
+  fetchLogger.debug(`finish ${dist.shasum} ${dist.tarball}`)
 }
 
 export async function fetchFromLocalTarball (dir: string, dist: PackageDist) {

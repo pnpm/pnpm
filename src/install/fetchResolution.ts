@@ -1,9 +1,9 @@
 import {fetchFromRemoteTarball, FetchOptions} from '../resolve/fetch'
 import {ResolveResult} from '../resolve'
-import bole = require('bole')
+import logger from '../logger'
 import spawn = require('cross-spawn')
 
-const logger = bole('pnpm:git')
+const gitLogger = logger('git')
 
 export default async function fetchRes (res: ResolveResult, target: string, opts: FetchOptions): Promise<void> {
   if (res.tarball) {
@@ -26,14 +26,14 @@ export default async function fetchRes (res: ResolveResult, target: string, opts
 export async function clone (repo: string, ref: string, dest: string) {
   await new Promise((resolve, reject) => {
     const args = ['clone', '-b', ref, repo, dest, '--single-branch']
-    logger.debug(`cloning git repository from ${repo}`)
+    gitLogger.debug(`cloning git repository from ${repo}`)
     const git = spawnGit(args)
     let errMsg = ''
     git.stderr.on('data', (data: string) => errMsg += data)
     git.on('close', (code: number) => (code ? errorHandler() : resolve()))
 
     function errorHandler () {
-      logger.debug(`failed to clone repository from ${repo}`)
+      gitLogger.debug(`failed to clone repository from ${repo}`)
       reject(new Error(`failed to clone repository from ${repo}
         ${errMsg}`))
     }
@@ -45,7 +45,7 @@ function prefixGitArgs (): string[] {
 }
 
 function spawnGit (args: string[]) {
-  logger.debug(`executing git with args ${args}`)
+  gitLogger.debug(`executing git with args ${args}`)
   const fullArgs = prefixGitArgs().concat(args || [])
   return spawn('git', fullArgs)
 }
