@@ -1,7 +1,7 @@
 import cacheManager = require('cache-manager')
 import fsStore = require('cache-manager-fs')
 import thenify = require('thenify')
-import logger from '../logger'
+import logger from 'pnpm-logger'
 
 const cacheLogger = logger('cache')
 

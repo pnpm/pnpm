@@ -18,7 +18,7 @@ const npmrc = stripIndent`
   fetch-retries = 5
   fetch-retry-maxtimeout = 180000
   registry = http://localhost:4873/
-  quiet = true
+  silent = true
   global-path = ${path.join(tmpPath, 'global')}
 `
 fs.writeFileSync(path.join(tmpPath, '.npmrc'), npmrc, 'utf-8')

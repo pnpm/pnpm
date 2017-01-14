@@ -1,6 +1,6 @@
 import path = require('path')
 import findUp = require('find-up')
-import logger from '../logger'
+import logger from 'pnpm-logger'
 import fs = require('mz/fs')
 import runScript from '../runScript'
 import requireJson from '../fs/requireJson'

@@ -1,5 +1,5 @@
 import mkdirp = require('mkdirp')
-import logger from '../logger'
+import logger from 'pnpm-logger'
 
 const mkdirpLogger = logger('mkdirp')
 

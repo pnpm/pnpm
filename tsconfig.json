@@ -76,8 +76,6 @@
     "src/registryFor.ts",
     "src/removeDeps.ts",
     "src/reporter/index.ts",
-    "src/reporter/pretty.ts",
-    "src/reporter/simple.ts",
     "src/resolve/createPkgId.ts",
     "src/resolve/fetch.ts",
     "src/resolve/getTarballName.ts",

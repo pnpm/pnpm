@@ -1,6 +1,6 @@
 import {fetchFromRemoteTarball, FetchOptions} from '../resolve/fetch'
 import {ResolveResult} from '../resolve'
-import logger from '../logger'
+import logger from 'pnpm-logger'
 import spawn = require('cross-spawn')
 
 const gitLogger = logger('git')
