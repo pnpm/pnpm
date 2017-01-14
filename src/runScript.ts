@@ -1,10 +1,10 @@
-import bole = require('bole')
+import logger from './logger'
 import path = require('path')
 import byline = require('byline')
 import spawn = require('cross-spawn')
 import PATH = require('path-name')
 
-const logger = bole('pnpm:run_script')
+const scriptLogger = logger('run_script')
 
 export type RunScriptOptions = {
   cwd: string,
@@ -16,7 +16,7 @@ export default function runScript (command: string, args: string[], opts: RunScr
   args = args || []
   const log = opts.log
   const script = `${command}${args.length ? ' ' + args.join(' ') : ''}`
-  if (script) logger.debug('runscript', script)
+  if (script) scriptLogger.debug('runscript', script)
   if (!command) return Promise.resolve()
   return new Promise((resolve, reject) => {
     const proc = spawn(command, args, {

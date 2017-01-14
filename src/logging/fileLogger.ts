@@ -13,7 +13,7 @@ streamParser.on('data', function (logObj: Object) {
 })
 
 function isUsefulLog (logObj: Object) {
-  return logObj['name'] !== 'progress' || logObj['status'] !== 'downloading'
+  return logObj['name'] !== 'pnpm:progress' || logObj['status'] !== 'downloading'
 }
 
 process.on('exit', (code: number) => {

@@ -5,9 +5,7 @@ import semver = require('semver')
 import {InstalledPackages} from '../api/install'
 import {Package} from '../types'
 import {InstalledPackage} from './installMultiple'
-import bole = require('bole')
-
-const logger = bole('install')
+import logger from '../logger'
 
 type Dict<T> = {
   [index: string]: T

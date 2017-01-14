@@ -1,14 +1,14 @@
 import mkdirp = require('mkdirp')
-import bole = require('bole')
+import logger from '../logger'
 
-const logger = bole('pnpm:mkdirp')
+const mkdirpLogger = logger('mkdirp')
 
 /**
  * mkdir -p as a promise.
  */
 export default function (path: string) {
   return new Promise((resolve, reject) => {
-    logger.debug(path)
+    mkdirpLogger.debug(path)
     mkdirp(path, (err: Error) => err ? reject(err) : resolve(path))
   })
 }

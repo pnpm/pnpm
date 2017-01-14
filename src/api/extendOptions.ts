@@ -1,9 +1,7 @@
 import {StrictPnpmOptions, PnpmOptions} from '../types'
 import {DEFAULT_GLOBAL_PATH} from './constantDefaults'
 import semver = require('semver')
-import bole = require('bole')
-
-const logger = bole('install')
+import logger from '../logger'
 
 const CAN_PRESERVE_SYMLINKS = semver.satisfies(process.version, '>=6.3.0')
 

@@ -1,4 +1,4 @@
-import bole = require('bole')
+import logger from '../logger'
 import fs = require('mz/fs')
 import {Stats} from 'fs'
 import path = require('path')
@@ -15,8 +15,6 @@ import {Got} from '../network/got'
 import {InstallContext} from '../api/install'
 import fetchRes from './fetchResolution'
 import logStatus, {LoggedPkg} from '../logging/logInstallStatus'
-
-const logger = bole('pnpm:install')
 
 export type FetchOptions = {
   keypath?: string[],
