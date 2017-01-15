@@ -8,7 +8,7 @@
 
 pnpm is a fast implementation of `npm install`. It is loosely based off [ied].
 
-![](docs/images/screencast.gif)
+[![asciicast](http://i.imgur.com/6GLLHaV.gif)](https://asciinema.org/a/99357)
 
 *Read our [contributing guide](CONTRIBUTING.md) if you're looking to contribute.*
 
