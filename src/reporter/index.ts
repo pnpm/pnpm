@@ -1,4 +1,4 @@
-import defaultReporter from 'pnpm-reporter-default'
+import defaultReporter from 'pnpm-default-reporter'
 import streamParser from '../logging/streamParser'
 import bole = require('bole')
 
