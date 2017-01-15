@@ -38,11 +38,6 @@ declare module 'is-retry-allowed' {
   export = anything;
 }
 
-declare module 'json2yaml' {
-  const anything: any;
-  export = anything;
-}
-
 declare module 'loud-rejection' {
   const anything: any;
   export = anything;
