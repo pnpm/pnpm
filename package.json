@@ -1,5 +1,5 @@
 {
-  "name": "pnpm-reporter-default",
+  "name": "pnpm-default-reporter",
   "version": "0.0.0",
   "description": "The default reporter of pnpm",
   "main": "lib/index.js",
@@ -7,7 +7,7 @@
   "files": [
     "lib"
   ],
-  "bin": "lib/bin/pnpm-reporter-default.js",
+  "bin": "lib/bin/pnpm-default-reporter.js",
   "scripts": {
     "test": "tslint -c tslint.json --project .",
     "tsc": "rimraf lib && tsc",

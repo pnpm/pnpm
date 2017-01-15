@@ -1,3 +1,3 @@
-# pnpm-reporter-default
+# pnpm-default-reporter
 
 > The default reporter of pnpm
