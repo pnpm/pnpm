@@ -27,8 +27,8 @@ export default function runScript (command: string, args: string[], opts: RunScr
     log('stdout', '$ ' + script)
 
     proc.on('error', reject)
-    byline(proc.stdout).on('data', (line: string) => log('stdout', line))
-    byline(proc.stderr).on('data', (line: string) => log('stderr', line))
+    byline(proc.stdout).on('data', (line: Buffer) => log('stdout', line.toString()))
+    byline(proc.stderr).on('data', (line: Buffer) => log('stderr', line.toString()))
 
     proc.on('close', (code: number) => {
       if (code > 0) return reject(new Error('Exit code ' + code))
