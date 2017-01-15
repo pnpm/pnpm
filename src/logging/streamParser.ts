@@ -7,9 +7,9 @@ export type StreamParser = {
 
 const streamParser: StreamParser = ndjson.parse()
 bole.output([
-    {
-        level: 'debug', stream: streamParser
-    },
+  {
+    level: 'debug', stream: streamParser
+  },
 ])
 
 export default streamParser
