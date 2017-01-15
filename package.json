@@ -85,7 +85,6 @@
   },
   "devDependencies": {
     "@types/tape": "4.2.28",
-    "@zkochan/sinopia": "1.0.0",
     "anonymous-npm-registry-client": "0.1.2",
     "caw": "2.0.0",
     "commitizen": "^2.8.6",
@@ -110,7 +109,8 @@
     "ts-node": "2.0.0",
     "tslint": "4.3.1",
     "typescript": "2.1.4",
-    "validate-commit-msg": "^2.7.0"
+    "validate-commit-msg": "^2.7.0",
+    "verdaccio": "2.1.0"
   },
   "directories": {
     "test": "test"
@@ -141,16 +141,16 @@
     "commit": "git-cz",
     "cover": "istanbul cover test/index.js",
     "lint": "standard && tslint -c tslint.json --project .",
-    "sinopia": "sinopia -c ./sinopia/config.yaml",
-    "prebuild-sinopia": "rimraf sinopia/storage/",
+    "verdaccio": "verdaccio -c ./verdaccio/config.yaml",
+    "prebuild-verdaccio": "rimraf verdaccio/storage/",
     "publish-test-packages": "sh test/packages/publish-all.sh",
-    "?build-sinopia": "echo 'Cache the sinopia store for faster tests execution'",
-    "build-sinopia": "npm-run-all -p -r sinopia publish-test-packages",
+    "?build-verdaccio": "echo 'Cache the verdaccio store for faster tests execution'",
+    "build-verdaccio": "npm-run-all -p -r verdaccio publish-test-packages",
     "test:tap": "ts-node test | tap-diff",
-    "test:e2e": "npm-run-all -p -r sinopia test:tap",
+    "test:e2e": "npm-run-all -p -r verdaccio test:tap",
     "pretest": "rimraf ../.tmp/ && npm run tsc",
     "test": "npm run lint && npm run test:e2e",
-    "posttest": "git checkout -- sinopia/storage/",
+    "posttest": "git checkout -- verdaccio/storage/",
     "prerelease": "npm run tsc && npm test",
     "?release": "echo 'Publish pnpm'",
     "release": "sh .scripts/release.sh",

@@ -3,7 +3,7 @@
 # so don't use it on production systems.
 #
 # Look here for more config file examples:
-# https://github.com/rlidwka/sinopia/tree/master/conf
+# https://github.com/verdaccio/verdaccio/tree/master/conf
 #
 
 # path to a directory with all packages
@@ -45,4 +45,4 @@ packages:
 # log settings
 logs:
   - {type: stdout, format: pretty, level: error}
-  #- {type: file, path: sinopia.log, level: info}
+  #- {type: file, path: verdaccio.log, level: info}
