@@ -32,7 +32,7 @@
     "chalk": "^1.1.3",
     "ndjson": "^1.5.0",
     "observatory": "^1.0.0",
-    "pnpm-logger": "^0.0.0"
+    "pnpm-logger": "^0.0.1"
   },
   "devDependencies": {
     "commitizen": "^2.9.5",

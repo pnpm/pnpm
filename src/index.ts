@@ -122,7 +122,7 @@ function reportLifecycle (logObj: LifecycleLog) {
 function reportInstallCheck (logObj: InstallCheckLog) {
   switch (logObj.code) {
     case 'EBADPLATFORM':
-      printWarn(`Unsupported system. Skipping dependency ${logObj.pkgid}`)
+      printWarn(`Unsupported system. Skipping dependency ${logObj.pkgId}`)
       break
     case 'ENOTSUP':
       console.warn(logObj)
