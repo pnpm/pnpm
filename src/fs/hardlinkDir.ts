@@ -1,6 +1,8 @@
+import {Stats} from 'fs';
 import path = require('path')
 import fs = require('mz/fs')
 import mkdirp from '../fs/mkdirp'
+import logger from 'pnpm-logger'
 
 export default async function hardlinkDir(existingDir: string, newDir: string) {
   await mkdirp(newDir)
@@ -12,25 +14,34 @@ export default async function hardlinkDir(existingDir: string, newDir: string) {
         const newPath = path.join(newDir, relativePath)
         const stat = await fs.lstat(existingPath)
         if (stat.isSymbolicLink()) {
-          return safeLink(existingPath, newPath)
+          return safeLink(existingPath, newPath, stat)
         }
         if (stat.isDirectory()) {
           return hardlinkDir(existingPath, newPath)
         }
         if (stat.isFile()) {
-          return safeLink(existingPath, newPath)
+          return safeLink(existingPath, newPath, stat)
         }
       })
   )
 }
 
-async function safeLink(existingPath: string, newPath: string) {
+async function safeLink(existingPath: string, newPath: string, stat: Stats) {
   try {
     await fs.link(existingPath, newPath)
   } catch (err) {
-    // EEXIST: shouldn't normally happen, but if the file was already somehow linked,
+    // shouldn't normally happen, but if the file was already somehow linked,
     // the installation should not fail
-    // ENOENT: might happen if package contains a broken symlink
-    if (err.code !== 'EEXIST' && err.code !== 'ENOENT') throw err
+    if (err.code === 'EEXIST') {
+      return
+    }
+    // might happen if package contains a broken symlink, we don't fail on this
+    if (err.code === 'ENOENT' && stat.isSymbolicLink()) {
+      logger.warn({
+        message: `Broken symlink found: ${existingPath}`,
+      })
+      return
+    }
+    throw err
   }
 }
