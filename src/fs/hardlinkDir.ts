@@ -13,14 +13,11 @@ export default async function hardlinkDir(existingDir: string, newDir: string) {
         const existingPath = path.join(existingDir, relativePath)
         const newPath = path.join(newDir, relativePath)
         const stat = await fs.lstat(existingPath)
-        if (stat.isSymbolicLink()) {
+        if (stat.isSymbolicLink() || stat.isFile()) {
           return safeLink(existingPath, newPath, stat)
         }
         if (stat.isDirectory()) {
           return hardlinkDir(existingPath, newPath)
-        }
-        if (stat.isFile()) {
-          return safeLink(existingPath, newPath, stat)
         }
       })
   )
