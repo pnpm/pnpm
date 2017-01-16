@@ -9,8 +9,15 @@ export default async function hardlinkDir(existingDir: string, newDir: string) {
     dirs
       .map(async (relativePath: string) => {
         const existingPath = path.join(existingDir, relativePath)
-        const newPath = path.join(newDir, relativePath);
-        const stat = await fs.stat(existingPath)
+        const newPath = path.join(newDir, relativePath)
+        const stat = await fs.lstat(existingPath)
+        if (stat.isSymbolicLink()) {
+          // filter out broken symlinks
+          if (!await fs.exists(existingPath)) {
+            return;
+          }
+          return safeLink(existingPath, newPath)
+        }
         if (stat.isDirectory()) {
           return hardlinkDir(existingPath, newPath)
         }
