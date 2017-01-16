@@ -346,6 +346,15 @@ test('local file', async function (t) {
   t.ok(localPkg, 'localPkg() is available')
 })
 
+test('package with a broken symlink', async function (t) {
+  const project = prepare(t)
+  await installPkgs([pathToLocalPkg('has-broken-symlink/has-broken-symlink.tar.gz')], testDefaults())
+
+  const pkg = project.requireModule('has-broken-symlink')
+
+  t.ok(pkg, 'has-broken-symlink is available')
+})
+
 test('nested local dependency of a local dependency', async function (t) {
   const project = prepare(t)
   await installPkgs([local('pkg-with-local-dep')], testDefaults())
