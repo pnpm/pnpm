@@ -12,10 +12,6 @@ export default async function hardlinkDir(existingDir: string, newDir: string) {
         const newPath = path.join(newDir, relativePath)
         const stat = await fs.lstat(existingPath)
         if (stat.isSymbolicLink()) {
-          // filter out broken symlinks
-          if (!await fs.exists(existingPath)) {
-            return;
-          }
           return safeLink(existingPath, newPath)
         }
         if (stat.isDirectory()) {
@@ -32,8 +28,9 @@ async function safeLink(existingPath: string, newPath: string) {
   try {
     await fs.link(existingPath, newPath)
   } catch (err) {
-    // shouldn't normally happen, but if the file was already somehow linked,
+    // EEXIST: shouldn't normally happen, but if the file was already somehow linked,
     // the installation should not fail
-    if (err.code !== 'EEXIST') throw err
+    // ENOENT: might happen if package contains a broken symlink
+    if (err.code !== 'EEXIST' && err.code !== 'ENOENT') throw err
   }
 }
