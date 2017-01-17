@@ -1,6 +1,5 @@
 import resolveFromNpm from './npm'
 import resolveFromTarball from './tarball'
-import resolveFromGithub from './github'
 import resolveFromLocal from './local'
 import resolveFromGit from './git'
 import {Got} from '../network/got'
@@ -14,7 +13,7 @@ export type ResolveResult = {
   shasum?: string
   root?: string,
   repo?: string,
-  ref?: string,
+  commitId?: string,
   fetch?: (target: string) => Promise<void>,
 }
 
@@ -68,11 +67,6 @@ export default function (spec: PackageSpec, opts: ResolveOptions): Promise<Resol
     case 'local':
       return resolveFromLocal(spec, opts)
     case 'hosted':
-      const hspec = <HostedPackageSpec>spec
-      if (hspec.hosted.type === 'github' && !isSsh(hspec.spec)) {
-        return resolveFromGithub(hspec, opts)
-      }
-      return resolveFromGit(spec, opts)
     case 'git':
       return resolveFromGit(spec, opts)
     default:

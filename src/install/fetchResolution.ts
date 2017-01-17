@@ -1,7 +1,7 @@
 import {fetchFromRemoteTarball, FetchOptions} from '../resolve/fetch'
 import {ResolveResult} from '../resolve'
 import logger from 'pnpm-logger'
-import spawn = require('cross-spawn')
+import execa = require('execa')
 
 const gitLogger = logger('git')
 
@@ -12,8 +12,8 @@ export default async function fetchRes (res: ResolveResult, target: string, opts
         tarball: res.tarball
       }, opts)
   }
-  if (res.repo && res.ref) {
-      return clone(res.repo, res.ref, target)
+  if (res.repo && res.commitId) {
+      return clone(res.repo, res.commitId, target)
   }
   if (res.fetch) {
       return res.fetch(target)
@@ -23,29 +23,19 @@ export default async function fetchRes (res: ResolveResult, target: string, opts
 /**
  * clone a git repository.
  */
-export async function clone (repo: string, ref: string, dest: string) {
-  await new Promise((resolve, reject) => {
-    const args = ['clone', '-b', ref, repo, dest, '--single-branch']
-    gitLogger.debug(`cloning git repository from ${repo}`)
-    const git = spawnGit(args)
-    let errMsg = ''
-    git.stderr.on('data', (data: string) => errMsg += data)
-    git.on('close', (code: number) => (code ? errorHandler() : resolve()))
-
-    function errorHandler () {
-      gitLogger.debug(`failed to clone repository from ${repo}`)
-      reject(new Error(`failed to clone repository from ${repo}
-        ${errMsg}`))
-    }
-  })
+async function clone (repo: string, commitId: string, dest: string) {
+  const args = ['clone', '-b', commitId, repo, dest, '--single-branch']
+  gitLogger.debug(`cloning git repository from ${repo}`)
+  await execGit(['clone', repo, dest])
+  await execGit(['checkout', commitId], {cwd: dest})
 }
 
 function prefixGitArgs (): string[] {
   return process.platform === 'win32' ? ['-c', 'core.longpaths=true'] : []
 }
 
-function spawnGit (args: string[]) {
+function execGit (args: string[], opts?: Object) {
   gitLogger.debug(`executing git with args ${args}`)
   const fullArgs = prefixGitArgs().concat(args || [])
-  return spawn('git', fullArgs)
+  return execa('git', fullArgs, opts)
 }

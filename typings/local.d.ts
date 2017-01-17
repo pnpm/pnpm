@@ -212,3 +212,13 @@ declare module 'ndjson' {
   const anything: any;
   export = anything;
 }
+
+declare module 'execa' {
+  const anything: any;
+  export = anything;
+}
+
+declare module '@zkochan/hosted-git-info' {
+  const anything: any;
+  export = anything;
+}
