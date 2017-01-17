@@ -13,7 +13,7 @@ export default async function resolveGit (parsedSpec: PackageSpec, opts: Resolve
     id: repo
       .replace(/^.*:\/\/(git@)?/, '')
       .replace(/:/g, delimiter)
-      .replace(/\.git$/, '') + commitId,
+      .replace(/\.git$/, '') + '/' + commitId,
     repo,
     commitId,
   }
