@@ -24,8 +24,6 @@ export default async function fetchRes (res: ResolveResult, target: string, opts
  * clone a git repository.
  */
 async function clone (repo: string, commitId: string, dest: string) {
-  const args = ['clone', '-b', commitId, repo, dest, '--single-branch']
-  gitLogger.debug(`cloning git repository from ${repo}`)
   await execGit(['clone', repo, dest])
   await execGit(['checkout', commitId], {cwd: dest})
 }
