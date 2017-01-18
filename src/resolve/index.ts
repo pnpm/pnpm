@@ -3,7 +3,7 @@ import resolveFromTarball from './tarball'
 import resolveFromLocal from './local'
 import resolveFromGit from './git'
 import {Got} from '../network/got'
-import {Package} from '../types'
+import {Package, LifecycleHooks} from '../types'
 import {LoggedPkg} from 'pnpm-logger'
 
 export type ResolutionBase = {
@@ -67,7 +67,8 @@ export type ResolveOptions = {
   loggedPkg: LoggedPkg,
   got: Got,
   root: string,
-  tag: string
+  tag: string,
+  lifecycle: LifecycleHooks,
 }
 
 /**
@@ -84,7 +85,19 @@ export type ResolveOptions = {
  *         }
  *       })
  */
-export default async function (spec: PackageSpec, opts: ResolveOptions): Promise<ResolveResult> {
+export default async function resolve (spec: PackageSpec, opts: ResolveOptions): Promise<ResolveResult> {
+  if (opts.lifecycle.packageWillResolve) {
+    let resolution = await opts.lifecycle.packageWillResolve(spec, opts)
+    if (resolution == null) {
+      resolution = await doResolve(spec, opts)
+    }
+    return resolution
+  } else {
+    return doResolve(spec, opts)
+  }
+}
+
+async function doResolve (spec: PackageSpec, opts: ResolveOptions): Promise<ResolveResult> {
   switch (spec.type) {
     case 'range':
     case 'version':

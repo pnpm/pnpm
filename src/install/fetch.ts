@@ -83,7 +83,8 @@ export default async function fetch (ctx: InstallContext, spec: PackageSpec, mod
         loggedPkg,
         got: options.got,
         root: options.root,
-        tag: options.tag
+        tag: options.tag,
+        lifecycle: ctx.lifecycle,
       })
       resolution = resolveResult.resolution
       if (resolveResult.package) {
