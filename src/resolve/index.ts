@@ -73,8 +73,3 @@ export default function (spec: PackageSpec, opts: ResolveOptions): Promise<Resol
       throw new Error(`${spec.rawSpec}: ${spec.type} packages not supported`)
   }
 }
-
-function isSsh (gitSpec: string): boolean {
-  return gitSpec.substr(0, 10) === 'git+ssh://'
-    || gitSpec.substr(0, 4) === 'git@'
-}
