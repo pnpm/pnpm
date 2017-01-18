@@ -1,5 +1,5 @@
 import {ReporterType} from './reporter'
-import {PackageSpec, ResolveOptions, ResolveResult} from './resolve';
+import {PackageSpec, ResolveOptions, ResolveResult, Resolution} from './resolve';
 
 export type LifecycleHooks = {
 
@@ -11,12 +11,19 @@ export type LifecycleHooks = {
    */
   packageWillResolve?: (spec: PackageSpec, opts: ResolveOptions) => Promise<ResolveResult | null>,
 
+  /**
+   * Executes just after the package is fetched into a target directory.
+   *
+   * This is the opportunity to write into the target directory before it's
+   * commited.
+   */
+  packageDidFetch?: (target: string, resolution: Resolution) => Promise<void>,
+
   // TODO: add more lifecycle hooks
   //
   // packageDidResolve
   //
   // packageWillFetch
-  // packageDidFetch
   //
   // packageWillInstall
   // packageDidInstall

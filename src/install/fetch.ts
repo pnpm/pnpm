@@ -11,7 +11,7 @@ import exists = require('exists-file')
 import isAvailable from './isAvailable'
 import * as Shrinkwrap from '../fs/shrinkwrap'
 import memoize, {CachedPromises} from '../memoize'
-import {Package} from '../types'
+import {Package, LifecycleHooks} from '../types'
 import {Got} from '../network/got'
 import {InstallContext} from '../api/install'
 import fetchResolution from './fetchResolution'
@@ -25,6 +25,7 @@ export type FetchOptions = {
   storePath: string,
   tag: string,
   got: Got,
+  lifecycle: LifecycleHooks,
   update?: boolean,
 }
 
@@ -100,6 +101,7 @@ export default async function fetch (ctx: InstallContext, spec: PackageSpec, mod
       target,
       resolution,
       loggedPkg,
+      lifecycle: options.lifecycle,
       got: options.got,
       linkLocal: options.linkLocal,
       force: options.force,
@@ -160,6 +162,7 @@ type FetchToStoreOptions = {
   target: string,
   resolution: Resolution,
   loggedPkg: LoggedPkg,
+  lifecycle: LifecycleHooks,
   got: Got,
   linkLocal: boolean,
   force: boolean,
@@ -190,6 +193,10 @@ function fetchToStoreCached (opts: FetchToStoreOptions): Promise<void> {
         loggedPkg: opts.loggedPkg,
         linkLocal: opts.linkLocal,
       })
+
+      if (opts.lifecycle.packageDidFetch) {
+        await opts.lifecycle.packageDidFetch(targetStage, opts.resolution)
+      }
 
       // fs.rename(oldPath, newPath) is an atomic operation, so we do it at the
       // end
