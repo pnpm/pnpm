@@ -13,7 +13,6 @@ import memoize, {CachedPromises} from '../memoize'
 import {Package} from '../types'
 import {Got} from '../network/got'
 import {InstallContext} from '../api/install'
-import {addToShrinkwrap} from '../fs/shrinkwrap';
 import fetchResolution from './fetchResolution'
 import logStatus from '../logging/logInstallStatus'
 
@@ -90,7 +89,7 @@ export default async function fetch (ctx: InstallContext, spec: PackageSpec, mod
       if (resolveResult.package) {
         fetchingPkg = Promise.resolve(resolveResult.package)
       }
-      addToShrinkwrap(ctx.shrinkwrap, spec, resolution)
+      ctx.shrinkwrap[spec.raw] = {...resolution}
     }
 
     const target = path.join(options.storePath, resolution.id)

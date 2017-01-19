@@ -12,16 +12,6 @@ export type Shrinkwrap = {
   [dependency: string]: Resolution
 }
 
-export function addToShrinkwrap(
-  shrinkwrap: Shrinkwrap,
-  spec: PackageSpec,
-  resolution: Resolution
-): void {
-  if (resolution.type !== 'directory') {
-    shrinkwrap[spec.raw] = {...resolution}
-  }
-}
-
 export async function read (pkgPath: string): Promise<Shrinkwrap | null> {
   const shrinkwrapPath = path.join(pkgPath, shrinkwrapFilename)
   try {
