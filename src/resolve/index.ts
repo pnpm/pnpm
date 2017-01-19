@@ -30,28 +30,12 @@ export type TarballResolution = ResolutionBase & {
 }
 
 /**
- * tarball on a filesystem
- */
-export type LocalTarballResolution = ResolutionBase & {
-  type: 'local-tarball',
-  tarball: string,
-  shasum?: string,
-}
-
-/**
  * directory on a file system
  */
-export type LocalDirectoryResolution = ResolutionBase & {
+export type DirectoryResolution = ResolutionBase & {
   type: 'directory',
   root: string,
-}
-
-/**
- * directory on a file system, which should be linked
- */
-export type LinkResolution = ResolutionBase & {
-  type: 'link',
-  root: string,
+  link?: boolean,
 }
 
 /**
@@ -59,8 +43,6 @@ export type LinkResolution = ResolutionBase & {
  */
 export type GitRepositoryResolution = ResolutionBase & {
   type: 'git-repo',
-  // In case of some git repos we can resolve to the link to the tarball directly
-  tarball?: string,
   repo: string,
   commitId: string,
 }
@@ -69,9 +51,7 @@ export type Resolution =
   PackageResolution |
   TarballResolution |
   GitRepositoryResolution |
-  LocalTarballResolution |
-  LocalDirectoryResolution |
-  LinkResolution
+  DirectoryResolution
 
 export type PackageSpec = {
   raw: string,
