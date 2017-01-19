@@ -9,6 +9,7 @@ import requireJson from '../fs/requireJson'
 import linkDir from 'link-dir'
 import exists = require('exists-file')
 import isAvailable from './isAvailable'
+import * as Shrinkwrap from '../fs/shrinkwrap'
 import memoize, {CachedPromises} from '../memoize'
 import {Package} from '../types'
 import {Got} from '../network/got'
@@ -68,7 +69,7 @@ export default async function fetch (ctx: InstallContext, spec: PackageSpec, mod
 
   try {
     let fetchingPkg = null
-    let resolution = ctx.shrinkwrap[spec.raw]
+    let resolution = Shrinkwrap.lookupResolution(ctx.shrinkwrap, spec.raw)
     if (!resolution) {
       // it might be a bundleDependency, in which case, don't bother
       const available = !options.force && await isAvailable(spec, modules)
@@ -88,7 +89,7 @@ export default async function fetch (ctx: InstallContext, spec: PackageSpec, mod
       if (resolveResult.package) {
         fetchingPkg = Promise.resolve(resolveResult.package)
       }
-      ctx.shrinkwrap[spec.raw] = {...resolution}
+      Shrinkwrap.putResolution(ctx.shrinkwrap, spec.raw, resolution)
     }
 
     const target = path.join(options.storePath, resolution.id)
