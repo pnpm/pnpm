@@ -68,6 +68,7 @@ export default async function fetch (ctx: InstallContext, spec: PackageSpec, mod
   const keypath = (options && options.keypath || [])
 
   try {
+    let fetchingPkg = null
     let resolution = ctx.shrinkwrap[spec.raw]
     if (!resolution) {
       // it might be a bundleDependency, in which case, don't bother
@@ -78,13 +79,17 @@ export default async function fetch (ctx: InstallContext, spec: PackageSpec, mod
       }
     }
     if (!resolution || options.update) {
-      resolution = await resolve(spec, {
+      let resolveResult = await resolve(spec, {
         loggedPkg,
         got: options.got,
         root: options.root,
         linkLocal: options.linkLocal,
         tag: options.tag
       })
+      resolution = resolveResult.resolution
+      if (resolveResult.package) {
+        fetchingPkg = Promise.resolve(resolveResult.package)
+      }
       addToShrinkwrap(ctx.shrinkwrap, spec, resolution)
     }
 
@@ -99,9 +104,9 @@ export default async function fetch (ctx: InstallContext, spec: PackageSpec, mod
       force: options.force,
     })
 
-    const fetchingPkg = resolution.type === 'package' && resolution.pkg != null
-      ? Promise.resolve(resolution.pkg)
-      : fetchingFiles.then(() => requireJson(path.join(target, 'package.json')))
+    if (fetchingPkg == null) {
+      fetchingPkg = fetchingFiles.then(() => requireJson(path.join(target, 'package.json')))
+    }
 
     const fetchedPkg = {
       fetchingPkg,

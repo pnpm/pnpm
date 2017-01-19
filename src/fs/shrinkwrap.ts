@@ -17,16 +17,8 @@ export function addToShrinkwrap(
   spec: PackageSpec,
   resolution: Resolution
 ): void {
-  switch (resolution.type) {
-    case 'package':
-      resolution = {...resolution}
-      delete resolution.pkg
-      shrinkwrap[spec.raw] = resolution
-      break;
-    case 'tarball':
-    case 'git-repo':
-      shrinkwrap[spec.raw] = {...resolution}
-      break;
+  if (resolution.type !== 'directory') {
+    shrinkwrap[spec.raw] = {...resolution}
   }
 }
 
