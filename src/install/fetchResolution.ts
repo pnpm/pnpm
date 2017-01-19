@@ -39,37 +39,26 @@ export default async function fetchResolution (
         tarball: resolution.tarball,
         shasum: resolution.shasum,
       }
-      await fetchFromRemoteTarball(target, dist, opts)
+      await fetchFromTarball(target, dist, opts)
       break;
 
     case 'git-repo':
-      if (resolution.tarball) {
-        const dist = {tarball: resolution.tarball}
-        await fetchFromRemoteTarball(target, dist, opts)
-      } else {
-        await clone(resolution.repo, resolution.commitId, target)
-      }
+      await clone(resolution.repo, resolution.commitId, target)
       break;
-
-    case 'local-tarball': {
-      const dist = {tarball: resolution.tarball}
-      await fetchFromLocalTarball(target, dist)
-      break;
-    }
 
     case 'directory': {
-      const tgzFilename = await npmPack(resolution.root)
-      const tarball = path.resolve(resolution.root, tgzFilename)
-      const dist = {tarball: tarball}
-      await fetchFromLocalTarball(target, dist)
-      await fs.unlink(dist.tarball)
+      if (resolution.link) {
+        await mkdirp(path.dirname(target))
+        await linkDir(resolution.root, target)
+      } else {
+        const tgzFilename = await npmPack(resolution.root)
+        const tarball = path.resolve(resolution.root, tgzFilename)
+        const dist = {tarball: tarball}
+        await fetchFromLocalTarball(target, dist)
+        await fs.unlink(dist.tarball)
+      }
       break;
     }
-
-    case 'link':
-      await mkdirp(path.dirname(target))
-      await linkDir(resolution.root, target)
-      break;
   }
 }
 
@@ -113,9 +102,15 @@ function execGit (args: string[], opts?: Object) {
   return execa('git', fullArgs, opts)
 }
 
-/**
- * Fetches a tarball `tarball` and extracts it into `dir`
- */
+export function fetchFromTarball (dir: string, dist: PackageDist, opts: FetchOptions) {
+  if (dist.tarball.startsWith('file:')) {
+    dist = {...dist, tarball: dist.tarball.slice(5)}
+    return fetchFromLocalTarball(dir, dist)
+  } else {
+    return fetchFromRemoteTarball(dir, dist, opts)
+  }
+}
+
 export async function fetchFromRemoteTarball (dir: string, dist: PackageDist, opts: FetchOptions) {
   const stream: IncomingMessage = await opts.got.getStream(dist.tarball)
   await unpackStream.remote(stream, dir, {

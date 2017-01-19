@@ -109,7 +109,7 @@ export default async function fetch (ctx: InstallContext, spec: PackageSpec, mod
       id: resolution.id,
       fromCache: false,
       path: target,
-      srcPath: resolution.type == 'directory' || resolution.type === 'link'
+      srcPath: resolution.type == 'directory'
         ? resolution.root
         : undefined,
       abort: async function () {

@@ -14,18 +14,19 @@ export default async function resolveLocal (spec: PackageSpec, opts: ResolveOpti
   if (dependencyPath.slice(-4) === '.tgz' || dependencyPath.slice(-7) === '.tar.gz') {
     const name = getTarballName(dependencyPath)
     return {
-      type: 'local-tarball',
+      type: 'tarball',
       id: createLocalPkgId(name, dependencyPath),
-      tarball: dependencyPath,
+      tarball: `file:${dependencyPath}`,
     }
   }
 
   if (opts.linkLocal) {
     const localPkg = await requireJson(resolve(dependencyPath, 'package.json'))
     return {
-      type: 'link',
+      type: 'directory',
       id: createLocalPkgId(localPkg.name, dependencyPath),
       root: dependencyPath,
+      link: true,
     }
   }
   return resolveFolder(dependencyPath)
