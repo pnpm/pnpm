@@ -77,7 +77,6 @@
     "src/removeDeps.ts",
     "src/reporter/index.ts",
     "src/resolve/createPkgId.ts",
-    "src/resolve/fetch.ts",
     "src/resolve/getTarballName.ts",
     "src/resolve/git.ts",
     "src/resolve/index.ts",

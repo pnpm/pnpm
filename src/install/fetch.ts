@@ -3,7 +3,7 @@ import fs = require('mz/fs')
 import {Stats} from 'fs'
 import path = require('path')
 import rimraf = require('rimraf-then')
-import resolve, {ResolveResult, PackageSpec} from '../resolve'
+import resolve, {Resolution, PackageSpec} from '../resolve'
 import mkdirp from '../fs/mkdirp'
 import requireJson from '../fs/requireJson'
 import linkDir from 'link-dir'
@@ -13,7 +13,8 @@ import memoize, {CachedPromises} from '../memoize'
 import {Package} from '../types'
 import {Got} from '../network/got'
 import {InstallContext} from '../api/install'
-import fetchRes from './fetchResolution'
+import {addToShrinkwrap} from '../fs/shrinkwrap';
+import fetchResolution from './fetchResolution'
 import logStatus from '../logging/logInstallStatus'
 
 export type FetchOptions = {
@@ -84,12 +85,7 @@ export default async function fetch (ctx: InstallContext, spec: PackageSpec, mod
         linkLocal: options.linkLocal,
         tag: options.tag
       })
-      if (resolution.tarball || resolution.repo) {
-        ctx.shrinkwrap[spec.raw] = Object.assign({}, resolution)
-        delete ctx.shrinkwrap[spec.raw].pkg
-        delete ctx.shrinkwrap[spec.raw].fetch
-        delete ctx.shrinkwrap[spec.raw].root
-      }
+      addToShrinkwrap(ctx.shrinkwrap, spec, resolution)
     }
 
     const target = path.join(options.storePath, resolution.id)
@@ -103,7 +99,7 @@ export default async function fetch (ctx: InstallContext, spec: PackageSpec, mod
       force: options.force,
     })
 
-    const fetchingPkg = resolution.pkg
+    const fetchingPkg = resolution.type === 'package' && resolution.pkg != null
       ? Promise.resolve(resolution.pkg)
       : fetchingFiles.then(() => requireJson(path.join(target, 'package.json')))
 
@@ -113,7 +109,9 @@ export default async function fetch (ctx: InstallContext, spec: PackageSpec, mod
       id: resolution.id,
       fromCache: false,
       path: target,
-      srcPath: resolution.root,
+      srcPath: resolution.type == 'directory' || resolution.type === 'link'
+        ? resolution.root
+        : undefined,
       abort: async function () {
         try {
           await fetchingFiles
@@ -154,7 +152,7 @@ export default async function fetch (ctx: InstallContext, spec: PackageSpec, mod
 type FetchToStoreOptions = {
   fetchLocks: CachedPromises<void>,
   target: string,
-  resolution: ResolveResult,
+  resolution: Resolution,
   loggedPkg: LoggedPkg,
   got: Got,
   force: boolean,
@@ -180,7 +178,7 @@ function fetchToStoreCached (opts: FetchToStoreOptions): Promise<void> {
       }
 
       logStatus({status: 'download-queued', pkg: opts.loggedPkg})
-      await fetchRes(opts.resolution, targetStage, {got: opts.got, loggedPkg: opts.loggedPkg})
+      await fetchResolution(opts.resolution, targetStage, {got: opts.got, loggedPkg: opts.loggedPkg})
 
       // fs.rename(oldPath, newPath) is an atomic operation, so we do it at the
       // end

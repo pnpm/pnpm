@@ -4,7 +4,7 @@ const enc = encodeURIComponent
 import createPkgId from './createPkgId'
 import registryUrl = require('registry-url')
 import semver = require('semver')
-import {PackageSpec, ResolveOptions, ResolveResult} from '.'
+import {PackageSpec, ResolveOptions, Resolution} from '.'
 import {Package} from '../types'
 import logStatus from '../logging/logInstallStatus'
 
@@ -22,7 +22,7 @@ import logStatus from '../logging/logInstallStatus'
  *         }
  *       })
  */
-export default async function resolveNpm (spec: PackageSpec, opts: ResolveOptions): Promise<ResolveResult> {
+export default async function resolveNpm (spec: PackageSpec, opts: ResolveOptions): Promise<Resolution> {
   // { raw: 'rimraf@2', scope: null, name: 'rimraf', rawSpec: '2' || '' }
   try {
     const uri = toUri(spec)
@@ -44,6 +44,7 @@ export default async function resolveNpm (spec: PackageSpec, opts: ResolveOption
       correctPkg.version
     )
     return {
+      type: 'package',
       id,
       pkg: correctPkg,
       shasum: correctPkg.dist.shasum,
