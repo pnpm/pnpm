@@ -11,16 +11,6 @@ export type ResolutionBase = {
 }
 
 /**
- * npm registry hosted package
- */
-export type PackageResolution = ResolutionBase & {
-  type: 'package',
-  tarball: string,
-  shasum?: string,
-  pkg?: Package,
-}
-
-/**
  * tarball hosted remotely
  */
 export type TarballResolution = ResolutionBase & {
@@ -48,10 +38,14 @@ export type GitRepositoryResolution = ResolutionBase & {
 }
 
 export type Resolution =
-  PackageResolution |
   TarballResolution |
   GitRepositoryResolution |
   DirectoryResolution
+
+export type ResolveResult = {
+  resolution: Resolution,
+  package?: Package,
+}
 
 export type PackageSpec = {
   raw: string,
@@ -92,7 +86,7 @@ export type ResolveOptions = {
  *         }
  *       })
  */
-export default async function (spec: PackageSpec, opts: ResolveOptions): Promise<Resolution> {
+export default async function (spec: PackageSpec, opts: ResolveOptions): Promise<ResolveResult> {
   switch (spec.type) {
     case 'range':
     case 'version':

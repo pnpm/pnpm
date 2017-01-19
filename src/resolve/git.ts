@@ -1,5 +1,5 @@
 import execa = require('execa')
-import {PackageSpec, HostedPackageSpec, ResolveOptions, Resolution} from '.'
+import {PackageSpec, HostedPackageSpec, ResolveOptions, ResolveResult, Resolution} from '.'
 import {delimiter} from './createPkgId'
 import hostedGitInfo = require('@zkochan/hosted-git-info')
 import logger from 'pnpm-logger'
@@ -10,7 +10,7 @@ const gitLogger = logger('git-logger')
 
 let tryGitHubApi = true
 
-export default async function resolveGit (parsedSpec: PackageSpec, opts: ResolveOptions): Promise<Resolution> {
+export default async function resolveGit (parsedSpec: PackageSpec, opts: ResolveOptions): Promise<ResolveResult> {
   const hspec = <HostedPackageSpec>parsedSpec
   const isGitHubHosted = parsedSpec.type === 'hosted' && hspec.hosted.type === 'github'
   const parts = normalizeRepoUrl(parsedSpec.spec).split('#')
@@ -19,7 +19,7 @@ export default async function resolveGit (parsedSpec: PackageSpec, opts: Resolve
 
   if (!isGitHubHosted || isSsh(parsedSpec.spec)) {
     const commitId = await resolveRef(repo, ref)
-    return {
+    const resolution: Resolution = {
       type: 'git-repo',
       id: repo
         .replace(/^.*:\/\/(git@)?/, '')
@@ -28,6 +28,7 @@ export default async function resolveGit (parsedSpec: PackageSpec, opts: Resolve
       repo,
       commitId,
     }
+    return {resolution}
   }
 
   const ghSpec = parseGithubSpec(hspec)
@@ -50,11 +51,12 @@ export default async function resolveGit (parsedSpec: PackageSpec, opts: Resolve
     commitId = await resolveRef(repo, ref)
   }
 
-  return {
+  const resolution: Resolution = {
     type: 'tarball',
     id: path.join('github.com', ghSpec.owner, ghSpec.repo, commitId),
     tarball: `https://codeload.github.com/${ghSpec.owner}/${ghSpec.repo}/tar.gz/${commitId}`,
   }
+  return {resolution}
 }
 
 async function resolveRef (repo: string, ref: string) {

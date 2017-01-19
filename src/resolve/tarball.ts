@@ -1,6 +1,6 @@
 import getTarballName from './getTarballName'
 import crypto = require('crypto')
-import {PackageSpec, ResolveOptions, Resolution} from '.'
+import {PackageSpec, ResolveOptions, Resolution, ResolveResult} from '.'
 
 /**
  * Resolves a 'remote' package.
@@ -15,14 +15,16 @@ import {PackageSpec, ResolveOptions, Resolution} from '.'
  *       type: 'remote' }
  *     resolveTarball(pkg)
  */
-export default async function resolveTarball (spec: PackageSpec, opts: ResolveOptions): Promise<Resolution> {
+export default async function resolveTarball (spec: PackageSpec, opts: ResolveOptions): Promise<ResolveResult> {
   const name = getTarballName(spec.rawSpec)
 
-  return {
+  const resolution: Resolution = {
     type: 'tarball',
     id: name + '#' + hash(spec.rawSpec),
     tarball: spec.rawSpec,
   }
+
+  return {resolution}
 }
 
 function hash (str: string) {

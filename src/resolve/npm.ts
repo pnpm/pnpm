@@ -4,7 +4,7 @@ const enc = encodeURIComponent
 import createPkgId from './createPkgId'
 import registryUrl = require('registry-url')
 import semver = require('semver')
-import {PackageSpec, ResolveOptions, Resolution} from '.'
+import {PackageSpec, ResolveOptions, TarballResolution, ResolveResult} from '.'
 import {Package} from '../types'
 import logStatus from '../logging/logInstallStatus'
 
@@ -22,7 +22,7 @@ import logStatus from '../logging/logInstallStatus'
  *         }
  *       })
  */
-export default async function resolveNpm (spec: PackageSpec, opts: ResolveOptions): Promise<Resolution> {
+export default async function resolveNpm (spec: PackageSpec, opts: ResolveOptions): Promise<ResolveResult> {
   // { raw: 'rimraf@2', scope: null, name: 'rimraf', rawSpec: '2' || '' }
   try {
     const uri = toUri(spec)
@@ -43,13 +43,13 @@ export default async function resolveNpm (spec: PackageSpec, opts: ResolveOption
       correctPkg.name,
       correctPkg.version
     )
-    return {
-      type: 'package',
+    const resolution: TarballResolution = {
+      type: 'tarball',
       id,
-      pkg: correctPkg,
       shasum: correctPkg.dist.shasum,
       tarball: correctPkg.dist.tarball,
     }
+    return {resolution, package: correctPkg}
   } catch (err) {
     if (err['statusCode'] === 404) {
       throw new Error("Module '" + spec.raw + "' not found")
