@@ -104,7 +104,7 @@ function execGit (args: string[], opts?: Object) {
 
 export function fetchFromTarball (dir: string, dist: PackageDist, opts: FetchOptions) {
   if (dist.tarball.startsWith('file:')) {
-    dist = {...dist, tarball: dist.tarball.slice(5)}
+    dist = Object.assign({}, dist, {tarball: dist.tarball.slice(5)})
     return fetchFromLocalTarball(dir, dist)
   } else {
     return fetchFromRemoteTarball(dir, dist, opts)
