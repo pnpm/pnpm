@@ -17,7 +17,8 @@ export async function linkFromRelative (linkTo: string, maybeOpts?: PnpmOptions)
   await mkdirp(currentModules)
   const pkg = await readPkgUp({ cwd: linkedPkgPath })
   await linkDir(linkedPkgPath, path.resolve(currentModules, pkg.pkg.name))
-  return linkPkgBins(currentModules, linkedPkgPath, opts.preserveSymlinks)
+  const bin = path.join(currentModules, '.bin')
+  return linkPkgBins(linkedPkgPath, bin, opts.preserveSymlinks)
 }
 
 export function linkFromGlobal (pkgName: string, maybeOpts?: PnpmOptions) {

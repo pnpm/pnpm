@@ -13,25 +13,15 @@ import logger from 'pnpm-logger'
 
 const IS_WINDOWS = isWindows()
 
-export default async function linkAllBins (modules: string, preserveSymlinks: boolean) {
+export default async function linkAllBins (modules: string, binDir: string, preserveSymlinks: boolean) {
   const pkgDirs = await getPkgDirs(modules)
-  return Promise.all(pkgDirs.map((pkgDir: string) => linkPkgBins(modules, pkgDir, preserveSymlinks)))
+  return Promise.all(pkgDirs.map((pkgDir: string) => linkPkgBins(pkgDir, binDir, preserveSymlinks)))
 }
 
 /**
  * Links executable into `node_modules/.bin`.
- *
- * @param {String} modules - the node_modules path
- * @param {String} target - where the module is now; read package.json from here
- *
- * @example
- *     module = 'project/node_modules'
- *     target = 'project/node_modules/.store/rimraf@2.5.1'
- *     linkPkgBins(module, target)
- *
- *     // node_modules/.bin/rimraf -> ../.store/rimraf@2.5.1/cmd.js
  */
-export async function linkPkgBins (modules: string, target: string, preserveSymlinks: boolean) {
+export async function linkPkgBins (target: string, binDir: string, preserveSymlinks: boolean) {
   const pkg = await safeRequireJson(path.join(target, 'package.json'))
 
   if (!pkg) {
@@ -42,7 +32,6 @@ export async function linkPkgBins (modules: string, target: string, preserveSyml
   if (!pkg.bin) return
 
   const bins = binify(pkg)
-  const binDir = path.join(modules, '.bin')
 
   await mkdirp(binDir)
   await Promise.all(Object.keys(bins).map(async function (bin) {
