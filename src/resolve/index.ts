@@ -6,16 +6,72 @@ import {Got} from '../network/got'
 import {Package} from '../types'
 import {LoggedPkg} from 'pnpm-logger'
 
-export type ResolveResult = {
+export type ResolutionBase = {
   id: string,
-  pkg?: Package,
-  tarball?: string,
-  shasum?: string
-  root?: string,
-  repo?: string,
-  commitId?: string,
-  fetch?: (target: string) => Promise<void>,
 }
+
+/**
+ * npm registry hosted package
+ */
+export type PackageResolution = ResolutionBase & {
+  type: 'package',
+  tarball: string,
+  shasum?: string,
+  pkg?: Package,
+}
+
+/**
+ * tarball hosted remotely
+ */
+export type TarballResolution = ResolutionBase & {
+  type: 'tarball',
+  tarball: string,
+  shasum?: string,
+}
+
+/**
+ * tarball on a filesystem
+ */
+export type LocalTarballResolution = ResolutionBase & {
+  type: 'local-tarball',
+  tarball: string,
+  shasum?: string,
+}
+
+/**
+ * directory on a file system
+ */
+export type LocalDirectoryResolution = ResolutionBase & {
+  type: 'directory',
+  root: string,
+}
+
+/**
+ * directory on a file system, which should be linked
+ */
+export type LinkResolution = ResolutionBase & {
+  type: 'link',
+  root: string,
+}
+
+/**
+ * Git repository
+ */
+export type GitRepositoryResolution = ResolutionBase & {
+  type: 'git-repo',
+  // In case of some git repos we can resolve to the link to the tarball directly
+  tarball?: string,
+  repo: string,
+  commitId: string,
+}
+
+export type Resolution =
+  PackageResolution |
+  TarballResolution |
+  GitRepositoryResolution |
+  LocalTarballResolution |
+  LocalDirectoryResolution |
+  LinkResolution
 
 export type PackageSpec = {
   raw: string,
@@ -56,7 +112,7 @@ export type ResolveOptions = {
  *         }
  *       })
  */
-export default function (spec: PackageSpec, opts: ResolveOptions): Promise<ResolveResult> {
+export default async function (spec: PackageSpec, opts: ResolveOptions): Promise<Resolution> {
   switch (spec.type) {
     case 'range':
     case 'version':

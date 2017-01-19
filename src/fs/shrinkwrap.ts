@@ -4,12 +4,30 @@ import {
   read as readYaml,
   write as writeYaml
 } from './yamlfs'
-import {ResolveResult} from '../resolve'
+import {PackageSpec, Resolution} from '../resolve'
 
 const shrinkwrapFilename = 'shrinkwrap.yaml'
 
 export type Shrinkwrap = {
-  [dependency: string]: ResolveResult
+  [dependency: string]: Resolution
+}
+
+export function addToShrinkwrap(
+  shrinkwrap: Shrinkwrap,
+  spec: PackageSpec,
+  resolution: Resolution
+): void {
+  switch (resolution.type) {
+    case 'package':
+      resolution = {...resolution}
+      delete resolution.pkg
+      shrinkwrap[spec.raw] = resolution
+      break;
+    case 'tarball':
+    case 'git-repo':
+      shrinkwrap[spec.raw] = {...resolution}
+      break;
+  }
 }
 
 export async function read (pkgPath: string): Promise<Shrinkwrap | null> {
