@@ -17,6 +17,7 @@ const gitLogger = logger('git')
 const fetchLogger = logger('fetch')
 
 export type FetchOptions = {
+  linkLocal: boolean,
   loggedPkg: LoggedPkg,
   got: Got
 }
@@ -46,7 +47,7 @@ export default async function fetchResolution (
       break;
 
     case 'directory': {
-      if (resolution.link) {
+      if (opts.linkLocal) {
         await mkdirp(path.dirname(target))
         await linkDir(resolution.root, target)
       } else {

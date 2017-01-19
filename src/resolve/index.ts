@@ -25,7 +25,6 @@ export type TarballResolution = ResolutionBase & {
 export type DirectoryResolution = ResolutionBase & {
   type: 'directory',
   root: string,
-  link?: boolean,
 }
 
 /**
@@ -68,7 +67,6 @@ export type ResolveOptions = {
   loggedPkg: LoggedPkg,
   got: Got,
   root: string,
-  linkLocal: boolean,
   tag: string
 }
 

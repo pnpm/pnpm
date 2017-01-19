@@ -21,20 +21,6 @@ export default async function resolveLocal (spec: PackageSpec, opts: ResolveOpti
     return {resolution}
   }
 
-  if (opts.linkLocal) {
-    const localPkg = await requireJson(resolve(dependencyPath, 'package.json'))
-    const resolution: Resolution = {
-      type: 'directory',
-      id: createLocalPkgId(localPkg.name, dependencyPath),
-      root: dependencyPath,
-      link: true,
-    }
-    return {resolution}
-  }
-  return resolveFolder(dependencyPath)
-}
-
-async function resolveFolder (dependencyPath: string): Promise<ResolveResult> {
   const localPkg = await requireJson(resolve(dependencyPath, 'package.json'))
   const resolution: Resolution = {
     type: 'directory',

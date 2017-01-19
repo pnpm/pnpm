@@ -82,7 +82,6 @@ export default async function fetch (ctx: InstallContext, spec: PackageSpec, mod
         loggedPkg,
         got: options.got,
         root: options.root,
-        linkLocal: options.linkLocal,
         tag: options.tag
       })
       resolution = resolveResult.resolution
@@ -100,6 +99,7 @@ export default async function fetch (ctx: InstallContext, spec: PackageSpec, mod
       resolution,
       loggedPkg,
       got: options.got,
+      linkLocal: options.linkLocal,
       force: options.force,
     })
 
@@ -159,6 +159,7 @@ type FetchToStoreOptions = {
   resolution: Resolution,
   loggedPkg: LoggedPkg,
   got: Got,
+  linkLocal: boolean,
   force: boolean,
 }
 
@@ -182,7 +183,11 @@ function fetchToStoreCached (opts: FetchToStoreOptions): Promise<void> {
       }
 
       logStatus({status: 'download-queued', pkg: opts.loggedPkg})
-      await fetchResolution(opts.resolution, targetStage, {got: opts.got, loggedPkg: opts.loggedPkg})
+      await fetchResolution(opts.resolution, targetStage, {
+        got: opts.got,
+        loggedPkg: opts.loggedPkg,
+        linkLocal: opts.linkLocal,
+      })
 
       // fs.rename(oldPath, newPath) is an atomic operation, so we do it at the
       // end
