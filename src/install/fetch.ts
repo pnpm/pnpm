@@ -175,6 +175,7 @@ type FetchToStoreOptions = {
  */
 function fetchToStoreCached (opts: FetchToStoreOptions): Promise<void> {
   return memoize(opts.fetchLocks, opts.resolution.id, async function () {
+    const {packageWillFetch, packageDidFetch} = opts.lifecycle
     const target = opts.target
     const targetStage = `${opts.target}_stage`
     const targetExists = await exists(target)
@@ -188,14 +189,25 @@ function fetchToStoreCached (opts: FetchToStoreOptions): Promise<void> {
       }
 
       logStatus({status: 'download-queued', pkg: opts.loggedPkg})
-      await fetchResolution(opts.resolution, targetStage, {
+
+      let fetched = false
+
+      const fetchOptions = {
         got: opts.got,
         loggedPkg: opts.loggedPkg,
         linkLocal: opts.linkLocal,
-      })
+      }
 
-      if (opts.lifecycle.packageDidFetch) {
-        await opts.lifecycle.packageDidFetch(targetStage, opts.resolution)
+      if (packageWillFetch) {
+        fetched = await packageWillFetch(targetStage, opts.resolution, fetchOptions)
+      }
+
+      if (!fetched) {
+        await fetchResolution(opts.resolution, targetStage, fetchOptions)
+      }
+
+      if (packageDidFetch) {
+        await packageDidFetch(targetStage, opts.resolution)
       }
 
       // fs.rename(oldPath, newPath) is an atomic operation, so we do it at the

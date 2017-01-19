@@ -1,5 +1,6 @@
 import {ReporterType} from './reporter'
 import {PackageSpec, ResolveOptions, ResolveResult, Resolution} from './resolve';
+import {FetchOptions} from './install/fetchResolution';
 
 export type LifecycleHooks = {
 
@@ -12,6 +13,13 @@ export type LifecycleHooks = {
   packageWillResolve?: (spec: PackageSpec, opts: ResolveOptions) => Promise<ResolveResult | null>,
 
   /**
+   * Executes when package is about to fetch its resolution.
+   *
+   * This can be used to implement custom fetching logic.
+   */
+  packageWillFetch?: (target: string, resolution: Resolution, opts: FetchOptions) => Promise<boolean>,
+
+  /**
    * Executes just after the package is fetched into a target directory.
    *
    * This is the opportunity to write into the target directory before it's
@@ -22,8 +30,6 @@ export type LifecycleHooks = {
   // TODO: add more lifecycle hooks
   //
   // packageDidResolve
-  //
-  // packageWillFetch
   //
   // packageWillInstall
   // packageDidInstall
