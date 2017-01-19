@@ -69,7 +69,7 @@ export default async function installAll (ctx: InstallContext, dependencies: Dep
         await linkDir(subdep.hardlinkedLocation, dest)
       })
   )
-  await linkBins(modules, options.preserveSymlinks)
+  await linkBins(modules, path.join(modules, '.bin'), options.preserveSymlinks)
 
   return installedPkgs
 }
