@@ -227,3 +227,8 @@ declare module '@zkochan/hosted-git-info' {
   const anything: any;
   export = anything;
 }
+
+declare module 'global-bin-path' {
+  const anything: any;
+  export = anything;
+}

@@ -41,6 +41,7 @@
     "execa": "0.6.0",
     "exists-file": "3.0.0",
     "find-up": "2.1.0",
+    "global-bin-path": "0.1.0",
     "is-ci": "1.0.10",
     "is-retry-allowed": "1.1.0",
     "is-windows": "1.0.0",
