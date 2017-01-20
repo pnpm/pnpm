@@ -16,13 +16,11 @@ test('cache clean removes cache', async function (t) {
 
   await installPkgs(['is-positive'], opts)
 
-  const cache = path.join(opts.globalPath, 'cache')
+  t.ok(await exists(opts.cachePath), 'cache is created')
 
-  t.ok(await exists(cache), 'cache is created')
+  await cleanCache(opts.cachePath)
 
-  await cleanCache(opts.globalPath)
-
-  t.ok(!await exists(cache), 'cache is removed')
+  t.ok(!await exists(opts.cachePath), 'cache is removed')
 })
 
 test('should fail to update when requests are cached', async function (t) {

@@ -20,7 +20,6 @@ import {
 } from '../fs/modulesController'
 import mkdirp from '../fs/mkdirp'
 import {Package} from '../types'
-import {getCachePath} from './cache'
 import normalizePath = require('normalize-path')
 
 export type PnpmContext = {
@@ -71,7 +70,7 @@ export default async function (opts: StrictPnpmOptions): Promise<PnpmContext> {
   const ctx: PnpmContext = {
     pkg: pkg.pkg,
     root,
-    cache: getCachePath(opts.globalPath),
+    cache: expandTilde(opts.cachePath),
     storePath,
     graph,
     shrinkwrap,
