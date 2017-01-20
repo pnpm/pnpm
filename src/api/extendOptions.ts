@@ -5,7 +5,7 @@ import semver = require('semver')
 import logger from 'pnpm-logger'
 import {CACHE_PATH} from './cache'
 
-const DEFAULT_GLOBAL_PATH = path.join(globalBinPath(), 'pnpm')
+const DEFAULT_GLOBAL_PATH = path.join(globalBinPath(), 'pnpm-global')
 
 const CAN_PRESERVE_SYMLINKS = semver.satisfies(process.version, '>=6.3.0')
 
