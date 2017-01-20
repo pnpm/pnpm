@@ -13,15 +13,15 @@ import logger from 'pnpm-logger'
 
 const IS_WINDOWS = isWindows()
 
-export default async function linkAllBins (modules: string, binDir: string, preserveSymlinks: boolean) {
+export default async function linkAllBins (modules: string, binPath: string, preserveSymlinks: boolean) {
   const pkgDirs = await getPkgDirs(modules)
-  return Promise.all(pkgDirs.map((pkgDir: string) => linkPkgBins(pkgDir, binDir, preserveSymlinks)))
+  return Promise.all(pkgDirs.map((pkgDir: string) => linkPkgBins(pkgDir, binPath, preserveSymlinks)))
 }
 
 /**
  * Links executable into `node_modules/.bin`.
  */
-export async function linkPkgBins (target: string, binDir: string, preserveSymlinks: boolean) {
+export async function linkPkgBins (target: string, binPath: string, preserveSymlinks: boolean) {
   const pkg = await safeRequireJson(path.join(target, 'package.json'))
 
   if (!pkg) {
@@ -33,9 +33,9 @@ export async function linkPkgBins (target: string, binDir: string, preserveSymli
 
   const bins = binify(pkg)
 
-  await mkdirp(binDir)
+  await mkdirp(binPath)
   await Promise.all(Object.keys(bins).map(async function (bin) {
-    const externalBinPath = path.join(binDir, bin)
+    const externalBinPath = path.join(binPath, bin)
     const actualBin = bins[bin]
     const targetPath = path.join(target, actualBin)
 
@@ -44,9 +44,10 @@ export async function linkPkgBins (target: string, binDir: string, preserveSymli
       return cmdShim(targetPath, externalBinPath, {preserveSymlinks, nodePath})
     }
 
-    const relTargetPath = normalizePath(path.join('..', pkg.name, actualBin))
+    const realBinPath = await fs.realpath(binPath)
+    const relTargetPath = normalizePath(path.relative(realBinPath, targetPath))
     if (IS_WINDOWS) {
-      const proxyFilePath = path.join(binDir, `${bin}.proxy`)
+      const proxyFilePath = path.join(binPath, `${bin}.proxy`)
       await fs.writeFile(proxyFilePath, `#!/usr/bin/env node\r\nrequire("${relTargetPath}")`, 'utf8')
       return cmdShim(proxyFilePath, externalBinPath, {preserveSymlinks})
     }
