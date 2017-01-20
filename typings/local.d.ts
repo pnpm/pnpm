@@ -3,6 +3,11 @@ declare module 'sorted-object' {
   export = anything;
 }
 
+declare module 'proper-lockfile' {
+  const anything: any;
+  export = anything;
+}
+
 declare module 'delocalize-dependencies' {
   const anything: any;
   export = anything;
