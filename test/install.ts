@@ -523,25 +523,37 @@ test('production install (with production NODE_ENV)', async function (t) {
 
 const wait = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
 
-test('fail when trying to install into the same store simultaneously', t => {
+test('support installing into the same store simultaneously', async t => {
   const project = prepare(t)
-  return Promise.all([
+  await Promise.all([
     installPkgs(['pkg-that-installs-slowly'], testDefaults()),
     wait(500) // to be sure that lock was created
-      .then(() => installPkgs(['rimraf@2.5.1'], testDefaults()))
-      .then(() => t.fail('the store should have been locked'))
-      .catch(err => t.ok(err, 'store is locked'))
+      .then(async () => {
+        await project.storeHasNot('pkg-that-installs-slowly')
+        await installPkgs(['rimraf@2.5.1'], testDefaults())
+      })
+      .then(async  () => {
+        await project.has('pkg-that-installs-slowly')
+        await project.has('rimraf')
+      })
+      .catch(err => t.notOk(err))
   ])
 })
 
-test('fail when trying to install and uninstall from the same store simultaneously', t => {
+test('support installing and uninstalling from the same store simultaneously', async t => {
   const project = prepare(t)
-  return Promise.all([
+  await Promise.all([
     installPkgs(['pkg-that-installs-slowly'], testDefaults()),
     wait(500) // to be sure that lock was created
-      .then(() => uninstall(['rimraf@2.5.1'], testDefaults()))
-      .then(() => t.fail('the store should have been locked'))
-      .catch(err => t.ok(err, 'store is locked'))
+      .then(async () => {
+        await project.storeHasNot('pkg-that-installs-slowly')
+        await uninstall(['rimraf@2.5.1'], testDefaults())
+      })
+      .then(async () => {
+        await project.has('pkg-that-installs-slowly')
+        await project.hasNot('rimraf')
+      })
+      .catch(err => t.notOk(err))
   ])
 })
 
