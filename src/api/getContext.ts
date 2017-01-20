@@ -61,9 +61,18 @@ export default async function (opts: StrictPnpmOptions): Promise<PnpmContext> {
       `)
       throw new Error(msg)
     }
-    const pnpmVersion = modules.packageManager.split('@')[1]
+    const pnpmVersion = getPackageManagerVersion(modules.packageManager)
     failIfNotCompatibleStore(pnpmVersion)
     failIfNotCompatibleNodeModules(pnpmVersion)
+  }
+
+  function getPackageManagerVersion(packageManager: string) {
+    // handle the case when the package is scoped: @scope/pkgname
+    if (packageManager.startsWith('@')) {
+      return packageManager.split('@')[2]
+    } else {
+      return packageManager.split('@')[1]
+    }
   }
 
   const graph = await readGraph(path.join(root, 'node_modules')) || {}
