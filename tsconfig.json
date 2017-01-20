@@ -23,9 +23,7 @@
   },
   "files": [
     "src/api/cache.ts",
-    "src/api/constantDefaults.ts",
     "src/api/extendOptions.ts",
-    "src/api/getCachePath.ts",
     "src/api/getContext.ts",
     "src/api/index.ts",
     "src/api/install.ts",

@@ -5,6 +5,7 @@ export type PnpmOptions = {
   global?: boolean,
   globalPath?: string,
   storePath?: string,
+  cachePath?: string,
   ignoreScripts?: boolean
   save?: boolean,
   saveDev?: boolean,
@@ -45,6 +46,7 @@ export type StrictPnpmOptions = {
   global: boolean,
   globalPath: string,
   storePath: string,
+  cachePath: string,
   ignoreScripts: boolean
   save: boolean,
   saveDev: boolean,
