@@ -5,7 +5,6 @@
 * Features
   * [Custom registries](custom-registries.md)
   * [Store layout](store-layout.md)
-  * [Global install](global-install.md)
 * Comparison
   * [npm](vs-npm.md)
   * [ied](vs-ied.md)
