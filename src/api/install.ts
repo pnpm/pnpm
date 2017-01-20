@@ -4,6 +4,7 @@ import seq = require('promisequence')
 import RegClient = require('npm-registry-client')
 import logger from 'pnpm-logger'
 import cloneDeep = require('lodash.clonedeep')
+import globalBinPath = require('global-bin-path')
 import {PnpmOptions, StrictPnpmOptions, Dependencies} from '../types'
 import createGot from '../network/got'
 import getContext, {PnpmContext} from './getContext'
@@ -93,6 +94,7 @@ async function installInContext (installType: string, packagesToInstall: Depende
       }),
       fetchingFiles: Promise.resolve(),
       nodeModulesStore: path.join(nodeModulesPath, '.resolutions'),
+      binPath: opts.global ? globalBinPath() : path.join(nodeModulesPath, '.bin'),
     }
     return await installMultiple(
       installCtx,

@@ -29,7 +29,8 @@ export type InstallOptions = FetchOptions & {
 }
 
 export type MultipleInstallOpts = InstallOptions & {
-  fetchingFiles: Promise<void>
+  fetchingFiles: Promise<void>,
+  binPath: string,
 }
 
 export type InstalledPackage = FetchedPackage & {
@@ -69,7 +70,7 @@ export default async function installAll (ctx: InstallContext, dependencies: Dep
         await linkDir(subdep.hardlinkedLocation, dest)
       })
   )
-  await linkBins(modules, path.join(modules, '.bin'), options.preserveSymlinks)
+  await linkBins(modules, options.binPath, options.preserveSymlinks)
 
   return installedPkgs
 }
@@ -215,6 +216,7 @@ async function installDependencies (pkg: Package, dependency: InstalledPackage, 
     dependent: dependency.id,
     root: dependency.srcPath,
     fetchingFiles: dependency.fetchingFiles,
+    binPath: path.join(modules, '.bin'),
   })
 
   const bundledDeps = pkg.bundleDependencies || pkg.bundleDependencies || []
