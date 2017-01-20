@@ -80,8 +80,6 @@ Use `pnpm` in place of `npm`. It overrides `pnpm i`, `pnpm install` and some oth
 pnpm install lodash
 ```
 
-For using globally installed packages, see: [global install](docs/global-install.md).
-
 For using the programmatic API, see: [API](docs/api.md).
 
 ## Benchmark
