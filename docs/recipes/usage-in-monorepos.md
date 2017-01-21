@@ -1,6 +1,6 @@
 # Usage in monorepos
 
-`pnpm`'s ability to use a [shared store](./shared-store.md) makes it a perfect choice
+`pnpm`'s usage of a global store makes it a perfect choice
 for monorepo projects. But there are even more benefits you'll get!
 
 When you work in a monorepo, you need all your dependencies linked together via `npm link`.

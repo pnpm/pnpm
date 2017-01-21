@@ -20,12 +20,6 @@ This is the most important change for a monorepo.
 The `link-local` config makes `pnpm` symlink local dependencies and convert them to semver
 dependencies before publish. More details about this option at: [usage in monorepos](../../docs/recipes/usage-in-monorepos.md)
 
-**store-path = ~/.store**
-
-This makes `pnpm` use a global store. Packages in monorepos usually have a big set of common
-dependencies. A common store will keep all the dependencies in one place, giving a huge boost
-to the installation time. More details about shared stores [here](../../docs/recipes/shared-store.md).
-
 **save-exact = false**
 
 Specifying a `save-exact` config in the root of your monorepo is not obligatory but a good thing.
