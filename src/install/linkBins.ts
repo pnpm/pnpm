@@ -67,7 +67,11 @@ function makeExecutable (filePath: string) {
   return fs.chmod(filePath, 0o755)
 }
 
-async function proxy (proxyPath: string, relTargetPath: string) {
+async function proxy (proxyPath: string, relTargetPath: string): Promise<void> {
+  if (!relTargetPath.startsWith('.')) {
+    // require should always be identified as relative by Node
+    return proxy(proxyPath, `./${relTargetPath}`)
+  }
   // NOTE: this will be used only on non-windows
   // Hence, the \n line endings should be used
   const proxyContent = '#!/bin/sh\n' +
