@@ -1,6 +1,6 @@
 {
   "name": "pnpm",
-  "description": "A fast implementation of npm install",
+  "description": "Fast, disk space efficient npm installs",
   "version": "0.50.0",
   "author": "Rico Sta. Cruz <rico@ricostacruz.com>",
   "bin": {
