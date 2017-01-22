@@ -21,6 +21,7 @@ export default function switcher (opts: SwitcherOptions) {
     return
   }
 
+  console.log(`Using local install of ${opts.bin}`)
   const cmd = path.join(local.slice(0, local.lastIndexOf(`${path.sep}node_modules${path.sep}`) + 1), 'node_modules', '.bin', opts.bin)
   crossSpawn.sync(cmd, process.argv.slice(2), {stdio: 'inherit'})
 }
