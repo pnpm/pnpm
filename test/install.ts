@@ -578,7 +578,7 @@ test('not top-level packages should find the plugins they use', async function (
   })
   await installPkgs(['standard@8.6.0'], testDefaults({ save: true }))
   const result = spawnSync('npm', ['test'])
-  console.log(result.stdout.toString())
+
   t.equal(result.status, 0, 'standard exited with success')
 })
 

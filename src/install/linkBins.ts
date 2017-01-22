@@ -58,7 +58,7 @@ async function linkBin (
   const relativeRequirePath = await getBinRequirePath(binPath, targetPath)
   const cmdOpts = {
     preserveSymlinks,
-    nodePath: preserveSymlinks && getNodePaths(targetPath).join(path.delimiter),
+    nodePath: !preserveSymlinks && getNodePaths(targetPath).join(path.delimiter),
   }
 
   if (opts.global) {
