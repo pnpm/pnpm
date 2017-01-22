@@ -62,11 +62,7 @@
 		}
 	},
 	"dist-tags": {
-		"latest": [
-			"1.1.0",
-			"100.0.0",
-			"100.1.0"
-		]
+		"latest": "100.1.0"
 	},
 	"_distfiles": {
 		"dep-of-pkg-with-1-dep-1.1.0.tgz": {
@@ -88,9 +84,9 @@
 	"_uplinks": {
 		"npmjs": {
 			"etag": "W/\"585dc57f-468\"",
-			"fetched": 1484116060431
+			"fetched": 1485093448001
 		}
 	},
-	"_rev": "7-fbc7ef9333be0a47",
+	"_rev": "7-5f2cf850e0c6f4d1",
 	"readme": "ERROR: No README data found!"
 }

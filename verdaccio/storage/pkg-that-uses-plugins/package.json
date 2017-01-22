@@ -30,11 +30,7 @@
 			}
 		}
 	},
-	"dist-tags": {
-		"latest": [
-			"1.0.0"
-		]
-	},
+	"dist-tags": {},
 	"_distfiles": {},
 	"_attachments": {
 		"pkg-that-uses-plugins-1.0.0.tgz": {
@@ -43,6 +39,6 @@
 		}
 	},
 	"_uplinks": {},
-	"_rev": "3-eb37242d467fa42d",
+	"_rev": "3-b1e415970f005520",
 	"readme": "ERROR: No README data found!"
 }

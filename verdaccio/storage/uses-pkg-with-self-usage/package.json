@@ -20,11 +20,7 @@
 			}
 		}
 	},
-	"dist-tags": {
-		"latest": [
-			"1.0.0"
-		]
-	},
+	"dist-tags": {},
 	"_distfiles": {},
 	"_attachments": {
 		"uses-pkg-with-self-usage-1.0.0.tgz": {
@@ -33,6 +29,6 @@
 		}
 	},
 	"_uplinks": {},
-	"_rev": "3-ad6ed8d708263de8",
+	"_rev": "3-ce45ff71495b04c4",
 	"readme": "ERROR: No README data found!"
 }

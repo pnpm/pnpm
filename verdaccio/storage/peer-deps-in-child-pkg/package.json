@@ -23,11 +23,7 @@
 			}
 		}
 	},
-	"dist-tags": {
-		"latest": [
-			"1.0.0"
-		]
-	},
+	"dist-tags": {},
 	"_distfiles": {},
 	"_attachments": {
 		"peer-deps-in-child-pkg-1.0.0.tgz": {
@@ -36,6 +32,6 @@
 		}
 	},
 	"_uplinks": {},
-	"_rev": "3-12002155aa2ca1ac",
+	"_rev": "3-f3d403235bd02f40",
 	"readme": "ERROR: No README data found!"
 }

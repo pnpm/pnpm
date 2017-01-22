@@ -17,11 +17,7 @@
 			}
 		}
 	},
-	"dist-tags": {
-		"latest": [
-			"1.0.0"
-		]
-	},
+	"dist-tags": {},
 	"_distfiles": {},
 	"_attachments": {
 		"symlinks-preserved-1.0.0.tgz": {
@@ -30,6 +26,6 @@
 		}
 	},
 	"_uplinks": {},
-	"_rev": "3-8db487d55d21b0cf",
+	"_rev": "3-9f46b50e13757afc",
 	"readme": "ERROR: No README data found!"
 }

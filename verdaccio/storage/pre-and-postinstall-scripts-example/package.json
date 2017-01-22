@@ -33,11 +33,7 @@
 			}
 		}
 	},
-	"dist-tags": {
-		"latest": [
-			"1.0.0"
-		]
-	},
+	"dist-tags": {},
 	"_distfiles": {},
 	"_attachments": {
 		"pre-and-postinstall-scripts-example-1.0.0.tgz": {
@@ -46,6 +42,6 @@
 		}
 	},
 	"_uplinks": {},
-	"_rev": "3-38ac0f17007cbb18",
+	"_rev": "3-0d7b6802ccc1946f",
 	"readme": "# pre-and-postinstall-scripts-example\n\nA package that creates files by pre- and postinstall scripts\n\n## Installation\n\n```\nnpm i pre-and-postinstall-scripts-example\n```\n\n# License\n\nMIT\n"
 }

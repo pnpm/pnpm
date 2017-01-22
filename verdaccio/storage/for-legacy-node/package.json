@@ -20,11 +20,7 @@
 			}
 		}
 	},
-	"dist-tags": {
-		"latest": [
-			"1.0.0"
-		]
-	},
+	"dist-tags": {},
 	"_distfiles": {},
 	"_attachments": {
 		"for-legacy-node-1.0.0.tgz": {
@@ -33,6 +29,6 @@
 		}
 	},
 	"_uplinks": {},
-	"_rev": "3-9fcaeb622a02c896",
+	"_rev": "3-1dc1eabb5cbe9668",
 	"readme": "ERROR: No README data found!"
 }

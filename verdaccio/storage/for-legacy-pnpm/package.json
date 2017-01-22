@@ -20,11 +20,7 @@
 			}
 		}
 	},
-	"dist-tags": {
-		"latest": [
-			"1.0.0"
-		]
-	},
+	"dist-tags": {},
 	"_distfiles": {},
 	"_attachments": {
 		"for-legacy-pnpm-1.0.0.tgz": {
@@ -33,6 +29,6 @@
 		}
 	},
 	"_uplinks": {},
-	"_rev": "3-ffe0a092b89c1157",
+	"_rev": "3-0afeb652791447ed",
 	"readme": "ERROR: No README data found!"
 }

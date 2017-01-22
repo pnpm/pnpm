@@ -24,11 +24,7 @@
 			}
 		}
 	},
-	"dist-tags": {
-		"latest": [
-			"1.0.0"
-		]
-	},
+	"dist-tags": {},
 	"_distfiles": {},
 	"_attachments": {
 		"test-pnpm-peer-deps-1.0.0.tgz": {
@@ -37,6 +33,6 @@
 		}
 	},
 	"_uplinks": {},
-	"_rev": "3-876775c9bacd3278",
+	"_rev": "3-0427608f9ff51d02",
 	"readme": "ERROR: No README data found!"
 }

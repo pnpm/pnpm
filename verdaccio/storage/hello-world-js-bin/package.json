@@ -33,11 +33,7 @@
 			}
 		}
 	},
-	"dist-tags": {
-		"latest": [
-			"1.0.0"
-		]
-	},
+	"dist-tags": {},
 	"_distfiles": {},
 	"_attachments": {
 		"hello-world-js-bin-1.0.0.tgz": {
@@ -46,6 +42,6 @@
 		}
 	},
 	"_uplinks": {},
-	"_rev": "3-4528a69c058595e9",
+	"_rev": "3-f35c94f1ddca931c",
 	"readme": "ERROR: No README data found!"
 }
