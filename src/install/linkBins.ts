@@ -74,13 +74,12 @@ async function linkBin (
     return cmdShim(targetPath, externalBinPath, {preserveSymlinks, nodePath})
   }
 
-  if (IS_WINDOWS) {
-    const proxyFilePath = path.join(binPath, `${bin}.proxy`)
-    await fs.writeFile(proxyFilePath, `#!/usr/bin/env node\r\nrequire("${relativeRequirePath}")`, 'utf8')
-    return cmdShim(proxyFilePath, externalBinPath, {preserveSymlinks})
-  }
-
-  return proxy(externalBinPath, relativeRequirePath)
+  const proxyFilePath = path.join(binPath, `${bin}.proxy`)
+  const content = '#!/usr/bin/env node' +
+    os.EOL +
+    `require("${relativeRequirePath}")`
+  await fs.writeFile(proxyFilePath, content, 'utf8')
+  return cmdShim(proxyFilePath, externalBinPath, {preserveSymlinks})
 }
 
 async function getBinRequirePath (binPath: string, targetPath: string) {
@@ -102,16 +101,6 @@ function getNodePaths (filename: string): string[] {
 
 function makeExecutable (filePath: string) {
   return fs.chmod(filePath, 0o755)
-}
-
-async function proxy (proxyPath: string, relativeRequirePath: string): Promise<void> {
-  // NOTE: this will be used only on non-windows
-  // Hence, the \n line endings should be used
-  const proxyContent = '#!/bin/sh\n' +
-    '":" //# comment; exec /usr/bin/env node --preserve-symlinks "$0" "$@"\n' +
-    `require("${relativeRequirePath}")`
-  await fs.writeFile(proxyPath, proxyContent, 'utf8')
-  return makeExecutable(proxyPath)
 }
 
 /**
