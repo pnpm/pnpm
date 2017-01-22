@@ -1,6 +1,6 @@
 import assert = require('assert')
 import path = require('path')
-import childProcess = require('child_process')
+import crossSpawn = require('cross-spawn')
 import resolve = require('resolve')
 
 export type SwitcherOptions = {
@@ -22,7 +22,7 @@ export default function switcher (opts: SwitcherOptions) {
   }
 
   const cmd = path.join(local.slice(0, local.lastIndexOf(`${path.sep}node_modules${path.sep}`) + 1), 'node_modules', '.bin', opts.bin)
-  childProcess.spawnSync(cmd, process.argv.slice(2), {stdio: 'inherit'})
+  crossSpawn.sync(cmd, process.argv.slice(2), {stdio: 'inherit'})
 }
 
 function getLocal(requiredBin: string) {
