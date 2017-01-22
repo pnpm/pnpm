@@ -62,7 +62,7 @@ async function linkBin (
   }
 
   if (opts.global) {
-    const proxyFilePath = path.join(binPath, `${bin}.switch`)
+    const proxyFilePath = path.join(binPath, `${bin}.switch.js`)
     const switcherOptions: SwitcherOptions = {
       requiredBin: path.join(pkgName, actualBin),
       globalRequirePath: targetPath,
@@ -78,7 +78,7 @@ async function linkBin (
     return cmdShim(targetPath, externalBinPath, cmdOpts)
   }
 
-  const proxyFilePath = path.join(binPath, `${bin}.proxy`)
+  const proxyFilePath = path.join(binPath, `${bin}.proxy.js`)
   const content = '#!/usr/bin/env node' +
     os.EOL +
     `require("${relativeRequirePath}")`
