@@ -65,8 +65,9 @@ async function linkBin (
         relativeRequirePath,
         bin,
       }
+      const switcherRequirePath = await getBinRequirePath(binPath, path.join(__dirname, '..', '..', 'lib', 'switcher'))
       await fs.writeFile(proxyFilePath, '#!/usr/bin/env node' +
-        os.EOL + `require('pnpm/lib/switcher')(${JSON.stringify(switcherOptions)})`, 'utf8')
+        os.EOL + `require('${switcherRequirePath}').default(${JSON.stringify(switcherOptions)})`, 'utf8')
       return cmdShim(proxyFilePath, externalBinPath, {preserveSymlinks})
     }
     const nodePath = getNodePaths(targetPath).join(path.delimiter)

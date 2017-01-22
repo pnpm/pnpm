@@ -664,6 +664,19 @@ test('global installation', async function (t) {
   t.ok(typeof isPositive === 'function', 'isPositive() is available')
 })
 
+test('local CLI is preferred', async function (t) {
+  prepare(t)
+
+  await installPkgs(['print-filename'], testDefaults({preserveSymlinks: false}))
+
+  const globalOpts = testDefaults({global: true, preserveSymlinks: false})
+  await installPkgs(['print-filename'], globalOpts)
+
+  const result = spawnSync('print-filename', [])
+
+  t.ok(result.stdout.toString().indexOf(path.join('project', 'node_modules')) !== -1, 'local CLI is executed')
+})
+
 test('tarball local package', async function (t) {
   const project = prepare(t)
   await installPkgs([pathToLocalPkg('tar-pkg/tar-pkg-1.0.0.tgz')], testDefaults())

@@ -21,7 +21,7 @@ export default function switcher (opts: SwitcherOptions) {
     return
   }
 
-  const cmd = path.join(local.slice(local.lastIndexOf(`${path.sep}node_modules${path.sep}`) + 1), 'node_modules', '.bin', opts.bin)
+  const cmd = path.join(local.slice(0, local.lastIndexOf(`${path.sep}node_modules${path.sep}`) + 1), 'node_modules', '.bin', opts.bin)
   childProcess.spawnSync(cmd, process.argv.slice(2), {stdio: 'inherit'})
 }
 
