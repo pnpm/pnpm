@@ -95,6 +95,7 @@ async function installInContext (installType: string, packagesToInstall: Depende
       fetchingFiles: Promise.resolve(),
       nodeModulesStore: path.join(nodeModulesPath, '.resolutions'),
       binPath: opts.global ? globalBinPath() : path.join(nodeModulesPath, '.bin'),
+      global: opts.global,
     }
     return await installMultiple(
       installCtx,

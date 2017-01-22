@@ -3,6 +3,7 @@ import {PnpmOptions} from '../types'
 
 export default (input: string[], opts: PnpmOptions) => {
   if (!input || !input.length) {
+    opts.global = true
     return link.linkToGlobal(opts)
   }
   if (input[0].indexOf('.') === 0) {
