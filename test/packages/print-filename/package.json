@@ -1,0 +1,5 @@
+{
+  "name": "print-filename",
+  "version": "1.0.0",
+  "bin": "cli.js"
+}

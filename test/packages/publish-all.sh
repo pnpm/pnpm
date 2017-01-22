@@ -86,3 +86,7 @@ cd ..;
 cd uses-pkg-with-self-usage;
 npm publish;
 cd ..;
+
+cd print-filename;
+npm publish;
+cd ..;
