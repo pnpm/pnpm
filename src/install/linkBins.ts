@@ -62,7 +62,7 @@ async function linkBin (
       const proxyFilePath = path.join(binPath, `${bin}.switch`)
       const switcherOptions: SwitcherOptions = {
         requiredBin: path.join(pkgName, actualBin),
-        relativeRequirePath,
+        globalRequirePath: targetPath,
         bin,
       }
       const switcherRequirePath = await getBinRequirePath(binPath, path.join(__dirname, '..', '..', 'lib', 'switcher'))

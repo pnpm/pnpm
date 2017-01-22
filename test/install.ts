@@ -664,6 +664,20 @@ test('global installation', async function (t) {
   t.ok(typeof isPositive === 'function', 'isPositive() is available')
 })
 
+test('global CLI is found', async function (t) {
+  prepare(t)
+
+  await installPkgs(['print-filename'], testDefaults({preserveSymlinks: false}))
+
+  const globalOpts = testDefaults({global: true, preserveSymlinks: false})
+  await installPkgs(['print-filename'], globalOpts)
+
+  const result = spawnSync('print-filename', [], {cwd: path.join(process.cwd(), '..')})
+
+  t.equal(result.status, 0, 'CLI was successfull')
+  t.ok(result.stdout.toString().indexOf(path.join('project', 'node_modules')) === -1, 'global CLI is executed')
+})
+
 test('local CLI is preferred', async function (t) {
   prepare(t)
 
@@ -674,6 +688,7 @@ test('local CLI is preferred', async function (t) {
 
   const result = spawnSync('print-filename', [])
 
+  t.equal(result.status, 0, 'CLI was successfull')
   t.ok(result.stdout.toString().indexOf(path.join('project', 'node_modules')) !== -1, 'local CLI is executed')
 })
 

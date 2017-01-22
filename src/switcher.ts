@@ -6,18 +6,18 @@ import resolve = require('resolve')
 export type SwitcherOptions = {
   requiredBin: string,
   bin: string,
-  relativeRequirePath: string,
+  globalRequirePath: string,
 }
 
 export default function switcher (opts: SwitcherOptions) {
   assert(opts, 'opts is required')
   assert(opts.requiredBin, 'opts.requiredBin is required')
-  assert(opts.relativeRequirePath, 'opts.relativeRequirePath is required')
+  assert(opts.globalRequirePath, 'opts.globalRequirePath is required')
   assert(opts.bin, 'opts.bin is required')
 
   const local = getLocal(opts.requiredBin)
   if (!local) {
-    require(opts.relativeRequirePath)
+    require(opts.globalRequirePath)
     return
   }
 
