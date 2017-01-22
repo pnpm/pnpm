@@ -56,22 +56,26 @@ async function linkBin (
   const externalBinPath = path.join(binPath, bin)
   const targetPath = path.join(target, actualBin)
   const relativeRequirePath = await getBinRequirePath(binPath, targetPath)
+  const cmdOpts = {
+    preserveSymlinks,
+    nodePath: preserveSymlinks && getNodePaths(targetPath).join(path.delimiter),
+  }
+
+  if (opts.global) {
+    const proxyFilePath = path.join(binPath, `${bin}.switch`)
+    const switcherOptions: SwitcherOptions = {
+      requiredBin: path.join(pkgName, actualBin),
+      globalRequirePath: targetPath,
+      bin,
+    }
+    const switcherRequirePath = await getBinRequirePath(binPath, path.join(__dirname, '..', '..', 'lib', 'switcher'))
+    await fs.writeFile(proxyFilePath, '#!/usr/bin/env node' +
+      os.EOL + `require('${switcherRequirePath}').default(${JSON.stringify(switcherOptions)})`, 'utf8')
+    return cmdShim(proxyFilePath, externalBinPath, cmdOpts)
+  }
 
   if (!preserveSymlinks) {
-    if (opts.global) {
-      const proxyFilePath = path.join(binPath, `${bin}.switch`)
-      const switcherOptions: SwitcherOptions = {
-        requiredBin: path.join(pkgName, actualBin),
-        globalRequirePath: targetPath,
-        bin,
-      }
-      const switcherRequirePath = await getBinRequirePath(binPath, path.join(__dirname, '..', '..', 'lib', 'switcher'))
-      await fs.writeFile(proxyFilePath, '#!/usr/bin/env node' +
-        os.EOL + `require('${switcherRequirePath}').default(${JSON.stringify(switcherOptions)})`, 'utf8')
-      return cmdShim(proxyFilePath, externalBinPath, {preserveSymlinks})
-    }
-    const nodePath = getNodePaths(targetPath).join(path.delimiter)
-    return cmdShim(targetPath, externalBinPath, {preserveSymlinks, nodePath})
+    return cmdShim(targetPath, externalBinPath, cmdOpts)
   }
 
   const proxyFilePath = path.join(binPath, `${bin}.proxy`)
@@ -79,7 +83,7 @@ async function linkBin (
     os.EOL +
     `require("${relativeRequirePath}")`
   await fs.writeFile(proxyFilePath, content, 'utf8')
-  return cmdShim(proxyFilePath, externalBinPath, {preserveSymlinks})
+  return cmdShim(proxyFilePath, externalBinPath, cmdOpts)
 }
 
 async function getBinRequirePath (binPath: string, targetPath: string) {
