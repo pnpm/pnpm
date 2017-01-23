@@ -62,7 +62,7 @@ See [store layout](docs/store-layout.md) for an explanation.
    |   |  └─ package
    |   |     ├─ index.js     => ~/.pnpm-store/has-ansi/2.0.0/index.js
    |   |     └─ package.js   => ~/.pnpm-store/has-ansi/2.0.0/package.json
-   |   └─ ansi-styles/2.1.0/node_modules/ansi-styles/
+   |   └─ ansi-styles/2.1.0/
    |      ├─ node_modules/
    |      |  └─ ansi-styles  -> ../package
    |      └─ package
