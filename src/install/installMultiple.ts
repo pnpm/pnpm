@@ -123,15 +123,14 @@ async function install (pkgRawSpec: string, modules: string, ctx: InstallContext
     await isInstallable(pkg, fetchedPkg, options)
   }
 
+  const pkgWrapperPath = path.join(options.nodeModulesStore, fetchedPkg.id)
+
   const dependency: InstalledPackage = Object.assign({}, fetchedPkg, {
     keypath,
     dependencies: [],
     optional: options.optional === true,
     pkg,
-    // TODO: what about bundled/cached deps?
-    // The package realpath should be under node_modules/<pkgname>. This way, babel-runtime@5 can		
-    // require('babel-runtime') within itself.
-    hardlinkedLocation: path.join(options.nodeModulesStore, fetchedPkg.id, 'node_modules', pkg.name),
+    hardlinkedLocation: path.join(pkgWrapperPath, 'package'),
   })
 
   if (dependency.fromCache || keypath.indexOf(dependency.id) !== -1) {
@@ -144,7 +143,7 @@ async function install (pkgRawSpec: string, modules: string, ctx: InstallContext
   // does not return enough info for packages that were already installed
   addToGraph(ctx.graph, options.dependent, dependency)
 
-  const modulesInStore = path.join(dependency.hardlinkedLocation, 'node_modules')
+  const modulesInStore = path.join(pkgWrapperPath, 'node_modules')
 
   if (!ctx.installed.has(dependency.id)) {
     ctx.installed.add(dependency.id)
@@ -155,6 +154,9 @@ async function install (pkgRawSpec: string, modules: string, ctx: InstallContext
   await memoize(ctx.resolutionLinked, dependency.hardlinkedLocation, async function () {
     if (!await exists(path.join(dependency.hardlinkedLocation, 'package.json'))) { // in case it was created by a separate installation
       await hardlinkDir(dependency.path, dependency.hardlinkedLocation)
+
+      // This way, babel-runtime@5 can require('babel-runtime') within itself.
+      await linkDir(dependency.hardlinkedLocation, path.join(modulesInStore, pkg.name))
     }
   })
 
