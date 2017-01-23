@@ -5,6 +5,6 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/rstacruz/pnpm/tree/master/test/packages/plugin-example"
+    "url": "https://github.com/pnpm/pnpm/tree/master/test/packages/plugin-example"
   }
 }

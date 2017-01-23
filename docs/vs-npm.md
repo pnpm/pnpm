@@ -35,7 +35,7 @@ On the other hand, pnpm manages `node_modules` as an addressable storage in its 
 - Peer dependencies are a little trickier to deal with.
 - You can't publish npm modules with `bundleDependencies` managed by pnpm.
 
-Got an idea for workarounds for these issues? [Share them.](https://github.com/rstacruz/pnpm/issues/new)
+Got an idea for workarounds for these issues? [Share them.](https://github.com/pnpm/pnpm/issues/new)
 
 [shrinkwrap]: https://docs.npmjs.com/cli/shrinkwrap
 [npm ls]: https://docs.npmjs.com/cli/ls

@@ -6,6 +6,6 @@
   "bin": "./index.js",
   "repository": {
     "type": "git",
-    "url": "https://github.com/rstacruz/pnpm/tree/master/test/packages/pkg-that-uses-plugins"
+    "url": "https://github.com/pnpm/pnpm/tree/master/test/packages/pkg-that-uses-plugins"
   }
 }

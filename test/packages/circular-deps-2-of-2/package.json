@@ -8,6 +8,6 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/rstacruz/pnpm/tree/master/test/packages/circular-deps-2-of-2"
+    "url": "https://github.com/pnpm/pnpm/tree/master/test/packages/circular-deps-2-of-2"
   }
 }

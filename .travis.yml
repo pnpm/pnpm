@@ -18,5 +18,5 @@ env:
     - CC=clang CXX=clang++ npm_config_clang=1
     - GIT_NAME: Travis CI
     - GIT_EMAIL: nobody@nobody.org
-    - GITHUB_REPO: rstacruz/pnpm
+    - GITHUB_REPO: pnpm/pnpm
     - GIT_SOURCE: _docpress

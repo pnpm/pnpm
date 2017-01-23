@@ -105,11 +105,11 @@ time pnpm i babel-preset-es2015 browserify chalk debug minimist mkdirp
 
 ## Preview release
 
-`pnpm` will stay in `<1.0.0` until it's achieved feature parity with `npm install`. See [roadmap](https://github.com/rstacruz/pnpm/milestone/1) for details.
+`pnpm` will stay in `<1.0.0` until it's achieved feature parity with `npm install`. See [roadmap](https://github.com/pnpm/pnpm/milestone/1) for details.
 
 ## License
 
-[MIT](https://github.com/rstacruz/pnpm/blob/master/LICENSE) © [Rico Sta. Cruz](http://ricostacruz.com) and [contributors]
+[MIT](https://github.com/pnpm/pnpm/blob/master/LICENSE) © [Rico Sta. Cruz](http://ricostacruz.com) and [contributors]
 
-[contributors]: http://github.com/rstacruz/pnpm/contributors
+[contributors]: http://github.com/pnpm/pnpm/contributors
 [ied]: https://github.com/alexanderGugel/ied

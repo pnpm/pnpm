@@ -56,7 +56,7 @@ export default async function (opts: StrictPnpmOptions): Promise<PnpmContext> {
     if (!modules.packageManager) {
       const msg = structureChangeMsg(stripIndent`
         The change was needed to allow machine stores and dependency locks:
-          PR: https://github.com/rstacruz/pnpm/pull/524
+          PR: https://github.com/pnpm/pnpm/pull/524
       `)
       throw new Error(msg)
     }
@@ -93,14 +93,14 @@ export default async function (opts: StrictPnpmOptions): Promise<PnpmContext> {
 
 function failIfNotCompatibleStore (pnpmVersion: string) {
   if (!pnpmVersion || !semver.satisfies(pnpmVersion, '>=0.28')) {
-    const msg = structureChangeMsg('More info about what was changed at: https://github.com/rstacruz/pnpm/issues/276')
+    const msg = structureChangeMsg('More info about what was changed at: https://github.com/pnpm/pnpm/issues/276')
     throw new Error(msg)
   }
   if (!semver.satisfies(pnpmVersion, '>=0.33')) {
     const msg = structureChangeMsg(stripIndent`
       The change was needed to fix the GitHub rate limit issue:
-        Issue: https://github.com/rstacruz/pnpm/issues/361
-        PR: https://github.com/rstacruz/pnpm/pull/363
+        Issue: https://github.com/pnpm/pnpm/issues/361
+        PR: https://github.com/pnpm/pnpm/pull/363
     `)
     throw new Error(msg)
   }
@@ -123,7 +123,7 @@ function failIfNotCompatibleNodeModules (pnpmVersion: string) {
     throw new Error(stripIndent`
       The node_modules structure was changed.
       Remove it and run pnpm again.
-      Related PR: https://github.com/rstacruz/pnpm/pull/534
+      Related PR: https://github.com/pnpm/pnpm/pull/534
       TIPS: you can run \`rm -rf node_modules\`
     `)
   }

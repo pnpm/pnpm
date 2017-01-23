@@ -51,7 +51,7 @@ Before you submit your Pull Request (PR) consider the following guidelines:
   git push origin my-fix-branch
   ```
 
-- In GitHub, send a pull request to `rstacruz:master`.
+- In GitHub, send a pull request to `pnpm:master`.
 - If we suggest changes then:
 
   - Make the required updates.
