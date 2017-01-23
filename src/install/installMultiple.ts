@@ -15,6 +15,8 @@ import linkDir from 'link-dir'
 import exists = require('exists-file')
 import {Graph} from '../fs/graphController'
 import logStatus from '../logging/logInstallStatus'
+import rimraf = require('rimraf-then')
+import fs = require('mz/fs')
 
 const installCheckLogger = logger('install-check')
 
@@ -153,7 +155,10 @@ async function install (pkgRawSpec: string, modules: string, ctx: InstallContext
   await dependency.fetchingFiles
   await memoize(ctx.resolutionLinked, dependency.hardlinkedLocation, async function () {
     if (!await exists(path.join(dependency.hardlinkedLocation, 'package.json'))) { // in case it was created by a separate installation
-      await hardlinkDir(dependency.path, dependency.hardlinkedLocation)
+      const stage = path.join(pkgWrapperPath, 'stage')
+      await rimraf(stage)
+      await hardlinkDir(dependency.path, stage)
+      await fs.rename(stage, dependency.hardlinkedLocation)
 
       // This way, babel-runtime@5 can require('babel-runtime') within itself.
       await linkDir(dependency.hardlinkedLocation, path.join(modulesInStore, pkg.name))
