@@ -578,7 +578,7 @@ test('not top-level packages should find the plugins they use', async function (
   })
   await installPkgs(['standard@8.6.0'], testDefaults({ save: true }))
   const result = spawnSync('npm', ['test'])
-  console.log(result.stdout.toString())
+
   t.equal(result.status, 0, 'standard exited with success')
 })
 
@@ -662,6 +662,34 @@ test('global installation', async function (t) {
 
   const isPositive = require(path.join(opts.globalPath, 'node_modules', 'is-positive'))
   t.ok(typeof isPositive === 'function', 'isPositive() is available')
+})
+
+test('global CLI is found', async function (t) {
+  prepare(t)
+
+  await installPkgs(['print-filename'], testDefaults({preserveSymlinks: false}))
+
+  const globalOpts = testDefaults({global: true, preserveSymlinks: false})
+  await installPkgs(['print-filename'], globalOpts)
+
+  const result = spawnSync('print-filename', [], {cwd: path.join(process.cwd(), '..')})
+
+  t.equal(result.status, 0, 'CLI was successfull')
+  t.ok(result.stdout.toString().indexOf(path.join('project', 'node_modules')) === -1, 'global CLI is executed')
+})
+
+test('local CLI is preferred', async function (t) {
+  prepare(t)
+
+  await installPkgs(['print-filename'], testDefaults({preserveSymlinks: false}))
+
+  const globalOpts = testDefaults({global: true, preserveSymlinks: false})
+  await installPkgs(['print-filename'], globalOpts)
+
+  const result = spawnSync('print-filename', [])
+
+  t.equal(result.status, 0, 'CLI was successfull')
+  t.ok(result.stdout.toString().indexOf(path.join('project', 'node_modules')) !== -1, 'local CLI is executed')
 })
 
 test('tarball local package', async function (t) {

@@ -20,3 +20,4 @@ storage/*
 !storage/symlinks-preserved/
 !storage/test-pnpm-peer-deps/
 !storage/uses-pkg-with-self-usage/
+!storage/print-filename/

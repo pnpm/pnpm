@@ -27,11 +27,7 @@
 			}
 		}
 	},
-	"dist-tags": {
-		"latest": [
-			"1.0.0"
-		]
-	},
+	"dist-tags": {},
 	"_distfiles": {},
 	"_attachments": {
 		"plugin-example-1.0.0.tgz": {
@@ -40,6 +36,6 @@
 		}
 	},
 	"_uplinks": {},
-	"_rev": "3-9cc83c0886853b15",
+	"_rev": "3-08327db58278b4a5",
 	"readme": "ERROR: No README data found!"
 }

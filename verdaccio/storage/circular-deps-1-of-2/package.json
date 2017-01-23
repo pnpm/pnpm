@@ -118,10 +118,7 @@
 		}
 	},
 	"dist-tags": {
-		"latest": [
-			"1.0.1",
-			"1.0.2"
-		]
+		"latest": "1.0.2"
 	},
 	"_distfiles": {
 		"circular-deps-1-of-2-1.0.0.tgz": {
@@ -144,9 +141,9 @@
 	"_uplinks": {
 		"npmjs": {
 			"etag": "W/\"57f81347-a2f\"",
-			"fetched": 1484116058925
+			"fetched": 1485093446218
 		}
 	},
-	"_rev": "4-e21103171d22ba88",
+	"_rev": "4-ff1c91f3fb2221f5",
 	"readme": "ERROR: No README data found!"
 }

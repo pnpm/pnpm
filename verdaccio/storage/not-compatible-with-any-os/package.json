@@ -20,11 +20,7 @@
 			}
 		}
 	},
-	"dist-tags": {
-		"latest": [
-			"1.0.0"
-		]
-	},
+	"dist-tags": {},
 	"_distfiles": {},
 	"_attachments": {
 		"not-compatible-with-any-os-1.0.0.tgz": {
@@ -33,6 +29,6 @@
 		}
 	},
 	"_uplinks": {},
-	"_rev": "3-ce25dc88eb7c1f05",
+	"_rev": "3-47a86d62229e633a",
 	"readme": "ERROR: No README data found!"
 }

@@ -32,11 +32,7 @@
 			}
 		}
 	},
-	"dist-tags": {
-		"latest": [
-			"1.0.0"
-		]
-	},
+	"dist-tags": {},
 	"_distfiles": {},
 	"_attachments": {
 		"install-script-example-1.0.0.tgz": {
@@ -45,6 +41,6 @@
 		}
 	},
 	"_uplinks": {},
-	"_rev": "3-e48de8a0692b0534",
+	"_rev": "3-aa5543f1fd58e9f5",
 	"readme": "# install-script-example\n\nA package that creates a file by an install script\n\n## Installation\n\n```\nnpm i install-script-example\n```\n\n# License\n\nMIT\n"
 }

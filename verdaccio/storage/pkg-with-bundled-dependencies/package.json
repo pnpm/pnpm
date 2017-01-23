@@ -23,11 +23,7 @@
 			}
 		}
 	},
-	"dist-tags": {
-		"latest": [
-			"1.0.0"
-		]
-	},
+	"dist-tags": {},
 	"_distfiles": {},
 	"_attachments": {
 		"pkg-with-bundled-dependencies-1.0.0.tgz": {
@@ -36,6 +32,6 @@
 		}
 	},
 	"_uplinks": {},
-	"_rev": "3-2be73748c4ec8b11",
+	"_rev": "3-f4ab7960914771bf",
 	"readme": "ERROR: No README data found!"
 }

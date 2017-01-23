@@ -79,10 +79,7 @@
 		}
 	},
 	"dist-tags": {
-		"latest": [
-			"1.0.0",
-			"1.0.1"
-		]
+		"latest": "1.0.1"
 	},
 	"_distfiles": {
 		"sh-hello-world-1.0.0.tgz": {
@@ -100,9 +97,9 @@
 	"_uplinks": {
 		"npmjs": {
 			"etag": "W/\"57a4dd6c-69f\"",
-			"fetched": 1484116071429
+			"fetched": 1485093461249
 		}
 	},
-	"_rev": "4-6cd8afffefaf9de2",
+	"_rev": "4-a150c15a53df4a35",
 	"readme": "ERROR: No README data found!"
 }

@@ -10,18 +10,25 @@ import isWindows = require('is-windows')
 import cmdShim = require('@zkochan/cmd-shim')
 import {Package} from '../types'
 import logger from 'pnpm-logger'
+import os = require('os')
+import {PnpmBinRunnerOptions} from 'pnpm-bin-runner'
+
+export type BinOptions = {
+  preserveSymlinks: boolean,
+  global: boolean,
+}
 
 const IS_WINDOWS = isWindows()
 
-export default async function linkAllBins (modules: string, binPath: string, preserveSymlinks: boolean) {
+export default async function linkAllBins (modules: string, binPath: string, opts: BinOptions) {
   const pkgDirs = await getPkgDirs(modules)
-  return Promise.all(pkgDirs.map((pkgDir: string) => linkPkgBins(pkgDir, binPath, preserveSymlinks)))
+  return Promise.all(pkgDirs.map((pkgDir: string) => linkPkgBins(pkgDir, binPath, opts)))
 }
 
 /**
  * Links executable into `node_modules/.bin`.
  */
-export async function linkPkgBins (target: string, binPath: string, preserveSymlinks: boolean) {
+export async function linkPkgBins (target: string, binPath: string, opts: BinOptions) {
   const pkg = await safeRequireJson(path.join(target, 'package.json'))
 
   if (!pkg) {
@@ -34,26 +41,59 @@ export async function linkPkgBins (target: string, binPath: string, preserveSyml
   const bins = binify(pkg)
 
   await mkdirp(binPath)
-  await Promise.all(Object.keys(bins).map(async function (bin) {
-    const externalBinPath = path.join(binPath, bin)
-    const actualBin = bins[bin]
-    const targetPath = path.join(target, actualBin)
+  await Promise.all(Object.keys(bins).map(bin => linkBin(target, bin, bins[bin], binPath, pkg.name, opts)))
+}
 
-    if (!preserveSymlinks) {
-      const nodePath = getNodePaths(targetPath).join(path.delimiter)
-      return cmdShim(targetPath, externalBinPath, {preserveSymlinks, nodePath})
+async function linkBin (
+  target: string,
+  bin: string,
+  actualBin: string,
+  binPath: string,
+  pkgName: string,
+  opts: BinOptions
+) {
+  const preserveSymlinks = opts.preserveSymlinks
+  const externalBinPath = path.join(binPath, bin)
+  const targetPath = path.join(target, actualBin)
+  const relativeRequirePath = await getBinRequirePath(binPath, targetPath)
+  const cmdOpts = {
+    preserveSymlinks,
+    nodePath: !preserveSymlinks && getNodePaths(targetPath).join(path.delimiter),
+  }
+
+  if (opts.global) {
+    const runnerFilePath = path.join(binPath, `${bin}.runner.js`)
+    const binRunnerOptions: PnpmBinRunnerOptions = {
+      requiredBin: path.join(pkgName, actualBin),
+      globalRequirePath: targetPath,
+      bin,
     }
+    const binRunnerRequirePath = await getBinRequirePath(binPath, require.resolve('pnpm-bin-runner'))
+    await fs.writeFile(runnerFilePath, '#!/usr/bin/env node' +
+      os.EOL + `require('${binRunnerRequirePath}').default(${JSON.stringify(binRunnerOptions)})`, 'utf8')
+    return cmdShim(runnerFilePath, externalBinPath, cmdOpts)
+  }
 
-    const realBinPath = await fs.realpath(binPath)
-    const relTargetPath = normalizePath(path.relative(realBinPath, targetPath))
-    if (IS_WINDOWS) {
-      const proxyFilePath = path.join(binPath, `${bin}.proxy`)
-      await fs.writeFile(proxyFilePath, `#!/usr/bin/env node\r\nrequire("${relTargetPath}")`, 'utf8')
-      return cmdShim(proxyFilePath, externalBinPath, {preserveSymlinks})
-    }
+  if (!preserveSymlinks) {
+    return cmdShim(targetPath, externalBinPath, cmdOpts)
+  }
 
-    return proxy(externalBinPath, relTargetPath)
-  }))
+  const proxyFilePath = path.join(binPath, `${bin}.proxy.js`)
+  const content = '#!/usr/bin/env node' +
+    os.EOL +
+    `require("${relativeRequirePath}")`
+  await fs.writeFile(proxyFilePath, content, 'utf8')
+  return cmdShim(proxyFilePath, externalBinPath, cmdOpts)
+}
+
+async function getBinRequirePath (binPath: string, targetPath: string) {
+  const realBinPath = await fs.realpath(binPath)
+  const relTargetPath = normalizePath(path.relative(realBinPath, targetPath))
+  if (!relTargetPath.startsWith('.')) {
+    // require should always be identified as relative by Node
+    return `./${relTargetPath}`
+  }
+  return relTargetPath
 }
 
 function getNodePaths (filename: string): string[] {
@@ -65,20 +105,6 @@ function getNodePaths (filename: string): string[] {
 
 function makeExecutable (filePath: string) {
   return fs.chmod(filePath, 0o755)
-}
-
-async function proxy (proxyPath: string, relTargetPath: string): Promise<void> {
-  if (!relTargetPath.startsWith('.')) {
-    // require should always be identified as relative by Node
-    return proxy(proxyPath, `./${relTargetPath}`)
-  }
-  // NOTE: this will be used only on non-windows
-  // Hence, the \n line endings should be used
-  const proxyContent = '#!/bin/sh\n' +
-    '":" //# comment; exec /usr/bin/env node --preserve-symlinks "$0" "$@"\n' +
-    `require("${relTargetPath}")`
-  await fs.writeFile(proxyPath, proxyContent, 'utf8')
-  return makeExecutable(proxyPath)
 }
 
 /**

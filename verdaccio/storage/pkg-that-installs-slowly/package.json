@@ -19,11 +19,7 @@
 			}
 		}
 	},
-	"dist-tags": {
-		"latest": [
-			"1.0.0"
-		]
-	},
+	"dist-tags": {},
 	"_distfiles": {},
 	"_attachments": {
 		"pkg-that-installs-slowly-1.0.0.tgz": {
@@ -32,6 +28,6 @@
 		}
 	},
 	"_uplinks": {},
-	"_rev": "3-9c007104a5f76531",
+	"_rev": "3-7ff082e87fa27e6f",
 	"readme": "ERROR: No README data found!"
 }
