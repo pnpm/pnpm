@@ -389,6 +389,10 @@ test('from a git repo', async function (t) {
 })
 
 test('shrinkwrap compatibility', async function (t) {
+  if (semver.satisfies(process.version, '4')) {
+    t.skip("don't run on Node.js 4")
+    return
+  }
   const project = prepare(t, { dependencies: { rimraf: '*' } })
 
   await installPkgs(['rimraf@2.5.1'], testDefaults())
