@@ -48,19 +48,27 @@ See [store layout](docs/store-layout.md) for an explanation.
 .
 └─ node_modules/
    ├─ .resolutions/
-   |   ├─ chalk/1.1.1/node_modules/chalk/
+   |   ├─ chalk/1.1.1/
    |   |  ├─ node_modules/
-   |   |  |  ├─ ansi-styles/ -> ../../ansi-styles/2.1.0/node_modules/ansi-styles/
-   |   |  |  └─ has-ansi/    -> ../../has-ansi/2.0.0/node_modules/has-ansi/
-   |   |  ├─ index.js        => ~/.pnpm-store/chalk/1.1.1/index.js
-   |   |  └─ package.json    => ~/.pnpm-store/chalk/1.1.1/package.json
-   |   ├─ has-ansi/2.0.0/node_modules/has-ansi/
-   |   |  ├─ index.js        => ~/.pnpm-store/has-ansi/2.0.0/index.js
-   |   |  └─ package.js      => ~/.pnpm-store/has-ansi/2.0.0/package.json
+   |   |  |  ├─ chalk        -> ../package
+   |   |  |  ├─ ansi-styles/ -> ../../ansi-styles/2.1.0/package
+   |   |  |  └─ has-ansi/    -> ../../has-ansi/2.0.0/package
+   |   |  └─ package
+   |   |     ├─ index.js     => ~/.pnpm-store/chalk/1.1.1/index.js
+   |   |     └─ package.json => ~/.pnpm-store/chalk/1.1.1/package.json
+   |   ├─ has-ansi/2.0.0/
+   |   |  ├─ node_modules/
+   |   |  |  └─ has-ansi     -> ../package
+   |   |  └─ package
+   |   |     ├─ index.js     => ~/.pnpm-store/has-ansi/2.0.0/index.js
+   |   |     └─ package.js   => ~/.pnpm-store/has-ansi/2.0.0/package.json
    |   └─ ansi-styles/2.1.0/node_modules/ansi-styles/
-   |      ├─ index.js        => ~/.pnpm-store/ansi-styles/2.1.0/index.js
-   |      └─ package.js      => ~/.pnpm-store/ansi-styles/2.1.0/package.json
-   └─ chalk/                 -> ./.resolutions/chalk/1.1.1/node_modules/chalk/
+   |      ├─ node_modules/
+   |      |  └─ ansi-styles  -> ../package
+   |      └─ package
+   |         ├─ index.js     => ~/.pnpm-store/ansi-styles/2.1.0/index.js
+   |         └─ package.js   => ~/.pnpm-store/ansi-styles/2.1.0/package.json
+   └─ chalk/                 -> ./.resolutions/chalk/1.1.1/package
 ```
 
 ## Install
