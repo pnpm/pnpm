@@ -41,5 +41,6 @@ export default (opts?: PnpmOptions): StrictPnpmOptions => {
   if (extendedOpts.flatTree === true && !extendedOpts.preserveSymlinks) {
     throw new Error('`--preserve-symlinks` and so `--flat-tree` are not supported on your system, make sure you are running on Node ≽ 6.3.0')
   }
+  extendedOpts.preserveSymlinks = false // TODO: remove preserve-symlinks related code
   return extendedOpts
 }

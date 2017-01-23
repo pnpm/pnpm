@@ -23,6 +23,8 @@ export default async function linkAllBins (modules: string, binPath: string, pre
  */
 export async function linkPkgBins (target: string, binPath: string, preserveSymlinks: boolean) {
   const pkg = await safeRequireJson(path.join(target, 'package.json'))
+  const targetRealPath = await fs.realpath(target)
+  const extraNodePath = [path.join(targetRealPath, 'node_modules'), path.join(targetRealPath, '..', 'node_modules')]
 
   if (!pkg) {
     logger.warn(`There's a directory in node_modules without package.json: ${target}`)
@@ -40,7 +42,7 @@ export async function linkPkgBins (target: string, binPath: string, preserveSyml
     const targetPath = path.join(target, actualBin)
 
     if (!preserveSymlinks) {
-      const nodePath = getNodePaths(targetPath).join(path.delimiter)
+      const nodePath = extraNodePath.concat(getNodePaths(targetPath)).join(path.delimiter)
       return cmdShim(targetPath, externalBinPath, {preserveSymlinks, nodePath})
     }
 

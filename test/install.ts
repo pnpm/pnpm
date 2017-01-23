@@ -840,7 +840,7 @@ test('shrinkwrap locks npm dependencies', async function (t) {
 
   await install(testDefaults({cacheTTL: 0}))
 
-  const pkg = project.requireModule('pkg-with-1-dep/node_modules/dep-of-pkg-with-1-dep/package.json')
+  const pkg = project.requireModule('.resolutions/localhost+4873/pkg-with-1-dep/100.0.0/node_modules/dep-of-pkg-with-1-dep/package.json')
 
   t.equal(pkg.version, '100.0.0', 'dependency specified in shrinkwrap.yaml is installed')
 })
