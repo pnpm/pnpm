@@ -11,7 +11,7 @@ import cmdShim = require('@zkochan/cmd-shim')
 import {Package} from '../types'
 import logger from 'pnpm-logger'
 import os = require('os')
-import {SwitcherOptions} from '../switcher'
+import {PnpmBinRunnerOptions} from 'pnpm-bin-runner'
 
 export type BinOptions = {
   preserveSymlinks: boolean,
@@ -62,16 +62,16 @@ async function linkBin (
   }
 
   if (opts.global) {
-    const proxyFilePath = path.join(binPath, `${bin}.switch.js`)
-    const switcherOptions: SwitcherOptions = {
+    const runnerFilePath = path.join(binPath, `${bin}.runner.js`)
+    const binRunnerOptions: PnpmBinRunnerOptions = {
       requiredBin: path.join(pkgName, actualBin),
       globalRequirePath: targetPath,
       bin,
     }
-    const switcherRequirePath = await getBinRequirePath(binPath, path.join(__dirname, '..', '..', 'lib', 'switcher'))
-    await fs.writeFile(proxyFilePath, '#!/usr/bin/env node' +
-      os.EOL + `require('${switcherRequirePath}').default(${JSON.stringify(switcherOptions)})`, 'utf8')
-    return cmdShim(proxyFilePath, externalBinPath, cmdOpts)
+    const binRunnerRequirePath = await getBinRequirePath(binPath, require.resolve('pnpm-bin-runner'))
+    await fs.writeFile(runnerFilePath, '#!/usr/bin/env node' +
+      os.EOL + `require('${binRunnerRequirePath}').default(${JSON.stringify(binRunnerOptions)})`, 'utf8')
+    return cmdShim(runnerFilePath, externalBinPath, cmdOpts)
   }
 
   if (!preserveSymlinks) {
