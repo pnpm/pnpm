@@ -150,6 +150,12 @@ async function install (pkgRawSpec: string, modules: string, ctx: InstallContext
   if (!ctx.installed.has(dependency.id)) {
     ctx.installed.add(dependency.id)
     dependency.dependencies = await installDependencies(pkg, dependency, ctx, modulesInStore, options)
+
+    const selfRequire = path.join(modulesInStore, pkg.name)
+    if (!await exists(selfRequire)) {
+      // This way, babel-runtime@5 can require('babel-runtime') within itself.
+      await linkDir(dependency.hardlinkedLocation, selfRequire)
+    }
   }
 
   await dependency.fetchingFiles
@@ -159,9 +165,6 @@ async function install (pkgRawSpec: string, modules: string, ctx: InstallContext
       await rimraf(stage)
       await hardlinkDir(dependency.path, stage)
       await fs.rename(stage, dependency.hardlinkedLocation)
-
-      // This way, babel-runtime@5 can require('babel-runtime') within itself.
-      await linkDir(dependency.hardlinkedLocation, path.join(modulesInStore, pkg.name))
     }
   })
 
