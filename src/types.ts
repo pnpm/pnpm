@@ -57,7 +57,7 @@ export type PnpmOptions = {
   engineStrict?: boolean,
   nodeVersion?: string,
 
-  lifecycle: LifecycleHooks,
+  lifecycle?: LifecycleHooks,
 
   // proxy
   proxy?: string,
