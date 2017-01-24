@@ -27,7 +27,6 @@ export type InstallOptions = FetchOptions & {
   engineStrict: boolean,
   nodeVersion: string,
   nodeModulesStore: string,
-  preserveSymlinks: boolean,
 }
 
 export type MultipleInstallOpts = InstallOptions & {
@@ -72,7 +71,7 @@ export default async function installAll (ctx: InstallContext, dependencies: Dep
         await linkDir(subdep.hardlinkedLocation, dest)
       })
   )
-  await linkBins(modules, options.binPath, options.preserveSymlinks)
+  await linkBins(modules, options.binPath)
 
   return installedPkgs
 }

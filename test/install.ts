@@ -22,7 +22,6 @@ import {sync as execPnpmSync} from './support/execPnpm'
 import isWindows = require('is-windows')
 
 const IS_WINDOWS = isWindows()
-const preserveSymlinks = semver.satisfies(process.version, '>=6.3.0')
 
 if (!caw() && !IS_WINDOWS) {
   process.env.VCR_MODE = 'cache'
@@ -738,78 +737,6 @@ test('should install dependency in second project', async function (t) {
   await installPkgs(['pkg-with-1-dep'], testDefaults({save: true, storePath: '../store'}))
 
   t.equal(project2.requireModule('pkg-with-1-dep')().name, 'dep-of-pkg-with-1-dep', 'can require in 2nd pkg')
-})
-
-test('should install flat tree', async function (t) {
-  if (!preserveSymlinks) {
-    t.skip('this test only for NodeJS with --preserve-symlinks support')
-    return
-  }
-
-  const project = prepare(t)
-  await installPkgs(['rimraf@2.5.1'], testDefaults({flatTree: true}))
-
-  isAvailable('balanced-match')
-  isAvailable('rimraf')
-  isAvailable('brace-expansion')
-  isAvailable('concat-map')
-
-  function isAvailable (depName: string) {
-    const dep = project.requireModule(depName)
-    t.ok(dep, `${depName} is available`)
-  }
-})
-
-test('should throw error when trying to install flat tree on Node.js < 6.3.0', async function (t) {
-  if (preserveSymlinks) {
-    t.skip()
-    return
-  }
-
-  const project = prepare(t)
-
-  try {
-    await installPkgs(['rimraf@2.5.1'], testDefaults({flatTree: true}))
-    t.fail('installation should have failed')
-  } catch (err) {
-    t.equal(err.message, '`--preserve-symlinks` and so `--flat-tree` are not supported on your system, make sure you are running on Node ≽ 6.3.0')
-  }
-})
-
-test('should throw error when trying to install with a different tree type using a dedicated store', async function(t) {
-  if (!preserveSymlinks) {
-    t.skip('flat trees are supported only on Node.js with --preserve-symlinks support')
-    return
-  }
-
-  const project = prepare(t)
-
-  await installPkgs(['rimraf@2.5.1'], testDefaults({flatTree: false}))
-
-  try {
-    await installPkgs(['is-negative'], testDefaults({flatTree: true}))
-    t.fail('installation should have failed')
-  } catch (err) {
-    t.equal(err.code, 'INCONSISTENT_TREE_TYPE', 'failed with correct error code')
-  }
-})
-
-test('should throw error when trying to install with a different tree type using a global store', async function(t) {
-  if (!preserveSymlinks) {
-    t.skip('flat trees are supported only on Node.js with --preserve-symlinks support')
-    return
-  }
-
-  const project = prepare(t)
-
-  await installPkgs(['rimraf@2.5.1'], testDefaults({flatTree: false, global: true}))
-
-  try {
-    await installPkgs(['is-negative'], testDefaults({flatTree: true, global: true}))
-    t.fail('installation should have failed')
-  } catch (err) {
-    t.equal(err.code, 'INCONSISTENT_TREE_TYPE', 'failed with correct error code')
-  }
 })
 
 test('should throw error when trying to install using a different store then the previous one', async function(t) {

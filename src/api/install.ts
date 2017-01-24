@@ -23,7 +23,6 @@ import {read as readStore, save as saveStore} from '../fs/storeController'
 import {save as saveShrinkwrap, Shrinkwrap} from '../fs/shrinkwrap'
 import {save as saveModules} from '../fs/modulesController'
 import {tryUninstall, removePkgFromStore} from './uninstall'
-import flattenDependencies from '../install/flattenDependencies'
 import mkdirp from '../fs/mkdirp'
 import {CachedPromises} from '../memoize'
 
@@ -87,7 +86,6 @@ async function installInContext (installType: string, packagesToInstall: Depende
       tag: opts.tag,
       engineStrict: opts.engineStrict,
       nodeVersion: opts.nodeVersion,
-      preserveSymlinks: opts.preserveSymlinks,
       got: createGot(client, {
         cachePath: ctx.cache,
         cacheTTL: opts.cacheTTL
@@ -104,11 +102,6 @@ async function installInContext (installType: string, packagesToInstall: Depende
       installOpts
     )
   })
-
-  if (opts.flatTree) {
-    logger.info('Flattening the dependency tree')
-    await flattenDependencies(ctx.root, ctx.storePath, pkgs, ctx.graph)
-  }
 
   if (installType === 'named') {
     const saveType = getSaveType(opts)
@@ -131,7 +124,6 @@ async function installInContext (installType: string, packagesToInstall: Depende
     await saveModules(path.join(ctx.root, 'node_modules'), {
       packageManager: `${pnpmPkgJson.name}@${pnpmPkgJson.version}`,
       storePath: ctx.storePath,
-      type: opts.flatTree ? 'flat' : 'nested',
     })
   }
 

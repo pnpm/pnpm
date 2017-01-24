@@ -16,7 +16,6 @@ import {
 } from '../fs/shrinkwrap'
 import {
   read as readModules,
-  TreeType,
 } from '../fs/modulesController'
 import mkdirp from '../fs/mkdirp'
 import {Package} from '../types'
@@ -37,7 +36,6 @@ export default async function (opts: StrictPnpmOptions): Promise<PnpmContext> {
   const root = normalizePath(pkg.path ? path.dirname(pkg.path) : opts.cwd)
   const storeBasePath = resolveStoreBasePath(opts.storePath, root)
 
-  const treeType: TreeType = opts.flatTree ? 'flat' : 'nested'
   const storePath = getStorePath(storeBasePath)
 
   let modules = await readModules(path.join(root, 'node_modules'))
@@ -45,11 +43,6 @@ export default async function (opts: StrictPnpmOptions): Promise<PnpmContext> {
   if (modules && modules.storePath !== storePath) {
     const err = new Error(`The package's modules are from store at ${modules.storePath} and you are trying to use store at ${storePath}`)
     err['code'] = 'ALIEN_STORE'
-    throw err
-  }
-  if (modules && modules.type !== treeType) {
-    const err = new Error(`Cannot use a ${modules.type} store for a ${treeType} installation`)
-    err['code'] = 'INCONSISTENT_TREE_TYPE'
     throw err
   }
   if (modules) {
