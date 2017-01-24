@@ -120,6 +120,14 @@ function failIfNotCompatibleNodeModules (pnpmVersion: string) {
       TIPS: you can run \`rm -rf node_modules\`
     `)
   }
+  if (!semver.satisfies(pnpmVersion, '>=0.51')) {
+    throw new Error(stripIndent`
+      The node_modules structure was changed.
+      Remove it and run pnpm again.
+      Related PR: https://github.com/pnpm/pnpm/pull/576
+      TIPS: you can run \`rm -rf node_modules\`
+    `)
+  }
 }
 
 function structureChangeMsg (moreInfo: string): string {
