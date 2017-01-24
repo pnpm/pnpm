@@ -28,5 +28,9 @@ const defaults = () => (<StrictPnpmOptions>{
 })
 
 export default (opts?: PnpmOptions): StrictPnpmOptions => {
-  return Object.assign({}, defaults(), opts)
+  const extendedOpts = Object.assign({}, defaults(), opts)
+  if (extendedOpts.force) {
+    logger.warn('using --force I sure hope you know what you are doing')
+  }
+  return extendedOpts
 }
