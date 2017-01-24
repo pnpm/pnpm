@@ -20,6 +20,8 @@ import {
 import mkdirp from '../fs/mkdirp'
 import {Package} from '../types'
 import normalizePath = require('normalize-path')
+import rimraf = require('rimraf-then')
+import logger from 'pnpm-logger'
 
 export type PnpmContext = {
   pkg?: Package,
@@ -31,14 +33,15 @@ export type PnpmContext = {
   isFirstInstallation: boolean,
 }
 
-export default async function (opts: StrictPnpmOptions): Promise<PnpmContext> {
+export default async function getContext (opts: StrictPnpmOptions): Promise<PnpmContext> {
   const pkg = await (opts.global ? readGlobalPkg(opts.globalPath) : readPkgUp({ cwd: opts.cwd }))
   const root = normalizePath(pkg.path ? path.dirname(pkg.path) : opts.cwd)
   const storeBasePath = resolveStoreBasePath(opts.storePath, root)
 
   const storePath = getStorePath(storeBasePath)
 
-  let modules = await readModules(path.join(root, 'node_modules'))
+  const modulesPath = path.join(root, 'node_modules')
+  let modules = await readModules(modulesPath)
   const isFirstInstallation: boolean = !modules
   if (modules && modules.storePath !== storePath) {
     const err = new Error(`The package's modules are from store at ${modules.storePath} and you are trying to use store at ${storePath}`)
@@ -55,7 +58,16 @@ export default async function (opts: StrictPnpmOptions): Promise<PnpmContext> {
     }
     const pnpmVersion = getPackageManagerVersion(modules.packageManager)
     failIfNotCompatibleStore(pnpmVersion)
-    failIfNotCompatibleNodeModules(pnpmVersion)
+    try {
+      failIfNotCompatibleNodeModules(pnpmVersion)
+    } catch (err) {
+      if (opts.force) {
+        logger.info(`Recreating ${modulesPath}`)
+        await rimraf(modulesPath)
+        return getContext(opts)
+      }
+      throw err
+    }
   }
 
   function getPackageManagerVersion(packageManager: string) {
@@ -117,7 +129,7 @@ function failIfNotCompatibleNodeModules (pnpmVersion: string) {
       The node_modules structure was changed.
       Remove it and run pnpm again.
       Related PR: https://github.com/pnpm/pnpm/pull/534
-      TIPS: you can run \`rm -rf node_modules\`
+      TIPS: you can run \`rm -rf node_modules\` or install with the --force parameter
     `)
   }
   if (!semver.satisfies(pnpmVersion, '>=0.51')) {
@@ -125,7 +137,7 @@ function failIfNotCompatibleNodeModules (pnpmVersion: string) {
       The node_modules structure was changed.
       Remove it and run pnpm again.
       Related PR: https://github.com/pnpm/pnpm/pull/576
-      TIPS: you can run \`rm -rf node_modules\`
+      TIPS: you can run \`rm -rf node_modules\` or install with the --force parameter
     `)
   }
 }
