@@ -21,7 +21,6 @@ export type PnpmOptions = {
   depth?: number,
   engineStrict?: boolean,
   nodeVersion?: string,
-  preserveSymlinks?: boolean,
 
   // proxy
   proxy?: string,
@@ -38,7 +37,6 @@ export type PnpmOptions = {
   tag?: string,
 
   cacheTTL?: number,
-  flatTree?: boolean,
 }
 
 export type StrictPnpmOptions = {
@@ -62,7 +60,6 @@ export type StrictPnpmOptions = {
   depth: number,
   engineStrict: boolean,
   nodeVersion: string,
-  preserveSymlinks: boolean,
 
   // proxy
   proxy?: string,
@@ -79,7 +76,6 @@ export type StrictPnpmOptions = {
   tag: string,
 
   cacheTTL: number,
-  flatTree: boolean,
 }
 
 export type Dependencies = {

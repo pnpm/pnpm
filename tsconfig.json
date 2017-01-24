@@ -58,7 +58,6 @@
     "src/index.ts",
     "src/install/fetch.ts",
     "src/install/fetchResolution.ts",
-    "src/install/flattenDependencies.ts",
     "src/install/installMultiple.ts",
     "src/install/isAvailable.ts",
     "src/install/linkBins.ts",

@@ -8,12 +8,9 @@ import {
 // thinks that it is an extraneous package.
 const modulesFileName = '.modules.yaml'
 
-export type TreeType = 'flat' | 'nested'
-
 export type Modules = {
   packageManager: string,
   storePath: string,
-  type: TreeType,
 }
 
 export async function read (modulesPath: string): Promise<Modules | null> {
