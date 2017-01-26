@@ -12,30 +12,26 @@
 			},
 			"_id": "peer-deps-in-child-pkg@1.0.0",
 			"scripts": {},
-			"_shasum": "7aacfa04175dfb055b805cd0c6c0c09ac19dbafc",
+			"_shasum": "c6e0980857eba15d53929d85077b95b32e0ade3d",
 			"_from": ".",
-			"_npmVersion": "3.10.9",
-			"_nodeVersion": "6.9.1",
+			"_npmVersion": "4.0.5",
+			"_nodeVersion": "7.4.0",
 			"_npmUser": {},
 			"dist": {
-				"shasum": "7aacfa04175dfb055b805cd0c6c0c09ac19dbafc",
+				"shasum": "c6e0980857eba15d53929d85077b95b32e0ade3d",
 				"tarball": "http://localhost:4873/peer-deps-in-child-pkg/-/peer-deps-in-child-pkg-1.0.0.tgz"
 			}
 		}
 	},
-	"dist-tags": {
-		"latest": [
-			"1.0.0"
-		]
-	},
+	"dist-tags": {},
 	"_distfiles": {},
 	"_attachments": {
 		"peer-deps-in-child-pkg-1.0.0.tgz": {
-			"shasum": "7aacfa04175dfb055b805cd0c6c0c09ac19dbafc",
+			"shasum": "c6e0980857eba15d53929d85077b95b32e0ade3d",
 			"version": "1.0.0"
 		}
 	},
 	"_uplinks": {},
-	"_rev": "3-12002155aa2ca1ac",
+	"_rev": "3-f589fbd650a310b6",
 	"readme": "ERROR: No README data found!"
 }

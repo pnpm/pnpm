@@ -12,34 +12,30 @@
 			"license": "MIT",
 			"repository": {
 				"type": "git",
-				"url": "https://github.com/rstacruz/pnpm/tree/master/test/packages/plugin-example"
+				"url": "https://github.com/pnpm/pnpm/tree/master/test/packages/plugin-example"
 			},
 			"_id": "plugin-example@1.0.0",
 			"scripts": {},
-			"_shasum": "f7710d96da8002a55d9e29d11d57738e06c7d7e0",
+			"_shasum": "b98cc6afea938ca5d5de5cbc25581c2230fdefc5",
 			"_from": ".",
-			"_npmVersion": "3.10.9",
-			"_nodeVersion": "6.9.1",
+			"_npmVersion": "4.0.5",
+			"_nodeVersion": "7.4.0",
 			"_npmUser": {},
 			"dist": {
-				"shasum": "f7710d96da8002a55d9e29d11d57738e06c7d7e0",
+				"shasum": "b98cc6afea938ca5d5de5cbc25581c2230fdefc5",
 				"tarball": "http://localhost:4873/plugin-example/-/plugin-example-1.0.0.tgz"
 			}
 		}
 	},
-	"dist-tags": {
-		"latest": [
-			"1.0.0"
-		]
-	},
+	"dist-tags": {},
 	"_distfiles": {},
 	"_attachments": {
 		"plugin-example-1.0.0.tgz": {
-			"shasum": "f7710d96da8002a55d9e29d11d57738e06c7d7e0",
+			"shasum": "b98cc6afea938ca5d5de5cbc25581c2230fdefc5",
 			"version": "1.0.0"
 		}
 	},
 	"_uplinks": {},
-	"_rev": "3-9cc83c0886853b15",
+	"_rev": "3-9a99b10bb0b4b1da",
 	"readme": "ERROR: No README data found!"
 }
