@@ -41,22 +41,19 @@
 			},
 			"_id": "pkg-with-1-dep@100.0.0",
 			"scripts": {},
-			"_shasum": "4672ca212764dfa52e870997a7c45f63748878eb",
+			"_shasum": "7cc1981e1c9414528760b0ae4de003992d526450",
 			"_from": ".",
-			"_npmVersion": "3.10.9",
-			"_nodeVersion": "6.9.1",
+			"_npmVersion": "4.0.5",
+			"_nodeVersion": "7.4.0",
 			"_npmUser": {},
 			"dist": {
-				"shasum": "4672ca212764dfa52e870997a7c45f63748878eb",
+				"shasum": "7cc1981e1c9414528760b0ae4de003992d526450",
 				"tarball": "http://localhost:4873/pkg-with-1-dep/-/pkg-with-1-dep-100.0.0.tgz"
 			}
 		}
 	},
 	"dist-tags": {
-		"latest": [
-			"1.0.0",
-			"100.0.0"
-		]
+		"latest": "100.0.0"
 	},
 	"_distfiles": {
 		"pkg-with-1-dep-1.0.0.tgz": {
@@ -67,16 +64,16 @@
 	},
 	"_attachments": {
 		"pkg-with-1-dep-100.0.0.tgz": {
-			"shasum": "4672ca212764dfa52e870997a7c45f63748878eb",
+			"shasum": "7cc1981e1c9414528760b0ae4de003992d526450",
 			"version": "100.0.0"
 		}
 	},
 	"_uplinks": {
 		"npmjs": {
 			"etag": "W/\"57fa482e-444\"",
-			"fetched": 1484116061705
+			"fetched": 1485460857537
 		}
 	},
-	"_rev": "4-017b1ee9d1861c23",
+	"_rev": "4-7042f17e7083c944",
 	"readme": "ERROR: No README data found!"
 }

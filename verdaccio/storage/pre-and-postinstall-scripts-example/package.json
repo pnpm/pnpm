@@ -7,8 +7,8 @@
 			"description": "A package that creates files by pre- and postinstall scripts",
 			"scripts": {
 				"test": "echo \"Error: no test specified\" && exit 1",
-				"preinstall": "node create generated-by-preinstall",
-				"postinstall": "node create generated-by-postinstall"
+				"preinstall": "hello-world-js-bin && node create generated-by-preinstall",
+				"postinstall": "hello-world-js-bin && node create generated-by-postinstall"
 			},
 			"author": {
 				"name": "Zoltan Kochan",
@@ -18,34 +18,33 @@
 			"license": "MIT",
 			"repository": {
 				"type": "git",
-				"url": "https://github.com/rstacruz/pnpm/tree/master/test/packages/postinstall-example"
+				"url": "https://github.com/pnpm/pnpm/tree/master/test/packages/postinstall-example"
+			},
+			"dependencies": {
+				"hello-world-js-bin": "1.0.0"
 			},
 			"readmeFilename": "README.md",
 			"_id": "pre-and-postinstall-scripts-example@1.0.0",
-			"_shasum": "e317ee0e6c32a8f28bfe43458ec07df27efdbce3",
+			"_shasum": "3b2acc3d25d6d15131e5ac7ccf3e150dfe032c78",
 			"_from": ".",
-			"_npmVersion": "3.10.9",
-			"_nodeVersion": "6.9.1",
+			"_npmVersion": "4.0.5",
+			"_nodeVersion": "7.4.0",
 			"_npmUser": {},
 			"dist": {
-				"shasum": "e317ee0e6c32a8f28bfe43458ec07df27efdbce3",
+				"shasum": "3b2acc3d25d6d15131e5ac7ccf3e150dfe032c78",
 				"tarball": "http://localhost:4873/pre-and-postinstall-scripts-example/-/pre-and-postinstall-scripts-example-1.0.0.tgz"
 			}
 		}
 	},
-	"dist-tags": {
-		"latest": [
-			"1.0.0"
-		]
-	},
+	"dist-tags": {},
 	"_distfiles": {},
 	"_attachments": {
 		"pre-and-postinstall-scripts-example-1.0.0.tgz": {
-			"shasum": "e317ee0e6c32a8f28bfe43458ec07df27efdbce3",
+			"shasum": "3b2acc3d25d6d15131e5ac7ccf3e150dfe032c78",
 			"version": "1.0.0"
 		}
 	},
 	"_uplinks": {},
-	"_rev": "3-38ac0f17007cbb18",
+	"_rev": "3-3003f4dfa10424c6",
 	"readme": "# pre-and-postinstall-scripts-example\n\nA package that creates files by pre- and postinstall scripts\n\n## Installation\n\n```\nnpm i pre-and-postinstall-scripts-example\n```\n\n# License\n\nMIT\n"
 }

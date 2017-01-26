@@ -102,26 +102,23 @@
 			},
 			"repository": {
 				"type": "git",
-				"url": "https://github.com/rstacruz/pnpm/tree/master/test/packages/circular-deps-2-of-2"
+				"url": "https://github.com/pnpm/pnpm/tree/master/test/packages/circular-deps-2-of-2"
 			},
 			"_id": "circular-deps-2-of-2@1.0.2",
 			"scripts": {},
-			"_shasum": "eaa7f8fc8a6da7b86f9e721d232b47052f5d5323",
+			"_shasum": "a6b34da5146c54cdea3017278f57a60241859c62",
 			"_from": ".",
-			"_npmVersion": "3.10.9",
-			"_nodeVersion": "6.9.1",
+			"_npmVersion": "4.0.5",
+			"_nodeVersion": "7.4.0",
 			"_npmUser": {},
 			"dist": {
-				"shasum": "eaa7f8fc8a6da7b86f9e721d232b47052f5d5323",
+				"shasum": "a6b34da5146c54cdea3017278f57a60241859c62",
 				"tarball": "http://localhost:4873/circular-deps-2-of-2/-/circular-deps-2-of-2-1.0.2.tgz"
 			}
 		}
 	},
 	"dist-tags": {
-		"latest": [
-			"1.0.1",
-			"1.0.2"
-		]
+		"latest": "1.0.2"
 	},
 	"_distfiles": {
 		"circular-deps-2-of-2-1.0.0.tgz": {
@@ -137,16 +134,16 @@
 	},
 	"_attachments": {
 		"circular-deps-2-of-2-1.0.2.tgz": {
-			"shasum": "eaa7f8fc8a6da7b86f9e721d232b47052f5d5323",
+			"shasum": "a6b34da5146c54cdea3017278f57a60241859c62",
 			"version": "1.0.2"
 		}
 	},
 	"_uplinks": {
 		"npmjs": {
 			"etag": "W/\"57f8133c-a2f\"",
-			"fetched": 1484116059680
+			"fetched": 1485460855698
 		}
 	},
-	"_rev": "4-f32403fa1d883489",
+	"_rev": "4-51138d370dee263c",
 	"readme": "ERROR: No README data found!"
 }

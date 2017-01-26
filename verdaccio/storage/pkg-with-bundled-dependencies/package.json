@@ -12,30 +12,26 @@
 			],
 			"_id": "pkg-with-bundled-dependencies@1.0.0",
 			"scripts": {},
-			"_shasum": "8000556f071ad57aa91ff4609b6276e4fa901d1c",
+			"_shasum": "ba6cad22c62357395cf4a7e176694692c0597d5c",
 			"_from": ".",
-			"_npmVersion": "3.10.9",
-			"_nodeVersion": "6.9.1",
+			"_npmVersion": "4.0.5",
+			"_nodeVersion": "7.4.0",
 			"_npmUser": {},
 			"dist": {
-				"shasum": "8000556f071ad57aa91ff4609b6276e4fa901d1c",
+				"shasum": "ba6cad22c62357395cf4a7e176694692c0597d5c",
 				"tarball": "http://localhost:4873/pkg-with-bundled-dependencies/-/pkg-with-bundled-dependencies-1.0.0.tgz"
 			}
 		}
 	},
-	"dist-tags": {
-		"latest": [
-			"1.0.0"
-		]
-	},
+	"dist-tags": {},
 	"_distfiles": {},
 	"_attachments": {
 		"pkg-with-bundled-dependencies-1.0.0.tgz": {
-			"shasum": "8000556f071ad57aa91ff4609b6276e4fa901d1c",
+			"shasum": "ba6cad22c62357395cf4a7e176694692c0597d5c",
 			"version": "1.0.0"
 		}
 	},
 	"_uplinks": {},
-	"_rev": "3-2be73748c4ec8b11",
+	"_rev": "3-f559001f171e7278",
 	"readme": "ERROR: No README data found!"
 }

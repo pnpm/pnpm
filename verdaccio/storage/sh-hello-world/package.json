@@ -64,25 +64,22 @@
 			"license": "MIT",
 			"repository": {
 				"type": "git",
-				"url": "https://github.com/rstacruz/pnpm/tree/master/test/packages/sh-hello-world"
+				"url": "https://github.com/pnpm/pnpm/tree/master/test/packages/sh-hello-world"
 			},
 			"_id": "sh-hello-world@1.0.1",
-			"_shasum": "c4c512e02e46de83e2f3e9990999e23c0f66b086",
+			"_shasum": "49fbe3b850157fe1acfb18d35dc3571143fa390e",
 			"_from": ".",
-			"_npmVersion": "3.10.9",
-			"_nodeVersion": "6.9.1",
+			"_npmVersion": "4.0.5",
+			"_nodeVersion": "7.4.0",
 			"_npmUser": {},
 			"dist": {
-				"shasum": "c4c512e02e46de83e2f3e9990999e23c0f66b086",
+				"shasum": "49fbe3b850157fe1acfb18d35dc3571143fa390e",
 				"tarball": "http://localhost:4873/sh-hello-world/-/sh-hello-world-1.0.1.tgz"
 			}
 		}
 	},
 	"dist-tags": {
-		"latest": [
-			"1.0.0",
-			"1.0.1"
-		]
+		"latest": "1.0.1"
 	},
 	"_distfiles": {
 		"sh-hello-world-1.0.0.tgz": {
@@ -93,16 +90,16 @@
 	},
 	"_attachments": {
 		"sh-hello-world-1.0.1.tgz": {
-			"shasum": "c4c512e02e46de83e2f3e9990999e23c0f66b086",
+			"shasum": "49fbe3b850157fe1acfb18d35dc3571143fa390e",
 			"version": "1.0.1"
 		}
 	},
 	"_uplinks": {
 		"npmjs": {
 			"etag": "W/\"57a4dd6c-69f\"",
-			"fetched": 1484116071429
+			"fetched": 1485460867103
 		}
 	},
-	"_rev": "4-6cd8afffefaf9de2",
+	"_rev": "4-54f5fce2fdf8872c",
 	"readme": "ERROR: No README data found!"
 }
