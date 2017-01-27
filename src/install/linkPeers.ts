@@ -1,10 +1,9 @@
 import mkdirp from '../fs/mkdirp'
-import linkDir from 'link-dir'
-import path = require('path')
 import semver = require('semver')
 import {InstalledPackages} from '../api/install'
 import {Package, InstalledPackage} from '../types'
 import logger from 'pnpm-logger'
+import linkDependency from './linkDependency';
 
 type Dict<T> = {
   [index: string]: T
@@ -41,10 +40,7 @@ export default async function linkPeers (installs: InstalledPackages) {
         logger.warn(`${pkgData.id} requires a peer of ${peerName}@${peerDependencies[peerName]} but none was installed.`)
         return
       }
-      return linkDir(
-        groupedPkgs[peerName][version].hardlinkedLocation,
-        path.join(pkgData.hardlinkedLocation, '..', 'node_modules', peerName)
-      )
+      return linkDependency(groupedPkgs[peerName][version], pkgData)
     }))
   }))
 }
