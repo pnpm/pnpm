@@ -27,6 +27,11 @@ export type LifecycleHooks = {
    */
   packageDidFetch?: (target: string, resolution: Resolution) => Promise<void>,
 
+  /**
+   * Executes when installs is completed.
+   */
+  installDidComplete?: (installedPackages: {[name: string]: InstalledPackage}) => Promise<void>,
+
   // TODO: add more lifecycle hooks
   //
   // packageDidResolve

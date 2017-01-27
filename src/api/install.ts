@@ -160,6 +160,10 @@ async function installInContext (installType: string, packagesToInstall: Depende
       npmRun('prepublish', ctx.root)
     }
   }
+
+  if (opts.lifecycle.installDidComplete) {
+    await opts.lifecycle.installDidComplete(installCtx.installs)
+  }
 }
 
 async function removeOrphanPkgs (oldGraphJson: Graph, newGraphJson: Graph, root: string, storePath: string) {
