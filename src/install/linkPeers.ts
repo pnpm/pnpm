@@ -1,5 +1,5 @@
 import mkdirp from '../fs/mkdirp'
-import linkDir from 'link-dir'
+import symlinkDir from 'symlink-dir'
 import path = require('path')
 import semver = require('semver')
 import {InstalledPackages} from '../api/install'
@@ -42,7 +42,7 @@ export default async function linkPeers (installs: InstalledPackages) {
         logger.warn(`${pkgData.id} requires a peer of ${peerName}@${peerDependencies[peerName]} but none was installed.`)
         return
       }
-      return linkDir(
+      return symlinkDir(
         groupedPkgs[peerName][version].hardlinkedLocation,
         path.join(pkgData.hardlinkedLocation, '..', 'node_modules', peerName)
       )

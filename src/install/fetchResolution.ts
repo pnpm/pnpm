@@ -1,6 +1,6 @@
 import logger, {LoggedPkg} from 'pnpm-logger'
 import fs = require('mz/fs')
-import linkDir from 'link-dir'
+import symlinkDir from 'symlink-dir'
 import path = require('path')
 import spawn = require('cross-spawn')
 import execa = require('execa')
@@ -49,7 +49,7 @@ export default async function fetchResolution (
     case 'directory': {
       if (opts.linkLocal) {
         await mkdirp(path.dirname(target))
-        await linkDir(resolution.root, target)
+        await symlinkDir(resolution.root, target)
       } else {
         const tgzFilename = await npmPack(resolution.root)
         const tarball = path.resolve(resolution.root, tgzFilename)

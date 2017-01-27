@@ -11,7 +11,7 @@ import hardlinkDir from '../fs/hardlinkDir'
 import mkdirp from '../fs/mkdirp'
 import installChecks = require('pnpm-install-checks')
 import pnpmPkg from '../pnpmPkgJson'
-import linkDir from 'link-dir'
+import symlinkDir from 'symlink-dir'
 import exists = require('exists-file')
 import {Graph} from '../fs/graphController'
 import logStatus from '../logging/logInstallStatus'
@@ -67,7 +67,7 @@ export default async function installAll (ctx: InstallContext, dependencies: Dep
           ctx.installationSequence.push(subdep.id)
         }
         const dest = path.join(modules, subdep.pkg.name)
-        await linkDir(subdep.hardlinkedLocation, dest)
+        await symlinkDir(subdep.hardlinkedLocation, dest)
       })
   )
 
@@ -151,7 +151,7 @@ async function install (pkgRawSpec: string, modules: string, ctx: InstallContext
     const selfRequire = path.join(modulesInStore, pkg.name)
     if (!await exists(selfRequire)) {
       // This way, babel-runtime@5 can require('babel-runtime') within itself.
-      await linkDir(dependency.hardlinkedLocation, selfRequire)
+      await symlinkDir(dependency.hardlinkedLocation, selfRequire)
     }
   }
 

@@ -1,6 +1,6 @@
 import path = require('path')
 import readPkgUp = require('read-pkg-up')
-import linkDir from 'link-dir'
+import symlinkDir from 'symlink-dir'
 import {install} from './install'
 import expandTilde from '../fs/expandTilde'
 import {linkPkgBins} from '../install/linkBins'
@@ -16,7 +16,7 @@ export async function linkFromRelative (linkTo: string, maybeOpts?: PnpmOptions)
   await install(Object.assign({}, opts, { cwd: linkedPkgPath }))
   await mkdirp(currentModules)
   const pkg = await readPkgUp({ cwd: linkedPkgPath })
-  await linkDir(linkedPkgPath, path.resolve(currentModules, pkg.pkg.name))
+  await symlinkDir(linkedPkgPath, path.resolve(currentModules, pkg.pkg.name))
   const bin = path.join(currentModules, '.bin')
   return linkPkgBins(linkedPkgPath, bin)
 }
