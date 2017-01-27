@@ -11,7 +11,7 @@ import exists = require('exists-file')
 import isAvailable from './isAvailable'
 import * as Shrinkwrap from '../fs/shrinkwrap'
 import memoize, {CachedPromises} from '../memoize'
-import {Package, LifecycleHooks} from '../types'
+import {Package, FetchedPackage, LifecycleHooks} from '../types'
 import {Got} from '../network/got'
 import {InstallContext} from '../api/install'
 import fetchResolution from './fetchResolution'
@@ -27,16 +27,6 @@ export type FetchOptions = {
   got: Got,
   lifecycle: LifecycleHooks,
   update?: boolean,
-}
-
-export type FetchedPackage = {
-  fetchingPkg: Promise<Package>,
-  fetchingFiles: Promise<void>,
-  path: string,
-  srcPath?: string,
-  id: string,
-  fromCache: boolean,
-  abort(): Promise<void>,
 }
 
 /**

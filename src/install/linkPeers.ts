@@ -3,8 +3,7 @@ import linkDir from 'link-dir'
 import path = require('path')
 import semver = require('semver')
 import {InstalledPackages} from '../api/install'
-import {Package} from '../types'
-import {InstalledPackage} from './installMultiple'
+import {Package, InstalledPackage} from '../types'
 import logger from 'pnpm-logger'
 
 type Dict<T> = {

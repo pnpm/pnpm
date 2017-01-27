@@ -139,3 +139,21 @@ export type Package = {
   },
   config?: Object,
 }
+
+export type FetchedPackage = {
+  fetchingPkg: Promise<Package>,
+  fetchingFiles: Promise<void>,
+  path: string,
+  srcPath?: string,
+  id: string,
+  fromCache: boolean,
+  abort(): Promise<void>,
+}
+
+export type InstalledPackage = FetchedPackage & {
+  pkg: Package,
+  keypath: string[],
+  optional: boolean,
+  dependencies: InstalledPackage[], // is needed to support flat tree
+  hardlinkedLocation: string,
+}

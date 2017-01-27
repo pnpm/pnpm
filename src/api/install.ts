@@ -5,10 +5,10 @@ import RegClient = require('npm-registry-client')
 import logger from 'pnpm-logger'
 import cloneDeep = require('lodash.clonedeep')
 import globalBinPath = require('global-bin-path')
-import {PnpmOptions, StrictPnpmOptions, Dependencies, LifecycleHooks} from '../types'
+import {PnpmOptions, StrictPnpmOptions, Dependencies, LifecycleHooks, InstalledPackage} from '../types'
 import createGot from '../network/got'
 import getContext, {PnpmContext} from './getContext'
-import installMultiple, {InstalledPackage} from '../install/installMultiple'
+import installMultiple from '../install/installMultiple'
 import save from '../save'
 import linkPeers from '../install/linkPeers'
 import runtimeError from '../runtimeError'
