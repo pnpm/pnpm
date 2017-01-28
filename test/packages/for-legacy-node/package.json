@@ -1,7 +1,0 @@
-{
-  "name": "for-legacy-node",
-  "version": "1.0.0",
-  "engines": {
-    "node": "0.10"
-  }
-}
