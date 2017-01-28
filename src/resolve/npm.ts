@@ -38,11 +38,11 @@ export default async function resolveNpm (spec: PackageSpec, opts: ResolveOption
         spec.raw + '\n' + message)
       throw err
     }
-    const id = path.join(
+    const id = [
       (url.parse(correctPkg.dist.tarball).host || '').replace(':', '+'),
       correctPkg.name,
       correctPkg.version
-    )
+    ].join('/')
     const resolution: TarballResolution = {
       type: 'tarball',
       id,
