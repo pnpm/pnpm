@@ -23,22 +23,12 @@ declare module 'caw' {
   export = anything;
 }
 
-declare module 'commondir' {
-  const anything: any;
-  export = anything;
-}
-
 declare module 'cross-spawn' {
   const anything: any;
   export = anything;
 }
 
 declare module 'is-ci' {
-  const anything: any;
-  export = anything;
-}
-
-declare module 'is-retry-allowed' {
   const anything: any;
   export = anything;
 }
@@ -99,11 +89,6 @@ declare module 'registry-auth-token' {
 }
 
 declare module 'registry-url' {
-  const anything: any;
-  export = anything;
-}
-
-declare module 'retry' {
   const anything: any;
   export = anything;
 }
