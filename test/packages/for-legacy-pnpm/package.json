@@ -1,7 +1,0 @@
-{
-  "name": "for-legacy-pnpm",
-  "version": "1.0.0",
-  "engines": {
-    "pnpm": "0.1.0"
-  }
-}
