@@ -35,13 +35,13 @@
 			"version": "100.0.0",
 			"_id": "dep-of-pkg-with-1-dep@100.0.0",
 			"scripts": {},
-			"_shasum": "5176ce20bf719a1d4423d2245b9dd4a1916e77db",
+			"_shasum": "5be48403826567c7112113a581f2500902ac9734",
 			"_from": ".",
-			"_npmVersion": "3.10.9",
-			"_nodeVersion": "6.9.1",
+			"_npmVersion": "4.0.5",
+			"_nodeVersion": "7.4.0",
 			"_npmUser": {},
 			"dist": {
-				"shasum": "5176ce20bf719a1d4423d2245b9dd4a1916e77db",
+				"shasum": "5be48403826567c7112113a581f2500902ac9734",
 				"tarball": "http://localhost:4873/dep-of-pkg-with-1-dep/-/dep-of-pkg-with-1-dep-100.0.0.tgz"
 			}
 		},
@@ -50,23 +50,19 @@
 			"version": "100.1.0",
 			"_id": "dep-of-pkg-with-1-dep@100.1.0",
 			"scripts": {},
-			"_shasum": "e5e03a8745a3d595e094543bbe1270cfb6bb3aa0",
+			"_shasum": "0f38759b4d39e4fafffa43bc411048406b906fdf",
 			"_from": ".",
-			"_npmVersion": "3.10.9",
-			"_nodeVersion": "6.9.1",
+			"_npmVersion": "4.0.5",
+			"_nodeVersion": "7.4.0",
 			"_npmUser": {},
 			"dist": {
-				"shasum": "e5e03a8745a3d595e094543bbe1270cfb6bb3aa0",
+				"shasum": "0f38759b4d39e4fafffa43bc411048406b906fdf",
 				"tarball": "http://localhost:4873/dep-of-pkg-with-1-dep/-/dep-of-pkg-with-1-dep-100.1.0.tgz"
 			}
 		}
 	},
 	"dist-tags": {
-		"latest": [
-			"1.1.0",
-			"100.0.0",
-			"100.1.0"
-		]
+		"latest": "100.1.0"
 	},
 	"_distfiles": {
 		"dep-of-pkg-with-1-dep-1.1.0.tgz": {
@@ -77,20 +73,20 @@
 	},
 	"_attachments": {
 		"dep-of-pkg-with-1-dep-100.0.0.tgz": {
-			"shasum": "5176ce20bf719a1d4423d2245b9dd4a1916e77db",
+			"shasum": "5be48403826567c7112113a581f2500902ac9734",
 			"version": "100.0.0"
 		},
 		"dep-of-pkg-with-1-dep-100.1.0.tgz": {
-			"shasum": "e5e03a8745a3d595e094543bbe1270cfb6bb3aa0",
+			"shasum": "0f38759b4d39e4fafffa43bc411048406b906fdf",
 			"version": "100.1.0"
 		}
 	},
 	"_uplinks": {
 		"npmjs": {
 			"etag": "W/\"585dc57f-468\"",
-			"fetched": 1484116060431
+			"fetched": 1485460856384
 		}
 	},
-	"_rev": "7-fbc7ef9333be0a47",
+	"_rev": "7-9353af46f397e1f5",
 	"readme": "ERROR: No README data found!"
 }

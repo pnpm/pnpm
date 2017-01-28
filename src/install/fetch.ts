@@ -6,7 +6,6 @@ import rimraf = require('rimraf-then')
 import resolve, {Resolution, PackageSpec} from '../resolve'
 import mkdirp from '../fs/mkdirp'
 import requireJson from '../fs/requireJson'
-import linkDir from 'link-dir'
 import exists = require('exists-file')
 import isAvailable from './isAvailable'
 import * as Shrinkwrap from '../fs/shrinkwrap'

@@ -1,6 +1,5 @@
 import path = require('path')
 import normalizePath = require('normalize-path')
-import linkDir from 'link-dir'
 import fs = require('mz/fs')
 import mkdirp from '../fs/mkdirp'
 import requireJson from '../fs/requireJson'

@@ -15,34 +15,30 @@
 			},
 			"repository": {
 				"type": "git",
-				"url": "https://github.com/rstacruz/pnpm/tree/master/test/packages/pkg-that-uses-plugins"
+				"url": "https://github.com/pnpm/pnpm/tree/master/test/packages/pkg-that-uses-plugins"
 			},
 			"_id": "pkg-that-uses-plugins@1.0.0",
 			"scripts": {},
-			"_shasum": "8fc32ad3cfca138ec55f3ec7f2dd70dea96811b6",
+			"_shasum": "2c7095d6dff3280d03434eaa0d346c9e8f754d76",
 			"_from": ".",
-			"_npmVersion": "3.10.9",
-			"_nodeVersion": "6.9.1",
+			"_npmVersion": "4.0.5",
+			"_nodeVersion": "7.4.0",
 			"_npmUser": {},
 			"dist": {
-				"shasum": "8fc32ad3cfca138ec55f3ec7f2dd70dea96811b6",
+				"shasum": "2c7095d6dff3280d03434eaa0d346c9e8f754d76",
 				"tarball": "http://localhost:4873/pkg-that-uses-plugins/-/pkg-that-uses-plugins-1.0.0.tgz"
 			}
 		}
 	},
-	"dist-tags": {
-		"latest": [
-			"1.0.0"
-		]
-	},
+	"dist-tags": {},
 	"_distfiles": {},
 	"_attachments": {
 		"pkg-that-uses-plugins-1.0.0.tgz": {
-			"shasum": "8fc32ad3cfca138ec55f3ec7f2dd70dea96811b6",
+			"shasum": "2c7095d6dff3280d03434eaa0d346c9e8f754d76",
 			"version": "1.0.0"
 		}
 	},
 	"_uplinks": {},
-	"_rev": "3-eb37242d467fa42d",
+	"_rev": "3-a04d7058cd74941d",
 	"readme": "ERROR: No README data found!"
 }

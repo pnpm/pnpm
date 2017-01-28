@@ -8,30 +8,26 @@
 				"postinstall": "node postinstall.js"
 			},
 			"_id": "pkg-that-installs-slowly@1.0.0",
-			"_shasum": "c6525d7bfe57cc0a890defe11d070a63ebc9feb9",
+			"_shasum": "fa4572c4648456bf29b9bea3720225206d126cb6",
 			"_from": ".",
-			"_npmVersion": "3.10.9",
-			"_nodeVersion": "6.9.1",
+			"_npmVersion": "4.0.5",
+			"_nodeVersion": "7.4.0",
 			"_npmUser": {},
 			"dist": {
-				"shasum": "c6525d7bfe57cc0a890defe11d070a63ebc9feb9",
+				"shasum": "fa4572c4648456bf29b9bea3720225206d126cb6",
 				"tarball": "http://localhost:4873/pkg-that-installs-slowly/-/pkg-that-installs-slowly-1.0.0.tgz"
 			}
 		}
 	},
-	"dist-tags": {
-		"latest": [
-			"1.0.0"
-		]
-	},
+	"dist-tags": {},
 	"_distfiles": {},
 	"_attachments": {
 		"pkg-that-installs-slowly-1.0.0.tgz": {
-			"shasum": "c6525d7bfe57cc0a890defe11d070a63ebc9feb9",
+			"shasum": "fa4572c4648456bf29b9bea3720225206d126cb6",
 			"version": "1.0.0"
 		}
 	},
 	"_uplinks": {},
-	"_rev": "3-9c007104a5f76531",
+	"_rev": "3-256ba14d6fe8c203",
 	"readme": "ERROR: No README data found!"
 }

@@ -25,6 +25,7 @@ import {save as saveModules} from '../fs/modulesController'
 import {tryUninstall, removePkgFromStore} from './uninstall'
 import mkdirp from '../fs/mkdirp'
 import {CachedPromises} from '../memoize'
+import linkBins from '../install/linkBins'
 
 export type InstalledPackages = {
   [name: string]: InstalledPackage
@@ -94,15 +95,17 @@ async function installInContext (installType: string, packagesToInstall: Depende
       }),
       fetchingFiles: Promise.resolve(),
       nodeModulesStore: path.join(nodeModulesPath, '.resolutions'),
-      binPath: opts.global ? globalBinPath() : path.join(nodeModulesPath, '.bin'),
     }
-    return await installMultiple(
+    const installedPkgs = await installMultiple(
       installCtx,
       packagesToInstall,
       ctx.pkg && ctx.pkg && ctx.pkg.optionalDependencies || {},
       nodeModulesPath,
       installOpts
     )
+    const binPath = opts.global ? globalBinPath() : path.join(nodeModulesPath, '.bin')
+    await linkBins(nodeModulesPath, binPath)
+    return installedPkgs
   })
 
   if (installType === 'named') {

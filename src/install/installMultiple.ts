@@ -11,7 +11,7 @@ import hardlinkDir from '../fs/hardlinkDir'
 import mkdirp from '../fs/mkdirp'
 import installChecks = require('pnpm-install-checks')
 import pnpmPkg from '../pnpmPkgJson'
-import linkDir from 'link-dir'
+import symlinkDir from 'symlink-dir'
 import exists = require('exists-file')
 import {Graph} from '../fs/graphController'
 import logStatus from '../logging/logInstallStatus'
@@ -31,7 +31,6 @@ export type InstallOptions = FetchOptions & {
 
 export type MultipleInstallOpts = InstallOptions & {
   fetchingFiles: Promise<void>,
-  binPath: string,
 }
 
 export default async function installAll (ctx: InstallContext, dependencies: Dependencies, optionalDependencies: Dependencies, modules: string, options: MultipleInstallOpts): Promise<InstalledPackage[]> {
@@ -60,10 +59,9 @@ export default async function installAll (ctx: InstallContext, dependencies: Dep
           ctx.installationSequence.push(subdep.id)
         }
         const dest = path.join(modules, subdep.pkg.name)
-        await linkDir(subdep.hardlinkedLocation, dest)
+        await symlinkDir(subdep.hardlinkedLocation, dest)
       })
   )
-  await linkBins(modules, options.binPath)
 
   return installedPkgs
 }
@@ -145,7 +143,7 @@ async function install (pkgRawSpec: string, modules: string, ctx: InstallContext
     const selfRequire = path.join(modulesInStore, pkg.name)
     if (!await exists(selfRequire)) {
       // This way, babel-runtime@5 can require('babel-runtime') within itself.
-      await linkDir(dependency.hardlinkedLocation, selfRequire)
+      await symlinkDir(dependency.hardlinkedLocation, selfRequire)
     }
   }
 
@@ -156,6 +154,7 @@ async function install (pkgRawSpec: string, modules: string, ctx: InstallContext
       await rimraf(stage)
       await hardlinkDir(dependency.path, stage)
       await fs.rename(stage, dependency.hardlinkedLocation)
+      await linkBins(modulesInStore, path.join(dependency.hardlinkedLocation, 'node_modules', '.bin'))
     }
   })
 
@@ -217,7 +216,6 @@ async function installDependencies (pkg: Package, dependency: InstalledPackage, 
     dependent: dependency.id,
     root: dependency.srcPath,
     fetchingFiles: dependency.fetchingFiles,
-    binPath: path.join(modules, '.bin'),
   })
 
   const bundledDeps = pkg.bundleDependencies || pkg.bundleDependencies || []
