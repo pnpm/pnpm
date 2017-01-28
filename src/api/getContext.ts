@@ -57,9 +57,9 @@ export default async function getContext (opts: StrictPnpmOptions): Promise<Pnpm
       throw new Error(msg)
     }
     const pnpmVersion = getPackageManagerVersion(modules.packageManager)
-    failIfNotCompatibleStore(pnpmVersion)
     try {
-      failIfNotCompatibleNodeModules(pnpmVersion)
+      failIfNotCompatibleStore(pnpmVersion)
+      failIfNotCompatibleNodeModules(pnpmVersion, modulesPath)
     } catch (err) {
       if (opts.force) {
         logger.info(`Recreating ${modulesPath}`)
@@ -123,21 +123,20 @@ function failIfNotCompatibleStore (pnpmVersion: string) {
   }
 }
 
-function failIfNotCompatibleNodeModules (pnpmVersion: string) {
+function failIfNotCompatibleNodeModules (pnpmVersion: string, modulesPath: string) {
   if (!pnpmVersion || !semver.satisfies(pnpmVersion, '>=0.48')) {
     throw new Error(stripIndent`
-      The node_modules structure was changed.
-      Remove it and run pnpm again.
+      The node_modules structure at ${modulesPath} was changed.
+      Run the same command with the --force parameter to replace the node_modules folder created by an older version of pnpm
       Related PR: https://github.com/pnpm/pnpm/pull/534
-      TIPS: you can run \`rm -rf node_modules\` or install with the --force parameter
     `)
   }
   if (!semver.satisfies(pnpmVersion, '>=0.51')) {
     throw new Error(stripIndent`
-      The node_modules structure was changed.
+      The node_modules structure at ${modulesPath} was changed.
+      Run the same command with the --force parameter to replace the node_modules folder created by an older version of pnpm
       Remove it and run pnpm again.
       Related PR: https://github.com/pnpm/pnpm/pull/576
-      TIPS: you can run \`rm -rf node_modules\` or install with the --force parameter
     `)
   }
 }
@@ -145,11 +144,9 @@ function failIfNotCompatibleNodeModules (pnpmVersion: string) {
 function structureChangeMsg (moreInfo: string): string {
   return stripIndent`
     The store structure was changed.
-    Remove it and run pnpm again.
+    Run the same command with the --force parameter to replace the node_modules folder created by an older version of pnpm
+    and use a new store structure
     ${moreInfo}
-    TIPS:
-      If you have a shared store, remove both the node_modules and the shared store.
-      Otherwise just run \`rm -rf node_modules\`
   `
 }
 
