@@ -7,6 +7,7 @@ import {
   Log,
   InstallCheckLog,
 } from 'pnpm-logger'
+import reportError from './reportError'
 
 observatory.settings({ prefix: '  ', width: 74 })
 
@@ -47,8 +48,8 @@ export default function (streamParser: Object) {
           return
         }
         if (obj.level === 'error') {
-            console.log(chalk.red('ERROR'), obj['err'] && obj['err'].message || obj['message'])
-            return
+          reportError(obj)
+          return
         }
         console.log(obj['message'])
         return
