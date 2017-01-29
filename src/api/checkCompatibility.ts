@@ -26,8 +26,7 @@ export default function checkCompatibility (
     })
   }
   const pnpmVersion = getPackageManagerVersion(modules.packageManager)
-  checkStore(pnpmVersion, opts.storePath)
-  checkModules(pnpmVersion, opts.modulesPath)
+  check(pnpmVersion, opts.storePath, opts.modulesPath)
 }
 
 function getPackageManagerVersion(packageManager: string) {
@@ -39,7 +38,7 @@ function getPackageManagerVersion(packageManager: string) {
   }
 }
 
-function checkStore (pnpmVersion: string, storePath: string) {
+function check (pnpmVersion: string, storePath: string, modulesPath: string) {
   if (!pnpmVersion || semver.lt(pnpmVersion, '0.28.0')) {
     throw new StoreBreakingChangeError({
       storePath,
@@ -66,9 +65,6 @@ function checkStore (pnpmVersion: string, storePath: string) {
       additionalInformation: 'The structure of store.json/dependencies was changed to not include the redundunt package.json at the end',
     })
   }
-}
-
-function checkModules (pnpmVersion: string, modulesPath: string) {
   if (!pnpmVersion || semver.lt(pnpmVersion, '0.48.0')) {
     throw new ModulesBreakingChangeError({ modulesPath, relatedPR: 534 })
   }
