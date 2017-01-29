@@ -81,15 +81,11 @@ type UnexpectedStoreErrorOptions = {
 class UnexpectedStoreError extends PnpmError {
   constructor (opts: UnexpectedStoreErrorOptions) {
     super('UNEXPECTED_STORE', 'Unexpected store used for installation')
-    this._expectedStorePath = opts.expectedStorePath
-    this._actualStorePath = opts.actualStorePath
+    this.expectedStorePath = opts.expectedStorePath
+    this.actualStorePath = opts.actualStorePath
   }
-
-  private _expectedStorePath: string
-  get expectedStorePath () { return this._expectedStorePath }
-
-  private _actualStorePath: string
-  get actualStorePath () { return this._actualStorePath }
+  expectedStorePath: string
+  actualStorePath: string
 }
 
 type BreakingChangeErrorOptions = ErrorRelatedSources & {
@@ -106,15 +102,13 @@ type ErrorRelatedSources = {
 class BreakingChangeError extends PnpmError {
   constructor (opts: BreakingChangeErrorOptions) {
     super(opts.code, opts.message)
-    this._relatedIssue = opts.relatedIssue
-    this._relatedPR = opts.relatedPR
+    this.relatedIssue = opts.relatedIssue
+    this.relatedPR = opts.relatedPR
+    this.additionalInformation = opts.additionalInformation
   }
-
-  private _relatedIssue?: number
-  get relatedIssue () { return this._relatedIssue }
-
-  private _relatedPR?: number
-  get relatedPR () { return this._relatedPR }
+  relatedIssue?: number
+  relatedPR?: number
+  additionalInformation?: string
 }
 
 type StoreBreakingChangeErrorOptions = ErrorRelatedSources & {
@@ -130,11 +124,9 @@ class StoreBreakingChangeError extends BreakingChangeError {
       relatedIssue: opts.relatedIssue,
       relatedPR: opts.relatedPR,
     })
-    this._storePath = opts.storePath
+    this.storePath = opts.storePath
   }
-
-  private _storePath: string
-  get storePath () { return this._storePath }
+  storePath: string
 }
 
 type ModulesBreakingChangeErrorOptions = ErrorRelatedSources & {
@@ -150,9 +142,7 @@ class ModulesBreakingChangeError extends BreakingChangeError {
       relatedIssue: opts.relatedIssue,
       relatedPR: opts.relatedPR,
     })
-    this._modulesPath = opts.modulesPath
+    this.modulesPath = opts.modulesPath
   }
-
-  private _modulesPath: string
-  get modulesPath () { return this._modulesPath }
+  modulesPath: string
 }
