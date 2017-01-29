@@ -748,7 +748,7 @@ test('should throw error when trying to install using a different store then the
     await installPkgs(['is-negative'], testDefaults({storePath: 'node_modules/.store2'}))
     t.fail('installation should have failed')
   } catch (err) {
-    t.equal(err.code, 'ALIEN_STORE', 'failed with correct error code')
+    t.equal(err.code, 'UNEXPECTED_STORE', 'failed with correct error code')
   }
 })
 
