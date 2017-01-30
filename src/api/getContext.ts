@@ -1,7 +1,5 @@
 import readPkgUp = require('read-pkg-up')
 import path = require('path')
-import semver = require('semver')
-import {stripIndent} from 'common-tags'
 import requireJson from '../fs/requireJson'
 import writePkg = require('write-pkg')
 import expandTilde, {isHomepath} from '../fs/expandTilde'
@@ -22,6 +20,7 @@ import {Package} from '../types'
 import normalizePath = require('normalize-path')
 import rimraf = require('rimraf-then')
 import logger from 'pnpm-logger'
+import checkCompatibility from './checkCompatibility'
 
 export type PnpmContext = {
   pkg?: Package,
@@ -43,23 +42,10 @@ export default async function getContext (opts: StrictPnpmOptions): Promise<Pnpm
   const modulesPath = path.join(root, 'node_modules')
   let modules = await readModules(modulesPath)
   const isFirstInstallation: boolean = !modules
-  if (modules && modules.storePath !== storePath) {
-    const err = new Error(`The package's modules are from store at ${modules.storePath} and you are trying to use store at ${storePath}`)
-    err['code'] = 'ALIEN_STORE'
-    throw err
-  }
+
   if (modules) {
-    if (!modules.packageManager) {
-      const msg = structureChangeMsg(stripIndent`
-        The change was needed to allow machine stores and dependency locks:
-          PR: https://github.com/pnpm/pnpm/pull/524
-      `)
-      throw new Error(msg)
-    }
-    const pnpmVersion = getPackageManagerVersion(modules.packageManager)
-    failIfNotCompatibleStore(pnpmVersion)
     try {
-      failIfNotCompatibleNodeModules(pnpmVersion)
+      checkCompatibility(modules, {storePath, modulesPath})
     } catch (err) {
       if (opts.force) {
         logger.info(`Recreating ${modulesPath}`)
@@ -67,15 +53,6 @@ export default async function getContext (opts: StrictPnpmOptions): Promise<Pnpm
         return getContext(opts)
       }
       throw err
-    }
-  }
-
-  function getPackageManagerVersion(packageManager: string) {
-    // handle the case when the package is scoped: @scope/pkgname
-    if (packageManager.startsWith('@')) {
-      return packageManager.split('@')[2]
-    } else {
-      return packageManager.split('@')[1]
     }
   }
 
@@ -94,63 +71,6 @@ export default async function getContext (opts: StrictPnpmOptions): Promise<Pnpm
   await mkdirp(ctx.cache)
   await mkdirp(ctx.storePath)
   return ctx
-}
-
-function failIfNotCompatibleStore (pnpmVersion: string) {
-  if (!pnpmVersion || !semver.satisfies(pnpmVersion, '>=0.28')) {
-    const msg = structureChangeMsg('More info about what was changed at: https://github.com/pnpm/pnpm/issues/276')
-    throw new Error(msg)
-  }
-  if (!semver.satisfies(pnpmVersion, '>=0.33')) {
-    const msg = structureChangeMsg(stripIndent`
-      The change was needed to fix the GitHub rate limit issue:
-        Issue: https://github.com/pnpm/pnpm/issues/361
-        PR: https://github.com/pnpm/pnpm/pull/363
-    `)
-    throw new Error(msg)
-  }
-  if (!semver.satisfies(pnpmVersion, '>=0.37')) {
-    const msg = structureChangeMsg(stripIndent`
-      The structure of store.json/dependencies was changed to map dependencies to their fullnames
-    `)
-    throw new Error(msg)
-  }
-  if (!semver.satisfies(pnpmVersion, '>=0.38')) {
-    const msg = structureChangeMsg(stripIndent`
-      The structure of store.json/dependencies was changed to not include the redundunt package.json at the end
-    `)
-    throw new Error(msg)
-  }
-}
-
-function failIfNotCompatibleNodeModules (pnpmVersion: string) {
-  if (!pnpmVersion || !semver.satisfies(pnpmVersion, '>=0.48')) {
-    throw new Error(stripIndent`
-      The node_modules structure was changed.
-      Remove it and run pnpm again.
-      Related PR: https://github.com/pnpm/pnpm/pull/534
-      TIPS: you can run \`rm -rf node_modules\` or install with the --force parameter
-    `)
-  }
-  if (!semver.satisfies(pnpmVersion, '>=0.51')) {
-    throw new Error(stripIndent`
-      The node_modules structure was changed.
-      Remove it and run pnpm again.
-      Related PR: https://github.com/pnpm/pnpm/pull/576
-      TIPS: you can run \`rm -rf node_modules\` or install with the --force parameter
-    `)
-  }
-}
-
-function structureChangeMsg (moreInfo: string): string {
-  return stripIndent`
-    The store structure was changed.
-    Remove it and run pnpm again.
-    ${moreInfo}
-    TIPS:
-      If you have a shared store, remove both the node_modules and the shared store.
-      Otherwise just run \`rm -rf node_modules\`
-  `
 }
 
 async function readGlobalPkg (globalPath: string) {
