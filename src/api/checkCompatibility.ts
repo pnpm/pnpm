@@ -3,14 +3,12 @@ import {Modules} from '../fs/modulesController'
 import {PnpmError, PnpmErrorCode} from '../errorTypes'
 import semver = require('semver')
 
-export type ProjectCompatibilityOptions = {
-  storePath: string,
-  modulesPath: string,
-}
-
 export default function checkCompatibility (
   modules: Modules,
-  opts: ProjectCompatibilityOptions
+  opts: {
+    storePath: string,
+    modulesPath: string,
+  }
 ) {
   if (modules.storePath !== opts.storePath) {
     throw new UnexpectedStoreError({
@@ -73,13 +71,13 @@ function check (pnpmVersion: string, storePath: string, modulesPath: string) {
   }
 }
 
-type UnexpectedStoreErrorOptions = {
-  expectedStorePath: string,
-  actualStorePath: string,
-}
-
 class UnexpectedStoreError extends PnpmError {
-  constructor (opts: UnexpectedStoreErrorOptions) {
+  constructor (
+    opts: {
+      expectedStorePath: string,
+      actualStorePath: string,
+    }
+  ) {
     super('UNEXPECTED_STORE', 'Unexpected store used for installation')
     this.expectedStorePath = opts.expectedStorePath
     this.actualStorePath = opts.actualStorePath
