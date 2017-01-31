@@ -44,7 +44,7 @@ export default async function linkPeers (installs: InstalledPackages) {
       }
       return symlinkDir(
         groupedPkgs[peerName][version].hardlinkedLocation,
-        path.join(pkgData.hardlinkedLocation, '..', 'node_modules', peerName)
+        path.join(pkgData.modules, peerName)
       )
     }))
   }))

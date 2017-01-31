@@ -39,6 +39,7 @@ export type InstalledPackage = FetchedPackage & {
   optional: boolean,
   dependencies: InstalledPackage[], // is needed to support flat tree
   hardlinkedLocation: string,
+  modules: string,
 }
 
 export default async function installAll (ctx: InstallContext, dependencies: Dependencies, optionalDependencies: Dependencies, modules: string, options: MultipleInstallOpts): Promise<InstalledPackage[]> {
@@ -122,14 +123,15 @@ async function install (pkgRawSpec: string, modules: string, ctx: InstallContext
     await isInstallable(pkg, fetchedPkg, options)
   }
 
-  const pkgWrapperPath = path.join(options.nodeModulesStore, fetchedPkg.id)
+  const modulesInStore = path.join(options.nodeModulesStore, fetchedPkg.id, 'node_modules')
 
   const dependency: InstalledPackage = Object.assign({}, fetchedPkg, {
     keypath,
     dependencies: [],
     optional: options.optional === true,
     pkg,
-    hardlinkedLocation: path.join(pkgWrapperPath, 'package'),
+    hardlinkedLocation: path.join(modulesInStore, pkg.name),
+    modules: modulesInStore,
   })
 
   if (dependency.fromCache || keypath.indexOf(dependency.id) !== -1) {
@@ -142,27 +144,19 @@ async function install (pkgRawSpec: string, modules: string, ctx: InstallContext
   // does not return enough info for packages that were already installed
   addToGraph(ctx.graph, options.dependent, dependency)
 
-  const modulesInStore = path.join(pkgWrapperPath, 'node_modules')
-
   if (!ctx.installed.has(dependency.id)) {
     ctx.installed.add(dependency.id)
     dependency.dependencies = await installDependencies(pkg, dependency, ctx, modulesInStore, options)
-
-    const selfRequire = path.join(modulesInStore, pkg.name)
-    if (!await exists(selfRequire)) {
-      // This way, babel-runtime@5 can require('babel-runtime') within itself.
-      await symlinkDir(dependency.hardlinkedLocation, selfRequire)
-    }
   }
 
   await dependency.fetchingFiles
   await memoize(ctx.resolutionLinked, dependency.hardlinkedLocation, async function () {
     if (!await exists(path.join(dependency.hardlinkedLocation, 'package.json'))) { // in case it was created by a separate installation
-      const stage = path.join(pkgWrapperPath, 'stage')
+      const stage = path.join(modulesInStore, `${pkg.name}+stage`)
       await rimraf(stage)
       await hardlinkDir(dependency.path, stage)
       await fs.rename(stage, dependency.hardlinkedLocation)
-      await linkBins(modulesInStore, path.join(dependency.hardlinkedLocation, 'node_modules', '.bin'))
+      await linkBins(modulesInStore, path.join(dependency.hardlinkedLocation, 'node_modules', '.bin'), pkg.name)
     }
   })
 

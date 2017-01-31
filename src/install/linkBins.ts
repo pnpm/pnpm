@@ -9,12 +9,19 @@ import isWindows = require('is-windows')
 import cmdShim = require('@zkochan/cmd-shim')
 import {Package} from '../types'
 import logger from 'pnpm-logger'
+import Module = require('module')
+import union = require('lodash.union')
 
 const IS_WINDOWS = isWindows()
 
-export default async function linkAllBins (modules: string, binPath: string) {
+export default async function linkAllBins (modules: string, binPath: string, exceptPkgName?: string) {
   const pkgDirs = await getPkgDirs(modules)
-  return Promise.all(pkgDirs.map((pkgDir: string) => linkPkgBins(pkgDir, binPath)))
+  return Promise.all(
+    pkgDirs
+      .map(pkgDir => normalizePath(pkgDir))
+      .filter(pkgDir => !exceptPkgName || !pkgDir.endsWith(`/${exceptPkgName}`))
+      .map((pkgDir: string) => linkPkgBins(pkgDir, binPath))
+  )
 }
 
 /**
@@ -22,8 +29,6 @@ export default async function linkAllBins (modules: string, binPath: string) {
  */
 export async function linkPkgBins (target: string, binPath: string) {
   const pkg = await safeRequireJson(path.join(target, 'package.json'))
-  const targetRealPath = await fs.realpath(target)
-  const extraNodePath = [path.join(targetRealPath, 'node_modules'), path.join(targetRealPath, '..', 'node_modules')]
 
   if (!pkg) {
     logger.warn(`There's a directory in node_modules without package.json: ${target}`)
@@ -40,16 +45,18 @@ export async function linkPkgBins (target: string, binPath: string) {
     const actualBin = bins[bin]
     const targetPath = path.join(target, actualBin)
 
-    const nodePath = extraNodePath.concat(getNodePaths(targetPath)).join(path.delimiter)
+    const nodePath = (await getBinNodePaths(target)).join(path.delimiter)
     return cmdShim(targetPath, externalBinPath, {nodePath})
   }))
 }
 
-function getNodePaths (filename: string): string[] {
-  const next = path.join(filename, '..')
-  const modules = path.join(filename, 'node_modules')
-  if (filename === next) return [modules]
-  return [modules].concat(getNodePaths(next))
+async function getBinNodePaths (target: string) {
+  const targetRealPath = await fs.realpath(target)
+
+  return union(
+    Module._nodeModulePaths(targetRealPath),
+    Module._nodeModulePaths(target)
+  )
 }
 
 /**

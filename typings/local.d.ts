@@ -138,6 +138,11 @@ declare module 'lodash.clonedeep' {
   export = anything;
 }
 
+declare module 'lodash.union' {
+  const anything: any;
+  export = anything;
+}
+
 declare module 'find-up' {
   const anything: any;
   export = anything;
@@ -214,6 +219,11 @@ declare module '@zkochan/hosted-git-info' {
 }
 
 declare module 'global-bin-path' {
+  const anything: any;
+  export = anything;
+}
+
+declare module 'module' {
   const anything: any;
   export = anything;
 }
