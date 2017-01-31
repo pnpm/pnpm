@@ -26,7 +26,7 @@ export type InstallOptions = FetchOptions & {
   depth: number,
   engineStrict: boolean,
   nodeVersion: string,
-  nodeModulesStore: string,
+  baseNodeModules: string,
 }
 
 export type MultipleInstallOpts = InstallOptions & {
@@ -123,15 +123,15 @@ async function install (pkgRawSpec: string, modules: string, ctx: InstallContext
     await isInstallable(pkg, fetchedPkg, options)
   }
 
-  const modulesInStore = path.join(options.nodeModulesStore, fetchedPkg.id, 'node_modules')
+  const realModules = path.join(options.baseNodeModules, `.${fetchedPkg.id}`, 'node_modules')
 
   const dependency: InstalledPackage = Object.assign({}, fetchedPkg, {
     keypath,
     dependencies: [],
     optional: options.optional === true,
     pkg,
-    hardlinkedLocation: path.join(modulesInStore, pkg.name),
-    modules: modulesInStore,
+    hardlinkedLocation: path.join(realModules, pkg.name),
+    modules: realModules,
   })
 
   if (dependency.fromCache || keypath.indexOf(dependency.id) !== -1) {
@@ -146,17 +146,17 @@ async function install (pkgRawSpec: string, modules: string, ctx: InstallContext
 
   if (!ctx.installed.has(dependency.id)) {
     ctx.installed.add(dependency.id)
-    dependency.dependencies = await installDependencies(pkg, dependency, ctx, modulesInStore, options)
+    dependency.dependencies = await installDependencies(pkg, dependency, ctx, realModules, options)
   }
 
   await dependency.fetchingFiles
   await memoize(ctx.resolutionLinked, dependency.hardlinkedLocation, async function () {
     if (!await exists(path.join(dependency.hardlinkedLocation, 'package.json'))) { // in case it was created by a separate installation
-      const stage = path.join(modulesInStore, `${pkg.name}+stage`)
+      const stage = path.join(realModules, `${pkg.name}+stage`)
       await rimraf(stage)
       await hardlinkDir(dependency.path, stage)
       await fs.rename(stage, dependency.hardlinkedLocation)
-      await linkBins(modulesInStore, path.join(dependency.hardlinkedLocation, 'node_modules', '.bin'), pkg.name)
+      await linkBins(realModules, path.join(dependency.hardlinkedLocation, 'node_modules', '.bin'), pkg.name)
     }
   })
 
