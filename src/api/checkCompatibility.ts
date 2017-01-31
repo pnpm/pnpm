@@ -69,6 +69,9 @@ function check (pnpmVersion: string, storePath: string, modulesPath: string) {
   if (semver.lt(pnpmVersion, '0.51.0')) {
     throw new ModulesBreakingChangeError({ modulesPath, relatedPR: 576 })
   }
+  if (semver.lt(pnpmVersion, '0.52.0')) {
+    throw new ModulesBreakingChangeError({ modulesPath, relatedPR: 593 })
+  }
 }
 
 class UnexpectedStoreError extends PnpmError {
