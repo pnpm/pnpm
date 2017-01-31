@@ -685,7 +685,7 @@ test('peer dependency is linked', async t => {
   const project = prepare(t)
   await installPkgs(['ajv@4.10.4', 'ajv-keywords@1.5.0'], testDefaults())
 
-  t.ok(await exists(path.join('node_modules', '.resolutions', 'localhost+4873', 'ajv-keywords', '1.5.0', 'node_modules', 'ajv')), 'peer dependency is linked')
+  t.ok(await exists(path.join('node_modules', '.localhost+4873', 'ajv-keywords', '1.5.0', 'node_modules', 'ajv')), 'peer dependency is linked')
 })
 
 test('create a pnpm-debug.log file when the command fails', async function (t) {
@@ -771,7 +771,7 @@ test('shrinkwrap locks npm dependencies', async function (t) {
 
   await install(testDefaults({cacheTTL: 0}))
 
-  const pkg = project.requireModule('.resolutions/localhost+4873/pkg-with-1-dep/100.0.0/node_modules/dep-of-pkg-with-1-dep/package.json')
+  const pkg = project.requireModule('.localhost+4873/pkg-with-1-dep/100.0.0/node_modules/dep-of-pkg-with-1-dep/package.json')
 
   t.equal(pkg.version, '100.0.0', 'dependency specified in shrinkwrap.yaml is installed')
 })

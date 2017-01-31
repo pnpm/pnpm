@@ -92,7 +92,7 @@ async function installInContext (installType: string, packagesToInstall: Depende
         cacheTTL: opts.cacheTTL
       }),
       fetchingFiles: Promise.resolve(),
-      nodeModulesStore: path.join(nodeModulesPath, '.resolutions'),
+      baseNodeModules: nodeModulesPath,
     }
     const installedPkgs = await installMultiple(
       installCtx,
