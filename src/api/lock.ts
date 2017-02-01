@@ -10,7 +10,7 @@ async function lock(lockFilename: string, firstTime: boolean): Promise<{}> {
   const promise = new Promise((resolve, reject) => {
     lockfile.lock(
       lockFilename,
-      {realpath: false},
+      {realpath: false, stale: 20 * 1000},
       async (err: Error & {code: string}) => {
         if (err && err.code === 'ELOCKED') {
           if (firstTime) {
