@@ -10,7 +10,7 @@ import exists = require('exists-file')
 import isAvailable from './isAvailable'
 import * as Shrinkwrap from '../fs/shrinkwrap'
 import memoize, {CachedPromises} from '../memoize'
-import {Package} from '../types'
+import {Package, FetchedPackage, LifecycleHooks} from '../types'
 import {Got} from '../network/got'
 import {InstallContext} from '../api/install'
 import fetchResolution from './fetchResolution'
@@ -24,17 +24,8 @@ export type FetchOptions = {
   storePath: string,
   tag: string,
   got: Got,
+  lifecycle: LifecycleHooks,
   update?: boolean,
-}
-
-export type FetchedPackage = {
-  fetchingPkg: Promise<Package>,
-  fetchingFiles: Promise<void>,
-  path: string,
-  srcPath?: string,
-  id: string,
-  fromCache: boolean,
-  abort(): Promise<void>,
 }
 
 /**
@@ -82,7 +73,8 @@ export default async function fetch (ctx: InstallContext, spec: PackageSpec, mod
         loggedPkg,
         got: options.got,
         root: options.root,
-        tag: options.tag
+        tag: options.tag,
+        lifecycle: ctx.lifecycle,
       })
       resolution = resolveResult.resolution
       if (resolveResult.package) {
@@ -98,6 +90,7 @@ export default async function fetch (ctx: InstallContext, spec: PackageSpec, mod
       target,
       resolution,
       loggedPkg,
+      lifecycle: options.lifecycle,
       got: options.got,
       linkLocal: options.linkLocal,
       force: options.force,
@@ -158,6 +151,7 @@ type FetchToStoreOptions = {
   target: string,
   resolution: Resolution,
   loggedPkg: LoggedPkg,
+  lifecycle: LifecycleHooks,
   got: Got,
   linkLocal: boolean,
   force: boolean,
@@ -170,6 +164,7 @@ type FetchToStoreOptions = {
  */
 function fetchToStoreCached (opts: FetchToStoreOptions): Promise<void> {
   return memoize(opts.fetchLocks, opts.resolution.id, async function () {
+    const {packageWillFetch, packageDidFetch} = opts.lifecycle
     const target = opts.target
     const targetStage = `${opts.target}_stage`
     const targetExists = await exists(target)
@@ -183,11 +178,26 @@ function fetchToStoreCached (opts: FetchToStoreOptions): Promise<void> {
       }
 
       logStatus({status: 'download-queued', pkg: opts.loggedPkg})
-      await fetchResolution(opts.resolution, targetStage, {
+
+      let fetched = false
+
+      const fetchOptions = {
         got: opts.got,
         loggedPkg: opts.loggedPkg,
         linkLocal: opts.linkLocal,
-      })
+      }
+
+      if (packageWillFetch) {
+        fetched = await packageWillFetch(targetStage, opts.resolution, fetchOptions)
+      }
+
+      if (!fetched) {
+        await fetchResolution(opts.resolution, targetStage, fetchOptions)
+      }
+
+      if (packageDidFetch) {
+        await packageDidFetch(targetStage, opts.resolution)
+      }
 
       // fs.rename(oldPath, newPath) is an atomic operation, so we do it at the
       // end

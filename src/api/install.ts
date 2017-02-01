@@ -5,10 +5,10 @@ import RegClient = require('npm-registry-client')
 import logger from 'pnpm-logger'
 import cloneDeep = require('lodash.clonedeep')
 import globalBinPath = require('global-bin-path')
-import {PnpmOptions, StrictPnpmOptions, Dependencies} from '../types'
+import {PnpmOptions, StrictPnpmOptions, Dependencies, LifecycleHooks, InstalledPackage} from '../types'
 import createGot from '../network/got'
 import getContext, {PnpmContext} from './getContext'
-import installMultiple, {InstalledPackage} from '../install/installMultiple'
+import installMultiple from '../install/installMultiple'
 import save from '../save'
 import linkPeers from '../install/linkPeers'
 import runtimeError from '../runtimeError'
@@ -36,6 +36,7 @@ export type InstallContext = {
   installationSequence: string[],
   fetchLocks: CachedPromises<void>,
   graph: Graph,
+  lifecycle: LifecycleHooks,
   shrinkwrap: Shrinkwrap,
   resolutionLinked: CachedPromises<void>,
   installed: Set<string>,
@@ -87,6 +88,7 @@ async function installInContext (installType: string, packagesToInstall: Depende
       tag: opts.tag,
       engineStrict: opts.engineStrict,
       nodeVersion: opts.nodeVersion,
+      lifecycle: opts.lifecycle,
       got: createGot(client, {
         cachePath: ctx.cache,
         cacheTTL: opts.cacheTTL
@@ -161,6 +163,10 @@ async function installInContext (installType: string, packagesToInstall: Depende
       npmRun('prepublish', ctx.root)
     }
   }
+
+  if (opts.lifecycle.installDidComplete) {
+    await opts.lifecycle.installDidComplete(installCtx.installs)
+  }
 }
 
 async function removeOrphanPkgs (oldGraphJson: Graph, newGraphJson: Graph, root: string, storePath: string) {
@@ -205,6 +211,7 @@ async function createInstallCmd (opts: StrictPnpmOptions, graph: Graph, shrinkwr
     fetchLocks: {},
     installLocks: {},
     installs: {},
+    lifecycle: opts.lifecycle,
     graph,
     shrinkwrap,
     resolutionLinked: {},

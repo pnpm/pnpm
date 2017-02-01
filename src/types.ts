@@ -1,4 +1,44 @@
 import {ReporterType} from './reporter'
+import {PackageSpec, ResolveOptions, ResolveResult, Resolution} from './resolve';
+import {FetchOptions} from './install/fetchResolution';
+
+export type LifecycleHooks = {
+
+  /**
+   * Executes before the pnpm's default resolution takes action.
+   *
+   * If this method returns a resolution then it is used, otherwise pnpm's
+   * default resolution algorithm will be used.
+   */
+  packageWillResolve?: (spec: PackageSpec, opts: ResolveOptions) => Promise<ResolveResult | null>,
+
+  /**
+   * Executes when package is about to fetch its resolution.
+   *
+   * This can be used to implement custom fetching logic.
+   */
+  packageWillFetch?: (target: string, resolution: Resolution, opts: FetchOptions) => Promise<boolean>,
+
+  /**
+   * Executes just after the package is fetched into a target directory.
+   *
+   * This is the opportunity to write into the target directory before it's
+   * commited.
+   */
+  packageDidFetch?: (target: string, resolution: Resolution) => Promise<void>,
+
+  /**
+   * Executes when installs is completed.
+   */
+  installDidComplete?: (installedPackages: {[name: string]: InstalledPackage}) => Promise<void>,
+
+  // TODO: add more lifecycle hooks
+  //
+  // packageDidResolve
+  //
+  // packageWillInstall
+  // packageDidInstall
+};
 
 export type PnpmOptions = {
   cwd?: string,
@@ -21,6 +61,8 @@ export type PnpmOptions = {
   depth?: number,
   engineStrict?: boolean,
   nodeVersion?: string,
+
+  lifecycle?: LifecycleHooks,
 
   // proxy
   proxy?: string,
@@ -61,6 +103,8 @@ export type StrictPnpmOptions = {
   engineStrict: boolean,
   nodeVersion: string,
 
+  lifecycle: LifecycleHooks,
+
   // proxy
   proxy?: string,
   httpsProxy?: string,
@@ -99,4 +143,22 @@ export type Package = {
     [name: string]: string
   },
   config?: Object,
+}
+
+export type FetchedPackage = {
+  fetchingPkg: Promise<Package>,
+  fetchingFiles: Promise<void>,
+  path: string,
+  srcPath?: string,
+  id: string,
+  fromCache: boolean,
+  abort(): Promise<void>,
+}
+
+export type InstalledPackage = FetchedPackage & {
+  pkg: Package,
+  keypath: string[],
+  optional: boolean,
+  dependencies: InstalledPackage[], // is needed to support flat tree
+  hardlinkedLocation: string,
 }

@@ -1,12 +1,12 @@
 import path = require('path')
 import npa = require('npm-package-arg')
 import logger from 'pnpm-logger'
-import fetch, {FetchedPackage, FetchOptions} from './fetch'
+import fetch, {FetchOptions} from './fetch'
 import {InstallContext, InstalledPackages} from '../api/install'
 import {Dependencies} from '../types'
 import linkBins from './linkBins'
 import memoize from '../memoize'
-import {Package} from '../types'
+import {Package, FetchedPackage, InstalledPackage} from '../types'
 import hardlinkDir from '../fs/hardlinkDir'
 import mkdirp from '../fs/mkdirp'
 import installChecks = require('pnpm-install-checks')
@@ -31,14 +31,6 @@ export type InstallOptions = FetchOptions & {
 
 export type MultipleInstallOpts = InstallOptions & {
   fetchingFiles: Promise<void>,
-}
-
-export type InstalledPackage = FetchedPackage & {
-  pkg: Package,
-  keypath: string[],
-  optional: boolean,
-  dependencies: InstalledPackage[], // is needed to support flat tree
-  hardlinkedLocation: string,
 }
 
 export default async function installAll (ctx: InstallContext, dependencies: Dependencies, optionalDependencies: Dependencies, modules: string, options: MultipleInstallOpts): Promise<InstalledPackage[]> {
