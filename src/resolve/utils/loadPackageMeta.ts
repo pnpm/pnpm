@@ -8,6 +8,7 @@ import {PackageSpec} from '..'
 import {Package} from '../../types'
 import createPkgId from './createNpmPkgId'
 import logger from 'pnpm-logger'
+import pLimit = require('p-limit')
 
 export type PackageMeta = {
   'dist-tag': { [name: string]: string },
@@ -23,7 +24,11 @@ export type PackageInRegistry = Package & {
   }
 }
 
-export default async function (
+// prevents simultainous operations on the meta.json
+// otherwise it would cause EPERM exceptions
+const metafileOperationLimits = {}
+
+export default async function loadPkgMetaNonCached (
   spec: PackageSpec,
   storePath: string,
   got: Got,
@@ -32,21 +37,13 @@ export default async function (
   if (metaCache.has(spec.name)) {
     return <PackageMeta>metaCache.get(spec.name)
   }
-  const meta = await loadPkgMetaNonCached(spec, storePath, got)
-  metaCache.set(spec.name, meta)
-  return meta
-}
 
-async function loadPkgMetaNonCached (
-  spec: PackageSpec,
-  storePath: string,
-  got: Got
-): Promise<PackageMeta> {
   const registry = (<string>url.parse(registryUrl(spec.scope)).host).replace(':', '+')
   const pkgStore = path.join(storePath, registry, spec.name)
+  const limit = metafileOperationLimits[pkgStore] = metafileOperationLimits[pkgStore] || pLimit(1)
 
   if (spec.type === 'version') {
-    const meta = await loadMeta(pkgStore)
+    const meta = await limit(() => loadMeta(pkgStore))
     // use the cached meta only if it has the required package version
     // otherwise it is probably out of date
     if (meta && meta.versions && meta.versions[spec.spec]) {
@@ -56,7 +53,9 @@ async function loadPkgMetaNonCached (
 
   try {
     const meta = await fromRegistry(got, spec)
-    saveMeta(pkgStore, meta)
+    // only save meta to cache, when it is fresh
+    metaCache.set(spec.name, meta)
+    limit(() => saveMeta(pkgStore, meta))
     return meta
   } catch (err) {
     const meta = await loadMeta(storePath)
