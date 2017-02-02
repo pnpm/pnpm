@@ -227,3 +227,8 @@ declare module 'module' {
   const anything: any;
   export = anything;
 }
+
+declare module 'p-limit' {
+  const anything: any;
+  export = anything;
+}

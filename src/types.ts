@@ -21,6 +21,7 @@ export type PnpmOptions = {
   depth?: number,
   engineStrict?: boolean,
   nodeVersion?: string,
+  networkConcurrency?: number,
 
   // proxy
   proxy?: string,
@@ -59,6 +60,7 @@ export type StrictPnpmOptions = {
   depth: number,
   engineStrict: boolean,
   nodeVersion: string,
+  networkConcurrency: number,
 
   // proxy
   proxy?: string,

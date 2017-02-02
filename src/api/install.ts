@@ -87,7 +87,7 @@ async function installInContext (installType: string, packagesToInstall: Depende
     tag: opts.tag,
     engineStrict: opts.engineStrict,
     nodeVersion: opts.nodeVersion,
-    got: createGot(client),
+    got: createGot(client, {networkConcurrency: opts.networkConcurrency}),
     fetchingFiles: Promise.resolve(),
     baseNodeModules: nodeModulesPath,
     metaCache: opts.metaCache,

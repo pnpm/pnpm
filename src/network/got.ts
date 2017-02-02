@@ -2,6 +2,7 @@ import {IncomingMessage} from 'http'
 import pauseStream = require('pause-stream')
 import getRegistryAuthInfo = require('registry-auth-token')
 import memoize = require('lodash.memoize')
+import pLimit = require('p-limit')
 
 export type RequestParams = {
   auth?: {
@@ -26,19 +27,20 @@ export type NpmRegistryClient = {
   fetch: Function
 }
 
-export default (client: NpmRegistryClient): Got => {
+export default (client: NpmRegistryClient, opts: {networkConcurrency: number}): Got => {
+  const limit = pLimit(opts.networkConcurrency)
 
   async function getJSON (url: string) {
-    return new Promise((resolve, reject) => {
+    return limit(() => new Promise((resolve, reject) => {
       client.get(url, createOptions(url), (err: Error, data: Object, raw: Object, res: HttpResponse) => {
         if (err) return reject(err)
         resolve(data)
       })
-    })
+    }))
   }
 
   const getStream = function (url: string): Promise<IncomingMessage> {
-    return new Promise((resolve, reject) => {
+    return limit(() => new Promise((resolve, reject) => {
       client.fetch(url, createOptions(url), (err: Error, res: IncomingMessage) => {
         if (err) return reject(err)
         const ps = pauseStream()
@@ -46,7 +48,7 @@ export default (client: NpmRegistryClient): Got => {
         res.pipe(ps.pause())
         resolve(ps)
       })
-    })
+    }))
   }
 
   function createOptions (url: string): RequestParams {
