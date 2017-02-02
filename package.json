@@ -16,7 +16,6 @@
   ],
   "dependencies": {
     "@types/byline": "4.2.31",
-    "@types/cache-manager": "1.2.4",
     "@types/common-tags": "1.2.5",
     "@types/js-yaml": "3.5.29",
     "@types/load-json-file": "2.0.5",
@@ -31,8 +30,6 @@
     "arr-flatten": "1.0.1",
     "bole": "3.0.2",
     "byline": "5.0.0",
-    "cache-manager": "2.4.0",
-    "cache-manager-fs": "1.0.6",
     "camelcase-keys": "4.0.0",
     "common-tags": "1.4.0",
     "cross-spawn": "^5.0.0",
@@ -78,6 +75,7 @@
     "thenify": "3.2.1",
     "unpack-stream": "1.1.0",
     "update-notifier": "1.0.3",
+    "write-json-file": "2.0.0",
     "write-pkg": "2.0.0"
   },
   "devDependencies": {

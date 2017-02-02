@@ -1,6 +1,5 @@
 import execa = require('execa')
 import {PackageSpec, HostedPackageSpec, ResolveOptions, ResolveResult, Resolution} from '.'
-import {delimiter} from './createPkgId'
 import hostedGitInfo = require('@zkochan/hosted-git-info')
 import logger from 'pnpm-logger'
 import path = require('path')
@@ -23,7 +22,7 @@ export default async function resolveGit (parsedSpec: PackageSpec, opts: Resolve
       type: 'git-repo',
       id: repo
         .replace(/^.*:\/\/(git@)?/, '')
-        .replace(/:/g, delimiter)
+        .replace(/:/g, '+')
         .replace(/\.git$/, '') + '/' + commitId,
       repo,
       commitId,
