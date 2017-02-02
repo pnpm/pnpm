@@ -15,7 +15,7 @@ Install packages.
 * `options.cwd` - *String* - the directory in which the installation will be performed. By default the `process.cwd()` value is used.
 * `options.quiet` - *Boolean* - `false` by default. No output to the console.
 * `options.metaCache` - *Map* - a cache for package meta info.
-* `options.flatTree` - *Boolean* - `false` by default. Can be use only on Node.js >= 6.3.0. Emulates a flat dependency tree similar to the one created by npm v3 ([npm v3 Dependency Resolution](https://docs.npmjs.com/how-npm-works/npm3)).
+* `options.networkConcurrency` - *Number* - `16` by default. Max amount of network requests to perform concurrently.
 
 **Returns:** a Promise
 

@@ -23,6 +23,7 @@ const defaults = () => (<StrictPnpmOptions>{
   depth: 0,
   engineStrict: false,
   metaCache: new Map(),
+  networkConcurrency: 16,
 })
 
 export default (opts?: PnpmOptions): StrictPnpmOptions => {
