@@ -15,6 +15,7 @@ import {Got} from '../network/got'
 import {InstallContext} from '../api/install'
 import fetchResolution from './fetchResolution'
 import logStatus from '../logging/logInstallStatus'
+import {PackageMeta} from '../resolve/utils/loadPackageMeta'
 
 export type FetchOptions = {
   keypath?: string[],
@@ -22,6 +23,7 @@ export type FetchOptions = {
   force: boolean,
   root: string,
   storePath: string,
+  metaCache: Map<string, PackageMeta>,
   tag: string,
   got: Got,
   update?: boolean,
@@ -82,7 +84,9 @@ export default async function fetch (ctx: InstallContext, spec: PackageSpec, mod
         loggedPkg,
         got: options.got,
         root: options.root,
-        tag: options.tag
+        tag: options.tag,
+        storePath: options.storePath,
+        metaCache: options.metaCache,
       })
       resolution = resolveResult.resolution
       if (resolveResult.package) {

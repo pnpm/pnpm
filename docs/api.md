@@ -14,7 +14,7 @@ Install packages.
 * `options.global` - *Boolean* - the packages will be installed globally rather than locally.
 * `options.cwd` - *String* - the directory in which the installation will be performed. By default the `process.cwd()` value is used.
 * `options.quiet` - *Boolean* - `false` by default. No output to the console.
-* `options.cacheTTL` - *Number* - 1 day by default. The time (in seconds) during which HTTP requests are cached (except the ones that request tarballs).
+* `options.metaCache` - *Map* - a cache for package meta info.
 * `options.flatTree` - *Boolean* - `false` by default. Can be use only on Node.js >= 6.3.0. Emulates a flat dependency tree similar to the one created by npm v3 ([npm v3 Dependency Resolution](https://docs.npmjs.com/how-npm-works/npm3)).
 
 **Returns:** a Promise
@@ -92,7 +92,3 @@ Remove extraneous packages specified in the `pkgs` arguments. Extraneous package
 * `pkgs` - *String[]* - prune only the specified packages.
 * `options.production` - *Boolean* - by default `false`. If this property is `true`, prune will remove the packages specified in `devDependencies`.
 * `options.cwd` - *String* - by default `process.cwd()`.
-
-## `pnpm.cleanCache([globalPath])`
-
-Remove cache.

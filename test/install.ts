@@ -715,13 +715,13 @@ test('should update subdep on second install', async function (t) {
 
   await addDistTag('dep-of-pkg-with-1-dep', '100.0.0', latest)
 
-  await installPkgs(['pkg-with-1-dep'], testDefaults({save: true, tag: latest, cacheTTL: 0}))
+  await installPkgs(['pkg-with-1-dep'], testDefaults({save: true, tag: latest}))
 
   await project.storeHas('dep-of-pkg-with-1-dep', '100.0.0')
 
   await addDistTag('dep-of-pkg-with-1-dep', '100.1.0', latest)
 
-  await install(testDefaults({depth: 1, tag: latest, cacheTTL: 0}))
+  await install(testDefaults({depth: 1, tag: latest}))
 
   await project.storeHas('dep-of-pkg-with-1-dep', '100.1.0')
 })
@@ -761,7 +761,7 @@ test('shrinkwrap locks npm dependencies', async function (t) {
 
   await addDistTag('dep-of-pkg-with-1-dep', '100.0.0', 'latest')
 
-  await installPkgs(['pkg-with-1-dep'], testDefaults({save: true, cacheTTL: 0}))
+  await installPkgs(['pkg-with-1-dep'], testDefaults({save: true}))
 
   await project.storeHas('dep-of-pkg-with-1-dep', '100.0.0')
 
@@ -769,7 +769,7 @@ test('shrinkwrap locks npm dependencies', async function (t) {
 
   await rimraf('node_modules')
 
-  await install(testDefaults({cacheTTL: 0}))
+  await install(testDefaults({}))
 
   const pkg = project.requireModule('.localhost+4873/pkg-with-1-dep/100.0.0/node_modules/dep-of-pkg-with-1-dep/package.json')
 

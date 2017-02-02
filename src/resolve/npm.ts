@@ -1,12 +1,10 @@
 import url = require('url')
 import path = require('path')
-const enc = encodeURIComponent
-import createPkgId from './createPkgId'
-import registryUrl = require('registry-url')
 import semver = require('semver')
 import {PackageSpec, ResolveOptions, TarballResolution, ResolveResult} from '.'
-import {Package} from '../types'
 import logStatus from '../logging/logInstallStatus'
+import loadPkgMeta, {PackageMeta} from './utils/loadPackageMeta'
+import createPkgId from './utils/createNpmPkgId'
 
 /**
  * Resolves a package in the NPM registry. Done as part of `install()`.
@@ -25,12 +23,11 @@ import logStatus from '../logging/logInstallStatus'
 export default async function resolveNpm (spec: PackageSpec, opts: ResolveOptions): Promise<ResolveResult> {
   // { raw: 'rimraf@2', scope: null, name: 'rimraf', rawSpec: '2' || '' }
   try {
-    const uri = toUri(spec)
     if (opts.loggedPkg) logStatus({ status: 'resolving', pkg: opts.loggedPkg })
-    const parsedBody = <PackageDocument>(await opts.got.getJSON(uri))
-    const correctPkg = pickVersionFromRegistryDocument(parsedBody, spec, opts.tag)
+    const meta = await loadPkgMeta(spec, opts.storePath, opts.got, opts.metaCache)
+    const correctPkg = pickVersion(meta, spec, opts.tag)
     if (!correctPkg) {
-      const versions = Object.keys(parsedBody.versions)
+      const versions = Object.keys(meta.versions)
       const message = versions.length
         ? 'Versions in registry:\n' + versions.join(', ') + '\n'
         : 'No valid version found.'
@@ -38,11 +35,7 @@ export default async function resolveNpm (spec: PackageSpec, opts: ResolveOption
         spec.raw + '\n' + message)
       throw err
     }
-    const id = [
-      (url.parse(correctPkg.dist.tarball).host || '').replace(':', '+'),
-      correctPkg.name,
-      correctPkg.version
-    ].join('/')
+    const id = createPkgId(<string>url.parse(correctPkg.dist.tarball).host, correctPkg.name, correctPkg.version)
     const resolution: TarballResolution = {
       type: 'tarball',
       id,
@@ -58,67 +51,30 @@ export default async function resolveNpm (spec: PackageSpec, opts: ResolveOption
   }
 }
 
-type StringDict = {
-  [name: string]: string
-}
-
-type PackageInRegistry = Package & {
-  dist: {
-    shasum: string,
-    tarball: string
-  }
-}
-
-type PackageDocument = {
-  'dist-tag': StringDict,
-  versions: {
-    [name: string]: PackageInRegistry
-  }
-}
-
-function pickVersionFromRegistryDocument (pkg: PackageDocument, dep: PackageSpec, latestTag: string) {
+function pickVersion (meta: PackageMeta, dep: PackageSpec, latestTag: string) {
   if (dep.type === 'tag') {
-    return pickVersionByTag(pkg, dep.spec)
+    return pickVersionByTag(meta, dep.spec)
   }
-  return pickVersionByVersionRange(pkg, dep.spec, latestTag)
+  return pickVersionByVersionRange(meta, dep.spec, latestTag)
 }
 
-function pickVersionByTag(pkg: PackageDocument, tag: string) {
-  const tagVersion = pkg['dist-tags'][tag]
-  if (pkg.versions[tagVersion]) {
-    return pkg.versions[tagVersion]
+function pickVersionByTag(meta: PackageMeta, tag: string) {
+  const tagVersion = meta['dist-tags'][tag]
+  if (meta.versions[tagVersion]) {
+    return meta.versions[tagVersion]
   }
   return null
 }
 
-function pickVersionByVersionRange(pkg: PackageDocument, versionRange: string, latestTag: string) {
-  const latest = pkg['dist-tags'][latestTag]
+function pickVersionByVersionRange(meta: PackageMeta, versionRange: string, latestTag: string) {
+  const latest = meta['dist-tags'][latestTag]
   if (semver.satisfies(latest, versionRange, true)) {
-    return pkg.versions[latest]
+    return meta.versions[latest]
   }
-  const versions = Object.keys(pkg.versions)
+  const versions = Object.keys(meta.versions)
   const maxVersion = semver.maxSatisfying(versions, versionRange, true)
   if (maxVersion) {
-    return pkg.versions[maxVersion]
+    return meta.versions[maxVersion]
   }
   return null
-}
-
-/**
- * Converts package data (from `npa()`) to a URI
- *
- * @example
- *     toUri({ name: 'rimraf', rawSpec: '2' })
- *     // => 'https://registry.npmjs.org/rimraf/2'
- */
-function toUri (spec: PackageSpec) {
-  let name: string
-
-  if (spec.name.substr(0, 1) === '@') {
-    name = '@' + enc(spec.name.substr(1))
-  } else {
-    name = enc(spec.name)
-  }
-
-  return url.resolve(registryUrl(spec.scope), name)
 }

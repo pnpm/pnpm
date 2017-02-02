@@ -1,11 +1,11 @@
 import {ReporterType} from './reporter'
+import {PackageMeta} from './resolve/utils/loadPackageMeta'
 
 export type PnpmOptions = {
   cwd?: string,
   global?: boolean,
   globalPath?: string,
   storePath?: string,
-  cachePath?: string,
   ignoreScripts?: boolean
   save?: boolean,
   saveDev?: boolean,
@@ -36,7 +36,7 @@ export type PnpmOptions = {
   userAgent?: string,
   tag?: string,
 
-  cacheTTL?: number,
+  metaCache?: Map<string, PackageMeta>,
 }
 
 export type StrictPnpmOptions = {
@@ -44,7 +44,6 @@ export type StrictPnpmOptions = {
   global: boolean,
   globalPath: string,
   storePath: string,
-  cachePath: string,
   ignoreScripts: boolean
   save: boolean,
   saveDev: boolean,
@@ -75,7 +74,7 @@ export type StrictPnpmOptions = {
   userAgent?: string,
   tag: string,
 
-  cacheTTL: number,
+  metaCache: Map<string, PackageMeta>,
 }
 
 export type Dependencies = {

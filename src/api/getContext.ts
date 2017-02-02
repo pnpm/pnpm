@@ -24,7 +24,6 @@ import checkCompatibility from './checkCompatibility'
 
 export type PnpmContext = {
   pkg?: Package,
-  cache: string,
   storePath: string,
   root: string,
   graph: Graph,
@@ -61,14 +60,12 @@ export default async function getContext (opts: StrictPnpmOptions): Promise<Pnpm
   const ctx: PnpmContext = {
     pkg: pkg.pkg,
     root,
-    cache: expandTilde(opts.cachePath),
     storePath,
     graph,
     shrinkwrap,
     isFirstInstallation,
   }
 
-  await mkdirp(ctx.cache)
   await mkdirp(ctx.storePath)
   return ctx
 }

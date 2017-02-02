@@ -4,6 +4,7 @@ import resolveFromLocal from './local'
 import resolveFromGit from './git'
 import {Got} from '../network/got'
 import {Package} from '../types'
+import {PackageMeta} from './utils/loadPackageMeta'
 import {LoggedPkg} from 'pnpm-logger'
 
 export type ResolutionBase = {
@@ -50,7 +51,7 @@ export type PackageSpec = {
   raw: string,
   name: string,
   scope: string,
-  type: string,
+  type: 'git' | 'hosted' | 'tag' | 'version' | 'range' | 'local' | 'remote',
   spec: string,
   rawSpec: string
 }
@@ -66,6 +67,8 @@ export type HostedPackageSpec = PackageSpec & {
 export type ResolveOptions = {
   loggedPkg: LoggedPkg,
   got: Got,
+  storePath: string,
+  metaCache: Map<string, PackageMeta>,
   root: string,
   tag: string
 }

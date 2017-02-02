@@ -17,7 +17,6 @@ import linkCmd from '../cmd/link'
 import publishCmd from '../cmd/publish'
 import pruneCmd from '../cmd/prune'
 import installTestCmd from '../cmd/installTest'
-import cacheCmd from '../cmd/cache'
 import runCmd from '../cmd/run'
 import bole = require('bole')
 import initReporter from '../reporter'
@@ -32,7 +31,6 @@ const pnpmCmds = {
   publish: publishCmd,
   prune: pruneCmd,
   'install-test': installTestCmd,
-  cache: cacheCmd,
   run: runCmd,
 }
 

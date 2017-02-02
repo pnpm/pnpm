@@ -44,7 +44,7 @@ export type InstallContext = {
 export async function install (maybeOpts?: PnpmOptions) {
   const opts = extendOptions(maybeOpts)
   const ctx = await getContext(opts)
-  const installCtx = await createInstallCmd(opts, ctx.graph, ctx.shrinkwrap, ctx.cache)
+  const installCtx = await createInstallCmd(opts, ctx.graph, ctx.shrinkwrap)
 
   if (!ctx.pkg) throw runtimeError('No package.json found')
   const packagesToInstall = Object.assign({}, ctx.pkg.dependencies || {})
@@ -66,7 +66,7 @@ export async function installPkgs (fuzzyDeps: string[] | Dependencies, maybeOpts
   }
   const opts = extendOptions(maybeOpts)
   const ctx = await getContext(opts)
-  const installCtx = await createInstallCmd(opts, ctx.graph, ctx.shrinkwrap, ctx.cache)
+  const installCtx = await createInstallCmd(opts, ctx.graph, ctx.shrinkwrap)
 
   return lock(ctx.storePath, () => installInContext('named', packagesToInstall, ctx, installCtx, opts))
 }
@@ -76,35 +76,31 @@ async function installInContext (installType: string, packagesToInstall: Depende
   const oldGraph: Graph = cloneDeep(ctx.graph)
   const nodeModulesPath = path.join(ctx.root, 'node_modules')
   const client = new RegClient(adaptConfig(opts))
-  const pkgs: InstalledPackage[] = await lock(ctx.cache, async function () {
-    const installOpts = {
-      linkLocal: opts.linkLocal,
-      dependent: ctx.root,
-      root: ctx.root,
-      storePath: ctx.storePath,
-      force: opts.force,
-      depth: opts.depth,
-      tag: opts.tag,
-      engineStrict: opts.engineStrict,
-      nodeVersion: opts.nodeVersion,
-      got: createGot(client, {
-        cachePath: ctx.cache,
-        cacheTTL: opts.cacheTTL
-      }),
-      fetchingFiles: Promise.resolve(),
-      baseNodeModules: nodeModulesPath,
-    }
-    const installedPkgs = await installMultiple(
-      installCtx,
-      packagesToInstall,
-      ctx.pkg && ctx.pkg && ctx.pkg.optionalDependencies || {},
-      nodeModulesPath,
-      installOpts
-    )
-    const binPath = opts.global ? globalBinPath() : path.join(nodeModulesPath, '.bin')
-    await linkBins(nodeModulesPath, binPath)
-    return installedPkgs
-  })
+
+  const installOpts = {
+    linkLocal: opts.linkLocal,
+    dependent: ctx.root,
+    root: ctx.root,
+    storePath: ctx.storePath,
+    force: opts.force,
+    depth: opts.depth,
+    tag: opts.tag,
+    engineStrict: opts.engineStrict,
+    nodeVersion: opts.nodeVersion,
+    got: createGot(client),
+    fetchingFiles: Promise.resolve(),
+    baseNodeModules: nodeModulesPath,
+    metaCache: opts.metaCache,
+  }
+  const pkgs: InstalledPackage[] = await installMultiple(
+    installCtx,
+    packagesToInstall,
+    ctx.pkg && ctx.pkg && ctx.pkg.optionalDependencies || {},
+    nodeModulesPath,
+    installOpts
+  )
+  const binPath = opts.global ? globalBinPath() : path.join(nodeModulesPath, '.bin')
+  await linkBins(nodeModulesPath, binPath)
 
   if (installType === 'named') {
     const saveType = getSaveType(opts)
@@ -200,7 +196,7 @@ function difference<T> (setA: Set<T>, setB: Set<T>) {
   return difference
 }
 
-async function createInstallCmd (opts: StrictPnpmOptions, graph: Graph, shrinkwrap: Shrinkwrap, cache: string): Promise<InstallContext> {
+async function createInstallCmd (opts: StrictPnpmOptions, graph: Graph, shrinkwrap: Shrinkwrap): Promise<InstallContext> {
   return {
     fetchLocks: {},
     installLocks: {},

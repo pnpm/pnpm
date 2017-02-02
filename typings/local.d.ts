@@ -158,11 +158,6 @@ declare module 'exists-link' {
   export = anything;
 }
 
-declare module 'cache-manager-fs' {
-  const anything: any;
-  export = anything;
-}
-
 declare module 'lodash.memoize' {
   const anything: any;
   export = anything;
@@ -179,6 +174,11 @@ declare module '@zkochan/cmd-shim' {
 }
 
 declare module 'write-pkg' {
+  const anything: any;
+  export = anything;
+}
+
+declare module 'write-json-file' {
   const anything: any;
   export = anything;
 }
