@@ -18,4 +18,3 @@ test_script:
   - npm test
 cache:
   - '%USERPROFILE%\.pnpm-store'
-  - '%USERPROFILE%\.pnpm-cache'
