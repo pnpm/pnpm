@@ -5,6 +5,7 @@ import RegClient = require('npm-registry-client')
 import logger from 'pnpm-logger'
 import cloneDeep = require('lodash.clonedeep')
 import globalBinPath = require('global-bin-path')
+import pLimit = require('p-limit')
 import {PnpmOptions, StrictPnpmOptions, Dependencies} from '../types'
 import createGot from '../network/got'
 import getContext, {PnpmContext} from './getContext'
@@ -39,6 +40,7 @@ export type InstallContext = {
   shrinkwrap: Shrinkwrap,
   resolutionLinked: CachedPromises<void>,
   installed: Set<string>,
+  limitFetch: Function,
 }
 
 export async function install (maybeOpts?: PnpmOptions) {
@@ -206,6 +208,7 @@ async function createInstallCmd (opts: StrictPnpmOptions, graph: Graph, shrinkwr
     resolutionLinked: {},
     installed: new Set(),
     installationSequence: [],
+    limitFetch: pLimit(16),
   }
 }
 
