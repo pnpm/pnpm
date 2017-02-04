@@ -1,6 +1,5 @@
 # pnpm
 
-[![npm version](https://img.shields.io/npm/v/pnpm.svg?maxAge=7200)](https://www.npmjs.com/package/pnpm)
 [![Status](https://travis-ci.org/pnpm/pnpm.svg?branch=master)](https://travis-ci.org/pnpm/pnpm "See test builds")
 [![Windows build status](https://ci.appveyor.com/api/projects/status/f7437jbcml04x750/branch/master?svg=true)](https://ci.appveyor.com/project/zkochan/pnpm-17nv8/branch/master)
 [![Join the chat at https://gitter.im/pnpm/pnpm](https://badges.gitter.im/pnpm/pnpm.svg)](https://gitter.im/pnpm/pnpm?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
@@ -108,10 +107,6 @@ time pnpm i babel-preset-es2015 browserify chalk debug minimist mkdirp
 
 * [Compared to ied](docs/vs-ied.md)
 * [Compared to npm](docs/vs-npm.md)
-
-## Preview release
-
-`pnpm` will stay in `<1.0.0` until it's achieved feature parity with `npm install`. See [roadmap](https://github.com/pnpm/pnpm/milestone/1) for details.
 
 ## License
 
