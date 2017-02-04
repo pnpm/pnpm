@@ -15,13 +15,9 @@ install:
   - pnpm install
 script:
   - npm test
-  - if [[ $TRAVIS_NODE_VERSION == "4" ]]; then npm run docs:build; fi
-after_success:
-  - if [ "$TRAVIS_BRANCH" = "master" -a "$TRAVIS_PULL_REQUEST" = "false" ]; then ./node_modules/.bin/git-update-ghpages -e; fi
 env:
   global:
     - CC=clang CXX=clang++ npm_config_clang=1
     - GIT_NAME: Travis CI
     - GIT_EMAIL: nobody@nobody.org
     - GITHUB_REPO: pnpm/pnpm
-    - GIT_SOURCE: _docpress
