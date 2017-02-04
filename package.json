@@ -106,7 +106,7 @@
   "directories": {
     "test": "test"
   },
-  "homepage": "http://ghub.io/pnpm#readme",
+  "homepage": "https://pnpm.js.org",
   "keywords": [
     "dependency manager",
     "install",
