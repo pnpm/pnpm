@@ -9,7 +9,7 @@ import dirsum from '../fs/dirsum'
 export default async function (maybeOpts: PnpmOptions) {
   const opts = extendOptions(maybeOpts)
   const ctx = await getContext(opts)
-  if (!ctx.graph) return
+  if (!ctx.graph) return []
 
   const pkgPaths = Object.keys(ctx.graph)
     .filter(pkgPath => !isProjectPath(pkgPath))

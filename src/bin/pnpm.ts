@@ -18,6 +18,7 @@ import publishCmd from '../cmd/publish'
 import pruneCmd from '../cmd/prune'
 import installTestCmd from '../cmd/installTest'
 import runCmd from '../cmd/run'
+import verifyCmd from '../cmd/verify'
 import bole = require('bole')
 import initReporter from '../reporter'
 
@@ -32,6 +33,7 @@ const pnpmCmds = {
   prune: pruneCmd,
   'install-test': installTestCmd,
   run: runCmd,
+  verify: verifyCmd,
 }
 
 const supportedCmds = new Set([
@@ -44,6 +46,7 @@ const supportedCmds = new Set([
   'prune',
   'install-test',
   'run',
+  'verify',
 ])
 
 async function run (argv: string[]) {
