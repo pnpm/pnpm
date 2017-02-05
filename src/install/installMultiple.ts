@@ -30,7 +30,7 @@ export type InstallOptions = FetchOptions & {
 }
 
 export type MultipleInstallOpts = InstallOptions & {
-  fetchingFiles: Promise<void>,
+  fetchingFiles?: Promise<Boolean>,
 }
 
 export type InstalledPackage = FetchedPackage & {
@@ -149,9 +149,9 @@ async function install (pkgRawSpec: string, modules: string, ctx: InstallContext
     dependency.dependencies = await installDependencies(pkg, dependency, ctx, realModules, options)
   }
 
-  await dependency.fetchingFiles
+  const newlyFetched = await dependency.fetchingFiles
   await memoize(ctx.resolutionLinked, dependency.hardlinkedLocation, async function () {
-    if (options.force || !await exists(path.join(dependency.hardlinkedLocation, 'package.json'))) { // in case it was created by a separate installation
+    if (newlyFetched || options.force || !await exists(path.join(dependency.hardlinkedLocation, 'package.json'))) { // in case it was created by a separate installation
       await rimraf(dependency.hardlinkedLocation)
       const stage = path.join(realModules, `${pkg.name}+stage`)
       await rimraf(stage)

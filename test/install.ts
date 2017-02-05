@@ -255,6 +255,21 @@ test('no forcing', async function (t) {
   t.ok(!distPathExists, 'magic-hook@2.0.0 dist folder not reinstalled')
 })
 
+test('relink package to project if it has been refetched', async function (t) {
+  const project = prepare(t)
+  await installPkgs(['magic-hook@2.0.0'], testDefaults())
+
+  const distPathInStore = await project.resolve('magic-hook', '2.0.0', 'dist')
+  await rimraf(distPathInStore)
+  const distPath = path.resolve('node_modules', 'magic-hook', 'dist')
+  await rimraf(distPath)
+
+  await installPkgs(['magic-hook@2.0.0'], testDefaults())
+
+  const distPathExists = await exists(distPath)
+  t.ok(distPathExists, 'magic-hook@2.0.0 dist folder reinstalled')
+})
+
 test('circular deps', async function (t) {
   const project = prepare(t)
   await installPkgs(['circular-deps-1-of-2'], testDefaults())

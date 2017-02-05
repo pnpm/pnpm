@@ -33,7 +33,7 @@ export type FetchOptions = {
 
 export type FetchedPackage = {
   fetchingPkg: Promise<Package>,
-  fetchingFiles: Promise<void>,
+  fetchingFiles: Promise<Boolean>,
   path: string,
   srcPath?: string,
   id: string,
@@ -149,7 +149,7 @@ export default async function fetch (ctx: InstallContext, spec: PackageSpec, mod
       const data = await requireJson(path.join(fullpath, 'package.json'))
       return {
         fetchingPkg: Promise.resolve(data),
-        fetchingFiles: Promise.resolve(),
+        fetchingFiles: Promise.resolve(false), // this property can be ignored by cached packages at all
         id: path.basename(fullpath),
         fromCache: true,
         path: fullpath,
@@ -160,7 +160,7 @@ export default async function fetch (ctx: InstallContext, spec: PackageSpec, mod
 }
 
 type FetchToStoreOptions = {
-  fetchLocks: CachedPromises<void>,
+  fetchLocks: CachedPromises<Boolean>,
   target: string,
   resolution: Resolution,
   loggedPkg: LoggedPkg,
@@ -169,19 +169,14 @@ type FetchToStoreOptions = {
   limitFetch: Function,
 }
 
-/**
- * Fetch to `.store/lodash@4.0.0`
- * If an ongoing build is already working, use it. Also, if that ongoing build
- * is part of the dependency chain (ie, it's a circular dependency), use its stub
- */
-function fetchToStoreCached (opts: FetchToStoreOptions): Promise<void> {
-  return memoize(opts.fetchLocks, opts.resolution.id, async function () {
+function fetchToStoreCached (opts: FetchToStoreOptions): Promise<Boolean> {
+  return memoize(opts.fetchLocks, opts.resolution.id, async (): Promise<Boolean> => {
     const target = opts.target
     const targetExists = await exists(target)
 
     if (targetExists) {
       // if target exists and it wasn't modified, then no need to refetch it
-      if (await untouched(target)) return
+      if (await untouched(target)) return false
       logger.warn(`Refetching ${target} to store, as it was modified`)
     }
 
@@ -207,6 +202,8 @@ function fetchToStoreCached (opts: FetchToStoreOptions): Promise<void> {
     await fs.rename(targetStage, target)
 
     createShasum(target)
+
+    return true
   })
 }
 

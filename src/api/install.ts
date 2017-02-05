@@ -35,7 +35,7 @@ export type InstalledPackages = {
 export type InstallContext = {
   installs: InstalledPackages,
   installationSequence: string[],
-  fetchLocks: CachedPromises<void>,
+  fetchLocks: CachedPromises<Boolean>,
   graph: Graph,
   shrinkwrap: Shrinkwrap,
   resolutionLinked: CachedPromises<void>,
@@ -90,7 +90,6 @@ async function installInContext (installType: string, packagesToInstall: Depende
     engineStrict: opts.engineStrict,
     nodeVersion: opts.nodeVersion,
     got: createGot(client, {networkConcurrency: opts.networkConcurrency}),
-    fetchingFiles: Promise.resolve(),
     baseNodeModules: nodeModulesPath,
     metaCache: opts.metaCache,
   }
