@@ -233,6 +233,11 @@ declare module 'p-limit' {
   export = anything;
 }
 
+declare module 'p-filter' {
+  const anything: any;
+  export = anything;
+}
+
 declare module 'dirsum' {
   const anything: any;
   export = anything;
