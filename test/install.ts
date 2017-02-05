@@ -270,6 +270,30 @@ test('relink package to project if it has been refetched', async function (t) {
   t.ok(distPathExists, 'magic-hook@2.0.0 dist folder reinstalled')
 })
 
+test('relink package to project if the dependency is not linked from store', async function (t) {
+  const project = prepare(t)
+  await installPkgs(['magic-hook@2.0.0'], testDefaults({save: true, saveExact: true}))
+
+  const pkgJsonPath = path.resolve('node_modules', 'magic-hook', 'package.json')
+
+  async function getInode () {
+    return (await fs.stat(pkgJsonPath)).ino
+  }
+
+  const storeInode = await getInode()
+
+  // rewriting package.json, to destroy the link
+  const pkgJson = await fs.readFile(pkgJsonPath, 'utf8')
+  await rimraf(pkgJsonPath)
+  await fs.writeFile(pkgJsonPath, pkgJson, 'utf8')
+
+  t.ok(storeInode !== await getInode(), 'package.json inode changed')
+
+  await install(testDefaults())
+
+  t.ok(storeInode === await getInode(), 'package.json inode matches the one that is in store')
+})
+
 test('circular deps', async function (t) {
   const project = prepare(t)
   await installPkgs(['circular-deps-1-of-2'], testDefaults())

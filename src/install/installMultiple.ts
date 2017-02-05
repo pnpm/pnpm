@@ -151,7 +151,8 @@ async function install (pkgRawSpec: string, modules: string, ctx: InstallContext
 
   const newlyFetched = await dependency.fetchingFiles
   await memoize(ctx.resolutionLinked, dependency.hardlinkedLocation, async function () {
-    if (newlyFetched || options.force || !await exists(path.join(dependency.hardlinkedLocation, 'package.json'))) { // in case it was created by a separate installation
+    const pkgJsonPath = path.join(dependency.hardlinkedLocation, 'package.json')
+    if (newlyFetched || options.force || !await exists(pkgJsonPath) || !await pkgLinkedToStore()) {
       await rimraf(dependency.hardlinkedLocation)
       const stage = path.join(realModules, `${pkg.name}+stage`)
       await rimraf(stage)
@@ -159,9 +160,21 @@ async function install (pkgRawSpec: string, modules: string, ctx: InstallContext
       await fs.rename(stage, dependency.hardlinkedLocation)
       await linkBins(realModules, path.join(dependency.hardlinkedLocation, 'node_modules', '.bin'), pkg.name)
     }
+
+    async function pkgLinkedToStore () {
+      const pkgJsonPathInStore = path.join(dependency.path, 'package.json')
+      if (await isSameFile(pkgJsonPath, pkgJsonPathInStore)) return true
+      logger.info(`Relinking ${dependency.hardlinkedLocation} from the store`)
+      return false
+    }
   })
 
   return dependency
+}
+
+async function isSameFile (file1: string, file2: string) {
+  const stats = await Promise.all([fs.stat(file1), fs.stat(file2)])
+  return stats[0].ino === stats[1].ino
 }
 
 async function logFetchStatus(pkgRawSpec: string, fetchedPkg: FetchedPackage) {
