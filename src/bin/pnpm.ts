@@ -87,7 +87,8 @@ async function run (argv: string[]) {
       E: 'save-exact',
       O: 'save-optional',
       g: 'global',
-      v: 'version'
+      v: 'version',
+      f: 'force',
     }
   })
 
