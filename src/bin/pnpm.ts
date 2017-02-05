@@ -43,7 +43,6 @@ const supportedCmds = new Set([
   'publish',
   'prune',
   'install-test',
-  'cache',
   'run',
 ])
 
@@ -118,9 +117,6 @@ async function run (argv: string[]) {
 
   if (opts.depth === 'Infinity') {
     opts.depth = Infinity
-  }
-  if (opts.cacheTtl !== undefined && opts.cacheTTL === undefined) {
-    opts.cacheTTL = opts.cacheTtl
   }
 
   // This is needed because the arg values should be used only if they were passed
