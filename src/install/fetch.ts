@@ -17,6 +17,7 @@ import fetchResolution from './fetchResolution'
 import logStatus from '../logging/logInstallStatus'
 import {PackageMeta} from '../resolve/utils/loadPackageMeta'
 import dirsum from '../fs/dirsum'
+import untouched from '../pkgIsUntouched'
 
 export type FetchOptions = {
   keypath?: string[],
@@ -105,7 +106,6 @@ export default async function fetch (ctx: InstallContext, spec: PackageSpec, mod
       loggedPkg,
       got: options.got,
       linkLocal: options.linkLocal,
-      force: options.force,
       limitFetch: ctx.limitFetch,
     })
 
@@ -166,7 +166,6 @@ type FetchToStoreOptions = {
   loggedPkg: LoggedPkg,
   got: Got,
   linkLocal: boolean,
-  force: boolean,
   limitFetch: Function,
 }
 
@@ -178,31 +177,36 @@ type FetchToStoreOptions = {
 function fetchToStoreCached (opts: FetchToStoreOptions): Promise<void> {
   return memoize(opts.fetchLocks, opts.resolution.id, async function () {
     const target = opts.target
-    const targetStage = `${opts.target}_stage`
     const targetExists = await exists(target)
-    if (opts.force || !targetExists) {
-      // We fetch into targetStage directory first and then fs.rename() it to the
-      // target directory.
 
-      await rimraf(targetStage)
-      if (targetExists) {
-        await rimraf(target)
-      }
-
-      logStatus({status: 'download-queued', pkg: opts.loggedPkg})
-      await opts.limitFetch(() => fetchResolution(opts.resolution, targetStage, {
-        got: opts.got,
-        loggedPkg: opts.loggedPkg,
-        linkLocal: opts.linkLocal,
-      }))
-
-      // fs.rename(oldPath, newPath) is an atomic operation, so we do it at the
-      // end
-      await fs.rename(targetStage, target)
-
-      createShasum(target)
+    if (targetExists) {
+      // if target exists and it wasn't modified, then no need to refetch it
+      if (await untouched(target)) return
+      logger.warn(`Refetching ${target} to store, as it was modified`)
     }
-    const pkg = await requireJson(path.join(target, 'package.json'))
+
+    // We fetch into targetStage directory first and then fs.rename() it to the
+    // target directory.
+
+    const targetStage = `${target}_stage`
+
+    await rimraf(targetStage)
+    if (targetExists) {
+      await rimraf(target)
+    }
+
+    logStatus({status: 'download-queued', pkg: opts.loggedPkg})
+    await opts.limitFetch(() => fetchResolution(opts.resolution, targetStage, {
+      got: opts.got,
+      loggedPkg: opts.loggedPkg,
+      linkLocal: opts.linkLocal,
+    }))
+
+    // fs.rename(oldPath, newPath) is an atomic operation, so we do it at the
+    // end
+    await fs.rename(targetStage, target)
+
+    createShasum(target)
   })
 }
 

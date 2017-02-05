@@ -151,7 +151,8 @@ async function install (pkgRawSpec: string, modules: string, ctx: InstallContext
 
   await dependency.fetchingFiles
   await memoize(ctx.resolutionLinked, dependency.hardlinkedLocation, async function () {
-    if (!await exists(path.join(dependency.hardlinkedLocation, 'package.json'))) { // in case it was created by a separate installation
+    if (options.force || !await exists(path.join(dependency.hardlinkedLocation, 'package.json'))) { // in case it was created by a separate installation
+      await rimraf(dependency.hardlinkedLocation)
       const stage = path.join(realModules, `${pkg.name}+stage`)
       await rimraf(stage)
       await hardlinkDir(dependency.path, stage)

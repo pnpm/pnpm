@@ -233,7 +233,7 @@ test('forcing', async function (t) {
   const project = prepare(t)
   await installPkgs(['magic-hook@2.0.0'], testDefaults())
 
-  const distPath = await project.resolve('magic-hook', '2.0.0', 'dist')
+  const distPath = path.resolve('node_modules', 'magic-hook', 'dist')
   await rimraf(distPath)
 
   await installPkgs(['magic-hook@2.0.0'], testDefaults({force: true}))
@@ -246,7 +246,7 @@ test('no forcing', async function (t) {
   const project = prepare(t)
   await installPkgs(['magic-hook@2.0.0'], testDefaults())
 
-  const distPath = await project.resolve('magic-hook', '2.0.0', 'dist')
+  const distPath = path.resolve('node_modules', 'magic-hook', 'dist')
   await rimraf(distPath)
 
   await installPkgs(['magic-hook@2.0.0'], testDefaults())
