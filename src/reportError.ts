@@ -14,6 +14,9 @@ export default function reportError (logObj: Log) {
       case 'MODULES_BREAKING_CHANGE':
         reportModulesBreakingChange(err, logObj['message'])
         return
+      case 'MODIFIED_DEPENDENCY':
+        reportModifiedDependency(err, logObj['message'])
+        return
       default:
         printErrorSummary(err.message || logObj['message'])
         return
@@ -68,4 +71,13 @@ function printRelatedSources (msg: Object) {
 
 function printErrorSummary (message: string) {
   console.log(chalk.red('ERROR'), message)
+}
+
+function reportModifiedDependency (err: Error, msg: Object) {
+  printErrorSummary('Packages in the store have been mutated')
+  console.log()
+  console.log('These packages are modified:')
+  msg['modified'].forEach((pkgPath: string) => console.log(chalk.gray(pkgPath)))
+  console.log()
+  console.log(`You can run ${chalk.yellow('pnpm install')} to refetch the modified packages`)
 }
