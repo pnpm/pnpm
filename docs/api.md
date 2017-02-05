@@ -92,3 +92,10 @@ Remove extraneous packages specified in the `pkgs` arguments. Extraneous package
 * `pkgs` - *String[]* - prune only the specified packages.
 * `options.production` - *Boolean* - by default `false`. If this property is `true`, prune will remove the packages specified in `devDependencies`.
 * `options.cwd` - *String* - by default `process.cwd()`.
+
+## `pnpm.verify([options])`
+
+Return the list of modified dependencies.
+
+**Returns:** `Promise<string[]>` - the paths to the modified packages of the current project. The paths contain the location of packages in the store,
+not in the projects `node_modules` folder.
