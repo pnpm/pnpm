@@ -232,3 +232,8 @@ declare module 'p-limit' {
   const anything: any;
   export = anything;
 }
+
+declare module 'dirsum' {
+  const anything: any;
+  export = anything;
+}

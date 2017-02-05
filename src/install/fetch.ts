@@ -16,6 +16,7 @@ import {InstallContext} from '../api/install'
 import fetchResolution from './fetchResolution'
 import logStatus from '../logging/logInstallStatus'
 import {PackageMeta} from '../resolve/utils/loadPackageMeta'
+import dirsum from '../fs/dirsum'
 
 export type FetchOptions = {
   keypath?: string[],
@@ -198,7 +199,21 @@ function fetchToStoreCached (opts: FetchToStoreOptions): Promise<void> {
       // fs.rename(oldPath, newPath) is an atomic operation, so we do it at the
       // end
       await fs.rename(targetStage, target)
+
+      createShasum(target)
     }
     const pkg = await requireJson(path.join(target, 'package.json'))
   })
+}
+
+async function createShasum(dirPath: string) {
+  try {
+    const shasum = await dirsum(dirPath)
+    await fs.writeFile(`${dirPath}_shasum`, shasum, 'utf8')
+  } catch (err) {
+    logger.error({
+      message: `Failed to calculate shasum for ${dirPath}`,
+      err,
+    })
+  }
 }

@@ -34,6 +34,7 @@
     "common-tags": "1.4.0",
     "cross-spawn": "^5.0.0",
     "delocalize-dependencies": "0.1.0",
+    "dirsum": "0.1.1",
     "execa": "0.6.0",
     "exists-file": "3.0.0",
     "find-up": "2.1.0",
