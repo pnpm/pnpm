@@ -3,8 +3,7 @@ import promisifyTape from 'tape-promise'
 import fs = require('mz/fs')
 import mkdirp = require('mkdirp')
 import path = require('path')
-import prepare from './support/prepare'
-import testDefaults from './support/testDefaults'
+import {prepare, testDefaults} from './utils'
 import {installPkgs} from '../src'
 
 const test = promisifyTape(tape)

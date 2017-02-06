@@ -10,15 +10,18 @@ import crossSpawn = require('cross-spawn')
 const spawnSync = crossSpawn.sync
 import isCI = require('is-ci')
 import rimraf = require('rimraf-then')
-import {add as addDistTag} from './support/distTags'
-import prepare from './support/prepare'
+import {
+  prepare,
+  addDistTag,
+  testDefaults,
+  pathToLocalPkg,
+  local,
+  execPnpmSync,
+} from './utils'
 import loadJsonFile = require('load-json-file')
-const basicPackageJson = loadJsonFile.sync(path.join(__dirname, './support/simple-package.json'))
+const basicPackageJson = loadJsonFile.sync(path.join(__dirname, './utils/simple-package.json'))
 import {install, installPkgs, uninstall} from '../src'
-import testDefaults from './support/testDefaults'
 import exists = require('exists-file')
-import {pathToLocalPkg, local} from './support/localPkg'
-import {sync as execPnpmSync} from './support/execPnpm'
 import isWindows = require('is-windows')
 
 const IS_WINDOWS = isWindows()

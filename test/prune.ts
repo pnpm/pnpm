@@ -3,10 +3,9 @@ import promisifyTape from 'tape-promise'
 const test = promisifyTape(tape)
 import path = require('path')
 import {installPkgs, prune, prunePkgs} from '../src'
-import prepare from './support/prepare'
+import {prepare, testDefaults} from './utils'
 import exists = require('exists-file')
 import existsSymlink = require('exists-link')
-import testDefaults from './support/testDefaults'
 
 test('prune removes extraneous packages', async function (t) {
   const project = prepare(t)

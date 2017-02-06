@@ -2,8 +2,12 @@ import tape = require('tape')
 import promisifyTape from 'tape-promise'
 const test = promisifyTape(tape)
 import path = require('path')
-import isExecutable from './support/isExecutable'
-import prepare from './support/prepare'
+import {
+  prepare,
+  isExecutable,
+  pathToLocalPkg,
+  testDefaults,
+ } from './utils'
 import mkdirp = require('mkdirp')
 import thenify = require('thenify')
 import ncpCB = require('ncp')
@@ -14,8 +18,6 @@ import {
   linkFromGlobal,
   installPkgs
 } from '../src'
-import {pathToLocalPkg} from './support/localPkg'
-import testDefaults from './support/testDefaults'
 
 test('relative link', async function (t) {
   prepare(t)

@@ -4,9 +4,12 @@ import promisifyTape from 'tape-promise'
 const test = promisifyTape(tape)
 import spawn = require('cross-spawn')
 import exists = require('exists-file')
-import {add as addDistTag} from './support/distTags'
-import prepare from './support/prepare'
-import execPnpm, {sync as execPnpmSync} from './support/execPnpm'
+import {
+  prepare,
+  addDistTag,
+  execPnpm,
+  execPnpmSync,
+} from './utils'
 
 test('return error status code when underlying command fails', t => {
   const result = execPnpmSync('invalid-command')

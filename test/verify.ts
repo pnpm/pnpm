@@ -1,10 +1,8 @@
 import tape = require('tape')
 import promisifyTape from 'tape-promise'
 import rimraf = require('rimraf-then')
-import prepare from './support/prepare'
-import testDefaults from './support/testDefaults'
+import {prepare, testDefaults, execPnpm} from './utils'
 import {verify, installPkgs} from '../src'
-import execPnpm from './support/execPnpm'
 
 const test = promisifyTape(tape)
 
