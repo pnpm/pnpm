@@ -20,7 +20,6 @@ import dirsum from '../fs/dirsum'
 import untouched from '../pkgIsUntouched'
 
 export type FetchOptions = {
-  keypath?: string[],
   linkLocal: boolean,
   force: boolean,
   root: string,
@@ -64,11 +63,6 @@ export default async function fetch (ctx: InstallContext, spec: PackageSpec, mod
     rawSpec: spec.rawSpec,
     name: spec.name,
   }
-
-  // Dependency path to the current package. Not actually needed anmyore
-  // outside getting its length
-  // => ['babel-core@6.4.5', 'babylon@6.4.5', 'babel-runtime@5.8.35']
-  const keypath = (options && options.keypath || [])
 
   try {
     let fetchingPkg = null

@@ -20,6 +20,7 @@ import fs = require('mz/fs')
 const installCheckLogger = logger('install-check')
 
 export type InstallOptions = FetchOptions & {
+  keypath?: string[],
   optional?: boolean,
   dependent: string,
   depth: number,
