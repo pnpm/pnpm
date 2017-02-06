@@ -1,4 +1,4 @@
-import {ignoreCache as requireJson} from './fs/requireJson'
+import {ignoreCache as readPkg} from './fs/readPkg'
 import writePkg = require('write-pkg')
 import sortedObject = require('sorted-object')
 import {DependenciesType} from './getSaveType'
@@ -6,7 +6,7 @@ import {InstalledPackage} from './install/installMultiple'
 
 export default async function save (pkgJsonPath: string, installedPackages: InstalledPackage[], saveType: DependenciesType, useExactVersion: boolean) {
   // Read the latest version of package.json to avoid accidental overwriting
-  const packageJson = await requireJson(pkgJsonPath)
+  const packageJson = await readPkg(pkgJsonPath)
   packageJson[saveType] = packageJson[saveType] || {}
   installedPackages.forEach(dependency => {
     const semverCharacter = useExactVersion ? '' : '^'

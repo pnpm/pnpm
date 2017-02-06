@@ -1,16 +1,16 @@
 import path = require('path')
 import {Package} from '../types'
 import mem = require('mem')
-import loadJsonFile = require('load-json-file')
+import readPkg = require('read-pkg')
 
-const cachedReadPkg = mem(loadJsonFile)
+const cachedReadPkg = mem(readPkg)
 
 /**
  * Works identically to require('/path/to/file.json'), but safer.
  */
-export default function requireJson (pkgJsonPath: string): Package {
+export default function (pkgJsonPath: string): Promise<Package> {
   pkgJsonPath = path.resolve(pkgJsonPath)
   return cachedReadPkg(pkgJsonPath)
 }
 
-export const ignoreCache: Function = loadJsonFile
+export const ignoreCache: Function = readPkg

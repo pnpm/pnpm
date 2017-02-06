@@ -5,7 +5,7 @@ import path = require('path')
 import rimraf = require('rimraf-then')
 import resolve, {Resolution, PackageSpec} from '../resolve'
 import mkdirp from '../fs/mkdirp'
-import requireJson from '../fs/requireJson'
+import readPkg from '../fs/readPkg'
 import exists = require('exists-file')
 import isAvailable from './isAvailable'
 import * as Shrinkwrap from '../fs/shrinkwrap'
@@ -104,7 +104,7 @@ export default async function fetch (ctx: InstallContext, spec: PackageSpec, mod
     })
 
     if (fetchingPkg == null) {
-      fetchingPkg = fetchingFiles.then(() => requireJson(path.join(target, 'package.json')))
+      fetchingPkg = fetchingFiles.then(() => readPkg(target))
     }
 
     const fetchedPkg = {
@@ -140,9 +140,8 @@ export default async function fetch (ctx: InstallContext, spec: PackageSpec, mod
     return save(target)
 
     async function save (fullpath: string): Promise<FetchedPackage> {
-      const data = await requireJson(path.join(fullpath, 'package.json'))
       return {
-        fetchingPkg: Promise.resolve(data),
+        fetchingPkg: readPkg(fullpath),
         fetchingFiles: Promise.resolve(false), // this property can be ignored by cached packages at all
         id: path.basename(fullpath),
         fromCache: true,

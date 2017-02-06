@@ -2,7 +2,7 @@ import path = require('path')
 import normalizePath = require('normalize-path')
 import fs = require('mz/fs')
 import mkdirp from '../fs/mkdirp'
-import requireJson from '../fs/requireJson'
+import readPkg from '../fs/readPkg'
 import getPkgDirs from '../fs/getPkgDirs'
 import binify from '../binify'
 import isWindows = require('is-windows')
@@ -28,7 +28,7 @@ export default async function linkAllBins (modules: string, binPath: string, exc
  * Links executable into `node_modules/.bin`.
  */
 export async function linkPkgBins (target: string, binPath: string) {
-  const pkg = await safeRequireJson(path.join(target, 'package.json'))
+  const pkg = await safeReadPkg(target)
 
   if (!pkg) {
     logger.warn(`There's a directory in node_modules without package.json: ${target}`)
@@ -59,12 +59,9 @@ async function getBinNodePaths (target: string) {
   )
 }
 
-/**
- * Like `require()`, but returns `null` when it is not found
- */
-function safeRequireJson (pkgJsonPath: string): Package | null {
+async function safeReadPkg (pkgPath: string): Promise<Package | null> {
   try {
-    return requireJson(pkgJsonPath)
+    return await readPkg(pkgPath)
   } catch (err) {
     if ((<NodeJS.ErrnoException>err).code !== 'ENOENT') throw err
     return null

@@ -4,7 +4,7 @@ import {PnpmOptions, Package} from '../types'
 import extendOptions from './extendOptions'
 import {uninstallInContext} from './uninstall'
 import getPkgDirs from '../fs/getPkgDirs'
-import requireJson from '../fs/requireJson'
+import readPkg from '../fs/readPkg'
 import lock from './lock'
 
 export async function prune(maybeOpts?: PnpmOptions): Promise<void> {
@@ -71,8 +71,6 @@ function getSaveTypes (production: boolean) {
 
 async function getPkgsInFS (modules: string): Promise<string[]> {
   const pkgDirs = await getPkgDirs(modules)
-  const pkgs: Package[] = await Promise.all(
-    pkgDirs.map(pkgDir => path.join(pkgDir, 'package.json'))
-      .map(pkgJsonPath => requireJson(pkgJsonPath)))
+  const pkgs: Package[] = await Promise.all(pkgDirs.map(readPkg))
   return pkgs.map(pkg => pkg.name)
 }

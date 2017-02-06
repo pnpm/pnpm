@@ -1,7 +1,7 @@
 import {resolve} from 'path'
 import * as path from 'path'
 import getTarballName from './getTarballName'
-import requireJson from '../fs/requireJson'
+import readPkg from '../fs/readPkg'
 import {PackageSpec, ResolveOptions, Resolution, ResolveResult} from '.'
 import fs = require('mz/fs')
 
@@ -21,7 +21,7 @@ export default async function resolveLocal (spec: PackageSpec, opts: ResolveOpti
     return {resolution}
   }
 
-  const localPkg = await requireJson(resolve(dependencyPath, 'package.json'))
+  const localPkg = await readPkg(dependencyPath)
   const resolution: Resolution = {
     type: 'directory',
     id: createLocalPkgId(localPkg.name, dependencyPath),

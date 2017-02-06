@@ -48,7 +48,7 @@
     "src/fs/hardlinkDir.ts",
     "src/fs/mkdirp.ts",
     "src/fs/modulesController.ts",
-    "src/fs/requireJson.ts",
+    "src/fs/readPkg.ts",
     "src/fs/shrinkwrap.ts",
     "src/fs/storeController.ts",
     "src/fs/yamlfs.ts",

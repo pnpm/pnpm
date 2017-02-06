@@ -1,12 +1,11 @@
 import rimraf = require('rimraf-then')
 import path = require('path')
-
 import getContext, {PnpmContext} from './getContext'
 import getSaveType from '../getSaveType'
 import removeDeps from '../removeDeps'
 import binify from '../binify'
 import extendOptions from './extendOptions'
-import requireJson from '../fs/requireJson'
+import readPkg from '../fs/readPkg'
 import {PnpmOptions, StrictPnpmOptions, Package} from '../types'
 import lock from './lock'
 import {save as saveGraph, Graph} from '../fs/graphController'
@@ -97,7 +96,7 @@ function removeDependency (dependentPkgName: string, uninstalledPkg: string, gra
 }
 
 async function removeBins (uninstalledPkg: string, store: string, root: string) {
-  const uninstalledPkgJson = await requireJson(path.join(store, uninstalledPkg, 'package.json'))
+  const uninstalledPkgJson = await readPkg(path.join(store, uninstalledPkg))
   const bins = binify(uninstalledPkgJson)
   return Promise.all(
     Object.keys(bins).map(bin => rimraf(path.join(root, 'node_modules/.bin', bin)))
