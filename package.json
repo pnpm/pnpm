@@ -98,7 +98,6 @@
     "pnpm-registry-mock": "^0.1.1",
     "rimraf": "^2.5.4",
     "sepia": "^2.0.2",
-    "standard": "^8.6.0",
     "tape": "^4.6.3",
     "tape-promise": "^2.0.1",
     "ts-node": "^2.0.0",
@@ -131,17 +130,14 @@
     "start": "npm run tsc -- --watch",
     "?commit": "echo 'Run Git commit wizard'",
     "commit": "git-cz",
-    "lint": "standard && tslint -c tslint.json --project .",
+    "lint": "tslint -c tslint.json --project .",
     "pnpm-registry-mock": "pnpm-registry-mock",
     "test:tap": "ts-node test",
     "test:e2e": "npm-run-all -p -r pnpm-registry-mock test:tap",
     "pretest": "rimraf ../.tmp/ && npm run tsc && pnpm-registry-mock prepare",
     "test": "npm run lint && npm run test:e2e",
-    "prerelease": "npm run tsc && npm test",
-    "?release": "echo 'Publish pnpm'",
-    "release": "sh .scripts/release.sh",
     "tsc": "rimraf lib && tsc",
-    "prepublish": "in-publish && echo 'You need to use \"npm run release\" to publish pnpm' && false || npm run tsc"
+    "prepublish": "in-publish && echo 'You need to use \"publish-packed\" to publish pnpm' && false || npm run tsc"
   },
   "config": {
     "commitizen": {
