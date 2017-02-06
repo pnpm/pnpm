@@ -4,7 +4,6 @@ import logger from 'pnpm-logger'
 import fetch, {FetchedPackage, FetchOptions} from './fetch'
 import {InstallContext, InstalledPackages} from '../api/install'
 import {Dependencies} from '../types'
-import linkBins from './linkBins'
 import memoize from '../memoize'
 import {Package} from '../types'
 import hardlinkDir from '../fs/hardlinkDir'
@@ -158,7 +157,6 @@ async function install (pkgRawSpec: string, modules: string, ctx: InstallContext
       await rimraf(stage)
       await hardlinkDir(dependency.path, stage)
       await fs.rename(stage, dependency.hardlinkedLocation)
-      await linkBins(realModules, path.join(dependency.hardlinkedLocation, 'node_modules', '.bin'), pkg.name)
     }
 
     async function pkgLinkedToStore () {

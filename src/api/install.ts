@@ -102,6 +102,9 @@ async function installInContext (installType: string, packagesToInstall: Depende
   )
   const binPath = opts.global ? globalBinPath() : path.join(nodeModulesPath, '.bin')
   await linkBins(nodeModulesPath, binPath)
+  await Promise.all(pkgs.map(async pkg => {
+    await linkBins(pkg.modules, path.join(pkg.hardlinkedLocation, 'node_modules', '.bin'), pkg.pkg.name)
+  }))
 
   if (installType === 'named') {
     const saveType = getSaveType(opts)
