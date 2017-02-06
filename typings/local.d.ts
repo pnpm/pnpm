@@ -238,7 +238,7 @@ declare module 'p-filter' {
   export = anything;
 }
 
-declare module 'dirsum' {
+declare module '@zkochan/dirsum' {
   const anything: any;
   export = anything;
 }
