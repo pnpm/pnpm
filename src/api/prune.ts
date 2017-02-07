@@ -22,7 +22,8 @@ export async function prune(maybeOpts?: PnpmOptions): Promise<void> {
     const extraneousPkgs = await getExtraneousPkgs(pkg, ctx.root, opts.production)
 
     await uninstallInContext(extraneousPkgs, ctx.pkg, ctx, opts)
-  })
+  },
+  {stale: opts.lockStaleDuration})
 }
 
 export async function prunePkgs(pkgsToPrune: string[], maybeOpts?: PnpmOptions): Promise<void> {
@@ -46,7 +47,8 @@ export async function prunePkgs(pkgsToPrune: string[], maybeOpts?: PnpmOptions):
     }
 
     await uninstallInContext(pkgsToPrune, ctx.pkg, ctx, opts)
-  })
+  },
+  {stale: opts.lockStaleDuration})
 }
 
 async function getExtraneousPkgs (pkg: Package, root: string, production: boolean) {
