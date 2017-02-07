@@ -26,6 +26,7 @@ export type InstallOptions = FetchOptions & {
   engineStrict: boolean,
   nodeVersion: string,
   baseNodeModules: string,
+  shouldSymlink: boolean,
 }
 
 export type MultipleInstallOpts = InstallOptions & {
@@ -166,6 +167,34 @@ async function install (pkgRawSpec: string, modules: string, ctx: InstallContext
       return false
     }
   })
+
+  // ---------------------------------------------------------------------------
+
+  // NOTE: This gets overwritten if the module needs a node_modules/.bin dir created.
+  async function symlinkNodeModules() {
+    // Add a symlink to node_modules for `--preserve-symlink` compatibility.
+    const symlink = path.join(dependency.hardlinkedLocation, 'node_modules')
+    // Must point to closest node_modules.
+    const findUp = require('find-up')
+    let symlinkTarget = findUp.sync('node_modules', {cwd:
+      path.resolve(dependency.hardlinkedLocation, '..')
+    })
+    symlinkTarget = path.relative(symlink, symlinkTarget)
+    symlinkTarget = path.join(symlinkTarget, 'node_modules')
+    try {
+      // await rimraf(symlink)
+      await fs.symlink(symlinkTarget, symlink, 'dir')
+    } catch (err) {
+      if (err.code === 'EEXIST') {
+        // TODO(vjpr): We need to delete it and override it.
+        return
+      }
+    }
+  }
+
+  if (options.shouldSymlink) await symlinkNodeModules()
+
+  // ---------------------------------------------------------------------------
 
   return dependency
 }

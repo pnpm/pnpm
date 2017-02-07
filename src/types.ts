@@ -61,6 +61,7 @@ export type StrictPnpmOptions = {
   engineStrict: boolean,
   nodeVersion: string,
   networkConcurrency: number,
+  symlink: boolean,
 
   // proxy
   proxy?: string,

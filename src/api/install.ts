@@ -92,6 +92,7 @@ async function installInContext (installType: string, packagesToInstall: Depende
     got: createGot(client, {networkConcurrency: opts.networkConcurrency}),
     baseNodeModules: nodeModulesPath,
     metaCache: opts.metaCache,
+    shouldSymlink: opts.symlink,
   }
   const pkgs: InstalledPackage[] = await installMultiple(
     installCtx,
@@ -101,9 +102,9 @@ async function installInContext (installType: string, packagesToInstall: Depende
     installOpts
   )
   const binPath = opts.global ? globalBinPath() : path.join(nodeModulesPath, '.bin')
-  await linkBins(nodeModulesPath, binPath)
+  await linkBins(nodeModulesPath, binPath, undefined, opts.symlink)
   await Promise.all(pkgs.map(async pkg => {
-    await linkBins(pkg.modules, path.join(pkg.hardlinkedLocation, 'node_modules', '.bin'), pkg.pkg.name)
+    await linkBins(pkg.modules, path.join(pkg.hardlinkedLocation, 'node_modules', '.bin'), pkg.pkg.name, opts.symlink)
   }))
 
   if (installType === 'named') {

@@ -14,20 +14,20 @@ import union = require('lodash.union')
 
 const IS_WINDOWS = isWindows()
 
-export default async function linkAllBins (modules: string, binPath: string, exceptPkgName?: string) {
+export default async function linkAllBins (modules: string, binPath: string, exceptPkgName?: string, shouldSymlink?: boolean) {
   const pkgDirs = await getPkgDirs(modules)
   return Promise.all(
     pkgDirs
       .map(pkgDir => normalizePath(pkgDir))
       .filter(pkgDir => !exceptPkgName || !pkgDir.endsWith(`/${exceptPkgName}`))
-      .map((pkgDir: string) => linkPkgBins(pkgDir, binPath))
+      .map((pkgDir: string) => linkPkgBins(pkgDir, binPath, shouldSymlink || false))
   )
 }
 
 /**
  * Links executable into `node_modules/.bin`.
  */
-export async function linkPkgBins (target: string, binPath: string) {
+export async function linkPkgBins (target: string, binPath: string, shouldSymlink: boolean) {
   const pkg = await safeRequireJson(path.join(target, 'package.json'))
 
   if (!pkg) {
@@ -39,7 +39,8 @@ export async function linkPkgBins (target: string, binPath: string) {
 
   const bins = binify(pkg)
 
-  await mkdirp(binPath)
+  // `node_modules` will already exist as a symlink.
+  if (!shouldSymlink) await mkdirp(binPath)
   await Promise.all(Object.keys(bins).map(async function (bin) {
     const externalBinPath = path.join(binPath, bin)
     const actualBin = bins[bin]

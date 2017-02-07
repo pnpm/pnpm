@@ -81,6 +81,7 @@ async function run (argv: string[]) {
       'silent',
       'debug',
       'flat-tree',
+      'symlink'
     ],
     alias: {
       quiet: 'silent',
@@ -92,6 +93,7 @@ async function run (argv: string[]) {
       g: 'global',
       v: 'version',
       f: 'force',
+      s: 'symlink'
     }
   })
 
