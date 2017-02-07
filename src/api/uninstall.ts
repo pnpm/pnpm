@@ -20,7 +20,11 @@ export default async function uninstallCmd (pkgsToUninstall: string[], maybeOpts
   }
 
   const pkg = ctx.pkg
-  return lock(ctx.storePath, () => uninstallInContext(pkgsToUninstall, pkg, ctx, opts))
+  return lock(
+    ctx.storePath,
+    () => uninstallInContext(pkgsToUninstall, pkg, ctx, opts),
+    {stale: opts.lockStaleDuration}
+  )
 }
 
 export async function uninstallInContext (pkgsToUninstall: string[], pkg: Package, ctx: PnpmContext, opts: StrictPnpmOptions) {

@@ -52,7 +52,11 @@ export async function install (maybeOpts?: PnpmOptions) {
   const packagesToInstall = Object.assign({}, ctx.pkg.dependencies || {})
   if (!opts.production) Object.assign(packagesToInstall, ctx.pkg.devDependencies || {})
 
-  return lock(ctx.storePath, () => installInContext('general', packagesToInstall, ctx, installCtx, opts))
+  return lock(
+    ctx.storePath,
+    () => installInContext('general', packagesToInstall, ctx, installCtx, opts),
+    {stale: opts.lockStaleDuration}
+  )
 }
 
 /**
@@ -70,7 +74,11 @@ export async function installPkgs (fuzzyDeps: string[] | Dependencies, maybeOpts
   const ctx = await getContext(opts)
   const installCtx = await createInstallCmd(opts, ctx.graph, ctx.shrinkwrap)
 
-  return lock(ctx.storePath, () => installInContext('named', packagesToInstall, ctx, installCtx, opts))
+  return lock(
+    ctx.storePath,
+    () => installInContext('named', packagesToInstall, ctx, installCtx, opts),
+    {stale: opts.lockStaleDuration}
+  )
 }
 
 async function installInContext (installType: string, packagesToInstall: Dependencies, ctx: PnpmContext, installCtx: InstallContext, opts: StrictPnpmOptions) {
