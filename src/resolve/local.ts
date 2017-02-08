@@ -15,19 +15,23 @@ export default async function resolveLocal (spec: PackageSpec, opts: ResolveOpti
     const name = getTarballName(dependencyPath)
     const resolution: Resolution = {
       type: 'tarball',
-      id: createLocalPkgId(name, dependencyPath),
       tarball: `file:${dependencyPath}`,
     }
-    return {resolution}
+    return {
+      id: createLocalPkgId(name, dependencyPath),
+      resolution,
+    }
   }
 
   const localPkg = await readPkg(dependencyPath)
   const resolution: Resolution = {
     type: 'directory',
-    id: createLocalPkgId(localPkg.name, dependencyPath),
     root: dependencyPath,
   }
-  return {resolution}
+  return {
+    id: createLocalPkgId(localPkg.name, dependencyPath),
+    resolution,
+  }
 }
 
 function createLocalPkgId (name: string, dependencyPath: string): string {

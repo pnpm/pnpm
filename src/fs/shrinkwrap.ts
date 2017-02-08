@@ -1,54 +1,77 @@
 import path = require('path')
-import pnpmPkgJson from '../pnpmPkgJson'
 import {
   read as readYaml,
   write as writeYaml
 } from './yamlfs'
-import {PackageSpec, Resolution, TarballResolution, GitRepositoryResolution, DirectoryResolution} from '../resolve'
+import {Resolution} from '../resolve'
+import {PnpmError} from '../errorTypes'
+import logger from 'pnpm-logger'
 
-const shrinkwrapFilename = 'shrinkwrap.yaml'
+const shrinkwrapLogger = logger('shrinkwrap')
+
+const SHRINKWRAP_FILENAME = 'shrinkwrap.yaml'
+const SHRINKWRAP_VERSION = 0
+
+function getDefaultShrinkwrap () {
+  return {
+    version: SHRINKWRAP_VERSION,
+    dependencies: {},
+    packages: {},
+  }
+}
 
 export type Shrinkwrap = {
-  [dependency: string]: Resolution
+  version: number,
+  dependencies: ResolvedDependencies,
+  packages: {
+    [pkgId: string]: DependencyShrinkwrap,
+  },
 }
 
-export function lookupResolution(shrinkwrap: Shrinkwrap, dependency: string): Resolution | null {
-  let item = shrinkwrap[dependency]
-  if (item) {
-    item = item as any as TarballResolution // tslint:disable-line
-    if (item.tarball != null) {
-      return Object.assign({}, item, {type: 'tarball'}) as Resolution
-    }
-    item = item as any as GitRepositoryResolution // tslint:disable-line
-    if (item.repo != null && item.commitId != null) {
-      return Object.assign({}, item, {type: 'git-repo'}) as Resolution
-    }
-    item = item as any as DirectoryResolution // tslint:disable-line
-    if (item.root != null) {
-      return Object.assign({}, item, {type: 'directory'}) as Resolution
-    }
-  }
-  return null
+export type DependencyShrinkwrap = {
+  resolution: Resolution,
+  dependencies?: ResolvedDependencies,
 }
 
-export function putResolution(shrinkwrap: Shrinkwrap, dependency: string, resolution: Resolution) {
-  shrinkwrap[dependency] = Object.assign({}, resolution)
-  delete shrinkwrap[dependency].type
+/*** @example
+ * {
+ *   "foo": "registry.npmjs.org/foo/1.0.1"
+ * }
+ */
+export type ResolvedDependencies = {
+  [pkgName: string]: string,
 }
 
-export async function read (pkgPath: string): Promise<Shrinkwrap | null> {
-  const shrinkwrapPath = path.join(pkgPath, shrinkwrapFilename)
+export async function read (pkgPath: string, opts: {force: boolean}): Promise<Shrinkwrap> {
+  const shrinkwrapPath = path.join(pkgPath, SHRINKWRAP_FILENAME)
+  let shrinkwrap
   try {
-    return await readYaml<Shrinkwrap>(shrinkwrapPath)
+    shrinkwrap = await readYaml<Shrinkwrap>(shrinkwrapPath)
   } catch (err) {
     if ((<NodeJS.ErrnoException>err).code !== 'ENOENT') {
       throw err
     }
-    return null
+    return getDefaultShrinkwrap()
   }
+  if (shrinkwrap && shrinkwrap.version === SHRINKWRAP_VERSION) {
+    return shrinkwrap
+  }
+  if (opts.force) {
+    shrinkwrapLogger.warn(`Ignoring not compatible shrinkwrap file at ${shrinkwrapPath}`)
+    return getDefaultShrinkwrap()
+  }
+  throw new ShrinkwrapBreakingChangeError(shrinkwrapPath)
 }
 
 export function save (pkgPath: string, shrinkwrap: Shrinkwrap) {
-  const shrinkwrapPath = path.join(pkgPath, shrinkwrapFilename)
+  const shrinkwrapPath = path.join(pkgPath, SHRINKWRAP_FILENAME)
   return writeYaml(shrinkwrapPath, shrinkwrap)
+}
+
+class ShrinkwrapBreakingChangeError extends PnpmError {
+  constructor (pathToShrinkwrap: string) {
+    super('SHRINKWRAP_BREAKING_CHANGE', `Shrinkwrap file ${pathToShrinkwrap} not compatible with current pnpm`)
+    this.pathToShrinkwrap = pathToShrinkwrap
+  }
+  pathToShrinkwrap: string
 }

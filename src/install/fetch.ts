@@ -8,8 +8,6 @@ import mkdirp from '../fs/mkdirp'
 import readPkg from '../fs/readPkg'
 import exists = require('exists-file')
 import isAvailable from './isAvailable'
-import * as shrinkwrap from '../fs/shrinkwrap'
-import {Shrinkwrap} from '../fs/shrinkwrap'
 import memoize, {MemoizedFunc} from '../memoize'
 import {Package} from '../types'
 import {Got} from '../network/got'
@@ -19,17 +17,6 @@ import logStatus from '../logging/logInstallStatus'
 import {PackageMeta} from '../resolve/utils/loadPackageMeta'
 import dirsum from '../fs/dirsum'
 import untouched from '../pkgIsUntouched'
-
-export type FetchOptions = {
-  linkLocal: boolean,
-  force: boolean,
-  root: string,
-  storePath: string,
-  metaCache: Map<string, PackageMeta>,
-  tag: string,
-  got: Got,
-  update?: boolean,
-}
 
 export type FetchedPackage = {
   fetchingPkg: Promise<Package>,
@@ -45,7 +32,18 @@ export default async function fetch (
   ctx: InstallContext,
   spec: PackageSpec,
   modules: string,
-  options: FetchOptions
+  options: {
+    linkLocal: boolean,
+    force: boolean,
+    root: string,
+    storePath: string,
+    metaCache: Map<string, PackageMeta>,
+    tag: string,
+    got: Got,
+    update?: boolean,
+    shrinkwrapResolution?: Resolution,
+    pkgId?: string,
+  }
 ): Promise<FetchedPackage> {
   logger.debug('installing ' + spec.raw)
 
@@ -56,7 +54,8 @@ export default async function fetch (
 
   try {
     let fetchingPkg = null
-    let resolution = shrinkwrap.lookupResolution(ctx.shrinkwrap, spec.raw)
+    let resolution = options.shrinkwrapResolution
+    let pkgId = options.pkgId
     if (!resolution && !options.force) {
       // it might be a bundleDependency, in which case, don't bother
       if (await isAvailable(spec, modules)) {
@@ -73,15 +72,18 @@ export default async function fetch (
         metaCache: options.metaCache,
       })
       resolution = resolveResult.resolution
+      pkgId = resolveResult.id
       if (resolveResult.package) {
         fetchingPkg = Promise.resolve(resolveResult.package)
       }
-      shrinkwrap.putResolution(ctx.shrinkwrap, spec.raw, resolution)
+      ctx.shrinkwrap.packages[resolveResult.id] = {resolution}
     }
 
-    const target = path.join(options.storePath, resolution.id)
+    const id = <string>pkgId
 
-    const fetchingFiles = ctx.fetchingLocker(resolution.id, () => fetchToStore({
+    const target = path.join(options.storePath, id)
+
+    const fetchingFiles = ctx.fetchingLocker(id, () => fetchToStore({
       target,
       resolution: <Resolution>resolution,
       loggedPkg,
@@ -96,7 +98,7 @@ export default async function fetch (
     return {
       fetchingPkg,
       fetchingFiles,
-      id: resolution.id,
+      id,
       fromCache: false,
       path: target,
       srcPath: resolution.type == 'directory'

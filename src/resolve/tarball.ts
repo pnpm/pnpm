@@ -20,11 +20,13 @@ export default async function resolveTarball (spec: PackageSpec, opts: ResolveOp
 
   const resolution: Resolution = {
     type: 'tarball',
-    id: name + '#' + hash(spec.rawSpec),
     tarball: spec.rawSpec,
   }
 
-  return {resolution}
+  return {
+    id: name + '#' + hash(spec.rawSpec),
+    resolution,
+  }
 }
 
 function hash (str: string) {

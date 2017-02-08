@@ -7,14 +7,10 @@ import {Package} from '../types'
 import {PackageMeta} from './utils/loadPackageMeta'
 import {LoggedPkg} from 'pnpm-logger'
 
-export type ResolutionBase = {
-  id: string,
-}
-
 /**
  * tarball hosted remotely
  */
-export type TarballResolution = ResolutionBase & {
+export type TarballResolution = {
   type: 'tarball',
   tarball: string,
   shasum?: string,
@@ -23,7 +19,7 @@ export type TarballResolution = ResolutionBase & {
 /**
  * directory on a file system
  */
-export type DirectoryResolution = ResolutionBase & {
+export type DirectoryResolution = {
   type: 'directory',
   root: string,
 }
@@ -31,7 +27,7 @@ export type DirectoryResolution = ResolutionBase & {
 /**
  * Git repository
  */
-export type GitRepositoryResolution = ResolutionBase & {
+export type GitRepositoryResolution = {
   type: 'git-repo',
   repo: string,
   commitId: string,
@@ -43,6 +39,7 @@ export type Resolution =
   DirectoryResolution
 
 export type ResolveResult = {
+  id: string,
   resolution: Resolution,
   package?: Package,
 }

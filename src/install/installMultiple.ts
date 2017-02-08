@@ -1,7 +1,7 @@
 import path = require('path')
 import npa = require('npm-package-arg')
 import logger from 'pnpm-logger'
-import fetch, {FetchedPackage, FetchOptions} from './fetch'
+import fetch, {FetchedPackage} from './fetch'
 import {InstallContext, InstalledPackages} from '../api/install'
 import {Dependencies} from '../types'
 import memoize from '../memoize'
@@ -16,22 +16,15 @@ import {Graph} from '../fs/graphController'
 import logStatus from '../logging/logInstallStatus'
 import rimraf = require('rimraf-then')
 import fs = require('mz/fs')
+import {PackageMeta} from '../resolve/utils/loadPackageMeta'
+import {Got} from '../network/got'
+import {
+  DependencyShrinkwrap,
+  ResolvedDependencies,
+} from '../fs/shrinkwrap'
+import {PackageSpec} from '../resolve'
 
 const installCheckLogger = logger('install-check')
-
-export type InstallOptions = FetchOptions & {
-  keypath?: string[],
-  optional?: boolean,
-  dependent: string,
-  depth: number,
-  engineStrict: boolean,
-  nodeVersion: string,
-  baseNodeModules: string,
-}
-
-export type MultipleInstallOpts = InstallOptions & {
-  fetchingFiles?: Promise<Boolean>,
-}
 
 export type InstalledPackage = FetchedPackage & {
   pkg: Package,
@@ -47,7 +40,25 @@ export default async function installAll (
   dependencies: Dependencies,
   optionalDependencies: Dependencies,
   modules: string,
-  options: MultipleInstallOpts
+  options: {
+    linkLocal: boolean,
+    force: boolean,
+    root: string,
+    storePath: string,
+    metaCache: Map<string, PackageMeta>,
+    tag: string,
+    got: Got,
+    update?: boolean,
+    keypath?: string[],
+    resolvedDependencies?: ResolvedDependencies,
+    optional?: boolean,
+    dependent: string,
+    depth: number,
+    engineStrict: boolean,
+    nodeVersion: string,
+    baseNodeModules: string,
+    fetchingFiles?: Promise<Boolean>,
+  }
 ): Promise<InstalledPackage[]> {
   const nonOptionalDependencies = Object.keys(dependencies)
     .filter(depName => !optionalDependencies[depName])
@@ -85,7 +96,25 @@ async function installMultiple (
   ctx: InstallContext,
   pkgsMap: Dependencies,
   modules: string,
-  options: MultipleInstallOpts
+  options: {
+    linkLocal: boolean,
+    force: boolean,
+    root: string,
+    storePath: string,
+    metaCache: Map<string, PackageMeta>,
+    tag: string,
+    got: Got,
+    update?: boolean,
+    keypath?: string[],
+    resolvedDependencies?: ResolvedDependencies,
+    optional?: boolean,
+    dependent: string,
+    depth: number,
+    engineStrict: boolean,
+    nodeVersion: string,
+    baseNodeModules: string,
+    fetchingFiles?: Promise<Boolean>,
+  }
 ): Promise<InstalledPackage[]> {
   pkgsMap = pkgsMap || {}
 
@@ -97,7 +126,15 @@ async function installMultiple (
     await Promise.all(pkgs.map(async function (pkgRawSpec: string) {
       let pkg: InstalledPackage | void
       try {
-        pkg = await install(pkgRawSpec, modules, ctx, options)
+        // Preliminary spec data
+        // => { raw, name, scope, type, spec, rawSpec }
+        const spec = npa(pkgRawSpec)
+        const pkgId = options.resolvedDependencies &&
+          options.resolvedDependencies[spec.name]
+        pkg = await install(spec, modules, ctx, Object.assign({}, options, {
+          pkgId,
+          dependencyShrinkwrap: pkgId && ctx.shrinkwrap.packages[pkgId]
+        }))
         if (options.keypath && options.keypath.indexOf(pkg.id) !== -1) {
           return null
         }
@@ -120,18 +157,36 @@ async function installMultiple (
 }
 
 async function install (
-  pkgRawSpec: string,
+  spec: PackageSpec,
   modules: string,
   ctx: InstallContext,
-  options: InstallOptions
+  options: {
+    linkLocal: boolean,
+    force: boolean,
+    root: string,
+    storePath: string,
+    metaCache: Map<string, PackageMeta>,
+    tag: string,
+    got: Got,
+    update?: boolean,
+    keypath?: string[],
+    pkgId?: string,
+    dependencyShrinkwrap?: DependencyShrinkwrap,
+    optional?: boolean,
+    dependent: string,
+    depth: number,
+    engineStrict: boolean,
+    nodeVersion: string,
+    baseNodeModules: string,
+  }
 ) {
   const keypath = options.keypath || []
   const update = keypath.length <= options.depth
 
-  // Preliminary spec data
-  // => { raw, name, scope, type, spec, rawSpec }
-  const spec = npa(pkgRawSpec)
-  const fetchedPkg = await fetch(ctx, spec, modules, Object.assign({}, options, {update}))
+  const fetchedPkg = await fetch(ctx, spec, modules, Object.assign({}, options, {
+    update,
+    shrinkwrapResolution: options.dependencyShrinkwrap && options.dependencyShrinkwrap.resolution,
+  }))
   logFetchStatus(spec.rawSpec, fetchedPkg)
   const pkg = await fetchedPkg.fetchingPkg
 
@@ -162,7 +217,21 @@ async function install (
 
   if (!ctx.installed.has(dependency.id)) {
     ctx.installed.add(dependency.id)
-    dependency.dependencies = await installDependencies(pkg, dependency, ctx, realModules, options)
+    dependency.dependencies = await installDependencies(
+      pkg,
+      dependency,
+      ctx,
+      realModules,
+      Object.assign({}, options, {
+        resolvedDependencies: options.dependencyShrinkwrap && options.dependencyShrinkwrap.dependencies
+      })
+    )
+    if (dependency.dependencies.length) {
+      ctx.shrinkwrap.packages[dependency.id].dependencies = dependency.dependencies
+        .reduce((resolutions, dep) => Object.assign(resolutions, {
+          [dep.pkg.name]: dep.id
+        }), {})
+    }
   }
 
   const newlyFetched = await dependency.fetchingFiles
@@ -228,7 +297,15 @@ function removeIfNoDependents(graph: Graph, id: string, removedDependent: string
   }
 }
 
-async function isInstallable (pkg: Package, fetchedPkg: FetchedPackage, options: InstallOptions): Promise<void> {
+async function isInstallable (
+  pkg: Package,
+  fetchedPkg: FetchedPackage,
+  options: {
+    optional?: boolean,
+    engineStrict: boolean,
+    nodeVersion: string,
+  }
+): Promise<void> {
   const warn = await installChecks.checkPlatform(pkg) || await installChecks.checkEngine(pkg, {
     pnpmVersion: pnpmPkg.version,
     nodeVersion: options.nodeVersion
@@ -246,7 +323,24 @@ async function installDependencies (
   dependency: InstalledPackage,
   ctx: InstallContext,
   modules: string,
-  opts: InstallOptions
+  opts: {
+    linkLocal: boolean,
+    force: boolean,
+    root: string,
+    storePath: string,
+    metaCache: Map<string, PackageMeta>,
+    tag: string,
+    got: Got,
+    update?: boolean,
+    keypath?: string[],
+    resolvedDependencies?: ResolvedDependencies,
+    optional?: boolean,
+    dependent: string,
+    depth: number,
+    engineStrict: boolean,
+    nodeVersion: string,
+    baseNodeModules: string,
+  }
 ): Promise<InstalledPackage[]> {
   const depsInstallOpts = Object.assign({}, opts, {
     keypath: (opts.keypath || []).concat([ dependency.id ]),

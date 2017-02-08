@@ -38,11 +38,10 @@ export default async function resolveNpm (spec: PackageSpec, opts: ResolveOption
     const id = createPkgId(<string>url.parse(correctPkg.dist.tarball).host, correctPkg.name, correctPkg.version)
     const resolution: TarballResolution = {
       type: 'tarball',
-      id,
       shasum: correctPkg.dist.shasum,
       tarball: correctPkg.dist.tarball,
     }
-    return {resolution, package: correctPkg}
+    return {id, resolution, package: correctPkg}
   } catch (err) {
     if (err['statusCode'] === 404) {
       throw new Error("Module '" + spec.raw + "' not found")

@@ -99,6 +99,7 @@ async function installInContext (installType: string, packagesToInstall: Depende
     got: createGot(client, {networkConcurrency: opts.networkConcurrency}),
     baseNodeModules: nodeModulesPath,
     metaCache: opts.metaCache,
+    resolvedDependencies: ctx.shrinkwrap.dependencies,
   }
   const pkgs: InstalledPackage[] = await installMultiple(
     installCtx,
@@ -107,6 +108,12 @@ async function installInContext (installType: string, packagesToInstall: Depende
     nodeModulesPath,
     installOpts
   )
+  if (pkgs && pkgs.length) {
+    ctx.shrinkwrap.dependencies = ctx.shrinkwrap.dependencies || {}
+    pkgs.forEach(dep => {
+      ctx.shrinkwrap.dependencies[dep.pkg.name] = dep.id
+    })
+  }
   const binPath = opts.global ? globalBinPath() : path.join(nodeModulesPath, '.bin')
   await linkBins(nodeModulesPath, binPath)
   await Promise.all(

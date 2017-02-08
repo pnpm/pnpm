@@ -62,3 +62,24 @@ async function saveModulesYaml (pnpmVersion: string, storePath: string) {
   mkdirp.sync('node_modules')
   await fs.writeFile('node_modules/.modules.yaml', `packageManager: pnpm@${pnpmVersion}\nstorePath: ${storePath}`)
 }
+
+test('fail on non-compatible shrinkwrap.yaml', async t => {
+  const project = prepare(t)
+  await fs.writeFile('shrinkwrap.yaml', '')
+
+  try {
+    await installPkgs(['is-negative'], testDefaults())
+    t.fail('should have failed')
+  } catch (err) {
+    t.equal(err.code, 'SHRINKWRAP_BREAKING_CHANGE', 'shrinkwrap breaking change error is thrown')
+  }
+})
+
+test("don't fail on non-compatible shrinkwrap.yaml when forced", async t => {
+  const project = prepare(t)
+  await fs.writeFile('shrinkwrap.yaml', '')
+
+  await installPkgs(['is-negative'], testDefaults({force: true}))
+
+  t.pass('install did not fail')
+})

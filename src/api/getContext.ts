@@ -56,7 +56,7 @@ export default async function getContext (opts: StrictPnpmOptions): Promise<Pnpm
   }
 
   const graph = await readGraph(path.join(root, 'node_modules')) || {}
-  const shrinkwrap = await readShrinkwrap(root) || {}
+  const shrinkwrap = await readShrinkwrap(root, {force: opts.force})
   const ctx: PnpmContext = {
     pkg: pkg.pkg,
     root,

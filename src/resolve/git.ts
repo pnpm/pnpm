@@ -20,14 +20,16 @@ export default async function resolveGit (parsedSpec: PackageSpec, opts: Resolve
     const commitId = await resolveRef(repo, ref)
     const resolution: Resolution = {
       type: 'git-repo',
+      repo,
+      commitId,
+    }
+    return {
       id: repo
         .replace(/^.*:\/\/(git@)?/, '')
         .replace(/:/g, '+')
         .replace(/\.git$/, '') + '/' + commitId,
-      repo,
-      commitId,
+      resolution,
     }
-    return {resolution}
   }
 
   const ghSpec = parseGithubSpec(hspec)
@@ -52,10 +54,12 @@ export default async function resolveGit (parsedSpec: PackageSpec, opts: Resolve
 
   const resolution: Resolution = {
     type: 'tarball',
-    id: path.join('github.com', ghSpec.owner, ghSpec.repo, commitId),
     tarball: `https://codeload.github.com/${ghSpec.owner}/${ghSpec.repo}/tar.gz/${commitId}`,
   }
-  return {resolution}
+  return {
+    id: path.join('github.com', ghSpec.owner, ghSpec.repo, commitId),
+    resolution,
+  }
 }
 
 async function resolveRef (repo: string, ref: string) {
