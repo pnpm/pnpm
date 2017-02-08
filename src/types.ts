@@ -22,6 +22,7 @@ export type PnpmOptions = {
   engineStrict?: boolean,
   nodeVersion?: string,
   networkConcurrency?: number,
+  fetchingConcurrency?: number,
   lockStaleDuration?: number,
 
   // proxy
@@ -62,6 +63,7 @@ export type StrictPnpmOptions = {
   engineStrict: boolean,
   nodeVersion: string,
   networkConcurrency: number,
+  fetchingConcurrency: number,
   lockStaleDuration: number,
 
   // proxy

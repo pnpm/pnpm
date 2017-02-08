@@ -222,7 +222,7 @@ async function createInstallCmd (opts: StrictPnpmOptions, graph: Graph, shrinkwr
     resolutionLinked: {},
     installed: new Set(),
     installationSequence: [],
-    limitFetch: pLimit(16),
+    limitFetch: pLimit(opts.fetchingConcurrency),
   }
 }
 
