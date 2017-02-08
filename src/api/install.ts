@@ -25,7 +25,7 @@ import {save as saveShrinkwrap, Shrinkwrap} from '../fs/shrinkwrap'
 import {save as saveModules} from '../fs/modulesController'
 import {tryUninstall, removePkgFromStore} from './uninstall'
 import mkdirp from '../fs/mkdirp'
-import {CachedPromises} from '../memoize'
+import createMemoize, {MemoizedFunc} from '../memoize'
 import linkBins from '../install/linkBins'
 
 export type InstalledPackages = {
@@ -35,12 +35,11 @@ export type InstalledPackages = {
 export type InstallContext = {
   installs: InstalledPackages,
   installationSequence: string[],
-  fetchLocks: CachedPromises<Boolean>,
   graph: Graph,
   shrinkwrap: Shrinkwrap,
-  resolutionLinked: CachedPromises<void>,
   installed: Set<string>,
-  limitFetch: Function,
+  fetchingLocker: MemoizedFunc<Boolean>,
+  linkingLocker: MemoizedFunc<void>,
 }
 
 export async function install (maybeOpts?: PnpmOptions) {
@@ -214,15 +213,13 @@ function difference<T> (setA: Set<T>, setB: Set<T>) {
 
 async function createInstallCmd (opts: StrictPnpmOptions, graph: Graph, shrinkwrap: Shrinkwrap): Promise<InstallContext> {
   return {
-    fetchLocks: {},
-    installLocks: {},
     installs: {},
     graph,
     shrinkwrap,
-    resolutionLinked: {},
     installed: new Set(),
     installationSequence: [],
-    limitFetch: pLimit(opts.fetchingConcurrency),
+    fetchingLocker: createMemoize<boolean>(opts.fetchingConcurrency),
+    linkingLocker: createMemoize<void>(16),
   }
 }
 

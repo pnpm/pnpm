@@ -9,7 +9,7 @@ import readPkg from '../fs/readPkg'
 import exists = require('exists-file')
 import isAvailable from './isAvailable'
 import * as Shrinkwrap from '../fs/shrinkwrap'
-import memoize, {CachedPromises} from '../memoize'
+import memoize from '../memoize'
 import {Package} from '../types'
 import {Got} from '../network/got'
 import {InstallContext} from '../api/install'
@@ -93,15 +93,13 @@ export default async function fetch (ctx: InstallContext, spec: PackageSpec, mod
 
     const target = path.join(options.storePath, resolution.id)
 
-    const fetchingFiles = fetchToStoreCached({
-      fetchLocks: ctx.fetchLocks,
+    const fetchingFiles = ctx.fetchingLocker(resolution.id, () => fetchToStore({
       target,
-      resolution,
+      resolution: <Resolution>resolution,
       loggedPkg,
       got: options.got,
       linkLocal: options.linkLocal,
-      limitFetch: ctx.limitFetch,
-    })
+    }))
 
     if (fetchingPkg == null) {
       fetchingPkg = fetchingFiles.then(() => readPkg(target))
@@ -153,51 +151,47 @@ export default async function fetch (ctx: InstallContext, spec: PackageSpec, mod
 }
 
 type FetchToStoreOptions = {
-  fetchLocks: CachedPromises<Boolean>,
   target: string,
   resolution: Resolution,
   loggedPkg: LoggedPkg,
   got: Got,
   linkLocal: boolean,
-  limitFetch: Function,
 }
 
-function fetchToStoreCached (opts: FetchToStoreOptions): Promise<Boolean> {
-  return memoize(opts.fetchLocks, opts.resolution.id, async (): Promise<Boolean> => {
-    const target = opts.target
-    const targetExists = await exists(target)
+async function fetchToStore (opts: FetchToStoreOptions): Promise<Boolean> {
+  const target = opts.target
+  const targetExists = await exists(target)
 
-    if (targetExists) {
-      // if target exists and it wasn't modified, then no need to refetch it
-      if (await untouched(target)) return false
-      logger.warn(`Refetching ${target} to store, as it was modified`)
-    }
+  if (targetExists) {
+    // if target exists and it wasn't modified, then no need to refetch it
+    if (await untouched(target)) return false
+    logger.warn(`Refetching ${target} to store, as it was modified`)
+  }
 
-    // We fetch into targetStage directory first and then fs.rename() it to the
-    // target directory.
+  // We fetch into targetStage directory first and then fs.rename() it to the
+  // target directory.
 
-    const targetStage = `${target}_stage`
+  const targetStage = `${target}_stage`
 
-    await rimraf(targetStage)
-    if (targetExists) {
-      await rimraf(target)
-    }
+  await rimraf(targetStage)
+  if (targetExists) {
+    await rimraf(target)
+  }
 
-    logStatus({status: 'download-queued', pkg: opts.loggedPkg})
-    await opts.limitFetch(() => fetchResolution(opts.resolution, targetStage, {
-      got: opts.got,
-      loggedPkg: opts.loggedPkg,
-      linkLocal: opts.linkLocal,
-    }))
-
-    // fs.rename(oldPath, newPath) is an atomic operation, so we do it at the
-    // end
-    await fs.rename(targetStage, target)
-
-    createShasum(target)
-
-    return true
+  logStatus({status: 'download-queued', pkg: opts.loggedPkg})
+  await fetchResolution(opts.resolution, targetStage, {
+    got: opts.got,
+    loggedPkg: opts.loggedPkg,
+    linkLocal: opts.linkLocal,
   })
+
+  // fs.rename(oldPath, newPath) is an atomic operation, so we do it at the
+  // end
+  await fs.rename(targetStage, target)
+
+  createShasum(target)
+
+  return true
 }
 
 async function createShasum(dirPath: string) {
