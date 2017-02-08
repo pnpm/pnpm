@@ -150,7 +150,7 @@ async function install (pkgRawSpec: string, modules: string, ctx: InstallContext
   }
 
   const newlyFetched = await dependency.fetchingFiles
-  await memoize(ctx.resolutionLinked, dependency.hardlinkedLocation, async function () {
+  await ctx.linkingLocker(dependency.hardlinkedLocation, async function () {
     const pkgJsonPath = path.join(dependency.hardlinkedLocation, 'package.json')
     if (newlyFetched || options.force || !await exists(pkgJsonPath) || !await pkgLinkedToStore()) {
       await rimraf(dependency.hardlinkedLocation)
