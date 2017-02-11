@@ -42,7 +42,13 @@ export type InstalledPackage = FetchedPackage & {
   modules: string,
 }
 
-export default async function installAll (ctx: InstallContext, dependencies: Dependencies, optionalDependencies: Dependencies, modules: string, options: MultipleInstallOpts): Promise<InstalledPackage[]> {
+export default async function installAll (
+  ctx: InstallContext,
+  dependencies: Dependencies,
+  optionalDependencies: Dependencies,
+  modules: string,
+  options: MultipleInstallOpts
+): Promise<InstalledPackage[]> {
   const nonOptionalDependencies = Object.keys(dependencies)
     .filter(depName => !optionalDependencies[depName])
     .reduce((nonOptionalDependencies, depName) => {
@@ -75,7 +81,12 @@ export default async function installAll (ctx: InstallContext, dependencies: Dep
   return installedPkgs
 }
 
-async function installMultiple (ctx: InstallContext, pkgsMap: Dependencies, modules: string, options: MultipleInstallOpts): Promise<InstalledPackage[]> {
+async function installMultiple (
+  ctx: InstallContext,
+  pkgsMap: Dependencies,
+  modules: string,
+  options: MultipleInstallOpts
+): Promise<InstalledPackage[]> {
   pkgsMap = pkgsMap || {}
 
   const pkgs = Object.keys(pkgsMap).map(pkgName => getRawSpec(pkgName, pkgsMap[pkgName]))
@@ -108,7 +119,12 @@ async function installMultiple (ctx: InstallContext, pkgsMap: Dependencies, modu
   return installedPkgs
 }
 
-async function install (pkgRawSpec: string, modules: string, ctx: InstallContext, options: InstallOptions) {
+async function install (
+  pkgRawSpec: string,
+  modules: string,
+  ctx: InstallContext,
+  options: InstallOptions
+) {
   const keypath = options.keypath || []
   const update = keypath.length <= options.depth
 
@@ -225,7 +241,13 @@ async function isInstallable (pkg: Package, fetchedPkg: FetchedPackage, options:
   }
 }
 
-async function installDependencies (pkg: Package, dependency: InstalledPackage, ctx: InstallContext, modules: string, opts: InstallOptions): Promise<InstalledPackage[]> {
+async function installDependencies (
+  pkg: Package,
+  dependency: InstalledPackage,
+  ctx: InstallContext,
+  modules: string,
+  opts: InstallOptions
+): Promise<InstalledPackage[]> {
   const depsInstallOpts = Object.assign({}, opts, {
     keypath: (opts.keypath || []).concat([ dependency.id ]),
     dependent: dependency.id,

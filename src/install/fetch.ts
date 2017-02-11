@@ -8,8 +8,9 @@ import mkdirp from '../fs/mkdirp'
 import readPkg from '../fs/readPkg'
 import exists = require('exists-file')
 import isAvailable from './isAvailable'
-import * as Shrinkwrap from '../fs/shrinkwrap'
-import memoize from '../memoize'
+import * as shrinkwrap from '../fs/shrinkwrap'
+import {Shrinkwrap} from '../fs/shrinkwrap'
+import memoize, {MemoizedFunc} from '../memoize'
 import {Package} from '../types'
 import {Got} from '../network/got'
 import {InstallContext} from '../api/install'
@@ -40,23 +41,12 @@ export type FetchedPackage = {
   abort(): Promise<void>,
 }
 
-/**
- * Installs a package.
- *
- * What it does:
- *
- * - resolve() - resolve from registry.npmjs.org
- * - fetch() - download tarball into node_modules/.store/{name}@{version}
- * - recurse into its dependencies
- * - symlink node_modules/{name}
- *
- * @param {Object} ctx - the context.
- * @param {Object} pkgMeta - meta info about the package to install.
- *
- * @example
- *     install(ctx, 'rimraf@2', './node_modules')
- */
-export default async function fetch (ctx: InstallContext, spec: PackageSpec, modules: string, options: FetchOptions): Promise<FetchedPackage> {
+export default async function fetch (
+  ctx: InstallContext,
+  spec: PackageSpec,
+  modules: string,
+  options: FetchOptions
+): Promise<FetchedPackage> {
   logger.debug('installing ' + spec.raw)
 
   const loggedPkg: LoggedPkg = {
@@ -66,20 +56,18 @@ export default async function fetch (ctx: InstallContext, spec: PackageSpec, mod
 
   try {
     let fetchingPkg = null
-    let resolution = Shrinkwrap.lookupResolution(ctx.shrinkwrap, spec.raw)
-    if (!resolution) {
+    let resolution = shrinkwrap.lookupResolution(ctx.shrinkwrap, spec.raw)
+    if (!resolution && !options.force) {
       // it might be a bundleDependency, in which case, don't bother
-      const available = !options.force && await isAvailable(spec, modules)
-      if (available) {
-        const fetchedPkg = await saveCachedResolution()
-        return fetchedPkg
+      if (await isAvailable(spec, modules)) {
+        return await saveCachedResolution()
       }
     }
     if (!resolution || options.update) {
-      let resolveResult = await resolve(spec, {
+      const resolveResult = await resolve(spec, {
         loggedPkg,
-        got: options.got,
         root: options.root,
+        got: options.got,
         tag: options.tag,
         storePath: options.storePath,
         metaCache: options.metaCache,
@@ -88,7 +76,7 @@ export default async function fetch (ctx: InstallContext, spec: PackageSpec, mod
       if (resolveResult.package) {
         fetchingPkg = Promise.resolve(resolveResult.package)
       }
-      Shrinkwrap.putResolution(ctx.shrinkwrap, spec.raw, resolution)
+      shrinkwrap.putResolution(ctx.shrinkwrap, spec.raw, resolution)
     }
 
     const target = path.join(options.storePath, resolution.id)
@@ -105,7 +93,7 @@ export default async function fetch (ctx: InstallContext, spec: PackageSpec, mod
       fetchingPkg = fetchingFiles.then(() => readPkg(target))
     }
 
-    const fetchedPkg = {
+    return {
       fetchingPkg,
       fetchingFiles,
       id: resolution.id,
@@ -114,7 +102,7 @@ export default async function fetch (ctx: InstallContext, spec: PackageSpec, mod
       srcPath: resolution.type == 'directory'
         ? resolution.root
         : undefined,
-      abort: async function () {
+      abort: async () => {
         try {
           await fetchingFiles
         } finally {
@@ -122,7 +110,6 @@ export default async function fetch (ctx: InstallContext, spec: PackageSpec, mod
         }
       },
     }
-    return fetchedPkg
   } catch (err) {
     logStatus({status: 'error', pkg: loggedPkg})
     throw err
@@ -150,15 +137,13 @@ export default async function fetch (ctx: InstallContext, spec: PackageSpec, mod
   }
 }
 
-type FetchToStoreOptions = {
+async function fetchToStore (opts: {
   target: string,
   resolution: Resolution,
   loggedPkg: LoggedPkg,
   got: Got,
   linkLocal: boolean,
-}
-
-async function fetchToStore (opts: FetchToStoreOptions): Promise<Boolean> {
+}): Promise<Boolean> {
   const target = opts.target
   const targetExists = await exists(target)
 
