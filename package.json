@@ -46,6 +46,7 @@
     "lodash.clonedeep": "4.5.0",
     "lodash.memoize": "4.1.2",
     "lodash.union": "4.6.0",
+    "lodash.values": "4.3.0",
     "loud-rejection": "1.6.0",
     "mem": "1.1.0",
     "meow": "3.7.0",

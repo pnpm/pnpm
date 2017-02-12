@@ -143,6 +143,11 @@ declare module 'lodash.union' {
   export = anything;
 }
 
+declare module 'lodash.values' {
+  const anything: any;
+  export = anything;
+}
+
 declare module 'find-up' {
   const anything: any;
   export = anything;

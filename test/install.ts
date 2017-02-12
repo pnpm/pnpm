@@ -761,11 +761,20 @@ test('should update subdep on second install', async function (t) {
 
   await project.storeHas('dep-of-pkg-with-1-dep', '100.0.0')
 
+  let shr = await project.loadShrinkwrap()
+
+  t.ok(shr.packages['localhost+4873/dep-of-pkg-with-1-dep/100.0.0'], 'shrinkwrap has resolution for package')
+
   await addDistTag('dep-of-pkg-with-1-dep', '100.1.0', latest)
 
   await install(testDefaults({depth: 1, tag: latest}))
 
   await project.storeHas('dep-of-pkg-with-1-dep', '100.1.0')
+
+  shr = await project.loadShrinkwrap()
+
+  t.ok(!shr.packages['localhost+4873/dep-of-pkg-with-1-dep/100.0.0'], "shrinkwrap doesn't have old dependency")
+  t.ok(shr.packages['localhost+4873/dep-of-pkg-with-1-dep/100.1.0'], 'shrinkwrap has new dependency')
 })
 
 test('should install dependency in second project', async function (t) {
