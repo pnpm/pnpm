@@ -63,7 +63,11 @@ export async function read (pkgPath: string, opts: {force: boolean}): Promise<Sh
 
 export function save (pkgPath: string, shrinkwrap: Shrinkwrap) {
   const shrinkwrapPath = path.join(pkgPath, SHRINKWRAP_FILENAME)
-  return writeYamlFile(shrinkwrapPath, shrinkwrap, {sortKeys: true})
+  return writeYamlFile(shrinkwrapPath, shrinkwrap, {
+    sortKeys: true,
+    lineWidth: 1000,
+    noCompatMode: true,
+  })
 }
 
 class ShrinkwrapBreakingChangeError extends PnpmError {
