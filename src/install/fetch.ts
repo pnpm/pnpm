@@ -71,7 +71,11 @@ export default async function fetch (
         storePath: options.storePath,
         metaCache: options.metaCache,
       })
-      resolution = resolveResult.resolution
+      // keep the shrinkwrap resolution when possible
+      // to keep the original shasum
+      if (pkgId !== resolveResult.id || !resolution) {
+        resolution = resolveResult.resolution
+      }
       pkgId = resolveResult.id
       if (resolveResult.package) {
         fetchingPkg = Promise.resolve(resolveResult.package)
