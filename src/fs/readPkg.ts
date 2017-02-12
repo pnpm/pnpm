@@ -1,7 +1,11 @@
 import path = require('path')
 import {Package} from '../types'
 import mem = require('mem')
-import readPkg = require('read-pkg')
+import readPkgLib = require('read-pkg')
+
+function readPkg (pkgPath: string) {
+  return readPkgLib(pkgPath, {normalize: false})
+}
 
 const cachedReadPkg = mem(readPkg)
 
