@@ -101,9 +101,9 @@ function copyDependencyTree (shr: Shrinkwrap): ResolvedPackages {
 }
 
 class ShrinkwrapBreakingChangeError extends PnpmError {
-  constructor (pathToShrinkwrap: string) {
-    super('SHRINKWRAP_BREAKING_CHANGE', `Shrinkwrap file ${pathToShrinkwrap} not compatible with current pnpm`)
-    this.pathToShrinkwrap = pathToShrinkwrap
+  constructor (filename: string) {
+    super('SHRINKWRAP_BREAKING_CHANGE', `Shrinkwrap file ${filename} not compatible with current pnpm`)
+    this.filename = filename
   }
-  pathToShrinkwrap: string
+  filename: string
 }
