@@ -1,5 +1,12 @@
 import chalk = require('chalk')
 import {Log} from 'pnpm-logger'
+import commonTags = require('common-tags')
+import os = require('os')
+
+const stripIndent = commonTags.stripIndent
+const EOL = os.EOL
+const highlight = chalk.yellow
+const colorPath = chalk.gray
 
 export default function reportError (logObj: Log) {
   if (logObj['err']) {
@@ -18,66 +25,85 @@ export default function reportError (logObj: Log) {
         reportModifiedDependency(err, logObj['message'])
         return
       default:
-        printErrorSummary(err.message || logObj['message'])
+        console.log(formatErrorSummary(err.message || logObj['message']))
         return
     }
   }
-  printErrorSummary(logObj['message'])
+  console.log(formatErrorSummary(logObj['message']))
 }
 
 function reportUnexpectedStore (err: Error, msg: Object) {
-  printErrorSummary(err.message)
-  console.log()
-  console.log(`expected: ${chalk.yellow(msg['expectedStorePath'])}`)
-  console.log(`actual: ${chalk.yellow(msg['actualStorePath'])}`)
-  console.log()
-  console.log(`If you want to use the new store, run the same command with the ${chalk.yellow('--force')} parameter.`)
+  console.log(stripIndent`
+    ${formatErrorSummary(err.message)}
+
+    expected: ${highlight(msg['expectedStorePath'])}
+    actual: ${highlight(msg['actualStorePath'])}
+
+    If you want to use the new store, run the same command with the ${highlight('--force')} parameter.
+  `)
 }
 
 function reportStoreBreakingChange (err: Error, msg: Object) {
-  printErrorSummary(`The store used for the current node_modules is incomatible with the current version of pnpm`)
-  console.log(`Store path: ${chalk.gray(msg['storePath'])}`)
-  console.log()
-  console.log(`Try running the same command with the ${chalk.yellow('--force')} parameter.`)
+  let output = stripIndent`
+    ${formatErrorSummary(`The store used for the current node_modules is incomatible with the current version of pnpm`)}
+    Store path: ${colorPath(msg['storePath'])}
+
+    Try running the same command with the ${highlight('--force')} parameter.
+  `
+
   if (msg['additionalInformation']) {
-    console.log()
-    console.log(msg['additionalInformation'])
+    output += EOL + EOL + msg['additionalInformation']
   }
-  printRelatedSources(msg)
+
+  output += formatRelatedSources(msg)
+  console.log(output)
 }
 
 function reportModulesBreakingChange (err: Error, msg: Object) {
-  printErrorSummary(`The current version of pnpm is not compatible with the available node_modules structure`)
-  console.log(`node_modules path: ${chalk.gray(msg['modulesPath'])}`)
-  console.log()
-  console.log(`Try running the same command with the ${chalk.yellow('--force')} parameter.`)
+  let output = stripIndent`
+    ${formatErrorSummary(`The current version of pnpm is not compatible with the available node_modules structure`)}
+    node_modules path: ${colorPath(msg['modulesPath'])}
+
+    Try running the same command with the ${highlight('--force')} parameter.
+  `
+
   if (msg['additionalInformation']) {
-    console.log()
-    console.log(msg['additionalInformation'])
+    output += EOL + EOL + msg['additionalInformation']
   }
-  printRelatedSources(msg)
+
+  output += formatRelatedSources(msg)
+  console.log(output)
 }
 
-function printRelatedSources (msg: Object) {
-  if (!msg['relatedIssue'] && !msg['relatedPR']) return
-  console.log()
+function formatRelatedSources (msg: Object) {
+  let output = ''
+
+  if (!msg['relatedIssue'] && !msg['relatedPR']) return output
+
+  output += EOL
+
   if (msg['relatedIssue']) {
-    console.log(`Related issue: ${chalk.gray(`https://github.com/pnpm/pnpm/issues/${msg['relatedIssue']}`)}`)
+    output += EOL + `Related issue: ${colorPath(`https://github.com/pnpm/pnpm/issues/${msg['relatedIssue']}`)}`
   }
+
   if (msg['relatedPR']) {
-    console.log(`Related PR: ${chalk.gray(`https://github.com/pnpm/pnpm/pull/${msg['relatedPR']}`)}`)
+    output += EOL + `Related PR: ${colorPath(`https://github.com/pnpm/pnpm/pull/${msg['relatedPR']}`)}`
   }
+
+  return output
 }
 
-function printErrorSummary (message: string) {
-  console.log(chalk.red('ERROR'), message)
+function formatErrorSummary (message: string) {
+  return `${chalk.red('ERROR')} ${message}`
 }
 
 function reportModifiedDependency (err: Error, msg: Object) {
-  printErrorSummary('Packages in the store have been mutated')
-  console.log()
-  console.log('These packages are modified:')
-  msg['modified'].forEach((pkgPath: string) => console.log(chalk.gray(pkgPath)))
-  console.log()
-  console.log(`You can run ${chalk.yellow('pnpm install')} to refetch the modified packages`)
+  console.log(stripIndent`
+    ${formatErrorSummary('Packages in the store have been mutated')}
+
+    These packages are modified:
+    ${msg['modified'].map((pkgPath: string) => colorPath(pkgPath)).join(EOL)}
+
+    You can run ${highlight('pnpm install')} to refetch the modified packages
+  `)
 }
