@@ -56,7 +56,6 @@
     "src/fs/readPkg.ts",
     "src/fs/shrinkwrap.ts",
     "src/fs/storeController.ts",
-    "src/fs/yamlfs.ts",
     "src/getSaveType.ts",
     "src/index.ts",
     "src/install/fetch.ts",

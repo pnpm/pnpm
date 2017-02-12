@@ -1,11 +1,9 @@
 import path = require('path')
-import {
-  read as readYaml,
-  write as writeYaml
-} from './yamlfs'
 import {Resolution} from '../resolve'
 import {PnpmError} from '../errorTypes'
 import logger from 'pnpm-logger'
+import loadYamlFile = require('load-yaml-file')
+import writeYamlFile = require('write-yaml-file')
 
 const shrinkwrapLogger = logger('shrinkwrap')
 
@@ -46,7 +44,7 @@ export async function read (pkgPath: string, opts: {force: boolean}): Promise<Sh
   const shrinkwrapPath = path.join(pkgPath, SHRINKWRAP_FILENAME)
   let shrinkwrap
   try {
-    shrinkwrap = await readYaml<Shrinkwrap>(shrinkwrapPath)
+    shrinkwrap = await loadYamlFile<Shrinkwrap>(shrinkwrapPath)
   } catch (err) {
     if ((<NodeJS.ErrnoException>err).code !== 'ENOENT') {
       throw err
@@ -65,7 +63,7 @@ export async function read (pkgPath: string, opts: {force: boolean}): Promise<Sh
 
 export function save (pkgPath: string, shrinkwrap: Shrinkwrap) {
   const shrinkwrapPath = path.join(pkgPath, SHRINKWRAP_FILENAME)
-  return writeYaml(shrinkwrapPath, shrinkwrap)
+  return writeYamlFile(shrinkwrapPath, shrinkwrap, {sortKeys: true})
 }
 
 class ShrinkwrapBreakingChangeError extends PnpmError {

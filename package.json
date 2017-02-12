@@ -17,7 +17,6 @@
   "dependencies": {
     "@types/byline": "4.2.31",
     "@types/common-tags": "1.2.5",
-    "@types/js-yaml": "3.5.29",
     "@types/load-json-file": "2.0.5",
     "@types/mkdirp": "0.3.29",
     "@types/mz": "0.0.30",
@@ -42,8 +41,8 @@
     "graceful-fs": "4.1.11",
     "is-ci": "1.0.10",
     "is-windows": "1.0.0",
-    "js-yaml": "3.7.0",
     "load-json-file": "2.0.0",
+    "load-yaml-file": "0.1.0",
     "lodash.clonedeep": "4.5.0",
     "lodash.memoize": "4.1.2",
     "lodash.union": "4.6.0",
@@ -81,7 +80,8 @@
     "unpack-stream": "1.1.0",
     "update-notifier": "1.0.3",
     "write-json-file": "2.0.0",
-    "write-pkg": "2.0.0"
+    "write-pkg": "2.0.0",
+    "write-yaml-file": "1.0.0"
   },
   "devDependencies": {
     "@types/tape": "^4.2.28",

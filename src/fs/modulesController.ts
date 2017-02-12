@@ -1,8 +1,6 @@
 import path = require('path')
-import {
-  read as readYaml,
-  write as writeYaml
-} from './yamlfs'
+import loadYamlFile = require('load-yaml-file')
+import writeYamlFile = require('write-yaml-file')
 
 // The dot prefix is needed because otherwise `npm shrinkwrap`
 // thinks that it is an extraneous package.
@@ -16,7 +14,7 @@ export type Modules = {
 export async function read (modulesPath: string): Promise<Modules | null> {
   const modulesYamlPath = path.join(modulesPath, modulesFileName)
   try {
-    return await readYaml<Modules>(modulesYamlPath)
+    return await loadYamlFile<Modules>(modulesYamlPath)
   } catch (err) {
     if ((<NodeJS.ErrnoException>err).code !== 'ENOENT') {
       throw err
@@ -27,5 +25,5 @@ export async function read (modulesPath: string): Promise<Modules | null> {
 
 export function save (modulesPath: string, modules: Modules) {
   const modulesYamlPath = path.join(modulesPath, modulesFileName)
-  return writeYaml(modulesYamlPath, modules)
+  return writeYamlFile(modulesYamlPath, modules, {sortKeys: true})
 }
