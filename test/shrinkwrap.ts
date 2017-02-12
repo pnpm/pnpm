@@ -1,7 +1,8 @@
 import tape = require('tape')
 import promisifyTape from 'tape-promise'
+import writeYamlFile = require('write-yaml-file')
 import {prepare, testDefaults} from './utils'
-import {installPkgs} from '../src'
+import {installPkgs, install} from '../src'
 
 const test = promisifyTape(tape)
 
@@ -24,4 +25,35 @@ test('shrinkwrap file has correct format', async t => {
   t.ok(shr.packages[id].dependencies['dep-of-pkg-with-1-dep'], `has dependency resolved for ${id}`)
   t.ok(shr.packages[id].resolution, `has resolution for ${id}`)
   t.equal(shr.packages[id].resolution.tarball, 'http://localhost:4873/pkg-with-1-dep/-/pkg-with-1-dep-100.0.0.tgz', `has tarball for ${id}`)
+})
+
+test('fail when shasum from shrinkwrap does not match with the actual one', async t => {
+  const project = prepare(t, {
+    dependencies: {
+      'is-negative': '2.1.0',
+    },
+  })
+
+  await writeYamlFile('shrinkwrap.yaml', {
+    version: 0,
+    dependencies: {
+      'is-negative': 'localhost+4873/is-negative/2.1.0',
+    },
+    packages: {
+      'localhost+4873/is-negative/2.1.0': {
+        resolution: {
+          shasum: '00000000000000000000000000000000000000000',
+          tarball: 'http://localhost:4873/is-negative/-/is-negative-2.1.0.tgz',
+          type: 'tarball',
+        },
+      },
+    },
+  })
+
+  try {
+    await install(testDefaults())
+    t.fail('installation should have failed')
+  } catch (err) {
+    t.ok(err.message.indexOf('Incorrect shasum') !== -1, 'failed with expected error')
+  }
 })
