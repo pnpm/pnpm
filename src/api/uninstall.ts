@@ -9,6 +9,7 @@ import readPkg from '../fs/readPkg'
 import {PnpmOptions, StrictPnpmOptions, Package} from '../types'
 import lock from './lock'
 import {save as saveGraph, Graph} from '../fs/graphController'
+import {save as saveShrinkwrap} from '../fs/shrinkwrap'
 
 export default async function uninstallCmd (pkgsToUninstall: string[], maybeOpts?: PnpmOptions) {
   const opts = extendOptions(maybeOpts)
@@ -59,8 +60,23 @@ export async function uninstallInContext (pkgsToUninstall: string[], pkg: Packag
   const saveType = getSaveType(opts)
   if (saveType) {
     const pkgJsonPath = path.join(ctx.root, 'package.json')
-    await removeDeps(pkgJsonPath, pkgsToUninstall, saveType)
+    const pkg = await removeDeps(pkgJsonPath, pkgsToUninstall, saveType)
+    for (let depName in ctx.shrinkwrap.dependencies) {
+      if (!isDependentOn(pkg, depName)) {
+        delete ctx.shrinkwrap.dependencies[depName]
+      }
+    }
+    await saveShrinkwrap(ctx.root, ctx.shrinkwrap)
   }
+}
+
+function isDependentOn (pkg: Package, depName: string): boolean {
+  return [
+    'dependencies',
+    'devDependencies',
+    'optionalDependencies',
+  ]
+  .some(deptype => pkg[deptype] && pkg[deptype][depName])
 }
 
 function canBeUninstalled (pkgId: string, graph: Graph, pkgPath: string) {

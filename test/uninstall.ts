@@ -76,6 +76,10 @@ test('uninstall package with dependencies and do not touch other deps', async fu
     'is-negative': '^2.1.0'
   }
   t.deepEqual(dependencies, expectedDeps, 'camelcase-keys has been removed from dependencies')
+
+  const shr = await project.loadShrinkwrap()
+  t.ok(!shr.dependencies['camelcase-keys'], 'camelcase-keys removed from shrinkwrap dependencies')
+  t.ok(!shr.packages['localhost+4873/camelcase-keys/3.0.0'], 'camelcase-keys removed from shrinkwrap packages')
 })
 
 test('uninstall package with its bin files', async function (t) {
