@@ -24,6 +24,9 @@ export default function reportError (logObj: Log) {
       case 'MODIFIED_DEPENDENCY':
         reportModifiedDependency(err, logObj['message'])
         return
+      case 'SHRINKWRAP_BREAKING_CHANGE':
+        reportShrinkwrapBreakingChange(err, logObj['message'])
+        return
       default:
         console.log(formatErrorSummary(err.message || logObj['message']))
         return
@@ -105,5 +108,13 @@ function reportModifiedDependency (err: Error, msg: Object) {
     ${msg['modified'].map((pkgPath: string) => colorPath(pkgPath)).join(EOL)}
 
     You can run ${highlight('pnpm install')} to refetch the modified packages
+  `)
+}
+
+function reportShrinkwrapBreakingChange (err: Error, msg: Object) {
+  console.log(stripIndent`
+    ${formatErrorSummary(err.message)}
+
+    Run with the ${highlight('--force')} parameter to recreate the shrinkwrap file.
   `)
 }
