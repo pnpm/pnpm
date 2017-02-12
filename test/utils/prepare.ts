@@ -4,6 +4,7 @@ import path = require('path')
 import {stripIndent} from 'common-tags'
 import {Test} from 'tape'
 import exists = require('exists-file')
+import loadYamlFile = require('load-yaml-file')
 import {Modules, read as readModules} from '../../src/fs/modulesController'
 import isExecutable from './isExecutable'
 
@@ -80,6 +81,9 @@ export default function prepare (t: Test, pkg?: Object) {
     },
     isExecutable: function (pathToExe: string) {
       return isExecutable(t, path.join(modules, pathToExe))
+    },
+    loadShrinkwrap () {
+      return loadYamlFile<any>('shrinkwrap.yaml') // tslint:disable-line
     },
   }
   return project
