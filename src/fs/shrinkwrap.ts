@@ -90,6 +90,10 @@ function copyDependencyTree (shr: Shrinkwrap): ResolvedPackages {
   while (pkgIds.length) {
     let nextPkgIds: string[] = []
     for (let pkgId of pkgIds) {
+      if (!shr.packages[pkgId]) {
+        logger.warn(`Cannot find resolution of ${pkgId} in shrinkwrap file`)
+        continue
+      }
       resolvedPackages[pkgId] = shr.packages[pkgId]
       const newDependencies = values(shr.packages[pkgId].dependencies || {})
         .filter((newPkgId: string) => !resolvedPackages[newPkgId] && pkgIds.indexOf(newPkgId) === -1)
