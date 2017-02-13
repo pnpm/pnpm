@@ -1,5 +1,3 @@
-import getTarballName from './getTarballName'
-import crypto = require('crypto')
 import {PackageSpec, ResolveOptions, Resolution, ResolveResult} from '.'
 
 /**
@@ -16,21 +14,15 @@ import {PackageSpec, ResolveOptions, Resolution, ResolveResult} from '.'
  *     resolveTarball(pkg)
  */
 export default async function resolveTarball (spec: PackageSpec, opts: ResolveOptions): Promise<ResolveResult> {
-  const name = getTarballName(spec.rawSpec)
-
   const resolution: Resolution = {
     type: 'tarball',
     tarball: spec.rawSpec,
   }
 
   return {
-    id: name + '#' + hash(spec.rawSpec),
+    id: spec.rawSpec
+      .replace(/^.*:\/\/(git@)?/, '')
+      .replace(/\.tgz$/, ''),
     resolution,
   }
-}
-
-function hash (str: string) {
-  const hash = crypto.createHash('sha1')
-  hash.update(str)
-  return hash.digest('hex')
 }

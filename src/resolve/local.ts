@@ -1,6 +1,5 @@
 import {resolve} from 'path'
 import * as path from 'path'
-import getTarballName from './getTarballName'
 import readPkg from '../fs/readPkg'
 import {PackageSpec, ResolveOptions, Resolution, ResolveResult} from '.'
 import fs = require('mz/fs')
@@ -12,13 +11,12 @@ export default async function resolveLocal (spec: PackageSpec, opts: ResolveOpti
   const dependencyPath = resolve(opts.root, spec.spec)
 
   if (dependencyPath.slice(-4) === '.tgz' || dependencyPath.slice(-7) === '.tar.gz') {
-    const name = getTarballName(dependencyPath)
     const resolution: Resolution = {
       type: 'tarball',
       tarball: `file:${dependencyPath}`,
     }
     return {
-      id: createLocalPkgId(name, dependencyPath),
+      id: createLocalPkgId(dependencyPath),
       resolution,
     }
   }
@@ -29,11 +27,11 @@ export default async function resolveLocal (spec: PackageSpec, opts: ResolveOpti
     root: dependencyPath,
   }
   return {
-    id: createLocalPkgId(localPkg.name, dependencyPath),
+    id: createLocalPkgId(dependencyPath),
     resolution,
   }
 }
 
-function createLocalPkgId (name: string, dependencyPath: string): string {
+function createLocalPkgId (dependencyPath: string): string {
   return 'local/' + encodeURIComponent(dependencyPath)
 }

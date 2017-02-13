@@ -366,7 +366,7 @@ test('tarballs (is-array-1.0.1.tgz)', async function (t) {
 
   t.ok(isArray, 'isArray() is available')
 
-  await project.storeHas('is-array-1.0.1#a83102a9c117983e6ff4d85311fb322231abe3d6')
+  await project.storeHas('registry.npmjs.org/is-array/-/is-array-1.0.1')
 })
 
 test('tarballs from GitHub (is-negative)', async function (t) {
