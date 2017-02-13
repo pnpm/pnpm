@@ -57,7 +57,7 @@ export default async function resolveGit (parsedSpec: PackageSpec, opts: Resolve
     tarball: `https://codeload.github.com/${ghSpec.owner}/${ghSpec.repo}/tar.gz/${commitId}`,
   }
   return {
-    id: path.join('github.com', ghSpec.owner, ghSpec.repo, commitId),
+    id: ['github.com', ghSpec.owner, ghSpec.repo, commitId].join('/'),
     resolution,
   }
 }
