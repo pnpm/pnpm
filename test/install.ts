@@ -358,7 +358,7 @@ test('compiled modules (ursa@0.9.1)', async function (t) {
   t.ok(typeof ursa === 'object', 'ursa() is available')
 })
 
-test('tarballs (is-array-1.0.1.tgz)', async function (t) {
+test('tarball from npm registry', async function (t) {
   const project = prepare(t)
   await installPkgs(['http://registry.npmjs.org/is-array/-/is-array-1.0.1.tgz'], testDefaults())
 
@@ -366,7 +366,18 @@ test('tarballs (is-array-1.0.1.tgz)', async function (t) {
 
   t.ok(isArray, 'isArray() is available')
 
-  await project.storeHas('registry.npmjs.org/is-array/-/is-array-1.0.1')
+  await project.storeHas('registry.npmjs.org/is-array/1.0.1')
+})
+
+test('tarball not from npm registry', async function (t) {
+  const project = prepare(t)
+  await installPkgs(['https://github.com/hegemonic/taffydb/tarball/master'], testDefaults())
+
+  const taffydb = project.requireModule('taffydb')
+
+  t.ok(taffydb, 'taffydb() is available')
+
+  await project.storeHas('github.com/hegemonic/taffydb/tarball/master')
 })
 
 test('tarballs from GitHub (is-negative)', async function (t) {

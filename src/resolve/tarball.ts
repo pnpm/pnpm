@@ -1,4 +1,5 @@
 import {PackageSpec, ResolveOptions, Resolution, ResolveResult} from '.'
+import parseNpmTarballUrl from 'parse-npm-tarball-url'
 
 /**
  * Resolves a 'remote' package.
@@ -17,6 +18,16 @@ export default async function resolveTarball (spec: PackageSpec, opts: ResolveOp
   const resolution: Resolution = {
     type: 'tarball',
     tarball: spec.rawSpec,
+  }
+
+  if (spec.rawSpec.startsWith('http://registry.npmjs.org/')) {
+    const parsed = parseNpmTarballUrl(spec.rawSpec)
+    if (parsed) {
+      return {
+        id: `${parsed.host}/${parsed.pkg.name}/${parsed.pkg.version}`,
+        resolution,
+      }
+    }
   }
 
   return {
