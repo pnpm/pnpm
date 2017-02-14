@@ -123,33 +123,34 @@ async function installMultiple (
   ctx.graph = ctx.graph || {}
 
   const installedPkgs: InstalledPackage[] = <InstalledPackage[]>(
-    await Promise.all(pkgs.map(async function (pkgRawSpec: string) {
-      let pkg: InstalledPackage | void
-      try {
-        // Preliminary spec data
-        // => { raw, name, scope, type, spec, rawSpec }
-        const spec = npa(pkgRawSpec)
-        const pkgId = options.resolvedDependencies &&
-          options.resolvedDependencies[spec.name]
-        pkg = await install(spec, modules, ctx, Object.assign({}, options, {
-          pkgId,
-          dependencyShrinkwrap: pkgId && ctx.shrinkwrap.packages[pkgId]
-        }))
-        if (options.keypath && options.keypath.indexOf(pkg.id) !== -1) {
-          return null
-        }
-        return pkg
-      } catch (err) {
-        if (options.optional) {
-          logger.warn({
-            message: `Skipping failed optional dependency ${pkg && pkg.id || pkgRawSpec}`,
-            err,
-          })
-          return null // is it OK to return null?
-        }
-        throw err
-      }
-    }))
+    await Promise.all(
+      pkgs
+        .map(npa)
+        .map(async (spec: PackageSpec) => {
+          const pkgId = options.resolvedDependencies &&
+            options.resolvedDependencies[spec.name]
+          const dependencyShrinkwrap = pkgId && ctx.shrinkwrap.packages[pkgId]
+          try {
+            const pkg = await install(spec, modules, ctx, Object.assign({}, options, {
+              pkgId,
+              dependencyShrinkwrap,
+            }))
+            if (options.keypath && options.keypath.indexOf(pkg.id) !== -1) {
+              return null
+            }
+            return pkg
+          } catch (err) {
+            if (options.optional) {
+              logger.warn({
+                message: `Skipping failed optional dependency ${pkgId || spec.rawSpec}`,
+                err,
+              })
+              return null // is it OK to return null?
+            }
+            throw err
+          }
+        })
+    )
   )
   .filter(pkg => pkg)
 
