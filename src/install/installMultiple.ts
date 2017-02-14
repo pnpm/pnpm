@@ -176,10 +176,15 @@ async function install (
   const keypath = options.keypath || []
   const update = keypath.length <= options.depth
 
-  const fetchedPkg = await fetch(ctx, spec, Object.assign({}, options, {
+  const fetchedPkg = await fetch(spec, Object.assign({}, options, {
     update,
     shrinkwrapResolution: options.dependencyShrinkwrap && options.dependencyShrinkwrap.resolution,
+    fetchingLocker: ctx.fetchingLocker,
   }))
+
+  ctx.shrinkwrap.packages[fetchedPkg.id] = ctx.shrinkwrap.packages[fetchedPkg.id] || {}
+  ctx.shrinkwrap.packages[fetchedPkg.id].resolution = fetchedPkg.resolution
+
   logFetchStatus(spec.rawSpec, fetchedPkg)
   const pkg = await fetchedPkg.fetchingPkg
 

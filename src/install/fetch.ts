@@ -23,11 +23,11 @@ export type FetchedPackage = {
   path: string,
   srcPath?: string,
   id: string,
+  resolution: Resolution,
   abort(): Promise<void>,
 }
 
 export default async function fetch (
-  ctx: InstallContext,
   spec: PackageSpec,
   options: {
     linkLocal: boolean,
@@ -39,6 +39,7 @@ export default async function fetch (
     update?: boolean,
     shrinkwrapResolution?: Resolution,
     pkgId?: string,
+    fetchingLocker: MemoizedFunc<Boolean>,
   }
 ): Promise<FetchedPackage> {
   logger.debug('installing ' + spec.raw)
@@ -70,14 +71,13 @@ export default async function fetch (
       if (resolveResult.package) {
         fetchingPkg = Promise.resolve(resolveResult.package)
       }
-      ctx.shrinkwrap.packages[resolveResult.id] = {resolution}
     }
 
     const id = <string>pkgId
 
     const target = path.join(options.storePath, id)
 
-    const fetchingFiles = ctx.fetchingLocker(id, () => fetchToStore({
+    const fetchingFiles = options.fetchingLocker(id, () => fetchToStore({
       target,
       resolution: <Resolution>resolution,
       loggedPkg,
@@ -93,6 +93,7 @@ export default async function fetch (
       fetchingPkg,
       fetchingFiles,
       id,
+      resolution,
       path: target,
       srcPath: resolution.type == 'directory'
         ? resolution.root
