@@ -6,7 +6,7 @@
 
 > Fast, disk space efficient npm installs
 
-pnpm is a fast implementation of `npm install`. It is loosely based off [ied].
+pnpm is a fast implementation of `npm install`.
 
 [![asciicast](http://i.imgur.com/6GLLHaV.gif)](https://asciinema.org/a/99357)
 
@@ -113,4 +113,3 @@ time pnpm i babel-preset-es2015 browserify chalk debug minimist mkdirp
 [MIT](https://github.com/pnpm/pnpm/blob/master/LICENSE) © [Rico Sta. Cruz](http://ricostacruz.com) and [contributors]
 
 [contributors]: http://github.com/pnpm/pnpm/contributors
-[ied]: https://github.com/alexanderGugel/ied
