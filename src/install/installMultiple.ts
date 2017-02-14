@@ -182,6 +182,10 @@ async function install (
     fetchingLocker: ctx.fetchingLocker,
   }))
 
+  if (keypath.indexOf(fetchedPkg.id) !== -1) {
+    return fetchedPkg
+  }
+
   ctx.shrinkwrap.packages[fetchedPkg.id] = ctx.shrinkwrap.packages[fetchedPkg.id] || {}
   ctx.shrinkwrap.packages[fetchedPkg.id].resolution = fetchedPkg.resolution
 
@@ -192,25 +196,19 @@ async function install (
     await isInstallable(pkg, fetchedPkg, options)
   }
 
-  const realModules = path.join(options.baseNodeModules, `.${fetchedPkg.id}`, 'node_modules')
+  const modules = path.join(options.baseNodeModules, `.${fetchedPkg.id}`, 'node_modules')
 
   const dependency: InstalledPackage = Object.assign({}, fetchedPkg, {
     keypath,
     dependencies: [],
     optional: options.optional === true,
     pkg,
-    hardlinkedLocation: path.join(realModules, pkg.name),
-    modules: realModules,
+    hardlinkedLocation: path.join(modules, pkg.name),
+    modules,
   })
-
-  if (keypath.indexOf(dependency.id) !== -1) {
-    return dependency
-  }
 
   addInstalledPkg(ctx.installs, dependency)
 
-  // NOTE: the current install implementation
-  // does not return enough info for packages that were already installed
   addToGraph(ctx.graph, options.dependent, dependency)
 
   if (!ctx.installed.has(dependency.id)) {
@@ -219,7 +217,7 @@ async function install (
       pkg,
       dependency,
       ctx,
-      realModules,
+      modules,
       Object.assign({}, options, {
         resolvedDependencies: options.dependencyShrinkwrap && options.dependencyShrinkwrap.dependencies
       })
@@ -232,12 +230,12 @@ async function install (
     }
   }
 
-  const newlyFetched = await dependency.fetchingFiles
   await ctx.linkingLocker(dependency.hardlinkedLocation, async function () {
+    const newlyFetched = await dependency.fetchingFiles
     const pkgJsonPath = path.join(dependency.hardlinkedLocation, 'package.json')
     if (newlyFetched || options.force || !await exists(pkgJsonPath) || !await pkgLinkedToStore()) {
       await rimraf(dependency.hardlinkedLocation)
-      const stage = path.join(realModules, `${pkg.name}+stage`)
+      const stage = path.join(modules, `${pkg.name}+stage`)
       await rimraf(stage)
       await hardlinkDir(dependency.path, stage)
       await fs.rename(stage, dependency.hardlinkedLocation)
