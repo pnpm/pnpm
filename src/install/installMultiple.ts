@@ -48,10 +48,8 @@ export default async function installAll (
     metaCache: Map<string, PackageMeta>,
     tag: string,
     got: Got,
-    update?: boolean,
     keypath?: string[],
     resolvedDependencies?: ResolvedDependencies,
-    optional?: boolean,
     dependent: string,
     depth: number,
     engineStrict: boolean,
@@ -60,6 +58,8 @@ export default async function installAll (
     fetchingFiles?: Promise<Boolean>,
   }
 ): Promise<InstalledPackage[]> {
+  const keypath = options.keypath || []
+
   const nonOptionalDependencies = Object.keys(dependencies)
     .filter(depName => !optionalDependencies[depName])
     .reduce((nonOptionalDependencies, depName) => {
@@ -68,8 +68,8 @@ export default async function installAll (
     }, {})
 
   const installedPkgs: InstalledPackage[] = Array.prototype.concat.apply([], await Promise.all([
-    installMultiple(ctx, nonOptionalDependencies, Object.assign({}, options, {optional: false})),
-    installMultiple(ctx, optionalDependencies, Object.assign({}, options, {optional: true})),
+    installMultiple(ctx, nonOptionalDependencies, Object.assign({}, options, {optional: false, keypath})),
+    installMultiple(ctx, optionalDependencies, Object.assign({}, options, {optional: true, keypath})),
   ]))
 
   if (options.fetchingFiles) {
@@ -99,10 +99,9 @@ async function installMultiple (
     metaCache: Map<string, PackageMeta>,
     tag: string,
     got: Got,
-    update?: boolean,
-    keypath?: string[],
+    keypath: string[],
     resolvedDependencies?: ResolvedDependencies,
-    optional?: boolean,
+    optional: boolean,
     dependent: string,
     depth: number,
     engineStrict: boolean,
@@ -163,11 +162,10 @@ async function install (
     metaCache: Map<string, PackageMeta>,
     tag: string,
     got: Got,
-    update?: boolean,
-    keypath?: string[],
+    keypath: string[],
     pkgId?: string,
     dependencyShrinkwrap?: DependencyShrinkwrap,
-    optional?: boolean,
+    optional: boolean,
     dependent: string,
     depth: number,
     engineStrict: boolean,
@@ -300,7 +298,7 @@ async function isInstallable (
   pkg: Package,
   fetchedPkg: FetchedPackage,
   options: {
-    optional?: boolean,
+    optional: boolean,
     engineStrict: boolean,
     nodeVersion: string,
   }
@@ -330,10 +328,9 @@ async function installDependencies (
     metaCache: Map<string, PackageMeta>,
     tag: string,
     got: Got,
-    update?: boolean,
-    keypath?: string[],
+    keypath: string[],
     resolvedDependencies?: ResolvedDependencies,
-    optional?: boolean,
+    optional: boolean,
     dependent: string,
     depth: number,
     engineStrict: boolean,
@@ -342,7 +339,7 @@ async function installDependencies (
   }
 ): Promise<InstalledPackage[]> {
   const depsInstallOpts = Object.assign({}, opts, {
-    keypath: (opts.keypath || []).concat([ dependency.id ]),
+    keypath: opts.keypath.concat([ dependency.id ]),
     dependent: dependency.id,
     root: dependency.srcPath,
     fetchingFiles: dependency.fetchingFiles,

@@ -31,7 +31,6 @@ export default async function fetch (
   spec: PackageSpec,
   options: {
     linkLocal: boolean,
-    force: boolean,
     root: string,
     storePath: string,
     metaCache: Map<string, PackageMeta>,
