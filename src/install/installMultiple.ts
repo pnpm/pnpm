@@ -348,7 +348,7 @@ async function installDependencies (
     fetchingFiles: dependency.fetchingFiles,
   })
 
-  const bundledDeps = pkg.bundleDependencies || pkg.bundleDependencies || []
+  const bundledDeps = pkg.bundleDependencies || pkg.bundledDependencies || []
   const filterDeps = getNotBundledDeps.bind(null, bundledDeps)
   const deps = filterDeps(pkg.dependencies || {})
   const optionalDeps = filterDeps(pkg.optionalDependencies || {})
