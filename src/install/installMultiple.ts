@@ -68,8 +68,8 @@ export default async function installAll (
     }, {})
 
   const installedPkgs: InstalledPackage[] = Array.prototype.concat.apply([], await Promise.all([
-    installMultiple(ctx, nonOptionalDependencies, modules, Object.assign({}, options, {optional: false})),
-    installMultiple(ctx, optionalDependencies, modules, Object.assign({}, options, {optional: true})),
+    installMultiple(ctx, nonOptionalDependencies, Object.assign({}, options, {optional: false})),
+    installMultiple(ctx, optionalDependencies, Object.assign({}, options, {optional: true})),
   ]))
 
   if (options.fetchingFiles) {
@@ -79,11 +79,7 @@ export default async function installAll (
   await mkdirp(modules)
   await Promise.all(
     installedPkgs
-      .filter(subdep => !subdep.fromCache)
       .map(async function (subdep) {
-        if (ctx.installationSequence.indexOf(subdep.id) === -1) {
-          ctx.installationSequence.push(subdep.id)
-        }
         const dest = path.join(modules, subdep.pkg.name)
         await symlinkDir(subdep.hardlinkedLocation, dest)
       })
@@ -95,7 +91,6 @@ export default async function installAll (
 async function installMultiple (
   ctx: InstallContext,
   pkgsMap: Dependencies,
-  modules: string,
   options: {
     linkLocal: boolean,
     force: boolean,
@@ -131,7 +126,7 @@ async function installMultiple (
             options.resolvedDependencies[spec.name]
           const dependencyShrinkwrap = pkgId && ctx.shrinkwrap.packages[pkgId]
           try {
-            const pkg = await install(spec, modules, ctx, Object.assign({}, options, {
+            const pkg = await install(spec, ctx, Object.assign({}, options, {
               pkgId,
               dependencyShrinkwrap,
             }))
@@ -159,7 +154,6 @@ async function installMultiple (
 
 async function install (
   spec: PackageSpec,
-  modules: string,
   ctx: InstallContext,
   options: {
     linkLocal: boolean,
@@ -184,7 +178,7 @@ async function install (
   const keypath = options.keypath || []
   const update = keypath.length <= options.depth
 
-  const fetchedPkg = await fetch(ctx, spec, modules, Object.assign({}, options, {
+  const fetchedPkg = await fetch(ctx, spec, Object.assign({}, options, {
     update,
     shrinkwrapResolution: options.dependencyShrinkwrap && options.dependencyShrinkwrap.resolution,
   }))
@@ -206,7 +200,7 @@ async function install (
     modules: realModules,
   })
 
-  if (dependency.fromCache || keypath.indexOf(dependency.id) !== -1) {
+  if (keypath.indexOf(dependency.id) !== -1) {
     return dependency
   }
 
@@ -244,6 +238,10 @@ async function install (
       await rimraf(stage)
       await hardlinkDir(dependency.path, stage)
       await fs.rename(stage, dependency.hardlinkedLocation)
+
+      if (ctx.installationSequence.indexOf(dependency.id) === -1) {
+        ctx.installationSequence.push(dependency.id)
+      }
     }
 
     async function pkgLinkedToStore () {

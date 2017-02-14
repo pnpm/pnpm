@@ -61,7 +61,6 @@
     "src/install/fetch.ts",
     "src/install/fetchResolution.ts",
     "src/install/installMultiple.ts",
-    "src/install/isAvailable.ts",
     "src/install/linkBins.ts",
     "src/install/linkPeers.ts",
     "src/install/postInstall.ts",

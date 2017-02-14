@@ -7,7 +7,6 @@ import resolve, {Resolution, PackageSpec} from '../resolve'
 import mkdirp from '../fs/mkdirp'
 import readPkg from '../fs/readPkg'
 import exists = require('exists-file')
-import isAvailable from './isAvailable'
 import memoize, {MemoizedFunc} from '../memoize'
 import {Package} from '../types'
 import {Got} from '../network/got'
@@ -24,14 +23,12 @@ export type FetchedPackage = {
   path: string,
   srcPath?: string,
   id: string,
-  fromCache: boolean,
   abort(): Promise<void>,
 }
 
 export default async function fetch (
   ctx: InstallContext,
   spec: PackageSpec,
-  modules: string,
   options: {
     linkLocal: boolean,
     force: boolean,
@@ -56,12 +53,6 @@ export default async function fetch (
     let fetchingPkg = null
     let resolution = options.shrinkwrapResolution
     let pkgId = options.pkgId
-    if (!resolution && !options.force) {
-      // it might be a bundleDependency, in which case, don't bother
-      if (await isAvailable(spec, modules)) {
-        return await saveCachedResolution()
-      }
-    }
     if (!resolution || options.update) {
       const resolveResult = await resolve(spec, {
         loggedPkg,
@@ -103,7 +94,6 @@ export default async function fetch (
       fetchingPkg,
       fetchingFiles,
       id,
-      fromCache: false,
       path: target,
       srcPath: resolution.type == 'directory'
         ? resolution.root
@@ -119,27 +109,6 @@ export default async function fetch (
   } catch (err) {
     logStatus({status: 'error', pkg: loggedPkg})
     throw err
-  }
-
-  async function saveCachedResolution (): Promise<FetchedPackage> {
-    const target = path.join(modules, spec.name)
-    const stat: Stats = await fs.lstat(target)
-    if (stat.isSymbolicLink()) {
-      const linkPath = await fs.readlink(target)
-      return save(path.resolve(linkPath, target))
-    }
-    return save(target)
-
-    async function save (fullpath: string): Promise<FetchedPackage> {
-      return {
-        fetchingPkg: readPkg(fullpath),
-        fetchingFiles: Promise.resolve(false), // this property can be ignored by cached packages at all
-        id: path.basename(fullpath),
-        fromCache: true,
-        path: fullpath,
-        abort: () => Promise.resolve(),
-      }
-    }
   }
 }
 
