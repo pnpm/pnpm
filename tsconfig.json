@@ -80,7 +80,6 @@
     "src/resolve/utils/createNpmPkgId.ts",
     "src/resolve/utils/loadPackageMeta.ts",
     "src/runScript.ts",
-    "src/runtimeError.ts",
     "src/save.ts",
     "src/types.ts",
     "typings/index.d.ts",

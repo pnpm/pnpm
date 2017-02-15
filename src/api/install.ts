@@ -12,7 +12,6 @@ import getContext, {PnpmContext} from './getContext'
 import installMultiple, {InstalledPackage} from '../install/installMultiple'
 import save from '../save'
 import linkPeers from '../install/linkPeers'
-import runtimeError from '../runtimeError'
 import getSaveType from '../getSaveType'
 import {sync as runScriptSync} from '../runScript'
 import postInstall from '../install/postInstall'
@@ -47,7 +46,7 @@ export async function install (maybeOpts?: PnpmOptions) {
   const ctx = await getContext(opts)
   const installCtx = await createInstallCmd(opts, ctx.graph, ctx.shrinkwrap)
 
-  if (!ctx.pkg) throw runtimeError('No package.json found')
+  if (!ctx.pkg) throw new Error('No package.json found')
   const packagesToInstall = Object.assign({}, ctx.pkg.dependencies || {})
   if (!opts.production) Object.assign(packagesToInstall, ctx.pkg.devDependencies || {})
 
