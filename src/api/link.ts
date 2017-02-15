@@ -4,7 +4,7 @@ import symlinkDir from 'symlink-dir'
 import {install} from './install'
 import expandTilde from '../fs/expandTilde'
 import {linkPkgBins} from '../install/linkBins'
-import mkdirp from '../fs/mkdirp'
+import mkdirp = require('mkdirp-promise')
 import {PnpmOptions} from '../types'
 import extendOptions from './extendOptions'
 

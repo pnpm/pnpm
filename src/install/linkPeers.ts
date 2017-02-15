@@ -1,4 +1,4 @@
-import mkdirp from '../fs/mkdirp'
+import mkdirp = require('mkdirp-promise')
 import symlinkDir from 'symlink-dir'
 import path = require('path')
 import semver = require('semver')

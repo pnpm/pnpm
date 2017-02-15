@@ -1,7 +1,7 @@
 import tape = require('tape')
 import promisifyTape from 'tape-promise'
 import fs = require('mz/fs')
-import mkdirp = require('mkdirp')
+import mkdirp = require('mkdirp-promise')
 import path = require('path')
 import {prepare, testDefaults} from './utils'
 import {installPkgs} from '../src'
@@ -59,7 +59,7 @@ test("don't fail on non-compatible store when forced", async t => {
 })
 
 async function saveModulesYaml (pnpmVersion: string, storePath: string) {
-  mkdirp.sync('node_modules')
+  await mkdirp('node_modules')
   await fs.writeFile('node_modules/.modules.yaml', `packageManager: pnpm@${pnpmVersion}\nstorePath: ${storePath}`)
 }
 

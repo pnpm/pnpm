@@ -15,7 +15,7 @@ import {
 import {
   read as readModules,
 } from '../fs/modulesController'
-import mkdirp from '../fs/mkdirp'
+import mkdirp = require('mkdirp-promise')
 import {Package} from '../types'
 import normalizePath = require('normalize-path')
 import rimraf = require('rimraf-then')

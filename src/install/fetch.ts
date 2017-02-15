@@ -4,7 +4,7 @@ import {Stats} from 'fs'
 import path = require('path')
 import rimraf = require('rimraf-then')
 import resolve, {Resolution, PackageSpec} from '../resolve'
-import mkdirp from '../fs/mkdirp'
+import mkdirp = require('mkdirp-promise')
 import readPkg from '../fs/readPkg'
 import exists = require('exists-file')
 import memoize, {MemoizedFunc} from '../memoize'

@@ -7,7 +7,7 @@ import {Dependencies} from '../types'
 import memoize from '../memoize'
 import {Package} from '../types'
 import linkDir from 'link-dir'
-import mkdirp from '../fs/mkdirp'
+import mkdirp = require('mkdirp-promise')
 import installChecks = require('pnpm-install-checks')
 import pnpmPkg from '../pnpmPkgJson'
 import symlinkDir from 'symlink-dir'

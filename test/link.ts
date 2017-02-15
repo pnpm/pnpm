@@ -8,7 +8,6 @@ import {
   pathToLocalPkg,
   testDefaults,
  } from './utils'
-import mkdirp = require('mkdirp')
 import thenify = require('thenify')
 import ncpCB = require('ncp')
 const ncp = thenify(ncpCB.ncp)

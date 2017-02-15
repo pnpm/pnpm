@@ -8,7 +8,7 @@ import {IncomingMessage} from 'http'
 import * as unpackStream from 'unpack-stream'
 
 import {Resolution} from '../resolve'
-import mkdirp from '../fs/mkdirp'
+import mkdirp = require('mkdirp-promise')
 import {Got} from '../network/got'
 import logStatus from '../logging/logInstallStatus'
 

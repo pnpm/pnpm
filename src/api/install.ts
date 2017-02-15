@@ -24,7 +24,7 @@ import {read as readStore, save as saveStore} from '../fs/storeController'
 import {save as saveShrinkwrap, Shrinkwrap} from '../fs/shrinkwrap'
 import {save as saveModules} from '../fs/modulesController'
 import {tryUninstall, removePkgFromStore} from './uninstall'
-import mkdirp from '../fs/mkdirp'
+import mkdirp = require('mkdirp-promise')
 import createMemoize, {MemoizedFunc} from '../memoize'
 import linkBins from '../install/linkBins'
 

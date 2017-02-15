@@ -253,6 +253,11 @@ declare module 'read-pkg' {
   export = anything;
 }
 
+declare module 'mkdirp-promise' {
+  const anything: any;
+  export = anything;
+}
+
 declare module 'load-yaml-file' {
   interface LoadYamlFile {
     <T>(filepath: string): Promise<T>
