@@ -6,7 +6,7 @@ import {InstallContext, InstalledPackages} from '../api/install'
 import {Dependencies} from '../types'
 import memoize from '../memoize'
 import {Package} from '../types'
-import hardlinkDir from '../fs/hardlinkDir'
+import linkDir from 'link-dir'
 import mkdirp from '../fs/mkdirp'
 import installChecks = require('pnpm-install-checks')
 import pnpmPkg from '../pnpmPkgJson'
@@ -234,11 +234,7 @@ async function install (
     const newlyFetched = await dependency.fetchingFiles
     const pkgJsonPath = path.join(dependency.hardlinkedLocation, 'package.json')
     if (newlyFetched || options.force || !await exists(pkgJsonPath) || !await pkgLinkedToStore()) {
-      await rimraf(dependency.hardlinkedLocation)
-      const stage = path.join(modules, `${pkg.name}+stage`)
-      await rimraf(stage)
-      await hardlinkDir(dependency.path, stage)
-      await fs.rename(stage, dependency.hardlinkedLocation)
+      await linkDir(dependency.path, dependency.hardlinkedLocation)
 
       if (ctx.installationSequence.indexOf(dependency.id) === -1) {
         ctx.installationSequence.push(dependency.id)

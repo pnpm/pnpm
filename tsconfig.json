@@ -50,7 +50,6 @@
     "src/fs/expandTilde.ts",
     "src/fs/getPkgDirs.ts",
     "src/fs/graphController.ts",
-    "src/fs/hardlinkDir.ts",
     "src/fs/mkdirp.ts",
     "src/fs/modulesController.ts",
     "src/fs/readPkg.ts",
