@@ -268,3 +268,8 @@ declare module 'load-yaml-file' {
 
   export = loadYamlFile;
 }
+
+declare module 'ssh-parse' {
+  const anything: any;
+  export = anything;
+}

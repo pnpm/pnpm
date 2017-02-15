@@ -77,6 +77,7 @@
     "rimraf-then": "1.0.1",
     "semver": "5.3.0",
     "sorted-object": "2.0.1",
+    "ssh-parse": "1.0.0",
     "symlink-dir": "1.0.1",
     "thenify": "3.2.1",
     "unpack-stream": "1.1.0",
