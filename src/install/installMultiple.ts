@@ -1,6 +1,7 @@
 import path = require('path')
 import npa = require('npm-package-arg')
 import logger from 'pnpm-logger'
+import pFilter = require('p-filter')
 import fetch, {FetchedPackage} from './fetch'
 import {InstallContext, InstalledPackages} from '../api/install'
 import {Dependencies} from '../types'
@@ -68,8 +69,8 @@ export default async function installAll (
     }, {})
 
   const installedPkgs: InstalledPackage[] = Array.prototype.concat.apply([], await Promise.all([
-    installMultiple(ctx, nonOptionalDependencies, Object.assign({}, options, {optional: false, keypath})),
-    installMultiple(ctx, optionalDependencies, Object.assign({}, options, {optional: true, keypath})),
+    installMultiple(ctx, nonOptionalDependencies, modules, Object.assign({}, options, {optional: false, keypath})),
+    installMultiple(ctx, optionalDependencies, modules, Object.assign({}, options, {optional: true, keypath})),
   ]))
 
   if (options.fetchingFiles) {
@@ -91,6 +92,7 @@ export default async function installAll (
 async function installMultiple (
   ctx: InstallContext,
   pkgsMap: Dependencies,
+  modules: string,
   options: {
     linkLocal: boolean,
     force: boolean,
@@ -116,10 +118,16 @@ async function installMultiple (
 
   ctx.graph = ctx.graph || {}
 
+  const specs = pkgs.map(npa)
+
+  const nonLinkedPkgs = modules === options.baseNodeModules
+    // only check modules on the first level
+    ? await pFilter(specs, (spec: PackageSpec) => isInnerLink(modules, spec.name))
+    : specs
+
   const installedPkgs: InstalledPackage[] = <InstalledPackage[]>(
     await Promise.all(
-      pkgs
-        .map(npa)
+      nonLinkedPkgs
         .map(async (spec: PackageSpec) => {
           const pkgId = options.resolvedDependencies &&
             options.resolvedDependencies[spec.name]
@@ -149,6 +157,22 @@ async function installMultiple (
   .filter(pkg => pkg)
 
   return installedPkgs
+}
+
+async function isInnerLink (modules: string, depName: string) {
+  let link: string
+  try {
+    link = await fs.readlink(path.join(modules, depName))
+  } catch (err) {
+    return true
+  }
+  const absLink = path.isAbsolute(link) ? link : path.join(modules, link)
+
+  if (absLink.startsWith(modules)) {
+    return true
+  }
+  logger.info(`${depName} is linked to ${modules} from ${link}`)
+  return false
 }
 
 async function install (
