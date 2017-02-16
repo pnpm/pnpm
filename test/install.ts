@@ -10,6 +10,7 @@ import crossSpawn = require('cross-spawn')
 const spawnSync = crossSpawn.sync
 import isCI = require('is-ci')
 import rimraf = require('rimraf-then')
+import readPkg = require('read-pkg')
 import {
   prepare,
   addDistTag,
@@ -490,9 +491,8 @@ test('save to package.json (rimraf@2.5.1)', async function (t) {
   const rimraf = project.requireModule('rimraf')
   t.ok(typeof rimraf === 'function', 'rimraf() is available')
 
-  const pkgJson = fs.readFileSync(path.join(process.cwd(), 'package.json'), 'utf8')
-  const dependencies = JSON.parse(pkgJson).dependencies
-  t.deepEqual(dependencies, {rimraf: '^2.5.1'}, 'rimraf has been added to dependencies')
+  const pkgJson = await readPkg()
+  t.deepEqual(pkgJson.dependencies, {rimraf: '^2.5.1'}, 'rimraf has been added to dependencies')
 })
 
 test('saveDev scoped module to package.json (@rstacruz/tap-spec)', async function (t) {
@@ -502,9 +502,8 @@ test('saveDev scoped module to package.json (@rstacruz/tap-spec)', async functio
   const tapSpec = project.requireModule('@rstacruz/tap-spec')
   t.ok(typeof tapSpec === 'function', 'tapSpec() is available')
 
-  const pkgJson = fs.readFileSync(path.join(process.cwd(), 'package.json'), 'utf8')
-  const devDependencies = JSON.parse(pkgJson).devDependencies
-  t.deepEqual(devDependencies, { '@rstacruz/tap-spec': '^4.1.1' }, 'tap-spec has been added to devDependencies')
+  const pkgJson = await readPkg()
+  t.deepEqual(pkgJson.devDependencies, { '@rstacruz/tap-spec': '^4.1.1' }, 'tap-spec has been added to devDependencies')
 })
 
 test('multiple save to package.json with `exact` versions (@rstacruz/tap-spec & rimraf@2.5.1) (in sorted order)', async function (t) {
@@ -517,25 +516,13 @@ test('multiple save to package.json with `exact` versions (@rstacruz/tap-spec & 
   const rimraf = project.requireModule('rimraf')
   t.ok(typeof rimraf === 'function', 'rimraf() is available')
 
-  const pkgJson = fs.readFileSync(path.join(process.cwd(), 'package.json'), 'utf8')
-  const dependencies = JSON.parse(pkgJson).dependencies
+  const pkgJson = await readPkg()
   const expectedDeps = {
     '@rstacruz/tap-spec': '4.1.1',
     rimraf: '2.5.1'
   }
-  t.deepEqual(dependencies, expectedDeps, 'tap-spec and rimraf have been added to dependencies')
-  t.deepEqual(Object.keys(dependencies), Object.keys(expectedDeps), 'tap-spec and rimraf have been added to dependencies in sorted order')
-})
-
-test('flattening symlinks (minimatch + balanced-match)', async function (t) {
-  const project = prepare(t)
-  await installPkgs(['minimatch@3.0.0'], testDefaults())
-  await installPkgs(['balanced-match@^0.3.0'], testDefaults())
-
-  let _ = await exists(path.join(process.cwd(), 'node_modules/.store/node_modules/balanced-match'))
-  t.ok(!_, 'balanced-match is removed from store node_modules')
-
-  await project.has('balanced-match')
+  t.deepEqual(pkgJson.dependencies, expectedDeps, 'tap-spec and rimraf have been added to dependencies')
+  t.deepEqual(Object.keys(pkgJson.dependencies), Object.keys(expectedDeps), 'tap-spec and rimraf have been added to dependencies in sorted order')
 })
 
 test('production install (with --production flag)', async function (t) {
@@ -543,11 +530,11 @@ test('production install (with --production flag)', async function (t) {
 
   await install(testDefaults({ production: true }))
 
-  const rimrafDir = fs.statSync(path.join(process.cwd(), 'node_modules', 'rimraf'))
+  const rimrafDir = fs.statSync(path.resolve('node_modules', 'rimraf'))
 
   let tapStatErrCode: number = 0
   try {
-    fs.statSync(path.join(process.cwd(), 'node_modules', '@rstacruz'))
+    fs.statSync(path.resolve('node_modules', '@rstacruz'))
   } catch (err) {
     tapStatErrCode = err.code
   }
@@ -566,11 +553,11 @@ test('production install (with production NODE_ENV)', async function (t) {
   // reset NODE_ENV
   process.env.NODE_ENV = originalNodeEnv
 
-  const rimrafDir = fs.statSync(path.join(process.cwd(), 'node_modules', 'rimraf'))
+  const rimrafDir = fs.statSync(path.resolve('node_modules', 'rimraf'))
 
   let tapStatErrCode: number = 0
   try {
-    fs.statSync(path.join(process.cwd(), 'node_modules', '@rstacruz'))
+    fs.statSync(path.resolve('node_modules', '@rstacruz'))
   } catch (err) { tapStatErrCode = err.code }
 
   t.ok(rimrafDir.isSymbolicLink, 'rimraf exists')

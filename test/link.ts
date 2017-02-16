@@ -22,12 +22,12 @@ test('relative link', async function (t) {
   prepare(t)
 
   const linkedPkgName = 'hello-world-js-bin'
-  const linkedPkgPath = path.resolve(process.cwd(), '..', linkedPkgName)
+  const linkedPkgPath = path.resolve('..', linkedPkgName)
 
   await ncp(pathToLocalPkg(linkedPkgName), linkedPkgPath)
   await linkFromRelative(`../${linkedPkgName}`, testDefaults())
 
-  isExecutable(t, path.join(process.cwd(), 'node_modules', '.bin', 'hello-world-js-bin'))
+  isExecutable(t, path.resolve('node_modules', '.bin', 'hello-world-js-bin'))
 })
 
 test('global link', async function (t) {
@@ -35,7 +35,7 @@ test('global link', async function (t) {
   const projectPath = process.cwd()
 
   const linkedPkgName = 'hello-world-js-bin'
-  const linkedPkgPath = path.resolve(process.cwd(), '..', linkedPkgName)
+  const linkedPkgPath = path.resolve('..', linkedPkgName)
 
   await ncp(pathToLocalPkg(linkedPkgName), linkedPkgPath)
 
@@ -46,17 +46,17 @@ test('global link', async function (t) {
 
   await linkFromGlobal(linkedPkgName, testDefaults())
 
-  isExecutable(t, path.join(process.cwd(), 'node_modules', '.bin', 'hello-world-js-bin'))
+  isExecutable(t, path.resolve('node_modules', '.bin', 'hello-world-js-bin'))
 })
 
 test('link local package if link-local = true', async function (t) {
   prepare(t)
 
   const linkedPkgName = 'hello-world-js-bin'
-  const linkedPkgPath = path.resolve(process.cwd(), '..', linkedPkgName)
+  const linkedPkgPath = path.resolve('..', linkedPkgName)
 
   await ncp(pathToLocalPkg(linkedPkgName), linkedPkgPath)
   await installPkgs([`file:../${linkedPkgName}`], testDefaults({ linkLocal: true }))
 
-  isExecutable(t, path.join(process.cwd(), 'node_modules', '.bin', 'hello-world-js-bin'))
+  isExecutable(t, path.resolve('node_modules', '.bin', 'hello-world-js-bin'))
 })

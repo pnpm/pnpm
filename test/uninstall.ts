@@ -5,6 +5,7 @@ import path = require('path')
 import fs = require('fs')
 import exists = require('exists-file')
 import existsSymlink = require('exists-link')
+import readPkg = require('read-pkg')
 import {prepare, testDefaults} from './utils'
 import {installPkgs, uninstall} from '../src'
 
@@ -17,10 +18,8 @@ test('uninstall package with no dependencies', async function (t) {
 
   await project.hasNot('is-negative')
 
-  const pkgJson = fs.readFileSync(path.join(process.cwd(), 'package.json'), 'utf8')
-  const dependencies = JSON.parse(pkgJson).dependencies
-  const expectedDeps = {}
-  t.deepEqual(dependencies, expectedDeps, 'is-negative has been removed from dependencies')
+  const pkgJson = await readPkg()
+  t.deepEqual(pkgJson.dependencies, {}, 'is-negative has been removed from dependencies')
 })
 
 test('uninstall scoped package', async function (t) {
@@ -32,10 +31,8 @@ test('uninstall scoped package', async function (t) {
 
   await project.hasNot('@zkochan/logger')
 
-  const pkgJson = fs.readFileSync(path.join(process.cwd(), 'package.json'), 'utf8')
-  const dependencies = JSON.parse(pkgJson).dependencies
-  const expectedDeps = {}
-  t.deepEqual(dependencies, expectedDeps, '@zkochan/logger has been removed from dependencies')
+  const pkgJson = await readPkg()
+  t.deepEqual(pkgJson.dependencies, {}, '@zkochan/logger has been removed from dependencies')
 })
 
 test('uninstall tarball dependency', async function (t) {
@@ -47,10 +44,8 @@ test('uninstall tarball dependency', async function (t) {
 
   await project.hasNot('is-array')
 
-  const pkgJson = fs.readFileSync(path.join(process.cwd(), 'package.json'), 'utf8')
-  const dependencies = JSON.parse(pkgJson).dependencies
-  const expectedDeps = {}
-  t.deepEqual(dependencies, expectedDeps, 'is-array has been removed from dependencies')
+  const pkgJson = await readPkg()
+  t.deepEqual(pkgJson.dependencies, {}, 'is-array has been removed from dependencies')
 })
 
 test('uninstall package with dependencies and do not touch other deps', async function (t) {
@@ -70,12 +65,8 @@ test('uninstall package with dependencies and do not touch other deps', async fu
   await project.storeHas('is-negative', '2.1.0')
   await project.has('is-negative')
 
-  const pkgJson = fs.readFileSync(path.join(process.cwd(), 'package.json'), 'utf8')
-  const dependencies = JSON.parse(pkgJson).dependencies
-  const expectedDeps = {
-    'is-negative': '^2.1.0'
-  }
-  t.deepEqual(dependencies, expectedDeps, 'camelcase-keys has been removed from dependencies')
+  const pkgJson = await readPkg()
+  t.deepEqual(pkgJson.dependencies, {'is-negative': '^2.1.0'}, 'camelcase-keys has been removed from dependencies')
 
   const shr = await project.loadShrinkwrap()
   t.ok(!shr.dependencies['camelcase-keys'], 'camelcase-keys removed from shrinkwrap dependencies')
@@ -88,10 +79,10 @@ test('uninstall package with its bin files', async function (t) {
   await uninstall(['sh-hello-world'], testDefaults({ save: true }))
 
   // check for both a symlink and a file because in some cases the file will be a proxied not symlinked
-  let stat = await existsSymlink(path.join(process.cwd(), 'node_modules', '.bin', 'sh-hello-world'))
+  let stat = await existsSymlink(path.resolve('node_modules', '.bin', 'sh-hello-world'))
   t.ok(!stat, 'sh-hello-world is removed from .bin')
 
-  stat = await exists(path.join(process.cwd(), 'node_modules', '.bin', 'sh-hello-world'))
+  stat = await exists(path.resolve('node_modules', '.bin', 'sh-hello-world'))
   t.ok(!stat, 'sh-hello-world is removed from .bin')
 })
 
@@ -108,12 +99,8 @@ test('keep dependencies used by others', async function (t) {
   await project.storeHasNot('map-obj', '1.0.1')
   await project.hasNot('map-obj')
 
-  const pkgJson = fs.readFileSync(path.join(process.cwd(), 'package.json'), 'utf8')
-  const dependencies = JSON.parse(pkgJson).dependencies
-  const expectedDeps = {
-    'hastscript': '^3.0.0'
-  }
-  t.deepEqual(dependencies, expectedDeps, 'camelcase-keys has been removed from dependencies')
+  const pkgJson = await readPkg()
+  t.deepEqual(pkgJson.dependencies, {'hastscript': '^3.0.0'}, 'camelcase-keys has been removed from dependencies')
 })
 
 test('keep dependency used by package', async function (t) {
