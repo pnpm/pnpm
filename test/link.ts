@@ -30,6 +30,20 @@ test('relative link', async function (t) {
   isExecutable(t, path.resolve('node_modules', '.bin', 'hello-world-js-bin'))
 })
 
+test('relative link is not rewritten by install', async function (t) {
+  const project = prepare(t)
+
+  const linkedPkgName = 'hello-world-js-bin'
+  const linkedPkgPath = path.resolve('..', linkedPkgName)
+
+  await ncp(pathToLocalPkg(linkedPkgName), linkedPkgPath)
+  await linkFromRelative(`../${linkedPkgName}`, testDefaults())
+
+  await installPkgs(['hello-world-js-bin'], testDefaults())
+
+  t.ok(project.requireModule('hello-world-js-bin/package.json').isLocal)
+})
+
 test('global link', async function (t) {
   prepare(t)
   const projectPath = process.cwd()
