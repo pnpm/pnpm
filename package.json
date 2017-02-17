@@ -23,7 +23,7 @@
     "@types/rc": "0.0.1",
     "@types/semver": "5.3.30",
     "@types/update-notifier": "1.0.0",
-    "@zkochan/cmd-shim": "2.2.1",
+    "@zkochan/cmd-shim": "2.2.2",
     "@zkochan/dirsum": "0.1.1",
     "@zkochan/hosted-git-info": "2.1.5",
     "arr-flatten": "1.0.1",
