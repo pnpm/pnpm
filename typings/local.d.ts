@@ -8,11 +8,6 @@ declare module 'proper-lockfile' {
   export = anything;
 }
 
-declare module 'delocalize-dependencies' {
-  const anything: any;
-  export = anything;
-}
-
 declare module 'camelcase-keys' {
   const anything: any;
   export = anything;

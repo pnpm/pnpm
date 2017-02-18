@@ -1,14 +1,11 @@
 import logger, {LoggedPkg} from 'pnpm-logger'
 import fs = require('mz/fs')
-import symlinkDir from 'symlink-dir'
 import path = require('path')
 import spawn = require('cross-spawn')
 import execa = require('execa')
 import {IncomingMessage} from 'http'
 import * as unpackStream from 'unpack-stream'
-
 import {Resolution} from '../resolve'
-import mkdirp = require('mkdirp-promise')
 import {Got} from '../network/got'
 import logStatus from '../logging/logInstallStatus'
 
@@ -17,7 +14,6 @@ const gitLogger = logger('git')
 const fetchLogger = logger('fetch')
 
 export type FetchOptions = {
-  linkLocal: boolean,
   loggedPkg: LoggedPkg,
   got: Got
 }
@@ -47,16 +43,11 @@ export default async function fetchResolution (
       break;
 
     case 'directory': {
-      if (opts.linkLocal) {
-        await mkdirp(path.dirname(target))
-        await symlinkDir(resolution.root, target)
-      } else {
-        const tgzFilename = await npmPack(resolution.root)
-        const tarball = path.resolve(resolution.root, tgzFilename)
-        const dist = {tarball: tarball}
-        await fetchFromLocalTarball(target, dist)
-        await fs.unlink(dist.tarball)
-      }
+      const tgzFilename = await npmPack(resolution.root)
+      const tarball = path.resolve(resolution.root, tgzFilename)
+      const dist = {tarball: tarball}
+      await fetchFromLocalTarball(target, dist)
+      await fs.unlink(dist.tarball)
       break;
     }
   }

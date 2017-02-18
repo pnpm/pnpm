@@ -11,6 +11,5 @@
 * Advanced
   * [store.yaml](store-yaml.md)
 * Recipes
-  * [Usage in monorepos](recipes/usage-in-monorepos.md)
   * [Continuous Integration](recipes/continuous-integration.md)
 * [Contributing](../CONTRIBUTING.md)

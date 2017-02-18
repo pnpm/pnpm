@@ -13,7 +13,6 @@ const defaults = () => (<StrictPnpmOptions>{
   storePath: '~/.pnpm-store',
   globalPath: DEFAULT_GLOBAL_PATH,
   ignoreScripts: false,
-  linkLocal: false,
   strictSsl: true,
   tag: 'latest',
   production: process.env.NODE_ENV === 'production',

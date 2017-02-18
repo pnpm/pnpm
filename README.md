@@ -21,7 +21,6 @@ Follow the [pnpm Twitter account](https://twitter.com/pnpmjs) for updates.
 * [Usage](#usage)
 * [Benchmark](#benchmark)
 * Recipes
-  * [Usage in monorepos](docs/recipes/usage-in-monorepos.md)
   * [Continuous Integration](docs/recipes/continuous-integration.md)
 
 ## Background

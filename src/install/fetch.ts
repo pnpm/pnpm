@@ -30,7 +30,6 @@ export type FetchedPackage = {
 export default async function fetch (
   spec: PackageSpec,
   options: {
-    linkLocal: boolean,
     root: string,
     storePath: string,
     metaCache: Map<string, PackageMeta>,
@@ -82,7 +81,6 @@ export default async function fetch (
       resolution: <Resolution>resolution,
       loggedPkg,
       got: options.got,
-      linkLocal: options.linkLocal,
     }))
 
     if (fetchingPkg == null) {
@@ -117,7 +115,6 @@ async function fetchToStore (opts: {
   resolution: Resolution,
   loggedPkg: LoggedPkg,
   got: Got,
-  linkLocal: boolean,
 }): Promise<Boolean> {
   const target = opts.target
   const targetExists = await exists(target)
@@ -142,7 +139,6 @@ async function fetchToStore (opts: {
   await fetchResolution(opts.resolution, targetStage, {
     got: opts.got,
     loggedPkg: opts.loggedPkg,
-    linkLocal: opts.linkLocal,
   })
 
   // fs.rename(oldPath, newPath) is an atomic operation, so we do it at the

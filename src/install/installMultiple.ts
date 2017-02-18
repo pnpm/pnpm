@@ -42,7 +42,6 @@ export default async function installAll (
   optionalDependencies: Dependencies,
   modules: string,
   options: {
-    linkLocal: boolean,
     force: boolean,
     root: string,
     storePath: string,
@@ -94,7 +93,6 @@ async function installMultiple (
   pkgsMap: Dependencies,
   modules: string,
   options: {
-    linkLocal: boolean,
     force: boolean,
     root: string,
     storePath: string,
@@ -179,7 +177,6 @@ async function install (
   spec: PackageSpec,
   ctx: InstallContext,
   options: {
-    linkLocal: boolean,
     force: boolean,
     root: string,
     storePath: string,
@@ -344,7 +341,6 @@ async function installDependencies (
   ctx: InstallContext,
   modules: string,
   opts: {
-    linkLocal: boolean,
     force: boolean,
     root: string,
     storePath: string,
