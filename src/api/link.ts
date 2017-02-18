@@ -1,42 +1,54 @@
 import path = require('path')
-import readPkgUp = require('read-pkg-up')
+import readPkg = require('read-pkg')
 import symlinkDir from 'symlink-dir'
 import logger from 'pnpm-logger'
 import {install} from './install'
 import expandTilde from '../fs/expandTilde'
 import {linkPkgBins} from '../install/linkBins'
-import mkdirp = require('mkdirp-promise')
 import {PnpmOptions} from '../types'
 import extendOptions from './extendOptions'
 
 const linkLogger = logger('link')
 
-export async function linkFromRelative (linkTo: string, maybeOpts?: PnpmOptions) {
+export default async function link (
+  linkFrom: string,
+  linkTo: string,
+  maybeOpts?: PnpmOptions
+) {
   const opts = extendOptions(maybeOpts)
-  const cwd = opts && opts.cwd || process.cwd()
-  const linkedPkgPath = path.resolve(cwd, linkTo)
-  const currentModules = path.resolve(cwd, 'node_modules')
-  await install(Object.assign({}, opts, { cwd: linkedPkgPath }))
-  await mkdirp(currentModules)
-  const pkg = await readPkgUp({ cwd: linkedPkgPath })
-  const dest = path.resolve(currentModules, pkg.pkg.name)
-  linkLogger.info(`${dest} -> ${linkedPkgPath}`)
-  await symlinkDir(linkedPkgPath, dest)
-  const bin = path.join(currentModules, '.bin')
-  return linkPkgBins(linkedPkgPath, bin)
+
+  await install(Object.assign({}, opts, { cwd: linkFrom }))
+
+  const destModules = path.join(linkTo, 'node_modules')
+  await linkToModules(linkFrom, destModules)
+
+  const bin = path.join(destModules, '.bin')
+  await linkPkgBins(linkFrom, bin)
 }
 
-export function linkFromGlobal (pkgName: string, maybeOpts?: PnpmOptions) {
+async function linkToModules (linkFrom: string, modules: string) {
+  const pkg = await readPkg(linkFrom)
+  const dest = path.join(modules, pkg.name)
+  linkLogger.info(`${dest} -> ${linkFrom}`)
+  await symlinkDir(linkFrom, dest)
+}
+
+export async function linkFromGlobal (
+  pkgName: string,
+  linkTo: string,
+  maybeOpts?: PnpmOptions
+) {
   const opts = extendOptions(maybeOpts)
   const globalPkgPath = expandTilde(opts.globalPath)
   const linkedPkgPath = path.join(globalPkgPath, 'node_modules', pkgName)
-  return linkFromRelative(linkedPkgPath, opts)
+  await link(linkedPkgPath, linkTo, opts)
 }
 
-export function linkToGlobal (maybeOpts?: PnpmOptions) {
+export async function linkToGlobal (
+  linkFrom: string,
+  maybeOpts?: PnpmOptions
+) {
   const opts = extendOptions(maybeOpts)
   const globalPkgPath = expandTilde(opts.globalPath)
-  return linkFromRelative(opts.cwd, Object.assign({}, opts, {
-    cwd: globalPkgPath
-  }))
+  await link(linkFrom, globalPkgPath, opts)
 }

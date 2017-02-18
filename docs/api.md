@@ -50,29 +50,31 @@ Uninstalls a package, completely removing everything pnpm installed on its behal
 * `options.saveOptional` - *Boolean* - the package will be removed from `optionalDependencies`.
 * `options.global` - *Boolean* - the packages will be uninstalled globally.
 
-## `pnpm.linkFromRelative(lintTo, [options])`
+## `pnpm.link(linkFrom, lintTo, [options])`
 
-Create a symbolic link from the linked package to the current working directory's `node_modules` (and to the `node_modules/.bin`).
-
-**Arguments:**
-
-* `options.cwd` - *String* - by default `process.cwd()`.
-
-## `pnpm.linkToGlobal([options])`
-
-Create a symbolic link from the package in the current working directory to the global `node_modules`.
+Create a symbolic link from the linked package to the target package's `node_modules` (and its `node_modules/.bin`).
 
 **Arguments:**
 
-* `options.cwd` - *String* - by default `process.cwd()`.
+* `linkFrom` - *String* - path to the package that should be linked.
+* `lintTo` - *String* - path to the dependent package.
 
-## `pnpm.linkFromGlobal(pkgName, [options])`
+## `pnpm.linkToGlobal(linkFrom, [options])`
 
-Create a symbolic link to the specified package from the global `node_modules` to the current working directory's `node_modules`.
+Create a symbolic link from the specified package to the global `node_modules`.
 
 **Arguments:**
 
-* `options.cwd` - *String* - by default `process.cwd()`.
+* `linkFrom` - *String* - path to the package that should be linked.
+
+## `pnpm.linkFromGlobal(pkgName, linkTo, [options])`
+
+Create a symbolic link from the global `pkgName` to the `linkTo/node_modules` folder.
+
+**Arguments:**
+
+* `pkgName` - *String* - package to link.
+* `linkTo` - *String* - package to link to.
 
 ## `pnpm.prune([options])`
 

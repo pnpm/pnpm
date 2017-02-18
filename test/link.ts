@@ -12,7 +12,7 @@ import thenify = require('thenify')
 import ncpCB = require('ncp')
 const ncp = thenify(ncpCB.ncp)
 import {
-  linkFromRelative,
+  link,
   linkToGlobal,
   linkFromGlobal,
   installPkgs
@@ -25,7 +25,7 @@ test('relative link', async function (t) {
   const linkedPkgPath = path.resolve('..', linkedPkgName)
 
   await ncp(pathToLocalPkg(linkedPkgName), linkedPkgPath)
-  await linkFromRelative(`../${linkedPkgName}`, testDefaults())
+  await link(`../${linkedPkgName}`, process.cwd(), testDefaults())
 
   isExecutable(t, path.resolve('node_modules', '.bin', 'hello-world-js-bin'))
 })
@@ -37,7 +37,7 @@ test('relative link is not rewritten by install', async function (t) {
   const linkedPkgPath = path.resolve('..', linkedPkgName)
 
   await ncp(pathToLocalPkg(linkedPkgName), linkedPkgPath)
-  await linkFromRelative(`../${linkedPkgName}`, testDefaults())
+  await link(`../${linkedPkgName}`, process.cwd(), testDefaults())
 
   await installPkgs(['hello-world-js-bin'], testDefaults())
 
@@ -54,11 +54,11 @@ test('global link', async function (t) {
   await ncp(pathToLocalPkg(linkedPkgName), linkedPkgPath)
 
   process.chdir(linkedPkgPath)
-  await linkToGlobal(testDefaults())
+  await linkToGlobal(process.cwd(), testDefaults())
 
   process.chdir(projectPath)
 
-  await linkFromGlobal(linkedPkgName, testDefaults())
+  await linkFromGlobal(linkedPkgName, process.cwd(), testDefaults())
 
   isExecutable(t, path.resolve('node_modules', '.bin', 'hello-world-js-bin'))
 })
