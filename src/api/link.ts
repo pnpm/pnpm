@@ -49,6 +49,7 @@ export async function linkToGlobal (
   maybeOpts?: PnpmOptions
 ) {
   const opts = extendOptions(maybeOpts)
+  opts.global = true // bins will be linked to the global bin path
   const globalPkgPath = expandTilde(opts.globalPath)
   await link(linkFrom, globalPkgPath, opts)
 }
