@@ -4,6 +4,7 @@ import {PnpmOptions} from '../types'
 import extendOptions from './extendOptions'
 import getContext from './getContext'
 import untouched from '../pkgIsUntouched'
+import {GRAPH_ENTRY} from '../fs/graphController'
 
 export default async function (maybeOpts: PnpmOptions) {
   const opts = extendOptions(maybeOpts)
@@ -18,5 +19,8 @@ export default async function (maybeOpts: PnpmOptions) {
 }
 
 function isProjectPath (pkgPath: string) {
-  return pkgPath.startsWith('/') || pkgPath[1] === ':'
+  return pkgPath === GRAPH_ENTRY ||
+    // next are for backward compatibility
+    // previous versions of .graph.yaml had the package path as the entry point
+    pkgPath.startsWith('/') || pkgPath[1] === ':'
 }

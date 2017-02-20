@@ -86,7 +86,6 @@ async function installInContext (installType: string, packagesToInstall: Depende
   const client = new RegClient(adaptConfig(opts))
 
   const installOpts = {
-    dependent: ctx.root,
     root: ctx.root,
     storePath: ctx.storePath,
     force: opts.force,

@@ -13,7 +13,7 @@ import installChecks = require('pnpm-install-checks')
 import pnpmPkg from '../pnpmPkgJson'
 import symlinkDir from 'symlink-dir'
 import exists = require('exists-file')
-import {Graph} from '../fs/graphController'
+import {Graph, GRAPH_ENTRY} from '../fs/graphController'
 import logStatus from '../logging/logInstallStatus'
 import rimraf = require('rimraf-then')
 import fs = require('mz/fs')
@@ -50,7 +50,6 @@ export default async function installAll (
     got: Got,
     keypath?: string[],
     resolvedDependencies?: ResolvedDependencies,
-    dependent: string,
     depth: number,
     engineStrict: boolean,
     nodeVersion: string,
@@ -102,7 +101,6 @@ async function installMultiple (
     keypath: string[],
     resolvedDependencies?: ResolvedDependencies,
     optional: boolean,
-    dependent: string,
     depth: number,
     engineStrict: boolean,
     nodeVersion: string,
@@ -187,7 +185,6 @@ async function install (
     pkgId?: string,
     dependencyShrinkwrap?: DependencyShrinkwrap,
     optional: boolean,
-    dependent: string,
     depth: number,
     engineStrict: boolean,
     nodeVersion: string,
@@ -230,7 +227,7 @@ async function install (
 
   addInstalledPkg(ctx.installs, dependency)
 
-  addToGraph(ctx.graph, options.dependent, dependency)
+  addToGraph(ctx.graph, keypath[keypath.length - 1], dependency)
 
   if (!ctx.installed.has(dependency.id)) {
     ctx.installed.add(dependency.id)
@@ -285,6 +282,8 @@ async function logFetchStatus(pkgRawSpec: string, fetchedPkg: FetchedPackage) {
 }
 
 function addToGraph (graph: Graph, dependent: string, dependency: InstalledPackage) {
+  dependent = dependent || GRAPH_ENTRY
+
   graph[dependent] = graph[dependent] || {}
   graph[dependent].dependencies = graph[dependent].dependencies || {}
 
@@ -350,7 +349,6 @@ async function installDependencies (
     keypath: string[],
     resolvedDependencies?: ResolvedDependencies,
     optional: boolean,
-    dependent: string,
     depth: number,
     engineStrict: boolean,
     nodeVersion: string,
@@ -359,7 +357,6 @@ async function installDependencies (
 ): Promise<InstalledPackage[]> {
   const depsInstallOpts = Object.assign({}, opts, {
     keypath: opts.keypath.concat([ dependency.id ]),
-    dependent: dependency.id,
     root: dependency.srcPath,
     fetchingFiles: dependency.fetchingFiles,
   })

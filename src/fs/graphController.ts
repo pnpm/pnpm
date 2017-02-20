@@ -4,6 +4,8 @@ import writeYamlFile = require('write-yaml-file')
 
 const graphFileName = '.graph.yaml'
 
+export const GRAPH_ENTRY = '..'
+
 export type Graph = {
   [name: string]: PackageGraph
 }

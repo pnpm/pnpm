@@ -8,7 +8,7 @@ import extendOptions from './extendOptions'
 import readPkg from '../fs/readPkg'
 import {PnpmOptions, StrictPnpmOptions, Package} from '../types'
 import lock from './lock'
-import {save as saveGraph, Graph} from '../fs/graphController'
+import {save as saveGraph, Graph, GRAPH_ENTRY} from '../fs/graphController'
 import {save as saveShrinkwrap} from '../fs/shrinkwrap'
 
 export default async function uninstallCmd (pkgsToUninstall: string[], maybeOpts?: PnpmOptions) {
@@ -31,25 +31,28 @@ export default async function uninstallCmd (pkgsToUninstall: string[], maybeOpts
 export async function uninstallInContext (pkgsToUninstall: string[], pkg: Package, ctx: PnpmContext, opts: StrictPnpmOptions) {
   pkg.dependencies = pkg.dependencies || {}
 
+  // for backward compatibility
+  const entry = ctx.graph[ctx.root] ? ctx.root : GRAPH_ENTRY
+
   // this is OK. The store might not have records for the package
   // maybe it was cloned, `pnpm install` was not executed
   // and remove is done on a package with no dependencies installed
-  ctx.graph[ctx.root] = ctx.graph[ctx.root] || {}
-  ctx.graph[ctx.root].dependencies = ctx.graph[ctx.root].dependencies || {}
+  ctx.graph[entry] = ctx.graph[entry] || {}
+  ctx.graph[entry].dependencies = ctx.graph[entry].dependencies || {}
 
   const pkgIds = <string[]>pkgsToUninstall
-    .map(dep => ctx.graph[ctx.root].dependencies[dep])
+    .map(dep => ctx.graph[entry].dependencies[dep])
     .filter(pkgId => !!pkgId)
-  const uninstalledPkgs = tryUninstall(pkgIds.slice(), ctx.graph, ctx.root)
+  const uninstalledPkgs = tryUninstall(pkgIds.slice(), ctx.graph, entry)
   await Promise.all(
     uninstalledPkgs.map(uninstalledPkg => removeBins(uninstalledPkg, ctx.storePath, ctx.root))
   )
-  if (ctx.graph[ctx.root].dependencies) {
+  if (ctx.graph[entry].dependencies) {
     pkgsToUninstall.forEach(dep => {
-      delete ctx.graph[ctx.root].dependencies[dep]
+      delete ctx.graph[entry].dependencies[dep]
     })
-    if (!Object.keys(ctx.graph[ctx.root].dependencies).length) {
-      delete ctx.graph[ctx.root].dependencies
+    if (!Object.keys(ctx.graph[entry].dependencies).length) {
+      delete ctx.graph[entry].dependencies
     }
   }
   await Promise.all(uninstalledPkgs.map(pkgId => removePkgFromStore(pkgId, ctx.storePath)))
