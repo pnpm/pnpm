@@ -24,6 +24,7 @@ import {
   ResolvedDependencies,
 } from '../fs/shrinkwrap'
 import {PackageSpec} from '../resolve'
+import linkBins from '../install/linkBins'
 
 const installCheckLogger = logger('install-check')
 
@@ -257,6 +258,15 @@ async function install (
       if (ctx.installationSequence.indexOf(dependency.id) === -1) {
         ctx.installationSequence.push(dependency.id)
       }
+    }
+
+    const binPath = path.join(dependency.hardlinkedLocation, 'node_modules', '.bin')
+    await linkBins(modules, binPath, pkg.name)
+
+    // link also the bundled dependencies` bins
+    if (pkg.bundledDependencies || pkg.bundleDependencies) {
+      const bundledModules = path.join(dependency.hardlinkedLocation, 'node_modules')
+      await linkBins(bundledModules, binPath)
     }
 
     async function pkgLinkedToStore () {
