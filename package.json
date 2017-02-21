@@ -151,5 +151,14 @@
     "ghooks": {
       "commit-msg": "node ./node_modules/validate-commit-msg/index.js"
     }
+  },
+  "greenkeeper": {
+    "ignore": [
+      "pnpm-default-reporter",
+      "pnpm-file-reporter",
+      "pnpm-install-checks",
+      "pnpm-logger",
+      "pnpm-registry-mock"
+    ]
   }
 }
