@@ -100,7 +100,7 @@
     "ncp": "^2.0.0",
     "npm-run-all": "^4.0.1",
     "npm-scripts-info": "^0.3.6",
-    "pnpm-registry-mock": "^0.1.1",
+    "pnpm-registry-mock": "^0.2.3",
     "rimraf": "^2.5.4",
     "sepia": "^2.0.2",
     "tape": "^4.6.3",

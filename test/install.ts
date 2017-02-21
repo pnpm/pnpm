@@ -625,6 +625,14 @@ test('not top-level packages should find the plugins they use', async function (
   t.equal(result.status, 0, 'standard exited with success')
 })
 
+test('bin specified in the directories property linked to .bin folder', async function (t) {
+  const project = prepare(t)
+
+  await installPkgs(['pkg-with-directories-bin'], testDefaults())
+
+  await project.isExecutable('.bin/pkg-with-directories-bin')
+})
+
 test('run js bin file', async function (t) {
   const project = prepare(t, {
     scripts: {

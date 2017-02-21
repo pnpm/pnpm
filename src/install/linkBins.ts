@@ -35,18 +35,14 @@ export async function linkPkgBins (target: string, binPath: string) {
     return
   }
 
-  if (!pkg.bin) return
-
-  const bins = binify(pkg)
+  const cmds = await binify(pkg, target)
 
   await mkdirp(binPath)
-  await Promise.all(Object.keys(bins).map(async function (bin) {
-    const externalBinPath = path.join(binPath, bin)
-    const actualBin = bins[bin]
-    const targetPath = path.join(target, actualBin)
+  await Promise.all(cmds.map(async cmd => {
+    const externalBinPath = path.join(binPath, cmd.name)
 
     const nodePath = (await getBinNodePaths(target)).join(path.delimiter)
-    return cmdShim(targetPath, externalBinPath, {nodePath})
+    return cmdShim(cmd.path, externalBinPath, {nodePath})
   }))
 }
 
