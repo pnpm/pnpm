@@ -3,7 +3,7 @@ import {PackageSpec, HostedPackageSpec, ResolveOptions, ResolveResult, Resolutio
 import hostedGitInfo = require('@zkochan/hosted-git-info')
 import logger from 'pnpm-logger'
 import path = require('path')
-import sshParse = require('ssh-parse')
+import normalizeSsh = require('normalize-ssh')
 import {Got} from '../network/got'
 
 const gitLogger = logger('git-logger')
@@ -76,7 +76,7 @@ async function resolveRef (repo: string, ref: string) {
 
 function normalizeRepoUrl (repoUrl: string) {
   const hosted = hostedGitInfo.fromUrl(repoUrl)
-  if (!hosted) return sshParse(repoUrl).href
+  if (!hosted) return normalizeSsh(repoUrl)
   return hosted.getDefaultRepresentation() == 'shortcut' ? hosted.git() : hosted.toString()
 }
 
