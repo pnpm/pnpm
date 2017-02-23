@@ -41,8 +41,6 @@ export default async function fetch (
     fetchingLocker: MemoizedFunc<Boolean>,
   }
 ): Promise<FetchedPackage> {
-  logger.debug('installing ' + spec.raw)
-
   const loggedPkg: LoggedPkg = {
     rawSpec: spec.rawSpec,
     name: spec.name,
@@ -61,6 +59,7 @@ export default async function fetch (
         storePath: options.storePath,
         metaCache: options.metaCache,
       })
+      logStatus({status: 'resolved', pkg: loggedPkg})
       // keep the shrinkwrap resolution when possible
       // to keep the original shasum
       if (pkgId !== resolveResult.id || !resolution) {
@@ -135,10 +134,13 @@ async function fetchToStore (opts: {
     await rimraf(target)
   }
 
-  logStatus({status: 'download-queued', pkg: opts.loggedPkg})
   await fetchResolution(opts.resolution, targetStage, {
     got: opts.got,
     loggedPkg: opts.loggedPkg,
+  })
+  logStatus({
+    status: 'fetched',
+    pkg: opts.loggedPkg // TODO: add version
   })
 
   // fs.rename(oldPath, newPath) is an atomic operation, so we do it at the
