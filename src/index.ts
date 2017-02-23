@@ -2,7 +2,6 @@ import chalk = require('chalk')
 import observatory = require('observatory')
 import {
   ProgressLog,
-  DownloadStatus,
   LifecycleLog,
   Log,
   InstallCheckLog,
@@ -56,11 +55,25 @@ export default function (streamParser: Object) {
     }
   })
 
+  const trackedSpecs: string[] = []
+
   function reportProgress (logObj: ProgressLog) {
     // lazy get task
     function t () {
       return getTask(logObj.pkg.rawSpec, logObj.pkg.name)
     }
+
+    if (logObj.status === 'installing') {
+      if (!logObj.keypath || logObj.keypath.length > 0) {
+        return
+      }
+      t().status(logObj.status)
+        .details('')
+      trackedSpecs.push(logObj.pkg.rawSpec)
+      return
+    }
+
+    if (trackedSpecs.indexOf(logObj.pkg.rawSpec) === -1) return
 
     // the first thing it (probably) does is wait in queue to query the npm registry
 
@@ -68,37 +81,32 @@ export default function (streamParser: Object) {
       case 'resolving':
         t().status(chalk.yellow('finding ·'))
         return
-      case 'download-queued':
+      case 'resolved':
         if (logObj.pkg.version) {
           t().status(chalk.gray('queued ' + logObj.pkg.version + ' ↓'))
           return
         }
         t().status(chalk.gray('queued ↓'))
         return
-      case 'downloading':
-      case 'download-start':
+      case 'fetching':
         if (logObj.pkg.version) {
           t().status(chalk.yellow('downloading ' + logObj.pkg.version + ' ↓'))
         } else {
           t().status(chalk.yellow('downloading ↓'))
         }
-        if (logObj.downloadStatus && logObj.downloadStatus.total && logObj.downloadStatus.done < logObj.downloadStatus.total) {
-          t().details('' + Math.round(logObj.downloadStatus.done / logObj.downloadStatus.total * 100) + '%')
+        if (logObj.progress && logObj.progress.total && logObj.progress.done < logObj.progress.total) {
+          t().details('' + Math.round(logObj.progress.done / logObj.progress.total * 100) + '%')
         } else {
           t().details('')
         }
         return
-      case 'done':
+      case 'installed':
         if (logObj.pkg.version) {
           t().status(chalk.green('' + logObj.pkg.version + ' ✓'))
             .details('')
           return
         }
         t().status(chalk.green('OK ✓')).details('')
-        return
-      case 'dependencies':
-        t().status(chalk.gray('' + logObj.pkg.version + ' ·'))
-          .details('')
         return
       case 'error':
         t().status(chalk.red('ERROR ✗'))
