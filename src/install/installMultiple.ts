@@ -195,6 +195,12 @@ async function install (
   const keypath = options.keypath || []
   const update = keypath.length <= options.depth
 
+  logStatus({
+    status: 'installing',
+    pkg: {rawSpec: spec.rawSpec, name: spec.name},
+    keypath,
+  })
+
   const fetchedPkg = await fetch(spec, Object.assign({}, options, {
     update,
     shrinkwrapResolution: options.dependencyShrinkwrap && options.dependencyShrinkwrap.resolution,
@@ -208,7 +214,6 @@ async function install (
   ctx.shrinkwrap.packages[fetchedPkg.id] = ctx.shrinkwrap.packages[fetchedPkg.id] || {}
   ctx.shrinkwrap.packages[fetchedPkg.id].resolution = fetchedPkg.resolution
 
-  logFetchStatus(spec.rawSpec, fetchedPkg)
   const pkg = await fetchedPkg.fetchingPkg
 
   if (!options.force) {
@@ -269,6 +274,8 @@ async function install (
       await linkBins(bundledModules, binPath)
     }
 
+    logStatus({ status: 'installed', pkg: {rawSpec: spec.rawSpec, name: pkg.name, version: pkg.version}})
+
     async function pkgLinkedToStore () {
       const pkgJsonPathInStore = path.join(dependency.path, 'package.json')
       if (await isSameFile(pkgJsonPath, pkgJsonPathInStore)) return true
@@ -283,12 +290,6 @@ async function install (
 async function isSameFile (file1: string, file2: string) {
   const stats = await Promise.all([fs.stat(file1), fs.stat(file2)])
   return stats[0].ino === stats[1].ino
-}
-
-async function logFetchStatus(pkgRawSpec: string, fetchedPkg: FetchedPackage) {
-  const pkg = await fetchedPkg.fetchingPkg
-  await fetchedPkg.fetchingFiles
-  logStatus({ status: 'done', pkg: {rawSpec: pkgRawSpec, name: pkg.name, version: pkg.version}})
 }
 
 function addToGraph (graph: Graph, dependent: string, dependency: InstalledPackage) {

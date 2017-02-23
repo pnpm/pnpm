@@ -106,8 +106,8 @@ export async function fetchFromRemoteTarball (dir: string, dist: PackageDist, op
   const stream: IncomingMessage = await opts.got.getStream(dist.tarball)
   await unpackStream.remote(stream, dir, {
     shasum: dist.shasum,
-    onStart: () => logStatus({status: 'download-start', pkg: opts.loggedPkg}),
-    onProgress: (done: number, total: number) => logStatus({status: 'downloading', pkg: opts.loggedPkg, downloadStatus: { done, total }})
+    onStart: () => logStatus({status: 'fetching', pkg: opts.loggedPkg}),
+    onProgress: (done: number, total: number) => logStatus({status: 'fetching', pkg: opts.loggedPkg, progress: { done, total }})
   })
   fetchLogger.debug(`finish ${dist.shasum} ${dist.tarball}`)
 }
