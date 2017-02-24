@@ -234,8 +234,10 @@ async function install (
   addInstalledPkg(ctx.installs, dependency)
 
   addToGraph(ctx.graph, keypath[keypath.length - 1], dependency)
+  let shouldLinkBins = false
 
   if (!ctx.installed.has(dependency.id)) {
+    shouldLinkBins = true
     ctx.installed.add(dependency.id)
     dependency.dependencies = await installDependencies(
       pkg,
@@ -265,15 +267,6 @@ async function install (
       }
     }
 
-    const binPath = path.join(dependency.hardlinkedLocation, 'node_modules', '.bin')
-    await linkBins(modules, binPath, pkg.name)
-
-    // link also the bundled dependencies` bins
-    if (pkg.bundledDependencies || pkg.bundleDependencies) {
-      const bundledModules = path.join(dependency.hardlinkedLocation, 'node_modules')
-      await linkBins(bundledModules, binPath)
-    }
-
     logStatus({ status: 'installed', pkg: {rawSpec: spec.rawSpec, name: pkg.name, version: pkg.version}})
 
     async function pkgLinkedToStore () {
@@ -283,6 +276,17 @@ async function install (
       return false
     }
   })
+
+  if (shouldLinkBins) {
+    const binPath = path.join(dependency.hardlinkedLocation, 'node_modules', '.bin')
+    await linkBins(modules, binPath, pkg.name)
+
+    // link also the bundled dependencies` bins
+    if (pkg.bundledDependencies || pkg.bundleDependencies) {
+      const bundledModules = path.join(dependency.hardlinkedLocation, 'node_modules')
+      await linkBins(bundledModules, binPath)
+    }
+  }
 
   return dependency
 }
