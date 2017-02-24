@@ -32,7 +32,6 @@ export type InstalledPackage = FetchedPackage & {
   pkg: Package,
   keypath: string[],
   optional: boolean,
-  dependencies: InstalledPackage[], // is needed to support flat tree
   hardlinkedLocation: string,
   modules: string,
 }
@@ -239,7 +238,7 @@ async function install (
   if (!ctx.installed.has(dependency.id)) {
     shouldLinkBins = true
     ctx.installed.add(dependency.id)
-    dependency.dependencies = await installDependencies(
+    const dependencies = await installDependencies(
       pkg,
       dependency,
       ctx,
@@ -248,8 +247,8 @@ async function install (
         resolvedDependencies: options.dependencyShrinkwrap && options.dependencyShrinkwrap.dependencies
       })
     )
-    if (dependency.dependencies.length) {
-      ctx.shrinkwrap.packages[dependency.id].dependencies = dependency.dependencies
+    if (dependencies.length) {
+      ctx.shrinkwrap.packages[dependency.id].dependencies = dependencies
         .reduce((resolutions, dep) => Object.assign(resolutions, {
           [dep.pkg.name]: dep.id
         }), {})
