@@ -8,7 +8,6 @@ import {Dependencies} from '../types'
 import memoize from '../memoize'
 import {Package} from '../types'
 import linkDir from 'link-dir'
-import mkdirp = require('mkdirp-promise')
 import installChecks = require('pnpm-install-checks')
 import pnpmPkg from '../pnpmPkgJson'
 import symlinkDir from 'symlink-dir'
@@ -71,7 +70,6 @@ export default async function installAll (
     installMultiple(ctx, optionalDependencies, modules, Object.assign({}, options, {optional: true, keypath})),
   ]))
 
-  await mkdirp(modules)
   await Promise.all(
     installedPkgs
       .map(async function (subdep) {
