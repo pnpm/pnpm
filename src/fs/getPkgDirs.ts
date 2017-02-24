@@ -1,6 +1,7 @@
 import fs = require('mz/fs')
 import path = require('path')
 import flatten = require('arr-flatten')
+import pFilter = require('p-filter')
 
 export default async function (modules: string): Promise<string[]> {
   const dirs = await getDirectories(modules)
@@ -22,10 +23,15 @@ async function getDirectories (srcPath: string): Promise<string[]> {
     }
     dirs = []
   }
-  return dirs
-    .filter(relativePath => relativePath[0] !== '.') // ignore directories like .bin, .store, etc
-    .map(relativePath => path.join(srcPath, relativePath))
-    .filter(absolutePath => fs.statSync(absolutePath).isDirectory())
+  return pFilter(
+    dirs
+      .filter(relativePath => relativePath[0] !== '.') // ignore directories like .bin, .store, etc
+      .map(relativePath => path.join(srcPath, relativePath)),
+    async (absolutePath: string) => {
+      const stats = await fs.stat(absolutePath)
+      return stats.isDirectory()
+    }
+  )
 }
 
 function isScopedPkgsDir (dirPath: string) {
