@@ -28,9 +28,10 @@ import linkBins from '../install/linkBins'
 
 const installCheckLogger = logger('install-check')
 
-export type InstalledPackage = FetchedPackage & {
+export type InstalledPackage = {
+  id: string,
   pkg: Package,
-  keypath: string[],
+  srcPath?: string,
   optional: boolean,
   hardlinkedLocation: string,
   modules: string,
@@ -54,7 +55,6 @@ export default async function installAll (
     engineStrict: boolean,
     nodeVersion: string,
     baseNodeModules: string,
-    fetchingFiles?: Promise<Boolean>,
   }
 ): Promise<InstalledPackage[]> {
   const keypath = options.keypath || []
@@ -70,10 +70,6 @@ export default async function installAll (
     installMultiple(ctx, nonOptionalDependencies, modules, Object.assign({}, options, {optional: false, keypath})),
     installMultiple(ctx, optionalDependencies, modules, Object.assign({}, options, {optional: true, keypath})),
   ]))
-
-  if (options.fetchingFiles) {
-    await options.fetchingFiles
-  }
 
   await mkdirp(modules)
   await Promise.all(
@@ -105,7 +101,6 @@ async function installMultiple (
     engineStrict: boolean,
     nodeVersion: string,
     baseNodeModules: string,
-    fetchingFiles?: Promise<Boolean>,
   }
 ): Promise<InstalledPackage[]> {
   pkgsMap = pkgsMap || {}
@@ -221,24 +216,24 @@ async function install (
 
   const modules = path.join(options.baseNodeModules, `.${fetchedPkg.id}`, 'node_modules')
 
-  const dependency: InstalledPackage = Object.assign({}, fetchedPkg, {
-    keypath,
-    dependencies: [],
+  const dependency: InstalledPackage = {
+    id: fetchedPkg.id,
+    srcPath: fetchedPkg.srcPath,
     optional: options.optional === true,
     pkg,
     hardlinkedLocation: path.join(modules, pkg.name),
     modules,
-  })
+  }
 
   addInstalledPkg(ctx.installs, dependency)
 
   addToGraph(ctx.graph, keypath[keypath.length - 1], dependency)
 
   const linking = ctx.linkingLocker(dependency.hardlinkedLocation, async function () {
-    const newlyFetched = await dependency.fetchingFiles
+    const newlyFetched = await fetchedPkg.fetchingFiles
     const pkgJsonPath = path.join(dependency.hardlinkedLocation, 'package.json')
     if (newlyFetched || options.force || !await exists(pkgJsonPath) || !await pkgLinkedToStore()) {
-      await linkDir(dependency.path, dependency.hardlinkedLocation)
+      await linkDir(fetchedPkg.path, dependency.hardlinkedLocation)
 
       if (ctx.installationSequence.indexOf(dependency.id) === -1) {
         ctx.installationSequence.push(dependency.id)
@@ -248,7 +243,7 @@ async function install (
     logStatus({ status: 'installed', pkg: {rawSpec: spec.rawSpec, name: pkg.name, version: pkg.version}})
 
     async function pkgLinkedToStore () {
-      const pkgJsonPathInStore = path.join(dependency.path, 'package.json')
+      const pkgJsonPathInStore = path.join(fetchedPkg.path, 'package.json')
       if (await isSameFile(pkgJsonPath, pkgJsonPathInStore)) return true
       logger.info(`Relinking ${dependency.hardlinkedLocation} from the store`)
       return false
@@ -372,7 +367,6 @@ async function installDependencies (
   const depsInstallOpts = Object.assign({}, opts, {
     keypath: opts.keypath.concat([ dependency.id ]),
     root: dependency.srcPath,
-    fetchingFiles: dependency.fetchingFiles,
   })
 
   const bundledDeps = pkg.bundleDependencies || pkg.bundledDependencies || []
