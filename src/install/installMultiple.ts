@@ -233,29 +233,8 @@ async function install (
   addInstalledPkg(ctx.installs, dependency)
 
   addToGraph(ctx.graph, keypath[keypath.length - 1], dependency)
-  let shouldLinkBins = false
 
-  if (!ctx.installed.has(dependency.id)) {
-    shouldLinkBins = true
-    ctx.installed.add(dependency.id)
-    const dependencies = await installDependencies(
-      pkg,
-      dependency,
-      ctx,
-      modules,
-      Object.assign({}, options, {
-        resolvedDependencies: options.dependencyShrinkwrap && options.dependencyShrinkwrap.dependencies
-      })
-    )
-    if (dependencies.length) {
-      ctx.shrinkwrap.packages[dependency.id].dependencies = dependencies
-        .reduce((resolutions, dep) => Object.assign(resolutions, {
-          [dep.pkg.name]: dep.id
-        }), {})
-    }
-  }
-
-  await ctx.linkingLocker(dependency.hardlinkedLocation, async function () {
+  const linking = ctx.linkingLocker(dependency.hardlinkedLocation, async function () {
     const newlyFetched = await dependency.fetchingFiles
     const pkgJsonPath = path.join(dependency.hardlinkedLocation, 'package.json')
     if (newlyFetched || options.force || !await exists(pkgJsonPath) || !await pkgLinkedToStore()) {
@@ -276,7 +255,26 @@ async function install (
     }
   })
 
-  if (shouldLinkBins) {
+  if (!ctx.installed.has(dependency.id)) {
+    ctx.installed.add(dependency.id)
+    const dependencies = await installDependencies(
+      pkg,
+      dependency,
+      ctx,
+      modules,
+      Object.assign({}, options, {
+        resolvedDependencies: options.dependencyShrinkwrap && options.dependencyShrinkwrap.dependencies
+      })
+    )
+    if (dependencies.length) {
+      ctx.shrinkwrap.packages[dependency.id].dependencies = dependencies
+        .reduce((resolutions, dep) => Object.assign(resolutions, {
+          [dep.pkg.name]: dep.id
+        }), {})
+    }
+
+    await linking
+
     const binPath = path.join(dependency.hardlinkedLocation, 'node_modules', '.bin')
     await linkBins(modules, binPath, pkg.name)
 
@@ -285,6 +283,8 @@ async function install (
       const bundledModules = path.join(dependency.hardlinkedLocation, 'node_modules')
       await linkBins(bundledModules, binPath)
     }
+  } else {
+    await linking
   }
 
   return dependency
