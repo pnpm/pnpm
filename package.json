@@ -63,7 +63,7 @@
     "parse-npm-tarball-url": "1.0.0",
     "path-name": "1.0.0",
     "pause-stream": "0.0.11",
-    "pnpm-default-reporter": "0.4.1",
+    "pnpm-default-reporter": "0.4.2",
     "pnpm-file-reporter": "0.0.1",
     "pnpm-install-checks": "1.1.0",
     "pnpm-logger": "0.2.0",
