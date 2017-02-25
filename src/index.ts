@@ -66,15 +66,25 @@ export default function (streamParser: Object) {
     // the first thing it (probably) does is wait in queue to query the npm registry
 
     switch (logObj.status) {
+      case 'installing':
+        t().status(chalk.gray('queued ↓'))
+        return
       case 'resolving':
         t().status(chalk.yellow('finding ·'))
         return
       case 'resolved':
         if (logObj.pkg.version) {
-          t().status(chalk.gray('queued ' + logObj.pkg.version + ' ↓'))
+          t().status(chalk.yellow('installing ' + logObj.pkg.version + ' .'))
           return
         }
-        t().status(chalk.gray('queued ↓'))
+        t().status(chalk.yellow('installing .'))
+        return
+      case 'fetched':
+        if (logObj.pkg.version) {
+          t().status(chalk.yellow('installing dependencies ' + logObj.pkg.version + ' .'))
+          return
+        }
+        t().status(chalk.yellow('installing dependencies .'))
         return
       case 'fetching':
         if (logObj.pkg.version) {
