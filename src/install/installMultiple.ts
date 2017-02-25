@@ -133,7 +133,7 @@ async function installMultiple (
           } catch (err) {
             if (options.optional) {
               logger.warn({
-                message: `Skipping failed optional dependency ${pkgId || spec.rawSpec}`,
+                message: `Skipping failed optional dependency ${pkgId || spec.raw}`,
                 err,
               })
               return null // is it OK to return null?
@@ -187,13 +187,19 @@ async function install (
   const keypath = options.keypath || []
   const update = keypath.length <= options.depth
 
+  const dependentId = keypath[keypath.length - 1]
+  const loggedPkg = {
+    rawSpec: spec.rawSpec,
+    name: spec.name,
+    dependentId,
+  }
   logStatus({
     status: 'installing',
-    pkg: {rawSpec: spec.rawSpec, name: spec.name},
-    keypath,
+    pkg: loggedPkg,
   })
 
   const fetchedPkg = await fetch(spec, Object.assign({}, options, {
+    loggedPkg,
     update,
     shrinkwrapResolution: options.dependencyShrinkwrap && options.dependencyShrinkwrap.resolution,
     fetchingLocker: ctx.fetchingLocker,
@@ -225,7 +231,7 @@ async function install (
 
   addInstalledPkg(ctx.installs, dependency)
 
-  addToGraph(ctx.graph, keypath[keypath.length - 1], dependency)
+  addToGraph(ctx.graph, dependentId, dependency)
 
   const linking = ctx.linkingLocker(dependency.hardlinkedLocation, async function () {
     const newlyFetched = await fetchedPkg.fetchingFiles
@@ -237,8 +243,6 @@ async function install (
         ctx.installationSequence.push(dependency.id)
       }
     }
-
-    logStatus({ status: 'installed', pkg: {rawSpec: spec.rawSpec, name: pkg.name, version: pkg.version}})
 
     async function pkgLinkedToStore () {
       const pkgJsonPathInStore = path.join(fetchedPkg.path, 'package.json')
@@ -276,6 +280,11 @@ async function install (
       const bundledModules = path.join(dependency.hardlinkedLocation, 'node_modules')
       await linkBins(bundledModules, binPath)
     }
+
+    logStatus({
+      status: 'installed',
+      pkg: Object.assign({}, loggedPkg, {version: pkg.version}),
+    })
   } else {
     await linking
   }

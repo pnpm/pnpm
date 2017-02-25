@@ -39,27 +39,23 @@ export default async function fetch (
     shrinkwrapResolution?: Resolution,
     pkgId?: string,
     fetchingLocker: MemoizedFunc<Boolean>,
+    loggedPkg: LoggedPkg,
   }
 ): Promise<FetchedPackage> {
-  const loggedPkg: LoggedPkg = {
-    rawSpec: spec.rawSpec,
-    name: spec.name,
-  }
-
   try {
     let fetchingPkg = null
     let resolution = options.shrinkwrapResolution
     let pkgId = options.pkgId
     if (!resolution || options.update) {
       const resolveResult = await resolve(spec, {
-        loggedPkg,
+        loggedPkg: options.loggedPkg,
         root: options.root,
         got: options.got,
         tag: options.tag,
         storePath: options.storePath,
         metaCache: options.metaCache,
       })
-      logStatus({status: 'resolved', pkg: loggedPkg})
+      logStatus({status: 'resolved', pkg: options.loggedPkg})
       // keep the shrinkwrap resolution when possible
       // to keep the original shasum
       if (pkgId !== resolveResult.id || !resolution) {
@@ -78,7 +74,7 @@ export default async function fetch (
     const fetchingFiles = options.fetchingLocker(id, () => fetchToStore({
       target,
       resolution: <Resolution>resolution,
-      loggedPkg,
+      loggedPkg: options.loggedPkg,
       got: options.got,
     }))
 
@@ -104,7 +100,7 @@ export default async function fetch (
       },
     }
   } catch (err) {
-    logStatus({status: 'error', pkg: loggedPkg})
+    logStatus({status: 'error', pkg: options.loggedPkg})
     throw err
   }
 }
