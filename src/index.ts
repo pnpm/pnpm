@@ -50,12 +50,10 @@ export default function (streamParser: Object) {
           reportError(obj)
           return
         }
-        console.log(obj['message'])
+        observatory.add(obj['message'])
         return
     }
   })
-
-  const trackedSpecs: string[] = []
 
   function reportProgress (logObj: ProgressLog) {
     // lazy get task
@@ -63,17 +61,7 @@ export default function (streamParser: Object) {
       return getTask(logObj.pkg.rawSpec, logObj.pkg.name)
     }
 
-    if (logObj.status === 'installing') {
-      if (!logObj.keypath || logObj.keypath.length > 0) {
-        return
-      }
-      t().status(logObj.status)
-        .details('')
-      trackedSpecs.push(logObj.pkg.rawSpec)
-      return
-    }
-
-    if (trackedSpecs.indexOf(logObj.pkg.rawSpec) === -1) return
+    if (logObj.pkg.dependentId) return
 
     // the first thing it (probably) does is wait in queue to query the npm registry
 
@@ -122,10 +110,10 @@ export default function (streamParser: Object) {
 
 function reportLifecycle (logObj: LifecycleLog) {
   if (logObj.level === 'error') {
-    console.log(chalk.blue(logObj.pkgId) + '! ' + chalk.gray(logObj.line))
+    observatory.add(`${chalk.blue(logObj.pkgId)}! ${chalk.gray(logObj.line)}`)
     return
   }
-  console.log(chalk.blue(logObj.pkgId) + '  ' + chalk.gray(logObj.line))
+  observatory.add(`${chalk.blue(logObj.pkgId)}  ${chalk.gray(logObj.line)}`)
 }
 
 function reportInstallCheck (logObj: InstallCheckLog) {
@@ -134,11 +122,11 @@ function reportInstallCheck (logObj: InstallCheckLog) {
       printWarn(`Unsupported system. Skipping dependency ${logObj.pkgId}`)
       break
     case 'ENOTSUP':
-      console.warn(logObj)
+      observatory.add(logObj)
       break
   }
 }
 
 function printWarn (message: string) {
-  console.log(chalk.yellow('WARN'), message)
+  observatory.add(`${chalk.yellow('WARN')} ${message}`)
 }

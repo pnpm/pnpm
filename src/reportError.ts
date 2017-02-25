@@ -2,6 +2,7 @@ import chalk = require('chalk')
 import {Log} from 'pnpm-logger'
 import commonTags = require('common-tags')
 import os = require('os')
+import observatory = require('observatory')
 
 const stripIndent = commonTags.stripIndent
 const EOL = os.EOL
@@ -28,15 +29,15 @@ export default function reportError (logObj: Log) {
         reportShrinkwrapBreakingChange(err, logObj['message'])
         return
       default:
-        console.log(formatErrorSummary(err.message || logObj['message']))
+        observatory.add(formatErrorSummary(err.message || logObj['message']))
         return
     }
   }
-  console.log(formatErrorSummary(logObj['message']))
+  observatory.add(formatErrorSummary(logObj['message']))
 }
 
 function reportUnexpectedStore (err: Error, msg: Object) {
-  console.log(stripIndent`
+  observatory.add(stripIndent`
     ${formatErrorSummary(err.message)}
 
     expected: ${highlight(msg['expectedStorePath'])}
@@ -59,7 +60,7 @@ function reportStoreBreakingChange (err: Error, msg: Object) {
   }
 
   output += formatRelatedSources(msg)
-  console.log(output)
+  observatory.add(output)
 }
 
 function reportModulesBreakingChange (err: Error, msg: Object) {
@@ -75,7 +76,7 @@ function reportModulesBreakingChange (err: Error, msg: Object) {
   }
 
   output += formatRelatedSources(msg)
-  console.log(output)
+  observatory.add(output)
 }
 
 function formatRelatedSources (msg: Object) {
@@ -101,7 +102,7 @@ function formatErrorSummary (message: string) {
 }
 
 function reportModifiedDependency (err: Error, msg: Object) {
-  console.log(stripIndent`
+  observatory.add(stripIndent`
     ${formatErrorSummary('Packages in the store have been mutated')}
 
     These packages are modified:
@@ -112,7 +113,7 @@ function reportModifiedDependency (err: Error, msg: Object) {
 }
 
 function reportShrinkwrapBreakingChange (err: Error, msg: Object) {
-  console.log(stripIndent`
+  observatory.add(stripIndent`
     ${formatErrorSummary(err.message)}
 
     Run with the ${highlight('--force')} parameter to recreate the shrinkwrap file.
