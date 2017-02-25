@@ -280,14 +280,14 @@ async function install (
       const bundledModules = path.join(dependency.hardlinkedLocation, 'node_modules')
       await linkBins(bundledModules, binPath)
     }
-
-    logStatus({
-      status: 'installed',
-      pkg: Object.assign({}, loggedPkg, {version: pkg.version}),
-    })
   } else {
     await linking
   }
+
+  logStatus({
+    status: 'installed',
+    pkg: Object.assign({}, loggedPkg, {version: pkg.version}),
+  })
 
   return dependency
 }
