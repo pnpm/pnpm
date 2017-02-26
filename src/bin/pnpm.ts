@@ -1,4 +1,7 @@
 #!/usr/bin/env node
+// Patch the global fs module here at the app level
+import '../fs/gracefulify'
+
 import loudRejection = require('loud-rejection')
 loudRejection()
 import rc = require('rc')

@@ -268,3 +268,8 @@ declare module 'normalize-ssh' {
   function normalizeSsh (url: string): string;
   export = normalizeSsh;
 }
+
+declare module 'graceful-fs' {
+  const anything: any;
+  export = anything;
+}

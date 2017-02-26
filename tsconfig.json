@@ -49,6 +49,7 @@
     "src/fs/dirsum.ts",
     "src/fs/expandTilde.ts",
     "src/fs/getPkgDirs.ts",
+    "src/fs/gracefulify.ts",
     "src/fs/graphController.ts",
     "src/fs/modulesController.ts",
     "src/fs/readPkg.ts",
