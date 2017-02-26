@@ -1,13 +1,19 @@
 import osHomedir = require('os-homedir')
 import path = require('path')
 
-export default function expandTilde (filepath: string) {
+export default function expandTilde (filepath: string, cwd?: string) {
   const home = getHomedir()
 
-  if (!isHomepath(filepath)) {
+  if (isHomepath(filepath)) {
+    return path.join(home, filepath.substr(2))
+  }
+  if (path.isAbsolute(filepath)) {
     return filepath
   }
-  return path.resolve(home, filepath.substr(2))
+  if (cwd) {
+    return path.join(cwd, filepath)
+  }
+  return path.resolve(filepath)
 }
 
 function getHomedir () {

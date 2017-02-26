@@ -35,5 +35,8 @@ export default (opts?: PnpmOptions): StrictPnpmOptions => {
   if (extendedOpts.force) {
     logger.warn('using --force I sure hope you know what you are doing')
   }
+  if (extendedOpts.localRegistry !== DEFAULT_LOCAL_REGISTRY) {
+    extendedOpts.localRegistry = expandTilde(extendedOpts.localRegistry, extendedOpts.cwd)
+  }
   return extendedOpts
 }
