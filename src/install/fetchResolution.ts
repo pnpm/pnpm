@@ -5,9 +5,13 @@ import spawn = require('cross-spawn')
 import execa = require('execa')
 import {IncomingMessage} from 'http'
 import * as unpackStream from 'unpack-stream'
+import existsFile = require('exists-file')
+import pLimit = require('p-limit')
 import {Resolution} from '../resolve'
 import {Got} from '../network/got'
 import logStatus from '../logging/logInstallStatus'
+import parseNpmTarballUrl from 'parse-npm-tarball-url'
+import {escapeHost} from '../resolve/npm/getRegistryFolderName'
 
 const gitLogger = logger('git')
 
@@ -15,7 +19,8 @@ const fetchLogger = logger('fetch')
 
 export type FetchOptions = {
   loggedPkg: LoggedPkg,
-  got: Got
+  got: Got,
+  localRegistry: string,
 }
 
 export type PackageDist = {
@@ -103,15 +108,45 @@ export function fetchFromTarball (dir: string, dist: PackageDist, opts: FetchOpt
 }
 
 export async function fetchFromRemoteTarball (dir: string, dist: PackageDist, opts: FetchOptions) {
-  const stream: IncomingMessage = await opts.got.getStream(dist.tarball)
-  await unpackStream.remote(stream, dir, {
+  const localTarballPath = getLocalTarballPath(dist.tarball, opts.localRegistry)
+  if (!await existsFile(localTarballPath)) {
+    await opts.got.download(dist.tarball, localTarballPath, {
+      shasum: dist.shasum,
+      onStart: () => logStatus({status: 'fetching', pkg: opts.loggedPkg}),
+      onProgress: (done: number, total: number) =>
+        logStatus({
+          status: 'fetching',
+          pkg: opts.loggedPkg,
+          progress: { done, total },
+        })
+    })
+  }
+  await fetchFromLocalTarball(dir, {
     shasum: dist.shasum,
-    onStart: () => logStatus({status: 'fetching', pkg: opts.loggedPkg}),
-    onProgress: (done: number, total: number) => logStatus({status: 'fetching', pkg: opts.loggedPkg, progress: { done, total }})
+    tarball: localTarballPath,
   })
   fetchLogger.debug(`finish ${dist.shasum} ${dist.tarball}`)
 }
 
-export async function fetchFromLocalTarball (dir: string, dist: PackageDist) {
-  await unpackStream.local(fs.createReadStream(dist.tarball), dir)
+function getLocalTarballPath (tarballUrl: string, localRegistry: string) {
+  const tarball = parseNpmTarballUrl(tarballUrl)
+  if (tarball) {
+    const escapedHost = escapeHost(tarball.host)
+    return path.join(localRegistry, escapedHost, tarball.pkg.name,
+      `${unscope(tarball.pkg.name)}-${tarball.pkg.version}.tgz`)
+  }
+  return path.join(localRegistry, tarballUrl.replace(/^.*:\/\/(git@)?/, ''))
+}
+
+function unscope (pkgName: string) {
+  if (pkgName[0] === '@') {
+    return pkgName.split('/')[1]
+  }
+  return pkgName
+}
+
+const limitUnpack = pLimit(1)
+
+async function fetchFromLocalTarball (dir: string, dist: PackageDist) {
+  await limitUnpack(() => unpackStream.local(fs.createReadStream(dist.tarball), dir))
 }

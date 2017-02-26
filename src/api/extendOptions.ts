@@ -26,7 +26,7 @@ const defaults = () => (<StrictPnpmOptions>{
   engineStrict: false,
   metaCache: new Map(),
   networkConcurrency: 16,
-  fetchingConcurrency: 4,
+  fetchingConcurrency: 16,
   lockStaleDuration: 60 * 1000, // 1 minute
 })
 

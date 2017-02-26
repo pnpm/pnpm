@@ -1,8 +1,11 @@
 import {IncomingMessage} from 'http'
-import pauseStream = require('pause-stream')
 import getRegistryAuthInfo = require('registry-auth-token')
 import memoize = require('lodash.memoize')
 import pLimit = require('p-limit')
+import fs = require('mz/fs')
+import crypto = require('crypto')
+import mkdirp = require('mkdirp-promise')
+import path = require('path')
 
 export type RequestParams = {
   auth?: {
@@ -18,7 +21,11 @@ export type HttpResponse = {
 }
 
 export type Got = {
-  getStream: (url: string) => Promise<IncomingMessage>,
+  download(url: string, saveto: string, opts: {
+    onStart?: () => void,
+    onProgress?: (downloaded: number, totalSize: number) => void,
+    shasum?: string
+  }): Promise<void>,
   getJSON<T>(url: string): Promise<T>,
 }
 
@@ -39,16 +46,59 @@ export default (client: NpmRegistryClient, opts: {networkConcurrency: number}): 
     }))
   }
 
-  const getStream = function (url: string): Promise<IncomingMessage> {
-    return limit(() => new Promise((resolve, reject) => {
-      client.fetch(url, createOptions(url), (err: Error, res: IncomingMessage) => {
-        if (err) return reject(err)
-        const ps = pauseStream()
-        // without pausing, gunzip/tar-fs would miss the beginning of the stream
-        res.pipe(ps.pause())
-        resolve(ps)
+  function download (url: string, saveto: string, opts: {
+    onStart?: () => void,
+    onProgress?: (downloaded: number, totalSize: number) => void,
+    shasum?: string
+  }): Promise<void> {
+    return limit(async () => {
+      const stage = `${saveto}+stage`
+      await mkdirp(path.dirname(stage))
+
+      return new Promise((resolve, reject) => {
+        client.fetch(url, createOptions(url), async (err: Error, res: IncomingMessage) => {
+          if (err) return reject(err)
+          const writeStream = fs.createWriteStream(stage)
+          const actualShasum = crypto.createHash('sha1')
+
+          res
+            .on('response', start)
+            .on('data', (_: Buffer) => { actualShasum.update(_) })
+            .on('error', reject)
+            .pipe(writeStream)
+            .on('error', reject)
+            .on('finish', finish)
+
+          function start (res: IncomingMessage) {
+            if (res.statusCode !== 200) {
+              return reject(new Error(`Invalid response: ${res.statusCode}`))
+            }
+
+            if (opts.onStart) opts.onStart()
+            if (opts.onProgress && ('content-length' in res.headers)) {
+              const onProgress = opts.onProgress
+              let downloaded = 0
+              let size = +res.headers['content-length']
+              res.on('data', (chunk: Buffer) => {
+                downloaded += chunk.length
+                onProgress(downloaded, size)
+              })
+            }
+          }
+
+          async function finish () {
+            const digest = actualShasum.digest('hex')
+            if (opts.shasum && digest !== opts.shasum) {
+              reject(new Error(`Incorrect shasum (expected ${opts.shasum}, got ${digest})`))
+              return
+            }
+
+            await fs.rename(stage, saveto)
+            resolve()
+          }
+        })
       })
-    }))
+    })
   }
 
   function createOptions (url: string): RequestParams {
@@ -75,6 +125,6 @@ export default (client: NpmRegistryClient, opts: {networkConcurrency: number}): 
 
   return {
     getJSON: memoize(getJSON),
-    getStream: getStream,
+    download,
   }
 }

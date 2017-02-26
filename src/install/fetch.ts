@@ -80,6 +80,7 @@ export default async function fetch (
       resolution: <Resolution>resolution,
       loggedPkg: options.loggedPkg,
       got: options.got,
+      localRegistry: options.localRegistry,
     }))
 
     if (fetchingPkg == null) {
@@ -114,6 +115,7 @@ async function fetchToStore (opts: {
   resolution: Resolution,
   loggedPkg: LoggedPkg,
   got: Got,
+  localRegistry: string,
 }): Promise<Boolean> {
   const target = opts.target
   const targetExists = await exists(target)
@@ -137,6 +139,7 @@ async function fetchToStore (opts: {
   await fetchResolution(opts.resolution, targetStage, {
     got: opts.got,
     loggedPkg: opts.loggedPkg,
+    localRegistry: opts.localRegistry,
   })
   logStatus({
     status: 'fetched',
