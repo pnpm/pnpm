@@ -217,7 +217,7 @@ async function createInstallCmd (opts: StrictPnpmOptions, graph: Graph, shrinkwr
     installed: new Set(),
     installationSequence: [],
     fetchingLocker: createMemoize<boolean>(opts.fetchingConcurrency),
-    linkingLocker: createMemoize<void>(16),
+    linkingLocker: createMemoize<void>(),
   }
 }
 
