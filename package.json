@@ -60,7 +60,7 @@
     "os-homedir": "1.0.2",
     "p-filter": "1.0.0",
     "p-limit": "1.1.0",
-    "parse-npm-tarball-url": "1.0.0",
+    "parse-npm-tarball-url": "1.0.1",
     "path-name": "1.0.0",
     "pause-stream": "0.0.11",
     "pnpm-default-reporter": "0.4.2",
