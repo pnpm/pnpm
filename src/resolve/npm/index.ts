@@ -1,10 +1,12 @@
 import url = require('url')
 import path = require('path')
 import semver = require('semver')
-import {PackageSpec, ResolveOptions, TarballResolution, ResolveResult} from '.'
-import logStatus from '../logging/logInstallStatus'
-import loadPkgMeta, {PackageMeta} from './utils/loadPackageMeta'
-import createPkgId from './utils/createNpmPkgId'
+import {PackageSpec, ResolveOptions, TarballResolution, ResolveResult} from '..'
+import logStatus from '../../logging/logInstallStatus'
+import loadPkgMeta, {PackageMeta} from './loadPackageMeta'
+import createPkgId from './createNpmPkgId'
+
+export {PackageMeta}
 
 /**
  * Resolves a package in the NPM registry. Done as part of `install()`.
@@ -35,7 +37,9 @@ export default async function resolveNpm (spec: PackageSpec, opts: ResolveOption
         spec.raw + '\n' + message)
       throw err
     }
-    const id = createPkgId(<string>url.parse(correctPkg.dist.tarball).host, correctPkg.name, correctPkg.version)
+    const registryHost = <string>url.parse(correctPkg.dist.tarball).host
+    const id = createPkgId(registryHost, correctPkg.name, correctPkg.version)
+
     const resolution: TarballResolution = {
       type: 'tarball',
       shasum: correctPkg.dist.shasum,

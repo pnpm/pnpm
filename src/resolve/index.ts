@@ -1,11 +1,12 @@
-import resolveFromNpm from './npm'
+import resolveFromNpm, {PackageMeta} from './npm'
 import resolveFromTarball from './tarball'
 import resolveFromLocal from './local'
 import resolveFromGit from './git'
 import {Got} from '../network/got'
 import {Package} from '../types'
-import {PackageMeta} from './utils/loadPackageMeta'
 import {LoggedPkg} from 'pnpm-logger'
+
+export {PackageMeta}
 
 /**
  * tarball hosted remotely

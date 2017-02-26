@@ -3,7 +3,11 @@ import fs = require('mz/fs')
 import {Stats} from 'fs'
 import path = require('path')
 import rimraf = require('rimraf-then')
-import resolve, {Resolution, PackageSpec} from '../resolve'
+import resolve, {
+  Resolution,
+  PackageSpec,
+  PackageMeta,
+} from '../resolve'
 import mkdirp = require('mkdirp-promise')
 import readPkg from '../fs/readPkg'
 import exists = require('exists-file')
@@ -13,7 +17,6 @@ import {Got} from '../network/got'
 import {InstallContext} from '../api/install'
 import fetchResolution from './fetchResolution'
 import logStatus from '../logging/logInstallStatus'
-import {PackageMeta} from '../resolve/utils/loadPackageMeta'
 import dirsum from '../fs/dirsum'
 import untouched from '../pkgIsUntouched'
 

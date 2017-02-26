@@ -1,5 +1,5 @@
 import {ReporterType} from './reporter'
-import {PackageMeta} from './resolve/utils/loadPackageMeta'
+import {PackageMeta} from './resolve'
 
 export type PnpmOptions = {
   cwd?: string,

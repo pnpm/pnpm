@@ -16,13 +16,12 @@ import {Graph, GRAPH_ENTRY} from '../fs/graphController'
 import logStatus from '../logging/logInstallStatus'
 import rimraf = require('rimraf-then')
 import fs = require('mz/fs')
-import {PackageMeta} from '../resolve/utils/loadPackageMeta'
 import {Got} from '../network/got'
 import {
   DependencyShrinkwrap,
   ResolvedDependencies,
 } from '../fs/shrinkwrap'
-import {PackageSpec} from '../resolve'
+import {PackageSpec, PackageMeta} from '../resolve'
 import linkBins from '../install/linkBins'
 
 const installCheckLogger = logger('install-check')
