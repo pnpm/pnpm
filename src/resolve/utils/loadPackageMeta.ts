@@ -30,7 +30,7 @@ const metafileOperationLimits = {}
 
 export default async function loadPkgMetaNonCached (
   spec: PackageSpec,
-  storePath: string,
+  localRegistry: string,
   got: Got,
   metaCache: Map<string, PackageMeta>,
 ): Promise<PackageMeta> {
@@ -39,11 +39,11 @@ export default async function loadPkgMetaNonCached (
   }
 
   const registry = (<string>url.parse(registryUrl(spec.scope)).host).replace(':', '+')
-  const pkgStore = path.join(storePath, registry, spec.name)
-  const limit = metafileOperationLimits[pkgStore] = metafileOperationLimits[pkgStore] || pLimit(1)
+  const pkgMirror = path.join(localRegistry, registry, spec.name)
+  const limit = metafileOperationLimits[pkgMirror] = metafileOperationLimits[pkgMirror] || pLimit(1)
 
   if (spec.type === 'version') {
-    const meta = await limit(() => loadMeta(pkgStore))
+    const meta = await limit(() => loadMeta(pkgMirror))
     // use the cached meta only if it has the required package version
     // otherwise it is probably out of date
     if (meta && meta.versions && meta.versions[spec.spec]) {
@@ -55,13 +55,13 @@ export default async function loadPkgMetaNonCached (
     const meta = await fromRegistry(got, spec)
     // only save meta to cache, when it is fresh
     metaCache.set(spec.name, meta)
-    limit(() => saveMeta(pkgStore, meta))
+    limit(() => saveMeta(pkgMirror, meta))
     return meta
   } catch (err) {
-    const meta = await loadMeta(storePath)
+    const meta = await loadMeta(localRegistry)
     if (!meta) throw err
     logger.error(err)
-    logger.info(`Using cached meta from ${storePath}`)
+    logger.info(`Using cached meta from ${localRegistry}`)
     return meta
   }
 }
@@ -72,18 +72,21 @@ async function fromRegistry (got: Got, spec: PackageSpec) {
   return meta
 }
 
-const META_FILENAME = 'meta.json'
+// Don't let the name confuse you, this file contains meta information
+// about all the packages published by the same name, not just the manifest
+// of one package/version
+const META_FILENAME = 'package.json'
 
-async function loadMeta (pkgStore: string): Promise<PackageMeta | null> {
+async function loadMeta (pkgMirror: string): Promise<PackageMeta | null> {
   try {
-    return await loadJsonFile(path.join(pkgStore, META_FILENAME))
+    return await loadJsonFile(path.join(pkgMirror, META_FILENAME))
   } catch (err) {
     return null
   }
 }
 
-function saveMeta (pkgStore: string, meta: PackageMeta): Promise<PackageMeta> {
-  return writeJsonFile(path.join(pkgStore, META_FILENAME), meta)
+function saveMeta (pkgMirror: string, meta: PackageMeta): Promise<PackageMeta> {
+  return writeJsonFile(path.join(pkgMirror, META_FILENAME), meta)
 }
 
 /**

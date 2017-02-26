@@ -88,6 +88,7 @@ async function installInContext (installType: string, packagesToInstall: Depende
   const installOpts = {
     root: ctx.root,
     storePath: ctx.storePath,
+    localRegistry: opts.localRegistry,
     force: opts.force,
     depth: opts.depth,
     tag: opts.tag,

@@ -32,6 +32,7 @@ export default async function fetch (
   options: {
     root: string,
     storePath: string,
+    localRegistry: string,
     metaCache: Map<string, PackageMeta>,
     tag: string,
     got: Got,
@@ -52,7 +53,7 @@ export default async function fetch (
         root: options.root,
         got: options.got,
         tag: options.tag,
-        storePath: options.storePath,
+        localRegistry: options.localRegistry,
         metaCache: options.metaCache,
       })
       logStatus({status: 'resolved', pkg: options.loggedPkg})

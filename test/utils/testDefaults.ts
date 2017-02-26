@@ -3,9 +3,10 @@ import path = require('path')
 
 export default function testDefaults (opts?: PnpmOptions): PnpmOptions & {globalPath: string, storePath: string} {
   return Object.assign({
-    storePath: path.join(process.cwd(), '..', '.store'),
-    cachePath: path.join(process.cwd(), '..', '.cache'),
+    storePath: path.resolve('..', '.store'),
+    localRegistry: path.resolve('..', '.registry'),
+    cachePath: path.resolve('..', '.cache'),
     registry: 'http://localhost:4873/',
-    globalPath: path.join(process.cwd(), '..', 'global'),
+    globalPath: path.resolve('..', 'global'),
   }, opts)
 }

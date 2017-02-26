@@ -64,7 +64,7 @@ export type HostedPackageSpec = PackageSpec & {
 export type ResolveOptions = {
   loggedPkg: LoggedPkg,
   got: Got,
-  storePath: string,
+  localRegistry: string,
   metaCache: Map<string, PackageMeta>,
   root: string,
   tag: string

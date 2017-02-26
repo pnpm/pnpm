@@ -2,8 +2,10 @@ import {StrictPnpmOptions, PnpmOptions} from '../types'
 import globalBinPath = require('global-bin-path')
 import path = require('path')
 import logger from 'pnpm-logger'
+import expandTilde from '../fs/expandTilde'
 
 const DEFAULT_GLOBAL_PATH = path.join(globalBinPath(), 'pnpm-global')
+const DEFAULT_LOCAL_REGISTRY = expandTilde('~/.pnpm-registry')
 
 const defaults = () => (<StrictPnpmOptions>{
   fetchRetries: 2,
@@ -11,6 +13,7 @@ const defaults = () => (<StrictPnpmOptions>{
   fetchRetryMintimeout: 1e4, // 10 seconds
   fetchRetryMaxtimeout: 6e4, // 1 minute
   storePath: '~/.pnpm-store',
+  localRegistry: DEFAULT_LOCAL_REGISTRY,
   globalPath: DEFAULT_GLOBAL_PATH,
   ignoreScripts: false,
   strictSsl: true,

@@ -24,7 +24,7 @@ export default async function resolveNpm (spec: PackageSpec, opts: ResolveOption
   // { raw: 'rimraf@2', scope: null, name: 'rimraf', rawSpec: '2' || '' }
   try {
     if (opts.loggedPkg) logStatus({ status: 'resolving', pkg: opts.loggedPkg })
-    const meta = await loadPkgMeta(spec, opts.storePath, opts.got, opts.metaCache)
+    const meta = await loadPkgMeta(spec, opts.localRegistry, opts.got, opts.metaCache)
     const correctPkg = pickVersion(meta, spec, opts.tag)
     if (!correctPkg) {
       const versions = Object.keys(meta.versions)
