@@ -2,10 +2,10 @@ import {IncomingMessage} from 'http'
 import getRegistryAuthInfo = require('registry-auth-token')
 import memoize = require('lodash.memoize')
 import pLimit = require('p-limit')
-import fs = require('mz/fs')
 import crypto = require('crypto')
 import mkdirp = require('mkdirp-promise')
 import path = require('path')
+import createWriteStreamAtomic = require('fs-write-stream-atomic')
 
 export type RequestParams = {
   auth?: {
@@ -52,13 +52,12 @@ export default (client: NpmRegistryClient, opts: {networkConcurrency: number}): 
     shasum?: string
   }): Promise<void> {
     return limit(async () => {
-      const stage = `${saveto}+stage`
-      await mkdirp(path.dirname(stage))
+      await mkdirp(path.dirname(saveto))
 
       return new Promise((resolve, reject) => {
         client.fetch(url, createOptions(url), async (err: Error, res: IncomingMessage) => {
           if (err) return reject(err)
-          const writeStream = fs.createWriteStream(stage)
+          const writeStream = createWriteStreamAtomic(saveto)
           const actualShasum = crypto.createHash('sha1')
 
           res
@@ -93,7 +92,6 @@ export default (client: NpmRegistryClient, opts: {networkConcurrency: number}): 
               return
             }
 
-            await fs.rename(stage, saveto)
             resolve()
           }
         })
