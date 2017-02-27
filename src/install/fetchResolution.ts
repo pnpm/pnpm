@@ -141,7 +141,18 @@ function getLocalTarballPath (tarballUrl: string, localRegistry: string) {
     return path.join(localRegistry, 'codeload.github.com', repo.owner,
       repo.name, `${repo.name}-${repo.commit}.tgz`)
   }
-  return path.join(localRegistry, tarballUrl.replace(/^.*:\/\/(git@)?/, ''))
+  return path.join(localRegistry,
+    normalizeTarballExtension(tarballUrl.replace(/^.*:\/\/(git@)?/, '')))
+}
+
+function normalizeTarballExtension (tarballUrl: string) {
+  if (tarballUrl.endsWith('.tar.gz')) {
+    return `${tarballUrl.slice(0, -7)}.tgz`
+  }
+  if (tarballUrl.endsWith('.tgz')) {
+    return tarballUrl
+  }
+  return `${tarballUrl}.tgz`
 }
 
 function unscope (pkgName: string) {
