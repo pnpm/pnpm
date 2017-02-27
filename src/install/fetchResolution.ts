@@ -11,6 +11,7 @@ import {Resolution} from '../resolve'
 import {Got} from '../network/got'
 import logStatus from '../logging/logInstallStatus'
 import parseNpmTarballUrl from 'parse-npm-tarball-url'
+import parseCodeloadUrl from 'parse-codeload-url'
 import {escapeHost} from '../resolve/npm/getRegistryFolderName'
 
 const gitLogger = logger('git')
@@ -134,6 +135,11 @@ function getLocalTarballPath (tarballUrl: string, localRegistry: string) {
     const escapedHost = escapeHost(tarball.host)
     return path.join(localRegistry, escapedHost, tarball.pkg.name,
       `${unscope(tarball.pkg.name)}-${tarball.pkg.version}.tgz`)
+  }
+  if (tarballUrl.includes('//codeload.github.com')) {
+    const repo = parseCodeloadUrl(tarballUrl)
+    return path.join(localRegistry, 'codeload.github.com', repo.owner,
+      repo.name, `${repo.name}-${repo.commit}.tgz`)
   }
   return path.join(localRegistry, tarballUrl.replace(/^.*:\/\/(git@)?/, ''))
 }
