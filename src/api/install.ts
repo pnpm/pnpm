@@ -1,6 +1,5 @@
 import rimraf = require('rimraf-then')
 import path = require('path')
-import seq = require('promisequence')
 import RegClient = require('npm-registry-client')
 import logger from 'pnpm-logger'
 import cloneDeep = require('lodash.clonedeep')
@@ -143,8 +142,9 @@ async function installInContext (installType: string, packagesToInstall: Depende
 
   // postinstall hooks
   if (!(opts.ignoreScripts || !installCtx.installationSequence || !installCtx.installationSequence.length)) {
-    await seq(
-      installCtx.installationSequence.map(async pkgId => {
+    const limitChild = pLimit(opts.childConcurrency)
+    await Promise.all(
+      installCtx.installationSequence.map(pkgId => limitChild(async () => {
         try {
           await postInstall(installCtx.installs[pkgId].hardlinkedLocation, installLogger(pkgId))
         } catch (err) {
@@ -157,7 +157,7 @@ async function installInContext (installType: string, packagesToInstall: Depende
           }
           throw err
         }
-      })
+      }))
     )
   }
   if (!opts.ignoreScripts && ctx.pkg) {
