@@ -6,7 +6,6 @@ import execa = require('execa')
 import {IncomingMessage} from 'http'
 import * as unpackStream from 'unpack-stream'
 import existsFile = require('exists-file')
-import pLimit = require('p-limit')
 import {Resolution} from '../resolve'
 import {Got} from '../network/got'
 import logStatus from '../logging/logInstallStatus'
@@ -162,8 +161,6 @@ function unscope (pkgName: string) {
   return pkgName
 }
 
-const limitUnpack = pLimit(1)
-
 async function fetchFromLocalTarball (dir: string, dist: PackageDist) {
-  await limitUnpack(() => unpackStream.local(fs.createReadStream(dist.tarball), dir))
+  await unpackStream.local(fs.createReadStream(dist.tarball), dir)
 }
