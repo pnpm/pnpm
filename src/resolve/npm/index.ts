@@ -42,7 +42,6 @@ export default async function resolveNpm (spec: PackageSpec, opts: ResolveOption
     const id = createPkgId(registryHost, correctPkg.name, correctPkg.version)
 
     const resolution: TarballResolution = {
-      type: 'tarball',
       shasum: correctPkg.dist.shasum,
       tarball: correctPkg.dist.tarball,
     }

@@ -1,4 +1,4 @@
-import {PackageSpec, ResolveOptions, Resolution, ResolveResult} from '.'
+import {PackageSpec, ResolveOptions, TarballResolution, ResolveResult} from '.'
 import parseNpmTarballUrl from 'parse-npm-tarball-url'
 
 /**
@@ -15,8 +15,7 @@ import parseNpmTarballUrl from 'parse-npm-tarball-url'
  *     resolveTarball(pkg)
  */
 export default async function resolveTarball (spec: PackageSpec, opts: ResolveOptions): Promise<ResolveResult> {
-  const resolution: Resolution = {
-    type: 'tarball',
+  const resolution: TarballResolution = {
     tarball: spec.rawSpec,
   }
 

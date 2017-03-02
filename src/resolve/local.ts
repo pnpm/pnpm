@@ -1,7 +1,13 @@
 import {resolve} from 'path'
 import * as path from 'path'
 import readPkg from '../fs/readPkg'
-import {PackageSpec, ResolveOptions, Resolution, ResolveResult} from '.'
+import {
+  PackageSpec,
+  ResolveOptions,
+  TarballResolution,
+  DirectoryResolution,
+  ResolveResult,
+} from '.'
 import fs = require('mz/fs')
 
 /**
@@ -11,8 +17,7 @@ export default async function resolveLocal (spec: PackageSpec, opts: ResolveOpti
   const dependencyPath = resolve(opts.root, spec.spec)
 
   if (dependencyPath.slice(-4) === '.tgz' || dependencyPath.slice(-7) === '.tar.gz') {
-    const resolution: Resolution = {
-      type: 'tarball',
+    const resolution: TarballResolution = {
       tarball: `file:${dependencyPath}`,
     }
     return {
@@ -22,7 +27,7 @@ export default async function resolveLocal (spec: PackageSpec, opts: ResolveOpti
   }
 
   const localPkg = await readPkg(dependencyPath)
-  const resolution: Resolution = {
+  const resolution: DirectoryResolution = {
     type: 'directory',
     root: dependencyPath,
   }

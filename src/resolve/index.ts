@@ -12,7 +12,9 @@ export {PackageMeta}
  * tarball hosted remotely
  */
 export type TarballResolution = {
-  type: 'tarball',
+  // tarball is left for backward compatibility
+  // type should not be set for tarball resolutions
+  type?: 'tarball',
   tarball: string,
   shasum?: string,
 }

@@ -44,7 +44,6 @@ test('fail when shasum from shrinkwrap does not match with the actual one', asyn
         resolution: {
           shasum: '00000000000000000000000000000000000000000',
           tarball: 'http://localhost:4873/is-negative/-/is-negative-2.1.0.tgz',
-          type: 'tarball',
         },
       },
     },

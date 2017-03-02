@@ -35,6 +35,9 @@ export default async function fetchResolution (
 ): Promise<void> {
   switch (resolution.type) {
 
+    case undefined:
+    // this case is for backward compatibility only
+    // pnpm doesn't set the type for tarball deps
     case 'tarball':
       const dist = {
         tarball: resolution.tarball,
