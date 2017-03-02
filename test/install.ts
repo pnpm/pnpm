@@ -22,7 +22,7 @@ import {
 import loadJsonFile = require('load-json-file')
 const basicPackageJson = loadJsonFile.sync(path.join(__dirname, './utils/simple-package.json'))
 import {install, installPkgs, uninstall} from '../src'
-import exists = require('exists-file')
+import exists = require('path-exists')
 import isWindows = require('is-windows')
 
 const IS_WINDOWS = isWindows()

@@ -3,7 +3,7 @@ import fs = require('fs')
 import path = require('path')
 import {stripIndent} from 'common-tags'
 import {Test} from 'tape'
-import exists = require('exists-file')
+import exists = require('path-exists')
 import loadYamlFile = require('load-yaml-file')
 import {Modules, read as readModules} from '../../src/fs/modulesController'
 import isExecutable from './isExecutable'

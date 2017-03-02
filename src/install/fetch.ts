@@ -10,7 +10,7 @@ import resolve, {
 } from '../resolve'
 import mkdirp = require('mkdirp-promise')
 import readPkg from '../fs/readPkg'
-import exists = require('exists-file')
+import exists = require('path-exists')
 import memoize, {MemoizedFunc} from '../memoize'
 import {Package} from '../types'
 import {Got} from '../network/got'

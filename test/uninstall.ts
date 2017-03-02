@@ -3,7 +3,7 @@ import promisifyTape from 'tape-promise'
 const test = promisifyTape(tape)
 import path = require('path')
 import fs = require('fs')
-import exists = require('exists-file')
+import exists = require('path-exists')
 import existsSymlink = require('exists-link')
 import readPkg = require('read-pkg')
 import {prepare, testDefaults} from './utils'

@@ -2,7 +2,7 @@ import {installPkgs, install} from '../src'
 import {prepare, addDistTag, testDefaults} from './utils'
 import tape = require('tape')
 import promisifyTape from 'tape-promise'
-import exists = require('exists-file')
+import exists = require('path-exists')
 import path = require('path')
 
 const test = promisifyTape(tape)

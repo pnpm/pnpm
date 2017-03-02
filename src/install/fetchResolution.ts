@@ -5,7 +5,7 @@ import spawn = require('cross-spawn')
 import execa = require('execa')
 import {IncomingMessage} from 'http'
 import * as unpackStream from 'unpack-stream'
-import existsFile = require('exists-file')
+import existsFile = require('path-exists')
 import {Resolution} from '../resolve'
 import {Got} from '../network/got'
 import logStatus from '../logging/logInstallStatus'

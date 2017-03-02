@@ -3,7 +3,7 @@ import tape = require('tape')
 import promisifyTape from 'tape-promise'
 const test = promisifyTape(tape)
 import spawn = require('cross-spawn')
-import exists = require('exists-file')
+import exists = require('path-exists')
 import {
   prepare,
   addDistTag,

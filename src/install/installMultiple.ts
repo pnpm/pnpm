@@ -11,7 +11,7 @@ import linkDir from 'link-dir'
 import installChecks = require('pnpm-install-checks')
 import pnpmPkg from '../pnpmPkgJson'
 import symlinkDir from 'symlink-dir'
-import exists = require('exists-file')
+import exists = require('path-exists')
 import {Graph, GRAPH_ENTRY} from '../fs/graphController'
 import logStatus from '../logging/logInstallStatus'
 import rimraf = require('rimraf-then')
