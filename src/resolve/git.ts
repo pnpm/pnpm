@@ -1,5 +1,12 @@
 import execa = require('execa')
-import {PackageSpec, HostedPackageSpec, ResolveOptions, ResolveResult, Resolution} from '.'
+import {
+  PackageSpec,
+  HostedPackageSpec,
+  ResolveOptions,
+  ResolveResult,
+  TarballResolution,
+  GitRepositoryResolution,
+} from '.'
 import hostedGitInfo = require('@zkochan/hosted-git-info')
 import logger from 'pnpm-logger'
 import path = require('path')
@@ -19,7 +26,7 @@ export default async function resolveGit (parsedSpec: PackageSpec, opts: Resolve
 
   if (!isGitHubHosted || isSsh(parsedSpec.spec)) {
     const commitId = await resolveRef(repo, ref)
-    const resolution: Resolution = {
+    const resolution: GitRepositoryResolution = {
       type: 'git-repo',
       repo,
       commitId,
@@ -53,8 +60,7 @@ export default async function resolveGit (parsedSpec: PackageSpec, opts: Resolve
     commitId = await resolveRef(repo, ref)
   }
 
-  const resolution: Resolution = {
-    type: 'tarball',
+  const resolution: TarballResolution = {
     tarball: `https://codeload.github.com/${ghSpec.owner}/${ghSpec.repo}/tar.gz/${commitId}`,
   }
   return {
