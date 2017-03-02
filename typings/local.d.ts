@@ -113,11 +113,6 @@ declare module 'anonymous-npm-registry-client' {
   export = anything;
 }
 
-declare module 'pause-stream' {
-  const anything: any;
-  export = anything;
-}
-
 declare module 'arr-flatten' {
   const anything: any;
   export = anything;
