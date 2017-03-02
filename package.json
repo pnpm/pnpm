@@ -93,7 +93,7 @@
     "caw": "^2.0.0",
     "commitizen": "^2.8.6",
     "cz-conventional-changelog": "^2.0.0",
-    "exists-link": "^1.0.0",
+    "exists-link": "^2.0.0",
     "ghooks": "^2.0.0",
     "in-publish": "^2.0.0",
     "isexe": "^1.1.2",
