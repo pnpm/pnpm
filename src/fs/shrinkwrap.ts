@@ -10,7 +10,7 @@ import union = require('lodash.union')
 const shrinkwrapLogger = logger('shrinkwrap')
 
 const SHRINKWRAP_FILENAME = 'shrinkwrap.yaml'
-const SHRINKWRAP_VERSION = 0
+const SHRINKWRAP_VERSION = 1
 
 function getDefaultShrinkwrap () {
   return {

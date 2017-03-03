@@ -19,12 +19,17 @@ import pnpmPkgJson from '../pnpmPkgJson'
 import lock from './lock'
 import {save as saveGraph, Graph} from '../fs/graphController'
 import {read as readStore, save as saveStore} from '../fs/storeController'
-import {save as saveShrinkwrap, Shrinkwrap} from '../fs/shrinkwrap'
+import {
+  save as saveShrinkwrap,
+  Shrinkwrap,
+  ResolvedDependencies,
+} from '../fs/shrinkwrap'
 import {save as saveModules} from '../fs/modulesController'
 import {tryUninstall, removePkgFromStore} from './uninstall'
 import mkdirp = require('mkdirp-promise')
 import createMemoize, {MemoizedFunc} from '../memoize'
 import linkBins from '../install/linkBins'
+import {Package} from '../types'
 
 export type InstalledPackages = {
   [name: string]: InstalledPackage
@@ -78,12 +83,33 @@ export async function installPkgs (fuzzyDeps: string[] | Dependencies, maybeOpts
   )
 }
 
+function getResolutions(
+  packagesToInstall: Dependencies,
+  resolvedSpecDeps: ResolvedDependencies
+): ResolvedDependencies {
+  return Object.keys(packagesToInstall)
+    .reduce((resolvedDeps, depName) => {
+      const spec = `${depName}@${packagesToInstall[depName]}`
+      if (resolvedSpecDeps[spec]) {
+        resolvedDeps[depName] = resolvedSpecDeps[spec]
+      }
+      return resolvedDeps
+    }, {})
+}
+
 async function installInContext (installType: string, packagesToInstall: Dependencies, ctx: PnpmContext, installCtx: InstallContext, opts: StrictPnpmOptions) {
   // TODO: ctx.graph should not be muted. installMultiple should return a new graph
   const oldGraph: Graph = cloneDeep(ctx.graph)
   const nodeModulesPath = path.join(ctx.root, 'node_modules')
   const client = new RegClient(adaptConfig(opts))
 
+  const optionalDependencies = ctx.pkg && ctx.pkg && ctx.pkg.optionalDependencies || {}
+  const resolvedDependencies: ResolvedDependencies | undefined = installType !== 'general'
+    ? undefined
+    : getResolutions(
+      Object.assign({}, optionalDependencies, packagesToInstall),
+      ctx.shrinkwrap.dependencies
+    )
   const installOpts = {
     root: ctx.root,
     storePath: ctx.storePath,
@@ -96,24 +122,19 @@ async function installInContext (installType: string, packagesToInstall: Depende
     got: createGot(client, {networkConcurrency: opts.networkConcurrency}),
     baseNodeModules: nodeModulesPath,
     metaCache: opts.metaCache,
-    resolvedDependencies: ctx.shrinkwrap.dependencies,
+    resolvedDependencies,
   }
   const pkgs: InstalledPackage[] = await installMultiple(
     installCtx,
     packagesToInstall,
-    ctx.pkg && ctx.pkg && ctx.pkg.optionalDependencies || {},
+    optionalDependencies,
     nodeModulesPath,
     installOpts
   )
-  if (pkgs && pkgs.length) {
-    ctx.shrinkwrap.dependencies = ctx.shrinkwrap.dependencies || {}
-    pkgs.forEach(dep => {
-      ctx.shrinkwrap.dependencies[dep.pkg.name] = dep.id
-    })
-  }
   const binPath = opts.global ? globalBinPath() : path.join(nodeModulesPath, '.bin')
   await linkBins(nodeModulesPath, binPath)
 
+  let newPkg: Package | undefined = ctx.pkg
   if (installType === 'named') {
     const saveType = getSaveType(opts)
     if (saveType) {
@@ -123,8 +144,34 @@ async function installInContext (installType: string, packagesToInstall: Depende
       const inputNames = Object.keys(packagesToInstall)
       const savedPackages = pkgs.filter((pkg: InstalledPackage) => inputNames.indexOf(pkg.pkg.name) > -1)
       const pkgJsonPath = path.join(ctx.root, 'package.json')
-      await save(pkgJsonPath, savedPackages, saveType, opts.saveExact)
+      newPkg = await save(pkgJsonPath, savedPackages, saveType, opts.saveExact)
     }
+  }
+
+  if (pkgs && pkgs.length && newPkg) {
+    ctx.shrinkwrap.dependencies = ctx.shrinkwrap.dependencies || {}
+
+    const deps = newPkg.dependencies || {}
+    const devDeps = newPkg.devDependencies || {}
+    const optionalDeps = newPkg.optionalDependencies || {}
+
+    const getSpecFromPkg = (depName: string) => deps[depName] || devDeps[depName] || optionalDeps[depName]
+
+    pkgs.forEach(dep => {
+      const spec = getSpecFromPkg(dep.pkg.name)
+      if (spec) {
+        ctx.shrinkwrap.dependencies[`${dep.pkg.name}@${spec}`] = dep.id
+      }
+    })
+    Object.keys(ctx.shrinkwrap.dependencies)
+      .forEach(depSpec => {
+        const parts = depSpec.split('@')
+        const depName = parts[0]
+        const currentDepSpec = parts[1]
+        if (getSpecFromPkg(depName) !== currentDepSpec) {
+          delete ctx.shrinkwrap.dependencies[depSpec]
+        }
+      })
   }
 
   const newGraph = Object.assign({}, ctx.graph)

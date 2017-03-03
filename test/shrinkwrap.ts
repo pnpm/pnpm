@@ -9,15 +9,15 @@ const test = promisifyTape(tape)
 test('shrinkwrap file has correct format', async t => {
   const project = prepare(t)
 
-  await installPkgs(['pkg-with-1-dep'], testDefaults())
+  await installPkgs(['pkg-with-1-dep'], testDefaults({save: true}))
 
   const shr = await project.loadShrinkwrap()
   const id = 'localhost+4873/pkg-with-1-dep/100.0.0'
 
-  t.equal(shr.version, 0, 'correct shrinkwrap version')
+  t.equal(shr.version, 1, 'correct shrinkwrap version')
 
   t.ok(shr.dependencies, 'has dependencies field')
-  t.equal(shr.dependencies['pkg-with-1-dep'], id, 'has dependency resolved')
+  t.equal(shr.dependencies['pkg-with-1-dep@^100.0.0'], id, 'has dependency resolved')
 
   t.ok(shr.packages, 'has packages field')
   t.ok(shr.packages[id], `has resolution for ${id}`)
@@ -35,9 +35,9 @@ test('fail when shasum from shrinkwrap does not match with the actual one', asyn
   })
 
   await writeYamlFile('shrinkwrap.yaml', {
-    version: 0,
+    version: 1,
     dependencies: {
-      'is-negative': 'localhost+4873/is-negative/2.1.0',
+      'is-negative@2.1.0': 'localhost+4873/is-negative/2.1.0',
     },
     packages: {
       'localhost+4873/is-negative/2.1.0': {
@@ -71,4 +71,8 @@ test("shrinkwrap doesn't lock subdependencies that don't satisfy the new specs",
     project.requireModule('.localhost+4873/react-datetime/1.3.0/node_modules/react-onclickoutside/package.json').version,
     '0.3.4',
     'react-datetime@1.3.0 has react-onclickoutside@0.3.4 in its node_modules')
+
+  const shr = await project.loadShrinkwrap()
+
+  t.equal(Object.keys(shr.dependencies).length, 1, 'resolutions not duplicated')
 })
