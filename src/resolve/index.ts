@@ -12,7 +12,7 @@ export {PackageMeta}
  * tarball hosted remotely
  */
 export type TarballResolution = {
-  type: 'tarball',
+  type?: undefined,
   tarball: string,
   shasum?: string,
 }

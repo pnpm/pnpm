@@ -35,7 +35,7 @@ export default async function fetchResolution (
 ): Promise<void> {
   switch (resolution.type) {
 
-    case 'tarball':
+    case undefined:
       const dist = {
         tarball: resolution.tarball,
         shasum: resolution.shasum,
