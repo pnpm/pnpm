@@ -57,3 +57,18 @@ test('fail when shasum from shrinkwrap does not match with the actual one', asyn
     t.ok(err.message.indexOf('Incorrect shasum') !== -1, 'failed with expected error')
   }
 })
+
+test("shrinkwrap doesn't lock subdependencies that don't satisfy the new specs", async t => {
+  const project = prepare(t)
+
+  // dependends on react-onclickoutside@5.9.0
+  await installPkgs(['react-datetime@2.8.8'], testDefaults({save: true}))
+
+  // dependends on react-onclickoutside@0.3.4
+  await installPkgs(['react-datetime@1.3.0'], testDefaults({save: true}))
+
+  t.equal(
+    project.requireModule('.localhost+4873/react-datetime/1.3.0/node_modules/react-onclickoutside/package.json').version,
+    '0.3.4',
+    'react-datetime@1.3.0 has react-onclickoutside@0.3.4 in its node_modules')
+})
