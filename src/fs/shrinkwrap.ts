@@ -6,6 +6,7 @@ import loadYamlFile = require('load-yaml-file')
 import writeYamlFile = require('write-yaml-file')
 import values = require('lodash.values')
 import union = require('lodash.union')
+import rimraf = require('rimraf-then')
 
 const shrinkwrapLogger = logger('shrinkwrap')
 
@@ -67,7 +68,14 @@ export async function read (pkgPath: string, opts: {force: boolean}): Promise<Sh
 
 export function save (pkgPath: string, shrinkwrap: Shrinkwrap) {
   const shrinkwrapPath = path.join(pkgPath, SHRINKWRAP_FILENAME)
+
+  // empty shrinkwrap is not saved
+  if (Object.keys(shrinkwrap.dependencies).length === 0) {
+    return rimraf(shrinkwrapPath)
+  }
+
   const prunedShr = prune(shrinkwrap)
+
   return writeYamlFile(shrinkwrapPath, prunedShr, {
     sortKeys: true,
     lineWidth: 1000,

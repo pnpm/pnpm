@@ -82,8 +82,13 @@ export default function prepare (t: Test, pkg?: Object) {
     isExecutable: function (pathToExe: string) {
       return isExecutable(t, path.join(modules, pathToExe))
     },
-    loadShrinkwrap () {
-      return loadYamlFile<any>('shrinkwrap.yaml') // tslint:disable-line
+    loadShrinkwrap: async () => {
+      try {
+        return await loadYamlFile<any>('shrinkwrap.yaml') // tslint:disable-line
+      } catch (err) {
+        if (err.code === 'ENOENT') return null
+        throw err
+      }
     },
   }
   return project
