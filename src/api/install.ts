@@ -5,6 +5,7 @@ import logger from 'pnpm-logger'
 import cloneDeep = require('lodash.clonedeep')
 import globalBinPath = require('global-bin-path')
 import pLimit = require('p-limit')
+import npa = require('npm-package-arg')
 import {PnpmOptions, StrictPnpmOptions, Dependencies} from '../types'
 import createGot from '../network/got'
 import getContext, {PnpmContext} from './getContext'
@@ -30,6 +31,7 @@ import mkdirp = require('mkdirp-promise')
 import createMemoize, {MemoizedFunc} from '../memoize'
 import linkBins from '../install/linkBins'
 import {Package} from '../types'
+import {PackageSpec} from '../resolve'
 
 export type InstalledPackages = {
   [name: string]: InstalledPackage
@@ -164,13 +166,11 @@ async function installInContext (installType: string, packagesToInstall: Depende
       }
     })
     Object.keys(ctx.shrinkwrap.dependencies)
-      .forEach(depSpec => {
-        const parts = depSpec.split('@')
-        const depName = parts[0]
-        const currentDepSpec = parts[1]
-        if (getSpecFromPkg(depName) !== currentDepSpec) {
-          delete ctx.shrinkwrap.dependencies[depSpec]
-        }
+      .map(npa)
+      .filter((depSpec: PackageSpec) => getSpecFromPkg(depSpec.name) !== depSpec.rawSpec)
+      .map((depSpec: PackageSpec) => depSpec.raw)
+      .forEach(removedDep => {
+        delete ctx.shrinkwrap.dependencies[removedDep]
       })
   }
 
