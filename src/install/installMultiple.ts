@@ -112,7 +112,7 @@ async function installMultiple (
 
   const nonLinkedPkgs = modules === options.baseNodeModules
     // only check modules on the first level
-    ? await pFilter(specs, (spec: PackageSpec) => isInnerLink(modules, spec.name))
+    ? await pFilter(specs, (spec: PackageSpec) => !spec.name || isInnerLink(modules, spec.name))
     : specs
 
   const installedPkgs: InstalledPackage[] = <InstalledPackage[]>(
@@ -151,12 +151,15 @@ async function installMultiple (
 
 async function isInnerLink (modules: string, depName: string) {
   let link: string
+  const linkPath = path.join(modules, depName)
   try {
-    link = await fs.readlink(path.join(modules, depName))
+    link = await fs.readlink(linkPath)
   } catch (err) {
     return true
   }
-  const absLink = path.isAbsolute(link) ? link : path.join(modules, link)
+  const absLink = path.isAbsolute(link)
+    ? link
+    : path.join(path.dirname(linkPath), link)
 
   if (absLink.startsWith(modules)) {
     return true
