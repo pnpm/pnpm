@@ -148,7 +148,7 @@ async function installInContext (installType: string, packagesToInstall: Depende
     }
   }
 
-  if (pkgs && pkgs.length && newPkg) {
+  if (newPkg) {
     ctx.shrinkwrap.dependencies = ctx.shrinkwrap.dependencies || {}
 
     const deps = newPkg.dependencies || {}

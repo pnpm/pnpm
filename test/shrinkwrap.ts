@@ -85,6 +85,28 @@ test('shrinkwrap not created when no deps in package.json', async t => {
   t.ok(!await project.loadShrinkwrap(), 'shrinkwrap file not created')
 })
 
+test('shrinkwrap removed when no deps in package.json', async t => {
+  const project = prepare(t)
+
+  await writeYamlFile('shrinkwrap.yaml', {
+    version: 1,
+    dependencies: {
+      'is-negative@2.1.0': 'localhost+4873/is-negative/2.1.0',
+    },
+    packages: {
+      'localhost+4873/is-negative/2.1.0': {
+        resolution: {
+          tarball: 'http://localhost:4873/is-negative/-/is-negative-2.1.0.tgz',
+        },
+      },
+    },
+  })
+
+  await install(testDefaults())
+
+  t.ok(!await project.loadShrinkwrap(), 'shrinkwrap file removed')
+})
+
 test('respects shrinkwrap.yaml for top dependencies', async t => {
   const project = prepare(t)
 
