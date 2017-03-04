@@ -2,7 +2,7 @@ import tape = require('tape')
 import promisifyTape from 'tape-promise'
 import writeYamlFile = require('write-yaml-file')
 import exists = require('path-exists')
-import {prepare, testDefaults} from './utils'
+import {prepare, testDefaults, addDistTag} from './utils'
 import {installPkgs, install} from '../src'
 
 const test = promisifyTape(tape)
@@ -83,4 +83,20 @@ test('shrinkwrap not created when no deps in package.json', async t => {
   await installPkgs(['pkg-with-1-dep'], testDefaults({save: false}))
 
   t.ok(!await project.loadShrinkwrap(), 'shrinkwrap file not created')
+})
+
+test('respects shrinkwrap.yaml for top dependencies', async t => {
+  const project = prepare(t)
+
+  await addDistTag('dep-of-pkg-with-1-dep', '100.0.0', 'latest')
+
+  await installPkgs(['dep-of-pkg-with-1-dep'], testDefaults({save: true}))
+
+  await project.storeHas('dep-of-pkg-with-1-dep', '100.0.0')
+
+  await addDistTag('dep-of-pkg-with-1-dep', '100.1.0', 'latest')
+
+  await install(testDefaults())
+
+  await project.storeHasNot('dep-of-pkg-with-1-dep', '100.1.0')
 })

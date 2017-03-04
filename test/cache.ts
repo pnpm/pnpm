@@ -10,18 +10,17 @@ const test = promisifyTape(tape)
 test('should fail to update when requests are cached', async function (t) {
   const project = prepare(t)
 
-  const latest = 'stable'
   const metaCache = new Map()
 
-  await addDistTag('dep-of-pkg-with-1-dep', '100.0.0', latest)
+  await addDistTag('dep-of-pkg-with-1-dep', '100.0.0', 'latest')
 
-  await installPkgs(['pkg-with-1-dep'], testDefaults({save: true, tag: latest, metaCache}))
+  await installPkgs(['pkg-with-1-dep'], testDefaults({save: true, metaCache}))
 
   await project.storeHas('dep-of-pkg-with-1-dep', '100.0.0')
 
-  await addDistTag('dep-of-pkg-with-1-dep', '100.1.0', latest)
+  await addDistTag('dep-of-pkg-with-1-dep', '100.1.0', 'latest')
 
-  await install(testDefaults({depth: 1, tag: latest, metaCache}))
+  await install(testDefaults({depth: 1, metaCache}))
 
   await project.storeHas('dep-of-pkg-with-1-dep', '100.0.0')
 })
@@ -29,17 +28,15 @@ test('should fail to update when requests are cached', async function (t) {
 test('should not cache when cache is not used', async function (t) {
   const project = prepare(t)
 
-  const latest = 'stable'
+  await addDistTag('dep-of-pkg-with-1-dep', '100.0.0', 'latest')
 
-  await addDistTag('dep-of-pkg-with-1-dep', '100.0.0', latest)
-
-  await installPkgs(['pkg-with-1-dep'], testDefaults({save: true, tag: latest}))
+  await installPkgs(['pkg-with-1-dep'], testDefaults({save: true}))
 
   await project.storeHas('dep-of-pkg-with-1-dep', '100.0.0')
 
-  await addDistTag('dep-of-pkg-with-1-dep', '100.1.0', latest)
+  await addDistTag('dep-of-pkg-with-1-dep', '100.1.0', 'latest')
 
-  await install(testDefaults({depth: 1, tag: latest}))
+  await install(testDefaults({depth: 1}))
 
   await project.storeHas('dep-of-pkg-with-1-dep', '100.1.0')
 })

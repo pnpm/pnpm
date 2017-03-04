@@ -22,17 +22,15 @@ test('return error status code when underlying command fails', t => {
 test('update', async function (t) {
   const project = prepare(t)
 
-  const latest = 'stable'
+  await addDistTag('dep-of-pkg-with-1-dep', '100.0.0', 'latest')
 
-  await addDistTag('dep-of-pkg-with-1-dep', '100.0.0', latest)
-
-  await execPnpm('install', 'pkg-with-1-dep', '-S', '--tag', latest, '--cache-ttl', '0')
+  await execPnpm('install', 'pkg-with-1-dep', '-S')
 
   await project.storeHas('dep-of-pkg-with-1-dep', '100.0.0')
 
-  await addDistTag('dep-of-pkg-with-1-dep', '100.1.0', latest)
+  await addDistTag('dep-of-pkg-with-1-dep', '100.1.0', 'latest')
 
-  await execPnpm('update', '--depth', '1', '--tag', latest)
+  await execPnpm('update', '--depth', '1')
 
   await project.storeHas('dep-of-pkg-with-1-dep', '100.1.0')
 })

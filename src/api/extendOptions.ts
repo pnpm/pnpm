@@ -22,7 +22,7 @@ const defaults = () => (<StrictPnpmOptions>{
   cwd: process.cwd(),
   nodeVersion: process.version,
   force: false,
-  depth: 0,
+  depth: -1, // respect everything that is in shrinkwrap.yaml by default
   engineStrict: false,
   metaCache: new Map(),
   networkConcurrency: 16,
