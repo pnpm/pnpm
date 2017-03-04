@@ -10,7 +10,7 @@ const test = promisifyTape(tape)
 test('shrinkwrap file has correct format', async t => {
   const project = prepare(t)
 
-  await installPkgs(['pkg-with-1-dep'], testDefaults({save: true}))
+  await installPkgs(['pkg-with-1-dep', '@rstacruz/tap-spec@4.1.1'], testDefaults({save: true}))
 
   const shr = await project.loadShrinkwrap()
   const id = 'localhost+4873/pkg-with-1-dep/100.0.0'
@@ -19,6 +19,7 @@ test('shrinkwrap file has correct format', async t => {
 
   t.ok(shr.dependencies, 'has dependencies field')
   t.equal(shr.dependencies['pkg-with-1-dep@^100.0.0'], id, 'has dependency resolved')
+  t.ok(shr.dependencies['@rstacruz/tap-spec@^4.1.1'], 'has scoped dependency resolved')
 
   t.ok(shr.packages, 'has packages field')
   t.ok(shr.packages[id], `has resolution for ${id}`)
