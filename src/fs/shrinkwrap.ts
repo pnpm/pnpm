@@ -7,6 +7,7 @@ import writeYamlFile = require('write-yaml-file')
 import values = require('lodash.values')
 import union = require('lodash.union')
 import rimraf = require('rimraf-then')
+import isCI = require('is-ci')
 
 const shrinkwrapLogger = logger('shrinkwrap')
 
@@ -59,7 +60,7 @@ export async function read (pkgPath: string, opts: {force: boolean}): Promise<Sh
   if (shrinkwrap && shrinkwrap.version === SHRINKWRAP_VERSION) {
     return shrinkwrap
   }
-  if (opts.force) {
+  if (opts.force || isCI) {
     shrinkwrapLogger.warn(`Ignoring not compatible shrinkwrap file at ${shrinkwrapPath}`)
     return getDefaultShrinkwrap()
   }
