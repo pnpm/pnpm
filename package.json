@@ -81,7 +81,7 @@
     "unpack-stream": "1.1.0",
     "update-notifier": "2.1.0",
     "write-json-file": "2.0.0",
-    "write-pkg": "2.0.0",
+    "write-pkg": "2.1.0",
     "write-yaml-file": "1.0.0"
   },
   "devDependencies": {
