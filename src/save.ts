@@ -1,6 +1,5 @@
 import {ignoreCache as readPkg} from './fs/readPkg'
 import writePkg = require('write-pkg')
-import sortedObject = require('sorted-object')
 import {DependenciesType} from './getSaveType'
 import {InstalledPackage} from './install/installMultiple'
 
@@ -12,7 +11,6 @@ export default async function save (pkgJsonPath: string, installedPackages: Inst
     const semverCharacter = useExactVersion ? '' : '^'
     packageJson[saveType][dependency.pkg.name] = semverCharacter + dependency.pkg.version
   })
-  packageJson[saveType] = sortedObject(packageJson[saveType])
 
   return writePkg(pkgJsonPath, packageJson)
 }
