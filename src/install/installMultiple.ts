@@ -23,6 +23,7 @@ import {
 } from '../fs/shrinkwrap'
 import {PackageSpec, PackageMeta} from '../resolve'
 import linkBins from '../install/linkBins'
+import getLinkTarget = require('get-link-target')
 
 const installCheckLogger = logger('install-check')
 
@@ -150,21 +151,19 @@ async function installMultiple (
 }
 
 async function isInnerLink (modules: string, depName: string) {
-  let link: string
-  const linkPath = path.join(modules, depName)
+  let linkTarget: string
   try {
-    link = await fs.readlink(linkPath)
+    const linkPath = path.join(modules, depName)
+    linkTarget = await getLinkTarget(linkPath)
   } catch (err) {
-    return true
+    if (err.code === 'ENOENT') return true
+    throw err
   }
-  const absLink = path.isAbsolute(link)
-    ? link
-    : path.join(path.dirname(linkPath), link)
 
-  if (absLink.startsWith(modules)) {
+  if (linkTarget.startsWith(modules)) {
     return true
   }
-  logger.info(`${depName} is linked to ${modules} from ${link}`)
+  logger.info(`${depName} is linked to ${modules} from ${linkTarget}`)
   return false
 }
 

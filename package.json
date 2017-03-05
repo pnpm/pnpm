@@ -35,6 +35,7 @@
     "execa": "0.6.0",
     "find-up": "2.1.0",
     "fs-write-stream-atomic": "1.0.8",
+    "get-link-target": "1.0.0",
     "global-bin-path": "0.1.1",
     "graceful-fs": "4.1.11",
     "is-ci": "1.0.10",
