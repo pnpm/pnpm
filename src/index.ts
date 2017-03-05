@@ -14,12 +14,13 @@ export default function (streamParser: Object) {
   const tasks = {}
 
   function getTask (pkgRawSpec: string, pkgName: string) {
-    if (tasks[pkgRawSpec]) return tasks[pkgRawSpec]
+    const taskId = `${pkgName}/${pkgRawSpec}`
+    if (tasks[taskId]) return tasks[taskId]
     const task = observatory.add(
       (pkgName ? (pkgName + ' ') : '') +
       chalk.gray(pkgRawSpec || ''))
     task.status(chalk.gray('·'))
-    tasks[pkgRawSpec] = task
+    tasks[taskId] = task
     return task
   }
 
