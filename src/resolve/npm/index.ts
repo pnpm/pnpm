@@ -28,7 +28,7 @@ export default async function resolveNpm (spec: PackageSpec, opts: ResolveOption
   try {
     if (opts.loggedPkg) logStatus({ status: 'resolving', pkg: opts.loggedPkg })
     const meta = await loadPkgMeta(spec, opts.localRegistry, opts.got, opts.metaCache)
-    const correctPkg = pickVersion(meta, spec, opts.tag)
+    const correctPkg = pickVersion(meta, spec)
     if (!correctPkg) {
       const versions = Object.keys(meta.versions)
       const message = versions.length
@@ -54,11 +54,11 @@ export default async function resolveNpm (spec: PackageSpec, opts: ResolveOption
   }
 }
 
-function pickVersion (meta: PackageMeta, dep: PackageSpec, latestTag: string) {
+function pickVersion (meta: PackageMeta, dep: PackageSpec) {
   if (dep.type === 'tag') {
     return pickVersionByTag(meta, dep.spec)
   }
-  return pickVersionByVersionRange(meta, dep.spec, latestTag)
+  return pickVersionByVersionRange(meta, dep.spec)
 }
 
 function pickVersionByTag(meta: PackageMeta, tag: string) {
@@ -69,8 +69,8 @@ function pickVersionByTag(meta: PackageMeta, tag: string) {
   return null
 }
 
-function pickVersionByVersionRange(meta: PackageMeta, versionRange: string, latestTag: string) {
-  const latest = meta['dist-tags'][latestTag]
+function pickVersionByVersionRange(meta: PackageMeta, versionRange: string) {
+  const latest = meta['dist-tags']['latest']
   if (semver.satisfies(latest, versionRange, true)) {
     return meta.versions[latest]
   }

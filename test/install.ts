@@ -57,6 +57,18 @@ test('scoped modules without version spec (@rstacruz/tap-spec)', async function 
   t.ok(typeof _ === 'function', 'tap-spec is available')
 })
 
+test('modules without version spec, with custom tag config', async function (t) {
+  const project = prepare(t)
+
+  const tag = 'beta'
+
+  await addDistTag('dep-of-pkg-with-1-dep', '100.0.0', tag)
+
+  await installPkgs(['dep-of-pkg-with-1-dep'], testDefaults({tag}))
+
+  await project.storeHas('dep-of-pkg-with-1-dep', '100.0.0')
+})
+
 test('scoped modules with versions (@rstacruz/tap-spec@4.1.1)', async function (t) {
   const project = prepare(t)
   await installPkgs(['@rstacruz/tap-spec@4.1.1'], testDefaults())

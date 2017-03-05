@@ -37,7 +37,6 @@ export default async function fetch (
     storePath: string,
     localRegistry: string,
     metaCache: Map<string, PackageMeta>,
-    tag: string,
     got: Got,
     update?: boolean,
     shrinkwrapResolution?: Resolution,
@@ -55,7 +54,6 @@ export default async function fetch (
         loggedPkg: options.loggedPkg,
         root: options.root,
         got: options.got,
-        tag: options.tag,
         localRegistry: options.localRegistry,
         metaCache: options.metaCache,
       })

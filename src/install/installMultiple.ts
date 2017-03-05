@@ -1,7 +1,7 @@
 import path = require('path')
-import npa = require('npm-package-arg')
 import logger from 'pnpm-logger'
 import pFilter = require('p-filter')
+import R = require('ramda')
 import fetch, {FetchedPackage} from './fetch'
 import {InstallContext, InstalledPackages} from '../api/install'
 import {Dependencies} from '../types'
@@ -24,6 +24,7 @@ import {
 import {PackageSpec, PackageMeta} from '../resolve'
 import linkBins from '../install/linkBins'
 import getLinkTarget = require('get-link-target')
+import depsToSpecs from '../depsToSpecs'
 
 const installCheckLogger = logger('install-check')
 
@@ -38,8 +39,8 @@ export type InstalledPackage = {
 
 export default async function installAll (
   ctx: InstallContext,
-  dependencies: Dependencies,
-  optionalDependencies: Dependencies,
+  specs: PackageSpec[],
+  optionalDependencies: string[],
   modules: string,
   options: {
     force: boolean,
@@ -47,7 +48,6 @@ export default async function installAll (
     storePath: string,
     localRegistry: string,
     metaCache: Map<string, PackageMeta>,
-    tag: string,
     got: Got,
     keypath?: string[],
     resolvedDependencies?: ResolvedDependencies,
@@ -59,16 +59,13 @@ export default async function installAll (
 ): Promise<InstalledPackage[]> {
   const keypath = options.keypath || []
 
-  const nonOptionalDependencies = Object.keys(dependencies)
-    .filter(depName => !optionalDependencies[depName])
-    .reduce((nonOptionalDependencies, depName) => {
-      nonOptionalDependencies[depName] = dependencies[depName]
-      return nonOptionalDependencies
-    }, {})
+  const specGroups = R.partition((spec: PackageSpec) => !!spec.name && R.contains(spec.name, optionalDependencies), specs)
+  const optionalDepSpecs = specGroups[0]
+  const nonOptionalDepSpecs = specGroups[1]
 
   const installedPkgs: InstalledPackage[] = Array.prototype.concat.apply([], await Promise.all([
-    installMultiple(ctx, nonOptionalDependencies, modules, Object.assign({}, options, {optional: false, keypath})),
-    installMultiple(ctx, optionalDependencies, modules, Object.assign({}, options, {optional: true, keypath})),
+    installMultiple(ctx, nonOptionalDepSpecs, modules, Object.assign({}, options, {optional: false, keypath})),
+    installMultiple(ctx, optionalDepSpecs, modules, Object.assign({}, options, {optional: true, keypath})),
   ]))
 
   await Promise.all(
@@ -84,7 +81,7 @@ export default async function installAll (
 
 async function installMultiple (
   ctx: InstallContext,
-  pkgsMap: Dependencies,
+  specs: PackageSpec[],
   modules: string,
   options: {
     force: boolean,
@@ -92,7 +89,6 @@ async function installMultiple (
     storePath: string,
     localRegistry: string,
     metaCache: Map<string, PackageMeta>,
-    tag: string,
     got: Got,
     keypath: string[],
     resolvedDependencies?: ResolvedDependencies,
@@ -103,13 +99,7 @@ async function installMultiple (
     baseNodeModules: string,
   }
 ): Promise<InstalledPackage[]> {
-  pkgsMap = pkgsMap || {}
-
-  const pkgs = Object.keys(pkgsMap).map(pkgName => getRawSpec(pkgName, pkgsMap[pkgName]))
-
   ctx.graph = ctx.graph || {}
-
-  const specs = pkgs.map(npa)
 
   const nonLinkedPkgs = modules === options.baseNodeModules
     // only check modules on the first level
@@ -176,7 +166,6 @@ async function install (
     storePath: string,
     localRegistry: string,
     metaCache: Map<string, PackageMeta>,
-    tag: string,
     got: Got,
     keypath: string[],
     pkgId?: string,
@@ -365,7 +354,6 @@ async function installDependencies (
     storePath: string,
     localRegistry: string,
     metaCache: Map<string, PackageMeta>,
-    tag: string,
     got: Got,
     keypath: string[],
     resolvedDependencies?: ResolvedDependencies,
@@ -383,8 +371,8 @@ async function installDependencies (
 
   const bundledDeps = pkg.bundleDependencies || pkg.bundledDependencies || []
   const filterDeps = getNotBundledDeps.bind(null, bundledDeps)
-  const deps = filterDeps(pkg.dependencies || {})
-  const optionalDeps = filterDeps(pkg.optionalDependencies || {})
+  const deps = depsToSpecs(filterDeps(Object.assign({}, pkg.optionalDependencies, pkg.dependencies)))
+  const optionalDeps = Object.keys(pkg.optionalDependencies || {})
 
   const installedDeps: InstalledPackage[] = await installAll(ctx, deps, optionalDeps, modules, depsInstallOpts)
 
@@ -406,8 +394,4 @@ function addInstalledPkg (installs: InstalledPackages, newPkg: InstalledPackage)
     return
   }
   installs[newPkg.id].optional = installs[newPkg.id].optional && newPkg.optional
-}
-
-function getRawSpec (name: string, version: string) {
-  return version === '*' ? name : `${name}@${version}`
 }

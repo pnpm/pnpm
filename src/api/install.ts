@@ -32,6 +32,7 @@ import createMemoize, {MemoizedFunc} from '../memoize'
 import linkBins from '../install/linkBins'
 import {Package} from '../types'
 import {PackageSpec} from '../resolve'
+import depsToSpecs from '../depsToSpecs'
 
 export type InstalledPackages = {
   [name: string]: InstalledPackage
@@ -53,12 +54,18 @@ export async function install (maybeOpts?: PnpmOptions) {
   const installCtx = await createInstallCmd(opts, ctx.graph, ctx.shrinkwrap)
 
   if (!ctx.pkg) throw new Error('No package.json found')
-  const packagesToInstall = Object.assign({}, ctx.pkg.dependencies || {})
-  if (!opts.production) Object.assign(packagesToInstall, ctx.pkg.devDependencies || {})
+  const optionalDeps = ctx.pkg.optionalDependencies || {}
+  const depsToInstall = Object.assign(
+    {},
+    !opts.production && ctx.pkg.devDependencies,
+    optionalDeps,
+    ctx.pkg.dependencies
+  )
+  const specs = depsToSpecs(depsToInstall)
 
   return lock(
     ctx.storePath,
-    () => installInContext('general', packagesToInstall, ctx, installCtx, opts),
+    () => installInContext('general', specs, Object.keys(optionalDeps), ctx, installCtx, opts),
     {stale: opts.lockStaleDuration}
   )
 }
@@ -70,46 +77,65 @@ export async function install (maybeOpts?: PnpmOptions) {
  *     install({'lodash': '1.0.0', 'foo': '^2.1.0' }, { silent: true })
  */
 export async function installPkgs (fuzzyDeps: string[] | Dependencies, maybeOpts?: PnpmOptions) {
-  let packagesToInstall = mapify(fuzzyDeps)
+  const opts = extendOptions(maybeOpts)
+  let packagesToInstall = Array.isArray(fuzzyDeps)
+    ? argsToSpecs(fuzzyDeps, opts.tag)
+    : depsToSpecs(fuzzyDeps)
+
   if (!Object.keys(packagesToInstall).length) {
     throw new Error('At least one package has to be installed')
   }
-  const opts = extendOptions(maybeOpts)
   const ctx = await getContext(opts)
   const installCtx = await createInstallCmd(opts, ctx.graph, ctx.shrinkwrap)
 
   return lock(
     ctx.storePath,
-    () => installInContext('named', packagesToInstall, ctx, installCtx, opts),
+    () => installInContext('named', packagesToInstall, [], ctx, installCtx, opts),
     {stale: opts.lockStaleDuration}
   )
 }
 
+function argsToSpecs (args: string[], defaultTag: string): PackageSpec[] {
+  return args
+    .map(arg => npa(arg))
+    .map(spec => {
+      if (spec.type === 'tag' && !spec.raw.endsWith('@latest')) {
+        spec.spec = defaultTag
+      }
+      return spec
+    })
+}
+
 function getResolutions(
-  packagesToInstall: Dependencies,
+  packagesToInstall: PackageSpec[],
   resolvedSpecDeps: ResolvedDependencies
 ): ResolvedDependencies {
-  return Object.keys(packagesToInstall)
-    .reduce((resolvedDeps, depName) => {
-      const spec = `${depName}@${packagesToInstall[depName]}`
-      if (resolvedSpecDeps[spec]) {
-        resolvedDeps[depName] = resolvedSpecDeps[spec]
+  return packagesToInstall
+    .reduce((resolvedDeps, depSpec) => {
+      if (resolvedSpecDeps[depSpec.raw]) {
+        resolvedDeps[depSpec.name] = resolvedSpecDeps[depSpec.raw]
       }
       return resolvedDeps
     }, {})
 }
 
-async function installInContext (installType: string, packagesToInstall: Dependencies, ctx: PnpmContext, installCtx: InstallContext, opts: StrictPnpmOptions) {
+async function installInContext (
+  installType: string,
+  packagesToInstall: PackageSpec[],
+  optionalDependencies: string[],
+  ctx: PnpmContext,
+  installCtx: InstallContext,
+  opts: StrictPnpmOptions
+) {
   // TODO: ctx.graph should not be muted. installMultiple should return a new graph
   const oldGraph: Graph = cloneDeep(ctx.graph)
   const nodeModulesPath = path.join(ctx.root, 'node_modules')
   const client = new RegClient(adaptConfig(opts))
 
-  const optionalDependencies = ctx.pkg && ctx.pkg && ctx.pkg.optionalDependencies || {}
   const resolvedDependencies: ResolvedDependencies | undefined = installType !== 'general'
     ? undefined
     : getResolutions(
-      Object.assign({}, optionalDependencies, packagesToInstall),
+      packagesToInstall,
       ctx.shrinkwrap.dependencies
     )
   const installOpts = {
@@ -118,7 +144,6 @@ async function installInContext (installType: string, packagesToInstall: Depende
     localRegistry: opts.localRegistry,
     force: opts.force,
     depth: opts.depth,
-    tag: opts.tag,
     engineStrict: opts.engineStrict,
     nodeVersion: opts.nodeVersion,
     got: createGot(client, {networkConcurrency: opts.networkConcurrency}),
@@ -143,10 +168,8 @@ async function installInContext (installType: string, packagesToInstall: Depende
       if (!ctx.pkg) {
         throw new Error('Cannot save because no package.json found')
       }
-      const inputNames = Object.keys(packagesToInstall)
-      const savedPackages = pkgs.filter((pkg: InstalledPackage) => inputNames.indexOf(pkg.pkg.name) > -1)
       const pkgJsonPath = path.join(ctx.root, 'package.json')
-      newPkg = await save(pkgJsonPath, savedPackages, saveType, opts.saveExact)
+      newPkg = await save(pkgJsonPath, pkgs.map(pkg => pkg.pkg), saveType, opts.saveExact)
     }
   }
 
@@ -314,20 +337,4 @@ function installLogger (pkgId: string) {
     const logLevel = stream === 'stderr' ? 'error' : 'info'
     lifecycleLogger[logLevel]({pkgId, line})
   }
-}
-
-function mapify (pkgs: string[] | Dependencies): Dependencies {
-  if (!pkgs) return {}
-  if (Array.isArray(pkgs)) {
-    return pkgs.reduce((pkgsMap: Dependencies, pkgRequest: string) => {
-      const matches = /(@?[^@]+)@(.*)/.exec(pkgRequest)
-      if (!matches) {
-        pkgsMap[pkgRequest] = '*'
-      } else {
-        pkgsMap[matches[1]] = matches[2]
-      }
-      return pkgsMap
-    }, {})
-  }
-  return pkgs
 }
