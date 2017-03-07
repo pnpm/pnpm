@@ -1,6 +1,6 @@
 import {IncomingMessage} from 'http'
 import getRegistryAuthInfo = require('registry-auth-token')
-import memoize = require('lodash.memoize')
+import R = require('ramda')
 import pLimit = require('p-limit')
 import crypto = require('crypto')
 import mkdirp = require('mkdirp-promise')
@@ -122,7 +122,7 @@ export default (client: NpmRegistryClient, opts: {networkConcurrency: number}): 
   }
 
   return {
-    getJSON: memoize(getJSON),
+    getJSON: <any>R.memoize(getJSON), // tslint:disable-line
     download,
   }
 }

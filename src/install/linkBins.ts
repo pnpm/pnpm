@@ -10,7 +10,7 @@ import cmdShim = require('@zkochan/cmd-shim')
 import {Package} from '../types'
 import logger from 'pnpm-logger'
 import Module = require('module')
-import union = require('lodash.union')
+import R = require('ramda')
 
 const IS_WINDOWS = isWindows()
 
@@ -49,7 +49,7 @@ export async function linkPkgBins (target: string, binPath: string) {
 async function getBinNodePaths (target: string) {
   const targetRealPath = await fs.realpath(target)
 
-  return union(
+  return R.union(
     Module._nodeModulePaths(targetRealPath),
     Module._nodeModulePaths(target)
   )

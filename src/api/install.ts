@@ -2,10 +2,10 @@ import rimraf = require('rimraf-then')
 import path = require('path')
 import RegClient = require('npm-registry-client')
 import logger from 'pnpm-logger'
-import cloneDeep = require('lodash.clonedeep')
 import globalBinPath = require('global-bin-path')
 import pLimit = require('p-limit')
 import npa = require('npm-package-arg')
+import R = require('ramda')
 import {PnpmOptions, StrictPnpmOptions, Dependencies} from '../types'
 import createGot from '../network/got'
 import getContext, {PnpmContext} from './getContext'
@@ -128,7 +128,7 @@ async function installInContext (
   opts: StrictPnpmOptions
 ) {
   // TODO: ctx.graph should not be muted. installMultiple should return a new graph
-  const oldGraph: Graph = cloneDeep(ctx.graph)
+  const oldGraph: Graph = R.clone(ctx.graph)
   const nodeModulesPath = path.join(ctx.root, 'node_modules')
   const client = new RegClient(adaptConfig(opts))
 

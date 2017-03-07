@@ -113,21 +113,6 @@ declare module 'arr-flatten' {
   export = anything;
 }
 
-declare module 'lodash.clonedeep' {
-  const anything: any;
-  export = anything;
-}
-
-declare module 'lodash.union' {
-  const anything: any;
-  export = anything;
-}
-
-declare module 'lodash.values' {
-  const anything: any;
-  export = anything;
-}
-
 declare module 'find-up' {
   const anything: any;
   export = anything;
@@ -139,11 +124,6 @@ declare module 'path-exists' {
 }
 
 declare module 'exists-link' {
-  const anything: any;
-  export = anything;
-}
-
-declare module 'lodash.memoize' {
   const anything: any;
   export = anything;
 }

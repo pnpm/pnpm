@@ -4,8 +4,7 @@ import {PnpmError} from '../errorTypes'
 import logger from 'pnpm-logger'
 import loadYamlFile = require('load-yaml-file')
 import writeYamlFile = require('write-yaml-file')
-import values = require('lodash.values')
-import union = require('lodash.union')
+import R = require('ramda')
 import rimraf = require('rimraf-then')
 import isCI = require('is-ci')
 
@@ -94,7 +93,7 @@ function prune (shr: Shrinkwrap): Shrinkwrap {
 
 function copyDependencyTree (shr: Shrinkwrap): ResolvedPackages {
   const resolvedPackages: ResolvedPackages = {}
-  let pkgIds: string[] = values(shr.dependencies)
+  let pkgIds: string[] = R.values(shr.dependencies)
 
   while (pkgIds.length) {
     let nextPkgIds: string[] = []
@@ -104,9 +103,9 @@ function copyDependencyTree (shr: Shrinkwrap): ResolvedPackages {
         continue
       }
       resolvedPackages[pkgId] = shr.packages[pkgId]
-      const newDependencies = values(shr.packages[pkgId].dependencies || {})
+      const newDependencies = R.values(shr.packages[pkgId].dependencies || {})
         .filter((newPkgId: string) => !resolvedPackages[newPkgId] && pkgIds.indexOf(newPkgId) === -1)
-      nextPkgIds = union(nextPkgIds, newDependencies)
+      nextPkgIds = R.union(nextPkgIds, newDependencies)
     }
     pkgIds = nextPkgIds
   }
