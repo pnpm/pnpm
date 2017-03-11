@@ -55,6 +55,7 @@ export default async function installAll (
     engineStrict: boolean,
     nodeVersion: string,
     baseNodeModules: string,
+    offline: boolean,
   }
 ): Promise<InstalledPackage[]> {
   const keypath = options.keypath || []
@@ -97,6 +98,7 @@ async function installMultiple (
     engineStrict: boolean,
     nodeVersion: string,
     baseNodeModules: string,
+    offline: boolean,
   }
 ): Promise<InstalledPackage[]> {
   ctx.graph = ctx.graph || {}
@@ -175,6 +177,7 @@ async function install (
     engineStrict: boolean,
     nodeVersion: string,
     baseNodeModules: string,
+    offline: boolean,
   }
 ) {
   const keypath = options.keypath || []
@@ -362,6 +365,7 @@ async function installDependencies (
     engineStrict: boolean,
     nodeVersion: string,
     baseNodeModules: string,
+    offline: boolean,
   }
 ): Promise<InstalledPackage[]> {
   const depsInstallOpts = Object.assign({}, opts, {

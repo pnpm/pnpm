@@ -12,6 +12,7 @@ import logStatus from '../logging/logInstallStatus'
 import parseNpmTarballUrl from 'parse-npm-tarball-url'
 import parseCodeloadUrl from 'parse-codeload-url'
 import {escapeHost} from '../resolve/npm/getRegistryFolderName'
+import {PnpmError} from '../errorTypes'
 
 const gitLogger = logger('git')
 
@@ -21,6 +22,7 @@ export type FetchOptions = {
   loggedPkg: LoggedPkg,
   got: Got,
   localRegistry: string,
+  offline: boolean,
 }
 
 export type PackageDist = {
@@ -110,6 +112,9 @@ export function fetchFromTarball (dir: string, dist: PackageDist, opts: FetchOpt
 export async function fetchFromRemoteTarball (dir: string, dist: PackageDist, opts: FetchOptions) {
   const localTarballPath = getLocalTarballPath(dist.tarball, opts.localRegistry)
   if (!await existsFile(localTarballPath)) {
+    if (opts.offline) {
+      throw new PnpmError('NO_OFFLINE_TARBALL', `Could not find ${localTarballPath} in local registry mirror ${opts.localRegistry}`)
+    }
     await opts.got.download(dist.tarball, localTarballPath, {
       shasum: dist.shasum,
       onStart: () => logStatus({status: 'fetching', pkg: opts.loggedPkg}),

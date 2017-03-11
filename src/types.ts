@@ -25,6 +25,7 @@ export type PnpmOptions = {
   fetchingConcurrency?: number,
   childConcurrency?: number,
   lockStaleDuration?: number,
+  offline?: boolean,
 
   // proxy
   proxy?: string,
@@ -67,6 +68,7 @@ export type StrictPnpmOptions = {
   fetchingConcurrency: number,
   lockStaleDuration: number,
   childConcurrency: number,
+  offline: boolean,
 
   // proxy
   proxy?: string,

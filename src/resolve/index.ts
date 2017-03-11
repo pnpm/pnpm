@@ -68,6 +68,7 @@ export type ResolveOptions = {
   localRegistry: string,
   metaCache: Map<string, PackageMeta>,
   root: string,
+  offline: boolean,
 }
 
 /**

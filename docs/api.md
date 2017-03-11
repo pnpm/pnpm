@@ -16,6 +16,7 @@ Install packages.
 * `options.quiet` - *Boolean* - `false` by default. No output to the console.
 * `options.metaCache` - *Map* - a cache for package meta info.
 * `options.networkConcurrency` - *Number* - `16` by default. Max amount of network requests to perform concurrently.
+* `options.offline` - *Boolean* - `false` by default. Install packages using only the local registry mirror, w/o doing any network requests.
 
 **Returns:** a Promise
 
