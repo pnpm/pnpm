@@ -150,6 +150,7 @@ async function installInContext (
     baseNodeModules: nodeModulesPath,
     metaCache: opts.metaCache,
     resolvedDependencies,
+    offline: opts.offline,
   }
   const pkgs: InstalledPackage[] = await installMultiple(
     installCtx,

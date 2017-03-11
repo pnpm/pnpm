@@ -10,6 +10,7 @@ import createPkgId from './createNpmPkgId'
 import getRegistryFolderName from './getRegistryFolderName'
 import logger from 'pnpm-logger'
 import pLimit = require('p-limit')
+import {PnpmError} from '../../errorTypes'
 
 export type PackageMeta = {
   'dist-tag': { [name: string]: string },
@@ -31,17 +32,30 @@ const metafileOperationLimits = {}
 
 export default async function loadPkgMetaNonCached (
   spec: PackageSpec,
-  localRegistry: string,
-  got: Got,
-  metaCache: Map<string, PackageMeta>,
+  opts: {
+    localRegistry: string,
+    got: Got,
+    metaCache: Map<string, PackageMeta>,
+    offline: boolean
+  }
 ): Promise<PackageMeta> {
-  if (metaCache.has(spec.name)) {
-    return <PackageMeta>metaCache.get(spec.name)
+  opts = opts || {}
+
+  if (opts.metaCache.has(spec.name)) {
+    return <PackageMeta>opts.metaCache.get(spec.name)
   }
 
   const registry = getRegistryFolderName(registryUrl(spec.scope))
-  const pkgMirror = path.join(localRegistry, registry, spec.name)
+  const pkgMirror = path.join(opts.localRegistry, registry, spec.name)
   const limit = metafileOperationLimits[pkgMirror] = metafileOperationLimits[pkgMirror] || pLimit(1)
+
+  if (opts.offline) {
+    const meta = await limit(() => loadMeta(pkgMirror))
+
+    if (meta) return meta
+
+    throw new PnpmError('NO_OFFLINE_META', `Failed to resolve ${spec.rawSpec} in package mirror ${pkgMirror}`)
+  }
 
   if (spec.type === 'version') {
     const meta = await limit(() => loadMeta(pkgMirror))
@@ -53,16 +67,16 @@ export default async function loadPkgMetaNonCached (
   }
 
   try {
-    const meta = await fromRegistry(got, spec)
+    const meta = await fromRegistry(opts.got, spec)
     // only save meta to cache, when it is fresh
-    metaCache.set(spec.name, meta)
+    opts.metaCache.set(spec.name, meta)
     limit(() => saveMeta(pkgMirror, meta))
     return meta
   } catch (err) {
-    const meta = await loadMeta(localRegistry)
+    const meta = await loadMeta(opts.localRegistry)
     if (!meta) throw err
     logger.error(err)
-    logger.info(`Using cached meta from ${localRegistry}`)
+    logger.info(`Using cached meta from ${opts.localRegistry}`)
     return meta
   }
 }

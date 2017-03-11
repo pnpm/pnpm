@@ -43,6 +43,7 @@ export default async function fetch (
     pkgId?: string,
     fetchingLocker: MemoizedFunc<Boolean>,
     loggedPkg: LoggedPkg,
+    offline: boolean,
   }
 ): Promise<FetchedPackage> {
   try {
@@ -56,6 +57,7 @@ export default async function fetch (
         got: options.got,
         localRegistry: options.localRegistry,
         metaCache: options.metaCache,
+        offline: options.offline,
       })
       logStatus({status: 'resolved', pkg: options.loggedPkg})
       // keep the shrinkwrap resolution when possible
@@ -79,6 +81,7 @@ export default async function fetch (
       loggedPkg: options.loggedPkg,
       got: options.got,
       localRegistry: options.localRegistry,
+      offline: options.offline,
     }))
 
     if (fetchingPkg == null) {
@@ -114,6 +117,7 @@ async function fetchToStore (opts: {
   loggedPkg: LoggedPkg,
   got: Got,
   localRegistry: string,
+  offline: boolean,
 }): Promise<Boolean> {
   const target = opts.target
   const targetExists = await exists(target)
@@ -138,6 +142,7 @@ async function fetchToStore (opts: {
     got: opts.got,
     loggedPkg: opts.loggedPkg,
     localRegistry: opts.localRegistry,
+    offline: opts.offline,
   })
   logStatus({
     status: 'fetched',

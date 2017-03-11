@@ -29,6 +29,7 @@ const defaults = () => (<StrictPnpmOptions>{
   fetchingConcurrency: 16,
   lockStaleDuration: 60 * 1000, // 1 minute
   childConcurrency: 5,
+  offline: false,
 })
 
 export default (opts?: PnpmOptions): StrictPnpmOptions => {
