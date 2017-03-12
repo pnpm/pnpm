@@ -11,6 +11,7 @@ import isCI = require('is-ci')
 const shrinkwrapLogger = logger('shrinkwrap')
 
 const SHRINKWRAP_FILENAME = 'shrinkwrap.yaml'
+const PRIVATE_SHRINKWRAP_FILENAME = path.join('node_modules', '.shrinkwrap.yaml')
 const SHRINKWRAP_VERSION = 1
 
 function getDefaultShrinkwrap () {
@@ -45,6 +46,23 @@ export type ResolvedDependencies = {
   [pkgName: string]: string,
 }
 
+export async function readPrivate (pkgPath: string): Promise<Shrinkwrap> {
+  const shrinkwrapPath = path.join(pkgPath, PRIVATE_SHRINKWRAP_FILENAME)
+  let shrinkwrap
+  try {
+    shrinkwrap = await loadYamlFile<Shrinkwrap>(shrinkwrapPath)
+  } catch (err) {
+    if ((<NodeJS.ErrnoException>err).code !== 'ENOENT') {
+      throw err
+    }
+    return getDefaultShrinkwrap()
+  }
+  if (shrinkwrap && shrinkwrap.version === SHRINKWRAP_VERSION) {
+    return shrinkwrap
+  }
+  throw new ShrinkwrapBreakingChangeError(shrinkwrapPath)
+}
+
 export async function read (pkgPath: string, opts: {force: boolean}): Promise<Shrinkwrap> {
   const shrinkwrapPath = path.join(pkgPath, SHRINKWRAP_FILENAME)
   let shrinkwrap
@@ -68,22 +86,29 @@ export async function read (pkgPath: string, opts: {force: boolean}): Promise<Sh
 
 export function save (pkgPath: string, shrinkwrap: Shrinkwrap) {
   const shrinkwrapPath = path.join(pkgPath, SHRINKWRAP_FILENAME)
+  const privateShrinkwrapPath = path.join(pkgPath, PRIVATE_SHRINKWRAP_FILENAME)
 
   // empty shrinkwrap is not saved
   if (Object.keys(shrinkwrap.dependencies).length === 0) {
-    return rimraf(shrinkwrapPath)
+    return Promise.all([
+      rimraf(shrinkwrapPath),
+      rimraf(privateShrinkwrapPath),
+    ])
   }
 
-  const prunedShr = prune(shrinkwrap)
-
-  return writeYamlFile(shrinkwrapPath, prunedShr, {
+  const formatOpts = {
     sortKeys: true,
     lineWidth: 1000,
     noCompatMode: true,
-  })
+  }
+
+  return Promise.all([
+    writeYamlFile(shrinkwrapPath, shrinkwrap, formatOpts),
+    writeYamlFile(privateShrinkwrapPath, shrinkwrap, formatOpts),
+  ])
 }
 
-function prune (shr: Shrinkwrap): Shrinkwrap {
+export function prune (shr: Shrinkwrap): Shrinkwrap {
   return {
     version: SHRINKWRAP_VERSION,
     dependencies: shr.dependencies,

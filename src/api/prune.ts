@@ -1,11 +1,18 @@
 import path = require('path')
+import R = require('ramda')
 import getContext from './getContext'
 import {PnpmOptions, Package} from '../types'
 import extendOptions from './extendOptions'
-import {uninstallInContext} from './uninstall'
 import getPkgDirs from '../fs/getPkgDirs'
 import readPkg from '../fs/readPkg'
 import lock from './lock'
+import removeOrphanPkgs from './removeOrphanPkgs'
+import npa = require('npm-package-arg')
+import {PackageSpec} from '../resolve'
+import {
+  ResolvedDependencies,
+  prune as pruneShrinkwrap,
+} from '../fs/shrinkwrap'
 
 export async function prune(maybeOpts?: PnpmOptions): Promise<void> {
   const opts = extendOptions(maybeOpts)
@@ -21,32 +28,15 @@ export async function prune(maybeOpts?: PnpmOptions): Promise<void> {
 
     const extraneousPkgs = await getExtraneousPkgs(pkg, ctx.root, opts.production)
 
-    await uninstallInContext(extraneousPkgs, ctx.pkg, ctx, opts)
-  },
-  {stale: opts.lockStaleDuration})
-}
+    const newShr = ctx.shrinkwrap
+    newShr.dependencies = <ResolvedDependencies>R.pickBy((value, key) => {
+      const spec: PackageSpec = npa(key)
+      return extraneousPkgs.indexOf(spec.name) === -1
+    }, newShr.dependencies)
 
-export async function prunePkgs(pkgsToPrune: string[], maybeOpts?: PnpmOptions): Promise<void> {
-  const opts = extendOptions(maybeOpts)
+    const prunedShr = pruneShrinkwrap(newShr)
 
-  const ctx = await getContext(opts)
-
-  return lock(ctx.storePath, async function () {
-    if (!ctx.pkg) {
-      throw new Error('No package.json found - cannot prune')
-    }
-    const pkg = ctx.pkg
-
-    const extraneousPkgs = await getExtraneousPkgs(pkg, ctx.root, opts.production)
-
-    const notPrunable = pkgsToPrune.filter(pkgToPrune => extraneousPkgs.indexOf(pkgToPrune) === -1)
-    if (notPrunable.length) {
-      const err = new Error(`Unable to prune ${notPrunable.join(', ')} because it is not an extraneous package`)
-      err['code'] = 'PRUNE_NOT_EXTR'
-      throw err
-    }
-
-    await uninstallInContext(pkgsToPrune, ctx.pkg, ctx, opts)
+    await removeOrphanPkgs(ctx.privateShrinkwrap, prunedShr, ctx.root, ctx.storePath)
   },
   {stale: opts.lockStaleDuration})
 }

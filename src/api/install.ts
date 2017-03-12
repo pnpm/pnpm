@@ -1,11 +1,9 @@
-import rimraf = require('rimraf-then')
 import path = require('path')
 import RegClient = require('npm-registry-client')
 import logger from 'pnpm-logger'
 import globalBinPath = require('global-bin-path')
 import pLimit = require('p-limit')
 import npa = require('npm-package-arg')
-import R = require('ramda')
 import {PnpmOptions, StrictPnpmOptions, Dependencies} from '../types'
 import createGot from '../network/got'
 import getContext, {PnpmContext} from './getContext'
@@ -18,15 +16,14 @@ import postInstall from '../install/postInstall'
 import extendOptions from './extendOptions'
 import pnpmPkgJson from '../pnpmPkgJson'
 import lock from './lock'
-import {save as saveGraph, Graph} from '../fs/graphController'
-import {read as readStore, save as saveStore} from '../fs/storeController'
 import {
   save as saveShrinkwrap,
+  prune as pruneShrinkwrap,
   Shrinkwrap,
   ResolvedDependencies,
 } from '../fs/shrinkwrap'
 import {save as saveModules} from '../fs/modulesController'
-import {tryUninstall, removePkgFromStore} from './uninstall'
+import removeOrphanPkgs from './removeOrphanPkgs'
 import mkdirp = require('mkdirp-promise')
 import createMemoize, {MemoizedFunc} from '../memoize'
 import linkBins from '../install/linkBins'
@@ -41,7 +38,6 @@ export type InstalledPackages = {
 export type InstallContext = {
   installs: InstalledPackages,
   installationSequence: string[],
-  graph: Graph,
   shrinkwrap: Shrinkwrap,
   installed: Set<string>,
   fetchingLocker: MemoizedFunc<Boolean>,
@@ -51,7 +47,7 @@ export type InstallContext = {
 export async function install (maybeOpts?: PnpmOptions) {
   const opts = extendOptions(maybeOpts)
   const ctx = await getContext(opts)
-  const installCtx = await createInstallCmd(opts, ctx.graph, ctx.shrinkwrap)
+  const installCtx = await createInstallCmd(opts, ctx.shrinkwrap)
 
   if (!ctx.pkg) throw new Error('No package.json found')
   const optionalDeps = ctx.pkg.optionalDependencies || {}
@@ -86,7 +82,7 @@ export async function installPkgs (fuzzyDeps: string[] | Dependencies, maybeOpts
     throw new Error('At least one package has to be installed')
   }
   const ctx = await getContext(opts)
-  const installCtx = await createInstallCmd(opts, ctx.graph, ctx.shrinkwrap)
+  const installCtx = await createInstallCmd(opts, ctx.shrinkwrap)
 
   return lock(
     ctx.storePath,
@@ -127,8 +123,6 @@ async function installInContext (
   installCtx: InstallContext,
   opts: StrictPnpmOptions
 ) {
-  // TODO: ctx.graph should not be muted. installMultiple should return a new graph
-  const oldGraph: Graph = R.clone(ctx.graph)
   const nodeModulesPath = path.join(ctx.root, 'node_modules')
   const client = new RegClient(adaptConfig(opts))
 
@@ -198,10 +192,9 @@ async function installInContext (
       })
   }
 
-  const newGraph = Object.assign({}, ctx.graph)
-  await removeOrphanPkgs(oldGraph, newGraph, ctx.root, ctx.storePath)
-  await saveGraph(path.join(ctx.root, 'node_modules'), newGraph)
-  await saveShrinkwrap(ctx.root, ctx.shrinkwrap)
+  const newShr = pruneShrinkwrap(ctx.shrinkwrap)
+  await removeOrphanPkgs(ctx.privateShrinkwrap, newShr, ctx.root, ctx.storePath)
+  await saveShrinkwrap(ctx.root, newShr)
   if (ctx.isFirstInstallation) {
     await saveModules(path.join(ctx.root, 'node_modules'), {
       packageManager: `${pnpmPkgJson.name}@${pnpmPkgJson.version}`,
@@ -243,47 +236,9 @@ async function installInContext (
   }
 }
 
-async function removeOrphanPkgs (oldGraphJson: Graph, newGraphJson: Graph, root: string, storePath: string) {
-  const oldPkgIds = new Set(Object.keys(oldGraphJson))
-  const newPkgIds = new Set(Object.keys(newGraphJson))
-
-  const store = await readStore(storePath) || {}
-  const notDependents = difference(oldPkgIds, newPkgIds)
-
-  await Promise.all(Array.from(notDependents).map(async function (notDependent) {
-    if (store[notDependent]) {
-      store[notDependent].splice(store[notDependent].indexOf(root), 1)
-      if (!store[notDependent].length) {
-        delete store[notDependent]
-        await rimraf(path.join(storePath, notDependent))
-      }
-    }
-  }))
-
-  const newDependents = difference(newPkgIds, oldPkgIds)
-
-  newDependents.forEach(newDependent => {
-    store[newDependent] = store[newDependent] || []
-    if (store[newDependent].indexOf(root) === -1) {
-      store[newDependent].push(root)
-    }
-  })
-
-  await saveStore(storePath, store)
-}
-
-function difference<T> (setA: Set<T>, setB: Set<T>) {
-  const difference = new Set(setA)
-  for (const elem of setB) {
-    difference.delete(elem)
-  }
-  return difference
-}
-
-async function createInstallCmd (opts: StrictPnpmOptions, graph: Graph, shrinkwrap: Shrinkwrap): Promise<InstallContext> {
+async function createInstallCmd (opts: StrictPnpmOptions, shrinkwrap: Shrinkwrap): Promise<InstallContext> {
   return {
     installs: {},
-    graph,
     shrinkwrap,
     installed: new Set(),
     installationSequence: [],

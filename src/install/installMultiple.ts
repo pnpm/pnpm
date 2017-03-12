@@ -12,7 +12,6 @@ import installChecks = require('pnpm-install-checks')
 import pnpmPkg from '../pnpmPkgJson'
 import symlinkDir from 'symlink-dir'
 import exists = require('path-exists')
-import {Graph, GRAPH_ENTRY} from '../fs/graphController'
 import logStatus from '../logging/logInstallStatus'
 import rimraf = require('rimraf-then')
 import fs = require('mz/fs')
@@ -101,8 +100,6 @@ async function installMultiple (
     offline: boolean,
   }
 ): Promise<InstalledPackage[]> {
-  ctx.graph = ctx.graph || {}
-
   const nonLinkedPkgs = modules === options.baseNodeModules
     // only check modules on the first level
     ? await pFilter(specs, (spec: PackageSpec) => !spec.name || isInnerLink(modules, spec.name))
@@ -227,8 +224,6 @@ async function install (
 
   addInstalledPkg(ctx.installs, dependency)
 
-  addToGraph(ctx.graph, dependentId, dependency)
-
   const linking = ctx.linkingLocker(dependency.hardlinkedLocation, async function () {
     const newlyFetched = await fetchedPkg.fetchingFiles
     const pkgJsonPath = path.join(dependency.hardlinkedLocation, 'package.json')
@@ -291,38 +286,6 @@ async function install (
 async function isSameFile (file1: string, file2: string) {
   const stats = await Promise.all([fs.stat(file1), fs.stat(file2)])
   return stats[0].ino === stats[1].ino
-}
-
-function addToGraph (graph: Graph, dependent: string, dependency: InstalledPackage) {
-  dependent = dependent || GRAPH_ENTRY
-
-  graph[dependent] = graph[dependent] || {}
-  graph[dependent].dependencies = graph[dependent].dependencies || {}
-
-  updateDependencyResolution(graph, dependent, dependency.pkg.name, dependency.id)
-
-  graph[dependency.id] = graph[dependency.id] || {}
-  graph[dependency.id].dependents = graph[dependency.id].dependents || []
-
-  if (graph[dependency.id].dependents.indexOf(dependent) === -1) {
-    graph[dependency.id].dependents.push(dependent)
-  }
-}
-
-function updateDependencyResolution (graph: Graph, dependent: string, depName: string, newDepId: string) {
-  if (graph[dependent].dependencies[depName] &&
-    graph[dependent].dependencies[depName] !== newDepId) {
-    removeIfNoDependents(graph, graph[dependent].dependencies[depName], dependent)
-  }
-  graph[dependent].dependencies[depName] = newDepId
-}
-
-function removeIfNoDependents(graph: Graph, id: string, removedDependent: string) {
-  if (graph[id] && graph[id].dependents && graph[id].dependents.length === 1 &&
-    graph[id].dependents[0] === removedDependent) {
-      Object.keys(graph[id].dependencies || {}).forEach(depName => removeIfNoDependents(graph, graph[id].dependencies[depName], id))
-      delete graph[id]
-  }
 }
 
 async function isInstallable (

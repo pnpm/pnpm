@@ -2,12 +2,11 @@ import path = require('path')
 import normalizePath = require('normalize-path')
 import fs = require('mz/fs')
 import mkdirp = require('mkdirp-promise')
-import readPkg from '../fs/readPkg'
+import safeReadPkg from '../fs/safeReadPkg'
 import getPkgDirs from '../fs/getPkgDirs'
 import binify from '../binify'
 import isWindows = require('is-windows')
 import cmdShim = require('@zkochan/cmd-shim')
-import {Package} from '../types'
 import logger from 'pnpm-logger'
 import Module = require('module')
 import R = require('ramda')
@@ -53,13 +52,4 @@ async function getBinNodePaths (target: string) {
     Module._nodeModulePaths(targetRealPath),
     Module._nodeModulePaths(target)
   )
-}
-
-async function safeReadPkg (pkgPath: string): Promise<Package | null> {
-  try {
-    return await readPkg(pkgPath)
-  } catch (err) {
-    if ((<NodeJS.ErrnoException>err).code !== 'ENOENT') throw err
-    return null
-  }
 }

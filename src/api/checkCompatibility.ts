@@ -72,6 +72,13 @@ function check (pnpmVersion: string, storePath: string, modulesPath: string) {
   if (semver.lt(pnpmVersion, '0.52.0')) {
     throw new ModulesBreakingChangeError({ modulesPath, relatedPR: 593 })
   }
+  if (semver.lt(pnpmVersion, '0.62.0')) {
+    throw new ModulesBreakingChangeError({
+      modulesPath,
+      relatedPR: 660,
+      additionalInformation: 'Information about the node_modules structure is stored in a node_modules/.shrinkwrap.yaml file instead of a node_modules/.graph.yaml file'
+    })
+  }
 }
 
 class UnexpectedStoreError extends PnpmError {

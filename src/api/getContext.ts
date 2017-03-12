@@ -5,11 +5,8 @@ import writePkg = require('write-pkg')
 import expandTilde, {isHomepath} from '../fs/expandTilde'
 import {StrictPnpmOptions} from '../types'
 import {
-  read as readGraph,
-  Graph,
-} from '../fs/graphController'
-import {
   read as readShrinkwrap,
+  readPrivate as readPrivateShrinkwrap,
   Shrinkwrap,
 } from '../fs/shrinkwrap'
 import {
@@ -26,7 +23,7 @@ export type PnpmContext = {
   pkg?: Package,
   storePath: string,
   root: string,
-  graph: Graph,
+  privateShrinkwrap: Shrinkwrap,
   shrinkwrap: Shrinkwrap,
   isFirstInstallation: boolean,
 }
@@ -55,14 +52,13 @@ export default async function getContext (opts: StrictPnpmOptions): Promise<Pnpm
     }
   }
 
-  const graph = await readGraph(path.join(root, 'node_modules')) || {}
   const shrinkwrap = await readShrinkwrap(root, {force: opts.force})
   const ctx: PnpmContext = {
     pkg: pkg.pkg,
     root,
     storePath,
-    graph,
     shrinkwrap,
+    privateShrinkwrap: await readPrivateShrinkwrap(root),
     isFirstInstallation,
   }
 
