@@ -40,5 +40,9 @@ export default (opts?: PnpmOptions): StrictPnpmOptions => {
   if (extendedOpts.localRegistry !== DEFAULT_LOCAL_REGISTRY) {
     extendedOpts.localRegistry = expandTilde(extendedOpts.localRegistry, extendedOpts.cwd)
   }
+  if (extendedOpts.save === false && extendedOpts.saveDev === false && extendedOpts.saveOptional === false) {
+    throw new Error('Cannot install with save/saveDev/saveOptional all being equal false')
+  }
+  extendedOpts.save = extendedOpts.save || !extendedOpts.saveDev && !extendedOpts.saveOptional
   return extendedOpts
 }

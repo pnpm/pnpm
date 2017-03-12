@@ -127,9 +127,9 @@ async function run (argv: string[]) {
   }
 
   // This is needed because the arg values should be used only if they were passed
-  Object.keys(cli.flags).forEach(key => {
-    opts[key] = opts[key] || cli.flags[key]
-  })
+  Object.keys(cli.flags)
+    .filter(key => !!cli.flags[key])
+    .forEach(key => { opts[key] = cli.flags[key] })
 
   if (!opts.silent) initReporter(opts.reporter || 'default')
 

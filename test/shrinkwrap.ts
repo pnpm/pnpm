@@ -81,7 +81,7 @@ test("shrinkwrap doesn't lock subdependencies that don't satisfy the new specs",
 test('shrinkwrap not created when no deps in package.json', async t => {
   const project = prepare(t)
 
-  await installPkgs(['pkg-with-1-dep'], testDefaults({save: false}))
+  await install(testDefaults())
 
   t.ok(!await project.loadShrinkwrap(), 'shrinkwrap file not created')
 })

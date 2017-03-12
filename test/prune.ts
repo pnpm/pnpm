@@ -6,6 +6,8 @@ import {installPkgs, prune, prunePkgs} from '../src'
 import {prepare, testDefaults} from './utils'
 import exists = require('path-exists')
 import existsSymlink = require('exists-link')
+import readPkg = require('read-pkg')
+import writePkg = require('write-pkg')
 
 test('prune removes extraneous packages', async function (t) {
   const project = prepare(t)
@@ -14,6 +16,14 @@ test('prune removes extraneous packages', async function (t) {
   await installPkgs(['applyq@0.2.1'], testDefaults({saveDev: true}))
   await installPkgs(['fnumber@0.1.0'], testDefaults({saveOptional: true}))
   await installPkgs(['is-positive@2.0.0', '@zkochan/logger@0.1.0'], testDefaults())
+
+  const pkg = await readPkg()
+
+  delete pkg.dependencies['is-positive']
+  delete pkg.dependencies['@zkochan/logger']
+
+  await writePkg(pkg)
+
   await prune(testDefaults())
 
   await project.storeHasNot('is-positive', '2.0.0')
@@ -36,6 +46,14 @@ test('prune removes only the specified extraneous packages', async function (t) 
   const project = prepare(t)
 
   await installPkgs(['is-positive@2.0.0', 'is-negative@2.1.0'], testDefaults())
+
+  const pkg = await readPkg()
+
+  delete pkg.dependencies['is-positive']
+  delete pkg.dependencies['is-negative']
+
+  await writePkg(pkg)
+
   await prunePkgs(['is-positive'], testDefaults())
 
   await project.storeHasNot('is-positive', '2.0.0')
