@@ -11,7 +11,7 @@ import {Got} from '../network/got'
 import logStatus from '../logging/logInstallStatus'
 import parseNpmTarballUrl from 'parse-npm-tarball-url'
 import parseCodeloadUrl from 'parse-codeload-url'
-import {escapeHost} from '../resolve/npm/getRegistryFolderName'
+import {escapeHost} from '../resolve/npm/getRegistryName'
 import {PnpmError} from '../errorTypes'
 
 const gitLogger = logger('git')

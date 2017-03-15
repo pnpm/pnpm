@@ -7,7 +7,7 @@ import {Got} from '../../network/got'
 import {PackageSpec} from '..'
 import {Package} from '../../types'
 import createPkgId from './createNpmPkgId'
-import getRegistryFolderName from './getRegistryFolderName'
+import getRegistryName from './getRegistryName'
 import logger from 'pnpm-logger'
 import pLimit = require('p-limit')
 import {PnpmError} from '../../errorTypes'
@@ -45,7 +45,7 @@ export default async function loadPkgMetaNonCached (
     return <PackageMeta>opts.metaCache.get(spec.name)
   }
 
-  const registry = getRegistryFolderName(registryUrl(spec.scope))
+  const registry = getRegistryName(registryUrl(spec.scope))
   const pkgMirror = path.join(opts.localRegistry, registry, spec.name)
   const limit = metafileOperationLimits[pkgMirror] = metafileOperationLimits[pkgMirror] || pLimit(1)
 
