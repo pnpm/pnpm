@@ -50,7 +50,7 @@
     "mkdirp-promise": "5.0.1",
     "mz": "2.6.0",
     "ndjson": "1.5.0",
-    "node-gyp": "3.5.0",
+    "node-gyp": "3.6.0",
     "normalize-path": "2.0.1",
     "normalize-ssh": "1.0.0",
     "npm-package-arg": "4.2.1",
