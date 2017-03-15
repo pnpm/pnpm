@@ -92,3 +92,16 @@ Return the list of modified dependencies.
 
 **Returns:** `Promise<string[]>` - the paths to the modified packages of the current project. The paths contain the location of packages in the store,
 not in the projects `node_modules` folder.
+
+## `pnpm.verify(pkgPath)`
+
+Verifies that:
+
+1. the `shrinkwrap.yaml` file in the root of project is up to date with the `package.json` file.
+2. that the `node_modules` structure is up to date with the `shrinkwrap.yaml` file in the root of the project.
+
+**Arguments:**
+
+* `pkgPath` - *String* - path to the package to be checked.
+
+**Returns:** `Error | null` - nothing or the `Error` detected during verifications.

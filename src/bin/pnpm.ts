@@ -20,6 +20,7 @@ import linkCmd from '../cmd/link'
 import pruneCmd from '../cmd/prune'
 import installTestCmd from '../cmd/installTest'
 import runCmd from '../cmd/run'
+import verifyCmd from '../cmd/verify'
 import storeCmd from '../cmd/store'
 import bole = require('bole')
 import initReporter from '../reporter'
@@ -34,6 +35,7 @@ const pnpmCmds = {
   prune: pruneCmd,
   'install-test': installTestCmd,
   run: runCmd,
+  verify: verifyCmd,
   store: storeCmd,
 }
 
@@ -46,6 +48,7 @@ const supportedCmds = new Set([
   'prune',
   'install-test',
   'run',
+  'verify',
   'store',
 ])
 
@@ -80,7 +83,7 @@ async function run (argv: string[]) {
       'global',
       'silent',
       'debug',
-      'flat-tree',
+      'exit-0',
     ],
     alias: {
       quiet: 'silent',
