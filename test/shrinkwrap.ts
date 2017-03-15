@@ -10,16 +10,19 @@ const test = promisifyTape(tape)
 test('shrinkwrap file has correct format', async t => {
   const project = prepare(t)
 
-  await installPkgs(['pkg-with-1-dep', '@rstacruz/tap-spec@4.1.1'], testDefaults({save: true}))
+  await installPkgs(['pkg-with-1-dep', '@rstacruz/tap-spec@4.1.1', 'kevva/is-negative'], testDefaults({save: true}))
 
   const shr = await project.loadShrinkwrap()
   const id = 'localhost+4873/pkg-with-1-dep/100.0.0'
 
-  t.equal(shr.version, 1, 'correct shrinkwrap version')
+  t.equal(shr.version, 2, 'correct shrinkwrap version')
+
+  t.ok(shr.registry, 'has registry field')
 
   t.ok(shr.dependencies, 'has dependencies field')
-  t.equal(shr.dependencies['pkg-with-1-dep@^100.0.0'], id, 'has dependency resolved')
+  t.equal(shr.dependencies['pkg-with-1-dep@^100.0.0'], '100.0.0', 'has dependency resolved')
   t.ok(shr.dependencies['@rstacruz/tap-spec@^4.1.1'], 'has scoped dependency resolved')
+  t.ok(shr.dependencies['is-negative@^2.1.0'].indexOf('/') !== -1, 'has not shortened tarball from the non-standard registry')
 
   t.ok(shr.packages, 'has packages field')
   t.ok(shr.packages[id], `has resolution for ${id}`)
@@ -37,10 +40,11 @@ test('fail when shasum from shrinkwrap does not match with the actual one', asyn
   })
 
   await writeYamlFile('shrinkwrap.yaml', {
-    version: 1,
+    version: 2,
     dependencies: {
-      'is-negative@2.1.0': 'localhost+4873/is-negative/2.1.0',
+      'is-negative@2.1.0': '2.1.0',
     },
+    registry: 'http://localhost:4873',
     packages: {
       'localhost+4873/is-negative/2.1.0': {
         resolution: {
@@ -90,10 +94,11 @@ test('shrinkwrap removed when no deps in package.json', async t => {
   const project = prepare(t)
 
   await writeYamlFile('shrinkwrap.yaml', {
-    version: 1,
+    version: 2,
     dependencies: {
-      'is-negative@2.1.0': 'localhost+4873/is-negative/2.1.0',
+      'is-negative@2.1.0': '2.1.0',
     },
+    registry: 'http://localhost:4873',
     packages: {
       'localhost+4873/is-negative/2.1.0': {
         resolution: {

@@ -19,8 +19,10 @@ import {Got} from '../network/got'
 import {
   DependencyShrinkwrap,
   ResolvedDependencies,
+  getPkgId,
+  pkgIdToRef,
 } from '../fs/shrinkwrap'
-import {PackageSpec, PackageMeta} from '../resolve'
+import {Resolution, PackageSpec, PackageMeta} from '../resolve'
 import linkBins from '../install/linkBins'
 import getLinkTarget = require('get-link-target')
 import depsToSpecs from '../depsToSpecs'
@@ -29,6 +31,7 @@ const installCheckLogger = logger('install-check')
 
 export type InstalledPackage = {
   id: string,
+  resolution: Resolution,
   pkg: Package,
   srcPath?: string,
   optional: boolean,
@@ -109,8 +112,9 @@ async function installMultiple (
     await Promise.all(
       nonLinkedPkgs
         .map(async (spec: PackageSpec) => {
-          const pkgId = options.resolvedDependencies &&
+          const reference = options.resolvedDependencies &&
             options.resolvedDependencies[spec.name]
+          const pkgId = reference && getPkgId(reference, spec.name, ctx.shrinkwrap.registry)
           const dependencyShrinkwrap = pkgId && ctx.shrinkwrap.packages[pkgId]
           try {
             const pkg = await install(spec, ctx, Object.assign({}, options, {
@@ -215,6 +219,7 @@ async function install (
 
   const dependency: InstalledPackage = {
     id: fetchedPkg.id,
+    resolution: fetchedPkg.resolution,
     srcPath: fetchedPkg.srcPath,
     optional: options.optional === true,
     pkg,
@@ -257,7 +262,7 @@ async function install (
     if (dependencies.length) {
       ctx.shrinkwrap.packages[dependency.id].dependencies = dependencies
         .reduce((resolutions, dep) => Object.assign(resolutions, {
-          [dep.pkg.name]: dep.id
+          [dep.pkg.name]: pkgIdToRef(dep.id, dep.pkg.version, dep.resolution, ctx.shrinkwrap.registry)
         }), {})
     }
 

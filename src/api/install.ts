@@ -21,6 +21,7 @@ import {
   prune as pruneShrinkwrap,
   Shrinkwrap,
   ResolvedDependencies,
+  pkgIdToRef,
 } from '../fs/shrinkwrap'
 import {save as saveModules} from '../fs/modulesController'
 import removeOrphanPkgs from './removeOrphanPkgs'
@@ -178,7 +179,7 @@ async function installInContext (
     pkgs.forEach(dep => {
       const spec = getSpecFromPkg(dep.pkg.name)
       if (spec) {
-        ctx.shrinkwrap.dependencies[`${dep.pkg.name}@${spec}`] = dep.id
+        ctx.shrinkwrap.dependencies[`${dep.pkg.name}@${spec}`] = pkgIdToRef(dep.id, dep.pkg.version, dep.resolution, ctx.shrinkwrap.registry)
       }
     })
     Object.keys(ctx.shrinkwrap.dependencies)
