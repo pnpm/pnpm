@@ -158,14 +158,12 @@ async function installInContext (
 
   let newPkg: Package | undefined = ctx.pkg
   if (installType === 'named') {
-    const saveType = getSaveType(opts)
-    if (saveType) {
-      if (!ctx.pkg) {
-        throw new Error('Cannot save because no package.json found')
-      }
-      const pkgJsonPath = path.join(ctx.root, 'package.json')
-      newPkg = await save(pkgJsonPath, pkgs.map(pkg => pkg.pkg), saveType, opts.saveExact)
+    if (!ctx.pkg) {
+      throw new Error('Cannot save because no package.json found')
     }
+    const pkgJsonPath = path.join(ctx.root, 'package.json')
+    const saveType = getSaveType(opts)
+    newPkg = await save(pkgJsonPath, pkgs.map(pkg => pkg.pkg), saveType, opts.saveExact)
   }
 
   if (newPkg) {
