@@ -46,7 +46,7 @@ export type ResolvedDependencies = {
   [pkgName: string]: string,
 }
 
-export async function readPrivate (pkgPath: string): Promise<Shrinkwrap> {
+export async function readPrivate (pkgPath: string, opts: {force: boolean}): Promise<Shrinkwrap> {
   const shrinkwrapPath = path.join(pkgPath, PRIVATE_SHRINKWRAP_FILENAME)
   let shrinkwrap
   try {
@@ -59,6 +59,10 @@ export async function readPrivate (pkgPath: string): Promise<Shrinkwrap> {
   }
   if (shrinkwrap && shrinkwrap.version === SHRINKWRAP_VERSION) {
     return shrinkwrap
+  }
+  if (opts.force || isCI) {
+    shrinkwrapLogger.warn(`Ignoring not compatible shrinkwrap file at ${shrinkwrapPath}`)
+    return getDefaultShrinkwrap()
   }
   throw new ShrinkwrapBreakingChangeError(shrinkwrapPath)
 }
