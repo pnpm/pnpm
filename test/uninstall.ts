@@ -70,7 +70,7 @@ test('uninstall package with dependencies and do not touch other deps', async fu
 
   const shr = await project.loadShrinkwrap()
   t.deepEqual(shr.dependencies, {
-    'is-negative@^2.1.0': 'localhost+4873/is-negative/2.1.0',
+    'is-negative@^2.1.0': '2.1.0',
   }, 'camelcase-keys removed from shrinkwrap dependencies')
 })
 

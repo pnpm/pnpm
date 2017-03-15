@@ -1,5 +1,5 @@
 import path = require('path')
-import {Resolution} from '../resolve'
+import {Resolution, PackageSpec} from '../resolve'
 import {PnpmError} from '../errorTypes'
 import logger from 'pnpm-logger'
 import loadYamlFile = require('load-yaml-file')
@@ -7,18 +7,22 @@ import writeYamlFile = require('write-yaml-file')
 import R = require('ramda')
 import rimraf = require('rimraf-then')
 import isCI = require('is-ci')
+import registryUrl = require('registry-url')
+import getRegistryName from '../resolve/npm/getRegistryName'
+import npa = require('npm-package-arg')
 
 const shrinkwrapLogger = logger('shrinkwrap')
 
 const SHRINKWRAP_FILENAME = 'shrinkwrap.yaml'
 const PRIVATE_SHRINKWRAP_FILENAME = path.join('node_modules', '.shrinkwrap.yaml')
-const SHRINKWRAP_VERSION = 1
+const SHRINKWRAP_VERSION = 2
 
 function getDefaultShrinkwrap () {
   return {
     version: SHRINKWRAP_VERSION,
     dependencies: {},
     packages: {},
+    registry: registryUrl(),
   }
 }
 
@@ -26,6 +30,7 @@ export type Shrinkwrap = {
   version: number,
   dependencies: ResolvedDependencies,
   packages: ResolvedPackages,
+  registry: string,
 }
 
 export type ResolvedPackages = {
@@ -116,13 +121,18 @@ export function prune (shr: Shrinkwrap): Shrinkwrap {
   return {
     version: SHRINKWRAP_VERSION,
     dependencies: shr.dependencies,
-    packages: copyDependencyTree(shr),
+    registry: shr.registry,
+    packages: copyDependencyTree(shr, shr.registry),
   }
 }
 
-function copyDependencyTree (shr: Shrinkwrap): ResolvedPackages {
+function copyDependencyTree (shr: Shrinkwrap, registry: string): ResolvedPackages {
   const resolvedPackages: ResolvedPackages = {}
-  let pkgIds: string[] = R.values(shr.dependencies)
+
+  let pkgIds: string[] = R.keys(shr.dependencies).map((rawPkgSpec: string) => {
+    const spec: PackageSpec = npa(rawPkgSpec)
+    return getPkgId(shr.dependencies[rawPkgSpec], spec.name, registry)
+  })
 
   while (pkgIds.length) {
     let nextPkgIds: string[] = []
@@ -131,14 +141,43 @@ function copyDependencyTree (shr: Shrinkwrap): ResolvedPackages {
         logger.warn(`Cannot find resolution of ${pkgId} in shrinkwrap file`)
         continue
       }
-      resolvedPackages[pkgId] = shr.packages[pkgId]
-      const newDependencies = R.values(shr.packages[pkgId].dependencies || {})
+      const depShr = shr.packages[pkgId]
+      resolvedPackages[pkgId] = depShr
+      const newDependencies = R.keys(depShr.dependencies)
+        .map((pkgName: string) => getPkgId(<string>(depShr.dependencies && depShr.dependencies[pkgName]), pkgName, registry))
         .filter((newPkgId: string) => !resolvedPackages[newPkgId] && pkgIds.indexOf(newPkgId) === -1)
       nextPkgIds = R.union(nextPkgIds, newDependencies)
     }
     pkgIds = nextPkgIds
   }
   return resolvedPackages
+}
+
+export function getPkgId (
+  reference: string,
+  pkgName: string,
+  registry: string
+) {
+  if (reference.indexOf('/') === -1) {
+    const registryName = getRegistryName(registry)
+    return `${registryName}/${pkgName}/${reference}`
+  }
+  return reference
+}
+
+export function pkgIdToRef (
+  pkgId: string,
+  pkgVersion: string,
+  resolution: Resolution,
+  standardRegistry: string
+) {
+  if (resolution.type) return pkgId
+
+  const registryName = getRegistryName(standardRegistry)
+  if (pkgId.startsWith(`${registryName}/`)) {
+    return pkgVersion
+  }
+  return pkgId
 }
 
 class ShrinkwrapBreakingChangeError extends PnpmError {
