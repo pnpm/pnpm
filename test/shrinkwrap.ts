@@ -13,7 +13,7 @@ test('shrinkwrap file has correct format', async t => {
   await installPkgs(['pkg-with-1-dep', '@rstacruz/tap-spec@4.1.1', 'kevva/is-negative'], testDefaults({save: true}))
 
   const shr = await project.loadShrinkwrap()
-  const id = 'localhost+4873/pkg-with-1-dep/100.0.0'
+  const id = '/pkg-with-1-dep/100.0.0'
 
   t.equal(shr.version, 2, 'correct shrinkwrap version')
 
@@ -46,7 +46,7 @@ test('fail when shasum from shrinkwrap does not match with the actual one', asyn
     },
     registry: 'http://localhost:4873',
     packages: {
-      'localhost+4873/is-negative/2.1.0': {
+      '/is-negative/2.1.0': {
         resolution: {
           shasum: '00000000000000000000000000000000000000000',
           tarball: 'http://localhost:4873/is-negative/-/is-negative-2.1.0.tgz',
@@ -100,7 +100,7 @@ test('shrinkwrap removed when no deps in package.json', async t => {
     },
     registry: 'http://localhost:4873',
     packages: {
-      'localhost+4873/is-negative/2.1.0': {
+      '/is-negative/2.1.0': {
         resolution: {
           tarball: 'http://localhost:4873/is-negative/-/is-negative-2.1.0.tgz',
         },

@@ -20,7 +20,9 @@ import {
   DependencyShrinkwrap,
   ResolvedDependencies,
   getPkgId,
+  getPkgShortId,
   pkgIdToRef,
+  pkgShortId,
 } from '../fs/shrinkwrap'
 import {Resolution, PackageSpec, PackageMeta} from '../resolve'
 import linkBins from '../install/linkBins'
@@ -114,8 +116,9 @@ async function installMultiple (
         .map(async (spec: PackageSpec) => {
           const reference = options.resolvedDependencies &&
             options.resolvedDependencies[spec.name]
+          const pkgShortId = reference && getPkgShortId(reference, spec.name)
+          const dependencyShrinkwrap = pkgShortId && ctx.shrinkwrap.packages[pkgShortId]
           const pkgId = reference && getPkgId(reference, spec.name, ctx.shrinkwrap.registry)
-          const dependencyShrinkwrap = pkgId && ctx.shrinkwrap.packages[pkgId]
           try {
             const pkg = await install(spec, ctx, Object.assign({}, options, {
               pkgId,
@@ -206,8 +209,9 @@ async function install (
     return fetchedPkg
   }
 
-  ctx.shrinkwrap.packages[fetchedPkg.id] = ctx.shrinkwrap.packages[fetchedPkg.id] || {}
-  ctx.shrinkwrap.packages[fetchedPkg.id].resolution = fetchedPkg.resolution
+  const shortId = pkgShortId(fetchedPkg.id, ctx.shrinkwrap.registry)
+  ctx.shrinkwrap.packages[shortId] = ctx.shrinkwrap.packages[shortId] || {}
+  ctx.shrinkwrap.packages[shortId].resolution = fetchedPkg.resolution
 
   const pkg = await fetchedPkg.fetchingPkg
 
@@ -260,7 +264,7 @@ async function install (
       })
     )
     if (dependencies.length) {
-      ctx.shrinkwrap.packages[dependency.id].dependencies = dependencies
+      ctx.shrinkwrap.packages[shortId].dependencies = dependencies
         .reduce((resolutions, dep) => Object.assign(resolutions, {
           [dep.pkg.name]: pkgIdToRef(dep.id, dep.pkg.version, dep.resolution, ctx.shrinkwrap.registry)
         }), {})
