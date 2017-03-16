@@ -131,7 +131,7 @@ function copyDependencyTree (shr: Shrinkwrap, registry: string): ResolvedPackage
 
   let pkgIds: string[] = R.keys(shr.dependencies).map((rawPkgSpec: string) => {
     const spec: PackageSpec = npa(rawPkgSpec)
-    return getPkgId(shr.dependencies[rawPkgSpec], spec.name, registry)
+    return getPkgShortId(shr.dependencies[rawPkgSpec], spec.name)
   })
 
   while (pkgIds.length) {
@@ -144,13 +144,34 @@ function copyDependencyTree (shr: Shrinkwrap, registry: string): ResolvedPackage
       const depShr = shr.packages[pkgId]
       resolvedPackages[pkgId] = depShr
       const newDependencies = R.keys(depShr.dependencies)
-        .map((pkgName: string) => getPkgId(<string>(depShr.dependencies && depShr.dependencies[pkgName]), pkgName, registry))
+        .map((pkgName: string) => getPkgShortId(<string>(depShr.dependencies && depShr.dependencies[pkgName]), pkgName))
         .filter((newPkgId: string) => !resolvedPackages[newPkgId] && pkgIds.indexOf(newPkgId) === -1)
       nextPkgIds = R.union(nextPkgIds, newDependencies)
     }
     pkgIds = nextPkgIds
   }
   return resolvedPackages
+}
+
+export function shortIdToFullId (
+  shortId: string,
+  registry: string
+) {
+  if (shortId[0] === '/') {
+    const registryName = getRegistryName(registry)
+    return `${registryName}${shortId}`
+  }
+  return shortId
+}
+
+export function getPkgShortId (
+  reference: string,
+  pkgName: string
+) {
+  if (reference.indexOf('/') === -1) {
+    return `/${pkgName}/${reference}`
+  }
+  return reference
 }
 
 export function getPkgId (
@@ -176,6 +197,18 @@ export function pkgIdToRef (
   const registryName = getRegistryName(standardRegistry)
   if (pkgId.startsWith(`${registryName}/`)) {
     return pkgVersion
+  }
+  return pkgId
+}
+
+export function pkgShortId (
+  pkgId: string,
+  standardRegistry: string
+) {
+  const registryName = getRegistryName(standardRegistry)
+
+  if (pkgId.startsWith(`${registryName}/`)) {
+    return pkgId.substr(pkgId.indexOf('/'))
   }
   return pkgId
 }

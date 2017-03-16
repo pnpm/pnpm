@@ -1,6 +1,9 @@
 import rimraf = require('rimraf-then')
 import path = require('path')
-import {Shrinkwrap} from '../fs/shrinkwrap'
+import {
+  Shrinkwrap,
+  shortIdToFullId,
+} from '../fs/shrinkwrap'
 import {read as readStore, save as saveStore} from '../fs/storeController'
 import binify from '../binify'
 import safeReadPkg from '../fs/safeReadPkg'
@@ -24,8 +27,8 @@ export default async function removeOrphanPkgs (
     removeBins(depName, root),
   ])))
 
-  const oldPkgIds = Object.keys(oldShr.packages)
-  const newPkgIds = Object.keys(newShr.packages)
+  const oldPkgIds = Object.keys(oldShr.packages).map(shortId => shortIdToFullId(shortId, oldShr.registry))
+  const newPkgIds = Object.keys(newShr.packages).map(shortId => shortIdToFullId(shortId, newShr.registry))
 
   const store = await readStore(storePath) || {}
   const notDependents = R.difference(oldPkgIds, newPkgIds)
