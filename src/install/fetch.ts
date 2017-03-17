@@ -10,7 +10,6 @@ import resolve, {
 } from '../resolve'
 import mkdirp = require('mkdirp-promise')
 import getNpmTarballUrl from 'get-npm-tarball-url'
-import registryUrl = require('registry-url')
 import readPkg from '../fs/readPkg'
 import exists = require('path-exists')
 import memoize, {MemoizedFunc} from '../memoize'
@@ -38,6 +37,7 @@ export default async function fetch (
     root: string,
     storePath: string,
     localRegistry: string,
+    registry: string,
     metaCache: Map<string, PackageMeta>,
     got: Got,
     update?: boolean,
@@ -58,6 +58,7 @@ export default async function fetch (
         root: options.root,
         got: options.got,
         localRegistry: options.localRegistry,
+        registry: options.registry,
         metaCache: options.metaCache,
         offline: options.offline,
       })
@@ -73,7 +74,7 @@ export default async function fetch (
       }
     } else if (resolution.type === undefined && resolution.tarball === undefined) {
       const parts = pkgId!.split('/')
-      resolution.tarball = getNpmTarballUrl(parts[1], parts[2], {registry: registryUrl()})
+      resolution.tarball = getNpmTarballUrl(parts[1], parts[2], {registry: options.registry})
     }
 
     const id = <string>pkgId

@@ -137,6 +137,7 @@ async function installInContext (
     root: ctx.root,
     storePath: ctx.storePath,
     localRegistry: opts.localRegistry,
+    registry: ctx.shrinkwrap.registry,
     force: opts.force,
     depth: opts.depth,
     engineStrict: opts.engineStrict,

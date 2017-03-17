@@ -29,6 +29,7 @@ export default async function resolveNpm (spec: PackageSpec, opts: ResolveOption
     if (opts.loggedPkg) logStatus({ status: 'resolving', pkg: opts.loggedPkg })
     const meta = await loadPkgMeta(spec, {
       localRegistry: opts.localRegistry,
+      registry: opts.registry,
       got: opts.got,
       metaCache: opts.metaCache,
       offline: opts.offline,

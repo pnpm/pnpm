@@ -52,13 +52,13 @@ export default async function getContext (opts: StrictPnpmOptions): Promise<Pnpm
     }
   }
 
-  const shrinkwrap = await readShrinkwrap(root, {force: opts.force})
+  const shrinkwrap = await readShrinkwrap(root, {force: opts.force, registry: opts.registry})
   const ctx: PnpmContext = {
     pkg: pkg.pkg,
     root,
     storePath,
     shrinkwrap,
-    privateShrinkwrap: await readPrivateShrinkwrap(root, {force: opts.force}),
+    privateShrinkwrap: await readPrivateShrinkwrap(root, {force: opts.force, registry: opts.registry}),
     isFirstInstallation,
   }
 
