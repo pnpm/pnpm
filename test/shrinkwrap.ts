@@ -29,7 +29,7 @@ test('shrinkwrap file has correct format', async t => {
   t.ok(shr.packages[id].dependencies, `has dependency resolutions for ${id}`)
   t.ok(shr.packages[id].dependencies['dep-of-pkg-with-1-dep'], `has dependency resolved for ${id}`)
   t.ok(shr.packages[id].resolution, `has resolution for ${id}`)
-  t.equal(shr.packages[id].resolution.tarball, 'http://localhost:4873/pkg-with-1-dep/-/pkg-with-1-dep-100.0.0.tgz', `has tarball for ${id}`)
+  t.ok(!shr.packages[id].resolution.tarball, `has no tarball for package in the default registry`)
 })
 
 test('fail when shasum from shrinkwrap does not match with the actual one', async t => {

@@ -211,7 +211,10 @@ async function install (
 
   const shortId = pkgShortId(fetchedPkg.id, ctx.shrinkwrap.registry)
   ctx.shrinkwrap.packages[shortId] = ctx.shrinkwrap.packages[shortId] || {}
-  ctx.shrinkwrap.packages[shortId].resolution = fetchedPkg.resolution
+  ctx.shrinkwrap.packages[shortId].resolution = Object.assign({}, fetchedPkg.resolution)
+  if (shortId.startsWith('/') && ctx.shrinkwrap.packages[shortId].resolution.type === undefined) {
+    delete ctx.shrinkwrap.packages[shortId].resolution['tarball']
+  }
 
   const pkg = await fetchedPkg.fetchingPkg
 
