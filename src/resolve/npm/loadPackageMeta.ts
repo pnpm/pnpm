@@ -1,5 +1,4 @@
 import url = require('url')
-import registryUrl = require('registry-url')
 import loadJsonFile = require('load-json-file')
 import writeJsonFile = require('write-json-file')
 import path = require('path')
@@ -36,7 +35,8 @@ export default async function loadPkgMetaNonCached (
     localRegistry: string,
     got: Got,
     metaCache: Map<string, PackageMeta>,
-    offline: boolean
+    offline: boolean,
+    registry: string,
   }
 ): Promise<PackageMeta> {
   opts = opts || {}
@@ -45,8 +45,8 @@ export default async function loadPkgMetaNonCached (
     return <PackageMeta>opts.metaCache.get(spec.name)
   }
 
-  const registry = getRegistryName(registryUrl(spec.scope))
-  const pkgMirror = path.join(opts.localRegistry, registry, spec.name)
+  const registryName = getRegistryName(opts.registry)
+  const pkgMirror = path.join(opts.localRegistry, registryName, spec.name)
   const limit = metafileOperationLimits[pkgMirror] = metafileOperationLimits[pkgMirror] || pLimit(1)
 
   if (opts.offline) {
@@ -67,7 +67,7 @@ export default async function loadPkgMetaNonCached (
   }
 
   try {
-    const meta = await fromRegistry(opts.got, spec)
+    const meta = await fromRegistry(opts.got, spec, opts.registry)
     // only save meta to cache, when it is fresh
     opts.metaCache.set(spec.name, meta)
     limit(() => saveMeta(pkgMirror, meta))
@@ -81,8 +81,8 @@ export default async function loadPkgMetaNonCached (
   }
 }
 
-async function fromRegistry (got: Got, spec: PackageSpec) {
-  const uri = toUri(spec)
+async function fromRegistry (got: Got, spec: PackageSpec, registry: string) {
+  const uri = toUri(spec, registry)
   const meta = <PackageMeta>await got.getJSON(uri)
   return meta
 }
@@ -111,7 +111,7 @@ function saveMeta (pkgMirror: string, meta: PackageMeta): Promise<PackageMeta> {
  *     toUri({ name: 'rimraf', rawSpec: '2' })
  *     // => 'https://registry.npmjs.org/rimraf/2'
  */
-function toUri (spec: PackageSpec) {
+function toUri (spec: PackageSpec, registry: string) {
   let name: string
 
   if (spec.name.substr(0, 1) === '@') {
@@ -120,5 +120,5 @@ function toUri (spec: PackageSpec) {
     name = encodeURIComponent(spec.name)
   }
 
-  return url.resolve(registryUrl(spec.scope), name)
+  return url.resolve(registry, name)
 }

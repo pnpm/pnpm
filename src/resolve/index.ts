@@ -66,6 +66,7 @@ export type ResolveOptions = {
   loggedPkg: LoggedPkg,
   got: Got,
   localRegistry: string,
+  registry: string,
   metaCache: Map<string, PackageMeta>,
   root: string,
   offline: boolean,

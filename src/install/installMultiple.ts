@@ -15,6 +15,7 @@ import exists = require('path-exists')
 import logStatus from '../logging/logInstallStatus'
 import rimraf = require('rimraf-then')
 import fs = require('mz/fs')
+import getRegistryUrl = require('registry-url')
 import {Got} from '../network/got'
 import {
   DependencyShrinkwrap,
@@ -51,6 +52,7 @@ export default async function installAll (
     root: string,
     storePath: string,
     localRegistry: string,
+    registry: string,
     metaCache: Map<string, PackageMeta>,
     got: Got,
     keypath?: string[],
@@ -93,6 +95,7 @@ async function installMultiple (
     root: string,
     storePath: string,
     localRegistry: string,
+    registry: string,
     metaCache: Map<string, PackageMeta>,
     got: Got,
     keypath: string[],
@@ -171,6 +174,7 @@ async function install (
     root: string,
     storePath: string,
     localRegistry: string,
+    registry: string,
     metaCache: Map<string, PackageMeta>,
     got: Got,
     keypath: string[],
@@ -186,6 +190,7 @@ async function install (
 ) {
   const keypath = options.keypath || []
   const update = keypath.length <= options.depth
+  const registry = spec.scope && getRegistryUrl(spec.scope) || options.registry
 
   const dependentId = keypath[keypath.length - 1]
   const loggedPkg = {
@@ -203,6 +208,7 @@ async function install (
     update,
     shrinkwrapResolution: options.dependencyShrinkwrap && options.dependencyShrinkwrap.resolution,
     fetchingLocker: ctx.fetchingLocker,
+    registry,
   }))
 
   if (keypath.indexOf(fetchedPkg.id) !== -1) {
@@ -331,6 +337,7 @@ async function installDependencies (
     root: string,
     storePath: string,
     localRegistry: string,
+    registry: string,
     metaCache: Map<string, PackageMeta>,
     got: Got,
     keypath: string[],

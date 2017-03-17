@@ -7,7 +7,6 @@ import writeYamlFile = require('write-yaml-file')
 import R = require('ramda')
 import rimraf = require('rimraf-then')
 import isCI = require('is-ci')
-import registryUrl = require('registry-url')
 import getRegistryName from '../resolve/npm/getRegistryName'
 import npa = require('npm-package-arg')
 
@@ -17,12 +16,12 @@ const SHRINKWRAP_FILENAME = 'shrinkwrap.yaml'
 const PRIVATE_SHRINKWRAP_FILENAME = path.join('node_modules', '.shrinkwrap.yaml')
 const SHRINKWRAP_VERSION = 2
 
-function getDefaultShrinkwrap () {
+function getDefaultShrinkwrap (registry: string) {
   return {
     version: SHRINKWRAP_VERSION,
     dependencies: {},
     packages: {},
-    registry: registryUrl(),
+    registry,
   }
 }
 
@@ -51,7 +50,13 @@ export type ResolvedDependencies = {
   [pkgName: string]: string,
 }
 
-export async function readPrivate (pkgPath: string, opts: {force: boolean}): Promise<Shrinkwrap> {
+export async function readPrivate (
+  pkgPath: string,
+  opts: {
+    force: boolean,
+    registry: string,
+  }
+): Promise<Shrinkwrap> {
   const shrinkwrapPath = path.join(pkgPath, PRIVATE_SHRINKWRAP_FILENAME)
   let shrinkwrap
   try {
@@ -60,19 +65,24 @@ export async function readPrivate (pkgPath: string, opts: {force: boolean}): Pro
     if ((<NodeJS.ErrnoException>err).code !== 'ENOENT') {
       throw err
     }
-    return getDefaultShrinkwrap()
+    return getDefaultShrinkwrap(opts.registry)
   }
   if (shrinkwrap && shrinkwrap.version === SHRINKWRAP_VERSION) {
     return shrinkwrap
   }
   if (opts.force || isCI) {
     shrinkwrapLogger.warn(`Ignoring not compatible shrinkwrap file at ${shrinkwrapPath}`)
-    return getDefaultShrinkwrap()
+    return getDefaultShrinkwrap(opts.registry)
   }
   throw new ShrinkwrapBreakingChangeError(shrinkwrapPath)
 }
 
-export async function read (pkgPath: string, opts: {force: boolean}): Promise<Shrinkwrap> {
+export async function read (
+  pkgPath: string,
+  opts: {
+    force: boolean,
+    registry: string,
+}): Promise<Shrinkwrap> {
   const shrinkwrapPath = path.join(pkgPath, SHRINKWRAP_FILENAME)
   let shrinkwrap
   try {
@@ -81,14 +91,14 @@ export async function read (pkgPath: string, opts: {force: boolean}): Promise<Sh
     if ((<NodeJS.ErrnoException>err).code !== 'ENOENT') {
       throw err
     }
-    return getDefaultShrinkwrap()
+    return getDefaultShrinkwrap(opts.registry)
   }
   if (shrinkwrap && shrinkwrap.version === SHRINKWRAP_VERSION) {
     return shrinkwrap
   }
   if (opts.force || isCI) {
     shrinkwrapLogger.warn(`Ignoring not compatible shrinkwrap file at ${shrinkwrapPath}`)
-    return getDefaultShrinkwrap()
+    return getDefaultShrinkwrap(opts.registry)
   }
   throw new ShrinkwrapBreakingChangeError(shrinkwrapPath)
 }
