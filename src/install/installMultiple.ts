@@ -2,6 +2,7 @@ import path = require('path')
 import logger from 'pnpm-logger'
 import pFilter = require('p-filter')
 import R = require('ramda')
+import getNpmTarballUrl from 'get-npm-tarball-url'
 import fetch, {FetchedPackage} from './fetch'
 import {InstallContext, InstalledPackages} from '../api/install'
 import {Dependencies} from '../types'
@@ -125,7 +126,10 @@ async function installMultiple (
           try {
             const pkg = await install(spec, ctx, Object.assign({}, options, {
               pkgId,
-              dependencyShrinkwrap,
+              resolvedDependencies: dependencyShrinkwrap && dependencyShrinkwrap['dependencies'],
+              shrinkwrapResolution: pkgShortId && dependencyShrinkwrap
+                ? dependencyShrToResolution(pkgShortId, dependencyShrinkwrap, options.registry)
+                : undefined,
             }))
             if (options.keypath && options.keypath.indexOf(pkg.id) !== -1) {
               return null
@@ -147,6 +151,36 @@ async function installMultiple (
   .filter(pkg => pkg)
 
   return installedPkgs
+}
+
+function dependencyShrToResolution (
+  pkgShortId: string,
+  depShr: DependencyShrinkwrap,
+  registry: string
+): Resolution {
+  if (typeof depShr === 'string') {
+    return {
+      shasum: depShr,
+      tarball: getTarball()
+    }
+  }
+  if (typeof depShr.resolution === 'string') {
+    return {
+      shasum: depShr.resolution,
+      tarball: getTarball(),
+    }
+  }
+  if (!depShr.resolution.type && !depShr.resolution.tarball) {
+    return Object.assign({}, depShr.resolution, {
+      tarball: getTarball()
+    })
+  }
+  return depShr.resolution
+
+  function getTarball () {
+    const parts = pkgShortId.split('/')
+    return getNpmTarballUrl(parts[1], parts[2], {registry})
+  }
 }
 
 async function isInnerLink (modules: string, depName: string) {
@@ -179,7 +213,8 @@ async function install (
     got: Got,
     keypath: string[],
     pkgId?: string,
-    dependencyShrinkwrap?: DependencyShrinkwrap,
+    shrinkwrapResolution?: Resolution,
+    resolvedDependencies: ResolvedDependencies,
     optional: boolean,
     depth: number,
     engineStrict: boolean,
@@ -206,20 +241,12 @@ async function install (
   const fetchedPkg = await fetch(spec, Object.assign({}, options, {
     loggedPkg,
     update,
-    shrinkwrapResolution: options.dependencyShrinkwrap && options.dependencyShrinkwrap.resolution,
     fetchingLocker: ctx.fetchingLocker,
     registry,
   }))
 
   if (keypath.indexOf(fetchedPkg.id) !== -1) {
     return fetchedPkg
-  }
-
-  const shortId = pkgShortId(fetchedPkg.id, ctx.shrinkwrap.registry)
-  ctx.shrinkwrap.packages[shortId] = ctx.shrinkwrap.packages[shortId] || {}
-  ctx.shrinkwrap.packages[shortId].resolution = Object.assign({}, fetchedPkg.resolution)
-  if (shortId.startsWith('/') && ctx.shrinkwrap.packages[shortId].resolution.type === undefined) {
-    delete ctx.shrinkwrap.packages[shortId].resolution['tarball']
   }
 
   const pkg = await fetchedPkg.fetchingPkg
@@ -268,16 +295,10 @@ async function install (
       dependency,
       ctx,
       modules,
-      Object.assign({}, options, {
-        resolvedDependencies: options.dependencyShrinkwrap && options.dependencyShrinkwrap.dependencies
-      })
+      options
     )
-    if (dependencies.length) {
-      ctx.shrinkwrap.packages[shortId].dependencies = dependencies
-        .reduce((resolutions, dep) => Object.assign(resolutions, {
-          [dep.pkg.name]: pkgIdToRef(dep.id, dep.pkg.version, dep.resolution, ctx.shrinkwrap.registry)
-        }), {})
-    }
+    const shortId = pkgShortId(fetchedPkg.id, ctx.shrinkwrap.registry)
+    ctx.shrinkwrap.packages[shortId] = toShrDependency(shortId, fetchedPkg.resolution, dependencies, ctx.shrinkwrap.registry)
 
     await linking
 
@@ -299,6 +320,35 @@ async function install (
   })
 
   return dependency
+}
+
+function toShrDependency (
+  shortId: string,
+  resolution: Resolution,
+  deps: InstalledPackage[],
+  registry: string
+): DependencyShrinkwrap {
+  const shrResolution = toShrResolution(shortId, resolution)
+  if (deps.length) {
+    return {
+      resolution: shrResolution,
+      dependencies: deps
+        .reduce((resolutions, dep) => Object.assign(resolutions, {
+          [dep.pkg.name]: pkgIdToRef(dep.id, dep.pkg.version, dep.resolution, registry)
+        }), {})
+    }
+  }
+  if (typeof shrResolution === 'string') return shrResolution
+  return {
+    resolution: shrResolution
+  }
+}
+
+function toShrResolution (shortId: string, resolution: Resolution): string | Resolution {
+  if (shortId.startsWith('/') && resolution.type === undefined && resolution.shasum) {
+    return resolution.shasum
+  }
+  return resolution
 }
 
 async function isSameFile (file1: string, file2: string) {
