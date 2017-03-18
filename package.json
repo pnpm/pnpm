@@ -90,7 +90,7 @@
     "commitizen": "^2.8.6",
     "cz-conventional-changelog": "^2.0.0",
     "exists-link": "^2.0.0",
-    "ghooks": "^2.0.0",
+    "husky": "^0.13.2",
     "in-publish": "^2.0.0",
     "isexe": "^1.1.2",
     "mkdirp": "^0.5.1",
@@ -131,8 +131,9 @@
   "scripts": {
     "info": "npm-scripts-info",
     "start": "npm run tsc -- --watch",
-    "?commit": "echo 'Run Git commit wizard'",
-    "commit": "git-cz",
+    "?cz": "echo 'Run Git commit wizard'",
+    "cz": "git-cz",
+    "commitmsg": "validate-commit-msg",
     "lint": "tslint -c tslint.json --project .",
     "pnpm-registry-mock": "pnpm-registry-mock",
     "test:tap": "ts-node test",
@@ -145,9 +146,6 @@
   "config": {
     "commitizen": {
       "path": "./node_modules/cz-conventional-changelog"
-    },
-    "ghooks": {
-      "commit-msg": "node ./node_modules/validate-commit-msg/index.js"
     }
   },
   "greenkeeper": {
