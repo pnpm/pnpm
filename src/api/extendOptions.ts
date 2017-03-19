@@ -30,6 +30,7 @@ const defaults = () => (<StrictPnpmOptions>{
   lockStaleDuration: 60 * 1000, // 1 minute
   childConcurrency: 5,
   offline: false,
+  registry: 'https://registry.npmjs.org/',
 })
 
 export default (opts?: PnpmOptions): StrictPnpmOptions => {
