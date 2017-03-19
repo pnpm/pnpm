@@ -131,9 +131,6 @@ async function installMultiple (
                 ? dependencyShrToResolution(pkgShortId, dependencyShrinkwrap, options.registry)
                 : undefined,
             }))
-            if (options.keypath && options.keypath.indexOf(pkg.id) !== -1) {
-              return null
-            }
             return pkg
           } catch (err) {
             if (options.optional) {
@@ -244,10 +241,6 @@ async function install (
     fetchingLocker: ctx.fetchingLocker,
     registry,
   }))
-
-  if (keypath.indexOf(fetchedPkg.id) !== -1) {
-    return fetchedPkg
-  }
 
   const pkg = await fetchedPkg.fetchingPkg
 

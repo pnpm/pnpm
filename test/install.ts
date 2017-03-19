@@ -328,6 +328,8 @@ test('concurrent circular deps', async function (t) {
   const dep = project.requireModule('es6-iterator')
 
   t.ok(dep, 'es6-iterator is installed')
+  t.ok(await exists(path.join('node_modules', '.localhost+4873', 'es6-iterator', '2.0.0', 'node_modules', 'es5-ext')))
+  t.ok(await exists(path.join('node_modules', '.localhost+4873', 'es6-iterator', '2.0.1', 'node_modules', 'es5-ext')))
 })
 
 test('concurrent installation of the same packages', async function (t) {
