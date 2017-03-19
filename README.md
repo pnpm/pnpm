@@ -34,37 +34,36 @@ See [store layout](docs/store-layout.md) for an explanation.
 -> - a symlink (or junction on Windows)
 
 ~/.pnpm-store
-   └─ registry.npmjs.org/
-      ├─ chalk/1.1.1/
+   └─ registry.npmjs.org
+      ├─ chalk/1.1.1
       |  ├─ index.js
       |  └─ package.json
-      ├─ ansi-styles/2.1.0/
+      ├─ ansi-styles/2.1.0
       |  ├─ index.js
       |  └─ package.json
-      └─ has-ansi/2.0.0/
+      └─ has-ansi/2.0.0
          ├─ index.js
          └─ package.json
 .
-└─ node_modules/
-   ├─ .registry.npmjs.org/
-   |   ├─ chalk/1.1.1/node_modules/
-   |   |  ├─ chalk
-   |   |  |  ├─ index.js     => ~/.pnpm-store/registry.npmjs.org/chalk/1.1.1/index.js
-   |   |  |  └─ package.json => ~/.pnpm-store/registry.npmjs.org/chalk/1.1.1/package.json
-   |   |  ├─ ansi-styles/    -> ../../ansi-styles/2.1.0/node_modules/ansi-styles
-   |   |  └─ has-ansi/       -> ../../has-ansi/2.0.0/node_modules/has-ansi
-   |   |
-   |   ├─ has-ansi/2.0.0/node_modules/
-   |   |  └─ has-ansi
-   |   |     ├─ index.js     => ~/.pnpm-store/registry.npmjs.org/has-ansi/2.0.0/index.js
-   |   |     └─ package.js   => ~/.pnpm-store/registry.npmjs.org/has-ansi/2.0.0/package.json
-   |   |
-   |   └─ ansi-styles/2.1.0/node_modules/
-   |      └─ ansi-styles
-   |         ├─ index.js     => ~/.pnpm-store/registry.npmjs.org/ansi-styles/2.1.0/index.js
-   |         └─ package.js   => ~/.pnpm-store/registry.npmjs.org/ansi-styles/2.1.0/package.json
-   |
-   └─ chalk/                 -> ./.registry.npmjs.org/chalk/1.1.1/node_modules/chalk
+└─ node_modules
+   ├─ chalk                  -> ./.registry.npmjs.org/chalk/1.1.1/node_modules/chalk
+   └─ .registry.npmjs.org
+       ├─ has-ansi/2.0.0/node_modules
+       |  └─ has-ansi
+       |     ├─ index.js     => ~/.pnpm-store/registry.npmjs.org/has-ansi/2.0.0/index.js
+       |     └─ package.js   => ~/.pnpm-store/registry.npmjs.org/has-ansi/2.0.0/package.json
+       |
+       ├─ ansi-styles/2.1.0/node_modules
+       |  └─ ansi-styles
+       |     ├─ index.js     => ~/.pnpm-store/registry.npmjs.org/ansi-styles/2.1.0/index.js
+       |     └─ package.js   => ~/.pnpm-store/registry.npmjs.org/ansi-styles/2.1.0/package.json
+       |
+       └─ chalk/1.1.1/node_modules
+          ├─ ansi-styles     -> ../../ansi-styles/2.1.0/node_modules/ansi-styles
+          ├─ has-ansi        -> ../../has-ansi/2.0.0/node_modules/has-ansi
+          └─ chalk
+             ├─ index.js     => ~/.pnpm-store/registry.npmjs.org/chalk/1.1.1/index.js
+             └─ package.json => ~/.pnpm-store/registry.npmjs.org/chalk/1.1.1/package.json
 ```
 
 ## Install
