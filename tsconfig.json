@@ -74,6 +74,7 @@
     "src/pnpmPkgJson.ts",
     "src/removeDeps.ts",
     "src/reporter/index.ts",
+    "src/reporter/silentReporter.ts",
     "src/resolve/git.ts",
     "src/resolve/index.ts",
     "src/resolve/local.ts",

@@ -131,7 +131,7 @@ async function run (argv: string[]) {
     .filter(key => !!cli.flags[key])
     .forEach(key => { opts[key] = cli.flags[key] })
 
-  if (!opts.silent) initReporter(opts.reporter || 'default')
+  initReporter(opts.silent ? 'silent' : (opts.reporter || 'default'))
 
   const cliArgs = cli.input.slice(1)
   return pnpmCmds[cmd](cliArgs, opts)
