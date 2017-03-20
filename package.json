@@ -33,7 +33,7 @@
     "camelcase-keys": "4.0.0",
     "common-tags": "1.4.0",
     "cross-spawn": "^5.0.0",
-    "execa": "0.6.1",
+    "execa": "0.6.2",
     "find-up": "2.1.0",
     "fs-write-stream-atomic": "1.0.10",
     "get-link-target": "1.0.0",
