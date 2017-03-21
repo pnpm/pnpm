@@ -109,7 +109,7 @@ async function installMultiple (
     offline: boolean,
   }
 ): Promise<InstalledPackage[]> {
-  const nonLinkedPkgs = modules === options.baseNodeModules
+  const nonLinkedPkgs = !options.keypath.length
     // only check modules on the first level
     ? await pFilter(specs, (spec: PackageSpec) => !spec.name || isInnerLink(modules, spec.name))
     : specs
