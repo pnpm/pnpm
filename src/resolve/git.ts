@@ -7,7 +7,7 @@ import {
   TarballResolution,
   GitRepositoryResolution,
 } from '.'
-import hostedGitInfo = require('@zkochan/hosted-git-info')
+import hostedGitInfo = require('hosted-git-info')
 import logger from 'pnpm-logger'
 import path = require('path')
 import normalizeSsh = require('normalize-ssh')

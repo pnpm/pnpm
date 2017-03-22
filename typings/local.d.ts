@@ -178,7 +178,7 @@ declare module 'execa' {
   export = anything;
 }
 
-declare module '@zkochan/hosted-git-info' {
+declare module 'hosted-git-info' {
   const anything: any;
   export = anything;
 }
