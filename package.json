@@ -7,7 +7,7 @@
     "pnpm": "lib/bin/pnpm.js"
   },
   "bugs": {
-    "url": "http://ghub.io/pnpm/issues"
+    "url": "https://github.com/pnpm/pnpm/issues"
   },
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
