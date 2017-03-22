@@ -12,8 +12,8 @@ import npa = require('npm-package-arg')
 
 const shrinkwrapLogger = logger('shrinkwrap')
 
-const SHRINKWRAP_FILENAME = 'shrinkwrap.yaml'
-const PRIVATE_SHRINKWRAP_FILENAME = path.join('node_modules', '.shrinkwrap.yaml')
+export const SHRINKWRAP_FILENAME = 'shrinkwrap.yaml'
+export const PRIVATE_SHRINKWRAP_FILENAME = path.join('node_modules', '.shrinkwrap.yaml')
 const SHRINKWRAP_VERSION = 2
 
 function getDefaultShrinkwrap (registry: string) {
