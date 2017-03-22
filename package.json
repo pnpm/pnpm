@@ -20,7 +20,7 @@
     "@types/load-json-file": "^2.0.5",
     "@types/mz": "^0.0.30",
     "@types/node": "^7.0.5",
-    "@types/ramda": "^0.0.4",
+    "@types/ramda": "^0.0.5",
     "@types/rc": "^0.0.1",
     "@types/semver": "^5.3.30",
     "@types/update-notifier": "^1.0.0",
