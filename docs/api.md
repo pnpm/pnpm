@@ -86,7 +86,7 @@ Remove extraneous packages. Extraneous packages are packages that are not listed
 * `options.production` - *Boolean* - by default `false`. If this property is `true`, prune will remove the packages specified in `devDependencies`.
 * `options.cwd` - *String* - by default `process.cwd()`.
 
-## `pnpm.verify([options])`
+## `pnpm.storeStatus([options])`
 
 Return the list of modified dependencies.
 
