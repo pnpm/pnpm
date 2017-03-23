@@ -35,6 +35,9 @@ const installCheckLogger = logger('install-check')
 
 export type InstalledPackage = {
   id: string,
+  // optional dependencies are resolved for consistent shrinkwrap.yaml files
+  // but installed only on machines that are supported by the package
+  isInstallable: boolean,
   resolution: Resolution,
   pkg: Package,
   srcPath?: string,
@@ -78,6 +81,7 @@ export default async function installAll (
 
   await Promise.all(
     installedPkgs
+      .filter(subdep => subdep.isInstallable)
       .map(async function (subdep) {
         const dest = path.join(modules, subdep.pkg.name)
         await symlinkDir(subdep.hardlinkedLocation, dest)
@@ -123,25 +127,13 @@ async function installMultiple (
           const pkgShortId = reference && getPkgShortId(reference, spec.name)
           const dependencyShrinkwrap = pkgShortId && ctx.shrinkwrap.packages[pkgShortId]
           const pkgId = reference && getPkgId(reference, spec.name, ctx.shrinkwrap.registry)
-          try {
-            const pkg = await install(spec, ctx, Object.assign({}, options, {
-              pkgId,
-              resolvedDependencies: dependencyShrinkwrap && dependencyShrinkwrap['dependencies'],
-              shrinkwrapResolution: pkgShortId && dependencyShrinkwrap
-                ? dependencyShrToResolution(pkgShortId, dependencyShrinkwrap, options.registry)
-                : undefined,
-            }))
-            return pkg
-          } catch (err) {
-            if (options.optional) {
-              logger.warn({
-                message: `Skipping failed optional dependency ${pkgId || spec.raw}`,
-                err,
-              })
-              return null // is it OK to return null?
-            }
-            throw err
-          }
+          return await install(spec, ctx, Object.assign({}, options, {
+            pkgId,
+            resolvedDependencies: dependencyShrinkwrap && dependencyShrinkwrap['dependencies'],
+            shrinkwrapResolution: pkgShortId && dependencyShrinkwrap
+              ? dependencyShrToResolution(pkgShortId, dependencyShrinkwrap, options.registry)
+              : undefined,
+          }))
         })
     )
   )
@@ -244,10 +236,6 @@ async function install (
 
   const pkg = await fetchedPkg.fetchingPkg
 
-  if (!options.force) {
-    await isInstallable(pkg, fetchedPkg, options)
-  }
-
   const modules = path.join(options.baseNodeModules, `.${fetchedPkg.id}`, 'node_modules')
 
   const dependency: InstalledPackage = {
@@ -258,11 +246,13 @@ async function install (
     pkg,
     hardlinkedLocation: path.join(modules, pkg.name),
     modules,
+    isInstallable: options.force || await getIsInstallable(fetchedPkg.id, pkg, fetchedPkg, options),
   }
 
   addInstalledPkg(ctx.installs, dependency)
 
   const linking = ctx.linkingLocker(dependency.hardlinkedLocation, async function () {
+    if (!dependency.isInstallable) return
     const newlyFetched = await fetchedPkg.fetchingFiles
     const pkgJsonPath = path.join(dependency.hardlinkedLocation, 'package.json')
     if (newlyFetched || options.force || !await exists(pkgJsonPath) || !await pkgLinkedToStore()) {
@@ -349,7 +339,8 @@ async function isSameFile (file1: string, file2: string) {
   return stats[0].ino === stats[1].ino
 }
 
-async function isInstallable (
+async function getIsInstallable (
+  pkgId: string,
   pkg: Package,
   fetchedPkg: FetchedPackage,
   options: {
@@ -357,17 +348,28 @@ async function isInstallable (
     engineStrict: boolean,
     nodeVersion: string,
   }
-): Promise<void> {
+): Promise<boolean> {
   const warn = await installChecks.checkPlatform(pkg) || await installChecks.checkEngine(pkg, {
     pnpmVersion: pnpmPkg.version,
     nodeVersion: options.nodeVersion
   })
-  if (!warn) return
+
+  if (!warn) return true
+
   installCheckLogger.warn(warn)
-  if (options.engineStrict || options.optional) {
-    await fetchedPkg.abort()
-    throw warn
-  }
+
+  if (!options.engineStrict && !options.optional) return true
+
+  await fetchedPkg.abort()
+
+  if (!options.optional) throw warn
+
+  logger.warn({
+    message: `Skipping failed optional dependency ${pkgId}`,
+    warn,
+  })
+
+  return false
 }
 
 async function installDependencies (

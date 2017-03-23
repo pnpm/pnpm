@@ -131,6 +131,9 @@ test('skip optional dependency that does not support the current OS', async func
 
   await project.hasNot('not-compatible-with-any-os')
   await project.storeHasNot('not-compatible-with-any-os', '1.0.0')
+
+  const shr = await project.loadShrinkwrap()
+  t.ok(shr.packages['/not-compatible-with-any-os/1.0.0'], 'shrinkwrap contains optional dependency')
 })
 
 test('skip optional dependency that does not support the current Node version', async function (t) {
