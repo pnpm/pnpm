@@ -8,11 +8,8 @@ import {InstallContext, InstalledPackages} from '../api/install'
 import {Dependencies} from '../types'
 import memoize from '../memoize'
 import {Package} from '../types'
-import linkDir from 'link-dir'
 import installChecks = require('pnpm-install-checks')
 import pnpmPkg from '../pnpmPkgJson'
-import symlinkDir from 'symlink-dir'
-import exists = require('path-exists')
 import logStatus from '../logging/logInstallStatus'
 import rimraf = require('rimraf-then')
 import fs = require('mz/fs')
@@ -27,7 +24,6 @@ import {
   pkgShortId,
 } from '../fs/shrinkwrap'
 import {Resolution, PackageSpec, PackageMeta} from '../resolve'
-import linkBins from '../install/linkBins'
 import getLinkTarget = require('get-link-target')
 import depsToSpecs from '../depsToSpecs'
 
@@ -44,6 +40,9 @@ export type InstalledPackage = {
   optional: boolean,
   hardlinkedLocation: string,
   modules: string,
+  dependencies: string[],
+  fetchingFiles: Promise<Boolean>,
+  path: string,
 }
 
 export default async function installAll (
@@ -78,15 +77,6 @@ export default async function installAll (
     installMultiple(ctx, nonOptionalDepSpecs, modules, Object.assign({}, options, {optional: false, keypath})),
     installMultiple(ctx, optionalDepSpecs, modules, Object.assign({}, options, {optional: true, keypath})),
   ]))
-
-  await Promise.all(
-    installedPkgs
-      .filter(subdep => subdep.isInstallable)
-      .map(async function (subdep) {
-        const dest = path.join(modules, subdep.pkg.name)
-        await symlinkDir(subdep.hardlinkedLocation, dest)
-      })
-  )
 
   return installedPkgs
 }
@@ -247,29 +237,12 @@ async function install (
     hardlinkedLocation: path.join(modules, pkg.name),
     modules,
     isInstallable: options.force || await getIsInstallable(fetchedPkg.id, pkg, fetchedPkg, options),
+    dependencies: [], // TODO: rewrite to avoid this
+    fetchingFiles: fetchedPkg.fetchingFiles,
+    path: fetchedPkg.path,
   }
 
   addInstalledPkg(ctx.installs, dependency)
-
-  const linking = ctx.linkingLocker(dependency.hardlinkedLocation, async function () {
-    if (!dependency.isInstallable) return
-    const newlyFetched = await fetchedPkg.fetchingFiles
-    const pkgJsonPath = path.join(dependency.hardlinkedLocation, 'package.json')
-    if (newlyFetched || options.force || !await exists(pkgJsonPath) || !await pkgLinkedToStore()) {
-      await linkDir(fetchedPkg.path, dependency.hardlinkedLocation)
-
-      if (ctx.installationSequence.indexOf(dependency.id) === -1) {
-        ctx.installationSequence.push(dependency.id)
-      }
-    }
-
-    async function pkgLinkedToStore () {
-      const pkgJsonPathInStore = path.join(fetchedPkg.path, 'package.json')
-      if (await isSameFile(pkgJsonPath, pkgJsonPathInStore)) return true
-      logger.info(`Relinking ${dependency.hardlinkedLocation} from the store`)
-      return false
-    }
-  })
 
   if (!ctx.installed.has(dependency.id)) {
     ctx.installed.add(dependency.id)
@@ -282,19 +255,11 @@ async function install (
     )
     const shortId = pkgShortId(fetchedPkg.id, ctx.shrinkwrap.registry)
     ctx.shrinkwrap.packages[shortId] = toShrDependency(shortId, fetchedPkg.resolution, dependencies, ctx.shrinkwrap.registry)
+    dependency.dependencies = dependencies.map(dep => dep.id)
 
-    await linking
-
-    const binPath = path.join(dependency.hardlinkedLocation, 'node_modules', '.bin')
-    await linkBins(modules, binPath, pkg.name)
-
-    // link also the bundled dependencies` bins
-    if (pkg.bundledDependencies || pkg.bundleDependencies) {
-      const bundledModules = path.join(dependency.hardlinkedLocation, 'node_modules')
-      await linkBins(bundledModules, binPath)
+    if (ctx.installationSequence.indexOf(dependency.id) === -1) {
+      ctx.installationSequence.push(dependency.id)
     }
-  } else {
-    await linking
   }
 
   logStatus({
@@ -332,11 +297,6 @@ function toShrResolution (shortId: string, resolution: Resolution): string | Res
     return resolution.shasum
   }
   return resolution
-}
-
-async function isSameFile (file1: string, file2: string) {
-  const stats = await Promise.all([fs.stat(file1), fs.stat(file2)])
-  return stats[0].ino === stats[1].ino
 }
 
 async function getIsInstallable (

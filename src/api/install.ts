@@ -1,13 +1,14 @@
 import path = require('path')
 import RegClient = require('npm-registry-client')
 import logger from 'pnpm-logger'
-import globalBinPath = require('global-bin-path')
 import pLimit = require('p-limit')
 import npa = require('npm-package-arg')
+import symlinkDir from 'symlink-dir'
 import {PnpmOptions, StrictPnpmOptions, Dependencies} from '../types'
 import createGot from '../network/got'
 import getContext, {PnpmContext} from './getContext'
 import installMultiple, {InstalledPackage} from '../install/installMultiple'
+import linkPackages from '../link'
 import save from '../save'
 import linkPeers from '../install/linkPeers'
 import getSaveType from '../getSaveType'
@@ -27,7 +28,6 @@ import {save as saveModules} from '../fs/modulesController'
 import removeOrphanPkgs from './removeOrphanPkgs'
 import mkdirp = require('mkdirp-promise')
 import createMemoize, {MemoizedFunc} from '../memoize'
-import linkBins from '../install/linkBins'
 import {Package} from '../types'
 import {PackageSpec} from '../resolve'
 import depsToSpecs from '../depsToSpecs'
@@ -42,7 +42,6 @@ export type InstallContext = {
   shrinkwrap: Shrinkwrap,
   installed: Set<string>,
   fetchingLocker: MemoizedFunc<Boolean>,
-  linkingLocker: MemoizedFunc<void>,
 }
 
 export async function install (maybeOpts?: PnpmOptions) {
@@ -155,8 +154,10 @@ async function installInContext (
     nodeModulesPath,
     installOpts
   )
-  const binPath = opts.global ? globalBinPath() : path.join(nodeModulesPath, '.bin')
-  await linkBins(nodeModulesPath, binPath)
+  await linkPackages(pkgs, nodeModulesPath, installCtx.installs, {
+    force: opts.force,
+    global: opts.global,
+  })
 
   let newPkg: Package | undefined = ctx.pkg
   if (installType === 'named') {
@@ -243,7 +244,6 @@ async function createInstallCmd (opts: StrictPnpmOptions, shrinkwrap: Shrinkwrap
     installed: new Set(),
     installationSequence: [],
     fetchingLocker: createMemoize<boolean>(opts.fetchingConcurrency),
-    linkingLocker: createMemoize<void>(),
   }
 }
 

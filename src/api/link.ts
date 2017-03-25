@@ -4,7 +4,7 @@ import symlinkDir from 'symlink-dir'
 import logger from 'pnpm-logger'
 import {install} from './install'
 import expandTilde from '../fs/expandTilde'
-import {linkPkgBins} from '../install/linkBins'
+import {linkPkgBins} from '../link/linkBins'
 import {PnpmOptions} from '../types'
 import extendOptions from './extendOptions'
 
