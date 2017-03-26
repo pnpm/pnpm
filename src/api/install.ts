@@ -5,7 +5,7 @@ import pLimit = require('p-limit')
 import npa = require('npm-package-arg')
 import symlinkDir from 'symlink-dir'
 import pFilter = require('p-filter')
-import getLinkTarget = require('get-link-target')
+import isInnerLink from '../isInnerLink'
 import {PnpmOptions, StrictPnpmOptions, Dependencies} from '../types'
 import createGot from '../network/got'
 import getContext, {PnpmContext} from './getContext'
@@ -234,23 +234,6 @@ async function installInContext (
       npmRun('prepublish', ctx.root)
     }
   }
-}
-
-async function isInnerLink (modules: string, depName: string) {
-  let linkTarget: string
-  try {
-    const linkPath = path.join(modules, depName)
-    linkTarget = await getLinkTarget(linkPath)
-  } catch (err) {
-    if (err.code === 'ENOENT') return true
-    throw err
-  }
-
-  if (linkTarget.startsWith(modules)) {
-    return true
-  }
-  logger.info(`${depName} is linked to ${modules} from ${linkTarget}`)
-  return false
 }
 
 async function createInstallCmd (opts: StrictPnpmOptions, shrinkwrap: Shrinkwrap): Promise<InstallContext> {
