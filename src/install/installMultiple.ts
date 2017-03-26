@@ -194,6 +194,26 @@ async function install (
   }))
 
   const pkg = await fetchedPkg.fetchingPkg
+  let dependencyIds: string[] | void
+
+  if (!ctx.installed.has(fetchedPkg.id)) {
+    ctx.installed.add(fetchedPkg.id)
+    const dependencies = await installDependencies(
+      pkg,
+      fetchedPkg.id,
+      ctx,
+      Object.assign({}, options, {
+        root: fetchedPkg.srcPath
+      })
+    )
+    const shortId = pkgShortId(fetchedPkg.id, ctx.shrinkwrap.registry)
+    ctx.shrinkwrap.packages[shortId] = toShrDependency(shortId, fetchedPkg.resolution, dependencies, ctx.shrinkwrap.registry)
+    dependencyIds = dependencies.map(dep => dep.id)
+
+    if (ctx.installationSequence.indexOf(fetchedPkg.id) === -1) {
+      ctx.installationSequence.push(fetchedPkg.id)
+    }
+  }
 
   const dependency: InstalledPackage = {
     id: fetchedPkg.id,
@@ -202,29 +222,12 @@ async function install (
     optional: options.optional === true,
     pkg,
     isInstallable: options.force || await getIsInstallable(fetchedPkg.id, pkg, fetchedPkg, options),
-    dependencies: [], // TODO: rewrite to avoid this
+    dependencies: dependencyIds || [],
     fetchingFiles: fetchedPkg.fetchingFiles,
     path: fetchedPkg.path,
   }
 
   addInstalledPkg(ctx.installs, dependency)
-
-  if (!ctx.installed.has(dependency.id)) {
-    ctx.installed.add(dependency.id)
-    const dependencies = await installDependencies(
-      pkg,
-      dependency,
-      ctx,
-      options
-    )
-    const shortId = pkgShortId(fetchedPkg.id, ctx.shrinkwrap.registry)
-    ctx.shrinkwrap.packages[shortId] = toShrDependency(shortId, fetchedPkg.resolution, dependencies, ctx.shrinkwrap.registry)
-    dependency.dependencies = dependencies.map(dep => dep.id)
-
-    if (ctx.installationSequence.indexOf(dependency.id) === -1) {
-      ctx.installationSequence.push(dependency.id)
-    }
-  }
 
   logStatus({
     status: 'installed',
@@ -298,7 +301,7 @@ async function getIsInstallable (
 
 async function installDependencies (
   pkg: Package,
-  dependency: InstalledPackage,
+  pkgId: string,
   ctx: InstallContext,
   opts: {
     force: boolean,
@@ -318,8 +321,7 @@ async function installDependencies (
   }
 ): Promise<InstalledPackage[]> {
   const depsInstallOpts = Object.assign({}, opts, {
-    keypath: opts.keypath.concat([ dependency.id ]),
-    root: dependency.srcPath,
+    keypath: opts.keypath.concat([ pkgId ]),
   })
 
   const bundledDeps = pkg.bundleDependencies || pkg.bundledDependencies || []
@@ -347,4 +349,7 @@ function addInstalledPkg (installs: InstalledPackages, newPkg: InstalledPackage)
     return
   }
   installs[newPkg.id].optional = installs[newPkg.id].optional && newPkg.optional
+  if (!installs[newPkg.id].dependencies.length) {
+    installs[newPkg.id].dependencies = newPkg.dependencies
+  }
 }
