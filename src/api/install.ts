@@ -3,7 +3,6 @@ import RegClient = require('npm-registry-client')
 import logger from 'pnpm-logger'
 import pLimit = require('p-limit')
 import npa = require('npm-package-arg')
-import symlinkDir from 'symlink-dir'
 import pFilter = require('p-filter')
 import isInnerLink from '../isInnerLink'
 import {PnpmOptions, StrictPnpmOptions, Dependencies} from '../types'

@@ -1,49 +1,39 @@
-import mkdirp = require('mkdirp-promise')
-import symlinkDir from 'symlink-dir'
 import path = require('path')
 import semver = require('semver')
-import {InstalledPackages} from '../api/install'
-import {Package} from '../types'
-import {LinkedPackage} from '.'
+import {LinkedPackagesMap} from '.'
 import logger from 'pnpm-logger'
-
-type Dict<T> = {
-  [index: string]: T
-}
+import R = require('ramda')
 
 type PackageVersions = {
-  [version: string]: LinkedPackage
+  [version: string]: string
 }
 
 type InstalledPackageVersions = {
   [pkgName: string]: PackageVersions
 }
 
-export default async function linkPeers (pkgs: LinkedPackage[]) {
-  if (!pkgs) return
-
+export default async function linkPeers (pkgs: LinkedPackagesMap): Promise<LinkedPackagesMap> {
   const groupedPkgs: InstalledPackageVersions = {}
 
-  pkgs.forEach(pkgData => {
+  R.values(pkgs).forEach(pkgData => {
     if (!pkgData.pkg.version) return
 
     const pkgName = pkgData.pkg.name
     groupedPkgs[pkgName] = groupedPkgs[pkgName] || {}
-    groupedPkgs[pkgName][pkgData.pkg.version] = pkgData
+    groupedPkgs[pkgName][pkgData.pkg.version] = pkgData.id
   })
 
-  return Promise.all(pkgs.map(pkgData => {
+  await Promise.all(R.values(pkgs).map(async pkgData => {
     const peerDependencies = pkgData.pkg.peerDependencies || {}
-    return Promise.all(Object.keys(peerDependencies).map(peerName => {
+    await Promise.all(Object.keys(peerDependencies).map(async peerName => {
       const version = semver.maxSatisfying(Object.keys(groupedPkgs[peerName] || {}), peerDependencies[peerName], true)
       if (!version) {
         logger.warn(`${pkgData.id} requires a peer of ${peerName}@${peerDependencies[peerName]} but none was installed.`)
         return
       }
-      return symlinkDir(
-        groupedPkgs[peerName][version].hardlinkedLocation,
-        path.join(pkgData.modules, peerName)
-      )
+      pkgData.dependencies.push(groupedPkgs[peerName][version])
     }))
   }))
+
+  return pkgs
 }

@@ -10,7 +10,7 @@ import {InstalledPackage} from '../install/installMultiple'
 import {InstalledPackages} from '../api/install'
 import linkBins from './linkBins'
 import {Package} from '../types'
-import linkPeers from './linkPeers'
+import resolvePeers from './resolvePeers'
 
 export type LinkedPackage = {
   id: string,
@@ -35,7 +35,7 @@ export default async function (
     baseNodeModules: string,
   }
 ): Promise<LinkedPackagesMap> {
-  const pkgsToLink = R.values(installedPkgs)
+  const pkgsToLink = await resolvePeers(R.values(installedPkgs)
     .filter(installedPkg => installedPkg.isInstallable)
     .reduce((pkgsToLink, installedPkg) => {
       const modules = path.join(opts.baseNodeModules, `.${installedPkg.id}`, 'node_modules')
@@ -49,7 +49,7 @@ export default async function (
         dependencies: installedPkg.dependencies,
       }
       return pkgsToLink
-    }, {})
+    }, {}))
 
   for (let id of R.keys(pkgsToLink)) {
     await linkPkg(pkgsToLink[id], opts)
@@ -66,8 +66,6 @@ export default async function (
   }
   const binPath = opts.global ? globalBinPath() : path.join(opts.baseNodeModules, '.bin')
   await linkBins(opts.baseNodeModules, binPath)
-
-  await linkPeers(<LinkedPackage[]>R.values(pkgsToLink))
 
   return pkgsToLink
 }
