@@ -1,6 +1,5 @@
 import path = require('path')
 import logger from 'pnpm-logger'
-import pFilter = require('p-filter')
 import R = require('ramda')
 import getNpmTarballUrl from 'get-npm-tarball-url'
 import fetch, {FetchedPackage} from './fetch'
@@ -24,7 +23,6 @@ import {
   pkgShortId,
 } from '../fs/shrinkwrap'
 import {Resolution, PackageSpec, PackageMeta} from '../resolve'
-import getLinkTarget = require('get-link-target')
 import depsToSpecs from '../depsToSpecs'
 
 const installCheckLogger = logger('install-check')
@@ -49,7 +47,6 @@ export default async function installAll (
   ctx: InstallContext,
   specs: PackageSpec[],
   optionalDependencies: string[],
-  modules: string,
   options: {
     force: boolean,
     root: string,
@@ -74,8 +71,8 @@ export default async function installAll (
   const nonOptionalDepSpecs = specGroups[1]
 
   const installedPkgs: InstalledPackage[] = Array.prototype.concat.apply([], await Promise.all([
-    installMultiple(ctx, nonOptionalDepSpecs, modules, Object.assign({}, options, {optional: false, keypath})),
-    installMultiple(ctx, optionalDepSpecs, modules, Object.assign({}, options, {optional: true, keypath})),
+    installMultiple(ctx, nonOptionalDepSpecs, Object.assign({}, options, {optional: false, keypath})),
+    installMultiple(ctx, optionalDepSpecs, Object.assign({}, options, {optional: true, keypath})),
   ]))
 
   return installedPkgs
@@ -84,7 +81,6 @@ export default async function installAll (
 async function installMultiple (
   ctx: InstallContext,
   specs: PackageSpec[],
-  modules: string,
   options: {
     force: boolean,
     root: string,
@@ -103,14 +99,9 @@ async function installMultiple (
     offline: boolean,
   }
 ): Promise<InstalledPackage[]> {
-  const nonLinkedPkgs = !options.keypath.length
-    // only check modules on the first level
-    ? await pFilter(specs, (spec: PackageSpec) => !spec.name || isInnerLink(modules, spec.name))
-    : specs
-
   const installedPkgs: InstalledPackage[] = <InstalledPackage[]>(
     await Promise.all(
-      nonLinkedPkgs
+      specs
         .map(async (spec: PackageSpec) => {
           const reference = options.resolvedDependencies &&
             options.resolvedDependencies[spec.name]
@@ -160,23 +151,6 @@ function dependencyShrToResolution (
     const parts = pkgShortId.split('/')
     return getNpmTarballUrl(parts[1], parts[2], {registry})
   }
-}
-
-async function isInnerLink (modules: string, depName: string) {
-  let linkTarget: string
-  try {
-    const linkPath = path.join(modules, depName)
-    linkTarget = await getLinkTarget(linkPath)
-  } catch (err) {
-    if (err.code === 'ENOENT') return true
-    throw err
-  }
-
-  if (linkTarget.startsWith(modules)) {
-    return true
-  }
-  logger.info(`${depName} is linked to ${modules} from ${linkTarget}`)
-  return false
 }
 
 async function install (
@@ -250,7 +224,6 @@ async function install (
       pkg,
       dependency,
       ctx,
-      modules,
       options
     )
     const shortId = pkgShortId(fetchedPkg.id, ctx.shrinkwrap.registry)
@@ -336,7 +309,6 @@ async function installDependencies (
   pkg: Package,
   dependency: InstalledPackage,
   ctx: InstallContext,
-  modules: string,
   opts: {
     force: boolean,
     root: string,
@@ -365,7 +337,7 @@ async function installDependencies (
   const deps = depsToSpecs(filterDeps(Object.assign({}, pkg.optionalDependencies, pkg.dependencies)))
   const optionalDeps = Object.keys(pkg.optionalDependencies || {})
 
-  const installedDeps: InstalledPackage[] = await installAll(ctx, deps, optionalDeps, modules, depsInstallOpts)
+  const installedDeps: InstalledPackage[] = await installAll(ctx, deps, optionalDeps, depsInstallOpts)
 
   return installedDeps
 }
