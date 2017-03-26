@@ -12,7 +12,6 @@ import getContext, {PnpmContext} from './getContext'
 import installMultiple, {InstalledPackage} from '../install/installMultiple'
 import linkPackages from '../link'
 import save from '../save'
-import linkPeers from '../install/linkPeers'
 import getSaveType from '../getSaveType'
 import {sync as runScriptSync} from '../runScript'
 import postInstall from '../install/postInstall'
@@ -144,7 +143,6 @@ async function installInContext (
     engineStrict: opts.engineStrict,
     nodeVersion: opts.nodeVersion,
     got: createGot(client, {networkConcurrency: opts.networkConcurrency}),
-    baseNodeModules: nodeModulesPath,
     metaCache: opts.metaCache,
     resolvedDependencies,
     offline: opts.offline,
@@ -156,9 +154,10 @@ async function installInContext (
     optionalDependencies,
     installOpts
   )
-  await linkPackages(pkgs, nodeModulesPath, installCtx.installs, {
+  const linkedPkgsMap = await linkPackages(pkgs, installCtx.installs, {
     force: opts.force,
     global: opts.global,
+    baseNodeModules: nodeModulesPath,
   })
 
   let newPkg: Package | undefined = ctx.pkg
@@ -205,15 +204,13 @@ async function installInContext (
     })
   }
 
-  await linkPeers(installCtx.installs)
-
   // postinstall hooks
   if (!(opts.ignoreScripts || !installCtx.installationSequence || !installCtx.installationSequence.length)) {
     const limitChild = pLimit(opts.childConcurrency)
     await Promise.all(
       installCtx.installationSequence.map(pkgId => limitChild(async () => {
         try {
-          await postInstall(installCtx.installs[pkgId].hardlinkedLocation, installLogger(pkgId))
+          await postInstall(linkedPkgsMap[pkgId].hardlinkedLocation, installLogger(pkgId))
         } catch (err) {
           if (installCtx.installs[pkgId].optional) {
             logger.warn({

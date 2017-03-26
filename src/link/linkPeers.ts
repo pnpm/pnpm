@@ -4,7 +4,7 @@ import path = require('path')
 import semver = require('semver')
 import {InstalledPackages} from '../api/install'
 import {Package} from '../types'
-import {InstalledPackage} from './installMultiple'
+import {LinkedPackage} from '.'
 import logger from 'pnpm-logger'
 
 type Dict<T> = {
@@ -12,20 +12,19 @@ type Dict<T> = {
 }
 
 type PackageVersions = {
-  [version: string]: InstalledPackage
+  [version: string]: LinkedPackage
 }
 
 type InstalledPackageVersions = {
   [pkgName: string]: PackageVersions
 }
 
-export default async function linkPeers (installs: InstalledPackages) {
-  if (!installs) return
+export default async function linkPeers (pkgs: LinkedPackage[]) {
+  if (!pkgs) return
 
   const groupedPkgs: InstalledPackageVersions = {}
 
-  Object.keys(installs).forEach(id => {
-    const pkgData = installs[id]
+  pkgs.forEach(pkgData => {
     if (!pkgData.pkg.version) return
 
     const pkgName = pkgData.pkg.name
@@ -33,8 +32,7 @@ export default async function linkPeers (installs: InstalledPackages) {
     groupedPkgs[pkgName][pkgData.pkg.version] = pkgData
   })
 
-  return Promise.all(Object.keys(installs).map(id => {
-    const pkgData = installs[id]
+  return Promise.all(pkgs.map(pkgData => {
     const peerDependencies = pkgData.pkg.peerDependencies || {}
     return Promise.all(Object.keys(peerDependencies).map(peerName => {
       const version = semver.maxSatisfying(Object.keys(groupedPkgs[peerName] || {}), peerDependencies[peerName], true)

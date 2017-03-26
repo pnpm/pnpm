@@ -9,40 +9,76 @@ import globalBinPath = require('global-bin-path')
 import {InstalledPackage} from '../install/installMultiple'
 import {InstalledPackages} from '../api/install'
 import linkBins from './linkBins'
+import {Package} from '../types'
+import linkPeers from './linkPeers'
+
+export type LinkedPackage = {
+  id: string,
+  pkg: Package,
+  hardlinkedLocation: string,
+  modules: string,
+  path: string,
+  fetchingFiles: Promise<boolean>,
+  dependencies: string[],
+}
+
+export type LinkedPackagesMap = {
+  [id: string]: LinkedPackage
+}
 
 export default async function (
   topPkgs: InstalledPackage[],
-  nodeModulesPath: string,
   installedPkgs: InstalledPackages,
   opts: {
     force: boolean,
     global: boolean,
+    baseNodeModules: string,
   }
-) {
-  for (let pkgId of R.keys(installedPkgs)) {
-    await linkPkg(installedPkgs[pkgId], opts)
+): Promise<LinkedPackagesMap> {
+  const pkgsToLink = R.values(installedPkgs)
+    .filter(installedPkg => installedPkg.isInstallable)
+    .reduce((pkgsToLink, installedPkg) => {
+      const modules = path.join(opts.baseNodeModules, `.${installedPkg.id}`, 'node_modules')
+      pkgsToLink[installedPkg.id] = {
+        id: installedPkg.id,
+        pkg: installedPkg.pkg,
+        fetchingFiles: installedPkg.fetchingFiles,
+        modules,
+        hardlinkedLocation: path.join(modules, installedPkg.pkg.name),
+        path: installedPkg.path,
+        dependencies: installedPkg.dependencies,
+      }
+      return pkgsToLink
+    }, {})
+
+  for (let id of R.keys(pkgsToLink)) {
+    await linkPkg(pkgsToLink[id], opts)
   }
 
-  for (let pkgId of R.keys(installedPkgs)) {
-    await linkModules(installedPkgs[pkgId], installedPkgs)
+  for (let id of R.keys(pkgsToLink)) {
+    await linkModules(pkgsToLink[id], pkgsToLink)
   }
 
   for (let pkg of topPkgs) {
     if (!pkg.isInstallable) continue
-    const dest = path.join(nodeModulesPath, pkg.pkg.name)
-    await symlinkDir(pkg.hardlinkedLocation, dest)
+    const dest = path.join(opts.baseNodeModules, pkg.pkg.name)
+    await symlinkDir(pkgsToLink[pkg.id].hardlinkedLocation, dest)
   }
-  const binPath = opts.global ? globalBinPath() : path.join(nodeModulesPath, '.bin')
-  await linkBins(nodeModulesPath, binPath)
+  const binPath = opts.global ? globalBinPath() : path.join(opts.baseNodeModules, '.bin')
+  await linkBins(opts.baseNodeModules, binPath)
+
+  await linkPeers(<LinkedPackage[]>R.values(pkgsToLink))
+
+  return pkgsToLink
 }
 
 async function linkPkg (
-  dependency: InstalledPackage,
+  dependency: LinkedPackage,
   opts: {
     force: boolean,
+    baseNodeModules: string,
   }
 ) {
-  if (!dependency.isInstallable) return
   const newlyFetched = await dependency.fetchingFiles
   const pkgJsonPath = path.join(dependency.hardlinkedLocation, 'package.json')
   if (newlyFetched || opts.force || !await exists(pkgJsonPath) || !await pkgLinkedToStore()) {
@@ -63,12 +99,12 @@ async function isSameFile (file1: string, file2: string) {
 }
 
 async function linkModules (
-  dependency: InstalledPackage,
-  installedPkgs: InstalledPackages
+  dependency: LinkedPackage,
+  pkgsToLink: LinkedPackagesMap
 ) {
   for (let depId of dependency.dependencies) {
-    const subdep = installedPkgs[depId]
-    if (!subdep.isInstallable) continue
+    const subdep = pkgsToLink[depId]
+    if (!subdep) continue
     const dest = path.join(dependency.modules, subdep.pkg.name)
     await symlinkDir(subdep.hardlinkedLocation, dest)
   }

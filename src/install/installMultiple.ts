@@ -36,8 +36,6 @@ export type InstalledPackage = {
   pkg: Package,
   srcPath?: string,
   optional: boolean,
-  hardlinkedLocation: string,
-  modules: string,
   dependencies: string[],
   fetchingFiles: Promise<Boolean>,
   path: string,
@@ -60,7 +58,6 @@ export default async function installAll (
     depth: number,
     engineStrict: boolean,
     nodeVersion: string,
-    baseNodeModules: string,
     offline: boolean,
   }
 ): Promise<InstalledPackage[]> {
@@ -95,7 +92,6 @@ async function installMultiple (
     depth: number,
     engineStrict: boolean,
     nodeVersion: string,
-    baseNodeModules: string,
     offline: boolean,
   }
 ): Promise<InstalledPackage[]> {
@@ -172,7 +168,6 @@ async function install (
     depth: number,
     engineStrict: boolean,
     nodeVersion: string,
-    baseNodeModules: string,
     offline: boolean,
   }
 ) {
@@ -200,16 +195,12 @@ async function install (
 
   const pkg = await fetchedPkg.fetchingPkg
 
-  const modules = path.join(options.baseNodeModules, `.${fetchedPkg.id}`, 'node_modules')
-
   const dependency: InstalledPackage = {
     id: fetchedPkg.id,
     resolution: fetchedPkg.resolution,
     srcPath: fetchedPkg.srcPath,
     optional: options.optional === true,
     pkg,
-    hardlinkedLocation: path.join(modules, pkg.name),
-    modules,
     isInstallable: options.force || await getIsInstallable(fetchedPkg.id, pkg, fetchedPkg, options),
     dependencies: [], // TODO: rewrite to avoid this
     fetchingFiles: fetchedPkg.fetchingFiles,
@@ -323,7 +314,6 @@ async function installDependencies (
     depth: number,
     engineStrict: boolean,
     nodeVersion: string,
-    baseNodeModules: string,
     offline: boolean,
   }
 ): Promise<InstalledPackage[]> {
