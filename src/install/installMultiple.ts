@@ -7,10 +7,7 @@ import {InstallContext, InstalledPackages} from '../api/install'
 import {Dependencies} from '../types'
 import memoize from '../memoize'
 import {Package} from '../types'
-import installChecks = require('pnpm-install-checks')
-import pnpmPkg from '../pnpmPkgJson'
 import logStatus from '../logging/logInstallStatus'
-import rimraf = require('rimraf-then')
 import fs = require('mz/fs')
 import getRegistryUrl = require('registry-url')
 import {Got} from '../network/got'
@@ -24,8 +21,7 @@ import {
 } from '../fs/shrinkwrap'
 import {Resolution, PackageSpec, PackageMeta} from '../resolve'
 import depsToSpecs from '../depsToSpecs'
-
-const installCheckLogger = logger('install-check')
+import getIsInstallable from './getIsInstallable'
 
 export type InstalledPackage = {
   id: string,
@@ -186,12 +182,20 @@ async function install (
     pkg: loggedPkg,
   })
 
-  const fetchedPkg = await fetch(spec, Object.assign({}, options, {
+  const fetchedPkg = await fetch(spec, {
     loggedPkg,
     update,
     fetchingLocker: ctx.fetchingLocker,
     registry,
-  }))
+    root: options.root,
+    storePath: options.storePath,
+    localRegistry: options.localRegistry,
+    metaCache: options.metaCache,
+    got: options.got,
+    shrinkwrapResolution: options.shrinkwrapResolution,
+    pkgId: options.pkgId,
+    offline: options.offline,
+  })
 
   const pkg = await fetchedPkg.fetchingPkg
   let dependencyIds: string[] | void
@@ -264,39 +268,6 @@ function toShrResolution (shortId: string, resolution: Resolution): string | Res
     return resolution.shasum
   }
   return resolution
-}
-
-async function getIsInstallable (
-  pkgId: string,
-  pkg: Package,
-  fetchedPkg: FetchedPackage,
-  options: {
-    optional: boolean,
-    engineStrict: boolean,
-    nodeVersion: string,
-  }
-): Promise<boolean> {
-  const warn = await installChecks.checkPlatform(pkg) || await installChecks.checkEngine(pkg, {
-    pnpmVersion: pnpmPkg.version,
-    nodeVersion: options.nodeVersion
-  })
-
-  if (!warn) return true
-
-  installCheckLogger.warn(warn)
-
-  if (!options.engineStrict && !options.optional) return true
-
-  await fetchedPkg.abort()
-
-  if (!options.optional) throw warn
-
-  logger.warn({
-    message: `Skipping failed optional dependency ${pkgId}`,
-    warn,
-  })
-
-  return false
 }
 
 async function installDependencies (
