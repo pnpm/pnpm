@@ -4,6 +4,7 @@ import logger from 'pnpm-logger'
 import pLimit = require('p-limit')
 import npa = require('npm-package-arg')
 import pFilter = require('p-filter')
+import R = require('ramda')
 import isInnerLink from '../isInnerLink'
 import {PnpmOptions, StrictPnpmOptions, Dependencies} from '../types'
 import createGot from '../network/got'
@@ -210,20 +211,23 @@ async function installInContext (
   if (!(opts.ignoreScripts || !installCtx.installationSequence || !installCtx.installationSequence.length)) {
     const limitChild = pLimit(opts.childConcurrency)
     await Promise.all(
-      installCtx.installationSequence.map(pkgId => limitChild(async () => {
-        try {
-          await postInstall(linkedPkgsMap[pkgId].hardlinkedLocation, installLogger(pkgId))
-        } catch (err) {
-          if (installCtx.installs[pkgId].optional) {
-            logger.warn({
-              message: `Skipping failed optional dependency ${pkgId}`,
-              err,
-            })
-            return
-          }
-          throw err
-        }
-      }))
+      installCtx.installationSequence.map(pkgId => Promise.all(
+        R.uniqBy(linkedPkg => linkedPkg.hardlinkedLocation, R.values(linkedPkgsMap).filter(pkg => pkg.id === pkgId))
+          .map(pkg => limitChild(async () => {
+            try {
+              await postInstall(pkg.hardlinkedLocation, installLogger(pkgId))
+            } catch (err) {
+              if (installCtx.installs[pkgId].optional) {
+                logger.warn({
+                  message: `Skipping failed optional dependency ${pkgId}`,
+                  err,
+                })
+                return
+              }
+              throw err
+            }
+          })
+        )))
     )
   }
   if (!opts.ignoreScripts && ctx.pkg) {

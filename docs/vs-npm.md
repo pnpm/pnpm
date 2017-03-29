@@ -42,7 +42,6 @@ have the possibility of prunning specific packages. pnpm's prune always removes 
 ## Limitations
 
 - You can't install from [shrinkwrap][] (yet).
-- Peer dependencies are a little trickier to deal with.
 - You can't publish npm modules with `bundleDependencies` managed by pnpm.
 
 Got an idea for workarounds for these issues? [Share them.](https://github.com/pnpm/pnpm/issues/new)

@@ -79,6 +79,14 @@ function check (pnpmVersion: string, storePath: string, modulesPath: string) {
       additionalInformation: 'Information about the node_modules structure is stored in a node_modules/.shrinkwrap.yaml file instead of a node_modules/.graph.yaml file'
     })
   }
+  if (semver.lt(pnpmVersion, '0.64.0')) {
+    throw new ModulesBreakingChangeError({
+      modulesPath,
+      relatedPR: 694,
+      relatedIssue: 678,
+      additionalInformation: 'Packages having peer dependencies are linked to different variations. The variations depend on the set of resolved peer dependencies'
+    })
+  }
 }
 
 class UnexpectedStoreError extends PnpmError {

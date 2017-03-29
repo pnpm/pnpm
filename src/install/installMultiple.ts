@@ -217,7 +217,7 @@ async function install (
     )
     const shortId = pkgShortId(fetchedPkg.id, ctx.shrinkwrap.registry)
     ctx.shrinkwrap.packages[shortId] = toShrDependency(shortId, fetchedPkg.resolution, dependencies, ctx.shrinkwrap.registry)
-    dependencyIds = dependencies.map(dep => dep.id)
+    dependencyIds = dependencies.filter(dep => dep.isInstallable).map(dep => dep.id)
   }
 
   if (isInstallable && ctx.installationSequence.indexOf(fetchedPkg.id) === -1) {
@@ -321,6 +321,7 @@ function getNotBundledDeps (bundledDeps: string[], deps: Dependencies) {
 }
 
 function addInstalledPkg (installs: InstalledPackages, newPkg: InstalledPackage) {
+  if (!newPkg.isInstallable) return
   if (!installs[newPkg.id]) {
     installs[newPkg.id] = newPkg
     return

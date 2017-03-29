@@ -1,7 +1,7 @@
 {
   "name": "pnpm",
   "description": "Fast, disk space efficient npm installs",
-  "version": "0.63.0",
+  "version": "0.64.0",
   "author": "Rico Sta. Cruz <rico@ricostacruz.com>",
   "bin": {
     "pnpm": "lib/bin/pnpm.js"
@@ -98,7 +98,7 @@
     "ncp": "^2.0.0",
     "npm-run-all": "^4.0.1",
     "npm-scripts-info": "^0.3.6",
-    "pnpm-registry-mock": "^0.2.3",
+    "pnpm-registry-mock": "^0.5.0",
     "rimraf": "^2.5.4",
     "sepia": "^2.0.2",
     "tape": "^4.6.3",
