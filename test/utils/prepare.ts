@@ -14,7 +14,7 @@ process.env.ROOT = root
 // the testing folder should be outside of the project to avoid lookup in the project's node_modules
 const tmpPath = path.join(root, '..', '.tmp')
 mkdirp.sync(tmpPath)
-const npmrc = stripIndent` 
+const npmrc = stripIndent`
   store-path = ../.store
   fetch-retries = 5
   fetch-retry-maxtimeout = 180000
