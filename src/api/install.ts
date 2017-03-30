@@ -83,10 +83,13 @@ export async function installPkgs (fuzzyDeps: string[] | Dependencies, maybeOpts
   }
   const ctx = await getContext(opts)
   const installCtx = await createInstallCmd(opts, ctx.shrinkwrap)
+  const optionalDependencies = opts.saveOptional
+    ? packagesToInstall.map(spec => spec.name)
+    : []
 
   return lock(
     ctx.storePath,
-    () => installInContext('named', packagesToInstall, [], ctx, installCtx, opts),
+    () => installInContext('named', packagesToInstall, optionalDependencies, ctx, installCtx, opts),
     {stale: opts.lockStaleDuration}
   )
 }

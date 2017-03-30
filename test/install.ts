@@ -113,6 +113,12 @@ test('scoped modules from a directory', async function (t) {
   t.equal(localPkg(), '@scope/local-scoped-pkg', 'localScopedPkg() is available')
 })
 
+test('successfully install optional dependency with subdependencies', async function (t) {
+  const project = prepare(t)
+
+  await installPkgs(['fsevents@1.0.14'], testDefaults({saveOptional: true}))
+})
+
 test('skip failing optional dependencies', async function (t) {
   const project = prepare(t)
   await installPkgs(['pkg-with-failing-optional-dependency@1.0.1'], testDefaults())
