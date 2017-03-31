@@ -55,6 +55,7 @@ export default async function installAll (
     engineStrict: boolean,
     nodeVersion: string,
     offline: boolean,
+    isInstallable?: boolean,
   }
 ): Promise<InstalledPackage[]> {
   const keypath = options.keypath || []
@@ -89,6 +90,7 @@ async function installMultiple (
     engineStrict: boolean,
     nodeVersion: string,
     offline: boolean,
+    isInstallable?: boolean,
   }
 ): Promise<InstalledPackage[]> {
   const installedPkgs: InstalledPackage[] = <InstalledPackage[]>(
@@ -165,6 +167,7 @@ async function install (
     engineStrict: boolean,
     nodeVersion: string,
     offline: boolean,
+    isInstallable?: boolean,
   }
 ) {
   const keypath = options.keypath || []
@@ -199,6 +202,7 @@ async function install (
 
   const pkg = await fetchedPkg.fetchingPkg
   let dependencyIds: string[] | void
+  const isInstallable = options.isInstallable !== false && (options.force || await getIsInstallable(fetchedPkg.id, pkg, fetchedPkg, options))
 
   if (!ctx.installed.has(fetchedPkg.id)) {
     ctx.installed.add(fetchedPkg.id)
@@ -207,16 +211,17 @@ async function install (
       fetchedPkg.id,
       ctx,
       Object.assign({}, options, {
-        root: fetchedPkg.srcPath
+        root: fetchedPkg.srcPath,
+        isInstallable,
       })
     )
     const shortId = pkgShortId(fetchedPkg.id, ctx.shrinkwrap.registry)
     ctx.shrinkwrap.packages[shortId] = toShrDependency(shortId, fetchedPkg.resolution, dependencies, ctx.shrinkwrap.registry)
     dependencyIds = dependencies.map(dep => dep.id)
+  }
 
-    if (ctx.installationSequence.indexOf(fetchedPkg.id) === -1) {
-      ctx.installationSequence.push(fetchedPkg.id)
-    }
+  if (isInstallable && ctx.installationSequence.indexOf(fetchedPkg.id) === -1) {
+    ctx.installationSequence.push(fetchedPkg.id)
   }
 
   const dependency: InstalledPackage = {
@@ -225,7 +230,7 @@ async function install (
     srcPath: fetchedPkg.srcPath,
     optional: options.optional === true,
     pkg,
-    isInstallable: options.force || await getIsInstallable(fetchedPkg.id, pkg, fetchedPkg, options),
+    isInstallable,
     dependencies: dependencyIds || [],
     fetchingFiles: fetchedPkg.fetchingFiles,
     path: fetchedPkg.path,
@@ -289,6 +294,7 @@ async function installDependencies (
     engineStrict: boolean,
     nodeVersion: string,
     offline: boolean,
+    isInstallable?: boolean,
   }
 ): Promise<InstalledPackage[]> {
   const depsInstallOpts = Object.assign({}, opts, {
