@@ -1,0 +1,7 @@
+import './misc'
+import './lifecycleScripts'
+import './optionalDependencies'
+import './installationChecks'
+import './fromTarball'
+import './fromRepo'
+import './peerDependencies'

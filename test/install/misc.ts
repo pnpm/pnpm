@@ -18,10 +18,10 @@ import {
   pathToLocalPkg,
   local,
   execPnpmSync,
-} from './utils'
+} from '../utils'
 import loadJsonFile = require('load-json-file')
-const basicPackageJson = loadJsonFile.sync(path.join(__dirname, './utils/simple-package.json'))
-import {install, installPkgs, uninstall} from '../src'
+const basicPackageJson = loadJsonFile.sync(path.join(__dirname, '../utils/simple-package.json'))
+import {install, installPkgs, uninstall} from '../../src'
 import exists = require('path-exists')
 import isWindows = require('is-windows')
 
@@ -111,113 +111,6 @@ test('scoped modules from a directory', async function (t) {
   const localPkg = project.requireModule('@scope/local-scoped-pkg')
 
   t.equal(localPkg(), '@scope/local-scoped-pkg', 'localScopedPkg() is available')
-})
-
-test('successfully install optional dependency with subdependencies', async function (t) {
-  const project = prepare(t)
-
-  await installPkgs(['fsevents@1.0.14'], testDefaults({saveOptional: true}))
-})
-
-test('skip failing optional dependencies', async function (t) {
-  const project = prepare(t)
-  await installPkgs(['pkg-with-failing-optional-dependency@1.0.1'], testDefaults())
-
-  const isNegative = project.requireModule('pkg-with-failing-optional-dependency')
-  t.ok(isNegative(-1), 'package with failed optional dependency has the dependencies installed correctly')
-})
-
-test('skip optional dependency that does not support the current OS', async function (t) {
-  const project = prepare(t, {
-    optionalDependencies: {
-      'not-compatible-with-any-os': '*'
-    }
-  })
-  await install(testDefaults())
-
-  await project.hasNot('not-compatible-with-any-os')
-  await project.storeHasNot('not-compatible-with-any-os', '1.0.0')
-
-  const shr = await project.loadShrinkwrap()
-  t.ok(shr.packages['/not-compatible-with-any-os/1.0.0'], 'shrinkwrap contains optional dependency')
-})
-
-test('skip optional dependency that does not support the current Node version', async function (t) {
-  const project = prepare(t, {
-    optionalDependencies: {
-      'for-legacy-node': '*'
-    }
-  })
-
-  await install(testDefaults())
-
-  await project.hasNot('for-legacy-node')
-  await project.storeHasNot('for-legacy-node', '1.0.0')
-})
-
-test('skip optional dependency that does not support the current pnpm version', async function (t) {
-  const project = prepare(t, {
-    optionalDependencies: {
-      'for-legacy-pnpm': '*'
-    }
-  })
-
-  await install(testDefaults())
-
-  await project.hasNot('for-legacy-pnpm')
-  await project.storeHasNot('for-legacy-pnpm', '1.0.0')
-})
-
-test('don\'t skip optional dependency that does not support the current OS when forcing', async function (t) {
-  const project = prepare(t, {
-    optionalDependencies: {
-      'not-compatible-with-any-os': '*'
-    }
-  })
-
-  await install(testDefaults({
-    force: true
-  }))
-
-  await project.has('not-compatible-with-any-os')
-  await project.storeHas('not-compatible-with-any-os', '1.0.0')
-})
-
-test('fail if installed package does not support the current engine and engine-strict = true', async function (t) {
-  const project = prepare(t)
-
-  try {
-    await installPkgs(['not-compatible-with-any-os'], testDefaults({
-      engineStrict: true
-    }))
-    t.fail()
-  } catch (err) {
-    await project.hasNot('not-compatible-with-any-os')
-    await project.storeHasNot('not-compatible-with-any-os', '1.0.0')
-  }
-})
-
-test('do not fail if installed package does not support the current engine and engine-strict = false', async function (t) {
-  const project = prepare(t)
-
-  await installPkgs(['not-compatible-with-any-os'], testDefaults({
-    engineStrict: false
-  }))
-
-  await project.has('not-compatible-with-any-os')
-  await project.storeHas('not-compatible-with-any-os', '1.0.0')
-})
-
-test('do not fail if installed package requires the node version that was passed in and engine-strict = true', async function (t) {
-  const project = prepare(t)
-
-  await installPkgs(['for-legacy-node'], testDefaults({
-    engineStrict: true,
-    nodeVersion: '0.10.0'
-  }))
-
-  await project.has('for-legacy-node')
-  await project.storeHas('for-legacy-node', '1.0.0')
 })
 
 test('idempotency (rimraf)', async function (t) {
@@ -382,37 +275,6 @@ test('compiled modules (ursa@0.9.1)', async function (t) {
   t.ok(typeof ursa === 'object', 'ursa() is available')
 })
 
-test('tarball from npm registry', async function (t) {
-  const project = prepare(t)
-  await installPkgs(['http://registry.npmjs.org/is-array/-/is-array-1.0.1.tgz'], testDefaults())
-
-  const isArray = project.requireModule('is-array')
-
-  t.ok(isArray, 'isArray() is available')
-
-  await project.storeHas('registry.npmjs.org/is-array/1.0.1')
-})
-
-test('tarball not from npm registry', async function (t) {
-  const project = prepare(t)
-  await installPkgs(['https://github.com/hegemonic/taffydb/tarball/master'], testDefaults())
-
-  const taffydb = project.requireModule('taffydb')
-
-  t.ok(taffydb, 'taffydb() is available')
-
-  await project.storeHas('github.com/hegemonic/taffydb/tarball/master')
-})
-
-test('tarballs from GitHub (is-negative)', async function (t) {
-  const project = prepare(t)
-  await installPkgs(['is-negative@https://github.com/kevva/is-negative/archive/1d7e288222b53a0cab90a331f1865220ec29560c.tar.gz'], testDefaults())
-
-  const isNegative = project.requireModule('is-negative')
-
-  t.ok(isNegative, 'isNegative() is available')
-})
-
 test('local file', async function (t) {
   const project = prepare(t)
   await installPkgs([local('local-pkg')], testDefaults())
@@ -442,28 +304,6 @@ test('nested local dependency of a local dependency', async function (t) {
   t.equal(pkgWithLocalDep(), 'local-pkg', 'pkgWithLocalDep() returns data from local-pkg')
 })
 
-test('from a github repo', async function (t) {
-  const project = prepare(t)
-  await installPkgs(['kevva/is-negative'], testDefaults())
-
-  const localPkg = project.requireModule('is-negative')
-
-  t.ok(localPkg, 'isNegative() is available')
-})
-
-test('from a git repo', async function (t) {
-  if (isCI) {
-    t.skip('not testing the SSH GIT access via CI')
-    return t.end()
-  }
-  const project = prepare(t)
-  await installPkgs(['git+ssh://git@github.com/kevva/is-negative.git'], testDefaults())
-
-  const localPkg = project.requireModule('is-negative')
-
-  t.ok(localPkg, 'isNegative() is available')
-})
-
 test('shrinkwrap compatibility', async function (t) {
   if (semver.satisfies(process.version, '4')) {
     t.skip("don't run on Node.js 4")
@@ -486,25 +326,6 @@ test('shrinkwrap compatibility', async function (t) {
       resolve()
     })
   })
-})
-
-test('run pre/postinstall scripts', async function (t) {
-  const project = prepare(t)
-  await installPkgs(['pre-and-postinstall-scripts-example'], testDefaults())
-
-  const generatedByPreinstall = project.requireModule('pre-and-postinstall-scripts-example/generated-by-preinstall')
-  t.ok(typeof generatedByPreinstall === 'function', 'generatedByPreinstall() is available')
-
-  const generatedByPostinstall = project.requireModule('pre-and-postinstall-scripts-example/generated-by-postinstall')
-  t.ok(typeof generatedByPostinstall === 'function', 'generatedByPostinstall() is available')
-})
-
-test('run install scripts', async function (t) {
-  const project = prepare(t)
-  await installPkgs(['install-script-example'], testDefaults())
-
-  const generatedByInstall = project.requireModule('install-script-example/generated-by-install')
-  t.ok(typeof generatedByInstall === 'function', 'generatedByInstall() is available')
 })
 
 test('save to package.json (rimraf@2.5.1)', async function (t) {
@@ -684,51 +505,6 @@ test('bin files are found by lifecycle scripts', t => {
   t.end()
 })
 
-test('postinstall is executed after installation', t => {
-  const project = prepare(t, {
-    scripts: {
-      postinstall: 'echo "Hello world!"'
-    }
-  })
-
-  const result = execPnpmSync('install', 'is-negative')
-
-  t.equal(result.status, 0, 'installation was successfull')
-  t.ok(result.stdout.toString().indexOf('Hello world!') !== -1, 'postinstall script was executed')
-
-  t.end()
-})
-
-test('prepublish is not executed after installation with arguments', t => {
-  const project = prepare(t, {
-    scripts: {
-      prepublish: 'echo "Hello world!"'
-    }
-  })
-
-  const result = execPnpmSync('install', 'is-negative')
-
-  t.equal(result.status, 0, 'installation was successfull')
-  t.ok(result.stdout.toString().indexOf('Hello world!') === -1, 'prepublish script was not executed')
-
-  t.end()
-})
-
-test('prepublish is executed after argumentless installation', t => {
-  const project = prepare(t, {
-    scripts: {
-      prepublish: 'echo "Hello world!"'
-    }
-  })
-
-  const result = execPnpmSync('install')
-
-  t.equal(result.status, 0, 'installation was successfull')
-  t.ok(result.stdout.toString().indexOf('Hello world!') !== -1, 'prepublish script was executed')
-
-  t.end()
-})
-
 test('global installation', async function (t) {
   prepare(t)
   const opts = testDefaults({global: true})
@@ -745,18 +521,6 @@ test('tarball local package', async function (t) {
   const localPkg = project.requireModule('tar-pkg')
 
   t.equal(localPkg(), 'tar-pkg', 'tarPkg() is available')
-})
-
-test("don't fail when peer dependency is fetched from GitHub", t => {
-  const project = prepare(t)
-  return installPkgs(['test-pnpm-peer-deps'], testDefaults())
-})
-
-test('peer dependency is linked', async t => {
-  const project = prepare(t)
-  await installPkgs(['ajv@4.10.4', 'ajv-keywords@1.5.0'], testDefaults())
-
-  t.ok(await exists(path.join('node_modules', '.localhost+4873', 'ajv-keywords', '1.5.0', 'node_modules', 'ajv')), 'peer dependency is linked')
 })
 
 test('create a pnpm-debug.log file when the command fails', async function (t) {
