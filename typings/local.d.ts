@@ -243,3 +243,8 @@ declare module 'fs-write-stream-atomic' {
   const anything: any;
   export = anything;
 }
+
+declare module 'remove-all-except-outer-links' {
+  const anything: any;
+  export = anything;
+}

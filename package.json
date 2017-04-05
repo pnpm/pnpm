@@ -74,6 +74,7 @@
     "read-pkg-up": "^2.0.0",
     "registry-auth-token": "^3.1.0",
     "registry-url": "^3.1.0",
+    "remove-all-except-outer-links": "^1.0.0",
     "rimraf-then": "^1.0.1",
     "semver": "^5.3.0",
     "symlink-dir": "^1.0.2",
@@ -155,7 +156,8 @@
       "pnpm-file-reporter",
       "pnpm-install-checks",
       "pnpm-logger",
-      "pnpm-registry-mock"
+      "pnpm-registry-mock",
+      "remove-all-except-outer-links"
     ]
   }
 }

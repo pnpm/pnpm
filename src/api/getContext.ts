@@ -15,7 +15,7 @@ import {
 import mkdirp = require('mkdirp-promise')
 import {Package} from '../types'
 import normalizePath = require('normalize-path')
-import rimraf = require('rimraf-then')
+import removeAllExceptOuterLinks = require('remove-all-except-outer-links')
 import logger from 'pnpm-logger'
 import checkCompatibility from './checkCompatibility'
 
@@ -45,7 +45,7 @@ export default async function getContext (opts: StrictPnpmOptions): Promise<Pnpm
     } catch (err) {
       if (opts.force) {
         logger.info(`Recreating ${modulesPath}`)
-        await rimraf(modulesPath)
+        await removeAllExceptOuterLinks(modulesPath)
         return getContext(opts)
       }
       throw err
