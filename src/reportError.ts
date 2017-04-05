@@ -68,7 +68,7 @@ function reportModulesBreakingChange (err: Error, msg: Object) {
     ${formatErrorSummary(`The current version of pnpm is not compatible with the available node_modules structure`)}
     node_modules path: ${colorPath(msg['modulesPath'])}
 
-    Try running the same command with the ${highlight('--force')} parameter.
+    Run ${highlight('pnpm install --force')} to recreate node_modules.
   `
 
   if (msg['additionalInformation']) {
