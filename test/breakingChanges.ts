@@ -5,7 +5,7 @@ import mkdirp = require('mkdirp-promise')
 import path = require('path')
 import isCI = require('is-ci')
 import {prepare, testDefaults} from './utils'
-import {installPkgs} from '../src'
+import {installPkgs, install} from '../src'
 
 const test = promisifyTape(tape)
 
@@ -29,9 +29,23 @@ test("don't fail on non-compatible node_modules when forced", async t => {
 
   await saveModulesYaml('0.50.0', path.join(opts.storePath, '1'))
 
-  await installPkgs(['is-negative'], opts)
+  await install(opts)
 
   t.pass('install did not fail')
+})
+
+test('fail on non-compatible node_modules when forced with a named installation', async t => {
+  const project = prepare(t)
+  const opts = testDefaults({force: true})
+
+  await saveModulesYaml('0.50.0', path.join(opts.storePath, '1'))
+
+  try {
+    await installPkgs(['is-negative'], opts)
+    t.fail('should have failed')
+  } catch (err) {
+    t.ok(err.message.indexOf('Named installation cannot be used to regenerate the node_modules structure') !== -1)
+  }
 })
 
 test('fail on non-compatible store', async t => {
@@ -54,9 +68,23 @@ test("don't fail on non-compatible store when forced", async t => {
 
   await saveModulesYaml('0.32.0', path.join(opts.storePath, '1'))
 
-  await installPkgs(['is-negative'], opts)
+  await install(opts)
 
   t.pass('install did not fail')
+})
+
+test('fail on non-compatible store when forced during named installation', async t => {
+  const project = prepare(t)
+  const opts = testDefaults({force: true})
+
+  await saveModulesYaml('0.32.0', path.join(opts.storePath, '1'))
+
+  try {
+    await installPkgs(['is-negative'], opts)
+    t.fail('should have failed')
+  } catch (err) {
+    t.ok(err.message.indexOf('Named installation cannot be used to regenerate the node_modules structure') !== -1)
+  }
 })
 
 async function saveModulesYaml (pnpmVersion: string, storePath: string) {

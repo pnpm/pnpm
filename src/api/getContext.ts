@@ -28,7 +28,7 @@ export type PnpmContext = {
   isFirstInstallation: boolean,
 }
 
-export default async function getContext (opts: StrictPnpmOptions): Promise<PnpmContext> {
+export default async function getContext (opts: StrictPnpmOptions, installType?: 'named' | 'general'): Promise<PnpmContext> {
   const pkg = await (opts.global ? readGlobalPkg(opts.globalPath) : readPkgUp({ cwd: opts.cwd }))
   const root = normalizePath(pkg.path ? path.dirname(pkg.path) : opts.cwd)
   const storeBasePath = resolveStoreBasePath(opts.storePath, root)
@@ -43,12 +43,13 @@ export default async function getContext (opts: StrictPnpmOptions): Promise<Pnpm
     try {
       checkCompatibility(modules, {storePath, modulesPath})
     } catch (err) {
-      if (opts.force) {
-        logger.info(`Recreating ${modulesPath}`)
-        await removeAllExceptOuterLinks(modulesPath)
-        return getContext(opts)
+      if (!opts.force) throw err
+      if (installType !== 'general') {
+        throw new Error('Named installation cannot be used to regenerate the node_modules structure. Run pnpm install --force')
       }
-      throw err
+      logger.info(`Recreating ${modulesPath}`)
+      await removeAllExceptOuterLinks(modulesPath)
+      return getContext(opts)
     }
   }
 

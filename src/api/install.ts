@@ -47,7 +47,8 @@ export type InstallContext = {
 
 export async function install (maybeOpts?: PnpmOptions) {
   const opts = extendOptions(maybeOpts)
-  const ctx = await getContext(opts)
+  const installType = 'general'
+  const ctx = await getContext(opts, installType)
   const installCtx = await createInstallCmd(opts, ctx.shrinkwrap)
 
   if (!ctx.pkg) throw new Error('No package.json found')
@@ -62,7 +63,7 @@ export async function install (maybeOpts?: PnpmOptions) {
 
   return lock(
     ctx.storePath,
-    () => installInContext('general', specs, Object.keys(optionalDeps), ctx, installCtx, opts),
+    () => installInContext(installType, specs, Object.keys(optionalDeps), ctx, installCtx, opts),
     {stale: opts.lockStaleDuration}
   )
 }
@@ -82,7 +83,8 @@ export async function installPkgs (fuzzyDeps: string[] | Dependencies, maybeOpts
   if (!Object.keys(packagesToInstall).length) {
     throw new Error('At least one package has to be installed')
   }
-  const ctx = await getContext(opts)
+  const installType = 'named'
+  const ctx = await getContext(opts, installType)
   const installCtx = await createInstallCmd(opts, ctx.shrinkwrap)
   const optionalDependencies = opts.saveOptional
     ? packagesToInstall.map(spec => spec.name)
@@ -90,7 +92,7 @@ export async function installPkgs (fuzzyDeps: string[] | Dependencies, maybeOpts
 
   return lock(
     ctx.storePath,
-    () => installInContext('named', packagesToInstall, optionalDependencies, ctx, installCtx, opts),
+    () => installInContext(installType, packagesToInstall, optionalDependencies, ctx, installCtx, opts),
     {stale: opts.lockStaleDuration}
   )
 }
