@@ -56,10 +56,40 @@ export default function (streamParser: Object) {
     }
   })
 
-  function reportProgress (logObj: ProgressLog) {
-    if (logObj.pkg.dependentId) return
+  const taskByPkgId = {}
+  const pkgVersionByPkgId = {}
 
-    const task = getTask(logObj.pkg.rawSpec, logObj.pkg.name)
+  function reportProgress (logObj: ProgressLog) {
+    let task
+    let pkgVersion = pkgVersionByPkgId[logObj['pkgId']]
+    switch (logObj.status) {
+      case 'fetching':
+      case 'fetched':
+      case 'installed':
+      case 'dependencies_installed':
+        task = taskByPkgId[logObj.pkgId]
+        break
+      case 'resolving':
+      case 'error':
+      case 'installing':
+      case 'resolved':
+        // log statuses of the top dependencies only
+        if (logObj.pkg && logObj.pkg.dependentId) break
+
+        task = getTask(logObj.pkg.rawSpec, logObj.pkg.name)
+
+        if (logObj.status === 'resolved' && logObj.pkgId) {
+          taskByPkgId[logObj.pkgId] = task
+        }
+        break
+      default:
+        if (logObj.status === 'downloaded_manifest') {
+          pkgVersionByPkgId[logObj.pkgId] = logObj.pkgVersion
+        }
+        return
+    }
+
+    if (!task) return
 
     switch (logObj.status) {
       case 'installing':
@@ -69,22 +99,22 @@ export default function (streamParser: Object) {
         task.status(chalk.yellow('finding ·'))
         return
       case 'resolved':
-        if (logObj.pkg.version) {
-          task.status(chalk.yellow('installing ' + logObj.pkg.version + ' .'))
+        if (pkgVersion) {
+          task.status(chalk.yellow('installing ' + pkgVersion + ' .'))
           return
         }
         task.status(chalk.yellow('installing .'))
         return
       case 'fetched':
-        if (logObj.pkg.version) {
-          task.status(chalk.yellow('installing dependencies ' + logObj.pkg.version + ' .'))
+        if (pkgVersion) {
+          task.status(chalk.yellow('installing dependencies ' + pkgVersion + ' .'))
           return
         }
         task.status(chalk.yellow('installing dependencies .'))
         return
       case 'fetching':
-        if (logObj.pkg.version) {
-          task.status(chalk.yellow('downloading ' + logObj.pkg.version + ' ↓'))
+        if (pkgVersion) {
+          task.status(chalk.yellow('downloading ' + pkgVersion + ' ↓'))
         } else {
           task.status(chalk.yellow('downloading ↓'))
         }
@@ -94,9 +124,16 @@ export default function (streamParser: Object) {
           task.details('')
         }
         return
+      case 'dependencies_installed':
+        if (pkgVersion) {
+          task.status(chalk.yellow('linking ' + pkgVersion + ' ↓'))
+          return
+        }
+        task.status(chalk.yellow('linking ↓'))
+        return
       case 'installed':
-        if (logObj.pkg.version) {
-          task.status(chalk.green('' + logObj.pkg.version + ' ✓'))
+        if (pkgVersion) {
+          task.status(chalk.green('' + pkgVersion + ' ✓'))
             .details('')
           return
         }
@@ -104,10 +141,6 @@ export default function (streamParser: Object) {
         return
       case 'error':
         task.status(chalk.red('ERROR ✗'))
-          .details('')
-        return
-      default:
-        task.status(logObj.status)
           .details('')
         return
     }

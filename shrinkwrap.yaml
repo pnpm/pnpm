@@ -8,7 +8,7 @@ dependencies:
   ghooks@^2.0.0: 2.0.0
   ndjson@^1.5.0: 1.5.0
   observatory@^1.0.0: 1.0.0
-  pnpm-logger@^0.2.0: 0.2.0
+  pnpm-logger@^0.3.0: 0.3.0
   rimraf@^2.5.4: 2.6.1
   tslint@^4.3.1: 4.5.1
   typescript@^2.1.5: 2.2.2
@@ -543,10 +543,10 @@ packages:
       pinkie: 2.0.4
     resolution: 2135d6dfa7a358c069ac9b178776288228450ffa
   /pinkie/2.0.4: 72556b80cfa0d48a974e80e77248e80ed4f7f870
-  /pnpm-logger/0.2.0:
+  /pnpm-logger/0.3.0:
     dependencies:
       bole: 3.0.2
-    resolution: 9e35a1282e4fae1a3c78cf4e31c4da9c776a9c79
+    resolution: eaecea5a037f053a64c50bda7eda3cb87f5ed661
   /prepend-http/1.0.4: d4f4562b0ce3696e41ac52d0e002e57a635dc6dc
   /preserve/0.2.0: 815ed1f6ebc65926f865b310c0713bcb3315ce4b
   /process-nextick-args/1.0.7: 150e20b756590ad3f91093f25a4f2ad8bff30ba3
