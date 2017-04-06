@@ -61,7 +61,6 @@ export default async function fetch (
         metaCache: options.metaCache,
         offline: options.offline,
       })
-      logStatus({status: 'resolved', pkg: options.loggedPkg})
       // keep the shrinkwrap resolution when possible
       // to keep the original shasum
       if (pkgId !== resolveResult.id || !resolution) {
@@ -72,15 +71,16 @@ export default async function fetch (
         fetchingPkg = Promise.resolve(resolveResult.package)
       }
     }
-
     const id = <string>pkgId
+
+    logStatus({status: 'resolved', pkgId: id, pkg: options.loggedPkg})
 
     const target = path.join(options.storePath, id)
 
     const fetchingFiles = options.fetchingLocker(id, () => fetchToStore({
       target,
       resolution: <Resolution>resolution,
-      loggedPkg: options.loggedPkg,
+      pkgId: id,
       got: options.got,
       localRegistry: options.localRegistry,
       offline: options.offline,
@@ -116,7 +116,7 @@ export default async function fetch (
 async function fetchToStore (opts: {
   target: string,
   resolution: Resolution,
-  loggedPkg: LoggedPkg,
+  pkgId: string,
   got: Got,
   localRegistry: string,
   offline: boolean,
@@ -142,13 +142,13 @@ async function fetchToStore (opts: {
 
   await fetchResolution(opts.resolution, targetStage, {
     got: opts.got,
-    loggedPkg: opts.loggedPkg,
+    pkgId: opts.pkgId,
     localRegistry: opts.localRegistry,
     offline: opts.offline,
   })
   logStatus({
     status: 'fetched',
-    pkg: opts.loggedPkg // TODO: add version
+    pkgId: opts.pkgId,
   })
 
   // fs.rename(oldPath, newPath) is an atomic operation, so we do it at the

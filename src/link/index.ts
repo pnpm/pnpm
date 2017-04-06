@@ -12,6 +12,7 @@ import {InstalledPackages} from '../api/install'
 import linkBins from './linkBins'
 import {Package, Dependencies} from '../types'
 import resolvePeers, {DependencyTreeNode, DependencyTreeNodeMap} from './resolvePeers'
+import logStatus from '../logging/logInstallStatus'
 
 export type LinkedPackage = {
   id: string,
@@ -68,6 +69,10 @@ export default async function (
 
   for (let pkg of flatResolvedDeps.filter(pkg => pkg.depth === 0)) {
     await symlinkDependencyTo(pkg, opts.baseNodeModules)
+    logStatus({
+      status: 'installed',
+      pkgId: pkg.id,
+    })
   }
   const binPath = opts.global ? globalBinPath() : path.join(opts.baseNodeModules, '.bin')
   await linkBins(opts.baseNodeModules, binPath)

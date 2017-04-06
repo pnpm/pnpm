@@ -1,4 +1,4 @@
-import logger, {LoggedPkg} from 'pnpm-logger'
+import logger from 'pnpm-logger'
 import fs = require('mz/fs')
 import path = require('path')
 import spawn = require('cross-spawn')
@@ -19,7 +19,7 @@ const gitLogger = logger('git')
 const fetchLogger = logger('fetch')
 
 export type FetchOptions = {
-  loggedPkg: LoggedPkg,
+  pkgId: string,
   got: Got,
   localRegistry: string,
   offline: boolean,
@@ -117,11 +117,11 @@ export async function fetchFromRemoteTarball (dir: string, dist: PackageDist, op
     }
     await opts.got.download(dist.tarball, localTarballPath, {
       shasum: dist.shasum,
-      onStart: () => logStatus({status: 'fetching', pkg: opts.loggedPkg}),
+      onStart: () => logStatus({status: 'fetching', pkgId: opts.pkgId}),
       onProgress: (done: number, total: number) =>
         logStatus({
           status: 'fetching',
-          pkg: opts.loggedPkg,
+          pkgId: opts.pkgId,
           progress: { done, total },
         })
     })

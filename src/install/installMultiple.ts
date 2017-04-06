@@ -201,6 +201,8 @@ async function install (
   })
 
   const pkg = await fetchedPkg.fetchingPkg
+  logStatus({status: 'downloaded_manifest', pkgId: fetchedPkg.id, pkgVersion: pkg.version})
+
   let dependencyIds: string[] | void
   const isInstallable = options.isInstallable !== false && (options.force || await getIsInstallable(fetchedPkg.id, pkg, fetchedPkg, options))
 
@@ -238,10 +240,7 @@ async function install (
 
   addInstalledPkg(ctx.installs, dependency)
 
-  logStatus({
-    status: 'installed',
-    pkg: Object.assign({}, loggedPkg, {version: pkg.version}),
-  })
+  logStatus({status: 'dependencies_installed', pkgId: fetchedPkg.id})
 
   return dependency
 }
