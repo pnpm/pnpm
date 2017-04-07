@@ -108,7 +108,7 @@ async function run (argv: string[]) {
     return Promise.resolve()
   }
 
-  cli.flags.silent = cli.flags.silent || cli.flags.debug || isCI
+  cli.flags.silent = cli.flags.silent || cli.flags.debug || !cli.flags.reporter && isCI
 
   ; ['dryRun'].forEach(flag => {
     if (cli.flags[flag]) {
