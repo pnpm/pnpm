@@ -1,0 +1,2189 @@
+dependencies:
+  '@types/byline@^4.2.31': 4.2.31
+  '@types/common-tags@^1.2.5': 1.2.5
+  '@types/load-json-file@^2.0.5': 2.0.5
+  '@types/mkdirp@^0.3.29': 0.3.29
+  '@types/mz@^0.0.30': 0.0.30
+  '@types/node@^7.0.5': 7.0.12
+  '@types/ramda@^0.0.5': 0.0.5
+  '@types/rc@^0.0.1': 0.0.1
+  '@types/semver@^5.3.30': 5.3.31
+  '@types/tape@^4.2.28': 4.2.29
+  '@types/update-notifier@^1.0.0': 1.0.1
+  '@zkochan/cmd-shim@^2.2.2': 2.2.2
+  '@zkochan/dirsum@^0.1.1': 0.1.1
+  anonymous-npm-registry-client@^0.1.2: 0.1.2
+  arr-flatten@^1.0.1: 1.0.1
+  bole@^3.0.2: 3.0.2
+  byline@^5.0.0: 5.0.0
+  camelcase-keys@^4.0.0: 4.1.0
+  caw@^2.0.0: 2.0.0
+  commitizen@^2.8.6: 2.9.6
+  common-tags@^1.4.0: 1.4.0
+  cross-spawn@^5.0.0: 5.1.0
+  cz-conventional-changelog@^2.0.0: 2.0.0
+  execa@^0.6.3: 0.6.3
+  exists-link@^2.0.0: 2.0.0
+  find-up@^2.1.0: 2.1.0
+  fs-write-stream-atomic@^1.0.10: 1.0.10
+  get-link-target@^1.0.0: 1.0.0
+  get-npm-tarball-url@^1.0.1: 1.0.1
+  global-bin-path@^0.1.1: 0.1.1
+  graceful-fs@^4.1.11: 4.1.11
+  hosted-git-info@^2.4.1: 2.4.1
+  husky@^0.13.2: 0.13.3
+  in-publish@^2.0.0: 2.0.0
+  is-ci@^1.0.10: 1.0.10
+  is-windows@^1.0.0: 1.0.0
+  isexe@^2.0.0: 2.0.0
+  link-dir@^2.0.0: 2.0.0
+  load-json-file@^2.0.0: 2.0.0
+  load-yaml-file@^0.1.0: 0.1.0
+  loud-rejection@^1.6.0: 1.6.0
+  mem@^1.1.0: 1.1.0
+  meow@^3.7.0: 3.7.0
+  mkdirp-promise@^5.0.1: 5.0.1
+  mkdirp@^0.5.1: 0.5.1
+  mz@^2.6.0: 2.6.0
+  ncp@^2.0.0: 2.0.0
+  ndjson@^1.5.0: 1.5.0
+  node-gyp@^3.6.0: 3.6.0
+  normalize-path@^2.1.1: 2.1.1
+  normalize-ssh@^1.0.0: 1.0.0
+  npm-package-arg@^4.2.1: 4.2.1
+  npm-registry-client@^8.1.0: 8.1.0
+  npm-run-all@^4.0.1: 4.0.2
+  npm-scripts-info@^0.3.6: 0.3.6
+  os-homedir@^1.0.2: 1.0.2
+  p-filter@^1.0.0: 1.0.0
+  p-limit@^1.1.0: 1.1.0
+  parse-codeload-url@^1.0.0: 1.0.0
+  parse-npm-tarball-url@^1.0.1: 1.0.1
+  path-exists@^3.0.0: 3.0.0
+  path-name@^1.0.0: 1.0.0
+  pnpm-default-reporter@^0.6.0: 0.6.0
+  pnpm-file-reporter@^0.0.1: 0.0.1
+  pnpm-install-checks@^1.1.0: 1.1.0
+  pnpm-logger@^0.3.0: 0.3.0
+  pnpm-registry-mock@^0.5.0: 0.5.0
+  proper-lockfile@^2.0.0: 2.0.0
+  ramda@^0.23.0: 0.23.0
+  rc@^1.2.0: 1.2.1
+  read-pkg-up@^2.0.0: 2.0.0
+  read-pkg@^2.0.0: 2.0.0
+  registry-auth-token@^3.1.0: 3.1.2
+  registry-url@^3.1.0: 3.1.0
+  remove-all-except-outer-links@^1.0.0: 1.0.0
+  rimraf-then@^1.0.1: 1.0.1
+  rimraf@^2.5.4: 2.6.1
+  semver@^5.3.0: 5.3.0
+  sepia@^2.0.2: 2.0.2
+  symlink-dir@^1.0.2: 1.0.2
+  tape-promise@^2.0.1: 2.0.1
+  tape@^4.6.3: 4.6.3
+  thenify@^3.2.1: 3.2.1
+  ts-node@^3.0.0: 3.0.2
+  tslint@^5.0.0: 5.0.0
+  typescript@^2.1.5: 2.2.2
+  unpack-stream@^1.1.0: 1.1.0
+  update-notifier@^2.1.0: 2.1.0
+  validate-commit-msg@^2.7.0: 2.12.1
+  write-json-file@^2.0.0: 2.0.0
+  write-pkg@^2.1.0: 2.1.0
+  write-yaml-file@^1.0.0: 1.0.0
+packages:
+  /@types/byline/4.2.31:
+    dependencies:
+      '@types/node': 7.0.12
+    resolution: 0e61fcb9c03e047d21c4496554c7116297ab60cd
+  /@types/chalk/0.4.31: a31d74241a6b1edbb973cf36d97a2896834a51f9
+  /@types/common-tags/1.2.5: 14f29893992eb325594b83d739af02f2b6520f46
+  /@types/load-json-file/2.0.5: 5aded9bda57cb8b31b6af6c2c927aba395893df6
+  /@types/mkdirp/0.3.29: 7f2ad7ec55f914482fc9b1ec4bb1ae6028d46066
+  /@types/mz/0.0.30:
+    dependencies:
+      '@types/node': 7.0.12
+    resolution: 58daa9f35811d607037bab1f9cc7d4a23e6aafae
+  /@types/node/6.0.68: 0c43b6b8b9445feb86a0fbd3457e3f4bc591e66d
+  /@types/node/7.0.12: ae5f67a19c15f752148004db07cbbb372e69efc9
+  /@types/ramda/0.0.5: 8b381e3363de9db3cb89d3b62f23b73cfb56bc0b
+  /@types/rc/0.0.1: 1f5b8a1b3b1ac6d1fee137c53fac5fa0f28ae0d7
+  /@types/semver/5.3.31: b999d7d935f43f5207b01b00d3de20852f4ca75f
+  /@types/tape/4.2.29:
+    dependencies:
+      '@types/node': 7.0.12
+    resolution: 14cf2eb49bf852407eaaefdc53773eb90b32cf56
+  /@types/update-notifier/1.0.1: 47e8f007c6b5bcafbe427332e3b6b433cdc18ddc
+  /@zkochan/cmd-shim/2.2.2:
+    dependencies:
+      is-windows: 1.0.0
+      mkdirp-promise: 5.0.1
+      mz: 2.6.0
+    resolution: 8d9e42660dc7bfbdecd1322160c91a5f75ffa7d3
+  /@zkochan/dirsum/0.1.1:
+    dependencies:
+      graceful-fs: 4.1.11
+    resolution: a84a479cef33aaa7ff0513d0e594f2fef651ef84
+  /JSONStream/1.3.1:
+    dependencies:
+      jsonparse: 1.3.0
+      through: 2.3.8
+    resolution: 707f761e01dae9e16f1bcf93703b78c70966579a
+  /abbrev/1.1.0: d0554c2256636e2f56e7c2e5ad183f859428d81f
+  /accepts/1.3.3:
+    dependencies:
+      mime-types: 2.1.15
+      negotiator: 0.6.1
+    resolution: c3ca7434938648c3e0d9c1e328dd68b622c284ca
+  /ajv/4.11.6:
+    dependencies:
+      co: 4.6.0
+      json-stable-stringify: 1.0.1
+    resolution: 947e93049790942b2a2d60a8289b28924d39f987
+  /align-text/0.1.4:
+    dependencies:
+      kind-of: 3.1.0
+      longest: 1.0.1
+      repeat-string: 1.6.1
+    resolution: 0cd90a561093f35d0a99256c22b7069433fad117
+  /amdefine/1.0.1: 4a5282ac164729e93619bcfd3ad151f817ce91f5
+  /anonymous-npm-registry-client/0.1.2:
+    dependencies:
+      concat-stream: 1.6.0
+      graceful-fs: 4.1.11
+      normalize-package-data: 2.3.6
+      npm-package-arg: 4.2.1
+      npmlog: 3.1.2
+      once: 1.4.0
+      request: 2.81.0
+      retry: 0.10.1
+      semver: 5.3.0
+      slide: 1.1.6
+    resolution: fbf09bd46c27601146aced421e037754fa8783eb
+  /ansi-align/1.1.0:
+    dependencies:
+      string-width: 1.0.2
+    resolution: 2f0c1658829739add5ebb15e6b0c6e3423f016ba
+  /ansi-escapes/1.4.0: d3a8a83b319aa67793662b13e761c7911422306e
+  /ansi-regex/2.1.1: c3b33ab5ee360d86e0e628f0468ae7ef27d654df
+  /ansi-styles/2.2.1: b432dd3358b634cf75e1e4664368240533c1ddbe
+  /any-promise/1.3.0: abc6afeedcea52e809cdc0376aed3ce39635d17f
+  /apache-md5/1.1.2: ee49736b639b4f108b6e9e626c6da99306b41692
+  /aproba/1.1.1: 95d3600f07710aa0e9298c726ad5ecf2eacbabab
+  /are-we-there-yet/1.1.2:
+    dependencies:
+      delegates: 1.0.0
+      readable-stream: 2.2.8
+    resolution: 80e470e95a084794fe1899262c5667c6e88de1b3
+  /argparse/1.0.9:
+    dependencies:
+      sprintf-js: 1.0.3
+    resolution: 73d83bc263f86e97f8cc4f6bae1b0e90a7d22c86
+  /arr-diff/2.0.0:
+    dependencies:
+      arr-flatten: 1.0.1
+    resolution: 8f3b827f955a8bd669697e4a4256ac3ceae356cf
+  /arr-flatten/1.0.1: e5ffe54d45e19f32f216e91eb99c8ce892bb604b
+  /array-filter/0.0.1: 7da8cf2e26628ed732803581fd21f67cacd2eeec
+  /array-find-index/1.0.2: df010aa1287e164bbda6f9723b0a96a1ec4187a1
+  /array-flatten/1.1.1: 9a5f699051b1e7073328f2a008968b64ea2955d2
+  /array-map/0.0.0: 88a2bab73d1cf7bcd5c1b118a003f66f665fa662
+  /array-reduce/0.0.0: 173899d3ffd1c7d9383e4479525dbe278cab5f2b
+  /array-unique/0.2.1: a1d97ccafcbc2625cc70fadceb36a50c58b01a53
+  /arrify/1.0.1: 898508da2226f380df904728456849c1501a4b0d
+  /asn1/0.2.3: dac8787713c9966849fc8180777ebe9c1ddf3b86
+  /assert-plus/0.2.0: d74e1b87e7affc0db8aadb7021f3fe48101ab234
+  /assert-plus/1.0.0: f12e0f3c5d77b0b1cdd9146942e4e96c1e4dd525
+  /async/1.5.2: ec6a61ae56480c0c3cb241c95618e20892f9672a
+  /async/2.3.0:
+    dependencies:
+      lodash: 4.17.4
+    resolution: 1013d1051047dd320fe24e494d5c66ecaf6147d9
+  /asynckit/0.4.0: c79ed97f7f34cb8f2ba1bc9790bcc366474b4b79
+  /aws-sign2/0.6.0: 14342dd38dbcc94d0e5b87d763cd63612c0e794f
+  /aws4/1.6.0: 83ef5ca860b2b32e4a0deedee8c771b9db57471e
+  /babel-code-frame/6.22.0:
+    dependencies:
+      chalk: 1.1.3
+      esutils: 2.0.2
+      js-tokens: 3.0.1
+    resolution: 027620bee567a88c32561574e7fd0801d33118e4
+  /babel-runtime/6.23.0:
+    dependencies:
+      core-js: 2.4.1
+      regenerator-runtime: 0.10.3
+    resolution: 0a9489f144de70efb3ce4300accdb329e2fc543b
+  /balanced-match/0.4.2: cb3f3e3c732dc0f01ee70b403f302e61d7709838
+  /base64-js/0.0.8: 1101e9544f4a76b1bc3b26d452ca96d7a35e7978
+  /bcrypt-pbkdf/1.0.1:
+    dependencies:
+      tweetnacl: 0.14.5
+    resolution: 63bc5dcb61331b92bc05fd528953c33462a06f8d
+  /bl/1.2.0:
+    dependencies:
+      readable-stream: 2.2.8
+    resolution: 1397e7ec42c5f5dc387470c500e34a9f6be9ea98
+  /block-stream/0.0.9:
+    dependencies:
+      inherits: 2.0.3
+    resolution: 13ebfe778a03205cfe03751481ebb4b3300c126a
+  /body-parser/1.17.1:
+    dependencies:
+      bytes: 2.4.0
+      content-type: 1.0.2
+      debug: 2.6.1
+      depd: 1.1.0
+      http-errors: 1.6.1
+      iconv-lite: 0.4.15
+      on-finished: 2.3.0
+      qs: 6.4.0
+      raw-body: 2.2.0
+      type-is: 1.6.15
+    resolution: 75b3bc98ddd6e7e0d8ffe750dfaca5c66993fa47
+  /bole/3.0.2:
+    dependencies:
+      fast-safe-stringify: 1.1.13
+      individual: 3.0.0
+    resolution: bc8a483ca94049da9b837c1ad11cdfebee6e0514
+  /boom/2.10.1:
+    dependencies:
+      hoek: 2.16.3
+    resolution: 39c8918ceff5799f83f9492a848f625add0c766f
+  /boxen/1.0.0:
+    dependencies:
+      ansi-align: 1.1.0
+      camelcase: 4.1.0
+      chalk: 1.1.3
+      cli-boxes: 1.0.0
+      string-width: 2.0.0
+      term-size: 0.1.1
+      widest-line: 1.0.0
+    resolution: b2694baf1f605f708ff0177c12193b22f29aaaab
+  /brace-expansion/1.1.7:
+    dependencies:
+      balanced-match: 0.4.2
+      concat-map: 0.0.1
+    resolution: 3effc3c50e000531fb720eaff80f0ae8ef23cf59
+  /braces/1.8.5:
+    dependencies:
+      expand-range: 1.8.2
+      preserve: 0.2.0
+      repeat-element: 1.1.2
+    resolution: ba77962e12dff969d6b76711e914b737857bf6a7
+  /browserify-zlib/0.1.4:
+    dependencies:
+      pako: 0.2.9
+    resolution: bb35f8a519f600e0fa6b8485241c979d0141fb2d
+  /buffer-shims/1.0.0: 9978ce317388c649ad8793028c3477ef044a8b51
+  /buffer/3.6.0:
+    dependencies:
+      base64-js: 0.0.8
+      ieee754: 1.1.8
+      isarray: 1.0.0
+    resolution: a72c936f77b96bf52f5f7e7b467180628551defb
+  /builtin-modules/1.1.1: 270f076c5a72c02f5b65a47df94c5fe3a278892f
+  /bunyan/1.8.10:
+    dependencies:
+      dtrace-provider: 0.8.1
+      moment: 2.18.1
+      mv: 2.1.1
+      safe-json-stringify: 1.0.4
+    resolution: 201fedd26c7080b632f416072f53a90b9a52981c
+  /byline/5.0.0: 741c5216468eadc457b03410118ad77de8c1ddb1
+  /bytes/2.3.0: d5b680a165b6201739acb611542aabc2d8ceb070
+  /bytes/2.4.0: 7d97196f9d5baf7f6935e25985549edd2a6c2339
+  /bzip2-maybe/1.0.0:
+    dependencies:
+      is-bzip2: 1.0.0
+      peek-stream: 1.1.1
+      pumpify: 1.3.5
+      through2: 2.0.3
+      unbzip2-stream: 1.0.11
+    resolution: c9aef7008a6b943cbe99cc617125eb4bd478296b
+  /cachedir/1.1.1:
+    dependencies:
+      os-homedir: 1.0.2
+    resolution: e1363075ea206a12767d92bb711c8a2f76a10f62
+  /camelcase-keys/2.1.0:
+    dependencies:
+      camelcase: 2.1.1
+      map-obj: 1.0.1
+    resolution: 308beeaffdf28119051efa1d932213c91b8f92e7
+  /camelcase-keys/4.1.0:
+    dependencies:
+      camelcase: 4.1.0
+      map-obj: 2.0.0
+      quick-lru: 1.0.0
+    resolution: 214d348cc5457f39316a2c31cc3e37246325e73f
+  /camelcase/1.2.1: 9bb5304d2e0b56698b2c758b08a3eaa9daa58a39
+  /camelcase/2.1.1: 7c1d16d679a1bbe59ca02cacecfb011e201f5a1f
+  /camelcase/4.1.0: d545635be1e33c542649c69173e5de6acfae34dd
+  /capture-stack-trace/1.0.0: 4a6fa07399c26bba47f0b2496b4d0fb408c5550d
+  /caseless/0.12.0: 1b681c21ff84033c826543090689420d187151dc
+  /caw/2.0.0:
+    dependencies:
+      get-proxy: 1.1.0
+      tunnel-agent: 0.4.3
+    resolution: 11f8bddc2f801469952d5e3225ba98495a2fa0ff
+  /center-align/0.1.3:
+    dependencies:
+      align-text: 0.1.4
+      lazy-cache: 1.0.4
+    resolution: aa0d32629b6ee972200411cbd4461c907bc2b7ad
+  /chalk/1.1.3:
+    dependencies:
+      ansi-styles: 2.2.1
+      escape-string-regexp: 1.0.5
+      has-ansi: 2.0.0
+      strip-ansi: 3.0.1
+      supports-color: 2.0.0
+    resolution: a8115c55e4a702fe4d150abd3872822a7e09fc98
+  /chownr/1.0.1: e2a75042a9551908bebd25b8523d5f9769d79181
+  /ci-info/1.0.0: dc5285f2b4e251821683681c381c3388f46ec534
+  /cli-boxes/1.0.0: 4fa917c3e59c94a004cd61f8ee509da651687143
+  /cli-cursor/1.0.2:
+    dependencies:
+      restore-cursor: 1.0.1
+    resolution: 64da3f7d56a54412e59794bd62dc35295e8f2987
+  /cli-width/2.1.0: b234ca209b29ef66fc518d9b98d5847b00edf00a
+  /cliui/2.1.0:
+    dependencies:
+      center-align: 0.1.3
+      right-align: 0.1.3
+      wordwrap: 0.0.2
+    resolution: 4b475760ff80264c762c3a1719032e91c7fea0d1
+  /co/4.6.0: 6ea6bdf3d853ae54ccb8e47bfa0bf3f9031fb184
+  /code-point-at/1.1.0: 0d070b4d043a5bea33a2f1a40e2edb3d9a4ccf77
+  /colors/0.6.2: 2423fe6678ac0c5dae8852e5d0e5be08c997abcc
+  /colors/1.1.2: 168a4701756b6a7f51a12ce0c97bfa28c084ed63
+  /combined-stream/1.0.5:
+    dependencies:
+      delayed-stream: 1.0.0
+    resolution: 938370a57b4a51dea2c77c15d5c5fdf895164009
+  /commander/2.1.0: d121bbae860d9992a3d517ba96f56588e47c6781
+  /commander/2.9.0:
+    dependencies:
+      graceful-readlink: 1.0.1
+    resolution: 9c99094176e12240cb22d6c5146098400fe0f7d4
+  /commitizen/2.9.6:
+    dependencies:
+      cachedir: 1.1.1
+      chalk: 1.1.3
+      cz-conventional-changelog: 1.2.0
+      dedent: 0.6.0
+      detect-indent: 4.0.0
+      find-node-modules: 1.0.4
+      find-root: 1.0.0
+      fs-extra: 1.0.0
+      glob: 7.1.1
+      inquirer: 1.2.3
+      lodash: 4.17.2
+      minimist: 1.2.0
+      path-exists: 2.1.0
+      shelljs: 0.7.6
+      strip-json-comments: 2.0.1
+    resolution: c0d00535ef264da7f63737edfda4228983fa2291
+  /common-tags/1.4.0:
+    dependencies:
+      babel-runtime: 6.23.0
+    resolution: 1187be4f3d4cf0c0427d43f74eef1f73501614c0
+  /compressible/2.0.10:
+    dependencies:
+      mime-db: 1.27.0
+    resolution: feda1c7f7617912732b29bf8cf26252a20b9eecd
+  /compression/1.6.2:
+    dependencies:
+      accepts: 1.3.3
+      bytes: 2.3.0
+      compressible: 2.0.10
+      debug: 2.2.0
+      on-headers: 1.0.1
+      vary: 1.1.1
+    resolution: cceb121ecc9d09c52d7ad0c3350ea93ddd402bc3
+  /concat-map/0.0.1: d8a96bd77fd68df7793a73036a3ba0d5405d477b
+  /concat-stream/1.6.0:
+    dependencies:
+      inherits: 2.0.3
+      readable-stream: 2.2.8
+      typedarray: 0.0.6
+    resolution: 0aac662fd52be78964d5532f694784e70110acf7
+  /configstore/3.0.0:
+    dependencies:
+      dot-prop: 4.1.1
+      graceful-fs: 4.1.11
+      mkdirp: 0.5.1
+      unique-string: 1.0.0
+      write-file-atomic: 1.3.1
+      xdg-basedir: 3.0.0
+    resolution: e1b8669c1803ccc50b545e92f8e6e79aa80e0196
+  /console-control-strings/1.1.0: 3d7cf4464db6446ea644bf4b39507f9851008e8e
+  /content-disposition/0.5.2: 0cf68bb9ddf5f2be7961c3a85178cb85dba78cb4
+  /content-type/1.0.2: b7d113aee7a8dd27bd21133c4dc2529df1721eed
+  /conventional-commit-types/2.1.0: 45d860386c9a2e6537ee91d8a1b61bd0411b3d04
+  /cookie-signature/1.0.6: e303a882b342cc3ee8ca513a79999734dab3ae2c
+  /cookie/0.3.1: e7e0a1f9ef43b4c8ba925c5c5a96e806d16873bb
+  /cookies/0.6.2:
+    dependencies:
+      depd: 1.1.0
+      keygrip: 1.0.1
+    resolution: 6ac1b052895208e8fc4c4f5f86a9ed31b9cb5ccf
+  /core-js/2.4.1: 4de911e667b0eae9124e34254b53aea6fc618d3e
+  /core-util-is/1.0.2: b5fd54220aa2bc5ab57aab7140c940754503c1a7
+  /cpr/2.0.2:
+    dependencies:
+      graceful-fs: 4.1.11
+      minimist: 1.2.0
+      mkdirp: 0.5.1
+      rimraf: 2.6.1
+    resolution: 9e44be91101f644a3e1f8c908712b70cdd547056
+  /create-error-class/3.0.2:
+    dependencies:
+      capture-stack-trace: 1.0.0
+    resolution: 06be7abef947a3f14a30fd610671d401bca8b7b6
+  /cross-spawn-async/2.2.5:
+    dependencies:
+      lru-cache: 4.0.2
+      which: 1.2.14
+    resolution: 845ff0c0834a3ded9d160daca6d390906bb288cc
+  /cross-spawn/5.1.0:
+    dependencies:
+      lru-cache: 4.0.2
+      shebang-command: 1.2.0
+      which: 1.2.14
+    resolution: e8bd0efee58fcff6f8f94510a0a554bbfa235449
+  /cryptiles/2.0.5:
+    dependencies:
+      boom: 2.10.1
+    resolution: 3bdfecdc608147c1c67202fa291e7dca59eaa3b8
+  /crypto-random-string/1.0.0: a230f64f568310e1498009940790ec99545bca7e
+  /currently-unhandled/0.4.1:
+    dependencies:
+      array-find-index: 1.0.2
+    resolution: 988df33feab191ef799a61369dd76c17adf957ea
+  /cz-conventional-changelog/1.2.0:
+    dependencies:
+      conventional-commit-types: 2.1.0
+      lodash.map: 4.6.0
+      longest: 1.0.1
+      pad-right: 0.2.2
+      right-pad: 1.0.1
+      word-wrap: 1.2.1
+    resolution: 2bca04964c8919b23f3fd6a89ef5e6008b31b3f8
+  /cz-conventional-changelog/2.0.0:
+    dependencies:
+      conventional-commit-types: 2.1.0
+      lodash.map: 4.6.0
+      longest: 1.0.1
+      pad-right: 0.2.2
+      right-pad: 1.0.1
+      word-wrap: 1.2.1
+    resolution: 55a979afdfe95e7024879d2a0f5924630170b533
+  /dashdash/1.14.1:
+    dependencies:
+      assert-plus: 1.0.0
+    resolution: 853cfa0f7cbe2fed5de20326b8dd581035f6e2f0
+  /debug/2.2.0:
+    dependencies:
+      ms: 0.7.1
+    resolution: f87057e995b1a1f6ae6a4960664137bc56f039da
+  /debug/2.6.1:
+    dependencies:
+      ms: 0.7.2
+    resolution: 79855090ba2c4e3115cc7d8769491d58f0491351
+  /debug/2.6.3:
+    dependencies:
+      ms: 0.7.2
+    resolution: 0f7eb8c30965ec08c72accfa0130c8b79984141d
+  /decamelize/1.2.0: f6534d15148269b20352e7bee26f501f9a191290
+  /decompress-maybe/1.0.0:
+    dependencies:
+      bzip2-maybe: 1.0.0
+      gunzip-maybe: 1.4.0
+      pumpify: 1.3.5
+    resolution: adfe78c66cc069e64e824bd1405b85e75e6d1cbb
+  /dedent/0.6.0: 0e6da8f0ce52838ef5cec5c8f9396b0c1b64a3cb
+  /deep-equal/1.0.1: f5d260292b660e084eff4cdbc9f08ad3247448b5
+  /deep-extend/0.4.1: efe4113d08085f4e6f9687759810f807469e2253
+  /define-properties/1.1.2:
+    dependencies:
+      foreach: 2.0.5
+      object-keys: 1.0.11
+    resolution: 83a73f2fea569898fb737193c8f873caf6d45c94
+  /defined/1.0.0: c98d9bcef75674188e110969151199e39b1fa693
+  /delayed-stream/1.0.0: df3ae199acadfb7d440aaae0b29e2272b24ec619
+  /delegates/1.0.0: 84c6e159b81904fdca59a0ef44cd870d31250f9a
+  /depd/1.1.0: e1bd82c6aab6ced965b97b88b17ed3e528ca18c3
+  /destroy/1.0.4: 978857442c44749e4206613e37946205826abd80
+  /detect-file/0.1.0:
+    dependencies:
+      fs-exists-sync: 0.1.0
+    resolution: 4935dedfd9488648e006b0129566e9386711ea63
+  /detect-indent/4.0.0:
+    dependencies:
+      repeating: 2.0.1
+    resolution: f76d064352cdf43a1cb6ce619c4ee3a9475de208
+  /diff/3.2.0: c9ce393a4b7cbd0b058a725c93df299027868ff9
+  /dom-serializer/0.1.0:
+    dependencies:
+      domelementtype: 1.1.3
+      entities: 1.1.1
+    resolution: 073c697546ce0780ce23be4a28e293e40bc30c82
+  /domelementtype/1.1.3: bd28773e2642881aec51544924299c5cd822185b
+  /domelementtype/1.3.0: b17aed82e8ab59e52dd9c19b1756e0fc187204c2
+  /domhandler/2.3.0:
+    dependencies:
+      domelementtype: 1.3.0
+    resolution: 2de59a0822d5027fabff6f032c2b25a2a8abe738
+  /domutils/1.5.1:
+    dependencies:
+      dom-serializer: 0.1.0
+      domelementtype: 1.3.0
+    resolution: dcd8488a26f563d61079e48c9f7b7e32373682cf
+  /dot-prop/4.1.1:
+    dependencies:
+      is-obj: 1.0.1
+    resolution: a8493f0b7b5eeec82525b5c7587fa7de7ca859c1
+  /dtrace-provider/0.8.1:
+    dependencies:
+      nan: 2.6.1
+    resolution: cd4d174a233bea1bcf4a1fbfa5798f44f48cda9f
+  /duplexer/0.1.1: ace6ff808c1ce66b57d1ebf97977acb02334cfc1
+  /duplexer3/0.1.4: ee01dd1cac0ed3cbc7fdbea37dc0a8f1ce002ce2
+  /duplexify/3.5.0:
+    dependencies:
+      end-of-stream: 1.0.0
+      inherits: 2.0.3
+      readable-stream: 2.2.8
+      stream-shift: 1.0.0
+    resolution: 1aa773002e1578457e9d9d4a50b0ccaaebcbd604
+  /ecc-jsbn/0.1.1:
+    dependencies:
+      jsbn: 0.1.1
+    resolution: 0fc73a9ed5f0d53c38193398523ef7e543777505
+  /ee-first/1.1.1: 590c61156b0ae2f4f0255732a158b266bc56b21d
+  /encodeurl/1.0.1: 79e3d58655346909fe6f0f45a5de68103b294d20
+  /end-of-stream/1.0.0:
+    dependencies:
+      once: 1.3.3
+    resolution: d4596e702734a93e40e9af864319eabd99ff2f0e
+  /end-of-stream/1.4.0:
+    dependencies:
+      once: 1.4.0
+    resolution: 7a90d833efda6cfa6eac0f4949dbb0fad3a63206
+  /entities/1.1.1: 6e5c2d0a5621b5dadaecef80b90edfb5cd7772f0
+  /error-ex/1.3.1:
+    dependencies:
+      is-arrayish: 0.2.1
+    resolution: f855a86ce61adc4e8621c3cda21e7a7612c3a8dc
+  /es-abstract/1.7.0:
+    dependencies:
+      es-to-primitive: 1.1.1
+      function-bind: 1.1.0
+      is-callable: 1.1.3
+      is-regex: 1.0.4
+    resolution: dfade774e01bfcd97f96180298c449c8623fb94c
+  /es-to-primitive/1.1.1:
+    dependencies:
+      is-callable: 1.1.3
+      is-date-object: 1.0.1
+      is-symbol: 1.0.1
+    resolution: 45355248a88979034b6792e19bb81f2b7975dd0d
+  /es6-shim/0.35.3: 9bfb7363feffff87a6cdb6cd93e405ec3c4b6f26
+  /escape-html/1.0.3: 0258eae4d3d0c0974de1c169188ef0051d1d1988
+  /escape-string-regexp/1.0.5: 1b61c0562190a8dff6ae3bb2cf0200ca130b86d4
+  /esprima/3.1.3: fdca51cee6133895e3c88d535ce49dbff62a4633
+  /esutils/2.0.2: 0abf4f1caa5bcb1f7a9d8acc6dea4faaa04bac9b
+  /etag/1.8.0: 6f631aef336d6c46362b51764044ce216be3c051
+  /event-stream/3.3.4:
+    dependencies:
+      duplexer: 0.1.1
+      from: 0.1.7
+      map-stream: 0.1.0
+      pause-stream: 0.0.11
+      split: 0.3.3
+      stream-combiner: 0.0.4
+      through: 2.3.8
+    resolution: 4ab4c9a0f5a54db9338b4c34d86bfce8f4b35571
+  /execa/0.4.0:
+    dependencies:
+      cross-spawn-async: 2.2.5
+      is-stream: 1.1.0
+      npm-run-path: 1.0.0
+      object-assign: 4.1.1
+      path-key: 1.0.0
+      strip-eof: 1.0.0
+    resolution: 4eb6467a36a095fabb2970ff9d5e3fb7bce6ebc3
+  /execa/0.6.3:
+    dependencies:
+      cross-spawn: 5.1.0
+      get-stream: 3.0.0
+      is-stream: 1.1.0
+      npm-run-path: 2.0.2
+      p-finally: 1.0.0
+      signal-exit: 3.0.2
+      strip-eof: 1.0.0
+    resolution: 57b69a594f081759c69e5370f0d17b9cb11658fe
+  /exists-link/2.0.0: fbb1fa6332e7566e488af87ec144ae0d03c04acf
+  /exit-hook/1.1.1: f05ca233b48c05d54fff07765df8507e95c02ff8
+  /expand-brackets/0.1.5:
+    dependencies:
+      is-posix-bracket: 0.1.1
+    resolution: df07284e342a807cd733ac5af72411e581d1177b
+  /expand-range/1.8.2:
+    dependencies:
+      fill-range: 2.2.3
+    resolution: a299effd335fe2721ebae8e257ec79644fc85337
+  /expand-tilde/1.2.2:
+    dependencies:
+      os-homedir: 1.0.2
+    resolution: 0b81eba897e5a3d31d1c3d102f8f01441e559449
+  /express/4.15.2:
+    dependencies:
+      accepts: 1.3.3
+      array-flatten: 1.1.1
+      content-disposition: 0.5.2
+      content-type: 1.0.2
+      cookie: 0.3.1
+      cookie-signature: 1.0.6
+      debug: 2.6.1
+      depd: 1.1.0
+      encodeurl: 1.0.1
+      escape-html: 1.0.3
+      etag: 1.8.0
+      finalhandler: 1.0.1
+      fresh: 0.5.0
+      merge-descriptors: 1.0.1
+      methods: 1.1.2
+      on-finished: 2.3.0
+      parseurl: 1.3.1
+      path-to-regexp: 0.1.7
+      proxy-addr: 1.1.4
+      qs: 6.4.0
+      range-parser: 1.2.0
+      send: 0.15.1
+      serve-static: 1.12.1
+      setprototypeof: 1.0.3
+      statuses: 1.3.1
+      type-is: 1.6.15
+      utils-merge: 1.0.0
+      vary: 1.1.1
+    resolution: af107fc148504457f2dca9a6f2571d7129b97b35
+  /extend/3.0.0: 5a474353b9f3353ddd8176dfd37b91c83a46f1d4
+  /external-editor/1.1.1:
+    dependencies:
+      extend: 3.0.0
+      spawn-sync: 1.0.15
+      tmp: 0.0.29
+    resolution: 12d7b0db850f7ff7e7081baf4005700060c4600b
+  /extglob/0.3.2:
+    dependencies:
+      is-extglob: 1.0.0
+    resolution: 2e18ff3d2f49ab2765cec9023f011daa8d8349a1
+  /extsprintf/1.0.2: e1080e0658e300b06294990cc70e1502235fd550
+  /fast-safe-stringify/1.1.13: a01e9cd9c9e491715c98a75a42d5f0bbd107ff76
+  /figures/1.7.0:
+    dependencies:
+      escape-string-regexp: 1.0.5
+      object-assign: 4.1.1
+    resolution: cbe1e3affcf1cd44b80cadfed28dc793a9701d2e
+  /filename-regex/2.0.0: 996e3e80479b98b9897f15a8a58b3d084e926775
+  /fill-range/2.2.3:
+    dependencies:
+      is-number: 2.1.0
+      isobject: 2.1.0
+      randomatic: 1.1.6
+      repeat-element: 1.1.2
+      repeat-string: 1.6.1
+    resolution: 50b77dfd7e469bc7492470963699fe7a8485a723
+  /finalhandler/1.0.1:
+    dependencies:
+      debug: 2.6.3
+      encodeurl: 1.0.1
+      escape-html: 1.0.3
+      on-finished: 2.3.0
+      parseurl: 1.3.1
+      statuses: 1.3.1
+      unpipe: 1.0.0
+    resolution: bcd15d1689c0e5ed729b6f7f541a6df984117db8
+  /find-node-modules/1.0.4:
+    dependencies:
+      findup-sync: 0.4.2
+      merge: 1.2.0
+    resolution: b6deb3cccb699c87037677bcede2c5f5862b2550
+  /find-parent-dir/0.3.0: 33c44b429ab2b2f0646299c5f9f718f376ff8d54
+  /find-root/1.0.0: 962ff211aab25c6520feeeb8d6287f8f6e95807a
+  /find-up/1.1.2:
+    dependencies:
+      path-exists: 2.1.0
+      pinkie-promise: 2.0.1
+    resolution: 6b2e9822b1a2ce0a60ab64d610eccad53cb24d0f
+  /find-up/2.1.0:
+    dependencies:
+      locate-path: 2.0.0
+    resolution: 45d1b7e506c717ddd482775a2b77920a3c0c57a7
+  /findup-sync/0.3.0:
+    dependencies:
+      glob: 5.0.15
+    resolution: 37930aa5d816b777c03445e1966cc6790a4c0b16
+  /findup-sync/0.4.2:
+    dependencies:
+      detect-file: 0.1.0
+      is-glob: 2.0.1
+      micromatch: 2.3.11
+      resolve-dir: 0.1.1
+    resolution: a8117d0f73124f5a4546839579fe52d7129fb5e5
+  /findup/0.1.5:
+    dependencies:
+      colors: 0.6.2
+      commander: 2.1.0
+    resolution: 8ad929a3393bac627957a7e5de4623b06b0e2ceb
+  /for-each/0.3.2:
+    dependencies:
+      is-function: 1.0.1
+    resolution: 2c40450b9348e97f281322593ba96704b9abd4d4
+  /for-in/1.0.2: 81068d295a8142ec0ac726c6e2200c30fb6d5e80
+  /for-own/0.1.5:
+    dependencies:
+      for-in: 1.0.2
+    resolution: 5265c681a4f294dabbf17c9509b6763aa84510ce
+  /foreach/2.0.5: 0bee005018aeb260d0a3af3ae658dd0136ec1b99
+  /forever-agent/0.6.1: fbc71f0c41adeb37f96c577ad1ed42d8fdacca91
+  /form-data/2.1.2:
+    dependencies:
+      asynckit: 0.4.0
+      combined-stream: 1.0.5
+      mime-types: 2.1.15
+    resolution: 89c3534008b97eada4cbb157d58f6f5df025eae4
+  /forwarded/0.1.0: 19ef9874c4ae1c297bcf078fde63a09b66a84363
+  /fresh/0.5.0: f474ca5e6a9246d6fd8e0953cfa9b9c805afa78e
+  /from/0.1.7: 83c60afc58b9c56997007ed1a768b3ab303a44fe
+  /fs-exists-sync/0.1.0: 982d6893af918e72d08dec9e8673ff2b5a8d6add
+  /fs-extra/1.0.0:
+    dependencies:
+      graceful-fs: 4.1.11
+      jsonfile: 2.4.0
+      klaw: 1.3.1
+    resolution: cd3ce5f7e7cb6145883fcae3191e9877f8587950
+  /fs-write-stream-atomic/1.0.10:
+    dependencies:
+      graceful-fs: 4.1.11
+      iferr: 0.1.5
+      imurmurhash: 0.1.4
+      readable-stream: 2.2.8
+    resolution: b47df53493ef911df75731e70a9ded0189db40c9
+  /fs.realpath/1.0.0: 1504ad2523158caa40db4a2787cb01411994ea4f
+  /fstream/1.0.11:
+    dependencies:
+      graceful-fs: 4.1.11
+      inherits: 2.0.3
+      mkdirp: 0.5.1
+      rimraf: 2.6.1
+    resolution: 5c1fb1f117477114f0632a0eb4b71b3cb0fd3171
+  /function-bind/1.1.0: 16176714c801798e4e8f2cf7f7529467bb4a5771
+  /gauge/2.6.0:
+    dependencies:
+      aproba: 1.1.1
+      console-control-strings: 1.1.0
+      has-color: 0.1.7
+      has-unicode: 2.0.1
+      object-assign: 4.1.1
+      signal-exit: 3.0.2
+      string-width: 1.0.2
+      strip-ansi: 3.0.1
+      wide-align: 1.1.0
+    resolution: d35301ad18e96902b4751dcbbe40f4218b942a46
+  /gauge/2.7.3:
+    dependencies:
+      aproba: 1.1.1
+      console-control-strings: 1.1.0
+      has-unicode: 2.0.1
+      object-assign: 4.1.1
+      signal-exit: 3.0.2
+      string-width: 1.0.2
+      strip-ansi: 3.0.1
+      wide-align: 1.1.0
+    resolution: 1c23855f962f17b3ad3d0dc7443f304542edfe09
+  /get-link-target/1.0.0:
+    dependencies:
+      graceful-fs: 4.1.11
+    resolution: 7fef04f5518f0eda088b8d87608f9ef6907f6bfc
+  /get-npm-tarball-url/1.0.1: 2e478dbced75e5e5538e4bdfe62a8a282f7c8ff3
+  /get-proxy/1.1.0:
+    dependencies:
+      rc: 1.2.1
+    resolution: 894854491bc591b0f147d7ae570f5c678b7256eb
+  /get-stdin/4.0.1: b968c6b0a04384324902e8bf1a5df32579a450fe
+  /get-stream/3.0.0: 8e943d1358dc37555054ecbe2edb05aa174ede14
+  /getpass/0.1.6:
+    dependencies:
+      assert-plus: 1.0.0
+    resolution: 283ffd9fc1256840875311c1b60e8c40187110e6
+  /glob-base/0.3.0:
+    dependencies:
+      glob-parent: 2.0.0
+      is-glob: 2.0.1
+    resolution: dbb164f6221b1c0b1ccf82aea328b497df0ea3c4
+  /glob-parent/2.0.0:
+    dependencies:
+      is-glob: 2.0.1
+    resolution: 81383d72db054fcccf5336daa902f182f6edbb28
+  /glob/5.0.15:
+    dependencies:
+      inflight: 1.0.6
+      inherits: 2.0.3
+      minimatch: 3.0.3
+      once: 1.4.0
+      path-is-absolute: 1.0.1
+    resolution: 1bc936b9e02f4a603fcc222ecf7633d30b8b93b1
+  /glob/6.0.4:
+    dependencies:
+      inflight: 1.0.6
+      inherits: 2.0.3
+      minimatch: 3.0.3
+      once: 1.4.0
+      path-is-absolute: 1.0.1
+    resolution: 0f08860f6a155127b2fadd4f9ce24b1aab6e4d22
+  /glob/7.1.1:
+    dependencies:
+      fs.realpath: 1.0.0
+      inflight: 1.0.6
+      inherits: 2.0.3
+      minimatch: 3.0.3
+      once: 1.4.0
+      path-is-absolute: 1.0.1
+    resolution: 805211df04faaf1c63a3600306cdf5ade50b2ec8
+  /global-bin-path/0.1.1: 3ecec7c23b4bb9405291c14140e74abe755d9b55
+  /global-modules/0.2.3:
+    dependencies:
+      global-prefix: 0.1.5
+      is-windows: 0.2.0
+    resolution: ea5a3bed42c6d6ce995a4f8a1269b5dae223828d
+  /global-prefix/0.1.5:
+    dependencies:
+      homedir-polyfill: 1.0.1
+      ini: 1.3.4
+      is-windows: 0.2.0
+      which: 1.2.14
+    resolution: 8d3bc6b8da3ca8112a160d8d496ff0462bfef78f
+  /got/6.7.1:
+    dependencies:
+      create-error-class: 3.0.2
+      duplexer3: 0.1.4
+      get-stream: 3.0.0
+      is-redirect: 1.0.0
+      is-retry-allowed: 1.1.0
+      is-stream: 1.1.0
+      lowercase-keys: 1.0.0
+      safe-buffer: 5.0.1
+      timed-out: 4.0.1
+      unzip-response: 2.0.1
+      url-parse-lax: 1.0.0
+    resolution: 240cd05785a9a18e561dc1b44b41c763ef1e8db0
+  /graceful-fs/4.1.11: 0e8bdfe4d1ddb8854d64e04ea7c00e2a026e5658
+  /graceful-readlink/1.0.1: 4cafad76bc62f02fa039b2f94e9a3dd3a391a725
+  /gunzip-maybe/1.4.0:
+    dependencies:
+      browserify-zlib: 0.1.4
+      is-deflate: 1.0.0
+      is-gzip: 1.0.0
+      peek-stream: 1.1.1
+      pumpify: 1.3.5
+      through2: 2.0.3
+    resolution: 7d8316c8d0571e1d08a5a79e46fff0afe8172b19
+  /handlebars/4.0.6:
+    dependencies:
+      async: 1.5.2
+      optimist: 0.6.1
+      source-map: 0.4.4
+      uglify-js: 2.8.21
+    resolution: 2ce4484850537f9c97a8026d5399b935c4ed4ed7
+  /har-schema/1.0.5: d263135f43307c02c602afc8fe95970c0151369e
+  /har-validator/4.2.1:
+    dependencies:
+      ajv: 4.11.6
+      har-schema: 1.0.5
+    resolution: 33481d0f1bbff600dd203d75812a6a5fba002e2a
+  /has-ansi/2.0.0:
+    dependencies:
+      ansi-regex: 2.1.1
+    resolution: 34f5049ce1ecdf2b0649af3ef24e45ed35416d91
+  /has-color/0.1.7: 67144a5260c34fc3cca677d041daf52fe7b78b2f
+  /has-unicode/2.0.1: e0e6fe6a28cf51138855e086d1691e771de2a8b9
+  /has/1.0.1:
+    dependencies:
+      function-bind: 1.1.0
+    resolution: 8461733f538b0837c9361e39a9ab9e9704dc2f28
+  /hawk/3.1.3:
+    dependencies:
+      boom: 2.10.1
+      cryptiles: 2.0.5
+      hoek: 2.16.3
+      sntp: 1.0.9
+    resolution: 078444bd7c1640b0fe540d2c9b73d59678e8e1c4
+  /highlight.js/8.9.1: b8a9c5493212a9392f0222b649c9611497ebfb88
+  /highlight.js/9.10.0: f9f0b14c0be00f0e4fb1e577b749fed9e6f52f55
+  /hoek/2.16.3: 20bb7403d3cea398e91dc4710a8ff1b8274a25ed
+  /homedir-polyfill/1.0.1:
+    dependencies:
+      parse-passwd: 1.0.0
+    resolution: 4c2bbc8a758998feebf5ed68580f76d46768b4bc
+  /hosted-git-info/2.4.1: 4b0445e41c004a8bd1337773a4ff790ca40318c8
+  /htmlparser2/3.9.2:
+    dependencies:
+      domelementtype: 1.3.0
+      domhandler: 2.3.0
+      domutils: 1.5.1
+      entities: 1.1.1
+      inherits: 2.0.3
+      readable-stream: 2.2.8
+    resolution: 1bdf87acca0f3f9e53fa4fcceb0f4b4cbb00b338
+  /http-errors/1.6.1:
+    dependencies:
+      depd: 1.1.0
+      inherits: 2.0.3
+      setprototypeof: 1.0.3
+      statuses: 1.3.1
+    resolution: 5f8b8ed98aca545656bf572997387f904a722257
+  /http-signature/1.1.1:
+    dependencies:
+      assert-plus: 0.2.0
+      jsprim: 1.4.0
+      sshpk: 1.11.0
+    resolution: df72e267066cd0ac67fb76adf8e134a8fbcf91bf
+  /husky/0.13.3:
+    dependencies:
+      chalk: 1.1.3
+      find-parent-dir: 0.3.0
+      is-ci: 1.0.10
+      normalize-path: 1.0.0
+    resolution: bc2066080badc8b8fe3516e881f5bc68a57052ff
+  /iconv-lite/0.4.15: fe265a218ac6a57cfe854927e9d04c19825eddeb
+  /ieee754/1.1.8: be33d40ac10ef1926701f6f08a2d86fbfd1ad3e4
+  /iferr/0.1.5: c60eed69e6d8fdb6b3104a1fcbca1c192dc5b501
+  /imurmurhash/0.1.4: 9218b9b2b928a238b13dc4fb6b6d576f231453ea
+  /in-publish/2.0.0: e20ff5e3a2afc2690320b6dc552682a9c7fadf51
+  /indent-string/2.1.0:
+    dependencies:
+      repeating: 2.0.1
+    resolution: 8e2d48348742121b4a8218b7a137e9a52049dc80
+  /individual/3.0.0: e7ca4f85f8957b018734f285750dc22ec2f9862d
+  /inflight/1.0.6:
+    dependencies:
+      once: 1.4.0
+      wrappy: 1.0.2
+    resolution: 49bd6331d7d02d0c09bc910a1075ba8165b56df9
+  /inherits/2.0.3: 633c2c83e3da42a502f52466022480f4208261de
+  /ini/1.3.4: 0537cb79daf59b59a1a517dff706c86ec039162e
+  /inquirer/1.2.3:
+    dependencies:
+      ansi-escapes: 1.4.0
+      chalk: 1.1.3
+      cli-cursor: 1.0.2
+      cli-width: 2.1.0
+      external-editor: 1.1.1
+      figures: 1.7.0
+      lodash: 4.17.4
+      mute-stream: 0.0.6
+      pinkie-promise: 2.0.1
+      run-async: 2.3.0
+      rx: 4.1.0
+      string-width: 1.0.2
+      strip-ansi: 3.0.1
+      through: 2.3.8
+    resolution: 4dec6f32f37ef7bb0b2ed3f1d1a5c3f545074918
+  /interpret/1.0.2: f4f623f0bb7122f15f5717c8e254b8161b5c5b2d
+  /ipaddr.js/1.3.0: 1e03a52fdad83a8bbb2b25cbf4998b4cffcd3dec
+  /is-arrayish/0.2.1: 77c99840527aa8ecb1a8ba697b80645a7a926a9d
+  /is-buffer/1.1.5: 1f3b26ef613b214b88cbca23cc6c01d87961eecc
+  /is-builtin-module/1.0.0:
+    dependencies:
+      builtin-modules: 1.1.1
+    resolution: 540572d34f7ac3119f8f76c30cbc1b1e037affbe
+  /is-bzip2/1.0.0: 5ee58eaa5a2e9c80e21407bedf23ae5ac091b3fc
+  /is-callable/1.1.3: 86eb75392805ddc33af71c92a0eedf74ee7604b2
+  /is-ci/1.0.10:
+    dependencies:
+      ci-info: 1.0.0
+    resolution: f739336b2632365061a9d48270cd56ae3369318e
+  /is-date-object/1.0.1: 9aa20eb6aeebbff77fbd33e74ca01b33581d3a16
+  /is-deflate/1.0.0: c862901c3c161fb09dac7cdc7e784f80e98f2f14
+  /is-dotfile/1.0.2: 2c132383f39199f8edc268ca01b9b007d205cc4d
+  /is-equal-shallow/0.1.3:
+    dependencies:
+      is-primitive: 2.0.0
+    resolution: 2238098fc221de0bcfa5d9eac4c45d638aa1c534
+  /is-extendable/0.1.1: 62b110e289a471418e3ec36a617d472e301dfc89
+  /is-extglob/1.0.0: ac468177c4943405a092fc8f29760c6ffc6206c0
+  /is-finite/1.0.2:
+    dependencies:
+      number-is-nan: 1.0.1
+    resolution: cc6677695602be550ef11e8b4aa6305342b6d0aa
+  /is-fullwidth-code-point/1.0.0:
+    dependencies:
+      number-is-nan: 1.0.1
+    resolution: ef9e31386f031a7f0d643af82fde50c457ef00cb
+  /is-fullwidth-code-point/2.0.0: a3b30a5c4f199183167aaab93beefae3ddfb654f
+  /is-function/1.0.1: 12cfb98b65b57dd3d193a3121f5f6e2f437602b5
+  /is-glob/2.0.1:
+    dependencies:
+      is-extglob: 1.0.0
+    resolution: d096f926a3ded5600f3fdfd91198cb0888c2d863
+  /is-gzip/1.0.0: 6ca8b07b99c77998025900e555ced8ed80879a83
+  /is-npm/1.0.0: f2fb63a65e4905b406c86072765a1a4dc793b9f4
+  /is-number/2.1.0:
+    dependencies:
+      kind-of: 3.1.0
+    resolution: 01fcbbb393463a548f2f466cce16dece49db908f
+  /is-obj/1.0.1: 3e4729ac1f5fde025cd7d83a896dab9f4f67db0f
+  /is-plain-obj/1.1.0: 71a50c8429dfca773c92a390a4a03b39fcd51d3e
+  /is-posix-bracket/0.1.1: 3334dc79774368e92f016e6fbc0a88f5cd6e6bc4
+  /is-primitive/2.0.0: 207bab91638499c07b2adf240a41a87210034575
+  /is-promise/2.1.0: 79a2a9ece7f096e80f36d2b2f3bc16c1ff4bf3fa
+  /is-redirect/1.0.0: 1d03dded53bd8db0f30c26e4f95d36fc7c87dc24
+  /is-regex/1.0.4:
+    dependencies:
+      has: 1.0.1
+    resolution: 5517489b547091b0930e095654ced25ee97e9491
+  /is-retry-allowed/1.1.0: 11a060568b67339444033d0125a61a20d564fb34
+  /is-ssh/1.3.0:
+    dependencies:
+      protocols: 1.4.5
+    resolution: ebea1169a2614da392a63740366c3ce049d8dff6
+  /is-stream/1.1.0: 12d4a3dd4e68e0b79ceb8dbc84173ae80d91ca44
+  /is-symbol/1.0.1: 3cc59f00025194b6ab2e38dbae6689256b660572
+  /is-typedarray/1.0.0: e479c80858df0c1b11ddda6940f96011fcda4a9a
+  /is-utf8/0.2.1: 4b0da1442104d1b336340e80797e865cf39f7d72
+  /is-windows/0.2.0: de1aa6d63ea29dd248737b69f1ff8b8002d2108c
+  /is-windows/1.0.0: c61d61020c3ebe99261b781bd3d1622395f547f8
+  /isarray/0.0.1: 8a18acfca9a8f4177e09abfc6038939b05d1eedf
+  /isarray/1.0.0: bb935d48582cba168c06834957a54a3e07124f11
+  /isexe/2.0.0: e8fbf374dc556ff8947a10dcb0572d633f2cfa10
+  /isobject/2.1.0:
+    dependencies:
+      isarray: 1.0.0
+    resolution: f065561096a3f1da2ef46272f815c840d87e0c89
+  /isstream/0.1.2: 47e63f7af55afa6f92e1500e690eb8b8529c099a
+  /jju/1.3.0: dadd9ef01924bc728b03f2f7979bdbd62f7a2aaa
+  /jodid25519/1.0.2:
+    dependencies:
+      jsbn: 0.1.1
+    resolution: 06d4912255093419477d425633606e0e90782967
+  /js-tokens/3.0.1: 08e9f132484a2c45a30907e9dc4d5567b7f114d7
+  /js-yaml/3.8.3:
+    dependencies:
+      argparse: 1.0.9
+      esprima: 3.1.3
+    resolution: 33a05ec481c850c8875929166fe1beb61c728766
+  /jsbn/0.1.1: a5e654c2e5a2deb5f201d96cefbca80c0ef2f513
+  /json-schema/0.2.3: b480c892e59a2f05954ce727bd3f2a4e882f9e13
+  /json-stable-stringify/1.0.1:
+    dependencies:
+      jsonify: 0.0.0
+    resolution: 9a759d39c5f2ff503fd5300646ed445f88c4f9af
+  /json-stringify-safe/5.0.1: 1296a2d58fd45f19a0f6ce01d65701e2c735b6eb
+  /json2yaml/1.1.0:
+    dependencies:
+      remedial: 1.0.7
+    resolution: 5414d907f9816586b80c513ec2e3aeb2ab819a6c
+  /jsonfile/2.4.0:
+    dependencies:
+      graceful-fs: 4.1.11
+    resolution: 3736a2b428b87bbda0cc83b53fa3d633a35c2ae8
+  /jsonify/0.0.0: 2c74b6ee41d93ca51b7b5aaee8f503631d252a73
+  /jsonparse/1.3.0: 85fc245b1d9259acc6941960b905adf64e7de0e8
+  /jsprim/1.4.0:
+    dependencies:
+      assert-plus: 1.0.0
+      extsprintf: 1.0.2
+      json-schema: 0.2.3
+      verror: 1.3.6
+    resolution: a3b87e40298d8c380552d8cc7628a0bb95a22918
+  /keygrip/1.0.1: b02fa4816eef21a8c4b35ca9e52921ffc89a30e9
+  /kind-of/3.1.0:
+    dependencies:
+      is-buffer: 1.1.5
+    resolution: 475d698a5e49ff5e53d14e3e732429dc8bf4cf47
+  /klaw/1.3.1:
+    dependencies:
+      graceful-fs: 4.1.11
+    resolution: 4088433b46b3b1ba259d78785d8e96f73ba02439
+  /latest-version/3.1.0:
+    dependencies:
+      package-json: 4.0.0
+    resolution: a205383fea322b33b5ae3b18abee0dc2f356ee15
+  /lazy-cache/1.0.4: a1d78fc3a50474cb80845d3b3b6e1da49a446e8e
+  /lazy-req/2.0.0: c9450a363ecdda2e6f0c70132ad4f37f8f06f2b4
+  /levenshtein/1.0.2: cd02e8b32075645ddcf5d059e02efa918f9fb3ec
+  /link-dir/2.0.0:
+    dependencies:
+      '@types/mz': 0.0.30
+      '@types/node': 6.0.68
+      bole: 3.0.2
+      graceful-fs: 4.1.11
+      mkdirp-promise: 5.0.1
+      mz: 2.6.0
+      rimraf-then: 1.0.1
+    resolution: 109f177704943a3796ce49b0b518da8757955ac2
+  /linkify-it/1.2.4:
+    dependencies:
+      uc.micro: 1.0.3
+    resolution: 0773526c317c8fd13bd534ee1d180ff88abf881a
+  /load-json-file/1.1.0:
+    dependencies:
+      graceful-fs: 4.1.11
+      parse-json: 2.2.0
+      pify: 2.3.0
+      pinkie-promise: 2.0.1
+      strip-bom: 2.0.0
+    resolution: 956905708d58b4bab4c2261b04f59f31c99374c0
+  /load-json-file/2.0.0:
+    dependencies:
+      graceful-fs: 4.1.11
+      parse-json: 2.2.0
+      pify: 2.3.0
+      strip-bom: 3.0.0
+    resolution: 7947e42149af80d696cbf797bcaabcfe1fe29ca8
+  /load-yaml-file/0.1.0:
+    dependencies:
+      graceful-fs: 4.1.11
+      js-yaml: 3.8.3
+      pify: 2.3.0
+      strip-bom: 3.0.0
+    resolution: f680066e691b3eeb45017672e4a3956af5b83b89
+  /locate-path/2.0.0:
+    dependencies:
+      p-locate: 2.0.0
+      path-exists: 3.0.0
+    resolution: 2b568b265eec944c6d9c0de9c3dbbbca0354cd8e
+  /lockfile/1.0.3: 2638fc39a0331e9cac1a04b71799931c9c50df79
+  /lodash.map/4.6.0: 771ec7839e3473d9c4cde28b19394c3562f4f6d3
+  /lodash/3.10.1: 5bf45e8e49ba4189e17d482789dfd15bd140b7b6
+  /lodash/4.17.2: 34a3055babe04ce42467b607d700072c7ff6bf42
+  /lodash/4.17.4: 78203a4d1c328ae1d86dca6460e369b57f4055ae
+  /longest/1.0.1: 30a0b2da38f73770e8294a0d22e6625ed77d0097
+  /loud-rejection/1.6.0:
+    dependencies:
+      currently-unhandled: 0.4.1
+      signal-exit: 3.0.2
+    resolution: 5b46f80147edee578870f086d04821cf998e551f
+  /lowercase-keys/1.0.0: 4e3366b39e7f5457e35f1324bdf6f88d0bfc7306
+  /lru-cache/4.0.2:
+    dependencies:
+      pseudomap: 1.0.2
+      yallist: 2.1.2
+    resolution: 1d17679c069cda5d040991a09dbc2c0db377e55e
+  /lunr/0.7.2: 79a30e932e216cba163541ee37a3607c12cd7281
+  /make-error/1.2.3: 6c4402df732e0977ac6faf754a5074b3d2b1d19d
+  /map-obj/1.0.1: d933ceb9205d82bdcf4886f6742bdc2b4dea146d
+  /map-obj/2.0.0: a65cd29087a92598b8791257a523e021222ac1f9
+  /map-stream/0.1.0: e56aa94c4c8055a16404a0674b78f215f7c8e194
+  /markdown-it/4.4.0:
+    dependencies:
+      argparse: 1.0.9
+      entities: 1.1.1
+      linkify-it: 1.2.4
+      mdurl: 1.0.1
+      uc.micro: 1.0.3
+    resolution: 3df373dbea587a9a7fef3e56311b68908f75c414
+  /mdurl/1.0.1: fe85b2ec75a59037f2adfec100fd6c601761152e
+  /media-typer/0.3.0: 8710d7af0aa626f8fffa1ce00168545263255748
+  /mem/1.1.0:
+    dependencies:
+      mimic-fn: 1.1.0
+    resolution: 5edd52b485ca1d900fe64895505399a0dfa45f76
+  /meow/3.7.0:
+    dependencies:
+      camelcase-keys: 2.1.0
+      decamelize: 1.2.0
+      loud-rejection: 1.6.0
+      map-obj: 1.0.1
+      minimist: 1.2.0
+      normalize-package-data: 2.3.6
+      object-assign: 4.1.1
+      read-pkg-up: 1.0.1
+      redent: 1.0.0
+      trim-newlines: 1.0.0
+    resolution: 72cb668b425228290abbfa856892587308a801fb
+  /merge-descriptors/1.0.1: b00aaa556dd8b44568150ec9d1b953f3f90cbb61
+  /merge/1.2.0: 7531e39d4949c281a66b8c5a6e0265e8b05894da
+  /methods/1.1.2: 5529a4d67654134edcc5266656835b0f851afcee
+  /micromatch/2.3.11:
+    dependencies:
+      arr-diff: 2.0.0
+      array-unique: 0.2.1
+      braces: 1.8.5
+      expand-brackets: 0.1.5
+      extglob: 0.3.2
+      filename-regex: 2.0.0
+      is-extglob: 1.0.0
+      is-glob: 2.0.1
+      kind-of: 3.1.0
+      normalize-path: 2.1.1
+      object.omit: 2.0.1
+      parse-glob: 3.0.4
+      regex-cache: 0.4.3
+    resolution: 86677c97d1720b363431d04d0d15293bd38c1565
+  /mime-db/1.27.0: 820f572296bbd20ec25ed55e5b5de869e5436eb1
+  /mime-types/2.1.15:
+    dependencies:
+      mime-db: 1.27.0
+    resolution: a4ebf5064094569237b8cf70046776d09fc92aed
+  /mime/1.3.4: 115f9e3b6b3daf2959983cb38f149a2d40eb5d53
+  /mimic-fn/1.1.0: e667783d92e89dbd342818b5230b9d62a672ad18
+  /minimatch/3.0.3:
+    dependencies:
+      brace-expansion: 1.1.7
+    resolution: 2a4e4090b96b2db06a9d7df01055a62a77c9b774
+  /minimist/0.0.10: de3f98543dbf96082be48ad1a0c7cda836301dcf
+  /minimist/0.0.8: 857fcabfc3397d2625b8228262e86aa7a011b05d
+  /minimist/1.2.0: a35008b20f41383eec1fb914f4cd5df79a264284
+  /mkdirp-promise/5.0.1:
+    dependencies:
+      mkdirp: 0.5.1
+    resolution: e9b8f68e552c68a9c1713b84883f7a1dd039b8a1
+  /mkdirp/0.5.1:
+    dependencies:
+      minimist: 0.0.8
+    resolution: 30057438eac6cf7f8c4767f38648d6697d75c903
+  /moment/2.18.1: c36193dd3ce1c2eed2adb7c802dbbc77a81b1c0f
+  /ms/0.7.1: 9cd13c03adbff25b65effde7ce864ee952017098
+  /ms/0.7.2: ae25cf2512b3885a1d95d7f037868d8431124765
+  /mute-stream/0.0.6: 48962b19e169fd1dfc240b3f1e7317627bbc47db
+  /mv/2.1.1:
+    dependencies:
+      mkdirp: 0.5.1
+      ncp: 2.0.0
+      rimraf: 2.4.5
+    resolution: ae6ce0d6f6d5e0a4f7d893798d03c1ea9559b6a2
+  /mz/2.6.0:
+    dependencies:
+      any-promise: 1.3.0
+      object-assign: 4.1.1
+      thenify-all: 1.6.0
+    resolution: c8b8521d958df0a4f2768025db69c719ee4ef1ce
+  /nan/2.6.1: 8c84f7b14c96b89f57fbc838012180ec8ca39a01
+  /ncp/2.0.0: 195a21d6c46e361d2fb1281ba38b91e9df7bdbb3
+  /ndjson/1.5.0:
+    dependencies:
+      json-stringify-safe: 5.0.1
+      minimist: 1.2.0
+      split2: 2.1.1
+      through2: 2.0.3
+    resolution: ae603b36b134bcec347b452422b0bf98d5832ec8
+  /negotiator/0.6.1: 2b327184e8992101177b28563fb5e7102acd0ca9
+  /node-gyp/3.6.0:
+    dependencies:
+      fstream: 1.0.11
+      glob: 7.1.1
+      graceful-fs: 4.1.11
+      minimatch: 3.0.3
+      mkdirp: 0.5.1
+      nopt: 3.0.6
+      npmlog: 4.0.2
+      osenv: 0.1.4
+      request: 2.81.0
+      rimraf: 2.6.1
+      semver: 5.3.0
+      tar: 2.2.1
+      which: 1.2.14
+    resolution: 7474f63a3a0501161dda0b6341f022f14c423fa6
+  /nopt/3.0.6:
+    dependencies:
+      abbrev: 1.1.0
+    resolution: c6465dbf08abcd4db359317f79ac68a646b28ff9
+  /normalize-package-data/2.3.6:
+    dependencies:
+      hosted-git-info: 2.4.1
+      is-builtin-module: 1.0.0
+      semver: 5.3.0
+      validate-npm-package-license: 3.0.1
+    resolution: 498fa420c96401f787402ba21e600def9f981fff
+  /normalize-path/1.0.0: 32d0e472f91ff345701c15a8311018d3b0a90379
+  /normalize-path/2.1.1:
+    dependencies:
+      remove-trailing-separator: 1.0.1
+    resolution: 1ab28b556e198363a8c1a6f7e6fa20137fe6aed9
+  /normalize-ssh/1.0.0:
+    dependencies:
+      is-ssh: 1.3.0
+      parse-url: 1.3.7
+    resolution: 22a8308fa7cd932bdb49af74ecac644cf4a6196b
+  /npm-package-arg/4.2.1:
+    dependencies:
+      hosted-git-info: 2.4.1
+      semver: 5.3.0
+    resolution: 593303fdea85f7c422775f17f9eb7670f680e3ec
+  /npm-registry-client/8.1.0:
+    dependencies:
+      concat-stream: 1.6.0
+      graceful-fs: 4.1.11
+      normalize-package-data: 2.3.6
+      npm-package-arg: 4.2.1
+      npmlog: 4.0.2
+      once: 1.4.0
+      request: 2.81.0
+      retry: 0.10.1
+      semver: 5.3.0
+      slide: 1.1.6
+    resolution: ed7e5f58dfb98cb905f7b8adbf4858ce746db8d3
+  /npm-run-all/4.0.2:
+    dependencies:
+      chalk: 1.1.3
+      cross-spawn: 5.1.0
+      minimatch: 3.0.3
+      ps-tree: 1.1.0
+      read-pkg: 2.0.0
+      shell-quote: 1.6.1
+      string.prototype.padend: 3.0.0
+    resolution: a84669348e6db6ccbe052200b4cdb6bfe034a4fe
+  /npm-run-path/1.0.0:
+    dependencies:
+      path-key: 1.0.0
+    resolution: f5c32bf595fe81ae927daec52e82f8b000ac3c8f
+  /npm-run-path/2.0.2:
+    dependencies:
+      path-key: 2.0.1
+    resolution: 35a9232dfa35d7067b4cb2ddf2357b1871536c5f
+  /npm-scripts-info/0.3.6:
+    dependencies:
+      chalk: 1.1.3
+      meow: 3.7.0
+      unquote: 1.1.0
+    resolution: 14e7c78c1288bd6d82078769c7aa9583fc413c03
+  /npmlog/3.1.2:
+    dependencies:
+      are-we-there-yet: 1.1.2
+      console-control-strings: 1.1.0
+      gauge: 2.6.0
+      set-blocking: 2.0.0
+    resolution: 2d46fa874337af9498a2f12bb43d8d0be4a36873
+  /npmlog/4.0.2:
+    dependencies:
+      are-we-there-yet: 1.1.2
+      console-control-strings: 1.1.0
+      gauge: 2.7.3
+      set-blocking: 2.0.0
+    resolution: d03950e0e78ce1527ba26d2a7592e9348ac3e75f
+  /number-is-nan/1.0.1: 097b602b53422a522c1afb8790318336941a011d
+  /oauth-sign/0.8.2: 46a6ab7f0aead8deae9ec0565780b7d4efeb9d43
+  /object-assign/4.1.1: 2109adc7965887cfc05cbbd442cac8bfbb360863
+  /object-inspect/1.2.2: c82115e4fcc888aea14d64c22e4f17f6a70d5e5a
+  /object-keys/1.0.11: c54601778ad560f1142ce0e01bcca8b56d13426d
+  /object.omit/2.0.1:
+    dependencies:
+      for-own: 0.1.5
+      is-extendable: 0.1.1
+    resolution: 1a9c744829f39dbb858c76ca3579ae2a54ebd1fa
+  /observatory/1.0.0:
+    dependencies:
+      ansi-escapes: 1.4.0
+      chalk: 1.1.3
+      lodash: 3.10.1
+    resolution: 2baa606e8299e6866914ec9c8a4db6a41136e59b
+  /on-finished/2.3.0:
+    dependencies:
+      ee-first: 1.1.1
+    resolution: 20f1336481b083cd75337992a16971aa2d906947
+  /on-headers/1.0.1: 928f5d0f470d49342651ea6794b0857c100693f7
+  /once/1.3.3:
+    dependencies:
+      wrappy: 1.0.2
+    resolution: b2e261557ce4c314ec8304f3fa82663e4297ca20
+  /once/1.4.0:
+    dependencies:
+      wrappy: 1.0.2
+    resolution: 583b1aa775961d4b113ac17d9c50baef9dd76bd1
+  /onetime/1.1.0: a1f7838f8314c516f05ecefcbc4ccfe04b4ed789
+  /onetime/2.0.1:
+    dependencies:
+      mimic-fn: 1.1.0
+    resolution: 067428230fd67443b2794b22bba528b6867962d4
+  /optimist/0.6.1:
+    dependencies:
+      minimist: 0.0.10
+      wordwrap: 0.0.3
+    resolution: da3ea74686fa21a19a111c326e90eb15a0196686
+  /os-homedir/1.0.2: ffbc4988336e0e833de0c168c7ef152121aa7fb3
+  /os-shim/0.1.3: 6b62c3791cf7909ea35ed46e17658bb417cb3917
+  /os-tmpdir/1.0.2: bbe67406c79aa85c5cfec766fe5734555dfa1274
+  /osenv/0.1.4:
+    dependencies:
+      os-homedir: 1.0.2
+      os-tmpdir: 1.0.2
+    resolution: 42fe6d5953df06c8064be6f176c3d05aaaa34644
+  /p-filter/1.0.0:
+    dependencies:
+      p-map: 1.1.1
+    resolution: 629d317150209c8fd508ba137713ef4bb920e9db
+  /p-finally/1.0.0: 3fbcfb15b899a44123b34b6dcc18b724336a2cae
+  /p-limit/1.1.0: b07ff2d9a5d88bec806035895a2bab66a27988bc
+  /p-locate/2.0.0:
+    dependencies:
+      p-limit: 1.1.0
+    resolution: 20a0103b222a70c8fd39cc2e580680f3dde5ec43
+  /p-map/1.1.1: 05f5e4ae97a068371bc2a5cc86bfbdbc19c4ae7a
+  /package-json/4.0.0:
+    dependencies:
+      got: 6.7.1
+      registry-auth-token: 3.1.2
+      registry-url: 3.1.0
+      semver: 5.3.0
+    resolution: f3c9dc8738f5b59304d54d2cfb3f91d08fdd7998
+  /pad-right/0.2.2:
+    dependencies:
+      repeat-string: 1.6.1
+    resolution: 6fbc924045d244f2a2a244503060d3bfc6009774
+  /pako/0.2.9: f3f7522f4ef782348da8161bad9ecfd51bf83a75
+  /parse-codeload-url/1.0.0: f475da3e07066fc16d2d506a7b799b63988bb52a
+  /parse-glob/3.0.4:
+    dependencies:
+      glob-base: 0.3.0
+      is-dotfile: 1.0.2
+      is-extglob: 1.0.0
+      is-glob: 2.0.1
+    resolution: b2c376cfb11f35513badd173ef0bb6e3a388391c
+  /parse-json/2.2.0:
+    dependencies:
+      error-ex: 1.3.1
+    resolution: f480f40434ef80741f8469099f8dea18f55a4dc9
+  /parse-npm-tarball-url/1.0.1:
+    dependencies:
+      '@types/node': 7.0.12
+      semver-regex: 1.0.0
+    resolution: 4df1cf045d397ef2d9c39f5130898a8aa8e062e4
+  /parse-passwd/1.0.0: 6d5b934a456993b23d37f40a382d6f1666a8e5c6
+  /parse-url/1.3.7:
+    dependencies:
+      is-ssh: 1.3.0
+      protocols: 1.4.5
+    resolution: 636cb6e32b88255c704e30ab4349676703267af8
+  /parseurl/1.3.1: c8ab8c9223ba34888aa64a297b28853bec18da56
+  /path-exists/2.1.0:
+    dependencies:
+      pinkie-promise: 2.0.1
+    resolution: 0feb6c64f0fc518d9a754dd5efb62c7022761f4b
+  /path-exists/3.0.0: ce0ebeaa5f78cb18925ea7d810d7b59b010fd515
+  /path-is-absolute/1.0.1: 174b9268735534ffbc7ace6bf53a5a9e1b5c5f5f
+  /path-key/1.0.0: 5d53d578019646c0d68800db4e146e6bdc2ac7af
+  /path-key/2.0.1: 411cadb574c5a140d3a4b1910d40d80cc9f40b40
+  /path-name/1.0.0: 8ca063a63de7982dfa95760edaffd10214494f24
+  /path-parse/1.0.5: 3c1adf871ea9cd6c9431b6ea2bd74a0ff055c4c1
+  /path-to-regexp/0.1.7: df604178005f522f15eb4490e7247a1bfaa67f8c
+  /path-type/1.1.0:
+    dependencies:
+      graceful-fs: 4.1.11
+      pify: 2.3.0
+      pinkie-promise: 2.0.1
+    resolution: 59c44f7ee491da704da415da5a4070ba4f8fe441
+  /path-type/2.0.0:
+    dependencies:
+      pify: 2.3.0
+    resolution: f012ccb8415b7096fc2daa1054c3d72389594c73
+  /pause-stream/0.0.11:
+    dependencies:
+      through: 2.3.8
+    resolution: fe5a34b0cbce12b5aa6a2b403ee2e73b602f1445
+  /peek-stream/1.1.1:
+    dependencies:
+      duplexify: 3.5.0
+      through2: 0.5.1
+    resolution: 5324259966a9c97ce2f0470f67c23bf248f8e7f0
+  /performance-now/0.2.0: 33ef30c5c77d4ea21c5a53869d91b56d8f2555e5
+  /pify/2.3.0: ed141a6ac043a849ea588498e7dca8b15330e90c
+  /pinkie-promise/2.0.1:
+    dependencies:
+      pinkie: 2.0.4
+    resolution: 2135d6dfa7a358c069ac9b178776288228450ffa
+  /pinkie/2.0.4: 72556b80cfa0d48a974e80e77248e80ed4f7f870
+  /pkginfo/0.4.0: 349dbb7ffd38081fcadc0853df687f0c7744cd65
+  /pnpm-default-reporter/0.6.0:
+    dependencies:
+      '@types/chalk': 0.4.31
+      '@types/common-tags': 1.2.5
+      '@types/node': 7.0.12
+      chalk: 1.1.3
+      common-tags: 1.4.0
+      ndjson: 1.5.0
+      observatory: 1.0.0
+      pnpm-logger: 0.3.0
+    resolution: 9a5e6dcabb6b9383ab1d16544252f2f8a8b6c49a
+  /pnpm-file-reporter/0.0.1:
+    dependencies:
+      '@types/chalk': 0.4.31
+      '@types/node': 7.0.12
+      chalk: 1.1.3
+      json2yaml: 1.1.0
+      ndjson: 1.5.0
+      observatory: 1.0.0
+      pnpm-logger: 0.0.0
+    resolution: f7c3e2164c5cc955a0b3ed661314e6357b3f2e63
+  /pnpm-install-checks/1.1.0:
+    dependencies:
+      semver: 5.3.0
+    resolution: 741d9979762fdfad93f3e469deb4a814d3430008
+  /pnpm-logger/0.0.0:
+    dependencies:
+      bole: 3.0.2
+    resolution: 28701b97618a1fc32d2fee1bf410746588bb1a85
+  /pnpm-logger/0.3.0:
+    dependencies:
+      bole: 3.0.2
+    resolution: eaecea5a037f053a64c50bda7eda3cb87f5ed661
+  /pnpm-registry-mock/0.5.0:
+    dependencies:
+      cpr: 2.0.2
+      rimraf: 2.6.1
+      verdaccio: 2.1.3
+    resolution: 4fa715a76141e7aeb6b6360bf6a31098128d7ddc
+  /prepend-http/1.0.4: d4f4562b0ce3696e41ac52d0e002e57a635dc6dc
+  /preserve/0.2.0: 815ed1f6ebc65926f865b310c0713bcb3315ce4b
+  /process-nextick-args/1.0.7: 150e20b756590ad3f91093f25a4f2ad8bff30ba3
+  /proper-lockfile/2.0.0:
+    dependencies:
+      graceful-fs: 4.1.11
+      retry: 0.10.1
+    resolution: b21f5e79bcbb6b4e23eeeced15cfc7f63e8a2e55
+  /protocols/1.4.5: 21de1f441c4ef7094408ed9f1c94f7a114b87557
+  /proxy-addr/1.1.4:
+    dependencies:
+      forwarded: 0.1.0
+      ipaddr.js: 1.3.0
+    resolution: 27e545f6960a44a627d9b44467e35c1b6b4ce2f3
+  /ps-tree/1.1.0:
+    dependencies:
+      event-stream: 3.3.4
+    resolution: b421b24140d6203f1ed3c76996b4427b08e8c014
+  /pseudomap/1.0.2: f052a28da70e618917ef0a8ac34c1ae5a68286b3
+  /pump/1.0.2:
+    dependencies:
+      end-of-stream: 1.4.0
+      once: 1.4.0
+    resolution: 3b3ee6512f94f0e575538c17995f9f16990a5d51
+  /pumpify/1.3.5:
+    dependencies:
+      duplexify: 3.5.0
+      inherits: 2.0.3
+      pump: 1.0.2
+    resolution: 1b671c619940abcaeac0ad0e3a3c164be760993b
+  /punycode/1.4.1: c0d5a63b2718800ad8e1eb0fa5269c84dd41845e
+  /qs/6.4.0: 13e26d28ad6b0ffaa91312cd3bf708ed351e7233
+  /quick-lru/1.0.0: 7fa80304ab72c1f81cef738739cd47d7cc0c8bff
+  /ramda/0.23.0: ccd13fff73497a93974e3e86327bfd87bd6e8e2b
+  /randomatic/1.1.6:
+    dependencies:
+      is-number: 2.1.0
+      kind-of: 3.1.0
+    resolution: 110dcabff397e9dcff7c0789ccc0a49adf1ec5bb
+  /range-parser/1.2.0: f49be6b487894ddc40dcc94a322f611092e00d5e
+  /raw-body/2.2.0:
+    dependencies:
+      bytes: 2.4.0
+      iconv-lite: 0.4.15
+      unpipe: 1.0.0
+    resolution: 994976cf6a5096a41162840492f0bdc5d6e7fb96
+  /rc/1.2.1:
+    dependencies:
+      deep-extend: 0.4.1
+      ini: 1.3.4
+      minimist: 1.2.0
+      strip-json-comments: 2.0.1
+    resolution: 2e03e8e42ee450b8cb3dce65be1bf8974e1dfd95
+  /read-pkg-up/1.0.1:
+    dependencies:
+      find-up: 1.1.2
+      read-pkg: 1.1.0
+    resolution: 9d63c13276c065918d57f002a57f40a1b643fb02
+  /read-pkg-up/2.0.0:
+    dependencies:
+      find-up: 2.1.0
+      read-pkg: 2.0.0
+    resolution: 6b72a8048984e0c41e79510fd5e9fa99b3b549be
+  /read-pkg/1.1.0:
+    dependencies:
+      load-json-file: 1.1.0
+      normalize-package-data: 2.3.6
+      path-type: 1.1.0
+    resolution: f5ffaa5ecd29cb31c0474bca7d756b6bb29e3f28
+  /read-pkg/2.0.0:
+    dependencies:
+      load-json-file: 2.0.0
+      normalize-package-data: 2.3.6
+      path-type: 2.0.0
+    resolution: 8ef1c0623c6a6db0dc6713c4bfac46332b2368f8
+  /readable-stream/1.0.34:
+    dependencies:
+      core-util-is: 1.0.2
+      inherits: 2.0.3
+      isarray: 0.0.1
+      string_decoder: 0.10.31
+    resolution: 125820e34bc842d2f2aaafafe4c2916ee32c157c
+  /readable-stream/2.2.8:
+    dependencies:
+      buffer-shims: 1.0.0
+      core-util-is: 1.0.2
+      inherits: 2.0.3
+      isarray: 1.0.0
+      process-nextick-args: 1.0.7
+      string_decoder: 1.0.0
+      util-deprecate: 1.0.2
+    resolution: ad28b686f3554c73d39bc32347fa058356624705
+  /rechoir/0.6.2:
+    dependencies:
+      resolve: 1.3.2
+    resolution: 85204b54dba82d5742e28c96756ef43af50e3384
+  /redent/1.0.0:
+    dependencies:
+      indent-string: 2.1.0
+      strip-indent: 1.0.1
+    resolution: cf916ab1fd5f1f16dfb20822dd6ec7f730c2afde
+  /regenerator-runtime/0.10.3: 8c4367a904b51ea62a908ac310bf99ff90a82a3e
+  /regex-cache/0.4.3:
+    dependencies:
+      is-equal-shallow: 0.1.3
+      is-primitive: 2.0.0
+    resolution: 9b1a6c35d4d0dfcef5711ae651e8e9d3d7114145
+  /regexp-quote/0.0.0: 1e0f4650c862dcbfed54fd42b148e9bb1721fcf2
+  /registry-auth-token/3.1.2:
+    dependencies:
+      rc: 1.2.1
+    resolution: 1b9e51a185c930da34a9894b12a52ea998f1adaf
+  /registry-url/3.1.0:
+    dependencies:
+      rc: 1.2.1
+    resolution: 3d4ef870f73dde1d77f0cf9a381432444e174942
+  /remedial/1.0.7: d6674413a65676007be00dd400980987b2c300c1
+  /remove-all-except-outer-links/1.0.0:
+    dependencies:
+      get-link-target: 1.0.0
+      mz: 2.6.0
+      p-filter: 1.0.0
+      rimraf-then: 1.0.1
+    resolution: 8367d0a58373501874a01715d1e80e3c0785007b
+  /remove-trailing-separator/1.0.1: 615ebb96af559552d4bf4057c8436d486ab63cc4
+  /render-readme/1.3.1:
+    dependencies:
+      highlight.js: 8.9.1
+      js-yaml: 3.8.3
+      markdown-it: 4.4.0
+      sanitize-html: 1.14.1
+    resolution: d2a98f9a87dd64fa73c6877ac5c45b0f6341a797
+  /repeat-element/1.1.2: ef089a178d1483baae4d93eb98b4f9e4e11d990a
+  /repeat-string/1.6.1: 8dcae470e1c88abc2d600fff4a776286da75e637
+  /repeating/2.0.1:
+    dependencies:
+      is-finite: 1.0.2
+    resolution: 5214c53a926d3552707527fbab415dbc08d06dda
+  /request/2.81.0:
+    dependencies:
+      aws-sign2: 0.6.0
+      aws4: 1.6.0
+      caseless: 0.12.0
+      combined-stream: 1.0.5
+      extend: 3.0.0
+      forever-agent: 0.6.1
+      form-data: 2.1.2
+      har-validator: 4.2.1
+      hawk: 3.1.3
+      http-signature: 1.1.1
+      is-typedarray: 1.0.0
+      isstream: 0.1.2
+      json-stringify-safe: 5.0.1
+      mime-types: 2.1.15
+      oauth-sign: 0.8.2
+      performance-now: 0.2.0
+      qs: 6.4.0
+      safe-buffer: 5.0.1
+      stringstream: 0.0.5
+      tough-cookie: 2.3.2
+      tunnel-agent: 0.6.0
+      uuid: 3.0.1
+    resolution: c6928946a0e06c5f8d6f8a9333469ffda46298a0
+  /resolve-dir/0.1.1:
+    dependencies:
+      expand-tilde: 1.2.2
+      global-modules: 0.2.3
+    resolution: b219259a5602fac5c5c496ad894a6e8cc430261e
+  /resolve/1.1.7: 203114d82ad2c5ed9e8e0411b3932875e889e97b
+  /resolve/1.3.2:
+    dependencies:
+      path-parse: 1.0.5
+    resolution: 1f0442c9e0cbb8136e87b9305f932f46c7f28235
+  /restore-cursor/1.0.1:
+    dependencies:
+      exit-hook: 1.1.1
+      onetime: 1.1.0
+    resolution: 34661f46886327fed2991479152252df92daa541
+  /resumer/0.0.0:
+    dependencies:
+      through: 2.3.8
+    resolution: f1e8f461e4064ba39e82af3cdc2a8c893d076759
+  /retry/0.10.1: e76388d217992c252750241d3d3956fed98d8ff4
+  /right-align/0.1.3:
+    dependencies:
+      align-text: 0.1.4
+    resolution: 61339b722fe6a3515689210d24e14c96148613ef
+  /right-pad/1.0.1: 8ca08c2cbb5b55e74dafa96bf7fd1a27d568c8d0
+  /rimraf-then/1.0.1:
+    dependencies:
+      any-promise: 1.3.0
+      rimraf: 2.6.1
+    resolution: bd4458a79eb561b7548aaec0ac3753ef429fe70b
+  /rimraf/2.4.5:
+    dependencies:
+      glob: 6.0.4
+    resolution: ee710ce5d93a8fdb856fb5ea8ff0e2d75934b2da
+  /rimraf/2.6.1:
+    dependencies:
+      glob: 7.1.1
+    resolution: c2338ec643df7a1b7fe5c54fa86f57428a55f33d
+  /run-async/2.3.0:
+    dependencies:
+      is-promise: 2.1.0
+    resolution: 0371ab4ae0bdd720d4166d7dfda64ff7a445a6c0
+  /rx/4.1.0: a5f13ff79ef3b740fe30aa803fb09f98805d4782
+  /safe-buffer/5.0.1: d263ca54696cd8a306b5ca6551e92de57918fbe7
+  /safe-json-stringify/1.0.4: 81a098f447e4bbc3ff3312a243521bc060ef5911
+  /sanitize-html/1.14.1:
+    dependencies:
+      htmlparser2: 3.9.2
+      regexp-quote: 0.0.0
+      xtend: 4.0.1
+    resolution: 730ffa2249bdf18333effe45b286173c9c5ad0b8
+  /semver-diff/2.1.0:
+    dependencies:
+      semver: 5.3.0
+    resolution: 4bbb8437c8d37e4b0cf1a68fd726ec6d645d6d36
+  /semver-regex/1.0.0: 92a4969065f9c70c694753d55248fc68f8f652c9
+  /semver/5.3.0: 9b2ce5d3de02d17c6012ad326aa6b4d0cf54f94f
+  /send/0.15.1:
+    dependencies:
+      debug: 2.6.1
+      depd: 1.1.0
+      destroy: 1.0.4
+      encodeurl: 1.0.1
+      escape-html: 1.0.3
+      etag: 1.8.0
+      fresh: 0.5.0
+      http-errors: 1.6.1
+      mime: 1.3.4
+      ms: 0.7.2
+      on-finished: 2.3.0
+      range-parser: 1.2.0
+      statuses: 1.3.1
+    resolution: 8a02354c26e6f5cca700065f5f0cdeba90ec7b5f
+  /sepia/2.0.2:
+    dependencies:
+      levenshtein: 1.0.2
+    resolution: 5310bb7357e7d47e5c2d20e54c02865dafec5285
+  /serve-static/1.12.1:
+    dependencies:
+      encodeurl: 1.0.1
+      escape-html: 1.0.3
+      parseurl: 1.3.1
+      send: 0.15.1
+    resolution: 7443a965e3ced647aceb5639fa06bf4d1bbe0039
+  /set-blocking/2.0.0: 045f9782d011ae9a6803ddd382b24392b3d890f7
+  /setprototypeof/1.0.3: 66567e37043eeb4f04d91bd658c0cbefb55b8e04
+  /shebang-command/1.2.0:
+    dependencies:
+      shebang-regex: 1.0.0
+    resolution: 44aac65b695b03398968c39f363fee5deafdf1ea
+  /shebang-regex/1.0.0: da42f49740c0b42db2ca9728571cb190c98efea3
+  /shell-quote/1.6.1:
+    dependencies:
+      array-filter: 0.0.1
+      array-map: 0.0.0
+      array-reduce: 0.0.0
+      jsonify: 0.0.0
+    resolution: f4781949cce402697127430ea3b3c5476f481767
+  /shelljs/0.7.6:
+    dependencies:
+      glob: 7.1.1
+      interpret: 1.0.2
+      rechoir: 0.6.2
+    resolution: 379cccfb56b91c8601e4793356eb5382924de9ad
+  /signal-exit/3.0.2: b5fdc08f1287ea1178628e415e25132b73646c6d
+  /slide/1.1.6: 56eb027d65b4d2dce6cb2e2d32c4d4afc9e1d707
+  /sntp/1.0.9:
+    dependencies:
+      hoek: 2.16.3
+    resolution: 6541184cc90aeea6c6e7b35e2659082443c66198
+  /sort-keys/1.1.2:
+    dependencies:
+      is-plain-obj: 1.1.0
+    resolution: 441b6d4d346798f1b4e49e8920adfba0e543f9ad
+  /source-map-support/0.4.14:
+    dependencies:
+      source-map: 0.5.6
+    resolution: 9d4463772598b86271b4f523f6c1f4e02a7d6aef
+  /source-map/0.4.4:
+    dependencies:
+      amdefine: 1.0.1
+    resolution: eba4f5da9c0dc999de68032d8b4f76173652036b
+  /source-map/0.5.6: 75ce38f52bf0733c5a7f0c118d81334a2bb5f412
+  /spawn-sync/1.0.15:
+    dependencies:
+      concat-stream: 1.6.0
+      os-shim: 0.1.3
+    resolution: b00799557eb7fb0c8376c29d44e8a1ea67e57476
+  /spdx-correct/1.0.2:
+    dependencies:
+      spdx-license-ids: 1.2.2
+    resolution: 4b3073d933ff51f3912f03ac5519498a4150db40
+  /spdx-expression-parse/1.0.4: 9bdf2f20e1f40ed447fbe273266191fced51626c
+  /spdx-license-ids/1.2.2: c9df7a3424594ade6bd11900d596696dc06bac57
+  /split/0.3.3:
+    dependencies:
+      through: 2.3.8
+    resolution: cd0eea5e63a211dfff7eb0f091c4133e2d0dd28f
+  /split2/2.1.1:
+    dependencies:
+      through2: 2.0.3
+    resolution: 7a1f551e176a90ecd3345f7246a0cfe175ef4fd0
+  /sprintf-js/1.0.3: 04e6926f662895354f3dd015203633b857297e2c
+  /sshpk/1.11.0:
+    dependencies:
+      asn1: 0.2.3
+      assert-plus: 1.0.0
+      bcrypt-pbkdf: 1.0.1
+      dashdash: 1.14.1
+      ecc-jsbn: 0.1.1
+      getpass: 0.1.6
+      jodid25519: 1.0.2
+      jsbn: 0.1.1
+      tweetnacl: 0.14.5
+    resolution: 2d8d5ebb4a6fab28ffba37fa62a90f4a3ea59d77
+  /statuses/1.3.1: faf51b9eb74aaef3b3acf4ad5f61abf24cb7b93e
+  /stream-combiner/0.0.4:
+    dependencies:
+      duplexer: 0.1.1
+    resolution: 4d5e433c185261dde623ca3f44c586bcf5c4ad14
+  /stream-shift/1.0.0: d5c752825e5367e786f78e18e445ea223a155952
+  /string-width/1.0.2:
+    dependencies:
+      code-point-at: 1.1.0
+      is-fullwidth-code-point: 1.0.0
+      strip-ansi: 3.0.1
+    resolution: 118bdf5b8cdc51a2a7e70d211e07e2b0b9b107d3
+  /string-width/2.0.0:
+    dependencies:
+      is-fullwidth-code-point: 2.0.0
+      strip-ansi: 3.0.1
+    resolution: 635c5436cc72a6e0c387ceca278d4e2eec52687e
+  /string.prototype.padend/3.0.0:
+    dependencies:
+      define-properties: 1.1.2
+      es-abstract: 1.7.0
+      function-bind: 1.1.0
+    resolution: f3aaef7c1719f170c5eab1c32bf780d96e21f2f0
+  /string.prototype.trim/1.1.2:
+    dependencies:
+      define-properties: 1.1.2
+      es-abstract: 1.7.0
+      function-bind: 1.1.0
+    resolution: d04de2c89e137f4d7d206f086b5ed2fae6be8cea
+  /string_decoder/0.10.31: 62e203bc41766c6c28c9fc84301dab1c5310fa94
+  /string_decoder/1.0.0:
+    dependencies:
+      buffer-shims: 1.0.0
+    resolution: f06f41157b664d86069f84bdbdc9b0d8ab281667
+  /stringstream/0.0.5: 4e484cd4de5a0bbbee18e46307710a8a81621878
+  /strip-ansi/3.0.1:
+    dependencies:
+      ansi-regex: 2.1.1
+    resolution: 6a385fb8853d952d5ff05d0e8aaf94278dc63dcf
+  /strip-bom/2.0.0:
+    dependencies:
+      is-utf8: 0.2.1
+    resolution: 6219a85616520491f35788bdbf1447a99c7e6b0e
+  /strip-bom/3.0.0: 2334c18e9c759f7bdd56fdef7e9ae3d588e68ed3
+  /strip-eof/1.0.0: bb43ff5598a6eb05d89b59fcd129c983313606bf
+  /strip-indent/1.0.1:
+    dependencies:
+      get-stdin: 4.0.1
+    resolution: 0c7962a6adefa7bbd4ac366460a638552ae1a0a2
+  /strip-json-comments/2.0.1: 3c531942e908c2697c0ec344858c286c7ca0a60a
+  /supports-color/2.0.0: 535d045ce6b6363fa40117084629995e9df324c7
+  /symbol/0.2.3: 3b9873b8a901e47c6efe21526a3ac372ef28bbc7
+  /symlink-dir/1.0.2:
+    dependencies:
+      '@types/mz': 0.0.30
+      '@types/node': 7.0.12
+      graceful-fs: 4.1.11
+      is-windows: 1.0.0
+      mkdirp: 0.5.1
+      mkdirp-promise: 5.0.1
+      mz: 2.6.0
+    resolution: 04f0bdc7f5df75ab1e98017e2f1b0a6777525a82
+  /tape-promise/2.0.1:
+    dependencies:
+      is-promise: 2.1.0
+      onetime: 2.0.1
+    resolution: 76bc9ff7508b3e057d096f44ac9a93c3cae4ed34
+  /tape/4.6.3:
+    dependencies:
+      deep-equal: 1.0.1
+      defined: 1.0.0
+      for-each: 0.3.2
+      function-bind: 1.1.0
+      glob: 7.1.1
+      has: 1.0.1
+      inherits: 2.0.3
+      minimist: 1.2.0
+      object-inspect: 1.2.2
+      resolve: 1.1.7
+      resumer: 0.0.0
+      string.prototype.trim: 1.1.2
+      through: 2.3.8
+    resolution: 637e77581e9ab2ce17577e9bd4ce4f575806d8b6
+  /tar-fs/1.15.2:
+    dependencies:
+      chownr: 1.0.1
+      mkdirp: 0.5.1
+      pump: 1.0.2
+      tar-stream: 1.5.2
+    resolution: 761f5b32932c7b39461a60d537faea0d8084830c
+  /tar-stream/1.5.2:
+    dependencies:
+      bl: 1.2.0
+      end-of-stream: 1.4.0
+      readable-stream: 2.2.8
+      xtend: 4.0.1
+    resolution: fbc6c6e83c1a19d4cb48c7d96171fc248effc7bf
+  /tar/2.2.1:
+    dependencies:
+      block-stream: 0.0.9
+      fstream: 1.0.11
+      inherits: 2.0.3
+    resolution: 8e4d2a256c0e2185c6b18ad694aec968b83cb1d1
+  /term-size/0.1.1:
+    dependencies:
+      execa: 0.4.0
+    resolution: 87360b96396cab5760963714cda0d0cbeecad9ca
+  /thenify-all/1.6.0:
+    dependencies:
+      thenify: 3.2.1
+    resolution: 1a1918d402d8fc3f98fbf234db0bcc8cc10e9726
+  /thenify/3.2.1:
+    dependencies:
+      any-promise: 1.3.0
+    resolution: 251fd1c80aff6e5cf57cb179ab1fcb724269bd11
+  /through/2.3.8: 0dd4c9ffaabc357960b1b724115d7e0e86a2e1f5
+  /through2/0.5.1:
+    dependencies:
+      readable-stream: 1.0.34
+      xtend: 3.0.0
+    resolution: dfdd012eb9c700e2323fd334f38ac622ab372da7
+  /through2/2.0.3:
+    dependencies:
+      readable-stream: 2.2.8
+      xtend: 4.0.1
+    resolution: 0004569b37c7c74ba39c43f3ced78d1ad94140be
+  /timed-out/4.0.1: f32eacac5a175bea25d7fab565ab3ed8741ef56f
+  /tmp/0.0.29:
+    dependencies:
+      os-tmpdir: 1.0.2
+    resolution: f25125ff0dd9da3ccb0c2dd371ee1288bb9128c0
+  /tough-cookie/2.3.2:
+    dependencies:
+      punycode: 1.4.1
+    resolution: f081f76e4c85720e6c37a5faced737150d84072a
+  /trim-newlines/1.0.0: 5887966bb582a4503a41eb524f7d35011815a613
+  /ts-node/3.0.2:
+    dependencies:
+      arrify: 1.0.1
+      chalk: 1.1.3
+      diff: 3.2.0
+      make-error: 1.2.3
+      minimist: 1.2.0
+      mkdirp: 0.5.1
+      source-map-support: 0.4.14
+      tsconfig: 6.0.0
+      v8flags: 2.0.12
+      yn: 1.2.0
+    resolution: cfc9516c831b920d7efbe16005915062b1294f8c
+  /tsconfig/6.0.0:
+    dependencies:
+      strip-bom: 3.0.0
+      strip-json-comments: 2.0.1
+    resolution: 6b0e8376003d7af1864f8df8f89dd0059ffcd032
+  /tslint/5.0.0:
+    dependencies:
+      babel-code-frame: 6.22.0
+      colors: 1.1.2
+      diff: 3.2.0
+      findup-sync: 0.3.0
+      glob: 7.1.1
+      optimist: 0.6.1
+      resolve: 1.3.2
+      semver: 5.3.0
+      tsutils: 1.6.0
+    resolution: ad3b7952f8a9b21079248bee01c2eaf92167e185
+  /tsutils/1.6.0: 1fd7fac2a61369ed99cd3997f0fbb437128850f2
+  /tunnel-agent/0.4.3: 6373db76909fe570e08d73583365ed828a74eeeb
+  /tunnel-agent/0.6.0:
+    dependencies:
+      safe-buffer: 5.0.1
+    resolution: 27a5dea06b36b04a0a9966774b290868f0fc40fd
+  /tweetnacl/0.14.5: 5ae68177f192d4456269d108afa93ff8743f4f64
+  /type-is/1.6.15:
+    dependencies:
+      media-typer: 0.3.0
+      mime-types: 2.1.15
+    resolution: cab10fb4909e441c82842eafe1ad646c81804410
+  /typedarray/0.0.6: 867ac74e3864187b1d3d47d996a78ec5c8830777
+  /typescript/2.2.2: 606022508479b55ffa368b58fee963a03dfd7b0c
+  /uc.micro/1.0.3: 7ed50d5e0f9a9fb0a573379259f2a77458d50192
+  /uglify-js/2.8.21:
+    dependencies:
+      source-map: 0.5.6
+      uglify-to-browserify: 1.0.2
+      yargs: 3.10.0
+    resolution: 1733f669ae6f82fc90c7b25ec0f5c783ee375314
+  /uglify-to-browserify/1.0.2: 6e0924d6bda6b5afe349e39a6d632850a0f882b7
+  /unbzip2-stream/1.0.11:
+    dependencies:
+      buffer: 3.6.0
+      through: 2.3.8
+    resolution: 204f55549cd1dd800fdd835b86676830e7492d8f
+  /unique-string/1.0.0:
+    dependencies:
+      crypto-random-string: 1.0.0
+    resolution: 9e1057cca851abb93398f8b33ae187b99caec11a
+  /unix-crypt-td-js/1.0.0: 1c0824150481bc7a01d49e98f1ec668d82412f3b
+  /unpack-stream/1.1.0:
+    dependencies:
+      '@types/node': 7.0.12
+      decompress-maybe: 1.0.0
+      tar-fs: 1.15.2
+    resolution: 2231b17dd24b9b81775ebc7516c65a2a863be398
+  /unpipe/1.0.0: b2bf4ee8514aae6165b4817829d21b2ef49904ec
+  /unquote/1.1.0: 98e1fc608b6b854c75afb1b95afc099ba69d942f
+  /unzip-response/2.0.1: d2f0f737d16b0615e72a6935ed04214572d56f97
+  /update-notifier/2.1.0:
+    dependencies:
+      boxen: 1.0.0
+      chalk: 1.1.3
+      configstore: 3.0.0
+      is-npm: 1.0.0
+      latest-version: 3.1.0
+      lazy-req: 2.0.0
+      semver-diff: 2.1.0
+      xdg-basedir: 3.0.0
+    resolution: ec0c1e53536b76647a24b77cb83966d9315123d9
+  /url-parse-lax/1.0.0:
+    dependencies:
+      prepend-http: 1.0.4
+    resolution: 7af8f303645e9bd79a272e7a14ac68bc0609da73
+  /user-home/1.1.1: 2b5be23a32b63a7c9deb8d0f28d485724a3df190
+  /util-deprecate/1.0.2: 450d4dc9fa70de732762fbd2d4a28981419a0ccf
+  /utils-merge/1.0.0: 0294fb922bb9375153541c4f7096231f287c8af8
+  /uuid/3.0.1: 6544bba2dfda8c1cf17e629a3a305e2bb1fee6c1
+  /v8flags/2.0.12:
+    dependencies:
+      user-home: 1.1.1
+    resolution: 73235d9f7176f8e8833fb286795445f7938d84e5
+  /validate-commit-msg/2.12.1:
+    dependencies:
+      conventional-commit-types: 2.1.0
+      find-parent-dir: 0.3.0
+      findup: 0.1.5
+      semver-regex: 1.0.0
+    resolution: 612b61bc9f09f0fee5130de3648870d01cdddf1d
+  /validate-npm-package-license/3.0.1:
+    dependencies:
+      spdx-correct: 1.0.2
+      spdx-expression-parse: 1.0.4
+    resolution: 2804babe712ad3379459acfbe24746ab2c303fbc
+  /vary/1.1.1: 67535ebb694c1d52257457984665323f587e8d37
+  /verdaccio/2.1.3:
+    dependencies:
+      JSONStream: 1.3.1
+      apache-md5: 1.1.2
+      async: 2.3.0
+      body-parser: 1.17.1
+      bunyan: 1.8.10
+      commander: 2.9.0
+      compression: 1.6.2
+      cookies: 0.6.2
+      es6-shim: 0.35.3
+      express: 4.15.2
+      handlebars: 4.0.6
+      highlight.js: 9.10.0
+      http-errors: 1.6.1
+      jju: 1.3.0
+      js-yaml: 3.8.3
+      lockfile: 1.0.3
+      lunr: 0.7.2
+      minimatch: 3.0.3
+      mkdirp: 0.5.1
+      pkginfo: 0.4.0
+      readable-stream: 2.2.8
+      render-readme: 1.3.1
+      request: 2.81.0
+      semver: 5.3.0
+      symbol: 0.2.3
+      unix-crypt-td-js: 1.0.0
+    resolution: 0058e46b1b6a89ed5246e32ed24a2353e6292480
+  /verror/1.3.6:
+    dependencies:
+      extsprintf: 1.0.2
+    resolution: cff5df12946d297d2baaefaa2689e25be01c005c
+  /which/1.2.14:
+    dependencies:
+      isexe: 2.0.0
+    resolution: 9a87c4378f03e827cecaf1acdf56c736c01c14e5
+  /wide-align/1.1.0:
+    dependencies:
+      string-width: 1.0.2
+    resolution: 40edde802a71fea1f070da3e62dcda2e7add96ad
+  /widest-line/1.0.0:
+    dependencies:
+      string-width: 1.0.2
+    resolution: 0c09c85c2a94683d0d7eaf8ee097d564bf0e105c
+  /window-size/0.1.0: 5438cd2ea93b202efa3a19fe8887aee7c94f9c9d
+  /word-wrap/1.2.1: 248f459b465d179a17bc407c854d3151d07e45d8
+  /wordwrap/0.0.2: b79669bb42ecb409f83d583cad52ca17eaa1643f
+  /wordwrap/0.0.3: a3d5da6cd5c0bc0008d37234bbaf1bed63059107
+  /wrappy/1.0.2: b5243d8f3ec1aa35f1364605bc0d1036e30ab69f
+  /write-file-atomic/1.3.1:
+    dependencies:
+      graceful-fs: 4.1.11
+      imurmurhash: 0.1.4
+      slide: 1.1.6
+    resolution: 7d45ba32316328dd1ec7d90f60ebc0d845bb759a
+  /write-json-file/2.0.0:
+    dependencies:
+      graceful-fs: 4.1.11
+      mkdirp: 0.5.1
+      pify: 2.3.0
+      sort-keys: 1.1.2
+      write-file-atomic: 1.3.1
+    resolution: 0eaec981fcf9288dbc2806cbd26e06ab9bdca4ed
+  /write-pkg/2.1.0:
+    dependencies:
+      sort-keys: 1.1.2
+      write-json-file: 2.0.0
+    resolution: 353aa44c39c48c21440f5c08ce6abd46141c9c08
+  /write-yaml-file/1.0.0:
+    dependencies:
+      graceful-fs: 4.1.11
+      js-yaml: 3.8.3
+      mkdirp: 0.5.1
+      pify: 2.3.0
+      write-file-atomic: 1.3.1
+    resolution: 7b4bd0df72ca13fbe9d6b0178fd83c077b8ea86b
+  /xdg-basedir/3.0.0: 496b2cc109eca8dbacfe2dc72b603c17c5870ad4
+  /xtend/3.0.0: 5cce7407baf642cba7becda568111c493f59665a
+  /xtend/4.0.1: a5c6d532be656e23db820efb943a1f04998d63af
+  /yallist/2.1.2: 1c11f9218f076089a47dd512f93c6699a6a81d52
+  /yargs/3.10.0:
+    dependencies:
+      camelcase: 1.2.1
+      cliui: 2.1.0
+      decamelize: 1.2.0
+      window-size: 0.1.0
+    resolution: f7ee7bd857dd7c1d2d38c0e74efbd681d1431fd1
+  /yn/1.2.0: d237a4c533f279b2b89d3acac2db4b8c795e4a63
+registry: 'https://registry.npmjs.org/'
+version: 2
