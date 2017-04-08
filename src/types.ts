@@ -83,7 +83,7 @@ export type StrictPnpmOptions = {
   ca?: string,
   strictSsl: boolean,
 
-  userAgent?: string,
+  userAgent: string,
   tag: string,
 
   metaCache: Map<string, PackageMeta>,

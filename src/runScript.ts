@@ -6,12 +6,15 @@ import PATH = require('path-name')
 
 const scriptLogger = logger('run_script')
 
-export type RunScriptOptions = {
-  cwd: string,
-  log: Function
-}
-
-export default function runScript (command: string, args: string[], opts: RunScriptOptions) {
+export default function runScript (
+  command: string,
+  args: string[],
+  opts: {
+    cwd: string,
+    log: Function,
+    userAgent: string,
+  }
+) {
   opts = Object.assign({log: (() => {})}, opts)
   args = args || []
   const log = opts.log
@@ -21,7 +24,7 @@ export default function runScript (command: string, args: string[], opts: RunScr
   return new Promise((resolve, reject) => {
     const proc = spawn(command, args, {
       cwd: opts.cwd,
-      env: createEnv(opts.cwd)
+      env: createEnv(opts)
     })
 
     log('stdout', '$ ' + script)
@@ -37,24 +40,38 @@ export default function runScript (command: string, args: string[], opts: RunScr
   })
 }
 
-export type RunSyncScriptOptions = {
-  cwd: string,
-  stdio: string
-}
-
-export function sync (command: string, args: string[], opts: RunSyncScriptOptions) {
+export function sync (
+  command: string,
+  args: string[],
+  opts: {
+    cwd: string,
+    stdio: string,
+    userAgent?: string,
+  }
+) {
   opts = Object.assign({}, opts)
   return spawn.sync(command, args, Object.assign({}, opts, {
-    env: createEnv(opts.cwd)
+    env: createEnv(opts)
   }))
 }
 
-function createEnv (cwd: string) {
+function createEnv (
+  opts: {
+    cwd: string,
+    userAgent?: string,
+  }
+) {
   const env = Object.create(process.env)
+
   env[PATH] = [
-    path.join(cwd, 'node_modules', '.bin'),
+    path.join(opts.cwd, 'node_modules', '.bin'),
     path.dirname(process.execPath),
     process.env[PATH]
   ].join(path.delimiter)
+
+  if (opts.userAgent) {
+    env['npm_config_user_agent'] = opts.userAgent
+  }
+
   return env
 }

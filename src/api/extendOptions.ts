@@ -3,6 +3,7 @@ import globalBinPath = require('global-bin-path')
 import path = require('path')
 import logger from 'pnpm-logger'
 import expandTilde from '../fs/expandTilde'
+import pnpmPkgJson from '../pnpmPkgJson'
 
 const DEFAULT_GLOBAL_PATH = path.join(globalBinPath(), 'pnpm-global')
 const DEFAULT_LOCAL_REGISTRY = expandTilde('~/.pnpm-registry')
@@ -31,6 +32,7 @@ const defaults = () => (<StrictPnpmOptions>{
   childConcurrency: 5,
   offline: false,
   registry: 'https://registry.npmjs.org/',
+  userAgent: `${pnpmPkgJson.name}/${pnpmPkgJson.version} npm/? node/${process.version} ${process.platform} ${process.arch}`,
 })
 
 export default (opts?: PnpmOptions): StrictPnpmOptions => {

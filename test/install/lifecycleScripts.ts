@@ -6,6 +6,11 @@ import {
   testDefaults,
   execPnpmSync,
 } from '../utils'
+import path = require('path')
+import loadJsonFile = require('load-json-file')
+
+const pkgRoot = path.join(__dirname, '..', '..')
+const pnpmPkg = loadJsonFile.sync(path.join(pkgRoot, 'package.json'))
 
 const test = promisifyTape(tape)
 
@@ -38,6 +43,22 @@ test('installation fails if lifecycle script fails', t => {
   const result = execPnpmSync('install')
 
   t.equal(result.status, 1, 'installation failed')
+
+  t.end()
+})
+
+test('lifecycle script runs with the correct user agent', t => {
+  const project = prepare(t, {
+    scripts: {
+      preinstall: 'node --eval "console.log(process.env.npm_config_user_agent)"'
+    },
+  })
+
+  const result = execPnpmSync('install')
+
+  t.equal(result.status, 0, 'installation was successfull')
+  const expectedUserAgent = `${pnpmPkg.name}/${pnpmPkg.version} npm/? node/${process.version} ${process.platform} ${process.arch}`
+  t.ok(result.stdout.toString().indexOf(expectedUserAgent) !== -1, 'correct npm_config_user_agent value')
 
   t.end()
 })

@@ -133,7 +133,7 @@ async function installInContext (
     const scripts = ctx.pkg && ctx.pkg.scripts || {}
 
     if (scripts['preinstall']) {
-      npmRun('preinstall', ctx.root)
+      npmRun('preinstall', ctx.root, opts.userAgent)
     }
   }
 
@@ -225,7 +225,9 @@ async function installInContext (
         R.uniqBy(linkedPkg => linkedPkg.hardlinkedLocation, R.values(linkedPkgsMap).filter(pkg => pkg.id === pkgId))
           .map(pkg => limitChild(async () => {
             try {
-              await postInstall(pkg.hardlinkedLocation, installLogger(pkgId))
+              await postInstall(pkg.hardlinkedLocation, installLogger(pkgId), {
+                userAgent: opts.userAgent
+              })
             } catch (err) {
               if (installCtx.installs[pkgId].optional) {
                 logger.warn({
@@ -244,10 +246,10 @@ async function installInContext (
     const scripts = ctx.pkg && ctx.pkg.scripts || {}
 
     if (scripts['postinstall']) {
-      npmRun('postinstall', ctx.root)
+      npmRun('postinstall', ctx.root, opts.userAgent)
     }
     if (scripts['prepublish']) {
-      npmRun('prepublish', ctx.root)
+      npmRun('prepublish', ctx.root, opts.userAgent)
     }
   }
 }
@@ -291,10 +293,11 @@ function adaptConfig (opts: StrictPnpmOptions) {
   }
 }
 
-function npmRun (scriptName: string, pkgRoot: string) {
+function npmRun (scriptName: string, pkgRoot: string, userAgent: string) {
   const result = runScriptSync('npm', ['run', scriptName], {
     cwd: pkgRoot,
-    stdio: 'inherit'
+    stdio: 'inherit',
+    userAgent,
   })
   if (result.status !== 0) {
     process.exit(result.status)
