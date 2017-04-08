@@ -28,6 +28,20 @@ test('run install scripts', async function (t) {
   t.ok(typeof generatedByInstall === 'function', 'generatedByInstall() is available')
 })
 
+test('installation fails if lifecycle script fails', t => {
+  const project = prepare(t, {
+    scripts: {
+      preinstall: 'exit 1'
+    },
+  })
+
+  const result = execPnpmSync('install')
+
+  t.equal(result.status, 1, 'installation failed')
+
+  t.end()
+})
+
 test('preinstall is executed before general installation', t => {
   const project = prepare(t, {
     scripts: {
