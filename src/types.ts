@@ -27,6 +27,7 @@ export type PnpmOptions = {
   lockStaleDuration?: number,
   offline?: boolean,
   registry?: string,
+  exit0?: boolean,
 
   // proxy
   proxy?: string,
@@ -71,6 +72,7 @@ export type StrictPnpmOptions = {
   childConcurrency: number,
   offline: boolean,
   registry: string,
+  exit0: boolean,
 
   // proxy
   proxy?: string,

@@ -31,6 +31,7 @@ const defaults = () => (<StrictPnpmOptions>{
   childConcurrency: 5,
   offline: false,
   registry: 'https://registry.npmjs.org/',
+  exit0: false,
 })
 
 export default (opts?: PnpmOptions): StrictPnpmOptions => {
