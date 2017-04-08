@@ -494,10 +494,13 @@ test('bin files are found by lifecycle scripts', t => {
   const project = prepare(t, {
     scripts: {
       postinstall: 'hello-world-js-bin'
+    },
+    dependencies: {
+      'hello-world-js-bin': '*'
     }
   })
 
-  const result = execPnpmSync('install', 'hello-world-js-bin')
+  const result = execPnpmSync('install')
 
   t.equal(result.status, 0, 'installation was successfull')
   t.ok(result.stdout.toString().indexOf('Hello world!') !== -1, 'postinstall script was executed')

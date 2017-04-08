@@ -129,6 +129,14 @@ async function installInContext (
   installCtx: InstallContext,
   opts: StrictPnpmOptions
 ) {
+  if (!opts.ignoreScripts && ctx.pkg && installType === 'general') {
+    const scripts = ctx.pkg && ctx.pkg.scripts || {}
+
+    if (scripts['preinstall']) {
+      npmRun('preinstall', ctx.root)
+    }
+  }
+
   const nodeModulesPath = path.join(ctx.root, 'node_modules')
   const client = new RegClient(adaptConfig(opts))
 
@@ -232,13 +240,13 @@ async function installInContext (
         )))
     )
   }
-  if (!opts.ignoreScripts && ctx.pkg) {
+  if (!opts.ignoreScripts && ctx.pkg && installType === 'general') {
     const scripts = ctx.pkg && ctx.pkg.scripts || {}
 
     if (scripts['postinstall']) {
       npmRun('postinstall', ctx.root)
     }
-    if (installType === 'general' && scripts['prepublish']) {
+    if (scripts['prepublish']) {
       npmRun('prepublish', ctx.root)
     }
   }

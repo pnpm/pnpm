@@ -28,7 +28,37 @@ test('run install scripts', async function (t) {
   t.ok(typeof generatedByInstall === 'function', 'generatedByInstall() is available')
 })
 
-test('postinstall is executed after installation', t => {
+test('preinstall is executed before general installation', t => {
+  const project = prepare(t, {
+    scripts: {
+      preinstall: 'echo "Hello world!"'
+    }
+  })
+
+  const result = execPnpmSync('install')
+
+  t.equal(result.status, 0, 'installation was successfull')
+  t.ok(result.stdout.toString().indexOf('Hello world!') !== -1, 'preinstall script was executed')
+
+  t.end()
+})
+
+test('postinstall is executed after general installation', t => {
+  const project = prepare(t, {
+    scripts: {
+      postinstall: 'echo "Hello world!"'
+    }
+  })
+
+  const result = execPnpmSync('install')
+
+  t.equal(result.status, 0, 'installation was successfull')
+  t.ok(result.stdout.toString().indexOf('Hello world!') !== -1, 'postinstall script was executed')
+
+  t.end()
+})
+
+test('postinstall is not executed after named installation', t => {
   const project = prepare(t, {
     scripts: {
       postinstall: 'echo "Hello world!"'
@@ -38,7 +68,7 @@ test('postinstall is executed after installation', t => {
   const result = execPnpmSync('install', 'is-negative')
 
   t.equal(result.status, 0, 'installation was successfull')
-  t.ok(result.stdout.toString().indexOf('Hello world!') !== -1, 'postinstall script was executed')
+  t.ok(result.stdout.toString().indexOf('Hello world!') === -1, 'postinstall script was not executed')
 
   t.end()
 })
