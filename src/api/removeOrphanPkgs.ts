@@ -16,7 +16,7 @@ export default async function removeOrphanPkgs (
   newShr: Shrinkwrap,
   root: string,
   storePath: string
-) {
+): Promise<string[]> {
   const oldPkgNames = Object.keys(oldShr.dependencies).map(npa).map((spec: PackageSpec) => spec.name)
   const newPkgNames = Object.keys(newShr.dependencies).map(npa).map((spec: PackageSpec) => spec.name)
 
@@ -54,6 +54,8 @@ export default async function removeOrphanPkgs (
   })
 
   await saveStore(storePath, store)
+
+  return notDependents
 }
 
 async function removeBins (uninstalledPkg: string, root: string) {

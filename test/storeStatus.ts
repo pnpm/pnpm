@@ -17,6 +17,17 @@ test('store status returns empty array when store was not modified', async funct
   t.equal(mutatedPkgs && mutatedPkgs.length, 0, 'no packages were modified')
 })
 
+test('store status does not fail on not installed optional dependencies', async function (t: tape.Test) {
+  const project = prepare(t)
+
+  const opts = testDefaults({saveOptional: true})
+  await installPkgs(['not-compatible-with-any-os'], opts)
+
+  const mutatedPkgs = await storeStatus(opts)
+
+  t.equal(mutatedPkgs && mutatedPkgs.length, 0, 'no packages were modified')
+})
+
 test('store status returns path to the modified package', async function (t: tape.Test) {
   const project = prepare(t)
 

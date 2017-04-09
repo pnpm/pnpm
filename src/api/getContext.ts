@@ -25,7 +25,7 @@ export type PnpmContext = {
   root: string,
   privateShrinkwrap: Shrinkwrap,
   shrinkwrap: Shrinkwrap,
-  isFirstInstallation: boolean,
+  skipped: string[],
 }
 
 export default async function getContext (opts: StrictPnpmOptions, installType?: 'named' | 'general'): Promise<PnpmContext> {
@@ -37,7 +37,6 @@ export default async function getContext (opts: StrictPnpmOptions, installType?:
 
   const modulesPath = path.join(root, 'node_modules')
   let modules = await readModules(modulesPath)
-  const isFirstInstallation: boolean = !modules
 
   if (modules) {
     try {
@@ -60,7 +59,7 @@ export default async function getContext (opts: StrictPnpmOptions, installType?:
     storePath,
     shrinkwrap,
     privateShrinkwrap: await readPrivateShrinkwrap(root, {force: opts.force, registry: opts.registry}),
-    isFirstInstallation,
+    skipped: modules && modules.skipped || [],
   }
 
   await mkdirp(ctx.storePath)

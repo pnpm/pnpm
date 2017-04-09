@@ -210,12 +210,14 @@ async function installInContext (
   const newShr = pruneShrinkwrap(ctx.shrinkwrap)
   await removeOrphanPkgs(ctx.privateShrinkwrap, newShr, ctx.root, ctx.storePath)
   await saveShrinkwrap(ctx.root, newShr)
-  if (ctx.isFirstInstallation) {
-    await saveModules(path.join(ctx.root, 'node_modules'), {
-      packageManager: `${pnpmPkgJson.name}@${pnpmPkgJson.version}`,
-      storePath: ctx.storePath,
-    })
-  }
+  await saveModules(path.join(ctx.root, 'node_modules'), {
+    packageManager: `${pnpmPkgJson.name}@${pnpmPkgJson.version}`,
+    storePath: ctx.storePath,
+    skipped: R.uniq(
+      R.concat(
+        ctx.skipped.filter(skippedPkgId => !installCtx.installed.has(skippedPkgId)),
+        Array.from(installCtx.installed).filter(pkgId => !installCtx.installs[pkgId]))),
+  })
 
   // postinstall hooks
   if (!(opts.ignoreScripts || !installCtx.installationSequence || !installCtx.installationSequence.length)) {

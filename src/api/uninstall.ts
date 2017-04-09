@@ -13,9 +13,13 @@ import {
   save as saveShrinkwrap,
   prune as pruneShrinkwrap,
 } from '../fs/shrinkwrap'
+import {
+  save as saveModules
+} from '../fs/modulesController'
 import removeOrphanPkgs from './removeOrphanPkgs'
 import npa = require('npm-package-arg')
 import {PackageSpec} from '../resolve'
+import pnpmPkgJson from '../pnpmPkgJson'
 
 export default async function uninstallCmd (pkgsToUninstall: string[], maybeOpts?: PnpmOptions) {
   const opts = extendOptions(maybeOpts)
@@ -46,8 +50,13 @@ export async function uninstallInContext (pkgsToUninstall: string[], pkg: Packag
       }
     }
     const newShr = await pruneShrinkwrap(ctx.shrinkwrap)
-    await removeOrphanPkgs(ctx.privateShrinkwrap, newShr, ctx.root, ctx.storePath)
+    const removedPkgIds = await removeOrphanPkgs(ctx.privateShrinkwrap, newShr, ctx.root, ctx.storePath)
     await saveShrinkwrap(ctx.root, newShr)
+    await saveModules(path.join(ctx.root, 'node_modules'), {
+      packageManager: `${pnpmPkgJson.name}@${pnpmPkgJson.version}`,
+      storePath: ctx.storePath,
+      skipped: ctx.skipped.filter(pkgId => removedPkgIds.indexOf(pkgId) === -1),
+    })
   }
 }
 

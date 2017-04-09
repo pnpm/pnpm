@@ -9,6 +9,7 @@ const modulesFileName = '.modules.yaml'
 export type Modules = {
   packageManager: string,
   storePath: string,
+  skipped: string[],
 }
 
 export async function read (modulesPath: string): Promise<Modules | null> {
