@@ -32,6 +32,27 @@ test('shrinkwrap file has correct format', async t => {
   t.ok(!shr.packages[id].resolution.tarball, `has no tarball for package in the default registry`)
 })
 
+test('shrinkwrap with scoped package', async t => {
+  const project = prepare(t, {
+    dependencies: {
+      '@types/semver': '^5.3.31',
+    },
+  })
+
+  await writeYamlFile('shrinkwrap.yaml', {
+    dependencies: {
+      '@types/semver@^5.3.31': '5.3.31',
+    },
+    packages: {
+      '/@types/semver/5.3.31': 'b999d7d935f43f5207b01b00d3de20852f4ca75f',
+    },
+    registry: 'http://localhost:4873',
+    version: 2,
+  })
+
+  await install(testDefaults())
+})
+
 test('fail when shasum from shrinkwrap does not match with the actual one', async t => {
   const project = prepare(t, {
     dependencies: {

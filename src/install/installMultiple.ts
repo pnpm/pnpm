@@ -142,8 +142,12 @@ function dependencyShrToResolution (
   return depShr.resolution
 
   function getTarball () {
-    const parts = pkgShortId.split('/')
-    return getNpmTarballUrl(parts[1], parts[2], {registry})
+    const noPrefixPkgShortId = pkgShortId.substr(1)
+    const divideAt = noPrefixPkgShortId.lastIndexOf('/')
+    return getNpmTarballUrl(
+      noPrefixPkgShortId.substr(0, divideAt),
+      noPrefixPkgShortId.substr(divideAt + 1),
+      {registry})
   }
 }
 
