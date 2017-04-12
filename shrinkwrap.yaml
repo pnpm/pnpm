@@ -3,9 +3,9 @@ dependencies:
   '@types/common-tags@^1.2.5': 1.2.5
   '@types/load-json-file@^2.0.5': 2.0.5
   '@types/mkdirp@^0.3.29': 0.3.29
-  '@types/mz@^0.0.30': 0.0.30
+  '@types/mz@^0.0.31': 0.0.31
   '@types/node@^7.0.5': 7.0.12
-  '@types/ramda@^0.0.5': 0.0.5
+  '@types/ramda@^0.0.6': 0.0.6
   '@types/rc@^0.0.1': 0.0.1
   '@types/semver@^5.3.30': 5.3.31
   '@types/tape@^4.2.28': 4.2.29
@@ -27,7 +27,7 @@ dependencies:
   find-up@^2.1.0: 2.1.0
   fs-write-stream-atomic@^1.0.10: 1.0.10
   get-link-target@^1.0.0: 1.0.0
-  get-npm-tarball-url@^1.0.1: 1.0.1
+  get-npm-tarball-url@^2.0.0: 2.0.0
   global-bin-path@^0.1.1: 0.1.1
   graceful-fs@^4.1.11: 4.1.11
   hosted-git-info@^2.4.1: 2.4.1
@@ -104,9 +104,13 @@ packages:
     dependencies:
       '@types/node': 7.0.12
     resolution: 58daa9f35811d607037bab1f9cc7d4a23e6aafae
+  /@types/mz/0.0.31:
+    dependencies:
+      '@types/node': 7.0.12
+    resolution: a4d80c082fefe71e40a7c0f07d1e6555bbbc7b52
   /@types/node/6.0.68: 0c43b6b8b9445feb86a0fbd3457e3f4bc591e66d
   /@types/node/7.0.12: ae5f67a19c15f752148004db07cbbb372e69efc9
-  /@types/ramda/0.0.5: 8b381e3363de9db3cb89d3b62f23b73cfb56bc0b
+  /@types/ramda/0.0.6: 576ae4a12af63f0dbb358c639af9422b720bb6df
   /@types/rc/0.0.1: 1f5b8a1b3b1ac6d1fee137c53fac5fa0f28ae0d7
   /@types/semver/5.3.31: b999d7d935f43f5207b01b00d3de20852f4ca75f
   /@types/tape/4.2.29:
@@ -807,7 +811,7 @@ packages:
     dependencies:
       graceful-fs: 4.1.11
     resolution: 7fef04f5518f0eda088b8d87608f9ef6907f6bfc
-  /get-npm-tarball-url/1.0.1: 2e478dbced75e5e5538e4bdfe62a8a282f7c8ff3
+  /get-npm-tarball-url/2.0.0: 5ebf1e6409cf7317accd87d82e41e935d1272638
   /get-proxy/1.1.0:
     dependencies:
       rc: 1.2.1
