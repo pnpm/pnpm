@@ -6,8 +6,20 @@ import fs = require('fs')
 import exists = require('path-exists')
 import existsSymlink = require('exists-link')
 import readPkg = require('read-pkg')
-import {prepare, testDefaults} from './utils'
-import {installPkgs, uninstall} from '../src'
+import ncpCB = require('ncp')
+import {
+  prepare,
+  testDefaults,
+  pathToLocalPkg,
+} from './utils'
+import {
+  installPkgs,
+  uninstall,
+  link,
+} from '../src'
+import thenify = require('thenify')
+
+const ncp = thenify(ncpCB.ncp)
 
 test('uninstall package with no dependencies', async function (t) {
   const project = prepare(t)
@@ -110,4 +122,17 @@ test('keep dependency used by package', async function (t) {
   await uninstall(['is-not-positive'], testDefaults({ save: true }))
 
   await project.storeHas('is-positive', '3.1.0')
+})
+
+test('relative link is uninstalled', async function (t) {
+  const project = prepare(t)
+
+  const linkedPkgName = 'hello-world-js-bin'
+  const linkedPkgPath = path.resolve('..', linkedPkgName)
+
+  await ncp(pathToLocalPkg(linkedPkgName), linkedPkgPath)
+  await link(`../${linkedPkgName}`, process.cwd(), testDefaults())
+  await uninstall([linkedPkgName], testDefaults())
+
+  await project.hasNot(linkedPkgName)
 })

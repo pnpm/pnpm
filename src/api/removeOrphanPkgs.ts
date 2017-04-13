@@ -5,11 +5,10 @@ import {
   shortIdToFullId,
 } from '../fs/shrinkwrap'
 import {read as readStore, save as saveStore} from '../fs/storeController'
-import binify from '../binify'
-import safeReadPkg from '../fs/safeReadPkg'
 import R = require('ramda')
 import npa = require('npm-package-arg')
 import {PackageSpec} from '../resolve'
+import removeTopDependency from '../removeTopDependency'
 
 export default async function removeOrphanPkgs (
   oldShr: Shrinkwrap,
@@ -22,10 +21,8 @@ export default async function removeOrphanPkgs (
 
   const removedTopDeps = R.difference(oldPkgNames, newPkgNames)
 
-  await Promise.all(removedTopDeps.map(depName => Promise.all([
-    rimraf(path.join(root, 'node_modules', depName)),
-    removeBins(depName, root),
-  ])))
+  const rootModules = path.join(root, 'node_modules')
+  await Promise.all(removedTopDeps.map(depName => removeTopDependency(depName, rootModules)))
 
   const oldPkgIds = Object.keys(oldShr.packages).map(shortId => shortIdToFullId(shortId, oldShr.registry))
   const newPkgIds = Object.keys(newShr.packages).map(shortId => shortIdToFullId(shortId, newShr.registry))
@@ -41,7 +38,7 @@ export default async function removeOrphanPkgs (
         await rimraf(path.join(storePath, notDependent))
       }
     }
-    await rimraf(path.join(root, 'node_modules', `.${notDependent}`))
+    await rimraf(path.join(rootModules, `.${notDependent}`))
   }))
 
   const newDependents = R.difference(newPkgIds, oldPkgIds)
@@ -56,14 +53,4 @@ export default async function removeOrphanPkgs (
   await saveStore(storePath, store)
 
   return notDependents
-}
-
-async function removeBins (uninstalledPkg: string, root: string) {
-  const uninstalledPkgPath = path.join(root, 'node_modules', uninstalledPkg)
-  const uninstalledPkgJson = await safeReadPkg(uninstalledPkgPath)
-  if (!uninstalledPkgJson) return
-  const cmds = await binify(uninstalledPkgJson, uninstalledPkgPath)
-  return Promise.all(
-    cmds.map(cmd => rimraf(path.join(root, 'node_modules', '.bin', cmd.name)))
-  )
 }
