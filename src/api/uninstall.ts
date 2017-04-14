@@ -20,7 +20,7 @@ import removeOrphanPkgs from './removeOrphanPkgs'
 import npa = require('npm-package-arg')
 import {PackageSpec} from '../resolve'
 import pnpmPkgJson from '../pnpmPkgJson'
-import isInnerLink from '../isInnerLink'
+import safeIsInnerLink from '../safeIsInnerLink'
 import removeTopDependency from '../removeTopDependency'
 
 export default async function uninstallCmd (pkgsToUninstall: string[], maybeOpts?: PnpmOptions) {
@@ -74,7 +74,7 @@ function isDependentOn (pkg: Package, depName: string): boolean {
 
 async function removeOuterLinks (pkgsToUninstall: string[], modules: string) {
   for (const pkgToUninstall of pkgsToUninstall) {
-    if (!await isInnerLink(modules, pkgToUninstall)) {
+    if (!await safeIsInnerLink(modules, pkgToUninstall)) {
       await removeTopDependency(pkgToUninstall, modules)
     }
   }

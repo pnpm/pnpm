@@ -5,7 +5,7 @@ import pLimit = require('p-limit')
 import npa = require('npm-package-arg')
 import pFilter = require('p-filter')
 import R = require('ramda')
-import isInnerLink from '../isInnerLink'
+import safeIsInnerLink from '../safeIsInnerLink'
 import {PnpmOptions, StrictPnpmOptions, Dependencies} from '../types'
 import createGot from '../network/got'
 import getContext, {PnpmContext} from './getContext'
@@ -160,7 +160,7 @@ async function installInContext (
     resolvedDependencies,
     offline: opts.offline,
   }
-  const nonLinkedPkgs = await pFilter(packagesToInstall, (spec: PackageSpec) => !spec.name || isInnerLink(nodeModulesPath, spec.name))
+  const nonLinkedPkgs = await pFilter(packagesToInstall, (spec: PackageSpec) => !spec.name || safeIsInnerLink(nodeModulesPath, spec.name))
   const pkgs: InstalledPackage[] = await installMultiple(
     installCtx,
     nonLinkedPkgs,

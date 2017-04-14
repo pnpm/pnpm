@@ -248,3 +248,8 @@ declare module 'remove-all-except-outer-links' {
   const anything: any;
   export = anything;
 }
+
+declare module 'is-inner-link' {
+  const anything: any;
+  export = anything;
+}

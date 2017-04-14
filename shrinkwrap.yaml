@@ -26,7 +26,6 @@ dependencies:
   exists-link@^2.0.0: 2.0.0
   find-up@^2.1.0: 2.1.0
   fs-write-stream-atomic@^1.0.10: 1.0.10
-  get-link-target@^1.0.0: 1.0.0
   get-npm-tarball-url@^2.0.0: 2.0.0
   global-bin-path@^0.1.1: 0.1.1
   graceful-fs@^4.1.11: 4.1.11
@@ -34,6 +33,7 @@ dependencies:
   husky@^0.13.2: 0.13.3
   in-publish@^2.0.0: 2.0.0
   is-ci@^1.0.10: 1.0.10
+  is-inner-link@^2.0.0: 2.0.0
   is-windows@^1.0.0: 1.0.0
   isexe@^2.0.0: 2.0.0
   link-dir@^2.0.0: 2.0.0
@@ -1033,6 +1033,11 @@ packages:
       is-extglob: 1.0.0
     resolution: d096f926a3ded5600f3fdfd91198cb0888c2d863
   /is-gzip/1.0.0: 6ca8b07b99c77998025900e555ced8ed80879a83
+  /is-inner-link/2.0.0:
+    dependencies:
+      get-link-target: 1.0.0
+      is-subdir: 1.0.0
+    resolution: 11e6cfae2604532631ae7e33965de12ac1d41c33
   /is-npm/1.0.0: f2fb63a65e4905b406c86072765a1a4dc793b9f4
   /is-number/2.1.0:
     dependencies:
@@ -1054,6 +1059,10 @@ packages:
       protocols: 1.4.5
     resolution: ebea1169a2614da392a63740366c3ce049d8dff6
   /is-stream/1.1.0: 12d4a3dd4e68e0b79ceb8dbc84173ae80d91ca44
+  /is-subdir/1.0.0:
+    dependencies:
+      is-windows: 1.0.0
+    resolution: 73b63b91fb4019d287674d9129517b66c97b33f5
   /is-symbol/1.0.1: 3cc59f00025194b6ab2e38dbae6689256b660572
   /is-typedarray/1.0.0: e479c80858df0c1b11ddda6940f96011fcda4a9a
   /is-utf8/0.2.1: 4b0da1442104d1b336340e80797e865cf39f7d72
