@@ -54,7 +54,7 @@
     "node-gyp": "^3.6.0",
     "normalize-path": "^2.1.1",
     "normalize-ssh": "^1.0.0",
-    "npm-package-arg": "^4.2.1",
+    "npm-package-arg": "^5.0.0",
     "npm-registry-client": "^8.1.0",
     "os-homedir": "^1.0.2",
     "p-filter": "^1.0.0",
