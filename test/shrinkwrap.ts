@@ -22,7 +22,7 @@ test('shrinkwrap file has correct format', async t => {
   t.ok(shr.dependencies, 'has dependencies field')
   t.equal(shr.dependencies['pkg-with-1-dep@^100.0.0'], '100.0.0', 'has dependency resolved')
   t.ok(shr.dependencies['@rstacruz/tap-spec@^4.1.1'], 'has scoped dependency resolved')
-  t.ok(shr.dependencies['is-negative@^2.1.0'].indexOf('/') !== -1, 'has not shortened tarball from the non-standard registry')
+  t.ok(shr.dependencies['is-negative@github:kevva/is-negative'].indexOf('/') !== -1, 'has not shortened tarball from the non-standard registry')
 
   t.ok(shr.packages, 'has packages field')
   t.ok(shr.packages[id], `has resolution for ${id}`)

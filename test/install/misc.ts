@@ -524,6 +524,8 @@ test('tarball local package', async function (t) {
   const localPkg = project.requireModule('tar-pkg')
 
   t.equal(localPkg(), 'tar-pkg', 'tarPkg() is available')
+
+  // TODO: test that the package is saved to package.json with the correct spec
 })
 
 test('create a pnpm-debug.log file when the command fails', async function (t) {

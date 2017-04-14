@@ -180,7 +180,17 @@ async function installInContext (
     }
     const pkgJsonPath = path.join(ctx.root, 'package.json')
     const saveType = getSaveType(opts)
-    newPkg = await save(pkgJsonPath, pkgs.map(pkg => pkg.pkg), saveType, opts.saveExact)
+    newPkg = await save(
+      pkgJsonPath,
+      pkgs.map(dep => ({
+        name: dep.pkg.name,
+        saveSpec: getSaveSpec(
+          R.find(spec => spec.raw === dep.specRaw, packagesToInstall),
+          dep,
+          opts.saveExact)
+      })),
+      saveType
+    )
   }
 
   if (newPkg) {
@@ -253,6 +263,17 @@ async function installInContext (
     if (scripts['prepublish']) {
       npmRun('prepublish', ctx.root, opts.userAgent)
     }
+  }
+}
+
+function getSaveSpec(spec: PackageSpec, pkg: InstalledPackage, saveExact: boolean) {
+  switch (spec.type) {
+    case 'version':
+    case 'range':
+    case 'tag':
+      return `${saveExact ? '' : '^'}${pkg.pkg.version}`
+    default:
+      return spec.spec
   }
 }
 

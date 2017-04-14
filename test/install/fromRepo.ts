@@ -1,6 +1,7 @@
 import tape = require('tape')
 import promisifyTape from 'tape-promise'
 import isCI = require('is-ci')
+import readPkg = require('read-pkg')
 import {installPkgs} from '../../src'
 import {
   prepare,
@@ -16,6 +17,9 @@ test('from a github repo', async function (t) {
   const localPkg = project.requireModule('is-negative')
 
   t.ok(localPkg, 'isNegative() is available')
+
+  const pkgJson = await readPkg()
+  t.deepEqual(pkgJson.dependencies, {'is-negative': 'github:kevva/is-negative'}, 'has been added to dependencies in package.json')
 })
 
 test('from a git repo', async function (t) {

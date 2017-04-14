@@ -35,6 +35,7 @@ export type InstalledPackage = {
   dependencies: string[],
   fetchingFiles: Promise<Boolean>,
   path: string,
+  specRaw: string,
 }
 
 export default async function installAll (
@@ -240,6 +241,7 @@ async function install (
     dependencies: dependencyIds || [],
     fetchingFiles: fetchedPkg.fetchingFiles,
     path: fetchedPkg.path,
+    specRaw: spec.raw,
   }
 
   addInstalledPkg(ctx.installs, dependency)
