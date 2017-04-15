@@ -17,9 +17,8 @@ const gitLogger = logger('git-logger')
 
 let tryGitHubApi = true
 
-export default async function resolveGit (parsedSpec: PackageSpec, opts: ResolveOptions): Promise<ResolveResult> {
-  const hspec = <HostedPackageSpec>parsedSpec
-  const isGitHubHosted = parsedSpec.type === 'hosted' && hspec.hosted.type === 'github'
+export default async function resolveGit (parsedSpec: HostedPackageSpec, opts: ResolveOptions): Promise<ResolveResult> {
+  const isGitHubHosted = parsedSpec.type === 'hosted' && parsedSpec.hosted.type === 'github'
   const parts = normalizeRepoUrl(parsedSpec.spec).split('#')
   const repo = parts[0]
   const ref = parts[1] || 'master'
@@ -40,7 +39,7 @@ export default async function resolveGit (parsedSpec: PackageSpec, opts: Resolve
     }
   }
 
-  const ghSpec = parseGithubSpec(hspec)
+  const ghSpec = parseGithubSpec(parsedSpec)
   let commitId: string
   if (tryGitHubApi) {
     try {

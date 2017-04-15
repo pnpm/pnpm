@@ -45,22 +45,27 @@ export type ResolveResult = {
   package?: Package,
 }
 
-export type PackageSpec = {
-  raw: string,
-  name: string,
-  scope: string,
-  type: 'git' | 'hosted' | 'tag' | 'version' | 'range' | 'local' | 'remote',
-  spec: string,
-  rawSpec: string
-}
-
-export type HostedPackageSpec = PackageSpec & {
+export type HostedPackageSpec = PackageSpecBase & {
+  type: 'git' | 'hosted',
   hosted: {
     type: string,
     shortcut: string,
     sshUrl: string
   }
 }
+
+export type PackageSpecBase = {
+  raw: string,
+  rawSpec: string
+  name: string,
+  scope: string,
+  spec: string,
+}
+
+export type PackageSpec = HostedPackageSpec |
+  PackageSpecBase & {
+    type: 'tag' | 'version' | 'range' | 'local' | 'remote',
+  }
 
 export type ResolveOptions = {
   loggedPkg: LoggedPkg,
@@ -100,6 +105,6 @@ export default async function (spec: PackageSpec, opts: ResolveOptions): Promise
     case 'git':
       return resolveFromGit(spec, opts)
     default:
-      throw new Error(`${spec.rawSpec}: ${spec.type} packages not supported`)
+      throw new Error(`${spec['rawSpec']}: ${spec['type']} packages not supported`)
   }
 }
