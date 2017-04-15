@@ -101,9 +101,8 @@ function argsToSpecs (args: string[], defaultTag: string, where: string): Packag
   return args
     .map(arg => npa(arg, where))
     .map(spec => {
-      if (spec.type === 'tag' && !spec.raw.endsWith('@latest')) {
+      if (spec.type === 'tag' && !spec.rawSpec) {
         spec.fetchSpec = defaultTag
-        spec.saveSpec = defaultTag
       }
       return spec
     })

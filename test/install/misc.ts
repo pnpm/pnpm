@@ -70,6 +70,16 @@ test('modules without version spec, with custom tag config', async function (t) 
   await project.storeHas('dep-of-pkg-with-1-dep', '100.0.0')
 })
 
+test('installing a package by specifying a specific dist-tag', async function (t) {
+  const project = prepare(t)
+
+  await addDistTag('dep-of-pkg-with-1-dep', '100.0.0', 'beta')
+
+  await installPkgs(['dep-of-pkg-with-1-dep@beta'], testDefaults())
+
+  await project.storeHas('dep-of-pkg-with-1-dep', '100.0.0')
+})
+
 test('scoped modules with versions (@rstacruz/tap-spec@4.1.1)', async function (t) {
   const project = prepare(t)
   await installPkgs(['@rstacruz/tap-spec@4.1.1'], testDefaults())
