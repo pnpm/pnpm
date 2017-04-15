@@ -46,12 +46,21 @@ export type ResolveResult = {
 }
 
 export type HostedPackageSpec = PackageSpecBase & {
-  type: 'git' | 'hosted',
+  type: 'git',
+  registry: false,
   hosted: {
     type: string,
     shortcut: string,
-    sshUrl: string
+    sshUrl: string,
+    user: string,
+    project: string,
+    committish: string,
   }
+}
+
+export type RegistryPackageSpec = PackageSpecBase & {
+  type: 'tag' | 'version' | 'range',
+  registry: true,
 }
 
 export type PackageSpecBase = {
@@ -59,12 +68,15 @@ export type PackageSpecBase = {
   rawSpec: string
   name: string,
   scope: string,
-  spec: string,
+  saveSpec: string,
+  fetchSpec: string,
 }
 
 export type PackageSpec = HostedPackageSpec |
+  RegistryPackageSpec |
   PackageSpecBase & {
-    type: 'tag' | 'version' | 'range' | 'local' | 'remote',
+    type: 'directory' | 'file' | 'remote',
+    registry: false,
   }
 
 export type ResolveOptions = {
@@ -99,9 +111,9 @@ export default async function (spec: PackageSpec, opts: ResolveOptions): Promise
       return resolveFromNpm(spec, opts)
     case 'remote':
       return resolveFromTarball(spec, opts)
-    case 'local':
+    case 'directory':
+    case 'file':
       return resolveFromLocal(spec, opts)
-    case 'hosted':
     case 'git':
       return resolveFromGit(spec, opts)
     default:

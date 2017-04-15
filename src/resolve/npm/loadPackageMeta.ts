@@ -61,7 +61,7 @@ export default async function loadPkgMetaNonCached (
     const meta = await limit(() => loadMeta(pkgMirror))
     // use the cached meta only if it has the required package version
     // otherwise it is probably out of date
-    if (meta && meta.versions && meta.versions[spec.spec]) {
+    if (meta && meta.versions && meta.versions[spec.fetchSpec]) {
       return meta
     }
   }

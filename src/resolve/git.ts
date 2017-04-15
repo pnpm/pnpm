@@ -7,7 +7,6 @@ import {
   TarballResolution,
   GitRepositoryResolution,
 } from '.'
-import hostedGitInfo = require('hosted-git-info')
 import logger from 'pnpm-logger'
 import path = require('path')
 import normalizeSsh = require('normalize-ssh')
@@ -18,12 +17,12 @@ const gitLogger = logger('git-logger')
 let tryGitHubApi = true
 
 export default async function resolveGit (parsedSpec: HostedPackageSpec, opts: ResolveOptions): Promise<ResolveResult> {
-  const isGitHubHosted = parsedSpec.type === 'hosted' && parsedSpec.hosted.type === 'github'
-  const parts = normalizeRepoUrl(parsedSpec.spec).split('#')
+  const isGitHubHosted = parsedSpec.type === 'git' && parsedSpec.hosted.type === 'github'
+  const parts = normalizeRepoUrl(parsedSpec).split('#')
   const repo = parts[0]
   const ref = parts[1] || 'master'
 
-  if (!isGitHubHosted || isSsh(parsedSpec.spec)) {
+  if (!isGitHubHosted || isSsh(parsedSpec.rawSpec)) {
     const commitId = await resolveRef(repo, ref)
     const resolution: GitRepositoryResolution = {
       type: 'git-repo',
@@ -39,14 +38,18 @@ export default async function resolveGit (parsedSpec: HostedPackageSpec, opts: R
     }
   }
 
-  const ghSpec = parseGithubSpec(parsedSpec)
+  const ghSpec = {
+    user: parsedSpec.hosted.user,
+    project: parsedSpec.hosted.project,
+    ref: parsedSpec.hosted.committish || 'HEAD',
+  }
   let commitId: string
   if (tryGitHubApi) {
     try {
       commitId = await tryResolveViaGitHubApi(ghSpec, opts.got)
     } catch (err) {
       gitLogger.warn({
-        message: `Error while trying to resolve ${parsedSpec.spec} via GitHub API`,
+        message: `Error while trying to resolve ${parsedSpec.fetchSpec} via GitHub API`,
         err,
       })
 
@@ -60,10 +63,10 @@ export default async function resolveGit (parsedSpec: HostedPackageSpec, opts: R
   }
 
   const resolution: TarballResolution = {
-    tarball: `https://codeload.github.com/${ghSpec.owner}/${ghSpec.repo}/tar.gz/${commitId}`,
+    tarball: `https://codeload.github.com/${ghSpec.user}/${ghSpec.project}/tar.gz/${commitId}`,
   }
   return {
-    id: ['github.com', ghSpec.owner, ghSpec.repo, commitId].join('/'),
+    id: ['github.com', ghSpec.user, ghSpec.project, commitId].join('/'),
     resolution,
   }
 }
@@ -79,9 +82,8 @@ async function resolveRef (repo: string, ref: string) {
   return result.stdout.match(/^[a-z0-9]+/)[0]
 }
 
-function normalizeRepoUrl (repoUrl: string) {
-  const hosted = hostedGitInfo.fromUrl(repoUrl)
-  if (!hosted) return normalizeSsh(repoUrl)
+function normalizeRepoUrl (parsedSpec: HostedPackageSpec) {
+  const hosted = <any>parsedSpec.hosted // tslint:disable-line
   return hosted.getDefaultRepresentation() == 'shortcut' ? hosted.git() : hosted.toString()
 }
 
@@ -93,35 +95,23 @@ function isSsh (gitSpec: string): boolean {
 /**
  * Resolves a 'hosted' package hosted on 'github'.
  */
-async function tryResolveViaGitHubApi (spec: GitHubSpec, got: Got) {
+async function tryResolveViaGitHubApi (
+  spec: {
+    user: string,
+    project: string,
+    ref: string
+  },
+  got: Got
+) {
   const url = [
     'https://api.github.com/repos',
-    spec.owner,
-    spec.repo,
+    spec.user,
+    spec.project,
     'commits',
     spec.ref
   ].join('/')
   const body = await got.getJSON<GitHubRepoResponse>(url)
   return body.sha
-}
-
-const PARSE_GITHUB_RE = /^github:([^\/]+)\/([^#]+)(#(.+))?$/
-
-function parseGithubSpec (spec: HostedPackageSpec): GitHubSpec {
-  const m = PARSE_GITHUB_RE.exec(spec.hosted.shortcut)
-  if (!m) {
-    throw new Error('cannot parse: ' + spec.hosted.shortcut)
-  }
-  const owner = m[1]
-  const repo = m[2]
-  const ref = m[4] || 'HEAD'
-  return {owner, repo, ref}
-}
-
-type GitHubSpec = {
-  owner: string,
-  repo: string,
-  ref: string
 }
 
 type GitHubRepoResponse = {

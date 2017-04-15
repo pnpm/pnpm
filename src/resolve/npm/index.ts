@@ -62,9 +62,9 @@ export default async function resolveNpm (spec: PackageSpec, opts: ResolveOption
 
 function pickVersion (meta: PackageMeta, dep: PackageSpec) {
   if (dep.type === 'tag') {
-    return pickVersionByTag(meta, dep.spec)
+    return pickVersionByTag(meta, dep.fetchSpec)
   }
-  return pickVersionByVersionRange(meta, dep.spec)
+  return pickVersionByVersionRange(meta, dep.fetchSpec)
 }
 
 function pickVersionByTag(meta: PackageMeta, tag: string) {

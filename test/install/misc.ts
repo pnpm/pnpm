@@ -24,6 +24,7 @@ const basicPackageJson = loadJsonFile.sync(path.join(__dirname, '../utils/simple
 import {install, installPkgs, uninstall} from '../../src'
 import exists = require('path-exists')
 import isWindows = require('is-windows')
+import normalizePath = require('normalize-path')
 
 const IS_WINDOWS = isWindows()
 
@@ -525,7 +526,10 @@ test('tarball local package', async function (t) {
 
   t.equal(localPkg(), 'tar-pkg', 'tarPkg() is available')
 
-  // TODO: test that the package is saved to package.json with the correct spec
+  const pkgJson = await readPkg()
+  t.deepEqual(pkgJson.dependencies,
+    {'tar-pkg': `file:${normalizePath(pathToLocalPkg('tar-pkg/tar-pkg-1.0.0.tgz'))}`},
+    'has been added to dependencies in package.json')
 })
 
 test('create a pnpm-debug.log file when the command fails', async function (t) {

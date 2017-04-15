@@ -308,7 +308,7 @@ async function installDependencies (
 
   const bundledDeps = pkg.bundleDependencies || pkg.bundledDependencies || []
   const filterDeps = getNotBundledDeps.bind(null, bundledDeps)
-  const deps = depsToSpecs(filterDeps(Object.assign({}, pkg.optionalDependencies, pkg.dependencies)))
+  const deps = depsToSpecs(filterDeps(Object.assign({}, pkg.optionalDependencies, pkg.dependencies)), opts.root)
   const optionalDeps = Object.keys(pkg.optionalDependencies || {})
 
   const installedDeps: InstalledPackage[] = await installAll(ctx, deps, optionalDeps, depsInstallOpts)

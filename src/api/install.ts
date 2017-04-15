@@ -59,7 +59,7 @@ export async function install (maybeOpts?: PnpmOptions) {
     optionalDeps,
     ctx.pkg.dependencies
   )
-  const specs = depsToSpecs(depsToInstall)
+  const specs = depsToSpecs(depsToInstall, opts.cwd)
 
   return lock(
     ctx.storePath,
@@ -77,8 +77,8 @@ export async function install (maybeOpts?: PnpmOptions) {
 export async function installPkgs (fuzzyDeps: string[] | Dependencies, maybeOpts?: PnpmOptions) {
   const opts = extendOptions(maybeOpts)
   let packagesToInstall = Array.isArray(fuzzyDeps)
-    ? argsToSpecs(fuzzyDeps, opts.tag)
-    : depsToSpecs(fuzzyDeps)
+    ? argsToSpecs(fuzzyDeps, opts.tag, opts.cwd)
+    : depsToSpecs(fuzzyDeps, opts.cwd)
 
   if (!Object.keys(packagesToInstall).length) {
     throw new Error('At least one package has to be installed')
@@ -97,12 +97,13 @@ export async function installPkgs (fuzzyDeps: string[] | Dependencies, maybeOpts
   )
 }
 
-function argsToSpecs (args: string[], defaultTag: string): PackageSpec[] {
+function argsToSpecs (args: string[], defaultTag: string, where: string): PackageSpec[] {
   return args
-    .map(arg => npa(arg))
+    .map(arg => npa(arg, where))
     .map(spec => {
       if (spec.type === 'tag' && !spec.raw.endsWith('@latest')) {
-        spec.spec = defaultTag
+        spec.fetchSpec = defaultTag
+        spec.saveSpec = defaultTag
       }
       return spec
     })
@@ -273,7 +274,7 @@ function getSaveSpec(spec: PackageSpec, pkg: InstalledPackage, saveExact: boolea
     case 'tag':
       return `${saveExact ? '' : '^'}${pkg.pkg.version}`
     default:
-      return spec.spec
+      return spec.saveSpec
   }
 }
 

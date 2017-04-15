@@ -38,7 +38,6 @@
     "get-npm-tarball-url": "^2.0.0",
     "global-bin-path": "^0.1.1",
     "graceful-fs": "^4.1.11",
-    "hosted-git-info": "^2.4.1",
     "is-ci": "^1.0.10",
     "is-inner-link": "^2.0.0",
     "is-windows": "^1.0.0",

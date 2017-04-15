@@ -13,7 +13,7 @@ dependencies:
   '@zkochan/cmd-shim@^2.2.2': 2.2.2
   '@zkochan/dirsum@^0.1.1': 0.1.1
   anonymous-npm-registry-client@^0.1.2: 0.1.2
-  arr-flatten@^1.0.1: 1.0.1
+  arr-flatten@^1.0.1: 1.0.2
   bole@^3.0.2: 3.0.2
   byline@^5.0.0: 5.0.0
   camelcase-keys@^4.0.0: 4.1.0
@@ -29,7 +29,6 @@ dependencies:
   get-npm-tarball-url@^2.0.0: 2.0.0
   global-bin-path@^0.1.1: 0.1.1
   graceful-fs@^4.1.11: 4.1.11
-  hosted-git-info@^2.4.1: 2.4.1
   husky@^0.13.2: 0.13.3
   in-publish@^2.0.0: 2.0.0
   is-ci@^1.0.10: 1.0.10
@@ -50,8 +49,8 @@ dependencies:
   node-gyp@^3.6.0: 3.6.0
   normalize-path@^2.1.1: 2.1.1
   normalize-ssh@^1.0.0: 1.0.0
-  npm-package-arg@^5.0.0: 5.0.0
-  npm-registry-client@^8.1.0: 8.1.0
+  npm-package-arg@^5.0.0: 5.0.1
+  npm-registry-client@^8.1.0: 8.1.1
   npm-run-all@^4.0.1: 4.0.2
   npm-scripts-info@^0.3.6: 0.3.6
   os-homedir@^1.0.2: 1.0.2
@@ -83,7 +82,7 @@ dependencies:
   tape@^4.6.3: 4.6.3
   thenify@^3.2.1: 3.2.1
   ts-node@^3.0.0: 3.0.2
-  tslint@^5.0.0: 5.0.0
+  tslint@^5.0.0: 5.1.0
   typescript@^2.1.5: 2.2.2
   unpack-stream@^1.1.0: 1.1.0
   update-notifier@^2.1.0: 2.1.0
@@ -177,7 +176,7 @@ packages:
   /are-we-there-yet/1.1.2:
     dependencies:
       delegates: 1.0.0
-      readable-stream: 2.2.8
+      readable-stream: 2.2.9
     resolution: 80e470e95a084794fe1899262c5667c6e88de1b3
   /argparse/1.0.9:
     dependencies:
@@ -185,9 +184,9 @@ packages:
     resolution: 73d83bc263f86e97f8cc4f6bae1b0e90a7d22c86
   /arr-diff/2.0.0:
     dependencies:
-      arr-flatten: 1.0.1
+      arr-flatten: 1.0.2
     resolution: 8f3b827f955a8bd669697e4a4256ac3ceae356cf
-  /arr-flatten/1.0.1: e5ffe54d45e19f32f216e91eb99c8ce892bb604b
+  /arr-flatten/1.0.2: 1ec1e63439c54f67d6f72bb4299c3d4f73b2d996
   /array-filter/0.0.1: 7da8cf2e26628ed732803581fd21f67cacd2eeec
   /array-find-index/1.0.2: df010aa1287e164bbda6f9723b0a96a1ec4187a1
   /array-flatten/1.1.1: 9a5f699051b1e7073328f2a008968b64ea2955d2
@@ -225,7 +224,7 @@ packages:
     resolution: 63bc5dcb61331b92bc05fd528953c33462a06f8d
   /bl/1.2.0:
     dependencies:
-      readable-stream: 2.2.8
+      readable-stream: 2.2.9
     resolution: 1397e7ec42c5f5dc387470c500e34a9f6be9ea98
   /block-stream/0.0.9:
     dependencies:
@@ -300,7 +299,7 @@ packages:
   /bzip2-maybe/1.0.0:
     dependencies:
       is-bzip2: 1.0.0
-      peek-stream: 1.1.1
+      peek-stream: 1.1.2
       pumpify: 1.3.5
       through2: 2.0.3
       unbzip2-stream: 1.0.11
@@ -409,7 +408,7 @@ packages:
   /concat-stream/1.6.0:
     dependencies:
       inherits: 2.0.3
-      readable-stream: 2.2.8
+      readable-stream: 2.2.9
       typedarray: 0.0.6
     resolution: 0aac662fd52be78964d5532f694784e70110acf7
   /configstore/3.0.0:
@@ -550,7 +549,7 @@ packages:
     resolution: a8493f0b7b5eeec82525b5c7587fa7de7ca859c1
   /dtrace-provider/0.8.1:
     dependencies:
-      nan: 2.6.1
+      nan: 2.6.2
     resolution: cd4d174a233bea1bcf4a1fbfa5798f44f48cda9f
   /duplexer/0.1.1: ace6ff808c1ce66b57d1ebf97977acb02334cfc1
   /duplexer3/0.1.4: ee01dd1cac0ed3cbc7fdbea37dc0a8f1ce002ce2
@@ -558,7 +557,7 @@ packages:
     dependencies:
       end-of-stream: 1.0.0
       inherits: 2.0.3
-      readable-stream: 2.2.8
+      readable-stream: 2.2.9
       stream-shift: 1.0.0
     resolution: 1aa773002e1578457e9d9d4a50b0ccaaebcbd604
   /ecc-jsbn/0.1.1:
@@ -753,12 +752,12 @@ packages:
     resolution: 5265c681a4f294dabbf17c9509b6763aa84510ce
   /foreach/2.0.5: 0bee005018aeb260d0a3af3ae658dd0136ec1b99
   /forever-agent/0.6.1: fbc71f0c41adeb37f96c577ad1ed42d8fdacca91
-  /form-data/2.1.2:
+  /form-data/2.1.4:
     dependencies:
       asynckit: 0.4.0
       combined-stream: 1.0.5
       mime-types: 2.1.15
-    resolution: 89c3534008b97eada4cbb157d58f6f5df025eae4
+    resolution: 33c183acf193276ecaa98143a69e94bfee1750d1
   /forwarded/0.1.0: 19ef9874c4ae1c297bcf078fde63a09b66a84363
   /fresh/0.5.0: f474ca5e6a9246d6fd8e0953cfa9b9c805afa78e
   /from/0.1.7: 83c60afc58b9c56997007ed1a768b3ab303a44fe
@@ -774,7 +773,7 @@ packages:
       graceful-fs: 4.1.11
       iferr: 0.1.5
       imurmurhash: 0.1.4
-      readable-stream: 2.2.8
+      readable-stream: 2.2.9
     resolution: b47df53493ef911df75731e70a9ded0189db40c9
   /fs.realpath/1.0.0: 1504ad2523158caa40db4a2787cb01411994ea4f
   /fstream/1.0.11:
@@ -891,7 +890,7 @@ packages:
       browserify-zlib: 0.1.4
       is-deflate: 1.0.0
       is-gzip: 1.0.0
-      peek-stream: 1.1.1
+      peek-stream: 1.1.2
       pumpify: 1.3.5
       through2: 2.0.3
     resolution: 7d8316c8d0571e1d08a5a79e46fff0afe8172b19
@@ -900,7 +899,7 @@ packages:
       async: 1.5.2
       optimist: 0.6.1
       source-map: 0.4.4
-      uglify-js: 2.8.21
+      uglify-js: 2.8.22
     resolution: 2ce4484850537f9c97a8026d5399b935c4ed4ed7
   /har-schema/1.0.5: d263135f43307c02c602afc8fe95970c0151369e
   /har-validator/4.2.1:
@@ -932,7 +931,6 @@ packages:
     dependencies:
       parse-passwd: 1.0.0
     resolution: 4c2bbc8a758998feebf5ed68580f76d46768b4bc
-  /hosted-git-info/2.4.1: 4b0445e41c004a8bd1337773a4ff790ca40318c8
   /hosted-git-info/2.4.2: 0076b9f46a270506ddbaaea56496897460612a67
   /htmlparser2/3.9.2:
     dependencies:
@@ -941,7 +939,7 @@ packages:
       domutils: 1.5.1
       entities: 1.1.1
       inherits: 2.0.3
-      readable-stream: 2.2.8
+      readable-stream: 2.2.9
     resolution: 1bdf87acca0f3f9e53fa4fcceb0f4b4cbb00b338
   /http-errors/1.6.1:
     dependencies:
@@ -954,7 +952,7 @@ packages:
     dependencies:
       assert-plus: 0.2.0
       jsprim: 1.4.0
-      sshpk: 1.11.0
+      sshpk: 1.13.0
     resolution: df72e267066cd0ac67fb76adf8e134a8fbcf91bf
   /husky/0.13.3:
     dependencies:
@@ -1070,7 +1068,6 @@ packages:
   /is-utf8/0.2.1: 4b0da1442104d1b336340e80797e865cf39f7d72
   /is-windows/0.2.0: de1aa6d63ea29dd248737b69f1ff8b8002d2108c
   /is-windows/1.0.0: c61d61020c3ebe99261b781bd3d1622395f547f8
-  /isarray/0.0.1: 8a18acfca9a8f4177e09abfc6038939b05d1eedf
   /isarray/1.0.0: bb935d48582cba168c06834957a54a3e07124f11
   /isexe/2.0.0: e8fbf374dc556ff8947a10dcb0572d633f2cfa10
   /isobject/2.1.0:
@@ -1276,7 +1273,7 @@ packages:
       object-assign: 4.1.1
       thenify-all: 1.6.0
     resolution: c8b8521d958df0a4f2768025db69c719ee4ef1ce
-  /nan/2.6.1: 8c84f7b14c96b89f57fbc838012180ec8ca39a01
+  /nan/2.6.2: e4ff34e6c95fdfb5aecc08de6596f43605a7db45
   /ncp/2.0.0: 195a21d6c46e361d2fb1281ba38b91e9df7bdbb3
   /ndjson/1.5.0:
     dependencies:
@@ -1308,7 +1305,7 @@ packages:
     resolution: c6465dbf08abcd4db359317f79ac68a646b28ff9
   /normalize-package-data/2.3.6:
     dependencies:
-      hosted-git-info: 2.4.1
+      hosted-git-info: 2.4.2
       is-builtin-module: 1.0.0
       semver: 5.3.0
       validate-npm-package-license: 3.0.1
@@ -1325,29 +1322,29 @@ packages:
     resolution: 22a8308fa7cd932bdb49af74ecac644cf4a6196b
   /npm-package-arg/4.2.1:
     dependencies:
-      hosted-git-info: 2.4.1
+      hosted-git-info: 2.4.2
       semver: 5.3.0
     resolution: 593303fdea85f7c422775f17f9eb7670f680e3ec
-  /npm-package-arg/5.0.0:
+  /npm-package-arg/5.0.1:
     dependencies:
       hosted-git-info: 2.4.2
       osenv: 0.1.4
       semver: 5.3.0
       validate-npm-package-name: 3.0.0
-    resolution: 316fce9b535557b7a7a5cff9b32a54eb826ba1be
-  /npm-registry-client/8.1.0:
+    resolution: 09a816e3f45a549e3ddaf33e9bae5e7b31077872
+  /npm-registry-client/8.1.1:
     dependencies:
       concat-stream: 1.6.0
       graceful-fs: 4.1.11
       normalize-package-data: 2.3.6
-      npm-package-arg: 4.2.1
+      npm-package-arg: 5.0.1
       npmlog: 4.0.2
       once: 1.4.0
       request: 2.81.0
       retry: 0.10.1
       semver: 5.3.0
       slide: 1.1.6
-    resolution: ed7e5f58dfb98cb905f7b8adbf4858ce746db8d3
+    resolution: 831476455423ca0a265c6ffdb6100fcc042b36cf
   /npm-run-all/4.0.2:
     dependencies:
       chalk: 1.1.3
@@ -1505,11 +1502,11 @@ packages:
     dependencies:
       through: 2.3.8
     resolution: fe5a34b0cbce12b5aa6a2b403ee2e73b602f1445
-  /peek-stream/1.1.1:
+  /peek-stream/1.1.2:
     dependencies:
       duplexify: 3.5.0
-      through2: 0.5.1
-    resolution: 5324259966a9c97ce2f0470f67c23bf248f8e7f0
+      through2: 2.0.3
+    resolution: 97eb76365bcfd8c89e287f55c8b69d4c3e9bcc52
   /performance-now/0.2.0: 33ef30c5c77d4ea21c5a53869d91b56d8f2555e5
   /pify/2.3.0: ed141a6ac043a849ea588498e7dca8b15330e90c
   /pinkie-promise/2.0.1:
@@ -1555,7 +1552,7 @@ packages:
     dependencies:
       cpr: 2.0.2
       rimraf: 2.6.1
-      verdaccio: 2.1.3
+      verdaccio: 2.1.4
     resolution: 4fa715a76141e7aeb6b6360bf6a31098128d7ddc
   /prepend-http/1.0.4: d4f4562b0ce3696e41ac52d0e002e57a635dc6dc
   /preserve/0.2.0: 815ed1f6ebc65926f865b310c0713bcb3315ce4b
@@ -1632,14 +1629,7 @@ packages:
       normalize-package-data: 2.3.6
       path-type: 2.0.0
     resolution: 8ef1c0623c6a6db0dc6713c4bfac46332b2368f8
-  /readable-stream/1.0.34:
-    dependencies:
-      core-util-is: 1.0.2
-      inherits: 2.0.3
-      isarray: 0.0.1
-      string_decoder: 0.10.31
-    resolution: 125820e34bc842d2f2aaafafe4c2916ee32c157c
-  /readable-stream/2.2.8:
+  /readable-stream/2.2.9:
     dependencies:
       buffer-shims: 1.0.0
       core-util-is: 1.0.2
@@ -1648,7 +1638,7 @@ packages:
       process-nextick-args: 1.0.7
       string_decoder: 1.0.0
       util-deprecate: 1.0.2
-    resolution: ad28b686f3554c73d39bc32347fa058356624705
+    resolution: cf78ec6f4a6d1eb43d26488cac97f042e74b7fc8
   /rechoir/0.6.2:
     dependencies:
       resolve: 1.3.2
@@ -1703,7 +1693,7 @@ packages:
       combined-stream: 1.0.5
       extend: 3.0.0
       forever-agent: 0.6.1
-      form-data: 2.1.2
+      form-data: 2.1.4
       har-validator: 4.2.1
       hawk: 3.1.3
       http-signature: 1.1.1
@@ -1863,7 +1853,7 @@ packages:
       through2: 2.0.3
     resolution: 7a1f551e176a90ecd3345f7246a0cfe175ef4fd0
   /sprintf-js/1.0.3: 04e6926f662895354f3dd015203633b857297e2c
-  /sshpk/1.11.0:
+  /sshpk/1.13.0:
     dependencies:
       asn1: 0.2.3
       assert-plus: 1.0.0
@@ -1874,7 +1864,7 @@ packages:
       jodid25519: 1.0.2
       jsbn: 0.1.1
       tweetnacl: 0.14.5
-    resolution: 2d8d5ebb4a6fab28ffba37fa62a90f4a3ea59d77
+    resolution: ff2a3e4fd04497555fed97b39a0fd82fafb3a33c
   /statuses/1.3.1: faf51b9eb74aaef3b3acf4ad5f61abf24cb7b93e
   /stream-combiner/0.0.4:
     dependencies:
@@ -1904,7 +1894,6 @@ packages:
       es-abstract: 1.7.0
       function-bind: 1.1.0
     resolution: d04de2c89e137f4d7d206f086b5ed2fae6be8cea
-  /string_decoder/0.10.31: 62e203bc41766c6c28c9fc84301dab1c5310fa94
   /string_decoder/1.0.0:
     dependencies:
       buffer-shims: 1.0.0
@@ -1969,7 +1958,7 @@ packages:
     dependencies:
       bl: 1.2.0
       end-of-stream: 1.4.0
-      readable-stream: 2.2.8
+      readable-stream: 2.2.9
       xtend: 4.0.1
     resolution: fbc6c6e83c1a19d4cb48c7d96171fc248effc7bf
   /tar/2.2.1:
@@ -1991,14 +1980,9 @@ packages:
       any-promise: 1.3.0
     resolution: 251fd1c80aff6e5cf57cb179ab1fcb724269bd11
   /through/2.3.8: 0dd4c9ffaabc357960b1b724115d7e0e86a2e1f5
-  /through2/0.5.1:
-    dependencies:
-      readable-stream: 1.0.34
-      xtend: 3.0.0
-    resolution: dfdd012eb9c700e2323fd334f38ac622ab372da7
   /through2/2.0.3:
     dependencies:
-      readable-stream: 2.2.8
+      readable-stream: 2.2.9
       xtend: 4.0.1
     resolution: 0004569b37c7c74ba39c43f3ced78d1ad94140be
   /timed-out/4.0.1: f32eacac5a175bea25d7fab565ab3ed8741ef56f
@@ -2029,7 +2013,7 @@ packages:
       strip-bom: 3.0.0
       strip-json-comments: 2.0.1
     resolution: 6b0e8376003d7af1864f8df8f89dd0059ffcd032
-  /tslint/5.0.0:
+  /tslint/5.1.0:
     dependencies:
       babel-code-frame: 6.22.0
       colors: 1.1.2
@@ -2040,7 +2024,7 @@ packages:
       resolve: 1.3.2
       semver: 5.3.0
       tsutils: 1.6.0
-    resolution: ad3b7952f8a9b21079248bee01c2eaf92167e185
+    resolution: 51a47baeeb58956fcd617bd2cf00e2ef0eea2ed9
   /tsutils/1.6.0: 1fd7fac2a61369ed99cd3997f0fbb437128850f2
   /tunnel-agent/0.4.3: 6373db76909fe570e08d73583365ed828a74eeeb
   /tunnel-agent/0.6.0:
@@ -2056,12 +2040,12 @@ packages:
   /typedarray/0.0.6: 867ac74e3864187b1d3d47d996a78ec5c8830777
   /typescript/2.2.2: 606022508479b55ffa368b58fee963a03dfd7b0c
   /uc.micro/1.0.3: 7ed50d5e0f9a9fb0a573379259f2a77458d50192
-  /uglify-js/2.8.21:
+  /uglify-js/2.8.22:
     dependencies:
       source-map: 0.5.6
       uglify-to-browserify: 1.0.2
       yargs: 3.10.0
-    resolution: 1733f669ae6f82fc90c7b25ec0f5c783ee375314
+    resolution: d54934778a8da14903fa29a326fb24c0ab51a1a0
   /uglify-to-browserify/1.0.2: 6e0924d6bda6b5afe349e39a6d632850a0f882b7
   /unbzip2-stream/1.0.11:
     dependencies:
@@ -2122,7 +2106,7 @@ packages:
       builtins: 1.0.3
     resolution: 5fa912d81eb7d0c74afc140de7317f0ca7df437e
   /vary/1.1.1: 67535ebb694c1d52257457984665323f587e8d37
-  /verdaccio/2.1.3:
+  /verdaccio/2.1.4:
     dependencies:
       JSONStream: 1.3.1
       apache-md5: 1.1.2
@@ -2144,13 +2128,13 @@ packages:
       minimatch: 3.0.3
       mkdirp: 0.5.1
       pkginfo: 0.4.0
-      readable-stream: 2.2.8
+      readable-stream: 2.2.9
       render-readme: 1.3.1
       request: 2.81.0
       semver: 5.3.0
       symbol: 0.2.3
       unix-crypt-td-js: 1.0.0
-    resolution: 0058e46b1b6a89ed5246e32ed24a2353e6292480
+    resolution: 350ac2c4d1652984ef7bb51b55fe83818b4bbd39
   /verror/1.3.6:
     dependencies:
       extsprintf: 1.0.2
@@ -2200,7 +2184,6 @@ packages:
       write-file-atomic: 1.3.1
     resolution: 7b4bd0df72ca13fbe9d6b0178fd83c077b8ea86b
   /xdg-basedir/3.0.0: 496b2cc109eca8dbacfe2dc72b603c17c5870ad4
-  /xtend/3.0.0: 5cce7407baf642cba7becda568111c493f59665a
   /xtend/4.0.1: a5c6d532be656e23db820efb943a1f04998d63af
   /yallist/2.1.2: 1c11f9218f076089a47dd512f93c6699a6a81d52
   /yargs/3.10.0:

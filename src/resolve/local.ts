@@ -14,9 +14,9 @@ import fs = require('mz/fs')
  * Resolves a package hosted on the local filesystem
  */
 export default async function resolveLocal (spec: PackageSpec, opts: ResolveOptions): Promise<ResolveResult> {
-  const dependencyPath = resolve(opts.root, spec.spec)
+  const dependencyPath = resolve(opts.root, spec.fetchSpec)
 
-  if (dependencyPath.slice(-4) === '.tgz' || dependencyPath.slice(-7) === '.tar.gz') {
+  if (spec.type === 'file') {
     const resolution: TarballResolution = {
       tarball: `file:${dependencyPath}`,
     }
