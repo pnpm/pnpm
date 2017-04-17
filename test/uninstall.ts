@@ -31,7 +31,7 @@ test('uninstall package with no dependencies', async function (t) {
   await project.hasNot('is-negative')
 
   const pkgJson = await readPkg()
-  t.deepEqual(pkgJson.dependencies, {}, 'is-negative has been removed from dependencies')
+  t.equal(pkgJson.dependencies, undefined, 'is-negative has been removed from dependencies')
 })
 
 test('uninstall scoped package', async function (t) {
@@ -44,7 +44,7 @@ test('uninstall scoped package', async function (t) {
   await project.hasNot('@zkochan/logger')
 
   const pkgJson = await readPkg()
-  t.deepEqual(pkgJson.dependencies, {}, '@zkochan/logger has been removed from dependencies')
+  t.equal(pkgJson.dependencies, undefined, '@zkochan/logger has been removed from dependencies')
 })
 
 test('uninstall tarball dependency', async function (t) {
@@ -57,7 +57,7 @@ test('uninstall tarball dependency', async function (t) {
   await project.hasNot('is-array')
 
   const pkgJson = await readPkg()
-  t.deepEqual(pkgJson.dependencies, {}, 'is-array has been removed from dependencies')
+  t.equal(pkgJson.dependencies, undefined, 'is-array has been removed from dependencies')
 })
 
 test('uninstall package with dependencies and do not touch other deps', async function (t) {
