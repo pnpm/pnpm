@@ -1,7 +1,7 @@
 {
   "name": "pnpm",
   "description": "Fast, disk space efficient npm installs",
-  "version": "0.64.7",
+  "version": "0.64.8",
   "author": "Rico Sta. Cruz <rico@ricostacruz.com>",
   "bin": {
     "pnpm": "lib/bin/pnpm.js"
