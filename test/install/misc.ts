@@ -58,6 +58,21 @@ test('scoped modules without version spec (@rstacruz/tap-spec)', async function 
   t.ok(typeof _ === 'function', 'tap-spec is available')
 })
 
+test('scoped package with custom registry', async function (t) {
+  const project = prepare(t)
+
+  await installPkgs(['@scoped/peer'], testDefaults({
+    // setting an incorrect default registry URL
+    registry: 'http://localhost:9999/',
+    rawNpmConfig: {
+      '@scoped:registry': 'http://localhost:4873/',
+    },
+  }))
+
+  const pkg = project.requireModule('@scoped/peer/package.json')
+  t.ok(pkg, 'is available')
+})
+
 test('modules without version spec, with custom tag config', async function (t) {
   const project = prepare(t)
 

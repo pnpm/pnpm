@@ -33,9 +33,17 @@ const defaults = () => (<StrictPnpmOptions>{
   offline: false,
   registry: 'https://registry.npmjs.org/',
   userAgent: `${pnpmPkgJson.name}/${pnpmPkgJson.version} npm/? node/${process.version} ${process.platform} ${process.arch}`,
+  rawNpmConfig: {},
 })
 
 export default (opts?: PnpmOptions): StrictPnpmOptions => {
+  if (opts) {
+    for (const key in opts) {
+      if (opts[key] === undefined) {
+        delete opts[key]
+      }
+    }
+  }
   const extendedOpts = Object.assign({}, defaults(), opts)
   if (extendedOpts.force) {
     logger.warn('using --force I sure hope you know what you are doing')
@@ -47,5 +55,8 @@ export default (opts?: PnpmOptions): StrictPnpmOptions => {
     throw new Error('Cannot install with save/saveDev/saveOptional all being equal false')
   }
   extendedOpts.save = extendedOpts.save || !extendedOpts.saveDev && !extendedOpts.saveOptional
+  if (extendedOpts.userAgent.startsWith('npm/')) {
+    extendedOpts.userAgent = `${pnpmPkgJson.name}/${pnpmPkgJson.version} ${extendedOpts.userAgent}`
+  }
   return extendedOpts
 }

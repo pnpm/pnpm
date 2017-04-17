@@ -9,7 +9,6 @@ import memoize from '../memoize'
 import {Package} from '../types'
 import logStatus from '../logging/logInstallStatus'
 import fs = require('mz/fs')
-import getRegistryUrl = require('registry-url')
 import {Got} from '../network/got'
 import {
   DependencyShrinkwrap,
@@ -57,6 +56,7 @@ export default async function installAll (
     nodeVersion: string,
     offline: boolean,
     isInstallable?: boolean,
+    rawNpmConfig: Object,
   }
 ): Promise<InstalledPackage[]> {
   const keypath = options.keypath || []
@@ -92,6 +92,7 @@ async function installMultiple (
     nodeVersion: string,
     offline: boolean,
     isInstallable?: boolean,
+    rawNpmConfig: Object,
   }
 ): Promise<InstalledPackage[]> {
   const installedPkgs: InstalledPackage[] = <InstalledPackage[]>(
@@ -173,11 +174,12 @@ async function install (
     nodeVersion: string,
     offline: boolean,
     isInstallable?: boolean,
+    rawNpmConfig: Object,
   }
 ) {
   const keypath = options.keypath || []
   const update = keypath.length <= options.depth
-  const registry = spec.scope && getRegistryUrl(spec.scope) || options.registry
+  const registry = spec.scope && options.rawNpmConfig[`${spec.scope}:registry`] || options.registry
 
   const dependentId = keypath[keypath.length - 1]
   const loggedPkg = {
@@ -300,6 +302,7 @@ async function installDependencies (
     nodeVersion: string,
     offline: boolean,
     isInstallable?: boolean,
+    rawNpmConfig: Object,
   }
 ): Promise<InstalledPackage[]> {
   const depsInstallOpts = Object.assign({}, opts, {

@@ -2,6 +2,7 @@ import {ReporterType} from './reporter'
 import {PackageMeta} from './resolve'
 
 export type PnpmOptions = {
+  rawNpmConfig?: Object,
   cwd?: string,
   global?: boolean,
   globalPath?: string,
@@ -46,6 +47,7 @@ export type PnpmOptions = {
 }
 
 export type StrictPnpmOptions = {
+  rawNpmConfig: Object,
   cwd: string,
   global: boolean,
   globalPath: string,

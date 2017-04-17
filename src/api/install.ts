@@ -155,10 +155,14 @@ async function installInContext (
     depth: opts.depth,
     engineStrict: opts.engineStrict,
     nodeVersion: opts.nodeVersion,
-    got: createGot(client, {networkConcurrency: opts.networkConcurrency}),
+    got: createGot(client, {
+      networkConcurrency: opts.networkConcurrency,
+      rawNpmConfig: opts.rawNpmConfig,
+    }),
     metaCache: opts.metaCache,
     resolvedDependencies,
     offline: opts.offline,
+    rawNpmConfig: opts.rawNpmConfig,
   }
   const nonLinkedPkgs = await pFilter(packagesToInstall, (spec: PackageSpec) => !spec.name || safeIsInnerLink(nodeModulesPath, spec.name))
   const pkgs: InstalledPackage[] = await installMultiple(

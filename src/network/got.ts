@@ -34,7 +34,13 @@ export type NpmRegistryClient = {
   fetch: Function
 }
 
-export default (client: NpmRegistryClient, opts: {networkConcurrency: number}): Got => {
+export default (
+  client: NpmRegistryClient,
+  opts: {
+    networkConcurrency: number,
+    rawNpmConfig: Object,
+  }
+): Got => {
   const limit = pLimit(opts.networkConcurrency)
 
   async function getJSON (url: string) {
@@ -100,7 +106,7 @@ export default (client: NpmRegistryClient, opts: {networkConcurrency: number}): 
   }
 
   function createOptions (url: string): RequestParams {
-    const authInfo = getRegistryAuthInfo(url, {recursive: true})
+    const authInfo = getRegistryAuthInfo(url, {recursive: true, npmrc: opts.rawNpmConfig})
     if (!authInfo) return {}
     switch (authInfo.type) {
       case 'Bearer':

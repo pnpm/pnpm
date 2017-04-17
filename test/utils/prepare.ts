@@ -8,30 +8,23 @@ import loadYamlFile = require('load-yaml-file')
 import {Modules, read as readModules} from '../../src/fs/modulesController'
 import isExecutable from './isExecutable'
 
-const root = process.cwd()
-process.env.ROOT = root
-
 // the testing folder should be outside of the project to avoid lookup in the project's node_modules
-const tmpPath = path.join(root, '..', '.tmp')
+const tmpPath = path.resolve('..', '.tmp')
 mkdirp.sync(tmpPath)
-const npmrc = stripIndent`
-  store-path = ../.store
-  fetch-retries = 5
-  fetch-retry-maxtimeout = 180000
-  registry = http://localhost:4873/
-  silent = true
-  global-path = ${path.join(tmpPath, 'global')}
-`
-fs.writeFileSync(path.join(tmpPath, '.npmrc'), npmrc, 'utf-8')
 
 let dirNumber = 0
 
 export default function prepare (t: Test, pkg?: Object) {
+  process.env.NPM_CONFIG_REGISTRY = 'http://localhost:4873/'
+  process.env.NPM_CONFIG_STORE_PATH = '../.store'
+  process.env.NPM_CONFIG_SILENT = 'true'
+  process.env.NPM_CONFIG_GLOBAL_PATH = path.join(tmpPath, 'global')
+
   dirNumber++
   const dirname = dirNumber.toString()
   const pkgTmpPath = path.join(tmpPath, dirname, 'project')
   mkdirp.sync(pkgTmpPath)
-  const json = JSON.stringify(pkg || {})
+  const json = JSON.stringify(Object.assign({name: 'foo', version: '0.0.0'}, pkg))
   fs.writeFileSync(path.join(pkgTmpPath, 'package.json'), json, 'utf-8')
   process.chdir(pkgTmpPath)
   t.pass(`create testing package ${dirname}`)

@@ -4,7 +4,9 @@ dependencies:
   '@types/load-json-file@^2.0.5': 2.0.5
   '@types/mkdirp@^0.3.29': 0.3.29
   '@types/mz@^0.0.31': 0.0.31
-  '@types/node@^7.0.5': 7.0.12
+  '@types/node@^7.0.5': 7.0.13
+  '@types/nopt@^3.0.29': 3.0.29
+  '@types/npm@^2.0.28': 2.0.28
   '@types/ramda@^0.0.7': 0.0.7
   '@types/rc@^0.0.1': 0.0.1
   '@types/semver@^5.3.30': 5.3.31
@@ -13,10 +15,10 @@ dependencies:
   '@zkochan/cmd-shim@^2.2.2': 2.2.2
   '@zkochan/dirsum@^0.1.1': 0.1.1
   anonymous-npm-registry-client@^0.1.2: 0.1.2
-  arr-flatten@^1.0.1: 1.0.2
+  arr-flatten@^1.0.1: 1.0.3
   bole@^3.0.2: 3.0.2
   byline@^5.0.0: 5.0.0
-  camelcase-keys@^4.0.0: 4.1.0
+  camelcase@^4.1.0: 4.1.0
   caw@^2.0.0: 2.0.0
   commitizen@^2.8.6: 2.9.6
   common-tags@^1.4.0: 1.4.0
@@ -40,19 +42,20 @@ dependencies:
   load-yaml-file@^0.1.0: 0.1.0
   loud-rejection@^1.6.0: 1.6.0
   mem@^1.1.0: 1.1.0
-  meow@^3.7.0: 3.7.0
   mkdirp-promise@^5.0.1: 5.0.1
   mkdirp@^0.5.1: 0.5.1
   mz@^2.6.0: 2.6.0
   ncp@^2.0.0: 2.0.0
   ndjson@^1.5.0: 1.5.0
   node-gyp@^3.6.0: 3.6.0
+  nopt@^4.0.1: 4.0.1
   normalize-path@^2.1.1: 2.1.1
   normalize-ssh@^1.0.0: 1.0.0
   npm-package-arg@^5.0.0: 5.0.1
   npm-registry-client@^8.1.0: 8.1.1
   npm-run-all@^4.0.1: 4.0.2
   npm-scripts-info@^0.3.6: 0.3.6
+  npm@^4.5.0: 4.5.0
   os-homedir@^1.0.2: 1.0.2
   p-filter@^1.0.0: 1.0.0
   p-limit@^1.1.0: 1.1.0
@@ -67,11 +70,9 @@ dependencies:
   pnpm-registry-mock@^0.5.0: 0.5.0
   proper-lockfile@^2.0.0: 2.0.0
   ramda@^0.23.0: 0.23.0
-  rc@^1.2.0: 1.2.1
   read-pkg-up@^2.0.0: 2.0.0
   read-pkg@^2.0.0: 2.0.0
-  registry-auth-token@^3.1.0: 3.1.2
-  registry-url@^3.1.0: 3.1.0
+  registry-auth-token@^3.2.0: 3.2.0
   remove-all-except-outer-links@^1.0.0: 1.0.0
   rimraf-then@^1.0.1: 1.0.1
   rimraf@^2.5.4: 2.6.1
@@ -93,7 +94,7 @@ dependencies:
 packages:
   /@types/byline/4.2.31:
     dependencies:
-      '@types/node': 7.0.12
+      '@types/node': 7.0.13
     resolution: 0e61fcb9c03e047d21c4496554c7116297ab60cd
   /@types/chalk/0.4.31: a31d74241a6b1edbb973cf36d97a2896834a51f9
   /@types/common-tags/1.2.5: 14f29893992eb325594b83d739af02f2b6520f46
@@ -101,20 +102,25 @@ packages:
   /@types/mkdirp/0.3.29: 7f2ad7ec55f914482fc9b1ec4bb1ae6028d46066
   /@types/mz/0.0.30:
     dependencies:
-      '@types/node': 7.0.12
+      '@types/node': 7.0.13
     resolution: 58daa9f35811d607037bab1f9cc7d4a23e6aafae
   /@types/mz/0.0.31:
     dependencies:
-      '@types/node': 7.0.12
+      '@types/node': 7.0.13
     resolution: a4d80c082fefe71e40a7c0f07d1e6555bbbc7b52
-  /@types/node/6.0.68: 0c43b6b8b9445feb86a0fbd3457e3f4bc591e66d
-  /@types/node/7.0.12: ae5f67a19c15f752148004db07cbbb372e69efc9
+  /@types/node/6.0.70: f6e04b859205ee3611849921f09819701dbfa5e8
+  /@types/node/7.0.13: 1b0a53fe9ef9c3a5d061b126cc9b915bca43a3f5
+  /@types/nopt/3.0.29: f19df3db4c97ee1459a2740028320a71d70964ce
+  /@types/npm/2.0.28:
+    dependencies:
+      '@types/node': 7.0.13
+    resolution: 0ab7f460afc9aeeee46194389766031bc714520c
   /@types/ramda/0.0.7: 1226d32bc779e05ac9e6f76f960eeb660447fcab
   /@types/rc/0.0.1: 1f5b8a1b3b1ac6d1fee137c53fac5fa0f28ae0d7
   /@types/semver/5.3.31: b999d7d935f43f5207b01b00d3de20852f4ca75f
   /@types/tape/4.2.29:
     dependencies:
-      '@types/node': 7.0.12
+      '@types/node': 7.0.13
     resolution: 14cf2eb49bf852407eaaefdc53773eb90b32cf56
   /@types/update-notifier/1.0.1: 47e8f007c6b5bcafbe427332e3b6b433cdc18ddc
   /@zkochan/cmd-shim/2.2.2:
@@ -138,11 +144,11 @@ packages:
       mime-types: 2.1.15
       negotiator: 0.6.1
     resolution: c3ca7434938648c3e0d9c1e328dd68b622c284ca
-  /ajv/4.11.6:
+  /ajv/4.11.7:
     dependencies:
       co: 4.6.0
       json-stable-stringify: 1.0.1
-    resolution: 947e93049790942b2a2d60a8289b28924d39f987
+    resolution: 8655a5d86d0824985cc471a1d913fb6729a0ec48
   /align-text/0.1.4:
     dependencies:
       kind-of: 3.1.0
@@ -184,9 +190,9 @@ packages:
     resolution: 73d83bc263f86e97f8cc4f6bae1b0e90a7d22c86
   /arr-diff/2.0.0:
     dependencies:
-      arr-flatten: 1.0.2
+      arr-flatten: 1.0.3
     resolution: 8f3b827f955a8bd669697e4a4256ac3ceae356cf
-  /arr-flatten/1.0.2: 1ec1e63439c54f67d6f72bb4299c3d4f73b2d996
+  /arr-flatten/1.0.3: a274ed85ac08849b6bd7847c4580745dc51adfb1
   /array-filter/0.0.1: 7da8cf2e26628ed732803581fd21f67cacd2eeec
   /array-find-index/1.0.2: df010aa1287e164bbda6f9723b0a96a1ec4187a1
   /array-flatten/1.1.1: 9a5f699051b1e7073328f2a008968b64ea2955d2
@@ -313,12 +319,6 @@ packages:
       camelcase: 2.1.1
       map-obj: 1.0.1
     resolution: 308beeaffdf28119051efa1d932213c91b8f92e7
-  /camelcase-keys/4.1.0:
-    dependencies:
-      camelcase: 4.1.0
-      map-obj: 2.0.0
-      quick-lru: 1.0.0
-    resolution: 214d348cc5457f39316a2c31cc3e37246325e73f
   /camelcase/1.2.1: 9bb5304d2e0b56698b2c758b08a3eaa9daa58a39
   /camelcase/2.1.1: 7c1d16d679a1bbe59ca02cacecfb011e201f5a1f
   /camelcase/4.1.0: d545635be1e33c542649c69173e5de6acfae34dd
@@ -904,7 +904,7 @@ packages:
   /har-schema/1.0.5: d263135f43307c02c602afc8fe95970c0151369e
   /har-validator/4.2.1:
     dependencies:
-      ajv: 4.11.6
+      ajv: 4.11.7
       har-schema: 1.0.5
     resolution: 33481d0f1bbff600dd203d75812a6a5fba002e2a
   /has-ansi/2.0.0:
@@ -925,7 +925,7 @@ packages:
       sntp: 1.0.9
     resolution: 078444bd7c1640b0fe540d2c9b73d59678e8e1c4
   /highlight.js/8.9.1: b8a9c5493212a9392f0222b649c9611497ebfb88
-  /highlight.js/9.10.0: f9f0b14c0be00f0e4fb1e577b749fed9e6f52f55
+  /highlight.js/9.11.0: 47f98c7399918700db2caf230ded12cec41a84ae
   /hoek/2.16.3: 20bb7403d3cea398e91dc4710a8ff1b8274a25ed
   /homedir-polyfill/1.0.1:
     dependencies:
@@ -995,7 +995,7 @@ packages:
       strip-ansi: 3.0.1
       through: 2.3.8
     resolution: 4dec6f32f37ef7bb0b2ed3f1d1a5c3f545074918
-  /interpret/1.0.2: f4f623f0bb7122f15f5717c8e254b8161b5c5b2d
+  /interpret/1.0.3: cbc35c62eeee73f19ab7b10a801511401afc0f90
   /ipaddr.js/1.3.0: 1e03a52fdad83a8bbb2b25cbf4998b4cffcd3dec
   /is-arrayish/0.2.1: 77c99840527aa8ecb1a8ba697b80645a7a926a9d
   /is-buffer/1.1.5: 1f3b26ef613b214b88cbca23cc6c01d87961eecc
@@ -1121,7 +1121,7 @@ packages:
     resolution: 4088433b46b3b1ba259d78785d8e96f73ba02439
   /latest-version/3.1.0:
     dependencies:
-      package-json: 4.0.0
+      package-json: 4.0.1
     resolution: a205383fea322b33b5ae3b18abee0dc2f356ee15
   /lazy-cache/1.0.4: a1d78fc3a50474cb80845d3b3b6e1da49a446e8e
   /lazy-req/2.0.0: c9450a363ecdda2e6f0c70132ad4f37f8f06f2b4
@@ -1129,7 +1129,7 @@ packages:
   /link-dir/2.0.0:
     dependencies:
       '@types/mz': 0.0.30
-      '@types/node': 6.0.68
+      '@types/node': 6.0.70
       bole: 3.0.2
       graceful-fs: 4.1.11
       mkdirp-promise: 5.0.1
@@ -1187,7 +1187,6 @@ packages:
   /lunr/0.7.2: 79a30e932e216cba163541ee37a3607c12cd7281
   /make-error/1.2.3: 6c4402df732e0977ac6faf754a5074b3d2b1d19d
   /map-obj/1.0.1: d933ceb9205d82bdcf4886f6742bdc2b4dea146d
-  /map-obj/2.0.0: a65cd29087a92598b8791257a523e021222ac1f9
   /map-stream/0.1.0: e56aa94c4c8055a16404a0674b78f215f7c8e194
   /markdown-it/4.4.0:
     dependencies:
@@ -1303,6 +1302,11 @@ packages:
     dependencies:
       abbrev: 1.1.0
     resolution: c6465dbf08abcd4db359317f79ac68a646b28ff9
+  /nopt/4.0.1:
+    dependencies:
+      abbrev: 1.1.0
+      osenv: 0.1.4
+    resolution: d0d4685afd5415193c8c7505602d0d17cd64474d
   /normalize-package-data/2.3.6:
     dependencies:
       hosted-git-info: 2.4.2
@@ -1369,6 +1373,7 @@ packages:
       meow: 3.7.0
       unquote: 1.1.0
     resolution: 14e7c78c1288bd6d82078769c7aa9583fc413c03
+  /npm/4.5.0: dc6a31f28807e6db980ed5083315667dcc8d0475
   /npmlog/3.1.2:
     dependencies:
       are-we-there-yet: 1.1.2
@@ -1441,13 +1446,13 @@ packages:
       p-limit: 1.1.0
     resolution: 20a0103b222a70c8fd39cc2e580680f3dde5ec43
   /p-map/1.1.1: 05f5e4ae97a068371bc2a5cc86bfbdbc19c4ae7a
-  /package-json/4.0.0:
+  /package-json/4.0.1:
     dependencies:
       got: 6.7.1
-      registry-auth-token: 3.1.2
+      registry-auth-token: 3.2.0
       registry-url: 3.1.0
       semver: 5.3.0
-    resolution: f3c9dc8738f5b59304d54d2cfb3f91d08fdd7998
+    resolution: 8869a0401253661c4c4ca3da6c2121ed555f5eed
   /pad-right/0.2.2:
     dependencies:
       repeat-string: 1.6.1
@@ -1467,7 +1472,7 @@ packages:
     resolution: f480f40434ef80741f8469099f8dea18f55a4dc9
   /parse-npm-tarball-url/1.0.1:
     dependencies:
-      '@types/node': 7.0.12
+      '@types/node': 7.0.13
       semver-regex: 1.0.0
     resolution: 4df1cf045d397ef2d9c39f5130898a8aa8e062e4
   /parse-passwd/1.0.0: 6d5b934a456993b23d37f40a382d6f1666a8e5c6
@@ -1519,7 +1524,7 @@ packages:
     dependencies:
       '@types/chalk': 0.4.31
       '@types/common-tags': 1.2.5
-      '@types/node': 7.0.12
+      '@types/node': 7.0.13
       chalk: 1.1.3
       common-tags: 1.4.0
       ndjson: 1.5.0
@@ -1529,7 +1534,7 @@ packages:
   /pnpm-file-reporter/0.0.1:
     dependencies:
       '@types/chalk': 0.4.31
-      '@types/node': 7.0.12
+      '@types/node': 7.0.13
       chalk: 1.1.3
       json2yaml: 1.1.0
       ndjson: 1.5.0
@@ -1586,7 +1591,6 @@ packages:
     resolution: 1b671c619940abcaeac0ad0e3a3c164be760993b
   /punycode/1.4.1: c0d5a63b2718800ad8e1eb0fa5269c84dd41845e
   /qs/6.4.0: 13e26d28ad6b0ffaa91312cd3bf708ed351e7233
-  /quick-lru/1.0.0: 7fa80304ab72c1f81cef738739cd47d7cc0c8bff
   /ramda/0.23.0: ccd13fff73497a93974e3e86327bfd87bd6e8e2b
   /randomatic/1.1.6:
     dependencies:
@@ -1641,7 +1645,7 @@ packages:
     resolution: cf78ec6f4a6d1eb43d26488cac97f042e74b7fc8
   /rechoir/0.6.2:
     dependencies:
-      resolve: 1.3.2
+      resolve: 1.3.3
     resolution: 85204b54dba82d5742e28c96756ef43af50e3384
   /redent/1.0.0:
     dependencies:
@@ -1655,10 +1659,10 @@ packages:
       is-primitive: 2.0.0
     resolution: 9b1a6c35d4d0dfcef5711ae651e8e9d3d7114145
   /regexp-quote/0.0.0: 1e0f4650c862dcbfed54fd42b148e9bb1721fcf2
-  /registry-auth-token/3.1.2:
+  /registry-auth-token/3.2.0:
     dependencies:
       rc: 1.2.1
-    resolution: 1b9e51a185c930da34a9894b12a52ea998f1adaf
+    resolution: 5bf3bd4608a2dd9242542c44d66ad8a5f9cdd3b0
   /registry-url/3.1.0:
     dependencies:
       rc: 1.2.1
@@ -1716,10 +1720,10 @@ packages:
       global-modules: 0.2.3
     resolution: b219259a5602fac5c5c496ad894a6e8cc430261e
   /resolve/1.1.7: 203114d82ad2c5ed9e8e0411b3932875e889e97b
-  /resolve/1.3.2:
+  /resolve/1.3.3:
     dependencies:
       path-parse: 1.0.5
-    resolution: 1f0442c9e0cbb8136e87b9305f932f46c7f28235
+    resolution: 655907c3469a8680dc2de3a275a8fdd69691f0e5
   /restore-cursor/1.0.1:
     dependencies:
       exit-hook: 1.1.1
@@ -1811,7 +1815,7 @@ packages:
   /shelljs/0.7.6:
     dependencies:
       glob: 7.1.1
-      interpret: 1.0.2
+      interpret: 1.0.3
       rechoir: 0.6.2
     resolution: 379cccfb56b91c8601e4793356eb5382924de9ad
   /signal-exit/3.0.2: b5fdc08f1287ea1178628e415e25132b73646c6d
@@ -1919,7 +1923,7 @@ packages:
   /symlink-dir/1.0.2:
     dependencies:
       '@types/mz': 0.0.30
-      '@types/node': 7.0.12
+      '@types/node': 7.0.13
       graceful-fs: 4.1.11
       is-windows: 1.0.0
       mkdirp: 0.5.1
@@ -2005,7 +2009,7 @@ packages:
       mkdirp: 0.5.1
       source-map-support: 0.4.14
       tsconfig: 6.0.0
-      v8flags: 2.0.12
+      v8flags: 2.1.1
       yn: 1.2.0
     resolution: cfc9516c831b920d7efbe16005915062b1294f8c
   /tsconfig/6.0.0:
@@ -2021,11 +2025,11 @@ packages:
       findup-sync: 0.3.0
       glob: 7.1.1
       optimist: 0.6.1
-      resolve: 1.3.2
+      resolve: 1.3.3
       semver: 5.3.0
-      tsutils: 1.6.0
+      tsutils: 1.7.0
     resolution: 51a47baeeb58956fcd617bd2cf00e2ef0eea2ed9
-  /tsutils/1.6.0: 1fd7fac2a61369ed99cd3997f0fbb437128850f2
+  /tsutils/1.7.0: 2e63ccc2d6912bb095f7e363ff4100721dc86f50
   /tunnel-agent/0.4.3: 6373db76909fe570e08d73583365ed828a74eeeb
   /tunnel-agent/0.6.0:
     dependencies:
@@ -2059,7 +2063,7 @@ packages:
   /unix-crypt-td-js/1.0.0: 1c0824150481bc7a01d49e98f1ec668d82412f3b
   /unpack-stream/1.1.0:
     dependencies:
-      '@types/node': 7.0.12
+      '@types/node': 7.0.13
       decompress-maybe: 1.0.0
       tar-fs: 1.15.2
     resolution: 2231b17dd24b9b81775ebc7516c65a2a863be398
@@ -2085,10 +2089,10 @@ packages:
   /util-deprecate/1.0.2: 450d4dc9fa70de732762fbd2d4a28981419a0ccf
   /utils-merge/1.0.0: 0294fb922bb9375153541c4f7096231f287c8af8
   /uuid/3.0.1: 6544bba2dfda8c1cf17e629a3a305e2bb1fee6c1
-  /v8flags/2.0.12:
+  /v8flags/2.1.1:
     dependencies:
       user-home: 1.1.1
-    resolution: 73235d9f7176f8e8833fb286795445f7938d84e5
+    resolution: aab1a1fa30d45f88dd321148875ac02c0b55e5b4
   /validate-commit-msg/2.12.1:
     dependencies:
       conventional-commit-types: 2.1.0
@@ -2119,7 +2123,7 @@ packages:
       es6-shim: 0.35.3
       express: 4.15.2
       handlebars: 4.0.6
-      highlight.js: 9.10.0
+      highlight.js: 9.11.0
       http-errors: 1.6.1
       jju: 1.3.0
       js-yaml: 3.8.3

@@ -3,7 +3,7 @@ declare module 'proper-lockfile' {
   export = anything;
 }
 
-declare module 'camelcase-keys' {
+declare module 'camelcase' {
   const anything: any;
   export = anything;
 }
@@ -69,11 +69,6 @@ declare module 'read-pkg-up' {
 }
 
 declare module 'registry-auth-token' {
-  const anything: any;
-  export = anything;
-}
-
-declare module 'registry-url' {
   const anything: any;
   export = anything;
 }
@@ -245,6 +240,11 @@ declare module 'remove-all-except-outer-links' {
 }
 
 declare module 'is-inner-link' {
+  const anything: any;
+  export = anything;
+}
+
+declare module 'npm/lib/config/defaults' {
   const anything: any;
   export = anything;
 }
