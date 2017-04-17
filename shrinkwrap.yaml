@@ -88,7 +88,7 @@ dependencies:
   update-notifier@^2.1.0: 2.1.0
   validate-commit-msg@^2.7.0: 2.12.1
   write-json-file@^2.0.0: 2.0.0
-  write-pkg@^2.1.0: 2.1.0
+  write-pkg@^3.0.1: 3.0.1
   write-yaml-file@^1.0.0: 1.0.0
 packages:
   /@types/byline/4.2.31:
@@ -2170,11 +2170,11 @@ packages:
       sort-keys: 1.1.2
       write-file-atomic: 1.3.1
     resolution: 0eaec981fcf9288dbc2806cbd26e06ab9bdca4ed
-  /write-pkg/2.1.0:
+  /write-pkg/3.0.1:
     dependencies:
       sort-keys: 1.1.2
       write-json-file: 2.0.0
-    resolution: 353aa44c39c48c21440f5c08ce6abd46141c9c08
+    resolution: f95245805be6f6a4eb1d6c31c43b57226815e6e3
   /write-yaml-file/1.0.0:
     dependencies:
       graceful-fs: 4.1.11
