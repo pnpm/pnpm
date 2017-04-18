@@ -5,7 +5,7 @@ dependencies:
   '@types/mkdirp@^0.3.29': 0.3.29
   '@types/mz@^0.0.31': 0.0.31
   '@types/node@^7.0.5': 7.0.12
-  '@types/ramda@^0.0.6': 0.0.6
+  '@types/ramda@^0.0.7': 0.0.7
   '@types/rc@^0.0.1': 0.0.1
   '@types/semver@^5.3.30': 5.3.31
   '@types/tape@^4.2.28': 4.2.29
@@ -109,7 +109,7 @@ packages:
     resolution: a4d80c082fefe71e40a7c0f07d1e6555bbbc7b52
   /@types/node/6.0.68: 0c43b6b8b9445feb86a0fbd3457e3f4bc591e66d
   /@types/node/7.0.12: ae5f67a19c15f752148004db07cbbb372e69efc9
-  /@types/ramda/0.0.6: 576ae4a12af63f0dbb358c639af9422b720bb6df
+  /@types/ramda/0.0.7: 1226d32bc779e05ac9e6f76f960eeb660447fcab
   /@types/rc/0.0.1: 1f5b8a1b3b1ac6d1fee137c53fac5fa0f28ae0d7
   /@types/semver/5.3.31: b999d7d935f43f5207b01b00d3de20852f4ca75f
   /@types/tape/4.2.29:
