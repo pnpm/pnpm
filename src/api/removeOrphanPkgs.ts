@@ -16,8 +16,8 @@ export default async function removeOrphanPkgs (
   root: string,
   storePath: string
 ): Promise<string[]> {
-  const oldPkgNames = Object.keys(oldShr.dependencies).map(npa).map((spec: PackageSpec) => spec.name)
-  const newPkgNames = Object.keys(newShr.dependencies).map(npa).map((spec: PackageSpec) => spec.name)
+  const oldPkgNames = Object.keys(oldShr.dependencies).map(rawSpec => npa(rawSpec)).map((spec: PackageSpec) => spec.name)
+  const newPkgNames = Object.keys(newShr.dependencies).map(rawSpec => npa(rawSpec)).map((spec: PackageSpec) => spec.name)
 
   const removedTopDeps = R.difference(oldPkgNames, newPkgNames)
 

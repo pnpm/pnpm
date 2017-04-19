@@ -209,7 +209,7 @@ async function installInContext (
       }
     })
     Object.keys(ctx.shrinkwrap.dependencies)
-      .map(npa)
+      .map(rawSpec => npa(rawSpec))
       .filter((depSpec: PackageSpec) => getSpecFromPkg(depSpec.name) !== depSpec.rawSpec)
       .map((depSpec: PackageSpec) => depSpec.raw)
       .forEach(removedDep => {
