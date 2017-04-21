@@ -5,7 +5,6 @@ import symlinkDir from 'symlink-dir'
 import exists = require('path-exists')
 import logger from 'pnpm-logger'
 import R = require('ramda')
-import globalBinPath = require('global-bin-path')
 import pLimit = require('p-limit')
 import {InstalledPackage} from '../install/installMultiple'
 import {InstalledPackages} from '../api/install'
@@ -37,6 +36,7 @@ export default async function (
     force: boolean,
     global: boolean,
     baseNodeModules: string,
+    bin: string,
   }
 ): Promise<DependencyTreeNodeMap> {
   const pkgsToLink = await resolvePeers(R.values(installedPkgs)
@@ -74,8 +74,7 @@ export default async function (
       pkgId: pkg.id,
     })
   }
-  const binPath = opts.global ? globalBinPath() : path.join(opts.baseNodeModules, '.bin')
-  await linkBins(opts.baseNodeModules, binPath)
+  await linkBins(opts.baseNodeModules, opts.bin)
 
   return pkgsToLink
 }

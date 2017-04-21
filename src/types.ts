@@ -3,9 +3,9 @@ import {PackageMeta} from './resolve'
 
 export type PnpmOptions = {
   rawNpmConfig?: Object,
-  cwd?: string,
   global?: boolean,
-  globalPath?: string,
+  prefix?: string,
+  bin?: string,
   storePath?: string,
   localRegistry?: string,
   ignoreScripts?: boolean
@@ -48,9 +48,9 @@ export type PnpmOptions = {
 
 export type StrictPnpmOptions = {
   rawNpmConfig: Object,
-  cwd: string,
   global: boolean,
-  globalPath: string,
+  prefix: string,
+  bin: string,
   storePath: string,
   localRegistry: string,
   ignoreScripts: boolean

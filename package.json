@@ -38,7 +38,6 @@
     "find-up": "^2.1.0",
     "fs-write-stream-atomic": "^1.0.10",
     "get-npm-tarball-url": "^2.0.0",
-    "global-bin-path": "^0.1.1",
     "graceful-fs": "^4.1.11",
     "is-ci": "^1.0.10",
     "is-inner-link": "^2.0.0",

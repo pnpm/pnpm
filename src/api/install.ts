@@ -59,7 +59,7 @@ export async function install (maybeOpts?: PnpmOptions) {
     optionalDeps,
     ctx.pkg.dependencies
   )
-  const specs = depsToSpecs(depsToInstall, opts.cwd)
+  const specs = depsToSpecs(depsToInstall, opts.prefix)
 
   return lock(
     ctx.storePath,
@@ -77,8 +77,8 @@ export async function install (maybeOpts?: PnpmOptions) {
 export async function installPkgs (fuzzyDeps: string[] | Dependencies, maybeOpts?: PnpmOptions) {
   const opts = extendOptions(maybeOpts)
   let packagesToInstall = Array.isArray(fuzzyDeps)
-    ? argsToSpecs(fuzzyDeps, opts.tag, opts.cwd)
-    : depsToSpecs(fuzzyDeps, opts.cwd)
+    ? argsToSpecs(fuzzyDeps, opts.tag, opts.prefix)
+    : depsToSpecs(fuzzyDeps, opts.prefix)
 
   if (!Object.keys(packagesToInstall).length) {
     throw new Error('At least one package has to be installed')
@@ -175,6 +175,7 @@ async function installInContext (
     force: opts.force,
     global: opts.global,
     baseNodeModules: nodeModulesPath,
+    bin: opts.bin,
   })
 
   let newPkg: Package | undefined = ctx.pkg

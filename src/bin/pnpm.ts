@@ -112,6 +112,9 @@ async function run (argv: string[]) {
 
   const opts = R.fromPairs(<any>R.keys(types).map(configKey => [camelcase(configKey), npm.config.get(configKey)])) // tslint:disable-line
   opts.rawNpmConfig = Object.assign.apply(Object, npm.config['list'].reverse())
+  opts.bin = npm.bin
+  opts.prefix = npm.prefix
+  opts.globalDir = npm.globalDir
 
   initReporter(silent ? 'silent' : (<any>opts.reporter || 'default')) // tslint:disable-line
 

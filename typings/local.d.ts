@@ -173,11 +173,6 @@ declare module 'execa' {
   export = anything;
 }
 
-declare module 'global-bin-path' {
-  const anything: any;
-  export = anything;
-}
-
 declare module 'module' {
   const anything: any;
   export = anything;

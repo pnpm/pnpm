@@ -29,8 +29,8 @@ export type PnpmContext = {
 }
 
 export default async function getContext (opts: StrictPnpmOptions, installType?: 'named' | 'general'): Promise<PnpmContext> {
-  const pkg = await (opts.global ? readGlobalPkg(opts.globalPath) : readPkgUp({ cwd: opts.cwd }))
-  const root = normalizePath(pkg.path ? path.dirname(pkg.path) : opts.cwd)
+  const pkg = await (opts.global ? readGlobalPkg(opts.prefix) : readPkgUp({ cwd: opts.prefix }))
+  const root = normalizePath(pkg.path ? path.dirname(pkg.path) : opts.prefix)
   const storeBasePath = resolveStoreBasePath(opts.storePath, root)
 
   const storePath = getStorePath(storeBasePath)

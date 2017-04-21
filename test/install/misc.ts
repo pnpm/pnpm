@@ -536,10 +536,11 @@ test('bin files are found by lifecycle scripts', t => {
 
 test('global installation', async function (t) {
   prepare(t)
-  const opts = testDefaults({global: true})
+  const globalDir = path.resolve('..', 'global')
+  const opts = testDefaults({global: true, prefix: globalDir})
   await installPkgs(['is-positive'], opts)
 
-  const isPositive = require(path.join(opts.globalPath, 'node_modules', 'is-positive'))
+  const isPositive = require(path.join(globalDir, 'node_modules', 'is-positive'))
   t.ok(typeof isPositive === 'function', 'isPositive() is available')
 })
 

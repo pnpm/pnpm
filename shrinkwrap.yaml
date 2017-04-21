@@ -29,7 +29,6 @@ dependencies:
   find-up@^2.1.0: 2.1.0
   fs-write-stream-atomic@^1.0.10: 1.0.10
   get-npm-tarball-url@^2.0.0: 2.0.0
-  global-bin-path@^0.1.1: 0.1.1
   graceful-fs@^4.1.11: 4.1.11
   husky@^0.13.2: 0.13.3
   in-publish@^2.0.0: 2.0.0
@@ -856,7 +855,6 @@ packages:
       once: 1.4.0
       path-is-absolute: 1.0.1
     resolution: 805211df04faaf1c63a3600306cdf5ade50b2ec8
-  /global-bin-path/0.1.1: 3ecec7c23b4bb9405291c14140e74abe755d9b55
   /global-modules/0.2.3:
     dependencies:
       global-prefix: 0.1.5
