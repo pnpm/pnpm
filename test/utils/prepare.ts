@@ -18,7 +18,6 @@ export default function prepare (t: Test, pkg?: Object) {
   process.env.NPM_CONFIG_REGISTRY = 'http://localhost:4873/'
   process.env.NPM_CONFIG_STORE_PATH = '../.store'
   process.env.NPM_CONFIG_SILENT = 'true'
-  process.env.NPM_CONFIG_GLOBAL_PATH = path.join(tmpPath, 'global')
 
   dirNumber++
   const dirname = dirNumber.toString()
