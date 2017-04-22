@@ -12,4 +12,5 @@
   * [store.yaml](store-yaml.md)
 * Recipes
   * [Continuous Integration](recipes/continuous-integration.md)
+  * [Releasing apps](recipes/releasing-apps.md)
 * [Contributing](../CONTRIBUTING.md)
