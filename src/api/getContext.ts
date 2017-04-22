@@ -81,7 +81,6 @@ async function readGlobalPkgJson (globalPkgPath: string) {
     const globalPkgJson = await readPkg(globalPkgPath)
     return globalPkgJson
   } catch (err) {
-    await mkdirp(path.dirname(globalPkgPath))
     await writePkg(globalPkgPath, DefaultGlobalPkg)
     return DefaultGlobalPkg
   }
