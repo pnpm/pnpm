@@ -12,7 +12,7 @@ Install packages.
 * `options.saveOptional` - *Boolean* - package will appear in `optionalDependencies`.
 * `options.saveExact` - *Boolean* - saved dependencies will be configured with an exact version rather than using npm's default semver range operator.
 * `options.global` - *Boolean* - the packages will be installed globally rather than locally.
-* `options.cwd` - *String* - the directory in which the installation will be performed. By default the `process.cwd()` value is used.
+* `options.prefix` - *String* - the directory in which the installation will be performed. By default the `process.cwd()` value is used.
 * `options.quiet` - *Boolean* - `false` by default. No output to the console.
 * `options.metaCache` - *Map* - a cache for package meta info.
 * `options.networkConcurrency` - *Number* - `16` by default. Max amount of network requests to perform concurrently.
@@ -60,15 +60,16 @@ Create a symbolic link from the linked package to the target package's `node_mod
 * `linkFrom` - *String* - path to the package that should be linked.
 * `lintTo` - *String* - path to the dependent package.
 
-## `pnpm.linkToGlobal(linkFrom, [options])`
+## `pnpm.linkToGlobal(linkFrom, options)`
 
 Create a symbolic link from the specified package to the global `node_modules`.
 
 **Arguments:**
 
 * `linkFrom` - *String* - path to the package that should be linked.
+* `globalDir` - *String* - path to the global directory.
 
-## `pnpm.linkFromGlobal(pkgName, linkTo, [options])`
+## `pnpm.linkFromGlobal(pkgName, linkTo, options)`
 
 Create a symbolic link from the global `pkgName` to the `linkTo/node_modules` folder.
 
@@ -76,6 +77,7 @@ Create a symbolic link from the global `pkgName` to the `linkTo/node_modules` fo
 
 * `pkgName` - *String* - package to link.
 * `linkTo` - *String* - package to link to.
+* `globalDir` - *String* - path to the global directory.
 
 ## `pnpm.prune([options])`
 
@@ -84,7 +86,7 @@ Remove extraneous packages. Extraneous packages are packages that are not listed
 **Arguments:**
 
 * `options.production` - *Boolean* - by default `false`. If this property is `true`, prune will remove the packages specified in `devDependencies`.
-* `options.cwd` - *String* - by default `process.cwd()`.
+* `options.prefix` - *String* - by default `process.cwd()`.
 
 ## `pnpm.storeStatus([options])`
 
