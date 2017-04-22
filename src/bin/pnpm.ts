@@ -114,7 +114,7 @@ async function run (argv: string[]) {
   opts.rawNpmConfig = Object.assign.apply(Object, npm.config['list'].reverse())
   opts.bin = npm.bin
   opts.prefix = npm.prefix
-  opts.globalDir = npm.globalDir
+  opts.globalPrefix = npm['globalPrefix']
 
   initReporter(silent ? 'silent' : (<any>opts.reporter || 'default')) // tslint:disable-line
 

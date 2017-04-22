@@ -54,12 +54,12 @@ test('global link', async function (t) {
   await ncp(pathToLocalPkg(linkedPkgName), linkedPkgPath)
 
   process.chdir(linkedPkgPath)
-  const globalDir = path.resolve('..', 'global')
-  await linkToGlobal(process.cwd(), Object.assign(testDefaults(), {globalDir}))
+  const globalPrefix = path.resolve('..', 'global')
+  await linkToGlobal(process.cwd(), Object.assign(testDefaults(), {globalPrefix}))
 
   process.chdir(projectPath)
 
-  await linkFromGlobal(linkedPkgName, process.cwd(), Object.assign(testDefaults(), {globalDir}))
+  await linkFromGlobal(linkedPkgName, process.cwd(), Object.assign(testDefaults(), {globalPrefix}))
 
   isExecutable(t, path.resolve('node_modules', '.bin', 'hello-world-js-bin'))
 })

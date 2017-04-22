@@ -2,7 +2,7 @@ import path = require('path')
 import link, {linkFromGlobal, linkToGlobal} from '../api/link'
 import {PnpmOptions} from '../types'
 
-export default (input: string[], opts: PnpmOptions & {globalDir: string}) => {
+export default (input: string[], opts: PnpmOptions & {globalPrefix: string}) => {
   const cwd = opts && opts.prefix || process.cwd()
 
   // pnpm link

@@ -67,7 +67,7 @@ Create a symbolic link from the specified package to the global `node_modules`.
 **Arguments:**
 
 * `linkFrom` - *String* - path to the package that should be linked.
-* `globalDir` - *String* - path to the global directory.
+* `globalPrefix` - *String* - path to the global directory.
 
 ## `pnpm.linkFromGlobal(pkgName, linkTo, options)`
 
@@ -77,7 +77,7 @@ Create a symbolic link from the global `pkgName` to the `linkTo/node_modules` fo
 
 * `pkgName` - *String* - package to link.
 * `linkTo` - *String* - package to link to.
-* `globalDir` - *String* - path to the global directory.
+* `globalPrefix` - *String* - path to the global directory.
 
 ## `pnpm.prune([options])`
 

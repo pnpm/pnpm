@@ -36,20 +36,20 @@ async function linkToModules (linkFrom: string, modules: string) {
 export async function linkFromGlobal (
   pkgName: string,
   linkTo: string,
-  maybeOpts: PnpmOptions & {globalDir: string}
+  maybeOpts: PnpmOptions & {globalPrefix: string}
 ) {
   const opts = extendOptions(maybeOpts)
-  const globalPkgPath = expandTilde(maybeOpts.globalDir)
+  const globalPkgPath = expandTilde(maybeOpts.globalPrefix)
   const linkedPkgPath = path.join(globalPkgPath, 'node_modules', pkgName)
   await link(linkedPkgPath, linkTo, opts)
 }
 
 export async function linkToGlobal (
   linkFrom: string,
-  maybeOpts: PnpmOptions & {globalDir: string}
+  maybeOpts: PnpmOptions & {globalPrefix: string}
 ) {
   const opts = extendOptions(maybeOpts)
   opts.global = true // bins will be linked to the global bin path
-  const globalPkgPath = expandTilde(maybeOpts.globalDir)
+  const globalPkgPath = expandTilde(maybeOpts.globalPrefix)
   await link(linkFrom, globalPkgPath, opts)
 }
