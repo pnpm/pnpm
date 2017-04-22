@@ -1,6 +1,5 @@
-import readPkgUp = require('read-pkg-up')
 import path = require('path')
-import readPkg from '../fs/readPkg'
+import {ignoreCache as readPkg} from '../fs/readPkg'
 import writePkg = require('write-pkg')
 import expandTilde, {isHomepath} from '../fs/expandTilde'
 import {StrictPnpmOptions} from '../types'
@@ -29,8 +28,8 @@ export type PnpmContext = {
 }
 
 export default async function getContext (opts: StrictPnpmOptions, installType?: 'named' | 'general'): Promise<PnpmContext> {
-  const pkg = await (opts.global ? readGlobalPkg(opts.globalPath) : readPkgUp({ cwd: opts.cwd }))
-  const root = normalizePath(pkg.path ? path.dirname(pkg.path) : opts.cwd)
+  const pkg = await (opts.global ? readGlobalPkg(opts.prefix) : readPkg(opts.prefix))
+  const root = normalizePath(opts.prefix)
   const storeBasePath = resolveStoreBasePath(opts.storePath, root)
 
   const storePath = getStorePath(storeBasePath)
@@ -54,7 +53,7 @@ export default async function getContext (opts: StrictPnpmOptions, installType?:
 
   const shrinkwrap = await readShrinkwrap(root, {force: opts.force, registry: opts.registry})
   const ctx: PnpmContext = {
-    pkg: pkg.pkg,
+    pkg,
     root,
     storePath,
     shrinkwrap,
@@ -67,14 +66,8 @@ export default async function getContext (opts: StrictPnpmOptions, installType?:
 }
 
 async function readGlobalPkg (globalPath: string) {
-  if (!globalPath) throw new Error('globalPath is required')
-  const globalPnpm = expandTilde(globalPath)
-  const globalPkgPath = path.resolve(globalPnpm, 'package.json')
-  const globalPkgJson = await readGlobalPkgJson(globalPkgPath)
-  return {
-    pkg: globalPkgJson,
-    path: globalPkgPath
-  }
+  const globalPkgPath = path.resolve(globalPath, 'package.json')
+  return await readGlobalPkgJson(globalPkgPath)
 }
 
 const DefaultGlobalPkg: Package = {
@@ -88,7 +81,6 @@ async function readGlobalPkgJson (globalPkgPath: string) {
     const globalPkgJson = await readPkg(globalPkgPath)
     return globalPkgJson
   } catch (err) {
-    await mkdirp(path.dirname(globalPkgPath))
     await writePkg(globalPkgPath, DefaultGlobalPkg)
     return DefaultGlobalPkg
   }

@@ -63,11 +63,6 @@ declare module 'os-homedir' {
   export = anything;
 }
 
-declare module 'read-pkg-up' {
-  const anything: any;
-  export = anything;
-}
-
 declare module 'registry-auth-token' {
   const anything: any;
   export = anything;
@@ -169,11 +164,6 @@ declare module 'ndjson' {
 }
 
 declare module 'execa' {
-  const anything: any;
-  export = anything;
-}
-
-declare module 'global-bin-path' {
   const anything: any;
   export = anything;
 }

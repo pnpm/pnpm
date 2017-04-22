@@ -4,6 +4,7 @@ import promisifyTape from 'tape-promise'
 const test = promisifyTape(tape)
 import spawn = require('cross-spawn')
 import exists = require('path-exists')
+import mkdirp = require('mkdirp-promise')
 import {
   prepare,
   addDistTag,
@@ -17,6 +18,19 @@ test('return error status code when underlying command fails', t => {
   t.equal(result.status, 1, 'error status code returned')
 
   t.end()
+})
+
+test('installs in the folder where the package.json file is', async function (t) {
+  const project = prepare(t)
+
+  await mkdirp('subdir')
+  process.chdir('subdir')
+
+  await execPnpm('install', 'rimraf@2.5.1')
+
+  const rimraf = project.requireModule('rimraf')
+  t.ok(typeof rimraf === 'function', 'rimraf() is available')
+  await project.isExecutable('.bin/rimraf')
 })
 
 test('update', async function (t) {
