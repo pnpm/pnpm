@@ -39,7 +39,7 @@ export default async function (
     bin: string,
   }
 ): Promise<DependencyTreeNodeMap> {
-  const pkgsToLink = await resolvePeers(R.values(installedPkgs)
+  const pkgsToLinkMap = R.values(installedPkgs)
     .reduce((pkgsToLink, installedPkg) => {
       pkgsToLink[installedPkg.id] = {
         id: installedPkg.id,
@@ -53,7 +53,9 @@ export default async function (
         dependencies: installedPkg.dependencies,
       }
       return pkgsToLink
-    }, {}), topPkgs.filter(pkg => pkg.isInstallable).map(pkg => pkg.id))
+    }, {})
+  const topPkgIds = topPkgs.filter(pkg => pkg.isInstallable).map(pkg => pkg.id)
+  const pkgsToLink = await resolvePeers(pkgsToLinkMap, topPkgIds)
 
   const flatResolvedDeps =  R.values(pkgsToLink).sort((a, b) => a.depth - b.depth)
 

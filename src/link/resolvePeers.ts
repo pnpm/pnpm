@@ -96,12 +96,12 @@ function getNonCircularDependencies (
 
 function resolvePeersOfNode (
   nodeId: string,
-  parentPkgs: {[name: string]: TreeNode},
+  parentPkgs: ParentRefs,
   tree: {[nodeId: string]: TreeNode}
 ): DependencyTreeNodeMap {
   const node = tree[nodeId]
   const newParentPkgs = Object.assign({}, parentPkgs,
-    {[node.pkg.name]: node},
+    {[node.pkg.name]: {version: node.pkg.version, nodeId: node.nodeId}},
     toPkgByName(R.props<TreeNode>(node.children, tree))
   )
 
@@ -132,7 +132,7 @@ function resolvePeersOfNode (
 function resolvePeers (
   peerDependencies: Dependencies,
   pkgId: string,
-  parentPkgs: {[name: string]: TreeNode},
+  parentPkgs: ParentRefs,
 ): string[] {
   return R.toPairs(peerDependencies)
     .map(R.apply((peerName: string, peerVersionRange: string) => {
@@ -143,8 +143,8 @@ function resolvePeers (
         return null
       }
 
-      if (!semver.satisfies(resolved.pkg.version, peerVersionRange)) {
-        logger.warn(`${pkgId} requires a peer of ${peerName}@${peerVersionRange} but version ${resolved.pkg.version} was installed.`)
+      if (!semver.satisfies(resolved.version, peerVersionRange)) {
+        logger.warn(`${pkgId} requires a peer of ${peerName}@${peerVersionRange} but version ${resolved.version} was installed.`)
       }
 
       return resolved && resolved.nodeId
@@ -152,8 +152,20 @@ function resolvePeers (
     .filter(Boolean) as string[]
 }
 
-function toPkgByName(pkgs: TreeNode[]): {[pkgName: string]: TreeNode} {
-  const toNameAndPkg = R.map((node: TreeNode): R.KeyValuePair<string, TreeNode> => [node.pkg.name, node])
+type ParentRefs = {
+  [name: string]: ParentRef
+}
+
+type ParentRef = {
+  version: string,
+  nodeId: string,
+}
+
+function toPkgByName(pkgs: TreeNode[]): ParentRefs {
+  const toNameAndPkg = R.map((node: TreeNode): R.KeyValuePair<string, ParentRef> => [
+    node.pkg.name,
+    {version: node.pkg.version, nodeId: node.nodeId}
+  ])
   return R.fromPairs(toNameAndPkg(pkgs))
 }
 
