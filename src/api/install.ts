@@ -52,20 +52,49 @@ export async function install (maybeOpts?: PnpmOptions) {
   const installCtx = await createInstallCmd(opts, ctx.shrinkwrap)
 
   if (!ctx.pkg) throw new Error('No package.json found')
-  const optionalDeps = ctx.pkg.optionalDependencies || {}
-  const depsToInstall = Object.assign(
-    {},
-    !opts.production && ctx.pkg.devDependencies,
-    optionalDeps,
-    ctx.pkg.dependencies
-  )
-  const specs = depsToSpecs(depsToInstall, opts.prefix)
+
+  const specs = specsToInstallFromPackage(ctx.pkg, {
+    production: opts.production,
+    prefix: opts.prefix,
+  })
+
+  const optionalDeps = R.keys(ctx.pkg.optionalDependencies)
 
   return lock(
     ctx.storePath,
-    () => installInContext(installType, specs, Object.keys(optionalDeps), ctx, installCtx, opts),
+    async () => {
+      const scripts = !opts.ignoreScripts && ctx.pkg && ctx.pkg.scripts || {}
+      if (scripts['preinstall']) {
+        npmRun('preinstall', ctx.root, opts.userAgent)
+      }
+
+      await installInContext(installType, specs, optionalDeps, ctx, installCtx, opts)
+
+      if (scripts['postinstall']) {
+        npmRun('postinstall', ctx.root, opts.userAgent)
+      }
+      if (scripts['prepublish']) {
+        npmRun('prepublish', ctx.root, opts.userAgent)
+      }
+    },
     {stale: opts.lockStaleDuration}
   )
+}
+
+function specsToInstallFromPackage(
+  pkg: Package,
+  opts: {
+    production: boolean,
+    prefix: string,
+  }
+): PackageSpec[] {
+  const depsToInstall = Object.assign(
+    {},
+    !opts.production && pkg.devDependencies,
+    pkg.optionalDependencies,
+    pkg.dependencies
+  )
+  return depsToSpecs(depsToInstall, opts.prefix)
 }
 
 /**
@@ -129,14 +158,6 @@ async function installInContext (
   installCtx: InstallContext,
   opts: StrictPnpmOptions
 ) {
-  if (!opts.ignoreScripts && ctx.pkg && installType === 'general') {
-    const scripts = ctx.pkg && ctx.pkg.scripts || {}
-
-    if (scripts['preinstall']) {
-      npmRun('preinstall', ctx.root, opts.userAgent)
-    }
-  }
-
   const nodeModulesPath = path.join(ctx.root, 'node_modules')
   const client = new RegClient(adaptConfig(opts))
 
@@ -258,16 +279,6 @@ async function installInContext (
           })
         )))
     )
-  }
-  if (!opts.ignoreScripts && ctx.pkg && installType === 'general') {
-    const scripts = ctx.pkg && ctx.pkg.scripts || {}
-
-    if (scripts['postinstall']) {
-      npmRun('postinstall', ctx.root, opts.userAgent)
-    }
-    if (scripts['prepublish']) {
-      npmRun('prepublish', ctx.root, opts.userAgent)
-    }
   }
 }
 
