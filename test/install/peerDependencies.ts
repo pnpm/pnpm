@@ -23,6 +23,16 @@ test('peer dependency is linked', async t => {
   t.ok(await exists(path.join(NM, '.localhost+4873', 'ajv-keywords', '1.5.0', 'ajv@4.10.4', NM, 'ajv')), 'peer dependency is linked')
 })
 
+test('peer dependency is linked on subsequent install', async t => {
+  const project = prepare(t)
+
+  await installPkgs(['ajv@4.10.4'], testDefaults())
+
+  await installPkgs(['ajv-keywords@1.5.0'], testDefaults())
+
+  t.ok(await exists(path.join(NM, '.localhost+4873', 'ajv-keywords', '1.5.0', 'ajv@4.10.4', NM, 'ajv')), 'peer dependency is linked')
+})
+
 test('peer dependencies are linked', async t => {
   const project = prepare(t)
   await installPkgs(['abc-parent-with-ab', 'abc-grand-parent-with-c', 'peer-c@2.0.0'], testDefaults())

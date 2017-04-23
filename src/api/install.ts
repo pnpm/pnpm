@@ -68,7 +68,7 @@ export async function install (maybeOpts?: PnpmOptions) {
         npmRun('preinstall', ctx.root, opts.userAgent)
       }
 
-      await installInContext(installType, specs, optionalDeps, ctx, installCtx, opts)
+      await installInContext(installType, specs, optionalDeps, [], ctx, installCtx, opts)
 
       if (scripts['postinstall']) {
         npmRun('postinstall', ctx.root, opts.userAgent)
@@ -119,9 +119,21 @@ export async function installPkgs (fuzzyDeps: string[] | Dependencies, maybeOpts
     ? packagesToInstall.map(spec => spec.name)
     : []
 
+  const currentSpecs = ctx.pkg ? specsToInstallFromPackage(ctx.pkg, {
+    production: opts.production,
+    prefix: opts.prefix,
+  }) : []
+
   return lock(
     ctx.storePath,
-    () => installInContext(installType, packagesToInstall, optionalDependencies, ctx, installCtx, opts),
+    () => installInContext(
+      installType,
+      R.uniqBy(spec => spec.name, packagesToInstall.concat(currentSpecs)),
+      R.uniq(optionalDependencies.concat(R.keys(ctx.pkg && ctx.pkg.optionalDependencies))),
+      packagesToInstall.map(spec => spec.name),
+      ctx,
+      installCtx,
+      opts),
     {stale: opts.lockStaleDuration}
   )
 }
@@ -154,6 +166,7 @@ async function installInContext (
   installType: string,
   packagesToInstall: PackageSpec[],
   optionalDependencies: string[],
+  newPkgs: string[],
   ctx: PnpmContext,
   installCtx: InstallContext,
   opts: StrictPnpmOptions
@@ -161,12 +174,14 @@ async function installInContext (
   const nodeModulesPath = path.join(ctx.root, 'node_modules')
   const client = new RegClient(adaptConfig(opts))
 
-  const resolvedDependencies: ResolvedDependencies | undefined = installType !== 'general'
-    ? undefined
-    : getResolutions(
-      packagesToInstall,
-      ctx.shrinkwrap.dependencies
-    )
+  const parts = R.partition(spec => newPkgs.indexOf(spec.name) === -1, packagesToInstall)
+  const oldSpecs = parts[0]
+  const newSpecs = parts[1]
+
+  const resolvedDependencies: ResolvedDependencies = getResolutions(
+    oldSpecs,
+    ctx.shrinkwrap.dependencies
+  )
   const installOpts = {
     root: ctx.root,
     storePath: ctx.storePath,
@@ -208,13 +223,14 @@ async function installInContext (
     const saveType = getSaveType(opts)
     newPkg = await save(
       pkgJsonPath,
-      pkgs.map(dep => ({
-        name: dep.pkg.name,
-        saveSpec: getSaveSpec(
-          R.find(spec => spec.raw === dep.specRaw, packagesToInstall),
-          dep,
-          opts.saveExact)
-      })),
+      <any>pkgs.map(dep => { // tslint:disable-line
+        const spec: PackageSpec = R.find(spec => spec.raw === dep.specRaw, newSpecs)
+        if (!spec) return null
+        return {
+          name: dep.pkg.name,
+          saveSpec: getSaveSpec(spec, dep, opts.saveExact)
+        }
+      }).filter(Boolean),
       saveType
     )
   }
