@@ -48,7 +48,8 @@ export type ResolveResult = {
 export type HostedPackageSpec = PackageSpecBase & {
   type: 'git',
   registry: false,
-  hosted: {
+  gitCommittish: string,
+  hosted?: {
     type: string,
     shortcut: string,
     sshUrl: string,

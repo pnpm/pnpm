@@ -17,20 +17,17 @@ const gitLogger = logger('git-logger')
 let tryGitHubApi = true
 
 export default async function resolveGit (parsedSpec: HostedPackageSpec, opts: ResolveOptions): Promise<ResolveResult> {
-  const isGitHubHosted = parsedSpec.type === 'git' && parsedSpec.hosted.type === 'github'
-  const parts = normalizeRepoUrl(parsedSpec).split('#')
-  const repo = parts[0]
-  const ref = parts[1] || 'master'
+  const isGitHubHosted = parsedSpec.type === 'git' && parsedSpec.hosted && parsedSpec.hosted.type === 'github'
 
   if (!isGitHubHosted || isSsh(parsedSpec.rawSpec)) {
-    const commitId = await resolveRef(repo, ref)
+    const commitId = await resolveRef(parsedSpec.fetchSpec, parsedSpec.gitCommittish)
     const resolution: GitRepositoryResolution = {
       type: 'git-repo',
-      repo,
+      repo: parsedSpec.fetchSpec,
       commitId,
     }
     return {
-      id: repo
+      id: parsedSpec.fetchSpec
         .replace(/^.*:\/\/(git@)?/, '')
         .replace(/:/g, '+')
         .replace(/\.git$/, '') + '/' + commitId,
@@ -38,10 +35,13 @@ export default async function resolveGit (parsedSpec: HostedPackageSpec, opts: R
     }
   }
 
+  const parts = normalizeRepoUrl(parsedSpec).split('#')
+  const repo = parts[0]
+
   const ghSpec = {
-    user: parsedSpec.hosted.user,
-    project: parsedSpec.hosted.project,
-    ref: parsedSpec.hosted.committish || 'HEAD',
+    user: parsedSpec.hosted!.user,
+    project: parsedSpec.hosted!.project,
+    ref: parsedSpec.hosted!.committish || 'HEAD',
   }
   let commitId: string
   if (tryGitHubApi) {
@@ -56,10 +56,10 @@ export default async function resolveGit (parsedSpec: HostedPackageSpec, opts: R
       // if it fails once, don't bother retrying for other packages
       tryGitHubApi = false
 
-      commitId = await resolveRef(repo, ref)
+      commitId = await resolveRef(repo, ghSpec.ref)
     }
   } else {
-    commitId = await resolveRef(repo, ref)
+    commitId = await resolveRef(repo, ghSpec.ref)
   }
 
   const resolution: TarballResolution = {
