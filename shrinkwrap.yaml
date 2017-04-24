@@ -67,10 +67,10 @@ dependencies:
   pnpm-install-checks@^1.1.0: 1.1.0
   pnpm-logger@^0.3.0: 0.3.0
   pnpm-registry-mock@^0.5.0: 0.5.0
-  proper-lockfile@^2.0.0: 2.0.0
+  proper-lockfile@^2.0.0: 2.0.1
   ramda@^0.23.0: 0.23.0
   read-pkg@^2.0.0: 2.0.0
-  registry-auth-token@^3.2.0: 3.2.0
+  registry-auth-token@^3.3.0: 3.3.0
   remove-all-except-outer-links@^1.0.0: 1.0.1
   rimraf-then@^1.0.1: 1.0.1
   rimraf@^2.5.4: 2.6.1
@@ -1447,7 +1447,7 @@ packages:
   /package-json/4.0.1:
     dependencies:
       got: 6.7.1
-      registry-auth-token: 3.2.0
+      registry-auth-token: 3.3.0
       registry-url: 3.1.0
       semver: 5.3.0
     resolution: 8869a0401253661c4c4ca3da6c2121ed555f5eed
@@ -1560,11 +1560,11 @@ packages:
   /prepend-http/1.0.4: d4f4562b0ce3696e41ac52d0e002e57a635dc6dc
   /preserve/0.2.0: 815ed1f6ebc65926f865b310c0713bcb3315ce4b
   /process-nextick-args/1.0.7: 150e20b756590ad3f91093f25a4f2ad8bff30ba3
-  /proper-lockfile/2.0.0:
+  /proper-lockfile/2.0.1:
     dependencies:
       graceful-fs: 4.1.11
       retry: 0.10.1
-    resolution: b21f5e79bcbb6b4e23eeeced15cfc7f63e8a2e55
+    resolution: 159fb06193d32003f4b3691dd2ec1a634aa80d1d
   /protocols/1.4.5: 21de1f441c4ef7094408ed9f1c94f7a114b87557
   /proxy-addr/1.1.4:
     dependencies:
@@ -1652,10 +1652,11 @@ packages:
       is-primitive: 2.0.0
     resolution: 9b1a6c35d4d0dfcef5711ae651e8e9d3d7114145
   /regexp-quote/0.0.0: 1e0f4650c862dcbfed54fd42b148e9bb1721fcf2
-  /registry-auth-token/3.2.0:
+  /registry-auth-token/3.3.0:
     dependencies:
       rc: 1.2.1
-    resolution: 5bf3bd4608a2dd9242542c44d66ad8a5f9cdd3b0
+      safe-buffer: 5.0.1
+    resolution: 57ae67347e73d96345ed1bc01294c7237c02aa63
   /registry-url/3.1.0:
     dependencies:
       rc: 1.2.1
