@@ -179,7 +179,7 @@ async function install (
 ) {
   const keypath = options.keypath || []
   const update = keypath.length <= options.depth
-  const registry = spec.scope && options.rawNpmConfig[`${spec.scope}:registry`] || options.registry
+  const registry = normalizeRegistry(spec.scope && options.rawNpmConfig[`${spec.scope}:registry`] || options.registry)
 
   const dependentId = keypath[keypath.length - 1]
   const loggedPkg = {
@@ -251,6 +251,11 @@ async function install (
   logStatus({status: 'dependencies_installed', pkgId: fetchedPkg.id})
 
   return dependency
+}
+
+function normalizeRegistry (registry: string) {
+  if (registry.endsWith('/')) return registry
+  return `${registry}/`
 }
 
 function toShrDependency (
