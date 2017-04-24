@@ -45,7 +45,8 @@ export default (
 
   async function getJSON (url: string) {
     return limit(() => new Promise((resolve, reject) => {
-      client.get(url, createOptions(url), (err: Error, data: Object, raw: Object, res: HttpResponse) => {
+      const getOpts = R.merge(createOptions(url), {fullMetadata: false})
+      client.get(url, getOpts, (err: Error, data: Object, raw: Object, res: HttpResponse) => {
         if (err) return reject(err)
         resolve(data)
       })
