@@ -1,6 +1,7 @@
 import logger from 'pnpm-logger'
 import path = require('path')
 import isInnerLink = require('is-inner-link')
+import rimraf = require('rimraf-then')
 
 export default async function safeIsInnerLink (modules: string, depName: string) {
   try {
@@ -12,6 +13,9 @@ export default async function safeIsInnerLink (modules: string, depName: string)
     return false
   } catch (err) {
     if (err.code === 'ENOENT') return true
-    throw err
+
+    logger.warn(`Removing ${depName} that was installed by a different package manager`)
+    await rimraf(path.join(modules, depName))
+    return true
   }
 }

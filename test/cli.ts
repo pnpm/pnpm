@@ -2,7 +2,7 @@ import path = require('path')
 import tape = require('tape')
 import promisifyTape from 'tape-promise'
 const test = promisifyTape(tape)
-import spawn = require('cross-spawn')
+import execa = require('execa')
 import exists = require('path-exists')
 import mkdirp = require('mkdirp-promise')
 import {
@@ -27,6 +27,18 @@ test('installs in the folder where the package.json file is', async function (t)
   process.chdir('subdir')
 
   await execPnpm('install', 'rimraf@2.5.1')
+
+  const rimraf = project.requireModule('rimraf')
+  t.ok(typeof rimraf === 'function', 'rimraf() is available')
+  await project.isExecutable('.bin/rimraf')
+})
+
+test('rewrites node_modules created by npm', async function (t) {
+  const project = prepare(t)
+
+  await execa('npm', ['install', 'rimraf@2.5.1', '--save'])
+
+  await execPnpm('install')
 
   const rimraf = project.requireModule('rimraf')
   t.ok(typeof rimraf === 'function', 'rimraf() is available')
