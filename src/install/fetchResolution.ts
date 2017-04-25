@@ -27,7 +27,8 @@ export type FetchOptions = {
 
 export type PackageDist = {
   tarball: string,
-  shasum?: string
+  shasum?: string,
+  registry?: string,
 }
 
 export default async function fetchResolution (
@@ -41,6 +42,7 @@ export default async function fetchResolution (
       const dist = {
         tarball: resolution.tarball,
         shasum: resolution.shasum,
+        registry: resolution.registry,
       }
       await fetchFromTarball(target, dist, opts)
       break;
@@ -116,6 +118,7 @@ export async function fetchFromRemoteTarball (dir: string, dist: PackageDist, op
       throw new PnpmError('NO_OFFLINE_TARBALL', `Could not find ${localTarballPath} in local registry mirror ${opts.localRegistry}`)
     }
     await opts.got.download(dist.tarball, localTarballPath, {
+      registry: dist.registry,
       shasum: dist.shasum,
       onStart: () => logStatus({status: 'fetching', pkgId: opts.pkgId}),
       onProgress: (done: number, total: number) =>

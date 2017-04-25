@@ -7,13 +7,11 @@ import mkdirp = require('mkdirp-promise')
 import path = require('path')
 import createWriteStreamAtomic = require('fs-write-stream-atomic')
 
-export type RequestParams = {
-  auth?: {
-    token: string
-  } | {
-    username: string,
-    password: string
-  }
+export type AuthInfo = {
+  token: string
+} | {
+  username: string,
+  password: string,
 }
 
 export type HttpResponse = {
@@ -22,6 +20,7 @@ export type HttpResponse = {
 
 export type Got = {
   download(url: string, saveto: string, opts: {
+    registry?: string,
     onStart?: () => void,
     onProgress?: (downloaded: number, totalSize: number) => void,
     shasum?: string
@@ -45,7 +44,10 @@ export default (
 
   async function getJSON (url: string) {
     return limit(() => new Promise((resolve, reject) => {
-      const getOpts = R.merge(createOptions(url), {fullMetadata: false})
+      const getOpts = {
+        auth: getAuth(url),
+        fullMetadata: false,
+      }
       client.get(url, getOpts, (err: Error, data: Object, raw: Object, res: HttpResponse) => {
         if (err) return reject(err)
         resolve(data)
@@ -54,6 +56,7 @@ export default (
   }
 
   function download (url: string, saveto: string, opts: {
+    registry?: string,
     onStart?: () => void,
     onProgress?: (downloaded: number, totalSize: number) => void,
     shasum?: string
@@ -61,8 +64,10 @@ export default (
     return limit(async () => {
       await mkdirp(path.dirname(saveto))
 
+      const auth = getAuth(url) || opts.registry && getAuth(opts.registry)
+
       return new Promise((resolve, reject) => {
-        client.fetch(url, createOptions(url), async (err: Error, res: IncomingMessage) => {
+        client.fetch(url, {auth}, async (err: Error, res: IncomingMessage) => {
           if (err) return reject(err)
           const writeStream = createWriteStreamAtomic(saveto)
           const actualShasum = crypto.createHash('sha1')
@@ -106,22 +111,19 @@ export default (
     })
   }
 
-  function createOptions (url: string): RequestParams {
+  function getAuth (url: string): AuthInfo | null {
     const authInfo = getRegistryAuthInfo(url, {recursive: true, npmrc: opts.rawNpmConfig})
-    if (!authInfo) return {}
+
+    if (!authInfo) return null
     switch (authInfo.type) {
       case 'Bearer':
         return {
-          auth: {
-            token: authInfo.token
-          }
+          token: authInfo.token
         }
       case 'Basic':
         return {
-          auth: {
-            username: authInfo.username,
-            password: authInfo.password
-          }
+          username: authInfo.username,
+          password: authInfo.password,
         }
       default:
         throw new Error(`Unsupported authorization type '${authInfo.type}'`)

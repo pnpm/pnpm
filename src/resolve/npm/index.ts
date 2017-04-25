@@ -50,6 +50,7 @@ export default async function resolveNpm (spec: PackageSpec, opts: ResolveOption
     const resolution: TarballResolution = {
       shasum: correctPkg.dist.shasum,
       tarball: correctPkg.dist.tarball,
+      registry: opts.registry,
     }
     return {id, resolution, package: correctPkg}
   } catch (err) {
