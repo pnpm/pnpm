@@ -66,7 +66,7 @@ dependencies:
   pnpm-file-reporter@^0.0.1: 0.0.1
   pnpm-install-checks@^1.1.0: 1.1.0
   pnpm-logger@^0.3.0: 0.3.0
-  pnpm-registry-mock@^0.5.0: 0.5.0
+  pnpm-registry-mock@^0.6.0: 0.6.0
   proper-lockfile@^2.0.0: 2.0.1
   ramda@^0.23.0: 0.23.0
   read-pkg@^2.0.0: 2.0.0
@@ -149,7 +149,7 @@ packages:
     resolution: 8655a5d86d0824985cc471a1d913fb6729a0ec48
   /align-text/0.1.4:
     dependencies:
-      kind-of: 3.1.0
+      kind-of: 3.2.0
       longest: 1.0.1
       repeat-string: 1.6.1
     resolution: 0cd90a561093f35d0a99256c22b7069433fad117
@@ -1038,7 +1038,7 @@ packages:
   /is-npm/1.0.0: f2fb63a65e4905b406c86072765a1a4dc793b9f4
   /is-number/2.1.0:
     dependencies:
-      kind-of: 3.1.0
+      kind-of: 3.2.0
     resolution: 01fcbbb393463a548f2f466cce16dece49db908f
   /is-obj/1.0.1: 3e4729ac1f5fde025cd7d83a896dab9f4f67db0f
   /is-plain-obj/1.1.0: 71a50c8429dfca773c92a390a4a03b39fcd51d3e
@@ -1108,10 +1108,10 @@ packages:
       verror: 1.3.6
     resolution: a3b87e40298d8c380552d8cc7628a0bb95a22918
   /keygrip/1.0.1: b02fa4816eef21a8c4b35ca9e52921ffc89a30e9
-  /kind-of/3.1.0:
+  /kind-of/3.2.0:
     dependencies:
       is-buffer: 1.1.5
-    resolution: 475d698a5e49ff5e53d14e3e732429dc8bf4cf47
+    resolution: b58abe4d5c044ad33726a8c1525b48cf891bff07
   /klaw/1.3.1:
     dependencies:
       graceful-fs: 4.1.11
@@ -1225,7 +1225,7 @@ packages:
       filename-regex: 2.0.0
       is-extglob: 1.0.0
       is-glob: 2.0.1
-      kind-of: 3.1.0
+      kind-of: 3.2.0
       normalize-path: 2.1.1
       object.omit: 2.0.1
       parse-glob: 3.0.4
@@ -1551,12 +1551,12 @@ packages:
     dependencies:
       bole: 3.0.2
     resolution: eaecea5a037f053a64c50bda7eda3cb87f5ed661
-  /pnpm-registry-mock/0.5.0:
+  /pnpm-registry-mock/0.6.0:
     dependencies:
       cpr: 2.0.2
       rimraf: 2.6.1
       verdaccio: 2.1.5
-    resolution: 4fa715a76141e7aeb6b6360bf6a31098128d7ddc
+    resolution: 6fabea29d7c59e2b9782dca27005cd9c03a06d1f
   /prepend-http/1.0.4: d4f4562b0ce3696e41ac52d0e002e57a635dc6dc
   /preserve/0.2.0: 815ed1f6ebc65926f865b310c0713bcb3315ce4b
   /process-nextick-args/1.0.7: 150e20b756590ad3f91093f25a4f2ad8bff30ba3
@@ -1593,7 +1593,7 @@ packages:
   /randomatic/1.1.6:
     dependencies:
       is-number: 2.1.0
-      kind-of: 3.1.0
+      kind-of: 3.2.0
     resolution: 110dcabff397e9dcff7c0789ccc0a49adf1ec5bb
   /range-parser/1.2.0: f49be6b487894ddc40dcc94a322f611092e00d5e
   /raw-body/2.2.0:
