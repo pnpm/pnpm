@@ -66,7 +66,7 @@ dependencies:
   pnpm-file-reporter@^0.0.1: 0.0.1
   pnpm-install-checks@^1.1.0: 1.1.0
   pnpm-logger@^0.3.0: 0.3.0
-  pnpm-registry-mock@^0.6.0: 0.6.0
+  pnpm-registry-mock@^0.6.1: 0.6.1
   proper-lockfile@^2.0.0: 2.0.1
   ramda@^0.23.0: 0.23.0
   read-pkg@^2.0.0: 2.0.0
@@ -1551,12 +1551,12 @@ packages:
     dependencies:
       bole: 3.0.2
     resolution: eaecea5a037f053a64c50bda7eda3cb87f5ed661
-  /pnpm-registry-mock/0.6.0:
+  /pnpm-registry-mock/0.6.1:
     dependencies:
       cpr: 2.0.2
       rimraf: 2.6.1
       verdaccio: 2.1.5
-    resolution: 6fabea29d7c59e2b9782dca27005cd9c03a06d1f
+    resolution: babaab1dbadc1662f43c0bab47f549db8c403b23
   /prepend-http/1.0.4: d4f4562b0ce3696e41ac52d0e002e57a635dc6dc
   /preserve/0.2.0: 815ed1f6ebc65926f865b310c0713bcb3315ce4b
   /process-nextick-args/1.0.7: 150e20b756590ad3f91093f25a4f2ad8bff30ba3
