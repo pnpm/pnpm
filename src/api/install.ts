@@ -119,17 +119,12 @@ export async function installPkgs (fuzzyDeps: string[] | Dependencies, maybeOpts
     ? packagesToInstall.map(spec => spec.name)
     : []
 
-  const currentSpecs = ctx.pkg ? specsToInstallFromPackage(ctx.pkg, {
-    production: opts.production,
-    prefix: opts.prefix,
-  }) : []
-
   return lock(
     ctx.storePath,
     () => installInContext(
       installType,
-      R.uniqBy(spec => spec.name, packagesToInstall.concat(currentSpecs)),
-      R.uniq(optionalDependencies.concat(R.keys(ctx.pkg && ctx.pkg.optionalDependencies))),
+      packagesToInstall,
+      optionalDependencies,
       packagesToInstall.map(spec => spec.name),
       ctx,
       installCtx,

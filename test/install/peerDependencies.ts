@@ -16,56 +16,67 @@ test("don't fail when peer dependency is fetched from GitHub", t => {
   return installPkgs(['test-pnpm-peer-deps'], testDefaults())
 })
 
-test('peer dependency is linked', async t => {
+test('peer dependency is grouped with dependency when peer is resolved not from a top dependency', async (t: tape.Test) => {
   const project = prepare(t)
-  await installPkgs(['ajv@4.10.4', 'ajv-keywords@1.5.0'], testDefaults())
+  await installPkgs(['using-ajv'], testDefaults())
 
   t.ok(await exists(path.join(NM, '.localhost+4873', 'ajv-keywords', '1.5.0', 'ajv@4.10.4', NM, 'ajv')), 'peer dependency is linked')
 })
 
-test('peer dependency is linked on subsequent install', async t => {
+test('peer dependency is not grouped with dependent when the peer is a top dependency', async (t: tape.Test) => {
+  const project = prepare(t)
+  await installPkgs(['ajv@4.10.4', 'ajv-keywords@1.5.0'], testDefaults())
+
+  t.ok(await exists(path.join(NM, '.localhost+4873', 'ajv-keywords', '1.5.0', NM, 'ajv-keywords')), 'dependent is at the normal location')
+})
+
+test('top peer dependency is not linked on subsequent install', async (t: tape.Test) => {
   const project = prepare(t)
 
   await installPkgs(['ajv@4.10.4'], testDefaults())
 
   await installPkgs(['ajv-keywords@1.5.0'], testDefaults())
 
-  t.ok(await exists(path.join(NM, '.localhost+4873', 'ajv-keywords', '1.5.0', 'ajv@4.10.4', NM, 'ajv')), 'peer dependency is linked')
+  t.ok(await exists(path.join(NM, '.localhost+4873', 'ajv-keywords', '1.5.0', NM, 'ajv-keywords')), 'dependent is at the normal location')
+  t.ok(!await exists(path.join(NM, '.localhost+4873', 'ajv-keywords', '1.5.0', 'ajv@4.10.4', NM, 'ajv')), 'peer dependency is not linked')
 })
 
-test('peer dependencies are linked', async t => {
+async function okFile (t: tape.Test, filename: string) {
+  t.ok(await exists(filename), `exists ${filename}`)
+}
+
+test('peer dependencies are linked', async (t: tape.Test) => {
   const project = prepare(t)
   await installPkgs(['abc-parent-with-ab', 'abc-grand-parent-with-c', 'peer-c@2.0.0'], testDefaults())
 
   const pkgVariationsDir = path.join(NM, '.localhost+4873', 'abc', '1.0.0')
-  t.ok(await exists(path.join(pkgVariationsDir, NM, 'dep-of-pkg-with-1-dep')))
+  await okFile(t, path.join(pkgVariationsDir, NM, 'dep-of-pkg-with-1-dep'))
 
   const pkgVariation1 = path.join(pkgVariationsDir, 'peer-a@1.0.0+peer-b@1.0.0+peer-c@1.0.0', NM)
-  t.ok(await exists(path.join(pkgVariation1, 'abc')))
-  t.ok(await exists(path.join(pkgVariation1, 'peer-a')))
-  t.ok(await exists(path.join(pkgVariation1, 'peer-b')))
-  t.ok(await exists(path.join(pkgVariation1, 'peer-c')))
+  await okFile(t, path.join(pkgVariation1, 'abc'))
+  await okFile(t, path.join(pkgVariation1, 'peer-a'))
+  await okFile(t, path.join(pkgVariation1, 'peer-b'))
+  await okFile(t, path.join(pkgVariation1, 'peer-c'))
 
-  const pkgVariation2 = path.join(pkgVariationsDir, 'peer-a@1.0.0+peer-b@1.0.0+peer-c@2.0.0', NM)
-  t.ok(await exists(path.join(pkgVariation2, 'abc')))
-  t.ok(await exists(path.join(pkgVariation2, 'peer-a')))
-  t.ok(await exists(path.join(pkgVariation2, 'peer-b')))
-  t.ok(await exists(path.join(pkgVariation2, 'peer-c')))
+  const pkgVariation2 = path.join(pkgVariationsDir, 'peer-a@1.0.0+peer-b@1.0.0', NM)
+  await okFile(t, path.join(pkgVariation2, 'abc'))
+  await okFile(t, path.join(pkgVariation2, 'peer-a'))
+  await okFile(t, path.join(pkgVariation2, 'peer-b'))
 })
 
-test('scoped peer dependency is linked', async t => {
+test('scoped peer dependency is linked', async (t: tape.Test) => {
   const project = prepare(t)
-  await installPkgs(['@having/scoped-peer', '@scoped/peer'], testDefaults())
+  await installPkgs(['for-testing-scoped-peers'], testDefaults())
 
   const pkgVariation = path.join(NM, '.localhost+4873', '@having', 'scoped-peer', '1.0.0', '@scoped!peer@1.0.0', NM)
-  t.ok(await exists(path.join(pkgVariation, '@having', 'scoped-peer')))
-  t.ok(await exists(path.join(pkgVariation, '@scoped', 'peer')))
+  await okFile(t, path.join(pkgVariation, '@having', 'scoped-peer'))
+  await okFile(t, path.join(pkgVariation, '@scoped', 'peer'))
 })
 
-test('peer bins are linked', async t => {
+test('peer bins are linked', async (t: tape.Test) => {
   const project = prepare(t)
 
-  await installPkgs(['pkg-with-peer-having-bin', 'peer-with-bin'], testDefaults())
+  await installPkgs(['for-testing-peers-having-bins'], testDefaults())
 
   const pkgVariation = path.join('.localhost+4873', 'pkg-with-peer-having-bin', '1.0.0', 'peer-with-bin@1.0.0', NM)
 
@@ -74,20 +85,20 @@ test('peer bins are linked', async t => {
   await project.isExecutable(path.join(pkgVariation, 'pkg-with-peer-having-bin', NM, '.bin', 'hello-world-js-bin'))
 })
 
-test('run pre/postinstall scripts of each variations of packages with peer dependencies', async t => {
+test('run pre/postinstall scripts of each variations of packages with peer dependencies', async (t: tape.Test) => {
   const project = prepare(t)
   await installPkgs(['parent-of-pkg-with-events-and-peers', 'pkg-with-events-and-peers', 'peer-c@2.0.0'], testDefaults())
 
   const pkgVariation1 = path.join(NM, '.localhost+4873', 'pkg-with-events-and-peers', '1.0.0', 'peer-c@1.0.0', NM)
-  t.ok(await exists(path.join(pkgVariation1, 'pkg-with-events-and-peers', 'generated-by-preinstall.js')))
-  t.ok(await exists(path.join(pkgVariation1, 'pkg-with-events-and-peers', 'generated-by-postinstall.js')))
+  await okFile(t, path.join(pkgVariation1, 'pkg-with-events-and-peers', 'generated-by-preinstall.js'))
+  await okFile(t, path.join(pkgVariation1, 'pkg-with-events-and-peers', 'generated-by-postinstall.js'))
 
-  const pkgVariation2 = path.join(NM, '.localhost+4873', 'pkg-with-events-and-peers', '1.0.0', 'peer-c@2.0.0', NM)
-  t.ok(await exists(path.join(pkgVariation2, 'pkg-with-events-and-peers', 'generated-by-preinstall.js')))
-  t.ok(await exists(path.join(pkgVariation2, 'pkg-with-events-and-peers', 'generated-by-postinstall.js')))
+  const pkgVariation2 = path.join(NM, '.localhost+4873', 'pkg-with-events-and-peers', '1.0.0', NM)
+  await okFile(t, path.join(pkgVariation2, 'pkg-with-events-and-peers', 'generated-by-preinstall.js'))
+  await okFile(t, path.join(pkgVariation2, 'pkg-with-events-and-peers', 'generated-by-postinstall.js'))
 })
 
-test('package that resolves its own peer dependency', async t => {
+test('package that resolves its own peer dependency', async (t: tape.Test) => {
   const project = prepare(t)
   await installPkgs(['pkg-with-resolved-peer', 'peer-c@2.0.0'], testDefaults())
 

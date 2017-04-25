@@ -147,6 +147,11 @@ function resolvePeers (
         logger.warn(`${pkgId} requires a peer of ${peerName}@${peerVersionRange} but version ${resolved.version} was installed.`)
       }
 
+      if (resolved.depth === 0) {
+        // if the resolved package is a top dependency then there is no need to link it in
+        return null
+      }
+
       return resolved && resolved.nodeId
     }))
     .filter(Boolean) as string[]
@@ -159,12 +164,17 @@ type ParentRefs = {
 type ParentRef = {
   version: string,
   nodeId: string,
+  depth: number,
 }
 
 function toPkgByName(pkgs: TreeNode[]): ParentRefs {
   const toNameAndPkg = R.map((node: TreeNode): R.KeyValuePair<string, ParentRef> => [
     node.pkg.name,
-    {version: node.pkg.version, nodeId: node.nodeId}
+    {
+      version: node.pkg.version,
+      nodeId: node.nodeId,
+      depth: node.depth,
+    }
   ])
   return R.fromPairs(toNameAndPkg(pkgs))
 }
