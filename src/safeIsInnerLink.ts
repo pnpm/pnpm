@@ -1,7 +1,8 @@
 import logger from 'pnpm-logger'
 import path = require('path')
 import isInnerLink = require('is-inner-link')
-import rimraf = require('rimraf-then')
+import fs = require('mz/fs')
+import mkdirp = require('mkdirp-promise')
 
 export default async function safeIsInnerLink (modules: string, depName: string) {
   try {
@@ -14,8 +15,12 @@ export default async function safeIsInnerLink (modules: string, depName: string)
   } catch (err) {
     if (err.code === 'ENOENT') return true
 
-    logger.warn(`Removing ${depName} that was installed by a different package manager`)
-    await rimraf(path.join(modules, depName))
+    logger.warn(`Moving ${depName} that was installed by a different package manager to "node_modules/.ignored`)
+    const ignoredDir = path.join(modules, '.ignored')
+    await mkdirp(ignoredDir)
+    await fs.rename(
+      path.join(modules, depName),
+      path.join(ignoredDir, depName))
     return true
   }
 }
