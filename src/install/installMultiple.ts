@@ -59,6 +59,7 @@ export default async function installAll (
     isInstallable?: boolean,
     rawNpmConfig: Object,
     nodeModules: string,
+    update: boolean,
   }
 ): Promise<InstalledPackage[]> {
   const keypath = options.keypath || []
@@ -96,6 +97,7 @@ async function installMultiple (
     isInstallable?: boolean,
     rawNpmConfig: Object,
     nodeModules: string,
+    update: boolean,
   }
 ): Promise<InstalledPackage[]> {
   const installedPkgs: InstalledPackage[] = <InstalledPackage[]>(
@@ -179,12 +181,13 @@ async function install (
     isInstallable?: boolean,
     rawNpmConfig: Object,
     nodeModules: string,
+    update: boolean,
   }
 ) {
   const keypath = options.keypath || []
-  const update = keypath.length <= options.depth
+  const proceed = keypath.length <= options.depth
 
-  if (!update && options.pkgId && await exists(path.join(options.nodeModules, `.${options.pkgId}`))) {
+  if (!proceed && options.pkgId && await exists(path.join(options.nodeModules, `.${options.pkgId}`))) {
     return null
   }
 
@@ -203,7 +206,7 @@ async function install (
 
   const fetchedPkg = await fetch(spec, {
     loggedPkg,
-    update,
+    update: options.update,
     fetchingLocker: ctx.fetchingLocker,
     registry,
     root: options.root,
@@ -349,6 +352,7 @@ async function installDependencies (
     isInstallable?: boolean,
     rawNpmConfig: Object,
     nodeModules: string,
+    update: boolean,
   }
 ): Promise<InstalledPackage[]> {
   const depsInstallOpts = Object.assign({}, opts, {

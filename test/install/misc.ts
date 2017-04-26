@@ -590,7 +590,7 @@ test('should update subdep on second install', async function (t) {
 
   await addDistTag('dep-of-pkg-with-1-dep', '100.1.0', 'latest')
 
-  await install(testDefaults({depth: 1}))
+  await install(testDefaults({depth: 1, update: true}))
 
   await project.storeHas('dep-of-pkg-with-1-dep', '100.1.0')
 

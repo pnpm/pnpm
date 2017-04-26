@@ -23,7 +23,7 @@ const defaults = (opts: PnpmOptions) => {
     prefix,
     nodeVersion: process.version,
     force: false,
-    depth: -1, // respect everything that is in shrinkwrap.yaml by default
+    depth: 0,
     engineStrict: false,
     metaCache: new Map(),
     networkConcurrency: 16,
@@ -35,6 +35,7 @@ const defaults = (opts: PnpmOptions) => {
     userAgent: `${pnpmPkgJson.name}/${pnpmPkgJson.version} npm/? node/${process.version} ${process.platform} ${process.arch}`,
     rawNpmConfig: {},
     alwaysAuth: false,
+    update: false,
   }
 }
 
