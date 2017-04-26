@@ -14,9 +14,9 @@ test('from a github repo', async function (t) {
   const project = prepare(t)
   await installPkgs(['kevva/is-negative'], testDefaults())
 
-  const localPkg = project.requireModule('is-negative')
+  const m = project.requireModule('is-negative')
 
-  t.ok(localPkg, 'isNegative() is available')
+  t.ok(m, 'isNegative() is available')
 
   const pkgJson = await readPkg()
   t.deepEqual(pkgJson.dependencies, {'is-negative': 'github:kevva/is-negative'}, 'has been added to dependencies in package.json')
@@ -30,9 +30,9 @@ test('from a git repo', async function (t) {
   const project = prepare(t)
   await installPkgs(['git+ssh://git@github.com/kevva/is-negative.git'], testDefaults())
 
-  const localPkg = project.requireModule('is-negative')
+  const m = project.requireModule('is-negative')
 
-  t.ok(localPkg, 'isNegative() is available')
+  t.ok(m, 'isNegative() is available')
 })
 
 test('from a non-github git repo', async function (t) {
@@ -40,7 +40,7 @@ test('from a non-github git repo', async function (t) {
 
   await installPkgs(['git+http://ikt.pm2.io/ikt.git#master'], testDefaults())
 
-  const localPkg = project.requireModule('ikt')
+  const m = project.requireModule('ikt')
 
-  t.ok(localPkg, 'ikt is available')
+  t.ok(m, 'ikt is available')
 })

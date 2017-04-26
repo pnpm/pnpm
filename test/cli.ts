@@ -28,8 +28,8 @@ test('installs in the folder where the package.json file is', async function (t)
 
   await execPnpm('install', 'rimraf@2.5.1')
 
-  const rimraf = project.requireModule('rimraf')
-  t.ok(typeof rimraf === 'function', 'rimraf() is available')
+  const m = project.requireModule('rimraf')
+  t.ok(typeof m === 'function', 'rimraf() is available')
   await project.isExecutable('.bin/rimraf')
 })
 
@@ -40,8 +40,8 @@ test('rewrites node_modules created by npm', async function (t) {
 
   await execPnpm('install')
 
-  const rimraf = project.requireModule('rimraf')
-  t.ok(typeof rimraf === 'function', 'rimraf() is available')
+  const m = project.requireModule('rimraf')
+  t.ok(typeof m === 'function', 'rimraf() is available')
   await project.isExecutable('.bin/rimraf')
 })
 
@@ -67,8 +67,8 @@ test('installation via the CLI', async function (t) {
 
   t.equal(result.status, 0, 'install successful')
 
-  const rimraf = project.requireModule('rimraf')
-  t.ok(typeof rimraf === 'function', 'rimraf() is available')
+  const m = project.requireModule('rimraf')
+  t.ok(typeof m === 'function', 'rimraf() is available')
 
   await project.isExecutable('.bin/rimraf')
 })

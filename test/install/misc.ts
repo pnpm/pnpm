@@ -36,8 +36,8 @@ test('small with dependencies (rimraf)', async function (t) {
   const project = prepare(t)
   await installPkgs(['rimraf@2.5.1'], testDefaults())
 
-  const rimraf = project.requireModule('rimraf')
-  t.ok(typeof rimraf === 'function', 'rimraf() is available')
+  const m = project.requireModule('rimraf')
+  t.ok(typeof m === 'function', 'rimraf() is available')
   await project.isExecutable('.bin/rimraf')
 })
 
@@ -45,17 +45,17 @@ test('no dependencies (lodash)', async function (t) {
   const project = prepare(t)
   await installPkgs(['lodash@4.0.0'], testDefaults())
 
-  const _ = project.requireModule('lodash')
-  t.ok(typeof _ === 'function', '_ is available')
-  t.ok(typeof _.clone === 'function', '_.clone is available')
+  const m = project.requireModule('lodash')
+  t.ok(typeof m === 'function', '_ is available')
+  t.ok(typeof m.clone === 'function', '_.clone is available')
 })
 
 test('scoped modules without version spec (@rstacruz/tap-spec)', async function (t) {
   const project = prepare(t)
   await installPkgs(['@rstacruz/tap-spec'], testDefaults())
 
-  const _ = project.requireModule('@rstacruz/tap-spec')
-  t.ok(typeof _ === 'function', 'tap-spec is available')
+  const m = project.requireModule('@rstacruz/tap-spec')
+  t.ok(typeof m === 'function', 'tap-spec is available')
 })
 
 test('scoped package with custom registry', async function (t) {
@@ -69,8 +69,8 @@ test('scoped package with custom registry', async function (t) {
     },
   }))
 
-  const pkg = project.requireModule('@scoped/peer/package.json')
-  t.ok(pkg, 'is available')
+  const m = project.requireModule('@scoped/peer/package.json')
+  t.ok(m, 'is available')
 })
 
 test('modules without version spec, with custom tag config', async function (t) {
@@ -99,44 +99,41 @@ test('scoped modules with versions (@rstacruz/tap-spec@4.1.1)', async function (
   const project = prepare(t)
   await installPkgs(['@rstacruz/tap-spec@4.1.1'], testDefaults())
 
-  const _ = project.requireModule('@rstacruz/tap-spec')
-  t.ok(typeof _ === 'function', 'tap-spec is available')
+  const m = project.requireModule('@rstacruz/tap-spec')
+  t.ok(typeof m === 'function', 'tap-spec is available')
 })
 
 test('scoped modules (@rstacruz/tap-spec@*)', async function (t) {
   const project = prepare(t)
   await installPkgs(['@rstacruz/tap-spec@*'], testDefaults())
 
-  const _ = project.requireModule('@rstacruz/tap-spec')
-  t.ok(typeof _ === 'function', 'tap-spec is available')
+  const m = project.requireModule('@rstacruz/tap-spec')
+  t.ok(typeof m === 'function', 'tap-spec is available')
 })
 
 test('multiple scoped modules (@rstacruz/...)', async function (t) {
   const project = prepare(t)
   await installPkgs(['@rstacruz/tap-spec@*', '@rstacruz/travis-encrypt@*'], testDefaults())
 
-  const tapSpec = project.requireModule('@rstacruz/tap-spec')
-  t.ok(typeof tapSpec === 'function', 'tap-spec is available')
-
-  const travisEncrypt = project.requireModule('@rstacruz/travis-encrypt')
-  t.ok(typeof travisEncrypt === 'function', 'travis-encrypt is available')
+  t.equal(typeof project.requireModule('@rstacruz/tap-spec'), 'function', 'tap-spec is available')
+  t.equal(typeof project.requireModule('@rstacruz/travis-encrypt'), 'function', 'travis-encrypt is available')
 })
 
 test('nested scoped modules (test-pnpm-issue219 -> @zkochan/test-pnpm-issue219)', async function (t) {
   const project = prepare(t)
   await installPkgs(['test-pnpm-issue219@1.0.2'], testDefaults())
 
-  const _ = project.requireModule('test-pnpm-issue219')
-  t.ok(_ === 'test-pnpm-issue219,@zkochan/test-pnpm-issue219', 'nested scoped package is available')
+  const m = project.requireModule('test-pnpm-issue219')
+  t.ok(m === 'test-pnpm-issue219,@zkochan/test-pnpm-issue219', 'nested scoped package is available')
 })
 
 test('scoped modules from a directory', async function (t) {
   const project = prepare(t)
   await installPkgs([local('local-scoped-pkg')], testDefaults())
 
-  const localPkg = project.requireModule('@scope/local-scoped-pkg')
+  const m = project.requireModule('@scope/local-scoped-pkg')
 
-  t.equal(localPkg(), '@scope/local-scoped-pkg', 'localScopedPkg() is available')
+  t.equal(m(), '@scope/local-scoped-pkg', 'localScopedPkg() is available')
 })
 
 test('idempotency (rimraf)', async function (t) {
@@ -144,8 +141,8 @@ test('idempotency (rimraf)', async function (t) {
   await installPkgs(['rimraf@2.5.1'], testDefaults())
   await installPkgs(['rimraf@2.5.1'], testDefaults())
 
-  const rimraf = project.requireModule('rimraf')
-  t.ok(typeof rimraf === 'function', 'rimraf is available')
+  const m = project.requireModule('rimraf')
+  t.ok(typeof m === 'function', 'rimraf is available')
 })
 
 test('overwriting (magic-hook@2.0.0 and @0.1.0)', async function (t) {
@@ -158,8 +155,8 @@ test('overwriting (magic-hook@2.0.0 and @0.1.0)', async function (t) {
 
   await project.storeHasNot('flatten', '1.0.2')
 
-  const _ = project.requireModule('magic-hook/package.json')
-  t.ok(_.version === '0.1.0', 'magic-hook is 0.1.0')
+  const m = project.requireModule('magic-hook/package.json')
+  t.ok(m.version === '0.1.0', 'magic-hook is 0.1.0')
 })
 
 test('overwriting (is-positive@3.0.0 with is-positive@latest)', async function (t) {
@@ -242,9 +239,9 @@ test('circular deps', async function (t) {
   const project = prepare(t)
   await installPkgs(['circular-deps-1-of-2'], testDefaults())
 
-  const dep = project.requireModule('circular-deps-1-of-2/mirror')
+  const m = project.requireModule('circular-deps-1-of-2/mirror')
 
-  t.equal(dep(), 'circular-deps-1-of-2', 'circular dependencies can access each other')
+  t.equal(m(), 'circular-deps-1-of-2', 'circular dependencies can access each other')
 
   t.ok(!await exists(path.join('node_modules', 'circular-deps-1-of-2', 'node_modules', 'circular-deps-2-of-2', 'node_modules', 'circular-deps-1-of-2')), 'circular dependency is avoided')
 })
@@ -253,9 +250,9 @@ test('concurrent circular deps', async function (t) {
   const project = prepare(t)
   await installPkgs(['es6-iterator@2.0.0'], testDefaults())
 
-  const dep = project.requireModule('es6-iterator')
+  const m = project.requireModule('es6-iterator')
 
-  t.ok(dep, 'es6-iterator is installed')
+  t.ok(m, 'es6-iterator is installed')
   t.ok(await exists(path.join('node_modules', '.localhost+4873', 'es6-iterator', '2.0.0', 'node_modules', 'es5-ext')))
   t.ok(await exists(path.join('node_modules', '.localhost+4873', 'es6-iterator', '2.0.1', 'node_modules', 'es5-ext')))
 })
@@ -267,17 +264,17 @@ test('concurrent installation of the same packages', async function (t) {
   // of babek-core
   await installPkgs(['babel-core@6.21.0'], testDefaults())
 
-  const dep = project.requireModule('babel-core')
+  const m = project.requireModule('babel-core')
 
-  t.ok(dep, 'babel-core is installed')
+  t.ok(m, 'babel-core is installed')
 })
 
 test('big with dependencies and circular deps (babel-preset-2015)', async function (t) {
   const project = prepare(t)
   await installPkgs(['babel-preset-es2015@6.3.13'], testDefaults())
 
-  const b = project.requireModule('babel-preset-es2015')
-  t.ok(typeof b === 'object', 'babel-preset-es2015 is available')
+  const m = project.requireModule('babel-preset-es2015')
+  t.ok(typeof m === 'object', 'babel-preset-es2015 is available')
 })
 
 test('bundleDependencies (pkg-with-bundled-dependencies@1.0.0)', async function (t) {
@@ -297,37 +294,37 @@ test('compiled modules (ursa@0.9.1)', async function (t) {
   const project = prepare(t)
   await installPkgs(['ursa@0.9.1'], testDefaults())
 
-  const ursa = project.requireModule('ursa')
-  t.ok(typeof ursa === 'object', 'ursa() is available')
+  const m = project.requireModule('ursa')
+  t.ok(typeof m === 'object', 'ursa() is available')
 })
 
 test('local file', async function (t) {
   const project = prepare(t)
   await installPkgs([local('local-pkg')], testDefaults())
 
-  const localPkg = project.requireModule('local-pkg')
+  const m = project.requireModule('local-pkg')
 
-  t.ok(localPkg, 'localPkg() is available')
+  t.ok(m, 'localPkg() is available')
 })
 
 test('package with a broken symlink', async function (t) {
   const project = prepare(t)
   await installPkgs([pathToLocalPkg('has-broken-symlink/has-broken-symlink.tar.gz')], testDefaults())
 
-  const pkg = project.requireModule('has-broken-symlink')
+  const m = project.requireModule('has-broken-symlink')
 
-  t.ok(pkg, 'has-broken-symlink is available')
+  t.ok(m, 'has-broken-symlink is available')
 })
 
 test('nested local dependency of a local dependency', async function (t) {
   const project = prepare(t)
   await installPkgs([local('pkg-with-local-dep')], testDefaults())
 
-  const pkgWithLocalDep = project.requireModule('pkg-with-local-dep')
+  const m = project.requireModule('pkg-with-local-dep')
 
-  t.ok(pkgWithLocalDep, 'pkgWithLocalDep() is available')
+  t.ok(m, 'pkgWithLocalDep() is available')
 
-  t.equal(pkgWithLocalDep(), 'local-pkg', 'pkgWithLocalDep() returns data from local-pkg')
+  t.equal(m(), 'local-pkg', 'pkgWithLocalDep() returns data from local-pkg')
 })
 
 test('shrinkwrap compatibility', async function (t) {
@@ -358,8 +355,8 @@ test('save to package.json (rimraf@2.5.1)', async function (t) {
   const project = prepare(t)
   await installPkgs(['rimraf@2.5.1'], testDefaults({ save: true }))
 
-  const rimraf = project.requireModule('rimraf')
-  t.ok(typeof rimraf === 'function', 'rimraf() is available')
+  const m = project.requireModule('rimraf')
+  t.ok(typeof m === 'function', 'rimraf() is available')
 
   const pkgJson = await readPkg()
   t.deepEqual(pkgJson.dependencies, {rimraf: '^2.5.1'}, 'rimraf has been added to dependencies')
@@ -369,8 +366,8 @@ test('saveDev scoped module to package.json (@rstacruz/tap-spec)', async functio
   const project = prepare(t)
   await installPkgs(['@rstacruz/tap-spec'], testDefaults({ saveDev: true }))
 
-  const tapSpec = project.requireModule('@rstacruz/tap-spec')
-  t.ok(typeof tapSpec === 'function', 'tapSpec() is available')
+  const m = project.requireModule('@rstacruz/tap-spec')
+  t.ok(typeof m === 'function', 'tapSpec() is available')
 
   const pkgJson = await readPkg()
   t.deepEqual(pkgJson.devDependencies, { '@rstacruz/tap-spec': '^4.1.1' }, 'tap-spec has been added to devDependencies')
@@ -380,11 +377,11 @@ test('multiple save to package.json with `exact` versions (@rstacruz/tap-spec & 
   const project = prepare(t)
   await installPkgs(['rimraf@2.5.1', '@rstacruz/tap-spec@latest'], testDefaults({ save: true, saveExact: true }))
 
-  const tapSpec = project.requireModule('@rstacruz/tap-spec')
-  t.ok(typeof tapSpec === 'function', 'tapSpec() is available')
+  const m1 = project.requireModule('@rstacruz/tap-spec')
+  t.ok(typeof m1 === 'function', 'tapSpec() is available')
 
-  const rimraf = project.requireModule('rimraf')
-  t.ok(typeof rimraf === 'function', 'rimraf() is available')
+  const m2 = project.requireModule('rimraf')
+  t.ok(typeof m2 === 'function', 'rimraf() is available')
 
   const pkgJson = await readPkg()
   const expectedDeps = {
@@ -548,9 +545,9 @@ test('tarball local package', async function (t) {
   const project = prepare(t)
   await installPkgs([pathToLocalPkg('tar-pkg/tar-pkg-1.0.0.tgz')], testDefaults())
 
-  const localPkg = project.requireModule('tar-pkg')
+  const m = project.requireModule('tar-pkg')
 
-  t.equal(localPkg(), 'tar-pkg', 'tarPkg() is available')
+  t.equal(m(), 'tar-pkg', 'tarPkg() is available')
 
   const pkgJson = await readPkg()
   t.deepEqual(pkgJson.dependencies,
@@ -648,9 +645,9 @@ test('shrinkwrap locks npm dependencies', async function (t) {
 
   await install(testDefaults({}))
 
-  const pkg = project.requireModule('.localhost+4873/pkg-with-1-dep/100.0.0/node_modules/dep-of-pkg-with-1-dep/package.json')
+  const m = project.requireModule('.localhost+4873/pkg-with-1-dep/100.0.0/node_modules/dep-of-pkg-with-1-dep/package.json')
 
-  t.equal(pkg.version, '100.0.0', 'dependency specified in shrinkwrap.yaml is installed')
+  t.equal(m.version, '100.0.0', 'dependency specified in shrinkwrap.yaml is installed')
 })
 
 test('self-require should work', async function (t) {

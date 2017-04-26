@@ -22,8 +22,8 @@ test('skip failing optional dependencies', async function (t) {
   const project = prepare(t)
   await installPkgs(['pkg-with-failing-optional-dependency@1.0.1'], testDefaults())
 
-  const isNegative = project.requireModule('pkg-with-failing-optional-dependency')
-  t.ok(isNegative(-1), 'package with failed optional dependency has the dependencies installed correctly')
+  const m = project.requireModule('pkg-with-failing-optional-dependency')
+  t.ok(m(-1), 'package with failed optional dependency has the dependencies installed correctly')
 })
 
 test('skip optional dependency that does not support the current OS', async function (t) {
