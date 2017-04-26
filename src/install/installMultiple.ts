@@ -240,9 +240,9 @@ async function install (
     ctx.shrinkwrap.packages[shortId] = toShrDependency({
       shortId,
       resolution: fetchedPkg.resolution,
-      dependencies,
+      updatedDeps: dependencies,
       registry: ctx.shrinkwrap.registry,
-      prevDependencies: ctx.shrinkwrap.packages[shortId] && ctx.shrinkwrap.packages[shortId]['dependencies'] || {},
+      prevResolvedDeps: ctx.shrinkwrap.packages[shortId] && ctx.shrinkwrap.packages[shortId]['dependencies'] || {},
     })
     dependencyIds = dependencies.filter(dep => dep.isInstallable).map(dep => dep.id)
   }
@@ -280,17 +280,17 @@ function toShrDependency (
   opts: {
     shortId: string,
     resolution: Resolution,
-    dependencies: InstalledPackage[],
     registry: string,
-    prevDependencies: ResolvedDependencies,
+    updatedDeps: InstalledPackage[],
+    prevResolvedDeps: ResolvedDependencies,
   }
 ): DependencyShrinkwrap {
   const shrResolution = toShrResolution(opts.shortId, opts.resolution)
-  const newDeps = updateDependencies(opts.dependencies, opts.prevDependencies, opts.registry)
-  if (!R.isEmpty(newDeps)) {
+  const newResolvedDeps = updateResolvedDeps(opts.prevResolvedDeps, opts.updatedDeps, opts.registry)
+  if (!R.isEmpty(newResolvedDeps)) {
     return {
       resolution: shrResolution,
-      dependencies: newDeps,
+      dependencies: newResolvedDeps,
     }
   }
   if (typeof shrResolution === 'string') return shrResolution
@@ -299,27 +299,23 @@ function toShrDependency (
   }
 }
 
-function updateDependencies (
-  deps: InstalledPackage[],
-  prevDependencies: ResolvedDependencies,
+// previous resolutions should not be removed from shrinkwrap
+// as installation might not reanalize the whole dependency tree
+// the `depth` property defines how deep should dependencies be checked
+function updateResolvedDeps (
+  prevResolvedDeps: ResolvedDependencies,
+  updatedDeps: InstalledPackage[],
   registry: string
 ) {
-  if (R.isEmpty(prevDependencies)) {
-    return R.fromPairs<string>(
-      deps.map((newDep): R.KeyValuePair<string, string> => {
-        return [newDep.pkg.name, pkgIdToRef(newDep.id, newDep.pkg.version, newDep.resolution, registry)]
-      })
-    )
-  }
-  return R.fromPairs<string>(
-    R.keys(prevDependencies)
-      .map((depName): R.KeyValuePair<string, string> => {
-        const newDep = deps.find(dep => dep.pkg.name === depName)
-        if (newDep) {
-          return [depName, pkgIdToRef(newDep.id, newDep.pkg.version, newDep.resolution, registry)]
-        }
-        return [depName, prevDependencies[depName]]
-      })
+  const newResolvedDeps = R.fromPairs<string>(
+    updatedDeps.map((dep): R.KeyValuePair<string, string> => [
+      dep.pkg.name,
+      pkgIdToRef(dep.id, dep.pkg.version, dep.resolution, registry)
+    ])
+  )
+  return R.merge(
+    prevResolvedDeps,
+    newResolvedDeps
   )
 }
 
