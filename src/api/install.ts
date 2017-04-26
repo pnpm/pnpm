@@ -6,6 +6,7 @@ import npa = require('npm-package-arg')
 import pFilter = require('p-filter')
 import R = require('ramda')
 import safeIsInnerLink from '../safeIsInnerLink'
+import safeReadPkg from '../fs/safeReadPkg'
 import {PnpmOptions, StrictPnpmOptions, Dependencies} from '../types'
 import createGot from '../network/got'
 import getContext, {PnpmContext} from './getContext'
@@ -88,13 +89,24 @@ function specsToInstallFromPackage(
     prefix: string,
   }
 ): PackageSpec[] {
-  const depsToInstall = Object.assign(
+  const depsToInstall = depsToInstallFromPackage(pkg, {
+    production: opts.production
+  })
+  return depsToSpecs(depsToInstall, opts.prefix)
+}
+
+function depsToInstallFromPackage(
+  pkg: Package,
+  opts: {
+    production: boolean
+  }
+) {
+  return Object.assign(
     {},
     !opts.production && pkg.devDependencies,
     pkg.optionalDependencies,
     pkg.dependencies
   )
-  return depsToSpecs(depsToInstall, opts.prefix)
 }
 
 /**
@@ -119,17 +131,12 @@ export async function installPkgs (fuzzyDeps: string[] | Dependencies, maybeOpts
     ? packagesToInstall.map(spec => spec.name)
     : []
 
-  const currentSpecs = ctx.pkg ? specsToInstallFromPackage(ctx.pkg, {
-    production: opts.production,
-    prefix: opts.prefix,
-  }) : []
-
   return lock(
     ctx.storePath,
     () => installInContext(
       installType,
-      R.uniqBy(spec => spec.name, packagesToInstall.concat(currentSpecs)),
-      R.uniq(optionalDependencies.concat(R.keys(ctx.pkg && ctx.pkg.optionalDependencies))),
+      packagesToInstall,
+      optionalDependencies,
       packagesToInstall.map(spec => spec.name),
       ctx,
       installCtx,
@@ -212,6 +219,12 @@ async function installInContext (
     global: opts.global,
     baseNodeModules: nodeModulesPath,
     bin: opts.bin,
+    topParents: ctx.pkg
+      ? await getTopParents(
+          R.difference(R.keys(depsToInstallFromPackage(ctx.pkg, {
+            production: opts.production
+          })), newPkgs), nodeModulesPath)
+      : [],
   })
 
   let newPkg: Package | undefined = ctx.pkg
@@ -296,6 +309,16 @@ async function installInContext (
         )))
     )
   }
+}
+
+async function getTopParents (pkgNames: string[], modules: string) {
+  const pkgs = await Promise.all(
+    pkgNames.map(pkgName => path.join(modules, pkgName)).map(safeReadPkg)
+  )
+  return pkgs.filter(Boolean).map((pkg: Package) => ({
+    name: pkg.name,
+    version: pkg.version,
+  }))
 }
 
 function getSaveSpec(spec: PackageSpec, pkg: InstalledPackage, saveExact: boolean) {

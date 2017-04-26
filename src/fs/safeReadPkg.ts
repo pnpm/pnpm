@@ -1,5 +1,5 @@
 import {Package} from '../types'
-import readPkg from './readPkg'
+import {ignoreCache as readPkg} from './readPkg'
 
 export default async function safeReadPkg (pkgPath: string): Promise<Package | null> {
   try {
