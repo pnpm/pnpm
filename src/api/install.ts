@@ -207,6 +207,7 @@ async function installInContext (
     resolvedDependencies,
     offline: opts.offline,
     rawNpmConfig: opts.rawNpmConfig,
+    nodeModules: nodeModulesPath,
   }
   const nonLinkedPkgs = await pFilter(packagesToInstall, (spec: PackageSpec) => !spec.name || safeIsInnerLink(nodeModulesPath, spec.name))
   const pkgs: InstalledPackage[] = await installMultiple(

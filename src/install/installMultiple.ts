@@ -2,6 +2,7 @@ import path = require('path')
 import logger from 'pnpm-logger'
 import R = require('ramda')
 import getNpmTarballUrl from 'get-npm-tarball-url'
+import exists = require('path-exists')
 import fetch, {FetchedPackage} from './fetch'
 import {InstallContext, InstalledPackages} from '../api/install'
 import {Dependencies} from '../types'
@@ -57,6 +58,7 @@ export default async function installAll (
     offline: boolean,
     isInstallable?: boolean,
     rawNpmConfig: Object,
+    nodeModules: string,
   }
 ): Promise<InstalledPackage[]> {
   const keypath = options.keypath || []
@@ -93,6 +95,7 @@ async function installMultiple (
     offline: boolean,
     isInstallable?: boolean,
     rawNpmConfig: Object,
+    nodeModules: string,
   }
 ): Promise<InstalledPackage[]> {
   const installedPkgs: InstalledPackage[] = <InstalledPackage[]>(
@@ -175,10 +178,16 @@ async function install (
     offline: boolean,
     isInstallable?: boolean,
     rawNpmConfig: Object,
+    nodeModules: string,
   }
 ) {
   const keypath = options.keypath || []
   const update = keypath.length <= options.depth
+
+  if (!update && options.pkgId && await exists(path.join(options.nodeModules, `.${options.pkgId}`))) {
+    return null
+  }
+
   const registry = normalizeRegistry(spec.scope && options.rawNpmConfig[`${spec.scope}:registry`] || options.registry)
 
   const dependentId = keypath[keypath.length - 1]
@@ -225,7 +234,13 @@ async function install (
       })
     )
     const shortId = pkgShortId(fetchedPkg.id, ctx.shrinkwrap.registry)
-    ctx.shrinkwrap.packages[shortId] = toShrDependency(shortId, fetchedPkg.resolution, dependencies, ctx.shrinkwrap.registry)
+    ctx.shrinkwrap.packages[shortId] = toShrDependency({
+      shortId,
+      resolution: fetchedPkg.resolution,
+      dependencies,
+      registry: ctx.shrinkwrap.registry,
+      prevDependencies: ctx.shrinkwrap.packages[shortId] && ctx.shrinkwrap.packages[shortId]['dependencies'] || {},
+    })
     dependencyIds = dependencies.filter(dep => dep.isInstallable).map(dep => dep.id)
   }
 
@@ -259,25 +274,50 @@ function normalizeRegistry (registry: string) {
 }
 
 function toShrDependency (
-  shortId: string,
-  resolution: Resolution,
-  deps: InstalledPackage[],
-  registry: string
+  opts: {
+    shortId: string,
+    resolution: Resolution,
+    dependencies: InstalledPackage[],
+    registry: string,
+    prevDependencies: ResolvedDependencies,
+  }
 ): DependencyShrinkwrap {
-  const shrResolution = toShrResolution(shortId, resolution)
-  if (deps.length) {
+  const shrResolution = toShrResolution(opts.shortId, opts.resolution)
+  const newDeps = updateDependencies(opts.dependencies, opts.prevDependencies, opts.registry)
+  if (!R.isEmpty(newDeps)) {
     return {
       resolution: shrResolution,
-      dependencies: deps
-        .reduce((resolutions, dep) => Object.assign(resolutions, {
-          [dep.pkg.name]: pkgIdToRef(dep.id, dep.pkg.version, dep.resolution, registry)
-        }), {})
+      dependencies: newDeps,
     }
   }
   if (typeof shrResolution === 'string') return shrResolution
   return {
     resolution: shrResolution
   }
+}
+
+function updateDependencies (
+  deps: InstalledPackage[],
+  prevDependencies: ResolvedDependencies,
+  registry: string
+) {
+  if (R.isEmpty(prevDependencies)) {
+    return R.fromPairs<string>(
+      deps.map((newDep): R.KeyValuePair<string, string> => {
+        return [newDep.pkg.name, pkgIdToRef(newDep.id, newDep.pkg.version, newDep.resolution, registry)]
+      })
+    )
+  }
+  return R.fromPairs<string>(
+    R.keys(prevDependencies)
+      .map((depName): R.KeyValuePair<string, string> => {
+        const newDep = deps.find(dep => dep.pkg.name === depName)
+        if (newDep) {
+          return [depName, pkgIdToRef(newDep.id, newDep.pkg.version, newDep.resolution, registry)]
+        }
+        return [depName, prevDependencies[depName]]
+      })
+  )
 }
 
 function toShrResolution (shortId: string, resolution: Resolution): string | Resolution {
@@ -308,6 +348,7 @@ async function installDependencies (
     offline: boolean,
     isInstallable?: boolean,
     rawNpmConfig: Object,
+    nodeModules: string,
   }
 ): Promise<InstalledPackage[]> {
   const depsInstallOpts = Object.assign({}, opts, {
