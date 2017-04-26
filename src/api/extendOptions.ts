@@ -34,6 +34,7 @@ const defaults = (opts: PnpmOptions) => {
     registry: 'https://registry.npmjs.org/',
     userAgent: `${pnpmPkgJson.name}/${pnpmPkgJson.version} npm/? node/${process.version} ${process.platform} ${process.arch}`,
     rawNpmConfig: {},
+    alwaysAuth: false,
   }
 }
 

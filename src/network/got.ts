@@ -8,11 +8,13 @@ import path = require('path')
 import createWriteStreamAtomic = require('fs-write-stream-atomic')
 
 export type AuthInfo = {
-  token: string
+  alwaysAuth: boolean,
+} & ({
+  token: string,
 } | {
   username: string,
   password: string,
-}
+})
 
 export type HttpResponse = {
   body: string
@@ -38,6 +40,7 @@ export default (
   opts: {
     networkConcurrency: number,
     rawNpmConfig: Object,
+    alwaysAuth: boolean,
   }
 ): Got => {
   const limit = pLimit(opts.networkConcurrency)
@@ -118,10 +121,12 @@ export default (
     switch (authInfo.type) {
       case 'Bearer':
         return {
-          token: authInfo.token
+          alwaysAuth: opts.alwaysAuth,
+          token: authInfo.token,
         }
       case 'Basic':
         return {
+          alwaysAuth: opts.alwaysAuth,
           username: authInfo.username,
           password: authInfo.password,
         }

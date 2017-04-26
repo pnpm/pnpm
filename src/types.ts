@@ -44,6 +44,7 @@ export type PnpmOptions = {
   tag?: string,
 
   metaCache?: Map<string, PackageMeta>,
+  alwaysAuth?: boolean,
 }
 
 export type StrictPnpmOptions = {
@@ -89,6 +90,7 @@ export type StrictPnpmOptions = {
   tag: string,
 
   metaCache: Map<string, PackageMeta>,
+  alwaysAuth: boolean,
 }
 
 export type Dependencies = {

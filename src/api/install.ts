@@ -201,6 +201,7 @@ async function installInContext (
     got: createGot(client, {
       networkConcurrency: opts.networkConcurrency,
       rawNpmConfig: opts.rawNpmConfig,
+      alwaysAuth: opts.alwaysAuth,
     }),
     metaCache: opts.metaCache,
     resolvedDependencies,
