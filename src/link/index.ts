@@ -37,6 +37,7 @@ export default async function (
     global: boolean,
     baseNodeModules: string,
     bin: string,
+    topParents: {name: string, version: string}[],
   }
 ): Promise<DependencyTreeNodeMap> {
   const pkgsToLinkMap = R.values(installedPkgs)
@@ -55,7 +56,7 @@ export default async function (
       return pkgsToLink
     }, {})
   const topPkgIds = topPkgs.filter(pkg => pkg.isInstallable).map(pkg => pkg.id)
-  const pkgsToLink = await resolvePeers(pkgsToLinkMap, topPkgIds)
+  const pkgsToLink = await resolvePeers(pkgsToLinkMap, topPkgIds, opts.topParents)
 
   const flatResolvedDeps =  R.values(pkgsToLink).sort((a, b) => a.depth - b.depth)
 

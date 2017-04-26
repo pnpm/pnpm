@@ -5,8 +5,8 @@ import safeReadPkg from './fs/safeReadPkg'
 
 export default async function removeTopDependency (dependencyName: string, modules: string) {
   return Promise.all([
-    rimraf(path.join(modules, dependencyName)),
     removeBins(dependencyName, modules),
+    rimraf(path.join(modules, dependencyName)),
   ])
 }
 

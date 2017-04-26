@@ -25,12 +25,30 @@ export type DependencyTreeNodeMap = {
 
 export default function (
   pkgsMap: LinkedPackagesMap,
-  topPkgIds: string[]
+  topPkgIds: string[],
+  // only the top dependencies that were already installed
+  // to avoid warnings about unresolved peer dependencies
+  topParents: {name: string, version: string}[]
 ): DependencyTreeNodeMap {
   const tree = createTree(pkgsMap, topPkgIds, [])
 
-  const pkgsByName = toPkgByName(R.props<TreeNode>(tree.rootNodeIds, tree.nodes))
-  const resolvedTreeMap = R.reduce(R.merge, {}, tree.rootNodeIds.map(rootNodeId => resolvePeersOfNode(rootNodeId, pkgsByName, tree.nodes)))
+  const pkgsByName = R.merge(
+    toPkgByName(R.props<TreeNode>(tree.rootNodeIds, tree.nodes)),
+    R.fromPairs(
+      topParents.map((parent: {name: string, version: string}): R.KeyValuePair<string, ParentRef> => [
+        parent.name,
+        {
+          version: parent.version,
+          depth: 0
+        }
+      ])
+    )
+  )
+  const resolvedTreeMap = R.reduce(
+    R.merge,
+    {},
+    tree.rootNodeIds.map(rootNodeId => resolvePeersOfNode(rootNodeId, pkgsByName, tree.nodes))
+  )
   return resolvedTreeMap
 }
 
@@ -163,8 +181,9 @@ type ParentRefs = {
 
 type ParentRef = {
   version: string,
-  nodeId: string,
   depth: number,
+  // this is null only for already installed top dependencies
+  nodeId?: string,
 }
 
 function toPkgByName(pkgs: TreeNode[]): ParentRefs {
