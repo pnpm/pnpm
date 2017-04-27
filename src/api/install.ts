@@ -100,10 +100,10 @@ function depsToInstallFromPackage(
   opts: {
     production: boolean
   }
-) {
+): Dependencies {
   return Object.assign(
     {},
-    !opts.production && pkg.devDependencies,
+    !opts.production && pkg.devDependencies || {},
     pkg.optionalDependencies,
     pkg.dependencies
   )

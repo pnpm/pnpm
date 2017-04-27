@@ -4,7 +4,7 @@ dependencies:
   '@types/load-json-file@^2.0.5': 2.0.5
   '@types/mkdirp@^0.3.29': 0.3.29
   '@types/mz@^0.0.31': 0.0.31
-  '@types/node@^7.0.5': 7.0.13
+  '@types/node@^7.0.5': 7.0.14
   '@types/nopt@^3.0.29': 3.0.29
   '@types/npm@^2.0.28': 2.0.28
   '@types/ramda@^0.0.7': 0.0.7
@@ -51,7 +51,7 @@ dependencies:
   normalize-path@^2.1.1: 2.1.1
   normalize-ssh@^1.0.0: 1.0.0
   npm-package-arg@^5.0.0: 5.0.1
-  npm-registry-client@^8.1.0: 8.1.1
+  npm-registry-client@^8.1.0: 8.2.0
   npm-run-all@^4.0.1: 4.0.2
   npm-scripts-info@^0.3.6: 0.3.6
   npm@^4.5.0: 4.5.0
@@ -82,7 +82,7 @@ dependencies:
   thenify@^3.2.1: 3.2.1
   ts-node@^3.0.0: 3.0.2
   tslint@^5.0.0: 5.1.0
-  typescript@^2.1.5: 2.2.2
+  typescript@^2.1.5: 2.3.1
   unpack-stream@^1.1.0: 1.1.0
   update-notifier@^2.1.0: 2.1.0
   validate-commit-msg@^2.7.0: 2.12.1
@@ -92,7 +92,7 @@ dependencies:
 packages:
   /@types/byline/4.2.31:
     dependencies:
-      '@types/node': 7.0.13
+      '@types/node': 7.0.14
     resolution: 0e61fcb9c03e047d21c4496554c7116297ab60cd
   /@types/chalk/0.4.31: a31d74241a6b1edbb973cf36d97a2896834a51f9
   /@types/common-tags/1.2.5: 14f29893992eb325594b83d739af02f2b6520f46
@@ -100,25 +100,25 @@ packages:
   /@types/mkdirp/0.3.29: 7f2ad7ec55f914482fc9b1ec4bb1ae6028d46066
   /@types/mz/0.0.30:
     dependencies:
-      '@types/node': 7.0.13
+      '@types/node': 7.0.14
     resolution: 58daa9f35811d607037bab1f9cc7d4a23e6aafae
   /@types/mz/0.0.31:
     dependencies:
-      '@types/node': 7.0.13
+      '@types/node': 7.0.14
     resolution: a4d80c082fefe71e40a7c0f07d1e6555bbbc7b52
   /@types/node/6.0.70: f6e04b859205ee3611849921f09819701dbfa5e8
-  /@types/node/7.0.13: 1b0a53fe9ef9c3a5d061b126cc9b915bca43a3f5
+  /@types/node/7.0.14: 1470fa002a113316ac9d9ad163fc738c7a0de2a4
   /@types/nopt/3.0.29: f19df3db4c97ee1459a2740028320a71d70964ce
   /@types/npm/2.0.28:
     dependencies:
-      '@types/node': 7.0.13
+      '@types/node': 7.0.14
     resolution: 0ab7f460afc9aeeee46194389766031bc714520c
   /@types/ramda/0.0.7: 1226d32bc779e05ac9e6f76f960eeb660447fcab
   /@types/rc/0.0.1: 1f5b8a1b3b1ac6d1fee137c53fac5fa0f28ae0d7
   /@types/semver/5.3.31: b999d7d935f43f5207b01b00d3de20852f4ca75f
   /@types/tape/4.2.29:
     dependencies:
-      '@types/node': 7.0.13
+      '@types/node': 7.0.14
     resolution: 14cf2eb49bf852407eaaefdc53773eb90b32cf56
   /@types/update-notifier/1.0.1: 47e8f007c6b5bcafbe427332e3b6b433cdc18ddc
   /@zkochan/cmd-shim/2.2.2:
@@ -218,7 +218,7 @@ packages:
   /babel-runtime/6.23.0:
     dependencies:
       core-js: 2.4.1
-      regenerator-runtime: 0.10.3
+      regenerator-runtime: 0.10.4
     resolution: 0a9489f144de70efb3ce4300accdb329e2fc543b
   /balanced-match/0.4.2: cb3f3e3c732dc0f01ee70b403f302e61d7709838
   /base64-js/0.0.8: 1101e9544f4a76b1bc3b26d452ca96d7a35e7978
@@ -415,7 +415,7 @@ packages:
       graceful-fs: 4.1.11
       mkdirp: 0.5.1
       unique-string: 1.0.0
-      write-file-atomic: 1.3.3
+      write-file-atomic: 1.3.4
       xdg-basedir: 3.0.0
     resolution: e1b8669c1803ccc50b545e92f8e6e79aa80e0196
   /console-control-strings/1.1.0: 3d7cf4464db6446ea644bf4b39507f9851008e8e
@@ -816,10 +816,10 @@ packages:
     resolution: 894854491bc591b0f147d7ae570f5c678b7256eb
   /get-stdin/4.0.1: b968c6b0a04384324902e8bf1a5df32579a450fe
   /get-stream/3.0.0: 8e943d1358dc37555054ecbe2edb05aa174ede14
-  /getpass/0.1.6:
+  /getpass/0.1.7:
     dependencies:
       assert-plus: 1.0.0
-    resolution: 283ffd9fc1256840875311c1b60e8c40187110e6
+    resolution: 5eff8e3e684d569ae4cb2b1282604e8ba62149fa
   /glob-base/0.3.0:
     dependencies:
       glob-parent: 2.0.0
@@ -1334,7 +1334,7 @@ packages:
       semver: 5.3.0
       validate-npm-package-name: 3.0.0
     resolution: 09a816e3f45a549e3ddaf33e9bae5e7b31077872
-  /npm-registry-client/8.1.1:
+  /npm-registry-client/8.2.0:
     dependencies:
       concat-stream: 1.6.0
       graceful-fs: 4.1.11
@@ -1346,7 +1346,7 @@ packages:
       retry: 0.10.1
       semver: 5.3.0
       slide: 1.1.6
-    resolution: 831476455423ca0a265c6ffdb6100fcc042b36cf
+    resolution: 39067d3c086db0ff8fa7cf444e9d4a785a9c07f6
   /npm-run-all/4.0.2:
     dependencies:
       chalk: 1.1.3
@@ -1470,7 +1470,7 @@ packages:
     resolution: f480f40434ef80741f8469099f8dea18f55a4dc9
   /parse-npm-tarball-url/1.0.1:
     dependencies:
-      '@types/node': 7.0.13
+      '@types/node': 7.0.14
       semver-regex: 1.0.0
     resolution: 4df1cf045d397ef2d9c39f5130898a8aa8e062e4
   /parse-passwd/1.0.0: 6d5b934a456993b23d37f40a382d6f1666a8e5c6
@@ -1522,7 +1522,7 @@ packages:
     dependencies:
       '@types/chalk': 0.4.31
       '@types/common-tags': 1.2.5
-      '@types/node': 7.0.13
+      '@types/node': 7.0.14
       chalk: 1.1.3
       common-tags: 1.4.0
       ndjson: 1.5.0
@@ -1532,7 +1532,7 @@ packages:
   /pnpm-file-reporter/0.0.1:
     dependencies:
       '@types/chalk': 0.4.31
-      '@types/node': 7.0.13
+      '@types/node': 7.0.14
       chalk: 1.1.3
       json2yaml: 1.1.0
       ndjson: 1.5.0
@@ -1645,7 +1645,7 @@ packages:
       indent-string: 2.1.0
       strip-indent: 1.0.1
     resolution: cf916ab1fd5f1f16dfb20822dd6ec7f730c2afde
-  /regenerator-runtime/0.10.3: 8c4367a904b51ea62a908ac310bf99ff90a82a3e
+  /regenerator-runtime/0.10.4: 74cb6598d3ba2eb18694e968a40e2b3b4df9cf93
   /regex-cache/0.4.3:
     dependencies:
       is-equal-shallow: 0.1.3
@@ -1859,7 +1859,7 @@ packages:
       bcrypt-pbkdf: 1.0.1
       dashdash: 1.14.1
       ecc-jsbn: 0.1.1
-      getpass: 0.1.6
+      getpass: 0.1.7
       jodid25519: 1.0.2
       jsbn: 0.1.1
       tweetnacl: 0.14.5
@@ -1917,7 +1917,7 @@ packages:
   /symlink-dir/1.0.2:
     dependencies:
       '@types/mz': 0.0.30
-      '@types/node': 7.0.13
+      '@types/node': 7.0.14
       graceful-fs: 4.1.11
       is-windows: 1.0.0
       mkdirp: 0.5.1
@@ -2021,9 +2021,9 @@ packages:
       optimist: 0.6.1
       resolve: 1.3.3
       semver: 5.3.0
-      tsutils: 1.7.0
+      tsutils: 1.8.0
     resolution: 51a47baeeb58956fcd617bd2cf00e2ef0eea2ed9
-  /tsutils/1.7.0: 2e63ccc2d6912bb095f7e363ff4100721dc86f50
+  /tsutils/1.8.0: bf8118ed8e80cd5c9fc7d75728c7963d44ed2f52
   /tunnel-agent/0.4.3: 6373db76909fe570e08d73583365ed828a74eeeb
   /tunnel-agent/0.6.0:
     dependencies:
@@ -2036,7 +2036,7 @@ packages:
       mime-types: 2.1.15
     resolution: cab10fb4909e441c82842eafe1ad646c81804410
   /typedarray/0.0.6: 867ac74e3864187b1d3d47d996a78ec5c8830777
-  /typescript/2.2.2: 606022508479b55ffa368b58fee963a03dfd7b0c
+  /typescript/2.3.1: e3361fb395c6c3f9c69faeeabc9503f8bdecaea1
   /uc.micro/1.0.3: 7ed50d5e0f9a9fb0a573379259f2a77458d50192
   /uglify-js/2.8.22:
     dependencies:
@@ -2057,7 +2057,7 @@ packages:
   /unix-crypt-td-js/1.0.0: 1c0824150481bc7a01d49e98f1ec668d82412f3b
   /unpack-stream/1.1.0:
     dependencies:
-      '@types/node': 7.0.13
+      '@types/node': 7.0.14
       decompress-maybe: 1.0.0
       tar-fs: 1.15.2
     resolution: 2231b17dd24b9b81775ebc7516c65a2a863be398
@@ -2153,19 +2153,19 @@ packages:
   /wordwrap/0.0.2: b79669bb42ecb409f83d583cad52ca17eaa1643f
   /wordwrap/0.0.3: a3d5da6cd5c0bc0008d37234bbaf1bed63059107
   /wrappy/1.0.2: b5243d8f3ec1aa35f1364605bc0d1036e30ab69f
-  /write-file-atomic/1.3.3:
+  /write-file-atomic/1.3.4:
     dependencies:
       graceful-fs: 4.1.11
       imurmurhash: 0.1.4
       slide: 1.1.6
-    resolution: 831dd22d491bdc135180bb996a0eb3f8bf587791
+    resolution: f807a4f0b1d9e913ae7a48112e6cc3af1991b45f
   /write-json-file/2.0.0:
     dependencies:
       graceful-fs: 4.1.11
       mkdirp: 0.5.1
       pify: 2.3.0
       sort-keys: 1.1.2
-      write-file-atomic: 1.3.3
+      write-file-atomic: 1.3.4
     resolution: 0eaec981fcf9288dbc2806cbd26e06ab9bdca4ed
   /write-pkg/3.0.1:
     dependencies:
@@ -2178,7 +2178,7 @@ packages:
       js-yaml: 3.8.3
       mkdirp: 0.5.1
       pify: 2.3.0
-      write-file-atomic: 1.3.3
+      write-file-atomic: 1.3.4
     resolution: 7b4bd0df72ca13fbe9d6b0178fd83c077b8ea86b
   /xdg-basedir/3.0.0: 496b2cc109eca8dbacfe2dc72b603c17c5870ad4
   /xtend/4.0.1: a5c6d532be656e23db820efb943a1f04998d63af
