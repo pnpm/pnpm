@@ -149,3 +149,29 @@ test('respects shrinkwrap.yaml for top dependencies', async t => {
 
   await project.storeHasNot('dep-of-pkg-with-1-dep', '100.1.0')
 })
+
+test('subdeps are updated on repeat install if outer shrinkwrap.yaml does not match the inner one', async (t: tape.Test) => {
+  const project = prepare(t)
+
+  await addDistTag('dep-of-pkg-with-1-dep', '100.0.0', 'latest')
+
+  await installPkgs(['pkg-with-1-dep'], testDefaults())
+
+  await project.storeHas('dep-of-pkg-with-1-dep', '100.0.0')
+
+  const shr = await project.loadShrinkwrap()
+
+  t.ok(shr.packages['/dep-of-pkg-with-1-dep/100.0.0'])
+
+  delete shr.packages['/dep-of-pkg-with-1-dep/100.0.0']
+
+  shr.packages['/dep-of-pkg-with-1-dep/100.1.0'] = 'b1dccbab9ab987b87ad4778207e1cb7fe948fb3c'
+
+  shr.packages['/pkg-with-1-dep/100.0.0']['dependencies']['dep-of-pkg-with-1-dep'] = '100.1.0'
+
+  await writeYamlFile('shrinkwrap.yaml', shr)
+
+  await install(testDefaults({depth: -1}))
+
+  await project.storeHas('dep-of-pkg-with-1-dep', '100.1.0')
+})
