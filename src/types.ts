@@ -45,6 +45,9 @@ export type PnpmOptions = {
 
   metaCache?: Map<string, PackageMeta>,
   alwaysAuth?: boolean,
+
+  // cannot be specified via configs
+  update?: boolean,
 }
 
 export type StrictPnpmOptions = {
@@ -91,6 +94,9 @@ export type StrictPnpmOptions = {
 
   metaCache: Map<string, PackageMeta>,
   alwaysAuth: boolean,
+
+  // cannot be specified via configs
+  update: boolean,
 }
 
 export type Dependencies = {

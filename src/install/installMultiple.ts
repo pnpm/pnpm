@@ -2,6 +2,7 @@ import path = require('path')
 import logger from 'pnpm-logger'
 import R = require('ramda')
 import getNpmTarballUrl from 'get-npm-tarball-url'
+import exists = require('path-exists')
 import fetch, {FetchedPackage} from './fetch'
 import {InstallContext, InstalledPackages} from '../api/install'
 import {Dependencies} from '../types'
@@ -57,6 +58,8 @@ export default async function installAll (
     offline: boolean,
     isInstallable?: boolean,
     rawNpmConfig: Object,
+    nodeModules: string,
+    update: boolean,
   }
 ): Promise<InstalledPackage[]> {
   const keypath = options.keypath || []
@@ -93,6 +96,8 @@ async function installMultiple (
     offline: boolean,
     isInstallable?: boolean,
     rawNpmConfig: Object,
+    nodeModules: string,
+    update: boolean,
   }
 ): Promise<InstalledPackage[]> {
   const installedPkgs: InstalledPackage[] = <InstalledPackage[]>(
@@ -175,10 +180,17 @@ async function install (
     offline: boolean,
     isInstallable?: boolean,
     rawNpmConfig: Object,
+    nodeModules: string,
+    update: boolean,
   }
 ) {
   const keypath = options.keypath || []
-  const update = keypath.length <= options.depth
+  const proceed = keypath.length <= options.depth
+
+  if (!proceed && options.pkgId && await exists(path.join(options.nodeModules, `.${options.pkgId}`))) {
+    return null
+  }
+
   const registry = normalizeRegistry(spec.scope && options.rawNpmConfig[`${spec.scope}:registry`] || options.registry)
 
   const dependentId = keypath[keypath.length - 1]
@@ -194,7 +206,7 @@ async function install (
 
   const fetchedPkg = await fetch(spec, {
     loggedPkg,
-    update,
+    update: options.update,
     fetchingLocker: ctx.fetchingLocker,
     registry,
     root: options.root,
@@ -225,7 +237,13 @@ async function install (
       })
     )
     const shortId = pkgShortId(fetchedPkg.id, ctx.shrinkwrap.registry)
-    ctx.shrinkwrap.packages[shortId] = toShrDependency(shortId, fetchedPkg.resolution, dependencies, ctx.shrinkwrap.registry)
+    ctx.shrinkwrap.packages[shortId] = toShrDependency({
+      shortId,
+      resolution: fetchedPkg.resolution,
+      updatedDeps: dependencies,
+      registry: ctx.shrinkwrap.registry,
+      prevResolvedDeps: ctx.shrinkwrap.packages[shortId] && ctx.shrinkwrap.packages[shortId]['dependencies'] || {},
+    })
     dependencyIds = dependencies.filter(dep => dep.isInstallable).map(dep => dep.id)
   }
 
@@ -259,25 +277,46 @@ function normalizeRegistry (registry: string) {
 }
 
 function toShrDependency (
-  shortId: string,
-  resolution: Resolution,
-  deps: InstalledPackage[],
-  registry: string
+  opts: {
+    shortId: string,
+    resolution: Resolution,
+    registry: string,
+    updatedDeps: InstalledPackage[],
+    prevResolvedDeps: ResolvedDependencies,
+  }
 ): DependencyShrinkwrap {
-  const shrResolution = toShrResolution(shortId, resolution)
-  if (deps.length) {
+  const shrResolution = toShrResolution(opts.shortId, opts.resolution)
+  const newResolvedDeps = updateResolvedDeps(opts.prevResolvedDeps, opts.updatedDeps, opts.registry)
+  if (!R.isEmpty(newResolvedDeps)) {
     return {
       resolution: shrResolution,
-      dependencies: deps
-        .reduce((resolutions, dep) => Object.assign(resolutions, {
-          [dep.pkg.name]: pkgIdToRef(dep.id, dep.pkg.version, dep.resolution, registry)
-        }), {})
+      dependencies: newResolvedDeps,
     }
   }
   if (typeof shrResolution === 'string') return shrResolution
   return {
     resolution: shrResolution
   }
+}
+
+// previous resolutions should not be removed from shrinkwrap
+// as installation might not reanalize the whole dependency tree
+// the `depth` property defines how deep should dependencies be checked
+function updateResolvedDeps (
+  prevResolvedDeps: ResolvedDependencies,
+  updatedDeps: InstalledPackage[],
+  registry: string
+) {
+  const newResolvedDeps = R.fromPairs<string>(
+    updatedDeps.map((dep): R.KeyValuePair<string, string> => [
+      dep.pkg.name,
+      pkgIdToRef(dep.id, dep.pkg.version, dep.resolution, registry)
+    ])
+  )
+  return R.merge(
+    prevResolvedDeps,
+    newResolvedDeps
+  )
 }
 
 function toShrResolution (shortId: string, resolution: Resolution): string | Resolution {
@@ -308,6 +347,8 @@ async function installDependencies (
     offline: boolean,
     isInstallable?: boolean,
     rawNpmConfig: Object,
+    nodeModules: string,
+    update: boolean,
   }
 ): Promise<InstalledPackage[]> {
   const depsInstallOpts = Object.assign({}, opts, {
