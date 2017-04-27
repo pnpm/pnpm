@@ -17,4 +17,4 @@ test_script:
   - npm --version
   - npm test
 cache:
-  - '%USERPROFILE%\.pnpm-store'
+  - '%USERPROFILE%\.pnpm-registry'
