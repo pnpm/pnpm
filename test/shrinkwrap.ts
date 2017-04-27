@@ -4,6 +4,8 @@ import writeYamlFile = require('write-yaml-file')
 import exists = require('path-exists')
 import {prepare, testDefaults, addDistTag} from './utils'
 import {installPkgs, install} from '../src'
+import readPkg = require('read-pkg')
+import writePkg = require('write-pkg')
 
 const test = promisifyTape(tape)
 
@@ -171,7 +173,28 @@ test('subdeps are updated on repeat install if outer shrinkwrap.yaml does not ma
 
   await writeYamlFile('shrinkwrap.yaml', shr)
 
-  await install(testDefaults({depth: -1}))
+  await install(testDefaults())
 
   await project.storeHas('dep-of-pkg-with-1-dep', '100.1.0')
+})
+
+test("recreates shrinkwrap file if it doesn't match the dependencies in package.json", async (t: tape.Test) => {
+  const project = prepare(t)
+
+  await installPkgs(['is-negative@2.0.0'], testDefaults())
+
+  const shr1 = await project.loadShrinkwrap()
+  t.ok(shr1.dependencies['is-negative@^2.0.0'])
+
+  const pkg = await readPkg()
+
+  pkg.dependencies['is-negative'] = '^2.1.0'
+
+  await writePkg(pkg)
+
+  await install(testDefaults())
+
+  const shr = await project.loadShrinkwrap()
+
+  t.ok(shr.dependencies['is-negative@^2.1.0'])
 })
