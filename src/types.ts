@@ -6,8 +6,6 @@ export type PnpmOptions = {
   global?: boolean,
   prefix?: string,
   bin?: string,
-  storePath?: string,
-  localRegistry?: string,
   ignoreScripts?: boolean
   save?: boolean,
   saveDev?: boolean,
@@ -22,10 +20,6 @@ export type PnpmOptions = {
   depth?: number,
   engineStrict?: boolean,
   nodeVersion?: string,
-  networkConcurrency?: number,
-  fetchingConcurrency?: number,
-  childConcurrency?: number,
-  lockStaleDuration?: number,
   offline?: boolean,
   registry?: string,
 
@@ -46,6 +40,15 @@ export type PnpmOptions = {
   metaCache?: Map<string, PackageMeta>,
   alwaysAuth?: boolean,
 
+  // pnpm specific configs
+  storePath?: string,
+  localRegistry?: string,
+  networkConcurrency?: number,
+  fetchingConcurrency?: number,
+  lockStaleDuration?: number,
+  childConcurrency?: number,
+  repeatInstallDepth?: number,
+
   // cannot be specified via configs
   update?: boolean,
 }
@@ -55,8 +58,6 @@ export type StrictPnpmOptions = {
   global: boolean,
   prefix: string,
   bin: string,
-  storePath: string,
-  localRegistry: string,
   ignoreScripts: boolean
   save: boolean,
   saveDev: boolean,
@@ -71,10 +72,6 @@ export type StrictPnpmOptions = {
   depth: number,
   engineStrict: boolean,
   nodeVersion: string,
-  networkConcurrency: number,
-  fetchingConcurrency: number,
-  lockStaleDuration: number,
-  childConcurrency: number,
   offline: boolean,
   registry: string,
 
@@ -94,6 +91,15 @@ export type StrictPnpmOptions = {
 
   metaCache: Map<string, PackageMeta>,
   alwaysAuth: boolean,
+
+  // pnpm specific configs
+  storePath: string,
+  localRegistry: string,
+  networkConcurrency: number,
+  fetchingConcurrency: number,
+  lockStaleDuration: number,
+  childConcurrency: number,
+  repeatInstallDepth: number,
 
   // cannot be specified via configs
   update: boolean,

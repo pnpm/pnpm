@@ -195,8 +195,8 @@ async function installInContext (
     localRegistry: opts.localRegistry,
     registry: ctx.shrinkwrap.registry,
     force: opts.force,
-    depth: R.equals(ctx.shrinkwrap.packages, ctx.privateShrinkwrap.packages)
-      ? opts.depth : Infinity,
+    depth: opts.update ? opts.depth :
+      (R.equals(ctx.shrinkwrap.packages, ctx.privateShrinkwrap.packages) ? opts.repeatInstallDepth : Infinity),
     engineStrict: opts.engineStrict,
     nodeVersion: opts.nodeVersion,
     got: createGot(client, {

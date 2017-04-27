@@ -230,7 +230,7 @@ test('relink package to project if the dependency is not linked from store', asy
 
   t.ok(storeInode !== await getInode(), 'package.json inode changed')
 
-  await install(testDefaults())
+  await install(testDefaults({repeatInstallDepth: 0}))
 
   t.ok(storeInode === await getInode(), 'package.json inode matches the one that is in store')
 })
