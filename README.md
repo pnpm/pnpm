@@ -23,6 +23,8 @@ Follow the [pnpm Twitter account](https://twitter.com/pnpmjs) for updates.
 * [Benchmark](#benchmark)
 * Recipes
   * [Continuous Integration](docs/recipes/continuous-integration.md)
+* Advanced
+  * [About the package store](docs/about-the-package-store.md)
 
 ## Background
 
