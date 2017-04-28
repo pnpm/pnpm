@@ -19,6 +19,7 @@ Follow the [pnpm Twitter account](https://twitter.com/pnpmjs) for updates.
 * [Background](#background)
 * [Install](#install)
 * [Usage](#usage)
+  * [Configuring](#configuring)
 * [Benchmark](#benchmark)
 * Recipes
   * [Continuous Integration](docs/recipes/continuous-integration.md)
@@ -85,6 +86,52 @@ pnpm install lodash
 ```
 
 For using the programmatic API, see: [API](docs/api.md).
+
+### Configuring
+
+pnpm uses npm's programmatic API to read configs. Hence, you should set configs for pnpm the same way you would for npm.
+
+Furthermore, pnpm uses the same configs that npm uses for doing installations. If you have a private registry and npm is configured
+to work with it, pnpm should be able to authorize requests as well, with no additional configuration.
+
+However, pnpm has some unique configs as well:
+
+#### store-path
+
+* Default: **~/.pnpm-store**
+* Type: **path**
+
+The location where all the packages are saved on the disk.
+
+#### local-registry
+
+* Default: **~/.pnpm-registry**
+* Type: **path**
+
+The location of all the downloaded packages and package meta information.
+Can be also used as a [verdaccio](https://github.com/verdaccio/verdaccio) storage.
+
+#### offline
+
+* Default: **false**
+* Type: **Boolean**
+
+If true, pnpm will use only the local registry mirror to get packages.
+If a package won't be found locally, installation will fail.
+
+#### network-concurrency
+
+* Default: **16**
+* Type: **Number**
+
+Controls the maximum number of HTTP requests that can be done simultaneously.
+
+#### child-concurrency
+
+* Default: **5**
+* Type: **Number**
+
+Controls the number of child processes run parallely to build node modules.
 
 ## Benchmark
 
