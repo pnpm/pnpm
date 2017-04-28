@@ -26,46 +26,14 @@ Follow the [pnpm Twitter account](https://twitter.com/pnpmjs) for updates.
 
 ## Background
 
-`pnpm` maintains a flat storage of all your dependencies in `~/.pnpm-store`. They are then linked wherever they're needed.
-This nets you the benefits of **drastically less disk space usage**, while keeping your `node_modules` clean.
-See [store layout](docs/store-layout.md) for an explanation.
+pnpm uses hard links and symlinks to save one version of a module only ever once on a disk.
+When using npm or yarn for example, if you have 100 packages using lodash, you will have
+100 copies of lodash on disk. With pnpm, lodash will be saved in a single place on the disk
+and a hard link will put it into the `node_modules` where it should be installed.
 
-```
-=> - a link (also known as a hard link)
--> - a symlink (or junction on Windows)
-
-~/.pnpm-store
-   └─ registry.npmjs.org
-      ├─ chalk/1.1.1
-      |  ├─ index.js
-      |  └─ package.json
-      ├─ ansi-styles/2.1.0
-      |  ├─ index.js
-      |  └─ package.json
-      └─ has-ansi/2.0.0
-         ├─ index.js
-         └─ package.json
-.
-└─ node_modules
-   ├─ chalk                  -> ./.registry.npmjs.org/chalk/1.1.1/node_modules/chalk
-   └─ .registry.npmjs.org
-       ├─ has-ansi/2.0.0/node_modules
-       |  └─ has-ansi
-       |     ├─ index.js     => ~/.pnpm-store/registry.npmjs.org/has-ansi/2.0.0/index.js
-       |     └─ package.js   => ~/.pnpm-store/registry.npmjs.org/has-ansi/2.0.0/package.json
-       |
-       ├─ ansi-styles/2.1.0/node_modules
-       |  └─ ansi-styles
-       |     ├─ index.js     => ~/.pnpm-store/registry.npmjs.org/ansi-styles/2.1.0/index.js
-       |     └─ package.js   => ~/.pnpm-store/registry.npmjs.org/ansi-styles/2.1.0/package.json
-       |
-       └─ chalk/1.1.1/node_modules
-          ├─ ansi-styles     -> ../../ansi-styles/2.1.0/node_modules/ansi-styles
-          ├─ has-ansi        -> ../../has-ansi/2.0.0/node_modules/has-ansi
-          └─ chalk
-             ├─ index.js     => ~/.pnpm-store/registry.npmjs.org/chalk/1.1.1/index.js
-             └─ package.json => ~/.pnpm-store/registry.npmjs.org/chalk/1.1.1/package.json
-```
+As a result, you save gigabytes of space on your disk and you have a lot faster installations!
+If you'd like more details about the unique `node_modules` structure that pnpm creates and
+why it works fine with the Node.js ecosystem, read this small article: [Why should we use pnpm?](https://www.kochan.io/nodejs/why-should-we-use-pnpm.html)
 
 ## Install
 
