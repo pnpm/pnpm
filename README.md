@@ -108,6 +108,6 @@ time pnpm i babel-preset-es2015 browserify chalk debug minimist mkdirp
 
 ## License
 
-[MIT](https://github.com/pnpm/pnpm/blob/master/LICENSE) © [Rico Sta. Cruz](http://ricostacruz.com) and [contributors]
+[MIT](https://github.com/pnpm/pnpm/blob/master/LICENSE)
 
 [contributors]: http://github.com/pnpm/pnpm/contributors
