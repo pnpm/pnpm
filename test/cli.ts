@@ -36,7 +36,7 @@ test('installs in the folder where the package.json file is', async function (t)
 test('rewrites node_modules created by npm', async function (t) {
   const project = prepare(t)
 
-  await execa('npm', ['install', 'rimraf@2.5.1', '--save'])
+  await execa('npm', ['install', 'rimraf@2.5.1', '@types/node', '--save'])
 
   await execPnpm('install')
 

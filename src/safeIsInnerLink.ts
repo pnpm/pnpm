@@ -16,11 +16,11 @@ export default async function safeIsInnerLink (modules: string, depName: string)
     if (err.code === 'ENOENT') return true
 
     logger.warn(`Moving ${depName} that was installed by a different package manager to "node_modules/.ignored`)
-    const ignoredDir = path.join(modules, '.ignored')
-    await mkdirp(ignoredDir)
+    const ignoredDir = path.join(modules, '.ignored', depName)
+    await mkdirp(path.dirname(ignoredDir))
     await fs.rename(
       path.join(modules, depName),
-      path.join(ignoredDir, depName))
+      ignoredDir)
     return true
   }
 }
