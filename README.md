@@ -123,6 +123,20 @@ time pnpm i babel-preset-es2015 browserify chalk debug minimist mkdirp
 * [Compared to ied](docs/vs-ied.md)
 * [Compared to npm](docs/vs-npm.md)
 
+## Frequently Asked Questions
+
+### Why does my `node_modules` folder use disk space if packages are stored in a global store?
+
+pnpm creates [hard links](https://en.wikipedia.org/wiki/Hard_link) from the global store to project's `node_modules` folders.
+Hard links point to the same place on the disk where the original files are.
+So, for example, if you have `foo` in your project as a dependency and it occupies 1MB of space,
+then it will look like it occupies 1MB of space in the project's `node_modules` folder and
+the same amount of space in the global store. However, that 1MB is *the same space* on the disk
+addressed from two different locations. So in total `foo` occupies 1MB,
+not 2MB.
+
+For more on this subject: [Why do hard links seem to take the same space as the originals?](https://unix.stackexchange.com/questions/88423/why-do-hard-links-seem-to-take-the-same-space-as-the-originals)
+
 ## License
 
 [MIT](https://github.com/pnpm/pnpm/blob/master/LICENSE)
