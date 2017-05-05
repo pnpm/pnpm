@@ -6,7 +6,16 @@
 
 > Fast, disk space efficient npm installs
 
-pnpm is a fast implementation of `npm install`.
+pnpm is:
+
+1. **Fast.** A lot faster than npm and yarn. This is not a fair battle as we organize
+dependencies in a completely different way. Nevertheless, dependencies installed with
+pnpm are Node.js-compatible!
+1. **Efficient.** One version of a package is saved only ever once on a disk.
+1. **Simple and human-deterministic.** Flattening is hard. A package manager can be
+deterministic but no human can easily predict how will a flattened dependency tree look
+like. Pnpm not only has a lockfile, the files in its `node_modules` folder are organized
+always the same way, the way they are described in `package.json` files.
 
 [![asciicast](http://i.imgur.com/6GLLHaV.gif)](https://asciinema.org/a/99357)
 
