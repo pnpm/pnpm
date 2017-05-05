@@ -21,6 +21,7 @@ Follow the [pnpm Twitter account](https://twitter.com/pnpmjs) for updates.
 * [Usage](#usage)
   * [Configuring](#configuring)
 * [Benchmark](#benchmark)
+* [Frequently Asked Questions](#frequently-asked-questions)
 * Recipes
   * [Continuous Integration](docs/recipes/continuous-integration.md)
 * Advanced
