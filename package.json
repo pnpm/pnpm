@@ -71,7 +71,7 @@
     "proper-lockfile": "^2.0.0",
     "ramda": "^0.23.0",
     "read-pkg": "^2.0.0",
-    "registry-auth-token": "^3.3.0",
+    "registry-auth-token": "^3.3.1",
     "remove-all-except-outer-links": "^1.0.0",
     "rimraf-then": "^1.0.1",
     "semver": "^5.3.0",

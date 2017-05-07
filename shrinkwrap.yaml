@@ -70,7 +70,7 @@ dependencies:
   proper-lockfile@^2.0.0: 2.0.1
   ramda@^0.23.0: 0.23.0
   read-pkg@^2.0.0: 2.0.0
-  registry-auth-token@^3.3.0: 3.3.0
+  registry-auth-token@^3.3.1: 3.3.1
   remove-all-except-outer-links@^1.0.0: 1.0.1
   rimraf-then@^1.0.1: 1.0.1
   rimraf@^2.5.4: 2.6.1
@@ -1657,6 +1657,11 @@ packages:
       rc: 1.2.1
       safe-buffer: 5.0.1
     resolution: 57ae67347e73d96345ed1bc01294c7237c02aa63
+  /registry-auth-token/3.3.1:
+    dependencies:
+      rc: 1.2.1
+      safe-buffer: 5.0.1
+    resolution: fb0d3289ee0d9ada2cbb52af5dfe66cb070d3006
   /registry-url/3.1.0:
     dependencies:
       rc: 1.2.1
