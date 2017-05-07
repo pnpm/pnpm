@@ -46,6 +46,7 @@ export type PnpmOptions = {
   networkConcurrency?: number,
   fetchingConcurrency?: number,
   lockStaleDuration?: number,
+  lock?: boolean,
   childConcurrency?: number,
   repeatInstallDepth?: number,
 
@@ -98,6 +99,7 @@ export type StrictPnpmOptions = {
   networkConcurrency: number,
   fetchingConcurrency: number,
   lockStaleDuration: number,
+  lock: boolean,
   childConcurrency: number,
   repeatInstallDepth: number,
 

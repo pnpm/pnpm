@@ -61,25 +61,27 @@ export async function install (maybeOpts?: PnpmOptions) {
 
   const optionalDeps = R.keys(ctx.pkg.optionalDependencies)
 
-  return lock(
-    ctx.storePath,
-    async () => {
-      const scripts = !opts.ignoreScripts && ctx.pkg && ctx.pkg.scripts || {}
-      if (scripts['preinstall']) {
-        npmRun('preinstall', ctx.root, opts.userAgent)
-      }
+  if (opts.lock === false) {
+    return run()
+  }
 
-      await installInContext(installType, specs, optionalDeps, [], ctx, installCtx, opts)
+  return lock(ctx.storePath, run, {stale: opts.lockStaleDuration})
 
-      if (scripts['postinstall']) {
-        npmRun('postinstall', ctx.root, opts.userAgent)
-      }
-      if (scripts['prepublish']) {
-        npmRun('prepublish', ctx.root, opts.userAgent)
-      }
-    },
-    {stale: opts.lockStaleDuration}
-  )
+  async function run () {
+    const scripts = !opts.ignoreScripts && ctx.pkg && ctx.pkg.scripts || {}
+    if (scripts['preinstall']) {
+      npmRun('preinstall', ctx.root, opts.userAgent)
+    }
+
+    await installInContext(installType, specs, optionalDeps, [], ctx, installCtx, opts)
+
+    if (scripts['postinstall']) {
+      npmRun('postinstall', ctx.root, opts.userAgent)
+    }
+    if (scripts['prepublish']) {
+      npmRun('prepublish', ctx.root, opts.userAgent)
+    }
+  }
 }
 
 function specsToInstallFromPackage(
@@ -131,18 +133,22 @@ export async function installPkgs (fuzzyDeps: string[] | Dependencies, maybeOpts
     ? packagesToInstall.map(spec => spec.name)
     : []
 
-  return lock(
-    ctx.storePath,
-    () => installInContext(
+  if (opts.lock === false) {
+    return run()
+  }
+
+  return lock(ctx.storePath, run, {stale: opts.lockStaleDuration})
+
+  function run () {
+    return installInContext(
       installType,
       packagesToInstall,
       optionalDependencies,
       packagesToInstall.map(spec => spec.name),
       ctx,
       installCtx,
-      opts),
-    {stale: opts.lockStaleDuration}
-  )
+      opts)
+  }
 }
 
 function argsToSpecs (args: string[], defaultTag: string, where: string): PackageSpec[] {

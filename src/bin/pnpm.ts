@@ -59,6 +59,7 @@ async function run (argv: string[]) {
     'network-concurrency': Number,
     'fetching-concurrency': Number,
     'lock-stale-duration': Number,
+    'lock': Boolean,
     'child-concurrency': Number,
     'offline': Boolean,
     'reporter': String,

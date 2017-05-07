@@ -29,6 +29,7 @@ const defaults = (opts: PnpmOptions) => {
     networkConcurrency: 16,
     fetchingConcurrency: 16,
     lockStaleDuration: 60 * 1000, // 1 minute
+    lock: true,
     childConcurrency: 5,
     offline: false,
     registry: 'https://registry.npmjs.org/',
@@ -51,6 +52,9 @@ export default (opts?: PnpmOptions): StrictPnpmOptions => {
   const extendedOpts = Object.assign({}, defaults(opts || {}), opts)
   if (extendedOpts.force) {
     logger.warn('using --force I sure hope you know what you are doing')
+  }
+  if (extendedOpts.lock === false) {
+    logger.warn('using --no-lock I sure hope you know what you are doing')
   }
   if (extendedOpts.localRegistry !== DEFAULT_LOCAL_REGISTRY) {
     extendedOpts.localRegistry = expandTilde(extendedOpts.localRegistry, extendedOpts.prefix)

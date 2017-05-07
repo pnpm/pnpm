@@ -19,7 +19,13 @@ export async function prune(maybeOpts?: PnpmOptions): Promise<void> {
 
   const ctx = await getContext(opts)
 
-  return lock(ctx.storePath, async function () {
+  if (opts.lock === false) {
+    return run()
+  }
+
+  return lock(ctx.storePath, run, {stale: opts.lockStaleDuration})
+
+  async function run () {
     if (!ctx.pkg) {
       throw new Error('No package.json found - cannot prune')
     }
@@ -37,8 +43,7 @@ export async function prune(maybeOpts?: PnpmOptions): Promise<void> {
     const prunedShr = pruneShrinkwrap(newShr)
 
     await removeOrphanPkgs(ctx.privateShrinkwrap, prunedShr, ctx.root, ctx.storePath)
-  },
-  {stale: opts.lockStaleDuration})
+  }
 }
 
 async function getExtraneousPkgs (pkg: Package, root: string, production: boolean) {

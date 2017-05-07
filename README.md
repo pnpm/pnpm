@@ -113,6 +113,19 @@ Controls the maximum number of HTTP requests that can be done simultaneously.
 
 Controls the number of child processes run parallely to build node modules.
 
+#### lock
+
+* Default: **true**
+* Type: **Boolean**
+
+Dangerous! If false, the store is not locked. It means that several installations using the same
+store can run simultaneously.
+
+Can be passed in via a CLI option. `--no-lock` to set it to false. E.g.: `pnpm install --no-lock`.
+
+> If you experience issues similar to the ones described in [#594](https://github.com/pnpm/pnpm/issues/594), use this option to disable locking.
+> In the meanwhile, we'll try to find a solution that will make locking work for everyone.
+
 ## Benchmark
 
 pnpm is usually 10 times faster than npm and 30% faster than yarn. See [this](https://github.com/zkochan/node-package-manager-benchmark)
