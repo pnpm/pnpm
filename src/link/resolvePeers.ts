@@ -20,6 +20,9 @@ export type DependencyTreeNode = {
 }
 
 export type DependencyTreeNodeMap = {
+  // a node ID is the join of the package's keypath with a colon
+  // E.g., a subdeps node ID which parent is `foo` will be
+  // registry.npmjs.org/foo/1.0.0:registry.npmjs.org/bar/1.0.0
   [nodeId: string]: DependencyTreeNode
 }
 
@@ -30,9 +33,9 @@ export default function (
   // to avoid warnings about unresolved peer dependencies
   topParents: {name: string, version: string}[]
 ): DependencyTreeNodeMap {
-  const tree = createTree(pkgsMap, topPkgIds, [])
+  const tree = createTree(pkgsMap, topPkgIds)
 
-  const pkgsByName = R.merge(
+  const pkgsByName = Object.assign(
     toPkgByName(R.props<TreeNode>(tree.rootNodeIds, tree.nodes)),
     R.fromPairs(
       topParents.map((parent: {name: string, version: string}): R.KeyValuePair<string, ParentRef> => [
@@ -44,12 +47,13 @@ export default function (
       ])
     )
   )
-  const resolvedTreeMap = R.reduce(
-    R.merge,
-    {},
-    tree.rootNodeIds.map(rootNodeId => resolvePeersOfNode(rootNodeId, pkgsByName, tree.nodes))
-  )
-  return resolvedTreeMap
+
+  const treeMaps = tree.rootNodeIds.map(rootNodeId => resolvePeersOfNode(rootNodeId, pkgsByName, tree.nodes))
+
+  // because Object.assign will fail if called w/o arguments
+  if (treeMaps.length === 0) return {}
+
+  return Object.assign.apply(null, treeMaps)
 }
 
 type Tree = {
@@ -67,14 +71,15 @@ type TreeNode = {
 function createTree (
   pkgsMap: LinkedPackagesMap,
   pkgIds: string[],
-  keypath: string[]
+  depth?: number,
+  parentNodeId?: string
 ): Tree {
   return R.props(pkgIds, pkgsMap)
     .reduce((acc: Tree, pkg: LinkedPackage) => {
-      const node = createTreeNode(pkgsMap, pkg, keypath)
+      const node = createTreeNode(pkgsMap, pkg, depth || 0, parentNodeId)
       return {
         rootNodeIds: R.append(node.nodeId, acc.rootNodeIds),
-        nodes: R.merge(acc.nodes, node.childNodes)
+        nodes: Object.assign(acc.nodes, node.childNodes)
       }
     }, {rootNodeIds: [], nodes: {}})
 }
@@ -82,34 +87,44 @@ function createTree (
 function createTreeNode (
   pkgsMap: LinkedPackagesMap,
   pkg: LinkedPackage,
-  keypath: string[]
+  depth: number,
+  parentNodeId?: string
 ): {
   nodeId: string,
   childNodes: {[nodeId: string]: TreeNode},
 } {
-  const nonCircularDeps = getNonCircularDependencies(pkg.id, pkg.dependencies, keypath)
-  const newKeypath = R.append(pkg.id, keypath)
-  const nodeId = newKeypath.join('/')
-  const tree = createTree(pkgsMap, nonCircularDeps, newKeypath)
+  const nonCircularDeps = parentNodeId
+    ? getNonCircularDependencies(parentNodeId, pkg.id, pkg.dependencies)
+    : pkg.dependencies
+  const nodeId = parentNodeId
+    ? relationCode(parentNodeId, pkg.id)
+    : pkg.id
+  const tree = createTree(pkgsMap, nonCircularDeps, depth + 1, nodeId)
   return {
     nodeId,
-    childNodes: R.merge(R.objOf(nodeId, {
+    childNodes: Object.assign(tree.nodes, R.objOf(nodeId, {
       pkg,
       nodeId,
       children: tree.rootNodeIds,
-      depth: keypath.length,
-    }), tree.nodes)
+      depth,
+    }))
   }
 }
 
 function getNonCircularDependencies (
+  parentNodeId: string,
   parentId: string,
-  dependencyIds: string[],
-  keypath: string[]
+  dependencyIds: string[]
 ) {
-  const relations = R.aperture(2, keypath)
-  const isCircular = R.partialRight(R.contains, [relations])
-  return dependencyIds.filter(depId => !isCircular([parentId, depId]))
+  return dependencyIds.filter(depId => {
+    const relation = relationCode(parentId, depId)
+    return parentNodeId.indexOf(relation) === -1
+  })
+}
+
+function relationCode (parentId: string, dependencyId: string) {
+  // using colon as it will never be used inside a package ID
+  return `${parentId}:${dependencyId}`
 }
 
 function resolvePeersOfNode (
@@ -132,7 +147,8 @@ function resolvePeersOfNode (
 
   const hardlinkedLocation = path.join(peerModules || modules, node.pkg.name)
 
-  return R.reduce(R.merge, R.objOf(nodeId, {
+  const trees = node.children.map(child => resolvePeersOfNode(child, newParentPkgs, tree))
+  trees.push(R.objOf(nodeId, {
     name: node.pkg.name,
     hasBundledDependencies: node.pkg.hasBundledDependencies,
     fetchingFiles: node.pkg.fetchingFiles,
@@ -144,7 +160,8 @@ function resolvePeersOfNode (
     children: node.children,
     depth: node.depth,
     id: node.pkg.id,
-  }), node.children.map(child => resolvePeersOfNode(child, newParentPkgs, tree)))
+  }))
+  return Object.assign.apply(null, trees)
 }
 
 function resolvePeers (
