@@ -71,8 +71,6 @@ async function run (argv: string[]) {
     0 // argv should be already sliced by now
   )
 
-  argv = cliConf.argv.remain
-
   if (cliConf.version) {
     console.log(pkg.version)
     return
@@ -85,7 +83,7 @@ async function run (argv: string[]) {
     }).notify()
   }
 
-  const cmd = getCommandFullName(argv[0])
+  const cmd = getCommandFullName(cliConf.argv.remain[0])
   if (!supportedCmds.has(cmd)) {
     runNpm(argv)
     return Promise.resolve()
@@ -118,7 +116,7 @@ async function run (argv: string[]) {
 
   initReporter(silent ? 'silent' : (<any>opts.reporter || 'default')) // tslint:disable-line
 
-  const cliArgs = argv.slice(1)
+  const cliArgs = cliConf.argv.remain.slice(1)
   return pnpmCmds[cmd](cliArgs, opts)
 }
 

@@ -11,6 +11,7 @@ import {
   execPnpm,
   execPnpmSync,
 } from './utils'
+import rimraf = require('rimraf-then')
 
 test('return error status code when underlying command fails', t => {
   const result = execPnpmSync('invalid-command')
@@ -80,4 +81,13 @@ test('pass through to npm CLI for commands that are not supported by npm', t => 
   t.ok(result.stdout.toString().indexOf('npm/') !== -1, 'command returned correct result')
 
   t.end()
+})
+
+test('pass through to npm with all the args', async t => {
+  const project = prepare(t)
+  await rimraf('package.json')
+
+  const result = execPnpmSync('init', '-y')
+
+  t.equal(result.status, 0, 'command was successfull')
 })
