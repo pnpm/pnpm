@@ -157,6 +157,10 @@ async function linkModules (
     R.props<DependencyTreeNode>(dependency.resolvedPeers, pkgMap)
       .map(peer => symlinkDependencyTo(peer, <string>dependency.peerModules))
   )
+  await Promise.all(
+    R.props<DependencyTreeNode>(dependency.childrenWithUnknownPeers, pkgMap)
+      .map(peer => symlinkDependencyTo(peer, <string>dependency.peerModules))
+  )
 
   const binPath = path.join(dependency.hardlinkedLocation, 'node_modules', '.bin')
   await linkBins(dependency.modules, binPath, dependency.name)
