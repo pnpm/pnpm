@@ -297,9 +297,10 @@ async function installInContext (
   // postinstall hooks
   if (!(opts.ignoreScripts || !installCtx.installationSequence || !installCtx.installationSequence.length)) {
     const limitChild = pLimit(opts.childConcurrency)
+    const linkedPkgsMapValues = R.values(linkedPkgsMap)
     await Promise.all(
       installCtx.installationSequence.map(pkgId => Promise.all(
-        R.uniqBy(linkedPkg => linkedPkg.hardlinkedLocation, R.values(linkedPkgsMap).filter(pkg => pkg.id === pkgId))
+        R.uniqBy(linkedPkg => linkedPkg.hardlinkedLocation, linkedPkgsMapValues.filter(pkg => pkg.id === pkgId))
           .map(pkg => limitChild(async () => {
             try {
               await postInstall(pkg.hardlinkedLocation, installLogger(pkgId), {
