@@ -24,6 +24,7 @@ dependencies:
   common-tags@^1.4.0: 1.4.0
   cross-spawn@^5.0.0: 5.1.0
   cz-conventional-changelog@^2.0.0: 2.0.0
+  deep-require-cwd@^1.0.0: 1.0.0
   execa@^0.6.3: 0.6.3
   exists-link@^2.0.0: 2.0.0
   find-up@^2.1.0: 2.1.0
@@ -506,6 +507,18 @@ packages:
   /dedent/0.6.0: 0e6da8f0ce52838ef5cec5c8f9396b0c1b64a3cb
   /deep-equal/1.0.1: f5d260292b660e084eff4cdbc9f08ad3247448b5
   /deep-extend/0.4.1: efe4113d08085f4e6f9687759810f807469e2253
+  /deep-require-cwd/1.0.0:
+    dependencies:
+      deep-require-from: 1.0.0
+    resolution: 6569a2b66c93ee606543676e7d486a93a1f76977
+  /deep-require-from/1.0.0:
+    dependencies:
+      deep-resolve-from: 1.1.0
+    resolution: 0645d35c6cbe0637cd422b18769b3b1e7246dd89
+  /deep-resolve-from/1.1.0:
+    dependencies:
+      resolve-from: 3.0.0
+    resolution: 821951ec8df359dba5f615f35d76be5c9d58f4e7
   /define-properties/1.1.2:
     dependencies:
       foreach: 2.0.5
@@ -1715,6 +1728,7 @@ packages:
       expand-tilde: 1.2.2
       global-modules: 0.2.3
     resolution: b219259a5602fac5c5c496ad894a6e8cc430261e
+  /resolve-from/3.0.0: b22c7af7d9d6881bc8b6e653335eebcb0a188748
   /resolve/1.1.7: 203114d82ad2c5ed9e8e0411b3932875e889e97b
   /resolve/1.3.3:
     dependencies:
