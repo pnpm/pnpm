@@ -5,7 +5,23 @@ one set of dependencies. There is one exclusion from it though - packages with [
 
 Peer dependencies are resolved from dependencies installed higher in the dependency tree.
 That means if `foo@1.0.0` has two peers (`bar@^1` and `baz@^1`) then it might have different sets of dependencies
-in the same project. To make it possible, pnpm has to hard link `foo@1.0.0` as many times as many different dependency sets it has.
+in the same project.
+
+```
+- foo-parent-1
+  - bar@1.0.0
+  - baz@1.0.0
+  - foo@1.0.0
+- foo-parent-2
+  - bar@1.0.0
+  - baz@1.1.0
+  - foo@1.0.0
+```
+
+In the example above, `foo@1.0.0` is installed for `foo-parent-1` and `foo-parent-2`. Both packages have `bar` and `baz` as well, but
+they dependend on different versions of `baz`. As a result, `foo@1.0.0` has two different sets of dependencies: one with `baz@1.0.0`
+and the other one with `baz@1.1.0`. In order to support these use cases, pnpm has to hard link `foo@1.0.0` as many times as many different
+dependency sets it has.
 
 Normally, if a package does not have peer dependencies, it is hard linked to a `node_modules` folder next to symlinks of its dependencies.
 
@@ -19,7 +35,7 @@ Normally, if a package does not have peer dependencies, it is hard linked to a `
 </pre>
 
 However, if `foo` has peer dependencies, there cannot be one single set of dependencies for it, so
-we create different sets, for different peer deps resolutions:
+we create different sets, for different peer dependency resolutions:
 
 <pre>
 - .registry.npmjs.org / foo / 1.0.0
