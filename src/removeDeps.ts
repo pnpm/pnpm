@@ -1,4 +1,4 @@
-import {ignoreCache as readPkg} from './fs/readPkg'
+import readPkg = require('read-pkg')
 import writePkg = require('write-pkg')
 import {DependenciesType} from './getSaveType'
 import {Package} from './types'
@@ -8,7 +8,7 @@ export default async function (
   removedPackages: string[],
   saveType: DependenciesType
 ): Promise<Package> {
-  const packageJson = await readPkg(pkgJsonPath)
+  const packageJson = await readPkg(pkgJsonPath, {normalize: false})
   packageJson[saveType] = packageJson[saveType]
 
   if (!packageJson[saveType]) return packageJson

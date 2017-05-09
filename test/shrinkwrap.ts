@@ -6,6 +6,7 @@ import {prepare, testDefaults, addDistTag} from './utils'
 import {installPkgs, install} from '../src'
 import readPkg = require('read-pkg')
 import writePkg = require('write-pkg')
+import rimraf = require('rimraf-then')
 
 const test = promisifyTape(tape)
 
@@ -197,4 +198,22 @@ test("recreates shrinkwrap file if it doesn't match the dependencies in package.
   const shr = await project.loadShrinkwrap()
 
   t.ok(shr.dependencies['is-negative@^2.1.0'])
+})
+
+test('repeat install with shrinkwrap should not mutate shrinkwrap when dependency has version specified with v prefix', async (t: tape.Test) => {
+  const project = prepare(t)
+
+  await installPkgs(['highmaps-release@5.0.11'], testDefaults())
+
+  const shr1 = await project.loadShrinkwrap()
+
+  t.equal(shr1.dependencies['highmaps-release@^5.0.11'], '5.0.11')
+
+  await rimraf('node_modules')
+
+  await install(testDefaults())
+
+  const shr2 = await project.loadShrinkwrap()
+
+  t.deepEqual(shr1, shr2)
 })

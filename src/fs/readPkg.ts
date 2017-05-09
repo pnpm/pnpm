@@ -4,7 +4,7 @@ import mem = require('mem')
 import readPkgLib = require('read-pkg')
 
 function readPkg (pkgPath: string) {
-  return readPkgLib(pkgPath, {normalize: false})
+  return readPkgLib(pkgPath, {normalize: true})
 }
 
 const cachedReadPkg = mem(readPkg)
