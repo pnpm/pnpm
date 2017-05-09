@@ -9,40 +9,40 @@ in the same project. To make it possible, pnpm has to hard link `foo@1.0.0` as m
 
 Normally, if a package does not have peer dependencies, it is hard linked to a `node_modules` folder next to symlinks of its dependencies.
 
-```
+<pre>
 - .registry.npmjs.org / foo / 1.0.0 / node_modules
-  ( hard link to the specific foo package in the store, for instance foo@1.0.0 )
+  <sub>hard link to the specific foo package in the store</sub>
   - foo
-  ( dependencies of foo, symlinks to folders where these deps are resolved with their deps )
+  <sub>dependencies of foo, symlinks to folders where these deps are resolved with their deps</sub>
   - qux
   - plugh
-```
+</pre>
 
 However, if `foo` has peer dependencies, there cannot be one single set of dependencies for it, so
 we create different sets, for different peer deps resolutions:
 
-```
+<pre>
 - .registry.npmjs.org / foo / 1.0.0
 
-  ( regular dependencies of foo )
+  <sub>regular dependencies of foo</sub>
   - node_modules
     - qux
     - plugh
 
   - bar@1.0.0+baz@1.0.0 / node_modules
-    ( hard link  )
+    <sub>hard link</sub>
     - foo
-    ( symlinks to peer dependencies )
-    - bar ( version 1.0.0 )
-    - baz ( version 1.0.0 )
+    <sub>symlinks to peer dependencies</sub>
+    - bar <sub>v1.0.0</sub>
+    - baz <sub>v1.0.0</sub>
 
   - bar@1.0.0+baz@1.1.0 / node_modules
-    ( hard link  )
+    <sub>hard link</sub>
     - foo
-    ( symlinks to peer dependencies )
-    - bar ( version 1.0.0 )
-    - baz ( version 1.1.0 )
-```
+    <sub>symlinks to peer dependencies</sub>
+    - bar <sub>v1.0.0</sub>
+    - baz <sub>v1.1.0</sub>
+</pre>
 
 We create symlinks either to the `foo` that is inside `bar@1.0.0+bar@1.0.0/node_modules` or to the one in `bar@1.0.0+bar@1.1.0/node_modules`.
 As a consequence, the Node.js module resolver algorithm will find the correct peers.
@@ -51,27 +51,27 @@ As a consequence, the Node.js module resolver algorithm will find the correct pe
 This is done to make it easier to make predictable and fast named (`pnpm i foo`) and general (`pnpm i`) installations.
 So if the project dependends on `bar@1.0.0`, the dependencies from our example will be grouped like this:
 
-```
-- bar (version 1.0.0)
+<pre>
+- bar <sub>v1.0.0</sub>
 - .registry.npmjs.org / foo / 1.0.0
 
-  ( regular dependencies of foo )
+  <sub>regular dependencies of foo</sub>
   - node_modules
     - qux
     - plugh
 
   - baz@1.0.0 / node_modules
-    ( hard link  )
+    <sub>hard link</sub>
     - foo
-    ( symlinks to peer dependencies )
-    - baz ( version 1.0.0 )
+    <sub>symlinks to peer dependencies</sub>
+    - baz <sub>v1.0.0</sub>
 
   - baz@1.1.0 / node_modules
-    ( hard link  )
+    <sub>hard link</sub>
     - foo
-    ( symlinks to peer dependencies )
-    - baz ( version 1.1.0 )
-```
+    <sub>symlinks to peer dependencies</sub>
+    - baz <sub>v1.1.0</sub>
+</pre>
 
 *If a package has no peer dependencies but has dependencies with peers that are resolved higher in the tree*, then
 that transitive package can appear in the project with different sets of dependencies. For instance, there's package `a@1.0.0`
@@ -81,27 +81,27 @@ peers of `framework@1.0.0`, so it becomes dependent from the peers of `framework
 Here's how it will look like in `node_modules/.registry.npmjs.org`, in case if `a@1.0.0` will need to appear twice in the project's
 `node_modules`, once resolved with `plugin@1.0.0` and once with `plugin@1.1.0`.
 
-```
+<pre>
 - .registry.npmjs.org
   - a / 1.0.0
     - plugin@1.0.0 / node_modules
       - a
-      ( symlink to .registry.npmjs.org / framework / 1.0.0 / plugin@1.0.0 / node_modules / framework )
-      - framework ( version 1.0.0 but dependent on plugin@1.0.0 )
+      <sub>-> .registry.npmjs.org / framework / 1.0.0 / plugin@1.0.0 / node_modules / framework</sub>
+      - framework <sub>v1.0.0 but dependent on plugin@1.0.0</sub>
     - plugin@1.1.0 / node_modules
       - a
-      ( symlink to .registry.npmjs.org / framework / 1.0.0 / plugin@1.1.0 / node_modules / framework )
-      - framework ( version 1.0.0 but dependent on plugin@1.1.0 )
+      <sub>-> .registry.npmjs.org / framework / 1.0.0 / plugin@1.1.0 / node_modules / framework</sub>
+      - framework <sub>v1.0.0 but dependent on plugin@1.1.0</sub>
 
   - framework / 1.0.0
     - plugin@1.0.0 / node_modules
       - framework
-      - plugin ( version 1.0.0 )
+      - plugin <sub>v1.0.0</sub>
     - plugin@1.1.0 / node_modules
       - framework
-      - plugin ( version 1.1.0 )
+      - plugin <sub>v1.1.0</sub>
 
   - plugin
     - 1.0.0 / node_modules / plugin
     - 1.1.0 / node_modules / plugin
-```
+</pre>
