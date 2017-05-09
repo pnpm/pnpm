@@ -8,6 +8,7 @@ import {
   testDefaults,
 } from '../utils'
 import streamParser from '../../src/logging/streamParser'
+import deepRequireCwd = require('deep-require-cwd')
 
 const test = promisifyTape(tape)
 const NM = 'node_modules'
@@ -22,6 +23,7 @@ test('peer dependency is grouped with dependency when peer is resolved not from 
   await installPkgs(['using-ajv'], testDefaults())
 
   t.ok(await exists(path.join(NM, '.localhost+4873', 'ajv-keywords', '1.5.0', 'ajv@4.10.4', NM, 'ajv')), 'peer dependency is linked')
+  t.equal(deepRequireCwd(['using-ajv', 'ajv-keywords', 'ajv', './package.json']).version, '4.10.4')
 })
 
 test('peer dependency is not grouped with dependent when the peer is a top dependency', async (t: tape.Test) => {
@@ -96,6 +98,9 @@ test('peer dependencies are linked', async (t: tape.Test) => {
   await okFile(t, path.join(pkgVariation2, 'abc'))
   await okFile(t, path.join(pkgVariation2, 'peer-a'))
   await okFile(t, path.join(pkgVariation2, 'peer-b'))
+
+  t.equal(deepRequireCwd(['abc-parent-with-ab', 'abc', 'peer-c', './package.json']).version, '2.0.0')
+  t.equal(deepRequireCwd(['abc-grand-parent-with-c', 'abc-parent-with-ab', 'abc', 'peer-c', './package.json']).version, '1.0.0')
 })
 
 test('scoped peer dependency is linked', async (t: tape.Test) => {
