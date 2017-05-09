@@ -35,6 +35,7 @@ Follow the [pnpm Twitter account](https://twitter.com/pnpmjs) for updates.
   * [Continuous Integration](docs/recipes/continuous-integration.md)
 * Advanced
   * [About the package store](docs/about-the-package-store.md)
+  * [How peers are resolved](docs/how-peers-are-resolved.md)
 
 ## Background
 
