@@ -75,6 +75,8 @@ export type PackageSpecBase = {
   scope: string,
   saveSpec: string,
   fetchSpec: string,
+  dev: boolean,
+  optional: boolean,
 }
 
 export type PackageSpec = HostedPackageSpec |

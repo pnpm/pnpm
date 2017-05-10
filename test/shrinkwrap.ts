@@ -35,6 +35,25 @@ test('shrinkwrap file has correct format', async t => {
   t.ok(!shr.packages[id].resolution.tarball, `has no tarball for package in the default registry`)
 })
 
+test('shrinkwrap file has dev deps even when installing for prod only', async (t: tape.Test) => {
+  const project = prepare(t, {
+    devDependencies: {
+      'is-negative': '2.1.0',
+    },
+  })
+
+  await install(testDefaults({production: true}))
+
+  const shr = await project.loadShrinkwrap()
+  const id = '/is-negative/2.1.0'
+
+  t.ok(shr.dependencies, 'has dependencies field')
+  t.equal(shr.dependencies['is-negative@2.1.0'], '2.1.0', 'has dependency resolved')
+
+  t.ok(shr.packages, 'has packages field')
+  t.ok(shr.packages[id], `has resolution for ${id}`)
+})
+
 test('shrinkwrap with scoped package', async t => {
   const project = prepare(t, {
     dependencies: {

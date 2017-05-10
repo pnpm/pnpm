@@ -31,6 +31,7 @@ export type InstalledPackage = {
   resolution: Resolution,
   pkg: Package,
   srcPath?: string,
+  dev: boolean,
   optional: boolean,
   dependencies: string[],
   fetchingFiles: Promise<Boolean>,
@@ -38,45 +39,7 @@ export type InstalledPackage = {
   specRaw: string,
 }
 
-export default async function installAll (
-  ctx: InstallContext,
-  specs: PackageSpec[],
-  optionalDependencies: string[],
-  options: {
-    force: boolean,
-    root: string,
-    storePath: string,
-    localRegistry: string,
-    registry: string,
-    metaCache: Map<string, PackageMeta>,
-    got: Got,
-    keypath?: string[],
-    resolvedDependencies?: ResolvedDependencies,
-    depth: number,
-    engineStrict: boolean,
-    nodeVersion: string,
-    offline: boolean,
-    isInstallable?: boolean,
-    rawNpmConfig: Object,
-    nodeModules: string,
-    update: boolean,
-  }
-): Promise<InstalledPackage[]> {
-  const keypath = options.keypath || []
-
-  const specGroups = R.partition((spec: PackageSpec) => !!spec.name && R.contains(spec.name, optionalDependencies), specs)
-  const optionalDepSpecs = specGroups[0]
-  const nonOptionalDepSpecs = specGroups[1]
-
-  const installedPkgs: InstalledPackage[] = Array.prototype.concat.apply([], await Promise.all([
-    installMultiple(ctx, nonOptionalDepSpecs, Object.assign({}, options, {optional: false, keypath})),
-    installMultiple(ctx, optionalDepSpecs, Object.assign({}, options, {optional: true, keypath})),
-  ]))
-
-  return installedPkgs
-}
-
-async function installMultiple (
+export default async function installMultiple (
   ctx: InstallContext,
   specs: PackageSpec[],
   options: {
@@ -89,7 +52,6 @@ async function installMultiple (
     got: Got,
     keypath: string[],
     resolvedDependencies?: ResolvedDependencies,
-    optional: boolean,
     depth: number,
     engineStrict: boolean,
     nodeVersion: string,
@@ -173,7 +135,6 @@ async function install (
     pkgId?: string,
     shrinkwrapResolution?: Resolution,
     resolvedDependencies: ResolvedDependencies,
-    optional: boolean,
     depth: number,
     engineStrict: boolean,
     nodeVersion: string,
@@ -223,12 +184,21 @@ async function install (
   logStatus({status: 'downloaded_manifest', pkgId: fetchedPkg.id, pkgVersion: pkg.version})
 
   let dependencyIds: string[] | void
-  const isInstallable = options.isInstallable !== false && (options.force || await getIsInstallable(fetchedPkg.id, pkg, fetchedPkg, options))
+  const isInstallable = options.isInstallable !== false &&
+    (
+      options.force ||
+      await getIsInstallable(fetchedPkg.id, pkg, fetchedPkg, {
+        optional: spec.optional,
+        engineStrict: options.engineStrict,
+        nodeVersion: options.nodeVersion,
+      })
+    )
 
   if (!ctx.installed.has(fetchedPkg.id)) {
     ctx.installed.add(fetchedPkg.id)
     const dependencies = await installDependencies(
       pkg,
+      spec,
       fetchedPkg.id,
       ctx,
       Object.assign({}, options, {
@@ -255,7 +225,8 @@ async function install (
     id: fetchedPkg.id,
     resolution: fetchedPkg.resolution,
     srcPath: fetchedPkg.srcPath,
-    optional: options.optional === true,
+    optional: spec.optional,
+    dev: spec.dev,
     pkg,
     isInstallable,
     dependencies: dependencyIds || [],
@@ -328,6 +299,7 @@ function toShrResolution (shortId: string, resolution: Resolution): string | Res
 
 async function installDependencies (
   pkg: Package,
+  parentSpec: PackageSpec,
   pkgId: string,
   ctx: InstallContext,
   opts: {
@@ -340,7 +312,6 @@ async function installDependencies (
     got: Got,
     keypath: string[],
     resolvedDependencies?: ResolvedDependencies,
-    optional: boolean,
     depth: number,
     engineStrict: boolean,
     nodeVersion: string,
@@ -357,10 +328,16 @@ async function installDependencies (
 
   const bundledDeps = pkg.bundleDependencies || pkg.bundledDependencies || []
   const filterDeps = getNotBundledDeps.bind(null, bundledDeps)
-  const deps = depsToSpecs(filterDeps(Object.assign({}, pkg.optionalDependencies, pkg.dependencies)), opts.root)
-  const optionalDeps = Object.keys(pkg.optionalDependencies || {})
+  const deps = depsToSpecs(
+    filterDeps(Object.assign({}, pkg.optionalDependencies, pkg.dependencies)),
+    {
+      where: opts.root,
+      devDependencies: pkg.devDependencies || {},
+      optionalDependencies: pkg.optionalDependencies || {},
+    }
+  )
 
-  const installedDeps: InstalledPackage[] = await installAll(ctx, deps, optionalDeps, depsInstallOpts)
+  const installedDeps: InstalledPackage[] = await installMultiple(ctx, deps, depsInstallOpts)
 
   return installedDeps
 }
@@ -380,6 +357,7 @@ function addInstalledPkg (installs: InstalledPackages, newPkg: InstalledPackage)
     installs[newPkg.id] = newPkg
     return
   }
+  installs[newPkg.id].dev = installs[newPkg.id].dev && newPkg.dev
   installs[newPkg.id].optional = installs[newPkg.id].optional && newPkg.optional
   if (!installs[newPkg.id].dependencies.length) {
     installs[newPkg.id].dependencies = newPkg.dependencies

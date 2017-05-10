@@ -32,7 +32,7 @@ import mkdirp = require('mkdirp-promise')
 import createMemoize, {MemoizedFunc} from '../memoize'
 import {Package} from '../types'
 import {PackageSpec} from '../resolve'
-import depsToSpecs from '../depsToSpecs'
+import depsToSpecs, {similarDepsToSpecs} from '../depsToSpecs'
 
 export type InstalledPackages = {
   [name: string]: InstalledPackage
@@ -55,11 +55,8 @@ export async function install (maybeOpts?: PnpmOptions) {
   if (!ctx.pkg) throw new Error('No package.json found')
 
   const specs = specsToInstallFromPackage(ctx.pkg, {
-    production: opts.production,
     prefix: opts.prefix,
   })
-
-  const optionalDeps = R.keys(ctx.pkg.optionalDependencies)
 
   if (opts.lock === false) {
     return run()
@@ -73,7 +70,7 @@ export async function install (maybeOpts?: PnpmOptions) {
       npmRun('preinstall', ctx.root, opts.userAgent)
     }
 
-    await installInContext(installType, specs, optionalDeps, [], ctx, installCtx, opts)
+    await installInContext(installType, specs, [], ctx, installCtx, opts)
 
     if (scripts['postinstall']) {
       npmRun('postinstall', ctx.root, opts.userAgent)
@@ -87,28 +84,24 @@ export async function install (maybeOpts?: PnpmOptions) {
 function specsToInstallFromPackage(
   pkg: Package,
   opts: {
-    production: boolean,
     prefix: string,
   }
 ): PackageSpec[] {
-  const depsToInstall = depsToInstallFromPackage(pkg, {
-    production: opts.production
+  const depsToInstall = depsFromPackage(pkg)
+  return depsToSpecs(depsToInstall, {
+    where: opts.prefix,
+    optionalDependencies: pkg.optionalDependencies || {},
+    devDependencies: pkg.devDependencies || {},
   })
-  return depsToSpecs(depsToInstall, opts.prefix)
 }
 
-function depsToInstallFromPackage(
-  pkg: Package,
-  opts: {
-    production: boolean
-  }
-): Dependencies {
+function depsFromPackage (pkg: Package): Dependencies {
   return Object.assign(
     {},
-    !opts.production && pkg.devDependencies || {},
+    pkg.devDependencies,
     pkg.optionalDependencies,
     pkg.dependencies
-  )
+  ) as Dependencies
 }
 
 /**
@@ -120,8 +113,17 @@ function depsToInstallFromPackage(
 export async function installPkgs (fuzzyDeps: string[] | Dependencies, maybeOpts?: PnpmOptions) {
   const opts = extendOptions(maybeOpts)
   let packagesToInstall = Array.isArray(fuzzyDeps)
-    ? argsToSpecs(fuzzyDeps, opts.tag, opts.prefix)
-    : depsToSpecs(fuzzyDeps, opts.prefix)
+    ? argsToSpecs(fuzzyDeps, {
+      defaultTag: opts.tag,
+      where: opts.prefix,
+      dev: opts.saveDev,
+      optional: opts.saveOptional,
+    })
+    : similarDepsToSpecs(fuzzyDeps, {
+      where: opts.prefix,
+      dev: opts.saveDev,
+      optional: opts.saveOptional,
+    })
 
   if (!Object.keys(packagesToInstall).length) {
     throw new Error('At least one package has to be installed')
@@ -129,9 +131,6 @@ export async function installPkgs (fuzzyDeps: string[] | Dependencies, maybeOpts
   const installType = 'named'
   const ctx = await getContext(opts, installType)
   const installCtx = await createInstallCmd(opts, ctx.shrinkwrap)
-  const optionalDependencies = opts.saveOptional
-    ? packagesToInstall.map(spec => spec.name)
-    : []
 
   if (opts.lock === false) {
     return run()
@@ -143,7 +142,6 @@ export async function installPkgs (fuzzyDeps: string[] | Dependencies, maybeOpts
     return installInContext(
       installType,
       packagesToInstall,
-      optionalDependencies,
       packagesToInstall.map(spec => spec.name),
       ctx,
       installCtx,
@@ -151,13 +149,23 @@ export async function installPkgs (fuzzyDeps: string[] | Dependencies, maybeOpts
   }
 }
 
-function argsToSpecs (args: string[], defaultTag: string, where: string): PackageSpec[] {
+function argsToSpecs (
+  args: string[],
+  opts: {
+    defaultTag: string,
+    where: string,
+    dev: boolean,
+    optional: boolean,
+  }
+): PackageSpec[] {
   return args
-    .map(arg => npa(arg, where))
+    .map(arg => npa(arg, opts.where))
     .map(spec => {
       if (spec.type === 'tag' && !spec.rawSpec) {
-        spec.fetchSpec = defaultTag
+        spec.fetchSpec = opts.defaultTag
       }
+      spec.dev = opts.dev
+      spec.optional = opts.optional
       return spec
     })
 }
@@ -178,7 +186,6 @@ function getResolutions(
 async function installInContext (
   installType: string,
   packagesToInstall: PackageSpec[],
-  optionalDependencies: string[],
   newPkgs: string[],
   ctx: PnpmContext,
   installCtx: InstallContext,
@@ -216,24 +223,29 @@ async function installInContext (
     rawNpmConfig: opts.rawNpmConfig,
     nodeModules: nodeModulesPath,
     update: opts.update,
+    keypath: [],
   }
   const nonLinkedPkgs = await pFilter(packagesToInstall, (spec: PackageSpec) => !spec.name || safeIsInnerLink(nodeModulesPath, spec.name))
   const pkgs: InstalledPackage[] = await installMultiple(
     installCtx,
     nonLinkedPkgs,
-    optionalDependencies,
     installOpts
   )
-  const linkedPkgsMap = await linkPackages(pkgs, installCtx.installs, {
+  if (opts.production) {
+    for (const pkgId of R.keys(installCtx.installs)) {
+      if (installCtx.installs[pkgId].dev) {
+        delete installCtx.installs[pkgId]
+      }
+    }
+  }
+  const linkedPkgsMap = await linkPackages(pkgs.filter(pkg => !opts.production || !pkg.dev), installCtx.installs, {
     force: opts.force,
     global: opts.global,
     baseNodeModules: nodeModulesPath,
     bin: opts.bin,
     topParents: ctx.pkg
       ? await getTopParents(
-          R.difference(R.keys(depsToInstallFromPackage(ctx.pkg, {
-            production: opts.production
-          })), newPkgs), nodeModulesPath)
+          R.difference(R.keys(depsFromPackage(ctx.pkg)), newPkgs), nodeModulesPath)
       : [],
   })
 
