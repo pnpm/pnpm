@@ -60,7 +60,7 @@ npm install -g pnpm
 
 ## Usage
 
-Use `pnpm` in place of `npm`. It overrides `pnpm i`, `pnpm install` and some other command, the rest will passthru to `npm`.
+Use `pnpm` in place of `npm`. It overrides `pnpm i`, `pnpm install` and some other command, the rest will pass through to `npm`.
 
 ```
 pnpm install lodash
@@ -98,7 +98,7 @@ Can be also used as a [verdaccio](https://github.com/verdaccio/verdaccio) storag
 * Type: **Boolean**
 
 If true, pnpm will use only the local registry mirror to get packages.
-If a package won't be found locally, installation will fail.
+If a package won't be found locally, the installation will fail.
 
 #### network-concurrency
 
@@ -112,7 +112,7 @@ Controls the maximum number of HTTP requests that can be done simultaneously.
 * Default: **5**
 * Type: **Number**
 
-Controls the number of child processes run parallely to build node modules.
+Controls the number of child processes run parallelly to build node modules.
 
 #### lock
 
