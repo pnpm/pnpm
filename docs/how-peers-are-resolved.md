@@ -18,10 +18,9 @@ in the same project.
   - foo@1.0.0
 ```
 
-In the example above, `foo@1.0.0` is installed for `foo-parent-1` and `foo-parent-2`. Both packages have `bar` and `baz` as well, but
-they dependend on different versions of `baz`. As a result, `foo@1.0.0` has two different sets of dependencies: one with `baz@1.0.0`
-and the other one with `baz@1.1.0`. In order to support these use cases, pnpm has to hard link `foo@1.0.0` as many times as many different
-dependency sets it has.
+In the example above, `foo@1.0.0` is installed for `foo-parent-1` and `foo-parent-2`. Both packages have `bar` and `baz`as well, but
+they depend on different versions of `baz`. As a result, `foo@1.0.0` has two different sets of dependencies: one with `baz@1.0.0`
+and the other one with `baz@1.1.0`. In order to support these use cases, pnpm has to hard link `foo@1.0.0` as many times as many different dependency sets it has.
 
 Normally, if a package does not have peer dependencies, it is hard linked to a `node_modules` folder next to symlinks of its dependencies.
 
