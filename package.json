@@ -84,6 +84,7 @@
   },
   "devDependencies": {
     "@types/mkdirp": "^0.3.29",
+    "@types/ramda": "^0.0.9",
     "@types/tape": "^4.2.28",
     "anonymous-npm-registry-client": "^0.1.2",
     "caw": "^2.0.0",
