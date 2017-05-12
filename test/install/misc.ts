@@ -15,8 +15,6 @@ import {
   prepare,
   addDistTag,
   testDefaults,
-  pathToLocalPkg,
-  local,
   execPnpmSync,
 } from '../utils'
 import loadJsonFile = require('load-json-file')
@@ -24,7 +22,6 @@ const basicPackageJson = loadJsonFile.sync(path.join(__dirname, '../utils/simple
 import {install, installPkgs, uninstall} from '../../src'
 import exists = require('path-exists')
 import isWindows = require('is-windows')
-import normalizePath = require('normalize-path')
 
 const IS_WINDOWS = isWindows()
 
@@ -125,15 +122,6 @@ test('nested scoped modules (test-pnpm-issue219 -> @zkochan/test-pnpm-issue219)'
 
   const m = project.requireModule('test-pnpm-issue219')
   t.ok(m === 'test-pnpm-issue219,@zkochan/test-pnpm-issue219', 'nested scoped package is available')
-})
-
-test('scoped modules from a directory', async function (t) {
-  const project = prepare(t)
-  await installPkgs([local('local-scoped-pkg')], testDefaults())
-
-  const m = project.requireModule('@scope/local-scoped-pkg')
-
-  t.equal(m(), '@scope/local-scoped-pkg', 'localScopedPkg() is available')
 })
 
 test('idempotency (rimraf)', async function (t) {
@@ -296,35 +284,6 @@ test('compiled modules (ursa@0.9.1)', async function (t) {
 
   const m = project.requireModule('ursa')
   t.ok(typeof m === 'object', 'ursa() is available')
-})
-
-test('local file', async function (t) {
-  const project = prepare(t)
-  await installPkgs([local('local-pkg')], testDefaults())
-
-  const m = project.requireModule('local-pkg')
-
-  t.ok(m, 'localPkg() is available')
-})
-
-test('package with a broken symlink', async function (t) {
-  const project = prepare(t)
-  await installPkgs([pathToLocalPkg('has-broken-symlink/has-broken-symlink.tar.gz')], testDefaults())
-
-  const m = project.requireModule('has-broken-symlink')
-
-  t.ok(m, 'has-broken-symlink is available')
-})
-
-test('nested local dependency of a local dependency', async function (t) {
-  const project = prepare(t)
-  await installPkgs([local('pkg-with-local-dep')], testDefaults())
-
-  const m = project.requireModule('pkg-with-local-dep')
-
-  t.ok(m, 'pkgWithLocalDep() is available')
-
-  t.equal(m(), 'local-pkg', 'pkgWithLocalDep() returns data from local-pkg')
 })
 
 test('shrinkwrap compatibility', async function (t) {
@@ -539,20 +498,6 @@ test('global installation', async function (t) {
 
   const isPositive = require(path.join(globalPrefix, 'node_modules', 'is-positive'))
   t.ok(typeof isPositive === 'function', 'isPositive() is available')
-})
-
-test('tarball local package', async function (t) {
-  const project = prepare(t)
-  await installPkgs([pathToLocalPkg('tar-pkg/tar-pkg-1.0.0.tgz')], testDefaults())
-
-  const m = project.requireModule('tar-pkg')
-
-  t.equal(m(), 'tar-pkg', 'tarPkg() is available')
-
-  const pkgJson = await readPkg()
-  t.deepEqual(pkgJson.dependencies,
-    {'tar-pkg': `file:${normalizePath(pathToLocalPkg('tar-pkg/tar-pkg-1.0.0.tgz'))}`},
-    'has been added to dependencies in package.json')
 })
 
 test('create a pnpm-debug.log file when the command fails', async function (t) {
