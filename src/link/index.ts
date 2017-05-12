@@ -12,6 +12,7 @@ import linkBins from './linkBins'
 import {Package, Dependencies} from '../types'
 import resolvePeers, {DependencyTreeNode, DependencyTreeNodeMap} from './resolvePeers'
 import logStatus from '../logging/logInstallStatus'
+import pkgIdToFilename from '../fs/pkgIdToFilename'
 
 export type LinkedPackage = {
   id: string,
@@ -49,7 +50,7 @@ export default async function (
         peerDependencies: installedPkg.pkg.peerDependencies || {},
         hasBundledDependencies: !!(installedPkg.pkg.bundledDependencies || installedPkg.pkg.bundleDependencies),
         fetchingFiles: installedPkg.fetchingFiles,
-        localLocation: path.join(opts.baseNodeModules, `.${installedPkg.id}`),
+        localLocation: path.join(opts.baseNodeModules, `.${pkgIdToFilename(installedPkg.id)}`),
         path: installedPkg.path,
         dependencies: installedPkg.dependencies,
       }

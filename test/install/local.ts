@@ -2,6 +2,9 @@ import tape = require('tape')
 import promisifyTape from 'tape-promise'
 import normalizePath = require('normalize-path')
 import readPkg = require('read-pkg')
+import ncpCB = require('ncp')
+import thenify = require('thenify')
+import path = require('path')
 import {install, installPkgs} from '../../src'
 import {
   prepare,
@@ -10,9 +13,10 @@ import {
   local,
 } from '../utils'
 
+const ncp = thenify(ncpCB.ncp)
 const test = promisifyTape(tape)
 
-test('scoped modules from a directory', async function (t) {
+test('scoped modules from a directory', async function (t: tape.Test) {
   const project = prepare(t)
   await installPkgs([local('local-scoped-pkg')], testDefaults())
 
@@ -21,13 +25,33 @@ test('scoped modules from a directory', async function (t) {
   t.equal(m(), '@scope/local-scoped-pkg', 'localScopedPkg() is available')
 })
 
-test('local file', async function (t) {
+test('local file', async function (t: tape.Test) {
   const project = prepare(t)
-  await installPkgs([local('local-pkg')], testDefaults())
+  await ncp(pathToLocalPkg('local-pkg'), path.resolve('..', 'local-pkg'))
+
+  await installPkgs(['file:../local-pkg'], testDefaults())
 
   const m = project.requireModule('local-pkg')
 
   t.ok(m, 'localPkg() is available')
+
+  const shr = await project.loadShrinkwrap()
+
+  t.deepEqual(shr, {
+    dependencies: {
+      [`local-pkg@file:..${path.sep}local-pkg`]: 'file:../local-pkg',
+    },
+    packages: {
+      'file:../local-pkg': {
+        resolution: {
+          root: '../local-pkg',
+          type: 'directory',
+        },
+      },
+    },
+    registry: 'http://localhost:4873/',
+    version: 2,
+  })
 })
 
 test('package with a broken symlink', async function (t) {
@@ -39,7 +63,7 @@ test('package with a broken symlink', async function (t) {
   t.ok(m, 'has-broken-symlink is available')
 })
 
-test('nested local dependency of a local dependency', async function (t) {
+test('nested local dependency of a local dependency', async function (t: tape.Test) {
   const project = prepare(t)
   await installPkgs([local('pkg-with-local-dep')], testDefaults())
 

@@ -92,7 +92,7 @@ export type ResolveOptions = {
   localRegistry: string,
   registry: string,
   metaCache: Map<string, PackageMeta>,
-  root: string,
+  prefix: string,
   offline: boolean,
 }
 

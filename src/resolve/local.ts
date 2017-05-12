@@ -1,5 +1,4 @@
-import {resolve} from 'path'
-import * as path from 'path'
+import path = require('path')
 import readPkg from '../fs/readPkg'
 import {
   PackageSpec,
@@ -9,19 +8,21 @@ import {
   ResolveResult,
 } from '.'
 import fs = require('mz/fs')
+import normalize = require('normalize-path')
 
 /**
  * Resolves a package hosted on the local filesystem
  */
 export default async function resolveLocal (spec: PackageSpec, opts: ResolveOptions): Promise<ResolveResult> {
-  const dependencyPath = resolve(opts.root, spec.fetchSpec)
+  const dependencyPath = normalize(path.relative(opts.prefix, spec.fetchSpec))
+  const id = `file:${dependencyPath}`
 
   if (spec.type === 'file') {
     const resolution: TarballResolution = {
-      tarball: `file:${dependencyPath}`,
+      tarball: id,
     }
     return {
-      id: createLocalPkgId(dependencyPath),
+      id,
       resolution,
     }
   }
@@ -32,11 +33,7 @@ export default async function resolveLocal (spec: PackageSpec, opts: ResolveOpti
     root: dependencyPath,
   }
   return {
-    id: createLocalPkgId(dependencyPath),
+    id,
     resolution,
   }
-}
-
-function createLocalPkgId (dependencyPath: string): string {
-  return 'local/' + encodeURIComponent(dependencyPath)
 }

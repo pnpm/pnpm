@@ -44,7 +44,8 @@ export default async function installMultiple (
   specs: PackageSpec[],
   options: {
     force: boolean,
-    root: string,
+    prefix: string,
+    referencedFrom: string,
     storePath: string,
     localRegistry: string,
     registry: string,
@@ -125,7 +126,8 @@ async function install (
   ctx: InstallContext,
   options: {
     force: boolean,
-    root: string,
+    prefix: string,
+    referencedFrom: string,
     storePath: string,
     localRegistry: string,
     registry: string,
@@ -170,7 +172,7 @@ async function install (
     update: options.update,
     fetchingLocker: ctx.fetchingLocker,
     registry,
-    root: options.root,
+    prefix: options.prefix,
     storePath: options.storePath,
     localRegistry: options.localRegistry,
     metaCache: options.metaCache,
@@ -202,7 +204,7 @@ async function install (
       fetchedPkg.id,
       ctx,
       Object.assign({}, options, {
-        root: fetchedPkg.srcPath,
+        referencedFrom: fetchedPkg.srcPath,
         isInstallable,
       })
     )
@@ -304,7 +306,8 @@ async function installDependencies (
   ctx: InstallContext,
   opts: {
     force: boolean,
-    root: string,
+    prefix: string,
+    referencedFrom: string,
     storePath: string,
     localRegistry: string,
     registry: string,
@@ -331,7 +334,7 @@ async function installDependencies (
   const deps = depsToSpecs(
     filterDeps(Object.assign({}, pkg.optionalDependencies, pkg.dependencies)),
     {
-      where: opts.root,
+      where: opts.referencedFrom,
       devDependencies: pkg.devDependencies || {},
       optionalDependencies: pkg.optionalDependencies || {},
     }

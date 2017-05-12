@@ -9,6 +9,7 @@ import resolve, {
   PackageMeta,
 } from '../resolve'
 import mkdirp = require('mkdirp-promise')
+import pkgIdToFilename from '../fs/pkgIdToFilename'
 import readPkg from '../fs/readPkg'
 import exists = require('path-exists')
 import memoize, {MemoizedFunc} from '../memoize'
@@ -33,7 +34,7 @@ export type FetchedPackage = {
 export default async function fetch (
   spec: PackageSpec,
   options: {
-    root: string,
+    prefix: string,
     storePath: string,
     localRegistry: string,
     registry: string,
@@ -54,7 +55,7 @@ export default async function fetch (
     if (!resolution || options.update) {
       const resolveResult = await resolve(spec, {
         loggedPkg: options.loggedPkg,
-        root: options.root,
+        prefix: options.prefix,
         got: options.got,
         localRegistry: options.localRegistry,
         registry: options.registry,
@@ -75,7 +76,7 @@ export default async function fetch (
 
     logStatus({status: 'resolved', pkgId: id, pkg: options.loggedPkg})
 
-    const target = path.join(options.storePath, id)
+    const target = path.join(options.storePath, pkgIdToFilename(id))
 
     const fetchingFiles = options.fetchingLocker(id, () => fetchToStore({
       target,
@@ -97,7 +98,7 @@ export default async function fetch (
       resolution,
       path: target,
       srcPath: resolution.type == 'directory'
-        ? resolution.root
+        ? path.join(options.prefix, resolution.root)
         : undefined,
       abort: async () => {
         try {

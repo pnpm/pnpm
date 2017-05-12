@@ -52,6 +52,7 @@
     "src/fs/getPkgDirs.ts",
     "src/fs/gracefulify.ts",
     "src/fs/modulesController.ts",
+    "src/fs/pkgIdToFilename.ts",
     "src/fs/readPkg.ts",
     "src/fs/safeReadPkg.ts",
     "src/fs/shrinkwrap.ts",
