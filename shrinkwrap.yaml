@@ -1,3 +1,4 @@
+createdWith: pnpm@0.68.0
 dependencies:
   '@types/byline@^4.2.31': 4.2.31
   '@types/common-tags@^1.2.5': 1.2.5
@@ -87,7 +88,7 @@ dependencies:
   unpack-stream@^1.1.0: 1.1.0
   update-notifier@^2.1.0: 2.1.0
   validate-commit-msg@^2.7.0: 2.12.1
-  write-json-file@^2.0.0: 2.0.0
+  write-json-file@^2.0.0: 2.1.0
   write-pkg@^3.0.1: 3.0.1
   write-yaml-file@^1.0.0: 1.0.0
 packages:
@@ -603,7 +604,6 @@ packages:
       is-date-object: 1.0.1
       is-symbol: 1.0.1
     resolution: 45355248a88979034b6792e19bb81f2b7975dd0d
-  /es6-shim/0.35.3: 9bfb7363feffff87a6cdb6cd93e405ec3c4b6f26
   /escape-html/1.0.3: 0258eae4d3d0c0974de1c169188ef0051d1d1988
   /escape-string-regexp/1.0.5: 1b61c0562190a8dff6ae3bb2cf0200ca130b86d4
   /esprima/3.1.3: fdca51cee6133895e3c88d535ce49dbff62a4633
@@ -1573,7 +1573,7 @@ packages:
     dependencies:
       cpr: 2.0.2
       rimraf: 2.6.1
-      verdaccio: 2.1.5
+      verdaccio: 2.1.6
     resolution: 81eae7eccb503f39896a34e9beb6f9e8a836b62b
   /prepend-http/1.0.4: d4f4562b0ce3696e41ac52d0e002e57a635dc6dc
   /preserve/0.2.0: 815ed1f6ebc65926f865b310c0713bcb3315ce4b
@@ -2126,17 +2126,17 @@ packages:
       builtins: 1.0.3
     resolution: 5fa912d81eb7d0c74afc140de7317f0ca7df437e
   /vary/1.1.1: 67535ebb694c1d52257457984665323f587e8d37
-  /verdaccio/2.1.5:
+  /verdaccio/2.1.6:
     dependencies:
       JSONStream: 1.3.1
       apache-md5: 1.1.2
       async: 2.4.0
       body-parser: 1.17.1
       bunyan: 1.8.10
+      chalk: 1.1.3
       commander: 2.9.0
       compression: 1.6.2
       cookies: 0.6.2
-      es6-shim: 0.35.3
       express: 4.15.2
       handlebars: 4.0.8
       highlight.js: 9.11.0
@@ -2153,7 +2153,7 @@ packages:
       request: 2.81.0
       semver: 5.3.0
       unix-crypt-td-js: 1.0.0
-    resolution: 652f28737929109b0605a4eacdc03383c2c30f40
+    resolution: 376aec5fede26c7487e45116b2ddf671d6595bc6
   /verror/1.3.6:
     dependencies:
       extsprintf: 1.0.2
@@ -2187,18 +2187,18 @@ packages:
       imurmurhash: 0.1.4
       slide: 1.1.6
     resolution: bb99a5440d0d31dd860a68da392bffeef66251a1
-  /write-json-file/2.0.0:
+  /write-json-file/2.1.0:
     dependencies:
       graceful-fs: 4.1.11
-      mkdirp: 0.5.1
+      make-dir: 1.0.0
       pify: 2.3.0
       sort-keys: 1.1.2
-      write-file-atomic: 1.3.4
-    resolution: 0eaec981fcf9288dbc2806cbd26e06ab9bdca4ed
+      write-file-atomic: 2.0.0
+    resolution: ba1cf3ac7ee89db26c3d528986e48421389046b7
   /write-pkg/3.0.1:
     dependencies:
       sort-keys: 1.1.2
-      write-json-file: 2.0.0
+      write-json-file: 2.1.0
     resolution: f95245805be6f6a4eb1d6c31c43b57226815e6e3
   /write-yaml-file/1.0.0:
     dependencies:
