@@ -30,6 +30,7 @@ Follow the [pnpm Twitter account](https://twitter.com/pnpmjs) for updates.
 * [Usage](#usage)
   * [Configuring](#configuring)
 * [Benchmark](#benchmark)
+* [Limitations](#limitations)
 * [Frequently Asked Questions](#frequently-asked-questions)
 * Recipes
   * [Continuous Integration](docs/recipes/continuous-integration.md)
@@ -146,6 +147,21 @@ time pnpm i babel-preset-es2015 browserify chalk debug minimist mkdirp
 
 * [Compared to ied](docs/vs-ied.md)
 * [Compared to npm](docs/vs-npm.md)
+
+## Limitations
+
+1. [npm-shrinkwrap.json](https://docs.npmjs.com/cli/shrinkwrap) is ignored. Unlike pnpm, npm can install the
+same `name@version` multiple times and with different sets of dependencies.
+npm's shrinkwrap file is designed to reflect the `node_modules` layout created
+by npm. pnpm cannot create a similar layout, so it cannot respect
+`npm-shrinkwrap.json`.
+2. You can't publish npm modules with `bundleDependencies` managed by pnpm.
+3. Binstubs (files in `node_modules/.bin`) are always shell files not
+symlinks to JS files. The shell files are created to help pluggable CLI apps
+in finding their plugins in the unusual `node_modules` structure.
+4. Node.js doesn't work with the [--preserve-symlinks](https://nodejs.org/api/cli.html#cli_preserve_symlinks) flag when executed in a project that uses pnpm.
+
+Got an idea for workarounds for these issues? [Share them.](https://github.com/pnpm/pnpm/issues/new)
 
 ## Frequently Asked Questions
 

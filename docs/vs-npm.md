@@ -39,15 +39,6 @@ As a consequence of this limitation, projects won't have any extraneous packages
 That's why pnpm's implementation of the [prune command](https://docs.npmjs.com/cli/prune) does not
 have the possibility of prunning specific packages. pnpm's prune always removes all the extraneous packages.
 
-## Limitations
-
-- You can't install from [shrinkwrap][] (yet).
-- You can't publish npm modules with `bundleDependencies` managed by pnpm.
-
-Got an idea for workarounds for these issues? [Share them.](https://github.com/pnpm/pnpm/issues/new)
-
-[shrinkwrap]: https://docs.npmjs.com/cli/shrinkwrap
 [npm ls]: https://docs.npmjs.com/cli/ls
 [npm prune]: https://docs.npmjs.com/cli/prune
 [npm dedupe]: https://docs.npmjs.com/cli/dedupe
-
