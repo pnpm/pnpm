@@ -12,6 +12,7 @@ import {
   pathToLocalPkg,
   local,
 } from '../utils'
+import pnpmPkgJson from '../../src/pnpmPkgJson'
 
 const ncp = thenify(ncpCB.ncp)
 const test = promisifyTape(tape)
@@ -51,6 +52,7 @@ test('local file', async function (t: tape.Test) {
     },
     registry: 'http://localhost:4873/',
     version: 2,
+    createdWith: `${pnpmPkgJson.name}@${pnpmPkgJson.version}`
   })
 })
 

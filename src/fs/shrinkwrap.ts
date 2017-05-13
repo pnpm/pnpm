@@ -9,16 +9,19 @@ import rimraf = require('rimraf-then')
 import isCI = require('is-ci')
 import getRegistryName from '../resolve/npm/getRegistryName'
 import npa = require('npm-package-arg')
+import pnpmPkgJson from '../pnpmPkgJson'
 
 const shrinkwrapLogger = logger('shrinkwrap')
 
 export const SHRINKWRAP_FILENAME = 'shrinkwrap.yaml'
 export const PRIVATE_SHRINKWRAP_FILENAME = path.join('node_modules', '.shrinkwrap.yaml')
 const SHRINKWRAP_VERSION = 2
+const CREATED_WITH = `${pnpmPkgJson.name}@${pnpmPkgJson.version}`
 
 function getDefaultShrinkwrap (registry: string) {
   return {
     version: SHRINKWRAP_VERSION,
+    createdWith: CREATED_WITH,
     dependencies: {},
     packages: {},
     registry,
@@ -27,6 +30,7 @@ function getDefaultShrinkwrap (registry: string) {
 
 export type Shrinkwrap = {
   version: number,
+  createdWith: string,
   dependencies: ResolvedDependencies,
   packages: ResolvedPackages,
   registry: string,
@@ -130,6 +134,7 @@ export function save (pkgPath: string, shrinkwrap: Shrinkwrap) {
 export function prune (shr: Shrinkwrap): Shrinkwrap {
   return {
     version: SHRINKWRAP_VERSION,
+    createdWith: shr.createdWith || CREATED_WITH,
     dependencies: shr.dependencies,
     registry: shr.registry,
     packages: copyDependencyTree(shr, shr.registry),
