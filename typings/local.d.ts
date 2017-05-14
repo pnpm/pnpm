@@ -243,3 +243,8 @@ declare module 'pnpm-registry-mock' {
   const anything: any;
   export = anything;
 }
+
+declare module 'read-package-json' {
+  const anything: any;
+  export = anything;
+}

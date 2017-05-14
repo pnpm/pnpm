@@ -6,7 +6,7 @@ import npa = require('npm-package-arg')
 import pFilter = require('p-filter')
 import R = require('ramda')
 import safeIsInnerLink from '../safeIsInnerLink'
-import safeReadPkg from '../fs/safeReadPkg'
+import {fromDir as safeReadPkgFromDir} from '../fs/safeReadPkg'
 import {PnpmOptions, StrictPnpmOptions, Dependencies} from '../types'
 import createGot from '../network/got'
 import getContext, {PnpmContext} from './getContext'
@@ -338,7 +338,7 @@ async function installInContext (
 
 async function getTopParents (pkgNames: string[], modules: string) {
   const pkgs = await Promise.all(
-    pkgNames.map(pkgName => path.join(modules, pkgName)).map(safeReadPkg)
+    pkgNames.map(pkgName => path.join(modules, pkgName)).map(safeReadPkgFromDir)
   )
   return pkgs.filter(Boolean).map((pkg: Package) => ({
     name: pkg.name,

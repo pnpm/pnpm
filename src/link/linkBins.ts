@@ -2,7 +2,7 @@ import path = require('path')
 import normalizePath = require('normalize-path')
 import fs = require('mz/fs')
 import mkdirp = require('mkdirp-promise')
-import safeReadPkg from '../fs/safeReadPkg'
+import {fromDir as safeReadPkgFromDir} from '../fs/safeReadPkg'
 import getPkgDirs from '../fs/getPkgDirs'
 import binify from '../binify'
 import isWindows = require('is-windows')
@@ -27,7 +27,7 @@ export default async function linkAllBins (modules: string, binPath: string, exc
  * Links executable into `node_modules/.bin`.
  */
 export async function linkPkgBins (target: string, binPath: string) {
-  const pkg = await safeReadPkg(target)
+  const pkg = await safeReadPkgFromDir(target)
 
   if (!pkg) {
     logger.warn(`There's a directory in node_modules without package.json: ${target}`)

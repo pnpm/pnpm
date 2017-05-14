@@ -1,5 +1,5 @@
 import path = require('path')
-import {ignoreCache as readPkg} from '../fs/readPkg'
+import {fromDir as readPkgFromDir} from '../fs/readPkg'
 import writePkg = require('write-pkg')
 import expandTilde, {isHomepath} from '../fs/expandTilde'
 import {StrictPnpmOptions} from '../types'
@@ -28,7 +28,7 @@ export type PnpmContext = {
 }
 
 export default async function getContext (opts: StrictPnpmOptions, installType?: 'named' | 'general'): Promise<PnpmContext> {
-  const pkg = await (opts.global ? readGlobalPkg(opts.prefix) : readPkg(opts.prefix))
+  const pkg = await (opts.global ? readGlobalPkg(opts.prefix) : readPkgFromDir(opts.prefix))
   const root = normalizePath(opts.prefix)
   const storeBasePath = resolveStoreBasePath(opts.storePath, root)
 
@@ -78,7 +78,7 @@ const DefaultGlobalPkg: Package = {
 
 async function readGlobalPkgJson (globalPkgPath: string) {
   try {
-    const globalPkgJson = await readPkg(globalPkgPath)
+    const globalPkgJson = await readPkgFromDir(globalPkgPath)
     return globalPkgJson
   } catch (err) {
     await writePkg(globalPkgPath, DefaultGlobalPkg)

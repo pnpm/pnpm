@@ -4,7 +4,7 @@ import getContext from './getContext'
 import {PnpmOptions, Package} from '../types'
 import extendOptions from './extendOptions'
 import getPkgDirs from '../fs/getPkgDirs'
-import readPkg from '../fs/readPkg'
+import {fromDir as readPkgFromDir} from '../fs/readPkg'
 import lock from './lock'
 import removeOrphanPkgs from './removeOrphanPkgs'
 import npa = require('npm-package-arg')
@@ -68,6 +68,6 @@ function getSaveTypes (production: boolean) {
 
 async function getPkgsInFS (modules: string): Promise<string[]> {
   const pkgDirs = await getPkgDirs(modules)
-  const pkgs: Package[] = await Promise.all(pkgDirs.map(readPkg))
+  const pkgs: Package[] = await Promise.all(pkgDirs.map(readPkgFromDir))
   return pkgs.map(pkg => pkg.name)
 }

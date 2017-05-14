@@ -10,7 +10,7 @@ import resolve, {
 } from '../resolve'
 import mkdirp = require('mkdirp-promise')
 import pkgIdToFilename from '../fs/pkgIdToFilename'
-import readPkg from '../fs/readPkg'
+import {fromDir as readPkgFromDir} from '../fs/readPkg'
 import exists = require('path-exists')
 import memoize, {MemoizedFunc} from '../memoize'
 import {Package} from '../types'
@@ -88,7 +88,7 @@ export default async function fetch (
     }))
 
     if (fetchingPkg == null) {
-      fetchingPkg = fetchingFiles.then(() => readPkg(target))
+      fetchingPkg = fetchingFiles.then(() => readPkgFromDir(target))
     }
 
     return {

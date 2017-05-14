@@ -1,5 +1,5 @@
 import path = require('path')
-import readPkg = require('read-pkg')
+import loadJsonFile = require('load-json-file')
 import symlinkDir from 'symlink-dir'
 import logger from 'pnpm-logger'
 import {install} from './install'
@@ -17,7 +17,7 @@ export default async function link (
 ) {
   const opts = extendOptions(maybeOpts)
 
-  await install(Object.assign({}, opts, { cwd: linkFrom }))
+  await install(Object.assign({}, opts, { prefix: linkFrom, global: false }))
 
   const destModules = path.join(linkTo, 'node_modules')
   await linkToModules(linkFrom, destModules)
@@ -27,7 +27,7 @@ export default async function link (
 }
 
 async function linkToModules (linkFrom: string, modules: string) {
-  const pkg = await readPkg(linkFrom)
+  const pkg = await loadJsonFile(path.join(linkFrom, 'package.json'))
   const dest = path.join(modules, pkg.name)
   linkLogger.info(`${dest} -> ${linkFrom}`)
   await symlinkDir(linkFrom, dest)

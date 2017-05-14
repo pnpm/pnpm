@@ -2,7 +2,7 @@ import path = require('path')
 import findUp = require('find-up')
 import fs = require('mz/fs')
 import runScript from '../runScript'
-import readPkg from '../fs/readPkg'
+import {fromDir as readPkgFromDir} from '../fs/readPkg'
 
 const pnpmNodeModules = findUp.sync('node_modules', {cwd: __dirname})
 const nodeGyp = path.resolve(pnpmNodeModules, 'node-gyp/bin/node-gyp.js')
@@ -14,7 +14,7 @@ export default async function postInstall (
     userAgent: string
   }
 ) {
-  const pkg = await readPkg(root)
+  const pkg = await readPkgFromDir(root)
   const scripts = pkg && pkg.scripts || {}
 
   if (!scripts['install']) {

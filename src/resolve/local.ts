@@ -1,5 +1,5 @@
 import path = require('path')
-import readPkg from '../fs/readPkg'
+import {fromDir as readPkgFromDir} from '../fs/readPkg'
 import {
   PackageSpec,
   ResolveOptions,
@@ -27,7 +27,7 @@ export default async function resolveLocal (spec: PackageSpec, opts: ResolveOpti
     }
   }
 
-  const localPkg = await readPkg(dependencyPath)
+  const localPkg = await readPkgFromDir(dependencyPath)
   const resolution: DirectoryResolution = {
     type: 'directory',
     root: dependencyPath,

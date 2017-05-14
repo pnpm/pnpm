@@ -1,7 +1,7 @@
 import rimraf = require('rimraf-then')
 import path = require('path')
 import binify from './binify'
-import safeReadPkg from './fs/safeReadPkg'
+import {fromDir as safeReadPkgFromDir} from './fs/safeReadPkg'
 
 export default async function removeTopDependency (dependencyName: string, modules: string) {
   return Promise.all([
@@ -12,7 +12,7 @@ export default async function removeTopDependency (dependencyName: string, modul
 
 async function removeBins (uninstalledPkg: string, modules: string) {
   const uninstalledPkgPath = path.join(modules, uninstalledPkg)
-  const uninstalledPkgJson = await safeReadPkg(uninstalledPkgPath)
+  const uninstalledPkgJson = await safeReadPkgFromDir(uninstalledPkgPath)
   if (!uninstalledPkgJson) return
   const cmds = await binify(uninstalledPkgJson, uninstalledPkgPath)
   return Promise.all(

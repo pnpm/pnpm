@@ -4,7 +4,6 @@ import getContext, {PnpmContext} from './getContext'
 import getSaveType from '../getSaveType'
 import removeDeps from '../removeDeps'
 import extendOptions from './extendOptions'
-import readPkg from '../fs/readPkg'
 import {PnpmOptions, StrictPnpmOptions, Package} from '../types'
 import lock from './lock'
 import {

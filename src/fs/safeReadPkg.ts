@@ -1,5 +1,6 @@
+import path = require('path')
 import {Package} from '../types'
-import {ignoreCache as readPkg} from './readPkg'
+import readPkg from './readPkg'
 
 export default async function safeReadPkg (pkgPath: string): Promise<Package | null> {
   try {
@@ -8,4 +9,8 @@ export default async function safeReadPkg (pkgPath: string): Promise<Package | n
     if ((<NodeJS.ErrnoException>err).code !== 'ENOENT') throw err
     return null
   }
+}
+
+export function fromDir (pkgPath: string): Promise<Package | null> {
+  return safeReadPkg(path.join(pkgPath, 'package.json'))
 }
