@@ -39,17 +39,15 @@ we create different sets, for different peer dependency resolutions:
 <pre>
 - .registry.npmjs.org / foo / 1.0.0
 
-  <sub>regular dependencies of foo</sub>
-  - node_modules
-    - qux
-    - plugh
-
   - bar@1.0.0+baz@1.0.0 / node_modules
     <sub>hard link</sub>
     - foo
     <sub>symlinks to peer dependencies</sub>
     - bar <sub>v1.0.0</sub>
     - baz <sub>v1.0.0</sub>
+    <sub>regular dependencies of foo</sub>
+    - qux
+    - plugh
 
   - bar@1.0.0+baz@1.1.0 / node_modules
     <sub>hard link</sub>
@@ -57,6 +55,9 @@ we create different sets, for different peer dependency resolutions:
     <sub>symlinks to peer dependencies</sub>
     - bar <sub>v1.0.0</sub>
     - baz <sub>v1.1.0</sub>
+    <sub>regular dependencies of foo</sub>
+    - qux
+    - plugh
 </pre>
 
 We create symlinks either to the `foo` that is inside `bar@1.0.0+bar@1.0.0/node_modules` or to the one in `bar@1.0.0+bar@1.1.0/node_modules`.
@@ -70,22 +71,23 @@ So if the project dependends on `bar@1.0.0`, the dependencies from our example w
 - bar <sub>v1.0.0</sub>
 - .registry.npmjs.org / foo / 1.0.0
 
-  <sub>regular dependencies of foo</sub>
-  - node_modules
-    - qux
-    - plugh
-
   - baz@1.0.0 / node_modules
     <sub>hard link</sub>
     - foo
     <sub>symlinks to peer dependencies</sub>
     - baz <sub>v1.0.0</sub>
+    <sub>regular dependencies of foo</sub>
+    - qux
+    - plugh
 
   - baz@1.1.0 / node_modules
     <sub>hard link</sub>
     - foo
     <sub>symlinks to peer dependencies</sub>
     - baz <sub>v1.1.0</sub>
+    <sub>regular dependencies of foo</sub>
+    - qux
+    - plugh
 </pre>
 
 *If a package has no peer dependencies but has dependencies with peers that are resolved higher in the tree*, then

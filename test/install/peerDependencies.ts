@@ -86,18 +86,19 @@ test('peer dependencies are linked', async (t: tape.Test) => {
   await installPkgs(['abc-parent-with-ab', 'abc-grand-parent-with-c', 'peer-c@2.0.0'], testDefaults())
 
   const pkgVariationsDir = path.join(NM, '.localhost+4873', 'abc', '1.0.0')
-  await okFile(t, path.join(pkgVariationsDir, NM, 'dep-of-pkg-with-1-dep'))
 
   const pkgVariation1 = path.join(pkgVariationsDir, 'peer-a@1.0.0+peer-b@1.0.0+peer-c@1.0.0', NM)
   await okFile(t, path.join(pkgVariation1, 'abc'))
   await okFile(t, path.join(pkgVariation1, 'peer-a'))
   await okFile(t, path.join(pkgVariation1, 'peer-b'))
   await okFile(t, path.join(pkgVariation1, 'peer-c'))
+  await okFile(t, path.join(pkgVariation1, 'dep-of-pkg-with-1-dep'))
 
   const pkgVariation2 = path.join(pkgVariationsDir, 'peer-a@1.0.0+peer-b@1.0.0', NM)
   await okFile(t, path.join(pkgVariation2, 'abc'))
   await okFile(t, path.join(pkgVariation2, 'peer-a'))
   await okFile(t, path.join(pkgVariation2, 'peer-b'))
+  await okFile(t, path.join(pkgVariation2, 'dep-of-pkg-with-1-dep'))
 
   t.equal(deepRequireCwd(['abc-parent-with-ab', 'abc', 'peer-c', './package.json']).version, '2.0.0')
   t.equal(deepRequireCwd(['abc-grand-parent-with-c', 'abc-parent-with-ab', 'abc', 'peer-c', './package.json']).version, '1.0.0')

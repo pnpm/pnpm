@@ -61,15 +61,11 @@ export default async function (
 
   const flatResolvedDeps =  R.values(pkgsToLink).sort((a, b) => a.depth - b.depth)
 
-  const deps = <DependencyTreeNode[]>R.uniqBy(R.prop('hardlinkedLocation'), flatResolvedDeps)
-
-  await linkAllPkgs(deps, opts)
-
   const depsByModules = <DependencyTreeNode[]>R.uniqBy(R.prop('modules'), flatResolvedDeps)
 
-  await linkAllIndependentModules(depsByModules, pkgsToLink)
+  await linkAllPkgs(depsByModules, opts)
 
-  await linkAllModules(deps, pkgsToLink)
+  await linkAllModules(depsByModules, pkgsToLink)
 
   for (let pkg of flatResolvedDeps.filter(pkg => pkg.depth === 0)) {
     await symlinkDependencyTo(pkg, opts.baseNodeModules)
@@ -107,15 +103,6 @@ async function linkAllModules (
   )
 }
 
-async function linkAllIndependentModules (
-  pkgs: DependencyTreeNode[],
-  pkgMap: DependencyTreeNodeMap
-) {
-  return Promise.all(
-    pkgs.map(pkg => limitLinking(() => linkIndependentModules(pkg, pkgMap)))
-  )
-}
-
 async function linkPkg (
   dependency: DependencyTreeNode,
   opts: {
@@ -143,31 +130,17 @@ async function isSameFile (file1: string, file2: string) {
   return stats[0].ino === stats[1].ino
 }
 
-async function linkIndependentModules (pkg: DependencyTreeNode, pkgMap: DependencyTreeNodeMap) {
-  await Promise.all(
-    R.props<DependencyTreeNode>(pkg.children, pkgMap)
-      .map(child => symlinkDependencyTo(child, pkg.modules))
-  )
-}
-
 async function linkModules (
   dependency: DependencyTreeNode,
   pkgMap: DependencyTreeNodeMap
 ) {
   await Promise.all(
-    R.props<DependencyTreeNode>(dependency.resolvedPeers, pkgMap)
-      .map(peer => symlinkDependencyTo(peer, <string>dependency.peerModules))
-  )
-  await Promise.all(
-    R.props<DependencyTreeNode>(dependency.childrenWithUnknownPeers, pkgMap)
-      .map(peer => symlinkDependencyTo(peer, <string>dependency.peerModules))
+    R.props<DependencyTreeNode>(dependency.children, pkgMap)
+      .map(child => symlinkDependencyTo(child, dependency.modules))
   )
 
   const binPath = path.join(dependency.hardlinkedLocation, 'node_modules', '.bin')
   await linkBins(dependency.modules, binPath, dependency.name)
-  if (dependency.peerModules) {
-    await linkBins(dependency.peerModules, binPath, dependency.name)
-  }
 
   // link also the bundled dependencies` bins
   if (dependency.hasBundledDependencies) {

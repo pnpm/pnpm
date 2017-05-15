@@ -10,15 +10,9 @@ export type DependencyTreeNode = {
   hasBundledDependencies: boolean,
   path: string,
   modules: string,
-  // a folder with modules that either has peer dependencies
-  // or has dependencies with peers that are resolved higher
-  // in the dependency tree (except in the very top)
-  peerModules?: string,
   fetchingFiles: Promise<boolean>,
   hardlinkedLocation: string,
   children: string[],
-  childrenWithUnknownPeers: string[],
-  resolvedPeers: string[],
   depth: number,
   id: string,
 }
@@ -149,7 +143,6 @@ function resolvePeersOfNode (
 
   const trees: DependencyTreeNodeMap[] = []
   const unknownResolvedPeersOfChildren: string[] = []
-  const childrenWithUnknownPeers: string[] = []
 
   for (const child of node.children) {
     const result = resolvePeersOfNode(child, newParentPkgs, tree)
@@ -158,34 +151,26 @@ function resolvePeersOfNode (
     const unknownResolvedPeersOfChild = result.allResolvedPeers
       .filter((resolvedPeerNodeId: string) => node.children.indexOf(resolvedPeerNodeId) === -1 && resolvedPeerNodeId !== nodeId)
 
-    if (unknownResolvedPeersOfChild.length > 0) {
-      childrenWithUnknownPeers.push(child)
-    }
-
     unknownResolvedPeersOfChildren.push.apply(unknownResolvedPeersOfChildren, unknownResolvedPeersOfChild)
   }
 
   const resolvedPeers = resolvePeers(node.pkg.peerDependencies, node.pkg.id, newParentPkgs)
   const allResolvedPeers = R.uniq(unknownResolvedPeersOfChildren.concat(resolvedPeers))
 
-  const modules = path.join(node.pkg.localLocation, 'node_modules')
-  const peerModules = !R.isEmpty(allResolvedPeers)
+  const modules = !R.isEmpty(allResolvedPeers)
     ? path.join(node.pkg.localLocation, createPeersFolderName(R.props<TreeNode>(allResolvedPeers, tree).map(node => node.pkg)), 'node_modules')
-    : undefined
+    : path.join(node.pkg.localLocation, 'node_modules')
 
-  const hardlinkedLocation = path.join(peerModules || modules, node.pkg.name)
+  const hardlinkedLocation = path.join(modules, node.pkg.name)
 
   trees.push(R.objOf(nodeId, {
     name: node.pkg.name,
     hasBundledDependencies: node.pkg.hasBundledDependencies,
     fetchingFiles: node.pkg.fetchingFiles,
     path: node.pkg.path,
-    peerModules,
     modules,
     hardlinkedLocation,
-    resolvedPeers,
-    childrenWithUnknownPeers,
-    children: R.difference(node.children, childrenWithUnknownPeers),
+    children: R.union(node.children, resolvedPeers),
     depth: node.depth,
     id: node.pkg.id,
   }))
