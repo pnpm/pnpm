@@ -76,7 +76,7 @@ export default async function installMultiple (
             pkgId,
             resolvedDependencies: dependencyShrinkwrap && dependencyShrinkwrap['dependencies'],
             shrinkwrapResolution: pkgShortId && dependencyShrinkwrap
-              ? dependencyShrToResolution(pkgShortId, dependencyShrinkwrap, options.registry)
+              ? dependencyShrToResolution(pkgShortId, dependencyShrinkwrap as DependencyShrinkwrap, options.registry)
               : undefined,
           }))
         })

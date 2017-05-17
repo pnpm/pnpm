@@ -60,7 +60,7 @@ export async function install (maybeOpts?: PnpmOptions) {
 
   specs.forEach(spec => {
     if (ctx.shrinkwrap.specifiers && ctx.shrinkwrap.specifiers[spec.name] !== spec.rawSpec) {
-      delete ctx.shrinkwrap.dependencies[spec.name]
+      delete ctx.shrinkwrap.packages['/'].dependencies[spec.name]
     }
   })
 
@@ -139,7 +139,7 @@ export async function installPkgs (fuzzyDeps: string[] | Dependencies, maybeOpts
   const installCtx = await createInstallCmd(opts, ctx.shrinkwrap)
 
   packagesToInstall.forEach(spec => {
-    delete ctx.shrinkwrap.dependencies[spec.name]
+    delete ctx.shrinkwrap.packages['/'].dependencies[spec.name]
   })
 
   if (opts.lock === false) {
@@ -211,7 +211,7 @@ async function installInContext (
       alwaysAuth: opts.alwaysAuth,
     }),
     metaCache: opts.metaCache,
-    resolvedDependencies: ctx.shrinkwrap.dependencies,
+    resolvedDependencies: ctx.shrinkwrap.packages['/'].dependencies,
     offline: opts.offline,
     rawNpmConfig: opts.rawNpmConfig,
     nodeModules: nodeModulesPath,
@@ -266,7 +266,7 @@ async function installInContext (
   }
 
   if (newPkg) {
-    ctx.shrinkwrap.dependencies = ctx.shrinkwrap.dependencies || {}
+    ctx.shrinkwrap.packages['/'].dependencies = ctx.shrinkwrap.packages['/'].dependencies || {}
     ctx.shrinkwrap.specifiers = ctx.shrinkwrap.specifiers || {}
 
     const deps = newPkg.dependencies || {}
@@ -276,14 +276,14 @@ async function installInContext (
     const getSpecFromPkg = (depName: string) => deps[depName] || devDeps[depName] || optionalDeps[depName]
 
     pkgs.forEach(dep => {
-      ctx.shrinkwrap.dependencies[dep.pkg.name] = pkgIdToRef(dep.id, dep.pkg.version, dep.resolution, ctx.shrinkwrap.registry)
+      ctx.shrinkwrap.packages['/'].dependencies[dep.pkg.name] = pkgIdToRef(dep.id, dep.pkg.version, dep.resolution, ctx.shrinkwrap.registry)
       ctx.shrinkwrap.specifiers[dep.pkg.name] = getSpecFromPkg(dep.pkg.name)
     })
-    Object.keys(ctx.shrinkwrap.dependencies)
+    Object.keys(ctx.shrinkwrap.packages['/'].dependencies)
       .filter(pkgName => !getSpecFromPkg(pkgName))
       .forEach(removedDep => {
         delete ctx.shrinkwrap.specifiers[removedDep]
-        delete ctx.shrinkwrap.dependencies[removedDep]
+        delete ctx.shrinkwrap.packages['/'].dependencies[removedDep]
       })
   }
 

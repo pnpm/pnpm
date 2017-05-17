@@ -15,8 +15,8 @@ export default async function removeOrphanPkgs (
   root: string,
   storePath: string
 ): Promise<string[]> {
-  const oldPkgNames = Object.keys(oldShr.dependencies)
-  const newPkgNames = Object.keys(newShr.dependencies)
+  const oldPkgNames = Object.keys(oldShr.packages['/'].dependencies)
+  const newPkgNames = Object.keys(newShr.packages['/'].dependencies)
 
   const removedTopDeps = R.difference(oldPkgNames, newPkgNames)
 

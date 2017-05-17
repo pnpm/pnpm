@@ -35,7 +35,7 @@ export async function prune(maybeOpts?: PnpmOptions): Promise<void> {
 
     const newShr = ctx.shrinkwrap
     extraneousPkgs.forEach(depName => {
-      delete newShr.dependencies[depName]
+      delete newShr.packages['/'].dependencies[depName]
       delete newShr.specifiers[depName]
     })
 

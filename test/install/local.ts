@@ -39,13 +39,15 @@ test('local file', async function (t: tape.Test) {
   const shr = await project.loadShrinkwrap()
 
   t.deepEqual(shr, {
-    dependencies: {
-      'local-pkg': 'file:../local-pkg',
-    },
     specifiers: {
       'local-pkg': `file:..${path.sep}local-pkg`,
     },
     packages: {
+      '/': {
+        dependencies: {
+          'local-pkg': 'file:../local-pkg',
+        },
+      },
       'file:../local-pkg': {
         resolution: {
           root: '../local-pkg',

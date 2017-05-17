@@ -12,9 +12,12 @@ export default async function (maybeOpts: PnpmOptions) {
   if (!ctx.shrinkwrap) return []
 
   const pkgPaths = Object.keys(ctx.shrinkwrap.packages || {})
-    .map(id => shortIdToFullId(id, ctx.shrinkwrap.registry))
-    .filter(pkgId => ctx.skipped.indexOf(pkgId) === -1)
-    .map(pkgPath => path.join(ctx.storePath, pkgPath))
+    .map(id => {
+      if (id === '/') return null
+      return shortIdToFullId(id, ctx.shrinkwrap.registry)
+    })
+    .filter(pkgId => pkgId && ctx.skipped.indexOf(pkgId) === -1)
+    .map((pkgPath: string) => path.join(ctx.storePath, pkgPath))
 
   return await pFilter(pkgPaths, async (pkgPath: string) => !await untouched(pkgPath))
 }
