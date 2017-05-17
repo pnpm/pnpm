@@ -7,7 +7,6 @@ import getPkgDirs from '../fs/getPkgDirs'
 import {fromDir as readPkgFromDir} from '../fs/readPkg'
 import lock from './lock'
 import removeOrphanPkgs from './removeOrphanPkgs'
-import npa = require('npm-package-arg')
 import {PackageSpec} from '../resolve'
 import {
   ResolvedDependencies,
@@ -35,10 +34,10 @@ export async function prune(maybeOpts?: PnpmOptions): Promise<void> {
     const extraneousPkgs = await getExtraneousPkgs(pkg, ctx.root, opts.production)
 
     const newShr = ctx.shrinkwrap
-    newShr.dependencies = <ResolvedDependencies>R.pickBy((value, key) => {
-      const spec: PackageSpec = npa(key)
-      return extraneousPkgs.indexOf(spec.name) === -1
-    }, newShr.dependencies)
+    extraneousPkgs.forEach(depName => {
+      delete newShr.dependencies[depName]
+      delete newShr.specifiers[depName]
+    })
 
     const prunedShr = pruneShrinkwrap(newShr)
 

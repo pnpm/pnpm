@@ -15,7 +15,6 @@ import {
   save as saveModules
 } from '../fs/modulesController'
 import removeOrphanPkgs from './removeOrphanPkgs'
-import npa = require('npm-package-arg')
 import {PackageSpec} from '../resolve'
 import pnpmPkgJson from '../pnpmPkgJson'
 import safeIsInnerLink from '../safeIsInnerLink'
@@ -48,10 +47,10 @@ export async function uninstallInContext (pkgsToUninstall: string[], pkg: Packag
   if (saveType) {
     const pkgJsonPath = path.join(ctx.root, 'package.json')
     const pkg = await removeDeps(pkgJsonPath, pkgsToUninstall, saveType)
-    for (let depSpecRaw in ctx.shrinkwrap.dependencies) {
-      const depSpec: PackageSpec = npa(depSpecRaw)
-      if (!isDependentOn(pkg, depSpec.name)) {
-        delete ctx.shrinkwrap.dependencies[depSpecRaw]
+    for (let depName in ctx.shrinkwrap.dependencies) {
+      if (!isDependentOn(pkg, depName)) {
+        delete ctx.shrinkwrap.dependencies[depName]
+        delete ctx.shrinkwrap.specifiers[depName]
       }
     }
     const newShr = await pruneShrinkwrap(ctx.shrinkwrap)

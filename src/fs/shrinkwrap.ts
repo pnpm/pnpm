@@ -22,6 +22,7 @@ function getDefaultShrinkwrap (registry: string) {
   return {
     version: SHRINKWRAP_VERSION,
     createdWith: CREATED_WITH,
+    specifiers: {},
     dependencies: {},
     packages: {},
     registry,
@@ -31,6 +32,7 @@ function getDefaultShrinkwrap (registry: string) {
 export type Shrinkwrap = {
   version: number,
   createdWith: string,
+  specifiers: ResolvedDependencies,
   dependencies: ResolvedDependencies,
   packages: ResolvedPackages,
   registry: string,
@@ -135,6 +137,7 @@ export function prune (shr: Shrinkwrap): Shrinkwrap {
   return {
     version: SHRINKWRAP_VERSION,
     createdWith: shr.createdWith || CREATED_WITH,
+    specifiers: shr.specifiers,
     dependencies: shr.dependencies,
     registry: shr.registry,
     packages: copyDependencyTree(shr, shr.registry),
@@ -144,10 +147,8 @@ export function prune (shr: Shrinkwrap): Shrinkwrap {
 function copyDependencyTree (shr: Shrinkwrap, registry: string): ResolvedPackages {
   const resolvedPackages: ResolvedPackages = {}
 
-  let pkgIds: string[] = R.keys(shr.dependencies).map((rawPkgSpec: string) => {
-    const spec: PackageSpec = npa(rawPkgSpec)
-    return getPkgShortId(shr.dependencies[rawPkgSpec], spec.name)
-  })
+  let pkgIds: string[] = R.keys(shr.dependencies)
+    .map((pkgName: string) => getPkgShortId(shr.dependencies[pkgName], pkgName))
 
   while (pkgIds.length) {
     let nextPkgIds: string[] = []

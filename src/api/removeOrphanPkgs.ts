@@ -6,7 +6,6 @@ import {
 } from '../fs/shrinkwrap'
 import {read as readStore, save as saveStore} from '../fs/storeController'
 import R = require('ramda')
-import npa = require('npm-package-arg')
 import {PackageSpec} from '../resolve'
 import removeTopDependency from '../removeTopDependency'
 
@@ -16,8 +15,8 @@ export default async function removeOrphanPkgs (
   root: string,
   storePath: string
 ): Promise<string[]> {
-  const oldPkgNames = Object.keys(oldShr.dependencies).map(rawSpec => npa(rawSpec)).map((spec: PackageSpec) => spec.name)
-  const newPkgNames = Object.keys(newShr.dependencies).map(rawSpec => npa(rawSpec)).map((spec: PackageSpec) => spec.name)
+  const oldPkgNames = Object.keys(oldShr.dependencies)
+  const newPkgNames = Object.keys(newShr.dependencies)
 
   const removedTopDeps = R.difference(oldPkgNames, newPkgNames)
 

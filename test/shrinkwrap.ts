@@ -23,9 +23,9 @@ test('shrinkwrap file has correct format', async t => {
   t.ok(shr.registry, 'has registry field')
 
   t.ok(shr.dependencies, 'has dependencies field')
-  t.equal(shr.dependencies['pkg-with-1-dep@^100.0.0'], '100.0.0', 'has dependency resolved')
-  t.ok(shr.dependencies['@rstacruz/tap-spec@^4.1.1'], 'has scoped dependency resolved')
-  t.ok(shr.dependencies['is-negative@github:kevva/is-negative'].indexOf('/') !== -1, 'has not shortened tarball from the non-standard registry')
+  t.equal(shr.dependencies['pkg-with-1-dep'], '100.0.0', 'has dependency resolved')
+  t.ok(shr.dependencies['@rstacruz/tap-spec'], 'has scoped dependency resolved')
+  t.ok(shr.dependencies['is-negative'].indexOf('/') !== -1, 'has not shortened tarball from the non-standard registry')
 
   t.ok(shr.packages, 'has packages field')
   t.ok(shr.packages[id], `has resolution for ${id}`)
@@ -48,7 +48,7 @@ test('shrinkwrap file has dev deps even when installing for prod only', async (t
   const id = '/is-negative/2.1.0'
 
   t.ok(shr.dependencies, 'has dependencies field')
-  t.equal(shr.dependencies['is-negative@2.1.0'], '2.1.0', 'has dependency resolved')
+  t.equal(shr.dependencies['is-negative'], '2.1.0', 'has dependency resolved')
 
   t.ok(shr.packages, 'has packages field')
   t.ok(shr.packages[id], `has resolution for ${id}`)
@@ -63,7 +63,7 @@ test('shrinkwrap with scoped package', async t => {
 
   await writeYamlFile('shrinkwrap.yaml', {
     dependencies: {
-      '@types/semver@^5.3.31': '5.3.31',
+      '@types/semver': '5.3.31',
     },
     packages: {
       '/@types/semver/5.3.31': 'b999d7d935f43f5207b01b00d3de20852f4ca75f',
@@ -85,7 +85,7 @@ test('fail when shasum from shrinkwrap does not match with the actual one', asyn
   await writeYamlFile('shrinkwrap.yaml', {
     version: 2,
     dependencies: {
-      'is-negative@2.1.0': '2.1.0',
+      'is-negative': '2.1.0',
     },
     registry: 'http://localhost:4873',
     packages: {
@@ -139,7 +139,7 @@ test('shrinkwrap removed when no deps in package.json', async t => {
   await writeYamlFile('shrinkwrap.yaml', {
     version: 2,
     dependencies: {
-      'is-negative@2.1.0': '2.1.0',
+      'is-negative': '2.1.0',
     },
     registry: 'http://localhost:4873',
     packages: {
@@ -201,10 +201,11 @@ test('subdeps are updated on repeat install if outer shrinkwrap.yaml does not ma
 test("recreates shrinkwrap file if it doesn't match the dependencies in package.json", async (t: tape.Test) => {
   const project = prepare(t)
 
-  await installPkgs(['is-negative@2.0.0'], testDefaults())
+  await installPkgs(['is-negative@2.0.0'], testDefaults({saveExact: true}))
 
   const shr1 = await project.loadShrinkwrap()
-  t.ok(shr1.dependencies['is-negative@^2.0.0'])
+  t.equal(shr1.dependencies['is-negative'], '2.0.0')
+  t.equal(shr1.specifiers['is-negative'], '2.0.0')
 
   const pkg = await readPkg()
 
@@ -216,7 +217,8 @@ test("recreates shrinkwrap file if it doesn't match the dependencies in package.
 
   const shr = await project.loadShrinkwrap()
 
-  t.ok(shr.dependencies['is-negative@^2.1.0'])
+  t.equal(shr.dependencies['is-negative'], '2.1.0')
+  t.equal(shr.specifiers['is-negative'], '^2.1.0')
 })
 
 test('repeat install with shrinkwrap should not mutate shrinkwrap when dependency has version specified with v prefix', async (t: tape.Test) => {
@@ -226,7 +228,7 @@ test('repeat install with shrinkwrap should not mutate shrinkwrap when dependenc
 
   const shr1 = await project.loadShrinkwrap()
 
-  t.equal(shr1.dependencies['highmaps-release@^5.0.11'], '5.0.11')
+  t.equal(shr1.dependencies['highmaps-release'], '5.0.11')
 
   await rimraf('node_modules')
 

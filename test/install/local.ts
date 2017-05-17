@@ -40,7 +40,10 @@ test('local file', async function (t: tape.Test) {
 
   t.deepEqual(shr, {
     dependencies: {
-      [`local-pkg@file:..${path.sep}local-pkg`]: 'file:../local-pkg',
+      'local-pkg': 'file:../local-pkg',
+    },
+    specifiers: {
+      'local-pkg': `file:..${path.sep}local-pkg`,
     },
     packages: {
       'file:../local-pkg': {

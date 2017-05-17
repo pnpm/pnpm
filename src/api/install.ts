@@ -58,6 +58,12 @@ export async function install (maybeOpts?: PnpmOptions) {
     prefix: opts.prefix,
   })
 
+  specs.forEach(spec => {
+    if (ctx.shrinkwrap.specifiers && ctx.shrinkwrap.specifiers[spec.name] !== spec.rawSpec) {
+      delete ctx.shrinkwrap.dependencies[spec.name]
+    }
+  })
+
   if (opts.lock === false) {
     return run()
   }
@@ -132,6 +138,10 @@ export async function installPkgs (fuzzyDeps: string[] | Dependencies, maybeOpts
   const ctx = await getContext(opts, installType)
   const installCtx = await createInstallCmd(opts, ctx.shrinkwrap)
 
+  packagesToInstall.forEach(spec => {
+    delete ctx.shrinkwrap.dependencies[spec.name]
+  })
+
   if (opts.lock === false) {
     return run()
   }
@@ -170,19 +180,6 @@ function argsToSpecs (
     })
 }
 
-function getResolutions(
-  packagesToInstall: PackageSpec[],
-  resolvedSpecDeps: ResolvedDependencies
-): ResolvedDependencies {
-  return packagesToInstall
-    .reduce((resolvedDeps, depSpec) => {
-      if (resolvedSpecDeps[depSpec.raw]) {
-        resolvedDeps[depSpec.name] = resolvedSpecDeps[depSpec.raw]
-      }
-      return resolvedDeps
-    }, {})
-}
-
 async function installInContext (
   installType: string,
   packagesToInstall: PackageSpec[],
@@ -198,10 +195,6 @@ async function installInContext (
   const oldSpecs = parts[0]
   const newSpecs = parts[1]
 
-  const resolvedDependencies: ResolvedDependencies = getResolutions(
-    oldSpecs,
-    ctx.shrinkwrap.dependencies
-  )
   const installOpts = {
     root: ctx.root,
     storePath: ctx.storePath,
@@ -218,7 +211,7 @@ async function installInContext (
       alwaysAuth: opts.alwaysAuth,
     }),
     metaCache: opts.metaCache,
-    resolvedDependencies,
+    resolvedDependencies: ctx.shrinkwrap.dependencies,
     offline: opts.offline,
     rawNpmConfig: opts.rawNpmConfig,
     nodeModules: nodeModulesPath,
@@ -274,6 +267,7 @@ async function installInContext (
 
   if (newPkg) {
     ctx.shrinkwrap.dependencies = ctx.shrinkwrap.dependencies || {}
+    ctx.shrinkwrap.specifiers = ctx.shrinkwrap.specifiers || {}
 
     const deps = newPkg.dependencies || {}
     const devDeps = newPkg.devDependencies || {}
@@ -282,16 +276,13 @@ async function installInContext (
     const getSpecFromPkg = (depName: string) => deps[depName] || devDeps[depName] || optionalDeps[depName]
 
     pkgs.forEach(dep => {
-      const spec = getSpecFromPkg(dep.pkg.name)
-      if (spec) {
-        ctx.shrinkwrap.dependencies[`${dep.pkg.name}@${spec}`] = pkgIdToRef(dep.id, dep.pkg.version, dep.resolution, ctx.shrinkwrap.registry)
-      }
+      ctx.shrinkwrap.dependencies[dep.pkg.name] = pkgIdToRef(dep.id, dep.pkg.version, dep.resolution, ctx.shrinkwrap.registry)
+      ctx.shrinkwrap.specifiers[dep.pkg.name] = getSpecFromPkg(dep.pkg.name)
     })
     Object.keys(ctx.shrinkwrap.dependencies)
-      .map(rawSpec => npa(rawSpec))
-      .filter((depSpec: PackageSpec) => getSpecFromPkg(depSpec.name) !== depSpec.rawSpec)
-      .map((depSpec: PackageSpec) => depSpec.raw)
+      .filter(pkgName => !getSpecFromPkg(pkgName))
       .forEach(removedDep => {
+        delete ctx.shrinkwrap.specifiers[removedDep]
         delete ctx.shrinkwrap.dependencies[removedDep]
       })
   }
