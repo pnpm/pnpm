@@ -139,8 +139,14 @@ test('run pre/postinstall scripts of each variations of packages with peer depen
 })
 
 test('package that resolves its own peer dependency', async (t: tape.Test) => {
+  // TODO: investigate how npm behaves in such situations
+  // should there be a warning printed?
+  // does it currently print a warning that peer dependency is not resolved?
+
   const project = prepare(t)
   await installPkgs(['pkg-with-resolved-peer', 'peer-c@2.0.0'], testDefaults())
 
-  t.ok(await exists(path.join(NM, '.localhost+4873', 'pkg-with-resolved-peer', '1.0.0', 'peer-c@1.0.0', NM, 'pkg-with-resolved-peer')))
+  t.equal(deepRequireCwd(['pkg-with-resolved-peer', 'peer-c', './package.json']).version, '1.0.0')
+
+  t.ok(await exists(path.join(NM, '.localhost+4873', 'pkg-with-resolved-peer', '1.0.0', NM, 'pkg-with-resolved-peer')))
 })

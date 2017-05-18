@@ -154,7 +154,7 @@ function resolvePeersOfNode (
     unknownResolvedPeersOfChildren.push.apply(unknownResolvedPeersOfChildren, unknownResolvedPeersOfChild)
   }
 
-  const resolvedPeers = resolvePeers(node.pkg.peerDependencies, node.pkg.id, newParentPkgs)
+  const resolvedPeers = resolvePeers(node.pkg.peerDependencies, node.pkg.id, parentPkgs)
   const allResolvedPeers = R.uniq(unknownResolvedPeersOfChildren.concat(resolvedPeers))
 
   const modules = !R.isEmpty(allResolvedPeers)
