@@ -63,12 +63,12 @@ export default async function installMultiple (
     update: boolean,
   }
 ): Promise<InstalledPackage[]> {
+  const resolvedDependencies = options.resolvedDependencies || {}
   const installedPkgs: InstalledPackage[] = <InstalledPackage[]>(
     await Promise.all(
       specs
         .map(async (spec: PackageSpec) => {
-          const reference = options.resolvedDependencies &&
-            options.resolvedDependencies[spec.name]
+          const reference = resolvedDependencies[spec.name]
           const pkgShortId = reference && getPkgShortId(reference, spec.name)
           const dependencyShrinkwrap = pkgShortId && ctx.shrinkwrap.packages[pkgShortId]
           const pkgId = reference && getPkgId(reference, spec.name, ctx.shrinkwrap.registry)
