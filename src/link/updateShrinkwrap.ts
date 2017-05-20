@@ -13,6 +13,8 @@ export default function (pkgsToLink: DependencyTreeNodeMap, shrinkwrap: Shrinkwr
   for (const resolvedId of R.keys(pkgsToLink)) {
     const shortId = pkgShortId(resolvedId, shrinkwrap.registry)
     shrinkwrap.packages[shortId] = toShrDependency({
+      resolvedId,
+      id: pkgsToLink[resolvedId].id,
       shortId,
       resolution: pkgsToLink[resolvedId].resolution,
       updatedDeps: pkgsToLink[resolvedId].children,
@@ -27,6 +29,8 @@ export default function (pkgsToLink: DependencyTreeNodeMap, shrinkwrap: Shrinkwr
 
 function toShrDependency (
   opts: {
+    resolvedId: string,
+    id: string,
     shortId: string,
     resolution: Resolution,
     registry: string,
@@ -40,7 +44,8 @@ function toShrDependency (
   const shrResolution = toShrResolution(opts.shortId, opts.resolution)
   const newResolvedDeps = updateResolvedDeps(opts.prevResolvedDeps, opts.updatedDeps, opts.registry, opts.pkgsToLink)
   if (R.isEmpty(newResolvedDeps) &&
-    typeof shrResolution === 'string' && !opts.dev && !opts.optional) {
+    typeof shrResolution === 'string' &&
+    !opts.dev && !opts.optional && opts.resolvedId === opts.id) {
     return shrResolution
   }
   const result = {
@@ -54,6 +59,9 @@ function toShrDependency (
   }
   if (opts.optional) {
     result['optional'] = true
+  }
+  if (opts.resolvedId !== opts.id) {
+    result['id'] = opts.id
   }
   return result
 }

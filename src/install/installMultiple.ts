@@ -69,7 +69,8 @@ export default async function installMultiple (
           const reference = resolvedDependencies[spec.name]
           const pkgShortId = reference && getPkgShortId(reference, spec.name)
           const dependencyShrinkwrap = pkgShortId && ctx.shrinkwrap.packages[pkgShortId]
-          const pkgId = reference && getPkgId(reference, spec.name, ctx.shrinkwrap.registry)
+          const pkgId = dependencyShrinkwrap && dependencyShrinkwrap['id'] ||
+            reference && getPkgId(reference, spec.name, ctx.shrinkwrap.registry)
           return await install(spec, ctx, Object.assign({}, options, {
             pkgId,
             resolvedDependencies: dependencyShrinkwrap && dependencyShrinkwrap['dependencies'],
