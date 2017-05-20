@@ -59,13 +59,11 @@ export default async function (
   const topPkgIds = topPkgs.filter(pkg => pkg.isInstallable).map(pkg => pkg.id)
   const pkgsToLink = await resolvePeers(pkgsToLinkMap, topPkgIds, opts.topParents)
 
-  const flatResolvedDeps =  R.values(pkgsToLink).sort((a, b) => a.depth - b.depth)
+  const flatResolvedDeps =  R.values(pkgsToLink)
 
-  const depsByModules = <DependencyTreeNode[]>R.uniqBy(R.prop('modules'), flatResolvedDeps)
+  await linkAllPkgs(flatResolvedDeps, opts)
 
-  await linkAllPkgs(depsByModules, opts)
-
-  await linkAllModules(depsByModules, pkgsToLink)
+  await linkAllModules(flatResolvedDeps, pkgsToLink)
 
   for (let pkg of flatResolvedDeps.filter(pkg => pkg.depth === 0)) {
     await symlinkDependencyTo(pkg, opts.baseNodeModules)
