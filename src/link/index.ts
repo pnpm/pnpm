@@ -21,6 +21,9 @@ export type LinkedPackage = {
   id: string,
   name: string,
   version: string,
+  dev: boolean,
+  optional: boolean,
+  isInstallable: boolean,
   peerDependencies: Dependencies,
   hasBundledDependencies: boolean,
   localLocation: string,
@@ -44,6 +47,7 @@ export default async function (
     bin: string,
     topParents: {name: string, version: string}[],
     shrinkwrap: Shrinkwrap,
+    production: boolean,
   }
 ): Promise<DependencyTreeNodeMap> {
   const pkgsToLinkMap = R.values(installedPkgs)
@@ -52,6 +56,9 @@ export default async function (
         id: installedPkg.id,
         name: installedPkg.pkg.name,
         version: installedPkg.pkg.version,
+        dev: installedPkg.dev,
+        optional: installedPkg.optional,
+        isInstallable: installedPkg.isInstallable,
         peerDependencies: installedPkg.pkg.peerDependencies || {},
         hasBundledDependencies: !!(installedPkg.pkg.bundledDependencies || installedPkg.pkg.bundleDependencies),
         resolution: installedPkg.resolution,
@@ -62,11 +69,14 @@ export default async function (
       }
       return pkgsToLink
     }, {})
-  const topPkgIds = topPkgs.filter(pkg => pkg.isInstallable).map(pkg => pkg.id)
+  const topPkgIds = topPkgs.map(pkg => pkg.id)
   const pkgsToLink = await resolvePeers(pkgsToLinkMap, topPkgIds, opts.topParents)
   updateShrinkwrap(pkgsToLink, opts.shrinkwrap)
 
-  const flatResolvedDeps =  R.values(pkgsToLink)
+  let flatResolvedDeps =  R.values(pkgsToLink).filter(dep => dep.isInstallable)
+  if (opts.production) {
+    flatResolvedDeps = flatResolvedDeps.filter(dep => !dep.dev)
+  }
 
   await linkAllPkgs(flatResolvedDeps, opts)
 

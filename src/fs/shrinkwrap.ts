@@ -50,6 +50,8 @@ export type ResolvedPackages = {
 }
 
 export type DependencyShrinkwrap = string | {
+  dev?: true,
+  optional?: true,
   resolution: string | Resolution,
   dependencies?: ResolvedDependencies,
 }

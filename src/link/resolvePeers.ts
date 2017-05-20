@@ -17,6 +17,9 @@ export type DependencyTreeNode = {
   children: string[],
   depth: number,
   resolvedId: string,
+  dev: boolean,
+  optional: boolean,
+  isInstallable: boolean,
   id: string,
 }
 
@@ -169,6 +172,9 @@ function resolvePeersOfNode (
       children: R.union(node.children, resolvedPeers),
       depth: node.depth,
       resolvedId,
+      dev: node.pkg.dev,
+      optional: node.pkg.optional,
+      isInstallable: node.pkg.isInstallable,
       id: node.pkg.id,
     }
   }

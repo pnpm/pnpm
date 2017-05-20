@@ -226,14 +226,7 @@ async function installInContext (
     nonLinkedPkgs,
     installOpts
   )
-  if (opts.production) {
-    for (const pkgId of R.keys(installCtx.installs)) {
-      if (installCtx.installs[pkgId].dev) {
-        delete installCtx.installs[pkgId]
-      }
-    }
-  }
-  const linkedPkgsMap = await linkPackages(pkgs.filter(pkg => !opts.production || !pkg.dev), installCtx.installs, {
+  const linkedPkgsMap = await linkPackages(pkgs, installCtx.installs, {
     force: opts.force,
     global: opts.global,
     baseNodeModules: nodeModulesPath,
@@ -243,6 +236,7 @@ async function installInContext (
           R.difference(R.keys(depsFromPackage(ctx.pkg)), newPkgs), nodeModulesPath)
       : [],
     shrinkwrap: ctx.shrinkwrap,
+    production: opts.production,
   })
 
   let newPkg: Package | undefined = ctx.pkg
@@ -297,7 +291,7 @@ async function installInContext (
     skipped: R.uniq(
       R.concat(
         ctx.skipped.filter(skippedPkgId => !installCtx.installed.has(skippedPkgId)),
-        Array.from(installCtx.installed).filter(pkgId => !installCtx.installs[pkgId]))),
+        Array.from(installCtx.installed).filter(pkgId => !installCtx.installs[pkgId].isInstallable))),
   })
 
   // postinstall hooks
@@ -306,7 +300,9 @@ async function installInContext (
     const linkedPkgsMapValues = R.values(linkedPkgsMap)
     await Promise.all(
       installCtx.installationSequence.map(pkgId => Promise.all(
-        R.uniqBy(linkedPkg => linkedPkg.hardlinkedLocation, linkedPkgsMapValues.filter(pkg => pkg.id === pkgId))
+        R.uniqBy(linkedPkg => linkedPkg.hardlinkedLocation,
+          linkedPkgsMapValues.filter(pkg => pkg.id === pkgId && (!opts.production || !pkg.dev) && pkg.isInstallable)
+        )
           .map(pkg => limitChild(async () => {
             try {
               await postInstall(pkg.hardlinkedLocation, installLogger(pkgId), {

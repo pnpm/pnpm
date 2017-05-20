@@ -19,6 +19,8 @@ export default function (pkgsToLink: DependencyTreeNodeMap, shrinkwrap: Shrinkwr
       registry: shrinkwrap.registry,
       pkgsToLink,
       prevResolvedDeps: shrinkwrap.packages[shortId] && shrinkwrap.packages[shortId]['dependencies'] || {},
+      dev: pkgsToLink[resolvedId].dev,
+      optional: pkgsToLink[resolvedId].optional,
     })
   }
 }
@@ -31,20 +33,29 @@ function toShrDependency (
     updatedDeps: string[],
     pkgsToLink: DependencyTreeNodeMap,
     prevResolvedDeps: ResolvedDependencies,
+    dev: boolean,
+    optional: boolean,
   }
 ): DependencyShrinkwrap {
   const shrResolution = toShrResolution(opts.shortId, opts.resolution)
   const newResolvedDeps = updateResolvedDeps(opts.prevResolvedDeps, opts.updatedDeps, opts.registry, opts.pkgsToLink)
-  if (!R.isEmpty(newResolvedDeps)) {
-    return {
-      resolution: shrResolution,
-      dependencies: newResolvedDeps,
-    }
+  if (R.isEmpty(newResolvedDeps) &&
+    typeof shrResolution === 'string' && !opts.dev && !opts.optional) {
+    return shrResolution
   }
-  if (typeof shrResolution === 'string') return shrResolution
-  return {
+  const result = {
     resolution: shrResolution
   }
+  if (!R.isEmpty(newResolvedDeps)) {
+    result['dependencies'] = newResolvedDeps
+  }
+  if (opts.dev) {
+    result['dev'] = true
+  }
+  if (opts.optional) {
+    result['optional'] = true
+  }
+  return result
 }
 
 // previous resolutions should not be removed from shrinkwrap
