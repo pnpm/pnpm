@@ -16,8 +16,6 @@ import {
   ResolvedDependencies,
   getPkgId,
   getPkgShortId,
-  pkgIdToRef,
-  pkgShortId,
 } from '../fs/shrinkwrap'
 import {Resolution, PackageSpec, PackageMeta} from '../resolve'
 import depsToSpecs from '../depsToSpecs'
@@ -208,14 +206,6 @@ async function install (
         isInstallable,
       })
     )
-    const shortId = pkgShortId(fetchedPkg.id, ctx.shrinkwrap.registry)
-    ctx.shrinkwrap.packages[shortId] = toShrDependency({
-      shortId,
-      resolution: fetchedPkg.resolution,
-      updatedDeps: dependencies,
-      registry: ctx.shrinkwrap.registry,
-      prevResolvedDeps: ctx.shrinkwrap.packages[shortId] && ctx.shrinkwrap.packages[shortId]['dependencies'] || {},
-    })
     dependencyIds = dependencies.filter(dep => dep.isInstallable).map(dep => dep.id)
   }
 
@@ -247,56 +237,6 @@ async function install (
 function normalizeRegistry (registry: string) {
   if (registry.endsWith('/')) return registry
   return `${registry}/`
-}
-
-function toShrDependency (
-  opts: {
-    shortId: string,
-    resolution: Resolution,
-    registry: string,
-    updatedDeps: InstalledPackage[],
-    prevResolvedDeps: ResolvedDependencies,
-  }
-): DependencyShrinkwrap {
-  const shrResolution = toShrResolution(opts.shortId, opts.resolution)
-  const newResolvedDeps = updateResolvedDeps(opts.prevResolvedDeps, opts.updatedDeps, opts.registry)
-  if (!R.isEmpty(newResolvedDeps)) {
-    return {
-      resolution: shrResolution,
-      dependencies: newResolvedDeps,
-    }
-  }
-  if (typeof shrResolution === 'string') return shrResolution
-  return {
-    resolution: shrResolution
-  }
-}
-
-// previous resolutions should not be removed from shrinkwrap
-// as installation might not reanalize the whole dependency tree
-// the `depth` property defines how deep should dependencies be checked
-function updateResolvedDeps (
-  prevResolvedDeps: ResolvedDependencies,
-  updatedDeps: InstalledPackage[],
-  registry: string
-) {
-  const newResolvedDeps = R.fromPairs<string>(
-    updatedDeps.map((dep): R.KeyValuePair<string, string> => [
-      dep.pkg.name,
-      pkgIdToRef(dep.id, dep.pkg.version, dep.resolution, registry)
-    ])
-  )
-  return R.merge(
-    prevResolvedDeps,
-    newResolvedDeps
-  )
-}
-
-function toShrResolution (shortId: string, resolution: Resolution): string | Resolution {
-  if (shortId.startsWith('/') && resolution.type === undefined && resolution.shasum) {
-    return resolution.shasum
-  }
-  return resolution
 }
 
 async function installDependencies (

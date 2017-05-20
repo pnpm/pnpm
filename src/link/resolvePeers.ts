@@ -1,4 +1,5 @@
 import {LinkedPackagesMap, LinkedPackage} from '.'
+import {Resolution} from '../resolve'
 import {Dependencies, Package} from '../types'
 import R = require('ramda')
 import semver = require('semver')
@@ -11,6 +12,7 @@ export type DependencyTreeNode = {
   path: string,
   modules: string,
   fetchingFiles: Promise<boolean>,
+  resolution: Resolution,
   hardlinkedLocation: string,
   children: string[],
   depth: number,
@@ -160,6 +162,7 @@ function resolvePeersOfNode (
       name: node.pkg.name,
       hasBundledDependencies: node.pkg.hasBundledDependencies,
       fetchingFiles: node.pkg.fetchingFiles,
+      resolution: node.pkg.resolution,
       path: node.pkg.path,
       modules,
       hardlinkedLocation,

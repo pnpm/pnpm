@@ -242,6 +242,7 @@ async function installInContext (
       ? await getTopParents(
           R.difference(R.keys(depsFromPackage(ctx.pkg)), newPkgs), nodeModulesPath)
       : [],
+    shrinkwrap: ctx.shrinkwrap,
   })
 
   let newPkg: Package | undefined = ctx.pkg
@@ -276,7 +277,7 @@ async function installInContext (
     const getSpecFromPkg = (depName: string) => deps[depName] || devDeps[depName] || optionalDeps[depName]
 
     pkgs.forEach(dep => {
-      ctx.shrinkwrap.packages['/'].dependencies[dep.pkg.name] = pkgIdToRef(dep.id, dep.pkg.version, dep.resolution, ctx.shrinkwrap.registry)
+      ctx.shrinkwrap.packages['/'].dependencies[dep.pkg.name] = pkgIdToRef(dep.id, dep.pkg.name, dep.resolution, ctx.shrinkwrap.registry)
       ctx.shrinkwrap.specifiers[dep.pkg.name] = getSpecFromPkg(dep.pkg.name)
     })
     Object.keys(ctx.shrinkwrap.packages['/'].dependencies)

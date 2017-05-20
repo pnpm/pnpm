@@ -10,9 +10,12 @@ import {InstalledPackage} from '../install/installMultiple'
 import {InstalledPackages} from '../api/install'
 import linkBins from './linkBins'
 import {Package, Dependencies} from '../types'
+import {Resolution} from '../resolve'
 import resolvePeers, {DependencyTreeNode, DependencyTreeNodeMap} from './resolvePeers'
 import logStatus from '../logging/logInstallStatus'
 import pkgIdToFilename from '../fs/pkgIdToFilename'
+import updateShrinkwrap from './updateShrinkwrap'
+import {Shrinkwrap} from '../fs/shrinkwrap'
 
 export type LinkedPackage = {
   id: string,
@@ -22,6 +25,7 @@ export type LinkedPackage = {
   hasBundledDependencies: boolean,
   localLocation: string,
   path: string,
+  resolution: Resolution,
   fetchingFiles: Promise<boolean>,
   dependencies: string[],
 }
@@ -39,6 +43,7 @@ export default async function (
     baseNodeModules: string,
     bin: string,
     topParents: {name: string, version: string}[],
+    shrinkwrap: Shrinkwrap,
   }
 ): Promise<DependencyTreeNodeMap> {
   const pkgsToLinkMap = R.values(installedPkgs)
@@ -49,6 +54,7 @@ export default async function (
         version: installedPkg.pkg.version,
         peerDependencies: installedPkg.pkg.peerDependencies || {},
         hasBundledDependencies: !!(installedPkg.pkg.bundledDependencies || installedPkg.pkg.bundleDependencies),
+        resolution: installedPkg.resolution,
         fetchingFiles: installedPkg.fetchingFiles,
         localLocation: path.join(opts.baseNodeModules, `.${pkgIdToFilename(installedPkg.id)}`),
         path: installedPkg.path,
@@ -58,6 +64,7 @@ export default async function (
     }, {})
   const topPkgIds = topPkgs.filter(pkg => pkg.isInstallable).map(pkg => pkg.id)
   const pkgsToLink = await resolvePeers(pkgsToLinkMap, topPkgIds, opts.topParents)
+  updateShrinkwrap(pkgsToLink, opts.shrinkwrap)
 
   const flatResolvedDeps =  R.values(pkgsToLink)
 

@@ -215,7 +215,7 @@ export function getPkgId (
 
 export function pkgIdToRef (
   pkgId: string,
-  pkgVersion: string,
+  pkgName: string,
   resolution: Resolution,
   standardRegistry: string
 ) {
@@ -223,7 +223,9 @@ export function pkgIdToRef (
 
   const registryName = getRegistryName(standardRegistry)
   if (pkgId.startsWith(`${registryName}/`)) {
-    return pkgVersion
+    const ref = pkgId.replace(`${registryName}/${pkgName}/`, '')
+    if (ref.indexOf('/') === -1) return ref
+    return pkgId.replace(`${registryName}/`, '/')
   }
   return pkgId
 }
