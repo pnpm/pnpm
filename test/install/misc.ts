@@ -22,6 +22,7 @@ const basicPackageJson = loadJsonFile.sync(path.join(__dirname, '../utils/simple
 import {install, installPkgs, uninstall} from '../../src'
 import exists = require('path-exists')
 import isWindows = require('is-windows')
+import deepRequireCwd = require('deep-require-cwd')
 
 const IS_WINDOWS = isWindows()
 
@@ -544,6 +545,8 @@ test('should update subdep on second install', async function (t) {
 
   t.ok(!shr.packages['/dep-of-pkg-with-1-dep/100.0.0'], "shrinkwrap doesn't have old dependency")
   t.ok(shr.packages['/dep-of-pkg-with-1-dep/100.1.0'], 'shrinkwrap has new dependency')
+
+  t.equal(deepRequireCwd(['pkg-with-1-dep', 'dep-of-pkg-with-1-dep', './package.json']).version, '100.1.0', 'updated in node_modules')
 })
 
 test('should install dependency in second project', async function (t) {

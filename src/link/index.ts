@@ -151,17 +151,33 @@ async function linkNewPackages (
   delete shrinkwrap.packages['/']
   delete privateShrinkwrap.packages['/']
 
+  const nextPkgResolvedIds = R.keys(shrinkwrap.packages)
+  const prevPkgResolvedIds = R.keys(privateShrinkwrap.packages)
+
   // TODO: what if the registries differ?
   const newPkgResolvedIds = (
       opts.force
-        ? R.keys(shrinkwrap.packages)
-        : R.difference(R.keys(shrinkwrap.packages), R.keys(privateShrinkwrap.packages))
+        ? nextPkgResolvedIds
+        : R.difference(nextPkgResolvedIds, prevPkgResolvedIds)
     )
     .map(shortId => shortIdToFullId(shortId, shrinkwrap.registry))
 
   const newPkgs = R.props<DependencyTreeNode>(newPkgResolvedIds, pkgsToLink)
 
   await linkAllPkgs(newPkgs, opts)
+
+  if (!opts.force) {
+    // add subdependencies that have been updated
+    // TODO: no need to relink everything. Can be relinked only what was changed
+    for (const shortId of nextPkgResolvedIds) {
+      if (privateShrinkwrap.packages[shortId] &&
+        privateShrinkwrap.packages[shortId]['dependencies'] &&
+        !R.equals(privateShrinkwrap.packages[shortId]['dependencies'], shrinkwrap.packages[shortId]['dependencies']) ) {
+        const resolvedId = shortIdToFullId(shortId, shrinkwrap.registry)
+        newPkgs.push(pkgsToLink[resolvedId])
+      }
+    }
+  }
 
   await linkAllModules(newPkgs, pkgsToLink)
 }
