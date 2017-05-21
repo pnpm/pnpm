@@ -19,7 +19,6 @@ export type DependencyTreeNode = {
   resolvedId: string,
   dev: boolean,
   optional: boolean,
-  isInstallable: boolean,
   id: string,
 }
 
@@ -142,7 +141,12 @@ function resolvePeersOfNode (
 
   const result = resolvePeersOfChildren(node.children, parentPkgs, tree, nodeIdToResolvedId)
 
-  const resolvedPeers = resolvePeers(node.pkg.peerDependencies, node.pkg.id, parentPkgs)
+  const resolvedPeers = R.isEmpty(node.pkg.peerDependencies)
+    ? []
+    : resolvePeers(node, Object.assign({}, parentPkgs,
+      toPkgByName(R.props<TreeNode>(node.children, tree))
+    ))
+
   const allResolvedPeers = R.uniq(
     result.unknownResolvedPeersOfChildren
       .filter(resolvedPeerNodeId => resolvedPeerNodeId !== nodeId).concat(resolvedPeers))
@@ -174,7 +178,6 @@ function resolvePeersOfNode (
       resolvedId,
       dev: node.pkg.dev,
       optional: node.pkg.optional,
-      isInstallable: node.pkg.isInstallable,
       id: node.pkg.id,
     }
   }
@@ -217,25 +220,26 @@ function resolvePeersOfChildren (
 }
 
 function resolvePeers (
-  peerDependencies: Dependencies,
-  pkgId: string,
-  parentPkgs: ParentRefs,
+  node: TreeNode,
+  parentPkgs: ParentRefs
 ): string[] {
-  return R.toPairs(peerDependencies)
+  return R.toPairs(node.pkg.peerDependencies)
     .map(R.apply((peerName: string, peerVersionRange: string) => {
       const resolved = parentPkgs[peerName]
 
       if (!resolved) {
-        logger.warn(`${pkgId} requires a peer of ${peerName}@${peerVersionRange} but none was installed.`)
+        logger.warn(`${node.pkg.id} requires a peer of ${peerName}@${peerVersionRange} but none was installed.`)
         return null
       }
 
       if (!semver.satisfies(resolved.version, peerVersionRange)) {
-        logger.warn(`${pkgId} requires a peer of ${peerName}@${peerVersionRange} but version ${resolved.version} was installed.`)
+        logger.warn(`${node.pkg.id} requires a peer of ${peerName}@${peerVersionRange} but version ${resolved.version} was installed.`)
       }
 
-      if (resolved.depth === 0) {
-        // if the resolved package is a top dependency then there is no need to link it in
+      if (resolved.depth === 0 || resolved.depth === node.depth + 1) {
+        // if the resolved package is a top dependency
+        // or the peer dependency is resolved from a regular dependency of the package
+        // then there is no need to link it in
         return null
       }
 

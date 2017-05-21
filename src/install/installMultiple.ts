@@ -23,9 +23,6 @@ import getIsInstallable from './getIsInstallable'
 
 export type InstalledPackage = {
   id: string,
-  // optional dependencies are resolved for consistent shrinkwrap.yaml files
-  // but installed only on machines that are supported by the package
-  isInstallable: boolean,
   resolution: Resolution,
   pkg: Package,
   srcPath?: string,
@@ -194,6 +191,11 @@ async function install (
         nodeVersion: options.nodeVersion,
       })
     )
+  if (!isInstallable) {
+    // optional dependencies are resolved for consistent shrinkwrap.yaml files
+    // but installed only on machines that are supported by the package
+    ctx.skipped.add(fetchedPkg.id)
+  }
 
   if (!ctx.installed.has(fetchedPkg.id)) {
     ctx.installed.add(fetchedPkg.id)
@@ -221,7 +223,6 @@ async function install (
     optional: spec.optional,
     dev: spec.dev,
     pkg,
-    isInstallable,
     dependencies: dependencyIds || [],
     fetchingFiles: fetchedPkg.fetchingFiles,
     path: fetchedPkg.path,

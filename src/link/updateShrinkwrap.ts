@@ -4,12 +4,13 @@ import {
   pkgShortId,
   pkgIdToRef,
   ResolvedDependencies,
+  prune as pruneShrinkwrap,
 } from '../fs/shrinkwrap'
 import {DependencyTreeNodeMap, DependencyTreeNode} from './resolvePeers'
 import {Resolution} from '../resolve'
 import R = require('ramda')
 
-export default function (pkgsToLink: DependencyTreeNodeMap, shrinkwrap: Shrinkwrap) {
+export default function (pkgsToLink: DependencyTreeNodeMap, shrinkwrap: Shrinkwrap): Shrinkwrap {
   for (const resolvedId of R.keys(pkgsToLink)) {
     const shortId = pkgShortId(resolvedId, shrinkwrap.registry)
     shrinkwrap.packages[shortId] = toShrDependency({
@@ -25,6 +26,7 @@ export default function (pkgsToLink: DependencyTreeNodeMap, shrinkwrap: Shrinkwr
       optional: pkgsToLink[resolvedId].optional,
     })
   }
+  return pruneShrinkwrap(shrinkwrap)
 }
 
 function toShrDependency (

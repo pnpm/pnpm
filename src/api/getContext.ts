@@ -24,7 +24,7 @@ export type PnpmContext = {
   root: string,
   privateShrinkwrap: Shrinkwrap,
   shrinkwrap: Shrinkwrap,
-  skipped: string[],
+  skipped: Set<string>,
 }
 
 export default async function getContext (opts: StrictPnpmOptions, installType?: 'named' | 'general'): Promise<PnpmContext> {
@@ -58,7 +58,7 @@ export default async function getContext (opts: StrictPnpmOptions, installType?:
     storePath,
     shrinkwrap,
     privateShrinkwrap: await readPrivateShrinkwrap(root, {force: opts.force, registry: opts.registry}),
-    skipped: modules && modules.skipped || [],
+    skipped: new Set(modules && modules.skipped || []),
   }
 
   await mkdirp(ctx.storePath)

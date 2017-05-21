@@ -184,14 +184,14 @@ test('no forcing', async function (t) {
   t.ok(!distPathExists, 'magic-hook@2.0.0 dist folder not reinstalled')
 })
 
-test('relink package to project if it has been refetched', async function (t) {
+test('refetch package to store if it has been modified', async function (t) {
   const project = prepare(t)
   await installPkgs(['magic-hook@2.0.0'], testDefaults())
 
   const distPathInStore = await project.resolve('magic-hook', '2.0.0', 'dist')
   await rimraf(distPathInStore)
+  await rimraf('node_modules')
   const distPath = path.resolve('node_modules', 'magic-hook', 'dist')
-  await rimraf(distPath)
 
   await installPkgs(['magic-hook@2.0.0'], testDefaults())
 
@@ -199,7 +199,8 @@ test('relink package to project if it has been refetched', async function (t) {
   t.ok(distPathExists, 'magic-hook@2.0.0 dist folder reinstalled')
 })
 
-test('relink package to project if the dependency is not linked from store', async function (t) {
+// TODO: decide what to do with this case
+test['skip']('relink package to project if the dependency is not linked from store', async function (t: tape.Test) {
   const project = prepare(t)
   await installPkgs(['magic-hook@2.0.0'], testDefaults({save: true, saveExact: true}))
 

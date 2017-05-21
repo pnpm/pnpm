@@ -15,7 +15,8 @@ import resolvePeers, {DependencyTreeNode, DependencyTreeNodeMap} from './resolve
 import logStatus from '../logging/logInstallStatus'
 import pkgIdToFilename from '../fs/pkgIdToFilename'
 import updateShrinkwrap from './updateShrinkwrap'
-import {Shrinkwrap} from '../fs/shrinkwrap'
+import {Shrinkwrap, shortIdToFullId, DependencyShrinkwrap} from '../fs/shrinkwrap'
+import removeOrphanPkgs from '../api/removeOrphanPkgs'
 
 export type LinkedPackage = {
   id: string,
@@ -23,7 +24,6 @@ export type LinkedPackage = {
   version: string,
   dev: boolean,
   optional: boolean,
-  isInstallable: boolean,
   peerDependencies: Dependencies,
   hasBundledDependencies: boolean,
   localLocation: string,
@@ -47,9 +47,16 @@ export default async function (
     bin: string,
     topParents: {name: string, version: string}[],
     shrinkwrap: Shrinkwrap,
+    privateShrinkwrap: Shrinkwrap,
     production: boolean,
+    root: string,
+    storePath: string,
+    skipped: Set<string>,
   }
-): Promise<DependencyTreeNodeMap> {
+): Promise<{
+  linkedPkgsMap: DependencyTreeNodeMap,
+  shrinkwrap: Shrinkwrap,
+}> {
   const pkgsToLinkMap = R.values(installedPkgs)
     .reduce((pkgsToLink, installedPkg) => {
       pkgsToLink[installedPkg.id] = {
@@ -58,7 +65,6 @@ export default async function (
         version: installedPkg.pkg.version,
         dev: installedPkg.dev,
         optional: installedPkg.optional,
-        isInstallable: installedPkg.isInstallable,
         peerDependencies: installedPkg.pkg.peerDependencies || {},
         hasBundledDependencies: !!(installedPkg.pkg.bundledDependencies || installedPkg.pkg.bundleDependencies),
         resolution: installedPkg.resolution,
@@ -71,16 +77,26 @@ export default async function (
     }, {})
   const topPkgIds = topPkgs.map(pkg => pkg.id)
   const pkgsToLink = await resolvePeers(pkgsToLinkMap, topPkgIds, opts.topParents)
-  updateShrinkwrap(pkgsToLink, opts.shrinkwrap)
+  const newShr = updateShrinkwrap(pkgsToLink, opts.shrinkwrap)
 
-  let flatResolvedDeps =  R.values(pkgsToLink).filter(dep => dep.isInstallable)
+  await removeOrphanPkgs(opts.privateShrinkwrap, newShr, opts.root, opts.storePath)
+
+  let flatResolvedDeps =  R.values(pkgsToLink).filter(dep => !opts.skipped.has(dep.id))
   if (opts.production) {
     flatResolvedDeps = flatResolvedDeps.filter(dep => !dep.dev)
   }
 
-  await linkAllPkgs(flatResolvedDeps, opts)
-
-  await linkAllModules(flatResolvedDeps, pkgsToLink)
+  const filterOpts = {
+    noDev: opts.production,
+    noOptional: false,
+    skipped: opts.skipped,
+  }
+  await linkNewPackages(
+    filterShrinkwrap(opts.privateShrinkwrap, filterOpts),
+    filterShrinkwrap(newShr, filterOpts),
+    pkgsToLink,
+    opts
+  )
 
   for (let pkg of flatResolvedDeps.filter(pkg => pkg.depth === 0)) {
     await symlinkDependencyTo(pkg, opts.baseNodeModules)
@@ -91,7 +107,63 @@ export default async function (
   }
   await linkBins(opts.baseNodeModules, opts.bin)
 
-  return pkgsToLink
+  return {
+    linkedPkgsMap: pkgsToLink,
+    shrinkwrap: newShr
+  }
+}
+
+function filterShrinkwrap (
+  shr: Shrinkwrap,
+  opts: {
+    noDev: boolean,
+    noOptional: boolean,
+    skipped: Set<string>,
+  }
+): Shrinkwrap {
+  let pairs = R.toPairs<string, DependencyShrinkwrap>(shr.packages)
+    .filter(pair => !opts.skipped.has(pair[1]['id'] || shortIdToFullId(pair[0], shr.registry)))
+  if (opts.noDev) {
+    pairs = pairs.filter(pair => !pair[1]['dev'])
+  }
+  if (opts.noOptional) {
+    pairs = pairs.filter(pair => !pair[1]['optional'])
+  }
+  return {
+    version: shr.version,
+    createdWith: shr.createdWith,
+    registry: shr.registry,
+    specifiers: shr.specifiers,
+    packages: R.fromPairs(pairs),
+  } as Shrinkwrap
+}
+
+async function linkNewPackages (
+  privateShrinkwrap: Shrinkwrap,
+  shrinkwrap: Shrinkwrap,
+  pkgsToLink: DependencyTreeNodeMap,
+  opts: {
+    force: boolean,
+    global: boolean,
+    baseNodeModules: string,
+  }
+) {
+  delete shrinkwrap.packages['/']
+  delete privateShrinkwrap.packages['/']
+
+  // TODO: what if the registries differ?
+  const newPkgResolvedIds = (
+      opts.force
+        ? R.keys(shrinkwrap.packages)
+        : R.difference(R.keys(shrinkwrap.packages), R.keys(privateShrinkwrap.packages))
+    )
+    .map(shortId => shortIdToFullId(shortId, shrinkwrap.registry))
+
+  const newPkgs = R.props<DependencyTreeNode>(newPkgResolvedIds, pkgsToLink)
+
+  await linkAllPkgs(newPkgs, opts)
+
+  await linkAllModules(newPkgs, pkgsToLink)
 }
 
 const limitLinking = pLimit(16)

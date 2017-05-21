@@ -21,13 +21,11 @@ import pnpmPkgJson from '../pnpmPkgJson'
 import lock from './lock'
 import {
   save as saveShrinkwrap,
-  prune as pruneShrinkwrap,
   Shrinkwrap,
   ResolvedDependencies,
   pkgIdToRef,
 } from '../fs/shrinkwrap'
 import {save as saveModules} from '../fs/modulesController'
-import removeOrphanPkgs from './removeOrphanPkgs'
 import mkdirp = require('mkdirp-promise')
 import createMemoize, {MemoizedFunc} from '../memoize'
 import {Package} from '../types'
@@ -44,13 +42,15 @@ export type InstallContext = {
   shrinkwrap: Shrinkwrap,
   installed: Set<string>,
   fetchingLocker: MemoizedFunc<Boolean>,
+  // the IDs of packages that are not installable
+  skipped: Set<string>,
 }
 
 export async function install (maybeOpts?: PnpmOptions) {
   const opts = extendOptions(maybeOpts)
   const installType = 'general'
   const ctx = await getContext(opts, installType)
-  const installCtx = await createInstallCmd(opts, ctx.shrinkwrap)
+  const installCtx = await createInstallCmd(opts, ctx.shrinkwrap, ctx.skipped)
 
   if (!ctx.pkg) throw new Error('No package.json found')
 
@@ -136,7 +136,7 @@ export async function installPkgs (fuzzyDeps: string[] | Dependencies, maybeOpts
   }
   const installType = 'named'
   const ctx = await getContext(opts, installType)
-  const installCtx = await createInstallCmd(opts, ctx.shrinkwrap)
+  const installCtx = await createInstallCmd(opts, ctx.shrinkwrap, ctx.skipped)
 
   packagesToInstall.forEach(spec => {
     delete ctx.shrinkwrap.packages['/'].dependencies[spec.name]
@@ -226,18 +226,6 @@ async function installInContext (
     nonLinkedPkgs,
     installOpts
   )
-  const linkedPkgsMap = await linkPackages(pkgs, installCtx.installs, {
-    force: opts.force,
-    global: opts.global,
-    baseNodeModules: nodeModulesPath,
-    bin: opts.bin,
-    topParents: ctx.pkg
-      ? await getTopParents(
-          R.difference(R.keys(depsFromPackage(ctx.pkg)), newPkgs), nodeModulesPath)
-      : [],
-    shrinkwrap: ctx.shrinkwrap,
-    production: opts.production,
-  })
 
   let newPkg: Package | undefined = ctx.pkg
   if (installType === 'named') {
@@ -282,26 +270,38 @@ async function installInContext (
       })
   }
 
-  const newShr = pruneShrinkwrap(ctx.shrinkwrap)
-  await removeOrphanPkgs(ctx.privateShrinkwrap, newShr, ctx.root, ctx.storePath)
-  await saveShrinkwrap(ctx.root, newShr)
+  const result = await linkPackages(pkgs, installCtx.installs, {
+    force: opts.force,
+    global: opts.global,
+    baseNodeModules: nodeModulesPath,
+    bin: opts.bin,
+    topParents: ctx.pkg
+      ? await getTopParents(
+          R.difference(R.keys(depsFromPackage(ctx.pkg)), newPkgs), nodeModulesPath)
+      : [],
+    shrinkwrap: ctx.shrinkwrap,
+    production: opts.production,
+    root: ctx.root,
+    privateShrinkwrap: ctx.privateShrinkwrap,
+    storePath: ctx.storePath,
+    skipped: ctx.skipped,
+  })
+
+  await saveShrinkwrap(ctx.root, result.shrinkwrap)
   await saveModules(path.join(ctx.root, 'node_modules'), {
     packageManager: `${pnpmPkgJson.name}@${pnpmPkgJson.version}`,
     storePath: ctx.storePath,
-    skipped: R.uniq(
-      R.concat(
-        ctx.skipped.filter(skippedPkgId => !installCtx.installed.has(skippedPkgId)),
-        Array.from(installCtx.installed).filter(pkgId => !installCtx.installs[pkgId].isInstallable))),
+    skipped: Array.from(installCtx.skipped),
   })
 
   // postinstall hooks
   if (!(opts.ignoreScripts || !installCtx.installationSequence || !installCtx.installationSequence.length)) {
     const limitChild = pLimit(opts.childConcurrency)
-    const linkedPkgsMapValues = R.values(linkedPkgsMap)
+    const linkedPkgsMapValues = R.values(result.linkedPkgsMap)
     await Promise.all(
       installCtx.installationSequence.map(pkgId => Promise.all(
         R.uniqBy(linkedPkg => linkedPkg.hardlinkedLocation,
-          linkedPkgsMapValues.filter(pkg => pkg.id === pkgId && (!opts.production || !pkg.dev) && pkg.isInstallable)
+          linkedPkgsMapValues.filter(pkg => pkg.id === pkgId && (!opts.production || !pkg.dev) && !installCtx.skipped.has(pkg.id))
         )
           .map(pkg => limitChild(async () => {
             try {
@@ -345,13 +345,14 @@ function getSaveSpec(spec: PackageSpec, pkg: InstalledPackage, saveExact: boolea
   }
 }
 
-async function createInstallCmd (opts: StrictPnpmOptions, shrinkwrap: Shrinkwrap): Promise<InstallContext> {
+async function createInstallCmd (opts: StrictPnpmOptions, shrinkwrap: Shrinkwrap, skipped: Set<string>): Promise<InstallContext> {
   return {
     installs: {},
     shrinkwrap,
     installed: new Set(),
     installationSequence: [],
     fetchingLocker: createMemoize<boolean>(opts.fetchingConcurrency),
+    skipped,
   }
 }
 
