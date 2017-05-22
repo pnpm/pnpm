@@ -7,39 +7,20 @@ import logger from 'pnpm-logger'
 import R = require('ramda')
 import pLimit = require('p-limit')
 import {InstalledPackage} from '../install/installMultiple'
-import {InstalledPackages} from '../api/install'
+import {InstalledPackages, TreeNode} from '../api/install'
 import linkBins from './linkBins'
 import {Package, Dependencies} from '../types'
 import {Resolution} from '../resolve'
 import resolvePeers, {DependencyTreeNode, DependencyTreeNodeMap} from './resolvePeers'
 import logStatus from '../logging/logInstallStatus'
-import pkgIdToFilename from '../fs/pkgIdToFilename'
 import updateShrinkwrap from './updateShrinkwrap'
 import {Shrinkwrap, shortIdToFullId, DependencyShrinkwrap} from '../fs/shrinkwrap'
 import removeOrphanPkgs from '../api/removeOrphanPkgs'
 
-export type LinkedPackage = {
-  id: string,
-  name: string,
-  version: string,
-  dev: boolean,
-  optional: boolean,
-  peerDependencies: Dependencies,
-  hasBundledDependencies: boolean,
-  localLocation: string,
-  path: string,
-  resolution: Resolution,
-  fetchingFiles: Promise<boolean>,
-  dependencies: string[],
-}
-
-export type LinkedPackagesMap = {
-  [id: string]: LinkedPackage
-}
-
 export default async function (
   topPkgs: InstalledPackage[],
-  installedPkgs: InstalledPackages,
+  rootNodeIds: string[],
+  tree: {[nodeId: string]: TreeNode},
   opts: {
     force: boolean,
     global: boolean,
@@ -57,26 +38,8 @@ export default async function (
   linkedPkgsMap: DependencyTreeNodeMap,
   shrinkwrap: Shrinkwrap,
 }> {
-  const pkgsToLinkMap = R.values(installedPkgs)
-    .reduce((pkgsToLink, installedPkg) => {
-      pkgsToLink[installedPkg.id] = {
-        id: installedPkg.id,
-        name: installedPkg.pkg.name,
-        version: installedPkg.pkg.version,
-        dev: installedPkg.dev,
-        optional: installedPkg.optional,
-        peerDependencies: installedPkg.pkg.peerDependencies || {},
-        hasBundledDependencies: !!(installedPkg.pkg.bundledDependencies || installedPkg.pkg.bundleDependencies),
-        resolution: installedPkg.resolution,
-        fetchingFiles: installedPkg.fetchingFiles,
-        localLocation: path.join(opts.baseNodeModules, `.${pkgIdToFilename(installedPkg.id)}`),
-        path: installedPkg.path,
-        dependencies: installedPkg.dependencies,
-      }
-      return pkgsToLink
-    }, {})
   const topPkgIds = topPkgs.map(pkg => pkg.id)
-  const pkgsToLink = await resolvePeers(pkgsToLinkMap, topPkgIds, opts.topParents)
+  const pkgsToLink = await resolvePeers(tree, rootNodeIds, topPkgIds, opts.topParents)
   const newShr = updateShrinkwrap(pkgsToLink, opts.shrinkwrap)
 
   await removeOrphanPkgs(opts.privateShrinkwrap, newShr, opts.root, opts.storePath)

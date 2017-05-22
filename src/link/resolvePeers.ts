@@ -1,10 +1,11 @@
-import {LinkedPackagesMap, LinkedPackage} from '.'
 import {Resolution} from '../resolve'
 import {Dependencies, Package} from '../types'
 import R = require('ramda')
 import semver = require('semver')
 import logger from 'pnpm-logger'
 import path = require('path')
+import {InstalledPackage} from '../install/installMultiple'
+import {TreeNode} from '../api/install'
 
 export type DependencyTreeNode = {
   name: string,
@@ -30,14 +31,13 @@ export type DependencyTreeNodeMap = {
 }
 
 export default function (
-  pkgsMap: LinkedPackagesMap,
+  tree: {[nodeId: string]: TreeNode},
+  rootNodeIds: string[],
   topPkgIds: string[],
   // only the top dependencies that were already installed
   // to avoid warnings about unresolved peer dependencies
   topParents: {name: string, version: string}[]
 ): DependencyTreeNodeMap {
-  const tree = createTree(pkgsMap, topPkgIds)
-
   const pkgsByName = R.fromPairs(
     topParents.map((parent: {name: string, version: string}): R.KeyValuePair<string, ParentRef> => [
       parent.name,
@@ -49,83 +49,12 @@ export default function (
   )
 
   const nodeIdToResolvedId = {}
-  const resolvedTree = resolvePeersOfChildren(tree.rootNodeIds, pkgsByName, tree.nodes, nodeIdToResolvedId).resolvedTree
+  const resolvedTree = resolvePeersOfChildren(rootNodeIds, pkgsByName, tree, nodeIdToResolvedId).resolvedTree
 
   R.values(resolvedTree).forEach(node => {
     node.children = node.children.map(child => nodeIdToResolvedId[child])
   })
   return resolvedTree
-}
-
-type Tree = {
-  nodes: {[nodeId: string]: TreeNode},
-  rootNodeIds: string[],
-}
-
-type TreeNode = {
-  nodeId: string,
-  children: string[], // Node IDs of children
-  pkg: LinkedPackage,
-  depth: number,
-}
-
-function createTree (
-  pkgsMap: LinkedPackagesMap,
-  pkgIds: string[],
-  depth?: number,
-  parentNodeId?: string
-): Tree {
-  return R.props(pkgIds, pkgsMap)
-    .reduce((acc: Tree, pkg: LinkedPackage) => {
-      const node = createTreeNode(pkgsMap, pkg, depth || 0, parentNodeId)
-      return {
-        rootNodeIds: R.append(node.nodeId, acc.rootNodeIds),
-        nodes: Object.assign(acc.nodes, node.childNodes)
-      }
-    }, {rootNodeIds: [], nodes: {}})
-}
-
-function createTreeNode (
-  pkgsMap: LinkedPackagesMap,
-  pkg: LinkedPackage,
-  depth: number,
-  parentNodeId?: string
-): {
-  nodeId: string,
-  childNodes: {[nodeId: string]: TreeNode},
-} {
-  const nonCircularDeps = parentNodeId
-    ? getNonCircularDependencies(parentNodeId, pkg.id, pkg.dependencies)
-    : pkg.dependencies
-  const nodeId = parentNodeId
-    ? relationCode(parentNodeId, pkg.id)
-    : pkg.id
-  const tree = createTree(pkgsMap, nonCircularDeps, depth + 1, nodeId)
-  return {
-    nodeId,
-    childNodes: Object.assign(tree.nodes, R.objOf(nodeId, {
-      pkg,
-      nodeId,
-      children: tree.rootNodeIds,
-      depth,
-    }))
-  }
-}
-
-function getNonCircularDependencies (
-  parentNodeId: string,
-  parentId: string,
-  dependencyIds: string[]
-) {
-  return dependencyIds.filter(depId => {
-    const relation = relationCode(parentId, depId)
-    return parentNodeId.indexOf(relation) === -1
-  })
-}
-
-function relationCode (parentId: string, dependencyId: string) {
-  // using colon as it will never be used inside a package ID
-  return `${parentId}:${dependencyId}`
 }
 
 function resolvePeersOfNode (
@@ -271,6 +200,6 @@ function toPkgByName(pkgs: TreeNode[]): ParentRefs {
   return R.fromPairs(toNameAndPkg(pkgs))
 }
 
-function createPeersFolderName(peers: LinkedPackage[]) {
+function createPeersFolderName(peers: InstalledPackage[]) {
   return peers.map(peer => `${peer.name.replace('/', '!')}@${peer.version}`).sort().join('+')
 }

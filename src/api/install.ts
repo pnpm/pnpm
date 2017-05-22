@@ -36,14 +36,21 @@ export type InstalledPackages = {
   [name: string]: InstalledPackage
 }
 
+export type TreeNode = {
+  nodeId: string,
+  children: string[], // Node IDs of children
+  pkg: InstalledPackage,
+  depth: number,
+}
+
 export type InstallContext = {
   installs: InstalledPackages,
   installationSequence: string[],
   shrinkwrap: Shrinkwrap,
-  installed: Set<string>,
   fetchingLocker: MemoizedFunc<Boolean>,
   // the IDs of packages that are not installable
   skipped: Set<string>,
+  tree: {[nodeId: string]: TreeNode},
 }
 
 export async function install (maybeOpts?: PnpmOptions) {
@@ -219,13 +226,16 @@ async function installInContext (
     keypath: [],
     referencedFrom: opts.prefix,
     prefix: opts.prefix,
+    parentNodeId: ':/:',
+    currentDepth: 0,
   }
   const nonLinkedPkgs = await pFilter(packagesToInstall, (spec: PackageSpec) => !spec.name || safeIsInnerLink(nodeModulesPath, spec.name))
-  const pkgs: InstalledPackage[] = await installMultiple(
+  const rootNodeIds = await installMultiple(
     installCtx,
     nonLinkedPkgs,
     installOpts
   )
+  const pkgs: InstalledPackage[] = R.props<TreeNode>(rootNodeIds, installCtx.tree).map(node => node.pkg)
 
   let newPkg: Package | undefined = ctx.pkg
   if (installType === 'named') {
@@ -240,7 +250,7 @@ async function installInContext (
         const spec: PackageSpec = R.find(spec => spec.raw === dep.specRaw, newSpecs)
         if (!spec) return null
         return {
-          name: dep.pkg.name,
+          name: dep.name,
           saveSpec: getSaveSpec(spec, dep, opts.saveExact)
         }
       }).filter(Boolean),
@@ -259,8 +269,8 @@ async function installInContext (
     const getSpecFromPkg = (depName: string) => deps[depName] || devDeps[depName] || optionalDeps[depName]
 
     pkgs.forEach(dep => {
-      ctx.shrinkwrap.packages['/'].dependencies[dep.pkg.name] = pkgIdToRef(dep.id, dep.pkg.name, dep.resolution, ctx.shrinkwrap.registry)
-      ctx.shrinkwrap.specifiers[dep.pkg.name] = getSpecFromPkg(dep.pkg.name)
+      ctx.shrinkwrap.packages['/'].dependencies[dep.name] = pkgIdToRef(dep.id, dep.name, dep.resolution, ctx.shrinkwrap.registry)
+      ctx.shrinkwrap.specifiers[dep.name] = getSpecFromPkg(dep.name)
     })
     Object.keys(ctx.shrinkwrap.packages['/'].dependencies)
       .filter(pkgName => !getSpecFromPkg(pkgName))
@@ -270,7 +280,7 @@ async function installInContext (
       })
   }
 
-  const result = await linkPackages(pkgs, installCtx.installs, {
+  const result = await linkPackages(pkgs, rootNodeIds, installCtx.tree, {
     force: opts.force,
     global: opts.global,
     baseNodeModules: nodeModulesPath,
@@ -339,7 +349,7 @@ function getSaveSpec(spec: PackageSpec, pkg: InstalledPackage, saveExact: boolea
     case 'version':
     case 'range':
     case 'tag':
-      return `${saveExact ? '' : '^'}${pkg.pkg.version}`
+      return `${saveExact ? '' : '^'}${pkg.version}`
     default:
       return spec.saveSpec
   }
@@ -349,10 +359,10 @@ async function createInstallCmd (opts: StrictPnpmOptions, shrinkwrap: Shrinkwrap
   return {
     installs: {},
     shrinkwrap,
-    installed: new Set(),
     installationSequence: [],
     fetchingLocker: createMemoize<boolean>(opts.fetchingConcurrency),
     skipped,
+    tree: {},
   }
 }
 

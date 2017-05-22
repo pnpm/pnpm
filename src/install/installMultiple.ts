@@ -20,18 +20,22 @@ import {
 import {Resolution, PackageSpec, PackageMeta} from '../resolve'
 import depsToSpecs from '../depsToSpecs'
 import getIsInstallable from './getIsInstallable'
+import pkgIdToFilename from '../fs/pkgIdToFilename'
 
 export type InstalledPackage = {
   id: string,
   resolution: Resolution,
-  pkg: Package,
   srcPath?: string,
   dev: boolean,
   optional: boolean,
-  dependencies: string[],
   fetchingFiles: Promise<Boolean>,
   path: string,
   specRaw: string,
+  name: string,
+  version: string,
+  peerDependencies: Dependencies,
+  hasBundledDependencies: boolean,
+  localLocation: string,
 }
 
 export default async function installMultiple (
@@ -47,6 +51,8 @@ export default async function installMultiple (
     metaCache: Map<string, PackageMeta>,
     got: Got,
     keypath: string[],
+    parentNodeId: string,
+    currentDepth: number,
     resolvedDependencies?: ResolvedDependencies,
     depth: number,
     engineStrict: boolean,
@@ -57,9 +63,9 @@ export default async function installMultiple (
     nodeModules: string,
     update: boolean,
   }
-): Promise<InstalledPackage[]> {
+): Promise<string[]> {
   const resolvedDependencies = options.resolvedDependencies || {}
-  const installedPkgs: InstalledPackage[] = <InstalledPackage[]>(
+  const nodeIds = <string[]>(
     await Promise.all(
       specs
         .map(async (spec: PackageSpec) => {
@@ -78,9 +84,9 @@ export default async function installMultiple (
         })
     )
   )
-  .filter(pkg => pkg)
+  .filter(Boolean)
 
-  return installedPkgs
+  return nodeIds
 }
 
 function dependencyShrToResolution (
@@ -129,8 +135,10 @@ async function install (
     registry: string,
     metaCache: Map<string, PackageMeta>,
     got: Got,
-    keypath: string[],
+    keypath: string[], // TODO: remove. Currently used only for logging
     pkgId?: string,
+    parentNodeId: string,
+    currentDepth: number,
     shrinkwrapResolution?: Resolution,
     resolvedDependencies: ResolvedDependencies,
     depth: number,
@@ -142,7 +150,7 @@ async function install (
     nodeModules: string,
     update: boolean,
   }
-) {
+): Promise<string | null> {
   const keypath = options.keypath || []
   const proceed = keypath.length <= options.depth
 
@@ -181,7 +189,13 @@ async function install (
   const pkg = await fetchedPkg.fetchingPkg
   logStatus({status: 'downloaded_manifest', pkgId: fetchedPkg.id, pkgVersion: pkg.version})
 
-  let dependencyIds: string[] | void
+  if (options.parentNodeId.indexOf(`:${dependentId}:${fetchedPkg.id}:`) !== -1) {
+    return null
+  }
+
+  // using colon as it will never be used inside a package ID
+  const nodeId = `${options.parentNodeId}${fetchedPkg.id}:`
+
   const isInstallable = options.isInstallable !== false &&
     (
       options.force ||
@@ -197,43 +211,58 @@ async function install (
     ctx.skipped.add(fetchedPkg.id)
   }
 
-  if (!ctx.installed.has(fetchedPkg.id)) {
-    ctx.installed.add(fetchedPkg.id)
-    const dependencies = await installDependencies(
-      pkg,
-      spec,
-      fetchedPkg.id,
-      ctx,
-      Object.assign({}, options, {
-        referencedFrom: fetchedPkg.srcPath,
-        isInstallable,
-      })
-    )
-    dependencyIds = dependencies.map(dep => dep.id)
-  }
+  const children = await installDependencies(
+    pkg,
+    spec,
+    fetchedPkg.id,
+    ctx,
+    Object.assign({}, options, {
+      referencedFrom: fetchedPkg.srcPath,
+      isInstallable,
+      currentDepth: options.currentDepth + 1,
+      parentNodeId: nodeId,
+    })
+  )
 
   if (isInstallable && ctx.installationSequence.indexOf(fetchedPkg.id) === -1) {
     ctx.installationSequence.push(fetchedPkg.id)
   }
 
-  const dependency: InstalledPackage = {
-    id: fetchedPkg.id,
-    resolution: fetchedPkg.resolution,
-    srcPath: fetchedPkg.srcPath,
-    optional: spec.optional,
-    dev: spec.dev,
-    pkg,
-    dependencies: dependencyIds || [],
-    fetchingFiles: fetchedPkg.fetchingFiles,
-    path: fetchedPkg.path,
-    specRaw: spec.raw,
+  if (!ctx.installs[fetchedPkg.id]) {
+    ctx.installs[fetchedPkg.id] = {
+      id: fetchedPkg.id,
+      resolution: fetchedPkg.resolution,
+      srcPath: fetchedPkg.srcPath,
+      optional: spec.optional,
+      name: pkg.name,
+      version: pkg.version,
+      dev: spec.dev,
+      fetchingFiles: fetchedPkg.fetchingFiles,
+      path: fetchedPkg.path,
+      specRaw: spec.raw,
+      peerDependencies: pkg.peerDependencies || {},
+      hasBundledDependencies: !!(pkg.bundledDependencies || pkg.bundleDependencies),
+      localLocation: path.join(options.nodeModules, `.${pkgIdToFilename(fetchedPkg.id)}`),
+    }
+  } else {
+    ctx.installs[fetchedPkg.id].dev = ctx.installs[fetchedPkg.id].dev && spec.dev
+    ctx.installs[fetchedPkg.id].optional = ctx.installs[fetchedPkg.id].optional && spec.optional
+  }
+  // we need this for saving to package.json
+  if (options.currentDepth === 0) {
+    ctx.installs[fetchedPkg.id].specRaw = spec.raw
   }
 
-  addInstalledPkg(ctx.installs, dependency)
+  ctx.tree[nodeId] = {
+    nodeId,
+    pkg: ctx.installs[fetchedPkg.id],
+    children,
+    depth: options.currentDepth,
+  }
 
   logStatus({status: 'dependencies_installed', pkgId: fetchedPkg.id})
 
-  return dependency
+  return nodeId
 }
 
 function normalizeRegistry (registry: string) {
@@ -256,6 +285,8 @@ async function installDependencies (
     metaCache: Map<string, PackageMeta>,
     got: Got,
     keypath: string[],
+    parentNodeId: string,
+    currentDepth: number,
     resolvedDependencies?: ResolvedDependencies,
     depth: number,
     engineStrict: boolean,
@@ -266,7 +297,7 @@ async function installDependencies (
     nodeModules: string,
     update: boolean,
   }
-): Promise<InstalledPackage[]> {
+): Promise<string[]> {
   const depsInstallOpts = Object.assign({}, opts, {
     keypath: opts.keypath.concat([ pkgId ]),
   })
@@ -282,9 +313,7 @@ async function installDependencies (
     }
   )
 
-  const installedDeps: InstalledPackage[] = await installMultiple(ctx, deps, depsInstallOpts)
-
-  return installedDeps
+  return await installMultiple(ctx, deps, depsInstallOpts)
 }
 
 function getNotBundledDeps (bundledDeps: string[], deps: Dependencies) {
@@ -294,16 +323,4 @@ function getNotBundledDeps (bundledDeps: string[], deps: Dependencies) {
       notBundledDeps[depName] = deps[depName]
       return notBundledDeps
     }, {})
-}
-
-function addInstalledPkg (installs: InstalledPackages, newPkg: InstalledPackage) {
-  if (!installs[newPkg.id]) {
-    installs[newPkg.id] = newPkg
-    return
-  }
-  installs[newPkg.id].dev = installs[newPkg.id].dev && newPkg.dev
-  installs[newPkg.id].optional = installs[newPkg.id].optional && newPkg.optional
-  if (!installs[newPkg.id].dependencies.length) {
-    installs[newPkg.id].dependencies = newPkg.dependencies
-  }
 }
