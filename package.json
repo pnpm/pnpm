@@ -22,7 +22,7 @@
     "@types/node": "^7.0.5",
     "@types/nopt": "^3.0.29",
     "@types/npm": "^2.0.28",
-    "@types/ramda": "^0.0.9",
+    "@types/ramda": "^0.0.10",
     "@types/rc": "^0.0.1",
     "@types/semver": "^5.3.30",
     "@types/update-notifier": "^1.0.0",
