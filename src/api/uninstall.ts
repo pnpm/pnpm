@@ -47,9 +47,9 @@ export async function uninstallInContext (pkgsToUninstall: string[], pkg: Packag
   if (saveType) {
     const pkgJsonPath = path.join(ctx.root, 'package.json')
     const pkg = await removeDeps(pkgJsonPath, pkgsToUninstall, saveType)
-    for (let depName in ctx.shrinkwrap.packages['/'].dependencies) {
+    for (let depName in ctx.shrinkwrap.dependencies) {
       if (!isDependentOn(pkg, depName)) {
-        delete ctx.shrinkwrap.packages['/'].dependencies[depName]
+        delete ctx.shrinkwrap.dependencies[depName]
         delete ctx.shrinkwrap.specifiers[depName]
       }
     }

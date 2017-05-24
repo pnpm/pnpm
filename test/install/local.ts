@@ -42,12 +42,10 @@ test('local file', async function (t: tape.Test) {
     specifiers: {
       'local-pkg': `file:..${path.sep}local-pkg`,
     },
+    dependencies: {
+      'local-pkg': 'file:../local-pkg',
+    },
     packages: {
-      '/': {
-        dependencies: {
-          'local-pkg': 'file:../local-pkg',
-        },
-      },
       'file:../local-pkg': {
         resolution: {
           root: '../local-pkg',

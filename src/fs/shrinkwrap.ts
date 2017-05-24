@@ -23,11 +23,8 @@ function getDefaultShrinkwrap (registry: string) {
     version: SHRINKWRAP_VERSION,
     createdWith: CREATED_WITH,
     specifiers: {},
-    packages: {
-      '/': {
-        dependencies: {},
-      },
-    },
+    dependencies: {},
+    packages: {},
     registry,
   }
 }
@@ -36,17 +33,13 @@ export type Shrinkwrap = {
   version: number,
   createdWith: string,
   specifiers: ResolvedDependencies,
+  dependencies: ResolvedDependencies,
   packages: ResolvedPackages,
   registry: string,
 }
 
 export type ResolvedPackages = {
-  '/': {
-    dependencies: ResolvedDependencies,
-  },
-  [pkgId: string]: DependencyShrinkwrap | {
-    dependencies: ResolvedDependencies,
-  },
+  [pkgId: string]: DependencyShrinkwrap,
 }
 
 export type DependencyShrinkwrap = string | {
@@ -124,7 +117,7 @@ export function save (pkgPath: string, shrinkwrap: Shrinkwrap) {
   const privateShrinkwrapPath = path.join(pkgPath, PRIVATE_SHRINKWRAP_FILENAME)
 
   // empty shrinkwrap is not saved
-  if (Object.keys(shrinkwrap.packages[PROJECT_ID].dependencies).length === 0) {
+  if (Object.keys(shrinkwrap.dependencies).length === 0) {
     return Promise.all([
       rimraf(shrinkwrapPath),
       rimraf(privateShrinkwrapPath),
@@ -143,25 +136,22 @@ export function save (pkgPath: string, shrinkwrap: Shrinkwrap) {
   ])
 }
 
-export const PROJECT_ID = '/'
-
 export function prune (shr: Shrinkwrap): Shrinkwrap {
   return {
     version: SHRINKWRAP_VERSION,
     createdWith: shr.createdWith || CREATED_WITH,
     specifiers: shr.specifiers,
     registry: shr.registry,
+    dependencies: shr.dependencies,
     packages: copyDependencyTree(shr, shr.registry),
   }
 }
 
 function copyDependencyTree (shr: Shrinkwrap, registry: string): ResolvedPackages {
-  const resolvedPackages: ResolvedPackages = {
-    '/': shr.packages[PROJECT_ID]
-  }
+  const resolvedPackages: ResolvedPackages = {}
 
-  let pkgIds: string[] = R.keys(shr.packages[PROJECT_ID].dependencies)
-    .map((pkgName: string) => getPkgShortId(shr.packages[PROJECT_ID].dependencies[pkgName], pkgName))
+  let pkgIds: string[] = R.keys(shr.dependencies)
+    .map((pkgName: string) => getPkgShortId(shr.dependencies[pkgName], pkgName))
 
   while (pkgIds.length) {
     let nextPkgIds: string[] = []
