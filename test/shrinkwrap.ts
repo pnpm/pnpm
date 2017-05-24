@@ -239,3 +239,25 @@ test('repeat install with shrinkwrap should not mutate shrinkwrap when dependenc
 
   t.deepEqual(shr1, shr2)
 })
+
+test('package is not marked dev if it is also a subdep of a regular dependency', async (t: tape.Test) => {
+  const project = prepare(t)
+
+  await installPkgs(['pkg-with-1-dep'])
+  await installPkgs(['dep-of-pkg-with-1-dep'], {saveDev: true})
+
+  const shr = await project.loadShrinkwrap()
+
+  t.notOk(shr.packages['/dep-of-pkg-with-1-dep/1.1.0']['dev'])
+})
+
+test('package is not marked optional if it is also a subdep of a regular dependency', async (t: tape.Test) => {
+  const project = prepare(t)
+
+  await installPkgs(['pkg-with-1-dep'])
+  await installPkgs(['dep-of-pkg-with-1-dep'], {saveOptional: true})
+
+  const shr = await project.loadShrinkwrap()
+
+  t.notOk(shr.packages['/dep-of-pkg-with-1-dep/1.1.0']['optional'])
+})

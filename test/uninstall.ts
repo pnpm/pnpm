@@ -7,6 +7,7 @@ import exists = require('path-exists')
 import existsSymlink = require('exists-link')
 import readPkg = require('read-pkg')
 import ncpCB = require('ncp')
+import R = require('ramda')
 import {
   prepare,
   testDefaults,
@@ -102,9 +103,10 @@ test('uninstall package with its bin files', async function (t) {
   t.ok(!stat, 'sh-hello-world is removed from .bin')
 })
 
-test('keep dependencies used by others', async function (t) {
+test('keep dependencies used by others', async function (t: tape.Test) {
   const project = prepare(t)
-  await installPkgs(['hastscript@3.0.0', 'camelcase-keys@3.0.0'], testDefaults({ save: true }))
+  await installPkgs(['camelcase-keys@3.0.0'], testDefaults({ save: true }))
+  await installPkgs(['hastscript@3.0.0'], testDefaults({ saveDev: true }))
   await uninstall(['camelcase-keys'], testDefaults({ save: true }))
 
   await project.storeHasNot('camelcase-keys', '2.1.0')
@@ -116,7 +118,13 @@ test('keep dependencies used by others', async function (t) {
   await project.hasNot('map-obj')
 
   const pkgJson = await readPkg()
-  t.deepEqual(pkgJson.dependencies, {'hastscript': '^3.0.0'}, 'camelcase-keys has been removed from dependencies')
+  t.notOk(pkgJson.dependencies, 'camelcase-keys has been removed from dependencies')
+
+  // all dependencies are marked as dev
+  const shr = await project.loadShrinkwrap()
+  t.notOk(R.isEmpty(shr.packages))
+
+  R.toPairs(shr.packages).forEach(pair => t.ok(pair[1]['dev'], `${pair[0]} is dev`))
 })
 
 test('keep dependency used by package', async function (t) {
