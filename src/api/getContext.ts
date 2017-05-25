@@ -19,7 +19,7 @@ import logger from 'pnpm-logger'
 import checkCompatibility from './checkCompatibility'
 
 export type PnpmContext = {
-  pkg?: Package,
+  pkg: Package,
   storePath: string,
   root: string,
   privateShrinkwrap: Shrinkwrap,

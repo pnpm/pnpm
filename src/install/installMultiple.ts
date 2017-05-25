@@ -219,10 +219,6 @@ async function install (
     })
   )
 
-  if (isInstallable && ctx.installationSequence.indexOf(fetchedPkg.id) === -1) {
-    ctx.installationSequence.push(fetchedPkg.id)
-  }
-
   if (!ctx.installs[fetchedPkg.id]) {
     ctx.installs[fetchedPkg.id] = {
       id: fetchedPkg.id,

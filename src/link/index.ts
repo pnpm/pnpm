@@ -33,14 +33,16 @@ export default async function (
     root: string,
     storePath: string,
     skipped: Set<string>,
+    pkg: Package,
   }
 ): Promise<{
   linkedPkgsMap: DependencyTreeNodeMap,
   shrinkwrap: Shrinkwrap,
+  newPkgResolvedIds: string[],
 }> {
   const topPkgIds = topPkgs.map(pkg => pkg.id)
   const pkgsToLink = await resolvePeers(tree, rootNodeIds, topPkgIds, opts.topParents)
-  const newShr = updateShrinkwrap(pkgsToLink, opts.shrinkwrap)
+  const newShr = updateShrinkwrap(pkgsToLink, opts.shrinkwrap, opts.pkg)
 
   await removeOrphanPkgs(opts.privateShrinkwrap, newShr, opts.root, opts.storePath)
 
@@ -54,7 +56,7 @@ export default async function (
     noOptional: false,
     skipped: opts.skipped,
   }
-  await linkNewPackages(
+  const newPkgResolvedIds = await linkNewPackages(
     filterShrinkwrap(opts.privateShrinkwrap, filterOpts),
     filterShrinkwrap(newShr, filterOpts),
     pkgsToLink,
@@ -72,7 +74,8 @@ export default async function (
 
   return {
     linkedPkgsMap: pkgsToLink,
-    shrinkwrap: newShr
+    shrinkwrap: newShr,
+    newPkgResolvedIds,
   }
 }
 
@@ -85,12 +88,12 @@ function filterShrinkwrap (
   }
 ): Shrinkwrap {
   let pairs = R.toPairs<string, DependencyShrinkwrap>(shr.packages)
-    .filter(pair => !opts.skipped.has(pair[1]['id'] || shortIdToFullId(pair[0], shr.registry)))
+    .filter(pair => !opts.skipped.has(pair[1].id || shortIdToFullId(pair[0], shr.registry)))
   if (opts.noDev) {
-    pairs = pairs.filter(pair => !pair[1]['dev'])
+    pairs = pairs.filter(pair => !pair[1].dev)
   }
   if (opts.noOptional) {
-    pairs = pairs.filter(pair => !pair[1]['optional'])
+    pairs = pairs.filter(pair => !pair[1].optional)
   }
   return {
     version: shr.version,
@@ -110,10 +113,7 @@ async function linkNewPackages (
     global: boolean,
     baseNodeModules: string,
   }
-) {
-  delete shrinkwrap.packages['/']
-  delete privateShrinkwrap.packages['/']
-
+): Promise<string[]> {
   const nextPkgResolvedIds = R.keys(shrinkwrap.packages)
   const prevPkgResolvedIds = R.keys(privateShrinkwrap.packages)
 
@@ -142,6 +142,8 @@ async function linkNewPackages (
   }
 
   await linkAllModules(newPkgs, pkgsToLink)
+
+  return newPkgResolvedIds
 }
 
 const limitLinking = pLimit(16)

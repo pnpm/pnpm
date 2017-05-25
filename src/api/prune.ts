@@ -29,44 +29,16 @@ export async function prune(maybeOpts?: PnpmOptions): Promise<void> {
       throw new Error('No package.json found - cannot prune')
     }
 
+    // TODO: remove other extraneous packages as well
+    if (!opts.production) return
+
     const pkg = ctx.pkg
 
-    const extraneousPkgs = await getExtraneousPkgs(pkg, ctx.root, opts.production)
-
-    const newShr = ctx.shrinkwrap
-    extraneousPkgs.forEach(depName => {
-      delete newShr.dependencies[depName]
-      delete newShr.specifiers[depName]
-    })
-
-    const prunedShr = pruneShrinkwrap(newShr)
+    const prunedShr = pruneShrinkwrap(ctx.shrinkwrap, {
+      dependencies: ctx.pkg.dependencies,
+      optionalDependencies: ctx.pkg.optionalDependencies,
+    } as Package)
 
     await removeOrphanPkgs(ctx.privateShrinkwrap, prunedShr, ctx.root, ctx.storePath)
   }
-}
-
-async function getExtraneousPkgs (pkg: Package, root: string, production: boolean) {
-  const saveTypes = getSaveTypes(production)
-  const savedDepsMap = saveTypes.reduce((allDeps, deps) => Object.assign({}, allDeps, pkg[deps]), {})
-  const savedDeps = Object.keys(savedDepsMap)
-  const modules = path.join(root, 'node_modules')
-  const pkgsInFS = await getPkgsInFS(modules)
-  const extraneousPkgs = pkgsInFS.filter((pkgInFS: string) => savedDeps.indexOf(pkgInFS) === -1)
-  return extraneousPkgs
-}
-
-const prodDepTypes = ['dependencies', 'optionalDependencies']
-const devOnlyDepTypes = ['devDependencies']
-
-function getSaveTypes (production: boolean) {
-  if (production) {
-    return prodDepTypes
-  }
-  return prodDepTypes.concat(devOnlyDepTypes)
-}
-
-async function getPkgsInFS (modules: string): Promise<string[]> {
-  const pkgDirs = await getPkgDirs(modules)
-  const pkgs: Package[] = await Promise.all(pkgDirs.map(readPkgFromDir))
-  return pkgs.map(pkg => pkg.name)
 }

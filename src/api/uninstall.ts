@@ -53,7 +53,7 @@ export async function uninstallInContext (pkgsToUninstall: string[], pkg: Packag
         delete ctx.shrinkwrap.specifiers[depName]
       }
     }
-    const newShr = await pruneShrinkwrap(ctx.shrinkwrap)
+    const newShr = await pruneShrinkwrap(ctx.shrinkwrap, pkg)
     const removedPkgIds = await removeOrphanPkgs(ctx.privateShrinkwrap, newShr, ctx.root, ctx.storePath)
     await saveShrinkwrap(ctx.root, newShr)
     await saveModules(path.join(ctx.root, 'node_modules'), {

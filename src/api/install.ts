@@ -30,6 +30,7 @@ import mkdirp = require('mkdirp-promise')
 import createMemoize, {MemoizedFunc} from '../memoize'
 import {Package} from '../types'
 import {PackageSpec} from '../resolve'
+import {DependencyTreeNode} from '../link/resolvePeers'
 import depsToSpecs, {similarDepsToSpecs} from '../depsToSpecs'
 
 export type InstalledPackages = {
@@ -45,7 +46,6 @@ export type TreeNode = {
 
 export type InstallContext = {
   installs: InstalledPackages,
-  installationSequence: string[],
   shrinkwrap: Shrinkwrap,
   fetchingLocker: MemoizedFunc<Boolean>,
   // the IDs of packages that are not installable
@@ -295,6 +295,7 @@ async function installInContext (
     privateShrinkwrap: ctx.privateShrinkwrap,
     storePath: ctx.storePath,
     skipped: ctx.skipped,
+    pkg: newPkg || ctx.pkg,
   })
 
   await saveShrinkwrap(ctx.root, result.shrinkwrap)
@@ -305,31 +306,28 @@ async function installInContext (
   })
 
   // postinstall hooks
-  if (!(opts.ignoreScripts || !installCtx.installationSequence || !installCtx.installationSequence.length)) {
+  if (!(opts.ignoreScripts || !result.newPkgResolvedIds || !result.newPkgResolvedIds.length)) {
     const limitChild = pLimit(opts.childConcurrency)
     const linkedPkgsMapValues = R.values(result.linkedPkgsMap)
     await Promise.all(
-      installCtx.installationSequence.map(pkgId => Promise.all(
-        R.uniqBy(linkedPkg => linkedPkg.hardlinkedLocation,
-          linkedPkgsMapValues.filter(pkg => pkg.id === pkgId && (!opts.production || !pkg.dev) && !installCtx.skipped.has(pkg.id))
-        )
-          .map(pkg => limitChild(async () => {
-            try {
-              await postInstall(pkg.hardlinkedLocation, installLogger(pkgId), {
-                userAgent: opts.userAgent
+      R.props<DependencyTreeNode>(result.newPkgResolvedIds, result.linkedPkgsMap)
+        .map(pkg => limitChild(async () => {
+          try {
+            await postInstall(pkg.hardlinkedLocation, installLogger(pkg.id), {
+              userAgent: opts.userAgent
+            })
+          } catch (err) {
+            if (installCtx.installs[pkg.id].optional) {
+              logger.warn({
+                message: `Skipping failed optional dependency ${pkg.id}`,
+                err,
               })
-            } catch (err) {
-              if (installCtx.installs[pkgId].optional) {
-                logger.warn({
-                  message: `Skipping failed optional dependency ${pkgId}`,
-                  err,
-                })
-                return
-              }
-              throw err
+              return
             }
-          })
-        )))
+            throw err
+          }
+        })
+      )
     )
   }
 }
@@ -359,7 +357,6 @@ async function createInstallCmd (opts: StrictPnpmOptions, shrinkwrap: Shrinkwrap
   return {
     installs: {},
     shrinkwrap,
-    installationSequence: [],
     fetchingLocker: createMemoize<boolean>(opts.fetchingConcurrency),
     skipped,
     tree: {},

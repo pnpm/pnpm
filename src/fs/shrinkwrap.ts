@@ -10,6 +10,7 @@ import isCI = require('is-ci')
 import getRegistryName from '../resolve/npm/getRegistryName'
 import npa = require('npm-package-arg')
 import pnpmPkgJson from '../pnpmPkgJson'
+import {Package} from '../types'
 
 const shrinkwrapLogger = logger('shrinkwrap')
 
@@ -136,35 +137,73 @@ export function save (pkgPath: string, shrinkwrap: Shrinkwrap) {
   ])
 }
 
-export function prune (shr: Shrinkwrap): Shrinkwrap {
+export function prune (shr: Shrinkwrap, pkg: Package): Shrinkwrap {
+  const packages: ResolvedPackages = {}
+  const optionalDependencies = R.keys(pkg.optionalDependencies)
+  const dependencies = R.difference(R.keys(pkg.dependencies), optionalDependencies)
+  const devDependencies = R.difference(R.difference(R.keys(pkg.devDependencies), optionalDependencies), dependencies)
+  copyDependencyTree(packages, shr, {
+    registry: shr.registry,
+    dependencies: devDependencies,
+    dev: true,
+  })
+  copyDependencyTree(packages, shr, {
+    registry: shr.registry,
+    dependencies: optionalDependencies,
+    optional: true,
+  })
+  copyDependencyTree(packages, shr, {
+    registry: shr.registry,
+    dependencies,
+  })
   return {
     version: SHRINKWRAP_VERSION,
     createdWith: shr.createdWith || CREATED_WITH,
     specifiers: shr.specifiers,
     registry: shr.registry,
     dependencies: shr.dependencies,
-    packages: copyDependencyTree(shr, shr.registry),
+    packages,
   }
 }
 
-function copyDependencyTree (shr: Shrinkwrap, registry: string): ResolvedPackages {
-  const resolvedPackages: ResolvedPackages = {}
-
-  let pkgIds: string[] = R.keys(shr.dependencies)
+function copyDependencyTree (
+  resolvedPackages: ResolvedPackages,
+  shr: Shrinkwrap,
+  opts: {
+    registry: string,
+    dependencies: string[],
+    dev?: boolean,
+    optional?: boolean,
+  }
+): ResolvedPackages {
+  let pkgIds: string[] = opts.dependencies
     .map((pkgName: string) => getPkgShortId(shr.dependencies[pkgName], pkgName))
+  const checked = new Set<string>()
 
   while (pkgIds.length) {
     let nextPkgIds: string[] = []
     for (let pkgId of pkgIds) {
+      if (checked.has(pkgId)) continue
+      checked.add(pkgId)
       if (!shr.packages[pkgId]) {
         logger.warn(`Cannot find resolution of ${pkgId} in shrinkwrap file`)
         continue
       }
       const depShr = shr.packages[pkgId]
       resolvedPackages[pkgId] = depShr
+      if (opts.optional) {
+        depShr.optional = true
+      } else {
+        delete depShr.optional
+      }
+      if (opts.dev) {
+        depShr.dev = true
+      } else {
+        delete depShr.dev
+      }
       const newDependencies = R.keys(depShr.dependencies)
         .map((pkgName: string) => getPkgShortId(<string>(depShr.dependencies && depShr.dependencies[pkgName]), pkgName))
-        .filter((newPkgId: string) => !resolvedPackages[newPkgId] && pkgIds.indexOf(newPkgId) === -1)
+        .filter((newPkgId: string) => !checked.has(newPkgId))
       nextPkgIds = R.union(nextPkgIds, newDependencies)
     }
     pkgIds = nextPkgIds
