@@ -67,7 +67,9 @@ test('shrinkwrap with scoped package', async t => {
       '@types/semver': '5.3.31',
     },
     packages: {
-      '/@types/semver/5.3.31': 'b999d7d935f43f5207b01b00d3de20852f4ca75f',
+      '/@types/semver/5.3.31': {
+        resolution: 'b999d7d935f43f5207b01b00d3de20852f4ca75f',
+      },
     },
     registry: 'http://localhost:4873',
     version: 2,
@@ -188,7 +190,9 @@ test('subdeps are updated on repeat install if outer shrinkwrap.yaml does not ma
 
   delete shr.packages['/dep-of-pkg-with-1-dep/100.0.0']
 
-  shr.packages['/dep-of-pkg-with-1-dep/100.1.0'] = 'b1dccbab9ab987b87ad4778207e1cb7fe948fb3c'
+  shr.packages['/dep-of-pkg-with-1-dep/100.1.0'] = {
+    resolution: 'b1dccbab9ab987b87ad4778207e1cb7fe948fb3c',
+  }
 
   shr.packages['/pkg-with-1-dep/100.0.0']['dependencies']['dep-of-pkg-with-1-dep'] = '100.1.0'
 

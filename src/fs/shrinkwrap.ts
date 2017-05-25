@@ -42,7 +42,7 @@ export type ResolvedPackages = {
   [pkgId: string]: DependencyShrinkwrap,
 }
 
-export type DependencyShrinkwrap = string | {
+export type DependencyShrinkwrap = {
   id?: string,
   dev?: true,
   optional?: true,
@@ -162,7 +162,6 @@ function copyDependencyTree (shr: Shrinkwrap, registry: string): ResolvedPackage
       }
       const depShr = shr.packages[pkgId]
       resolvedPackages[pkgId] = depShr
-      if (typeof depShr === 'string') continue
       const newDependencies = R.keys(depShr.dependencies)
         .map((pkgName: string) => getPkgShortId(<string>(depShr.dependencies && depShr.dependencies[pkgName]), pkgName))
         .filter((newPkgId: string) => !resolvedPackages[newPkgId] && pkgIds.indexOf(newPkgId) === -1)

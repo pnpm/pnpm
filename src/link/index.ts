@@ -134,8 +134,7 @@ async function linkNewPackages (
     // TODO: no need to relink everything. Can be relinked only what was changed
     for (const shortId of nextPkgResolvedIds) {
       if (privateShrinkwrap.packages[shortId] &&
-        privateShrinkwrap.packages[shortId]['dependencies'] &&
-        !R.equals(privateShrinkwrap.packages[shortId]['dependencies'], shrinkwrap.packages[shortId]['dependencies']) ) {
+        !R.equals(privateShrinkwrap.packages[shortId].dependencies, shrinkwrap.packages[shortId].dependencies) ) {
         const resolvedId = shortIdToFullId(shortId, shrinkwrap.registry)
         newPkgs.push(pkgsToLink[resolvedId])
       }

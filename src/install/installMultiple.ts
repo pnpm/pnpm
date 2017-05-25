@@ -72,14 +72,15 @@ export default async function installMultiple (
           const reference = resolvedDependencies[spec.name]
           const pkgShortId = reference && getPkgShortId(reference, spec.name)
           const dependencyShrinkwrap = pkgShortId && ctx.shrinkwrap.packages[pkgShortId]
-          const pkgId = dependencyShrinkwrap && dependencyShrinkwrap['id'] ||
+          const pkgId = dependencyShrinkwrap && dependencyShrinkwrap.id ||
             reference && getPkgId(reference, spec.name, ctx.shrinkwrap.registry)
+          const shrinkwrapResolution: Resolution | undefined = pkgShortId && dependencyShrinkwrap
+            ? dependencyShrToResolution(pkgShortId, dependencyShrinkwrap, options.registry)
+            : undefined
           return await install(spec, ctx, Object.assign({}, options, {
             pkgId,
-            resolvedDependencies: dependencyShrinkwrap && dependencyShrinkwrap['dependencies'],
-            shrinkwrapResolution: pkgShortId && dependencyShrinkwrap
-              ? dependencyShrToResolution(pkgShortId, dependencyShrinkwrap as DependencyShrinkwrap, options.registry)
-              : undefined,
+            resolvedDependencies: dependencyShrinkwrap && dependencyShrinkwrap.dependencies || {},
+            shrinkwrapResolution,
           }))
         })
     )
@@ -94,12 +95,6 @@ function dependencyShrToResolution (
   depShr: DependencyShrinkwrap,
   registry: string
 ): Resolution {
-  if (typeof depShr === 'string') {
-    return {
-      shasum: depShr,
-      tarball: getTarball()
-    }
-  }
   if (typeof depShr.resolution === 'string') {
     return {
       shasum: depShr.resolution,
