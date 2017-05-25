@@ -55,43 +55,45 @@ export type InstallContext = {
 
 export async function install (maybeOpts?: PnpmOptions) {
   const opts = extendOptions(maybeOpts)
-  const installType = 'general'
-  const ctx = await getContext(opts, installType)
-  const installCtx = await createInstallCmd(opts, ctx.shrinkwrap, ctx.skipped)
+  return lock(opts.prefix, async () => {
+    const installType = 'general'
+    const ctx = await getContext(opts, installType)
+    const installCtx = await createInstallCmd(opts, ctx.shrinkwrap, ctx.skipped)
 
-  if (!ctx.pkg) throw new Error('No package.json found')
+    if (!ctx.pkg) throw new Error('No package.json found')
 
-  const specs = specsToInstallFromPackage(ctx.pkg, {
-    prefix: opts.prefix,
-  })
+    const specs = specsToInstallFromPackage(ctx.pkg, {
+      prefix: opts.prefix,
+    })
 
-  specs.forEach(spec => {
-    if (ctx.shrinkwrap.specifiers && ctx.shrinkwrap.specifiers[spec.name] !== spec.rawSpec) {
-      delete ctx.shrinkwrap.dependencies[spec.name]
-    }
-  })
+    specs.forEach(spec => {
+      if (ctx.shrinkwrap.specifiers && ctx.shrinkwrap.specifiers[spec.name] !== spec.rawSpec) {
+        delete ctx.shrinkwrap.dependencies[spec.name]
+      }
+    })
 
-  if (opts.lock === false) {
-    return run()
-  }
-
-  return lock(ctx.storePath, run, {stale: opts.lockStaleDuration})
-
-  async function run () {
-    const scripts = !opts.ignoreScripts && ctx.pkg && ctx.pkg.scripts || {}
-    if (scripts['preinstall']) {
-      npmRun('preinstall', ctx.root, opts.userAgent)
+    if (opts.lock === false) {
+      return run()
     }
 
-    await installInContext(installType, specs, [], ctx, installCtx, opts)
+    return lock(ctx.storePath, run, {stale: opts.lockStaleDuration})
 
-    if (scripts['postinstall']) {
-      npmRun('postinstall', ctx.root, opts.userAgent)
+    async function run () {
+      const scripts = !opts.ignoreScripts && ctx.pkg && ctx.pkg.scripts || {}
+      if (scripts['preinstall']) {
+        npmRun('preinstall', ctx.root, opts.userAgent)
+      }
+
+      await installInContext(installType, specs, [], ctx, installCtx, opts)
+
+      if (scripts['postinstall']) {
+        npmRun('postinstall', ctx.root, opts.userAgent)
+      }
+      if (scripts['prepublish']) {
+        npmRun('prepublish', ctx.root, opts.userAgent)
+      }
     }
-    if (scripts['prepublish']) {
-      npmRun('prepublish', ctx.root, opts.userAgent)
-    }
-  }
+  }, {stale: opts.lockStaleDuration})
 }
 
 function specsToInstallFromPackage(
@@ -125,45 +127,47 @@ function depsFromPackage (pkg: Package): Dependencies {
  */
 export async function installPkgs (fuzzyDeps: string[] | Dependencies, maybeOpts?: PnpmOptions) {
   const opts = extendOptions(maybeOpts)
-  let packagesToInstall = Array.isArray(fuzzyDeps)
-    ? argsToSpecs(fuzzyDeps, {
-      defaultTag: opts.tag,
-      where: opts.prefix,
-      dev: opts.saveDev,
-      optional: opts.saveOptional,
+  return lock(opts.prefix, async () => {
+    let packagesToInstall = Array.isArray(fuzzyDeps)
+      ? argsToSpecs(fuzzyDeps, {
+        defaultTag: opts.tag,
+        where: opts.prefix,
+        dev: opts.saveDev,
+        optional: opts.saveOptional,
+      })
+      : similarDepsToSpecs(fuzzyDeps, {
+        where: opts.prefix,
+        dev: opts.saveDev,
+        optional: opts.saveOptional,
+      })
+
+    if (!Object.keys(packagesToInstall).length) {
+      throw new Error('At least one package has to be installed')
+    }
+    const installType = 'named'
+    const ctx = await getContext(opts, installType)
+    const installCtx = await createInstallCmd(opts, ctx.shrinkwrap, ctx.skipped)
+
+    packagesToInstall.forEach(spec => {
+      delete ctx.shrinkwrap.dependencies[spec.name]
     })
-    : similarDepsToSpecs(fuzzyDeps, {
-      where: opts.prefix,
-      dev: opts.saveDev,
-      optional: opts.saveOptional,
-    })
 
-  if (!Object.keys(packagesToInstall).length) {
-    throw new Error('At least one package has to be installed')
-  }
-  const installType = 'named'
-  const ctx = await getContext(opts, installType)
-  const installCtx = await createInstallCmd(opts, ctx.shrinkwrap, ctx.skipped)
+    if (opts.lock === false) {
+      return run()
+    }
 
-  packagesToInstall.forEach(spec => {
-    delete ctx.shrinkwrap.dependencies[spec.name]
-  })
+    return lock(ctx.storePath, run, {stale: opts.lockStaleDuration})
 
-  if (opts.lock === false) {
-    return run()
-  }
-
-  return lock(ctx.storePath, run, {stale: opts.lockStaleDuration})
-
-  function run () {
-    return installInContext(
-      installType,
-      packagesToInstall,
-      packagesToInstall.map(spec => spec.name),
-      ctx,
-      installCtx,
-      opts)
-  }
+    function run () {
+      return installInContext(
+        installType,
+        packagesToInstall,
+        packagesToInstall.map(spec => spec.name),
+        ctx,
+        installCtx,
+        opts)
+    }
+  }, {stale: opts.lockStaleDuration})
 }
 
 function argsToSpecs (

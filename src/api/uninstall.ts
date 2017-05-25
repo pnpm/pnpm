@@ -22,24 +22,25 @@ import removeTopDependency from '../removeTopDependency'
 
 export default async function uninstallCmd (pkgsToUninstall: string[], maybeOpts?: PnpmOptions) {
   const opts = extendOptions(maybeOpts)
+  return lock(opts.prefix, async () => {
+    const ctx = await getContext(opts)
 
-  const ctx = await getContext(opts)
+    if (!ctx.pkg) {
+      throw new Error('No package.json found - cannot uninstall')
+    }
 
-  if (!ctx.pkg) {
-    throw new Error('No package.json found - cannot uninstall')
-  }
+    const pkg = ctx.pkg
 
-  const pkg = ctx.pkg
+    if (opts.lock === false) {
+      return run()
+    }
 
-  if (opts.lock === false) {
-    return run()
-  }
+    return lock(ctx.storePath, run, {stale: opts.lockStaleDuration})
 
-  return lock(ctx.storePath, run, {stale: opts.lockStaleDuration})
-
-  function run () {
-    return uninstallInContext(pkgsToUninstall, pkg, ctx, opts)
-  }
+    function run () {
+      return uninstallInContext(pkgsToUninstall, pkg, ctx, opts)
+    }
+  }, {stale: opts.lockStaleDuration})
 }
 
 export async function uninstallInContext (pkgsToUninstall: string[], pkg: Package, ctx: PnpmContext, opts: StrictPnpmOptions) {

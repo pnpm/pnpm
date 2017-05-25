@@ -1,6 +1,7 @@
 import logger from 'pnpm-logger'
 import path = require('path')
 import lockfile = require('proper-lockfile')
+import mkdirp = require('mkdirp-promise')
 
 async function delay(ms: number) {
   return new Promise(resolve => setTimeout(resolve, ms))
@@ -46,7 +47,9 @@ export default async function withLock<T> (
   fn: () => Promise<T>,
   opts: {stale: number}
 ): Promise<T> {
-  const lockFilename: string = path.resolve(storePath, 'lock')
+  storePath = path.resolve(storePath)
+  await mkdirp(storePath)
+  const lockFilename = path.join(storePath, 'lock')
   await lock(lockFilename, {firstTime: true, stale: opts.stale})
   try {
     const result = await fn()
