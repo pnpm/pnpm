@@ -276,12 +276,6 @@ async function installInContext (
       ctx.shrinkwrap.dependencies[dep.name] = pkgIdToRef(dep.id, dep.name, dep.resolution, ctx.shrinkwrap.registry)
       ctx.shrinkwrap.specifiers[dep.name] = getSpecFromPkg(dep.name)
     })
-    Object.keys(ctx.shrinkwrap.dependencies)
-      .filter(pkgName => !getSpecFromPkg(pkgName))
-      .forEach(removedDep => {
-        delete ctx.shrinkwrap.specifiers[removedDep]
-        delete ctx.shrinkwrap.dependencies[removedDep]
-      })
   }
 
   const result = await linkPackages(pkgs, rootNodeIds, installCtx.tree, {

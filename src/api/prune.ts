@@ -29,15 +29,12 @@ export async function prune(maybeOpts?: PnpmOptions): Promise<void> {
       throw new Error('No package.json found - cannot prune')
     }
 
-    // TODO: remove other extraneous packages as well
-    if (!opts.production) return
-
-    const pkg = ctx.pkg
-
-    const prunedShr = pruneShrinkwrap(ctx.shrinkwrap, {
+    const pkg = !opts.production ? ctx.pkg : {
       dependencies: ctx.pkg.dependencies,
       optionalDependencies: ctx.pkg.optionalDependencies,
-    } as Package)
+    } as Package
+
+    const prunedShr = pruneShrinkwrap(ctx.shrinkwrap, pkg)
 
     await removeOrphanPkgs(ctx.privateShrinkwrap, prunedShr, ctx.root, ctx.storePath)
   }

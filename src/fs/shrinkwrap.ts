@@ -156,12 +156,23 @@ export function prune (shr: Shrinkwrap, pkg: Package): Shrinkwrap {
     registry: shr.registry,
     dependencies,
   })
+
+  const allDeps = R.reduce(R.union, [], [optionalDependencies, devDependencies, dependencies])
+  const specifiers: ResolvedDependencies = {}
+  const shrDependencies: ResolvedDependencies = {}
+
+  R.keys(shr.specifiers).forEach(depName => {
+    if (allDeps.indexOf(depName) === -1) return
+    specifiers[depName] = shr.specifiers[depName]
+    shrDependencies[depName] = shr.dependencies[depName]
+  })
+
   return {
     version: SHRINKWRAP_VERSION,
     createdWith: shr.createdWith || CREATED_WITH,
-    specifiers: shr.specifiers,
+    specifiers,
     registry: shr.registry,
-    dependencies: shr.dependencies,
+    dependencies: shrDependencies,
     packages,
   }
 }
