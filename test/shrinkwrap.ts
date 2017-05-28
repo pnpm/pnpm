@@ -78,7 +78,7 @@ test('shrinkwrap with scoped package', async t => {
   await install(testDefaults())
 })
 
-test('fail when shasum from shrinkwrap does not match with the actual one', async t => {
+test('fail when shasum from shrinkwrap does not match with the actual one', async (t: tape.Test) => {
   const project = prepare(t, {
     dependencies: {
       'is-negative': '2.1.0',
@@ -94,7 +94,7 @@ test('fail when shasum from shrinkwrap does not match with the actual one', asyn
     packages: {
       '/is-negative/2.1.0': {
         resolution: {
-          shasum: '00000000000000000000000000000000000000000',
+          shasum: 'b000d7d935f43f5207b01b00d3de20852f4ca75f',
           tarball: 'http://localhost:4873/is-negative/-/is-negative-2.1.0.tgz',
         },
       },
@@ -105,7 +105,7 @@ test('fail when shasum from shrinkwrap does not match with the actual one', asyn
     await install(testDefaults())
     t.fail('installation should have failed')
   } catch (err) {
-    t.ok(err.message.indexOf('Incorrect shasum') !== -1, 'failed with expected error')
+    t.equal(err.code, 'EINTEGRITY')
   }
 })
 
@@ -159,7 +159,7 @@ test('shrinkwrap removed when no deps in package.json', async t => {
   t.ok(!await project.loadShrinkwrap(), 'shrinkwrap file removed')
 })
 
-test('respects shrinkwrap.yaml for top dependencies', async t => {
+test('respects shrinkwrap.yaml for top dependencies', async (t: tape.Test) => {
   const project = prepare(t)
 
   await addDistTag('dep-of-pkg-with-1-dep', '100.0.0', 'latest')

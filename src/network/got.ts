@@ -6,6 +6,7 @@ import crypto = require('crypto')
 import mkdirp = require('mkdirp-promise')
 import path = require('path')
 import createWriteStreamAtomic = require('fs-write-stream-atomic')
+import ssri = require('ssri')
 
 export type AuthInfo = {
   alwaysAuth: boolean,
@@ -25,7 +26,7 @@ export type Got = {
     registry?: string,
     onStart?: () => void,
     onProgress?: (downloaded: number, totalSize: number) => void,
-    shasum?: string
+    integrity?: string
   }): Promise<void>,
   getJSON<T>(url: string): Promise<T>,
 }
@@ -62,7 +63,7 @@ export default (
     registry?: string,
     onStart?: () => void,
     onProgress?: (downloaded: number, totalSize: number) => void,
-    shasum?: string
+    integrity?: string
   }): Promise<void> {
     return limit(async () => {
       await mkdirp(path.dirname(saveto))
@@ -73,15 +74,21 @@ export default (
         client.fetch(url, {auth}, async (err: Error, res: IncomingMessage) => {
           if (err) return reject(err)
           const writeStream = createWriteStreamAtomic(saveto)
-          const actualShasum = crypto.createHash('sha1')
 
-          res
+          const stream = res
             .on('response', start)
-            .on('data', (_: Buffer) => { actualShasum.update(_) })
             .on('error', reject)
             .pipe(writeStream)
             .on('error', reject)
-            .on('finish', finish)
+
+          if (opts.integrity) {
+            try {
+              await ssri.checkStream(res, opts.integrity)
+            } catch (err) {
+              reject(err)
+            }
+          }
+          stream.on('finish', resolve)
 
           function start (res: IncomingMessage) {
             if (res.statusCode !== 200) {
@@ -98,16 +105,6 @@ export default (
                 onProgress(downloaded, size)
               })
             }
-          }
-
-          async function finish () {
-            const digest = actualShasum.digest('hex')
-            if (opts.shasum && digest !== opts.shasum) {
-              reject(new Error(`Incorrect shasum (expected ${opts.shasum}, got ${digest})`))
-              return
-            }
-
-            resolve()
           }
         })
       })

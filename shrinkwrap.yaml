@@ -79,6 +79,7 @@ dependencies:
   rimraf@^2.5.4: 2.6.1
   semver@^5.3.0: 5.3.0
   sepia@^2.0.2: 2.0.2
+  ssri@^4.1.3: 4.1.3
   symlink-dir@^1.0.2: 1.0.2
   tape-promise@^2.0.1: 2.0.1
   tape@^4.6.3: 4.6.3
@@ -1889,6 +1890,7 @@ packages:
       tweetnacl: 0.14.5
     resolution: ff2a3e4fd04497555fed97b39a0fd82fafb3a33c
   /ssri/4.1.2: 3d3c69b490d0b107772a9bf81881f38ae071f24b
+  /ssri/4.1.3: ec8b5585cbfc726a5f9aad829efce238de831935
   /statuses/1.3.1: faf51b9eb74aaef3b3acf4ad5f61abf24cb7b93e
   /stream-combiner/0.0.4:
     dependencies:

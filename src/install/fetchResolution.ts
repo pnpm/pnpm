@@ -13,6 +13,7 @@ import parseNpmTarballUrl from 'parse-npm-tarball-url'
 import parseCodeloadUrl from 'parse-codeload-url'
 import {escapeHost} from '../resolve/npm/getRegistryName'
 import {PnpmError} from '../errorTypes'
+import ssri = require('ssri')
 
 const gitLogger = logger('git')
 
@@ -119,7 +120,7 @@ export async function fetchFromRemoteTarball (dir: string, dist: PackageDist, op
     }
     await opts.got.download(dist.tarball, localTarballPath, {
       registry: dist.registry,
-      shasum: dist.shasum,
+      integrity: dist.shasum && ssri.fromHex(dist.shasum, 'sha1'),
       onStart: () => logStatus({status: 'fetching', pkgId: opts.pkgId}),
       onProgress: (done: number, total: number) =>
         logStatus({
