@@ -203,6 +203,7 @@ async function linkModules (
 ) {
   await Promise.all(
     R.props<DependencyTreeNode>(dependency.children, pkgMap)
+      .filter(child => child.installable)
       .map(child => symlinkDependencyTo(child, dependency.modules))
   )
 

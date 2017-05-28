@@ -68,7 +68,7 @@ dependencies:
   pnpm-file-reporter@^0.0.1: 0.0.1
   pnpm-install-checks@^1.1.0: 1.1.0
   pnpm-logger@^0.3.0: 0.3.0
-  pnpm-registry-mock@^0.7.0: 0.7.0
+  pnpm-registry-mock@^0.8.1: 0.8.1
   proper-lockfile@^2.0.0: 2.0.1
   ramda@^0.23.0: 0.23.0
   read-package-json@^2.0.5: 2.0.5
@@ -295,7 +295,7 @@ packages:
   /builtins/1.0.3: cb94faeb61c8696451db36534e1422f94f0aee88
   /bunyan/1.8.10:
     dependencies:
-      dtrace-provider: 0.8.1
+      dtrace-provider: 0.8.2
       moment: 2.18.1
       mv: 2.1.1
       safe-json-stringify: 1.0.4
@@ -556,10 +556,10 @@ packages:
     dependencies:
       is-obj: 1.0.1
     resolution: a8493f0b7b5eeec82525b5c7587fa7de7ca859c1
-  /dtrace-provider/0.8.1:
+  /dtrace-provider/0.8.2:
     dependencies:
       nan: 2.6.2
-    resolution: cd4d174a233bea1bcf4a1fbfa5798f44f48cda9f
+    resolution: f067c2773f15da1b61eb20dbc96aa1cabb3330bc
   /duplexer/0.1.1: ace6ff808c1ce66b57d1ebf97977acb02334cfc1
   /duplexer3/0.1.4: ee01dd1cac0ed3cbc7fdbea37dc0a8f1ce002ce2
   /duplexify/3.5.0:
@@ -1567,12 +1567,12 @@ packages:
     dependencies:
       bole: 3.0.2
     resolution: eaecea5a037f053a64c50bda7eda3cb87f5ed661
-  /pnpm-registry-mock/0.7.0:
+  /pnpm-registry-mock/0.8.1:
     dependencies:
       cpr: 2.0.2
       rimraf: 2.6.1
       verdaccio: 2.1.7
-    resolution: 81eae7eccb503f39896a34e9beb6f9e8a836b62b
+    resolution: 1a9cc8c4c1dbd50a9e48c015c32540e1845c1ff2
   /prepend-http/1.0.4: d4f4562b0ce3696e41ac52d0e002e57a635dc6dc
   /preserve/0.2.0: 815ed1f6ebc65926f865b310c0713bcb3315ce4b
   /process-nextick-args/1.0.7: 150e20b756590ad3f91093f25a4f2ad8bff30ba3

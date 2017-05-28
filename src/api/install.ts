@@ -42,6 +42,11 @@ export type TreeNode = {
   children: string[], // Node IDs of children
   pkg: InstalledPackage,
   depth: number,
+  installable: boolean,
+}
+
+export type TreeNodeMap = {
+  [nodeId: string]: TreeNode,
 }
 
 export type InstallContext = {

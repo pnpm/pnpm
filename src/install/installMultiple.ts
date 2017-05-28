@@ -140,7 +140,7 @@ async function install (
     engineStrict: boolean,
     nodeVersion: string,
     offline: boolean,
-    isInstallable?: boolean,
+    parentIsInstallable?: boolean,
     rawNpmConfig: Object,
     nodeModules: string,
     update: boolean,
@@ -148,6 +148,7 @@ async function install (
 ): Promise<string | null> {
   const keypath = options.keypath || []
   const proceed = keypath.length <= options.depth
+  const parentIsInstallable = options.parentIsInstallable === undefined || options.parentIsInstallable
 
   if (!proceed && options.pkgId && await exists(path.join(options.nodeModules, `.${options.pkgId}`))) {
     return null
@@ -191,8 +192,7 @@ async function install (
   // using colon as it will never be used inside a package ID
   const nodeId = `${options.parentNodeId}${fetchedPkg.id}:`
 
-  const isInstallable = options.isInstallable !== false &&
-    (
+  const currentIsInstallable = (
       options.force ||
       await getIsInstallable(fetchedPkg.id, pkg, fetchedPkg, {
         optional: spec.optional,
@@ -200,11 +200,12 @@ async function install (
         nodeVersion: options.nodeVersion,
       })
     )
-  if (!isInstallable) {
+  if (!currentIsInstallable) {
     // optional dependencies are resolved for consistent shrinkwrap.yaml files
     // but installed only on machines that are supported by the package
     ctx.skipped.add(fetchedPkg.id)
   }
+  const installable = parentIsInstallable && currentIsInstallable
 
   const children = await installDependencies(
     pkg,
@@ -213,7 +214,7 @@ async function install (
     ctx,
     Object.assign({}, options, {
       referencedFrom: fetchedPkg.srcPath,
-      isInstallable,
+      parentIsInstallable: installable,
       currentDepth: options.currentDepth + 1,
       parentNodeId: nodeId,
     })
@@ -249,6 +250,7 @@ async function install (
     pkg: ctx.installs[fetchedPkg.id],
     children,
     depth: options.currentDepth,
+    installable,
   }
 
   logStatus({status: 'dependencies_installed', pkgId: fetchedPkg.id})

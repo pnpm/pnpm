@@ -5,7 +5,7 @@ import semver = require('semver')
 import logger from 'pnpm-logger'
 import path = require('path')
 import {InstalledPackage} from '../install/installMultiple'
-import {TreeNode} from '../api/install'
+import {TreeNode, TreeNodeMap} from '../api/install'
 
 export type DependencyTreeNode = {
   name: string,
@@ -21,6 +21,7 @@ export type DependencyTreeNode = {
   dev: boolean,
   optional: boolean,
   id: string,
+  installable: boolean,
 }
 
 export type DependencyTreeNodeMap = {
@@ -31,7 +32,7 @@ export type DependencyTreeNodeMap = {
 }
 
 export default function (
-  tree: {[nodeId: string]: TreeNode},
+  tree: TreeNodeMap,
   rootNodeIds: string[],
   topPkgIds: string[],
   // only the top dependencies that were already installed
@@ -60,7 +61,7 @@ export default function (
 function resolvePeersOfNode (
   nodeId: string,
   parentPkgs: ParentRefs,
-  tree: {[nodeId: string]: TreeNode},
+  tree: TreeNodeMap,
   nodeIdToResolvedId: {[nodeId: string]: string}
 ): {
   resolvedTree: DependencyTreeNodeMap,
@@ -74,7 +75,7 @@ function resolvePeersOfNode (
     ? []
     : resolvePeers(node, Object.assign({}, parentPkgs,
       toPkgByName(R.props<TreeNode>(node.children, tree))
-    ))
+    ), tree)
 
   const allResolvedPeers = R.uniq(
     result.unknownResolvedPeersOfChildren
@@ -108,6 +109,7 @@ function resolvePeersOfNode (
       dev: node.pkg.dev,
       optional: node.pkg.optional,
       id: node.pkg.id,
+      installable: node.installable,
     }
   }
   return {
@@ -150,13 +152,14 @@ function resolvePeersOfChildren (
 
 function resolvePeers (
   node: TreeNode,
-  parentPkgs: ParentRefs
+  parentPkgs: ParentRefs,
+  tree: TreeNodeMap
 ): string[] {
   return R.toPairs(node.pkg.peerDependencies)
     .map(R.apply((peerName: string, peerVersionRange: string) => {
       const resolved = parentPkgs[peerName]
 
-      if (!resolved) {
+      if (!resolved || resolved.nodeId && !tree[resolved.nodeId].installable) {
         logger.warn(`${node.pkg.id} requires a peer of ${peerName}@${peerVersionRange} but none was installed.`)
         return null
       }

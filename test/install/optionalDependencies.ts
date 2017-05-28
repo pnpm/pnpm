@@ -1,5 +1,7 @@
+import path = require('path')
 import tape = require('tape')
 import promisifyTape from 'tape-promise'
+import loadYamlFile = require('load-yaml-file')
 import {install, installPkgs} from '../../src'
 import {
   prepare,
@@ -80,4 +82,14 @@ test('don\'t skip optional dependency that does not support the current OS when 
 
   await project.has('not-compatible-with-any-os')
   await project.storeHas('not-compatible-with-any-os', '1.0.0')
+})
+
+test('optional subdependency is skipped', async (t: tape.Test) => {
+  const project = prepare(t)
+
+  await installPkgs(['pkg-with-optional'], testDefaults())
+
+  const modulesInfo = await loadYamlFile<{skipped: string[]}>(path.join('node_modules', '.modules.yaml'))
+
+  t.deepEqual(modulesInfo.skipped, ['localhost+4873/not-compatible-with-any-os/1.0.0'], 'optional subdep skipped')
 })

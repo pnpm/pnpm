@@ -191,7 +191,7 @@ test('subdeps are updated on repeat install if outer shrinkwrap.yaml does not ma
   delete shr.packages['/dep-of-pkg-with-1-dep/100.0.0']
 
   shr.packages['/dep-of-pkg-with-1-dep/100.1.0'] = {
-    resolution: 'b1dccbab9ab987b87ad4778207e1cb7fe948fb3c',
+    resolution: 'f69e3cfb12d19868a4332c1102e67d00e9026036',
   }
 
   shr.packages['/pkg-with-1-dep/100.0.0']['dependencies']['dep-of-pkg-with-1-dep'] = '100.1.0'
