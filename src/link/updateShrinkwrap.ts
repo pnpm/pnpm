@@ -1,6 +1,7 @@
 import {
   Shrinkwrap,
   DependencyShrinkwrap,
+  ShrinkwrapResolution,
   pkgShortId,
   pkgIdToRef,
   ResolvedDependencies,
@@ -90,9 +91,11 @@ function updateResolvedDeps (
   )
 }
 
-function toShrResolution (shortId: string, resolution: Resolution): string | Resolution {
-  if (shortId.startsWith('/') && resolution.type === undefined && resolution.shasum) {
-    return resolution.shasum
+function toShrResolution (shortId: string, resolution: Resolution): ShrinkwrapResolution {
+  if (shortId.startsWith('/') && resolution.type === undefined && resolution.integrity) {
+    return {
+      integrity: resolution.integrity,
+    }
   }
   return resolution
 }

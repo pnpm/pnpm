@@ -43,11 +43,15 @@ export type ResolvedPackages = {
   [pkgId: string]: DependencyShrinkwrap,
 }
 
+export type ShrinkwrapResolution = Resolution | {
+  integrity: string,
+}
+
 export type DependencyShrinkwrap = {
   id?: string,
   dev?: true,
   optional?: true,
-  resolution: string | Resolution,
+  resolution: ShrinkwrapResolution,
   dependencies?: ResolvedDependencies,
 }
 

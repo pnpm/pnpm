@@ -33,7 +33,8 @@ test('shrinkwrap file has correct format', async t => {
   t.ok(shr.packages[id].dependencies, `has dependency resolutions for ${id}`)
   t.ok(shr.packages[id].dependencies['dep-of-pkg-with-1-dep'], `has dependency resolved for ${id}`)
   t.ok(shr.packages[id].resolution, `has resolution for ${id}`)
-  t.ok(!shr.packages[id].resolution.tarball, `has no tarball for package in the default registry`)
+  t.ok(shr.packages[id].resolution.integrity, `has integrity for package in the default registry`)
+  t.notOk(shr.packages[id].resolution.tarball, `has no tarball for package in the default registry`)
 })
 
 test('shrinkwrap file has dev deps even when installing for prod only', async (t: tape.Test) => {
@@ -68,7 +69,9 @@ test('shrinkwrap with scoped package', async t => {
     },
     packages: {
       '/@types/semver/5.3.31': {
-        resolution: 'b999d7d935f43f5207b01b00d3de20852f4ca75f',
+        resolution: {
+          integrity: 'sha1-uZnX2TX0P1IHsBsA094ghS9Mp18=',
+        },
       },
     },
     registry: 'http://localhost:4873',
@@ -94,7 +97,7 @@ test('fail when shasum from shrinkwrap does not match with the actual one', asyn
     packages: {
       '/is-negative/2.1.0': {
         resolution: {
-          shasum: 'b000d7d935f43f5207b01b00d3de20852f4ca75f',
+          integrity: 'sha1-uZnX2TX0P1IHsBsA094ghS9Mp10=',
           tarball: 'http://localhost:4873/is-negative/-/is-negative-2.1.0.tgz',
         },
       },
@@ -191,7 +194,9 @@ test('subdeps are updated on repeat install if outer shrinkwrap.yaml does not ma
   delete shr.packages['/dep-of-pkg-with-1-dep/100.0.0']
 
   shr.packages['/dep-of-pkg-with-1-dep/100.1.0'] = {
-    resolution: 'f69e3cfb12d19868a4332c1102e67d00e9026036',
+    resolution: {
+      integrity: 'sha1-9p48+xLRmGikMywRAuZ9AOkCYDY=',
+    },
   }
 
   shr.packages['/pkg-with-1-dep/100.0.0']['dependencies']['dep-of-pkg-with-1-dep'] = '100.1.0'

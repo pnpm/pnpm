@@ -14,7 +14,7 @@ export {PackageMeta}
 export type TarballResolution = {
   type?: undefined,
   tarball: string,
-  shasum?: string,
+  integrity?: string,
   // needed in some cases to get the auth token
   // sometimes the tarball URL is under a different path
   // and the auth token is specified for the registry only

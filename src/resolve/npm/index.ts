@@ -6,6 +6,7 @@ import logStatus from '../../logging/logInstallStatus'
 import loadPkgMeta, {PackageMeta} from './loadPackageMeta'
 import createPkgId from './createNpmPkgId'
 import getHost from './getHost'
+import ssri = require('ssri')
 
 export {PackageMeta}
 
@@ -48,9 +49,9 @@ export default async function resolveNpm (spec: PackageSpec, opts: ResolveOption
     const id = createPkgId(registryHost, correctPkg.name, correctPkg.version)
 
     const resolution: TarballResolution = {
-      shasum: correctPkg.dist.shasum,
       tarball: correctPkg.dist.tarball,
       registry: opts.registry,
+      integrity: ssri.fromHex(correctPkg.dist.shasum, 'sha1').toString(),
     }
     return {id, resolution, package: correctPkg}
   } catch (err) {

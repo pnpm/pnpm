@@ -95,18 +95,12 @@ function dependencyShrToResolution (
   depShr: DependencyShrinkwrap,
   registry: string
 ): Resolution {
-  if (typeof depShr.resolution === 'string') {
-    return {
-      shasum: depShr.resolution,
-      tarball: getTarball(),
-    }
-  }
-  if (!depShr.resolution.type && !depShr.resolution.tarball) {
+  if (!depShr.resolution['type'] && !depShr.resolution['tarball']) {
     return Object.assign({}, depShr.resolution, {
       tarball: getTarball()
     })
   }
-  return depShr.resolution
+  return depShr.resolution as Resolution
 
   function getTarball () {
     const noPrefixPkgShortId = pkgShortId.substr(1)

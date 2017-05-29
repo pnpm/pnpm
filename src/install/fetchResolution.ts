@@ -13,7 +13,6 @@ import parseNpmTarballUrl from 'parse-npm-tarball-url'
 import parseCodeloadUrl from 'parse-codeload-url'
 import {escapeHost} from '../resolve/npm/getRegistryName'
 import {PnpmError} from '../errorTypes'
-import ssri = require('ssri')
 
 const gitLogger = logger('git')
 
@@ -28,8 +27,8 @@ export type FetchOptions = {
 
 export type PackageDist = {
   tarball: string,
-  shasum?: string,
   registry?: string,
+  integrity?: string,
 }
 
 export default async function fetchResolution (
@@ -42,7 +41,7 @@ export default async function fetchResolution (
     case undefined:
       const dist = {
         tarball: resolution.tarball,
-        shasum: resolution.shasum,
+        integrity: resolution.integrity,
         registry: resolution.registry,
       }
       await fetchFromTarball(target, dist, opts)
@@ -120,7 +119,7 @@ export async function fetchFromRemoteTarball (dir: string, dist: PackageDist, op
     }
     await opts.got.download(dist.tarball, localTarballPath, {
       registry: dist.registry,
-      integrity: dist.shasum && ssri.fromHex(dist.shasum, 'sha1'),
+      integrity: dist.integrity,
       onStart: () => logStatus({status: 'fetching', pkgId: opts.pkgId}),
       onProgress: (done: number, total: number) =>
         logStatus({
@@ -131,10 +130,10 @@ export async function fetchFromRemoteTarball (dir: string, dist: PackageDist, op
     })
   }
   await fetchFromLocalTarball(dir, {
-    shasum: dist.shasum,
+    integrity: dist.integrity,
     tarball: localTarballPath,
   })
-  fetchLogger.debug(`finish ${dist.shasum} ${dist.tarball}`)
+  fetchLogger.debug(`finish ${dist.integrity} ${dist.tarball}`)
 }
 
 function getLocalTarballPath (tarballUrl: string, localRegistry: string) {
