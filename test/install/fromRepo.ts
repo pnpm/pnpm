@@ -38,9 +38,19 @@ test('from a git repo', async function (t) {
 test('from a non-github git repo', async function (t) {
   const project = prepare(t)
 
-  await installPkgs(['git+http://ikt.pm2.io/ikt.git#master'], testDefaults())
+  await installPkgs(['git+http://ikt.pm2.io/ikt.git#3325a3e39a502418dc2e2e4bf21529cbbde96228'], testDefaults())
 
   const m = project.requireModule('ikt')
 
   t.ok(m, 'ikt is available')
+
+  const shr = await project.loadShrinkwrap()
+
+  const pkgId = 'ikt.pm2.io/ikt/3325a3e39a502418dc2e2e4bf21529cbbde96228'
+  t.ok(shr.packages[pkgId])
+  t.deepEqual(shr.packages[pkgId].resolution, {
+    commit: '3325a3e39a502418dc2e2e4bf21529cbbde96228',
+    repo: 'http://ikt.pm2.io/ikt.git',
+    type: 'git',
+  })
 })

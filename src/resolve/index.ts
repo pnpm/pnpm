@@ -33,9 +33,9 @@ export type DirectoryResolution = {
  * Git repository
  */
 export type GitRepositoryResolution = {
-  type: 'git-repo',
+  type: 'git',
   repo: string,
-  commitId: string,
+  commit: string,
 }
 
 export type Resolution =

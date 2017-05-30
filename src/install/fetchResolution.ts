@@ -47,8 +47,8 @@ export default async function fetchResolution (
       await fetchFromTarball(target, dist, opts)
       break;
 
-    case 'git-repo':
-      await clone(resolution.repo, resolution.commitId, target)
+    case 'git':
+      await clone(resolution.repo, resolution.commit, target)
       break;
 
     case 'directory': {
