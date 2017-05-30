@@ -54,7 +54,7 @@ test('local file', async function (t: tape.Test) {
       },
     },
     registry: 'http://localhost:4873/',
-    version: 2,
+    version: 3,
     createdWith: `${pnpmPkgJson.name}@${pnpmPkgJson.version}`
   })
 })

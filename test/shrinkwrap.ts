@@ -18,7 +18,7 @@ test('shrinkwrap file has correct format', async t => {
   const shr = await project.loadShrinkwrap()
   const id = '/pkg-with-1-dep/100.0.0'
 
-  t.equal(shr.version, 2, 'correct shrinkwrap version')
+  t.equal(shr.version, 3, 'correct shrinkwrap version')
 
   t.ok(shr.registry, 'has registry field')
 
@@ -75,7 +75,7 @@ test('shrinkwrap with scoped package', async t => {
       },
     },
     registry: 'http://localhost:4873',
-    version: 2,
+    version: 3,
   })
 
   await install(testDefaults())
@@ -89,7 +89,7 @@ test('fail when shasum from shrinkwrap does not match with the actual one', asyn
   })
 
   await writeYamlFile('shrinkwrap.yaml', {
-    version: 2,
+    version: 3,
     registry: 'http://localhost:4873',
     dependencies: {
       'is-negative': '2.1.0',
@@ -143,7 +143,7 @@ test('shrinkwrap removed when no deps in package.json', async t => {
   const project = prepare(t)
 
   await writeYamlFile('shrinkwrap.yaml', {
-    version: 2,
+    version: 3,
     registry: 'http://localhost:4873',
     dependencies: {
       'is-negative': '2.1.0',
