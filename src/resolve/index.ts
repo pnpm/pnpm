@@ -26,7 +26,7 @@ export type TarballResolution = {
  */
 export type DirectoryResolution = {
   type: 'directory',
-  root: string,
+  directory: string,
 }
 
 /**

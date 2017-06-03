@@ -52,8 +52,8 @@ export default async function fetchResolution (
       break;
 
     case 'directory': {
-      const tgzFilename = await npmPack(resolution.root)
-      const tarball = path.resolve(resolution.root, tgzFilename)
+      const tgzFilename = await npmPack(resolution.directory)
+      const tarball = path.resolve(resolution.directory, tgzFilename)
       const dist = {tarball: tarball}
       await fetchFromLocalTarball(target, dist)
       await fs.unlink(dist.tarball)

@@ -48,7 +48,7 @@ test('local file', async function (t: tape.Test) {
     packages: {
       'file:../local-pkg': {
         resolution: {
-          root: '../local-pkg',
+          directory: '../local-pkg',
           type: 'directory',
         },
       },

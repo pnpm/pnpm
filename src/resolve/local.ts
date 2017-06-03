@@ -30,7 +30,7 @@ export default async function resolveLocal (spec: PackageSpec, opts: ResolveOpti
   const localPkg = await readPkgFromDir(dependencyPath)
   const resolution: DirectoryResolution = {
     type: 'directory',
-    root: dependencyPath,
+    directory: dependencyPath,
   }
   return {
     id,

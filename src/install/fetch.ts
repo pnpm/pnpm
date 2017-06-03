@@ -98,7 +98,7 @@ export default async function fetch (
       resolution,
       path: target,
       srcPath: resolution.type == 'directory'
-        ? path.join(options.prefix, resolution.root)
+        ? path.join(options.prefix, resolution.directory)
         : undefined,
       abort: async () => {
         try {
