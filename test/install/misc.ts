@@ -225,7 +225,7 @@ test['skip']('relink package to project if the dependency is not linked from sto
   t.ok(storeInode === await getInode(), 'package.json inode matches the one that is in store')
 })
 
-test('circular deps', async function (t) {
+test('circular deps', async function (t: tape.Test) {
   const project = prepare(t)
   await installPkgs(['circular-deps-1-of-2'], testDefaults())
 

@@ -51,6 +51,14 @@ export type TreeNodeMap = {
 
 export type InstallContext = {
   installs: InstalledPackages,
+  childrenIdsByParentId: {[parentId: string]: string[]},
+  nodesToBuild: {
+    nodeId: string,
+    pkg: InstalledPackage,
+    depth: number,
+    installable: boolean,
+    parentNodeId: string,
+  }[],
   shrinkwrap: Shrinkwrap,
   fetchingLocker: MemoizedFunc<Boolean>,
   // the IDs of packages that are not installable
@@ -239,11 +247,22 @@ async function installInContext (
     currentDepth: 0,
   }
   const nonLinkedPkgs = await pFilter(packagesToInstall, (spec: PackageSpec) => !spec.name || safeIsInnerLink(nodeModulesPath, spec.name))
-  const rootNodeIds = await installMultiple(
+  const rootPkgs = await installMultiple(
     installCtx,
     nonLinkedPkgs,
     installOpts
   )
+  const rootNodeIds = rootPkgs.map(pkg => pkg.nodeId)
+  installCtx.nodesToBuild.forEach(nodeToBuild => {
+    installCtx.tree[nodeToBuild.nodeId] = {
+      nodeId: nodeToBuild.nodeId,
+      pkg: nodeToBuild.pkg,
+      children: buildTree(installCtx, nodeToBuild.parentNodeId, nodeToBuild.pkg.id,
+        installCtx.childrenIdsByParentId[nodeToBuild.pkg.id], nodeToBuild.depth + 1, nodeToBuild.installable),
+      depth: nodeToBuild.depth,
+      installable: nodeToBuild.installable,
+    }
+  })
   const pkgs: InstalledPackage[] = R.props<TreeNode>(rootNodeIds, installCtx.tree).map(node => node.pkg)
 
   let newPkg: Package | undefined = ctx.pkg
@@ -335,6 +354,32 @@ async function installInContext (
   }
 }
 
+function buildTree (
+  ctx: InstallContext,
+  parentNodeId: string,
+  parentId: string,
+  childrenIds: string[],
+  depth: number,
+  installable: boolean
+) {
+  const childrenNodeIds = []
+  for (const childId of childrenIds) {
+    if (parentNodeId.indexOf(`:${parentId}:${childId}:`) !== -1) {
+      continue
+    }
+    const childNodeId = `${parentNodeId}${childId}:`
+    childrenNodeIds.push(childNodeId)
+    ctx.tree[childNodeId] = {
+      nodeId: childNodeId,
+      pkg: ctx.installs[childId],
+      children: buildTree(ctx, childNodeId, childId, ctx.childrenIdsByParentId[childId], depth + 1, installable),
+      depth,
+      installable,
+    }
+  }
+  return childrenNodeIds
+}
+
 async function getTopParents (pkgNames: string[], modules: string) {
   const pkgs = await Promise.all(
     pkgNames.map(pkgName => path.join(modules, pkgName)).map(safeReadPkgFromDir)
@@ -359,6 +404,8 @@ function getSaveSpec(spec: PackageSpec, pkg: InstalledPackage, saveExact: boolea
 async function createInstallCmd (opts: StrictPnpmOptions, shrinkwrap: Shrinkwrap, skipped: Set<string>): Promise<InstallContext> {
   return {
     installs: {},
+    childrenIdsByParentId: {},
+    nodesToBuild: [],
     shrinkwrap,
     fetchingLocker: createMemoize<boolean>(opts.fetchingConcurrency),
     skipped,

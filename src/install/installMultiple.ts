@@ -22,6 +22,11 @@ import depsToSpecs from '../depsToSpecs'
 import getIsInstallable from './getIsInstallable'
 import pkgIdToFilename from '../fs/pkgIdToFilename'
 
+export type PkgAddress = {
+  nodeId: string,
+  pkgId: string,
+}
+
 export type InstalledPackage = {
   id: string,
   resolution: Resolution,
@@ -63,9 +68,9 @@ export default async function installMultiple (
     nodeModules: string,
     update: boolean,
   }
-): Promise<string[]> {
+): Promise<PkgAddress[]> {
   const resolvedDependencies = options.resolvedDependencies || {}
-  const nodeIds = <string[]>(
+  const pkgAddresses = <PkgAddress[]>(
     await Promise.all(
       specs
         .map(async (spec: PackageSpec) => {
@@ -87,7 +92,7 @@ export default async function installMultiple (
   )
   .filter(Boolean)
 
-  return nodeIds
+  return pkgAddresses
 }
 
 function dependencyShrToResolution (
@@ -139,7 +144,7 @@ async function install (
     nodeModules: string,
     update: boolean,
   }
-): Promise<string | null> {
+): Promise<PkgAddress | null> {
   const keypath = options.keypath || []
   const proceed = keypath.length <= options.depth
   const parentIsInstallable = options.parentIsInstallable === undefined || options.parentIsInstallable
@@ -176,15 +181,12 @@ async function install (
     offline: options.offline,
   })
 
-  const pkg = await fetchedPkg.fetchingPkg
-  logStatus({status: 'downloaded_manifest', pkgId: fetchedPkg.id, pkgVersion: pkg.version})
-
   if (options.parentNodeId.indexOf(`:${dependentId}:${fetchedPkg.id}:`) !== -1) {
     return null
   }
 
-  // using colon as it will never be used inside a package ID
-  const nodeId = `${options.parentNodeId}${fetchedPkg.id}:`
+  const pkg = await fetchedPkg.fetchingPkg
+  logStatus({status: 'downloaded_manifest', pkgId: fetchedPkg.id, pkgVersion: pkg.version})
 
   const currentIsInstallable = (
       options.force ||
@@ -196,18 +198,8 @@ async function install (
     )
   const installable = parentIsInstallable && currentIsInstallable
 
-  const children = await installDependencies(
-    pkg,
-    spec,
-    fetchedPkg.id,
-    ctx,
-    Object.assign({}, options, {
-      referencedFrom: fetchedPkg.srcPath,
-      parentIsInstallable: installable,
-      currentDepth: options.currentDepth + 1,
-      parentNodeId: nodeId,
-    })
-  )
+  // using colon as it will never be used inside a package ID
+  const nodeId = `${options.parentNodeId}${fetchedPkg.id}:`
 
   if (installable) {
     ctx.skipped.delete(fetchedPkg.id)
@@ -218,6 +210,7 @@ async function install (
       // but installed only on machines that are supported by the package
       ctx.skipped.add(fetchedPkg.id)
     }
+
     ctx.installs[fetchedPkg.id] = {
       id: fetchedPkg.id,
       resolution: fetchedPkg.resolution,
@@ -233,26 +226,49 @@ async function install (
       hasBundledDependencies: !!(pkg.bundledDependencies || pkg.bundleDependencies),
       localLocation: path.join(options.nodeModules, `.${pkgIdToFilename(fetchedPkg.id)}`),
     }
+    const children = await installDependencies(
+      pkg,
+      spec,
+      fetchedPkg.id,
+      ctx,
+      Object.assign({}, options, {
+        referencedFrom: fetchedPkg.srcPath,
+        parentIsInstallable: installable,
+        currentDepth: options.currentDepth + 1,
+        parentNodeId: nodeId,
+      })
+    )
+    ctx.childrenIdsByParentId[fetchedPkg.id] = children.map(child => child.pkgId)
+    ctx.tree[nodeId] = {
+      nodeId,
+      pkg: ctx.installs[fetchedPkg.id],
+      children: children.map(child => child.nodeId),
+      depth: options.currentDepth,
+      installable,
+    }
   } else {
     ctx.installs[fetchedPkg.id].dev = ctx.installs[fetchedPkg.id].dev && spec.dev
     ctx.installs[fetchedPkg.id].optional = ctx.installs[fetchedPkg.id].optional && spec.optional
+
+    ctx.nodesToBuild.push({
+      nodeId,
+      pkg: ctx.installs[fetchedPkg.id],
+      depth: options.currentDepth,
+      installable,
+      parentNodeId: options.parentNodeId,
+    })
   }
   // we need this for saving to package.json
   if (options.currentDepth === 0) {
     ctx.installs[fetchedPkg.id].specRaw = spec.raw
   }
 
-  ctx.tree[nodeId] = {
-    nodeId,
-    pkg: ctx.installs[fetchedPkg.id],
-    children,
-    depth: options.currentDepth,
-    installable,
-  }
-
   logStatus({status: 'dependencies_installed', pkgId: fetchedPkg.id})
 
-  return nodeId
+  return {
+    nodeId,
+    pkgId: fetchedPkg.id,
+  }
 }
 
 function normalizeRegistry (registry: string) {
@@ -287,7 +303,7 @@ async function installDependencies (
     nodeModules: string,
     update: boolean,
   }
-): Promise<string[]> {
+): Promise<PkgAddress[]> {
   const depsInstallOpts = Object.assign({}, opts, {
     keypath: opts.keypath.concat([ pkgId ]),
   })
