@@ -2,6 +2,7 @@ import path = require('path')
 import tape = require('tape')
 import promisifyTape from 'tape-promise'
 import loadYamlFile = require('load-yaml-file')
+import exists = require('path-exists')
 import {install, installPkgs} from '../../src'
 import {
   prepare,
@@ -28,7 +29,7 @@ test('skip failing optional dependencies', async function (t) {
   t.ok(m(-1), 'package with failed optional dependency has the dependencies installed correctly')
 })
 
-test('skip optional dependency that does not support the current OS', async function (t) {
+test('skip optional dependency that does not support the current OS', async function (t: tape.Test) {
   const project = prepare(t, {
     optionalDependencies: {
       'not-compatible-with-any-os': '*'
@@ -38,9 +39,17 @@ test('skip optional dependency that does not support the current OS', async func
 
   await project.hasNot('not-compatible-with-any-os')
   await project.storeHasNot('not-compatible-with-any-os', '1.0.0')
+  t.notOk(await exists(path.resolve('node_modules', '.localhost+4873', 'dep-of-optional-pkg', '1.0.0')), "isn't linked into node_modules")
 
   const shr = await project.loadShrinkwrap()
   t.ok(shr.packages['/not-compatible-with-any-os/1.0.0'], 'shrinkwrap contains optional dependency')
+  t.ok(shr.packages['/dep-of-optional-pkg/1.0.0'], 'shrinkwrap contains dependency of optional dependency')
+
+  const modulesInfo = await loadYamlFile<{skipped: string[]}>(path.join('node_modules', '.modules.yaml'))
+  t.deepEquals(modulesInfo.skipped, [
+    'localhost+4873/dep-of-optional-pkg/1.0.0',
+    'localhost+4873/not-compatible-with-any-os/1.0.0',
+  ])
 })
 
 test('skip optional dependency that does not support the current Node version', async function (t) {
@@ -87,7 +96,7 @@ test('don\'t skip optional dependency that does not support the current OS when 
 test('optional subdependency is skipped', async (t: tape.Test) => {
   const project = prepare(t)
 
-  await installPkgs(['pkg-with-optional'], testDefaults())
+  await installPkgs(['pkg-with-optional', 'dep-of-optional-pkg'], testDefaults())
 
   const modulesInfo = await loadYamlFile<{skipped: string[]}>(path.join('node_modules', '.modules.yaml'))
 

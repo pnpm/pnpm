@@ -194,11 +194,6 @@ async function install (
         nodeVersion: options.nodeVersion,
       })
     )
-  if (!currentIsInstallable) {
-    // optional dependencies are resolved for consistent shrinkwrap.yaml files
-    // but installed only on machines that are supported by the package
-    ctx.skipped.add(fetchedPkg.id)
-  }
   const installable = parentIsInstallable && currentIsInstallable
 
   const children = await installDependencies(
@@ -214,7 +209,15 @@ async function install (
     })
   )
 
+  if (installable) {
+    ctx.skipped.delete(fetchedPkg.id)
+  }
   if (!ctx.installs[fetchedPkg.id]) {
+    if (!installable) {
+      // optional dependencies are resolved for consistent shrinkwrap.yaml files
+      // but installed only on machines that are supported by the package
+      ctx.skipped.add(fetchedPkg.id)
+    }
     ctx.installs[fetchedPkg.id] = {
       id: fetchedPkg.id,
       resolution: fetchedPkg.resolution,

@@ -68,7 +68,7 @@ dependencies:
   pnpm-file-reporter@^0.0.1: 0.0.1
   pnpm-install-checks@^1.1.0: 1.1.0
   pnpm-logger@^0.3.0: 0.3.0
-  pnpm-registry-mock@^0.8.1: 0.8.1
+  pnpm-registry-mock@^0.9.0: 0.9.0
   proper-lockfile@^2.0.0: 2.0.1
   ramda@^0.23.0: 0.23.0
   read-package-json@^2.0.5: 2.0.5
@@ -435,13 +435,13 @@ packages:
     resolution: 6ac1b052895208e8fc4c4f5f86a9ed31b9cb5ccf
   /core-js/2.4.1: 4de911e667b0eae9124e34254b53aea6fc618d3e
   /core-util-is/1.0.2: b5fd54220aa2bc5ab57aab7140c940754503c1a7
-  /cpr/2.0.2:
+  /cpr/2.1.0:
     dependencies:
       graceful-fs: 4.1.11
       minimist: 1.2.0
       mkdirp: 0.5.1
       rimraf: 2.6.1
-    resolution: 9e44be91101f644a3e1f8c908712b70cdd547056
+    resolution: a1b7baaa111cfbe55260772100a0296ec9d4a29d
   /create-error-class/3.0.2:
     dependencies:
       capture-stack-trace: 1.0.0
@@ -930,7 +930,7 @@ packages:
       sntp: 1.0.9
     resolution: 078444bd7c1640b0fe540d2c9b73d59678e8e1c4
   /highlight.js/8.9.1: b8a9c5493212a9392f0222b649c9611497ebfb88
-  /highlight.js/9.11.0: 47f98c7399918700db2caf230ded12cec41a84ae
+  /highlight.js/9.12.0: e6d9dbe57cbefe60751f02af336195870c90c01e
   /hoek/2.16.3: 20bb7403d3cea398e91dc4710a8ff1b8274a25ed
   /homedir-polyfill/1.0.1:
     dependencies:
@@ -944,7 +944,7 @@ packages:
       domutils: 1.6.2
       entities: 1.1.1
       inherits: 2.0.3
-      readable-stream: 2.2.9
+      readable-stream: 2.2.10
     resolution: 1bdf87acca0f3f9e53fa4fcceb0f4b4cbb00b338
   /http-errors/1.6.1:
     dependencies:
@@ -1568,12 +1568,12 @@ packages:
     dependencies:
       bole: 3.0.2
     resolution: eaecea5a037f053a64c50bda7eda3cb87f5ed661
-  /pnpm-registry-mock/0.8.1:
+  /pnpm-registry-mock/0.9.0:
     dependencies:
-      cpr: 2.0.2
+      cpr: 2.1.0
       rimraf: 2.6.1
       verdaccio: 2.1.7
-    resolution: 1a9cc8c4c1dbd50a9e48c015c32540e1845c1ff2
+    resolution: 938d03b78cc9a74e67b012ec6018eb6c9fce2f55
   /prepend-http/1.0.4: d4f4562b0ce3696e41ac52d0e002e57a635dc6dc
   /preserve/0.2.0: 815ed1f6ebc65926f865b310c0713bcb3315ce4b
   /process-nextick-args/1.0.7: 150e20b756590ad3f91093f25a4f2ad8bff30ba3
@@ -1650,6 +1650,16 @@ packages:
       normalize-package-data: 2.3.8
       path-type: 2.0.0
     resolution: 8ef1c0623c6a6db0dc6713c4bfac46332b2368f8
+  /readable-stream/2.2.10:
+    dependencies:
+      core-util-is: 1.0.2
+      inherits: 2.0.3
+      isarray: 1.0.0
+      process-nextick-args: 1.0.7
+      safe-buffer: 5.1.0
+      string_decoder: 1.0.1
+      util-deprecate: 1.0.2
+    resolution: effe72bb7c884c0dd335e2379d526196d9d011ee
   /readable-stream/2.2.9:
     dependencies:
       buffer-shims: 1.0.0
@@ -1727,7 +1737,7 @@ packages:
       oauth-sign: 0.8.2
       performance-now: 0.2.0
       qs: 6.4.0
-      safe-buffer: 5.0.1
+      safe-buffer: 5.1.0
       stringstream: 0.0.5
       tough-cookie: 2.3.2
       tunnel-agent: 0.6.0
@@ -1778,6 +1788,7 @@ packages:
     resolution: 0371ab4ae0bdd720d4166d7dfda64ff7a445a6c0
   /rx/4.1.0: a5f13ff79ef3b740fe30aa803fb09f98805d4782
   /safe-buffer/5.0.1: d263ca54696cd8a306b5ca6551e92de57918fbe7
+  /safe-buffer/5.1.0: fe4c8460397f9eaaaa58e73be46273408a45e223
   /safe-json-stringify/1.0.4: 81a098f447e4bbc3ff3312a243521bc060ef5911
   /sanitize-html/1.14.1:
     dependencies:
@@ -1922,7 +1933,7 @@ packages:
     resolution: d04de2c89e137f4d7d206f086b5ed2fae6be8cea
   /string_decoder/1.0.1:
     dependencies:
-      safe-buffer: 5.0.1
+      safe-buffer: 5.1.0
     resolution: 62e200f039955a6810d8df0a33ffc0f013662d98
   /stringstream/0.0.5: 4e484cd4de5a0bbbee18e46307710a8a81621878
   /strip-ansi/3.0.1:
@@ -2055,7 +2066,7 @@ packages:
   /tunnel-agent/0.4.3: 6373db76909fe570e08d73583365ed828a74eeeb
   /tunnel-agent/0.6.0:
     dependencies:
-      safe-buffer: 5.0.1
+      safe-buffer: 5.1.0
     resolution: 27a5dea06b36b04a0a9966774b290868f0fc40fd
   /tweetnacl/0.14.5: 5ae68177f192d4456269d108afa93ff8743f4f64
   /type-is/1.6.15:
@@ -2145,7 +2156,7 @@ packages:
       cookies: 0.6.2
       express: 4.15.3
       handlebars: 4.0.10
-      highlight.js: 9.11.0
+      highlight.js: 9.12.0
       http-errors: 1.6.1
       jju: 1.3.0
       js-yaml: 3.8.4
@@ -2154,7 +2165,7 @@ packages:
       minimatch: 3.0.4
       mkdirp: 0.5.1
       pkginfo: 0.4.0
-      readable-stream: 2.2.9
+      readable-stream: 2.2.10
       render-readme: 1.3.1
       request: 2.81.0
       semver: 5.3.0

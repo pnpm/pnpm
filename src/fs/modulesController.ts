@@ -26,5 +26,6 @@ export async function read (modulesPath: string): Promise<Modules | null> {
 
 export function save (modulesPath: string, modules: Modules) {
   const modulesYamlPath = path.join(modulesPath, modulesFileName)
+  if (modules.skipped) modules.skipped.sort()
   return writeYamlFile(modulesYamlPath, modules, {sortKeys: true})
 }
