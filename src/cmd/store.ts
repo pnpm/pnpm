@@ -3,6 +3,14 @@ import {PnpmOptions} from '../types'
 import {PnpmError} from '../errorTypes'
 import logger from 'pnpm-logger'
 
+class StoreStatusError extends PnpmError {
+  constructor (modified: string[]) {
+    super('MODIFIED_DEPENDENCY', '')
+    this.modified = modified
+  }
+  modified: string[]
+}
+
 export default async function (input: string[], opts: PnpmOptions) {
   if (input[0] !== 'status') {
     throw new Error('Unknown command')
@@ -14,12 +22,4 @@ export default async function (input: string[], opts: PnpmOptions) {
   }
 
   throw new StoreStatusError(modifiedPkgs)
-}
-
-class StoreStatusError extends PnpmError {
-  constructor (modified: string[]) {
-    super('MODIFIED_DEPENDENCY', '')
-    this.modified = modified
-  }
-  modified: string[]
 }

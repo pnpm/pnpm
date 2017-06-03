@@ -3,6 +3,80 @@ import {Modules} from '../fs/modulesController'
 import {PnpmError, PnpmErrorCode} from '../errorTypes'
 import semver = require('semver')
 
+class UnexpectedStoreError extends PnpmError {
+  constructor (
+    opts: {
+      expectedStorePath: string,
+      actualStorePath: string,
+    }
+  ) {
+    super('UNEXPECTED_STORE', 'Unexpected store used for installation')
+    this.expectedStorePath = opts.expectedStorePath
+    this.actualStorePath = opts.actualStorePath
+  }
+  expectedStorePath: string
+  actualStorePath: string
+}
+
+type BreakingChangeErrorOptions = ErrorRelatedSources & {
+  code: PnpmErrorCode,
+  message: string,
+}
+
+type ErrorRelatedSources = {
+  additionalInformation?: string,
+  relatedIssue?: number,
+  relatedPR?: number,
+}
+
+class BreakingChangeError extends PnpmError {
+  constructor (opts: BreakingChangeErrorOptions) {
+    super(opts.code, opts.message)
+    this.relatedIssue = opts.relatedIssue
+    this.relatedPR = opts.relatedPR
+    this.additionalInformation = opts.additionalInformation
+  }
+  relatedIssue?: number
+  relatedPR?: number
+  additionalInformation?: string
+}
+
+type StoreBreakingChangeErrorOptions = ErrorRelatedSources & {
+  storePath: string,
+}
+
+class StoreBreakingChangeError extends BreakingChangeError {
+  constructor (opts: StoreBreakingChangeErrorOptions) {
+    super({
+      code: 'STORE_BREAKING_CHANGE',
+      message: `The store structure was changed. Try running the same command with the --force parameter.`,
+      additionalInformation: opts.additionalInformation,
+      relatedIssue: opts.relatedIssue,
+      relatedPR: opts.relatedPR,
+    })
+    this.storePath = opts.storePath
+  }
+  storePath: string
+}
+
+type ModulesBreakingChangeErrorOptions = ErrorRelatedSources & {
+  modulesPath: string,
+}
+
+class ModulesBreakingChangeError extends BreakingChangeError {
+  constructor (opts: ModulesBreakingChangeErrorOptions) {
+    super({
+      code: 'MODULES_BREAKING_CHANGE',
+      message: `The node_modules structure at ${opts.modulesPath} was changed. Try running the same command with the --force parameter.`,
+      additionalInformation: opts.additionalInformation,
+      relatedIssue: opts.relatedIssue,
+      relatedPR: opts.relatedPR,
+    })
+    this.modulesPath = opts.modulesPath
+  }
+  modulesPath: string
+}
+
 export default function checkCompatibility (
   modules: Modules,
   opts: {
@@ -87,78 +161,4 @@ function check (pnpmVersion: string, storePath: string, modulesPath: string) {
       additionalInformation: 'Packages having peer dependencies are linked to different variations. The variations depend on the set of resolved peer dependencies'
     })
   }
-}
-
-class UnexpectedStoreError extends PnpmError {
-  constructor (
-    opts: {
-      expectedStorePath: string,
-      actualStorePath: string,
-    }
-  ) {
-    super('UNEXPECTED_STORE', 'Unexpected store used for installation')
-    this.expectedStorePath = opts.expectedStorePath
-    this.actualStorePath = opts.actualStorePath
-  }
-  expectedStorePath: string
-  actualStorePath: string
-}
-
-type BreakingChangeErrorOptions = ErrorRelatedSources & {
-  code: PnpmErrorCode,
-  message: string,
-}
-
-type ErrorRelatedSources = {
-  additionalInformation?: string,
-  relatedIssue?: number,
-  relatedPR?: number,
-}
-
-class BreakingChangeError extends PnpmError {
-  constructor (opts: BreakingChangeErrorOptions) {
-    super(opts.code, opts.message)
-    this.relatedIssue = opts.relatedIssue
-    this.relatedPR = opts.relatedPR
-    this.additionalInformation = opts.additionalInformation
-  }
-  relatedIssue?: number
-  relatedPR?: number
-  additionalInformation?: string
-}
-
-type StoreBreakingChangeErrorOptions = ErrorRelatedSources & {
-  storePath: string,
-}
-
-class StoreBreakingChangeError extends BreakingChangeError {
-  constructor (opts: StoreBreakingChangeErrorOptions) {
-    super({
-      code: 'STORE_BREAKING_CHANGE',
-      message: `The store structure was changed. Try running the same command with the --force parameter.`,
-      additionalInformation: opts.additionalInformation,
-      relatedIssue: opts.relatedIssue,
-      relatedPR: opts.relatedPR,
-    })
-    this.storePath = opts.storePath
-  }
-  storePath: string
-}
-
-type ModulesBreakingChangeErrorOptions = ErrorRelatedSources & {
-  modulesPath: string,
-}
-
-class ModulesBreakingChangeError extends BreakingChangeError {
-  constructor (opts: ModulesBreakingChangeErrorOptions) {
-    super({
-      code: 'MODULES_BREAKING_CHANGE',
-      message: `The node_modules structure at ${opts.modulesPath} was changed. Try running the same command with the --force parameter.`,
-      additionalInformation: opts.additionalInformation,
-      relatedIssue: opts.relatedIssue,
-      relatedPR: opts.relatedPR,
-    })
-    this.modulesPath = opts.modulesPath
-  }
-  modulesPath: string
 }

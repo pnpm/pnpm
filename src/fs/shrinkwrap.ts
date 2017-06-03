@@ -19,6 +19,14 @@ export const PRIVATE_SHRINKWRAP_FILENAME = path.join('node_modules', '.shrinkwra
 const SHRINKWRAP_VERSION = 3
 const CREATED_WITH = `${pnpmPkgJson.name}@${pnpmPkgJson.version}`
 
+class ShrinkwrapBreakingChangeError extends PnpmError {
+  constructor (filename: string) {
+    super('SHRINKWRAP_BREAKING_CHANGE', `Shrinkwrap file ${filename} not compatible with current pnpm`)
+    this.filename = filename
+  }
+  filename: string
+}
+
 function getDefaultShrinkwrap (registry: string) {
   return {
     version: SHRINKWRAP_VERSION,
@@ -286,12 +294,4 @@ export function pkgShortId (
     return pkgId.substr(pkgId.indexOf('/'))
   }
   return pkgId
-}
-
-class ShrinkwrapBreakingChangeError extends PnpmError {
-  constructor (filename: string) {
-    super('SHRINKWRAP_BREAKING_CHANGE', `Shrinkwrap file ${filename} not compatible with current pnpm`)
-    this.filename = filename
-  }
-  filename: string
 }
