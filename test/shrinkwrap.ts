@@ -136,7 +136,7 @@ test('shrinkwrap not created when no deps in package.json', async t => {
 
   await install(testDefaults())
 
-  t.ok(!await project.loadShrinkwrap(), 'shrinkwrap file not created')
+  t.notOk(await project.loadShrinkwrap(), 'shrinkwrap file not created')
 })
 
 test('shrinkwrap removed when no deps in package.json', async t => {
@@ -159,7 +159,7 @@ test('shrinkwrap removed when no deps in package.json', async t => {
 
   await install(testDefaults())
 
-  t.ok(!await project.loadShrinkwrap(), 'shrinkwrap file removed')
+  t.notOk(await project.loadShrinkwrap(), 'shrinkwrap file removed')
 })
 
 test('respects shrinkwrap.yaml for top dependencies', async (t: tape.Test) => {

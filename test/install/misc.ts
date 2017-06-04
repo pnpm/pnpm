@@ -182,7 +182,7 @@ test('no forcing', async function (t) {
   await installPkgs(['magic-hook@2.0.0'], testDefaults())
 
   const distPathExists = await exists(distPath)
-  t.ok(!distPathExists, 'magic-hook@2.0.0 dist folder not reinstalled')
+  t.notOk(distPathExists, 'magic-hook@2.0.0 dist folder not reinstalled')
 })
 
 test('refetch package to store if it has been modified', async function (t) {
@@ -233,7 +233,7 @@ test('circular deps', async function (t: tape.Test) {
 
   t.equal(m(), 'circular-deps-1-of-2', 'circular dependencies can access each other')
 
-  t.ok(!await exists(path.join('node_modules', 'circular-deps-1-of-2', 'node_modules', 'circular-deps-2-of-2', 'node_modules', 'circular-deps-1-of-2')), 'circular dependency is avoided')
+  t.notOk(await exists(path.join('node_modules', 'circular-deps-1-of-2', 'node_modules', 'circular-deps-2-of-2', 'node_modules', 'circular-deps-1-of-2')), 'circular dependency is avoided')
 })
 
 test('concurrent circular deps', async function (t) {
@@ -543,7 +543,7 @@ test('should update subdep on second install', async function (t) {
 
   shr = await project.loadShrinkwrap()
 
-  t.ok(!shr.packages['/dep-of-pkg-with-1-dep/100.0.0'], "shrinkwrap doesn't have old dependency")
+  t.notOk(shr.packages['/dep-of-pkg-with-1-dep/100.0.0'], "shrinkwrap doesn't have old dependency")
   t.ok(shr.packages['/dep-of-pkg-with-1-dep/100.1.0'], 'shrinkwrap has new dependency')
 
   t.equal(deepRequireCwd(['pkg-with-1-dep', 'dep-of-pkg-with-1-dep', './package.json']).version, '100.1.0', 'updated in node_modules')

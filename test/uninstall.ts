@@ -97,10 +97,10 @@ test('uninstall package with its bin files', async function (t) {
 
   // check for both a symlink and a file because in some cases the file will be a proxied not symlinked
   let stat = await existsSymlink(path.resolve('node_modules', '.bin', 'sh-hello-world'))
-  t.ok(!stat, 'sh-hello-world is removed from .bin')
+  t.notOk(stat, 'sh-hello-world is removed from .bin')
 
   stat = await exists(path.resolve('node_modules', '.bin', 'sh-hello-world'))
-  t.ok(!stat, 'sh-hello-world is removed from .bin')
+  t.notOk(stat, 'sh-hello-world is removed from .bin')
 })
 
 test('keep dependencies used by others', async function (t: tape.Test) {

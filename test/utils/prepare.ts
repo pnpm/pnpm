@@ -38,7 +38,7 @@ export default function prepare (t: Test, pkg?: Object) {
       t.ok(await exists(path.join(modules, pkgName)), `${pkgName} is in node_modules`)
     },
     hasNot: async function (pkgName: string) {
-      t.ok(!await exists(path.join(modules, pkgName)), `${pkgName} is not in node_modules`)
+      t.notOk(await exists(path.join(modules, pkgName)), `${pkgName} is not in node_modules`)
     },
     getStorePath: async function () {
       if (!cachedStorePath) {
@@ -62,7 +62,7 @@ export default function prepare (t: Test, pkg?: Object) {
     },
     storeHasNot: async function (pkgName: string, version?: string) {
       try {
-        t.ok(!await exists(await project.resolve(pkgName, version)), `${pkgName}@${version} is not in store`)
+        t.notOk(await exists(await project.resolve(pkgName, version)), `${pkgName}@${version} is not in store`)
       } catch (err) {
         if (err.message === 'Cannot find module store') {
           t.pass(`${pkgName}@${version} is not in store`)

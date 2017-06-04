@@ -44,7 +44,7 @@ test('peer dependency is not grouped with dependent when the peer is a top depen
   streamParser['removeListener']('data', reporter)
 
   t.ok(await exists(path.join(NM, '.localhost+4873', 'ajv-keywords', '1.5.0', NM, 'ajv-keywords')), 'dependent is at the normal location')
-  t.ok(!log, 'no warning is logged about unresolved peer dep')
+  t.notOk(log, 'no warning is logged about unresolved peer dep')
 })
 
 test('warning is reported when cannot resolve peer dependency', async (t: tape.Test) => {
@@ -74,7 +74,7 @@ test('top peer dependency is not linked on subsequent install', async (t: tape.T
   await installPkgs(['ajv-keywords@1.5.0'], testDefaults())
 
   t.ok(await exists(path.join(NM, '.localhost+4873', 'ajv-keywords', '1.5.0', NM, 'ajv-keywords')), 'dependent is at the normal location')
-  t.ok(!await exists(path.join(NM, '.localhost+4873', 'ajv-keywords', '1.5.0', 'ajv@4.10.4', NM, 'ajv')), 'peer dependency is not linked')
+  t.notOk(await exists(path.join(NM, '.localhost+4873', 'ajv-keywords', '1.5.0', 'ajv@4.10.4', NM, 'ajv')), 'peer dependency is not linked')
 })
 
 async function okFile (t: tape.Test, filename: string) {
