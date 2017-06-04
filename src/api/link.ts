@@ -1,6 +1,6 @@
 import path = require('path')
 import loadJsonFile = require('load-json-file')
-import symlinkDir from 'symlink-dir'
+import symlinkDir = require('symlink-dir')
 import logger from 'pnpm-logger'
 import {install} from './install'
 import expandTilde from '../fs/expandTilde'

@@ -80,7 +80,7 @@ dependencies:
   semver@^5.3.0: 5.3.0
   sepia@^2.0.2: 2.0.2
   ssri@^4.1.3: 4.1.4
-  symlink-dir@^1.0.2: 1.0.2
+  symlink-dir@^1.0.3: 1.0.3
   tape-promise@^2.0.1: 2.0.1
   tape@^4.6.3: 4.6.3
   thenify@^3.2.1: 3.3.0
@@ -1943,16 +1943,16 @@ packages:
     resolution: 0c7962a6adefa7bbd4ac366460a638552ae1a0a2
   /strip-json-comments/2.0.1: 3c531942e908c2697c0ec344858c286c7ca0a60a
   /supports-color/2.0.0: 535d045ce6b6363fa40117084629995e9df324c7
-  /symlink-dir/1.0.2:
+  /symlink-dir/1.0.3:
     dependencies:
-      '@types/mz': 0.0.30
+      '@types/mz': 0.0.31
       '@types/node': 7.0.27
       graceful-fs: 4.1.11
       is-windows: 1.0.1
       mkdirp: 0.5.1
       mkdirp-promise: 5.0.1
       mz: 2.6.0
-    resolution: 04f0bdc7f5df75ab1e98017e2f1b0a6777525a82
+    resolution: 4cc2d14165119ddf5881ea8b4d811570d81547b7
   /tape-promise/2.0.1:
     dependencies:
       is-promise: 2.1.0
