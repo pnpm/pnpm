@@ -50,7 +50,8 @@ export default function (
   )
 
   const nodeIdToResolvedId = {}
-  const resolvedTree = resolvePeersOfChildren(rootNodeIds, pkgsByName, tree, nodeIdToResolvedId).resolvedTree
+  const resolvedTree: DependencyTreeNodeMap = {}
+  resolvePeersOfChildren(rootNodeIds, pkgsByName, tree, nodeIdToResolvedId, resolvedTree)
 
   R.values(resolvedTree).forEach(node => {
     node.children = node.children.map(child => nodeIdToResolvedId[child])
@@ -62,14 +63,12 @@ function resolvePeersOfNode (
   nodeId: string,
   parentPkgs: ParentRefs,
   tree: TreeNodeMap,
-  nodeIdToResolvedId: {[nodeId: string]: string}
-): {
-  resolvedTree: DependencyTreeNodeMap,
-  allResolvedPeers: string[],
-} {
+  nodeIdToResolvedId: {[nodeId: string]: string},
+  resolvedTree: DependencyTreeNodeMap
+): string[] {
   const node = tree[nodeId]
 
-  const result = resolvePeersOfChildren(node.children, parentPkgs, tree, nodeIdToResolvedId)
+  const unknownResolvedPeersOfChildren = resolvePeersOfChildren(node.children, parentPkgs, tree, nodeIdToResolvedId, resolvedTree)
 
   const resolvedPeers = R.isEmpty(node.pkg.peerDependencies)
     ? []
@@ -78,7 +77,7 @@ function resolvePeersOfNode (
     ), tree)
 
   const allResolvedPeers = R.uniq(
-    result.unknownResolvedPeersOfChildren
+    unknownResolvedPeersOfChildren
       .filter(resolvedPeerNodeId => resolvedPeerNodeId !== nodeId).concat(resolvedPeers))
 
   let modules: string
@@ -93,9 +92,9 @@ function resolvePeersOfNode (
   }
 
   nodeIdToResolvedId[nodeId] = resolvedId
-  if (!result.resolvedTree[resolvedId] || result.resolvedTree[resolvedId].depth > node.depth) {
+  if (!resolvedTree[resolvedId] || resolvedTree[resolvedId].depth > node.depth) {
     const hardlinkedLocation = path.join(modules, node.pkg.name)
-    result.resolvedTree[resolvedId] = {
+    resolvedTree[resolvedId] = {
       name: node.pkg.name,
       hasBundledDependencies: node.pkg.hasBundledDependencies,
       fetchingFiles: node.pkg.fetchingFiles,
@@ -112,21 +111,16 @@ function resolvePeersOfNode (
       installable: node.installable,
     }
   }
-  return {
-    allResolvedPeers,
-    resolvedTree: result.resolvedTree,
-  }
+  return allResolvedPeers
 }
 
 function resolvePeersOfChildren (
   children: string[],
   parentParentPkgs: ParentRefs,
   tree: {[nodeId: string]: TreeNode},
-  nodeIdToResolvedId: {[nodeId: string]: string}
-): {
-  resolvedTree: DependencyTreeNodeMap,
-  unknownResolvedPeersOfChildren: string[],
-} {
+  nodeIdToResolvedId: {[nodeId: string]: string},
+  resolvedTree: DependencyTreeNodeMap
+): string[] {
   const trees: DependencyTreeNodeMap[] = []
   const unknownResolvedPeersOfChildren: string[] = []
   const parentPkgs = Object.assign({}, parentParentPkgs,
@@ -134,20 +128,15 @@ function resolvePeersOfChildren (
   )
 
   for (const child of children) {
-    const result = resolvePeersOfNode(child, parentPkgs, tree, nodeIdToResolvedId)
-    trees.push(result.resolvedTree)
+    const allResolvedPeers = resolvePeersOfNode(child, parentPkgs, tree, nodeIdToResolvedId, resolvedTree)
 
-    const unknownResolvedPeersOfChild = result.allResolvedPeers
+    const unknownResolvedPeersOfChild = allResolvedPeers
       .filter((resolvedPeerNodeId: string) => children.indexOf(resolvedPeerNodeId) === -1)
 
     unknownResolvedPeersOfChildren.push.apply(unknownResolvedPeersOfChildren, unknownResolvedPeersOfChild)
   }
 
-  const resolvedTree: DependencyTreeNodeMap = trees.length ? Object.assign.apply(null, trees) : {}
-  return {
-    resolvedTree,
-    unknownResolvedPeersOfChildren,
-  }
+  return unknownResolvedPeersOfChildren
 }
 
 function resolvePeers (

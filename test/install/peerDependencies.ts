@@ -150,3 +150,11 @@ test('package that resolves its own peer dependency', async (t: tape.Test) => {
 
   t.ok(await exists(path.join(NM, '.localhost+4873', 'pkg-with-resolved-peer', '1.0.0', NM, 'pkg-with-resolved-peer')))
 })
+
+test('own peer installed in root as well is linked to root', async function (t: tape.Test) {
+  const project = prepare(t)
+
+  await installPkgs(['is-negative@kevva/is-negative#2.1.0', 'peer-deps-in-child-pkg'], testDefaults())
+
+  t.ok(deepRequireCwd.silent(['is-negative', './package.json']), 'is-negative is linked to root')
+})
