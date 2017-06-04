@@ -1,6 +1,6 @@
 import fs = require('mz/fs')
 import path = require('path')
-import linkDir from 'link-dir'
+import linkDir = require('link-dir')
 import symlinkDir from 'symlink-dir'
 import exists = require('path-exists')
 import logger from 'pnpm-logger'
@@ -16,6 +16,10 @@ import logStatus from '../logging/logInstallStatus'
 import updateShrinkwrap from './updateShrinkwrap'
 import {Shrinkwrap, shortIdToFullId, DependencyShrinkwrap} from '../fs/shrinkwrap'
 import removeOrphanPkgs from '../api/removeOrphanPkgs'
+import ncpCB = require('ncp')
+import thenify = require('thenify')
+
+const ncp = thenify(ncpCB)
 
 export default async function (
   topPkgs: InstalledPackage[],
@@ -127,7 +131,14 @@ async function linkNewPackages (
 
   const newPkgs = R.props<DependencyTreeNode>(newPkgResolvedIds, pkgsToLink)
 
-  await linkAllPkgs(newPkgs, opts)
+  try {
+    await linkAllPkgs(linkPkg, newPkgs, opts)
+  } catch (err) {
+    if (!err.message.startsWith('EXDEV: cross-device link not permitted')) throw err
+    logger.warn(err.message)
+    logger.info('Falling back to copying packages from store')
+    await linkAllPkgs(copyPkg, newPkgs, opts)
+  }
 
   if (!opts.force) {
     // add subdependencies that have been updated
@@ -149,6 +160,10 @@ async function linkNewPackages (
 const limitLinking = pLimit(16)
 
 async function linkAllPkgs (
+  linkPkg: (dependency: DependencyTreeNode, opts: {
+    force: boolean,
+    baseNodeModules: string,
+  }) => Promise<void>,
   alldeps: DependencyTreeNode[],
   opts: {
     force: boolean,
@@ -182,6 +197,21 @@ async function linkPkg (
   const pkgJsonPath = path.join(dependency.hardlinkedLocation, 'package.json')
   if (newlyFetched || opts.force || !await exists(pkgJsonPath) || !await pkgLinkedToStore(pkgJsonPath, dependency)) {
     await linkDir(dependency.path, dependency.hardlinkedLocation)
+  }
+}
+
+async function copyPkg (
+  dependency: DependencyTreeNode,
+  opts: {
+    force: boolean,
+    baseNodeModules: string,
+  }
+) {
+  const newlyFetched = await dependency.fetchingFiles
+
+  const pkgJsonPath = path.join(dependency.hardlinkedLocation, 'package.json')
+  if (newlyFetched || opts.force || !await exists(pkgJsonPath)) {
+    await ncp(dependency.path, dependency.hardlinkedLocation)
   }
 }
 

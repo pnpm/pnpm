@@ -38,7 +38,7 @@ dependencies:
   is-inner-link@^2.0.0: 2.0.0
   is-windows@^1.0.0: 1.0.1
   isexe@^2.0.0: 2.0.0
-  link-dir@^2.0.0: 2.0.0
+  link-dir@^2.0.1: 2.0.1
   load-json-file@^2.0.0: 2.0.0
   load-yaml-file@^0.1.0: 0.1.0
   loud-rejection@^1.6.0: 1.6.0
@@ -1135,7 +1135,7 @@ packages:
   /lazy-cache/1.0.4: a1d78fc3a50474cb80845d3b3b6e1da49a446e8e
   /lazy-req/2.0.0: c9450a363ecdda2e6f0c70132ad4f37f8f06f2b4
   /levenshtein/1.0.2: cd02e8b32075645ddcf5d059e02efa918f9fb3ec
-  /link-dir/2.0.0:
+  /link-dir/2.0.1:
     dependencies:
       '@types/mz': 0.0.30
       '@types/node': 6.0.77
@@ -1144,7 +1144,7 @@ packages:
       mkdirp-promise: 5.0.1
       mz: 2.6.0
       rimraf-then: 1.0.1
-    resolution: 109f177704943a3796ce49b0b518da8757955ac2
+    resolution: ca8c686d6f8f75d1708b9e166c5dafb7c8ba0f04
   /linkify-it/1.2.4:
     dependencies:
       uc.micro: 1.0.3
