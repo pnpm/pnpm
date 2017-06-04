@@ -352,6 +352,9 @@ async function installInContext (
       )
     )
   }
+
+  // waiting till the skipped packages are downloaded to the store
+  await Promise.all(R.props<InstalledPackage>(Array.from(installCtx.skipped), installCtx.installs).map(pkg => pkg.fetchingFiles))
 }
 
 function buildTree (

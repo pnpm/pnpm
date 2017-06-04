@@ -38,7 +38,7 @@ test('skip optional dependency that does not support the current OS', async func
   await install(testDefaults())
 
   await project.hasNot('not-compatible-with-any-os')
-  await project.storeHasNot('not-compatible-with-any-os', '1.0.0')
+  await project.storeHas('not-compatible-with-any-os', '1.0.0')
   t.notOk(await exists(path.resolve('node_modules', '.localhost+4873', 'dep-of-optional-pkg', '1.0.0')), "isn't linked into node_modules")
 
   const shr = await project.loadShrinkwrap()
@@ -52,7 +52,7 @@ test('skip optional dependency that does not support the current OS', async func
   ])
 })
 
-test('skip optional dependency that does not support the current Node version', async function (t) {
+test('skip optional dependency that does not support the current Node version', async function (t: tape.Test) {
   const project = prepare(t, {
     optionalDependencies: {
       'for-legacy-node': '*'
@@ -62,7 +62,7 @@ test('skip optional dependency that does not support the current Node version', 
   await install(testDefaults())
 
   await project.hasNot('for-legacy-node')
-  await project.storeHasNot('for-legacy-node', '1.0.0')
+  await project.storeHas('for-legacy-node', '1.0.0')
 })
 
 test('skip optional dependency that does not support the current pnpm version', async function (t) {
@@ -75,7 +75,7 @@ test('skip optional dependency that does not support the current pnpm version', 
   await install(testDefaults())
 
   await project.hasNot('for-legacy-pnpm')
-  await project.storeHasNot('for-legacy-pnpm', '1.0.0')
+  await project.storeHas('for-legacy-pnpm', '1.0.0')
 })
 
 test('don\'t skip optional dependency that does not support the current OS when forcing', async function (t) {

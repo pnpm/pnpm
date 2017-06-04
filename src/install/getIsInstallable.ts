@@ -27,8 +27,6 @@ export default async function getIsInstallable (
 
   if (!options.engineStrict && !options.optional) return true
 
-  await fetchedPkg.abort()
-
   if (!options.optional) throw warn
 
   logger.warn({

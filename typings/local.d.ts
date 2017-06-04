@@ -138,6 +138,11 @@ declare module 'write-json-file' {
   export = anything;
 }
 
+declare module 'write-file-atomic' {
+  const anything: any;
+  export = anything;
+}
+
 declare module 'mem' {
   const anything: any;
   export = anything;

@@ -9,6 +9,8 @@ import resolve, {
   PackageMeta,
 } from '../resolve'
 import mkdirp = require('mkdirp-promise')
+import thenify = require('thenify')
+import writeFileAtomicCB = require('write-file-atomic')
 import pkgIdToFilename from '../fs/pkgIdToFilename'
 import {fromDir as readPkgFromDir} from '../fs/readPkg'
 import exists = require('path-exists')
@@ -21,6 +23,8 @@ import logStatus from '../logging/logInstallStatus'
 import dirsum from '../fs/dirsum'
 import untouched from '../pkgIsUntouched'
 
+const writeFileAtomic = thenify(writeFileAtomicCB)
+
 export type FetchedPackage = {
   fetchingPkg: Promise<Package>,
   fetchingFiles: Promise<Boolean>,
@@ -28,7 +32,6 @@ export type FetchedPackage = {
   srcPath?: string,
   id: string,
   resolution: Resolution,
-  abort(): Promise<void>,
 }
 
 export default async function fetch (
@@ -100,13 +103,6 @@ export default async function fetch (
       srcPath: resolution.type == 'directory'
         ? path.join(options.prefix, resolution.directory)
         : undefined,
-      abort: async () => {
-        try {
-          await fetchingFiles
-        } finally {
-          return rimraf(target)
-        }
-      },
     }
   } catch (err) {
     logStatus({status: 'error', pkg: options.loggedPkg})
@@ -164,7 +160,7 @@ async function fetchToStore (opts: {
 async function createShasum(dirPath: string) {
   try {
     const shasum = await dirsum(dirPath)
-    await fs.writeFile(`${dirPath}_shasum`, shasum, 'utf8')
+    await writeFileAtomic(`${dirPath}_shasum`, shasum, 'utf8')
   } catch (err) {
     logger.error({
       message: `Failed to calculate shasum for ${dirPath}`,
