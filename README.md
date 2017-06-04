@@ -8,7 +8,7 @@
 
 pnpm is:
 
-1. **Fast.** A lot faster than npm and yarn. This is not a fair battle as we organize
+1. **Fast.** Faster than npm and yarn. This is not a fair battle as we organize
 dependencies in a completely different way. Nevertheless, dependencies installed with
 pnpm are Node.js-compatible!
 1. **Efficient.** One version of a package is saved only ever once on a disk.
@@ -130,7 +130,7 @@ Can be passed in via a CLI option. `--no-lock` to set it to false. E.g.: `pnpm i
 
 ## Benchmark
 
-pnpm is usually 10 times faster than npm and 30% faster than yarn. See [this](https://github.com/zkochan/node-package-manager-benchmark)
+pnpm is faster than npm and yarn. See [this](https://github.com/zkochan/node-package-manager-benchmark)
 benchmark which compares the three package managers on different types of applications.
 
 ```
