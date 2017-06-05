@@ -15,25 +15,6 @@ export default function prune (shr: Shrinkwrap, pkg: Package): Shrinkwrap {
   const dependencies = R.difference(R.keys(pkg.dependencies), optionalDependencies)
   const devDependencies = R.difference(R.difference(R.keys(pkg.devDependencies), optionalDependencies), dependencies)
 
-  if (shr.optionalDependencies) {
-    let optionalPkgIds: string[] = R.keys(shr.optionalDependencies)
-      .map((pkgName: string) => getPkgShortId(shr!.optionalDependencies![pkgName], pkgName))
-    copyDependencySubTree(packages, optionalPkgIds, shr, [], {registry: shr.registry, optional: true})
-  }
-
-  if (shr.devDependencies) {
-    let devPkgIds: string[] = R.keys(shr.devDependencies)
-      .map((pkgName: string) => getPkgShortId(shr!.devDependencies![pkgName], pkgName))
-    copyDependencySubTree(packages, devPkgIds, shr, [], {registry: shr.registry, dev: true})
-  }
-
-  let pkgIds: string[] = dependencies
-    .map((pkgName: string) => getPkgShortId(shr.dependencies[pkgName], pkgName))
-
-  copyDependencySubTree(packages, pkgIds, shr, [], {
-    registry: shr.registry,
-  })
-
   const allDeps = R.reduce(R.union, [], [optionalDependencies, devDependencies, dependencies])
   const specifiers: ResolvedDependencies = {}
   const shrDependencies: ResolvedDependencies = {}
@@ -52,6 +33,25 @@ export default function prune (shr: Shrinkwrap, pkg: Package): Shrinkwrap {
     }
   })
 
+  if (shrOptionalDependencies) {
+    let optionalPkgIds: string[] = R.keys(shrOptionalDependencies)
+      .map((pkgName: string) => getPkgShortId(shrOptionalDependencies[pkgName], pkgName))
+    copyDependencySubTree(packages, optionalPkgIds, shr, [], {registry: shr.registry, optional: true})
+  }
+
+  if (shrDevDependencies) {
+    let devPkgIds: string[] = R.keys(shrDevDependencies)
+      .map((pkgName: string) => getPkgShortId(shrDevDependencies[pkgName], pkgName))
+    copyDependencySubTree(packages, devPkgIds, shr, [], {registry: shr.registry, dev: true})
+  }
+
+  let pkgIds: string[] = dependencies
+    .map((pkgName: string) => getPkgShortId(shrDependencies[pkgName], pkgName))
+
+  copyDependencySubTree(packages, pkgIds, shr, [], {
+    registry: shr.registry,
+  })
+
   const result = {
     version: SHRINKWRAP_VERSION,
     specifiers,
@@ -68,28 +68,6 @@ export default function prune (shr: Shrinkwrap, pkg: Package): Shrinkwrap {
     delete result.devDependencies
   }
   return result
-}
-
-function copyDependencyTree (
-  resolvedPackages: ResolvedPackages,
-  shr: Shrinkwrap,
-  opts: {
-    registry: string,
-    dependencies: string[],
-    dev?: boolean,
-    optional?: boolean,
-  }
-) {
-  let pkgIds: string[] = opts.dependencies
-    .map((pkgName: string) => getPkgShortId(shr.dependencies[pkgName], pkgName))
-
-  copyDependencySubTree(resolvedPackages, pkgIds, shr, [], opts)
-
-  if (shr.optionalDependencies) {
-    let optionalPkgIds: string[] = R.keys(shr.optionalDependencies)
-      .map((pkgName: string) => getPkgShortId(shr!.optionalDependencies![pkgName], pkgName))
-    copyDependencySubTree(resolvedPackages, optionalPkgIds, shr, [], Object.assign({}, opts, {optional: true}))
-  }
 }
 
 function copyDependencySubTree (

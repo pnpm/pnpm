@@ -99,7 +99,7 @@ export function save (pkgPath: string, shrinkwrap: Shrinkwrap) {
   const privateShrinkwrapPath = path.join(pkgPath, PRIVATE_SHRINKWRAP_FILENAME)
 
   // empty shrinkwrap is not saved
-  if (Object.keys(shrinkwrap.dependencies).length === 0) {
+  if (Object.keys(shrinkwrap.specifiers).length === 0) {
     return Promise.all([
       rimraf(shrinkwrapPath),
       rimraf(privateShrinkwrapPath),

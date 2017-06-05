@@ -398,3 +398,52 @@ test('dev dependency should not have dev = true if it is used not only as dev', 
 
   t.end()
 })
+
+test('remove dependencies that are not in the package', t => {
+  t.deepEqual(prune({
+    version: 3,
+    registry: 'https://registry.npmjs.org',
+    dependencies: {
+      'is-positive': '1.0.0'
+    },
+    devDependencies: {
+      'is-negative': '1.0.0'
+    },
+    optionalDependencies: {
+      'fsevents': '1.0.0'
+    },
+    specifiers: {
+      'is-positive': '^1.0.0',
+      'is-negative': '^1.0.0',
+      'fsevents': '^1.0.0',
+    },
+    packages: {
+      '/is-positive/1.0.0': {
+        resolution: {
+          integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g='
+        }
+      },
+      '/is-negative/1.0.0': {
+        resolution: {
+          integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g='
+        }
+      },
+      '/fsevents/1.0.0': {
+        resolution: {
+          integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g='
+        }
+      },
+    }
+  }, {
+    name: 'foo',
+    version: '1.0.0',
+  }), {
+    version: 3,
+    registry: 'https://registry.npmjs.org',
+    dependencies: {},
+    specifiers: {},
+    packages: {}
+  })
+
+  t.end()
+})
