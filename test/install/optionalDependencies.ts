@@ -3,6 +3,7 @@ import tape = require('tape')
 import promisifyTape from 'tape-promise'
 import loadYamlFile = require('load-yaml-file')
 import exists = require('path-exists')
+import deepRequireCwd = require('deep-require-cwd')
 import {install, installPkgs} from '../../src'
 import {
   prepare,
@@ -101,4 +102,38 @@ test('optional subdependency is skipped', async (t: tape.Test) => {
   const modulesInfo = await loadYamlFile<{skipped: string[]}>(path.join('node_modules', '.modules.yaml'))
 
   t.deepEqual(modulesInfo.skipped, ['localhost+4873/not-compatible-with-any-os/1.0.0'], 'optional subdep skipped')
+})
+
+test('not installing optional dependencies when optional is false', async (t: tape.Test) => {
+  const project = prepare(t, {
+    dependencies: {
+      'pkg-with-good-optional': '*',
+    },
+    optionalDependencies: {
+      'is-positive': '1.0.0',
+    },
+  })
+
+  await install(testDefaults({optional: false}))
+
+  project.hasNot('is-positive')
+  project.has('pkg-with-good-optional')
+
+  t.ok(deepRequireCwd(['pkg-with-good-optional', 'dep-of-pkg-with-1-dep', './package.json']))
+  t.notOk(deepRequireCwd.silent(['pkg-with-good-optional', 'is-positive', './package.json']))
+})
+
+test('optional dependency has bigger priority than regular dependency', async (t: tape.Test) => {
+  const project = prepare(t, {
+    dependencies: {
+      'is-positive': '1.0.0',
+    },
+    optionalDependencies: {
+      'is-positive': '3.1.0',
+    },
+  })
+
+  await install(testDefaults())
+
+  t.ok(deepRequireCwd(['is-positive', './package.json']).version, '3.1.0')
 })

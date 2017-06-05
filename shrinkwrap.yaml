@@ -68,7 +68,7 @@ dependencies:
   pnpm-file-reporter@^0.0.1: 0.0.1
   pnpm-install-checks@^1.1.0: 1.1.0
   pnpm-logger@^0.3.0: 0.3.0
-  pnpm-registry-mock@^0.9.0: 0.9.0
+  pnpm-registry-mock@^0.10.0: 0.10.0
   proper-lockfile@^2.0.0: 2.0.1
   ramda@^0.24.1: 0.24.1
   read-package-json@^2.0.5: 2.0.5
@@ -905,7 +905,7 @@ packages:
       async: 1.5.2
       optimist: 0.6.1
       source-map: 0.4.4
-      uglify-js: 2.8.27
+      uglify-js: 2.8.28
     resolution: 3d30c718b09a3d96f23ea4cc1f403c4d3ba9ff4f
   /har-schema/1.0.5: d263135f43307c02c602afc8fe95970c0151369e
   /har-validator/4.2.1:
@@ -1569,12 +1569,12 @@ packages:
     dependencies:
       bole: 3.0.2
     resolution: eaecea5a037f053a64c50bda7eda3cb87f5ed661
-  /pnpm-registry-mock/0.9.0:
+  /pnpm-registry-mock/0.10.0:
     dependencies:
       cpr: 2.1.0
       rimraf: 2.6.1
       verdaccio: 2.1.7
-    resolution: 938d03b78cc9a74e67b012ec6018eb6c9fce2f55
+    resolution: 4fc3319e41fe00fb4831035959dc3ed3db2486b9
   /prepend-http/1.0.4: d4f4562b0ce3696e41ac52d0e002e57a635dc6dc
   /preserve/0.2.0: 815ed1f6ebc65926f865b310c0713bcb3315ce4b
   /process-nextick-args/1.0.7: 150e20b756590ad3f91093f25a4f2ad8bff30ba3
@@ -2070,12 +2070,12 @@ packages:
   /typedarray/0.0.6: 867ac74e3864187b1d3d47d996a78ec5c8830777
   /typescript/2.3.4: 3d38321828231e434f287514959c37a82b629f42
   /uc.micro/1.0.3: 7ed50d5e0f9a9fb0a573379259f2a77458d50192
-  /uglify-js/2.8.27:
+  /uglify-js/2.8.28:
     dependencies:
       source-map: 0.5.6
       uglify-to-browserify: 1.0.2
       yargs: 3.10.0
-    resolution: 47787f912b0f242e5b984343be8e35e95f694c9c
+    resolution: e335032df9bb20dcb918f164589d5af47f38834a
   /uglify-to-browserify/1.0.2: 6e0924d6bda6b5afe349e39a6d632850a0f882b7
   /unbzip2-stream/1.2.4:
     dependencies:

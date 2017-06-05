@@ -22,6 +22,7 @@ export type PnpmOptions = {
   nodeVersion?: string,
   offline?: boolean,
   registry?: string,
+  optional?: boolean,
 
   // proxy
   proxy?: string,
@@ -75,6 +76,7 @@ export type StrictPnpmOptions = {
   nodeVersion: string,
   offline: boolean,
   registry: string,
+  optional: boolean,
 
   // proxy
   proxy?: string,

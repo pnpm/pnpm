@@ -38,6 +38,7 @@ const defaults = (opts: PnpmOptions) => {
     alwaysAuth: false,
     update: false,
     repeatInstallDepth: -1,
+    optional: true,
   }
 }
 

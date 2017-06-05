@@ -34,6 +34,7 @@ export default async function (
     shrinkwrap: Shrinkwrap,
     privateShrinkwrap: Shrinkwrap,
     production: boolean,
+    optional: boolean,
     root: string,
     storePath: string,
     skipped: Set<string>,
@@ -54,10 +55,13 @@ export default async function (
   if (opts.production) {
     flatResolvedDeps = flatResolvedDeps.filter(dep => !dep.dev)
   }
+  if (!opts.optional) {
+    flatResolvedDeps = flatResolvedDeps.filter(dep => !dep.optional)
+  }
 
   const filterOpts = {
     noDev: opts.production,
-    noOptional: false,
+    noOptional: !opts.optional,
     skipped: opts.skipped,
   }
   const newPkgResolvedIds = await linkNewPackages(

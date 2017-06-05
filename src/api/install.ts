@@ -127,8 +127,8 @@ function depsFromPackage (pkg: Package): Dependencies {
   return Object.assign(
     {},
     pkg.devDependencies,
-    pkg.optionalDependencies,
-    pkg.dependencies
+    pkg.dependencies,
+    pkg.optionalDependencies
   ) as Dependencies
 }
 
@@ -313,6 +313,7 @@ async function installInContext (
       : [],
     shrinkwrap: ctx.shrinkwrap,
     production: opts.production,
+    optional: opts.optional,
     root: ctx.root,
     privateShrinkwrap: ctx.privateShrinkwrap,
     storePath: ctx.storePath,
