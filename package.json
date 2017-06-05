@@ -68,7 +68,7 @@
     "pnpm-default-reporter": "^0.6.0",
     "pnpm-file-reporter": "^0.0.1",
     "pnpm-install-checks": "^1.1.0",
-    "pnpm-lockfile": "^0.1.0",
+    "pnpm-lockfile": "^0.1.1",
     "pnpm-logger": "^0.3.0",
     "proper-lockfile": "^2.0.0",
     "ramda": "^0.24.1",
