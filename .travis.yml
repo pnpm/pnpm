@@ -1,0 +1,23 @@
+language: node_js
+node_js:
+  - 4
+  - 6
+  - 8
+
+cache:
+  directories:
+    - $HOME/.pnpm-registry
+
+sudo: false
+before_install:
+  - npm install -g pnpm
+install:
+  - pnpm install
+script:
+  - npm test
+env:
+  global:
+    - CC=clang CXX=clang++ npm_config_clang=1
+    - GIT_NAME: Travis CI
+    - GIT_EMAIL: nobody@nobody.org
+    - GITHUB_REPO: pnpm/pnpm

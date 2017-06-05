@@ -1,0 +1,39 @@
+{
+  "name": "pnpm-lockfile",
+  "version": "0.0.0",
+  "description": "pnpm's lockfile",
+  "main": "index.js",
+  "scripts": {
+    "test": "ts-node test"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/pnpm/pnpm-lockfile.git"
+  },
+  "keywords": [
+    "pnpm",
+    "lockfile"
+  ],
+  "author": {
+    "name": "Zoltan Kochan",
+    "email": "zoltan.kochan@gmail.com",
+    "url": "https://www.kochan.io"
+  },
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/pnpm/pnpm-lockfile/issues"
+  },
+  "homepage": "https://github.com/pnpm/pnpm-lockfile#readme",
+  "devDependencies": {
+    "@types/node": "^7.0.27",
+    "@types/tape": "^4.2.30",
+    "tape": "^4.6.3",
+    "ts-node": "^3.0.4",
+    "typescript": "^2.3.4"
+  },
+  "dependencies": {
+    "@types/ramda": "^0.0.11",
+    "pnpm-logger": "^0.3.0",
+    "ramda": "^0.24.1"
+  }
+}

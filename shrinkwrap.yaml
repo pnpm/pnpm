@@ -1,0 +1,197 @@
+createdWith: pnpm@0.68.0
+dependencies:
+  '@types/node@^7.0.27': 7.0.27
+  '@types/ramda@^0.0.11': 0.0.11
+  '@types/tape@^4.2.30': 4.2.30
+  pnpm-logger@^0.3.0: 0.3.0
+  ramda@^0.24.1: 0.24.1
+  tape@^4.6.3: 4.6.3
+  ts-node@^3.0.4: 3.0.4
+  typescript@^2.3.4: 2.3.4
+packages:
+  /@types/node/7.0.27: ba5e1a87aca2b4f5817289615ffe56472927687e
+  /@types/ramda/0.0.11: f6d4809a9757fe53358c8de8f6df167124abcd3f
+  /@types/tape/4.2.30:
+    dependencies:
+      '@types/node': 7.0.27
+    resolution: 3c1917c4dfd6f27271b9922772513515bc6c46b4
+  /ansi-regex/2.1.1: c3b33ab5ee360d86e0e628f0468ae7ef27d654df
+  /ansi-styles/2.2.1: b432dd3358b634cf75e1e4664368240533c1ddbe
+  /arrify/1.0.1: 898508da2226f380df904728456849c1501a4b0d
+  /balanced-match/0.4.2: cb3f3e3c732dc0f01ee70b403f302e61d7709838
+  /bole/3.0.2:
+    dependencies:
+      fast-safe-stringify: 1.1.13
+      individual: 3.0.0
+    resolution: bc8a483ca94049da9b837c1ad11cdfebee6e0514
+  /brace-expansion/1.1.7:
+    dependencies:
+      balanced-match: 0.4.2
+      concat-map: 0.0.1
+    resolution: 3effc3c50e000531fb720eaff80f0ae8ef23cf59
+  /chalk/1.1.3:
+    dependencies:
+      ansi-styles: 2.2.1
+      escape-string-regexp: 1.0.5
+      has-ansi: 2.0.0
+      strip-ansi: 3.0.1
+      supports-color: 2.0.0
+    resolution: a8115c55e4a702fe4d150abd3872822a7e09fc98
+  /concat-map/0.0.1: d8a96bd77fd68df7793a73036a3ba0d5405d477b
+  /deep-equal/1.0.1: f5d260292b660e084eff4cdbc9f08ad3247448b5
+  /define-properties/1.1.2:
+    dependencies:
+      foreach: 2.0.5
+      object-keys: 1.0.11
+    resolution: 83a73f2fea569898fb737193c8f873caf6d45c94
+  /defined/1.0.0: c98d9bcef75674188e110969151199e39b1fa693
+  /diff/3.2.0: c9ce393a4b7cbd0b058a725c93df299027868ff9
+  /es-abstract/1.7.0:
+    dependencies:
+      es-to-primitive: 1.1.1
+      function-bind: 1.1.0
+      is-callable: 1.1.3
+      is-regex: 1.0.4
+    resolution: dfade774e01bfcd97f96180298c449c8623fb94c
+  /es-to-primitive/1.1.1:
+    dependencies:
+      is-callable: 1.1.3
+      is-date-object: 1.0.1
+      is-symbol: 1.0.1
+    resolution: 45355248a88979034b6792e19bb81f2b7975dd0d
+  /escape-string-regexp/1.0.5: 1b61c0562190a8dff6ae3bb2cf0200ca130b86d4
+  /fast-safe-stringify/1.1.13: a01e9cd9c9e491715c98a75a42d5f0bbd107ff76
+  /for-each/0.3.2:
+    dependencies:
+      is-function: 1.0.1
+    resolution: 2c40450b9348e97f281322593ba96704b9abd4d4
+  /foreach/2.0.5: 0bee005018aeb260d0a3af3ae658dd0136ec1b99
+  /fs.realpath/1.0.0: 1504ad2523158caa40db4a2787cb01411994ea4f
+  /function-bind/1.1.0: 16176714c801798e4e8f2cf7f7529467bb4a5771
+  /glob/7.1.2:
+    dependencies:
+      fs.realpath: 1.0.0
+      inflight: 1.0.6
+      inherits: 2.0.3
+      minimatch: 3.0.4
+      once: 1.4.0
+      path-is-absolute: 1.0.1
+    resolution: c19c9df9a028702d678612384a6552404c636d15
+  /has-ansi/2.0.0:
+    dependencies:
+      ansi-regex: 2.1.1
+    resolution: 34f5049ce1ecdf2b0649af3ef24e45ed35416d91
+  /has/1.0.1:
+    dependencies:
+      function-bind: 1.1.0
+    resolution: 8461733f538b0837c9361e39a9ab9e9704dc2f28
+  /individual/3.0.0: e7ca4f85f8957b018734f285750dc22ec2f9862d
+  /inflight/1.0.6:
+    dependencies:
+      once: 1.4.0
+      wrappy: 1.0.2
+    resolution: 49bd6331d7d02d0c09bc910a1075ba8165b56df9
+  /inherits/2.0.3: 633c2c83e3da42a502f52466022480f4208261de
+  /is-callable/1.1.3: 86eb75392805ddc33af71c92a0eedf74ee7604b2
+  /is-date-object/1.0.1: 9aa20eb6aeebbff77fbd33e74ca01b33581d3a16
+  /is-function/1.0.1: 12cfb98b65b57dd3d193a3121f5f6e2f437602b5
+  /is-regex/1.0.4:
+    dependencies:
+      has: 1.0.1
+    resolution: 5517489b547091b0930e095654ced25ee97e9491
+  /is-symbol/1.0.1: 3cc59f00025194b6ab2e38dbae6689256b660572
+  /make-error/1.3.0: 52ad3a339ccf10ce62b4040b708fe707244b8b96
+  /minimatch/3.0.4:
+    dependencies:
+      brace-expansion: 1.1.7
+    resolution: 5166e286457f03306064be5497e8dbb0c3d32083
+  /minimist/0.0.8: 857fcabfc3397d2625b8228262e86aa7a011b05d
+  /minimist/1.2.0: a35008b20f41383eec1fb914f4cd5df79a264284
+  /mkdirp/0.5.1:
+    dependencies:
+      minimist: 0.0.8
+    resolution: 30057438eac6cf7f8c4767f38648d6697d75c903
+  /object-assign/4.1.1: 2109adc7965887cfc05cbbd442cac8bfbb360863
+  /object-inspect/1.2.2: c82115e4fcc888aea14d64c22e4f17f6a70d5e5a
+  /object-keys/1.0.11: c54601778ad560f1142ce0e01bcca8b56d13426d
+  /once/1.4.0:
+    dependencies:
+      wrappy: 1.0.2
+    resolution: 583b1aa775961d4b113ac17d9c50baef9dd76bd1
+  /path-is-absolute/1.0.1: 174b9268735534ffbc7ace6bf53a5a9e1b5c5f5f
+  /pnpm-logger/0.3.0:
+    dependencies:
+      bole: 3.0.2
+    resolution: eaecea5a037f053a64c50bda7eda3cb87f5ed661
+  /ramda/0.24.1: c3b7755197f35b8dc3502228262c4c91ddb6b857
+  /resolve/1.1.7: 203114d82ad2c5ed9e8e0411b3932875e889e97b
+  /resumer/0.0.0:
+    dependencies:
+      through: 2.3.8
+    resolution: f1e8f461e4064ba39e82af3cdc2a8c893d076759
+  /source-map-support/0.4.15:
+    dependencies:
+      source-map: 0.5.6
+    resolution: 03202df65c06d2bd8c7ec2362a193056fef8d3b1
+  /source-map/0.5.6: 75ce38f52bf0733c5a7f0c118d81334a2bb5f412
+  /string.prototype.trim/1.1.2:
+    dependencies:
+      define-properties: 1.1.2
+      es-abstract: 1.7.0
+      function-bind: 1.1.0
+    resolution: d04de2c89e137f4d7d206f086b5ed2fae6be8cea
+  /strip-ansi/3.0.1:
+    dependencies:
+      ansi-regex: 2.1.1
+    resolution: 6a385fb8853d952d5ff05d0e8aaf94278dc63dcf
+  /strip-bom/3.0.0: 2334c18e9c759f7bdd56fdef7e9ae3d588e68ed3
+  /strip-json-comments/2.0.1: 3c531942e908c2697c0ec344858c286c7ca0a60a
+  /supports-color/2.0.0: 535d045ce6b6363fa40117084629995e9df324c7
+  /tape/4.6.3:
+    dependencies:
+      deep-equal: 1.0.1
+      defined: 1.0.0
+      for-each: 0.3.2
+      function-bind: 1.1.0
+      glob: 7.1.2
+      has: 1.0.1
+      inherits: 2.0.3
+      minimist: 1.2.0
+      object-inspect: 1.2.2
+      resolve: 1.1.7
+      resumer: 0.0.0
+      string.prototype.trim: 1.1.2
+      through: 2.3.8
+    resolution: 637e77581e9ab2ce17577e9bd4ce4f575806d8b6
+  /through/2.3.8: 0dd4c9ffaabc357960b1b724115d7e0e86a2e1f5
+  /ts-node/3.0.4:
+    dependencies:
+      arrify: 1.0.1
+      chalk: 1.1.3
+      diff: 3.2.0
+      make-error: 1.3.0
+      minimist: 1.2.0
+      mkdirp: 0.5.1
+      source-map-support: 0.4.15
+      tsconfig: 6.0.0
+      v8flags: 2.1.1
+      yn: 1.3.0
+    resolution: a1475ebf24fd4e2ee2fba8b1aa1605b977bde506
+  /tsconfig/6.0.0:
+    dependencies:
+      strip-bom: 3.0.0
+      strip-json-comments: 2.0.1
+    resolution: 6b0e8376003d7af1864f8df8f89dd0059ffcd032
+  /typescript/2.3.4: 3d38321828231e434f287514959c37a82b629f42
+  /user-home/1.1.1: 2b5be23a32b63a7c9deb8d0f28d485724a3df190
+  /v8flags/2.1.1:
+    dependencies:
+      user-home: 1.1.1
+    resolution: aab1a1fa30d45f88dd321148875ac02c0b55e5b4
+  /wrappy/1.0.2: b5243d8f3ec1aa35f1364605bc0d1036e30ab69f
+  /yn/1.3.0:
+    dependencies:
+      object-assign: 4.1.1
+    resolution: 1b0812abb8d805d48966f8df385dc9dacc9a19d8
+registry: 'https://registry.npmjs.org/'
+version: 2
