@@ -12,11 +12,13 @@ import logStatus from '../logging/logInstallStatus'
 import fs = require('mz/fs')
 import {Got} from '../network/got'
 import {
-  DependencyShrinkwrap,
-  ResolvedDependencies,
   getPkgId,
   getPkgShortId,
 } from '../fs/shrinkwrap'
+import {
+  DependencyShrinkwrap,
+  ResolvedDependencies,
+} from 'pnpm-lockfile'
 import {Resolution, PackageSpec, PackageMeta} from '../resolve'
 import depsToSpecs from '../depsToSpecs'
 import getIsInstallable from './getIsInstallable'
@@ -39,6 +41,7 @@ export type InstalledPackage = {
   name: string,
   version: string,
   peerDependencies: Dependencies,
+  optionalDependencies: Set<string>,
   hasBundledDependencies: boolean,
   localLocation: string,
 }
@@ -223,6 +226,7 @@ async function install (
       path: fetchedPkg.path,
       specRaw: spec.raw,
       peerDependencies: pkg.peerDependencies || {},
+      optionalDependencies: new Set(R.keys(pkg.optionalDependencies)),
       hasBundledDependencies: !!(pkg.bundledDependencies || pkg.bundleDependencies),
       localLocation: path.join(options.nodeModules, `.${pkgIdToFilename(fetchedPkg.id)}`),
     }

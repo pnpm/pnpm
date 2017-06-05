@@ -55,7 +55,6 @@
     "src/fs/pkgIdToFilename.ts",
     "src/fs/readPkg.ts",
     "src/fs/safeReadPkg.ts",
-    "src/fs/shrinkwrap.ts",
     "src/fs/storeController.ts",
     "src/getSaveType.ts",
     "src/index.ts",

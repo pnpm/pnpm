@@ -14,7 +14,8 @@ import {Resolution} from '../resolve'
 import resolvePeers, {DependencyTreeNode, DependencyTreeNodeMap} from './resolvePeers'
 import logStatus from '../logging/logInstallStatus'
 import updateShrinkwrap from './updateShrinkwrap'
-import {Shrinkwrap, shortIdToFullId, DependencyShrinkwrap} from '../fs/shrinkwrap'
+import {shortIdToFullId} from '../fs/shrinkwrap'
+import {Shrinkwrap, DependencyShrinkwrap} from 'pnpm-lockfile'
 import removeOrphanPkgs from '../api/removeOrphanPkgs'
 import ncpCB = require('ncp')
 import thenify = require('thenify')
@@ -105,7 +106,6 @@ function filterShrinkwrap (
   }
   return {
     version: shr.version,
-    createdWith: shr.createdWith,
     registry: shr.registry,
     specifiers: shr.specifiers,
     packages: R.fromPairs(pairs),
@@ -120,6 +120,7 @@ async function linkNewPackages (
     force: boolean,
     global: boolean,
     baseNodeModules: string,
+    optional: boolean,
   }
 ): Promise<string[]> {
   const nextPkgResolvedIds = R.keys(shrinkwrap.packages)
@@ -149,14 +150,14 @@ async function linkNewPackages (
     // TODO: no need to relink everything. Can be relinked only what was changed
     for (const shortId of nextPkgResolvedIds) {
       if (privateShrinkwrap.packages[shortId] &&
-        !R.equals(privateShrinkwrap.packages[shortId].dependencies, shrinkwrap.packages[shortId].dependencies) ) {
+        !R.equals(privateShrinkwrap.packages[shortId].dependencies, shrinkwrap.packages[shortId].dependencies)) {
         const resolvedId = shortIdToFullId(shortId, shrinkwrap.registry)
         newPkgs.push(pkgsToLink[resolvedId])
       }
     }
   }
 
-  await linkAllModules(newPkgs, pkgsToLink)
+  await linkAllModules(newPkgs, pkgsToLink, {optional: opts.optional})
 
   return newPkgResolvedIds
 }
@@ -182,10 +183,13 @@ async function linkAllPkgs (
 
 async function linkAllModules (
   pkgs: DependencyTreeNode[],
-  pkgMap: DependencyTreeNodeMap
+  pkgMap: DependencyTreeNodeMap,
+  opts: {
+    optional: boolean,
+  }
 ) {
   return Promise.all(
-    pkgs.map(pkg => limitLinking(() => linkModules(pkg, pkgMap)))
+    pkgs.map(pkg => limitLinking(() => linkModules(pkg, pkgMap, opts)))
   )
 }
 
@@ -233,10 +237,17 @@ async function isSameFile (file1: string, file2: string) {
 
 async function linkModules (
   dependency: DependencyTreeNode,
-  pkgMap: DependencyTreeNodeMap
+  pkgMap: DependencyTreeNodeMap,
+  opts: {
+    optional: boolean,
+  }
 ) {
+  const childrenToLink = opts.optional
+    ? dependency.children
+    : dependency.children.filter(child => !dependency.optionalDependencies.has(pkgMap[child].name))
+
   await Promise.all(
-    R.props<DependencyTreeNode>(dependency.children, pkgMap)
+    R.props<DependencyTreeNode>(childrenToLink, pkgMap)
       .filter(child => child.installable)
       .map(child => symlinkDependencyTo(child, dependency.modules))
   )

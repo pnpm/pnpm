@@ -67,6 +67,7 @@ dependencies:
   pnpm-default-reporter@^0.6.0: 0.6.0
   pnpm-file-reporter@^0.0.1: 0.0.1
   pnpm-install-checks@^1.1.0: 1.1.0
+  pnpm-lockfile@^0.1.0: 0.1.0
   pnpm-logger@^0.3.0: 0.3.0
   pnpm-registry-mock@^0.10.0: 0.10.0
   proper-lockfile@^2.0.0: 2.0.1
@@ -1561,6 +1562,16 @@ packages:
     dependencies:
       semver: 5.3.0
     resolution: 741d9979762fdfad93f3e469deb4a814d3430008
+  /pnpm-lockfile/0.1.0:
+    dependencies:
+      '@types/ramda': 0.0.11
+      is-ci: 1.0.10
+      load-yaml-file: 0.1.0
+      pnpm-logger: 0.3.0
+      ramda: 0.24.1
+      rimraf-then: 1.0.1
+      write-yaml-file: 1.0.0
+    resolution: ef53cd6e78da43b5956afa721867c8c71c2b61d7
   /pnpm-logger/0.0.0:
     dependencies:
       bole: 3.0.2

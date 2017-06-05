@@ -23,8 +23,8 @@ import {
   save as saveShrinkwrap,
   Shrinkwrap,
   ResolvedDependencies,
-  pkgIdToRef,
-} from '../fs/shrinkwrap'
+} from 'pnpm-lockfile'
+import {pkgIdToRef} from '../fs/shrinkwrap'
 import {save as saveModules} from '../fs/modulesController'
 import mkdirp = require('mkdirp-promise')
 import createMemoize, {MemoizedFunc} from '../memoize'
@@ -297,7 +297,16 @@ async function installInContext (
     const getSpecFromPkg = (depName: string) => deps[depName] || devDeps[depName] || optionalDeps[depName]
 
     pkgs.forEach(dep => {
-      ctx.shrinkwrap.dependencies[dep.name] = pkgIdToRef(dep.id, dep.name, dep.resolution, ctx.shrinkwrap.registry)
+      const ref = pkgIdToRef(dep.id, dep.name, dep.resolution, ctx.shrinkwrap.registry)
+      if (dep.dev) {
+        ctx.shrinkwrap.devDependencies = ctx.shrinkwrap.devDependencies || {}
+        ctx.shrinkwrap.devDependencies[dep.name] = ref
+      } else if (dep.optional) {
+        ctx.shrinkwrap.optionalDependencies = ctx.shrinkwrap.optionalDependencies || {}
+        ctx.shrinkwrap.optionalDependencies[dep.name] = ref
+      } else {
+        ctx.shrinkwrap.dependencies[dep.name] = ref
+      }
       ctx.shrinkwrap.specifiers[dep.name] = getSpecFromPkg(dep.name)
     })
   }

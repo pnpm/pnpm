@@ -49,9 +49,9 @@ test('shrinkwrap file has dev deps even when installing for prod only', async (t
   const shr = await project.loadShrinkwrap()
   const id = '/is-negative/2.1.0'
 
-  t.ok(shr.dependencies, 'has dependencies field')
+  t.ok(shr.devDependencies, 'has devDependencies field')
 
-  t.equal(shr.dependencies['is-negative'], '2.1.0', 'has dependency resolved')
+  t.equal(shr.devDependencies['is-negative'], '2.1.0', 'has dev dependency resolved')
 
   t.ok(shr.packages[id], `has resolution for ${id}`)
 })
@@ -195,7 +195,7 @@ test('subdeps are updated on repeat install if outer shrinkwrap.yaml does not ma
 
   shr.packages['/dep-of-pkg-with-1-dep/100.1.0'] = {
     resolution: {
-      integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g=',
+      integrity: 'sha1-sdzLq5q5h7h61HeCB+HLf+lI+zw=',
     },
   }
 

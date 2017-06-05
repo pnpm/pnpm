@@ -120,7 +120,7 @@ test('not installing optional dependencies when optional is false', async (t: ta
   project.has('pkg-with-good-optional')
 
   t.ok(deepRequireCwd(['pkg-with-good-optional', 'dep-of-pkg-with-1-dep', './package.json']))
-  t.notOk(deepRequireCwd.silent(['pkg-with-good-optional', 'is-positive', './package.json']))
+  t.notOk(deepRequireCwd.silent(['pkg-with-good-optional', 'is-positive', './package.json']), 'optional subdep not installed')
 })
 
 test('optional dependency has bigger priority than regular dependency', async (t: tape.Test) => {

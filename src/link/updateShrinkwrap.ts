@@ -1,12 +1,14 @@
 import {
+  pkgShortId,
+  pkgIdToRef,
+} from '../fs/shrinkwrap'
+import {
   Shrinkwrap,
   DependencyShrinkwrap,
   ShrinkwrapResolution,
-  pkgShortId,
-  pkgIdToRef,
   ResolvedDependencies,
   prune as pruneShrinkwrap,
-} from '../fs/shrinkwrap'
+} from 'pnpm-lockfile'
 import {DependencyTreeNodeMap, DependencyTreeNode} from './resolvePeers'
 import {Resolution} from '../resolve'
 import R = require('ramda')
@@ -19,15 +21,18 @@ export default function (
 ): Shrinkwrap {
   for (const resolvedId of R.keys(pkgsToLink)) {
     const shortId = pkgShortId(resolvedId, shrinkwrap.registry)
+    const result = R.partition((childResolvedId: string) => pkgsToLink[resolvedId].optionalDependencies.has(pkgsToLink[childResolvedId].name), pkgsToLink[resolvedId].children)
     shrinkwrap.packages[shortId] = toShrDependency({
       resolvedId,
       id: pkgsToLink[resolvedId].id,
       shortId,
       resolution: pkgsToLink[resolvedId].resolution,
-      updatedDeps: pkgsToLink[resolvedId].children,
+      updatedOptionalDeps: result[0],
+      updatedDeps: result[1],
       registry: shrinkwrap.registry,
       pkgsToLink,
       prevResolvedDeps: shrinkwrap.packages[shortId] && shrinkwrap.packages[shortId].dependencies || {},
+      prevResolvedOptionalDeps: shrinkwrap.packages[shortId] && shrinkwrap.packages[shortId].optionalDependencies || {},
       dev: pkgsToLink[resolvedId].dev,
       optional: pkgsToLink[resolvedId].optional,
     })
@@ -43,19 +48,25 @@ function toShrDependency (
     resolution: Resolution,
     registry: string,
     updatedDeps: string[],
+    updatedOptionalDeps: string[],
     pkgsToLink: DependencyTreeNodeMap,
     prevResolvedDeps: ResolvedDependencies,
+    prevResolvedOptionalDeps: ResolvedDependencies,
     dev: boolean,
     optional: boolean,
   }
 ): DependencyShrinkwrap {
   const shrResolution = toShrResolution(opts.shortId, opts.resolution)
   const newResolvedDeps = updateResolvedDeps(opts.prevResolvedDeps, opts.updatedDeps, opts.registry, opts.pkgsToLink)
+  const newResolvedOptionalDeps = updateResolvedDeps(opts.prevResolvedOptionalDeps, opts.updatedOptionalDeps, opts.registry, opts.pkgsToLink)
   const result = {
     resolution: shrResolution
   }
   if (!R.isEmpty(newResolvedDeps)) {
     result['dependencies'] = newResolvedDeps
+  }
+  if (!R.isEmpty(newResolvedOptionalDeps)) {
+    result['optionalDependencies'] = newResolvedOptionalDeps
   }
   if (opts.dev) {
     result['dev'] = true

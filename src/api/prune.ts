@@ -11,7 +11,7 @@ import {PackageSpec} from '../resolve'
 import {
   ResolvedDependencies,
   prune as pruneShrinkwrap,
-} from '../fs/shrinkwrap'
+} from 'pnpm-lockfile'
 
 export async function prune(maybeOpts?: PnpmOptions): Promise<void> {
   const opts = extendOptions(maybeOpts)

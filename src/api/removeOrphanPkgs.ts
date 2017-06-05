@@ -1,9 +1,9 @@
 import rimraf = require('rimraf-then')
 import path = require('path')
 import {
-  Shrinkwrap,
   shortIdToFullId,
 } from '../fs/shrinkwrap'
+import {Shrinkwrap} from 'pnpm-lockfile'
 import {read as readStore, save as saveStore} from '../fs/storeController'
 import R = require('ramda')
 import {PackageSpec} from '../resolve'
@@ -15,8 +15,8 @@ export default async function removeOrphanPkgs (
   root: string,
   storePath: string
 ): Promise<string[]> {
-  const oldPkgNames = Object.keys(oldShr.dependencies)
-  const newPkgNames = Object.keys(newShr.dependencies)
+  const oldPkgNames = Object.keys(oldShr.specifiers)
+  const newPkgNames = Object.keys(newShr.specifiers)
 
   const removedTopDeps = R.difference(oldPkgNames, newPkgNames)
 
