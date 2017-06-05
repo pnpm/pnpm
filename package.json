@@ -2,9 +2,15 @@
   "name": "pnpm-lockfile",
   "version": "0.0.0",
   "description": "pnpm's lockfile",
-  "main": "index.js",
+  "main": "lib/index.js",
+  "typings": "lib/index.d.ts",
+  "files": [
+    "lib/"
+  ],
   "scripts": {
-    "test": "ts-node test"
+    "test": "ts-node test",
+    "tsc": "rimraf lib && tsc",
+    "prepublish": "npm run tsc"
   },
   "repository": {
     "type": "git",
@@ -27,13 +33,18 @@
   "devDependencies": {
     "@types/node": "^7.0.27",
     "@types/tape": "^4.2.30",
+    "rimraf": "^2.6.1",
     "tape": "^4.6.3",
     "ts-node": "^3.0.4",
     "typescript": "^2.3.4"
   },
   "dependencies": {
     "@types/ramda": "^0.0.11",
+    "is-ci": "^1.0.10",
+    "load-yaml-file": "^0.1.0",
     "pnpm-logger": "^0.3.0",
-    "ramda": "^0.24.1"
+    "ramda": "^0.24.1",
+    "rimraf-then": "^1.0.1",
+    "write-yaml-file": "^1.0.0"
   }
 }

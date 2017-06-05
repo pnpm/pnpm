@@ -3,11 +3,16 @@ dependencies:
   '@types/node@^7.0.27': 7.0.27
   '@types/ramda@^0.0.11': 0.0.11
   '@types/tape@^4.2.30': 4.2.30
+  is-ci@^1.0.10: 1.0.10
+  load-yaml-file@^0.1.0: 0.1.0
   pnpm-logger@^0.3.0: 0.3.0
   ramda@^0.24.1: 0.24.1
+  rimraf-then@^1.0.1: 1.0.1
+  rimraf@^2.6.1: 2.6.1
   tape@^4.6.3: 4.6.3
   ts-node@^3.0.4: 3.0.4
   typescript@^2.3.4: 2.3.4
+  write-yaml-file@^1.0.0: 1.0.0
 packages:
   /@types/node/7.0.27: ba5e1a87aca2b4f5817289615ffe56472927687e
   /@types/ramda/0.0.11: f6d4809a9757fe53358c8de8f6df167124abcd3f
@@ -17,6 +22,11 @@ packages:
     resolution: 3c1917c4dfd6f27271b9922772513515bc6c46b4
   /ansi-regex/2.1.1: c3b33ab5ee360d86e0e628f0468ae7ef27d654df
   /ansi-styles/2.2.1: b432dd3358b634cf75e1e4664368240533c1ddbe
+  /any-promise/1.3.0: abc6afeedcea52e809cdc0376aed3ce39635d17f
+  /argparse/1.0.9:
+    dependencies:
+      sprintf-js: 1.0.3
+    resolution: 73d83bc263f86e97f8cc4f6bae1b0e90a7d22c86
   /arrify/1.0.1: 898508da2226f380df904728456849c1501a4b0d
   /balanced-match/0.4.2: cb3f3e3c732dc0f01ee70b403f302e61d7709838
   /bole/3.0.2:
@@ -37,6 +47,7 @@ packages:
       strip-ansi: 3.0.1
       supports-color: 2.0.0
     resolution: a8115c55e4a702fe4d150abd3872822a7e09fc98
+  /ci-info/1.0.0: dc5285f2b4e251821683681c381c3388f46ec534
   /concat-map/0.0.1: d8a96bd77fd68df7793a73036a3ba0d5405d477b
   /deep-equal/1.0.1: f5d260292b660e084eff4cdbc9f08ad3247448b5
   /define-properties/1.1.2:
@@ -60,6 +71,7 @@ packages:
       is-symbol: 1.0.1
     resolution: 45355248a88979034b6792e19bb81f2b7975dd0d
   /escape-string-regexp/1.0.5: 1b61c0562190a8dff6ae3bb2cf0200ca130b86d4
+  /esprima/3.1.3: fdca51cee6133895e3c88d535ce49dbff62a4633
   /fast-safe-stringify/1.1.13: a01e9cd9c9e491715c98a75a42d5f0bbd107ff76
   /for-each/0.3.2:
     dependencies:
@@ -77,6 +89,7 @@ packages:
       once: 1.4.0
       path-is-absolute: 1.0.1
     resolution: c19c9df9a028702d678612384a6552404c636d15
+  /graceful-fs/4.1.11: 0e8bdfe4d1ddb8854d64e04ea7c00e2a026e5658
   /has-ansi/2.0.0:
     dependencies:
       ansi-regex: 2.1.1
@@ -85,6 +98,7 @@ packages:
     dependencies:
       function-bind: 1.1.0
     resolution: 8461733f538b0837c9361e39a9ab9e9704dc2f28
+  /imurmurhash/0.1.4: 9218b9b2b928a238b13dc4fb6b6d576f231453ea
   /individual/3.0.0: e7ca4f85f8957b018734f285750dc22ec2f9862d
   /inflight/1.0.6:
     dependencies:
@@ -93,6 +107,10 @@ packages:
     resolution: 49bd6331d7d02d0c09bc910a1075ba8165b56df9
   /inherits/2.0.3: 633c2c83e3da42a502f52466022480f4208261de
   /is-callable/1.1.3: 86eb75392805ddc33af71c92a0eedf74ee7604b2
+  /is-ci/1.0.10:
+    dependencies:
+      ci-info: 1.0.0
+    resolution: f739336b2632365061a9d48270cd56ae3369318e
   /is-date-object/1.0.1: 9aa20eb6aeebbff77fbd33e74ca01b33581d3a16
   /is-function/1.0.1: 12cfb98b65b57dd3d193a3121f5f6e2f437602b5
   /is-regex/1.0.4:
@@ -100,6 +118,18 @@ packages:
       has: 1.0.1
     resolution: 5517489b547091b0930e095654ced25ee97e9491
   /is-symbol/1.0.1: 3cc59f00025194b6ab2e38dbae6689256b660572
+  /js-yaml/3.8.4:
+    dependencies:
+      argparse: 1.0.9
+      esprima: 3.1.3
+    resolution: 520b4564f86573ba96662af85a8cafa7b4b5a6f6
+  /load-yaml-file/0.1.0:
+    dependencies:
+      graceful-fs: 4.1.11
+      js-yaml: 3.8.4
+      pify: 2.3.0
+      strip-bom: 3.0.0
+    resolution: f680066e691b3eeb45017672e4a3956af5b83b89
   /make-error/1.3.0: 52ad3a339ccf10ce62b4040b708fe707244b8b96
   /minimatch/3.0.4:
     dependencies:
@@ -119,6 +149,7 @@ packages:
       wrappy: 1.0.2
     resolution: 583b1aa775961d4b113ac17d9c50baef9dd76bd1
   /path-is-absolute/1.0.1: 174b9268735534ffbc7ace6bf53a5a9e1b5c5f5f
+  /pify/2.3.0: ed141a6ac043a849ea588498e7dca8b15330e90c
   /pnpm-logger/0.3.0:
     dependencies:
       bole: 3.0.2
@@ -129,11 +160,22 @@ packages:
     dependencies:
       through: 2.3.8
     resolution: f1e8f461e4064ba39e82af3cdc2a8c893d076759
+  /rimraf-then/1.0.1:
+    dependencies:
+      any-promise: 1.3.0
+      rimraf: 2.6.1
+    resolution: bd4458a79eb561b7548aaec0ac3753ef429fe70b
+  /rimraf/2.6.1:
+    dependencies:
+      glob: 7.1.2
+    resolution: c2338ec643df7a1b7fe5c54fa86f57428a55f33d
+  /slide/1.1.6: 56eb027d65b4d2dce6cb2e2d32c4d4afc9e1d707
   /source-map-support/0.4.15:
     dependencies:
       source-map: 0.5.6
     resolution: 03202df65c06d2bd8c7ec2362a193056fef8d3b1
   /source-map/0.5.6: 75ce38f52bf0733c5a7f0c118d81334a2bb5f412
+  /sprintf-js/1.0.3: 04e6926f662895354f3dd015203633b857297e2c
   /string.prototype.trim/1.1.2:
     dependencies:
       define-properties: 1.1.2
@@ -189,6 +231,20 @@ packages:
       user-home: 1.1.1
     resolution: aab1a1fa30d45f88dd321148875ac02c0b55e5b4
   /wrappy/1.0.2: b5243d8f3ec1aa35f1364605bc0d1036e30ab69f
+  /write-file-atomic/1.3.4:
+    dependencies:
+      graceful-fs: 4.1.11
+      imurmurhash: 0.1.4
+      slide: 1.1.6
+    resolution: f807a4f0b1d9e913ae7a48112e6cc3af1991b45f
+  /write-yaml-file/1.0.0:
+    dependencies:
+      graceful-fs: 4.1.11
+      js-yaml: 3.8.4
+      mkdirp: 0.5.1
+      pify: 2.3.0
+      write-file-atomic: 1.3.4
+    resolution: 7b4bd0df72ca13fbe9d6b0178fd83c077b8ea86b
   /yn/1.3.0:
     dependencies:
       object-assign: 4.1.1

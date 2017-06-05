@@ -21,6 +21,10 @@
     "rewriteTsconfig": true
   },
   "files": [
-    "src/prune.ts"
+    "src/index.ts",
+    "src/io.ts",
+    "src/prune.ts",
+    "src/types.ts",
+    "typings/local.d.ts"
   ]
 }
