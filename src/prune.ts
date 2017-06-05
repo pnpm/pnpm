@@ -20,6 +20,7 @@ export default function prune (shr: Shrinkwrap, pkg: Package): Shrinkwrap {
   const shrDependencies: ResolvedDependencies = {}
   const shrOptionalDependencies: ResolvedDependencies = {}
   const shrDevDependencies: ResolvedDependencies = {}
+  const nonOptional = new Set()
 
   R.keys(shr.specifiers).forEach(depName => {
     if (allDeps.indexOf(depName) === -1) return
@@ -36,20 +37,21 @@ export default function prune (shr: Shrinkwrap, pkg: Package): Shrinkwrap {
   if (shrOptionalDependencies) {
     let optionalPkgIds: string[] = R.keys(shrOptionalDependencies)
       .map((pkgName: string) => getPkgShortId(shrOptionalDependencies[pkgName], pkgName))
-    copyDependencySubTree(packages, optionalPkgIds, shr, [], {registry: shr.registry, optional: true})
+    copyDependencySubTree(packages, optionalPkgIds, shr, [], {registry: shr.registry, nonOptional, optional: true})
   }
 
   if (shrDevDependencies) {
     let devPkgIds: string[] = R.keys(shrDevDependencies)
       .map((pkgName: string) => getPkgShortId(shrDevDependencies[pkgName], pkgName))
-    copyDependencySubTree(packages, devPkgIds, shr, [], {registry: shr.registry, dev: true})
+    copyDependencySubTree(packages, devPkgIds, shr, [], {registry: shr.registry, nonOptional, dev: true})
   }
 
-  let pkgIds: string[] = dependencies
+  let pkgIds: string[] = R.keys(shrDependencies)
     .map((pkgName: string) => getPkgShortId(shrDependencies[pkgName], pkgName))
 
   copyDependencySubTree(packages, pkgIds, shr, [], {
     registry: shr.registry,
+    nonOptional,
   })
 
   const result = {
@@ -79,6 +81,7 @@ function copyDependencySubTree (
     registry: string,
     dev?: boolean,
     optional?: boolean,
+    nonOptional: Set<string>,
   }
 ) {
   for (let pkgId of pkgIds) {
@@ -89,9 +92,10 @@ function copyDependencySubTree (
     }
     const depShr = shr.packages[pkgId]
     resolvedPackages[pkgId] = depShr
-    if (opts.optional) {
+    if (opts.optional && !opts.nonOptional.has(pkgId)) {
       depShr.optional = true
     } else {
+      opts.nonOptional.add(pkgId)
       delete depShr.optional
     }
     if (opts.dev) {
