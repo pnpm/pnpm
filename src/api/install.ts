@@ -57,7 +57,6 @@ export type InstallContext = {
     pkg: InstalledPackage,
     depth: number,
     installable: boolean,
-    parentNodeId: string,
   }[],
   shrinkwrap: Shrinkwrap,
   fetchingLocker: MemoizedFunc<Boolean>,
@@ -257,7 +256,7 @@ async function installInContext (
     installCtx.tree[nodeToBuild.nodeId] = {
       nodeId: nodeToBuild.nodeId,
       pkg: nodeToBuild.pkg,
-      children: buildTree(installCtx, nodeToBuild.parentNodeId, nodeToBuild.pkg.id,
+      children: buildTree(installCtx, nodeToBuild.nodeId, nodeToBuild.pkg.id,
         installCtx.childrenIdsByParentId[nodeToBuild.pkg.id], nodeToBuild.depth + 1, nodeToBuild.installable),
       depth: nodeToBuild.depth,
       installable: nodeToBuild.installable,

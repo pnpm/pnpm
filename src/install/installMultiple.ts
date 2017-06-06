@@ -260,7 +260,6 @@ async function install (
       pkg: ctx.installs[fetchedPkg.id],
       depth: options.currentDepth,
       installable,
-      parentNodeId: options.parentNodeId,
     })
   }
   // we need this for saving to package.json
