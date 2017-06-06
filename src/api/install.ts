@@ -235,7 +235,7 @@ async function installInContext (
       alwaysAuth: opts.alwaysAuth,
     }),
     metaCache: opts.metaCache,
-    resolvedDependencies: ctx.shrinkwrap.dependencies,
+    resolvedDependencies: Object.assign({}, ctx.shrinkwrap.devDependencies, ctx.shrinkwrap.dependencies, ctx.shrinkwrap.optionalDependencies),
     offline: opts.offline,
     rawNpmConfig: opts.rawNpmConfig,
     nodeModules: nodeModulesPath,

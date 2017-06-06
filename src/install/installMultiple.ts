@@ -87,7 +87,8 @@ export default async function installMultiple (
             : undefined
           return await install(spec, ctx, Object.assign({}, options, {
             pkgId,
-            resolvedDependencies: dependencyShrinkwrap && dependencyShrinkwrap.dependencies || {},
+            resolvedDependencies: dependencyShrinkwrap &&
+              <ResolvedDependencies>Object.assign({}, dependencyShrinkwrap.dependencies, dependencyShrinkwrap.optionalDependencies) || {},
             shrinkwrapResolution,
           }))
         })

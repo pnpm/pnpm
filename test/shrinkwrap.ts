@@ -1,3 +1,4 @@
+import path = require('path')
 import tape = require('tape')
 import promisifyTape from 'tape-promise'
 import writeYamlFile = require('write-yaml-file')
@@ -165,17 +166,32 @@ test('shrinkwrap removed when no deps in package.json', async t => {
 test('respects shrinkwrap.yaml for top dependencies', async (t: tape.Test) => {
   const project = prepare(t)
 
-  await addDistTag('dep-of-pkg-with-1-dep', '100.0.0', 'latest')
+  const pkgs = ['foo', 'bar', 'qar']
+  await Promise.all(pkgs.map(pkgName => addDistTag(pkgName, '100.0.0', 'latest')))
 
-  await installPkgs(['dep-of-pkg-with-1-dep'], testDefaults({save: true}))
+  await installPkgs(['foo'], testDefaults({save: true}))
+  await installPkgs(['bar'], testDefaults({saveOptional: true}))
+  await installPkgs(['qar'], testDefaults({saveDev: true}))
+  await installPkgs(['foobar'], testDefaults({save: true}))
 
-  await project.storeHas('dep-of-pkg-with-1-dep', '100.0.0')
+  t.equal((await readPkg(path.resolve('node_modules', 'foo', 'package.json'))).version, '100.0.0')
+  t.equal((await readPkg(path.resolve('node_modules', 'bar', 'package.json'))).version, '100.0.0')
+  t.equal((await readPkg(path.resolve('node_modules', 'qar', 'package.json'))).version, '100.0.0')
+  t.equal((await readPkg(path.resolve('node_modules', '.localhost+4873', 'foobar', '100.0.0', 'node_modules', 'foo', 'package.json'))).version, '100.0.0')
+  t.equal((await readPkg(path.resolve('node_modules', '.localhost+4873', 'foobar', '100.0.0', 'node_modules', 'bar', 'package.json'))).version, '100.0.0')
 
-  await addDistTag('dep-of-pkg-with-1-dep', '100.1.0', 'latest')
+  await Promise.all(pkgs.map(pkgName => addDistTag(pkgName, '100.1.0', 'latest')))
+
+  await rimraf('node_modules')
 
   await install(testDefaults())
 
-  await project.storeHasNot('dep-of-pkg-with-1-dep', '100.1.0')
+  await project.storeHasNot('foo', '100.1.0')
+  t.equal((await readPkg(path.resolve('node_modules', 'foo', 'package.json'))).version, '100.0.0')
+  t.equal((await readPkg(path.resolve('node_modules', 'bar', 'package.json'))).version, '100.0.0')
+  t.equal((await readPkg(path.resolve('node_modules', 'qar', 'package.json'))).version, '100.0.0')
+  t.equal((await readPkg(path.resolve('node_modules', '.localhost+4873', 'foobar', '100.0.0', 'node_modules', 'foo', 'package.json'))).version, '100.0.0')
+  t.equal((await readPkg(path.resolve('node_modules', '.localhost+4873', 'foobar', '100.0.0', 'node_modules', 'bar', 'package.json'))).version, '100.0.0')
 })
 
 test('subdeps are updated on repeat install if outer shrinkwrap.yaml does not match the inner one', async (t: tape.Test) => {
