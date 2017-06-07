@@ -363,7 +363,13 @@ async function installInContext (
   }
 
   // waiting till the skipped packages are downloaded to the store
-  await Promise.all(R.props<InstalledPackage>(Array.from(installCtx.skipped), installCtx.installs).map(pkg => pkg.fetchingFiles))
+  await Promise.all(
+    R.props<InstalledPackage>(Array.from(installCtx.skipped), installCtx.installs)
+      // skipped packages might have not been reanalized on a repeat install
+      // so lets just ignore those by excluding nulls
+      .filter(Boolean)
+      .map(pkg => pkg.fetchingFiles)
+  )
 }
 
 function buildTree (
