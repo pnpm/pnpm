@@ -26,7 +26,7 @@
     "@types/rc": "^0.0.1",
     "@types/semver": "^5.3.30",
     "@types/update-notifier": "^1.0.0",
-    "@zkochan/cmd-shim": "^2.2.2",
+    "@zkochan/cmd-shim": "^2.2.3",
     "@zkochan/dirsum": "^0.1.1",
     "arr-flatten": "^1.0.1",
     "bole": "^3.0.2",

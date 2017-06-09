@@ -10,7 +10,7 @@ dependencies:
   '@types/rc': 0.0.1
   '@types/semver': 5.3.31
   '@types/update-notifier': 1.0.1
-  '@zkochan/cmd-shim': 2.2.2
+  '@zkochan/cmd-shim': 2.2.3
   '@zkochan/dirsum': 0.1.1
   arr-flatten: 1.0.3
   bole: 3.0.2
@@ -156,13 +156,13 @@ packages:
   /@types/update-notifier/1.0.1:
     resolution:
       integrity: sha1-R+jwB8a1vK++QnMy47a0M83Bjdw=
-  /@zkochan/cmd-shim/2.2.2:
+  /@zkochan/cmd-shim/2.2.3:
     dependencies:
       is-windows: 1.0.1
       mkdirp-promise: 5.0.1
       mz: 2.6.0
     resolution:
-      integrity: sha1-jZ5CZg3Hv73s0TIhYMkaX3X/p9M=
+      integrity: sha1-G4vgewpit2Z8WfTm0JFpremoWIE=
   /@zkochan/dirsum/0.1.1:
     dependencies:
       graceful-fs: 4.1.11
@@ -3489,7 +3489,7 @@ specifiers:
   '@types/semver': ^5.3.30
   '@types/tape': ^4.2.28
   '@types/update-notifier': ^1.0.0
-  '@zkochan/cmd-shim': ^2.2.2
+  '@zkochan/cmd-shim': ^2.2.3
   '@zkochan/dirsum': ^0.1.1
   anonymous-npm-registry-client: ^0.1.2
   arr-flatten: ^1.0.1
