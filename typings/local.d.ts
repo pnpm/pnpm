@@ -258,3 +258,8 @@ declare module 'ssri' {
   const anything: any;
   export = anything;
 }
+
+declare module 'is-subdir' {
+  const anything: any;
+  export = anything;
+}

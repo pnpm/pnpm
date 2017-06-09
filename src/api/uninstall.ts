@@ -62,7 +62,7 @@ export async function uninstallInContext (pkgsToUninstall: string[], pkg: Packag
       storePath: ctx.storePath,
       skipped: Array.from(ctx.skipped).filter(pkgId => removedPkgIds.indexOf(pkgId) === -1),
     })
-    await removeOuterLinks(pkgsToUninstall, path.join(ctx.root, 'node_modules'))
+    await removeOuterLinks(pkgsToUninstall, path.join(ctx.root, 'node_modules'), {storePath: ctx.storePath})
   }
 }
 
@@ -75,9 +75,15 @@ function isDependentOn (pkg: Package, depName: string): boolean {
   .some(deptype => pkg[deptype] && pkg[deptype][depName])
 }
 
-async function removeOuterLinks (pkgsToUninstall: string[], modules: string) {
+async function removeOuterLinks (
+  pkgsToUninstall: string[],
+  modules: string,
+  opts: {
+    storePath: string,
+  }
+) {
   for (const pkgToUninstall of pkgsToUninstall) {
-    if (!await safeIsInnerLink(modules, pkgToUninstall)) {
+    if (!await safeIsInnerLink(modules, pkgToUninstall, opts)) {
       await removeTopDependency(pkgToUninstall, modules)
     }
   }

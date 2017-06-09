@@ -203,7 +203,13 @@ async function linkPkg (
   const newlyFetched = await dependency.fetchingFiles
 
   const pkgJsonPath = path.join(dependency.hardlinkedLocation, 'package.json')
-  if (newlyFetched || opts.force || !await exists(pkgJsonPath) || !await pkgLinkedToStore(pkgJsonPath, dependency)) {
+  if (newlyFetched || opts.force || !await exists(pkgJsonPath)) {
+    if (dependency.independent) return
+
+    await linkDir(dependency.path, dependency.hardlinkedLocation)
+    return
+  }
+  if (!await pkgLinkedToStore(pkgJsonPath, dependency)) {
     await linkDir(dependency.path, dependency.hardlinkedLocation)
   }
 }
