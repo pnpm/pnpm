@@ -255,7 +255,8 @@ async function installInContext (
     parentNodeId: ':/:',
     currentDepth: 0,
   }
-  const nonLinkedPkgs = await pFilter(packagesToInstall, (spec: PackageSpec) => !spec.name || safeIsInnerLink(nodeModulesPath, spec.name))
+  const nonLinkedPkgs = await pFilter(packagesToInstall,
+    (spec: PackageSpec) => !spec.name || safeIsInnerLink(nodeModulesPath, spec.name, {storePath: ctx.storePath}))
   const rootPkgs = await installMultiple(
     installCtx,
     nonLinkedPkgs,

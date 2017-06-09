@@ -202,7 +202,10 @@ async function linkPkg (
 ) {
   const fetchResult = await dependency.fetchingFiles
 
+  if (dependency.independent) return
+
   const pkgJsonPath = path.join(dependency.hardlinkedLocation, 'package.json')
+
   if (fetchResult.isNew || opts.force || !await exists(pkgJsonPath) || !await pkgLinkedToStore(pkgJsonPath, dependency)) {
     await linkIndexedDir(dependency.path, dependency.hardlinkedLocation, fetchResult.index)
   }

@@ -25,6 +25,7 @@ dependencies:
   graceful-fs: 4.1.11
   is-ci: 1.0.10
   is-inner-link: 2.0.0
+  is-subdir: 1.0.0
   is-windows: 1.0.1
   isexe: 2.0.0
   load-json-file: 2.0.0
@@ -3526,6 +3527,7 @@ specifiers:
   in-publish: ^2.0.0
   is-ci: ^1.0.10
   is-inner-link: ^2.0.0
+  is-subdir: ^1.0.0
   is-windows: ^1.0.0
   isexe: ^2.0.0
   load-json-file: ^2.0.0
