@@ -2,13 +2,14 @@ import tape = require('tape')
 import promisifyTape from 'tape-promise'
 import path = require('path')
 import exists = require('path-exists')
-import {installPkgs} from '../../src'
+import {installPkgs, install} from '../../src'
 import {
   prepare,
   testDefaults,
 } from '../utils'
 import streamParser from '../../src/logging/streamParser'
 import deepRequireCwd = require('deep-require-cwd')
+import rimraf = require('rimraf-then')
 
 const test = promisifyTape(tape)
 const NM = 'node_modules'
@@ -21,6 +22,14 @@ test("don't fail when peer dependency is fetched from GitHub", t => {
 test('peer dependency is grouped with dependency when peer is resolved not from a top dependency', async (t: tape.Test) => {
   const project = prepare(t)
   await installPkgs(['using-ajv'], testDefaults())
+
+  t.ok(await exists(path.join(NM, '.localhost+4873', 'ajv-keywords', '1.5.0', 'ajv@4.10.4', NM, 'ajv')), 'peer dependency is linked')
+  t.equal(deepRequireCwd(['using-ajv', 'ajv-keywords', 'ajv', './package.json']).version, '4.10.4')
+
+  // testing that peers are reinstalled correctly using info from the shrinkwrap file
+  await rimraf('node_modules')
+  await rimraf(path.resolve('..', '.store'))
+  await install(testDefaults())
 
   t.ok(await exists(path.join(NM, '.localhost+4873', 'ajv-keywords', '1.5.0', 'ajv@4.10.4', NM, 'ajv')), 'peer dependency is linked')
   t.equal(deepRequireCwd(['using-ajv', 'ajv-keywords', 'ajv', './package.json']).version, '4.10.4')

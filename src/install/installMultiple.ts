@@ -112,12 +112,11 @@ function dependencyShrToResolution (
   return depShr.resolution as Resolution
 
   function getTarball () {
-    const noPrefixPkgShortId = pkgShortId.substr(1)
-    const divideAt = noPrefixPkgShortId.lastIndexOf('/')
-    return getNpmTarballUrl(
-      noPrefixPkgShortId.substr(0, divideAt),
-      noPrefixPkgShortId.substr(divideAt + 1),
-      {registry})
+    const parts = pkgShortId.split('/')
+    if (parts[1][0] === '@') {
+      return getNpmTarballUrl(`${parts[1]}/${parts[2]}`, parts[3], {registry})
+    }
+    return getNpmTarballUrl(parts[1], parts[2], {registry})
   }
 }
 
