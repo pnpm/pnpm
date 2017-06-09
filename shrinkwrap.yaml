@@ -18,7 +18,7 @@ dependencies:
   camelcase: 4.1.0
   common-tags: 1.4.0
   cross-spawn: 5.1.0
-  execa: 0.6.3
+  execa: 0.7.0
   find-up: 2.1.0
   fs-write-stream-atomic: 1.0.10
   get-npm-tarball-url: 2.0.0
@@ -685,7 +685,7 @@ packages:
       integrity: sha1-hF/wwINKPe2dFg2sptOQkGuyiMw=
   /cross-spawn/5.1.0:
     dependencies:
-      lru-cache: 4.0.2
+      lru-cache: 4.1.0
       shebang-command: 1.2.0
       which: 1.2.14
     resolution:
@@ -971,7 +971,7 @@ packages:
       strip-eof: 1.0.0
     resolution:
       integrity: sha1-TrZGejaglfq7KXD/nV4/t7zm68M=
-  /execa/0.6.3:
+  /execa/0.7.0:
     dependencies:
       cross-spawn: 5.1.0
       get-stream: 3.0.0
@@ -981,7 +981,7 @@ packages:
       signal-exit: 3.0.2
       strip-eof: 1.0.0
     resolution:
-      integrity: sha1-V7aaWU8IF1nGnlNw8NF7nLEWWP4=
+      integrity: sha1-lEvs00zEHuMqY6n68nrVpl/Fl3c=
   /exists-link/2.0.0:
     dev: true
     resolution:
@@ -1882,6 +1882,12 @@ packages:
       yallist: 2.1.2
     resolution:
       integrity: sha1-HRdnnAac2l0ECZGgnbwsDbN35V4=
+  /lru-cache/4.1.0:
+    dependencies:
+      pseudomap: 1.0.2
+      yallist: 2.1.2
+    resolution:
+      integrity: sha1-Wb5JpoO42YapOfHKYP22mJ9LIEY=
   /lunr/0.7.2:
     dev: true
     resolution:
@@ -3496,7 +3502,7 @@ specifiers:
   cross-spawn: ^5.0.0
   cz-conventional-changelog: ^2.0.0
   deep-require-cwd: ^1.0.0
-  execa: ^0.6.3
+  execa: ^0.7.0
   exists-link: ^2.0.0
   find-up: ^2.1.0
   fs-write-stream-atomic: ^1.0.10

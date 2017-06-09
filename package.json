@@ -34,7 +34,7 @@
     "camelcase": "^4.1.0",
     "common-tags": "^1.4.0",
     "cross-spawn": "^5.0.0",
-    "execa": "^0.6.3",
+    "execa": "^0.7.0",
     "find-up": "^2.1.0",
     "fs-write-stream-atomic": "^1.0.10",
     "get-npm-tarball-url": "^2.0.0",
