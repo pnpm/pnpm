@@ -23,7 +23,7 @@ export default function prepare (t: Test, pkg?: Object) {
   const dirname = dirNumber.toString()
   const pkgTmpPath = path.join(tmpPath, dirname, 'project')
   mkdirp.sync(pkgTmpPath)
-  const json = JSON.stringify(Object.assign({name: 'foo', version: '0.0.0'}, pkg), null, 2)
+  const json = JSON.stringify(Object.assign({name: 'project', version: '0.0.0'}, pkg), null, 2)
   fs.writeFileSync(path.join(pkgTmpPath, 'package.json'), json, 'utf-8')
   process.chdir(pkgTmpPath)
   t.pass(`create testing package ${dirname}`)

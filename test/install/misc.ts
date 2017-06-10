@@ -330,47 +330,6 @@ test('shrinkwrap compatibility', async function (t) {
   })
 })
 
-test('save to package.json (rimraf@2.5.1)', async function (t) {
-  const project = prepare(t)
-  await installPkgs(['rimraf@2.5.1'], testDefaults({ save: true }))
-
-  const m = project.requireModule('rimraf')
-  t.ok(typeof m === 'function', 'rimraf() is available')
-
-  const pkgJson = await readPkg()
-  t.deepEqual(pkgJson.dependencies, {rimraf: '^2.5.1'}, 'rimraf has been added to dependencies')
-})
-
-test('saveDev scoped module to package.json (@rstacruz/tap-spec)', async function (t) {
-  const project = prepare(t)
-  await installPkgs(['@rstacruz/tap-spec'], testDefaults({ saveDev: true }))
-
-  const m = project.requireModule('@rstacruz/tap-spec')
-  t.ok(typeof m === 'function', 'tapSpec() is available')
-
-  const pkgJson = await readPkg()
-  t.deepEqual(pkgJson.devDependencies, { '@rstacruz/tap-spec': '^4.1.1' }, 'tap-spec has been added to devDependencies')
-})
-
-test('multiple save to package.json with `exact` versions (@rstacruz/tap-spec & rimraf@2.5.1) (in sorted order)', async function (t) {
-  const project = prepare(t)
-  await installPkgs(['rimraf@2.5.1', '@rstacruz/tap-spec@latest'], testDefaults({ save: true, saveExact: true }))
-
-  const m1 = project.requireModule('@rstacruz/tap-spec')
-  t.ok(typeof m1 === 'function', 'tapSpec() is available')
-
-  const m2 = project.requireModule('rimraf')
-  t.ok(typeof m2 === 'function', 'rimraf() is available')
-
-  const pkgJson = await readPkg()
-  const expectedDeps = {
-    '@rstacruz/tap-spec': '4.1.1',
-    rimraf: '2.5.1'
-  }
-  t.deepEqual(pkgJson.dependencies, expectedDeps, 'tap-spec and rimraf have been added to dependencies')
-  t.deepEqual(Object.keys(pkgJson.dependencies), Object.keys(expectedDeps), 'tap-spec and rimraf have been added to dependencies in sorted order')
-})
-
 test('production install (with --production flag)', async function (t) {
   const project = prepare(t, basicPackageJson)
 

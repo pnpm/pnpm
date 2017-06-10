@@ -44,7 +44,7 @@ export default async function uninstallCmd (pkgsToUninstall: string[], maybeOpts
 }
 
 export async function uninstallInContext (pkgsToUninstall: string[], pkg: Package, ctx: PnpmContext, opts: StrictPnpmOptions) {
-  const saveType = getSaveType(opts)
+  const saveType = getSaveType(opts) || 'dependencies'
   if (saveType) {
     const pkgJsonPath = path.join(ctx.root, 'package.json')
     const pkg = await removeDeps(pkgJsonPath, pkgsToUninstall, saveType)

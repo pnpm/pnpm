@@ -60,10 +60,6 @@ export default (opts?: PnpmOptions): StrictPnpmOptions => {
   if (extendedOpts.localRegistry !== DEFAULT_LOCAL_REGISTRY) {
     extendedOpts.localRegistry = expandTilde(extendedOpts.localRegistry, extendedOpts.prefix)
   }
-  if (extendedOpts.save === false && extendedOpts.saveDev === false && extendedOpts.saveOptional === false) {
-    throw new Error('Cannot install with save/saveDev/saveOptional all being equal false')
-  }
-  extendedOpts.save = extendedOpts.save || !extendedOpts.saveDev && !extendedOpts.saveOptional
   if (extendedOpts.userAgent.startsWith('npm/')) {
     extendedOpts.userAgent = `${pnpmPkgJson.name}/${pnpmPkgJson.version} ${extendedOpts.userAgent}`
   }
