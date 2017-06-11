@@ -18,6 +18,8 @@ import removeAllExceptOuterLinks = require('remove-all-except-outer-links')
 import logger from 'pnpm-logger'
 import checkCompatibility from './checkCompatibility'
 
+const STORE_VERSION = '2'
+
 export type PnpmContext = {
   pkg: Package,
   storePath: string,
@@ -32,7 +34,7 @@ export default async function getContext (opts: StrictPnpmOptions, installType?:
   const root = normalizePath(opts.prefix)
   const storeBasePath = resolveStoreBasePath(opts.storePath, root)
 
-  const storePath = getStorePath(storeBasePath)
+  const storePath = path.join(storeBasePath, STORE_VERSION)
 
   const modulesPath = path.join(root, 'node_modules')
   let modules = await readModules(modulesPath)
@@ -91,15 +93,4 @@ function resolveStoreBasePath (storePath: string, pkgRoot: string) {
     return expandTilde(storePath)
   }
   return path.resolve(pkgRoot, storePath)
-}
-
-function getStorePath (storeBasePath: string): string {
-  if (underNodeModules(storeBasePath)) {
-    return storeBasePath
-  }
-  return path.join(storeBasePath, '2')
-}
-
-function underNodeModules (dirpath: string): boolean {
-  return dirpath.split(path.sep).indexOf('node_modules') !== -1
 }

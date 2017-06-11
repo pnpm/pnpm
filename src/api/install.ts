@@ -222,7 +222,6 @@ async function installInContext (
   const installOpts = {
     root: ctx.root,
     storePath: ctx.storePath,
-    localRegistry: opts.localRegistry,
     registry: ctx.shrinkwrap.registry,
     force: opts.force,
     depth: update ? opts.depth :

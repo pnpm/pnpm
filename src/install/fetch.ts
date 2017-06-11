@@ -39,7 +39,6 @@ export default async function fetch (
   options: {
     prefix: string,
     storePath: string,
-    localRegistry: string,
     registry: string,
     metaCache: Map<string, PackageMeta>,
     got: Got,
@@ -60,7 +59,7 @@ export default async function fetch (
         loggedPkg: options.loggedPkg,
         prefix: options.prefix,
         got: options.got,
-        localRegistry: options.localRegistry,
+        storePath: options.storePath,
         registry: options.registry,
         metaCache: options.metaCache,
         offline: options.offline,
@@ -86,7 +85,7 @@ export default async function fetch (
       resolution: <Resolution>resolution,
       pkgId: id,
       got: options.got,
-      localRegistry: options.localRegistry,
+      storePath: options.storePath,
       offline: options.offline,
     }))
 
@@ -115,7 +114,7 @@ async function fetchToStore (opts: {
   resolution: Resolution,
   pkgId: string,
   got: Got,
-  localRegistry: string,
+  storePath: string,
   offline: boolean,
 }): Promise<Boolean> {
   const target = opts.target
@@ -140,7 +139,7 @@ async function fetchToStore (opts: {
   await fetchResolution(opts.resolution, targetStage, {
     got: opts.got,
     pkgId: opts.pkgId,
-    localRegistry: opts.localRegistry,
+    storePath: opts.storePath,
     offline: opts.offline,
   })
   logStatus({

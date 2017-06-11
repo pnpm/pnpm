@@ -21,7 +21,7 @@ const fetchLogger = logger('fetch')
 export type FetchOptions = {
   pkgId: string,
   got: Got,
-  localRegistry: string,
+  storePath: string,
   offline: boolean,
 }
 
@@ -112,10 +112,10 @@ export function fetchFromTarball (dir: string, dist: PackageDist, opts: FetchOpt
 }
 
 export async function fetchFromRemoteTarball (dir: string, dist: PackageDist, opts: FetchOptions) {
-  const localTarballPath = getLocalTarballPath(dist.tarball, opts.localRegistry)
+  const localTarballPath = getLocalTarballPath(dist.tarball, opts.storePath)
   if (!await existsFile(localTarballPath)) {
     if (opts.offline) {
-      throw new PnpmError('NO_OFFLINE_TARBALL', `Could not find ${localTarballPath} in local registry mirror ${opts.localRegistry}`)
+      throw new PnpmError('NO_OFFLINE_TARBALL', `Could not find ${localTarballPath} in local registry mirror ${opts.storePath}`)
     }
     await opts.got.download(dist.tarball, localTarballPath, {
       registry: dist.registry,

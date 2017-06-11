@@ -4,8 +4,6 @@ import logger from 'pnpm-logger'
 import expandTilde from '../fs/expandTilde'
 import pnpmPkgJson from '../pnpmPkgJson'
 
-const DEFAULT_LOCAL_REGISTRY = expandTilde('~/.pnpm-registry')
-
 const defaults = (opts: PnpmOptions) => {
   const prefix = process.cwd()
   return <StrictPnpmOptions>{
@@ -14,7 +12,6 @@ const defaults = (opts: PnpmOptions) => {
     fetchRetryMintimeout: 1e4, // 10 seconds
     fetchRetryMaxtimeout: 6e4, // 1 minute
     storePath: '~/.pnpm-store',
-    localRegistry: DEFAULT_LOCAL_REGISTRY,
     ignoreScripts: false,
     strictSsl: true,
     tag: 'latest',
@@ -56,9 +53,6 @@ export default (opts?: PnpmOptions): StrictPnpmOptions => {
   }
   if (extendedOpts.lock === false) {
     logger.warn('using --no-lock I sure hope you know what you are doing')
-  }
-  if (extendedOpts.localRegistry !== DEFAULT_LOCAL_REGISTRY) {
-    extendedOpts.localRegistry = expandTilde(extendedOpts.localRegistry, extendedOpts.prefix)
   }
   if (extendedOpts.userAgent.startsWith('npm/')) {
     extendedOpts.userAgent = `${pnpmPkgJson.name}/${pnpmPkgJson.version} ${extendedOpts.userAgent}`

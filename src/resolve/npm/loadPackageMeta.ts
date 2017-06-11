@@ -32,7 +32,7 @@ const metafileOperationLimits = {}
 export default async function loadPkgMetaNonCached (
   spec: PackageSpec,
   opts: {
-    localRegistry: string,
+    storePath: string,
     got: Got,
     metaCache: Map<string, PackageMeta>,
     offline: boolean,
@@ -46,7 +46,7 @@ export default async function loadPkgMetaNonCached (
   }
 
   const registryName = getRegistryName(opts.registry)
-  const pkgMirror = path.join(opts.localRegistry, registryName, spec.name)
+  const pkgMirror = path.join(opts.storePath, registryName, spec.name)
   const limit = metafileOperationLimits[pkgMirror] = metafileOperationLimits[pkgMirror] || pLimit(1)
 
   if (opts.offline) {
@@ -73,10 +73,10 @@ export default async function loadPkgMetaNonCached (
     limit(() => saveMeta(pkgMirror, meta))
     return meta
   } catch (err) {
-    const meta = await loadMeta(opts.localRegistry)
+    const meta = await loadMeta(opts.storePath)
     if (!meta) throw err
     logger.error(err)
-    logger.info(`Using cached meta from ${opts.localRegistry}`)
+    logger.info(`Using cached meta from ${opts.storePath}`)
     return meta
   }
 }

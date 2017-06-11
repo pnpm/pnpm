@@ -43,7 +43,6 @@ export type PnpmOptions = {
 
   // pnpm specific configs
   storePath?: string,
-  localRegistry?: string,
   networkConcurrency?: number,
   fetchingConcurrency?: number,
   lockStaleDuration?: number,
@@ -97,7 +96,6 @@ export type StrictPnpmOptions = {
 
   // pnpm specific configs
   storePath: string,
-  localRegistry: string,
   networkConcurrency: number,
   fetchingConcurrency: number,
   lockStaleDuration: number,

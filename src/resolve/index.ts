@@ -89,7 +89,7 @@ export type PackageSpec = HostedPackageSpec |
 export type ResolveOptions = {
   loggedPkg: LoggedPkg,
   got: Got,
-  localRegistry: string,
+  storePath: string,
   registry: string,
   metaCache: Map<string, PackageMeta>,
   prefix: string,
