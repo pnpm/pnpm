@@ -97,7 +97,7 @@ function getStorePath (storeBasePath: string): string {
   if (underNodeModules(storeBasePath)) {
     return storeBasePath
   }
-  return path.join(storeBasePath, '1')
+  return path.join(storeBasePath, '2')
 }
 
 function underNodeModules (dirpath: string): boolean {
