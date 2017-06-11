@@ -76,6 +76,7 @@ test('modules without version spec, with custom tag config', async function (t) 
 
   const tag = 'beta'
 
+  await addDistTag('dep-of-pkg-with-1-dep', '100.1.0', 'latest')
   await addDistTag('dep-of-pkg-with-1-dep', '100.0.0', tag)
 
   await installPkgs(['dep-of-pkg-with-1-dep'], testDefaults({tag}))
@@ -86,11 +87,28 @@ test('modules without version spec, with custom tag config', async function (t) 
 test('installing a package by specifying a specific dist-tag', async function (t) {
   const project = prepare(t)
 
+  await addDistTag('dep-of-pkg-with-1-dep', '100.1.0', 'latest')
   await addDistTag('dep-of-pkg-with-1-dep', '100.0.0', 'beta')
 
   await installPkgs(['dep-of-pkg-with-1-dep@beta'], testDefaults())
 
   await project.storeHas('dep-of-pkg-with-1-dep', '100.0.0')
+})
+
+test('update a package when installing with a dist-tag', async function (t: tape.Test) {
+  const project = prepare(t)
+
+  await addDistTag('dep-of-pkg-with-1-dep', '100.1.0', 'latest')
+  await addDistTag('dep-of-pkg-with-1-dep', '100.0.0', 'beta')
+
+  await installPkgs(['dep-of-pkg-with-1-dep'], testDefaults({saveDev: true}))
+
+  await installPkgs(['dep-of-pkg-with-1-dep@beta'], testDefaults({saveDev: true}))
+
+  await project.storeHas('dep-of-pkg-with-1-dep', '100.0.0')
+
+  const pkg = await readPkg()
+  t.equal(pkg.devDependencies['dep-of-pkg-with-1-dep'], '^100.0.0')
 })
 
 test('scoped modules with versions (@rstacruz/tap-spec@4.1.1)', async function (t) {

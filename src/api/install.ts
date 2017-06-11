@@ -218,13 +218,14 @@ async function installInContext (
   const oldSpecs = parts[0]
   const newSpecs = parts[1]
 
+  const update = opts.update || installType === 'named'
   const installOpts = {
     root: ctx.root,
     storePath: ctx.storePath,
     localRegistry: opts.localRegistry,
     registry: ctx.shrinkwrap.registry,
     force: opts.force,
-    depth: opts.update ? opts.depth :
+    depth: update ? opts.depth :
       (R.equals(ctx.shrinkwrap.packages, ctx.privateShrinkwrap.packages) ? opts.repeatInstallDepth : Infinity),
     engineStrict: opts.engineStrict,
     nodeVersion: opts.nodeVersion,
@@ -238,7 +239,7 @@ async function installInContext (
     offline: opts.offline,
     rawNpmConfig: opts.rawNpmConfig,
     nodeModules: nodeModulesPath,
-    update: opts.update,
+    update,
     keypath: [],
     referencedFrom: opts.prefix,
     prefix: opts.prefix,
