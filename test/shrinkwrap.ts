@@ -268,21 +268,25 @@ test('repeat install with shrinkwrap should not mutate shrinkwrap when dependenc
 test('package is not marked dev if it is also a subdep of a regular dependency', async (t: tape.Test) => {
   const project = prepare(t)
 
-  await installPkgs(['pkg-with-1-dep'])
-  await installPkgs(['dep-of-pkg-with-1-dep'], {saveDev: true})
+  await addDistTag('dep-of-pkg-with-1-dep', '100.0.0', 'latest')
+
+  await installPkgs(['pkg-with-1-dep'], testDefaults())
+  await installPkgs(['dep-of-pkg-with-1-dep'], testDefaults({saveDev: true}))
 
   const shr = await project.loadShrinkwrap()
 
-  t.notOk(shr.packages['/dep-of-pkg-with-1-dep/1.1.0']['dev'])
+  t.notOk(shr.packages['/dep-of-pkg-with-1-dep/100.0.0']['dev'])
 })
 
 test('package is not marked optional if it is also a subdep of a regular dependency', async (t: tape.Test) => {
   const project = prepare(t)
 
-  await installPkgs(['pkg-with-1-dep'])
-  await installPkgs(['dep-of-pkg-with-1-dep'], {saveOptional: true})
+  await addDistTag('dep-of-pkg-with-1-dep', '100.0.0', 'latest')
+
+  await installPkgs(['pkg-with-1-dep'], testDefaults())
+  await installPkgs(['dep-of-pkg-with-1-dep'], testDefaults({saveOptional: true}))
 
   const shr = await project.loadShrinkwrap()
 
-  t.notOk(shr.packages['/dep-of-pkg-with-1-dep/1.1.0']['optional'])
+  t.notOk(shr.packages['/dep-of-pkg-with-1-dep/100.0.0']['optional'])
 })

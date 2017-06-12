@@ -12,6 +12,7 @@ import mkdirp = require('mkdirp-promise')
 import writeJsonFile = require('write-json-file')
 import pkgIdToFilename from '../fs/pkgIdToFilename'
 import {fromDir as readPkgFromDir} from '../fs/readPkg'
+import {fromDir as safeReadPkgFromDir} from '../fs/safeReadPkg'
 import exists = require('path-exists')
 import memoize, {MemoizedFunc} from '../memoize'
 import {Package} from '../types'
@@ -20,6 +21,7 @@ import {InstallContext} from '../api/install'
 import fetchResolution from './fetchResolution'
 import logStatus from '../logging/logInstallStatus'
 import untouched from '../pkgIsUntouched'
+import symlinkDir = require('symlink-dir')
 
 export type FetchedPackage = {
   fetchingPkg: Promise<Package>,
@@ -41,13 +43,18 @@ export default async function fetch (
     update?: boolean,
     shrinkwrapResolution?: Resolution,
     pkgId?: string,
-    fetchingLocker: MemoizedFunc<Boolean>,
+    fetchingLocker: {
+      [pkgId: string]: {
+        fetchingFiles: Promise<Boolean>,
+        fetchingPkg: Promise<Package>,
+      },
+    },
     loggedPkg: LoggedPkg,
     offline: boolean,
   }
 ): Promise<FetchedPackage> {
   try {
-    let fetchingPkg = null
+    let pkg: Package | undefined = undefined
     let resolution = options.shrinkwrapResolution
     let pkgId = options.pkgId
     if (!resolution || options.update) {
@@ -66,9 +73,7 @@ export default async function fetch (
         resolution = resolveResult.resolution
       }
       pkgId = resolveResult.id
-      if (resolveResult.package) {
-        fetchingPkg = Promise.resolve(resolveResult.package)
-      }
+      pkg = resolveResult.package
     }
     const id = <string>pkgId
 
@@ -76,22 +81,21 @@ export default async function fetch (
 
     const target = path.join(options.storePath, pkgIdToFilename(id))
 
-    const fetchingFiles = options.fetchingLocker(id, () => fetchToStore({
-      target,
-      resolution: <Resolution>resolution,
-      pkgId: id,
-      got: options.got,
-      storePath: options.storePath,
-      offline: options.offline,
-    }))
-
-    if (fetchingPkg == null) {
-      fetchingPkg = fetchingFiles.then(() => readPkgFromDir(target))
+    if (!options.fetchingLocker[id]) {
+      options.fetchingLocker[id] = fetchToStore({
+        target,
+        resolution: <Resolution>resolution,
+        pkgId: id,
+        got: options.got,
+        storePath: options.storePath,
+        offline: options.offline,
+        pkg,
+      })
     }
 
     return {
-      fetchingPkg,
-      fetchingFiles,
+      fetchingPkg: options.fetchingLocker[id].fetchingPkg,
+      fetchingFiles: options.fetchingLocker[id].fetchingFiles,
       id,
       resolution,
       path: target,
@@ -105,49 +109,109 @@ export default async function fetch (
   }
 }
 
-async function fetchToStore (opts: {
+function fetchToStore (opts: {
   target: string,
   resolution: Resolution,
   pkgId: string,
   got: Got,
   storePath: string,
   offline: boolean,
-}): Promise<Boolean> {
-  const target = opts.target
-  const targetExists = await exists(target)
+  pkg?: Package,
+}): {
+  fetchingFiles: Promise<Boolean>,
+  fetchingPkg: Promise<Package>,
+} {
+  const fetchingPkg = differed()
+  const fetchingFiles = differed()
 
-  if (targetExists) {
-    // if target exists and it wasn't modified, then no need to refetch it
-    if (await untouched(target)) return false
-    logger.warn(`Refetching ${target} to store, as it was modified`)
+  fetch()
+
+  return {
+    fetchingFiles: fetchingFiles.promise,
+    fetchingPkg: opts.pkg && Promise.resolve(opts.pkg) || fetchingPkg.promise,
   }
 
-  // We fetch into targetStage directory first and then fs.rename() it to the
-  // target directory.
+  async function fetch () {
+    try {
+      let target = opts.target
+      const linkToUnpacked = path.join(target, 'package')
+      const targetExists = await exists(path.join(linkToUnpacked, 'package.json'))
 
-  const targetStage = `${target}_stage`
+      if (targetExists) {
+        // if target exists and it wasn't modified, then no need to refetch it
+        if (await untouched(linkToUnpacked)) {
+          fetchingFiles.resolve(false)
+          if (!opts.pkg) {
+            readPkgFromDir(linkToUnpacked)
+              .then(pkg => fetchingPkg.resolve(pkg))
+              .catch(err => fetchingPkg.reject(err))
+          }
+          return
+        }
+        logger.warn(`Refetching ${target} to store, as it was modified`)
+      }
 
-  await rimraf(targetStage)
-  if (targetExists) {
-    await rimraf(target)
+      // We fetch into targetStage directory first and then fs.rename() it to the
+      // target directory.
+
+      const targetStage = `${target}_stage`
+
+      await rimraf(targetStage)
+      if (targetExists) {
+        await rimraf(target)
+      }
+
+      const dirIntegration = await fetchResolution(opts.resolution, targetStage, {
+        got: opts.got,
+        pkgId: opts.pkgId,
+        storePath: opts.storePath,
+        offline: opts.offline,
+      })
+      logStatus({
+        status: 'fetched',
+        pkgId: opts.pkgId,
+      })
+
+      let pkg: Package
+      if (opts.pkg) {
+        pkg = opts.pkg
+      } else {
+        pkg = await readPkgFromDir(targetStage)
+        fetchingPkg.resolve(pkg)
+      }
+      const unpacked = path.join(target, 'node_modules', pkg.name)
+      await writeJsonFile(path.join(target, 'integrity.json'), dirIntegration)
+      await mkdirp(path.dirname(unpacked))
+
+      // fs.rename(oldPath, newPath) is an atomic operation, so we do it at the
+      // end
+      await fs.rename(targetStage, unpacked)
+      await symlinkDir(unpacked, linkToUnpacked)
+
+      fetchingFiles.resolve(true)
+    } catch (err) {
+      fetchingFiles.reject(err)
+      if (!opts.pkg) {
+        fetchingPkg.reject(err)
+      }
+    }
   }
+}
 
-  const dirIntegration = await fetchResolution(opts.resolution, targetStage, {
-    got: opts.got,
-    pkgId: opts.pkgId,
-    storePath: opts.storePath,
-    offline: opts.offline,
+function differed (): {
+  promise: Promise<{}>,
+  resolve: Function,
+  reject: Function,
+} {
+  let pResolve: Function = () => {}
+  let pReject: Function = () => {}
+  const promise = new Promise((resolve, reject) => {
+    pResolve = resolve
+    pReject = reject
   })
-  logStatus({
-    status: 'fetched',
-    pkgId: opts.pkgId,
-  })
-
-  await writeJsonFile(`${target}_integrity.json`, dirIntegration)
-
-  // fs.rename(oldPath, newPath) is an atomic operation, so we do it at the
-  // end
-  await fs.rename(targetStage, target)
-
-  return true
+  return {
+    promise,
+    resolve: pResolve,
+    reject: pReject,
+  }
 }

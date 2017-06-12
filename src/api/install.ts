@@ -59,7 +59,12 @@ export type InstallContext = {
     installable: boolean,
   }[],
   shrinkwrap: Shrinkwrap,
-  fetchingLocker: MemoizedFunc<Boolean>,
+  fetchingLocker: {
+    [pkgId: string]: {
+      fetchingFiles: Promise<Boolean>,
+      fetchingPkg: Promise<Package>,
+    },
+  },
   // the IDs of packages that are not installable
   skipped: Set<string>,
   tree: {[nodeId: string]: TreeNode},
@@ -425,7 +430,7 @@ async function createInstallCmd (opts: StrictPnpmOptions, shrinkwrap: Shrinkwrap
     childrenIdsByParentId: {},
     nodesToBuild: [],
     shrinkwrap,
-    fetchingLocker: createMemoize<boolean>(opts.fetchingConcurrency),
+    fetchingLocker: {},
     skipped,
     tree: {},
   }

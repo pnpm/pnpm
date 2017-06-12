@@ -80,12 +80,12 @@ test('a package that need authentication reuses authorization tokens for tarball
     }, (err: Error, data: Object) => err ? reject(err) : resolve(data))
   })
 
-  const opts = {
+  const opts = testDefaults({
     registry: 'http://127.0.0.1:4873',
     rawNpmConfig: {
       '//127.0.0.1:4873/:_authToken': data['token'],
     },
-  }
+  })
 
   await installPkgs(['needs-auth'], opts)
 

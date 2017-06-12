@@ -19,5 +19,5 @@ export default async function (maybeOpts: PnpmOptions) {
     .filter(pkgId => pkgId && !ctx.skipped.has(pkgId))
     .map((pkgPath: string) => path.join(ctx.storePath, pkgPath))
 
-  return await pFilter(pkgPaths, async (pkgPath: string) => !await untouched(pkgPath))
+  return await pFilter(pkgPaths, async (pkgPath: string) => !await untouched(path.join(pkgPath, 'package')))
 }

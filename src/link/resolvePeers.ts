@@ -100,7 +100,7 @@ function resolvePeersOfNode (
       hasBundledDependencies: node.pkg.hasBundledDependencies,
       fetchingFiles: node.pkg.fetchingFiles,
       resolution: node.pkg.resolution,
-      path: node.pkg.path,
+      path: path.join(node.pkg.path, 'node_modules', node.pkg.name),
       modules,
       hardlinkedLocation,
       optionalDependencies: node.pkg.optionalDependencies,
