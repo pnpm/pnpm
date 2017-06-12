@@ -11,13 +11,13 @@ dependencies:
   '@types/semver': 5.3.31
   '@types/update-notifier': 1.0.1
   '@zkochan/cmd-shim': 2.2.3
-  '@zkochan/dirsum': 0.1.1
   arr-flatten: 1.0.3
   bole: 3.0.2
   byline: 5.0.0
   camelcase: 4.1.0
   common-tags: 1.4.0
   cross-spawn: 5.1.0
+  dint: 1.0.0
   execa: 0.7.0
   find-up: 2.1.0
   fs-write-stream-atomic: 1.0.10
@@ -68,9 +68,8 @@ dependencies:
   ssri: 4.1.5
   symlink-dir: 1.0.3
   thenify: 3.3.0
-  unpack-stream: 1.1.0
+  unpack-stream: 1.2.0
   update-notifier: 2.1.0
-  write-file-atomic: 2.1.0
   write-json-file: 2.2.0
   write-pkg: 3.0.1
   write-yaml-file: 1.0.0
@@ -130,6 +129,9 @@ packages:
   /@types/node/7.0.27:
     resolution:
       integrity: sha1-ul4ah6yitPWBcolhX/5WRyknaH4=
+  /@types/node/7.0.29:
+    resolution:
+      integrity: sha1-zPzsW3E1x8r2xP+4x/MxAjQNmd8=
   /@types/nopt/3.0.29:
     resolution:
       integrity: sha1-8Z3z20yX7hRZonQAKDIKcdcJZM4=
@@ -163,11 +165,6 @@ packages:
       mz: 2.6.0
     resolution:
       integrity: sha1-G4vgewpit2Z8WfTm0JFpremoWIE=
-  /@zkochan/dirsum/0.1.1:
-    dependencies:
-      graceful-fs: 4.1.11
-    resolution:
-      integrity: sha1-qEpHnO8zqqf/BRPQ5ZTy/vZR74Q=
   /JSONStream/1.3.1:
     dependencies:
       jsonparse: 1.3.1
@@ -347,7 +344,7 @@ packages:
       integrity: sha1-Y7xdy2EzG5K8Bf1SiVPDNGKgb40=
   /bl/1.2.1:
     dependencies:
-      readable-stream: 2.2.10
+      readable-stream: 2.2.11
     resolution:
       integrity: sha1-ysMo977kVzDUBLaSID/LWQ4XLV4=
   /block-stream/0.0.9:
@@ -355,6 +352,9 @@ packages:
       inherits: 2.0.3
     resolution:
       integrity: sha1-E+v+d4oDIFz+A3UUgeu0szAMEmo=
+  /bluebird/3.5.0:
+    resolution:
+      integrity: sha1-eRQg1/VR7qKJdFOop3ZT+WYG1nw=
   /body-parser/1.17.2:
     dependencies:
       bytes: 2.4.0
@@ -826,6 +826,14 @@ packages:
     dev: true
     resolution:
       integrity: sha1-yc45Okt8vQsFinJck98pkCeGj/k=
+  /dint/1.0.0:
+    dependencies:
+      bluebird: 3.5.0
+      graceful-fs: 4.1.11
+      p-every: 1.0.2
+      ssri: 4.1.6
+    resolution:
+      integrity: sha1-S/7IGLOmVysyi96o0FHM1d5YDEQ=
   /dom-serializer/0.1.0:
     dependencies:
       domelementtype: 1.1.3
@@ -877,7 +885,7 @@ packages:
     dependencies:
       end-of-stream: 1.0.0
       inherits: 2.0.3
-      readable-stream: 2.2.10
+      readable-stream: 2.2.11
       stream-shift: 1.0.0
     resolution:
       integrity: sha1-GqdzAC4VeEV+nZ1KULDMquvL1gQ=
@@ -2291,6 +2299,11 @@ packages:
       os-tmpdir: 1.0.2
     resolution:
       integrity: sha1-Qv5tWVPfBsgGS+bxdsPQWqqjRkQ=
+  /p-every/1.0.2:
+    dependencies:
+      p-map: 1.1.1
+    resolution:
+      integrity: sha1-TgHYXCPaGe1xpK+6MZvbTZTIXgA=
   /p-filter/1.0.0:
     dependencies:
       p-map: 1.1.1
@@ -2621,6 +2634,17 @@ packages:
       util-deprecate: 1.0.2
     resolution:
       integrity: sha1-7/5yu3yITA3TNeI3nVJhltnQEe4=
+  /readable-stream/2.2.11:
+    dependencies:
+      core-util-is: 1.0.2
+      inherits: 2.0.3
+      isarray: 1.0.0
+      process-nextick-args: 1.0.7
+      safe-buffer: 5.0.1
+      string_decoder: 1.0.2
+      util-deprecate: 1.0.2
+    resolution:
+      integrity: sha1-B5azH412iAB/8Lk6gIjTSqF8D3I=
   /rechoir/0.6.2:
     dependencies:
       resolve: 1.3.3
@@ -2799,6 +2823,9 @@ packages:
     dev: true
     resolution:
       integrity: sha1-pfE/957zt0D+MKqAP7CfmIBdR4I=
+  /safe-buffer/5.0.1:
+    resolution:
+      integrity: sha1-0mPKVGls2KMGtcplUekt5XkY++c=
   /safe-buffer/5.1.0:
     resolution:
       integrity: sha1-/kyEYDl/nqqqWOc75GJzQIpF4iM=
@@ -2974,6 +3001,11 @@ packages:
       safe-buffer: 5.1.0
     resolution:
       integrity: sha1-44RHcLU3nO1ptRLnCijYbYar1Do=
+  /ssri/4.1.6:
+    dependencies:
+      safe-buffer: 5.1.0
+    resolution:
+      integrity: sha1-DLSbashEV+e91GbLcww8tiPpols=
   /statuses/1.3.1:
     dev: true
     resolution:
@@ -3021,6 +3053,11 @@ packages:
       safe-buffer: 5.1.0
     resolution:
       integrity: sha1-YuIA8DmVWmgQ2N8KM//A8BNmLZg=
+  /string_decoder/1.0.2:
+    dependencies:
+      safe-buffer: 5.0.1
+    resolution:
+      integrity: sha1-sp4fThEl+pehA4K4pTNze3SR4Xk=
   /stringstream/0.0.5:
     resolution:
       integrity: sha1-TkhM1N5aC7vuGORjB3EKioFiGHg=
@@ -3101,7 +3138,7 @@ packages:
     dependencies:
       bl: 1.2.1
       end-of-stream: 1.4.0
-      readable-stream: 2.2.10
+      readable-stream: 2.2.11
       xtend: 4.0.1
     resolution:
       integrity: sha1-NlSc8E7RrumyowwBQyUiONr5QBY=
@@ -3132,7 +3169,7 @@ packages:
       integrity: sha1-DdTJ/6q8NXlgsbckEV1+Doai4fU=
   /through2/2.0.3:
     dependencies:
-      readable-stream: 2.2.10
+      readable-stream: 2.2.11
       xtend: 4.0.1
     resolution:
       integrity: sha1-AARWmzfHx0ujnEPzzteNGtlBQL4=
@@ -3260,13 +3297,14 @@ packages:
     dev: true
     resolution:
       integrity: sha1-HAgkFQSBvHoB1J6Y8exmjYJBLzs=
-  /unpack-stream/1.1.0:
+  /unpack-stream/1.2.0:
     dependencies:
-      '@types/node': 7.0.27
+      '@types/node': 7.0.29
       decompress-maybe: 1.0.0
+      ssri: 4.1.6
       tar-fs: 1.15.3
     resolution:
-      integrity: sha1-IjGxfdJLm4F3Xrx1FsZaKoY745g=
+      integrity: sha1-Jz+VNRXx/bkx2f64cDdxUWsVVKo=
   /unpipe/1.0.0:
     dev: true
     resolution:
@@ -3490,7 +3528,6 @@ specifiers:
   '@types/tape': ^4.2.28
   '@types/update-notifier': ^1.0.0
   '@zkochan/cmd-shim': ^2.2.3
-  '@zkochan/dirsum': ^0.1.1
   anonymous-npm-registry-client: ^0.1.2
   arr-flatten: ^1.0.1
   bole: ^3.0.2
@@ -3502,6 +3539,7 @@ specifiers:
   cross-spawn: ^5.0.0
   cz-conventional-changelog: ^2.0.0
   deep-require-cwd: ^1.0.0
+  dint: ^1.0.0
   execa: ^0.7.0
   exists-link: ^2.0.0
   find-up: ^2.1.0
@@ -3564,10 +3602,9 @@ specifiers:
   ts-node: ^3.0.0
   tslint: ^5.4.2
   typescript: ^2.1.5
-  unpack-stream: ^1.1.0
+  unpack-stream: ^1.2.0
   update-notifier: ^2.1.0
   validate-commit-msg: ^2.7.0
-  write-file-atomic: ^2.1.0
   write-json-file: ^2.0.0
   write-pkg: ^3.0.1
   write-yaml-file: ^1.0.0

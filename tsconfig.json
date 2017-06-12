@@ -47,7 +47,6 @@
     "src/depsToSpecs.ts",
     "src/err.ts",
     "src/errorTypes.ts",
-    "src/fs/dirsum.ts",
     "src/fs/expandTilde.ts",
     "src/fs/getPkgDirs.ts",
     "src/fs/gracefulify.ts",

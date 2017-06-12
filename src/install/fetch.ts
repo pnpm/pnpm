@@ -9,8 +9,7 @@ import resolve, {
   PackageMeta,
 } from '../resolve'
 import mkdirp = require('mkdirp-promise')
-import thenify = require('thenify')
-import writeFileAtomicCB = require('write-file-atomic')
+import writeJsonFile = require('write-json-file')
 import pkgIdToFilename from '../fs/pkgIdToFilename'
 import {fromDir as readPkgFromDir} from '../fs/readPkg'
 import exists = require('path-exists')
@@ -20,10 +19,7 @@ import {Got} from '../network/got'
 import {InstallContext} from '../api/install'
 import fetchResolution from './fetchResolution'
 import logStatus from '../logging/logInstallStatus'
-import dirsum from '../fs/dirsum'
 import untouched from '../pkgIsUntouched'
-
-const writeFileAtomic = thenify(writeFileAtomicCB)
 
 export type FetchedPackage = {
   fetchingPkg: Promise<Package>,
@@ -136,7 +132,7 @@ async function fetchToStore (opts: {
     await rimraf(target)
   }
 
-  await fetchResolution(opts.resolution, targetStage, {
+  const dirIntegration = await fetchResolution(opts.resolution, targetStage, {
     got: opts.got,
     pkgId: opts.pkgId,
     storePath: opts.storePath,
@@ -147,23 +143,11 @@ async function fetchToStore (opts: {
     pkgId: opts.pkgId,
   })
 
+  await writeJsonFile(`${target}_integrity.json`, dirIntegration)
+
   // fs.rename(oldPath, newPath) is an atomic operation, so we do it at the
   // end
   await fs.rename(targetStage, target)
 
-  createShasum(target)
-
   return true
-}
-
-async function createShasum(dirPath: string) {
-  try {
-    const shasum = await dirsum(dirPath)
-    await writeFileAtomic(`${dirPath}_shasum`, shasum, 'utf8')
-  } catch (err) {
-    logger.error({
-      message: `Failed to calculate shasum for ${dirPath}`,
-      err,
-    })
-  }
 }

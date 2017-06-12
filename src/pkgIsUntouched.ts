@@ -1,14 +1,14 @@
 import fs = require('mz/fs')
-import dirsum from './fs/dirsum'
+import loadJsonFile = require('load-json-file')
+import dint = require('dint')
 
 export default async function untouched (pkgDir: string): Promise<Boolean> {
-  const realShasum = await dirsum(pkgDir)
-  let originalShasum: string | null = null
+  let dirIntegrity: {} | null = null
   try {
-    originalShasum = await fs.readFile(`${pkgDir}_shasum`, 'utf8')
+    dirIntegrity = await loadJsonFile(`${pkgDir}_integrity.json`)
   } catch (err) {
     if (err.code !== 'ENOENT') throw err
     return false // for backward compatibility
   }
-  return realShasum === originalShasum
+  return dint.check(pkgDir, dirIntegrity)
 }

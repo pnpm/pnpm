@@ -6,6 +6,7 @@ import execa = require('execa')
 import {IncomingMessage} from 'http'
 import * as unpackStream from 'unpack-stream'
 import existsFile = require('path-exists')
+import dint = require('dint')
 import {Resolution} from '../resolve'
 import {Got} from '../network/got'
 import logStatus from '../logging/logInstallStatus'
@@ -13,6 +14,7 @@ import parseNpmTarballUrl from 'parse-npm-tarball-url'
 import parseCodeloadUrl from 'parse-codeload-url'
 import {escapeHost} from '../resolve/npm/getRegistryName'
 import {PnpmError} from '../errorTypes'
+import rimraf = require('rimraf-then')
 
 const gitLogger = logger('git')
 
@@ -35,7 +37,7 @@ export default async function fetchResolution (
   resolution: Resolution,
   target: string,
   opts: FetchOptions
-): Promise<void> {
+): Promise<unpackStream.Index> {
   switch (resolution.type) {
 
     case undefined:
@@ -44,20 +46,18 @@ export default async function fetchResolution (
         integrity: resolution.integrity,
         registry: resolution.registry,
       }
-      await fetchFromTarball(target, dist, opts)
-      break;
+      return await fetchFromTarball(target, dist, opts)
 
     case 'git':
-      await clone(resolution.repo, resolution.commit, target)
-      break;
+      return await clone(resolution.repo, resolution.commit, target)
 
     case 'directory': {
       const tgzFilename = await npmPack(resolution.directory)
       const tarball = path.resolve(resolution.directory, tgzFilename)
       const dist = {tarball: tarball}
-      await fetchFromLocalTarball(target, dist)
+      const index = await fetchFromLocalTarball(target, dist)
       await fs.unlink(dist.tarball)
-      break;
+      return index
     }
   }
 }
@@ -90,6 +90,9 @@ function npmPack(dependencyPath: string): Promise<string> {
 async function clone (repo: string, commitId: string, dest: string) {
   await execGit(['clone', repo, dest])
   await execGit(['checkout', commitId], {cwd: dest})
+  // removing /.git to make directory integrity calculation faster
+  await rimraf(path.join(dest, '.git'))
+  return dint.from(dest)
 }
 
 function prefixGitArgs (): string[] {
@@ -129,11 +132,12 @@ export async function fetchFromRemoteTarball (dir: string, dist: PackageDist, op
         })
     })
   }
-  await fetchFromLocalTarball(dir, {
+  const index = await fetchFromLocalTarball(dir, {
     integrity: dist.integrity,
     tarball: localTarballPath,
   })
   fetchLogger.debug(`finish ${dist.integrity} ${dist.tarball}`)
+  return index
 }
 
 function getLocalTarballPath (tarballUrl: string, localRegistry: string) {
@@ -169,6 +173,9 @@ function unscope (pkgName: string) {
   return pkgName
 }
 
-async function fetchFromLocalTarball (dir: string, dist: PackageDist) {
-  await unpackStream.local(fs.createReadStream(dist.tarball), dir)
+async function fetchFromLocalTarball (
+  dir: string,
+  dist: PackageDist
+): Promise<unpackStream.Index> {
+  return await unpackStream.local(fs.createReadStream(dist.tarball), dir)
 }

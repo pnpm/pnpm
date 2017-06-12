@@ -138,11 +138,6 @@ declare module 'write-json-file' {
   export = anything;
 }
 
-declare module 'write-file-atomic' {
-  const anything: any;
-  export = anything;
-}
-
 declare module 'mem' {
   const anything: any;
   export = anything;
@@ -184,11 +179,6 @@ declare module 'p-limit' {
 }
 
 declare module 'p-filter' {
-  const anything: any;
-  export = anything;
-}
-
-declare module '@zkochan/dirsum' {
   const anything: any;
   export = anything;
 }
@@ -255,6 +245,11 @@ declare module 'read-package-json' {
 }
 
 declare module 'ssri' {
+  const anything: any;
+  export = anything;
+}
+
+declare module 'dint' {
   const anything: any;
   export = anything;
 }
