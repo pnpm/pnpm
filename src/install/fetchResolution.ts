@@ -10,8 +10,6 @@ import dint = require('dint')
 import {Resolution} from '../resolve'
 import {Got} from '../network/got'
 import logStatus from '../logging/logInstallStatus'
-import parseNpmTarballUrl from 'parse-npm-tarball-url'
-import parseCodeloadUrl from 'parse-codeload-url'
 import {escapeHost} from '../resolve/npm/getRegistryName'
 import {PnpmError} from '../errorTypes'
 import rimraf = require('rimraf-then')
@@ -115,7 +113,7 @@ export function fetchFromTarball (dir: string, dist: PackageDist, opts: FetchOpt
 }
 
 export async function fetchFromRemoteTarball (dir: string, dist: PackageDist, opts: FetchOptions) {
-  const localTarballPath = getLocalTarballPath(dist.tarball, opts.storePath)
+  const localTarballPath = path.join(opts.storePath, opts.pkgId, 'packed.tgz')
   if (!await existsFile(localTarballPath)) {
     if (opts.offline) {
       throw new PnpmError('NO_OFFLINE_TARBALL', `Could not find ${localTarballPath} in local registry mirror ${opts.storePath}`)
@@ -138,39 +136,6 @@ export async function fetchFromRemoteTarball (dir: string, dist: PackageDist, op
   })
   fetchLogger.debug(`finish ${dist.integrity} ${dist.tarball}`)
   return index
-}
-
-function getLocalTarballPath (tarballUrl: string, localRegistry: string) {
-  const tarball = parseNpmTarballUrl(tarballUrl)
-  if (tarball) {
-    const escapedHost = escapeHost(tarball.host)
-    return path.join(localRegistry, escapedHost, tarball.pkg.name,
-      `${unscope(tarball.pkg.name)}-${tarball.pkg.version}.tgz`)
-  }
-  if (tarballUrl.includes('//codeload.github.com')) {
-    const repo = parseCodeloadUrl(tarballUrl)
-    return path.join(localRegistry, 'codeload.github.com', repo.owner,
-      repo.name, `${repo.name}-${repo.commit}.tgz`)
-  }
-  return path.join(localRegistry,
-    normalizeTarballExtension(tarballUrl.replace(/^.*:\/\/(git@)?/, '')))
-}
-
-function normalizeTarballExtension (tarballUrl: string) {
-  if (tarballUrl.endsWith('.tar.gz')) {
-    return `${tarballUrl.slice(0, -7)}.tgz`
-  }
-  if (tarballUrl.endsWith('.tgz')) {
-    return tarballUrl
-  }
-  return `${tarballUrl}.tgz`
-}
-
-function unscope (pkgName: string) {
-  if (pkgName[0] === '@') {
-    return pkgName.split('/')[1]
-  }
-  return pkgName
 }
 
 async function fetchFromLocalTarball (

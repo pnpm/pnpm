@@ -60,7 +60,6 @@
     "os-homedir": "^1.0.2",
     "p-filter": "^1.0.0",
     "p-limit": "^1.1.0",
-    "parse-codeload-url": "^1.0.0",
     "parse-npm-tarball-url": "^1.0.1",
     "path-exists": "^3.0.0",
     "path-name": "^1.0.0",

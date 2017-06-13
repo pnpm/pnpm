@@ -46,7 +46,6 @@ dependencies:
   os-homedir: 1.0.2
   p-filter: 1.0.0
   p-limit: 1.1.0
-  parse-codeload-url: 1.0.0
   parse-npm-tarball-url: 1.0.1
   path-exists: 3.0.0
   path-name: 1.0.0
@@ -2320,9 +2319,6 @@ packages:
   /pako/0.2.9:
     resolution:
       integrity: sha1-8/dSL073gjSNqBYbrZ7P1Rv4OnU=
-  /parse-codeload-url/1.0.0:
-    resolution:
-      integrity: sha1-9HXaPgcGb8FtLVBqe3mbY5iLtSo=
   /parse-glob/3.0.4:
     dependencies:
       glob-base: 0.3.0
@@ -3553,7 +3549,6 @@ specifiers:
   os-homedir: ^1.0.2
   p-filter: ^1.0.0
   p-limit: ^1.1.0
-  parse-codeload-url: ^1.0.0
   parse-npm-tarball-url: ^1.0.1
   path-exists: ^3.0.0
   path-name: ^1.0.0
