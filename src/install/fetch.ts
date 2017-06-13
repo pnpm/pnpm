@@ -172,7 +172,9 @@ function fetchToStore (opts: {
             offline: opts.offline,
           })
         }(),
-        targetExists && await rimraf(target)
+        // removing only the folder with the unpacked files
+        // not touching tarball and integrity.json
+        targetExists && await rimraf(path.join(target, 'node_modules'))
       ])
       logStatus({
         status: 'fetched',
@@ -181,7 +183,7 @@ function fetchToStore (opts: {
 
       await Promise.all([
         // fetchingFilse shouldn't care about when this is saved at all
-        writeJsonFile(path.join(target, 'integrity.json'), dirIntegrity),
+        !targetExists && writeJsonFile(path.join(target, 'integrity.json'), dirIntegrity),
         async function () {
           let pkg: Package
           if (opts.pkg) {
