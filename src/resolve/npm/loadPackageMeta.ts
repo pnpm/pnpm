@@ -87,10 +87,10 @@ async function fromRegistry (got: Got, spec: PackageSpec, registry: string) {
   return meta
 }
 
-// Don't let the name confuse you, this file contains meta information
+// This file contains meta information
 // about all the packages published by the same name, not just the manifest
 // of one package/version
-const META_FILENAME = 'package.json'
+const META_FILENAME = 'index.json'
 
 async function loadMeta (pkgMirror: string): Promise<PackageMeta | null> {
   try {
