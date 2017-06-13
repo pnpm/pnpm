@@ -1,17 +1,17 @@
 import path = require('path')
-import loadYamlFile = require('load-yaml-file')
-import writeYamlFile = require('write-yaml-file')
+import loadJsonFile = require('load-json-file')
+import writeJsonFile = require('write-json-file')
 
-const STORE_YAML = 'store.yaml'
+const STORE_JSON = 'store.json'
 
 export type Store = {
   [name: string]: string[],
 }
 
 export async function read (storePath: string): Promise<Store | null> {
-  const storeYamlPath = path.join(storePath, STORE_YAML)
+  const storeJsonPath = path.join(storePath, STORE_JSON)
   try {
-    return await loadYamlFile<Store>(storeYamlPath)
+    return await loadJsonFile(storeJsonPath)
   } catch (err) {
     if ((<NodeJS.ErrnoException>err).code !== 'ENOENT') {
       throw err
@@ -21,6 +21,6 @@ export async function read (storePath: string): Promise<Store | null> {
 }
 
 export function save (storePath: string, store: Store) {
-  const storeYamlPath = path.join(storePath, STORE_YAML)
-  return writeYamlFile(storeYamlPath, store, {sortKeys: true})
+  const storeJsonPath = path.join(storePath, STORE_JSON)
+  return writeJsonFile(storeJsonPath, store)
 }
