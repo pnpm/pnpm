@@ -85,14 +85,6 @@ However, pnpm has some unique configs as well:
 
 The location where all the packages are saved on the disk.
 
-#### local-registry
-
-* Default: **~/.pnpm-registry**
-* Type: **path**
-
-The location of all the downloaded packages and package meta information.
-Can be also used as a [verdaccio](https://github.com/verdaccio/verdaccio) storage.
-
 #### offline
 
 * Default: **false**

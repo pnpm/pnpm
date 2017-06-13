@@ -54,7 +54,6 @@ const supportedCmds = new Set([
 async function run (argv: string[]) {
   const pnpmTypes = {
     'store-path': path,
-    'local-registry': path,
     'global-path': path,
     'network-concurrency': Number,
     'fetching-concurrency': Number,
