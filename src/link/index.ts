@@ -6,7 +6,7 @@ import logger from 'pnpm-logger'
 import R = require('ramda')
 import pLimit = require('p-limit')
 import {InstalledPackage} from '../install/installMultiple'
-import {InstalledPackages, TreeNode} from '../api/install'
+import {InstalledPackages, TreeNode, PackageContentInfo} from '../api/install'
 import linkBins from './linkBins'
 import {Package, Dependencies} from '../types'
 import {Resolution} from '../resolve'
@@ -165,7 +165,7 @@ async function linkNewPackages (
 const limitLinking = pLimit(16)
 
 async function linkAllPkgs (
-  linkPkg: (dependency: DependencyTreeNode, opts: {
+  linkPkg: (fetchResult: PackageContentInfo, dependency: DependencyTreeNode, opts: {
     force: boolean,
     baseNodeModules: string,
   }) => Promise<void>,
@@ -177,7 +177,12 @@ async function linkAllPkgs (
   }
 ) {
   return Promise.all(
-    alldeps.map(pkg => limitLinking(() => linkPkg(pkg, opts)))
+    alldeps.map(async pkg => {
+      const fetchResult = await pkg.fetchingFiles
+
+      if (pkg.independent) return
+      return limitLinking(() => linkPkg(fetchResult, pkg, opts))
+    })
   )
 }
 
@@ -194,16 +199,13 @@ async function linkAllModules (
 }
 
 async function linkPkg (
+  fetchResult: PackageContentInfo,
   dependency: DependencyTreeNode,
   opts: {
     force: boolean,
     baseNodeModules: string,
   }
 ) {
-  const fetchResult = await dependency.fetchingFiles
-
-  if (dependency.independent) return
-
   const pkgJsonPath = path.join(dependency.hardlinkedLocation, 'package.json')
 
   if (fetchResult.isNew || opts.force || !await exists(pkgJsonPath) || !await pkgLinkedToStore(pkgJsonPath, dependency)) {
@@ -212,6 +214,7 @@ async function linkPkg (
 }
 
 async function copyPkg (
+  fetchResult: PackageContentInfo,
   dependency: DependencyTreeNode,
   opts: {
     force: boolean,
