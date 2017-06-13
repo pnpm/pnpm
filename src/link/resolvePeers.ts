@@ -5,14 +5,14 @@ import semver = require('semver')
 import logger from 'pnpm-logger'
 import path = require('path')
 import {InstalledPackage} from '../install/installMultiple'
-import {TreeNode, TreeNodeMap} from '../api/install'
+import {TreeNode, TreeNodeMap, PackageContentInfo} from '../api/install'
 
 export type DependencyTreeNode = {
   name: string,
   hasBundledDependencies: boolean,
   path: string,
   modules: string,
-  fetchingFiles: Promise<boolean>,
+  fetchingFiles: Promise<PackageContentInfo>,
   resolution: Resolution,
   hardlinkedLocation: string,
   children: string[],

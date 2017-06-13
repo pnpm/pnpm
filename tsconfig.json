@@ -50,6 +50,7 @@
     "src/fs/expandTilde.ts",
     "src/fs/getPkgDirs.ts",
     "src/fs/gracefulify.ts",
+    "src/fs/linkIndexedDir.ts",
     "src/fs/modulesController.ts",
     "src/fs/pkgIdToFilename.ts",
     "src/fs/readPkg.ts",

@@ -49,6 +49,11 @@ export type TreeNodeMap = {
   [nodeId: string]: TreeNode,
 }
 
+export type PackageContentInfo = {
+  isNew: boolean,
+  index: {},
+}
+
 export type InstallContext = {
   installs: InstalledPackages,
   childrenIdsByParentId: {[parentId: string]: string[]},
@@ -61,7 +66,7 @@ export type InstallContext = {
   shrinkwrap: Shrinkwrap,
   fetchingLocker: {
     [pkgId: string]: {
-      fetchingFiles: Promise<Boolean>,
+      fetchingFiles: Promise<PackageContentInfo>,
       fetchingPkg: Promise<Package>,
     },
   },

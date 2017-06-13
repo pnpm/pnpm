@@ -1,6 +1,5 @@
 import fs = require('mz/fs')
 import path = require('path')
-import linkDir = require('link-dir')
 import symlinkDir = require('symlink-dir')
 import exists = require('path-exists')
 import logger from 'pnpm-logger'
@@ -17,6 +16,7 @@ import updateShrinkwrap from './updateShrinkwrap'
 import {shortIdToFullId} from '../fs/shrinkwrap'
 import {Shrinkwrap, DependencyShrinkwrap} from 'pnpm-lockfile'
 import removeOrphanPkgs from '../api/removeOrphanPkgs'
+import linkIndexedDir from '../fs/linkIndexedDir'
 import ncpCB = require('ncp')
 import thenify = require('thenify')
 
@@ -200,11 +200,11 @@ async function linkPkg (
     baseNodeModules: string,
   }
 ) {
-  const newlyFetched = await dependency.fetchingFiles
+  const fetchResult = await dependency.fetchingFiles
 
   const pkgJsonPath = path.join(dependency.hardlinkedLocation, 'package.json')
-  if (newlyFetched || opts.force || !await exists(pkgJsonPath) || !await pkgLinkedToStore(pkgJsonPath, dependency)) {
-    await linkDir(dependency.path, dependency.hardlinkedLocation)
+  if (fetchResult.isNew || opts.force || !await exists(pkgJsonPath) || !await pkgLinkedToStore(pkgJsonPath, dependency)) {
+    await linkIndexedDir(dependency.path, dependency.hardlinkedLocation, fetchResult.index)
   }
 }
 

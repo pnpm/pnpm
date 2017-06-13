@@ -27,7 +27,6 @@ dependencies:
   is-inner-link: 2.0.0
   is-windows: 1.0.1
   isexe: 2.0.0
-  link-dir: 2.0.1
   load-json-file: 2.0.0
   load-yaml-file: 0.1.0
   loud-rejection: 1.6.0
@@ -113,19 +112,11 @@ packages:
     dev: true
     resolution:
       integrity: sha1-fyrX7FX5FEgvybHsS7GuYCjUYGY=
-  /@types/mz/0.0.30:
-    dependencies:
-      '@types/node': 7.0.27
-    resolution:
-      integrity: sha1-WNqp81gR1gcDe6sfnMfUoj5qr64=
   /@types/mz/0.0.31:
     dependencies:
       '@types/node': 7.0.27
     resolution:
       integrity: sha1-pNgMCC/v5x5Ap8DwfR5lVbu8e1I=
-  /@types/node/6.0.77:
-    resolution:
-      integrity: sha1-Pk1WmkJ/FwheHuTs08Mb77Vq97U=
   /@types/node/7.0.27:
     resolution:
       integrity: sha1-ul4ah6yitPWBcolhX/5WRyknaH4=
@@ -1803,17 +1794,6 @@ packages:
     dev: true
     resolution:
       integrity: sha1-zQLosyB1ZF3c9dBZ4C76kY+fs+w=
-  /link-dir/2.0.1:
-    dependencies:
-      '@types/mz': 0.0.30
-      '@types/node': 6.0.77
-      bole: 3.0.2
-      graceful-fs: 4.1.11
-      mkdirp-promise: 5.0.1
-      mz: 2.6.0
-      rimraf-then: 1.0.1
-    resolution:
-      integrity: sha1-yoxobW+PddFwi54WbF2vt8i6DwQ=
   /linkify-it/1.2.4:
     dependencies:
       uc.micro: 1.0.3
@@ -3552,7 +3532,6 @@ specifiers:
   is-inner-link: ^2.0.0
   is-windows: ^1.0.0
   isexe: ^2.0.0
-  link-dir: ^2.0.1
   load-json-file: ^2.0.0
   load-yaml-file: ^0.1.0
   loud-rejection: ^1.6.0

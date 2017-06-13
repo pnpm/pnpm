@@ -4,7 +4,7 @@ import R = require('ramda')
 import getNpmTarballUrl from 'get-npm-tarball-url'
 import exists = require('path-exists')
 import fetch, {FetchedPackage} from './fetch'
-import {InstallContext, InstalledPackages} from '../api/install'
+import {InstallContext, InstalledPackages, PackageContentInfo} from '../api/install'
 import {Dependencies} from '../types'
 import memoize from '../memoize'
 import {Package} from '../types'
@@ -35,7 +35,7 @@ export type InstalledPackage = {
   srcPath?: string,
   dev: boolean,
   optional: boolean,
-  fetchingFiles: Promise<Boolean>,
+  fetchingFiles: Promise<PackageContentInfo>,
   path: string,
   specRaw: string,
   name: string,

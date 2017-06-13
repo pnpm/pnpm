@@ -17,7 +17,7 @@ import exists = require('path-exists')
 import memoize, {MemoizedFunc} from '../memoize'
 import {Package} from '../types'
 import {Got} from '../network/got'
-import {InstallContext} from '../api/install'
+import {InstallContext, PackageContentInfo} from '../api/install'
 import fetchResolution from './fetchResolution'
 import logStatus from '../logging/logInstallStatus'
 import untouched from '../pkgIsUntouched'
@@ -25,7 +25,10 @@ import symlinkDir = require('symlink-dir')
 
 export type FetchedPackage = {
   fetchingPkg: Promise<Package>,
-  fetchingFiles: Promise<Boolean>,
+  fetchingFiles: Promise<{
+    isNew: boolean,
+    index: {},
+  }>,
   path: string,
   srcPath?: string,
   id: string,
@@ -45,7 +48,7 @@ export default async function fetch (
     pkgId?: string,
     fetchingLocker: {
       [pkgId: string]: {
-        fetchingFiles: Promise<Boolean>,
+        fetchingFiles: Promise<PackageContentInfo>,
         fetchingPkg: Promise<Package>,
       },
     },
@@ -118,11 +121,11 @@ function fetchToStore (opts: {
   offline: boolean,
   pkg?: Package,
 }): {
-  fetchingFiles: Promise<Boolean>,
+  fetchingFiles: Promise<PackageContentInfo>,
   fetchingPkg: Promise<Package>,
 } {
-  const fetchingPkg = differed()
-  const fetchingFiles = differed()
+  const fetchingPkg = differed<Package>()
+  const fetchingFiles = differed<PackageContentInfo>()
 
   fetch()
 
@@ -139,8 +142,12 @@ function fetchToStore (opts: {
 
       if (targetExists) {
         // if target exists and it wasn't modified, then no need to refetch it
-        if (await untouched(linkToUnpacked)) {
-          fetchingFiles.resolve(false)
+        const satisfiedIntegrity = await untouched(linkToUnpacked)
+        if (satisfiedIntegrity) {
+          fetchingFiles.resolve({
+            isNew: false,
+            index: satisfiedIntegrity,
+          })
           if (!opts.pkg) {
             readPkgFromDir(linkToUnpacked)
               .then(pkg => fetchingPkg.resolve(pkg))
@@ -161,7 +168,7 @@ function fetchToStore (opts: {
         await rimraf(target)
       }
 
-      const dirIntegration = await fetchResolution(opts.resolution, targetStage, {
+      const dirIntegrity = await fetchResolution(opts.resolution, targetStage, {
         got: opts.got,
         pkgId: opts.pkgId,
         storePath: opts.storePath,
@@ -180,7 +187,7 @@ function fetchToStore (opts: {
         fetchingPkg.resolve(pkg)
       }
       const unpacked = path.join(target, 'node_modules', pkg.name)
-      await writeJsonFile(path.join(target, 'integrity.json'), dirIntegration)
+      await writeJsonFile(path.join(target, 'integrity.json'), dirIntegrity)
       await mkdirp(path.dirname(unpacked))
 
       // fs.rename(oldPath, newPath) is an atomic operation, so we do it at the
@@ -188,7 +195,10 @@ function fetchToStore (opts: {
       await fs.rename(targetStage, unpacked)
       await symlinkDir(unpacked, linkToUnpacked)
 
-      fetchingFiles.resolve(true)
+      fetchingFiles.resolve({
+        isNew: true,
+        index: dirIntegrity,
+      })
     } catch (err) {
       fetchingFiles.reject(err)
       if (!opts.pkg) {
@@ -198,13 +208,13 @@ function fetchToStore (opts: {
   }
 }
 
-function differed (): {
-  promise: Promise<{}>,
-  resolve: Function,
-  reject: Function,
+function differed<T> (): {
+  promise: Promise<T>,
+  resolve: (v: T) => void,
+  reject: (err: Error) => void,
 } {
-  let pResolve: Function = () => {}
-  let pReject: Function = () => {}
+  let pResolve: (v: T) => void = () => {}
+  let pReject: (err: Error) => void = () => {}
   const promise = new Promise((resolve, reject) => {
     pResolve = resolve
     pReject = reject
