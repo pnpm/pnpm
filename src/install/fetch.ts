@@ -25,10 +25,7 @@ import symlinkDir = require('symlink-dir')
 
 export type FetchedPackage = {
   fetchingPkg: Promise<Package>,
-  fetchingFiles: Promise<{
-    isNew: boolean,
-    index: {},
-  }>,
+  fetchingFiles: Promise<PackageContentInfo>,
   path: string,
   srcPath?: string,
   id: string,
@@ -164,36 +161,45 @@ function fetchToStore (opts: {
       const targetStage = `${target}_stage`
 
       await rimraf(targetStage)
-      if (targetExists) {
-        await rimraf(target)
-      }
 
-      const dirIntegrity = await fetchResolution(opts.resolution, targetStage, {
-        got: opts.got,
-        pkgId: opts.pkgId,
-        storePath: opts.storePath,
-        offline: opts.offline,
-      })
+      let dirIntegrity = {}
+      await Promise.all([
+        async function () {
+          dirIntegrity = await fetchResolution(opts.resolution, targetStage, {
+            got: opts.got,
+            pkgId: opts.pkgId,
+            storePath: opts.storePath,
+            offline: opts.offline,
+          })
+        }(),
+        targetExists && await rimraf(target)
+      ])
       logStatus({
         status: 'fetched',
         pkgId: opts.pkgId,
       })
 
-      let pkg: Package
-      if (opts.pkg) {
-        pkg = opts.pkg
-      } else {
-        pkg = await readPkgFromDir(targetStage)
-        fetchingPkg.resolve(pkg)
-      }
-      const unpacked = path.join(target, 'node_modules', pkg.name)
-      await writeJsonFile(path.join(target, 'integrity.json'), dirIntegrity)
-      await mkdirp(path.dirname(unpacked))
+      await Promise.all([
+        // fetchingFilse shouldn't care about when this is saved at all
+        writeJsonFile(path.join(target, 'integrity.json'), dirIntegrity),
+        async function () {
+          let pkg: Package
+          if (opts.pkg) {
+            pkg = opts.pkg
+          } else {
+            pkg = await readPkgFromDir(targetStage)
+            fetchingPkg.resolve(pkg)
+          }
 
-      // fs.rename(oldPath, newPath) is an atomic operation, so we do it at the
-      // end
-      await fs.rename(targetStage, unpacked)
-      await symlinkDir(unpacked, linkToUnpacked)
+          const unpacked = path.join(target, 'node_modules', pkg.name)
+          await mkdirp(path.dirname(unpacked))
+
+          // fs.rename(oldPath, newPath) is an atomic operation, so we do it at the
+          // end
+          await fs.rename(targetStage, unpacked)
+          await symlinkDir(unpacked, linkToUnpacked)
+        }()
+      ])
 
       fetchingFiles.resolve({
         isNew: true,

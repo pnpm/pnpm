@@ -1,10 +1,7 @@
 import path = require('path')
 import fs = require('mz/fs')
-import pLimit = require('p-limit')
 import mkdirp = require('mkdirp-promise')
 import rimraf = require('rimraf-then')
-
-const limitHardLinking = pLimit(20)
 
 export default async function linkIndexedDir (existingDir: string, newDir: string, index: {}) {
   const stage = `${newDir}+stage`
@@ -31,9 +28,6 @@ async function tryLinkIndexedDir (existingDir: string, newDir: string, index: {}
   await Promise.all(
     Object.keys(index)
       .filter(f => !index[f].isDir)
-      .map((f: string) =>
-        limitHardLinking(async () => {
-          await fs.link(path.join(existingDir, f), path.join(newDir, f))
-        }))
+      .map((f: string) => fs.link(path.join(existingDir, f), path.join(newDir, f)))
   )
 }
