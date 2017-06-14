@@ -7,6 +7,7 @@ import mkdirp = require('mkdirp-promise')
 import path = require('path')
 import createWriteStreamAtomic = require('fs-write-stream-atomic')
 import ssri = require('ssri')
+import unpackStream = require('unpack-stream')
 
 export type AuthInfo = {
   alwaysAuth: boolean,
@@ -23,11 +24,12 @@ export type HttpResponse = {
 
 export type Got = {
   download(url: string, saveto: string, opts: {
+    unpackTo: string,
     registry?: string,
     onStart?: () => void,
     onProgress?: (downloaded: number, totalSize: number) => void,
     integrity?: string
-  }): Promise<void>,
+  }): Promise<{}>,
   getJSON<T>(url: string): Promise<T>,
 }
 
@@ -60,11 +62,12 @@ export default (
   }
 
   function download (url: string, saveto: string, opts: {
+    unpackTo: string,
     registry?: string,
     onStart?: () => void,
     onProgress?: (downloaded: number, totalSize: number) => void,
     integrity?: string
-  }): Promise<void> {
+  }): Promise<{}> {
     return limit(async () => {
       await mkdirp(path.dirname(saveto))
 
@@ -81,14 +84,12 @@ export default (
             .pipe(writeStream)
             .on('error', reject)
 
-          if (opts.integrity) {
-            try {
-              await ssri.checkStream(res, opts.integrity)
-            } catch (err) {
-              reject(err)
-            }
-          }
-          stream.on('finish', resolve)
+          Promise.all([
+            opts.integrity && ssri.checkStream(res, opts.integrity),
+            unpackStream.local(res, opts.unpackTo)
+          ])
+          .then(vals => resolve(vals[1]))
+          .catch(reject)
 
           function start (res: IncomingMessage) {
             if (res.statusCode !== 200) {
