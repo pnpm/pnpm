@@ -36,6 +36,8 @@ export async function linkPkgBins (target: string, binPath: string) {
 
   const cmds = await binify(pkg, target)
 
+  if (!cmds.length) return
+
   await mkdirp(binPath)
   await Promise.all(cmds.map(async cmd => {
     const externalBinPath = path.join(binPath, cmd.name)
