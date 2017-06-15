@@ -190,6 +190,19 @@ test('forcing', async function (t) {
   t.ok(distPathExists, 'magic-hook@2.0.0 dist folder reinstalled')
 })
 
+test('argumentless forcing', async function (t: tape.Test) {
+  const project = prepare(t)
+  await installPkgs(['magic-hook@2.0.0'], testDefaults())
+
+  const distPath = path.resolve('node_modules', 'magic-hook', 'dist')
+  await rimraf(distPath)
+
+  await install(testDefaults({force: true}))
+
+  const distPathExists = await exists(distPath)
+  t.ok(distPathExists, 'magic-hook@2.0.0 dist folder reinstalled')
+})
+
 test('no forcing', async function (t) {
   const project = prepare(t)
   await installPkgs(['magic-hook@2.0.0'], testDefaults())
