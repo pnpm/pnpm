@@ -275,7 +275,7 @@ async function installInContext (
     newPkg = await save(
       pkgJsonPath,
       <any>pkgs.map(dep => { // tslint:disable-line
-        const spec: PackageSpec = R.find(spec => spec.raw === dep.specRaw, newSpecs)
+        const spec = R.find(spec => spec.raw === dep.specRaw, newSpecs)
         if (!spec) return null
         return {
           name: dep.name,
