@@ -7,7 +7,7 @@ import R = require('ramda')
 import pLimit = require('p-limit')
 import {InstalledPackage} from '../install/installMultiple'
 import {InstalledPackages, TreeNode, PackageContentInfo} from '../api/install'
-import linkBins from './linkBins'
+import linkBins, {linkPkgBins} from './linkBins'
 import {Package, Dependencies} from '../types'
 import {Resolution} from '../resolve'
 import resolvePeers, {DependencyTreeNode, DependencyTreeNodeMap} from './resolvePeers'
@@ -201,7 +201,16 @@ async function linkAllBins (
   return Promise.all(
     pkgs.map(dependency => limitLinking(async () => {
       const binPath = path.join(dependency.hardlinkedLocation, 'node_modules', '.bin')
-      await linkBins(dependency.modules, binPath, dependency.name)
+
+      const childrenToLink = opts.optional
+          ? dependency.children
+          : dependency.children.filter(child => !dependency.optionalDependencies.has(pkgMap[child].name))
+
+      await Promise.all(
+        R.props<DependencyTreeNode>(childrenToLink, pkgMap)
+          .filter(child => child.installable)
+          .map(child => linkPkgBins(path.join(dependency.modules, child.name), binPath))
+      )
 
       // link also the bundled dependencies` bins
       if (dependency.hasBundledDependencies) {
