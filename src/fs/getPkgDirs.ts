@@ -2,6 +2,7 @@ import fs = require('mz/fs')
 import path = require('path')
 import flatten = require('arr-flatten')
 import pFilter = require('p-filter')
+import logger from 'pnpm-logger'
 
 export default async function (modules: string): Promise<string[]> {
   const dirs = await getDirectories(modules)
@@ -28,8 +29,14 @@ async function getDirectories (srcPath: string): Promise<string[]> {
       .filter(relativePath => relativePath[0] !== '.') // ignore directories like .bin, .store, etc
       .map(relativePath => path.join(srcPath, relativePath)),
     async (absolutePath: string) => {
-      const stats = await fs.stat(absolutePath)
-      return stats.isDirectory()
+      try {
+        const stats = await fs.stat(absolutePath)
+        return stats.isDirectory()
+      } catch (err) {
+        if (err!.code !== 'ENOENT') throw err
+        logger.warn(`Cannot find file at ${absolutePath} although it was listed by readdir`)
+        return false
+      }
     }
   )
 }
