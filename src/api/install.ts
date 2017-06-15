@@ -68,6 +68,7 @@ export type InstallContext = {
     [pkgId: string]: {
       fetchingFiles: Promise<PackageContentInfo>,
       fetchingPkg: Promise<Package>,
+      calculatingIntegrity: Promise<void>,
     },
   },
   // the IDs of packages that are not installable
@@ -381,6 +382,9 @@ async function installInContext (
       .filter(Boolean)
       .map(pkg => pkg.fetchingFiles)
   )
+
+  // waiting till integrities are saved
+  await Promise.all(R.values(installCtx.installs).map(installed => installed.calculatingIntegrity))
 }
 
 function buildTree (

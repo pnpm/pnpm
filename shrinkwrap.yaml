@@ -67,7 +67,7 @@ dependencies:
   ssri: 4.1.5
   symlink-dir: 1.0.3
   thenify: 3.3.0
-  unpack-stream: 1.2.0
+  unpack-stream: 2.0.0-beta.1
   update-notifier: 2.1.0
   write-json-file: 2.2.0
   write-pkg: 3.0.1
@@ -120,9 +120,9 @@ packages:
   /@types/node/7.0.27:
     resolution:
       integrity: sha1-ul4ah6yitPWBcolhX/5WRyknaH4=
-  /@types/node/7.0.29:
+  /@types/node/7.0.31:
     resolution:
-      integrity: sha1-zPzsW3E1x8r2xP+4x/MxAjQNmd8=
+      integrity: sha1-gOpNF1WZsqABScKaEKTrLf9ZLoY=
   /@types/nopt/3.0.29:
     resolution:
       integrity: sha1-8Z3z20yX7hRZonQAKDIKcdcJZM4=
@@ -3274,14 +3274,14 @@ packages:
     dev: true
     resolution:
       integrity: sha1-HAgkFQSBvHoB1J6Y8exmjYJBLzs=
-  /unpack-stream/1.2.0:
+  /unpack-stream/2.0.0-beta.1:
     dependencies:
-      '@types/node': 7.0.29
+      '@types/node': 7.0.31
       decompress-maybe: 1.0.0
       ssri: 4.1.6
       tar-fs: 1.15.3
     resolution:
-      integrity: sha1-Jz+VNRXx/bkx2f64cDdxUWsVVKo=
+      integrity: sha1-mJt0iwP06FuGy0pvmP8RGu0mCmM=
   /unpipe/1.0.0:
     dev: true
     resolution:
@@ -3578,7 +3578,7 @@ specifiers:
   ts-node: ^3.0.0
   tslint: ^5.4.2
   typescript: ^2.1.5
-  unpack-stream: ^1.2.0
+  unpack-stream: ^2.0.0-beta.1
   update-notifier: ^2.1.0
   validate-commit-msg: ^2.7.0
   write-json-file: ^2.0.0

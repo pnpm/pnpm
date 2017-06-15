@@ -44,7 +44,7 @@ export default async function fetchResolution (
         integrity: resolution.integrity,
         registry: resolution.registry,
       }
-      return await fetchFromTarball(target, dist, opts)
+      return await fetchFromTarball(target, dist, opts) as unpackStream.Index
 
     case 'git':
       return await clone(resolution.repo, resolution.commit, target)
@@ -90,7 +90,11 @@ async function clone (repo: string, commitId: string, dest: string) {
   await execGit(['checkout', commitId], {cwd: dest})
   // removing /.git to make directory integrity calculation faster
   await rimraf(path.join(dest, '.git'))
-  return dint.from(dest)
+  const dirIntegrity = dint.from(dest)
+  return {
+    headers: dirIntegrity,
+    integrityPromise: Promise.resolve(dirIntegrity),
+  }
 }
 
 function prefixGitArgs (): string[] {
@@ -143,5 +147,5 @@ async function fetchFromLocalTarball (
   dir: string,
   dist: PackageDist
 ): Promise<unpackStream.Index> {
-  return await unpackStream.local(fs.createReadStream(dist.tarball), dir)
+  return await unpackStream.local(fs.createReadStream(dist.tarball), dir) as unpackStream.Index
 }

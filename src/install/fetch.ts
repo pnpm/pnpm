@@ -22,10 +22,12 @@ import fetchResolution from './fetchResolution'
 import logStatus from '../logging/logInstallStatus'
 import untouched from '../pkgIsUntouched'
 import symlinkDir = require('symlink-dir')
+import * as unpackStream from 'unpack-stream'
 
 export type FetchedPackage = {
   fetchingPkg: Promise<Package>,
   fetchingFiles: Promise<PackageContentInfo>,
+  calculatingIntegrity: Promise<void>,
   path: string,
   srcPath?: string,
   id: string,
@@ -47,6 +49,7 @@ export default async function fetch (
       [pkgId: string]: {
         fetchingFiles: Promise<PackageContentInfo>,
         fetchingPkg: Promise<Package>,
+        calculatingIntegrity: Promise<void>,
       },
     },
     loggedPkg: LoggedPkg,
@@ -96,6 +99,7 @@ export default async function fetch (
     return {
       fetchingPkg: options.fetchingLocker[id].fetchingPkg,
       fetchingFiles: options.fetchingLocker[id].fetchingFiles,
+      calculatingIntegrity: options.fetchingLocker[id].calculatingIntegrity,
       id,
       resolution,
       path: target,
@@ -120,15 +124,18 @@ function fetchToStore (opts: {
 }): {
   fetchingFiles: Promise<PackageContentInfo>,
   fetchingPkg: Promise<Package>,
+  calculatingIntegrity: Promise<void>,
 } {
   const fetchingPkg = differed<Package>()
   const fetchingFiles = differed<PackageContentInfo>()
+  const calculatingIntegrity = differed<void>()
 
   fetch()
 
   return {
     fetchingFiles: fetchingFiles.promise,
     fetchingPkg: opts.pkg && Promise.resolve(opts.pkg) || fetchingPkg.promise,
+    calculatingIntegrity: calculatingIntegrity.promise,
   }
 
   async function fetch () {
@@ -150,6 +157,7 @@ function fetchToStore (opts: {
               .then(pkg => fetchingPkg.resolve(pkg))
               .catch(err => fetchingPkg.reject(err))
           }
+          calculatingIntegrity.resolve(undefined)
           return
         }
         logger.warn(`Refetching ${target} to store, as it was modified`)
@@ -162,7 +170,7 @@ function fetchToStore (opts: {
 
       await rimraf(targetStage)
 
-      let dirIntegrity = {}
+      let dirIntegrity: {} = {}
       await Promise.all([
         async function () {
           dirIntegrity = await fetchResolution(opts.resolution, targetStage, {
@@ -181,31 +189,35 @@ function fetchToStore (opts: {
         pkgId: opts.pkgId,
       })
 
-      await Promise.all([
-        // fetchingFilse shouldn't care about when this is saved at all
-        !targetExists && writeJsonFile(path.join(target, 'integrity.json'), dirIntegrity),
-        async function () {
-          let pkg: Package
-          if (opts.pkg) {
-            pkg = opts.pkg
-          } else {
-            pkg = await readPkgFromDir(targetStage)
-            fetchingPkg.resolve(pkg)
-          }
+      // fetchingFilse shouldn't care about when this is saved at all
+      if (!targetExists) {
+        (async function () {
+          writeJsonFile(path.join(target, 'integrity.json'), await (<unpackStream.Index>dirIntegrity).integrityPromise, {indent: null})
+          calculatingIntegrity.resolve(undefined)
+        })()
+      } else {
+        calculatingIntegrity.resolve(undefined)
+      }
 
-          const unpacked = path.join(target, 'node_modules', pkg.name)
-          await mkdirp(path.dirname(unpacked))
+      let pkg: Package
+      if (opts.pkg) {
+        pkg = opts.pkg
+      } else {
+        pkg = await readPkgFromDir(targetStage)
+        fetchingPkg.resolve(pkg)
+      }
 
-          // fs.rename(oldPath, newPath) is an atomic operation, so we do it at the
-          // end
-          await fs.rename(targetStage, unpacked)
-          await symlinkDir(unpacked, linkToUnpacked)
-        }()
-      ])
+      const unpacked = path.join(target, 'node_modules', pkg.name)
+      await mkdirp(path.dirname(unpacked))
+
+      // fs.rename(oldPath, newPath) is an atomic operation, so we do it at the
+      // end
+      await fs.rename(targetStage, unpacked)
+      await symlinkDir(unpacked, linkToUnpacked)
 
       fetchingFiles.resolve({
         isNew: true,
-        index: dirIntegrity,
+        index: (<unpackStream.Index>dirIntegrity).headers,
       })
     } catch (err) {
       fetchingFiles.reject(err)
