@@ -6,7 +6,7 @@ dependencies:
   '@types/node': 7.0.31
   '@types/nopt': 3.0.29
   '@types/npm': 2.0.28
-  '@types/ramda': 0.0.13
+  '@types/ramda': 0.0.14
   '@types/rc': 0.0.1
   '@types/semver': 5.3.31
   '@types/update-notifier': 1.0.1
@@ -131,9 +131,9 @@ packages:
   /@types/ramda/0.0.11:
     resolution:
       integrity: sha1-9tSAmpdX/lM1jI3o9t8WcSSrzT8=
-  /@types/ramda/0.0.13:
+  /@types/ramda/0.0.14:
     resolution:
-      integrity: sha1-gBnopMbQ+rpnp576WixRXyTPJnM=
+      integrity: sha1-oUFgXYdhriJqJ/SmtKLEfHeujlc=
   /@types/rc/0.0.1:
     resolution:
       integrity: sha1-H1uKGzsaxtH+4TfFP6xfoPKK4Nc=
@@ -3475,7 +3475,7 @@ specifiers:
   '@types/node': ^7.0.27
   '@types/nopt': ^3.0.29
   '@types/npm': ^2.0.28
-  '@types/ramda': ^0.0.13
+  '@types/ramda': ^0.0.14
   '@types/rc': ^0.0.1
   '@types/semver': ^5.3.30
   '@types/tape': ^4.2.28
