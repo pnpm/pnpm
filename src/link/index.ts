@@ -136,15 +136,6 @@ async function linkNewPackages (
 
   const newPkgs = R.props<DependencyTreeNode>(newPkgResolvedIds, pkgsToLink)
 
-  try {
-    await linkAllPkgs(linkPkg, newPkgs, opts)
-  } catch (err) {
-    if (!err.message.startsWith('EXDEV: cross-device link not permitted')) throw err
-    logger.warn(err.message)
-    logger.info('Falling back to copying packages from store')
-    await linkAllPkgs(copyPkg, newPkgs, opts)
-  }
-
   if (!opts.force) {
     // add subdependencies that have been updated
     // TODO: no need to relink everything. Can be relinked only what was changed
@@ -158,6 +149,17 @@ async function linkNewPackages (
   }
 
   await linkAllModules(newPkgs, pkgsToLink, {optional: opts.optional})
+
+  try {
+    await linkAllPkgs(linkPkg, newPkgs, opts)
+  } catch (err) {
+    if (!err.message.startsWith('EXDEV: cross-device link not permitted')) throw err
+    logger.warn(err.message)
+    logger.info('Falling back to copying packages from store')
+    await linkAllPkgs(copyPkg, newPkgs, opts)
+  }
+
+  await linkAllBins(newPkgs, pkgsToLink, {optional: opts.optional})
 
   return newPkgResolvedIds
 }
@@ -186,6 +188,27 @@ async function linkAllPkgs (
   )
 }
 
+async function linkAllBins (
+  pkgs: DependencyTreeNode[],
+  pkgMap: DependencyTreeNodeMap,
+  opts: {
+    optional: boolean,
+  }
+) {
+  return Promise.all(
+    pkgs.map(dependency => limitLinking(async () => {
+      const binPath = path.join(dependency.hardlinkedLocation, 'node_modules', '.bin')
+      await linkBins(dependency.modules, binPath, dependency.name)
+
+      // link also the bundled dependencies` bins
+      if (dependency.hasBundledDependencies) {
+        const bundledModules = path.join(dependency.hardlinkedLocation, 'node_modules')
+        await linkBins(bundledModules, binPath)
+      }
+    }))
+  )
+}
+
 async function linkAllModules (
   pkgs: DependencyTreeNode[],
   pkgMap: DependencyTreeNodeMap,
@@ -194,7 +217,19 @@ async function linkAllModules (
   }
 ) {
   return Promise.all(
-    pkgs.map(pkg => limitLinking(() => linkModules(pkg, pkgMap, opts)))
+    pkgs
+      .filter(dependency => !dependency.independent)
+      .map(dependency => limitLinking(async () => {
+        const childrenToLink = opts.optional
+          ? dependency.children
+          : dependency.children.filter(child => !dependency.optionalDependencies.has(pkgMap[child].name))
+
+        await Promise.all(
+          R.props<DependencyTreeNode>(childrenToLink, pkgMap)
+            .filter(child => child.installable)
+            .map(child => symlinkDependencyTo(child, dependency.modules))
+        )
+      }))
   )
 }
 
@@ -239,33 +274,6 @@ async function pkgLinkedToStore (pkgJsonPath: string, dependency: DependencyTree
 async function isSameFile (file1: string, file2: string) {
   const stats = await Promise.all([fs.stat(file1), fs.stat(file2)])
   return stats[0].ino === stats[1].ino
-}
-
-async function linkModules (
-  dependency: DependencyTreeNode,
-  pkgMap: DependencyTreeNodeMap,
-  opts: {
-    optional: boolean,
-  }
-) {
-  const childrenToLink = opts.optional
-    ? dependency.children
-    : dependency.children.filter(child => !dependency.optionalDependencies.has(pkgMap[child].name))
-
-  await Promise.all(
-    R.props<DependencyTreeNode>(childrenToLink, pkgMap)
-      .filter(child => child.installable)
-      .map(child => symlinkDependencyTo(child, dependency.modules))
-  )
-
-  const binPath = path.join(dependency.hardlinkedLocation, 'node_modules', '.bin')
-  await linkBins(dependency.modules, binPath, dependency.name)
-
-  // link also the bundled dependencies` bins
-  if (dependency.hasBundledDependencies) {
-    const bundledModules = path.join(dependency.hardlinkedLocation, 'node_modules')
-    await linkBins(bundledModules, binPath)
-  }
 }
 
 function symlinkDependencyTo (dependency: DependencyTreeNode, dest: string) {
