@@ -3,12 +3,21 @@ import path = require('path')
 import isInnerLink = require('is-inner-link')
 import fs = require('mz/fs')
 import mkdirp = require('mkdirp-promise')
+import isSubdir = require('is-subdir')
 
-export default async function safeIsInnerLink (modules: string, depName: string) {
+export default async function safeIsInnerLink (
+  modules: string,
+  depName: string,
+  opts: {
+    storePath: string,
+  }
+) {
   try {
     const link = await isInnerLink(modules, depName)
 
     if (link.isInner) return true
+
+    if (isSubdir(opts.storePath, link.target)) return true
 
     logger.info(`${depName} is linked to ${modules} from ${link.target}`)
     return false

@@ -16,6 +16,9 @@ export type DependencyTreeNode = {
   resolution: Resolution,
   hardlinkedLocation: string,
   children: string[],
+  // an independent package is a package that
+  // has neither regular nor peer dependencies
+  independent: boolean,
   optionalDependencies: Set<string>,
   depth: number,
   resolvedId: string,
@@ -94,7 +97,10 @@ function resolvePeersOfNode (
 
   nodeIdToResolvedId[nodeId] = resolvedId
   if (!resolvedTree[resolvedId] || resolvedTree[resolvedId].depth > node.depth) {
-    const hardlinkedLocation = path.join(modules, node.pkg.name)
+    const independent = !node.children.length && R.isEmpty(node.pkg.peerDependencies)
+    const hardlinkedLocation = !independent
+      ? path.join(modules, node.pkg.name)
+      : node.pkg.path
     resolvedTree[resolvedId] = {
       name: node.pkg.name,
       hasBundledDependencies: node.pkg.hasBundledDependencies,
@@ -103,6 +109,7 @@ function resolvePeersOfNode (
       path: node.pkg.path,
       modules,
       hardlinkedLocation,
+      independent,
       optionalDependencies: node.pkg.optionalDependencies,
       children: R.union(node.children, resolvedPeers),
       depth: node.depth,
