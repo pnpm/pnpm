@@ -3,6 +3,7 @@
 [![Status](https://travis-ci.org/pnpm/pnpm.svg?branch=master)](https://travis-ci.org/pnpm/pnpm "See test builds")
 [![Windows build status](https://ci.appveyor.com/api/projects/status/f7437jbcml04x750/branch/master?svg=true)](https://ci.appveyor.com/project/zkochan/pnpm-17nv8/branch/master)
 [![Join the chat at https://gitter.im/pnpm/pnpm](https://badges.gitter.im/pnpm/pnpm.svg)](https://gitter.im/pnpm/pnpm?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
+[![Twitter Follow](https://img.shields.io/twitter/follow/pnpmjs.svg?style=social&label=Follow)](https://twitter.com/pnpmjs)
 
 > Fast, disk space efficient npm installs
 
@@ -16,12 +17,6 @@ pnpm are Node.js-compatible!
 deterministic but no human can easily predict how will a flattened dependency tree look
 like. Pnpm not only has a lockfile, the files in its `node_modules` folder are organized
 always the same way, the way they are described in `package.json` files.
-
-[![asciicast](http://i.imgur.com/6GLLHaV.gif)](https://asciinema.org/a/99357)
-
-*Read our [contributing guide](CONTRIBUTING.md) if you're looking to contribute.*
-
-Follow the [pnpm Twitter account](https://twitter.com/pnpmjs) for updates.
 
 ## Table of Contents
 
@@ -37,6 +32,7 @@ Follow the [pnpm Twitter account](https://twitter.com/pnpmjs) for updates.
 * Advanced
   * [About the package store](docs/about-the-package-store.md)
   * [How peers are resolved](docs/how-peers-are-resolved.md)
+* [Contributing](CONTRIBUTING.md)
 
 ## Background
 
