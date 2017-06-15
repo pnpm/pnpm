@@ -149,7 +149,7 @@ async function install (
   }
 ): Promise<PkgAddress | null> {
   const keypath = options.keypath || []
-  const proceed = keypath.length <= options.depth
+  const proceed = options.force || keypath.length <= options.depth
   const parentIsInstallable = options.parentIsInstallable === undefined || options.parentIsInstallable
 
   if (!proceed && options.pkgId && await exists(path.join(options.nodeModules, `.${options.pkgId}`))) {
