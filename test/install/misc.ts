@@ -596,3 +596,17 @@ test('self-require should work', async function (t) {
 
   t.ok(project.requireModule('uses-pkg-with-self-usage'))
 })
+
+test('install on project with lockfile and no node_modules', async (t: tape.Test) => {
+  const project = prepare(t)
+
+  await installPkgs(['is-negative'], testDefaults())
+
+  await rimraf('node_modules')
+
+  await installPkgs(['is-positive'], testDefaults())
+
+  t.ok(project.requireModule('is-positive'), 'installed new dependency')
+
+  t.ok(project.hasNot('is-negative'), 'did not reinstall removed dependency')
+})

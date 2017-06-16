@@ -133,6 +133,9 @@ async function linkNewPackages (
         : R.difference(nextPkgResolvedIds, prevPkgResolvedIds)
     )
     .map(shortId => shortIdToFullId(shortId, shrinkwrap.registry))
+    // when installing a new package, not all the nodes are analyzed
+    // just skip the ones that are in the lockfile but were not analyzed
+    .filter(resolvedId => pkgsToLink[resolvedId])
 
   const newPkgs = R.props<DependencyTreeNode>(newPkgResolvedIds, pkgsToLink)
 
