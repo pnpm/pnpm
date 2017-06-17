@@ -46,7 +46,6 @@ test('local file', async function (t: tape.Test) {
     dependencies: {
       'local-pkg': 'file:../local-pkg',
     },
-    packages: {},
     registry: 'http://localhost:4873/',
     version: 3,
   })

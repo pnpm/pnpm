@@ -77,7 +77,7 @@ export default async function installMultiple (
         .map(async (spec: PackageSpec) => {
           const reference = resolvedDependencies[spec.name]
           const pkgShortId = reference && getPkgShortId(reference, spec.name)
-          const dependencyShrinkwrap = pkgShortId && ctx.shrinkwrap.packages[pkgShortId]
+          const dependencyShrinkwrap = pkgShortId && ctx.shrinkwrap.packages && ctx.shrinkwrap.packages[pkgShortId]
           const pkgId = dependencyShrinkwrap && dependencyShrinkwrap.id ||
             reference && getPkgId(reference, spec.name, ctx.shrinkwrap.registry)
           const shrinkwrapResolution: Resolution | undefined = pkgShortId && dependencyShrinkwrap

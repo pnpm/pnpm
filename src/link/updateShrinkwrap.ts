@@ -19,6 +19,7 @@ export default function (
   shrinkwrap: Shrinkwrap,
   pkg: Package
 ): Shrinkwrap {
+  shrinkwrap.packages = shrinkwrap.packages || {}
   for (const resolvedId of R.keys(pkgsToLink)) {
     const shortId = pkgShortId(resolvedId, shrinkwrap.registry)
     const result = R.partition((childResolvedId: string) => pkgsToLink[resolvedId].optionalDependencies.has(pkgsToLink[childResolvedId].name), pkgsToLink[resolvedId].children)

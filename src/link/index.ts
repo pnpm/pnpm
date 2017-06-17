@@ -139,7 +139,7 @@ async function linkNewPackages (
 
   const newPkgs = R.props<DependencyTreeNode>(newPkgResolvedIds, pkgsToLink)
 
-  if (!opts.force) {
+  if (!opts.force && privateShrinkwrap.packages && shrinkwrap.packages) {
     // add subdependencies that have been updated
     // TODO: no need to relink everything. Can be relinked only what was changed
     for (const shortId of nextPkgResolvedIds) {

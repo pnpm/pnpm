@@ -23,8 +23,8 @@ export default async function removeOrphanPkgs (
   const rootModules = path.join(root, 'node_modules')
   await Promise.all(removedTopDeps.map(depName => removeTopDependency(depName, rootModules)))
 
-  const oldPkgIds = Object.keys(oldShr.packages).map(shortId => shortIdToFullId(shortId, oldShr.registry))
-  const newPkgIds = Object.keys(newShr.packages).map(shortId => shortIdToFullId(shortId, newShr.registry))
+  const oldPkgIds = R.keys(oldShr.packages).map(shortId => shortIdToFullId(shortId, oldShr.registry))
+  const newPkgIds = R.keys(newShr.packages).map(shortId => shortIdToFullId(shortId, newShr.registry))
 
   const store = await readStore(storePath) || {}
   const notDependents = R.difference(oldPkgIds, newPkgIds)
