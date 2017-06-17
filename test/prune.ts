@@ -442,7 +442,6 @@ test('remove dependencies that are not in the package', t => {
     registry: 'https://registry.npmjs.org',
     dependencies: {},
     specifiers: {},
-    packages: {}
   })
 
   t.end()

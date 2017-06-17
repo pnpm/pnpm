@@ -4,7 +4,7 @@ export type Shrinkwrap = {
   dependencies: ResolvedDependencies,
   optionalDependencies?: ResolvedDependencies,
   devDependencies?: ResolvedDependencies,
-  packages: ResolvedPackages,
+  packages?: ResolvedPackages,
   registry: string,
 }
 

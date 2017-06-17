@@ -54,20 +54,20 @@ export default function prune (shr: Shrinkwrap, pkg: Package): Shrinkwrap {
     nonOptional,
   })
 
-  const result = {
+  const result: Shrinkwrap = {
     version: SHRINKWRAP_VERSION,
     specifiers,
     registry: shr.registry,
     dependencies: shrDependencies,
-    optionalDependencies: shrOptionalDependencies,
-    devDependencies: shrDevDependencies,
-    packages,
   }
-  if (R.isEmpty(result.optionalDependencies)) {
-    delete result.optionalDependencies
+  if (!R.isEmpty(packages)) {
+    result.packages = packages
   }
-  if (R.isEmpty(result.devDependencies)) {
-    delete result.devDependencies
+  if (!R.isEmpty(shrOptionalDependencies)) {
+    result.optionalDependencies = shrOptionalDependencies
+  }
+  if (!R.isEmpty(shrDevDependencies)) {
+    result.devDependencies = shrDevDependencies
   }
   return result
 }
@@ -86,7 +86,7 @@ function copyDependencySubTree (
 ) {
   for (let pkgId of pkgIds) {
     if (keypath.indexOf(pkgId) !== -1) continue
-    if (!shr.packages[pkgId]) {
+    if (!shr.packages || !shr.packages[pkgId]) {
       logger.warn(`Cannot find resolution of ${pkgId} in shrinkwrap file`)
       continue
     }
