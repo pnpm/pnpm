@@ -31,6 +31,8 @@ On the other hand, pnpm manages `node_modules` as an addressable storage in its 
 
 ## Differences
 
+### Installation
+
 pnpm does not allow installations of packages without saving them to `package.json`.
 If no parameters are passed to `pnpm install`, packages are saved as regular dependencies.
 Like with npm, `--save-dev` and `--save-optional` can be used to install packages as dev or optional dependencies.
@@ -38,6 +40,14 @@ Like with npm, `--save-dev` and `--save-optional` can be used to install package
 As a consequence of this limitation, projects won't have any extraneous packages when they use pnpm.
 That's why pnpm's implementation of the [prune command](https://docs.npmjs.com/cli/prune) does not
 have the possibility of prunning specific packages. pnpm's prune always removes all the extraneous packages.
+
+### Directory dependencies
+
+Directory dependencies are the ones that start with the `file:` prefix and point to a directory in the filesystem.
+Like npm, pnpm symlinks those dependencies. Unlike npm, pnpm does not perform installation for the file dependencies.
+So if you have package `foo` (in `home/src/foo`), that has a dependency `bar@file:../bar`, pnpm won't perform installation in `/home/src/bar`.
+
+If you need to run installations in several packages at the same time (maybe you have a monorepo), you might want to use [pnpmr](https://github.com/pnpm/pnpmr). pnpmr searches for packages and runs `pnpm install` for them in the correct order.
 
 [npm ls]: https://docs.npmjs.com/cli/ls
 [npm prune]: https://docs.npmjs.com/cli/prune
