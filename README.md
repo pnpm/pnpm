@@ -165,7 +165,11 @@ the same amount of space in the global store. However, that 1MB is *the same spa
 addressed from two different locations. So in total `foo` occupies 1MB,
 not 2MB.
 
-For more on this subject: [Why do hard links seem to take the same space as the originals?](https://unix.stackexchange.com/questions/88423/why-do-hard-links-seem-to-take-the-same-space-as-the-originals)
+For more on this subject:
+
+* [Why do hard links seem to take the same space as the originals?](https://unix.stackexchange.com/questions/88423/why-do-hard-links-seem-to-take-the-same-space-as-the-originals)
+* [A thread from the pnpm chat room](https://gist.github.com/zkochan/106cfef49f8476b753a9cbbf9c65aff1)
+* [An issue in the pnpm repo](https://github.com/pnpm/pnpm/issues/794)
 
 ## License
 
