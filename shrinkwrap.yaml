@@ -1,44 +1,66 @@
-createdWith: pnpm@0.68.0
 dependencies:
-  '@types/node@^7.0.27': 7.0.27
-  '@types/ramda@^0.0.11': 0.0.11
-  '@types/tape@^4.2.30': 4.2.30
-  is-ci@^1.0.10: 1.0.10
-  load-yaml-file@^0.1.0: 0.1.0
-  pnpm-logger@^0.3.0: 0.3.0
-  ramda@^0.24.1: 0.24.1
-  rimraf-then@^1.0.1: 1.0.1
-  rimraf@^2.6.1: 2.6.1
-  tape@^4.6.3: 4.6.3
-  ts-node@^3.0.4: 3.0.4
-  typescript@^2.3.4: 2.3.4
-  write-yaml-file@^1.0.0: 1.0.0
+  '@types/node': 7.0.31
+  '@types/ramda': 0.0.11
+  is-ci: 1.0.10
+  load-yaml-file: 0.1.0
+  pnpm-logger: 0.3.0
+  ramda: 0.24.1
+  rimraf: 2.6.1
+  rimraf-then: 1.0.1
+  write-yaml-file: 1.0.0
+devDependencies:
+  '@types/tape': 4.2.30
+  tape: 4.6.3
+  ts-node: 3.0.6
+  typescript: 2.3.4
 packages:
-  /@types/node/7.0.27: ba5e1a87aca2b4f5817289615ffe56472927687e
-  /@types/ramda/0.0.11: f6d4809a9757fe53358c8de8f6df167124abcd3f
+  /@types/node/7.0.31:
+    resolution:
+      integrity: sha1-gOpNF1WZsqABScKaEKTrLf9ZLoY=
+  /@types/ramda/0.0.11:
+    resolution:
+      integrity: sha1-9tSAmpdX/lM1jI3o9t8WcSSrzT8=
   /@types/tape/4.2.30:
     dependencies:
-      '@types/node': 7.0.27
-    resolution: 3c1917c4dfd6f27271b9922772513515bc6c46b4
-  /ansi-regex/2.1.1: c3b33ab5ee360d86e0e628f0468ae7ef27d654df
-  /ansi-styles/2.2.1: b432dd3358b634cf75e1e4664368240533c1ddbe
-  /any-promise/1.3.0: abc6afeedcea52e809cdc0376aed3ce39635d17f
+      '@types/node': 7.0.31
+    dev: true
+    resolution:
+      integrity: sha1-PBkXxN/W8nJxuZInclE1FbxsRrQ=
+  /ansi-regex/2.1.1:
+    dev: true
+    resolution:
+      integrity: sha1-w7M6te42DYbg5ijwRorn7yfWVN8=
+  /ansi-styles/2.2.1:
+    dev: true
+    resolution:
+      integrity: sha1-tDLdM1i2NM914eRmQ2gkBTPB3b4=
+  /any-promise/1.3.0:
+    resolution:
+      integrity: sha1-q8av7tzqUugJzcA3au0845Y10X8=
   /argparse/1.0.9:
     dependencies:
       sprintf-js: 1.0.3
-    resolution: 73d83bc263f86e97f8cc4f6bae1b0e90a7d22c86
-  /arrify/1.0.1: 898508da2226f380df904728456849c1501a4b0d
-  /balanced-match/0.4.2: cb3f3e3c732dc0f01ee70b403f302e61d7709838
+    resolution:
+      integrity: sha1-c9g7wmP4bpf4zE9rrhsOkKfSLIY=
+  /arrify/1.0.1:
+    dev: true
+    resolution:
+      integrity: sha1-iYUI2iIm84DfkEcoRWhJwVAaSw0=
+  /balanced-match/1.0.0:
+    resolution:
+      integrity: sha1-ibTRmasr7kneFk6gK4nORi1xt2c=
   /bole/3.0.2:
     dependencies:
       fast-safe-stringify: 1.1.13
       individual: 3.0.0
-    resolution: bc8a483ca94049da9b837c1ad11cdfebee6e0514
-  /brace-expansion/1.1.7:
+    resolution:
+      integrity: sha1-vIpIPKlASdqbg3wa0Rzf6+5uBRQ=
+  /brace-expansion/1.1.8:
     dependencies:
-      balanced-match: 0.4.2
+      balanced-match: 1.0.0
       concat-map: 0.0.1
-    resolution: 3effc3c50e000531fb720eaff80f0ae8ef23cf59
+    resolution:
+      integrity: sha1-wHshHHyVLsH479Uad+8NHTmQopI=
   /chalk/1.1.3:
     dependencies:
       ansi-styles: 2.2.1
@@ -46,40 +68,78 @@ packages:
       has-ansi: 2.0.0
       strip-ansi: 3.0.1
       supports-color: 2.0.0
-    resolution: a8115c55e4a702fe4d150abd3872822a7e09fc98
-  /ci-info/1.0.0: dc5285f2b4e251821683681c381c3388f46ec534
-  /concat-map/0.0.1: d8a96bd77fd68df7793a73036a3ba0d5405d477b
-  /deep-equal/1.0.1: f5d260292b660e084eff4cdbc9f08ad3247448b5
+    dev: true
+    resolution:
+      integrity: sha1-qBFcVeSnAv5NFQq9OHKCKn4J/Jg=
+  /ci-info/1.0.0:
+    resolution:
+      integrity: sha1-3FKF8rTiUYIWg2gcOBwziPRuxTQ=
+  /concat-map/0.0.1:
+    resolution:
+      integrity: sha1-2Klr13/Wjfd5OnMDajug1UBdR3s=
+  /deep-equal/1.0.1:
+    dev: true
+    resolution:
+      integrity: sha1-9dJgKStmDghO/0zbyfCK0yR0SLU=
   /define-properties/1.1.2:
     dependencies:
       foreach: 2.0.5
       object-keys: 1.0.11
-    resolution: 83a73f2fea569898fb737193c8f873caf6d45c94
-  /defined/1.0.0: c98d9bcef75674188e110969151199e39b1fa693
-  /diff/3.2.0: c9ce393a4b7cbd0b058a725c93df299027868ff9
+    dev: true
+    resolution:
+      integrity: sha1-g6c/L+pWmJj7c3GTyPhzyvbUXJQ=
+  /defined/1.0.0:
+    dev: true
+    resolution:
+      integrity: sha1-yY2bzvdWdBiOEQlpFRGZ45sfppM=
+  /diff/3.2.0:
+    dev: true
+    resolution:
+      integrity: sha1-yc45Okt8vQsFinJck98pkCeGj/k=
   /es-abstract/1.7.0:
     dependencies:
       es-to-primitive: 1.1.1
       function-bind: 1.1.0
       is-callable: 1.1.3
       is-regex: 1.0.4
-    resolution: dfade774e01bfcd97f96180298c449c8623fb94c
+    dev: true
+    resolution:
+      integrity: sha1-363ndOAb/Nl/lhgCmMRJyGI/uUw=
   /es-to-primitive/1.1.1:
     dependencies:
       is-callable: 1.1.3
       is-date-object: 1.0.1
       is-symbol: 1.0.1
-    resolution: 45355248a88979034b6792e19bb81f2b7975dd0d
-  /escape-string-regexp/1.0.5: 1b61c0562190a8dff6ae3bb2cf0200ca130b86d4
-  /esprima/3.1.3: fdca51cee6133895e3c88d535ce49dbff62a4633
-  /fast-safe-stringify/1.1.13: a01e9cd9c9e491715c98a75a42d5f0bbd107ff76
+    dev: true
+    resolution:
+      integrity: sha1-RTVSSKiJeQNLZ5Lhm7gfK3l13Q0=
+  /escape-string-regexp/1.0.5:
+    dev: true
+    resolution:
+      integrity: sha1-G2HAViGQqN/2rjuyzwIAyhMLhtQ=
+  /esprima/3.1.3:
+    resolution:
+      integrity: sha1-/cpRzuYTOJXjyI1TXOSdv/YqRjM=
+  /fast-safe-stringify/1.1.13:
+    resolution:
+      integrity: sha1-oB6c2cnkkXFcmKdaQtXwu9EH/3Y=
   /for-each/0.3.2:
     dependencies:
       is-function: 1.0.1
-    resolution: 2c40450b9348e97f281322593ba96704b9abd4d4
-  /foreach/2.0.5: 0bee005018aeb260d0a3af3ae658dd0136ec1b99
-  /fs.realpath/1.0.0: 1504ad2523158caa40db4a2787cb01411994ea4f
-  /function-bind/1.1.0: 16176714c801798e4e8f2cf7f7529467bb4a5771
+    dev: true
+    resolution:
+      integrity: sha1-LEBFC5NI6X8oEyJZO6lnBLmr1NQ=
+  /foreach/2.0.5:
+    dev: true
+    resolution:
+      integrity: sha1-C+4AUBiusmDQo6865ljdATbsG5k=
+  /fs.realpath/1.0.0:
+    resolution:
+      integrity: sha1-FQStJSMVjKpA20onh8sBQRmU6k8=
+  /function-bind/1.1.0:
+    dev: true
+    resolution:
+      integrity: sha1-FhdnFMgBeY5Ojyz391KUZ7tKV3E=
   /glob/7.1.2:
     dependencies:
       fs.realpath: 1.0.0
@@ -88,107 +148,189 @@ packages:
       minimatch: 3.0.4
       once: 1.4.0
       path-is-absolute: 1.0.1
-    resolution: c19c9df9a028702d678612384a6552404c636d15
-  /graceful-fs/4.1.11: 0e8bdfe4d1ddb8854d64e04ea7c00e2a026e5658
+    resolution:
+      integrity: sha1-wZyd+aAocC1nhhI4SmVSQExjbRU=
+  /graceful-fs/4.1.11:
+    resolution:
+      integrity: sha1-Dovf5NHduIVNZOBOp8AOKgJuVlg=
   /has-ansi/2.0.0:
     dependencies:
       ansi-regex: 2.1.1
-    resolution: 34f5049ce1ecdf2b0649af3ef24e45ed35416d91
+    dev: true
+    resolution:
+      integrity: sha1-NPUEnOHs3ysGSa8+8k5F7TVBbZE=
   /has/1.0.1:
     dependencies:
       function-bind: 1.1.0
-    resolution: 8461733f538b0837c9361e39a9ab9e9704dc2f28
-  /imurmurhash/0.1.4: 9218b9b2b928a238b13dc4fb6b6d576f231453ea
-  /individual/3.0.0: e7ca4f85f8957b018734f285750dc22ec2f9862d
+    dev: true
+    resolution:
+      integrity: sha1-hGFzP1OLCDfJNh45qauelwTcLyg=
+  /imurmurhash/0.1.4:
+    resolution:
+      integrity: sha1-khi5srkoojixPcT7a21XbyMUU+o=
+  /individual/3.0.0:
+    resolution:
+      integrity: sha1-58pPhfiVewGHNPKFdQ3CLsL5hi0=
   /inflight/1.0.6:
     dependencies:
       once: 1.4.0
       wrappy: 1.0.2
-    resolution: 49bd6331d7d02d0c09bc910a1075ba8165b56df9
-  /inherits/2.0.3: 633c2c83e3da42a502f52466022480f4208261de
-  /is-callable/1.1.3: 86eb75392805ddc33af71c92a0eedf74ee7604b2
+    resolution:
+      integrity: sha1-Sb1jMdfQLQwJvJEKEHW6gWW1bfk=
+  /inherits/2.0.3:
+    resolution:
+      integrity: sha1-Yzwsg+PaQqUC9SRmAiSA9CCCYd4=
+  /is-callable/1.1.3:
+    dev: true
+    resolution:
+      integrity: sha1-hut1OSgF3cM69xySoO7fdO52BLI=
   /is-ci/1.0.10:
     dependencies:
       ci-info: 1.0.0
-    resolution: f739336b2632365061a9d48270cd56ae3369318e
-  /is-date-object/1.0.1: 9aa20eb6aeebbff77fbd33e74ca01b33581d3a16
-  /is-function/1.0.1: 12cfb98b65b57dd3d193a3121f5f6e2f437602b5
+    resolution:
+      integrity: sha1-9zkzayYyNlBhqdSCcM1WrjNpMY4=
+  /is-date-object/1.0.1:
+    dev: true
+    resolution:
+      integrity: sha1-mqIOtq7rv/d/vTPnTKAbM1gdOhY=
+  /is-function/1.0.1:
+    dev: true
+    resolution:
+      integrity: sha1-Es+5i2W1fdPRk6MSH19uL0N2ArU=
   /is-regex/1.0.4:
     dependencies:
       has: 1.0.1
-    resolution: 5517489b547091b0930e095654ced25ee97e9491
-  /is-symbol/1.0.1: 3cc59f00025194b6ab2e38dbae6689256b660572
+    dev: true
+    resolution:
+      integrity: sha1-VRdIm1RwkbCTDglWVM7SXul+lJE=
+  /is-symbol/1.0.1:
+    dev: true
+    resolution:
+      integrity: sha1-PMWfAAJRlLarLjjbrmaJJWtmBXI=
   /js-yaml/3.8.4:
     dependencies:
       argparse: 1.0.9
       esprima: 3.1.3
-    resolution: 520b4564f86573ba96662af85a8cafa7b4b5a6f6
+    resolution:
+      integrity: sha1-UgtFZPhlc7qWZir4Woyvp7S1pvY=
   /load-yaml-file/0.1.0:
     dependencies:
       graceful-fs: 4.1.11
       js-yaml: 3.8.4
       pify: 2.3.0
       strip-bom: 3.0.0
-    resolution: f680066e691b3eeb45017672e4a3956af5b83b89
-  /make-error/1.3.0: 52ad3a339ccf10ce62b4040b708fe707244b8b96
+    resolution:
+      integrity: sha1-9oAGbmkbPutFAXZy5KOVavW4O4k=
+  /make-error/1.3.0:
+    dev: true
+    resolution:
+      integrity: sha1-Uq06M5zPEM5itAQLcI/nByRLi5Y=
   /minimatch/3.0.4:
     dependencies:
-      brace-expansion: 1.1.7
-    resolution: 5166e286457f03306064be5497e8dbb0c3d32083
-  /minimist/0.0.8: 857fcabfc3397d2625b8228262e86aa7a011b05d
-  /minimist/1.2.0: a35008b20f41383eec1fb914f4cd5df79a264284
+      brace-expansion: 1.1.8
+    resolution:
+      integrity: sha1-UWbihkV/AzBgZL5Ul+jbsMPTIIM=
+  /minimist/0.0.8:
+    resolution:
+      integrity: sha1-hX/Kv8M5fSYluCKCYuhqp6ARsF0=
+  /minimist/1.2.0:
+    dev: true
+    resolution:
+      integrity: sha1-o1AIsg9BOD7sH7kU9M1d95omQoQ=
   /mkdirp/0.5.1:
     dependencies:
       minimist: 0.0.8
-    resolution: 30057438eac6cf7f8c4767f38648d6697d75c903
-  /object-assign/4.1.1: 2109adc7965887cfc05cbbd442cac8bfbb360863
-  /object-inspect/1.2.2: c82115e4fcc888aea14d64c22e4f17f6a70d5e5a
-  /object-keys/1.0.11: c54601778ad560f1142ce0e01bcca8b56d13426d
+    resolution:
+      integrity: sha1-MAV0OOrGz3+MR2fzhkjWaX11yQM=
+  /object-inspect/1.2.2:
+    dev: true
+    resolution:
+      integrity: sha1-yCEV5PzIiK6hTWTCLk8X9qcNXlo=
+  /object-keys/1.0.11:
+    dev: true
+    resolution:
+      integrity: sha1-xUYBd4rVYPEULODgG8yotW0TQm0=
   /once/1.4.0:
     dependencies:
       wrappy: 1.0.2
-    resolution: 583b1aa775961d4b113ac17d9c50baef9dd76bd1
-  /path-is-absolute/1.0.1: 174b9268735534ffbc7ace6bf53a5a9e1b5c5f5f
-  /pify/2.3.0: ed141a6ac043a849ea588498e7dca8b15330e90c
+    resolution:
+      integrity: sha1-WDsap3WWHUsROsF9nFC6753Xa9E=
+  /path-is-absolute/1.0.1:
+    resolution:
+      integrity: sha1-F0uSaHNVNP+8es5r9TpanhtcX18=
+  /pify/2.3.0:
+    resolution:
+      integrity: sha1-7RQaasBDqEnqWISY59yosVMw6Qw=
   /pnpm-logger/0.3.0:
     dependencies:
       bole: 3.0.2
-    resolution: eaecea5a037f053a64c50bda7eda3cb87f5ed661
-  /ramda/0.24.1: c3b7755197f35b8dc3502228262c4c91ddb6b857
-  /resolve/1.1.7: 203114d82ad2c5ed9e8e0411b3932875e889e97b
+    resolution:
+      integrity: sha1-6uzqWgN/BTpkxQvafto8uH9e1mE=
+  /ramda/0.24.1:
+    resolution:
+      integrity: sha1-w7d1UZfzW43DUCIoJixMkd22uFc=
+  /resolve/1.1.7:
+    dev: true
+    resolution:
+      integrity: sha1-IDEU2CrSxe2ejgQRs5ModeiJ6Xs=
   /resumer/0.0.0:
     dependencies:
       through: 2.3.8
-    resolution: f1e8f461e4064ba39e82af3cdc2a8c893d076759
+    dev: true
+    resolution:
+      integrity: sha1-8ej0YeQGS6Oegq883CqMiT0HZ1k=
   /rimraf-then/1.0.1:
     dependencies:
       any-promise: 1.3.0
       rimraf: 2.6.1
-    resolution: bd4458a79eb561b7548aaec0ac3753ef429fe70b
+    resolution:
+      integrity: sha1-vURYp561YbdUiq7ArDdT70Kf5ws=
   /rimraf/2.6.1:
     dependencies:
       glob: 7.1.2
-    resolution: c2338ec643df7a1b7fe5c54fa86f57428a55f33d
-  /slide/1.1.6: 56eb027d65b4d2dce6cb2e2d32c4d4afc9e1d707
+    resolution:
+      integrity: sha1-wjOOxkPfeht/5cVPqG9XQopV8z0=
+  /slide/1.1.6:
+    resolution:
+      integrity: sha1-VusCfWW00tzmyy4tMsTUr8nh1wc=
   /source-map-support/0.4.15:
     dependencies:
       source-map: 0.5.6
-    resolution: 03202df65c06d2bd8c7ec2362a193056fef8d3b1
-  /source-map/0.5.6: 75ce38f52bf0733c5a7f0c118d81334a2bb5f412
-  /sprintf-js/1.0.3: 04e6926f662895354f3dd015203633b857297e2c
+    dev: true
+    resolution:
+      integrity: sha1-AyAt9lwG0r2MfsI2KhkwVv7407E=
+  /source-map/0.5.6:
+    dev: true
+    resolution:
+      integrity: sha1-dc449SvwczxafwwRjYEzSiu19BI=
+  /sprintf-js/1.0.3:
+    resolution:
+      integrity: sha1-BOaSb2YolTVPPdAVIDYzuFcpfiw=
   /string.prototype.trim/1.1.2:
     dependencies:
       define-properties: 1.1.2
       es-abstract: 1.7.0
       function-bind: 1.1.0
-    resolution: d04de2c89e137f4d7d206f086b5ed2fae6be8cea
+    dev: true
+    resolution:
+      integrity: sha1-0E3iyJ4Tf019IG8Ia17S+ua+jOo=
   /strip-ansi/3.0.1:
     dependencies:
       ansi-regex: 2.1.1
-    resolution: 6a385fb8853d952d5ff05d0e8aaf94278dc63dcf
-  /strip-bom/3.0.0: 2334c18e9c759f7bdd56fdef7e9ae3d588e68ed3
-  /strip-json-comments/2.0.1: 3c531942e908c2697c0ec344858c286c7ca0a60a
-  /supports-color/2.0.0: 535d045ce6b6363fa40117084629995e9df324c7
+    dev: true
+    resolution:
+      integrity: sha1-ajhfuIU9lS1f8F0Oiq+UJ43GPc8=
+  /strip-bom/3.0.0:
+    resolution:
+      integrity: sha1-IzTBjpx1n3vdVv3vfprj1YjmjtM=
+  /strip-json-comments/2.0.1:
+    dev: true
+    resolution:
+      integrity: sha1-PFMZQukIwml8DsNEhYwobHygpgo=
+  /supports-color/2.0.0:
+    dev: true
+    resolution:
+      integrity: sha1-U10EXOa2Nj+kARcIRimZXp3zJMc=
   /tape/4.6.3:
     dependencies:
       deep-equal: 1.0.1
@@ -204,9 +346,14 @@ packages:
       resumer: 0.0.0
       string.prototype.trim: 1.1.2
       through: 2.3.8
-    resolution: 637e77581e9ab2ce17577e9bd4ce4f575806d8b6
-  /through/2.3.8: 0dd4c9ffaabc357960b1b724115d7e0e86a2e1f5
-  /ts-node/3.0.4:
+    dev: true
+    resolution:
+      integrity: sha1-Y353WB6ass4XV36b1M5PV1gG2LY=
+  /through/2.3.8:
+    dev: true
+    resolution:
+      integrity: sha1-DdTJ/6q8NXlgsbckEV1+Doai4fU=
+  /ts-node/3.0.6:
     dependencies:
       arrify: 1.0.1
       chalk: 1.1.3
@@ -217,26 +364,41 @@ packages:
       source-map-support: 0.4.15
       tsconfig: 6.0.0
       v8flags: 2.1.1
-      yn: 1.3.0
-    resolution: a1475ebf24fd4e2ee2fba8b1aa1605b977bde506
+      yn: 2.0.0
+    dev: true
+    resolution:
+      integrity: sha1-VRJ/95DH7r9rpowebd6UsJqqIeA=
   /tsconfig/6.0.0:
     dependencies:
       strip-bom: 3.0.0
       strip-json-comments: 2.0.1
-    resolution: 6b0e8376003d7af1864f8df8f89dd0059ffcd032
-  /typescript/2.3.4: 3d38321828231e434f287514959c37a82b629f42
-  /user-home/1.1.1: 2b5be23a32b63a7c9deb8d0f28d485724a3df190
+    dev: true
+    resolution:
+      integrity: sha1-aw6DdgA9evGGT434+J3QBZ/80DI=
+  /typescript/2.3.4:
+    dev: true
+    resolution:
+      integrity: sha1-PTgyGCgjHkNPKHUUlZw3qCtin0I=
+  /user-home/1.1.1:
+    dev: true
+    resolution:
+      integrity: sha1-K1viOjK2Onyd640PKNSFcko98ZA=
   /v8flags/2.1.1:
     dependencies:
       user-home: 1.1.1
-    resolution: aab1a1fa30d45f88dd321148875ac02c0b55e5b4
-  /wrappy/1.0.2: b5243d8f3ec1aa35f1364605bc0d1036e30ab69f
+    dev: true
+    resolution:
+      integrity: sha1-qrGh+jDUX4jdMhFIh1rALAtV5bQ=
+  /wrappy/1.0.2:
+    resolution:
+      integrity: sha1-tSQ9jz7BqjXxNkYFvA0QNuMKtp8=
   /write-file-atomic/1.3.4:
     dependencies:
       graceful-fs: 4.1.11
       imurmurhash: 0.1.4
       slide: 1.1.6
-    resolution: f807a4f0b1d9e913ae7a48112e6cc3af1991b45f
+    resolution:
+      integrity: sha1-+Aek8LHZ6ROuekgRLmzDrxmRtF8=
   /write-yaml-file/1.0.0:
     dependencies:
       graceful-fs: 4.1.11
@@ -244,10 +406,25 @@ packages:
       mkdirp: 0.5.1
       pify: 2.3.0
       write-file-atomic: 1.3.4
-    resolution: 7b4bd0df72ca13fbe9d6b0178fd83c077b8ea86b
-  /yn/1.3.0:
-    dependencies:
-      object-assign: 4.1.1
-    resolution: 1b0812abb8d805d48966f8df385dc9dacc9a19d8
+    resolution:
+      integrity: sha1-e0vQ33LKE/vp1rAXj9g8B3uOqGs=
+  /yn/2.0.0:
+    dev: true
+    resolution:
+      integrity: sha1-5a2ryKz0CPY4X8dklWhMiOavaJo=
 registry: 'https://registry.npmjs.org/'
-version: 2
+specifiers:
+  '@types/node': ^7.0.27
+  '@types/ramda': ^0.0.11
+  '@types/tape': ^4.2.30
+  is-ci: ^1.0.10
+  load-yaml-file: ^0.1.0
+  pnpm-logger: ^0.3.0
+  ramda: ^0.24.1
+  rimraf: ^2.6.1
+  rimraf-then: ^1.0.1
+  tape: ^4.6.3
+  ts-node: ^3.0.4
+  typescript: ^2.3.4
+  write-yaml-file: ^1.0.0
+version: 3
