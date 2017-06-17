@@ -5,6 +5,7 @@ import path = require('path')
 import rimraf = require('rimraf-then')
 import resolve, {
   Resolution,
+  DirectoryResolution,
   PackageSpec,
   PackageMeta,
 } from '../resolve'
@@ -25,11 +26,16 @@ import symlinkDir = require('symlink-dir')
 import * as unpackStream from 'unpack-stream'
 
 export type FetchedPackage = {
+  isLink: true,
+  resolution: DirectoryResolution,
+  pkg: Package,
+  id: string,
+} | {
+  isLink: false,
   fetchingPkg: Promise<Package>,
   fetchingFiles: Promise<PackageContentInfo>,
   calculatingIntegrity: Promise<void>,
   path: string,
-  srcPath?: string,
   id: string,
   resolution: Resolution,
 }
@@ -78,9 +84,22 @@ export default async function fetch (
       pkgId = resolveResult.id
       pkg = resolveResult.package
     }
+
     const id = <string>pkgId
 
     logStatus({status: 'resolved', pkgId: id, pkg: options.loggedPkg})
+
+    if (resolution.type === 'directory') {
+      if (!pkg) {
+        throw new Error(`Couldn't read package.json of local dependency ${spec}`)
+      }
+      return {
+        isLink: true,
+        id,
+        pkg,
+        resolution,
+      }
+    }
 
     const target = path.join(options.storePath, pkgIdToFilename(id))
 
@@ -97,15 +116,13 @@ export default async function fetch (
     }
 
     return {
+      isLink: false,
       fetchingPkg: options.fetchingLocker[id].fetchingPkg,
       fetchingFiles: options.fetchingLocker[id].fetchingFiles,
       calculatingIntegrity: options.fetchingLocker[id].calculatingIntegrity,
       id,
       resolution,
       path: target,
-      srcPath: resolution.type == 'directory'
-        ? path.join(options.prefix, resolution.directory)
-        : undefined,
     }
   } catch (err) {
     logStatus({status: 'error', pkg: options.loggedPkg})

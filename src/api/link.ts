@@ -13,11 +13,13 @@ const linkLogger = logger('link')
 export default async function link (
   linkFrom: string,
   linkTo: string,
-  maybeOpts?: PnpmOptions
+  maybeOpts?: PnpmOptions & {skipInstall?: boolean}
 ) {
   const opts = extendOptions(maybeOpts)
 
-  await install(Object.assign({}, opts, { prefix: linkFrom, global: false }))
+  if (!maybeOpts || !maybeOpts.skipInstall) {
+    await install(Object.assign({}, opts, { prefix: linkFrom, global: false }))
+  }
 
   const destModules = path.join(linkTo, 'node_modules')
   await linkToModules(linkFrom, destModules)

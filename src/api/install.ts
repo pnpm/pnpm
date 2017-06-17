@@ -1,6 +1,7 @@
 import path = require('path')
 import RegClient = require('npm-registry-client')
 import logger from 'pnpm-logger'
+import logStatus from '../logging/logInstallStatus'
 import pLimit = require('p-limit')
 import npa = require('npm-package-arg')
 import pFilter = require('p-filter')
@@ -11,6 +12,7 @@ import {PnpmOptions, StrictPnpmOptions, Dependencies} from '../types'
 import createGot from '../network/got'
 import getContext, {PnpmContext} from './getContext'
 import installMultiple, {InstalledPackage} from '../install/installMultiple'
+import externalLink from './link'
 import linkPackages from '../link'
 import save from '../save'
 import getSaveType from '../getSaveType'
@@ -29,7 +31,7 @@ import {save as saveModules} from '../fs/modulesController'
 import mkdirp = require('mkdirp-promise')
 import createMemoize, {MemoizedFunc} from '../memoize'
 import {Package} from '../types'
-import {PackageSpec} from '../resolve'
+import {PackageSpec, DirectoryResolution, Resolution} from '../resolve'
 import {DependencyTreeNode} from '../link/resolvePeers'
 import depsToSpecs, {similarDepsToSpecs} from '../depsToSpecs'
 
@@ -56,6 +58,15 @@ export type PackageContentInfo = {
 
 export type InstallContext = {
   installs: InstalledPackages,
+  linkedPkgs: {
+    optional: boolean,
+    dev: boolean,
+    resolution: DirectoryResolution,
+    id: string,
+    version: string,
+    name: string,
+    specRaw: string,
+  }[],
   childrenIdsByParentId: {[parentId: string]: string[]},
   nodesToBuild: {
     nodeId: string,
@@ -251,7 +262,6 @@ async function installInContext (
     nodeModules: nodeModulesPath,
     update,
     keypath: [],
-    referencedFrom: opts.prefix,
     prefix: opts.prefix,
     parentNodeId: ':/:',
     currentDepth: 0,
@@ -275,6 +285,15 @@ async function installInContext (
     }
   })
   const pkgs: InstalledPackage[] = R.props<TreeNode>(rootNodeIds, installCtx.tree).map(node => node.pkg)
+  const pkgsToSave = (pkgs as {
+    optional: boolean,
+    dev: boolean,
+    resolution: Resolution,
+    id: string,
+    version: string,
+    name: string,
+    specRaw: string,
+  }[]).concat(installCtx.linkedPkgs)
 
   let newPkg: Package | undefined = ctx.pkg
   if (installType === 'named') {
@@ -285,12 +304,12 @@ async function installInContext (
     const saveType = getSaveType(opts)
     newPkg = await save(
       pkgJsonPath,
-      <any>pkgs.map(dep => { // tslint:disable-line
+      <any>pkgsToSave.map(dep => { // tslint:disable-line
         const spec = R.find(spec => spec.raw === dep.specRaw, newSpecs)
         if (!spec) return null
         return {
           name: dep.name,
-          saveSpec: getSaveSpec(spec, dep, opts.saveExact)
+          saveSpec: getSaveSpec(spec, dep.version, opts.saveExact)
         }
       }).filter(Boolean),
       saveType
@@ -307,7 +326,7 @@ async function installInContext (
 
     const getSpecFromPkg = (depName: string) => deps[depName] || devDeps[depName] || optionalDeps[depName]
 
-    pkgs.forEach(dep => {
+    pkgsToSave.forEach(dep => {
       const ref = pkgIdToRef(dep.id, dep.name, dep.resolution, ctx.shrinkwrap.registry)
       if (dep.dev) {
         ctx.shrinkwrap.devDependencies = ctx.shrinkwrap.devDependencies || {}
@@ -374,6 +393,17 @@ async function installInContext (
     )
   }
 
+  if (installCtx.linkedPkgs.length) {
+    const linkOpts = Object.assign({}, opts, {skipInstall: true})
+    await Promise.all(installCtx.linkedPkgs.map(async linkedPkg => {
+      await externalLink(linkedPkg.resolution.directory, opts.prefix, linkOpts)
+      logStatus({
+        status: 'installed',
+        pkgId: linkedPkg.id,
+      })
+    }))
+  }
+
   // waiting till the skipped packages are downloaded to the store
   await Promise.all(
     R.props<InstalledPackage>(Array.from(installCtx.skipped), installCtx.installs)
@@ -423,12 +453,12 @@ async function getTopParents (pkgNames: string[], modules: string) {
   }))
 }
 
-function getSaveSpec(spec: PackageSpec, pkg: InstalledPackage, saveExact: boolean) {
+function getSaveSpec(spec: PackageSpec, version: string, saveExact: boolean) {
   switch (spec.type) {
     case 'version':
     case 'range':
     case 'tag':
-      return `${saveExact ? '' : '^'}${pkg.version}`
+      return `${saveExact ? '' : '^'}${version}`
     default:
       return spec.saveSpec
   }
@@ -437,6 +467,7 @@ function getSaveSpec(spec: PackageSpec, pkg: InstalledPackage, saveExact: boolea
 async function createInstallCmd (opts: StrictPnpmOptions, shrinkwrap: Shrinkwrap, skipped: Set<string>): Promise<InstallContext> {
   return {
     installs: {},
+    linkedPkgs: [],
     childrenIdsByParentId: {},
     nodesToBuild: [],
     shrinkwrap,

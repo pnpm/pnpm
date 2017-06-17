@@ -1,7 +1,6 @@
 import logger from 'pnpm-logger'
 import fs = require('mz/fs')
 import path = require('path')
-import spawn = require('cross-spawn')
 import execa = require('execa')
 import {IncomingMessage} from 'http'
 import * as unpackStream from 'unpack-stream'
@@ -49,37 +48,10 @@ export default async function fetchResolution (
     case 'git':
       return await clone(resolution.repo, resolution.commit, target)
 
-    case 'directory': {
-      const tgzFilename = await npmPack(resolution.directory)
-      const tarball = path.resolve(resolution.directory, tgzFilename)
-      const dist = {tarball: tarball}
-      const index = await fetchFromLocalTarball(target, dist)
-      await fs.unlink(dist.tarball)
-      return index
+    default: {
+      throw new Error(`Fetching for dependency type "${resolution.type}" is not supported`)
     }
   }
-}
-
-function npmPack(dependencyPath: string): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const proc = spawn('npm', ['pack'], {
-      cwd: dependencyPath
-    })
-
-    let stdout = ''
-
-    proc.stdout.on('data', (data: Object) => {
-      stdout += data.toString()
-    })
-
-    proc.on('error', reject)
-
-    proc.on('close', (code: number) => {
-      if (code > 0) return reject(new Error('Exit code ' + code))
-      const tgzFilename = stdout.trim()
-      return resolve(tgzFilename)
-    })
-  })
 }
 
 /**

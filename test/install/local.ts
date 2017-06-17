@@ -31,6 +31,10 @@ test('local file', async function (t: tape.Test) {
 
   await installPkgs(['file:../local-pkg'], testDefaults())
 
+  const pkgJson = await readPkg()
+  const expectedSpecs = {'local-pkg': `file:..${path.sep}local-pkg`}
+  t.deepEqual(pkgJson.dependencies, expectedSpecs, 'local-pkg has been added to dependencies')
+
   const m = project.requireModule('local-pkg')
 
   t.ok(m, 'localPkg() is available')
@@ -38,20 +42,11 @@ test('local file', async function (t: tape.Test) {
   const shr = await project.loadShrinkwrap()
 
   t.deepEqual(shr, {
-    specifiers: {
-      'local-pkg': `file:..${path.sep}local-pkg`,
-    },
+    specifiers: expectedSpecs,
     dependencies: {
       'local-pkg': 'file:../local-pkg',
     },
-    packages: {
-      'file:../local-pkg': {
-        resolution: {
-          directory: '../local-pkg',
-          type: 'directory',
-        },
-      },
-    },
+    packages: {},
     registry: 'http://localhost:4873/',
     version: 3,
   })
@@ -64,17 +59,6 @@ test('package with a broken symlink', async function (t) {
   const m = project.requireModule('has-broken-symlink')
 
   t.ok(m, 'has-broken-symlink is available')
-})
-
-test('nested local dependency of a local dependency', async function (t: tape.Test) {
-  const project = prepare(t)
-  await installPkgs([local('pkg-with-local-dep')], testDefaults())
-
-  const m = project.requireModule('pkg-with-local-dep')
-
-  t.ok(m, 'pkgWithLocalDep() is available')
-
-  t.equal(m(), 'local-pkg', 'pkgWithLocalDep() returns data from local-pkg')
 })
 
 test('tarball local package', async function (t) {

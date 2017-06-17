@@ -32,7 +32,6 @@ export type PkgAddress = {
 export type InstalledPackage = {
   id: string,
   resolution: Resolution,
-  srcPath?: string,
   dev: boolean,
   optional: boolean,
   fetchingFiles: Promise<PackageContentInfo>,
@@ -53,7 +52,6 @@ export default async function installMultiple (
   options: {
     force: boolean,
     prefix: string,
-    referencedFrom: string,
     storePath: string,
     registry: string,
     metaCache: Map<string, PackageMeta>,
@@ -126,7 +124,6 @@ async function install (
   options: {
     force: boolean,
     prefix: string,
-    referencedFrom: string,
     storePath: string,
     registry: string,
     metaCache: Map<string, PackageMeta>,
@@ -182,6 +179,24 @@ async function install (
     offline: options.offline,
   })
 
+  if (fetchedPkg.isLink) {
+    if (options.currentDepth > 0) {
+      logger.warn(`Ignoring file dependency because it is not a root dependency ${spec}`)
+    } else {
+      ctx.linkedPkgs.push({
+        id: fetchedPkg.id,
+        specRaw: spec.raw,
+        name: fetchedPkg.pkg.name,
+        version: fetchedPkg.pkg.version,
+        dev: spec.dev,
+        optional: spec.optional,
+        resolution: fetchedPkg.resolution,
+      })
+    }
+    logStatus({status: 'downloaded_manifest', pkgId: fetchedPkg.id, pkgVersion: fetchedPkg.pkg.version})
+    return null
+  }
+
   if (options.parentNodeId.indexOf(`:${dependentId}:${fetchedPkg.id}:`) !== -1) {
     return null
   }
@@ -215,7 +230,6 @@ async function install (
     ctx.installs[fetchedPkg.id] = {
       id: fetchedPkg.id,
       resolution: fetchedPkg.resolution,
-      srcPath: fetchedPkg.srcPath,
       optional: spec.optional,
       name: pkg.name,
       version: pkg.version,
@@ -235,7 +249,6 @@ async function install (
       fetchedPkg.id,
       ctx,
       Object.assign({}, options, {
-        referencedFrom: fetchedPkg.srcPath,
         parentIsInstallable: installable,
         currentDepth: options.currentDepth + 1,
         parentNodeId: nodeId,
@@ -286,7 +299,6 @@ async function installDependencies (
   opts: {
     force: boolean,
     prefix: string,
-    referencedFrom: string,
     storePath: string,
     registry: string,
     metaCache: Map<string, PackageMeta>,
@@ -314,7 +326,7 @@ async function installDependencies (
   const deps = depsToSpecs(
     filterDeps(Object.assign({}, pkg.optionalDependencies, pkg.dependencies)),
     {
-      where: opts.referencedFrom,
+      where: opts.prefix,
       devDependencies: pkg.devDependencies || {},
       optionalDependencies: pkg.optionalDependencies || {},
     }

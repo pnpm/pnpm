@@ -35,5 +35,6 @@ export default async function resolveLocal (spec: PackageSpec, opts: ResolveOpti
   return {
     id,
     resolution,
+    package: localPkg,
   }
 }
