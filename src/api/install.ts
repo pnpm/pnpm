@@ -162,24 +162,27 @@ function depsFromPackage (pkg: Package): Dependencies {
 export async function installPkgs (fuzzyDeps: string[] | Dependencies, maybeOpts?: PnpmOptions) {
   const opts = extendOptions(maybeOpts)
   return lock(opts.prefix, async () => {
+    const installType = 'named'
+    const ctx = await getContext(opts, installType)
+    const existingSpecs = depsFromPackage(ctx.pkg)
     let packagesToInstall = Array.isArray(fuzzyDeps)
       ? argsToSpecs(fuzzyDeps, {
         defaultTag: opts.tag,
         where: opts.prefix,
         dev: opts.saveDev,
         optional: opts.saveOptional,
+        existingSpecs,
       })
       : similarDepsToSpecs(fuzzyDeps, {
         where: opts.prefix,
         dev: opts.saveDev,
         optional: opts.saveOptional,
+        existingSpecs,
       })
 
     if (!Object.keys(packagesToInstall).length) {
       throw new Error('At least one package has to be installed')
     }
-    const installType = 'named'
-    const ctx = await getContext(opts, installType)
     const installCtx = await createInstallCmd(opts, ctx.shrinkwrap, ctx.skipped)
 
     packagesToInstall.forEach(spec => {
@@ -211,11 +214,15 @@ function argsToSpecs (
     where: string,
     dev: boolean,
     optional: boolean,
+    existingSpecs: Dependencies,
   }
 ): PackageSpec[] {
   return args
     .map(arg => npa(arg, opts.where))
     .map(spec => {
+      if (!spec.rawSpec && opts.existingSpecs[spec.name]) {
+        return npa.resolve(spec.name, opts.existingSpecs[spec.name], opts.where)
+      }
       if (spec.type === 'tag' && !spec.rawSpec) {
         spec.fetchSpec = opts.defaultTag
       }

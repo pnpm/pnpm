@@ -26,12 +26,13 @@ export function similarDepsToSpecs (
     where: string,
     dev: boolean,
     optional: boolean,
+    existingSpecs: Dependencies,
   }
 ): PackageSpec[] {
   if (!deps) return []
   return Object.keys(deps).map(pkgName => depToSpec({
     pkgName,
-    pkgVersion: deps[pkgName],
+    pkgVersion: deps[pkgName] || opts.existingSpecs[pkgName],
     where: opts.where,
     dev: opts.dev,
     optional: opts.optional,
