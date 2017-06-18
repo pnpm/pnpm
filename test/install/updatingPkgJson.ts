@@ -21,6 +21,7 @@ test('save to package.json (rimraf@2.5.1)', async function (t) {
   t.deepEqual(pkgJson.dependencies, {rimraf: '^2.5.1'}, 'rimraf has been added to dependencies')
 })
 
+// NOTE: this works differently for global installations. See similar tests in global.ts
 test("don't override existing spec in package.json on named installation", async function (t: tape.Test) {
   const project = prepare(t, {
     dependencies: {

@@ -172,7 +172,7 @@ export async function installPkgs (fuzzyDeps: string[] | Dependencies, maybeOpts
   return lock(opts.prefix, async () => {
     const installType = 'named'
     const ctx = await getContext(opts, installType)
-    const existingSpecs = depsFromPackage(ctx.pkg)
+    const existingSpecs = opts.global ? {} : depsFromPackage(ctx.pkg)
     let packagesToInstall = Array.isArray(fuzzyDeps)
       ? argsToSpecs(fuzzyDeps, {
         defaultTag: opts.tag,
