@@ -32,7 +32,7 @@ export type PnpmContext = {
 export default async function getContext (opts: StrictPnpmOptions, installType?: 'named' | 'general'): Promise<PnpmContext> {
   const pkg = await (opts.global ? readGlobalPkgJson(opts.prefix) : readPkgFromDir(opts.prefix))
   const root = normalizePath(opts.prefix)
-  const storeBasePath = resolveStoreBasePath(opts.storePath, root)
+  const storeBasePath = resolveStoreBasePath(opts.store, root)
 
   const storePath = path.join(storeBasePath, STORE_VERSION)
 

@@ -53,7 +53,8 @@ const supportedCmds = new Set([
 
 async function run (argv: string[]) {
   const pnpmTypes = {
-    'store-path': path,
+    'store': path,
+    'store-path': path, // DEPRECATE! store should be used
     'global-path': path,
     'network-concurrency': Number,
     'fetching-concurrency': Number,

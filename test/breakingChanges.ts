@@ -15,7 +15,7 @@ test('fail on non-compatible node_modules', async t => {
   const project = prepare(t)
   const opts = testDefaults()
 
-  await saveModulesYaml('0.50.0', path.join(opts.storePath, STORE_VERSION))
+  await saveModulesYaml('0.50.0', path.join(opts.store, STORE_VERSION))
 
   try {
     await installPkgs(['is-negative'], opts)
@@ -29,7 +29,7 @@ test("don't fail on non-compatible node_modules when forced", async t => {
   const project = prepare(t)
   const opts = testDefaults({force: true})
 
-  await saveModulesYaml('0.50.0', path.join(opts.storePath, STORE_VERSION))
+  await saveModulesYaml('0.50.0', path.join(opts.store, STORE_VERSION))
 
   await install(opts)
 
@@ -40,7 +40,7 @@ test('fail on non-compatible node_modules when forced with a named installation'
   const project = prepare(t)
   const opts = testDefaults({force: true})
 
-  await saveModulesYaml('0.50.0', path.join(opts.storePath, STORE_VERSION))
+  await saveModulesYaml('0.50.0', path.join(opts.store, STORE_VERSION))
 
   try {
     await installPkgs(['is-negative'], opts)
@@ -54,7 +54,7 @@ test('fail on non-compatible store', async t => {
   const project = prepare(t)
   const opts = testDefaults()
 
-  await saveModulesYaml('0.32.0', path.join(opts.storePath, STORE_VERSION))
+  await saveModulesYaml('0.32.0', path.join(opts.store, STORE_VERSION))
 
   try {
     await installPkgs(['is-negative'], opts)
@@ -68,7 +68,7 @@ test("don't fail on non-compatible store when forced", async t => {
   const project = prepare(t)
   const opts = testDefaults({force: true})
 
-  await saveModulesYaml('0.32.0', path.join(opts.storePath, STORE_VERSION))
+  await saveModulesYaml('0.32.0', path.join(opts.store, STORE_VERSION))
 
   await install(opts)
 
@@ -79,7 +79,7 @@ test('fail on non-compatible store when forced during named installation', async
   const project = prepare(t)
   const opts = testDefaults({force: true})
 
-  await saveModulesYaml('0.32.0', path.join(opts.storePath, STORE_VERSION))
+  await saveModulesYaml('0.32.0', path.join(opts.store, STORE_VERSION))
 
   try {
     await installPkgs(['is-negative'], opts)

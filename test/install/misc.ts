@@ -545,10 +545,10 @@ test('should install dependency in second project', async function (t) {
 test('should throw error when trying to install using a different store then the previous one', async function(t) {
   const project = prepare(t)
 
-  await installPkgs(['rimraf@2.5.1'], testDefaults({storePath: 'node_modules/.store1'}))
+  await installPkgs(['rimraf@2.5.1'], testDefaults({store: 'node_modules/.store1'}))
 
   try {
-    await installPkgs(['is-negative'], testDefaults({storePath: 'node_modules/.store2'}))
+    await installPkgs(['is-negative'], testDefaults({store: 'node_modules/.store2'}))
     t.fail('installation should have failed')
   } catch (err) {
     t.equal(err.code, 'UNEXPECTED_STORE', 'failed with correct error code')

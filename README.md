@@ -74,7 +74,7 @@ to work with it, pnpm should be able to authorize requests as well, with no addi
 
 However, pnpm has some unique configs as well:
 
-#### store-path
+#### store
 
 * Default: **~/.pnpm-store**
 * Type: **path**

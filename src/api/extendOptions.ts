@@ -11,7 +11,7 @@ const defaults = (opts: PnpmOptions) => {
     fetchRetryFactor: 10,
     fetchRetryMintimeout: 1e4, // 10 seconds
     fetchRetryMaxtimeout: 6e4, // 1 minute
-    storePath: '~/.pnpm-store',
+    store: '~/.pnpm-store',
     ignoreScripts: false,
     strictSsl: true,
     tag: 'latest',
@@ -40,6 +40,7 @@ const defaults = (opts: PnpmOptions) => {
 }
 
 export default (opts?: PnpmOptions): StrictPnpmOptions => {
+  opts = opts || {}
   if (opts) {
     for (const key in opts) {
       if (opts[key] === undefined) {
@@ -47,7 +48,11 @@ export default (opts?: PnpmOptions): StrictPnpmOptions => {
       }
     }
   }
-  const extendedOpts = Object.assign({}, defaults(opts || {}), opts)
+  if (opts.storePath && !opts.store) {
+    logger.warn('the `store-path` config is deprecated. Use `store` instead.')
+    opts.store = opts.storePath
+  }
+  const extendedOpts = Object.assign({}, defaults(opts), opts)
   if (extendedOpts.force) {
     logger.warn('using --force I sure hope you know what you are doing')
   }

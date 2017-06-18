@@ -42,7 +42,8 @@ export type PnpmOptions = {
   alwaysAuth?: boolean,
 
   // pnpm specific configs
-  storePath?: string,
+  storePath?: string, // DEPRECATED! store should be used
+  store?: string,
   networkConcurrency?: number,
   fetchingConcurrency?: number,
   lockStaleDuration?: number,
@@ -95,7 +96,7 @@ export type StrictPnpmOptions = {
   alwaysAuth: boolean,
 
   // pnpm specific configs
-  storePath: string,
+  store: string,
   networkConcurrency: number,
   fetchingConcurrency: number,
   lockStaleDuration: number,
