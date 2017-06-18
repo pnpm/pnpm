@@ -58,7 +58,7 @@ export type PackageContentInfo = {
 
 export type InstallContext = {
   installs: InstalledPackages,
-  linkedPkgs: {
+  localPackages: {
     optional: boolean,
     dev: boolean,
     resolution: DirectoryResolution,
@@ -293,7 +293,7 @@ async function installInContext (
     version: string,
     name: string,
     specRaw: string,
-  }[]).concat(installCtx.linkedPkgs)
+  }[]).concat(installCtx.localPackages)
 
   let newPkg: Package | undefined = ctx.pkg
   if (installType === 'named') {
@@ -393,13 +393,13 @@ async function installInContext (
     )
   }
 
-  if (installCtx.linkedPkgs.length) {
+  if (installCtx.localPackages.length) {
     const linkOpts = Object.assign({}, opts, {skipInstall: true})
-    await Promise.all(installCtx.linkedPkgs.map(async linkedPkg => {
-      await externalLink(linkedPkg.resolution.directory, opts.prefix, linkOpts)
+    await Promise.all(installCtx.localPackages.map(async localPackage => {
+      await externalLink(localPackage.resolution.directory, opts.prefix, linkOpts)
       logStatus({
         status: 'installed',
-        pkgId: linkedPkg.id,
+        pkgId: localPackage.id,
       })
     }))
   }
@@ -467,7 +467,7 @@ function getSaveSpec(spec: PackageSpec, version: string, saveExact: boolean) {
 async function createInstallCmd (opts: StrictPnpmOptions, shrinkwrap: Shrinkwrap, skipped: Set<string>): Promise<InstallContext> {
   return {
     installs: {},
-    linkedPkgs: [],
+    localPackages: [],
     childrenIdsByParentId: {},
     nodesToBuild: [],
     shrinkwrap,

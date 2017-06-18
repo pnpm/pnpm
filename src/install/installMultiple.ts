@@ -179,11 +179,11 @@ async function install (
     offline: options.offline,
   })
 
-  if (fetchedPkg.isLink) {
+  if (fetchedPkg.isLocal) {
     if (options.currentDepth > 0) {
       logger.warn(`Ignoring file dependency because it is not a root dependency ${spec}`)
     } else {
-      ctx.linkedPkgs.push({
+      ctx.localPackages.push({
         id: fetchedPkg.id,
         specRaw: spec.raw,
         name: fetchedPkg.pkg.name,

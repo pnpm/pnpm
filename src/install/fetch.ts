@@ -26,12 +26,12 @@ import symlinkDir = require('symlink-dir')
 import * as unpackStream from 'unpack-stream'
 
 export type FetchedPackage = {
-  isLink: true,
+  isLocal: true,
   resolution: DirectoryResolution,
   pkg: Package,
   id: string,
 } | {
-  isLink: false,
+  isLocal: false,
   fetchingPkg: Promise<Package>,
   fetchingFiles: Promise<PackageContentInfo>,
   calculatingIntegrity: Promise<void>,
@@ -94,7 +94,7 @@ export default async function fetch (
         throw new Error(`Couldn't read package.json of local dependency ${spec}`)
       }
       return {
-        isLink: true,
+        isLocal: true,
         id,
         pkg,
         resolution,
@@ -116,7 +116,7 @@ export default async function fetch (
     }
 
     return {
-      isLink: false,
+      isLocal: false,
       fetchingPkg: options.fetchingLocker[id].fetchingPkg,
       fetchingFiles: options.fetchingLocker[id].fetchingFiles,
       calculatingIntegrity: options.fetchingLocker[id].calculatingIntegrity,
