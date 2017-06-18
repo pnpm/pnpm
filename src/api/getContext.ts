@@ -30,7 +30,7 @@ export type PnpmContext = {
 }
 
 export default async function getContext (opts: StrictPnpmOptions, installType?: 'named' | 'general'): Promise<PnpmContext> {
-  const pkg = await (opts.global ? readGlobalPkg(opts.prefix) : readPkgFromDir(opts.prefix))
+  const pkg = await (opts.global ? readGlobalPkgJson(opts.prefix) : readPkgFromDir(opts.prefix))
   const root = normalizePath(opts.prefix)
   const storeBasePath = resolveStoreBasePath(opts.storePath, root)
 
@@ -65,11 +65,6 @@ export default async function getContext (opts: StrictPnpmOptions, installType?:
 
   await mkdirp(ctx.storePath)
   return ctx
-}
-
-async function readGlobalPkg (globalPath: string) {
-  const globalPkgPath = path.resolve(globalPath, 'package.json')
-  return await readGlobalPkgJson(globalPkgPath)
 }
 
 const DefaultGlobalPkg: Package = {

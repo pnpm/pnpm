@@ -488,8 +488,15 @@ test('global installation', async function (t) {
   const opts = testDefaults({global: true, prefix: globalPrefix})
   await installPkgs(['is-positive'], opts)
 
+  // there was an issue when subsequent installations were removing everything installed prior
+  // https://github.com/pnpm/pnpm/issues/808
+  await installPkgs(['is-negative'], opts)
+
   const isPositive = require(path.join(globalPrefix, 'node_modules', 'is-positive'))
   t.ok(typeof isPositive === 'function', 'isPositive() is available')
+
+  const isNegative = require(path.join(globalPrefix, 'node_modules', 'is-negative'))
+  t.ok(typeof isNegative === 'function', 'isNegative() is available')
 })
 
 test('create a pnpm-debug.log file when the command fails', async function (t) {
