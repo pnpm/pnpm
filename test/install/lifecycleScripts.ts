@@ -124,32 +124,32 @@ test('postinstall is not executed after named installation', t => {
   t.end()
 })
 
-test('prepublish is not executed after installation with arguments', t => {
+test('prepare is not executed after installation with arguments', t => {
   const project = prepare(t, {
     scripts: {
-      prepublish: 'echo "Hello world!"'
+      prepare: 'echo "Hello world!"'
     }
   })
 
   const result = execPnpmSync('install', 'is-negative')
 
   t.equal(result.status, 0, 'installation was successfull')
-  t.ok(result.stdout.toString().indexOf('Hello world!') === -1, 'prepublish script was not executed')
+  t.ok(result.stdout.toString().indexOf('Hello world!') === -1, 'prepare script was not executed')
 
   t.end()
 })
 
-test('prepublish is executed after argumentless installation', t => {
+test('prepare is executed after argumentless installation', t => {
   const project = prepare(t, {
     scripts: {
-      prepublish: 'echo "Hello world!"'
+      prepare: 'echo "Hello world!"'
     }
   })
 
   const result = execPnpmSync('install')
 
   t.equal(result.status, 0, 'installation was successfull')
-  t.ok(result.stdout.toString().indexOf('Hello world!') !== -1, 'prepublish script was executed')
+  t.ok(result.stdout.toString().indexOf('Hello world!') !== -1, 'prepare script was executed')
 
   t.end()
 })

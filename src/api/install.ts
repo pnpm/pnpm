@@ -114,6 +114,11 @@ export async function install (maybeOpts?: PnpmOptions) {
 
     async function run () {
       const scripts = !opts.ignoreScripts && ctx.pkg && ctx.pkg.scripts || {}
+
+      if (scripts['prepublish']) {
+        logger.warn('`prepublish` scripts are deprecated. Use `prepare` for build steps and `prepublishOnly` for upload-only.')
+      }
+
       if (scripts['preinstall']) {
         npmRun('preinstall', ctx.root, opts.userAgent)
       }
@@ -125,6 +130,9 @@ export async function install (maybeOpts?: PnpmOptions) {
       }
       if (scripts['prepublish']) {
         npmRun('prepublish', ctx.root, opts.userAgent)
+      }
+      if (scripts['prepare']) {
+        npmRun('prepare', ctx.root, opts.userAgent)
       }
     }
   }, {stale: opts.lockStaleDuration})
