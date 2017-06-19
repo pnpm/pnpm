@@ -104,7 +104,8 @@ function dependencyShrToResolution (
 ): Resolution {
   if (!depShr.resolution['type'] && !depShr.resolution['tarball']) {
     return Object.assign({}, depShr.resolution, {
-      tarball: getTarball()
+      tarball: getTarball(),
+      registry: depShr.resolution['registry'] || registry,
     })
   }
   return depShr.resolution as Resolution

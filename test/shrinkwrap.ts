@@ -183,8 +183,16 @@ test('respects shrinkwrap.yaml for top dependencies', async (t: tape.Test) => {
   await Promise.all(pkgs.map(pkgName => addDistTag(pkgName, '100.1.0', 'latest')))
 
   await rimraf('node_modules')
+  await rimraf(path.join('..', '.store'))
 
-  await install(testDefaults())
+  // shouldn't care about what the registry in npmrc is
+  // the one in shrinkwrap should be used
+  await install(testDefaults({
+    registry: 'https://registry.npmjs.org',
+    rawNpmConfig: {
+      registry: 'https://registry.npmjs.org',
+    }
+  }))
 
   await project.storeHasNot('foo', '100.1.0')
   t.equal((await readPkg(path.resolve('node_modules', 'foo', 'package.json'))).version, '100.0.0')

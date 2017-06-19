@@ -63,11 +63,6 @@ declare module 'os-homedir' {
   export = anything;
 }
 
-declare module 'registry-auth-token' {
-  const anything: any;
-  export = anything;
-}
-
 declare module 'rimraf-then' {
   const anything: any;
   export = anything;
@@ -230,6 +225,11 @@ declare module 'is-inner-link' {
 }
 
 declare module 'npm/lib/config/defaults' {
+  const anything: any;
+  export = anything;
+}
+
+declare module 'npm/lib/config/get-credentials-by-uri' {
   const anything: any;
   export = anything;
 }

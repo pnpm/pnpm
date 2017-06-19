@@ -269,6 +269,7 @@ async function installInContext (
       networkConcurrency: opts.networkConcurrency,
       rawNpmConfig: opts.rawNpmConfig,
       alwaysAuth: opts.alwaysAuth,
+      registry: opts.registry,
     }),
     metaCache: opts.metaCache,
     resolvedDependencies: Object.assign({}, ctx.shrinkwrap.devDependencies, ctx.shrinkwrap.dependencies, ctx.shrinkwrap.optionalDependencies),

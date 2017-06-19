@@ -1,5 +1,4 @@
 import {IncomingMessage} from 'http'
-import getRegistryAuthInfo = require('registry-auth-token')
 import R = require('ramda')
 import pLimit = require('p-limit')
 import crypto = require('crypto')
@@ -8,6 +7,8 @@ import path = require('path')
 import createWriteStreamAtomic = require('fs-write-stream-atomic')
 import ssri = require('ssri')
 import unpackStream = require('unpack-stream')
+import npmGetCredentialsByURI = require('npm/lib/config/get-credentials-by-uri')
+import urlLib = require('url')
 
 export type AuthInfo = {
   alwaysAuth: boolean,
@@ -44,14 +45,23 @@ export default (
     networkConcurrency: number,
     rawNpmConfig: Object,
     alwaysAuth: boolean,
+    registry: string,
   }
 ): Got => {
+  opts.rawNpmConfig['registry'] = opts.rawNpmConfig['registry'] || opts.registry
+
+  const getCredentialsByURI = npmGetCredentialsByURI.bind({
+    get (key: string) {
+      return opts.rawNpmConfig[key]
+    }
+  })
+
   const limit = pLimit(opts.networkConcurrency)
 
   async function getJSON (url: string) {
     return limit(() => new Promise((resolve, reject) => {
       const getOpts = {
-        auth: getAuth(url),
+        auth: getCredentialsByURI(url),
         fullMetadata: false,
       }
       client.get(url, getOpts, (err: Error, data: Object, raw: Object, res: HttpResponse) => {
@@ -71,10 +81,17 @@ export default (
     return limit(async () => {
       await mkdirp(path.dirname(saveto))
 
-      const auth = getAuth(url) || opts.registry && getAuth(opts.registry)
+      const auth = getCredentialsByURI(opts.registry || url)
+      // If a tarball is hosted on a different place than the manifest, only send
+      // credentials on `alwaysAuth`
+      const shouldAuth = auth && (
+        auth.alwaysAuth ||
+        !opts.registry ||
+        urlLib.parse(url).host === urlLib.parse(opts.registry).host
+      )
 
       return new Promise((resolve, reject) => {
-        client.fetch(url, {auth}, async (err: Error, res: IncomingMessage) => {
+        client.fetch(url, {auth: shouldAuth && auth}, async (err: Error, res: IncomingMessage) => {
           if (err) return reject(err)
           const writeStream = createWriteStreamAtomic(saveto)
 
@@ -110,27 +127,6 @@ export default (
         })
       })
     })
-  }
-
-  function getAuth (url: string): AuthInfo | null {
-    const authInfo = getRegistryAuthInfo(url, {recursive: true, npmrc: opts.rawNpmConfig})
-
-    if (!authInfo) return null
-    switch (authInfo.type) {
-      case 'Bearer':
-        return {
-          alwaysAuth: opts.alwaysAuth,
-          token: authInfo.token,
-        }
-      case 'Basic':
-        return {
-          alwaysAuth: opts.alwaysAuth,
-          username: authInfo.username,
-          password: authInfo.password,
-        }
-      default:
-        throw new Error(`Unsupported authorization type '${authInfo.type}'`)
-    }
   }
 
   return {
