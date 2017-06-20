@@ -295,3 +295,44 @@ test('package is not marked optional if it is also a subdep of a regular depende
 
   t.notOk(shr.packages['/dep-of-pkg-with-1-dep/100.0.0']['optional'], 'package is not marked as optional')
 })
+
+test('scoped module from different registry', async function (t: tape.Test) {
+  const project = prepare(t)
+  await installPkgs(['@zkochan/foo', 'is-positive'], testDefaults({
+    rawNpmConfig: {
+      '@zkochan:registry': 'https://registry.npmjs.org/'
+    }
+  }))
+
+  const m = project.requireModule('@zkochan/foo')
+  t.ok(m, 'foo is available')
+
+  const shr = await project.loadShrinkwrap()
+
+  t.deepEqual(shr, {
+    dependencies: {
+      '@zkochan/foo': 'registry.npmjs.org/@zkochan/foo/1.0.0',
+      'is-positive': '3.1.0'
+    },
+    packages: {
+      '/is-positive/3.1.0': {
+        resolution: {
+          integrity: 'sha1-hX21hKG6XRyymAUn/DtsQ103sP0='
+        }
+      },
+      'registry.npmjs.org/@zkochan/foo/1.0.0': {
+        resolution: {
+          integrity: 'sha1-hJws2Ke4u4ghPFL/+6eqlSrgLLI=',
+          registry: 'https://registry.npmjs.org/',
+          tarball: 'https://registry.npmjs.org/@zkochan/foo/-/foo-1.0.0.tgz'
+        }
+      }
+    },
+    registry: 'http://localhost:4873/',
+    specifiers: {
+      '@zkochan/foo': '^1.0.0',
+      'is-positive': '^3.1.0',
+    },
+    version: 3
+  })
+})
