@@ -31,7 +31,7 @@ export type Got = {
     onProgress?: (downloaded: number, totalSize: number) => void,
     integrity?: string
   }): Promise<{}>,
-  getJSON<T>(url: string): Promise<T>,
+  getJSON<T>(url: string, registry: string): Promise<T>,
 }
 
 export type NpmRegistryClient = {
@@ -58,10 +58,10 @@ export default (
 
   const limit = pLimit(opts.networkConcurrency)
 
-  async function getJSON (url: string) {
+  async function getJSON (url: string, registry: string) {
     return limit(() => new Promise((resolve, reject) => {
       const getOpts = {
-        auth: getCredentialsByURI(url),
+        auth: getCredentialsByURI(registry),
         fullMetadata: false,
       }
       client.get(url, getOpts, (err: Error, data: Object, raw: Object, res: HttpResponse) => {
@@ -81,7 +81,7 @@ export default (
     return limit(async () => {
       await mkdirp(path.dirname(saveto))
 
-      const auth = getCredentialsByURI(opts.registry || url)
+      const auth = opts.registry && getCredentialsByURI(opts.registry)
       // If a tarball is hosted on a different place than the manifest, only send
       // credentials on `alwaysAuth`
       const shouldAuth = auth && (

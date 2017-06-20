@@ -83,7 +83,7 @@ export default async function loadPkgMetaNonCached (
 
 async function fromRegistry (got: Got, spec: PackageSpec, registry: string) {
   const uri = toUri(spec, registry)
-  const meta = <PackageMeta>await got.getJSON(uri)
+  const meta = <PackageMeta>await got.getJSON(uri, registry)
   return meta
 }
 

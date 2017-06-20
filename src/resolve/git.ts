@@ -110,7 +110,8 @@ async function tryResolveViaGitHubApi (
     'commits',
     spec.ref
   ].join('/')
-  const body = await got.getJSON<GitHubRepoResponse>(url)
+  // TODO: investigate what should be the correct registry path here
+  const body = await got.getJSON<GitHubRepoResponse>(url, url)
   return body.sha
 }
 
