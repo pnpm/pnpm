@@ -3,7 +3,7 @@ dependencies:
   '@types/common-tags': 1.2.5
   '@types/load-json-file': 2.0.5
   '@types/mz': 0.0.31
-  '@types/node': 7.0.31
+  '@types/node': 7.0.32
   '@types/nopt': 3.0.29
   '@types/npm': 2.0.28
   '@types/ramda': 0.0.15
@@ -95,7 +95,7 @@ devDependencies:
 packages:
   /@types/byline/4.2.31:
     dependencies:
-      '@types/node': 7.0.31
+      '@types/node': 8.0.0
     resolution:
       integrity: sha1-DmH8ucA+BH0hxEllVMcRYperYM0=
   /@types/chalk/0.4.31:
@@ -113,18 +113,21 @@ packages:
       integrity: sha1-fyrX7FX5FEgvybHsS7GuYCjUYGY=
   /@types/mz/0.0.31:
     dependencies:
-      '@types/node': 7.0.31
+      '@types/node': 8.0.0
     resolution:
       integrity: sha1-pNgMCC/v5x5Ap8DwfR5lVbu8e1I=
-  /@types/node/7.0.31:
+  /@types/node/7.0.32:
     resolution:
-      integrity: sha1-gOpNF1WZsqABScKaEKTrLf9ZLoY=
+      integrity: sha1-av5sZlIKTDFmI6FK7xI5CNAbS7o=
+  /@types/node/8.0.0:
+    resolution:
+      integrity: sha1-rKqJJHr93Hln6ZAv0Rdh2t6hpVU=
   /@types/nopt/3.0.29:
     resolution:
       integrity: sha1-8Z3z20yX7hRZonQAKDIKcdcJZM4=
   /@types/npm/2.0.28:
     dependencies:
-      '@types/node': 7.0.31
+      '@types/node': 8.0.0
     resolution:
       integrity: sha1-Crf0YK/Jru7kYZQ4l2YDG8cUUgw=
   /@types/ramda/0.0.11:
@@ -141,7 +144,7 @@ packages:
       integrity: sha1-uZnX2TX0P1IHsBsA094ghS9Mp18=
   /@types/tape/4.2.30:
     dependencies:
-      '@types/node': 7.0.31
+      '@types/node': 8.0.0
     dev: true
     resolution:
       integrity: sha1-PBkXxN/W8nJxuZInclE1FbxsRrQ=
@@ -234,7 +237,7 @@ packages:
   /are-we-there-yet/1.1.4:
     dependencies:
       delegates: 1.0.0
-      readable-stream: 2.2.11
+      readable-stream: 2.3.0
     resolution:
       integrity: sha1-u13KOCu5TwXhUZQ3PRb9O6HKEQ0=
   /argparse/1.0.9:
@@ -334,7 +337,7 @@ packages:
       integrity: sha1-Y7xdy2EzG5K8Bf1SiVPDNGKgb40=
   /bl/1.2.1:
     dependencies:
-      readable-stream: 2.2.11
+      readable-stream: 2.3.0
     resolution:
       integrity: sha1-ysMo977kVzDUBLaSID/LWQ4XLV4=
   /block-stream/0.0.9:
@@ -603,7 +606,7 @@ packages:
   /concat-stream/1.6.0:
     dependencies:
       inherits: 2.0.3
-      readable-stream: 2.2.11
+      readable-stream: 2.3.0
       typedarray: 0.0.6
     resolution:
       integrity: sha1-CqxmL9Ur54lk1VMvaUeE5wEQrPc=
@@ -875,7 +878,7 @@ packages:
     dependencies:
       end-of-stream: 1.0.0
       inherits: 2.0.3
-      readable-stream: 2.2.11
+      readable-stream: 2.3.0
       stream-shift: 1.0.0
     resolution:
       integrity: sha1-GqdzAC4VeEV+nZ1KULDMquvL1gQ=
@@ -1197,7 +1200,7 @@ packages:
       graceful-fs: 4.1.11
       iferr: 0.1.5
       imurmurhash: 0.1.4
-      readable-stream: 2.2.11
+      readable-stream: 2.3.0
     resolution:
       integrity: sha1-tH31NJPvkR33VzHnCp3tAYnbQMk=
   /fs.realpath/1.0.0:
@@ -2335,7 +2338,7 @@ packages:
       integrity: sha1-9ID0BDTvgHQfhGkJn43qGPVaTck=
   /parse-npm-tarball-url/1.0.1:
     dependencies:
-      '@types/node': 7.0.31
+      '@types/node': 7.0.32
       semver-regex: 1.0.0
     resolution:
       integrity: sha1-TfHPBF05fvLZw59RMImKiqjgYuQ=
@@ -2431,7 +2434,7 @@ packages:
     dependencies:
       '@types/chalk': 0.4.31
       '@types/common-tags': 1.2.5
-      '@types/node': 7.0.31
+      '@types/node': 7.0.32
       chalk: 1.1.3
       common-tags: 1.4.0
       ndjson: 1.5.0
@@ -2442,7 +2445,7 @@ packages:
   /pnpm-file-reporter/0.0.1:
     dependencies:
       '@types/chalk': 0.4.31
-      '@types/node': 7.0.31
+      '@types/node': 7.0.32
       chalk: 1.1.3
       json2yaml: 1.1.0
       ndjson: 1.5.0
@@ -2599,17 +2602,6 @@ packages:
       path-type: 2.0.0
     resolution:
       integrity: sha1-jvHAYjxqbbDcZxPEv6xGMysjaPg=
-  /readable-stream/2.2.11:
-    dependencies:
-      core-util-is: 1.0.2
-      inherits: 2.0.3
-      isarray: 1.0.0
-      process-nextick-args: 1.0.7
-      safe-buffer: 5.0.1
-      string_decoder: 1.0.2
-      util-deprecate: 1.0.2
-    resolution:
-      integrity: sha1-B5azH412iAB/8Lk6gIjTSqF8D3I=
   /readable-stream/2.3.0:
     dependencies:
       core-util-is: 1.0.2
@@ -2619,7 +2611,6 @@ packages:
       safe-buffer: 5.1.0
       string_decoder: 1.0.2
       util-deprecate: 1.0.2
-    dev: true
     resolution:
       integrity: sha1-ZA9dzaiMkajcYHhxRWKRcIE6HtI=
   /rechoir/0.6.2:
@@ -3059,7 +3050,7 @@ packages:
   /symlink-dir/1.0.3:
     dependencies:
       '@types/mz': 0.0.31
-      '@types/node': 7.0.31
+      '@types/node': 7.0.32
       graceful-fs: 4.1.11
       is-windows: 1.0.1
       mkdirp: 0.5.1
@@ -3104,7 +3095,7 @@ packages:
     dependencies:
       bl: 1.2.1
       end-of-stream: 1.4.0
-      readable-stream: 2.2.11
+      readable-stream: 2.3.0
       xtend: 4.0.1
     resolution:
       integrity: sha1-NlSc8E7RrumyowwBQyUiONr5QBY=
@@ -3135,7 +3126,7 @@ packages:
       integrity: sha1-DdTJ/6q8NXlgsbckEV1+Doai4fU=
   /through2/2.0.3:
     dependencies:
-      readable-stream: 2.2.11
+      readable-stream: 2.3.0
       xtend: 4.0.1
     resolution:
       integrity: sha1-AARWmzfHx0ujnEPzzteNGtlBQL4=
@@ -3265,7 +3256,7 @@ packages:
       integrity: sha1-HAgkFQSBvHoB1J6Y8exmjYJBLzs=
   /unpack-stream/2.0.0-beta.1:
     dependencies:
-      '@types/node': 7.0.31
+      '@types/node': 7.0.32
       decompress-maybe: 1.0.0
       ssri: 4.1.6
       tar-fs: 1.15.3
