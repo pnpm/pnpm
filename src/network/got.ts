@@ -9,6 +9,7 @@ import ssri = require('ssri')
 import unpackStream = require('unpack-stream')
 import npmGetCredentialsByURI = require('npm/lib/config/get-credentials-by-uri')
 import urlLib = require('url')
+import normalizeRegistryUrl = require('normalize-registry-url')
 
 export type AuthInfo = {
   alwaysAuth: boolean,
@@ -48,7 +49,7 @@ export default (
     registry: string,
   }
 ): Got => {
-  opts.rawNpmConfig['registry'] = opts.rawNpmConfig['registry'] || opts.registry
+  opts.rawNpmConfig['registry'] = normalizeRegistryUrl(opts.rawNpmConfig['registry'] || opts.registry)
 
   const getCredentialsByURI = npmGetCredentialsByURI.bind({
     get (key: string) {

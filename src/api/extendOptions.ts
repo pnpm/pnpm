@@ -3,6 +3,7 @@ import path = require('path')
 import logger from 'pnpm-logger'
 import expandTilde from '../fs/expandTilde'
 import pnpmPkgJson from '../pnpmPkgJson'
+import normalizeRegistryUrl = require('normalize-registry-url')
 
 const defaults = (opts: PnpmOptions) => {
   const prefix = process.cwd()
@@ -62,5 +63,6 @@ export default (opts?: PnpmOptions): StrictPnpmOptions => {
   if (extendedOpts.userAgent.startsWith('npm/')) {
     extendedOpts.userAgent = `${pnpmPkgJson.name}/${pnpmPkgJson.version} ${extendedOpts.userAgent}`
   }
+  extendedOpts.registry = normalizeRegistryUrl(extendedOpts.registry)
   return extendedOpts
 }
