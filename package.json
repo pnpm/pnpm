@@ -93,7 +93,7 @@
     "cz-conventional-changelog": "^2.0.0",
     "deep-require-cwd": "^1.0.0",
     "exists-link": "^2.0.0",
-    "husky": "^0.13.2",
+    "husky": "^0.14.0",
     "in-publish": "^2.0.0",
     "isexe": "^2.0.0",
     "mkdirp": "^0.5.1",
