@@ -27,7 +27,10 @@ import {
   ResolvedDependencies,
 } from 'pnpm-lockfile'
 import {pkgIdToRef} from '../fs/shrinkwrap'
-import {save as saveModules} from '../fs/modulesController'
+import {
+  save as saveModules,
+  LAYOUT_VERSION,
+} from '../fs/modulesController'
 import mkdirp = require('mkdirp-promise')
 import createMemoize, {MemoizedFunc} from '../memoize'
 import {Package} from '../types'
@@ -381,6 +384,7 @@ async function installInContext (
     packageManager: `${pnpmPkgJson.name}@${pnpmPkgJson.version}`,
     storePath: ctx.storePath,
     skipped: Array.from(installCtx.skipped),
+    layoutVersion: LAYOUT_VERSION,
   })
 
   // postinstall hooks

@@ -12,7 +12,8 @@ import {
   prune as pruneShrinkwrap,
 } from 'pnpm-lockfile'
 import {
-  save as saveModules
+  save as saveModules,
+  LAYOUT_VERSION,
 } from '../fs/modulesController'
 import removeOrphanPkgs from './removeOrphanPkgs'
 import {PackageSpec} from '../resolve'
@@ -58,6 +59,7 @@ export async function uninstallInContext (pkgsToUninstall: string[], ctx: PnpmCo
     packageManager: `${pnpmPkgJson.name}@${pnpmPkgJson.version}`,
     storePath: ctx.storePath,
     skipped: Array.from(ctx.skipped).filter(pkgId => removedPkgIds.indexOf(pkgId) === -1),
+    layoutVersion: LAYOUT_VERSION,
   })
   await removeOuterLinks(pkgsToUninstall, path.join(ctx.root, 'node_modules'), {storePath: ctx.storePath})
 }

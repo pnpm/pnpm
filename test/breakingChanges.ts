@@ -50,20 +50,6 @@ test('fail on non-compatible node_modules when forced with a named installation'
   }
 })
 
-test('fail on non-compatible store', async t => {
-  const project = prepare(t)
-  const opts = testDefaults()
-
-  await saveModulesYaml('0.32.0', path.join(opts.store, STORE_VERSION))
-
-  try {
-    await installPkgs(['is-negative'], opts)
-    t.fail('should have failed')
-  } catch (err) {
-    t.equal(err.code, 'STORE_BREAKING_CHANGE', 'store breaking change error is thrown')
-  }
-})
-
 test("don't fail on non-compatible store when forced", async t => {
   const project = prepare(t)
   const opts = testDefaults({force: true})

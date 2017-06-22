@@ -6,10 +6,13 @@ import writeYamlFile = require('write-yaml-file')
 // thinks that it is an extraneous package.
 const modulesFileName = '.modules.yaml'
 
+export const LAYOUT_VERSION = 1
+
 export type Modules = {
   packageManager: string,
   storePath: string,
   skipped: string[],
+  layoutVersion: number,
 }
 
 export async function read (modulesPath: string): Promise<Modules | null> {
