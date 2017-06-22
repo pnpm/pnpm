@@ -38,6 +38,7 @@ const defaults = (opts: PnpmOptions) => {
     update: false,
     repeatInstallDepth: -1,
     optional: true,
+    independentLeaves: false,
   }
 }
 
@@ -66,7 +67,8 @@ export default (opts?: PnpmOptions): StrictPnpmOptions => {
   }
   extendedOpts.registry = normalizeRegistryUrl(extendedOpts.registry)
   if (extendedOpts.global) {
-    extendedOpts.prefix = path.join(extendedOpts.prefix, LAYOUT_VERSION.toString())
+    const subfolder = LAYOUT_VERSION.toString() + (extendedOpts.independentLeaves ? '_independent_leaves' : '')
+    extendedOpts.prefix = path.join(extendedOpts.prefix, subfolder)
   }
   return extendedOpts
 }

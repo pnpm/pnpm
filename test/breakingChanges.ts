@@ -77,7 +77,7 @@ test('fail on non-compatible store when forced during named installation', async
 
 async function saveModulesYaml (pnpmVersion: string, storePath: string) {
   await mkdirp('node_modules')
-  await fs.writeFile('node_modules/.modules.yaml', `packageManager: pnpm@${pnpmVersion}\nstorePath: ${storePath}`)
+  await fs.writeFile('node_modules/.modules.yaml', `packageManager: pnpm@${pnpmVersion}\nstorePath: ${storePath}\nindependentLeaves: false`)
 }
 
 test('fail on non-compatible shrinkwrap.yaml', async t => {

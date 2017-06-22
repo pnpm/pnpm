@@ -63,6 +63,7 @@ async function run (argv: string[]) {
     'child-concurrency': Number,
     'offline': Boolean,
     'reporter': String,
+    'independent-leaves': Boolean,
   }
   const types = R.merge(npmDefaults.types, pnpmTypes)
   const cliConf = nopt(

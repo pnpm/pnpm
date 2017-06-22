@@ -377,6 +377,7 @@ async function installInContext (
     storePath: ctx.storePath,
     skipped: ctx.skipped,
     pkg: newPkg || ctx.pkg,
+    independentLeaves: opts.independentLeaves
   })
 
   await saveShrinkwrap(ctx.root, result.shrinkwrap)
@@ -385,6 +386,7 @@ async function installInContext (
     storePath: ctx.storePath,
     skipped: Array.from(installCtx.skipped),
     layoutVersion: LAYOUT_VERSION,
+    independentLeaves: opts.independentLeaves,
   })
 
   // postinstall hooks

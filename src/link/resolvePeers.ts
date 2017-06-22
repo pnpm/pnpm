@@ -41,7 +41,8 @@ export default function (
   topPkgIds: string[],
   // only the top dependencies that were already installed
   // to avoid warnings about unresolved peer dependencies
-  topParents: {name: string, version: string}[]
+  topParents: {name: string, version: string}[],
+  independentLeaves: boolean
 ): DependencyTreeNodeMap {
   const pkgsByName = R.fromPairs(
     topParents.map((parent: {name: string, version: string}): R.KeyValuePair<string, ParentRef> => [
@@ -55,7 +56,7 @@ export default function (
 
   const nodeIdToResolvedId = {}
   const resolvedTree: DependencyTreeNodeMap = {}
-  resolvePeersOfChildren(rootNodeIds, pkgsByName, tree, nodeIdToResolvedId, resolvedTree)
+  resolvePeersOfChildren(rootNodeIds, pkgsByName, tree, nodeIdToResolvedId, resolvedTree, independentLeaves)
 
   R.values(resolvedTree).forEach(node => {
     node.children = node.children.map(child => nodeIdToResolvedId[child])
@@ -68,11 +69,12 @@ function resolvePeersOfNode (
   parentPkgs: ParentRefs,
   tree: TreeNodeMap,
   nodeIdToResolvedId: {[nodeId: string]: string},
-  resolvedTree: DependencyTreeNodeMap
+  resolvedTree: DependencyTreeNodeMap,
+  independentLeaves: boolean
 ): string[] {
   const node = tree[nodeId]
 
-  const unknownResolvedPeersOfChildren = resolvePeersOfChildren(node.children, parentPkgs, tree, nodeIdToResolvedId, resolvedTree)
+  const unknownResolvedPeersOfChildren = resolvePeersOfChildren(node.children, parentPkgs, tree, nodeIdToResolvedId, resolvedTree, independentLeaves)
 
   const resolvedPeers = R.isEmpty(node.pkg.peerDependencies)
     ? []
@@ -97,7 +99,7 @@ function resolvePeersOfNode (
 
   nodeIdToResolvedId[nodeId] = resolvedId
   if (!resolvedTree[resolvedId] || resolvedTree[resolvedId].depth > node.depth) {
-    const independent = !node.children.length && R.isEmpty(node.pkg.peerDependencies)
+    const independent = independentLeaves && !node.children.length && R.isEmpty(node.pkg.peerDependencies)
     const pathToUnpacked = path.join(node.pkg.path, 'node_modules', node.pkg.name)
     const hardlinkedLocation = !independent
       ? path.join(modules, node.pkg.name)
@@ -129,7 +131,8 @@ function resolvePeersOfChildren (
   parentParentPkgs: ParentRefs,
   tree: {[nodeId: string]: TreeNode},
   nodeIdToResolvedId: {[nodeId: string]: string},
-  resolvedTree: DependencyTreeNodeMap
+  resolvedTree: DependencyTreeNodeMap,
+  independentLeaves: boolean
 ): string[] {
   const trees: DependencyTreeNodeMap[] = []
   const unknownResolvedPeersOfChildren: string[] = []
@@ -138,7 +141,7 @@ function resolvePeersOfChildren (
   )
 
   for (const child of children) {
-    const allResolvedPeers = resolvePeersOfNode(child, parentPkgs, tree, nodeIdToResolvedId, resolvedTree)
+    const allResolvedPeers = resolvePeersOfNode(child, parentPkgs, tree, nodeIdToResolvedId, resolvedTree, independentLeaves)
 
     const unknownResolvedPeersOfChild = allResolvedPeers
       .filter((resolvedPeerNodeId: string) => children.indexOf(resolvedPeerNodeId) === -1)

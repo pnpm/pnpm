@@ -116,6 +116,15 @@ Can be passed in via a CLI option. `--no-lock` to set it to false. E.g.: `pnpm i
 > If you experience issues similar to the ones described in [#594](https://github.com/pnpm/pnpm/issues/594), use this option to disable locking.
 > In the meanwhile, we'll try to find a solution that will make locking work for everyone.
 
+#### independent-leaves
+
+* Default: **false**
+* Type: **Boolean**
+
+If true, symlinks leaf dependencies directly from the global store. Leaf dependencies are
+packages that have no dependencies of their own. Setting this config to `true` might break some packages
+that rely on location but gives an average of **8% installation speed improvement**.
+
 ## Benchmark
 
 pnpm is faster than npm and yarn. See [this](https://github.com/zkochan/node-package-manager-benchmark)

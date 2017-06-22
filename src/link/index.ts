@@ -40,6 +40,7 @@ export default async function (
     storePath: string,
     skipped: Set<string>,
     pkg: Package,
+    independentLeaves: boolean,
   }
 ): Promise<{
   linkedPkgsMap: DependencyTreeNodeMap,
@@ -47,7 +48,7 @@ export default async function (
   newPkgResolvedIds: string[],
 }> {
   const topPkgIds = topPkgs.map(pkg => pkg.id)
-  const pkgsToLink = await resolvePeers(tree, rootNodeIds, topPkgIds, opts.topParents)
+  const pkgsToLink = await resolvePeers(tree, rootNodeIds, topPkgIds, opts.topParents, opts.independentLeaves)
   const newShr = updateShrinkwrap(pkgsToLink, opts.shrinkwrap, opts.pkg)
 
   await removeOrphanPkgs(opts.privateShrinkwrap, newShr, opts.root, opts.storePath)

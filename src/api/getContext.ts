@@ -41,6 +41,14 @@ export default async function getContext (opts: StrictPnpmOptions, installType?:
 
   if (modules) {
     try {
+      if (Boolean(modules.independentLeaves) !== opts.independentLeaves) {
+        if (modules.independentLeaves) {
+          throw new Error(`This node_modules was installed with --independent-leaves option.
+            Use this option or run same command with --force to recreated node_modules`)
+        }
+        throw new Error(`This node_modules was not installed with the --independent-leaves option.
+          Don't use --independent-leaves run same command with --force to recreated node_modules`)
+      }
       checkCompatibility(modules, {storePath, modulesPath})
     } catch (err) {
       if (!opts.force) throw err
