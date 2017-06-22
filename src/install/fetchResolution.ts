@@ -62,7 +62,7 @@ async function clone (repo: string, commitId: string, dest: string) {
   await execGit(['checkout', commitId], {cwd: dest})
   // removing /.git to make directory integrity calculation faster
   await rimraf(path.join(dest, '.git'))
-  const dirIntegrity = dint.from(dest)
+  const dirIntegrity = await dint.from(dest)
   return {
     headers: dirIntegrity,
     integrityPromise: Promise.resolve(dirIntegrity),
