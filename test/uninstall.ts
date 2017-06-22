@@ -35,6 +35,19 @@ test('uninstall package with no dependencies', async function (t) {
   t.equal(pkgJson.dependencies, undefined, 'is-negative has been removed from dependencies')
 })
 
+test('uninstall package and remove from appropriate property', async function (t: tape.Test) {
+  const project = prepare(t)
+  await installPkgs(['is-negative@2.1.0'], testDefaults({ saveDev: true }))
+  await uninstall(['is-negative'], testDefaults())
+
+  await project.storeHasNot('is-negative', '2.1.0')
+
+  await project.hasNot('is-negative')
+
+  const pkgJson = await readPkg()
+  t.equal(pkgJson.dependencies, undefined, 'is-negative has been removed from dependencies')
+})
+
 test('uninstall scoped package', async function (t) {
   const project = prepare(t)
   await installPkgs(['@zkochan/logger@0.1.0'], testDefaults({ save: true }))

@@ -29,8 +29,6 @@ export default async function uninstallCmd (pkgsToUninstall: string[], maybeOpts
       throw new Error('No package.json found - cannot uninstall')
     }
 
-    const pkg = ctx.pkg
-
     if (opts.lock === false) {
       return run()
     }
@@ -38,32 +36,30 @@ export default async function uninstallCmd (pkgsToUninstall: string[], maybeOpts
     return lock(ctx.storePath, run, {stale: opts.lockStaleDuration})
 
     function run () {
-      return uninstallInContext(pkgsToUninstall, pkg, ctx, opts)
+      return uninstallInContext(pkgsToUninstall, ctx, opts)
     }
   }, {stale: opts.lockStaleDuration})
 }
 
-export async function uninstallInContext (pkgsToUninstall: string[], pkg: Package, ctx: PnpmContext, opts: StrictPnpmOptions) {
-  const saveType = getSaveType(opts) || 'dependencies'
-  if (saveType) {
-    const pkgJsonPath = path.join(ctx.root, 'package.json')
-    const pkg = await removeDeps(pkgJsonPath, pkgsToUninstall, saveType)
-    for (let depName in ctx.shrinkwrap.dependencies) {
-      if (!isDependentOn(pkg, depName)) {
-        delete ctx.shrinkwrap.dependencies[depName]
-        delete ctx.shrinkwrap.specifiers[depName]
-      }
+export async function uninstallInContext (pkgsToUninstall: string[], ctx: PnpmContext, opts: StrictPnpmOptions) {
+  const pkgJsonPath = path.join(ctx.root, 'package.json')
+  const saveType = getSaveType(opts)
+  const pkg = await removeDeps(pkgJsonPath, pkgsToUninstall, saveType)
+  for (let depName in ctx.shrinkwrap.dependencies) {
+    if (!isDependentOn(pkg, depName)) {
+      delete ctx.shrinkwrap.dependencies[depName]
+      delete ctx.shrinkwrap.specifiers[depName]
     }
-    const newShr = await pruneShrinkwrap(ctx.shrinkwrap, pkg)
-    const removedPkgIds = await removeOrphanPkgs(ctx.privateShrinkwrap, newShr, ctx.root, ctx.storePath)
-    await saveShrinkwrap(ctx.root, newShr)
-    await saveModules(path.join(ctx.root, 'node_modules'), {
-      packageManager: `${pnpmPkgJson.name}@${pnpmPkgJson.version}`,
-      storePath: ctx.storePath,
-      skipped: Array.from(ctx.skipped).filter(pkgId => removedPkgIds.indexOf(pkgId) === -1),
-    })
-    await removeOuterLinks(pkgsToUninstall, path.join(ctx.root, 'node_modules'), {storePath: ctx.storePath})
   }
+  const newShr = await pruneShrinkwrap(ctx.shrinkwrap, pkg)
+  const removedPkgIds = await removeOrphanPkgs(ctx.privateShrinkwrap, newShr, ctx.root, ctx.storePath)
+  await saveShrinkwrap(ctx.root, newShr)
+  await saveModules(path.join(ctx.root, 'node_modules'), {
+    packageManager: `${pnpmPkgJson.name}@${pnpmPkgJson.version}`,
+    storePath: ctx.storePath,
+    skipped: Array.from(ctx.skipped).filter(pkgId => removedPkgIds.indexOf(pkgId) === -1),
+  })
+  await removeOuterLinks(pkgsToUninstall, path.join(ctx.root, 'node_modules'), {storePath: ctx.storePath})
 }
 
 function isDependentOn (pkg: Package, depName: string): boolean {
