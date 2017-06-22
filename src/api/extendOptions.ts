@@ -3,6 +3,7 @@ import path = require('path')
 import logger from 'pnpm-logger'
 import expandTilde from '../fs/expandTilde'
 import pnpmPkgJson from '../pnpmPkgJson'
+import {LAYOUT_VERSION} from '../fs/modulesController'
 import normalizeRegistryUrl = require('normalize-registry-url')
 
 const defaults = (opts: PnpmOptions) => {
@@ -64,5 +65,8 @@ export default (opts?: PnpmOptions): StrictPnpmOptions => {
     extendedOpts.userAgent = `${pnpmPkgJson.name}/${pnpmPkgJson.version} ${extendedOpts.userAgent}`
   }
   extendedOpts.registry = normalizeRegistryUrl(extendedOpts.registry)
+  if (extendedOpts.global) {
+    extendedOpts.prefix = path.join(extendedOpts.prefix, LAYOUT_VERSION.toString())
+  }
   return extendedOpts
 }

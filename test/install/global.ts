@@ -7,6 +7,8 @@ import {installPkgs} from '../../src'
 
 const test = promisifyTape(tape)
 
+const LAYOUT_VERSION = '1'
+
 test('global installation', async function (t) {
   prepare(t)
   const globalPrefix = path.resolve('..', 'global')
@@ -17,10 +19,10 @@ test('global installation', async function (t) {
   // https://github.com/pnpm/pnpm/issues/808
   await installPkgs(['is-negative'], opts)
 
-  const isPositive = require(path.join(globalPrefix, 'node_modules', 'is-positive'))
+  const isPositive = require(path.join(globalPrefix, LAYOUT_VERSION, 'node_modules', 'is-positive'))
   t.ok(typeof isPositive === 'function', 'isPositive() is available')
 
-  const isNegative = require(path.join(globalPrefix, 'node_modules', 'is-negative'))
+  const isNegative = require(path.join(globalPrefix, LAYOUT_VERSION, 'node_modules', 'is-negative'))
   t.ok(typeof isNegative === 'function', 'isNegative() is available')
 })
 
@@ -34,5 +36,7 @@ test('always install latest when doing global installation without spec', async 
   await installPkgs(['peer-c@1'], opts)
   await installPkgs(['peer-c'], opts)
 
-  t.equal(project.requireModule('peer-c/package.json').version, '2.0.0')
+  process.chdir(LAYOUT_VERSION)
+
+  t.equal(require(path.resolve('node_modules', 'peer-c', 'package.json')).version, '2.0.0')
 })
