@@ -109,34 +109,34 @@ export async function install (maybeOpts?: PnpmOptions) {
       }
     })
 
-    if (opts.lock === false) {
-      return run()
+    const scripts = !opts.ignoreScripts && ctx.pkg && ctx.pkg.scripts || {}
+
+    if (scripts['prepublish']) {
+      logger.warn('`prepublish` scripts are deprecated. Use `prepare` for build steps and `prepublishOnly` for upload-only.')
     }
 
-    return lock(ctx.storePath, run, {stale: opts.lockStaleDuration})
+    if (scripts['preinstall']) {
+      npmRun('preinstall', ctx.root, opts.userAgent)
+    }
+
+    if (opts.lock === false) {
+      await run()
+    } else {
+      await lock(ctx.storePath, run, {stale: opts.lockStaleDuration})
+    }
+
+    if (scripts['postinstall']) {
+      npmRun('postinstall', ctx.root, opts.userAgent)
+    }
+    if (scripts['prepublish']) {
+      npmRun('prepublish', ctx.root, opts.userAgent)
+    }
+    if (scripts['prepare']) {
+      npmRun('prepare', ctx.root, opts.userAgent)
+    }
 
     async function run () {
-      const scripts = !opts.ignoreScripts && ctx.pkg && ctx.pkg.scripts || {}
-
-      if (scripts['prepublish']) {
-        logger.warn('`prepublish` scripts are deprecated. Use `prepare` for build steps and `prepublishOnly` for upload-only.')
-      }
-
-      if (scripts['preinstall']) {
-        npmRun('preinstall', ctx.root, opts.userAgent)
-      }
-
       await installInContext(installType, specs, [], ctx, installCtx, opts)
-
-      if (scripts['postinstall']) {
-        npmRun('postinstall', ctx.root, opts.userAgent)
-      }
-      if (scripts['prepublish']) {
-        npmRun('prepublish', ctx.root, opts.userAgent)
-      }
-      if (scripts['prepare']) {
-        npmRun('prepare', ctx.root, opts.userAgent)
-      }
     }
   }, {stale: opts.lockStaleDuration})
 }
