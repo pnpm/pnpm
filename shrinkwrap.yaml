@@ -54,8 +54,8 @@ dependencies:
   pnpm-default-reporter: 0.6.0
   pnpm-file-reporter: 0.0.1
   pnpm-install-checks: 1.1.0
-  pnpm-lockfile: 0.2.0
   pnpm-logger: 0.3.0
+  pnpm-shrinkwrap: 1.0.1
   proper-lockfile: 2.0.1
   ramda: 0.24.1
   read-package-json: 2.0.5
@@ -2462,17 +2462,6 @@ packages:
       semver: 5.3.0
     resolution:
       integrity: sha1-dB2ZeXYv362T8+Rp3rSoFNNDAAg=
-  /pnpm-lockfile/0.2.0:
-    dependencies:
-      '@types/ramda': 0.0.11
-      is-ci: 1.0.10
-      load-yaml-file: 0.1.0
-      pnpm-logger: 0.3.0
-      ramda: 0.24.1
-      rimraf-then: 1.0.1
-      write-yaml-file: 1.0.0
-    resolution:
-      integrity: sha1-MxfTo4RLW0qmGxWGRcJ1YTvkt/c=
   /pnpm-logger/0.0.0:
     dependencies:
       bole: 3.0.2
@@ -2491,6 +2480,17 @@ packages:
     dev: true
     resolution:
       integrity: sha1-VhXmj44KEsK5DkWhAH7rlqTkDkk=
+  /pnpm-shrinkwrap/1.0.1:
+    dependencies:
+      '@types/ramda': 0.0.11
+      is-ci: 1.0.10
+      load-yaml-file: 0.1.0
+      pnpm-logger: 0.3.0
+      ramda: 0.24.1
+      rimraf-then: 1.0.1
+      write-yaml-file: 1.0.0
+    resolution:
+      integrity: sha1-csNmDZ7eAL+i0BlUkvmAULL7ow4=
   /prepend-http/1.0.4:
     resolution:
       integrity: sha1-1PRWKwzjaW5BrFLQ4ALlemNdxtw=
@@ -3540,9 +3540,9 @@ specifiers:
   pnpm-default-reporter: ^0.6.0
   pnpm-file-reporter: ^0.0.1
   pnpm-install-checks: ^1.1.0
-  pnpm-lockfile: ^0.2.0
   pnpm-logger: ^0.3.0
   pnpm-registry-mock: ^0.13.0
+  pnpm-shrinkwrap: ^1.0.1
   proper-lockfile: ^2.0.0
   ramda: ^0.24.1
   read-package-json: ^2.0.5

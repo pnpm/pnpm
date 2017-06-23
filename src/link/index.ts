@@ -14,7 +14,7 @@ import resolvePeers, {DependencyTreeNode, DependencyTreeNodeMap} from './resolve
 import logStatus from '../logging/logInstallStatus'
 import updateShrinkwrap from './updateShrinkwrap'
 import {shortIdToFullId} from '../fs/shrinkwrap'
-import {Shrinkwrap, DependencyShrinkwrap} from 'pnpm-lockfile'
+import {Shrinkwrap, DependencyShrinkwrap} from 'pnpm-shrinkwrap'
 import removeOrphanPkgs from '../api/removeOrphanPkgs'
 import linkIndexedDir from '../fs/linkIndexedDir'
 import ncpCB = require('ncp')
@@ -106,7 +106,7 @@ function filterShrinkwrap (
     pairs = pairs.filter(pair => !pair[1].optional)
   }
   return {
-    version: shr.version,
+    shrinkwrapVersion: shr.shrinkwrapVersion,
     registry: shr.registry,
     specifiers: shr.specifiers,
     packages: R.fromPairs(pairs),

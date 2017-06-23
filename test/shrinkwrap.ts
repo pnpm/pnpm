@@ -19,7 +19,7 @@ test('shrinkwrap file has correct format', async t => {
   const shr = await project.loadShrinkwrap()
   const id = '/pkg-with-1-dep/100.0.0'
 
-  t.equal(shr.version, 3, 'correct shrinkwrap version')
+  t.equal(shr.shrinkwrapVersion, 3, 'correct shrinkwrap version')
 
   t.ok(shr.registry, 'has registry field')
 
@@ -341,6 +341,6 @@ test('scoped module from different registry', async function (t: tape.Test) {
       '@zkochan/foo': '^1.0.0',
       'is-positive': '^3.1.0',
     },
-    version: 3
+    shrinkwrapVersion: 3
   })
 })

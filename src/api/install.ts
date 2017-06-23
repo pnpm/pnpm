@@ -25,7 +25,7 @@ import {
   save as saveShrinkwrap,
   Shrinkwrap,
   ResolvedDependencies,
-} from 'pnpm-lockfile'
+} from 'pnpm-shrinkwrap'
 import {pkgIdToRef} from '../fs/shrinkwrap'
 import {
   save as saveModules,

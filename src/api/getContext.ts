@@ -7,7 +7,7 @@ import {
   read as readShrinkwrap,
   readPrivate as readPrivateShrinkwrap,
   Shrinkwrap,
-} from 'pnpm-lockfile'
+} from 'pnpm-shrinkwrap'
 import {
   read as readModules,
 } from '../fs/modulesController'

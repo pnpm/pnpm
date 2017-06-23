@@ -8,7 +8,7 @@ import {
   ShrinkwrapResolution,
   ResolvedDependencies,
   prune as pruneShrinkwrap,
-} from 'pnpm-lockfile'
+} from 'pnpm-shrinkwrap'
 import {DependencyTreeNodeMap, DependencyTreeNode} from './resolvePeers'
 import {Resolution} from '../resolve'
 import R = require('ramda')

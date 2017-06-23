@@ -18,7 +18,7 @@ import {
 import {
   DependencyShrinkwrap,
   ResolvedDependencies,
-} from 'pnpm-lockfile'
+} from 'pnpm-shrinkwrap'
 import {Resolution, PackageSpec, PackageMeta} from '../resolve'
 import depsToSpecs from '../depsToSpecs'
 import getIsInstallable from './getIsInstallable'

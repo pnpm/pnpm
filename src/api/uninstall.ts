@@ -10,7 +10,7 @@ import {
   Shrinkwrap,
   save as saveShrinkwrap,
   prune as pruneShrinkwrap,
-} from 'pnpm-lockfile'
+} from 'pnpm-shrinkwrap'
 import {
   save as saveModules,
   LAYOUT_VERSION,

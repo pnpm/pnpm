@@ -3,7 +3,7 @@ import path = require('path')
 import {
   shortIdToFullId,
 } from '../fs/shrinkwrap'
-import {Shrinkwrap} from 'pnpm-lockfile'
+import {Shrinkwrap} from 'pnpm-shrinkwrap'
 import {read as readStore, save as saveStore} from '../fs/storeController'
 import R = require('ramda')
 import {PackageSpec} from '../resolve'
