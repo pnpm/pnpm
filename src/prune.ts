@@ -55,7 +55,7 @@ export default function prune (shr: Shrinkwrap, pkg: Package): Shrinkwrap {
   })
 
   const result: Shrinkwrap = {
-    version: SHRINKWRAP_VERSION,
+    shrinkwrapVersion: SHRINKWRAP_VERSION,
     specifiers,
     registry: shr.registry,
     dependencies: shrDependencies,

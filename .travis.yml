@@ -4,10 +4,6 @@ node_js:
   - 6
   - 8
 
-cache:
-  directories:
-    - $HOME/.pnpm-registry
-
 sudo: false
 before_install:
   - npm install -g pnpm

@@ -3,7 +3,7 @@ import prune from '../src/prune'
 
 test('remove one redundant package', t => {
   t.deepEqual(prune({
-    version: 3,
+    shrinkwrapVersion: 3,
     registry: 'https://registry.npmjs.org',
     dependencies: {
       'is-positive': '1.0.0'
@@ -30,7 +30,7 @@ test('remove one redundant package', t => {
       'is-positive': '^1.0.0'
     }
   }), {
-    version: 3,
+    shrinkwrapVersion: 3,
     registry: 'https://registry.npmjs.org',
     dependencies: {
       'is-positive': '1.0.0'
@@ -52,7 +52,7 @@ test('remove one redundant package', t => {
 
 test('keep all', t => {
   t.deepEqual(prune({
-    version: 3,
+    shrinkwrapVersion: 3,
     registry: 'https://registry.npmjs.org',
     dependencies: {
       'is-positive': '1.0.0',
@@ -90,7 +90,7 @@ test('keep all', t => {
       'is-negative': '^1.0.0',
     }
   }), {
-    version: 3,
+    shrinkwrapVersion: 3,
     registry: 'https://registry.npmjs.org',
     dependencies: {
       'is-positive': '1.0.0',
@@ -127,7 +127,7 @@ test('keep all', t => {
 
 test('optional dependency should have optional = true', t => {
   t.deepEqual(prune({
-    version: 3,
+    shrinkwrapVersion: 3,
     registry: 'https://registry.npmjs.org',
     dependencies: {
       'pkg-with-good-optional': '1.0.0',
@@ -164,7 +164,7 @@ test('optional dependency should have optional = true', t => {
       'pkg-with-good-optional': '^1.0.0',
     },
   }), {
-    version: 3,
+    shrinkwrapVersion: 3,
     registry: 'https://registry.npmjs.org',
     dependencies: {
       'pkg-with-good-optional': '1.0.0',
@@ -199,7 +199,7 @@ test('optional dependency should have optional = true', t => {
 
 test('optional dependency should not have optional = true if used not only as optional', t => {
   t.deepEqual(prune({
-    version: 3,
+    shrinkwrapVersion: 3,
     registry: 'https://registry.npmjs.org',
     dependencies: {
       'pkg-with-good-optional': '1.0.0',
@@ -232,7 +232,7 @@ test('optional dependency should not have optional = true if used not only as op
       'is-positive': '^1.0.0',
     },
   }), {
-    version: 3,
+    shrinkwrapVersion: 3,
     registry: 'https://registry.npmjs.org',
     dependencies: {
       'pkg-with-good-optional': '1.0.0',
@@ -264,7 +264,7 @@ test('optional dependency should not have optional = true if used not only as op
 
 test('dev dependency should have dev = true', t => {
   t.deepEqual(prune({
-    version: 3,
+    shrinkwrapVersion: 3,
     registry: 'https://registry.npmjs.org',
     dependencies: {
       'pkg-with-good-optional': '1.0.0',
@@ -298,7 +298,7 @@ test('dev dependency should have dev = true', t => {
       'pkg-with-good-optional': '^1.0.0',
     },
   }), {
-    version: 3,
+    shrinkwrapVersion: 3,
     registry: 'https://registry.npmjs.org',
     dependencies: {
       'pkg-with-good-optional': '1.0.0',
@@ -330,7 +330,7 @@ test('dev dependency should have dev = true', t => {
 
 test('dev dependency should not have dev = true if it is used not only as dev', t => {
   t.deepEqual(prune({
-    version: 3,
+    shrinkwrapVersion: 3,
     registry: 'https://registry.npmjs.org',
     dependencies: {
       'some-pkg': '1.0.0',
@@ -367,7 +367,7 @@ test('dev dependency should not have dev = true if it is used not only as dev', 
       'some-pkg': '^1.0.0',
     },
   }), {
-    version: 3,
+    shrinkwrapVersion: 3,
     registry: 'https://registry.npmjs.org',
     dependencies: {
       'some-pkg': '1.0.0',
@@ -401,7 +401,7 @@ test('dev dependency should not have dev = true if it is used not only as dev', 
 
 test('remove dependencies that are not in the package', t => {
   t.deepEqual(prune({
-    version: 3,
+    shrinkwrapVersion: 3,
     registry: 'https://registry.npmjs.org',
     dependencies: {
       'is-positive': '1.0.0'
@@ -438,7 +438,7 @@ test('remove dependencies that are not in the package', t => {
     name: 'foo',
     version: '1.0.0',
   }), {
-    version: 3,
+    shrinkwrapVersion: 3,
     registry: 'https://registry.npmjs.org',
     dependencies: {},
     specifiers: {},

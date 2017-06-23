@@ -33,7 +33,7 @@ class ShrinkwrapBreakingChangeError extends PnpmError {
 
 function getDefaultShrinkwrap (registry: string) {
   return {
-    version: SHRINKWRAP_VERSION,
+    shrinkwrapVersion: SHRINKWRAP_VERSION,
     specifiers: {},
     dependencies: {},
     packages: {},
@@ -58,7 +58,7 @@ export async function readPrivate (
     }
     return getDefaultShrinkwrap(opts.registry)
   }
-  if (shrinkwrap && shrinkwrap.version === SHRINKWRAP_VERSION) {
+  if (shrinkwrap && (shrinkwrap.shrinkwrapVersion === SHRINKWRAP_VERSION || shrinkwrap['version'] === SHRINKWRAP_VERSION)) {
     return shrinkwrap
   }
   if (opts.force || isCI) {
@@ -84,7 +84,7 @@ export async function read (
     }
     return getDefaultShrinkwrap(opts.registry)
   }
-  if (shrinkwrap && shrinkwrap.version === SHRINKWRAP_VERSION) {
+  if (shrinkwrap && (shrinkwrap.shrinkwrapVersion === SHRINKWRAP_VERSION || shrinkwrap['version'] === SHRINKWRAP_VERSION)) {
     return shrinkwrap
   }
   if (opts.force || isCI) {
