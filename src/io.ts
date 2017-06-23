@@ -58,7 +58,13 @@ export async function readPrivate (
     }
     return getDefaultShrinkwrap(opts.registry)
   }
-  if (shrinkwrap && (shrinkwrap.shrinkwrapVersion === SHRINKWRAP_VERSION || shrinkwrap['version'] === SHRINKWRAP_VERSION)) {
+  // for backward compatibility
+  if (shrinkwrap && shrinkwrap['version'] === SHRINKWRAP_VERSION) {
+    shrinkwrap.shrinkwrapVersion = SHRINKWRAP_VERSION
+    delete shrinkwrap['version']
+    return shrinkwrap
+  }
+  if (shrinkwrap && shrinkwrap.shrinkwrapVersion === SHRINKWRAP_VERSION) {
     return shrinkwrap
   }
   if (opts.force || isCI) {
@@ -84,7 +90,13 @@ export async function read (
     }
     return getDefaultShrinkwrap(opts.registry)
   }
-  if (shrinkwrap && (shrinkwrap.shrinkwrapVersion === SHRINKWRAP_VERSION || shrinkwrap['version'] === SHRINKWRAP_VERSION)) {
+  // for backward compatibility
+  if (shrinkwrap && shrinkwrap['version'] === SHRINKWRAP_VERSION) {
+    shrinkwrap.shrinkwrapVersion = SHRINKWRAP_VERSION
+    delete shrinkwrap['version']
+    return shrinkwrap
+  }
+  if (shrinkwrap && shrinkwrap.shrinkwrapVersion === SHRINKWRAP_VERSION) {
     return shrinkwrap
   }
   if (opts.force || isCI) {

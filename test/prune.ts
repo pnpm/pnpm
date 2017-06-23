@@ -1,5 +1,5 @@
 import test = require('tape')
-import prune from '../src/prune'
+import {prune} from '../src'
 
 test('remove one redundant package', t => {
   t.deepEqual(prune({
