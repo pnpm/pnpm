@@ -1,13 +1,13 @@
-# pnpm-lockfile
+# pnpm-shrinkwrap
 
-[![Build Status](https://travis-ci.org/pnpm/pnpm-lockfile.svg?branch=master)](https://travis-ci.org/pnpm/pnpm-lockfile)
+[![Build Status](https://travis-ci.org/pnpm/pnpm-shrinkwrap.svg?branch=master)](https://travis-ci.org/pnpm/pnpm-shrinkwrap)
 
-> pnpm's lockfile
+> pnpm's shrinkwrap
 
 ## Install
 
 ```
-npm i pnpm-lockfile
+npm i pnpm-shrinkwrap
 ```
 
 ## License

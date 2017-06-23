@@ -1,7 +1,7 @@
 {
-  "name": "pnpm-lockfile",
+  "name": "pnpm-shrinkwrap",
   "version": "0.2.0",
-  "description": "pnpm's lockfile",
+  "description": "pnpm's shrinkwrap",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
   "files": [
@@ -14,10 +14,11 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/pnpm/pnpm-lockfile.git"
+    "url": "git+https://github.com/pnpm/pnpm-shrinkwrap.git"
   },
   "keywords": [
     "pnpm",
+    "shrinkwrap",
     "lockfile"
   ],
   "author": {
@@ -27,9 +28,9 @@
   },
   "license": "MIT",
   "bugs": {
-    "url": "https://github.com/pnpm/pnpm-lockfile/issues"
+    "url": "https://github.com/pnpm/pnpm-shrinkwrap/issues"
   },
-  "homepage": "https://github.com/pnpm/pnpm-lockfile#readme",
+  "homepage": "https://github.com/pnpm/pnpm-shrinkwrap#readme",
   "devDependencies": {
     "@types/node": "^7.0.27",
     "@types/tape": "^4.2.30",
