@@ -9,7 +9,7 @@ import {Modules, read as readModules} from '../../src/fs/modulesController'
 import isExecutable from './isExecutable'
 
 // the testing folder should be outside of the project to avoid lookup in the project's node_modules
-const tmpPath = path.resolve('..', '.tmp')
+const tmpPath = path.join(__dirname, '..', '..', '..', '.tmp')
 mkdirp.sync(tmpPath)
 
 let dirNumber = 0
