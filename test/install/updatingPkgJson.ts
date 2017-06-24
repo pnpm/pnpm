@@ -81,6 +81,12 @@ test('dependency should not be added to package.json if it is already there', as
       bar: '^100.0.0',
     },
   }, 'package.json was not changed')
+
+  const shr = await project.loadShrinkwrap()
+
+  t.equal(shr.dependencies.foo, '100.0.0', '`foo` is in the dependencies property of shrinkwrap.yaml')
+  t.equal(shr.optionalDependencies.bar, '100.0.0', '`bar` is in the optionalDependencies property of shrinkwrap.yaml')
+  t.ok(shr.packages['/bar/100.0.0'].optional, 'the `bar` package is marked as optional in shrinkwrap.yaml')
 })
 
 test('dependencies should be updated in the fields where they already are', async function (t: tape.Test) {
