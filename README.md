@@ -180,6 +180,18 @@ For more on this subject:
 * [A thread from the pnpm chat room](https://gist.github.com/zkochan/106cfef49f8476b753a9cbbf9c65aff1)
 * [An issue in the pnpm repo](https://github.com/pnpm/pnpm/issues/794)
 
+### Does it work on Windows? It is harder to create symlinks on Windows
+
+Using symlinks on Windows is problematic indeed. That is why pnpm uses junctions instead of symlinks on Windows OS.
+
+### Does it work on Windows? Nested `node_modules` approach is basically incompatible with Windows
+
+Early versions of npm had issues because of nesting all `node_modules` (see [Node's nested node_modules approach is basically incompatible with Windows](https://github.com/nodejs/node-v0.x-archive/issues/6960)). However, pnpm does not create deep folders, it stores all packages flatly and uses symlinks to create the dependency tree structure.
+
+### What about circular symlinks?
+
+Although pnpm uses symlinks to put dependencies into `node_modules` folders, circular symlinks are avoided because parent packages are placed into the same `node_modules` folder in which their dependencies are. So `foo`'s dependencies are not in `foo/node_modules` but `foo` is in `node_modules/foo`, together with its own dependencies.
+
 ## License
 
 [MIT](https://github.com/pnpm/pnpm/blob/master/LICENSE)
