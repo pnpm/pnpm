@@ -26,6 +26,8 @@ export function similarDepsToSpecs (
     where: string,
     dev: boolean,
     optional: boolean,
+    optionalDependencies: Dependencies,
+    devDependencies: Dependencies,
     existingSpecs: Dependencies,
   }
 ): PackageSpec[] {
@@ -34,8 +36,8 @@ export function similarDepsToSpecs (
     pkgName,
     pkgVersion: deps[pkgName] || opts.existingSpecs[pkgName],
     where: opts.where,
-    dev: opts.dev,
-    optional: opts.optional,
+    dev: opts.dev || !!opts.devDependencies[pkgName],
+    optional: opts.optional || !!opts.optionalDependencies[pkgName],
   }))
 }
 

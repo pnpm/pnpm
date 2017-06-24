@@ -176,6 +176,9 @@ export async function installPkgs (fuzzyDeps: string[] | Dependencies, maybeOpts
     const installType = 'named'
     const ctx = await getContext(opts, installType)
     const existingSpecs = opts.global ? {} : depsFromPackage(ctx.pkg)
+    const saveType = getSaveType(opts)
+    const optionalDependencies = saveType ? {} : ctx.pkg.optionalDependencies || {}
+    const devDependencies = saveType ? {} : ctx.pkg.devDependencies || {}
     let packagesToInstall = Array.isArray(fuzzyDeps)
       ? argsToSpecs(fuzzyDeps, {
         defaultTag: opts.tag,
@@ -183,12 +186,16 @@ export async function installPkgs (fuzzyDeps: string[] | Dependencies, maybeOpts
         dev: opts.saveDev,
         optional: opts.saveOptional,
         existingSpecs,
+        optionalDependencies,
+        devDependencies,
       })
       : similarDepsToSpecs(fuzzyDeps, {
         where: opts.prefix,
         dev: opts.saveDev,
         optional: opts.saveOptional,
         existingSpecs,
+        optionalDependencies,
+        devDependencies,
       })
 
     if (!Object.keys(packagesToInstall).length) {
@@ -226,6 +233,8 @@ function argsToSpecs (
     dev: boolean,
     optional: boolean,
     existingSpecs: Dependencies,
+    optionalDependencies: Dependencies,
+    devDependencies: Dependencies,
   }
 ): PackageSpec[] {
   return args
@@ -237,8 +246,11 @@ function argsToSpecs (
       if (spec.type === 'tag' && !spec.rawSpec) {
         spec.fetchSpec = opts.defaultTag
       }
-      spec.dev = opts.dev
-      spec.optional = opts.optional
+      return spec
+    })
+    .map(spec => {
+      spec.dev = opts.dev || !!opts.devDependencies[spec.name]
+      spec.optional = opts.optional || !!opts.optionalDependencies[spec.name]
       return spec
     })
 }

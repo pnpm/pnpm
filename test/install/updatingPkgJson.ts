@@ -84,7 +84,9 @@ test('dependency should not be added to package.json if it is already there', as
 
   const shr = await project.loadShrinkwrap()
 
-  t.equal(shr.dependencies.foo, '100.0.0', '`foo` is in the dependencies property of shrinkwrap.yaml')
+  t.equal(shr.devDependencies.foo, '100.0.0', '`foo` is in the devDependencies property of shrinkwrap.yaml')
+  t.ok(shr.packages['/foo/100.0.0'].dev, 'the `foo` package is marked as dev in shrinkwrap.yaml')
+
   t.equal(shr.optionalDependencies.bar, '100.0.0', '`bar` is in the optionalDependencies property of shrinkwrap.yaml')
   t.ok(shr.packages['/bar/100.0.0'].optional, 'the `bar` package is marked as optional in shrinkwrap.yaml')
 })
