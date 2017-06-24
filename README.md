@@ -58,11 +58,12 @@ npm install -g pnpm
 
 ## Usage
 
-Use `pnpm` in place of `npm`. It overrides `pnpm i`, `pnpm install` and some other command, the rest will pass through to `npm`.
-
 ```
 pnpm install lodash
 ```
+
+Use `pnpm` in place of `npm`. It overrides `install`, `update`, `uninstall`, `link`, `prune` and `install-test`.
+The rest of the commands pass through to `npm`.
 
 For using the programmatic API, see: [API](docs/api.md).
 
@@ -87,7 +88,7 @@ The location where all the packages are saved on the disk.
 * Default: **false**
 * Type: **Boolean**
 
-If true, pnpm will use only the local registry mirror to get packages.
+If true, pnpm will use only packages already available in the store.
 If a package won't be found locally, the installation will fail.
 
 #### network-concurrency
@@ -196,5 +197,3 @@ Although pnpm uses symlinks to put dependencies into `node_modules` folders, cir
 ## License
 
 [MIT](https://github.com/pnpm/pnpm/blob/master/LICENSE)
-
-[contributors]: http://github.com/pnpm/pnpm/contributors
