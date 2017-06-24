@@ -48,8 +48,7 @@ function depToSpec (
     optional: boolean,
   }
 ): PackageSpec {
-  const raw = `${opts.pkgName}@${opts.pkgVersion}`
-  const spec = npa(raw, opts.where)
+  const spec = npa.resolve(opts.pkgName, opts.pkgVersion, opts.where)
   spec.dev = opts.dev
   spec.optional = opts.optional
   return spec
