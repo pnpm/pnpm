@@ -2,6 +2,7 @@ import tape = require('tape')
 import promisifyTape from 'tape-promise'
 const test = promisifyTape(tape)
 import path = require('path')
+import writePkg = require('write-pkg')
 import {
   prepare,
   isExecutable,
@@ -15,7 +16,8 @@ import {
   link,
   linkToGlobal,
   linkFromGlobal,
-  installPkgs
+  installPkgs,
+  cmd,
 } from '../src'
 
 test('relative link', async function (t) {
@@ -62,4 +64,29 @@ test('global link', async function (t) {
   await linkFromGlobal(linkedPkgName, process.cwd(), Object.assign(testDefaults(), {globalPrefix}))
 
   isExecutable(t, path.resolve('node_modules', '.bin', 'hello-world-js-bin'))
+})
+
+test('linking multiple packages', async (t: tape.Test) => {
+  const project = prepare(t)
+
+  process.chdir('..')
+  const globalPrefix = path.resolve('global')
+
+  await writePkg('linked-foo', {name: 'linked-foo', version: '1.0.0'})
+  await writePkg('linked-bar', {name: 'linked-bar', version: '1.0.0'})
+
+  process.chdir('linked-foo')
+
+  const opts = Object.assign(testDefaults(), {globalPrefix})
+
+  t.comment('linking linked-foo to global package')
+  await cmd.link([], opts)
+
+  process.chdir('..')
+  process.chdir('project')
+
+  await cmd.link(['linked-foo', '../linked-bar'], opts)
+
+  project.has('linked-foo')
+  project.has('linked-bar')
 })
