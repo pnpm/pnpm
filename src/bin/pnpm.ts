@@ -15,30 +15,14 @@ import npm = require('npm')
 import npmDefaults = require('npm/lib/config/defaults')
 import '../logging/fileLogger'
 import pkg from '../pnpmPkgJson'
+import * as pnpmCmds from '../cmd'
 import runNpm from '../cmd/runNpm'
-import installCmd from '../cmd/install'
-import updateCmd from '../cmd/update'
-import uninstallCmd from '../cmd/uninstall'
-import linkCmd from '../cmd/link'
-import pruneCmd from '../cmd/prune'
-import installTestCmd from '../cmd/installTest'
-import runCmd from '../cmd/run'
-import storeCmd from '../cmd/store'
 import bole = require('bole')
 import initReporter from '../reporter'
 
 bole.setFastTime()
 
-const pnpmCmds = {
-  install: installCmd,
-  update: updateCmd,
-  uninstall: uninstallCmd,
-  link: linkCmd,
-  prune: pruneCmd,
-  'install-test': installTestCmd,
-  run: runCmd,
-  store: storeCmd,
-}
+pnpmCmds['install-test'] = pnpmCmds.installTest
 
 const supportedCmds = new Set([
   'install',
