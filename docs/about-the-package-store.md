@@ -29,16 +29,19 @@ registry.node-modules.io/@wmhilton/log/1.1.0
 
 E.g.: `github.com/alexGugel/ied/b246270b53e43f1dc469df0c9b9ce19bb881e932`
 
-## `store.yaml`
+## `store.json`
 
 A file in the root of store that contains information about projects depending on specific packages from the store.
-The `store.yaml` is a [YAML](http://yaml.org/) file with sorted keys.
 
-```yaml
-/home/john_smith/src/ied:
-  - registry.npmjs.org/npm/3.10.2
-/home/john_smith/src/ied:
-  - registry.npmjs.org/arr-flatten/1.0.1
-  - registry.npmjs.org/byline/5.0.0
-  - registry.npmjs.org/cache-manager/2.2.0
+```json
+{
+  "/home/john_smith/src/ied": [
+    "registry.npmjs.org/npm/3.10.2"
+  ],
+  "/home/john_smith/src/ied": [
+    "registry.npmjs.org/arr-flatten/1.0.1",
+    "registry.npmjs.org/byline/5.0.0",
+    "registry.npmjs.org/cache-manager/2.2.0"
+  ]
+}
 ```
