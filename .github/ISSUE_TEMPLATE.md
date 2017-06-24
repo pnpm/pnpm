@@ -1,6 +1,9 @@
 <!--
 Thank you for raising your concerns, we appreciate your feedback and contributions to this repository.
 
+If you have a question and it is not answered in the FAQ section of the README,
+consider asking it in our Gitter chatroom https://gitter.im/pnpm/pnpm.
+
 If your issue is a bug, please follow the format below:
 -->
 
