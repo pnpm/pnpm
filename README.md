@@ -142,11 +142,6 @@ time pnpm i babel-preset-es2015 browserify chalk debug minimist mkdirp
     11.04 real         6.85 user         2.85 sys
 ```
 
-## Prior art
-
-* [Compared to ied](docs/vs-ied.md)
-* [Compared to npm](docs/vs-npm.md)
-
 ## Limitations
 
 1. [npm-shrinkwrap.json](https://docs.npmjs.com/cli/shrinkwrap) is ignored. Unlike pnpm, npm can install the
@@ -163,6 +158,12 @@ original file instead, as described in [#736](https://github.com/pnpm/pnpm/issue
 4. Node.js doesn't work with the [--preserve-symlinks](https://nodejs.org/api/cli.html#cli_preserve_symlinks) flag when executed in a project that uses pnpm.
 
 Got an idea for workarounds for these issues? [Share them.](https://github.com/pnpm/pnpm/issues/new)
+
+## Other Node.js package managers
+
+* [npm](https://github.com/npm/npm). The oldest and most widely used. See [pnpm vs npm](docs/pnpm-vs-npm.md).
+* [Yarn](https://yarnpkg.com/en/). The first Node.js package manager that invented lockfiles and offline installations.
+* [ied](https://github.com/alexanderGugel/ied). ied is built on a very similar premise as pnpm. pnpm takes huge inspiration from it.
 
 ## Frequently Asked Questions
 
