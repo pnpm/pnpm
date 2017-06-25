@@ -103,11 +103,13 @@ export async function install (maybeOpts?: PnpmOptions) {
       prefix: opts.prefix,
     })
 
-    specs.forEach(spec => {
-      if (ctx.shrinkwrap.specifiers && ctx.shrinkwrap.specifiers[spec.name] !== spec.rawSpec) {
-        delete ctx.shrinkwrap.dependencies[spec.name]
+    if (ctx.shrinkwrap.specifiers && ctx.shrinkwrap.dependencies) {
+      for (const spec of specs) {
+        if (ctx.shrinkwrap.specifiers[spec.name] !== spec.rawSpec) {
+          delete ctx.shrinkwrap.dependencies[spec.name]
+        }
       }
-    })
+    }
 
     const scripts = !opts.ignoreScripts && ctx.pkg && ctx.pkg.scripts || {}
 
@@ -203,9 +205,11 @@ export async function installPkgs (fuzzyDeps: string[] | Dependencies, maybeOpts
     }
     const installCtx = await createInstallCmd(opts, ctx.shrinkwrap, ctx.skipped)
 
-    packagesToInstall.forEach(spec => {
-      delete ctx.shrinkwrap.dependencies[spec.name]
-    })
+    if (ctx.shrinkwrap.dependencies) {
+      for (const spec of packagesToInstall) {
+        delete ctx.shrinkwrap.dependencies[spec.name]
+      }
+    }
 
     if (opts.lock === false) {
       return run()
@@ -350,6 +354,8 @@ async function installInContext (
   if (newPkg) {
     ctx.shrinkwrap.dependencies = ctx.shrinkwrap.dependencies || {}
     ctx.shrinkwrap.specifiers = ctx.shrinkwrap.specifiers || {}
+    ctx.shrinkwrap.optionalDependencies = ctx.shrinkwrap.optionalDependencies || {}
+    ctx.shrinkwrap.devDependencies = ctx.shrinkwrap.devDependencies || {}
 
     const deps = newPkg.dependencies || {}
     const devDeps = newPkg.devDependencies || {}
@@ -357,19 +363,26 @@ async function installInContext (
 
     const getSpecFromPkg = (depName: string) => deps[depName] || devDeps[depName] || optionalDeps[depName]
 
-    pkgsToSave.forEach(dep => {
+    for (const dep of pkgsToSave) {
       const ref = pkgIdToRef(dep.id, dep.name, dep.resolution, ctx.shrinkwrap.registry)
       if (dep.dev) {
-        ctx.shrinkwrap.devDependencies = ctx.shrinkwrap.devDependencies || {}
         ctx.shrinkwrap.devDependencies[dep.name] = ref
       } else if (dep.optional) {
-        ctx.shrinkwrap.optionalDependencies = ctx.shrinkwrap.optionalDependencies || {}
         ctx.shrinkwrap.optionalDependencies[dep.name] = ref
       } else {
         ctx.shrinkwrap.dependencies[dep.name] = ref
       }
+      if (!dep.dev) {
+        delete ctx.shrinkwrap.devDependencies[dep.name]
+      }
+      if (!dep.optional) {
+        delete ctx.shrinkwrap.optionalDependencies[dep.name]
+      }
+      if (dep.dev || dep.optional) {
+        delete ctx.shrinkwrap.dependencies[dep.name]
+      }
       ctx.shrinkwrap.specifiers[dep.name] = getSpecFromPkg(dep.name)
-    })
+    }
   }
 
   const result = await linkPackages(pkgs, rootNodeIds, installCtx.tree, {

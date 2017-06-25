@@ -69,7 +69,7 @@
     "pnpm-file-reporter": "^0.0.1",
     "pnpm-install-checks": "^1.1.0",
     "pnpm-logger": "^0.3.0",
-    "pnpm-shrinkwrap": "^1.0.3",
+    "pnpm-shrinkwrap": "^2.0.0",
     "proper-lockfile": "^2.0.0",
     "ramda": "^0.24.1",
     "read-package-json": "^2.0.5",
