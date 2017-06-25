@@ -57,7 +57,7 @@ export async function uninstallInContext (pkgsToUninstall: string[], ctx: PnpmCo
   await saveShrinkwrap(ctx.root, newShr)
   await saveModules(path.join(ctx.root, 'node_modules'), {
     packageManager: `${pnpmPkgJson.name}@${pnpmPkgJson.version}`,
-    storePath: ctx.storePath,
+    store: ctx.storePath,
     skipped: Array.from(ctx.skipped).filter(pkgId => removedPkgIds.indexOf(pkgId) === -1),
     layoutVersion: LAYOUT_VERSION,
     independentLeaves: opts.independentLeaves,

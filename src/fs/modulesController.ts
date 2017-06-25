@@ -10,7 +10,7 @@ export const LAYOUT_VERSION = 1
 
 export type Modules = {
   packageManager: string,
-  storePath: string,
+  store: string,
   skipped: string[],
   layoutVersion: number,
   independentLeaves: boolean,
@@ -19,7 +19,13 @@ export type Modules = {
 export async function read (modulesPath: string): Promise<Modules | null> {
   const modulesYamlPath = path.join(modulesPath, modulesFileName)
   try {
-    return await loadYamlFile<Modules>(modulesYamlPath)
+    const m = await loadYamlFile<Modules>(modulesYamlPath)
+    // for backward compatibility
+    if (m['storePath']) {
+      m.store = m['storePath']
+      delete m['storePath']
+    }
+    return m
   } catch (err) {
     if ((<NodeJS.ErrnoException>err).code !== 'ENOENT') {
       throw err

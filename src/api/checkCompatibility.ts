@@ -66,9 +66,9 @@ export default function checkCompatibility (
     modulesPath: string,
   }
 ) {
-  if (modules.storePath !== opts.storePath) {
+  if (modules.store !== opts.storePath) {
     throw new UnexpectedStoreError({
-      expectedStorePath: modules.storePath,
+      expectedStorePath: modules.store,
       actualStorePath: opts.storePath,
     })
   }

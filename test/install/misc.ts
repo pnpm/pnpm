@@ -532,12 +532,12 @@ test('should update subdep on second install', async function (t) {
 test('should install dependency in second project', async function (t) {
   const project1 = prepare(t)
 
-  await installPkgs(['pkg-with-1-dep'], testDefaults({save: true, storePath: '../store'}))
+  await installPkgs(['pkg-with-1-dep'], testDefaults({save: true, store: '../store'}))
   t.equal(project1.requireModule('pkg-with-1-dep')().name, 'dep-of-pkg-with-1-dep', 'can require in 1st pkg')
 
   const project2 = prepare(t)
 
-  await installPkgs(['pkg-with-1-dep'], testDefaults({save: true, storePath: '../store'}))
+  await installPkgs(['pkg-with-1-dep'], testDefaults({save: true, store: '../store'}))
 
   t.equal(project2.requireModule('pkg-with-1-dep')().name, 'dep-of-pkg-with-1-dep', 'can require in 2nd pkg')
 })

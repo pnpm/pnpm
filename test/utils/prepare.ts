@@ -46,7 +46,7 @@ export default function prepare (t: Test, pkg?: Object) {
         if (!modulesYaml) {
           throw new Error('Cannot find module store')
         }
-        cachedStorePath = modulesYaml.storePath
+        cachedStorePath = modulesYaml.store
       }
       return cachedStorePath
     },

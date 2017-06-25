@@ -395,7 +395,7 @@ async function installInContext (
   await saveShrinkwrap(ctx.root, result.shrinkwrap)
   await saveModules(path.join(ctx.root, 'node_modules'), {
     packageManager: `${pnpmPkgJson.name}@${pnpmPkgJson.version}`,
-    storePath: ctx.storePath,
+    store: ctx.storePath,
     skipped: Array.from(installCtx.skipped),
     layoutVersion: LAYOUT_VERSION,
     independentLeaves: opts.independentLeaves,
