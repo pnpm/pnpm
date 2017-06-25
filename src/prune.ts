@@ -86,9 +86,11 @@ function copyDependencySubTree (
 ) {
   for (let pkgId of pkgIds) {
     if (keypath.indexOf(pkgId) !== -1) continue
-    // local dependencies don't need to be resolved in shrinkwrap.yaml
-    if (pkgId.indexOf('file:') === 0) continue
     if (!shr.packages || !shr.packages[pkgId]) {
+      // local dependencies don't need to be resolved in shrinkwrap.yaml
+      // except local tarball dependencies
+      if (pkgId.startsWith('file:') && !pkgId.endsWith('.tar.gz')) continue
+
       logger.warn(`Cannot find resolution of ${pkgId} in shrinkwrap file`)
       continue
     }
