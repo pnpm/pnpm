@@ -25,7 +25,7 @@ export default function prune (shr: Shrinkwrap, pkg: Package): Shrinkwrap {
   R.keys(shr.specifiers).forEach(depName => {
     if (allDeps.indexOf(depName) === -1) return
     specifiers[depName] = shr.specifiers[depName]
-    if (shr.dependencies[depName]) {
+    if (shr.dependencies && shr.dependencies[depName]) {
       shrDependencies[depName] = shr.dependencies[depName]
     } else if (shr.optionalDependencies && shr.optionalDependencies[depName]) {
       shrOptionalDependencies[depName] = shr.optionalDependencies[depName]
@@ -58,10 +58,12 @@ export default function prune (shr: Shrinkwrap, pkg: Package): Shrinkwrap {
     shrinkwrapVersion: SHRINKWRAP_VERSION,
     specifiers,
     registry: shr.registry,
-    dependencies: shrDependencies,
   }
   if (!R.isEmpty(packages)) {
     result.packages = packages
+  }
+  if (!R.isEmpty(shrDependencies)) {
+    result.dependencies = shrDependencies
   }
   if (!R.isEmpty(shrOptionalDependencies)) {
     result.optionalDependencies = shrOptionalDependencies

@@ -440,7 +440,6 @@ test('remove dependencies that are not in the package', t => {
   }), {
     shrinkwrapVersion: 3,
     registry: 'https://registry.npmjs.org',
-    dependencies: {},
     specifiers: {},
   })
 
