@@ -135,7 +135,7 @@ test('dependency should be removed from the old field when installing it as a di
     },
   })
   await installPkgs(['foo'], testDefaults({saveOptional: true}))
-  await installPkgs(['bar'], testDefaults({save: true}))
+  await installPkgs(['bar'], testDefaults({saveProd: true}))
   await installPkgs(['qar'], testDefaults({saveDev: true}))
 
   const pkgJson = await readPkg({normalize: false})

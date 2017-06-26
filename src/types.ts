@@ -8,6 +8,7 @@ export type PnpmOptions = {
   bin?: string,
   ignoreScripts?: boolean
   save?: boolean,
+  saveProd?: boolean,
   saveDev?: boolean,
   saveOptional?: boolean,
   production?: boolean,
@@ -63,6 +64,7 @@ export type StrictPnpmOptions = {
   bin: string,
   ignoreScripts: boolean
   save: boolean,
+  saveProd: boolean,
   saveDev: boolean,
   saveOptional: boolean,
   production: boolean,

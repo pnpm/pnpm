@@ -6,6 +6,6 @@ export const dependenciesTypes: DependenciesType[] = ['dependencies', 'devDepend
 export default function getSaveType (opts: PnpmOptions): DependenciesType | undefined {
   if (opts.saveDev) return 'devDependencies'
   if (opts.saveOptional) return 'optionalDependencies'
-  if (opts.save) return 'dependencies'
+  if (opts.saveProd) return 'dependencies'
   return undefined
 }

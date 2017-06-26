@@ -46,14 +46,6 @@ export async function uninstallInContext (pkgsToUninstall: string[], ctx: PnpmCo
   const pkgJsonPath = path.join(ctx.root, 'package.json')
   const saveType = getSaveType(opts)
   const pkg = await removeDeps(pkgJsonPath, pkgsToUninstall, saveType)
-  if (ctx.shrinkwrap.dependencies) {
-    for (let depName in ctx.shrinkwrap.dependencies) {
-      if (!isDependentOn(pkg, depName)) {
-        delete ctx.shrinkwrap.dependencies[depName]
-        delete ctx.shrinkwrap.specifiers[depName]
-      }
-    }
-  }
   const newShr = await pruneShrinkwrap(ctx.shrinkwrap, pkg)
   const removedPkgIds = await removeOrphanPkgs(ctx.privateShrinkwrap, newShr, ctx.root, ctx.storePath)
   await saveShrinkwrap(ctx.root, newShr)
@@ -65,15 +57,6 @@ export async function uninstallInContext (pkgsToUninstall: string[], ctx: PnpmCo
     independentLeaves: opts.independentLeaves,
   })
   await removeOuterLinks(pkgsToUninstall, path.join(ctx.root, 'node_modules'), {storePath: ctx.storePath})
-}
-
-function isDependentOn (pkg: Package, depName: string): boolean {
-  return [
-    'dependencies',
-    'devDependencies',
-    'optionalDependencies',
-  ]
-  .some(deptype => pkg[deptype] && pkg[deptype][depName])
 }
 
 async function removeOuterLinks (
