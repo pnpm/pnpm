@@ -202,7 +202,16 @@ async function install (
     return null
   }
 
-  const pkg = await fetchedPkg.fetchingPkg
+  let pkg: Package
+  try {
+    pkg = await fetchedPkg.fetchingPkg
+  } catch (err) {
+    // avoiding unhandled promise rejections
+    fetchedPkg.calculatingIntegrity.catch(err => {})
+    fetchedPkg.fetchingFiles.catch(err => {})
+    throw err
+  }
+
   logStatus({status: 'downloaded_manifest', pkgId: fetchedPkg.id, pkgVersion: pkg.version})
 
   const currentIsInstallable = (
