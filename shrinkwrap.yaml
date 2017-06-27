@@ -67,7 +67,7 @@ dependencies:
   unpack-stream: 2.0.0-beta.1
   update-notifier: 2.2.0
   write-json-file: 2.2.0
-  write-pkg: 3.0.1
+  write-pkg: 3.1.0
   write-yaml-file: 1.0.0
 devDependencies:
   '@types/mkdirp': 0.3.29
@@ -2053,6 +2053,11 @@ packages:
       is-plain-obj: 1.1.0
     resolution:
       integrity: sha1-RBttTTRnmPG05J6JIK37oOVD+a0=
+  /sort-keys/2.0.0:
+    dependencies:
+      is-plain-obj: 1.1.0
+    resolution:
+      integrity: sha1-ZYU1WEhh7JfXMNbPQYIuH1ZoQSg=
   /spawn-sync/1.0.15:
     dependencies:
       concat-stream: 1.6.0
@@ -2385,12 +2390,12 @@ packages:
       write-file-atomic: 2.1.0
     resolution:
       integrity: sha1-UYYlBruzthnu+reFnx/WxtBTCHY=
-  /write-pkg/3.0.1:
+  /write-pkg/3.1.0:
     dependencies:
-      sort-keys: 1.1.2
+      sort-keys: 2.0.0
       write-json-file: 2.2.0
     resolution:
-      integrity: sha1-+VJFgFvm9qTrHWwxxDtXImgV5uM=
+      integrity: sha1-AwqZlMyZk9JbTnWp8aGSNgcpHOk=
   /write-yaml-file/1.0.0:
     dependencies:
       graceful-fs: 4.1.11
@@ -2490,5 +2495,5 @@ specifiers:
   update-notifier: ^2.1.0
   validate-commit-msg: ^2.7.0
   write-json-file: ^2.0.0
-  write-pkg: ^3.0.1
+  write-pkg: ^3.1.0
   write-yaml-file: ^1.0.0
