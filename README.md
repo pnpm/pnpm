@@ -198,6 +198,18 @@ Early versions of npm had issues because of nesting all `node_modules` (see [Nod
 
 Although pnpm uses symlinks to put dependencies into `node_modules` folders, circular symlinks are avoided because parent packages are placed into the same `node_modules` folder in which their dependencies are. So `foo`'s dependencies are not in `foo/node_modules` but `foo` is in `node_modules/foo`, together with its own dependencies.
 
+### Why have hard links at all? Why not symlink directly to the global store?
+
+One package can have different sets of dependencies on one machine.
+
+In project **A** `foo@1.0.0` can have dependency resolved to `bar@1.0.0` but in project **B** the same dependency of `foo` might
+resolve to `bar@1.1.0`. So pnpm hard links `foo@1.0.0` to every project where it is used, in order to create different sets
+of dependencies for it.
+
+Direct symlinking to the global store would work with Node's `--preserve-symlinks` flag. But `--preserve-symlinks` comes
+with a bunch of different issues, so we decided to stick with hard links.
+For more details about why this decision was made, see: https://github.com/nodejs/node-eps/issues/46.
+
 ## Support
 
 - [Stack Overflow](https://stackoverflow.com/questions/tagged/pnpm)
