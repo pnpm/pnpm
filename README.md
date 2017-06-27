@@ -28,6 +28,7 @@ always the same way, the way they are described in `package.json` files.
 * [Benchmark](#benchmark)
 * [Limitations](#limitations)
 * [Frequently Asked Questions](#frequently-asked-questions)
+* [Support](#support)
 * Recipes
   * [Continuous Integration](docs/recipes/continuous-integration.md)
 * Advanced
@@ -194,6 +195,12 @@ Early versions of npm had issues because of nesting all `node_modules` (see [Nod
 ### What about circular symlinks?
 
 Although pnpm uses symlinks to put dependencies into `node_modules` folders, circular symlinks are avoided because parent packages are placed into the same `node_modules` folder in which their dependencies are. So `foo`'s dependencies are not in `foo/node_modules` but `foo` is in `node_modules/foo`, together with its own dependencies.
+
+## Support
+
+- [Stack Overflow](https://stackoverflow.com/questions/tagged/pnpm)
+- [Gitter chat](https://gitter.im/pnpm/pnpm)
+- [Twitter](https://twitter.com/pnpmjs)
 
 ## License
 
