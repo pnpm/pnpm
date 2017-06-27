@@ -83,7 +83,7 @@ async function run (argv: string[]) {
   cliConf.save = cliConf.save || !cliConf.saveDev && !cliConf.saveOptional
 
   await new Promise((resolve, reject) => {
-    npm.load(cliConf, (err: Error) => {
+    npm.load(cliConf as any, (err: Error) => { // tslint:disable-line
       if (err) {
         reject(err)
         return

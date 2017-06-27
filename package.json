@@ -95,7 +95,7 @@
     "npm-scripts-info": "^0.3.6",
     "rimraf": "^2.5.4",
     "tslint": "^5.4.2",
-    "typescript": "^2.1.5",
+    "typescript": "^2.4.1",
     "validate-commit-msg": "^2.7.0"
   },
   "directories": {

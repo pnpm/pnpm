@@ -252,7 +252,7 @@ function differed<T> (): {
 } {
   let pResolve: (v: T) => void = () => {}
   let pReject: (err: Error) => void = () => {}
-  const promise = new Promise((resolve, reject) => {
+  const promise = new Promise<T>((resolve, reject) => {
     pResolve = resolve
     pReject = reject
   })

@@ -7,6 +7,7 @@ import exists = require('path-exists')
 import loadYamlFile = require('load-yaml-file')
 import {Modules, read as readModules} from '../../src/fs/modulesController'
 import isExecutable from './isExecutable'
+import writePkg = require('write-pkg')
 
 // the testing folder should be outside of the project to avoid lookup in the project's node_modules
 const tmpPath = path.join(__dirname, '..', '..', '..', '.tmp')
@@ -23,8 +24,7 @@ export default function prepare (t: Test, pkg?: Object) {
   const dirname = dirNumber.toString()
   const pkgTmpPath = path.join(tmpPath, dirname, 'project')
   mkdirp.sync(pkgTmpPath)
-  const json = JSON.stringify(Object.assign({name: 'project', version: '0.0.0'}, pkg), null, 2)
-  fs.writeFileSync(path.join(pkgTmpPath, 'package.json'), json, 'utf-8')
+  writePkg.sync(pkgTmpPath, Object.assign({name: 'project', version: '0.0.0'}, pkg))
   process.chdir(pkgTmpPath)
   t.pass(`create testing package ${dirname}`)
 
