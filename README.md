@@ -34,6 +34,7 @@ always the same way, the way they are described in `package.json` files.
   * [Continuous Integration](docs/recipes/continuous-integration.md)
 * Advanced
   * [About the package store](docs/about-the-package-store.md)
+  * [Symlinked `node_modules` structure](docs/symlinked-node-modules-structure.md)
   * [How peers are resolved](docs/how-peers-are-resolved.md)
 * [Contributing](CONTRIBUTING.md)
 
