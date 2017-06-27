@@ -29,6 +29,7 @@ always the same way, the way they are described in `package.json` files.
 * [Limitations](#limitations)
 * [Frequently Asked Questions](#frequently-asked-questions)
 * [Support](#support)
+* [Awesome list](https://github.com/pnpm/awesome-pnpm)
 * Recipes
   * [Continuous Integration](docs/recipes/continuous-integration.md)
 * Advanced
