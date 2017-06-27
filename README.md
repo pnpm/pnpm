@@ -10,7 +10,7 @@
 
 pnpm is:
 
-1. **Fast.** Faster than npm and yarn. This is not a fair battle as we organize
+1. **Fast.** Faster than npm and Yarn. This is not a fair battle as we organize
 dependencies in a completely different way. Nevertheless, dependencies installed with
 pnpm are Node.js-compatible!
 1. **Efficient.** One version of a package is saved only ever once on a disk.
@@ -40,7 +40,7 @@ always the same way, the way they are described in `package.json` files.
 ## Background
 
 pnpm uses hard links and symlinks to save one version of a module only ever once on a disk.
-When using npm or yarn for example, if you have 100 packages using lodash, you will have
+When using npm or Yarn for example, if you have 100 packages using lodash, you will have
 100 copies of lodash on disk. With pnpm, lodash will be saved in a single place on the disk
 and a hard link will put it into the `node_modules` where it should be installed.
 
@@ -131,7 +131,7 @@ that rely on location but gives an average of **8% installation speed improvemen
 
 ## Benchmark
 
-pnpm is faster than npm and yarn. See [this](https://github.com/zkochan/node-package-manager-benchmark)
+pnpm is faster than npm and Yarn. See [this](https://github.com/zkochan/node-package-manager-benchmark)
 benchmark which compares the three package managers on different types of applications.
 
 ```
