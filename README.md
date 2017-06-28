@@ -164,9 +164,9 @@ Got an idea for workarounds for these issues? [Share them.](https://github.com/p
 
 ## Other Node.js package managers
 
-* [npm](https://github.com/npm/npm). The oldest and most widely used. See [pnpm vs npm](docs/pnpm-vs-npm.md).
-* [Yarn](https://yarnpkg.com/en/). The first Node.js package manager that invented lockfiles and offline installations.
-* [ied](https://github.com/alexanderGugel/ied). ied is built on a very similar premise as pnpm. pnpm takes huge inspiration from it.
+* `npm`. The oldest and most widely used. See [pnpm vs npm](docs/pnpm-vs-npm.md).
+* `ied`. Built on a very similar premise as pnpm. pnpm takes huge inspiration from it.
+* `Yarn`. The first Node.js package manager that invented lockfiles and offline installations.
 
 ## Frequently Asked Questions
 
