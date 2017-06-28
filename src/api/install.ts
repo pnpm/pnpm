@@ -560,7 +560,9 @@ function npmRun (scriptName: string, pkgRoot: string, userAgent: string) {
     userAgent,
   })
   if (result.status !== 0) {
-    process.exit(result.status)
+    const err = new Error(`Running event ${scriptName} failed with status ${result.status}`)
+    err['code'] = 'ELIFECYCLE'
+    throw err
   }
 }
 

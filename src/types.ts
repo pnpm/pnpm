@@ -1,4 +1,3 @@
-import {ReporterType} from './reporter'
 import {PackageMeta} from './resolve'
 
 export type PnpmOptions = {

@@ -14,7 +14,6 @@ dependencies:
   arr-flatten: 1.0.3
   bole: 3.0.2
   byline: 5.0.0
-  camelcase: 4.1.0
   common-tags: 1.4.0
   cross-spawn: 5.1.0
   dint: 1.0.0
@@ -23,20 +22,17 @@ dependencies:
   fs-write-stream-atomic: 1.0.10
   get-npm-tarball-url: 2.0.0
   graceful-fs: 4.1.11
-  is-ci: 1.0.10
   is-inner-link: 2.0.0
   is-subdir: 1.0.0
   is-windows: 1.0.1
   load-json-file: 2.0.0
   load-yaml-file: 0.1.0
-  loud-rejection: 1.6.0
   mem: 1.1.0
   mkdirp-promise: 5.0.1
   mz: 2.6.0
   ncp: 2.0.0
   ndjson: 1.5.0
   node-gyp: 3.6.2
-  nopt: 4.0.1
   normalize-path: 2.1.1
   normalize-registry-url: 1.0.0
   normalize-ssh: 1.0.0
@@ -50,7 +46,6 @@ dependencies:
   path-exists: 3.0.0
   path-name: 1.0.0
   pnpm-default-reporter: 0.6.0
-  pnpm-file-reporter: 0.0.1
   pnpm-install-checks: 1.1.0
   pnpm-logger: 0.3.0
   pnpm-shrinkwrap: 2.0.0
@@ -65,7 +60,6 @@ dependencies:
   symlink-dir: 1.0.3
   thenify: 3.3.0
   unpack-stream: 2.0.0-beta.1
-  update-notifier: 2.2.0
   write-json-file: 2.2.0
   write-pkg: 3.1.0
   write-yaml-file: 1.0.0
@@ -159,11 +153,6 @@ packages:
       json-stable-stringify: 1.0.1
     resolution:
       integrity: sha1-gv+wKynmYq5TvcIK8VlHcGc5xTY=
-  /ansi-align/2.0.0:
-    dependencies:
-      string-width: 2.0.0
-    resolution:
-      integrity: sha1-w2rsy6VjuJzrVW82kPCx2eNUf38=
   /ansi-escapes/1.4.0:
     resolution:
       integrity: sha1-06ioOzGapneTZisT52HHkRQiMG4=
@@ -200,6 +189,7 @@ packages:
     resolution:
       integrity: sha1-onTthawIhJtr14R8RYB0XcUa37E=
   /array-find-index/1.0.2:
+    dev: true
     resolution:
       integrity: sha1-3wEKoSh+Fku9pvlyOwqWoexBh6E=
   /array-unique/0.2.1:
@@ -274,17 +264,6 @@ packages:
       hoek: 2.16.3
     resolution:
       integrity: sha1-OciRjO/1eZ+D+UkqhI9iWt0Mdm8=
-  /boxen/1.1.0:
-    dependencies:
-      ansi-align: 2.0.0
-      camelcase: 4.1.0
-      chalk: 1.1.3
-      cli-boxes: 1.0.0
-      string-width: 2.0.0
-      term-size: 0.1.1
-      widest-line: 1.0.0
-    resolution:
-      integrity: sha1-sbad1SIwXoB6md7ud329blFnsQI=
   /brace-expansion/1.1.8:
     dependencies:
       balanced-match: 1.0.0
@@ -346,12 +325,6 @@ packages:
     dev: true
     resolution:
       integrity: sha1-fB0W1nmhu+WcoCys7PsBHiAfWh8=
-  /camelcase/4.1.0:
-    resolution:
-      integrity: sha1-1UVjW+HjPFQmScaRc+Xeas+uNN0=
-  /capture-stack-trace/1.0.0:
-    resolution:
-      integrity: sha1-Sm+gc5nCa7pH8LJJa00PtAjFVQ0=
   /caseless/0.12.0:
     resolution:
       integrity: sha1-G2gcIf+EAzyCZUMJBolCDRhxUdw=
@@ -370,9 +343,6 @@ packages:
   /ci-info/1.0.0:
     resolution:
       integrity: sha1-3FKF8rTiUYIWg2gcOBwziPRuxTQ=
-  /cli-boxes/1.0.0:
-    resolution:
-      integrity: sha1-T6kXw+WclKAEzWH47lCdplFocUM=
   /cli-cursor/1.0.2:
     dependencies:
       restore-cursor: 1.0.1
@@ -447,16 +417,6 @@ packages:
       typedarray: 0.0.6
     resolution:
       integrity: sha1-CqxmL9Ur54lk1VMvaUeE5wEQrPc=
-  /configstore/3.1.0:
-    dependencies:
-      dot-prop: 4.1.1
-      graceful-fs: 4.1.11
-      make-dir: 1.0.0
-      unique-string: 1.0.0
-      write-file-atomic: 2.1.0
-      xdg-basedir: 3.0.0
-    resolution:
-      integrity: sha1-Rd+QcHPibfoc9LLVL1tgVF6qEdE=
   /console-control-strings/1.1.0:
     resolution:
       integrity: sha1-PXz0Rk22RG6mRL9LOVB/mFEAjo4=
@@ -470,17 +430,6 @@ packages:
   /core-util-is/1.0.2:
     resolution:
       integrity: sha1-tf1UIgqivFq1eqtxQMlAdUUDwac=
-  /create-error-class/3.0.2:
-    dependencies:
-      capture-stack-trace: 1.0.0
-    resolution:
-      integrity: sha1-Br56vvlHo/FKMP1hBnHUAbyot7Y=
-  /cross-spawn-async/2.2.5:
-    dependencies:
-      lru-cache: 4.1.1
-      which: 1.2.14
-    resolution:
-      integrity: sha1-hF/wwINKPe2dFg2sptOQkGuyiMw=
   /cross-spawn/5.1.0:
     dependencies:
       lru-cache: 4.1.1
@@ -493,12 +442,10 @@ packages:
       boom: 2.10.1
     resolution:
       integrity: sha1-O9/s3GCBR8HGcgL6KR59ylnqo7g=
-  /crypto-random-string/1.0.0:
-    resolution:
-      integrity: sha1-ojD2T1aDEOFJgAmUB5DsmVRbyn4=
   /currently-unhandled/0.4.1:
     dependencies:
       array-find-index: 1.0.2
+    dev: true
     resolution:
       integrity: sha1-mI3zP+qxke95mmE2nddsF635V+o=
   /cz-conventional-changelog/1.2.0:
@@ -543,9 +490,6 @@ packages:
     dev: true
     resolution:
       integrity: sha1-Dm2o8M5Sg471zsXI+TlrDBtko8s=
-  /deep-extend/0.4.2:
-    resolution:
-      integrity: sha1-SLaZwn4zS/ifEIkr5DL25MfTSn8=
   /delayed-stream/1.0.0:
     resolution:
       integrity: sha1-3zrhmayt+31ECqrgsp4icrJOxhk=
@@ -579,14 +523,6 @@ packages:
       ssri: 4.1.6
     resolution:
       integrity: sha1-S/7IGLOmVysyi96o0FHM1d5YDEQ=
-  /dot-prop/4.1.1:
-    dependencies:
-      is-obj: 1.0.1
-    resolution:
-      integrity: sha1-qEk/C3te7sglJbXHWH+n3nyoWcE=
-  /duplexer3/0.1.4:
-    resolution:
-      integrity: sha1-7gHdHKwO08vH/b6jfcCo8c4ALOI=
   /duplexify/3.5.0:
     dependencies:
       end-of-stream: 1.0.0
@@ -626,16 +562,6 @@ packages:
     dev: true
     resolution:
       integrity: sha1-Cr9PHKpbyx96nYrMbepPqqBLrJs=
-  /execa/0.4.0:
-    dependencies:
-      cross-spawn-async: 2.2.5
-      is-stream: 1.1.0
-      npm-run-path: 1.0.0
-      object-assign: 4.1.1
-      path-key: 1.0.0
-      strip-eof: 1.0.0
-    resolution:
-      integrity: sha1-TrZGejaglfq7KXD/nV4/t7zm68M=
   /execa/0.7.0:
     dependencies:
       cross-spawn: 5.1.0
@@ -889,21 +815,6 @@ packages:
     dev: true
     resolution:
       integrity: sha1-jTvGuNo8qBEqFg2NSW/wRiv+948=
-  /got/6.7.1:
-    dependencies:
-      create-error-class: 3.0.2
-      duplexer3: 0.1.4
-      get-stream: 3.0.0
-      is-redirect: 1.0.0
-      is-retry-allowed: 1.1.0
-      is-stream: 1.1.0
-      lowercase-keys: 1.0.0
-      safe-buffer: 5.1.0
-      timed-out: 4.0.1
-      unzip-response: 2.0.1
-      url-parse-lax: 1.0.0
-    resolution:
-      integrity: sha1-JAzQV4WpoY5WHcG0S0HHY+8ejbA=
   /graceful-fs/4.1.11:
     resolution:
       integrity: sha1-Dovf5NHduIVNZOBOp8AOKgJuVlg=
@@ -980,9 +891,6 @@ packages:
   /iferr/0.1.5:
     resolution:
       integrity: sha1-xg7taebY/bazEEofy8ocGS3FtQE=
-  /import-lazy/2.1.0:
-    resolution:
-      integrity: sha1-BWmOPUXIjo1+nZLLBYTnfwlvPkM=
   /imurmurhash/0.1.4:
     resolution:
       integrity: sha1-khi5srkoojixPcT7a21XbyMUU+o=
@@ -1009,6 +917,7 @@ packages:
     resolution:
       integrity: sha1-Yzwsg+PaQqUC9SRmAiSA9CCCYd4=
   /ini/1.3.4:
+    dev: true
     resolution:
       integrity: sha1-BTfLedr1m1mhpRff9wbIbsA5Fi4=
   /inquirer/1.2.3:
@@ -1086,9 +995,6 @@ packages:
       number-is-nan: 1.0.1
     resolution:
       integrity: sha1-754xOG8DGn8NZDr4L95QxFfvAMs=
-  /is-fullwidth-code-point/2.0.0:
-    resolution:
-      integrity: sha1-o7MKXE8ZkYMWeqq5O+764937ZU8=
   /is-glob/2.0.1:
     dependencies:
       is-extglob: 1.0.0
@@ -1104,9 +1010,6 @@ packages:
       is-subdir: 1.0.0
     resolution:
       integrity: sha1-EebPriYEUyYxrn4zll3hKsHUHDM=
-  /is-npm/1.0.0:
-    resolution:
-      integrity: sha1-8vtjpl5JBbQGyGBydloaTceTufQ=
   /is-number/2.1.0:
     dependencies:
       kind-of: 3.2.2
@@ -1119,9 +1022,6 @@ packages:
     dev: true
     resolution:
       integrity: sha1-JP1iAaR4LPUFYcgQJ2r8fRLXEZU=
-  /is-obj/1.0.1:
-    resolution:
-      integrity: sha1-PkcprB9f3gJc19g6iW2rn09n2w8=
   /is-plain-obj/1.1.0:
     resolution:
       integrity: sha1-caUMhCnfync8kqOQpKA7OfzVHT4=
@@ -1137,12 +1037,6 @@ packages:
     dev: true
     resolution:
       integrity: sha1-eaKp7OfwlugPNtKy87wWwf9L8/o=
-  /is-redirect/1.0.0:
-    resolution:
-      integrity: sha1-HQPd7VO9jbDzDCbk+V02/HyH3CQ=
-  /is-retry-allowed/1.1.0:
-    resolution:
-      integrity: sha1-EaBgVotnM5REAz0BJaYaINVk+zQ=
   /is-ssh/1.3.0:
     dependencies:
       protocols: 1.4.5
@@ -1218,11 +1112,6 @@ packages:
   /json-stringify-safe/5.0.1:
     resolution:
       integrity: sha1-Epai1Y/UXxmg9s4B1lcB4sc1tus=
-  /json2yaml/1.1.0:
-    dependencies:
-      remedial: 1.0.7
-    resolution:
-      integrity: sha1-VBTZB/mBZYa4DFE+wuOusquBmmw=
   /jsonfile/2.4.0:
     dev: true
     optionalDependencies:
@@ -1258,11 +1147,6 @@ packages:
       graceful-fs: 4.1.11
     resolution:
       integrity: sha1-QIhDO0azsbolnXh4XY6W9zugJDk=
-  /latest-version/3.1.0:
-    dependencies:
-      package-json: 4.0.1
-    resolution:
-      integrity: sha1-ogU4P+oyKzO1rjsYq+4NwvNW7hU=
   /load-json-file/1.1.0:
     dependencies:
       graceful-fs: 4.1.11
@@ -1318,11 +1202,9 @@ packages:
     dependencies:
       currently-unhandled: 0.4.1
       signal-exit: 3.0.2
+    dev: true
     resolution:
       integrity: sha1-W0b4AUft7leIcPCG0Eghz5mOVR8=
-  /lowercase-keys/1.0.0:
-    resolution:
-      integrity: sha1-TjNms55/VFfjXxMkvfb4jQv8cwY=
   /lru-cache/4.1.1:
     dependencies:
       pseudomap: 1.0.2
@@ -1456,12 +1338,6 @@ packages:
       abbrev: 1.1.0
     resolution:
       integrity: sha1-xkZdvwirzU2zWTF/eaxopkayj/k=
-  /nopt/4.0.1:
-    dependencies:
-      abbrev: 1.1.0
-      osenv: 0.1.4
-    resolution:
-      integrity: sha1-0NRoWv1UFRk8jHUFYC0NF81kR00=
   /normalize-package-data/2.3.8:
     dependencies:
       hosted-git-info: 2.4.2
@@ -1512,11 +1388,6 @@ packages:
       npmlog: 4.1.0
     resolution:
       integrity: sha1-qG1bH5eUXejfc8Rx0zYC1c0VEw8=
-  /npm-run-path/1.0.0:
-    dependencies:
-      path-key: 1.0.0
-    resolution:
-      integrity: sha1-9cMr9ZX+ga6Sfa7FLoL4sACsPI8=
   /npm-run-path/2.0.2:
     dependencies:
       path-key: 2.0.1
@@ -1618,14 +1489,6 @@ packages:
   /p-map/1.1.1:
     resolution:
       integrity: sha1-BfXkrpegaDcbwqXMhr+9vBnErno=
-  /package-json/4.0.1:
-    dependencies:
-      got: 6.7.1
-      registry-auth-token: 3.3.1
-      registry-url: 3.1.0
-      semver: 5.3.0
-    resolution:
-      integrity: sha1-iGmgQBJTZhxMTKPabCEh7VVfXu0=
   /pad-right/0.2.2:
     dependencies:
       repeat-string: 1.6.1
@@ -1677,9 +1540,6 @@ packages:
   /path-is-absolute/1.0.1:
     resolution:
       integrity: sha1-F0uSaHNVNP+8es5r9TpanhtcX18=
-  /path-key/1.0.0:
-    resolution:
-      integrity: sha1-XVPVeAGWRsDWiADbThRua9wqx68=
   /path-key/2.0.1:
     resolution:
       integrity: sha1-QRyttXTFoUDTpLGRDUDYDMn0C0A=
@@ -1732,27 +1592,11 @@ packages:
       pnpm-logger: 0.3.0
     resolution:
       integrity: sha1-ml5tyrtrk4OrHRZUQlLy+Ki2xJo=
-  /pnpm-file-reporter/0.0.1:
-    dependencies:
-      '@types/chalk': 0.4.31
-      '@types/node': 7.0.32
-      chalk: 1.1.3
-      json2yaml: 1.1.0
-      ndjson: 1.5.0
-      observatory: 1.0.0
-      pnpm-logger: 0.0.0
-    resolution:
-      integrity: sha1-98PiFkxcyVWgs+1mExTmNXs/LmM=
   /pnpm-install-checks/1.1.0:
     dependencies:
       semver: 5.3.0
     resolution:
       integrity: sha1-dB2ZeXYv362T8+Rp3rSoFNNDAAg=
-  /pnpm-logger/0.0.0:
-    dependencies:
-      bole: 3.0.2
-    resolution:
-      integrity: sha1-KHAbl2GKH8MtL+4b9BB0ZYi7GoU=
   /pnpm-logger/0.3.0:
     dependencies:
       bole: 3.0.2
@@ -1770,9 +1614,6 @@ packages:
       write-yaml-file: 1.0.0
     resolution:
       integrity: sha1-FmmMUWpNnPkIOYW/FPzpF4xsM0Q=
-  /prepend-http/1.0.4:
-    resolution:
-      integrity: sha1-1PRWKwzjaW5BrFLQ4ALlemNdxtw=
   /preserve/0.2.0:
     dev: true
     resolution:
@@ -1821,14 +1662,6 @@ packages:
     dev: true
     resolution:
       integrity: sha1-x6vpzIuHwLqodrGf3oP9RkeX44w=
-  /rc/1.2.1:
-    dependencies:
-      deep-extend: 0.4.2
-      ini: 1.3.4
-      minimist: 1.2.0
-      strip-json-comments: 2.0.1
-    resolution:
-      integrity: sha1-LgPo5C7kULjLPc5lvhv4l04d/ZU=
   /read-package-json/2.0.5:
     dependencies:
       glob: 7.1.2
@@ -1887,20 +1720,6 @@ packages:
     dev: true
     resolution:
       integrity: sha1-mxpsNdTQ3871cRrmUejp09cRQUU=
-  /registry-auth-token/3.3.1:
-    dependencies:
-      rc: 1.2.1
-      safe-buffer: 5.1.0
-    resolution:
-      integrity: sha1-+w0yie4Nmtosu1KvXf5mywcNMAY=
-  /registry-url/3.1.0:
-    dependencies:
-      rc: 1.2.1
-    resolution:
-      integrity: sha1-PU74cPc93h138M+aOBQyRE4XSUI=
-  /remedial/1.0.7:
-    resolution:
-      integrity: sha1-1mdEE6ZWdgB74A3UAJgJh7LDAME=
   /remove-all-except-outer-links/1.0.1:
     dependencies:
       get-link-target: 1.0.0
@@ -2007,11 +1826,6 @@ packages:
   /safe-buffer/5.1.0:
     resolution:
       integrity: sha1-/kyEYDl/nqqqWOc75GJzQIpF4iM=
-  /semver-diff/2.1.0:
-    dependencies:
-      semver: 5.3.0
-    resolution:
-      integrity: sha1-S7uEN8jTfksM8aaP1ybsbWRdbTY=
   /semver-regex/1.0.0:
     resolution:
       integrity: sha1-kqSWkGX5xwxpR1PVUkj8aPj2Usk=
@@ -2112,12 +1926,6 @@ packages:
       strip-ansi: 3.0.1
     resolution:
       integrity: sha1-EYvfW4zcUaKn5w0hHgfisLmxB9M=
-  /string-width/2.0.0:
-    dependencies:
-      is-fullwidth-code-point: 2.0.0
-      strip-ansi: 3.0.1
-    resolution:
-      integrity: sha1-Y1xUNsxypuDDh87KJ41OLuxSaH4=
   /string_decoder/1.0.2:
     dependencies:
       safe-buffer: 5.0.1
@@ -2150,6 +1958,7 @@ packages:
     resolution:
       integrity: sha1-DHlipq3vp7vUrDZkYKY4VSrhoKI=
   /strip-json-comments/2.0.1:
+    dev: true
     resolution:
       integrity: sha1-PFMZQukIwml8DsNEhYwobHygpgo=
   /supports-color/2.0.0:
@@ -2189,11 +1998,6 @@ packages:
       inherits: 2.0.3
     resolution:
       integrity: sha1-jk0qJWwOIYXGsYrWlK7JaLg8sdE=
-  /term-size/0.1.1:
-    dependencies:
-      execa: 0.4.0
-    resolution:
-      integrity: sha1-hzYLljlsq1dgljcUzaDQy+7K2co=
   /thenify-all/1.6.0:
     dependencies:
       thenify: 3.3.0
@@ -2213,9 +2017,6 @@ packages:
       xtend: 4.0.1
     resolution:
       integrity: sha1-AARWmzfHx0ujnEPzzteNGtlBQL4=
-  /timed-out/4.0.1:
-    resolution:
-      integrity: sha1-8y6srFoXW+ol1/q1Zas+2HQe9W8=
   /tmp/0.0.29:
     dependencies:
       os-tmpdir: 1.0.2
@@ -2276,11 +2077,6 @@ packages:
       through: 2.3.8
     resolution:
       integrity: sha1-jITITVtMwo/B+fV3IDu9PLhgoWo=
-  /unique-string/1.0.0:
-    dependencies:
-      crypto-random-string: 1.0.0
-    resolution:
-      integrity: sha1-nhBXzKhRq7kzmPizOuGHuZyuwRo=
   /unpack-stream/2.0.0-beta.1:
     dependencies:
       '@types/node': 7.0.32
@@ -2293,26 +2089,6 @@ packages:
     dev: true
     resolution:
       integrity: sha1-mOH8YItrhUx1r7G5WvwJm6adlC8=
-  /unzip-response/2.0.1:
-    resolution:
-      integrity: sha1-0vD3N9FrBhXnKmk17QQhRXLVb5c=
-  /update-notifier/2.2.0:
-    dependencies:
-      boxen: 1.1.0
-      chalk: 1.1.3
-      configstore: 3.1.0
-      import-lazy: 2.1.0
-      is-npm: 1.0.0
-      latest-version: 3.1.0
-      semver-diff: 2.1.0
-      xdg-basedir: 3.0.0
-    resolution:
-      integrity: sha1-G1g3z5DAc22IYncytmHBOPht5y8=
-  /url-parse-lax/1.0.0:
-    dependencies:
-      prepend-http: 1.0.4
-    resolution:
-      integrity: sha1-evjzA2Rem9eaJy56FKxovAYJ2nM=
   /util-deprecate/1.0.2:
     resolution:
       integrity: sha1-RQ1Nyfpw3nMnYvvS1KKJgUGaDM8=
@@ -2354,11 +2130,6 @@ packages:
       string-width: 1.0.2
     resolution:
       integrity: sha1-Vx4PGwYEY268DfwhsDObvjE0FxA=
-  /widest-line/1.0.0:
-    dependencies:
-      string-width: 1.0.2
-    resolution:
-      integrity: sha1-DAnIXCqUaD0Nfq+O4JfVZL8OEFw=
   /word-wrap/1.2.3:
     dev: true
     resolution:
@@ -2405,9 +2176,6 @@ packages:
       write-file-atomic: 1.3.4
     resolution:
       integrity: sha1-e0vQ33LKE/vp1rAXj9g8B3uOqGs=
-  /xdg-basedir/3.0.0:
-    resolution:
-      integrity: sha1-SWsswQnsqNus/i3HK2A8F8WHCtQ=
   /xtend/4.0.1:
     resolution:
       integrity: sha1-pcbVMr5lbiPbgg77lDofBJmNY68=
@@ -2434,7 +2202,6 @@ specifiers:
   arr-flatten: ^1.0.1
   bole: ^3.0.2
   byline: ^5.0.0
-  camelcase: ^4.1.0
   commitizen: ^2.8.6
   common-tags: ^1.4.0
   cross-spawn: ^5.0.0
@@ -2447,20 +2214,17 @@ specifiers:
   graceful-fs: ^4.1.11
   husky: ^0.13.2
   in-publish: ^2.0.0
-  is-ci: ^1.0.10
   is-inner-link: ^2.0.0
   is-subdir: ^1.0.0
   is-windows: ^1.0.0
   load-json-file: ^2.0.0
   load-yaml-file: ^0.1.0
-  loud-rejection: ^1.6.0
   mem: ^1.1.0
   mkdirp-promise: ^5.0.1
   mz: ^2.6.0
   ncp: ^2.0.0
   ndjson: ^1.5.0
   node-gyp: ^3.6.0
-  nopt: ^4.0.1
   normalize-path: ^2.1.1
   normalize-registry-url: ^1.0.0
   normalize-ssh: ^1.0.0
@@ -2475,7 +2239,6 @@ specifiers:
   path-exists: ^3.0.0
   path-name: ^1.0.0
   pnpm-default-reporter: ^0.6.0
-  pnpm-file-reporter: ^0.0.1
   pnpm-install-checks: ^1.1.0
   pnpm-logger: ^0.3.0
   pnpm-shrinkwrap: ^2.0.0
@@ -2492,7 +2255,6 @@ specifiers:
   tslint: ^5.4.2
   typescript: ^2.4.1
   unpack-stream: ^2.0.0-beta.1
-  update-notifier: ^2.1.0
   validate-commit-msg: ^2.7.0
   write-json-file: ^2.0.0
   write-pkg: ^3.1.0

@@ -11,7 +11,6 @@ import {
   testDefaults,
   pathToLocalPkg,
   local,
-  execPnpmSync,
 } from '../utils'
 
 const test = promisifyTape(tape)

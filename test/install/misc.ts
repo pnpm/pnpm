@@ -15,7 +15,6 @@ import {
   prepare,
   addDistTag,
   testDefaults,
-  execPnpmSync,
 } from '../utils'
 import loadJsonFile = require('load-json-file')
 const basicPackageJson = loadJsonFile.sync(path.join(__dirname, '../utils/simple-package.json'))
@@ -462,36 +461,6 @@ test('run js bin file', async function (t) {
   const result = spawnSync('npm', ['test'])
   t.ok(result.stdout.toString().indexOf('Hello world!') !== -1, 'package executable printed its message')
   t.equal(result.status, 0, 'executable exited with success')
-})
-
-test('bin files are found by lifecycle scripts', t => {
-  const project = prepare(t, {
-    scripts: {
-      postinstall: 'hello-world-js-bin'
-    },
-    dependencies: {
-      'hello-world-js-bin': '*'
-    }
-  })
-
-  const result = execPnpmSync('install')
-
-  t.equal(result.status, 0, 'installation was successfull')
-  t.ok(result.stdout.toString().indexOf('Hello world!') !== -1, 'postinstall script was executed')
-
-  t.end()
-})
-
-test('create a pnpm-debug.log file when the command fails', async function (t) {
-  const project = prepare(t)
-
-  const result = execPnpmSync('install', '@zkochan/i-do-not-exist')
-
-  t.equal(result.status, 1, 'install failed')
-
-  t.ok(await exists('pnpm-debug.log'), 'log file created')
-
-  t.end()
 })
 
 test('building native addons', async function (t) {
