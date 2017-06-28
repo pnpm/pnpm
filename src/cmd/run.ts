@@ -1,4 +1,4 @@
-import {PnpmOptions} from '../types'
+import {PnpmOptions} from 'supi'
 import {sync as runScriptSync} from '../runScript'
 
 export default function (input: string[], opts: PnpmOptions) {

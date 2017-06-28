@@ -1,4 +1,4 @@
-import {PnpmOptions} from '../types'
+import {PnpmOptions} from 'supi'
 import install from './install'
 import runNpm from './runNpm'
 
