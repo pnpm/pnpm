@@ -21,7 +21,6 @@ import loadJsonFile = require('load-json-file')
 const basicPackageJson = loadJsonFile.sync(path.join(__dirname, '../utils/simple-package.json'))
 import exists = require('path-exists')
 import isWindows = require('is-windows')
-import deepRequireCwd = require('deep-require-cwd')
 
 const IS_WINDOWS = isWindows()
 
