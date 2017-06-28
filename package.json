@@ -9,8 +9,7 @@
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },
-  "main": "lib/index.js",
-  "typings": "lib/index.d.ts",
+  "main": "lib/bin/pnpm.js",
   "files": [
     "lib/"
   ],

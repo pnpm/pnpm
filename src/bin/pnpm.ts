@@ -136,7 +136,7 @@ function getCommandFullName (cmd: string) {
   }
 }
 
-export default run
+export = run
 
 import errorHandler from '../err'
 if (!module.parent) run(process.argv.slice(2)).catch(errorHandler)

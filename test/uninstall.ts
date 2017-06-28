@@ -10,7 +10,7 @@ import {
   installPkgs,
 } from 'supi'
 import thenify = require('thenify')
-import pnpmCli from '../src/bin/pnpm'
+import pnpmCli = require('../src/bin/pnpm')
 
 test('uninstall package and remove from appropriate property', async function (t: tape.Test) {
   const project = prepare(t)
