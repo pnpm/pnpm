@@ -115,7 +115,8 @@
       "pnpm-logger",
       "pnpm-registry-mock",
       "remove-all-except-outer-links",
-      "pnpm-shrinkwrap"
+      "pnpm-shrinkwrap",
+      "supi"
     ]
   }
 }
