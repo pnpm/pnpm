@@ -22,6 +22,7 @@ import * as pnpmCmds from '../cmd'
 import runNpm from '../cmd/runNpm'
 import bole = require('bole')
 import initReporter from '../reporter'
+import pnpmPkgJson from '../pnpmPkgJson'
 
 bole.setFastTime()
 
@@ -84,6 +85,9 @@ async function run (argv: string[]) {
   }
 
   cliConf.save = cliConf.save || !cliConf.saveDev && !cliConf.saveOptional
+  if (!cliConf['user-agent']) {
+    cliConf['user-agent'] = `${pnpmPkgJson.name}/${pnpmPkgJson.version} npm/? node/${process.version} ${process.platform} ${process.arch}`
+  }
 
   await new Promise((resolve, reject) => {
     npm.load(cliConf as any, (err: Error) => { // tslint:disable-line
