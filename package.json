@@ -1,13 +1,17 @@
 {
-  "name": "pnpm",
-  "description": "Fast, disk space efficient package manager",
-  "version": "1.0.0",
-  "author": "Rico Sta. Cruz <rico@ricostacruz.com>",
+  "name": "supi",
+  "description": "Fast, disk space efficient installation engine",
+  "version": "0.0.0",
+  "author": {
+    "name": "Zoltan Kochan",
+    "email": "zoltan.kochan@gmail.com",
+    "url": "https://www.kochan.io/"
+  },
   "bin": {
     "pnpm": "lib/bin/pnpm.js"
   },
   "bugs": {
-    "url": "https://github.com/pnpm/pnpm/issues"
+    "url": "https://github.com/pnpm/supi/issues"
   },
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
@@ -131,7 +135,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/pnpm/pnpm.git"
+    "url": "git+https://github.com/pnpm/supi.git"
   },
   "scripts": {
     "prepare": "cd test && pnpm install",
@@ -143,7 +147,7 @@
     "lint": "tslint -c tslint.json --project .",
     "test": "npm run tsc && npm run lint && cd test && npm test",
     "tsc": "rimraf lib && tsc",
-    "prepublish": "in-publish && echo 'You need to use \"publish-packed\" to publish pnpm' && false || npm run tsc"
+    "prepublishOnly": "npm run tsc"
   },
   "config": {
     "commitizen": {
