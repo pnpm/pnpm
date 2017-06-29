@@ -1,4 +1,4 @@
-import {PnpmOptions} from '../../src'
+import {PnpmOptions} from 'supi'
 import path = require('path')
 
 export default function testDefaults (opts?: PnpmOptions): PnpmOptions  & {store: string} {

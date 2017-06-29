@@ -1,5 +1,4 @@
-import {PnpmOptions} from '../types'
-import {install, installPkgs} from '../api/install'
+import {install, installPkgs, PnpmOptions} from 'supi'
 
 /**
  * Perform installation.

@@ -5,7 +5,6 @@ import {stripIndent} from 'common-tags'
 import {Test} from 'tape'
 import exists = require('path-exists')
 import loadYamlFile = require('load-yaml-file')
-import {Modules, read as readModules} from '../../src/fs/modulesController'
 import isExecutable from './isExecutable'
 import writePkg = require('write-pkg')
 
@@ -42,11 +41,11 @@ export default function prepare (t: Test, pkg?: Object) {
     },
     getStorePath: async function () {
       if (!cachedStorePath) {
-        const modulesYaml = await readModules(modules)
+        const modulesYaml = await loadYamlFile(path.join(modules, '.modules.yaml'))
         if (!modulesYaml) {
           throw new Error('Cannot find module store')
         }
-        cachedStorePath = modulesYaml.store
+        cachedStorePath = modulesYaml['store']
       }
       return cachedStorePath
     },

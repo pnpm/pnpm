@@ -1,6 +1,9 @@
 #!/usr/bin/env node
 // Patch the global fs module here at the app level
-import '../fs/gracefulify'
+import fs = require('fs')
+import gfs = require('graceful-fs')
+
+gfs.gracefulify(fs)
 
 import loudRejection = require('loud-rejection')
 loudRejection()
@@ -19,6 +22,7 @@ import * as pnpmCmds from '../cmd'
 import runNpm from '../cmd/runNpm'
 import bole = require('bole')
 import initReporter from '../reporter'
+import pnpmPkgJson from '../pnpmPkgJson'
 
 bole.setFastTime()
 
@@ -81,6 +85,9 @@ async function run (argv: string[]) {
   }
 
   cliConf.save = cliConf.save || !cliConf.saveDev && !cliConf.saveOptional
+  if (!cliConf['user-agent']) {
+    cliConf['user-agent'] = `${pnpmPkgJson.name}/${pnpmPkgJson.version} npm/? node/${process.version} ${process.platform} ${process.arch}`
+  }
 
   await new Promise((resolve, reject) => {
     npm.load(cliConf as any, (err: Error) => { // tslint:disable-line
@@ -129,7 +136,7 @@ function getCommandFullName (cmd: string) {
   }
 }
 
-export default run
+export = run
 
 import errorHandler from '../err'
 if (!module.parent) run(process.argv.slice(2)).catch(errorHandler)

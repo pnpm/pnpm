@@ -68,7 +68,7 @@ pnpm install lodash
 Use `pnpm` in place of `npm`. It overrides `install`, `update`, `uninstall`, `link`, `prune` and `install-test`.
 The rest of the commands pass through to `npm`.
 
-For using the programmatic API, see: [API](docs/api.md).
+For using the programmatic API, use pnpm's engine: [supi](https://github.com/pnpm/supi).
 
 ### Configuring
 
