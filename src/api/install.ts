@@ -92,7 +92,14 @@ export type InstallContext = {
 
 export async function install (maybeOpts?: PnpmOptions) {
   const opts = extendOptions(maybeOpts)
-  return lock(opts.prefix, async () => {
+
+  if (opts.lock) {
+    return lock(opts.prefix, _install, {stale: opts.lockStaleDuration})
+  }
+
+  return _install()
+
+  async function _install() {
     const installType = 'general'
     const ctx = await getContext(opts, installType)
     const installCtx = await createInstallCmd(opts, ctx.shrinkwrap, ctx.skipped)
@@ -140,7 +147,7 @@ export async function install (maybeOpts?: PnpmOptions) {
     async function run () {
       await installInContext(installType, specs, [], ctx, installCtx, opts)
     }
-  }, {stale: opts.lockStaleDuration})
+  }
 }
 
 function specsToInstallFromPackage(
@@ -174,7 +181,13 @@ function depsFromPackage (pkg: Package): Dependencies {
  */
 export async function installPkgs (fuzzyDeps: string[] | Dependencies, maybeOpts?: PnpmOptions) {
   const opts = extendOptions(maybeOpts)
-  return lock(opts.prefix, async () => {
+
+  if (opts.lock) {
+    return lock(opts.prefix, _installPkgs, {stale: opts.lockStaleDuration})
+  }
+  return _installPkgs()
+
+  async function _installPkgs () {
     const installType = 'named'
     const ctx = await getContext(opts, installType)
     const existingSpecs = opts.global ? {} : depsFromPackage(ctx.pkg)
@@ -226,7 +239,7 @@ export async function installPkgs (fuzzyDeps: string[] | Dependencies, maybeOpts
         installCtx,
         opts)
     }
-  }, {stale: opts.lockStaleDuration})
+  }
 }
 
 function argsToSpecs (

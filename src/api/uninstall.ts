@@ -21,9 +21,15 @@ import pnpmPkgJson from '../pnpmPkgJson'
 import safeIsInnerLink from '../safeIsInnerLink'
 import removeTopDependency from '../removeTopDependency'
 
-export default async function uninstallCmd (pkgsToUninstall: string[], maybeOpts?: PnpmOptions) {
+export default async function uninstall (pkgsToUninstall: string[], maybeOpts?: PnpmOptions) {
   const opts = extendOptions(maybeOpts)
-  return lock(opts.prefix, async () => {
+
+  if (opts.lock) {
+    return lock(opts.prefix, _uninstall, {stale: opts.lockStaleDuration})
+  }
+  return _uninstall()
+
+  async function _uninstall () {
     const ctx = await getContext(opts)
 
     if (!ctx.pkg) {
@@ -39,7 +45,7 @@ export default async function uninstallCmd (pkgsToUninstall: string[], maybeOpts
     function run () {
       return uninstallInContext(pkgsToUninstall, ctx, opts)
     }
-  }, {stale: opts.lockStaleDuration})
+  }
 }
 
 export async function uninstallInContext (pkgsToUninstall: string[], ctx: PnpmContext, opts: StrictPnpmOptions) {
