@@ -39,7 +39,7 @@
     "pnpm-file-reporter": "^0.0.1",
     "pnpm-logger": "^0.3.0",
     "ramda": "^0.24.1",
-    "supi": "^0.0.1",
+    "supi": "^0.0.2",
     "update-notifier": "^2.1.0"
   },
   "devDependencies": {
