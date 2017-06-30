@@ -120,7 +120,6 @@
     "package manager"
   ],
   "license": "MIT",
-  "preferGlobal": true,
   "engines": {
     "node": ">=4"
   },
