@@ -47,7 +47,7 @@
     "@types/tape": "^4.2.30",
     "commitizen": "^2.8.6",
     "cz-conventional-changelog": "^2.0.0",
-    "husky": "^0.13.2",
+    "husky": "^0.14.0",
     "in-publish": "^2.0.0",
     "npm-scripts-info": "^0.3.6",
     "rimraf": "^2.5.4",
