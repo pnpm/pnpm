@@ -382,7 +382,7 @@ test('scoped module from different registry', async function (t: tape.Test) {
       },
       'registry.npmjs.org/@zkochan/foo/1.0.0': {
         resolution: {
-          integrity: 'sha1-hJws2Ke4u4ghPFL/+6eqlSrgLLI=',
+          integrity: 'sha512-IFvrYpq7E6BqKex7A7czIFnFncPiUVdhSzGhAOWpp8RlkXns4y/9ZdynxaA/e0VkihRxQkihE2pTyvxjfe/wBg==',
           registry: 'https://registry.npmjs.org/',
           tarball: 'https://registry.npmjs.org/@zkochan/foo/-/foo-1.0.0.tgz'
         }

@@ -20,6 +20,7 @@ export type PackageMeta = {
 
 export type PackageInRegistry = Package & {
   dist: {
+    integrity?: string,
     shasum: string,
     tarball: string
   }

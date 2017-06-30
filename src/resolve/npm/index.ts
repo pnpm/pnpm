@@ -51,7 +51,7 @@ export default async function resolveNpm (spec: PackageSpec, opts: ResolveOption
     const resolution: TarballResolution = {
       tarball: correctPkg.dist.tarball,
       registry: opts.registry,
-      integrity: ssri.fromHex(correctPkg.dist.shasum, 'sha1').toString(),
+      integrity: getIntegrity(correctPkg.dist),
     }
     return {id, resolution, package: correctPkg}
   } catch (err) {
@@ -60,6 +60,17 @@ export default async function resolveNpm (spec: PackageSpec, opts: ResolveOption
     }
     throw err
   }
+}
+
+function getIntegrity (dist: {
+  integrity?: string,
+  shasum: string,
+  tarball: string,
+}) {
+  if (dist.integrity) {
+    return dist.integrity
+  }
+  return ssri.fromHex(dist.shasum, 'sha1').toString()
 }
 
 function pickVersion (meta: PackageMeta, dep: PackageSpec) {
