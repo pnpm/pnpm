@@ -1,5 +1,4 @@
-import storeStatus from '../api/storeStatus'
-import {PnpmOptions} from '../types'
+import {PnpmOptions, storeStatus} from 'supi'
 import {PnpmError} from '../errorTypes'
 import logger from 'pnpm-logger'
 

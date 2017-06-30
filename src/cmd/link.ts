@@ -1,6 +1,5 @@
 import path = require('path')
-import link, {linkFromGlobal, linkToGlobal} from '../api/link'
-import {PnpmOptions} from '../types'
+import {link, linkFromGlobal, linkToGlobal, PnpmOptions} from 'supi'
 
 export default (input: string[], opts: PnpmOptions & {globalPrefix: string}) => {
   const cwd = opts && opts.prefix || process.cwd()
@@ -10,12 +9,14 @@ export default (input: string[], opts: PnpmOptions & {globalPrefix: string}) => 
     return linkToGlobal(cwd, opts)
   }
 
-  // pnpm link ../foo
-  if (input[0].indexOf('.') === 0) {
-    const linkFrom = path.join(cwd, input[0])
-    return link(linkFrom, cwd, opts)
-  }
+  return input.reduce((previous: Promise<void>, inp: string) => {
+    // pnpm link ../foo
+    if (inp[0].indexOf('.') === 0) {
+      const linkFrom = path.join(cwd, inp)
+      return previous.then(link.bind(null, linkFrom, cwd, opts))
+    }
 
-  // pnpm link foo
-  return linkFromGlobal(input[0], cwd, opts)
+    // pnpm link foo
+    return previous.then(linkFromGlobal.bind(null, inp, cwd, opts))
+  }, Promise.resolve())
 }

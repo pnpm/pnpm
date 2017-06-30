@@ -1,5 +1,11 @@
 <!--
-Thank you for raising your concerns, we appreciate your feedback and contributions to this repository.
+**Please only file bugs/feature requests for pnpm here.**
+
+If you have a question that is not answered in the FAQ section of the README
+then it is best to post your question on StackOverflow under the pnpm tag:
+https://stackoverflow.com/questions/tagged/pnpm
+or ask it in our Gitter chatroom:
+https://gitter.im/pnpm/pnpm
 
 If your issue is a bug, please follow the format below:
 -->

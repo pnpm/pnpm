@@ -5,11 +5,11 @@ import {stripIndent} from 'common-tags'
 import {Test} from 'tape'
 import exists = require('path-exists')
 import loadYamlFile = require('load-yaml-file')
-import {Modules, read as readModules} from '../../src/fs/modulesController'
 import isExecutable from './isExecutable'
+import writePkg = require('write-pkg')
 
 // the testing folder should be outside of the project to avoid lookup in the project's node_modules
-const tmpPath = path.resolve('..', '.tmp')
+const tmpPath = path.join(__dirname, '..', '..', '..', '.tmp')
 mkdirp.sync(tmpPath)
 
 let dirNumber = 0
@@ -23,8 +23,7 @@ export default function prepare (t: Test, pkg?: Object) {
   const dirname = dirNumber.toString()
   const pkgTmpPath = path.join(tmpPath, dirname, 'project')
   mkdirp.sync(pkgTmpPath)
-  const json = JSON.stringify(Object.assign({name: 'project', version: '0.0.0'}, pkg), null, 2)
-  fs.writeFileSync(path.join(pkgTmpPath, 'package.json'), json, 'utf-8')
+  writePkg.sync(pkgTmpPath, Object.assign({name: 'project', version: '0.0.0'}, pkg))
   process.chdir(pkgTmpPath)
   t.pass(`create testing package ${dirname}`)
 
@@ -42,11 +41,11 @@ export default function prepare (t: Test, pkg?: Object) {
     },
     getStorePath: async function () {
       if (!cachedStorePath) {
-        const modulesYaml = await readModules(modules)
+        const modulesYaml = await loadYamlFile(path.join(modules, '.modules.yaml'))
         if (!modulesYaml) {
           throw new Error('Cannot find module store')
         }
-        cachedStorePath = modulesYaml.storePath
+        cachedStorePath = modulesYaml['store']
       }
       return cachedStorePath
     },

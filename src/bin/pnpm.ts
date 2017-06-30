@@ -1,6 +1,9 @@
 #!/usr/bin/env node
 // Patch the global fs module here at the app level
-import '../fs/gracefulify'
+import fs = require('fs')
+import gfs = require('graceful-fs')
+
+gfs.gracefulify(fs)
 
 import loudRejection = require('loud-rejection')
 loudRejection()
@@ -15,30 +18,15 @@ import npm = require('npm')
 import npmDefaults = require('npm/lib/config/defaults')
 import '../logging/fileLogger'
 import pkg from '../pnpmPkgJson'
+import * as pnpmCmds from '../cmd'
 import runNpm from '../cmd/runNpm'
-import installCmd from '../cmd/install'
-import updateCmd from '../cmd/update'
-import uninstallCmd from '../cmd/uninstall'
-import linkCmd from '../cmd/link'
-import pruneCmd from '../cmd/prune'
-import installTestCmd from '../cmd/installTest'
-import runCmd from '../cmd/run'
-import storeCmd from '../cmd/store'
 import bole = require('bole')
 import initReporter from '../reporter'
+import pnpmPkgJson from '../pnpmPkgJson'
 
 bole.setFastTime()
 
-const pnpmCmds = {
-  install: installCmd,
-  update: updateCmd,
-  uninstall: uninstallCmd,
-  link: linkCmd,
-  prune: pruneCmd,
-  'install-test': installTestCmd,
-  run: runCmd,
-  store: storeCmd,
-}
+pnpmCmds['install-test'] = pnpmCmds.installTest
 
 const supportedCmds = new Set([
   'install',
@@ -63,6 +51,7 @@ async function run (argv: string[]) {
     'child-concurrency': Number,
     'offline': Boolean,
     'reporter': String,
+    'independent-leaves': Boolean,
   }
   const types = R.merge(npmDefaults.types, pnpmTypes)
   const cliConf = nopt(
@@ -96,9 +85,12 @@ async function run (argv: string[]) {
   }
 
   cliConf.save = cliConf.save || !cliConf.saveDev && !cliConf.saveOptional
+  if (!cliConf['user-agent']) {
+    cliConf['user-agent'] = `${pnpmPkgJson.name}/${pnpmPkgJson.version} npm/? node/${process.version} ${process.platform} ${process.arch}`
+  }
 
   await new Promise((resolve, reject) => {
-    npm.load(cliConf, (err: Error) => {
+    npm.load(cliConf as any, (err: Error) => { // tslint:disable-line
       if (err) {
         reject(err)
         return
@@ -144,7 +136,7 @@ function getCommandFullName (cmd: string) {
   }
 }
 
-export default run
+export = run
 
 import errorHandler from '../err'
 if (!module.parent) run(process.argv.slice(2)).catch(errorHandler)

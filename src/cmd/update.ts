@@ -1,5 +1,4 @@
-import {PnpmOptions} from '../types'
-import {install, installPkgs} from '../api/install'
+import {install, installPkgs, PnpmOptions} from 'supi'
 
 export default function (input: string[], opts: PnpmOptions) {
   opts = Object.assign({update: true}, opts)

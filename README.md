@@ -1,15 +1,16 @@
 # pnpm
 
+[![npm version](https://img.shields.io/npm/v/pnpm.svg)](https://www.npmjs.com/package/pnpm)
 [![Status](https://travis-ci.org/pnpm/pnpm.svg?branch=master)](https://travis-ci.org/pnpm/pnpm "See test builds")
 [![Windows build status](https://ci.appveyor.com/api/projects/status/f7437jbcml04x750/branch/master?svg=true)](https://ci.appveyor.com/project/zkochan/pnpm-17nv8/branch/master)
 [![Join the chat at https://gitter.im/pnpm/pnpm](https://badges.gitter.im/pnpm/pnpm.svg)](https://gitter.im/pnpm/pnpm?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
 [![Twitter Follow](https://img.shields.io/twitter/follow/pnpmjs.svg?style=social&label=Follow)](https://twitter.com/pnpmjs)
 
-> Fast, disk space efficient npm installs
+> Fast, disk space efficient package manager
 
 pnpm is:
 
-1. **Fast.** Faster than npm and yarn. This is not a fair battle as we organize
+1. **Fast.** Faster than npm and Yarn. This is not a fair battle as we organize
 dependencies in a completely different way. Nevertheless, dependencies installed with
 pnpm are Node.js-compatible!
 1. **Efficient.** One version of a package is saved only ever once on a disk.
@@ -27,17 +28,20 @@ always the same way, the way they are described in `package.json` files.
 * [Benchmark](#benchmark)
 * [Limitations](#limitations)
 * [Frequently Asked Questions](#frequently-asked-questions)
+* [Support](#support)
+* [Awesome list](https://github.com/pnpm/awesome-pnpm)
 * Recipes
   * [Continuous Integration](docs/recipes/continuous-integration.md)
 * Advanced
   * [About the package store](docs/about-the-package-store.md)
+  * [Symlinked `node_modules` structure](docs/symlinked-node-modules-structure.md)
   * [How peers are resolved](docs/how-peers-are-resolved.md)
 * [Contributing](CONTRIBUTING.md)
 
 ## Background
 
 pnpm uses hard links and symlinks to save one version of a module only ever once on a disk.
-When using npm or yarn for example, if you have 100 packages using lodash, you will have
+When using npm or Yarn for example, if you have 100 packages using lodash, you will have
 100 copies of lodash on disk. With pnpm, lodash will be saved in a single place on the disk
 and a hard link will put it into the `node_modules` where it should be installed.
 
@@ -57,13 +61,14 @@ npm install -g pnpm
 
 ## Usage
 
-Use `pnpm` in place of `npm`. It overrides `pnpm i`, `pnpm install` and some other command, the rest will pass through to `npm`.
-
 ```
 pnpm install lodash
 ```
 
-For using the programmatic API, see: [API](docs/api.md).
+Use `pnpm` in place of `npm`. It overrides `install`, `update`, `uninstall`, `link`, `prune` and `install-test`.
+The rest of the commands pass through to `npm`.
+
+For using the programmatic API, use pnpm's engine: [supi](https://github.com/pnpm/supi).
 
 ### Configuring
 
@@ -86,7 +91,7 @@ The location where all the packages are saved on the disk.
 * Default: **false**
 * Type: **Boolean**
 
-If true, pnpm will use only the local registry mirror to get packages.
+If true, pnpm will use only packages already available in the store.
 If a package won't be found locally, the installation will fail.
 
 #### network-concurrency
@@ -116,9 +121,18 @@ Can be passed in via a CLI option. `--no-lock` to set it to false. E.g.: `pnpm i
 > If you experience issues similar to the ones described in [#594](https://github.com/pnpm/pnpm/issues/594), use this option to disable locking.
 > In the meanwhile, we'll try to find a solution that will make locking work for everyone.
 
+#### independent-leaves
+
+* Default: **false**
+* Type: **Boolean**
+
+If true, symlinks leaf dependencies directly from the global store. Leaf dependencies are
+packages that have no dependencies of their own. Setting this config to `true` might break some packages
+that rely on location but gives an average of **8% installation speed improvement**.
+
 ## Benchmark
 
-pnpm is faster than npm and yarn. See [this](https://github.com/zkochan/node-package-manager-benchmark)
+pnpm is faster than npm and Yarn. See [this](https://github.com/zkochan/node-package-manager-benchmark)
 benchmark which compares the three package managers on different types of applications.
 
 ```
@@ -130,11 +144,6 @@ time npm i babel-preset-es2015 browserify chalk debug minimist mkdirp
 time pnpm i babel-preset-es2015 browserify chalk debug minimist mkdirp
     11.04 real         6.85 user         2.85 sys
 ```
-
-## Prior art
-
-* [Compared to ied](docs/vs-ied.md)
-* [Compared to npm](docs/vs-npm.md)
 
 ## Limitations
 
@@ -152,6 +161,12 @@ original file instead, as described in [#736](https://github.com/pnpm/pnpm/issue
 4. Node.js doesn't work with the [--preserve-symlinks](https://nodejs.org/api/cli.html#cli_preserve_symlinks) flag when executed in a project that uses pnpm.
 
 Got an idea for workarounds for these issues? [Share them.](https://github.com/pnpm/pnpm/issues/new)
+
+## Other Node.js package managers
+
+* `npm`. The oldest and most widely used. See [pnpm vs npm](docs/pnpm-vs-npm.md).
+* `ied`. Built on a very similar premise as pnpm. pnpm takes huge inspiration from it.
+* `Yarn`. The first Node.js package manager that invented lockfiles and offline installations.
 
 ## Frequently Asked Questions
 
@@ -171,8 +186,36 @@ For more on this subject:
 * [A thread from the pnpm chat room](https://gist.github.com/zkochan/106cfef49f8476b753a9cbbf9c65aff1)
 * [An issue in the pnpm repo](https://github.com/pnpm/pnpm/issues/794)
 
+### Does it work on Windows? It is harder to create symlinks on Windows
+
+Using symlinks on Windows is problematic indeed. That is why pnpm uses junctions instead of symlinks on Windows OS.
+
+### Does it work on Windows? Nested `node_modules` approach is basically incompatible with Windows
+
+Early versions of npm had issues because of nesting all `node_modules` (see [Node's nested node_modules approach is basically incompatible with Windows](https://github.com/nodejs/node-v0.x-archive/issues/6960)). However, pnpm does not create deep folders, it stores all packages flatly and uses symlinks to create the dependency tree structure.
+
+### What about circular symlinks?
+
+Although pnpm uses symlinks to put dependencies into `node_modules` folders, circular symlinks are avoided because parent packages are placed into the same `node_modules` folder in which their dependencies are. So `foo`'s dependencies are not in `foo/node_modules` but `foo` is in `node_modules/foo`, together with its own dependencies.
+
+### Why have hard links at all? Why not symlink directly to the global store?
+
+One package can have different sets of dependencies on one machine.
+
+In project **A** `foo@1.0.0` can have dependency resolved to `bar@1.0.0` but in project **B** the same dependency of `foo` might
+resolve to `bar@1.1.0`. So pnpm hard links `foo@1.0.0` to every project where it is used, in order to create different sets
+of dependencies for it.
+
+Direct symlinking to the global store would work with Node's `--preserve-symlinks` flag. But `--preserve-symlinks` comes
+with a bunch of different issues, so we decided to stick with hard links.
+For more details about why this decision was made, see: https://github.com/nodejs/node-eps/issues/46.
+
+## Support
+
+- [Stack Overflow](https://stackoverflow.com/questions/tagged/pnpm)
+- [Gitter chat](https://gitter.im/pnpm/pnpm)
+- [Twitter](https://twitter.com/pnpmjs)
+
 ## License
 
 [MIT](https://github.com/pnpm/pnpm/blob/master/LICENSE)
-
-[contributors]: http://github.com/pnpm/pnpm/contributors
