@@ -287,15 +287,19 @@ test('subdeps are updated on repeat install if outer shrinkwrap.yaml does not ma
 test("recreates shrinkwrap file if it doesn't match the dependencies in package.json", async (t: tape.Test) => {
   const project = prepare(t)
 
-  await installPkgs(['is-negative@2.0.0'], testDefaults({saveExact: true}))
+  await installPkgs(['is-negative@1.0.0'], testDefaults({saveExact: true, saveProd: true}))
+  await installPkgs(['is-positive@1.0.0'], testDefaults({saveExact: true, saveDev: true}))
+  await installPkgs(['map-obj@1.0.0'], testDefaults({saveExact: true, saveOptional: true}))
 
   const shr1 = await project.loadShrinkwrap()
-  t.equal(shr1.dependencies['is-negative'], '2.0.0')
-  t.equal(shr1.specifiers['is-negative'], '2.0.0')
+  t.equal(shr1.dependencies['is-negative'], '1.0.0')
+  t.equal(shr1.specifiers['is-negative'], '1.0.0')
 
-  const pkg = await readPkg()
+  const pkg = await readPkg({normalize: false})
 
   pkg.dependencies['is-negative'] = '^2.1.0'
+  pkg.devDependencies['is-positive'] = '^2.0.0'
+  pkg.optionalDependencies['map-obj'] = '1.0.1'
 
   await writePkg(pkg)
 
@@ -305,6 +309,12 @@ test("recreates shrinkwrap file if it doesn't match the dependencies in package.
 
   t.equal(shr.dependencies['is-negative'], '2.1.0')
   t.equal(shr.specifiers['is-negative'], '^2.1.0')
+
+  t.equal(shr.devDependencies['is-positive'], '2.0.0')
+  t.equal(shr.specifiers['is-positive'], '^2.0.0')
+
+  t.equal(shr.optionalDependencies['map-obj'], '1.0.1')
+  t.equal(shr.specifiers['map-obj'], '1.0.1')
 })
 
 test('repeat install with shrinkwrap should not mutate shrinkwrap when dependency has version specified with v prefix', async (t: tape.Test) => {

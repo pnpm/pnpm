@@ -119,10 +119,15 @@ export async function install (maybeOpts?: PnpmOptions) {
       prefix: opts.prefix,
     })
 
-    if (ctx.shrinkwrap.specifiers && ctx.shrinkwrap.dependencies) {
+    if (ctx.shrinkwrap.specifiers) {
+      ctx.shrinkwrap.dependencies = ctx.shrinkwrap.dependencies || {}
+      ctx.shrinkwrap.devDependencies = ctx.shrinkwrap.devDependencies || {}
+      ctx.shrinkwrap.optionalDependencies = ctx.shrinkwrap.optionalDependencies || {}
       for (const spec of specs) {
         if (ctx.shrinkwrap.specifiers[spec.name] !== spec.rawSpec) {
           delete ctx.shrinkwrap.dependencies[spec.name]
+          delete ctx.shrinkwrap.devDependencies[spec.name]
+          delete ctx.shrinkwrap.optionalDependencies[spec.name]
         }
       }
     }
