@@ -8,6 +8,7 @@ import {read as readStore, save as saveStore} from '../fs/storeController'
 import R = require('ramda')
 import {PackageSpec} from '../resolve'
 import removeTopDependency from '../removeTopDependency'
+import logger from 'pnpm-logger'
 
 export default async function removeOrphanPkgs (
   oldShr: Shrinkwrap,
@@ -29,16 +30,20 @@ export default async function removeOrphanPkgs (
   const store = await readStore(storePath) || {}
   const notDependents = R.difference(oldPkgIds, newPkgIds)
 
-  await Promise.all(Array.from(notDependents).map(async notDependent => {
-    if (store[notDependent]) {
-      store[notDependent].splice(store[notDependent].indexOf(root), 1)
-      if (!store[notDependent].length) {
-        delete store[notDependent]
-        await rimraf(path.join(storePath, notDependent))
+  if (notDependents.length) {
+    logger.info(`Removing ${notDependents.length} orphan packages from node_modules`);
+
+    await Promise.all(notDependents.map(async notDependent => {
+      if (store[notDependent]) {
+        store[notDependent].splice(store[notDependent].indexOf(root), 1)
+        if (!store[notDependent].length) {
+          delete store[notDependent]
+          await rimraf(path.join(storePath, notDependent))
+        }
       }
-    }
-    await rimraf(path.join(rootModules, `.${notDependent}`))
-  }))
+      await rimraf(path.join(rootModules, `.${notDependent}`))
+    }))
+  }
 
   const newDependents = R.difference(newPkgIds, oldPkgIds)
 

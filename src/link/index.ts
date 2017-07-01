@@ -48,6 +48,7 @@ export default async function (
   newPkgResolvedIds: string[],
 }> {
   const topPkgIds = topPkgs.map(pkg => pkg.id)
+  logger.info(`Creating dependency tree`)
   const pkgsToLink = await resolvePeers(tree, rootNodeIds, topPkgIds, opts.topParents, opts.independentLeaves)
   const newShr = updateShrinkwrap(pkgsToLink, opts.shrinkwrap, opts.pkg)
 
@@ -151,6 +152,10 @@ async function linkNewPackages (
       }
     }
   }
+
+  if (!newPkgs.length) return []
+
+  logger.info(`Adding ${newPkgs.length} packages to node_modules`)
 
   await Promise.all([
     linkAllModules(newPkgs, pkgsToLink, {optional: opts.optional}),
