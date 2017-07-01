@@ -2,10 +2,10 @@ dependencies:
   '@types/byline': 4.2.31
   '@types/common-tags': 1.2.5
   '@types/load-json-file': 2.0.5
-  '@types/node': 7.0.33
+  '@types/node': 8.0.7
   '@types/nopt': 3.0.29
   '@types/npm': 2.0.28
-  '@types/ramda': 0.0.15
+  '@types/ramda': 0.24.1
   '@types/update-notifier': 1.0.1
   bole: 3.0.2
   byline: 5.0.0
@@ -32,7 +32,7 @@ devDependencies:
   '@types/tape': 4.2.30
   commitizen: 2.9.6
   cz-conventional-changelog: 2.0.0
-  husky: 0.13.4
+  husky: 0.14.2
   in-publish: 2.0.0
   npm-scripts-info: 0.3.6
   tslint: 5.4.3
@@ -41,7 +41,7 @@ devDependencies:
 packages:
   /@types/byline/4.2.31:
     dependencies:
-      '@types/node': 8.0.6
+      '@types/node': 8.0.7
     resolution:
       integrity: sha1-DmH8ucA+BH0hxEllVMcRYperYM0=
   /@types/chalk/0.4.31:
@@ -59,21 +59,21 @@ packages:
       integrity: sha1-fyrX7FX5FEgvybHsS7GuYCjUYGY=
   /@types/mz/0.0.31:
     dependencies:
-      '@types/node': 8.0.6
+      '@types/node': 8.0.7
     resolution:
       integrity: sha1-pNgMCC/v5x5Ap8DwfR5lVbu8e1I=
   /@types/node/7.0.33:
     resolution:
       integrity: sha512-8fVvl6Yyk3jZvSYxRMS9/AmZJ5RXCOP9N4xSlykyBViVESu751pxHYTN14Embn1Fem78YwEHdC7p7KGQQpwunw==
-  /@types/node/8.0.6:
+  /@types/node/8.0.7:
     resolution:
-      integrity: sha512-WuMAU8y6bw1I7MKOEtkuoSUsxHhVYkdv4nuqq3sed+Yx2JFFlCj4EoZweu4TkcrKAIuPXAjhGa5ZcROUJbj0AA==
+      integrity: sha512-fuCPLPe4yY0nv6Z1rTLFCEC452jl0k7i3gF/c8hdEKpYtEpt6Sk67hTGbxx8C0wmifFGPvKYd/O8CvS6dpgxMQ==
   /@types/nopt/3.0.29:
     resolution:
       integrity: sha1-8Z3z20yX7hRZonQAKDIKcdcJZM4=
   /@types/npm/2.0.28:
     dependencies:
-      '@types/node': 8.0.6
+      '@types/node': 8.0.7
     resolution:
       integrity: sha1-Crf0YK/Jru7kYZQ4l2YDG8cUUgw=
   /@types/ramda/0.0.11:
@@ -82,6 +82,9 @@ packages:
   /@types/ramda/0.0.15:
     resolution:
       integrity: sha512-5FIV9glDDA5mrD7bTBU2LaOeTMfwfAYIZBPvceBS6oXUuoMomHmqE24gaHRJ8P1/rH1AvmXhznbcKnPdqU8tJw==
+  /@types/ramda/0.24.1:
+    resolution:
+      integrity: sha512-6JRYxhr2JDGJmnfzKyDgDJHXGrxX7CGT3epGHwlmEhc+BNObcgQG3RK1vRyt6eNAfHNi31LbHX87iuLhT3bnMA==
   /@types/rc/0.0.1:
     resolution:
       integrity: sha1-H1uKGzsaxtH+4TfFP6xfoPKK4Nc=
@@ -90,7 +93,7 @@ packages:
       integrity: sha512-MdbWERx4JWmN4zP+skJy9Kio+Cddvmyn1k8x0S8UAqDoMgOJeobQo7yhlE4BfiimonHirgixWfva/hKUlXBsrw==
   /@types/tape/4.2.30:
     dependencies:
-      '@types/node': 8.0.6
+      '@types/node': 8.0.7
     dev: true
     resolution:
       integrity: sha1-PBkXxN/W8nJxuZInclE1FbxsRrQ=
@@ -922,15 +925,14 @@ packages:
       sshpk: 1.13.1
     resolution:
       integrity: sha1-33LiZwZs0Kxn+3at+OE0qPvPkb8=
-  /husky/0.13.4:
+  /husky/0.14.2:
     dependencies:
-      chalk: 1.1.3
-      find-parent-dir: 0.3.0
       is-ci: 1.0.10
       normalize-path: 1.0.0
+      strip-indent: 2.0.0
     dev: true
     resolution:
-      integrity: sha1-SHhcUCjeNFKlHEjBLE+UshJKFAc=
+      integrity: sha512-okPabyq6yMnec3sRGYBPItL5QLwiJPc13pJAI92hCBp1ay5pAix6sVWmD9HLDHQD8HPS0WekC/0FXb0fTBMTeQ==
   /ieee754/1.1.8:
     resolution:
       integrity: sha1-vjPUCsEO8ZJnAfbwii2G+/0a0+Q=
@@ -2108,6 +2110,10 @@ packages:
     dev: true
     resolution:
       integrity: sha1-DHlipq3vp7vUrDZkYKY4VSrhoKI=
+  /strip-indent/2.0.0:
+    dev: true
+    resolution:
+      integrity: sha1-XvjbKV0B5u1sv3qrlpmNeCJSe2g=
   /strip-json-comments/2.0.1:
     resolution:
       integrity: sha1-PFMZQukIwml8DsNEhYwobHygpgo=
@@ -2272,14 +2278,14 @@ packages:
       resolve: 1.3.3
       semver: 5.3.0
       tslib: 1.7.1
-      tsutils: 2.4.0
+      tsutils: 2.5.0
     dev: true
     resolution:
       integrity: sha1-dhyEArgONHt3M6BDkKdXslNYBGc=
-  /tsutils/2.4.0:
+  /tsutils/2.5.0:
     dev: true
     resolution:
-      integrity: sha1-rUzm26Dlo+2934Ymt8oEB4IYn+o=
+      integrity: sha1-TRHWJ/jBZkM76+jHt0hY1hfdhnA=
   /tunnel-agent/0.6.0:
     dependencies:
       safe-buffer: 5.1.1
@@ -2447,10 +2453,10 @@ specifiers:
   '@types/common-tags': ^1.2.5
   '@types/load-json-file': ^2.0.5
   '@types/mkdirp': ^0.3.29
-  '@types/node': ^7.0.27
+  '@types/node': ^8.0.7
   '@types/nopt': ^3.0.29
   '@types/npm': ^2.0.28
-  '@types/ramda': ^0.0.15
+  '@types/ramda': ^0.24.1
   '@types/tape': ^4.2.30
   '@types/update-notifier': ^1.0.0
   bole: ^3.0.2
@@ -2461,7 +2467,7 @@ specifiers:
   cross-spawn: ^5.0.0
   cz-conventional-changelog: ^2.0.0
   graceful-fs: ^4.1.11
-  husky: ^0.13.2
+  husky: ^0.14.0
   in-publish: ^2.0.0
   is-ci: ^1.0.10
   load-json-file: ^2.0.0
