@@ -99,12 +99,6 @@ export async function fetchFromRemoteTarball (dir: string, dist: PackageDist, op
       registry: dist.registry,
       integrity: dist.integrity,
       onStart: () => logStatus({status: 'fetching', pkgId: opts.pkgId}),
-      onProgress: (done: number, total: number) =>
-        logStatus({
-          status: 'fetching',
-          pkgId: opts.pkgId,
-          progress: { done, total },
-        })
     })
   }
   const index = await fetchFromLocalTarball(dir, {
