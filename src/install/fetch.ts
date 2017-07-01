@@ -157,6 +157,11 @@ function fetchToStore (opts: {
 
   async function fetch () {
     try {
+      logStatus({
+        status: 'resolving_content',
+        pkgId: opts.pkgId,
+      })
+
       let target = opts.target
       const linkToUnpacked = path.join(target, 'package')
       const targetExists = await exists(path.join(linkToUnpacked, 'package.json'))
@@ -165,6 +170,10 @@ function fetchToStore (opts: {
         // if target exists and it wasn't modified, then no need to refetch it
         const satisfiedIntegrity = await untouched(linkToUnpacked)
         if (satisfiedIntegrity) {
+          logStatus({
+            status: 'found_in_store',
+            pkgId: opts.pkgId,
+          })
           fetchingFiles.resolve({
             isNew: false,
             index: satisfiedIntegrity,

@@ -321,6 +321,7 @@ async function installInContext (
     nonLinkedPkgs,
     installOpts
   )
+  logger('stage').debug('resolution_done')
   const rootNodeIds = rootPkgs.map(pkg => pkg.nodeId)
   installCtx.nodesToBuild.forEach(nodeToBuild => {
     installCtx.tree[nodeToBuild.nodeId] = {
