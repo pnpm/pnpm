@@ -2,7 +2,7 @@ import chalk = require('chalk')
 import {Log} from 'pnpm-logger'
 import commonTags = require('common-tags')
 import os = require('os')
-import observatory = require('observatory')
+import * as terminalWriter from './terminalWriter'
 
 const stripIndent = commonTags.stripIndent
 const EOL = os.EOL
@@ -29,15 +29,15 @@ export default function reportError (logObj: Log) {
         reportShrinkwrapBreakingChange(err, logObj['message'])
         return
       default:
-        observatory.add(formatErrorSummary(err.message || logObj['message']))
+        terminalWriter.write(formatErrorSummary(err.message || logObj['message']))
         return
     }
   }
-  observatory.add(formatErrorSummary(logObj['message']))
+  terminalWriter.write(formatErrorSummary(logObj['message']))
 }
 
 function reportUnexpectedStore (err: Error, msg: Object) {
-  observatory.add(stripIndent`
+  terminalWriter.write(stripIndent`
     ${formatErrorSummary(err.message)}
 
     expected: ${highlight(msg['expectedStorePath'])}
@@ -60,7 +60,7 @@ function reportStoreBreakingChange (err: Error, msg: Object) {
   }
 
   output += formatRelatedSources(msg)
-  observatory.add(output)
+  terminalWriter.write(output)
 }
 
 function reportModulesBreakingChange (err: Error, msg: Object) {
@@ -76,7 +76,7 @@ function reportModulesBreakingChange (err: Error, msg: Object) {
   }
 
   output += formatRelatedSources(msg)
-  observatory.add(output)
+  terminalWriter.write(output)
 }
 
 function formatRelatedSources (msg: Object) {
@@ -102,7 +102,7 @@ function formatErrorSummary (message: string) {
 }
 
 function reportModifiedDependency (err: Error, msg: Object) {
-  observatory.add(stripIndent`
+  terminalWriter.write(stripIndent`
     ${formatErrorSummary('Packages in the store have been mutated')}
 
     These packages are modified:
@@ -113,7 +113,7 @@ function reportModifiedDependency (err: Error, msg: Object) {
 }
 
 function reportShrinkwrapBreakingChange (err: Error, msg: Object) {
-  observatory.add(stripIndent`
+  terminalWriter.write(stripIndent`
     ${formatErrorSummary(err.message)}
 
     Run with the ${highlight('--force')} parameter to recreate the shrinkwrap file.

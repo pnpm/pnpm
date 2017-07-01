@@ -1,4 +1,4 @@
-declare module 'observatory' {
+declare module 'log-update' {
   const anything: any;
   export = anything;
 }
