@@ -20,14 +20,25 @@ import {PackageSpec} from '../resolve'
 import pnpmPkgJson from '../pnpmPkgJson'
 import safeIsInnerLink from '../safeIsInnerLink'
 import removeTopDependency from '../removeTopDependency'
+import streamParser from '../logging/streamParser'
 
 export default async function uninstall (pkgsToUninstall: string[], maybeOpts?: PnpmOptions) {
+  const reporter = maybeOpts && maybeOpts.reporter
+  if (reporter) {
+    streamParser.on('data', reporter)
+  }
+
   const opts = extendOptions(maybeOpts)
 
   if (opts.lock) {
-    return lock(opts.prefix, _uninstall, {stale: opts.lockStaleDuration})
+    await lock(opts.prefix, _uninstall, {stale: opts.lockStaleDuration})
+  } else {
+    await _uninstall()
   }
-  return _uninstall()
+
+  if (reporter) {
+    streamParser.removeListener('data', opts.reporter)
+  }
 
   async function _uninstall () {
     const ctx = await getContext(opts)

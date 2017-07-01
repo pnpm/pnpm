@@ -37,6 +37,7 @@ import {Package} from '../types'
 import {PackageSpec, DirectoryResolution, Resolution} from '../resolve'
 import {DependencyTreeNode} from '../link/resolvePeers'
 import depsToSpecs, {similarDepsToSpecs} from '../depsToSpecs'
+import streamParser from '../logging/streamParser'
 
 export type InstalledPackages = {
   [name: string]: InstalledPackage
@@ -91,13 +92,22 @@ export type InstallContext = {
 }
 
 export async function install (maybeOpts?: PnpmOptions) {
+  const reporter = maybeOpts && maybeOpts.reporter
+  if (reporter) {
+    streamParser.on('data', reporter)
+  }
+
   const opts = extendOptions(maybeOpts)
 
   if (opts.lock) {
-    return lock(opts.prefix, _install, {stale: opts.lockStaleDuration})
+    await lock(opts.prefix, _install, {stale: opts.lockStaleDuration})
+  } else {
+    await _install()
   }
 
-  return _install()
+  if (reporter) {
+    streamParser.removeListener('data', opts.reporter)
+  }
 
   async function _install() {
     const installType = 'general'
@@ -180,12 +190,22 @@ function depsFromPackage (pkg: Package): Dependencies {
  *     install({'lodash': '1.0.0', 'foo': '^2.1.0' }, { silent: true })
  */
 export async function installPkgs (fuzzyDeps: string[] | Dependencies, maybeOpts?: PnpmOptions) {
+  const reporter = maybeOpts && maybeOpts.reporter
+  if (reporter) {
+    streamParser.on('data', reporter)
+  }
+
   const opts = extendOptions(maybeOpts)
 
   if (opts.lock) {
-    return lock(opts.prefix, _installPkgs, {stale: opts.lockStaleDuration})
+    await lock(opts.prefix, _installPkgs, {stale: opts.lockStaleDuration})
+  } else {
+    await _installPkgs()
   }
-  return _installPkgs()
+
+  if (reporter) {
+    streamParser.removeListener('data', opts.reporter)
+  }
 
   async function _installPkgs () {
     const installType = 'named'

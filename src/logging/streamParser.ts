@@ -3,6 +3,7 @@ import bole = require('bole')
 
 export type StreamParser = {
   on: Function,
+  removeListener: Function,
 }
 
 const streamParser: StreamParser = ndjson.parse()

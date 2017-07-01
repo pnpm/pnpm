@@ -54,9 +54,10 @@ export type PnpmOptions = {
 
   // cannot be specified via configs
   update?: boolean,
+  reporter?: (logObj: Object) => void,
 }
 
-export type StrictPnpmOptions = {
+export type StrictPnpmOptions = PnpmOptions & {
   rawNpmConfig: Object,
   global: boolean,
   prefix: string,

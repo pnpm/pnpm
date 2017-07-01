@@ -12,17 +12,27 @@ import {
   ResolvedDependencies,
   prune as pruneShrinkwrap,
 } from 'pnpm-shrinkwrap'
+import streamParser from '../logging/streamParser'
 
 export async function prune(maybeOpts?: PnpmOptions): Promise<void> {
+  const reporter = maybeOpts && maybeOpts.reporter
+  if (reporter) {
+    streamParser.on('data', reporter)
+  }
+
   const opts = extendOptions(maybeOpts)
 
   const ctx = await getContext(opts)
 
   if (opts.lock === false) {
-    return run()
+    await run()
+  } else {
+    await lock(ctx.storePath, run, {stale: opts.lockStaleDuration})
   }
 
-  return lock(ctx.storePath, run, {stale: opts.lockStaleDuration})
+  if (reporter) {
+    streamParser.removeListener('data', reporter)
+  }
 
   async function run () {
     if (!ctx.pkg) {

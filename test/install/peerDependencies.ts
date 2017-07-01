@@ -7,7 +7,6 @@ import {
   prepare,
   testDefaults,
 } from '../utils'
-import streamParser from '../../src/logging/streamParser'
 import deepRequireCwd = require('deep-require-cwd')
 import rimraf = require('rimraf-then')
 
@@ -46,11 +45,7 @@ test('peer dependency is not grouped with dependent when the peer is a top depen
     }
   }
 
-  streamParser.on('data', reporter)
-
-  await installPkgs(['ajv@4.10.4', 'ajv-keywords@1.5.0'], testDefaults())
-
-  streamParser['removeListener']('data', reporter)
+  await installPkgs(['ajv@4.10.4', 'ajv-keywords@1.5.0'], testDefaults({reporter}))
 
   t.ok(await exists(path.join(NM, '.localhost+4873', 'ajv-keywords', '1.5.0', NM, 'ajv-keywords')), 'dependent is at the normal location')
   t.notOk(log, 'no warning is logged about unresolved peer dep')
@@ -66,11 +61,7 @@ test('warning is reported when cannot resolve peer dependency', async (t: tape.T
     }
   }
 
-  streamParser.on('data', reporter)
-
-  await installPkgs(['ajv-keywords@1.5.0'], testDefaults())
-
-  streamParser['removeListener']('data', reporter)
+  await installPkgs(['ajv-keywords@1.5.0'], testDefaults({reporter}))
 
   t.ok(log)
 })

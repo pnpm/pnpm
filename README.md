@@ -32,6 +32,7 @@ Install packages.
 * `options.metaCache` - *Map* - a cache for package meta info.
 * `options.networkConcurrency` - *Number* - `16` by default. Max amount of network requests to perform concurrently.
 * `options.offline` - *Boolean* - `false` by default. Install packages using only the local registry mirror, w/o doing any network requests.
+* `options.reporter` - *Function* - A function that listens for logs.
 
 **Returns:** a Promise
 
@@ -65,6 +66,7 @@ Uninstalls a package, completely removing everything pnpm installed on its behal
 * `options.saveDev` - *Boolean* - the package will be removed from `devDependencies`.
 * `options.saveOptional` - *Boolean* - the package will be removed from `optionalDependencies`.
 * `options.global` - *Boolean* - the packages will be uninstalled globally.
+* `options.reporter` - *Function* - A function that listens for logs.
 
 ### `pnpm.link(linkFrom, lintTo, [options])`
 
@@ -74,6 +76,7 @@ Create a symbolic link from the linked package to the target package's `node_mod
 
 * `linkFrom` - *String* - path to the package that should be linked.
 * `lintTo` - *String* - path to the dependent package.
+* `options.reporter` - *Function* - A function that listens for logs.
 
 ### `pnpm.linkToGlobal(linkFrom, options)`
 
@@ -83,6 +86,7 @@ Create a symbolic link from the specified package to the global `node_modules`.
 
 * `linkFrom` - *String* - path to the package that should be linked.
 * `globalPrefix` - *String* - path to the global directory.
+* `options.reporter` - *Function* - A function that listens for logs.
 
 ### `pnpm.linkFromGlobal(pkgName, linkTo, options)`
 
@@ -93,6 +97,7 @@ Create a symbolic link from the global `pkgName` to the `linkTo/node_modules` fo
 * `pkgName` - *String* - package to link.
 * `linkTo` - *String* - package to link to.
 * `globalPrefix` - *String* - path to the global directory.
+* `options.reporter` - *Function* - A function that listens for logs.
 
 ### `pnpm.prune([options])`
 
@@ -102,10 +107,15 @@ Remove extraneous packages. Extraneous packages are packages that are not listed
 
 * `options.production` - *Boolean* - by default `false`. If this property is `true`, prune will remove the packages specified in `devDependencies`.
 * `options.prefix` - *String* - by default `process.cwd()`.
+* `options.reporter` - *Function* - A function that listens for logs.
 
 ### `pnpm.storeStatus([options])`
 
 Return the list of modified dependencies.
+
+**Arguments:**
+
+* `options.reporter` - *Function* - A function that listens for logs.
 
 **Returns:** `Promise<string[]>` - the paths to the modified packages of the current project. The paths contain the location of packages in the store,
 not in the projects `node_modules` folder.

@@ -7,6 +7,7 @@ import expandTilde from '../fs/expandTilde'
 import {linkPkgBins} from '../link/linkBins'
 import {PnpmOptions} from '../types'
 import extendOptions from './extendOptions'
+import streamParser from '../logging/streamParser'
 
 const linkLogger = logger('link')
 
@@ -15,6 +16,10 @@ export default async function link (
   linkTo: string,
   maybeOpts?: PnpmOptions & {skipInstall?: boolean}
 ) {
+  const reporter = maybeOpts && maybeOpts.reporter
+  if (reporter) {
+    streamParser.on('data', reporter)
+  }
   const opts = extendOptions(maybeOpts)
 
   if (!maybeOpts || !maybeOpts.skipInstall) {
@@ -26,6 +31,10 @@ export default async function link (
 
   const bin = path.join(destModules, '.bin')
   await linkPkgBins(linkFrom, bin)
+
+  if (reporter) {
+    streamParser.removeListener('data', reporter)
+  }
 }
 
 async function linkToModules (linkFrom: string, modules: string) {
@@ -40,18 +49,34 @@ export async function linkFromGlobal (
   linkTo: string,
   maybeOpts: PnpmOptions & {globalPrefix: string}
 ) {
+  const reporter = maybeOpts && maybeOpts.reporter
+  if (reporter) {
+    streamParser.on('data', reporter)
+  }
   const opts = extendOptions(maybeOpts)
   const globalPkgPath = expandTilde(maybeOpts.globalPrefix)
   const linkedPkgPath = path.join(globalPkgPath, 'node_modules', pkgName)
   await link(linkedPkgPath, linkTo, opts)
+
+  if (reporter) {
+    streamParser.removeListener('data', reporter)
+  }
 }
 
 export async function linkToGlobal (
   linkFrom: string,
   maybeOpts: PnpmOptions & {globalPrefix: string}
 ) {
+  const reporter = maybeOpts && maybeOpts.reporter
+  if (reporter) {
+    streamParser.on('data', reporter)
+  }
   const opts = extendOptions(maybeOpts)
   opts.global = true // bins will be linked to the global bin path
   const globalPkgPath = expandTilde(maybeOpts.globalPrefix)
   await link(linkFrom, globalPkgPath, opts)
+
+  if (reporter) {
+    streamParser.removeListener('data', reporter)
+  }
 }
