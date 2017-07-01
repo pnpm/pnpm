@@ -22,6 +22,7 @@ import {install, installPkgs, uninstall} from '../../src'
 import exists = require('path-exists')
 import isWindows = require('is-windows')
 import deepRequireCwd = require('deep-require-cwd')
+import sinon = require('sinon')
 
 const IS_WINDOWS = isWindows()
 
@@ -29,7 +30,7 @@ if (!caw() && !IS_WINDOWS) {
   process.env.VCR_MODE = 'cache'
 }
 
-test('small with dependencies (rimraf)', async function (t) {
+test('small with dependencies (rimraf)', async (t: tape.Test) => {
   const project = prepare(t)
   await installPkgs(['rimraf@2.5.1'], testDefaults())
 
@@ -38,9 +39,20 @@ test('small with dependencies (rimraf)', async function (t) {
   await project.isExecutable('.bin/rimraf')
 })
 
-test('no dependencies (lodash)', async function (t) {
+test('no dependencies (lodash)', async (t: tape.Test) => {
   const project = prepare(t)
-  await installPkgs(['lodash@4.0.0'], testDefaults())
+  const reporter = sinon.spy()
+
+  await installPkgs(['lodash@4.0.0'], testDefaults({reporter}))
+
+  t.ok(reporter.calledWithMatch({
+    level: 'info',
+    message: 'Creating dependency tree',
+  }), 'informed about creating dependency tree')
+  t.ok(reporter.calledWithMatch({
+    level: 'info',
+    message: 'Adding 1 packages to node_modules',
+  }), 'informed about adding new packages to node_modules')
 
   const m = project.requireModule('lodash')
   t.ok(typeof m === 'function', '_ is available')
@@ -528,12 +540,24 @@ test('should not throw error if using a different store after all the packages w
   // TODO: implement
 })
 
-test('shrinkwrap locks npm dependencies', async function (t) {
+test('shrinkwrap locks npm dependencies', async function (t: tape.Test) {
   const project = prepare(t)
+  const reporter = sinon.spy()
 
   await addDistTag('dep-of-pkg-with-1-dep', '100.0.0', 'latest')
 
-  await installPkgs(['pkg-with-1-dep'], testDefaults({save: true}))
+  await installPkgs(['pkg-with-1-dep'], testDefaults({save: true, reporter}))
+
+  t.ok(reporter.calledWithMatch({
+    level: 'debug',
+    status: 'resolving_content',
+    pkgId: 'localhost+4873/pkg-with-1-dep/100.0.0',
+  }), 'logs that package is being resolved')
+  t.ok(reporter.calledWithMatch({
+    level: 'debug',
+    status: 'fetched',
+    pkgId: 'localhost+4873/pkg-with-1-dep/100.0.0',
+  }), 'logged that package was fetched from registry')
 
   await project.storeHas('dep-of-pkg-with-1-dep', '100.0.0')
 
@@ -541,7 +565,19 @@ test('shrinkwrap locks npm dependencies', async function (t) {
 
   await rimraf('node_modules')
 
-  await install(testDefaults({}))
+  reporter.reset()
+  await install(testDefaults({reporter}))
+
+  t.ok(reporter.calledWithMatch({
+    level: 'debug',
+    status: 'resolving_content',
+    pkgId: 'localhost+4873/pkg-with-1-dep/100.0.0',
+  }), 'logs that package is being resolved')
+  t.ok(reporter.calledWithMatch({
+    level: 'debug',
+    status: 'found_in_store',
+    pkgId: 'localhost+4873/pkg-with-1-dep/100.0.0',
+  }), 'logged that package was found in store')
 
   const m = project.requireModule('.localhost+4873/pkg-with-1-dep/100.0.0/node_modules/dep-of-pkg-with-1-dep/package.json')
 

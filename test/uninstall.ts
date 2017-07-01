@@ -19,13 +19,21 @@ import {
   link,
 } from '../src'
 import thenify = require('thenify')
+import sinon = require('sinon')
 
 const ncp = thenify(ncpCB.ncp)
 
-test('uninstall package with no dependencies', async function (t) {
+test('uninstall package with no dependencies', async (t: tape.Test) => {
   const project = prepare(t)
+
+  const reporter = sinon.spy()
   await installPkgs(['is-negative@2.1.0'], testDefaults({ save: true }))
-  await uninstall(['is-negative'], testDefaults({ save: true }))
+  await uninstall(['is-negative'], testDefaults({ save: true, reporter }))
+
+  t.ok(reporter.calledWithMatch({
+    level: 'info',
+    message: 'Removing 1 orphan packages from node_modules',
+  }), 'logged info message about removing orphans')
 
   await project.storeHasNot('is-negative', '2.1.0')
 
