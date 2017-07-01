@@ -25,14 +25,16 @@ export default async function getIsInstallable (
 
   installCheckLogger.warn(warn)
 
-  if (!options.engineStrict && !options.optional) return true
+  if (options.optional) {
+    logger.warn({
+      message: `Skipping failed optional dependency ${pkgId}`,
+      warn,
+    })
 
-  if (!options.optional) throw warn
+    return false
+  }
 
-  logger.warn({
-    message: `Skipping failed optional dependency ${pkgId}`,
-    warn,
-  })
+  if (options.engineStrict) throw warn
 
-  return false
+  return true
 }
