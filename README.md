@@ -22,7 +22,7 @@ Install packages.
 **Arguments:**
 
 * `pkgsToInstall` - *Object | String[]* - either an object that maps package names to version ranges or inputs usually passed to `npm install` (e.g., `foo@1.0.0`, `foo`).
-* `options.save` - *Boolean* - package will appear in `dependencies`.
+* `options.saveProd` - *Boolean* - package will appear in `dependencies`.
 * `options.saveDev` - *Boolean* - package will appear in `devDependencies`.
 * `options.saveOptional` - *Boolean* - package will appear in `optionalDependencies`.
 * `options.saveExact` - *Boolean* - saved dependencies will be configured with an exact version rather than using npm's default semver range operator.
@@ -63,7 +63,7 @@ Uninstalls a package, completely removing everything pnpm installed on its behal
 **Arguments:**
 
 * `pkgsToUninstall` - *String[]* - the package names to be uninstalled.
-* `options.save` - *Boolean* - the package will be removed from `dependencies`.
+* `options.saveProd` - *Boolean* - the package will be removed from `dependencies`.
 * `options.saveDev` - *Boolean* - the package will be removed from `devDependencies`.
 * `options.saveOptional` - *Boolean* - the package will be removed from `optionalDependencies`.
 * `options.global` - *Boolean* - the packages will be uninstalled globally.
