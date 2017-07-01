@@ -106,6 +106,7 @@ async function run (argv: string[]) {
   opts.bin = npm.bin
   opts.globalPrefix = path.join(npm['globalPrefix'], 'pnpm-global')
   opts.prefix = opts.global ? opts.globalPrefix : npm.prefix
+  opts.packageManager = pnpmPkgJson
 
   initReporter(silent ? 'silent' : (<any>opts.reporter || 'default')) // tslint:disable-line
 
