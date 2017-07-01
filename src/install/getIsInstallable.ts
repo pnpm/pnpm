@@ -1,7 +1,6 @@
 import installChecks = require('pnpm-install-checks')
 import logger from 'pnpm-logger'
 import {Package} from '../types'
-import pnpmPkg from '../pnpmPkgJson'
 import {FetchedPackage} from './fetch'
 
 const installCheckLogger = logger('install-check')
@@ -14,10 +13,11 @@ export default async function getIsInstallable (
     optional: boolean,
     engineStrict: boolean,
     nodeVersion: string,
+    pnpmVersion: string,
   }
 ): Promise<boolean> {
   const warn = await installChecks.checkPlatform(pkg) || await installChecks.checkEngine(pkg, {
-    pnpmVersion: pnpmPkg.version,
+    pnpmVersion: options.pnpmVersion,
     nodeVersion: options.nodeVersion
   })
 

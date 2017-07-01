@@ -17,7 +17,6 @@ import {
 } from '../fs/modulesController'
 import removeOrphanPkgs from './removeOrphanPkgs'
 import {PackageSpec} from '../resolve'
-import pnpmPkgJson from '../pnpmPkgJson'
 import safeIsInnerLink from '../safeIsInnerLink'
 import removeTopDependency from '../removeTopDependency'
 import streamParser from '../logging/streamParser'
@@ -67,7 +66,7 @@ export async function uninstallInContext (pkgsToUninstall: string[], ctx: PnpmCo
   const removedPkgIds = await removeOrphanPkgs(ctx.privateShrinkwrap, newShr, ctx.root, ctx.storePath)
   await saveShrinkwrap(ctx.root, newShr)
   await saveModules(path.join(ctx.root, 'node_modules'), {
-    packageManager: `${pnpmPkgJson.name}@${pnpmPkgJson.version}`,
+    packageManager: `${opts.packageManager.name}@${opts.packageManager.version}`,
     store: ctx.storePath,
     skipped: Array.from(ctx.skipped).filter(pkgId => removedPkgIds.indexOf(pkgId) === -1),
     layoutVersion: LAYOUT_VERSION,

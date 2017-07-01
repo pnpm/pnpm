@@ -19,7 +19,6 @@ import getSaveType from '../getSaveType'
 import {sync as runScriptSync} from '../runScript'
 import postInstall from '../install/postInstall'
 import extendOptions from './extendOptions'
-import pnpmPkgJson from '../pnpmPkgJson'
 import lock from './lock'
 import {
   save as saveShrinkwrap,
@@ -317,6 +316,7 @@ async function installInContext (
       (R.equals(ctx.shrinkwrap.packages, ctx.privateShrinkwrap.packages) ? opts.repeatInstallDepth : Infinity),
     engineStrict: opts.engineStrict,
     nodeVersion: opts.nodeVersion,
+    pnpmVersion: opts.packageManager.name === 'pnpm' ? opts.packageManager.version : '',
     got: createGot(client, {
       networkConcurrency: opts.networkConcurrency,
       rawNpmConfig: opts.rawNpmConfig,
@@ -441,7 +441,7 @@ async function installInContext (
 
   await saveShrinkwrap(ctx.root, result.shrinkwrap)
   await saveModules(path.join(ctx.root, 'node_modules'), {
-    packageManager: `${pnpmPkgJson.name}@${pnpmPkgJson.version}`,
+    packageManager: `${opts.packageManager.name}@${opts.packageManager.version}`,
     store: ctx.storePath,
     skipped: Array.from(installCtx.skipped),
     layoutVersion: LAYOUT_VERSION,

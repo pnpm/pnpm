@@ -7,6 +7,10 @@ import {LAYOUT_VERSION} from '../fs/modulesController'
 import normalizeRegistryUrl = require('normalize-registry-url')
 
 const defaults = (opts: PnpmOptions) => {
+  const packageManager = opts.packageManager || {
+    name: pnpmPkgJson.name,
+    version: pnpmPkgJson.version,
+  }
   const prefix = process.cwd()
   return <StrictPnpmOptions>{
     fetchRetries: 2,
@@ -32,13 +36,14 @@ const defaults = (opts: PnpmOptions) => {
     childConcurrency: 5,
     offline: false,
     registry: 'https://registry.npmjs.org/',
-    userAgent: `${pnpmPkgJson.name}/${pnpmPkgJson.version} npm/? node/${process.version} ${process.platform} ${process.arch}`,
+    userAgent: `${packageManager.name}/${packageManager.version} npm/? node/${process.version} ${process.platform} ${process.arch}`,
     rawNpmConfig: {},
     alwaysAuth: false,
     update: false,
     repeatInstallDepth: -1,
     optional: true,
     independentLeaves: false,
+    packageManager,
   }
 }
 
@@ -63,7 +68,7 @@ export default (opts?: PnpmOptions): StrictPnpmOptions => {
     logger.warn('using --no-lock I sure hope you know what you are doing')
   }
   if (extendedOpts.userAgent.startsWith('npm/')) {
-    extendedOpts.userAgent = `${pnpmPkgJson.name}/${pnpmPkgJson.version} ${extendedOpts.userAgent}`
+    extendedOpts.userAgent = `${extendedOpts.packageManager.name}/${extendedOpts.packageManager.version} ${extendedOpts.userAgent}`
   }
   extendedOpts.registry = normalizeRegistryUrl(extendedOpts.registry)
   if (extendedOpts.global) {

@@ -55,6 +55,10 @@ export type PnpmOptions = {
   // cannot be specified via configs
   update?: boolean,
   reporter?: (logObj: Object) => void,
+  packageManager?: {
+    name: string,
+    version: string,
+  },
 }
 
 export type StrictPnpmOptions = PnpmOptions & {
@@ -110,6 +114,10 @@ export type StrictPnpmOptions = PnpmOptions & {
 
   // cannot be specified via configs
   update: boolean,
+  packageManager: {
+    name: string,
+    version: string,
+  },
 }
 
 export type Dependencies = {

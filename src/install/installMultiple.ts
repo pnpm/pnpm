@@ -63,6 +63,7 @@ export default async function installMultiple (
     depth: number,
     engineStrict: boolean,
     nodeVersion: string,
+    pnpmVersion: string,
     offline: boolean,
     isInstallable?: boolean,
     rawNpmConfig: Object,
@@ -138,6 +139,7 @@ async function install (
     depth: number,
     engineStrict: boolean,
     nodeVersion: string,
+    pnpmVersion: string,
     offline: boolean,
     parentIsInstallable?: boolean,
     rawNpmConfig: Object,
@@ -220,6 +222,7 @@ async function install (
         optional: spec.optional,
         engineStrict: options.engineStrict,
         nodeVersion: options.nodeVersion,
+        pnpmVersion: options.pnpmVersion,
       })
     )
   const installable = parentIsInstallable && currentIsInstallable
@@ -320,6 +323,7 @@ async function installDependencies (
     depth: number,
     engineStrict: boolean,
     nodeVersion: string,
+    pnpmVersion: string,
     offline: boolean,
     isInstallable?: boolean,
     rawNpmConfig: Object,

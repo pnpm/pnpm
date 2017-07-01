@@ -33,6 +33,7 @@ Install packages.
 * `options.networkConcurrency` - *Number* - `16` by default. Max amount of network requests to perform concurrently.
 * `options.offline` - *Boolean* - `false` by default. Install packages using only the local registry mirror, w/o doing any network requests.
 * `options.reporter` - *Function* - A function that listens for logs.
+* `options.packageManager` - *Object* - The `package.json` of the package manager.
 
 **Returns:** a Promise
 
