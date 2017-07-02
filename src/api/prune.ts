@@ -46,6 +46,12 @@ export async function prune(maybeOpts?: PnpmOptions): Promise<void> {
 
     const prunedShr = pruneShrinkwrap(ctx.shrinkwrap, pkg)
 
-    await removeOrphanPkgs(ctx.privateShrinkwrap, prunedShr, ctx.root, ctx.storePath)
+    await removeOrphanPkgs({
+      oldShrinkwrap: ctx.privateShrinkwrap,
+      newShrinkwrap: prunedShr,
+      prefix: ctx.root,
+      store: ctx.storePath,
+      storeIndex: ctx.storeIndex,
+    })
   }
 }

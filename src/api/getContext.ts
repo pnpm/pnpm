@@ -2,6 +2,10 @@ import path = require('path')
 import {fromDir as readPkgFromDir} from '../fs/readPkg'
 import writePkg = require('write-pkg')
 import expandTilde, {isHomepath} from '../fs/expandTilde'
+import {
+  Store,
+  read as readStore,
+} from '../fs/storeController'
 import {StrictPnpmOptions} from '../types'
 import {
   read as readShrinkwrap,
@@ -22,6 +26,7 @@ const STORE_VERSION = '2'
 
 export type PnpmContext = {
   pkg: Package,
+  storeIndex: Store,
   storePath: string,
   root: string,
   privateShrinkwrap: Shrinkwrap,
@@ -65,6 +70,7 @@ export default async function getContext (opts: StrictPnpmOptions, installType?:
     (opts.global ? readGlobalPkgJson(opts.prefix) : readPkgFromDir(opts.prefix)),
     readShrinkwrap(root, shrOpts),
     readPrivateShrinkwrap(root, shrOpts),
+    readStore(storePath),
     mkdirp(storePath),
   ])
   const ctx: PnpmContext = {
@@ -73,6 +79,7 @@ export default async function getContext (opts: StrictPnpmOptions, installType?:
     storePath,
     shrinkwrap: files[1],
     privateShrinkwrap: files[2],
+    storeIndex: files[3] || {},
     skipped: new Set(modules && modules.skipped || []),
   }
 

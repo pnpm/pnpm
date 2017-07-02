@@ -17,6 +17,7 @@ import {shortIdToFullId} from '../fs/shrinkwrap'
 import {Shrinkwrap, DependencyShrinkwrap} from 'pnpm-shrinkwrap'
 import removeOrphanPkgs from '../api/removeOrphanPkgs'
 import linkIndexedDir from '../fs/linkIndexedDir'
+import {Store} from '../fs/storeController'
 import ncpCB = require('ncp')
 import thenify = require('thenify')
 
@@ -38,6 +39,7 @@ export default async function (
     optional: boolean,
     root: string,
     storePath: string,
+    storeIndex: Store,
     skipped: Set<string>,
     pkg: Package,
     independentLeaves: boolean,
@@ -52,7 +54,13 @@ export default async function (
   const pkgsToLink = await resolvePeers(tree, rootNodeIds, topPkgIds, opts.topParents, opts.independentLeaves)
   const newShr = updateShrinkwrap(pkgsToLink, opts.shrinkwrap, opts.pkg)
 
-  await removeOrphanPkgs(opts.privateShrinkwrap, newShr, opts.root, opts.storePath)
+  await removeOrphanPkgs({
+    oldShrinkwrap: opts.privateShrinkwrap,
+    newShrinkwrap: newShr,
+    prefix: opts.root,
+    store: opts.storePath,
+    storeIndex: opts.storeIndex,
+  })
 
   let flatResolvedDeps =  R.values(pkgsToLink).filter(dep => !opts.skipped.has(dep.id))
   if (opts.production) {

@@ -441,7 +441,8 @@ async function installInContext (
     storePath: ctx.storePath,
     skipped: ctx.skipped,
     pkg: newPkg || ctx.pkg,
-    independentLeaves: opts.independentLeaves
+    independentLeaves: opts.independentLeaves,
+    storeIndex: ctx.storeIndex,
   })
 
   await saveShrinkwrap(ctx.root, result.shrinkwrap)

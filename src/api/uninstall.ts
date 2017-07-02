@@ -63,7 +63,13 @@ export async function uninstallInContext (pkgsToUninstall: string[], ctx: PnpmCo
   const saveType = getSaveType(opts)
   const pkg = await removeDeps(pkgJsonPath, pkgsToUninstall, saveType)
   const newShr = await pruneShrinkwrap(ctx.shrinkwrap, pkg)
-  const removedPkgIds = await removeOrphanPkgs(ctx.privateShrinkwrap, newShr, ctx.root, ctx.storePath)
+  const removedPkgIds = await removeOrphanPkgs({
+    oldShrinkwrap: ctx.privateShrinkwrap,
+    newShrinkwrap: newShr,
+    prefix: ctx.root,
+    store: ctx.storePath,
+    storeIndex: ctx.storeIndex,
+  })
   await saveShrinkwrap(ctx.root, newShr)
   await saveModules(path.join(ctx.root, 'node_modules'), {
     packageManager: `${opts.packageManager.name}@${opts.packageManager.version}`,
