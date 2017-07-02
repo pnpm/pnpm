@@ -30,14 +30,13 @@ export type PnpmContext = {
 }
 
 export default async function getContext (opts: StrictPnpmOptions, installType?: 'named' | 'general'): Promise<PnpmContext> {
-  const pkg = await (opts.global ? readGlobalPkgJson(opts.prefix) : readPkgFromDir(opts.prefix))
   const root = normalizePath(opts.prefix)
   const storeBasePath = resolveStoreBasePath(opts.store, root)
 
   const storePath = path.join(storeBasePath, STORE_VERSION)
 
   const modulesPath = path.join(root, 'node_modules')
-  let modules = await readModules(modulesPath)
+  const modules = await readModules(modulesPath)
 
   if (modules) {
     try {
@@ -61,17 +60,22 @@ export default async function getContext (opts: StrictPnpmOptions, installType?:
     }
   }
 
-  const shrinkwrap = await readShrinkwrap(root, {force: opts.force, registry: opts.registry})
+  const shrOpts = {force: opts.force, registry: opts.registry}
+  const files = await Promise.all([
+    (opts.global ? readGlobalPkgJson(opts.prefix) : readPkgFromDir(opts.prefix)),
+    readShrinkwrap(root, shrOpts),
+    readPrivateShrinkwrap(root, shrOpts),
+    mkdirp(storePath),
+  ])
   const ctx: PnpmContext = {
-    pkg,
+    pkg: files[0],
     root,
     storePath,
-    shrinkwrap,
-    privateShrinkwrap: await readPrivateShrinkwrap(root, {force: opts.force, registry: opts.registry}),
+    shrinkwrap: files[1],
+    privateShrinkwrap: files[2],
     skipped: new Set(modules && modules.skipped || []),
   }
 
-  await mkdirp(ctx.storePath)
   return ctx
 }
 
