@@ -522,6 +522,7 @@ function buildTree (
     }
     const childNodeId = `${parentNodeId}${childId}:`
     childrenNodeIds.push(childNodeId)
+    installable = installable && !ctx.skipped.has(childId)
     ctx.tree[childNodeId] = {
       nodeId: childNodeId,
       pkg: ctx.installs[childId],
