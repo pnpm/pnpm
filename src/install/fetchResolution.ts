@@ -4,7 +4,6 @@ import path = require('path')
 import execa = require('execa')
 import {IncomingMessage} from 'http'
 import * as unpackStream from 'unpack-stream'
-import existsFile = require('path-exists')
 import dint = require('dint')
 import {Resolution} from '../resolve'
 import {Got} from '../network/got'
@@ -90,7 +89,16 @@ export function fetchFromTarball (dir: string, dist: PackageDist, opts: FetchOpt
 
 export async function fetchFromRemoteTarball (dir: string, dist: PackageDist, opts: FetchOptions) {
   const localTarballPath = path.join(opts.storePath, opts.pkgId, 'packed.tgz')
-  if (!await existsFile(localTarballPath)) {
+  try {
+    const index = await fetchFromLocalTarball(dir, {
+      integrity: dist.integrity,
+      tarball: localTarballPath,
+    })
+    fetchLogger.debug(`finish ${dist.integrity} ${dist.tarball}`)
+    return index
+  } catch (err) {
+    if (err['code'] !== 'ENOENT') throw err
+
     if (opts.offline) {
       throw new PnpmError('NO_OFFLINE_TARBALL', `Could not find ${localTarballPath} in local registry mirror ${opts.storePath}`)
     }
@@ -101,12 +109,6 @@ export async function fetchFromRemoteTarball (dir: string, dist: PackageDist, op
       onStart: () => logStatus({status: 'fetching', pkgId: opts.pkgId}),
     })
   }
-  const index = await fetchFromLocalTarball(dir, {
-    integrity: dist.integrity,
-    tarball: localTarballPath,
-  })
-  fetchLogger.debug(`finish ${dist.integrity} ${dist.tarball}`)
-  return index
 }
 
 async function fetchFromLocalTarball (

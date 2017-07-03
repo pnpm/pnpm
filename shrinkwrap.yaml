@@ -59,7 +59,7 @@ dependencies:
   ssri: 4.1.6
   symlink-dir: 1.0.3
   thenify: 3.3.0
-  unpack-stream: 2.0.0-beta.1
+  unpack-stream: 2.0.0
   write-json-file: 2.2.0
   write-pkg: 3.1.0
   write-yaml-file: 1.0.0
@@ -2069,14 +2069,14 @@ packages:
       through: 2.3.8
     resolution:
       integrity: sha1-jITITVtMwo/B+fV3IDu9PLhgoWo=
-  /unpack-stream/2.0.0-beta.1:
+  /unpack-stream/2.0.0:
     dependencies:
       '@types/node': 7.0.33
       decompress-maybe: 1.0.0
       ssri: 4.1.6
       tar-fs: 1.15.3
     resolution:
-      integrity: sha1-mJt0iwP06FuGy0pvmP8RGu0mCmM=
+      integrity: sha1-PFpevB3voZ3LiyzkPqdJPyBOWG4=
   /unquote/1.1.0:
     dev: true
     resolution:
@@ -2246,7 +2246,7 @@ specifiers:
   thenify: ^3.3.0
   tslint: ^5.4.2
   typescript: ^2.4.1
-  unpack-stream: ^2.0.0-beta.1
+  unpack-stream: ^2.0.0
   validate-commit-msg: ^2.7.0
   write-json-file: ^2.0.0
   write-pkg: ^3.1.0
