@@ -79,6 +79,7 @@ export type InstallContext = {
     installable: boolean,
   }[],
   shrinkwrap: Shrinkwrap,
+  privateShrinkwrap: Shrinkwrap,
   fetchingLocker: {
     [pkgId: string]: {
       fetchingFiles: Promise<PackageContentInfo>,
@@ -113,7 +114,7 @@ export async function install (maybeOpts?: PnpmOptions) {
   async function _install() {
     const installType = 'general'
     const ctx = await getContext(opts, installType)
-    const installCtx = await createInstallCmd(opts, ctx.shrinkwrap, ctx.skipped, ctx.storeIndex)
+    const installCtx = await createInstallCmd(ctx, ctx.skipped)
 
     if (!ctx.pkg) throw new Error('No package.json found')
 
@@ -242,7 +243,7 @@ export async function installPkgs (fuzzyDeps: string[] | Dependencies, maybeOpts
     if (!Object.keys(packagesToInstall).length) {
       throw new Error('At least one package has to be installed')
     }
-    const installCtx = await createInstallCmd(opts, ctx.shrinkwrap, ctx.skipped, ctx.storeIndex)
+    const installCtx = await createInstallCmd(ctx, ctx.skipped)
 
     if (ctx.shrinkwrap.dependencies) {
       for (const spec of packagesToInstall) {
@@ -554,21 +555,20 @@ function getSaveSpec(spec: PackageSpec, version: string, saveExact: boolean) {
 }
 
 async function createInstallCmd (
-  opts: StrictPnpmOptions,
-  shrinkwrap: Shrinkwrap,
-  skipped: Set<string>,
-  storeIndex: Store
+  ctx: PnpmContext,
+  skipped: Set<string>
 ): Promise<InstallContext> {
   return {
     installs: {},
     localPackages: [],
     childrenIdsByParentId: {},
     nodesToBuild: [],
-    shrinkwrap,
+    shrinkwrap: ctx.shrinkwrap,
+    privateShrinkwrap: ctx.privateShrinkwrap,
     fetchingLocker: {},
     skipped,
     tree: {},
-    storeIndex,
+    storeIndex: ctx.storeIndex,
   }
 }
 

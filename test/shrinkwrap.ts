@@ -406,3 +406,16 @@ test('scoped module from different registry', async function (t: tape.Test) {
     shrinkwrapVersion: 3
   })
 })
+
+test('repeat install with no inner shrinkwrap should not rewrite packages in node_modules', async (t: tape.Test) => {
+  const project = prepare(t)
+
+  await installPkgs(['is-negative@1.0.0'], testDefaults())
+
+  await rimraf('node_modules/.shrinkwrap.yaml')
+
+  await install(testDefaults())
+
+  const m = project.requireModule('is-negative')
+  t.ok(m)
+})

@@ -151,7 +151,12 @@ async function install (
   const proceed = options.force || keypath.length <= options.depth
   const parentIsInstallable = options.parentIsInstallable === undefined || options.parentIsInstallable
 
-  if (!proceed && options.pkgId && await exists(path.join(options.nodeModules, `.${options.pkgId}`))) {
+  if (!proceed && options.pkgId &&
+    // if package is not in `node_modules/.shrinkwrap.yaml`
+    // we can safely assume that it doesn't exist in `node_modules`
+    ctx.privateShrinkwrap.packages && ctx.privateShrinkwrap.packages[options.pkgId] &&
+    await exists(path.join(options.nodeModules, `.${options.pkgId}`))) {
+
     return null
   }
 
