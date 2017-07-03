@@ -263,3 +263,8 @@ declare module 'normalize-registry-url' {
   function normalizeRegistryUrl (registry: string): string
   export = normalizeRegistryUrl;
 }
+
+declare module 'rename-overwrite' {
+  const anything: any;
+  export = anything;
+}

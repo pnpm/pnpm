@@ -25,6 +25,7 @@ import logStatus from '../logging/logInstallStatus'
 import untouched from '../pkgIsUntouched'
 import symlinkDir = require('symlink-dir')
 import * as unpackStream from 'unpack-stream'
+import renameOverwrite = require('rename-overwrite')
 
 export type FetchedPackage = {
   isLocal: true,
@@ -247,9 +248,9 @@ function fetchToStore (opts: {
       const unpacked = path.join(target, 'node_modules', pkg.name)
       await mkdirp(path.dirname(unpacked))
 
-      // fs.rename(oldPath, newPath) is an atomic operation, so we do it at the
+      // rename(oldPath, newPath) is an atomic operation, so we do it at the
       // end
-      await fs.rename(targetStage, unpacked)
+      await renameOverwrite(targetStage, unpacked)
       await symlinkDir(unpacked, linkToUnpacked)
 
       fetchingFiles.resolve({
