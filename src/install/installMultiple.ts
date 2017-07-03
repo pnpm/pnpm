@@ -180,6 +180,7 @@ async function install (
     shrinkwrapResolution: options.shrinkwrapResolution,
     pkgId: options.pkgId,
     offline: options.offline,
+    storeIndex: ctx.storeIndex,
   })
 
   if (fetchedPkg.isLocal) {

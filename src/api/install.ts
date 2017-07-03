@@ -37,6 +37,7 @@ import {PackageSpec, DirectoryResolution, Resolution} from '../resolve'
 import {DependencyTreeNode} from '../link/resolvePeers'
 import depsToSpecs, {similarDepsToSpecs} from '../depsToSpecs'
 import streamParser from '../logging/streamParser'
+import {Store} from '../fs/storeController'
 
 export type InstalledPackages = {
   [name: string]: InstalledPackage
@@ -88,6 +89,7 @@ export type InstallContext = {
   // the IDs of packages that are not installable
   skipped: Set<string>,
   tree: {[nodeId: string]: TreeNode},
+  storeIndex: Store,
 }
 
 export async function install (maybeOpts?: PnpmOptions) {
@@ -111,7 +113,7 @@ export async function install (maybeOpts?: PnpmOptions) {
   async function _install() {
     const installType = 'general'
     const ctx = await getContext(opts, installType)
-    const installCtx = await createInstallCmd(opts, ctx.shrinkwrap, ctx.skipped)
+    const installCtx = await createInstallCmd(opts, ctx.shrinkwrap, ctx.skipped, ctx.storeIndex)
 
     if (!ctx.pkg) throw new Error('No package.json found')
 
@@ -240,7 +242,7 @@ export async function installPkgs (fuzzyDeps: string[] | Dependencies, maybeOpts
     if (!Object.keys(packagesToInstall).length) {
       throw new Error('At least one package has to be installed')
     }
-    const installCtx = await createInstallCmd(opts, ctx.shrinkwrap, ctx.skipped)
+    const installCtx = await createInstallCmd(opts, ctx.shrinkwrap, ctx.skipped, ctx.storeIndex)
 
     if (ctx.shrinkwrap.dependencies) {
       for (const spec of packagesToInstall) {
@@ -551,7 +553,12 @@ function getSaveSpec(spec: PackageSpec, version: string, saveExact: boolean) {
   }
 }
 
-async function createInstallCmd (opts: StrictPnpmOptions, shrinkwrap: Shrinkwrap, skipped: Set<string>): Promise<InstallContext> {
+async function createInstallCmd (
+  opts: StrictPnpmOptions,
+  shrinkwrap: Shrinkwrap,
+  skipped: Set<string>,
+  storeIndex: Store
+): Promise<InstallContext> {
   return {
     installs: {},
     localPackages: [],
@@ -561,6 +568,7 @@ async function createInstallCmd (opts: StrictPnpmOptions, shrinkwrap: Shrinkwrap
     fetchingLocker: {},
     skipped,
     tree: {},
+    storeIndex,
   }
 }
 

@@ -14,6 +14,7 @@ import writeJsonFile = require('write-json-file')
 import pkgIdToFilename from '../fs/pkgIdToFilename'
 import {fromDir as readPkgFromDir} from '../fs/readPkg'
 import {fromDir as safeReadPkgFromDir} from '../fs/safeReadPkg'
+import {Store} from '../fs/storeController'
 import exists = require('path-exists')
 import memoize, {MemoizedFunc} from '../memoize'
 import {Package} from '../types'
@@ -60,6 +61,7 @@ export default async function fetch (
     },
     loggedPkg: LoggedPkg,
     offline: boolean,
+    storeIndex: Store,
   }
 ): Promise<FetchedPackage> {
   try {
@@ -101,17 +103,20 @@ export default async function fetch (
       }
     }
 
-    const target = path.join(options.storePath, pkgIdToFilename(id))
+    const targetRelative = pkgIdToFilename(id)
+    const target = path.join(options.storePath, targetRelative)
 
     if (!options.fetchingLocker[id]) {
       options.fetchingLocker[id] = fetchToStore({
         target,
+        targetRelative,
         resolution: <Resolution>resolution,
         pkgId: id,
         got: options.got,
         storePath: options.storePath,
         offline: options.offline,
         pkg,
+        storeIndex: options.storeIndex,
       })
     }
 
@@ -132,12 +137,14 @@ export default async function fetch (
 
 function fetchToStore (opts: {
   target: string,
+  targetRelative: string,
   resolution: Resolution,
   pkgId: string,
   got: Got,
   storePath: string,
   offline: boolean,
   pkg?: Package,
+  storeIndex: Store,
 }): {
   fetchingFiles: Promise<PackageContentInfo>,
   fetchingPkg: Promise<Package>,
@@ -164,7 +171,11 @@ function fetchToStore (opts: {
 
       let target = opts.target
       const linkToUnpacked = path.join(target, 'package')
-      const targetExists = await exists(path.join(linkToUnpacked, 'package.json'))
+
+      // We can safely assume that if there is no data about the package in `store.json` then
+      // it is not in the store yet.
+      // In case there is record about the package in `store.json`, we check it in the file system just in case
+      const targetExists = opts.storeIndex[opts.targetRelative] && await exists(path.join(linkToUnpacked, 'package.json'))
 
       if (targetExists) {
         // if target exists and it wasn't modified, then no need to refetch it

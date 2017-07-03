@@ -324,7 +324,7 @@ test('repeat install with shrinkwrap should not mutate shrinkwrap when dependenc
 
   const shr1 = await project.loadShrinkwrap()
 
-  t.equal(shr1.dependencies['highmaps-release'], '5.0.11')
+  t.equal(shr1.dependencies['highmaps-release'], '5.0.11', 'dependency added correctly to shrinkwrap.yaml')
 
   await rimraf('node_modules')
 
@@ -332,7 +332,7 @@ test('repeat install with shrinkwrap should not mutate shrinkwrap when dependenc
 
   const shr2 = await project.loadShrinkwrap()
 
-  t.deepEqual(shr1, shr2)
+  t.deepEqual(shr1, shr2, "shrinkwrap file hasn't been changed")
 })
 
 test('package is not marked dev if it is also a subdep of a regular dependency', async (t: tape.Test) => {
