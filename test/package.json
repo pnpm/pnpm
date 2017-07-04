@@ -4,7 +4,9 @@
   "private": true,
   "version": "1.0.0",
   "dependencies": {
+    "@types/mkdirp": "^0.3.29",
     "@types/sinon": "^2.3.2",
+    "@types/tape": "^4.2.30",
     "anonymous-npm-registry-client": "^0.1.2",
     "caw": "^2.0.0",
     "deep-require-cwd": "^1.0.0",

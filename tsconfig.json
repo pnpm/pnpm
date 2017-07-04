@@ -77,8 +77,7 @@
     "src/safeIsInnerLink.ts",
     "src/save.ts",
     "src/types.ts",
-    "typings/index.d.ts",
     "typings/local.d.ts",
-    "typings/tape-promise.d.ts"
+    "test/typings/tape-promise.d.ts"
   ]
 }
