@@ -37,7 +37,7 @@ devDependencies:
   '@types/tape': 4.2.30
   commitizen: 2.9.6
   cz-conventional-changelog: 2.0.0
-  husky: 0.13.4
+  husky: 0.14.3
   in-publish: 2.0.0
   npm-scripts-info: 0.3.6
   pnpm-logger: 0.6.2
@@ -746,15 +746,14 @@ packages:
   /hosted-git-info/2.5.0:
     resolution:
       integrity: sha512-pNgbURSuab90KbTqvRPsseaTxOJCZBD0a7t+haSN33piP9cCM4l0CqdzAif2hUqm716UovKB2ROmiabGAKVXyg==
-  /husky/0.13.4:
+  /husky/0.14.3:
     dependencies:
-      chalk: 1.1.3
-      find-parent-dir: 0.3.0
       is-ci: 1.0.10
       normalize-path: 1.0.0
+      strip-indent: 2.0.0
     dev: true
     resolution:
-      integrity: sha1-SHhcUCjeNFKlHEjBLE+UshJKFAc=
+      integrity: sha512-e21wivqHpstpoiWA/Yi8eFti8E+sQDSS53cpJsPptPs295QTOQR0ZwnHo2TXy1XOpZFD9rPOd3NpmqTK6uMLJA==
   /ieee754/1.1.8:
     resolution:
       integrity: sha1-vjPUCsEO8ZJnAfbwii2G+/0a0+Q=
@@ -1676,6 +1675,10 @@ packages:
     dev: true
     resolution:
       integrity: sha1-DHlipq3vp7vUrDZkYKY4VSrhoKI=
+  /strip-indent/2.0.0:
+    dev: true
+    resolution:
+      integrity: sha1-XvjbKV0B5u1sv3qrlpmNeCJSe2g=
   /strip-json-comments/2.0.1:
     resolution:
       integrity: sha1-PFMZQukIwml8DsNEhYwobHygpgo=
@@ -1895,7 +1898,7 @@ specifiers:
   encode-registry: ^1.0.0
   execa: ^0.8.0
   fs-write-stream-atomic: ^1.0.10
-  husky: ^0.13.2
+  husky: ^0.14.3
   in-publish: ^2.0.0
   load-json-file: ^3.0.0
   mkdirp-promise: ^5.0.1
