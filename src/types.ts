@@ -1,4 +1,4 @@
-import {PackageMeta} from './resolve'
+import {PackageMeta} from 'package-store'
 
 export type PnpmOptions = {
   rawNpmConfig?: Object,

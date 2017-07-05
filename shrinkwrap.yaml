@@ -16,10 +16,8 @@ dependencies:
   byline: 5.0.0
   common-tags: 1.4.0
   cross-spawn: 5.1.0
-  dint: 1.0.0
   execa: 0.7.0
   find-up: 2.1.0
-  fs-write-stream-atomic: 1.0.10
   get-npm-tarball-url: 2.0.0
   graceful-fs: 4.1.11
   is-inner-link: 2.0.0
@@ -27,7 +25,6 @@ dependencies:
   is-windows: 1.0.1
   load-json-file: 2.0.0
   load-yaml-file: 0.1.0
-  mem: 1.1.0
   mkdirp-promise: 5.0.1
   mz: 2.6.0
   ncp: 2.0.0
@@ -35,14 +32,13 @@ dependencies:
   node-gyp: 3.6.2
   normalize-path: 2.1.1
   normalize-registry-url: 1.0.0
-  normalize-ssh: 1.0.0
   npm: 5.0.4
   npm-package-arg: 5.1.2
   npm-registry-client: 8.4.0
   os-homedir: 1.0.2
   p-filter: 1.0.0
   p-limit: 1.1.0
-  parse-npm-tarball-url: 1.0.1
+  package-store: 0.0.3
   path-exists: 3.0.0
   path-name: 1.0.0
   pnpm-install-checks: 1.1.0
@@ -52,15 +48,11 @@ dependencies:
   ramda: 0.24.1
   read-package-json: 2.0.10
   remove-all-except-outer-links: 1.0.1
-  rename-overwrite: 1.0.0
   rimraf: 2.6.1
   rimraf-then: 1.0.1
   semver: 5.3.0
-  ssri: 4.1.6
   symlink-dir: 1.0.3
   thenify: 3.3.0
-  unpack-stream: 2.0.0
-  write-json-file: 2.2.0
   write-pkg: 3.1.0
   write-yaml-file: 1.0.0
 devDependencies:
@@ -85,7 +77,7 @@ packages:
       integrity: sha1-Wt7ZvaV8uLMbavbCySero5WJPfY=
   /@types/mz/0.0.31:
     dependencies:
-      '@types/node': 8.0.6
+      '@types/node': 8.0.7
     resolution:
       integrity: sha1-pNgMCC/v5x5Ap8DwfR5lVbu8e1I=
   /@types/node/7.0.33:
@@ -94,6 +86,9 @@ packages:
   /@types/node/8.0.6:
     resolution:
       integrity: sha512-WuMAU8y6bw1I7MKOEtkuoSUsxHhVYkdv4nuqq3sed+Yx2JFFlCj4EoZweu4TkcrKAIuPXAjhGa5ZcROUJbj0AA==
+  /@types/node/8.0.7:
+    resolution:
+      integrity: sha512-fuCPLPe4yY0nv6Z1rTLFCEC452jl0k7i3gF/c8hdEKpYtEpt6Sk67hTGbxx8C0wmifFGPvKYd/O8CvS6dpgxMQ==
   /@types/nopt/3.0.29:
     resolution:
       integrity: sha1-8Z3z20yX7hRZonQAKDIKcdcJZM4=
@@ -108,6 +103,9 @@ packages:
   /@types/ramda/0.0.15:
     resolution:
       integrity: sha512-5FIV9glDDA5mrD7bTBU2LaOeTMfwfAYIZBPvceBS6oXUuoMomHmqE24gaHRJ8P1/rH1AvmXhznbcKnPdqU8tJw==
+  /@types/ramda/0.24.1:
+    resolution:
+      integrity: sha512-6JRYxhr2JDGJmnfzKyDgDJHXGrxX7CGT3epGHwlmEhc+BNObcgQG3RK1vRyt6eNAfHNi31LbHX87iuLhT3bnMA==
   /@types/rc/0.0.1:
     resolution:
       integrity: sha1-H1uKGzsaxtH+4TfFP6xfoPKK4Nc=
@@ -1460,6 +1458,36 @@ packages:
   /p-map/1.1.1:
     resolution:
       integrity: sha1-BfXkrpegaDcbwqXMhr+9vBnErno=
+  /package-store/0.0.3:
+    dependencies:
+      '@types/load-json-file': 2.0.5
+      '@types/node': 7.0.33
+      '@types/ramda': 0.24.1
+      '@types/semver': 5.3.32
+      dint: 1.0.0
+      fs-write-stream-atomic: 1.0.10
+      load-json-file: 2.0.0
+      mem: 1.1.0
+      mkdirp-promise: 5.0.1
+      mz: 2.6.0
+      normalize-path: 2.1.1
+      normalize-ssh: 1.0.0
+      p-limit: 1.1.0
+      parse-npm-tarball-url: 1.0.1
+      path-exists: 3.0.0
+      pnpm-logger: 0.4.0
+      ramda: 0.24.1
+      read-package-json: 2.0.10
+      rename-overwrite: 1.0.0
+      rimraf-then: 1.0.1
+      semver: 5.3.0
+      ssri: 4.1.6
+      symlink-dir: 1.0.3
+      thenify: 3.3.0
+      unpack-stream: 2.0.0
+      write-json-file: 2.2.0
+    resolution:
+      integrity: sha512-yK7a1ixMXOjlBrPUTPoWh49/HpdyT/xSsvcUEm9owdX8MjcTqZ/z6gOyumXhs4MvbbhoCo95cPXg713iLmgIYQ==
   /pad-right/0.2.2:
     dependencies:
       repeat-string: 1.6.1
@@ -2179,10 +2207,8 @@ specifiers:
   common-tags: ^1.4.0
   cross-spawn: ^5.0.0
   cz-conventional-changelog: ^2.0.0
-  dint: ^1.0.0
   execa: ^0.7.0
   find-up: ^2.1.0
-  fs-write-stream-atomic: ^1.0.10
   get-npm-tarball-url: ^2.0.0
   graceful-fs: ^4.1.11
   husky: ^0.13.2
@@ -2191,7 +2217,6 @@ specifiers:
   is-windows: ^1.0.0
   load-json-file: ^2.0.0
   load-yaml-file: ^0.1.0
-  mem: ^1.1.0
   mkdirp-promise: ^5.0.1
   mz: ^2.6.0
   ncp: ^2.0.0
@@ -2199,7 +2224,6 @@ specifiers:
   node-gyp: ^3.6.0
   normalize-path: ^2.1.1
   normalize-registry-url: ^1.0.0
-  normalize-ssh: ^1.0.0
   npm: ^5.0.2
   npm-package-arg: ^5.0.0
   npm-registry-client: ^8.1.0
@@ -2207,7 +2231,7 @@ specifiers:
   os-homedir: ^1.0.2
   p-filter: ^1.0.0
   p-limit: ^1.1.0
-  parse-npm-tarball-url: ^1.0.1
+  package-store: ^0.0.3
   path-exists: ^3.0.0
   path-name: ^1.0.0
   pnpm-install-checks: ^1.1.0
@@ -2217,17 +2241,13 @@ specifiers:
   ramda: ^0.24.1
   read-package-json: ^2.0.5
   remove-all-except-outer-links: ^1.0.0
-  rename-overwrite: ^1.0.0
   rimraf: ^2.5.4
   rimraf-then: ^1.0.1
   semver: ^5.3.0
-  ssri: ^4.1.3
   symlink-dir: ^1.0.3
   thenify: ^3.3.0
   tslint: ^5.4.2
   typescript: ^2.4.1
-  unpack-stream: ^2.0.0
   validate-commit-msg: ^2.7.0
-  write-json-file: ^2.0.0
   write-pkg: ^3.1.0
   write-yaml-file: ^1.0.0

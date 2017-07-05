@@ -9,7 +9,6 @@ import R = require('ramda')
 import safeIsInnerLink from '../safeIsInnerLink'
 import {fromDir as safeReadPkgFromDir} from '../fs/safeReadPkg'
 import {PnpmOptions, StrictPnpmOptions, Dependencies} from '../types'
-import createGot from '../network/got'
 import getContext, {PnpmContext} from './getContext'
 import installMultiple, {InstalledPackage} from '../install/installMultiple'
 import externalLink from './link'
@@ -33,11 +32,17 @@ import {
 import mkdirp = require('mkdirp-promise')
 import createMemoize, {MemoizedFunc} from '../memoize'
 import {Package} from '../types'
-import {PackageSpec, DirectoryResolution, Resolution} from '../resolve'
 import {DependencyTreeNode} from '../link/resolvePeers'
 import depsToSpecs, {similarDepsToSpecs} from '../depsToSpecs'
 import streamParser from '../logging/streamParser'
-import {Store} from '../fs/storeController'
+import {
+  createGot,
+  Store,
+  PackageContentInfo,
+  PackageSpec,
+  DirectoryResolution,
+  Resolution,
+} from 'package-store'
 
 export type InstalledPackages = {
   [name: string]: InstalledPackage
@@ -53,11 +58,6 @@ export type TreeNode = {
 
 export type TreeNodeMap = {
   [nodeId: string]: TreeNode,
-}
-
-export type PackageContentInfo = {
-  isNew: boolean,
-  index: {},
 }
 
 export type InstallContext = {

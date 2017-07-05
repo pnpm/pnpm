@@ -5,7 +5,7 @@ import expandTilde, {isHomepath} from '../fs/expandTilde'
 import {
   Store,
   read as readStore,
-} from '../fs/storeController'
+} from 'package-store'
 import {StrictPnpmOptions} from '../types'
 import {
   read as readShrinkwrap,

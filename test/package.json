@@ -22,7 +22,8 @@
     "sinon": "^2.3.6",
     "tape": "^4.6.3",
     "tape-promise": "^2.0.1",
-    "ts-node": "^3.0.0"
+    "ts-node": "^3.0.0",
+    "write-json-file": "^2.2.0"
   },
   "scripts": {
     "pnpm-registry-mock": "pnpm-registry-mock",

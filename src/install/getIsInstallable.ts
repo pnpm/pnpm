@@ -1,7 +1,7 @@
 import installChecks = require('pnpm-install-checks')
 import logger from 'pnpm-logger'
 import {Package} from '../types'
-import {FetchedPackage} from './fetch'
+import {FetchedPackage} from 'package-store'
 
 const installCheckLogger = logger('install-check')
 

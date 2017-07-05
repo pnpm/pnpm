@@ -1,6 +1,6 @@
 import npa = require('npm-package-arg')
 import {Dependencies} from './types'
-import {PackageSpec} from './resolve'
+import {PackageSpec} from 'package-store'
 
 export default function (
   deps: Dependencies,

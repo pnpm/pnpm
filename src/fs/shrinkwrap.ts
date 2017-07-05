@@ -1,5 +1,4 @@
-import {Resolution} from '../resolve'
-import getRegistryName from '../resolve/npm/getRegistryName'
+import {Resolution, getRegistryName} from 'package-store'
 
 export function shortIdToFullId (
   shortId: string,

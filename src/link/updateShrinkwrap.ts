@@ -10,7 +10,7 @@ import {
   prune as pruneShrinkwrap,
 } from 'pnpm-shrinkwrap'
 import {DependencyTreeNodeMap, DependencyTreeNode} from './resolvePeers'
-import {Resolution} from '../resolve'
+import {Resolution} from 'package-store'
 import R = require('ramda')
 import {Package} from '../types'
 

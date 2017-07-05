@@ -4,9 +4,8 @@ import {
   shortIdToFullId,
 } from '../fs/shrinkwrap'
 import {Shrinkwrap} from 'pnpm-shrinkwrap'
-import {Store, save as saveStore} from '../fs/storeController'
+import {Store, save as saveStore, PackageSpec} from 'package-store'
 import R = require('ramda')
-import {PackageSpec} from '../resolve'
 import removeTopDependency from '../removeTopDependency'
 import logger from 'pnpm-logger'
 

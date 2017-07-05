@@ -16,7 +16,7 @@ import {
   LAYOUT_VERSION,
 } from '../fs/modulesController'
 import removeOrphanPkgs from './removeOrphanPkgs'
-import {PackageSpec} from '../resolve'
+import {PackageSpec} from 'package-store'
 import safeIsInnerLink from '../safeIsInnerLink'
 import removeTopDependency from '../removeTopDependency'
 import streamParser from '../logging/streamParser'

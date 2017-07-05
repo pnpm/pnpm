@@ -2,7 +2,7 @@ import loadJsonFile = require('load-json-file')
 import writePkg = require('write-pkg')
 import {DependenciesType, dependenciesTypes} from './getSaveType'
 import {Package} from './types'
-import {PackageSpec} from './resolve'
+import {PackageSpec} from 'package-store'
 
 export default async function save (
   pkgJsonPath: string,

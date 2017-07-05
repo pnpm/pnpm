@@ -3,7 +3,7 @@ import pFilter = require('p-filter')
 import {PnpmOptions} from '../types'
 import extendOptions from './extendOptions'
 import getContext from './getContext'
-import untouched from '../pkgIsUntouched'
+import {pkgIsUntouched as untouched} from 'package-store'
 import {shortIdToFullId} from '../fs/shrinkwrap'
 import streamParser from '../logging/streamParser'
 

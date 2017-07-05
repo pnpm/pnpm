@@ -3,14 +3,22 @@ import logger from 'pnpm-logger'
 import R = require('ramda')
 import getNpmTarballUrl from 'get-npm-tarball-url'
 import exists = require('path-exists')
-import fetch, {FetchedPackage} from './fetch'
-import {InstallContext, InstalledPackages, PackageContentInfo} from '../api/install'
+import {
+  Got,
+  fetch,
+  FetchedPackage,
+  PackageContentInfo,
+  Resolution,
+  PackageSpec,
+  PackageMeta,
+  pkgIdToFilename,
+} from 'package-store'
+import {InstallContext, InstalledPackages} from '../api/install'
 import {Dependencies} from '../types'
 import memoize from '../memoize'
 import {Package} from '../types'
 import logStatus from '../logging/logInstallStatus'
 import fs = require('mz/fs')
-import {Got} from '../network/got'
 import {
   getPkgId,
   getPkgShortId,
@@ -19,10 +27,8 @@ import {
   DependencyShrinkwrap,
   ResolvedDependencies,
 } from 'pnpm-shrinkwrap'
-import {Resolution, PackageSpec, PackageMeta} from '../resolve'
 import depsToSpecs from '../depsToSpecs'
 import getIsInstallable from './getIsInstallable'
-import pkgIdToFilename from '../fs/pkgIdToFilename'
 
 export type PkgAddress = {
   nodeId: string,

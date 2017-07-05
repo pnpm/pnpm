@@ -1,11 +1,11 @@
-import {Resolution} from '../resolve'
+import {Resolution, PackageContentInfo} from 'package-store'
 import {Dependencies, Package} from '../types'
 import R = require('ramda')
 import semver = require('semver')
 import logger from 'pnpm-logger'
 import path = require('path')
 import {InstalledPackage} from '../install/installMultiple'
-import {TreeNode, TreeNodeMap, PackageContentInfo} from '../api/install'
+import {TreeNode, TreeNodeMap} from '../api/install'
 
 export type DependencyTreeNode = {
   name: string,

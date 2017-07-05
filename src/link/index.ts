@@ -6,10 +6,10 @@ import logger from 'pnpm-logger'
 import R = require('ramda')
 import pLimit = require('p-limit')
 import {InstalledPackage} from '../install/installMultiple'
-import {InstalledPackages, TreeNode, PackageContentInfo} from '../api/install'
+import {InstalledPackages, TreeNode} from '../api/install'
 import linkBins, {linkPkgBins} from './linkBins'
 import {Package, Dependencies} from '../types'
-import {Resolution} from '../resolve'
+import {Resolution, PackageContentInfo, Store} from 'package-store'
 import resolvePeers, {DependencyTreeNode, DependencyTreeNodeMap} from './resolvePeers'
 import logStatus from '../logging/logInstallStatus'
 import updateShrinkwrap from './updateShrinkwrap'
@@ -17,7 +17,6 @@ import {shortIdToFullId} from '../fs/shrinkwrap'
 import {Shrinkwrap, DependencyShrinkwrap} from 'pnpm-shrinkwrap'
 import removeOrphanPkgs from '../api/removeOrphanPkgs'
 import linkIndexedDir from '../fs/linkIndexedDir'
-import {Store} from '../fs/storeController'
 import ncpCB = require('ncp')
 import thenify = require('thenify')
 
