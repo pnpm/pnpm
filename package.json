@@ -1,0 +1,120 @@
+{
+  "name": "package-store",
+  "description": "A storage for npm packages. Used by pnpm",
+  "version": "0.0.3",
+  "author": {
+    "name": "Zoltan Kochan",
+    "email": "zoltan.kochan@gmail.com",
+    "url": "https://www.kochan.io/"
+  },
+  "bugs": {
+    "url": "https://github.com/pnpm/package-store/issues"
+  },
+  "main": "lib/index.js",
+  "typings": "lib/index.d.ts",
+  "files": [
+    "lib/"
+  ],
+  "dependencies": {
+    "@types/load-json-file": "^2.0.5",
+    "@types/node": "^7.0.33",
+    "@types/ramda": "^0.24.1",
+    "@types/semver": "^5.3.32",
+    "dint": "^1.0.0",
+    "fs-write-stream-atomic": "^1.0.10",
+    "load-json-file": "^2.0.0",
+    "mem": "^1.1.0",
+    "mkdirp-promise": "^5.0.1",
+    "mz": "^2.6.0",
+    "normalize-path": "^2.1.1",
+    "normalize-ssh": "^1.0.0",
+    "p-limit": "^1.1.0",
+    "parse-npm-tarball-url": "^1.0.1",
+    "path-exists": "^3.0.0",
+    "pnpm-logger": "^0.4.0",
+    "ramda": "^0.24.1",
+    "read-package-json": "^2.0.10",
+    "rename-overwrite": "^1.0.0",
+    "rimraf-then": "^1.0.1",
+    "semver": "^5.3.0",
+    "ssri": "^4.1.6",
+    "symlink-dir": "^1.0.3",
+    "thenify": "^3.3.0",
+    "unpack-stream": "^2.0.0",
+    "write-json-file": "^2.2.0"
+  },
+  "devDependencies": {
+    "@types/tape": "^4.2.30",
+    "commitizen": "^2.8.6",
+    "cz-conventional-changelog": "^2.0.0",
+    "husky": "^0.13.2",
+    "in-publish": "^2.0.0",
+    "npm-scripts-info": "^0.3.6",
+    "rimraf": "^2.5.4",
+    "tslint": "^5.4.2",
+    "typescript": "^2.4.1",
+    "validate-commit-msg": "^2.7.0"
+  },
+  "directories": {
+    "test": "test"
+  },
+  "homepage": "https://pnpm.js.org",
+  "keywords": [
+    "dependency manager",
+    "install",
+    "installer",
+    "uninstall",
+    "remove",
+    "link",
+    "prune",
+    "shrinkwrap",
+    "lockfile",
+    "fast",
+    "rapid",
+    "efficient",
+    "package.json",
+    "packages",
+    "dependencies",
+    "symlinks",
+    "hardlinks",
+    "modules",
+    "npm",
+    "package manager"
+  ],
+  "license": "MIT",
+  "engines": {
+    "node": ">=4"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/pnpm/package-store.git"
+  },
+  "scripts": {
+    "prepare": "cd test && pnpm install",
+    "info": "npm-scripts-info",
+    "start": "npm run tsc -- --watch",
+    "?cz": "echo 'Run Git commit wizard'",
+    "cz": "git-cz",
+    "commitmsg": "validate-commit-msg",
+    "lint": "tslint -c tslint.json --project .",
+    "test": "npm run tsc && npm run lint && cd test && npm test",
+    "tsc": "rimraf lib && tsc",
+    "prepublishOnly": "npm run tsc"
+  },
+  "config": {
+    "commitizen": {
+      "path": "./node_modules/cz-conventional-changelog"
+    }
+  },
+  "greenkeeper": {
+    "ignore": [
+      "pnpm-default-reporter",
+      "pnpm-file-reporter",
+      "pnpm-install-checks",
+      "pnpm-logger",
+      "pnpm-registry-mock",
+      "remove-all-except-outer-links",
+      "pnpm-shrinkwrap"
+    ]
+  }
+}

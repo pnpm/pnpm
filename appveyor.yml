@@ -1,0 +1,18 @@
+environment:
+  matrix:
+    - nodejs_version: 4
+    - nodejs_version: 6
+    - nodejs_version: 8
+install:
+  - ps: Install-Product node $env:nodejs_version
+  - npm set fetch-retry-maxtimeout 180000
+  - npm install -g pnpm
+  - pnpm install
+matrix:
+  fast_finish: true
+build: off
+version: '{build}'
+test_script:
+  - node --version
+  - npm --version
+  - npm test

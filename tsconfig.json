@@ -1,0 +1,47 @@
+{
+  "compilerOptions": {
+    "removeComments": false,
+    "preserveConstEnums": true,
+    "sourceMap": true,
+    "declaration": true,
+    "noImplicitAny": true,
+    "noImplicitReturns": true,
+    "suppressImplicitAnyIndexErrors": true,
+    "allowSyntheticDefaultImports": true,
+    "strictNullChecks": true,
+    "target": "es6",
+    "outDir": "lib",
+    "module": "commonjs",
+    "moduleResolution": "node"
+  },
+  "filesGlob": [
+    "src/**/*.ts",
+    "typings/**/*.d.ts"
+  ],
+  "atom": {
+    "rewriteTsconfig": true
+  },
+  "files": [
+    "src/errorTypes.ts",
+    "src/fs/pkgIdToFilename.ts",
+    "src/fs/readPkg.ts",
+    "src/fs/safeReadPkg.ts",
+    "src/fs/storeController.ts",
+    "src/index.ts",
+    "src/logging/logInstallStatus.ts",
+    "src/memoize.ts",
+    "src/network/got.ts",
+    "src/pkgIsUntouched.ts",
+    "src/resolve/git.ts",
+    "src/resolve/index.ts",
+    "src/resolve/local.ts",
+    "src/resolve/npm/createNpmPkgId.ts",
+    "src/resolve/npm/getHost.ts",
+    "src/resolve/npm/getRegistryName.ts",
+    "src/resolve/npm/index.ts",
+    "src/resolve/npm/loadPackageMeta.ts",
+    "src/resolve/tarball.ts",
+    "src/types.ts",
+    "typings/index.d.ts"
+  ]
+}

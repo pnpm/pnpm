@@ -1,0 +1,9 @@
+{
+  "name": "package-store-tests",
+  "description": "Tests of package-store",
+  "private": true,
+  "version": "1.0.0",
+  "scripts": {
+    "test": "exit 0"
+  }
+}
