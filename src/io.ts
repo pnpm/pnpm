@@ -131,7 +131,7 @@ export function save (pkgPath: string, shrinkwrap: Shrinkwrap) {
   const yamlDoc = yaml.safeDump(shrinkwrap, formatOpts)
 
   return Promise.all([
-    writeFileAtomic(shrinkwrapPath, shrinkwrap),
-    writeFileAtomic(privateShrinkwrapPath, shrinkwrap),
+    writeFileAtomic(shrinkwrapPath, yamlDoc),
+    writeFileAtomic(privateShrinkwrapPath, yamlDoc),
   ])
 }
