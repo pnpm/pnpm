@@ -1,7 +1,7 @@
 {
   "name": "package-store",
   "description": "A storage for npm packages. Used by pnpm",
-  "version": "0.0.3",
+  "version": "0.0.4",
   "author": {
     "name": "Zoltan Kochan",
     "email": "zoltan.kochan@gmail.com",
