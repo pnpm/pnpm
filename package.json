@@ -27,6 +27,7 @@
     "mkdirp-promise": "^5.0.1",
     "mz": "^2.6.0",
     "normalize-path": "^2.1.1",
+    "normalize-registry-url": "^1.0.0",
     "normalize-ssh": "^1.0.0",
     "p-limit": "^1.1.0",
     "parse-npm-tarball-url": "^1.0.1",
