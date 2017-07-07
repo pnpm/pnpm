@@ -42,10 +42,12 @@
     "@types/node": "^7.0.32",
     "@types/ramda": "^0.0.11",
     "is-ci": "^1.0.10",
+    "js-yaml": "^3.8.4",
     "load-yaml-file": "^0.1.0",
     "pnpm-logger": "^0.3.0",
     "ramda": "^0.24.1",
     "rimraf-then": "^1.0.1",
-    "write-yaml-file": "^1.0.0"
+    "thenify": "^3.3.0",
+    "write-file-atomic": "^2.1.0"
   }
 }

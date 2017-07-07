@@ -18,3 +18,18 @@ declare module 'is-ci' {
   const anything: any;
   export = anything;
 }
+
+declare module 'js-yaml' {
+  const anything: any;
+  export = anything;
+}
+
+declare module 'write-file-atomic' {
+  const anything: any;
+  export = anything;
+}
+
+declare module 'thenify' {
+  const anything: any;
+  export = anything;
+}

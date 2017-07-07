@@ -1,10 +1,14 @@
 import path = require('path')
 import loadYamlFile = require('load-yaml-file')
-import writeYamlFile = require('write-yaml-file')
 import rimraf = require('rimraf-then')
 import isCI = require('is-ci')
 import {Shrinkwrap} from './types'
 import logger from 'pnpm-logger'
+import yaml = require('js-yaml')
+import writeFileAtomicCB = require('write-file-atomic')
+import thenify = require('thenify')
+
+const writeFileAtomic = thenify(writeFileAtomicCB)
 
 const shrinkwrapLogger = logger('shrinkwrap')
 
@@ -124,8 +128,10 @@ export function save (pkgPath: string, shrinkwrap: Shrinkwrap) {
     noCompatMode: true,
   }
 
+  const yamlDoc = yaml.safeDump(shrinkwrap, formatOpts)
+
   return Promise.all([
-    writeYamlFile(shrinkwrapPath, shrinkwrap, formatOpts),
-    writeYamlFile(privateShrinkwrapPath, shrinkwrap, formatOpts),
+    writeFileAtomic(shrinkwrapPath, shrinkwrap),
+    writeFileAtomic(privateShrinkwrapPath, shrinkwrap),
   ])
 }
