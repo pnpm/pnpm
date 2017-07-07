@@ -38,7 +38,7 @@ dependencies:
   os-homedir: 1.0.2
   p-filter: 1.0.0
   p-limit: 1.1.0
-  package-store: 0.0.3
+  package-store: 0.1.0
   path-exists: 3.0.0
   path-name: 1.0.0
   pnpm-install-checks: 1.1.0
@@ -77,7 +77,7 @@ packages:
       integrity: sha1-Wt7ZvaV8uLMbavbCySero5WJPfY=
   /@types/mz/0.0.31:
     dependencies:
-      '@types/node': 8.0.7
+      '@types/node': 8.0.8
     resolution:
       integrity: sha1-pNgMCC/v5x5Ap8DwfR5lVbu8e1I=
   /@types/node/7.0.33:
@@ -86,9 +86,9 @@ packages:
   /@types/node/8.0.6:
     resolution:
       integrity: sha512-WuMAU8y6bw1I7MKOEtkuoSUsxHhVYkdv4nuqq3sed+Yx2JFFlCj4EoZweu4TkcrKAIuPXAjhGa5ZcROUJbj0AA==
-  /@types/node/8.0.7:
+  /@types/node/8.0.8:
     resolution:
-      integrity: sha512-fuCPLPe4yY0nv6Z1rTLFCEC452jl0k7i3gF/c8hdEKpYtEpt6Sk67hTGbxx8C0wmifFGPvKYd/O8CvS6dpgxMQ==
+      integrity: sha512-mDdL8leJCDIe2uSA+jp2quT6t7y0Pt9guPYzfoMt97r8dhRGZ+jLetPYHCCHXLnWdmae/zHZIYvzTQaTj6BCQg==
   /@types/nopt/3.0.29:
     resolution:
       integrity: sha1-8Z3z20yX7hRZonQAKDIKcdcJZM4=
@@ -103,9 +103,9 @@ packages:
   /@types/ramda/0.0.15:
     resolution:
       integrity: sha512-5FIV9glDDA5mrD7bTBU2LaOeTMfwfAYIZBPvceBS6oXUuoMomHmqE24gaHRJ8P1/rH1AvmXhznbcKnPdqU8tJw==
-  /@types/ramda/0.24.1:
+  /@types/ramda/0.24.2:
     resolution:
-      integrity: sha512-6JRYxhr2JDGJmnfzKyDgDJHXGrxX7CGT3epGHwlmEhc+BNObcgQG3RK1vRyt6eNAfHNi31LbHX87iuLhT3bnMA==
+      integrity: sha512-MuMNsk3+Mf9K2ReSUTrtE9JfAOPV2vpVsQS2m7CwS4iVTjBp3wwLKZ3T9lAFVkXTbLQXxwI3qsXUejgSkEee+Q==
   /@types/rc/0.0.1:
     resolution:
       integrity: sha1-H1uKGzsaxtH+4TfFP6xfoPKK4Nc=
@@ -463,7 +463,7 @@ packages:
   /decompress-maybe/1.0.0:
     dependencies:
       bzip2-maybe: 1.0.0
-      gunzip-maybe: 1.4.0
+      gunzip-maybe: 1.4.1
       pumpify: 1.3.5
     resolution:
       integrity: sha1-rf54xmzAaeZOgkvRQFuF515tHLs=
@@ -804,7 +804,7 @@ packages:
     dev: true
     resolution:
       integrity: sha1-TK+tdrxi8C+gObL5Tpo906ORpyU=
-  /gunzip-maybe/1.4.0:
+  /gunzip-maybe/1.4.1:
     dependencies:
       browserify-zlib: 0.1.4
       is-deflate: 1.0.0
@@ -813,7 +813,7 @@ packages:
       pumpify: 1.3.5
       through2: 2.0.3
     resolution:
-      integrity: sha1-fYMWyNBXHh0IpaeeRv/wr+gXKxk=
+      integrity: sha512-qtutIKMthNJJgeHQS7kZ9FqDq59/Wn0G2HYCRNjpup7yKfVI6/eqwpmroyZGFoCYaG+sW6psNVb4zoLADHpp2g==
   /har-schema/1.0.5:
     resolution:
       integrity: sha1-0mMTX0MwfALGAq/I/pWXDAFRNp4=
@@ -1458,11 +1458,11 @@ packages:
   /p-map/1.1.1:
     resolution:
       integrity: sha1-BfXkrpegaDcbwqXMhr+9vBnErno=
-  /package-store/0.0.3:
+  /package-store/0.1.0:
     dependencies:
       '@types/load-json-file': 2.0.5
       '@types/node': 7.0.33
-      '@types/ramda': 0.24.1
+      '@types/ramda': 0.24.2
       '@types/semver': 5.3.32
       dint: 1.0.0
       fs-write-stream-atomic: 1.0.10
@@ -1471,6 +1471,7 @@ packages:
       mkdirp-promise: 5.0.1
       mz: 2.6.0
       normalize-path: 2.1.1
+      normalize-registry-url: 1.0.0
       normalize-ssh: 1.0.0
       p-limit: 1.1.0
       parse-npm-tarball-url: 1.0.1
@@ -1487,7 +1488,7 @@ packages:
       unpack-stream: 2.0.0
       write-json-file: 2.2.0
     resolution:
-      integrity: sha512-yK7a1ixMXOjlBrPUTPoWh49/HpdyT/xSsvcUEm9owdX8MjcTqZ/z6gOyumXhs4MvbbhoCo95cPXg713iLmgIYQ==
+      integrity: sha512-Ve1ftM/keY7UyGpMuZVFg8cZmRnJvwWc8oiKJMeSfVQr+nRa5xmFNSTyTbluB86c/cW6bJWlclrS+iQyq0akBw==
   /pad-right/0.2.2:
     dependencies:
       repeat-string: 1.6.1
@@ -2231,7 +2232,7 @@ specifiers:
   os-homedir: ^1.0.2
   p-filter: ^1.0.0
   p-limit: ^1.1.0
-  package-store: ^0.0.3
+  package-store: ^0.1.0
   path-exists: ^3.0.0
   path-name: ^1.0.0
   pnpm-install-checks: ^1.1.0
