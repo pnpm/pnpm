@@ -4,6 +4,10 @@
   "private": true,
   "version": "1.0.0",
   "scripts": {
-    "test": "exit 0"
+    "test": "ts-node index.ts"
+  },
+  "dependencies": {
+    "tape": "^4.7.0",
+    "ts-node": "^3.2.0"
   }
 }
