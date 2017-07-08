@@ -6,7 +6,7 @@
     "class-name": true,
     "indent": [true, "spaces"],
     "max-line-length": false,
-    "no-any": true,
+    "no-any": false,
     "no-consecutive-blank-lines": true,
     "no-trailing-whitespace": true,
     "no-duplicate-variable": true,

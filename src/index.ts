@@ -7,9 +7,16 @@ import {
   InstallCheckLog,
 } from 'pnpm-logger'
 import reportError from './reportError'
+import os = require('os')
+
+const EOL = os.EOL
+
+const addedSign = chalk.green('+')
+const removedSign = chalk.red('-')
 
 export default function (streamParser: Object) {
   let resolutionDone = false
+  let pkgsDiff: {name: string, version?: string, added: boolean}[] = []
 
   streamParser['on']('data', (obj: Log) => {
     switch (obj.name) {
@@ -32,6 +39,37 @@ export default function (streamParser: Object) {
         if (obj.level === 'warn') {
           printWarn(obj['message'])
         }
+        return
+      case 'pnpm:root':
+        if (obj['added']) {
+          pkgsDiff.push({
+            name: obj['added'].name,
+            version: obj['added'].version,
+            added: true,
+          })
+          return
+        }
+        if (obj['removed']) {
+          pkgsDiff.push({
+            name: obj['removed'].name,
+            version: obj['removed'].version,
+            added: false,
+          })
+          return
+        }
+        return
+      case 'pnpm:summary':
+        pkgsDiff.sort((a, b) => (a.name.localeCompare(b.name) + (Number(!b.added) - Number(!a.added))))
+        const msg = pkgsDiff.map(pkg => {
+          let result = pkg.added ? addedSign : removedSign
+          result += ` ${pkg.name}`
+          if (pkg.version) {
+            result += ` ${chalk.grey(pkg.version)}`
+          }
+          return result
+        }).join(EOL)
+        if (!msg) return
+        terminalWriter.write(`${EOL}${msg}`)
         return
       default:
         if (obj.level === 'debug') return
