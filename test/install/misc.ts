@@ -58,6 +58,14 @@ test('no dependencies (lodash)', async (t: tape.Test) => {
     level: 'info',
     message: 'Adding 1 packages to node_modules',
   }), 'informed about adding new packages to node_modules')
+  t.ok(reporter.calledWithMatch({
+    name: 'pnpm:root',
+    level: 'info',
+    added: {
+      name: 'lodash',
+      version: '4.0.0',
+    },
+  }), 'added to root')
 
   const m = project.requireModule('lodash')
   t.ok(typeof m === 'function', '_ is available')
@@ -114,17 +122,37 @@ test('installing a package by specifying a specific dist-tag', async function (t
 test('update a package when installing with a dist-tag', async function (t: tape.Test) {
   const project = prepare(t)
 
-  await addDistTag('dep-of-pkg-with-1-dep', '100.1.0', 'latest')
-  await addDistTag('dep-of-pkg-with-1-dep', '100.0.0', 'beta')
+  await addDistTag('dep-of-pkg-with-1-dep', '100.0.0', 'latest')
+  await addDistTag('dep-of-pkg-with-1-dep', '100.1.0', 'beta')
 
   await installPkgs(['dep-of-pkg-with-1-dep'], testDefaults({saveDev: true}))
 
-  await installPkgs(['dep-of-pkg-with-1-dep@beta'], testDefaults({saveDev: true}))
+  const reporter = sinon.spy()
 
-  await project.storeHas('dep-of-pkg-with-1-dep', '100.0.0')
+  await installPkgs(['dep-of-pkg-with-1-dep@beta'], testDefaults({saveDev: true, reporter}))
+
+  t.ok(reporter.calledWithMatch({
+    name: 'pnpm:root',
+    level: 'info',
+    removed: {
+      name: 'dep-of-pkg-with-1-dep',
+      version: '100.0.0',
+    },
+  }), 'reported old version removed from the root')
+
+  t.ok(reporter.calledWithMatch({
+    name: 'pnpm:root',
+    level: 'info',
+    added: {
+      name: 'dep-of-pkg-with-1-dep',
+      version: '100.1.0',
+    },
+  }), 'reported new version added to the root')
+
+  await project.storeHas('dep-of-pkg-with-1-dep', '100.1.0')
 
   const pkg = await readPkg()
-  t.equal(pkg.devDependencies['dep-of-pkg-with-1-dep'], '^100.0.0')
+  t.equal(pkg.devDependencies['dep-of-pkg-with-1-dep'], '^100.1.0')
 })
 
 test('scoped modules with versions (@rstacruz/tap-spec@4.1.1)', async function (t) {
@@ -159,13 +187,57 @@ test('nested scoped modules (test-pnpm-issue219 -> @zkochan/test-pnpm-issue219)'
   t.ok(m === 'test-pnpm-issue219,@zkochan/test-pnpm-issue219', 'nested scoped package is available')
 })
 
-test('idempotency (rimraf)', async function (t) {
+test('idempotency (rimraf)', async (t: tape.Test) => {
   const project = prepare(t)
-  await installPkgs(['rimraf@2.5.1'], testDefaults())
-  await installPkgs(['rimraf@2.5.1'], testDefaults())
+  const reporter = sinon.spy()
+  const opts = testDefaults({reporter})
+
+  await installPkgs(['rimraf@2.5.1'], opts)
+
+  t.ok(reporter.calledWithMatch({
+    name: 'pnpm:root',
+    level: 'info',
+    added: {
+      name: 'rimraf',
+      version: '2.5.1',
+    },
+  }), 'reported that rimraf added to the root')
+
+  reporter.reset()
+
+  await installPkgs(['rimraf@2.5.1'], opts)
+
+  t.notOk(reporter.calledWithMatch({
+    name: 'pnpm:root',
+    level: 'info',
+    added: {
+      name: 'rimraf',
+      version: '2.5.1',
+    },
+  }), 'did not reported that rimraf was added because it was already there')
 
   const m = project.requireModule('rimraf')
   t.ok(typeof m === 'function', 'rimraf is available')
+})
+
+test('reporting adding root package', async (t: tape.Test) => {
+  const project = prepare(t)
+  await installPkgs(['magic-hook@2.0.0'], testDefaults())
+
+  await project.storeHas('flatten', '1.0.2')
+
+  const reporter = sinon.spy()
+
+  await installPkgs(['flatten@1.0.2'], testDefaults({reporter}))
+
+  t.ok(reporter.calledWithMatch({
+    name: 'pnpm:root',
+    level: 'info',
+    added: {
+      name: 'flatten',
+      version: '1.0.2',
+    },
+  }), 'reported that flatten added to the root')
 })
 
 test('overwriting (magic-hook@2.0.0 and @0.1.0)', async function (t) {

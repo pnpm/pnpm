@@ -20,6 +20,8 @@ import linkIndexedDir from '../fs/linkIndexedDir'
 import ncpCB = require('ncp')
 import thenify = require('thenify')
 
+const rootLogger = logger('root')
+
 const ncp = thenify(ncpCB)
 
 export default async function (
@@ -82,7 +84,15 @@ export default async function (
   )
 
   for (let pkg of flatResolvedDeps.filter(pkg => pkg.depth === 0)) {
-    await symlinkDependencyTo(pkg, opts.baseNodeModules)
+    const symlinkingResult = await symlinkDependencyTo(pkg, opts.baseNodeModules)
+    if (!symlinkingResult.reused) {
+      rootLogger.info({
+        added: {
+          name: pkg.name,
+          version: pkg.version,
+        },
+      })
+    }
     logStatus({
       status: 'installed',
       pkgId: pkg.id,
@@ -153,7 +163,8 @@ async function linkNewPackages (
     // TODO: no need to relink everything. Can be relinked only what was changed
     for (const shortId of nextPkgResolvedIds) {
       if (privateShrinkwrap.packages[shortId] &&
-        !R.equals(privateShrinkwrap.packages[shortId].dependencies, shrinkwrap.packages[shortId].dependencies)) {
+        (!R.equals(privateShrinkwrap.packages[shortId].dependencies, shrinkwrap.packages[shortId].dependencies) ||
+        !R.equals(privateShrinkwrap.packages[shortId].optionalDependencies, shrinkwrap.packages[shortId].optionalDependencies))) {
         const resolvedId = shortIdToFullId(shortId, shrinkwrap.registry)
         newPkgs.push(pkgsToLink[resolvedId])
       }

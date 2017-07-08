@@ -33,7 +33,15 @@ test('uninstall package with no dependencies', async (t: tape.Test) => {
   t.ok(reporter.calledWithMatch({
     level: 'info',
     message: 'Removing 1 orphan packages from node_modules',
-  }), 'logged info message about removing orphans')
+  }), 'reported info message about removing orphans')
+  t.ok(reporter.calledWithMatch({
+    name: 'pnpm:root',
+    level: 'info',
+    removed: {
+      name: 'is-negative',
+      version: '2.1.0',
+    },
+  }), 'removing root dependency reported')
 
   await project.storeHasNot('is-negative', '2.1.0')
 

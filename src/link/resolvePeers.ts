@@ -9,6 +9,8 @@ import {TreeNode, TreeNodeMap} from '../api/install'
 
 export type DependencyTreeNode = {
   name: string,
+  // at this point the version is really needed only for logging
+  version: string,
   hasBundledDependencies: boolean,
   path: string,
   modules: string,
@@ -106,6 +108,7 @@ function resolvePeersOfNode (
       : pathToUnpacked
     resolvedTree[resolvedId] = {
       name: node.pkg.name,
+      version: node.pkg.version,
       hasBundledDependencies: node.pkg.hasBundledDependencies,
       fetchingFiles: node.pkg.fetchingFiles,
       resolution: node.pkg.resolution,

@@ -505,6 +505,8 @@ async function installInContext (
 
   // waiting till integrities are saved
   await Promise.all(R.values(installCtx.installs).map(installed => installed.calculatingIntegrity))
+
+  logger('summary').info()
 }
 
 function buildTree (

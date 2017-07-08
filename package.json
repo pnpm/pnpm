@@ -67,7 +67,7 @@
     "remove-all-except-outer-links": "^1.0.0",
     "rimraf-then": "^1.0.1",
     "semver": "^5.3.0",
-    "symlink-dir": "^1.0.3",
+    "symlink-dir": "^1.1.0",
     "thenify": "^3.3.0",
     "write-pkg": "^3.1.0",
     "write-yaml-file": "^1.0.0"

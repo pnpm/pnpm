@@ -51,7 +51,7 @@ dependencies:
   rimraf: 2.6.1
   rimraf-then: 1.0.1
   semver: 5.3.0
-  symlink-dir: 1.0.3
+  symlink-dir: 1.1.0
   thenify: 3.3.0
   write-pkg: 3.1.0
   write-yaml-file: 1.0.0
@@ -77,7 +77,7 @@ packages:
       integrity: sha1-Wt7ZvaV8uLMbavbCySero5WJPfY=
   /@types/mz/0.0.31:
     dependencies:
-      '@types/node': 8.0.8
+      '@types/node': 8.0.9
     resolution:
       integrity: sha1-pNgMCC/v5x5Ap8DwfR5lVbu8e1I=
   /@types/node/7.0.33:
@@ -86,9 +86,9 @@ packages:
   /@types/node/8.0.6:
     resolution:
       integrity: sha512-WuMAU8y6bw1I7MKOEtkuoSUsxHhVYkdv4nuqq3sed+Yx2JFFlCj4EoZweu4TkcrKAIuPXAjhGa5ZcROUJbj0AA==
-  /@types/node/8.0.8:
+  /@types/node/8.0.9:
     resolution:
-      integrity: sha512-mDdL8leJCDIe2uSA+jp2quT6t7y0Pt9guPYzfoMt97r8dhRGZ+jLetPYHCCHXLnWdmae/zHZIYvzTQaTj6BCQg==
+      integrity: sha512-UkiiJp6Iz2h4xzapN8BPKjhq+/BlyXcISwPVk2Kd7VJ/I1TREFokjBtvM6hftANXdsfo1IoWMXhmg8G8X+SS8Q==
   /@types/nopt/3.0.29:
     resolution:
       integrity: sha1-8Z3z20yX7hRZonQAKDIKcdcJZM4=
@@ -1974,6 +1974,16 @@ packages:
       mz: 2.6.0
     resolution:
       integrity: sha1-TMLRQWURnd9YgeqLTYEVcNgVR7c=
+  /symlink-dir/1.1.0:
+    dependencies:
+      '@types/mz': 0.0.31
+      '@types/node': 8.0.9
+      graceful-fs: 4.1.11
+      is-windows: 1.0.1
+      mkdirp-promise: 5.0.1
+      mz: 2.6.0
+    resolution:
+      integrity: sha512-HrQ50UhvdoWwwC62I82l0U2NTRx9dTQWs5/ay0bRwBqkJQ0f3ruVhQUyLH7hs6NekRsvQgK76fZyUFK7PZsm8A==
   /tar-fs/1.15.3:
     dependencies:
       chownr: 1.0.1
@@ -2245,7 +2255,7 @@ specifiers:
   rimraf: ^2.5.4
   rimraf-then: ^1.0.1
   semver: ^5.3.0
-  symlink-dir: ^1.0.3
+  symlink-dir: ^1.1.0
   thenify: ^3.3.0
   tslint: ^5.4.2
   typescript: ^2.4.1

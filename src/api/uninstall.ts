@@ -11,6 +11,7 @@ import {
   save as saveShrinkwrap,
   prune as pruneShrinkwrap,
 } from 'pnpm-shrinkwrap'
+import logger from 'pnpm-logger'
 import {
   save as saveModules,
   LAYOUT_VERSION,
@@ -79,6 +80,8 @@ export async function uninstallInContext (pkgsToUninstall: string[], ctx: PnpmCo
     independentLeaves: opts.independentLeaves,
   })
   await removeOuterLinks(pkgsToUninstall, path.join(ctx.root, 'node_modules'), {storePath: ctx.storePath})
+
+  logger('summary').info()
 }
 
 async function removeOuterLinks (

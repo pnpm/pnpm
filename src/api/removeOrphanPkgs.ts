@@ -8,6 +8,7 @@ import {Store, save as saveStore, PackageSpec} from 'package-store'
 import R = require('ramda')
 import removeTopDependency from '../removeTopDependency'
 import logger from 'pnpm-logger'
+import {dependenciesTypes} from '../getSaveType'
 
 export default async function removeOrphanPkgs (
   opts: {
@@ -18,13 +19,13 @@ export default async function removeOrphanPkgs (
     storeIndex: Store,
   }
 ): Promise<string[]> {
-  const oldPkgNames = Object.keys(opts.oldShrinkwrap.specifiers)
-  const newPkgNames = Object.keys(opts.newShrinkwrap.specifiers)
+  const oldPkgs = R.toPairs(R.mergeAll(R.map(depType => opts.oldShrinkwrap[depType], dependenciesTypes)))
+  const newPkgs = R.toPairs(R.mergeAll(R.map(depType => opts.newShrinkwrap[depType], dependenciesTypes)))
 
-  const removedTopDeps = R.difference(oldPkgNames, newPkgNames)
+  const removedTopDeps: [string, string][] = R.difference(oldPkgs, newPkgs) as [string, string][]
 
   const rootModules = path.join(opts.prefix, 'node_modules')
-  await Promise.all(removedTopDeps.map(depName => removeTopDependency(depName, rootModules)))
+  await Promise.all(removedTopDeps.map(depName => removeTopDependency(depName[0], rootModules)))
 
   const oldPkgIds = R.keys(opts.oldShrinkwrap.packages).map(shortId => shortIdToFullId(shortId, opts.oldShrinkwrap.registry))
   const newPkgIds = R.keys(opts.newShrinkwrap.packages).map(shortId => shortIdToFullId(shortId, opts.newShrinkwrap.registry))
