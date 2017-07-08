@@ -11,7 +11,7 @@
   "scripts": {
     "test": "tslint -c tslint.json --project .",
     "tsc": "rimraf lib && tsc",
-    "prepublish": "npm run tsc"
+    "prepublishOnly": "npm run tsc"
   },
   "repository": {
     "type": "git",
