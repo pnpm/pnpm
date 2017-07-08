@@ -59,7 +59,11 @@ export default function (streamParser: Object) {
         }
         return
       case 'pnpm:summary':
-        pkgsDiff.sort((a, b) => (a.name.localeCompare(b.name) + (Number(!b.added) - Number(!a.added))))
+        // Sorts by alphabet then by removed/added
+        // + ava 0.10.0
+        // - chalk 1.0.0
+        // + chalk 2.0.0
+        pkgsDiff.sort((a, b) => (a.name.localeCompare(b.name) * 10 + (Number(!b.added) - Number(!a.added))))
         const msg = pkgsDiff.map(pkg => {
           let result = pkg.added ? addedSign : removedSign
           result += ` ${pkg.name}`
