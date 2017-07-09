@@ -1,7 +1,6 @@
 import path = require('path')
 import loadYamlFile = require('load-yaml-file')
 import rimraf = require('rimraf-then')
-import isCI = require('is-ci')
 import {Shrinkwrap} from './types'
 import logger from 'pnpm-logger'
 import yaml = require('js-yaml')
@@ -48,7 +47,7 @@ function getDefaultShrinkwrap (registry: string) {
 export async function readPrivate (
   pkgPath: string,
   opts: {
-    force: boolean,
+    ignoreIncompatible: boolean,
     registry: string,
   }
 ): Promise<Shrinkwrap> {
@@ -71,7 +70,7 @@ export async function readPrivate (
   if (shrinkwrap && shrinkwrap.shrinkwrapVersion === SHRINKWRAP_VERSION) {
     return shrinkwrap
   }
-  if (opts.force || isCI) {
+  if (opts.ignoreIncompatible) {
     shrinkwrapLogger.warn(`Ignoring not compatible shrinkwrap file at ${shrinkwrapPath}`)
     return getDefaultShrinkwrap(opts.registry)
   }
@@ -81,7 +80,7 @@ export async function readPrivate (
 export async function read (
   pkgPath: string,
   opts: {
-    force: boolean,
+    ignoreIncompatible: boolean,
     registry: string,
 }): Promise<Shrinkwrap> {
   const shrinkwrapPath = path.join(pkgPath, SHRINKWRAP_FILENAME)
@@ -103,7 +102,7 @@ export async function read (
   if (shrinkwrap && shrinkwrap.shrinkwrapVersion === SHRINKWRAP_VERSION) {
     return shrinkwrap
   }
-  if (opts.force || isCI) {
+  if (opts.ignoreIncompatible) {
     shrinkwrapLogger.warn(`Ignoring not compatible shrinkwrap file at ${shrinkwrapPath}`)
     return getDefaultShrinkwrap(opts.registry)
   }

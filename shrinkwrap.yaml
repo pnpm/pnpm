@@ -1,7 +1,6 @@
 dependencies:
   '@types/node': 7.0.32
   '@types/ramda': 0.0.11
-  is-ci: 1.0.10
   js-yaml: 3.8.4
   load-yaml-file: 0.1.0
   pnpm-logger: 0.3.0
@@ -77,9 +76,6 @@ packages:
     dev: true
     resolution:
       integrity: sha1-qBFcVeSnAv5NFQq9OHKCKn4J/Jg=
-  /ci-info/1.0.0:
-    resolution:
-      integrity: sha1-3FKF8rTiUYIWg2gcOBwziPRuxTQ=
   /concat-map/0.0.1:
     resolution:
       integrity: sha1-2Klr13/Wjfd5OnMDajug1UBdR3s=
@@ -190,11 +186,6 @@ packages:
     dev: true
     resolution:
       integrity: sha1-hut1OSgF3cM69xySoO7fdO52BLI=
-  /is-ci/1.0.10:
-    dependencies:
-      ci-info: 1.0.0
-    resolution:
-      integrity: sha1-9zkzayYyNlBhqdSCcM1WrjNpMY4=
   /is-date-object/1.0.1:
     dev: true
     resolution:
@@ -422,7 +413,6 @@ specifiers:
   '@types/node': ^7.0.32
   '@types/ramda': ^0.0.11
   '@types/tape': ^4.2.30
-  is-ci: ^1.0.10
   js-yaml: ^3.8.4
   load-yaml-file: ^0.1.0
   pnpm-logger: ^0.3.0

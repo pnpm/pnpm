@@ -14,11 +14,6 @@ declare module 'rimraf-then' {
   export = anything;
 }
 
-declare module 'is-ci' {
-  const anything: any;
-  export = anything;
-}
-
 declare module 'js-yaml' {
   const anything: any;
   export = anything;
