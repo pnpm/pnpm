@@ -14,7 +14,11 @@ const SHRINKWRAP_YAML_FORMAT = {
   noCompatMode: true,
 }
 
-export default function write (pkgPath: string, shrinkwrap: Shrinkwrap) {
+export default function write (
+  pkgPath: string,
+  shrinkwrap: Shrinkwrap,
+  privateShrinkwrap: Shrinkwrap
+) {
   const shrinkwrapPath = path.join(pkgPath, SHRINKWRAP_FILENAME)
   const privateShrinkwrapPath = path.join(pkgPath, PRIVATE_SHRINKWRAP_FILENAME)
 
@@ -26,10 +30,23 @@ export default function write (pkgPath: string, shrinkwrap: Shrinkwrap) {
     ])
   }
 
+  // in most cases the `shrinkwrap.yaml` and `node_modules/.shrinkwrap.yaml` are equal
+  // in those cases the YAML document can be stringified only once for both files
+  // which is more efficient
+  if (shrinkwrap === privateShrinkwrap) {
+    const yamlDoc = yaml.safeDump(shrinkwrap, SHRINKWRAP_YAML_FORMAT)
+
+    return Promise.all([
+      writeFileAtomic(shrinkwrapPath, yamlDoc),
+      writeFileAtomic(privateShrinkwrapPath, yamlDoc),
+    ])
+  }
+
   const yamlDoc = yaml.safeDump(shrinkwrap, SHRINKWRAP_YAML_FORMAT)
+  const privateYamlDoc = yaml.safeDump(privateShrinkwrap, SHRINKWRAP_YAML_FORMAT)
 
   return Promise.all([
     writeFileAtomic(shrinkwrapPath, yamlDoc),
-    writeFileAtomic(privateShrinkwrapPath, yamlDoc),
+    writeFileAtomic(privateShrinkwrapPath, privateYamlDoc),
   ])
 }
