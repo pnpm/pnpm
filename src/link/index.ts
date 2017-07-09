@@ -104,7 +104,7 @@ export default async function (
 
   let privateShrinkwrap: Shrinkwrap
   if (opts.makePartialPrivateShrinkwrap) {
-    const packages = {}
+    const packages = opts.privateShrinkwrap.packages || {}
     if (newShr.packages) {
       for (const shortId in newShr.packages) {
         const resolvedId = shortIdToFullId(shortId, newShr.registry)

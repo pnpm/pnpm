@@ -299,6 +299,17 @@ function argsToSpecs (
     })
 }
 
+function shrinkwrapsEqual (shr1: Shrinkwrap, shr2: Shrinkwrap) {
+  const specs1 = R.keys(shr1.specifiers)
+  const specs2 = R.keys(shr2.specifiers)
+  if (specs1.length !== specs2.length || !R.equals(specs1, specs2)) {
+    return false
+  }
+  const pkgs1 = R.keys(shr1.packages)
+  const pkgs2 = R.keys(shr2.packages)
+  return pkgs1.length === pkgs2.length && R.equals(pkgs1, pkgs2)
+}
+
 async function installInContext (
   installType: string,
   packagesToInstall: PackageSpec[],
@@ -307,6 +318,15 @@ async function installInContext (
   installCtx: InstallContext,
   opts: StrictPnpmOptions
 ) {
+  // Unfortunately, the private shrinkwrap file may differ from the public one.
+  // A user might run named installations on a project that has a shrinkwrap.yaml file before running a noop install
+  const makePartialPrivateShrinkwrap = installType === 'named' && (
+    ctx.existsPublicShrinkwrap && !ctx.existsPrivateShrinkwrap ||
+    // TODO: this operation is quite expensive. We'll have to find a better solution to do this.
+    // maybe in pnpm v2 it won't be needed. See: https://github.com/pnpm/pnpm/issues/841
+    !shrinkwrapsEqual(ctx.privateShrinkwrap, ctx.shrinkwrap)
+  )
+
   const nodeModulesPath = path.join(ctx.root, 'node_modules')
   const client = new RegClient(adaptConfig(opts))
 
@@ -446,7 +466,7 @@ async function installInContext (
     pkg: newPkg || ctx.pkg,
     independentLeaves: opts.independentLeaves,
     storeIndex: ctx.storeIndex,
-    makePartialPrivateShrinkwrap: installType === 'named' && ctx.noPrivateShrinkwrap,
+    makePartialPrivateShrinkwrap,
   })
 
   await Promise.all([

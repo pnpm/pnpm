@@ -44,7 +44,7 @@ dependencies:
   path-name: 1.0.0
   pnpm-install-checks: 1.1.0
   pnpm-logger: 0.4.0
-  pnpm-shrinkwrap: 3.0.0
+  pnpm-shrinkwrap: 3.1.0
   proper-lockfile: 2.0.1
   ramda: 0.24.1
   read-package-json: 2.0.10
@@ -1589,7 +1589,7 @@ packages:
       bole: 3.0.2
     resolution:
       integrity: sha1-nHQPGm58hOypD01B5NEr0WuYtjI=
-  /pnpm-shrinkwrap/3.0.0:
+  /pnpm-shrinkwrap/3.1.0:
     dependencies:
       '@types/node': 7.0.33
       '@types/ramda': 0.0.11
@@ -1602,7 +1602,7 @@ packages:
       thenify: 3.3.0
       write-file-atomic: 2.1.0
     resolution:
-      integrity: sha512-OOCbOS3CJCid7hCcBhdh2nhoyyueQjBLuRuI8ENwlJ5LWdr+1H105f96vgD7gYP08uTmNBrSZT/qtQdBHUIdZQ==
+      integrity: sha512-mFMdm0fCmh+kwxmGVD8Bl5QO4E7h/SCWdayKRtdzexHon0nN7YNkEz/llj1lHrb99pzQmE4NCI6BEvTYP/XeIg==
   /preserve/0.2.0:
     dev: true
     resolution:
@@ -2235,7 +2235,7 @@ specifiers:
   path-name: ^1.0.0
   pnpm-install-checks: ^1.1.0
   pnpm-logger: ^0.4.0
-  pnpm-shrinkwrap: ^3.0.0
+  pnpm-shrinkwrap: ^3.1.0
   proper-lockfile: ^2.0.0
   ramda: ^0.24.1
   read-package-json: ^2.0.5
