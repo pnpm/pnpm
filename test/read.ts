@@ -7,17 +7,15 @@ process.chdir(__dirname)
 test('read()', async t => {
   {
     const shr = await read(path.join('fixtures', '1'), {
-      force: false,
-      registry: 'https://registry.npmjs.org',
+      ignoreIncompatible: false,
     })
-    t.equal(shr.shrinkwrapVersion, 3, 'converted version to shrinkwrapVersion')
+    t.equal(shr!.shrinkwrapVersion, 3, 'converted version to shrinkwrapVersion')
   }
   {
     const shr = await read(path.join('fixtures', '2'), {
-      force: false,
-      registry: 'https://registry.npmjs.org',
+      ignoreIncompatible: false,
     })
-    t.equal(shr.shrinkwrapVersion, 3)
+    t.equal(shr!.shrinkwrapVersion, 3)
   }
   t.end()
 })
@@ -25,17 +23,15 @@ test('read()', async t => {
 test('readPrivate()', async t => {
   {
     const shr = await readPrivate(path.join('fixtures', '1'), {
-      force: false,
-      registry: 'https://registry.npmjs.org',
+      ignoreIncompatible: false,
     })
-    t.equal(shr.shrinkwrapVersion, 3, 'converted version to shrinkwrapVersion')
+    t.equal(shr!.shrinkwrapVersion, 3, 'converted version to shrinkwrapVersion')
   }
   {
     const shr = await readPrivate(path.join('fixtures', '2'), {
-      force: false,
-      registry: 'https://registry.npmjs.org',
+      ignoreIncompatible: false,
     })
-    t.equal(shr.shrinkwrapVersion, 3)
+    t.equal(shr!.shrinkwrapVersion, 3)
   }
   t.end()
 })
