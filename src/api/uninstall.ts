@@ -21,6 +21,7 @@ import {PackageSpec} from 'package-store'
 import safeIsInnerLink from '../safeIsInnerLink'
 import removeTopDependency from '../removeTopDependency'
 import streamParser from '../logging/streamParser'
+import shrinkwrapsEqual from './shrinkwrapsEqual'
 
 export default async function uninstall (pkgsToUninstall: string[], maybeOpts?: PnpmOptions) {
   const reporter = maybeOpts && maybeOpts.reporter
@@ -60,6 +61,8 @@ export default async function uninstall (pkgsToUninstall: string[], maybeOpts?: 
 }
 
 export async function uninstallInContext (pkgsToUninstall: string[], ctx: PnpmContext, opts: StrictPnpmOptions) {
+  const makePartialPrivateShrinkwrap = !shrinkwrapsEqual(ctx.privateShrinkwrap, ctx.shrinkwrap)
+
   const pkgJsonPath = path.join(ctx.root, 'package.json')
   const saveType = getSaveType(opts)
   const pkg = await removeDeps(pkgJsonPath, pkgsToUninstall, saveType)
@@ -71,7 +74,9 @@ export async function uninstallInContext (pkgsToUninstall: string[], ctx: PnpmCo
     store: ctx.storePath,
     storeIndex: ctx.storeIndex,
   })
-  const privateShrinkwrap = pruneShrinkwrap(ctx.privateShrinkwrap, pkg)
+  const privateShrinkwrap = makePartialPrivateShrinkwrap
+    ? pruneShrinkwrap(ctx.privateShrinkwrap, pkg)
+    : newShr
   await saveShrinkwrap(ctx.root, newShr, privateShrinkwrap)
   await saveModules(path.join(ctx.root, 'node_modules'), {
     packageManager: `${opts.packageManager.name}@${opts.packageManager.version}`,

@@ -35,6 +35,7 @@ import {Package} from '../types'
 import {DependencyTreeNode} from '../link/resolvePeers'
 import depsToSpecs, {similarDepsToSpecs} from '../depsToSpecs'
 import streamParser from '../logging/streamParser'
+import shrinkwrapsEqual from './shrinkwrapsEqual'
 import {
   createGot,
   Store,
@@ -297,17 +298,6 @@ function argsToSpecs (
       spec.optional = opts.optional || !!opts.optionalDependencies[spec.name]
       return spec
     })
-}
-
-function shrinkwrapsEqual (shr1: Shrinkwrap, shr2: Shrinkwrap) {
-  const specs1 = R.keys(shr1.specifiers)
-  const specs2 = R.keys(shr2.specifiers)
-  if (specs1.length !== specs2.length || !R.equals(specs1, specs2)) {
-    return false
-  }
-  const pkgs1 = R.keys(shr1.packages)
-  const pkgs2 = R.keys(shr2.packages)
-  return pkgs1.length === pkgs2.length && R.equals(pkgs1, pkgs2)
 }
 
 async function installInContext (
