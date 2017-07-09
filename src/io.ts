@@ -15,6 +15,12 @@ export const SHRINKWRAP_FILENAME = 'shrinkwrap.yaml'
 export const PRIVATE_SHRINKWRAP_FILENAME = path.join('node_modules', '.shrinkwrap.yaml')
 const SHRINKWRAP_VERSION = 3
 
+const SHRINKWRAP_YAML_FORMAT = {
+  sortKeys: true,
+  lineWidth: 1000,
+  noCompatMode: true,
+}
+
 // TODO: move to separate package
 type PnpmErrorCode = 'SHRINKWRAP_BREAKING_CHANGE'
 
@@ -52,29 +58,7 @@ export async function readPrivate (
   }
 ): Promise<Shrinkwrap> {
   const shrinkwrapPath = path.join(pkgPath, PRIVATE_SHRINKWRAP_FILENAME)
-  let shrinkwrap
-  try {
-    shrinkwrap = await loadYamlFile<Shrinkwrap>(shrinkwrapPath)
-  } catch (err) {
-    if ((<NodeJS.ErrnoException>err).code !== 'ENOENT') {
-      throw err
-    }
-    return getDefaultShrinkwrap(opts.registry)
-  }
-  // for backward compatibility
-  if (shrinkwrap && shrinkwrap['version'] === SHRINKWRAP_VERSION) {
-    shrinkwrap.shrinkwrapVersion = SHRINKWRAP_VERSION
-    delete shrinkwrap['version']
-    return shrinkwrap
-  }
-  if (shrinkwrap && shrinkwrap.shrinkwrapVersion === SHRINKWRAP_VERSION) {
-    return shrinkwrap
-  }
-  if (opts.ignoreIncompatible) {
-    shrinkwrapLogger.warn(`Ignoring not compatible shrinkwrap file at ${shrinkwrapPath}`)
-    return getDefaultShrinkwrap(opts.registry)
-  }
-  throw new ShrinkwrapBreakingChangeError(shrinkwrapPath)
+  return await _read(shrinkwrapPath, opts)
 }
 
 export async function read (
@@ -84,6 +68,15 @@ export async function read (
     registry: string,
 }): Promise<Shrinkwrap> {
   const shrinkwrapPath = path.join(pkgPath, SHRINKWRAP_FILENAME)
+  return await _read(shrinkwrapPath, opts)
+}
+
+async function _read (
+  shrinkwrapPath: string,
+  opts: {
+    ignoreIncompatible: boolean,
+    registry: string,
+}): Promise<Shrinkwrap> {
   let shrinkwrap
   try {
     shrinkwrap = await loadYamlFile<Shrinkwrap>(shrinkwrapPath)
@@ -121,13 +114,7 @@ export function save (pkgPath: string, shrinkwrap: Shrinkwrap) {
     ])
   }
 
-  const formatOpts = {
-    sortKeys: true,
-    lineWidth: 1000,
-    noCompatMode: true,
-  }
-
-  const yamlDoc = yaml.safeDump(shrinkwrap, formatOpts)
+  const yamlDoc = yaml.safeDump(shrinkwrap, SHRINKWRAP_YAML_FORMAT)
 
   return Promise.all([
     writeFileAtomic(shrinkwrapPath, yamlDoc),
