@@ -17,3 +17,8 @@ lib
 
 # Visual Studio Code configs
 .vscode/
+
+# pnpm uses npm for publishing a new version with
+# dependencies bundled but the npm lockfile is not needed
+# because pnpm use pnpm for installation
+package-lock.json
