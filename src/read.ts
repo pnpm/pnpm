@@ -32,9 +32,8 @@ export async function readPrivate (
   pkgPath: string,
   opts: {
     ignoreIncompatible: boolean,
-    registry: string,
   }
-): Promise<Shrinkwrap> {
+): Promise<Shrinkwrap | null> {
   const shrinkwrapPath = path.join(pkgPath, PRIVATE_SHRINKWRAP_FILENAME)
   return await _read(shrinkwrapPath, opts)
 }
@@ -43,8 +42,8 @@ export async function read (
   pkgPath: string,
   opts: {
     ignoreIncompatible: boolean,
-    registry: string,
-}): Promise<Shrinkwrap> {
+  }
+): Promise<Shrinkwrap | null> {
   const shrinkwrapPath = path.join(pkgPath, SHRINKWRAP_FILENAME)
   return await _read(shrinkwrapPath, opts)
 }
@@ -53,8 +52,8 @@ async function _read (
   shrinkwrapPath: string,
   opts: {
     ignoreIncompatible: boolean,
-    registry: string,
-}): Promise<Shrinkwrap> {
+  }
+): Promise<Shrinkwrap | null> {
   let shrinkwrap
   try {
     shrinkwrap = await loadYamlFile<Shrinkwrap>(shrinkwrapPath)
@@ -62,7 +61,7 @@ async function _read (
     if ((<NodeJS.ErrnoException>err).code !== 'ENOENT') {
       throw err
     }
-    return getDefaultShrinkwrap(opts.registry)
+    return null
   }
   // for backward compatibility
   if (shrinkwrap && shrinkwrap['version'] === SHRINKWRAP_VERSION) {
@@ -75,12 +74,12 @@ async function _read (
   }
   if (opts.ignoreIncompatible) {
     logger.warn(`Ignoring not compatible shrinkwrap file at ${shrinkwrapPath}`)
-    return getDefaultShrinkwrap(opts.registry)
+    return null
   }
   throw new ShrinkwrapBreakingChangeError(shrinkwrapPath)
 }
 
-function getDefaultShrinkwrap (registry: string) {
+export function create (registry: string) {
   return {
     shrinkwrapVersion: SHRINKWRAP_VERSION,
     specifiers: {},
