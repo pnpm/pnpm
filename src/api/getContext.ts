@@ -1,4 +1,5 @@
 import path = require('path')
+import isCI = require('is-ci')
 import {fromDir as readPkgFromDir} from '../fs/readPkg'
 import writePkg = require('write-pkg')
 import expandTilde, {isHomepath} from '../fs/expandTilde'
@@ -11,6 +12,7 @@ import {
   read as readShrinkwrap,
   readPrivate as readPrivateShrinkwrap,
   Shrinkwrap,
+  create as createShrinkwrap,
 } from 'pnpm-shrinkwrap'
 import {
   read as readModules,
@@ -29,6 +31,7 @@ export type PnpmContext = {
   storeIndex: Store,
   storePath: string,
   root: string,
+  noPrivateShrinkwrap: boolean,
   privateShrinkwrap: Shrinkwrap,
   shrinkwrap: Shrinkwrap,
   skipped: Set<string>,
@@ -65,7 +68,9 @@ export default async function getContext (opts: StrictPnpmOptions, installType?:
     }
   }
 
-  const shrOpts = {force: opts.force, registry: opts.registry}
+  // ignore `shrinkwrap.yaml` on CI servers
+  // a latest pnpm should not break all the builds
+  const shrOpts = {ignoreIncompatible: opts.force || isCI}
   const files = await Promise.all([
     (opts.global ? readGlobalPkgJson(opts.prefix) : readPkgFromDir(opts.prefix)),
     readShrinkwrap(root, shrOpts),
@@ -77,8 +82,9 @@ export default async function getContext (opts: StrictPnpmOptions, installType?:
     pkg: files[0],
     root,
     storePath,
-    shrinkwrap: files[1],
-    privateShrinkwrap: files[2],
+    shrinkwrap: files[1] || createShrinkwrap(opts.registry),
+    privateShrinkwrap: files[2] || createShrinkwrap(opts.registry),
+    noPrivateShrinkwrap: !files[2],
     storeIndex: files[3] || {},
     skipped: new Set(modules && modules.skipped || []),
   }

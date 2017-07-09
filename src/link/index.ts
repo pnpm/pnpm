@@ -36,6 +36,7 @@ export default async function (
     topParents: {name: string, version: string}[],
     shrinkwrap: Shrinkwrap,
     privateShrinkwrap: Shrinkwrap,
+    makePartialPrivateShrinkwrap: boolean,
     production: boolean,
     optional: boolean,
     root: string,
@@ -48,6 +49,7 @@ export default async function (
 ): Promise<{
   linkedPkgsMap: DependencyTreeNodeMap,
   shrinkwrap: Shrinkwrap,
+  privateShrinkwrap: Shrinkwrap,
   newPkgResolvedIds: string[],
 }> {
   const topPkgIds = topPkgs.map(pkg => pkg.id)
@@ -100,9 +102,28 @@ export default async function (
   }
   await linkBins(opts.baseNodeModules, opts.bin)
 
+  let privateShrinkwrap: Shrinkwrap
+  if (opts.makePartialPrivateShrinkwrap) {
+    const packages = {}
+    if (newShr.packages) {
+      for (const shortId in newShr.packages) {
+        const resolvedId = shortIdToFullId(shortId, newShr.registry)
+        if (pkgsToLink[resolvedId]) {
+          packages[shortId] = newShr.packages[shortId]
+        }
+      }
+    }
+    privateShrinkwrap = Object.assign({}, newShr, {
+      packages,
+    })
+  } else {
+    privateShrinkwrap = newShr
+  }
+
   return {
     linkedPkgsMap: pkgsToLink,
     shrinkwrap: newShr,
+    privateShrinkwrap,
     newPkgResolvedIds,
   }
 }

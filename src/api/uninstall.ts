@@ -8,7 +8,7 @@ import {PnpmOptions, StrictPnpmOptions, Package} from '../types'
 import lock from './lock'
 import {
   Shrinkwrap,
-  save as saveShrinkwrap,
+  write as saveShrinkwrap,
   prune as pruneShrinkwrap,
 } from 'pnpm-shrinkwrap'
 import logger from 'pnpm-logger'
@@ -63,7 +63,7 @@ export async function uninstallInContext (pkgsToUninstall: string[], ctx: PnpmCo
   const pkgJsonPath = path.join(ctx.root, 'package.json')
   const saveType = getSaveType(opts)
   const pkg = await removeDeps(pkgJsonPath, pkgsToUninstall, saveType)
-  const newShr = await pruneShrinkwrap(ctx.shrinkwrap, pkg)
+  const newShr = pruneShrinkwrap(ctx.shrinkwrap, pkg)
   const removedPkgIds = await removeOrphanPkgs({
     oldShrinkwrap: ctx.privateShrinkwrap,
     newShrinkwrap: newShr,
@@ -71,7 +71,8 @@ export async function uninstallInContext (pkgsToUninstall: string[], ctx: PnpmCo
     store: ctx.storePath,
     storeIndex: ctx.storeIndex,
   })
-  await saveShrinkwrap(ctx.root, newShr)
+  const privateShrinkwrap = pruneShrinkwrap(ctx.privateShrinkwrap, pkg)
+  await saveShrinkwrap(ctx.root, newShr, privateShrinkwrap)
   await saveModules(path.join(ctx.root, 'node_modules'), {
     packageManager: `${opts.packageManager.name}@${opts.packageManager.version}`,
     store: ctx.storePath,

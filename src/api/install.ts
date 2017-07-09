@@ -20,7 +20,7 @@ import postInstall from '../install/postInstall'
 import extendOptions from './extendOptions'
 import lock from './lock'
 import {
-  save as saveShrinkwrap,
+  write as saveShrinkwrap,
   Shrinkwrap,
   ResolvedDependencies,
 } from 'pnpm-shrinkwrap'
@@ -446,16 +446,19 @@ async function installInContext (
     pkg: newPkg || ctx.pkg,
     independentLeaves: opts.independentLeaves,
     storeIndex: ctx.storeIndex,
+    makePartialPrivateShrinkwrap: installType === 'named' && ctx.noPrivateShrinkwrap,
   })
 
-  await saveShrinkwrap(ctx.root, result.shrinkwrap)
-  await saveModules(path.join(ctx.root, 'node_modules'), {
-    packageManager: `${opts.packageManager.name}@${opts.packageManager.version}`,
-    store: ctx.storePath,
-    skipped: Array.from(installCtx.skipped),
-    layoutVersion: LAYOUT_VERSION,
-    independentLeaves: opts.independentLeaves,
-  })
+  await Promise.all([
+    saveShrinkwrap(ctx.root, result.shrinkwrap, result.privateShrinkwrap),
+    saveModules(path.join(ctx.root, 'node_modules'), {
+      packageManager: `${opts.packageManager.name}@${opts.packageManager.version}`,
+      store: ctx.storePath,
+      skipped: Array.from(installCtx.skipped),
+      layoutVersion: LAYOUT_VERSION,
+      independentLeaves: opts.independentLeaves,
+    }),
+  ])
 
   // postinstall hooks
   if (!(opts.ignoreScripts || !result.newPkgResolvedIds || !result.newPkgResolvedIds.length)) {
