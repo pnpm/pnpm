@@ -445,3 +445,48 @@ test('remove dependencies that are not in the package', t => {
 
   t.end()
 })
+
+test('ignore dependencies that are in package.json but are not in shrinkwrap.yaml', t => {
+  t.deepEqual(prune({
+    shrinkwrapVersion: 3,
+    registry: 'https://registry.npmjs.org',
+    dependencies: {
+      'is-positive': '1.0.0'
+    },
+    specifiers: {
+      'is-positive': '^1.0.0'
+    },
+    packages: {
+      '/is-positive/1.0.0': {
+        resolution: {
+          integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g='
+        }
+      },
+    }
+  }, {
+    name: 'foo',
+    version: '1.0.0',
+    dependencies: {
+      'is-positive': '^1.0.0',
+      'is-negative': '^1.0.0',
+    }
+  }), {
+    shrinkwrapVersion: 3,
+    registry: 'https://registry.npmjs.org',
+    dependencies: {
+      'is-positive': '1.0.0'
+    },
+    specifiers: {
+      'is-positive': '^1.0.0'
+    },
+    packages: {
+      '/is-positive/1.0.0': {
+        resolution: {
+          integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g='
+        }
+      }
+    }
+  })
+
+  t.end()
+})
