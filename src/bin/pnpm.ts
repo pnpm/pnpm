@@ -131,6 +131,10 @@ function getCommandFullName (cmd: string) {
     case 'install-test':
     case 'it':
       return 'install-test'
+    case 'update':
+    case 'up':
+    case 'upgrade':
+      return 'update'
     // some commands have no aliases: publish, prune
     default:
       return cmd
