@@ -5,6 +5,7 @@ import rimraf = require('rimraf-then')
 import yaml = require('js-yaml')
 import {SHRINKWRAP_FILENAME, PRIVATE_SHRINKWRAP_FILENAME} from './constants'
 import {Shrinkwrap} from './types'
+import mkdirp = require('mkdirp-promise')
 
 const writeFileAtomic = thenify(writeFileAtomicCB)
 
@@ -30,23 +31,22 @@ export default function write (
     ])
   }
 
+  const yamlDoc = yaml.safeDump(shrinkwrap, SHRINKWRAP_YAML_FORMAT)
+
   // in most cases the `shrinkwrap.yaml` and `node_modules/.shrinkwrap.yaml` are equal
   // in those cases the YAML document can be stringified only once for both files
   // which is more efficient
   if (shrinkwrap === privateShrinkwrap) {
-    const yamlDoc = yaml.safeDump(shrinkwrap, SHRINKWRAP_YAML_FORMAT)
-
     return Promise.all([
       writeFileAtomic(shrinkwrapPath, yamlDoc),
-      writeFileAtomic(privateShrinkwrapPath, yamlDoc),
+      mkdirp(path.dirname(privateShrinkwrapPath)).then(() => writeFileAtomic(privateShrinkwrapPath, yamlDoc)),
     ])
   }
 
-  const yamlDoc = yaml.safeDump(shrinkwrap, SHRINKWRAP_YAML_FORMAT)
   const privateYamlDoc = yaml.safeDump(privateShrinkwrap, SHRINKWRAP_YAML_FORMAT)
 
   return Promise.all([
     writeFileAtomic(shrinkwrapPath, yamlDoc),
-    writeFileAtomic(privateShrinkwrapPath, privateYamlDoc),
+    mkdirp(path.dirname(privateShrinkwrapPath)).then(() => writeFileAtomic(privateShrinkwrapPath, privateYamlDoc)),
   ])
 }

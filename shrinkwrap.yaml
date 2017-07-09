@@ -3,6 +3,7 @@ dependencies:
   '@types/ramda': 0.0.11
   js-yaml: 3.8.4
   load-yaml-file: 0.1.0
+  mkdirp-promise: 5.0.1
   pnpm-logger: 0.3.0
   ramda: 0.24.1
   rimraf: 2.6.1
@@ -228,17 +229,20 @@ packages:
     resolution:
       integrity: sha1-UWbihkV/AzBgZL5Ul+jbsMPTIIM=
   /minimist/0.0.8:
-    dev: true
     resolution:
       integrity: sha1-hX/Kv8M5fSYluCKCYuhqp6ARsF0=
   /minimist/1.2.0:
     dev: true
     resolution:
       integrity: sha1-o1AIsg9BOD7sH7kU9M1d95omQoQ=
+  /mkdirp-promise/5.0.1:
+    dependencies:
+      mkdirp: 0.5.1
+    resolution:
+      integrity: sha1-6bj2jlUsaKnBcTuEiD96HdA5uKE=
   /mkdirp/0.5.1:
     dependencies:
       minimist: 0.0.8
-    dev: true
     resolution:
       integrity: sha1-MAV0OOrGz3+MR2fzhkjWaX11yQM=
   /object-inspect/1.2.2:
@@ -415,6 +419,7 @@ specifiers:
   '@types/tape': ^4.2.30
   js-yaml: ^3.8.4
   load-yaml-file: ^0.1.0
+  mkdirp-promise: ^5.0.1
   pnpm-logger: ^0.3.0
   ramda: ^0.24.1
   rimraf: ^2.6.1
