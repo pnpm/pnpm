@@ -6,6 +6,7 @@ import yaml = require('js-yaml')
 import {SHRINKWRAP_FILENAME, PRIVATE_SHRINKWRAP_FILENAME} from './constants'
 import {Shrinkwrap} from './types'
 import mkdirp = require('mkdirp-promise')
+import logger from './logger'
 
 const writeFileAtomic = thenify(writeFileAtomicCB)
 
@@ -42,6 +43,10 @@ export default function write (
       mkdirp(path.dirname(privateShrinkwrapPath)).then(() => writeFileAtomic(privateShrinkwrapPath, yamlDoc)),
     ])
   }
+
+  logger.warn('`shrinkwrap.yaml` differs from `node_modules/.shrinkwrap.yaml`. ' +
+    'To fix this, run `pnpm install`. From pnpm version 2, named installations and uninstallations will fail ' +
+    'when the content of `node_modules` won\'t match what the `shrinkwrap.yaml` expects.')
 
   const privateYamlDoc = yaml.safeDump(privateShrinkwrap, SHRINKWRAP_YAML_FORMAT)
 
