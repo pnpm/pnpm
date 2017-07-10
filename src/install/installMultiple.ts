@@ -1,5 +1,5 @@
 import path = require('path')
-import logger from 'pnpm-logger'
+import logger, {deprecationLogger} from 'pnpm-logger'
 import R = require('ramda')
 import getNpmTarballUrl from 'get-npm-tarball-url'
 import exists = require('path-exists')
@@ -226,6 +226,14 @@ async function install (
     fetchedPkg.calculatingIntegrity.catch(err => {})
     fetchedPkg.fetchingFiles.catch(err => {})
     throw err
+  }
+  if (pkg['deprecated']) {
+    deprecationLogger.warn({
+      pkgName: pkg.name,
+      pkgVersion: pkg.version,
+      pkgId: fetchedPkg.id,
+      deprecated: pkg['deprecated'],
+    })
   }
 
   logStatus({status: 'downloaded_manifest', pkgId: fetchedPkg.id, pkgVersion: pkg.version})

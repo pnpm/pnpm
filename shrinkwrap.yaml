@@ -43,7 +43,7 @@ dependencies:
   path-exists: 3.0.0
   path-name: 1.0.0
   pnpm-install-checks: 1.1.0
-  pnpm-logger: 0.4.0
+  pnpm-logger: 0.5.0
   pnpm-shrinkwrap: 3.1.0
   proper-lockfile: 2.0.1
   ramda: 0.24.1
@@ -1589,6 +1589,11 @@ packages:
       bole: 3.0.2
     resolution:
       integrity: sha1-nHQPGm58hOypD01B5NEr0WuYtjI=
+  /pnpm-logger/0.5.0:
+    dependencies:
+      bole: 3.0.2
+    resolution:
+      integrity: sha512-J5n4RJ3eW3Yt1yCWB43yUna0j8TYyqh1SGu8ffk9SBjUXS7zIGwi9C2zwNqNZIou4jvaQ1+dAc5RPE/U/eJLoQ==
   /pnpm-shrinkwrap/3.1.0:
     dependencies:
       '@types/node': 7.0.33
@@ -2234,7 +2239,7 @@ specifiers:
   path-exists: ^3.0.0
   path-name: ^1.0.0
   pnpm-install-checks: ^1.1.0
-  pnpm-logger: ^0.4.0
+  pnpm-logger: ^0.5.0
   pnpm-shrinkwrap: ^3.1.0
   proper-lockfile: ^2.0.0
   ramda: ^0.24.1

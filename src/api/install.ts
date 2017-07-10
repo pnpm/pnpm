@@ -1,6 +1,10 @@
 import path = require('path')
 import RegClient = require('npm-registry-client')
-import logger from 'pnpm-logger'
+import logger, {
+  lifecycleLogger,
+  stageLogger,
+  summaryLogger,
+} from 'pnpm-logger'
 import logStatus from '../logging/logInstallStatus'
 import pLimit = require('p-limit')
 import npa = require('npm-package-arg')
@@ -359,7 +363,7 @@ async function installInContext (
     nonLinkedPkgs,
     installOpts
   )
-  logger('stage').debug('resolution_done')
+  stageLogger.debug('resolution_done')
   const rootNodeIds = rootPkgs.map(pkg => pkg.nodeId)
   installCtx.nodesToBuild.forEach(nodeToBuild => {
     installCtx.tree[nodeToBuild.nodeId] = {
@@ -519,7 +523,7 @@ async function installInContext (
   // waiting till integrities are saved
   await Promise.all(R.values(installCtx.installs).map(installed => installed.calculatingIntegrity))
 
-  logger('summary').info()
+  summaryLogger.info(undefined)
 }
 
 function buildTree (
@@ -629,8 +633,6 @@ function npmRun (scriptName: string, pkgRoot: string, userAgent: string) {
     throw err
   }
 }
-
-const lifecycleLogger = logger('lifecycle')
 
 function installLogger (pkgId: string) {
   return (stream: string, line: string) => {

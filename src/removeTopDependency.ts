@@ -2,9 +2,7 @@ import rimraf = require('rimraf-then')
 import path = require('path')
 import binify from './binify'
 import {fromDir as safeReadPkgFromDir} from './fs/safeReadPkg'
-import logger from 'pnpm-logger'
-
-const rootLogger = logger('root')
+import {rootLogger} from 'pnpm-logger'
 
 export default async function removeTopDependency (dependencyName: string, modules: string) {
   const results = await Promise.all([

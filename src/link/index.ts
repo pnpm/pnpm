@@ -2,7 +2,7 @@ import fs = require('mz/fs')
 import path = require('path')
 import symlinkDir = require('symlink-dir')
 import exists = require('path-exists')
-import logger from 'pnpm-logger'
+import logger, {rootLogger} from 'pnpm-logger'
 import R = require('ramda')
 import pLimit = require('p-limit')
 import {InstalledPackage} from '../install/installMultiple'
@@ -19,8 +19,6 @@ import removeOrphanPkgs from '../api/removeOrphanPkgs'
 import linkIndexedDir from '../fs/linkIndexedDir'
 import ncpCB = require('ncp')
 import thenify = require('thenify')
-
-const rootLogger = logger('root')
 
 const ncp = thenify(ncpCB)
 
@@ -90,6 +88,7 @@ export default async function (
     if (!symlinkingResult.reused) {
       rootLogger.info({
         added: {
+          id: pkg.id,
           name: pkg.name,
           version: pkg.version,
         },
