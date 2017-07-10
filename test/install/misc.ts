@@ -587,6 +587,33 @@ test('should update subdep on second install', async function (t) {
   t.equal(deepRequireCwd(['pkg-with-1-dep', 'dep-of-pkg-with-1-dep', './package.json']).version, '100.1.0', 'updated in node_modules')
 })
 
+test('should not update subdep when depth is smaller than depth of package', async function (t: tape.Test) {
+  const project = prepare(t)
+
+  await addDistTag('dep-of-pkg-with-1-dep', '100.0.0', 'latest')
+
+  await installPkgs(['pkg-with-1-dep'], testDefaults({save: true}))
+
+  await project.storeHas('dep-of-pkg-with-1-dep', '100.0.0')
+
+  let shr = await project.loadShrinkwrap()
+
+  t.ok(shr.packages['/dep-of-pkg-with-1-dep/100.0.0'], 'shrinkwrap has resolution for package')
+
+  await addDistTag('dep-of-pkg-with-1-dep', '100.1.0', 'latest')
+
+  await install(testDefaults({depth: 0, update: true}))
+
+  await project.storeHas('dep-of-pkg-with-1-dep', '100.0.0')
+
+  shr = await project.loadShrinkwrap()
+
+  t.ok(shr.packages['/dep-of-pkg-with-1-dep/100.0.0'], "shrinkwrap has old dependency")
+  t.notOk(shr.packages['/dep-of-pkg-with-1-dep/100.1.0'], 'shrinkwrap has not the new dependency')
+
+  t.equal(deepRequireCwd(['pkg-with-1-dep', 'dep-of-pkg-with-1-dep', './package.json']).version, '100.0.0', 'not updated in node_modules')
+})
+
 test('should install dependency in second project', async function (t) {
   const project1 = prepare(t)
 

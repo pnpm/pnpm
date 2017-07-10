@@ -91,6 +91,7 @@ export default async function installMultiple (
             ? dependencyShrToResolution(pkgShortId, dependencyShrinkwrap, options.registry)
             : undefined
           return await install(spec, ctx, Object.assign({}, options, {
+            pkgShortId,
             pkgId,
             resolvedDependencies: dependencyShrinkwrap &&
               <ResolvedDependencies>Object.assign({}, dependencyShrinkwrap.dependencies, dependencyShrinkwrap.optionalDependencies) || {},
@@ -138,6 +139,7 @@ async function install (
     got: Got,
     keypath: string[], // TODO: remove. Currently used only for logging
     pkgId?: string,
+    pkgShortId?: string,
     parentNodeId: string,
     currentDepth: number,
     shrinkwrapResolution?: Resolution,
@@ -160,7 +162,7 @@ async function install (
   if (!proceed && options.pkgId &&
     // if package is not in `node_modules/.shrinkwrap.yaml`
     // we can safely assume that it doesn't exist in `node_modules`
-    ctx.privateShrinkwrap.packages && ctx.privateShrinkwrap.packages[options.pkgId] &&
+    options.pkgShortId && ctx.privateShrinkwrap.packages && ctx.privateShrinkwrap.packages[options.pkgShortId] &&
     await exists(path.join(options.nodeModules, `.${options.pkgId}`))) {
 
     return null
