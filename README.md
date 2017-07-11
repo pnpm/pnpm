@@ -148,11 +148,11 @@ time pnpm i babel-preset-es2015 browserify chalk debug minimist mkdirp
 
 ## Limitations
 
-1. [npm-shrinkwrap.json](https://docs.npmjs.com/cli/shrinkwrap) is ignored. Unlike pnpm, npm can install the
+1. `npm-shrinkwrap.json` and `package-lock.json` are ignored. Unlike pnpm, npm can install the
 same `name@version` multiple times and with different sets of dependencies.
 npm's shrinkwrap file is designed to reflect the `node_modules` layout created
 by npm. pnpm cannot create a similar layout, so it cannot respect
-`npm-shrinkwrap.json`.
+npm's lockfile format.
 2. You can't publish npm modules with `bundleDependencies` managed by pnpm.
 3. Binstubs (files in `node_modules/.bin`) are always shell files not
 symlinks to JS files. The shell files are created to help pluggable CLI apps
