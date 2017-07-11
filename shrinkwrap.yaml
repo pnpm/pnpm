@@ -2,10 +2,10 @@ dependencies:
   '@types/byline': 4.2.31
   '@types/common-tags': 1.2.5
   '@types/load-json-file': 2.0.5
-  '@types/node': 8.0.9
+  '@types/node': 8.0.10
   '@types/nopt': 3.0.29
   '@types/npm': 2.0.28
-  '@types/ramda': 0.24.2
+  '@types/ramda': 0.24.3
   '@types/update-notifier': 1.0.1
   bole: 3.0.2
   byline: 5.0.0
@@ -18,7 +18,7 @@ dependencies:
   loud-rejection: 1.6.0
   ndjson: 1.5.0
   nopt: 4.0.1
-  npm: 5.1.0
+  npm: 5.2.0
   path-name: 1.0.0
   pnpm-default-reporter: 0.8.0
   pnpm-file-reporter: 0.0.1
@@ -62,18 +62,12 @@ packages:
       '@types/node': 8.0.10
     resolution:
       integrity: sha1-pNgMCC/v5x5Ap8DwfR5lVbu8e1I=
-  /@types/node/7.0.33:
-    resolution:
-      integrity: sha512-8fVvl6Yyk3jZvSYxRMS9/AmZJ5RXCOP9N4xSlykyBViVESu751pxHYTN14Embn1Fem78YwEHdC7p7KGQQpwunw==
   /@types/node/7.0.34:
     resolution:
       integrity: sha512-99ujivDq9tqw3b88xrWqUcHfY3XT+moVhAlMqlN+OdavTxfCRW2X1bRBFcloILRJiIoir+gG3I65jzrpNgF/3g==
   /@types/node/8.0.10:
     resolution:
       integrity: sha512-ATKQAMGah+e3qNBVdJoCIJk3+RWBkPYtmlluGewO1+t/JmkXEoLnt/WDgHynfGvJyQWTKMq+N1az1E/5YASYGg==
-  /@types/node/8.0.9:
-    resolution:
-      integrity: sha512-UkiiJp6Iz2h4xzapN8BPKjhq+/BlyXcISwPVk2Kd7VJ/I1TREFokjBtvM6hftANXdsfo1IoWMXhmg8G8X+SS8Q==
   /@types/nopt/3.0.29:
     resolution:
       integrity: sha1-8Z3z20yX7hRZonQAKDIKcdcJZM4=
@@ -88,9 +82,6 @@ packages:
   /@types/ramda/0.0.15:
     resolution:
       integrity: sha512-5FIV9glDDA5mrD7bTBU2LaOeTMfwfAYIZBPvceBS6oXUuoMomHmqE24gaHRJ8P1/rH1AvmXhznbcKnPdqU8tJw==
-  /@types/ramda/0.24.2:
-    resolution:
-      integrity: sha512-MuMNsk3+Mf9K2ReSUTrtE9JfAOPV2vpVsQS2m7CwS4iVTjBp3wwLKZ3T9lAFVkXTbLQXxwI3qsXUejgSkEee+Q==
   /@types/ramda/0.24.3:
     resolution:
       integrity: sha512-rOvzjI3N2TRbO/fDAq1ogNFOcDVARC9a6O3l7W7Km1gAjKl4IwV3tHc5nhmnJC0zRE+euDmgl4QdnZLzoNbdUA==
@@ -102,7 +93,7 @@ packages:
       integrity: sha512-MdbWERx4JWmN4zP+skJy9Kio+Cddvmyn1k8x0S8UAqDoMgOJeobQo7yhlE4BfiimonHirgixWfva/hKUlXBsrw==
   /@types/tape/4.2.30:
     dependencies:
-      '@types/node': 8.0.9
+      '@types/node': 8.0.10
     dev: true
     resolution:
       integrity: sha1-PBkXxN/W8nJxuZInclE1FbxsRrQ=
@@ -1504,9 +1495,6 @@ packages:
     dev: true
     resolution:
       integrity: sha1-FOfHjBKIvW2CB4dpx6qVg/xBPAM=
-  /npm/5.1.0:
-    resolution:
-      integrity: sha512-pt5ClxEmY/dLpb60SmGQQBKi3nB6Ljx1FXmpoCUdAULlGqGVn2uCyXxPCWFbcuHGthT7qGiaGa1wOfs/UjGYMw==
   /npm/5.2.0:
     resolution:
       integrity: sha512-6Ud8G7qNoB7958zepigRCvii28AFKFAhHhyW9t9817ecRtQXoTObNgvoUXfbWtg1aHTSnVrH4kJSrD2UWtphBA==
@@ -1748,7 +1736,7 @@ packages:
   /pnpm-file-reporter/0.0.1:
     dependencies:
       '@types/chalk': 0.4.31
-      '@types/node': 7.0.33
+      '@types/node': 7.0.34
       chalk: 1.1.3
       json2yaml: 1.1.0
       ndjson: 1.5.0
@@ -2349,16 +2337,16 @@ packages:
       resolve: 1.3.3
       semver: 5.3.0
       tslib: 1.7.1
-      tsutils: 2.5.1
+      tsutils: 2.6.0
     dev: true
     resolution:
       integrity: sha1-EOjas+MGH6YelELozuOYKs8gpqo=
-  /tsutils/2.5.1:
+  /tsutils/2.6.0:
     dependencies:
       tslib: 1.7.1
     dev: true
     resolution:
-      integrity: sha1-wgATkMee7Bpcz6esEtWZY5aD4M8=
+      integrity: sha1-5emceaiszTl3zhjYP98dI1psLrs=
   /tunnel-agent/0.6.0:
     dependencies:
       safe-buffer: 5.1.1
