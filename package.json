@@ -34,7 +34,7 @@
     "common-tags": "^1.4.0",
     "log-update": "^2.0.0",
     "ndjson": "^1.5.0",
-    "pnpm-logger": "^0.4.0"
+    "pnpm-logger": "^0.5.0"
   },
   "devDependencies": {
     "commitizen": "^2.9.5",

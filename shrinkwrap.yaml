@@ -6,7 +6,7 @@ dependencies:
   common-tags: 1.4.0
   log-update: 2.0.0
   ndjson: 1.5.0
-  pnpm-logger: 0.4.0
+  pnpm-logger: 0.5.0
 devDependencies:
   commitizen: 2.9.6
   ghooks: 2.0.0
@@ -970,11 +970,11 @@ packages:
     dev: true
     resolution:
       integrity: sha1-clVrgM+g1IqXToDnckjoDtT3+HA=
-  /pnpm-logger/0.4.0:
+  /pnpm-logger/0.5.0:
     dependencies:
       bole: 3.0.2
     resolution:
-      integrity: sha1-nHQPGm58hOypD01B5NEr0WuYtjI=
+      integrity: sha512-J5n4RJ3eW3Yt1yCWB43yUna0j8TYyqh1SGu8ffk9SBjUXS7zIGwi9C2zwNqNZIou4jvaQ1+dAc5RPE/U/eJLoQ==
   /prepend-http/1.0.4:
     dev: true
     resolution:
@@ -1357,7 +1357,7 @@ specifiers:
   ghooks: ^2.0.0
   log-update: ^2.0.0
   ndjson: ^1.5.0
-  pnpm-logger: ^0.4.0
+  pnpm-logger: ^0.5.0
   rimraf: ^2.5.4
   tslint: ^4.3.1
   typescript: ^2.1.5

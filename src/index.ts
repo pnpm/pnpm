@@ -16,28 +16,29 @@ const removedSign = chalk.red('-')
 
 export default function (streamParser: Object) {
   let resolutionDone = false
-  let pkgsDiff: {name: string, version?: string, added: boolean}[] = []
+  let pkgsDiff: {name: string, version?: string, added: boolean, deprecated?: boolean}[] = []
+  const deprecated = {}
 
   streamParser['on']('data', (obj: Log) => {
     switch (obj.name) {
       case 'pnpm:progress':
-        reportProgress(<ProgressLog>obj)
+        reportProgress(obj)
         return
       case 'pnpm:stage':
-        if (obj['message'] === 'resolution_done') {
+        if (obj.message === 'resolution_done') {
           resolutionDone = true
           updateProgress()
         }
         return
       case 'pnpm:lifecycle':
-        reportLifecycle(<LifecycleLog>obj)
+        reportLifecycle(obj)
         return
       case 'pnpm:install-check':
-        reportInstallCheck(<InstallCheckLog>obj)
+        reportInstallCheck(obj)
         return
       case 'pnpm:registry':
         if (obj.level === 'warn') {
-          printWarn(obj['message'])
+          printWarn(obj.message)
         }
         return
       case 'pnpm:root':
@@ -45,6 +46,7 @@ export default function (streamParser: Object) {
           pkgsDiff.push({
             name: obj['added'].name,
             version: obj['added'].version,
+            deprecated: !!deprecated[obj['added'].id],
             added: true,
           })
           return
@@ -70,14 +72,20 @@ export default function (streamParser: Object) {
           if (pkg.version) {
             result += ` ${chalk.grey(pkg.version)}`
           }
+          if (pkg.deprecated) {
+            result += ` ${chalk.red('deprecated')}`
+          }
           return result
         }).join(EOL)
         if (!msg) return
         terminalWriter.write(`${EOL}${msg}`)
         return
-      default:
+      case 'pnpm:deprecation':
+        deprecated[obj.pkgId] = obj['deprecated']
+        printWarn(`${chalk.red('deprecated')} ${obj['pkgName']}@${obj['pkgVersion']}: ${obj['deprecated']}`)
+        return
+      case 'pnpm':
         if (obj.level === 'debug') return
-        if (obj.name !== 'pnpm' && obj.name.indexOf('pnpm:') !== 0) return
         if (obj.level === 'warn') {
           printWarn(obj['message'])
           return
