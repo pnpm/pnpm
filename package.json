@@ -15,6 +15,9 @@
   "files": [
     "lib/"
   ],
+  "peerDependencies": {
+    "pnpm-logger": "^0.5.0"
+  },
   "dependencies": {
     "@types/byline": "^4.2.31",
     "@types/common-tags": "^1.2.5",
@@ -56,11 +59,10 @@
     "os-homedir": "^1.0.2",
     "p-filter": "^1.0.0",
     "p-limit": "^1.1.0",
-    "package-store": "^0.1.0",
+    "package-store": "^0.2.0",
     "path-exists": "^3.0.0",
     "path-name": "^1.0.0",
     "pnpm-install-checks": "^1.1.0",
-    "pnpm-logger": "^0.5.0",
     "pnpm-shrinkwrap": "^3.1.0",
     "proper-lockfile": "^2.0.0",
     "ramda": "^0.24.1",
@@ -78,6 +80,7 @@
     "cz-conventional-changelog": "^2.0.0",
     "husky": "^0.13.2",
     "npm-scripts-info": "^0.3.6",
+    "pnpm-logger": "^0.5.0",
     "rimraf": "^2.5.4",
     "tslint": "^5.4.2",
     "typescript": "^2.4.1",

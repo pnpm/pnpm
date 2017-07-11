@@ -13,6 +13,12 @@ Install it via npm.
 npm install supi
 ```
 
+It also depends on `pnpm-logger` version `0.5`, so install it as well via:
+
+```
+npm install pnpm-logger@0.5
+```
+
 ## API
 
 ### `pnpm.installPkgs(pkgsToInstall, [options])`
