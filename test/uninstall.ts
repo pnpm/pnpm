@@ -20,6 +20,7 @@ import {
 } from '../src'
 import thenify = require('thenify')
 import sinon = require('sinon')
+import {RootLog} from 'pnpm-logger'
 
 const ncp = thenify(ncpCB.ncp)
 
@@ -34,7 +35,7 @@ test('uninstall package with no dependencies', async (t: tape.Test) => {
     level: 'info',
     message: 'Removing 1 orphan packages from node_modules',
   }), 'reported info message about removing orphans')
-  t.ok(reporter.calledWithMatch({
+  t.ok(reporter.calledWithMatch(<RootLog>{
     name: 'pnpm:root',
     level: 'info',
     removed: {

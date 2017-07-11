@@ -23,6 +23,7 @@ import exists = require('path-exists')
 import isWindows = require('is-windows')
 import deepRequireCwd = require('deep-require-cwd')
 import sinon = require('sinon')
+import {StageLog, RootLog, ProgressLog} from 'pnpm-logger'
 
 const IS_WINDOWS = isWindows()
 
@@ -45,7 +46,7 @@ test('no dependencies (lodash)', async (t: tape.Test) => {
 
   await installPkgs(['lodash@4.0.0'], testDefaults({reporter}))
 
-  t.ok(reporter.calledWithMatch({
+  t.ok(reporter.calledWithMatch(<StageLog>{
     name: 'pnpm:stage',
     level: 'debug',
     message: 'resolution_done',
@@ -58,7 +59,7 @@ test('no dependencies (lodash)', async (t: tape.Test) => {
     level: 'info',
     message: 'Adding 1 packages to node_modules',
   }), 'informed about adding new packages to node_modules')
-  t.ok(reporter.calledWithMatch({
+  t.ok(reporter.calledWithMatch(<RootLog>{
     name: 'pnpm:root',
     level: 'info',
     added: {
@@ -131,7 +132,7 @@ test('update a package when installing with a dist-tag', async function (t: tape
 
   await installPkgs(['dep-of-pkg-with-1-dep@beta'], testDefaults({saveDev: true, reporter}))
 
-  t.ok(reporter.calledWithMatch({
+  t.ok(reporter.calledWithMatch(<RootLog>{
     name: 'pnpm:root',
     level: 'info',
     removed: {
@@ -140,7 +141,7 @@ test('update a package when installing with a dist-tag', async function (t: tape
     },
   }), 'reported old version removed from the root')
 
-  t.ok(reporter.calledWithMatch({
+  t.ok(reporter.calledWithMatch(<RootLog>{
     name: 'pnpm:root',
     level: 'info',
     added: {
@@ -194,7 +195,7 @@ test('idempotency (rimraf)', async (t: tape.Test) => {
 
   await installPkgs(['rimraf@2.5.1'], opts)
 
-  t.ok(reporter.calledWithMatch({
+  t.ok(reporter.calledWithMatch(<RootLog>{
     name: 'pnpm:root',
     level: 'info',
     added: {
@@ -207,7 +208,7 @@ test('idempotency (rimraf)', async (t: tape.Test) => {
 
   await installPkgs(['rimraf@2.5.1'], opts)
 
-  t.notOk(reporter.calledWithMatch({
+  t.notOk(reporter.calledWithMatch(<RootLog>{
     name: 'pnpm:root',
     level: 'info',
     added: {
@@ -230,7 +231,7 @@ test('reporting adding root package', async (t: tape.Test) => {
 
   await installPkgs(['flatten@1.0.2'], testDefaults({reporter}))
 
-  t.ok(reporter.calledWithMatch({
+  t.ok(reporter.calledWithMatch(<RootLog>{
     name: 'pnpm:root',
     level: 'info',
     added: {
@@ -652,12 +653,12 @@ test('shrinkwrap locks npm dependencies', async function (t: tape.Test) {
 
   await installPkgs(['pkg-with-1-dep'], testDefaults({save: true, reporter}))
 
-  t.ok(reporter.calledWithMatch({
+  t.ok(reporter.calledWithMatch(<ProgressLog>{
     level: 'debug',
     status: 'resolving_content',
     pkgId: 'localhost+4873/pkg-with-1-dep/100.0.0',
   }), 'logs that package is being resolved')
-  t.ok(reporter.calledWithMatch({
+  t.ok(reporter.calledWithMatch(<ProgressLog>{
     level: 'debug',
     status: 'fetched',
     pkgId: 'localhost+4873/pkg-with-1-dep/100.0.0',
@@ -672,12 +673,12 @@ test('shrinkwrap locks npm dependencies', async function (t: tape.Test) {
   reporter.reset()
   await install(testDefaults({reporter}))
 
-  t.ok(reporter.calledWithMatch({
+  t.ok(reporter.calledWithMatch(<ProgressLog>{
     level: 'debug',
     status: 'resolving_content',
     pkgId: 'localhost+4873/pkg-with-1-dep/100.0.0',
   }), 'logs that package is being resolved')
-  t.ok(reporter.calledWithMatch({
+  t.ok(reporter.calledWithMatch(<ProgressLog>{
     level: 'debug',
     status: 'found_in_store',
     pkgId: 'localhost+4873/pkg-with-1-dep/100.0.0',
