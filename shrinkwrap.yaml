@@ -6,10 +6,10 @@ dependencies:
   common-tags: 1.4.0
   log-update: 2.0.0
   ndjson: 1.5.0
-  pnpm-logger: 0.5.0
 devDependencies:
   commitizen: 2.9.6
   ghooks: 2.0.0
+  pnpm-logger: 0.5.0
   rimraf: 2.6.1
   tslint: 4.5.1
   typescript: 2.4.1
@@ -79,6 +79,7 @@ packages:
     dependencies:
       fast-safe-stringify: 1.1.13
       individual: 3.0.0
+    dev: true
     resolution:
       integrity: sha1-vIpIPKlASdqbg3wa0Rzf6+5uBRQ=
   /boxen/1.1.0:
@@ -350,6 +351,7 @@ packages:
     resolution:
       integrity: sha1-Lhj/PS9JqydlzskCPwEdqo2DSaE=
   /fast-safe-stringify/1.1.13:
+    dev: true
     resolution:
       integrity: sha1-oB6c2cnkkXFcmKdaQtXwu9EH/3Y=
   /figures/1.7.0:
@@ -557,6 +559,7 @@ packages:
     resolution:
       integrity: sha1-khi5srkoojixPcT7a21XbyMUU+o=
   /individual/3.0.0:
+    dev: true
     resolution:
       integrity: sha1-58pPhfiVewGHNPKFdQ3CLsL5hi0=
   /inflight/1.0.6:
@@ -973,6 +976,7 @@ packages:
   /pnpm-logger/0.5.0:
     dependencies:
       bole: 3.0.2
+    dev: true
     resolution:
       integrity: sha512-J5n4RJ3eW3Yt1yCWB43yUna0j8TYyqh1SGu8ffk9SBjUXS7zIGwi9C2zwNqNZIou4jvaQ1+dAc5RPE/U/eJLoQ==
   /prepend-http/1.0.4:
