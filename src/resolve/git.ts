@@ -12,7 +12,7 @@ import path = require('path')
 import normalizeSsh = require('normalize-ssh')
 import {Got} from '../network/got'
 
-const gitLogger = logger('git-logger')
+const gitLogger = logger // TODO: add namespace 'git-logger'
 
 let tryGitHubApi = true
 
