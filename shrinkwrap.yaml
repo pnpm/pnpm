@@ -20,12 +20,12 @@ dependencies:
   nopt: 4.0.1
   npm: 5.1.0
   path-name: 1.0.0
-  pnpm-default-reporter: 0.7.3
+  pnpm-default-reporter: 0.8.0
   pnpm-file-reporter: 0.0.1
-  pnpm-logger: 0.3.0
+  pnpm-logger: 0.5.0
   ramda: 0.24.1
   rimraf: 2.6.1
-  supi: 0.1.10
+  supi: 0.2.0
   update-notifier: 2.2.0
 devDependencies:
   '@types/mkdirp': 0.3.29
@@ -1608,7 +1608,7 @@ packages:
       semver: 5.3.0
     resolution:
       integrity: sha1-iGmgQBJTZhxMTKPabCEh7VVfXu0=
-  /package-store/0.1.1:
+  /package-store/0.2.0:
     dependencies:
       '@types/load-json-file': 2.0.5
       '@types/node': 7.0.34
@@ -1628,7 +1628,6 @@ packages:
       p-limit: 1.1.0
       parse-npm-tarball-url: 1.0.1
       path-exists: 3.0.0
-      pnpm-logger: 0.4.0
       ramda: 0.24.1
       read-package-json: 2.0.10
       rename-overwrite: 1.0.0
@@ -1640,7 +1639,7 @@ packages:
       unpack-stream: 2.0.0
       write-json-file: 2.2.0
     resolution:
-      integrity: sha512-/QOL6ux3xumkkDs62BHwoCE6ALeZ5ivK0ZgLJkfW9ccT/t0lsiThjxecuAXG7axbRZCnXAD6RaN3kOh7frXGYw==
+      integrity: sha512-OrRPpDItY+vq3uk++pWxPhXc+5AVMfI+afCJxw+iP3Oq5Wnx6ygx04CcfTi2i8ce6cUy6iiItqUnapuYF75/Sg==
   /pad-right/0.2.2:
     dependencies:
       repeat-string: 1.6.1
@@ -1735,7 +1734,7 @@ packages:
     dev: true
     resolution:
       integrity: sha1-clVrgM+g1IqXToDnckjoDtT3+HA=
-  /pnpm-default-reporter/0.7.3:
+  /pnpm-default-reporter/0.8.0:
     dependencies:
       '@types/chalk': 0.4.31
       '@types/common-tags': 1.2.5
@@ -1744,9 +1743,8 @@ packages:
       common-tags: 1.4.0
       log-update: 2.0.0
       ndjson: 1.5.0
-      pnpm-logger: 0.5.0
     resolution:
-      integrity: sha512-7FArkhDSADHJCGTsoNHn8TvPt86B1l/AW1hJMx5OS/5N8iTgnnZu5hjeVAZmfy582imSwHyFRpBW8DS+oSCHdA==
+      integrity: sha512-YEH6oC7Ivk4vFJLFzeyXzfjuH9PSrPOVW0z6/xWCe/pklZS3Kr6n+GUy3SrhEdfmNA6PWzXAldZLTgyJOYb3CQ==
   /pnpm-file-reporter/0.0.1:
     dependencies:
       '@types/chalk': 0.4.31
@@ -1773,11 +1771,6 @@ packages:
       bole: 3.0.2
     resolution:
       integrity: sha1-6uzqWgN/BTpkxQvafto8uH9e1mE=
-  /pnpm-logger/0.4.0:
-    dependencies:
-      bole: 3.0.2
-    resolution:
-      integrity: sha1-nHQPGm58hOypD01B5NEr0WuYtjI=
   /pnpm-logger/0.5.0:
     dependencies:
       bole: 3.0.2
@@ -2199,7 +2192,7 @@ packages:
   /strip-json-comments/2.0.1:
     resolution:
       integrity: sha1-PFMZQukIwml8DsNEhYwobHygpgo=
-  /supi/0.1.10:
+  /supi/0.2.0:
     dependencies:
       '@types/byline': 4.2.31
       '@types/common-tags': 1.2.5
@@ -2241,11 +2234,10 @@ packages:
       os-homedir: 1.0.2
       p-filter: 1.0.0
       p-limit: 1.1.0
-      package-store: 0.1.1
+      package-store: 0.2.0
       path-exists: 3.0.0
       path-name: 1.0.0
       pnpm-install-checks: 1.1.0
-      pnpm-logger: 0.5.0
       pnpm-shrinkwrap: 3.1.0
       proper-lockfile: 2.0.1
       ramda: 0.24.1
@@ -2258,7 +2250,7 @@ packages:
       write-pkg: 3.1.0
       write-yaml-file: 1.0.0
     resolution:
-      integrity: sha512-z2hJi9JlPe7B5xyO/+HxM2lG+bjcwUsK0jjxkrhZezq/rcdLXF2SC67zIerx6De2L6CaH0bGrT/Kz06CH1m14w==
+      integrity: sha512-QfnRJ5dV7anxFzAOrqBXrE59Sv3+eQwxJPBaYaCl7R8hvz2vCo3+01MOm82SW6NDgMNNiFLHJHrsAXdqQxYZ9w==
   /supports-color/2.0.0:
     resolution:
       integrity: sha1-U10EXOa2Nj+kARcIRimZXp3zJMc=
@@ -2564,12 +2556,12 @@ specifiers:
   npm: ^5.0.2
   npm-scripts-info: ^0.3.6
   path-name: ^1.0.0
-  pnpm-default-reporter: ^0.7.3
+  pnpm-default-reporter: ^0.8.0
   pnpm-file-reporter: ^0.0.1
-  pnpm-logger: ^0.3.0
+  pnpm-logger: ^0.5.0
   ramda: ^0.24.1
   rimraf: ^2.5.4
-  supi: ^0.1.10
+  supi: ^0.2.0
   tslint: ^5.4.2
   typescript: ^2.4.1
   update-notifier: ^2.1.0
