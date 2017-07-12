@@ -1,0 +1,22 @@
+{
+  "scripts": {
+    "pnpm-registry-mock": "pnpm-registry-mock",
+    "test:tap": "ts-node index.ts",
+    "test:e2e": "npm-run-all -p -r pnpm-registry-mock test:tap",
+    "pretest": "rimraf ../../.tmp/ && pnpm-registry-mock prepare",
+    "test": "npm run test:e2e"
+  },
+  "dependencies": {
+    "@types/mkdirp": "^0.3.29",
+    "@types/tape": "^4.2.30",
+    "mkdirp": "^0.5.1",
+    "npm-run-all": "^4.0.2",
+    "pnpm-logger": "^0.5.0",
+    "pnpm-registry-mock": "^0.13.0",
+    "rimraf": "^2.6.1",
+    "supi": "^0.2.0",
+    "tape": "^4.7.0",
+    "ts-node": "^3.2.0",
+    "write-pkg": "^3.1.0"
+  }
+}
