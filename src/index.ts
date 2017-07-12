@@ -4,21 +4,37 @@ import {
   ResolvedPackages,
   getPkgShortId,
 } from 'pnpm-shrinkwrap'
+import semver = require('semver')
 
-async function list (
+export type SearchedPackage = {
+  name: string,
+  versionRange: string,
+}
+
+export type PackageNode = {
+  pkg: {
+    name: string,
+    version: string,
+  }
+  dependencies?: PackageNode[],
+}
+
+export default async function list (
   projectPath: string,
   opts?: {
     depth: number,
     only?: 'dev' | 'prod',
+    searched?: SearchedPackage[],
   }
-) {
+): Promise<PackageNode[]> {
   const _opts = Object.assign({}, {
     depth: 0,
     only: undefined,
+    searched: [],
   }, opts)
   const shrinkwrap = await readPrivate(projectPath, {ignoreIncompatible: false})
 
-  if (!shrinkwrap) return {}
+  if (!shrinkwrap) return []
 
   const topDeps = getTopDependencies(shrinkwrap, _opts)
 
@@ -28,8 +44,10 @@ async function list (
     currentDepth: 1,
     maxDepth: _opts.depth,
     prod: _opts.only === 'prod',
+    searched: _opts.searched,
   }, shrinkwrap.packages)
-  return Object.keys(topDeps).map(depName => {
+  const result: PackageNode[] = []
+  Object.keys(topDeps).forEach(depName => {
     const shortId = getPkgShortId(topDeps[depName], depName)
     const pkg = {
       name: depName,
@@ -37,13 +55,17 @@ async function list (
     }
     const dependencies = getChildrenTree(shortId)
     if (dependencies.length) {
-      return {
+      result.push({
         pkg,
         dependencies,
-      }
+      })
+      return
     }
-    return {pkg}
+    if (!_opts.searched.length || matches(_opts.searched, pkg)) {
+      result.push({pkg})
+    }
   })
+  return result
 }
 
 function getTopDependencies (
@@ -71,10 +93,11 @@ function getTree (
     currentDepth: number,
     maxDepth: number,
     prod: boolean,
+    searched: SearchedPackage[],
   },
   packages: ResolvedPackages,
   parentId: string
-) {
+): PackageNode[] {
   if (opts.currentDepth > opts.maxDepth) return []
 
   const deps = opts.prod
@@ -90,22 +113,34 @@ function getTree (
     currentDepth: opts.currentDepth + 1,
     maxDepth: opts.maxDepth,
     prod: opts.prod,
+    searched: opts.searched,
   }, packages)
-  return Object.keys(deps).map(depName => {
+
+  let result: PackageNode[] = []
+  Object.keys(deps).forEach(depName => {
     const shortId = getPkgShortId(deps[depName], depName)
     const pkg = {
       name: depName,
       version: deps[depName],
     }
     const dependencies = getChildrenTree(shortId)
-    if (dependencies.depth) {
-      return {
+    if (dependencies.length) {
+      result.push({
         pkg,
         dependencies,
-      }
+      })
+      return
     }
-    return {pkg}
+    if (!opts.searched.length || matches(opts.searched, pkg)) {
+      result.push({pkg})
+    }
   })
+  return result
 }
 
-export = list
+function matches (
+  searched: SearchedPackage[],
+  pkg: {name: string, version: string}
+) {
+  return searched.some(searchedPkg => searchedPkg.name === pkg.name && semver.satisfies(pkg.version, searchedPkg.versionRange))
+}
