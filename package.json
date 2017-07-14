@@ -43,7 +43,7 @@
     "update-notifier": "^2.1.0"
   },
   "devDependencies": {
-    "@types/mkdirp": "^0.3.29",
+    "@types/mkdirp": "^0.5.0",
     "@types/tape": "^4.2.30",
     "commitizen": "^2.8.6",
     "cz-conventional-changelog": "^2.0.0",
