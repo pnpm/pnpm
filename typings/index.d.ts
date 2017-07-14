@@ -133,11 +133,6 @@ declare module 'write-json-file' {
   export = anything;
 }
 
-declare module 'mem' {
-  const anything: any;
-  export = anything;
-}
-
 declare module 'pnpm-install-checks' {
   const anything: any;
   export = anything;
@@ -257,6 +252,11 @@ declare module 'is-subdir' {
 declare module 'normalize-registry-url' {
   function normalizeRegistryUrl (registry: string): string
   export = normalizeRegistryUrl;
+}
+
+declare module 'encode-registry' {
+  function encodeRegistry (registry: string): string
+  export = encodeRegistry;
 }
 
 declare module 'rename-overwrite' {

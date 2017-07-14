@@ -6,7 +6,7 @@ import {Got} from '../../network/got'
 import {PackageSpec} from '..'
 import {Package} from '../../types'
 import createPkgId from './createNpmPkgId'
-import getRegistryName from './getRegistryName'
+import getRegistryName = require('encode-registry')
 import logger from 'pnpm-logger'
 import pLimit = require('p-limit')
 import {PnpmError} from '../../errorTypes'

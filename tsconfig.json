@@ -36,8 +36,6 @@
     "src/resolve/index.ts",
     "src/resolve/local.ts",
     "src/resolve/npm/createNpmPkgId.ts",
-    "src/resolve/npm/getHost.ts",
-    "src/resolve/npm/getRegistryName.ts",
     "src/resolve/npm/index.ts",
     "src/resolve/npm/loadPackageMeta.ts",
     "src/resolve/tarball.ts",

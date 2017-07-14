@@ -4,10 +4,10 @@ dependencies:
   '@types/ramda': 0.24.3
   '@types/semver': 5.3.32
   dint: 1.0.0
+  encode-registry: 1.0.0
   execa: 0.7.0
   fs-write-stream-atomic: 1.0.10
   load-json-file: 2.0.0
-  mem: 1.1.0
   mkdirp-promise: 5.0.1
   mz: 2.6.0
   normalize-path: 2.1.1
@@ -353,6 +353,11 @@ packages:
       stream-shift: 1.0.0
     resolution:
       integrity: sha1-GqdzAC4VeEV+nZ1KULDMquvL1gQ=
+  /encode-registry/1.0.0:
+    dependencies:
+      mem: 1.1.0
+    resolution:
+      integrity: sha512-4DiPp5kmIDq9rHDU5C3r9clu+TVcnUXIMoLNiiJxHlGG+cMIApT/mOwLEpcEPN1a2PnNt/Ll3lcf39dyHf3n9w==
   /end-of-stream/1.0.0:
     dependencies:
       once: 1.3.3
@@ -1597,12 +1602,12 @@ specifiers:
   commitizen: ^2.8.6
   cz-conventional-changelog: ^2.0.0
   dint: ^1.0.0
+  encode-registry: ^1.0.0
   execa: ^0.7.0
   fs-write-stream-atomic: ^1.0.10
   husky: ^0.13.2
   in-publish: ^2.0.0
   load-json-file: ^2.0.0
-  mem: ^1.1.0
   mkdirp-promise: ^5.0.1
   mz: ^2.6.0
   normalize-path: ^2.1.1

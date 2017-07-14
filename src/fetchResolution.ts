@@ -8,7 +8,6 @@ import dint = require('dint')
 import {Resolution} from './resolve'
 import {Got} from './network/got'
 import logStatus from './logging/logInstallStatus'
-import {escapeHost} from './resolve/npm/getRegistryName'
 import {PnpmError} from './errorTypes'
 import rimraf = require('rimraf-then')
 

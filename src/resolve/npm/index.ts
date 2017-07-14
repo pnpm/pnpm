@@ -5,7 +5,6 @@ import {PackageSpec, ResolveOptions, TarballResolution, ResolveResult} from '..'
 import logStatus from '../../logging/logInstallStatus'
 import loadPkgMeta, {PackageMeta} from './loadPackageMeta'
 import createPkgId from './createNpmPkgId'
-import getHost from './getHost'
 import ssri = require('ssri')
 
 export {PackageMeta}
@@ -45,8 +44,7 @@ export default async function resolveNpm (spec: PackageSpec, opts: ResolveOption
         spec.raw + '\n' + message)
       throw err
     }
-    const registryHost = getHost(correctPkg.dist.tarball)
-    const id = createPkgId(registryHost, correctPkg.name, correctPkg.version)
+    const id = createPkgId(correctPkg.dist.tarball, correctPkg.name, correctPkg.version)
 
     const resolution: TarballResolution = {
       tarball: correctPkg.dist.tarball,
