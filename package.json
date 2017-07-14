@@ -10,7 +10,8 @@
   "scripts": {
     "prepare": "cd test && pnpm install",
     "test": "cd test && npm test",
-    "prepublishOnly": "npm run tsc"
+    "prepublishOnly": "tsc",
+    "tsc": "tsc"
   },
   "repository": {
     "type": "git",

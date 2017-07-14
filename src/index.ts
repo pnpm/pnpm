@@ -8,7 +8,7 @@ import semver = require('semver')
 
 export type SearchedPackage = {
   name: string,
-  versionRange: string,
+  range: string,
 }
 
 export type PackageNode = {
@@ -109,12 +109,9 @@ function getTree (
 
   if (!deps) return []
 
-  const getChildrenTree = getTree.bind(null, {
+  const getChildrenTree = getTree.bind(null, Object.assign({}, opts, {
     currentDepth: opts.currentDepth + 1,
-    maxDepth: opts.maxDepth,
-    prod: opts.prod,
-    searched: opts.searched,
-  }, packages)
+  }), packages)
 
   let result: PackageNode[] = []
   Object.keys(deps).forEach(depName => {
@@ -142,5 +139,5 @@ function matches (
   searched: SearchedPackage[],
   pkg: {name: string, version: string}
 ) {
-  return searched.some(searchedPkg => searchedPkg.name === pkg.name && semver.satisfies(pkg.version, searchedPkg.versionRange))
+  return searched.some(searchedPkg => searchedPkg.name === pkg.name && semver.satisfies(pkg.version, searchedPkg.range))
 }

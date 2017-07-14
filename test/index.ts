@@ -123,7 +123,7 @@ test('only dev depth 0', async t => {
 })
 
 test('filter 1 package with depth 0', async t => {
-  const list = await getList(fixture, {depth: 0, searched: [{name: 'rimraf', versionRange: '*'}]})
+  const list = await getList(fixture, {depth: 0, searched: [{name: 'rimraf', range: '*'}]})
 
   t.deepEqual(list, [
       {
@@ -139,8 +139,8 @@ test('filter 1 package with depth 0', async t => {
 
 test('filter 2 packages with depth 100', async t => {
   const searched = [
-    {name: 'minimatch', versionRange: '*'},
-    {name: 'once', versionRange: '*'},
+    {name: 'minimatch', range: '*'},
+    {name: 'once', range: '*'},
   ]
   const list = await getList(fixture, {depth: 100, searched})
 
