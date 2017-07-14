@@ -21,11 +21,11 @@ import logStatus from '../logging/logInstallStatus'
 import fs = require('mz/fs')
 import {
   getPkgId,
-  getPkgShortId,
 } from '../fs/shrinkwrap'
 import {
   DependencyShrinkwrap,
   ResolvedDependencies,
+  getPkgShortId,
 } from 'pnpm-shrinkwrap'
 import depsToSpecs from '../depsToSpecs'
 import getIsInstallable from './getIsInstallable'

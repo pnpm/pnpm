@@ -11,16 +11,6 @@ export function shortIdToFullId (
   return shortId
 }
 
-export function getPkgShortId (
-  reference: string,
-  pkgName: string
-) {
-  if (reference.indexOf('/') === -1) {
-    return `/${pkgName}/${reference}`
-  }
-  return reference
-}
-
 export function getPkgId (
   reference: string,
   pkgName: string,
