@@ -1,17 +1,17 @@
 dependencies:
-  '@types/node': 6.0.81
+  '@types/node': 8.0.13
   '@types/semver': 5.3.32
   pnpm-shrinkwrap: 3.1.0
   semver: 5.3.0
 devDependencies:
   typescript: 2.4.1
 packages:
-  /@types/node/6.0.81:
-    resolution:
-      integrity: sha512-KdtXOH8l9O2wwOOX+swjbFx+YW/RJFfI14o6S50+Zy79FK1WFGkzFdDsiuNjrG5L6FaBSKpKzSpWgTvXurbbYg==
   /@types/node/7.0.34:
     resolution:
       integrity: sha512-99ujivDq9tqw3b88xrWqUcHfY3XT+moVhAlMqlN+OdavTxfCRW2X1bRBFcloILRJiIoir+gG3I65jzrpNgF/3g==
+  /@types/node/8.0.13:
+    resolution:
+      integrity: sha512-Y3EAG7VA7NVNbZek/fjJtILnmTk/ZfpJuWZGDBqDZ1dVIxgJJJ82fXPW7pKnqyV9CD/9bcPOCi7eErUqGMHOrA==
   /@types/ramda/0.0.11:
     resolution:
       integrity: sha512-RcraK0229RAIJERTfgoCY/eSbxFEkPlj/TbUUb6aGSS9UfLj1THpt2Uj4uuCJsQrYRQUQB8tFlv7eTTWzE4QjQ==
@@ -191,7 +191,7 @@ packages:
 registry: 'https://registry.npmjs.org/'
 shrinkwrapVersion: 3
 specifiers:
-  '@types/node': ^6.0.81
+  '@types/node': ^8.0.11
   '@types/semver': ^5.3.32
   pnpm-shrinkwrap: ^3.1.0
   semver: ^5.3.0

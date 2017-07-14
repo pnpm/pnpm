@@ -2,7 +2,8 @@ import {
   readPrivate,
   Shrinkwrap,
   ResolvedPackages,
-  getPkgShortId,
+  refToAbsoluteResolutionLoc,
+  refToRelativeResolutionLoc,
 } from 'pnpm-shrinkwrap'
 import semver = require('semver')
 
@@ -15,6 +16,7 @@ export type PackageNode = {
   pkg: {
     name: string,
     version: string,
+    resolvedId: string,
   }
   dependencies?: PackageNode[],
 }
@@ -45,15 +47,18 @@ export default async function list (
     maxDepth: _opts.depth,
     prod: _opts.only === 'prod',
     searched: _opts.searched,
+    registry: shrinkwrap.registry,
   }, shrinkwrap.packages)
   const result: PackageNode[] = []
   Object.keys(topDeps).forEach(depName => {
-    const shortId = getPkgShortId(topDeps[depName], depName)
+    const relativeId = refToRelativeResolutionLoc(topDeps[depName], depName)
+    const resolvedId = refToAbsoluteResolutionLoc(topDeps[depName], depName, shrinkwrap.registry)
     const pkg = {
+      resolvedId,
       name: depName,
       version: topDeps[depName],
     }
-    const dependencies = getChildrenTree(shortId)
+    const dependencies = getChildrenTree(relativeId)
     if (dependencies.length) {
       result.push({
         pkg,
@@ -94,6 +99,7 @@ function getTree (
     maxDepth: number,
     prod: boolean,
     searched: SearchedPackage[],
+    registry: string,
   },
   packages: ResolvedPackages,
   parentId: string
@@ -115,12 +121,14 @@ function getTree (
 
   let result: PackageNode[] = []
   Object.keys(deps).forEach(depName => {
-    const shortId = getPkgShortId(deps[depName], depName)
+    const resolvedId = refToAbsoluteResolutionLoc(deps[depName], depName, opts.registry)
+    const relativeId = refToRelativeResolutionLoc(deps[depName], depName)
     const pkg = {
+      resolvedId,
       name: depName,
       version: deps[depName],
     }
-    const dependencies = getChildrenTree(shortId)
+    const dependencies = getChildrenTree(relativeId)
     if (dependencies.length) {
       result.push({
         pkg,
