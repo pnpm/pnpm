@@ -1,7 +1,7 @@
 'use strict'
-const dependenciesHierarchy = require('../lib').default
+const hierarchyForPackages = require('../lib').forPackages
 
-dependenciesHierarchy(process.cwd(), {depth: 2})
+hierarchyForPackages(['graceful-fs', {name: 'pify', range: '2'}], __dirname, {depth: 2})
   .then(tree => {
-    console.log(tree)
+    console.log(JSON.stringify(tree, null, 2))
   })

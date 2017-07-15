@@ -12,6 +12,56 @@ Install it via npm.
 
     npm install dependencies-hierarchy
 
+## Usage
+
+<!--@example('./example/index.js')-->
+```js
+'use strict'
+const hierarchyForPackages = require('dependencies-hierarchy').forPackages
+
+hierarchyForPackages(['graceful-fs', {name: 'pify', range: '2'}], __dirname, {depth: 2})
+  .then(tree => {
+    console.log(JSON.stringify(tree, null, 2))
+    //> [
+    //    {
+    //      "pkg": {
+    //        "name": "write-pkg",
+    //        "version": "3.1.0",
+    //        "path": "registry.npmjs.org/write-pkg/3.1.0"
+    //      },
+    //      "dependencies": [
+    //        {
+    //          "pkg": {
+    //            "name": "write-json-file",
+    //            "version": "2.2.0",
+    //            "path": "registry.npmjs.org/write-json-file/2.2.0"
+    //          },
+    //          "dependencies": [
+    //            {
+    //              "pkg": {
+    //                "name": "graceful-fs",
+    //                "version": "4.1.11",
+    //                "path": "registry.npmjs.org/graceful-fs/4.1.11"
+    //              },
+    //              "searched": true
+    //            },
+    //            {
+    //              "pkg": {
+    //                "name": "pify",
+    //                "version": "2.3.0",
+    //                "path": "registry.npmjs.org/pify/2.3.0"
+    //              },
+    //              "searched": true
+    //            }
+    //          ]
+    //        }
+    //      ]
+    //    }
+    //  ]
+  })
+```
+<!--/@-->
+
 ## API
 
 ### default: `dependenciesHierarchy(projectPath, [opts]): Promise<Hierarchy>`

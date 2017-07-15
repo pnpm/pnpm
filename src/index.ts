@@ -79,9 +79,9 @@ async function dependenciesHierarchy (
     const relativeId = refToRelative(topDeps[depName], depName)
     const pkgPath = refToAbsolute(topDeps[depName], depName, shrinkwrap.registry)
     const pkg = {
-      path: pkgPath,
       name: depName,
       version: topDeps[depName],
+      path: pkgPath,
     }
     const dependencies = getChildrenTree([relativeId], relativeId)
     let newEntry: PackageNode | null = null
@@ -156,9 +156,9 @@ function getTree (
     const pkgPath = refToAbsolute(deps[depName], depName, opts.registry)
     const relativeId = refToRelative(deps[depName], depName)
     const pkg = {
-      path: pkgPath,
       name: depName,
       version: deps[depName],
+      path: pkgPath,
     }
     const circular = keypath.indexOf(relativeId) !== -1
     const dependencies = circular ? [] : getChildrenTree(keypath.concat([relativeId]), relativeId)
