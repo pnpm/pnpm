@@ -19,7 +19,7 @@ Install it via npm.
 'use strict'
 const pnpmList = require('pnpm-list').default
 
-pnpmList(__dirname, [], {depth: 2})
+pnpmList(__dirname, {depth: 2})
   .then(output => {
     console.log(output)
     //> pnpm-list@0.0.1 /home/zkochan/src/pnpm/pnpm-list/example

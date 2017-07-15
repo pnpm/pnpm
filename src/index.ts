@@ -15,16 +15,22 @@ const limitPkgReads = pLimit(4)
 const _readPkg = thenify(readPkgCB)
 const readPkg = (pkgPath: string) => limitPkgReads(() => _readPkg(pkgPath))
 
-export default async function (
+export async function forPackages (
+  packages: string[],
   projectPath: string,
-  args: string[],
-  opts: {
+  opts?: {
     depth?: number,
     only?: 'dev' | 'prod',
     long?: boolean,
   }
 ) {
-  const searched: PackageSelector[] = args.map(arg => {
+  const _opts = Object.assign({}, {
+    depth: 0,
+    long: false,
+    only: undefined,
+  }, opts)
+
+  const searched: PackageSelector[] = packages.map(arg => {
     const parsed = npa(arg)
     if (parsed.raw === parsed.name) {
       return parsed.name
@@ -38,21 +44,53 @@ export default async function (
     }
   })
 
-  const hopts = {
-    depth: opts.depth || 0,
-    only: opts.only,
+  const tree = await dhForPackages(searched, projectPath, {
+    depth: _opts.depth,
+    only: _opts.only,
+  })
+
+  return _list(projectPath, tree, {
+    long: _opts.long,
+  })
+}
+
+export default async function (
+  projectPath: string,
+  opts?: {
+    depth?: number,
+    only?: 'dev' | 'prod',
+    long?: boolean,
   }
+) {
+  const _opts = Object.assign({}, {
+    depth: 0,
+    long: false,
+    only: undefined,
+  }, opts)
 
-  const tree = searched.length
-    ? await dhForPackages(searched, projectPath, hopts)
-    : await dh(projectPath, hopts)
+  const tree = await dh(projectPath, {
+    depth: _opts.depth,
+    only: _opts.only,
+  })
 
+  return _list(projectPath, tree, {
+    long: _opts.long,
+  })
+}
+
+async function _list (
+  projectPath: string,
+  tree: PackageNode[],
+  opts: {
+    long: boolean,
+  }
+) {
   const pkg = await readPkg('package.json')
 
   const s = archy({
     label: `${pkg.name}@${pkg.version} ${projectPath}`,
     nodes: await toArchyTree(tree, {
-      long: Boolean(opts.long),
+      long: opts.long,
       modules: path.join(projectPath, 'node_modules')
     }),
   })
