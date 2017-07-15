@@ -1,28 +1,28 @@
 [
   {
     "pkg": {
-      "resolvedId": "registry.npmjs.org/es6-iterator/2.0.1",
+      "path": "registry.npmjs.org/es6-iterator/2.0.1",
       "name": "es6-iterator",
       "version": "2.0.1"
     },
     "dependencies": [
       {
         "pkg": {
-          "resolvedId": "registry.npmjs.org/d/1.0.0",
+          "path": "registry.npmjs.org/d/1.0.0",
           "name": "d",
           "version": "1.0.0"
         },
         "dependencies": [
           {
             "pkg": {
-              "resolvedId": "registry.npmjs.org/es5-ext/0.10.24",
+              "path": "registry.npmjs.org/es5-ext/0.10.24",
               "name": "es5-ext",
               "version": "0.10.24"
             },
             "dependencies": [
               {
                 "pkg": {
-                  "resolvedId": "registry.npmjs.org/es6-iterator/2.0.1",
+                  "path": "registry.npmjs.org/es6-iterator/2.0.1",
                   "name": "es6-iterator",
                   "version": "2.0.1"
                 },
@@ -30,14 +30,14 @@
               },
               {
                 "pkg": {
-                  "resolvedId": "registry.npmjs.org/es6-symbol/3.1.1",
+                  "path": "registry.npmjs.org/es6-symbol/3.1.1",
                   "name": "es6-symbol",
                   "version": "3.1.1"
                 },
                 "dependencies": [
                   {
                     "pkg": {
-                      "resolvedId": "registry.npmjs.org/d/1.0.0",
+                      "path": "registry.npmjs.org/d/1.0.0",
                       "name": "d",
                       "version": "1.0.0"
                     },
@@ -45,7 +45,7 @@
                   },
                   {
                     "pkg": {
-                      "resolvedId": "registry.npmjs.org/es5-ext/0.10.24",
+                      "path": "registry.npmjs.org/es5-ext/0.10.24",
                       "name": "es5-ext",
                       "version": "0.10.24"
                     },
@@ -59,14 +59,14 @@
       },
       {
         "pkg": {
-          "resolvedId": "registry.npmjs.org/es5-ext/0.10.24",
+          "path": "registry.npmjs.org/es5-ext/0.10.24",
           "name": "es5-ext",
           "version": "0.10.24"
         },
         "dependencies": [
           {
             "pkg": {
-              "resolvedId": "registry.npmjs.org/es6-iterator/2.0.1",
+              "path": "registry.npmjs.org/es6-iterator/2.0.1",
               "name": "es6-iterator",
               "version": "2.0.1"
             },
@@ -74,21 +74,21 @@
           },
           {
             "pkg": {
-              "resolvedId": "registry.npmjs.org/es6-symbol/3.1.1",
+              "path": "registry.npmjs.org/es6-symbol/3.1.1",
               "name": "es6-symbol",
               "version": "3.1.1"
             },
             "dependencies": [
               {
                 "pkg": {
-                  "resolvedId": "registry.npmjs.org/d/1.0.0",
+                  "path": "registry.npmjs.org/d/1.0.0",
                   "name": "d",
                   "version": "1.0.0"
                 },
                 "dependencies": [
                   {
                     "pkg": {
-                      "resolvedId": "registry.npmjs.org/es5-ext/0.10.24",
+                      "path": "registry.npmjs.org/es5-ext/0.10.24",
                       "name": "es5-ext",
                       "version": "0.10.24"
                     },
@@ -98,7 +98,7 @@
               },
               {
                 "pkg": {
-                  "resolvedId": "registry.npmjs.org/es5-ext/0.10.24",
+                  "path": "registry.npmjs.org/es5-ext/0.10.24",
                   "name": "es5-ext",
                   "version": "0.10.24"
                 },
@@ -110,28 +110,28 @@
       },
       {
         "pkg": {
-          "resolvedId": "registry.npmjs.org/es6-symbol/3.1.1",
+          "path": "registry.npmjs.org/es6-symbol/3.1.1",
           "name": "es6-symbol",
           "version": "3.1.1"
         },
         "dependencies": [
           {
             "pkg": {
-              "resolvedId": "registry.npmjs.org/d/1.0.0",
+              "path": "registry.npmjs.org/d/1.0.0",
               "name": "d",
               "version": "1.0.0"
             },
             "dependencies": [
               {
                 "pkg": {
-                  "resolvedId": "registry.npmjs.org/es5-ext/0.10.24",
+                  "path": "registry.npmjs.org/es5-ext/0.10.24",
                   "name": "es5-ext",
                   "version": "0.10.24"
                 },
                 "dependencies": [
                   {
                     "pkg": {
-                      "resolvedId": "registry.npmjs.org/es6-iterator/2.0.1",
+                      "path": "registry.npmjs.org/es6-iterator/2.0.1",
                       "name": "es6-iterator",
                       "version": "2.0.1"
                     },
@@ -139,7 +139,7 @@
                   },
                   {
                     "pkg": {
-                      "resolvedId": "registry.npmjs.org/es6-symbol/3.1.1",
+                      "path": "registry.npmjs.org/es6-symbol/3.1.1",
                       "name": "es6-symbol",
                       "version": "3.1.1"
                     },
@@ -151,14 +151,14 @@
           },
           {
             "pkg": {
-              "resolvedId": "registry.npmjs.org/es5-ext/0.10.24",
+              "path": "registry.npmjs.org/es5-ext/0.10.24",
               "name": "es5-ext",
               "version": "0.10.24"
             },
             "dependencies": [
               {
                 "pkg": {
-                  "resolvedId": "registry.npmjs.org/es6-iterator/2.0.1",
+                  "path": "registry.npmjs.org/es6-iterator/2.0.1",
                   "name": "es6-iterator",
                   "version": "2.0.1"
                 },
@@ -166,7 +166,7 @@
               },
               {
                 "pkg": {
-                  "resolvedId": "registry.npmjs.org/es6-symbol/3.1.1",
+                  "path": "registry.npmjs.org/es6-symbol/3.1.1",
                   "name": "es6-symbol",
                   "version": "3.1.1"
                 },

@@ -7,16 +7,16 @@ import semver = require('semver')
 import {refToAbsolute, refToRelative} from 'dependency-path'
 import assert = require('assert')
 
-export type SearchedPackage = {
+export type PackageSelector = string | {
   name: string,
   range: string,
-} | string
+}
 
 export type PackageNode = {
   pkg: {
     name: string,
     version: string,
-    resolvedId: string,
+    path: string,
   }
   dependencies?: PackageNode[],
   searched?: true,
@@ -24,7 +24,7 @@ export type PackageNode = {
 }
 
 export function forPackages (
-  packages: SearchedPackage[],
+  packages: PackageSelector[],
   projectPath: string,
   opts?: {
     depth: number,
@@ -49,7 +49,7 @@ export default function (
 
 async function dependenciesHierarchy (
   projectPath: string,
-  searched: SearchedPackage[],
+  searched: PackageSelector[],
   opts?: {
     depth: number,
     only?: 'dev' | 'prod',
@@ -77,9 +77,9 @@ async function dependenciesHierarchy (
   const result: PackageNode[] = []
   Object.keys(topDeps).forEach(depName => {
     const relativeId = refToRelative(topDeps[depName], depName)
-    const resolvedId = refToAbsolute(topDeps[depName], depName, shrinkwrap.registry)
+    const pkgPath = refToAbsolute(topDeps[depName], depName, shrinkwrap.registry)
     const pkg = {
-      resolvedId,
+      path: pkgPath,
       name: depName,
       version: topDeps[depName],
     }
@@ -129,7 +129,7 @@ function getTree (
     currentDepth: number,
     maxDepth: number,
     prod: boolean,
-    searched: SearchedPackage[],
+    searched: PackageSelector[],
     registry: string,
   },
   packages: ResolvedPackages,
@@ -153,10 +153,10 @@ function getTree (
 
   let result: PackageNode[] = []
   Object.keys(deps).forEach(depName => {
-    const resolvedId = refToAbsolute(deps[depName], depName, opts.registry)
+    const pkgPath = refToAbsolute(deps[depName], depName, opts.registry)
     const relativeId = refToRelative(deps[depName], depName)
     const pkg = {
-      resolvedId,
+      path: pkgPath,
       name: depName,
       version: deps[depName],
     }
@@ -186,7 +186,7 @@ function getTree (
 }
 
 function matches (
-  searched: SearchedPackage[],
+  searched: PackageSelector[],
   pkg: {name: string, version: string}
 ) {
   return searched.some(searchedPkg => {
