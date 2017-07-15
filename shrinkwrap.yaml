@@ -26,7 +26,7 @@ dependencies:
   pnpm-logger: 0.5.0
   ramda: 0.24.1
   rimraf: 2.6.1
-  supi: 0.2.0
+  supi: 0.2.1
   update-notifier: 2.2.0
 devDependencies:
   '@types/mkdirp': 0.5.0
@@ -2221,7 +2221,7 @@ packages:
   /strip-json-comments/2.0.1:
     resolution:
       integrity: sha1-PFMZQukIwml8DsNEhYwobHygpgo=
-  /supi/0.2.0:
+  /supi/0.2.1:
     dependencies:
       '@types/byline': 4.2.31
       '@types/common-tags': 1.2.5
@@ -2240,6 +2240,8 @@ packages:
       byline: 5.0.0
       common-tags: 1.4.0
       cross-spawn: 5.1.0
+      dependency-path: 1.0.0
+      encode-registry: 1.0.0
       execa: 0.7.0
       find-up: 2.1.0
       get-npm-tarball-url: 2.0.0
@@ -2279,7 +2281,7 @@ packages:
       write-pkg: 3.1.0
       write-yaml-file: 1.0.0
     resolution:
-      integrity: sha512-QfnRJ5dV7anxFzAOrqBXrE59Sv3+eQwxJPBaYaCl7R8hvz2vCo3+01MOm82SW6NDgMNNiFLHJHrsAXdqQxYZ9w==
+      integrity: sha512-z9ahMwdwNKHmSpYsDGJpQKJyVWATmisQjzKQWpfdN4wP4tVdmFVrkj3n9PKux7dyS2vAETFckBqldV8zrmO3EQ==
   /supports-color/2.0.0:
     resolution:
       integrity: sha1-U10EXOa2Nj+kARcIRimZXp3zJMc=
@@ -2596,7 +2598,7 @@ specifiers:
   pnpm-logger: ^0.5.0
   ramda: ^0.24.1
   rimraf: ^2.5.4
-  supi: ^0.2.0
+  supi: ^0.2.1
   tslint: ^5.4.2
   typescript: ^2.4.1
   update-notifier: ^2.1.0
