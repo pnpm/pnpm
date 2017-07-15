@@ -234,6 +234,18 @@ test('filter 2 packages with depth 100', async t => {
   t.end()
 })
 
+test('filter 2 packages with ranges that are not satisfied', async t => {
+  const searched = [
+    {name: 'minimatch', range: '100'},
+    {name: 'once', range: '100'},
+  ]
+  const tree = await dhForPackages(searched, generalFixture, {depth: 100})
+
+  t.deepEqual(tree, [])
+
+  t.end()
+})
+
 test('circular dependency', async t => {
   const tree = await dh(circularFixture, {depth: 1000})
 
