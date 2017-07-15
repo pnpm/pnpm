@@ -1,0 +1,35 @@
+{
+  "name": "es6-iterator",
+  "version": "2.0.1",
+  "description": "Iterator abstraction based on ES6 specification",
+  "author": "Mariusz Nowak <medyk@medikoo.com> (http://www.medikoo.com/)",
+  "keywords": [
+    "iterator",
+    "array",
+    "list",
+    "set",
+    "map",
+    "generator"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git://github.com/medikoo/es6-iterator.git"
+  },
+  "dependencies": {
+    "d": "1",
+    "es5-ext": "^0.10.14",
+    "es6-symbol": "^3.1"
+  },
+  "devDependencies": {
+    "event-emitter": "^0.3.4",
+    "tad": "^0.2.7",
+    "xlint": "^0.2.2",
+    "xlint-jslint-medikoo": "^0.1.4"
+  },
+  "scripts": {
+    "lint": "node node_modules/xlint/bin/xlint --linter=node_modules/xlint-jslint-medikoo/index.js --no-cache --no-stream",
+    "lint-console": "node node_modules/xlint/bin/xlint --linter=node_modules/xlint-jslint-medikoo/index.js --watch",
+    "test": "node ./node_modules/tad/bin/tad"
+  },
+  "license": "MIT"
+}

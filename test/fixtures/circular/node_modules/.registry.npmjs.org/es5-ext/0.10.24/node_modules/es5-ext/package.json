@@ -1,0 +1,49 @@
+{
+  "name": "es5-ext",
+  "version": "0.10.24",
+  "description": "ECMAScript extensions and shims",
+  "author": "Mariusz Nowak <medyk@medikoo.com> (http://www.medikoo.com/)",
+  "keywords": [
+    "ecmascript",
+    "ecmascript5",
+    "ecmascript6",
+    "es5",
+    "es6",
+    "extensions",
+    "ext",
+    "addons",
+    "extras",
+    "harmony",
+    "javascript",
+    "polyfill",
+    "shim",
+    "util",
+    "utils",
+    "utilities"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git://github.com/medikoo/es5-ext.git"
+  },
+  "dependencies": {
+    "es6-iterator": "2",
+    "es6-symbol": "~3.1"
+  },
+  "devDependencies": {
+    "eslint": "^4.2.0",
+    "eslint-config-medikoo-es5": "^1.4.1",
+    "tad": "~0.2.7"
+  },
+  "eslintConfig": {
+    "extends": "medikoo-es5",
+    "root": true,
+    "rules": {
+      "no-extend-native": "off"
+    }
+  },
+  "scripts": {
+    "lint": "eslint --ignore-path=.gitignore .",
+    "test": "node ./node_modules/tad/bin/tad"
+  },
+  "license": "MIT"
+}
