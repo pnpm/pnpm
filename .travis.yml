@@ -1,0 +1,13 @@
+language: node_js
+node_js:
+  - 4
+  - 6
+  - 8
+
+sudo: false
+before_install:
+  - npm install -g pnpm
+install:
+  - pnpm install
+script:
+  - npm test

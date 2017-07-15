@@ -1,0 +1,46 @@
+{
+  "name": "pnpm-list",
+  "version": "0.0.1",
+  "description": "List installed packages in a symlinked `node_modules`",
+  "main": "lib/index.js",
+  "typings": "lib/index.d.ts",
+  "files": [
+    "lib"
+  ],
+  "scripts": {
+    "prepare": "cd test && pnpm install",
+    "test": "cd test && npm test",
+    "prepublishOnly": "tsc",
+    "tsc": "tsc"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/pnpm/pnpm-list.git"
+  },
+  "keywords": [
+    "pnpm",
+    "list",
+    "ls"
+  ],
+  "author": "Zoltan Kochan",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/pnpm/pnpm-list/issues"
+  },
+  "homepage": "https://github.com/pnpm/pnpm-list#readme",
+  "dependencies": {
+    "@types/archy": "^0.0.30",
+    "@types/chalk": "^0.4.31",
+    "@types/node": "^8.0.11",
+    "archy": "^1.0.0",
+    "chalk": "^2.0.1",
+    "dependencies-hierarchy": "^1.0.0",
+    "npm-package-arg": "^5.1.2",
+    "p-limit": "^1.1.0",
+    "read-package-json": "^2.0.10",
+    "thenify": "^3.3.0"
+  },
+  "devDependencies": {
+    "typescript": "^2.4.1"
+  }
+}
