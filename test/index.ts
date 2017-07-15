@@ -19,6 +19,44 @@ test('list with default parameters', async t => {
   t.end()
 })
 
+test('list dev only', async t => {
+  t.equal(await list(fixture, {only: 'dev'}), stripIndent`
+    fixture@1.0.0 ${fixture}
+    └── is-positive@3.1.0
+  ` + '\n')
+
+  t.end()
+})
+
+test('list prod only', async t => {
+  t.equal(await list(fixture, {only: 'prod'}), stripIndent`
+    fixture@1.0.0 ${fixture}
+    └── write-json-file@2.2.0
+  ` + '\n')
+
+  t.end()
+})
+
+test('list prod only with depth 2', async t => {
+  t.equal(await list(fixture, {only: 'prod', depth: 2}), stripIndent`
+    fixture@1.0.0 ${fixture}
+    └─┬ write-json-file@2.2.0
+      ├── detect-indent@5.0.0
+      ├── graceful-fs@4.1.11
+      ├─┬ make-dir@1.0.0
+      │ └── pify@2.3.0
+      ├── pify@2.3.0
+      ├─┬ sort-keys@1.1.2
+      │ └── is-plain-obj@1.1.0
+      └─┬ write-file-atomic@2.1.0
+        ├── graceful-fs@4.1.11
+        ├── imurmurhash@0.1.4
+        └── slide@1.1.6
+  ` + '\n')
+
+  t.end()
+})
+
 test('list with depth 1', async t => {
   t.equal(await list(fixture, {depth: 1}), stripIndent`
     fixture@1.0.0 ${fixture}
@@ -80,6 +118,15 @@ test('parseable list with depth 1', async t => {
     ${fixture}/node_modules/.registry.npmjs.org/write-file-atomic/2.1.0
     ${fixture}/node_modules/.registry.npmjs.org/is-positive/3.1.0
     ${fixture}/node_modules/.registry.npmjs.org/is-negative/2.1.0
+  ` + '\n')
+
+  t.end()
+})
+
+test('parseable list with depth 1 and dev only', async t => {
+  t.equal(await list(fixture, {parseable: true, depth: 1, only: 'dev'}), stripIndent`
+    ${fixture}
+    ${fixture}/node_modules/.registry.npmjs.org/is-positive/3.1.0
   ` + '\n')
 
   t.end()
