@@ -6,8 +6,6 @@
 [![npm version](https://img.shields.io/npm/v/pnpm-list.svg)](https://www.npmjs.com/package/pnpm-list) [![Build Status](https://img.shields.io/travis/pnpm/pnpm-list/master.svg)](https://travis-ci.org/pnpm/pnpm-list)
 <!--/@-->
 
-[![Status](https://travis-ci.org/pnpm/pnpm-list.svg?branch=master)](https://travis-ci.org/pnpm/pnpm-list "See test builds")
-
 ## Install
 
 Install it via npm.
