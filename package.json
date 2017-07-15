@@ -36,6 +36,8 @@
     "byline": "^5.0.0",
     "common-tags": "^1.4.0",
     "cross-spawn": "^5.0.0",
+    "dependency-path": "^1.0.0",
+    "encode-registry": "^1.0.0",
     "execa": "^0.7.0",
     "find-up": "^2.1.0",
     "get-npm-tarball-url": "^2.0.0",

@@ -13,7 +13,7 @@ import {Resolution, PackageContentInfo, Store} from 'package-store'
 import resolvePeers, {DependencyTreeNode, DependencyTreeNodeMap} from './resolvePeers'
 import logStatus from '../logging/logInstallStatus'
 import updateShrinkwrap from './updateShrinkwrap'
-import {shortIdToFullId} from '../fs/shrinkwrap'
+import * as dp from 'dependency-path'
 import {Shrinkwrap, DependencyShrinkwrap} from 'pnpm-shrinkwrap'
 import removeOrphanPkgs from '../api/removeOrphanPkgs'
 import linkIndexedDir from '../fs/linkIndexedDir'
@@ -106,7 +106,7 @@ export default async function (
     const packages = opts.privateShrinkwrap.packages || {}
     if (newShr.packages) {
       for (const shortId in newShr.packages) {
-        const resolvedId = shortIdToFullId(shortId, newShr.registry)
+        const resolvedId = dp.resolve(newShr.registry, shortId)
         if (pkgsToLink[resolvedId]) {
           packages[shortId] = newShr.packages[shortId]
         }
@@ -136,7 +136,7 @@ function filterShrinkwrap (
   }
 ): Shrinkwrap {
   let pairs = R.toPairs<string, DependencyShrinkwrap>(shr.packages)
-    .filter(pair => !opts.skipped.has(pair[1].id || shortIdToFullId(pair[0], shr.registry)))
+    .filter(pair => !opts.skipped.has(pair[1].id || dp.resolve(shr.registry, pair[0])))
   if (opts.noDev) {
     pairs = pairs.filter(pair => !pair[1].dev)
   }
@@ -171,7 +171,7 @@ async function linkNewPackages (
         ? nextPkgResolvedIds
         : R.difference(nextPkgResolvedIds, prevPkgResolvedIds)
     )
-    .map(shortId => shortIdToFullId(shortId, shrinkwrap.registry))
+    .map(shortId => dp.resolve(shrinkwrap.registry, shortId))
     // when installing a new package, not all the nodes are analyzed
     // just skip the ones that are in the lockfile but were not analyzed
     .filter(resolvedId => pkgsToLink[resolvedId])
@@ -185,7 +185,7 @@ async function linkNewPackages (
       if (privateShrinkwrap.packages[shortId] &&
         (!R.equals(privateShrinkwrap.packages[shortId].dependencies, shrinkwrap.packages[shortId].dependencies) ||
         !R.equals(privateShrinkwrap.packages[shortId].optionalDependencies, shrinkwrap.packages[shortId].optionalDependencies))) {
-        const resolvedId = shortIdToFullId(shortId, shrinkwrap.registry)
+        const resolvedId = dp.resolve(shrinkwrap.registry, shortId)
         newPkgs.push(pkgsToLink[resolvedId])
       }
     }

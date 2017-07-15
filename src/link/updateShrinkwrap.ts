@@ -1,7 +1,5 @@
-import {
-  pkgShortId,
-  pkgIdToRef,
-} from '../fs/shrinkwrap'
+import * as dp from 'dependency-path'
+import {pkgIdToRef} from '../fs/shrinkwrap'
 import {
   Shrinkwrap,
   DependencyShrinkwrap,
@@ -21,7 +19,7 @@ export default function (
 ): Shrinkwrap {
   shrinkwrap.packages = shrinkwrap.packages || {}
   for (const resolvedId of R.keys(pkgsToLink)) {
-    const shortId = pkgShortId(resolvedId, shrinkwrap.registry)
+    const shortId = dp.relative(shrinkwrap.registry, resolvedId)
     const result = R.partition((childResolvedId: string) => pkgsToLink[resolvedId].optionalDependencies.has(pkgsToLink[childResolvedId].name), pkgsToLink[resolvedId].children)
     shrinkwrap.packages[shortId] = toShrDependency({
       resolvedId,

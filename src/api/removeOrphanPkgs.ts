@@ -1,8 +1,6 @@
 import rimraf = require('rimraf-then')
 import path = require('path')
-import {
-  shortIdToFullId,
-} from '../fs/shrinkwrap'
+import * as dp from 'dependency-path'
 import {Shrinkwrap} from 'pnpm-shrinkwrap'
 import {Store, save as saveStore, PackageSpec} from 'package-store'
 import R = require('ramda')
@@ -27,8 +25,8 @@ export default async function removeOrphanPkgs (
   const rootModules = path.join(opts.prefix, 'node_modules')
   await Promise.all(removedTopDeps.map(depName => removeTopDependency(depName[0], rootModules)))
 
-  const oldPkgIds = R.keys(opts.oldShrinkwrap.packages).map(shortId => shortIdToFullId(shortId, opts.oldShrinkwrap.registry))
-  const newPkgIds = R.keys(opts.newShrinkwrap.packages).map(shortId => shortIdToFullId(shortId, opts.newShrinkwrap.registry))
+  const oldPkgIds = R.keys(opts.oldShrinkwrap.packages).map(depPath => dp.resolve(opts.oldShrinkwrap.registry, depPath))
+  const newPkgIds = R.keys(opts.newShrinkwrap.packages).map(depPath => dp.resolve(opts.newShrinkwrap.registry, depPath))
 
   const notDependents = R.difference(oldPkgIds, newPkgIds)
 

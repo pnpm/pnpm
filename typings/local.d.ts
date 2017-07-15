@@ -268,3 +268,8 @@ declare module 'rename-overwrite' {
   const anything: any;
   export = anything;
 }
+
+declare module 'encode-registry' {
+  const anything: any;
+  export = anything;
+}

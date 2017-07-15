@@ -4,7 +4,7 @@ import {PnpmOptions} from '../types'
 import extendOptions from './extendOptions'
 import getContext from './getContext'
 import {pkgIsUntouched as untouched} from 'package-store'
-import {shortIdToFullId} from '../fs/shrinkwrap'
+import * as dp from 'dependency-path'
 import streamParser from '../logging/streamParser'
 
 export default async function (maybeOpts: PnpmOptions) {
@@ -19,7 +19,7 @@ export default async function (maybeOpts: PnpmOptions) {
   const pkgPaths = Object.keys(ctx.shrinkwrap.packages || {})
     .map(id => {
       if (id === '/') return null
-      return shortIdToFullId(id, ctx.shrinkwrap.registry)
+      return dp.resolve(ctx.shrinkwrap.registry, id)
     })
     .filter(pkgId => pkgId && !ctx.skipped.has(pkgId))
     .map((pkgPath: string) => path.join(ctx.storePath, pkgPath))

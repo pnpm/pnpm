@@ -19,9 +19,7 @@ import memoize from '../memoize'
 import {Package} from '../types'
 import logStatus from '../logging/logInstallStatus'
 import fs = require('mz/fs')
-import {
-  getPkgId,
-} from '../fs/shrinkwrap'
+import * as dp from 'dependency-path'
 import {
   DependencyShrinkwrap,
   ResolvedDependencies,
@@ -83,10 +81,10 @@ export default async function installMultiple (
       specs
         .map(async (spec: PackageSpec) => {
           const reference = resolvedDependencies[spec.name]
-          const pkgShortId = reference && getPkgShortId(reference, spec.name)
+          const pkgShortId = reference && dp.refToRelative(reference, spec.name)
           const dependencyShrinkwrap = pkgShortId && ctx.shrinkwrap.packages && ctx.shrinkwrap.packages[pkgShortId]
           const pkgId = dependencyShrinkwrap && dependencyShrinkwrap.id ||
-            reference && getPkgId(reference, spec.name, ctx.shrinkwrap.registry)
+            reference && dp.refToAbsolute(reference, spec.name, ctx.shrinkwrap.registry)
           const shrinkwrapResolution: Resolution | undefined = pkgShortId && dependencyShrinkwrap
             ? dependencyShrToResolution(pkgShortId, dependencyShrinkwrap, options.registry)
             : undefined

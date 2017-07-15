@@ -1,27 +1,5 @@
-import {Resolution, getRegistryName} from 'package-store'
-
-export function shortIdToFullId (
-  shortId: string,
-  registry: string
-) {
-  if (shortId[0] === '/') {
-    const registryName = getRegistryName(registry)
-    return `${registryName}${shortId}`
-  }
-  return shortId
-}
-
-export function getPkgId (
-  reference: string,
-  pkgName: string,
-  registry: string
-) {
-  if (reference.indexOf('/') === -1) {
-    const registryName = getRegistryName(registry)
-    return `${registryName}/${pkgName}/${reference}`
-  }
-  return reference
-}
+import {Resolution} from 'package-store'
+import encodeRegistry = require('encode-registry')
 
 export function pkgIdToRef (
   pkgId: string,
@@ -31,23 +9,11 @@ export function pkgIdToRef (
 ) {
   if (resolution.type) return pkgId
 
-  const registryName = getRegistryName(standardRegistry)
+  const registryName = encodeRegistry(standardRegistry)
   if (pkgId.startsWith(`${registryName}/`)) {
     const ref = pkgId.replace(`${registryName}/${pkgName}/`, '')
     if (ref.indexOf('/') === -1) return ref
     return pkgId.replace(`${registryName}/`, '/')
-  }
-  return pkgId
-}
-
-export function pkgShortId (
-  pkgId: string,
-  standardRegistry: string
-) {
-  const registryName = getRegistryName(standardRegistry)
-
-  if (pkgId.startsWith(`${registryName}/`)) {
-    return pkgId.substr(pkgId.indexOf('/'))
   }
   return pkgId
 }
