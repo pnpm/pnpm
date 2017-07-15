@@ -9,7 +9,7 @@
   ],
   "scripts": {
     "prepare": "cd test && pnpm install",
-    "test": "cd test && npm test",
+    "test": "cd test && npm test && mos t",
     "prepublishOnly": "tsc",
     "tsc": "tsc",
     "md": "tsc && mos"
