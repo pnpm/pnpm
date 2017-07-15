@@ -3,6 +3,7 @@ import list, {forPackages as listForPackages} from 'pnpm-list'
 export default async function (
   args: string[],
   opts: {
+    prefix: string,
     depth?: number,
     only?: 'dev' | 'prod',
     long?: boolean,
@@ -11,9 +12,8 @@ export default async function (
   command: string
 ) {
   opts.long = opts.long || command === 'll' || command === 'la'
-  const cwd = process.cwd()
   const output = args.length
-    ? await listForPackages(args, cwd, opts)
-    : await list(cwd, opts)
+    ? await listForPackages(args, opts.prefix, opts)
+    : await list(opts.prefix, opts)
   console.log(output)
 }
