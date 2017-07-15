@@ -37,6 +37,33 @@ pnpmList(__dirname, {depth: 2})
 ```
 <!--/@-->
 
+## API
+
+### default: `list(path, [opts]): Promise<string>`
+
+Returns a string output similar to the `npm ls` but for [pnpm](github.com/pnpm/pnpm).
+
+### Arguments
+
+* `path` - *String* - path to the project
+* `[opts.depth]` - *number* - `0` by default. Max display depth of the dependency tree.
+* `[opts.only]` - *dev | prod* - `null` by default. Display only the dependency tree for packages in `devDependencies` or `dependencies`.
+* `[opts.long]` - *Boolean* - `false` by default. If true, show extended information.
+* `[opts.parseable]` - *Boolean* - `false` by default. Show parseable output instead of tree view.
+
+### `forPackages(packages, path, [opts]): Promise<string>`
+
+Returns a string output similar to the `npm ls [<@scope>/]<pkg> ...` but for [pnpm](github.com/pnpm/pnpm).
+
+### Arguments
+
+* `packages` - *String[]* - an array of `name@version-range` identifiers, which will limit the results to only the paths to the packages named.
+* `path` - *String* - path to the project
+* `[opts.depth]` - *number* - `0` by default. Max display depth of the dependency tree.
+* `[opts.only]` - *dev | prod* - `null` by default. Display only the dependency tree for packages in `devDependencies` or `dependencies`.
+* `[opts.long]` - *Boolean* - `false` by default. If true, show extended information.
+* `[opts.parseable]` - *Boolean* - `false` by default. Show parseable output instead of tree view.
+
 ## License
 
 [MIT](./LICENSE) © [Zoltan Kochan](https://www.kochan.io/)
