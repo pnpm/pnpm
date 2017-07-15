@@ -2,10 +2,11 @@ import test = require('tape')
 import dh, {forPackages as dhForPackages} from '../src'
 import path = require('path')
 
-const fixture = path.join(__dirname, 'fixture')
+const fixtures = path.join(__dirname, 'fixtures')
+const generalFixture = path.join(fixtures, 'general')
 
 test('one package depth 0', async t => {
-  const tree = await dh(fixture, {depth: 0})
+  const tree = await dh(generalFixture, {depth: 0})
 
   t.deepEqual(tree, [
       {
@@ -42,7 +43,7 @@ test('one package depth 0', async t => {
 })
 
 test('one package depth 1', async t => {
-  const tree = await dh(fixture, {depth: 1})
+  const tree = await dh(generalFixture, {depth: 1})
 
   t.deepEqual(tree, [
       {
@@ -97,7 +98,7 @@ test('one package depth 1', async t => {
 })
 
 test('only prod depth 0', async t => {
-  const tree = await dh(fixture, {depth: 0, only: 'prod'})
+  const tree = await dh(generalFixture, {depth: 0, only: 'prod'})
 
   t.deepEqual(tree, [
       {
@@ -120,7 +121,7 @@ test('only prod depth 0', async t => {
 })
 
 test('only dev depth 0', async t => {
-  const tree = await dh(fixture, {depth: 0, only: 'dev'})
+  const tree = await dh(generalFixture, {depth: 0, only: 'dev'})
 
   t.deepEqual(tree, [
       {
@@ -136,7 +137,7 @@ test('only dev depth 0', async t => {
 })
 
 test('hierarchy for no packages', async t => {
-  const tree = await dhForPackages([], fixture, {depth: 100})
+  const tree = await dhForPackages([], generalFixture, {depth: 100})
 
   t.deepEqual(tree, [])
 
@@ -144,7 +145,7 @@ test('hierarchy for no packages', async t => {
 })
 
 test('filter 1 package with depth 0', async t => {
-  const tree = await dhForPackages([{name: 'rimraf', range: '*'}], fixture, {depth: 0})
+  const tree = await dhForPackages([{name: 'rimraf', range: '*'}], generalFixture, {depth: 0})
 
   t.deepEqual(tree, [
       {
@@ -165,7 +166,7 @@ test('filter 2 packages with depth 100', async t => {
     {name: 'minimatch', range: '*'},
     {name: 'once', range: '*'},
   ]
-  const tree = await dhForPackages(searched, fixture, {depth: 100})
+  const tree = await dhForPackages(searched, generalFixture, {depth: 100})
 
   t.deepEqual(tree, [
     {
