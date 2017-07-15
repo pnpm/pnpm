@@ -144,7 +144,8 @@ test('filter 1 package with depth 0', async t => {
           name: 'rimraf',
           resolvedId: 'registry.npmjs.org/rimraf/2.5.1',
           version: '2.5.1',
-        }
+        },
+        searched: true,
       },
   ])
 
@@ -165,6 +166,7 @@ test('filter 2 packages with depth 100', async t => {
         resolvedId: 'registry.npmjs.org/minimatch/3.0.4',
         version: '3.0.4',
       },
+      searched: true,
     },
     {
       pkg: {
@@ -192,7 +194,8 @@ test('filter 2 packages with depth 100', async t => {
                     name: 'once',
                     resolvedId: 'registry.npmjs.org/once/1.4.0',
                     version: '1.4.0',
-                  }
+                  },
+                  searched: true,
                 }
               ]
             },
@@ -201,14 +204,16 @@ test('filter 2 packages with depth 100', async t => {
                 name: 'minimatch',
                 resolvedId: 'registry.npmjs.org/minimatch/3.0.4',
                 version: '3.0.4',
-              }
+              },
+              searched: true,
             },
             {
               pkg: {
                 name: 'once',
                 resolvedId: 'registry.npmjs.org/once/1.4.0',
                 version: '1.4.0',
-              }
+              },
+              searched: true,
             }
           ]
         }

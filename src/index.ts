@@ -19,6 +19,7 @@ export type PackageNode = {
     resolvedId: string,
   }
   dependencies?: PackageNode[],
+  searched?: true,
 }
 
 export default async function list (
@@ -59,15 +60,21 @@ export default async function list (
       version: topDeps[depName],
     }
     const dependencies = getChildrenTree(relativeId)
+    let newEntry: PackageNode | null = null
+    const matchedSearched = _opts.searched.length && matches(_opts.searched, pkg)
     if (dependencies.length) {
-      result.push({
+      newEntry = {
         pkg,
         dependencies,
-      })
-      return
+      }
+    } else if (!_opts.searched.length || matches(_opts.searched, pkg)) {
+      newEntry = {pkg}
     }
-    if (!_opts.searched.length || matches(_opts.searched, pkg)) {
-      result.push({pkg})
+    if (newEntry) {
+      if (matchedSearched) {
+        newEntry.searched = true
+      }
+      result.push(newEntry)
     }
   })
   return result
@@ -129,15 +136,21 @@ function getTree (
       version: deps[depName],
     }
     const dependencies = getChildrenTree(relativeId)
+    let newEntry: PackageNode | null = null
+    const matchedSearched = opts.searched.length && matches(opts.searched, pkg)
     if (dependencies.length) {
-      result.push({
+      newEntry = {
         pkg,
         dependencies,
-      })
-      return
+      }
+    } else if (!opts.searched.length || matchedSearched) {
+      newEntry = {pkg}
     }
-    if (!opts.searched.length || matches(opts.searched, pkg)) {
-      result.push({pkg})
+    if (newEntry) {
+      if (matchedSearched) {
+        newEntry.searched = true
+      }
+      result.push(newEntry)
     }
   })
   return result
