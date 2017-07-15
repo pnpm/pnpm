@@ -4,6 +4,7 @@ import dh, {
 } from 'dependencies-hierarchy'
 import npa = require('npm-package-arg')
 import printTree from './printTree'
+import printParseable from './printParseable'
 
 const DEFAULTS = {
   depth: 0,
@@ -19,6 +20,7 @@ export async function forPackages (
     depth?: number,
     only?: 'dev' | 'prod',
     long?: boolean,
+    parseable?: boolean,
   }
 ) {
   const _opts = Object.assign({}, DEFAULTS, opts)
@@ -42,7 +44,8 @@ export async function forPackages (
     only: _opts.only,
   })
 
-  return printTree(projectPath, tree, {
+  const print = getPrinter(_opts.parseable)
+  return print(projectPath, tree, {
     long: _opts.long,
   })
 }
@@ -53,6 +56,7 @@ export default async function (
     depth?: number,
     only?: 'dev' | 'prod',
     long?: boolean,
+    parseable?: boolean,
   }
 ) {
   const _opts = Object.assign({}, DEFAULTS, opts)
@@ -62,7 +66,13 @@ export default async function (
     only: _opts.only,
   })
 
-  return printTree(projectPath, tree, {
+  const print = getPrinter(_opts.parseable)
+  return print(projectPath, tree, {
     long: _opts.long,
   })
+}
+
+function getPrinter (parseable: boolean) {
+  if (parseable) return printParseable
+  return printTree
 }

@@ -1,9 +1,5 @@
 import archy = require('archy')
-import dh, {
-  forPackages as dhForPackages,
-  PackageNode,
-  PackageSelector,
-} from 'dependencies-hierarchy'
+import {PackageNode} from 'dependencies-hierarchy'
 import path = require('path')
 import chalk = require('chalk')
 import readPkg from './readPkg'
@@ -15,7 +11,7 @@ export default async function (
     long: boolean,
   }
 ) {
-  const pkg = await readPkg('package.json')
+  const pkg = await readPkg(path.resolve(projectPath, 'package.json'))
 
   const s = archy({
     label: `${pkg.name}@${pkg.version} ${projectPath}`,
