@@ -1,1 +1,14 @@
-{}
+{
+  "name": "test",
+  "version": "1.0.0",
+  "scripts": {
+    "test": "ts-node index.ts"
+  },
+  "dependencies": {
+    "@types/common-tags": "^1.2.5",
+    "@types/tape": "^4.2.30",
+    "common-tags": "^1.4.0",
+    "tape": "^4.7.0",
+    "ts-node": "^3.2.0"
+  }
+}
