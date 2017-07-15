@@ -1,13 +1,13 @@
 import test = require('tape')
-import getList from '../src'
+import dh, {forPackages as dhForPackages} from '../src'
 import path = require('path')
 
 const fixture = path.join(__dirname, 'fixture')
 
 test('one package depth 0', async t => {
-  const list = await getList(fixture, {depth: 0})
+  const tree = await dh(fixture, {depth: 0})
 
-  t.deepEqual(list, [
+  t.deepEqual(tree, [
       {
         pkg: {
           name: 'minimatch',
@@ -42,9 +42,9 @@ test('one package depth 0', async t => {
 })
 
 test('one package depth 1', async t => {
-  const list = await getList(fixture, {depth: 1})
+  const tree = await dh(fixture, {depth: 1})
 
-  t.deepEqual(list, [
+  t.deepEqual(tree, [
       {
         pkg: {
           name: 'minimatch',
@@ -97,9 +97,9 @@ test('one package depth 1', async t => {
 })
 
 test('only prod depth 0', async t => {
-  const list = await getList(fixture, {depth: 0, only: 'prod'})
+  const tree = await dh(fixture, {depth: 0, only: 'prod'})
 
-  t.deepEqual(list, [
+  t.deepEqual(tree, [
       {
         pkg: {
           name: 'minimatch',
@@ -120,9 +120,9 @@ test('only prod depth 0', async t => {
 })
 
 test('only dev depth 0', async t => {
-  const list = await getList(fixture, {depth: 0, only: 'dev'})
+  const tree = await dh(fixture, {depth: 0, only: 'dev'})
 
-  t.deepEqual(list, [
+  t.deepEqual(tree, [
       {
         pkg: {
           name: 'is-positive',
@@ -135,10 +135,18 @@ test('only dev depth 0', async t => {
   t.end()
 })
 
-test('filter 1 package with depth 0', async t => {
-  const list = await getList(fixture, {depth: 0, searched: [{name: 'rimraf', range: '*'}]})
+test('hierarchy for no packages', async t => {
+  const tree = await dhForPackages([], fixture, {depth: 100})
 
-  t.deepEqual(list, [
+  t.deepEqual(tree, [])
+
+  t.end()
+})
+
+test('filter 1 package with depth 0', async t => {
+  const tree = await dhForPackages([{name: 'rimraf', range: '*'}], fixture, {depth: 0})
+
+  t.deepEqual(tree, [
       {
         pkg: {
           name: 'rimraf',
@@ -157,9 +165,9 @@ test('filter 2 packages with depth 100', async t => {
     {name: 'minimatch', range: '*'},
     {name: 'once', range: '*'},
   ]
-  const list = await getList(fixture, {depth: 100, searched})
+  const tree = await dhForPackages(searched, fixture, {depth: 100})
 
-  t.deepEqual(list, [
+  t.deepEqual(tree, [
     {
       pkg: {
         name: 'minimatch',

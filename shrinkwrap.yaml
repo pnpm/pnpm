@@ -1,6 +1,7 @@
 dependencies:
   '@types/node': 8.0.13
   '@types/semver': 5.3.32
+  dependency-path: 1.0.0
   pnpm-shrinkwrap: 3.1.0
   semver: 5.3.0
 devDependencies:
@@ -44,6 +45,16 @@ packages:
   /concat-map/0.0.1:
     resolution:
       integrity: sha1-2Klr13/Wjfd5OnMDajug1UBdR3s=
+  /dependency-path/1.0.0:
+    dependencies:
+      encode-registry: 1.0.0
+    resolution:
+      integrity: sha512-Gvh4PAxxNz453W7sTk0QlVo1/5TcPeHb3WOh03CXNScN4NLxAj2HmyhsH6NoMc7+BY7Q5fdQvl9nJPZp4m6KbA==
+  /encode-registry/1.0.0:
+    dependencies:
+      mem: 1.1.0
+    resolution:
+      integrity: sha512-4DiPp5kmIDq9rHDU5C3r9clu+TVcnUXIMoLNiiJxHlGG+cMIApT/mOwLEpcEPN1a2PnNt/Ll3lcf39dyHf3n9w==
   /esprima/4.0.0:
     resolution:
       integrity: sha512-oftTcaMu/EGrEIu904mWteKIv8vMuOgGYo7EhVJJN00R/EED9DCua/xxHRdYnKtcECzVg7xOWhflvJMnqcFZjw==
@@ -95,6 +106,14 @@ packages:
       strip-bom: 3.0.0
     resolution:
       integrity: sha1-9oAGbmkbPutFAXZy5KOVavW4O4k=
+  /mem/1.1.0:
+    dependencies:
+      mimic-fn: 1.1.0
+    resolution:
+      integrity: sha1-Xt1StIXKHZAP5kiVUFOZoN+kX3Y=
+  /mimic-fn/1.1.0:
+    resolution:
+      integrity: sha1-5md4PZLonb00KBi1IwudYqZyrRg=
   /minimatch/3.0.4:
     dependencies:
       brace-expansion: 1.1.8
@@ -193,6 +212,7 @@ shrinkwrapVersion: 3
 specifiers:
   '@types/node': ^8.0.11
   '@types/semver': ^5.3.32
+  dependency-path: ^1.0.0
   pnpm-shrinkwrap: ^3.1.0
   semver: ^5.3.0
   typescript: ^2.4.1

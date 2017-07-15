@@ -1,15 +1,15 @@
-# pnpm-list
+# dependencies-hierarchy
 
-[![Status](https://travis-ci.org/pnpm/pnpm-list.svg?branch=master)](https://travis-ci.org/pnpm/pnpm-list "See test builds")
+[![Status](https://travis-ci.org/pnpm/dependencies-hierarchy.svg?branch=master)](https://travis-ci.org/pnpm/dependencies-hierarchy "See test builds")
 
-> List installed packages in a symlinked `node_modules`
+> Creates a dependencies hierarchy for a symlinked `node_modules`
 
 ## Install
 
 Install it via npm.
 
 ```
-npm install pnpm-list
+npm install dependencies-hierarchy
 ```
 
 ## License

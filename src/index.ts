@@ -2,10 +2,10 @@ import {
   readPrivate,
   Shrinkwrap,
   ResolvedPackages,
-  refToAbsoluteResolutionLoc,
-  refToRelativeResolutionLoc,
 } from 'pnpm-shrinkwrap'
 import semver = require('semver')
+import {refToAbsolute, refToRelative} from 'dependency-path'
+import assert = require('assert')
 
 export type SearchedPackage = {
   name: string,
@@ -22,18 +22,41 @@ export type PackageNode = {
   searched?: true,
 }
 
-export default async function list (
+export function forPackages (
+  packages: SearchedPackage[],
   projectPath: string,
   opts?: {
     depth: number,
     only?: 'dev' | 'prod',
-    searched?: SearchedPackage[],
+  }
+) {
+  assert(packages, 'packages should be defined')
+  if (!packages.length) return []
+
+  return dependenciesHierarchy(projectPath, packages, opts)
+}
+
+export default function (
+  projectPath: string,
+  opts?: {
+    depth: number,
+    only?: 'dev' | 'prod',
+  }
+) {
+  return dependenciesHierarchy(projectPath, [], opts)
+}
+
+async function dependenciesHierarchy (
+  projectPath: string,
+  searched: SearchedPackage[],
+  opts?: {
+    depth: number,
+    only?: 'dev' | 'prod',
   }
 ): Promise<PackageNode[]> {
   const _opts = Object.assign({}, {
     depth: 0,
     only: undefined,
-    searched: [],
   }, opts)
   const shrinkwrap = await readPrivate(projectPath, {ignoreIncompatible: false})
 
@@ -47,13 +70,13 @@ export default async function list (
     currentDepth: 1,
     maxDepth: _opts.depth,
     prod: _opts.only === 'prod',
-    searched: _opts.searched,
+    searched,
     registry: shrinkwrap.registry,
   }, shrinkwrap.packages)
   const result: PackageNode[] = []
   Object.keys(topDeps).forEach(depName => {
-    const relativeId = refToRelativeResolutionLoc(topDeps[depName], depName)
-    const resolvedId = refToAbsoluteResolutionLoc(topDeps[depName], depName, shrinkwrap.registry)
+    const relativeId = refToRelative(topDeps[depName], depName)
+    const resolvedId = refToAbsolute(topDeps[depName], depName, shrinkwrap.registry)
     const pkg = {
       resolvedId,
       name: depName,
@@ -61,13 +84,13 @@ export default async function list (
     }
     const dependencies = getChildrenTree(relativeId)
     let newEntry: PackageNode | null = null
-    const matchedSearched = _opts.searched.length && matches(_opts.searched, pkg)
+    const matchedSearched = searched.length && matches(searched, pkg)
     if (dependencies.length) {
       newEntry = {
         pkg,
         dependencies,
       }
-    } else if (!_opts.searched.length || matches(_opts.searched, pkg)) {
+    } else if (!searched.length || matches(searched, pkg)) {
       newEntry = {pkg}
     }
     if (newEntry) {
@@ -128,8 +151,8 @@ function getTree (
 
   let result: PackageNode[] = []
   Object.keys(deps).forEach(depName => {
-    const resolvedId = refToAbsoluteResolutionLoc(deps[depName], depName, opts.registry)
-    const relativeId = refToRelativeResolutionLoc(deps[depName], depName)
+    const resolvedId = refToAbsolute(deps[depName], depName, opts.registry)
+    const relativeId = refToRelative(deps[depName], depName)
     const pkg = {
       resolvedId,
       name: depName,

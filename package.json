@@ -1,7 +1,7 @@
 {
   "name": "dependencies-hierarchy",
   "version": "0.0.1",
-  "description": "List installed packages in a symlinked `node_modules`",
+  "description": "Creates a dependencies hierarchy for a symlinked `node_modules`",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
   "files": [
@@ -15,22 +15,28 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/pnpm/pnpm-list.git"
+    "url": "git+https://github.com/pnpm/dependencies-hierarchy.git"
   },
   "keywords": [
+    "hierarchy",
     "pnpm",
-    "list",
-    "ls"
+    "dependencies",
+    "node_modules"
   ],
-  "author": "Zoltan Kochan",
+  "author": {
+    "name": "Zoltan Kochan",
+    "email": "zoltan.kochan@gmail.com",
+    "url": "https://www.kochan.io/"
+  },
   "license": "MIT",
   "bugs": {
-    "url": "https://github.com/pnpm/pnpm-list/issues"
+    "url": "https://github.com/pnpm/dependencies-hierarchy/issues"
   },
-  "homepage": "https://github.com/pnpm/pnpm-list#readme",
+  "homepage": "https://github.com/pnpm/dependencies-hierarchy#readme",
   "dependencies": {
     "@types/node": "^8.0.11",
     "@types/semver": "^5.3.32",
+    "dependency-path": "^1.0.0",
     "pnpm-shrinkwrap": "^3.1.0",
     "semver": "^5.3.0"
   },
