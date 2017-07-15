@@ -16,6 +16,7 @@ const _readPkg = thenify(readPkgCB)
 const readPkg = (pkgPath: string) => limitPkgReads(() => _readPkg(pkgPath))
 
 export default async function (
+  projectPath: string,
   args: string[],
   opts: {
     depth?: number,
@@ -37,23 +38,22 @@ export default async function (
     }
   })
 
-  const cwd = process.cwd()
   const hopts = {
     depth: opts.depth || 0,
     only: opts.only,
   }
 
   const tree = searched.length
-    ? await dhForPackages(searched, cwd, hopts)
-    : await dh(cwd, hopts)
+    ? await dhForPackages(searched, projectPath, hopts)
+    : await dh(projectPath, hopts)
 
   const pkg = await readPkg('package.json')
 
   const s = archy({
-    label: `${pkg.name}@${pkg.version} ${process.cwd()}`,
+    label: `${pkg.name}@${pkg.version} ${projectPath}`,
     nodes: await toArchyTree(tree, {
       long: Boolean(opts.long),
-      modules: path.join(process.cwd(), 'node_modules')
+      modules: path.join(projectPath, 'node_modules')
     }),
   })
 

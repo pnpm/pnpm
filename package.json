@@ -9,9 +9,10 @@
   ],
   "scripts": {
     "prepare": "cd test && pnpm install",
-    "test": "cd test && npm test",
+    "test": "cd test && npm test && mos test",
     "prepublishOnly": "tsc",
-    "tsc": "tsc"
+    "tsc": "tsc",
+    "md": "tsc && mos"
   },
   "repository": {
     "type": "git",
@@ -22,7 +23,11 @@
     "list",
     "ls"
   ],
-  "author": "Zoltan Kochan",
+  "author": {
+    "name": "Zoltan Kochan",
+    "email": "zoltan.kochan@gmail.com",
+    "url": "https://www.kochan.io/"
+  },
   "license": "MIT",
   "bugs": {
     "url": "https://github.com/pnpm/pnpm-list/issues"
@@ -41,6 +46,16 @@
     "thenify": "^3.3.0"
   },
   "devDependencies": {
+    "mos": "^2.0.0-alpha.3",
+    "mos-plugin-readme": "^1.0.4",
     "typescript": "^2.4.1"
+  },
+  "mos": {
+    "plugins": [
+      "readme"
+    ],
+    "installation": {
+      "useShortAlias": true
+    }
   }
 }
