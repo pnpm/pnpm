@@ -43,13 +43,13 @@ async function unlock(lockFilename: string): Promise<{}> {
 }
 
 export default async function withLock<T> (
-  storePath: string,
+  dir: string,
   fn: () => Promise<T>,
   opts: {stale: number}
 ): Promise<T> {
-  storePath = path.resolve(storePath)
-  await mkdirp(storePath)
-  const lockFilename = path.join(storePath, 'lock')
+  dir = path.resolve(dir)
+  await mkdirp(path.dirname(dir))
+  const lockFilename = `${dir}.lock`
   await lock(lockFilename, {firstTime: true, stale: opts.stale})
   try {
     const result = await fn()

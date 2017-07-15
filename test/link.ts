@@ -18,6 +18,7 @@ import {
   linkFromGlobal,
   installPkgs,
 } from '../src'
+import exists = require('path-exists')
 
 test('relative link', async function (t) {
   prepare(t)
@@ -63,4 +64,17 @@ test('global link', async function (t) {
   await linkFromGlobal(linkedPkgName, process.cwd(), Object.assign(testDefaults(), {globalPrefix}))
 
   isExecutable(t, path.resolve('node_modules', '.bin', 'hello-world-js-bin'))
+})
+
+test('failed linking should not create empty folder', async (t: tape.Test) => {
+  prepare(t)
+
+  const globalPrefix = path.resolve('..', 'global')
+
+  try {
+    await linkFromGlobal('does-not-exist', process.cwd(), Object.assign(testDefaults(), {globalPrefix}))
+    t.fail('should have failed')
+  } catch (err) {
+    t.notOk(await exists(path.join(globalPrefix, 'node_modules', 'does-not-exist')))
+  }
 })
