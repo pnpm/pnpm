@@ -6,6 +6,7 @@ import {
   ResolvedPackages,
   ResolvedDependencies,
 } from './types'
+import {refToRelative} from 'dependency-path'
 
 const SHRINKWRAP_VERSION = 3
 
@@ -36,18 +37,18 @@ export default function prune (shr: Shrinkwrap, pkg: Package): Shrinkwrap {
 
   if (shrOptionalDependencies) {
     let optionalPkgIds: string[] = R.keys(shrOptionalDependencies)
-      .map((pkgName: string) => getPkgShortId(shrOptionalDependencies[pkgName], pkgName))
+      .map((pkgName: string) => refToRelative(shrOptionalDependencies[pkgName], pkgName))
     copyDependencySubTree(packages, optionalPkgIds, shr, [], {registry: shr.registry, nonOptional, optional: true})
   }
 
   if (shrDevDependencies) {
     let devPkgIds: string[] = R.keys(shrDevDependencies)
-      .map((pkgName: string) => getPkgShortId(shrDevDependencies[pkgName], pkgName))
+      .map((pkgName: string) => refToRelative(shrDevDependencies[pkgName], pkgName))
     copyDependencySubTree(packages, devPkgIds, shr, [], {registry: shr.registry, nonOptional, dev: true})
   }
 
   let pkgIds: string[] = R.keys(shrDependencies)
-    .map((pkgName: string) => getPkgShortId(shrDependencies[pkgName], pkgName))
+    .map((pkgName: string) => refToRelative(shrDependencies[pkgName], pkgName))
 
   copyDependencySubTree(packages, pkgIds, shr, [], {
     registry: shr.registry,
@@ -110,22 +111,12 @@ function copyDependencySubTree (
       delete depShr.dev
     }
     const newDependencies = R.keys(depShr.dependencies)
-      .map((pkgName: string) => getPkgShortId(<string>(depShr.dependencies && depShr.dependencies[pkgName]), pkgName))
+      .map((pkgName: string) => refToRelative(<string>(depShr.dependencies && depShr.dependencies[pkgName]), pkgName))
     const newKeypath = keypath.concat([pkgId])
     copyDependencySubTree(resolvedPackages, newDependencies, shr, newKeypath, opts)
 
     const newOptionalDependencies = R.keys(depShr.optionalDependencies)
-      .map((pkgName: string) => getPkgShortId(<string>(depShr.optionalDependencies && depShr.optionalDependencies[pkgName]), pkgName))
+      .map((pkgName: string) => refToRelative(<string>(depShr.optionalDependencies && depShr.optionalDependencies[pkgName]), pkgName))
     copyDependencySubTree(resolvedPackages, newOptionalDependencies, shr, newKeypath, Object.assign({}, opts, {optional: true}))
   }
-}
-
-export function getPkgShortId (
-  reference: string,
-  pkgName: string
-) {
-  if (reference.indexOf('/') === -1) {
-    return `/${pkgName}/${reference}`
-  }
-  return reference
 }
