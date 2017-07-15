@@ -10,7 +10,7 @@ import assert = require('assert')
 export type SearchedPackage = {
   name: string,
   range: string,
-}
+} | string
 
 export type PackageNode = {
   pkg: {
@@ -189,5 +189,11 @@ function matches (
   searched: SearchedPackage[],
   pkg: {name: string, version: string}
 ) {
-  return searched.some(searchedPkg => searchedPkg.name === pkg.name && semver.satisfies(pkg.version, searchedPkg.range))
+  return searched.some(searchedPkg => {
+    if (typeof searchedPkg === 'string') {
+      return pkg.name === searchedPkg
+    }
+    return searchedPkg.name === pkg.name &&
+      semver.satisfies(pkg.version, searchedPkg.range)
+  })
 }

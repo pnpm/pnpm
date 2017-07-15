@@ -164,8 +164,8 @@ test('filter 1 package with depth 0', async t => {
 
 test('filter 2 packages with depth 100', async t => {
   const searched = [
-    {name: 'minimatch', range: '*'},
-    {name: 'once', range: '*'},
+    'minimatch',
+    {name: 'once', range: '1.4'},
   ]
   const tree = await dhForPackages(searched, generalFixture, {depth: 100})
 
