@@ -6,6 +6,7 @@ import run from './run'
 import store from './store'
 import uninstall from './uninstall'
 import update from './update'
+import list from './list'
 
 export {
   install,
@@ -16,4 +17,5 @@ export {
   store,
   uninstall,
   update,
+  list,
 }

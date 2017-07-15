@@ -22,6 +22,7 @@ dependencies:
   path-name: 1.0.0
   pnpm-default-reporter: 0.8.0
   pnpm-file-reporter: 0.0.1
+  pnpm-list: 1.0.0
   pnpm-logger: 0.5.0
   ramda: 0.24.1
   rimraf: 2.6.1
@@ -39,6 +40,9 @@ devDependencies:
   typescript: 2.4.1
   validate-commit-msg: 2.12.2
 packages:
+  /@types/archy/0.0.30:
+    resolution:
+      integrity: sha1-OIlyozH5YdxxrqcMCLu9ZZN3RgU=
   /@types/byline/4.2.31:
     dependencies:
       '@types/node': 8.0.13
@@ -146,6 +150,9 @@ packages:
   /aproba/1.1.2:
     resolution:
       integrity: sha512-ZpYajIfO0j2cOFTO955KUMIKNmj6zhX8kVztMAxFsDaMwz+9Z9SV0uou2pC9HJqcfpffOsjnbrDMvkNy+9RXPw==
+  /archy/1.0.0:
+    resolution:
+      integrity: sha1-+cjBN1fMHde8N5rHeyxipcKGjEA=
   /are-we-there-yet/1.1.4:
     dependencies:
       delegates: 1.0.0
@@ -531,6 +538,20 @@ packages:
   /delegates/1.0.0:
     resolution:
       integrity: sha1-hMbhWbgZBP3KWaDvRM2HDTElD5o=
+  /dependencies-hierarchy/1.0.0:
+    dependencies:
+      '@types/node': 8.0.13
+      '@types/semver': 5.3.32
+      dependency-path: 1.0.0
+      pnpm-shrinkwrap: 3.1.0
+      semver: 5.3.0
+    resolution:
+      integrity: sha512-fKrQ+iKswftsyApHaKD3yNnfpHoWybQdgrRqMEcgJ/cK7VQfdrjhiS7DtZ9uzZ34XGy/Bou13cxXLM7b82pTcA==
+  /dependency-path/1.0.0:
+    dependencies:
+      encode-registry: 1.0.0
+    resolution:
+      integrity: sha512-Gvh4PAxxNz453W7sTk0QlVo1/5TcPeHb3WOh03CXNScN4NLxAj2HmyhsH6NoMc7+BY7Q5fdQvl9nJPZp4m6KbA==
   /detect-file/0.1.0:
     dependencies:
       fs-exists-sync: 0.1.0
@@ -580,6 +601,11 @@ packages:
     optional: true
     resolution:
       integrity: sha1-D8c6ntXw1Tw4GTOYUj735UN3dQU=
+  /encode-registry/1.0.0:
+    dependencies:
+      mem: 1.1.0
+    resolution:
+      integrity: sha512-4DiPp5kmIDq9rHDU5C3r9clu+TVcnUXIMoLNiiJxHlGG+cMIApT/mOwLEpcEPN1a2PnNt/Ll3lcf39dyHf3n9w==
   /end-of-stream/1.0.0:
     dependencies:
       once: 1.3.3
@@ -1750,6 +1776,20 @@ packages:
       semver: 5.3.0
     resolution:
       integrity: sha1-dB2ZeXYv362T8+Rp3rSoFNNDAAg=
+  /pnpm-list/1.0.0:
+    dependencies:
+      '@types/archy': 0.0.30
+      '@types/chalk': 0.4.31
+      '@types/node': 8.0.13
+      archy: 1.0.0
+      chalk: 2.0.1
+      dependencies-hierarchy: 1.0.0
+      npm-package-arg: 5.1.2
+      p-limit: 1.1.0
+      read-package-json: 2.0.10
+      thenify: 3.3.0
+    resolution:
+      integrity: sha512-pz3mQnX81xNcfrOF2xH+9mJ2HtsUFZLFNH33f3yozyvsQi6WtaXY/Gt9kl7SAIdd6R7MbL/z0zStUQ/IG9VzGg==
   /pnpm-logger/0.0.0:
     dependencies:
       bole: 3.0.2
@@ -2552,6 +2592,7 @@ specifiers:
   path-name: ^1.0.0
   pnpm-default-reporter: ^0.8.0
   pnpm-file-reporter: ^0.0.1
+  pnpm-list: ^1.0.0
   pnpm-logger: ^0.5.0
   ramda: ^0.24.1
   rimraf: ^2.5.4

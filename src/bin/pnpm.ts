@@ -37,6 +37,7 @@ const supportedCmds = new Set([
   'install-test',
   'run',
   'store',
+  'list',
 ])
 
 async function run (argv: string[]) {
@@ -111,7 +112,7 @@ async function run (argv: string[]) {
   initReporter(silent ? 'silent' : (<any>opts.reporter || 'default')) // tslint:disable-line
 
   const cliArgs = cliConf.argv.remain.slice(1)
-  return pnpmCmds[cmd](cliArgs, opts)
+  return pnpmCmds[cmd](cliArgs, opts, cliConf.argv.remain[0])
 }
 
 function getCommandFullName (cmd: string) {
@@ -135,6 +136,11 @@ function getCommandFullName (cmd: string) {
     case 'up':
     case 'upgrade':
       return 'update'
+    case 'list':
+    case 'ls':
+    case 'll':
+    case 'la':
+      return 'list'
     // some commands have no aliases: publish, prune
     default:
       return cmd

@@ -37,6 +37,7 @@
     "path-name": "^1.0.0",
     "pnpm-default-reporter": "^0.8.0",
     "pnpm-file-reporter": "^0.0.1",
+    "pnpm-list": "^1.0.0",
     "pnpm-logger": "^0.5.0",
     "ramda": "^0.24.1",
     "supi": "^0.2.0",
