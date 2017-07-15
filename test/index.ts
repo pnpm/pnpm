@@ -4,6 +4,7 @@ import path = require('path')
 
 const fixtures = path.join(__dirname, 'fixtures')
 const generalFixture = path.join(fixtures, 'general')
+const circularFixture = path.join(fixtures, 'circular')
 
 test('one package depth 0', async t => {
   const tree = await dh(generalFixture, {depth: 0})
@@ -229,6 +230,14 @@ test('filter 2 packages with depth 100', async t => {
       ]
     }
   ])
+
+  t.end()
+})
+
+test('circular dependency', async t => {
+  const tree = await dh(circularFixture, {depth: 1000})
+
+  t.deepEqual(tree, require('./circularTree.json'))
 
   t.end()
 })

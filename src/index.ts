@@ -20,6 +20,7 @@ export type PackageNode = {
   }
   dependencies?: PackageNode[],
   searched?: true,
+  circular?: true,
 }
 
 export function forPackages (
@@ -82,7 +83,7 @@ async function dependenciesHierarchy (
       name: depName,
       version: topDeps[depName],
     }
-    const dependencies = getChildrenTree(relativeId)
+    const dependencies = getChildrenTree([relativeId], relativeId)
     let newEntry: PackageNode | null = null
     const matchedSearched = searched.length && matches(searched, pkg)
     if (dependencies.length) {
@@ -132,6 +133,7 @@ function getTree (
     registry: string,
   },
   packages: ResolvedPackages,
+  keypath: string[],
   parentId: string
 ): PackageNode[] {
   if (opts.currentDepth > opts.maxDepth) return []
@@ -158,7 +160,8 @@ function getTree (
       name: depName,
       version: deps[depName],
     }
-    const dependencies = getChildrenTree(relativeId)
+    const circular = keypath.indexOf(relativeId) !== -1
+    const dependencies = circular ? [] : getChildrenTree(keypath.concat([relativeId]), relativeId)
     let newEntry: PackageNode | null = null
     const matchedSearched = opts.searched.length && matches(opts.searched, pkg)
     if (dependencies.length) {
@@ -170,6 +173,9 @@ function getTree (
       newEntry = {pkg}
     }
     if (newEntry) {
+      if (circular) {
+        newEntry.circular = true
+      }
       if (matchedSearched) {
         newEntry.searched = true
       }
