@@ -38,6 +38,7 @@ const supportedCmds = new Set([
   'run',
   'store',
   'list',
+  'dislink',
 ])
 
 async function run (argv: string[]) {
@@ -111,7 +112,8 @@ async function run (argv: string[]) {
 
   initReporter(silent ? 'silent' : (<any>opts.reporter || 'default')) // tslint:disable-line
 
-  const cliArgs = cliConf.argv.remain.slice(1)
+  // `pnpm install ""` is going to be just `pnpm install`
+  const cliArgs = cliConf.argv.remain.slice(1).filter(Boolean)
   return pnpmCmds[cmd](cliArgs, opts, cliConf.argv.remain[0])
 }
 

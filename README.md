@@ -69,7 +69,8 @@ pnpm install lodash
 ```
 
 Use `pnpm` in place of `npm`. It overrides `install`, `update`, `uninstall`, `link`, `prune`, `list` and `install-test`.
-The rest of the commands pass through to `npm`.
+Also, it has some custom commands, like `dislink` for unlinking a package (like `yarn unlink` but pnpm reinstalls
+the dependency after removing the external link). The rest of the commands pass through to `npm`.
 
 For using the programmatic API, use pnpm's engine: [supi](https://github.com/pnpm/supi).
 
