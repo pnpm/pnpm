@@ -465,13 +465,15 @@ async function installInContext (
 
   await Promise.all([
     saveShrinkwrap(ctx.root, result.shrinkwrap, result.privateShrinkwrap),
-    saveModules(path.join(ctx.root, 'node_modules'), {
-      packageManager: `${opts.packageManager.name}@${opts.packageManager.version}`,
-      store: ctx.storePath,
-      skipped: Array.from(installCtx.skipped),
-      layoutVersion: LAYOUT_VERSION,
-      independentLeaves: opts.independentLeaves,
-    }),
+    result.privateShrinkwrap.packages === undefined
+      ? Promise.resolve()
+      : saveModules(path.join(ctx.root, 'node_modules'), {
+        packageManager: `${opts.packageManager.name}@${opts.packageManager.version}`,
+        store: ctx.storePath,
+        skipped: Array.from(installCtx.skipped),
+        layoutVersion: LAYOUT_VERSION,
+        independentLeaves: opts.independentLeaves,
+      }),
   ])
 
   // postinstall hooks

@@ -132,12 +132,13 @@ test("shrinkwrap doesn't lock subdependencies that don't satisfy the new specs",
   t.equal(Object.keys(shr.dependencies).length, 1, 'resolutions not duplicated')
 })
 
-test('shrinkwrap not created when no deps in package.json', async t => {
+test('shrinkwrap not created when no deps in package.json', async (t: tape.Test) => {
   const project = prepare(t)
 
   await install(testDefaults())
 
   t.notOk(await project.loadShrinkwrap(), 'shrinkwrap file not created')
+  t.notOk(await exists('node_modules'), 'empty node_modules not created')
 })
 
 test('shrinkwrap removed when no deps in package.json', async t => {
