@@ -48,6 +48,7 @@ import {
   DirectoryResolution,
   Resolution,
 } from 'package-store'
+import depsFromPackage from '../depsFromPackage'
 
 export type InstalledPackages = {
   [name: string]: InstalledPackage
@@ -184,15 +185,6 @@ function specsToInstallFromPackage(
     optionalDependencies: pkg.optionalDependencies || {},
     devDependencies: pkg.devDependencies || {},
   })
-}
-
-function depsFromPackage (pkg: Package): Dependencies {
-  return Object.assign(
-    {},
-    pkg.devDependencies,
-    pkg.dependencies,
-    pkg.optionalDependencies
-  ) as Dependencies
 }
 
 /**

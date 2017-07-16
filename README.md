@@ -106,6 +106,27 @@ Create a symbolic link from the global `pkgName` to the `linkTo/node_modules` fo
 * `globalPrefix` - *String* - path to the global directory.
 * `options.reporter` - *Function* - A function that listens for logs.
 
+### `pnpm.unlink([options])`
+
+Unlinks all packages that were linked during development in a project. If the linked package is in `package.json` of the project,
+it is installed after unlinking.
+
+**Arguments:**
+
+* `options.prefix` - *String* - by default `process.cwd()`. Path to the project.
+* `options.reporter` - *Function* - A function that listens for logs.
+
+### `pnpm.unlinkPkgs(pkgsToUnlink, [options])`
+
+Unlinks the listed packages that were linked during development in a project. If the linked package is in `package.json` of the project,
+it is installed after unlinking.
+
+**Arguments:**
+
+* `pkgsToUnlink` - *String[]* - the list of packages that have to be unlinked. If the passed in package is not an external link, then a warning is reported.
+* `options.prefix` - *String* - by default `process.cwd()`. Path to the project.
+* `options.reporter` - *Function* - A function that listens for logs.
+
 ### `pnpm.prune([options])`
 
 Remove extraneous packages. Extraneous packages are packages that are not listed on the parent package's dependencies list.
