@@ -32,7 +32,7 @@ export default async function uninstall (pkgsToUninstall: string[], maybeOpts?: 
   const opts = extendOptions(maybeOpts)
 
   if (opts.lock) {
-    await lock(opts.prefix, _uninstall, {stale: opts.lockStaleDuration})
+    await lock(opts.prefix, _uninstall, {stale: opts.lockStaleDuration, locks: opts.locks})
   } else {
     await _uninstall()
   }
@@ -52,7 +52,7 @@ export default async function uninstall (pkgsToUninstall: string[], maybeOpts?: 
       return run()
     }
 
-    return lock(ctx.storePath, run, {stale: opts.lockStaleDuration})
+    return lock(ctx.storePath, run, {stale: opts.lockStaleDuration, locks: opts.locks})
 
     function run () {
       return uninstallInContext(pkgsToUninstall, ctx, opts)

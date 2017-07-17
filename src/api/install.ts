@@ -108,7 +108,7 @@ export async function install (maybeOpts?: PnpmOptions) {
   const opts = extendOptions(maybeOpts)
 
   if (opts.lock) {
-    await lock(opts.prefix, _install, {stale: opts.lockStaleDuration})
+    await lock(opts.prefix, _install, {stale: opts.lockStaleDuration, locks: opts.locks})
   } else {
     await _install()
   }
@@ -154,7 +154,7 @@ export async function install (maybeOpts?: PnpmOptions) {
     if (opts.lock === false) {
       await run()
     } else {
-      await lock(ctx.storePath, run, {stale: opts.lockStaleDuration})
+      await lock(ctx.storePath, run, {stale: opts.lockStaleDuration, locks: opts.locks})
     }
 
     if (scripts['postinstall']) {
@@ -202,7 +202,7 @@ export async function installPkgs (fuzzyDeps: string[] | Dependencies, maybeOpts
   const opts = extendOptions(maybeOpts)
 
   if (opts.lock) {
-    await lock(opts.prefix, _installPkgs, {stale: opts.lockStaleDuration})
+    await lock(opts.prefix, _installPkgs, {stale: opts.lockStaleDuration, locks: opts.locks})
   } else {
     await _installPkgs()
   }
@@ -252,7 +252,7 @@ export async function installPkgs (fuzzyDeps: string[] | Dependencies, maybeOpts
       return run()
     }
 
-    return lock(ctx.storePath, run, {stale: opts.lockStaleDuration})
+    return lock(ctx.storePath, run, {stale: opts.lockStaleDuration, locks: opts.locks})
 
     function run () {
       return installInContext(

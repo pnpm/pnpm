@@ -11,13 +11,15 @@ const defaults = (opts: PnpmOptions) => {
     name: pnpmPkgJson.name,
     version: pnpmPkgJson.version,
   }
+  const store = '~/.pnpm-store'
   const prefix = process.cwd()
   return <StrictPnpmOptions>{
     fetchRetries: 2,
     fetchRetryFactor: 10,
     fetchRetryMintimeout: 1e4, // 10 seconds
     fetchRetryMaxtimeout: 6e4, // 1 minute
-    store: '~/.pnpm-store',
+    store,
+    locks: path.join(opts.store || store, '_locks'),
     ignoreScripts: false,
     strictSsl: true,
     tag: 'latest',

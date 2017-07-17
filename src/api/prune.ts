@@ -27,7 +27,7 @@ export async function prune(maybeOpts?: PnpmOptions): Promise<void> {
   if (opts.lock === false) {
     await run()
   } else {
-    await lock(ctx.storePath, run, {stale: opts.lockStaleDuration})
+    await lock(ctx.storePath, run, {stale: opts.lockStaleDuration, locks: opts.locks})
   }
 
   if (reporter) {

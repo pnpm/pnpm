@@ -2,6 +2,8 @@ import logger from 'pnpm-logger'
 import path = require('path')
 import lockfile = require('proper-lockfile')
 import mkdirp = require('mkdirp-promise')
+import crypto = require('crypto')
+import expandTilde from '../fs/expandTilde'
 
 async function delay(ms: number) {
   return new Promise(resolve => setTimeout(resolve, ms))
@@ -45,11 +47,17 @@ async function unlock(lockFilename: string): Promise<{}> {
 export default async function withLock<T> (
   dir: string,
   fn: () => Promise<T>,
-  opts: {stale: number}
+  opts: {
+    stale: number,
+    locks: string,
+  }
 ): Promise<T> {
   dir = path.resolve(dir)
-  await mkdirp(path.dirname(dir))
-  const lockFilename = `${dir}.lock`
+  // TODO: expand tilde only once. Currently it can be done several times during installation
+  // because several locks might get created
+  const locksDir = expandTilde(opts.locks)
+  await mkdirp(locksDir)
+  const lockFilename = path.join(locksDir, crypto.createHash('sha1').update(dir).digest('hex'))
   await lock(lockFilename, {firstTime: true, stale: opts.stale})
   try {
     const result = await fn()

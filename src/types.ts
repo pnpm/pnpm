@@ -112,6 +112,7 @@ export type StrictPnpmOptions = PnpmOptions & {
   childConcurrency: number,
   repeatInstallDepth: number,
   independentLeaves: boolean,
+  locks: string,
 
   // cannot be specified via configs
   update: boolean,
