@@ -23,6 +23,7 @@ import runNpm from '../cmd/runNpm'
 import bole = require('bole')
 import initReporter from '../reporter'
 import pnpmPkgJson from '../pnpmPkgJson'
+import getCommandFullName from '../getCommandFullName'
 
 bole.setFastTime()
 
@@ -39,6 +40,7 @@ const supportedCmds = new Set([
   'store',
   'list',
   'dislink',
+  'help',
 ])
 
 async function run (argv: string[]) {
@@ -115,38 +117,6 @@ async function run (argv: string[]) {
   // `pnpm install ""` is going to be just `pnpm install`
   const cliArgs = cliConf.argv.remain.slice(1).filter(Boolean)
   return pnpmCmds[cmd](cliArgs, opts, cliConf.argv.remain[0])
-}
-
-function getCommandFullName (cmd: string) {
-  switch (cmd) {
-    case 'install':
-    case 'i':
-      return 'install'
-    case 'uninstall':
-    case 'r':
-    case 'rm':
-    case 'un':
-    case 'unlink':
-      return 'uninstall'
-    case 'link':
-    case 'ln':
-      return 'link'
-    case 'install-test':
-    case 'it':
-      return 'install-test'
-    case 'update':
-    case 'up':
-    case 'upgrade':
-      return 'update'
-    case 'list':
-    case 'ls':
-    case 'll':
-    case 'la':
-      return 'list'
-    // some commands have no aliases: publish, prune
-    default:
-      return cmd
-  }
 }
 
 export = run

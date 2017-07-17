@@ -8,6 +8,7 @@ import uninstall from './uninstall'
 import dislink from './dislink'
 import update from './update'
 import list from './list'
+import help from './help'
 
 export {
   install,
@@ -20,4 +21,5 @@ export {
   dislink,
   update,
   list,
+  help,
 }
