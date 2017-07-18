@@ -3,7 +3,7 @@ dependencies:
   '@types/common-tags': 1.2.5
   '@types/load-json-file': 2.0.5
   '@types/mz': 0.0.31
-  '@types/node': 7.0.37
+  '@types/node': 7.0.38
   '@types/nopt': 3.0.29
   '@types/npm': 2.0.28
   '@types/ramda': 0.0.15
@@ -12,7 +12,6 @@ dependencies:
   '@types/update-notifier': 1.0.1
   '@zkochan/cmd-shim': 2.2.3
   arr-flatten: 1.1.0
-  bole: 3.0.2
   byline: 5.0.0
   common-tags: 1.4.0
   cross-spawn: 5.1.0
@@ -31,7 +30,6 @@ dependencies:
   mkdirp-promise: 5.0.1
   mz: 2.6.0
   ncp: 2.0.0
-  ndjson: 1.5.0
   node-gyp: 3.6.2
   normalize-path: 2.1.1
   normalize-registry-url: 1.0.0
@@ -62,14 +60,14 @@ devDependencies:
   cz-conventional-changelog: 2.0.0
   husky: 0.13.4
   npm-scripts-info: 0.3.6
-  pnpm-logger: 0.5.0
+  pnpm-logger: 0.5.2
   tslint: 5.5.0
   typescript: 2.4.1
   validate-commit-msg: 2.12.2
 packages:
   /@types/byline/4.2.31:
     dependencies:
-      '@types/node': 8.0.13
+      '@types/node': 8.0.14
     resolution:
       integrity: sha1-DmH8ucA+BH0hxEllVMcRYperYM0=
   /@types/common-tags/1.2.5:
@@ -80,21 +78,21 @@ packages:
       integrity: sha1-Wt7ZvaV8uLMbavbCySero5WJPfY=
   /@types/mz/0.0.31:
     dependencies:
-      '@types/node': 8.0.13
+      '@types/node': 8.0.14
     resolution:
       integrity: sha1-pNgMCC/v5x5Ap8DwfR5lVbu8e1I=
-  /@types/node/7.0.37:
+  /@types/node/7.0.38:
     resolution:
-      integrity: sha512-Sbq77AHszzU3VuvMLsZ5+sziYDJg3CmIzIIR9J61uBp34dIHjpbjNoQb03G130F+HfbOJ8d74qZp2pCLZaZlcQ==
-  /@types/node/8.0.13:
+      integrity: sha512-NFibBZau5MS5oBonJ1fVURTAH3gYbdcx40qXX9KEtYv0AzWh1uEbTaT6Hw6Z2x/z4IGHbJWrbGlQkCQ9mEozcw==
+  /@types/node/8.0.14:
     resolution:
-      integrity: sha512-Y3EAG7VA7NVNbZek/fjJtILnmTk/ZfpJuWZGDBqDZ1dVIxgJJJ82fXPW7pKnqyV9CD/9bcPOCi7eErUqGMHOrA==
+      integrity: sha512-lrtgE/5FeTdcuxgsDbLUIFJ33dTp4TkbKkTDZt/ueUMeqmGYqJRQd908q5Yj9EzzWSMonEhMr1q/CQlgVGEt4w==
   /@types/nopt/3.0.29:
     resolution:
       integrity: sha1-8Z3z20yX7hRZonQAKDIKcdcJZM4=
   /@types/npm/2.0.28:
     dependencies:
-      '@types/node': 8.0.13
+      '@types/node': 8.0.14
     resolution:
       integrity: sha1-Crf0YK/Jru7kYZQ4l2YDG8cUUgw=
   /@types/ramda/0.0.11:
@@ -1262,6 +1260,7 @@ packages:
     resolution:
       integrity: sha1-hX/Kv8M5fSYluCKCYuhqp6ARsF0=
   /minimist/1.2.0:
+    dev: true
     resolution:
       integrity: sha1-o1AIsg9BOD7sH7kU9M1d95omQoQ=
   /mkdirp-promise/5.0.1:
@@ -1294,6 +1293,7 @@ packages:
       minimist: 1.2.0
       split2: 2.1.1
       through2: 2.0.3
+    dev: true
     resolution:
       integrity: sha1-rmA7NrE0vOw0e0UkIrC/mNWDLsg=
   /node-gyp/3.6.2:
@@ -1465,7 +1465,7 @@ packages:
   /package-store/0.2.0:
     dependencies:
       '@types/load-json-file': 2.0.5
-      '@types/node': 7.0.37
+      '@types/node': 7.0.38
       '@types/ramda': 0.24.4
       '@types/semver': 5.3.32
       dint: 1.0.0
@@ -1519,7 +1519,7 @@ packages:
       integrity: sha1-9ID0BDTvgHQfhGkJn43qGPVaTck=
   /parse-npm-tarball-url/1.0.1:
     dependencies:
-      '@types/node': 7.0.37
+      '@types/node': 7.0.38
       semver-regex: 1.0.0
     resolution:
       integrity: sha1-TfHPBF05fvLZw59RMImKiqjgYuQ=
@@ -1595,15 +1595,17 @@ packages:
       bole: 3.0.2
     resolution:
       integrity: sha1-6uzqWgN/BTpkxQvafto8uH9e1mE=
-  /pnpm-logger/0.5.0:
+  /pnpm-logger/0.5.2:
     dependencies:
+      '@types/node': 8.0.14
       bole: 3.0.2
+      ndjson: 1.5.0
     dev: true
     resolution:
-      integrity: sha512-J5n4RJ3eW3Yt1yCWB43yUna0j8TYyqh1SGu8ffk9SBjUXS7zIGwi9C2zwNqNZIou4jvaQ1+dAc5RPE/U/eJLoQ==
+      integrity: sha512-d+tlkQdfp+Y4GWa07gGs3DhgwiFTcCPZ+1edRgZW9zAChgmr3e5dY5r0HqvfImsC7FKzcFrhZb48o+9xAEjpuw==
   /pnpm-shrinkwrap/3.1.0:
     dependencies:
-      '@types/node': 7.0.37
+      '@types/node': 7.0.38
       '@types/ramda': 0.0.11
       js-yaml: 3.9.0
       load-yaml-file: 0.1.0
@@ -1899,6 +1901,7 @@ packages:
   /split2/2.1.1:
     dependencies:
       through2: 2.0.3
+    dev: true
     resolution:
       integrity: sha1-eh9VHhdqkOzTNF9yRqDP4XXvT9A=
   /sprintf-js/1.0.3:
@@ -1974,7 +1977,7 @@ packages:
   /symlink-dir/1.1.0:
     dependencies:
       '@types/mz': 0.0.31
-      '@types/node': 8.0.13
+      '@types/node': 8.0.14
       graceful-fs: 4.1.11
       is-windows: 1.0.1
       mkdirp-promise: 5.0.1
@@ -2092,7 +2095,7 @@ packages:
       integrity: sha1-jITITVtMwo/B+fV3IDu9PLhgoWo=
   /unpack-stream/2.0.0:
     dependencies:
-      '@types/node': 7.0.37
+      '@types/node': 7.0.38
       decompress-maybe: 1.0.0
       ssri: 4.1.6
       tar-fs: 1.15.3
@@ -2211,7 +2214,6 @@ specifiers:
   '@types/update-notifier': ^1.0.0
   '@zkochan/cmd-shim': ^2.2.3
   arr-flatten: ^1.0.1
-  bole: ^3.0.2
   byline: ^5.0.0
   commitizen: ^2.8.6
   common-tags: ^1.4.0
@@ -2233,7 +2235,6 @@ specifiers:
   mkdirp-promise: ^5.0.1
   mz: ^2.6.0
   ncp: ^2.0.0
-  ndjson: ^1.5.0
   node-gyp: ^3.6.0
   normalize-path: ^2.1.1
   normalize-registry-url: ^1.0.0
@@ -2248,7 +2249,7 @@ specifiers:
   path-exists: ^3.0.0
   path-name: ^1.0.0
   pnpm-install-checks: ^1.1.0
-  pnpm-logger: ^0.5.0
+  pnpm-logger: ^0.5.2
   pnpm-shrinkwrap: ^3.1.0
   proper-lockfile: ^2.0.0
   ramda: ^0.24.1

@@ -1,13 +1,12 @@
 import path = require('path')
 import loadJsonFile = require('load-json-file')
 import symlinkDir = require('symlink-dir')
-import logger from 'pnpm-logger'
+import logger, {streamParser} from 'pnpm-logger'
 import {install} from './install'
 import expandTilde from '../fs/expandTilde'
 import {linkPkgBins} from '../link/linkBins'
 import {PnpmOptions} from '../types'
 import extendOptions from './extendOptions'
-import streamParser from '../logging/streamParser'
 
 const linkLogger = logger('link')
 

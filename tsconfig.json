@@ -53,7 +53,6 @@
     "src/link/linkBins.ts",
     "src/link/resolvePeers.ts",
     "src/logging/logInstallStatus.ts",
-    "src/logging/streamParser.ts",
     "src/memoize.ts",
     "src/pnpmPkgJson.ts",
     "src/removeDeps.ts",

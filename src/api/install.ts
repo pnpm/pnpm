@@ -1,6 +1,7 @@
 import path = require('path')
 import RegClient = require('npm-registry-client')
 import logger, {
+  streamParser,
   lifecycleLogger,
   stageLogger,
   summaryLogger,
@@ -38,7 +39,6 @@ import createMemoize, {MemoizedFunc} from '../memoize'
 import {Package} from '../types'
 import {DependencyTreeNode} from '../link/resolvePeers'
 import depsToSpecs, {similarDepsToSpecs} from '../depsToSpecs'
-import streamParser from '../logging/streamParser'
 import shrinkwrapsEqual from './shrinkwrapsEqual'
 import {
   createGot,
@@ -114,7 +114,7 @@ export async function install (maybeOpts?: PnpmOptions) {
   }
 
   if (reporter) {
-    streamParser.removeListener('data', opts.reporter)
+    streamParser.removeListener('data', reporter)
   }
 
   async function _install() {
@@ -208,7 +208,7 @@ export async function installPkgs (fuzzyDeps: string[] | Dependencies, maybeOpts
   }
 
   if (reporter) {
-    streamParser.removeListener('data', opts.reporter)
+    streamParser.removeListener('data', reporter)
   }
 
   async function _installPkgs () {

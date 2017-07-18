@@ -12,7 +12,7 @@ import {
   ResolvedDependencies,
   prune as pruneShrinkwrap,
 } from 'pnpm-shrinkwrap'
-import streamParser from '../logging/streamParser'
+import {streamParser} from 'pnpm-logger'
 
 export async function prune(maybeOpts?: PnpmOptions): Promise<void> {
   const reporter = maybeOpts && maybeOpts.reporter

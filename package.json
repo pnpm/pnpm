@@ -16,7 +16,7 @@
     "lib/"
   ],
   "peerDependencies": {
-    "pnpm-logger": "^0.5.0"
+    "pnpm-logger": "^0.5.2"
   },
   "dependencies": {
     "@types/byline": "^4.2.31",
@@ -32,7 +32,6 @@
     "@types/update-notifier": "^1.0.0",
     "@zkochan/cmd-shim": "^2.2.3",
     "arr-flatten": "^1.0.1",
-    "bole": "^3.0.2",
     "byline": "^5.0.0",
     "common-tags": "^1.4.0",
     "cross-spawn": "^5.0.0",
@@ -51,7 +50,6 @@
     "mkdirp-promise": "^5.0.1",
     "mz": "^2.6.0",
     "ncp": "^2.0.0",
-    "ndjson": "^1.5.0",
     "node-gyp": "^3.6.0",
     "normalize-path": "^2.1.1",
     "normalize-registry-url": "^1.0.0",
@@ -82,7 +80,7 @@
     "cz-conventional-changelog": "^2.0.0",
     "husky": "^0.13.2",
     "npm-scripts-info": "^0.3.6",
-    "pnpm-logger": "^0.5.0",
+    "pnpm-logger": "^0.5.2",
     "rimraf": "^2.5.4",
     "tslint": "^5.4.2",
     "typescript": "^2.4.1",

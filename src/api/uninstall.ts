@@ -11,7 +11,7 @@ import {
   write as saveShrinkwrap,
   prune as pruneShrinkwrap,
 } from 'pnpm-shrinkwrap'
-import logger from 'pnpm-logger'
+import logger, {streamParser} from 'pnpm-logger'
 import {
   save as saveModules,
   LAYOUT_VERSION,
@@ -20,7 +20,6 @@ import removeOrphanPkgs from './removeOrphanPkgs'
 import {PackageSpec} from 'package-store'
 import safeIsInnerLink from '../safeIsInnerLink'
 import removeTopDependency from '../removeTopDependency'
-import streamParser from '../logging/streamParser'
 import shrinkwrapsEqual from './shrinkwrapsEqual'
 
 export default async function uninstall (pkgsToUninstall: string[], maybeOpts?: PnpmOptions) {
@@ -38,7 +37,7 @@ export default async function uninstall (pkgsToUninstall: string[], maybeOpts?: 
   }
 
   if (reporter) {
-    streamParser.removeListener('data', opts.reporter)
+    streamParser.removeListener('data', reporter)
   }
 
   async function _uninstall () {
