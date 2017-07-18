@@ -24,7 +24,7 @@ dependencies:
   pnpm-logger: 0.5.2
   ramda: 0.24.1
   rimraf: 2.6.1
-  supi: 0.2.3
+  supi: 0.2.4
   update-notifier: 2.2.0
 devDependencies:
   '@types/mkdirp': 0.5.0
@@ -43,7 +43,7 @@ packages:
       integrity: sha1-OIlyozH5YdxxrqcMCLu9ZZN3RgU=
   /@types/byline/4.2.31:
     dependencies:
-      '@types/node': 8.0.13
+      '@types/node': 8.0.14
     resolution:
       integrity: sha1-DmH8ucA+BH0hxEllVMcRYperYM0=
   /@types/chalk/0.4.31:
@@ -63,12 +63,15 @@ packages:
       integrity: sha512-9UvtpVx/f9ly3T0bTri3DNQYyRWoJ2CPwvBKCeD0BOG41XQBVCx4wr1aKcdOv3Uv+oeqJoFRrgAOxxO3hrFg5g==
   /@types/mz/0.0.31:
     dependencies:
-      '@types/node': 8.0.13
+      '@types/node': 8.0.14
     resolution:
       integrity: sha1-pNgMCC/v5x5Ap8DwfR5lVbu8e1I=
   /@types/node/7.0.37:
     resolution:
       integrity: sha512-Sbq77AHszzU3VuvMLsZ5+sziYDJg3CmIzIIR9J61uBp34dIHjpbjNoQb03G130F+HfbOJ8d74qZp2pCLZaZlcQ==
+  /@types/node/7.0.38:
+    resolution:
+      integrity: sha512-NFibBZau5MS5oBonJ1fVURTAH3gYbdcx40qXX9KEtYv0AzWh1uEbTaT6Hw6Z2x/z4IGHbJWrbGlQkCQ9mEozcw==
   /@types/node/8.0.13:
     resolution:
       integrity: sha512-Y3EAG7VA7NVNbZek/fjJtILnmTk/ZfpJuWZGDBqDZ1dVIxgJJJ82fXPW7pKnqyV9CD/9bcPOCi7eErUqGMHOrA==
@@ -80,7 +83,7 @@ packages:
       integrity: sha1-8Z3z20yX7hRZonQAKDIKcdcJZM4=
   /@types/npm/2.0.28:
     dependencies:
-      '@types/node': 8.0.13
+      '@types/node': 8.0.14
     resolution:
       integrity: sha1-Crf0YK/Jru7kYZQ4l2YDG8cUUgw=
   /@types/ramda/0.0.11:
@@ -1630,7 +1633,7 @@ packages:
   /package-store/0.2.0:
     dependencies:
       '@types/load-json-file': 2.0.5
-      '@types/node': 7.0.37
+      '@types/node': 7.0.38
       '@types/ramda': 0.24.4
       '@types/semver': 5.3.32
       dint: 1.0.0
@@ -1684,7 +1687,7 @@ packages:
       integrity: sha1-9ID0BDTvgHQfhGkJn43qGPVaTck=
   /parse-npm-tarball-url/1.0.1:
     dependencies:
-      '@types/node': 7.0.37
+      '@types/node': 7.0.38
       semver-regex: 1.0.0
     resolution:
       integrity: sha1-TfHPBF05fvLZw59RMImKiqjgYuQ=
@@ -1810,7 +1813,7 @@ packages:
       integrity: sha512-d+tlkQdfp+Y4GWa07gGs3DhgwiFTcCPZ+1edRgZW9zAChgmr3e5dY5r0HqvfImsC7FKzcFrhZb48o+9xAEjpuw==
   /pnpm-shrinkwrap/3.1.0:
     dependencies:
-      '@types/node': 7.0.37
+      '@types/node': 7.0.38
       '@types/ramda': 0.0.11
       js-yaml: 3.9.0
       load-yaml-file: 0.1.0
@@ -2224,13 +2227,13 @@ packages:
   /strip-json-comments/2.0.1:
     resolution:
       integrity: sha1-PFMZQukIwml8DsNEhYwobHygpgo=
-  /supi/0.2.3:
+  /supi/0.2.4:
     dependencies:
       '@types/byline': 4.2.31
       '@types/common-tags': 1.2.5
       '@types/load-json-file': 2.0.5
       '@types/mz': 0.0.31
-      '@types/node': 7.0.37
+      '@types/node': 7.0.38
       '@types/nopt': 3.0.29
       '@types/npm': 2.0.28
       '@types/ramda': 0.0.15
@@ -2239,7 +2242,6 @@ packages:
       '@types/update-notifier': 1.0.1
       '@zkochan/cmd-shim': 2.2.3
       arr-flatten: 1.1.0
-      bole: 3.0.2
       byline: 5.0.0
       common-tags: 1.4.0
       cross-spawn: 5.1.0
@@ -2258,7 +2260,6 @@ packages:
       mkdirp-promise: 5.0.1
       mz: 2.6.0
       ncp: 2.0.0
-      ndjson: 1.5.0
       node-gyp: 3.6.2
       normalize-path: 2.1.1
       normalize-registry-url: 1.0.0
@@ -2284,7 +2285,7 @@ packages:
       write-pkg: 3.1.0
       write-yaml-file: 1.0.0
     resolution:
-      integrity: sha512-TTY3OboZ1aaDluWaIJX1YX/Fz5aR7zwto2m/LgE7S1UuaWsytD71aV379S+T2kKEQ7RhLr3ocK3OrLHDQIJ6DQ==
+      integrity: sha512-k2bq7UDsNebLPcmot/AVuKQfRqtvk7JepbgrZosP1RPGf3uEVZ++HMfthUpHB8s6214+6e50X47ohLXhxT48iA==
   /supports-color/2.0.0:
     resolution:
       integrity: sha1-U10EXOa2Nj+kARcIRimZXp3zJMc=
@@ -2296,7 +2297,7 @@ packages:
   /symlink-dir/1.1.0:
     dependencies:
       '@types/mz': 0.0.31
-      '@types/node': 8.0.13
+      '@types/node': 8.0.14
       graceful-fs: 4.1.11
       is-windows: 1.0.1
       mkdirp-promise: 5.0.1
@@ -2427,7 +2428,7 @@ packages:
       integrity: sha1-nhBXzKhRq7kzmPizOuGHuZyuwRo=
   /unpack-stream/2.0.0:
     dependencies:
-      '@types/node': 7.0.37
+      '@types/node': 7.0.38
       decompress-maybe: 1.0.0
       ssri: 4.1.6
       tar-fs: 1.15.3
@@ -2599,7 +2600,7 @@ specifiers:
   pnpm-logger: ^0.5.2
   ramda: ^0.24.1
   rimraf: ^2.5.4
-  supi: ^0.2.3
+  supi: ^0.2.4
   tslint: ^5.4.2
   typescript: ^2.4.1
   update-notifier: ^2.1.0

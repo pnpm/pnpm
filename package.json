@@ -38,7 +38,7 @@
     "pnpm-list": "^1.0.0",
     "pnpm-logger": "^0.5.2",
     "ramda": "^0.24.1",
-    "supi": "^0.2.3",
+    "supi": "^0.2.4",
     "update-notifier": "^2.1.0"
   },
   "devDependencies": {
