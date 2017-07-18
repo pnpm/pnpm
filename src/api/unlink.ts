@@ -83,16 +83,19 @@ async function getExternalPackages (
   scope?: string
 ): Promise<string[]> {
   let externalLinks: string[] = []
-  for (const dir of await fs.readdir(modules)) {
+  const parentDir = scope ? path.join(modules, scope) : modules
+  for (const dir of await fs.readdir(parentDir)) {
     if (dir[0] === '.') continue
 
     if (!scope && dir[0] === '@') {
-      externalLinks = externalLinks.concat(await getExternalPackages(path.join(modules, dir), store, dir))
+      externalLinks = externalLinks.concat(await getExternalPackages(modules, store, dir))
       continue
     }
 
-    if (await isExternalLink(store, modules, dir)) {
-      externalLinks.push(scope ? `${scope}/${dir}` : dir)
+    const pkgName = scope ? `${scope}/${dir}` : dir
+
+    if (await isExternalLink(store, modules, pkgName)) {
+      externalLinks.push(pkgName)
     }
   }
   return externalLinks

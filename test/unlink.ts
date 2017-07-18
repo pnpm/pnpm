@@ -117,6 +117,20 @@ test('unlink all packages', async (t: tape.Test) => {
   t.equal(typeof project.requireModule('@zkochan/logger'), 'object', '@zkochan/logger installed after unlinked')
 })
 
+test("don't warn about scoped packages when running unlink w/o params", async (t: tape.Test) => {
+  const project = prepare(t)
+
+  await installPkgs(['@zkochan/logger'], testDefaults())
+
+  const reporter = sinon.spy()
+  await unlink(testDefaults({reporter}))
+
+  t.notOk(reporter.calledWithMatch({
+    level: 'warn',
+    message: '@zkochan/logger is not an external link',
+  }), 'not reported warning')
+})
+
 test("don't unlink package that is not a link", async (t: tape.Test) => {
   const project = prepare(t)
 
