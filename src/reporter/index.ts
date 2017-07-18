@@ -1,7 +1,6 @@
 import defaultReporter from 'pnpm-default-reporter'
 import silentReporter from './silentReporter'
-import streamParser from '../logging/streamParser'
-import bole = require('bole')
+import {streamParser, writeToConsole} from 'pnpm-logger'
 
 export type ReporterType = 'default' | 'ndjson' | 'silent'
 
@@ -11,11 +10,7 @@ export default (reporterType: ReporterType) => {
       defaultReporter(streamParser)
       return
     case 'ndjson':
-      bole.output([
-        {
-          level: 'debug', stream: process.stdout
-        },
-      ])
+      writeToConsole()
       return
     case 'silent':
       silentReporter(streamParser)

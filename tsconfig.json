@@ -35,7 +35,6 @@
     "src/err.ts",
     "src/errorTypes.ts",
     "src/logging/fileLogger.ts",
-    "src/logging/streamParser.ts",
     "src/pnpmPkgJson.ts",
     "src/reporter/index.ts",
     "src/reporter/silentReporter.ts",

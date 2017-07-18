@@ -20,12 +20,9 @@ import '../logging/fileLogger'
 import pkg from '../pnpmPkgJson'
 import * as pnpmCmds from '../cmd'
 import runNpm from '../cmd/runNpm'
-import bole = require('bole')
 import initReporter from '../reporter'
 import pnpmPkgJson from '../pnpmPkgJson'
 import getCommandFullName from '../getCommandFullName'
-
-bole.setFastTime()
 
 pnpmCmds['install-test'] = pnpmCmds.installTest
 
