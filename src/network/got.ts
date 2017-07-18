@@ -94,10 +94,25 @@ export default (
       return new Promise((resolve, reject) => {
         client.fetch(url, {auth: shouldAuth && auth}, async (err: Error, res: IncomingMessage) => {
           if (err) return reject(err)
+
+          if (res.statusCode !== 200) {
+            return reject(new Error(`Invalid response: ${res.statusCode}`))
+          }
+
+          if (opts.onStart) opts.onStart()
+          if (opts.onProgress && res.headers['content-length']) {
+            const onProgress = opts.onProgress
+            let downloaded = 0
+            let size = +res.headers['content-length']
+            res.on('data', (chunk: Buffer) => {
+              downloaded += chunk.length
+              onProgress(downloaded, size)
+            })
+          }
+
           const writeStream = createWriteStreamAtomic(saveto)
 
           const stream = res
-            .on('response', start)
             .on('error', reject)
             .pipe(writeStream)
             .on('error', reject)
@@ -108,23 +123,6 @@ export default (
           ])
           .then(vals => resolve(vals[1]))
           .catch(reject)
-
-          function start (res: IncomingMessage) {
-            if (res.statusCode !== 200) {
-              return reject(new Error(`Invalid response: ${res.statusCode}`))
-            }
-
-            if (opts.onStart) opts.onStart()
-            if (opts.onProgress && ('content-length' in res.headers)) {
-              const onProgress = opts.onProgress
-              let downloaded = 0
-              let size = +res.headers['content-length']
-              res.on('data', (chunk: Buffer) => {
-                downloaded += chunk.length
-                onProgress(downloaded, size)
-              })
-            }
-          }
         })
       })
     })
