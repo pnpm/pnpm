@@ -35,6 +35,7 @@
     "normalize-ssh": "^1.0.0",
     "npm": "^5.1.0",
     "p-limit": "^1.1.0",
+    "p-queue": "^1.1.0",
     "parse-npm-tarball-url": "^1.0.1",
     "path-exists": "^3.0.0",
     "ramda": "^0.24.1",

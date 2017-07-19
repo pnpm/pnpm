@@ -15,6 +15,7 @@ dependencies:
   normalize-ssh: 1.0.0
   npm: 5.2.0
   p-limit: 1.1.0
+  p-queue: 1.1.0
   parse-npm-tarball-url: 1.0.1
   path-exists: 3.0.0
   ramda: 0.24.1
@@ -1068,6 +1069,9 @@ packages:
   /p-map/1.1.1:
     resolution:
       integrity: sha1-BfXkrpegaDcbwqXMhr+9vBnErno=
+  /p-queue/1.1.0:
+    resolution:
+      integrity: sha1-xCRvFweC9I1JVX7mY0ZY9rHazF8=
   /pad-right/0.2.2:
     dependencies:
       repeat-string: 1.6.1
@@ -1616,6 +1620,7 @@ specifiers:
   npm: ^5.1.0
   npm-scripts-info: ^0.3.6
   p-limit: ^1.1.0
+  p-queue: ^1.1.0
   parse-npm-tarball-url: ^1.0.1
   path-exists: ^3.0.0
   pnpm-logger: ^0.5.0

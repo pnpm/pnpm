@@ -94,6 +94,7 @@ export type ResolveOptions = {
   metaCache: Map<string, PackageMeta>,
   prefix: string,
   offline: boolean,
+  downloadPriority: number,
 }
 
 /**

@@ -10,6 +10,7 @@ import unpackStream = require('unpack-stream')
 import npmGetCredentialsByURI = require('npm/lib/config/get-credentials-by-uri')
 import urlLib = require('url')
 import normalizeRegistryUrl = require('normalize-registry-url')
+import PQueue = require('p-queue')
 
 export type AuthInfo = {
   alwaysAuth: boolean,
@@ -32,7 +33,7 @@ export type Got = {
     onProgress?: (downloaded: number, totalSize: number) => void,
     integrity?: string
   }): Promise<{}>,
-  getJSON<T>(url: string, registry: string): Promise<T>,
+  getJSON<T>(url: string, registry: string, priority?: number): Promise<T>,
 }
 
 export type NpmRegistryClient = {
@@ -57,10 +58,12 @@ export default (
     }
   })
 
-  const limit = pLimit(opts.networkConcurrency)
+  const requestsQueue = new PQueue({
+    concurrency: opts.networkConcurrency,
+  })
 
-  async function getJSON (url: string, registry: string) {
-    return limit(() => new Promise((resolve, reject) => {
+  async function getJSON (url: string, registry: string, priority?: number) {
+    return requestsQueue.add(() => new Promise((resolve, reject) => {
       const getOpts = {
         auth: getCredentialsByURI(registry),
         fullMetadata: false,
@@ -69,7 +72,7 @@ export default (
         if (err) return reject(err)
         resolve(data)
       })
-    }))
+    }), { priority })
   }
 
   function download (url: string, saveto: string, opts: {
@@ -79,7 +82,7 @@ export default (
     onProgress?: (downloaded: number, totalSize: number) => void,
     integrity?: string
   }): Promise<{}> {
-    return limit(async () => {
+    return requestsQueue.add(async () => {
       await mkdirp(path.dirname(saveto))
 
       const auth = opts.registry && getCredentialsByURI(opts.registry)
@@ -125,7 +128,7 @@ export default (
           .catch(reject)
         })
       })
-    })
+    }, {priority: 1000}) // tarballs are requested first because they are bigger than metadata
   }
 
   return {

@@ -263,3 +263,8 @@ declare module 'rename-overwrite' {
   const anything: any;
   export = anything;
 }
+
+declare module 'p-queue' {
+  const anything: any;
+  export = anything;
+}

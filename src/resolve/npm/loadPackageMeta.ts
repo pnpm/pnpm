@@ -38,6 +38,7 @@ export default async function loadPkgMetaNonCached (
     metaCache: Map<string, PackageMeta>,
     offline: boolean,
     registry: string,
+    downloadPriority: number,
   }
 ): Promise<PackageMeta> {
   opts = opts || {}
@@ -68,7 +69,7 @@ export default async function loadPkgMetaNonCached (
   }
 
   try {
-    const meta = await fromRegistry(opts.got, spec, opts.registry)
+    const meta = await fromRegistry(opts.got, spec, opts.registry, opts.downloadPriority)
     // only save meta to cache, when it is fresh
     opts.metaCache.set(spec.name, meta)
     limit(() => saveMeta(pkgMirror, meta))
@@ -82,9 +83,9 @@ export default async function loadPkgMetaNonCached (
   }
 }
 
-async function fromRegistry (got: Got, spec: PackageSpec, registry: string) {
+async function fromRegistry (got: Got, spec: PackageSpec, registry: string, downloadPriority: number) {
   const uri = toUri(spec, registry)
-  const meta = <PackageMeta>await got.getJSON(uri, registry)
+  const meta = <PackageMeta>await got.getJSON(uri, registry, downloadPriority)
   return meta
 }
 

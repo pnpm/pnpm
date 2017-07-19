@@ -67,6 +67,7 @@ export default async function fetch (
     loggedPkg: LoggedPkg,
     offline: boolean,
     storeIndex: Store,
+    downloadPriority: number,
   }
 ): Promise<FetchedPackage> {
   try {
@@ -82,6 +83,7 @@ export default async function fetch (
         registry: options.registry,
         metaCache: options.metaCache,
         offline: options.offline,
+        downloadPriority: options.downloadPriority,
       })
       // keep the shrinkwrap resolution when possible
       // to keep the original shasum
