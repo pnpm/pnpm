@@ -111,7 +111,12 @@ function saveMeta (pkgMirror: string, meta: PackageMeta): Promise<PackageMeta> {
  *
  * @example
  *     toUri({ name: 'rimraf', rawSpec: '2' })
- *     // => 'https://registry.npmjs.org/rimraf/2'
+ *     // => 'https://registry.npmjs.org/rimraf'
+ *
+ * Although it is possible to download the needed package.json with one request
+ * by passing the spec like this: 'https://registry.npmjs.org/rimraf/2'
+ * This increases the number of HTTP requests during installation and slows down
+ * pnpm up to twice!
  */
 function toUri (spec: PackageSpec, registry: string) {
   let name: string
