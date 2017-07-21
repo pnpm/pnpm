@@ -27,7 +27,7 @@ dependencies:
   ssri: 4.1.6
   symlink-dir: 1.1.0
   thenify: 3.3.0
-  unpack-stream: 2.0.0
+  unpack-stream: 2.1.0
   write-json-file: 2.2.0
 devDependencies:
   '@types/tape': 4.2.30
@@ -55,6 +55,9 @@ packages:
   /@types/node/8.0.10:
     resolution:
       integrity: sha512-ATKQAMGah+e3qNBVdJoCIJk3+RWBkPYtmlluGewO1+t/JmkXEoLnt/WDgHynfGvJyQWTKMq+N1az1E/5YASYGg==
+  /@types/node/8.0.14:
+    resolution:
+      integrity: sha512-lrtgE/5FeTdcuxgsDbLUIFJ33dTp4TkbKkTDZt/ueUMeqmGYqJRQd908q5Yj9EzzWSMonEhMr1q/CQlgVGEt4w==
   /@types/ramda/0.24.3:
     resolution:
       integrity: sha512-rOvzjI3N2TRbO/fDAq1ogNFOcDVARC9a6O3l7W7Km1gAjKl4IwV3tHc5nhmnJC0zRE+euDmgl4QdnZLzoNbdUA==
@@ -1530,14 +1533,14 @@ packages:
       through: 2.3.8
     resolution:
       integrity: sha1-jITITVtMwo/B+fV3IDu9PLhgoWo=
-  /unpack-stream/2.0.0:
+  /unpack-stream/2.1.0:
     dependencies:
-      '@types/node': 7.0.34
+      '@types/node': 8.0.14
       decompress-maybe: 1.0.0
       ssri: 4.1.6
       tar-fs: 1.15.3
     resolution:
-      integrity: sha1-PFpevB3voZ3LiyzkPqdJPyBOWG4=
+      integrity: sha512-6V27bksNIRg7MD/4gvmlVTouA22akjUmSnJFbgHM0XSGcuFWLmt0WjrE0NmScQm1/bQJfOFIX+kt941RCx1rBw==
   /unquote/1.1.0:
     dev: true
     resolution:
@@ -1635,6 +1638,6 @@ specifiers:
   thenify: ^3.3.0
   tslint: ^5.4.2
   typescript: ^2.4.1
-  unpack-stream: ^2.0.0
+  unpack-stream: ^2.1.0
   validate-commit-msg: ^2.7.0
   write-json-file: ^2.2.0
