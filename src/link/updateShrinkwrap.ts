@@ -18,22 +18,25 @@ export default function (
   pkg: Package
 ): Shrinkwrap {
   shrinkwrap.packages = shrinkwrap.packages || {}
-  for (const resolvedId of R.keys(pkgsToLink)) {
-    const shortId = dp.relative(shrinkwrap.registry, resolvedId)
-    const result = R.partition((childResolvedId: string) => pkgsToLink[resolvedId].optionalDependencies.has(pkgsToLink[childResolvedId].name), pkgsToLink[resolvedId].children)
-    shrinkwrap.packages[shortId] = toShrDependency({
-      resolvedId,
-      id: pkgsToLink[resolvedId].id,
-      shortId,
-      resolution: pkgsToLink[resolvedId].resolution,
+  for (const dependencyAbsolutePath of R.keys(pkgsToLink)) {
+    const dependencyPath = dp.relative(shrinkwrap.registry, dependencyAbsolutePath)
+    const result = R.partition(
+      (childResolvedId: string) => pkgsToLink[dependencyAbsolutePath].optionalDependencies.has(pkgsToLink[childResolvedId].name),
+      pkgsToLink[dependencyAbsolutePath].children
+    )
+    shrinkwrap.packages[dependencyPath] = toShrDependency({
+      dependencyAbsolutePath,
+      id: pkgsToLink[dependencyAbsolutePath].id,
+      dependencyPath,
+      resolution: pkgsToLink[dependencyAbsolutePath].resolution,
       updatedOptionalDeps: result[0],
       updatedDeps: result[1],
       registry: shrinkwrap.registry,
       pkgsToLink,
-      prevResolvedDeps: shrinkwrap.packages[shortId] && shrinkwrap.packages[shortId].dependencies || {},
-      prevResolvedOptionalDeps: shrinkwrap.packages[shortId] && shrinkwrap.packages[shortId].optionalDependencies || {},
-      dev: pkgsToLink[resolvedId].dev,
-      optional: pkgsToLink[resolvedId].optional,
+      prevResolvedDeps: shrinkwrap.packages[dependencyPath] && shrinkwrap.packages[dependencyPath].dependencies || {},
+      prevResolvedOptionalDeps: shrinkwrap.packages[dependencyPath] && shrinkwrap.packages[dependencyPath].optionalDependencies || {},
+      dev: pkgsToLink[dependencyAbsolutePath].dev,
+      optional: pkgsToLink[dependencyAbsolutePath].optional,
     })
   }
   return pruneShrinkwrap(shrinkwrap, pkg)
@@ -41,9 +44,9 @@ export default function (
 
 function toShrDependency (
   opts: {
-    resolvedId: string,
+    dependencyAbsolutePath: string,
     id: string,
-    shortId: string,
+    dependencyPath: string,
     resolution: Resolution,
     registry: string,
     updatedDeps: string[],
@@ -55,7 +58,7 @@ function toShrDependency (
     optional: boolean,
   }
 ): DependencyShrinkwrap {
-  const shrResolution = toShrResolution(opts.shortId, opts.resolution)
+  const shrResolution = toShrResolution(opts.dependencyPath, opts.resolution)
   const newResolvedDeps = updateResolvedDeps(opts.prevResolvedDeps, opts.updatedDeps, opts.registry, opts.pkgsToLink)
   const newResolvedOptionalDeps = updateResolvedDeps(opts.prevResolvedOptionalDeps, opts.updatedOptionalDeps, opts.registry, opts.pkgsToLink)
   const result = {
@@ -73,7 +76,7 @@ function toShrDependency (
   if (opts.optional) {
     result['optional'] = true
   }
-  if (opts.resolvedId !== opts.id) {
+  if (opts.dependencyAbsolutePath !== opts.id) {
     result['id'] = opts.id
   }
   return result
@@ -101,8 +104,8 @@ function updateResolvedDeps (
   )
 }
 
-function toShrResolution (shortId: string, resolution: Resolution): ShrinkwrapResolution {
-  if (shortId.startsWith('/') && resolution.type === undefined && resolution.integrity) {
+function toShrResolution (dependencyPath: string, resolution: Resolution): ShrinkwrapResolution {
+  if (!dp.isAbsolute(dependencyPath) && resolution.type === undefined && resolution.integrity) {
     return {
       integrity: resolution.integrity,
     }
