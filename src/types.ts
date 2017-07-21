@@ -45,6 +45,7 @@ export type PnpmOptions = {
   // pnpm specific configs
   storePath?: string, // DEPRECATED! store should be used
   store?: string,
+  verifyStoreIntegrity?: boolean,
   networkConcurrency?: number,
   fetchingConcurrency?: number,
   lockStaleDuration?: number,
@@ -105,6 +106,7 @@ export type StrictPnpmOptions = PnpmOptions & {
 
   // pnpm specific configs
   store: string,
+  verifyStoreIntegrity: boolean,
   networkConcurrency: number,
   fetchingConcurrency: number,
   lockStaleDuration: number,

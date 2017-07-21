@@ -347,6 +347,7 @@ async function installInContext (
     prefix: opts.prefix,
     parentNodeId: ':/:',
     currentDepth: 0,
+    verifyStoreInegrity: opts.verifyStoreIntegrity,
   }
   const nonLinkedPkgs = await pFilter(packagesToInstall,
     (spec: PackageSpec) => !spec.name || safeIsInnerLink(nodeModulesPath, spec.name, {storePath: ctx.storePath}))

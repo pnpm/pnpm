@@ -71,6 +71,7 @@ export default async function installMultiple (
     rawNpmConfig: Object,
     nodeModules: string,
     update: boolean,
+    verifyStoreInegrity: boolean,
   }
 ): Promise<PkgAddress[]> {
   const resolvedDependencies = options.resolvedDependencies || {}
@@ -149,6 +150,7 @@ async function install (
     rawNpmConfig: Object,
     nodeModules: string,
     update: boolean,
+    verifyStoreInegrity: boolean,
   }
 ): Promise<PkgAddress | null> {
   const keypath = options.keypath || []
@@ -190,6 +192,7 @@ async function install (
     pkgId: options.pkgId,
     offline: options.offline,
     storeIndex: ctx.storeIndex,
+    verifyStoreIntegrity: options.verifyStoreInegrity,
   })
 
   if (fetchedPkg.isLocal) {
@@ -346,6 +349,7 @@ async function installDependencies (
     rawNpmConfig: Object,
     nodeModules: string,
     update: boolean,
+    verifyStoreInegrity: boolean,
   }
 ): Promise<PkgAddress[]> {
   const depsInstallOpts = Object.assign({}, opts, {
