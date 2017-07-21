@@ -134,6 +134,13 @@ If true, symlinks leaf dependencies directly from the global store. Leaf depende
 packages that have no dependencies of their own. Setting this config to `true` might break some packages
 that rely on location but gives an average of **8% installation speed improvement**.
 
+#### verify-store-integrity
+
+* Default: **true**
+* Type: **Boolean**
+
+If false, doesn't check whether packages in the store were mutated.
+
 ## Benchmark
 
 pnpm is faster than npm and Yarn. See [this](https://github.com/zkochan/node-package-manager-benchmark)

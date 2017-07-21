@@ -53,6 +53,7 @@ async function run (argv: string[]) {
     'offline': Boolean,
     'reporter': String,
     'independent-leaves': Boolean,
+    'verify-store-integrity': Boolean,
   }
   const types = R.merge(npmDefaults.types, pnpmTypes)
   const cliConf = nopt(

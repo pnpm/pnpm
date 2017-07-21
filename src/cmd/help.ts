@@ -35,6 +35,7 @@ function getHelpText(command: string) {
           --network-concurrency <number>  maximum number of concurrent network requests
           --child-concurrency <number>    controls the number of child processes run parallelly to build node modules
           --independent-leaves            symlinks leaf dependencies directly from the global store
+          --[no-]verify-store-integrity   if false, doesn't check whether packages in the store were mutated
           --production                    packages in \`devDependencies\` won't be installed
           --[no-]lock
       `
