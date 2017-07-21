@@ -29,7 +29,7 @@ import {
   Shrinkwrap,
   ResolvedDependencies,
 } from 'pnpm-shrinkwrap'
-import {pkgIdToRef} from '../fs/shrinkwrap'
+import {absolutePathToRef} from '../fs/shrinkwrap'
 import {
   save as saveModules,
   LAYOUT_VERSION,
@@ -412,7 +412,7 @@ async function installInContext (
     const getSpecFromPkg = (depName: string) => deps[depName] || devDeps[depName] || optionalDeps[depName]
 
     for (const dep of pkgsToSave) {
-      const ref = pkgIdToRef(dep.id, dep.name, dep.resolution, ctx.shrinkwrap.registry)
+      const ref = absolutePathToRef(dep.id, dep.name, dep.resolution, ctx.shrinkwrap.registry)
       if (dep.dev) {
         ctx.shrinkwrap.devDependencies[dep.name] = ref
       } else if (dep.optional) {

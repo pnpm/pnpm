@@ -52,7 +52,7 @@ export default async function (
 }> {
   const topPkgIds = topPkgs.map(pkg => pkg.id)
   logger.info(`Creating dependency tree`)
-  const pkgsToLink = await resolvePeers(tree, rootNodeIds, topPkgIds, opts.topParents, opts.independentLeaves)
+  const pkgsToLink = await resolvePeers(tree, rootNodeIds, topPkgIds, opts.topParents, opts.independentLeaves, opts.baseNodeModules)
   const newShr = updateShrinkwrap(pkgsToLink, opts.shrinkwrap, opts.pkg)
 
   await removeOrphanPkgs({

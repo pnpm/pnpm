@@ -11,7 +11,6 @@ import {
   Resolution,
   PackageSpec,
   PackageMeta,
-  pkgIdToFilename,
 } from 'package-store'
 import {InstallContext, InstalledPackages} from '../api/install'
 import {Dependencies} from '../types'
@@ -47,7 +46,6 @@ export type InstalledPackage = {
   peerDependencies: Dependencies,
   optionalDependencies: Set<string>,
   hasBundledDependencies: boolean,
-  localLocation: string,
 }
 
 export default async function installMultiple (
@@ -274,7 +272,6 @@ async function install (
       peerDependencies: pkg.peerDependencies || {},
       optionalDependencies: new Set(R.keys(pkg.optionalDependencies)),
       hasBundledDependencies: !!(pkg.bundledDependencies || pkg.bundleDependencies),
-      localLocation: path.join(options.nodeModules, `.${pkgIdToFilename(fetchedPkg.id)}`),
     }
     const children = await installDependencies(
       pkg,

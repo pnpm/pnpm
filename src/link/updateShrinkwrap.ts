@@ -1,5 +1,5 @@
 import * as dp from 'dependency-path'
-import {pkgIdToRef} from '../fs/shrinkwrap'
+import {absolutePathToRef} from '../fs/shrinkwrap'
 import {
   Shrinkwrap,
   DependencyShrinkwrap,
@@ -95,7 +95,7 @@ function updateResolvedDeps (
     R.props<DependencyTreeNode>(updatedDeps, pkgsToLink)
       .map((dep): R.KeyValuePair<string, string> => [
         dep.name,
-        pkgIdToRef(dep.resolvedId, dep.name, dep.resolution, registry)
+        absolutePathToRef(dep.absolutePath, dep.name, dep.resolution, registry)
       ])
   )
   return R.merge(

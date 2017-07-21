@@ -1,19 +1,19 @@
 import {Resolution} from 'package-store'
 import encodeRegistry = require('encode-registry')
 
-export function pkgIdToRef (
-  pkgId: string,
+export function absolutePathToRef (
+  absolutePath: string,
   pkgName: string,
   resolution: Resolution,
   standardRegistry: string
 ) {
-  if (resolution.type) return pkgId
+  if (resolution.type) return absolutePath
 
   const registryName = encodeRegistry(standardRegistry)
-  if (pkgId.startsWith(`${registryName}/`)) {
-    const ref = pkgId.replace(`${registryName}/${pkgName}/`, '')
+  if (absolutePath.startsWith(`${registryName}/`)) {
+    const ref = absolutePath.replace(`${registryName}/${pkgName}/`, '')
     if (ref.indexOf('/') === -1) return ref
-    return pkgId.replace(`${registryName}/`, '/')
+    return absolutePath.replace(`${registryName}/`, '/')
   }
-  return pkgId
+  return absolutePath
 }

@@ -1,4 +1,8 @@
-import {Resolution, PackageContentInfo} from 'package-store'
+import {
+  Resolution,
+  PackageContentInfo,
+  pkgIdToFilename,
+} from 'package-store'
 import {Dependencies, Package} from '../types'
 import R = require('ramda')
 import semver = require('semver')
@@ -23,7 +27,7 @@ export type DependencyTreeNode = {
   independent: boolean,
   optionalDependencies: Set<string>,
   depth: number,
-  resolvedId: string,
+  absolutePath: string,
   dev: boolean,
   optional: boolean,
   id: string,
@@ -44,7 +48,8 @@ export default function (
   // only the top dependencies that were already installed
   // to avoid warnings about unresolved peer dependencies
   topParents: {name: string, version: string}[],
-  independentLeaves: boolean
+  independentLeaves: boolean,
+  nodeModules: string
 ): DependencyTreeNodeMap {
   const pkgsByName = R.fromPairs(
     topParents.map((parent: {name: string, version: string}): R.KeyValuePair<string, ParentRef> => [
@@ -58,7 +63,13 @@ export default function (
 
   const nodeIdToResolvedId = {}
   const resolvedTree: DependencyTreeNodeMap = {}
-  resolvePeersOfChildren(rootNodeIds, pkgsByName, tree, nodeIdToResolvedId, resolvedTree, independentLeaves)
+  resolvePeersOfChildren(rootNodeIds, pkgsByName, {
+    tree,
+    nodeIdToResolvedId,
+    resolvedTree,
+    independentLeaves,
+    nodeModules,
+  })
 
   R.values(resolvedTree).forEach(node => {
     node.children = node.children.map(child => nodeIdToResolvedId[child])
@@ -69,44 +80,48 @@ export default function (
 function resolvePeersOfNode (
   nodeId: string,
   parentPkgs: ParentRefs,
-  tree: TreeNodeMap,
-  nodeIdToResolvedId: {[nodeId: string]: string},
-  resolvedTree: DependencyTreeNodeMap,
-  independentLeaves: boolean
+  ctx: {
+    tree: TreeNodeMap,
+    nodeIdToResolvedId: {[nodeId: string]: string},
+    resolvedTree: DependencyTreeNodeMap,
+    independentLeaves: boolean,
+    nodeModules: string,
+  }
 ): string[] {
-  const node = tree[nodeId]
+  const node = ctx.tree[nodeId]
 
-  const unknownResolvedPeersOfChildren = resolvePeersOfChildren(node.children, parentPkgs, tree, nodeIdToResolvedId, resolvedTree, independentLeaves)
+  const unknownResolvedPeersOfChildren = resolvePeersOfChildren(node.children, parentPkgs, ctx)
 
   const resolvedPeers = R.isEmpty(node.pkg.peerDependencies)
     ? []
     : resolvePeers(node, Object.assign({}, parentPkgs,
-      toPkgByName(R.props<TreeNode>(node.children, tree))
-    ), tree)
+      toPkgByName(R.props<TreeNode>(node.children, ctx.tree))
+    ), ctx.tree)
 
   const allResolvedPeers = R.uniq(
     unknownResolvedPeersOfChildren
       .filter(resolvedPeerNodeId => resolvedPeerNodeId !== nodeId).concat(resolvedPeers))
 
   let modules: string
-  let resolvedId: string
+  let absolutePath: string
+  const localLocation = path.join(ctx.nodeModules, `.${pkgIdToFilename(node.pkg.id)}`)
   if (R.isEmpty(allResolvedPeers)) {
-    modules = path.join(node.pkg.localLocation, 'node_modules')
-    resolvedId = node.pkg.id
+    modules = path.join(localLocation, 'node_modules')
+    absolutePath = node.pkg.id
   } else {
-    const peersFolder = createPeersFolderName(R.props<TreeNode>(allResolvedPeers, tree).map(node => node.pkg))
-    modules = path.join(node.pkg.localLocation, peersFolder, 'node_modules')
-    resolvedId = `${node.pkg.id}/${peersFolder}`
+    const peersFolder = createPeersFolderName(R.props<TreeNode>(allResolvedPeers, ctx.tree).map(node => node.pkg))
+    modules = path.join(localLocation, peersFolder, 'node_modules')
+    absolutePath = `${node.pkg.id}/${peersFolder}`
   }
 
-  nodeIdToResolvedId[nodeId] = resolvedId
-  if (!resolvedTree[resolvedId] || resolvedTree[resolvedId].depth > node.depth) {
-    const independent = independentLeaves && !node.children.length && R.isEmpty(node.pkg.peerDependencies)
+  ctx.nodeIdToResolvedId[nodeId] = absolutePath
+  if (!ctx.resolvedTree[absolutePath] || ctx.resolvedTree[absolutePath].depth > node.depth) {
+    const independent = ctx.independentLeaves && !node.children.length && R.isEmpty(node.pkg.peerDependencies)
     const pathToUnpacked = path.join(node.pkg.path, 'node_modules', node.pkg.name)
     const hardlinkedLocation = !independent
       ? path.join(modules, node.pkg.name)
       : pathToUnpacked
-    resolvedTree[resolvedId] = {
+    ctx.resolvedTree[absolutePath] = {
       name: node.pkg.name,
       version: node.pkg.version,
       hasBundledDependencies: node.pkg.hasBundledDependencies,
@@ -119,7 +134,7 @@ function resolvePeersOfNode (
       optionalDependencies: node.pkg.optionalDependencies,
       children: R.union(node.children, resolvedPeers),
       depth: node.depth,
-      resolvedId,
+      absolutePath,
       dev: node.pkg.dev,
       optional: node.pkg.optional,
       id: node.pkg.id,
@@ -132,19 +147,21 @@ function resolvePeersOfNode (
 function resolvePeersOfChildren (
   children: string[],
   parentParentPkgs: ParentRefs,
-  tree: {[nodeId: string]: TreeNode},
-  nodeIdToResolvedId: {[nodeId: string]: string},
-  resolvedTree: DependencyTreeNodeMap,
-  independentLeaves: boolean
+  ctx: {
+    tree: {[nodeId: string]: TreeNode},
+    nodeIdToResolvedId: {[nodeId: string]: string},
+    resolvedTree: DependencyTreeNodeMap,
+    independentLeaves: boolean,
+    nodeModules: string,
+  }
 ): string[] {
-  const trees: DependencyTreeNodeMap[] = []
   const unknownResolvedPeersOfChildren: string[] = []
   const parentPkgs = Object.assign({}, parentParentPkgs,
-    toPkgByName(R.props<TreeNode>(children, tree))
+    toPkgByName(R.props<TreeNode>(children, ctx.tree))
   )
 
   for (const child of children) {
-    const allResolvedPeers = resolvePeersOfNode(child, parentPkgs, tree, nodeIdToResolvedId, resolvedTree, independentLeaves)
+    const allResolvedPeers = resolvePeersOfNode(child, parentPkgs, ctx)
 
     const unknownResolvedPeersOfChild = allResolvedPeers
       .filter((resolvedPeerNodeId: string) => children.indexOf(resolvedPeerNodeId) === -1)
