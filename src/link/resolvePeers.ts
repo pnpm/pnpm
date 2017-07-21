@@ -160,29 +160,31 @@ function resolvePeers (
   parentPkgs: ParentRefs,
   tree: TreeNodeMap
 ): string[] {
-  return R.toPairs(node.pkg.peerDependencies)
-    .map(R.apply((peerName: string, peerVersionRange: string) => {
-      const resolved = parentPkgs[peerName]
+  const resolvedPeers: string[] = []
+  for (const peerName in node.pkg.peerDependencies) {
+    const peerVersionRange = node.pkg.peerDependencies[peerName]
 
-      if (!resolved || resolved.nodeId && !tree[resolved.nodeId].installable) {
-        logger.warn(`${node.pkg.id} requires a peer of ${peerName}@${peerVersionRange} but none was installed.`)
-        return null
-      }
+    const resolved = parentPkgs[peerName]
 
-      if (!semver.satisfies(resolved.version, peerVersionRange)) {
-        logger.warn(`${node.pkg.id} requires a peer of ${peerName}@${peerVersionRange} but version ${resolved.version} was installed.`)
-      }
+    if (!resolved || resolved.nodeId && !tree[resolved.nodeId].installable) {
+      logger.warn(`${node.pkg.id} requires a peer of ${peerName}@${peerVersionRange} but none was installed.`)
+      continue
+    }
 
-      if (resolved.depth === 0 || resolved.depth === node.depth + 1) {
-        // if the resolved package is a top dependency
-        // or the peer dependency is resolved from a regular dependency of the package
-        // then there is no need to link it in
-        return null
-      }
+    if (!semver.satisfies(resolved.version, peerVersionRange)) {
+      logger.warn(`${node.pkg.id} requires a peer of ${peerName}@${peerVersionRange} but version ${resolved.version} was installed.`)
+    }
 
-      return resolved && resolved.nodeId
-    }))
-    .filter(Boolean) as string[]
+    if (resolved.depth === 0 || resolved.depth === node.depth + 1) {
+      // if the resolved package is a top dependency
+      // or the peer dependency is resolved from a regular dependency of the package
+      // then there is no need to link it in
+      continue
+    }
+
+    if (resolved && resolved.nodeId) resolvedPeers.push(resolved.nodeId)
+  }
+  return resolvedPeers
 }
 
 type ParentRefs = {
@@ -196,16 +198,16 @@ type ParentRef = {
   nodeId?: string,
 }
 
-function toPkgByName(pkgs: TreeNode[]): ParentRefs {
-  const toNameAndPkg = R.map((node: TreeNode): R.KeyValuePair<string, ParentRef> => [
-    node.pkg.name,
-    {
+function toPkgByName (nodes: TreeNode[]): ParentRefs {
+  const pkgsByName: ParentRefs = {}
+  for (const node of nodes) {
+    pkgsByName[node.pkg.name] = {
       version: node.pkg.version,
       nodeId: node.nodeId,
       depth: node.depth,
     }
-  ])
-  return R.fromPairs(toNameAndPkg(pkgs))
+  }
+  return pkgsByName
 }
 
 function createPeersFolderName(peers: InstalledPackage[]) {
