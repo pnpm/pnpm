@@ -5,7 +5,7 @@ import writeYamlFile = require('write-yaml-file')
 import exists = require('path-exists')
 import {prepare, testDefaults, addDistTag} from './utils'
 import {installPkgs, install} from '../src'
-import readPkg = require('read-pkg')
+import loadJsonFile = require('load-json-file')
 import writePkg = require('write-pkg')
 import rimraf = require('rimraf-then')
 
@@ -274,11 +274,11 @@ test('respects shrinkwrap.yaml for top dependencies', async (t: tape.Test) => {
   await installPkgs(['qar'], testDefaults({saveDev: true}))
   await installPkgs(['foobar'], testDefaults({save: true}))
 
-  t.equal((await readPkg(path.resolve('node_modules', 'foo', 'package.json'))).version, '100.0.0')
-  t.equal((await readPkg(path.resolve('node_modules', 'bar', 'package.json'))).version, '100.0.0')
-  t.equal((await readPkg(path.resolve('node_modules', 'qar', 'package.json'))).version, '100.0.0')
-  t.equal((await readPkg(path.resolve('node_modules', '.localhost+4873', 'foobar', '100.0.0', 'node_modules', 'foo', 'package.json'))).version, '100.0.0')
-  t.equal((await readPkg(path.resolve('node_modules', '.localhost+4873', 'foobar', '100.0.0', 'node_modules', 'bar', 'package.json'))).version, '100.0.0')
+  t.equal((await loadJsonFile(path.resolve('node_modules', 'foo', 'package.json'))).version, '100.0.0')
+  t.equal((await loadJsonFile(path.resolve('node_modules', 'bar', 'package.json'))).version, '100.0.0')
+  t.equal((await loadJsonFile(path.resolve('node_modules', 'qar', 'package.json'))).version, '100.0.0')
+  t.equal((await loadJsonFile(path.resolve('node_modules', '.localhost+4873', 'foobar', '100.0.0', 'node_modules', 'foo', 'package.json'))).version, '100.0.0')
+  t.equal((await loadJsonFile(path.resolve('node_modules', '.localhost+4873', 'foobar', '100.0.0', 'node_modules', 'bar', 'package.json'))).version, '100.0.0')
 
   await Promise.all(pkgs.map(pkgName => addDistTag(pkgName, '100.1.0', 'latest')))
 
@@ -295,11 +295,11 @@ test('respects shrinkwrap.yaml for top dependencies', async (t: tape.Test) => {
   }))
 
   await project.storeHasNot('foo', '100.1.0')
-  t.equal((await readPkg(path.resolve('node_modules', 'foo', 'package.json'))).version, '100.0.0')
-  t.equal((await readPkg(path.resolve('node_modules', 'bar', 'package.json'))).version, '100.0.0')
-  t.equal((await readPkg(path.resolve('node_modules', 'qar', 'package.json'))).version, '100.0.0')
-  t.equal((await readPkg(path.resolve('node_modules', '.localhost+4873', 'foobar', '100.0.0', 'node_modules', 'foo', 'package.json'))).version, '100.0.0')
-  t.equal((await readPkg(path.resolve('node_modules', '.localhost+4873', 'foobar', '100.0.0', 'node_modules', 'bar', 'package.json'))).version, '100.0.0')
+  t.equal((await loadJsonFile(path.resolve('node_modules', 'foo', 'package.json'))).version, '100.0.0')
+  t.equal((await loadJsonFile(path.resolve('node_modules', 'bar', 'package.json'))).version, '100.0.0')
+  t.equal((await loadJsonFile(path.resolve('node_modules', 'qar', 'package.json'))).version, '100.0.0')
+  t.equal((await loadJsonFile(path.resolve('node_modules', '.localhost+4873', 'foobar', '100.0.0', 'node_modules', 'foo', 'package.json'))).version, '100.0.0')
+  t.equal((await loadJsonFile(path.resolve('node_modules', '.localhost+4873', 'foobar', '100.0.0', 'node_modules', 'bar', 'package.json'))).version, '100.0.0')
 })
 
 test('subdeps are updated on repeat install if outer shrinkwrap.yaml does not match the inner one', async (t: tape.Test) => {
@@ -343,7 +343,7 @@ test("recreates shrinkwrap file if it doesn't match the dependencies in package.
   t.equal(shr1.dependencies['is-negative'], '1.0.0')
   t.equal(shr1.specifiers['is-negative'], '1.0.0')
 
-  const pkg = await readPkg({normalize: false})
+  const pkg = await loadJsonFile('package.json')
 
   pkg.dependencies['is-negative'] = '^2.1.0'
   pkg.devDependencies['is-positive'] = '^2.0.0'
