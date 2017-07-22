@@ -24,6 +24,7 @@ import isWindows = require('is-windows')
 import deepRequireCwd = require('deep-require-cwd')
 import sinon = require('sinon')
 import {StageLog, RootLog, ProgressLog} from 'pnpm-logger'
+import writeJsonFile = require('write-json-file')
 
 const IS_WINDOWS = isWindows()
 
@@ -318,6 +319,20 @@ test('refetch package to store if it has been modified', async function (t) {
 
   const distPathExists = await exists(distPath)
   t.ok(distPathExists, 'magic-hook@2.0.0 dist folder reinstalled')
+})
+
+test("don't refetch package to store if it has been modified and verify-store-integrity = false", async (t: tape.Test) => {
+  const project = prepare(t)
+  const opts = testDefaults({verifyStoreIntegrity: false})
+  await installPkgs(['magic-hook@2.0.0'], opts)
+
+  await writeJsonFile(path.join(await project.getStorePath(), 'localhost+4873', 'magic-hook', '2.0.0', 'node_modules', 'magic-hook', 'package.json'), {})
+
+  await rimraf('node_modules')
+
+  await installPkgs(['magic-hook@2.0.0'], opts)
+
+  t.deepEqual(project.requireModule('magic-hook/package.json'), {}, 'package.json not refetched even though it was mutated')
 })
 
 // TODO: decide what to do with this case
