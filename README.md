@@ -1,3 +1,7 @@
+<p align="center">
+  <img alt="supi - pnpm's installation engine" src="https://cdn.rawgit.com/pnpm/supi/master/logo.svg" width="200">
+</p>
+
 # supi
 
 [![Status](https://travis-ci.org/pnpm/supi.svg?branch=master)](https://travis-ci.org/pnpm/supi "See test builds")
@@ -147,6 +151,10 @@ Return the list of modified dependencies.
 
 **Returns:** `Promise<string[]>` - the paths to the modified packages of the current project. The paths contain the location of packages in the store,
 not in the projects `node_modules` folder.
+
+## Acknowledgements
+
+Thanks to [Valentina Kozlova](https://github.com/ValentinaKozlova) for the supi logo
 
 ## License
 
