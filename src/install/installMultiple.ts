@@ -20,6 +20,7 @@ import logStatus from '../logging/logInstallStatus'
 import fs = require('mz/fs')
 import * as dp from 'dependency-path'
 import {
+  Shrinkwrap,
   DependencyShrinkwrap,
   ResolvedDependencies,
   getPkgShortId,
@@ -79,20 +80,10 @@ export default async function installMultiple (
       specs
         .map(async (spec: PackageSpec) => {
           const reference = resolvedDependencies[spec.name]
-          const pkgShortId = reference && dp.refToRelative(reference, spec.name)
-          const dependencyShrinkwrap = pkgShortId && ctx.shrinkwrap.packages && ctx.shrinkwrap.packages[pkgShortId]
-          const pkgId = dependencyShrinkwrap && dependencyShrinkwrap.id ||
-            reference && dp.refToAbsolute(reference, spec.name, ctx.shrinkwrap.registry)
-          const shrinkwrapResolution: Resolution | undefined = pkgShortId && dependencyShrinkwrap
-            ? dependencyShrToResolution(pkgShortId, dependencyShrinkwrap, options.registry)
-            : undefined
-          return await install(spec, ctx, Object.assign({}, options, {
-            pkgShortId,
-            pkgId,
-            resolvedDependencies: dependencyShrinkwrap &&
-              <ResolvedDependencies>Object.assign({}, dependencyShrinkwrap.dependencies, dependencyShrinkwrap.optionalDependencies) || {},
-            shrinkwrapResolution,
-          }))
+
+          return await install(spec, ctx, Object.assign({},
+            options,
+            getInfoFromShrinkwrap(ctx.shrinkwrap, reference, spec.name, options.registry)))
         })
     )
   )
@@ -101,8 +92,47 @@ export default async function installMultiple (
   return pkgAddresses
 }
 
+function getInfoFromShrinkwrap (
+  shrinkwrap: Shrinkwrap,
+  reference: string,
+  pkgName: string,
+  registry: string,
+) {
+  if (!reference || !pkgName) {
+    return {
+      resolvedDependencies: {},
+    }
+  }
+
+  const dependencyPath = dp.refToRelative(reference, pkgName)
+
+  if (!dependencyPath) {
+    return {
+      resolvedDependencies: {},
+    }
+  }
+
+  const dependencyShrinkwrap = shrinkwrap.packages && shrinkwrap.packages[dependencyPath]
+
+  if (dependencyShrinkwrap) {
+    return {
+      dependencyPath,
+      pkgId: dependencyShrinkwrap.id || dp.resolve(shrinkwrap.registry, dependencyPath),
+      shrinkwrapResolution: dependencyShrToResolution(dependencyPath, dependencyShrinkwrap, shrinkwrap.registry),
+      resolvedDependencies: <ResolvedDependencies>Object.assign({},
+        dependencyShrinkwrap.dependencies, dependencyShrinkwrap.optionalDependencies),
+    }
+  } else {
+    return {
+      dependencyPath,
+      pkgId: dp.resolve(shrinkwrap.registry, dependencyPath),
+      resolvedDependencies: {},
+    }
+  }
+}
+
 function dependencyShrToResolution (
-  pkgShortId: string,
+  dependencyPath: string,
   depShr: DependencyShrinkwrap,
   registry: string
 ): Resolution {
@@ -115,7 +145,7 @@ function dependencyShrToResolution (
   return depShr.resolution as Resolution
 
   function getTarball () {
-    const parts = pkgShortId.split('/')
+    const parts = dependencyPath.split('/')
     if (parts[1][0] === '@') {
       return getNpmTarballUrl(`${parts[1]}/${parts[2]}`, parts[3], {registry})
     }
@@ -135,11 +165,11 @@ async function install (
     got: Got,
     keypath: string[], // TODO: remove. Currently used only for logging
     pkgId?: string,
-    pkgShortId?: string,
+    dependencyPath?: string,
     parentNodeId: string,
     currentDepth: number,
     shrinkwrapResolution?: Resolution,
-    resolvedDependencies: ResolvedDependencies,
+    resolvedDependencies?: ResolvedDependencies,
     depth: number,
     engineStrict: boolean,
     nodeVersion: string,
@@ -158,7 +188,7 @@ async function install (
   if (!proceed && options.pkgId &&
     // if package is not in `node_modules/.shrinkwrap.yaml`
     // we can safely assume that it doesn't exist in `node_modules`
-    options.pkgShortId && ctx.privateShrinkwrap.packages && ctx.privateShrinkwrap.packages[options.pkgShortId] &&
+    options.dependencyPath && ctx.privateShrinkwrap.packages && ctx.privateShrinkwrap.packages[options.dependencyPath] &&
     await exists(path.join(options.nodeModules, `.${options.pkgId}`))) {
 
     return null
