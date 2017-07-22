@@ -250,7 +250,9 @@ test('overwriting (magic-hook@2.0.0 and @0.1.0)', async function (t) {
 
   await installPkgs(['magic-hook@0.1.0'], testDefaults())
 
-  await project.storeHasNot('flatten', '1.0.2')
+  // flatten is not removed from store even though it is unreferenced
+  // store should be pruned to have this removed
+  await project.storeHas('flatten', '1.0.2')
 
   const m = project.requireModule('magic-hook/package.json')
   t.ok(m.version === '0.1.0', 'magic-hook is 0.1.0')

@@ -152,6 +152,10 @@ Return the list of modified dependencies.
 **Returns:** `Promise<string[]>` - the paths to the modified packages of the current project. The paths contain the location of packages in the store,
 not in the projects `node_modules` folder.
 
+### `pnpm.storePrune([options])`
+
+Remove unreferenced packages from the store.
+
 ## Acknowledgements
 
 Thanks to [Valentina Kozlova](https://github.com/ValentinaKozlova) for the supi logo

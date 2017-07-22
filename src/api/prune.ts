@@ -52,6 +52,7 @@ export async function prune(maybeOpts?: PnpmOptions): Promise<void> {
       prefix: ctx.root,
       store: ctx.storePath,
       storeIndex: ctx.storeIndex,
+      pruneStore: true,
     })
   }
 }

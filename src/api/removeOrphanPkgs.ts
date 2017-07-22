@@ -15,6 +15,7 @@ export default async function removeOrphanPkgs (
     prefix: string,
     store: string,
     storeIndex: Store,
+    pruneStore?: boolean,
   }
 ): Promise<string[]> {
   const oldPkgs = R.toPairs(R.mergeAll(R.map(depType => opts.oldShrinkwrap[depType], dependenciesTypes)))
@@ -36,7 +37,7 @@ export default async function removeOrphanPkgs (
     await Promise.all(notDependents.map(async notDependent => {
       if (opts.storeIndex[notDependent]) {
         opts.storeIndex[notDependent].splice(opts.storeIndex[notDependent].indexOf(opts.prefix), 1)
-        if (!opts.storeIndex[notDependent].length) {
+        if (opts.pruneStore && !opts.storeIndex[notDependent].length) {
           delete opts.storeIndex[notDependent]
           await rimraf(path.join(opts.store, notDependent))
         }
