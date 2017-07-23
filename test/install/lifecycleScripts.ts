@@ -8,6 +8,7 @@ import {
 import path = require('path')
 import loadJsonFile = require('load-json-file')
 import rimraf = require('rimraf-then')
+import exists = require('path-exists')
 
 const pkgRoot = path.join(__dirname, '..', '..')
 const pnpmPkg = loadJsonFile.sync(path.join(pkgRoot, 'package.json'))
@@ -46,6 +47,22 @@ test('run install scripts', async function (t) {
 
   const generatedByInstall = project.requireModule('install-script-example/generated-by-install')
   t.ok(typeof generatedByInstall === 'function', 'generatedByInstall() is available')
+})
+
+test('run install scripts in the current project', async (t: tape.Test) => {
+  const project = prepare(t, {
+    scripts: {
+      preinstall: 'touch preinstall',
+      install: 'touch install',
+      postinstall: 'touch postinstall',
+    }
+  })
+  await installPkgs(['cash-touch@0.2.0'], testDefaults())
+  await install(testDefaults())
+
+  t.ok(await exists('preinstall'), 'preinstall was executed')
+  t.ok(await exists('install'), 'install was executed')
+  t.ok(await exists('postinstall'), 'postinstall was executed')
 })
 
 test('installation fails if lifecycle script fails', async (t: tape.Test) => {

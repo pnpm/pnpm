@@ -157,6 +157,9 @@ export async function install (maybeOpts?: PnpmOptions) {
       await lock(ctx.storePath, run, {stale: opts.lockStaleDuration, locks: opts.locks})
     }
 
+    if (scripts['install']) {
+      npmRun('install', ctx.root, opts.userAgent)
+    }
     if (scripts['postinstall']) {
       npmRun('postinstall', ctx.root, opts.userAgent)
     }
