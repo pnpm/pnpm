@@ -52,17 +52,17 @@ test('run install scripts', async function (t) {
 test('run install scripts in the current project', async (t: tape.Test) => {
   const project = prepare(t, {
     scripts: {
-      preinstall: 'touch preinstall',
-      install: 'touch install',
-      postinstall: 'touch postinstall',
+      preinstall: `node -e "process.stdout.write('preinstall')" | json-append output.json`,
+      install: `node -e "process.stdout.write('install')" | json-append output.json`,
+      postinstall: `node -e "process.stdout.write('postinstall')" | json-append output.json`,
     }
   })
-  await installPkgs(['cash-touch@0.2.0'], testDefaults())
+  await installPkgs(['json-append@1.1.1'], testDefaults())
   await install(testDefaults())
 
-  t.ok(await exists('preinstall'), 'preinstall was executed')
-  t.ok(await exists('install'), 'install was executed')
-  t.ok(await exists('postinstall'), 'postinstall was executed')
+  const output = await loadJsonFile('output.json')
+
+  t.deepEqual(output, ['preinstall', 'install', 'postinstall'])
 })
 
 test('installation fails if lifecycle script fails', async (t: tape.Test) => {

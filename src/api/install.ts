@@ -49,6 +49,7 @@ import {
   Resolution,
 } from 'package-store'
 import depsFromPackage from '../depsFromPackage'
+import writePkg = require('write-pkg')
 
 export type InstalledPackages = {
   [name: string]: InstalledPackage
@@ -149,6 +150,14 @@ export async function install (maybeOpts?: PnpmOptions) {
 
     if (scripts['preinstall']) {
       npmRun('preinstall', ctx.root, opts.userAgent)
+
+      // a hack to avoid `npm run install` executing preinstall again
+      if (scripts['install']) {
+        const newScripts = Object.assign({}, scripts)
+        delete newScripts['preinstall']
+        const newPkg = Object.assign({}, ctx.pkg, {scripts: newScripts})
+        await writePkg(path.join(ctx.root, 'package.json'), newPkg)
+      }
     }
 
     if (opts.lock === false) {
@@ -159,8 +168,16 @@ export async function install (maybeOpts?: PnpmOptions) {
 
     if (scripts['install']) {
       npmRun('install', ctx.root, opts.userAgent)
-    }
-    if (scripts['postinstall']) {
+
+      // a hack to avoid `npm run install` executing preinstall again
+      if (scripts['preinstall']) {
+        const pkg = await safeReadPkgFromDir(ctx.root)
+        if (pkg) {
+          pkg.scripts = scripts
+          await writePkg(path.join(ctx.root, 'package.json'), pkg)
+        }
+      }
+    } else if (scripts['postinstall']) {
       npmRun('postinstall', ctx.root, opts.userAgent)
     }
     if (scripts['prepublish']) {
