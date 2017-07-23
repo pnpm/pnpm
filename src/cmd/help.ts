@@ -114,6 +114,25 @@ function getHelpText(command: string) {
         It takes exactly the same arguments as \`npm install\`.
       `
 
+    case 'store':
+      return stripIndent`
+        pnpm store status
+
+        Returns a 0 exit code if packages in the store are not modified, i.e. the content of the package is the
+        same as it was at the time of unpacking.
+
+        pnpm store prune
+
+        Removes unreferenced (extraneous, orphan) packages from the store. Unreferenced packages are packages that are not used by
+        any projects on the system. Packages can become unreferenced after most installation operations. For instance, package
+        foo@1.0.0 is updated to foo@1.0.1. If package foo@1.0.0 is not used by any other project on the system, it becomes unreferenced.
+
+        It is good to keep unreferenced packages in the store for a while because frequently unreferenced packages are again needed
+        very soon. For instance, after changing branch on a project and installing from an older shrinkwrap file.
+
+        Prunning the store makes no harm. It only makes installation a bit slower in case the unreferenced files will be needed again.
+      `
+
     default:
       return stripIndent`
         Usage: pnpm [command] [flags]
@@ -128,6 +147,8 @@ function getHelpText(command: string) {
           - list
           - prune
           - install-test
+          - store status
+          - store prune
 
         Other commands are passed through to npm
       `

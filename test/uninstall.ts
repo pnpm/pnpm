@@ -20,6 +20,10 @@ test('uninstall package and remove from appropriate property', async function (t
   // npm@5 introduced --save-prod that bahaves the way --save worked in pre 5 versions
   await pnpmCli(['uninstall', 'is-positive'])
 
+  await project.storeHas('is-positive', '3.1.0')
+
+  await pnpmCli(['store', 'prune'])
+
   await project.storeHasNot('is-positive', '3.1.0')
 
   await project.hasNot('is-positive')
