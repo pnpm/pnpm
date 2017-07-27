@@ -25,7 +25,7 @@ npm install pnpm-logger@0.5
 
 ## API
 
-### `pnpm.installPkgs(pkgsToInstall, [options])`
+### `supi.installPkgs(pkgsToInstall, [options])`
 
 Install packages.
 
@@ -58,7 +58,7 @@ pnpm.install({
 }, { save: true, quiet: true })
 ```
 
-### `pnpm.install([options])`
+### `supi.install([options])`
 
 Install all modules listed as dependencies in `package.json`.
 
@@ -66,7 +66,7 @@ Install all modules listed as dependencies in `package.json`.
 
 * `options.production` - *Boolean* - `false` by default or `true` when the `NODE_ENV` environment variable is set to `production`. Modules listed in `devDependencies` will not be installed.
 
-### `pnpm.uninstall(pkgsToUninstall, [options])`
+### `supi.uninstall(pkgsToUninstall, [options])`
 
 Uninstalls a package, completely removing everything pnpm installed on its behalf.
 
@@ -79,7 +79,7 @@ Uninstalls a package, completely removing everything pnpm installed on its behal
 * `options.global` - *Boolean* - the packages will be uninstalled globally.
 * `options.reporter` - *Function* - A function that listens for logs.
 
-### `pnpm.link(linkFrom, lintTo, [options])`
+### `supi.link(linkFrom, lintTo, [options])`
 
 Create a symbolic link from the linked package to the target package's `node_modules` (and its `node_modules/.bin`).
 
@@ -89,7 +89,7 @@ Create a symbolic link from the linked package to the target package's `node_mod
 * `lintTo` - *String* - path to the dependent package.
 * `options.reporter` - *Function* - A function that listens for logs.
 
-### `pnpm.linkToGlobal(linkFrom, options)`
+### `supi.linkToGlobal(linkFrom, options)`
 
 Create a symbolic link from the specified package to the global `node_modules`.
 
@@ -99,7 +99,7 @@ Create a symbolic link from the specified package to the global `node_modules`.
 * `globalPrefix` - *String* - path to the global directory.
 * `options.reporter` - *Function* - A function that listens for logs.
 
-### `pnpm.linkFromGlobal(pkgName, linkTo, options)`
+### `supi.linkFromGlobal(pkgName, linkTo, options)`
 
 Create a symbolic link from the global `pkgName` to the `linkTo/node_modules` folder.
 
@@ -110,7 +110,7 @@ Create a symbolic link from the global `pkgName` to the `linkTo/node_modules` fo
 * `globalPrefix` - *String* - path to the global directory.
 * `options.reporter` - *Function* - A function that listens for logs.
 
-### `pnpm.unlink([options])`
+### `supi.unlink([options])`
 
 Unlinks all packages that were linked during development in a project. If the linked package is in `package.json` of the project,
 it is installed after unlinking.
@@ -120,7 +120,7 @@ it is installed after unlinking.
 * `options.prefix` - *String* - by default `process.cwd()`. Path to the project.
 * `options.reporter` - *Function* - A function that listens for logs.
 
-### `pnpm.unlinkPkgs(pkgsToUnlink, [options])`
+### `supi.unlinkPkgs(pkgsToUnlink, [options])`
 
 Unlinks the listed packages that were linked during development in a project. If the linked package is in `package.json` of the project,
 it is installed after unlinking.
@@ -131,7 +131,7 @@ it is installed after unlinking.
 * `options.prefix` - *String* - by default `process.cwd()`. Path to the project.
 * `options.reporter` - *Function* - A function that listens for logs.
 
-### `pnpm.prune([options])`
+### `supi.prune([options])`
 
 Remove extraneous packages. Extraneous packages are packages that are not listed on the parent package's dependencies list.
 
@@ -141,7 +141,7 @@ Remove extraneous packages. Extraneous packages are packages that are not listed
 * `options.prefix` - *String* - by default `process.cwd()`.
 * `options.reporter` - *Function* - A function that listens for logs.
 
-### `pnpm.storeStatus([options])`
+### `supi.storeStatus([options])`
 
 Return the list of modified dependencies.
 
@@ -152,7 +152,7 @@ Return the list of modified dependencies.
 **Returns:** `Promise<string[]>` - the paths to the modified packages of the current project. The paths contain the location of packages in the store,
 not in the projects `node_modules` folder.
 
-### `pnpm.storePrune([options])`
+### `supi.storePrune([options])`
 
 Remove unreferenced packages from the store.
 
