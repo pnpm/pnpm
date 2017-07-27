@@ -90,6 +90,9 @@ However, pnpm has some unique configs as well:
 
 The location where all the packages are saved on the disk.
 
+> Currently if installations are done not on the same disk on which the store is, packages are copied, not linked,
+from the global store (see issue [#712](https://github.com/pnpm/pnpm/issues/712)). You can use this config to set a store location that is on the same disk where installation is done.
+
 #### offline
 
 * Default: **false**
@@ -170,6 +173,7 @@ in finding their plugins in the unusual `node_modules` structure. This is very
 rarely an issue and if you expect the file to be a js file, just reference the
 original file instead, as described in [#736](https://github.com/pnpm/pnpm/issues/736).
 4. Node.js doesn't work with the [--preserve-symlinks](https://nodejs.org/api/cli.html#cli_preserve_symlinks) flag when executed in a project that uses pnpm.
+5. The package store should be on the same disk on which installations are done, otherwise packages will be copied, not linked. So if you install on disk `D:`, you have to have the store on disk `D:`. Currently pnpm cannot automatically detect whether the disk is the same or different (see [#712](https://github.com/pnpm/pnpm/issues/712)). To avoid copying in cases like that, specify the store location manually via the `store` config.
 
 Got an idea for workarounds for these issues? [Share them.](https://github.com/pnpm/pnpm/issues/new)
 
