@@ -81,8 +81,10 @@ export default function (streamParser: Object) {
         terminalWriter.write(`${EOL}${msg}`)
         return
       case 'pnpm:deprecation':
-        deprecated[obj.pkgId] = obj['deprecated']
-        printWarn(`${chalk.red('deprecated')} ${obj['pkgName']}@${obj['pkgVersion']}: ${obj['deprecated']}`)
+        // print warnings only about deprecated packages from the root
+        if (obj.depth > 0) return
+        deprecated[obj.pkgId] = obj.deprecated
+        printWarn(`${chalk.red('deprecated')} ${obj.pkgName}@${obj.pkgVersion}: ${obj.deprecated}`)
         return
       case 'pnpm':
         if (obj.level === 'debug') return
