@@ -68,7 +68,7 @@ export default async function installMultiple (
     nodeVersion: string,
     pnpmVersion: string,
     offline: boolean,
-    isInstallable?: boolean,
+    parentIsInstallable?: boolean,
     rawNpmConfig: Object,
     nodeModules: string,
     update: boolean,
@@ -76,6 +76,7 @@ export default async function installMultiple (
   }
 ): Promise<PkgAddress[]> {
   const resolvedDependencies = options.resolvedDependencies || {}
+  const update = options.update && options.currentDepth <= options.depth
   const pkgAddresses = <PkgAddress[]>(
     await Promise.all(
       specs
@@ -84,6 +85,9 @@ export default async function installMultiple (
 
           return await install(spec, ctx, Object.assign({},
             options,
+            {
+              update
+            },
             getInfoFromShrinkwrap(ctx.shrinkwrap, reference, spec.name, options.registry)))
         })
     )
@@ -100,25 +104,23 @@ function getInfoFromShrinkwrap (
   registry: string,
 ) {
   if (!reference || !pkgName) {
-    return {
-      resolvedDependencies: {},
-    }
+    return null
   }
 
   const dependencyPath = dp.refToRelative(reference, pkgName)
 
   if (!dependencyPath) {
-    return {
-      resolvedDependencies: {},
-    }
+    return null
   }
 
   const dependencyShrinkwrap = shrinkwrap.packages && shrinkwrap.packages[dependencyPath]
 
   if (dependencyShrinkwrap) {
+    const absoluteDependencyPath = dp.resolve(shrinkwrap.registry, dependencyPath)
     return {
       dependencyPath,
-      pkgId: dependencyShrinkwrap.id || dp.resolve(shrinkwrap.registry, dependencyPath),
+      absoluteDependencyPath,
+      pkgId: dependencyShrinkwrap.id || absoluteDependencyPath,
       shrinkwrapResolution: dependencyShrToResolution(dependencyPath, dependencyShrinkwrap, shrinkwrap.registry),
       resolvedDependencies: <ResolvedDependencies>Object.assign({},
         dependencyShrinkwrap.dependencies, dependencyShrinkwrap.optionalDependencies),
@@ -127,7 +129,6 @@ function getInfoFromShrinkwrap (
     return {
       dependencyPath,
       pkgId: dp.resolve(shrinkwrap.registry, dependencyPath),
-      resolvedDependencies: {},
     }
   }
 }
@@ -166,6 +167,7 @@ async function install (
     got: Got,
     keypath: string[], // TODO: remove. Currently used only for logging
     pkgId?: string,
+    absoluteDependencyPath?: string,
     dependencyPath?: string,
     parentNodeId: string,
     currentDepth: number,
@@ -184,14 +186,16 @@ async function install (
   }
 ): Promise<PkgAddress | null> {
   const keypath = options.keypath || []
-  const proceed = options.force || keypath.length <= options.depth
+  const proceed = !options.resolvedDependencies || options.force || keypath.length <= options.depth
   const parentIsInstallable = options.parentIsInstallable === undefined || options.parentIsInstallable
 
-  if (!proceed && options.pkgId &&
+  if (!proceed && options.absoluteDependencyPath &&
     // if package is not in `node_modules/.shrinkwrap.yaml`
     // we can safely assume that it doesn't exist in `node_modules`
     options.dependencyPath && ctx.privateShrinkwrap.packages && ctx.privateShrinkwrap.packages[options.dependencyPath] &&
-    await exists(path.join(options.nodeModules, `.${options.pkgId}`))) {
+    await exists(path.join(options.nodeModules, `.${options.absoluteDependencyPath}`)) && (
+      options.currentDepth > 0 || await exists(path.join(options.nodeModules, spec.name))
+    )) {
 
     return null
   }
@@ -310,13 +314,31 @@ async function install (
     const children = await installDependencies(
       pkg,
       spec,
-      fetchedPkg.id,
       ctx,
-      Object.assign({}, options, {
+      {
         parentIsInstallable: installable,
         currentDepth: options.currentDepth + 1,
         parentNodeId: nodeId,
-      })
+        keypath: options.keypath.concat([ fetchedPkg.id ]),
+        force: options.force,
+        prefix: options.prefix,
+        storePath: options.storePath,
+        registry: options.registry,
+        metaCache: options.metaCache,
+        got: options.got,
+        resolvedDependencies: fetchedPkg.id !== options.pkgId
+          ? undefined
+          : options.resolvedDependencies,
+        depth: options.depth,
+        engineStrict: options.engineStrict,
+        nodeVersion: options.nodeVersion,
+        pnpmVersion: options.pnpmVersion,
+        offline: options.offline,
+        rawNpmConfig: options.rawNpmConfig,
+        nodeModules: options.nodeModules,
+        update: options.update,
+        verifyStoreInegrity: options.verifyStoreInegrity,
+      }
     )
     ctx.childrenIdsByParentId[fetchedPkg.id] = children.map(child => child.pkgId)
     ctx.tree[nodeId] = {
@@ -358,7 +380,6 @@ function normalizeRegistry (registry: string) {
 async function installDependencies (
   pkg: Package,
   parentSpec: PackageSpec,
-  pkgId: string,
   ctx: InstallContext,
   opts: {
     force: boolean,
@@ -376,16 +397,13 @@ async function installDependencies (
     nodeVersion: string,
     pnpmVersion: string,
     offline: boolean,
-    isInstallable?: boolean,
+    parentIsInstallable: boolean,
     rawNpmConfig: Object,
     nodeModules: string,
     update: boolean,
     verifyStoreInegrity: boolean,
   }
 ): Promise<PkgAddress[]> {
-  const depsInstallOpts = Object.assign({}, opts, {
-    keypath: opts.keypath.concat([ pkgId ]),
-  })
 
   const bundledDeps = pkg.bundleDependencies || pkg.bundledDependencies || []
   const filterDeps = getNotBundledDeps.bind(null, bundledDeps)
@@ -398,7 +416,7 @@ async function installDependencies (
     }
   )
 
-  return await installMultiple(ctx, deps, depsInstallOpts)
+  return await installMultiple(ctx, deps, opts)
 }
 
 function getNotBundledDeps (bundledDeps: string[], deps: Dependencies) {

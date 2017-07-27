@@ -113,7 +113,7 @@ test('fail when shasum from shrinkwrap does not match with the actual one', asyn
   }
 })
 
-test("shrinkwrap doesn't lock subdependencies that don't satisfy the new specs", async t => {
+test("shrinkwrap doesn't lock subdependencies that don't satisfy the new specs", async (t: tape.Test) => {
   const project = prepare(t)
 
   // dependends on react-onclickoutside@5.9.0

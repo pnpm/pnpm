@@ -219,6 +219,8 @@ export async function installPkgs (fuzzyDeps: string[] | Dependencies, maybeOpts
     streamParser.on('data', reporter)
   }
 
+  maybeOpts = maybeOpts || {}
+  if (maybeOpts.update === undefined) maybeOpts.update = true
   const opts = extendOptions(maybeOpts)
 
   if (opts.lock) {
@@ -261,12 +263,6 @@ export async function installPkgs (fuzzyDeps: string[] | Dependencies, maybeOpts
       throw new Error('At least one package has to be installed')
     }
     const installCtx = await createInstallCmd(ctx, ctx.skipped)
-
-    if (ctx.shrinkwrap.dependencies) {
-      for (const spec of packagesToInstall) {
-        delete ctx.shrinkwrap.dependencies[spec.name]
-      }
-    }
 
     if (opts.lock === false) {
       return run()
@@ -340,13 +336,12 @@ async function installInContext (
   const oldSpecs = parts[0]
   const newSpecs = parts[1]
 
-  const update = opts.update || installType === 'named'
   const installOpts = {
     root: ctx.root,
     storePath: ctx.storePath,
     registry: ctx.shrinkwrap.registry,
     force: opts.force,
-    depth: update ? opts.depth :
+    depth: opts.update ? opts.depth :
       (R.equals(ctx.shrinkwrap.packages, ctx.privateShrinkwrap.packages) ? opts.repeatInstallDepth : Infinity),
     engineStrict: opts.engineStrict,
     nodeVersion: opts.nodeVersion,
@@ -362,7 +357,7 @@ async function installInContext (
     offline: opts.offline,
     rawNpmConfig: opts.rawNpmConfig,
     nodeModules: nodeModulesPath,
-    update,
+    update: opts.update,
     keypath: [],
     prefix: opts.prefix,
     parentNodeId: ':/:',

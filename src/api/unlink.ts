@@ -21,7 +21,7 @@ export async function unlinkPkgs (
   if (reporter) {
     streamParser.on('data', reporter)
   }
-  const opts = extendOptions(maybeOpts)
+  const opts = _extendOptions(maybeOpts)
   const modulesYaml = await readModules(opts.prefix)
   opts.store = modulesYaml && modulesYaml.store || opts.store
 
@@ -62,7 +62,7 @@ export async function unlink (maybeOpts: PnpmOptions) {
   if (reporter) {
     streamParser.on('data', reporter)
   }
-  const opts = extendOptions(maybeOpts)
+  const opts = _extendOptions(maybeOpts)
   const modulesYaml = await readModules(opts.prefix)
   opts.store = modulesYaml && modulesYaml.store || opts.store
 
@@ -107,4 +107,10 @@ async function isExternalLink (store: string, modules: string, pkgName: string) 
   // checking whether the link is pointing to the store is needed
   // because packages are linked to store when independent-leaves = true
   return !link.isInner && !isSubdir(store, link.target)
+}
+
+function _extendOptions (maybeOpts: PnpmOptions): StrictPnpmOptions {
+  maybeOpts = maybeOpts || {}
+  if (maybeOpts.depth === undefined) maybeOpts.depth = -1
+  return extendOptions(maybeOpts)
 }

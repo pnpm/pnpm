@@ -4,6 +4,7 @@ import {
   prepare,
   testDefaults,
   pathToLocalPkg,
+  addDistTag,
 } from './utils'
 import writeJsonFile = require('write-json-file')
 import {
@@ -50,6 +51,28 @@ test('unlink 1 package that exists in package.json', async (t: tape.Test) => {
 
   t.equal(typeof project.requireModule('is-subdir'), 'function', 'is-subdir installed after unlinked')
   t.notOk((await isInnerLink('node_modules', 'is-positive')).isInner, 'is-positive left linked')
+})
+
+test("don't update package when unlinking", async (t: tape.Test) => {
+  const project = prepare(t)
+
+  await addDistTag('foo', '100.0.0', 'latest')
+  await installPkgs(['foo'], testDefaults())
+
+  process.chdir('..')
+
+  await writeJsonFile('foo/package.json', {
+    name: 'foo',
+    version: '100.0.0',
+  })
+
+  await link('foo', 'project')
+  await addDistTag('foo', '100.1.0', 'latest')
+
+  process.chdir('project')
+  await unlinkPkgs(['foo'], testDefaults())
+
+  t.equal(project.requireModule('foo/package.json').version, '100.0.0', 'foo not updated after unlink')
 })
 
 test('unlink 2 packages. One of them exists in package.json', async (t: tape.Test) => {
