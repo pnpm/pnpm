@@ -60,14 +60,14 @@ devDependencies:
   cz-conventional-changelog: 2.0.0
   husky: 0.13.4
   npm-scripts-info: 0.3.6
-  pnpm-logger: 0.5.2
+  pnpm-logger: 0.5.3
   tslint: 5.5.0
   typescript: 2.4.2
   validate-commit-msg: 2.13.1
 packages:
   /@types/byline/4.2.31:
     dependencies:
-      '@types/node': 8.0.16
+      '@types/node': 8.0.17
     resolution:
       integrity: sha1-DmH8ucA+BH0hxEllVMcRYperYM0=
   /@types/common-tags/1.2.5:
@@ -78,7 +78,7 @@ packages:
       integrity: sha1-Wt7ZvaV8uLMbavbCySero5WJPfY=
   /@types/mz/0.0.31:
     dependencies:
-      '@types/node': 8.0.16
+      '@types/node': 8.0.17
     resolution:
       integrity: sha1-pNgMCC/v5x5Ap8DwfR5lVbu8e1I=
   /@types/node/7.0.39:
@@ -87,12 +87,15 @@ packages:
   /@types/node/8.0.16:
     resolution:
       integrity: sha512-P2XfbkmcAnP/XT5J5m59cQPbcIbszCwXRdngnBZefmqt1RgOv4RIFoIkG85QFDHWIt1T6bXogZP/tvh2dm/xEQ==
+  /@types/node/8.0.17:
+    resolution:
+      integrity: sha512-iq0LxqG6P9GV/2bVA2AQAQ58NvneLdVDVs9dJ+88Jk6gDK9opNC0SushdYqlAyvxo0dk0NJjTKCenq/l3AKtuA==
   /@types/nopt/3.0.29:
     resolution:
       integrity: sha1-8Z3z20yX7hRZonQAKDIKcdcJZM4=
   /@types/npm/2.0.28:
     dependencies:
-      '@types/node': 8.0.16
+      '@types/node': 8.0.17
     resolution:
       integrity: sha1-Crf0YK/Jru7kYZQ4l2YDG8cUUgw=
   /@types/ramda/0.0.11:
@@ -200,12 +203,12 @@ packages:
     dev: true
     resolution:
       integrity: sha1-AnYgvuVnqIwyVhV05/0IAdMxGOQ=
-  /babel-runtime/6.23.0:
+  /babel-runtime/6.25.0:
     dependencies:
       core-js: 2.4.1
       regenerator-runtime: 0.10.5
     resolution:
-      integrity: sha1-CpSJ8UTecO+zzkMArM2zKeL8VDs=
+      integrity: sha1-M7mOql1IK7AajRqmtDetKwGuxBw=
   /balanced-match/1.0.0:
     resolution:
       integrity: sha1-ibTRmasr7kneFk6gK4nORi1xt2c=
@@ -381,7 +384,7 @@ packages:
       integrity: sha1-wNAFNe8mTaf2Nzft/aQiiYP6IpE=
   /common-tags/1.4.0:
     dependencies:
-      babel-runtime: 6.23.0
+      babel-runtime: 6.25.0
     resolution:
       integrity: sha1-EYe+Tz1M8MBCfUP3Tu8fc1AWFMA=
   /concat-map/0.0.1:
@@ -1595,14 +1598,14 @@ packages:
       bole: 3.0.2
     resolution:
       integrity: sha1-6uzqWgN/BTpkxQvafto8uH9e1mE=
-  /pnpm-logger/0.5.2:
+  /pnpm-logger/0.5.3:
     dependencies:
-      '@types/node': 8.0.16
+      '@types/node': 8.0.17
       bole: 3.0.2
       ndjson: 1.5.0
     dev: true
     resolution:
-      integrity: sha512-d+tlkQdfp+Y4GWa07gGs3DhgwiFTcCPZ+1edRgZW9zAChgmr3e5dY5r0HqvfImsC7FKzcFrhZb48o+9xAEjpuw==
+      integrity: sha512-uIDVA3VrDtzYPWuBRBR+/PVj2GqL7srSbT8V1fX7MVVHYzXLOfKrCGkY2rcWThn6lpBvq65BVebU5kFvxaEKaw==
   /pnpm-shrinkwrap/3.1.0:
     dependencies:
       '@types/node': 7.0.39
@@ -1702,7 +1705,7 @@ packages:
       integrity: sha512-m+qzzcn7KUxEmd1gMbchF+Y2eIUbieUaxkWtptyHywrX0rE8QEYqPC07Vuy4Wm32/xE16NcdBctb8S0Xe/5IeQ==
   /rechoir/0.6.2:
     dependencies:
-      resolve: 1.3.3
+      resolve: 1.4.0
     dev: true
     resolution:
       integrity: sha1-hSBLVNuoLVdC4oyWdW70OvUOM4Q=
@@ -1795,12 +1798,12 @@ packages:
       graceful-fs: 4.1.11
     resolution:
       integrity: sha512-vCHlxVruR67GgAeTSxpMPMmJ+7oO9oGCPA5r0NEyqOcZP+lTwyMcaxhqMHs+b90tT+NTVKBaYjsc5cEgecULIw==
-  /resolve/1.3.3:
+  /resolve/1.4.0:
     dependencies:
       path-parse: 1.0.5
     dev: true
     resolution:
-      integrity: sha1-ZVkHw0aahoDcLeOidaj91paR8OU=
+      integrity: sha512-aW7sVKPufyHqOmyyLzg/J+8606v5nevBgaliIlV7nUpVMsDnoBGV/cbSLNjZAg9q0Cfd/+easKVKQ8vOu8fn1Q==
   /restore-cursor/1.0.1:
     dependencies:
       exit-hook: 1.1.1
@@ -1985,7 +1988,7 @@ packages:
   /symlink-dir/1.1.0:
     dependencies:
       '@types/mz': 0.0.31
-      '@types/node': 8.0.16
+      '@types/node': 8.0.17
       graceful-fs: 4.1.11
       is-windows: 1.0.1
       mkdirp-promise: 5.0.1
@@ -2066,7 +2069,7 @@ packages:
       diff: 3.3.0
       glob: 7.1.2
       minimatch: 3.0.4
-      resolve: 1.3.3
+      resolve: 1.4.0
       semver: 5.4.1
       tslib: 1.7.1
       tsutils: 2.8.0
@@ -2257,7 +2260,7 @@ specifiers:
   path-exists: ^3.0.0
   path-name: ^1.0.0
   pnpm-install-checks: ^1.1.0
-  pnpm-logger: ^0.5.2
+  pnpm-logger: ^0.5.3
   pnpm-shrinkwrap: ^3.1.0
   proper-lockfile: ^2.0.0
   ramda: ^0.24.1

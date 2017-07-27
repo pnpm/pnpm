@@ -267,6 +267,7 @@ async function install (
       pkgVersion: pkg.version,
       pkgId: fetchedPkg.id,
       deprecated: pkg['deprecated'],
+      depth: options.currentDepth,
     })
   }
 
