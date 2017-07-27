@@ -1,5 +1,6 @@
 export default function getCommandFullName (cmd: string) {
   switch (cmd) {
+    case 'add':
     case 'install':
     case 'i':
       return 'install'

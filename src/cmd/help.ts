@@ -21,7 +21,7 @@ function getHelpText(command: string) {
         pnpm install <tarball url>
         pnpm install <folder>
 
-        Aliases: i, install
+        Aliases: i, install, add
 
         Options:
 

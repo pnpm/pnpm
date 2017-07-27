@@ -27,6 +27,7 @@ import getCommandFullName from '../getCommandFullName'
 pnpmCmds['install-test'] = pnpmCmds.installTest
 
 const supportedCmds = new Set([
+  'add',
   'install',
   'uninstall',
   'update',
