@@ -9,6 +9,7 @@ import {
 } from '../utils'
 import deepRequireCwd = require('deep-require-cwd')
 import rimraf = require('rimraf-then')
+import sinon = require('sinon')
 
 const test = promisifyTape(tape)
 const NM = 'node_modules'
@@ -37,33 +38,27 @@ test('peer dependency is grouped with dependency when peer is resolved not from 
 test('peer dependency is not grouped with dependent when the peer is a top dependency', async (t: tape.Test) => {
   const project = prepare(t)
 
-  let log: string | null = null
-
-  function reporter (logObj: Object) {
-    if (logObj['message'] && logObj['message'].indexOf('requires a peer of ajv@>=4.10.0 but none was installed.') !== -1) {
-      log = logObj['message']
-    }
-  }
+  const reporter = sinon.spy()
 
   await installPkgs(['ajv@4.10.4', 'ajv-keywords@1.5.0'], testDefaults({reporter}))
 
+  t.notOk(reporter.calledWithMatch({
+    message: 'localhost+4873/ajv-keywords/1.5.0 requires a peer of ajv@>=4.10.0 but none was installed.',
+  }), 'no warning is logged about unresolved peer dep')
+
   t.ok(await exists(path.join(NM, '.localhost+4873', 'ajv-keywords', '1.5.0', NM, 'ajv-keywords')), 'dependent is at the normal location')
-  t.notOk(log, 'no warning is logged about unresolved peer dep')
 })
 
 test('warning is reported when cannot resolve peer dependency', async (t: tape.Test) => {
   const project = prepare(t)
-  let log: string | null = null
 
-  function reporter (logObj: Object) {
-    if (logObj['message'] && logObj['message'].indexOf('requires a peer of ajv@>=4.10.0 but none was installed.') !== -1) {
-      log = logObj['message']
-    }
-  }
+  const reporter = sinon.spy()
 
   await installPkgs(['ajv-keywords@1.5.0'], testDefaults({reporter}))
 
-  t.ok(log)
+  t.ok(reporter.calledWithMatch({
+    message: 'localhost+4873/ajv-keywords/1.5.0 requires a peer of ajv@>=4.10.0 but none was installed.',
+  }), 'warning is logged about unresolved peer dep')
 })
 
 test('top peer dependency is not linked on subsequent install', async (t: tape.Test) => {
