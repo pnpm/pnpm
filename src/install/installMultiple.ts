@@ -27,6 +27,7 @@ import {
 } from 'pnpm-shrinkwrap'
 import depsToSpecs from '../depsToSpecs'
 import getIsInstallable from './getIsInstallable'
+import semver = require('semver')
 
 export type PkgAddress = {
   nodeId: string,
@@ -57,22 +58,35 @@ export default async function installMultiple (
     parentNodeId: string,
     currentDepth: number,
     resolvedDependencies?: ResolvedDependencies,
+    preferedDependencies?: ResolvedDependencies,
     parentIsInstallable?: boolean,
     update: boolean,
   }
 ): Promise<PkgAddress[]> {
   const resolvedDependencies = options.resolvedDependencies || {}
+  const preferedDependencies = options.preferedDependencies || {}
   const update = options.update && options.currentDepth <= ctx.depth
   const pkgAddresses = <PkgAddress[]>(
     await Promise.all(
       specs
         .map(async (spec: PackageSpec) => {
-          const reference = resolvedDependencies[spec.name]
+          let reference = resolvedDependencies[spec.name]
+          let proceed = false
 
-          return await install(spec, ctx, Object.assign({},
-            options,
-            {
-              update
+          if (!reference && spec.type === 'range' && preferedDependencies[spec.name] &&
+            semver.satisfies(preferedDependencies[spec.name], spec.fetchSpec, true)) {
+
+            proceed = true
+            reference = preferedDependencies[spec.name]
+          }
+
+          return await install(spec, ctx, Object.assign({
+              keypath: options.keypath,
+              parentNodeId: options.parentNodeId,
+              currentDepth: options.currentDepth,
+              parentIsInstallable: options.parentIsInstallable,
+              update,
+              proceed,
             },
             getInfoFromShrinkwrap(ctx.shrinkwrap, reference, spec.name, ctx.registry)))
         })
@@ -155,10 +169,11 @@ async function install (
     resolvedDependencies?: ResolvedDependencies,
     parentIsInstallable?: boolean,
     update: boolean,
+    proceed: boolean,
   }
 ): Promise<PkgAddress | null> {
   const keypath = options.keypath || []
-  const proceed = !options.resolvedDependencies || ctx.force || keypath.length <= ctx.depth
+  const proceed = options.proceed || !options.shrinkwrapResolution || ctx.force || keypath.length <= ctx.depth
   const parentIsInstallable = options.parentIsInstallable === undefined || options.parentIsInstallable
 
   if (!proceed && options.absoluteDependencyPath &&
@@ -296,6 +311,9 @@ async function install (
         resolvedDependencies: fetchedPkg.id !== options.pkgId
           ? undefined
           : options.resolvedDependencies,
+        preferedDependencies: fetchedPkg.id !== options.pkgId
+          ? options.resolvedDependencies
+          : undefined,
         update: options.update,
       }
     )
@@ -345,6 +363,7 @@ async function installDependencies (
     parentNodeId: string,
     currentDepth: number,
     resolvedDependencies?: ResolvedDependencies,
+    preferedDependencies?: ResolvedDependencies,
     parentIsInstallable: boolean,
     update: boolean,
   }
