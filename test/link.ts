@@ -6,30 +6,28 @@ import writePkg = require('write-pkg')
 import {
   prepare,
   testDefaults,
+  execPnpm,
  } from './utils'
 import thenify = require('thenify')
-import {link} from '../src/cmd'
 
 test('linking multiple packages', async (t: tape.Test) => {
   const project = prepare(t)
 
   process.chdir('..')
-  const globalPrefix = path.resolve('global')
+  process.env.NPM_CONFIG_PREFIX = path.resolve('global')
 
   await writePkg('linked-foo', {name: 'linked-foo', version: '1.0.0'})
   await writePkg('linked-bar', {name: 'linked-bar', version: '1.0.0'})
 
   process.chdir('linked-foo')
 
-  const opts = Object.assign(testDefaults(), {globalPrefix})
-
   t.comment('linking linked-foo to global package')
-  await link([], opts)
+  await execPnpm('link')
 
   process.chdir('..')
   process.chdir('project')
 
-  await link(['linked-foo', '../linked-bar'], opts)
+  await execPnpm('link', 'linked-foo', '../linked-bar')
 
   project.has('linked-foo')
   project.has('linked-bar')
