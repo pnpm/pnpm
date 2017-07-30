@@ -1,7 +1,18 @@
 import path = require('path')
-import {link, linkFromGlobal, linkToGlobal, PnpmOptions} from 'supi'
+import {
+  link,
+  linkFromGlobal,
+  linkToGlobal,
+  PnpmOptions
+} from 'supi'
 
-export default (input: string[], opts: PnpmOptions & {globalPrefix: string}) => {
+export default (
+  input: string[],
+  opts: PnpmOptions & {
+    globalPrefix: string,
+    globalBin: string,
+  }
+) => {
   const cwd = opts && opts.prefix || process.cwd()
 
   // pnpm link

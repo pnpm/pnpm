@@ -107,6 +107,7 @@ async function run (argv: string[]) {
   const opts = R.fromPairs(<any>R.keys(types).map(configKey => [camelcase(configKey), npm.config.get(configKey)])) // tslint:disable-line
   opts.rawNpmConfig = Object.assign.apply(Object, npm.config['list'].reverse())
   opts.bin = npm.bin
+  opts.globalBin = npm.globalBin
   opts.globalPrefix = path.join(npm['globalPrefix'], 'pnpm-global')
   opts.prefix = opts.global ? opts.globalPrefix : npm.prefix
   opts.packageManager = pnpmPkgJson

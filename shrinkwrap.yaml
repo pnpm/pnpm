@@ -24,7 +24,7 @@ dependencies:
   pnpm-logger: 0.5.3
   ramda: 0.24.1
   rimraf: 2.6.1
-  supi: 0.2.10
+  supi: 0.2.11
   update-notifier: 2.2.0
 devDependencies:
   '@types/mkdirp': 0.5.0
@@ -36,7 +36,7 @@ devDependencies:
   npm-scripts-info: 0.3.6
   tslint: 5.5.0
   typescript: 2.4.2
-  validate-commit-msg: 2.13.1
+  validate-commit-msg: 2.14.0
 packages:
   /@types/archy/0.0.30:
     resolution:
@@ -92,9 +92,9 @@ packages:
   /@types/rc/0.0.1:
     resolution:
       integrity: sha1-H1uKGzsaxtH+4TfFP6xfoPKK4Nc=
-  /@types/semver/5.3.32:
+  /@types/semver/5.3.33:
     resolution:
-      integrity: sha512-MdbWERx4JWmN4zP+skJy9Kio+Cddvmyn1k8x0S8UAqDoMgOJeobQo7yhlE4BfiimonHirgixWfva/hKUlXBsrw==
+      integrity: sha512-UwrBgjsRS8BSsckIEdrAhIAmdh0MJidtKTvD3S6tpMq6qHLY3uGaNYcRDUjPxpF4hOAOEbMNSXhhfxmNHB1QNQ==
   /@types/tape/4.2.30:
     dependencies:
       '@types/node': 8.0.17
@@ -542,7 +542,7 @@ packages:
   /dependencies-hierarchy/1.0.0:
     dependencies:
       '@types/node': 8.0.17
-      '@types/semver': 5.3.32
+      '@types/semver': 5.3.33
       dependency-path: 1.1.0
       pnpm-shrinkwrap: 3.1.0
       semver: 5.4.1
@@ -1182,12 +1182,12 @@ packages:
     dev: true
     resolution:
       integrity: sha1-mGbfOVECEw449/mWvOtlRDIJwls=
-  /js-yaml/3.9.0:
+  /js-yaml/3.9.1:
     dependencies:
       argparse: 1.0.9
       esprima: 4.0.0
     resolution:
-      integrity: sha512-0LoUNELX4S+iofCT8f4uEHIiRBR+c2AINyC8qRWfC6QNruLtxVZRJaPcu/xwMgFIgDxF25tGHaDjvxzJCNE9yw==
+      integrity: sha512-CbcG379L1e+mWBnLvHWWeLs8GyV/EMw862uLI3c+GxVyDHWZcjZinwuBd3iW2pgxgIlksW/1vNJa4to+RvDOww==
   /jsbn/0.1.1:
     optional: true
     resolution:
@@ -1274,7 +1274,7 @@ packages:
   /load-yaml-file/0.1.0:
     dependencies:
       graceful-fs: 4.1.11
-      js-yaml: 3.9.0
+      js-yaml: 3.9.1
       pify: 2.3.0
       strip-bom: 3.0.0
     resolution:
@@ -1631,7 +1631,7 @@ packages:
       '@types/load-json-file': 2.0.5
       '@types/node': 7.0.39
       '@types/ramda': 0.24.5
-      '@types/semver': 5.3.32
+      '@types/semver': 5.3.33
       dint: 1.0.0
       encode-registry: 1.0.0
       execa: 0.7.0
@@ -1812,7 +1812,7 @@ packages:
     dependencies:
       '@types/node': 7.0.39
       '@types/ramda': 0.0.11
-      js-yaml: 3.9.0
+      js-yaml: 3.9.1
       load-yaml-file: 0.1.0
       mkdirp-promise: 5.0.1
       pnpm-logger: 0.3.0
@@ -2232,7 +2232,7 @@ packages:
   /strip-json-comments/2.0.1:
     resolution:
       integrity: sha1-PFMZQukIwml8DsNEhYwobHygpgo=
-  /supi/0.2.10:
+  /supi/0.2.11:
     dependencies:
       '@types/byline': 4.2.31
       '@types/common-tags': 1.2.5
@@ -2243,7 +2243,7 @@ packages:
       '@types/npm': 2.0.28
       '@types/ramda': 0.0.15
       '@types/rc': 0.0.1
-      '@types/semver': 5.3.32
+      '@types/semver': 5.3.33
       '@types/update-notifier': 1.0.1
       '@zkochan/cmd-shim': 2.2.3
       arr-flatten: 1.1.0
@@ -2290,7 +2290,7 @@ packages:
       write-pkg: 3.1.0
       write-yaml-file: 1.0.0
     resolution:
-      integrity: sha512-hZGPsijggg5I/7TgHrf2i7PqXmn8c/uzmgPwurxo0uQTq0zPOkZG43wmTW1pfALVXqH6khgrwJT5z4i/uFxkXw==
+      integrity: sha512-7gqRqPPRbB/YhaGQorjoXEVz9x0j2Fy+nwi2t++zFs730Z39L5Z0Yr5e+8XQteM5cse9Tk+fyXFisX3SXz/Byw==
   /supports-color/2.0.0:
     resolution:
       integrity: sha1-U10EXOa2Nj+kARcIRimZXp3zJMc=
@@ -2469,7 +2469,7 @@ packages:
   /uuid/3.1.0:
     resolution:
       integrity: sha512-DIWtzUkw04M4k3bf1IcpS2tngXEL26YUD2M0tMDUpnUrz2hgzUBlD55a4FjdLGPvfHxS6uluGWvaVEqgBcVa+g==
-  /validate-commit-msg/2.13.1:
+  /validate-commit-msg/2.14.0:
     dependencies:
       conventional-commit-types: 2.2.0
       find-parent-dir: 0.3.0
@@ -2477,7 +2477,7 @@ packages:
       semver-regex: 1.0.0
     dev: true
     resolution:
-      integrity: sha1-cThupFNJxJcOCRKW8TLc9n3FBxQ=
+      integrity: sha1-5Tg2kQEsuycNzAvCpO/+vhSJDqw=
   /validate-npm-package-license/3.0.1:
     dependencies:
       spdx-correct: 1.0.2
@@ -2555,7 +2555,7 @@ packages:
   /write-yaml-file/1.0.0:
     dependencies:
       graceful-fs: 4.1.11
-      js-yaml: 3.9.0
+      js-yaml: 3.9.1
       mkdirp: 0.5.1
       pify: 2.3.0
       write-file-atomic: 1.3.4
@@ -2605,7 +2605,7 @@ specifiers:
   pnpm-logger: ^0.5.3
   ramda: ^0.24.1
   rimraf: ^2.5.4
-  supi: ^0.2.10
+  supi: ^0.2.11
   tslint: ^5.4.2
   typescript: ^2.4.1
   update-notifier: ^2.1.0

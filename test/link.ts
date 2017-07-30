@@ -7,8 +7,10 @@ import {
   prepare,
   testDefaults,
   execPnpm,
+  isExecutable,
  } from './utils'
 import thenify = require('thenify')
+import fs = require('mz/fs')
 
 test('linking multiple packages', async (t: tape.Test) => {
   const project = prepare(t)
@@ -31,4 +33,21 @@ test('linking multiple packages', async (t: tape.Test) => {
 
   project.has('linked-foo')
   project.has('linked-bar')
+})
+
+test('link global bin', async function (t: tape.Test) {
+  prepare(t)
+  process.chdir('..')
+
+  const global = path.resolve('global')
+  process.env.NPM_CONFIG_PREFIX = global
+
+  await writePkg('package-with-bin', {name: 'package-with-bin', version: '1.0.0', bin: 'bin.js'})
+  await fs.writeFile('package-with-bin/bin.js', '#!/usr/bin/env node\nconsole.log(/hi/)\n', 'utf8')
+
+  process.chdir('package-with-bin')
+
+  await execPnpm('link')
+
+  isExecutable(t, path.join(global, 'bin', 'package-with-bin'))
 })
