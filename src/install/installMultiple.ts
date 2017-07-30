@@ -199,7 +199,7 @@ async function install (
     offline: ctx.offline,
     storeIndex: ctx.storeIndex,
     verifyStoreIntegrity: ctx.verifyStoreInegrity,
-    downloadPriority: -ctx.depth,
+    downloadPriority: -options.currentDepth,
   })
 
   if (fetchedPkg.isLocal) {
