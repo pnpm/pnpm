@@ -11,6 +11,7 @@ import {
  } from './utils'
 import thenify = require('thenify')
 import fs = require('mz/fs')
+import isWindows = require('is-windows')
 
 test('linking multiple packages', async (t: tape.Test) => {
   const project = prepare(t)
@@ -49,5 +50,6 @@ test('link global bin', async function (t: tape.Test) {
 
   await execPnpm('link')
 
-  isExecutable(t, path.join(global, 'bin', 'package-with-bin'))
+  const globalBin = isWindows() ? global : path.join(global, 'bin')
+  isExecutable(t, path.join(globalBin, 'package-with-bin'))
 })
