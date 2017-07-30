@@ -53,30 +53,16 @@ export default async function installMultiple (
   ctx: InstallContext,
   specs: PackageSpec[],
   options: {
-    force: boolean,
-    prefix: string,
-    storePath: string,
-    registry: string,
-    metaCache: Map<string, PackageMeta>,
-    got: Got,
     keypath: string[],
     parentNodeId: string,
     currentDepth: number,
     resolvedDependencies?: ResolvedDependencies,
-    depth: number,
-    engineStrict: boolean,
-    nodeVersion: string,
-    pnpmVersion: string,
-    offline: boolean,
     parentIsInstallable?: boolean,
-    rawNpmConfig: Object,
-    nodeModules: string,
     update: boolean,
-    verifyStoreInegrity: boolean,
   }
 ): Promise<PkgAddress[]> {
   const resolvedDependencies = options.resolvedDependencies || {}
-  const update = options.update && options.currentDepth <= options.depth
+  const update = options.update && options.currentDepth <= ctx.depth
   const pkgAddresses = <PkgAddress[]>(
     await Promise.all(
       specs
@@ -88,7 +74,7 @@ export default async function installMultiple (
             {
               update
             },
-            getInfoFromShrinkwrap(ctx.shrinkwrap, reference, spec.name, options.registry)))
+            getInfoFromShrinkwrap(ctx.shrinkwrap, reference, spec.name, ctx.registry)))
         })
     )
   )
@@ -159,12 +145,6 @@ async function install (
   spec: PackageSpec,
   ctx: InstallContext,
   options: {
-    force: boolean,
-    prefix: string,
-    storePath: string,
-    registry: string,
-    metaCache: Map<string, PackageMeta>,
-    got: Got,
     keypath: string[], // TODO: remove. Currently used only for logging
     pkgId?: string,
     absoluteDependencyPath?: string,
@@ -173,34 +153,26 @@ async function install (
     currentDepth: number,
     shrinkwrapResolution?: Resolution,
     resolvedDependencies?: ResolvedDependencies,
-    depth: number,
-    engineStrict: boolean,
-    nodeVersion: string,
-    pnpmVersion: string,
-    offline: boolean,
     parentIsInstallable?: boolean,
-    rawNpmConfig: Object,
-    nodeModules: string,
     update: boolean,
-    verifyStoreInegrity: boolean,
   }
 ): Promise<PkgAddress | null> {
   const keypath = options.keypath || []
-  const proceed = !options.resolvedDependencies || options.force || keypath.length <= options.depth
+  const proceed = !options.resolvedDependencies || ctx.force || keypath.length <= ctx.depth
   const parentIsInstallable = options.parentIsInstallable === undefined || options.parentIsInstallable
 
   if (!proceed && options.absoluteDependencyPath &&
     // if package is not in `node_modules/.shrinkwrap.yaml`
     // we can safely assume that it doesn't exist in `node_modules`
     options.dependencyPath && ctx.privateShrinkwrap.packages && ctx.privateShrinkwrap.packages[options.dependencyPath] &&
-    await exists(path.join(options.nodeModules, `.${options.absoluteDependencyPath}`)) && (
-      options.currentDepth > 0 || await exists(path.join(options.nodeModules, spec.name))
+    await exists(path.join(ctx.nodeModules, `.${options.absoluteDependencyPath}`)) && (
+      options.currentDepth > 0 || await exists(path.join(ctx.nodeModules, spec.name))
     )) {
 
     return null
   }
 
-  const registry = normalizeRegistry(spec.scope && options.rawNpmConfig[`${spec.scope}:registry`] || options.registry)
+  const registry = normalizeRegistry(spec.scope && ctx.rawNpmConfig[`${spec.scope}:registry`] || ctx.registry)
 
   const dependentId = keypath[keypath.length - 1]
   const loggedPkg = {
@@ -218,16 +190,16 @@ async function install (
     update: options.update,
     fetchingLocker: ctx.fetchingLocker,
     registry,
-    prefix: options.prefix,
-    storePath: options.storePath,
-    metaCache: options.metaCache,
-    got: options.got,
+    prefix: ctx.prefix,
+    storePath: ctx.storePath,
+    metaCache: ctx.metaCache,
+    got: ctx.got,
     shrinkwrapResolution: options.shrinkwrapResolution,
     pkgId: options.pkgId,
-    offline: options.offline,
+    offline: ctx.offline,
     storeIndex: ctx.storeIndex,
-    verifyStoreIntegrity: options.verifyStoreInegrity,
-    downloadPriority: -options.depth,
+    verifyStoreIntegrity: ctx.verifyStoreInegrity,
+    downloadPriority: -ctx.depth,
   })
 
   if (fetchedPkg.isLocal) {
@@ -274,12 +246,12 @@ async function install (
   logStatus({status: 'downloaded_manifest', pkgId: fetchedPkg.id, pkgVersion: pkg.version})
 
   const currentIsInstallable = (
-      options.force ||
+      ctx.force ||
       await getIsInstallable(fetchedPkg.id, pkg, fetchedPkg, {
         optional: spec.optional,
-        engineStrict: options.engineStrict,
-        nodeVersion: options.nodeVersion,
-        pnpmVersion: options.pnpmVersion,
+        engineStrict: ctx.engineStrict,
+        nodeVersion: ctx.nodeVersion,
+        pnpmVersion: ctx.pnpmVersion,
       })
     )
   const installable = parentIsInstallable && currentIsInstallable
@@ -321,24 +293,10 @@ async function install (
         currentDepth: options.currentDepth + 1,
         parentNodeId: nodeId,
         keypath: options.keypath.concat([ fetchedPkg.id ]),
-        force: options.force,
-        prefix: options.prefix,
-        storePath: options.storePath,
-        registry: options.registry,
-        metaCache: options.metaCache,
-        got: options.got,
         resolvedDependencies: fetchedPkg.id !== options.pkgId
           ? undefined
           : options.resolvedDependencies,
-        depth: options.depth,
-        engineStrict: options.engineStrict,
-        nodeVersion: options.nodeVersion,
-        pnpmVersion: options.pnpmVersion,
-        offline: options.offline,
-        rawNpmConfig: options.rawNpmConfig,
-        nodeModules: options.nodeModules,
         update: options.update,
-        verifyStoreInegrity: options.verifyStoreInegrity,
       }
     )
     ctx.childrenIdsByParentId[fetchedPkg.id] = children.map(child => child.pkgId)
@@ -383,26 +341,12 @@ async function installDependencies (
   parentSpec: PackageSpec,
   ctx: InstallContext,
   opts: {
-    force: boolean,
-    prefix: string,
-    storePath: string,
-    registry: string,
-    metaCache: Map<string, PackageMeta>,
-    got: Got,
     keypath: string[],
     parentNodeId: string,
     currentDepth: number,
     resolvedDependencies?: ResolvedDependencies,
-    depth: number,
-    engineStrict: boolean,
-    nodeVersion: string,
-    pnpmVersion: string,
-    offline: boolean,
     parentIsInstallable: boolean,
-    rawNpmConfig: Object,
-    nodeModules: string,
     update: boolean,
-    verifyStoreInegrity: boolean,
   }
 ): Promise<PkgAddress[]> {
 
@@ -411,7 +355,7 @@ async function installDependencies (
   const deps = depsToSpecs(
     filterDeps(Object.assign({}, pkg.optionalDependencies, pkg.dependencies)),
     {
-      where: opts.prefix,
+      where: ctx.prefix,
       devDependencies: pkg.devDependencies || {},
       optionalDependencies: pkg.optionalDependencies || {},
     }

@@ -41,12 +41,14 @@ import {DependencyTreeNode} from '../link/resolvePeers'
 import depsToSpecs, {similarDepsToSpecs} from '../depsToSpecs'
 import shrinkwrapsEqual from './shrinkwrapsEqual'
 import {
+  Got,
   createGot,
   Store,
   PackageContentInfo,
   PackageSpec,
   DirectoryResolution,
   Resolution,
+  PackageMeta,
 } from 'package-store'
 import depsFromPackage from '../depsFromPackage'
 import writePkg = require('write-pkg')
@@ -98,6 +100,20 @@ export type InstallContext = {
   skipped: Set<string>,
   tree: {[nodeId: string]: TreeNode},
   storeIndex: Store,
+  force: boolean,
+  prefix: string,
+  storePath: string,
+  registry: string,
+  metaCache: Map<string, PackageMeta>,
+  got: Got,
+  depth: number,
+  engineStrict: boolean,
+  nodeVersion: string,
+  pnpmVersion: string,
+  offline: boolean,
+  rawNpmConfig: Object,
+  nodeModules: string,
+  verifyStoreInegrity: boolean,
 }
 
 export async function install (maybeOpts?: PnpmOptions) {
@@ -121,7 +137,6 @@ export async function install (maybeOpts?: PnpmOptions) {
   async function _install() {
     const installType = 'general'
     const ctx = await getContext(opts, installType)
-    const installCtx = await createInstallCmd(ctx, ctx.skipped)
 
     if (!ctx.pkg) throw new Error('No package.json found')
 
@@ -188,7 +203,7 @@ export async function install (maybeOpts?: PnpmOptions) {
     }
 
     async function run () {
-      await installInContext(installType, specs, [], ctx, installCtx, opts)
+      await installInContext(installType, specs, [], ctx, opts)
     }
   }
 }
@@ -262,7 +277,6 @@ export async function installPkgs (fuzzyDeps: string[] | Dependencies, maybeOpts
     if (!Object.keys(packagesToInstall).length) {
       throw new Error('At least one package has to be installed')
     }
-    const installCtx = await createInstallCmd(ctx, ctx.skipped)
 
     if (opts.lock === false) {
       return run()
@@ -276,7 +290,6 @@ export async function installPkgs (fuzzyDeps: string[] | Dependencies, maybeOpts
         packagesToInstall,
         packagesToInstall.map(spec => spec.name),
         ctx,
-        installCtx,
         opts)
     }
   }
@@ -317,7 +330,6 @@ async function installInContext (
   packagesToInstall: PackageSpec[],
   newPkgs: string[],
   ctx: PnpmContext,
-  installCtx: InstallContext,
   opts: StrictPnpmOptions
 ) {
   // Unfortunately, the private shrinkwrap file may differ from the public one.
@@ -336,13 +348,28 @@ async function installInContext (
   const oldSpecs = parts[0]
   const newSpecs = parts[1]
 
-  const installOpts = {
-    root: ctx.root,
+  const installCtx: InstallContext = {
+    installs: {},
+    localPackages: [],
+    childrenIdsByParentId: {},
+    nodesToBuild: [],
+    shrinkwrap: ctx.shrinkwrap,
+    privateShrinkwrap: ctx.privateShrinkwrap,
+    fetchingLocker: {},
+    skipped: ctx.skipped,
+    tree: {},
+    storeIndex: ctx.storeIndex,
     storePath: ctx.storePath,
     registry: ctx.shrinkwrap.registry,
     force: opts.force,
     depth: opts.update ? opts.depth :
       (R.equals(ctx.shrinkwrap.packages, ctx.privateShrinkwrap.packages) ? opts.repeatInstallDepth : Infinity),
+    prefix: opts.prefix,
+    offline: opts.offline,
+    rawNpmConfig: opts.rawNpmConfig,
+    nodeModules: nodeModulesPath,
+    metaCache: opts.metaCache,
+    verifyStoreInegrity: opts.verifyStoreIntegrity,
     engineStrict: opts.engineStrict,
     nodeVersion: opts.nodeVersion,
     pnpmVersion: opts.packageManager.name === 'pnpm' ? opts.packageManager.version : '',
@@ -352,17 +379,14 @@ async function installInContext (
       alwaysAuth: opts.alwaysAuth,
       registry: opts.registry,
     }),
-    metaCache: opts.metaCache,
+  }
+  const installOpts = {
+    root: ctx.root,
     resolvedDependencies: Object.assign({}, ctx.shrinkwrap.devDependencies, ctx.shrinkwrap.dependencies, ctx.shrinkwrap.optionalDependencies),
-    offline: opts.offline,
-    rawNpmConfig: opts.rawNpmConfig,
-    nodeModules: nodeModulesPath,
     update: opts.update,
     keypath: [],
-    prefix: opts.prefix,
     parentNodeId: ':/:',
     currentDepth: 0,
-    verifyStoreInegrity: opts.verifyStoreIntegrity,
   }
   const nonLinkedPkgs = await pFilter(packagesToInstall,
     (spec: PackageSpec) => !spec.name || safeIsInnerLink(nodeModulesPath, spec.name, {storePath: ctx.storePath}))
@@ -581,24 +605,6 @@ function getSaveSpec(spec: PackageSpec, version: string, saveExact: boolean) {
       return `${saveExact ? '' : '^'}${version}`
     default:
       return spec.saveSpec
-  }
-}
-
-async function createInstallCmd (
-  ctx: PnpmContext,
-  skipped: Set<string>
-): Promise<InstallContext> {
-  return {
-    installs: {},
-    localPackages: [],
-    childrenIdsByParentId: {},
-    nodesToBuild: [],
-    shrinkwrap: ctx.shrinkwrap,
-    privateShrinkwrap: ctx.privateShrinkwrap,
-    fetchingLocker: {},
-    skipped,
-    tree: {},
-    storeIndex: ctx.storeIndex,
   }
 }
 
