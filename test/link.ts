@@ -57,7 +57,10 @@ test('global link', async function (t) {
 
   process.chdir(linkedPkgPath)
   const globalPrefix = path.resolve('..', 'global')
-  await linkToGlobal(process.cwd(), Object.assign(testDefaults(), {globalPrefix}))
+  const globalBin = path.resolve('..', 'global', 'bin')
+  await linkToGlobal(process.cwd(), Object.assign(testDefaults(), {globalPrefix, globalBin}))
+
+  isExecutable(t, path.join(globalBin, 'hello-world-js-bin'))
 
   process.chdir(projectPath)
 
