@@ -13,10 +13,10 @@ export default (input: string[], opts: PnpmOptions & {globalPrefix: string}) => 
     // pnpm link ../foo
     if (inp[0].indexOf('.') === 0) {
       const linkFrom = path.join(cwd, inp)
-      return previous.then(link.bind(null, linkFrom, cwd, opts))
+      return previous.then(() => link(linkFrom, cwd, opts))
     }
 
     // pnpm link foo
-    return previous.then(linkFromGlobal.bind(null, inp, cwd, opts))
+    return previous.then(() => linkFromGlobal(inp, cwd, opts))
   }, Promise.resolve())
 }
