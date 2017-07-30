@@ -102,7 +102,7 @@ packages:
   /aproba/1.1.2:
     optional: true
     resolution:
-      integrity: sha1-RcZikJTeTpb2k+9+q3SuB5wkD8E=
+      integrity: sha512-ZpYajIfO0j2cOFTO955KUMIKNmj6zhX8kVztMAxFsDaMwz+9Z9SV0uou2pC9HJqcfpffOsjnbrDMvkNy+9RXPw==
   /are-we-there-yet/1.1.4:
     dependencies:
       delegates: 1.0.0
@@ -952,7 +952,7 @@ packages:
       pseudomap: 1.0.2
       yallist: 2.1.2
     resolution:
-      integrity: sha1-Yi4y6CSItJJ5EUpPns9F581rulU=
+      integrity: sha512-q4spe4KTfsAS1SUHLO0wz8Qiyf1+vMIAgpRYioFYDMNqKfHQbg+AVDH3i4fvpl71/P1L0dBl+fQi+P37UYf0ew==
   /lunr/0.7.2:
     resolution:
       integrity: sha1-eaMOky4hbLoWNUHuN6NgfBLNcoE=
@@ -1678,7 +1678,7 @@ packages:
       string-width: 1.0.2
     optional: true
     resolution:
-      integrity: sha1-Vx4PGwYEY268DfwhsDObvjE0FxA=
+      integrity: sha512-ijDLlyQ7s6x1JgCLur53osjm/UXUYD9+0PbYKrBsYisYXzCxN+HC3mYDNy/dWdmf3AwqwU3CXwDCvsNgGK1S0w==
   /window-size/0.1.0:
     optional: true
     resolution:
