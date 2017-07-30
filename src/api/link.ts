@@ -28,7 +28,7 @@ export default async function link (
   const destModules = path.join(linkTo, 'node_modules')
   await linkToModules(linkFrom, destModules)
 
-  const bin = path.join(destModules, '.bin')
+  const bin = opts.bin || path.join(destModules, '.bin')
   await linkPkgBins(linkFrom, bin)
 
   if (reporter) {
@@ -64,7 +64,10 @@ export async function linkFromGlobal (
 
 export async function linkToGlobal (
   linkFrom: string,
-  maybeOpts: PnpmOptions & {globalPrefix: string}
+  maybeOpts: PnpmOptions & {
+    globalPrefix: string,
+    globalBin: string,
+  }
 ) {
   const reporter = maybeOpts && maybeOpts.reporter
   if (reporter) {
@@ -72,6 +75,7 @@ export async function linkToGlobal (
   }
   const opts = extendOptions(maybeOpts)
   opts.global = true // bins will be linked to the global bin path
+  opts.bin = maybeOpts.globalBin
   const globalPkgPath = expandTilde(maybeOpts.globalPrefix)
   await link(linkFrom, globalPkgPath, opts)
 
