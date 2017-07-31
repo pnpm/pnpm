@@ -72,6 +72,7 @@ export async function uninstallInContext (pkgsToUninstall: string[], ctx: PnpmCo
     prefix: ctx.root,
     store: ctx.storePath,
     storeIndex: ctx.storeIndex,
+    bin: opts.bin,
   })
   const privateShrinkwrap = makePartialPrivateShrinkwrap
     ? pruneShrinkwrap(ctx.privateShrinkwrap, pkg)
@@ -84,7 +85,10 @@ export async function uninstallInContext (pkgsToUninstall: string[], ctx: PnpmCo
     layoutVersion: LAYOUT_VERSION,
     independentLeaves: opts.independentLeaves,
   })
-  await removeOuterLinks(pkgsToUninstall, path.join(ctx.root, 'node_modules'), {storePath: ctx.storePath})
+  await removeOuterLinks(pkgsToUninstall, path.join(ctx.root, 'node_modules'), {
+    storePath: ctx.storePath,
+    bin: opts.bin,
+  })
 
   logger('summary').info()
 }
@@ -94,6 +98,7 @@ async function removeOuterLinks (
   modules: string,
   opts: {
     storePath: string,
+    bin: string,
   }
 ) {
   // These packages are not in package.json, they were just linked in not installed
@@ -103,7 +108,10 @@ async function removeOuterLinks (
         name: pkgToUninstall,
         dev: false,
         optional: false,
-      }, modules)
+      }, {
+        modules,
+        bin: opts.bin,
+      })
     }
   }
 }

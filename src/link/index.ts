@@ -61,6 +61,7 @@ export default async function (
     prefix: opts.root,
     store: opts.storePath,
     storeIndex: opts.storeIndex,
+    bin: opts.bin,
   })
 
   let flatResolvedDeps =  R.values(pkgsToLink).filter(dep => !opts.skipped.has(dep.id))

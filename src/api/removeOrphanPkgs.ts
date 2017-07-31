@@ -12,6 +12,7 @@ export default async function removeOrphanPkgs (
   opts: {
     oldShrinkwrap: Shrinkwrap,
     newShrinkwrap: Shrinkwrap,
+    bin: string,
     prefix: string,
     store: string,
     storeIndex: Store,
@@ -29,7 +30,10 @@ export default async function removeOrphanPkgs (
       name: depName[0],
       dev: Boolean(opts.oldShrinkwrap.devDependencies && opts.oldShrinkwrap.devDependencies[depName[0]]),
       optional: Boolean(opts.oldShrinkwrap.optionalDependencies && opts.oldShrinkwrap.optionalDependencies[depName[0]]),
-    }, rootModules)
+    }, {
+      modules: rootModules,
+      bin: opts.bin,
+    })
   }))
 
   const oldPkgIds = R.keys(opts.oldShrinkwrap.packages).map(depPath => dp.resolve(opts.oldShrinkwrap.registry, depPath))

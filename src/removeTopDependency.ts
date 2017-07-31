@@ -10,11 +10,14 @@ export default async function removeTopDependency (
     dev: boolean,
     optional: boolean,
   },
-  modules: string
+  opts: {
+    modules: string,
+    bin: string,
+  }
 ) {
   const results = await Promise.all([
-    removeBins(dependency.name, modules),
-    rimraf(path.join(modules, dependency.name)),
+    removeBins(dependency.name, opts),
+    rimraf(path.join(opts.modules, dependency.name)),
   ])
 
   const uninstalledPkg = results[0]
@@ -27,14 +30,20 @@ export default async function removeTopDependency (
   })
 }
 
-async function removeBins (uninstalledPkg: string, modules: string) {
-  const uninstalledPkgPath = path.join(modules, uninstalledPkg)
+async function removeBins (
+  uninstalledPkg: string,
+  opts: {
+    modules: string,
+    bin: string,
+  }
+) {
+  const uninstalledPkgPath = path.join(opts.modules, uninstalledPkg)
   const uninstalledPkgJson = await safeReadPkgFromDir(uninstalledPkgPath)
 
   if (!uninstalledPkgJson) return
   const cmds = await binify(uninstalledPkgJson, uninstalledPkgPath)
   await Promise.all(
-    cmds.map(cmd => path.join(modules, '.bin', cmd.name)).map(rimraf)
+    cmds.map(cmd => path.join(opts.bin, cmd.name)).map(rimraf)
   )
 
   return uninstalledPkgJson
