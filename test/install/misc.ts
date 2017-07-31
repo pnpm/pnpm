@@ -66,6 +66,7 @@ test('no dependencies (lodash)', async (t: tape.Test) => {
     added: {
       name: 'lodash',
       version: '4.0.0',
+      dependencyType: 'prod',
     },
   }), 'added to root')
 
@@ -139,6 +140,7 @@ test('update a package when installing with a dist-tag', async function (t: tape
     removed: {
       name: 'dep-of-pkg-with-1-dep',
       version: '100.0.0',
+      dependencyType: 'dev',
     },
   }), 'reported old version removed from the root')
 
@@ -148,6 +150,7 @@ test('update a package when installing with a dist-tag', async function (t: tape
     added: {
       name: 'dep-of-pkg-with-1-dep',
       version: '100.1.0',
+      dependencyType: 'dev',
     },
   }), 'reported new version added to the root')
 
@@ -202,6 +205,7 @@ test('idempotency (rimraf)', async (t: tape.Test) => {
     added: {
       name: 'rimraf',
       version: '2.5.1',
+      dependencyType: 'prod',
     },
   }), 'reported that rimraf added to the root')
 
@@ -215,6 +219,7 @@ test('idempotency (rimraf)', async (t: tape.Test) => {
     added: {
       name: 'rimraf',
       version: '2.5.1',
+      dependencyType: 'prod',
     },
   }), 'did not reported that rimraf was added because it was already there')
 
@@ -238,6 +243,7 @@ test('reporting adding root package', async (t: tape.Test) => {
     added: {
       name: 'flatten',
       version: '1.0.2',
+      dependencyType: 'prod',
     },
   }), 'reported that flatten added to the root')
 })

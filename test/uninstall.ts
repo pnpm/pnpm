@@ -42,6 +42,7 @@ test('uninstall package with no dependencies', async (t: tape.Test) => {
     removed: {
       name: 'is-negative',
       version: '2.1.0',
+      dependencyType: 'prod',
     },
   }), 'removing root dependency reported')
 

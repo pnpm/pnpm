@@ -91,6 +91,7 @@ export default async function (
           id: pkg.id,
           name: pkg.name,
           version: pkg.version,
+          dependencyType: pkg.dev && 'dev' || pkg.optional && 'optional' || 'prod',
         },
       })
     }

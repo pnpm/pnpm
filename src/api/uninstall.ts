@@ -96,9 +96,14 @@ async function removeOuterLinks (
     storePath: string,
   }
 ) {
+  // These packages are not in package.json, they were just linked in not installed
   for (const pkgToUninstall of pkgsToUninstall) {
     if (!await safeIsInnerLink(modules, pkgToUninstall, opts)) {
-      await removeTopDependency(pkgToUninstall, modules)
+      await removeTopDependency({
+        name: pkgToUninstall,
+        dev: false,
+        optional: false,
+      }, modules)
     }
   }
 }

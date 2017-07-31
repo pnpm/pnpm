@@ -60,7 +60,7 @@ devDependencies:
   cz-conventional-changelog: 2.0.0
   husky: 0.13.4
   npm-scripts-info: 0.3.6
-  pnpm-logger: 0.5.3
+  pnpm-logger: 0.5.4
   tslint: 5.5.0
   typescript: 2.4.2
   validate-commit-msg: 2.14.0
@@ -1595,14 +1595,14 @@ packages:
       bole: 3.0.2
     resolution:
       integrity: sha1-6uzqWgN/BTpkxQvafto8uH9e1mE=
-  /pnpm-logger/0.5.3:
+  /pnpm-logger/0.5.4:
     dependencies:
       '@types/node': 8.0.17
       bole: 3.0.2
       ndjson: 1.5.0
     dev: true
     resolution:
-      integrity: sha512-uIDVA3VrDtzYPWuBRBR+/PVj2GqL7srSbT8V1fX7MVVHYzXLOfKrCGkY2rcWThn6lpBvq65BVebU5kFvxaEKaw==
+      integrity: sha512-4qWj8oOPmzkAR395KInwnQU7/0MvPIz4Oz7tJa7v+VKDsUCL1sd7AEnvwgNQ2ZJ3NaELAsnkI6bNOsP4nT6mhg==
   /pnpm-shrinkwrap/3.1.0:
     dependencies:
       '@types/node': 7.0.39
@@ -2257,7 +2257,7 @@ specifiers:
   path-exists: ^3.0.0
   path-name: ^1.0.0
   pnpm-install-checks: ^1.1.0
-  pnpm-logger: ^0.5.3
+  pnpm-logger: ^0.5.4
   pnpm-shrinkwrap: ^3.1.0
   proper-lockfile: ^2.0.0
   ramda: ^0.24.1

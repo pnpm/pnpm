@@ -16,7 +16,7 @@
     "lib/"
   ],
   "peerDependencies": {
-    "pnpm-logger": "^0.5.3"
+    "pnpm-logger": "^0.5.4"
   },
   "dependencies": {
     "@types/byline": "^4.2.31",
@@ -80,7 +80,7 @@
     "cz-conventional-changelog": "^2.0.0",
     "husky": "^0.13.2",
     "npm-scripts-info": "^0.3.6",
-    "pnpm-logger": "^0.5.3",
+    "pnpm-logger": "^0.5.4",
     "rimraf": "^2.5.4",
     "tslint": "^5.4.2",
     "typescript": "^2.4.1",

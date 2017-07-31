@@ -4,17 +4,25 @@ import binify from './binify'
 import {fromDir as safeReadPkgFromDir} from './fs/safeReadPkg'
 import {rootLogger} from 'pnpm-logger'
 
-export default async function removeTopDependency (dependencyName: string, modules: string) {
+export default async function removeTopDependency (
+  dependency: {
+    name: string,
+    dev: boolean,
+    optional: boolean,
+  },
+  modules: string
+) {
   const results = await Promise.all([
-    removeBins(dependencyName, modules),
-    rimraf(path.join(modules, dependencyName)),
+    removeBins(dependency.name, modules),
+    rimraf(path.join(modules, dependency.name)),
   ])
 
   const uninstalledPkg = results[0]
   rootLogger.info({
     removed: {
-      name: dependencyName,
+      name: dependency.name,
       version: uninstalledPkg && uninstalledPkg.version,
+      dependencyType: dependency.dev && 'dev' || dependency.optional && 'optional' || 'prod'
     },
   })
 }

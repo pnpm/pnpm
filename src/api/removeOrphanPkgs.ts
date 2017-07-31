@@ -24,7 +24,13 @@ export default async function removeOrphanPkgs (
   const removedTopDeps: [string, string][] = R.difference(oldPkgs, newPkgs) as [string, string][]
 
   const rootModules = path.join(opts.prefix, 'node_modules')
-  await Promise.all(removedTopDeps.map(depName => removeTopDependency(depName[0], rootModules)))
+  await Promise.all(removedTopDeps.map(depName => {
+    return removeTopDependency({
+      name: depName[0],
+      dev: Boolean(opts.oldShrinkwrap.devDependencies && opts.oldShrinkwrap.devDependencies[depName[0]]),
+      optional: Boolean(opts.oldShrinkwrap.optionalDependencies && opts.oldShrinkwrap.optionalDependencies[depName[0]]),
+    }, rootModules)
+  }))
 
   const oldPkgIds = R.keys(opts.oldShrinkwrap.packages).map(depPath => dp.resolve(opts.oldShrinkwrap.registry, depPath))
   const newPkgIds = R.keys(opts.newShrinkwrap.packages).map(depPath => dp.resolve(opts.newShrinkwrap.registry, depPath))
