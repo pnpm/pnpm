@@ -14,9 +14,30 @@ const EOL = os.EOL
 const addedSign = chalk.green('+')
 const removedSign = chalk.red('-')
 
+type PackageDiff = {
+  name: string,
+  version?: string,
+  added: boolean,
+  deprecated?: boolean,
+}
+
+const propertyByDependencyType = {
+  prod: 'dependencies',
+  dev: 'devDependencies',
+  optional: 'optionalDependencies',
+}
+
 export default function (streamParser: Object) {
   let resolutionDone = false
-  let pkgsDiff: {name: string, version?: string, added: boolean, deprecated?: boolean}[] = []
+  let pkgsDiff: {
+    prod: PackageDiff[],
+    dev: PackageDiff[],
+    optional: PackageDiff[],
+  } = {
+    prod: [],
+    dev: [],
+    optional: [],
+  }
   const deprecated = {}
 
   streamParser['on']('data', (obj: Log) => {
@@ -43,7 +64,7 @@ export default function (streamParser: Object) {
         return
       case 'pnpm:root':
         if (obj['added']) {
-          pkgsDiff.push({
+          pkgsDiff[obj['added'].dependencyType].push({
             name: obj['added'].name,
             version: obj['added'].version,
             deprecated: !!deprecated[obj['added'].id],
@@ -52,7 +73,7 @@ export default function (streamParser: Object) {
           return
         }
         if (obj['removed']) {
-          pkgsDiff.push({
+          pkgsDiff[obj['removed'].dependencyType].push({
             name: obj['removed'].name,
             version: obj['removed'].version,
             added: false,
@@ -61,24 +82,18 @@ export default function (streamParser: Object) {
         }
         return
       case 'pnpm:summary':
-        // Sorts by alphabet then by removed/added
-        // + ava 0.10.0
-        // - chalk 1.0.0
-        // + chalk 2.0.0
-        pkgsDiff.sort((a, b) => (a.name.localeCompare(b.name) * 10 + (Number(!b.added) - Number(!a.added))))
-        const msg = pkgsDiff.map(pkg => {
-          let result = pkg.added ? addedSign : removedSign
-          result += ` ${pkg.name}`
-          if (pkg.version) {
-            result += ` ${chalk.grey(pkg.version)}`
+        let msg = ''
+        for (const depType of ['prod', 'optional', 'dev']) {
+          if (pkgsDiff[depType].length) {
+            msg += EOL
+            msg += chalk.blue(`${propertyByDependencyType[depType]}:`)
+            msg += EOL
+            msg += printDiffs(pkgsDiff[depType])
+            msg += EOL
           }
-          if (pkg.deprecated) {
-            result += ` ${chalk.red('deprecated')}`
-          }
-          return result
-        }).join(EOL)
+        }
         if (!msg) return
-        terminalWriter.write(`${EOL}${msg}`)
+        terminalWriter.write(msg)
         return
       case 'pnpm:deprecation':
         // print warnings only about deprecated packages from the root
@@ -131,6 +146,26 @@ export default function (streamParser: Object) {
       terminalWriter.fixedWrite(msg)
     }
   }
+}
+
+function printDiffs (pkgsDiff: PackageDiff[]) {
+  // Sorts by alphabet then by removed/added
+  // + ava 0.10.0
+  // - chalk 1.0.0
+  // + chalk 2.0.0
+  pkgsDiff.sort((a, b) => (a.name.localeCompare(b.name) * 10 + (Number(!b.added) - Number(!a.added))))
+  const msg = pkgsDiff.map(pkg => {
+    let result = pkg.added ? addedSign : removedSign
+    result += ` ${pkg.name}`
+    if (pkg.version) {
+      result += ` ${chalk.grey(pkg.version)}`
+    }
+    if (pkg.deprecated) {
+      result += ` ${chalk.red('deprecated')}`
+    }
+    return result
+  }).join(EOL)
+  return msg
 }
 
 function reportLifecycle (logObj: LifecycleLog) {

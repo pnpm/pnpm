@@ -9,7 +9,7 @@ dependencies:
 devDependencies:
   commitizen: 2.9.6
   ghooks: 2.0.0
-  pnpm-logger: 0.5.3
+  pnpm-logger: 0.5.4
   rimraf: 2.6.1
   tslint: 4.5.1
   typescript: 2.4.2
@@ -1044,14 +1044,14 @@ packages:
     dev: true
     resolution:
       integrity: sha1-clVrgM+g1IqXToDnckjoDtT3+HA=
-  /pnpm-logger/0.5.3:
+  /pnpm-logger/0.5.4:
     dependencies:
       '@types/node': 8.0.17
       bole: 3.0.2
       ndjson: 1.5.0
     dev: true
     resolution:
-      integrity: sha512-uIDVA3VrDtzYPWuBRBR+/PVj2GqL7srSbT8V1fX7MVVHYzXLOfKrCGkY2rcWThn6lpBvq65BVebU5kFvxaEKaw==
+      integrity: sha512-4qWj8oOPmzkAR395KInwnQU7/0MvPIz4Oz7tJa7v+VKDsUCL1sd7AEnvwgNQ2ZJ3NaELAsnkI6bNOsP4nT6mhg==
   /prepend-http/1.0.4:
     dev: true
     resolution:
@@ -1449,7 +1449,7 @@ specifiers:
   ghooks: ^2.0.0
   log-update: ^2.0.0
   ndjson: ^1.5.0
-  pnpm-logger: ^0.5.3
+  pnpm-logger: ^0.5.4
   rimraf: ^2.5.4
   tslint: ^4.3.1
   typescript: ^2.1.5
