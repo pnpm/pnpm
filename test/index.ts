@@ -5,6 +5,7 @@ import path = require('path')
 const fixtures = path.join(__dirname, 'fixtures')
 const generalFixture = path.join(fixtures, 'general')
 const circularFixture = path.join(fixtures, 'circular')
+const withFileDepFixture = path.join(fixtures, 'with-file-dep')
 
 test('one package depth 0', async t => {
   const tree = await dh(generalFixture, {depth: 0})
@@ -250,6 +251,21 @@ test('circular dependency', async t => {
   const tree = await dh(circularFixture, {depth: 1000})
 
   t.deepEqual(tree, require('./circularTree.json'))
+
+  t.end()
+})
+
+test('local package depth 0', async t => {
+  const tree = await dh(withFileDepFixture, {depth: 1})
+
+  t.deepEqual(tree, [
+    {
+      pkg: { name: 'general', path: 'file:../general', version: 'file:../general' }
+    },
+    {
+      pkg: { name: 'is-positive', path: 'registry.npmjs.org/is-positive/3.1.0', version: '3.1.0' }
+    },
+  ])
 
   t.end()
 })
