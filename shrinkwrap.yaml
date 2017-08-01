@@ -2,10 +2,10 @@ dependencies:
   '@types/byline': 4.2.31
   '@types/common-tags': 1.2.5
   '@types/load-json-file': 2.0.5
-  '@types/node': 8.0.18
+  '@types/node': 8.0.19
   '@types/nopt': 3.0.29
   '@types/npm': 2.0.28
-  '@types/ramda': 0.24.5
+  '@types/ramda': 0.24.6
   '@types/update-notifier': 1.0.1
   byline: 5.0.0
   camelcase: 4.1.0
@@ -24,7 +24,7 @@ dependencies:
   pnpm-logger: 0.5.4
   ramda: 0.24.1
   rimraf: 2.6.1
-  supi: 0.2.12
+  supi: 0.2.13
   update-notifier: 2.2.0
 devDependencies:
   '@types/mkdirp': 0.5.0
@@ -43,7 +43,7 @@ packages:
       integrity: sha1-OIlyozH5YdxxrqcMCLu9ZZN3RgU=
   /@types/byline/4.2.31:
     dependencies:
-      '@types/node': 8.0.18
+      '@types/node': 8.0.19
     resolution:
       integrity: sha1-DmH8ucA+BH0hxEllVMcRYperYM0=
   /@types/chalk/0.4.31:
@@ -57,27 +57,27 @@ packages:
       integrity: sha1-Wt7ZvaV8uLMbavbCySero5WJPfY=
   /@types/mkdirp/0.5.0:
     dependencies:
-      '@types/node': 8.0.18
+      '@types/node': 8.0.19
     dev: true
     resolution:
       integrity: sha512-9UvtpVx/f9ly3T0bTri3DNQYyRWoJ2CPwvBKCeD0BOG41XQBVCx4wr1aKcdOv3Uv+oeqJoFRrgAOxxO3hrFg5g==
   /@types/mz/0.0.31:
     dependencies:
-      '@types/node': 8.0.18
+      '@types/node': 8.0.19
     resolution:
       integrity: sha1-pNgMCC/v5x5Ap8DwfR5lVbu8e1I=
   /@types/node/7.0.39:
     resolution:
       integrity: sha512-KQHAZeVsk4UIT9XaR6cn4WpHZzimK6UBD1UomQKfQQFmTlUHaNBzeuov+TM4+kigLO0IJt4I5OOsshcCyA9gSA==
-  /@types/node/8.0.18:
+  /@types/node/8.0.19:
     resolution:
-      integrity: sha512-S15JcslVLQBbx48rPNPAr03t3Zyu26Fj9RVg7xdcFVGl+cuOAAJ22ZjcoNNqWzEnR1QIfIDee7vO56FinLHSaw==
+      integrity: sha512-VRQB+Q0L3YZWs45uRdpN9oWr82meL/8TrJ6faoKT5tp0uub2l/aRMhtm5fo68h7kjYKH60f9/bay1nF7ZpTW5g==
   /@types/nopt/3.0.29:
     resolution:
       integrity: sha1-8Z3z20yX7hRZonQAKDIKcdcJZM4=
   /@types/npm/2.0.28:
     dependencies:
-      '@types/node': 8.0.18
+      '@types/node': 8.0.19
     resolution:
       integrity: sha1-Crf0YK/Jru7kYZQ4l2YDG8cUUgw=
   /@types/ramda/0.0.11:
@@ -86,9 +86,9 @@ packages:
   /@types/ramda/0.0.15:
     resolution:
       integrity: sha512-5FIV9glDDA5mrD7bTBU2LaOeTMfwfAYIZBPvceBS6oXUuoMomHmqE24gaHRJ8P1/rH1AvmXhznbcKnPdqU8tJw==
-  /@types/ramda/0.24.5:
+  /@types/ramda/0.24.6:
     resolution:
-      integrity: sha512-TlAOmz26ZCXZ8JhQMDObMl7xbrS1aHVWufDvxl0wilbzq9yscZkaryk53PDRyHgzKDnaOaWKHDJG6agrn98C2A==
+      integrity: sha512-HhdtwXKhYH7YJT35NnHRRRnNj0VHkHgy0d3R59ntKYlqd/SUWkHDO+W1p50+pfZRU2qNY5HIvJsXHGhYZSlJvw==
   /@types/rc/0.0.1:
     resolution:
       integrity: sha1-H1uKGzsaxtH+4TfFP6xfoPKK4Nc=
@@ -97,7 +97,7 @@ packages:
       integrity: sha512-UwrBgjsRS8BSsckIEdrAhIAmdh0MJidtKTvD3S6tpMq6qHLY3uGaNYcRDUjPxpF4hOAOEbMNSXhhfxmNHB1QNQ==
   /@types/tape/4.2.30:
     dependencies:
-      '@types/node': 8.0.18
+      '@types/node': 8.0.19
     dev: true
     resolution:
       integrity: sha1-PBkXxN/W8nJxuZInclE1FbxsRrQ=
@@ -541,7 +541,7 @@ packages:
       integrity: sha1-hMbhWbgZBP3KWaDvRM2HDTElD5o=
   /dependencies-hierarchy/1.0.1:
     dependencies:
-      '@types/node': 8.0.18
+      '@types/node': 8.0.19
       '@types/semver': 5.3.33
       dependency-path: 1.1.0
       pnpm-shrinkwrap: 3.1.0
@@ -1626,11 +1626,11 @@ packages:
       semver: 5.4.1
     resolution:
       integrity: sha1-iGmgQBJTZhxMTKPabCEh7VVfXu0=
-  /package-store/0.2.1:
+  /package-store/0.2.2:
     dependencies:
       '@types/load-json-file': 2.0.5
       '@types/node': 7.0.39
-      '@types/ramda': 0.24.5
+      '@types/ramda': 0.24.6
       '@types/semver': 5.3.33
       dint: 1.0.0
       encode-registry: 1.0.0
@@ -1658,7 +1658,7 @@ packages:
       unpack-stream: 2.1.0
       write-json-file: 2.2.0
     resolution:
-      integrity: sha512-fXuLBZlH1UgfX9E4bb9vGDL0++GmFbYNAVpRyBsg9k63afbRS7naIrXUfQUMVbGW0eo3sBKSBL1dZHwgFRQ0Cw==
+      integrity: sha512-6d2wtaqcmJRYyeWu4ejzPU6B3XesOif//34BnHgGMdi8PnDxZtVosQZ64ea1hRqyNjdpdHAotW+vk4XelFEmgA==
   /pad-right/0.2.2:
     dependencies:
       repeat-string: 1.6.1
@@ -1781,7 +1781,7 @@ packages:
     dependencies:
       '@types/archy': 0.0.30
       '@types/chalk': 0.4.31
-      '@types/node': 8.0.18
+      '@types/node': 8.0.19
       archy: 1.0.0
       chalk: 2.0.1
       dependencies-hierarchy: 1.0.1
@@ -1803,7 +1803,7 @@ packages:
       integrity: sha1-6uzqWgN/BTpkxQvafto8uH9e1mE=
   /pnpm-logger/0.5.4:
     dependencies:
-      '@types/node': 8.0.18
+      '@types/node': 8.0.19
       bole: 3.0.2
       ndjson: 1.5.0
     resolution:
@@ -2232,7 +2232,7 @@ packages:
   /strip-json-comments/2.0.1:
     resolution:
       integrity: sha1-PFMZQukIwml8DsNEhYwobHygpgo=
-  /supi/0.2.12:
+  /supi/0.2.13:
     dependencies:
       '@types/byline': 4.2.31
       '@types/common-tags': 1.2.5
@@ -2274,7 +2274,7 @@ packages:
       os-homedir: 1.0.2
       p-filter: 1.0.0
       p-limit: 1.1.0
-      package-store: 0.2.1
+      package-store: 0.2.2
       path-exists: 3.0.0
       path-name: 1.0.0
       pnpm-install-checks: 1.1.0
@@ -2290,7 +2290,7 @@ packages:
       write-pkg: 3.1.0
       write-yaml-file: 1.0.0
     resolution:
-      integrity: sha512-8kuaKGeVTlyCr9Z908sXJp8xQwhECW17/GiYlYGYzvJJIUrms0dQTzLuMfp+jzboZw4xCSgG/DD8kdNLLGmyDA==
+      integrity: sha512-d5sHkxSnggHU6k1D4B3dMnBeZwOF5kkIpMIkVyFqNiIgoZx6PsACspQETRSmVVResrzPWziIuPR8ogI3JwAcxQ==
   /supports-color/2.0.0:
     resolution:
       integrity: sha1-U10EXOa2Nj+kARcIRimZXp3zJMc=
@@ -2302,7 +2302,7 @@ packages:
   /symlink-dir/1.1.0:
     dependencies:
       '@types/mz': 0.0.31
-      '@types/node': 8.0.18
+      '@types/node': 8.0.19
       graceful-fs: 4.1.11
       is-windows: 1.0.1
       mkdirp-promise: 5.0.1
@@ -2433,7 +2433,7 @@ packages:
       integrity: sha1-nhBXzKhRq7kzmPizOuGHuZyuwRo=
   /unpack-stream/2.1.0:
     dependencies:
-      '@types/node': 8.0.18
+      '@types/node': 8.0.19
       decompress-maybe: 1.0.0
       ssri: 4.1.6
       tar-fs: 1.15.3
@@ -2605,7 +2605,7 @@ specifiers:
   pnpm-logger: ^0.5.4
   ramda: ^0.24.1
   rimraf: ^2.5.4
-  supi: ^0.2.12
+  supi: ^0.2.13
   tslint: ^5.4.2
   typescript: ^2.4.1
   update-notifier: ^2.1.0
