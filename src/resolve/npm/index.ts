@@ -89,7 +89,10 @@ function pickVersionByTag(meta: PackageMeta, tag: string) {
 
 function pickVersionByVersionRange(meta: PackageMeta, versionRange: string) {
   const latest = meta['dist-tags']['latest']
-  if (semver.satisfies(latest, versionRange, true)) {
+
+  // Not using semver.satisfies in case of * because it does not select beta versions.
+  // E.g.: 1.0.0-beta.1. See issue: https://github.com/pnpm/pnpm/issues/865
+  if (versionRange === '*' || semver.satisfies(latest, versionRange, true)) {
     return meta.versions[latest]
   }
   const versions = Object.keys(meta.versions)
