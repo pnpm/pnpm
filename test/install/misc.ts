@@ -733,3 +733,14 @@ test('install on project with lockfile and no node_modules', async (t: tape.Test
 
   t.ok(project.hasNot('is-negative'), 'did not reinstall removed dependency')
 })
+
+test('install a dependency with * range', async (t: tape.Test) => {
+  const project = prepare(t, {
+    dependencies: {
+      'has-beta-only': '*',
+    },
+  })
+  await install(testDefaults())
+
+  project.has('has-beta-only')
+})
