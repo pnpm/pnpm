@@ -14,18 +14,31 @@ mkdirp.sync(tmpPath)
 
 let dirNumber = 0
 
-export default function prepare (t: Test, pkg?: Object) {
-  process.env.NPM_CONFIG_REGISTRY = 'http://localhost:4873/'
-  process.env.NPM_CONFIG_STORE = '../.store'
-  process.env.NPM_CONFIG_SILENT = 'true'
-
+export function tempDir (t: Test) {
   dirNumber++
   const dirname = dirNumber.toString()
-  const pkgTmpPath = path.join(tmpPath, dirname, 'project')
+  const tmpDir = path.join(tmpPath, dirname)
+  mkdirp.sync(tmpDir)
+
+  t.pass(`create testing dir ${dirname}`)
+
+  process.chdir(tmpDir)
+
+  process.env.NPM_CONFIG_REGISTRY = 'http://localhost:4873/'
+  process.env.NPM_CONFIG_STORE = path.join(tmpDir, 'store')
+  process.env.NPM_CONFIG_SILENT = 'true'
+
+  return tmpDir
+}
+
+export default function prepare (t: Test, pkg?: Object) {
+  const dirname = tempDir(t)
+
+  const pkgTmpPath = path.join(dirname, 'project')
   mkdirp.sync(pkgTmpPath)
   writePkg.sync(pkgTmpPath, Object.assign({name: 'project', version: '0.0.0'}, pkg))
   process.chdir(pkgTmpPath)
-  t.pass(`create testing package ${dirname}`)
+
 
   const modules = path.join(pkgTmpPath, 'node_modules')
   let cachedStorePath: string

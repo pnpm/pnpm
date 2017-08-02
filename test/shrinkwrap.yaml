@@ -1,8 +1,10 @@
 dependencies:
+  '@types/common-tags': 1.2.5
   '@types/mz': 0.0.31
   '@types/semver': 5.3.32
   anonymous-npm-registry-client: 0.1.2
   caw: 2.0.0
+  common-tags: 1.4.0
   execa: 0.7.0
   exists-link: 2.0.0
   is-windows: 1.0.1
@@ -26,6 +28,9 @@ dependencies:
   ts-node: 3.1.0
   write-pkg: 3.1.0
 packages:
+  /@types/common-tags/1.2.5:
+    resolution:
+      integrity: sha1-FPKYk5kusyVZS4PXOa8C8rZSD0Y=
   /@types/mz/0.0.31:
     dependencies:
       '@types/node': 8.0.5
@@ -150,6 +155,12 @@ packages:
   /aws4/1.6.0:
     resolution:
       integrity: sha1-g+9cqGCysy5KDe7e6MdxudtXRx4=
+  /babel-runtime/6.25.0:
+    dependencies:
+      core-js: 2.4.1
+      regenerator-runtime: 0.10.5
+    resolution:
+      integrity: sha1-M7mOql1IK7AajRqmtDetKwGuxBw=
   /balanced-match/1.0.0:
     resolution:
       integrity: sha1-ibTRmasr7kneFk6gK4nORi1xt2c=
@@ -258,6 +269,11 @@ packages:
       graceful-readlink: 1.0.1
     resolution:
       integrity: sha1-4fXTJF3iRtGlygRwL6GtG9fkBf4=
+  /common-tags/1.4.0:
+    dependencies:
+      babel-runtime: 6.25.0
+    resolution:
+      integrity: sha1-EYe+Tz1M8MBCfUP3Tu8fc1AWFMA=
   /compressible/2.0.10:
     dependencies:
       mime-db: 1.28.0
@@ -305,6 +321,9 @@ packages:
       keygrip: 1.0.1
     resolution:
       integrity: sha1-asGwUolSCOj8TE9fhqntMbnLXM8=
+  /core-js/2.4.1:
+    resolution:
+      integrity: sha1-TekR5mew6ukSTjQlS1OupvxhjT4=
   /core-util-is/1.0.2:
     resolution:
       integrity: sha1-tf1UIgqivFq1eqtxQMlAdUUDwac=
@@ -1240,6 +1259,9 @@ packages:
       util-deprecate: 1.0.2
     resolution:
       integrity: sha1-WgTfBeT1f+Pw3Gj90R3FyXx+b00=
+  /regenerator-runtime/0.10.5:
+    resolution:
+      integrity: sha1-M2w+/BIgrc7dosn6tntaeVWjNlg=
   /regexp-quote/0.0.0:
     resolution:
       integrity: sha1-Hg9GUMhi3L/tVP1CsUjpuxch/PI=
@@ -1749,10 +1771,12 @@ packages:
 registry: 'https://registry.npmjs.org/'
 shrinkwrapVersion: 3
 specifiers:
+  '@types/common-tags': ^1.2.5
   '@types/mz': ^0.0.31
   '@types/semver': ^5.3.32
   anonymous-npm-registry-client: ^0.1.2
   caw: ^2.0.0
+  common-tags: ^1.4.0
   execa: ^0.7.0
   exists-link: ^2.0.0
   is-windows: ^1.0.1

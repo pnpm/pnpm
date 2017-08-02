@@ -7,9 +7,6 @@ import {
   testDefaults,
   execPnpm,
 } from './utils'
-import {
-  installPkgs,
-} from 'supi'
 import thenify = require('thenify')
 import pnpmCli = require('../src/bin/pnpm')
 import path = require('path')
@@ -18,7 +15,7 @@ import exists = require('path-exists')
 
 test('uninstall package and remove from appropriate property', async function (t: tape.Test) {
   const project = prepare(t)
-  await installPkgs(['is-positive@3.1.0'], testDefaults({ saveOptional: true }))
+  await pnpmCli(['install', '--save-optional', 'is-positive@3.1.0'])
 
   // testing the CLI directly as there was an issue where `npm.config` started to set save = true by default
   // npm@5 introduced --save-prod that bahaves the way --save worked in pre 5 versions

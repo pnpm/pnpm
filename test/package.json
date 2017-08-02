@@ -4,10 +4,12 @@
   "private": true,
   "version": "1.0.0",
   "dependencies": {
+    "@types/common-tags": "^1.2.5",
     "@types/mz": "^0.0.31",
     "@types/semver": "^5.3.32",
     "anonymous-npm-registry-client": "^0.1.2",
     "caw": "^2.0.0",
+    "common-tags": "^1.4.0",
     "execa": "^0.7.0",
     "exists-link": "^2.0.0",
     "is-windows": "^1.0.1",
