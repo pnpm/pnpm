@@ -9,6 +9,7 @@ import dislink from './dislink'
 import update from './update'
 import list from './list'
 import help from './help'
+import root from './root'
 
 export {
   install,
@@ -22,4 +23,5 @@ export {
   update,
   list,
   help,
+  root,
 }

@@ -133,6 +133,18 @@ function getHelpText(command: string) {
         Prunning the store makes no harm. It only makes installation a bit slower in case the unreferenced files will be needed again.
       `
 
+    case 'root':
+      return stripIndent`
+        pnpm root [-g [--independent-leaves]]
+
+        Options:
+
+          -g                             print the global \`node_modules\` folder
+          --independent-leaves           print the global \`node_modules\` folder installed with --independent-leaves option
+
+        Print the effective \`node_modules\` folder.
+      `
+
     default:
       return stripIndent`
         Usage: pnpm [command] [flags]
@@ -149,6 +161,7 @@ function getHelpText(command: string) {
           - install-test
           - store status
           - store prune
+          - root
 
         Other commands are passed through to npm
       `
