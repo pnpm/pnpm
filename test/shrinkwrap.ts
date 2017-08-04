@@ -485,7 +485,7 @@ test('installing from shrinkwrap when using npm enterprise', async (t: tape.Test
       '/is-positive/3.1.0': {
         resolution: {
           integrity: 'sha1-hX21hKG6XRyymAUn/DtsQ103sP0=',
-          tarball: 'https://npm-registry.compass.com/i/is-positive/_attachments/is-positive-3.1.0.tgz'
+          tarball: '/i/is-positive/_attachments/is-positive-3.1.0.tgz'
         }
       },
     },

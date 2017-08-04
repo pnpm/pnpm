@@ -58,7 +58,7 @@ function toShrDependency (
     optional: boolean,
   }
 ): DependencyShrinkwrap {
-  const shrResolution = toShrResolution(opts.dependencyPath, opts.resolution)
+  const shrResolution = toShrResolution(opts.dependencyPath, opts.resolution, opts.registry)
   const newResolvedDeps = updateResolvedDeps(opts.prevResolvedDeps, opts.updatedDeps, opts.registry, opts.pkgsToLink)
   const newResolvedOptionalDeps = updateResolvedDeps(opts.prevResolvedOptionalDeps, opts.updatedOptionalDeps, opts.registry, opts.pkgsToLink)
   const result = {
@@ -104,7 +104,11 @@ function updateResolvedDeps (
   )
 }
 
-function toShrResolution (dependencyPath: string, resolution: Resolution): ShrinkwrapResolution {
+function toShrResolution (
+  dependencyPath: string,
+  resolution: Resolution,
+  registry: string
+): ShrinkwrapResolution {
   if (dp.isAbsolute(dependencyPath) || resolution.type !== undefined || !resolution.integrity) {
     return resolution
   }
@@ -113,10 +117,17 @@ function toShrResolution (dependencyPath: string, resolution: Resolution): Shrin
   if (!resolution.tarball.includes('/-/')) {
     return {
       integrity: resolution.integrity,
-      tarball: resolution.tarball,
+      tarball: relativeTarball(resolution.tarball, registry),
     }
   }
   return {
     integrity: resolution.integrity,
   }
+}
+
+function relativeTarball (tarball: string, registry: string) {
+  if (tarball.substr(0, registry.length) === registry) {
+    return tarball.substr(registry.length - 1)
+  }
+  return tarball
 }

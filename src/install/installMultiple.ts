@@ -3,6 +3,7 @@ import logger, {deprecationLogger} from 'pnpm-logger'
 import R = require('ramda')
 import getNpmTarballUrl from 'get-npm-tarball-url'
 import exists = require('path-exists')
+import url = require('url')
 import {
   Got,
   fetch,
@@ -138,13 +139,18 @@ function dependencyShrToResolution (
   depShr: DependencyShrinkwrap,
   registry: string
 ): Resolution {
-  if (!depShr.resolution['type'] && !depShr.resolution['tarball']) {
+  if (depShr.resolution['type']) {
+    return depShr.resolution as Resolution
+  }
+  if (!depShr.resolution['tarball']) {
     return Object.assign({}, depShr.resolution, {
       tarball: getTarball(),
       registry: depShr.resolution['registry'] || registry,
     })
   }
-  return depShr.resolution as Resolution
+  return Object.assign({}, depShr.resolution, {
+    tarball: url.resolve(registry, depShr.resolution['tarball'])
+  })
 
   function getTarball () {
     const parts = dependencyPath.split('/')
