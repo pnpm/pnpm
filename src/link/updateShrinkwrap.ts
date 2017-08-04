@@ -105,10 +105,18 @@ function updateResolvedDeps (
 }
 
 function toShrResolution (dependencyPath: string, resolution: Resolution): ShrinkwrapResolution {
-  if (!dp.isAbsolute(dependencyPath) && resolution.type === undefined && resolution.integrity) {
+  if (dp.isAbsolute(dependencyPath) || resolution.type !== undefined || !resolution.integrity) {
+    return resolution
+  }
+  // This might be not the best solution to identify non-standard tarball URLs in the long run
+  // but it at least solves the issues with npm Enterprise. See https://github.com/pnpm/pnpm/issues/867
+  if (!resolution.tarball.includes('/-/')) {
     return {
       integrity: resolution.integrity,
+      tarball: resolution.tarball,
     }
   }
-  return resolution
+  return {
+    integrity: resolution.integrity,
+  }
 }

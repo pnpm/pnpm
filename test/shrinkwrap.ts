@@ -467,3 +467,39 @@ test('repeat install with no inner shrinkwrap should not rewrite packages in nod
   const m = project.requireModule('is-negative')
   t.ok(m)
 })
+
+test('installing from shrinkwrap when using npm enterprise', async (t: tape.Test) => {
+  const project = prepare(t)
+
+  const opts = testDefaults({registry: 'https://npm-registry.compass.com/'})
+
+  await installPkgs(['is-positive@3.1.0'], opts)
+
+  const shr = await project.loadShrinkwrap()
+
+  t.deepEqual(shr, {
+    dependencies: {
+      'is-positive': '3.1.0'
+    },
+    packages: {
+      '/is-positive/3.1.0': {
+        resolution: {
+          integrity: 'sha1-hX21hKG6XRyymAUn/DtsQ103sP0=',
+          tarball: 'https://npm-registry.compass.com/i/is-positive/_attachments/is-positive-3.1.0.tgz'
+        }
+      },
+    },
+    registry: 'https://npm-registry.compass.com/',
+    specifiers: {
+      'is-positive': '^3.1.0',
+    },
+    shrinkwrapVersion: 3
+  })
+
+  await rimraf(opts.store)
+  await rimraf('node_modules')
+
+  await install(opts)
+
+  project.has('is-positive')
+})
