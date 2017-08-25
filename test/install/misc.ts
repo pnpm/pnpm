@@ -154,6 +154,7 @@ test('update a package when installing with a dist-tag', async function (t: tape
     },
   }), 'reported new version added to the root')
 
+  await project.has('dep-of-pkg-with-1-dep')
   await project.storeHas('dep-of-pkg-with-1-dep', '100.1.0')
 
   const pkg = await readPkg()
@@ -379,7 +380,7 @@ test('circular deps', async function (t: tape.Test) {
   t.notOk(await exists(path.join('node_modules', 'circular-deps-1-of-2', 'node_modules', 'circular-deps-2-of-2', 'node_modules', 'circular-deps-1-of-2')), 'circular dependency is avoided')
 })
 
-test('concurrent circular deps', async function (t) {
+test('concurrent circular deps', async (t: tape.Test) => {
   const project = prepare(t)
   await installPkgs(['es6-iterator@2.0.0'], testDefaults())
 
@@ -388,6 +389,8 @@ test('concurrent circular deps', async function (t) {
   t.ok(m, 'es6-iterator is installed')
   t.ok(await exists(path.join('node_modules', '.localhost+4873', 'es6-iterator', '2.0.0', 'node_modules', 'es5-ext')))
   t.ok(await exists(path.join('node_modules', '.localhost+4873', 'es6-iterator', '2.0.1', 'node_modules', 'es5-ext')))
+  t.ok(await exists(path.join('node_modules', '.localhost+4873', 'es5-ext', '0.10.30', 'node_modules', 'es6-iterator')))
+  t.ok(await exists(path.join('node_modules', '.localhost+4873', 'es5-ext', '0.10.30', 'node_modules', 'es6-symbol')))
 })
 
 test('concurrent installation of the same packages', async function (t) {
@@ -542,7 +545,7 @@ test('top-level packages should find the plugins they use', async function (t) {
   t.equal(result.status, 0, 'executable exited with success')
 })
 
-test('not top-level packages should find the plugins they use', async function (t) {
+test('not top-level packages should find the plugins they use', async function (t: tape.Test) {
   // standard depends on eslint and eslint plugins
   const project = prepare(t, {
     scripts: {
@@ -551,7 +554,6 @@ test('not top-level packages should find the plugins they use', async function (
   })
   await installPkgs(['standard@8.6.0'], testDefaults({ save: true }))
   const result = spawnSync('npm', ['test'])
-  console.log(result.stdout.toString())
   t.equal(result.status, 0, 'standard exited with success')
 })
 

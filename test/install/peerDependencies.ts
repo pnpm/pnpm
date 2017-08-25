@@ -10,6 +10,7 @@ import {
 import deepRequireCwd = require('deep-require-cwd')
 import rimraf = require('rimraf-then')
 import sinon = require('sinon')
+import loadJsonFile = require('load-json-file')
 
 const test = promisifyTape(tape)
 const NM = 'node_modules'
@@ -21,15 +22,20 @@ test("don't fail when peer dependency is fetched from GitHub", t => {
 
 test('peer dependency is grouped with dependency when peer is resolved not from a top dependency', async (t: tape.Test) => {
   const project = prepare(t)
-  await installPkgs(['using-ajv'], testDefaults())
+  const opts = testDefaults()
+  await installPkgs(['using-ajv'], opts)
 
   t.ok(await exists(path.join(NM, '.localhost+4873', 'ajv-keywords', '1.5.0', 'ajv@4.10.4', NM, 'ajv')), 'peer dependency is linked')
   t.equal(deepRequireCwd(['using-ajv', 'ajv-keywords', 'ajv', './package.json']).version, '4.10.4')
 
+  const storeIndex = await loadJsonFile(path.join(opts.store, '2', 'store.json'))
+  t.ok(storeIndex['localhost+4873/ajv-keywords/1.5.0'], 'localhost+4873/ajv-keywords/1.5.0 added to store index')
+  t.ok(storeIndex['localhost+4873/using-ajv/1.0.0'], 'localhost+4873/using-ajv/1.0.0 added to store index')
+
   // testing that peers are reinstalled correctly using info from the shrinkwrap file
   await rimraf('node_modules')
   await rimraf(path.resolve('..', '.store'))
-  await install(testDefaults())
+  await install(opts)
 
   t.ok(await exists(path.join(NM, '.localhost+4873', 'ajv-keywords', '1.5.0', 'ajv@4.10.4', NM, 'ajv')), 'peer dependency is linked')
   t.equal(deepRequireCwd(['using-ajv', 'ajv-keywords', 'ajv', './package.json']).version, '4.10.4')
@@ -56,9 +62,11 @@ test('warning is reported when cannot resolve peer dependency', async (t: tape.T
 
   await installPkgs(['ajv-keywords@1.5.0'], testDefaults({reporter}))
 
-  t.ok(reporter.calledWithMatch({
-    message: 'localhost+4873/ajv-keywords/1.5.0 requires a peer of ajv@>=4.10.0 but none was installed.',
-  }), 'warning is logged about unresolved peer dep')
+  const expectedMessage = 'localhost+4873/ajv-keywords/1.5.0 requires a peer of ajv@>=4.10.0 but none was installed.'
+  const logMatcher = sinon.match({message: expectedMessage})
+  const reportedTimes = reporter.withArgs(logMatcher).callCount
+
+  t.equal(reportedTimes, 1, 'warning is logged (once) about unresolved peer dep')
 })
 
 test('top peer dependency is not linked on subsequent install', async (t: tape.Test) => {

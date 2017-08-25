@@ -15,7 +15,7 @@ const pnpmPkg = loadJsonFile.sync(path.join(pkgRoot, 'package.json'))
 
 const test = promisifyTape(tape)
 
-test('run pre/postinstall scripts', async function (t) {
+test('run pre/postinstall scripts', async function (t: tape.Test) {
   const project = prepare(t)
   await installPkgs(['pre-and-postinstall-scripts-example'], testDefaults({saveDev: true}))
 
@@ -39,6 +39,19 @@ test('run pre/postinstall scripts', async function (t) {
     const generatedByPostinstall = project.requireModule('pre-and-postinstall-scripts-example/generated-by-postinstall')
     t.ok(typeof generatedByPostinstall === 'function', 'generatedByPostinstall() is not available')
   }
+})
+
+test('testing that the bins are linked when the package with the bins was already in node_modules', async function (t: tape.Test) {
+  const project = prepare(t)
+
+  await installPkgs(['hello-world-js-bin'], testDefaults())
+  await installPkgs(['pre-and-postinstall-scripts-example'], testDefaults({saveDev: true}))
+
+  const generatedByPreinstall = project.requireModule('pre-and-postinstall-scripts-example/generated-by-preinstall')
+  t.ok(typeof generatedByPreinstall === 'function', 'generatedByPreinstall() is available')
+
+  const generatedByPostinstall = project.requireModule('pre-and-postinstall-scripts-example/generated-by-postinstall')
+  t.ok(typeof generatedByPostinstall === 'function', 'generatedByPostinstall() is available')
 })
 
 test('run install scripts', async function (t) {
