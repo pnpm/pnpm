@@ -1,7 +1,7 @@
 import rimraf = require('rimraf-then')
 import path = require('path')
 import * as dp from 'dependency-path'
-import {Shrinkwrap} from 'pnpm-shrinkwrap'
+import {Shrinkwrap, ResolvedPackages} from 'pnpm-shrinkwrap'
 import {Store, save as saveStore, PackageSpec} from 'package-store'
 import R = require('ramda')
 import removeTopDependency from '../removeTopDependency'
@@ -36,8 +36,8 @@ export default async function removeOrphanPkgs (
     })
   }))
 
-  const oldPkgIds = R.keys(opts.oldShrinkwrap.packages).map(depPath => dp.resolve(opts.oldShrinkwrap.registry, depPath))
-  const newPkgIds = R.keys(opts.newShrinkwrap.packages).map(depPath => dp.resolve(opts.newShrinkwrap.registry, depPath))
+  const oldPkgIds = getPackageIds(opts.oldShrinkwrap.registry, opts.oldShrinkwrap.packages || {})
+  const newPkgIds = getPackageIds(opts.newShrinkwrap.registry, opts.newShrinkwrap.packages || {})
 
   const notDependents = R.difference(oldPkgIds, newPkgIds)
 
@@ -68,4 +68,19 @@ export default async function removeOrphanPkgs (
   await saveStore(opts.store, opts.storeIndex)
 
   return notDependents
+}
+
+function getPackageIds (
+  registry: string,
+  packages: ResolvedPackages
+): string[] {
+  return R.uniq(
+    R.keys(packages)
+      .map(depPath => {
+        if (packages[depPath].id) {
+          return packages[depPath].id
+        }
+        return dp.resolve(registry, depPath)
+      })
+  ) as string[]
 }
