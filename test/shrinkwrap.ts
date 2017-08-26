@@ -8,6 +8,7 @@ import {installPkgs, install} from '../src'
 import loadJsonFile = require('load-json-file')
 import writePkg = require('write-pkg')
 import rimraf = require('rimraf-then')
+import sinon = require('sinon')
 
 const test = promisifyTape(tape)
 
@@ -206,7 +207,14 @@ test('shrinkwrap is fixed when it does not match package.json', async (t: tape.T
     }
   })
 
-  await install(testDefaults())
+  const reporter = sinon.spy()
+  await install(testDefaults({reporter}))
+
+  const progress = sinon.match({
+    name: 'pnpm:progress',
+    status: 'resolving',
+  })
+  t.equal(reporter.withArgs(progress).callCount, 0, 'resolving not reported')
 
   const shr = await project.loadShrinkwrap()
 
@@ -265,11 +273,20 @@ test('doing named installation when shrinkwrap.yaml exists already', async (t: t
 
 test('respects shrinkwrap.yaml for top dependencies', async (t: tape.Test) => {
   const project = prepare(t)
+  const reporter = sinon.spy()
+  const fooProgress = sinon.match({
+    name: 'pnpm:progress',
+    status: 'resolving',
+    pkg: {
+      name: 'foo',
+    },
+  })
 
   const pkgs = ['foo', 'bar', 'qar']
   await Promise.all(pkgs.map(pkgName => addDistTag(pkgName, '100.0.0', 'latest')))
 
-  await installPkgs(['foo'], testDefaults({save: true}))
+  await installPkgs(['foo'], testDefaults({save: true, reporter}))
+  t.equal(reporter.withArgs(fooProgress).callCount, 1, 'reported foo once')
   await installPkgs(['bar'], testDefaults({saveOptional: true}))
   await installPkgs(['qar'], testDefaults({saveDev: true}))
   await installPkgs(['foobar'], testDefaults({save: true}))
@@ -285,14 +302,19 @@ test('respects shrinkwrap.yaml for top dependencies', async (t: tape.Test) => {
   await rimraf('node_modules')
   await rimraf(path.join('..', '.store'))
 
+  reporter.reset()
+
   // shouldn't care about what the registry in npmrc is
   // the one in shrinkwrap should be used
   await install(testDefaults({
     registry: 'https://registry.npmjs.org',
     rawNpmConfig: {
       registry: 'https://registry.npmjs.org',
-    }
+    },
+    reporter,
   }))
+
+  t.equal(reporter.withArgs(fooProgress).callCount, 0, 'not reported foo')
 
   await project.storeHasNot('foo', '100.1.0')
   t.equal((await loadJsonFile(path.resolve('node_modules', 'foo', 'package.json'))).version, '100.0.0')
