@@ -5,6 +5,7 @@ export type PnpmErrorCode = 'UNEXPECTED_STORE'
   | 'MODIFIED_DEPENDENCY'
   | 'NO_OFFLINE_META'
   | 'NO_OFFLINE_TARBALL'
+  | 'OUT_OF_DATE_NODE_MODULES'
 
 export class PnpmError extends Error {
   constructor (code: PnpmErrorCode, message: string) {

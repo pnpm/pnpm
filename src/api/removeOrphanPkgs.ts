@@ -25,7 +25,8 @@ export default async function removeOrphanPkgs (
   const removedTopDeps: [string, string][] = R.difference(oldPkgs, newPkgs) as [string, string][]
 
   const rootModules = path.join(opts.prefix, 'node_modules')
-  await Promise.all(removedTopDeps.map(depName => {
+  const waitq = []
+  waitq.push(Promise.all(removedTopDeps.map(depName => {
     return removeTopDependency({
       name: depName[0],
       dev: Boolean(opts.oldShrinkwrap.devDependencies && opts.oldShrinkwrap.devDependencies[depName[0]]),
@@ -34,7 +35,7 @@ export default async function removeOrphanPkgs (
       modules: rootModules,
       bin: opts.bin,
     })
-  }))
+  })))
 
   const oldPkgIds = getPackageIds(opts.oldShrinkwrap.registry, opts.oldShrinkwrap.packages || {})
   const newPkgIds = getPackageIds(opts.newShrinkwrap.registry, opts.newShrinkwrap.packages || {})
@@ -44,7 +45,7 @@ export default async function removeOrphanPkgs (
   if (notDependents.length) {
     logger.info(`Removing ${notDependents.length} orphan packages from node_modules`);
 
-    await Promise.all(notDependents.map(async notDependent => {
+    waitq.push(Promise.all(notDependents.map(async notDependent => {
       if (opts.storeIndex[notDependent]) {
         opts.storeIndex[notDependent].splice(opts.storeIndex[notDependent].indexOf(opts.prefix), 1)
         if (opts.pruneStore && !opts.storeIndex[notDependent].length) {
@@ -53,7 +54,7 @@ export default async function removeOrphanPkgs (
         }
       }
       await rimraf(path.join(rootModules, `.${notDependent}`))
-    }))
+    })))
   }
 
   const newDependents = R.difference(newPkgIds, oldPkgIds)
@@ -65,7 +66,9 @@ export default async function removeOrphanPkgs (
     }
   })
 
-  await saveStore(opts.store, opts.storeIndex)
+  waitq.push(saveStore(opts.store, opts.storeIndex))
+
+  await Promise.all(waitq)
 
   return notDependents
 }
@@ -74,13 +77,11 @@ function getPackageIds (
   registry: string,
   packages: ResolvedPackages
 ): string[] {
-  return R.uniq(
-    R.keys(packages)
-      .map(depPath => {
-        if (packages[depPath].id) {
-          return packages[depPath].id
-        }
-        return dp.resolve(registry, depPath)
-      })
-  ) as string[]
+  return R.keys(packages)
+    .map(depPath => {
+      if (packages[depPath].id) {
+        return packages[depPath].id
+      }
+      return dp.resolve(registry, depPath)
+    }) as string[]
 }

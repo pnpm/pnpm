@@ -224,53 +224,6 @@ test('shrinkwrap is fixed when it does not match package.json', async (t: tape.T
   t.notOk(shr.packages['/@types/semver/5.3.31'], 'package not referenced in package.json removed')
 })
 
-test('doing named installation when shrinkwrap.yaml exists already', async (t: tape.Test) => {
-  const project = prepare(t, {
-    dependencies: {
-      'is-negative': '^2.1.0',
-      'is-positive': '^3.1.0',
-      '@types/semver': '5.3.31',
-    }
-  })
-
-  await writeYamlFile('shrinkwrap.yaml', {
-    version: 3,
-    registry: 'http://localhost:4873',
-    dependencies: {
-      'is-negative': '2.1.0',
-      'is-positive': '3.1.0',
-      '@types/semver': '5.3.31',
-    },
-    packages: {
-      '/is-negative/2.1.0': {
-        resolution: {
-          tarball: 'http://localhost:4873/is-negative/-/is-negative-2.1.0.tgz',
-        },
-      },
-      '/is-positive/3.1.0': {
-        resolution: {
-          integrity: 'sha1-hX21hKG6XRyymAUn/DtsQ103sP0='
-        },
-      },
-      '/@types/semver/5.3.31': {
-        resolution: {
-          integrity: 'sha1-uZnX2TX0P1IHsBsA094ghS9Mp18=',
-        },
-      },
-    },
-    specifiers: {
-      'is-negative': '^2.1.0',
-      'is-positive': '^3.1.0',
-      '@types/semver': '5.3.31',
-    }
-  })
-
-  await installPkgs(['is-positive'], testDefaults())
-  await install(testDefaults())
-
-  await project.has('is-negative')
-})
-
 test('respects shrinkwrap.yaml for top dependencies', async (t: tape.Test) => {
   const project = prepare(t)
   const reporter = sinon.spy()

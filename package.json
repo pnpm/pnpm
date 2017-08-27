@@ -19,6 +19,7 @@
     "pnpm-logger": "^0.5.4"
   },
   "dependencies": {
+    "@reactivex/rxjs": "^5.4.2",
     "@types/byline": "^4.2.31",
     "@types/common-tags": "^1.2.5",
     "@types/load-json-file": "^2.0.5",

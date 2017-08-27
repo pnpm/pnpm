@@ -29,29 +29,32 @@ import {
 import depsToSpecs from '../depsToSpecs'
 import getIsInstallable from './getIsInstallable'
 import semver = require('semver')
+import Rx = require('@reactivex/rxjs')
 
-export type PkgAddress = {
-  nodeId: string,
+export type PackageRequest = {
+  specRaw: string,
   pkgId: string,
+  depth: number,
 }
 
 export type InstalledPackage = {
   id: string,
   resolution: Resolution,
-  dev: boolean,
-  optional: boolean,
   fetchingFiles: Promise<PackageContentInfo>,
   calculatingIntegrity: Promise<void>,
   path: string,
-  specRaw: string,
   name: string,
   version: string,
   peerDependencies: Dependencies,
   optionalDependencies: Set<string>,
   hasBundledDependencies: boolean,
+  hasBins: boolean,
+  installable: boolean,
+  children$: Rx.Observable<string>,
+  childrenCount: number,
 }
 
-export default async function installMultiple (
+export default function installMultiple (
   ctx: InstallContext,
   specs: PackageSpec[],
   options: {
@@ -63,39 +66,36 @@ export default async function installMultiple (
     parentIsInstallable?: boolean,
     update: boolean,
   }
-): Promise<PkgAddress[]> {
+): Rx.Observable<PackageRequest> {
   const resolvedDependencies = options.resolvedDependencies || {}
   const preferedDependencies = options.preferedDependencies || {}
   const update = options.update && options.currentDepth <= ctx.depth
-  const pkgAddresses = <PkgAddress[]>(
-    await Promise.all(
-      specs
-        .map(async (spec: PackageSpec) => {
-          let reference = resolvedDependencies[spec.name]
-          let proceed = false
+  return specs
+    .reduce((packageRequest$: Rx.Observable<PackageRequest>, spec: PackageSpec) => {
+      let reference = resolvedDependencies[spec.name]
+      let proceed = false
 
-          if (!reference && spec.type === 'range' && preferedDependencies[spec.name] &&
-            semver.satisfies(preferedDependencies[spec.name], spec.fetchSpec, true)) {
+      if (!reference && spec.type === 'range' && preferedDependencies[spec.name] &&
+        semver.satisfies(preferedDependencies[spec.name], spec.fetchSpec, true)) {
 
-            proceed = true
-            reference = preferedDependencies[spec.name]
-          }
+        proceed = true
+        reference = preferedDependencies[spec.name]
+      }
 
-          return await install(spec, ctx, Object.assign({
-              keypath: options.keypath,
-              parentNodeId: options.parentNodeId,
-              currentDepth: options.currentDepth,
-              parentIsInstallable: options.parentIsInstallable,
-              update,
-              proceed,
-            },
-            getInfoFromShrinkwrap(ctx.shrinkwrap, reference, spec.name, ctx.registry)))
-        })
-    )
-  )
-  .filter(Boolean)
-
-  return pkgAddresses
+      return packageRequest$.merge(
+        Rx.Observable.fromPromise(
+          install(spec, ctx, Object.assign({
+            keypath: options.keypath,
+            parentNodeId: options.parentNodeId,
+            currentDepth: options.currentDepth,
+            parentIsInstallable: options.parentIsInstallable,
+            update,
+            proceed,
+          },
+          getInfoFromShrinkwrap(ctx.shrinkwrap, reference, spec.name, ctx.registry))
+        )
+      ).mergeAll())
+    }, Rx.Observable.empty())
 }
 
 function getInfoFromShrinkwrap (
@@ -177,7 +177,7 @@ async function install (
     update: boolean,
     proceed: boolean,
   }
-): Promise<PkgAddress | null> {
+): Promise<Rx.Observable<PackageRequest>> {
   const keypath = options.keypath || []
   const proceed = options.proceed || !options.shrinkwrapResolution || ctx.force || keypath.length <= ctx.depth
   const parentIsInstallable = options.parentIsInstallable === undefined || options.parentIsInstallable
@@ -190,7 +190,7 @@ async function install (
       options.currentDepth > 0 || await exists(path.join(ctx.nodeModules, spec.name))
     )) {
 
-    return null
+    return Rx.Observable.empty()
   }
 
   const registry = normalizeRegistry(spec.scope && ctx.rawNpmConfig[`${spec.scope}:registry`] || ctx.registry)
@@ -228,7 +228,7 @@ async function install (
       logger.warn(`Ignoring file dependency because it is not a root dependency ${spec}`)
     } else {
       ctx.localPackages.push({
-        id: fetchedPkg.id,
+        absolutePath: fetchedPkg.id,
         specRaw: spec.raw,
         name: fetchedPkg.pkg.name,
         version: fetchedPkg.pkg.version,
@@ -238,11 +238,11 @@ async function install (
       })
     }
     logStatus({status: 'downloaded_manifest', pkgId: fetchedPkg.id, pkgVersion: fetchedPkg.pkg.version})
-    return null
+    return Rx.Observable.empty()
   }
 
   if (options.parentNodeId.indexOf(`:${dependentId}:${fetchedPkg.id}:`) !== -1) {
-    return null
+    return Rx.Observable.empty()
   }
 
   let pkg: Package
@@ -283,29 +283,21 @@ async function install (
   if (installable) {
     ctx.skipped.delete(fetchedPkg.id)
   }
-  if (!ctx.installs[fetchedPkg.id]) {
+  if (!spec.optional) {
+    ctx.nonOptionalPackageIds.add(fetchedPkg.id)
+  }
+  if (!spec.dev) {
+    ctx.nonDevPackageIds.add(fetchedPkg.id)
+  }
+  if (!ctx.processed.has(fetchedPkg.id)) {
+    ctx.processed.add(fetchedPkg.id)
     if (!installable) {
       // optional dependencies are resolved for consistent shrinkwrap.yaml files
       // but installed only on machines that are supported by the package
       ctx.skipped.add(fetchedPkg.id)
     }
 
-    ctx.installs[fetchedPkg.id] = {
-      id: fetchedPkg.id,
-      resolution: fetchedPkg.resolution,
-      optional: spec.optional,
-      name: pkg.name,
-      version: pkg.version,
-      dev: spec.dev,
-      fetchingFiles: fetchedPkg.fetchingFiles,
-      calculatingIntegrity: fetchedPkg.calculatingIntegrity,
-      path: fetchedPkg.path,
-      specRaw: spec.raw,
-      peerDependencies: pkg.peerDependencies || {},
-      optionalDependencies: new Set(R.keys(pkg.optionalDependencies)),
-      hasBundledDependencies: !!(pkg.bundledDependencies || pkg.bundleDependencies),
-    }
-    const children = await installDependencies(
+    const installDepsResult = installDependencies(
       pkg,
       spec,
       ctx,
@@ -323,36 +315,40 @@ async function install (
         update: options.update,
       }
     )
-    ctx.childrenIdsByParentId[fetchedPkg.id] = children.map(child => child.pkgId)
-    ctx.tree[nodeId] = {
-      nodeId,
-      pkg: ctx.installs[fetchedPkg.id],
-      children: children.map(child => child.nodeId),
-      depth: options.currentDepth,
-      installable,
-    }
-  } else {
-    ctx.installs[fetchedPkg.id].dev = ctx.installs[fetchedPkg.id].dev && spec.dev
-    ctx.installs[fetchedPkg.id].optional = ctx.installs[fetchedPkg.id].optional && spec.optional
 
-    ctx.nodesToBuild.push({
-      nodeId,
-      pkg: ctx.installs[fetchedPkg.id],
+    ctx.installs[fetchedPkg.id] = {
+      id: fetchedPkg.id,
+      resolution: fetchedPkg.resolution,
+      name: pkg.name,
+      version: pkg.version,
+      fetchingFiles: fetchedPkg.fetchingFiles,
+      calculatingIntegrity: fetchedPkg.calculatingIntegrity,
+      path: fetchedPkg.path,
+      peerDependencies: pkg.peerDependencies || {},
+      optionalDependencies: new Set(R.keys(pkg.optionalDependencies)),
+      hasBundledDependencies: !!(pkg.bundledDependencies || pkg.bundleDependencies),
+      hasBins: pkgHasBins(pkg),
+      childrenCount: installDepsResult.directChildrenCount,
+      children$: installDepsResult.children$.map(child => child.pkgId),
+      installable: currentIsInstallable,
+    }
+
+    return Rx.Observable.of({
+      pkgId: fetchedPkg.id,
       depth: options.currentDepth,
-      installable,
+      specRaw: spec.raw,
     })
   }
-  // we need this for saving to package.json
-  if (options.currentDepth === 0) {
-    ctx.installs[fetchedPkg.id].specRaw = spec.raw
-  }
 
-  logStatus({status: 'dependencies_installed', pkgId: fetchedPkg.id})
-
-  return {
-    nodeId,
+  return Rx.Observable.of({
     pkgId: fetchedPkg.id,
-  }
+    depth: options.currentDepth,
+    specRaw: spec.raw,
+  })
+}
+
+function pkgHasBins (pkg: Package) {
+  return Boolean(pkg.bin || pkg.directories && pkg.directories.bin)
 }
 
 function normalizeRegistry (registry: string) {
@@ -360,7 +356,7 @@ function normalizeRegistry (registry: string) {
   return `${registry}/`
 }
 
-async function installDependencies (
+function installDependencies (
   pkg: Package,
   parentSpec: PackageSpec,
   ctx: InstallContext,
@@ -373,8 +369,10 @@ async function installDependencies (
     parentIsInstallable: boolean,
     update: boolean,
   }
-): Promise<PkgAddress[]> {
-
+): {
+  children$: Rx.Observable<PackageRequest>,
+  directChildrenCount: number,
+} {
   const bundledDeps = pkg.bundleDependencies || pkg.bundledDependencies || []
   const filterDeps = getNotBundledDeps.bind(null, bundledDeps)
   const deps = depsToSpecs(
@@ -386,7 +384,10 @@ async function installDependencies (
     }
   )
 
-  return await installMultiple(ctx, deps, opts)
+  return {
+    children$: installMultiple(ctx, deps, opts),
+    directChildrenCount: deps.length,
+  }
 }
 
 function getNotBundledDeps (bundledDeps: string[], deps: Dependencies) {
