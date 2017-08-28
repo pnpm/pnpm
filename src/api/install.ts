@@ -392,14 +392,14 @@ async function installInContext (
   }
   const nonLinkedPkgs = await pFilter(packagesToInstall,
     (spec: PackageSpec) => !spec.name || safeIsInnerLink(nodeModulesPath, spec.name, {storePath: ctx.storePath}))
-  const packageRequests$ = installMultiple(
+  const packageRequest$ = installMultiple(
     installCtx,
     nonLinkedPkgs,
     installOpts
   )
 
   installCtx.tree = {}
-  const rootPackageRequests$ = packageRequests$
+  const rootPackageRequest$ = packageRequest$
     .take(nonLinkedPkgs.length)
     .do(packageRequest => {
       const nodeId = `:/:${packageRequest.pkgId}:`
@@ -415,14 +415,14 @@ async function installInContext (
     })
     .shareReplay(Infinity)
 
-  const rootNodeId$ = rootPackageRequests$.map(packageRequest => `:/:${packageRequest.pkgId}:`)
+  const rootNodeId$ = rootPackageRequest$.map(packageRequest => `:/:${packageRequest.pkgId}:`)
 
   let newPkg: Package | undefined = ctx.pkg
   if (installType === 'named') {
     if (!ctx.pkg) {
       throw new Error('Cannot save because no package.json found')
     }
-    const pkgByRawSpec = await rootPackageRequests$
+    const pkgByRawSpec = await rootPackageRequest$
       .reduce((acc: {}, packageRequest: PackageRequest) => {
         acc[packageRequest.specRaw] = installCtx.installs[packageRequest.pkgId]
         return acc
@@ -450,7 +450,7 @@ async function installInContext (
     baseNodeModules: nodeModulesPath,
     bin: opts.bin,
     topParent$: ctx.pkg
-      ? getTopParents(
+      ? getTopParent$(
           R.difference(R.keys(depsFromPackage(ctx.pkg)), newPkgs), nodeModulesPath)
       : Rx.Observable.empty(),
     shrinkwrap: ctx.shrinkwrap,
@@ -556,7 +556,7 @@ function buildTree (
     })
 }
 
-function getTopParents (
+function getTopParent$ (
   pkgNames: string[],
   modules: string
 ): Rx.Observable<{name: string, version: string}> {
