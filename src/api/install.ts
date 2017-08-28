@@ -51,7 +51,6 @@ import {
 import depsFromPackage from '../depsFromPackage'
 import writePkg = require('write-pkg')
 import Rx = require('@reactivex/rxjs')
-import {PnpmError} from '../errorTypes'
 
 export type InstalledPackages = {
   [name: string]: InstalledPackage
@@ -331,16 +330,12 @@ async function installInContext (
 ) {
   // Unfortunately, the private shrinkwrap file may differ from the public one.
   // A user might run named installations on a project that has a shrinkwrap.yaml file before running a noop install
-  if (installType === 'named' && (
+  const makePartialPrivateShrinkwrap = installType === 'named' && (
     ctx.existsPublicShrinkwrap && !ctx.existsPrivateShrinkwrap ||
     // TODO: this operation is quite expensive. We'll have to find a better solution to do this.
     // maybe in pnpm v2 it won't be needed. See: https://github.com/pnpm/pnpm/issues/841
-    !shrinkwrapsEqual(ctx.privateShrinkwrap, ctx.shrinkwrap)) &&
-    !R.equals(R.keys(depsFromPackage(ctx.pkg)).sort(), newPkgs.sort())
-  ) {
-    throw new PnpmError('OUT_OF_DATE_NODE_MODULES',
-      `Can't do named installation when external shrinkwrap.yaml differs from internal (at node_modules/.shrinkwrap.yaml). Try to do an argumentless installation first (pnpm install).`)
-  }
+    !shrinkwrapsEqual(ctx.privateShrinkwrap, ctx.shrinkwrap)
+  )
 
   const nodeModulesPath = path.join(ctx.root, 'node_modules')
   const client = new RegClient(adaptConfig(opts))
@@ -463,14 +458,15 @@ async function installInContext (
     pkg: newPkg || ctx.pkg,
     independentLeaves: opts.independentLeaves,
     storeIndex: ctx.storeIndex,
+    makePartialPrivateShrinkwrap,
     nonDevPackageIds: installCtx.nonDevPackageIds,
     nonOptionalPackageIds: installCtx.nonOptionalPackageIds,
     localPackages: installCtx.localPackages,
   })
 
   await Promise.all([
-    saveShrinkwrap(ctx.root, result.shrinkwrap, result.shrinkwrap),
-    result.shrinkwrap.packages === undefined
+    saveShrinkwrap(ctx.root, result.shrinkwrap, result.privateShrinkwrap),
+    result.privateShrinkwrap.packages === undefined
       ? Promise.resolve()
       : saveModules(path.join(ctx.root, 'node_modules'), {
         packageManager: `${opts.packageManager.name}@${opts.packageManager.version}`,

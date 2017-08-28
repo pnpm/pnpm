@@ -46,6 +46,7 @@ export default async function (
     topParent$: Rx.Observable<{name: string, version: string}>,
     shrinkwrap: Shrinkwrap,
     privateShrinkwrap: Shrinkwrap,
+    makePartialPrivateShrinkwrap: boolean,
     production: boolean,
     optional: boolean,
     root: string,
@@ -69,6 +70,7 @@ export default async function (
 ): Promise<{
   resolvedNodesMap: Map<ResolvedNode>,
   shrinkwrap: Shrinkwrap,
+  privateShrinkwrap: Shrinkwrap,
   updatedPkgsAbsolutePaths: string[],
 }> {
   logger.info(`Creating dependency tree`)
@@ -191,9 +193,28 @@ export default async function (
 
   await linkBins(opts.baseNodeModules, opts.bin)
 
+  let privateShrinkwrap: Shrinkwrap
+  if (opts.makePartialPrivateShrinkwrap) {
+    const packages = opts.privateShrinkwrap.packages || {}
+    if (newShr.packages) {
+      for (const shortId in newShr.packages) {
+        const resolvedId = dp.resolve(newShr.registry, shortId)
+        if (resolvedNodesMap[resolvedId]) {
+          packages[shortId] = newShr.packages[shortId]
+        }
+      }
+    }
+    privateShrinkwrap = Object.assign({}, newShr, {
+      packages,
+    })
+  } else {
+    privateShrinkwrap = newShr
+  }
+
   return {
     resolvedNodesMap,
     shrinkwrap: newShr,
+    privateShrinkwrap,
     updatedPkgsAbsolutePaths,
   }
 }
