@@ -207,8 +207,10 @@ function resolveNode (
   let modules: string
   let absolutePath: string
   const localLocation = path.join(ctx.nodeModules, `.${pkgIdToFilename(node.pkg.id)}`)
-  if (!externalPeers.length) {
+  if (R.isEmpty(node.pkg.peerDependencies)) {
     ctx.purePkgs.add(node.pkg.id)
+  }
+  if (!externalPeers.length) {
     modules = path.join(localLocation, 'node_modules')
     absolutePath = node.pkg.id
   } else {
@@ -326,8 +328,9 @@ function resolvePeers (
             logger.warn(`${node.pkg.id} requires a peer of ${peerName}@${peerVersionRange} but version ${resolved.version} was installed.`)
           }
 
-          if (resolved.depth === node.depth + 1) {
-            // if the peer dependency is resolved from a regular dependency of the package
+          if (resolved.depth === 0 || resolved.depth === node.depth + 1) {
+            // if the resolved package is a top dependency
+            // or the peer dependency is resolved from a regular dependency of the package
             // then there is no need to link it in
             return Rx.Observable.empty()
           }
