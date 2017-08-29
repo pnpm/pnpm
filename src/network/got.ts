@@ -58,6 +58,8 @@ export default (
     }
   })
 
+  let counter = 0
+  const networkConcurrency = opts.networkConcurrency
   const requestsQueue = new PQueue({
     concurrency: opts.networkConcurrency,
   })
@@ -83,6 +85,12 @@ export default (
     integrity?: string,
     generatePackageIntegrity: boolean,
   }): Promise<{}> {
+    // Tarballs are requested first because they are bigger than metadata files.
+    // However, when one line is left available, allow it to be picked up by a metadata request.
+    // This is done in order to avoid situations when tarballs are downloaded in chunks
+    // As much tarballs should be downloaded simultaneously as possible.
+    const priority = (++counter % networkConcurrency === 0 ? -1 : 1) * 1000
+
     return requestsQueue.add(async () => {
       await mkdirp(path.dirname(saveto))
 
@@ -131,7 +139,7 @@ export default (
           .catch(reject)
         })
       })
-    }, {priority: 1000}) // tarballs are requested first because they are bigger than metadata
+    }, {priority})
   }
 
   return {
