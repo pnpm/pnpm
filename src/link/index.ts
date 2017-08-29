@@ -7,6 +7,7 @@ import logger, {
   stageLogger,
 } from 'pnpm-logger'
 import R = require('ramda')
+import pLimit = require('p-limit')
 import {InstalledPackage} from '../install/installMultiple'
 import {InstalledPackages, TreeNode} from '../api/install'
 import linkBins, {linkPkgBins} from './linkBins'
@@ -34,6 +35,10 @@ import Rx = require('@reactivex/rxjs')
 import {syncShrinkwrapWithManifest} from '../fs/shrinkwrap'
 
 const ncp = thenify(ncpCB)
+
+// Important note! Filesystem operations are faster when not too aggressive
+// removing this concurrency limitation makes the overally linking time a lot slower
+const limitLinking = pLimit(16)
 
 export default async function (
   rootNodeId$: Rx.Observable<string>,
@@ -353,7 +358,7 @@ async function linkPkgToAbsPath (
   const fetchResult = await pkg.fetchingFiles
 
   if (pkg.independent) return Rx.Observable.of(undefined)
-  return linkPkg(fetchResult, pkg, opts)
+  return limitLinking(() => linkPkg(fetchResult, pkg, opts))
 }
 
 function _linkBins (
@@ -365,7 +370,7 @@ function _linkBins (
   if (!dependency.installable) return Rx.Observable.empty()
 
   return Rx.Observable.fromPromise(
-    linkPkgBins(path.join(pkg.modules, dependency.name), binPath)
+    limitLinking(() => linkPkgBins(path.join(pkg.modules, dependency.name), binPath))
   )
 }
 
@@ -376,10 +381,12 @@ function linkModules (
   if (pkg.independent) return Rx.Observable.of(undefined)
 
   return Rx.Observable.fromPromise(
-    Promise.all(
-      deps
-        .filter(child => child.installable)
-        .map(child => symlinkDependencyTo(child, pkg.modules))
+    limitLinking(() =>
+      Promise.all(
+        deps
+          .filter(child => child.installable)
+          .map(child => symlinkDependencyTo(child, pkg.modules))
+      )
     )
   )
 }
