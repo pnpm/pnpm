@@ -84,9 +84,10 @@ async function okFile (t: tape.Test, filename: string) {
   t.ok(await exists(filename), `exists ${filename}`)
 }
 
-test('peer dependencies are linked', async (t: tape.Test) => {
+test('peer dependencies are linked when running two separate named installations', async (t: tape.Test) => {
   const project = prepare(t)
-  await installPkgs(['abc-parent-with-ab', 'abc-grand-parent-with-c', 'peer-c@2.0.0'], testDefaults())
+  await installPkgs(['abc-grand-parent-with-c', 'peer-c@2.0.0'], testDefaults())
+  await installPkgs(['abc-parent-with-ab'], testDefaults())
 
   const pkgVariationsDir = path.join(NM, '.localhost+4873', 'abc', '1.0.0')
 
@@ -105,6 +106,40 @@ test('peer dependencies are linked', async (t: tape.Test) => {
 
   t.equal(deepRequireCwd(['abc-parent-with-ab', 'abc', 'peer-c', './package.json']).version, '2.0.0')
   t.equal(deepRequireCwd(['abc-grand-parent-with-c', 'abc-parent-with-ab', 'abc', 'peer-c', './package.json']).version, '1.0.0')
+})
+
+test['skip']('peer dependencies are linked', async (t: tape.Test) => {
+  const project = prepare(t, {
+    dependencies: {
+      'abc-grand-parent-with-c': '*',
+      'peer-c': '2.0.0',
+    },
+    devDependencies: {
+      'abc-parent-with-ab': '*',
+    },
+  })
+  await install(testDefaults())
+
+  const pkgVariationsDir = path.join(NM, '.localhost+4873', 'abc', '1.0.0')
+
+  const pkgVariation1 = path.join(pkgVariationsDir, 'peer-a@1.0.0+peer-b@1.0.0+peer-c@1.0.0', NM)
+  await okFile(t, path.join(pkgVariation1, 'abc'))
+  await okFile(t, path.join(pkgVariation1, 'peer-a'))
+  await okFile(t, path.join(pkgVariation1, 'peer-b'))
+  await okFile(t, path.join(pkgVariation1, 'peer-c'))
+  await okFile(t, path.join(pkgVariation1, 'dep-of-pkg-with-1-dep'))
+
+  const pkgVariation2 = path.join(pkgVariationsDir, 'peer-a@1.0.0+peer-b@1.0.0', NM)
+  await okFile(t, path.join(pkgVariation2, 'abc'))
+  await okFile(t, path.join(pkgVariation2, 'peer-a'))
+  await okFile(t, path.join(pkgVariation2, 'peer-b'))
+  await okFile(t, path.join(pkgVariation2, 'dep-of-pkg-with-1-dep'))
+
+  t.equal(deepRequireCwd(['abc-parent-with-ab', 'abc', 'peer-c', './package.json']).version, '2.0.0')
+  t.equal(deepRequireCwd(['abc-grand-parent-with-c', 'abc-parent-with-ab', 'abc', 'peer-c', './package.json']).version, '1.0.0')
+
+  const shr = await project.loadShrinkwrap()
+  t.ok(shr.packages['/abc-parent-with-ab/1.0.0/peer-a@1.0.0+peer-b@1.0.0'].dev, 'the dev resolution set is marked as dev in shrinkwrap.yaml')
 })
 
 test('scoped peer dependency is linked', async (t: tape.Test) => {
