@@ -412,17 +412,22 @@ async function installInContext (
 
   const rootNodeId$ = rootPackageRequest$.map(packageRequest => `:/:${packageRequest.pkgId}:`)
 
+  // Although the raw specs are only needed during named installation
+  // this line of code waits for all the packages to start downloading.
+  // It is important to download packages as soon as possible as download
+  // is the slowest operation during installation.
+  const pkgByRawSpec = await rootPackageRequest$
+  .reduce((acc: {}, packageRequest: PackageRequest) => {
+    acc[packageRequest.specRaw] = installCtx.installs[packageRequest.pkgId]
+    return acc
+  }, {})
+  .toPromise()
+
   let newPkg: Package | undefined = ctx.pkg
   if (installType === 'named') {
     if (!ctx.pkg) {
       throw new Error('Cannot save because no package.json found')
     }
-    const pkgByRawSpec = await rootPackageRequest$
-      .reduce((acc: {}, packageRequest: PackageRequest) => {
-        acc[packageRequest.specRaw] = installCtx.installs[packageRequest.pkgId]
-        return acc
-      }, {})
-      .toPromise()
     const pkgJsonPath = path.join(ctx.root, 'package.json')
     const saveType = getSaveType(opts)
     newPkg = await save(

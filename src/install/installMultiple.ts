@@ -333,11 +333,12 @@ async function install (
       installable: currentIsInstallable,
     }
 
-    return Rx.Observable.of({
+    // Waiting for all the subdeps to start downloading
+    return installDepsResult.children$.concat(Rx.Observable.of({
       pkgId: fetchedPkg.id,
       depth: options.currentDepth,
       specRaw: spec.raw,
-    })
+    })).last()
   }
 
   return Rx.Observable.of({
