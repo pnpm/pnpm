@@ -59,7 +59,7 @@
     "os-homedir": "^1.0.2",
     "p-filter": "^1.0.0",
     "p-limit": "^1.1.0",
-    "package-store": "^0.2.2",
+    "package-store": "^0.2.3",
     "path-exists": "^3.0.0",
     "path-name": "^1.0.0",
     "pnpm-install-checks": "^1.1.0",
