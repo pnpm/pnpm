@@ -148,6 +148,9 @@ function dependencyShrToResolution (
       registry: depShr.resolution['registry'] || registry,
     })
   }
+  if (depShr.resolution['tarball'].startsWith('file:')) {
+    return depShr.resolution as Resolution
+  }
   return Object.assign({}, depShr.resolution, {
     tarball: url.resolve(registry, depShr.resolution['tarball'])
   })
