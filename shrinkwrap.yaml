@@ -40,7 +40,7 @@ dependencies:
   os-homedir: 1.0.2
   p-filter: 1.0.0
   p-limit: 1.1.0
-  package-store: 0.2.2
+  package-store: 0.2.3
   path-exists: 3.0.0
   path-name: 1.0.0
   pnpm-install-checks: 1.1.0
@@ -1467,7 +1467,7 @@ packages:
   /p-queue/1.1.0:
     resolution:
       integrity: sha1-xCRvFweC9I1JVX7mY0ZY9rHazF8=
-  /package-store/0.2.2:
+  /package-store/0.2.3:
     dependencies:
       '@types/load-json-file': 2.0.5
       '@types/node': 7.0.39
@@ -1499,7 +1499,7 @@ packages:
       unpack-stream: 2.1.0
       write-json-file: 2.2.0
     resolution:
-      integrity: sha512-6d2wtaqcmJRYyeWu4ejzPU6B3XesOif//34BnHgGMdi8PnDxZtVosQZ64ea1hRqyNjdpdHAotW+vk4XelFEmgA==
+      integrity: sha512-WMDYC+DFi3QzMpFMRpjxOWYqGYcfXIWRQba9o7KSIx5kZJyqG8sP25LFIV+MLjp/cmakqlh0sOoDfFcICAhUTg==
   /pad-right/0.2.2:
     dependencies:
       repeat-string: 1.6.1
@@ -2263,7 +2263,7 @@ specifiers:
   os-homedir: ^1.0.2
   p-filter: ^1.0.0
   p-limit: ^1.1.0
-  package-store: ^0.2.2
+  package-store: ^0.2.3
   path-exists: ^3.0.0
   path-name: ^1.0.0
   pnpm-install-checks: ^1.1.0
