@@ -20,6 +20,7 @@ export type FetchOptions = {
   got: Got,
   storePath: string,
   offline: boolean,
+  prefix: string,
 }
 
 export type PackageDist = {
@@ -79,7 +80,7 @@ function execGit (args: string[], opts?: Object) {
 
 export function fetchFromTarball (dir: string, dist: PackageDist, opts: FetchOptions) {
   if (dist.tarball.startsWith('file:')) {
-    dist = Object.assign({}, dist, {tarball: dist.tarball.slice(5)})
+    dist = Object.assign({}, dist, {tarball: path.join(opts.prefix, dist.tarball.slice(5))})
     return fetchFromLocalTarball(dir, dist)
   } else {
     return fetchFromRemoteTarball(dir, dist, opts)

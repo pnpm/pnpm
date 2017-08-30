@@ -127,6 +127,7 @@ export default async function fetch (
         pkg,
         storeIndex: options.storeIndex,
         verifyStoreIntegrity: options.verifyStoreIntegrity,
+        prefix: options.prefix,
       })
     }
 
@@ -156,6 +157,7 @@ function fetchToStore (opts: {
   pkg?: Package,
   storeIndex: Store,
   verifyStoreIntegrity: boolean,
+  prefix: string,
 }): {
   fetchingFiles: Promise<PackageContentInfo>,
   fetchingPkg: Promise<Package>,
@@ -228,6 +230,7 @@ function fetchToStore (opts: {
             pkgId: opts.pkgId,
             storePath: opts.storePath,
             offline: opts.offline,
+            prefix: opts.prefix,
           })
         }(),
         // removing only the folder with the unpacked files
