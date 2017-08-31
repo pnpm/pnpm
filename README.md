@@ -44,6 +44,7 @@ Install packages.
 * `options.offline` - *Boolean* - `false` by default. Install packages using only the local registry mirror, w/o doing any network requests.
 * `options.reporter` - *Function* - A function that listens for logs.
 * `options.packageManager` - *Object* - The `package.json` of the package manager.
+* `options.hooks` - *Object* - A property that contains installation hooks. Hooks are [documented separately](#hooks).
 
 **Returns:** a Promise
 
@@ -155,6 +156,34 @@ not in the projects `node_modules` folder.
 ### `supi.storePrune([options])`
 
 Remove unreferenced packages from the store.
+
+## Hooks
+
+Hooks are functions that can step into the installation process.
+
+### `readPackage(pkg)`
+
+This hook is called with every dependency's manifest information.
+The modified manifest returned by this hook is then used by supi during installation.
+
+**Example:**
+
+```js
+const supi = require('supi')
+
+supi.installPkgs({
+  hooks: {readPackage}
+})
+
+function readPackage (pkg) {
+  if (pkg.name === 'foo') {
+    pkg.dependencies = {
+      bar: '^2.0.0',
+    }
+  }
+  return pkg
+}
+```
 
 ## Acknowledgements
 
