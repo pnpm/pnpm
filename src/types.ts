@@ -61,7 +61,13 @@ export type PnpmOptions = {
     name: string,
     version: string,
   },
+
+  hooks?: {
+    readPackage?: ReadPackageHook,
+  },
 }
+
+export type ReadPackageHook = (pkg: Package) => Package
 
 export type StrictPnpmOptions = PnpmOptions & {
   rawNpmConfig: Object,
@@ -121,6 +127,10 @@ export type StrictPnpmOptions = PnpmOptions & {
   packageManager: {
     name: string,
     version: string,
+  },
+
+  hooks: {
+    readPackage?: ReadPackageHook,
   },
 }
 

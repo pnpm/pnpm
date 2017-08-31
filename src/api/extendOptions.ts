@@ -47,6 +47,7 @@ const defaults = (opts: PnpmOptions) => {
     independentLeaves: false,
     packageManager,
     verifyStoreIntegrity: true,
+    hooks: {},
   }
 }
 

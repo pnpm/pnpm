@@ -14,9 +14,12 @@ import {
   PackageMeta,
 } from 'package-store'
 import {InstallContext, InstalledPackages} from '../api/install'
-import {Dependencies} from '../types'
+import {
+  Dependencies,
+  ReadPackageHook,
+  Package,
+} from '../types'
 import memoize from '../memoize'
-import {Package} from '../types'
 import logStatus from '../logging/logInstallStatus'
 import fs = require('mz/fs')
 import * as dp from 'dependency-path'
@@ -62,6 +65,7 @@ export default async function installMultiple (
     preferedDependencies?: ResolvedDependencies,
     parentIsInstallable?: boolean,
     update: boolean,
+    readPackageHook?: ReadPackageHook,
   }
 ): Promise<PkgAddress[]> {
   const resolvedDependencies = options.resolvedDependencies || {}
@@ -86,6 +90,7 @@ export default async function installMultiple (
               parentNodeId: options.parentNodeId,
               currentDepth: options.currentDepth,
               parentIsInstallable: options.parentIsInstallable,
+              readPackageHook: options.readPackageHook,
               update,
               proceed,
             },
@@ -179,6 +184,7 @@ async function install (
     parentIsInstallable?: boolean,
     update: boolean,
     proceed: boolean,
+    readPackageHook?: ReadPackageHook,
   }
 ): Promise<PkgAddress | null> {
   const keypath = options.keypath || []
@@ -227,20 +233,21 @@ async function install (
   })
 
   if (fetchedPkg.isLocal) {
+    const pkg = fetchedPkg.pkg
     if (options.currentDepth > 0) {
       logger.warn(`Ignoring file dependency because it is not a root dependency ${spec}`)
     } else {
       ctx.localPackages.push({
         id: fetchedPkg.id,
         specRaw: spec.raw,
-        name: fetchedPkg.pkg.name,
-        version: fetchedPkg.pkg.version,
+        name: pkg.name,
+        version: pkg.version,
         dev: spec.dev,
         optional: spec.optional,
         resolution: fetchedPkg.resolution,
       })
     }
-    logStatus({status: 'downloaded_manifest', pkgId: fetchedPkg.id, pkgVersion: fetchedPkg.pkg.version})
+    logStatus({status: 'downloaded_manifest', pkgId: fetchedPkg.id, pkgVersion: pkg.version})
     return null
   }
 
@@ -250,7 +257,9 @@ async function install (
 
   let pkg: Package
   try {
-    pkg = await fetchedPkg.fetchingPkg
+    pkg = options.readPackageHook
+      ? options.readPackageHook(await fetchedPkg.fetchingPkg)
+      : await fetchedPkg.fetchingPkg
   } catch (err) {
     // avoiding unhandled promise rejections
     fetchedPkg.calculatingIntegrity.catch(err => {})
@@ -324,6 +333,7 @@ async function install (
           ? options.resolvedDependencies
           : undefined,
         update: options.update,
+        readPackageHook: options.readPackageHook,
       }
     )
     ctx.childrenIdsByParentId[fetchedPkg.id] = children.map(child => child.pkgId)
@@ -375,6 +385,7 @@ async function installDependencies (
     preferedDependencies?: ResolvedDependencies,
     parentIsInstallable: boolean,
     update: boolean,
+    readPackageHook?: ReadPackageHook,
   }
 ): Promise<PkgAddress[]> {
 
