@@ -1,8 +1,8 @@
 import url = require('url')
 import path = require('path')
+import {progressLogger} from 'pnpm-logger'
 import semver = require('semver')
 import {PackageSpec, ResolveOptions, TarballResolution, ResolveResult} from '..'
-import logStatus from '../../logging/logInstallStatus'
 import loadPkgMeta, {PackageMeta} from './loadPackageMeta'
 import createPkgId from './createNpmPkgId'
 import ssri = require('ssri')
@@ -26,7 +26,9 @@ export {PackageMeta}
 export default async function resolveNpm (spec: PackageSpec, opts: ResolveOptions): Promise<ResolveResult> {
   // { raw: 'rimraf@2', scope: null, name: 'rimraf', rawSpec: '2' || '' }
   try {
-    if (opts.loggedPkg) logStatus({ status: 'resolving', pkg: opts.loggedPkg })
+    if (opts.loggedPkg) {
+      progressLogger.debug({ status: 'resolving', pkg: opts.loggedPkg })
+    }
     const meta = await loadPkgMeta(spec, {
       storePath: opts.storePath,
       registry: opts.registry,

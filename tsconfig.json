@@ -28,7 +28,6 @@
     "src/fs/safeReadPkg.ts",
     "src/fs/storeController.ts",
     "src/index.ts",
-    "src/logging/logInstallStatus.ts",
     "src/memoize.ts",
     "src/network/got.ts",
     "src/pkgIsUntouched.ts",

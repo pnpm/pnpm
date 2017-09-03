@@ -1,4 +1,4 @@
-import logger from 'pnpm-logger'
+import logger, {progressLogger} from 'pnpm-logger'
 import fs = require('mz/fs')
 import path = require('path')
 import execa = require('execa')
@@ -7,7 +7,6 @@ import * as unpackStream from 'unpack-stream'
 import dint = require('dint')
 import {Resolution} from './resolve'
 import {Got} from './network/got'
-import logStatus from './logging/logInstallStatus'
 import {PnpmError} from './errorTypes'
 import rimraf = require('rimraf-then')
 
@@ -106,7 +105,7 @@ export async function fetchFromRemoteTarball (dir: string, dist: PackageDist, op
       unpackTo: dir,
       registry: dist.registry,
       integrity: dist.integrity,
-      onStart: () => logStatus({status: 'fetching', pkgId: opts.pkgId}),
+      onStart: () => progressLogger.debug({status: 'fetching', pkgId: opts.pkgId}),
     })
   }
 }

@@ -1,4 +1,7 @@
-import logger, {LoggedPkg} from 'pnpm-logger'
+import logger, {
+  LoggedPkg,
+  progressLogger,
+} from 'pnpm-logger'
 import fs = require('mz/fs')
 import {Stats} from 'fs'
 import path = require('path')
@@ -20,7 +23,6 @@ import memoize, {MemoizedFunc} from './memoize'
 import {Package} from './types'
 import {Got} from './network/got'
 import fetchResolution from './fetchResolution'
-import logStatus from './logging/logInstallStatus'
 import untouched from './pkgIsUntouched'
 import symlinkDir = require('symlink-dir')
 import * as unpackStream from 'unpack-stream'
@@ -98,7 +100,7 @@ export default async function fetch (
 
     const id = <string>pkgId
 
-    logStatus({status: 'resolved', pkgId: id, pkg: options.loggedPkg})
+    progressLogger.debug({status: 'resolved', pkgId: id, pkg: options.loggedPkg})
 
     if (resolution.type === 'directory') {
       if (!pkg) {
@@ -141,7 +143,7 @@ export default async function fetch (
       path: target,
     }
   } catch (err) {
-    logStatus({status: 'error', pkg: options.loggedPkg})
+    progressLogger.debug({status: 'error', pkg: options.loggedPkg})
     throw err
   }
 }
@@ -177,7 +179,7 @@ function fetchToStore (opts: {
 
   async function fetch () {
     try {
-      logStatus({
+      progressLogger.debug({
         status: 'resolving_content',
         pkgId: opts.pkgId,
       })
@@ -196,7 +198,7 @@ function fetchToStore (opts: {
           ? await untouched(linkToUnpacked)
           : await loadJsonFile(path.join(path.dirname(linkToUnpacked), 'integrity.json'))
         if (satisfiedIntegrity) {
-          logStatus({
+          progressLogger.debug({
             status: 'found_in_store',
             pkgId: opts.pkgId,
           })
@@ -237,7 +239,7 @@ function fetchToStore (opts: {
         // not touching tarball and integrity.json
         targetExists && await rimraf(path.join(target, 'node_modules'))
       ])
-      logStatus({
+      progressLogger.debug({
         status: 'fetched',
         pkgId: opts.pkgId,
       })
