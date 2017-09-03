@@ -2,14 +2,17 @@ dependencies:
   '@types/chalk': 0.4.31
   '@types/common-tags': 1.2.5
   '@types/node': 7.0.39
+  '@types/ramda': 0.24.9
   chalk: 1.1.3
   common-tags: 1.4.0
   log-update: 2.1.0
   ndjson: 1.5.0
+  ramda: 0.24.1
+  xstream: 10.9.0
 devDependencies:
   commitizen: 2.9.6
   ghooks: 2.0.0
-  pnpm-logger: 0.5.4
+  pnpm-logger: 0.5.5
   rimraf: 2.6.1
   tslint: 4.5.1
   typescript: 2.4.2
@@ -28,6 +31,9 @@ packages:
     dev: true
     resolution:
       integrity: sha512-iq0LxqG6P9GV/2bVA2AQAQ58NvneLdVDVs9dJ+88Jk6gDK9opNC0SushdYqlAyvxo0dk0NJjTKCenq/l3AKtuA==
+  /@types/ramda/0.24.9:
+    resolution:
+      integrity: sha512-VFBycWFpzbhDIK7afthxUiDSfXfhfsQ4uYzguflDiH/iMbAumzNS53mnE8bzvLay8bKuCCsZwt20c3SPs9nw6Q==
   /ansi-align/2.0.0:
     dependencies:
       string-width: 2.1.1
@@ -1044,14 +1050,14 @@ packages:
     dev: true
     resolution:
       integrity: sha1-clVrgM+g1IqXToDnckjoDtT3+HA=
-  /pnpm-logger/0.5.4:
+  /pnpm-logger/0.5.5:
     dependencies:
       '@types/node': 8.0.17
       bole: 3.0.2
       ndjson: 1.5.0
     dev: true
     resolution:
-      integrity: sha512-4qWj8oOPmzkAR395KInwnQU7/0MvPIz4Oz7tJa7v+VKDsUCL1sd7AEnvwgNQ2ZJ3NaELAsnkI6bNOsP4nT6mhg==
+      integrity: sha512-UQxSK3M6xrUZErgo2feYknlkRILLh8pGQAsSv4EHeU6npVCGNQwDb8wN+O6l17jdEa+XUXcjmgdhz2C9XJ5n1A==
   /prepend-http/1.0.4:
     dev: true
     resolution:
@@ -1067,6 +1073,9 @@ packages:
     dev: true
     resolution:
       integrity: sha1-8FKijacOYYkX7wqKw0wa5aaChrM=
+  /ramda/0.24.1:
+    resolution:
+      integrity: sha1-w7d1UZfzW43DUCIoJixMkd22uFc=
   /randomatic/1.1.7:
     dependencies:
       is-number: 3.0.0
@@ -1295,6 +1304,9 @@ packages:
     dev: true
     resolution:
       integrity: sha512-qxzYsob3yv6U+xMzPrv170y8AwGP7i74g+pbixCfD6rgso8BscLT2qXIuz6TpOaiJZ3mFgT5O9lyT9nMU4LfaA==
+  /symbol-observable/1.0.4:
+    resolution:
+      integrity: sha1-Kb9hXUqnEhvdiYsi1LP5vE4qoD0=
   /term-size/1.2.0:
     dependencies:
       execa: 0.7.0
@@ -1430,6 +1442,11 @@ packages:
     dev: true
     resolution:
       integrity: sha1-SWsswQnsqNus/i3HK2A8F8WHCtQ=
+  /xstream/10.9.0:
+    dependencies:
+      symbol-observable: 1.0.4
+    resolution:
+      integrity: sha1-23k0zsLaATYNQ6u7yHm4RSQ5e1U=
   /xtend/4.0.1:
     resolution:
       integrity: sha1-pcbVMr5lbiPbgg77lDofBJmNY68=
@@ -1443,14 +1460,17 @@ specifiers:
   '@types/chalk': ^0.4.31
   '@types/common-tags': ^1.2.5
   '@types/node': ^7.0.0
+  '@types/ramda': ^0.24.9
   chalk: ^1.1.3
   commitizen: ^2.9.5
   common-tags: ^1.4.0
   ghooks: ^2.0.0
   log-update: ^2.0.0
   ndjson: ^1.5.0
-  pnpm-logger: ^0.5.4
+  pnpm-logger: ^0.5.5
+  ramda: ^0.24.1
   rimraf: ^2.5.4
   tslint: ^4.3.1
   typescript: ^2.1.5
   validate-commit-msg: ^2.8.2
+  xstream: ^10.9.0

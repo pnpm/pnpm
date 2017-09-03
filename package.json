@@ -9,7 +9,9 @@
   ],
   "bin": "lib/bin/pnpm-default-reporter.js",
   "scripts": {
-    "test": "tslint -c tslint.json --project .",
+    "prepare": "cd test && pnpm install",
+    "lint": "tslint -c tslint.json --project .",
+    "test": "npm run lint && cd test && npm t",
     "tsc": "rimraf lib && tsc",
     "prepublishOnly": "npm run tsc"
   },
@@ -33,15 +35,18 @@
     "@types/chalk": "^0.4.31",
     "@types/common-tags": "^1.2.5",
     "@types/node": "^7.0.0",
+    "@types/ramda": "^0.24.9",
     "chalk": "^1.1.3",
     "common-tags": "^1.4.0",
     "log-update": "^2.0.0",
-    "ndjson": "^1.5.0"
+    "ndjson": "^1.5.0",
+    "ramda": "^0.24.1",
+    "xstream": "^10.9.0"
   },
   "devDependencies": {
     "commitizen": "^2.9.5",
     "ghooks": "^2.0.0",
-    "pnpm-logger": "^0.5.4",
+    "pnpm-logger": "^0.5.5",
     "rimraf": "^2.5.4",
     "tslint": "^4.3.1",
     "typescript": "^2.1.5",

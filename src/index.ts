@@ -1,13 +1,21 @@
+import logUpdate = require('log-update')
 import chalk = require('chalk')
-import * as terminalWriter from './terminalWriter'
 import {
   ProgressLog,
   LifecycleLog,
   Log,
   InstallCheckLog,
+  DeprecationLog,
+  RegistryLog,
 } from 'pnpm-logger'
 import reportError from './reportError'
 import os = require('os')
+import xs, {Stream} from 'xstream'
+import flattenConcurrently from 'xstream/extra/flattenConcurrently'
+import dropRepeats from 'xstream/extra/dropRepeats'
+import fromEvent from 'xstream/extra/fromEvent'
+import R = require('ramda')
+import {EventEmitter} from 'events'
 
 const EOL = os.EOL
 
@@ -28,124 +36,240 @@ const propertyByDependencyType = {
 }
 
 export default function (streamParser: Object) {
-  let resolutionDone = false
-  let pkgsDiff: {
-    prod: PackageDiff[],
-    dev: PackageDiff[],
-    optional: PackageDiff[],
-  } = {
+  toOutput$(streamParser)
+    .subscribe({
+      next: logUpdate,
+      error: err => logUpdate(err.message),
+      complete () {},
+    })
+}
+
+export function toOutput$ (streamParser: Object) {
+  const obs = fromEvent(streamParser as EventEmitter, 'data')
+  const log$ = xs.fromObservable<Log>(obs)
+
+  const progressLog$ = log$
+    .filter(log => log.name === 'pnpm:progress') as Stream<ProgressLog>
+
+  const resolvingContentLog$ = progressLog$
+    .filter(log => log.status === 'resolving_content')
+    .fold(R.inc, 0)
+    .drop(1)
+
+  const fedtchedLog$ = progressLog$
+    .filter(log => log.status === 'fetched')
+    .fold(R.inc, 0)
+
+  const foundInStoreLog$ = progressLog$
+    .filter(log => log.status === 'found_in_store')
+    .fold(R.inc, 0)
+
+  const resolutionDone$ = log$
+    .filter(log => log.name === 'pnpm:stage' && log.message === 'resolution_done')
+    .mapTo(true)
+    .take(1)
+    .startWith(false)
+
+  const progressSummaryOutput$ = xs.of(
+    xs.combine(
+      resolvingContentLog$,
+      fedtchedLog$,
+      foundInStoreLog$,
+      resolutionDone$
+    )
+    .map(
+      R.apply((resolving, fetched, foundInStore: number, resolutionDone) => {
+        const msg = `Resolving: total ${resolving}, reused ${foundInStore}, downloaded ${fetched}`
+        if (resolving === foundInStore + fetched && resolutionDone) {
+          return {
+            fixed: false,
+            msg: `${msg}, done`,
+          }
+        }
+        return {
+          fixed: true,
+          msg,
+        }
+      })
+    )
+  )
+
+  const deprecationLog$ = log$
+    .filter(log => log.name === 'pnpm:deprecation') as Stream<DeprecationLog>
+
+  const deprecationSet$ = deprecationLog$
+    .fold((acc, log) => {
+      acc.add(log.pkgId)
+      return acc
+    }, new Set())
+
+  const rootLog$ = log$.filter(log => log.name === 'pnpm:root')
+
+  const pkgsDiff$ = xs.combine(
+    rootLog$,
+    deprecationSet$
+  )
+  .fold((pkgsDiff, args) => {
+    const rootLog = args[0]
+    const deprecationSet = args[1] as Set<string>
+    if (rootLog['added']) {
+      pkgsDiff[rootLog['added'].dependencyType].push({
+        name: rootLog['added'].name,
+        version: rootLog['added'].version,
+        deprecated: deprecationSet.has(rootLog['added'].id),
+        added: true,
+      })
+      return pkgsDiff
+    }
+    if (rootLog['removed']) {
+      pkgsDiff[rootLog['removed'].dependencyType].push({
+        name: rootLog['removed'].name,
+        version: rootLog['removed'].version,
+        added: false,
+      })
+      return pkgsDiff
+    }
+    return pkgsDiff
+  }, {
     prod: [],
     dev: [],
     optional: [],
-  }
-  const deprecated = {}
-
-  streamParser['on']('data', (obj: Log) => {
-    switch (obj.name) {
-      case 'pnpm:progress':
-        reportProgress(obj)
-        return
-      case 'pnpm:stage':
-        if (obj.message === 'resolution_done') {
-          resolutionDone = true
-          updateProgress()
-        }
-        return
-      case 'pnpm:lifecycle':
-        reportLifecycle(obj)
-        return
-      case 'pnpm:install-check':
-        reportInstallCheck(obj)
-        return
-      case 'pnpm:registry':
-        if (obj.level === 'warn') {
-          printWarn(obj.message)
-        }
-        return
-      case 'pnpm:root':
-        if (obj['added']) {
-          pkgsDiff[obj['added'].dependencyType].push({
-            name: obj['added'].name,
-            version: obj['added'].version,
-            deprecated: !!deprecated[obj['added'].id],
-            added: true,
-          })
-          return
-        }
-        if (obj['removed']) {
-          pkgsDiff[obj['removed'].dependencyType].push({
-            name: obj['removed'].name,
-            version: obj['removed'].version,
-            added: false,
-          })
-          return
-        }
-        return
-      case 'pnpm:summary':
-        let msg = ''
-        for (const depType of ['prod', 'optional', 'dev']) {
-          if (pkgsDiff[depType].length) {
-            msg += EOL
-            msg += chalk.blue(`${propertyByDependencyType[depType]}:`)
-            msg += EOL
-            msg += printDiffs(pkgsDiff[depType])
-            msg += EOL
-          }
-        }
-        if (!msg) return
-        terminalWriter.write(msg)
-        return
-      case 'pnpm:deprecation':
-        // print warnings only about deprecated packages from the root
-        if (obj.depth > 0) return
-        deprecated[obj.pkgId] = obj.deprecated
-        printWarn(`${chalk.red('deprecated')} ${obj.pkgName}@${obj.pkgVersion}: ${obj.deprecated}`)
-        return
-      case 'pnpm':
-        if (obj.level === 'debug') return
-        if (obj.level === 'warn') {
-          printWarn(obj['message'])
-          return
-        }
-        if (obj.level === 'error') {
-          reportError(obj)
-          return
-        }
-        terminalWriter.write(obj['message'])
-        return
-    }
+  } as {
+    prod: PackageDiff[],
+    dev: PackageDiff[],
+    optional: PackageDiff[],
   })
 
-  let resolving = 0
-  let fetched = 0
-  let foundInStore = 0
+  const summaryLog$ = log$
+    .filter(log => log.name === 'pnpm:summary')
+    .take(1)
 
-  function reportProgress (logObj: ProgressLog) {
-    switch (logObj.status) {
-      case 'resolving_content':
-        resolving++
-        break
-      case 'found_in_store':
-        foundInStore++;
-        break
-      case 'fetched':
-        fetched++;
-        break
-      default:
-        return
+  const summaryOutput$ = xs.combine(
+    pkgsDiff$,
+    summaryLog$
+  )
+  .map(R.apply(pkgsDiff => {
+    let msg = ''
+    for (const depType of ['prod', 'optional', 'dev']) {
+      if (pkgsDiff[depType].length) {
+        msg += EOL
+        msg += chalk.blue(`${propertyByDependencyType[depType]}:`)
+        msg += EOL
+        msg += printDiffs(pkgsDiff[depType])
+        msg += EOL
+      }
     }
-    updateProgress()
-  }
+    return {msg}
+  }))
+  .take(1)
+  .map(xs.of)
 
-  function updateProgress() {
-    const msg = `Resolving: total ${resolving}, reused ${foundInStore}, downloaded ${fetched}`
-    if (resolving === foundInStore + fetched && resolutionDone) {
-      terminalWriter.fixedWrite(`${msg}, done`)
-      terminalWriter.done()
+  const deprecationOutput$ = deprecationLog$
+    // print warnings only about deprecated packages from the root
+    .filter(log => log.depth === 0)
+    .map(log => {
+      return {
+        msg: formatWarn(`${chalk.red('deprecated')} ${log.pkgName}@${log.pkgVersion}: ${log.deprecated}`)
+      }
+    })
+    .map(xs.of)
+
+  const lifecycleOutput$ = log$
+    .filter(log => log.name === 'pnpm:lifecycle')
+    .map(formatLifecycle)
+    .map(msg => ({msg}))
+    .map(xs.of)
+
+  const installCheckOutput$ = log$
+    .filter(log => log.name === 'pnpm:install-check')
+    .map(formatInstallCheck)
+    .filter(Boolean)
+    .map(msg => ({msg}))
+    .map(xs.of) as Stream<Stream<{msg: string}>>
+
+  const registryOutput$ = log$
+    .filter(log => log.name === 'pnpm:registry' && log.level === 'warn')
+    .map((log: RegistryLog) => ({msg: formatWarn(log.message)}))
+    .map(xs.of)
+
+  const miscOutput$ = log$
+    .filter(log => log.name === 'pnpm')
+    .map(obj => {
+      if (obj.level === 'debug') return
+      if (obj.level === 'warn') {
+        return formatWarn(obj['message'])
+      }
+      if (obj.level === 'error') {
+        return reportError(obj)
+      }
+      return obj['message']
+    })
+    .map(msg => ({msg}))
+    .map(xs.of)
+
+  let blockNo = 0
+  let fixedBlockNo = 0
+  let started = false
+  return flattenConcurrently(
+    xs.merge(
+      summaryOutput$,
+      progressSummaryOutput$,
+      registryOutput$,
+      installCheckOutput$,
+      lifecycleOutput$,
+      deprecationOutput$,
+      miscOutput$,
+    )
+    .map((log: Stream<{msg: string, fixed: boolean}>) => {
+      let currentBlockNo = -1
+      let currentFixedBlockNo = -1
+      let calculated = false
+      let fixedCalculated = false
+      return log
+        .map(msg => {
+          if (msg['fixed']) {
+            if (!fixedCalculated) {
+              fixedCalculated = true
+              currentFixedBlockNo = fixedBlockNo++
+            }
+            return {
+              blockNo: currentFixedBlockNo,
+              fixed: true,
+              msg: msg.msg,
+            }
+          }
+          if (!calculated) {
+            calculated = true
+            currentBlockNo = blockNo++
+          }
+          return {
+            prevFixedBlockNo: currentFixedBlockNo,
+            blockNo: currentBlockNo,
+            fixed: false,
+            msg: typeof msg === 'string' ? msg : msg.msg,
+          }
+        })
+    })
+  )
+  .fold((acc, log) => {
+    if (log.fixed === true) {
+      acc.fixedBlocks[log.blockNo] = log.msg
     } else {
-      terminalWriter.fixedWrite(msg)
+      delete acc.fixedBlocks[log['prevFixedBlockNo']]
+      acc.blocks[log.blockNo] = log.msg
     }
-  }
+    return acc
+  }, {fixedBlocks: [], blocks: []} as {fixedBlocks: string[], blocks: string[]})
+  .map(sections => (sections.blocks.concat(sections.fixedBlocks)).filter(Boolean).join(EOL))
+  .filter(msg => {
+    if (started) {
+      return true
+    }
+    if (msg === '') return false
+    started = true
+    return true
+  })
+  .compose(dropRepeats())
 }
 
 function printDiffs (pkgsDiff: PackageDiff[]) {
@@ -168,25 +292,24 @@ function printDiffs (pkgsDiff: PackageDiff[]) {
   return msg
 }
 
-function reportLifecycle (logObj: LifecycleLog) {
+function formatLifecycle (logObj: LifecycleLog) {
   if (logObj.level === 'error') {
-    terminalWriter.write(`${chalk.blue(logObj.pkgId)}! ${chalk.gray(logObj.line)}`)
-    return
+    return `${chalk.blue(logObj.pkgId)}! ${chalk.gray(logObj.line)}`
   }
-  terminalWriter.write(`${chalk.blue(logObj.pkgId)}  ${chalk.gray(logObj.line)}`)
+  return `${chalk.blue(logObj.pkgId)}  ${chalk.gray(logObj.line)}`
 }
 
-function reportInstallCheck (logObj: InstallCheckLog) {
+function formatInstallCheck (logObj: InstallCheckLog) {
   switch (logObj.code) {
     case 'EBADPLATFORM':
-      printWarn(`Unsupported system. Skipping dependency ${logObj.pkgId}`)
-      break
+      return formatWarn(`Unsupported system. Skipping dependency ${logObj.pkgId}`)
     case 'ENOTSUP':
-      terminalWriter.write(logObj.toString())
-      break
+      return logObj.toString()
+    default:
+      return
   }
 }
 
-function printWarn (message: string) {
-  terminalWriter.write(`${chalk.yellow('WARN')} ${message}`)
+function formatWarn (message: string) {
+  return `${chalk.yellow('WARN')} ${message}`
 }

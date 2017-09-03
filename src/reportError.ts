@@ -2,7 +2,6 @@ import chalk = require('chalk')
 import {Log} from 'pnpm-logger'
 import commonTags = require('common-tags')
 import os = require('os')
-import * as terminalWriter from './terminalWriter'
 
 const stripIndent = commonTags.stripIndent
 const EOL = os.EOL
@@ -14,37 +13,31 @@ export default function reportError (logObj: Log) {
     const err = <Error & { code: string }>logObj['err']
     switch (err.code) {
       case 'UNEXPECTED_STORE':
-        reportUnexpectedStore(err, logObj['message'])
-        return
+        return reportUnexpectedStore(err, logObj['message'])
       case 'STORE_BREAKING_CHANGE':
-        reportStoreBreakingChange(err, logObj['message'])
-        return
+        return reportStoreBreakingChange(err, logObj['message'])
       case 'MODULES_BREAKING_CHANGE':
-        reportModulesBreakingChange(err, logObj['message'])
-        return
+        return reportModulesBreakingChange(err, logObj['message'])
       case 'MODIFIED_DEPENDENCY':
-        reportModifiedDependency(err, logObj['message'])
-        return
+        return reportModifiedDependency(err, logObj['message'])
       case 'SHRINKWRAP_BREAKING_CHANGE':
-        reportShrinkwrapBreakingChange(err, logObj['message'])
-        return
+        return reportShrinkwrapBreakingChange(err, logObj['message'])
       default:
-        terminalWriter.write(formatErrorSummary(err.message || logObj['message']))
-        return
+        return formatErrorSummary(err.message || logObj['message'])
     }
   }
-  terminalWriter.write(formatErrorSummary(logObj['message']))
+  return formatErrorSummary(logObj['message'])
 }
 
 function reportUnexpectedStore (err: Error, msg: Object) {
-  terminalWriter.write(stripIndent`
+  return stripIndent`
     ${formatErrorSummary(err.message)}
 
     expected: ${highlight(msg['expectedStorePath'])}
     actual: ${highlight(msg['actualStorePath'])}
 
     If you want to use the new store, run the same command with the ${highlight('--force')} parameter.
-  `)
+  `
 }
 
 function reportStoreBreakingChange (err: Error, msg: Object) {
@@ -60,7 +53,7 @@ function reportStoreBreakingChange (err: Error, msg: Object) {
   }
 
   output += formatRelatedSources(msg)
-  terminalWriter.write(output)
+  return output
 }
 
 function reportModulesBreakingChange (err: Error, msg: Object) {
@@ -76,7 +69,7 @@ function reportModulesBreakingChange (err: Error, msg: Object) {
   }
 
   output += formatRelatedSources(msg)
-  terminalWriter.write(output)
+  return output
 }
 
 function formatRelatedSources (msg: Object) {
@@ -102,20 +95,20 @@ function formatErrorSummary (message: string) {
 }
 
 function reportModifiedDependency (err: Error, msg: Object) {
-  terminalWriter.write(stripIndent`
+  return stripIndent`
     ${formatErrorSummary('Packages in the store have been mutated')}
 
     These packages are modified:
     ${msg['modified'].map((pkgPath: string) => colorPath(pkgPath)).join(EOL)}
 
     You can run ${highlight('pnpm install')} to refetch the modified packages
-  `)
+  `
 }
 
 function reportShrinkwrapBreakingChange (err: Error, msg: Object) {
-  terminalWriter.write(stripIndent`
+  return stripIndent`
     ${formatErrorSummary(err.message)}
 
     Run with the ${highlight('--force')} parameter to recreate the shrinkwrap file.
-  `)
+  `
 }
