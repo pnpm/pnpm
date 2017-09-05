@@ -1,6 +1,7 @@
 dependencies:
   '@types/tape': 4.2.30
   mos-tap-diff: 1.0.0
+  normalize-newline: 3.0.0
   tape: 4.8.0
   ts-node: 3.3.0
 packages:
@@ -266,6 +267,9 @@ packages:
       through2: 2.0.3
     resolution:
       integrity: sha1-NDOB0f2e1RljsLMVNbf9i64E/3A=
+  /normalize-newline/3.0.0:
+    resolution:
+      integrity: sha1-HL6oBKukNgAfg5OKsh7AOdaa6dM=
   /number-is-nan/1.0.1:
     resolution:
       integrity: sha1-CXtgK1NCKlIsGvuHkDGDNpQaAR0=
@@ -462,5 +466,6 @@ shrinkwrapVersion: 3
 specifiers:
   '@types/tape': ^4.2.30
   mos-tap-diff: ^1.0.0
+  normalize-newline: ^3.0.0
   tape: ^4.8.0
   ts-node: ^3.3.0

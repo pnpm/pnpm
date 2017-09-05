@@ -6,6 +6,7 @@
   "dependencies": {
     "@types/tape": "^4.2.30",
     "mos-tap-diff": "^1.0.0",
+    "normalize-newline": "^3.0.0",
     "tape": "^4.8.0",
     "ts-node": "^3.3.0"
   }

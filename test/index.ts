@@ -8,6 +8,7 @@ import logger, {
   summaryLogger,
   lifecycleLogger,
 } from 'pnpm-logger'
+import normalizeNewline = require('normalize-newline')
 import {toOutput$} from '../src'
 import {stripIndents} from 'common-tags'
 import chalk = require('chalk')
@@ -84,7 +85,7 @@ test('moves fixed line to the end', t => {
 
   t.plan(1)
 
-  output$.drop(3).take(1).subscribe({
+  output$.drop(3).take(1).map(normalizeNewline).subscribe({
     next: output => {
       t.equal(output, stripIndents`
         ${WARN} foo
@@ -155,7 +156,7 @@ test('prints summary', t => {
 
   t.plan(1)
 
-  output$.drop(1).take(1).subscribe({
+  output$.drop(1).take(1).map(normalizeNewline).subscribe({
     next: output => {
       t.equal(output, stripIndents`
         ${WARN} ${DEPRECATED} bar@2.0.0: This package was deprecated because bla bla bla
@@ -205,7 +206,7 @@ test('prints lifecycle progress', t => {
   const pkgIdColor = chalk.blue
   const childOutputColor = chalk.grey
 
-  output$.drop(3).take(1).subscribe({
+  output$.drop(3).take(1).map(normalizeNewline).subscribe({
     next: output => {
       t.equal(output, stripIndents`
         ${pkgIdColor('registry.npmjs.org/foo/1.0.0')}  ${childOutputColor('foo I')}
