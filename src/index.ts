@@ -16,6 +16,7 @@ import dropRepeats from 'xstream/extra/dropRepeats'
 import fromEvent from 'xstream/extra/fromEvent'
 import R = require('ramda')
 import {EventEmitter} from 'events'
+import prettyBytes = require('pretty-bytes')
 
 const EOL = os.EOL
 
@@ -44,7 +45,7 @@ export default function (streamParser: Object) {
     })
 }
 
-export function toOutput$ (streamParser: Object) {
+export function toOutput$ (streamParser: Object): Stream<string> {
   const obs = fromEvent(streamParser as EventEmitter, 'data')
   const log$ = xs.fromObservable<Log>(obs)
 
@@ -93,6 +94,25 @@ export function toOutput$ (streamParser: Object) {
       })
     )
   )
+
+  const tarballsProgressOutput$ = progressLog$
+    .filter(log => log.status === 'fetching_started' &&
+      typeof log.size === 'number' && log.size >= 1024 * 1024)
+    .map(startedLog => {
+      const size = prettyBytes(startedLog['size'])
+      return progressLog$
+        .filter(log => log.status === 'fetching_progress' && log.pkgId === startedLog['pkgId'])
+        .map(log => log['downloaded'])
+        .startWith(0)
+        .map(downloadedRaw => {
+          const done = startedLog['size'] === downloadedRaw
+          const downloaded = prettyBytes(downloadedRaw)
+          return {
+            msg: `Downloading ${startedLog['pkgId']}: ${downloaded}/${size}${done ? ', done' : ''}`,
+            fixed: !done,
+          }
+        })
+    })
 
   const deprecationLog$ = log$
     .filter(log => log.name === 'pnpm:deprecation') as Stream<DeprecationLog>
@@ -219,6 +239,7 @@ export function toOutput$ (streamParser: Object) {
       lifecycleOutput$,
       deprecationOutput$,
       miscOutput$,
+      tarballsProgressOutput$,
     )
     .map((log: Stream<{msg: string, fixed: boolean}>) => {
       let currentBlockNo = -1

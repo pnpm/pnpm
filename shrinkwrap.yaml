@@ -7,12 +7,13 @@ dependencies:
   common-tags: 1.4.0
   log-update: 2.1.0
   ndjson: 1.5.0
+  pretty-bytes: 4.0.2
   ramda: 0.24.1
   xstream: 10.9.0
 devDependencies:
   commitizen: 2.9.6
   ghooks: 2.0.0
-  pnpm-logger: 0.5.5
+  pnpm-logger: 0.6.0
   rimraf: 2.6.1
   tslint: 4.5.1
   typescript: 2.4.2
@@ -1050,14 +1051,14 @@ packages:
     dev: true
     resolution:
       integrity: sha1-clVrgM+g1IqXToDnckjoDtT3+HA=
-  /pnpm-logger/0.5.5:
+  /pnpm-logger/0.6.0:
     dependencies:
       '@types/node': 8.0.17
       bole: 3.0.2
       ndjson: 1.5.0
     dev: true
     resolution:
-      integrity: sha512-UQxSK3M6xrUZErgo2feYknlkRILLh8pGQAsSv4EHeU6npVCGNQwDb8wN+O6l17jdEa+XUXcjmgdhz2C9XJ5n1A==
+      integrity: sha512-nnfR7C8PzBfYCorvmIYDThBydWdBQOih51kQRSM5oi4bGQJd/DWpqORGolhdK5ZSdpVFokMmN2xJjpIXAc4Ysw==
   /prepend-http/1.0.4:
     dev: true
     resolution:
@@ -1066,6 +1067,9 @@ packages:
     dev: true
     resolution:
       integrity: sha1-gV7R9uvGWSb4ZbMQwHE7yzMVzks=
+  /pretty-bytes/4.0.2:
+    resolution:
+      integrity: sha1-sr+C5zUNZcbDOqlaqlpPYyf2HNk=
   /process-nextick-args/1.0.7:
     resolution:
       integrity: sha1-FQ4gt1ZZCtP5EJPyWk8q2L/zC6M=
@@ -1467,7 +1471,8 @@ specifiers:
   ghooks: ^2.0.0
   log-update: ^2.0.0
   ndjson: ^1.5.0
-  pnpm-logger: ^0.5.5
+  pnpm-logger: ^0.6.0
+  pretty-bytes: ^4.0.2
   ramda: ^0.24.1
   rimraf: ^2.5.4
   tslint: ^4.3.1

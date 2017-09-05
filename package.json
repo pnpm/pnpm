@@ -29,7 +29,7 @@
   },
   "homepage": "https://github.com/pnpm/pnpm-reporter-default#readme",
   "peerDependencies": {
-    "pnpm-logger": "^0.5.4"
+    "pnpm-logger": "^0.6.0"
   },
   "dependencies": {
     "@types/chalk": "^0.4.31",
@@ -40,13 +40,14 @@
     "common-tags": "^1.4.0",
     "log-update": "^2.0.0",
     "ndjson": "^1.5.0",
+    "pretty-bytes": "^4.0.2",
     "ramda": "^0.24.1",
     "xstream": "^10.9.0"
   },
   "devDependencies": {
     "commitizen": "^2.9.5",
     "ghooks": "^2.0.0",
-    "pnpm-logger": "^0.5.5",
+    "pnpm-logger": "^0.6.0",
     "rimraf": "^2.5.4",
     "tslint": "^4.3.1",
     "typescript": "^2.1.5",

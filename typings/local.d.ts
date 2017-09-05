@@ -12,3 +12,8 @@ declare module 'normalize-newline' {
   const anything: any;
   export = anything;
 }
+
+declare module 'pretty-bytes' {
+  const anything: any;
+  export = anything;
+}

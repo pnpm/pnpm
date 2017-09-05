@@ -12,6 +12,7 @@ import normalizeNewline = require('normalize-newline')
 import {toOutput$} from '../src'
 import {stripIndents} from 'common-tags'
 import chalk = require('chalk')
+import xs, {Stream} from 'xstream'
 
 const WARN = chalk.yellow('WARN')
 const ERROR = chalk.red('ERROR')
@@ -250,4 +251,134 @@ test('prints info', t => {
     complete: t.end,
     error: t.end,
   })
+})
+
+test('prints progress of big files download', t => {
+  let output$ = toOutput$(createStreamParser()).map(normalizeNewline) as Stream<string>
+  const stream$: Stream<string>[] = []
+
+  const pkgId1 = 'registry.npmjs.org/foo/1.0.0'
+  const pkgId2 = 'registry.npmjs.org/bar/2.0.0'
+  const pkgId3 = 'registry.npmjs.org/qar/3.0.0'
+
+  progressLogger.debug({
+    status: 'resolving_content',
+    pkgId: pkgId1,
+  })
+
+  stream$.push(
+    output$.take(1)
+      .debug(output => t.equal(output, 'Resolving: total 1, reused 0, downloaded 0'))
+  )
+
+  output$ = output$.drop(1)
+
+  progressLogger.debug({
+    status: 'fetching_started',
+    pkgId: pkgId1,
+    size: 1024 * 1024 * 10, // 10 MB
+  })
+
+  stream$.push(
+    output$.take(1)
+      .debug(output => t.equal(output, stripIndents`
+        Resolving: total 1, reused 0, downloaded 0
+        Downloading ${pkgId1}: 0 B/10.5 MB
+      `))
+  )
+
+  output$ = output$.drop(1)
+
+  progressLogger.debug({
+    status: 'fetching_progress',
+    pkgId: pkgId1,
+    downloaded: 1024 * 1024 * 5.5, // 5.5 MB
+  })
+
+  stream$.push(
+    output$.take(1)
+      .debug(output => t.equal(output, stripIndents`
+        Resolving: total 1, reused 0, downloaded 0
+        Downloading ${pkgId1}: 5.77 MB/10.5 MB
+      `))
+  )
+
+  output$ = output$.drop(1)
+
+  progressLogger.debug({
+    status: 'resolving_content',
+    pkgId: pkgId2,
+  })
+
+  progressLogger.debug({
+    status: 'fetching_started',
+    pkgId: pkgId1,
+    size: 10, // 10 B
+  })
+
+  progressLogger.debug({
+    status: 'fetching_progress',
+    pkgId: pkgId1,
+    downloaded: 1024 * 1024 * 7,
+  })
+
+  stream$.push(
+    output$.drop(1).take(1)
+      .debug(output => t.equal(output, stripIndents`
+        Resolving: total 2, reused 0, downloaded 0
+        Downloading ${pkgId1}: 7.34 MB/10.5 MB
+      `, 'downloading of small package not reported'))
+  )
+
+  output$ = output$.drop(2)
+
+  progressLogger.debug({
+    status: 'resolving_content',
+    pkgId: pkgId3,
+  })
+
+  progressLogger.debug({
+    status: 'fetching_started',
+    pkgId: pkgId3,
+    size: 1024 * 1024 * 20, // 20 MB
+  })
+
+  progressLogger.debug({
+    status: 'fetching_progress',
+    pkgId: pkgId3,
+    downloaded: 1024 * 1024 * 19, // 19 MB
+  })
+
+  stream$.push(
+    output$.drop(2).take(1)
+      .debug(output => t.equal(output, stripIndents`
+        Resolving: total 3, reused 0, downloaded 0
+        Downloading ${pkgId1}: 7.34 MB/10.5 MB
+        Downloading ${pkgId3}: 19.9 MB/21 MB
+      `))
+  )
+
+  output$ = output$.drop(3)
+
+  progressLogger.debug({
+    status: 'fetching_progress',
+    pkgId: pkgId1,
+    downloaded: 1024 * 1024 * 10, // 10 MB
+  })
+
+  stream$.push(
+    output$.take(1)
+      .debug(output => t.equal(output, stripIndents`
+        Downloading ${pkgId1}: 10.5 MB/10.5 MB, done
+        Resolving: total 3, reused 0, downloaded 0
+        Downloading ${pkgId3}: 19.9 MB/21 MB
+      `))
+  )
+
+  xs.combine
+    .apply(xs, stream$)
+    .subscribe({
+      complete: t.end,
+      error: t.end,
+    })
 })
