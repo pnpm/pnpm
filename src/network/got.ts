@@ -11,6 +11,7 @@ import npmGetCredentialsByURI = require('npm/lib/config/get-credentials-by-uri')
 import urlLib = require('url')
 import normalizeRegistryUrl = require('normalize-registry-url')
 import PQueue = require('p-queue')
+import {progressLogger} from 'pnpm-logger'
 
 export type AuthInfo = {
   alwaysAuth: boolean,
@@ -29,8 +30,8 @@ export type Got = {
   download(url: string, saveto: string, opts: {
     unpackTo: string,
     registry?: string,
-    onStart?: () => void,
-    onProgress?: (downloaded: number, totalSize: number) => void,
+    onStart?: (totalSize: number | null) => void,
+    onProgress?: (downloaded: number) => void,
     integrity?: string
   }): Promise<{}>,
   getJSON<T>(url: string, registry: string, priority?: number): Promise<T>,
@@ -80,8 +81,8 @@ export default (
   function download (url: string, saveto: string, opts: {
     unpackTo: string,
     registry?: string,
-    onStart?: () => void,
-    onProgress?: (downloaded: number, totalSize: number) => void,
+    onStart?: (totalSize: number | null) => void,
+    onProgress?: (downloaded: number) => void,
     integrity?: string,
     generatePackageIntegrity: boolean,
   }): Promise<{}> {
@@ -111,14 +112,19 @@ export default (
             return reject(new Error(`Invalid response: ${res.statusCode}`))
           }
 
-          if (opts.onStart) opts.onStart()
-          if (opts.onProgress && res.headers['content-length']) {
+          const size = res.headers['content-length']
+            ? parseInt(res.headers['content-length'])
+            : null
+          if (opts.onStart) {
+            opts.onStart(size)
+          }
+          if (opts.onProgress) {
             const onProgress = opts.onProgress
             let downloaded = 0
             let size = +res.headers['content-length']
             res.on('data', (chunk: Buffer) => {
               downloaded += chunk.length
-              onProgress(downloaded, size)
+              onProgress(downloaded)
             })
           }
 

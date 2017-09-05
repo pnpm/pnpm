@@ -36,7 +36,7 @@ devDependencies:
   husky: 0.13.4
   in-publish: 2.0.0
   npm-scripts-info: 0.3.6
-  pnpm-logger: 0.5.4
+  pnpm-logger: 0.6.0
   tslint: 5.7.0
   typescript: 2.5.2
   validate-commit-msg: 2.14.0
@@ -1155,14 +1155,14 @@ packages:
     dev: true
     resolution:
       integrity: sha1-clVrgM+g1IqXToDnckjoDtT3+HA=
-  /pnpm-logger/0.5.4:
+  /pnpm-logger/0.6.0:
     dependencies:
       '@types/node': 8.0.26
       bole: 3.0.2
       ndjson: 1.5.0
     dev: true
     resolution:
-      integrity: sha512-4qWj8oOPmzkAR395KInwnQU7/0MvPIz4Oz7tJa7v+VKDsUCL1sd7AEnvwgNQ2ZJ3NaELAsnkI6bNOsP4nT6mhg==
+      integrity: sha512-nnfR7C8PzBfYCorvmIYDThBydWdBQOih51kQRSM5oi4bGQJd/DWpqORGolhdK5ZSdpVFokMmN2xJjpIXAc4Ysw==
   /preserve/0.2.0:
     dev: true
     resolution:
@@ -1629,7 +1629,7 @@ specifiers:
   p-queue: ^1.1.0
   parse-npm-tarball-url: ^1.0.1
   path-exists: ^3.0.0
-  pnpm-logger: ^0.5.0
+  pnpm-logger: ^0.6.0
   ramda: ^0.24.1
   read-package-json: ^2.0.10
   rename-overwrite: ^1.0.0
