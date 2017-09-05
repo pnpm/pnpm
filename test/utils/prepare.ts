@@ -39,7 +39,6 @@ export default function prepare (t: Test, pkg?: Object) {
   writePkg.sync(pkgTmpPath, Object.assign({name: 'project', version: '0.0.0'}, pkg))
   process.chdir(pkgTmpPath)
 
-
   const modules = path.join(pkgTmpPath, 'node_modules')
   let cachedStorePath: string
   const project = {
