@@ -19,6 +19,7 @@ import {EventEmitter} from 'events'
 import prettyBytes = require('pretty-bytes')
 
 const EOL = os.EOL
+const BIG_TARBALL_SIZE = 1024 * 1024 * 5 // 5 MB
 
 const addedSign = chalk.green('+')
 const removedSign = chalk.red('-')
@@ -99,7 +100,7 @@ export function toOutput$ (streamParser: Object): Stream<string> {
 
   const tarballsProgressOutput$ = progressLog$
     .filter(log => log.status === 'fetching_started' &&
-      typeof log.size === 'number' && log.size >= 1024 * 1024)
+      typeof log.size === 'number' && log.size >= BIG_TARBALL_SIZE)
     .map(startedLog => {
       const size = prettyBytes(startedLog['size'])
       return progressLog$
