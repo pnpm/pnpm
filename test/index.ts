@@ -21,6 +21,8 @@ const versionColor = chalk.grey
 const ADD = chalk.green('+')
 const SUB = chalk.red('-')
 const h1 = chalk.blue
+const hlValue = chalk.blue
+const hlPkgId = chalk['whiteBright']
 
 test('prints progress beginning', t => {
   const output$ = toOutput$(createStreamParser())
@@ -36,7 +38,7 @@ test('prints progress beginning', t => {
 
   output$.take(1).subscribe({
     next: output => {
-      t.equal(output, 'Resolving: total 1, reused 0, downloaded 0')
+      t.equal(output, `Resolving: total ${hlValue('1')}, reused ${hlValue('0')}, downloaded ${hlValue('0')}`)
     },
     error: t.end,
     complete: t.end,
@@ -61,7 +63,7 @@ test('prints progress on first download', t => {
 
   output$.drop(1).take(1).subscribe({
     next: output => {
-      t.equal(output, 'Resolving: total 1, reused 0, downloaded 1')
+      t.equal(output, `Resolving: total ${hlValue('1')}, reused ${hlValue('0')}, downloaded ${hlValue('1')}`)
     },
     complete: t.end,
     error: t.end,
@@ -90,7 +92,7 @@ test('moves fixed line to the end', t => {
     next: output => {
       t.equal(output, stripIndents`
         ${WARN} foo
-        Resolving: total 1, reused 0, downloaded 1, done
+        Resolving: total ${hlValue('1')}, reused ${hlValue('0')}, downloaded ${hlValue('1')}, done
       `)
     },
     complete: t.end,
@@ -268,7 +270,7 @@ test('prints progress of big files download', t => {
 
   stream$.push(
     output$.take(1)
-      .debug(output => t.equal(output, 'Resolving: total 1, reused 0, downloaded 0'))
+      .debug(output => t.equal(output, `Resolving: total ${hlValue('1')}, reused ${hlValue('0')}, downloaded ${hlValue('0')}`))
   )
 
   output$ = output$.drop(1)
@@ -282,8 +284,8 @@ test('prints progress of big files download', t => {
   stream$.push(
     output$.take(1)
       .debug(output => t.equal(output, stripIndents`
-        Resolving: total 1, reused 0, downloaded 0
-        Downloading ${pkgId1}: 0 B/10.5 MB
+        Resolving: total ${hlValue('1')}, reused ${hlValue('0')}, downloaded ${hlValue('0')}
+        Downloading ${hlPkgId(pkgId1)}: ${hlValue('0 B')}/${hlValue('10.5 MB')}
       `))
   )
 
@@ -298,8 +300,8 @@ test('prints progress of big files download', t => {
   stream$.push(
     output$.take(1)
       .debug(output => t.equal(output, stripIndents`
-        Resolving: total 1, reused 0, downloaded 0
-        Downloading ${pkgId1}: 5.77 MB/10.5 MB
+        Resolving: total ${hlValue('1')}, reused ${hlValue('0')}, downloaded ${hlValue('0')}
+        Downloading ${hlPkgId(pkgId1)}: ${hlValue('5.77 MB')}/${hlValue('10.5 MB')}
       `))
   )
 
@@ -325,8 +327,8 @@ test('prints progress of big files download', t => {
   stream$.push(
     output$.drop(1).take(1)
       .debug(output => t.equal(output, stripIndents`
-        Resolving: total 2, reused 0, downloaded 0
-        Downloading ${pkgId1}: 7.34 MB/10.5 MB
+        Resolving: total ${hlValue('2')}, reused ${hlValue('0')}, downloaded ${hlValue('0')}
+        Downloading ${hlPkgId(pkgId1)}: ${hlValue('7.34 MB')}/${hlValue('10.5 MB')}
       `, 'downloading of small package not reported'))
   )
 
@@ -352,9 +354,9 @@ test('prints progress of big files download', t => {
   stream$.push(
     output$.drop(2).take(1)
       .debug(output => t.equal(output, stripIndents`
-        Resolving: total 3, reused 0, downloaded 0
-        Downloading ${pkgId1}: 7.34 MB/10.5 MB
-        Downloading ${pkgId3}: 19.9 MB/21 MB
+        Resolving: total ${hlValue('3')}, reused ${hlValue('0')}, downloaded ${hlValue('0')}
+        Downloading ${hlPkgId(pkgId1)}: ${hlValue('7.34 MB')}/${hlValue('10.5 MB')}
+        Downloading ${hlPkgId(pkgId3)}: ${hlValue('19.9 MB')}/${hlValue('21 MB')}
       `))
   )
 
@@ -369,9 +371,9 @@ test('prints progress of big files download', t => {
   stream$.push(
     output$.take(1)
       .debug(output => t.equal(output, stripIndents`
-        Downloading ${pkgId1}: 10.5 MB/10.5 MB, done
-        Resolving: total 3, reused 0, downloaded 0
-        Downloading ${pkgId3}: 19.9 MB/21 MB
+        ${chalk.dim(`Downloading ${hlPkgId(pkgId1)}: ${hlValue('10.5 MB')}/${hlValue('10.5 MB')}, done`)}
+        Resolving: total ${hlValue('3')}, reused ${hlValue('0')}, downloaded ${hlValue('0')}
+        Downloading ${hlPkgId(pkgId3)}: ${hlValue('19.9 MB')}/${hlValue('21 MB')}
       `))
   )
 

@@ -22,6 +22,8 @@ const EOL = os.EOL
 
 const addedSign = chalk.green('+')
 const removedSign = chalk.red('-')
+const hlValue = chalk.blue
+const hlPkgId = chalk['whiteBright']
 
 type PackageDiff = {
   name: string,
@@ -80,7 +82,7 @@ export function toOutput$ (streamParser: Object): Stream<string> {
     )
     .map(
       R.apply((resolving, fetched, foundInStore: number, resolutionDone) => {
-        const msg = `Resolving: total ${resolving}, reused ${foundInStore}, downloaded ${fetched}`
+        const msg = `Resolving: total ${hlValue(resolving.toString())}, reused ${hlValue(foundInStore.toString())}, downloaded ${hlValue(fetched.toString())}`
         if (resolving === foundInStore + fetched && resolutionDone) {
           return {
             fixed: false,
@@ -108,7 +110,7 @@ export function toOutput$ (streamParser: Object): Stream<string> {
           const done = startedLog['size'] === downloadedRaw
           const downloaded = prettyBytes(downloadedRaw)
           return {
-            msg: `Downloading ${startedLog['pkgId']}: ${downloaded}/${size}${done ? ', done' : ''}`,
+            msg: `Downloading ${hlPkgId(startedLog['pkgId'])}: ${hlValue(downloaded)}/${hlValue(size)}${done ? ', done' : ''}`,
             fixed: !done,
           }
         })
@@ -281,7 +283,18 @@ export function toOutput$ (streamParser: Object): Stream<string> {
     }
     return acc
   }, {fixedBlocks: [], blocks: []} as {fixedBlocks: string[], blocks: string[]})
-  .map(sections => (sections.blocks.concat(sections.fixedBlocks)).filter(Boolean).join(EOL))
+  .map(sections => {
+    const fixedBlocks = sections.fixedBlocks.filter(Boolean)
+    const nonFixedPart = sections.blocks.filter(Boolean).join(EOL)
+    if (!fixedBlocks.length) {
+      return nonFixedPart
+    }
+    const fixedPart = fixedBlocks.join(EOL)
+    if (!nonFixedPart) {
+      return fixedPart
+    }
+    return chalk.dim(nonFixedPart) + EOL + fixedPart
+  })
   .filter(msg => {
     if (started) {
       return true
