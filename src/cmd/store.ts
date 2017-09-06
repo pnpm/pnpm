@@ -5,6 +5,7 @@ import {
 } from 'supi'
 import {PnpmError} from '../errorTypes'
 import logger from 'pnpm-logger'
+import help from './help'
 
 class StoreStatusError extends PnpmError {
   constructor (modified: string[]) {
@@ -21,7 +22,7 @@ export default async function (input: string[], opts: PnpmOptions) {
     case 'prune':
       return storePrune(opts)
     default:
-      throw new Error('Unknown command')
+      help(['store'])
   }
 }
 

@@ -77,7 +77,7 @@ async function run (argv: string[]) {
     }).notify()
   }
 
-  const cmd = getCommandFullName(cliConf.argv.remain[0])
+  const cmd = getCommandFullName(cliConf.argv.remain[0]) || 'help'
   if (!supportedCmds.has(cmd)) {
     runNpm(argv)
     return Promise.resolve()
