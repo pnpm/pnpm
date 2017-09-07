@@ -12,6 +12,7 @@ import urlLib = require('url')
 import normalizeRegistryUrl = require('normalize-registry-url')
 import PQueue = require('p-queue')
 import {progressLogger} from 'pnpm-logger'
+import retry = require('retry')
 
 export type AuthInfo = {
   alwaysAuth: boolean,
@@ -50,9 +51,21 @@ export default (
     rawNpmConfig: Object,
     alwaysAuth: boolean,
     registry: string,
+    retries?: number,
+    factor?: number,
+    minTimeout?: number,
+    maxTimeout?: number,
+    randomize?: boolean,
   }
 ): Got => {
   opts.rawNpmConfig['registry'] = normalizeRegistryUrl(opts.rawNpmConfig['registry'] || opts.registry)
+  const retryOpts = {
+    retries: opts.retries,
+    factor: opts.factor,
+    minTimeout: opts.minTimeout,
+    maxTimeout: opts.maxTimeout,
+    randomize: opts.randomize,
+  }
 
   const getCredentialsByURI = npmGetCredentialsByURI.bind({
     get (key: string) {
@@ -105,56 +118,73 @@ export default (
         urlLib.parse(url).host === urlLib.parse(opts.registry).host
       )
 
+      const op = retry.operation(retryOpts)
+
       return new Promise((resolve, reject) => {
-        client.fetch(url, {auth: shouldAuth && auth}, async (err: Error, res: IncomingMessage) => {
-          if (err) return reject(err)
-
-          if (res.statusCode !== 200) {
-            return reject(new Error(`Invalid response: ${res.statusCode}`))
-          }
-
-          const size = res.headers['content-length']
-            ? parseInt(res.headers['content-length'])
-            : null
-          if (opts.onStart) {
-            opts.onStart(size)
-          }
-          const onProgress = opts.onProgress
-          let downloaded = 0
-          res.on('data', (chunk: Buffer) => {
-            downloaded += chunk.length
-            if (onProgress) onProgress(downloaded)
-          })
-
-          const writeStream = createWriteStreamAtomic(saveto)
-
-          const stream = res
-            .on('error', reject)
-            .pipe(writeStream)
-            .on('error', reject)
-
-          Promise.all([
-            opts.integrity && ssri.checkStream(res, opts.integrity),
-            unpackStream.local(res, opts.unpackTo, {
-              generateIntegrity: opts.generatePackageIntegrity,
-            }),
-            new Promise((resolve, reject) => {
-              stream.on('close', () => {
-                if (size !== null && size !== downloaded) {
-                  const err = new Error(`Actual size (${downloaded}) of tarball (${url}) did not match the one specified in \'Content-Length\' header (${size})`)
-                  err['code'] = 'BAD_TARBALL_SIZE'
-                  err['expectedSize'] = size
-                  err['receivedSize'] = downloaded
-                  reject(err)
-                  return
-                }
-                resolve()
-              })
-            }),
-          ])
-          .then(vals => resolve(vals[1]))
-          .catch(reject)
+        op.attempt(currentAttempt => {
+          fetch()
+            .then(resolve)
+            .catch(err => {
+              if (op.retry(err)) {
+                return
+              }
+              reject(op.mainError())
+            })
         })
+
+        function fetch () {
+          return new Promise((resolve, reject) => {
+            client.fetch(url, {auth: shouldAuth && auth}, async (err: Error, res: IncomingMessage) => {
+              if (err) return reject(err)
+
+              if (res.statusCode !== 200) {
+                return reject(new Error(`Invalid response: ${res.statusCode}`))
+              }
+
+              const size = res.headers['content-length']
+                ? parseInt(res.headers['content-length'])
+                : null
+              if (opts.onStart) {
+                opts.onStart(size)
+              }
+              const onProgress = opts.onProgress
+              let downloaded = 0
+              res.on('data', (chunk: Buffer) => {
+                downloaded += chunk.length
+                if (onProgress) onProgress(downloaded)
+              })
+
+              const writeStream = createWriteStreamAtomic(saveto)
+
+              const stream = res
+                .on('error', reject)
+                .pipe(writeStream)
+                .on('error', reject)
+
+              Promise.all([
+                opts.integrity && ssri.checkStream(res, opts.integrity),
+                unpackStream.local(res, opts.unpackTo, {
+                  generateIntegrity: opts.generatePackageIntegrity,
+                }),
+                new Promise((resolve, reject) => {
+                  stream.on('close', () => {
+                    if (size !== null && size !== downloaded) {
+                      const err = new Error(`Actual size (${downloaded}) of tarball (${url}) did not match the one specified in \'Content-Length\' header (${size})`)
+                      err['code'] = 'BAD_TARBALL_SIZE'
+                      err['expectedSize'] = size
+                      err['receivedSize'] = downloaded
+                      reject(err)
+                      return
+                    }
+                    resolve()
+                  })
+                }),
+              ])
+              .then(vals => resolve(vals[1]))
+              .catch(reject)
+            })
+          })
+        }
       })
     }, {priority})
   }

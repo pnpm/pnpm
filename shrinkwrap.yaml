@@ -2,6 +2,7 @@ dependencies:
   '@types/load-json-file': 2.0.6
   '@types/node': 7.0.43
   '@types/ramda': 0.24.9
+  '@types/retry': 0.10.1
   '@types/semver': 5.4.0
   dint: 1.0.0
   encode-registry: 1.0.0
@@ -21,6 +22,7 @@ dependencies:
   ramda: 0.24.1
   read-package-json: 2.0.12
   rename-overwrite: 1.0.0
+  retry: 0.10.1
   rimraf-then: 1.0.1
   semver: 5.4.1
   ssri: 4.1.6
@@ -58,6 +60,9 @@ packages:
   /@types/ramda/0.24.9:
     resolution:
       integrity: sha512-VFBycWFpzbhDIK7afthxUiDSfXfhfsQ4uYzguflDiH/iMbAumzNS53mnE8bzvLay8bKuCCsZwt20c3SPs9nw6Q==
+  /@types/retry/0.10.1:
+    resolution:
+      integrity: sha512-iV8ZXtRV3FxfTJNEWN/3ZbexH52w//uMB+8sPYCKBIA/a2bEQWYrNwGuftGI5Xt1wMROTHrGoJPSvwrM4njx7g==
   /@types/semver/5.4.0:
     resolution:
       integrity: sha512-PBHCvO98hNec9A491vBbh0ZNDOVxccwKL1u2pm6fs9oDgm7SEnw0lEHqHfjsYryDxnE3zaf7LvERWEXjOp1hig==
@@ -1299,6 +1304,9 @@ packages:
     dev: true
     resolution:
       integrity: sha1-NGYfRohjJ/7SmRR5FSJS35LapUE=
+  /retry/0.10.1:
+    resolution:
+      integrity: sha1-52OI0heZLCUnUCQdPTlW/tmNj/Q=
   /right-pad/1.0.1:
     dev: true
     resolution:
@@ -1607,6 +1615,7 @@ specifiers:
   '@types/load-json-file': ^2.0.5
   '@types/node': ^7.0.33
   '@types/ramda': ^0.24.1
+  '@types/retry': ^0.10.1
   '@types/semver': ^5.3.32
   '@types/tape': ^4.2.30
   commitizen: ^2.8.6
@@ -1633,6 +1642,7 @@ specifiers:
   ramda: ^0.24.1
   read-package-json: ^2.0.10
   rename-overwrite: ^1.0.0
+  retry: ^0.10.1
   rimraf: ^2.6.1
   rimraf-then: ^1.0.1
   semver: ^5.3.0

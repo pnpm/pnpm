@@ -19,6 +19,7 @@ test('fail when tarball size does not match content-length and no retry passed',
     alwaysAuth: false,
     registry: 'http://example.com/',
     rawNpmConfig: {},
+    retries: 0,
   })
 
   try {
