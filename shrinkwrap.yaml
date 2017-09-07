@@ -21,7 +21,6 @@ dependencies:
   ramda: 0.24.1
   read-package-json: 2.0.12
   rename-overwrite: 1.0.0
-  rimraf: 2.6.1
   rimraf-then: 1.0.1
   semver: 5.4.1
   ssri: 4.1.6
@@ -37,6 +36,7 @@ devDependencies:
   in-publish: 2.0.0
   npm-scripts-info: 0.3.6
   pnpm-logger: 0.6.0
+  rimraf: 2.6.1
   tslint: 5.7.0
   typescript: 2.5.2
   validate-commit-msg: 2.14.0
@@ -1633,7 +1633,7 @@ specifiers:
   ramda: ^0.24.1
   read-package-json: ^2.0.10
   rename-overwrite: ^1.0.0
-  rimraf: ^2.5.4
+  rimraf: ^2.6.1
   rimraf-then: ^1.0.1
   semver: ^5.3.0
   ssri: ^4.1.6

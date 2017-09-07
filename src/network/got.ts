@@ -33,6 +33,7 @@ export type Got = {
     onStart?: (totalSize: number | null) => void,
     onProgress?: (downloaded: number) => void,
     integrity?: string
+    generatePackageIntegrity?: boolean,
   }): Promise<{}>,
   getJSON<T>(url: string, registry: string, priority?: number): Promise<T>,
 }
@@ -84,7 +85,7 @@ export default (
     onStart?: (totalSize: number | null) => void,
     onProgress?: (downloaded: number) => void,
     integrity?: string,
-    generatePackageIntegrity: boolean,
+    generatePackageIntegrity?: boolean,
   }): Promise<{}> {
     // Tarballs are requested first because they are bigger than metadata files.
     // However, when one line is left available, allow it to be picked up by a metadata request.
@@ -118,15 +119,12 @@ export default (
           if (opts.onStart) {
             opts.onStart(size)
           }
-          if (opts.onProgress) {
-            const onProgress = opts.onProgress
-            let downloaded = 0
-            let size = +res.headers['content-length']
-            res.on('data', (chunk: Buffer) => {
-              downloaded += chunk.length
-              onProgress(downloaded)
-            })
-          }
+          const onProgress = opts.onProgress
+          let downloaded = 0
+          res.on('data', (chunk: Buffer) => {
+            downloaded += chunk.length
+            if (onProgress) onProgress(downloaded)
+          })
 
           const writeStream = createWriteStreamAtomic(saveto)
 
@@ -139,7 +137,20 @@ export default (
             opts.integrity && ssri.checkStream(res, opts.integrity),
             unpackStream.local(res, opts.unpackTo, {
               generateIntegrity: opts.generatePackageIntegrity,
-            })
+            }),
+            new Promise((resolve, reject) => {
+              stream.on('close', () => {
+                if (size !== null && size !== downloaded) {
+                  const err = new Error(`Actual size (${downloaded}) of tarball (${url}) did not match the one specified in \'Content-Length\' header (${size})`)
+                  err['code'] = 'BAD_TARBALL_SIZE'
+                  err['expectedSize'] = size
+                  err['receivedSize'] = downloaded
+                  reject(err)
+                  return
+                }
+                resolve()
+              })
+            }),
           ])
           .then(vals => resolve(vals[1]))
           .catch(reject)

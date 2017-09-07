@@ -1,5 +1,6 @@
 import * as packageStore from '../src'
 import test = require('tape')
+import './network/got'
 
 test('public API', t => {
   t.equal(typeof packageStore.createGot, 'function')

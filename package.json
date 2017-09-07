@@ -57,7 +57,7 @@
     "in-publish": "^2.0.0",
     "npm-scripts-info": "^0.3.6",
     "pnpm-logger": "^0.6.0",
-    "rimraf": "^2.5.4",
+    "rimraf": "^2.6.1",
     "tslint": "^5.4.2",
     "typescript": "^2.4.1",
     "validate-commit-msg": "^2.7.0"
@@ -91,6 +91,7 @@
     "cz": "git-cz",
     "commitmsg": "validate-commit-msg",
     "lint": "tslint -c tslint.json --project .",
+    "pretest": "rimraf .tmp",
     "test": "npm run tsc && npm run lint && cd test && npm test",
     "tsc": "rimraf lib && tsc",
     "prepublishOnly": "npm run tsc"

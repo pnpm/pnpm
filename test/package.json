@@ -7,6 +7,9 @@
     "test": "ts-node index.ts"
   },
   "dependencies": {
+    "@types/nock": "^8.2.1",
+    "nock": "^9.0.14",
+    "npm-registry-client": "^8.4.0",
     "tape": "^4.7.0",
     "ts-node": "^3.2.0"
   }
