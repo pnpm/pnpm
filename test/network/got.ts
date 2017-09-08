@@ -97,6 +97,8 @@ test('fail when integrity check fails two times in a row', async t => {
     t.fail('should have failed')
   } catch (err) {
     t.equal(err.message, 'sha1-HssnaJydJVE+rbyZFKc/VAi+enY= integrity checksum failed when using sha1: wanted sha1-HssnaJydJVE+rbyZFKc/VAi+enY= but got sha1-ACjKMFA7S6uRFXSDFfH4aT+4B4Y=. (1194 bytes)')
+    t.equal(err['code'], 'EINTEGRITY')
+    t.equal(err['resource'], 'http://example.com/foo.tgz')
     t.equal(err['attempts'], 2)
     t.end()
   }

@@ -186,6 +186,7 @@ export default (
           })
           .catch(err => {
             err['attempts'] = currentAttempt
+            err['resource'] = url
             throw err
           })
         }
