@@ -378,6 +378,10 @@ async function installInContext (
       rawNpmConfig: opts.rawNpmConfig,
       alwaysAuth: opts.alwaysAuth,
       registry: opts.registry,
+      retries: opts.fetchRetries,
+      factor: opts.fetchRetryFactor,
+      maxTimeout: opts.fetchRetryMaxtimeout,
+      minTimeout: opts.fetchRetryMintimeout,
     }),
   }
   const installOpts = {

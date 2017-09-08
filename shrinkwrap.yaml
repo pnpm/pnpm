@@ -39,7 +39,7 @@ dependencies:
   os-homedir: 1.0.2
   p-filter: 1.0.0
   p-limit: 1.1.0
-  package-store: 0.3.0
+  package-store: 0.3.1
   path-exists: 3.0.0
   path-name: 1.0.0
   pnpm-install-checks: 1.1.0
@@ -60,7 +60,7 @@ devDependencies:
   cz-conventional-changelog: 2.0.0
   husky: 0.13.4
   npm-scripts-info: 0.3.6
-  pnpm-logger: 0.6.0
+  pnpm-logger: 0.6.1
   tslint: 5.7.0
   typescript: 2.4.2
   validate-commit-msg: 2.14.0
@@ -107,6 +107,9 @@ packages:
   /@types/rc/0.0.1:
     resolution:
       integrity: sha1-H1uKGzsaxtH+4TfFP6xfoPKK4Nc=
+  /@types/retry/0.10.1:
+    resolution:
+      integrity: sha512-iV8ZXtRV3FxfTJNEWN/3ZbexH52w//uMB+8sPYCKBIA/a2bEQWYrNwGuftGI5Xt1wMROTHrGoJPSvwrM4njx7g==
   /@types/semver/5.4.0:
     resolution:
       integrity: sha512-PBHCvO98hNec9A491vBbh0ZNDOVxccwKL1u2pm6fs9oDgm7SEnw0lEHqHfjsYryDxnE3zaf7LvERWEXjOp1hig==
@@ -1446,11 +1449,12 @@ packages:
   /p-queue/1.2.0:
     resolution:
       integrity: sha1-Y5y4sHJwwVtx16ZEao4wQU88ltE=
-  /package-store/0.3.0:
+  /package-store/0.3.1:
     dependencies:
       '@types/load-json-file': 2.0.6
       '@types/node': 7.0.43
       '@types/ramda': 0.24.8
+      '@types/retry': 0.10.1
       '@types/semver': 5.4.0
       dint: 1.0.0
       encode-registry: 1.0.0
@@ -1470,6 +1474,7 @@ packages:
       ramda: 0.24.1
       read-package-json: 2.0.12
       rename-overwrite: 1.0.0
+      retry: 0.10.1
       rimraf-then: 1.0.1
       semver: 5.4.1
       ssri: 4.1.6
@@ -1478,7 +1483,7 @@ packages:
       unpack-stream: 2.1.0
       write-json-file: 2.2.0
     resolution:
-      integrity: sha512-zScFXIQcY/Jmm4sdZkNDxfFSdeq6cU9jvsHztQrcviBfsr3Sdo7iKStEuLiCC7+zS9UlV9QTiqFQhB7NtiOpHA==
+      integrity: sha512-qo/uEP0UCBlG/ipvYIqQPdDQw5xt/XtlBiTm5PgLw03MYTB/UCWLA3cRBx2/IH2FtQBJBcHdPPbbz0pEjv9jtw==
   /pad-right/0.2.2:
     dependencies:
       repeat-string: 1.6.1
@@ -1580,14 +1585,14 @@ packages:
       bole: 3.0.2
     resolution:
       integrity: sha1-6uzqWgN/BTpkxQvafto8uH9e1mE=
-  /pnpm-logger/0.6.0:
+  /pnpm-logger/0.6.1:
     dependencies:
       '@types/node': 8.0.26
       bole: 3.0.2
       ndjson: 1.5.0
     dev: true
     resolution:
-      integrity: sha512-nnfR7C8PzBfYCorvmIYDThBydWdBQOih51kQRSM5oi4bGQJd/DWpqORGolhdK5ZSdpVFokMmN2xJjpIXAc4Ysw==
+      integrity: sha512-fdZlOMgYKohtp0vD+94ouNjBbgSTcxzSVO6cTEhl+5jjA9TLdgFVBrd4LzuFRrk57IM849GnM/wIuLx0cTkVWg==
   /pnpm-shrinkwrap/3.1.0:
     dependencies:
       '@types/node': 7.0.43
@@ -2244,11 +2249,11 @@ specifiers:
   os-homedir: ^1.0.2
   p-filter: ^1.0.0
   p-limit: ^1.1.0
-  package-store: ^0.3.0
+  package-store: ^0.3.1
   path-exists: ^3.0.0
   path-name: ^1.0.0
   pnpm-install-checks: ^1.1.0
-  pnpm-logger: ^0.6.0
+  pnpm-logger: ^0.6.1
   pnpm-shrinkwrap: ^3.1.0
   proper-lockfile: ^2.0.0
   ramda: ^0.24.1
