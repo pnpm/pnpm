@@ -105,8 +105,8 @@ export async function fetchFromRemoteTarball (dir: string, dist: PackageDist, op
       unpackTo: dir,
       registry: dist.registry,
       integrity: dist.integrity,
-      onStart: size => {
-        progressLogger.debug({status: 'fetching_started', pkgId: opts.pkgId, size})
+      onStart: (size, attempt) => {
+        progressLogger.debug({status: 'fetching_started', pkgId: opts.pkgId, size, attempt})
       },
       onProgress: downloaded => {
         progressLogger.debug({status: 'fetching_progress', pkgId: opts.pkgId, downloaded})

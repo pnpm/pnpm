@@ -31,7 +31,7 @@ export type Got = {
   download(url: string, saveto: string, opts: {
     unpackTo: string,
     registry?: string,
-    onStart?: (totalSize: number | null) => void,
+    onStart?: (totalSize: number | null, attempt: number) => void,
     onProgress?: (downloaded: number) => void,
     integrity?: string
     generatePackageIntegrity?: boolean,
@@ -95,7 +95,7 @@ export default (
   function download (url: string, saveto: string, opts: {
     unpackTo: string,
     registry?: string,
-    onStart?: (totalSize: number | null) => void,
+    onStart?: (totalSize: number | null, attempt: number) => void,
     onProgress?: (downloaded: number) => void,
     integrity?: string,
     generatePackageIntegrity?: boolean,
@@ -122,7 +122,7 @@ export default (
 
       return new Promise((resolve, reject) => {
         op.attempt(currentAttempt => {
-          fetch()
+          fetch(currentAttempt)
             .then(resolve)
             .catch(err => {
               if (op.retry(err)) {
@@ -132,7 +132,7 @@ export default (
             })
         })
 
-        function fetch () {
+        function fetch (currentAttempt: number) {
           return new Promise((resolve, reject) => {
             client.fetch(url, {auth: shouldAuth && auth}, async (err: Error, res: IncomingMessage) => {
               if (err) return reject(err)
@@ -145,7 +145,7 @@ export default (
                 ? parseInt(res.headers['content-length'])
                 : null
               if (opts.onStart) {
-                opts.onStart(size)
+                opts.onStart(size, currentAttempt)
               }
               const onProgress = opts.onProgress
               let downloaded = 0
@@ -183,6 +183,10 @@ export default (
               .then(vals => resolve(vals[1]))
               .catch(reject)
             })
+          })
+          .catch(err => {
+            err['attempts'] = currentAttempt
+            throw err
           })
         }
       })

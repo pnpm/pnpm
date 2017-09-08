@@ -16,7 +16,7 @@
     "lib/"
   ],
   "peerDependencies": {
-    "pnpm-logger": "^0.6.0"
+    "pnpm-logger": "^0.6.1"
   },
   "dependencies": {
     "@types/load-json-file": "^2.0.5",
@@ -58,7 +58,7 @@
     "husky": "^0.13.2",
     "in-publish": "^2.0.0",
     "npm-scripts-info": "^0.3.6",
-    "pnpm-logger": "^0.6.0",
+    "pnpm-logger": "^0.6.1",
     "rimraf": "^2.6.1",
     "tslint": "^5.4.2",
     "typescript": "^2.4.1",
