@@ -458,20 +458,22 @@ async function installInContext (
 
     for (const dep of pkgsToSave) {
       const ref = absolutePathToRef(dep.id, dep.name, dep.resolution, ctx.shrinkwrap.registry)
-      if (dep.dev) {
+      const isDev = !!devDeps[dep.name]
+      const isOptional = !!optionalDeps[dep.name]
+      if (isDev) {
         ctx.shrinkwrap.devDependencies[dep.name] = ref
-      } else if (dep.optional) {
+      } else if (isOptional) {
         ctx.shrinkwrap.optionalDependencies[dep.name] = ref
       } else {
         ctx.shrinkwrap.dependencies[dep.name] = ref
       }
-      if (!dep.dev) {
+      if (!isDev) {
         delete ctx.shrinkwrap.devDependencies[dep.name]
       }
-      if (!dep.optional) {
+      if (!isOptional) {
         delete ctx.shrinkwrap.optionalDependencies[dep.name]
       }
-      if (dep.dev || dep.optional) {
+      if (isDev || isOptional) {
         delete ctx.shrinkwrap.dependencies[dep.name]
       }
       ctx.shrinkwrap.specifiers[dep.name] = getSpecFromPkg(dep.name)

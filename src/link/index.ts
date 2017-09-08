@@ -87,12 +87,14 @@ export default async function (
   for (let pkg of flatResolvedDeps.filter(pkg => pkg.depth === 0)) {
     const symlinkingResult = await symlinkDependencyTo(pkg, opts.baseNodeModules)
     if (!symlinkingResult.reused) {
+      const isDev = opts.pkg.devDependencies && opts.pkg.devDependencies[pkg.name]
+      const isOptional = opts.pkg.optionalDependencies && opts.pkg.optionalDependencies[pkg.name]
       rootLogger.info({
         added: {
           id: pkg.id,
           name: pkg.name,
           version: pkg.version,
-          dependencyType: pkg.dev && 'dev' || pkg.optional && 'optional' || 'prod',
+          dependencyType: isDev && 'dev' || isOptional && 'optional' || 'prod',
         },
       })
     }
