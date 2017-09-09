@@ -9,6 +9,7 @@ import loadJsonFile = require('load-json-file')
 import writePkg = require('write-pkg')
 import rimraf = require('rimraf-then')
 import sinon = require('sinon')
+import {RootLog} from 'pnpm-logger'
 
 const test = promisifyTape(tape)
 
@@ -524,4 +525,42 @@ test('installing from shrinkwrap when using npm enterprise', async (t: tape.Test
   await install(opts)
 
   project.has('is-positive')
+})
+
+test('packages are placed in devDependencies even if they are present as non-dev as well', async (t: tape.Test) => {
+  const project = prepare(t, {
+    devDependencies: {
+      'pkg-with-1-dep': '^1.0.0',
+      'dep-of-pkg-with-1-dep': '^1.1.0',
+    },
+  })
+
+  await addDistTag('dep-of-pkg-with-1-dep', '1.1.0', 'latest')
+
+  const reporter = sinon.spy()
+  await install(testDefaults({reporter}))
+
+  const shr = await project.loadShrinkwrap()
+
+  t.ok(shr.devDependencies['dep-of-pkg-with-1-dep'])
+  t.ok(shr.devDependencies['pkg-with-1-dep'])
+
+  t.ok(reporter.calledWithMatch(<RootLog>{
+    name: 'pnpm:root',
+    level: 'info',
+    added: {
+      name: 'dep-of-pkg-with-1-dep',
+      version: '1.1.0',
+      dependencyType: 'dev',
+    },
+  }), 'dep-of-pkg-with-1-dep added to root')
+  t.ok(reporter.calledWithMatch(<RootLog>{
+    name: 'pnpm:root',
+    level: 'info',
+    added: {
+      name: 'pkg-with-1-dep',
+      version: '1.0.0',
+      dependencyType: 'dev',
+    },
+  }), 'pkg-with-1-dep added to root')
 })

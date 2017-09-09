@@ -167,13 +167,15 @@ export default async function (
     wantedRootResolvedNode$.mergeMap(resolvedNode => {
       return Rx.Observable.fromPromise(symlinkDependencyTo(resolvedNode, opts.baseNodeModules))
         .map(symlinkingResult => {
+          const isDev = opts.pkg.devDependencies && opts.pkg.devDependencies[resolvedNode.name]
+          const isOptional = opts.pkg.optionalDependencies && opts.pkg.optionalDependencies[resolvedNode.name]
           if (!symlinkingResult.reused) {
             rootLogger.info({
               added: {
                 id: resolvedNode.pkgId,
                 name: resolvedNode.name,
                 version: resolvedNode.version,
-                dependencyType: resolvedNode.dev && 'dev' || resolvedNode.optional && 'optional' || 'prod',
+                dependencyType: isDev && 'dev' || isOptional && 'optional' || 'prod',
               },
             })
           }
