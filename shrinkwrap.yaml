@@ -23,7 +23,6 @@ dependencies:
   pnpm-list: 1.0.0
   pnpm-logger: 0.6.1
   ramda: 0.24.1
-  rimraf: 2.6.1
   supi: 0.2.20
   update-notifier: 2.2.0
 devDependencies:
@@ -34,6 +33,7 @@ devDependencies:
   husky: 0.14.3
   in-publish: 2.0.0
   npm-scripts-info: 0.3.6
+  rimraf: 2.6.1
   tslint: 5.7.0
   typescript: 2.5.2
   validate-commit-msg: 2.14.0
@@ -43,7 +43,7 @@ packages:
       integrity: sha1-OIlyozH5YdxxrqcMCLu9ZZN3RgU=
   /@types/byline/4.2.31:
     dependencies:
-      '@types/node': 8.0.27
+      '@types/node': 8.0.28
     resolution:
       integrity: sha1-DmH8ucA+BH0hxEllVMcRYperYM0=
   /@types/chalk/0.4.31:
@@ -57,13 +57,13 @@ packages:
       integrity: sha512-nMEwdmNE0w4JTXfwiCABJ57ZLk4DnHgWxIRfiyZ32UPPkmjsoCTChroYeTUbWG7NMbdgrvKSyS744Hg3A/9tAw==
   /@types/mkdirp/0.5.1:
     dependencies:
-      '@types/node': 8.0.27
+      '@types/node': 8.0.28
     dev: true
     resolution:
       integrity: sha512-XA4vNO6GCBz8Smq0hqSRo4yRWMqr4FPQrWjhJt6nKskzly4/p87SfuJMFYGRyYb6jo2WNIQU2FDBsY5r1BibUA==
   /@types/mz/0.0.31:
     dependencies:
-      '@types/node': 8.0.27
+      '@types/node': 8.0.28
     resolution:
       integrity: sha1-pNgMCC/v5x5Ap8DwfR5lVbu8e1I=
   /@types/node/7.0.43:
@@ -72,15 +72,15 @@ packages:
   /@types/node/8.0.26:
     resolution:
       integrity: sha512-wbKN0MB4XsjdnSE04HiCzLoBDirGCM6zXrqavSj44nZnPFYpnrTF64E9O6Xmf0ca/IuKK/BHUcXwMiwk92gW6Q==
-  /@types/node/8.0.27:
+  /@types/node/8.0.28:
     resolution:
-      integrity: sha512-MiOd5TB6ftlOw6gLY3XdF0s/9YoTo172A6qGzi5I1SJy2dRZqg/LAHGTJMm1XFWx7kuYkbVW0sp/z3OP7VnkjQ==
+      integrity: sha512-HupkFXEv3O3KSzcr3Ylfajg0kaerBg1DyaZzRBBQfrU3NN1mTBRE7sCveqHwXLS5Yrjvww8qFzkzYQQakG9FuQ==
   /@types/nopt/3.0.29:
     resolution:
       integrity: sha1-8Z3z20yX7hRZonQAKDIKcdcJZM4=
   /@types/npm/2.0.29:
     dependencies:
-      '@types/node': 8.0.27
+      '@types/node': 8.0.28
     resolution:
       integrity: sha512-McqGDdeT1tSMu8sPaL0ya7xBwojQYKGVwCrlPNBcaF+o+H4wLNH03nYRTfycU11Xdu8eziEb4cgdGmu4VF/NWA==
   /@types/ramda/0.0.11:
@@ -103,7 +103,7 @@ packages:
       integrity: sha512-PBHCvO98hNec9A491vBbh0ZNDOVxccwKL1u2pm6fs9oDgm7SEnw0lEHqHfjsYryDxnE3zaf7LvERWEXjOp1hig==
   /@types/tape/4.2.30:
     dependencies:
-      '@types/node': 8.0.27
+      '@types/node': 8.0.28
     dev: true
     resolution:
       integrity: sha1-PBkXxN/W8nJxuZInclE1FbxsRrQ=
@@ -547,7 +547,7 @@ packages:
       integrity: sha1-hMbhWbgZBP3KWaDvRM2HDTElD5o=
   /dependencies-hierarchy/1.0.1:
     dependencies:
-      '@types/node': 8.0.27
+      '@types/node': 8.0.28
       '@types/semver': 5.4.0
       dependency-path: 1.1.0
       pnpm-shrinkwrap: 3.1.0
@@ -1791,7 +1791,7 @@ packages:
     dependencies:
       '@types/archy': 0.0.30
       '@types/chalk': 0.4.31
-      '@types/node': 8.0.27
+      '@types/node': 8.0.28
       archy: 1.0.0
       chalk: 2.1.0
       dependencies-hierarchy: 1.0.1
@@ -1813,7 +1813,7 @@ packages:
       integrity: sha1-6uzqWgN/BTpkxQvafto8uH9e1mE=
   /pnpm-logger/0.6.1:
     dependencies:
-      '@types/node': 8.0.27
+      '@types/node': 8.0.28
       bole: 3.0.2
       ndjson: 1.5.0
     resolution:
@@ -2321,7 +2321,7 @@ packages:
   /symlink-dir/1.1.0:
     dependencies:
       '@types/mz': 0.0.31
-      '@types/node': 8.0.27
+      '@types/node': 8.0.28
       graceful-fs: 4.1.11
       is-windows: 1.0.1
       mkdirp-promise: 5.0.1
@@ -2452,7 +2452,7 @@ packages:
       integrity: sha1-nhBXzKhRq7kzmPizOuGHuZyuwRo=
   /unpack-stream/2.1.0:
     dependencies:
-      '@types/node': 8.0.27
+      '@types/node': 8.0.28
       decompress-maybe: 1.0.0
       ssri: 4.1.6
       tar-fs: 1.15.3
