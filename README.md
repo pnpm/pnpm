@@ -176,15 +176,9 @@ function readPackage (pkg) {
 pnpm is faster than npm and Yarn. See [this](https://github.com/zkochan/node-package-manager-benchmark)
 benchmark which compares the three package managers on different types of applications.
 
-```
-time npm i babel-preset-es2015 browserify chalk debug minimist mkdirp
-    66.15 real        15.60 user         3.54 sys
-```
+Here are the benchmarks on a React app:
 
-```
-time pnpm i babel-preset-es2015 browserify chalk debug minimist mkdirp
-    11.04 real         6.85 user         2.85 sys
-```
+![](https://cdn.rawgit.com/pnpm/node-package-manager-benchmark/7f0c3e40/results/imgs/react-app.svg)
 
 ## Limitations
 
