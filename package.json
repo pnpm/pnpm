@@ -1,0 +1,58 @@
+{
+  "name": "@pnpm/outdated",
+  "version": "0.0.0",
+  "description": "Check for outdated packages",
+  "main": "lib/index.js",
+  "typings": "lib/index.d.ts",
+  "files": [
+    "lib"
+  ],
+  "scripts": {
+    "prepare": "cd test && pnpm install",
+    "test": "cd test && npm test",
+    "prepublishOnly": "tsc",
+    "tsc": "tsc",
+    "md": "mos"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/pnpm/outdated.git"
+  },
+  "keywords": [
+    "pnpm",
+    "outdated"
+  ],
+  "author": {
+    "name": "Zoltan Kochan",
+    "email": "zoltan.kochan@gmail.com",
+    "url": "https://www.kochan.io/"
+  },
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/pnpm/outdated/issues"
+  },
+  "homepage": "https://github.com/pnpm/outdated#readme",
+  "peerDependencies": {
+    "pnpm-logger": "^0.6.1"
+  },
+  "dependencies": {
+    "@types/node": "^8.0.28",
+    "npm-package-arg": "^5.1.2",
+    "npm-registry-client": "^8.4.0",
+    "pnpm-shrinkwrap": "^3.1.0"
+  },
+  "devDependencies": {
+    "mos": "^2.0.0-alpha.3",
+    "mos-plugin-readme": "^1.0.4",
+    "pnpm-logger": "^0.6.1",
+    "typescript": "^2.5.2"
+  },
+  "mos": {
+    "plugins": [
+      "readme"
+    ],
+    "installation": {
+      "useShortAlias": true
+    }
+  }
+}

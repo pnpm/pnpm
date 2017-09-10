@@ -1,0 +1,10 @@
+{
+  "scripts": {
+    "test": "ts-node index.ts"
+  },
+  "dependencies": {
+    "@types/tape": "^4.2.30",
+    "tape": "^4.8.0",
+    "ts-node": "^3.3.0"
+  }
+}
