@@ -100,6 +100,24 @@ test('moves fixed line to the end', t => {
   })
 })
 
+test('prints "Already up-to-date"', t => {
+  const output$ = toOutput$(createStreamParser())
+
+  stageLogger.debug('resolution_done')
+
+  t.plan(1)
+
+  output$.take(1).map(normalizeNewline).subscribe({
+    next: output => {
+      t.equal(output, stripIndents`
+        Already up-to-date
+      `)
+    },
+    complete: t.end,
+    error: t.end,
+  })
+})
+
 test('prints summary', t => {
   const output$ = toOutput$(createStreamParser())
 

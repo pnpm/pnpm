@@ -55,10 +55,17 @@ export function toOutput$ (streamParser: Object): Stream<string> {
   const progressLog$ = log$
     .filter(log => log.name === 'pnpm:progress') as Stream<ProgressLog>
 
+  const resolutionDone$ = log$
+    .filter(log => log.name === 'pnpm:stage' && log.message === 'resolution_done')
+    .mapTo(true)
+    .take(1)
+    .startWith(false)
+
   const resolvingContentLog$ = progressLog$
     .filter(log => log.status === 'resolving_content')
     .fold(R.inc, 0)
     .drop(1)
+    .endWhen(resolutionDone$.last())
 
   const fedtchedLog$ = progressLog$
     .filter(log => log.status === 'fetched')
@@ -68,11 +75,18 @@ export function toOutput$ (streamParser: Object): Stream<string> {
     .filter(log => log.status === 'found_in_store')
     .fold(R.inc, 0)
 
-  const resolutionDone$ = log$
-    .filter(log => log.name === 'pnpm:stage' && log.message === 'resolution_done')
-    .mapTo(true)
-    .take(1)
-    .startWith(false)
+  const alreadyUpToDate$ = xs.of(
+    resolvingContentLog$
+      .take(1)
+      .mapTo(false)
+      .startWith(true)
+      .last()
+      .filter(R.equals(true))
+      .mapTo({
+        fixed: false,
+        msg: 'Already up-to-date',
+      })
+  )
 
   const progressSummaryOutput$ = xs.of(
     xs.combine(
@@ -243,6 +257,7 @@ export function toOutput$ (streamParser: Object): Stream<string> {
       deprecationOutput$,
       miscOutput$,
       tarballsProgressOutput$,
+      alreadyUpToDate$,
     )
     .map((log: Stream<{msg: string, fixed: boolean}>) => {
       let currentBlockNo = -1
