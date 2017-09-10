@@ -49,7 +49,6 @@ dependencies:
   ramda: 0.24.1
   read-package-json: 2.0.12
   remove-all-except-outer-links: 1.0.3
-  rimraf: 2.6.1
   rimraf-then: 1.0.1
   semver: 5.4.1
   symlink-dir: 1.1.0
@@ -62,6 +61,7 @@ devDependencies:
   husky: 0.13.4
   npm-scripts-info: 0.3.6
   pnpm-logger: 0.6.1
+  rimraf: 2.6.1
   tslint: 5.7.0
   typescript: 2.4.2
   validate-commit-msg: 2.14.0
