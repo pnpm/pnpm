@@ -39,6 +39,7 @@
     "@types/node": "^8.0.28",
     "npm-package-arg": "^5.1.2",
     "npm-registry-client": "^8.4.0",
+    "package-store": "^0.3.2",
     "pnpm-shrinkwrap": "^3.1.0"
   },
   "devDependencies": {
