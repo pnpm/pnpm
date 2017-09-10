@@ -51,7 +51,10 @@ export default async function (
   newPkgResolvedIds: string[],
 }> {
   const topPkgIds = topPkgs.map(pkg => pkg.id)
-  logger.info(`Creating dependency tree`)
+  // TODO: decide what kind of logging should be here.
+  // The `Creating dependency tree` is not good to report in all cases as
+  // sometimes node_modules is alread up-to-date
+  // logger.info(`Creating dependency tree`)
   const pkgsToLink = await resolvePeers(tree, rootNodeIds, topPkgIds, opts.topParents, opts.independentLeaves, opts.baseNodeModules)
   const newShr = updateShrinkwrap(pkgsToLink, opts.shrinkwrap, opts.pkg)
 
