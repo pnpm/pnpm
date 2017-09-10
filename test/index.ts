@@ -1,6 +1,6 @@
 import test = require('tape')
 import path = require('path')
-import outdated from '../src'
+import outdated, {forPackages as outdatedForPackages} from '../src'
 
 process.chdir(path.join(__dirname, 'fixtures'))
 const temp = path.join(__dirname, '..', '.tmp')
@@ -45,6 +45,19 @@ test('outdated()', async t => {
       wanted: '3.1.0',
       latest: '3.1.0'
     }
+  ])
+  t.end()
+})
+
+test('forPackages()', async t => {
+  const outdatedPkgs = await outdatedForPackages(['is-negative'], 'wanted-shrinkwrap', outdatedOpts)
+  t.deepEqual(outdatedPkgs, [
+    {
+      packageName: 'is-negative',
+      current: '1.0.0',
+      wanted: '1.1.0',
+      latest: '2.1.0'
+    },
   ])
   t.end()
 })

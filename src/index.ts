@@ -42,6 +42,60 @@ export default async function (
     rawNpmConfig: Object,
     alwaysAuth: boolean,
   }
+) {
+  return _outdated([], pkgPath, opts)
+}
+
+export async function forPackages (
+  packages: string[],
+  pkgPath: string,
+  opts: {
+    offline: boolean,
+    storePath: string,
+    proxy?: string,
+    httpsProxy?: string,
+    localAddress?: string,
+    cert?: string,
+    key?: string,
+    ca?: string,
+    strictSsl: boolean,
+    fetchRetries: number,
+    fetchRetryFactor: number,
+    fetchRetryMintimeout: number,
+    fetchRetryMaxtimeout: number,
+    userAgent: string,
+    tag: string,
+    networkConcurrency: number,
+    rawNpmConfig: Object,
+    alwaysAuth: boolean,
+  }
+) {
+  return _outdated(packages, pkgPath, opts)
+}
+
+async function _outdated (
+  forPkgs: string[],
+  pkgPath: string,
+  opts: {
+    offline: boolean,
+    storePath: string,
+    proxy?: string,
+    httpsProxy?: string,
+    localAddress?: string,
+    cert?: string,
+    key?: string,
+    ca?: string,
+    strictSsl: boolean,
+    fetchRetries: number,
+    fetchRetryFactor: number,
+    fetchRetryMintimeout: number,
+    fetchRetryMaxtimeout: number,
+    userAgent: string,
+    tag: string,
+    networkConcurrency: number,
+    rawNpmConfig: Object,
+    alwaysAuth: boolean,
+  }
 ): Promise<OutdatedPackage[]> {
   const wantedShrinkwrap = await readWantedShrinkwrap(pkgPath, {ignoreIncompatible: false})
   if (!wantedShrinkwrap) {
@@ -68,8 +122,14 @@ export default async function (
     depTypes.map(async depType => {
       if (!wantedShrinkwrap[depType]) return
 
+      let pkgs = Object.keys(wantedShrinkwrap[depType])
+
+      if (forPkgs.length) {
+        pkgs = pkgs.filter(pkgName => forPkgs.indexOf(pkgName) !== -1)
+      }
+
       await Promise.all(
-        Object.keys(wantedShrinkwrap[depType]).map(async packageName => {
+        pkgs.map(async packageName => {
           const resolution = await resolve(npa.resolve(packageName, 'latest'), {
             downloadPriority: 0,
             got,
