@@ -1,5 +1,10 @@
 import fetch, {PackageContentInfo, FetchedPackage} from './fetch'
-import {PackageSpec, DirectoryResolution, Resolution, PackageMeta} from './resolve'
+import resolve, {
+  PackageSpec,
+  DirectoryResolution,
+  Resolution,
+  PackageMeta
+} from './resolve'
 import {Store, read, save} from './fs/storeController'
 import getRegistryName = require('encode-registry') // TODO: remove this. BREAKING CHANGE
 import createGot, {Got} from './network/got'
@@ -11,6 +16,7 @@ export {
   fetch,
   PackageContentInfo,
   FetchedPackage,
+  resolve,
   PackageSpec,
   DirectoryResolution,
   Resolution,
