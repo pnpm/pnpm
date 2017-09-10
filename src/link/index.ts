@@ -78,7 +78,10 @@ export default async function (
   privateShrinkwrap: Shrinkwrap,
   updatedPkgsAbsolutePaths: string[],
 }> {
-  logger.info(`Creating dependency tree`)
+  // TODO: decide what kind of logging should be here.
+  // The `Creating dependency tree` is not good to report in all cases as
+  // sometimes node_modules is alread up-to-date
+  // logger.info(`Creating dependency tree`)
   const resolvePeersResult = resolvePeers(
     tree,
     rootNodeId$,

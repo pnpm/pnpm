@@ -52,10 +52,11 @@ test('no dependencies (lodash)', async (t: tape.Test) => {
     level: 'debug',
     message: 'resolution_done',
   }), 'resolution stage done logged')
-  t.ok(reporter.calledWithMatch({
-    level: 'info',
-    message: 'Creating dependency tree',
-  }), 'informed about creating dependency tree')
+  // Not logged for now
+  // t.ok(reporter.calledWithMatch({
+  //   level: 'info',
+  //   message: 'Creating dependency tree',
+  // }), 'informed about creating dependency tree')
   // t.ok(reporter.calledWithMatch({
   //   level: 'info',
   //   message: 'Adding 1 packages to node_modules',
