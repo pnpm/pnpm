@@ -1,30 +1,30 @@
 import {StrictPnpmOptions, PnpmOptions} from '../types'
 import path = require('path')
 import logger from 'pnpm-logger'
-import expandTilde from '../fs/expandTilde'
 import pnpmPkgJson from '../pnpmPkgJson'
 import {LAYOUT_VERSION} from '../fs/modulesController'
 import normalizeRegistryUrl = require('normalize-registry-url')
+import {resolveStore} from 'package-store'
 
 const defaults = (opts: PnpmOptions) => {
   const packageManager = opts.packageManager || {
     name: pnpmPkgJson.name,
     version: pnpmPkgJson.version,
   }
-  const store = '~/.pnpm-store'
-  const prefix = process.cwd()
+  const prefix = opts.prefix || process.cwd()
+  const store = resolveStore(opts.store, prefix)
   return <StrictPnpmOptions>{
     fetchRetries: 2,
     fetchRetryFactor: 10,
     fetchRetryMintimeout: 1e4, // 10 seconds
     fetchRetryMaxtimeout: 6e4, // 1 minute
     store,
-    locks: path.join(opts.store || store, '_locks'),
+    locks: path.join(store, '_locks'),
     ignoreScripts: false,
     strictSsl: true,
     tag: 'latest',
     production: process.env.NODE_ENV === 'production',
-    bin: path.join(opts.prefix || prefix, 'node_modules', '.bin'),
+    bin: path.join(prefix, 'node_modules', '.bin'),
     prefix,
     nodeVersion: process.version,
     force: false,
@@ -64,7 +64,8 @@ export default (opts?: PnpmOptions): StrictPnpmOptions => {
     logger.warn('the `store-path` config is deprecated. Use `store` instead.')
     opts.store = opts.storePath
   }
-  const extendedOpts = Object.assign({}, defaults(opts), opts)
+  const defaultOpts = defaults(opts)
+  const extendedOpts = Object.assign({}, defaultOpts, opts, {store: defaultOpts.store})
   if (extendedOpts.force) {
     logger.warn('using --force I sure hope you know what you are doing')
   }
