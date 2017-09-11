@@ -7,6 +7,7 @@ import {
   resolve,
   createGot,
   PackageMeta,
+  resolveStore,
 } from 'package-store'
 import npa = require('npm-package-arg')
 import logger from 'pnpm-logger'
@@ -24,7 +25,7 @@ export default async function (
   pkgPath: string,
   opts: {
     offline: boolean,
-    storePath: string,
+    store: string,
     proxy?: string,
     httpsProxy?: string,
     localAddress?: string,
@@ -51,7 +52,7 @@ export async function forPackages (
   pkgPath: string,
   opts: {
     offline: boolean,
-    storePath: string,
+    store: string,
     proxy?: string,
     httpsProxy?: string,
     localAddress?: string,
@@ -78,7 +79,7 @@ async function _outdated (
   pkgPath: string,
   opts: {
     offline: boolean,
-    storePath: string,
+    store: string,
     proxy?: string,
     httpsProxy?: string,
     localAddress?: string,
@@ -101,6 +102,7 @@ async function _outdated (
   if (!wantedShrinkwrap) {
     throw new Error('No shrinkwrapfile in this directory. Run `pnpm install` to generate one.')
   }
+  const storePath = resolveStore(opts.store, pkgPath)
   const currentShrinkwrap = await readCurrentShrinkwrap(pkgPath, {ignoreIncompatible: false}) || {}
 
   const client = new RegClient(adaptConfig(opts))
@@ -141,7 +143,7 @@ async function _outdated (
               rawSpec: `${packageName}@latest`,
               name: packageName,
             },
-            storePath: opts.storePath,
+            storePath,
           })
 
           if (!resolution || !resolution.package) return

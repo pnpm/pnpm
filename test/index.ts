@@ -7,7 +7,7 @@ const temp = path.join(__dirname, '..', '.tmp')
 
 const outdatedOpts = {
   offline: false,
-  storePath: temp,
+  store: temp,
   strictSsl: true,
   fetchRetries: 2,
   fetchRetryFactor: 10,
