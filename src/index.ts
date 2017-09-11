@@ -10,6 +10,7 @@ import getRegistryName = require('encode-registry') // TODO: remove this. BREAKI
 import createGot, {Got} from './network/got'
 import pkgIsUntouched from './pkgIsUntouched'
 import pkgIdToFilename from './fs/pkgIdToFilename'
+import resolveStore from './resolveStore'
 
 export {
   pkgIdToFilename,
@@ -28,4 +29,5 @@ export {
   createGot,
   Got,
   pkgIsUntouched,
+  resolveStore,
 }
