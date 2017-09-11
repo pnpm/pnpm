@@ -74,14 +74,14 @@ export default (
   })
 
   let counter = 0
-  const networkConcurrency = opts.networkConcurrency
+  const networkConcurrency = opts.networkConcurrency || 16
   const requestsQueue = new PQueue({
-    concurrency: opts.networkConcurrency,
+    concurrency: networkConcurrency,
   })
 
   async function getJSON (url: string, registry: string, priority?: number) {
     return requestsQueue.add(() => new Promise((resolve, reject) => {
-      const getOpts = {
+    const getOpts = {
         auth: getCredentialsByURI(registry),
         fullMetadata: false,
       }
