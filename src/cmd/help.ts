@@ -145,6 +145,13 @@ function getHelpText(command: string) {
         Print the effective \`node_modules\` folder.
       `
 
+    case 'outdated':
+      return stripIndent`
+        pnpm outdated [[<@scope>/]<pkg> ...]
+
+        Check for outdated packages.
+      `
+
     default:
       return stripIndent`
         Usage: pnpm [command] [flags]
@@ -157,6 +164,7 @@ function getHelpText(command: string) {
           - link
           - dislink
           - list
+          - outdated
           - prune
           - install-test
           - store status

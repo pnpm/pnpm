@@ -10,6 +10,7 @@ import update from './update'
 import list from './list'
 import help from './help'
 import root from './root'
+import outdated from './outdated'
 
 export {
   install,
@@ -24,4 +25,5 @@ export {
   list,
   help,
   root,
+  outdated,
 }

@@ -268,3 +268,13 @@ declare module 'encode-registry' {
   function encodeRegistry (registry: string): string
   export = encodeRegistry;
 }
+
+declare module 'text-table' {
+  const anything: any;
+  export = anything;
+}
+
+declare module 'normalize-newline' {
+  const anything: any;
+  export = anything;
+}

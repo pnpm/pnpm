@@ -40,6 +40,7 @@ const supportedCmds = new Set([
   'dislink',
   'help',
   'root',
+  'outdated',
 ])
 
 async function run (argv: string[]) {

@@ -13,6 +13,7 @@ dependencies:
   mkdirp: 0.5.1
   mkdirp-promise: 5.0.1
   mz: 2.6.0
+  normalize-newline: 3.0.0
   npm-registry-client: 8.4.0
   npm-run-all: 4.1.1
   path-exists: 3.0.0
@@ -1084,6 +1085,9 @@ packages:
   /negotiator/0.6.1:
     resolution:
       integrity: sha1-KzJxhOiZIQEXeyhWP7XnECrNDKk=
+  /normalize-newline/3.0.0:
+    resolution:
+      integrity: sha1-HL6oBKukNgAfg5OKsh7AOdaa6dM=
   /normalize-package-data/2.4.0:
     dependencies:
       hosted-git-info: 2.5.0
@@ -1868,6 +1872,7 @@ specifiers:
   mkdirp: ^0.5.1
   mkdirp-promise: ^5.0.1
   mz: ^2.6.0
+  normalize-newline: ^3.0.0
   npm-registry-client: ^8.4.0
   npm-run-all: ^4.0.1
   path-exists: ^3.0.0

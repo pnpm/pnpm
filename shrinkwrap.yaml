@@ -1,5 +1,7 @@
 dependencies:
+  '@pnpm/outdated': 0.0.0
   '@types/byline': 4.2.31
+  '@types/chalk': 0.4.31
   '@types/common-tags': 1.2.5
   '@types/load-json-file': 2.0.6
   '@types/node': 8.0.26
@@ -9,6 +11,7 @@ dependencies:
   '@types/update-notifier': 1.0.2
   byline: 5.0.0
   camelcase: 4.1.0
+  chalk: 2.1.0
   common-tags: 1.4.0
   cross-spawn: 5.1.0
   graceful-fs: 4.1.11
@@ -24,6 +27,7 @@ dependencies:
   pnpm-logger: 0.6.1
   ramda: 0.24.1
   supi: 0.2.20
+  text-table: 0.2.0
   update-notifier: 2.2.0
 devDependencies:
   '@types/mkdirp': 0.5.1
@@ -38,6 +42,15 @@ devDependencies:
   typescript: 2.5.2
   validate-commit-msg: 2.14.0
 packages:
+  /@pnpm/outdated/0.0.0:
+    dependencies:
+      '@types/node': 8.0.28
+      npm-package-arg: 5.1.2
+      npm-registry-client: 8.4.0
+      package-store: 0.3.3
+      pnpm-shrinkwrap: 3.1.0
+    resolution:
+      integrity: sha512-0HQXArjeJFFUVmuQfpMQLLRaVPYbNG2TqZQ0lsh74LhQrgthbYiPErCWLAwH4D0WySylD0JTkYXjZtv56FHE0Q==
   /@types/archy/0.0.30:
     resolution:
       integrity: sha1-OIlyozH5YdxxrqcMCLu9ZZN3RgU=
@@ -1180,6 +1193,12 @@ packages:
     dev: true
     resolution:
       integrity: sha1-mGbfOVECEw449/mWvOtlRDIJwls=
+  /js-yaml/3.10.0:
+    dependencies:
+      argparse: 1.0.9
+      esprima: 4.0.0
+    resolution:
+      integrity: sha512-O2v52ffjLa9VeM43J4XocZE//WT9N0IiwDa3KSHH7Tu8CtH+1qM8SIZvnsTh6v+4yFy5KUY3BHUVwjpfAWsjIA==
   /js-yaml/3.9.1:
     dependencies:
       argparse: 1.0.9
@@ -1278,7 +1297,7 @@ packages:
   /load-yaml-file/0.1.0:
     dependencies:
       graceful-fs: 4.1.11
-      js-yaml: 3.9.1
+      js-yaml: 3.10.0
       pify: 2.3.0
       strip-bom: 3.0.0
     resolution:
@@ -1592,7 +1611,7 @@ packages:
       integrity: sha1-Qv5tWVPfBsgGS+bxdsPQWqqjRkQ=
   /p-every/1.0.2:
     dependencies:
-      p-map: 1.1.1
+      p-map: 1.2.0
     resolution:
       integrity: sha1-TgHYXCPaGe1xpK+6MZvbTZTIXgA=
   /p-filter/1.0.0:
@@ -1614,6 +1633,9 @@ packages:
   /p-map/1.1.1:
     resolution:
       integrity: sha1-BfXkrpegaDcbwqXMhr+9vBnErno=
+  /p-map/1.2.0:
+    resolution:
+      integrity: sha512-r6zKACMNhjPJMTl8KcFH4li//gkrXWfbD6feV8l6doRHlzljFWGJ2AP6iKaCJXyZmAUMOPtvbW7EXkbWO/pLEA==
   /p-queue/1.2.0:
     resolution:
       integrity: sha1-Y5y4sHJwwVtx16ZEao4wQU88ltE=
@@ -1660,6 +1682,42 @@ packages:
       write-json-file: 2.2.0
     resolution:
       integrity: sha512-qo/uEP0UCBlG/ipvYIqQPdDQw5xt/XtlBiTm5PgLw03MYTB/UCWLA3cRBx2/IH2FtQBJBcHdPPbbz0pEjv9jtw==
+  /package-store/0.3.3:
+    dependencies:
+      '@types/load-json-file': 2.0.6
+      '@types/node': 7.0.43
+      '@types/ramda': 0.24.11
+      '@types/retry': 0.10.1
+      '@types/semver': 5.4.0
+      dint: 1.0.0
+      encode-registry: 1.0.0
+      execa: 0.7.0
+      fs-write-stream-atomic: 1.0.10
+      load-json-file: 2.0.0
+      mkdirp-promise: 5.0.1
+      mz: 2.6.0
+      normalize-path: 2.1.1
+      normalize-registry-url: 1.0.0
+      normalize-ssh: 1.0.0
+      npm: 5.4.1
+      p-limit: 1.1.0
+      p-queue: 1.2.0
+      parse-npm-tarball-url: 1.0.1
+      path-absolute: 1.0.0
+      path-exists: 3.0.0
+      ramda: 0.24.1
+      read-package-json: 2.0.12
+      rename-overwrite: 1.0.0
+      retry: 0.10.1
+      rimraf-then: 1.0.1
+      semver: 5.4.1
+      ssri: 4.1.6
+      symlink-dir: 1.1.0
+      thenify: 3.3.0
+      unpack-stream: 2.1.0
+      write-json-file: 2.2.0
+    resolution:
+      integrity: sha512-VnopyzqBHvB67zZbwYp6DWT3jBOWIxHYkyiqDgYh7nOpIDE/N5l/GOxa8SzdmrfaDHE5HCDBa1xQxH2ATMzIiQ==
   /pad-right/0.2.2:
     dependencies:
       repeat-string: 1.6.1
@@ -1704,6 +1762,11 @@ packages:
       protocols: 1.4.6
     resolution:
       integrity: sha1-V8FUKKuKiSsfQ4aWRccR0OFEtVQ=
+  /path-absolute/1.0.0:
+    dependencies:
+      os-homedir: 1.0.2
+    resolution:
+      integrity: sha512-s0wa8oTU0s+jtq9C/xfNIRDp/8s6E2oeRvsATw1b6EZ1GNKxUCapwyBKdSzVm/2wkARh4KnyxTt3avOP4MwvnQ==
   /path-exists/2.1.0:
     dependencies:
       pinkie-promise: 2.0.1
@@ -1822,7 +1885,7 @@ packages:
     dependencies:
       '@types/node': 7.0.43
       '@types/ramda': 0.0.11
-      js-yaml: 3.9.1
+      js-yaml: 3.10.0
       load-yaml-file: 0.1.0
       mkdirp-promise: 5.0.1
       pnpm-logger: 0.3.0
@@ -1981,7 +2044,7 @@ packages:
   /rename-overwrite/1.0.0:
     dependencies:
       graceful-fs: 4.1.11
-      rimraf: 2.6.1
+      rimraf: 2.6.2
       thenify: 3.3.0
       timeout-then: 1.1.0
     resolution:
@@ -2067,7 +2130,7 @@ packages:
   /rimraf-then/1.0.1:
     dependencies:
       any-promise: 1.3.0
-      rimraf: 2.6.1
+      rimraf: 2.6.2
     resolution:
       integrity: sha1-vURYp561YbdUiq7ArDdT70Kf5ws=
   /rimraf/2.6.1:
@@ -2075,6 +2138,11 @@ packages:
       glob: 7.1.2
     resolution:
       integrity: sha1-wjOOxkPfeht/5cVPqG9XQopV8z0=
+  /rimraf/2.6.2:
+    dependencies:
+      glob: 7.1.2
+    resolution:
+      integrity: sha512-lreewLK/BlghmxtfH36YYVg1i8IAce4TI7oao75I1g245+6BctqTVQiBP3YUJ9C6DQOXJmkYR9X9fCLtCOJc5w==
   /run-async/2.3.0:
     dependencies:
       is-promise: 2.1.0
@@ -2356,6 +2424,9 @@ packages:
       execa: 0.7.0
     resolution:
       integrity: sha1-RYuDiH8oj8Vtb/+/rSYuJmOO+mk=
+  /text-table/0.2.0:
+    resolution:
+      integrity: sha1-f17oI66AUgfACvLfSoTsP8+lcLQ=
   /thenify-all/1.6.0:
     dependencies:
       thenify: 3.3.0
@@ -2599,7 +2670,9 @@ packages:
 registry: 'https://registry.npmjs.org/'
 shrinkwrapVersion: 3
 specifiers:
+  '@pnpm/outdated': ^0.0.0
   '@types/byline': ^4.2.31
+  '@types/chalk': ^0.4.31
   '@types/common-tags': ^1.2.5
   '@types/load-json-file': ^2.0.5
   '@types/mkdirp': ^0.5.0
@@ -2611,6 +2684,7 @@ specifiers:
   '@types/update-notifier': ^1.0.0
   byline: ^5.0.0
   camelcase: ^4.1.0
+  chalk: ^2.1.0
   commitizen: ^2.8.6
   common-tags: ^1.4.0
   cross-spawn: ^5.0.0
@@ -2632,6 +2706,7 @@ specifiers:
   ramda: ^0.24.1
   rimraf: ^2.5.4
   supi: ^0.2.20
+  text-table: ^0.2.0
   tslint: ^5.4.2
   typescript: ^2.4.1
   update-notifier: ^2.1.0
