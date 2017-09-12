@@ -3,7 +3,7 @@ import loadJsonFile = require('load-json-file')
 import symlinkDir = require('symlink-dir')
 import logger, {streamParser} from 'pnpm-logger'
 import {install} from './install'
-import expandTilde from '../fs/expandTilde'
+import pathAbsolute = require('path-absolute')
 import {linkPkgBins} from '../link/linkBins'
 import {PnpmOptions} from '../types'
 import extendOptions from './extendOptions'
@@ -53,7 +53,7 @@ export async function linkFromGlobal (
     streamParser.on('data', reporter)
   }
   const opts = extendOptions(maybeOpts)
-  const globalPkgPath = expandTilde(maybeOpts.globalPrefix)
+  const globalPkgPath = pathAbsolute(maybeOpts.globalPrefix)
   const linkedPkgPath = path.join(globalPkgPath, 'node_modules', pkgName)
   await link(linkedPkgPath, linkTo, opts)
 
@@ -76,7 +76,7 @@ export async function linkToGlobal (
   const opts = extendOptions(maybeOpts)
   opts.global = true // bins will be linked to the global bin path
   opts.bin = maybeOpts.globalBin
-  const globalPkgPath = expandTilde(maybeOpts.globalPrefix)
+  const globalPkgPath = pathAbsolute(maybeOpts.globalPrefix)
   await link(linkFrom, globalPkgPath, opts)
 
   if (reporter) {

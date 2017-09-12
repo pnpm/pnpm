@@ -3,7 +3,6 @@ import path = require('path')
 import lockfile = require('proper-lockfile')
 import mkdirp = require('mkdirp-promise')
 import crypto = require('crypto')
-import expandTilde from '../fs/expandTilde'
 
 async function delay(ms: number) {
   return new Promise(resolve => setTimeout(resolve, ms))
@@ -53,11 +52,8 @@ export default async function withLock<T> (
   }
 ): Promise<T> {
   dir = path.resolve(dir)
-  // TODO: expand tilde only once. Currently it can be done several times during installation
-  // because several locks might get created
-  const locksDir = expandTilde(opts.locks)
-  await mkdirp(locksDir)
-  const lockFilename = path.join(locksDir, crypto.createHash('sha1').update(dir).digest('hex'))
+  await mkdirp(opts.locks)
+  const lockFilename = path.join(opts.locks, crypto.createHash('sha1').update(dir).digest('hex'))
   await lock(lockFilename, {firstTime: true, stale: opts.stale})
   try {
     const result = await fn()

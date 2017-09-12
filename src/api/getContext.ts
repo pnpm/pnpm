@@ -2,7 +2,6 @@ import path = require('path')
 import isCI = require('is-ci')
 import {fromDir as readPkgFromDir} from '../fs/readPkg'
 import writePkg = require('write-pkg')
-import expandTilde, {isHomepath} from '../fs/expandTilde'
 import {
   Store,
   read as readStore,
@@ -24,8 +23,6 @@ import removeAllExceptOuterLinks = require('remove-all-except-outer-links')
 import logger from 'pnpm-logger'
 import checkCompatibility from './checkCompatibility'
 
-const STORE_VERSION = '2'
-
 export type PnpmContext = {
   pkg: Package,
   storeIndex: Store,
@@ -40,9 +37,7 @@ export type PnpmContext = {
 
 export default async function getContext (opts: StrictPnpmOptions, installType?: 'named' | 'general'): Promise<PnpmContext> {
   const root = normalizePath(opts.prefix)
-  const storeBasePath = resolveStoreBasePath(opts.store, root)
-
-  const storePath = path.join(storeBasePath, STORE_VERSION)
+  const storePath = opts.store
 
   const modulesPath = path.join(root, 'node_modules')
   const modules = await readModules(modulesPath)
@@ -108,11 +103,4 @@ async function readGlobalPkgJson (globalPkgPath: string) {
     await writePkg(globalPkgPath, DefaultGlobalPkg)
     return DefaultGlobalPkg
   }
-}
-
-function resolveStoreBasePath (storePath: string, pkgRoot: string) {
-  if (isHomepath(storePath)) {
-    return expandTilde(storePath)
-  }
-  return path.resolve(pkgRoot, storePath)
 }

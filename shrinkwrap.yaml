@@ -40,7 +40,8 @@ dependencies:
   os-homedir: 1.0.2
   p-filter: 1.0.0
   p-limit: 1.1.0
-  package-store: 0.3.1
+  package-store: 0.3.3
+  path-absolute: 1.0.0
   path-exists: 3.0.0
   path-name: 1.0.0
   pnpm-install-checks: 1.1.0
@@ -1455,7 +1456,7 @@ packages:
   /p-queue/1.2.0:
     resolution:
       integrity: sha1-Y5y4sHJwwVtx16ZEao4wQU88ltE=
-  /package-store/0.3.1:
+  /package-store/0.3.3:
     dependencies:
       '@types/load-json-file': 2.0.6
       '@types/node': 7.0.43
@@ -1476,6 +1477,7 @@ packages:
       p-limit: 1.1.0
       p-queue: 1.2.0
       parse-npm-tarball-url: 1.0.1
+      path-absolute: 1.0.0
       path-exists: 3.0.0
       ramda: 0.24.1
       read-package-json: 2.0.12
@@ -1489,7 +1491,7 @@ packages:
       unpack-stream: 2.1.0
       write-json-file: 2.2.0
     resolution:
-      integrity: sha512-qo/uEP0UCBlG/ipvYIqQPdDQw5xt/XtlBiTm5PgLw03MYTB/UCWLA3cRBx2/IH2FtQBJBcHdPPbbz0pEjv9jtw==
+      integrity: sha512-VnopyzqBHvB67zZbwYp6DWT3jBOWIxHYkyiqDgYh7nOpIDE/N5l/GOxa8SzdmrfaDHE5HCDBa1xQxH2ATMzIiQ==
   /pad-right/0.2.2:
     dependencies:
       repeat-string: 1.6.1
@@ -1529,6 +1531,11 @@ packages:
       protocols: 1.4.5
     resolution:
       integrity: sha1-V8FUKKuKiSsfQ4aWRccR0OFEtVQ=
+  /path-absolute/1.0.0:
+    dependencies:
+      os-homedir: 1.0.2
+    resolution:
+      integrity: sha512-s0wa8oTU0s+jtq9C/xfNIRDp/8s6E2oeRvsATw1b6EZ1GNKxUCapwyBKdSzVm/2wkARh4KnyxTt3avOP4MwvnQ==
   /path-exists/2.1.0:
     dependencies:
       pinkie-promise: 2.0.1
@@ -2259,7 +2266,8 @@ specifiers:
   os-homedir: ^1.0.2
   p-filter: ^1.0.0
   p-limit: ^1.1.0
-  package-store: ^0.3.1
+  package-store: ^0.3.3
+  path-absolute: ^1.0.0
   path-exists: ^3.0.0
   path-name: ^1.0.0
   pnpm-install-checks: ^1.1.0
