@@ -21,12 +21,12 @@ dependencies:
   nopt: 4.0.1
   npm: 5.4.1
   path-name: 1.0.0
-  pnpm-default-reporter: 0.9.1
+  pnpm-default-reporter: 0.9.2
   pnpm-file-reporter: 0.0.1
   pnpm-list: 1.0.0
   pnpm-logger: 0.6.1
   ramda: 0.24.1
-  supi: 0.2.20
+  supi: 0.2.21
   text-table: 0.2.0
   update-notifier: 2.2.0
 devDependencies:
@@ -37,7 +37,7 @@ devDependencies:
   husky: 0.14.3
   in-publish: 2.0.0
   npm-scripts-info: 0.3.6
-  rimraf: 2.6.1
+  rimraf: 2.6.2
   tslint: 5.7.0
   typescript: 2.5.2
   validate-commit-msg: 2.14.0
@@ -814,7 +814,7 @@ packages:
       graceful-fs: 4.1.11
       inherits: 2.0.3
       mkdirp: 0.5.1
-      rimraf: 2.6.1
+      rimraf: 2.6.2
     resolution:
       integrity: sha1-XB+x8RdHcRTwYyoOtLcbPLD9MXE=
   /gauge/2.7.4:
@@ -1199,12 +1199,6 @@ packages:
       esprima: 4.0.0
     resolution:
       integrity: sha512-O2v52ffjLa9VeM43J4XocZE//WT9N0IiwDa3KSHH7Tu8CtH+1qM8SIZvnsTh6v+4yFy5KUY3BHUVwjpfAWsjIA==
-  /js-yaml/3.9.1:
-    dependencies:
-      argparse: 1.0.9
-      esprima: 4.0.0
-    resolution:
-      integrity: sha512-CbcG379L1e+mWBnLvHWWeLs8GyV/EMw862uLI3c+GxVyDHWZcjZinwuBd3iW2pgxgIlksW/1vNJa4to+RvDOww==
   /jsbn/0.1.1:
     optional: true
     resolution:
@@ -1465,7 +1459,7 @@ packages:
       npmlog: 4.1.2
       osenv: 0.1.4
       request: 2.81.0
-      rimraf: 2.6.1
+      rimraf: 2.6.2
       semver: 5.3.0
       tar: 2.2.1
       which: 1.3.0
@@ -1616,7 +1610,7 @@ packages:
       integrity: sha1-TgHYXCPaGe1xpK+6MZvbTZTIXgA=
   /p-filter/1.0.0:
     dependencies:
-      p-map: 1.1.1
+      p-map: 1.2.0
     resolution:
       integrity: sha1-Yp0xcVAgnI/VCLoTdxPvS7kg6ds=
   /p-finally/1.0.0:
@@ -1630,9 +1624,6 @@ packages:
       p-limit: 1.1.0
     resolution:
       integrity: sha1-IKAQOyIqcMj9OcwuWAaA893l7EM=
-  /p-map/1.1.1:
-    resolution:
-      integrity: sha1-BfXkrpegaDcbwqXMhr+9vBnErno=
   /p-map/1.2.0:
     resolution:
       integrity: sha512-r6zKACMNhjPJMTl8KcFH4li//gkrXWfbD6feV8l6doRHlzljFWGJ2AP6iKaCJXyZmAUMOPtvbW7EXkbWO/pLEA==
@@ -1647,41 +1638,6 @@ packages:
       semver: 5.4.1
     resolution:
       integrity: sha1-iGmgQBJTZhxMTKPabCEh7VVfXu0=
-  /package-store/0.3.1:
-    dependencies:
-      '@types/load-json-file': 2.0.6
-      '@types/node': 7.0.43
-      '@types/ramda': 0.24.11
-      '@types/retry': 0.10.1
-      '@types/semver': 5.4.0
-      dint: 1.0.0
-      encode-registry: 1.0.0
-      execa: 0.7.0
-      fs-write-stream-atomic: 1.0.10
-      load-json-file: 2.0.0
-      mkdirp-promise: 5.0.1
-      mz: 2.6.0
-      normalize-path: 2.1.1
-      normalize-registry-url: 1.0.0
-      normalize-ssh: 1.0.0
-      npm: 5.4.1
-      p-limit: 1.1.0
-      p-queue: 1.2.0
-      parse-npm-tarball-url: 1.0.1
-      path-exists: 3.0.0
-      ramda: 0.24.1
-      read-package-json: 2.0.12
-      rename-overwrite: 1.0.0
-      retry: 0.10.1
-      rimraf-then: 1.0.1
-      semver: 5.4.1
-      ssri: 4.1.6
-      symlink-dir: 1.1.0
-      thenify: 3.3.0
-      unpack-stream: 2.1.0
-      write-json-file: 2.2.0
-    resolution:
-      integrity: sha512-qo/uEP0UCBlG/ipvYIqQPdDQw5xt/XtlBiTm5PgLw03MYTB/UCWLA3cRBx2/IH2FtQBJBcHdPPbbz0pEjv9jtw==
   /package-store/0.3.3:
     dependencies:
       '@types/load-json-file': 2.0.6
@@ -1819,7 +1775,7 @@ packages:
     dev: true
     resolution:
       integrity: sha1-clVrgM+g1IqXToDnckjoDtT3+HA=
-  /pnpm-default-reporter/0.9.1:
+  /pnpm-default-reporter/0.9.2:
     dependencies:
       '@types/chalk': 0.4.31
       '@types/common-tags': 1.2.5
@@ -1833,7 +1789,7 @@ packages:
       ramda: 0.24.1
       xstream: 10.9.0
     resolution:
-      integrity: sha512-sBnDJ8F5332WJoZ7ZyesJbcPtFrQ04uldnWLZQogIiUi3Bt+ukQq5xwmxg8SM8IwIDUOgSnvO9+RotCHPk3AQA==
+      integrity: sha512-x2Q2ZjfqlFgwzHEwFgjcpx81gWOHkrEBeUv5Z/o/t2O4PGmQ0q6JRPTrL3paPKVTCC9O5LG6zINfQzjRTj0qgQ==
   /pnpm-file-reporter/0.0.1:
     dependencies:
       '@types/chalk': 0.4.31
@@ -2133,11 +2089,6 @@ packages:
       rimraf: 2.6.2
     resolution:
       integrity: sha1-vURYp561YbdUiq7ArDdT70Kf5ws=
-  /rimraf/2.6.1:
-    dependencies:
-      glob: 7.1.2
-    resolution:
-      integrity: sha1-wjOOxkPfeht/5cVPqG9XQopV8z0=
   /rimraf/2.6.2:
     dependencies:
       glob: 7.1.2
@@ -2316,7 +2267,7 @@ packages:
   /strip-json-comments/2.0.1:
     resolution:
       integrity: sha1-PFMZQukIwml8DsNEhYwobHygpgo=
-  /supi/0.2.20:
+  /supi/0.2.21:
     dependencies:
       '@types/byline': 4.2.31
       '@types/common-tags': 1.2.5
@@ -2358,7 +2309,8 @@ packages:
       os-homedir: 1.0.2
       p-filter: 1.0.0
       p-limit: 1.1.0
-      package-store: 0.3.1
+      package-store: 0.3.3
+      path-absolute: 1.0.0
       path-exists: 3.0.0
       path-name: 1.0.0
       pnpm-install-checks: 1.1.0
@@ -2374,7 +2326,7 @@ packages:
       write-pkg: 3.1.0
       write-yaml-file: 1.0.0
     resolution:
-      integrity: sha512-6rZW3+BqPfGWrbAHwRdlFo7ZGBCD+hoxMAmNoKuxnxwRMgmVKCjCTsr2/EFyVsZMV++BuqfDLJdjnrRwI9dLdw==
+      integrity: sha512-NnUN3Ef1FbnSLWPIoKYndCoai6cAx4PYeDesr7v+aFmnEbHczFUGDmyZX22erRoEOiXaMZixCGda4+iWmXbT0A==
   /supports-color/2.0.0:
     resolution:
       integrity: sha1-U10EXOa2Nj+kARcIRimZXp3zJMc=
@@ -2647,7 +2599,7 @@ packages:
   /write-yaml-file/1.0.0:
     dependencies:
       graceful-fs: 4.1.11
-      js-yaml: 3.9.1
+      js-yaml: 3.10.0
       mkdirp: 0.5.1
       pify: 2.3.0
       write-file-atomic: 1.3.4
@@ -2699,13 +2651,13 @@ specifiers:
   npm: ^5.0.2
   npm-scripts-info: ^0.3.6
   path-name: ^1.0.0
-  pnpm-default-reporter: ^0.9.1
+  pnpm-default-reporter: ^0.9.2
   pnpm-file-reporter: ^0.0.1
   pnpm-list: ^1.0.0
   pnpm-logger: ^0.6.1
   ramda: ^0.24.1
   rimraf: ^2.5.4
-  supi: ^0.2.20
+  supi: ^0.2.21
   text-table: ^0.2.0
   tslint: ^5.4.2
   typescript: ^2.4.1
