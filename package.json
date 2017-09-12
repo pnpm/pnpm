@@ -1,7 +1,7 @@
 {
   "name": "pnpm",
   "description": "Fast, disk space efficient package manager",
-  "version": "1.14.0",
+  "version": "1.14.2",
   "author": "Rico Sta. Cruz <rico@ricostacruz.com>",
   "bin": {
     "pnpm": "lib/bin/pnpm.js"
@@ -51,7 +51,6 @@
     "commitizen": "^2.8.6",
     "cz-conventional-changelog": "^2.0.0",
     "husky": "^0.14.0",
-    "in-publish": "^2.0.0",
     "npm-scripts-info": "^0.3.6",
     "rimraf": "^2.5.4",
     "tslint": "^5.4.2",
@@ -103,7 +102,7 @@
     "lint": "tslint -c tslint.json --project .",
     "test": "npm run tsc && npm run lint && cd test && npm test",
     "tsc": "rimraf lib && tsc",
-    "prepublish": "in-publish && echo 'You need to use \"publish-packed\" to publish pnpm' && false || npm run tsc"
+    "prepublishOnly": "npm run tsc"
   },
   "config": {
     "commitizen": {

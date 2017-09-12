@@ -35,7 +35,6 @@ devDependencies:
   commitizen: 2.9.6
   cz-conventional-changelog: 2.0.0
   husky: 0.14.3
-  in-publish: 2.0.0
   npm-scripts-info: 0.3.6
   rimraf: 2.6.2
   tslint: 5.7.0
@@ -989,10 +988,6 @@ packages:
   /imurmurhash/0.1.4:
     resolution:
       integrity: sha1-khi5srkoojixPcT7a21XbyMUU+o=
-  /in-publish/2.0.0:
-    dev: true
-    resolution:
-      integrity: sha1-4g/146KvwmkDILbcVSaCqcf631E=
   /indent-string/2.1.0:
     dependencies:
       repeating: 2.0.1
@@ -2643,7 +2638,6 @@ specifiers:
   cz-conventional-changelog: ^2.0.0
   graceful-fs: ^4.1.11
   husky: ^0.14.0
-  in-publish: ^2.0.0
   is-ci: ^1.0.10
   load-json-file: ^3.0.0
   loud-rejection: ^1.6.0
