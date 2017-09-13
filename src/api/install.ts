@@ -442,7 +442,10 @@ async function installInContext (
         if (!dep) return null
         return {
           name: dep.name,
-          saveSpec: getSaveSpec(spec, dep.version, opts.saveExact)
+          saveSpec: getSaveSpec(spec, dep.version, {
+            saveExact: opts.saveExact,
+            savePrefix: opts.savePrefix,
+          })
         }
       }).filter(Boolean),
       saveType
@@ -576,12 +579,20 @@ function getTopParent$ (
     }))
 }
 
-function getSaveSpec(spec: PackageSpec, version: string, saveExact: boolean) {
+function getSaveSpec (
+  spec: PackageSpec,
+  version: string,
+  opts: {
+    saveExact: boolean,
+    savePrefix: string,
+  }
+) {
   switch (spec.type) {
     case 'version':
     case 'range':
     case 'tag':
-      return `${saveExact ? '' : '^'}${version}`
+      if (opts.saveExact) return version
+      return `${opts.savePrefix}${version}`
     default:
       return spec.saveSpec
   }
