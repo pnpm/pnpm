@@ -48,6 +48,7 @@ const defaults = (opts: PnpmOptions) => {
     packageManager,
     verifyStoreIntegrity: true,
     hooks: {},
+    savePrefix: '^',
   }
 }
 

@@ -172,3 +172,11 @@ test('multiple save to package.json with `exact` versions (@rstacruz/tap-spec & 
   t.deepEqual(pkgJson.dependencies, expectedDeps, 'tap-spec and rimraf have been added to dependencies')
   t.deepEqual(Object.keys(pkgJson.dependencies), Object.keys(expectedDeps), 'tap-spec and rimraf have been added to dependencies in sorted order')
 })
+
+test('save to package.json with save-prefix=~', async (t: tape.Test) => {
+  const project = prepare(t)
+  await installPkgs(['rimraf@2.5.1'], testDefaults({ savePrefix: '~' }))
+
+  const pkgJson = await readPkg()
+  t.deepEqual(pkgJson.dependencies, {rimraf: '~2.5.1'}, 'rimraf have been added to dependencies')
+})
