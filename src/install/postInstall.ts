@@ -9,16 +9,16 @@ const nodeGyp = path.resolve(pnpmNodeModules, 'node-gyp/bin/node-gyp.js')
 
 export default async function postInstall (
   root: string,
-  log: Function,
   opts: {
-    userAgent: string
+    userAgent: string,
+    pkgId: string,
   }
 ) {
   const pkg = await readPkgFromDir(root)
   const scripts = pkg && pkg.scripts || {}
 
   if (!scripts['install']) {
-    await checkBindingGyp(root, log, opts)
+    await checkBindingGyp(root, opts)
   }
 
   if (scripts['install']) {
@@ -31,7 +31,11 @@ export default async function postInstall (
 
   async function npmRunScript (scriptName: string) {
     if (!scripts[scriptName]) return
-    return runScript('npm', ['run', scriptName], { cwd: root, log, userAgent: opts.userAgent })
+    return runScript('npm', ['run', scriptName], {
+      cwd: root,
+      pkgId: opts.pkgId,
+      userAgent: opts.userAgent,
+    })
   }
 }
 
@@ -41,9 +45,9 @@ export default async function postInstall (
  */
 async function checkBindingGyp (
   root: string,
-  log: Function,
   opts: {
-    userAgent: string
+    userAgent: string,
+    pkgId: string,
   }
 ) {
   try {
@@ -53,5 +57,9 @@ async function checkBindingGyp (
       return
     }
   }
-  return runScript(nodeGyp, ['rebuild'], { cwd: root, log, userAgent: opts.userAgent })
+  return runScript(nodeGyp, ['rebuild'], {
+    cwd: root,
+    pkgId: opts.pkgId,
+    userAgent: opts.userAgent,
+  })
 }

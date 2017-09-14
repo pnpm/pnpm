@@ -2,7 +2,6 @@ import path = require('path')
 import RegClient = require('npm-registry-client')
 import logger, {
   streamParser,
-  lifecycleLogger,
   summaryLogger,
 } from 'pnpm-logger'
 import logStatus from '../logging/logInstallStatus'
@@ -497,8 +496,9 @@ async function installInContext (
       R.props<ResolvedNode>(result.updatedPkgsAbsolutePaths, result.resolvedNodesMap)
         .map(resolvedNode => limitChild(async () => {
           try {
-            await postInstall(resolvedNode.hardlinkedLocation, installLogger(resolvedNode.pkgId), {
-              userAgent: opts.userAgent
+            await postInstall(resolvedNode.hardlinkedLocation, {
+              userAgent: opts.userAgent,
+              pkgId: resolvedNode.pkgId,
             })
           } catch (err) {
             if (!installCtx.nonOptionalPackageIds.has(resolvedNode.pkgId)) {
@@ -637,12 +637,5 @@ function npmRun (scriptName: string, pkgRoot: string, userAgent: string) {
     const err = new Error(`Running event ${scriptName} failed with status ${result.status}`)
     err['code'] = 'ELIFECYCLE'
     throw err
-  }
-}
-
-function installLogger (pkgId: string) {
-  return (stream: string, line: string) => {
-    const logLevel = stream === 'stderr' ? 'error' : 'info'
-    lifecycleLogger[logLevel]({pkgId, line})
   }
 }
