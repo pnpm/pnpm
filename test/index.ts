@@ -23,6 +23,9 @@ const SUB = chalk.red('-')
 const h1 = chalk.blue
 const hlValue = chalk.blue
 const hlPkgId = chalk['whiteBright']
+const POSTINSTALL = hlValue('postinstall')
+const PREINSTALL = hlValue('preinstall')
+const INSTALL = hlValue('install')
 
 test('prints progress beginning', t => {
   const output$ = toOutput$(createStreamParser())
@@ -200,6 +203,65 @@ test('prints summary', t => {
   })
 })
 
+test('groups lifecycle output', t => {
+  const output$ = toOutput$(createStreamParser())
+
+  const pkgId = 'registry.npmjs.org/foo/1.0.0'
+
+  lifecycleLogger.debug({
+    pkgId: 'registry.npmjs.org/foo/1.0.0',
+    line: 'foo',
+    script: 'preinstall',
+  })
+  lifecycleLogger.debug({
+    pkgId: 'registry.npmjs.org/foo/1.0.0',
+    line: 'foo I',
+    script: 'postinstall',
+  })
+  lifecycleLogger.debug({
+    pkgId: 'registry.npmjs.org/bar/1.0.0',
+    line: 'bar I',
+    script: 'postinstall',
+  })
+  lifecycleLogger.debug({
+    pkgId: 'registry.npmjs.org/foo/1.0.0',
+    line: 'foo II',
+    script: 'postinstall',
+  })
+  lifecycleLogger.debug({
+    pkgId: 'registry.npmjs.org/foo/1.0.0',
+    line: 'foo III',
+    script: 'postinstall',
+  })
+  lifecycleLogger.debug({
+    pkgId: 'registry.npmjs.org/qar/1.0.0',
+    line: '...',
+    script: 'install',
+  })
+  lifecycleLogger.debug({
+    pkgId: 'registry.npmjs.org/qar/1.0.0',
+    exitCode: 0,
+    script: 'install',
+  })
+
+  t.plan(1)
+
+  const childOutputColor = chalk.grey
+
+  output$.drop(6).take(1).map(normalizeNewline).subscribe({
+    next: output => {
+      t.equal(output, stripIndents`
+        Running ${PREINSTALL} for ${hlPkgId('registry.npmjs.org/foo/1.0.0')}: ${childOutputColor('foo')}
+        Running ${POSTINSTALL} for ${hlPkgId('registry.npmjs.org/foo/1.0.0')}: ${childOutputColor('foo III')}
+        Running ${POSTINSTALL} for ${hlPkgId('registry.npmjs.org/bar/1.0.0')}: ${childOutputColor('bar I')}
+        Running ${INSTALL} for ${hlPkgId('registry.npmjs.org/qar/1.0.0')}, done
+      `)
+    },
+    complete: t.end,
+    error: t.end,
+  })
+})
+
 test('prints lifecycle progress', t => {
   const output$ = toOutput$(createStreamParser())
 
@@ -208,32 +270,36 @@ test('prints lifecycle progress', t => {
   lifecycleLogger.debug({
     pkgId: 'registry.npmjs.org/foo/1.0.0',
     line: 'foo I',
+    script: 'postinstall',
   })
   lifecycleLogger.debug({
     pkgId: 'registry.npmjs.org/bar/1.0.0',
     line: 'bar I',
+    script: 'postinstall',
   })
   lifecycleLogger.error({
     pkgId: 'registry.npmjs.org/foo/1.0.0',
     line: 'foo II',
+    script: 'postinstall',
   })
   lifecycleLogger.debug({
     pkgId: 'registry.npmjs.org/foo/1.0.0',
     line: 'foo III',
+    script: 'postinstall',
   })
 
   t.plan(1)
 
-  const pkgIdColor = chalk.blue
   const childOutputColor = chalk.grey
+  const childOutputError = chalk.red
 
   output$.drop(3).take(1).map(normalizeNewline).subscribe({
     next: output => {
       t.equal(output, stripIndents`
-        ${pkgIdColor('registry.npmjs.org/foo/1.0.0')}  ${childOutputColor('foo I')}
-        ${pkgIdColor('registry.npmjs.org/bar/1.0.0')}  ${childOutputColor('bar I')}
-        ${pkgIdColor('registry.npmjs.org/foo/1.0.0')}! ${childOutputColor('foo II')}
-        ${pkgIdColor('registry.npmjs.org/foo/1.0.0')}  ${childOutputColor('foo III')}
+        Running ${POSTINSTALL} for ${hlPkgId('registry.npmjs.org/foo/1.0.0')}: ${childOutputColor('foo I')}
+        Running ${POSTINSTALL} for ${hlPkgId('registry.npmjs.org/foo/1.0.0')}! ${childOutputError('foo II')}
+        Running ${POSTINSTALL} for ${hlPkgId('registry.npmjs.org/foo/1.0.0')}: ${childOutputColor('foo III')}
+        Running ${POSTINSTALL} for ${hlPkgId('registry.npmjs.org/bar/1.0.0')}: ${childOutputColor('bar I')}
       `)
     },
     complete: t.end,
@@ -297,6 +363,7 @@ test('prints progress of big files download', t => {
     status: 'fetching_started',
     pkgId: pkgId1,
     size: 1024 * 1024 * 10, // 10 MB
+    attempt: 1,
   })
 
   stream$.push(
@@ -334,6 +401,7 @@ test('prints progress of big files download', t => {
     status: 'fetching_started',
     pkgId: pkgId1,
     size: 10, // 10 B
+    attempt: 1,
   })
 
   progressLogger.debug({
@@ -361,6 +429,7 @@ test('prints progress of big files download', t => {
     status: 'fetching_started',
     pkgId: pkgId3,
     size: 1024 * 1024 * 20, // 20 MB
+    attempt: 1,
   })
 
   progressLogger.debug({

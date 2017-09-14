@@ -211,11 +211,25 @@ export function toOutput$ (streamParser: Object): Stream<string> {
     })
     .map(xs.of)
 
-  const lifecycleOutput$ = log$
-    .filter(log => log.name === 'pnpm:lifecycle')
-    .map(formatLifecycle)
-    .map(msg => ({msg}))
-    .map(xs.of)
+  const lifecycleMessages: {[pkgId: string]: {keep: boolean, output: string}} = {}
+  const lifecycleOutput$ = xs.of(
+    log$
+      .filter(log => log.name === 'pnpm:lifecycle')
+      .map((log: LifecycleLog) => {
+        const key = `${log.script}:${log.pkgId}`
+        const keep = lifecycleMessages[key] && lifecycleMessages[key].keep || log.level === 'error'
+        const formattedLine = formatLifecycle(log)
+        const output = keep && lifecycleMessages[key]
+          ? `${lifecycleMessages[key].output}${EOL}${formattedLine}`
+          : formattedLine
+        lifecycleMessages[key] = {
+          keep,
+          output,
+        }
+        return R.values(lifecycleMessages).map(lm => lm['output']).join(EOL)
+      })
+      .map(msg => ({msg}))
+  )
 
   const installCheckOutput$ = log$
     .filter(log => log.name === 'pnpm:install-check')
@@ -343,10 +357,22 @@ function printDiffs (pkgsDiff: PackageDiff[]) {
 }
 
 function formatLifecycle (logObj: LifecycleLog) {
-  if (logObj.level === 'error') {
-    return `${chalk.blue(logObj.pkgId)}! ${chalk.gray(logObj.line)}`
+  const prefix = `Running ${hlValue(logObj.script)} for ${hlPkgId(logObj.pkgId)}`
+  if (logObj['exitCode'] === 0) {
+    return `${prefix}, done`
   }
-  return `${chalk.blue(logObj.pkgId)}  ${chalk.gray(logObj.line)}`
+  const line = formatLine(logObj)
+  if (logObj.level === 'error') {
+    return `${prefix}! ${line}`
+  }
+  return `${prefix}: ${line}`
+}
+
+function formatLine (logObj: LifecycleLog) {
+  if (typeof logObj['exitCode'] === 'number') return chalk.red(`Exited with ${logObj['exitCode']}`)
+
+  const color = logObj.level === 'error' ? chalk.red : chalk.gray
+  return color(logObj['line'])
 }
 
 function formatInstallCheck (logObj: InstallCheckLog) {
