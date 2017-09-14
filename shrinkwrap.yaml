@@ -26,6 +26,7 @@ dependencies:
   pnpm-list: 1.0.0
   pnpm-logger: 0.6.1
   ramda: 0.24.1
+  strip-color: 0.1.0
   supi: 0.2.21
   text-table: 0.2.0
   update-notifier: 2.2.0
@@ -2246,6 +2247,9 @@ packages:
   /strip-bom/3.0.0:
     resolution:
       integrity: sha1-IzTBjpx1n3vdVv3vfprj1YjmjtM=
+  /strip-color/0.1.0:
+    resolution:
+      integrity: sha1-EG9l09PmotlAHKwOsM6LinArT3s=
   /strip-eof/1.0.0:
     resolution:
       integrity: sha1-u0P/VZim6wXYm1n80SnJgzE2Br8=
@@ -2651,6 +2655,7 @@ specifiers:
   pnpm-logger: ^0.6.1
   ramda: ^0.24.1
   rimraf: ^2.5.4
+  strip-color: ^0.1.0
   supi: ^0.2.21
   text-table: ^0.2.0
   tslint: ^5.4.2

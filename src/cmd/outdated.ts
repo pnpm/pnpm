@@ -5,6 +5,7 @@ import outdated, {
 import {PnpmOptions} from 'supi'
 import table = require('text-table')
 import chalk = require('chalk')
+import stripColor = require('strip-color')
 
 const LAYOUT_VERSION = '1'
 
@@ -58,6 +59,8 @@ export default async function (
         chalk.green(outdated.wanted),
         chalk.magenta(outdated.latest),
       ])
-    ))
+    ), {
+      stringLength: (s: string) => stripColor(s).length,
+    })
   )
 }

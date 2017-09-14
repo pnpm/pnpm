@@ -41,6 +41,7 @@
     "pnpm-list": "^1.0.0",
     "pnpm-logger": "^0.6.1",
     "ramda": "^0.24.1",
+    "strip-color": "^0.1.0",
     "supi": "^0.2.21",
     "text-table": "^0.2.0",
     "update-notifier": "^2.1.0"

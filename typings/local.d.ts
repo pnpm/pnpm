@@ -278,3 +278,8 @@ declare module 'normalize-newline' {
   const anything: any;
   export = anything;
 }
+
+declare module 'strip-color' {
+  function stripColor (text: string): string
+  export = stripColor;
+}
