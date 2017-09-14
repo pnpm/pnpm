@@ -1,4 +1,6 @@
-import logger from 'pnpm-logger'
+import logger, {
+  lifecycleLogger,
+} from 'pnpm-logger'
 import path = require('path')
 import byline = require('byline')
 import spawn = require('cross-spawn')
@@ -11,13 +13,12 @@ export default function runScript (
   args: string[],
   opts: {
     cwd: string,
-    log: Function,
+    pkgId: string,
     userAgent: string,
   }
 ) {
   opts = Object.assign({log: (() => {})}, opts)
   args = args || []
-  const log = opts.log
   const script = `${command}${args.length ? ' ' + args.join(' ') : ''}`
   if (script) scriptLogger.debug('runscript', script)
   if (!command) return Promise.resolve()
@@ -27,14 +28,34 @@ export default function runScript (
       env: createEnv(opts)
     })
 
-    log('stdout', '$ ' + script)
+    const scriptName = args[args.length - 1]
 
     proc.on('error', reject)
-    byline(proc.stdout).on('data', (line: Buffer) => log('stdout', line.toString()))
-    byline(proc.stderr).on('data', (line: Buffer) => log('stderr', line.toString()))
+    byline(proc.stdout).on('data', (line: Buffer) => lifecycleLogger.info({
+      script: scriptName,
+      line: line.toString(),
+      pkgId: opts.pkgId,
+    }))
+    byline(proc.stderr).on('data', (line: Buffer) => lifecycleLogger.error({
+      script: scriptName,
+      line: line.toString(),
+      pkgId: opts.pkgId,
+    }))
 
     proc.on('close', (code: number) => {
-      if (code > 0) return reject(new Error('Exit code ' + code))
+      if (code > 0) {
+        lifecycleLogger.error({
+          pkgId: opts.pkgId,
+          script: scriptName,
+          exitCode: code,
+        })
+        return reject(new Error('Exit code ' + code))
+      }
+      lifecycleLogger.info({
+        pkgId: opts.pkgId,
+        script: scriptName,
+        exitCode: code,
+      })
       return resolve()
     })
   })
