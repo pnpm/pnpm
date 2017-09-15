@@ -105,6 +105,9 @@
     "tsc": "rimraf lib && tsc",
     "prepublishOnly": "npm run tsc"
   },
+  "publishconfig": {
+    "tag": "next"
+  },
   "config": {
     "commitizen": {
       "path": "./node_modules/cz-conventional-changelog"
