@@ -4,7 +4,7 @@
   "private": true,
   "version": "1.0.0",
   "dependencies": {
-    "@types/mkdirp": "^0.3.29",
+    "@types/mkdirp": "^0.5.1",
     "@types/sinon": "^2.3.2",
     "@types/tape": "^4.2.30",
     "anonymous-npm-registry-client": "^0.1.2",
@@ -19,7 +19,7 @@
     "read-pkg": "^2.0.0",
     "rimraf": "^2.5.4",
     "sepia": "^2.0.2",
-    "sinon": "^2.3.6",
+    "sinon": "^2.4.1",
     "tape": "^4.6.3",
     "tape-promise": "^2.0.1",
     "ts-node": "^3.0.0",
