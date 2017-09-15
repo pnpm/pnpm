@@ -19,7 +19,7 @@ dependencies:
   load-json-file: 3.0.0
   loud-rejection: 1.6.0
   nopt: 4.0.1
-  npm: 5.4.1
+  npm: 5.4.2
   path-name: 1.0.0
   pnpm-default-reporter: 0.9.3
   pnpm-file-reporter: 0.0.1
@@ -127,7 +127,7 @@ packages:
     dependencies:
       is-windows: 1.0.1
       mkdirp-promise: 5.0.1
-      mz: 2.6.0
+      mz: 2.7.0
     resolution:
       integrity: sha1-G4vgewpit2Z8WfTm0JFpremoWIE=
   /abbrev/1.1.0:
@@ -1029,10 +1029,10 @@ packages:
     dev: true
     resolution:
       integrity: sha1-TexvMvN+97sLLtPx0aXD9UUHSRg=
-  /interpret/1.0.3:
+  /interpret/1.0.4:
     dev: true
     resolution:
-      integrity: sha1-y8NcYu7uc/Gat7EKgBURQBr8D5A=
+      integrity: sha1-ggzdWIuGj/sZGoCVBtbJyPISsbA=
   /is-arrayish/0.2.1:
     resolution:
       integrity: sha1-d8mYQFJ6qOyxqLppe4BkWnqSap0=
@@ -1426,13 +1426,13 @@ packages:
     dev: true
     resolution:
       integrity: sha1-SJYrGeFp/R38JAs/HnMXYnu8R9s=
-  /mz/2.6.0:
+  /mz/2.7.0:
     dependencies:
       any-promise: 1.3.0
       object-assign: 4.1.1
       thenify-all: 1.6.0
     resolution:
-      integrity: sha1-yLhSHZWN8KTydoAl22nHGe5O8c4=
+      integrity: sha512-z81GNO7nnYMEhrGh9LeymoE4+Yr0Wn5McHIZMK5cfQCl+NDX08sCZgUc9/6MHni9IWuFLm1Z3HTCXu2z9fN62Q==
   /ncp/2.0.0:
     resolution:
       integrity: sha1-GVoh1sRuNh0vsSgbo4uR6d9727M=
@@ -1535,9 +1535,9 @@ packages:
     dev: true
     resolution:
       integrity: sha1-FOfHjBKIvW2CB4dpx6qVg/xBPAM=
-  /npm/5.4.1:
+  /npm/5.4.2:
     resolution:
-      integrity: sha512-34jnKVVGbIeFNXTRdDh3goZyVWafaCGMIlbBl0J7/5OduLJOVoEdXZOk0hS1a9X4oRnv347+4lIUT/bjoqmxNg==
+      integrity: sha512-F6LLCAHriKyKQ9Ff03UKCjkXZoRBp281I42K42+VeHfjAXZ3TJdg3RccinzoCFV1kDxCedVm7AstIpb1Uf5UkQ==
   /npmlog/4.1.2:
     dependencies:
       are-we-there-yet: 1.1.4
@@ -1647,11 +1647,11 @@ packages:
       fs-write-stream-atomic: 1.0.10
       load-json-file: 2.0.0
       mkdirp-promise: 5.0.1
-      mz: 2.6.0
+      mz: 2.7.0
       normalize-path: 2.1.1
       normalize-registry-url: 1.0.0
       normalize-ssh: 1.0.0
-      npm: 5.4.1
+      npm: 5.4.2
       p-limit: 1.1.0
       p-queue: 1.2.0
       parse-npm-tarball-url: 1.0.1
@@ -1984,7 +1984,7 @@ packages:
   /remove-all-except-outer-links/1.0.3:
     dependencies:
       is-subdir: 1.0.1
-      mz: 2.6.0
+      mz: 2.7.0
       p-filter: 1.0.0
       resolve-link-target: 1.0.0
       rimraf-then: 1.0.1
@@ -2131,7 +2131,7 @@ packages:
   /shelljs/0.7.6:
     dependencies:
       glob: 7.1.2
-      interpret: 1.0.3
+      interpret: 1.0.4
       rechoir: 0.6.2
     dev: true
     resolution:
@@ -2297,12 +2297,12 @@ packages:
       load-json-file: 2.0.0
       load-yaml-file: 0.1.0
       mkdirp-promise: 5.0.1
-      mz: 2.6.0
+      mz: 2.7.0
       ncp: 2.0.0
       node-gyp: 3.6.2
       normalize-path: 2.1.1
       normalize-registry-url: 1.0.0
-      npm: 5.4.1
+      npm: 5.4.2
       npm-package-arg: 5.1.2
       npm-registry-client: 8.4.0
       os-homedir: 1.0.2
@@ -2344,7 +2344,7 @@ packages:
       graceful-fs: 4.1.11
       is-windows: 1.0.1
       mkdirp-promise: 5.0.1
-      mz: 2.6.0
+      mz: 2.7.0
     resolution:
       integrity: sha512-HrQ50UhvdoWwwC62I82l0U2NTRx9dTQWs5/ay0bRwBqkJQ0f3ruVhQUyLH7hs6NekRsvQgK76fZyUFK7PZsm8A==
   /tar-fs/1.15.3:
