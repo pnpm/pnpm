@@ -273,3 +273,8 @@ declare module 'encode-registry' {
   const anything: any;
   export = anything;
 }
+
+declare module '@zkochan/npm-lifecycle' {
+  const anything: any;
+  export = anything;
+}

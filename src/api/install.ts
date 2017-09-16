@@ -497,6 +497,8 @@ async function installInContext (
         .map(resolvedNode => limitChild(async () => {
           try {
             await postInstall(resolvedNode.hardlinkedLocation, {
+              rawNpmConfig: installCtx.rawNpmConfig,
+              initialWD: ctx.root,
               userAgent: opts.userAgent,
               pkgId: resolvedNode.pkgId,
             })
