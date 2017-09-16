@@ -526,6 +526,8 @@ async function installInContext (
         .map(pkg => limitChild(async () => {
           try {
             await postInstall(pkg.hardlinkedLocation, {
+              rawNpmConfig: installCtx.rawNpmConfig,
+              initialWD: ctx.root,
               userAgent: opts.userAgent,
               pkgId: pkg.id,
             })

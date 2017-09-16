@@ -3,17 +3,26 @@ import findUp = require('find-up')
 import fs = require('mz/fs')
 import runScript from '../runScript'
 import {fromDir as readPkgFromDir} from '../fs/readPkg'
+import lifecycle = require('@zkochan/npm-lifecycle')
+import logger, {
+  lifecycleLogger,
+} from 'pnpm-logger'
 
 const pnpmNodeModules = findUp.sync('node_modules', {cwd: __dirname})
 const nodeGyp = path.resolve(pnpmNodeModules, 'node-gyp/bin/node-gyp.js')
 
+function noop () {}
+
 export default async function postInstall (
   root: string,
   opts: {
+    rawNpmConfig: Object,
+    initialWD: string,
     userAgent: string,
     pkgId: string,
   }
 ) {
+  const dir = path.join(opts.initialWD, 'node_modules')
   const pkg = await readPkgFromDir(root)
   const scripts = pkg && pkg.scripts || {}
 
@@ -29,12 +38,46 @@ export default async function postInstall (
   await npmRunScript('postinstall')
   return
 
-  async function npmRunScript (scriptName: string) {
-    if (!scripts[scriptName]) return
-    return runScript('npm', ['run', scriptName], {
-      cwd: root,
-      pkgId: opts.pkgId,
-      userAgent: opts.userAgent,
+  async function npmRunScript (stage: string) {
+    if (!scripts[stage]) return
+    return lifecycle(pkg, stage, root, {
+      dir,
+      config: opts.rawNpmConfig,
+      log: {
+        info: noop,
+        warn: noop,
+        silly: noop,
+        verbose (prefix: string, logid: string, stdtype: string, line: string) {
+          switch (stdtype) {
+            case 'stdout':
+              lifecycleLogger.info({
+                script: stage,
+                line: line.toString(),
+                pkgId: opts.pkgId,
+              })
+              return
+            case 'stderr':
+              lifecycleLogger.error({
+                script: stage,
+                line: line.toString(),
+                pkgId: opts.pkgId,
+              })
+              return
+            case 'close':
+              const code = arguments[3]
+              lifecycleLogger[code === 0 ? 'info' : 'error']({
+                pkgId: opts.pkgId,
+                script: stage,
+                exitCode: code,
+              })
+              return
+          }
+        },
+        pause: noop,
+        resume: noop,
+        clearProgress: noop,
+        showProgress: noop,
+      },
     })
   }
 }

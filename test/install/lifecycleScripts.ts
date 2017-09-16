@@ -92,3 +92,28 @@ test('installation fails if lifecycle script fails', async (t: tape.Test) => {
     t.equal(err['code'], 'ELIFECYCLE', 'failed with correct error code')
   }
 })
+
+// TODO: unskip
+// For some reason this fails on CI environents
+test['skip']('creates env for scripts', async (t: tape.Test) => {
+  const project = prepare(t, {
+    scripts: {
+      install: `node -e "process.stdout.write(process.env.INIT_CWD)" | json-append output.json`,
+    }
+  })
+  await installPkgs(['json-append@1.1.1'], testDefaults())
+  await install(testDefaults())
+
+  const output = await loadJsonFile('output.json')
+
+  t.deepEqual(output, [process.cwd()])
+})
+
+test('INIT_CWD is set correctly', async (t: tape.Test) => {
+  const project = prepare(t)
+  await installPkgs(['write-lifecycle-env'], testDefaults())
+
+  const childEnv = await loadJsonFile(path.resolve('node_modules', 'write-lifecycle-env', 'env.json'))
+
+  t.equal(childEnv['INIT_CWD'], process.cwd())
+})
