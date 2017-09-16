@@ -18,7 +18,7 @@
 
 Before you submit your Pull Request (PR) consider the following guidelines:
 
-- Search [GitHub](https://github.com/mosjs/mos/pulls) for an open or closed PR
+- Search [GitHub](https://github.com/pnpm/pnpm/pulls) for an open or closed PR
   that relates to your submission. You don't want to duplicate effort.
 - Make your changes in a new git branch:
 
