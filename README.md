@@ -10,14 +10,11 @@
 
 pnpm is:
 
-1. **Fast.** Faster than npm and Yarn. This is not a fair battle as we organize
-dependencies in a completely different way. Nevertheless, dependencies installed with
-pnpm are Node.js-compatible!
-1. **Efficient.** One version of a package is saved only ever once on a disk.
-1. **Simple and human-deterministic.** Flattening is hard. A package manager can be
-deterministic but no human can easily predict how will a flattened dependency tree look
-like. Pnpm not only has a lockfile, the files in its `node_modules` folder are organized
-always the same way, the way they are described in `package.json` files.
+* **Fast.** Faster than npm and Yarn.
+* **Efficient.** One version of a package is saved only ever once on a disk.
+* **Deterministic.** pnpm has a lockfile called `shrinkwrap.yaml`.
+* **Strict.** A package can access only dependecies that are specified in its `package.json`.
+* **Works everywhere.** Works on Windows, Linux and OS X.
 
 Like this project? Let people know with a [tweet](https://bit.ly/tweet-pnpm).
 
