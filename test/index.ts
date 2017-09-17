@@ -14,8 +14,8 @@ import {stripIndents} from 'common-tags'
 import chalk = require('chalk')
 import xs, {Stream} from 'xstream'
 
-const WARN = chalk.yellow('WARN')
-const ERROR = chalk.red('ERROR')
+const WARN = chalk.bgYellow.black('\u2009WARN\u2009')
+const ERROR = chalk.bgRed.black('\u2009ERROR\u2009')
 const DEPRECATED = chalk.red('deprecated')
 const versionColor = chalk.grey
 const ADD = chalk.green('+')
@@ -316,7 +316,7 @@ test('prints error', t => {
 
   output$.take(1).subscribe({
     next: output => {
-      t.equal(output, `${ERROR} some error`)
+      t.equal(output, `${ERROR} ${chalk.red('some error')}`)
     },
     complete: t.end,
     error: t.end,

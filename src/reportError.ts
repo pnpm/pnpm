@@ -91,7 +91,7 @@ function formatRelatedSources (msg: Object) {
 }
 
 function formatErrorSummary (message: string) {
-  return `${chalk.red('ERROR')} ${message}`
+  return `${chalk.bgRed.black('\u2009ERROR\u2009')} ${chalk.red(message)}`
 }
 
 function reportModifiedDependency (err: Error, msg: Object) {
