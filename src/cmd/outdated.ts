@@ -50,6 +50,8 @@ export default async function (
     ? await outdatedForPackages(args, prefix, opts)
     : await outdated(prefix, opts)
 
+  if (!outdatedPkgs.length) return
+
   const columnNames = ['Package', 'Current', 'Wanted', 'Latest'].map(txt => chalk.underline(txt))
   console.log(
     table([columnNames].concat(
