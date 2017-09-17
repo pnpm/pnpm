@@ -342,7 +342,7 @@ test('subdeps are updated on repeat install if outer shrinkwrap.yaml does not ma
 
   shr.packages['/dep-of-pkg-with-1-dep/100.1.0'] = {
     resolution: {
-      integrity: 'sha1-sdzLq5q5h7h61HeCB+HLf+lI+zw=',
+      integrity: 'sha1-TorYQB9bz9ktHFqtbcZrL1MxGK0=',
     },
   }
 
