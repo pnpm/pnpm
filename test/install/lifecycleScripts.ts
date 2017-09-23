@@ -1,5 +1,7 @@
 import tape = require('tape')
 import promisifyTape from 'tape-promise'
+import sinon = require('sinon')
+import {LifecycleLog} from 'pnpm-logger'
 import {installPkgs, install} from '../../src'
 import {
   prepare,
@@ -116,4 +118,57 @@ test('INIT_CWD is set correctly', async (t: tape.Test) => {
   const childEnv = await loadJsonFile(path.resolve('node_modules', 'write-lifecycle-env', 'env.json'))
 
   t.equal(childEnv['INIT_CWD'], process.cwd())
+})
+
+test("reports child's output", async (t: tape.Test) => {
+  const project = prepare(t)
+
+  const reporter = sinon.spy()
+
+  await installPkgs(['count-to-10'], testDefaults({reporter}))
+
+  t.ok(reporter.calledWithMatch(<LifecycleLog>{
+    name: 'pnpm:lifecycle',
+    level: 'info',
+    line: '1',
+    pkgId: 'localhost+4873/count-to-10/1.0.0',
+  }))
+  t.ok(reporter.calledWithMatch(<LifecycleLog>{
+    name: 'pnpm:lifecycle',
+    level: 'info',
+    line: '2',
+    pkgId: 'localhost+4873/count-to-10/1.0.0',
+  }))
+  t.ok(reporter.calledWithMatch(<LifecycleLog>{
+    name: 'pnpm:lifecycle',
+    level: 'error',
+    line: '6',
+    pkgId: 'localhost+4873/count-to-10/1.0.0',
+  }))
+  t.ok(reporter.calledWithMatch(<LifecycleLog>{
+    name: 'pnpm:lifecycle',
+    exitCode: 0,
+    level: 'info',
+    script: 'postinstall',
+    pkgId: 'localhost+4873/count-to-10/1.0.0',
+  }))
+})
+
+test("reports child's close event", async (t: tape.Test) => {
+  const project = prepare(t)
+
+  const reporter = sinon.spy()
+
+  try {
+    await installPkgs(['failing-postinstall'], testDefaults({reporter}))
+    t.fail()
+  } catch (err) {
+    t.ok(reporter.calledWithMatch(<LifecycleLog>{
+      name: 'pnpm:lifecycle',
+      exitCode: 1,
+      level: 'error',
+      script: 'postinstall',
+      pkgId: 'localhost+4873/failing-postinstall/1.0.0',
+    }))
+  }
 })

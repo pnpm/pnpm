@@ -43,42 +43,46 @@ export default async function postInstall (
     return lifecycle(pkg, stage, root, {
       dir,
       config: opts.rawNpmConfig,
+      stdio: 'pipe',
       log: {
+        silent: true,
         info: noop,
         warn: noop,
-        silly: noop,
-        verbose (prefix: string, logid: string, stdtype: string, line: string) {
-          switch (stdtype) {
-            case 'stdout':
-              lifecycleLogger.info({
-                script: stage,
-                line: line.toString(),
-                pkgId: opts.pkgId,
-              })
-              return
-            case 'stderr':
-              lifecycleLogger.error({
-                script: stage,
-                line: line.toString(),
-                pkgId: opts.pkgId,
-              })
-              return
-            case 'close':
-              const code = arguments[3]
-              lifecycleLogger[code === 0 ? 'info' : 'error']({
-                pkgId: opts.pkgId,
-                script: stage,
-                exitCode: code,
-              })
-              return
-          }
-        },
+        silly: npmLog,
+        verbose: npmLog,
         pause: noop,
         resume: noop,
         clearProgress: noop,
         showProgress: noop,
       },
     })
+
+    function npmLog (prefix: string, logid: string, stdtype: string, line: string) {
+      switch (stdtype) {
+        case 'stdout':
+          lifecycleLogger.info({
+            script: stage,
+            line: line.toString(),
+            pkgId: opts.pkgId,
+          })
+          return
+        case 'stderr':
+          lifecycleLogger.error({
+            script: stage,
+            line: line.toString(),
+            pkgId: opts.pkgId,
+          })
+          return
+        case 'Returned: code:':
+          const code = arguments[3]
+          lifecycleLogger[code === 0 ? 'info' : 'error']({
+            pkgId: opts.pkgId,
+            script: stage,
+            exitCode: code,
+          })
+          return
+      }
+    }
   }
 }
 
