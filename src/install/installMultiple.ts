@@ -65,6 +65,9 @@ export default function installMultiple (
     parentNodeId: string,
     currentDepth: number,
     resolvedDependencies?: ResolvedDependencies,
+    // If the package has been updated, the dependencies
+    // which were used by the previous version are passed
+    // via this option
     preferedDependencies?: ResolvedDependencies,
     parentIsInstallable?: boolean,
     update: boolean,
@@ -79,8 +82,14 @@ export default function installMultiple (
       let reference = resolvedDependencies[spec.name]
       let proceed = false
 
+      // If dependencies that were used by the previous version of the package
+      // satisfy the newer version's requirements, then pnpm tries to keep
+      // the previous dependency.
+      // So for example, if foo@1.0.0 had bar@1.0.0 as a dependency
+      // and foo was updated to 1.1.0 which depends on bar ^1.0.0
+      // then bar@1.0.0 can be reused for foo@1.1.0
       if (!reference && spec.type === 'range' && preferedDependencies[spec.name] &&
-        semver.satisfies(preferedDependencies[spec.name], spec.fetchSpec, true)) {
+        refSatisfies(preferedDependencies[spec.name], spec.fetchSpec)) {
 
         proceed = true
         reference = preferedDependencies[spec.name]
@@ -101,6 +110,18 @@ export default function installMultiple (
         )
       ).mergeAll())
     }, Rx.Observable.empty())
+}
+
+// A reference is not always a version.
+// We assume that it does not satisfy the range if it's raw form is not a version
+// This logic can be made smarter because
+// if the reference is /foo/1.0.0/bar@2.0.0, foo's version if 1.0.0
+function refSatisfies (reference: string, range: string) {
+  try {
+    return semver.satisfies(reference, range, true)
+  } catch {
+    return false
+  }
 }
 
 function getInfoFromShrinkwrap (

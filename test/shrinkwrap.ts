@@ -564,3 +564,23 @@ test('packages are placed in devDependencies even if they are present as non-dev
     },
   }), 'pkg-with-1-dep added to root')
 })
+
+// This testcase verifies that pnpm is not failing when trying to preserve dependencies.
+// Only when a dependency is a range dependency, should pnpm try to compare versions of deps with semver.satisfies().
+test('updating package that has a github-hosted dependency', async (t: tape.Test) => {
+  const project = prepare(t)
+
+  await installPkgs(['has-github-dep@1'], testDefaults())
+  await installPkgs(['has-github-dep@latest'], testDefaults())
+
+  t.pass('installation of latest did not fail')
+})
+
+test('updating package that has deps with peers', async (t: tape.Test) => {
+  const project = prepare(t)
+
+  await installPkgs(['abc-grand-parent-with-c@0'], testDefaults())
+  await installPkgs(['abc-grand-parent-with-c@1'], testDefaults())
+
+  t.pass('installation of latest did not fail')
+})
