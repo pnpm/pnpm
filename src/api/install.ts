@@ -19,8 +19,7 @@ import externalLink from './link'
 import linkPackages from '../link'
 import save from '../save'
 import getSaveType from '../getSaveType'
-import {sync as runScriptSync} from '../runScript'
-import postInstall from '../install/postInstall'
+import postInstall, {npmRunScript} from '../install/postInstall'
 import extendOptions from './extendOptions'
 import lock from './lock'
 import {
@@ -162,16 +161,16 @@ export async function install (maybeOpts?: PnpmOptions) {
       logger.warn('`prepublish` scripts are deprecated. Use `prepare` for build steps and `prepublishOnly` for upload-only.')
     }
 
-    if (scripts['preinstall']) {
-      npmRun('preinstall', ctx.root, opts.userAgent)
+    const scriptsOpts = {
+      rawNpmConfig: opts.rawNpmConfig,
+      modulesDir: path.join(opts.prefix, 'node_modules'),
+      root: opts.prefix,
+      pkgId: opts.prefix,
+      stdio: 'inherit',
+    }
 
-      // a hack to avoid `npm run install` executing preinstall again
-      if (scripts['install']) {
-        const newScripts = Object.assign({}, scripts)
-        delete newScripts['preinstall']
-        const newPkg = Object.assign({}, ctx.pkg, {scripts: newScripts})
-        await writePkg(path.join(ctx.root, 'package.json'), newPkg)
-      }
+    if (scripts['preinstall']) {
+      await npmRunScript('preinstall', ctx.pkg, scriptsOpts)
     }
 
     if (opts.lock === false) {
@@ -181,24 +180,16 @@ export async function install (maybeOpts?: PnpmOptions) {
     }
 
     if (scripts['install']) {
-      npmRun('install', ctx.root, opts.userAgent)
-
-      // a hack to avoid `npm run install` executing preinstall again
-      if (scripts['preinstall']) {
-        const pkg = await safeReadPkgFromDir(ctx.root)
-        if (pkg) {
-          pkg.scripts = scripts
-          await writePkg(path.join(ctx.root, 'package.json'), pkg)
-        }
-      }
-    } else if (scripts['postinstall']) {
-      npmRun('postinstall', ctx.root, opts.userAgent)
+      await npmRunScript('install', ctx.pkg, scriptsOpts)
+    }
+    if (scripts['postinstall']) {
+      await npmRunScript('postinstall', ctx.pkg, scriptsOpts)
     }
     if (scripts['prepublish']) {
-      npmRun('prepublish', ctx.root, opts.userAgent)
+      await npmRunScript('prepublish', ctx.pkg, scriptsOpts)
     }
     if (scripts['prepare']) {
-      npmRun('prepare', ctx.root, opts.userAgent)
+      await npmRunScript('prepare', ctx.pkg, scriptsOpts)
     }
 
     async function run () {
@@ -654,18 +645,5 @@ function adaptConfig (opts: StrictPnpmOptions) {
       http: registryLog.debug.bind(null, 'http'),
     }),
     defaultTag: opts.tag
-  }
-}
-
-function npmRun (scriptName: string, pkgRoot: string, userAgent: string) {
-  const result = runScriptSync('npm', ['run', scriptName], {
-    cwd: pkgRoot,
-    stdio: 'inherit',
-    userAgent,
-  })
-  if (result.status !== 0) {
-    const err = new Error(`Running event ${scriptName} failed with status ${result.status}`)
-    err['code'] = 'ELIFECYCLE'
-    throw err
   }
 }

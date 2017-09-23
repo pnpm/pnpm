@@ -61,21 +61,6 @@ export default function runScript (
   })
 }
 
-export function sync (
-  command: string,
-  args: string[],
-  opts: {
-    cwd: string,
-    stdio: string,
-    userAgent?: string,
-  }
-) {
-  opts = Object.assign({}, opts)
-  return spawn.sync(command, args, Object.assign({}, opts, {
-    env: createEnv(opts)
-  }))
-}
-
 function createEnv (
   opts: {
     cwd: string,
