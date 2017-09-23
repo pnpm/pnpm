@@ -1,6 +1,7 @@
 import path = require('path')
 import findUp = require('find-up')
 import fs = require('mz/fs')
+import {Package} from '../types'
 import runScript from '../runScript'
 import {fromDir as readPkgFromDir} from '../fs/readPkg'
 import lifecycle = require('@zkochan/npm-lifecycle')
@@ -22,7 +23,6 @@ export default async function postInstall (
     pkgId: string,
   }
 ) {
-  const dir = path.join(opts.initialWD, 'node_modules')
   const pkg = await readPkgFromDir(root)
   const scripts = pkg && pkg.scripts || {}
 
@@ -30,58 +30,80 @@ export default async function postInstall (
     await checkBindingGyp(root, opts)
   }
 
+  const modulesDir = path.join(opts.initialWD, 'node_modules')
+  const scriptsOpts = {
+    rawNpmConfig: opts.rawNpmConfig,
+    pkgId: opts.pkgId,
+    modulesDir,
+    root,
+  }
+
   if (scripts['install']) {
-    await npmRunScript('install')
+    await npmRunScript('install', pkg, scriptsOpts)
     return
   }
-  await npmRunScript('preinstall')
-  await npmRunScript('postinstall')
+  await npmRunScript('preinstall', pkg, scriptsOpts)
+  await npmRunScript('postinstall', pkg, scriptsOpts)
   return
+}
 
-  async function npmRunScript (stage: string) {
-    if (!scripts[stage]) return
-    return lifecycle(pkg, stage, root, {
-      dir,
-      config: opts.rawNpmConfig,
-      stdio: 'pipe',
-      log: {
-        silent: true,
-        info: noop,
-        warn: noop,
-        silly: npmLog,
-        verbose: npmLog,
-        pause: noop,
-        resume: noop,
-        clearProgress: noop,
-        showProgress: noop,
-      },
-    })
+export async function npmRunScript (
+  stage: string,
+  pkg: Package,
+  opts: {
+    rawNpmConfig: Object,
+    pkgId: string,
+    modulesDir: string,
+    root: string,
+    stdio?: string,
+  }
+) {
+  if (!pkg.scripts || !pkg.scripts[stage]) return
+  return lifecycle(pkg, stage, opts.root, {
+    dir: opts.modulesDir,
+    config: opts.rawNpmConfig,
+    stdio: opts.stdio || 'pipe',
+    log: {
+      level: opts.stdio === 'inherit' ? undefined : 'silent',
+      info: noop,
+      warn: noop,
+      silly: npmLog,
+      verbose: npmLog,
+      pause: noop,
+      resume: noop,
+      clearProgress: noop,
+      showProgress: noop,
+    },
+  })
 
-    function npmLog (prefix: string, logid: string, stdtype: string, line: string) {
-      switch (stdtype) {
-        case 'stdout':
-          lifecycleLogger.info({
-            script: stage,
-            line: line.toString(),
-            pkgId: opts.pkgId,
-          })
+  function npmLog (prefix: string, logid: string, stdtype: string, line: string) {
+    switch (stdtype) {
+      case 'stdout':
+        lifecycleLogger.info({
+          script: stage,
+          line: line.toString(),
+          pkgId: opts.pkgId,
+        })
+        return
+      case 'stderr':
+        lifecycleLogger.error({
+          script: stage,
+          line: line.toString(),
+          pkgId: opts.pkgId,
+        })
+        return
+      case 'Returned: code:':
+        if (opts.stdio === 'inherit') {
+          // Preventing the pnpm reporter from overriding the project's script output
           return
-        case 'stderr':
-          lifecycleLogger.error({
-            script: stage,
-            line: line.toString(),
-            pkgId: opts.pkgId,
-          })
-          return
-        case 'Returned: code:':
-          const code = arguments[3]
-          lifecycleLogger[code === 0 ? 'info' : 'error']({
-            pkgId: opts.pkgId,
-            script: stage,
-            exitCode: code,
-          })
-          return
-      }
+        }
+        const code = arguments[3]
+        lifecycleLogger[code === 0 ? 'info' : 'error']({
+          pkgId: opts.pkgId,
+          script: stage,
+          exitCode: code,
+        })
+        return
     }
   }
 }
