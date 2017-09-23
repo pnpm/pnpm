@@ -193,7 +193,12 @@ async function linkNewPackages (
         (!R.equals(privateShrinkwrap.packages[shortId].dependencies, shrinkwrap.packages[shortId].dependencies) ||
         !R.equals(privateShrinkwrap.packages[shortId].optionalDependencies, shrinkwrap.packages[shortId].optionalDependencies))) {
         const resolvedId = dp.resolve(shrinkwrap.registry, shortId)
-        newPkgs.push(pkgsToLink[resolvedId])
+
+        // TODO: come up with a test that triggers the usecase of pkgsToLink[resolvedId] undefined
+        // see related issue: https://github.com/pnpm/pnpm/issues/870
+        if (pkgsToLink[resolvedId]) {
+          newPkgs.push(pkgsToLink[resolvedId])
+        }
       }
     }
   }
