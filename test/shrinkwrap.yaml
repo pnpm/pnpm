@@ -17,7 +17,7 @@ dependencies:
   npm-registry-client: 8.4.0
   npm-run-all: 4.1.1
   path-exists: 3.0.0
-  pnpm-registry-mock: 0.13.0
+  pnpm-registry-mock: 1.5.0
   read-pkg: 2.0.0
   rimraf: 2.6.1
   rimraf-then: 1.0.1
@@ -1268,13 +1268,13 @@ packages:
   /pkginfo/0.4.1:
     resolution:
       integrity: sha1-tUGO8EOd5UJfxJlQQtztFPsqhP8=
-  /pnpm-registry-mock/0.13.0:
+  /pnpm-registry-mock/1.5.0:
     dependencies:
       cpr: 2.2.0
       rimraf: 2.6.1
       verdaccio: 2.3.6
     resolution:
-      integrity: sha512-y9LSqV8yArkf79BwLnNMMAGQAG3te08yQx1rWx9cX3lZWa+Wn+BNfqH3TXd0cx3q9za/0obLViyVZ54m8ZGgJg==
+      integrity: sha512-LQAen3HxRITt0j14GhVp1EMvhaSg+6fF17SpPpei9tke34Ng+WTIsplvNMqofaXKGL5yQ5NYvLa/y7vaoPihlQ==
   /process-nextick-args/1.0.7:
     resolution:
       integrity: sha1-FQ4gt1ZZCtP5EJPyWk8q2L/zC6M=
@@ -1876,7 +1876,7 @@ specifiers:
   npm-registry-client: ^8.4.0
   npm-run-all: ^4.0.1
   path-exists: ^3.0.0
-  pnpm-registry-mock: ^0.13.0
+  pnpm-registry-mock: ^1.5.0
   read-pkg: ^2.0.0
   rimraf: ^2.5.4
   rimraf-then: ^1.0.1

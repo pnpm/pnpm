@@ -119,3 +119,24 @@ test('prepare is executed after argumentless installation', t => {
 
   t.end()
 })
+
+test('lifecycle events have proper npm_config_argv', async (t: tape.Test) => {
+  const project = prepare(t, {
+    scripts: {
+      postinstall: 'write-lifecycle-env',
+    },
+    dependencies: {
+      'write-lifecycle-env': '^1.0.0',
+    },
+  })
+
+  execPnpmSync('install')
+
+  const lifecycleEnv = await loadJsonFile('env.json')
+
+  t.deepEqual(JSON.parse(lifecycleEnv['npm_config_argv']), {
+    remain: ['install'],
+    cooked: ['install'],
+    original: ['install'],
+  })
+})
