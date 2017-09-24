@@ -8,11 +8,11 @@
 
 > Fast, disk space efficient package manager
 
-pnpm is:
+Features:
 
 * **Fast.** Faster than npm and Yarn.
 * **Efficient.** One version of a package is saved only ever once on a disk.
-* **Deterministic.** pnpm has a lockfile called `shrinkwrap.yaml`.
+* **Deterministic.** Has a lockfile called `shrinkwrap.yaml`.
 * **Strict.** A package can access only dependecies that are specified in its `package.json`.
 * **Works everywhere.** Works on Windows, Linux and OS X.
 
