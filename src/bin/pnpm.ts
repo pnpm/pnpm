@@ -8,7 +8,6 @@ gfs.gracefulify(fs)
 import loudRejection = require('loud-rejection')
 loudRejection()
 import path = require('path')
-import updateNotifier = require('update-notifier')
 import camelcase = require('camelcase')
 import isCI = require('is-ci')
 import {stripIndent} from 'common-tags'
@@ -21,8 +20,8 @@ import pkg from '../pnpmPkgJson'
 import * as pnpmCmds from '../cmd'
 import runNpm from '../cmd/runNpm'
 import initReporter from '../reporter'
-import pnpmPkgJson from '../pnpmPkgJson'
 import getCommandFullName from '../getCommandFullName'
+import checkForUpdates from '../checkForUpdates'
 
 pnpmCmds['install-test'] = pnpmCmds.installTest
 
@@ -72,10 +71,7 @@ async function run (argv: string[]) {
   }
 
   if (!isCI) {
-    updateNotifier({
-      packageName: pkg.name,
-      packageVersion: pkg.version
-    }).notify()
+    checkForUpdates()
   }
 
   const cmd = getCommandFullName(cliConf.argv.remain[0]) || 'help'
@@ -91,7 +87,7 @@ async function run (argv: string[]) {
 
   cliConf.save = cliConf.save || !cliConf.saveDev && !cliConf.saveOptional
   if (!cliConf['user-agent']) {
-    cliConf['user-agent'] = `${pnpmPkgJson.name}/${pnpmPkgJson.version} npm/? node/${process.version} ${process.platform} ${process.arch}`
+    cliConf['user-agent'] = `${pkg.name}/${pkg.version} npm/? node/${process.version} ${process.platform} ${process.arch}`
   }
 
   await new Promise((resolve, reject) => {
@@ -112,7 +108,7 @@ async function run (argv: string[]) {
   opts.globalBin = npm.globalBin
   opts.globalPrefix = path.join(npm['globalPrefix'], 'pnpm-global')
   opts.prefix = opts.global ? opts.globalPrefix : npm.prefix
-  opts.packageManager = pnpmPkgJson
+  opts.packageManager = pkg
 
   initReporter(silent ? 'silent' : (<any>opts.reporter || 'default')) // tslint:disable-line
 
