@@ -10,7 +10,7 @@ dependencies:
   '@types/rc': 0.0.1
   '@types/semver': 5.4.0
   '@types/update-notifier': 1.0.2
-  '@zkochan/cmd-shim': 2.2.3
+  '@zkochan/cmd-shim': 2.2.4
   '@zkochan/npm-lifecycle': 0.0.4
   arr-flatten: 1.1.0
   byline: 5.0.0
@@ -115,13 +115,13 @@ packages:
   /@types/update-notifier/1.0.2:
     resolution:
       integrity: sha512-NwfqJ7OT7MgzgV+SiWJr7jMdBezFIWuBSmCOmScvesL/SV8A17SUQR0sCI+shxo+4THHPNGgzaLzfbjQMYLHFA==
-  /@zkochan/cmd-shim/2.2.3:
+  /@zkochan/cmd-shim/2.2.4:
     dependencies:
       is-windows: 1.0.1
       mkdirp-promise: 5.0.1
       mz: 2.7.0
     resolution:
-      integrity: sha1-G4vgewpit2Z8WfTm0JFpremoWIE=
+      integrity: sha512-BDy1oz6aFYyY73618IkXzJzFghnXwVZDc3SVa6MVKTrrk4RgubahAF5yKK+Mx4a78tfO0OHeZnJKPs0pNy5uNA==
   /@zkochan/npm-lifecycle/0.0.4:
     dependencies:
       byline: 5.0.0
@@ -2263,7 +2263,7 @@ specifiers:
   '@types/rc': ^0.0.1
   '@types/semver': ^5.3.30
   '@types/update-notifier': ^1.0.0
-  '@zkochan/cmd-shim': ^2.2.3
+  '@zkochan/cmd-shim': ^2.2.4
   '@zkochan/npm-lifecycle': ^0.0.4
   arr-flatten: ^1.0.1
   byline: ^5.0.0
