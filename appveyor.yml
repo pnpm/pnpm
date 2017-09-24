@@ -8,6 +8,9 @@ install:
   - npm set fetch-retry-maxtimeout 180000
   - npm install -g pnpm@next
   - pnpm install
+  - cd test
+  - pnpm install
+  - cd ..
 matrix:
   fast_finish: true
 build: off
