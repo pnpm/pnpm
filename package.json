@@ -42,7 +42,7 @@
     "pnpm-logger": "^0.6.2",
     "ramda": "^0.24.1",
     "strip-color": "^0.1.0",
-    "supi": "^0.2.25",
+    "supi": "^0.2.26",
     "text-table": "^0.2.0",
     "update-notifier": "^2.1.0"
   },
