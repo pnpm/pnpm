@@ -6,10 +6,13 @@ node_js:
 
 sudo: false
 before_install:
+  - git fetch --unshallow
   - npm install -g pnpm@next
 install:
   - pnpm install
 script:
+  - /bin/bash lint-commits.sh
+  - ./node_modules/.bin/commitlint --from=$TRAVIS_COMMIT
   - npm test
 env:
   global:

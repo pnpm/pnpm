@@ -47,16 +47,16 @@
     "update-notifier": "^2.1.0"
   },
   "devDependencies": {
+    "@commitlint/cli": "^3.2.0",
+    "@commitlint/config-angular": "^3.1.1",
+    "@commitlint/prompt-cli": "^3.2.0",
     "@types/mkdirp": "^0.5.0",
     "@types/tape": "^4.2.30",
     "@zkochan/husky": "^0.0.0",
-    "commitizen": "^2.8.6",
-    "cz-conventional-changelog": "^2.0.0",
     "npm-scripts-info": "^0.3.6",
     "rimraf": "^2.5.4",
     "tslint": "^5.4.2",
-    "typescript": "^2.4.1",
-    "validate-commit-msg": "^2.7.0"
+    "typescript": "^2.4.1"
   },
   "directories": {
     "test": "test"
@@ -97,9 +97,9 @@
     "prepare": "cd test && pnpm install",
     "info": "npm-scripts-info",
     "start": "npm run tsc -- --watch",
-    "?cz": "echo 'Run Git commit wizard'",
-    "cz": "git-cz",
-    "commitmsg": "validate-commit-msg",
+    "?commit": "echo 'Run Git commit wizard'",
+    "commit": "commit",
+    "commitmsg": "commitlint -e",
     "lint": "tslint -c tslint.json --project .",
     "test": "npm run tsc && npm run lint && cd test && npm test",
     "tsc": "rimraf lib && tsc",
@@ -107,11 +107,6 @@
   },
   "publishconfig": {
     "tag": "next"
-  },
-  "config": {
-    "commitizen": {
-      "path": "./node_modules/cz-conventional-changelog"
-    }
   },
   "greenkeeper": {
     "ignore": [
