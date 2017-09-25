@@ -33,9 +33,9 @@ dependencies:
 devDependencies:
   '@types/mkdirp': 0.5.1
   '@types/tape': 4.2.30
+  '@zkochan/husky': 0.0.0
   commitizen: 2.9.6
   cz-conventional-changelog: 2.0.0
-  husky: 0.14.3
   npm-scripts-info: 0.3.6
   rimraf: 2.6.2
   tslint: 5.7.0
@@ -127,6 +127,14 @@ packages:
       mz: 2.7.0
     resolution:
       integrity: sha512-BDy1oz6aFYyY73618IkXzJzFghnXwVZDc3SVa6MVKTrrk4RgubahAF5yKK+Mx4a78tfO0OHeZnJKPs0pNy5uNA==
+  /@zkochan/husky/0.0.0:
+    dependencies:
+      is-ci: 1.0.10
+      normalize-path: 1.0.0
+      strip-indent: 2.0.0
+    dev: true
+    resolution:
+      integrity: sha512-onS0BpZl/Zj903N60DM58rENRH9qZPWUALc4M808CG7Kv2M6BHz1W4XREg1vivAYaD3z2Hd9O2iEy3SJlALnbg==
   /@zkochan/npm-lifecycle/0.0.4:
     dependencies:
       byline: 5.0.0
@@ -994,14 +1002,6 @@ packages:
       sshpk: 1.13.1
     resolution:
       integrity: sha1-muzZJRFHcvPZW2WmCruPfBj7rOE=
-  /husky/0.14.3:
-    dependencies:
-      is-ci: 1.0.10
-      normalize-path: 1.0.0
-      strip-indent: 2.0.0
-    dev: true
-    resolution:
-      integrity: sha512-e21wivqHpstpoiWA/Yi8eFti8E+sQDSS53cpJsPptPs295QTOQR0ZwnHo2TXy1XOpZFD9rPOd3NpmqTK6uMLJA==
   /ieee754/1.1.8:
     resolution:
       integrity: sha1-vjPUCsEO8ZJnAfbwii2G+/0a0+Q=
@@ -2668,6 +2668,7 @@ specifiers:
   '@types/ramda': ^0.24.1
   '@types/tape': ^4.2.30
   '@types/update-notifier': ^1.0.0
+  '@zkochan/husky': ^0.0.0
   byline: ^5.0.0
   camelcase: ^4.1.0
   chalk: ^2.1.0
@@ -2676,7 +2677,6 @@ specifiers:
   cross-spawn: ^5.0.0
   cz-conventional-changelog: ^2.0.0
   graceful-fs: ^4.1.11
-  husky: ^0.14.0
   is-ci: ^1.0.10
   load-json-file: ^3.0.0
   loud-rejection: ^1.6.0
