@@ -2,15 +2,17 @@ import chalk = require('chalk')
 import {Log} from 'pnpm-logger'
 import commonTags = require('common-tags')
 import os = require('os')
+import StackTracey = require('stacktracey')
 
 const stripIndent = commonTags.stripIndent
+const stripIndents = commonTags.stripIndents
 const EOL = os.EOL
 const highlight = chalk.yellow
 const colorPath = chalk.gray
 
 export default function reportError (logObj: Log) {
   if (logObj['err']) {
-    const err = <Error & { code: string }>logObj['err']
+    const err = <Error & { code: string, stack: string }>logObj['err']
     switch (err.code) {
       case 'UNEXPECTED_STORE':
         return reportUnexpectedStore(err, logObj['message'])
@@ -23,7 +25,7 @@ export default function reportError (logObj: Log) {
       case 'SHRINKWRAP_BREAKING_CHANGE':
         return reportShrinkwrapBreakingChange(err, logObj['message'])
       default:
-        return formatErrorSummary(err.message || logObj['message'])
+        return formatGenericError(err.message || logObj['message'], err.stack)
     }
   }
   return formatErrorSummary(logObj['message'])
@@ -88,6 +90,16 @@ function formatRelatedSources (msg: Object) {
   }
 
   return output
+}
+
+function formatGenericError (errorMessage: string, stack: Object) {
+  if (stack) {
+    return stripIndents`
+      ${formatErrorSummary(errorMessage)}
+      ${new StackTracey(stack).pretty}
+    `
+  }
+  return formatErrorSummary(errorMessage)
 }
 
 function formatErrorSummary (message: string) {

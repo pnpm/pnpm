@@ -1,40 +1,40 @@
 dependencies:
   '@types/chalk': 0.4.31
-  '@types/common-tags': 1.2.5
+  '@types/common-tags': 1.4.0
   '@types/node': 7.0.43
-  '@types/ramda': 0.24.9
+  '@types/ramda': 0.24.14
   chalk: 2.1.0
   common-tags: 1.4.0
   log-update: 2.1.0
   ndjson: 1.5.0
   pretty-bytes: 4.0.2
   ramda: 0.24.1
+  stacktracey: 1.0.66
   xstream: 10.9.0
 devDependencies:
   commitizen: 2.9.6
   ghooks: 2.0.0
   pnpm-logger: 0.6.2
-  rimraf: 2.6.1
+  rimraf: 2.6.2
   tslint: 4.5.1
-  typescript: 2.5.2
+  typescript: 2.5.3
   validate-commit-msg: 2.14.0
 packages:
   /@types/chalk/0.4.31:
     resolution:
       integrity: sha1-ox10JBprHtu5c8822XooloNKUfk=
-  /@types/common-tags/1.2.5:
+  /@types/common-tags/1.4.0:
     resolution:
-      integrity: sha1-FPKYk5kusyVZS4PXOa8C8rZSD0Y=
+      integrity: sha512-HI1tSO87vmd1sPS3DOVSK4gvVKROvCBFvAnXlLiQtAus/+1xXMQcNyu9TX2ChwRXFeQZeB9+f+nMo99xLd5DdA==
   /@types/node/7.0.43:
     resolution:
       integrity: sha512-7scYwwfHNppXvH/9JzakbVxk0o0QUILVk1Lv64GRaxwPuGpnF1QBiwdvhDpLcymb8BpomQL3KYoWKq3wUdDMhQ==
-  /@types/node/8.0.26:
-    dev: true
+  /@types/node/8.0.31:
     resolution:
-      integrity: sha512-wbKN0MB4XsjdnSE04HiCzLoBDirGCM6zXrqavSj44nZnPFYpnrTF64E9O6Xmf0ca/IuKK/BHUcXwMiwk92gW6Q==
-  /@types/ramda/0.24.9:
+      integrity: sha512-R+LdMJHJQwRd/Ca0Nr5KnwbSWHxTD3DWz4ivqoPeNH+YPcuirMWK+Ti9Mx32jOecmPhHOCd+6CefU5e1eVq2Ew==
+  /@types/ramda/0.24.14:
     resolution:
-      integrity: sha512-VFBycWFpzbhDIK7afthxUiDSfXfhfsQ4uYzguflDiH/iMbAumzNS53mnE8bzvLay8bKuCCsZwt20c3SPs9nw6Q==
+      integrity: sha512-kxdtZ1MiYjwZxGHSFgNxbnYWgv/kfyhB21gLBQwp6jwYyq1Bifk4TQ4C2wKxGEqYxMRAskyetl0BgPxfJfJbCA==
   /ansi-align/2.0.0:
     dependencies:
       string-width: 2.1.1
@@ -78,6 +78,11 @@ packages:
     dev: true
     resolution:
       integrity: sha1-odl8yvy8JiXMcPrc6zalDFiwGlM=
+  /as-table/1.0.24:
+    dependencies:
+      printable-characters: 1.0.33
+    resolution:
+      integrity: sha1-grR/+dub8212v99dQ5boWjYufKc=
   /babel-code-frame/6.26.0:
     dependencies:
       chalk: 1.1.3
@@ -304,6 +309,11 @@ packages:
     dev: true
     resolution:
       integrity: sha1-K8oElkyJGbI/P9aonvXmAIsxs/g=
+  /data-uri-to-buffer/2.0.0:
+    dependencies:
+      '@types/node': 8.0.31
+    resolution:
+      integrity: sha512-YbKCNLPPP4inc0E5If4OaalBc7gpaM2MRv77Pv2VThVComLKfbGYtJcdDCViDyp1Wd4SebhHLz94vp91zbK6bw==
   /dedent/0.6.0:
     dev: true
     resolution:
@@ -496,6 +506,12 @@ packages:
     dev: true
     resolution:
       integrity: sha1-FQStJSMVjKpA20onh8sBQRmU6k8=
+  /get-source/1.0.21:
+    dependencies:
+      data-uri-to-buffer: 2.0.0
+      source-map: 0.6.0
+    resolution:
+      integrity: sha1-XPB9S9tDWZo0qV8fgHuc3qR9l7U=
   /get-stream/3.0.0:
     dev: true
     resolution:
@@ -657,10 +673,10 @@ packages:
     dev: true
     resolution:
       integrity: sha1-TexvMvN+97sLLtPx0aXD9UUHSRg=
-  /interpret/1.0.3:
+  /interpret/1.0.4:
     dev: true
     resolution:
-      integrity: sha1-y8NcYu7uc/Gat7EKgBURQBr8D5A=
+      integrity: sha1-ggzdWIuGj/sZGoCVBtbJyPISsbA=
   /is-buffer/1.1.5:
     dev: true
     resolution:
@@ -902,7 +918,7 @@ packages:
     dependencies:
       json-stringify-safe: 5.0.1
       minimist: 1.2.0
-      split2: 2.1.1
+      split2: 2.2.0
       through2: 2.0.3
     resolution:
       integrity: sha1-rmA7NrE0vOw0e0UkIrC/mNWDLsg=
@@ -1052,7 +1068,7 @@ packages:
       integrity: sha1-clVrgM+g1IqXToDnckjoDtT3+HA=
   /pnpm-logger/0.6.2:
     dependencies:
-      '@types/node': 8.0.26
+      '@types/node': 8.0.31
       bole: 3.0.2
       ndjson: 1.5.0
     dev: true
@@ -1069,6 +1085,9 @@ packages:
   /pretty-bytes/4.0.2:
     resolution:
       integrity: sha1-sr+C5zUNZcbDOqlaqlpPYyf2HNk=
+  /printable-characters/1.0.33:
+    resolution:
+      integrity: sha1-wr8tGbiO2bglgja70Fk9+X42liM=
   /process-nextick-args/1.0.7:
     resolution:
       integrity: sha1-FQ4gt1ZZCtP5EJPyWk8q2L/zC6M=
@@ -1182,12 +1201,12 @@ packages:
     dev: true
     resolution:
       integrity: sha1-jKCMLLtbVedNr6lr9/0aJ9VoyNA=
-  /rimraf/2.6.1:
+  /rimraf/2.6.2:
     dependencies:
       glob: 7.1.2
     dev: true
     resolution:
-      integrity: sha1-wjOOxkPfeht/5cVPqG9XQopV8z0=
+      integrity: sha512-lreewLK/BlghmxtfH36YYVg1i8IAce4TI7oao75I1g245+6BctqTVQiBP3YUJ9C6DQOXJmkYR9X9fCLtCOJc5w==
   /run-async/2.3.0:
     dependencies:
       is-promise: 2.1.0
@@ -1228,7 +1247,7 @@ packages:
   /shelljs/0.7.6:
     dependencies:
       glob: 7.1.2
-      interpret: 1.0.3
+      interpret: 1.0.4
       rechoir: 0.6.2
     dev: true
     resolution:
@@ -1236,6 +1255,9 @@ packages:
   /signal-exit/3.0.2:
     resolution:
       integrity: sha1-tf3AjxKH6hF4Yo5BXiUTK3NkbG0=
+  /source-map/0.6.0:
+    resolution:
+      integrity: sha512-mTozplhTX4tLKIHYji92OTZzVyZvi+Z1qRZDeBvQFI2XUB89wrRoj/xXad3c9NZ1GPJXXRvB+k41PQCPTMC+aA==
   /spawn-command/0.0.2:
     dev: true
     resolution:
@@ -1251,11 +1273,17 @@ packages:
     dev: true
     resolution:
       integrity: sha1-sAeZVX63+wyDdsKdROih6mfldHY=
-  /split2/2.1.1:
+  /split2/2.2.0:
     dependencies:
       through2: 2.0.3
     resolution:
-      integrity: sha1-eh9VHhdqkOzTNF9yRqDP4XXvT9A=
+      integrity: sha512-RAb22TG39LhI31MbreBgIuKiIKhVsawfTgEGqKHTK87aG+ul/PB8Sqoi3I7kVdRWiCfrKxK3uo4/YUkpNvhPbw==
+  /stacktracey/1.0.66:
+    dependencies:
+      as-table: 1.0.24
+      get-source: 1.0.21
+    resolution:
+      integrity: sha1-tl/QGOfmQ0ILWfd5cJLa7/uxcsU=
   /string-width/1.0.2:
     dependencies:
       code-point-at: 1.1.0
@@ -1354,10 +1382,10 @@ packages:
     dev: true
     resolution:
       integrity: sha1-hnrHTjhkGHsdPUfZlqeOxciDB3c=
-  /typescript/2.5.2:
+  /typescript/2.5.3:
     dev: true
     resolution:
-      integrity: sha1-A4qV99m7tCCxvzW6MdTFwd0//jQ=
+      integrity: sha512-ptLSQs2S4QuS6/OD1eAKG+S5G8QQtrU5RT32JULdZQtM1L3WTi34Wsu48Yndzi8xsObRAB9RPt/KhA9wlpEF6w==
   /unique-string/1.0.0:
     dependencies:
       crypto-random-string: 1.0.0
@@ -1470,6 +1498,7 @@ specifiers:
   pretty-bytes: ^4.0.2
   ramda: ^0.24.1
   rimraf: ^2.5.4
+  stacktracey: ^1.0.59
   tslint: ^4.3.1
   typescript: ^2.1.5
   validate-commit-msg: ^2.8.2

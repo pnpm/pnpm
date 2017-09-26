@@ -13,6 +13,7 @@ import {toOutput$} from '../src'
 import {stripIndents} from 'common-tags'
 import chalk = require('chalk')
 import xs, {Stream} from 'xstream'
+import StackTracey = require('stacktracey')
 
 const WARN = chalk.bgYellow.black('\u2009WARN\u2009')
 const ERROR = chalk.bgRed.black('\u2009ERROR\u2009')
@@ -307,16 +308,20 @@ test('prints lifecycle progress', t => {
   })
 })
 
-test('prints error', t => {
+test('prints generic error', t => {
   const output$ = toOutput$(createStreamParser())
 
-  logger.error(new Error('some error'))
+  const err = new Error('some error')
+  logger.error(err)
 
   t.plan(1)
 
   output$.take(1).subscribe({
     next: output => {
-      t.equal(output, `${ERROR} ${chalk.red('some error')}`)
+      t.equal(output, stripIndents`
+        ${ERROR} ${chalk.red('some error')}
+        ${new StackTracey(err.stack).pretty}
+      `)
     },
     complete: t.end,
     error: t.end,

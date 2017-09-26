@@ -42,6 +42,7 @@
     "ndjson": "^1.5.0",
     "pretty-bytes": "^4.0.2",
     "ramda": "^0.24.1",
+    "stacktracey": "^1.0.59",
     "xstream": "^10.9.0"
   },
   "devDependencies": {
