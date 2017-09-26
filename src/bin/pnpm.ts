@@ -89,6 +89,10 @@ async function run (argv: string[]) {
   if (!cliConf['user-agent']) {
     cliConf['user-agent'] = `${pkg.name}/${pkg.version} npm/? node/${process.version} ${process.platform} ${process.arch}`
   }
+  const force = cliConf['force'] === true
+  // removing force to avoid redundant logs from npm
+  // see issue #878 and #877
+  delete cliConf['force']
 
   await new Promise((resolve, reject) => {
     npm.load(cliConf as any, (err: Error) => { // tslint:disable-line
@@ -109,6 +113,7 @@ async function run (argv: string[]) {
   opts.globalPrefix = path.join(npm['globalPrefix'], 'pnpm-global')
   opts.prefix = opts.global ? opts.globalPrefix : npm.prefix
   opts.packageManager = pkg
+  opts.force = force
 
   initReporter(silent ? 'silent' : (<any>opts.reporter || 'default')) // tslint:disable-line
 
