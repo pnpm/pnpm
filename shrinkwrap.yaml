@@ -7,7 +7,7 @@ dependencies:
   '@types/node': 8.0.26
   '@types/nopt': 3.0.29
   '@types/npm': 2.0.29
-  '@types/ramda': 0.24.13
+  '@types/ramda': 0.24.14
   '@types/update-notifier': 1.0.2
   byline: 5.0.0
   camelcase: 4.1.0
@@ -27,7 +27,7 @@ dependencies:
   pnpm-logger: 0.6.2
   ramda: 0.24.1
   strip-color: 0.1.0
-  supi: 0.2.26
+  supi: 0.2.27
   text-table: 0.2.0
   update-notifier: 2.2.0
 devDependencies:
@@ -159,6 +159,9 @@ packages:
   /@types/ramda/0.24.13:
     resolution:
       integrity: sha512-GvRvmGSrYlORN/G4o58cJ0yLE589FAKGEB61SR4t0L2WaJtPjmo5RmweJ+EqeNLc3WsDKNknIPSRuT8yZUJRBw==
+  /@types/ramda/0.24.14:
+    resolution:
+      integrity: sha512-kxdtZ1MiYjwZxGHSFgNxbnYWgv/kfyhB21gLBQwp6jwYyq1Bifk4TQ4C2wKxGEqYxMRAskyetl0BgPxfJfJbCA==
   /@types/rc/0.0.1:
     resolution:
       integrity: sha1-H1uKGzsaxtH+4TfFP6xfoPKK4Nc=
@@ -192,16 +195,18 @@ packages:
     dev: true
     resolution:
       integrity: sha512-onS0BpZl/Zj903N60DM58rENRH9qZPWUALc4M808CG7Kv2M6BHz1W4XREg1vivAYaD3z2Hd9O2iEy3SJlALnbg==
-  /@zkochan/npm-lifecycle/0.0.4:
+  /@zkochan/npm-lifecycle/0.0.6:
     dependencies:
       byline: 5.0.0
       graceful-fs: 4.1.11
+      node-gyp: 3.6.2
+      resolve-from: 4.0.0
       slide: 1.1.6
       uid-number: 0.0.6
       umask: 1.1.0
       which: 1.3.0
     resolution:
-      integrity: sha512-8Im0nnK1eqi4kULyyMB0i28c1kMVj3VSTCmtRHp+KVEAnJ3Hdh+LnNpgyzSF//FYApfYM8+Se+RE0+ODwBPkyg==
+      integrity: sha512-j1OJrYOACRfIHESTnvCBUg8WkVr7nHjkF/0A64qD/kabVulXJYGxu27w6Z9wrJHGQchePPCR31xJWOta4uVqxw==
   /JSONStream/1.3.1:
     dependencies:
       jsonparse: 1.3.1
@@ -1873,6 +1878,9 @@ packages:
     dev: true
     resolution:
       integrity: sha1-six699nWiBvItuZTM17rywoYh0g=
+  /resolve-from/4.0.0:
+    resolution:
+      integrity: sha512-pb/MYmXstAkysRFx8piNI1tGFNQIFA3vkE3Gq4EuA1dF6gHp/+vgZqsCGJapvy8N3Q+4o7FwvquPJcnZ7RYy4g==
   /resolve-link-target/1.0.0:
     dependencies:
       graceful-fs: 4.1.11
@@ -2087,7 +2095,7 @@ packages:
   /strip-json-comments/2.0.1:
     resolution:
       integrity: sha1-PFMZQukIwml8DsNEhYwobHygpgo=
-  /supi/0.2.26:
+  /supi/0.2.27:
     dependencies:
       '@types/byline': 4.2.31
       '@types/common-tags': 1.4.0
@@ -2101,7 +2109,7 @@ packages:
       '@types/semver': 5.4.0
       '@types/update-notifier': 1.0.2
       '@zkochan/cmd-shim': 2.2.4
-      '@zkochan/npm-lifecycle': 0.0.4
+      '@zkochan/npm-lifecycle': 0.0.6
       arr-flatten: 1.1.0
       byline: 5.0.0
       common-tags: 1.4.0
@@ -2147,7 +2155,7 @@ packages:
       write-pkg: 3.1.0
       write-yaml-file: 1.0.0
     resolution:
-      integrity: sha512-G771dZmITNbTp+z3+ngbn/A1UK4JUn0g9P/o+Z/hCAEm15eiXi8akr85SCcxNaMDfPsdRasXQigRlZjXq5oUGw==
+      integrity: sha512-azAbIgy78J/tvTzLil3Cex/W2rkhlzY9lL7hv3wpyE3ZLCOJoTH/sV1HQPuICr2nn6Uek4+5JQt38bSZih5FhA==
   /supports-color/2.0.0:
     resolution:
       integrity: sha1-U10EXOa2Nj+kARcIRimZXp3zJMc=
@@ -2482,7 +2490,7 @@ specifiers:
   '@types/node': 8.0.26
   '@types/nopt': ^3.0.29
   '@types/npm': ^2.0.28
-  '@types/ramda': ^0.24.1
+  '@types/ramda': ^0.24.14
   '@types/tape': ^4.2.30
   '@types/update-notifier': ^1.0.0
   '@zkochan/husky': ^0.0.0
@@ -2506,7 +2514,7 @@ specifiers:
   ramda: ^0.24.1
   rimraf: ^2.5.4
   strip-color: ^0.1.0
-  supi: ^0.2.26
+  supi: ^0.2.27
   text-table: ^0.2.0
   tslint: ^5.4.2
   typescript: ^2.4.1

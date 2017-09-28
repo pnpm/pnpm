@@ -22,7 +22,7 @@
     "@types/node": "8.0.26",
     "@types/nopt": "^3.0.29",
     "@types/npm": "^2.0.28",
-    "@types/ramda": "^0.24.1",
+    "@types/ramda": "^0.24.14",
     "@types/update-notifier": "^1.0.0",
     "byline": "^5.0.0",
     "camelcase": "^4.1.0",
@@ -42,7 +42,7 @@
     "pnpm-logger": "^0.6.2",
     "ramda": "^0.24.1",
     "strip-color": "^0.1.0",
-    "supi": "^0.2.26",
+    "supi": "^0.2.27",
     "text-table": "^0.2.0",
     "update-notifier": "^2.1.0"
   },
