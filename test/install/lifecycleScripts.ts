@@ -11,6 +11,7 @@ import path = require('path')
 import loadJsonFile = require('load-json-file')
 import rimraf = require('rimraf-then')
 import exists = require('path-exists')
+import PATH = require('path-name')
 
 const pkgRoot = path.join(__dirname, '..', '..')
 const pnpmPkg = loadJsonFile.sync(path.join(pkgRoot, 'package.json'))
@@ -171,4 +172,22 @@ test("reports child's close event", async (t: tape.Test) => {
       pkgId: 'localhost+4873/failing-postinstall/1.0.0',
     }))
   }
+})
+
+test('lifecycle scripts have access to node-gyp', async (t: tape.Test) => {
+  const project = prepare(t)
+
+  // `npm test` adds node-gyp to the PATH
+  // it is remove here to test that pnpm adds it
+  const initialPath = process.env.PATH
+  process.env[PATH] = initialPath
+    .split(path.delimiter)
+    .filter((p: string) => !p.includes('node-gyp-bin') && !p.includes('npm'))
+    .join(path.delimiter)
+
+  await installPkgs(['drivelist@5.1.8'], testDefaults())
+
+  process.env[PATH] = initialPath
+
+  t.pass("drivelist's install script has found node-gyp in PATH")
 })
