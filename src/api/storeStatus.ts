@@ -12,7 +12,7 @@ export default async function (maybeOpts: PnpmOptions) {
   if (reporter) {
     streamParser.on('data', reporter)
   }
-  const opts = extendOptions(maybeOpts)
+  const opts = await extendOptions(maybeOpts)
   const ctx = await getContext(opts)
   if (!ctx.shrinkwrap) return []
 

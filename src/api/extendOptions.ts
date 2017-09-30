@@ -6,13 +6,13 @@ import {LAYOUT_VERSION} from '../fs/modulesController'
 import normalizeRegistryUrl = require('normalize-registry-url')
 import {resolveStore} from 'package-store'
 
-const defaults = (opts: PnpmOptions) => {
+const defaults = async (opts: PnpmOptions) => {
   const packageManager = opts.packageManager || {
     name: pnpmPkgJson.name,
     version: pnpmPkgJson.version,
   }
   const prefix = opts.prefix || process.cwd()
-  const store = resolveStore(opts.store, prefix)
+  const store = await resolveStore(opts.store, prefix)
   return <StrictPnpmOptions>{
     fetchRetries: 2,
     fetchRetryFactor: 10,
@@ -52,7 +52,7 @@ const defaults = (opts: PnpmOptions) => {
   }
 }
 
-export default (opts?: PnpmOptions): StrictPnpmOptions => {
+export default async (opts?: PnpmOptions): Promise<StrictPnpmOptions> => {
   opts = opts || {}
   if (opts) {
     for (const key in opts) {
@@ -65,7 +65,7 @@ export default (opts?: PnpmOptions): StrictPnpmOptions => {
     logger.warn('the `store-path` config is deprecated. Use `store` instead.')
     opts.store = opts.storePath
   }
-  const defaultOpts = defaults(opts)
+  const defaultOpts = await defaults(opts)
   const extendedOpts = Object.assign({}, defaultOpts, opts, {store: defaultOpts.store})
   if (extendedOpts.force) {
     logger.warn('using --force I sure hope you know what you are doing')

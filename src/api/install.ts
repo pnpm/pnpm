@@ -116,7 +116,7 @@ export async function install (maybeOpts?: PnpmOptions) {
     streamParser.on('data', reporter)
   }
 
-  const opts = extendOptions(maybeOpts)
+  const opts = await extendOptions(maybeOpts)
 
   if (opts.lock) {
     await lock(opts.prefix, _install, {stale: opts.lockStaleDuration, locks: opts.locks})
@@ -222,7 +222,7 @@ export async function installPkgs (fuzzyDeps: string[] | Dependencies, maybeOpts
 
   maybeOpts = maybeOpts || {}
   if (maybeOpts.update === undefined) maybeOpts.update = true
-  const opts = extendOptions(maybeOpts)
+  const opts = await extendOptions(maybeOpts)
 
   if (opts.lock) {
     await lock(opts.prefix, _installPkgs, {stale: opts.lockStaleDuration, locks: opts.locks})

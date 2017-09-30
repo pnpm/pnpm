@@ -20,7 +20,7 @@ export async function prune(maybeOpts?: PnpmOptions): Promise<void> {
     streamParser.on('data', reporter)
   }
 
-  const opts = extendOptions(maybeOpts)
+  const opts = await extendOptions(maybeOpts)
 
   const ctx = await getContext(opts)
 
