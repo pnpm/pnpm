@@ -14,7 +14,7 @@
     "lib/"
   ],
   "dependencies": {
-    "@pnpm/outdated": "^0.0.0",
+    "@pnpm/outdated": "^0.0.1",
     "@types/byline": "^4.2.31",
     "@types/chalk": "^0.4.31",
     "@types/common-tags": "^1.2.5",
@@ -42,7 +42,7 @@
     "pnpm-logger": "^0.6.2",
     "ramda": "^0.24.1",
     "strip-color": "^0.1.0",
-    "supi": "^0.2.27",
+    "supi": "^0.2.28",
     "text-table": "^0.2.0",
     "update-notifier": "^2.1.0"
   },
