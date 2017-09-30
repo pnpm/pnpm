@@ -102,7 +102,7 @@ async function _outdated (
   if (!wantedShrinkwrap) {
     throw new Error('No shrinkwrapfile in this directory. Run `pnpm install` to generate one.')
   }
-  const storePath = resolveStore(opts.store, pkgPath)
+  const storePath = await resolveStore(opts.store, pkgPath)
   const currentShrinkwrap = await readCurrentShrinkwrap(pkgPath, {ignoreIncompatible: false}) || {}
 
   const client = new RegClient(adaptConfig(opts))
