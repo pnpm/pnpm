@@ -1,20 +1,22 @@
 dependencies:
   '@types/load-json-file': 2.0.6
   '@types/node': 7.0.43
-  '@types/ramda': 0.24.9
+  '@types/ramda': 0.24.14
   '@types/retry': 0.10.1
   '@types/semver': 5.4.0
   dint: 1.0.0
+  drive-by-path: 0.0.2
   encode-registry: 1.0.0
   execa: 0.7.0
   fs-write-stream-atomic: 1.0.10
   load-json-file: 2.0.0
   mkdirp-promise: 5.0.1
-  mz: 2.6.0
+  mz: 2.7.0
   normalize-path: 2.1.1
   normalize-registry-url: 1.0.0
   normalize-ssh: 1.0.0
-  npm: 5.4.0
+  npm: 5.4.2
+  os-homedir: 1.0.2
   p-limit: 1.1.0
   p-queue: 1.2.0
   parse-npm-tarball-url: 1.0.1
@@ -39,9 +41,9 @@ devDependencies:
   in-publish: 2.0.0
   npm-scripts-info: 0.3.6
   pnpm-logger: 0.6.1
-  rimraf: 2.6.1
+  rimraf: 2.6.2
   tslint: 5.7.0
-  typescript: 2.5.2
+  typescript: 2.5.3
   validate-commit-msg: 2.14.0
 packages:
   /@types/load-json-file/2.0.6:
@@ -49,18 +51,22 @@ packages:
       integrity: sha512-nMEwdmNE0w4JTXfwiCABJ57ZLk4DnHgWxIRfiyZ32UPPkmjsoCTChroYeTUbWG7NMbdgrvKSyS744Hg3A/9tAw==
   /@types/mz/0.0.31:
     dependencies:
-      '@types/node': 8.0.26
+      '@types/node': 8.0.31
     resolution:
       integrity: sha1-pNgMCC/v5x5Ap8DwfR5lVbu8e1I=
   /@types/node/7.0.43:
     resolution:
       integrity: sha512-7scYwwfHNppXvH/9JzakbVxk0o0QUILVk1Lv64GRaxwPuGpnF1QBiwdvhDpLcymb8BpomQL3KYoWKq3wUdDMhQ==
   /@types/node/8.0.26:
+    dev: true
     resolution:
       integrity: sha512-wbKN0MB4XsjdnSE04HiCzLoBDirGCM6zXrqavSj44nZnPFYpnrTF64E9O6Xmf0ca/IuKK/BHUcXwMiwk92gW6Q==
-  /@types/ramda/0.24.9:
+  /@types/node/8.0.31:
     resolution:
-      integrity: sha512-VFBycWFpzbhDIK7afthxUiDSfXfhfsQ4uYzguflDiH/iMbAumzNS53mnE8bzvLay8bKuCCsZwt20c3SPs9nw6Q==
+      integrity: sha512-R+LdMJHJQwRd/Ca0Nr5KnwbSWHxTD3DWz4ivqoPeNH+YPcuirMWK+Ti9Mx32jOecmPhHOCd+6CefU5e1eVq2Ew==
+  /@types/ramda/0.24.14:
+    resolution:
+      integrity: sha512-kxdtZ1MiYjwZxGHSFgNxbnYWgv/kfyhB21gLBQwp6jwYyq1Bifk4TQ4C2wKxGEqYxMRAskyetl0BgPxfJfJbCA==
   /@types/retry/0.10.1:
     resolution:
       integrity: sha512-iV8ZXtRV3FxfTJNEWN/3ZbexH52w//uMB+8sPYCKBIA/a2bEQWYrNwGuftGI5Xt1wMROTHrGoJPSvwrM4njx7g==
@@ -69,7 +75,7 @@ packages:
       integrity: sha512-PBHCvO98hNec9A491vBbh0ZNDOVxccwKL1u2pm6fs9oDgm7SEnw0lEHqHfjsYryDxnE3zaf7LvERWEXjOp1hig==
   /@types/tape/4.2.30:
     dependencies:
-      '@types/node': 8.0.26
+      '@types/node': 8.0.31
     dev: true
     resolution:
       integrity: sha1-PBkXxN/W8nJxuZInclE1FbxsRrQ=
@@ -78,7 +84,6 @@ packages:
     resolution:
       integrity: sha1-06ioOzGapneTZisT52HHkRQiMG4=
   /ansi-regex/2.1.1:
-    dev: true
     resolution:
       integrity: sha1-w7M6te42DYbg5ijwRorn7yfWVN8=
   /ansi-styles/2.2.1:
@@ -88,6 +93,20 @@ packages:
   /any-promise/1.3.0:
     resolution:
       integrity: sha1-q8av7tzqUugJzcA3au0845Y10X8=
+  /aproba/1.2.0:
+    resolution:
+      integrity: sha512-Y9J6ZjXtoYh8RnXVCMOU/ttDmk1aBjunq9vO0ta5x85WDQiQfUF9sIPBITdbiiIVcBo03Hi3jMxigBtsddlXRw==
+  /are-we-there-yet/1.1.4:
+    dependencies:
+      delegates: 1.0.0
+      readable-stream: 2.3.3
+    resolution:
+      integrity: sha1-u13KOCu5TwXhUZQ3PRb9O6HKEQ0=
+  /argparse/1.0.9:
+    dependencies:
+      sprintf-js: 1.0.3
+    resolution:
+      integrity: sha1-c9g7wmP4bpf4zE9rrhsOkKfSLIY=
   /arr-diff/2.0.0:
     dependencies:
       arr-flatten: 1.1.0
@@ -120,6 +139,9 @@ packages:
   /base64-js/0.0.8:
     resolution:
       integrity: sha1-EQHpVE9KdrG8OybUUsqW16NeeXg=
+  /bindings/1.3.0:
+    resolution:
+      integrity: sha512-DpLh5EzMR2kzvX1KIlVC0VkC3iZtHKTgdtZ0a3pglBZdaQFjt5S9g9xd1lE+YvXyfd6mtCeRnrUfOLYiTMlNSw==
   /bl/1.2.1:
     dependencies:
       readable-stream: 2.3.3
@@ -203,10 +225,10 @@ packages:
   /chownr/1.0.1:
     resolution:
       integrity: sha1-4qdQQqlVGQi+vSW4Uj1fl2nXkYE=
-  /ci-info/1.0.0:
+  /ci-info/1.1.1:
     dev: true
     resolution:
-      integrity: sha1-3FKF8rTiUYIWg2gcOBwziPRuxTQ=
+      integrity: sha512-vHDDF/bP9RYpTWtUhpJRhCFdvvp3iDWvEbuDbWgvjUrNGV1MXJrE0MPcwGtEled04m61iwdBLUIHZtDgzWS4ZQ==
   /cli-cursor/1.0.2:
     dependencies:
       restore-cursor: 1.0.1
@@ -218,7 +240,6 @@ packages:
     resolution:
       integrity: sha1-/xnt6Kml5XkyQUewwR8PvLq+1jk=
   /code-point-at/1.1.0:
-    dev: true
     resolution:
       integrity: sha1-DQcLTQQ6W+ozovGkDi7bPZpMz3c=
   /colors/0.6.2:
@@ -268,6 +289,9 @@ packages:
     dev: true
     resolution:
       integrity: sha1-CqxmL9Ur54lk1VMvaUeE5wEQrPc=
+  /console-control-strings/1.1.0:
+    resolution:
+      integrity: sha1-PXz0Rk22RG6mRL9LOVB/mFEAjo4=
   /conventional-commit-types/2.2.0:
     dev: true
     resolution:
@@ -310,6 +334,11 @@ packages:
     dev: true
     resolution:
       integrity: sha1-Val5r9/pXnAkh50qD1kkYwFwtTM=
+  /debug/3.1.0:
+    dependencies:
+      ms: 2.0.0
+    resolution:
+      integrity: sha512-OX8XqP7/1a9cqkxYw2yXss15f26NKWBpDXQd0/uK/KPqdQhxbPa994hnzjcE2VqQpDslf55723cKPUOGSmMY3g==
   /decamelize/1.2.0:
     dev: true
     resolution:
@@ -325,6 +354,18 @@ packages:
     dev: true
     resolution:
       integrity: sha1-Dm2o8M5Sg471zsXI+TlrDBtko8s=
+  /deep-extend/0.4.2:
+    resolution:
+      integrity: sha1-SLaZwn4zS/ifEIkr5DL25MfTSn8=
+  /define-properties/1.1.2:
+    dependencies:
+      foreach: 2.0.5
+      object-keys: 1.0.11
+    resolution:
+      integrity: sha1-g6c/L+pWmJj7c3GTyPhzyvbUXJQ=
+  /delegates/1.0.0:
+    resolution:
+      integrity: sha1-hMbhWbgZBP3KWaDvRM2HDTElD5o=
   /detect-file/0.1.0:
     dependencies:
       fs-exists-sync: 0.1.0
@@ -340,10 +381,10 @@ packages:
   /detect-indent/5.0.0:
     resolution:
       integrity: sha1-OHHMCmoALow+Wzz38zYmRnXwa50=
-  /diff/3.3.0:
+  /diff/3.3.1:
     dev: true
     resolution:
-      integrity: sha512-w0XZubFWn0Adlsapj9EAWX0FqWdO4tz8kc3RiYdWLh4k/V8PTb6i0SMgXt0vRM3zyKnT8tKO7mUlieRQHIjMNg==
+      integrity: sha512-MKPHZDMB0o6yHyDryUOScqZibp914ksXwAMYMTHj6KO8UeKsRYNJD3oNCKjTqZon+V488P7N/HzXF8t7ZR95ww==
   /dint/1.0.0:
     dependencies:
       bluebird: 3.5.0
@@ -352,6 +393,15 @@ packages:
       ssri: 4.1.6
     resolution:
       integrity: sha1-S/7IGLOmVysyi96o0FHM1d5YDEQ=
+  /drive-by-path/0.0.2:
+    dependencies:
+      is-subdir: 1.0.2
+      once: 1.4.0
+      ramda: 0.24.1
+      util.promisify: 1.0.0
+      zkochan-drivelist: 0.0.0
+    resolution:
+      integrity: sha512-T997+lEcBDz/jp6oGu9MX4V6wgIc/y5nxxj0ou+wnby65YKYSSRxBU64Eba0K+8870E1JeHbnTwlpxsGLA9nwQ==
   /duplexify/3.5.1:
     dependencies:
       end-of-stream: 1.4.0
@@ -375,10 +425,29 @@ packages:
       is-arrayish: 0.2.1
     resolution:
       integrity: sha1-+FWobOYa3E6GIcPNoh56dhLDqNw=
+  /es-abstract/1.8.2:
+    dependencies:
+      es-to-primitive: 1.1.1
+      function-bind: 1.1.1
+      has: 1.0.1
+      is-callable: 1.1.3
+      is-regex: 1.0.4
+    resolution:
+      integrity: sha512-dvhwFL3yjQxNNsOWx6exMlaDrRHCRGMQlnx5lsXDCZ/J7G/frgIIl94zhZSp/galVAYp7VzPi1OrAHta89/yGQ==
+  /es-to-primitive/1.1.1:
+    dependencies:
+      is-callable: 1.1.3
+      is-date-object: 1.0.1
+      is-symbol: 1.0.1
+    resolution:
+      integrity: sha1-RTVSSKiJeQNLZ5Lhm7gfK3l13Q0=
   /escape-string-regexp/1.0.5:
     dev: true
     resolution:
       integrity: sha1-G2HAViGQqN/2rjuyzwIAyhMLhtQ=
+  /esprima/4.0.0:
+    resolution:
+      integrity: sha512-oftTcaMu/EGrEIu904mWteKIv8vMuOgGYo7EhVJJN00R/EED9DCua/xxHRdYnKtcECzVg7xOWhflvJMnqcFZjw==
   /esutils/2.0.2:
     dev: true
     resolution:
@@ -410,6 +479,9 @@ packages:
     dev: true
     resolution:
       integrity: sha1-opnv/TNf4nIeuujiV+x5ZE/IUzc=
+  /expand-template/1.1.0:
+    resolution:
+      integrity: sha512-kkjwkMqj0h4w/sb32ERCDxCQkREMCAgS39DscDnSwDsbxnwwM1BTZySdC3Bn1lhY7vL08n9GoO/fVTynjDgRyQ==
   /expand-tilde/1.2.2:
     dependencies:
       os-homedir: 1.0.2
@@ -507,6 +579,9 @@ packages:
     dev: true
     resolution:
       integrity: sha1-UmXGgaTylNq78XyVCbZ2OqhFEM4=
+  /foreach/2.0.5:
+    resolution:
+      integrity: sha1-C+4AUBiusmDQo6865ljdATbsG5k=
   /fs-exists-sync/0.1.0:
     dev: true
     resolution:
@@ -530,6 +605,21 @@ packages:
   /fs.realpath/1.0.0:
     resolution:
       integrity: sha1-FQStJSMVjKpA20onh8sBQRmU6k8=
+  /function-bind/1.1.1:
+    resolution:
+      integrity: sha512-yIovAzMX49sF8Yl58fSCWJ5svSLuaibPxXQJFLmBObTuCr0Mf1KiPopGM9NiFjiYBCbfaa2Fh6breQ6ANVTI0A==
+  /gauge/2.7.4:
+    dependencies:
+      aproba: 1.2.0
+      console-control-strings: 1.1.0
+      has-unicode: 2.0.1
+      object-assign: 4.1.1
+      signal-exit: 3.0.2
+      string-width: 1.0.2
+      strip-ansi: 3.0.1
+      wide-align: 1.1.2
+    resolution:
+      integrity: sha1-LANAXHU4w51+s3sxcCLjJfsBi/c=
   /get-stdin/4.0.1:
     dev: true
     resolution:
@@ -537,6 +627,9 @@ packages:
   /get-stream/3.0.0:
     resolution:
       integrity: sha1-jpQ9E1jcN1VQVOy+LtsFqhdO3hQ=
+  /github-from-package/0.0.0:
+    resolution:
+      integrity: sha1-l/tdlr/eiXMxPyDoKI75oWf6ZM4=
   /glob-base/0.3.0:
     dependencies:
       glob-parent: 2.0.0
@@ -606,6 +699,14 @@ packages:
     dev: true
     resolution:
       integrity: sha1-NPUEnOHs3ysGSa8+8k5F7TVBbZE=
+  /has-unicode/2.0.1:
+    resolution:
+      integrity: sha1-4Ob+aijPUROIVeCG0Wkedx3iqLk=
+  /has/1.0.1:
+    dependencies:
+      function-bind: 1.1.1
+    resolution:
+      integrity: sha1-hGFzP1OLCDfJNh45qauelwTcLyg=
   /homedir-polyfill/1.0.1:
     dependencies:
       parse-passwd: 1.0.0
@@ -657,7 +758,6 @@ packages:
     resolution:
       integrity: sha1-Yzwsg+PaQqUC9SRmAiSA9CCCYd4=
   /ini/1.3.4:
-    dev: true
     resolution:
       integrity: sha1-BTfLedr1m1mhpRff9wbIbsA5Fi4=
   /inquirer/1.2.3:
@@ -679,10 +779,10 @@ packages:
     dev: true
     resolution:
       integrity: sha1-TexvMvN+97sLLtPx0aXD9UUHSRg=
-  /interpret/1.0.3:
+  /interpret/1.0.4:
     dev: true
     resolution:
-      integrity: sha1-y8NcYu7uc/Gat7EKgBURQBr8D5A=
+      integrity: sha1-ggzdWIuGj/sZGoCVBtbJyPISsbA=
   /is-arrayish/0.2.1:
     resolution:
       integrity: sha1-d8mYQFJ6qOyxqLppe4BkWnqSap0=
@@ -698,12 +798,18 @@ packages:
   /is-bzip2/1.0.0:
     resolution:
       integrity: sha1-XuWOqlounIDiFAe+3yOuWsCRs/w=
+  /is-callable/1.1.3:
+    resolution:
+      integrity: sha1-hut1OSgF3cM69xySoO7fdO52BLI=
   /is-ci/1.0.10:
     dependencies:
-      ci-info: 1.0.0
+      ci-info: 1.1.1
     dev: true
     resolution:
       integrity: sha1-9zkzayYyNlBhqdSCcM1WrjNpMY4=
+  /is-date-object/1.0.1:
+    resolution:
+      integrity: sha1-mqIOtq7rv/d/vTPnTKAbM1gdOhY=
   /is-deflate/1.0.0:
     resolution:
       integrity: sha1-yGKQHDwWH7CdrHzcfnhPgOmPLxQ=
@@ -734,7 +840,6 @@ packages:
   /is-fullwidth-code-point/1.0.0:
     dependencies:
       number-is-nan: 1.0.1
-    dev: true
     resolution:
       integrity: sha1-754xOG8DGn8NZDr4L95QxFfvAMs=
   /is-glob/2.0.1:
@@ -773,14 +878,27 @@ packages:
     dev: true
     resolution:
       integrity: sha1-eaKp7OfwlugPNtKy87wWwf9L8/o=
+  /is-regex/1.0.4:
+    dependencies:
+      has: 1.0.1
+    resolution:
+      integrity: sha1-VRdIm1RwkbCTDglWVM7SXul+lJE=
   /is-ssh/1.3.0:
     dependencies:
-      protocols: 1.4.5
+      protocols: 1.4.6
     resolution:
       integrity: sha1-6+oRaaJhTaOSpjdANmw84EnY3/Y=
   /is-stream/1.1.0:
     resolution:
       integrity: sha1-EtSj3U5o4Lec6428hBc66A2RykQ=
+  /is-subdir/1.0.2:
+    dependencies:
+      is-windows: 1.0.1
+    resolution:
+      integrity: sha512-2H3vM92ez7TjW6T2e4G7AQVm/1/UA/qikNO0/aIi2SkouUU2wXW2CQ5Owiz8oaaFQpjNl74B5LIjTcM1htr2mQ==
+  /is-symbol/1.0.1:
+    resolution:
+      integrity: sha1-PMWfAAJRlLarLjjbrmaJJWtmBXI=
   /is-utf8/0.2.1:
     dev: true
     resolution:
@@ -808,6 +926,12 @@ packages:
     dev: true
     resolution:
       integrity: sha1-mGbfOVECEw449/mWvOtlRDIJwls=
+  /js-yaml/3.10.0:
+    dependencies:
+      argparse: 1.0.9
+      esprima: 4.0.0
+    resolution:
+      integrity: sha512-O2v52ffjLa9VeM43J4XocZE//WT9N0IiwDa3KSHH7Tu8CtH+1qM8SIZvnsTh6v+4yFy5KUY3BHUVwjpfAWsjIA==
   /json-parse-better-errors/1.0.1:
     resolution:
       integrity: sha512-xyQpxeWWMKyJps9CuGJYeng6ssI5bpqS9ltQpdVQ90t4ql6NdnxFKh95JcRt2cun/DjMVNrdjniLPuMA69xmCw==
@@ -866,7 +990,6 @@ packages:
     resolution:
       integrity: sha1-NKMFW6vgTOQkZ7YH1wAHLH/2v0I=
   /lodash/4.17.4:
-    dev: true
     resolution:
       integrity: sha1-eCA6TRwyiuHYbcpkYONptX9AVa4=
   /longest/1.0.1:
@@ -949,7 +1072,6 @@ packages:
     resolution:
       integrity: sha1-hX/Kv8M5fSYluCKCYuhqp6ARsF0=
   /minimist/1.2.0:
-    dev: true
     resolution:
       integrity: sha1-o1AIsg9BOD7sH7kU9M1d95omQoQ=
   /mkdirp-promise/5.0.1:
@@ -962,17 +1084,23 @@ packages:
       minimist: 0.0.8
     resolution:
       integrity: sha1-MAV0OOrGz3+MR2fzhkjWaX11yQM=
+  /ms/2.0.0:
+    resolution:
+      integrity: sha1-VgiurfwAvmwpAd9fmGF4jeDVl8g=
   /mute-stream/0.0.6:
     dev: true
     resolution:
       integrity: sha1-SJYrGeFp/R38JAs/HnMXYnu8R9s=
-  /mz/2.6.0:
+  /mz/2.7.0:
     dependencies:
       any-promise: 1.3.0
       object-assign: 4.1.1
       thenify-all: 1.6.0
     resolution:
-      integrity: sha1-yLhSHZWN8KTydoAl22nHGe5O8c4=
+      integrity: sha512-z81GNO7nnYMEhrGh9LeymoE4+Yr0Wn5McHIZMK5cfQCl+NDX08sCZgUc9/6MHni9IWuFLm1Z3HTCXu2z9fN62Q==
+  /nan/2.7.0:
+    resolution:
+      integrity: sha1-2Vv3IeyHfgjbJ27T/G63j5CDrUY=
   /ndjson/1.5.0:
     dependencies:
       json-stringify-safe: 5.0.1
@@ -982,6 +1110,12 @@ packages:
     dev: true
     resolution:
       integrity: sha1-rmA7NrE0vOw0e0UkIrC/mNWDLsg=
+  /node-abi/2.1.1:
+    resolution:
+      integrity: sha512-6oxV13poCOv7TfGvhsSz6XZWpXeKkdGVh72++cs33OfMh3KAX8lN84dCvmqSETyDXAFcUHtV7eJrgFBoOqZbNQ==
+  /noop-logger/0.1.1:
+    resolution:
+      integrity: sha1-lKKxYzxPExdVMAfYlm/Q6EG2pMI=
   /normalize-package-data/2.4.0:
     dependencies:
       hosted-git-info: 2.5.0
@@ -1021,16 +1155,32 @@ packages:
     dev: true
     resolution:
       integrity: sha1-FOfHjBKIvW2CB4dpx6qVg/xBPAM=
-  /npm/5.4.0:
+  /npm/5.4.2:
     resolution:
-      integrity: sha512-jw7Gq2dMM3RWBUaQmuJTB/dcZEiTL2c6VUrXvlWU/37SXR0GCCGysKfwQcjQerTmmrycIpfLZS2msHa26FsAKQ==
+      integrity: sha512-F6LLCAHriKyKQ9Ff03UKCjkXZoRBp281I42K42+VeHfjAXZ3TJdg3RccinzoCFV1kDxCedVm7AstIpb1Uf5UkQ==
+  /npmlog/4.1.2:
+    dependencies:
+      are-we-there-yet: 1.1.4
+      console-control-strings: 1.1.0
+      gauge: 2.7.4
+      set-blocking: 2.0.0
+    resolution:
+      integrity: sha512-2uUqazuKlTaSI/dC8AzicUck7+IrEaOnN/e0jd3Xtt1KcGpwx30v50mL7oPyr/h9bL3E4aZccVwpwP+5W9Vjkg==
   /number-is-nan/1.0.1:
-    dev: true
     resolution:
       integrity: sha1-CXtgK1NCKlIsGvuHkDGDNpQaAR0=
   /object-assign/4.1.1:
     resolution:
       integrity: sha1-IQmtx5ZYh8/AXLvUQsrIv7s2CGM=
+  /object-keys/1.0.11:
+    resolution:
+      integrity: sha1-xUYBd4rVYPEULODgG8yotW0TQm0=
+  /object.getownpropertydescriptors/2.0.3:
+    dependencies:
+      define-properties: 1.1.2
+      es-abstract: 1.8.2
+    resolution:
+      integrity: sha1-h1jIRvW0B62rDyNuCYbxSwUcqhY=
   /object.omit/2.0.1:
     dependencies:
       for-own: 0.1.5
@@ -1060,7 +1210,7 @@ packages:
       integrity: sha1-u+Z0BseaqFxc/sdm/lc0VV36EnQ=
   /p-every/1.0.2:
     dependencies:
-      p-map: 1.1.1
+      p-map: 1.2.0
     resolution:
       integrity: sha1-TgHYXCPaGe1xpK+6MZvbTZTIXgA=
   /p-finally/1.0.0:
@@ -1069,9 +1219,9 @@ packages:
   /p-limit/1.1.0:
     resolution:
       integrity: sha1-sH/y2aXYi+yAYDWJWiurZqJ5iLw=
-  /p-map/1.1.1:
+  /p-map/1.2.0:
     resolution:
-      integrity: sha1-BfXkrpegaDcbwqXMhr+9vBnErno=
+      integrity: sha512-r6zKACMNhjPJMTl8KcFH4li//gkrXWfbD6feV8l6doRHlzljFWGJ2AP6iKaCJXyZmAUMOPtvbW7EXkbWO/pLEA==
   /p-queue/1.2.0:
     resolution:
       integrity: sha1-Y5y4sHJwwVtx16ZEao4wQU88ltE=
@@ -1111,7 +1261,7 @@ packages:
   /parse-url/1.3.11:
     dependencies:
       is-ssh: 1.3.0
-      protocols: 1.4.5
+      protocols: 1.4.6
     resolution:
       integrity: sha1-V8FUKKuKiSsfQ4aWRccR0OFEtVQ=
   /path-absolute/1.0.0:
@@ -1173,6 +1323,24 @@ packages:
     dev: true
     resolution:
       integrity: sha512-fdZlOMgYKohtp0vD+94ouNjBbgSTcxzSVO6cTEhl+5jjA9TLdgFVBrd4LzuFRrk57IM849GnM/wIuLx0cTkVWg==
+  /prebuild-install/2.2.2:
+    dependencies:
+      expand-template: 1.1.0
+      github-from-package: 0.0.0
+      minimist: 1.2.0
+      mkdirp: 0.5.1
+      node-abi: 2.1.1
+      noop-logger: 0.1.1
+      npmlog: 4.1.2
+      os-homedir: 1.0.2
+      pump: 1.0.2
+      rc: 1.2.1
+      simple-get: 1.4.3
+      tar-fs: 1.15.3
+      tunnel-agent: 0.6.0
+      xtend: 4.0.1
+    resolution:
+      integrity: sha512-F46pcvDxtQhbV3B+dm+exHuKxIyJK26fVNiJRmbTW/5D7o0Z2yzc8CKeu7UWbo9XxQZoVOC88aKgySAsza+cWw==
   /preserve/0.2.0:
     dev: true
     resolution:
@@ -1180,9 +1348,9 @@ packages:
   /process-nextick-args/1.0.7:
     resolution:
       integrity: sha1-FQ4gt1ZZCtP5EJPyWk8q2L/zC6M=
-  /protocols/1.4.5:
+  /protocols/1.4.6:
     resolution:
-      integrity: sha1-Id4fRBxO9wlECO2fHJT3oRS4dVc=
+      integrity: sha1-+LsmPqG1/Xp2BNJri+Ob13Z4v4o=
   /pseudomap/1.0.2:
     resolution:
       integrity: sha1-8FKijacOYYkX7wqKw0wa5aaChrM=
@@ -1209,6 +1377,14 @@ packages:
     dev: true
     resolution:
       integrity: sha512-D5JUjPyJbaJDkuAazpVnSfVkLlpeO3wDlPROTMLGKG1zMFNFRgrciKo1ltz/AzNTkqE0HzDx655QOL51N06how==
+  /rc/1.2.1:
+    dependencies:
+      deep-extend: 0.4.2
+      ini: 1.3.4
+      minimist: 1.2.0
+      strip-json-comments: 2.0.1
+    resolution:
+      integrity: sha1-LgPo5C7kULjLPc5lvhv4l04d/ZU=
   /read-package-json/2.0.12:
     dependencies:
       glob: 7.1.2
@@ -1270,7 +1446,7 @@ packages:
   /rename-overwrite/1.0.0:
     dependencies:
       graceful-fs: 4.1.11
-      rimraf: 2.6.1
+      rimraf: 2.6.2
       thenify: 3.3.0
       timeout-then: 1.1.0
     resolution:
@@ -1319,14 +1495,14 @@ packages:
   /rimraf-then/1.0.1:
     dependencies:
       any-promise: 1.3.0
-      rimraf: 2.6.1
+      rimraf: 2.6.2
     resolution:
       integrity: sha1-vURYp561YbdUiq7ArDdT70Kf5ws=
-  /rimraf/2.6.1:
+  /rimraf/2.6.2:
     dependencies:
       glob: 7.1.2
     resolution:
-      integrity: sha1-wjOOxkPfeht/5cVPqG9XQopV8z0=
+      integrity: sha512-lreewLK/BlghmxtfH36YYVg1i8IAce4TI7oao75I1g245+6BctqTVQiBP3YUJ9C6DQOXJmkYR9X9fCLtCOJc5w==
   /run-async/2.3.0:
     dependencies:
       is-promise: 2.1.0
@@ -1346,6 +1522,9 @@ packages:
   /semver/5.4.1:
     resolution:
       integrity: sha512-WfG/X9+oATh81XtllIo/I8gOiY9EXRdv1cQdyykeXK17YcUW3EXUAi2To4pcH6nZtJPr7ZOpM5OMyWJZm+8Rsg==
+  /set-blocking/2.0.0:
+    resolution:
+      integrity: sha1-BF+XgtARrppoA93TgrJDkrPYkPc=
   /shebang-command/1.2.0:
     dependencies:
       shebang-regex: 1.0.0
@@ -1357,7 +1536,7 @@ packages:
   /shelljs/0.7.6:
     dependencies:
       glob: 7.1.2
-      interpret: 1.0.3
+      interpret: 1.0.4
       rechoir: 0.6.2
     dev: true
     resolution:
@@ -1365,6 +1544,13 @@ packages:
   /signal-exit/3.0.2:
     resolution:
       integrity: sha1-tf3AjxKH6hF4Yo5BXiUTK3NkbG0=
+  /simple-get/1.4.3:
+    dependencies:
+      once: 1.4.0
+      unzip-response: 1.0.2
+      xtend: 4.0.1
+    resolution:
+      integrity: sha1-6XVe2kB+ltpAxeUVjJ6jezO+y+s=
   /slash/1.0.0:
     resolution:
       integrity: sha1-xB8vbDn8FtHNF61LXYlhFK5HDVU=
@@ -1397,6 +1583,9 @@ packages:
     dev: true
     resolution:
       integrity: sha1-eh9VHhdqkOzTNF9yRqDP4XXvT9A=
+  /sprintf-js/1.0.3:
+    resolution:
+      integrity: sha1-BOaSb2YolTVPPdAVIDYzuFcpfiw=
   /ssri/4.1.6:
     dependencies:
       safe-buffer: 5.1.1
@@ -1410,7 +1599,6 @@ packages:
       code-point-at: 1.1.0
       is-fullwidth-code-point: 1.0.0
       strip-ansi: 3.0.1
-    dev: true
     resolution:
       integrity: sha1-EYvfW4zcUaKn5w0hHgfisLmxB9M=
   /string_decoder/1.0.3:
@@ -1421,7 +1609,6 @@ packages:
   /strip-ansi/3.0.1:
     dependencies:
       ansi-regex: 2.1.1
-    dev: true
     resolution:
       integrity: sha1-ajhfuIU9lS1f8F0Oiq+UJ43GPc8=
   /strip-bom/2.0.0:
@@ -1443,7 +1630,6 @@ packages:
     resolution:
       integrity: sha1-DHlipq3vp7vUrDZkYKY4VSrhoKI=
   /strip-json-comments/2.0.1:
-    dev: true
     resolution:
       integrity: sha1-PFMZQukIwml8DsNEhYwobHygpgo=
   /supports-color/2.0.0:
@@ -1453,11 +1639,11 @@ packages:
   /symlink-dir/1.1.0:
     dependencies:
       '@types/mz': 0.0.31
-      '@types/node': 8.0.26
+      '@types/node': 8.0.31
       graceful-fs: 4.1.11
       is-windows: 1.0.1
       mkdirp-promise: 5.0.1
-      mz: 2.6.0
+      mz: 2.7.0
     resolution:
       integrity: sha512-HrQ50UhvdoWwwC62I82l0U2NTRx9dTQWs5/ay0bRwBqkJQ0f3ruVhQUyLH7hs6NekRsvQgK76fZyUFK7PZsm8A==
   /tar-fs/1.15.3:
@@ -1519,30 +1705,35 @@ packages:
       babel-code-frame: 6.26.0
       colors: 1.1.2
       commander: 2.11.0
-      diff: 3.3.0
+      diff: 3.3.1
       glob: 7.1.2
       minimatch: 3.0.4
       resolve: 1.4.0
       semver: 5.4.1
       tslib: 1.7.1
-      tsutils: 2.8.2
+      tsutils: 2.10.0
     dev: true
     resolution:
       integrity: sha1-wl4NDJL6EgHCvDDoROCOaCtPNVI=
-  /tsutils/2.8.2:
+  /tsutils/2.10.0:
     dependencies:
       tslib: 1.7.1
     dev: true
     resolution:
-      integrity: sha1-LBSGukMSYIRbCsb5Aq/Z1wio6mo=
+      integrity: sha1-rpRRHfJlbrBuRCQFb7pcOIiHBAw=
+  /tunnel-agent/0.6.0:
+    dependencies:
+      safe-buffer: 5.1.1
+    resolution:
+      integrity: sha1-J6XeoGs2sEoKmWZ3SykIaPD8QP0=
   /typedarray/0.0.6:
     dev: true
     resolution:
       integrity: sha1-hnrHTjhkGHsdPUfZlqeOxciDB3c=
-  /typescript/2.5.2:
+  /typescript/2.5.3:
     dev: true
     resolution:
-      integrity: sha1-A4qV99m7tCCxvzW6MdTFwd0//jQ=
+      integrity: sha512-ptLSQs2S4QuS6/OD1eAKG+S5G8QQtrU5RT32JULdZQtM1L3WTi34Wsu48Yndzi8xsObRAB9RPt/KhA9wlpEF6w==
   /unbzip2-stream/1.2.5:
     dependencies:
       buffer: 3.6.0
@@ -1551,7 +1742,7 @@ packages:
       integrity: sha512-izD3jxT8xkzwtXRUZjtmRwKnZoeECrfZ8ra/ketwOcusbZEp4mjULMnJOCfTDZBgGQAAY1AJ/IgxcwkavcX9Og==
   /unpack-stream/2.1.0:
     dependencies:
-      '@types/node': 8.0.26
+      '@types/node': 8.0.31
       decompress-maybe: 1.0.0
       ssri: 4.1.6
       tar-fs: 1.15.3
@@ -1561,9 +1752,18 @@ packages:
     dev: true
     resolution:
       integrity: sha1-mOH8YItrhUx1r7G5WvwJm6adlC8=
+  /unzip-response/1.0.2:
+    resolution:
+      integrity: sha1-uYTwh3/AqJwsdzzB73tbIytbBv4=
   /util-deprecate/1.0.2:
     resolution:
       integrity: sha1-RQ1Nyfpw3nMnYvvS1KKJgUGaDM8=
+  /util.promisify/1.0.0:
+    dependencies:
+      define-properties: 1.1.2
+      object.getownpropertydescriptors: 2.0.3
+    resolution:
+      integrity: sha512-i+6qA2MPhvoKLuxnJNpXAGhg7HphQOSUq2LKMZD0m15EiskXUkMvKdF4Uui0WYeCUGea+o2cw/ZuwehtfsrNkA==
   /validate-commit-msg/2.14.0:
     dependencies:
       conventional-commit-types: 2.2.0
@@ -1584,6 +1784,11 @@ packages:
       isexe: 2.0.0
     resolution:
       integrity: sha512-xcJpopdamTuY5duC/KnTTNBraPK54YwpenP4lzxU8H91GudWpFv38u0CKjclE1Wi2EH2EDz5LRcHcKbCIzqGyg==
+  /wide-align/1.1.2:
+    dependencies:
+      string-width: 1.0.2
+    resolution:
+      integrity: sha512-ijDLlyQ7s6x1JgCLur53osjm/UXUYD9+0PbYKrBsYisYXzCxN+HC3mYDNy/dWdmf3AwqwU3CXwDCvsNgGK1S0w==
   /word-wrap/1.2.3:
     dev: true
     resolution:
@@ -1614,6 +1819,16 @@ packages:
   /yallist/2.1.2:
     resolution:
       integrity: sha1-HBH5IY8HYImkfdUS+TxmmaaoHVI=
+  /zkochan-drivelist/0.0.0:
+    dependencies:
+      bindings: 1.3.0
+      debug: 3.1.0
+      js-yaml: 3.10.0
+      lodash: 4.17.4
+      nan: 2.7.0
+      prebuild-install: 2.2.2
+    resolution:
+      integrity: sha512-bx/VIFk9YjCUvONHmBzpoBYaX7ze6B/YNG5BTD8zpe5JVonubpMSB4+GQZ/DZL2ZsOEpT0ILzJk2z2nbtRHBZQ==
 registry: 'https://registry.npmjs.org/'
 shrinkwrapVersion: 3
 specifiers:
@@ -1626,6 +1841,7 @@ specifiers:
   commitizen: ^2.8.6
   cz-conventional-changelog: ^2.0.0
   dint: ^1.0.0
+  drive-by-path: ^0.0.2
   encode-registry: ^1.0.0
   execa: ^0.7.0
   fs-write-stream-atomic: ^1.0.10
@@ -1639,6 +1855,7 @@ specifiers:
   normalize-ssh: ^1.0.0
   npm: ^5.1.0
   npm-scripts-info: ^0.3.6
+  os-homedir: ^1.0.2
   p-limit: ^1.1.0
   p-queue: ^1.1.0
   parse-npm-tarball-url: ^1.0.1
