@@ -2,7 +2,12 @@
   "name": "pnpm",
   "description": "Fast, disk space efficient package manager",
   "version": "1.14.10",
-  "author": "Rico Sta. Cruz <rico@ricostacruz.com>",
+  "author": {
+    "name": "Zoltan Kochan",
+    "email": "z@kochan.io",
+    "url": "https://www.kochan.io/",
+    "twitter": "ZoltanKochan"
+  },
   "bin": {
     "pnpm": "lib/bin/pnpm.js"
   },
