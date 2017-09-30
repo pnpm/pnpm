@@ -1,6 +1,6 @@
 {
   "scripts": {
-    "test": "ts-node index.ts"
+    "test": "node node_modules/ts-node/dist/bin.js index.ts"
   },
   "dependencies": {
     "@types/tape": "^4.2.30",

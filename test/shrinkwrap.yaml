@@ -3,12 +3,12 @@ dependencies:
   tape: 4.8.0
   ts-node: 3.3.0
 packages:
-  /@types/node/8.0.28:
+  /@types/node/8.0.31:
     resolution:
-      integrity: sha512-HupkFXEv3O3KSzcr3Ylfajg0kaerBg1DyaZzRBBQfrU3NN1mTBRE7sCveqHwXLS5Yrjvww8qFzkzYQQakG9FuQ==
+      integrity: sha512-R+LdMJHJQwRd/Ca0Nr5KnwbSWHxTD3DWz4ivqoPeNH+YPcuirMWK+Ti9Mx32jOecmPhHOCd+6CefU5e1eVq2Ew==
   /@types/tape/4.2.30:
     dependencies:
-      '@types/node': 8.0.28
+      '@types/node': 8.0.31
     resolution:
       integrity: sha1-PBkXxN/W8nJxuZInclE1FbxsRrQ=
   /ansi-styles/3.2.0:
@@ -112,6 +112,11 @@ packages:
       function-bind: 1.1.1
     resolution:
       integrity: sha1-hGFzP1OLCDfJNh45qauelwTcLyg=
+  /homedir-polyfill/1.0.1:
+    dependencies:
+      parse-passwd: 1.0.0
+    resolution:
+      integrity: sha1-TCu8inWJmP7r9e1oWA921GdotLw=
   /inflight/1.0.6:
     dependencies:
       once: 1.4.0
@@ -168,6 +173,9 @@ packages:
       wrappy: 1.0.2
     resolution:
       integrity: sha1-WDsap3WWHUsROsF9nFC6753Xa9E=
+  /parse-passwd/1.0.0:
+    resolution:
+      integrity: sha1-bVuTSkVpk7I9N/QKOC1vFmao5cY=
   /path-is-absolute/1.0.1:
     resolution:
       integrity: sha1-F0uSaHNVNP+8es5r9TpanhtcX18=
@@ -240,7 +248,7 @@ packages:
       mkdirp: 0.5.1
       source-map-support: 0.4.18
       tsconfig: 6.0.0
-      v8flags: 3.0.0
+      v8flags: 3.0.1
       yn: 2.0.0
     resolution:
       integrity: sha1-wTxqMCTjC+EYDdUwOPwgkonUv2k=
@@ -250,14 +258,11 @@ packages:
       strip-json-comments: 2.0.1
     resolution:
       integrity: sha1-aw6DdgA9evGGT434+J3QBZ/80DI=
-  /user-home/1.1.1:
-    resolution:
-      integrity: sha1-K1viOjK2Onyd640PKNSFcko98ZA=
-  /v8flags/3.0.0:
+  /v8flags/3.0.1:
     dependencies:
-      user-home: 1.1.1
+      homedir-polyfill: 1.0.1
     resolution:
-      integrity: sha512-AGl+C+4qpeSu2g3JxCD/mGFFOs/vVZ3XREkD3ibQXEqr4Y4zgIrPWW124/IKJFHOIVFIoH8miWrLf0o84HYjwA==
+      integrity: sha1-3Oj8N5wX2fLJ6e142JzgAFKxt2s=
   /wrappy/1.0.2:
     resolution:
       integrity: sha1-tSQ9jz7BqjXxNkYFvA0QNuMKtp8=

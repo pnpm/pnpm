@@ -9,7 +9,11 @@ before_install:
   - npm install -g pnpm
 install:
   - pnpm install
+  - cd test
+  - pnpm install
+  - cd ..
 script:
+  - cd test
   - npm test
 env:
   global:
