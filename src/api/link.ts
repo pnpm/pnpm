@@ -19,7 +19,7 @@ export default async function link (
   if (reporter) {
     streamParser.on('data', reporter)
   }
-  const opts = extendOptions(maybeOpts)
+  const opts = await extendOptions(maybeOpts)
 
   if (!maybeOpts || !maybeOpts.skipInstall) {
     await install(Object.assign({}, opts, { prefix: linkFrom, global: false }))
@@ -52,7 +52,7 @@ export async function linkFromGlobal (
   if (reporter) {
     streamParser.on('data', reporter)
   }
-  const opts = extendOptions(maybeOpts)
+  const opts = await extendOptions(maybeOpts)
   const globalPkgPath = pathAbsolute(maybeOpts.globalPrefix)
   const linkedPkgPath = path.join(globalPkgPath, 'node_modules', pkgName)
   await link(linkedPkgPath, linkTo, opts)
@@ -73,7 +73,7 @@ export async function linkToGlobal (
   if (reporter) {
     streamParser.on('data', reporter)
   }
-  const opts = extendOptions(maybeOpts)
+  const opts = await extendOptions(maybeOpts)
   opts.global = true // bins will be linked to the global bin path
   opts.bin = maybeOpts.globalBin
   const globalPkgPath = pathAbsolute(maybeOpts.globalPrefix)

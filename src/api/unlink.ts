@@ -21,7 +21,7 @@ export async function unlinkPkgs (
   if (reporter) {
     streamParser.on('data', reporter)
   }
-  const opts = _extendOptions(maybeOpts)
+  const opts = await _extendOptions(maybeOpts)
   const modulesYaml = await readModules(opts.prefix)
   opts.store = modulesYaml && modulesYaml.store || opts.store
 
@@ -62,7 +62,7 @@ export async function unlink (maybeOpts: PnpmOptions) {
   if (reporter) {
     streamParser.on('data', reporter)
   }
-  const opts = _extendOptions(maybeOpts)
+  const opts = await _extendOptions(maybeOpts)
   const modulesYaml = await readModules(opts.prefix)
   opts.store = modulesYaml && modulesYaml.store || opts.store
 
@@ -109,8 +109,8 @@ async function isExternalLink (store: string, modules: string, pkgName: string) 
   return !link.isInner && !isSubdir(store, link.target)
 }
 
-function _extendOptions (maybeOpts: PnpmOptions): StrictPnpmOptions {
+async function _extendOptions (maybeOpts: PnpmOptions): Promise<StrictPnpmOptions> {
   maybeOpts = maybeOpts || {}
   if (maybeOpts.depth === undefined) maybeOpts.depth = -1
-  return extendOptions(maybeOpts)
+  return await extendOptions(maybeOpts)
 }

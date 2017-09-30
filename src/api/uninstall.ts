@@ -28,7 +28,7 @@ export default async function uninstall (pkgsToUninstall: string[], maybeOpts?: 
     streamParser.on('data', reporter)
   }
 
-  const opts = extendOptions(maybeOpts)
+  const opts = await extendOptions(maybeOpts)
 
   if (opts.lock) {
     await lock(opts.prefix, _uninstall, {stale: opts.lockStaleDuration, locks: opts.locks})
