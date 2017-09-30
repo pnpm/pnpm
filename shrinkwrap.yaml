@@ -5,7 +5,7 @@ dependencies:
   '@types/retry': 0.10.1
   '@types/semver': 5.4.0
   dint: 1.0.0
-  drive-by-path: 0.0.2
+  drive-by-path: 0.1.0
   encode-registry: 1.0.0
   execa: 0.7.0
   fs-write-stream-atomic: 1.0.10
@@ -393,7 +393,7 @@ packages:
       ssri: 4.1.6
     resolution:
       integrity: sha1-S/7IGLOmVysyi96o0FHM1d5YDEQ=
-  /drive-by-path/0.0.2:
+  /drive-by-path/0.1.0:
     dependencies:
       is-subdir: 1.0.2
       once: 1.4.0
@@ -401,7 +401,7 @@ packages:
       util.promisify: 1.0.0
       zkochan-drivelist: 0.0.0
     resolution:
-      integrity: sha512-T997+lEcBDz/jp6oGu9MX4V6wgIc/y5nxxj0ou+wnby65YKYSSRxBU64Eba0K+8870E1JeHbnTwlpxsGLA9nwQ==
+      integrity: sha512-8AqipZ/j8CZVQpIEueQKawBXGZSE9iGCSLJPyZbTuzdWx19wuUmMIfJzCi8TZ0dkeyuhvVSbsTKdhMsC2KZl5A==
   /duplexify/3.5.1:
     dependencies:
       end-of-stream: 1.4.0
@@ -1841,7 +1841,7 @@ specifiers:
   commitizen: ^2.8.6
   cz-conventional-changelog: ^2.0.0
   dint: ^1.0.0
-  drive-by-path: ^0.0.2
+  drive-by-path: ^0.1.0
   encode-registry: ^1.0.0
   execa: ^0.7.0
   fs-write-stream-atomic: ^1.0.10

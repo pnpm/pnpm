@@ -25,7 +25,7 @@
     "@types/retry": "^0.10.1",
     "@types/semver": "^5.3.32",
     "dint": "^1.0.0",
-    "drive-by-path": "^0.0.2",
+    "drive-by-path": "^0.1.0",
     "encode-registry": "^1.0.0",
     "execa": "^0.7.0",
     "fs-write-stream-atomic": "^1.0.10",
