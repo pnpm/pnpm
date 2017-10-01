@@ -45,6 +45,7 @@ export default function (
           optionalDependencies: result.optionalDependencies,
           snapshot: toShrDependency({
             dependencyAbsolutePath: resolvedNode.absolutePath,
+            name: resolvedNode.name,
             id: resolvedNode.pkgId,
             dependencyPath,
             resolution: resolvedNode.resolution,
@@ -65,6 +66,7 @@ export default function (
 function toShrDependency (
   opts: {
     dependencyAbsolutePath: string,
+    name: string,
     id: string,
     dependencyPath: string,
     resolution: Resolution,
@@ -82,6 +84,9 @@ function toShrDependency (
   const newResolvedOptionalDeps = updateResolvedDeps(opts.prevResolvedOptionalDeps, opts.updatedOptionalDeps, opts.registry)
   const result = {
     resolution: shrResolution
+  }
+  if (dp.isAbsolute(opts.dependencyPath)) {
+    result['name'] = opts.name
   }
   if (!R.isEmpty(newResolvedDeps)) {
     result['dependencies'] = newResolvedDeps

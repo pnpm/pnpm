@@ -13,15 +13,15 @@ import {RootLog} from 'pnpm-logger'
 
 const test = promisifyTape(tape)
 
-test('shrinkwrap file has correct format', async t => {
+test('shrinkwrap file has correct format', async (t: tape.Test) => {
   const project = prepare(t)
 
-  await installPkgs(['pkg-with-1-dep', '@rstacruz/tap-spec@4.1.1', 'kevva/is-negative'], testDefaults({save: true}))
+  await installPkgs(['pkg-with-1-dep', '@rstacruz/tap-spec@4.1.1', 'kevva/is-negative#1d7e288222b53a0cab90a331f1865220ec29560c'], testDefaults({save: true}))
 
   const shr = await project.loadShrinkwrap()
   const id = '/pkg-with-1-dep/100.0.0'
 
-  t.equal(shr.shrinkwrapVersion, 3, 'correct shrinkwrap version')
+  t.equal(shr.shrinkwrapVersion, 3.1, 'correct shrinkwrap version')
 
   t.ok(shr.registry, 'has registry field')
 
@@ -38,6 +38,10 @@ test('shrinkwrap file has correct format', async t => {
   t.ok(shr.packages[id].resolution, `has resolution for ${id}`)
   t.ok(shr.packages[id].resolution.integrity, `has integrity for package in the default registry`)
   t.notOk(shr.packages[id].resolution.tarball, `has no tarball for package in the default registry`)
+
+  const absDepPath = 'github.com/kevva/is-negative/1d7e288222b53a0cab90a331f1865220ec29560c'
+  t.ok(shr.packages[absDepPath])
+  t.ok(shr.packages[absDepPath].name, 'github-hosted package has name specified')
 })
 
 test('shrinkwrap file has dev deps even when installing for prod only', async (t: tape.Test) => {
@@ -462,6 +466,7 @@ test('scoped module from different registry', async function (t: tape.Test) {
         }
       },
       'registry.npmjs.org/@zkochan/foo/1.0.0': {
+        name: '@zkochan/foo',
         resolution: {
           integrity: 'sha512-IFvrYpq7E6BqKex7A7czIFnFncPiUVdhSzGhAOWpp8RlkXns4y/9ZdynxaA/e0VkihRxQkihE2pTyvxjfe/wBg==',
           registry: 'https://registry.npmjs.org/',
@@ -474,7 +479,7 @@ test('scoped module from different registry', async function (t: tape.Test) {
       '@zkochan/foo': '^1.0.0',
       'is-positive': '^3.1.0',
     },
-    shrinkwrapVersion: 3
+    shrinkwrapVersion: 3.1,
   })
 })
 
@@ -516,7 +521,7 @@ test('installing from shrinkwrap when using npm enterprise', async (t: tape.Test
     specifiers: {
       'is-positive': '^3.1.0',
     },
-    shrinkwrapVersion: 3
+    shrinkwrapVersion: 3.1,
   })
 
   await rimraf(opts.store)
