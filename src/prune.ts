@@ -7,8 +7,7 @@ import {
   ResolvedDependencies,
 } from './types'
 import {refToRelative} from 'dependency-path'
-
-const SHRINKWRAP_VERSION = 3
+import {SHRINKWRAP_VERSION} from './constants'
 
 export default function prune (shr: Shrinkwrap, pkg: Package): Shrinkwrap {
   const packages: ResolvedPackages = {}
