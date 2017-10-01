@@ -45,7 +45,7 @@ dependencies:
   path-exists: 3.0.0
   path-name: 1.0.0
   pnpm-install-checks: 1.1.0
-  pnpm-shrinkwrap: 3.1.0
+  pnpm-shrinkwrap: 3.2.0
   proper-lockfile: 2.0.1
   ramda: 0.24.1
   read-package-json: 2.0.12
@@ -1624,10 +1624,11 @@ packages:
     dev: true
     resolution:
       integrity: sha512-VLlRExib18bl5lSFp74vFHeZV0iWuxTkdOvI7BIhfWpiP9EdrkAq/GnjE5pxjXmsvXyZlaBDwoEQygU8kbVr8g==
-  /pnpm-shrinkwrap/3.1.0:
+  /pnpm-shrinkwrap/3.2.0:
     dependencies:
       '@types/node': 7.0.43
       '@types/ramda': 0.0.11
+      dependency-path: 1.1.0
       js-yaml: 3.10.0
       load-yaml-file: 0.1.0
       mkdirp-promise: 5.0.1
@@ -1637,7 +1638,7 @@ packages:
       thenify: 3.3.0
       write-file-atomic: 2.3.0
     resolution:
-      integrity: sha512-mFMdm0fCmh+kwxmGVD8Bl5QO4E7h/SCWdayKRtdzexHon0nN7YNkEz/llj1lHrb99pzQmE4NCI6BEvTYP/XeIg==
+      integrity: sha512-VKWUDXH9XWWDN7ufz6Zex/mdcs7muukdFolkqpY/175EvV0SluPWJsh8qNqVXTbCXbMxl383UUXDXOZtMBxW+g==
   /pos/0.4.2:
     dev: true
     resolution:
@@ -2390,7 +2391,7 @@ specifiers:
   path-name: ^1.0.0
   pnpm-install-checks: ^1.1.0
   pnpm-logger: ^0.6.2
-  pnpm-shrinkwrap: ^3.1.0
+  pnpm-shrinkwrap: ^3.2.0
   proper-lockfile: ^2.0.0
   ramda: ^0.24.1
   read-package-json: ^2.0.5
