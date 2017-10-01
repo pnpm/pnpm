@@ -38,11 +38,8 @@ export default async function postInstall (
     root,
   }
 
-  if (scripts['install']) {
-    await npmRunScript('install', pkg, scriptsOpts)
-    return
-  }
   await npmRunScript('preinstall', pkg, scriptsOpts)
+  await npmRunScript('install', pkg, scriptsOpts)
   await npmRunScript('postinstall', pkg, scriptsOpts)
   return
 }
