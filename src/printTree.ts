@@ -3,6 +3,9 @@ import {PackageNode} from 'dependencies-hierarchy'
 import path = require('path')
 import chalk = require('chalk')
 import readPkg from './readPkg'
+import R = require('ramda')
+
+const sortPackages = R.sortBy(R.path(['pkg', 'name']))
 
 export default async function (
   projectPath: string,
@@ -32,7 +35,7 @@ async function toArchyTree (
   }
 ): Promise<archy.Data[]> {
   return Promise.all(
-    nodes.map(async node => {
+    sortPackages(nodes).map(async node => {
       const nodes = await toArchyTree(node.dependencies || [], opts)
       if (opts.long) {
         const pkg = await readPkg(path.join(opts.modules, `.${node.pkg.path}`, 'node_modules', node.pkg.name, 'package.json'))
