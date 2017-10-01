@@ -1,12 +1,14 @@
 dependencies:
-  '@types/archy': 0.0.30
+  '@types/archy': 0.0.31
   '@types/chalk': 0.4.31
   '@types/node': 8.0.13
+  '@types/ramda': 0.24.14
   archy: 1.0.0
   chalk: 2.0.1
   dependencies-hierarchy: 1.0.0
   npm-package-arg: 5.1.2
   p-limit: 1.1.0
+  ramda: 0.24.1
   read-package-json: 2.0.10
   thenify: 3.3.0
 devDependencies:
@@ -14,9 +16,9 @@ devDependencies:
   mos-plugin-readme: 1.0.4
   typescript: 2.4.1
 packages:
-  /@types/archy/0.0.30:
+  /@types/archy/0.0.31:
     resolution:
-      integrity: sha1-OIlyozH5YdxxrqcMCLu9ZZN3RgU=
+      integrity: sha512-v+dxizsFVyXgD3EpFuqT9YjdEjbJmPxNf1QIX9ohZOhxh1ZF2yhqv3vYaeum9lg3VghhxS5S0a6yldN9J9lPEQ==
   /@types/chalk/0.4.31:
     resolution:
       integrity: sha1-ox10JBprHtu5c8822XooloNKUfk=
@@ -29,6 +31,9 @@ packages:
   /@types/ramda/0.0.11:
     resolution:
       integrity: sha512-RcraK0229RAIJERTfgoCY/eSbxFEkPlj/TbUUb6aGSS9UfLj1THpt2Uj4uuCJsQrYRQUQB8tFlv7eTTWzE4QjQ==
+  /@types/ramda/0.24.14:
+    resolution:
+      integrity: sha512-kxdtZ1MiYjwZxGHSFgNxbnYWgv/kfyhB21gLBQwp6jwYyq1Bifk4TQ4C2wKxGEqYxMRAskyetl0BgPxfJfJbCA==
   /@types/semver/5.3.32:
     resolution:
       integrity: sha512-MdbWERx4JWmN4zP+skJy9Kio+Cddvmyn1k8x0S8UAqDoMgOJeobQo7yhlE4BfiimonHirgixWfva/hKUlXBsrw==
@@ -1973,9 +1978,10 @@ packages:
 registry: 'https://registry.npmjs.org/'
 shrinkwrapVersion: 3
 specifiers:
-  '@types/archy': ^0.0.30
+  '@types/archy': ^0.0.31
   '@types/chalk': ^0.4.31
   '@types/node': ^8.0.11
+  '@types/ramda': ^0.24.14
   archy: ^1.0.0
   chalk: ^2.0.1
   dependencies-hierarchy: ^1.0.0
@@ -1983,6 +1989,7 @@ specifiers:
   mos-plugin-readme: ^1.0.4
   npm-package-arg: ^5.1.2
   p-limit: ^1.1.0
+  ramda: ^0.24.1
   read-package-json: ^2.0.10
   thenify: ^3.3.0
   typescript: ^2.4.1

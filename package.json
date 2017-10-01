@@ -37,11 +37,13 @@
     "@types/archy": "^0.0.31",
     "@types/chalk": "^0.4.31",
     "@types/node": "^8.0.11",
+    "@types/ramda": "^0.24.14",
     "archy": "^1.0.0",
     "chalk": "^2.0.1",
     "dependencies-hierarchy": "^1.0.0",
     "npm-package-arg": "^5.1.2",
     "p-limit": "^1.1.0",
+    "ramda": "^0.24.1",
     "read-package-json": "^2.0.10",
     "thenify": "^3.3.0"
   },

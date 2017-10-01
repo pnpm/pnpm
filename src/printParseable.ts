@@ -1,6 +1,9 @@
 import path = require('path')
 import {PackageNode} from 'dependencies-hierarchy'
 import readPkg from './readPkg'
+import R = require('ramda')
+
+const sortPackages = R.sortBy(R.prop('name'))
 
 export default async function (
   projectPath: string,
@@ -9,7 +12,7 @@ export default async function (
     long: boolean,
   }
 ) {
-  const pkgs = flatten(tree)
+  const pkgs = sortPackages(flatten(tree))
   const prefix = path.join(projectPath, 'node_modules')
   if (opts.long) {
     const pkg = await readPkg(path.resolve(projectPath, 'package.json'))
