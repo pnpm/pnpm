@@ -244,7 +244,7 @@ export function toOutput$ (streamParser: Object): Stream<string> {
     .map(xs.of)
 
   const miscOutput$ = log$
-    .filter(log => log.name === 'pnpm')
+    .filter(log => log.name === 'pnpm' || (log.name as string) === 'pnpm:link')
     .map(obj => {
       if (obj.level === 'debug') return
       if (obj.level === 'warn') {
