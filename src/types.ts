@@ -55,7 +55,10 @@ export type DependencyShrinkwrap = {
   id?: string,
   dev?: true,
   optional?: true,
-  name?: string, // is only needed for packages that are hosted not in the npm registry
+  // name and version are only needed
+  // for packages that are hosted not in the npm registry
+  name?: string,
+  version?: string,
   resolution: ShrinkwrapResolution,
   dependencies?: ResolvedDependencies,
   optionalDependencies?: ResolvedDependencies,
