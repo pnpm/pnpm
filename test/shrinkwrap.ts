@@ -467,6 +467,7 @@ test('scoped module from different registry', async function (t: tape.Test) {
       },
       'registry.npmjs.org/@zkochan/foo/1.0.0': {
         name: '@zkochan/foo',
+        version: '1.0.0',
         resolution: {
           integrity: 'sha512-IFvrYpq7E6BqKex7A7czIFnFncPiUVdhSzGhAOWpp8RlkXns4y/9ZdynxaA/e0VkihRxQkihE2pTyvxjfe/wBg==',
           registry: 'https://registry.npmjs.org/',
