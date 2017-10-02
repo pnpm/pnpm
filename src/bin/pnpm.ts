@@ -40,6 +40,7 @@ const supportedCmds = new Set([
   'help',
   'root',
   'outdated',
+  'rebuild',
 ])
 
 async function run (argv: string[]) {

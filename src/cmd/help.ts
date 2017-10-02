@@ -152,6 +152,15 @@ function getHelpText(command: string) {
         Check for outdated packages.
       `
 
+    case 'rebuild':
+      return stripIndent`
+        pnpm rebuild [[<@scope>/]<pkg> ...]
+
+        Aliases: rb
+
+        Rebuild a package.
+      `
+
     default:
       return stripIndent`
         Usage: pnpm [command] [flags]
@@ -170,6 +179,7 @@ function getHelpText(command: string) {
           - store status
           - store prune
           - root
+          - rebuild
 
         Other commands are passed through to npm
       `
