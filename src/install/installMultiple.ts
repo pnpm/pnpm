@@ -118,7 +118,7 @@ export default async function installMultiple (
 function refSatisfies (reference: string, range: string) {
   try {
     return semver.satisfies(reference, range, true)
-  } catch {
+  } catch (err) {
     return false
   }
 }
