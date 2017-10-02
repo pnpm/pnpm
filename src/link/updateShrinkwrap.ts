@@ -27,6 +27,7 @@ export default function (
     shrinkwrap.packages[dependencyPath] = toShrDependency({
       dependencyAbsolutePath,
       name: pkgsToLink[dependencyAbsolutePath].name,
+      version: pkgsToLink[dependencyAbsolutePath].version,
       id: pkgsToLink[dependencyAbsolutePath].id,
       dependencyPath,
       resolution: pkgsToLink[dependencyAbsolutePath].resolution,
@@ -47,6 +48,7 @@ function toShrDependency (
   opts: {
     dependencyAbsolutePath: string,
     name: string,
+    version: string,
     id: string,
     dependencyPath: string,
     resolution: Resolution,
@@ -68,6 +70,12 @@ function toShrDependency (
   }
   if (dp.isAbsolute(opts.dependencyPath)) {
     result['name'] = opts.name
+
+    // There is no guarantee that a non-npmjs.org-hosted package
+    // is going to have a version field
+    if (opts.version) {
+      result['version'] = opts.version
+    }
   }
   if (!R.isEmpty(newResolvedDeps)) {
     result['dependencies'] = newResolvedDeps
