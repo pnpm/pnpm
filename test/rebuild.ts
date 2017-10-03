@@ -43,8 +43,8 @@ test('rebuilds specific dependencies', async function (t: tape.Test) {
 
   await rebuildPkgs(['install-scripts-example-for-pnpm'], testDefaults())
 
-  project.hasNot('pre-and-postinstall-scripts-example/generated-by-preinstall')
-  project.hasNot('pre-and-postinstall-scripts-example/generated-by-postinstall')
+  await project.hasNot('pre-and-postinstall-scripts-example/generated-by-preinstall')
+  await project.hasNot('pre-and-postinstall-scripts-example/generated-by-postinstall')
 
   const generatedByPreinstall = project.requireModule('install-scripts-example-for-pnpm/generated-by-preinstall')
   t.ok(typeof generatedByPreinstall === 'function', 'generatedByPreinstall() is available')
