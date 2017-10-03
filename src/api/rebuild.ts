@@ -7,7 +7,6 @@ import * as dp from 'dependency-path'
 import postInstall from '../install/postInstall'
 import path = require('path')
 import pSeries = require('p-series')
-import parseStandardDependencyPath from '../parseStandardDependencyPath'
 import {
   ResolvedPackages,
   DependencyShrinkwrap,
@@ -27,11 +26,11 @@ function getPackagesInfo (packages: ResolvedPackages): PackageToRebuild[] {
     .map(relativeDepPath => {
       const pkgShr = packages[relativeDepPath]
       if (!pkgShr.name) {
-        const pkgInfo = parseStandardDependencyPath(relativeDepPath)
+        const pkgInfo = dp.parse(relativeDepPath)
         return {
           relativeDepPath,
-          name: pkgInfo.name,
-          version: pkgInfo.version,
+          name: pkgInfo['name'],
+          version: pkgInfo['version'],
           pkgShr,
         }
       }

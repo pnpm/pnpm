@@ -17,7 +17,7 @@ dependencies:
   byline: 5.0.0
   common-tags: 1.4.0
   cross-spawn: 5.1.0
-  dependency-path: 1.1.0
+  dependency-path: 1.2.0
   encode-registry: 1.0.0
   execa: 0.8.0
   find-up: 2.1.0
@@ -595,6 +595,13 @@ packages:
       encode-registry: 1.0.0
     resolution:
       integrity: sha512-w1GYY68UK/XTCR9EjI9WY/fVy0hae1W7CN9bndyCJ9VE9utLdAsT0QXBm/s+8PE3AfK2a+1M1P9MwEfXRPVyEg==
+  /dependency-path/1.2.0:
+    dependencies:
+      '@types/semver': 5.4.0
+      encode-registry: 1.0.0
+      semver: 5.4.1
+    resolution:
+      integrity: sha512-WCVHx8m35ChWmemrAtp67EiXxp02Z0TRpJUYG1Kh7aloQcPdribxtcOm+GtMzhVnzgANj+mf0eo9aCtrxzzS3Q==
   /detect-indent/5.0.0:
     resolution:
       integrity: sha1-OHHMCmoALow+Wzz38zYmRnXwa50=
@@ -2374,7 +2381,7 @@ specifiers:
   byline: ^5.0.0
   common-tags: ^1.4.0
   cross-spawn: ^5.0.0
-  dependency-path: ^1.1.0
+  dependency-path: ^1.2.0
   encode-registry: ^1.0.0
   execa: ^0.8.0
   find-up: ^2.1.0
