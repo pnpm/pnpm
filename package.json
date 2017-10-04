@@ -52,7 +52,7 @@
     "update-notifier": "^2.1.0"
   },
   "devDependencies": {
-    "@commitlint/cli": "^3.2.0",
+    "@commitlint/cli": "^4.0.0",
     "@commitlint/config-angular": "^3.1.1",
     "@commitlint/prompt-cli": "^4.0.0",
     "@types/mkdirp": "^0.5.0",
