@@ -7,7 +7,7 @@ import path = require('path')
 import createWriteStreamAtomic = require('fs-write-stream-atomic')
 import ssri = require('ssri')
 import unpackStream = require('unpack-stream')
-import npmGetCredentialsByURI = require('npm/lib/config/get-credentials-by-uri')
+import getCredentialsByURI = require('credentials-by-uri')
 import urlLib = require('url')
 import normalizeRegistryUrl = require('normalize-registry-url')
 import PQueue = require('p-queue')
@@ -67,14 +67,9 @@ export default (
     randomize: opts.randomize,
   }
 
-  const getCredentialsByURI = npmGetCredentialsByURI.bind({
-    get (key: string) {
-      return opts.rawNpmConfig[key]
-    }
-  })
-
   let counter = 0
   const networkConcurrency = opts.networkConcurrency || 16
+  const rawNpmConfig = opts.rawNpmConfig || {}
   const requestsQueue = new PQueue({
     concurrency: networkConcurrency,
   })
@@ -82,7 +77,7 @@ export default (
   async function getJSON (url: string, registry: string, priority?: number) {
     return requestsQueue.add(() => new Promise((resolve, reject) => {
     const getOpts = {
-        auth: getCredentialsByURI(registry),
+        auth: getCredentialsByURI(registry, rawNpmConfig),
         fullMetadata: false,
       }
       client.get(url, getOpts, (err: Error, data: Object, raw: Object, res: HttpResponse) => {
@@ -109,7 +104,7 @@ export default (
     return requestsQueue.add(async () => {
       await mkdirp(path.dirname(saveto))
 
-      const auth = opts.registry && getCredentialsByURI(opts.registry)
+      const auth = opts.registry && getCredentialsByURI(opts.registry, rawNpmConfig)
       // If a tarball is hosted on a different place than the manifest, only send
       // credentials on `alwaysAuth`
       const shouldAuth = auth && (

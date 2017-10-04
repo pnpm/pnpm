@@ -4,6 +4,7 @@ dependencies:
   '@types/ramda': 0.24.14
   '@types/retry': 0.10.1
   '@types/semver': 5.4.0
+  credentials-by-uri: 1.0.0
   dint: 1.0.0
   drive-by-path: 0.1.0
   encode-registry: 1.0.0
@@ -15,7 +16,6 @@ dependencies:
   normalize-path: 2.1.1
   normalize-registry-url: 1.0.0
   normalize-ssh: 1.0.0
-  npm: 5.4.2
   os-homedir: 1.0.2
   p-limit: 1.1.0
   p-queue: 1.2.0
@@ -299,6 +299,11 @@ packages:
   /core-util-is/1.0.2:
     resolution:
       integrity: sha1-tf1UIgqivFq1eqtxQMlAdUUDwac=
+  /credentials-by-uri/1.0.0:
+    dependencies:
+      nerf-dart: 1.0.0
+    resolution:
+      integrity: sha512-WtoZkGQV2KgEfEqWKPetJ2btv+GxldzOe2vHVqAcyuiYdpIwCX7viL2+P9EaZLLfR+SFAZgPdP1+HZJ7MqRc2A==
   /cross-spawn/5.1.0:
     dependencies:
       lru-cache: 4.1.1
@@ -1110,6 +1115,9 @@ packages:
     dev: true
     resolution:
       integrity: sha1-rmA7NrE0vOw0e0UkIrC/mNWDLsg=
+  /nerf-dart/1.0.0:
+    resolution:
+      integrity: sha1-5tq3/r9a2Bbqgc9cYpxaDr3nLBo=
   /node-abi/2.1.1:
     resolution:
       integrity: sha512-6oxV13poCOv7TfGvhsSz6XZWpXeKkdGVh72++cs33OfMh3KAX8lN84dCvmqSETyDXAFcUHtV7eJrgFBoOqZbNQ==
@@ -1155,9 +1163,6 @@ packages:
     dev: true
     resolution:
       integrity: sha1-FOfHjBKIvW2CB4dpx6qVg/xBPAM=
-  /npm/5.4.2:
-    resolution:
-      integrity: sha512-F6LLCAHriKyKQ9Ff03UKCjkXZoRBp281I42K42+VeHfjAXZ3TJdg3RccinzoCFV1kDxCedVm7AstIpb1Uf5UkQ==
   /npmlog/4.1.2:
     dependencies:
       are-we-there-yet: 1.1.4
@@ -1839,6 +1844,7 @@ specifiers:
   '@types/semver': ^5.3.32
   '@types/tape': ^4.2.30
   commitizen: ^2.8.6
+  credentials-by-uri: ^1.0.0
   cz-conventional-changelog: ^2.0.0
   dint: ^1.0.0
   drive-by-path: ^0.1.0
@@ -1853,7 +1859,6 @@ specifiers:
   normalize-path: ^2.1.1
   normalize-registry-url: ^1.0.0
   normalize-ssh: ^1.0.0
-  npm: ^5.1.0
   npm-scripts-info: ^0.3.6
   os-homedir: ^1.0.2
   p-limit: ^1.1.0

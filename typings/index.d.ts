@@ -214,16 +214,6 @@ declare module 'is-inner-link' {
   export = anything;
 }
 
-declare module 'npm/lib/config/defaults' {
-  const anything: any;
-  export = anything;
-}
-
-declare module 'npm/lib/config/get-credentials-by-uri' {
-  const anything: any;
-  export = anything;
-}
-
 declare module 'pnpm-registry-mock' {
   const anything: any;
   export = anything;
