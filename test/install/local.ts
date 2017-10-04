@@ -47,7 +47,7 @@ test('local file', async function (t: tape.Test) {
       'local-pkg': 'file:../local-pkg',
     },
     registry: 'http://localhost:4873/',
-    shrinkwrapVersion: 3.1,
+    shrinkwrapVersion: 3,
   })
 })
 
