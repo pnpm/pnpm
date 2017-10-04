@@ -13,8 +13,8 @@ import isCI = require('is-ci')
 import {stripIndent} from 'common-tags'
 import nopt = require('nopt')
 import R = require('ramda')
-import npm = require('npm')
-import npmDefaults = require('npm/lib/config/defaults')
+import npm = require('not-bundled-npm')
+import npmDefaults = require('not-bundled-npm/lib/config/defaults')
 import '../logging/fileLogger'
 import pkg from '../pnpmPkgJson'
 import * as pnpmCmds from '../cmd'
