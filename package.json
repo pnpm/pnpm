@@ -24,7 +24,7 @@
     "@types/chalk": "^0.4.31",
     "@types/common-tags": "^1.2.5",
     "@types/load-json-file": "^2.0.5",
-    "@types/node": "8.0.26",
+    "@types/node": "8.0.28",
     "@types/nopt": "^3.0.29",
     "@types/ramda": "^0.24.14",
     "@types/update-notifier": "^1.0.0",
