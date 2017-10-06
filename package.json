@@ -24,8 +24,9 @@
   ],
   "author": {
     "name": "Zoltan Kochan",
-    "email": "zoltan.kochan@gmail.com",
-    "url": "https://www.kochan.io/"
+    "email": "z@kochan.io",
+    "url": "https://www.kochan.io/",
+    "twitter": "ZoltanKochan"
   },
   "license": "MIT",
   "bugs": {
