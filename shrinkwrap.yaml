@@ -4,7 +4,7 @@ dependencies:
   '@types/chalk': 0.4.31
   '@types/common-tags': 1.4.0
   '@types/load-json-file': 2.0.6
-  '@types/node': 8.0.26
+  '@types/node': 8.0.33
   '@types/nopt': 3.0.29
   '@types/ramda': 0.24.16
   '@types/update-notifier': 1.0.2
@@ -152,12 +152,12 @@ packages:
   /@types/node/7.0.43:
     resolution:
       integrity: sha512-7scYwwfHNppXvH/9JzakbVxk0o0QUILVk1Lv64GRaxwPuGpnF1QBiwdvhDpLcymb8BpomQL3KYoWKq3wUdDMhQ==
-  /@types/node/8.0.26:
-    resolution:
-      integrity: sha512-wbKN0MB4XsjdnSE04HiCzLoBDirGCM6zXrqavSj44nZnPFYpnrTF64E9O6Xmf0ca/IuKK/BHUcXwMiwk92gW6Q==
   /@types/node/8.0.32:
     resolution:
       integrity: sha512-n1zzgeQehndikZc/8N4rGSZc99cO6Tb3OInKzvWYniJsT/jet3m57buaBFa5cMeVNFosN4PKZ2LM1y16CFD7Rg==
+  /@types/node/8.0.33:
+    resolution:
+      integrity: sha512-vmCdO8Bm1ExT+FWfC9sd9r4jwqM7o97gGy2WBshkkXbf/2nLAJQUrZfIhw27yVOtLUev6kSZc4cav/46KbDd8A==
   /@types/nopt/3.0.29:
     resolution:
       integrity: sha1-8Z3z20yX7hRZonQAKDIKcdcJZM4=
@@ -3477,7 +3477,7 @@ specifiers:
   '@types/common-tags': ^1.2.5
   '@types/load-json-file': ^2.0.5
   '@types/mkdirp': ^0.5.0
-  '@types/node': 8.0.26
+  '@types/node': 8.0.33
   '@types/nopt': ^3.0.29
   '@types/ramda': ^0.24.14
   '@types/tape': ^4.2.30
