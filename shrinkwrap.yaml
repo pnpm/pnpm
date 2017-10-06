@@ -1,5 +1,5 @@
 dependencies:
-  '@types/node': 8.0.31
+  '@types/node': 8.0.33
   npm-package-arg: 5.1.2
   npm-registry-client: 8.5.0
   package-store: 0.4.0
@@ -24,6 +24,9 @@ packages:
   /@types/node/8.0.31:
     resolution:
       integrity: sha512-R+LdMJHJQwRd/Ca0Nr5KnwbSWHxTD3DWz4ivqoPeNH+YPcuirMWK+Ti9Mx32jOecmPhHOCd+6CefU5e1eVq2Ew==
+  /@types/node/8.0.33:
+    resolution:
+      integrity: sha512-vmCdO8Bm1ExT+FWfC9sd9r4jwqM7o97gGy2WBshkkXbf/2nLAJQUrZfIhw27yVOtLUev6kSZc4cav/46KbDd8A==
   /@types/ramda/0.0.11:
     resolution:
       integrity: sha512-RcraK0229RAIJERTfgoCY/eSbxFEkPlj/TbUUb6aGSS9UfLj1THpt2Uj4uuCJsQrYRQUQB8tFlv7eTTWzE4QjQ==
@@ -2662,7 +2665,7 @@ packages:
 registry: 'https://registry.npmjs.org/'
 shrinkwrapVersion: 3
 specifiers:
-  '@types/node': ^8.0.28
+  '@types/node': ^8.0.33
   mos: ^2.0.0-alpha.3
   mos-plugin-readme: ^1.0.4
   npm-package-arg: ^5.1.2
