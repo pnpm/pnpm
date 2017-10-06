@@ -17,6 +17,15 @@ test('read()', async t => {
     })
     t.equal(shr!.shrinkwrapVersion, 3)
   }
+
+  try {
+    const shr = await read(path.join('fixtures', '3'), {
+      ignoreIncompatible: false,
+    })
+    t.fail()
+  } catch (err) {
+    t.equal(err.code, 'SHRINKWRAP_BREAKING_CHANGE')
+  }
   t.end()
 })
 

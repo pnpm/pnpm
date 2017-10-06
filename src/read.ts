@@ -66,7 +66,6 @@ async function _read (
   if (shrinkwrap && shrinkwrap['version'] && !shrinkwrap.shrinkwrapVersion) {
     shrinkwrap.shrinkwrapVersion = shrinkwrap['version']
     delete shrinkwrap['version']
-    return shrinkwrap
   }
   if (shrinkwrap && Math.floor(shrinkwrap.shrinkwrapVersion) === Math.floor(SHRINKWRAP_VERSION)) {
     if (shrinkwrap.shrinkwrapVersion > SHRINKWRAP_VERSION) {
