@@ -3,7 +3,7 @@
     "removeComments": false,
     "preserveConstEnums": true,
     "sourceMap": true,
-    "declaration": true,
+    "declaration": false,
     "noImplicitAny": true,
     "noImplicitReturns": true,
     "suppressImplicitAnyIndexErrors": true,
