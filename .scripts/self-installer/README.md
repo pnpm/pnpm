@@ -14,7 +14,7 @@ The above script will install the latest version of pnpm but you may also instal
 a specific version:
 
 ```
-curl -L https://unpkg.com/@pnpm/self-installer@1.17.0 | node
+curl -L https://unpkg.com/@pnpm/self-installer@1.16.2 | node
 ```
 
 You can also use a semver range:
@@ -28,6 +28,8 @@ Or a tag:
 ```
 curl -L https://unpkg.com/@pnpm/self-installer@next | node
 ```
+
+**NOTE:** Installation by version or range works from `1.16.2` only.
 
 ## License
 
