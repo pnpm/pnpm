@@ -31,8 +31,12 @@
     "url": "https://github.com/pnpm/pnpm-shrinkwrap/issues"
   },
   "homepage": "https://github.com/pnpm/pnpm-shrinkwrap#readme",
+  "peerDependencies": {
+    "pnpm-logger": "^0.6.2"
+  },
   "devDependencies": {
     "@types/tape": "^4.2.30",
+    "pnpm-logger": "^0.6.2",
     "rimraf": "^2.6.1",
     "tape": "^4.6.3",
     "ts-node": "^3.0.4",
@@ -45,7 +49,6 @@
     "js-yaml": "^3.8.4",
     "load-yaml-file": "^0.1.0",
     "mkdirp-promise": "^5.0.1",
-    "pnpm-logger": "^0.3.0",
     "ramda": "^0.24.1",
     "rimraf-then": "^1.0.1",
     "thenify": "^3.3.0",
