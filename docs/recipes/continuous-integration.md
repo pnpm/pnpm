@@ -8,7 +8,7 @@ On [Travis CI](https://travis-ci.org/), you can use pnpm for installing your dep
 
 ```yaml
 before_install:
-  - npm install -g pnpm
+  - curl -L https://unpkg.com/@pnpm/self-installer | node
 install:
   - pnpm install
 ```

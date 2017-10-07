@@ -21,3 +21,8 @@ npx npm@4 publish --ignore-scripts --tag next
 rm -rf node_modules
 mv _node_modules node_modules
 node .scripts/removeBundleDependencies
+
+# Self-installer release
+cd .scripts/self-installer
+pnpm i
+npm publish --tag next

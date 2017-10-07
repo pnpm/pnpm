@@ -52,7 +52,13 @@ why it works fine with the Node.js ecosystem, read this small article: [Why shou
 
 ## Install
 
-Install it via npm.
+Using a [standalone script](.scripts/self-installer):
+
+```
+curl -L https://unpkg.com/@pnpm/self-installer | node
+```
+
+Via npm:
 
 ```
 npm install -g pnpm

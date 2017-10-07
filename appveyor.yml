@@ -6,7 +6,7 @@ environment:
 install:
   - ps: Install-Product node $env:nodejs_version
   - npm set fetch-retry-maxtimeout 180000
-  - npm install -g pnpm@next
+  - curl -L https://unpkg.com/@pnpm/self-installer@next | node
   - pnpm install
   - cd test
   - pnpm install

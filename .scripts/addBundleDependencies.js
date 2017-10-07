@@ -1,8 +1,9 @@
 'use strict'
 const pkg = require('../package.json')
-const writePkgSync = require('./utils/writePkgSync')
+const writePnpmPkgSync = require('./utils/writePnpmPkgSync')
 
-pkg.name = pkg.name === 'pnpm' ? '@pnpm/bundled' : `${pkg.name}-bundled`
+pkg.notBundledName = pkg.name
+pkg.name = pkg.bundledName
 pkg.bundleDependencies = Object.keys(pkg.dependencies)
 
-writePkgSync(pkg)
+writePnpmPkgSync(pkg)
