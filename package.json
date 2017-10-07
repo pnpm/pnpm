@@ -1,7 +1,7 @@
 {
   "name": "pnpm",
   "description": "Fast, disk space efficient package manager",
-  "version": "1.16.0",
+  "version": "1.16.1",
   "author": {
     "name": "Zoltan Kochan",
     "email": "z@kochan.io",
@@ -16,7 +16,8 @@
   },
   "main": "lib/bin/pnpm.js",
   "files": [
-    "lib/"
+    "lib/",
+    "npm-shrinkwrap.json"
   ],
   "dependencies": {
     "@pnpm/outdated": "^0.0.1",
@@ -107,7 +108,8 @@
     "lint": "tslint -c tslint.json --project .",
     "test": "npm run tsc && npm run lint && cd test && npm test",
     "tsc": "rimraf lib && tsc",
-    "prepublishOnly": "npm run tsc"
+    "prepublishOnly": "echo \"Publish is only allowed via 'npm run release'\" && exit 1",
+    "release": "sh .scripts/release.sh"
   },
   "publishconfig": {
     "tag": "next"
