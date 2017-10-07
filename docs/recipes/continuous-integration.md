@@ -20,6 +20,6 @@ On [AppVeyor](https://www.appveyor.com/), you can use pnpm for installing your d
 ```yaml
 install:
   - ps: Install-Product node $env:nodejs_version
-  - npm install -g pnpm
+  - curl -L https://unpkg.com/@pnpm/self-installer | node
   - pnpm install
 ```
