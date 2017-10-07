@@ -9,7 +9,7 @@ On the other hand, pnpm manages `node_modules` as an addressable storage in its 
 This nets you the benefits of less disk space usage, while keeping your `node_modules` clean.
 
 The good thing about pnpm's proper `node_modules` structure is that it [helps to avoid silly bugs](https://www.kochan.io/nodejs/pnpms-strictness-helps-to-avoid-silly-bugs.html) by making it impossible to use modules
-that are specified in a project's `package.json`.
+that are not specified in the project's `package.json`.
 
 ## Installation
 
