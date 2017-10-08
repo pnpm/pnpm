@@ -237,7 +237,7 @@ function filterShrinkwrap (
     skipped: Set<string>,
   }
 ): Shrinkwrap {
-  let pairs = R.toPairs<string, DependencyShrinkwrap>(shr.packages)
+  let pairs = R.toPairs<string, DependencyShrinkwrap>(shr.packages || {})
     .filter(pair => !opts.skipped.has(pair[1].id || dp.resolve(shr.registry, pair[0])))
   if (opts.noDev) {
     pairs = pairs.filter(pair => !pair[1].dev)
