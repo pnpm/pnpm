@@ -46,7 +46,7 @@ test('relative link is not rewritten by install', async function (t) {
   t.ok(project.requireModule('hello-world-js-bin/package.json').isLocal)
 })
 
-test('global link', async function (t) {
+test('global link', async function (t: tape.Test) {
   prepare(t)
   const projectPath = process.cwd()
 
@@ -61,6 +61,10 @@ test('global link', async function (t) {
   await linkToGlobal(process.cwd(), Object.assign(testDefaults(), {globalPrefix, globalBin}))
 
   isExecutable(t, path.join(globalBin, 'hello-world-js-bin'))
+
+  // bins of dependencies should not be linked, see issue https://github.com/pnpm/pnpm/issues/905
+  t.notOk(await exists(path.join(globalBin, 'cowsay')), 'cowsay not linked')
+  t.notOk(await exists(path.join(globalBin, 'cowthink')), 'cowthink not linked')
 
   process.chdir(projectPath)
 
