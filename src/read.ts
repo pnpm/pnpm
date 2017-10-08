@@ -1,8 +1,8 @@
 import path = require('path')
 import logger from './logger'
 import {
-  SHRINKWRAP_FILENAME,
-  PRIVATE_SHRINKWRAP_FILENAME,
+  WANTED_SHRINKWRAP_FILENAME,
+  CURRENT_SHRINKWRAP_FILENAME,
 } from './constants'
 import {Shrinkwrap} from './types'
 import loadYamlFile = require('load-yaml-file')
@@ -27,23 +27,27 @@ class ShrinkwrapBreakingChangeError extends PnpmError {
   filename: string
 }
 
-export async function readPrivate (
+export const readPrivate = readCurrent
+
+export async function readCurrent (
   pkgPath: string,
   opts: {
     ignoreIncompatible: boolean,
   }
 ): Promise<Shrinkwrap | null> {
-  const shrinkwrapPath = path.join(pkgPath, PRIVATE_SHRINKWRAP_FILENAME)
+  const shrinkwrapPath = path.join(pkgPath, CURRENT_SHRINKWRAP_FILENAME)
   return await _read(shrinkwrapPath, opts)
 }
 
-export async function read (
+export const read = readWanted
+
+export async function readWanted (
   pkgPath: string,
   opts: {
     ignoreIncompatible: boolean,
   }
 ): Promise<Shrinkwrap | null> {
-  const shrinkwrapPath = path.join(pkgPath, SHRINKWRAP_FILENAME)
+  const shrinkwrapPath = path.join(pkgPath, WANTED_SHRINKWRAP_FILENAME)
   return await _read(shrinkwrapPath, opts)
 }
 

@@ -3,7 +3,10 @@ import writeFileAtomicCB = require('write-file-atomic')
 import thenify = require('thenify')
 import rimraf = require('rimraf-then')
 import yaml = require('js-yaml')
-import {SHRINKWRAP_FILENAME, PRIVATE_SHRINKWRAP_FILENAME} from './constants'
+import {
+  WANTED_SHRINKWRAP_FILENAME,
+  CURRENT_SHRINKWRAP_FILENAME,
+} from './constants'
 import {Shrinkwrap} from './types'
 import mkdirp = require('mkdirp-promise')
 import logger from './logger'
@@ -18,29 +21,29 @@ const SHRINKWRAP_YAML_FORMAT = {
 
 export default function write (
   pkgPath: string,
-  shrinkwrap: Shrinkwrap,
-  privateShrinkwrap: Shrinkwrap
+  wantedShrinkwrap: Shrinkwrap,
+  currentShrinkwrap: Shrinkwrap
 ) {
-  const shrinkwrapPath = path.join(pkgPath, SHRINKWRAP_FILENAME)
-  const privateShrinkwrapPath = path.join(pkgPath, PRIVATE_SHRINKWRAP_FILENAME)
+  const wantedShrinkwrapPath = path.join(pkgPath, WANTED_SHRINKWRAP_FILENAME)
+  const currentShrinkwrapPath = path.join(pkgPath, CURRENT_SHRINKWRAP_FILENAME)
 
   // empty shrinkwrap is not saved
-  if (Object.keys(shrinkwrap.specifiers).length === 0) {
+  if (Object.keys(wantedShrinkwrap.specifiers).length === 0) {
     return Promise.all([
-      rimraf(shrinkwrapPath),
-      rimraf(privateShrinkwrapPath),
+      rimraf(wantedShrinkwrapPath),
+      rimraf(currentShrinkwrapPath),
     ])
   }
 
-  const yamlDoc = yaml.safeDump(shrinkwrap, SHRINKWRAP_YAML_FORMAT)
+  const yamlDoc = yaml.safeDump(wantedShrinkwrap, SHRINKWRAP_YAML_FORMAT)
 
   // in most cases the `shrinkwrap.yaml` and `node_modules/.shrinkwrap.yaml` are equal
   // in those cases the YAML document can be stringified only once for both files
   // which is more efficient
-  if (shrinkwrap === privateShrinkwrap) {
+  if (wantedShrinkwrap === currentShrinkwrap) {
     return Promise.all([
-      writeFileAtomic(shrinkwrapPath, yamlDoc),
-      mkdirp(path.dirname(privateShrinkwrapPath)).then(() => writeFileAtomic(privateShrinkwrapPath, yamlDoc)),
+      writeFileAtomic(wantedShrinkwrapPath, yamlDoc),
+      mkdirp(path.dirname(currentShrinkwrapPath)).then(() => writeFileAtomic(currentShrinkwrapPath, yamlDoc)),
     ])
   }
 
@@ -48,10 +51,10 @@ export default function write (
     'To fix this, run `pnpm install`. From pnpm version 2, named installations and uninstallations will fail ' +
     'when the content of `node_modules` won\'t match what the `shrinkwrap.yaml` expects.')
 
-  const privateYamlDoc = yaml.safeDump(privateShrinkwrap, SHRINKWRAP_YAML_FORMAT)
+  const currentYamlDoc = yaml.safeDump(currentShrinkwrap, SHRINKWRAP_YAML_FORMAT)
 
   return Promise.all([
-    writeFileAtomic(shrinkwrapPath, yamlDoc),
-    mkdirp(path.dirname(privateShrinkwrapPath)).then(() => writeFileAtomic(privateShrinkwrapPath, privateYamlDoc)),
+    writeFileAtomic(wantedShrinkwrapPath, yamlDoc),
+    mkdirp(path.dirname(currentShrinkwrapPath)).then(() => writeFileAtomic(currentShrinkwrapPath, currentYamlDoc)),
   ])
 }

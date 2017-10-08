@@ -16,9 +16,11 @@ npm i pnpm-shrinkwrap
 
 ## API
 
-### `read(pkgPath, opts) => Promise<Shrinkwrap>`
+### `readWanted(pkgPath, opts) => Promise<Shrinkwrap>`
 
-Reads the public `shrinkwrap.yaml` file from the root of the package.
+Alias: `read`
+
+Reads the `shrinkwrap.yaml` file from the root of the package.
 
 #### Arguments
 
@@ -26,13 +28,15 @@ Reads the public `shrinkwrap.yaml` file from the root of the package.
 * `opts.ignoreIncompatible` - *Boolean* - `false` by default. If `true`, throws an error
 if the shrinkwrap file format is not compatible with the current library.
 
-### `readPrivate(pkgPath, opts) => Promise<Shrinkwrap>`
+### `readCurrent(pkgPath, opts) => Promise<Shrinkwrap>`
 
-Same as `read()` but for the private shrinkwrap file at `node_modules/.shrinkwrap.yaml`.
+Alias: `readPrivate`
 
-### `write(pkgPath, shrinkwrap, privateShrinkwrap) => Promise<void>`
+Reads the shrinkwrap file from `node_modules/.shrinkwrap.yaml`.
 
-Writes the public private shrinkwrap files. When they are empty, removes them.
+### `write(pkgPath, wantedShrinkwrap, currentShrinkwrap) => Promise<void>`
+
+Writes the wanted/current shrinkwrap files. When they are empty, removes them.
 
 ### `prune(shrinkwrap, package) => Promise<Shrinkwrap>`
 
