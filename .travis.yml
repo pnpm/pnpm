@@ -7,7 +7,7 @@ node_js:
 sudo: false
 before_install:
   - git fetch --unshallow
-  - npm install -g pnpm
+  - curl -L https://unpkg.com/@pnpm/self-installer | node
 install:
   - pnpm install
 script:
