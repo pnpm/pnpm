@@ -14,7 +14,7 @@ export default function () {
   const message = stripIndents`
     Update available! ${chalk.red(update.current)} → ${chalk.green(update.latest)}
     ${chalk.magenta('Changelog:')} https://github.com/pnpm/pnpm/releases/tag/v${update.latest}
-    Run ${chalk.magenta('npm i -g pnpm')} to update!
+    Run ${chalk.magenta('pnpm i -g pnpm')} to update!
 
     Follow ${chalk.magenta('@pnpmjs')} for updates: https://twitter.com/pnpmjs
   `
