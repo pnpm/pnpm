@@ -13,7 +13,10 @@ const linkLogger = logger('link')
 export default async function link (
   linkFrom: string,
   linkTo: string,
-  maybeOpts?: PnpmOptions & {skipInstall?: boolean}
+  maybeOpts?: PnpmOptions & {
+    skipInstall?: boolean,
+    linkToBin?: string,
+  }
 ) {
   const reporter = maybeOpts && maybeOpts.reporter
   if (reporter) {
@@ -28,8 +31,8 @@ export default async function link (
   const destModules = path.join(linkTo, 'node_modules')
   await linkToModules(linkFrom, destModules)
 
-  const bin = opts.bin || path.join(destModules, '.bin')
-  await linkPkgBins(linkFrom, bin)
+  const linkToBin = maybeOpts && maybeOpts.linkToBin || path.join(destModules, '.bin')
+  await linkPkgBins(linkFrom, linkToBin)
 
   if (reporter) {
     streamParser.removeListener('data', reporter)
@@ -74,10 +77,10 @@ export async function linkToGlobal (
     streamParser.on('data', reporter)
   }
   const opts = await extendOptions(maybeOpts)
-  opts.global = true // bins will be linked to the global bin path
-  opts.bin = maybeOpts.globalBin
   const globalPkgPath = pathAbsolute(maybeOpts.globalPrefix)
-  await link(linkFrom, globalPkgPath, opts)
+  await link(linkFrom, globalPkgPath, Object.assign(opts, {
+    linkToBin: maybeOpts.globalBin,
+  }))
 
   if (reporter) {
     streamParser.removeListener('data', reporter)

@@ -509,7 +509,10 @@ async function installInContext (
   }
 
   if (installCtx.localPackages.length) {
-    const linkOpts = Object.assign({}, opts, {skipInstall: true})
+    const linkOpts = Object.assign({}, opts, {
+      skipInstall: true,
+      linkToBin: opts.bin,
+    })
     await Promise.all(installCtx.localPackages.map(async localPackage => {
       await externalLink(localPackage.resolution.directory, opts.prefix, linkOpts)
       logStatus({
