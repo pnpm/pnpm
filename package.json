@@ -43,7 +43,7 @@
     "dependencies-hierarchy": "^1.0.0",
     "npm-package-arg": "^5.1.2",
     "p-limit": "^1.1.0",
-    "ramda": "^0.24.1",
+    "ramda": "^0.25.0",
     "read-package-json": "^2.0.10",
     "thenify": "^3.3.0"
   },
