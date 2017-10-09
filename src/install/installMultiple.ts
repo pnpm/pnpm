@@ -182,11 +182,11 @@ function dependencyShrToResolution (
   })
 
   function getTarball () {
-    const parts = dependencyPath.split('/')
-    if (parts[1][0] === '@') {
-      return getNpmTarballUrl(`${parts[1]}/${parts[2]}`, parts[3], {registry})
+    const parsed = dp.parse(dependencyPath)
+    if (!parsed['name'] || !parsed['version']) {
+      throw new Error(`Couldn't get tarball URL from dependency path ${dependencyPath}`)
     }
-    return getNpmTarballUrl(parts[1], parts[2], {registry})
+    return getNpmTarballUrl(parsed['name'], parsed['version'], {registry})
   }
 }
 
