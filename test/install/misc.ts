@@ -390,8 +390,8 @@ test('concurrent circular deps', async (t: tape.Test) => {
   t.ok(m, 'es6-iterator is installed')
   t.ok(await exists(path.join('node_modules', '.localhost+4873', 'es6-iterator', '2.0.0', 'node_modules', 'es5-ext')))
   t.ok(await exists(path.join('node_modules', '.localhost+4873', 'es6-iterator', '2.0.1', 'node_modules', 'es5-ext')))
-  t.ok(await exists(path.join('node_modules', '.localhost+4873', 'es5-ext', '0.10.30', 'node_modules', 'es6-iterator')))
-  t.ok(await exists(path.join('node_modules', '.localhost+4873', 'es5-ext', '0.10.30', 'node_modules', 'es6-symbol')))
+  t.ok(await exists(path.join('node_modules', '.localhost+4873', 'es5-ext', '0.10.31', 'node_modules', 'es6-iterator')))
+  t.ok(await exists(path.join('node_modules', '.localhost+4873', 'es5-ext', '0.10.31', 'node_modules', 'es6-symbol')))
 })
 
 test('concurrent installation of the same packages', async function (t) {
