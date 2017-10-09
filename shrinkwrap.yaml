@@ -22,7 +22,7 @@ dependencies:
   parse-npm-tarball-url: 1.0.1
   path-absolute: 1.0.0
   path-exists: 3.0.0
-  ramda: 0.24.1
+  ramda: 0.25.0
   read-package-json: 2.0.12
   rename-overwrite: 1.0.0
   retry: 0.10.1
@@ -31,7 +31,7 @@ dependencies:
   ssri: 4.1.6
   symlink-dir: 1.1.0
   thenify: 3.3.0
-  unpack-stream: 2.1.0
+  unpack-stream: 2.1.1
   write-json-file: 2.2.0
 devDependencies:
   '@types/tape': 4.2.30
@@ -51,19 +51,15 @@ packages:
       integrity: sha512-nMEwdmNE0w4JTXfwiCABJ57ZLk4DnHgWxIRfiyZ32UPPkmjsoCTChroYeTUbWG7NMbdgrvKSyS744Hg3A/9tAw==
   /@types/mz/0.0.31:
     dependencies:
-      '@types/node': 8.0.31
+      '@types/node': 8.0.33
     resolution:
       integrity: sha1-pNgMCC/v5x5Ap8DwfR5lVbu8e1I=
   /@types/node/7.0.43:
     resolution:
       integrity: sha512-7scYwwfHNppXvH/9JzakbVxk0o0QUILVk1Lv64GRaxwPuGpnF1QBiwdvhDpLcymb8BpomQL3KYoWKq3wUdDMhQ==
-  /@types/node/8.0.26:
-    dev: true
+  /@types/node/8.0.33:
     resolution:
-      integrity: sha512-wbKN0MB4XsjdnSE04HiCzLoBDirGCM6zXrqavSj44nZnPFYpnrTF64E9O6Xmf0ca/IuKK/BHUcXwMiwk92gW6Q==
-  /@types/node/8.0.31:
-    resolution:
-      integrity: sha512-R+LdMJHJQwRd/Ca0Nr5KnwbSWHxTD3DWz4ivqoPeNH+YPcuirMWK+Ti9Mx32jOecmPhHOCd+6CefU5e1eVq2Ew==
+      integrity: sha512-vmCdO8Bm1ExT+FWfC9sd9r4jwqM7o97gGy2WBshkkXbf/2nLAJQUrZfIhw27yVOtLUev6kSZc4cav/46KbDd8A==
   /@types/ramda/0.24.16:
     resolution:
       integrity: sha512-EXvoA6TTwe/+6k99JRSKiPmgAY+Ww0h2FpEgwHuS9mOEQGuFeTPmvNONPmGVaacpQeDRJHJsVVRT/d+jKY/13Q==
@@ -75,7 +71,7 @@ packages:
       integrity: sha512-PBHCvO98hNec9A491vBbh0ZNDOVxccwKL1u2pm6fs9oDgm7SEnw0lEHqHfjsYryDxnE3zaf7LvERWEXjOp1hig==
   /@types/tape/4.2.30:
     dependencies:
-      '@types/node': 8.0.31
+      '@types/node': 8.0.33
     dev: true
     resolution:
       integrity: sha1-PBkXxN/W8nJxuZInclE1FbxsRrQ=
@@ -151,9 +147,9 @@ packages:
       readable-stream: 2.3.3
     resolution:
       integrity: sha1-ysMo977kVzDUBLaSID/LWQ4XLV4=
-  /bluebird/3.5.0:
+  /bluebird/3.5.1:
     resolution:
-      integrity: sha1-eRQg1/VR7qKJdFOop3ZT+WYG1nw=
+      integrity: sha512-MKiLiV+I1AA596t9w1sQJ8jkiSr5+ZKi0WKrYGUn6d1Fx+Ij4tIj+m2WMQSGczs5jZVxV339chE8iwk6F64wjA==
   /bole/3.0.2:
     dependencies:
       fast-safe-stringify: 1.1.13
@@ -394,13 +390,13 @@ packages:
   /detect-indent/5.0.0:
     resolution:
       integrity: sha1-OHHMCmoALow+Wzz38zYmRnXwa50=
-  /diff/3.3.1:
+  /diff/3.4.0:
     dev: true
     resolution:
-      integrity: sha512-MKPHZDMB0o6yHyDryUOScqZibp914ksXwAMYMTHj6KO8UeKsRYNJD3oNCKjTqZon+V488P7N/HzXF8t7ZR95ww==
+      integrity: sha512-QpVuMTEoJMF7cKzi6bvWhRulU1fZqZnvyVQgNhPaxxuTYwyjn/j1v9falseQ/uXWwPnO56RBfwtg4h/EQXmucA==
   /dint/1.0.0:
     dependencies:
-      bluebird: 3.5.0
+      bluebird: 3.5.1
       graceful-fs: 4.1.11
       p-every: 1.0.2
       ssri: 4.1.6
@@ -450,7 +446,7 @@ packages:
       is-arrayish: 0.2.1
     resolution:
       integrity: sha1-+FWobOYa3E6GIcPNoh56dhLDqNw=
-  /es-abstract/1.8.2:
+  /es-abstract/1.9.0:
     dependencies:
       es-to-primitive: 1.1.1
       function-bind: 1.1.1
@@ -458,7 +454,7 @@ packages:
       is-callable: 1.1.3
       is-regex: 1.0.4
     resolution:
-      integrity: sha512-dvhwFL3yjQxNNsOWx6exMlaDrRHCRGMQlnx5lsXDCZ/J7G/frgIIl94zhZSp/galVAYp7VzPi1OrAHta89/yGQ==
+      integrity: sha512-kk3IJoKo7A3pWJc0OV8yZ/VEX2oSUytfekrJiqoxBlKJMFAJVJVpGdHClCCTdv+Fn2zHfpDHHIelMFhZVfef3Q==
   /es-to-primitive/1.1.1:
     dependencies:
       is-callable: 1.1.3
@@ -1137,7 +1133,7 @@ packages:
     dependencies:
       json-stringify-safe: 5.0.1
       minimist: 1.2.0
-      split2: 2.1.1
+      split2: 2.2.0
       through2: 2.0.3
     dev: true
     resolution:
@@ -1213,7 +1209,7 @@ packages:
   /object.getownpropertydescriptors/2.0.3:
     dependencies:
       define-properties: 1.1.2
-      es-abstract: 1.8.2
+      es-abstract: 1.9.0
     resolution:
       integrity: sha1-h1jIRvW0B62rDyNuCYbxSwUcqhY=
   /object.omit/2.0.1:
@@ -1358,7 +1354,7 @@ packages:
       integrity: sha1-clVrgM+g1IqXToDnckjoDtT3+HA=
   /pnpm-logger/0.6.2:
     dependencies:
-      '@types/node': 8.0.26
+      '@types/node': 8.0.33
       bole: 3.0.2
       ndjson: 1.5.0
     dev: true
@@ -1412,6 +1408,9 @@ packages:
   /ramda/0.24.1:
     resolution:
       integrity: sha1-w7d1UZfzW43DUCIoJixMkd22uFc=
+  /ramda/0.25.0:
+    resolution:
+      integrity: sha512-GXpfrYVPwx3K7RQ6aYT8KPS8XViSXUVJT1ONhoKPE9VAleW42YE+U+8VEyGWt41EnEQW7gwecYJriTI0pKoecQ==
   /randomatic/1.1.7:
     dependencies:
       is-number: 3.0.0
@@ -1622,12 +1621,12 @@ packages:
   /spdx-license-ids/1.2.2:
     resolution:
       integrity: sha1-yd96NCRZSt5r0RkA1ZZpbcBrrFc=
-  /split2/2.1.1:
+  /split2/2.2.0:
     dependencies:
       through2: 2.0.3
     dev: true
     resolution:
-      integrity: sha1-eh9VHhdqkOzTNF9yRqDP4XXvT9A=
+      integrity: sha512-RAb22TG39LhI31MbreBgIuKiIKhVsawfTgEGqKHTK87aG+ul/PB8Sqoi3I7kVdRWiCfrKxK3uo4/YUkpNvhPbw==
   /sprintf-js/1.0.3:
     optional: true
     resolution:
@@ -1689,28 +1688,19 @@ packages:
   /symlink-dir/1.1.0:
     dependencies:
       '@types/mz': 0.0.31
-      '@types/node': 8.0.31
+      '@types/node': 8.0.33
       graceful-fs: 4.1.11
       is-windows: 1.0.1
       mkdirp-promise: 5.0.1
       mz: 2.7.0
     resolution:
       integrity: sha512-HrQ50UhvdoWwwC62I82l0U2NTRx9dTQWs5/ay0bRwBqkJQ0f3ruVhQUyLH7hs6NekRsvQgK76fZyUFK7PZsm8A==
-  /tar-fs/1.15.3:
-    dependencies:
-      chownr: 1.0.1
-      mkdirp: 0.5.1
-      pump: 1.0.2
-      tar-stream: 1.5.4
-    resolution:
-      integrity: sha1-7M+TXpQUk9gVECjmNuUc5MPKfyA=
   /tar-fs/1.16.0:
     dependencies:
       chownr: 1.0.1
       mkdirp: 0.5.1
       pump: 1.0.2
       tar-stream: 1.5.4
-    optional: true
     resolution:
       integrity: sha512-I9rb6v7mjWLtOfCau9eH5L7sLJyU2BnxtEZRQ5Mt+eRKmf1F0ohXmT/Jc3fr52kDvjJ/HV5MH3soQfPL5bQ0Yg==
   /tar-stream/1.5.4:
@@ -1764,22 +1754,22 @@ packages:
       babel-code-frame: 6.26.0
       colors: 1.1.2
       commander: 2.11.0
-      diff: 3.3.1
+      diff: 3.4.0
       glob: 7.1.2
       minimatch: 3.0.4
       resolve: 1.4.0
       semver: 5.4.1
       tslib: 1.7.1
-      tsutils: 2.10.0
+      tsutils: 2.12.1
     dev: true
     resolution:
       integrity: sha1-wl4NDJL6EgHCvDDoROCOaCtPNVI=
-  /tsutils/2.10.0:
+  /tsutils/2.12.1:
     dependencies:
       tslib: 1.7.1
     dev: true
     resolution:
-      integrity: sha1-rpRRHfJlbrBuRCQFb7pcOIiHBAw=
+      integrity: sha1-9Nlc4zkciXHkblTEzw7bCiHdWyQ=
   /tunnel-agent/0.6.0:
     dependencies:
       safe-buffer: 5.1.1
@@ -1800,14 +1790,14 @@ packages:
       through: 2.3.8
     resolution:
       integrity: sha512-izD3jxT8xkzwtXRUZjtmRwKnZoeECrfZ8ra/ketwOcusbZEp4mjULMnJOCfTDZBgGQAAY1AJ/IgxcwkavcX9Og==
-  /unpack-stream/2.1.0:
+  /unpack-stream/2.1.1:
     dependencies:
-      '@types/node': 8.0.31
+      '@types/node': 8.0.33
       decompress-maybe: 1.0.0
       ssri: 4.1.6
-      tar-fs: 1.15.3
+      tar-fs: 1.16.0
     resolution:
-      integrity: sha512-6V27bksNIRg7MD/4gvmlVTouA22akjUmSnJFbgHM0XSGcuFWLmt0WjrE0NmScQm1/bQJfOFIX+kt941RCx1rBw==
+      integrity: sha1-FXMzqT/KD6ABYGrqCpKYQy2q7nM=
   /unquote/1.1.0:
     dev: true
     resolution:
@@ -1914,7 +1904,7 @@ specifiers:
   path-absolute: ^1.0.0
   path-exists: ^3.0.0
   pnpm-logger: ^0.6.2
-  ramda: ^0.24.1
+  ramda: ^0.25.0
   read-package-json: ^2.0.10
   rename-overwrite: ^1.0.0
   retry: ^0.10.1

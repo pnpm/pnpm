@@ -42,7 +42,7 @@
     "parse-npm-tarball-url": "^1.0.1",
     "path-absolute": "^1.0.0",
     "path-exists": "^3.0.0",
-    "ramda": "^0.24.1",
+    "ramda": "^0.25.0",
     "read-package-json": "^2.0.10",
     "rename-overwrite": "^1.0.0",
     "retry": "^0.10.1",
