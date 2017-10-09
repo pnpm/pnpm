@@ -382,6 +382,10 @@ test('circular deps', async function (t: tape.Test) {
 })
 
 test('concurrent circular deps', async (t: tape.Test) => {
+  // es5-ext is an external package from the registry
+  // the latest dist-tag is overriden to have a stable test
+  await addDistTag('es5-ext', '0.10.31', 'latest')
+
   const project = prepare(t)
   await installPkgs(['es6-iterator@2.0.0'], testDefaults())
 
