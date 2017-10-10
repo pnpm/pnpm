@@ -41,7 +41,9 @@ function shortestDriveMountpoint (
     }[]
   }
 ): string {
-  return R.head((R.map(R.prop('path'), drive.mountpoints) as string[]).sort())
+  // `as string` might be a bad thing to do but as of now,
+  // this will never return undefined
+  return R.head((R.map(R.prop('path'), drive.mountpoints) as string[]).sort()) as string
 }
 
 async function storePathRelativeToHome (pkgDrive: driveByPath.Drive | null, relStore: string) {

@@ -1,7 +1,7 @@
 dependencies:
   '@types/load-json-file': 2.0.6
   '@types/node': 8.0.41
-  '@types/ramda': 0.24.16
+  '@types/ramda': 0.24.17
   '@types/retry': 0.10.1
   '@types/semver': 5.4.0
   credentials-by-uri: 1.0.0
@@ -63,9 +63,9 @@ packages:
   /@types/node/8.0.41:
     resolution:
       integrity: sha512-6XPVDfoTQE5O6FRCbSgFg0YEobbsqUuu6Wxnp7g3kydKTTQep/Mo3rT9CCS1igzQeAb1GLB7r3+xTgcHv+4KSQ==
-  /@types/ramda/0.24.16:
+  /@types/ramda/0.24.17:
     resolution:
-      integrity: sha512-EXvoA6TTwe/+6k99JRSKiPmgAY+Ww0h2FpEgwHuS9mOEQGuFeTPmvNONPmGVaacpQeDRJHJsVVRT/d+jKY/13Q==
+      integrity: sha512-1zj7HQqHEdzjueCIRMiTSZteGavafmc12SWV3hp4yseKbXdebCsWGGoc+a9ywrJ4c7hQCLOBsoGQjc6wRXJyVA==
   /@types/retry/0.10.1:
     resolution:
       integrity: sha512-iV8ZXtRV3FxfTJNEWN/3ZbexH52w//uMB+8sPYCKBIA/a2bEQWYrNwGuftGI5Xt1wMROTHrGoJPSvwrM4njx7g==
@@ -2227,7 +2227,7 @@ shrinkwrapVersion: 3
 specifiers:
   '@types/load-json-file': ^2.0.5
   '@types/node': ^8.0.34
-  '@types/ramda': ^0.24.16
+  '@types/ramda': ^0.24.17
   '@types/retry': ^0.10.1
   '@types/semver': ^5.3.32
   '@types/tape': ^4.2.30
