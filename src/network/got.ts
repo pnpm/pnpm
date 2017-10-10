@@ -136,8 +136,10 @@ export default (
                 return reject(new Error(`Invalid response: ${res.statusCode}`))
               }
 
-              const size = res.headers['content-length']
-                ? parseInt(res.headers['content-length'])
+              // Is saved to a variable only because TypeScript 5.3 errors otherwise
+              const contentLength = res.headers['content-length']
+              const size = typeof contentLength === 'string'
+                ? parseInt(contentLength)
                 : null
               if (opts.onStart) {
                 opts.onStart(size, currentAttempt)

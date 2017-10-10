@@ -153,11 +153,6 @@ declare module 'execa' {
   export = anything;
 }
 
-declare module 'module' {
-  const anything: any;
-  export = anything;
-}
-
 declare module 'p-limit' {
   const anything: any;
   export = anything;
