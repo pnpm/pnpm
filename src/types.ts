@@ -51,6 +51,7 @@ export type ShrinkwrapResolution = Resolution | {
   integrity: string,
 }
 
+// TODO: rename to DependencySnapshot
 export type DependencyShrinkwrap = {
   id?: string,
   dev?: true,
@@ -62,6 +63,18 @@ export type DependencyShrinkwrap = {
   resolution: ShrinkwrapResolution,
   dependencies?: ResolvedDependencies,
   optionalDependencies?: ResolvedDependencies,
+  peerDependencies?: {
+    [name: string]: string,
+  },
+  bundledDependencies?: {
+    [name: string]: string,
+  },
+  engines?: {
+    node: string,
+  },
+  os?: string[],
+  cpu?: string[],
+  deprecated?: string,
 }
 
 export type Dependencies = {
