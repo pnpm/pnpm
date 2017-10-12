@@ -461,6 +461,9 @@ test('scoped module from different registry', async function (t: tape.Test) {
     },
     packages: {
       '/is-positive/3.1.0': {
+        engines: {
+          node: '>=0.10.0',
+        },
         resolution: {
           integrity: 'sha1-hX21hKG6XRyymAUn/DtsQ103sP0='
         }
@@ -512,6 +515,9 @@ test('installing from shrinkwrap when using npm enterprise', async (t: tape.Test
     },
     packages: {
       '/is-positive/3.1.0': {
+        engines: {
+          node: '>=0.10.0',
+        },
         resolution: {
           integrity: 'sha1-hX21hKG6XRyymAUn/DtsQ103sP0=',
           tarball: '/i/is-positive/_attachments/is-positive-3.1.0.tgz'

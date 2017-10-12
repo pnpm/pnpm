@@ -24,7 +24,7 @@ export default function (
       (childResolvedId: string) => pkgsToLink[dependencyAbsolutePath].optionalDependencies.has(pkgsToLink[childResolvedId].name),
       pkgsToLink[dependencyAbsolutePath].children
     )
-    shrinkwrap.packages[dependencyPath] = toShrDependency({
+    shrinkwrap.packages[dependencyPath] = toShrDependency(pkgsToLink[dependencyAbsolutePath].pkg, {
       dependencyAbsolutePath,
       name: pkgsToLink[dependencyAbsolutePath].name,
       version: pkgsToLink[dependencyAbsolutePath].version,
@@ -45,6 +45,7 @@ export default function (
 }
 
 function toShrDependency (
+  pkg: Package,
   opts: {
     dependencyAbsolutePath: string,
     name: string,
@@ -91,6 +92,22 @@ function toShrDependency (
   }
   if (opts.dependencyAbsolutePath !== opts.id) {
     result['id'] = opts.id
+  }
+  if (pkg.peerDependencies) {
+    result['peerDependencies'] = pkg.peerDependencies
+  }
+  if (pkg.engines) {
+    // TODO: if node: '*' then don't include
+    result['engines'] = pkg.engines
+  }
+  if (pkg.cpu) {
+    result['cpu'] = pkg.cpu
+  }
+  if (pkg.os) {
+    result['os'] = pkg.os
+  }
+  if (pkg.bundledDependencies || pkg.bundleDependencies) {
+    result['bundledDependencies'] = pkg.bundledDependencies || pkg.bundleDependencies
   }
   return result
 }

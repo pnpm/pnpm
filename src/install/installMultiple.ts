@@ -31,6 +31,7 @@ import {
 } from 'pnpm-shrinkwrap'
 import depsToSpecs from '../depsToSpecs'
 import getIsInstallable from './getIsInstallable'
+import getPkgInfoFromShr from '../getPkgInfoFromShr'
 import semver = require('semver')
 
 export type PkgAddress = {
@@ -52,6 +53,7 @@ export type InstalledPackage = {
   peerDependencies: Dependencies,
   optionalDependencies: Set<string>,
   hasBundledDependencies: boolean,
+  pkg: Package,
 }
 
 export default async function installMultiple (
@@ -146,10 +148,12 @@ function getInfoFromShrinkwrap (
     return {
       dependencyPath,
       absoluteDependencyPath,
+      dependencyShrinkwrap,
       pkgId: dependencyShrinkwrap.id || absoluteDependencyPath,
       shrinkwrapResolution: dependencyShrToResolution(dependencyPath, dependencyShrinkwrap, shrinkwrap.registry),
       resolvedDependencies: <ResolvedDependencies>Object.assign({},
         dependencyShrinkwrap.dependencies, dependencyShrinkwrap.optionalDependencies),
+      optionalDependencyNames: R.keys(dependencyShrinkwrap.optionalDependencies),
     }
   } else {
     return {
@@ -199,8 +203,10 @@ async function install (
     dependencyPath?: string,
     parentNodeId: string,
     currentDepth: number,
+    dependencyShrinkwrap?: DependencyShrinkwrap,
     shrinkwrapResolution?: Resolution,
     resolvedDependencies?: ResolvedDependencies,
+    optionalDependencyNames?: string[],
     parentIsInstallable?: boolean,
     update: boolean,
     proceed: boolean,
@@ -276,15 +282,32 @@ async function install (
   }
 
   let pkg: Package
-  try {
-    pkg = options.readPackageHook
-      ? options.readPackageHook(await fetchedPkg.fetchingPkg)
-      : await fetchedPkg.fetchingPkg
-  } catch (err) {
-    // avoiding unhandled promise rejections
-    fetchedPkg.calculatingIntegrity.catch(err => {})
-    fetchedPkg.fetchingFiles.catch(err => {})
-    throw err
+  if (!options.update && options.dependencyShrinkwrap && options.dependencyPath) {
+    pkg = Object.assign(
+      getPkgInfoFromShr(options.dependencyPath, options.dependencyShrinkwrap),
+      options.dependencyShrinkwrap
+    )
+    if (pkg.peerDependencies) {
+      // TODO: what if the peer dep is also in dependencies (in the original package.json)?
+      const deps = pkg.dependencies || {}
+      R.keys(pkg.peerDependencies).forEach(peer => {
+        delete deps[peer]
+        if (options.resolvedDependencies) {
+          delete options.resolvedDependencies[peer]
+        }
+      })
+    }
+  } else {
+    try {
+      pkg = options.readPackageHook
+        ? options.readPackageHook(await fetchedPkg.fetchingPkg)
+        : await fetchedPkg.fetchingPkg
+    } catch (err) {
+      // avoiding unhandled promise rejections
+      fetchedPkg.calculatingIntegrity.catch(err => {})
+      fetchedPkg.fetchingFiles.catch(err => {})
+      throw err
+    }
   }
   if (pkg['deprecated']) {
     deprecationLogger.warn({
@@ -336,6 +359,7 @@ async function install (
       peerDependencies: pkg.peerDependencies || {},
       optionalDependencies: new Set(R.keys(pkg.optionalDependencies)),
       hasBundledDependencies: !!(pkg.bundledDependencies || pkg.bundleDependencies),
+      pkg,
     }
     const children = await installDependencies(
       pkg,
@@ -352,6 +376,7 @@ async function install (
         preferedDependencies: fetchedPkg.id !== options.pkgId
           ? options.resolvedDependencies
           : undefined,
+        optionalDependencyNames: options.optionalDependencyNames,
         update: options.update,
         readPackageHook: options.readPackageHook,
       }
@@ -403,6 +428,7 @@ async function installDependencies (
     currentDepth: number,
     resolvedDependencies?: ResolvedDependencies,
     preferedDependencies?: ResolvedDependencies,
+    optionalDependencyNames?: string[],
     parentIsInstallable: boolean,
     update: boolean,
     readPackageHook?: ReadPackageHook,
@@ -411,7 +437,7 @@ async function installDependencies (
 
   const bundledDeps = pkg.bundleDependencies || pkg.bundledDependencies || []
   const filterDeps = getNotBundledDeps.bind(null, bundledDeps)
-  const deps = depsToSpecs(
+  let deps = depsToSpecs(
     filterDeps(Object.assign({}, pkg.optionalDependencies, pkg.dependencies)),
     {
       where: ctx.prefix,
@@ -419,6 +445,15 @@ async function installDependencies (
       optionalDependencies: pkg.optionalDependencies || {},
     }
   )
+  if (!deps.length && opts.resolvedDependencies) {
+    const optionalDependencyNames = opts.optionalDependencyNames || []
+    deps = R.keys(opts.resolvedDependencies)
+      .map(depName => (<PackageSpec>{
+        name: depName,
+        scope: depName[0] === '@' ? depName.split('/')[0] : null,
+        optional: optionalDependencyNames.indexOf(depName) !== -1,
+      }))
+  }
 
   return await installMultiple(ctx, deps, opts)
 }

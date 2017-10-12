@@ -160,4 +160,10 @@ export type Package = {
     [name: string]: string
   },
   config?: Object,
+  engines?: {
+    node?: string,
+    npm?: string,
+  },
+  cpu?: string[],
+  os?: string[],
 }
