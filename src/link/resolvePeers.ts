@@ -45,6 +45,7 @@ export type ResolvedNode = {
   optional: boolean,
   pkgId: string,
   installable: boolean,
+  pkg: Package,
 }
 
 // All the direct children are resolved but the peer dependencies are not
@@ -257,6 +258,7 @@ function resolveNode (
     optional: !ctx.nonOptionalPackageIds.has(node.pkg.id),
     pkgId: node.pkg.id,
     installable: node.installable,
+    pkg: node.pkg.pkg,
   }
   return {
     depth: node.depth,

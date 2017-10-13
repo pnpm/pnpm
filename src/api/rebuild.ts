@@ -13,6 +13,7 @@ import {
 } from 'pnpm-shrinkwrap'
 import npa = require('npm-package-arg')
 import semver = require('semver')
+import getPkgInfoFromShr from '../getPkgInfoFromShr'
 
 type PackageToRebuild = {
   relativeDepPath: string,
@@ -25,19 +26,11 @@ function getPackagesInfo (packages: ResolvedPackages): PackageToRebuild[] {
   return R.keys(packages)
     .map(relativeDepPath => {
       const pkgShr = packages[relativeDepPath]
-      if (!pkgShr.name) {
-        const pkgInfo = dp.parse(relativeDepPath)
-        return {
-          relativeDepPath,
-          name: pkgInfo['name'],
-          version: pkgInfo['version'],
-          pkgShr,
-        }
-      }
+      const pkgInfo = getPkgInfoFromShr(relativeDepPath, pkgShr)
       return {
         relativeDepPath,
-        name: pkgShr.name,
-        version: pkgShr.version,
+        name: pkgInfo['name'],
+        version: pkgInfo['version'],
         pkgShr,
       }
     })

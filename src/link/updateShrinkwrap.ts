@@ -43,7 +43,7 @@ export default function (
           dependencyPath,
           dependencies: result.dependencies,
           optionalDependencies: result.optionalDependencies,
-          snapshot: toShrDependency({
+          snapshot: toShrDependency(resolvedNode.pkg, {
             dependencyAbsolutePath: resolvedNode.absolutePath,
             name: resolvedNode.name,
             version: resolvedNode.version,
@@ -65,6 +65,7 @@ export default function (
 }
 
 function toShrDependency (
+  pkg: Package,
   opts: {
     dependencyAbsolutePath: string,
     name: string,
@@ -110,6 +111,22 @@ function toShrDependency (
   }
   if (opts.dependencyAbsolutePath !== opts.id) {
     result['id'] = opts.id
+  }
+  if (pkg.peerDependencies) {
+    result['peerDependencies'] = pkg.peerDependencies
+  }
+  if (pkg.engines) {
+    // TODO: if node: '*' then don't include
+    result['engines'] = pkg.engines
+  }
+  if (pkg.cpu) {
+    result['cpu'] = pkg.cpu
+  }
+  if (pkg.os) {
+    result['os'] = pkg.os
+  }
+  if (pkg.bundledDependencies || pkg.bundleDependencies) {
+    result['bundledDependencies'] = pkg.bundledDependencies || pkg.bundleDependencies
   }
   return result
 }
