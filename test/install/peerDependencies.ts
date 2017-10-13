@@ -187,6 +187,12 @@ test('package that resolves its own peer dependency', async (t: tape.Test) => {
   t.equal(deepRequireCwd(['pkg-with-resolved-peer', 'peer-c', './package.json']).version, '1.0.0')
 
   t.ok(await exists(path.join(NM, '.localhost+4873', 'pkg-with-resolved-peer', '1.0.0', NM, 'pkg-with-resolved-peer')))
+
+  const shr = await project.loadShrinkwrap()
+
+  t.notOk(shr.packages['/pkg-with-resolved-peer/1.0.0'].peerDependencies, 'peerDependencies not added to shrinkwrap')
+  t.ok(shr.packages['/pkg-with-resolved-peer/1.0.0'].dependencies['peer-c'])
+  t.ok(shr.packages['/pkg-with-resolved-peer/1.0.0'].optionalDependencies['peer-b'])
 })
 
 test('own peer installed in root as well is linked to root', async function (t: tape.Test) {

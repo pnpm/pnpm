@@ -94,7 +94,14 @@ function toShrDependency (
     result['id'] = opts.id
   }
   if (pkg.peerDependencies) {
-    result['peerDependencies'] = pkg.peerDependencies
+    const ownDeps = new Set(
+      R.keys(pkg.dependencies).concat(R.keys(pkg.optionalDependencies))
+    )
+    for (let peer of R.keys(pkg.peerDependencies)) {
+      if (ownDeps.has(peer)) continue
+      result['peerDependencies'] = result['peerDependencies'] || {}
+      result['peerDependencies'][peer] = pkg.peerDependencies[peer]
+    }
   }
   if (pkg.engines) {
     // TODO: if node: '*' then don't include
