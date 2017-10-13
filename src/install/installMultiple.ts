@@ -289,7 +289,6 @@ async function install (
       options.dependencyShrinkwrap
     )
     if (pkg.peerDependencies) {
-      // TODO: what if the peer dep is also in dependencies (in the original package.json)?
       const deps = pkg.dependencies || {}
       R.keys(pkg.peerDependencies).forEach(peer => {
         delete deps[peer]
