@@ -35,13 +35,8 @@ test('run pre/postinstall scripts', async function (t: tape.Test) {
 
   await install(testDefaults({production: true}))
 
-  {
-    const generatedByPreinstall = project.requireModule('pre-and-postinstall-scripts-example/generated-by-preinstall')
-    t.ok(typeof generatedByPreinstall === 'function', 'generatedByPreinstall() is not available')
-
-    const generatedByPostinstall = project.requireModule('pre-and-postinstall-scripts-example/generated-by-postinstall')
-    t.ok(typeof generatedByPostinstall === 'function', 'generatedByPostinstall() is not available')
-  }
+  t.notOk(await exists(path.resolve('node_modules', 'pre-and-postinstall-scripts-example', 'generated-by-preinstall')))
+  t.notOk(await exists(path.resolve('node_modules', 'pre-and-postinstall-scripts-example', 'generated-by-postinstall')))
 })
 
 test('testing that the bins are linked when the package with the bins was already in node_modules', async function (t: tape.Test) {
