@@ -10,6 +10,8 @@ import writePkg = require('write-pkg')
 import rimraf = require('rimraf-then')
 import sinon = require('sinon')
 import {RootLog} from 'pnpm-logger'
+import {stripIndent} from 'common-tags'
+import fs = require('mz/fs')
 
 const test = promisifyTape(tape)
 
@@ -484,6 +486,7 @@ test('scoped module from different registry', async function (t: tape.Test) {
       'is-positive': '^3.1.0',
     },
     shrinkwrapVersion: 3,
+    shrinkwrapMinorVersion: 1,
   })
 })
 
@@ -529,6 +532,7 @@ test('installing from shrinkwrap when using npm enterprise', async (t: tape.Test
       'is-positive': '^3.1.0',
     },
     shrinkwrapVersion: 3,
+    shrinkwrapMinorVersion: 1,
   })
 
   await rimraf(opts.store)
@@ -595,4 +599,66 @@ test('updating package that has deps with peers', async (t: tape.Test) => {
   await installPkgs(['abc-grand-parent-with-c@1'], testDefaults())
 
   t.pass('installation of latest did not fail')
+})
+
+test('updating shrinkwrap version 3 to 3.1', async (t: tape.Test) => {
+  const project = prepare(t, {
+    dependencies: {
+      'abc-grand-parent-with-c': '^1.0.0',
+    },
+  })
+
+  const shrV3Content = stripIndent`
+    dependencies:
+      abc-grand-parent-with-c: 1.0.0
+    packages:
+      /abc-grand-parent-with-c/1.0.0:
+        dependencies:
+          abc-parent-with-ab: /abc-parent-with-ab/1.0.0/peer-c@1.0.0
+          peer-c: 1.0.0
+        resolution:
+          integrity: sha512-/sPoyuCaOuJAG6Gcq7HxiW8/++Jj3zmzfymr+mKbNG8VftROlRAd1qoOtA37xNJXYNRT2Zwb0Gym2fdt/eXKaQ==
+      /abc-parent-with-ab/1.0.0/peer-c@1.0.0:
+        dependencies:
+          abc: /abc/1.0.0/peer-a@1.0.0+peer-b@1.0.0+peer-c@1.0.0
+          peer-a: 1.0.0
+          peer-b: 1.0.0
+        id: localhost+4873/abc-parent-with-ab/1.0.0
+        resolution:
+          integrity: sha512-8ULNWX/kq0K8zdbLdN9rjxJIVaqihDJbTTJSeH8cfz0rXleV2RxBhKJ9kqjk/kmplpHJEDyhLKDjubWlS10WUA==
+      /abc/1.0.0/peer-a@1.0.0+peer-b@1.0.0+peer-c@1.0.0:
+        dependencies:
+          dep-of-pkg-with-1-dep: 100.0.0
+          peer-a: 1.0.0
+          peer-b: 1.0.0
+          peer-c: 1.0.0
+        id: localhost+4873/abc/1.0.0
+        resolution:
+          integrity: sha512-PH3blWOnt6/jzbuoTHXRoV5jeBsIv+Xg0CyVmAarB/n086637teQj6hnCgGp2oc18ytYeNxjUAKM1jzm0CPSZA==
+      /dep-of-pkg-with-1-dep/100.0.0:
+        resolution:
+          integrity: sha512-X7jXbtkdH5N79IYmVGSV3KHQjOo+RsbgO7xIQZ0OpOQlVzxoJ+e30l0G6STwgw1lgOOo5GQQ9C7VFSjnCaX1Sw==
+      /peer-a/1.0.0:
+        resolution:
+          integrity: sha512-B8kajty4JNgNS7Oc82g9pY/nqUTjgMYzgXwbQL3NS2Mgi5asBcd5G3P0P38F8jdqhLy/OjYJ5FJlvmbJQX5azQ==
+      /peer-b/1.0.0:
+        resolution:
+          integrity: sha512-MJi3M3Z34W8H97kn9wd0yV4sGStWuEm9eGhSqB7YpHi6sMIBGAVM8OAUyTNPHHoLvdZpbzcRScUWgkTqHpBdrQ==
+      /peer-c/1.0.0:
+        resolution:
+          integrity: sha512-/bP9J3v+pIx6S6HWlZdWIHlmNOuiKSXZxxn7CXdjXwm8ypOtaEw6F08aXTxPDzFotpaRcdS6nN6K2DzA40XyPg==
+    registry: 'http://localhost:4873/'
+    shrinkwrapVersion: 3
+    specifiers:
+      abc-grand-parent-with-c: ^1.0.0
+  `
+
+  await fs.writeFile('shrinkwrap.yaml', shrV3Content, 'utf8')
+
+  await install(testDefaults())
+
+  const shr = await project.loadShrinkwrap()
+
+  t.equal(shr.shrinkwrapMinorVersion, 1)
+  t.ok(shr.packages['/abc/1.0.0/peer-a@1.0.0+peer-b@1.0.0+peer-c@1.0.0'].peerDependencies)
 })

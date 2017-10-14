@@ -74,6 +74,7 @@ export default function installMultiple (
     parentIsInstallable?: boolean,
     update: boolean,
     readPackageHook?: ReadPackageHook,
+    hasManifestInShrinkwrap: boolean,
   }
 ): Rx.Observable<PackageRequest> {
   const resolvedDependencies = options.resolvedDependencies || {}
@@ -105,6 +106,7 @@ export default function installMultiple (
             currentDepth: options.currentDepth,
             parentIsInstallable: options.parentIsInstallable,
             readPackageHook: options.readPackageHook,
+            hasManifestInShrinkwrap: options.hasManifestInShrinkwrap,
             update,
             proceed,
           },
@@ -212,6 +214,7 @@ async function install (
     update: boolean,
     proceed: boolean,
     readPackageHook?: ReadPackageHook,
+    hasManifestInShrinkwrap: boolean,
   }
 ): Promise<Rx.Observable<PackageRequest>> {
   const keypath = options.keypath || []
@@ -283,7 +286,7 @@ async function install (
   }
 
   let pkg: Package
-  if (!options.update && options.dependencyShrinkwrap && options.dependencyPath) {
+  if (options.hasManifestInShrinkwrap && !options.update && options.dependencyShrinkwrap && options.dependencyPath) {
     pkg = Object.assign(
       getPkgInfoFromShr(options.dependencyPath, options.dependencyShrinkwrap),
       options.dependencyShrinkwrap
@@ -370,6 +373,7 @@ async function install (
         optionalDependencyNames: options.optionalDependencyNames,
         update: options.update,
         readPackageHook: options.readPackageHook,
+        hasManifestInShrinkwrap: options.hasManifestInShrinkwrap,
       }
     )
 
@@ -429,6 +433,7 @@ function installDependencies (
     parentIsInstallable: boolean,
     update: boolean,
     readPackageHook?: ReadPackageHook,
+    hasManifestInShrinkwrap: boolean,
   }
 ): {
   children$: Rx.Observable<PackageRequest>,
