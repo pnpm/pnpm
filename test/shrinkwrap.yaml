@@ -10,7 +10,7 @@ dependencies:
   isexe: 2.0.0
   mkdirp: 0.5.1
   npm-run-all: 4.1.1
-  pnpm-registry-mock: 1.8.0
+  pnpm-registry-mock: 1.9.0
   read-pkg: 2.0.0
   rimraf: 2.6.2
   sepia: 2.0.2
@@ -1243,13 +1243,13 @@ packages:
   /pkginfo/0.4.1:
     resolution:
       integrity: sha1-tUGO8EOd5UJfxJlQQtztFPsqhP8=
-  /pnpm-registry-mock/1.8.0:
+  /pnpm-registry-mock/1.9.0:
     dependencies:
       cpr: 2.2.0
       rimraf: 2.6.2
       verdaccio: 2.4.0
     resolution:
-      integrity: sha512-n/N6/9LuASIri6v6H84Re5J2kcqBFS8Ob7DO7WX98hWOdzrjdkBiHZfM54wWv9fLds3HgAqS2BwhnXAmPBD5Sw==
+      integrity: sha512-IrHJnHK2Ohkf/PU94CoW3ml9xwc3vowfCRcOhDoBecIpnKJhPRmJUq8U77bD1YleDmGyaOg3ATaFQhqK1A1/HA==
   /process-nextick-args/1.0.7:
     resolution:
       integrity: sha1-FQ4gt1ZZCtP5EJPyWk8q2L/zC6M=
@@ -1864,7 +1864,7 @@ specifiers:
   isexe: ^2.0.0
   mkdirp: ^0.5.1
   npm-run-all: ^4.0.1
-  pnpm-registry-mock: ^1.8.0
+  pnpm-registry-mock: ^1.9.0
   read-pkg: ^2.0.0
   rimraf: ^2.5.4
   sepia: ^2.0.2
