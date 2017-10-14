@@ -418,11 +418,34 @@ test('big with dependencies and circular deps (babel-preset-2015)', async functi
   t.ok(typeof m === 'object', 'babel-preset-es2015 is available')
 })
 
-test('bundleDependencies (pkg-with-bundled-dependencies@1.0.0)', async function (t) {
+test('bundledDependencies (pkg-with-bundled-dependencies@1.0.0)', async function (t: tape.Test) {
   const project = prepare(t)
+
   await installPkgs(['pkg-with-bundled-dependencies@1.0.0'], testDefaults())
 
   await project.isExecutable('pkg-with-bundled-dependencies/node_modules/.bin/hello-world-js-bin')
+
+  const shr = await project.loadShrinkwrap()
+  t.deepEqual(
+    shr.packages['/pkg-with-bundled-dependencies/1.0.0'].bundledDependencies,
+    ['hello-world-js-bin'],
+    'bundledDependencies added to shrinkwrap.yaml'
+  )
+})
+
+test('bundleDependencies (pkg-with-bundle-dependencies@1.0.0)', async function (t: tape.Test) {
+  const project = prepare(t)
+
+  await installPkgs(['pkg-with-bundle-dependencies@1.0.0'], testDefaults())
+
+  await project.isExecutable('pkg-with-bundle-dependencies/node_modules/.bin/hello-world-js-bin')
+
+  const shr = await project.loadShrinkwrap()
+  t.deepEqual(
+    shr.packages['/pkg-with-bundle-dependencies/1.0.0'].bundledDependencies,
+    ['hello-world-js-bin'],
+    'bundledDependencies added to shrinkwrap.yaml'
+  )
 })
 
 test('compiled modules (ursa@0.9.1)', async function (t) {

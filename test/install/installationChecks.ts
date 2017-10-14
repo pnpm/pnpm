@@ -19,7 +19,7 @@ test('fail if installed package does not support the current engine and engine-s
   }
 })
 
-test('do not fail if installed package does not support the current engine and engine-strict = false', async function (t) {
+test('do not fail if installed package does not support the current engine and engine-strict = false', async function (t: tape.Test) {
   const project = prepare(t)
 
   await installPkgs(['not-compatible-with-any-os'], testDefaults({
@@ -28,9 +28,12 @@ test('do not fail if installed package does not support the current engine and e
 
   await project.has('not-compatible-with-any-os')
   await project.storeHas('not-compatible-with-any-os', '1.0.0')
+
+  const shr = await project.loadShrinkwrap()
+  t.deepEqual(shr.packages['/not-compatible-with-any-os/1.0.0'].os, ['this-os-does-not-exist'], 'os field added to shrinkwrap.yaml')
 })
 
-test('do not fail if installed package requires the node version that was passed in and engine-strict = true', async function (t) {
+test('do not fail if installed package requires the node version that was passed in and engine-strict = true', async function (t: tape.Test) {
   const project = prepare(t)
 
   await installPkgs(['for-legacy-node'], testDefaults({
@@ -40,4 +43,21 @@ test('do not fail if installed package requires the node version that was passed
 
   await project.has('for-legacy-node')
   await project.storeHas('for-legacy-node', '1.0.0')
+
+  const shr = await project.loadShrinkwrap()
+  t.deepEqual(shr.packages['/for-legacy-node/1.0.0'].engines, { node: '0.10' }, 'engines field added to shrinkwrap.yaml')
+})
+
+test('save cpu field to shrinkwrap.yaml', async function (t: tape.Test) {
+  const project = prepare(t)
+
+  await installPkgs(['has-cpu-specified'], testDefaults())
+
+  const shr = await project.loadShrinkwrap()
+
+  t.deepEqual(
+    shr.packages['/has-cpu-specified/1.0.0'].cpu,
+    ['x64', 'ia32'],
+    'cpu field added to shrinkwrap.yaml'
+  )
 })

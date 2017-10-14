@@ -15,7 +15,7 @@
     "isexe": "^2.0.0",
     "mkdirp": "^0.5.1",
     "npm-run-all": "^4.0.1",
-    "pnpm-registry-mock": "^1.8.0",
+    "pnpm-registry-mock": "^1.9.0",
     "read-pkg": "^2.0.0",
     "rimraf": "^2.5.4",
     "sepia": "^2.0.2",
