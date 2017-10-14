@@ -166,4 +166,8 @@ export type Package = {
   },
   cpu?: string[],
   os?: string[],
+  // TODO: create a separate type called PackageManifest that will have `deprecated`
+  // and won't have `scripts`, `config` and other fields that are not returned by
+  // the registry
+  deprecated?: string,
 }

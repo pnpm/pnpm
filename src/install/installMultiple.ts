@@ -308,12 +308,12 @@ async function install (
       throw err
     }
   }
-  if (pkg['deprecated']) {
+  if (pkg.deprecated) {
     deprecationLogger.warn({
       pkgName: pkg.name,
       pkgVersion: pkg.version,
       pkgId: fetchedPkg.id,
-      deprecated: pkg['deprecated'],
+      deprecated: pkg.deprecated,
       depth: options.currentDepth,
     })
   }
