@@ -61,3 +61,16 @@ test('save cpu field to shrinkwrap.yaml', async function (t: tape.Test) {
     'cpu field added to shrinkwrap.yaml'
   )
 })
+
+test('engines field is not added to shrinkwrap.yaml when "node": "*" is in "engines" field', async function (t: tape.Test) {
+  const project = prepare(t)
+
+  await installPkgs(['jsonify@0.0.0'], testDefaults())
+
+  const shr = await project.loadShrinkwrap()
+
+  t.notOk(
+    shr.packages['/jsonify/0.0.0'].engines,
+    'engines field is not added to shrinkwrap.yaml'
+  )
+})

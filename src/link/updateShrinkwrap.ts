@@ -104,8 +104,11 @@ function toShrDependency (
     }
   }
   if (pkg.engines) {
-    // TODO: if node: '*' then don't include
-    result['engines'] = pkg.engines
+    for (let engine of R.keys(pkg.engines)) {
+      if (pkg.engines[engine] === '*') continue
+      result['engines'] = result['engines'] || {}
+      result['engines'][engine] = pkg.engines[engine]
+    }
   }
   if (pkg.cpu) {
     result['cpu'] = pkg.cpu
