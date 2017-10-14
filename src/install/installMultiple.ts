@@ -71,6 +71,7 @@ export default async function installMultiple (
     parentIsInstallable?: boolean,
     update: boolean,
     readPackageHook?: ReadPackageHook,
+    hasManifestInShrinkwrap: boolean,
   }
 ): Promise<PkgAddress[]> {
   const resolvedDependencies = options.resolvedDependencies || {}
@@ -101,6 +102,7 @@ export default async function installMultiple (
               currentDepth: options.currentDepth,
               parentIsInstallable: options.parentIsInstallable,
               readPackageHook: options.readPackageHook,
+              hasManifestInShrinkwrap: options.hasManifestInShrinkwrap,
               update,
               proceed,
             },
@@ -211,6 +213,7 @@ async function install (
     update: boolean,
     proceed: boolean,
     readPackageHook?: ReadPackageHook,
+    hasManifestInShrinkwrap: boolean,
   }
 ): Promise<PkgAddress | null> {
   const keypath = options.keypath || []
@@ -282,7 +285,7 @@ async function install (
   }
 
   let pkg: Package
-  if (!options.update && options.dependencyShrinkwrap && options.dependencyPath) {
+  if (options.hasManifestInShrinkwrap && !options.update && options.dependencyShrinkwrap && options.dependencyPath) {
     pkg = Object.assign(
       getPkgInfoFromShr(options.dependencyPath, options.dependencyShrinkwrap),
       options.dependencyShrinkwrap
@@ -378,6 +381,7 @@ async function install (
         optionalDependencyNames: options.optionalDependencyNames,
         update: options.update,
         readPackageHook: options.readPackageHook,
+        hasManifestInShrinkwrap: options.hasManifestInShrinkwrap,
       }
     )
     ctx.childrenIdsByParentId[fetchedPkg.id] = children.map(child => child.pkgId)
@@ -431,6 +435,7 @@ async function installDependencies (
     parentIsInstallable: boolean,
     update: boolean,
     readPackageHook?: ReadPackageHook,
+    hasManifestInShrinkwrap: boolean,
   }
 ): Promise<PkgAddress[]> {
 

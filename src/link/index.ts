@@ -108,6 +108,11 @@ export default async function (
   }
   await linkBins(opts.baseNodeModules, opts.bin)
 
+  // Setting `shrinkwrapMinorVersion` is a temporary solution to
+  // have new backward-compatible versions of `shrinkwrap.yaml`
+  // w/o changing `shrinkwrapVersion`. From version 4, the
+  // `shrinkwrapVersion` field allows numbers like 4.1
+  newShr.shrinkwrapMinorVersion = 1
   let privateShrinkwrap: Shrinkwrap
   if (opts.makePartialPrivateShrinkwrap) {
     const packages = opts.privateShrinkwrap.packages || {}

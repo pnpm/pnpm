@@ -48,6 +48,7 @@ test('local file', async function (t: tape.Test) {
     },
     registry: 'http://localhost:4873/',
     shrinkwrapVersion: 3,
+    shrinkwrapMinorVersion: 1,
   })
 })
 

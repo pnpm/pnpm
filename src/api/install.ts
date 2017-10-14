@@ -382,6 +382,7 @@ async function installInContext (
     parentNodeId: ':/:',
     currentDepth: 0,
     readPackageHook: opts.hooks.readPackage,
+    hasManifestInShrinkwrap: ctx.shrinkwrap.shrinkwrapMinorVersion === 1,
   }
   const nonLinkedPkgs = await pFilter(packagesToInstall,
     (spec: PackageSpec) => !spec.name || safeIsInnerLink(nodeModulesPath, spec.name, {storePath: ctx.storePath}))
