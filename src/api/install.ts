@@ -382,7 +382,9 @@ async function installInContext (
     parentNodeId: ':/:',
     currentDepth: 0,
     readPackageHook: opts.hooks.readPackage,
-    hasManifestInShrinkwrap: ctx.shrinkwrap.shrinkwrapMinorVersion === 1,
+    // This works from minor version 1, so any number is fine
+    // also, the shrinkwrapMinorVersion is going to be removed from shrinkwrap v4
+    hasManifestInShrinkwrap: typeof ctx.shrinkwrap.shrinkwrapMinorVersion === 'number',
   }
   const nonLinkedPkgs = await pFilter(packagesToInstall,
     (spec: PackageSpec) => !spec.name || safeIsInnerLink(nodeModulesPath, spec.name, {storePath: ctx.storePath}))
