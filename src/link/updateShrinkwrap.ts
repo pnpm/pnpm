@@ -135,6 +135,9 @@ function toShrDependency (
   if (pkg.bundledDependencies || pkg.bundleDependencies) {
     result['bundledDependencies'] = pkg.bundledDependencies || pkg.bundleDependencies
   }
+  if (pkg.deprecated) {
+    result['deprecated'] = pkg.deprecated
+  }
   return result
 }
 
