@@ -1,5 +1,7 @@
 export type Shrinkwrap = {
   shrinkwrapVersion: number,
+  // Should be deprecated from shrinkwrap version 4
+  shrinkwrapMinorVersion?: number,
   specifiers: ResolvedDependencies,
   dependencies?: ResolvedDependencies,
   optionalDependencies?: ResolvedDependencies,
@@ -51,7 +53,7 @@ export type ShrinkwrapResolution = Resolution | {
   integrity: string,
 }
 
-// TODO: rename to DependencySnapshot
+// TODO: rename to PackageSnapshot
 export type DependencyShrinkwrap = {
   id?: string,
   dev?: true,

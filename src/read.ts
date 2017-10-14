@@ -6,7 +6,10 @@ import {
 } from './constants'
 import {Shrinkwrap} from './types'
 import loadYamlFile = require('load-yaml-file')
-import {SHRINKWRAP_VERSION} from './constants'
+import {
+  SHRINKWRAP_VERSION,
+  SHRINKWRAP_MINOR_VERSION,
+} from './constants'
 
 // TODO: move to separate package
 type PnpmErrorCode = 'SHRINKWRAP_BREAKING_CHANGE'
@@ -88,6 +91,7 @@ async function _read (
 export function create (registry: string) {
   return {
     shrinkwrapVersion: SHRINKWRAP_VERSION,
+    shrinkwrapMinorVersion: SHRINKWRAP_MINOR_VERSION,
     specifiers: {},
     dependencies: {},
     packages: {},
