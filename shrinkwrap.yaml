@@ -18,7 +18,7 @@ dependencies:
   pnpm-logger: 0.6.2
   ramda: 0.25.0
   strip-color: 0.1.0
-  supi: 0.2.35
+  supi: 0.2.36
   text-table: 0.2.0
   update-notifier: 2.2.0
 devDependencies:
@@ -3034,7 +3034,7 @@ packages:
   /strip-json-comments/2.0.1:
     resolution:
       integrity: sha1-PFMZQukIwml8DsNEhYwobHygpgo=
-  /supi/0.2.35:
+  /supi/0.2.36:
     dependencies:
       '@types/byline': 4.2.31
       '@types/common-tags': 1.4.0
@@ -3095,7 +3095,7 @@ packages:
       write-pkg: 3.1.0
       write-yaml-file: 1.0.0
     resolution:
-      integrity: sha512-f1/RhWUCzB/Gu/7VVyz2OgJHpo+wPEQMHftTStS9NGKI7lSqhhAeMWKmy6ssuJF+lL8/02tIyUVCI7ORFv8oEw==
+      integrity: sha512-BoFQk2L+RE1I2T3Uk606jVCoAarKys7rKZu4XIEOHt2zMb8F+AgIMcsIf6pvy9kZznAydnyEHQvKAeQKCCADAg==
   /supports-color/2.0.0:
     resolution:
       integrity: sha1-U10EXOa2Nj+kARcIRimZXp3zJMc=
@@ -3536,7 +3536,7 @@ specifiers:
   ramda: ^0.25.0
   rimraf: ^2.5.4
   strip-color: ^0.1.0
-  supi: ^0.2.35
+  supi: ^0.2.36
   text-table: ^0.2.0
   tslint: ^5.4.2
   typescript: ^2.4.1
