@@ -449,7 +449,7 @@ function installDependencies (
       optionalDependencies: pkg.optionalDependencies || {},
     }
   )
-  if (!deps.length && opts.resolvedDependencies) {
+  if (opts.hasManifestInShrinkwrap && !deps.length && opts.resolvedDependencies) {
     const optionalDependencyNames = opts.optionalDependencyNames || []
     deps = R.keys(opts.resolvedDependencies)
       .map(depName => (<PackageSpec>{
