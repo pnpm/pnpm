@@ -112,6 +112,7 @@ export default async function (
     filterShrinkwrap(opts.privateShrinkwrap, filterOpts),
     depShr$,
     opts,
+    filterOpts,
     opts.shrinkwrap.registry
   )
 
@@ -267,12 +268,20 @@ function linkNewPackages (
     baseNodeModules: string,
     optional: boolean,
   },
+  filterOpts: {
+    noDev: boolean,
+    noOptional: boolean,
+    skipped: Set<string>,
+  },
   registry: string
 ): Rx.Observable<string> {
   let copy = false
   const prevPackages = privateShrinkwrap.packages || {}
   const outOfDateResolvedPkg$ = resolvedPkg$
     .filter(resolvedPkg => {
+      if (filterOpts.noDev && resolvedPkg.node.dev) return false
+      if (filterOpts.noOptional && resolvedPkg.node.optional) return false
+      if (filterOpts.skipped.has(resolvedPkg.node.pkgId)) return false
       if (!resolvedPkg.node.installable) return false
 
       // TODO: what if the registries differ?
