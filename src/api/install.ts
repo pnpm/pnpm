@@ -483,6 +483,7 @@ async function installInContext (
     nonDevPackageIds: installCtx.nonDevPackageIds,
     nonOptionalPackageIds: installCtx.nonOptionalPackageIds,
     localPackages: installCtx.localPackages,
+    updateShrinkwrapMinorVersion: installType === 'general' || R.isEmpty(ctx.privateShrinkwrap.packages),
   })
 
   await Promise.all([
