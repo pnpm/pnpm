@@ -16,14 +16,14 @@ dependencies:
   pnpm-file-reporter: 0.0.1
   pnpm-list: 1.1.0
   pnpm-logger: 0.6.2
-  ramda: 0.24.1
+  ramda: 0.25.0
   strip-color: 0.1.0
-  supi: 0.2.34
+  supi: 0.2.35
   text-table: 0.2.0
   update-notifier: 2.2.0
 devDependencies:
   '@commitlint/cli': 4.1.0
-  '@commitlint/config-angular': 3.1.1
+  '@commitlint/config-angular': 4.2.0
   '@commitlint/prompt-cli': 4.1.0
   '@types/byline': 4.2.31
   '@types/chalk': 0.4.31
@@ -52,10 +52,10 @@ packages:
     dev: true
     resolution:
       integrity: sha512-uYV2Yc/G+bBmL40O6pUXWGByKqIAEo9zsuIgsMzgcIfnhFIfvQXTzvOG7+UaoS/DRvEWcPFtQ+muAR4bJLanfA==
-  /@commitlint/config-angular/3.1.1:
+  /@commitlint/config-angular/4.2.0:
     dev: true
     resolution:
-      integrity: sha1-VfIoOAPGpOAedV0JEu/511c1M2Y=
+      integrity: sha512-jMSh5sxG8XxhbOltRWbe6jR6OUvkktlZAl1/jgddfg57CITlN5DXHIk2LH0yvguUAsR8dxUuIqzTCk+IN5TtpQ==
   /@commitlint/core/4.1.0:
     dependencies:
       '@marionebl/git-raw-commits': 1.2.0
@@ -149,12 +149,20 @@ packages:
       '@types/node': 8.0.33
     resolution:
       integrity: sha1-pNgMCC/v5x5Ap8DwfR5lVbu8e1I=
+  /@types/mz/0.0.32:
+    dependencies:
+      '@types/node': 8.0.34
+    resolution:
+      integrity: sha512-cy3yebKhrHuOcrJGkfwNHhpTXQLgmXSv1BX+4p32j+VUQ6aP2eJ5cL7OvGcAQx75fCTFaAIIAKewvqL+iwSd4g==
   /@types/node/7.0.43:
     resolution:
       integrity: sha512-7scYwwfHNppXvH/9JzakbVxk0o0QUILVk1Lv64GRaxwPuGpnF1QBiwdvhDpLcymb8BpomQL3KYoWKq3wUdDMhQ==
   /@types/node/8.0.33:
     resolution:
       integrity: sha512-vmCdO8Bm1ExT+FWfC9sd9r4jwqM7o97gGy2WBshkkXbf/2nLAJQUrZfIhw27yVOtLUev6kSZc4cav/46KbDd8A==
+  /@types/node/8.0.34:
+    resolution:
+      integrity: sha512-Jnmm57+nHqvJUPwUzt1CLoLzFtF2B2vgG7cWFut+a4nqTp9/L6pL0N+o0Jt3V7AQnCKMsPEqQpLFZYleBCdq3w==
   /@types/nopt/3.0.29:
     resolution:
       integrity: sha1-8Z3z20yX7hRZonQAKDIKcdcJZM4=
@@ -2402,6 +2410,20 @@ packages:
       write-file-atomic: 2.3.0
     resolution:
       integrity: sha512-8+pD1IU2jtRzf4BbMSAnTZsRDs6Pg00xSNSunhak2sxVIzJaxyBqnE1flh8YbQO2tQJ8xbs5v3eTb2PUU6Ga8Q==
+  /pnpm-shrinkwrap/3.4.0:
+    dependencies:
+      '@types/node': 7.0.43
+      '@types/ramda': 0.0.11
+      dependency-path: 1.2.0
+      js-yaml: 3.10.0
+      load-yaml-file: 0.1.0
+      mkdirp-promise: 5.0.1
+      ramda: 0.24.1
+      rimraf-then: 1.0.1
+      thenify: 3.3.0
+      write-file-atomic: 2.3.0
+    resolution:
+      integrity: sha512-Cn1df7tvv5qIC+3AYRhF4h8266ehLzC/lcnjeumU13TUGU4Vwi+5prPXxj/7IWnZiTAzESjfYag3S5bi6xHBqw==
   /pos/0.4.2:
     dev: true
     resolution:
@@ -2503,6 +2525,9 @@ packages:
   /ramda/0.24.1:
     resolution:
       integrity: sha1-w7d1UZfzW43DUCIoJixMkd22uFc=
+  /ramda/0.25.0:
+    resolution:
+      integrity: sha512-GXpfrYVPwx3K7RQ6aYT8KPS8XViSXUVJT1ONhoKPE9VAleW42YE+U+8VEyGWt41EnEQW7gwecYJriTI0pKoecQ==
   /rc/1.2.1:
     dependencies:
       deep-extend: 0.4.2
@@ -3009,13 +3034,13 @@ packages:
   /strip-json-comments/2.0.1:
     resolution:
       integrity: sha1-PFMZQukIwml8DsNEhYwobHygpgo=
-  /supi/0.2.34:
+  /supi/0.2.35:
     dependencies:
       '@types/byline': 4.2.31
       '@types/common-tags': 1.4.0
       '@types/load-json-file': 2.0.6
-      '@types/mz': 0.0.31
-      '@types/node': 7.0.43
+      '@types/mz': 0.0.32
+      '@types/node': 8.0.34
       '@types/nopt': 3.0.29
       '@types/npm': 2.0.29
       '@types/p-series': 1.0.0
@@ -3058,9 +3083,9 @@ packages:
       path-exists: 3.0.0
       path-name: 1.0.0
       pnpm-install-checks: 1.1.0
-      pnpm-shrinkwrap: 3.3.3
+      pnpm-shrinkwrap: 3.4.0
       proper-lockfile: 2.0.1
-      ramda: 0.24.1
+      ramda: 0.25.0
       read-package-json: 2.0.12
       remove-all-except-outer-links: 1.0.3
       rimraf-then: 1.0.1
@@ -3070,7 +3095,7 @@ packages:
       write-pkg: 3.1.0
       write-yaml-file: 1.0.0
     resolution:
-      integrity: sha1-YN24MN108O8h0h0N1FdbC5s6DHg=
+      integrity: sha512-f1/RhWUCzB/Gu/7VVyz2OgJHpo+wPEQMHftTStS9NGKI7lSqhhAeMWKmy6ssuJF+lL8/02tIyUVCI7ORFv8oEw==
   /supports-color/2.0.0:
     resolution:
       integrity: sha1-U10EXOa2Nj+kARcIRimZXp3zJMc=
@@ -3477,7 +3502,7 @@ registry: 'https://registry.npmjs.org/'
 shrinkwrapVersion: 3
 specifiers:
   '@commitlint/cli': ^4.0.0
-  '@commitlint/config-angular': ^3.1.1
+  '@commitlint/config-angular': ^4.2.0
   '@commitlint/prompt-cli': ^4.0.0
   '@pnpm/outdated': ^0.0.1
   '@types/byline': ^4.2.31
@@ -3508,10 +3533,10 @@ specifiers:
   pnpm-file-reporter: ^0.0.1
   pnpm-list: ^1.0.0
   pnpm-logger: ^0.6.2
-  ramda: ^0.24.1
+  ramda: ^0.25.0
   rimraf: ^2.5.4
   strip-color: ^0.1.0
-  supi: ^0.2.34
+  supi: ^0.2.35
   text-table: ^0.2.0
   tslint: ^5.4.2
   typescript: ^2.4.1
