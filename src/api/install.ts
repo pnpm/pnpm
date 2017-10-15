@@ -511,6 +511,7 @@ async function installInContext (
     independentLeaves: opts.independentLeaves,
     storeIndex: ctx.storeIndex,
     makePartialPrivateShrinkwrap,
+    updateShrinkwrapMinorVersion: installType === 'general' || R.isEmpty(ctx.privateShrinkwrap.packages),
   })
 
   await Promise.all([
