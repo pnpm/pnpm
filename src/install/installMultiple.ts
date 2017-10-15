@@ -285,7 +285,9 @@ async function install (
   }
 
   let pkg: Package
+  let useManifestInfoFromShrinkwrap = false
   if (options.hasManifestInShrinkwrap && !options.update && options.dependencyShrinkwrap && options.dependencyPath) {
+    useManifestInfoFromShrinkwrap = true
     pkg = Object.assign(
       getPkgInfoFromShr(options.dependencyPath, options.dependencyShrinkwrap),
       options.dependencyShrinkwrap
@@ -382,6 +384,7 @@ async function install (
         update: options.update,
         readPackageHook: options.readPackageHook,
         hasManifestInShrinkwrap: options.hasManifestInShrinkwrap,
+        useManifestInfoFromShrinkwrap,
       }
     )
     ctx.childrenIdsByParentId[fetchedPkg.id] = children.map(child => child.pkgId)
@@ -436,6 +439,7 @@ async function installDependencies (
     update: boolean,
     readPackageHook?: ReadPackageHook,
     hasManifestInShrinkwrap: boolean,
+    useManifestInfoFromShrinkwrap: boolean,
   }
 ): Promise<PkgAddress[]> {
 
@@ -449,7 +453,7 @@ async function installDependencies (
       optionalDependencies: pkg.optionalDependencies || {},
     }
   )
-  if (opts.hasManifestInShrinkwrap && !deps.length && opts.resolvedDependencies) {
+  if (opts.hasManifestInShrinkwrap && !deps.length && opts.resolvedDependencies && opts.useManifestInfoFromShrinkwrap) {
     const optionalDependencyNames = opts.optionalDependencyNames || []
     deps = R.keys(opts.resolvedDependencies)
       .map(depName => (<PackageSpec>{

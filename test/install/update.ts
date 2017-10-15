@@ -38,3 +38,13 @@ test('preserve subdeps on update', async (t: tape.Test) => {
     qar: '100.0.0',
   })
 })
+
+test('update does not fail when package has only peer dependencies', async (t: tape.Test) => {
+  prepare(t)
+
+  await installPkgs(['has-pkg-with-peer-only'], testDefaults())
+
+  await install(testDefaults({update: true, depth: Infinity}))
+
+  t.pass('did not fail')
+})
