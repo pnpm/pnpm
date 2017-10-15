@@ -338,6 +338,10 @@ async function installInContext (
   const oldSpecs = parts[0]
   const newSpecs = parts[1]
 
+  // This works from minor version 1, so any number is fine
+  // also, the shrinkwrapMinorVersion is going to be removed from shrinkwrap v4
+  const hasManifestInShrinkwrap = typeof ctx.shrinkwrap.shrinkwrapMinorVersion === 'number'
+
   const installCtx: InstallContext = {
     installs: {},
     localPackages: [],
@@ -352,8 +356,21 @@ async function installInContext (
     storePath: ctx.storePath,
     registry: ctx.shrinkwrap.registry,
     force: opts.force,
-    depth: opts.update ? opts.depth :
-      (R.equals(ctx.shrinkwrap.packages, ctx.privateShrinkwrap.packages) ? opts.repeatInstallDepth : Infinity),
+    depth: (function () {
+      // This can be remove from shrinkwrap v4
+      if (!hasManifestInShrinkwrap) {
+        // The shrinkwrap file has to be updated to contain
+        // the necessary info from package manifests
+        return Infinity
+      }
+      if (opts.update) {
+        return opts.depth
+      }
+      if (R.equals(ctx.shrinkwrap.packages, ctx.privateShrinkwrap.packages)) {
+        return opts.repeatInstallDepth
+       }
+       return Infinity
+    })(),
     prefix: opts.prefix,
     offline: opts.offline,
     rawNpmConfig: opts.rawNpmConfig,
@@ -382,9 +399,7 @@ async function installInContext (
     parentNodeId: ':/:',
     currentDepth: 0,
     readPackageHook: opts.hooks.readPackage,
-    // This works from minor version 1, so any number is fine
-    // also, the shrinkwrapMinorVersion is going to be removed from shrinkwrap v4
-    hasManifestInShrinkwrap: typeof ctx.shrinkwrap.shrinkwrapMinorVersion === 'number',
+    hasManifestInShrinkwrap,
   }
   const nonLinkedPkgs = await pFilter(packagesToInstall,
     (spec: PackageSpec) => !spec.name || safeIsInnerLink(nodeModulesPath, spec.name, {storePath: ctx.storePath}))
