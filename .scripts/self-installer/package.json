@@ -14,7 +14,8 @@
   ],
   "scripts": {
     "bundle": "browserify --entry src/install.js --outfile install.js --ignore electron --node",
-    "prepublishOnly": "npm run bundle"
+    "prepublishOnly": "npm run bundle",
+    "test": "node test"
   },
   "repository": {
     "type": "git",
@@ -33,6 +34,9 @@
     "cmd-shim": "^2.0.2",
     "get-npm-tarball-url": "^2.0.0",
     "got": "^7.1.0",
+    "isexe": "^2.0.0",
+    "tape": "^4.8.0",
+    "tempy": "^0.2.1",
     "unpack-stream": "^2.1.1"
   }
 }
