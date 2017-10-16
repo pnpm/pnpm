@@ -53,6 +53,9 @@ export type InstalledPackage = {
   peerDependencies: Dependencies,
   optionalDependencies: Set<string>,
   hasBundledDependencies: boolean,
+  // IDEA: As only a few fields are needed from package.jsno
+  // it might be a good idea to write them directly to
+  // InstallPackage to reduce RAM usage
   pkg: Package,
 }
 
