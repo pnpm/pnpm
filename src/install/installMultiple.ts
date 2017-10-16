@@ -56,6 +56,9 @@ export type InstalledPackage = {
   installable: boolean,
   children$: Rx.Observable<string>,
   childrenCount: number,
+  // IDEA: As only a few fields are needed from package.jsno
+  // it might be a good idea to write them directly to
+  // InstallPackage to reduce RAM usage
   pkg: Package,
 }
 
