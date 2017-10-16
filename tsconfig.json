@@ -23,6 +23,7 @@
   },
   "files": [
     "src/bin/pnpm.ts",
+    "src/bin/pnpx.ts",
     "src/cmd/install.ts",
     "src/cmd/installTest.ts",
     "src/cmd/link.ts",

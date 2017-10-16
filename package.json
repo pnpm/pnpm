@@ -10,7 +10,8 @@
     "twitter": "ZoltanKochan"
   },
   "bin": {
-    "pnpm": "lib/bin/pnpm.js"
+    "pnpm": "lib/bin/pnpm.js",
+    "pnpx": "lib/bin/pnpx.js"
   },
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
@@ -22,6 +23,7 @@
   ],
   "dependencies": {
     "@pnpm/outdated": "^0.0.1",
+    "@zkochan/libnpx": "^9.6.1",
     "byline": "^5.0.0",
     "camelcase": "^4.1.0",
     "chalk": "^2.1.0",

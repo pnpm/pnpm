@@ -283,3 +283,8 @@ declare module 'strip-color' {
   function stripColor (text: string): string
   export = stripColor;
 }
+
+declare module '@zkochan/libnpx/index' {
+  const anything: any;
+  export = anything;
+}
