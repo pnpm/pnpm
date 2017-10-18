@@ -2,15 +2,10 @@ language: node_js
 node_js:
   - 4
   - 6
-  - 7
-
-cache:
-  directories:
-    - $HOME/.pnpm-store
-
+  - 8
 sudo: false
 before_install:
-  - npm install -g pnpm
+  - curl -L https://unpkg.com/@pnpm/self-installer | node
 install:
   - pnpm install
 script:
