@@ -4,7 +4,7 @@ import outdated, {
 } from '@pnpm/outdated'
 import {PnpmOptions} from 'supi'
 import table = require('text-table')
-import chalk = require('chalk')
+import chalk from 'chalk'
 import stripColor = require('strip-color')
 
 const LAYOUT_VERSION = '1'

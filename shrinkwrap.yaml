@@ -3,7 +3,7 @@ dependencies:
   '@zkochan/libnpx': 9.6.1
   byline: 5.0.0
   camelcase: 4.1.0
-  chalk: 2.1.0
+  chalk: 2.2.0
   common-tags: 1.4.0
   cross-spawn: 5.1.0
   graceful-fs: 4.1.11
@@ -27,7 +27,6 @@ devDependencies:
   '@commitlint/config-angular': 4.2.0
   '@commitlint/prompt-cli': 4.2.0
   '@types/byline': 4.2.31
-  '@types/chalk': 0.4.31
   '@types/common-tags': 1.4.0
   '@types/load-json-file': 2.0.6
   '@types/mkdirp': 0.5.1
@@ -615,6 +614,15 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha512-LUHGS/dge4ujbXMJrnihYMcL4AoOweGnw9Tp3kQuqy1Kx5c1qKjqvMJZ6nVJPMWJtKCTN72ZogH3oeSO9g9rXQ==
+  /chalk/2.2.0:
+    dependencies:
+      ansi-styles: 3.2.0
+      escape-string-regexp: 1.0.5
+      supports-color: 4.5.0
+    engines:
+      node: '>=4'
+    resolution:
+      integrity: sha512-0BMM/2hG3ZaoPfR6F+h/oWpZtsh3b/s62TjSM6MGCJWEbJDN1acqCXvyhhZsDSVFklpebUoQ5O1kKC7lOzrn9g==
   /chownr/1.0.1:
     resolution:
       integrity: sha1-4qdQQqlVGQi+vSW4Uj1fl2nXkYE=
@@ -3595,6 +3603,13 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha512-rKC3+DyXWgK0ZLKwmRsrkyHVZAjNkfzeehuFWdGGcqGDTZFH73+RH6S/RDAAxl9GusSjZSUWYLmT9N5pzXFOXQ==
+  /supports-color/4.5.0:
+    dependencies:
+      has-flag: 2.0.0
+    engines:
+      node: '>=4'
+    resolution:
+      integrity: sha1-vnoN5ITexcXN34s9WRJQRJEvY1s=
   /symbol-observable/1.0.4:
     engines:
       node: '>=0.10.0'
@@ -4075,7 +4090,6 @@ specifiers:
   '@commitlint/prompt-cli': ^4.0.0
   '@pnpm/outdated': ^0.0.1
   '@types/byline': ^4.2.31
-  '@types/chalk': ^0.4.31
   '@types/common-tags': ^1.4.0
   '@types/load-json-file': ^2.0.6
   '@types/mkdirp': ^0.5.0
@@ -4088,7 +4102,7 @@ specifiers:
   '@zkochan/libnpx': ^9.6.1
   byline: ^5.0.0
   camelcase: ^4.1.0
-  chalk: ^2.1.0
+  chalk: ^2.2.0
   common-tags: ^1.4.0
   cross-spawn: ^5.0.0
   graceful-fs: ^4.1.11

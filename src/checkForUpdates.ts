@@ -1,5 +1,5 @@
 import updateNotifier = require('update-notifier')
-import chalk = require('chalk')
+import chalk from 'chalk'
 import pkg from './pnpmPkgJson'
 import {stripIndents} from 'common-tags'
 
