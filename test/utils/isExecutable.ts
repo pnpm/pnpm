@@ -9,7 +9,7 @@ const IS_WINDOWS = isWindows()
 
 export default async function isExecutable (t: Test, filePath: string) {
   if (IS_WINDOWS) {
-    t.ok(isexe.sync(filePath), `${filePath} is executable`)
+    t.ok(isexe.sync(`${filePath}.cmd`), `${filePath} is executable`)
     return
   }
 
