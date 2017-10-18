@@ -1,5 +1,5 @@
 import logUpdate = require('log-update')
-import chalk = require('chalk')
+import chalk from 'chalk'
 import {
   ProgressLog,
   LifecycleLog,

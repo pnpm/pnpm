@@ -11,7 +11,7 @@ import logger, {
 import normalizeNewline = require('normalize-newline')
 import {toOutput$} from '../src'
 import {stripIndents} from 'common-tags'
-import chalk = require('chalk')
+import chalk from 'chalk'
 import xs, {Stream} from 'xstream'
 import StackTracey = require('stacktracey')
 

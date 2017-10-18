@@ -32,25 +32,24 @@
     "pnpm-logger": "^0.6.2"
   },
   "dependencies": {
-    "@types/chalk": "^0.4.31",
     "@types/common-tags": "^1.2.5",
-    "@types/node": "^7.0.0",
-    "@types/ramda": "^0.24.9",
-    "chalk": "^2.1.0",
+    "@types/node": "^8.0.44",
+    "@types/ramda": "^0.24.17",
+    "chalk": "^2.2.0",
     "common-tags": "^1.4.0",
     "log-update": "^2.0.0",
     "ndjson": "^1.5.0",
     "pretty-bytes": "^4.0.2",
-    "ramda": "^0.24.1",
-    "stacktracey": "^1.0.59",
-    "xstream": "^10.9.0"
+    "ramda": "^0.25.0",
+    "stacktracey": "^1.0.71",
+    "xstream": "^11.0.0"
   },
   "devDependencies": {
     "commitizen": "^2.9.5",
     "ghooks": "^2.0.0",
     "pnpm-logger": "^0.6.2",
     "rimraf": "^2.5.4",
-    "tslint": "^4.3.1",
+    "tslint": "^5.7.0",
     "typescript": "^2.1.5",
     "validate-commit-msg": "^2.8.2"
   },

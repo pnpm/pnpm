@@ -1,4 +1,4 @@
-import chalk = require('chalk')
+import chalk from 'chalk'
 import {Log} from 'pnpm-logger'
 import commonTags = require('common-tags')
 import os = require('os')
