@@ -1,7 +1,7 @@
 import archy = require('archy')
 import {PackageNode} from 'dependencies-hierarchy'
 import path = require('path')
-import chalk = require('chalk')
+import chalk from 'chalk'
 import readPkg from './readPkg'
 import R = require('ramda')
 

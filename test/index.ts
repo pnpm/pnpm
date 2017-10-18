@@ -2,7 +2,7 @@ import test = require('tape')
 import list, {forPackages as listForPackages} from '../src'
 import path = require('path')
 import {stripIndent} from 'common-tags'
-import chalk = require('chalk')
+import chalk from 'chalk'
 
 const highlighted = chalk.yellow.bgBlack
 

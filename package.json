@@ -35,22 +35,22 @@
   "homepage": "https://github.com/pnpm/pnpm-list#readme",
   "dependencies": {
     "@types/archy": "^0.0.31",
-    "@types/chalk": "^0.4.31",
-    "@types/node": "^8.0.11",
-    "@types/ramda": "^0.24.14",
+    "@types/node": "^7.0.45",
+    "@types/ramda": "^0.24.17",
     "archy": "^1.0.0",
-    "chalk": "^2.0.1",
-    "dependencies-hierarchy": "^1.0.0",
-    "npm-package-arg": "^5.1.2",
+    "chalk": "^2.2.0",
+    "dependencies-hierarchy": "^1.0.1",
+    "npm-package-arg": "^6.0.0",
     "p-limit": "^1.1.0",
     "ramda": "^0.25.0",
-    "read-package-json": "^2.0.10",
+    "read-package-json": "^2.0.12",
     "thenify": "^3.3.0"
   },
   "devDependencies": {
     "mos": "^2.0.0-alpha.3",
     "mos-plugin-readme": "^1.0.4",
-    "typescript": "^2.4.1"
+    "pnpm-logger": "^0.6.2",
+    "typescript": "^2.5.3"
   },
   "mos": {
     "plugins": [
