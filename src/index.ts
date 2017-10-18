@@ -1,7 +1,7 @@
 import RegClient = require('npm-registry-client')
 import {
-  read as readWantedShrinkwrap,
-  readPrivate as readCurrentShrinkwrap
+  readWanted as readWantedShrinkwrap,
+  readCurrent as readCurrentShrinkwrap
 } from 'pnpm-shrinkwrap'
 import {
   resolve,
