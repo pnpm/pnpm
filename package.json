@@ -28,6 +28,9 @@
     "url": "https://www.kochan.io/",
     "twitter": "ZoltanKochan"
   },
+  "engines": {
+    "node": ">=4"
+  },
   "license": "MIT",
   "bugs": {
     "url": "https://github.com/pnpm/pnpm-reporter-default/issues"
