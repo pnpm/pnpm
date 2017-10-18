@@ -178,8 +178,11 @@ test('lifecycle scripts have access to node-gyp', async (t: tape.Test) => {
   const project = prepare(t)
 
   // `npm test` adds node-gyp to the PATH
-  // it is remove here to test that pnpm adds it
+  // it is removed here to test that pnpm adds it
   const initialPath = process.env.PATH
+
+  if (typeof initialPath !== 'string') throw new Error('PATH is not defined')
+
   process.env[PATH] = initialPath
     .split(path.delimiter)
     .filter((p: string) => !p.includes('node-gyp-bin') && !p.includes('npm'))
