@@ -31,7 +31,7 @@ import removeOrphanPkgs from '../api/removeOrphanPkgs'
 import linkIndexedDir from '../fs/linkIndexedDir'
 import ncpCB = require('ncp')
 import thenify = require('thenify')
-import Rx = require('@reactivex/rxjs')
+import Rx = require('@reactivex/rxjs/dist/package/Rx')
 import {syncShrinkwrapWithManifest} from '../fs/shrinkwrap'
 
 const ncp = thenify(ncpCB)

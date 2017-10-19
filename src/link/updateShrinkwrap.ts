@@ -9,7 +9,7 @@ import {
 import {ResolvedNode} from './resolvePeers'
 import {Resolution} from 'package-store'
 import R = require('ramda')
-import Rx = require('@reactivex/rxjs')
+import Rx = require('@reactivex/rxjs/dist/package/Rx')
 import {Package} from '../types'
 
 export type DependencyShrinkwrapContainer = {

@@ -1,5 +1,5 @@
 dependencies:
-  '@reactivex/rxjs': 5.4.2
+  '@reactivex/rxjs': 5.5.0
   '@types/byline': 4.2.31
   '@types/common-tags': 1.4.0
   '@types/load-json-file': 2.0.6
@@ -144,13 +144,13 @@ packages:
     dev: true
     resolution:
       integrity: sha1-GViWWHTyS8Ub5Ih1/rUNZC/EH3s=
-  /@reactivex/rxjs/5.4.2:
+  /@reactivex/rxjs/5.5.0:
     dependencies:
       symbol-observable: 1.0.4
     engines:
       npm: '>=2.0.0'
     resolution:
-      integrity: sha1-q1MNu9q3EHE2mCjvEcjXrlWNURY=
+      integrity: sha512-WYLQOkr9e+w3/lhEtGoKEi2KzXIw+LKvxVXT5eAFCcR870bUf3DG1AfvIkk2RfOi331WrqMTYKtoQox4q38k8g==
   /@types/byline/4.2.31:
     dependencies:
       '@types/node': 8.0.33
@@ -2684,7 +2684,7 @@ specifiers:
   '@commitlint/cli': ^4.2.1
   '@commitlint/config-angular': ^4.2.1
   '@commitlint/prompt-cli': ^4.2.1
-  '@reactivex/rxjs': ^5.4.2
+  '@reactivex/rxjs': ^5.5.0
   '@types/byline': ^4.2.31
   '@types/common-tags': ^1.2.5
   '@types/load-json-file': ^2.0.5

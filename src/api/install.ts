@@ -48,7 +48,7 @@ import {
 } from 'package-store'
 import depsFromPackage from '../depsFromPackage'
 import writePkg = require('write-pkg')
-import Rx = require('@reactivex/rxjs')
+import Rx = require('@reactivex/rxjs/dist/package/Rx')
 
 export type InstalledPackages = {
   [name: string]: InstalledPackage

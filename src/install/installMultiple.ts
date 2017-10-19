@@ -33,7 +33,7 @@ import depsToSpecs from '../depsToSpecs'
 import getIsInstallable from './getIsInstallable'
 import getPkgInfoFromShr from '../getPkgInfoFromShr'
 import semver = require('semver')
-import Rx = require('@reactivex/rxjs')
+import Rx = require('@reactivex/rxjs/dist/package/Rx')
 
 export type PackageRequest = {
   specRaw: string,
