@@ -38,7 +38,7 @@
   "homepage": "https://github.com/pnpm/pnpm-list#readme",
   "dependencies": {
     "@types/archy": "^0.0.31",
-    "@types/node": "^7.0.45",
+    "@types/node": "^8.0.46",
     "@types/ramda": "^0.24.17",
     "archy": "^1.0.0",
     "chalk": "^2.2.0",
