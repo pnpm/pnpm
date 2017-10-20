@@ -1,6 +1,7 @@
 import {install, installPkgs, PnpmOptions} from 'supi'
 import path = require('path')
 import logger from 'pnpm-logger'
+import chalk from 'chalk'
 
 /**
  * Perform installation.
@@ -34,6 +35,12 @@ function requireHooks (prefix: string) {
     }
     return hooks
   } catch (err) {
+    if (err instanceof SyntaxError) {
+      console.error(chalk.red('A syntax error in the pnpmfile.js\n'))
+      console.error(err)
+      process.exit(1)
+      return
+    }
     if (err['code'] !== 'MODULE_NOT_FOUND') throw err
     return {}
   }
