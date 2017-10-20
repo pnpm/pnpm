@@ -4083,6 +4083,7 @@ packages:
     resolution:
       integrity: sha1-YpmpBVsc78lp/355wdkY3Osiw2A=
 registry: 'https://registry.npmjs.org/'
+shrinkwrapMinorVersion: 1
 shrinkwrapVersion: 3
 specifiers:
   '@commitlint/cli': ^4.0.0

@@ -12,11 +12,11 @@ before_install:
   - pnpm i -g pnpm@next
   - pnpm -v
 install:
-  - pnpm install
+  - pnpm i
 script:
   - /bin/bash lint-commits.sh
   - ./node_modules/.bin/commitlint --from=$TRAVIS_COMMIT
-  - npm test
+  - pnpm t
 env:
   global:
     - CC=clang CXX=clang++ npm_config_clang=1

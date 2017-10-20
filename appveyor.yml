@@ -11,9 +11,8 @@ install:
   - pnpm i -g pnpm@next
   - pnpm -v
   - pnpm install
-  - cd test
-  - pnpm install
-  - cd ..
+  - pnpm install --prefix .scripts/self-installer
+  - pnpm install --prefix test
 matrix:
   fast_finish: true
 build: off
@@ -21,4 +20,4 @@ version: '{build}'
 test_script:
   - node --version
   - npm --version
-  - npm test
+  - npm t

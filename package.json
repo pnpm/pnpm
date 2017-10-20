@@ -101,14 +101,14 @@
     "url": "git+https://github.com/pnpm/pnpm.git"
   },
   "scripts": {
-    "prepare": "cd test && pnpm install",
+    "prepare": "pnpm install --prefix .scripts/self-installer && pnpm install --prefix test",
     "info": "npm-scripts-info",
     "start": "npm run tsc -- --watch",
     "?commit": "echo 'Run Git commit wizard'",
     "commit": "commit",
     "commitmsg": "commitlint -e",
     "lint": "tslint -c tslint.json --project .",
-    "test": "npm run tsc && npm run lint && cd test && npm test",
+    "test": "npm run tsc && npm run lint && npm test --prefix .scripts/self-installer && npm test --prefix test",
     "tsc": "rimraf lib && tsc",
     "prepublishOnly": "echo \"Publish is only allowed via 'npm run release'\" && exit 1",
     "release": "sh .scripts/release.sh",
