@@ -34,6 +34,7 @@
     "cmd-shim": "^2.0.2",
     "get-npm-tarball-url": "^2.0.0",
     "got": "^7.1.0",
+    "is-windows": "^1.0.1",
     "isexe": "^2.0.0",
     "tape": "^4.8.0",
     "tempy": "^0.2.1",

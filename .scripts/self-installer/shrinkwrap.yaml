@@ -3,6 +3,7 @@ devDependencies:
   cmd-shim: 2.0.2
   get-npm-tarball-url: 2.0.0
   got: 7.1.0
+  is-windows: 1.0.1
   isexe: 2.0.0
   tape: 4.8.0
   tempy: 0.2.1
@@ -752,6 +753,12 @@ packages:
       node: '>= 0.4'
     resolution:
       integrity: sha1-PMWfAAJRlLarLjjbrmaJJWtmBXI=
+  /is-windows/1.0.1:
+    dev: true
+    engines:
+      node: '>=0.10.0'
+    resolution:
+      integrity: sha1-MQ23D3QtJZoWo2kgK1GvhCMzENk=
   /isarray/0.0.1:
     dev: true
     resolution:
@@ -1375,13 +1382,13 @@ packages:
     resolution:
       integrity: sha1-pcbVMr5lbiPbgg77lDofBJmNY68=
 registry: 'https://registry.npmjs.org/'
-shrinkwrapMinorVersion: 1
 shrinkwrapVersion: 3
 specifiers:
   browserify: ^14.4.0
   cmd-shim: ^2.0.2
   get-npm-tarball-url: ^2.0.0
   got: ^7.1.0
+  is-windows: ^1.0.1
   isexe: ^2.0.0
   tape: ^4.8.0
   tempy: ^0.2.1
