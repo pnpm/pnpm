@@ -44,6 +44,9 @@ const supportedCmds = new Set([
 ])
 
 async function run (argv: string[]) {
+  if (argv.indexOf('--help') !== -1 || argv.indexOf('--h') !== -1) {
+    argv = ['help'].concat(argv)
+  }
   const pnpmTypes = {
     'store': path,
     'store-path': path, // DEPRECATE! store should be used
