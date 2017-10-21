@@ -32,9 +32,9 @@ export default async function (
     baseNodeModules: string,
     bin: string,
     topParents: {name: string, version: string}[],
-    shrinkwrap: Shrinkwrap,
-    privateShrinkwrap: Shrinkwrap,
-    makePartialPrivateShrinkwrap: boolean,
+    wantedShrinkwrap: Shrinkwrap,
+    currentShrinkwrap: Shrinkwrap,
+    makePartialCurrentShrinkwrap: boolean,
     production: boolean,
     optional: boolean,
     root: string,
@@ -48,8 +48,8 @@ export default async function (
   }
 ): Promise<{
   linkedPkgsMap: DependencyTreeNodeMap,
-  shrinkwrap: Shrinkwrap,
-  privateShrinkwrap: Shrinkwrap,
+  wantedShrinkwrap: Shrinkwrap,
+  currentShrinkwrap: Shrinkwrap,
   newPkgResolvedIds: string[],
 }> {
   const topPkgIds = topPkgs.map(pkg => pkg.id)
@@ -58,10 +58,10 @@ export default async function (
   // sometimes node_modules is alread up-to-date
   // logger.info(`Creating dependency tree`)
   const pkgsToLink = await resolvePeers(tree, rootNodeIds, topPkgIds, opts.topParents, opts.independentLeaves, opts.baseNodeModules)
-  const newShr = updateShrinkwrap(pkgsToLink, opts.shrinkwrap, opts.pkg)
+  const newShr = updateShrinkwrap(pkgsToLink, opts.wantedShrinkwrap, opts.pkg)
 
   await removeOrphanPkgs({
-    oldShrinkwrap: opts.privateShrinkwrap,
+    oldShrinkwrap: opts.currentShrinkwrap,
     newShrinkwrap: newShr,
     prefix: opts.root,
     store: opts.storePath,
@@ -83,7 +83,7 @@ export default async function (
     skipped: opts.skipped,
   }
   const newPkgResolvedIds = await linkNewPackages(
-    filterShrinkwrap(opts.privateShrinkwrap, filterOpts),
+    filterShrinkwrap(opts.currentShrinkwrap, filterOpts),
     filterShrinkwrap(newShr, filterOpts),
     pkgsToLink,
     opts
@@ -117,9 +117,9 @@ export default async function (
     // `shrinkwrapVersion` field allows numbers like 4.1
     newShr.shrinkwrapMinorVersion = 1
   }
-  let privateShrinkwrap: Shrinkwrap
-  if (opts.makePartialPrivateShrinkwrap) {
-    const packages = opts.privateShrinkwrap.packages || {}
+  let currentShrinkwrap: Shrinkwrap
+  if (opts.makePartialCurrentShrinkwrap) {
+    const packages = opts.currentShrinkwrap.packages || {}
     if (newShr.packages) {
       for (const shortId in newShr.packages) {
         const resolvedId = dp.resolve(newShr.registry, shortId)
@@ -128,17 +128,17 @@ export default async function (
         }
       }
     }
-    privateShrinkwrap = Object.assign({}, newShr, {
+    currentShrinkwrap = Object.assign({}, newShr, {
       packages,
     })
   } else {
-    privateShrinkwrap = newShr
+    currentShrinkwrap = newShr
   }
 
   return {
     linkedPkgsMap: pkgsToLink,
-    shrinkwrap: newShr,
-    privateShrinkwrap,
+    wantedShrinkwrap: newShr,
+    currentShrinkwrap,
     newPkgResolvedIds,
   }
 }
@@ -168,8 +168,8 @@ function filterShrinkwrap (
 }
 
 async function linkNewPackages (
-  privateShrinkwrap: Shrinkwrap,
-  shrinkwrap: Shrinkwrap,
+  currentShrinkwrap: Shrinkwrap,
+  wantedShrinkwrap: Shrinkwrap,
   pkgsToLink: DependencyTreeNodeMap,
   opts: {
     force: boolean,
@@ -178,8 +178,8 @@ async function linkNewPackages (
     optional: boolean,
   }
 ): Promise<string[]> {
-  const nextPkgResolvedIds = R.keys(shrinkwrap.packages)
-  const prevPkgResolvedIds = R.keys(privateShrinkwrap.packages)
+  const nextPkgResolvedIds = R.keys(wantedShrinkwrap.packages)
+  const prevPkgResolvedIds = R.keys(currentShrinkwrap.packages)
 
   // TODO: what if the registries differ?
   const newPkgResolvedIds = (
@@ -187,21 +187,21 @@ async function linkNewPackages (
         ? nextPkgResolvedIds
         : R.difference(nextPkgResolvedIds, prevPkgResolvedIds)
     )
-    .map(shortId => dp.resolve(shrinkwrap.registry, shortId))
+    .map(shortId => dp.resolve(wantedShrinkwrap.registry, shortId))
     // when installing a new package, not all the nodes are analyzed
     // just skip the ones that are in the lockfile but were not analyzed
     .filter(resolvedId => pkgsToLink[resolvedId])
 
   const newPkgs = R.props<DependencyTreeNode>(newPkgResolvedIds, pkgsToLink)
 
-  if (!opts.force && privateShrinkwrap.packages && shrinkwrap.packages) {
+  if (!opts.force && currentShrinkwrap.packages && wantedShrinkwrap.packages) {
     // add subdependencies that have been updated
     // TODO: no need to relink everything. Can be relinked only what was changed
     for (const shortId of nextPkgResolvedIds) {
-      if (privateShrinkwrap.packages[shortId] &&
-        (!R.equals(privateShrinkwrap.packages[shortId].dependencies, shrinkwrap.packages[shortId].dependencies) ||
-        !R.equals(privateShrinkwrap.packages[shortId].optionalDependencies, shrinkwrap.packages[shortId].optionalDependencies))) {
-        const resolvedId = dp.resolve(shrinkwrap.registry, shortId)
+      if (currentShrinkwrap.packages[shortId] &&
+        (!R.equals(currentShrinkwrap.packages[shortId].dependencies, wantedShrinkwrap.packages[shortId].dependencies) ||
+        !R.equals(currentShrinkwrap.packages[shortId].optionalDependencies, wantedShrinkwrap.packages[shortId].optionalDependencies))) {
+        const resolvedId = dp.resolve(wantedShrinkwrap.registry, shortId)
 
         // TODO: come up with a test that triggers the usecase of pkgsToLink[resolvedId] undefined
         // see related issue: https://github.com/pnpm/pnpm/issues/870

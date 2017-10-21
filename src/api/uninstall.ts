@@ -60,24 +60,24 @@ export default async function uninstall (pkgsToUninstall: string[], maybeOpts?: 
 }
 
 export async function uninstallInContext (pkgsToUninstall: string[], ctx: PnpmContext, opts: StrictPnpmOptions) {
-  const makePartialPrivateShrinkwrap = !shrinkwrapsEqual(ctx.privateShrinkwrap, ctx.shrinkwrap)
+  const makePartialCurrentShrinkwrap = !shrinkwrapsEqual(ctx.currentShrinkwrap, ctx.wantedShrinkwrap)
 
   const pkgJsonPath = path.join(ctx.root, 'package.json')
   const saveType = getSaveType(opts)
   const pkg = await removeDeps(pkgJsonPath, pkgsToUninstall, saveType)
-  const newShr = pruneShrinkwrap(ctx.shrinkwrap, pkg)
+  const newShr = pruneShrinkwrap(ctx.wantedShrinkwrap, pkg)
   const removedPkgIds = await removeOrphanPkgs({
-    oldShrinkwrap: ctx.privateShrinkwrap,
+    oldShrinkwrap: ctx.currentShrinkwrap,
     newShrinkwrap: newShr,
     prefix: ctx.root,
     store: ctx.storePath,
     storeIndex: ctx.storeIndex,
     bin: opts.bin,
   })
-  const privateShrinkwrap = makePartialPrivateShrinkwrap
-    ? pruneShrinkwrap(ctx.privateShrinkwrap, pkg)
+  const currentShrinkwrap = makePartialCurrentShrinkwrap
+    ? pruneShrinkwrap(ctx.currentShrinkwrap, pkg)
     : newShr
-  await saveShrinkwrap(ctx.root, newShr, privateShrinkwrap)
+  await saveShrinkwrap(ctx.root, newShr, currentShrinkwrap)
   await saveModules(path.join(ctx.root, 'node_modules'), {
     packageManager: `${opts.packageManager.name}@${opts.packageManager.version}`,
     store: ctx.storePath,

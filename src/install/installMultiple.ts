@@ -109,7 +109,7 @@ export default async function installMultiple (
               update,
               proceed,
             },
-            getInfoFromShrinkwrap(ctx.shrinkwrap, reference, spec.name, ctx.registry)))
+            getInfoFromShrinkwrap(ctx.wantedShrinkwrap, reference, spec.name, ctx.registry)))
         })
     )
   )
@@ -226,7 +226,7 @@ async function install (
   if (!proceed && options.absoluteDependencyPath &&
     // if package is not in `node_modules/.shrinkwrap.yaml`
     // we can safely assume that it doesn't exist in `node_modules`
-    options.dependencyPath && ctx.privateShrinkwrap.packages && ctx.privateShrinkwrap.packages[options.dependencyPath] &&
+    options.dependencyPath && ctx.currentShrinkwrap.packages && ctx.currentShrinkwrap.packages[options.dependencyPath] &&
     await exists(path.join(ctx.nodeModules, `.${options.absoluteDependencyPath}`)) && (
       options.currentDepth > 0 || await exists(path.join(ctx.nodeModules, spec.name))
     )) {

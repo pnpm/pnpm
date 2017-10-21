@@ -14,12 +14,12 @@ export default async function (maybeOpts: PnpmOptions) {
   }
   const opts = await extendOptions(maybeOpts)
   const ctx = await getContext(opts)
-  if (!ctx.shrinkwrap) return []
+  if (!ctx.wantedShrinkwrap) return []
 
-  const pkgPaths = Object.keys(ctx.shrinkwrap.packages || {})
+  const pkgPaths = Object.keys(ctx.wantedShrinkwrap.packages || {})
     .map(id => {
       if (id === '/') return null
-      return dp.resolve(ctx.shrinkwrap.registry, id)
+      return dp.resolve(ctx.wantedShrinkwrap.registry, id)
     })
     .filter(pkgId => pkgId && !ctx.skipped.has(pkgId))
     .map((pkgPath: string) => path.join(ctx.storePath, pkgPath))

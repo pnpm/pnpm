@@ -58,8 +58,8 @@ export async function rebuildPkgs (pkgSpecs: string[], maybeOpts: PnpmOptions) {
   const ctx = await getContext(opts)
   const modules = path.join(opts.prefix, 'node_modules')
 
-  if (!ctx.privateShrinkwrap || !ctx.privateShrinkwrap.packages) return
-  const packages = ctx.privateShrinkwrap.packages
+  if (!ctx.currentShrinkwrap || !ctx.currentShrinkwrap.packages) return
+  const packages = ctx.currentShrinkwrap.packages
 
   const searched: PackageSelector[] = pkgSpecs.map(arg => {
     const parsed = npa(arg)
@@ -78,7 +78,7 @@ export async function rebuildPkgs (pkgSpecs: string[], maybeOpts: PnpmOptions) {
   const pkgs = getPackagesInfo(packages)
     .filter(pkg => matches(searched, pkg))
 
-  await _rebuild(pkgs, modules, ctx.privateShrinkwrap.registry, opts)
+  await _rebuild(pkgs, modules, ctx.currentShrinkwrap.registry, opts)
 }
 
 // TODO: move this logic to separate package as this is also used in dependencies-hierarchy
@@ -104,12 +104,12 @@ export async function rebuild (maybeOpts: PnpmOptions) {
   const ctx = await getContext(opts)
   const modules = path.join(opts.prefix, 'node_modules')
 
-  if (!ctx.privateShrinkwrap || !ctx.privateShrinkwrap.packages) return
-  const packages = ctx.privateShrinkwrap.packages
+  if (!ctx.currentShrinkwrap || !ctx.currentShrinkwrap.packages) return
+  const packages = ctx.currentShrinkwrap.packages
 
   const pkgs = getPackagesInfo(packages)
 
-  await _rebuild(pkgs, modules, ctx.privateShrinkwrap.registry, opts)
+  await _rebuild(pkgs, modules, ctx.currentShrinkwrap.registry, opts)
 }
 
 async function _rebuild (

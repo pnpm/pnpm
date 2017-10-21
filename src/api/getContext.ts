@@ -8,8 +8,8 @@ import {
 } from 'package-store'
 import {StrictPnpmOptions} from '../types'
 import {
-  read as readShrinkwrap,
-  readPrivate as readPrivateShrinkwrap,
+  readWanted as readWantedShrinkwrap,
+  readCurrent as readCurrentShrinkwrap,
   Shrinkwrap,
   create as createShrinkwrap,
 } from 'pnpm-shrinkwrap'
@@ -28,10 +28,10 @@ export type PnpmContext = {
   storeIndex: Store,
   storePath: string,
   root: string,
-  existsPublicShrinkwrap: boolean,
-  existsPrivateShrinkwrap: boolean,
-  privateShrinkwrap: Shrinkwrap,
-  shrinkwrap: Shrinkwrap,
+  existsWantedShrinkwrap: boolean,
+  existsCurrentShrinkwrap: boolean,
+  currentShrinkwrap: Shrinkwrap,
+  wantedShrinkwrap: Shrinkwrap,
   skipped: Set<string>,
 }
 
@@ -69,8 +69,8 @@ export default async function getContext (opts: StrictPnpmOptions, installType?:
   const shrOpts = {ignoreIncompatible: opts.force || isCI}
   const files = await Promise.all([
     (opts.global ? readGlobalPkgJson(opts.prefix) : readPkgFromDir(opts.prefix)),
-    readShrinkwrap(root, shrOpts),
-    readPrivateShrinkwrap(root, shrOpts),
+    readWantedShrinkwrap(root, shrOpts),
+    readCurrentShrinkwrap(root, shrOpts),
     readStore(storePath),
     mkdirp(storePath),
   ])
@@ -78,10 +78,10 @@ export default async function getContext (opts: StrictPnpmOptions, installType?:
     pkg: files[0],
     root,
     storePath,
-    shrinkwrap: files[1] || createShrinkwrap(opts.registry),
-    privateShrinkwrap: files[2] || createShrinkwrap(opts.registry),
-    existsPublicShrinkwrap: !!files[1],
-    existsPrivateShrinkwrap: !!files[2],
+    wantedShrinkwrap: files[1] || createShrinkwrap(opts.registry),
+    currentShrinkwrap: files[2] || createShrinkwrap(opts.registry),
+    existsWantedShrinkwrap: !!files[1],
+    existsCurrentShrinkwrap: !!files[2],
     storeIndex: files[3] || {},
     skipped: new Set(modules && modules.skipped || []),
   }
