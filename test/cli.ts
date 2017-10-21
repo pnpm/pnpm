@@ -13,10 +13,20 @@ import {
 } from './utils'
 import rimraf = require('rimraf-then')
 
-test('return error status code when underlying command fails', t => {
-  const result = execPnpmSync('invalid-command')
+test('returns help when not available command is used', t => {
+  const result = execPnpmSync('foobarqar')
 
-  t.equal(result.status, 1, 'error status code returned')
+  t.equal(result.status, 0)
+  t.ok(result.stdout.toString().indexOf('Usage: pnpm [command] [flags]') !== -1)
+
+  t.end()
+})
+
+test('some commands pass through to npm', t => {
+  const result = execPnpmSync('dist-tag', 'ls', 'is-positive')
+
+  t.equal(result.status, 0)
+  t.ok(result.stdout.toString().indexOf('Usage: pnpm [command] [flags]') === -1)
 
   t.end()
 })

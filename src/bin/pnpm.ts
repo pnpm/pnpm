@@ -41,6 +41,56 @@ const supportedCmds = new Set([
   'root',
   'outdated',
   'rebuild',
+  // These might have to be implemented:
+  //'cache',
+  //'completion',
+  //'explore',
+  //'dedupe',
+  //'doctor',
+  //'shrinkwrap',
+  //'help-search',
+])
+
+const passedThroughCmds = new Set([
+  'access',
+  'adduser',
+  'bin',
+  'bugs',
+  'c',
+  'config',
+  'deprecate',
+  'dist-tag',
+  'docs',
+  'edit',
+  'get',
+  'init',
+  'login',
+  'logout',
+  'owner',
+  'pack',
+  'ping',
+  'prefix',
+  'profile',
+  'publish',
+  'repo',
+  'restart',
+  's',
+  'se',
+  'search',
+  'set',
+  'star',
+  'stars',
+  'start',
+  'stop',
+  'team',
+  'test',
+  'token',
+  'unpublish',
+  'unstar',
+  'v',
+  'version',
+  'view',
+  'whoami',
 ])
 
 async function run (argv: string[]) {
@@ -78,10 +128,13 @@ async function run (argv: string[]) {
     checkForUpdates()
   }
 
-  const cmd = getCommandFullName(cliConf.argv.remain[0]) || 'help'
+  let cmd = getCommandFullName(cliConf.argv.remain[0]) || 'help'
   if (!supportedCmds.has(cmd)) {
-    runNpm(argv)
-    return Promise.resolve()
+    if (passedThroughCmds.has(cmd)) {
+      runNpm(argv)
+      return Promise.resolve()
+    }
+    cmd = 'help'
   }
 
   if (cliConf['dry-run']) {
