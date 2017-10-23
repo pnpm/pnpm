@@ -48,7 +48,7 @@
     "retry": "^0.10.1",
     "rimraf-then": "^1.0.1",
     "semver": "^5.3.0",
-    "ssri": "^4.1.6",
+    "ssri": "^5.0.0",
     "symlink-dir": "^1.0.3",
     "thenify": "^3.3.0",
     "unpack-stream": "^2.1.0",
