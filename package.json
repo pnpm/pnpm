@@ -41,7 +41,7 @@
     "@types/node": "^8.0.46",
     "@types/ramda": "^0.24.17",
     "archy": "^1.0.0",
-    "chalk": "^2.2.0",
+    "chalk": "^2.3.0",
     "dependencies-hierarchy": "^1.0.1",
     "npm-package-arg": "^6.0.0",
     "p-limit": "^1.1.0",
