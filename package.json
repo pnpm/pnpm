@@ -35,7 +35,7 @@
   },
   "homepage": "https://github.com/pnpm/dependencies-hierarchy#readme",
   "dependencies": {
-    "@types/node": "^8.0.11",
+    "@types/node": "^8.0.47",
     "@types/semver": "^5.3.32",
     "dependency-path": "^1.0.0",
     "pnpm-shrinkwrap": "^3.3.3",
