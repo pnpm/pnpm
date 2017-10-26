@@ -1,4 +1,5 @@
 import './misc'
+import './only'
 import './lifecycleScripts'
 import './optionalDependencies'
 import './installationChecks'
