@@ -172,6 +172,20 @@ async function run (argv: string[]) {
   opts.packageManager = pkg
   opts.force = force
 
+  if (opts.only === 'prod' || opts.only === 'production' || !opts.only && opts.production) {
+    opts.production = true
+    opts.development = false
+    opts.optional = true
+  } else if (opts.only === 'dev' || opts.only === 'development') {
+    opts.production = false
+    opts.development = true
+    opts.optional = false
+  } else {
+    opts.production = true
+    opts.development = true
+    opts.optional = true
+  }
+
   initReporter(silent ? 'silent' : (<any>opts.reporter || 'default')) // tslint:disable-line
 
   // `pnpm install ""` is going to be just `pnpm install`
