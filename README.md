@@ -65,7 +65,9 @@ Install all modules listed as dependencies in `package.json`.
 
 **Arguments:** (same as in named install and additionally)
 
-* `options.production` - *Boolean* - `false` by default or `true` when the `NODE_ENV` environment variable is set to `production`. Modules listed in `devDependencies` will not be installed.
+* `options.production` - *Boolean* - `true` by default. If `true`, packages listed in `dependencies` will be installed.
+* `options.development` - *Boolean* - `true` by default. If `true`, packages listed in `devDependencies` will be installed.
+* `options.optional` - *Boolean* - `true` by default. If `true`, packages listed in `optionalDependencies` will be installed.
 
 ### `supi.uninstall(pkgsToUninstall, [options])`
 

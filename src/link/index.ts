@@ -36,6 +36,7 @@ export default async function (
     currentShrinkwrap: Shrinkwrap,
     makePartialCurrentShrinkwrap: boolean,
     production: boolean,
+    development: boolean,
     optional: boolean,
     root: string,
     storePath: string,
@@ -70,7 +71,10 @@ export default async function (
   })
 
   let flatResolvedDeps =  R.values(pkgsToLink).filter(dep => !opts.skipped.has(dep.id))
-  if (opts.production) {
+  if (!opts.production) {
+    flatResolvedDeps = flatResolvedDeps.filter(dep => dep.dev || dep.optional)
+  }
+  if (!opts.development) {
     flatResolvedDeps = flatResolvedDeps.filter(dep => !dep.dev)
   }
   if (!opts.optional) {
@@ -78,7 +82,8 @@ export default async function (
   }
 
   const filterOpts = {
-    noDev: opts.production,
+    noProd: !opts.production,
+    noDev: !opts.development,
     noOptional: !opts.optional,
     skipped: opts.skipped,
   }
@@ -146,6 +151,7 @@ export default async function (
 function filterShrinkwrap (
   shr: Shrinkwrap,
   opts: {
+    noProd: boolean,
     noDev: boolean,
     noOptional: boolean,
     skipped: Set<string>,
@@ -153,6 +159,9 @@ function filterShrinkwrap (
 ): Shrinkwrap {
   let pairs = R.toPairs<string, DependencyShrinkwrap>(shr.packages || {})
     .filter(pair => !opts.skipped.has(pair[1].id || dp.resolve(shr.registry, pair[0])))
+  if (opts.noProd) {
+    pairs = pairs.filter(pair => pair[1].dev || pair[1].optional)
+  }
   if (opts.noDev) {
     pairs = pairs.filter(pair => !pair[1].dev)
   }

@@ -502,6 +502,7 @@ async function installInContext (
       : [],
     wantedShrinkwrap: ctx.wantedShrinkwrap,
     production: opts.production,
+    development: opts.development,
     optional: opts.optional,
     root: ctx.root,
     currentShrinkwrap: ctx.currentShrinkwrap,

@@ -12,10 +12,10 @@ import {install} from '../../src'
 const basicPackageJson = loadJsonFile.sync(path.join(__dirname, '../utils/simple-package.json'))
 const test = promisifyTape(tape)
 
-test('production install (with --production flag)', async function (t) {
+test('production install (with --production flag)', async (t: tape.Test) => {
   const project = prepare(t, basicPackageJson)
 
-  await install(testDefaults({ production: true }))
+  await install(testDefaults({ development: false }))
 
   const rimrafDir = fs.statSync(path.resolve('node_modules', 'rimraf'))
 
@@ -30,23 +30,20 @@ test('production install (with --production flag)', async function (t) {
   t.is(tapStatErrCode, 'ENOENT', 'tap-spec does not exist')
 })
 
-test('production install (with production NODE_ENV)', async function (t) {
-  const originalNodeEnv = process.env.NODE_ENV
-  process.env.NODE_ENV = 'production'
-  const project = prepare(t, basicPackageJson)
+test('install dev dependencies only', async (t: tape.Test) => {
+  const project = prepare(t, {
+    dependencies: {
+      'is-positive': "^1.0.0",
+    },
+    devDependencies: {
+      'is-negative': "^1.0.0",
+    },
+  })
 
-  await install(testDefaults())
+  await install(testDefaults({ production: false }))
 
-  // reset NODE_ENV
-  process.env.NODE_ENV = originalNodeEnv
+  const isNegative = project.requireModule('is-negative')
+  t.equal(typeof isNegative, 'function', 'dev dependency is available')
 
-  const rimrafDir = fs.statSync(path.resolve('node_modules', 'rimraf'))
-
-  let tapStatErrCode: number = 0
-  try {
-    fs.statSync(path.resolve('node_modules', '@rstacruz'))
-  } catch (err) { tapStatErrCode = err.code }
-
-  t.ok(rimrafDir.isSymbolicLink, 'rimraf exists')
-  t.is(tapStatErrCode, 'ENOENT', 'tap-spec does not exist')
+  await project.hasNot('is-positive')
 })

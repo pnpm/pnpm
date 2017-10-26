@@ -39,9 +39,10 @@ export async function prune(maybeOpts?: PnpmOptions): Promise<void> {
       throw new Error('No package.json found - cannot prune')
     }
 
-    const pkg = !opts.production ? ctx.pkg : {
-      dependencies: ctx.pkg.dependencies,
-      optionalDependencies: ctx.pkg.optionalDependencies,
+    const pkg = {
+      dependencies: opts.production ? ctx.pkg.dependencies : {},
+      devDependencies: opts.development ? ctx.pkg.devDependencies : {},
+      optionalDependencies: opts.optional ? ctx.pkg.optionalDependencies : {},
     } as Package
 
     const prunedShr = pruneShrinkwrap(ctx.wantedShrinkwrap, pkg)
