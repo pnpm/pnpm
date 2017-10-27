@@ -61,7 +61,7 @@ export type DependencyShrinkwrap = PackageSnapshot
 
 export type PackageSnapshot = {
   id?: string,
-  dev?: true,
+  dev?: true | false,
   optional?: true,
   // name and version are only needed
   // for packages that are hosted not in the npm registry

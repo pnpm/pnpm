@@ -106,7 +106,7 @@ function copyDependencySubTree (
     }
     if (opts.dev) {
       depShr.dev = true
-    } else {
+    } else if (depShr.dev === true) { // keeping if dev is explicitly false
       delete depShr.dev
     }
     const newDependencies = R.keys(depShr.dependencies)
