@@ -10,8 +10,11 @@ export type Shrinkwrap = {
   registry: string,
 }
 
-export type ResolvedPackages = {
-  [pkgId: string]: DependencyShrinkwrap,
+// For backward compatibility
+export type ResolvedPackages = PackageSnapshots
+
+export type PackageSnapshots = {
+  [packagePath: string]: PackageSnapshot,
 }
 
 /**
@@ -53,8 +56,10 @@ export type ShrinkwrapResolution = Resolution | {
   integrity: string,
 }
 
-// TODO: rename to PackageSnapshot
-export type DependencyShrinkwrap = {
+// For backward compatibility
+export type DependencyShrinkwrap = PackageSnapshot
+
+export type PackageSnapshot = {
   id?: string,
   dev?: true,
   optional?: true,
