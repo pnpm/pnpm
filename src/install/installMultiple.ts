@@ -42,6 +42,7 @@ export type PkgAddress = {
 export type InstalledPackage = {
   id: string,
   resolution: Resolution,
+  prod: boolean,
   dev: boolean,
   optional: boolean,
   fetchingFiles: Promise<PackageContentInfo>,
@@ -358,6 +359,7 @@ async function install (
       optional: spec.optional,
       name: pkg.name,
       version: pkg.version,
+      prod: !spec.dev && !spec.optional,
       dev: spec.dev,
       fetchingFiles: fetchedPkg.fetchingFiles,
       calculatingIntegrity: fetchedPkg.calculatingIntegrity,
@@ -399,7 +401,8 @@ async function install (
       installable,
     }
   } else {
-    ctx.installs[fetchedPkg.id].dev = ctx.installs[fetchedPkg.id].dev && spec.dev
+    ctx.installs[fetchedPkg.id].prod = ctx.installs[fetchedPkg.id].prod || !spec.dev && !spec.optional
+    ctx.installs[fetchedPkg.id].dev = ctx.installs[fetchedPkg.id].dev || spec.dev
     ctx.installs[fetchedPkg.id].optional = ctx.installs[fetchedPkg.id].optional && spec.optional
 
     ctx.nodesToBuild.push({

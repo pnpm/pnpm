@@ -37,6 +37,7 @@ export default function (
       pkgsToLink,
       prevResolvedDeps: shrinkwrap.packages[dependencyPath] && shrinkwrap.packages[dependencyPath].dependencies || {},
       prevResolvedOptionalDeps: shrinkwrap.packages[dependencyPath] && shrinkwrap.packages[dependencyPath].optionalDependencies || {},
+      prod: pkgsToLink[dependencyAbsolutePath].prod,
       dev: pkgsToLink[dependencyAbsolutePath].dev,
       optional: pkgsToLink[dependencyAbsolutePath].optional,
     })
@@ -59,6 +60,7 @@ function toShrDependency (
     pkgsToLink: DependencyTreeNodeMap,
     prevResolvedDeps: ResolvedDependencies,
     prevResolvedOptionalDeps: ResolvedDependencies,
+    prod: boolean,
     dev: boolean,
     optional: boolean,
   }
@@ -84,8 +86,10 @@ function toShrDependency (
   if (!R.isEmpty(newResolvedOptionalDeps)) {
     result['optionalDependencies'] = newResolvedOptionalDeps
   }
-  if (opts.dev) {
+  if (opts.dev && !opts.prod) {
     result['dev'] = true
+  } else if (opts.prod && !opts.dev) {
+    result['dev'] = false
   }
   if (opts.optional) {
     result['optional'] = true

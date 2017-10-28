@@ -463,6 +463,7 @@ test('scoped module from different registry', async function (t: tape.Test) {
     },
     packages: {
       '/is-positive/3.1.0': {
+        dev: false,
         engines: {
           node: '>=0.10.0',
         },
@@ -472,6 +473,7 @@ test('scoped module from different registry', async function (t: tape.Test) {
       },
       'registry.npmjs.org/@zkochan/foo/1.0.0': {
         name: '@zkochan/foo',
+        dev: false,
         version: '1.0.0',
         resolution: {
           integrity: 'sha512-IFvrYpq7E6BqKex7A7czIFnFncPiUVdhSzGhAOWpp8RlkXns4y/9ZdynxaA/e0VkihRxQkihE2pTyvxjfe/wBg==',
@@ -486,7 +488,7 @@ test('scoped module from different registry', async function (t: tape.Test) {
       'is-positive': '^3.1.0',
     },
     shrinkwrapVersion: 3,
-    shrinkwrapMinorVersion: 1,
+    shrinkwrapMinorVersion: 2,
   })
 })
 
@@ -518,6 +520,7 @@ test('installing from shrinkwrap when using npm enterprise', async (t: tape.Test
     },
     packages: {
       '/is-positive/3.1.0': {
+        dev: false,
         engines: {
           node: '>=0.10.0',
         },
@@ -532,7 +535,7 @@ test('installing from shrinkwrap when using npm enterprise', async (t: tape.Test
       'is-positive': '^3.1.0',
     },
     shrinkwrapVersion: 3,
-    shrinkwrapMinorVersion: 1,
+    shrinkwrapMinorVersion: 2,
   })
 
   await rimraf(opts.store)
@@ -659,6 +662,6 @@ test('updating shrinkwrap version 3 to 3.1', async (t: tape.Test) => {
 
   const shr = await project.loadShrinkwrap()
 
-  t.equal(shr.shrinkwrapMinorVersion, 1)
+  t.equal(shr.shrinkwrapMinorVersion, 2)
   t.ok(shr.packages['/abc/1.0.0/peer-a@1.0.0+peer-b@1.0.0+peer-c@1.0.0'].peerDependencies)
 })

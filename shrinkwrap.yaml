@@ -46,7 +46,7 @@ dependencies:
   path-exists: 3.0.0
   path-name: 1.0.0
   pnpm-install-checks: 1.1.0
-  pnpm-shrinkwrap: 3.4.0
+  pnpm-shrinkwrap: 4.0.1
   proper-lockfile: 2.0.1
   ramda: 0.25.0
   read-package-json: 2.0.12
@@ -164,9 +164,6 @@ packages:
       '@types/node': 8.0.47
     resolution:
       integrity: sha512-cy3yebKhrHuOcrJGkfwNHhpTXQLgmXSv1BX+4p32j+VUQ6aP2eJ5cL7OvGcAQx75fCTFaAIIAKewvqL+iwSd4g==
-  /@types/node/7.0.43:
-    resolution:
-      integrity: sha512-7scYwwfHNppXvH/9JzakbVxk0o0QUILVk1Lv64GRaxwPuGpnF1QBiwdvhDpLcymb8BpomQL3KYoWKq3wUdDMhQ==
   /@types/node/7.0.46:
     resolution:
       integrity: sha512-u+JAi1KtmaUoU/EHJkxoiuvzyo91FCE41Z9TZWWcOUU3P8oUdlDLdrGzCGWySPgbRMD17B0B+1aaJLYI9egQ6A==
@@ -1884,9 +1881,9 @@ packages:
     dev: true
     resolution:
       integrity: sha512-VLlRExib18bl5lSFp74vFHeZV0iWuxTkdOvI7BIhfWpiP9EdrkAq/GnjE5pxjXmsvXyZlaBDwoEQygU8kbVr8g==
-  /pnpm-shrinkwrap/3.4.0:
+  /pnpm-shrinkwrap/4.0.1:
     dependencies:
-      '@types/node': 7.0.43
+      '@types/node': 7.0.46
       '@types/ramda': 0.0.11
       dependency-path: 1.2.0
       js-yaml: 3.10.0
@@ -1896,8 +1893,10 @@ packages:
       rimraf-then: 1.0.1
       thenify: 3.3.0
       write-file-atomic: 2.3.0
+    peerDependencies:
+      pnpm-logger: ^0.6.2
     resolution:
-      integrity: sha512-Cn1df7tvv5qIC+3AYRhF4h8266ehLzC/lcnjeumU13TUGU4Vwi+5prPXxj/7IWnZiTAzESjfYag3S5bi6xHBqw==
+      integrity: sha512-IOJhwMWoM2O9goa+0EleZCzrLYQmaBuNZeOmoFUV9WU54WHjQfeFJ1J+Qu7FRAGDlzWWIcuxL43Ap1XL4+OASw==
   /pos/0.4.2:
     dev: true
     engines:
@@ -2705,7 +2704,7 @@ specifiers:
   path-name: ^1.0.0
   pnpm-install-checks: ^1.1.0
   pnpm-logger: ^0.6.2
-  pnpm-shrinkwrap: ^3.4.0
+  pnpm-shrinkwrap: ^4.0.1
   proper-lockfile: ^2.0.0
   ramda: ^0.25.0
   read-package-json: ^2.0.5
