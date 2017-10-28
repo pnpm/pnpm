@@ -1,7 +1,6 @@
 import path = require('path')
 import fs = require('mz/fs')
 import tape = require('tape')
-import loadJsonFile = require('load-json-file')
 import promisifyTape from 'tape-promise'
 import {
   prepare,
@@ -9,15 +8,22 @@ import {
 } from '../utils'
 import {install} from '../../src'
 
-const basicPackageJson = loadJsonFile.sync(path.join(__dirname, '../utils/simple-package.json'))
 const test = promisifyTape(tape)
 
 test('production install (with --production flag)', async (t: tape.Test) => {
-  const project = prepare(t, basicPackageJson)
+  const project = prepare(t, {
+    dependencies: {
+      rimraf: '2.6.2',
+    },
+    devDependencies: {
+      once: '^1.4.0', // once is also a transitive dependency of rimraf
+      '@rstacruz/tap-spec': '4.1.1',
+    },
+  })
 
   await install(testDefaults({ development: false }))
 
-  const rimrafDir = fs.statSync(path.resolve('node_modules', 'rimraf'))
+  const rimraf = project.requireModule('rimraf')
 
   let tapStatErrCode: number = 0
   try {
@@ -26,7 +32,7 @@ test('production install (with --production flag)', async (t: tape.Test) => {
     tapStatErrCode = err.code
   }
 
-  t.ok(rimrafDir.isSymbolicLink, 'rimraf exists')
+  t.ok(rimraf, 'rimraf exists')
   t.is(tapStatErrCode, 'ENOENT', 'tap-spec does not exist')
 })
 
