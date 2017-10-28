@@ -87,9 +87,10 @@ export default async function (
     noOptional: !opts.optional,
     skipped: opts.skipped,
   }
+  const newCurrentShrinkwrap = filterShrinkwrap(newShr, filterOpts)
   const newPkgResolvedIds = await linkNewPackages(
     filterShrinkwrap(opts.currentShrinkwrap, filterOpts),
-    filterShrinkwrap(newShr, filterOpts),
+    newCurrentShrinkwrap,
     pkgsToLink,
     opts
   )
@@ -136,8 +137,10 @@ export default async function (
     currentShrinkwrap = Object.assign({}, newShr, {
       packages,
     })
-  } else {
+  } else if (opts.production && opts.development && opts.optional) {
     currentShrinkwrap = newShr
+  } else {
+    currentShrinkwrap = newCurrentShrinkwrap
   }
 
   return {
@@ -173,6 +176,9 @@ function filterShrinkwrap (
     registry: shr.registry,
     specifiers: shr.specifiers,
     packages: R.fromPairs(pairs),
+    dependencies: opts.noProd ? {} : shr.dependencies || {},
+    devDependencies: opts.noDev ? {} : shr.devDependencies || {},
+    optionalDependencies: opts.noOptional ? {} : shr.optionalDependencies || {},
   } as Shrinkwrap
 }
 

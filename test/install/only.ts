@@ -48,7 +48,23 @@ test('install dev dependencies only', async (t: tape.Test) => {
 
   await project.hasNot('once')
 
-  const shr = await project.loadShrinkwrap()
+  {
+    const shr = await project.loadShrinkwrap()
+    t.ok(shr.packages['/is-positive/1.0.0'].dev === false)
+  }
 
-  t.ok(shr.packages['/is-positive/1.0.0'].dev === false)
+  {
+    const currentShrinkwrap = await project.loadCurrentShrinkwrap()
+    t.notOk(currentShrinkwrap.packages['/is-positive/1.0.0'], 'prod dep only not added to current shrinkwrap.yaml')
+  }
+
+  // Repeat normal installation adds missing deps to node_modules
+  await install(testDefaults())
+
+  await project.has('once')
+
+  {
+    const currentShrinkwrap = await project.loadCurrentShrinkwrap()
+    t.ok(currentShrinkwrap.packages['/is-positive/1.0.0'], 'prod dep added to current shrinkwrap.yaml')
+  }
 })

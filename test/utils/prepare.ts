@@ -82,6 +82,14 @@ export default function prepare (t: Test, pkg?: Object) {
         throw err
       }
     },
+    loadCurrentShrinkwrap: async () => {
+      try {
+        return await loadYamlFile<any>('node_modules/.shrinkwrap.yaml') // tslint:disable-line
+      } catch (err) {
+        if (err.code === 'ENOENT') return null
+        throw err
+      }
+    },
   }
   return project
 }
