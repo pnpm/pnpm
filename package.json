@@ -22,7 +22,7 @@
     "npm-shrinkwrap.json"
   ],
   "dependencies": {
-    "@pnpm/outdated": "^0.0.1",
+    "@pnpm/outdated": "^0.0.2",
     "@zkochan/libnpx": "^9.6.1",
     "byline": "^5.0.0",
     "camelcase": "^4.1.0",
