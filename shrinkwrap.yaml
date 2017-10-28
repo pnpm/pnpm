@@ -19,7 +19,7 @@ dependencies:
   pnpm-logger: 0.6.2
   ramda: 0.25.0
   strip-color: 0.1.0
-  supi: 0.5.0
+  supi: 0.5.1
   text-table: 0.2.0
   update-notifier: 2.3.0
 devDependencies:
@@ -2846,6 +2846,22 @@ packages:
       pnpm-logger: ^0.6.2
     resolution:
       integrity: sha512-Cn1df7tvv5qIC+3AYRhF4h8266ehLzC/lcnjeumU13TUGU4Vwi+5prPXxj/7IWnZiTAzESjfYag3S5bi6xHBqw==
+  /pnpm-shrinkwrap/4.0.1:
+    dependencies:
+      '@types/node': 7.0.46
+      '@types/ramda': 0.0.11
+      dependency-path: 1.2.0
+      js-yaml: 3.10.0
+      load-yaml-file: 0.1.0
+      mkdirp-promise: 5.0.1
+      ramda: 0.24.1
+      rimraf-then: 1.0.1
+      thenify: 3.3.0
+      write-file-atomic: 2.3.0
+    peerDependencies:
+      pnpm-logger: ^0.6.2
+    resolution:
+      integrity: sha512-IOJhwMWoM2O9goa+0EleZCzrLYQmaBuNZeOmoFUV9WU54WHjQfeFJ1J+Qu7FRAGDlzWWIcuxL43Ap1XL4+OASw==
   /pos/0.4.2:
     dev: true
     engines:
@@ -3548,7 +3564,7 @@ packages:
       node: '>=0.10.0'
     resolution:
       integrity: sha1-PFMZQukIwml8DsNEhYwobHygpgo=
-  /supi/0.5.0:
+  /supi/0.5.1:
     dependencies:
       '@types/byline': 4.2.31
       '@types/common-tags': 1.4.0
@@ -3597,7 +3613,7 @@ packages:
       path-exists: 3.0.0
       path-name: 1.0.0
       pnpm-install-checks: 1.1.0
-      pnpm-shrinkwrap: 3.4.0
+      pnpm-shrinkwrap: 4.0.1
       proper-lockfile: 2.0.1
       ramda: 0.25.0
       read-package-json: 2.0.12
@@ -3613,7 +3629,7 @@ packages:
     peerDependencies:
       pnpm-logger: ^0.6.2
     resolution:
-      integrity: sha512-5e5k5dA6rq0Y234eDCJWyZQgs5WO50Bmsa7J03RVCIAGXtRQ5zptJeZupUxzcgOsOWsFc0GDHa9n6b4va4u2BA==
+      integrity: sha512-gS2RMl0XWjMMYMYv9d+eJTEaFNZuoHIx5HvRToNc57IQnmvJD22cxNK6IefCvUj3pIFxsXxlYJeApDoPkCJxFg==
   /supports-color/2.0.0:
     engines:
       node: '>=0.8.0'
@@ -4143,7 +4159,7 @@ specifiers:
   ramda: ^0.25.0
   rimraf: ^2.5.4
   strip-color: ^0.1.0
-  supi: ^0.5.0
+  supi: ^0.5.1
   text-table: ^0.2.0
   tslint: ^5.4.2
   typescript: ^2.4.1
