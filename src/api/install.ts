@@ -122,6 +122,10 @@ export async function install (maybeOpts?: PnpmOptions) {
 
   const opts = await extendOptions(maybeOpts)
 
+  if (!opts.production && opts.optional) {
+    throw new Error('Optional dependencies cannot be installed without production dependencies')
+  }
+
   if (opts.lock) {
     await lock(opts.prefix, _install, {stale: opts.lockStaleDuration, locks: opts.locks})
   } else {

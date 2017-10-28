@@ -25,3 +25,13 @@ test.skip('install fails when all saving types are false', async (t: test.Test) 
     t.end()
   }
 })
+
+test('install fails on optional = true but production = false', async (t: test.Test) => {
+  try {
+    await pnpm.install({optional: true, production: false})
+    t.fail('installation should have failed')
+  } catch (err) {
+    t.equal(err.message, 'Optional dependencies cannot be installed without production dependencies')
+    t.end()
+  }
+})
