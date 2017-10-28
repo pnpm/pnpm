@@ -19,7 +19,7 @@ dependencies:
   pnpm-logger: 0.6.2
   ramda: 0.25.0
   strip-color: 0.1.0
-  supi: 0.5.2
+  supi: 0.5.3
   text-table: 0.2.0
   update-notifier: 2.3.0
 devDependencies:
@@ -3707,7 +3707,7 @@ packages:
       node: '>=0.10.0'
     resolution:
       integrity: sha1-PFMZQukIwml8DsNEhYwobHygpgo=
-  /supi/0.5.2:
+  /supi/0.5.3:
     dependencies:
       '@types/byline': 4.2.31
       '@types/common-tags': 1.4.0
@@ -3773,7 +3773,7 @@ packages:
     peerDependencies:
       pnpm-logger: ^0.6.2
     resolution:
-      integrity: sha512-Yxgr7OkCd6CH5Hed3UKS9SrtwPPL0euR/x2lDWFFvdXnKUIN1O7PI/D3D9AIOHObeYYkGZqjPicDNGWhUEgKRQ==
+      integrity: sha512-QNrSJaSj+w6TCmoOjZdOnpohE1eUogfQTIj05OPl3zSb3SBohUOSRv92aHkgQhSfyKLdU3zSlpL4QODCXv8xkQ==
   /supports-color/2.0.0:
     engines:
       node: '>=0.8.0'
@@ -4323,7 +4323,7 @@ specifiers:
   ramda: ^0.25.0
   rimraf: ^2.5.4
   strip-color: ^0.1.0
-  supi: ^0.5.2
+  supi: ^0.5.3
   text-table: ^0.2.0
   tslint: ^5.4.2
   typescript: ^2.4.1
