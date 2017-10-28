@@ -1,6 +1,6 @@
 {
   "name": "pnpm-shrinkwrap",
-  "version": "3.4.0",
+  "version": "4.0.0",
   "description": "pnpm's shrinkwrap",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
