@@ -44,7 +44,7 @@ const defaults = async (opts: PnpmOptions) => {
     alwaysAuth: false,
     update: false,
     repeatInstallDepth: -1,
-    optional: true,
+    optional: typeof opts.production === 'boolean' ? opts.production : true,
     independentLeaves: false,
     packageManager,
     verifyStoreIntegrity: true,

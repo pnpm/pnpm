@@ -67,7 +67,7 @@ Install all modules listed as dependencies in `package.json`.
 
 * `options.production` - *Boolean* - `true` by default. If `true`, packages listed in `dependencies` will be installed.
 * `options.development` - *Boolean* - `true` by default. If `true`, packages listed in `devDependencies` will be installed.
-* `options.optional` - *Boolean* - `true` by default. If `true`, packages listed in `optionalDependencies` will be installed.
+* `options.optional` - *Boolean* - Has the value of `options.production` by default. If `true`, packages listed in `optionalDependencies` will be installed.
   Can be `true` only when `options.production` is `true` as well.
 
 ### `supi.uninstall(pkgsToUninstall, [options])`
