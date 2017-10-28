@@ -16,7 +16,7 @@ install:
 script:
   - /bin/bash lint-commits.sh
   - ./node_modules/.bin/commitlint --from=$TRAVIS_COMMIT
-  - pnpm t
+  - npm t
 env:
   global:
     - CC=clang CXX=clang++ npm_config_clang=1
