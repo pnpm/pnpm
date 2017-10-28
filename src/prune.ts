@@ -59,6 +59,9 @@ export default function prune (shr: Shrinkwrap, pkg: Package): Shrinkwrap {
     specifiers,
     registry: shr.registry,
   }
+  if (typeof shr.shrinkwrapMinorVersion === 'number') {
+    result.shrinkwrapMinorVersion = shr.shrinkwrapMinorVersion
+  }
   if (!R.isEmpty(packages)) {
     result.packages = packages
   }
