@@ -1,4 +1,4 @@
-import {unlink, unlinkPkgs, PnpmOptions} from 'supi'
+import {PnpmOptions, unlink, unlinkPkgs} from 'supi'
 
 export default function (input: string[], opts: PnpmOptions) {
   if (!input || !input.length) {

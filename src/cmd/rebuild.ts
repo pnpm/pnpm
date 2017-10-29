@@ -1,14 +1,14 @@
 import path = require('path')
 import {
+  PnpmOptions,
   rebuild,
   rebuildPkgs,
-  PnpmOptions,
 } from 'supi'
 
 export default async function (
   args: string[],
   opts: PnpmOptions,
-  command: string
+  command: string,
 ) {
   if (args.length === 0) {
     await rebuild(opts)

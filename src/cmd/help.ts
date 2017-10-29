@@ -6,7 +6,7 @@ export default function (input: string[]) {
   console.log(getHelpText(cmdName))
 }
 
-function getHelpText(command: string) {
+function getHelpText (command: string) {
   switch (getCommandFullName(command)) {
     case 'install':
       return stripIndent`

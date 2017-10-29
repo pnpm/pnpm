@@ -7,9 +7,9 @@ export type PnpmErrorCode = 'UNEXPECTED_STORE'
   | 'NO_OFFLINE_TARBALL'
 
 export class PnpmError extends Error {
+  public code: PnpmErrorCode
   constructor (code: PnpmErrorCode, message: string) {
     super(message)
     this.code = code
   }
-  code: PnpmErrorCode
 }

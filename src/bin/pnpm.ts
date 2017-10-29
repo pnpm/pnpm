@@ -7,21 +7,21 @@ gfs.gracefulify(fs)
 
 import loudRejection = require('loud-rejection')
 loudRejection()
-import path = require('path')
 import camelcase = require('camelcase')
-import isCI = require('is-ci')
 import {stripIndent} from 'common-tags'
+import isCI = require('is-ci')
 import nopt = require('nopt')
-import R = require('ramda')
 import npm = require('not-bundled-npm')
 import npmDefaults = require('not-bundled-npm/lib/config/defaults')
-import '../logging/fileLogger'
-import pkg from '../pnpmPkgJson'
+import path = require('path')
+import R = require('ramda')
+import checkForUpdates from '../checkForUpdates'
 import * as pnpmCmds from '../cmd'
 import runNpm from '../cmd/runNpm'
-import initReporter from '../reporter'
 import getCommandFullName from '../getCommandFullName'
-import checkForUpdates from '../checkForUpdates'
+import '../logging/fileLogger'
+import pkg from '../pnpmPkgJson'
+import initReporter from '../reporter'
 
 pnpmCmds['install-test'] = pnpmCmds.installTest
 
@@ -42,13 +42,13 @@ const supportedCmds = new Set([
   'outdated',
   'rebuild',
   // These might have to be implemented:
-  //'cache',
-  //'completion',
-  //'explore',
-  //'dedupe',
-  //'doctor',
-  //'shrinkwrap',
-  //'help-search',
+  // 'cache',
+  // 'completion',
+  // 'explore',
+  // 'dedupe',
+  // 'doctor',
+  // 'shrinkwrap',
+  // 'help-search',
 ])
 
 const passedThroughCmds = new Set([
@@ -98,17 +98,17 @@ async function run (argv: string[]) {
     argv = ['help'].concat(argv)
   }
   const pnpmTypes = {
-    'store': path,
-    'store-path': path, // DEPRECATE! store should be used
-    'global-path': path,
-    'network-concurrency': Number,
-    'fetching-concurrency': Number,
-    'lock-stale-duration': Number,
-    'lock': Boolean,
     'child-concurrency': Number,
+    'fetching-concurrency': Number,
+    'global-path': path,
+    'independent-leaves': Boolean,
+    'lock': Boolean,
+    'lock-stale-duration': Number,
+    'network-concurrency': Number,
     'offline': Boolean,
     'reporter': String,
-    'independent-leaves': Boolean,
+    'store': path,
+    'store-path': path, // DEPRECATE! store should be used
     'verify-store-integrity': Boolean,
   }
   const types = R.merge(npmDefaults.types, pnpmTypes)
@@ -116,7 +116,7 @@ async function run (argv: string[]) {
     types,
     npmDefaults.shorthands,
     argv,
-    0 // argv should be already sliced by now
+    0, // argv should be already sliced by now
   )
 
   if (cliConf.version) {
@@ -146,10 +146,10 @@ async function run (argv: string[]) {
   if (!cliConf['user-agent']) {
     cliConf['user-agent'] = `${pkg.name}/${pkg.version} npm/? node/${process.version} ${process.platform} ${process.arch}`
   }
-  const force = cliConf['force'] === true
+  const force = cliConf.force === true
   // removing force to avoid redundant logs from npm
   // see issue #878 and #877
-  delete cliConf['force']
+  delete cliConf.force
 
   await new Promise((resolve, reject) => {
     npm.load(cliConf as any, (err: Error) => { // tslint:disable-line
@@ -164,10 +164,10 @@ async function run (argv: string[]) {
   const silent = npm.config.get('loglevel') === 'silent' || !npm.config.get('reporter') && isCI
 
   const opts = R.fromPairs(<any>R.keys(types).map(configKey => [camelcase(configKey), npm.config.get(configKey)])) // tslint:disable-line
-  opts.rawNpmConfig = Object.assign.apply(Object, npm.config['list'].reverse())
+  opts.rawNpmConfig = Object.assign.apply(Object, npm.config.list.reverse())
   opts.bin = npm.bin
   opts.globalBin = npm.globalBin
-  opts.globalPrefix = path.join(npm['globalPrefix'], 'pnpm-global')
+  opts.globalPrefix = path.join(npm.globalPrefix, 'pnpm-global')
   opts.prefix = opts.global ? opts.globalPrefix : npm.prefix
   opts.packageManager = pkg
   opts.force = force

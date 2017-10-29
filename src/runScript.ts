@@ -1,21 +1,23 @@
-import logger from 'pnpm-logger'
-import path = require('path')
 import byline = require('byline')
 import spawn = require('cross-spawn')
+import path = require('path')
 import PATH = require('path-name')
+import logger from 'pnpm-logger'
 
 const scriptLogger = logger('run_script')
+
+function noop () {} // tslint:disable-line
 
 export default function runScript (
   command: string,
   args: string[],
   opts: {
     cwd: string,
-    log: Function,
+    log: (...msg: string[]) => void,
     userAgent: string,
-  }
+  },
 ) {
-  opts = Object.assign({log: (() => {})}, opts)
+  opts = Object.assign({log: noop}, opts)
   args = args || []
   const log = opts.log
   const script = `${command}${args.length ? ' ' + args.join(' ') : ''}`
@@ -24,7 +26,7 @@ export default function runScript (
   return new Promise((resolve, reject) => {
     const proc = spawn(command, args, {
       cwd: opts.cwd,
-      env: createEnv(opts)
+      env: createEnv(opts),
     })
 
     log('stdout', '$ ' + script)
@@ -47,11 +49,11 @@ export function sync (
     cwd: string,
     stdio: string,
     userAgent?: string,
-  }
+  },
 ) {
   opts = Object.assign({}, opts)
   return spawn.sync(command, args, Object.assign({}, opts, {
-    env: createEnv(opts)
+    env: createEnv(opts),
   }))
 }
 
@@ -59,18 +61,18 @@ function createEnv (
   opts: {
     cwd: string,
     userAgent?: string,
-  }
+  },
 ) {
   const env = Object.create(process.env)
 
   env[PATH] = [
     path.join(opts.cwd, 'node_modules', '.bin'),
     path.dirname(process.execPath),
-    process.env[PATH]
+    process.env[PATH],
   ].join(path.delimiter)
 
   if (opts.userAgent) {
-    env['npm_config_user_agent'] = opts.userAgent
+    env.npm_config_user_agent = opts.userAgent
   }
 
   return env

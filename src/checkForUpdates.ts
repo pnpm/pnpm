@@ -1,7 +1,7 @@
-import updateNotifier = require('update-notifier')
 import chalk from 'chalk'
-import pkg from './pnpmPkgJson'
 import {stripIndents} from 'common-tags'
+import updateNotifier = require('update-notifier')
+import pkg from './pnpmPkgJson'
 
 export default function () {
   const notifier = updateNotifier({ pkg })

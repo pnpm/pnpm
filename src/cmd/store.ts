@@ -1,18 +1,18 @@
+import logger from 'pnpm-logger'
 import {
   PnpmOptions,
-  storeStatus,
   storePrune,
+  storeStatus,
 } from 'supi'
 import {PnpmError} from '../errorTypes'
-import logger from 'pnpm-logger'
 import help from './help'
 
 class StoreStatusError extends PnpmError {
+  public modified: string[]
   constructor (modified: string[]) {
     super('MODIFIED_DEPENDENCY', '')
     this.modified = modified
   }
-  modified: string[]
 }
 
 export default async function (input: string[], opts: PnpmOptions) {

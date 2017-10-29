@@ -1,7 +1,7 @@
-import {install, installPkgs, PnpmOptions} from 'supi'
+import chalk from 'chalk'
 import path = require('path')
 import logger from 'pnpm-logger'
-import chalk from 'chalk'
+import {install, installPkgs, PnpmOptions} from 'supi'
 
 /**
  * Perform installation.
@@ -13,7 +13,7 @@ export default function installCmd (input: string[], opts: PnpmOptions) {
   input = input.filter(Boolean)
 
   const prefix = opts.prefix || process.cwd()
-  opts['hooks'] = requireHooks(prefix)
+  opts.hooks = requireHooks(prefix)
 
   if (!input || !input.length) {
     return install(opts)
@@ -41,7 +41,7 @@ function requireHooks (prefix: string) {
       process.exit(1)
       return
     }
-    if (err['code'] !== 'MODULE_NOT_FOUND') throw err
+    if (err.code !== 'MODULE_NOT_FOUND') throw err
     return {}
   }
 }

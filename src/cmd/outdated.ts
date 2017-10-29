@@ -1,11 +1,11 @@
-import path = require('path')
 import outdated, {
-  forPackages as outdatedForPackages
+  forPackages as outdatedForPackages,
 } from '@pnpm/outdated'
+import chalk from 'chalk'
+import path = require('path')
+import stripColor = require('strip-color')
 import {PnpmOptions} from 'supi'
 import table = require('text-table')
-import chalk from 'chalk'
-import stripColor = require('strip-color')
 
 const LAYOUT_VERSION = '1'
 
@@ -31,10 +31,10 @@ export default async function (
     userAgent: string,
     tag: string,
     networkConcurrency: number,
-    rawNpmConfig: Object,
+    rawNpmConfig: object,
     alwaysAuth: boolean,
   },
-  command: string
+  command: string,
 ) {
   let prefix: string
   if (opts.global) {
@@ -52,17 +52,17 @@ export default async function (
 
   if (!outdatedPkgs.length) return
 
-  const columnNames = ['Package', 'Current', 'Wanted', 'Latest'].map(txt => chalk.underline(txt))
+  const columnNames = ['Package', 'Current', 'Wanted', 'Latest'].map((txt) => chalk.underline(txt))
   console.log(
     table([columnNames].concat(
-      outdatedPkgs.map(outdated => [
-        chalk.yellow(outdated.packageName),
-        outdated.current || 'missing',
-        chalk.green(outdated.wanted),
-        chalk.magenta(outdated.latest),
-      ])
+      outdatedPkgs.map((outdatedPkg) => [
+        chalk.yellow(outdatedPkg.packageName),
+        outdatedPkg.current || 'missing',
+        chalk.green(outdatedPkg.wanted),
+        chalk.magenta(outdatedPkg.latest),
+      ]),
     ), {
       stringLength: (s: string) => stripColor(s).length,
-    })
+    }),
   )
 }

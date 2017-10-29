@@ -3,7 +3,7 @@ import {
   link,
   linkFromGlobal,
   linkToGlobal,
-  PnpmOptions
+  PnpmOptions,
 } from 'supi'
 
 export default (
@@ -11,7 +11,7 @@ export default (
   opts: PnpmOptions & {
     globalPrefix: string,
     globalBin: string,
-  }
+  },
 ) => {
   const cwd = opts && opts.prefix || process.cwd()
 

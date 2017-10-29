@@ -9,7 +9,7 @@ export default async function (
     global: boolean,
     independentLeaves: boolean,
   },
-  command: string
+  command: string,
 ) {
   let prefix: string
   if (opts.global) {
