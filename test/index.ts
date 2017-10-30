@@ -1,6 +1,6 @@
 import test = require('tape')
 import path = require('path')
-import outdated, {forPackages as outdatedForPackages} from '../src'
+import outdated, {forPackages as outdatedForPackages} from '@pnpm/outdated'
 
 process.chdir(path.join(__dirname, 'fixtures'))
 const temp = path.join(__dirname, '..', '.tmp')

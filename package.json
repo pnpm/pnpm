@@ -8,7 +8,7 @@
     "lib"
   ],
   "scripts": {
-    "test": "ts-node test",
+    "test": "preview && ts-node test",
     "prepublishOnly": "tsc",
     "tsc": "tsc",
     "md": "mos"
