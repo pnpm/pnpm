@@ -1,18 +1,18 @@
+import npa = require('npm-package-arg')
 import RegClient = require('npm-registry-client')
 import {
-  readWanted as readWantedShrinkwrap,
-  readCurrent as readCurrentShrinkwrap
-} from 'pnpm-shrinkwrap'
-import {
-  resolve,
   createGot,
   PackageMeta,
+  resolve,
   resolveStore,
 } from 'package-store'
-import npa = require('npm-package-arg')
 import logger from 'pnpm-logger'
+import {
+  readCurrent as readCurrentShrinkwrap,
+  readWanted as readWantedShrinkwrap,
+} from 'pnpm-shrinkwrap'
 
-export type OutdatedPackage = {
+export interface OutdatedPackage {
   packageName: string,
   current?: string, // not defined means the package is not installed
   wanted: string,
@@ -40,9 +40,9 @@ export default async function (
     userAgent: string,
     tag: string,
     networkConcurrency: number,
-    rawNpmConfig: Object,
+    rawNpmConfig: object,
     alwaysAuth: boolean,
-  }
+  },
 ) {
   return _outdated([], pkgPath, opts)
 }
@@ -67,9 +67,9 @@ export async function forPackages (
     userAgent: string,
     tag: string,
     networkConcurrency: number,
-    rawNpmConfig: Object,
+    rawNpmConfig: object,
     alwaysAuth: boolean,
-  }
+  },
 ) {
   return _outdated(packages, pkgPath, opts)
 }
@@ -94,9 +94,9 @@ async function _outdated (
     userAgent: string,
     tag: string,
     networkConcurrency: number,
-    rawNpmConfig: Object,
+    rawNpmConfig: object,
     alwaysAuth: boolean,
-  }
+  },
 ): Promise<OutdatedPackage[]> {
   const wantedShrinkwrap = await readWantedShrinkwrap(pkgPath, {ignoreIncompatible: false})
   if (!wantedShrinkwrap) {
@@ -107,42 +107,42 @@ async function _outdated (
 
   const client = new RegClient(adaptConfig(opts))
   const got = createGot(client, {
-    networkConcurrency: opts.networkConcurrency,
-    rawNpmConfig: opts.rawNpmConfig,
     alwaysAuth: opts.alwaysAuth,
-    registry: wantedShrinkwrap.registry,
-    retries: opts.fetchRetries,
     factor: opts.fetchRetryFactor,
     maxTimeout: opts.fetchRetryMaxtimeout,
     minTimeout: opts.fetchRetryMintimeout,
+    networkConcurrency: opts.networkConcurrency,
+    rawNpmConfig: opts.rawNpmConfig,
+    registry: wantedShrinkwrap.registry,
+    retries: opts.fetchRetries,
   })
   const metaCache = new Map<string, PackageMeta>()
 
   const outdated: OutdatedPackage[] = []
 
   await Promise.all(
-    depTypes.map(async depType => {
+    depTypes.map(async (depType) => {
       if (!wantedShrinkwrap[depType]) return
 
       let pkgs = Object.keys(wantedShrinkwrap[depType])
 
       if (forPkgs.length) {
-        pkgs = pkgs.filter(pkgName => forPkgs.indexOf(pkgName) !== -1)
+        pkgs = pkgs.filter((pkgName) => forPkgs.indexOf(pkgName) !== -1)
       }
 
       await Promise.all(
-        pkgs.map(async packageName => {
+        pkgs.map(async (packageName) => {
           const resolution = await resolve(npa.resolve(packageName, 'latest'), {
             downloadPriority: 0,
             got,
-            registry: wantedShrinkwrap.registry,
+            loggedPkg: {
+              name: packageName,
+              rawSpec: `${packageName}@latest`,
+            },
             metaCache,
             offline: opts.offline,
             prefix: pkgPath,
-            loggedPkg: {
-              rawSpec: `${packageName}@latest`,
-              name: packageName,
-            },
+            registry: wantedShrinkwrap.registry,
             storePath,
           })
 
@@ -152,9 +152,9 @@ async function _outdated (
 
           if (!currentShrinkwrap[depType][packageName]) {
             outdated.push({
+              latest,
               packageName,
               wanted: wantedShrinkwrap[depType][packageName],
-              latest,
             })
             return
           }
@@ -162,15 +162,15 @@ async function _outdated (
           if (currentShrinkwrap[depType][packageName] !== wantedShrinkwrap[depType][packageName] ||
             latest !== currentShrinkwrap[depType][packageName]) {
             outdated.push({
-              packageName,
               current: currentShrinkwrap[depType][packageName],
-              wanted: wantedShrinkwrap[depType][packageName],
               latest,
+              packageName,
+              wanted: wantedShrinkwrap[depType][packageName],
             })
           }
-        })
+        }),
       )
-    })
+    }),
   )
 
   return outdated.sort((pkg1, pkg2) => pkg1.packageName.localeCompare(pkg2.packageName))
@@ -191,32 +191,32 @@ function adaptConfig (
     fetchRetryMaxtimeout: number,
     userAgent: string,
     tag: string,
-  }
+  },
 ) {
   const registryLog = logger('registry')
   return {
+    defaultTag: opts.tag,
+    log: Object.assign({}, registryLog, {
+      http: registryLog.debug.bind(null, 'http'),
+      verbose: registryLog.debug.bind(null, 'http'),
+    }),
     proxy: {
       http: opts.proxy,
       https: opts.httpsProxy,
-      localAddress: opts.localAddress
-    },
-    ssl: {
-      certificate: opts.cert,
-      key: opts.key,
-      ca: opts.ca,
-      strict: opts.strictSsl
+      localAddress: opts.localAddress,
     },
     retry: {
       count: opts.fetchRetries,
       factor: opts.fetchRetryFactor,
+      maxTimeout: opts.fetchRetryMaxtimeout,
       minTimeout: opts.fetchRetryMintimeout,
-      maxTimeout: opts.fetchRetryMaxtimeout
+    },
+    ssl: {
+      ca: opts.ca,
+      certificate: opts.cert,
+      key: opts.key,
+      strict: opts.strictSsl,
     },
     userAgent: opts.userAgent,
-    log: Object.assign({}, registryLog, {
-      verbose: registryLog.debug.bind(null, 'http'),
-      http: registryLog.debug.bind(null, 'http'),
-    }),
-    defaultTag: opts.tag
   }
 }

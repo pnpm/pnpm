@@ -14,15 +14,11 @@
     "module": "commonjs",
     "moduleResolution": "node"
   },
-  "filesGlob": [
+  "includes": [
     "src/**/*.ts",
     "typings/**/*.d.ts"
   ],
   "atom": {
     "rewriteTsconfig": true
-  },
-  "files": [
-    "src/index.ts",
-    "typings/index.d.ts"
-  ]
+  }
 }

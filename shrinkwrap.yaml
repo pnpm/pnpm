@@ -12,6 +12,7 @@ devDependencies:
   pnpm-logger: 0.6.2
   tape: 4.8.0
   ts-node: 3.3.0
+  tslint: 5.8.0
   typescript: 2.5.3
 packages:
   /@pnpm/exec/1.0.2:
@@ -659,6 +660,10 @@ packages:
     dev: true
     resolution:
       integrity: sha1-EoGcZPr5VEbsCuB/5sr7brNwiyI=
+  /commander/2.11.0:
+    dev: true
+    resolution:
+      integrity: sha512-b0553uYA5YAEGgyYIGYROzKQ7X5RAqedkfjiZxwi0kL1g3bOaBNNZfYkzt/CL0umgD5wc9Jec2FbB98CjkMRvQ==
   /concat-map/0.0.1:
     resolution:
       integrity: sha1-2Klr13/Wjfd5OnMDajug1UBdR3s=
@@ -2906,6 +2911,12 @@ packages:
     dev: true
     resolution:
       integrity: sha512-aW7sVKPufyHqOmyyLzg/J+8606v5nevBgaliIlV7nUpVMsDnoBGV/cbSLNjZAg9q0Cfd/+easKVKQ8vOu8fn1Q==
+  /resolve/1.5.0:
+    dependencies:
+      path-parse: 1.0.5
+    dev: true
+    resolution:
+      integrity: sha512-hgoSGrc3pjzAPHNBg+KnFcK2HwlHTs/YrAGUr6qgTVUZmXv1UEXXl0bZNBKMA9fud6lRYFdPGz0xXxycPzmmiw==
   /resumer/0.0.0:
     dependencies:
       through: 2.3.8
@@ -3397,6 +3408,38 @@ packages:
     dev: true
     resolution:
       integrity: sha1-aw6DdgA9evGGT434+J3QBZ/80DI=
+  /tslib/1.8.0:
+    dev: true
+    resolution:
+      integrity: sha512-ymKWWZJST0/CkgduC2qkzjMOWr4bouhuURNXCn/inEX0L57BnRG6FhX76o7FOnsjHazCjfU2LKeSrlS2sIKQJg==
+  /tslint/5.8.0:
+    dependencies:
+      babel-code-frame: 6.26.0
+      builtin-modules: 1.1.1
+      chalk: 2.3.0
+      commander: 2.11.0
+      diff: 3.4.0
+      glob: 7.1.2
+      minimatch: 3.0.4
+      resolve: 1.5.0
+      semver: 5.4.1
+      tslib: 1.8.0
+      tsutils: 2.12.1
+    dev: true
+    engines:
+      node: '>=4.1.2'
+    peerDependencies:
+      typescript: '>=2.1.0 || >=2.1.0-dev || >=2.2.0-dev || >=2.3.0-dev || >=2.4.0-dev || >=2.5.0-dev || >=2.6.0-dev || >=2.7.0-dev'
+    resolution:
+      integrity: sha1-H0mtWy53x2w69N3K5VKuTjYS6xM=
+  /tsutils/2.12.1:
+    dependencies:
+      tslib: 1.8.0
+    dev: true
+    peerDependencies:
+      typescript: '>=2.1.0 || >=2.1.0-dev || >=2.2.0-dev || >=2.3.0-dev || >= 2.4.0-dev || >= 2.5.0-dev || >= 2.6.0-dev || >= 2.7.0-dev'
+    resolution:
+      integrity: sha1-9Nlc4zkciXHkblTEzw7bCiHdWyQ=
   /tunnel-agent/0.6.0:
     dependencies:
       safe-buffer: 5.1.1
@@ -3640,4 +3683,5 @@ specifiers:
   pnpm-shrinkwrap: ^4.0.0
   tape: ^4.8.0
   ts-node: ^3.3.0
+  tslint: ^5.8.0
   typescript: ^2.5.2
