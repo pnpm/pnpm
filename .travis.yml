@@ -3,17 +3,12 @@ node_js:
   - 4
   - 6
   - 8
-
 sudo: false
 before_install:
-  - npm install -g pnpm
+  - curl -L https://unpkg.com/@pnpm/self-installer | node
 install:
   - pnpm install
-  - cd test
-  - pnpm install
-  - cd ..
 script:
-  - cd test
   - npm test
 env:
   global:

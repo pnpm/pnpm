@@ -8,8 +8,7 @@
     "lib"
   ],
   "scripts": {
-    "prepare": "cd test && pnpm install",
-    "test": "cd test && npm test",
+    "test": "ts-node test",
     "prepublishOnly": "tsc",
     "tsc": "tsc",
     "md": "mos"
@@ -44,9 +43,13 @@
     "pnpm-shrinkwrap": "^4.0.0"
   },
   "devDependencies": {
+    "@types/tape": "^4.2.31",
     "mos": "^2.0.0-alpha.3",
     "mos-plugin-readme": "^1.0.4",
+    "package-preview": "^0.1.2",
     "pnpm-logger": "^0.6.1",
+    "tape": "^4.8.0",
+    "ts-node": "^3.3.0",
     "typescript": "^2.5.2"
   },
   "mos": {
