@@ -8,22 +8,21 @@ import {
   execPnpm,
 } from './utils'
 import thenify = require('thenify')
-import pnpmCli = require('../src/bin/pnpm')
 import path = require('path')
 import isWindows = require('is-windows')
 import exists = require('path-exists')
 
 test('uninstall package and remove from appropriate property', async function (t: tape.Test) {
   const project = prepare(t)
-  await pnpmCli(['install', '--save-optional', 'is-positive@3.1.0'])
+  await execPnpm('install', '--save-optional', 'is-positive@3.1.0')
 
   // testing the CLI directly as there was an issue where `npm.config` started to set save = true by default
   // npm@5 introduced --save-prod that bahaves the way --save worked in pre 5 versions
-  await pnpmCli(['uninstall', 'is-positive'])
+  await execPnpm('uninstall', 'is-positive')
 
   await project.storeHas('is-positive', '3.1.0')
 
-  await pnpmCli(['store', 'prune'])
+  await execPnpm('store', 'prune')
 
   await project.storeHasNot('is-positive', '3.1.0')
 

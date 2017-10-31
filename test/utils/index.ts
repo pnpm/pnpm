@@ -13,5 +13,3 @@ export {
   isExecutable,
   addDistTag,
 }
-
-export * from './localPkg'

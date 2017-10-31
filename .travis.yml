@@ -12,6 +12,7 @@ before_install:
   - pnpm i -g pnpm@next
   - pnpm -v
 install:
+  - pnpm i --prefix .scripts/self-installer
   - pnpm i
 script:
   - /bin/bash lint-commits.sh

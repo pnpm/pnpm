@@ -24,10 +24,6 @@ export function tempDir (t: Test) {
 
   process.chdir(tmpDir)
 
-  process.env.NPM_CONFIG_REGISTRY = 'http://localhost:4873/'
-  process.env.NPM_CONFIG_STORE = path.join(tmpDir, 'store')
-  process.env.NPM_CONFIG_SILENT = 'true'
-
   return tmpDir
 }
 

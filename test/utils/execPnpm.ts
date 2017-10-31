@@ -1,16 +1,14 @@
 import path = require('path')
 import crossSpawn = require('cross-spawn')
-import loadJsonFile = require('load-json-file')
-
-const pkgRoot = path.join(__dirname, '..', '..')
-const pnpmPkg = loadJsonFile.sync(path.join(pkgRoot, 'package.json'))
-const pnpmBin = path.join(pkgRoot, pnpmPkg.bin.pnpm)
 
 export default function (...args: string[]): Promise<void>
 export default async function () {
   const args = Array.prototype.slice.call(arguments)
   await new Promise((resolve, reject) => {
-    const proc = crossSpawn.spawn('node', [pnpmBin].concat(args), {stdio: 'inherit'})
+    const proc = crossSpawn.spawn('pnpm', args, {
+      env: createEnv(),
+      stdio: 'inherit',
+    })
 
     proc.on('error', reject)
 
@@ -30,5 +28,16 @@ export type ChildProcess = {
 export function sync (...args: string[]): ChildProcess
 export function sync (): ChildProcess {
   const args = Array.prototype.slice.call(arguments)
-  return crossSpawn.sync('node', [pnpmBin].concat(args))
+  return crossSpawn.sync('pnpm', args, {
+    env: createEnv(),
+  })
+}
+
+function createEnv () {
+  const _ = Object.assign({}, process.env, {
+    npm_config_registry: 'http://localhost:4873/',
+    npm_config_store: '../store',
+    npm_config_silent: 'true',
+  })
+  return _
 }
