@@ -14,34 +14,11 @@
     "module": "commonjs",
     "moduleResolution": "node"
   },
-  "filesGlob": [
+  "include": [
     "src/**/*.ts",
     "typings/**/*.d.ts"
   ],
   "atom": {
     "rewriteTsconfig": true
-  },
-  "files": [
-    "src/bin/pnpm.ts",
-    "src/bin/pnpx.ts",
-    "src/cmd/install.ts",
-    "src/cmd/installTest.ts",
-    "src/cmd/link.ts",
-    "src/cmd/prune.ts",
-    "src/cmd/run.ts",
-    "src/cmd/runNpm.ts",
-    "src/cmd/store.ts",
-    "src/cmd/uninstall.ts",
-    "src/cmd/update.ts",
-    "src/err.ts",
-    "src/errorTypes.ts",
-    "src/logging/fileLogger.ts",
-    "src/pnpmPkgJson.ts",
-    "src/reporter/index.ts",
-    "src/reporter/silentReporter.ts",
-    "src/runScript.ts",
-    "typings/index.d.ts",
-    "typings/local.d.ts",
-    "typings/tape-promise.d.ts"
-  ]
+  }
 }
