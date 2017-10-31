@@ -14,7 +14,7 @@
     "module": "commonjs",
     "moduleResolution": "node"
   },
-  "includes": [
+  "include": [
     "src/**/*.ts",
     "typings/**/*.d.ts"
   ],
