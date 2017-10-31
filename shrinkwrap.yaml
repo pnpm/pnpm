@@ -13,7 +13,7 @@ devDependencies:
   tape: 4.8.0
   ts-node: 3.3.0
   tslint: 5.8.0
-  typescript: 2.5.3
+  typescript: 2.6.1
 packages:
   /@pnpm/exec/1.0.2:
     dependencies:
@@ -3455,12 +3455,12 @@ packages:
     dev: false
     resolution:
       integrity: sha1-hnrHTjhkGHsdPUfZlqeOxciDB3c=
-  /typescript/2.5.3:
+  /typescript/2.6.1:
     dev: true
     engines:
       node: '>=4.2.0'
     resolution:
-      integrity: sha512-ptLSQs2S4QuS6/OD1eAKG+S5G8QQtrU5RT32JULdZQtM1L3WTi34Wsu48Yndzi8xsObRAB9RPt/KhA9wlpEF6w==
+      integrity: sha1-7znN6ierrAtQAkLWcmq5DgyEZjE=
   /unbzip2-stream/1.2.5:
     dependencies:
       buffer: 3.6.0
@@ -3684,4 +3684,4 @@ specifiers:
   tape: ^4.8.0
   ts-node: ^3.3.0
   tslint: ^5.8.0
-  typescript: ^2.5.2
+  typescript: ^2.6.1
