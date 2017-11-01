@@ -8,8 +8,7 @@
     "lib"
   ],
   "scripts": {
-    "prepare": "cd test && pnpm install",
-    "test": "cd test && npm test",
+    "test": "ts-node test | tap-diff",
     "prepublishOnly": "tsc",
     "tsc": "tsc",
     "md": "tsc && mos"
@@ -50,9 +49,15 @@
     "thenify": "^3.3.0"
   },
   "devDependencies": {
+    "@types/common-tags": "^1.2.5",
+    "@types/tape": "^4.2.30",
+    "@zkochan/tap-diff": "^1.1.1",
+    "common-tags": "^1.4.0",
     "mos": "^2.0.0-alpha.3",
     "mos-plugin-readme": "^1.0.4",
     "pnpm-logger": "^0.6.2",
+    "tape": "^4.7.0",
+    "ts-node": "^3.3.0",
     "typescript": "^2.5.3"
   },
   "mos": {
