@@ -1,5 +1,6 @@
 dependencies:
   '@types/node': 8.0.47
+  dependency-path: 1.2.0
   npm-package-arg: 6.0.0
   npm-registry-client: 8.5.0
   package-store: 0.4.2
@@ -3673,6 +3674,7 @@ shrinkwrapVersion: 3
 specifiers:
   '@types/node': ^8.0.33
   '@types/tape': ^4.2.31
+  dependency-path: ^1.2.0
   mos: ^2.0.0-alpha.3
   mos-plugin-readme: ^1.0.4
   npm-package-arg: ^6.0.0

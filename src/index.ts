@@ -1,3 +1,4 @@
+import * as dp from 'dependency-path'
 import npa = require('npm-package-arg')
 import RegClient = require('npm-registry-client')
 import {
@@ -16,7 +17,7 @@ export interface OutdatedPackage {
   packageName: string,
   current?: string, // not defined means the package is not installed
   wanted: string,
-  latest: string,
+  latest?: string,
 }
 
 const depTypes = ['dependencies', 'devDependencies', 'optionalDependencies']
@@ -132,6 +133,28 @@ async function _outdated (
 
       await Promise.all(
         pkgs.map(async (packageName) => {
+          const ref = wantedShrinkwrap[depType][packageName]
+          const relativeDepPath = dp.refToRelative(ref, packageName)
+          const pkgSnapshot = wantedShrinkwrap.packages && wantedShrinkwrap.packages[relativeDepPath]
+
+          if (!pkgSnapshot) {
+            throw new Error(`Invalid shrinkwrap.yaml file. ${relativeDepPath} not found in packages field`)
+          }
+
+          // It might be not the best solution to check for pkgSnapshot.name
+          // TODO: add some other field to distinct packages not from the registry
+          if (pkgSnapshot.resolution && (pkgSnapshot.resolution['type'] || pkgSnapshot.name)) { // tslint:disable-line:no-string-literal
+            if (currentShrinkwrap[depType][packageName] !== wantedShrinkwrap[depType][packageName]) {
+              outdated.push({
+                current: currentShrinkwrap[depType][packageName],
+                latest: undefined,
+                packageName,
+                wanted: wantedShrinkwrap[depType][packageName],
+              })
+            }
+            return
+          }
+
           const resolution = await resolve(npa.resolve(packageName, 'latest'), {
             downloadPriority: 0,
             got,

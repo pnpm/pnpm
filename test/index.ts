@@ -34,6 +34,18 @@ test('outdated()', async (t) => {
   const outdatedPkgs = await outdated('wanted-shrinkwrap', outdatedOpts)
   t.deepEqual(outdatedPkgs, [
     {
+      current: 'github.com/blabla/from-github/d5f8d5500f7faf593d32e134c1b0043ff69151b4',
+      latest: undefined,
+      packageName: 'from-github',
+      wanted: 'github.com/blabla/from-github/d5f8d5500f7faf593d32e134c1b0043ff69151b3',
+    },
+    {
+      current: undefined,
+      latest: undefined,
+      packageName: 'from-github-2',
+      wanted: 'github.com/blabla/from-github-2/d5f8d5500f7faf593d32e134c1b0043ff69151b3',
+    },
+    {
       current: '1.0.0',
       latest: '2.1.0',
       packageName: 'is-negative',
