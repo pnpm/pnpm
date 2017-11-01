@@ -14,17 +14,11 @@
     "module": "commonjs",
     "moduleResolution": "node"
   },
-  "filesGlob": [
+  "include": [
     "src/**/*.ts",
     "typings/**/*.d.ts"
   ],
   "atom": {
     "rewriteTsconfig": true
-  },
-  "files": [
-    "src/bin/pnpm-default-reporter.ts",
-    "src/index.ts",
-    "typings/index.d.ts",
-    "typings/local.d.ts"
-  ]
+  }
 }
