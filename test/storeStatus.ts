@@ -2,7 +2,7 @@ import tape = require('tape')
 import promisifyTape from 'tape-promise'
 import rimraf = require('rimraf-then')
 import {prepare, testDefaults} from './utils'
-import {storeStatus, installPkgs} from '../src'
+import {storeStatus, installPkgs} from 'supi'
 
 const test = promisifyTape(tape)
 

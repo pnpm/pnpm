@@ -18,7 +18,7 @@ import {
 } from '../utils'
 import loadJsonFile = require('load-json-file')
 const basicPackageJson = loadJsonFile.sync(path.join(__dirname, '../utils/simple-package.json'))
-import {install, installPkgs, uninstall} from '../../src'
+import {install, installPkgs, uninstall} from 'supi'
 import exists = require('path-exists')
 import isWindows = require('is-windows')
 import deepRequireCwd = require('deep-require-cwd')

@@ -1,6 +1,6 @@
 import tape = require('tape')
 import promisifyTape from 'tape-promise'
-import {installPkgs} from '../../src'
+import {installPkgs} from 'supi'
 import {prepare, testDefaults} from '../utils'
 
 const test = promisifyTape(tape)

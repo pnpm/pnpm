@@ -1,4 +1,4 @@
-import {installPkgs, install} from '../src'
+import {installPkgs, install} from 'supi'
 import {prepare, addDistTag, testDefaults} from './utils'
 import tape = require('tape')
 import promisifyTape from 'tape-promise'

@@ -1,7 +1,7 @@
 import tape = require('tape')
 import promisifyTape from 'tape-promise'
 import {prepare, testDefaults} from '../utils'
-import {installPkgs} from '../../src'
+import {installPkgs} from 'supi'
 import sinon = require('sinon')
 import {DeprecationLog} from 'pnpm-logger'
 const test = promisifyTape(tape)

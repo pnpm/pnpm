@@ -5,7 +5,7 @@ import readPkg = require('read-pkg')
 import ncpCB = require('ncp')
 import thenify = require('thenify')
 import path = require('path')
-import {install, installPkgs} from '../../src'
+import {install, installPkgs} from 'supi'
 import {
   prepare,
   testDefaults,

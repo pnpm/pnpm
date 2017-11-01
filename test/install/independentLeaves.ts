@@ -5,7 +5,7 @@ import {
   prepare,
   testDefaults,
 } from '../utils'
-import {installPkgs} from '../../src'
+import {installPkgs} from 'supi'
 
 const test = promisifyTape(tape)
 

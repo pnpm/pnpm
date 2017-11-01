@@ -4,7 +4,7 @@ import path = require('path')
 import rimraf = require('rimraf-then')
 import {prepare, testDefaults} from '../utils'
 import writeJsonFile = require('write-json-file')
-import {install, installPkgs} from '../../src'
+import {install, installPkgs} from 'supi'
 
 const test = promisifyTape(tape)
 

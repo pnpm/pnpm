@@ -95,6 +95,7 @@
     "mkdirp": "^0.5.1",
     "npm-run-all": "^4.0.1",
     "npm-scripts-info": "^0.3.6",
+    "package-preview": "^0.1.2",
     "pnpm-logger": "^0.6.2",
     "pnpm-registry-mock": "^1.10.0",
     "read-pkg": "^2.0.0",
@@ -153,7 +154,7 @@
     "test:tap": "ts-node test",
     "test:e2e": "npm-run-all -p -r pnpm-registry-mock test:tap",
     "pretest": "rimraf ../.tmp/ && pnpm-registry-mock prepare",
-    "test": "npm run tsc && npm run lint && npm run test:e2e",
+    "test": "npm run tsc && npm run lint && preview && npm run test:e2e",
     "tsc": "rimraf lib && tsc",
     "prepublishOnly": "npm run tsc"
   },

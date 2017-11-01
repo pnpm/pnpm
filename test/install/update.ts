@@ -5,7 +5,7 @@ import {
   addDistTag,
   testDefaults,
 } from '../utils'
-import {install, installPkgs} from '../../src'
+import {install, installPkgs} from 'supi'
 
 const test = promisifyTape(tape)
 

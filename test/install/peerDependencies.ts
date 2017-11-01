@@ -2,7 +2,7 @@ import tape = require('tape')
 import promisifyTape from 'tape-promise'
 import path = require('path')
 import exists = require('path-exists')
-import {installPkgs, install} from '../../src'
+import {installPkgs, install} from 'supi'
 import {
   prepare,
   testDefaults,

@@ -17,7 +17,7 @@ import {
   linkToGlobal,
   linkFromGlobal,
   installPkgs,
-} from '../src'
+} from 'supi'
 import exists = require('path-exists')
 
 test('relative link', async function (t) {

@@ -4,7 +4,7 @@ import promisifyTape from 'tape-promise'
 import writeYamlFile = require('write-yaml-file')
 import exists = require('path-exists')
 import {prepare, testDefaults, addDistTag} from './utils'
-import {installPkgs, install} from '../src'
+import {installPkgs, install} from 'supi'
 import loadJsonFile = require('load-json-file')
 import writePkg = require('write-pkg')
 import rimraf = require('rimraf-then')

@@ -2,7 +2,7 @@ import tape = require('tape')
 import promisifyTape from 'tape-promise'
 import isCI = require('is-ci')
 import readPkg = require('read-pkg')
-import {installPkgs} from '../../src'
+import {installPkgs} from 'supi'
 import {
   prepare,
   testDefaults,

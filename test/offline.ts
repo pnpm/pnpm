@@ -5,7 +5,7 @@ import {
   testDefaults,
 } from './utils'
 import rimraf = require('rimraf-then')
-import {installPkgs, install} from '../src'
+import {installPkgs, install} from 'supi'
 
 const test = promisifyTape(tape)
 

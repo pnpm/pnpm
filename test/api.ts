@@ -1,5 +1,5 @@
 import test = require('tape')
-import * as pnpm from '../src'
+import * as pnpm from 'supi'
 
 test('API', t => {
   t.equal(typeof pnpm.install, 'function', 'exports install()')

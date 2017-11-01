@@ -4,7 +4,7 @@ import promisifyTape from 'tape-promise'
 import loadYamlFile = require('load-yaml-file')
 import exists = require('path-exists')
 import deepRequireCwd = require('deep-require-cwd')
-import {install, installPkgs} from '../../src'
+import {install, installPkgs} from 'supi'
 import {
   prepare,
   addDistTag,

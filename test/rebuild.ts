@@ -10,7 +10,7 @@ import {
   rebuild,
   rebuildPkgs,
   installPkgs,
-} from '../src'
+} from 'supi'
 
 const test = promisifyTape(tape)
 

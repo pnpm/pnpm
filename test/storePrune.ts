@@ -6,7 +6,7 @@ import {
   storePrune,
   installPkgs,
   uninstall,
-} from '../src'
+} from 'supi'
 import sinon = require('sinon')
 import exists = require('path-exists')
 import R = require('ramda')

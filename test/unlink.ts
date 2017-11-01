@@ -12,7 +12,7 @@ import {
   unlinkPkgs,
   unlink,
   installPkgs,
-} from '../src'
+} from 'supi'
 import isInnerLink = require('is-inner-link')
 import path = require('path')
 import exists = require('path-exists')

@@ -18,7 +18,7 @@ import {
   uninstall,
   link,
   storePrune,
-} from '../src'
+} from 'supi'
 import thenify = require('thenify')
 import sinon = require('sinon')
 import {RootLog} from 'pnpm-logger'

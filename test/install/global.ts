@@ -3,7 +3,7 @@ import promisifyTape from 'tape-promise'
 import path = require('path')
 import readPkg = require('read-pkg')
 import {prepare, testDefaults, addDistTag} from '../utils'
-import {installPkgs} from '../../src'
+import {installPkgs} from 'supi'
 
 const test = promisifyTape(tape)
 

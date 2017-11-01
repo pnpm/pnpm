@@ -5,7 +5,7 @@ import mkdirp = require('mkdirp-promise')
 import path = require('path')
 import isCI = require('is-ci')
 import {prepare, testDefaults} from './utils'
-import {installPkgs, install} from '../src'
+import {installPkgs, install} from 'supi'
 
 const test = promisifyTape(tape)
 

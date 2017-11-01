@@ -5,7 +5,7 @@ import {
   prepare,
   testDefaults,
 } from '../utils'
-import {installPkgs, install} from '../../src'
+import {installPkgs, install} from 'supi'
 import registryMock = require('pnpm-registry-mock')
 import RegClient = require('anonymous-npm-registry-client')
 import rimraf = require('rimraf-then')
