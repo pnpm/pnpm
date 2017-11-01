@@ -1,5 +1,5 @@
 dependencies:
-  '@pnpm/outdated': 0.0.2
+  '@pnpm/outdated': 0.1.0
   '@zkochan/libnpx': 9.6.1
   byline: 5.0.0
   camelcase: 4.1.0
@@ -155,9 +155,10 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha512-BjVjPYfTXNBF75WFyOJRPNw6BLutvgx6lvShzGGTreEAde/sND0DAAeyr+t3Wc9YuFKZ7DG84b97H5of8JiMmw==
-  /@pnpm/outdated/0.0.2:
+  /@pnpm/outdated/0.1.0:
     dependencies:
       '@types/node': 8.0.47
+      dependency-path: 1.2.0
       npm-package-arg: 6.0.0
       npm-registry-client: 8.5.0
       package-store: 0.4.2
@@ -166,7 +167,7 @@ packages:
     peerDependencies:
       pnpm-logger: ^0.6.1
     resolution:
-      integrity: sha512-sRkBuIY/idCo7/bawiah3Rq4xkKta3XSqiemas9T7Ya7qaLCYOboXOWKdsh/Wa4oto0200qTFzFNf9/SE+1J6g==
+      integrity: sha512-JC7TZhHchVluj5icnA5JxE7uDXDlXbm/QP1P+egCFpALQc6d3/7BqCpmTvcxdP88wx4If2Iw9zU01ywYV3dwbA==
   /@types/archy/0.0.31:
     dev: false
     resolution:
@@ -5735,7 +5736,7 @@ specifiers:
   '@commitlint/cli': ^4.0.0
   '@commitlint/config-angular': ^4.2.0
   '@commitlint/prompt-cli': ^4.0.0
-  '@pnpm/outdated': ^0.0.2
+  '@pnpm/outdated': ^0.1.0
   '@types/byline': ^4.2.31
   '@types/common-tags': ^1.2.5
   '@types/load-json-file': ^2.0.6

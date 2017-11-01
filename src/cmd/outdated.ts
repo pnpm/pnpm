@@ -59,7 +59,7 @@ export default async function (
         chalk.yellow(outdatedPkg.packageName),
         outdatedPkg.current || 'missing',
         chalk.green(outdatedPkg.wanted),
-        chalk.magenta(outdatedPkg.latest),
+        chalk.magenta(outdatedPkg.latest || ''),
       ]),
     ), {
       stringLength: (s: string) => stripColor(s).length,
