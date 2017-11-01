@@ -1,5 +1,5 @@
 import test = require('tape')
-import list, {forPackages as listForPackages} from '../src'
+import list, {forPackages as listForPackages} from 'pnpm-list'
 import path = require('path')
 import {stripIndent} from 'common-tags'
 import chalk from 'chalk'
