@@ -9,9 +9,9 @@
   ],
   "bin": "lib/bin/pnpm-default-reporter.js",
   "scripts": {
-    "prepare": "cd test && pnpm install",
     "lint": "tslint -c tslint.json --project .",
-    "test": "npm run lint && cd test && npm t",
+    "pretty-test": "ts-node test | tap-diff",
+    "test": "npm run lint && ts-node test",
     "tsc": "rimraf lib && tsc",
     "prepublishOnly": "npm run tsc"
   },
@@ -53,10 +53,15 @@
     "xstream": "^11.0.0"
   },
   "devDependencies": {
+    "@types/tape": "^4.2.30",
     "commitizen": "^2.9.5",
     "ghooks": "^2.0.0",
+    "mos-tap-diff": "^1.0.0",
+    "normalize-newline": "^3.0.0",
     "pnpm-logger": "^0.6.2",
     "rimraf": "^2.5.4",
+    "tape": "^4.8.0",
+    "ts-node": "^3.3.0",
     "tslint": "^5.7.0",
     "typescript": "^2.1.5",
     "validate-commit-msg": "^2.8.2"
