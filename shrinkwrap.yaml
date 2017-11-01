@@ -7,7 +7,7 @@ dependencies:
   '@types/nopt': 3.0.29
   '@types/npm': 2.0.29
   '@types/p-series': 1.0.0
-  '@types/ramda': 0.24.18
+  '@types/ramda': 0.25.0
   '@types/rc': 0.0.1
   '@types/semver': 5.4.0
   '@types/update-notifier': 1.0.2
@@ -66,7 +66,7 @@ devDependencies:
   pnpm-logger: 0.6.2
   rimraf: 2.6.2
   tslint: 5.8.0
-  typescript: 2.5.3
+  typescript: 2.6.1
 packages:
   /@commitlint/cli/4.2.2:
     dependencies:
@@ -187,6 +187,10 @@ packages:
   /@types/ramda/0.24.18:
     resolution:
       integrity: sha512-37umDB+zS6tK+3j0YJxsl7O8T4aYHYO6s1UpADJ/nxMHFjmuSd5XRQryC4IXX3HQ4XzstqAqhk/D+cdxwvqtEQ==
+  /@types/ramda/0.25.0:
+    dev: false
+    resolution:
+      integrity: sha512-5IdrohP5RJe1kbMnJ4MvQFfwA1Iqyme1b4/5mIzDiVDrR0L/AuhozrxaUGXpZRHWvJkTHQCf9yNSr+CaLM+QdA==
   /@types/rc/0.0.1:
     resolution:
       integrity: sha1-H1uKGzsaxtH+4TfFP6xfoPKK4Nc=
@@ -2486,12 +2490,12 @@ packages:
   /typedarray/0.0.6:
     resolution:
       integrity: sha1-hnrHTjhkGHsdPUfZlqeOxciDB3c=
-  /typescript/2.5.3:
+  /typescript/2.6.1:
     dev: true
     engines:
       node: '>=4.2.0'
     resolution:
-      integrity: sha512-ptLSQs2S4QuS6/OD1eAKG+S5G8QQtrU5RT32JULdZQtM1L3WTi34Wsu48Yndzi8xsObRAB9RPt/KhA9wlpEF6w==
+      integrity: sha1-7znN6ierrAtQAkLWcmq5DgyEZjE=
   /uid-number/0.0.6:
     resolution:
       integrity: sha1-DqEOgDXo61uOREnwbaHHMGY7qoE=
@@ -2662,7 +2666,7 @@ specifiers:
   '@types/nopt': ^3.0.29
   '@types/npm': ^2.0.28
   '@types/p-series': ^1.0.0
-  '@types/ramda': ^0.24.11
+  '@types/ramda': ^0.25.0
   '@types/rc': ^0.0.1
   '@types/semver': ^5.3.30
   '@types/update-notifier': ^1.0.0
@@ -2715,6 +2719,6 @@ specifiers:
   symlink-dir: ^1.1.0
   thenify: ^3.3.0
   tslint: ^5.4.2
-  typescript: ^2.4.1
+  typescript: ^2.6.1
   write-pkg: ^3.1.0
   write-yaml-file: ^1.0.0

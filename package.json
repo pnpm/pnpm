@@ -27,7 +27,7 @@
     "@types/nopt": "^3.0.29",
     "@types/npm": "^2.0.28",
     "@types/p-series": "^1.0.0",
-    "@types/ramda": "^0.24.11",
+    "@types/ramda": "^0.25.0",
     "@types/rc": "^0.0.1",
     "@types/semver": "^5.3.30",
     "@types/update-notifier": "^1.0.0",
@@ -87,7 +87,7 @@
     "pnpm-logger": "^0.6.2",
     "rimraf": "^2.6.2",
     "tslint": "^5.4.2",
-    "typescript": "^2.4.1"
+    "typescript": "^2.6.1"
   },
   "directories": {
     "test": "test"
