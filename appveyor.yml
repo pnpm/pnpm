@@ -10,9 +10,8 @@ install:
   # Testing whether pnpm can upgrade itself
   - pnpm i -g pnpm@next
   - pnpm -v
-  - pnpm install
   - pnpm install --prefix .scripts/self-installer
-  - pnpm install --prefix test
+  - pnpm install
 matrix:
   fast_finish: true
 build: off

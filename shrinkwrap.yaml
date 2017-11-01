@@ -33,7 +33,7 @@ devDependencies:
   '@types/mz': 0.0.31
   '@types/node': 8.0.47
   '@types/nopt': 3.0.29
-  '@types/ramda': 0.24.18
+  '@types/ramda': 0.25.0
   '@types/semver': 5.4.0
   '@types/tape': 4.2.31
   '@types/update-notifier': 1.0.2
@@ -65,7 +65,7 @@ devDependencies:
   thenify: 3.3.0
   ts-node: 3.3.0
   tslint: 5.8.0
-  typescript: 2.5.3
+  typescript: 2.6.1
   write-pkg: 3.1.0
 packages:
   /@commitlint/cli/4.2.2:
@@ -239,8 +239,13 @@ packages:
     resolution:
       integrity: sha512-RcraK0229RAIJERTfgoCY/eSbxFEkPlj/TbUUb6aGSS9UfLj1THpt2Uj4uuCJsQrYRQUQB8tFlv7eTTWzE4QjQ==
   /@types/ramda/0.24.18:
+    dev: false
     resolution:
       integrity: sha512-37umDB+zS6tK+3j0YJxsl7O8T4aYHYO6s1UpADJ/nxMHFjmuSd5XRQryC4IXX3HQ4XzstqAqhk/D+cdxwvqtEQ==
+  /@types/ramda/0.25.0:
+    dev: true
+    resolution:
+      integrity: sha512-5IdrohP5RJe1kbMnJ4MvQFfwA1Iqyme1b4/5mIzDiVDrR0L/AuhozrxaUGXpZRHWvJkTHQCf9yNSr+CaLM+QdA==
   /@types/rc/0.0.1:
     dev: false
     resolution:
@@ -1882,13 +1887,13 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha512-zmZIaQTWnNQb4R4fJUEp/FC51eZsc6EkErspy3xtIYStaq8EB/hDIWipxsal+E8rz0qD7f2sL/NA9Xee4RInJw==
-  /get-source/1.0.21:
+  /get-source/1.0.22:
     dependencies:
       data-uri-to-buffer: 2.0.0
       source-map: 0.6.1
     dev: false
     resolution:
-      integrity: sha1-XPB9S9tDWZo0qV8fgHuc3qR9l7U=
+      integrity: sha1-M/EiVM8BxL2hcE9cQE0LvadPM/I=
   /get-stdin/4.0.1:
     dev: true
     engines:
@@ -3087,7 +3092,6 @@ packages:
       minimist: 1.2.0
       split2: 2.2.0
       through2: 2.0.3
-    dev: false
     resolution:
       integrity: sha1-rmA7NrE0vOw0e0UkIrC/mNWDLsg=
   /negotiator/0.6.1:
@@ -3291,7 +3295,7 @@ packages:
       uuid: 3.1.0
       validate-npm-package-name: 3.0.0
       which: 1.3.0
-      worker-farm: 1.5.0
+      worker-farm: 1.5.1
       wrappy: 1.0.2
       write-file-atomic: 2.1.0
     dev: false
@@ -3910,7 +3914,7 @@ packages:
       ndjson: 1.5.0
       pretty-bytes: 4.0.2
       ramda: 0.24.1
-      stacktracey: 1.2.78
+      stacktracey: 1.2.83
       xstream: 10.9.0
     dev: false
     peerDependencies:
@@ -4802,13 +4806,13 @@ packages:
       safe-buffer: 5.1.1
     resolution:
       integrity: sha512-WUbCdgSAMQjTFZRWvSPpauryvREEA+Krn19rx67UlJEJx/M192ZHxMmJXjZ4tkdFm+Sb0SXGlENeQVlA5wY7kA==
-  /stacktracey/1.2.78:
+  /stacktracey/1.2.83:
     dependencies:
       as-table: 1.0.31
-      get-source: 1.0.21
+      get-source: 1.0.22
     dev: false
     resolution:
-      integrity: sha1-3UfMioIy27kn3pQqP8Mgww/1TF4=
+      integrity: sha1-KEK/HZQu9y1tf5ffnm+ylv3AjNk=
   /statuses/1.3.1:
     dev: true
     engines:
@@ -4903,7 +4907,6 @@ packages:
   /strip-ansi/4.0.0:
     dependencies:
       ansi-regex: 3.0.0
-    dev: false
     engines:
       node: '>=4'
     resolution:
@@ -5275,12 +5278,12 @@ packages:
   /typedarray/0.0.6:
     resolution:
       integrity: sha1-hnrHTjhkGHsdPUfZlqeOxciDB3c=
-  /typescript/2.5.3:
+  /typescript/2.6.1:
     dev: true
     engines:
       node: '>=4.2.0'
     resolution:
-      integrity: sha512-ptLSQs2S4QuS6/OD1eAKG+S5G8QQtrU5RT32JULdZQtM1L3WTi34Wsu48Yndzi8xsObRAB9RPt/KhA9wlpEF6w==
+      integrity: sha1-7znN6ierrAtQAkLWcmq5DgyEZjE=
   /uglify-js/2.8.29:
     dependencies:
       source-map: 0.5.7
@@ -5577,13 +5580,13 @@ packages:
       node: '>=0.4.0'
     resolution:
       integrity: sha1-o9XabNXAvAAI03I0u68b7WMFkQc=
-  /worker-farm/1.5.0:
+  /worker-farm/1.5.1:
     dependencies:
       errno: 0.1.4
       xtend: 4.0.1
     dev: false
     resolution:
-      integrity: sha512-DHRiUggxtbruaTwnLDm2/BRDKZIoOYvrgYUj5Bam4fU6Gtvc0FaEyoswFPBjMXAweGW2H4BDNIpy//1yXXuaqQ==
+      integrity: sha512-T5NH6Wqsd8MwGD4AK8BBllUy6LmHaqjEOyo/YIUEegZui6/v5Bqde//3jwyE3PGiGYMmWi06exFBi5LNhhPFNw==
   /wrap-ansi/2.1.0:
     dependencies:
       string-width: 1.0.2
@@ -5740,7 +5743,7 @@ specifiers:
   '@types/mz': ^0.0.31
   '@types/node': ^8.0.33
   '@types/nopt': ^3.0.29
-  '@types/ramda': ^0.24.16
+  '@types/ramda': ^0.25.0
   '@types/semver': ^5.3.32
   '@types/tape': ^4.2.30
   '@types/update-notifier': ^1.0.2
