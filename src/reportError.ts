@@ -1,7 +1,7 @@
 import chalk from 'chalk'
-import {Log} from 'pnpm-logger'
 import commonTags = require('common-tags')
 import os = require('os')
+import {Log} from 'pnpm-logger'
 import StackTracey = require('stacktracey')
 
 const stripIndent = commonTags.stripIndent
@@ -10,9 +10,9 @@ const EOL = os.EOL
 const highlight = chalk.yellow
 const colorPath = chalk.gray
 
-export default function reportError (logObj: Log) {
+export default function reportError(logObj: Log) {
   if (logObj['err']) {
-    const err = <Error & { code: string, stack: string }>logObj['err']
+    const err = logObj['err'] as (Error & { code: string, stack: object })
     switch (err.code) {
       case 'UNEXPECTED_STORE':
         return reportUnexpectedStore(err, logObj['message'])
@@ -31,7 +31,7 @@ export default function reportError (logObj: Log) {
   return formatErrorSummary(logObj['message'])
 }
 
-function reportUnexpectedStore (err: Error, msg: Object) {
+function reportUnexpectedStore(err: Error, msg: object) {
   return stripIndent`
     ${formatErrorSummary(err.message)}
 
@@ -42,7 +42,7 @@ function reportUnexpectedStore (err: Error, msg: Object) {
   `
 }
 
-function reportStoreBreakingChange (err: Error, msg: Object) {
+function reportStoreBreakingChange(err: Error, msg: object) {
   let output = stripIndent`
     ${formatErrorSummary(`The store used for the current node_modules is incomatible with the current version of pnpm`)}
     Store path: ${colorPath(msg['storePath'])}
@@ -58,7 +58,7 @@ function reportStoreBreakingChange (err: Error, msg: Object) {
   return output
 }
 
-function reportModulesBreakingChange (err: Error, msg: Object) {
+function reportModulesBreakingChange(err: Error, msg: object) {
   let output = stripIndent`
     ${formatErrorSummary(`The current version of pnpm is not compatible with the available node_modules structure`)}
     node_modules path: ${colorPath(msg['modulesPath'])}
@@ -74,7 +74,7 @@ function reportModulesBreakingChange (err: Error, msg: Object) {
   return output
 }
 
-function formatRelatedSources (msg: Object) {
+function formatRelatedSources(msg: object) {
   let output = ''
 
   if (!msg['relatedIssue'] && !msg['relatedPR']) return output
@@ -92,7 +92,7 @@ function formatRelatedSources (msg: Object) {
   return output
 }
 
-function formatGenericError (errorMessage: string, stack: Object) {
+function formatGenericError(errorMessage: string, stack: object) {
   if (stack) {
     return stripIndents`
       ${formatErrorSummary(errorMessage)}
@@ -102,11 +102,11 @@ function formatGenericError (errorMessage: string, stack: Object) {
   return formatErrorSummary(errorMessage)
 }
 
-function formatErrorSummary (message: string) {
+function formatErrorSummary(message: string) {
   return `${chalk.bgRed.black('\u2009ERROR\u2009')} ${chalk.red(message)}`
 }
 
-function reportModifiedDependency (err: Error, msg: Object) {
+function reportModifiedDependency(err: Error, msg: object) {
   return stripIndent`
     ${formatErrorSummary('Packages in the store have been mutated')}
 
@@ -117,7 +117,7 @@ function reportModifiedDependency (err: Error, msg: Object) {
   `
 }
 
-function reportShrinkwrapBreakingChange (err: Error, msg: Object) {
+function reportShrinkwrapBreakingChange(err: Error, msg: object) {
   return stripIndent`
     ${formatErrorSummary(err.message)}
 

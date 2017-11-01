@@ -1,22 +1,22 @@
-import logUpdate = require('log-update')
 import chalk from 'chalk'
+import {EventEmitter} from 'events'
+import logUpdate = require('log-update')
+import os = require('os')
 import {
-  ProgressLog,
+  DeprecationLog,
+  InstallCheckLog,
   LifecycleLog,
   Log,
-  InstallCheckLog,
-  DeprecationLog,
+  ProgressLog,
   RegistryLog,
 } from 'pnpm-logger'
-import reportError from './reportError'
-import os = require('os')
-import xs, {Stream} from 'xstream'
-import flattenConcurrently from 'xstream/extra/flattenConcurrently'
-import dropRepeats from 'xstream/extra/dropRepeats'
-import fromEvent from 'xstream/extra/fromEvent'
-import R = require('ramda')
-import {EventEmitter} from 'events'
 import prettyBytes = require('pretty-bytes')
+import R = require('ramda')
+import xs, {Stream} from 'xstream'
+import dropRepeats from 'xstream/extra/dropRepeats'
+import flattenConcurrently from 'xstream/extra/flattenConcurrently'
+import fromEvent from 'xstream/extra/fromEvent'
+import reportError from './reportError'
 
 const EOL = os.EOL
 const BIG_TARBALL_SIZE = 1024 * 1024 * 5 // 5 MB
@@ -26,7 +26,7 @@ const removedSign = chalk.red('-')
 const hlValue = chalk.blue
 const hlPkgId = chalk['whiteBright']
 
-type PackageDiff = {
+interface PackageDiff {
   name: string,
   version?: string,
   added: boolean,
@@ -34,45 +34,45 @@ type PackageDiff = {
 }
 
 const propertyByDependencyType = {
-  prod: 'dependencies',
   dev: 'devDependencies',
   optional: 'optionalDependencies',
+  prod: 'dependencies',
 }
 
-export default function (streamParser: Object) {
+export default function(streamParser: object) {
   toOutput$(streamParser)
     .subscribe({
+      complete() {}, // tslint:disable-line:no-empty
+      error: (err) => logUpdate(err.message),
       next: logUpdate,
-      error: err => logUpdate(err.message),
-      complete () {},
     })
 }
 
-export function toOutput$ (streamParser: Object): Stream<string> {
+export function toOutput$(streamParser: object): Stream<string> {
   const obs = fromEvent(streamParser as EventEmitter, 'data')
   const log$ = xs.fromObservable<Log>(obs)
 
   const progressLog$ = log$
-    .filter(log => log.name === 'pnpm:progress') as Stream<ProgressLog>
+    .filter((log) => log.name === 'pnpm:progress') as Stream<ProgressLog>
 
   const resolutionDone$ = log$
-    .filter(log => log.name === 'pnpm:stage' && log.message === 'resolution_done')
+    .filter((log) => log.name === 'pnpm:stage' && log.message === 'resolution_done')
     .mapTo(true)
     .take(1)
     .startWith(false)
 
   const resolvingContentLog$ = progressLog$
-    .filter(log => log.status === 'resolving_content')
+    .filter((log) => log.status === 'resolving_content')
     .fold(R.inc, 0)
     .drop(1)
     .endWhen(resolutionDone$.last())
 
   const fedtchedLog$ = progressLog$
-    .filter(log => log.status === 'fetched')
+    .filter((log) => log.status === 'fetched')
     .fold(R.inc, 0)
 
   const foundInStoreLog$ = progressLog$
-    .filter(log => log.status === 'found_in_store')
+    .filter((log) => log.status === 'found_in_store')
     .fold(R.inc, 0)
 
   const alreadyUpToDate$ = xs.of(
@@ -85,7 +85,7 @@ export function toOutput$ (streamParser: Object): Stream<string> {
       .mapTo({
         fixed: false,
         msg: 'Already up-to-date',
-      })
+      }),
   )
 
   const progressSummaryOutput$ = xs.of(
@@ -93,7 +93,7 @@ export function toOutput$ (streamParser: Object): Stream<string> {
       resolvingContentLog$,
       fedtchedLog$,
       foundInStoreLog$,
-      resolutionDone$
+      resolutionDone$,
     )
     .map(
       R.apply((resolving, fetched, foundInStore: number, resolutionDone) => {
@@ -108,31 +108,31 @@ export function toOutput$ (streamParser: Object): Stream<string> {
           fixed: true,
           msg,
         }
-      })
-    )
+      }),
+    ),
   )
 
   const tarballsProgressOutput$ = progressLog$
-    .filter(log => log.status === 'fetching_started' &&
+    .filter((log) => log.status === 'fetching_started' &&
       typeof log.size === 'number' && log.size >= BIG_TARBALL_SIZE)
-    .map(startedLog => {
+    .map((startedLog) => {
       const size = prettyBytes(startedLog['size'])
       return progressLog$
-        .filter(log => log.status === 'fetching_progress' && log.pkgId === startedLog['pkgId'])
-        .map(log => log['downloaded'])
+        .filter((log) => log.status === 'fetching_progress' && log.pkgId === startedLog['pkgId'])
+        .map((log) => log['downloaded'])
         .startWith(0)
-        .map(downloadedRaw => {
+        .map((downloadedRaw) => {
           const done = startedLog['size'] === downloadedRaw
           const downloaded = prettyBytes(downloadedRaw)
           return {
-            msg: `Downloading ${hlPkgId(startedLog['pkgId'])}: ${hlValue(downloaded)}/${hlValue(size)}${done ? ', done' : ''}`,
             fixed: !done,
+            msg: `Downloading ${hlPkgId(startedLog['pkgId'])}: ${hlValue(downloaded)}/${hlValue(size)}${done ? ', done' : ''}`,
           }
         })
     })
 
   const deprecationLog$ = log$
-    .filter(log => log.name === 'pnpm:deprecation') as Stream<DeprecationLog>
+    .filter((log) => log.name === 'pnpm:deprecation') as Stream<DeprecationLog>
 
   const deprecationSet$ = deprecationLog$
     .fold((acc, log) => {
@@ -140,52 +140,52 @@ export function toOutput$ (streamParser: Object): Stream<string> {
       return acc
     }, new Set())
 
-  const rootLog$ = log$.filter(log => log.name === 'pnpm:root')
+  const rootLog$ = log$.filter((log) => log.name === 'pnpm:root')
 
   const pkgsDiff$ = xs.combine(
     rootLog$,
-    deprecationSet$
+    deprecationSet$,
   )
   .fold((pkgsDiff, args) => {
     const rootLog = args[0]
     const deprecationSet = args[1] as Set<string>
     if (rootLog['added']) {
       pkgsDiff[rootLog['added'].dependencyType].push({
+        added: true,
+        deprecated: deprecationSet.has(rootLog['added'].id),
         name: rootLog['added'].name,
         version: rootLog['added'].version,
-        deprecated: deprecationSet.has(rootLog['added'].id),
-        added: true,
       })
       return pkgsDiff
     }
     if (rootLog['removed']) {
       pkgsDiff[rootLog['removed'].dependencyType].push({
+        added: false,
         name: rootLog['removed'].name,
         version: rootLog['removed'].version,
-        added: false,
       })
       return pkgsDiff
     }
     return pkgsDiff
   }, {
-    prod: [],
     dev: [],
     optional: [],
+    prod: [],
   } as {
-    prod: PackageDiff[],
     dev: PackageDiff[],
+    prod: PackageDiff[],
     optional: PackageDiff[],
   })
 
   const summaryLog$ = log$
-    .filter(log => log.name === 'pnpm:summary')
+    .filter((log) => log.name === 'pnpm:summary')
     .take(1)
 
   const summaryOutput$ = xs.combine(
     pkgsDiff$,
-    summaryLog$
+    summaryLog$,
   )
-  .map(R.apply(pkgsDiff => {
+  .map(R.apply((pkgsDiff) => {
     let msg = ''
     for (const depType of ['prod', 'optional', 'dev']) {
       if (pkgsDiff[depType].length) {
@@ -203,10 +203,10 @@ export function toOutput$ (streamParser: Object): Stream<string> {
 
   const deprecationOutput$ = deprecationLog$
     // print warnings only about deprecated packages from the root
-    .filter(log => log.depth === 0)
-    .map(log => {
+    .filter((log) => log.depth === 0)
+    .map((log) => {
       return {
-        msg: formatWarn(`${chalk.red('deprecated')} ${log.pkgName}@${log.pkgVersion}: ${log.deprecated}`)
+        msg: formatWarn(`${chalk.red('deprecated')} ${log.pkgName}@${log.pkgVersion}: ${log.deprecated}`),
       }
     })
     .map(xs.of)
@@ -214,7 +214,7 @@ export function toOutput$ (streamParser: Object): Stream<string> {
   const lifecycleMessages: {[pkgId: string]: {keep: boolean, output: string}} = {}
   const lifecycleOutput$ = xs.of(
     log$
-      .filter(log => log.name === 'pnpm:lifecycle')
+      .filter((log) => log.name === 'pnpm:lifecycle')
       .map((log: LifecycleLog) => {
         const key = `${log.script}:${log.pkgId}`
         const keep = lifecycleMessages[key] && lifecycleMessages[key].keep || log.level === 'error'
@@ -226,26 +226,26 @@ export function toOutput$ (streamParser: Object): Stream<string> {
           keep,
           output,
         }
-        return R.values(lifecycleMessages).map(lm => lm['output']).join(EOL)
+        return R.values(lifecycleMessages).map((lm) => lm['output']).join(EOL)
       })
-      .map(msg => ({msg}))
+      .map((msg) => ({msg})),
   )
 
   const installCheckOutput$ = log$
-    .filter(log => log.name === 'pnpm:install-check')
+    .filter((log) => log.name === 'pnpm:install-check')
     .map(formatInstallCheck)
     .filter(Boolean)
-    .map(msg => ({msg}))
+    .map((msg) => ({msg}))
     .map(xs.of) as Stream<Stream<{msg: string}>>
 
   const registryOutput$ = log$
-    .filter(log => log.name === 'pnpm:registry' && log.level === 'warn')
+    .filter((log) => log.name === 'pnpm:registry' && log.level === 'warn')
     .map((log: RegistryLog) => ({msg: formatWarn(log.message)}))
     .map(xs.of)
 
   const miscOutput$ = log$
-    .filter(log => log.name === 'pnpm' || (log.name as string) === 'pnpm:link')
-    .map(obj => {
+    .filter((log) => log.name === 'pnpm' || (log.name as string) === 'pnpm:link')
+    .map((obj) => {
       if (obj.level === 'debug') return
       if (obj.level === 'warn') {
         return formatWarn(obj['message'])
@@ -255,7 +255,7 @@ export function toOutput$ (streamParser: Object): Stream<string> {
       }
       return obj['message']
     })
-    .map(msg => ({msg}))
+    .map((msg) => ({msg}))
     .map(xs.of)
 
   let blockNo = 0
@@ -279,7 +279,7 @@ export function toOutput$ (streamParser: Object): Stream<string> {
       let calculated = false
       let fixedCalculated = false
       return log
-        .map(msg => {
+        .map((msg) => {
           if (msg['fixed']) {
             if (!fixedCalculated) {
               fixedCalculated = true
@@ -296,13 +296,13 @@ export function toOutput$ (streamParser: Object): Stream<string> {
             currentBlockNo = blockNo++
           }
           return {
-            prevFixedBlockNo: currentFixedBlockNo,
             blockNo: currentBlockNo,
             fixed: false,
             msg: typeof msg === 'string' ? msg : msg.msg,
+            prevFixedBlockNo: currentFixedBlockNo,
           }
         })
-    })
+    }),
   )
   .fold((acc, log) => {
     if (log.fixed === true) {
@@ -313,7 +313,7 @@ export function toOutput$ (streamParser: Object): Stream<string> {
     }
     return acc
   }, {fixedBlocks: [], blocks: []} as {fixedBlocks: string[], blocks: string[]})
-  .map(sections => {
+  .map((sections) => {
     const fixedBlocks = sections.fixedBlocks.filter(Boolean)
     const nonFixedPart = sections.blocks.filter(Boolean).join(EOL)
     if (!fixedBlocks.length) {
@@ -325,7 +325,7 @@ export function toOutput$ (streamParser: Object): Stream<string> {
     }
     return chalk.dim(nonFixedPart) + EOL + fixedPart
   })
-  .filter(msg => {
+  .filter((msg) => {
     if (started) {
       return true
     }
@@ -336,13 +336,13 @@ export function toOutput$ (streamParser: Object): Stream<string> {
   .compose(dropRepeats())
 }
 
-function printDiffs (pkgsDiff: PackageDiff[]) {
+function printDiffs(pkgsDiff: PackageDiff[]) {
   // Sorts by alphabet then by removed/added
   // + ava 0.10.0
   // - chalk 1.0.0
   // + chalk 2.0.0
   pkgsDiff.sort((a, b) => (a.name.localeCompare(b.name) * 10 + (Number(!b.added) - Number(!a.added))))
-  const msg = pkgsDiff.map(pkg => {
+  const msg = pkgsDiff.map((pkg) => {
     let result = pkg.added ? addedSign : removedSign
     result += ` ${pkg.name}`
     if (pkg.version) {
@@ -356,7 +356,7 @@ function printDiffs (pkgsDiff: PackageDiff[]) {
   return msg
 }
 
-function formatLifecycle (logObj: LifecycleLog) {
+function formatLifecycle(logObj: LifecycleLog) {
   const prefix = `Running ${hlValue(logObj.script)} for ${hlPkgId(logObj.pkgId)}`
   if (logObj['exitCode'] === 0) {
     return `${prefix}, done`
@@ -368,14 +368,14 @@ function formatLifecycle (logObj: LifecycleLog) {
   return `${prefix}: ${line}`
 }
 
-function formatLine (logObj: LifecycleLog) {
+function formatLine(logObj: LifecycleLog) {
   if (typeof logObj['exitCode'] === 'number') return chalk.red(`Exited with ${logObj['exitCode']}`)
 
   const color = logObj.level === 'error' ? chalk.red : chalk.gray
   return color(logObj['line'])
 }
 
-function formatInstallCheck (logObj: InstallCheckLog) {
+function formatInstallCheck(logObj: InstallCheckLog) {
   switch (logObj.code) {
     case 'EBADPLATFORM':
       return formatWarn(`Unsupported system. Skipping dependency ${logObj.pkgId}`)
@@ -386,7 +386,7 @@ function formatInstallCheck (logObj: InstallCheckLog) {
   }
 }
 
-function formatWarn (message: string) {
+function formatWarn(message: string) {
   // The \u2009 is the "thin space" unicode character
   // It is used instead of ' ' because chalk (as of version 2.1.0)
   // trims whitespace at the beginning
