@@ -11,7 +11,7 @@
   "scripts": {
     "lint": "tslint -c tslint.json --project .",
     "pretty-test": "ts-node test | tap-diff",
-    "test": "npm run lint && ts-node test",
+    "test": "npm run lint && npm run tsc && preview && ts-node test",
     "tsc": "rimraf lib && tsc",
     "prepublishOnly": "npm run tsc"
   },
@@ -58,6 +58,7 @@
     "ghooks": "^2.0.0",
     "mos-tap-diff": "^1.0.0",
     "normalize-newline": "^3.0.0",
+    "package-preview": "^0.1.3",
     "pnpm-logger": "^0.6.2",
     "rimraf": "^2.5.4",
     "tape": "^4.8.0",

@@ -9,7 +9,7 @@ import logger, {
   lifecycleLogger,
 } from 'pnpm-logger'
 import normalizeNewline = require('normalize-newline')
-import {toOutput$} from '../src'
+import {toOutput$} from 'pnpm-default-reporter'
 import {stripIndents} from 'common-tags'
 import chalk from 'chalk'
 import xs, {Stream} from 'xstream'
