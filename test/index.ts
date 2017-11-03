@@ -7,6 +7,7 @@ import logger, {
   deprecationLogger,
   summaryLogger,
   lifecycleLogger,
+  manifestLogger,
 } from 'pnpm-logger'
 import normalizeNewline = require('normalize-newline')
 import {toOutput$} from 'pnpm-default-reporter'
@@ -125,6 +126,16 @@ test('prints "Already up-to-date"', t => {
 test('prints summary', t => {
   const output$ = toOutput$(createStreamParser())
 
+  manifestLogger.debug({
+    initial: {
+      dependencies: {
+        'is-13': '^1.0.0',
+      },
+      devDependencies: {
+        'is-negative': '^1.0.0',
+      },
+    },
+  })
   deprecationLogger.warn({
     pkgName: 'bar',
     pkgVersion: '2.0.0',
@@ -177,6 +188,16 @@ test('prints summary', t => {
       name: 'is-positive',
     },
   })
+  manifestLogger.debug({
+    updated: {
+      dependencies: {
+        'is-negative': '^1.0.0',
+      },
+      devDependencies: {
+        'is-13': '^1.0.0',
+      },
+    }
+  })
   summaryLogger.info(undefined)
 
   t.plan(1)
@@ -190,14 +211,18 @@ test('prints summary', t => {
         ${ADD} bar ${versionColor('2.0.0')} ${DEPRECATED}
         ${SUB} foo ${versionColor('0.1.0')}
         ${ADD} foo ${versionColor('1.0.0')}
+        ${SUB} is-13 ${versionColor('^1.0.0')}
+        ${ADD} is-negative ${versionColor('^1.0.0')}
 
         ${h1('optionalDependencies:')}
         ${SUB} is-positive
         ${ADD} lala ${versionColor('1.1.0')}
 
         ${h1('devDependencies:')}
+        ${ADD} is-13 ${versionColor('^1.0.0')}
+        ${SUB} is-negative ${versionColor('^1.0.0')}
         ${ADD} qar ${versionColor('2.0.0')}
-      ` + '\n')
+        ` + '\n')
     },
     complete: t.end,
     error: t.end,

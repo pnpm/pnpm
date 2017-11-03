@@ -17,7 +17,7 @@ devDependencies:
   mos-tap-diff: 1.0.0
   normalize-newline: 3.0.0
   package-preview: 0.1.3
-  pnpm-logger: 0.6.2
+  pnpm-logger: 0.6.3
   rimraf: 2.6.2
   tape: 4.8.0
   ts-node: 3.3.0
@@ -1684,14 +1684,14 @@ packages:
       node: '>=0.10.0'
     resolution:
       integrity: sha1-24XGgU9eXlo7Se/CjWBP7GKXUVY=
-  /pnpm-logger/0.6.2:
+  /pnpm-logger/0.6.3:
     dependencies:
       '@types/node': 8.0.47
       bole: 3.0.2
       ndjson: 1.5.0
     dev: true
     resolution:
-      integrity: sha512-VLlRExib18bl5lSFp74vFHeZV0iWuxTkdOvI7BIhfWpiP9EdrkAq/GnjE5pxjXmsvXyZlaBDwoEQygU8kbVr8g==
+      integrity: sha512-4yYX0Su4YjIM09fgIVlCGN0ToQ75VShF+RHIgIvASd7aF5JsGHaYMFJTqNOsaqc51pLwLvVrPayoMBMGFrULzQ==
   /prepend-http/1.0.4:
     dev: true
     engines:
@@ -2402,7 +2402,7 @@ specifiers:
   ndjson: ^1.5.0
   normalize-newline: ^3.0.0
   package-preview: ^0.1.3
-  pnpm-logger: ^0.6.2
+  pnpm-logger: ^0.6.3
   pretty-bytes: ^4.0.2
   ramda: ^0.25.0
   rimraf: ^2.5.4

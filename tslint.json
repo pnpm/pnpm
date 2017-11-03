@@ -17,6 +17,7 @@
     "no-var-requires": true,
     "no-require-imports": false,
     "no-string-literal": false,
+    "no-console": false,
     "interface-name": [true, "never-prefix"],
     "one-line": [true,
       "check-else",

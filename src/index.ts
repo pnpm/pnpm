@@ -16,6 +16,10 @@ import xs, {Stream} from 'xstream'
 import dropRepeats from 'xstream/extra/dropRepeats'
 import flattenConcurrently from 'xstream/extra/flattenConcurrently'
 import fromEvent from 'xstream/extra/fromEvent'
+import getPkgsDiff, {
+  PackageDiff,
+  propertyByDependencyType,
+} from './pkgsDiff'
 import reportError from './reportError'
 
 const EOL = os.EOL
@@ -25,19 +29,6 @@ const addedSign = chalk.green('+')
 const removedSign = chalk.red('-')
 const hlValue = chalk.blue
 const hlPkgId = chalk['whiteBright']
-
-interface PackageDiff {
-  name: string,
-  version?: string,
-  added: boolean,
-  deprecated?: boolean,
-}
-
-const propertyByDependencyType = {
-  dev: 'devDependencies',
-  optional: 'optionalDependencies',
-  prod: 'dependencies',
-}
 
 export default function(streamParser: object) {
   toOutput$(streamParser)
@@ -134,48 +125,7 @@ export function toOutput$(streamParser: object): Stream<string> {
   const deprecationLog$ = log$
     .filter((log) => log.name === 'pnpm:deprecation') as Stream<DeprecationLog>
 
-  const deprecationSet$ = deprecationLog$
-    .fold((acc, log) => {
-      acc.add(log.pkgId)
-      return acc
-    }, new Set())
-
-  const rootLog$ = log$.filter((log) => log.name === 'pnpm:root')
-
-  const pkgsDiff$ = xs.combine(
-    rootLog$,
-    deprecationSet$,
-  )
-  .fold((pkgsDiff, args) => {
-    const rootLog = args[0]
-    const deprecationSet = args[1] as Set<string>
-    if (rootLog['added']) {
-      pkgsDiff[rootLog['added'].dependencyType].push({
-        added: true,
-        deprecated: deprecationSet.has(rootLog['added'].id),
-        name: rootLog['added'].name,
-        version: rootLog['added'].version,
-      })
-      return pkgsDiff
-    }
-    if (rootLog['removed']) {
-      pkgsDiff[rootLog['removed'].dependencyType].push({
-        added: false,
-        name: rootLog['removed'].name,
-        version: rootLog['removed'].version,
-      })
-      return pkgsDiff
-    }
-    return pkgsDiff
-  }, {
-    dev: [],
-    optional: [],
-    prod: [],
-  } as {
-    dev: PackageDiff[],
-    prod: PackageDiff[],
-    optional: PackageDiff[],
-  })
+  const pkgsDiff$ = getPkgsDiff(log$, deprecationLog$)
 
   const summaryLog$ = log$
     .filter((log) => log.name === 'pnpm:summary')
@@ -188,11 +138,12 @@ export function toOutput$(streamParser: object): Stream<string> {
   .map(R.apply((pkgsDiff) => {
     let msg = ''
     for (const depType of ['prod', 'optional', 'dev']) {
-      if (pkgsDiff[depType].length) {
+      const diffs = R.values(pkgsDiff[depType])
+      if (diffs.length) {
         msg += EOL
         msg += chalk.blue(`${propertyByDependencyType[depType]}:`)
         msg += EOL
-        msg += printDiffs(pkgsDiff[depType])
+        msg += printDiffs(diffs)
         msg += EOL
       }
     }
