@@ -74,7 +74,7 @@ devDependencies:
   npm-run-all: 4.1.1
   npm-scripts-info: 0.3.6
   package-preview: 0.1.2
-  pnpm-logger: 0.6.2
+  pnpm-logger: 0.6.3
   pnpm-registry-mock: 1.10.0
   read-pkg: 2.0.0
   rimraf: 2.6.2
@@ -3048,14 +3048,14 @@ packages:
     dev: false
     resolution:
       integrity: sha1-dB2ZeXYv362T8+Rp3rSoFNNDAAg=
-  /pnpm-logger/0.6.2:
+  /pnpm-logger/0.6.3:
     dependencies:
       '@types/node': 8.0.47
       bole: 3.0.2
       ndjson: 1.5.0
     dev: true
     resolution:
-      integrity: sha512-VLlRExib18bl5lSFp74vFHeZV0iWuxTkdOvI7BIhfWpiP9EdrkAq/GnjE5pxjXmsvXyZlaBDwoEQygU8kbVr8g==
+      integrity: sha512-4yYX0Su4YjIM09fgIVlCGN0ToQ75VShF+RHIgIvASd7aF5JsGHaYMFJTqNOsaqc51pLwLvVrPayoMBMGFrULzQ==
   /pnpm-registry-mock/1.10.0:
     dependencies:
       cpr: 2.2.0
@@ -4396,7 +4396,7 @@ specifiers:
   path-exists: ^3.0.0
   path-name: ^1.0.0
   pnpm-install-checks: ^1.1.0
-  pnpm-logger: ^0.6.2
+  pnpm-logger: ^0.6.3
   pnpm-registry-mock: ^1.10.0
   pnpm-shrinkwrap: ^4.0.1
   proper-lockfile: ^2.0.0

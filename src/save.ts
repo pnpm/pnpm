@@ -3,6 +3,7 @@ import writePkg = require('write-pkg')
 import {DependenciesType, dependenciesTypes} from './getSaveType'
 import {Package} from './types'
 import {PackageSpec} from 'package-store'
+import {manifestLogger} from 'pnpm-logger'
 
 export default async function save (
   pkgJsonPath: string,
@@ -33,6 +34,7 @@ export default async function save (
   }
 
   await writePkg(pkgJsonPath, packageJson)
+  manifestLogger.debug({ updated: packageJson })
   return packageJson
 }
 

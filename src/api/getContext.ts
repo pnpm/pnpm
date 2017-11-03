@@ -20,7 +20,9 @@ import mkdirp = require('mkdirp-promise')
 import {Package} from '../types'
 import normalizePath = require('normalize-path')
 import removeAllExceptOuterLinks = require('remove-all-except-outer-links')
-import logger from 'pnpm-logger'
+import logger, {
+  manifestLogger,
+} from 'pnpm-logger'
 import checkCompatibility from './checkCompatibility'
 
 export type PnpmContext = {
@@ -85,6 +87,7 @@ export default async function getContext (opts: StrictPnpmOptions, installType?:
     storeIndex: files[3] || {},
     skipped: new Set(modules && modules.skipped || []),
   }
+  manifestLogger.debug({ initial: ctx.pkg })
 
   return ctx
 }
