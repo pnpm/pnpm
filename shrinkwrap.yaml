@@ -13,13 +13,13 @@ dependencies:
   nopt: 4.0.1
   not-bundled-npm: 5.4.2
   path-name: 1.0.0
-  pnpm-default-reporter: 0.9.6
+  pnpm-default-reporter: 0.9.7
   pnpm-file-reporter: 0.0.1
   pnpm-list: 1.1.0
-  pnpm-logger: 0.6.2
+  pnpm-logger: 0.6.3
   ramda: 0.25.0
   strip-color: 0.1.0
-  supi: 0.5.3
+  supi: 0.6.2
   text-table: 0.2.0
   update-notifier: 2.3.0
 devDependencies:
@@ -244,7 +244,6 @@ packages:
     resolution:
       integrity: sha512-37umDB+zS6tK+3j0YJxsl7O8T4aYHYO6s1UpADJ/nxMHFjmuSd5XRQryC4IXX3HQ4XzstqAqhk/D+cdxwvqtEQ==
   /@types/ramda/0.25.0:
-    dev: true
     resolution:
       integrity: sha512-5IdrohP5RJe1kbMnJ4MvQFfwA1Iqyme1b4/5mIzDiVDrR0L/AuhozrxaUGXpZRHWvJkTHQCf9yNSr+CaLM+QdA==
   /@types/rc/0.0.1:
@@ -3093,6 +3092,7 @@ packages:
       minimist: 1.2.0
       split2: 2.2.0
       through2: 2.0.3
+    dev: false
     resolution:
       integrity: sha1-rmA7NrE0vOw0e0UkIrC/mNWDLsg=
   /negotiator/0.6.1:
@@ -3903,25 +3903,26 @@ packages:
       node: '>= 0.4.0'
     resolution:
       integrity: sha1-tUGO8EOd5UJfxJlQQtztFPsqhP8=
-  /pnpm-default-reporter/0.9.6:
+  /pnpm-default-reporter/0.9.7:
     dependencies:
-      '@types/chalk': 0.4.31
       '@types/common-tags': 1.4.0
-      '@types/node': 7.0.46
+      '@types/node': 8.0.47
       '@types/ramda': 0.24.18
       chalk: 2.3.0
       common-tags: 1.4.0
       log-update: 2.2.0
       ndjson: 1.5.0
       pretty-bytes: 4.0.2
-      ramda: 0.24.1
+      ramda: 0.25.0
       stacktracey: 1.2.83
-      xstream: 10.9.0
+      xstream: 11.0.0
     dev: false
+    engines:
+      node: '>=4'
     peerDependencies:
       pnpm-logger: ^0.6.2
     resolution:
-      integrity: sha512-YsXm7juI9XYf3lDmjj++mKvnbsh2oEcYFABrE8J7AzPjGSmy1trCM109kx0YR5e5Of4+xWSZv8agtn5xWwkPEg==
+      integrity: sha512-0tUkyOPbNR9x7uYAFDEu/aOBgPshaqYS7VWKao6cODO4oKkWh9jghW+6KIZGRzt0/bnLLuZef3PUjMWrVUb6Hg==
   /pnpm-file-reporter/0.0.1:
     dependencies:
       '@types/chalk': 0.4.31
@@ -3963,14 +3964,14 @@ packages:
     dev: false
     resolution:
       integrity: sha1-KHAbl2GKH8MtL+4b9BB0ZYi7GoU=
-  /pnpm-logger/0.6.2:
+  /pnpm-logger/0.6.3:
     dependencies:
       '@types/node': 8.0.47
       bole: 3.0.2
       ndjson: 1.5.0
     dev: false
     resolution:
-      integrity: sha512-VLlRExib18bl5lSFp74vFHeZV0iWuxTkdOvI7BIhfWpiP9EdrkAq/GnjE5pxjXmsvXyZlaBDwoEQygU8kbVr8g==
+      integrity: sha512-4yYX0Su4YjIM09fgIVlCGN0ToQ75VShF+RHIgIvASd7aF5JsGHaYMFJTqNOsaqc51pLwLvVrPayoMBMGFrULzQ==
   /pnpm-registry-mock/1.10.0:
     dependencies:
       cpr: 2.2.0
@@ -4908,6 +4909,7 @@ packages:
   /strip-ansi/4.0.0:
     dependencies:
       ansi-regex: 3.0.0
+    dev: false
     engines:
       node: '>=4'
     resolution:
@@ -4955,7 +4957,7 @@ packages:
       node: '>=0.10.0'
     resolution:
       integrity: sha1-PFMZQukIwml8DsNEhYwobHygpgo=
-  /supi/0.5.3:
+  /supi/0.6.2:
     dependencies:
       '@types/byline': 4.2.31
       '@types/common-tags': 1.4.0
@@ -4965,7 +4967,7 @@ packages:
       '@types/nopt': 3.0.29
       '@types/npm': 2.0.29
       '@types/p-series': 1.0.0
-      '@types/ramda': 0.24.18
+      '@types/ramda': 0.25.0
       '@types/rc': 0.0.1
       '@types/semver': 5.4.0
       '@types/update-notifier': 1.0.2
@@ -5019,9 +5021,9 @@ packages:
     engines:
       node: '>=4'
     peerDependencies:
-      pnpm-logger: ^0.6.2
+      pnpm-logger: ^0.6.3
     resolution:
-      integrity: sha512-QNrSJaSj+w6TCmoOjZdOnpohE1eUogfQTIj05OPl3zSb3SBohUOSRv92aHkgQhSfyKLdU3zSlpL4QODCXv8xkQ==
+      integrity: sha512-SaHzOVf2C24f5yK38CWJp5+4OBDUa2Dhem3XbdL20V8g1Cb/05MYSioA9IXF/Y4h8WHhN82eaATrB+r3nGtCIQ==
   /supports-color/2.0.0:
     engines:
       node: '>=0.8.0'
@@ -5667,12 +5669,12 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha1-SWsswQnsqNus/i3HK2A8F8WHCtQ=
-  /xstream/10.9.0:
+  /xstream/11.0.0:
     dependencies:
       symbol-observable: 1.0.4
     dev: false
     resolution:
-      integrity: sha1-23k0zsLaATYNQ6u7yHm4RSQ5e1U=
+      integrity: sha1-IBjDxOVz92tiuc+WoXpGh2qxIOA=
   /xtend/4.0.1:
     engines:
       node: '>=0.4'
@@ -5778,10 +5780,10 @@ specifiers:
   package-preview: ^0.1.2
   path-exists: ^3.0.0
   path-name: ^1.0.0
-  pnpm-default-reporter: ^0.9.5
+  pnpm-default-reporter: ^0.9.7
   pnpm-file-reporter: ^0.0.1
   pnpm-list: ^1.0.0
-  pnpm-logger: ^0.6.2
+  pnpm-logger: ^0.6.3
   pnpm-registry-mock: ^1.5.0
   ramda: ^0.25.0
   read-pkg: ^2.0.0
@@ -5790,7 +5792,7 @@ specifiers:
   semver: ^5.3.0
   sepia: ^2.0.2
   strip-color: ^0.1.0
-  supi: ^0.5.3
+  supi: ^0.6.2
   tape: ^4.6.3
   tape-promise: ^2.0.1
   text-table: ^0.2.0
