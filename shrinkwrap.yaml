@@ -23,6 +23,7 @@ dependencies:
   find-up: 2.1.0
   get-npm-tarball-url: 2.0.0
   graceful-fs: 4.1.11
+  is-ci: 1.0.10
   is-inner-link: 2.0.2
   is-subdir: 1.0.2
   is-windows: 1.0.1
@@ -68,7 +69,6 @@ devDependencies:
   caw: 2.0.1
   deep-require-cwd: 1.0.0
   exists-link: 2.0.0
-  is-ci: 1.0.10
   isexe: 2.0.0
   mkdirp: 0.5.1
   npm-run-all: 4.1.1
@@ -748,7 +748,6 @@ packages:
     resolution:
       integrity: sha1-4qdQQqlVGQi+vSW4Uj1fl2nXkYE=
   /ci-info/1.1.1:
-    dev: true
     resolution:
       integrity: sha512-vHDDF/bP9RYpTWtUhpJRhCFdvvp3iDWvEbuDbWgvjUrNGV1MXJrE0MPcwGtEled04m61iwdBLUIHZtDgzWS4ZQ==
   /cli-cursor/1.0.2:
@@ -1867,7 +1866,6 @@ packages:
   /is-ci/1.0.10:
     dependencies:
       ci-info: 1.1.1
-    dev: true
     resolution:
       integrity: sha1-9zkzayYyNlBhqdSCcM1WrjNpMY4=
   /is-date-object/1.0.1:
