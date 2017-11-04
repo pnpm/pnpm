@@ -25,7 +25,11 @@ export default async function link (
   const opts = await extendOptions(maybeOpts)
 
   if (!maybeOpts || !maybeOpts.skipInstall) {
-    await install(Object.assign({}, opts, { prefix: linkFrom, global: false }))
+    await install(Object.assign({}, opts, {
+      prefix: linkFrom,
+      bin: path.join(linkFrom, 'node_modules', '.bin'),
+      global: false,
+    }))
   }
 
   const destModules = path.join(linkTo, 'node_modules')

@@ -20,7 +20,7 @@ import {
 } from 'supi'
 import exists = require('path-exists')
 
-test('relative link', async function (t) {
+test('relative link', async (t: tape.Test) => {
   prepare(t)
 
   const linkedPkgName = 'hello-world-js-bin'
@@ -30,6 +30,10 @@ test('relative link', async function (t) {
   await link(`../${linkedPkgName}`, process.cwd(), testDefaults())
 
   isExecutable(t, path.resolve('node_modules', '.bin', 'hello-world-js-bin'))
+
+  // The linked package has been installed successfully as well with bins linked
+  // to node_modules/.bin
+  isExecutable(t, path.join(linkedPkgPath, 'node_modules', '.bin', 'cowsay'))
 })
 
 test('relative link is not rewritten by install', async function (t) {
