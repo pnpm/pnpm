@@ -83,6 +83,8 @@ const passedThroughCmds = new Set([
   'start',
   'stop',
   'team',
+  't',
+  'tst',
   'test',
   'token',
   'unpublish',
