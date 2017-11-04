@@ -31,7 +31,7 @@
     "cross-spawn": "^5.0.0",
     "graceful-fs": "^4.1.11",
     "is-ci": "^1.0.10",
-    "load-json-file": "^3.0.0",
+    "load-json-file": "^4.0.0",
     "loud-rejection": "^1.6.0",
     "nopt": "^4.0.1",
     "not-bundled-npm": "^5.4.2",
