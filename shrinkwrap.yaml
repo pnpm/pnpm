@@ -19,7 +19,7 @@ dependencies:
   pnpm-logger: 0.6.3
   ramda: 0.25.0
   strip-color: 0.1.0
-  supi: 0.6.2
+  supi: 0.6.3
   text-table: 0.2.0
   update-notifier: 2.3.0
 devDependencies:
@@ -3101,6 +3101,7 @@ packages:
       minimist: 1.2.0
       split2: 2.2.0
       through2: 2.0.3
+    dev: false
     resolution:
       integrity: sha1-rmA7NrE0vOw0e0UkIrC/mNWDLsg=
   /negotiator/0.6.1:
@@ -4945,6 +4946,7 @@ packages:
   /strip-ansi/4.0.0:
     dependencies:
       ansi-regex: 3.0.0
+    dev: false
     engines:
       node: '>=4'
     resolution:
@@ -4992,7 +4994,7 @@ packages:
       node: '>=0.10.0'
     resolution:
       integrity: sha1-PFMZQukIwml8DsNEhYwobHygpgo=
-  /supi/0.6.2:
+  /supi/0.6.3:
     dependencies:
       '@types/byline': 4.2.31
       '@types/common-tags': 1.4.0
@@ -5058,7 +5060,7 @@ packages:
     peerDependencies:
       pnpm-logger: ^0.6.3
     resolution:
-      integrity: sha512-SaHzOVf2C24f5yK38CWJp5+4OBDUa2Dhem3XbdL20V8g1Cb/05MYSioA9IXF/Y4h8WHhN82eaATrB+r3nGtCIQ==
+      integrity: sha512-wticG35jF15c8ATDRS3nWCSEGYRfqEGCVPgOB097VFXYM6FgVq3CtHZizjNjSyGptaXax34pqrVnXPc5bnDiJg==
   /supports-color/2.0.0:
     engines:
       node: '>=0.8.0'
@@ -5827,7 +5829,7 @@ specifiers:
   semver: ^5.3.0
   sepia: ^2.0.2
   strip-color: ^0.1.0
-  supi: ^0.6.2
+  supi: ^0.6.3
   tape: ^4.6.3
   tape-promise: ^2.0.1
   text-table: ^0.2.0
