@@ -23,7 +23,12 @@ import exists = require('path-exists')
 import isWindows = require('is-windows')
 import deepRequireCwd = require('deep-require-cwd')
 import sinon = require('sinon')
-import {StageLog, RootLog, ProgressLog} from 'pnpm-logger'
+import {
+  StageLog,
+  RootLog,
+  ProgressLog,
+  ManifestLog,
+} from 'pnpm-logger'
 import writeJsonFile = require('write-json-file')
 
 const IS_WINDOWS = isWindows()
@@ -47,6 +52,11 @@ test('no dependencies (lodash)', async (t: tape.Test) => {
 
   await installPkgs(['lodash@4.0.0'], testDefaults({reporter}))
 
+  t.ok(reporter.calledWithMatch(<ManifestLog>{
+    name: 'pnpm:manifest',
+    level: 'debug',
+    initial: {name: 'project', version: '0.0.0'},
+  }), 'initial package.json logged')
   t.ok(reporter.calledWithMatch(<StageLog>{
     name: 'pnpm:stage',
     level: 'debug',
@@ -70,6 +80,17 @@ test('no dependencies (lodash)', async (t: tape.Test) => {
       dependencyType: 'prod',
     },
   }), 'added to root')
+  t.ok(reporter.calledWithMatch(<ManifestLog>{
+    name: 'pnpm:manifest',
+    level: 'debug',
+    updated: {
+      name: 'project',
+      version: '0.0.0',
+      dependencies: {
+        lodash: '^4.0.0',
+      },
+    },
+  }), 'updated package.json logged')
 
   const m = project.requireModule('lodash')
   t.ok(typeof m === 'function', '_ is available')
