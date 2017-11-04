@@ -8,7 +8,7 @@
     "lib"
   ],
   "scripts": {
-    "test": "tsc && preview && ts-node test",
+    "test": "preview && ts-node test",
     "prepublishOnly": "tsc",
     "tsc": "tsc",
     "md": "tsc && mos"
@@ -54,7 +54,7 @@
     "common-tags": "^1.4.0",
     "mos": "^2.0.0-alpha.3",
     "mos-plugin-readme": "^1.0.4",
-    "package-preview": "^0.1.2",
+    "package-preview": "^0.2.1",
     "pnpm-logger": "^0.6.2",
     "tape": "^4.7.0",
     "ts-node": "^3.3.0",
