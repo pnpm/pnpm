@@ -96,7 +96,7 @@ const passedThroughCmds = new Set([
 ])
 
 async function run (argv: string[]) {
-  if (argv.indexOf('--help') !== -1 || argv.indexOf('--h') !== -1) {
+  if (argv.indexOf('--help') !== -1 || argv.indexOf('-h') !== -1 || argv.indexOf('--h') !== -1) {
     argv = ['help'].concat(argv)
   }
   const pnpmTypes = {
