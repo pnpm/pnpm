@@ -8,7 +8,7 @@
     "lib"
   ],
   "scripts": {
-    "test": "tslint --config tslint.json --project . && tsc && preview && ts-node test",
+    "test": "tslint --config tslint.json --project . && preview && ts-node test",
     "prepublishOnly": "tsc",
     "tsc": "tsc",
     "md": "mos"
@@ -47,7 +47,7 @@
     "@types/tape": "^4.2.31",
     "mos": "^2.0.0-alpha.3",
     "mos-plugin-readme": "^1.0.4",
-    "package-preview": "^0.1.3",
+    "package-preview": "^0.2.1",
     "pnpm-logger": "^0.6.1",
     "tape": "^4.8.0",
     "ts-node": "^3.3.0",

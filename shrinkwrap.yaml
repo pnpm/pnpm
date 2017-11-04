@@ -9,7 +9,7 @@ devDependencies:
   '@types/tape': 4.2.31
   mos: 2.0.0-alpha.3
   mos-plugin-readme: 1.0.4
-  package-preview: 0.1.3
+  package-preview: 0.2.1
   pnpm-logger: 0.6.2
   tape: 4.8.0
   ts-node: 3.3.0
@@ -41,7 +41,6 @@ packages:
     resolution:
       integrity: sha512-GSwGwxqqbGy470XcZEWIrflF/ADxN1DObpQe7sE8xxel+zFG5ZG5xc+JEyfC/9aGlVrSAcKD/iPdXjGH5MS5lA==
   /@types/load-json-file/2.0.7:
-    dev: false
     resolution:
       integrity: sha512-NrH6jPlV77QCVPhAHofWeiOr77TgpKt82c2RVxSBChWBJqyY/u4ngl3CA4mcsAg/w7rNLrkR7dkObMV0ihLLXw==
   /@types/mz/0.0.31:
@@ -1635,7 +1634,6 @@ packages:
     resolution:
       integrity: sha1-RsP+yMGJKxKwgz25vHYiF226s0s=
   /json-parse-better-errors/1.0.1:
-    dev: false
     resolution:
       integrity: sha512-xyQpxeWWMKyJps9CuGJYeng6ssI5bpqS9ltQpdVQ90t4ql6NdnxFKh95JcRt2cun/DjMVNrdjniLPuMA69xmCw==
   /json-schema-traverse/0.3.1:
@@ -1708,6 +1706,17 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha1-frNzXZg6ftImKt5P92mvU2nFxEA=
+  /load-json-file/4.0.0:
+    dependencies:
+      graceful-fs: 4.1.11
+      parse-json: 4.0.0
+      pify: 3.0.0
+      strip-bom: 3.0.0
+    dev: true
+    engines:
+      node: '>=4'
+    resolution:
+      integrity: sha1-L19Fq5HjMhYjT9U62rZo607AmTs=
   /load-yaml-file/0.1.0:
     dependencies:
       graceful-fs: 4.1.11
@@ -2379,10 +2388,11 @@ packages:
       node: '>=0.10.0'
     resolution:
       integrity: sha1-DRW9Z9HLvduyyiIv8u24a8sxqLs=
-  /package-preview/0.1.3:
+  /package-preview/0.2.1:
     dependencies:
       '@pnpm/exec': 1.0.2
       '@types/fs-extra': 4.0.3
+      '@types/load-json-file': 2.0.7
       '@types/mz': 0.0.32
       '@types/node': 8.0.47
       '@types/write-json-file': 2.2.1
@@ -2390,6 +2400,7 @@ packages:
       find-down: 0.1.4
       fs-extra: 4.0.2
       graceful-fs: 4.1.11
+      load-json-file: 4.0.0
       mz: 2.7.0
       rimraf-then: 1.0.1
       symlink-dir: 1.1.0
@@ -2399,7 +2410,7 @@ packages:
     engines:
       node: '>=4'
     resolution:
-      integrity: sha512-+i0nm6AzPFFimHndbgRw+wQ2GAj8RNw+iFiccnSvCXROEcZZgEa1PYA+iAhR89KAzlHQNIqpu5KehMEpod3BVA==
+      integrity: sha512-3sfioxx/CgS6k+2dB4yprAbWqpnGdWxA00tKG3i6e9uMh/+Yk9oh7NtVzLskmZIqPijDmohqRM5lhZA+sZzIaA==
   /package-store/0.4.2:
     dependencies:
       '@types/load-json-file': 2.0.7
@@ -2473,6 +2484,15 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha1-+m9HsY4jgm6tMvJj50TQ4ehH+xM=
+  /parse-json/4.0.0:
+    dependencies:
+      error-ex: 1.3.1
+      json-parse-better-errors: 1.0.1
+    dev: true
+    engines:
+      node: '>=4'
+    resolution:
+      integrity: sha1-vjX1Qlvh9/bHRxhPmKeIy5lHfuA=
   /parse-ms/1.0.1:
     dev: true
     engines:
@@ -3679,7 +3699,7 @@ specifiers:
   mos-plugin-readme: ^1.0.4
   npm-package-arg: ^6.0.0
   npm-registry-client: ^8.5.0
-  package-preview: ^0.1.3
+  package-preview: ^0.2.1
   package-store: ^0.4.0
   pnpm-logger: ^0.6.1
   pnpm-shrinkwrap: ^4.0.0
