@@ -30,7 +30,7 @@
     "encode-registry": "^1.0.0",
     "execa": "^0.8.0",
     "fs-write-stream-atomic": "^1.0.10",
-    "load-json-file": "^3.0.0",
+    "load-json-file": "^4.0.0",
     "mkdirp-promise": "^5.0.1",
     "mz": "^2.6.0",
     "normalize-path": "^2.1.1",
