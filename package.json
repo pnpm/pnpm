@@ -64,6 +64,7 @@
     "nock": "^9.0.14",
     "npm-registry-client": "^8.4.0",
     "npm-scripts-info": "^0.3.6",
+    "package-preview": "^1.0.0",
     "pnpm-logger": "^0.6.2",
     "rimraf": "^2.6.1",
     "tape": "^4.7.0",
@@ -101,7 +102,7 @@
     "commitmsg": "validate-commit-msg",
     "lint": "tslint -c tslint.json --project .",
     "pretest": "rimraf .tmp",
-    "test": "npm run tsc && npm run lint && ts-node test",
+    "test": "npm run lint && preview && ts-node test",
     "tsc": "rimraf lib && tsc",
     "prepublishOnly": "npm run tsc"
   },

@@ -1,4 +1,4 @@
-import * as packageStore from '../src'
+import * as packageStore from 'package-store'
 import test = require('tape')
 import './network/got'
 

@@ -1,6 +1,6 @@
 import test = require('tape')
 import nock = require('nock')
-import createGot, {NpmRegistryClient} from '../../src/network/got'
+import createGot, {NpmRegistryClient} from 'package-store/lib/network/got'
 import path = require('path')
 import RegClient = require('npm-registry-client')
 
