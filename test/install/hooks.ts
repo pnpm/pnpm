@@ -5,7 +5,7 @@ import {
   addDistTag,
   testDefaults,
 } from '../utils'
-import {installPkgs, Package} from 'supi'
+import {installPkgs, PackageManifest} from 'supi'
 
 const test = promisifyTape(tape)
 
@@ -15,7 +15,7 @@ test('readPackage hook', async (t: tape.Test) => {
   // w/o the hook, 100.1.0 would be installed
   await addDistTag('dep-of-pkg-with-1-dep', '100.1.0', 'latest')
 
-  function readPackageHook (pkg: Package) {
+  function readPackageHook (pkg: PackageManifest) {
     if (pkg.name === 'pkg-with-1-dep') {
       pkg!.dependencies!['dep-of-pkg-with-1-dep'] = '100.0.0'
     }

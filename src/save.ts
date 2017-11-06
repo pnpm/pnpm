@@ -1,7 +1,7 @@
 import loadJsonFile = require('load-json-file')
 import writePkg = require('write-pkg')
 import {DependenciesType, dependenciesTypes} from './getSaveType'
-import {Package} from './types'
+import {PackageJson} from '@pnpm/types'
 import {PackageSpec} from 'package-store'
 import {manifestLogger} from 'pnpm-logger'
 
@@ -12,7 +12,7 @@ export default async function save (
     saveSpec: string,
   })[],
   saveType?: DependenciesType
-): Promise<Package> {
+): Promise<PackageJson> {
   // Read the latest version of package.json to avoid accidental overwriting
   const packageJson = await loadJsonFile(pkgJsonPath)
   if (saveType) {
@@ -38,7 +38,7 @@ export default async function save (
   return packageJson
 }
 
-function guessDependencyType (depName: string, pkg: Package): DependenciesType | undefined {
+function guessDependencyType (depName: string, pkg: PackageJson): DependenciesType | undefined {
   return dependenciesTypes
     .find(deptype => Boolean(pkg[deptype] && pkg[deptype]![depName]))
 }

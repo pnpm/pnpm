@@ -4,7 +4,7 @@ import getContext, {PnpmContext} from './getContext'
 import getSaveType from '../getSaveType'
 import removeDeps from '../removeDeps'
 import extendOptions from './extendOptions'
-import {PnpmOptions, StrictPnpmOptions, Package} from '../types'
+import {PnpmOptions, StrictPnpmOptions} from '../types'
 import lock from './lock'
 import {
   Shrinkwrap,

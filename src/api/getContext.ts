@@ -17,7 +17,7 @@ import {
   read as readModules,
 } from '../fs/modulesController'
 import mkdirp = require('mkdirp-promise')
-import {Package} from '../types'
+import {PackageJson} from '@pnpm/types'
 import normalizePath = require('normalize-path')
 import removeAllExceptOuterLinks = require('remove-all-except-outer-links')
 import logger, {
@@ -26,7 +26,7 @@ import logger, {
 import checkCompatibility from './checkCompatibility'
 
 export type PnpmContext = {
-  pkg: Package,
+  pkg: PackageJson,
   storeIndex: Store,
   storePath: string,
   root: string,
@@ -92,7 +92,7 @@ export default async function getContext (opts: StrictPnpmOptions, installType?:
   return ctx
 }
 
-const DefaultGlobalPkg: Package = {
+const DefaultGlobalPkg: PackageJson = {
   name: 'pnpm-global-pkg',
   version: '1.0.0',
   private: true,

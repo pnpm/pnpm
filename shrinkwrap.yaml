@@ -1,4 +1,5 @@
 dependencies:
+  '@pnpm/types': 1.0.0
   '@types/byline': 4.2.31
   '@types/common-tags': 1.4.0
   '@types/load-json-file': 2.0.7
@@ -174,6 +175,10 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha512-BjVjPYfTXNBF75WFyOJRPNw6BLutvgx6lvShzGGTreEAde/sND0DAAeyr+t3Wc9YuFKZ7DG84b97H5of8JiMmw==
+  /@pnpm/types/1.0.0:
+    dev: false
+    resolution:
+      integrity: sha512-2BQ/X7qS3bCWOFR+HMQ3ZR1qU1KZNGGjfF6fvMPbYq3kZBGr5i57je4XTHADuiVRv0t6wJ4Ev+X4bw6GktbFYQ==
   /@types/byline/4.2.31:
     dependencies:
       '@types/node': 8.0.47
@@ -4354,6 +4359,7 @@ specifiers:
   '@commitlint/cli': ^4.2.0
   '@commitlint/config-angular': ^4.2.0
   '@commitlint/prompt-cli': ^4.2.0
+  '@pnpm/types': ^1.0.0
   '@types/byline': ^4.2.31
   '@types/common-tags': ^1.2.5
   '@types/load-json-file': ^2.0.5

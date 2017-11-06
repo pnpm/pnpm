@@ -1,5 +1,5 @@
+import {Dependencies} from '@pnpm/types'
 import npa = require('npm-package-arg')
-import {Dependencies} from './types'
 import {PackageSpec} from 'package-store'
 
 export default function (

@@ -2,5 +2,5 @@
 import './fs/gracefulify'
 
 export * from './api'
-export {PnpmOptions, Package} from './types'
+export {PnpmOptions, PackageManifest} from './types'
 export {PnpmError, PnpmErrorCode} from './errorTypes'

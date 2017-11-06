@@ -1,8 +1,8 @@
 import path = require('path')
-import {Package} from '../types'
+import {PackageJson} from '@pnpm/types'
 import readPkg from './readPkg'
 
-export default async function safeReadPkg (pkgPath: string): Promise<Package | null> {
+export default async function safeReadPkg (pkgPath: string): Promise<PackageJson | null> {
   try {
     return await readPkg(pkgPath)
   } catch (err) {
@@ -11,6 +11,6 @@ export default async function safeReadPkg (pkgPath: string): Promise<Package | n
   }
 }
 
-export function fromDir (pkgPath: string): Promise<Package | null> {
+export function fromDir (pkgPath: string): Promise<PackageJson | null> {
   return safeReadPkg(path.join(pkgPath, 'package.json'))
 }

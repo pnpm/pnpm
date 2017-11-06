@@ -15,10 +15,12 @@ import {
 } from 'package-store'
 import {InstallContext, InstalledPackages} from '../api/install'
 import {
-  Dependencies,
   ReadPackageHook,
-  Package,
+  PackageManifest
 } from '../types'
+import {
+  Dependencies,
+} from '@pnpm/types'
 import memoize from '../memoize'
 import logStatus from '../logging/logInstallStatus'
 import fs = require('mz/fs')
@@ -57,7 +59,7 @@ export type InstalledPackage = {
   // IDEA: As only a few fields are needed from package.jsno
   // it might be a good idea to write them directly to
   // InstallPackage to reduce RAM usage
-  pkg: Package,
+  pkg: PackageManifest,
 }
 
 export default async function installMultiple (
@@ -288,7 +290,7 @@ async function install (
     return null
   }
 
-  let pkg: Package
+  let pkg: PackageManifest
   let useManifestInfoFromShrinkwrap = false
   if (options.hasManifestInShrinkwrap && !options.update && options.dependencyShrinkwrap && options.dependencyPath) {
     useManifestInfoFromShrinkwrap = true
@@ -431,7 +433,7 @@ function normalizeRegistry (registry: string) {
 }
 
 async function installDependencies (
-  pkg: Package,
+  pkg: PackageManifest,
   parentSpec: PackageSpec,
   ctx: InstallContext,
   opts: {

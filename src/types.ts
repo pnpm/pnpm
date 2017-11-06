@@ -1,3 +1,4 @@
+import {Dependencies, PackageBin} from '@pnpm/types'
 import {PackageMeta} from 'package-store'
 import {Log} from 'pnpm-logger'
 
@@ -69,7 +70,7 @@ export type PnpmOptions = {
   },
 }
 
-export type ReadPackageHook = (pkg: Package) => Package
+export type ReadPackageHook = (pkg: PackageManifest) => PackageManifest
 
 export type StrictPnpmOptions = PnpmOptions & {
   rawNpmConfig: Object,
@@ -138,16 +139,11 @@ export type StrictPnpmOptions = PnpmOptions & {
   },
 }
 
-export type Dependencies = {
-  [name: string]: string
-}
-
-export type PackageBin = string | {[name: string]: string}
-
-export type Package = {
+// Most of the fields in PackageManifest are also in PackageJson
+// except the `deprecated` field
+export interface PackageManifest {
   name: string,
   version: string,
-  private?: boolean,
   bin?: PackageBin,
   directories?: {
     bin?: string,
@@ -158,18 +154,11 @@ export type Package = {
   peerDependencies?: Dependencies,
   bundleDependencies?: string[],
   bundledDependencies?: string[],
-  scripts?: {
-    [name: string]: string
-  },
-  config?: Object,
   engines?: {
     node?: string,
     npm?: string,
   },
   cpu?: string[],
   os?: string[],
-  // TODO: create a separate type called PackageManifest that will have `deprecated`
-  // and won't have `scripts`, `config` and other fields that are not returned by
-  // the registry
   deprecated?: string,
 }

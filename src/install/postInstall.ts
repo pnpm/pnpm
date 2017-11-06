@@ -1,7 +1,7 @@
 import path = require('path')
 import findUp = require('find-up')
 import fs = require('mz/fs')
-import {Package} from '../types'
+import {PackageJson} from '@pnpm/types'
 import runScript from '../runScript'
 import {fromDir as readPkgFromDir} from '../fs/readPkg'
 import lifecycle = require('@zkochan/npm-lifecycle')
@@ -46,7 +46,7 @@ export default async function postInstall (
 
 export async function npmRunScript (
   stage: string,
-  pkg: Package,
+  pkg: PackageJson,
   opts: {
     rawNpmConfig: Object,
     pkgId: string,

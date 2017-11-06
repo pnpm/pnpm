@@ -3,13 +3,14 @@ import {
   PackageContentInfo,
   pkgIdToFilename,
 } from 'package-store'
-import {Dependencies, Package} from '../types'
+import {Dependencies} from '@pnpm/types'
 import R = require('ramda')
 import semver = require('semver')
 import logger from 'pnpm-logger'
 import path = require('path')
 import {InstalledPackage} from '../install/installMultiple'
 import {TreeNode, TreeNodeMap} from '../api/install'
+import {PackageManifest} from '../types'
 
 export type DependencyTreeNode = {
   name: string,
@@ -33,7 +34,7 @@ export type DependencyTreeNode = {
   optional: boolean,
   id: string,
   installable: boolean,
-  pkg: Package,
+  pkg: PackageManifest,
 }
 
 export type DependencyTreeNodeMap = {

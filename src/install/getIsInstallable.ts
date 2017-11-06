@@ -1,11 +1,11 @@
 import installChecks = require('pnpm-install-checks')
 import logger, {installCheckLogger} from 'pnpm-logger'
-import {Package} from '../types'
+import {PackageManifest} from '../types'
 import {FetchedPackage} from 'package-store'
 
 export default async function getIsInstallable (
   pkgId: string,
-  pkg: Package,
+  pkg: PackageManifest,
   fetchedPkg: FetchedPackage,
   options: {
     optional: boolean,

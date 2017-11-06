@@ -1,7 +1,8 @@
+import {PackageJson} from '@pnpm/types'
 import path = require('path')
 import R = require('ramda')
 import getContext from './getContext'
-import {PnpmOptions, Package} from '../types'
+import {PnpmOptions} from '../types'
 import extendOptions from './extendOptions'
 import getPkgDirs from '../fs/getPkgDirs'
 import {fromDir as readPkgFromDir} from '../fs/readPkg'
@@ -43,7 +44,7 @@ export async function prune(maybeOpts?: PnpmOptions): Promise<void> {
       dependencies: opts.production ? ctx.pkg.dependencies : {},
       devDependencies: opts.development ? ctx.pkg.devDependencies : {},
       optionalDependencies: opts.optional ? ctx.pkg.optionalDependencies : {},
-    } as Package
+    } as PackageJson
 
     const prunedShr = pruneShrinkwrap(ctx.wantedShrinkwrap, pkg)
 

@@ -8,7 +8,7 @@ import pLimit = require('p-limit')
 import {InstalledPackage} from '../install/installMultiple'
 import {InstalledPackages, TreeNode} from '../api/install'
 import linkBins, {linkPkgBins} from './linkBins'
-import {Package, Dependencies} from '../types'
+import {PackageJson, Dependencies} from '@pnpm/types'
 import {Resolution, PackageContentInfo, Store} from 'package-store'
 import resolvePeers, {DependencyTreeNode, DependencyTreeNodeMap} from './resolvePeers'
 import logStatus from '../logging/logInstallStatus'
@@ -42,7 +42,7 @@ export default async function (
     storePath: string,
     storeIndex: Store,
     skipped: Set<string>,
-    pkg: Package,
+    pkg: PackageJson,
     independentLeaves: boolean,
     // This is only needed till shrinkwrap v4
     updateShrinkwrapMinorVersion: boolean,

@@ -1,6 +1,6 @@
-import {Package, Dependencies} from './types'
+import {PackageJson, Dependencies} from '@pnpm/types'
 
-export default function depsFromPackage (pkg: Package): Dependencies {
+export default function depsFromPackage (pkg: PackageJson): Dependencies {
   return Object.assign(
     {},
     pkg.devDependencies,

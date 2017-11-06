@@ -10,12 +10,13 @@ import {
 import {DependencyTreeNodeMap, DependencyTreeNode} from './resolvePeers'
 import {Resolution} from 'package-store'
 import R = require('ramda')
-import {Package} from '../types'
+import {PackageJson} from '@pnpm/types'
+import {PackageManifest} from '../types'
 
 export default function (
   pkgsToLink: DependencyTreeNodeMap,
   shrinkwrap: Shrinkwrap,
-  pkg: Package
+  pkg: PackageJson
 ): Shrinkwrap {
   shrinkwrap.packages = shrinkwrap.packages || {}
   for (const dependencyAbsolutePath of R.keys(pkgsToLink)) {
@@ -46,7 +47,7 @@ export default function (
 }
 
 function toShrDependency (
-  pkg: Package,
+  pkg: PackageManifest,
   opts: {
     dependencyAbsolutePath: string,
     name: string,

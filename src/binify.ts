@@ -1,8 +1,8 @@
+import {PackageJson, PackageBin} from '@pnpm/types'
 import path = require('path')
 import {Stats} from 'fs'
 import fs = require('mz/fs')
 import pFilter = require('p-filter')
-import {Package, PackageBin} from './types'
 
 export type Command = {
   name: string,
@@ -20,7 +20,7 @@ export type Command = {
  *    binify({ name: 'rmrf', bin: { rmrf: 'cmd.js' } })
  *    => { rmrf: 'cmd.js' }
  */
-export default async function binify (pkg: Package, pkgPath: string): Promise<Command[]> {
+export default async function binify (pkg: PackageJson, pkgPath: string): Promise<Command[]> {
   if (pkg.bin) {
     return commandsFromBin(pkg.bin, pkg.name, pkgPath)
   }

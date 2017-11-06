@@ -1,3 +1,7 @@
+import {
+  Dependencies,
+  PackageJson,
+} from '@pnpm/types'
 import path = require('path')
 import RegClient = require('npm-registry-client')
 import logger, {
@@ -12,7 +16,7 @@ import pFilter = require('p-filter')
 import R = require('ramda')
 import safeIsInnerLink from '../safeIsInnerLink'
 import {fromDir as safeReadPkgFromDir} from '../fs/safeReadPkg'
-import {PnpmOptions, StrictPnpmOptions, Dependencies} from '../types'
+import {PnpmOptions, StrictPnpmOptions} from '../types'
 import getContext, {PnpmContext} from './getContext'
 import installMultiple, {InstalledPackage} from '../install/installMultiple'
 import externalLink from './link'
@@ -34,7 +38,6 @@ import {
 } from '../fs/modulesController'
 import mkdirp = require('mkdirp-promise')
 import createMemoize, {MemoizedFunc} from '../memoize'
-import {Package} from '../types'
 import {DependencyTreeNode} from '../link/resolvePeers'
 import depsToSpecs, {similarDepsToSpecs} from '../depsToSpecs'
 import shrinkwrapsEqual from './shrinkwrapsEqual'
@@ -90,7 +93,7 @@ export type InstallContext = {
   fetchingLocker: {
     [pkgId: string]: {
       fetchingFiles: Promise<PackageContentInfo>,
-      fetchingPkg: Promise<Package>,
+      fetchingPkg: Promise<PackageJson>,
       calculatingIntegrity: Promise<void>,
     },
   },
@@ -203,7 +206,7 @@ export async function install (maybeOpts?: PnpmOptions) {
 }
 
 function specsToInstallFromPackage(
-  pkg: Package,
+  pkg: PackageJson,
   opts: {
     prefix: string,
   }
@@ -435,7 +438,7 @@ async function installInContext (
     specRaw: string,
   }[]).concat(installCtx.localPackages)
 
-  let newPkg: Package | undefined = ctx.pkg
+  let newPkg: PackageJson | undefined = ctx.pkg
   if (installType === 'named') {
     if (!ctx.pkg) {
       throw new Error('Cannot save because no package.json found')
@@ -621,7 +624,7 @@ async function getTopParents (pkgNames: string[], modules: string) {
   const pkgs = await Promise.all(
     pkgNames.map(pkgName => path.join(modules, pkgName)).map(safeReadPkgFromDir)
   )
-  return pkgs.filter(Boolean).map((pkg: Package) => ({
+  return pkgs.filter(Boolean).map((pkg: PackageJson) => ({
     name: pkg.name,
     version: pkg.version,
   }))
