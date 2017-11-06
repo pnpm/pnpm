@@ -55,14 +55,19 @@
     "write-json-file": "^2.2.0"
   },
   "devDependencies": {
+    "@types/nock": "^8.2.1",
     "@types/tape": "^4.2.30",
     "commitizen": "^2.8.6",
     "cz-conventional-changelog": "^2.0.0",
     "husky": "^0.14.3",
     "in-publish": "^2.0.0",
+    "nock": "^9.0.14",
+    "npm-registry-client": "^8.4.0",
     "npm-scripts-info": "^0.3.6",
     "pnpm-logger": "^0.6.2",
     "rimraf": "^2.6.1",
+    "tape": "^4.7.0",
+    "ts-node": "^3.3.0",
     "tslint": "^5.4.2",
     "typescript": "^2.4.1",
     "validate-commit-msg": "^2.7.0"
@@ -89,7 +94,6 @@
     "url": "git+https://github.com/pnpm/package-store.git"
   },
   "scripts": {
-    "prepare": "cd test && pnpm install",
     "info": "npm-scripts-info",
     "start": "npm run tsc -- --watch",
     "?cz": "echo 'Run Git commit wizard'",
@@ -97,7 +101,7 @@
     "commitmsg": "validate-commit-msg",
     "lint": "tslint -c tslint.json --project .",
     "pretest": "rimraf .tmp",
-    "test": "npm run tsc && npm run lint && cd test && npm test",
+    "test": "npm run tsc && npm run lint && ts-node test",
     "tsc": "rimraf lib && tsc",
     "prepublishOnly": "npm run tsc"
   },
