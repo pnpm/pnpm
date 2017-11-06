@@ -1,5 +1,5 @@
 import test = require('tape')
-import {prune} from '../src'
+import {prune} from 'pnpm-shrinkwrap'
 
 test('remove one redundant package', t => {
   t.deepEqual(prune({

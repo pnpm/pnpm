@@ -8,7 +8,7 @@
     "lib/"
   ],
   "scripts": {
-    "test": "ts-node test",
+    "test": "preview && ts-node test",
     "tsc": "rimraf lib && tsc",
     "prepublishOnly": "npm run tsc"
   },
@@ -36,6 +36,7 @@
   },
   "devDependencies": {
     "@types/tape": "^4.2.30",
+    "package-preview": "^1.0.0",
     "pnpm-logger": "^0.6.2",
     "rimraf": "^2.6.1",
     "tape": "^4.6.3",

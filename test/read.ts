@@ -3,7 +3,7 @@ import {
   readCurrent,
   readPrivate,
   read,
-} from '../src'
+} from 'pnpm-shrinkwrap'
 import test = require('tape')
 import path = require('path')
 
