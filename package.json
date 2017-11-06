@@ -100,6 +100,7 @@
     "?cz": "echo 'Run Git commit wizard'",
     "cz": "git-cz",
     "commitmsg": "validate-commit-msg",
+    "fix": "tslint -c tslint.json --project . --fix",
     "lint": "tslint -c tslint.json --project .",
     "pretest": "rimraf .tmp",
     "test": "npm run lint && preview && ts-node test",

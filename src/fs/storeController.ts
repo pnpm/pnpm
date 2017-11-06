@@ -1,10 +1,10 @@
-import path = require('path')
 import loadJsonFile = require('load-json-file')
+import path = require('path')
 import writeJsonFile = require('write-json-file')
 
 const STORE_JSON = 'store.json'
 
-export type Store = {
+export interface Store {
   [name: string]: string[],
 }
 
@@ -13,7 +13,7 @@ export async function read (storePath: string): Promise<Store | null> {
   try {
     return await loadJsonFile(storeJsonPath)
   } catch (err) {
-    if ((<NodeJS.ErrnoException>err).code !== 'ENOENT') {
+    if ((err as NodeJS.ErrnoException).code !== 'ENOENT') {
       throw err
     }
     return null

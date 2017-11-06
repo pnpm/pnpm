@@ -1,16 +1,16 @@
-import pathAbsolute = require('path-absolute')
-import path = require('path')
 import driveByPath = require('drive-by-path')
-import R = require('ramda')
-import logger from 'pnpm-logger'
 import osHomedir = require('os-homedir')
+import path = require('path')
+import pathAbsolute = require('path-absolute')
+import logger from 'pnpm-logger'
+import R = require('ramda')
 
 const STORE_VERSION = '2'
 const STORE_DEFAULT_PATH = '~/.pnpm-store'
 
 export default async function (
   storePath: string | undefined,
-  pkgRoot: string
+  pkgRoot: string,
 ) {
   const pkgDrive = await safeDriveByPath(pkgRoot)
 
@@ -36,10 +36,10 @@ export default async function (
 
 function shortestDriveMountpoint (
   drive: {
-    mountpoints: {
-      path: string
-    }[]
-  }
+    mountpoints: Array<{
+      path: string,
+    }>,
+  },
 ): string {
   // `as string` might be a bad thing to do but as of now,
   // this will never return undefined

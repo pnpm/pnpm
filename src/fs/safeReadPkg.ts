@@ -6,7 +6,7 @@ export default async function safeReadPkg (pkgPath: string): Promise<Package | n
   try {
     return await readPkg(pkgPath)
   } catch (err) {
-    if ((<NodeJS.ErrnoException>err).code !== 'ENOENT') throw err
+    if ((err as NodeJS.ErrnoException).code !== 'ENOENT') throw err
     return null
   }
 }

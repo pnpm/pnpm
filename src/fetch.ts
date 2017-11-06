@@ -1,35 +1,35 @@
+import {Stats} from 'fs'
+import loadJsonFile = require('load-json-file')
+import mkdirp = require('mkdirp-promise')
+import fs = require('mz/fs')
+import path = require('path')
+import exists = require('path-exists')
 import logger, {
   LoggedPkg,
   progressLogger,
 } from 'pnpm-logger'
-import fs = require('mz/fs')
-import {Stats} from 'fs'
-import path = require('path')
+import renameOverwrite = require('rename-overwrite')
 import rimraf = require('rimraf-then')
-import resolve, {
-  Resolution,
-  DirectoryResolution,
-  PackageSpec,
-  PackageMeta,
-} from './resolve'
-import mkdirp = require('mkdirp-promise')
+import symlinkDir = require('symlink-dir')
+import * as unpackStream from 'unpack-stream'
 import writeJsonFile = require('write-json-file')
+import fetchResolution from './fetchResolution'
 import pkgIdToFilename from './fs/pkgIdToFilename'
 import {fromDir as readPkgFromDir} from './fs/readPkg'
 import {fromDir as safeReadPkgFromDir} from './fs/safeReadPkg'
 import {Store} from './fs/storeController'
-import exists = require('path-exists')
 import memoize, {MemoizedFunc} from './memoize'
-import {Package} from './types'
 import {Got} from './network/got'
-import fetchResolution from './fetchResolution'
 import untouched from './pkgIsUntouched'
-import symlinkDir = require('symlink-dir')
-import * as unpackStream from 'unpack-stream'
-import renameOverwrite = require('rename-overwrite')
-import loadJsonFile = require('load-json-file')
+import resolvePkg, {
+  DirectoryResolution,
+  PackageMeta,
+  PackageSpec,
+  Resolution,
+} from './resolve'
+import {Package} from './types'
 
-export type PackageContentInfo = {
+export interface PackageContentInfo {
   isNew: boolean,
   index: {},
 }
@@ -52,42 +52,42 @@ export type FetchedPackage = {
 export default async function fetch (
   spec: PackageSpec,
   options: {
-    prefix: string,
-    storePath: string,
-    registry: string,
-    metaCache: Map<string, PackageMeta>,
-    got: Got,
-    update?: boolean,
-    shrinkwrapResolution?: Resolution,
-    pkgId?: string,
+    downloadPriority: number,
     fetchingLocker: {
       [pkgId: string]: {
+        calculatingIntegrity: Promise<void>,
         fetchingFiles: Promise<PackageContentInfo>,
         fetchingPkg: Promise<Package>,
-        calculatingIntegrity: Promise<void>,
       },
     },
+    got: Got,
     loggedPkg: LoggedPkg,
+    metaCache: Map<string, PackageMeta>,
     offline: boolean,
+    pkgId?: string,
+    prefix: string,
+    registry: string,
+    shrinkwrapResolution?: Resolution,
     storeIndex: Store,
-    downloadPriority: number,
+    storePath: string,
+    update?: boolean,
     verifyStoreIntegrity: boolean,
-  }
+  },
 ): Promise<FetchedPackage> {
   try {
-    let pkg: Package | undefined = undefined
+    let pkg: Package | undefined
     let resolution = options.shrinkwrapResolution
     let pkgId = options.pkgId
     if (!resolution || options.update) {
-      const resolveResult = await resolve(spec, {
-        loggedPkg: options.loggedPkg,
-        prefix: options.prefix,
+      const resolveResult = await resolvePkg(spec, {
+        downloadPriority: options.downloadPriority,
         got: options.got,
-        storePath: options.storePath,
-        registry: options.registry,
+        loggedPkg: options.loggedPkg,
         metaCache: options.metaCache,
         offline: options.offline,
-        downloadPriority: options.downloadPriority,
+        prefix: options.prefix,
+        registry: options.registry,
+        storePath: options.storePath,
       })
       // keep the shrinkwrap resolution when possible
       // to keep the original shasum
@@ -98,7 +98,7 @@ export default async function fetch (
       pkg = resolveResult.package
     }
 
-    const id = <string>pkgId
+    const id = pkgId as string
 
     progressLogger.debug({status: 'resolved', pkgId: id, pkg: options.loggedPkg})
 
@@ -107,8 +107,8 @@ export default async function fetch (
         throw new Error(`Couldn't read package.json of local dependency ${spec}`)
       }
       return {
-        isLocal: true,
         id,
+        isLocal: true,
         pkg,
         resolution,
       }
@@ -119,28 +119,28 @@ export default async function fetch (
 
     if (!options.fetchingLocker[id]) {
       options.fetchingLocker[id] = fetchToStore({
-        target,
-        targetRelative,
-        resolution: <Resolution>resolution,
-        pkgId: id,
         got: options.got,
-        storePath: options.storePath,
         offline: options.offline,
         pkg,
-        storeIndex: options.storeIndex,
-        verifyStoreIntegrity: options.verifyStoreIntegrity,
+        pkgId: id,
         prefix: options.prefix,
+        resolution: resolution as Resolution,
+        storeIndex: options.storeIndex,
+        storePath: options.storePath,
+        target,
+        targetRelative,
+        verifyStoreIntegrity: options.verifyStoreIntegrity,
       })
     }
 
     return {
-      isLocal: false,
-      fetchingPkg: options.fetchingLocker[id].fetchingPkg,
-      fetchingFiles: options.fetchingLocker[id].fetchingFiles,
       calculatingIntegrity: options.fetchingLocker[id].calculatingIntegrity,
+      fetchingFiles: options.fetchingLocker[id].fetchingFiles,
+      fetchingPkg: options.fetchingLocker[id].fetchingPkg,
       id,
-      resolution,
+      isLocal: false,
       path: target,
+      resolution,
     }
   } catch (err) {
     progressLogger.debug({status: 'error', pkg: options.loggedPkg})
@@ -149,17 +149,17 @@ export default async function fetch (
 }
 
 function fetchToStore (opts: {
-  target: string,
-  targetRelative: string,
-  resolution: Resolution,
-  pkgId: string,
   got: Got,
-  storePath: string,
   offline: boolean,
   pkg?: Package,
+  pkgId: string,
+  prefix: string,
+  resolution: Resolution,
+  target: string,
+  targetRelative: string,
+  storePath: string,
   storeIndex: Store,
   verifyStoreIntegrity: boolean,
-  prefix: string,
 }): {
   fetchingFiles: Promise<PackageContentInfo>,
   fetchingPkg: Promise<Package>,
@@ -169,22 +169,22 @@ function fetchToStore (opts: {
   const fetchingFiles = differed<PackageContentInfo>()
   const calculatingIntegrity = differed<void>()
 
-  fetch()
+  doFetchToStore()
 
   return {
+    calculatingIntegrity: calculatingIntegrity.promise,
     fetchingFiles: fetchingFiles.promise,
     fetchingPkg: opts.pkg && Promise.resolve(opts.pkg) || fetchingPkg.promise,
-    calculatingIntegrity: calculatingIntegrity.promise,
   }
 
-  async function fetch () {
+  async function doFetchToStore () {
     try {
       progressLogger.debug({
-        status: 'resolving_content',
         pkgId: opts.pkgId,
+        status: 'resolving_content',
       })
 
-      let target = opts.target
+      const target = opts.target
       const linkToUnpacked = path.join(target, 'package')
 
       // We can safely assume that if there is no data about the package in `store.json` then
@@ -199,17 +199,17 @@ function fetchToStore (opts: {
           : await loadJsonFile(path.join(path.dirname(linkToUnpacked), 'integrity.json'))
         if (satisfiedIntegrity) {
           progressLogger.debug({
-            status: 'found_in_store',
             pkgId: opts.pkgId,
+            status: 'found_in_store',
           })
           fetchingFiles.resolve({
-            isNew: false,
             index: satisfiedIntegrity,
+            isNew: false,
           })
           if (!opts.pkg) {
             readPkgFromDir(linkToUnpacked)
-              .then(pkg => fetchingPkg.resolve(pkg))
-              .catch(err => fetchingPkg.reject(err))
+              .then(fetchingPkg.resolve)
+              .catch(fetchingPkg.reject)
           }
           calculatingIntegrity.resolve(undefined)
           return
@@ -226,30 +226,30 @@ function fetchToStore (opts: {
 
       let packageIndex: {} = {}
       await Promise.all([
-        async function () {
+        (async () => {
           packageIndex = await fetchResolution(opts.resolution, targetStage, {
             got: opts.got,
-            pkgId: opts.pkgId,
-            storePath: opts.storePath,
             offline: opts.offline,
+            pkgId: opts.pkgId,
             prefix: opts.prefix,
+            storePath: opts.storePath,
           })
-        }(),
+        })(),
         // removing only the folder with the unpacked files
         // not touching tarball and integrity.json
-        targetExists && await rimraf(path.join(target, 'node_modules'))
+        targetExists && await rimraf(path.join(target, 'node_modules')),
       ])
       progressLogger.debug({
-        status: 'fetched',
         pkgId: opts.pkgId,
+        status: 'fetched',
       })
 
       // fetchingFilse shouldn't care about when this is saved at all
       if (!targetExists) {
-        (async function () {
+        (async () => {
           const integrity = opts.verifyStoreIntegrity
-            ? await (<unpackStream.Index>packageIndex).integrityPromise
-            : await (<unpackStream.Index>packageIndex).headers
+            ? await (packageIndex as unpackStream.Index).integrityPromise
+            : await (packageIndex as unpackStream.Index).headers
           writeJsonFile(path.join(target, 'integrity.json'), integrity, {indent: null})
           calculatingIntegrity.resolve(undefined)
         })()
@@ -274,8 +274,8 @@ function fetchToStore (opts: {
       await symlinkDir(unpacked, linkToUnpacked)
 
       fetchingFiles.resolve({
+        index: (packageIndex as unpackStream.Index).headers,
         isNew: true,
-        index: (<unpackStream.Index>packageIndex).headers,
       })
     } catch (err) {
       fetchingFiles.reject(err)
@@ -286,20 +286,23 @@ function fetchToStore (opts: {
   }
 }
 
+// tslint:disable-next-line
+function noop () {}
+
 function differed<T> (): {
   promise: Promise<T>,
   resolve: (v: T) => void,
   reject: (err: Error) => void,
 } {
-  let pResolve: (v: T) => void = () => {}
-  let pReject: (err: Error) => void = () => {}
+  let pResolve: (v: T) => void = noop
+  let pReject: (err: Error) => void = noop
   const promise = new Promise<T>((resolve, reject) => {
     pResolve = resolve
     pReject = reject
   })
   return {
     promise,
-    resolve: pResolve,
     reject: pReject,
+    resolve: pResolve,
   }
 }

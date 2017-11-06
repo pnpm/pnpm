@@ -1,6 +1,6 @@
-import fs = require('mz/fs')
-import loadJsonFile = require('load-json-file')
 import dint = require('dint')
+import loadJsonFile = require('load-json-file')
+import fs = require('mz/fs')
 import path = require('path')
 
 export default async function untouched (pkgDir: string): Promise<false | {}> {

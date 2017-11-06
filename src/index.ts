@@ -1,15 +1,15 @@
-import fetch, {PackageContentInfo, FetchedPackage} from './fetch'
-import resolve, {
-  PackageSpec,
-  DirectoryResolution,
-  Resolution,
-  PackageMeta
-} from './resolve'
-import {Store, read, save} from './fs/storeController'
 import getRegistryName = require('encode-registry') // TODO: remove this. BREAKING CHANGE
+import fetch, {FetchedPackage, PackageContentInfo} from './fetch'
+import pkgIdToFilename from './fs/pkgIdToFilename'
+import {read, save, Store} from './fs/storeController'
 import createGot, {Got} from './network/got'
 import pkgIsUntouched from './pkgIsUntouched'
-import pkgIdToFilename from './fs/pkgIdToFilename'
+import resolve, {
+  DirectoryResolution,
+  PackageMeta,
+  PackageSpec,
+  Resolution,
+} from './resolve'
 import resolveStore from './resolveStore'
 
 export {

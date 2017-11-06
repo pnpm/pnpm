@@ -1,17 +1,17 @@
-import resolveFromNpm, {PackageMeta} from './npm'
-import resolveFromTarball from './tarball'
-import resolveFromLocal from './local'
-import resolveFromGit from './git'
+import {LoggedPkg} from 'pnpm-logger'
 import {Got} from '../network/got'
 import {Package} from '../types'
-import {LoggedPkg} from 'pnpm-logger'
+import resolveFromGit from './git'
+import resolveFromLocal from './local'
+import resolveFromNpm, {PackageMeta} from './npm'
+import resolveFromTarball from './tarball'
 
 export {PackageMeta}
 
 /**
  * tarball hosted remotely
  */
-export type TarballResolution = {
+export interface TarballResolution {
   type?: undefined,
   tarball: string,
   integrity?: string,
@@ -24,7 +24,7 @@ export type TarballResolution = {
 /**
  * directory on a file system
  */
-export type DirectoryResolution = {
+export interface DirectoryResolution {
   type: 'directory',
   directory: string,
 }
@@ -32,7 +32,7 @@ export type DirectoryResolution = {
 /**
  * Git repository
  */
-export type GitRepositoryResolution = {
+export interface GitRepositoryResolution {
   type: 'git',
   repo: string,
   commit: string,
@@ -43,7 +43,7 @@ export type Resolution =
   GitRepositoryResolution |
   DirectoryResolution
 
-export type ResolveResult = {
+export interface ResolveResult {
   id: string,
   resolution: Resolution,
   package?: Package,
@@ -60,7 +60,7 @@ export type HostedPackageSpec = PackageSpecBase & {
     user: string,
     project: string,
     committish: string,
-  }
+  },
 }
 
 export type RegistryPackageSpec = PackageSpecBase & {
@@ -68,7 +68,7 @@ export type RegistryPackageSpec = PackageSpecBase & {
   registry: true,
 }
 
-export type PackageSpecBase = {
+export interface PackageSpecBase {
   raw: string,
   rawSpec: string
   name: string,
@@ -86,7 +86,7 @@ export type PackageSpec = HostedPackageSpec |
     registry: false,
   }
 
-export type ResolveOptions = {
+export interface ResolveOptions {
   loggedPkg: LoggedPkg,
   got: Got,
   storePath: string,
@@ -125,6 +125,7 @@ export default async function (spec: PackageSpec, opts: ResolveOptions): Promise
     case 'git':
       return resolveFromGit(spec, opts)
     default:
+      // tslint:disable-next-line
       throw new Error(`${spec['rawSpec']}: ${spec['type']} packages not supported`)
   }
 }

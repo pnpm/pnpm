@@ -1,5 +1,5 @@
-import path = require('path')
 import normalize = require('normalize-path')
+import path = require('path')
 
 export default function pkgIdToFilename (pkgId: string) {
   if (pkgId.indexOf('file:') !== 0) return pkgId

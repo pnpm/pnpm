@@ -1,20 +1,20 @@
-import logger, {progressLogger} from 'pnpm-logger'
-import fs = require('mz/fs')
-import path = require('path')
+import dint = require('dint')
 import execa = require('execa')
 import {IncomingMessage} from 'http'
-import * as unpackStream from 'unpack-stream'
-import dint = require('dint')
-import {Resolution} from './resolve'
-import {Got} from './network/got'
-import {PnpmError} from './errorTypes'
+import fs = require('mz/fs')
+import path = require('path')
+import logger, {progressLogger} from 'pnpm-logger'
 import rimraf = require('rimraf-then')
+import * as unpackStream from 'unpack-stream'
+import {PnpmError} from './errorTypes'
+import {Got} from './network/got'
+import {Resolution} from './resolve'
 
 const gitLogger = logger('git')
 
 const fetchLogger = logger('fetch')
 
-export type FetchOptions = {
+export interface FetchOptions {
   pkgId: string,
   got: Got,
   storePath: string,
@@ -22,7 +22,7 @@ export type FetchOptions = {
   prefix: string,
 }
 
-export type PackageDist = {
+export interface PackageDist {
   tarball: string,
   registry?: string,
   integrity?: string,
@@ -31,15 +31,15 @@ export type PackageDist = {
 export default async function fetchResolution (
   resolution: Resolution,
   target: string,
-  opts: FetchOptions
+  opts: FetchOptions,
 ): Promise<unpackStream.Index> {
   switch (resolution.type) {
 
     case undefined:
       const dist = {
-        tarball: resolution.tarball,
         integrity: resolution.integrity,
         registry: resolution.registry,
+        tarball: resolution.tarball,
       }
       return await fetchFromTarball(target, dist, opts) as unpackStream.Index
 
@@ -71,7 +71,7 @@ function prefixGitArgs (): string[] {
   return process.platform === 'win32' ? ['-c', 'core.longpaths=true'] : []
 }
 
-function execGit (args: string[], opts?: Object) {
+function execGit (args: string[], opts?: object) {
   gitLogger.debug(`executing git with args ${args}`)
   const fullArgs = prefixGitArgs().concat(args || [])
   return execa('git', fullArgs, opts)
@@ -96,28 +96,28 @@ export async function fetchFromRemoteTarball (dir: string, dist: PackageDist, op
     fetchLogger.debug(`finish ${dist.integrity} ${dist.tarball}`)
     return index
   } catch (err) {
-    if (err['code'] !== 'ENOENT') throw err
+    if (err.code !== 'ENOENT') throw err
 
     if (opts.offline) {
       throw new PnpmError('NO_OFFLINE_TARBALL', `Could not find ${localTarballPath} in local registry mirror ${opts.storePath}`)
     }
     return await opts.got.download(dist.tarball, localTarballPath, {
-      unpackTo: dir,
-      registry: dist.registry,
       integrity: dist.integrity,
+      onProgress: (downloaded) => {
+        progressLogger.debug({status: 'fetching_progress', pkgId: opts.pkgId, downloaded})
+      },
       onStart: (size, attempt) => {
         progressLogger.debug({status: 'fetching_started', pkgId: opts.pkgId, size, attempt})
       },
-      onProgress: downloaded => {
-        progressLogger.debug({status: 'fetching_progress', pkgId: opts.pkgId, downloaded})
-      },
+      registry: dist.registry,
+      unpackTo: dir,
     })
   }
 }
 
 async function fetchFromLocalTarball (
   dir: string,
-  dist: PackageDist
+  dist: PackageDist,
 ): Promise<unpackStream.Index> {
   return await unpackStream.local(fs.createReadStream(dist.tarball), dir) as unpackStream.Index
 }

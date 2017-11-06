@@ -1,11 +1,11 @@
-import url = require('url')
 import path = require('path')
 import {progressLogger} from 'pnpm-logger'
 import semver = require('semver')
-import {PackageSpec, ResolveOptions, TarballResolution, ResolveResult} from '..'
-import loadPkgMeta, {PackageMeta} from './loadPackageMeta'
-import createPkgId from './createNpmPkgId'
 import ssri = require('ssri')
+import url = require('url')
+import {PackageSpec, ResolveOptions, ResolveResult, TarballResolution} from '..'
+import createPkgId from './createNpmPkgId'
+import loadPkgMeta, {PackageMeta} from './loadPackageMeta'
 
 export {PackageMeta}
 
@@ -30,12 +30,12 @@ export default async function resolveNpm (spec: PackageSpec, opts: ResolveOption
       progressLogger.debug({ status: 'resolving', pkg: opts.loggedPkg })
     }
     const meta = await loadPkgMeta(spec, {
-      storePath: opts.storePath,
-      registry: opts.registry,
+      downloadPriority: opts.downloadPriority,
       got: opts.got,
       metaCache: opts.metaCache,
       offline: opts.offline,
-      downloadPriority: opts.downloadPriority,
+      registry: opts.registry,
+      storePath: opts.storePath,
     })
     const correctPkg = pickVersion(meta, spec)
     if (!correctPkg) {
@@ -50,13 +50,13 @@ export default async function resolveNpm (spec: PackageSpec, opts: ResolveOption
     const id = createPkgId(correctPkg.dist.tarball, correctPkg.name, correctPkg.version)
 
     const resolution: TarballResolution = {
-      tarball: correctPkg.dist.tarball,
-      registry: opts.registry,
       integrity: getIntegrity(correctPkg.dist),
+      registry: opts.registry,
+      tarball: correctPkg.dist.tarball,
     }
     return {id, resolution, package: correctPkg}
   } catch (err) {
-    if (err['statusCode'] === 404) {
+    if (err.statusCode === 404) {
       throw new Error("Module '" + spec.raw + "' not found")
     }
     throw err
@@ -81,7 +81,7 @@ function pickVersion (meta: PackageMeta, dep: PackageSpec) {
   return pickVersionByVersionRange(meta, dep.fetchSpec)
 }
 
-function pickVersionByTag(meta: PackageMeta, tag: string) {
+function pickVersionByTag (meta: PackageMeta, tag: string) {
   const tagVersion = meta['dist-tags'][tag]
   if (meta.versions[tagVersion]) {
     return meta.versions[tagVersion]
@@ -89,8 +89,8 @@ function pickVersionByTag(meta: PackageMeta, tag: string) {
   return null
 }
 
-function pickVersionByVersionRange(meta: PackageMeta, versionRange: string) {
-  const latest = meta['dist-tags']['latest']
+function pickVersionByVersionRange (meta: PackageMeta, versionRange: string) {
+  const latest = meta['dist-tags'].latest
 
   // Not using semver.satisfies in case of * because it does not select beta versions.
   // E.g.: 1.0.0-beta.1. See issue: https://github.com/pnpm/pnpm/issues/865

@@ -1,14 +1,14 @@
-import path = require('path')
-import {fromDir as readPkgFromDir} from '../fs/readPkg'
-import {
-  PackageSpec,
-  ResolveOptions,
-  TarballResolution,
-  DirectoryResolution,
-  ResolveResult,
-} from '.'
 import fs = require('mz/fs')
 import normalize = require('normalize-path')
+import path = require('path')
+import {
+  DirectoryResolution,
+  PackageSpec,
+  ResolveOptions,
+  ResolveResult,
+  TarballResolution,
+} from '.'
+import {fromDir as readPkgFromDir} from '../fs/readPkg'
 
 /**
  * Resolves a package hosted on the local filesystem
@@ -18,23 +18,20 @@ export default async function resolveLocal (spec: PackageSpec, opts: ResolveOpti
   const id = `file:${dependencyPath}`
 
   if (spec.type === 'file') {
-    const resolution: TarballResolution = {
-      tarball: id,
-    }
     return {
       id,
-      resolution,
+      resolution: { tarball: id },
     }
   }
 
   const localPkg = await readPkgFromDir(dependencyPath)
   const resolution: DirectoryResolution = {
-    type: 'directory',
     directory: dependencyPath,
+    type: 'directory',
   }
   return {
     id,
-    resolution,
     package: localPkg,
+    resolution,
   }
 }

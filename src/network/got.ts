@@ -1,18 +1,19 @@
-import {IncomingMessage} from 'http'
-import R = require('ramda')
-import pLimit = require('p-limit')
+import getCredentialsByURI = require('credentials-by-uri')
 import crypto = require('crypto')
-import mkdirp = require('mkdirp-promise')
-import path = require('path')
 import createWriteStreamAtomic = require('fs-write-stream-atomic')
+import {IncomingMessage} from 'http'
+import mkdirp = require('mkdirp-promise')
+import normalizeRegistryUrl = require('normalize-registry-url')
+import pLimit = require('p-limit')
+import PQueue = require('p-queue')
+import path = require('path')
+import {progressLogger} from 'pnpm-logger'
+import R = require('ramda')
+import retry = require('retry')
 import ssri = require('ssri')
 import unpackStream = require('unpack-stream')
-import getCredentialsByURI = require('credentials-by-uri')
 import urlLib = require('url')
-import normalizeRegistryUrl = require('normalize-registry-url')
-import PQueue = require('p-queue')
-import {progressLogger} from 'pnpm-logger'
-import retry = require('retry')
+import {BadTarballError} from '../errorTypes'
 
 export type AuthInfo = {
   alwaysAuth: boolean,
@@ -23,12 +24,12 @@ export type AuthInfo = {
   password: string,
 })
 
-export type HttpResponse = {
+export interface HttpResponse {
   body: string
 }
 
-export type Got = {
-  download(url: string, saveto: string, opts: {
+export interface Got {
+  download (url: string, saveto: string, opts: {
     unpackTo: string,
     registry?: string,
     onStart?: (totalSize: number | null, attempt: number) => void,
@@ -36,19 +37,19 @@ export type Got = {
     integrity?: string
     generatePackageIntegrity?: boolean,
   }): Promise<{}>,
-  getJSON<T>(url: string, registry: string, priority?: number): Promise<T>,
+  getJSON<T> (url: string, registry: string, priority?: number): Promise<T>,
 }
 
-export type NpmRegistryClient = {
-  get: Function,
-  fetch: Function
+export interface NpmRegistryClient {
+  get: (url: string, getOpts: object, cb: (err: Error, data: object, raw: object, res: HttpResponse) => void) => void,
+  fetch: (url: string, opts: {auth?: object}, cb: (err: Error, res: IncomingMessage) => void) => void,
 }
 
 export default (
   client: NpmRegistryClient,
-  opts: {
+  gotOpts: {
     networkConcurrency: number,
-    rawNpmConfig: Object,
+    rawNpmConfig: object & { registry?: string },
     alwaysAuth: boolean,
     registry: string,
     retries?: number,
@@ -56,20 +57,20 @@ export default (
     minTimeout?: number,
     maxTimeout?: number,
     randomize?: boolean,
-  }
+  },
 ): Got => {
-  opts.rawNpmConfig['registry'] = normalizeRegistryUrl(opts.rawNpmConfig['registry'] || opts.registry)
+  gotOpts.rawNpmConfig.registry = normalizeRegistryUrl(gotOpts.rawNpmConfig.registry || gotOpts.registry)
   const retryOpts = {
-    retries: opts.retries,
-    factor: opts.factor,
-    minTimeout: opts.minTimeout,
-    maxTimeout: opts.maxTimeout,
-    randomize: opts.randomize,
+    factor: gotOpts.factor,
+    maxTimeout: gotOpts.maxTimeout,
+    minTimeout: gotOpts.minTimeout,
+    randomize: gotOpts.randomize,
+    retries: gotOpts.retries,
   }
 
   let counter = 0
-  const networkConcurrency = opts.networkConcurrency || 16
-  const rawNpmConfig = opts.rawNpmConfig || {}
+  const networkConcurrency = gotOpts.networkConcurrency || 16
+  const rawNpmConfig = gotOpts.rawNpmConfig || {}
   const requestsQueue = new PQueue({
     concurrency: networkConcurrency,
   })
@@ -80,8 +81,11 @@ export default (
         auth: getCredentialsByURI(registry, rawNpmConfig),
         fullMetadata: false,
       }
-      client.get(url, getOpts, (err: Error, data: Object, raw: Object, res: HttpResponse) => {
-        if (err) return reject(err)
+      client.get(url, getOpts, (err: Error, data: object, raw: object, res: HttpResponse) => {
+        if (err) {
+          reject(err)
+          return
+        }
         resolve(data)
       })
     }), { priority })
@@ -116,83 +120,96 @@ export default (
       const op = retry.operation(retryOpts)
 
       return new Promise((resolve, reject) => {
-        op.attempt(currentAttempt => {
+        op.attempt((currentAttempt) => {
           fetch(currentAttempt)
             .then(resolve)
-            .catch(err => {
+            .catch((err) => {
               if (op.retry(err)) {
                 return
               }
               reject(op.mainError())
             })
         })
-
-        function fetch (currentAttempt: number) {
-          return new Promise((resolve, reject) => {
-            client.fetch(url, {auth: shouldAuth && auth}, async (err: Error, res: IncomingMessage) => {
-              if (err) return reject(err)
-
-              if (res.statusCode !== 200) {
-                return reject(new Error(`Invalid response: ${res.statusCode}`))
-              }
-
-              // Is saved to a variable only because TypeScript 5.3 errors otherwise
-              const contentLength = res.headers['content-length']
-              const size = typeof contentLength === 'string'
-                ? parseInt(contentLength)
-                : null
-              if (opts.onStart) {
-                opts.onStart(size, currentAttempt)
-              }
-              const onProgress = opts.onProgress
-              let downloaded = 0
-              res.on('data', (chunk: Buffer) => {
-                downloaded += chunk.length
-                if (onProgress) onProgress(downloaded)
-              })
-
-              const writeStream = createWriteStreamAtomic(saveto)
-
-              const stream = res
-                .on('error', reject)
-                .pipe(writeStream)
-                .on('error', reject)
-
-              Promise.all([
-                opts.integrity && ssri.checkStream(res, opts.integrity),
-                unpackStream.local(res, opts.unpackTo, {
-                  generateIntegrity: opts.generatePackageIntegrity,
-                }),
-                new Promise((resolve, reject) => {
-                  stream.on('close', () => {
-                    if (size !== null && size !== downloaded) {
-                      const err = new Error(`Actual size (${downloaded}) of tarball (${url}) did not match the one specified in \'Content-Length\' header (${size})`)
-                      err['code'] = 'BAD_TARBALL_SIZE'
-                      err['expectedSize'] = size
-                      err['receivedSize'] = downloaded
-                      reject(err)
-                      return
-                    }
-                    resolve()
-                  })
-                }),
-              ])
-              .then(vals => resolve(vals[1]))
-              .catch(reject)
-            })
-          })
-          .catch(err => {
-            err['attempts'] = currentAttempt
-            err['resource'] = url
-            throw err
-          })
-        }
       })
+
+      function fetch (currentAttempt: number) {
+        return new Promise((resolve, reject) => {
+          client.fetch(url, {auth: shouldAuth && auth || undefined}, async (err: Error, res: IncomingMessage) => {
+            if (err) return reject(err)
+
+            if (res.statusCode !== 200) {
+              return reject(new Error(`Invalid response: ${res.statusCode}`))
+            }
+
+            // Is saved to a variable only because TypeScript 5.3 errors otherwise
+            const contentLength = res.headers['content-length']
+            const size = typeof contentLength === 'string'
+              ? parseInt(contentLength, 10)
+              : null
+            if (opts.onStart) {
+              opts.onStart(size, currentAttempt)
+            }
+            const onProgress = opts.onProgress
+            let downloaded = 0
+            res.on('data', (chunk: Buffer) => {
+              downloaded += chunk.length
+              if (onProgress) onProgress(downloaded)
+            })
+
+            const writeStream = createWriteStreamAtomic(saveto)
+
+            const stream = res
+              .on('error', reject)
+              .pipe(writeStream)
+              .on('error', reject)
+
+            Promise.all([
+              opts.integrity && ssri.checkStream(res, opts.integrity),
+              unpackStream.local(res, opts.unpackTo, {
+                generateIntegrity: opts.generatePackageIntegrity,
+              }),
+              waitTillClosed({ stream, size, getDownloaded: () => downloaded, url }),
+            ])
+            .then((vals) => resolve(vals[1]))
+            .catch(reject)
+          })
+        })
+        .catch((err) => {
+          err.attempts = currentAttempt
+          err.resource = url
+          throw err
+        })
+      }
     }, {priority})
   }
 
   return {
-    getJSON: <any>R.memoize(getJSON), // tslint:disable-line
     download,
+    getJSON: <any>R.memoize(getJSON), // tslint:disable-line
   }
+}
+
+function waitTillClosed (
+  opts: {
+    stream: NodeJS.ReadableStream,
+    size: null | number,
+    getDownloaded: () => number,
+    url: string,
+  },
+) {
+  return new Promise((resolve, reject) => {
+    opts.stream.on('close', () => {
+      const downloaded = opts.getDownloaded()
+      if (opts.size !== null && opts.size !== downloaded) {
+        const err = new BadTarballError({
+          expectedSize: opts.size,
+          receivedSize: downloaded,
+          tarballUrl: opts.url,
+        })
+        reject(err)
+        return
+      }
+      resolve()
+    })
+  })
 }

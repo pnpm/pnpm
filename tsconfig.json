@@ -14,31 +14,11 @@
     "module": "commonjs",
     "moduleResolution": "node"
   },
-  "filesGlob": [
+  "include": [
     "src/**/*.ts",
     "typings/**/*.d.ts"
   ],
   "atom": {
     "rewriteTsconfig": true
-  },
-  "files": [
-    "src/errorTypes.ts",
-    "src/fs/pkgIdToFilename.ts",
-    "src/fs/readPkg.ts",
-    "src/fs/safeReadPkg.ts",
-    "src/fs/storeController.ts",
-    "src/index.ts",
-    "src/memoize.ts",
-    "src/network/got.ts",
-    "src/pkgIsUntouched.ts",
-    "src/resolve/git.ts",
-    "src/resolve/index.ts",
-    "src/resolve/local.ts",
-    "src/resolve/npm/createNpmPkgId.ts",
-    "src/resolve/npm/index.ts",
-    "src/resolve/npm/loadPackageMeta.ts",
-    "src/resolve/tarball.ts",
-    "src/types.ts",
-    "typings/index.d.ts"
-  ]
+  }
 }

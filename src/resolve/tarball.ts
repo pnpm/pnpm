@@ -1,5 +1,5 @@
-import {PackageSpec, ResolveOptions, TarballResolution, ResolveResult} from '.'
 import parseNpmTarballUrl from 'parse-npm-tarball-url'
+import {PackageSpec, ResolveOptions, ResolveResult, TarballResolution} from '.'
 
 /**
  * Resolves a 'remote' package.

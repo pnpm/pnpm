@@ -1,20 +1,20 @@
-import url = require('url')
+import getRegistryName = require('encode-registry')
 import loadJsonFile = require('load-json-file')
-import writeJsonFile = require('write-json-file')
+import pLimit = require('p-limit')
 import path = require('path')
-import {Got} from '../../network/got'
+import logger from 'pnpm-logger'
+import url = require('url')
+import writeJsonFile = require('write-json-file')
 import {PackageSpec} from '..'
+import {PnpmError} from '../../errorTypes'
+import {Got} from '../../network/got'
 import {Package} from '../../types'
 import createPkgId from './createNpmPkgId'
-import getRegistryName = require('encode-registry')
-import logger from 'pnpm-logger'
-import pLimit = require('p-limit')
-import {PnpmError} from '../../errorTypes'
 
-export type PackageMeta = {
+export interface PackageMeta {
   'dist-tag': { [name: string]: string },
   versions: {
-    [name: string]: PackageInRegistry
+    [name: string]: PackageInRegistry,
   }
 }
 
@@ -22,8 +22,8 @@ export type PackageInRegistry = Package & {
   dist: {
     integrity?: string,
     shasum: string,
-    tarball: string
-  }
+    tarball: string,
+  },
 }
 
 // prevents simultainous operations on the meta.json
@@ -39,12 +39,12 @@ export default async function loadPkgMetaNonCached (
     offline: boolean,
     registry: string,
     downloadPriority: number,
-  }
+  },
 ): Promise<PackageMeta> {
   opts = opts || {}
 
   if (opts.metaCache.has(spec.name)) {
-    return <PackageMeta>opts.metaCache.get(spec.name)
+    return opts.metaCache.get(spec.name) as PackageMeta
   }
 
   const registryName = getRegistryName(opts.registry)
@@ -85,7 +85,7 @@ export default async function loadPkgMetaNonCached (
 
 async function fromRegistry (got: Got, spec: PackageSpec, registry: string, downloadPriority: number) {
   const uri = toUri(spec, registry)
-  const meta = <PackageMeta>await got.getJSON(uri, registry, downloadPriority)
+  const meta = await got.getJSON(uri, registry, downloadPriority) as PackageMeta
   return meta
 }
 

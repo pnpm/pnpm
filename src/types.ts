@@ -1,10 +1,10 @@
-export type Dependencies = {
+export interface Dependencies {
   [name: string]: string
 }
 
 export type PackageBin = string | {[name: string]: string}
 
-export type Package = {
+export interface Package {
   name: string,
   version: string,
   private?: boolean,
@@ -19,7 +19,7 @@ export type Package = {
   bundleDependencies?: string[],
   bundledDependencies?: string[],
   scripts?: {
-    [name: string]: string
+    [name: string]: string,
   },
-  config?: Object,
+  config?: object,
 }

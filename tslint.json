@@ -1,4 +1,5 @@
 {
+  "extends": "tslint:recommended",
   "rules": {
     "curly": false,
     "eofline": false,
@@ -15,6 +16,8 @@
     "no-use-before-declare": true,
     "no-var-requires": true,
     "no-require-imports": false,
+    "space-before-function-paren": [true, "always"],
+    "interface-name": [true, "never-prefix"],
     "one-line": [true,
       "check-else",
       "check-whitespace",

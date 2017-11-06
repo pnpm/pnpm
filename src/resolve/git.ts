@@ -1,15 +1,15 @@
 import execa = require('execa')
+import normalizeSsh = require('normalize-ssh')
+import path = require('path')
+import logger from 'pnpm-logger'
 import {
-  PackageSpec,
+  GitRepositoryResolution,
   HostedPackageSpec,
+  PackageSpec,
   ResolveOptions,
   ResolveResult,
   TarballResolution,
-  GitRepositoryResolution,
 } from '.'
-import logger from 'pnpm-logger'
-import path = require('path')
-import normalizeSsh = require('normalize-ssh')
 import {Got} from '../network/got'
 
 const gitLogger = logger // TODO: add namespace 'git-logger'
@@ -22,9 +22,9 @@ export default async function resolveGit (parsedSpec: HostedPackageSpec, opts: R
   if (!isGitHubHosted || isSsh(parsedSpec.rawSpec)) {
     const commit = await resolveRef(parsedSpec.fetchSpec, parsedSpec.gitCommittish)
     const resolution: GitRepositoryResolution = {
-      type: 'git',
-      repo: parsedSpec.fetchSpec,
       commit,
+      repo: parsedSpec.fetchSpec,
+      type: 'git',
     }
     return {
       id: parsedSpec.fetchSpec
@@ -39,9 +39,9 @@ export default async function resolveGit (parsedSpec: HostedPackageSpec, opts: R
   const repo = parts[0]
 
   const ghSpec = {
-    user: parsedSpec.hosted!.user,
     project: parsedSpec.hosted!.project,
     ref: parsedSpec.hosted!.committish || 'HEAD',
+    user: parsedSpec.hosted!.user,
   }
   let commitId: string
   if (tryGitHubApi) {
@@ -49,8 +49,8 @@ export default async function resolveGit (parsedSpec: HostedPackageSpec, opts: R
       commitId = await tryResolveViaGitHubApi(ghSpec, opts.got)
     } catch (err) {
       gitLogger.warn({
-        message: `Error while trying to resolve ${parsedSpec.fetchSpec} via GitHub API`,
         err,
+        message: `Error while trying to resolve ${parsedSpec.fetchSpec} via GitHub API`,
       })
 
       // if it fails once, don't bother retrying for other packages
@@ -62,12 +62,12 @@ export default async function resolveGit (parsedSpec: HostedPackageSpec, opts: R
     commitId = await resolveRef(repo, ghSpec.ref)
   }
 
-  const resolution: TarballResolution = {
+  const tarballResolution: TarballResolution = {
     tarball: `https://codeload.github.com/${ghSpec.user}/${ghSpec.project}/tar.gz/${commitId}`,
   }
   return {
     id: ['github.com', ghSpec.user, ghSpec.project, commitId].join('/'),
-    resolution,
+    resolution: tarballResolution,
   }
 }
 
@@ -84,7 +84,7 @@ async function resolveRef (repo: string, ref: string) {
 
 function normalizeRepoUrl (parsedSpec: HostedPackageSpec) {
   const hosted = <any>parsedSpec.hosted // tslint:disable-line
-  return hosted.getDefaultRepresentation() == 'shortcut' ? hosted.git() : hosted.toString()
+  return hosted.getDefaultRepresentation() === 'shortcut' ? hosted.git() : hosted.toString()
 }
 
 function isSsh (gitSpec: string): boolean {
@@ -99,22 +99,22 @@ async function tryResolveViaGitHubApi (
   spec: {
     user: string,
     project: string,
-    ref: string
+    ref: string,
   },
-  got: Got
+  got: Got,
 ) {
   const url = [
     'https://api.github.com/repos',
     spec.user,
     spec.project,
     'commits',
-    spec.ref
+    spec.ref,
   ].join('/')
   // TODO: investigate what should be the correct registry path here
   const body = await got.getJSON<GitHubRepoResponse>(url, url)
   return body.sha
 }
 
-type GitHubRepoResponse = {
+interface GitHubRepoResponse {
   sha: string
 }

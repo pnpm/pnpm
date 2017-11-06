@@ -1,7 +1,7 @@
 import path = require('path')
-import {Package} from '../types'
 import readPackageJsonCB = require('read-package-json')
 import thenify = require('thenify')
+import {Package} from '../types'
 
 const readPackageJson = thenify(readPackageJsonCB)
 
