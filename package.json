@@ -47,7 +47,7 @@
     "@types/tape": "^4.2.31",
     "mos": "^2.0.0-alpha.3",
     "mos-plugin-readme": "^1.0.4",
-    "package-preview": "^0.2.1",
+    "package-preview": "^1.0.0",
     "pnpm-logger": "^0.6.1",
     "tape": "^4.8.0",
     "ts-node": "^3.3.0",
