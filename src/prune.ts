@@ -1,13 +1,13 @@
-import R = require('ramda')
-import logger from 'pnpm-logger'
-import {
-  Shrinkwrap,
-  Package,
-  ResolvedPackages,
-  ResolvedDependencies,
-} from './types'
 import {refToRelative} from 'dependency-path'
+import logger from 'pnpm-logger'
+import R = require('ramda')
 import {SHRINKWRAP_VERSION} from './constants'
+import {
+  Package,
+  ResolvedDependencies,
+  ResolvedPackages,
+  Shrinkwrap,
+} from './types'
 
 export default function prune (shr: Shrinkwrap, pkg: Package): Shrinkwrap {
   const packages: ResolvedPackages = {}
@@ -22,7 +22,7 @@ export default function prune (shr: Shrinkwrap, pkg: Package): Shrinkwrap {
   const shrDevDependencies: ResolvedDependencies = {}
   const nonOptional = new Set()
 
-  R.keys(shr.specifiers).forEach(depName => {
+  R.keys(shr.specifiers).forEach((depName) => {
     if (allDeps.indexOf(depName) === -1) return
     specifiers[depName] = shr.specifiers[depName]
     if (shr.dependencies && shr.dependencies[depName]) {
@@ -35,29 +35,29 @@ export default function prune (shr: Shrinkwrap, pkg: Package): Shrinkwrap {
   })
 
   if (shrOptionalDependencies) {
-    let optionalPkgIds: string[] = R.keys(shrOptionalDependencies)
+    const optionalPkgIds: string[] = R.keys(shrOptionalDependencies)
       .map((pkgName: string) => refToRelative(shrOptionalDependencies[pkgName], pkgName))
     copyDependencySubTree(packages, optionalPkgIds, shr, [], {registry: shr.registry, nonOptional, optional: true})
   }
 
   if (shrDevDependencies) {
-    let devPkgIds: string[] = R.keys(shrDevDependencies)
+    const devPkgIds: string[] = R.keys(shrDevDependencies)
       .map((pkgName: string) => refToRelative(shrDevDependencies[pkgName], pkgName))
     copyDependencySubTree(packages, devPkgIds, shr, [], {registry: shr.registry, nonOptional, dev: true})
   }
 
-  let pkgIds: string[] = R.keys(shrDependencies)
+  const pkgIds: string[] = R.keys(shrDependencies)
     .map((pkgName: string) => refToRelative(shrDependencies[pkgName], pkgName))
 
   copyDependencySubTree(packages, pkgIds, shr, [], {
-    registry: shr.registry,
     nonOptional,
+    registry: shr.registry,
   })
 
   const result: Shrinkwrap = {
+    registry: shr.registry,
     shrinkwrapVersion: SHRINKWRAP_VERSION,
     specifiers,
-    registry: shr.registry,
   }
   if (typeof shr.shrinkwrapMinorVersion === 'number') {
     result.shrinkwrapMinorVersion = shr.shrinkwrapMinorVersion
@@ -87,9 +87,9 @@ function copyDependencySubTree (
     dev?: boolean,
     optional?: boolean,
     nonOptional: Set<string>,
-  }
+  },
 ) {
-  for (let pkgId of pkgIds) {
+  for (const pkgId of pkgIds) {
     if (keypath.indexOf(pkgId) !== -1) continue
     if (!shr.packages || !shr.packages[pkgId]) {
       // local dependencies don't need to be resolved in shrinkwrap.yaml
@@ -113,12 +113,12 @@ function copyDependencySubTree (
       delete depShr.dev
     }
     const newDependencies = R.keys(depShr.dependencies)
-      .map((pkgName: string) => refToRelative(<string>(depShr.dependencies && depShr.dependencies[pkgName]), pkgName))
+      .map((pkgName: string) => refToRelative((depShr.dependencies && depShr.dependencies[pkgName]) as string, pkgName))
     const newKeypath = keypath.concat([pkgId])
     copyDependencySubTree(resolvedPackages, newDependencies, shr, newKeypath, opts)
 
     const newOptionalDependencies = R.keys(depShr.optionalDependencies)
-      .map((pkgName: string) => refToRelative(<string>(depShr.optionalDependencies && depShr.optionalDependencies[pkgName]), pkgName))
+      .map((pkgName: string) => refToRelative((depShr.optionalDependencies && depShr.optionalDependencies[pkgName]) as string, pkgName))
     copyDependencySubTree(resolvedPackages, newOptionalDependencies, shr, newKeypath, Object.assign({}, opts, {optional: true}))
   }
 }

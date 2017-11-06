@@ -1,4 +1,4 @@
-export type Shrinkwrap = {
+export interface Shrinkwrap {
   shrinkwrapVersion: number,
   // Should be deprecated from shrinkwrap version 4
   shrinkwrapMinorVersion?: number,
@@ -13,14 +13,14 @@ export type Shrinkwrap = {
 // For backward compatibility
 export type ResolvedPackages = PackageSnapshots
 
-export type PackageSnapshots = {
+export interface PackageSnapshots {
   [packagePath: string]: PackageSnapshot,
 }
 
 /**
  * tarball hosted remotely
  */
-export type TarballResolution = {
+export interface TarballResolution {
   type?: undefined,
   tarball: string,
   integrity?: string,
@@ -33,7 +33,7 @@ export type TarballResolution = {
 /**
  * directory on a file system
  */
-export type DirectoryResolution = {
+export interface DirectoryResolution {
   type: 'directory',
   directory: string,
 }
@@ -41,7 +41,7 @@ export type DirectoryResolution = {
 /**
  * Git repository
  */
-export type GitRepositoryResolution = {
+export interface GitRepositoryResolution {
   type: 'git',
   repo: string,
   commit: string,
@@ -59,7 +59,7 @@ export type ShrinkwrapResolution = Resolution | {
 // For backward compatibility
 export type DependencyShrinkwrap = PackageSnapshot
 
-export type PackageSnapshot = {
+export interface PackageSnapshot {
   id?: string,
   dev?: true | false,
   optional?: true,
@@ -84,13 +84,13 @@ export type PackageSnapshot = {
   deprecated?: string,
 }
 
-export type Dependencies = {
+export interface Dependencies {
   [name: string]: string
 }
 
 export type PackageBin = string | {[name: string]: string}
 
-export type Package = {
+export interface Package {
   name: string,
   version: string,
   private?: boolean,
@@ -105,9 +105,9 @@ export type Package = {
   bundleDependencies?: string[],
   bundledDependencies?: string[],
   scripts?: {
-    [name: string]: string
+    [name: string]: string,
   },
-  config?: Object,
+  config?: object,
 }
 
 /*** @example
@@ -115,6 +115,6 @@ export type Package = {
  *   "foo": "registry.npmjs.org/foo/1.0.1"
  * }
  */
-export type ResolvedDependencies = {
+export interface ResolvedDependencies {
   [pkgName: string]: string,
 }

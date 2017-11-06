@@ -1,28 +1,28 @@
-import path = require('path')
-import writeFileAtomicCB = require('write-file-atomic')
-import thenify = require('thenify')
-import rimraf = require('rimraf-then')
 import yaml = require('js-yaml')
-import {
-  WANTED_SHRINKWRAP_FILENAME,
-  CURRENT_SHRINKWRAP_FILENAME,
-} from './constants'
-import {Shrinkwrap} from './types'
 import mkdirp = require('mkdirp-promise')
+import path = require('path')
+import rimraf = require('rimraf-then')
+import thenify = require('thenify')
+import writeFileAtomicCB = require('write-file-atomic')
+import {
+  CURRENT_SHRINKWRAP_FILENAME,
+  WANTED_SHRINKWRAP_FILENAME,
+} from './constants'
 import logger from './logger'
+import {Shrinkwrap} from './types'
 
 const writeFileAtomic = thenify(writeFileAtomicCB)
 
 const SHRINKWRAP_YAML_FORMAT = {
-  sortKeys: true,
   lineWidth: 1000,
   noCompatMode: true,
+  sortKeys: true,
 }
 
 export default function write (
   pkgPath: string,
   wantedShrinkwrap: Shrinkwrap,
-  currentShrinkwrap: Shrinkwrap
+  currentShrinkwrap: Shrinkwrap,
 ) {
   const wantedShrinkwrapPath = path.join(pkgPath, WANTED_SHRINKWRAP_FILENAME)
   const currentShrinkwrapPath = path.join(pkgPath, CURRENT_SHRINKWRAP_FILENAME)

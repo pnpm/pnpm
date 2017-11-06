@@ -14,19 +14,11 @@
     "module": "commonjs",
     "moduleResolution": "node"
   },
-  "filesGlob": [
-    "src/**/*.ts"
+  "include": [
+    "src/**/*.ts",
+    "typings/**/*.d.ts"
   ],
   "atom": {
     "rewriteTsconfig": true
-  },
-  "files": [
-    "src/index.ts",
-    "src/logger.ts",
-    "src/prune.ts",
-    "src/read.ts",
-    "src/types.ts",
-    "src/write.ts",
-    "typings/local.d.ts"
-  ]
+  }
 }
