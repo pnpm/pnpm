@@ -1,9 +1,12 @@
 import tape = require('tape')
 import promisifyTape from 'tape-promise'
 import {prepare, testDefaults} from '../utils'
-import {installPkgs} from 'supi'
+import {
+  installPkgs,
+  DeprecationLog,
+} from 'supi'
 import sinon = require('sinon')
-import {DeprecationLog} from 'pnpm-logger'
+
 const test = promisifyTape(tape)
 
 // TODO: use a smaller package for testing deprecation

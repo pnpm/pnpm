@@ -28,7 +28,7 @@ import {
   RootLog,
   ProgressLog,
   ManifestLog,
-} from 'pnpm-logger'
+} from 'supi'
 import writeJsonFile = require('write-json-file')
 
 const IS_WINDOWS = isWindows()
@@ -690,6 +690,7 @@ test('shrinkwrap locks npm dependencies', async function (t: tape.Test) {
   await installPkgs(['pkg-with-1-dep'], testDefaults({save: true, reporter}))
 
   t.ok(reporter.calledWithMatch(<ProgressLog>{
+    name: 'pnpm:progress',
     level: 'debug',
     status: 'resolving_content',
     pkgId: 'localhost+4873/pkg-with-1-dep/100.0.0',

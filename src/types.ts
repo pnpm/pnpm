@@ -1,6 +1,6 @@
 import {Dependencies, PackageBin} from '@pnpm/types'
 import {PackageMeta} from 'package-store'
-import {Log} from 'pnpm-logger'
+import {LogBase} from 'pnpm-logger'
 
 export type PnpmOptions = {
   rawNpmConfig?: Object,
@@ -59,7 +59,7 @@ export type PnpmOptions = {
 
   // cannot be specified via configs
   update?: boolean,
-  reporter?: (logObj: Log) => void,
+  reporter?: (logObj: LogBase) => void,
   packageManager?: {
     name: string,
     version: string,

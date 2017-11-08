@@ -18,10 +18,10 @@ import {
   uninstall,
   link,
   storePrune,
+  RootLog,
 } from 'supi'
 import thenify = require('thenify')
 import sinon = require('sinon')
-import {RootLog} from 'pnpm-logger'
 
 const ncp = thenify(ncpCB.ncp)
 

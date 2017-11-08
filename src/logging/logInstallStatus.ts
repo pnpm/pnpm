@@ -1,6 +1,6 @@
-import logger, {
+import {
   ProgressMessage,
   progressLogger,
-} from 'pnpm-logger'
+} from '../loggers'
 
 export default (loginfo: ProgressMessage) => progressLogger.debug(loginfo)

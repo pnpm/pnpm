@@ -14,53 +14,12 @@
     "module": "commonjs",
     "moduleResolution": "node"
   },
-  "filesGlob": [
+  "include": [
     "src/**/*.ts",
-    "typings/**/*.d.ts"
+    "typings/**/*.d.ts",
+    "test/typings/**/*.d.ts"
   ],
   "atom": {
     "rewriteTsconfig": true
-  },
-  "files": [
-    "src/api/checkCompatibility.ts",
-    "src/api/extendOptions.ts",
-    "src/api/getContext.ts",
-    "src/api/index.ts",
-    "src/api/install.ts",
-    "src/api/link.ts",
-    "src/api/lock.ts",
-    "src/api/prune.ts",
-    "src/api/removeOrphanPkgs.ts",
-    "src/api/storeStatus.ts",
-    "src/api/uninstall.ts",
-    "src/binify.ts",
-    "src/depsToSpecs.ts",
-    "src/err.ts",
-    "src/errorTypes.ts",
-    "src/fs/getPkgDirs.ts",
-    "src/fs/gracefulify.ts",
-    "src/fs/linkIndexedDir.ts",
-    "src/fs/modulesController.ts",
-    "src/fs/readPkg.ts",
-    "src/fs/safeReadPkg.ts",
-    "src/getSaveType.ts",
-    "src/index.ts",
-    "src/install/getIsInstallable.ts",
-    "src/install/installMultiple.ts",
-    "src/install/postInstall.ts",
-    "src/link/index.ts",
-    "src/link/linkBins.ts",
-    "src/link/resolvePeers.ts",
-    "src/logging/logInstallStatus.ts",
-    "src/memoize.ts",
-    "src/pnpmPkgJson.ts",
-    "src/removeDeps.ts",
-    "src/removeTopDependency.ts",
-    "src/runScript.ts",
-    "src/safeIsInnerLink.ts",
-    "src/save.ts",
-    "src/types.ts",
-    "typings/local.d.ts",
-    "test/typings/tape-promise.d.ts"
-  ]
+  }
 }

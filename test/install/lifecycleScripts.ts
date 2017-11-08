@@ -1,8 +1,11 @@
 import tape = require('tape')
 import promisifyTape from 'tape-promise'
 import sinon = require('sinon')
-import {LifecycleLog} from 'pnpm-logger'
-import {installPkgs, install} from 'supi'
+import {
+  installPkgs,
+  install,
+  LifecycleLog,
+} from 'supi'
 import {
   prepare,
   testDefaults,

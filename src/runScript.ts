@@ -1,10 +1,9 @@
-import logger, {
-  lifecycleLogger,
-} from 'pnpm-logger'
+import logger from 'pnpm-logger'
 import path = require('path')
 import byline = require('byline')
 import spawn = require('cross-spawn')
 import PATH = require('path-name')
+import {lifecycleLogger} from './loggers'
 
 const scriptLogger = logger('run_script')
 

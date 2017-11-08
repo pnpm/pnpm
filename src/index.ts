@@ -4,3 +4,17 @@ import './fs/gracefulify'
 export * from './api'
 export {PnpmOptions, PackageManifest} from './types'
 export {PnpmError, PnpmErrorCode} from './errorTypes'
+export {
+  ManifestLog,
+  InstallCheckLog,
+  DeprecationLog,
+  LifecycleLog,
+  RootLog,
+  StageLog,
+} from './loggers'
+
+import * as supiLogs from './loggers'
+import * as packageStoreLogs from 'package-store'
+
+export type ProgressLog = supiLogs.ProgressLog | packageStoreLogs.ProgressLog
+export type Log = supiLogs.Log | packageStoreLogs.Log
