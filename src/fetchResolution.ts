@@ -3,10 +3,11 @@ import execa = require('execa')
 import {IncomingMessage} from 'http'
 import fs = require('mz/fs')
 import path = require('path')
-import logger, {progressLogger} from 'pnpm-logger'
+import logger from 'pnpm-logger'
 import rimraf = require('rimraf-then')
 import * as unpackStream from 'unpack-stream'
 import {PnpmError} from './errorTypes'
+import {progressLogger} from './loggers'
 import {Got} from './network/got'
 import {Resolution} from './resolve'
 

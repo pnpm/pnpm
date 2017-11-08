@@ -1,9 +1,9 @@
 import path = require('path')
-import {progressLogger} from 'pnpm-logger'
 import semver = require('semver')
 import ssri = require('ssri')
 import url = require('url')
 import {PackageSpec, ResolveOptions, ResolveResult, TarballResolution} from '..'
+import {progressLogger} from '../../loggers'
 import createPkgId from './createNpmPkgId'
 import loadPkgMeta, {PackageMeta} from './loadPackageMeta'
 

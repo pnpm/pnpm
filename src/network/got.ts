@@ -7,13 +7,13 @@ import normalizeRegistryUrl = require('normalize-registry-url')
 import pLimit = require('p-limit')
 import PQueue = require('p-queue')
 import path = require('path')
-import {progressLogger} from 'pnpm-logger'
 import R = require('ramda')
 import retry = require('retry')
 import ssri = require('ssri')
 import unpackStream = require('unpack-stream')
 import urlLib = require('url')
 import {BadTarballError} from '../errorTypes'
+import {progressLogger} from '../loggers'
 
 export type AuthInfo = {
   alwaysAuth: boolean,

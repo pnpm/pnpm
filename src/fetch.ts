@@ -4,10 +4,7 @@ import mkdirp = require('mkdirp-promise')
 import fs = require('mz/fs')
 import path = require('path')
 import exists = require('path-exists')
-import logger, {
-  LoggedPkg,
-  progressLogger,
-} from 'pnpm-logger'
+import logger from 'pnpm-logger'
 import renameOverwrite = require('rename-overwrite')
 import rimraf = require('rimraf-then')
 import symlinkDir = require('symlink-dir')
@@ -18,6 +15,7 @@ import pkgIdToFilename from './fs/pkgIdToFilename'
 import {fromDir as readPkgFromDir} from './fs/readPkg'
 import {fromDir as safeReadPkgFromDir} from './fs/safeReadPkg'
 import {Store} from './fs/storeController'
+import {LoggedPkg, progressLogger} from './loggers'
 import memoize, {MemoizedFunc} from './memoize'
 import {Got} from './network/got'
 import untouched from './pkgIsUntouched'

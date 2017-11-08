@@ -31,3 +31,8 @@ export {
   pkgIsUntouched,
   resolveStore,
 }
+
+export {
+  ProgressLog,
+  Log,
+} from './loggers'

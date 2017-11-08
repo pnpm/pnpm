@@ -1,4 +1,4 @@
-import {LoggedPkg} from 'pnpm-logger'
+import {LoggedPkg} from '../loggers'
 import {Got} from '../network/got'
 import {Package} from '../types'
 import resolveFromGit from './git'

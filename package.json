@@ -16,7 +16,7 @@
     "lib/"
   ],
   "peerDependencies": {
-    "pnpm-logger": "^0.6.1"
+    "pnpm-logger": "^0.7.0"
   },
   "dependencies": {
     "@types/load-json-file": "^2.0.5",
@@ -65,7 +65,7 @@
     "npm-registry-client": "^8.4.0",
     "npm-scripts-info": "^0.3.6",
     "package-preview": "^1.0.0",
-    "pnpm-logger": "^0.6.2",
+    "pnpm-logger": "^0.7.0",
     "rimraf": "^2.6.1",
     "tape": "^4.7.0",
     "ts-node": "^3.3.0",
