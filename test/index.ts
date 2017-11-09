@@ -1,13 +1,6 @@
 import test = require('tape')
 import logger, {
   createStreamParser,
-  progressLogger,
-  stageLogger,
-  rootLogger,
-  deprecationLogger,
-  summaryLogger,
-  lifecycleLogger,
-  manifestLogger,
 } from 'pnpm-logger'
 import normalizeNewline = require('normalize-newline')
 import {toOutput$} from 'pnpm-default-reporter'
@@ -28,6 +21,14 @@ const hlPkgId = chalk['whiteBright']
 const POSTINSTALL = hlValue('postinstall')
 const PREINSTALL = hlValue('preinstall')
 const INSTALL = hlValue('install')
+
+const progressLogger = logger<object>('progress')
+const stageLogger = logger<string>('stage')
+const rootLogger = logger<object>('root')
+const deprecationLogger = logger<object>('deprecation')
+const summaryLogger = logger<object>('summary')
+const lifecycleLogger = logger<object>('lifecycle')
+const manifestLogger = logger<object>('manifest')
 
 test('prints progress beginning', t => {
   const output$ = toOutput$(createStreamParser())
@@ -198,7 +199,7 @@ test('prints summary', t => {
       },
     }
   })
-  summaryLogger.info(undefined)
+  summaryLogger.info()
 
   t.plan(1)
 

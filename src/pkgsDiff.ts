@@ -1,8 +1,8 @@
+import R = require('ramda')
 import {
   DeprecationLog,
   Log,
-} from 'pnpm-logger'
-import R = require('ramda')
+} from 'supi'
 import xs, {Stream} from 'xstream'
 
 export interface PackageDiff {

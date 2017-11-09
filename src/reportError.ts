@@ -1,8 +1,8 @@
 import chalk from 'chalk'
 import commonTags = require('common-tags')
 import os = require('os')
-import {Log} from 'pnpm-logger'
 import StackTracey = require('stacktracey')
+import {Log} from 'supi'
 
 const stripIndent = commonTags.stripIndent
 const stripIndents = commonTags.stripIndents

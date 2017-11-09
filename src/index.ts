@@ -2,6 +2,8 @@ import chalk from 'chalk'
 import {EventEmitter} from 'events'
 import logUpdate = require('log-update')
 import os = require('os')
+import prettyBytes = require('pretty-bytes')
+import R = require('ramda')
 import {
   DeprecationLog,
   InstallCheckLog,
@@ -9,9 +11,7 @@ import {
   Log,
   ProgressLog,
   RegistryLog,
-} from 'pnpm-logger'
-import prettyBytes = require('pretty-bytes')
-import R = require('ramda')
+} from 'supi'
 import xs, {Stream} from 'xstream'
 import dropRepeats from 'xstream/extra/dropRepeats'
 import flattenConcurrently from 'xstream/extra/flattenConcurrently'
@@ -195,7 +195,7 @@ export function toOutput$(streamParser: object): Stream<string> {
     .map(xs.of)
 
   const miscOutput$ = log$
-    .filter((log) => log.name === 'pnpm' || (log.name as string) === 'pnpm:link')
+    .filter((log) => log.name as string === 'pnpm' || log.name as string === 'pnpm:link')
     .map((obj) => {
       if (obj.level === 'debug') return
       if (obj.level === 'warn') {
