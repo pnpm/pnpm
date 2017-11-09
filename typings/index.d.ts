@@ -239,11 +239,6 @@ declare module 'normalize-registry-url' {
   export = normalizeRegistryUrl;
 }
 
-declare module 'encode-registry' {
-  function encodeRegistry (registry: string): string
-  export = encodeRegistry;
-}
-
 declare module 'rename-overwrite' {
   const anything: any;
   export = anything;

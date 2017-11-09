@@ -27,7 +27,7 @@
     "credentials-by-uri": "^1.0.0",
     "dint": "^1.0.0",
     "drive-by-path": "^1.0.0",
-    "encode-registry": "^1.0.0",
+    "encode-registry": "^1.1.0",
     "execa": "^0.8.0",
     "fs-write-stream-atomic": "^1.0.10",
     "load-json-file": "^4.0.0",

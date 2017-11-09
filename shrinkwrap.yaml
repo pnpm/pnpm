@@ -7,7 +7,7 @@ dependencies:
   credentials-by-uri: 1.0.0
   dint: 1.0.0
   drive-by-path: 1.0.0
-  encode-registry: 1.0.0
+  encode-registry: 1.1.0
   execa: 0.8.0
   fs-write-stream-atomic: 1.0.10
   load-json-file: 4.0.0
@@ -745,12 +745,14 @@ packages:
     optional: true
     resolution:
       integrity: sha1-D8c6ntXw1Tw4GTOYUj735UN3dQU=
-  /encode-registry/1.0.0:
+  /encode-registry/1.1.0:
     dependencies:
-      mem: 1.1.0
+      mem: 3.0.0
     dev: false
+    engines:
+      node: '>=4'
     resolution:
-      integrity: sha512-4DiPp5kmIDq9rHDU5C3r9clu+TVcnUXIMoLNiiJxHlGG+cMIApT/mOwLEpcEPN1a2PnNt/Ll3lcf39dyHf3n9w==
+      integrity: sha512-we1k9/KE1067YXEyJzPg+kXlNFLk9/LT2IFP3VZgmANNwf8Bx+KdAVd1wxLpG8y7v6EgplVGTstmVNICwiaCNA==
   /end-of-stream/1.4.0:
     dependencies:
       once: 1.4.0
@@ -1713,14 +1715,15 @@ packages:
       node: '>=0.10.0'
     resolution:
       integrity: sha1-2TPOuSBdgr3PSIb2dCvcK03qFG0=
-  /mem/1.1.0:
+  /mem/3.0.0:
     dependencies:
       mimic-fn: 1.1.0
+      p-is-promise: 1.1.0
     dev: false
     engines:
       node: '>=4'
     resolution:
-      integrity: sha1-Xt1StIXKHZAP5kiVUFOZoN+kX3Y=
+      integrity: sha1-hOWK1N+99dEFsmtlSKOYsrOqiiE=
   /meow/3.7.0:
     dependencies:
       camelcase-keys: 2.1.0
@@ -2055,6 +2058,12 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha1-P7z7FbiZpEEjs0ttzBi3JDNqLK4=
+  /p-is-promise/1.1.0:
+    dev: false
+    engines:
+      node: '>=4'
+    resolution:
+      integrity: sha1-nJRWmJ6fZYgBewQ01WCXZ1w9oF4=
   /p-limit/1.1.0:
     engines:
       node: '>=4'
@@ -3138,7 +3147,7 @@ specifiers:
   cz-conventional-changelog: ^2.0.0
   dint: ^1.0.0
   drive-by-path: ^1.0.0
-  encode-registry: ^1.0.0
+  encode-registry: ^1.1.0
   execa: ^0.8.0
   fs-write-stream-atomic: ^1.0.10
   husky: ^0.14.3
