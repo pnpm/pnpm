@@ -11,6 +11,7 @@ export {
   LifecycleLog,
   RootLog,
   StageLog,
+  RegistryLog,
 } from './loggers'
 
 import * as supiLogs from './loggers'

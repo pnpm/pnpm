@@ -88,4 +88,14 @@ export type ProgressLog = {name: 'pnpm:progress'} & LogBase & ProgressMessage
 
 export type StageLog = {name: 'pnpm:stage'} & LogBase & {message: 'resolution_done'}
 
-export type Log = StageLog | ProgressLog | RootLog | LifecycleLog | DeprecationMessage | InstallCheckLog | ManifestLog
+export type RegistryLog = {name: 'pnpm:registry'} & LogBase & {message: string}
+
+export type Log = StageLog
+  | ProgressLog
+  | RootLog
+  | LifecycleLog
+  | DeprecationLog
+  | InstallCheckLog
+  | ManifestLog
+  | RegistryLog
+  | {name: 'pnpm:summary'} & LogBase

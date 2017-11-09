@@ -19,7 +19,7 @@ export default function runScript (
   opts = Object.assign({log: (() => {})}, opts)
   args = args || []
   const script = `${command}${args.length ? ' ' + args.join(' ') : ''}`
-  if (script) scriptLogger.debug('runscript', script)
+  if (script) scriptLogger.debug(`runscript ${script}`)
   if (!command) return Promise.resolve()
   return new Promise((resolve, reject) => {
     const proc = spawn(command, args, {
