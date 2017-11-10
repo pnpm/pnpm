@@ -1,5 +1,5 @@
 import test = require('tape')
-import dh, {forPackages as dhForPackages} from '../src'
+import dh, {forPackages as dhForPackages} from 'dependencies-hierarchy'
 import path = require('path')
 
 const fixtures = path.join(__dirname, 'fixtures')
