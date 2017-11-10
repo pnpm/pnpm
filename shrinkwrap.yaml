@@ -52,7 +52,7 @@ devDependencies:
   npm-registry-client: 8.5.0
   npm-run-all: 4.1.2
   npm-scripts-info: 0.3.6
-  package-preview: 0.2.3
+  package-preview: 1.0.0
   path-exists: 3.0.0
   pnpm-registry-mock: 1.10.0
   read-pkg: 3.0.0
@@ -3694,7 +3694,7 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha1-iGmgQBJTZhxMTKPabCEh7VVfXu0=
-  /package-preview/0.2.3:
+  /package-preview/1.0.0:
     dependencies:
       '@pnpm/exec': 1.1.1
       '@types/fs-extra': 4.0.4
@@ -3718,7 +3718,7 @@ packages:
     engines:
       node: '>=4'
     resolution:
-      integrity: sha512-pR7vVECI3gpmP/I5EPg6ev9G69+yIjnrgCN9j095xmw4yX+6bBw2lCFMXRS1/TR6zOUYdS36zhzioS7FjZ185w==
+      integrity: sha512-OQbpubrdUPz5xJa98eri+Gf7zfhoLbtQACh4myRaUrCHPYzCrKvw+07v3DrV/n1aRv0/yibWkqSGC/v03ijUug==
   /package-store/0.5.0:
     dependencies:
       '@types/load-json-file': 2.0.7
@@ -5832,7 +5832,7 @@ specifiers:
   npm-registry-client: ^8.4.0
   npm-run-all: ^4.0.1
   npm-scripts-info: ^0.3.6
-  package-preview: ^0.2.3
+  package-preview: ^1.0.0
   path-exists: ^3.0.0
   path-name: ^1.0.0
   pnpm-default-reporter: ^0.10.0

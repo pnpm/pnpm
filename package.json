@@ -76,7 +76,7 @@
     "npm-registry-client": "^8.4.0",
     "npm-run-all": "^4.0.1",
     "npm-scripts-info": "^0.3.6",
-    "package-preview": "^0.2.3",
+    "package-preview": "^1.0.0",
     "path-exists": "^3.0.0",
     "pnpm-registry-mock": "^1.5.0",
     "read-pkg": "^3.0.0",
