@@ -1,5 +1,5 @@
 dependencies:
-  '@types/node': 8.0.47
+  '@types/node': 8.0.51
   '@types/semver': 5.4.0
   dependency-path: 1.2.0
   pnpm-shrinkwrap: 4.0.1
@@ -9,11 +9,11 @@ devDependencies:
   mos: 2.0.0-alpha.3
   mos-plugin-readme: 1.0.4
   package-preview: 1.0.0
-  pnpm-logger: 0.6.2
+  pnpm-logger: 0.6.3
   tape: 4.8.0
   ts-node: 3.3.0
   tslint: 5.8.0
-  typescript: 2.5.3
+  typescript: 2.6.1
 packages:
   /@pnpm/exec/1.1.1:
     dependencies:
@@ -66,19 +66,18 @@ packages:
     resolution:
       integrity: sha512-cy3yebKhrHuOcrJGkfwNHhpTXQLgmXSv1BX+4p32j+VUQ6aP2eJ5cL7OvGcAQx75fCTFaAIIAKewvqL+iwSd4g==
   /@types/node/7.0.46:
+    dev: false
     resolution:
       integrity: sha512-u+JAi1KtmaUoU/EHJkxoiuvzyo91FCE41Z9TZWWcOUU3P8oUdlDLdrGzCGWySPgbRMD17B0B+1aaJLYI9egQ6A==
-  /@types/node/8.0.47:
-    resolution:
-      integrity: sha512-kOwL746WVvt/9Phf6/JgX/bsGQvbrK5iUgzyfwZNcKVFcjAUVSpF9HxevLTld2SG9aywYHOILj38arDdY1r/iQ==
   /@types/node/8.0.51:
-    dev: true
     resolution:
       integrity: sha512-El3+WJk2D/ppWNd2X05aiP5l2k4EwF7KwheknQZls+I26eSICoWRhRIJ56jGgw2dqNGQ5LtNajmBU2ajS28EvQ==
   /@types/ramda/0.0.11:
+    dev: false
     resolution:
       integrity: sha512-RcraK0229RAIJERTfgoCY/eSbxFEkPlj/TbUUb6aGSS9UfLj1THpt2Uj4uuCJsQrYRQUQB8tFlv7eTTWzE4QjQ==
   /@types/semver/5.4.0:
+    dev: false
     resolution:
       integrity: sha512-PBHCvO98hNec9A491vBbh0ZNDOVxccwKL1u2pm6fs9oDgm7SEnw0lEHqHfjsYryDxnE3zaf7LvERWEXjOp1hig==
   /@types/tape/4.2.31:
@@ -537,7 +536,7 @@ packages:
       node: '>=0.10.0'
     resolution:
       integrity: sha1-DQcLTQQ6W+ozovGkDi7bPZpMz3c=
-  /codemo/0.2.1:
+  /codemo/0.2.2:
     dependencies:
       acorn: 3.0.4
       babel-runtime: 6.26.0
@@ -556,7 +555,7 @@ packages:
     engines:
       node: '>=0.10'
     resolution:
-      integrity: sha1-HsA5xPlRrpcOCuK2ZGFl1tSNz4Q=
+      integrity: sha1-GCe0ZB87z4vXG9SbLU6ZtFuLX9c=
   /collapse-white-space/1.0.3:
     dev: true
     resolution:
@@ -704,8 +703,9 @@ packages:
   /dependency-path/1.2.0:
     dependencies:
       '@types/semver': 5.4.0
-      encode-registry: 1.0.0
+      encode-registry: 1.1.0
       semver: 5.4.1
+    dev: false
     resolution:
       integrity: sha512-WCVHx8m35ChWmemrAtp67EiXxp02Z0TRpJUYG1Kh7aloQcPdribxtcOm+GtMzhVnzgANj+mf0eo9aCtrxzzS3Q==
   /detect-indent/4.0.0:
@@ -769,11 +769,14 @@ packages:
     dev: true
     resolution:
       integrity: sha1-xs0OwbBkLio8Z6ETfvxeeW2k+I4=
-  /encode-registry/1.0.0:
+  /encode-registry/1.1.0:
     dependencies:
-      mem: 1.1.0
+      mem: 3.0.0
+    dev: false
+    engines:
+      node: '>=4'
     resolution:
-      integrity: sha512-4DiPp5kmIDq9rHDU5C3r9clu+TVcnUXIMoLNiiJxHlGG+cMIApT/mOwLEpcEPN1a2PnNt/Ll3lcf39dyHf3n9w==
+      integrity: sha512-we1k9/KE1067YXEyJzPg+kXlNFLk9/LT2IFP3VZgmANNwf8Bx+KdAVd1wxLpG8y7v6EgplVGTstmVNICwiaCNA==
   /end-of-stream/1.4.0:
     dependencies:
       once: 1.4.0
@@ -1380,6 +1383,7 @@ packages:
       js-yaml: 3.10.0
       pify: 2.3.0
       strip-bom: 3.0.0
+    dev: false
     engines:
       node: '>=4'
     resolution:
@@ -1473,13 +1477,15 @@ packages:
     dev: true
     resolution:
       integrity: sha1-XEVch4yTVfDB5/PotxnPWDaRrPs=
-  /mem/1.1.0:
+  /mem/3.0.0:
     dependencies:
       mimic-fn: 1.1.0
+      p-is-promise: 1.1.0
+    dev: false
     engines:
       node: '>=4'
     resolution:
-      integrity: sha1-Xt1StIXKHZAP5kiVUFOZoN+kX3Y=
+      integrity: sha1-hOWK1N+99dEFsmtlSKOYsrOqiiE=
   /meow/3.7.0:
     dependencies:
       camelcase-keys: 2.1.0
@@ -1498,6 +1504,7 @@ packages:
     resolution:
       integrity: sha1-cstmi0JSKCkKu/qFaJJYcwioAfs=
   /mimic-fn/1.1.0:
+    dev: false
     engines:
       node: '>=4'
     resolution:
@@ -1605,7 +1612,7 @@ packages:
   /mos-plugin-example/1.1.2:
     dependencies:
       babel-runtime: 6.26.0
-      codemo: 0.2.1
+      codemo: 0.2.2
       independent: 0.2.0
     dev: true
     engines:
@@ -1895,6 +1902,12 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha1-P7z7FbiZpEEjs0ttzBi3JDNqLK4=
+  /p-is-promise/1.1.0:
+    dev: false
+    engines:
+      node: '>=4'
+    resolution:
+      integrity: sha1-nJRWmJ6fZYgBewQ01WCXZ1w9oF4=
   /p-limit/1.1.0:
     dev: true
     engines:
@@ -2068,14 +2081,14 @@ packages:
       node: '>=0.10.0'
     resolution:
       integrity: sha1-24XGgU9eXlo7Se/CjWBP7GKXUVY=
-  /pnpm-logger/0.6.2:
+  /pnpm-logger/0.6.3:
     dependencies:
-      '@types/node': 8.0.47
+      '@types/node': 8.0.51
       bole: 3.0.2
       ndjson: 1.5.0
     dev: true
     resolution:
-      integrity: sha512-VLlRExib18bl5lSFp74vFHeZV0iWuxTkdOvI7BIhfWpiP9EdrkAq/GnjE5pxjXmsvXyZlaBDwoEQygU8kbVr8g==
+      integrity: sha512-4yYX0Su4YjIM09fgIVlCGN0ToQ75VShF+RHIgIvASd7aF5JsGHaYMFJTqNOsaqc51pLwLvVrPayoMBMGFrULzQ==
   /pnpm-shrinkwrap/4.0.1:
     dependencies:
       '@types/node': 7.0.46
@@ -2088,6 +2101,7 @@ packages:
       rimraf-then: 1.0.1
       thenify: 3.3.0
       write-file-atomic: 2.3.0
+    dev: false
     peerDependencies:
       pnpm-logger: ^0.6.2
     resolution:
@@ -2143,6 +2157,7 @@ packages:
     resolution:
       integrity: sha1-G2ccYZlAq8rqwK0OOjwWS+dgmTs=
   /ramda/0.24.1:
+    dev: false
     resolution:
       integrity: sha1-w7d1UZfzW43DUCIoJixMkd22uFc=
   /rc/1.2.2:
@@ -2797,12 +2812,12 @@ packages:
       typescript: '>=2.1.0 || >=2.1.0-dev || >=2.2.0-dev || >=2.3.0-dev || >= 2.4.0-dev || >= 2.5.0-dev || >= 2.6.0-dev || >= 2.7.0-dev || >= 2.8.0-dev'
     resolution:
       integrity: sha1-rVikhl0X7D3bZjG2ylO+FKVlb/M=
-  /typescript/2.5.3:
+  /typescript/2.6.1:
     dev: true
     engines:
       node: '>=4.2.0'
     resolution:
-      integrity: sha512-ptLSQs2S4QuS6/OD1eAKG+S5G8QQtrU5RT32JULdZQtM1L3WTi34Wsu48Yndzi8xsObRAB9RPt/KhA9wlpEF6w==
+      integrity: sha1-7znN6ierrAtQAkLWcmq5DgyEZjE=
   /unbzip2-stream/1.2.5:
     dependencies:
       buffer: 3.6.0
