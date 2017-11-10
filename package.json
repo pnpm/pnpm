@@ -67,5 +67,10 @@
     "installation": {
       "useShortAlias": true
     }
+  },
+  "greenkeeper": {
+    "ignore": [
+      "dependencies-hierarchy"
+    ]
   }
 }
