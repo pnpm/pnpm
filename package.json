@@ -15,6 +15,9 @@
     "tsc": "tsc",
     "md": "preview && tsc && mos"
   },
+  "engines": {
+    "node": ">=4"
+  },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/pnpm/dependencies-hierarchy.git"
