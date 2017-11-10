@@ -27,7 +27,7 @@
   ],
   "author": {
     "name": "Zoltan Kochan",
-    "email": "zoltan.kochan@gmail.com",
+    "email": "z@kochan.io",
     "url": "https://www.kochan.io/"
   },
   "license": "MIT",
@@ -39,15 +39,15 @@
     "@types/node": "^8.0.47",
     "@types/semver": "^5.3.32",
     "dependency-path": "^1.0.0",
-    "pnpm-shrinkwrap": "^4.0.0",
+    "pnpm-shrinkwrap": "^5.0.0",
     "semver": "^5.3.0"
   },
   "devDependencies": {
+    "@pnpm/logger": "^1.0.0",
     "@types/tape": "^4.2.30",
     "mos": "^2.0.0-alpha.3",
     "mos-plugin-readme": "^1.0.4",
     "package-preview": "^1.0.0",
-    "pnpm-logger": "^0.6.2",
     "tape": "^4.7.0",
     "ts-node": "^3.3.0",
     "tslint": "^5.8.0",

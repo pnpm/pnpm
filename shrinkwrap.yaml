@@ -2,14 +2,14 @@ dependencies:
   '@types/node': 8.0.51
   '@types/semver': 5.4.0
   dependency-path: 1.2.0
-  pnpm-shrinkwrap: 4.0.1
+  pnpm-shrinkwrap: 5.0.0
   semver: 5.4.1
 devDependencies:
+  '@pnpm/logger': 1.0.0
   '@types/tape': 4.2.31
   mos: 2.0.0-alpha.3
   mos-plugin-readme: 1.0.4
   package-preview: 1.0.0
-  pnpm-logger: 0.6.3
   tape: 4.8.0
   ts-node: 3.3.0
   tslint: 5.8.0
@@ -27,6 +27,16 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha512-1C2K+SXmyKqwojtk9EhLsN6sKDhLnJJfenUwkfcBBbP3ltDaIExZ8uEpCFE4cO2qK60dNgJYTF7FsPzJjYyx5w==
+  /@pnpm/logger/1.0.0:
+    dependencies:
+      '@types/node': 8.0.51
+      bole: 3.0.2
+      ndjson: 1.5.0
+    dev: true
+    engines:
+      node: '>=4'
+    resolution:
+      integrity: sha512-VRqE5/SiuR7ZrwBmS+Af89BTXli5xBbiqu7WPq56gEtWT8dKf9rFLoimmmMBVeRq5LmVZIXlOxs29F9I+vgSvQ==
   /@types/fs-extra/4.0.4:
     dependencies:
       '@types/node': 8.0.51
@@ -2081,15 +2091,7 @@ packages:
       node: '>=0.10.0'
     resolution:
       integrity: sha1-24XGgU9eXlo7Se/CjWBP7GKXUVY=
-  /pnpm-logger/0.6.3:
-    dependencies:
-      '@types/node': 8.0.51
-      bole: 3.0.2
-      ndjson: 1.5.0
-    dev: true
-    resolution:
-      integrity: sha512-4yYX0Su4YjIM09fgIVlCGN0ToQ75VShF+RHIgIvASd7aF5JsGHaYMFJTqNOsaqc51pLwLvVrPayoMBMGFrULzQ==
-  /pnpm-shrinkwrap/4.0.1:
+  /pnpm-shrinkwrap/5.0.0:
     dependencies:
       '@types/node': 7.0.46
       '@types/ramda': 0.0.11
@@ -2103,9 +2105,9 @@ packages:
       write-file-atomic: 2.3.0
     dev: false
     peerDependencies:
-      pnpm-logger: ^0.6.2
+      '@pnpm/logger': ^1.0.0
     resolution:
-      integrity: sha512-IOJhwMWoM2O9goa+0EleZCzrLYQmaBuNZeOmoFUV9WU54WHjQfeFJ1J+Qu7FRAGDlzWWIcuxL43Ap1XL4+OASw==
+      integrity: sha512-1flslfYroQpp2mseTwuifgOqjC64DRcqDXkjHmP89DE6/pkJoSmcG789wviHYQAZyo0KK06tF2FJf0z/XgjOlA==
   /prepend-http/1.0.4:
     dev: true
     engines:
@@ -3003,6 +3005,7 @@ registry: 'https://registry.npmjs.org/'
 shrinkwrapMinorVersion: 2
 shrinkwrapVersion: 3
 specifiers:
+  '@pnpm/logger': ^1.0.0
   '@types/node': ^8.0.47
   '@types/semver': ^5.3.32
   '@types/tape': ^4.2.30
@@ -3010,8 +3013,7 @@ specifiers:
   mos: ^2.0.0-alpha.3
   mos-plugin-readme: ^1.0.4
   package-preview: ^1.0.0
-  pnpm-logger: ^0.6.2
-  pnpm-shrinkwrap: ^4.0.0
+  pnpm-shrinkwrap: ^5.0.0
   semver: ^5.3.0
   tape: ^4.7.0
   ts-node: ^3.3.0
