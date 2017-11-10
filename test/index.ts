@@ -1,7 +1,7 @@
-import test = require('tape')
 import logger, {
   createStreamParser,
-} from 'pnpm-logger'
+} from '@pnpm/logger'
+import test = require('tape')
 import normalizeNewline = require('normalize-newline')
 import {toOutput$} from 'pnpm-default-reporter'
 import {stripIndents} from 'common-tags'
@@ -28,7 +28,7 @@ const rootLogger = logger<object>('root')
 const deprecationLogger = logger<object>('deprecation')
 const summaryLogger = logger<object>('summary')
 const lifecycleLogger = logger<object>('lifecycle')
-const manifestLogger = logger<object>('manifest')
+const packageJsonLogger = logger<object>('package-json')
 
 test('prints progress beginning', t => {
   const output$ = toOutput$(createStreamParser())
@@ -127,7 +127,7 @@ test('prints "Already up-to-date"', t => {
 test('prints summary', t => {
   const output$ = toOutput$(createStreamParser())
 
-  manifestLogger.debug({
+  packageJsonLogger.debug({
     initial: {
       dependencies: {
         'is-13': '^1.0.0',
@@ -189,7 +189,7 @@ test('prints summary', t => {
       name: 'is-positive',
     },
   })
-  manifestLogger.debug({
+  packageJsonLogger.debug({
     updated: {
       dependencies: {
         'is-negative': '^1.0.0',

@@ -66,23 +66,23 @@ export default (log$: xs<Log>, deprecationLog$: xs<DeprecationLog>) => {
     optional: Map<PackageDiff>,
   })
 
-  const manifest$ = log$
-    .filter((log) => log.name === 'pnpm:manifest')
+  const packageJson$ = log$
+    .filter((log) => log.name === 'pnpm:package-json')
     .take(2)
     .fold(R.merge, {})
     .last()
 
-  return xs.combine(pkgsDiff$, manifest$)
-    .map(R.apply((pkgsDiff, manifests) => {
-      const initialManifest = manifests['initial']
-      const updatedManifest = manifests['updated']
+  return xs.combine(pkgsDiff$, packageJson$)
+    .map(R.apply((pkgsDiff, packageJsons) => {
+      const initialPackageJson = packageJsons['initial']
+      const updatedPackageJson = packageJsons['updated']
 
-      if (!initialManifest || !updatedManifest) return pkgsDiff
+      if (!initialPackageJson || !updatedPackageJson) return pkgsDiff
 
       for (const depType of ['prod', 'optional', 'dev']) {
         const prop = propertyByDependencyType[depType]
-        const initialDeps = R.keys(initialManifest[prop])
-        const updatedDeps = R.keys(updatedManifest[prop])
+        const initialDeps = R.keys(initialPackageJson[prop])
+        const updatedDeps = R.keys(updatedPackageJson[prop])
         const removedDeps = R.difference(initialDeps, updatedDeps)
 
         for (const removedDep of removedDeps) {
@@ -90,7 +90,7 @@ export default (log$: xs<Log>, deprecationLog$: xs<DeprecationLog>) => {
             pkgsDiff[depType][`-${removedDep}`] = {
               added: false,
               name: removedDep,
-              version: initialManifest[prop][removedDep],
+              version: initialPackageJson[prop][removedDep],
             }
           }
         }
@@ -102,7 +102,7 @@ export default (log$: xs<Log>, deprecationLog$: xs<DeprecationLog>) => {
             pkgsDiff[depType][`+${addedDep}`] = {
               added: true,
               name: addedDep,
-              version: updatedManifest[prop][addedDep],
+              version: updatedPackageJson[prop][addedDep],
             }
           }
         }
