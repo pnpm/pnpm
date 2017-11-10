@@ -41,7 +41,7 @@
     "@types/ramda": "^0.25.0",
     "archy": "^1.0.0",
     "chalk": "^2.3.0",
-    "dependencies-hierarchy": "^1.0.1",
+    "dependencies-hierarchy": "^2.0.0",
     "npm-package-arg": "^6.0.0",
     "p-limit": "^1.1.0",
     "ramda": "^0.25.0",
@@ -49,13 +49,13 @@
     "thenify": "^3.3.0"
   },
   "devDependencies": {
+    "@pnpm/logger": "^1.0.0",
     "@types/common-tags": "^1.2.5",
     "@types/tape": "^4.2.30",
     "common-tags": "^1.4.0",
     "mos": "^2.0.0-alpha.3",
     "mos-plugin-readme": "^1.0.4",
     "package-preview": "^1.0.0",
-    "pnpm-logger": "^0.6.2",
     "tape": "^4.7.0",
     "ts-node": "^3.3.0",
     "typescript": "^2.5.3"

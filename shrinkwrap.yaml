@@ -4,20 +4,20 @@ dependencies:
   '@types/ramda': 0.25.0
   archy: 1.0.0
   chalk: 2.3.0
-  dependencies-hierarchy: 1.0.1
+  dependencies-hierarchy: 2.0.0
   npm-package-arg: 6.0.0
   p-limit: 1.1.0
   ramda: 0.25.0
   read-package-json: 2.0.12
   thenify: 3.3.0
 devDependencies:
+  '@pnpm/logger': 1.0.0
   '@types/common-tags': 1.4.0
   '@types/tape': 4.2.31
   common-tags: 1.4.0
   mos: 2.0.0-alpha.3
   mos-plugin-readme: 1.0.4
   package-preview: 1.0.0
-  pnpm-logger: 0.6.2
   tape: 4.8.0
   ts-node: 3.3.0
   typescript: 2.5.3
@@ -34,6 +34,16 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha512-1C2K+SXmyKqwojtk9EhLsN6sKDhLnJJfenUwkfcBBbP3ltDaIExZ8uEpCFE4cO2qK60dNgJYTF7FsPzJjYyx5w==
+  /@pnpm/logger/1.0.0:
+    dependencies:
+      '@types/node': 8.0.51
+      bole: 3.0.2
+      ndjson: 1.5.0
+    dev: true
+    engines:
+      node: '>=4'
+    resolution:
+      integrity: sha512-VRqE5/SiuR7ZrwBmS+Af89BTXli5xBbiqu7WPq56gEtWT8dKf9rFLoimmmMBVeRq5LmVZIXlOxs29F9I+vgSvQ==
   /@types/archy/0.0.31:
     dev: false
     resolution:
@@ -80,18 +90,14 @@ packages:
     dev: true
     resolution:
       integrity: sha512-cy3yebKhrHuOcrJGkfwNHhpTXQLgmXSv1BX+4p32j+VUQ6aP2eJ5cL7OvGcAQx75fCTFaAIIAKewvqL+iwSd4g==
-  /@types/node/7.0.45:
+  /@types/node/7.0.46:
     dev: false
     resolution:
-      integrity: sha512-dBZCKRBgpg708P+KCfMceisFPEftIrR5odNfgSR9m8SzvpgPJ+uF9J13+8mSNfkabV38cuh0ah7O72FK4QssXQ==
-  /@types/node/8.0.45:
-    resolution:
-      integrity: sha512-4q3e+DdiRli/aMgYOwtKCOrM4Vys+OQCcHts76lJUfKRCjfjfTqB4FjXsZ8jkyBEgPrPN0Rq93uCKmgd7ePY2w==
+      integrity: sha512-u+JAi1KtmaUoU/EHJkxoiuvzyo91FCE41Z9TZWWcOUU3P8oUdlDLdrGzCGWySPgbRMD17B0B+1aaJLYI9egQ6A==
   /@types/node/8.0.47:
     resolution:
       integrity: sha512-kOwL746WVvt/9Phf6/JgX/bsGQvbrK5iUgzyfwZNcKVFcjAUVSpF9HxevLTld2SG9aywYHOILj38arDdY1r/iQ==
   /@types/node/8.0.51:
-    dev: true
     resolution:
       integrity: sha512-El3+WJk2D/ppWNd2X05aiP5l2k4EwF7KwheknQZls+I26eSICoWRhRIJ56jGgw2dqNGQ5LtNajmBU2ajS28EvQ==
   /@types/ramda/0.0.11:
@@ -743,16 +749,18 @@ packages:
     dev: true
     resolution:
       integrity: sha1-yY2bzvdWdBiOEQlpFRGZ45sfppM=
-  /dependencies-hierarchy/1.0.1:
+  /dependencies-hierarchy/2.0.0:
     dependencies:
-      '@types/node': 8.0.45
+      '@types/node': 8.0.51
       '@types/semver': 5.4.0
       dependency-path: 1.2.0
-      pnpm-shrinkwrap: 3.4.0
+      pnpm-shrinkwrap: 5.0.0
       semver: 5.4.1
     dev: false
+    engines:
+      node: '>=4'
     resolution:
-      integrity: sha512-sSw54y7v6J8+SfHlD4zpr8a8NlcTaywWUDMtTaGCriquZEFV3ehYW29jACipwqRnq11HUBndcxooOWuJ3K9EuQ==
+      integrity: sha512-jca4XJoerMrj5OGRRhdKBSH2dVbpWNyFMlYqjlnd+hIzL8ltFvKdGBywtS7+kvdspJbAk5+TMIAZp2r6XtrQCA==
   /dependency-path/1.2.0:
     dependencies:
       '@types/semver': 5.4.0
@@ -2135,17 +2143,9 @@ packages:
       node: '>=0.10.0'
     resolution:
       integrity: sha1-24XGgU9eXlo7Se/CjWBP7GKXUVY=
-  /pnpm-logger/0.6.2:
+  /pnpm-shrinkwrap/5.0.0:
     dependencies:
-      '@types/node': 8.0.45
-      bole: 3.0.2
-      ndjson: 1.5.0
-    dev: true
-    resolution:
-      integrity: sha512-VLlRExib18bl5lSFp74vFHeZV0iWuxTkdOvI7BIhfWpiP9EdrkAq/GnjE5pxjXmsvXyZlaBDwoEQygU8kbVr8g==
-  /pnpm-shrinkwrap/3.4.0:
-    dependencies:
-      '@types/node': 7.0.45
+      '@types/node': 7.0.46
       '@types/ramda': 0.0.11
       dependency-path: 1.2.0
       js-yaml: 3.10.0
@@ -2157,9 +2157,9 @@ packages:
       write-file-atomic: 2.3.0
     dev: false
     peerDependencies:
-      pnpm-logger: ^0.6.2
+      '@pnpm/logger': ^1.0.0
     resolution:
-      integrity: sha512-Cn1df7tvv5qIC+3AYRhF4h8266ehLzC/lcnjeumU13TUGU4Vwi+5prPXxj/7IWnZiTAzESjfYag3S5bi6xHBqw==
+      integrity: sha512-1flslfYroQpp2mseTwuifgOqjC64DRcqDXkjHmP89DE6/pkJoSmcG789wviHYQAZyo0KK06tF2FJf0z/XgjOlA==
   /prepend-http/1.0.4:
     dev: true
     engines:
@@ -3059,6 +3059,7 @@ registry: 'https://registry.npmjs.org/'
 shrinkwrapMinorVersion: 2
 shrinkwrapVersion: 3
 specifiers:
+  '@pnpm/logger': ^1.0.0
   '@types/archy': ^0.0.31
   '@types/common-tags': ^1.2.5
   '@types/node': ^8.0.46
@@ -3067,13 +3068,12 @@ specifiers:
   archy: ^1.0.0
   chalk: ^2.3.0
   common-tags: ^1.4.0
-  dependencies-hierarchy: ^1.0.1
+  dependencies-hierarchy: ^2.0.0
   mos: ^2.0.0-alpha.3
   mos-plugin-readme: ^1.0.4
   npm-package-arg: ^6.0.0
   p-limit: ^1.1.0
   package-preview: ^1.0.0
-  pnpm-logger: ^0.6.2
   ramda: ^0.25.0
   read-package-json: ^2.0.12
   tape: ^4.7.0
