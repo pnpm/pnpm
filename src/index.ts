@@ -5,7 +5,7 @@ export * from './api'
 export {PnpmOptions, PackageManifest} from './types'
 export {PnpmError, PnpmErrorCode} from './errorTypes'
 export {
-  ManifestLog,
+  PackageJsonLog,
   InstallCheckLog,
   DeprecationLog,
   LifecycleLog,

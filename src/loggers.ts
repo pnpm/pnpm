@@ -2,8 +2,9 @@ import baseLogger, {
   LogBase,
   Logger,
 } from '@pnpm/logger'
+import {PackageJson} from '@pnpm/types'
 
-export const manifestLogger = baseLogger('manifest') as Logger<ManifestMessage>
+export const packageJsonLogger = baseLogger('package-json') as Logger<PackageJsonMessage>
 export const stageLogger = baseLogger('stage') as Logger<'resolution_done'>
 export const summaryLogger = baseLogger('summary') as Logger<void>
 export const installCheckLogger = baseLogger('install-check') as Logger<InstallCheckMessage>
@@ -12,13 +13,13 @@ export const lifecycleLogger = baseLogger('lifecycle') as Logger<LifecycleMessag
 export const rootLogger = baseLogger('root') as Logger<RootMessage>
 export const progressLogger = baseLogger('progress') as Logger<ProgressMessage>
 
-export type ManifestMessage = {
-  initial: object
+export type PackageJsonMessage = {
+  initial: PackageJson
 } | {
   updated: object
 }
 
-export type ManifestLog = {name: 'pnpm:manifest'} & LogBase & ManifestMessage
+export type PackageJsonLog = {name: 'pnpm:package-json'} & LogBase & PackageJsonMessage
 
 export interface InstallCheckMessage {
   code: string,
@@ -96,6 +97,6 @@ export type Log = StageLog
   | LifecycleLog
   | DeprecationLog
   | InstallCheckLog
-  | ManifestLog
+  | PackageJsonLog
   | RegistryLog
   | {name: 'pnpm:summary'} & LogBase

@@ -27,7 +27,7 @@ import {
   StageLog,
   RootLog,
   ProgressLog,
-  ManifestLog,
+  PackageJsonLog,
 } from 'supi'
 import writeJsonFile = require('write-json-file')
 
@@ -52,8 +52,8 @@ test('no dependencies (lodash)', async (t: tape.Test) => {
 
   await installPkgs(['lodash@4.0.0'], testDefaults({reporter}))
 
-  t.ok(reporter.calledWithMatch(<ManifestLog>{
-    name: 'pnpm:manifest',
+  t.ok(reporter.calledWithMatch(<PackageJsonLog>{
+    name: 'pnpm:package-json',
     level: 'debug',
     initial: {name: 'project', version: '0.0.0'},
   }), 'initial package.json logged')
@@ -80,8 +80,8 @@ test('no dependencies (lodash)', async (t: tape.Test) => {
       dependencyType: 'prod',
     },
   }), 'added to root')
-  t.ok(reporter.calledWithMatch(<ManifestLog>{
-    name: 'pnpm:manifest',
+  t.ok(reporter.calledWithMatch(<PackageJsonLog>{
+    name: 'pnpm:package-json',
     level: 'debug',
     updated: {
       name: 'project',

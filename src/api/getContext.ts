@@ -22,7 +22,7 @@ import normalizePath = require('normalize-path')
 import removeAllExceptOuterLinks = require('remove-all-except-outer-links')
 import logger from '@pnpm/logger'
 import checkCompatibility from './checkCompatibility'
-import {manifestLogger} from '../loggers'
+import {packageJsonLogger} from '../loggers'
 
 export type PnpmContext = {
   pkg: PackageJson,
@@ -86,7 +86,7 @@ export default async function getContext (opts: StrictPnpmOptions, installType?:
     storeIndex: files[3] || {},
     skipped: new Set(modules && modules.skipped || []),
   }
-  manifestLogger.debug({ initial: ctx.pkg })
+  packageJsonLogger.debug({ initial: ctx.pkg })
 
   return ctx
 }
