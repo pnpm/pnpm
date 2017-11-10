@@ -8,8 +8,7 @@
     "lib"
   ],
   "scripts": {
-    "prepare": "cd test && pnpm install",
-    "test": "cd test && npm test && mos t",
+    "test": "ts-node test && mos t",
     "prepublishOnly": "tsc",
     "tsc": "tsc",
     "md": "tsc && mos"
@@ -42,9 +41,12 @@
     "semver": "^5.3.0"
   },
   "devDependencies": {
+    "@types/tape": "^4.2.30",
     "mos": "^2.0.0-alpha.3",
     "mos-plugin-readme": "^1.0.4",
     "pnpm-logger": "^0.6.2",
+    "tape": "^4.7.0",
+    "ts-node": "^3.3.0",
     "typescript": "^2.4.1"
   },
   "mos": {
