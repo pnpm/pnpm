@@ -32,12 +32,12 @@
   },
   "homepage": "https://github.com/pnpm/pnpm-shrinkwrap#readme",
   "peerDependencies": {
-    "pnpm-logger": "^0.6.2"
+    "@pnpm/logger": "^1.0.0"
   },
   "devDependencies": {
+    "@pnpm/logger": "^1.0.0",
     "@types/tape": "^4.2.30",
     "package-preview": "^1.0.0",
-    "pnpm-logger": "^0.6.2",
     "rimraf": "^2.6.1",
     "tape": "^4.6.3",
     "ts-node": "^3.0.4",

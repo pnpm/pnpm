@@ -1,5 +1,5 @@
+import logger from '@pnpm/logger'
 import {refToRelative} from 'dependency-path'
-import logger from 'pnpm-logger'
 import R = require('ramda')
 import {SHRINKWRAP_VERSION} from './constants'
 import {

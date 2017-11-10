@@ -10,9 +10,9 @@ dependencies:
   thenify: 3.3.0
   write-file-atomic: 2.3.0
 devDependencies:
+  '@pnpm/logger': 1.0.0
   '@types/tape': 4.2.31
   package-preview: 1.0.0
-  pnpm-logger: 0.6.2
   rimraf: 2.6.2
   tape: 4.8.0
   ts-node: 3.3.0
@@ -31,6 +31,16 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha512-1C2K+SXmyKqwojtk9EhLsN6sKDhLnJJfenUwkfcBBbP3ltDaIExZ8uEpCFE4cO2qK60dNgJYTF7FsPzJjYyx5w==
+  /@pnpm/logger/1.0.0:
+    dependencies:
+      '@types/node': 8.0.51
+      bole: 3.0.2
+      ndjson: 1.5.0
+    dev: true
+    engines:
+      node: '>=4'
+    resolution:
+      integrity: sha512-VRqE5/SiuR7ZrwBmS+Af89BTXli5xBbiqu7WPq56gEtWT8dKf9rFLoimmmMBVeRq5LmVZIXlOxs29F9I+vgSvQ==
   /@types/fs-extra/4.0.3:
     dependencies:
       '@types/node': 8.0.49
@@ -80,6 +90,10 @@ packages:
     dev: true
     resolution:
       integrity: sha512-Oq3cV/mrMKy6Tv42llfS8YIH30ooDdhbJ40h1zoWl+goOJw8Kjy8j8RfjGZtZIUDO0gLwCfcbYM7+LModnbeMw==
+  /@types/node/8.0.51:
+    dev: true
+    resolution:
+      integrity: sha512-El3+WJk2D/ppWNd2X05aiP5l2k4EwF7KwheknQZls+I26eSICoWRhRIJ56jGgw2dqNGQ5LtNajmBU2ajS28EvQ==
   /@types/ramda/0.0.11:
     resolution:
       integrity: sha1-9tSAmpdX/lM1jI3o9t8WcSSrzT8=
@@ -1081,14 +1095,6 @@ packages:
       node: '>=0.10.0'
     resolution:
       integrity: sha1-clVrgM+g1IqXToDnckjoDtT3+HA=
-  /pnpm-logger/0.6.2:
-    dependencies:
-      '@types/node': 8.0.47
-      bole: 3.0.2
-      ndjson: 1.5.0
-    dev: true
-    resolution:
-      integrity: sha512-VLlRExib18bl5lSFp74vFHeZV0iWuxTkdOvI7BIhfWpiP9EdrkAq/GnjE5pxjXmsvXyZlaBDwoEQygU8kbVr8g==
   /prepend-http/1.0.4:
     dev: true
     engines:
@@ -1593,6 +1599,7 @@ registry: 'https://registry.npmjs.org/'
 shrinkwrapMinorVersion: 1
 shrinkwrapVersion: 3
 specifiers:
+  '@pnpm/logger': ^1.0.0
   '@types/node': ^7.0.32
   '@types/ramda': ^0.0.11
   '@types/tape': ^4.2.30
@@ -1601,7 +1608,6 @@ specifiers:
   load-yaml-file: ^0.1.0
   mkdirp-promise: ^5.0.1
   package-preview: ^1.0.0
-  pnpm-logger: ^0.6.2
   ramda: ^0.24.1
   rimraf: ^2.6.1
   rimraf-then: ^1.0.1

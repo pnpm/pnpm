@@ -1,3 +1,3 @@
-import logger from 'pnpm-logger'
+import logger, {Logger} from '@pnpm/logger'
 
 export default logger('shrinkwrap')
