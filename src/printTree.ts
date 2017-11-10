@@ -1,18 +1,18 @@
 import archy = require('archy')
+import chalk from 'chalk'
 import {PackageNode} from 'dependencies-hierarchy'
 import path = require('path')
-import chalk from 'chalk'
-import readPkg from './readPkg'
 import R = require('ramda')
+import readPkg from './readPkg'
 
 const sortPackages = R.sortBy(R.path(['pkg', 'name']))
 
-export default async function (
+export default async function(
   projectPath: string,
   tree: PackageNode[],
   opts: {
     long: boolean,
-  }
+  },
 ) {
   const pkg = await readPkg(path.resolve(projectPath, 'package.json'))
 
@@ -20,28 +20,28 @@ export default async function (
     label: `${pkg.name}@${pkg.version} ${projectPath}`,
     nodes: await toArchyTree(tree, {
       long: opts.long,
-      modules: path.join(projectPath, 'node_modules')
+      modules: path.join(projectPath, 'node_modules'),
     }),
   })
 
   return s
 }
 
-async function toArchyTree (
-  nodes: PackageNode[],
+async function toArchyTree(
+  entryNodes: PackageNode[],
   opts: {
     long: boolean,
     modules: string,
-  }
+  },
 ): Promise<archy.Data[]> {
   return Promise.all(
-    sortPackages(nodes).map(async node => {
+    sortPackages(entryNodes).map(async (node) => {
       const nodes = await toArchyTree(node.dependencies || [], opts)
       if (opts.long) {
         const pkg = await readPkg(path.join(opts.modules, `.${node.pkg.path}`, 'node_modules', node.pkg.name, 'package.json'))
         const labelLines = [
           printLabel(node),
-          pkg.description
+          pkg.description,
         ]
         if (pkg.repository) {
           labelLines.push(pkg.repository.url)
@@ -58,11 +58,11 @@ async function toArchyTree (
         label: printLabel(node),
         nodes,
       }
-    })
+    }),
   )
 }
 
-function printLabel (node: PackageNode) {
+function printLabel(node: PackageNode) {
   const txt = `${node.pkg.name}@${node.pkg.version}`
   if (node.searched) {
     return chalk.yellow.bgBlack(txt)

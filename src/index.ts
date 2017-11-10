@@ -3,29 +3,29 @@ import dh, {
   PackageSelector,
 } from 'dependencies-hierarchy'
 import npa = require('npm-package-arg')
-import printTree from './printTree'
 import printParseable from './printParseable'
+import printTree from './printTree'
 
 const DEFAULTS = {
   depth: 0,
   long: false,
-  parseable: false,
   only: undefined,
+  parseable: false,
 }
 
-export async function forPackages (
+export async function forPackages(
   packages: string[],
   projectPath: string,
-  opts?: {
+  maybeOpts?: {
     depth?: number,
     only?: 'dev' | 'prod',
     long?: boolean,
     parseable?: boolean,
-  }
+  },
 ) {
-  const _opts = Object.assign({}, DEFAULTS, opts)
+  const opts = Object.assign({}, DEFAULTS, maybeOpts)
 
-  const searched: PackageSelector[] = packages.map(arg => {
+  const searched: PackageSelector[] = packages.map((arg) => {
     const parsed = npa(arg)
     if (parsed.raw === parsed.name) {
       return parsed.name
@@ -40,39 +40,39 @@ export async function forPackages (
   })
 
   const tree = await dhForPackages(searched, projectPath, {
-    depth: _opts.depth,
-    only: _opts.only,
+    depth: opts.depth,
+    only: opts.only,
   })
 
-  const print = getPrinter(_opts.parseable)
+  const print = getPrinter(opts.parseable)
   return print(projectPath, tree, {
-    long: _opts.long,
+    long: opts.long,
   })
 }
 
-export default async function (
+export default async function(
   projectPath: string,
-  opts?: {
+  maybeOpts?: {
     depth?: number,
     only?: 'dev' | 'prod',
     long?: boolean,
     parseable?: boolean,
-  }
+  },
 ) {
-  const _opts = Object.assign({}, DEFAULTS, opts)
+  const opts = Object.assign({}, DEFAULTS, maybeOpts)
 
   const tree = await dh(projectPath, {
-    depth: _opts.depth,
-    only: _opts.only,
+    depth: opts.depth,
+    only: opts.only,
   })
 
-  const print = getPrinter(_opts.parseable)
+  const print = getPrinter(opts.parseable)
   return print(projectPath, tree, {
-    long: _opts.long,
+    long: opts.long,
   })
 }
 
-function getPrinter (parseable: boolean) {
+function getPrinter(parseable: boolean) {
   if (parseable) return printParseable
   return printTree
 }

@@ -3,7 +3,7 @@ import readPkgCB = require('read-package-json')
 import thenify = require('thenify')
 
 const limitPkgReads = pLimit(4)
-const _readPkg = thenify(readPkgCB)
-const readPkg = (pkgPath: string) => limitPkgReads(() => _readPkg(pkgPath))
+const readPkgLib = thenify(readPkgCB)
+const readPkg = (pkgPath: string) => limitPkgReads(() => readPkgLib(pkgPath))
 
 export default readPkg
