@@ -1,5 +1,5 @@
 import path = require('path')
-import logger from 'pnpm-logger'
+import logger from '@pnpm/logger'
 import {deprecationLogger} from '../loggers'
 import R = require('ramda')
 import getNpmTarballUrl from 'get-npm-tarball-url'

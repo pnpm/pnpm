@@ -5,7 +5,7 @@ import extendOptions from './extendOptions'
 import getContext from './getContext'
 import {pkgIsUntouched as untouched} from 'package-store'
 import * as dp from 'dependency-path'
-import {streamParser} from 'pnpm-logger'
+import {streamParser} from '@pnpm/logger'
 
 export default async function (maybeOpts: PnpmOptions) {
   const reporter = maybeOpts && maybeOpts.reporter

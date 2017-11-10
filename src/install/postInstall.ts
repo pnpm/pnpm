@@ -5,7 +5,7 @@ import {PackageJson} from '@pnpm/types'
 import runScript from '../runScript'
 import {fromDir as readPkgFromDir} from '../fs/readPkg'
 import lifecycle = require('@zkochan/npm-lifecycle')
-import logger from 'pnpm-logger'
+import logger from '@pnpm/logger'
 import {lifecycleLogger} from '../loggers'
 
 const pnpmNodeModules = findUp.sync('node_modules', {cwd: __dirname})

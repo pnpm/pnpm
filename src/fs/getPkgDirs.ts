@@ -2,7 +2,7 @@ import fs = require('mz/fs')
 import path = require('path')
 import flatten = require('arr-flatten')
 import pFilter = require('p-filter')
-import logger from 'pnpm-logger'
+import logger from '@pnpm/logger'
 
 export default async function (modules: string): Promise<string[]> {
   const dirs = await getDirectories(modules)

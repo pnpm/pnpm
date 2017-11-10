@@ -1,5 +1,5 @@
 import installChecks = require('pnpm-install-checks')
-import logger from 'pnpm-logger'
+import logger from '@pnpm/logger'
 import {installCheckLogger} from '../loggers'
 import {PackageManifest} from '../types'
 import {FetchedPackage} from 'package-store'

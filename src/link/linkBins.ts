@@ -7,7 +7,7 @@ import getPkgDirs from '../fs/getPkgDirs'
 import binify from '../binify'
 import isWindows = require('is-windows')
 import cmdShim = require('@zkochan/cmd-shim')
-import logger from 'pnpm-logger'
+import logger from '@pnpm/logger'
 import Module = require('module')
 import R = require('ramda')
 

@@ -2,7 +2,7 @@ import path = require('path')
 import {PnpmOptions, StrictPnpmOptions} from '../types'
 import extendOptions from './extendOptions'
 import isInnerLink = require('is-inner-link')
-import logger, {streamParser} from 'pnpm-logger'
+import logger, {streamParser} from '@pnpm/logger'
 import rimraf = require('rimraf-then')
 import {installPkgs} from './install'
 import {fromDir as readPkgFromDir} from '../fs/readPkg'

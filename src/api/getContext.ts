@@ -20,7 +20,7 @@ import mkdirp = require('mkdirp-promise')
 import {PackageJson} from '@pnpm/types'
 import normalizePath = require('normalize-path')
 import removeAllExceptOuterLinks = require('remove-all-except-outer-links')
-import logger from 'pnpm-logger'
+import logger from '@pnpm/logger'
 import checkCompatibility from './checkCompatibility'
 import {manifestLogger} from '../loggers'
 

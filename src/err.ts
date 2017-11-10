@@ -1,4 +1,4 @@
-import logger from 'pnpm-logger'
+import logger from '@pnpm/logger'
 
 export default function err (error: Error) {
   // bole passes only the name, message and stack of an error

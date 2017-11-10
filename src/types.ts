@@ -1,6 +1,6 @@
 import {Dependencies, PackageBin} from '@pnpm/types'
 import {PackageMeta} from 'package-store'
-import {LogBase} from 'pnpm-logger'
+import {LogBase} from '@pnpm/logger'
 
 export type PnpmOptions = {
   rawNpmConfig?: Object,

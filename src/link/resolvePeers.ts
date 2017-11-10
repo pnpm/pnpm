@@ -6,7 +6,7 @@ import {
 import {Dependencies} from '@pnpm/types'
 import R = require('ramda')
 import semver = require('semver')
-import logger from 'pnpm-logger'
+import logger from '@pnpm/logger'
 import path = require('path')
 import {InstalledPackage} from '../install/installMultiple'
 import {TreeNode, TreeNodeMap} from '../api/install'

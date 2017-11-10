@@ -2,7 +2,7 @@ import path = require('path')
 import {PnpmOptions} from '../types'
 import extendOptions from './extendOptions'
 import getContext from './getContext'
-import logger, {streamParser} from 'pnpm-logger'
+import logger, {streamParser} from '@pnpm/logger'
 import rimraf = require('rimraf-then')
 import exists = require('path-exists')
 import {Store} from 'package-store'

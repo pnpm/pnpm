@@ -1,4 +1,4 @@
-import logger from 'pnpm-logger'
+import logger from '@pnpm/logger'
 import path = require('path')
 import isInnerLink = require('is-inner-link')
 import fs = require('mz/fs')

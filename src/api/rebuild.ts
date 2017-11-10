@@ -1,7 +1,7 @@
 import {PnpmOptions, StrictPnpmOptions} from '../types'
 import extendOptions from './extendOptions'
 import getContext from './getContext'
-import logger, {streamParser} from 'pnpm-logger'
+import logger, {streamParser} from '@pnpm/logger'
 import R = require('ramda')
 import * as dp from 'dependency-path'
 import postInstall from '../install/postInstall'

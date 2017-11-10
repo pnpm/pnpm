@@ -1,4 +1,4 @@
-import logger from 'pnpm-logger'
+import logger from '@pnpm/logger'
 import path = require('path')
 import lockfile = require('proper-lockfile')
 import mkdirp = require('mkdirp-promise')

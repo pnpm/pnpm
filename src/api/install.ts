@@ -6,7 +6,7 @@ import path = require('path')
 import RegClient = require('npm-registry-client')
 import logger, {
   streamParser,
-} from 'pnpm-logger'
+} from '@pnpm/logger'
 import {
   stageLogger,
   summaryLogger,

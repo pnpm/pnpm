@@ -17,10 +17,10 @@ Install it via npm.
 npm install supi
 ```
 
-It also depends on `pnpm-logger` version `0.5`, so install it as well via:
+It also depends on `@pnpm/logger` version `1`, so install it as well via:
 
 ```
-npm install pnpm-logger@0.5
+npm install @pnpm/logger@1
 ```
 
 ## API

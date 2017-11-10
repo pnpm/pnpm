@@ -11,7 +11,7 @@ import {
   write as saveShrinkwrap,
   prune as pruneShrinkwrap,
 } from 'pnpm-shrinkwrap'
-import logger, {streamParser} from 'pnpm-logger'
+import logger, {streamParser} from '@pnpm/logger'
 import {
   save as saveModules,
   LAYOUT_VERSION,

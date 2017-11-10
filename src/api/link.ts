@@ -1,7 +1,7 @@
 import path = require('path')
 import loadJsonFile = require('load-json-file')
 import symlinkDir = require('symlink-dir')
-import logger, {streamParser} from 'pnpm-logger'
+import logger, {streamParser} from '@pnpm/logger'
 import {install} from './install'
 import pathAbsolute = require('path-absolute')
 import {linkPkgBins} from '../link/linkBins'

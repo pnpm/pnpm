@@ -5,7 +5,7 @@ import {Shrinkwrap, ResolvedPackages} from 'pnpm-shrinkwrap'
 import {Store, save as saveStore, PackageSpec} from 'package-store'
 import R = require('ramda')
 import removeTopDependency from '../removeTopDependency'
-import logger from 'pnpm-logger'
+import logger from '@pnpm/logger'
 import {dependenciesTypes} from '../getSaveType'
 
 export default async function removeOrphanPkgs (

@@ -1,6 +1,6 @@
 import {StrictPnpmOptions, PnpmOptions} from '../types'
 import path = require('path')
-import logger from 'pnpm-logger'
+import logger from '@pnpm/logger'
 import pnpmPkgJson from '../pnpmPkgJson'
 import {LAYOUT_VERSION} from '../fs/modulesController'
 import normalizeRegistryUrl = require('normalize-registry-url')

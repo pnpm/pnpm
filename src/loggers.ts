@@ -1,7 +1,7 @@
 import baseLogger, {
   LogBase,
   Logger,
-} from 'pnpm-logger'
+} from '@pnpm/logger'
 
 export const manifestLogger = baseLogger('manifest') as Logger<ManifestMessage>
 export const stageLogger = baseLogger('stage') as Logger<'resolution_done'>
