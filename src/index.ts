@@ -1,3 +1,4 @@
+import logger from '@pnpm/logger'
 import * as dp from 'dependency-path'
 import npa = require('npm-package-arg')
 import RegClient = require('npm-registry-client')
@@ -7,7 +8,6 @@ import {
   resolve,
   resolveStore,
 } from 'package-store'
-import logger from 'pnpm-logger'
 import {
   readCurrent as readCurrentShrinkwrap,
   readWanted as readWantedShrinkwrap,

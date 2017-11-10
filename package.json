@@ -33,22 +33,22 @@
   },
   "homepage": "https://github.com/pnpm/outdated#readme",
   "peerDependencies": {
-    "pnpm-logger": "^0.6.1"
+    "@pnpm/logger": "^1.0.0"
   },
   "dependencies": {
     "@types/node": "^8.0.33",
     "dependency-path": "^1.2.0",
     "npm-package-arg": "^6.0.0",
     "npm-registry-client": "^8.5.0",
-    "package-store": "^0.4.0",
-    "pnpm-shrinkwrap": "^4.0.0"
+    "package-store": "^0.5.0",
+    "pnpm-shrinkwrap": "^5.0.0"
   },
   "devDependencies": {
+    "@pnpm/logger": "^1.0.0",
     "@types/tape": "^4.2.31",
     "mos": "^2.0.0-alpha.3",
     "mos-plugin-readme": "^1.0.4",
     "package-preview": "^1.0.0",
-    "pnpm-logger": "^0.6.1",
     "tape": "^4.8.0",
     "ts-node": "^3.3.0",
     "tslint": "^5.8.0",
