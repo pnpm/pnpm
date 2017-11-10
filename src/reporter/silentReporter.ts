@@ -1,11 +1,11 @@
-import {Log} from 'pnpm-logger'
+import {LogBase} from '@pnpm/logger'
 
 export default (
   streamParser: {
-    on: (event: 'data', handler: (obj: Log) => void) => void,
+    on: (event: 'data', handler: (obj: LogBase) => void) => void,
   },
 ) => {
-  streamParser.on('data', (obj: Log) => {
+  streamParser.on('data', (obj: LogBase) => {
     if (obj.level !== 'error') return
 
     console.log(obj['err'] && obj['err'].message || obj['message']) // tslint:disable-line

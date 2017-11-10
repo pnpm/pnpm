@@ -22,7 +22,8 @@
     "npm-shrinkwrap.json"
   ],
   "dependencies": {
-    "@pnpm/outdated": "^0.1.0",
+    "@pnpm/logger": "^1.0.0",
+    "@pnpm/outdated": "^0.2.0",
     "@zkochan/libnpx": "^9.6.1",
     "byline": "^5.0.0",
     "camelcase": "^4.1.0",
@@ -36,13 +37,12 @@
     "nopt": "^4.0.1",
     "not-bundled-npm": "^5.4.2",
     "path-name": "^1.0.0",
-    "pnpm-default-reporter": "^0.9.7",
+    "pnpm-default-reporter": "^0.10.0",
     "pnpm-file-reporter": "^0.0.1",
-    "pnpm-list": "^1.0.0",
-    "pnpm-logger": "^0.6.3",
+    "pnpm-list": "^2.0.0",
     "ramda": "^0.25.0",
     "strip-color": "^0.1.0",
-    "supi": "^0.6.3",
+    "supi": "^0.7.0",
     "text-table": "^0.2.0",
     "update-notifier": "^2.1.0"
   },
@@ -149,10 +149,10 @@
   },
   "greenkeeper": {
     "ignore": [
+      "@pnpm/logger",
       "pnpm-default-reporter",
       "pnpm-file-reporter",
       "pnpm-install-checks",
-      "pnpm-logger",
       "pnpm-registry-mock",
       "remove-all-except-outer-links",
       "pnpm-shrinkwrap",

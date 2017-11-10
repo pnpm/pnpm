@@ -1,6 +1,6 @@
+import logger from '@pnpm/logger'
 import chalk from 'chalk'
 import path = require('path')
-import logger from 'pnpm-logger'
 import {install, installPkgs, PnpmOptions} from 'supi'
 
 /**

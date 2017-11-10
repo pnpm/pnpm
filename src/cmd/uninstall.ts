@@ -1,4 +1,4 @@
-import logger from 'pnpm-logger'
+import logger from '@pnpm/logger'
 import {PnpmOptions, uninstall} from 'supi'
 
 export default function uninstallCmd (input: string[], opts: PnpmOptions, cmdName: string) {

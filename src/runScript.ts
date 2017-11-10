@@ -1,8 +1,8 @@
+import logger from '@pnpm/logger'
 import byline = require('byline')
 import spawn = require('cross-spawn')
 import path = require('path')
 import PATH = require('path-name')
-import logger from 'pnpm-logger'
 
 const scriptLogger = logger('run_script')
 
@@ -21,7 +21,7 @@ export default function runScript (
   args = args || []
   const log = opts.log
   const script = `${command}${args.length ? ' ' + args.join(' ') : ''}`
-  if (script) scriptLogger.debug('runscript', script)
+  if (script) scriptLogger.debug(`runscript ${script}`)
   if (!command) return Promise.resolve()
   return new Promise((resolve, reject) => {
     const proc = spawn(command, args, {
