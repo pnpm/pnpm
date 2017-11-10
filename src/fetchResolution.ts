@@ -1,9 +1,9 @@
+import logger from '@pnpm/logger'
 import dint = require('dint')
 import execa = require('execa')
 import {IncomingMessage} from 'http'
 import fs = require('mz/fs')
 import path = require('path')
-import logger from 'pnpm-logger'
 import rimraf = require('rimraf-then')
 import * as unpackStream from 'unpack-stream'
 import {PnpmError} from './errorTypes'

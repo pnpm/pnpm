@@ -34,6 +34,7 @@ dependencies:
   unpack-stream: 2.1.1
   write-json-file: 2.3.0
 devDependencies:
+  '@pnpm/logger': 1.0.0
   '@types/nock': 8.2.1
   '@types/tape': 4.2.31
   commitizen: 2.9.6
@@ -44,7 +45,6 @@ devDependencies:
   npm-registry-client: 8.5.0
   npm-scripts-info: 0.3.6
   package-preview: 1.0.0
-  pnpm-logger: 0.7.0
   rimraf: 2.6.2
   tape: 4.8.0
   ts-node: 3.3.0
@@ -64,6 +64,16 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha512-1C2K+SXmyKqwojtk9EhLsN6sKDhLnJJfenUwkfcBBbP3ltDaIExZ8uEpCFE4cO2qK60dNgJYTF7FsPzJjYyx5w==
+  /@pnpm/logger/1.0.0:
+    dependencies:
+      '@types/node': 8.0.51
+      bole: 3.0.2
+      ndjson: 1.5.0
+    dev: true
+    engines:
+      node: '>=4'
+    resolution:
+      integrity: sha512-VRqE5/SiuR7ZrwBmS+Af89BTXli5xBbiqu7WPq56gEtWT8dKf9rFLoimmmMBVeRq5LmVZIXlOxs29F9I+vgSvQ==
   /@types/fs-extra/4.0.3:
     dependencies:
       '@types/node': 8.0.50
@@ -113,6 +123,10 @@ packages:
   /@types/node/8.0.50:
     resolution:
       integrity: sha512-N9OVsMBspboNvYaLAQnLEhb2eQ96lavogMR5LoH5k8nb1PvBZHSBFhzhsq2LNzGTBBOtBviOc1GiSu+wlM/pGw==
+  /@types/node/8.0.51:
+    dev: true
+    resolution:
+      integrity: sha512-El3+WJk2D/ppWNd2X05aiP5l2k4EwF7KwheknQZls+I26eSICoWRhRIJ56jGgw2dqNGQ5LtNajmBU2ajS28EvQ==
   /@types/ramda/0.25.3:
     dev: false
     resolution:
@@ -2259,14 +2273,6 @@ packages:
       node: '>=0.10.0'
     resolution:
       integrity: sha1-clVrgM+g1IqXToDnckjoDtT3+HA=
-  /pnpm-logger/0.7.0:
-    dependencies:
-      '@types/node': 8.0.50
-      bole: 3.0.2
-      ndjson: 1.5.0
-    dev: true
-    resolution:
-      integrity: sha512-Ub7/NeCVt/7Uva6ApYCZCNKLJhTZuuCs9lZow+4y1tUis6NKmuvtOY7VOx8UrXtsgo5s9zFdjNv9w390TV5S6Q==
   /prebuild-install/2.3.0:
     dependencies:
       expand-template: 1.1.0
@@ -3135,6 +3141,7 @@ registry: 'https://registry.npmjs.org/'
 shrinkwrapMinorVersion: 2
 shrinkwrapVersion: 3
 specifiers:
+  '@pnpm/logger': ^1.0.0
   '@types/load-json-file': ^2.0.5
   '@types/nock': ^8.2.1
   '@types/node': ^8.0.34
@@ -3168,7 +3175,6 @@ specifiers:
   parse-npm-tarball-url: ^1.0.1
   path-absolute: ^1.0.0
   path-exists: ^3.0.0
-  pnpm-logger: ^0.7.0
   ramda: ^0.25.0
   read-package-json: ^2.0.10
   rename-overwrite: ^1.0.0

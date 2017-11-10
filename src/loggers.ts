@@ -1,7 +1,7 @@
 import baseLogger, {
   LogBase,
   Logger,
-} from 'pnpm-logger'
+} from '@pnpm/logger'
 
 export const progressLogger = baseLogger('progress') as Logger<ProgressMessage>
 

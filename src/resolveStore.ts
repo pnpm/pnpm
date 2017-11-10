@@ -1,8 +1,8 @@
+import logger from '@pnpm/logger'
 import driveByPath = require('drive-by-path')
 import osHomedir = require('os-homedir')
 import path = require('path')
 import pathAbsolute = require('path-absolute')
-import logger from 'pnpm-logger'
 import R = require('ramda')
 
 const STORE_VERSION = '2'

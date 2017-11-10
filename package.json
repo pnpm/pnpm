@@ -16,7 +16,7 @@
     "lib/"
   ],
   "peerDependencies": {
-    "pnpm-logger": "^0.7.0"
+    "@pnpm/logger": "^1.0.0"
   },
   "dependencies": {
     "@types/load-json-file": "^2.0.5",
@@ -55,6 +55,7 @@
     "write-json-file": "^2.2.0"
   },
   "devDependencies": {
+    "@pnpm/logger": "^1.0.0",
     "@types/nock": "^8.2.1",
     "@types/tape": "^4.2.30",
     "commitizen": "^2.8.6",
@@ -65,7 +66,6 @@
     "npm-registry-client": "^8.4.0",
     "npm-scripts-info": "^0.3.6",
     "package-preview": "^1.0.0",
-    "pnpm-logger": "^0.7.0",
     "rimraf": "^2.6.1",
     "tape": "^4.7.0",
     "ts-node": "^3.3.0",

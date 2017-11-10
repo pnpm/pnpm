@@ -1,7 +1,7 @@
+import logger from '@pnpm/logger'
 import execa = require('execa')
 import normalizeSsh = require('normalize-ssh')
 import path = require('path')
-import logger from 'pnpm-logger'
 import {
   GitRepositoryResolution,
   HostedPackageSpec,
