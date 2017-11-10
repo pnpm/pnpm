@@ -8,7 +8,9 @@
     "lib"
   ],
   "scripts": {
-    "test": "preview && ts-node test && mos t",
+    "fix": "tslint -c tslint.json --project . --fix",
+    "lint": "tslint -c tslint.json --project .",
+    "test": "npm run lint && preview && ts-node test && mos t",
     "prepublishOnly": "tsc",
     "tsc": "tsc",
     "md": "preview && tsc && mos"
@@ -48,6 +50,7 @@
     "pnpm-logger": "^0.6.2",
     "tape": "^4.7.0",
     "ts-node": "^3.3.0",
+    "tslint": "^5.8.0",
     "typescript": "^2.4.1"
   },
   "mos": {

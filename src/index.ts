@@ -1,18 +1,18 @@
+import assert = require('assert')
+import {refToAbsolute, refToRelative} from 'dependency-path'
 import {
   readPrivate,
-  Shrinkwrap,
   ResolvedPackages,
+  Shrinkwrap,
 } from 'pnpm-shrinkwrap'
 import semver = require('semver')
-import {refToAbsolute, refToRelative} from 'dependency-path'
-import assert = require('assert')
 
 export type PackageSelector = string | {
   name: string,
   range: string,
 }
 
-export type PackageNode = {
+export interface PackageNode {
   pkg: {
     name: string,
     version: string,
@@ -23,13 +23,13 @@ export type PackageNode = {
   circular?: true,
 }
 
-export function forPackages (
+export function forPackages(
   packages: PackageSelector[],
   projectPath: string,
   opts?: {
     depth: number,
     only?: 'dev' | 'prod',
-  }
+  },
 ) {
   assert(packages, 'packages should be defined')
   if (!packages.length) return []
@@ -37,59 +37,59 @@ export function forPackages (
   return dependenciesHierarchy(projectPath, packages, opts)
 }
 
-export default function (
+export default function(
   projectPath: string,
   opts?: {
     depth: number,
     only?: 'dev' | 'prod',
-  }
+  },
 ) {
   return dependenciesHierarchy(projectPath, [], opts)
 }
 
-async function dependenciesHierarchy (
+async function dependenciesHierarchy(
   projectPath: string,
   searched: PackageSelector[],
-  opts?: {
+  maybeOpts?: {
     depth: number,
     only?: 'dev' | 'prod',
-  }
+  },
 ): Promise<PackageNode[]> {
-  const _opts = Object.assign({}, {
+  const opts = Object.assign({}, {
     depth: 0,
     only: undefined,
-  }, opts)
+  }, maybeOpts)
   const shrinkwrap = await readPrivate(projectPath, {ignoreIncompatible: false})
 
   if (!shrinkwrap) return []
 
-  const topDeps = getTopDependencies(shrinkwrap, _opts)
+  const topDeps = getTopDependencies(shrinkwrap, opts)
 
   if (!topDeps) return []
 
   const getChildrenTree = getTree.bind(null, {
     currentDepth: 1,
-    maxDepth: _opts.depth,
-    prod: _opts.only === 'prod',
-    searched,
+    maxDepth: opts.depth,
+    prod: opts.only === 'prod',
     registry: shrinkwrap.registry,
+    searched,
   }, shrinkwrap.packages)
   const result: PackageNode[] = []
-  Object.keys(topDeps).forEach(depName => {
+  Object.keys(topDeps).forEach((depName) => {
     const relativeId = refToRelative(topDeps[depName], depName)
     const pkgPath = refToAbsolute(topDeps[depName], depName, shrinkwrap.registry)
     const pkg = {
       name: depName,
-      version: topDeps[depName],
       path: pkgPath,
+      version: topDeps[depName],
     }
     const dependencies = getChildrenTree([relativeId], relativeId)
     let newEntry: PackageNode | null = null
     const matchedSearched = searched.length && matches(searched, pkg)
     if (dependencies.length) {
       newEntry = {
-        pkg,
         dependencies,
+        pkg,
       }
     } else if (!searched.length || matches(searched, pkg)) {
       newEntry = {pkg}
@@ -104,11 +104,11 @@ async function dependenciesHierarchy (
   return result
 }
 
-function getTopDependencies (
+function getTopDependencies(
   shrinkwrap: Shrinkwrap,
   opts: {
     only?: 'dev' | 'prod',
-  }
+  },
 ) {
   switch (opts.only) {
     case 'prod':
@@ -119,12 +119,12 @@ function getTopDependencies (
       return Object.assign({},
         shrinkwrap.dependencies,
         shrinkwrap.devDependencies,
-        shrinkwrap.optionalDependencies
+        shrinkwrap.optionalDependencies,
       )
   }
 }
 
-function getTree (
+function getTree(
   opts: {
     currentDepth: number,
     maxDepth: number,
@@ -134,7 +134,7 @@ function getTree (
   },
   packages: ResolvedPackages,
   keypath: string[],
-  parentId: string
+  parentId: string,
 ): PackageNode[] {
   if (opts.currentDepth > opts.maxDepth || !packages[parentId]) return []
 
@@ -142,7 +142,7 @@ function getTree (
     ? packages[parentId].dependencies
     : Object.assign({},
       packages[parentId].dependencies,
-      packages[parentId].optionalDependencies
+      packages[parentId].optionalDependencies,
     )
 
   if (!deps) return []
@@ -151,14 +151,14 @@ function getTree (
     currentDepth: opts.currentDepth + 1,
   }), packages)
 
-  let result: PackageNode[] = []
-  Object.keys(deps).forEach(depName => {
+  const result: PackageNode[] = []
+  Object.keys(deps).forEach((depName) => {
     const pkgPath = refToAbsolute(deps[depName], depName, opts.registry)
     const relativeId = refToRelative(deps[depName], depName)
     const pkg = {
       name: depName,
-      version: deps[depName],
       path: pkgPath,
+      version: deps[depName],
     }
     const circular = keypath.indexOf(relativeId) !== -1
     const dependencies = circular ? [] : getChildrenTree(keypath.concat([relativeId]), relativeId)
@@ -166,8 +166,8 @@ function getTree (
     const matchedSearched = opts.searched.length && matches(opts.searched, pkg)
     if (dependencies.length) {
       newEntry = {
-        pkg,
         dependencies,
+        pkg,
       }
     } else if (!opts.searched.length || matchedSearched) {
       newEntry = {pkg}
@@ -185,11 +185,11 @@ function getTree (
   return result
 }
 
-function matches (
+function matches(
   searched: PackageSelector[],
-  pkg: {name: string, version: string}
+  pkg: {name: string, version: string},
 ) {
-  return searched.some(searchedPkg => {
+  return searched.some((searchedPkg) => {
     if (typeof searchedPkg === 'string') {
       return pkg.name === searchedPkg
     }
