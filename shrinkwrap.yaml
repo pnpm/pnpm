@@ -16,16 +16,16 @@ devDependencies:
   common-tags: 1.4.0
   mos: 2.0.0-alpha.3
   mos-plugin-readme: 1.0.4
-  package-preview: 0.2.1
+  package-preview: 1.0.0
   pnpm-logger: 0.6.2
   tape: 4.8.0
   ts-node: 3.3.0
   typescript: 2.5.3
 packages:
-  /@pnpm/exec/1.0.2:
+  /@pnpm/exec/1.1.1:
     dependencies:
-      '@types/got': 7.1.4
-      '@types/node': 8.0.47
+      '@types/got': 7.1.5
+      '@types/node': 8.0.51
       command-exists: 1.2.2
       cross-spawn: 5.1.0
       got: 7.1.0
@@ -33,7 +33,7 @@ packages:
     engines:
       node: '>=4'
     resolution:
-      integrity: sha512-BjVjPYfTXNBF75WFyOJRPNw6BLutvgx6lvShzGGTreEAde/sND0DAAeyr+t3Wc9YuFKZ7DG84b97H5of8JiMmw==
+      integrity: sha512-1C2K+SXmyKqwojtk9EhLsN6sKDhLnJJfenUwkfcBBbP3ltDaIExZ8uEpCFE4cO2qK60dNgJYTF7FsPzJjYyx5w==
   /@types/archy/0.0.31:
     dev: false
     resolution:
@@ -42,31 +42,41 @@ packages:
     dev: true
     resolution:
       integrity: sha512-HI1tSO87vmd1sPS3DOVSK4gvVKROvCBFvAnXlLiQtAus/+1xXMQcNyu9TX2ChwRXFeQZeB9+f+nMo99xLd5DdA==
-  /@types/fs-extra/4.0.3:
+  /@types/fs-extra/4.0.4:
     dependencies:
-      '@types/node': 8.0.47
+      '@types/node': 8.0.51
     dev: true
     resolution:
-      integrity: sha512-cUE7dc4RJsRPCk8mbrgMAaglugcJbf1Oxp7DYi/aOj4+ggCxzddDQFZwCKWnqrLv4LJ89apyNJ7Y3pN79tAPVg==
-  /@types/got/7.1.4:
+      integrity: sha512-u2LUBibrqjpF/AJ9trGmpIZMBQ8zjLqDHO7f25gNfNHI+/cCvFjut7u2s7Dn6tbETFBgJEjb/INRDCbTF8nJUA==
+  /@types/got/7.1.5:
     dependencies:
-      '@types/node': 8.0.47
+      '@types/node': 8.0.51
     dev: true
     resolution:
-      integrity: sha512-GSwGwxqqbGy470XcZEWIrflF/ADxN1DObpQe7sE8xxel+zFG5ZG5xc+JEyfC/9aGlVrSAcKD/iPdXjGH5MS5lA==
+      integrity: sha512-fOby+9vGOB15+6GsNI3maUx/Ig4lW3hOH9is0OsrKRyyeJ42gk2mUn4UoRko3kXVPj44TSxDx81Th3EisXx8rg==
   /@types/load-json-file/2.0.7:
     dev: true
     resolution:
       integrity: sha512-NrH6jPlV77QCVPhAHofWeiOr77TgpKt82c2RVxSBChWBJqyY/u4ngl3CA4mcsAg/w7rNLrkR7dkObMV0ihLLXw==
+  /@types/meow/3.6.2:
+    dependencies:
+      '@types/minimist': 1.2.0
+    dev: true
+    resolution:
+      integrity: sha1-0Thn+X2LJYIA4U9Zxu0H8Is0KA4=
+  /@types/minimist/1.2.0:
+    dev: true
+    resolution:
+      integrity: sha1-aaI6OtKcrwCX8G7aWbNh7i8GOfY=
   /@types/mz/0.0.31:
     dependencies:
-      '@types/node': 8.0.47
+      '@types/node': 8.0.51
     dev: true
     resolution:
       integrity: sha1-pNgMCC/v5x5Ap8DwfR5lVbu8e1I=
   /@types/mz/0.0.32:
     dependencies:
-      '@types/node': 8.0.47
+      '@types/node': 8.0.51
     dev: true
     resolution:
       integrity: sha512-cy3yebKhrHuOcrJGkfwNHhpTXQLgmXSv1BX+4p32j+VUQ6aP2eJ5cL7OvGcAQx75fCTFaAIIAKewvqL+iwSd4g==
@@ -80,6 +90,10 @@ packages:
   /@types/node/8.0.47:
     resolution:
       integrity: sha512-kOwL746WVvt/9Phf6/JgX/bsGQvbrK5iUgzyfwZNcKVFcjAUVSpF9HxevLTld2SG9aywYHOILj38arDdY1r/iQ==
+  /@types/node/8.0.51:
+    dev: true
+    resolution:
+      integrity: sha512-El3+WJk2D/ppWNd2X05aiP5l2k4EwF7KwheknQZls+I26eSICoWRhRIJ56jGgw2dqNGQ5LtNajmBU2ajS28EvQ==
   /@types/ramda/0.0.11:
     dev: false
     resolution:
@@ -1981,19 +1995,21 @@ packages:
       node: '>=0.10.0'
     resolution:
       integrity: sha1-DRW9Z9HLvduyyiIv8u24a8sxqLs=
-  /package-preview/0.2.1:
+  /package-preview/1.0.0:
     dependencies:
-      '@pnpm/exec': 1.0.2
-      '@types/fs-extra': 4.0.3
+      '@pnpm/exec': 1.1.1
+      '@types/fs-extra': 4.0.4
       '@types/load-json-file': 2.0.7
+      '@types/meow': 3.6.2
       '@types/mz': 0.0.32
-      '@types/node': 8.0.47
+      '@types/node': 8.0.51
       '@types/write-json-file': 2.2.1
       cross-spawn: 5.1.0
       find-down: 0.1.4
       fs-extra: 4.0.2
       graceful-fs: 4.1.11
       load-json-file: 4.0.0
+      meow: 3.7.0
       mz: 2.7.0
       rimraf-then: 1.0.1
       symlink-dir: 1.1.0
@@ -2003,7 +2019,7 @@ packages:
     engines:
       node: '>=4'
     resolution:
-      integrity: sha512-3sfioxx/CgS6k+2dB4yprAbWqpnGdWxA00tKG3i6e9uMh/+Yk9oh7NtVzLskmZIqPijDmohqRM5lhZA+sZzIaA==
+      integrity: sha512-OQbpubrdUPz5xJa98eri+Gf7zfhoLbtQACh4myRaUrCHPYzCrKvw+07v3DrV/n1aRv0/yibWkqSGC/v03ijUug==
   /pako/0.2.9:
     dev: true
     resolution:
@@ -2676,7 +2692,7 @@ packages:
   /symlink-dir/1.1.0:
     dependencies:
       '@types/mz': 0.0.31
-      '@types/node': 8.0.47
+      '@types/node': 8.0.51
       graceful-fs: 4.1.11
       is-windows: 1.0.1
       mkdirp-promise: 5.0.1
@@ -2870,7 +2886,7 @@ packages:
       integrity: sha1-+nG63UQ3r0wUiEHjs7Fl+enlkLc=
   /unpack-stream/2.1.1:
     dependencies:
-      '@types/node': 8.0.47
+      '@types/node': 8.0.51
       decompress-maybe: 1.0.0
       ssri: 4.1.6
       tar-fs: 1.16.0
@@ -3056,7 +3072,7 @@ specifiers:
   mos-plugin-readme: ^1.0.4
   npm-package-arg: ^6.0.0
   p-limit: ^1.1.0
-  package-preview: ^0.2.1
+  package-preview: ^1.0.0
   pnpm-logger: ^0.6.2
   ramda: ^0.25.0
   read-package-json: ^2.0.12
