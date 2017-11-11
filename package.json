@@ -138,7 +138,7 @@
     "test:tap": "ts-node test",
     "pretest:e2e": "rimraf ../.tmp/ && pnpm-registry-mock prepare",
     "test:e2e": "preview --skip-prepublishOnly && npm-run-all -p -r pnpm-registry-mock test:tap",
-    "test": "npm run tsc && npm run lint && npm test --prefix .scripts/self-installer && npm run test:e2e",
+    "test": "npm run lint && npm run tsc && npm run test:e2e",
     "tsc": "rimraf lib && tsc",
     "prepublishOnly": "echo \"Publish is only allowed via 'npm run release'\" && exit 1",
     "release": "sh .scripts/release.sh",

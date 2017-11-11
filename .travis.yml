@@ -18,6 +18,7 @@ install:
 script:
   - /bin/bash lint-commits.sh
   - ./node_modules/.bin/commitlint --from=$TRAVIS_COMMIT
+  - npm test --prefix .scripts/self-installer
   - npm t
 env:
   global:

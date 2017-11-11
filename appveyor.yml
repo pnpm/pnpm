@@ -20,4 +20,5 @@ version: '{build}'
 test_script:
   - node --version
   - npm --version
+  - npm test --prefix .scripts/self-installer
   - npm t
