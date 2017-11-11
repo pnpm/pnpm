@@ -3,6 +3,7 @@ environment:
     - nodejs_version: 4
     - nodejs_version: 6
     - nodejs_version: 8
+    - nodejs_version: 9
 install:
   - ps: Install-Product node $env:nodejs_version
   - npm set fetch-retry-maxtimeout 180000
