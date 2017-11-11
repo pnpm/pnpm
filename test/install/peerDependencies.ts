@@ -55,15 +55,46 @@ test('peer dependency is not grouped with dependent when the peer is a top depen
   t.ok(await exists(path.join(NM, '.localhost+4873', 'ajv-keywords', '1.5.0', NM, 'ajv-keywords')), 'dependent is at the normal location')
 })
 
-test('warning is reported when cannot resolve peer dependency', async (t: tape.Test) => {
+test('warning is reported when cannot resolve peer dependency for top-level dependency', async (t: tape.Test) => {
   const project = prepare(t)
 
   const reporter = sinon.spy()
 
   await installPkgs(['ajv-keywords@1.5.0'], testDefaults({reporter}))
 
-  const expectedMessage = 'localhost+4873/ajv-keywords/1.5.0 requires a peer of ajv@>=4.10.0 but none was installed.'
-  const logMatcher = sinon.match({message: expectedMessage})
+  const logMatcher = sinon.match({
+    message: 'ajv-keywords@1.5.0 requires a peer of ajv@>=4.10.0 but none was installed.',
+  })
+  const reportedTimes = reporter.withArgs(logMatcher).callCount
+
+  t.equal(reportedTimes, 1, 'warning is logged (once) about unresolved peer dep')
+})
+
+test('warning is reported when cannot resolve peer dependency for non-top-level dependency', async (t: tape.Test) => {
+  const project = prepare(t)
+
+  const reporter = sinon.spy()
+
+  await installPkgs(['abc-grand-parent-without-c'], testDefaults({reporter}))
+
+  const logMatcher = sinon.match({
+    message: 'abc-grand-parent-without-c > abc-parent-with-ab: abc@1.0.0 requires a peer of peer-c@^1.0.0 but none was installed.',
+  })
+  const reportedTimes = reporter.withArgs(logMatcher).callCount
+
+  t.equal(reportedTimes, 1, 'warning is logged (once) about unresolved peer dep')
+})
+
+test('warning is reported when bad version of resolved peer dependency for non-top-level dependency', async (t: tape.Test) => {
+  const project = prepare(t)
+
+  const reporter = sinon.spy()
+
+  await installPkgs(['abc-grand-parent-without-c', 'peer-c@2'], testDefaults({reporter}))
+
+  const logMatcher = sinon.match({
+    message: 'abc-grand-parent-without-c > abc-parent-with-ab: abc@1.0.0 requires a peer of peer-c@^1.0.0 but version 2.0.0 was installed.',
+  })
   const reportedTimes = reporter.withArgs(logMatcher).callCount
 
   t.equal(reportedTimes, 1, 'warning is logged (once) about unresolved peer dep')
