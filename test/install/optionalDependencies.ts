@@ -4,6 +4,7 @@ import promisifyTape from 'tape-promise'
 import loadYamlFile = require('load-yaml-file')
 import exists = require('path-exists')
 import deepRequireCwd = require('deep-require-cwd')
+import sinon = require('sinon')
 import {install, installPkgs} from 'supi'
 import {
   prepare,
@@ -21,7 +22,7 @@ test('successfully install optional dependency with subdependencies', async func
   await installPkgs(['fsevents@1.0.14'], testDefaults({saveOptional: true}))
 })
 
-test('skip failing optional dependencies', async function (t) {
+test('skip failing optional dependencies', async (t: tape.Test) => {
   const project = prepare(t)
   await installPkgs(['pkg-with-failing-optional-dependency@1.0.1'], testDefaults())
 
@@ -29,13 +30,15 @@ test('skip failing optional dependencies', async function (t) {
   t.ok(m(-1), 'package with failed optional dependency has the dependencies installed correctly')
 })
 
-test('skip optional dependency that does not support the current OS', async function (t: tape.Test) {
+test('skip optional dependency that does not support the current OS', async (t: tape.Test) => {
   const project = prepare(t, {
     optionalDependencies: {
       'not-compatible-with-any-os': '*'
     }
   })
-  await install(testDefaults())
+  const reporter = sinon.spy()
+
+  await install(testDefaults({reporter}))
 
   await project.hasNot('not-compatible-with-any-os')
   await project.storeHas('not-compatible-with-any-os', '1.0.0')
@@ -50,32 +53,55 @@ test('skip optional dependency that does not support the current OS', async func
     'localhost+4873/dep-of-optional-pkg/1.0.0',
     'localhost+4873/not-compatible-with-any-os/1.0.0',
   ])
+
+  const logMatcher = sinon.match({
+    level: 'warn',
+    message: 'Skipping failed optional dependency not-compatible-with-any-os@1.0.0',
+  })
+  const reportedTimes = reporter.withArgs(logMatcher).callCount
+  t.equal(reportedTimes, 1, 'skipping optional dependency is logged')
 })
 
-test('skip optional dependency that does not support the current Node version', async function (t: tape.Test) {
+test('skip optional dependency that does not support the current Node version', async (t: tape.Test) => {
   const project = prepare(t, {
     optionalDependencies: {
       'for-legacy-node': '*'
     }
   })
+  const reporter = sinon.spy()
 
-  await install(testDefaults())
+  await install(testDefaults({reporter}))
 
   await project.hasNot('for-legacy-node')
   await project.storeHas('for-legacy-node', '1.0.0')
+
+  const logMatcher = sinon.match({
+    level: 'warn',
+    message: 'Skipping failed optional dependency for-legacy-node@1.0.0',
+  })
+  const reportedTimes = reporter.withArgs(logMatcher).callCount
+  t.equal(reportedTimes, 1, 'skipping optional dependency is logged')
 })
 
-test('skip optional dependency that does not support the current pnpm version', async function (t) {
+test('skip optional dependency that does not support the current pnpm version', async (t: tape.Test) => {
   const project = prepare(t, {
     optionalDependencies: {
       'for-legacy-pnpm': '*'
     }
   })
+  const reporter = sinon.spy()
 
-  await install(testDefaults())
+  await install(testDefaults({reporter}))
 
   await project.hasNot('for-legacy-pnpm')
   await project.storeHas('for-legacy-pnpm', '1.0.0')
+
+  const logMatcher = sinon.match({
+    level: 'warn',
+    message: 'Skipping failed optional dependency for-legacy-pnpm@1.0.0',
+  })
+  const reportedTimes = reporter.withArgs(logMatcher).callCount
+  t.equal(reportedTimes, 1, 'skipping optional dependency is logged')
 })
 
 test('don\'t skip optional dependency that does not support the current OS when forcing', async function (t) {
@@ -95,12 +121,20 @@ test('don\'t skip optional dependency that does not support the current OS when 
 
 test('optional subdependency is skipped', async (t: tape.Test) => {
   const project = prepare(t)
+  const reporter = sinon.spy()
 
-  await installPkgs(['pkg-with-optional', 'dep-of-optional-pkg'], testDefaults())
+  await installPkgs(['pkg-with-optional', 'dep-of-optional-pkg'], testDefaults({reporter}))
 
   const modulesInfo = await loadYamlFile<{skipped: string[]}>(path.join('node_modules', '.modules.yaml'))
 
   t.deepEqual(modulesInfo.skipped, ['localhost+4873/not-compatible-with-any-os/1.0.0'], 'optional subdep skipped')
+
+  const logMatcher = sinon.match({
+    level: 'warn',
+    message: 'pkg-with-optional: Skipping failed optional dependency not-compatible-with-any-os@1.0.0',
+  })
+  const reportedTimes = reporter.withArgs(logMatcher).callCount
+  t.equal(reportedTimes, 1, 'skipping optional dependency is logged')
 })
 
 test('not installing optional dependencies when optional is false', async (t: tape.Test) => {

@@ -1,7 +1,9 @@
+import R = require('ramda')
 import installChecks = require('pnpm-install-checks')
 import logger from '@pnpm/logger'
 import {installCheckLogger} from '../loggers'
 import {PackageManifest} from '../types'
+import {InstalledPackages} from '../api/install'
 import {FetchedPackage} from 'package-store'
 
 export default async function getIsInstallable (
@@ -9,6 +11,8 @@ export default async function getIsInstallable (
   pkg: PackageManifest,
   fetchedPkg: FetchedPackage,
   options: {
+    nodeId: string,
+    installs: InstalledPackages,
     optional: boolean,
     engineStrict: boolean,
     nodeVersion: string,
@@ -25,8 +29,9 @@ export default async function getIsInstallable (
   installCheckLogger.warn(warn)
 
   if (options.optional) {
+    const friendlyPath = nodeIdToFriendlyPath(options.nodeId, options.installs)
     logger.warn({
-      message: `Skipping failed optional dependency ${pkgId}`,
+      message: `${friendlyPath ? `${friendlyPath}: ` : ''}Skipping failed optional dependency ${pkg.name}@${pkg.version}`,
       warn,
     })
 
@@ -36,4 +41,14 @@ export default async function getIsInstallable (
   if (options.engineStrict) throw warn
 
   return true
+}
+
+function nodeIdToFriendlyPath (
+  nodeId: string,
+  installs: InstalledPackages,
+) {
+  const pkgIds = nodeId.split(':').slice(2, -2)
+  return pkgIds
+    .map(pkgId => installs[pkgId].pkg.name)
+    .join(' > ')
 }

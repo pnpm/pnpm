@@ -332,9 +332,14 @@ async function install (
 
   logStatus({status: 'downloaded_manifest', pkgId: fetchedPkg.id, pkgVersion: pkg.version})
 
+  // using colon as it will never be used inside a package ID
+  const nodeId = `${options.parentNodeId}${fetchedPkg.id}:`
+
   const currentIsInstallable = (
       ctx.force ||
       await getIsInstallable(fetchedPkg.id, pkg, fetchedPkg, {
+        nodeId,
+        installs: ctx.installs,
         optional: spec.optional,
         engineStrict: ctx.engineStrict,
         nodeVersion: ctx.nodeVersion,
@@ -342,9 +347,6 @@ async function install (
       })
     )
   const installable = parentIsInstallable && currentIsInstallable
-
-  // using colon as it will never be used inside a package ID
-  const nodeId = `${options.parentNodeId}${fetchedPkg.id}:`
 
   if (installable) {
     ctx.skipped.delete(fetchedPkg.id)
