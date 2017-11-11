@@ -19,7 +19,7 @@ dependencies:
   pnpm-list: 2.0.0
   ramda: 0.25.0
   strip-color: 0.1.0
-  supi: 0.7.0
+  supi: 0.7.2
   text-table: 0.2.0
   update-notifier: 2.3.0
 devDependencies:
@@ -33,7 +33,7 @@ devDependencies:
   '@types/mz': 0.0.31
   '@types/node': 8.0.51
   '@types/nopt': 3.0.29
-  '@types/ramda': 0.25.3
+  '@types/ramda': 0.25.4
   '@types/semver': 5.4.0
   '@types/tape': 4.2.31
   '@types/update-notifier': 1.0.2
@@ -54,7 +54,7 @@ devDependencies:
   npm-scripts-info: 0.3.6
   package-preview: 1.0.0
   path-exists: 3.0.0
-  pnpm-registry-mock: 1.10.0
+  pnpm-registry-mock: 1.11.0
   read-pkg: 3.0.0
   rimraf: 2.6.2
   rimraf-then: 1.0.1
@@ -277,9 +277,9 @@ packages:
     dev: false
     resolution:
       integrity: sha512-37umDB+zS6tK+3j0YJxsl7O8T4aYHYO6s1UpADJ/nxMHFjmuSd5XRQryC4IXX3HQ4XzstqAqhk/D+cdxwvqtEQ==
-  /@types/ramda/0.25.3:
+  /@types/ramda/0.25.4:
     resolution:
-      integrity: sha512-wxs2s/qPon1Obr+0NSiBlF/6uHrFYmh+F14971ZIvpM9OUad2eMqDrPC6Cz5WZh50DNrKYz1C8dVIpWp7PVQ7w==
+      integrity: sha512-UNYKON+MMl7unB3jgS1GKGQQUJLfyOVJbEI0vsAwdd3aJqXaz3GuxCLLcur6NntZxb1ufKfsv4FcR6rvQHin+A==
   /@types/rc/0.0.1:
     dev: false
     resolution:
@@ -777,7 +777,7 @@ packages:
       '0': node >=0.10.0
     optionalDependencies:
       dtrace-provider: 0.8.5
-      moment: 2.19.1
+      moment: 2.19.2
       mv: 2.1.1
       safe-json-stringify: 1.0.4
     resolution:
@@ -2528,7 +2528,7 @@ packages:
     dependencies:
       hoek: 2.16.3
       isemail: 1.2.0
-      moment: 2.19.1
+      moment: 2.19.2
       topo: 1.1.0
     dev: true
     engines:
@@ -3067,10 +3067,10 @@ packages:
       minimist: 0.0.8
     resolution:
       integrity: sha1-MAV0OOrGz3+MR2fzhkjWaX11yQM=
-  /moment/2.19.1:
+  /moment/2.19.2:
     dev: true
     resolution:
-      integrity: sha1-VtoaLRy/AdOLfhr8McELz6GSkWc=
+      integrity: sha512-Rf6jiHPEfxp9+dlzxPTmRHbvoFXsh2L/U8hOupUMpnuecHQmI6cF6lUbJl3QqKPko1u6ujO+FxtcajLVfLpAtA==
   /move-concurrently/1.0.1:
     dependencies:
       aproba: 1.2.0
@@ -3723,7 +3723,7 @@ packages:
     dependencies:
       '@types/load-json-file': 2.0.7
       '@types/node': 8.0.51
-      '@types/ramda': 0.25.3
+      '@types/ramda': 0.25.4
       '@types/retry': 0.10.2
       '@types/semver': 5.4.0
       credentials-by-uri: 1.0.0
@@ -4009,7 +4009,7 @@ packages:
     dependencies:
       '@types/archy': 0.0.31
       '@types/node': 8.0.51
-      '@types/ramda': 0.25.3
+      '@types/ramda': 0.25.4
       archy: 1.0.0
       chalk: 2.3.0
       dependencies-hierarchy: 2.0.0
@@ -4029,14 +4029,14 @@ packages:
     dev: false
     resolution:
       integrity: sha1-KHAbl2GKH8MtL+4b9BB0ZYi7GoU=
-  /pnpm-registry-mock/1.10.0:
+  /pnpm-registry-mock/1.11.0:
     dependencies:
       cpr: 2.2.0
       rimraf: 2.6.2
       verdaccio: 2.6.6
     dev: true
     resolution:
-      integrity: sha512-UJZ5BQspvp1kU+LTaWHKXKh8Cu/k3HNx4iJTfIIfG4qfBNi5BJP28paSe2dU7T0LzBs+qVlqKCyzE8bqXoZcug==
+      integrity: sha512-BOskwTMCYLXWIwb0dHh5maoJhiarGKt9UsBkYREq2MEHkNoD2Lr9777KiJirB2Fvg0vdedogJnPKw6/k2uRriQ==
   /pnpm-shrinkwrap/5.0.0:
     dependencies:
       '@types/node': 7.0.46
@@ -5016,7 +5016,7 @@ packages:
       node: '>=0.10.0'
     resolution:
       integrity: sha1-PFMZQukIwml8DsNEhYwobHygpgo=
-  /supi/0.7.0:
+  /supi/0.7.2:
     dependencies:
       '@pnpm/types': 1.0.0
       '@types/byline': 4.2.31
@@ -5027,7 +5027,7 @@ packages:
       '@types/nopt': 3.0.29
       '@types/npm': 2.0.29
       '@types/p-series': 1.0.1
-      '@types/ramda': 0.25.3
+      '@types/ramda': 0.25.4
       '@types/rc': 0.0.1
       '@types/semver': 5.4.0
       '@types/update-notifier': 1.0.2
@@ -5083,7 +5083,7 @@ packages:
     peerDependencies:
       '@pnpm/logger': ^1.0.0
     resolution:
-      integrity: sha512-DSbrfDPWM00ulSXdh/7Egz6q13T7REb1jlHlDlgJVj/qPuI6KZ+kesfJGJMaKC0tAmdrPdEOqzt2KqfiyoDmNg==
+      integrity: sha512-Xgb0DFJ3bSJby3S1H5F5WS0aCOmXgkVmpOeF7IjliP+jN8baIaCLnm0VYI0piBQPrOhLkbruth+gAnuq0eRrZg==
   /supports-color/2.0.0:
     engines:
       node: '>=0.8.0'
@@ -5846,7 +5846,7 @@ specifiers:
   semver: ^5.3.0
   sepia: ^2.0.2
   strip-color: ^0.1.0
-  supi: ^0.7.0
+  supi: ^0.7.2
   tape: ^4.6.3
   tape-promise: ^2.0.1
   text-table: ^0.2.0
