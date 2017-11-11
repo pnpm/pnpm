@@ -189,6 +189,7 @@ async function run (argv: string[]) {
   }
 
   initReporter(silent ? 'silent' : (<any>opts.reporter || 'default')) // tslint:disable-line
+  delete opts.reporter // This is a silly workaround because supi expects a function as opts.reporter
 
   // `pnpm install ""` is going to be just `pnpm install`
   const cliArgs = cliConf.argv.remain.slice(1).filter(Boolean)
