@@ -1,6 +1,6 @@
+import {PackageJson} from '@pnpm/types'
 import {LoggedPkg} from '../loggers'
 import {Got} from '../network/got'
-import {Package} from '../types'
 import resolveFromGit from './git'
 import resolveFromLocal from './local'
 import resolveFromNpm, {PackageMeta} from './npm'
@@ -46,7 +46,7 @@ export type Resolution =
 export interface ResolveResult {
   id: string,
   resolution: Resolution,
-  package?: Package,
+  package?: PackageJson,
 }
 
 export type HostedPackageSpec = PackageSpecBase & {

@@ -1,4 +1,5 @@
 import logger from '@pnpm/logger'
+import {PackageJson} from '@pnpm/types'
 import {Stats} from 'fs'
 import loadJsonFile = require('load-json-file')
 import mkdirp = require('mkdirp-promise')
@@ -25,7 +26,6 @@ import resolvePkg, {
   PackageSpec,
   Resolution,
 } from './resolve'
-import {Package} from './types'
 
 export interface PackageContentInfo {
   isNew: boolean,
@@ -35,11 +35,11 @@ export interface PackageContentInfo {
 export type FetchedPackage = {
   isLocal: true,
   resolution: DirectoryResolution,
-  pkg: Package,
+  pkg: PackageJson,
   id: string,
 } | {
   isLocal: false,
-  fetchingPkg: Promise<Package>,
+  fetchingPkg: Promise<PackageJson>,
   fetchingFiles: Promise<PackageContentInfo>,
   calculatingIntegrity: Promise<void>,
   path: string,
@@ -55,7 +55,7 @@ export default async function fetch (
       [pkgId: string]: {
         calculatingIntegrity: Promise<void>,
         fetchingFiles: Promise<PackageContentInfo>,
-        fetchingPkg: Promise<Package>,
+        fetchingPkg: Promise<PackageJson>,
       },
     },
     got: Got,
@@ -73,7 +73,7 @@ export default async function fetch (
   },
 ): Promise<FetchedPackage> {
   try {
-    let pkg: Package | undefined
+    let pkg: PackageJson | undefined
     let resolution = options.shrinkwrapResolution
     let pkgId = options.pkgId
     if (!resolution || options.update) {
@@ -149,7 +149,7 @@ export default async function fetch (
 function fetchToStore (opts: {
   got: Got,
   offline: boolean,
-  pkg?: Package,
+  pkg?: PackageJson,
   pkgId: string,
   prefix: string,
   resolution: Resolution,
@@ -160,10 +160,10 @@ function fetchToStore (opts: {
   verifyStoreIntegrity: boolean,
 }): {
   fetchingFiles: Promise<PackageContentInfo>,
-  fetchingPkg: Promise<Package>,
+  fetchingPkg: Promise<PackageJson>,
   calculatingIntegrity: Promise<void>,
 } {
-  const fetchingPkg = differed<Package>()
+  const fetchingPkg = differed<PackageJson>()
   const fetchingFiles = differed<PackageContentInfo>()
   const calculatingIntegrity = differed<void>()
 
@@ -255,7 +255,7 @@ function fetchToStore (opts: {
         calculatingIntegrity.resolve(undefined)
       }
 
-      let pkg: Package
+      let pkg: PackageJson
       if (opts.pkg) {
         pkg = opts.pkg
       } else {

@@ -1,4 +1,5 @@
 import logger from '@pnpm/logger'
+import {PackageJson} from '@pnpm/types'
 import getRegistryName = require('encode-registry')
 import loadJsonFile = require('load-json-file')
 import pLimit = require('p-limit')
@@ -8,7 +9,6 @@ import writeJsonFile = require('write-json-file')
 import {PackageSpec} from '..'
 import {PnpmError} from '../../errorTypes'
 import {Got} from '../../network/got'
-import {Package} from '../../types'
 import createPkgId from './createNpmPkgId'
 
 export interface PackageMeta {
@@ -18,7 +18,7 @@ export interface PackageMeta {
   }
 }
 
-export type PackageInRegistry = Package & {
+export type PackageInRegistry = PackageJson & {
   dist: {
     integrity?: string,
     shasum: string,
