@@ -754,7 +754,21 @@ test('install a dependency with * range', async (t: tape.Test) => {
       'has-beta-only': '*',
     },
   })
-  await install(testDefaults())
+  const reporter = sinon.spy()
+
+  await install(testDefaults({reporter}))
 
   project.has('has-beta-only')
+
+  t.ok(reporter.calledWithMatch(<PackageJsonLog>{
+    name: 'pnpm:package-json',
+    level: 'debug',
+    updated: {
+      name: 'project',
+      version: '0.0.0',
+      dependencies: {
+        'has-beta-only': '*',
+      },
+    },
+  }), 'should log package-json updated even when package.json was not changed')
 })

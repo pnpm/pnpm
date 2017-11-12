@@ -10,6 +10,7 @@ import logger, {
 import {
   stageLogger,
   summaryLogger,
+  packageJsonLogger,
 } from '../loggers'
 import logStatus from '../logging/logInstallStatus'
 import pLimit = require('p-limit')
@@ -462,6 +463,8 @@ async function installInContext (
       }).filter(Boolean),
       saveType
     )
+  } else {
+    packageJsonLogger.debug({ updated: ctx.pkg })
   }
 
   if (newPkg) {
