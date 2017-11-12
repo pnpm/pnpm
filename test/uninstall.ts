@@ -126,7 +126,7 @@ test('uninstall package with its bin files', async function (t) {
   t.notOk(stat, 'sh-hello-world is removed from .bin')
 })
 
-test('relative link is uninstalled', async function (t) {
+test('relative link is uninstalled', async (t: tape.Test) => {
   const project = prepare(t)
 
   const linkedPkgName = 'hello-world-js-bin'

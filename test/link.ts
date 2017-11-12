@@ -1,5 +1,6 @@
 import tape = require('tape')
 import promisifyTape from 'tape-promise'
+import sinon = require('sinon')
 const test = promisifyTape(tape)
 import path = require('path')
 import writePkg = require('write-pkg')
@@ -17,6 +18,7 @@ import {
   linkToGlobal,
   linkFromGlobal,
   installPkgs,
+  RootLog,
 } from 'supi'
 import exists = require('path-exists')
 
@@ -36,7 +38,7 @@ test('relative link', async (t: tape.Test) => {
   isExecutable(t, path.join(linkedPkgPath, 'node_modules', '.bin', 'cowsay'))
 })
 
-test('relative link is not rewritten by install', async function (t) {
+test('relative link is not rewritten by install', async (t: tape.Test) => {
   const project = prepare(t)
 
   const linkedPkgName = 'hello-world-js-bin'
@@ -45,9 +47,22 @@ test('relative link is not rewritten by install', async function (t) {
   await ncp(pathToLocalPkg(linkedPkgName), linkedPkgPath)
   await link(`../${linkedPkgName}`, process.cwd(), testDefaults())
 
-  await installPkgs(['hello-world-js-bin'], testDefaults())
+  const reporter = sinon.spy()
+
+  await installPkgs(['hello-world-js-bin'], testDefaults({reporter}))
 
   t.ok(project.requireModule('hello-world-js-bin/package.json').isLocal)
+
+  t.ok(reporter.calledWithMatch(<RootLog>{
+    name: 'pnpm:root',
+    level: 'debug',
+    linked: {
+      name: 'hello-world-js-bin',
+      from: linkedPkgPath,
+      to: path.resolve('node_modules'),
+      // TODO: the dependencyType should be `undefined` in this case
+    },
+  }), 'linked root dependency logged')
 })
 
 test('global link', async function (t: tape.Test) {

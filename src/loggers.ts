@@ -63,6 +63,13 @@ export type RootMessage = {
     version?: string,
     dependencyType: DependencyType,
   },
+} | {
+  linked: {
+    name: string,
+    from: string,
+    to: string,
+    dependencyType?: DependencyType,
+  }
 }
 
 export type RootLog = {name: 'pnpm:root'} & LogBase & RootMessage

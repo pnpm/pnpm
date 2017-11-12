@@ -11,7 +11,7 @@ export default async function safeIsInnerLink (
   opts: {
     storePath: string,
   }
-) {
+): Promise<true | string> {
   try {
     const link = await isInnerLink(modules, depName)
 
@@ -19,8 +19,7 @@ export default async function safeIsInnerLink (
 
     if (isSubdir(opts.storePath, link.target)) return true
 
-    logger.info(`${depName} is linked to ${modules} from ${link.target}`)
-    return false
+    return link.target as string
   } catch (err) {
     if (err.code === 'ENOENT') return true
 

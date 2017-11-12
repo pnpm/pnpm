@@ -11,6 +11,7 @@ import {
   stageLogger,
   summaryLogger,
   packageJsonLogger,
+  rootLogger,
 } from '../loggers'
 import logStatus from '../logging/logInstallStatus'
 import pLimit = require('p-limit')
@@ -412,7 +413,24 @@ async function installInContext (
     hasManifestInShrinkwrap,
   }
   const nonLinkedPkgs = await pFilter(packagesToInstall,
-    (spec: PackageSpec) => !spec.name || safeIsInnerLink(nodeModulesPath, spec.name, {storePath: ctx.storePath}))
+    async (spec: PackageSpec) => {
+        if (!spec.name) return true
+        const isInnerLink = await safeIsInnerLink(nodeModulesPath, spec.name, {
+          storePath: ctx.storePath,
+        })
+        if (isInnerLink === true) return true
+        rootLogger.debug({
+          linked: {
+            name: spec.name,
+            from: isInnerLink as string,
+            to: nodeModulesPath,
+            dependencyType: spec.dev && 'dev' || spec.optional && 'optional' || 'prod',
+          },
+        })
+        // This info-log might be better to be moved to the reporter
+        logger.info(`${spec.name} is linked to ${nodeModulesPath} from ${isInnerLink}`)
+        return false
+    })
   const rootPkgs = await installMultiple(
     installCtx,
     nonLinkedPkgs,
