@@ -3,7 +3,7 @@ node_js:
   - 4
   - 6
   - 8
-
+  - 9
 sudo: false
 before_install:
   - curl -L https://unpkg.com/@pnpm/self-installer | node
@@ -17,3 +17,5 @@ env:
     - GIT_NAME: Travis CI
     - GIT_EMAIL: nobody@nobody.org
     - GITHUB_REPO: pnpm/pnpm
+notifications:
+  email: false
