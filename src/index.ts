@@ -163,22 +163,14 @@ export function toOutput$(streamParser: object): Stream<string> {
     })
     .map(xs.of)
 
-  const lifecycleMessages: {[pkgId: string]: {keep: boolean, output: string}} = {}
+  const lifecycleMessages: {[pkgId: string]: string} = {}
   const lifecycleOutput$ = xs.of(
     log$
       .filter((log) => log.name === 'pnpm:lifecycle')
       .map((log: LifecycleLog) => {
         const key = `${log.script}:${log.pkgId}`
-        const keep = lifecycleMessages[key] && lifecycleMessages[key].keep || log.level === 'error'
-        const formattedLine = formatLifecycle(log)
-        const output = keep && lifecycleMessages[key]
-          ? `${lifecycleMessages[key].output}${EOL}${formattedLine}`
-          : formattedLine
-        lifecycleMessages[key] = {
-          keep,
-          output,
-        }
-        return R.values(lifecycleMessages).map((lm) => lm['output']).join(EOL)
+        lifecycleMessages[key] = formatLifecycle(log)
+        return R.values(lifecycleMessages).join(EOL)
       })
       .map((msg) => ({msg})),
   )

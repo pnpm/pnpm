@@ -299,7 +299,8 @@ test('groups lifecycle output', t => {
   })
 })
 
-test('prints lifecycle progress', t => {
+// Many libs use stderr for logging, so showing all stderr adds not much value
+test['skip']('prints lifecycle progress', t => {
   const output$ = toOutput$(createStreamParser())
 
   const pkgId = 'registry.npmjs.org/foo/1.0.0'
