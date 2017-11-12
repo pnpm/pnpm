@@ -45,6 +45,10 @@ export type FetchedPackage = {
   path: string,
   id: string,
   resolution: Resolution,
+  // This is useful for recommending updates.
+  // If latest does not equal the version of the
+  // resolved package, it is out-of-date.
+  latest?: string,
 }
 
 export default async function fetch (
@@ -73,6 +77,7 @@ export default async function fetch (
   },
 ): Promise<FetchedPackage> {
   try {
+    let latest: string | undefined
     let pkg: PackageJson | undefined
     let resolution = options.shrinkwrapResolution
     let pkgId = options.pkgId
@@ -94,6 +99,7 @@ export default async function fetch (
       }
       pkgId = resolveResult.id
       pkg = resolveResult.package
+      latest = resolveResult.latest
     }
 
     const id = pkgId as string
@@ -137,6 +143,7 @@ export default async function fetch (
       fetchingPkg: options.fetchingLocker[id].fetchingPkg,
       id,
       isLocal: false,
+      latest,
       path: target,
       resolution,
     }

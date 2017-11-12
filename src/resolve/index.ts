@@ -47,6 +47,7 @@ export interface ResolveResult {
   id: string,
   resolution: Resolution,
   package?: PackageJson,
+  latest?: string,
 }
 
 export type HostedPackageSpec = PackageSpecBase & {

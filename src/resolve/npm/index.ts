@@ -54,7 +54,12 @@ export default async function resolveNpm (spec: PackageSpec, opts: ResolveOption
       registry: opts.registry,
       tarball: correctPkg.dist.tarball,
     }
-    return {id, resolution, package: correctPkg}
+    return {
+      id,
+      latest: meta['dist-tags'].latest,
+      package: correctPkg,
+      resolution,
+    }
   } catch (err) {
     if (err.statusCode === 404) {
       throw new Error("Module '" + spec.raw + "' not found")
