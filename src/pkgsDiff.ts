@@ -11,6 +11,7 @@ export interface PackageDiff {
   name: string,
   version?: string,
   deprecated?: boolean,
+  latest?: string,
   linked?: true,
 }
 
@@ -44,6 +45,7 @@ export default (log$: xs<Log>, deprecationLog$: xs<DeprecationLog>) => {
       pkgsDiff[rootLog['added'].dependencyType][`+${rootLog['added'].name}`] = {
         added: true,
         deprecated: deprecationSet.has(rootLog['added'].id),
+        latest: rootLog['added'].latest,
         name: rootLog['added'].name,
         version: rootLog['added'].version,
       }

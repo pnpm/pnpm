@@ -150,6 +150,7 @@ test('prints summary', t => {
       dependencyType: 'prod',
       name: 'foo',
       version: '1.0.0',
+      latest: '2.0.0',
       id: 'registry.npmjs.org/foo/1.0.0',
     },
   })
@@ -158,6 +159,7 @@ test('prints summary', t => {
       dependencyType: 'prod',
       name: 'bar',
       version: '2.0.0',
+      latest: '1.0.0', // this won't be printed in summary because latest is less than current version
       id: 'registry.npmjs.org/bar/2.0.0',
     },
   })
@@ -220,7 +222,7 @@ test('prints summary', t => {
         ${h1('dependencies:')}
         ${ADD} bar ${versionColor('2.0.0')} ${DEPRECATED}
         ${SUB} foo ${versionColor('0.1.0')}
-        ${ADD} foo ${versionColor('1.0.0')}
+        ${ADD} foo ${versionColor('1.0.0')} ${versionColor('(2.0.0 is available)')}
         ${SUB} is-13 ${versionColor('^1.0.0')}
         ${ADD} is-negative ${versionColor('^1.0.0')}
 

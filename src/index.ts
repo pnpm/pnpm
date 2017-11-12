@@ -4,6 +4,7 @@ import logUpdate = require('log-update')
 import os = require('os')
 import prettyBytes = require('pretty-bytes')
 import R = require('ramda')
+import semver = require('semver')
 import {
   DeprecationLog,
   InstallCheckLog,
@@ -295,6 +296,9 @@ function printDiffs(pkgsDiff: PackageDiff[]) {
     result += ` ${pkg.name}`
     if (pkg.version) {
       result += ` ${chalk.grey(pkg.version)}`
+      if (pkg.latest && semver.lt(pkg.version, pkg.latest)) {
+        result += ` ${chalk.grey(`(${pkg.latest} is available)`)}`
+      }
     }
     if (pkg.deprecated) {
       result += ` ${chalk.red('deprecated')}`
