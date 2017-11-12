@@ -47,6 +47,7 @@ export default async function (
     independentLeaves: boolean,
     // This is only needed till shrinkwrap v4
     updateShrinkwrapMinorVersion: boolean,
+    outdatedPkgs: {[pkgId: string]: string},
   }
 ): Promise<{
   linkedPkgsMap: DependencyTreeNodeMap,
@@ -106,6 +107,7 @@ export default async function (
           id: pkg.id,
           name: pkg.name,
           version: pkg.version,
+          latest: opts.outdatedPkgs[pkg.id],
           dependencyType: isDev && 'dev' || isOptional && 'optional' || 'prod',
         },
       })

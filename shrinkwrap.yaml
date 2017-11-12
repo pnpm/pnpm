@@ -42,7 +42,7 @@ dependencies:
   p-filter: 1.0.0
   p-limit: 1.1.0
   p-series: 1.0.0
-  package-store: 0.5.0
+  package-store: 0.5.1
   path-absolute: 1.0.0
   path-exists: 3.0.0
   path-name: 1.0.0
@@ -2857,8 +2857,9 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha512-OQbpubrdUPz5xJa98eri+Gf7zfhoLbtQACh4myRaUrCHPYzCrKvw+07v3DrV/n1aRv0/yibWkqSGC/v03ijUug==
-  /package-store/0.5.0:
+  /package-store/0.5.1:
     dependencies:
+      '@pnpm/types': 1.0.0
       '@types/load-json-file': 2.0.7
       '@types/node': 8.0.51
       '@types/ramda': 0.25.5
@@ -2899,7 +2900,7 @@ packages:
     peerDependencies:
       '@pnpm/logger': ^1.0.0
     resolution:
-      integrity: sha512-sIVto6OxyetDz7sxi823qfVIm7pdpYVHr3ouYigzZm+11498wSa8xn6EnakMqpw61QX7b66fHGjyz0bA1XzQIg==
+      integrity: sha512-o7XZIy1Rxwyphw94z/p/2J8jPeRszF05YykmNt7EoIFJt56KY7gRryPaaZyV4K1splpntwHiJe9/6zCAmn4b2g==
   /pako/0.2.9:
     resolution:
       integrity: sha1-8/dSL073gjSNqBYbrZ7P1Rv4OnU=
@@ -4391,7 +4392,7 @@ specifiers:
   p-limit: ^1.1.0
   p-series: ^1.0.0
   package-preview: ^1.0.0
-  package-store: ^0.5.0
+  package-store: ^0.5.1
   path-absolute: ^1.0.0
   path-exists: ^3.0.0
   path-name: ^1.0.0
