@@ -19,7 +19,7 @@ dependencies:
   pnpm-list: 2.0.0
   ramda: 0.25.0
   strip-color: 0.1.0
-  supi: 0.7.2
+  supi: 0.7.3
   text-table: 0.2.0
   update-notifier: 2.3.0
 devDependencies:
@@ -5016,7 +5016,7 @@ packages:
       node: '>=0.10.0'
     resolution:
       integrity: sha1-PFMZQukIwml8DsNEhYwobHygpgo=
-  /supi/0.7.2:
+  /supi/0.7.3:
     dependencies:
       '@pnpm/types': 1.0.0
       '@types/byline': 4.2.31
@@ -5083,7 +5083,7 @@ packages:
     peerDependencies:
       '@pnpm/logger': ^1.0.0
     resolution:
-      integrity: sha512-Xgb0DFJ3bSJby3S1H5F5WS0aCOmXgkVmpOeF7IjliP+jN8baIaCLnm0VYI0piBQPrOhLkbruth+gAnuq0eRrZg==
+      integrity: sha512-Gb8TEan7VIXgKp3cd7NnUsVhH5MXNwWvP1LxQhqk5vDOECjXIXlkzdBP1KCq/hcvlo+3xds5kn4xejftGlLeig==
   /supports-color/2.0.0:
     engines:
       node: '>=0.8.0'
@@ -5846,7 +5846,7 @@ specifiers:
   semver: ^5.3.0
   sepia: ^2.0.2
   strip-color: ^0.1.0
-  supi: ^0.7.2
+  supi: ^0.7.3
   tape: ^4.6.3
   tape-promise: ^2.0.1
   text-table: ^0.2.0

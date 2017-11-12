@@ -42,7 +42,7 @@
     "pnpm-list": "^2.0.0",
     "ramda": "^0.25.0",
     "strip-color": "^0.1.0",
-    "supi": "^0.7.2",
+    "supi": "^0.7.3",
     "text-table": "^0.2.0",
     "update-notifier": "^2.1.0"
   },
