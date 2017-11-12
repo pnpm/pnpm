@@ -50,6 +50,8 @@ test('no dependencies (lodash)', async (t: tape.Test) => {
   const project = prepare(t)
   const reporter = sinon.spy()
 
+  await addDistTag('lodash', '4.1.0', 'latest')
+
   await installPkgs(['lodash@4.0.0'], testDefaults({reporter}))
 
   t.ok(reporter.calledWithMatch(<PackageJsonLog>{
@@ -78,6 +80,7 @@ test('no dependencies (lodash)', async (t: tape.Test) => {
       name: 'lodash',
       version: '4.0.0',
       dependencyType: 'prod',
+      latest: '4.1.0',
     },
   }), 'added to root')
   t.ok(reporter.calledWithMatch(<PackageJsonLog>{

@@ -320,6 +320,9 @@ async function install (
       throw err
     }
   }
+  if (options.currentDepth === 0 && fetchedPkg.latest && fetchedPkg.latest !== pkg.version) {
+    ctx.outdatedPkgs[fetchedPkg.id] = fetchedPkg.latest
+  }
   if (pkg.deprecated) {
     deprecationLogger.warn({
       pkgName: pkg.name,
