@@ -27,6 +27,7 @@ const BIG_TARBALL_SIZE = 1024 * 1024 * 5 // 5 MB
 
 const addedSign = chalk.green('+')
 const removedSign = chalk.red('-')
+const linkSign = chalk.magentaBright('#')
 const hlValue = chalk.blue
 const hlPkgId = chalk['whiteBright']
 
@@ -294,13 +295,20 @@ function printDiffs(pkgsDiff: PackageDiff[]) {
   // + chalk 2.0.0
   pkgsDiff.sort((a, b) => (a.name.localeCompare(b.name) * 10 + (Number(!b.added) - Number(!a.added))))
   const msg = pkgsDiff.map((pkg) => {
-    let result = pkg.added ? addedSign : removedSign
+    let result = pkg.added
+      ? addedSign
+      : pkg.linked
+        ? linkSign
+        : removedSign
     result += ` ${pkg.name}`
     if (pkg.version) {
       result += ` ${chalk.grey(pkg.version)}`
     }
     if (pkg.deprecated) {
       result += ` ${chalk.red('deprecated')}`
+    }
+    if (pkg.linked) {
+      result += ` ${chalk.magentaBright('linked from')} ${chalk.grey(pkg.from || '???')}`
     }
     return result
   }).join(EOL)

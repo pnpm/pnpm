@@ -6,10 +6,12 @@ import {
 import xs, {Stream} from 'xstream'
 
 export interface PackageDiff {
+  added: boolean,
+  from?: string,
   name: string,
   version?: string,
-  added: boolean,
   deprecated?: boolean,
+  linked?: true,
 }
 
 interface Map<T> {
@@ -52,6 +54,15 @@ export default (log$: xs<Log>, deprecationLog$: xs<DeprecationLog>) => {
         added: false,
         name: rootLog['removed'].name,
         version: rootLog['removed'].version,
+      }
+      return pkgsDiff
+    }
+    if (rootLog['linked']) {
+      pkgsDiff[rootLog['linked'].dependencyType][`>${rootLog['linked'].name}`] = {
+        added: false,
+        from: rootLog['linked'].from,
+        linked: true,
+        name: rootLog['linked'].name,
       }
       return pkgsDiff
     }

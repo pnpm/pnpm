@@ -15,6 +15,7 @@ const DEPRECATED = chalk.red('deprecated')
 const versionColor = chalk.grey
 const ADD = chalk.green('+')
 const SUB = chalk.red('-')
+const LINKED = chalk.magentaBright('#')
 const h1 = chalk.blue
 const hlValue = chalk.blue
 const hlPkgId = chalk['whiteBright']
@@ -189,6 +190,14 @@ test('prints summary', t => {
       name: 'is-positive',
     },
   })
+  rootLogger.debug({
+    linked: {
+      dependencyType: 'optional',
+      from: '/src/is-linked',
+      name: 'is-linked',
+      to: '/src/project/node_modules'
+    },
+  })
   packageJsonLogger.debug({
     updated: {
       dependencies: {
@@ -216,6 +225,7 @@ test('prints summary', t => {
         ${ADD} is-negative ${versionColor('^1.0.0')}
 
         ${h1('optionalDependencies:')}
+        ${LINKED} is-linked ${chalk.magentaBright('linked from')} ${chalk.grey('/src/is-linked')}
         ${SUB} is-positive
         ${ADD} lala ${versionColor('1.1.0')}
 
