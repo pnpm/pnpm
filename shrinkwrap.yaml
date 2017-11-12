@@ -1928,7 +1928,7 @@ packages:
     dependencies:
       graceful-fs: 4.1.11
       is-subdir: 1.0.2
-      resolve-link-target: 1.0.0
+      resolve-link-target: 1.0.1
     dev: false
     resolution:
       integrity: sha512-YS9RSUrRbskf/O6nMF5+dvoa8zoIwF2uXnJZN1X+gCEtA1cc3KqgbOmgPjIndHfrLJ8MCRaPoG2KBPTZqhy5ug==
@@ -3315,7 +3315,7 @@ packages:
       is-subdir: 1.0.2
       mz: 2.7.0
       p-filter: 1.0.0
-      resolve-link-target: 1.0.0
+      resolve-link-target: 1.0.1
       rimraf-then: 1.0.1
     dev: false
     resolution:
@@ -3394,12 +3394,14 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha512-pb/MYmXstAkysRFx8piNI1tGFNQIFA3vkE3Gq4EuA1dF6gHp/+vgZqsCGJapvy8N3Q+4o7FwvquPJcnZ7RYy4g==
-  /resolve-link-target/1.0.0:
+  /resolve-link-target/1.0.1:
     dependencies:
       graceful-fs: 4.1.11
     dev: false
+    engines:
+      node: '>=4'
     resolution:
-      integrity: sha512-vCHlxVruR67GgAeTSxpMPMmJ+7oO9oGCPA5r0NEyqOcZP+lTwyMcaxhqMHs+b90tT+NTVKBaYjsc5cEgecULIw==
+      integrity: sha512-uid343+whX+g+LLUzwCYaZBOZPX8Hi3Y7qZBr0r1Rvb0y6WMWVLT32uuGllxD5uNQR+mddUE/Dx/wwvgGrZLSA==
   /resolve/1.4.0:
     dependencies:
       path-parse: 1.0.5
