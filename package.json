@@ -2,7 +2,7 @@
   "name": "pnpm",
   "bundledName": "@pnpm/bundled",
   "description": "Fast, disk space efficient package manager",
-  "version": "1.20.0",
+  "version": "1.21.0",
   "author": {
     "name": "Zoltan Kochan",
     "email": "z@kochan.io",
