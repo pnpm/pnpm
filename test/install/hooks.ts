@@ -35,6 +35,35 @@ test('readPackage hook', async (t: tape.Test) => {
   await project.storeHas('dep-of-pkg-with-1-dep', '100.0.0')
 })
 
+test('readPackage hook during update', async (t: tape.Test) => {
+  const project = prepare(t, {
+    dependencies: {
+      'pkg-with-1-dep': '*',
+    },
+  })
+
+  await fs.writeFile('pnpmfile.js', `
+    'use strict'
+    module.exports = {
+      hooks: {
+        readPackage (pkg) {
+          if (pkg.name === 'pkg-with-1-dep') {
+            pkg.dependencies['dep-of-pkg-with-1-dep'] = '100.0.0'
+          }
+          return pkg
+        }
+      }
+    }
+  `, 'utf8')
+
+  // w/o the hook, 100.1.0 would be installed
+  await addDistTag('dep-of-pkg-with-1-dep', '100.1.0', 'latest')
+
+  await execPnpm('update')
+
+  await project.storeHas('dep-of-pkg-with-1-dep', '100.0.0')
+})
+
 test('prints meaningful error when there is syntax error in pnpmfile.js', async (t: tape.Test) => {
   const project = prepare(t)
 
