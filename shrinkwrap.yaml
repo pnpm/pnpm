@@ -14,12 +14,12 @@ dependencies:
   nopt: 4.0.1
   not-bundled-npm: 5.4.2
   path-name: 1.0.0
-  pnpm-default-reporter: 0.10.1
+  pnpm-default-reporter: 0.10.2
   pnpm-file-reporter: 0.0.1
   pnpm-list: 2.0.0
   ramda: 0.25.0
   strip-color: 0.1.0
-  supi: 0.7.4
+  supi: 0.7.5
   text-table: 0.2.0
   update-notifier: 2.3.0
 devDependencies:
@@ -181,7 +181,7 @@ packages:
       dependency-path: 1.2.0
       npm-package-arg: 6.0.0
       npm-registry-client: 8.5.0
-      package-store: 0.5.0
+      package-store: 0.5.1
       pnpm-shrinkwrap: 5.0.0
     dev: false
     peerDependencies:
@@ -3712,8 +3712,9 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha512-OQbpubrdUPz5xJa98eri+Gf7zfhoLbtQACh4myRaUrCHPYzCrKvw+07v3DrV/n1aRv0/yibWkqSGC/v03ijUug==
-  /package-store/0.5.0:
+  /package-store/0.5.1:
     dependencies:
+      '@pnpm/types': 1.0.0
       '@types/load-json-file': 2.0.7
       '@types/node': 8.0.51
       '@types/ramda': 0.25.5
@@ -3754,7 +3755,7 @@ packages:
     peerDependencies:
       '@pnpm/logger': ^1.0.0
     resolution:
-      integrity: sha512-sIVto6OxyetDz7sxi823qfVIm7pdpYVHr3ouYigzZm+11498wSa8xn6EnakMqpw61QX7b66fHGjyz0bA1XzQIg==
+      integrity: sha512-o7XZIy1Rxwyphw94z/p/2J8jPeRszF05YykmNt7EoIFJt56KY7gRryPaaZyV4K1splpntwHiJe9/6zCAmn4b2g==
   /pacote/6.0.4:
     dependencies:
       bluebird: 3.5.1
@@ -3961,17 +3962,19 @@ packages:
       node: '>= 0.4.0'
     resolution:
       integrity: sha1-tUGO8EOd5UJfxJlQQtztFPsqhP8=
-  /pnpm-default-reporter/0.10.1:
+  /pnpm-default-reporter/0.10.2:
     dependencies:
       '@types/common-tags': 1.4.0
       '@types/node': 8.0.51
       '@types/ramda': 0.24.18
+      '@types/semver': 5.4.0
       chalk: 2.3.0
       common-tags: 1.4.0
       log-update: 2.3.0
       ndjson: 1.5.0
       pretty-bytes: 4.0.2
       ramda: 0.25.0
+      semver: 5.4.1
       stacktracey: 1.2.87
       xstream: 11.0.0
     dev: false
@@ -3980,7 +3983,7 @@ packages:
     peerDependencies:
       supi: ^0.7.0
     resolution:
-      integrity: sha512-c1aYEXVKP7CKDls32xxgaSvW9RkQ/idNgqhwwzjaLrZGtUcFTIO5mxy/8HTxKsJ/TPRPY/cdV+6Zp5SDNyppLg==
+      integrity: sha512-R3C5UyXAbDBeQKOsZrGaRKxmWz/uku/mtxk1bL1fPeGrsjRdaw3h6ig/fwOSzjH3XQxtYkCqEEqk+04Rvp/swQ==
   /pnpm-file-reporter/0.0.1:
     dependencies:
       '@types/chalk': 0.4.31
@@ -5012,7 +5015,7 @@ packages:
       node: '>=0.10.0'
     resolution:
       integrity: sha1-PFMZQukIwml8DsNEhYwobHygpgo=
-  /supi/0.7.4:
+  /supi/0.7.5:
     dependencies:
       '@pnpm/types': 1.0.0
       '@types/byline': 4.2.31
@@ -5057,7 +5060,7 @@ packages:
       p-filter: 1.0.0
       p-limit: 1.1.0
       p-series: 1.0.0
-      package-store: 0.5.0
+      package-store: 0.5.1
       path-absolute: 1.0.0
       path-exists: 3.0.0
       path-name: 1.0.0
@@ -5079,7 +5082,7 @@ packages:
     peerDependencies:
       '@pnpm/logger': ^1.0.0
     resolution:
-      integrity: sha512-rwa39F+gVe/yRyViqRSCifWL1ji19eVN6uyAUIQcDcmiGTTfMBglu7WCVLfFRBV1dUuAt6qdsVFI32NTYGNK7Q==
+      integrity: sha512-ruwD80VTUAfUTKw5Jo/RZqj17U1p8Q2ZWLzdBgrimRsw/Pe45edNVMv5kdS2wUtAjbLQj+uu/X4v29IwNelHEA==
   /supports-color/2.0.0:
     engines:
       node: '>=0.8.0'
@@ -5831,7 +5834,7 @@ specifiers:
   package-preview: ^1.0.0
   path-exists: ^3.0.0
   path-name: ^1.0.0
-  pnpm-default-reporter: ^0.10.1
+  pnpm-default-reporter: ^0.10.2
   pnpm-file-reporter: ^0.0.1
   pnpm-list: ^2.0.0
   pnpm-registry-mock: ^1.5.0
@@ -5842,7 +5845,7 @@ specifiers:
   semver: ^5.3.0
   sepia: ^2.0.2
   strip-color: ^0.1.0
-  supi: ^0.7.4
+  supi: ^0.7.5
   tape: ^4.6.3
   tape-promise: ^2.0.1
   text-table: ^0.2.0
