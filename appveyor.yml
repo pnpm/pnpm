@@ -1,3 +1,8 @@
+clone_depth: 1
+skip_branch_with_pr: true
+skip_commits:
+  files:
+    - '**/*.md'
 environment:
   matrix:
     - nodejs_version: 4
@@ -6,7 +11,6 @@ environment:
     - nodejs_version: 9
 install:
   - ps: Install-Product node $env:nodejs_version
-  - npm set fetch-retry-maxtimeout 180000
   - curl -L https://unpkg.com/@pnpm/self-installer | node
   - pnpm install
 matrix:
@@ -14,6 +18,4 @@ matrix:
 build: off
 version: '{build}'
 test_script:
-  - node --version
-  - npm --version
   - npm test
