@@ -64,7 +64,7 @@ export type InstalledPackages = {
 
 export type TreeNode = {
   nodeId: string,
-  children: string[], // Node IDs of children
+  children: {[alias: string]: string}, // child nodeId by child alias name
   pkg: InstalledPackage,
   depth: number,
   installable: boolean,
@@ -86,8 +86,9 @@ export type InstallContext = {
     name: string,
     specRaw: string,
   }[],
-  childrenIdsByParentId: {[parentId: string]: string[]},
+  childrenByParentId: {[parentId: string]: {alias: string, pkgId: string}[]},
   nodesToBuild: {
+    alias: string,
     nodeId: string,
     pkg: InstalledPackage,
     depth: number,
@@ -358,7 +359,7 @@ async function installInContext (
     installs: {},
     outdatedPkgs: {},
     localPackages: [],
-    childrenIdsByParentId: {},
+    childrenByParentId: {},
     nodesToBuild: [],
     wantedShrinkwrap: ctx.wantedShrinkwrap,
     currentShrinkwrap: ctx.currentShrinkwrap,
@@ -439,18 +440,26 @@ async function installInContext (
     installOpts
   )
   stageLogger.debug('resolution_done')
-  const rootNodeIds = rootPkgs.map(pkg => pkg.nodeId)
   installCtx.nodesToBuild.forEach(nodeToBuild => {
     installCtx.tree[nodeToBuild.nodeId] = {
       nodeId: nodeToBuild.nodeId,
       pkg: nodeToBuild.pkg,
       children: buildTree(installCtx, nodeToBuild.nodeId, nodeToBuild.pkg.id,
-        installCtx.childrenIdsByParentId[nodeToBuild.pkg.id], nodeToBuild.depth + 1, nodeToBuild.installable),
+        installCtx.childrenByParentId[nodeToBuild.pkg.id], nodeToBuild.depth + 1, nodeToBuild.installable),
       depth: nodeToBuild.depth,
       installable: nodeToBuild.installable,
     }
   })
-  const pkgs: InstalledPackage[] = R.props<TreeNode>(rootNodeIds, installCtx.tree).map(node => node.pkg)
+  const rootNodeIdsByAlias = rootPkgs
+    .map(rootPkg => rootPkg.nodeId)
+    .reduce((rootNodeIdsByAlias, rootNodeId) => {
+      const pkg = installCtx.tree[rootNodeId].pkg
+      const specRaw = pkg.specRaw
+      const spec = R.find(spec => spec.raw === specRaw, newSpecs)
+      rootNodeIdsByAlias[spec && spec.name || pkg.name] = rootNodeId
+      return rootNodeIdsByAlias
+    }, {})
+  const pkgs: InstalledPackage[] = R.props<TreeNode>(R.values(rootNodeIdsByAlias), installCtx.tree).map(node => node.pkg)
   const pkgsToSave = (pkgs as {
     optional: boolean,
     dev: boolean,
@@ -459,7 +468,15 @@ async function installInContext (
     version: string,
     name: string,
     specRaw: string,
-  }[]).concat(installCtx.localPackages)
+  }[])
+  .concat(installCtx.localPackages)
+  .map(dep => {
+    const spec = R.find(spec => spec.raw === dep.specRaw, newSpecs)
+    return Object.assign(dep, {
+      spec: spec,
+      alias: spec && spec.name || dep.name
+    })
+  })
 
   let newPkg: PackageJson | undefined = ctx.pkg
   if (installType === 'named') {
@@ -470,17 +487,17 @@ async function installInContext (
     const saveType = getSaveType(opts)
     newPkg = await save(
       pkgJsonPath,
-      <any>pkgsToSave.map(dep => { // tslint:disable-line
-        const spec = R.find(spec => spec.raw === dep.specRaw, newSpecs)
-        if (!spec) return null
-        return {
-          name: dep.name,
-          saveSpec: getSaveSpec(spec, dep.version, {
-            saveExact: opts.saveExact,
-            savePrefix: opts.savePrefix,
-          })
-        }
-      }).filter(Boolean),
+      <any>pkgsToSave // tslint:disable-line
+        .filter(dep => dep.spec)
+        .map(dep => {
+          return {
+            name: dep.alias,
+            saveSpec: getSaveSpec(dep.spec as PackageSpec, dep.version, {
+              saveExact: opts.saveExact,
+              savePrefix: opts.savePrefix,
+            })
+          }
+        }),
       saveType
     )
   } else {
@@ -500,30 +517,30 @@ async function installInContext (
     const getSpecFromPkg = (depName: string) => deps[depName] || devDeps[depName] || optionalDeps[depName]
 
     for (const dep of pkgsToSave) {
-      const ref = absolutePathToRef(dep.id, dep.name, dep.resolution, ctx.wantedShrinkwrap.registry)
-      const isDev = !!devDeps[dep.name]
-      const isOptional = !!optionalDeps[dep.name]
+      const ref = absolutePathToRef(dep.id, dep.alias, dep.resolution, ctx.wantedShrinkwrap.registry)
+      const isDev = !!devDeps[dep.alias]
+      const isOptional = !!optionalDeps[dep.alias]
       if (isDev) {
-        ctx.wantedShrinkwrap.devDependencies[dep.name] = ref
+        ctx.wantedShrinkwrap.devDependencies[dep.alias] = ref
       } else if (isOptional) {
-        ctx.wantedShrinkwrap.optionalDependencies[dep.name] = ref
+        ctx.wantedShrinkwrap.optionalDependencies[dep.alias] = ref
       } else {
-        ctx.wantedShrinkwrap.dependencies[dep.name] = ref
+        ctx.wantedShrinkwrap.dependencies[dep.alias] = ref
       }
       if (!isDev) {
-        delete ctx.wantedShrinkwrap.devDependencies[dep.name]
+        delete ctx.wantedShrinkwrap.devDependencies[dep.alias]
       }
       if (!isOptional) {
-        delete ctx.wantedShrinkwrap.optionalDependencies[dep.name]
+        delete ctx.wantedShrinkwrap.optionalDependencies[dep.alias]
       }
       if (isDev || isOptional) {
-        delete ctx.wantedShrinkwrap.dependencies[dep.name]
+        delete ctx.wantedShrinkwrap.dependencies[dep.alias]
       }
-      ctx.wantedShrinkwrap.specifiers[dep.name] = getSpecFromPkg(dep.name)
+      ctx.wantedShrinkwrap.specifiers[dep.alias] = getSpecFromPkg(dep.alias)
     }
   }
 
-  const result = await linkPackages(pkgs, rootNodeIds, installCtx.tree, {
+  const result = await linkPackages(pkgs, rootNodeIdsByAlias, installCtx.tree, {
     force: opts.force,
     global: opts.global,
     baseNodeModules: nodeModulesPath,
@@ -623,22 +640,22 @@ function buildTree (
   ctx: InstallContext,
   parentNodeId: string,
   parentId: string,
-  childrenIds: string[],
+  children: {alias: string, pkgId: string}[],
   depth: number,
   installable: boolean
 ) {
-  const childrenNodeIds = []
-  for (const childId of childrenIds) {
-    if (parentNodeId.indexOf(`:${parentId}:${childId}:`) !== -1) {
+  const childrenNodeIds = {}
+  for (const child of children) {
+    if (parentNodeId.indexOf(`:${parentId}:${child.pkgId}:`) !== -1) {
       continue
     }
-    const childNodeId = `${parentNodeId}${childId}:`
-    childrenNodeIds.push(childNodeId)
-    installable = installable && !ctx.skipped.has(childId)
+    const childNodeId = `${parentNodeId}${child.pkgId}:`
+    childrenNodeIds[child.alias] = childNodeId
+    installable = installable && !ctx.skipped.has(child.pkgId)
     ctx.tree[childNodeId] = {
       nodeId: childNodeId,
-      pkg: ctx.installs[childId],
-      children: buildTree(ctx, childNodeId, childId, ctx.childrenIdsByParentId[childId], depth + 1, installable),
+      pkg: ctx.installs[child.pkgId],
+      children: buildTree(ctx, childNodeId, child.pkgId, ctx.childrenByParentId[child.pkgId], depth + 1, installable),
       depth,
       installable,
     }

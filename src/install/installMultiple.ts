@@ -38,6 +38,7 @@ import getPkgInfoFromShr from '../getPkgInfoFromShr'
 import semver = require('semver')
 
 export type PkgAddress = {
+  alias: string,
   nodeId: string,
   pkgId: string,
 }
@@ -400,11 +401,17 @@ async function install (
         useManifestInfoFromShrinkwrap,
       }
     )
-    ctx.childrenIdsByParentId[fetchedPkg.id] = children.map(child => child.pkgId)
+    ctx.childrenByParentId[fetchedPkg.id] = children.map(child => ({
+      alias: child.alias,
+      pkgId: child.pkgId,
+    }))
     ctx.tree[nodeId] = {
       nodeId,
       pkg: ctx.installs[fetchedPkg.id],
-      children: children.map(child => child.nodeId),
+      children: children.reduce((children, child) => {
+        children[child.alias] = child.nodeId
+        return children
+      }, {}),
       depth: options.currentDepth,
       installable,
     }
@@ -414,6 +421,7 @@ async function install (
     ctx.installs[fetchedPkg.id].optional = ctx.installs[fetchedPkg.id].optional && spec.optional
 
     ctx.nodesToBuild.push({
+      alias: spec.name,
       nodeId,
       pkg: ctx.installs[fetchedPkg.id],
       depth: options.currentDepth,
@@ -428,6 +436,7 @@ async function install (
   logStatus({status: 'dependencies_installed', pkgId: fetchedPkg.id})
 
   return {
+    alias: spec.name,
     nodeId,
     pkgId: fetchedPkg.id,
   }

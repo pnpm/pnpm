@@ -54,6 +54,7 @@ export type DependencyType = 'prod' | 'dev' | 'optional'
 export type RootMessage = {
   added: {
     name: string,
+    realName: string,
     version: string,
     dependencyType: DependencyType,
   },

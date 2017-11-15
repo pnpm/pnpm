@@ -78,6 +78,7 @@ test('no dependencies (lodash)', async (t: tape.Test) => {
     level: 'info',
     added: {
       name: 'lodash',
+      realName: 'lodash',
       version: '4.0.0',
       dependencyType: 'prod',
       latest: '4.1.0',

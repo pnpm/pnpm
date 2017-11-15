@@ -22,8 +22,8 @@ export default function (
   for (const dependencyAbsolutePath of R.keys(pkgsToLink)) {
     const dependencyPath = dp.relative(shrinkwrap.registry, dependencyAbsolutePath)
     const result = R.partition(
-      (childResolvedId: string) => pkgsToLink[dependencyAbsolutePath].optionalDependencies.has(pkgsToLink[childResolvedId].name),
-      pkgsToLink[dependencyAbsolutePath].children
+      (child) => pkgsToLink[dependencyAbsolutePath].optionalDependencies.has(pkgsToLink[child.nodeId].name),
+      R.keys(pkgsToLink[dependencyAbsolutePath].children).map(alias => ({alias, nodeId: pkgsToLink[dependencyAbsolutePath].children[alias]}))
     )
     shrinkwrap.packages[dependencyPath] = toShrDependency(pkgsToLink[dependencyAbsolutePath].pkg, {
       dependencyAbsolutePath,
@@ -56,8 +56,8 @@ function toShrDependency (
     dependencyPath: string,
     resolution: Resolution,
     registry: string,
-    updatedDeps: string[],
-    updatedOptionalDeps: string[],
+    updatedDeps: {alias: string, nodeId: string}[],
+    updatedOptionalDeps: {alias: string, nodeId: string}[],
     pkgsToLink: DependencyTreeNodeMap,
     prevResolvedDeps: ResolvedDependencies,
     prevResolvedOptionalDeps: ResolvedDependencies,
@@ -135,16 +135,19 @@ function toShrDependency (
 // the `depth` property defines how deep should dependencies be checked
 function updateResolvedDeps (
   prevResolvedDeps: ResolvedDependencies,
-  updatedDeps: string[],
+  updatedDeps: {alias: string, nodeId: string}[],
   registry: string,
   pkgsToLink: DependencyTreeNodeMap
 ) {
   const newResolvedDeps = R.fromPairs<string>(
-    R.props<DependencyTreeNode>(updatedDeps, pkgsToLink)
-      .map((dep): R.KeyValuePair<string, string> => [
-        dep.name,
-        absolutePathToRef(dep.absolutePath, dep.name, dep.resolution, registry)
-      ])
+    updatedDeps
+      .map((dep): R.KeyValuePair<string, string> => {
+        const pkgToLink = pkgsToLink[dep.nodeId]
+        return [
+          dep.alias,
+          absolutePathToRef(pkgToLink.absolutePath, pkgToLink.name, pkgToLink.resolution, registry)
+        ]
+      })
   )
   return R.merge(
     prevResolvedDeps,

@@ -491,7 +491,7 @@ test('scoped module from different registry', async function (t: tape.Test) {
       'is-positive': '^3.1.0',
     },
     shrinkwrapVersion: 3,
-    shrinkwrapMinorVersion: 2,
+    shrinkwrapMinorVersion: 3,
   })
 })
 
@@ -540,7 +540,7 @@ test['skip']('installing from shrinkwrap when using npm enterprise', async (t: t
       'is-positive': '^3.1.0',
     },
     shrinkwrapVersion: 3,
-    shrinkwrapMinorVersion: 2,
+    shrinkwrapMinorVersion: 3,
   })
 
   await rimraf(opts.store)
@@ -667,6 +667,6 @@ test('updating shrinkwrap version 3 to 3.1', async (t: tape.Test) => {
 
   const shr = await project.loadShrinkwrap()
 
-  t.equal(shr.shrinkwrapMinorVersion, 2)
+  t.equal(shr.shrinkwrapMinorVersion, 3)
   t.ok(shr.packages['/abc/1.0.0/peer-a@1.0.0+peer-b@1.0.0+peer-c@1.0.0'].peerDependencies)
 })

@@ -25,7 +25,7 @@ const ncp = thenify(ncpCB)
 
 export default async function (
   topPkgs: InstalledPackage[],
-  rootNodeIds: string[],
+  rootNodeIdsByAlias: {[alias: string]: string},
   tree: {[nodeId: string]: TreeNode},
   opts: {
     force: boolean,
@@ -60,7 +60,8 @@ export default async function (
   // The `Creating dependency tree` is not good to report in all cases as
   // sometimes node_modules is alread up-to-date
   // logger.info(`Creating dependency tree`)
-  const pkgsToLink = await resolvePeers(tree, rootNodeIds, topPkgIds, opts.topParents, opts.independentLeaves, opts.baseNodeModules)
+  const resolvePeersResult = await resolvePeers(tree, rootNodeIdsByAlias, topPkgIds, opts.topParents, opts.independentLeaves, opts.baseNodeModules)
+  const pkgsToLink = resolvePeersResult.resolvedTree
   const newShr = updateShrinkwrap(pkgsToLink, opts.wantedShrinkwrap, opts.pkg)
 
   await removeOrphanPkgs({
@@ -97,15 +98,24 @@ export default async function (
     opts
   )
 
-  for (let pkg of flatResolvedDeps.filter(pkg => pkg.depth === 0)) {
-    const symlinkingResult = await symlinkDependencyTo(pkg, opts.baseNodeModules)
+  const rootPkgsToLinkByAbsolutePath = flatResolvedDeps
+    .filter(pkg => pkg.depth === 0)
+    .reduce((rootPkgsToLink, pkg) => {
+      rootPkgsToLink[pkg.absolutePath] = pkg
+      return rootPkgsToLink
+    }, {})
+  for (let rootAlias of R.keys(resolvePeersResult.rootAbsolutePathsByAlias)) {
+    const pkg = rootPkgsToLinkByAbsolutePath[resolvePeersResult.rootAbsolutePathsByAlias[rootAlias]]
+    if (!pkg) continue
+    const symlinkingResult = await symlinkDependencyTo(rootAlias, pkg, opts.baseNodeModules)
     if (!symlinkingResult.reused) {
       const isDev = opts.pkg.devDependencies && opts.pkg.devDependencies[pkg.name]
       const isOptional = opts.pkg.optionalDependencies && opts.pkg.optionalDependencies[pkg.name]
       rootLogger.info({
         added: {
           id: pkg.id,
-          name: pkg.name,
+          name: rootAlias,
+          realName: pkg.name,
           version: pkg.version,
           latest: opts.outdatedPkgs[pkg.id],
           dependencyType: isDev && 'dev' || isOptional && 'optional' || 'prod',
@@ -124,7 +134,7 @@ export default async function (
     // have new backward-compatible versions of `shrinkwrap.yaml`
     // w/o changing `shrinkwrapVersion`. From version 4, the
     // `shrinkwrapVersion` field allows numbers like 4.1
-    newShr.shrinkwrapMinorVersion = 2
+    newShr.shrinkwrapMinorVersion = 3
   }
   let currentShrinkwrap: Shrinkwrap
   if (opts.makePartialCurrentShrinkwrap) {
@@ -290,12 +300,23 @@ async function linkAllBins (
 
       const childrenToLink = opts.optional
           ? dependency.children
-          : dependency.children.filter(child => !dependency.optionalDependencies.has(pkgMap[child].name))
+          : R.keys(dependency.children)
+            .reduce((nonOptionalChildren, childAlias) => {
+              if (!dependency.optionalDependencies.has(childAlias)) {
+                nonOptionalChildren[childAlias] = dependency.children[childAlias]
+              }
+              return nonOptionalChildren
+            }, {})
 
       await Promise.all(
-        R.props<DependencyTreeNode>(childrenToLink, pkgMap)
-          .filter(child => child.installable)
-          .map(child => linkPkgBins(path.join(dependency.modules, child.name), binPath))
+        R.keys(childrenToLink)
+          .map(async alias => {
+            const childToLink = childrenToLink[alias]
+            const child = pkgMap[childToLink]
+            if (child.installable) {
+              await linkPkgBins(path.join(dependency.modules, alias), binPath)
+            }
+          })
       )
 
       // link also the bundled dependencies` bins
@@ -320,12 +341,21 @@ async function linkAllModules (
       .map(dependency => limitLinking(async () => {
         const childrenToLink = opts.optional
           ? dependency.children
-          : dependency.children.filter(child => !dependency.optionalDependencies.has(pkgMap[child].name))
+          : R.keys(dependency.children)
+            .reduce((nonOptionalChildren, childAlias) => {
+              if (!dependency.optionalDependencies.has(childAlias)) {
+                nonOptionalChildren[childAlias] = dependency.children[childAlias]
+              }
+              return nonOptionalChildren
+            }, {})
 
         await Promise.all(
-          R.props<DependencyTreeNode>(childrenToLink, pkgMap)
-            .filter(child => child.installable)
-            .map(child => symlinkDependencyTo(child, dependency.modules))
+          R.keys(childrenToLink)
+            .map(async alias => {
+              const pkg = pkgMap[childrenToLink[alias]]
+              if (!pkg.installable) return
+              await symlinkDependencyTo(alias, pkg, dependency.modules)
+            })
         )
       }))
   )
@@ -374,7 +404,7 @@ async function isSameFile (file1: string, file2: string) {
   return stats[0].ino === stats[1].ino
 }
 
-function symlinkDependencyTo (dependency: DependencyTreeNode, dest: string) {
-  dest = path.join(dest, dependency.name)
+function symlinkDependencyTo (alias: string, dependency: DependencyTreeNode, dest: string) {
+  dest = path.join(dest, alias)
   return symlinkDir(dependency.hardlinkedLocation, dest)
 }

@@ -76,7 +76,7 @@ devDependencies:
   npm-run-all: 4.1.2
   npm-scripts-info: 0.3.6
   package-preview: 1.0.0
-  pnpm-registry-mock: 1.11.0
+  pnpm-registry-mock: 1.13.0
   read-pkg: 3.0.0
   rimraf: 2.6.2
   sepia: 2.0.2
@@ -963,7 +963,7 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha512-zedsBhLSbPBms+kE7AH4vHg6JsKDz6epSv2/+5XHs8ILHlgDciSJfSWf8sX9aQ52Jb7KI7VswUTsLpR/G0cr2Q==
-  /cpr/2.2.0:
+  /cpr/3.0.1:
     dependencies:
       graceful-fs: 4.1.11
       minimist: 1.2.0
@@ -971,7 +971,7 @@ packages:
       rimraf: 2.6.2
     dev: true
     resolution:
-      integrity: sha512-q8UoWzIT9rslJKb3Y5CcByzR2zX7GBkVcoU6jJx02d/BgbE7zJ8Aix74i7bw3iYk58TrgXhmB2XB0aGaBd7oZA==
+      integrity: sha1-uaVQOLfNgaNcF7l2GJW9hJau8eU=
   /credentials-by-uri/1.0.0:
     dependencies:
       nerf-dart: 1.0.0
@@ -3070,14 +3070,14 @@ packages:
     dev: false
     resolution:
       integrity: sha1-dB2ZeXYv362T8+Rp3rSoFNNDAAg=
-  /pnpm-registry-mock/1.11.0:
+  /pnpm-registry-mock/1.13.0:
     dependencies:
-      cpr: 2.2.0
+      cpr: 3.0.1
       rimraf: 2.6.2
       verdaccio: 2.6.6
     dev: true
     resolution:
-      integrity: sha512-BOskwTMCYLXWIwb0dHh5maoJhiarGKt9UsBkYREq2MEHkNoD2Lr9777KiJirB2Fvg0vdedogJnPKw6/k2uRriQ==
+      integrity: sha512-6TYzoAydjNvTcEX13sm9Wmp9Ke8/RT+MQTy+r7oG5gTZIFyQIXfFLqNNcb6AElDg4NftGoQLlvCW+8iWH/KJiw==
   /pnpm-shrinkwrap/5.0.0:
     dependencies:
       '@types/node': 7.0.46
@@ -4397,7 +4397,7 @@ specifiers:
   path-exists: ^3.0.0
   path-name: ^1.0.0
   pnpm-install-checks: ^1.1.0
-  pnpm-registry-mock: ^1.11.0
+  pnpm-registry-mock: ^1.13.0
   pnpm-shrinkwrap: ^5.0.0
   proper-lockfile: ^2.0.0
   ramda: ^0.25.0
