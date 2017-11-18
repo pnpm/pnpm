@@ -49,6 +49,6 @@ function nodeIdToFriendlyPath (
 ) {
   const pkgIds = nodeId.split(':').slice(2, -2)
   return pkgIds
-    .map(pkgId => installs[pkgId].pkg.name)
+    .map(pkgId => installs[pkgId].name)
     .join(' > ')
 }

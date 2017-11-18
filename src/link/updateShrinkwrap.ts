@@ -10,8 +10,7 @@ import {
 import {DependencyTreeNodeMap, DependencyTreeNode} from './resolvePeers'
 import {Resolution} from 'package-store'
 import R = require('ramda')
-import {PackageJson} from '@pnpm/types'
-import {PackageManifest} from '../types'
+import {PackageJson, Dependencies} from '@pnpm/types'
 
 export default function (
   pkgsToLink: DependencyTreeNodeMap,
@@ -25,7 +24,7 @@ export default function (
       (child) => pkgsToLink[dependencyAbsolutePath].optionalDependencies.has(pkgsToLink[child.nodeId].name),
       R.keys(pkgsToLink[dependencyAbsolutePath].children).map(alias => ({alias, nodeId: pkgsToLink[dependencyAbsolutePath].children[alias]}))
     )
-    shrinkwrap.packages[dependencyPath] = toShrDependency(pkgsToLink[dependencyAbsolutePath].pkg, {
+    shrinkwrap.packages[dependencyPath] = toShrDependency(pkgsToLink[dependencyAbsolutePath].additionalInfo, {
       dependencyAbsolutePath,
       name: pkgsToLink[dependencyAbsolutePath].name,
       version: pkgsToLink[dependencyAbsolutePath].version,
@@ -47,7 +46,18 @@ export default function (
 }
 
 function toShrDependency (
-  pkg: PackageManifest,
+  pkg: {
+    deprecated?: string,
+    peerDependencies?: Dependencies,
+    bundleDependencies?: string[],
+    bundledDependencies?: string[],
+    engines?: {
+      node?: string,
+      npm?: string,
+    },
+    cpu?: string[],
+    os?: string[],
+  },
   opts: {
     dependencyAbsolutePath: string,
     name: string,
@@ -99,14 +109,7 @@ function toShrDependency (
     result['id'] = opts.id
   }
   if (pkg.peerDependencies) {
-    const ownDeps = new Set(
-      R.keys(pkg.dependencies).concat(R.keys(pkg.optionalDependencies))
-    )
-    for (let peer of R.keys(pkg.peerDependencies)) {
-      if (ownDeps.has(peer)) continue
-      result['peerDependencies'] = result['peerDependencies'] || {}
-      result['peerDependencies'][peer] = pkg.peerDependencies[peer]
-    }
+    result['peerDependencies'] = pkg.peerDependencies
   }
   if (pkg.engines) {
     for (let engine of R.keys(pkg.engines)) {

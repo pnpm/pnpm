@@ -35,7 +35,18 @@ export type DependencyTreeNode = {
   optional: boolean,
   id: string,
   installable: boolean,
-  pkg: PackageManifest,
+  additionalInfo: {
+    deprecated?: string,
+    peerDependencies?: Dependencies,
+    bundleDependencies?: string[],
+    bundledDependencies?: string[],
+    engines?: {
+      node?: string,
+      npm?: string,
+    },
+    cpu?: string[],
+    os?: string[],
+  },
 }
 
 export type DependencyTreeNodeMap = {
@@ -169,7 +180,7 @@ function resolvePeersOfNode (
       optional: node.pkg.optional,
       id: node.pkg.id,
       installable: node.installable,
-      pkg: node.pkg.pkg,
+      additionalInfo: node.pkg.additionalInfo,
     }
   }
   return allResolvedPeers

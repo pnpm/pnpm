@@ -58,10 +58,18 @@ export type InstalledPackage = {
   peerDependencies: Dependencies,
   optionalDependencies: Set<string>,
   hasBundledDependencies: boolean,
-  // IDEA: As only a few fields are needed from package.jsno
-  // it might be a good idea to write them directly to
-  // InstallPackage to reduce RAM usage
-  pkg: PackageManifest,
+  additionalInfo: {
+    deprecated?: string,
+    peerDependencies?: Dependencies,
+    bundleDependencies?: string[],
+    bundledDependencies?: string[],
+    engines?: {
+      node?: string,
+      npm?: string,
+    },
+    cpu?: string[],
+    os?: string[],
+  },
 }
 
 export default async function installMultiple (
@@ -362,6 +370,8 @@ async function install (
       ctx.skipped.add(fetchedPkg.id)
     }
 
+    const peerDependencies = peerDependenciesWithoutOwn(pkg)
+
     ctx.installs[fetchedPkg.id] = {
       id: fetchedPkg.id,
       resolution: fetchedPkg.resolution,
@@ -374,10 +384,18 @@ async function install (
       calculatingIntegrity: fetchedPkg.calculatingIntegrity,
       path: fetchedPkg.path,
       specRaw: spec.raw,
-      peerDependencies: pkg.peerDependencies || {},
+      peerDependencies: peerDependencies || {},
       optionalDependencies: new Set(R.keys(pkg.optionalDependencies)),
       hasBundledDependencies: !!(pkg.bundledDependencies || pkg.bundleDependencies),
-      pkg,
+      additionalInfo: {
+        deprecated: pkg.deprecated,
+        peerDependencies,
+        bundleDependencies: pkg.bundleDependencies,
+        bundledDependencies: pkg.bundledDependencies,
+        engines: pkg.engines,
+        cpu: pkg.cpu,
+        os: pkg.os,
+      }
     }
     const children = await installDependencies(
       pkg,
@@ -440,6 +458,20 @@ async function install (
     nodeId,
     pkgId: fetchedPkg.id,
   }
+}
+
+function peerDependenciesWithoutOwn (pkg: PackageManifest) {
+  if (!pkg.peerDependencies) return pkg.peerDependencies
+  const ownDeps = new Set(
+    R.keys(pkg.dependencies).concat(R.keys(pkg.optionalDependencies))
+  )
+  const result = {}
+  for (let peer of R.keys(pkg.peerDependencies)) {
+    if (ownDeps.has(peer)) continue
+    result[peer] = pkg.peerDependencies[peer]
+  }
+  if (R.isEmpty(result)) return undefined
+  return result
 }
 
 function normalizeRegistry (registry: string) {
