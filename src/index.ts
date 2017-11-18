@@ -293,7 +293,11 @@ function printDiffs(pkgsDiff: PackageDiff[]) {
       : pkg.linked
         ? linkSign
         : removedSign
-    result += ` ${pkg.name}`
+    if (!pkg.realName || pkg.name === pkg.realName) {
+      result += ` ${pkg.name}`
+    } else {
+      result += ` ${pkg.name} <- ${pkg.realName}`
+    }
     if (pkg.version) {
       result += ` ${chalk.grey(pkg.version)}`
       if (pkg.latest && semver.lt(pkg.version, pkg.latest)) {

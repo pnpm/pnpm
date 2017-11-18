@@ -200,6 +200,16 @@ test('prints summary', t => {
       to: '/src/project/node_modules'
     },
   })
+  rootLogger.info({
+    added: {
+      dependencyType: 'prod',
+      name: 'winston',
+      realName: 'winst0n',
+      version: '1.0.0',
+      latest: '1.0.0',
+      id: 'registry.npmjs.org/winst0n/2.0.0',
+    },
+  })
   packageJsonLogger.debug({
     updated: {
       dependencies: {
@@ -225,6 +235,7 @@ test('prints summary', t => {
         ${ADD} foo ${versionColor('1.0.0')} ${versionColor('(2.0.0 is available)')}
         ${SUB} is-13 ${versionColor('^1.0.0')}
         ${ADD} is-negative ${versionColor('^1.0.0')}
+        ${ADD} winston <- winst0n ${versionColor('1.0.0')}
 
         ${h1('optionalDependencies:')}
         ${LINKED} is-linked ${chalk.magentaBright('linked from')} ${chalk.grey('/src/is-linked')}

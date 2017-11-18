@@ -9,6 +9,7 @@ export interface PackageDiff {
   added: boolean,
   from?: string,
   name: string,
+  realName?: string,
   version?: string,
   deprecated?: boolean,
   latest?: string,
@@ -47,6 +48,7 @@ export default (log$: xs<Log>, deprecationLog$: xs<DeprecationLog>) => {
         deprecated: deprecationSet.has(rootLog['added'].id),
         latest: rootLog['added'].latest,
         name: rootLog['added'].name,
+        realName: rootLog['added'].realName,
         version: rootLog['added'].version,
       }
       return pkgsDiff
