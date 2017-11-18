@@ -24,7 +24,6 @@ import {rootLogger} from '../loggers'
 const ncp = thenify(ncpCB)
 
 export default async function (
-  topPkgs: InstalledPackage[],
   rootNodeIdsByAlias: {[alias: string]: string},
   tree: {[nodeId: string]: TreeNode},
   opts: {
@@ -55,12 +54,11 @@ export default async function (
   currentShrinkwrap: Shrinkwrap,
   newPkgResolvedIds: string[],
 }> {
-  const topPkgIds = topPkgs.map(pkg => pkg.id)
   // TODO: decide what kind of logging should be here.
   // The `Creating dependency tree` is not good to report in all cases as
   // sometimes node_modules is alread up-to-date
   // logger.info(`Creating dependency tree`)
-  const resolvePeersResult = await resolvePeers(tree, rootNodeIdsByAlias, topPkgIds, opts.topParents, opts.independentLeaves, opts.baseNodeModules)
+  const resolvePeersResult = await resolvePeers(tree, rootNodeIdsByAlias, opts.topParents, opts.independentLeaves, opts.baseNodeModules)
   const pkgsToLink = resolvePeersResult.resolvedTree
   const newShr = updateShrinkwrap(pkgsToLink, opts.wantedShrinkwrap, opts.pkg)
 

@@ -48,7 +48,6 @@ export type DependencyTreeNodeMap = {
 export default function (
   tree: TreeNodeMap,
   rootNodeIdsByAlias: {[alias: string]: string},
-  topPkgIds: string[],
   // only the top dependencies that were already installed
   // to avoid warnings about unresolved peer dependencies
   topParents: {name: string, version: string}[],

@@ -347,10 +347,6 @@ async function installInContext (
   const nodeModulesPath = path.join(ctx.root, 'node_modules')
   const client = new RegClient(adaptConfig(opts))
 
-  const parts = R.partition(spec => newPkgs.indexOf(spec.name) === -1, packagesToInstall)
-  const oldSpecs = parts[0]
-  const newSpecs = parts[1]
-
   // This works from minor version 1, so any number is fine
   // also, the shrinkwrapMinorVersion is going to be removed from shrinkwrap v4
   const hasManifestInShrinkwrap = typeof ctx.wantedShrinkwrap.shrinkwrapMinorVersion === 'number'
@@ -455,7 +451,7 @@ async function installInContext (
     .reduce((rootNodeIdsByAlias, rootNodeId) => {
       const pkg = installCtx.tree[rootNodeId].pkg
       const specRaw = pkg.specRaw
-      const spec = R.find(spec => spec.raw === specRaw, newSpecs)
+      const spec = R.find(spec => spec.raw === specRaw, packagesToInstall)
       rootNodeIdsByAlias[spec && spec.name || pkg.name] = rootNodeId
       return rootNodeIdsByAlias
     }, {})
@@ -471,8 +467,8 @@ async function installInContext (
   }[])
   .concat(installCtx.localPackages)
   .map(dep => {
-    const spec = R.find(spec => spec.raw === dep.specRaw, newSpecs)
-    return Object.assign(dep, {
+    const spec = R.find(spec => spec.raw === dep.specRaw, packagesToInstall)
+    return Object.assign({}, dep, {
       spec: spec,
       alias: spec && spec.name || dep.name
     })
@@ -540,7 +536,7 @@ async function installInContext (
     }
   }
 
-  const result = await linkPackages(pkgs, rootNodeIdsByAlias, installCtx.tree, {
+  const result = await linkPackages(rootNodeIdsByAlias, installCtx.tree, {
     force: opts.force,
     global: opts.global,
     baseNodeModules: nodeModulesPath,

@@ -6,6 +6,7 @@ import readPkg = require('read-pkg')
 import exists = require('path-exists')
 import sinon = require('sinon')
 import {
+  install,
   installPkgs,
   RootLog,
 } from 'supi'
@@ -28,12 +29,51 @@ test('from a github repo', async function (t) {
   t.deepEqual(pkgJson.dependencies, {'is-negative': 'github:kevva/is-negative'}, 'has been added to dependencies in package.json')
 })
 
-test('from a github repo with different name', async function (t: tape.Test) {
+test('from a github repo with different name via named installation', async function (t: tape.Test) {
   const project = prepare(t)
 
   const reporter = sinon.spy()
 
   await installPkgs(['say-hi@github:zkochan/hi#4cdebec76b7b9d1f6e219e06c42d92a6b8ea60cd'], testDefaults({reporter}))
+
+  const m = project.requireModule('say-hi')
+
+  t.ok(reporter.calledWithMatch(<RootLog>{
+    name: 'pnpm:root',
+    level: 'info',
+    added: {
+      name: 'say-hi',
+      realName: 'hi',
+      version: '1.0.0',
+      dependencyType: 'prod',
+    },
+  }), 'adding to root logged with real name and alias name')
+
+  t.equal(m, 'Hi', 'dep is available')
+
+  const pkgJson = await readPkg()
+  t.deepEqual(pkgJson.dependencies, {'say-hi': 'github:zkochan/hi#4cdebec76b7b9d1f6e219e06c42d92a6b8ea60cd'}, 'has been added to dependencies in package.json')
+
+  const shr = await project.loadShrinkwrap()
+  t.deepEqual(shr.dependencies, {
+    'say-hi': 'github.com/zkochan/hi/4cdebec76b7b9d1f6e219e06c42d92a6b8ea60cd',
+  }, 'the aliased name added to shrinkwrap.yaml')
+
+  await project.isExecutable('.bin/hi')
+  await project.isExecutable('.bin/szia')
+})
+
+// This used to fail. Maybe won't be needed once api/install.ts gets refactored and covered with dedicated unit tests
+test('from a github repo with different name', async function (t: tape.Test) {
+  const project = prepare(t, {
+    dependencies: {
+      'say-hi': 'github:zkochan/hi#4cdebec76b7b9d1f6e219e06c42d92a6b8ea60cd'
+    }
+  })
+
+  const reporter = sinon.spy()
+
+  await install(testDefaults({reporter}))
 
   const m = project.requireModule('say-hi')
 
