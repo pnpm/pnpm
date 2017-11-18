@@ -48,7 +48,7 @@
   },
   "devDependencies": {
     "@commitlint/cli": "^4.0.0",
-    "@commitlint/config-angular": "^4.2.0",
+    "@commitlint/config-angular": "^5.0.0",
     "@commitlint/prompt-cli": "^4.0.0",
     "@types/byline": "^4.2.31",
     "@types/common-tags": "^1.2.5",
