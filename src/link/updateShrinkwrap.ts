@@ -148,7 +148,12 @@ function updateResolvedDeps (
         const pkgToLink = pkgsToLink[dep.nodeId]
         return [
           dep.alias,
-          absolutePathToRef(pkgToLink.absolutePath, pkgToLink.name, pkgToLink.resolution, registry)
+          absolutePathToRef(pkgToLink.absolutePath, {
+            alias: dep.alias,
+            realName: pkgToLink.name,
+            resolution: pkgToLink.resolution,
+            standardRegistry: registry,
+          })
         ]
       })
   )

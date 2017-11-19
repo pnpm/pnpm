@@ -1,5 +1,5 @@
 import {Dependencies} from '@pnpm/types'
-import npa = require('npm-package-arg')
+import npa = require('@zkochan/npm-package-arg')
 import {PackageSpec} from 'package-store'
 
 export default function (

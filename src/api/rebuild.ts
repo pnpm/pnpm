@@ -11,7 +11,7 @@ import {
   ResolvedPackages,
   DependencyShrinkwrap,
 } from 'pnpm-shrinkwrap'
-import npa = require('npm-package-arg')
+import npa = require('@zkochan/npm-package-arg')
 import semver = require('semver')
 import getPkgInfoFromShr from '../getPkgInfoFromShr'
 

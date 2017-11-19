@@ -15,7 +15,7 @@ import {
 } from '../loggers'
 import logStatus from '../logging/logInstallStatus'
 import pLimit = require('p-limit')
-import npa = require('npm-package-arg')
+import npa = require('@zkochan/npm-package-arg')
 import pFilter = require('p-filter')
 import R = require('ramda')
 import safeIsInnerLink from '../safeIsInnerLink'
@@ -452,7 +452,7 @@ async function installInContext (
       const pkg = installCtx.tree[rootNodeId].pkg
       const specRaw = pkg.specRaw
       const spec = R.find(spec => spec.raw === specRaw, packagesToInstall)
-      rootNodeIdsByAlias[spec && spec.name || pkg.name] = rootNodeId
+      rootNodeIdsByAlias[spec && (spec['alias'] || spec.name) || pkg.name] = rootNodeId
       return rootNodeIdsByAlias
     }, {})
   const pkgs: InstalledPackage[] = R.props<TreeNode>(R.values(rootNodeIdsByAlias), installCtx.tree).map(node => node.pkg)
@@ -470,7 +470,7 @@ async function installInContext (
     const spec = R.find(spec => spec.raw === dep.specRaw, packagesToInstall)
     return Object.assign({}, dep, {
       spec: spec,
-      alias: spec && spec.name || dep.name
+      alias: spec && (spec['alias'] || spec.name) || dep.name
     })
   })
 
@@ -513,7 +513,12 @@ async function installInContext (
     const getSpecFromPkg = (depName: string) => deps[depName] || devDeps[depName] || optionalDeps[depName]
 
     for (const dep of pkgsToSave) {
-      const ref = absolutePathToRef(dep.id, dep.alias, dep.resolution, ctx.wantedShrinkwrap.registry)
+      const ref = absolutePathToRef(dep.id, {
+        alias: dep.alias,
+        realName: dep.name,
+        resolution: dep.resolution,
+        standardRegistry: ctx.wantedShrinkwrap.registry,
+      })
       const isDev = !!devDeps[dep.alias]
       const isOptional = !!optionalDeps[dep.alias]
       if (isDev) {
@@ -681,8 +686,9 @@ function getSaveSpec (
     case 'version':
     case 'range':
     case 'tag':
-      if (opts.saveExact) return version
-      return `${opts.savePrefix}${version}`
+      let prefix = spec['alias'] ? `npm:${spec.name}@` : ''
+      if (opts.saveExact) return `${prefix}${version}`
+      return `${prefix}${opts.savePrefix}${version}`
     default:
       return spec.saveSpec
   }

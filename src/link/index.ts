@@ -132,7 +132,7 @@ export default async function (
     // have new backward-compatible versions of `shrinkwrap.yaml`
     // w/o changing `shrinkwrapVersion`. From version 4, the
     // `shrinkwrapVersion` field allows numbers like 4.1
-    newShr.shrinkwrapMinorVersion = 3
+    newShr.shrinkwrapMinorVersion = 4
   }
   let currentShrinkwrap: Shrinkwrap
   if (opts.makePartialCurrentShrinkwrap) {

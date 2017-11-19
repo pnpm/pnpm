@@ -124,7 +124,7 @@ test('a subdependency is from a github repo with different name', async function
     'aliased name used to resolve a peer dependency')
 })
 
-test('from a git repo', async function (t) {
+test('from a git repo', async (t: tape.Test) => {
   if (isCI) {
     t.skip('not testing the SSH GIT access via CI')
     return t.end()

@@ -1,3 +1,4 @@
+import './aliases'
 import './misc'
 import './only'
 import './lifecycleScripts'

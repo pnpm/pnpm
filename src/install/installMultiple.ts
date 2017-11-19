@@ -439,7 +439,7 @@ async function install (
     ctx.installs[fetchedPkg.id].optional = ctx.installs[fetchedPkg.id].optional && spec.optional
 
     ctx.nodesToBuild.push({
-      alias: spec.name,
+      alias: spec['alias'] || spec.name,
       nodeId,
       pkg: ctx.installs[fetchedPkg.id],
       depth: options.currentDepth,
@@ -454,7 +454,7 @@ async function install (
   logStatus({status: 'dependencies_installed', pkgId: fetchedPkg.id})
 
   return {
-    alias: spec.name,
+    alias: spec['alias'] || spec.name,
     nodeId,
     pkgId: fetchedPkg.id,
   }

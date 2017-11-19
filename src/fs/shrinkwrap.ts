@@ -3,16 +3,21 @@ import encodeRegistry = require('encode-registry')
 
 export function absolutePathToRef (
   absolutePath: string,
-  pkgName: string,
-  resolution: Resolution,
-  standardRegistry: string
+  opts: {
+    alias: string,
+    realName: string,
+    resolution: Resolution,
+    standardRegistry: string,
+  }
 ) {
-  if (resolution.type) return absolutePath
+  if (opts.resolution.type) return absolutePath
 
-  const registryName = encodeRegistry(standardRegistry)
+  const registryName = encodeRegistry(opts.standardRegistry)
   if (absolutePath.startsWith(`${registryName}/`)) {
-    const ref = absolutePath.replace(`${registryName}/${pkgName}/`, '')
-    if (ref.indexOf('/') === -1) return ref
+    if (opts.alias === opts.realName) {
+      const ref = absolutePath.replace(`${registryName}/${opts.realName}/`, '')
+      if (ref.indexOf('/') === -1) return ref
+    }
     return absolutePath.replace(`${registryName}/`, '/')
   }
   return absolutePath
