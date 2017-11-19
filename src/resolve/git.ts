@@ -20,7 +20,7 @@ export default async function resolveGit (parsedSpec: HostedPackageSpec, opts: R
   const isGitHubHosted = parsedSpec.type === 'git' && parsedSpec.hosted && parsedSpec.hosted.type === 'github'
 
   if (!isGitHubHosted || isSsh(parsedSpec.rawSpec)) {
-    const commit = await resolveRef(parsedSpec.fetchSpec, parsedSpec.gitCommittish)
+    const commit = await resolveRef(parsedSpec.fetchSpec, parsedSpec.gitCommittish || 'master')
     const resolution: GitRepositoryResolution = {
       commit,
       repo: parsedSpec.fetchSpec,
