@@ -19,13 +19,13 @@ dependencies:
   pnpm-list: 2.0.0
   ramda: 0.25.0
   strip-color: 0.1.0
-  supi: 0.7.7
+  supi: 0.7.8
   text-table: 0.2.0
   update-notifier: 2.3.0
 devDependencies:
   '@commitlint/cli': 4.3.0
   '@commitlint/config-angular': 4.3.0
-  '@commitlint/prompt-cli': 4.3.0
+  '@commitlint/prompt-cli': 5.0.1
   '@types/byline': 4.2.31
   '@types/common-tags': 1.4.0
   '@types/load-json-file': 2.0.7
@@ -54,7 +54,7 @@ devDependencies:
   npm-scripts-info: 0.3.6
   package-preview: 1.0.0
   path-exists: 3.0.0
-  pnpm-registry-mock: 1.13.0
+  pnpm-registry-mock: 1.14.0
   read-pkg: 3.0.0
   rimraf: 2.6.2
   rimraf-then: 1.0.1
@@ -104,17 +104,38 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha512-oWAlGWIOoquQVErLeAXFUOlAQDVJxa0196z7kt/BNcEGjfqRrEwxncZ9GFjycGYb0CyS/YQ1VDe4l8YfrSmbQg==
-  /@commitlint/prompt-cli/4.3.0:
+  /@commitlint/core/5.0.1:
     dependencies:
-      '@commitlint/prompt': 4.3.0
+      '@marionebl/conventional-commits-parser': 3.0.0
+      '@marionebl/git-raw-commits': 1.2.0
+      '@marionebl/sander': 0.6.1
+      babel-runtime: 6.26.0
+      chalk: 2.3.0
+      conventional-changelog-angular: 1.5.2
+      cosmiconfig: 3.1.0
+      find-up: 2.1.0
+      lodash: 4.17.4
+      path-exists: 3.0.0
+      require-uncached: 1.0.3
+      resolve-from: 3.0.0
+      resolve-global: 0.1.0
+      semver: 5.4.1
+    dev: true
+    engines:
+      node: '>=4'
+    resolution:
+      integrity: sha512-UZ1Q3vJiXXt3AT+xXd3VlVLLA7mce3UPQ34rXn8P6mo0Ygreaw7ty1EyAbC4CqtZeS0MfGTDHivLKnQH/XIUvg==
+  /@commitlint/prompt-cli/5.0.1:
+    dependencies:
+      '@commitlint/prompt': 5.0.1
       execa: 0.7.0
       meow: 3.7.0
     dev: true
     resolution:
-      integrity: sha512-fSVKpJ8lwN6HOPEJhsH5eVRuGH4frgJ0fSXvj2VEIi6H4vgn7cN6984P2jnVwO6TT+BcfVTRMpYCmXz8a+VNHA==
-  /@commitlint/prompt/4.3.0:
+      integrity: sha512-R5tGNsOmTmlbuQ5+M4k9xUQHJvl69XMdhu88QM+cKUhn/WLDRswtq6HX+uLOpTdxptHgGShDPm1YXs6Ob8j+Jg==
+  /@commitlint/prompt/5.0.1:
     dependencies:
-      '@commitlint/core': 4.3.0
+      '@commitlint/core': 5.0.1
       babel-runtime: 6.26.0
       chalk: 1.1.3
       lodash: 4.17.4
@@ -122,7 +143,7 @@ packages:
       vorpal: 1.12.0
     dev: true
     resolution:
-      integrity: sha512-EcaXiXmj4rZSdse6509KssElfg0dX7J5ywfLJo8se6gKF9HFwsfX1oStaQsjE+6E0eV5cdiQtHGNhggJmZfqQw==
+      integrity: sha512-K5MZfXildi3kjsBO/wlUoJ0Q4DIs/btCSb10vQnuk9a7V9Ahi1AW1iHaXr8o0RsGlTcxBnr5AdZEgn1mHbG5yw==
   /@marionebl/conventional-commits-parser/3.0.0:
     dependencies:
       JSONStream: 1.3.1
@@ -181,7 +202,7 @@ packages:
       dependency-path: 1.2.0
       npm-package-arg: 6.0.0
       npm-registry-client: 8.5.0
-      package-store: 0.5.1
+      package-store: 0.5.2
       pnpm-shrinkwrap: 5.0.0
     dev: false
     peerDependencies:
@@ -365,6 +386,15 @@ packages:
     dev: false
     resolution:
       integrity: sha512-j1OJrYOACRfIHESTnvCBUg8WkVr7nHjkF/0A64qD/kabVulXJYGxu27w6Z9wrJHGQchePPCR31xJWOta4uVqxw==
+  /@zkochan/npm-package-arg/1.0.0:
+    dependencies:
+      hosted-git-info: 2.5.0
+      osenv: 0.1.4
+      semver: 5.4.1
+      validate-npm-package-name: 3.0.0
+    dev: false
+    resolution:
+      integrity: sha512-ufMBw0x+4y7uaiPu1uhwMaHaysLB57+EJoo63DGf28FG+TIrYiIIE886qSNXuDqyhqt+PVsRLB9e8+QVGe+Dtg==
   /JSONStream/1.3.1:
     dependencies:
       jsonparse: 1.3.1
@@ -848,6 +878,20 @@ packages:
     dev: false
     resolution:
       integrity: sha1-b9YbA/PaQqLNDsK2DwK9DnGZH+o=
+  /caller-path/0.1.0:
+    dependencies:
+      callsites: 0.2.0
+    dev: true
+    engines:
+      node: '>=0.10.0'
+    resolution:
+      integrity: sha1-lAhe9jWB7NPaqSREqP6U6CV3dR8=
+  /callsites/0.2.0:
+    dev: true
+    engines:
+      node: '>=0.10.0'
+    resolution:
+      integrity: sha1-r6uWJikQp/M8GaV3WCXGnzTjUMo=
   /camelcase-keys/2.1.0:
     dependencies:
       camelcase: 2.1.1
@@ -1975,14 +2019,13 @@ packages:
       path-is-absolute: 1.0.1
     resolution:
       integrity: sha512-MJTUg1kjuLeQCJ+ccE4Vpa6kKVXkPYJ2mOCQyUuKLcLQsdrMCpBPUi8qVE6+YuaJkozeA9NusTAw3hLr8Xe5EQ==
-  /global-dirs/0.1.0:
+  /global-dirs/0.1.1:
     dependencies:
       ini: 1.3.4
-    dev: false
     engines:
       node: '>=4'
     resolution:
-      integrity: sha1-ENNAOeDfBCcuJizyQiT3IJQ0308=
+      integrity: sha1-sxnA3UYH81PzvpzKTHL8FIxJ9EU=
   /global/4.3.2:
     dependencies:
       min-document: 2.19.0
@@ -2022,7 +2065,7 @@ packages:
       lowercase-keys: 1.0.0
       mimic-response: 1.0.0
       p-cancelable: 0.3.0
-      p-timeout: 1.2.0
+      p-timeout: 1.2.1
       pify: 3.0.0
       safe-buffer: 5.1.1
       timed-out: 4.0.1
@@ -2390,7 +2433,7 @@ packages:
       integrity: sha512-YS9RSUrRbskf/O6nMF5+dvoa8zoIwF2uXnJZN1X+gCEtA1cc3KqgbOmgPjIndHfrLJ8MCRaPoG2KBPTZqhy5ug==
   /is-installed-globally/0.1.0:
     dependencies:
-      global-dirs: 0.1.0
+      global-dirs: 0.1.1
       is-path-inside: 1.0.0
     dev: false
     engines:
@@ -3670,14 +3713,14 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha1-fsnntEBswyBmKYpvmGDlXpGzbgc=
-  /p-timeout/1.2.0:
+  /p-timeout/1.2.1:
     dependencies:
       p-finally: 1.0.0
     dev: true
     engines:
       node: '>=4'
     resolution:
-      integrity: sha1-mCD5lDTFgXhotPNICe5SkWYNW2w=
+      integrity: sha1-XrOzU7f86Z8QGhA4iAuwVOu+o4Y=
   /package-json/4.0.1:
     dependencies:
       got: 6.7.1
@@ -3714,7 +3757,7 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha512-OQbpubrdUPz5xJa98eri+Gf7zfhoLbtQACh4myRaUrCHPYzCrKvw+07v3DrV/n1aRv0/yibWkqSGC/v03ijUug==
-  /package-store/0.5.1:
+  /package-store/0.5.2:
     dependencies:
       '@pnpm/types': 1.0.0
       '@types/load-json-file': 2.0.7
@@ -3757,7 +3800,7 @@ packages:
     peerDependencies:
       '@pnpm/logger': ^1.0.0
     resolution:
-      integrity: sha512-o7XZIy1Rxwyphw94z/p/2J8jPeRszF05YykmNt7EoIFJt56KY7gRryPaaZyV4K1splpntwHiJe9/6zCAmn4b2g==
+      integrity: sha512-66mi8Jf87G3f+rIAYXAFgDKlRmBMPUyuyVcfKwOA6IcXXr40tKqCz7xsSui2u25JsSJaipRIbyTejVG0TPjBeA==
   /pacote/6.0.4:
     dependencies:
       bluebird: 3.5.1
@@ -4024,14 +4067,14 @@ packages:
     dev: false
     resolution:
       integrity: sha1-KHAbl2GKH8MtL+4b9BB0ZYi7GoU=
-  /pnpm-registry-mock/1.13.0:
+  /pnpm-registry-mock/1.14.0:
     dependencies:
       cpr: 3.0.1
       rimraf: 2.6.2
       verdaccio: 2.6.6
     dev: true
     resolution:
-      integrity: sha512-6TYzoAydjNvTcEX13sm9Wmp9Ke8/RT+MQTy+r7oG5gTZIFyQIXfFLqNNcb6AElDg4NftGoQLlvCW+8iWH/KJiw==
+      integrity: sha512-Xny6FXcmRgwtv+OAga/kVMzPxtksh8eL7omW0z+cC1lJbzcBtQxQMS20iT/eSNaTb7FHTh0Vil3z0GKqQgZ0oQ==
   /pnpm-shrinkwrap/5.0.0:
     dependencies:
       '@types/node': 7.0.48
@@ -4509,6 +4552,21 @@ packages:
     dev: false
     resolution:
       integrity: sha1-l/cXtp1IeE9fUmpsWqj/3aBVpNE=
+  /require-uncached/1.0.3:
+    dependencies:
+      caller-path: 0.1.0
+      resolve-from: 1.0.1
+    dev: true
+    engines:
+      node: '>=0.10.0'
+    resolution:
+      integrity: sha1-Tg1W1slmL9MeQwEcS5WqSZVUIdM=
+  /resolve-from/1.0.1:
+    dev: true
+    engines:
+      node: '>=0.10.0'
+    resolution:
+      integrity: sha1-Jsv+k10a7uq7Kbw/5a6wHpPUQiY=
   /resolve-from/3.0.0:
     dev: true
     engines:
@@ -4521,6 +4579,14 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha512-pb/MYmXstAkysRFx8piNI1tGFNQIFA3vkE3Gq4EuA1dF6gHp/+vgZqsCGJapvy8N3Q+4o7FwvquPJcnZ7RYy4g==
+  /resolve-global/0.1.0:
+    dependencies:
+      global-dirs: 0.1.1
+    dev: true
+    engines:
+      node: '>=4'
+    resolution:
+      integrity: sha1-j7As/Vt9sgEY6IYxHxWvlb0V+9k=
   /resolve-link-target/1.0.1:
     dependencies:
       graceful-fs: 4.1.11
@@ -5029,7 +5095,7 @@ packages:
       node: '>=0.10.0'
     resolution:
       integrity: sha1-PFMZQukIwml8DsNEhYwobHygpgo=
-  /supi/0.7.7:
+  /supi/0.7.8:
     dependencies:
       '@pnpm/types': 1.0.0
       '@types/byline': 4.2.31
@@ -5046,6 +5112,7 @@ packages:
       '@types/update-notifier': 1.0.2
       '@zkochan/cmd-shim': 2.2.4
       '@zkochan/npm-lifecycle': 0.0.6
+      '@zkochan/npm-package-arg': 1.0.0
       arr-flatten: 1.1.0
       byline: 5.0.0
       common-tags: 1.4.0
@@ -5068,13 +5135,12 @@ packages:
       node-gyp: 3.6.2
       normalize-path: 2.1.1
       normalize-registry-url: 1.0.0
-      npm-package-arg: 5.1.2
       npm-registry-client: 8.5.0
       os-homedir: 1.0.2
       p-filter: 1.0.0
       p-limit: 1.1.0
       p-series: 1.0.0
-      package-store: 0.5.1
+      package-store: 0.5.2
       path-absolute: 1.0.0
       path-exists: 3.0.0
       path-name: 1.0.0
@@ -5096,7 +5162,7 @@ packages:
     peerDependencies:
       '@pnpm/logger': ^1.0.0
     resolution:
-      integrity: sha512-rr+TvyCYBgE6wFSWSFt1tEw3u+D3kmgrz/1lT1IATJ3sFdkrfSGvE7z+STWendGAN9r/An2yymq1s10ykppntw==
+      integrity: sha512-/owfDNeMUFyW/aBoDmWPrOVWLxtMJNlwvKBNOMY71OPa4Cf8DEIfCQ+aNFU/OE4sRoLixaXf/elTqIf4G5aEgw==
   /supports-color/2.0.0:
     engines:
       node: '>=0.8.0'
@@ -5808,12 +5874,12 @@ packages:
     resolution:
       integrity: sha1-5a2ryKz0CPY4X8dklWhMiOavaJo=
 registry: 'https://registry.npmjs.org/'
-shrinkwrapMinorVersion: 2
+shrinkwrapMinorVersion: 3
 shrinkwrapVersion: 3
 specifiers:
   '@commitlint/cli': ^4.0.0
   '@commitlint/config-angular': ^4.2.0
-  '@commitlint/prompt-cli': ^4.0.0
+  '@commitlint/prompt-cli': ^5.0.0
   '@pnpm/logger': ^1.0.0
   '@pnpm/outdated': ^0.2.0
   '@types/byline': ^4.2.31
@@ -5868,7 +5934,7 @@ specifiers:
   semver: ^5.3.0
   sepia: ^2.0.2
   strip-color: ^0.1.0
-  supi: ^0.7.7
+  supi: ^0.7.8
   tape: ^4.6.3
   tape-promise: ^2.0.1
   text-table: ^0.2.0
