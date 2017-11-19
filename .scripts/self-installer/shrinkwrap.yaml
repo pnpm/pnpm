@@ -1382,7 +1382,7 @@ packages:
     resolution:
       integrity: sha1-pcbVMr5lbiPbgg77lDofBJmNY68=
 registry: 'https://registry.npmjs.org/'
-shrinkwrapMinorVersion: 3
+shrinkwrapMinorVersion: 4
 shrinkwrapVersion: 3
 specifiers:
   browserify: ^14.4.0
