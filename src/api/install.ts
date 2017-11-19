@@ -440,8 +440,10 @@ async function installInContext (
     installCtx.tree[nodeToBuild.nodeId] = {
       nodeId: nodeToBuild.nodeId,
       pkg: nodeToBuild.pkg,
-      children: buildTree(installCtx, nodeToBuild.nodeId, nodeToBuild.pkg.id,
-        installCtx.childrenByParentId[nodeToBuild.pkg.id], nodeToBuild.depth + 1, nodeToBuild.installable),
+      get children() {
+        return buildTree(installCtx, nodeToBuild.nodeId, nodeToBuild.pkg.id,
+          installCtx.childrenByParentId[nodeToBuild.pkg.id], nodeToBuild.depth + 1, nodeToBuild.installable)
+      },
       depth: nodeToBuild.depth,
       installable: nodeToBuild.installable,
     }
@@ -656,7 +658,9 @@ function buildTree (
     ctx.tree[childNodeId] = {
       nodeId: childNodeId,
       pkg: ctx.installs[child.pkgId],
-      children: buildTree(ctx, childNodeId, child.pkgId, ctx.childrenByParentId[child.pkgId], depth + 1, installable),
+      get children() {
+        return buildTree(ctx, childNodeId, child.pkgId, ctx.childrenByParentId[child.pkgId], depth + 1, installable);
+      },
       depth,
       installable,
     }
