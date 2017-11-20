@@ -64,7 +64,7 @@ export type InstalledPackages = {
 
 export type TreeNode = {
   nodeId: string,
-  children: () => {[alias: string]: string}, // child nodeId by child alias name
+  children: (() => {[alias: string]: string}) | {[alias: string]: string}, // child nodeId by child alias name
   pkg: InstalledPackage,
   depth: number,
   installable: boolean,

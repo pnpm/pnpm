@@ -426,7 +426,7 @@ async function install (
     ctx.tree[nodeId] = {
       nodeId,
       pkg: ctx.installs[fetchedPkg.id],
-      children: () => children.reduce((children, child) => {
+      children: children.reduce((children, child) => {
         children[child.alias] = child.nodeId
         return children
       }, {}),

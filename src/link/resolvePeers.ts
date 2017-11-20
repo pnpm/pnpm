@@ -125,7 +125,7 @@ function resolvePeersOfNode (
     return {}
   }
 
-  const children = node.children();
+  const children = typeof node.children === 'function' ? node.children() : node.children
   const parentPkgs = R.isEmpty(children)
     ? parentParentPkgs
     : Object.assign(
