@@ -78,7 +78,7 @@ export default function (
         }
       ])
     ),
-    toPkgByName(R.keys(rootNodeIdsByAlias).map(alias => ({alias: alias, node: tree[rootNodeIdsByAlias[alias]]})))
+    toPkgByName(R.keys(rootNodeIdsByAlias).map(alias => ({alias, nodeId: rootNodeIdsByAlias[alias], node: tree[rootNodeIdsByAlias[alias]]})))
   )
 
   const absolutePathsByNodeId = {}
@@ -131,13 +131,13 @@ function resolvePeersOfNode (
     : Object.assign(
         {},
         parentParentPkgs,
-        toPkgByName(R.keys(children).map(alias => ({alias: alias, node: ctx.tree[children[alias]]})))
+        toPkgByName(R.keys(children).map(alias => ({alias, nodeId: children[alias], node: ctx.tree[children[alias]]})))
     )
   const unknownResolvedPeersOfChildren = resolvePeersOfChildren(children, parentPkgs, ctx, nodeId)
 
   const resolvedPeers = R.isEmpty(node.pkg.peerDependencies)
     ? {}
-    : resolvePeers(node, parentPkgs, ctx.tree)
+    : resolvePeers(nodeId, node, parentPkgs, ctx.tree)
 
   const allResolvedPeers = Object.assign(unknownResolvedPeersOfChildren, resolvedPeers)
 
@@ -239,6 +239,7 @@ function resolvePeersOfChildren (
 }
 
 function resolvePeers (
+  nodeId: string,
   node: TreeNode,
   parentPkgs: ParentRefs,
   tree: TreeNodeMap
@@ -252,7 +253,7 @@ function resolvePeers (
     const resolved = parentPkgs[peerName]
 
     if (!resolved || resolved.nodeId && !tree[resolved.nodeId].installable) {
-      const friendlyPath = nodeIdToFriendlyPath(node.nodeId, tree)
+      const friendlyPath = nodeIdToFriendlyPath(nodeId, tree)
       logger.warn(oneLine`
         ${friendlyPath ? `${friendlyPath}: ` : ''}${packageFriendlyId(node.pkg)}
         requires a peer of ${peerName}@${peerVersionRange} but none was installed.`
@@ -261,7 +262,7 @@ function resolvePeers (
     }
 
     if (!semver.satisfies(resolved.version, peerVersionRange)) {
-      const friendlyPath = nodeIdToFriendlyPath(node.nodeId, tree)
+      const friendlyPath = nodeIdToFriendlyPath(nodeId, tree)
       logger.warn(oneLine`
         ${friendlyPath ? `${friendlyPath}: ` : ''}${packageFriendlyId(node.pkg)}
         requires a peer of ${peerName}@${peerVersionRange} but version ${resolved.version} was installed.`
@@ -302,12 +303,12 @@ type ParentRef = {
   nodeId?: string,
 }
 
-function toPkgByName (nodes: {alias: string, node: TreeNode}[]): ParentRefs {
+function toPkgByName (nodes: {alias: string, nodeId: string, node: TreeNode}[]): ParentRefs {
   const pkgsByName: ParentRefs = {}
   for (const node of nodes) {
     pkgsByName[node.alias] = {
       version: node.node.pkg.version,
-      nodeId: node.node.nodeId,
+      nodeId: node.nodeId,
       depth: node.node.depth,
     }
   }

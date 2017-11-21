@@ -63,7 +63,6 @@ export type InstalledPackages = {
 }
 
 export type TreeNode = {
-  nodeId: string,
   children: (() => {[alias: string]: string}) | {[alias: string]: string}, // child nodeId by child alias name
   pkg: InstalledPackage,
   depth: number,
@@ -438,7 +437,6 @@ async function installInContext (
   stageLogger.debug('resolution_done')
   installCtx.nodesToBuild.forEach(nodeToBuild => {
     installCtx.tree[nodeToBuild.nodeId] = {
-      nodeId: nodeToBuild.nodeId,
       pkg: nodeToBuild.pkg,
       children: () => buildTree(installCtx, nodeToBuild.nodeId, nodeToBuild.pkg.id,
         installCtx.childrenByParentId[nodeToBuild.pkg.id], nodeToBuild.depth + 1, nodeToBuild.installable),
@@ -654,7 +652,6 @@ function buildTree (
     childrenNodeIds[child.alias] = childNodeId
     installable = installable && !ctx.skipped.has(child.pkgId)
     ctx.tree[childNodeId] = {
-      nodeId: childNodeId,
       pkg: ctx.installs[child.pkgId],
       children: () => buildTree(ctx, childNodeId, child.pkgId, ctx.childrenByParentId[child.pkgId], depth + 1, installable),
       depth,
