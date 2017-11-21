@@ -19,7 +19,7 @@ dependencies:
   pnpm-list: 2.0.0
   ramda: 0.25.0
   strip-color: 0.1.0
-  supi: 0.7.9
+  supi: 0.7.10
   text-table: 0.2.0
   update-notifier: 2.3.0
 devDependencies:
@@ -104,7 +104,7 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha512-oWAlGWIOoquQVErLeAXFUOlAQDVJxa0196z7kt/BNcEGjfqRrEwxncZ9GFjycGYb0CyS/YQ1VDe4l8YfrSmbQg==
-  /@commitlint/core/5.0.1:
+  /@commitlint/core/5.0.2:
     dependencies:
       '@marionebl/conventional-commits-parser': 3.0.0
       '@marionebl/git-raw-commits': 1.2.0
@@ -117,14 +117,14 @@ packages:
       lodash: 4.17.4
       path-exists: 3.0.0
       require-uncached: 1.0.3
-      resolve-from: 3.0.0
+      resolve-from: 4.0.0
       resolve-global: 0.1.0
       semver: 5.4.1
     dev: true
     engines:
       node: '>=4'
     resolution:
-      integrity: sha512-UZ1Q3vJiXXt3AT+xXd3VlVLLA7mce3UPQ34rXn8P6mo0Ygreaw7ty1EyAbC4CqtZeS0MfGTDHivLKnQH/XIUvg==
+      integrity: sha512-ppLOJhppRIxoWBMV5SbotLvFhyFO64+IAIAOw4uCSuF/fTOxWnghYHFgrOOQU4bAzKnZwy1Hq4QoQI+leam3RA==
   /@commitlint/prompt-cli/5.0.1:
     dependencies:
       '@commitlint/prompt': 5.0.1
@@ -135,7 +135,7 @@ packages:
       integrity: sha512-R5tGNsOmTmlbuQ5+M4k9xUQHJvl69XMdhu88QM+cKUhn/WLDRswtq6HX+uLOpTdxptHgGShDPm1YXs6Ob8j+Jg==
   /@commitlint/prompt/5.0.1:
     dependencies:
-      '@commitlint/core': 5.0.1
+      '@commitlint/core': 5.0.2
       babel-runtime: 6.26.0
       chalk: 1.1.3
       lodash: 4.17.4
@@ -414,14 +414,14 @@ packages:
       node: '>= 0.6'
     resolution:
       integrity: sha1-hiRnWMfdbSGmR0/whKR0DsBesh8=
-  /agent-base/4.1.1:
+  /agent-base/4.1.2:
     dependencies:
       es6-promisify: 5.0.0
     dev: false
     engines:
       node: '>= 4.0.0'
     resolution:
-      integrity: sha512-yWGUUmCZD/33IRjG2It94PzixT8lX+47Uq8fjmd0cgQWITCMrJuXFaVIMnGDmDnZGGKAGdwTx8UGeU8lMR2urA==
+      integrity: sha512-VE6QoEdaugY86BohRtfGmTDabxdU5sCKOkbcPA6PXKJsRzEi/7A3RCTxJal1ft/4qSfPht5/iQLhMh/wzSkkNw==
   /agentkeepalive/3.3.0:
     dependencies:
       humanize-ms: 1.2.1
@@ -430,14 +430,14 @@ packages:
       node: '>= 4.0.0'
     resolution:
       integrity: sha512-9yhcpXti2ZQE7bxuCsjjWNIZoQOd9sZ1ZBovHG0YeCRohFv73SLvcm73PC9T3olM4GyozaQb+4MGdQpcD8m7NQ==
-  /ajv/5.3.0:
+  /ajv/5.4.0:
     dependencies:
       co: 4.6.0
       fast-deep-equal: 1.0.0
       fast-json-stable-stringify: 2.0.0
       json-schema-traverse: 0.3.1
     resolution:
-      integrity: sha1-RBT/dKUIecII7l/cgm4ywwNUnto=
+      integrity: sha1-MtHPCNvIDEMvQm8S4QslEfa0ZHQ=
   /align-text/0.1.4:
     dependencies:
       kind-of: 3.2.2
@@ -2110,7 +2110,7 @@ packages:
       integrity: sha1-qUwiJOvKwEeCoNkDVSHyRzW37JI=
   /har-validator/5.0.3:
     dependencies:
-      ajv: 5.3.0
+      ajv: 5.4.0
       har-schema: 2.0.0
     engines:
       node: '>=4'
@@ -2203,7 +2203,7 @@ packages:
       integrity: sha1-CgAsyFcHGSp+eUbO7cERVfYOxzY=
   /http-proxy-agent/2.0.0:
     dependencies:
-      agent-base: 4.1.1
+      agent-base: 4.1.2
       debug: 2.6.9
     dev: false
     resolution:
@@ -2220,7 +2220,7 @@ packages:
       integrity: sha1-muzZJRFHcvPZW2WmCruPfBj7rOE=
   /https-proxy-agent/2.1.0:
     dependencies:
-      agent-base: 4.1.1
+      agent-base: 4.1.2
       debug: 2.6.9
     dev: false
     resolution:
@@ -4574,7 +4574,6 @@ packages:
     resolution:
       integrity: sha1-six699nWiBvItuZTM17rywoYh0g=
   /resolve-from/4.0.0:
-    dev: false
     engines:
       node: '>=4'
     resolution:
@@ -4823,7 +4822,7 @@ packages:
       integrity: sha512-FL1b58BDrqS3A11lJ0zEdnJ3UOKqVxawAkF3k7F0CVN7VQ34aZrV+G8BZ1WC9ZL7NyrwsW0oviwsWDgRuVYtJg==
   /socks-proxy-agent/3.0.1:
     dependencies:
-      agent-base: 4.1.1
+      agent-base: 4.1.2
       socks: 1.1.10
     dev: false
     resolution:
@@ -5095,7 +5094,7 @@ packages:
       node: '>=0.10.0'
     resolution:
       integrity: sha1-PFMZQukIwml8DsNEhYwobHygpgo=
-  /supi/0.7.9:
+  /supi/0.7.10:
     dependencies:
       '@pnpm/types': 1.0.0
       '@types/byline': 4.2.31
@@ -5162,7 +5161,7 @@ packages:
     peerDependencies:
       '@pnpm/logger': ^1.0.0
     resolution:
-      integrity: sha512-oEYd2w6PbuJ+MAusep29Ns5vrjTIKsMe0jbCCoiHKJMQvne7e+cEFTVbfXdO6qmcX6DDAboDTbLc5qYJRPY0SQ==
+      integrity: sha512-Qp8m7yQQQqNLIz1mC8AcZSKqJIz9w5Eir3BLMdIV+zT4wrDdhV+hvTYrM9yMPxa+xEjbDGsXL9n5fRhFFdYEbA==
   /supports-color/2.0.0:
     engines:
       node: '>=0.8.0'
@@ -5874,7 +5873,7 @@ packages:
     resolution:
       integrity: sha1-5a2ryKz0CPY4X8dklWhMiOavaJo=
 registry: 'https://registry.npmjs.org/'
-shrinkwrapMinorVersion: 3
+shrinkwrapMinorVersion: 4
 shrinkwrapVersion: 3
 specifiers:
   '@commitlint/cli': ^4.0.0
@@ -5934,7 +5933,7 @@ specifiers:
   semver: ^5.3.0
   sepia: ^2.0.2
   strip-color: ^0.1.0
-  supi: ^0.7.9
+  supi: ^0.7.10
   tape: ^4.6.3
   tape-promise: ^2.0.1
   text-table: ^0.2.0
