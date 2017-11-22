@@ -128,11 +128,10 @@ function resolvePeersOfNode (
   const children = typeof node.children === 'function' ? node.children() : node.children
   const parentPkgs = R.isEmpty(children)
     ? parentParentPkgs
-    : Object.assign(
-        {},
-        parentParentPkgs,
-        toPkgByName(R.keys(children).map(alias => ({alias, nodeId: children[alias], node: ctx.tree[children[alias]]})))
-    )
+    : {
+        ...parentParentPkgs,
+        ...toPkgByName(R.keys(children).map(alias => ({alias, nodeId: children[alias], node: ctx.tree[children[alias]]})))
+      }
   const unknownResolvedPeersOfChildren = resolvePeersOfChildren(children, parentPkgs, ctx, nodeId)
 
   const resolvedPeers = R.isEmpty(node.pkg.peerDependencies)
@@ -190,21 +189,6 @@ function resolvePeersOfNode (
     }
   }
   return allResolvedPeers
-}
-
-function addMany<T>(a: Set<T>, b: Set<T>) {
-  for (const el of Array.from(b)) {
-    a.add(el)
-  }
-  return a
-}
-
-function union<T>(a: Set<T>, b: Set<T>) {
-  return new Set(Array.from(a).concat(Array.from(b)))
-}
-
-function difference<T>(a: Set<T>, b: Set<T>) {
-  return new Set(Array.from(a).filter(el => !b.has(el)))
 }
 
 function resolvePeersOfChildren (

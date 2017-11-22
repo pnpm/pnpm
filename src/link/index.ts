@@ -145,9 +145,7 @@ export default async function (
         }
       }
     }
-    currentShrinkwrap = Object.assign({}, newShr, {
-      packages,
-    })
+    currentShrinkwrap = {...newShr, packages}
   } else if (opts.production && opts.development && opts.optional) {
     currentShrinkwrap = newShr
   } else {

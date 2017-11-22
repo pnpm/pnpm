@@ -169,8 +169,10 @@ function getInfoFromShrinkwrap (
       dependencyShrinkwrap,
       pkgId: dependencyShrinkwrap.id || absoluteDependencyPath,
       shrinkwrapResolution: dependencyShrToResolution(dependencyPath, dependencyShrinkwrap, shrinkwrap.registry),
-      resolvedDependencies: <ResolvedDependencies>Object.assign({},
-        dependencyShrinkwrap.dependencies, dependencyShrinkwrap.optionalDependencies),
+      resolvedDependencies: {
+        ...dependencyShrinkwrap.dependencies,
+        ...dependencyShrinkwrap.optionalDependencies,
+      },
       optionalDependencyNames: R.keys(dependencyShrinkwrap.optionalDependencies),
     }
   } else {
@@ -500,7 +502,7 @@ async function installDependencies (
   const bundledDeps = pkg.bundleDependencies || pkg.bundledDependencies || []
   const filterDeps = getNotBundledDeps.bind(null, bundledDeps)
   let deps = depsToSpecs(
-    filterDeps(Object.assign({}, pkg.optionalDependencies, pkg.dependencies)),
+    filterDeps({...pkg.optionalDependencies, ...pkg.dependencies}),
     {
       where: ctx.prefix,
       devDependencies: pkg.devDependencies || {},

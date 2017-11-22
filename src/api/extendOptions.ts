@@ -67,7 +67,7 @@ export default async (opts?: PnpmOptions): Promise<StrictPnpmOptions> => {
     opts.store = opts.storePath
   }
   const defaultOpts = await defaults(opts)
-  const extendedOpts = Object.assign({}, defaultOpts, opts, {store: defaultOpts.store})
+  const extendedOpts = {...defaultOpts, ...opts, store: defaultOpts.store}
   if (extendedOpts.force) {
     logger.warn('using --force I sure hope you know what you are doing')
   }

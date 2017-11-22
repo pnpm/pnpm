@@ -402,7 +402,11 @@ async function installInContext (
   }
   const installOpts = {
     root: ctx.root,
-    resolvedDependencies: Object.assign({}, ctx.wantedShrinkwrap.devDependencies, ctx.wantedShrinkwrap.dependencies, ctx.wantedShrinkwrap.optionalDependencies),
+    resolvedDependencies: {
+      ...ctx.wantedShrinkwrap.devDependencies,
+      ...ctx.wantedShrinkwrap.dependencies,
+      ...ctx.wantedShrinkwrap.optionalDependencies
+    },
     update: opts.update,
     keypath: [],
     parentNodeId: ':/:',
@@ -466,10 +470,11 @@ async function installInContext (
   .concat(installCtx.localPackages)
   .map(dep => {
     const spec = R.find(spec => spec.raw === dep.specRaw, packagesToInstall)
-    return Object.assign({}, dep, {
+    return {
+      ...dep,
       spec: spec,
       alias: spec && (spec['alias'] || spec.name) || dep.name
-    })
+    }
   })
 
   let newPkg: PackageJson | undefined = ctx.pkg
@@ -607,10 +612,11 @@ async function installInContext (
   }
 
   if (installCtx.localPackages.length) {
-    const linkOpts = Object.assign({}, opts, {
+    const linkOpts = {
+      ...opts,
       skipInstall: true,
       linkToBin: opts.bin,
-    })
+    }
     await Promise.all(installCtx.localPackages.map(async localPackage => {
       await externalLink(localPackage.resolution.directory, opts.prefix, linkOpts)
       logStatus({
@@ -712,10 +718,11 @@ function adaptConfig (opts: StrictPnpmOptions) {
       maxTimeout: opts.fetchRetryMaxtimeout
     },
     userAgent: opts.userAgent,
-    log: Object.assign({}, registryLog, {
+    log: {
+      ...registryLog,
       verbose: registryLog.debug.bind(null, 'http'),
       http: registryLog.debug.bind(null, 'http'),
-    }),
+    },
     defaultTag: opts.tag
   }
 }
