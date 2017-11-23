@@ -106,6 +106,7 @@ export async function fetchFromRemoteTarball (dir: string, dist: PackageDist, op
       throw new PnpmError('NO_OFFLINE_TARBALL', `Could not find ${localTarballPath} in local registry mirror ${opts.storePath}`)
     }
     return await opts.got.download(dist.tarball, localTarballPath, {
+      ignore: opts.ignore,
       integrity: dist.integrity,
       onProgress: (downloaded) => {
         progressLogger.debug({status: 'fetching_progress', pkgId: opts.pkgId, downloaded})

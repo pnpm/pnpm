@@ -34,6 +34,7 @@ export interface Got {
     registry?: string,
     onStart?: (totalSize: number | null, attempt: number) => void,
     onProgress?: (downloaded: number) => void,
+    ignore?: (filename: string) => boolean,
     integrity?: string
     generatePackageIntegrity?: boolean,
   }): Promise<{}>,
@@ -96,6 +97,7 @@ export default (
     registry?: string,
     onStart?: (totalSize: number | null, attempt: number) => void,
     onProgress?: (downloaded: number) => void,
+    ignore?: (filename: string) => boolean,
     integrity?: string,
     generatePackageIntegrity?: boolean,
   }): Promise<{}> {
