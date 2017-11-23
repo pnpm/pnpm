@@ -413,6 +413,7 @@ async function installInContext (
     currentDepth: 0,
     readPackageHook: opts.hooks.readPackage,
     hasManifestInShrinkwrap,
+    ignoreFile: opts.ignoreFile,
   }
   const nonLinkedPkgs = await pFilter(packagesToInstall,
     async (spec: PackageSpec) => {

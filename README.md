@@ -38,13 +38,14 @@ Install packages.
 * `options.saveExact` - *Boolean* - saved dependencies will be configured with an exact version rather than using npm's default semver range operator.
 * `options.global` - *Boolean* - the packages will be installed globally rather than locally.
 * `options.prefix` - *String* - the directory in which the installation will be performed. By default the `process.cwd()` value is used.
-* `options.quiet` - *Boolean* - `false` by default. No output to the console.
 * `options.metaCache` - *Map* - a cache for package meta info.
 * `options.networkConcurrency` - *Number* - `16` by default. Max amount of network requests to perform concurrently.
 * `options.offline` - *Boolean* - `false` by default. Install packages using only the local registry mirror, w/o doing any network requests.
 * `options.reporter` - *Function* - A function that listens for logs.
 * `options.packageManager` - *Object* - The `package.json` of the package manager.
 * `options.hooks` - *Object* - A property that contains installation hooks. Hooks are [documented separately](#hooks).
+* `options.ignoreFile` - *Function & (filename: string) => boolean* - A function that decides which files in a package are ignored. For instance,
+  there's no need in `.travis.yml` files in production, so you can set `{ignoreFile: fn => fn === '.travis.yml'}`.
 
 **Returns:** a Promise
 
@@ -53,10 +54,10 @@ Install packages.
 ```js
 const pnpm = require('pnpm')
 
-pnpm.install({
+pnpm.installPkgs({
   'is-positive': '1.0.0',
   'hello-world': '^2.3.1'
-}, { save: true, quiet: true })
+}, { saveDev: true })
 ```
 
 ### `supi.install([options])`

@@ -62,7 +62,7 @@
     "p-filter": "^1.0.0",
     "p-limit": "^1.1.0",
     "p-series": "^1.0.0",
-    "package-store": "^0.5.2",
+    "package-store": "^0.5.5",
     "path-absolute": "^1.0.0",
     "path-exists": "^3.0.0",
     "path-name": "^1.0.0",

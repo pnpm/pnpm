@@ -88,6 +88,7 @@ export default async function installMultiple (
     update: boolean,
     readPackageHook?: ReadPackageHook,
     hasManifestInShrinkwrap: boolean,
+    ignoreFile?: (filename: string) => boolean,
   }
 ): Promise<PkgAddress[]> {
   const resolvedDependencies = options.resolvedDependencies || {}
@@ -119,6 +120,7 @@ export default async function installMultiple (
               parentIsInstallable: options.parentIsInstallable,
               readPackageHook: options.readPackageHook,
               hasManifestInShrinkwrap: options.hasManifestInShrinkwrap,
+              ignoreFile: options.ignoreFile,
               update,
               proceed,
             },
@@ -232,6 +234,7 @@ async function install (
     proceed: boolean,
     readPackageHook?: ReadPackageHook,
     hasManifestInShrinkwrap: boolean,
+    ignoreFile?: (filename: string) => boolean,
   }
 ): Promise<PkgAddress | null> {
   const keypath = options.keypath || []
@@ -277,6 +280,7 @@ async function install (
     storeIndex: ctx.storeIndex,
     verifyStoreIntegrity: ctx.verifyStoreInegrity,
     downloadPriority: -options.currentDepth,
+    ignore: options.ignoreFile,
   })
 
   if (fetchedPkg.isLocal) {
@@ -419,6 +423,7 @@ async function install (
         readPackageHook: options.readPackageHook,
         hasManifestInShrinkwrap: options.hasManifestInShrinkwrap,
         useManifestInfoFromShrinkwrap,
+        ignoreFile: options.ignoreFile,
       }
     )
     ctx.childrenByParentId[fetchedPkg.id] = children.map(child => ({
@@ -496,6 +501,7 @@ async function installDependencies (
     readPackageHook?: ReadPackageHook,
     hasManifestInShrinkwrap: boolean,
     useManifestInfoFromShrinkwrap: boolean,
+    ignoreFile?: (filename: string) => boolean,
   }
 ): Promise<PkgAddress[]> {
 

@@ -46,6 +46,16 @@ test('small with dependencies (rimraf)', async (t: tape.Test) => {
   await project.isExecutable('.bin/rimraf')
 })
 
+test('ignoring some files in the dependency', async (t: tape.Test) => {
+  const project = prepare(t)
+
+  const ignoreFile = (filename: string) => filename === 'readme.md'
+  await installPkgs(['is-positive@1.0.0'], testDefaults({ignoreFile}))
+
+  t.ok(await exists(path.resolve('node_modules', 'is-positive', 'package.json')), 'package.json was not ignored')
+  t.notOk(await exists(path.resolve('node_modules', 'is-positive', 'readme.md')), 'readme.md was ignored')
+})
+
 test('no dependencies (lodash)', async (t: tape.Test) => {
   const project = prepare(t)
   const reporter = sinon.spy()

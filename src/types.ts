@@ -68,6 +68,8 @@ export type PnpmOptions = {
   hooks?: {
     readPackage?: ReadPackageHook,
   },
+
+  ignoreFile?: (filename: string) => boolean,
 }
 
 export type ReadPackageHook = (pkg: PackageManifest) => PackageManifest
