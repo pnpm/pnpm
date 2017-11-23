@@ -169,6 +169,7 @@ export default (
               opts.integrity && ssri.checkStream(res, opts.integrity),
               unpackStream.local(res, opts.unpackTo, {
                 generateIntegrity: opts.generatePackageIntegrity,
+                ignore: opts.ignore,
               }),
               waitTillClosed({ stream, size, getDownloaded: () => downloaded, url }),
             ])
