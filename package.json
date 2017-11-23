@@ -52,7 +52,7 @@
     "ssri": "^5.0.0",
     "symlink-dir": "^1.0.3",
     "thenify": "^3.3.0",
-    "unpack-stream": "^2.1.0",
+    "unpack-stream": "^2.2.0",
     "write-json-file": "^2.2.0"
   },
   "devDependencies": {

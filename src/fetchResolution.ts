@@ -15,12 +15,15 @@ const gitLogger = logger('git')
 
 const fetchLogger = logger('fetch')
 
+export type IgnoreFunction = (filename: string) => boolean
+
 export interface FetchOptions {
   pkgId: string,
   got: Got,
   storePath: string,
   offline: boolean,
   prefix: string,
+  ignore?: IgnoreFunction,
 }
 
 export interface PackageDist {
@@ -81,7 +84,7 @@ function execGit (args: string[], opts?: object) {
 export function fetchFromTarball (dir: string, dist: PackageDist, opts: FetchOptions) {
   if (dist.tarball.startsWith('file:')) {
     dist = Object.assign({}, dist, {tarball: path.join(opts.prefix, dist.tarball.slice(5))})
-    return fetchFromLocalTarball(dir, dist)
+    return fetchFromLocalTarball(dir, dist, opts.ignore)
   } else {
     return fetchFromRemoteTarball(dir, dist, opts)
   }
@@ -93,7 +96,7 @@ export async function fetchFromRemoteTarball (dir: string, dist: PackageDist, op
     const index = await fetchFromLocalTarball(dir, {
       integrity: dist.integrity,
       tarball: localTarballPath,
-    })
+    }, opts.ignore)
     fetchLogger.debug(`finish ${dist.integrity} ${dist.tarball}`)
     return index
   } catch (err) {
@@ -119,6 +122,13 @@ export async function fetchFromRemoteTarball (dir: string, dist: PackageDist, op
 async function fetchFromLocalTarball (
   dir: string,
   dist: PackageDist,
+  ignore?: IgnoreFunction,
 ): Promise<unpackStream.Index> {
-  return await unpackStream.local(fs.createReadStream(dist.tarball), dir) as unpackStream.Index
+  return await unpackStream.local(
+    fs.createReadStream(dist.tarball),
+    dir,
+    {
+      ignore,
+    },
+  ) as unpackStream.Index
 }

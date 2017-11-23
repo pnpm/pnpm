@@ -11,7 +11,9 @@ import rimraf = require('rimraf-then')
 import symlinkDir = require('symlink-dir')
 import * as unpackStream from 'unpack-stream'
 import writeJsonFile = require('write-json-file')
-import fetchResolution from './fetchResolution'
+import fetchResolution, {
+  IgnoreFunction,
+} from './fetchResolution'
 import pkgIdToFilename from './fs/pkgIdToFilename'
 import {fromDir as readPkgFromDir} from './fs/readPkg'
 import {fromDir as safeReadPkgFromDir} from './fs/safeReadPkg'
@@ -63,6 +65,7 @@ export default async function fetch (
       },
     },
     got: Got,
+    ignore?: IgnoreFunction,
     loggedPkg: LoggedPkg,
     metaCache: Map<string, PackageMeta>,
     offline: boolean,
@@ -124,6 +127,7 @@ export default async function fetch (
     if (!options.fetchingLocker[id]) {
       options.fetchingLocker[id] = fetchToStore({
         got: options.got,
+        ignore: options.ignore,
         offline: options.offline,
         pkg,
         pkgId: id,
@@ -165,6 +169,7 @@ function fetchToStore (opts: {
   storePath: string,
   storeIndex: Store,
   verifyStoreIntegrity: boolean,
+  ignore?: IgnoreFunction,
 }): {
   fetchingFiles: Promise<PackageContentInfo>,
   fetchingPkg: Promise<PackageJson>,
@@ -234,6 +239,7 @@ function fetchToStore (opts: {
         (async () => {
           packageIndex = await fetchResolution(opts.resolution, targetStage, {
             got: opts.got,
+            ignore: opts.ignore,
             offline: opts.offline,
             pkgId: opts.pkgId,
             prefix: opts.prefix,
