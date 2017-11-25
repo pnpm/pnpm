@@ -77,7 +77,7 @@ export type RootLog = {name: 'pnpm:root'} & LogBase & RootMessage
 
 export interface LoggedPkg {
   rawSpec: string,
-  name: string,
+  name?: string, // sometimes known for the root dependency on named installation
   dependentId?: string,
 }
 

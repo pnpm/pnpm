@@ -164,3 +164,11 @@ export interface PackageManifest {
   os?: string[],
   deprecated?: string,
 }
+
+export type WantedDependency = {
+  alias?: string,
+  pref: string, // package reference
+  dev: boolean,
+  optional: boolean,
+  raw: string, // might be not needed
+}

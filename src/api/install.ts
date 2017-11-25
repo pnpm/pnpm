@@ -15,12 +15,15 @@ import {
 } from '../loggers'
 import logStatus from '../logging/logInstallStatus'
 import pLimit = require('p-limit')
-import npa = require('@zkochan/npm-package-arg')
 import pFilter = require('p-filter')
 import R = require('ramda')
 import safeIsInnerLink from '../safeIsInnerLink'
 import {fromDir as safeReadPkgFromDir} from '../fs/safeReadPkg'
-import {PnpmOptions, StrictPnpmOptions} from '../types'
+import {
+  PnpmOptions,
+  StrictPnpmOptions,
+  WantedDependency,
+} from '../types'
 import getContext, {PnpmContext} from './getContext'
 import installMultiple, {InstalledPackage} from '../install/installMultiple'
 import externalLink from './link'
@@ -57,6 +60,7 @@ import {
 } from 'package-store'
 import depsFromPackage from '../depsFromPackage'
 import writePkg = require('write-pkg')
+import parseWantedDependencies from '../parseWantedDependencies'
 
 export type InstalledPackages = {
   [name: string]: InstalledPackage
@@ -84,6 +88,8 @@ export type InstallContext = {
     version: string,
     name: string,
     specRaw: string,
+    spec: PackageSpec,
+    alias: string,
   }[],
   childrenByParentId: {[parentId: string]: {alias: string, pkgId: string}[]},
   nodesToBuild: {
@@ -159,10 +165,10 @@ export async function install (maybeOpts?: PnpmOptions) {
       ctx.wantedShrinkwrap.devDependencies = ctx.wantedShrinkwrap.devDependencies || {}
       ctx.wantedShrinkwrap.optionalDependencies = ctx.wantedShrinkwrap.optionalDependencies || {}
       for (const spec of specs) {
-        if (ctx.wantedShrinkwrap.specifiers[spec.name] !== spec.rawSpec) {
-          delete ctx.wantedShrinkwrap.dependencies[spec.name]
-          delete ctx.wantedShrinkwrap.devDependencies[spec.name]
-          delete ctx.wantedShrinkwrap.optionalDependencies[spec.name]
+        if (spec.alias && ctx.wantedShrinkwrap.specifiers[spec.alias] !== spec.pref) {
+          delete ctx.wantedShrinkwrap.dependencies[spec.alias]
+          delete ctx.wantedShrinkwrap.devDependencies[spec.alias]
+          delete ctx.wantedShrinkwrap.optionalDependencies[spec.alias]
         }
       }
     }
@@ -215,10 +221,9 @@ function specsToInstallFromPackage(
   opts: {
     prefix: string,
   }
-): PackageSpec[] {
+): WantedDependency[] {
   const depsToInstall = depsFromPackage(pkg)
   return depsToSpecs(depsToInstall, {
-    where: opts.prefix,
     optionalDependencies: pkg.optionalDependencies || {},
     devDependencies: pkg.devDependencies || {},
   })
@@ -253,25 +258,23 @@ export async function installPkgs (fuzzyDeps: string[] | Dependencies, maybeOpts
   async function _installPkgs () {
     const installType = 'named'
     const ctx = await getContext(opts, installType)
-    const existingSpecs = opts.global ? {} : depsFromPackage(ctx.pkg)
+    const currentPrefs = opts.global ? {} : depsFromPackage(ctx.pkg)
     const saveType = getSaveType(opts)
     const optionalDependencies = saveType ? {} : ctx.pkg.optionalDependencies || {}
     const devDependencies = saveType ? {} : ctx.pkg.devDependencies || {}
     let packagesToInstall = Array.isArray(fuzzyDeps)
-      ? argsToSpecs(fuzzyDeps, {
+      ? parseWantedDependencies(fuzzyDeps, {
         defaultTag: opts.tag,
-        where: opts.prefix,
         dev: opts.saveDev,
         optional: opts.saveOptional,
-        existingSpecs,
+        currentPrefs,
         optionalDependencies,
         devDependencies,
       })
       : similarDepsToSpecs(fuzzyDeps, {
-        where: opts.prefix,
         dev: opts.saveDev,
         optional: opts.saveOptional,
-        existingSpecs,
+        currentPrefs,
         optionalDependencies,
         devDependencies,
       })
@@ -290,47 +293,17 @@ export async function installPkgs (fuzzyDeps: string[] | Dependencies, maybeOpts
       return installInContext(
         installType,
         packagesToInstall,
-        packagesToInstall.map(spec => spec.name),
+        packagesToInstall.map(wantedDependency => wantedDependency.raw),
         ctx,
         opts)
     }
   }
 }
 
-function argsToSpecs (
-  args: string[],
-  opts: {
-    defaultTag: string,
-    where: string,
-    dev: boolean,
-    optional: boolean,
-    existingSpecs: Dependencies,
-    optionalDependencies: Dependencies,
-    devDependencies: Dependencies,
-  }
-): PackageSpec[] {
-  return args
-    .map(arg => npa(arg, opts.where))
-    .map(spec => {
-      if (!spec.rawSpec && opts.existingSpecs[spec.name]) {
-        return npa.resolve(spec.name, opts.existingSpecs[spec.name], opts.where)
-      }
-      if (spec.type === 'tag' && !spec.rawSpec) {
-        spec.fetchSpec = opts.defaultTag
-      }
-      return spec
-    })
-    .map(spec => {
-      spec.dev = opts.dev || !!opts.devDependencies[spec.name]
-      spec.optional = opts.optional || !!opts.optionalDependencies[spec.name]
-      return spec
-    })
-}
-
 async function installInContext (
   installType: string,
-  packagesToInstall: PackageSpec[],
-  newPkgs: string[],
+  packagesToInstall: WantedDependency[],
+  newPkgRawSpecs: string[],
   ctx: PnpmContext,
   opts: StrictPnpmOptions
 ) {
@@ -377,8 +350,8 @@ async function installInContext (
       }
       if (R.equals(ctx.wantedShrinkwrap.packages, ctx.currentShrinkwrap.packages)) {
         return opts.repeatInstallDepth
-       }
-       return Infinity
+      }
+      return Infinity
     })(),
     prefix: opts.prefix,
     offline: opts.offline,
@@ -416,22 +389,22 @@ async function installInContext (
     ignoreFile: opts.ignoreFile,
   }
   const nonLinkedPkgs = await pFilter(packagesToInstall,
-    async (spec: PackageSpec) => {
-        if (!spec.name) return true
-        const isInnerLink = await safeIsInnerLink(nodeModulesPath, spec.name, {
+    async (wantedDependency: WantedDependency) => {
+        if (!wantedDependency.alias) return true
+        const isInnerLink = await safeIsInnerLink(nodeModulesPath, wantedDependency.alias, {
           storePath: ctx.storePath,
         })
         if (isInnerLink === true) return true
         rootLogger.debug({
           linked: {
-            name: spec.name,
+            name: wantedDependency.alias,
             from: isInnerLink as string,
             to: nodeModulesPath,
-            dependencyType: spec.dev && 'dev' || spec.optional && 'optional' || 'prod',
+            dependencyType: wantedDependency.dev && 'dev' || wantedDependency.optional && 'optional' || 'prod',
           },
         })
         // This info-log might be better to be moved to the reporter
-        logger.info(`${spec.name} is linked to ${nodeModulesPath} from ${isInnerLink}`)
+        logger.info(`${wantedDependency.alias} is linked to ${nodeModulesPath} from ${isInnerLink}`)
         return false
     })
   const rootPkgs = await installMultiple(
@@ -450,33 +423,31 @@ async function installInContext (
     }
   })
   const rootNodeIdsByAlias = rootPkgs
-    .map(rootPkg => rootPkg.nodeId)
-    .reduce((rootNodeIdsByAlias, rootNodeId) => {
-      const pkg = installCtx.tree[rootNodeId].pkg
+    .reduce((rootNodeIdsByAlias, rootPkg) => {
+      const pkg = installCtx.tree[rootPkg.nodeId].pkg
       const specRaw = pkg.specRaw
       const spec = R.find(spec => spec.raw === specRaw, packagesToInstall)
-      rootNodeIdsByAlias[spec && (spec['alias'] || spec.name) || pkg.name] = rootNodeId
+      rootNodeIdsByAlias[rootPkg.alias] = rootPkg.nodeId
       return rootNodeIdsByAlias
     }, {})
-  const pkgs: InstalledPackage[] = R.props<TreeNode>(R.values(rootNodeIdsByAlias), installCtx.tree).map(node => node.pkg)
-  const pkgsToSave = (pkgs as {
-    optional: boolean,
-    dev: boolean,
-    resolution: Resolution,
-    id: string,
-    version: string,
-    name: string,
-    specRaw: string,
-  }[])
+  const pkgsToSave = (
+    rootPkgs
+      .map(rootPkg => ({
+        ...installCtx.tree[rootPkg.nodeId].pkg,
+        alias: rootPkg.alias,
+        spec: rootPkg.spec,
+      })) as {
+        alias: string,
+        optional: boolean,
+        dev: boolean,
+        resolution: Resolution,
+        id: string,
+        version: string,
+        name: string,
+        specRaw: string,
+        spec: PackageSpec,
+      }[])
   .concat(installCtx.localPackages)
-  .map(dep => {
-    const spec = R.find(spec => spec.raw === dep.specRaw, packagesToInstall)
-    return {
-      ...dep,
-      spec: spec,
-      alias: spec && (spec['alias'] || spec.name) || dep.name
-    }
-  })
 
   let newPkg: PackageJson | undefined = ctx.pkg
   if (installType === 'named') {
@@ -492,7 +463,7 @@ async function installInContext (
         .map(dep => {
           return {
             name: dep.alias,
-            saveSpec: getSaveSpec(dep.spec as PackageSpec, dep.version, {
+            saveSpec: getSaveSpec(dep.spec as PackageSpec, dep.alias, dep.name, dep.version, {
               saveExact: opts.saveExact,
               savePrefix: opts.savePrefix,
             })
@@ -545,15 +516,22 @@ async function installInContext (
     }
   }
 
+  const topParents = ctx.pkg
+    ? await getTopParents(
+        R.difference(
+          R.keys(depsFromPackage(ctx.pkg)),
+          newPkgRawSpecs && pkgsToSave.filter(pkgToSave => newPkgRawSpecs.indexOf(pkgToSave.specRaw) !== -1).map(pkg => pkg.alias) || []
+        ),
+        nodeModulesPath
+      )
+    : []
+
   const result = await linkPackages(rootNodeIdsByAlias, installCtx.tree, {
     force: opts.force,
     global: opts.global,
     baseNodeModules: nodeModulesPath,
     bin: opts.bin,
-    topParents: ctx.pkg
-      ? await getTopParents(
-          R.difference(R.keys(depsFromPackage(ctx.pkg)), newPkgs), nodeModulesPath)
-      : [],
+    topParents,
     wantedShrinkwrap: ctx.wantedShrinkwrap,
     production: opts.production,
     development: opts.development,
@@ -680,6 +658,8 @@ async function getTopParents (pkgNames: string[], modules: string) {
 
 function getSaveSpec (
   spec: PackageSpec,
+  alias: string,
+  pkgName: string,
   version: string,
   opts: {
     saveExact: boolean,
@@ -690,7 +670,7 @@ function getSaveSpec (
     case 'version':
     case 'range':
     case 'tag':
-      let prefix = spec['alias'] ? `npm:${spec.name}@` : ''
+      let prefix = alias !== pkgName ? `npm:${spec.name}@` : ''
       if (opts.saveExact) return `${prefix}${version}`
       return `${prefix}${opts.savePrefix}${version}`
     default:

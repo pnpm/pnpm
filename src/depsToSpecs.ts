@@ -1,57 +1,40 @@
 import {Dependencies} from '@pnpm/types'
-import npa = require('@zkochan/npm-package-arg')
 import {PackageSpec} from 'package-store'
+import {WantedDependency} from './types'
 
 export default function (
   deps: Dependencies,
   opts: {
-    where: string,
     optionalDependencies: Dependencies,
     devDependencies: Dependencies,
   }
-): PackageSpec[] {
+): WantedDependency[] {
   if (!deps) return []
-  return Object.keys(deps).map(pkgName => depToSpec({
-    pkgName,
-    pkgVersion: deps[pkgName],
-    where: opts.where,
-    dev: !!opts.devDependencies[pkgName],
-    optional: !!opts.optionalDependencies[pkgName],
+  return Object.keys(deps).map(alias => ({
+    alias,
+    pref: deps[alias],
+    dev: !!opts.devDependencies[alias],
+    optional: !!opts.optionalDependencies[alias],
+    raw: `${alias}@${deps[alias]}`,
   }))
 }
 
 export function similarDepsToSpecs (
   deps: Dependencies,
   opts: {
-    where: string,
     dev: boolean,
     optional: boolean,
     optionalDependencies: Dependencies,
     devDependencies: Dependencies,
-    existingSpecs: Dependencies,
+    currentPrefs: Dependencies,
   }
-): PackageSpec[] {
+): WantedDependency[] {
   if (!deps) return []
-  return Object.keys(deps).map(pkgName => depToSpec({
-    pkgName,
-    pkgVersion: deps[pkgName] || opts.existingSpecs[pkgName],
-    where: opts.where,
-    dev: opts.dev || !!opts.devDependencies[pkgName],
-    optional: opts.optional || !!opts.optionalDependencies[pkgName],
+  return Object.keys(deps).map(alias => ({
+    alias,
+    pref: deps[alias] || opts.currentPrefs[alias],
+    dev: opts.dev || !!opts.devDependencies[alias],
+    optional: opts.optional || !!opts.optionalDependencies[alias],
+    raw: `${alias}@${deps[alias]}`,
   }))
-}
-
-function depToSpec (
-  opts: {
-    pkgName: string,
-    pkgVersion: string,
-    where: string,
-    dev: boolean,
-    optional: boolean,
-  }
-): PackageSpec {
-  const spec = npa.resolve(opts.pkgName, opts.pkgVersion, opts.where)
-  spec.dev = opts.dev
-  spec.optional = opts.optional
-  return spec
 }

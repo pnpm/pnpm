@@ -273,3 +273,8 @@ declare module '@zkochan/npm-lifecycle' {
   const anything: any;
   export = anything;
 }
+
+declare module 'validate-npm-package-name' {
+  const anything: any;
+  export = anything;
+}

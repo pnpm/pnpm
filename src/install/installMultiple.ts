@@ -17,7 +17,8 @@ import {
 import {InstallContext, InstalledPackages} from '../api/install'
 import {
   ReadPackageHook,
-  PackageManifest
+  PackageManifest,
+  WantedDependency,
 } from '../types'
 import {
   Dependencies,
@@ -41,6 +42,7 @@ export type PkgAddress = {
   alias: string,
   nodeId: string,
   pkgId: string,
+  spec?: PackageSpec, // is returned only for root dependencies
 }
 
 export type InstalledPackage = {
@@ -74,7 +76,7 @@ export type InstalledPackage = {
 
 export default async function installMultiple (
   ctx: InstallContext,
-  specs: PackageSpec[],
+  wantedDependencies: WantedDependency[],
   options: {
     keypath: string[],
     parentNodeId: string,
@@ -96,9 +98,9 @@ export default async function installMultiple (
   const update = options.update && options.currentDepth <= ctx.depth
   const pkgAddresses = <PkgAddress[]>(
     await Promise.all(
-      specs
-        .map(async (spec: PackageSpec) => {
-          let reference = resolvedDependencies[spec.name]
+      wantedDependencies
+        .map(async (wantedDependency: WantedDependency) => {
+          let reference = wantedDependency.alias && resolvedDependencies[wantedDependency.alias]
           let proceed = false
 
           // If dependencies that were used by the previous version of the package
@@ -107,13 +109,14 @@ export default async function installMultiple (
           // So for example, if foo@1.0.0 had bar@1.0.0 as a dependency
           // and foo was updated to 1.1.0 which depends on bar ^1.0.0
           // then bar@1.0.0 can be reused for foo@1.1.0
-          if (!reference && spec.type === 'range' && preferedDependencies[spec.name] &&
-            refSatisfies(preferedDependencies[spec.name], spec.fetchSpec)) {
+          if (!reference && wantedDependency.alias && semver.validRange(wantedDependency.pref) !== null &&
+            preferedDependencies[wantedDependency.alias] &&
+            refSatisfies(preferedDependencies[wantedDependency.alias], wantedDependency.pref)) {
             proceed = true
-            reference = preferedDependencies[spec.name]
+            reference = preferedDependencies[wantedDependency.alias]
           }
 
-          return await install(spec, ctx, Object.assign({
+          return await install(wantedDependency, ctx, Object.assign({
               keypath: options.keypath,
               parentNodeId: options.parentNodeId,
               currentDepth: options.currentDepth,
@@ -124,7 +127,7 @@ export default async function installMultiple (
               update,
               proceed,
             },
-            getInfoFromShrinkwrap(ctx.wantedShrinkwrap, reference, spec.name, ctx.registry)))
+            getInfoFromShrinkwrap(ctx.wantedShrinkwrap, reference, wantedDependency.alias, ctx.registry)))
         })
     )
   )
@@ -147,8 +150,8 @@ function refSatisfies (reference: string, range: string) {
 
 function getInfoFromShrinkwrap (
   shrinkwrap: Shrinkwrap,
-  reference: string,
-  pkgName: string,
+  reference: string | undefined,
+  pkgName: string | undefined,
   registry: string,
 ) {
   if (!reference || !pkgName) {
@@ -216,7 +219,7 @@ function dependencyShrToResolution (
 }
 
 async function install (
-  spec: PackageSpec,
+  wantedDependency: WantedDependency,
   ctx: InstallContext,
   options: {
     keypath: string[], // TODO: remove. Currently used only for logging
@@ -246,18 +249,19 @@ async function install (
     // we can safely assume that it doesn't exist in `node_modules`
     options.dependencyPath && ctx.currentShrinkwrap.packages && ctx.currentShrinkwrap.packages[options.dependencyPath] &&
     await exists(path.join(ctx.nodeModules, `.${options.absoluteDependencyPath}`)) && (
-      options.currentDepth > 0 || await exists(path.join(ctx.nodeModules, spec.name))
+      options.currentDepth > 0 || wantedDependency.alias && await exists(path.join(ctx.nodeModules, wantedDependency.alias))
     )) {
 
     return null
   }
 
-  const registry = normalizeRegistry(spec.scope && ctx.rawNpmConfig[`${spec.scope}:registry`] || ctx.registry)
+  const scope = wantedDependency.alias && getScope(wantedDependency.alias)
+  const registry = normalizeRegistry(scope && ctx.rawNpmConfig[`${scope}:registry`] || ctx.registry)
 
   const dependentId = keypath[keypath.length - 1]
   const loggedPkg = {
-    rawSpec: spec.rawSpec,
-    name: spec.name,
+    rawSpec: wantedDependency.raw,
+    name: wantedDependency.alias,
     dependentId,
   }
   logStatus({
@@ -265,7 +269,7 @@ async function install (
     pkg: loggedPkg,
   })
 
-  const fetchedPkg = await fetch(spec, {
+  const fetchedPkg = await fetch({alias: wantedDependency.alias, fetchSpec: wantedDependency.pref}, {
     loggedPkg,
     update: options.update,
     fetchingLocker: ctx.fetchingLocker,
@@ -286,16 +290,18 @@ async function install (
   if (fetchedPkg.isLocal) {
     const pkg = fetchedPkg.pkg
     if (options.currentDepth > 0) {
-      logger.warn(`Ignoring file dependency because it is not a root dependency ${spec}`)
+      logger.warn(`Ignoring file dependency because it is not a root dependency ${wantedDependency}`)
     } else {
       ctx.localPackages.push({
+        alias: wantedDependency.alias || pkg.name,
         id: fetchedPkg.id,
-        specRaw: spec.raw,
+        specRaw: wantedDependency.raw,
         name: pkg.name,
         version: pkg.version,
-        dev: spec.dev,
-        optional: spec.optional,
+        dev: wantedDependency.dev,
+        optional: wantedDependency.optional,
         resolution: fetchedPkg.resolution,
+        spec: fetchedPkg.spec as PackageSpec,
       })
     }
     logStatus({status: 'downloaded_manifest', pkgId: fetchedPkg.id, pkgVersion: pkg.version})
@@ -358,7 +364,7 @@ async function install (
       await getIsInstallable(fetchedPkg.id, pkg, fetchedPkg, {
         nodeId,
         installs: ctx.installs,
-        optional: spec.optional,
+        optional: wantedDependency.optional,
         engineStrict: ctx.engineStrict,
         nodeVersion: ctx.nodeVersion,
         pnpmVersion: ctx.pnpmVersion,
@@ -381,15 +387,15 @@ async function install (
     ctx.installs[fetchedPkg.id] = {
       id: fetchedPkg.id,
       resolution: fetchedPkg.resolution,
-      optional: spec.optional,
+      optional: wantedDependency.optional,
       name: pkg.name,
       version: pkg.version,
-      prod: !spec.dev && !spec.optional,
-      dev: spec.dev,
+      prod: !wantedDependency.dev && !wantedDependency.optional,
+      dev: wantedDependency.dev,
       fetchingFiles: fetchedPkg.fetchingFiles,
       calculatingIntegrity: fetchedPkg.calculatingIntegrity,
       path: fetchedPkg.path,
-      specRaw: spec.raw,
+      specRaw: wantedDependency.raw,
       peerDependencies: peerDependencies || {},
       optionalDependencies: new Set(R.keys(pkg.optionalDependencies)),
       hasBundledDependencies: !!(pkg.bundledDependencies || pkg.bundleDependencies),
@@ -405,7 +411,6 @@ async function install (
     }
     const children = await installDependencies(
       pkg,
-      spec,
       ctx,
       {
         parentIsInstallable: installable,
@@ -440,12 +445,12 @@ async function install (
       installable,
     }
   } else {
-    ctx.installs[fetchedPkg.id].prod = ctx.installs[fetchedPkg.id].prod || !spec.dev && !spec.optional
-    ctx.installs[fetchedPkg.id].dev = ctx.installs[fetchedPkg.id].dev || spec.dev
-    ctx.installs[fetchedPkg.id].optional = ctx.installs[fetchedPkg.id].optional && spec.optional
+    ctx.installs[fetchedPkg.id].prod = ctx.installs[fetchedPkg.id].prod || !wantedDependency.dev && !wantedDependency.optional
+    ctx.installs[fetchedPkg.id].dev = ctx.installs[fetchedPkg.id].dev || wantedDependency.dev
+    ctx.installs[fetchedPkg.id].optional = ctx.installs[fetchedPkg.id].optional && wantedDependency.optional
 
     ctx.nodesToBuild.push({
-      alias: spec['alias'] || spec.name,
+      alias: wantedDependency.alias || pkg.name,
       nodeId,
       pkg: ctx.installs[fetchedPkg.id],
       depth: options.currentDepth,
@@ -454,16 +459,24 @@ async function install (
   }
   // we need this for saving to package.json
   if (options.currentDepth === 0) {
-    ctx.installs[fetchedPkg.id].specRaw = spec.raw
+    ctx.installs[fetchedPkg.id].specRaw = wantedDependency.raw
   }
 
   logStatus({status: 'dependencies_installed', pkgId: fetchedPkg.id})
 
   return {
-    alias: spec['alias'] || spec.name,
+    alias: wantedDependency.alias || pkg.name,
     nodeId,
     pkgId: fetchedPkg.id,
+    spec: options.currentDepth === 0 ? fetchedPkg.spec : undefined,
   }
+}
+
+function getScope (pkgName: string): string | null {
+  if (pkgName[0] === '@') {
+    return pkgName.substr(0, pkgName.indexOf('/'))
+  }
+  return null
 }
 
 function peerDependenciesWithoutOwn (pkg: PackageManifest) {
@@ -487,7 +500,6 @@ function normalizeRegistry (registry: string) {
 
 async function installDependencies (
   pkg: PackageManifest,
-  parentSpec: PackageSpec,
   ctx: InstallContext,
   opts: {
     keypath: string[],
@@ -510,7 +522,6 @@ async function installDependencies (
   let deps = depsToSpecs(
     filterDeps({...pkg.optionalDependencies, ...pkg.dependencies}),
     {
-      where: ctx.prefix,
       devDependencies: pkg.devDependencies || {},
       optionalDependencies: pkg.optionalDependencies || {},
     }
@@ -518,9 +529,8 @@ async function installDependencies (
   if (opts.hasManifestInShrinkwrap && !deps.length && opts.resolvedDependencies && opts.useManifestInfoFromShrinkwrap) {
     const optionalDependencyNames = opts.optionalDependencyNames || []
     deps = R.keys(opts.resolvedDependencies)
-      .map(depName => (<PackageSpec>{
-        name: depName,
-        scope: depName[0] === '@' ? depName.split('/')[0] : null,
+      .map(depName => (<WantedDependency>{
+        alias: depName,
         optional: optionalDependencyNames.indexOf(depName) !== -1,
       }))
   }
