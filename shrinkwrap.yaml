@@ -5,6 +5,7 @@ dependencies:
   '@types/ramda': 0.25.6
   '@types/retry': 0.10.2
   '@types/semver': 5.4.0
+  '@zkochan/npm-package-arg': 1.0.0
   credentials-by-uri: 1.0.0
   dint: 1.0.0
   drive-by-path: 1.0.0
@@ -150,6 +151,15 @@ packages:
     dev: true
     resolution:
       integrity: sha512-JdO/UpPm9RrtQBNVcZdt3M7j3mHO/kXaea9LBGx3UgWJd1f9BkIWP7jObLBG6ZtRyqp7KzLFEsaPhWcidVittA==
+  /@zkochan/npm-package-arg/1.0.0:
+    dependencies:
+      hosted-git-info: 2.5.0
+      osenv: 0.1.4
+      semver: 5.4.1
+      validate-npm-package-name: 3.0.0
+    dev: false
+    resolution:
+      integrity: sha512-ufMBw0x+4y7uaiPu1uhwMaHaysLB57+EJoo63DGf28FG+TIrYiIIE886qSNXuDqyhqt+PVsRLB9e8+QVGe+Dtg==
   /ajv/5.4.0:
     dependencies:
       co: 4.6.0
@@ -357,7 +367,6 @@ packages:
     resolution:
       integrity: sha1-Jw8HbFpywC9bZaR9+Uxf46J4iS8=
   /builtins/1.0.3:
-    dev: true
     resolution:
       integrity: sha1-y5T662HIaWRR2zZTThQi+U8K7og=
   /bzip2-maybe/1.0.0:
@@ -2105,7 +2114,6 @@ packages:
     resolution:
       integrity: sha1-a2LDeRz3kJ6jXtRuF2WLtBfLORc=
   /os-tmpdir/1.0.2:
-    dev: true
     engines:
       node: '>=0.10.0'
     resolution:
@@ -2114,7 +2122,6 @@ packages:
     dependencies:
       os-homedir: 1.0.2
       os-tmpdir: 1.0.2
-    dev: true
     resolution:
       integrity: sha1-Qv5tWVPfBsgGS+bxdsPQWqqjRkQ=
   /p-cancelable/0.3.0:
@@ -3168,7 +3175,6 @@ packages:
   /validate-npm-package-name/3.0.0:
     dependencies:
       builtins: 1.0.3
-    dev: true
     resolution:
       integrity: sha1-X6kS2B630MdK/BQN5zF/DKffQ34=
   /verror/1.10.0:
@@ -3247,6 +3253,7 @@ specifiers:
   '@types/retry': ^0.10.1
   '@types/semver': ^5.3.32
   '@types/tape': ^4.2.30
+  '@zkochan/npm-package-arg': ^1.0.0
   commitizen: ^2.8.6
   credentials-by-uri: ^1.0.0
   cz-conventional-changelog: ^2.0.0

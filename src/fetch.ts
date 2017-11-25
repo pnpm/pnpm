@@ -1,5 +1,6 @@
 import logger from '@pnpm/logger'
 import {PackageJson} from '@pnpm/types'
+import npa = require('@zkochan/npm-package-arg')
 import {Stats} from 'fs'
 import loadJsonFile = require('load-json-file')
 import mkdirp = require('mkdirp-promise')
@@ -39,6 +40,7 @@ export type FetchedPackage = {
   resolution: DirectoryResolution,
   pkg: PackageJson,
   id: string,
+  spec?: PackageSpec,
 } | {
   isLocal: false,
   fetchingPkg: Promise<PackageJson>,
@@ -51,10 +53,14 @@ export type FetchedPackage = {
   // If latest does not equal the version of the
   // resolved package, it is out-of-date.
   latest?: string,
+  spec?: PackageSpec,
 }
 
 export default async function fetch (
-  spec: PackageSpec,
+  mspec: {
+    alias?: string,
+    fetchSpec: string,
+  },
   options: {
     downloadPriority: number,
     fetchingLocker: {
@@ -82,9 +88,11 @@ export default async function fetch (
   try {
     let latest: string | undefined
     let pkg: PackageJson | undefined
+    let spec: PackageSpec | undefined
     let resolution = options.shrinkwrapResolution
     let pkgId = options.pkgId
     if (!resolution || options.update) {
+      spec = parseMinimalSpec(mspec, options.prefix)
       const resolveResult = await resolvePkg(spec, {
         downloadPriority: options.downloadPriority,
         got: options.got,
@@ -118,6 +126,7 @@ export default async function fetch (
         isLocal: true,
         pkg,
         resolution,
+        spec,
       }
     }
 
@@ -150,6 +159,7 @@ export default async function fetch (
       latest,
       path: target,
       resolution,
+      spec,
     }
   } catch (err) {
     progressLogger.debug({status: 'error', pkg: options.loggedPkg})
@@ -316,4 +326,17 @@ function differed<T> (): {
     reject: pReject,
     resolve: pResolve,
   }
+}
+
+function parseMinimalSpec (
+  mspec: {
+    alias?: string,
+    fetchSpec: string,
+  },
+  where: string,
+): PackageSpec {
+  if (mspec.alias) {
+    return npa.resolve(mspec.alias, mspec.fetchSpec, where)
+  }
+  return npa(mspec.fetchSpec, where)
 }

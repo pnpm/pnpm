@@ -7,7 +7,7 @@ export const progressLogger = baseLogger('progress') as Logger<ProgressMessage>
 
 export interface LoggedPkg {
   rawSpec: string,
-  name: string,
+  name?: string,
   dependentId?: string,
 }
 
