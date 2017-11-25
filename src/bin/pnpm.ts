@@ -9,6 +9,7 @@ import loudRejection = require('loud-rejection')
 loudRejection()
 import camelcase = require('camelcase')
 import {stripIndent} from 'common-tags'
+import ignore = require('ignorable')
 import isCI = require('is-ci')
 import nopt = require('nopt')
 import npm = require('not-bundled-npm')
@@ -103,6 +104,7 @@ async function run (argv: string[]) {
     'child-concurrency': Number,
     'fetching-concurrency': Number,
     'global-path': path,
+    'ignore-files-level': [false, 'safe', 'unsafe'],
     'independent-leaves': Boolean,
     'lock': Boolean,
     'lock-stale-duration': Number,
@@ -186,6 +188,16 @@ async function run (argv: string[]) {
     opts.production = true
     opts.development = true
     opts.optional = true
+  }
+  switch (opts.ignoreFilesLevel) {
+    case 'safe': {
+      opts.ignoreFile = ignore.safe
+      break
+    }
+    case 'unsafe': {
+      opts.ignoreFile = ignore
+      break
+    }
   }
 
   initReporter(silent ? 'silent' : (<any>opts.reporter || 'default')) // tslint:disable-line

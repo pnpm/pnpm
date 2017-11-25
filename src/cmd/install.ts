@@ -1,3 +1,4 @@
+import ignorable = require('ignorable')
 import {install, installPkgs, PnpmOptions} from 'supi'
 import requireHooks from '../requireHooks'
 

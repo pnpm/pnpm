@@ -206,6 +206,17 @@ that rely on location but gives an average of **8% installation speed improvemen
 
 If false, doesn't check whether packages in the store were mutated.
 
+#### ignore-files-level
+
+* Default: **false**
+* Type: **false|'safe'|'unsafe'**
+
+**Experimental.** Ignores files that are not needed in production, when unpacking dependencies. Can noticeably improve speed
+on packages with lots of dependencies (>1000).
+
+The main difference between the `'safe'` and `'unsafe'` modes is that unsafe ignores the LICENSE files.
+Ignoring license might be dangerous from legal point of view. Use it at your own risk.
+
 ### Hooks
 
 pnpm allows to step directly into the installation process via special functions called *hooks*.

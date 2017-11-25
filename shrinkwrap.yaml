@@ -8,6 +8,7 @@ dependencies:
   common-tags: 1.5.1
   cross-spawn: 5.1.0
   graceful-fs: 4.1.11
+  ignorable: 1.1.2
   is-ci: 1.0.10
   load-json-file: 4.0.0
   loud-rejection: 1.6.0
@@ -2415,6 +2416,12 @@ packages:
     dev: false
     resolution:
       integrity: sha1-xg7taebY/bazEEofy8ocGS3FtQE=
+  /ignorable/1.1.2:
+    dev: false
+    engines:
+      node: '>=4'
+    resolution:
+      integrity: sha512-6EKNKcj8vradevJlso7qB7k53Cl78wq0fWTSEM5hGo3kekNXg4A3yoYEEB9iOUYvsKdtwRd1r0lt50JyANj1/w==
   /ignore-walk/3.0.1:
     dependencies:
       minimatch: 3.0.4
@@ -6120,6 +6127,7 @@ specifiers:
   execa: ^0.7.0
   exists-link: ^2.0.0
   graceful-fs: ^4.1.11
+  ignorable: ^1.1.2
   is-ci: ^1.0.10
   is-windows: ^1.0.1
   isexe: ^2.0.0
