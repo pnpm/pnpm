@@ -48,44 +48,8 @@ export interface ResolveResult {
   resolution: Resolution,
   package?: PackageJson,
   latest?: string,
+  normalizedPref?: string, // is null for npm-hosted dependencies
 }
-
-export type HostedPackageSpec = PackageSpecBase & {
-  type: 'git',
-  registry: false,
-  gitCommittish: string,
-  hosted?: {
-    type: string,
-    shortcut: string,
-    sshUrl: string,
-    user: string,
-    project: string,
-    committish: string,
-  },
-}
-
-export type RegistryPackageSpec = PackageSpecBase & {
-  type: 'tag' | 'version' | 'range',
-  registry: true,
-}
-
-export interface PackageSpecBase {
-  raw: string,
-  rawSpec: string
-  name: string,
-  scope: string,
-  saveSpec: string,
-  fetchSpec: string,
-  dev: boolean,
-  optional: boolean,
-}
-
-export type PackageSpec = HostedPackageSpec |
-  RegistryPackageSpec |
-  PackageSpecBase & {
-    type: 'directory' | 'file' | 'remote',
-    registry: false,
-  }
 
 export interface ResolveOptions {
   loggedPkg: LoggedPkg,
@@ -96,6 +60,11 @@ export interface ResolveOptions {
   prefix: string,
   offline: boolean,
   downloadPriority: number,
+}
+
+export interface WantedDependency {
+  alias?: string,
+  pref: string,
 }
 
 /**
@@ -112,21 +81,14 @@ export interface ResolveOptions {
  *         }
  *       })
  */
-export default async function (spec: PackageSpec, opts: ResolveOptions): Promise<ResolveResult> {
-  switch (spec.type) {
-    case 'range':
-    case 'version':
-    case 'tag':
-      return resolveFromNpm(spec, opts)
-    case 'remote':
-      return resolveFromTarball(spec, opts)
-    case 'directory':
-    case 'file':
-      return resolveFromLocal(spec, opts)
-    case 'git':
-      return resolveFromGit(spec, opts)
-    default:
-      // tslint:disable-next-line
-      throw new Error(`${spec['rawSpec']}: ${spec['type']} packages not supported`)
-  }
+export default async function (
+  wantedDependency: WantedDependency,
+  opts: ResolveOptions,
+): Promise<ResolveResult> {
+  const resolution = await resolveFromNpm(wantedDependency, opts)
+    || await resolveFromTarball(wantedDependency, opts)
+    || await resolveFromGit(wantedDependency, opts)
+    || await resolveFromLocal(wantedDependency, opts)
+  if (resolution) return resolution
+  throw new Error(`Cannot resolve ${wantedDependency.alias ? wantedDependency.alias + '@' : ''}${wantedDependency.pref} packages not supported`)
 }

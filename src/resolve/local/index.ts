@@ -3,23 +3,31 @@ import normalize = require('normalize-path')
 import path = require('path')
 import {
   DirectoryResolution,
-  PackageSpec,
   ResolveOptions,
   ResolveResult,
   TarballResolution,
-} from '.'
-import {fromDir as readPkgFromDir} from '../fs/readPkg'
+  WantedDependency,
+} from '..'
+import {fromDir as readPkgFromDir} from '../../fs/readPkg'
+import parsePref from './parsePref'
 
 /**
  * Resolves a package hosted on the local filesystem
  */
-export default async function resolveLocal (spec: PackageSpec, opts: ResolveOptions): Promise<ResolveResult> {
+export default async function resolveLocal (
+  wantedDependency: WantedDependency,
+  opts: ResolveOptions,
+): Promise<ResolveResult | null> {
+  const spec = parsePref(wantedDependency.pref, opts.prefix)
+  if (!spec) return null
+
   const dependencyPath = normalize(path.relative(opts.prefix, spec.fetchSpec))
   const id = `file:${dependencyPath}`
 
   if (spec.type === 'file') {
     return {
       id,
+      normalizedPref: spec.normalizedPref,
       resolution: { tarball: id },
     }
   }
@@ -31,6 +39,7 @@ export default async function resolveLocal (spec: PackageSpec, opts: ResolveOpti
   }
   return {
     id,
+    normalizedPref: spec.normalizedPref,
     package: localPkg,
     resolution,
   }

@@ -7,7 +7,6 @@ import pkgIsUntouched from './pkgIsUntouched'
 import resolve, {
   DirectoryResolution,
   PackageMeta,
-  PackageSpec,
   Resolution,
 } from './resolve'
 import resolveStore from './resolveStore'
@@ -18,7 +17,6 @@ export {
   PackageContentInfo,
   FetchedPackage,
   resolve,
-  PackageSpec,
   DirectoryResolution,
   Resolution,
   PackageMeta,

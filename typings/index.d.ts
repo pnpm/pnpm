@@ -253,3 +253,13 @@ declare module '@zkochan/npm-package-arg' {
   const anything: any;
   export = anything;
 }
+
+declare module 'hosted-git-info' {
+  const anything: any;
+  export = anything;
+}
+
+declare module 'osenv' {
+  const anything: any;
+  export = anything;
+}

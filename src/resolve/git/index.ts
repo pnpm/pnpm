@@ -4,22 +4,31 @@ import normalizeSsh = require('normalize-ssh')
 import path = require('path')
 import {
   GitRepositoryResolution,
-  HostedPackageSpec,
-  PackageSpec,
   ResolveOptions,
   ResolveResult,
   TarballResolution,
-} from '.'
-import {Got} from '../network/got'
+  WantedDependency,
+} from '..'
+import {Got} from '../../network/got'
+import parsePref, {HostedPackageSpec} from './parsePref'
+
+export {HostedPackageSpec}
 
 const gitLogger = logger // TODO: add namespace 'git-logger'
 
 let tryGitHubApi = true
 
-export default async function resolveGit (parsedSpec: HostedPackageSpec, opts: ResolveOptions): Promise<ResolveResult> {
-  const isGitHubHosted = parsedSpec.type === 'git' && parsedSpec.hosted && parsedSpec.hosted.type === 'github'
+export default async function resolveGit (
+  wantedDependency: WantedDependency,
+  opts: ResolveOptions,
+): Promise<ResolveResult | null> {
+  const parsedSpec = parsePref(wantedDependency.pref, wantedDependency.alias)
 
-  if (!isGitHubHosted || isSsh(parsedSpec.rawSpec)) {
+  if (!parsedSpec) return null
+
+  const isGitHubHosted = parsedSpec.hosted && parsedSpec.hosted.type === 'github'
+
+  if (!isGitHubHosted || isSsh(wantedDependency.pref)) {
     const commit = await resolveRef(parsedSpec.fetchSpec, parsedSpec.gitCommittish || 'master')
     const resolution: GitRepositoryResolution = {
       commit,
@@ -31,6 +40,7 @@ export default async function resolveGit (parsedSpec: HostedPackageSpec, opts: R
         .replace(/^.*:\/\/(git@)?/, '')
         .replace(/:/g, '+')
         .replace(/\.git$/, '') + '/' + commit,
+      normalizedPref: parsedSpec.normalizedPref,
       resolution,
     }
   }
@@ -67,6 +77,7 @@ export default async function resolveGit (parsedSpec: HostedPackageSpec, opts: R
   }
   return {
     id: ['github.com', ghSpec.user, ghSpec.project, commitId].join('/'),
+    normalizedPref: parsedSpec.normalizedPref,
     resolution: tarballResolution,
   }
 }

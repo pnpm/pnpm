@@ -1,6 +1,5 @@
 import logger from '@pnpm/logger'
 import {PackageJson} from '@pnpm/types'
-import npa = require('@zkochan/npm-package-arg')
 import {Stats} from 'fs'
 import loadJsonFile = require('load-json-file')
 import mkdirp = require('mkdirp-promise')
@@ -26,7 +25,6 @@ import untouched from './pkgIsUntouched'
 import resolvePkg, {
   DirectoryResolution,
   PackageMeta,
-  PackageSpec,
   Resolution,
 } from './resolve'
 
@@ -40,7 +38,7 @@ export type FetchedPackage = {
   resolution: DirectoryResolution,
   pkg: PackageJson,
   id: string,
-  spec?: PackageSpec,
+  normalizedPref?: string,
 } | {
   isLocal: false,
   fetchingPkg: Promise<PackageJson>,
@@ -53,13 +51,13 @@ export type FetchedPackage = {
   // If latest does not equal the version of the
   // resolved package, it is out-of-date.
   latest?: string,
-  spec?: PackageSpec,
+  normalizedPref?: string,
 }
 
 export default async function fetch (
-  mspec: {
+  wantedDependency: {
     alias?: string,
-    fetchSpec: string,
+    pref: string,
   },
   options: {
     downloadPriority: number,
@@ -88,12 +86,11 @@ export default async function fetch (
   try {
     let latest: string | undefined
     let pkg: PackageJson | undefined
-    let spec: PackageSpec | undefined
+    let normalizedPref: string | undefined
     let resolution = options.shrinkwrapResolution
     let pkgId = options.pkgId
     if (!resolution || options.update) {
-      spec = parseMinimalSpec(mspec, options.prefix)
-      const resolveResult = await resolvePkg(spec, {
+      const resolveResult = await resolvePkg(wantedDependency, {
         downloadPriority: options.downloadPriority,
         got: options.got,
         loggedPkg: options.loggedPkg,
@@ -111,6 +108,7 @@ export default async function fetch (
       pkgId = resolveResult.id
       pkg = resolveResult.package
       latest = resolveResult.latest
+      normalizedPref = resolveResult.normalizedPref
     }
 
     const id = pkgId as string
@@ -119,14 +117,14 @@ export default async function fetch (
 
     if (resolution.type === 'directory') {
       if (!pkg) {
-        throw new Error(`Couldn't read package.json of local dependency ${spec}`)
+        throw new Error(`Couldn't read package.json of local dependency ${wantedDependency.alias ? wantedDependency.alias + '@' : ''}${wantedDependency.pref}`)
       }
       return {
         id,
         isLocal: true,
+        normalizedPref,
         pkg,
         resolution,
-        spec,
       }
     }
 
@@ -157,9 +155,9 @@ export default async function fetch (
       id,
       isLocal: false,
       latest,
+      normalizedPref,
       path: target,
       resolution,
-      spec,
     }
   } catch (err) {
     progressLogger.debug({status: 'error', pkg: options.loggedPkg})
@@ -326,17 +324,4 @@ function differed<T> (): {
     reject: pReject,
     resolve: pResolve,
   }
-}
-
-function parseMinimalSpec (
-  mspec: {
-    alias?: string,
-    fetchSpec: string,
-  },
-  where: string,
-): PackageSpec {
-  if (mspec.alias) {
-    return npa.resolve(mspec.alias, mspec.fetchSpec, where)
-  }
-  return npa(mspec.fetchSpec, where)
 }

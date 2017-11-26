@@ -6,10 +6,11 @@ import pLimit = require('p-limit')
 import path = require('path')
 import url = require('url')
 import writeJsonFile = require('write-json-file')
-import {PackageSpec} from '..'
 import {PnpmError} from '../../errorTypes'
 import {Got} from '../../network/got'
 import createPkgId from './createNpmPkgId'
+import {RegistryPackageSpec} from './parsePref'
+import toRaw from './toRaw'
 
 export interface PackageMeta {
   'dist-tag': { [name: string]: string },
@@ -31,7 +32,7 @@ export type PackageInRegistry = PackageJson & {
 const metafileOperationLimits = {}
 
 export default async function loadPkgMetaNonCached (
-  spec: PackageSpec,
+  spec: RegistryPackageSpec,
   opts: {
     storePath: string,
     got: Got,
@@ -56,7 +57,7 @@ export default async function loadPkgMetaNonCached (
 
     if (meta) return meta
 
-    throw new PnpmError('NO_OFFLINE_META', `Failed to resolve ${spec.rawSpec} in package mirror ${pkgMirror}`)
+    throw new PnpmError('NO_OFFLINE_META', `Failed to resolve ${toRaw(spec)} in package mirror ${pkgMirror}`)
   }
 
   if (spec.type === 'version') {
@@ -83,7 +84,7 @@ export default async function loadPkgMetaNonCached (
   }
 }
 
-async function fromRegistry (got: Got, spec: PackageSpec, registry: string, downloadPriority: number) {
+async function fromRegistry (got: Got, spec: RegistryPackageSpec, registry: string, downloadPriority: number) {
   const uri = toUri(spec, registry)
   const meta = await got.getJSON(uri, registry, downloadPriority) as PackageMeta
   return meta
@@ -118,7 +119,7 @@ function saveMeta (pkgMirror: string, meta: PackageMeta): Promise<PackageMeta> {
  * This increases the number of HTTP requests during installation and slows down
  * pnpm up to twice!
  */
-function toUri (spec: PackageSpec, registry: string) {
+function toUri (spec: RegistryPackageSpec, registry: string) {
   let name: string
 
   if (spec.name.substr(0, 1) === '@') {

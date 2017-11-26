@@ -2,28 +2,26 @@ import path = require('path')
 import semver = require('semver')
 import ssri = require('ssri')
 import url = require('url')
-import {PackageSpec, ResolveOptions, ResolveResult, TarballResolution} from '..'
+import {
+  ResolveOptions,
+  ResolveResult,
+  TarballResolution,
+  WantedDependency,
+} from '..'
 import {progressLogger} from '../../loggers'
 import createPkgId from './createNpmPkgId'
 import loadPkgMeta, {PackageMeta} from './loadPackageMeta'
+import parsePref from './parsePref'
+import toRaw from './toRaw'
 
 export {PackageMeta}
 
-/**
- * Resolves a package in the NPM registry. Done as part of `install()`.
- *
- * @example
- *     var npa = require('npm-package-arg')
- *     resolve(npa('rimraf@2'))
- *       .then((res) => {
- *         res.id == 'rimraf@2.5.1'
- *         res.dist == {
- *           shasum: '0a1b2c...'
- *           tarball: 'http://...'
- *         }
- *       })
- */
-export default async function resolveNpm (spec: PackageSpec, opts: ResolveOptions): Promise<ResolveResult> {
+export default async function resolveNpm (
+  wantedDependency: WantedDependency,
+  opts: ResolveOptions,
+): Promise<ResolveResult | null> {
+  const spec = parsePref(wantedDependency.pref, wantedDependency.alias)
+  if (!spec) return null
   // { raw: 'rimraf@2', scope: null, name: 'rimraf', rawSpec: '2' || '' }
   try {
     if (opts.loggedPkg) {
@@ -37,14 +35,16 @@ export default async function resolveNpm (spec: PackageSpec, opts: ResolveOption
       registry: opts.registry,
       storePath: opts.storePath,
     })
-    const correctPkg = pickVersion(meta, spec)
+    const correctPkg = spec.type === 'tag'
+      ? pickVersionByTag(meta, spec.fetchSpec)
+      : pickVersionByVersionRange(meta, spec.fetchSpec)
     if (!correctPkg) {
       const versions = Object.keys(meta.versions)
       const message = versions.length
         ? 'Versions in registry:\n' + versions.join(', ') + '\n'
         : 'No valid version found.'
       const err = new Error('No compatible version found: ' +
-        spec.raw + '\n' + message)
+        toRaw(spec) + '\n' + message)
       throw err
     }
     const id = createPkgId(correctPkg.dist.tarball, correctPkg.name, correctPkg.version)
@@ -62,7 +62,7 @@ export default async function resolveNpm (spec: PackageSpec, opts: ResolveOption
     }
   } catch (err) {
     if (err.statusCode === 404) {
-      throw new Error("Module '" + spec.raw + "' not found")
+      throw new Error(`Module '${toRaw(spec)}' not found`)
     }
     throw err
   }
@@ -77,13 +77,6 @@ function getIntegrity (dist: {
     return dist.integrity
   }
   return ssri.fromHex(dist.shasum, 'sha1').toString()
-}
-
-function pickVersion (meta: PackageMeta, dep: PackageSpec) {
-  if (dep.type === 'tag') {
-    return pickVersionByTag(meta, dep.fetchSpec)
-  }
-  return pickVersionByVersionRange(meta, dep.fetchSpec)
 }
 
 function pickVersionByTag (meta: PackageMeta, tag: string) {

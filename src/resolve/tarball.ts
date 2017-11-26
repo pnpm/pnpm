@@ -1,38 +1,39 @@
 import parseNpmTarballUrl from 'parse-npm-tarball-url'
-import {PackageSpec, ResolveOptions, ResolveResult, TarballResolution} from '.'
+import {
+  ResolveOptions,
+  ResolveResult,
+  TarballResolution,
+  WantedDependency,
+} from '.'
 
-/**
- * Resolves a 'remote' package.
- *
- * @example
- *     pkg = {
- *       raw: 'http://registry.npmjs.org/is-array/-/is-array-1.0.1.tgz',
- *       scope: null,
- *       name: null,
- *       rawSpec: 'http://registry.npmjs.org/is-array/-/is-array-1.0.1.tgz',
- *       spec: 'http://registry.npmjs.org/is-array/-/is-array-1.0.1.tgz',
- *       type: 'remote' }
- *     resolveTarball(pkg)
- */
-export default async function resolveTarball (spec: PackageSpec, opts: ResolveOptions): Promise<ResolveResult> {
-  const resolution: TarballResolution = {
-    tarball: spec.rawSpec,
+export default async function resolveTarball (
+  wantedDependency: WantedDependency,
+  opts: ResolveOptions,
+): Promise<ResolveResult | null> {
+  if (!wantedDependency.pref.startsWith('http:') && !wantedDependency.pref.startsWith('https:')) {
+    return null
   }
 
-  if (spec.rawSpec.startsWith('http://registry.npmjs.org/')) {
-    const parsed = parseNpmTarballUrl(spec.rawSpec)
+  const resolution: TarballResolution = {
+    tarball: wantedDependency.pref,
+  }
+
+  if (wantedDependency.pref.startsWith('http://registry.npmjs.org/')) {
+    const parsed = parseNpmTarballUrl(wantedDependency.pref)
     if (parsed) {
       return {
         id: `${parsed.host}/${parsed.pkg.name}/${parsed.pkg.version}`,
+        normalizedPref: wantedDependency.pref,
         resolution,
       }
     }
   }
 
   return {
-    id: spec.rawSpec
+    id: wantedDependency.pref
       .replace(/^.*:\/\/(git@)?/, '')
       .replace(/\.tgz$/, ''),
+    normalizedPref: wantedDependency.pref,
     resolution,
   }
 }
