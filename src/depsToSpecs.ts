@@ -1,5 +1,4 @@
 import {Dependencies} from '@pnpm/types'
-import {PackageSpec} from 'package-store'
 import {WantedDependency} from './types'
 
 export default function (

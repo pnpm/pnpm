@@ -2,14 +2,13 @@ import loadJsonFile = require('load-json-file')
 import writePkg = require('write-pkg')
 import {DependenciesType, dependenciesTypes} from './getSaveType'
 import {PackageJson} from '@pnpm/types'
-import {PackageSpec} from 'package-store'
 import {packageJsonLogger} from './loggers'
 
 export default async function save (
   pkgJsonPath: string,
   packageSpecs: ({
     name: string,
-    saveSpec: string,
+    pref: string,
   })[],
   saveType?: DependenciesType
 ): Promise<PackageJson> {
@@ -18,7 +17,7 @@ export default async function save (
   if (saveType) {
     packageJson[saveType] = packageJson[saveType] || {}
     packageSpecs.forEach(dependency => {
-      packageJson[saveType][dependency.name] = dependency.saveSpec
+      packageJson[saveType][dependency.name] = dependency.pref
       dependenciesTypes.filter(deptype => deptype !== saveType).forEach(deptype => {
         if (packageJson[deptype]) {
           delete packageJson[deptype][dependency.name]
@@ -29,7 +28,7 @@ export default async function save (
     packageSpecs.forEach(dependency => {
       const usedDepType = guessDependencyType(dependency.name, packageJson) || 'dependencies'
       packageJson[usedDepType] = packageJson[usedDepType] || {}
-      packageJson[usedDepType][dependency.name] = dependency.saveSpec
+      packageJson[usedDepType][dependency.name] = dependency.pref
     })
   }
 

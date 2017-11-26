@@ -17,7 +17,7 @@ import {
 
 const test = promisifyTape(tape)
 
-test('from a github repo', async function (t) {
+test('from a github repo', async (t: tape.Test) => {
   const project = prepare(t)
   await installPkgs(['kevva/is-negative'], testDefaults())
 
@@ -137,7 +137,7 @@ test('from a git repo', async (t: tape.Test) => {
   t.ok(m, 'isNegative() is available')
 })
 
-test('from a non-github git repo', async function (t) {
+test('from a non-github git repo', async (t: tape.Test) => {
   const project = prepare(t)
 
   await installPkgs(['git+http://ikt.pm2.io/ikt.git#3325a3e39a502418dc2e2e4bf21529cbbde96228'], testDefaults())

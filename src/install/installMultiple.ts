@@ -11,7 +11,6 @@ import {
   FetchedPackage,
   PackageContentInfo,
   Resolution,
-  PackageSpec,
   PackageMeta,
 } from 'package-store'
 import {InstallContext, InstalledPackages} from '../api/install'
@@ -42,7 +41,7 @@ export type PkgAddress = {
   alias: string,
   nodeId: string,
   pkgId: string,
-  spec?: PackageSpec, // is returned only for root dependencies
+  normalizedPref?: string, // is returned only for root dependencies
 }
 
 export type InstalledPackage = {
@@ -269,7 +268,7 @@ async function install (
     pkg: loggedPkg,
   })
 
-  const fetchedPkg = await fetch({alias: wantedDependency.alias, fetchSpec: wantedDependency.pref}, {
+  const fetchedPkg = await fetch(wantedDependency, {
     loggedPkg,
     update: options.update,
     fetchingLocker: ctx.fetchingLocker,
@@ -301,7 +300,7 @@ async function install (
         dev: wantedDependency.dev,
         optional: wantedDependency.optional,
         resolution: fetchedPkg.resolution,
-        spec: fetchedPkg.spec as PackageSpec,
+        normalizedPref: fetchedPkg.normalizedPref,
       })
     }
     logStatus({status: 'downloaded_manifest', pkgId: fetchedPkg.id, pkgVersion: pkg.version})
@@ -468,7 +467,7 @@ async function install (
     alias: wantedDependency.alias || pkg.name,
     nodeId,
     pkgId: fetchedPkg.id,
-    spec: options.currentDepth === 0 ? fetchedPkg.spec : undefined,
+    normalizedPref: options.currentDepth === 0 ? fetchedPkg.normalizedPref : undefined,
   }
 }
 

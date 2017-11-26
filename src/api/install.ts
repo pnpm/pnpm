@@ -53,7 +53,6 @@ import {
   createGot,
   Store,
   PackageContentInfo,
-  PackageSpec,
   DirectoryResolution,
   Resolution,
   PackageMeta,
@@ -88,7 +87,7 @@ export type InstallContext = {
     version: string,
     name: string,
     specRaw: string,
-    spec: PackageSpec,
+    normalizedPref?: string,
     alias: string,
   }[],
   childrenByParentId: {[parentId: string]: {alias: string, pkgId: string}[]},
@@ -435,7 +434,7 @@ async function installInContext (
       .map(rootPkg => ({
         ...installCtx.tree[rootPkg.nodeId].pkg,
         alias: rootPkg.alias,
-        spec: rootPkg.spec,
+        normalizedPref: rootPkg.normalizedPref,
       })) as {
         alias: string,
         optional: boolean,
@@ -445,7 +444,7 @@ async function installInContext (
         version: string,
         name: string,
         specRaw: string,
-        spec: PackageSpec,
+        normalizedPref?: string,
       }[])
   .concat(installCtx.localPackages)
 
@@ -459,11 +458,10 @@ async function installInContext (
     newPkg = await save(
       pkgJsonPath,
       <any>pkgsToSave // tslint:disable-line
-        .filter(dep => dep.spec)
         .map(dep => {
           return {
             name: dep.alias,
-            saveSpec: getSaveSpec(dep.spec as PackageSpec, dep.alias, dep.name, dep.version, {
+            pref: dep.normalizedPref || getPref(dep.alias, dep.name, dep.version, {
               saveExact: opts.saveExact,
               savePrefix: opts.savePrefix,
             })
@@ -656,26 +654,18 @@ async function getTopParents (pkgNames: string[], modules: string) {
   }))
 }
 
-function getSaveSpec (
-  spec: PackageSpec,
+function getPref (
   alias: string,
-  pkgName: string,
+  name: string,
   version: string,
   opts: {
     saveExact: boolean,
     savePrefix: string,
   }
 ) {
-  switch (spec.type) {
-    case 'version':
-    case 'range':
-    case 'tag':
-      let prefix = alias !== pkgName ? `npm:${spec.name}@` : ''
-      if (opts.saveExact) return `${prefix}${version}`
-      return `${prefix}${opts.savePrefix}${version}`
-    default:
-      return spec.saveSpec
-  }
+  let prefix = alias !== name ? `npm:${name}@` : ''
+  if (opts.saveExact) return `${prefix}${version}`
+  return `${prefix}${opts.savePrefix}${version}`
 }
 
 function adaptConfig (opts: StrictPnpmOptions) {

@@ -8,7 +8,6 @@ import getPkgDirs from '../fs/getPkgDirs'
 import {fromDir as readPkgFromDir} from '../fs/readPkg'
 import lock from './lock'
 import removeOrphanPkgs from './removeOrphanPkgs'
-import {PackageSpec} from 'package-store'
 import {
   ResolvedDependencies,
   prune as pruneShrinkwrap,
