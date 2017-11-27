@@ -17,3 +17,5 @@ lib
 
 # Visual Studio Code configs
 .vscode/
+
+.store
