@@ -1,9 +1,9 @@
+import resolveFromNpm, {PackageMeta} from '@pnpm/npm-resolver'
 import {PackageJson} from '@pnpm/types'
 import {LoggedPkg} from '../loggers'
 import {Got} from '../network/got'
 import resolveFromGit from './git'
 import resolveFromLocal from './local'
-import resolveFromNpm, {PackageMeta} from './npm'
 import resolveFromTarball from './tarball'
 
 export {PackageMeta}
@@ -53,13 +53,12 @@ export interface ResolveResult {
 
 export interface ResolveOptions {
   loggedPkg: LoggedPkg,
-  got: Got,
   storePath: string,
   registry: string,
   metaCache: Map<string, PackageMeta>,
   prefix: string,
   offline: boolean,
-  downloadPriority: number,
+  getJson<T> (url: string, registry: string): Promise<T>,
 }
 
 export interface WantedDependency {

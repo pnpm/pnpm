@@ -91,8 +91,7 @@ export default async function fetch (
     let pkgId = options.pkgId
     if (!resolution || options.update) {
       const resolveResult = await resolvePkg(wantedDependency, {
-        downloadPriority: options.downloadPriority,
-        got: options.got,
+        getJson: <T>(url: string, registry: string) => options.got.getJSON<T>(url, registry, options.downloadPriority),
         loggedPkg: options.loggedPkg,
         metaCache: options.metaCache,
         offline: options.offline,

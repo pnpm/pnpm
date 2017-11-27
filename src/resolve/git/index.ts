@@ -56,7 +56,7 @@ export default async function resolveGit (
   let commitId: string
   if (tryGitHubApi) {
     try {
-      commitId = await tryResolveViaGitHubApi(ghSpec, opts.got)
+      commitId = await tryResolveViaGitHubApi(ghSpec, opts.getJson)
     } catch (err) {
       gitLogger.warn({
         err,
@@ -112,7 +112,7 @@ async function tryResolveViaGitHubApi (
     project: string,
     ref: string,
   },
-  got: Got,
+  getJson: <T>(url: string, registry: string) => Promise<T>,
 ) {
   const url = [
     'https://api.github.com/repos',
@@ -122,7 +122,7 @@ async function tryResolveViaGitHubApi (
     spec.ref,
   ].join('/')
   // TODO: investigate what should be the correct registry path here
-  const body = await got.getJSON<GitHubRepoResponse>(url, url)
+  const body = await getJson<GitHubRepoResponse>(url, url)
   return body.sha
 }
 

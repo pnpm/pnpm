@@ -1,10 +1,10 @@
 dependencies:
+  '@pnpm/npm-resolver': 0.1.0
   '@pnpm/types': 1.0.0
   '@types/load-json-file': 2.0.7
   '@types/node': 8.0.53
   '@types/ramda': 0.25.6
   '@types/retry': 0.10.2
-  '@types/semver': 5.4.0
   credentials-by-uri: 1.0.0
   dint: 1.0.0
   drive-by-path: 1.0.0
@@ -30,7 +30,6 @@ dependencies:
   rename-overwrite: 1.0.0
   retry: 0.10.1
   rimraf-then: 1.0.1
-  semver: 5.4.1
   ssri: 5.0.0
   symlink-dir: 1.1.0
   thenify: 3.3.0
@@ -77,10 +76,34 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha512-VRqE5/SiuR7ZrwBmS+Af89BTXli5xBbiqu7WPq56gEtWT8dKf9rFLoimmmMBVeRq5LmVZIXlOxs29F9I+vgSvQ==
+  /@pnpm/npm-resolver/0.1.0:
+    dependencies:
+      '@pnpm/types': 1.1.0
+      '@types/load-json-file': 2.0.7
+      '@types/node': 8.0.53
+      '@types/semver': 5.4.0
+      '@types/write-json-file': 2.2.1
+      encode-registry: 1.1.0
+      load-json-file: 4.0.0
+      p-limit: 1.1.0
+      semver: 5.4.1
+      ssri: 5.0.0
+      write-json-file: 2.3.0
+    dev: false
+    engines:
+      node: '>=4'
+    peerDependencies:
+      '@pnpm/logger': ^1.0.0
+    resolution:
+      integrity: sha512-O389SJnDkb61Rhl5+RdOsTA7dmsImLIQJc/BRXfXgzXOPAKfDj33SXHaAUENg3eVwFVKdhZAlq2KezgmZz4S+g==
   /@pnpm/types/1.0.0:
     dev: false
     resolution:
       integrity: sha512-2BQ/X7qS3bCWOFR+HMQ3ZR1qU1KZNGGjfF6fvMPbYq3kZBGr5i57je4XTHADuiVRv0t6wJ4Ev+X4bw6GktbFYQ==
+  /@pnpm/types/1.1.0:
+    dev: false
+    resolution:
+      integrity: sha512-KB3/erhXOVDj7D7mCWvaSKhGT9FBSZqhOCfyNXiy3/TI9ziUCcXxvEiF7hv6SpaU5aNRrMsxmH3+jrLJFrRWrw==
   /@types/fs-extra/4.0.5:
     dependencies:
       '@types/node': 8.0.53
@@ -149,7 +172,6 @@ packages:
     resolution:
       integrity: sha512-DEPn8FJKQR6eeMHZ407TuAqlhBKQa54PTM3c7Z6pKOI1uHaPnidmpmOXYtNZTcDrL5hnZofSHPwX1AQ9HbaMUg==
   /@types/write-json-file/2.2.1:
-    dev: true
     resolution:
       integrity: sha512-JdO/UpPm9RrtQBNVcZdt3M7j3mHO/kXaea9LBGx3UgWJd1f9BkIWP7jObLBG6ZtRyqp7KzLFEsaPhWcidVittA==
   /ajv/5.4.0:
@@ -3239,13 +3261,13 @@ shrinkwrapMinorVersion: 4
 shrinkwrapVersion: 3
 specifiers:
   '@pnpm/logger': ^1.0.0
+  '@pnpm/npm-resolver': ^0.1.0
   '@pnpm/types': ^1.0.0
   '@types/load-json-file': ^2.0.5
   '@types/nock': ^8.2.1
   '@types/node': ^8.0.34
   '@types/ramda': ^0.25.0
   '@types/retry': ^0.10.1
-  '@types/semver': ^5.3.32
   '@types/tape': ^4.2.30
   commitizen: ^2.8.6
   credentials-by-uri: ^1.0.0
@@ -3281,7 +3303,6 @@ specifiers:
   retry: ^0.10.1
   rimraf: ^2.6.1
   rimraf-then: ^1.0.1
-  semver: ^5.3.0
   ssri: ^5.0.0
   symlink-dir: ^1.0.3
   tape: ^4.7.0
