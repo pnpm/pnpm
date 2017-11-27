@@ -7,11 +7,11 @@ import {Dependencies} from '@pnpm/types'
 import R = require('ramda')
 import semver = require('semver')
 import logger from '@pnpm/logger'
+import {PackageManifest} from '@pnpm/types'
 import path = require('path')
 import {oneLine} from 'common-tags'
 import {InstalledPackage} from '../install/installMultiple'
 import {TreeNode, TreeNodeMap} from '../api/install'
-import {PackageManifest} from '../types'
 
 export type DependencyTreeNode = {
   name: string,

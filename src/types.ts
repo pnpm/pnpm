@@ -1,4 +1,8 @@
-import {Dependencies, PackageBin} from '@pnpm/types'
+import {
+  Dependencies,
+  PackageBin,
+  PackageManifest,
+} from '@pnpm/types'
 import {PackageMeta} from 'package-store'
 import {LogBase} from '@pnpm/logger'
 
@@ -139,30 +143,6 @@ export type StrictPnpmOptions = PnpmOptions & {
   hooks: {
     readPackage?: ReadPackageHook,
   },
-}
-
-// Most of the fields in PackageManifest are also in PackageJson
-// except the `deprecated` field
-export interface PackageManifest {
-  name: string,
-  version: string,
-  bin?: PackageBin,
-  directories?: {
-    bin?: string,
-  },
-  dependencies?: Dependencies,
-  devDependencies?: Dependencies,
-  optionalDependencies?: Dependencies,
-  peerDependencies?: Dependencies,
-  bundleDependencies?: string[],
-  bundledDependencies?: string[],
-  engines?: {
-    node?: string,
-    npm?: string,
-  },
-  cpu?: string[],
-  os?: string[],
-  deprecated?: string,
 }
 
 export type WantedDependency = {

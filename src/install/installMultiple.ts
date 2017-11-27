@@ -16,11 +16,11 @@ import {
 import {InstallContext, InstalledPackages} from '../api/install'
 import {
   ReadPackageHook,
-  PackageManifest,
   WantedDependency,
 } from '../types'
 import {
   Dependencies,
+  PackageManifest,
 } from '@pnpm/types'
 import memoize from '../memoize'
 import logStatus from '../logging/logInstallStatus'

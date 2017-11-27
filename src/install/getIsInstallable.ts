@@ -1,8 +1,8 @@
 import R = require('ramda')
 import installChecks = require('pnpm-install-checks')
 import logger from '@pnpm/logger'
+import {PackageManifest} from '@pnpm/types'
 import {installCheckLogger} from '../loggers'
-import {PackageManifest} from '../types'
 import {InstalledPackages} from '../api/install'
 import {FetchedPackage} from 'package-store'
 
