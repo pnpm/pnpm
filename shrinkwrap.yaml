@@ -1,4 +1,5 @@
 dependencies:
+  '@pnpm/git-resolver': 0.1.0
   '@pnpm/npm-resolver': 0.1.0
   '@pnpm/types': 1.0.0
   '@types/load-json-file': 2.0.7
@@ -11,13 +12,11 @@ dependencies:
   encode-registry: 1.1.0
   execa: 0.8.0
   fs-write-stream-atomic: 1.0.10
-  hosted-git-info: 2.5.0
   load-json-file: 4.0.0
   mkdirp-promise: 5.0.1
   mz: 2.7.0
   normalize-path: 2.1.1
   normalize-registry-url: 1.0.0
-  normalize-ssh: 1.0.0
   os-homedir: 1.0.2
   osenv: 0.1.4
   p-limit: 1.1.0
@@ -66,6 +65,19 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha512-ZNaOAOvl9J45nhrnMcRxT9wd2G6hPzC444nRmo8Wk/GmY6dd8FVN/XG/nEdHPjcYPyyrW2UA3McNi+klB9oBHw==
+  /@pnpm/git-resolver/0.1.0:
+    dependencies:
+      '@types/node': 8.0.53
+      graceful-git: 1.0.1
+      hosted-git-info: 2.5.0
+      normalize-ssh: 1.0.0
+    dev: false
+    engines:
+      node: '>=4'
+    peerDependencies:
+      '@pnpm/logger': ^1.0.0
+    resolution:
+      integrity: sha512-wGo7xkIcjk1eqRpO0QIGG4+3l7ReoAkGNHdynOofAOtqgN6GxHuOYaWOKOckUi1zegqAn/eGWc+awbrr1CmuEA==
   /@pnpm/logger/1.0.0:
     dependencies:
       '@types/node': 8.0.53
@@ -1228,6 +1240,15 @@ packages:
       node: '>=0.4.0'
     resolution:
       integrity: sha1-Dovf5NHduIVNZOBOp8AOKgJuVlg=
+  /graceful-git/1.0.1:
+    dependencies:
+      execa: 0.8.0
+      retry: 0.10.1
+    dev: false
+    engines:
+      node: '>=4'
+    resolution:
+      integrity: sha512-tw+EeUeL5p8b312uJq6+Z6ld8M/rlkMSM7e3oGiRsfdDH3nH5I2u2aIhO5Sy6LWojzU92JTrZKP6T3D9YT6pwg==
   /gunzip-maybe/1.4.1:
     dependencies:
       browserify-zlib: 0.1.4
@@ -3260,6 +3281,7 @@ registry: 'https://registry.npmjs.org/'
 shrinkwrapMinorVersion: 4
 shrinkwrapVersion: 3
 specifiers:
+  '@pnpm/git-resolver': ^0.1.0
   '@pnpm/logger': ^1.0.0
   '@pnpm/npm-resolver': ^0.1.0
   '@pnpm/types': ^1.0.0
@@ -3277,7 +3299,6 @@ specifiers:
   encode-registry: ^1.1.0
   execa: ^0.8.0
   fs-write-stream-atomic: ^1.0.10
-  hosted-git-info: ^2.5.0
   husky: ^0.14.3
   in-publish: ^2.0.0
   load-json-file: ^4.0.0
@@ -3286,7 +3307,6 @@ specifiers:
   nock: ^9.0.14
   normalize-path: ^2.1.1
   normalize-registry-url: ^1.0.0
-  normalize-ssh: ^1.0.0
   npm-registry-client: ^8.4.0
   npm-scripts-info: ^0.3.6
   os-homedir: ^1.0.2
