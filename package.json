@@ -1,0 +1,73 @@
+{
+  "name": "@pnpm/npm-resolver",
+  "version": "0.0.0",
+  "description": "Resolver for npm-hosted packages",
+  "main": "lib/index.js",
+  "typings": "lib/index.d.ts",
+  "files": [
+    "lib"
+  ],
+  "engines": {
+    "node": ">=4"
+  },
+  "scripts": {
+    "lint": "tslint -c tslint.json --project .",
+    "tsc": "tsc",
+    "test": "npm run lint && preview && ts-node test",
+    "md": "mos",
+    "prepublishOnly": "npm run tsc"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/pnpm/npm-resolver.git"
+  },
+  "keywords": [
+    "pnpm",
+    "resolver",
+    "npm"
+  ],
+  "author": "Zoltan Kochan <z@kochan.io> (https://www.kochan.io/)",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/pnpm/npm-resolver/issues"
+  },
+  "homepage": "https://github.com/pnpm/npm-resolver#readme",
+  "peerDependencies": {
+    "@pnpm/logger": "^1.0.0"
+  },
+  "dependencies": {
+    "@pnpm/types": "^1.1.0",
+    "@types/load-json-file": "^2.0.7",
+    "@types/node": "^8.0.53",
+    "@types/semver": "^5.4.0",
+    "@types/write-json-file": "^2.2.1",
+    "encode-registry": "^1.1.0",
+    "load-json-file": "^4.0.0",
+    "p-limit": "^1.1.0",
+    "semver": "^5.4.1",
+    "ssri": "^5.0.0",
+    "write-json-file": "^2.3.0"
+  },
+  "devDependencies": {
+    "@pnpm/logger": "^1.0.0",
+    "@types/tape": "^4.2.31",
+    "@types/tempy": "^0.1.0",
+    "got": "^8.0.0",
+    "mos": "^2.0.0-alpha.3",
+    "mos-plugin-readme": "^1.0.4",
+    "package-preview": "^1.0.1",
+    "tape": "^4.8.0",
+    "tempy": "^0.2.1",
+    "ts-node": "^3.3.0",
+    "tslint": "^5.8.0",
+    "typescript": "^2.6.1"
+  },
+  "mos": {
+    "plugins": [
+      "readme"
+    ],
+    "installation": {
+      "useShortAlias": true
+    }
+  }
+}
