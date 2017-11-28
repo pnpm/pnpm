@@ -2,6 +2,7 @@ dependencies:
   '@pnpm/git-resolver': 0.1.0
   '@pnpm/local-resolver': 0.1.0
   '@pnpm/npm-resolver': 0.1.0
+  '@pnpm/tarball-resolver': 0.1.0
   '@pnpm/types': 1.0.0
   '@types/load-json-file': 2.0.7
   '@types/node': 8.0.53
@@ -21,7 +22,6 @@ dependencies:
   os-homedir: 1.0.2
   p-limit: 1.1.0
   p-queue: 2.2.0
-  parse-npm-tarball-url: 1.0.1
   path-absolute: 1.0.0
   path-exists: 3.0.0
   ramda: 0.25.0
@@ -121,6 +121,14 @@ packages:
       '@pnpm/logger': ^1.0.0
     resolution:
       integrity: sha512-O389SJnDkb61Rhl5+RdOsTA7dmsImLIQJc/BRXfXgzXOPAKfDj33SXHaAUENg3eVwFVKdhZAlq2KezgmZz4S+g==
+  /@pnpm/tarball-resolver/0.1.0:
+    dependencies:
+      parse-npm-tarball-url: 1.0.1
+    dev: false
+    engines:
+      node: '>=4'
+    resolution:
+      integrity: sha512-Ieeu9Gg5qZkUdgnsHkjFlqr1Gp2z0LegDnCKe7l4l2klnH5Yp2fjqegfkebpM7Qut9YYe+aFsXFWxSCUk13Z8g==
   /@pnpm/types/1.0.0:
     dev: false
     resolution:
@@ -3311,6 +3319,7 @@ specifiers:
   '@pnpm/local-resolver': ^0.1.0
   '@pnpm/logger': ^1.0.0
   '@pnpm/npm-resolver': ^0.1.0
+  '@pnpm/tarball-resolver': ^0.1.0
   '@pnpm/types': ^1.0.0
   '@types/load-json-file': ^2.0.5
   '@types/nock': ^8.2.1
@@ -3340,7 +3349,6 @@ specifiers:
   p-limit: ^1.1.0
   p-queue: ^2.2.0
   package-preview: ^1.0.0
-  parse-npm-tarball-url: ^1.0.1
   path-absolute: ^1.0.0
   path-exists: ^3.0.0
   ramda: ^0.25.0

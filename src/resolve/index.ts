@@ -1,10 +1,10 @@
 import resolveFromGit from '@pnpm/git-resolver'
 import resolveFromLocal from '@pnpm/local-resolver'
 import resolveFromNpm, {PackageMeta} from '@pnpm/npm-resolver'
+import resolveFromTarball from '@pnpm/tarball-resolver'
 import {PackageJson} from '@pnpm/types'
 import {LoggedPkg} from '../loggers'
 import {Got} from '../network/got'
-import resolveFromTarball from './tarball'
 
 export {PackageMeta}
 
@@ -85,7 +85,7 @@ export default async function (
   opts: ResolveOptions,
 ): Promise<ResolveResult> {
   const resolution = await resolveFromNpm(wantedDependency, opts)
-    || await resolveFromTarball(wantedDependency, opts)
+    || await resolveFromTarball(wantedDependency)
     || await resolveFromGit(wantedDependency, opts)
     || await resolveFromLocal(wantedDependency, opts)
   if (resolution) return resolution
