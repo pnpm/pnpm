@@ -7,7 +7,6 @@ import normalizeRegistryUrl = require('normalize-registry-url')
 import pLimit = require('p-limit')
 import PQueue = require('p-queue')
 import path = require('path')
-import R = require('ramda')
 import retry = require('retry')
 import ssri = require('ssri')
 import unpackStream = require('unpack-stream')
@@ -188,7 +187,7 @@ export default (
 
   return {
     download,
-    getJSON: <any>R.memoize(getJSON), // tslint:disable-line
+    getJSON,
   }
 }
 
