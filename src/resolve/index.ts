@@ -1,9 +1,9 @@
 import resolveFromGit from '@pnpm/git-resolver'
+import resolveFromLocal from '@pnpm/local-resolver'
 import resolveFromNpm, {PackageMeta} from '@pnpm/npm-resolver'
 import {PackageJson} from '@pnpm/types'
 import {LoggedPkg} from '../loggers'
 import {Got} from '../network/got'
-import resolveFromLocal from './local'
 import resolveFromTarball from './tarball'
 
 export {PackageMeta}
