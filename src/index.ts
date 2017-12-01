@@ -2,7 +2,6 @@ import {PackageManifest} from '@pnpm/types'
 import path = require('path')
 import semver = require('semver')
 import ssri = require('ssri')
-import url = require('url')
 import createPkgId from './createNpmPkgId'
 import loadPkgMeta, {PackageMeta} from './loadPackageMeta'
 import parsePref from './parsePref'
@@ -13,25 +12,33 @@ export {
   PackageMeta,
 }
 
-export default async function resolveNpm (
+export default function createResolver (
+  opts: {
+    getJson<T> (url: string, registry: string, auth?: object): Promise<T>,
+  },
+) {
+  return resolveNpm.bind(null, loadPkgMeta.bind(null, opts.getJson))
+}
+
+async function resolveNpm (
+  loadPkgMetaBySpec: Function, //tslint:disable-line
   wantedDependency: {
     alias?: string,
     pref: string,
   },
   opts: {
+    auth?: object,
     storePath: string,
     registry: string,
     metaCache: Map<string, PackageMeta>,
     offline: boolean,
-    getJson<T> (url: string, registry: string): Promise<T>,
   },
 ) {
   const spec = parsePref(wantedDependency.pref, wantedDependency.alias)
   if (!spec) return null
-  // { raw: 'rimraf@2', scope: null, name: 'rimraf', rawSpec: '2' || '' }
   try {
-    const meta = await loadPkgMeta(spec, {
-      getJson: opts.getJson,
+    const meta = await loadPkgMetaBySpec(spec, {
+      auth: opts.auth,
       metaCache: opts.metaCache,
       offline: opts.offline,
       registry: opts.registry,

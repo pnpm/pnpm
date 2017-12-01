@@ -1,7 +1,9 @@
 import test = require('tape')
-import resolveFromNpm from '@pnpm/npm-resolver'
+import createResolveFromNpm from '@pnpm/npm-resolver'
 import got = require('got')
 import tempy = require('tempy')
+
+const resolveFromNpm = createResolveFromNpm({getJson})
 
 function getJson (url: string, registry: string) {
   return got(url, {json: true})
@@ -14,7 +16,6 @@ test('resolveFromNpm()', async t => {
     registry: 'https://registry.npmjs.org/',
     metaCache: new Map(),
     offline: false,
-    getJson,
   })
   t.equal(resolveResult!.id, 'registry.npmjs.org/is-positive/1.0.0')
   t.equal(resolveResult!.latest!.split('.').length, 3)

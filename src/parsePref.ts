@@ -2,7 +2,6 @@ import semver = require('semver')
 
 export interface RegistryPackageSpec {
   type: 'tag' | 'version' | 'range',
-  registry: true,
   name: string,
   fetchSpec: string,
 }
@@ -22,7 +21,6 @@ export default function parsePref (pref: string, alias?: string): RegistryPackag
     return {
       fetchSpec: pref,
       name,
-      registry: true,
       type: 'version',
     }
   }
@@ -30,7 +28,6 @@ export default function parsePref (pref: string, alias?: string): RegistryPackag
     return {
       fetchSpec: pref,
       name,
-      registry: true,
       type: 'range',
     }
   }
@@ -38,7 +35,6 @@ export default function parsePref (pref: string, alias?: string): RegistryPackag
     return {
       fetchSpec: pref,
       name,
-      registry: true,
       type: 'tag',
     }
   }

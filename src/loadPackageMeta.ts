@@ -38,13 +38,14 @@ export type PackageInRegistry = PackageManifest & {
 const metafileOperationLimits = {}
 
 export default async function loadPkgMetaNonCached (
+  getJson: <T> (url: string, registry: string, auth?: object) => Promise<T>,
   spec: RegistryPackageSpec,
   opts: {
+    auth: object,
     storePath: string,
     metaCache: Map<string, PackageMeta>,
     offline: boolean,
     registry: string,
-    getJson<T> (url: string, registry: string): Promise<T>,
   },
 ): Promise<PackageMeta> {
   opts = opts || {}
@@ -75,7 +76,7 @@ export default async function loadPkgMetaNonCached (
   }
 
   try {
-    const meta = await fromRegistry(opts.getJson, spec, opts.registry)
+    const meta = await fromRegistry(getJson, spec.name, opts.registry, opts.auth)
     // only save meta to cache, when it is fresh
     opts.metaCache.set(spec.name, meta)
     limit(() => saveMeta(pkgMirror, meta))
@@ -90,12 +91,13 @@ export default async function loadPkgMetaNonCached (
 }
 
 async function fromRegistry (
-  getJson: <T>(url: string, registry: string) => Promise<T>,
-  spec: RegistryPackageSpec,
+  getJson: <T>(url: string, registry: string, auth?: object) => Promise<T>,
+  pkgName: string,
   registry: string,
+  auth: object,
 ) {
-  const uri = toUri(spec, registry)
-  const meta = await getJson<PackageMeta>(uri, registry)
+  const uri = toUri(pkgName, registry)
+  const meta = await getJson<PackageMeta>(uri, registry, auth)
   return meta
 }
 
@@ -116,26 +118,14 @@ function saveMeta (pkgMirror: string, meta: PackageMeta): Promise<void> {
   return writeJsonFile(path.join(pkgMirror, META_FILENAME), meta)
 }
 
-/**
- * Converts package data (from `npa()`) to a URI
- *
- * @example
- *     toUri({ name: 'rimraf', rawSpec: '2' })
- *     // => 'https://registry.npmjs.org/rimraf'
- *
- * Although it is possible to download the needed package.json with one request
- * by passing the spec like this: 'https://registry.npmjs.org/rimraf/2'
- * This increases the number of HTTP requests during installation and slows down
- * pnpm up to twice!
- */
-function toUri (spec: RegistryPackageSpec, registry: string) {
-  let name: string
+function toUri (pkgName: string, registry: string) {
+  let encodedName: string
 
-  if (spec.name.substr(0, 1) === '@') {
-    name = '@' + encodeURIComponent(spec.name.substr(1))
+  if (pkgName[0] === '@') {
+    encodedName = `@${encodeURIComponent(pkgName.substr(1))}`
   } else {
-    name = encodeURIComponent(spec.name)
+    encodedName = encodeURIComponent(pkgName)
   }
 
-  return url.resolve(registry, name)
+  return url.resolve(registry, encodedName)
 }

@@ -1,6 +1,8 @@
 'use strict'
 const got = require('got')
-const resolveFromNpm = require('@pnpm/npm-resolver').default
+const createResolveFromNpm = require('@pnpm/npm-resolver').default
+
+const resolveFromNpm = createResolveFromNpm({getJson})
 
 resolveFromNpm({alias: 'is-positive', pref: '1.0.0'}, {
   storePath: '.store',
