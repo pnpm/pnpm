@@ -39,19 +39,19 @@ const metafileOperationLimits = {}
 
 export default async function loadPkgMetaNonCached (
   getJson: <T> (url: string, registry: string, auth?: object) => Promise<T>,
+  metaCache: Map<string, PackageMeta>,
   spec: RegistryPackageSpec,
   opts: {
     auth: object,
     storePath: string,
-    metaCache: Map<string, PackageMeta>,
     offline: boolean,
     registry: string,
   },
 ): Promise<PackageMeta> {
   opts = opts || {}
 
-  if (opts.metaCache.has(spec.name)) {
-    return opts.metaCache.get(spec.name) as PackageMeta
+  if (metaCache.has(spec.name)) {
+    return metaCache.get(spec.name) as PackageMeta
   }
 
   const registryName = getRegistryName(opts.registry)
@@ -78,7 +78,7 @@ export default async function loadPkgMetaNonCached (
   try {
     const meta = await fromRegistry(getJson, spec.name, opts.registry, opts.auth)
     // only save meta to cache, when it is fresh
-    opts.metaCache.set(spec.name, meta)
+    metaCache.set(spec.name, meta)
     limit(() => saveMeta(pkgMirror, meta))
     return meta
   } catch (err) {

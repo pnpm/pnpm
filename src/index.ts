@@ -2,6 +2,7 @@ import {PackageManifest} from '@pnpm/types'
 import path = require('path')
 import semver = require('semver')
 import ssri = require('ssri')
+import createGetJson from './createGetJson'
 import createPkgId from './createNpmPkgId'
 import loadPkgMeta, {PackageMeta} from './loadPackageMeta'
 import parsePref from './parsePref'
@@ -14,10 +15,41 @@ export {
 
 export default function createResolver (
   opts: {
-    getJson<T> (url: string, registry: string, auth?: object): Promise<T>,
+    ca?: string,
+    cert?: string,
+    fetchRetries?: number,
+    fetchRetryFactor?: number,
+    fetchRetryMintimeout?: number,
+    fetchRetryMaxtimeout?: number,
+    proxy?: string,
+    httpsProxy?: string,
+    localAddress?: string,
+    key?: string,
+    strictSsl: boolean,
+    userAgent?: string,
   },
 ) {
-  return resolveNpm.bind(null, loadPkgMeta.bind(null, opts.getJson))
+  const getJson = createGetJson({
+    proxy: {
+      http: opts.proxy,
+      https: opts.httpsProxy,
+      localAddress: opts.localAddress,
+    },
+    retry: {
+      count: opts.fetchRetries,
+      factor: opts.fetchRetryFactor,
+      maxTimeout: opts.fetchRetryMaxtimeout,
+      minTimeout: opts.fetchRetryMintimeout,
+    },
+    ssl: {
+      ca: opts.ca,
+      certificate: opts.cert,
+      key: opts.key,
+      strict: opts.strictSsl,
+    },
+    userAgent: opts.userAgent,
+  })
+  return resolveNpm.bind(null, loadPkgMeta.bind(null, getJson, new Map()))
 }
 
 async function resolveNpm (
@@ -30,7 +62,6 @@ async function resolveNpm (
     auth?: object,
     storePath: string,
     registry: string,
-    metaCache: Map<string, PackageMeta>,
     offline: boolean,
   },
 ) {
@@ -39,7 +70,6 @@ async function resolveNpm (
   try {
     const meta = await loadPkgMetaBySpec(spec, {
       auth: opts.auth,
-      metaCache: opts.metaCache,
       offline: opts.offline,
       registry: opts.registry,
       storePath: opts.storePath,

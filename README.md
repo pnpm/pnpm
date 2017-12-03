@@ -17,17 +17,14 @@ Install it via npm.
 <!--@example('./example.js')-->
 ```js
 'use strict'
-const got = require('got')
 const createResolveFromNpm = require('@pnpm/npm-resolver').default
 
-const resolveFromNpm = createResolveFromNpm({getJson})
+const resolveFromNpm = createResolveFromNpm({})
 
 resolveFromNpm({alias: 'is-positive', pref: '1.0.0'}, {
   storePath: '.store',
   registry: 'https://registry.npmjs.org/',
-  metaCache: new Map(),
   offline: false,
-  getJson,
 })
 .then(resolveResult => console.log(resolveResult))
 //> { id: 'registry.npmjs.org/is-positive/1.0.0',
@@ -67,11 +64,6 @@ resolveFromNpm({alias: 'is-positive', pref: '1.0.0'}, {
 //     { integrity: 'sha1-iACYVrZKLx632LsBeUGEJK4EUss=',
 //       registry: 'https://registry.npmjs.org/',
 //       tarball: 'https://registry.npmjs.org/is-positive/-/is-positive-1.0.0.tgz' } }
-
-function getJson (url, registry) {
-  return got(url, {json: true})
-    .then(response => response.body)
-}
 ```
 <!--/@-->
 

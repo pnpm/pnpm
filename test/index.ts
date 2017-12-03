@@ -1,20 +1,13 @@
 import test = require('tape')
 import createResolveFromNpm from '@pnpm/npm-resolver'
-import got = require('got')
 import tempy = require('tempy')
 
-const resolveFromNpm = createResolveFromNpm({getJson})
-
-function getJson (url: string, registry: string) {
-  return got(url, {json: true})
-    .then((response: any) => response.body)
-}
+const resolveFromNpm = createResolveFromNpm({})
 
 test('resolveFromNpm()', async t => {
   const resolveResult = await resolveFromNpm({alias: 'is-positive', pref: '1.0.0'}, {
     storePath: tempy.directory(),
     registry: 'https://registry.npmjs.org/',
-    metaCache: new Map(),
     offline: false,
   })
   t.equal(resolveResult!.id, 'registry.npmjs.org/is-positive/1.0.0')

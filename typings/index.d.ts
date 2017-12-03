@@ -8,7 +8,7 @@ declare module 'ssri' {
   export = anything;
 }
 
-declare module 'got' {
+declare module 'npm-registry-client' {
   const anything: any;
   export = anything;
 }
