@@ -39,7 +39,7 @@ const metafileOperationLimits = {}
 
 export default async function loadPkgMetaNonCached (
   getJson: <T> (url: string, registry: string, auth?: object) => Promise<T>,
-  metaCache: Map<string, PackageMeta>,
+  metaCache: Map<string, object>,
   spec: RegistryPackageSpec,
   opts: {
     auth: object,

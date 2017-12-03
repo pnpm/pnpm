@@ -25,9 +25,10 @@ export default function createResolver (
     httpsProxy?: string,
     localAddress?: string,
     key?: string,
-    strictSsl: boolean,
+    strictSsl?: boolean,
     userAgent?: string,
     offline?: boolean,
+    metaCache: Map<string, object>,
   },
 ) {
   const getJson = createGetJson({
@@ -51,7 +52,7 @@ export default function createResolver (
     userAgent: opts.userAgent,
   })
   return resolveNpm.bind(null, {
-    loadPkgMeta: loadPkgMeta.bind(null, getJson, new Map()),
+    loadPkgMeta: loadPkgMeta.bind(null, getJson, opts.metaCache),
     offline: opts.offline,
   })
 }

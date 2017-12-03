@@ -2,7 +2,9 @@ import test = require('tape')
 import createResolveFromNpm from '@pnpm/npm-resolver'
 import tempy = require('tempy')
 
-const resolveFromNpm = createResolveFromNpm({})
+const resolveFromNpm = createResolveFromNpm({
+  metaCache: new Map(),
+})
 
 test('resolveFromNpm()', async t => {
   const resolveResult = await resolveFromNpm({alias: 'is-positive', pref: '1.0.0'}, {
