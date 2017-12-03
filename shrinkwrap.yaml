@@ -21,6 +21,7 @@ devDependencies:
   mos: 2.0.0-alpha.3
   mos-plugin-readme: 1.0.4
   package-preview: 1.0.1
+  rimraf: 2.6.2
   tape: 4.8.0
   tempy: 0.2.1
   ts-node: 3.3.0
@@ -3696,6 +3697,7 @@ specifiers:
   npm-registry-client: ^8.5.0
   p-limit: ^1.1.0
   package-preview: ^1.0.1
+  rimraf: ^2.6.2
   semver: ^5.4.1
   ssri: ^5.0.0
   tape: ^4.8.0
