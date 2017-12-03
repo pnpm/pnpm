@@ -4,13 +4,12 @@ import tempy = require('tempy')
 
 const resolveFromNpm = createResolveFromNpm({
   metaCache: new Map(),
+  store: tempy.directory(),
 })
 
 test('resolveFromNpm()', async t => {
   const resolveResult = await resolveFromNpm({alias: 'is-positive', pref: '1.0.0'}, {
-    storePath: tempy.directory(),
     registry: 'https://registry.npmjs.org/',
-    offline: false,
   })
   t.equal(resolveResult!.id, 'registry.npmjs.org/is-positive/1.0.0')
   t.equal(resolveResult!.latest!.split('.').length, 3)

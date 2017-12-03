@@ -29,6 +29,7 @@ export default function createResolver (
     userAgent?: string,
     offline?: boolean,
     metaCache: Map<string, object>,
+    store: string,
   },
 ) {
   const getJson = createGetJson({
@@ -54,6 +55,7 @@ export default function createResolver (
   return resolveNpm.bind(null, {
     loadPkgMeta: loadPkgMeta.bind(null, getJson, opts.metaCache),
     offline: opts.offline,
+    store: opts.store,
   })
 }
 
@@ -61,6 +63,7 @@ async function resolveNpm (
   ctx: {
     loadPkgMeta: Function, //tslint:disable-line
     offline?: boolean,
+    store: string,
   },
   wantedDependency: {
     alias?: string,
@@ -68,7 +71,6 @@ async function resolveNpm (
   },
   opts: {
     auth?: object,
-    storePath: string,
     registry: string,
   },
 ) {
@@ -79,7 +81,7 @@ async function resolveNpm (
       auth: opts.auth,
       offline: ctx.offline,
       registry: opts.registry,
-      storePath: opts.storePath,
+      storePath: ctx.store,
     })
     const correctPkg = spec.type === 'tag'
       ? pickVersionByTag(meta, spec.fetchSpec)
