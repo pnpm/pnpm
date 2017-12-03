@@ -1,4 +1,7 @@
-import {PackageManifest} from '@pnpm/types'
+import {
+  PackageManifest,
+  PnpmOptions,
+} from '@pnpm/types'
 import getCredentialsByURI = require('credentials-by-uri')
 import mem = require('mem')
 import path = require('path')
@@ -16,24 +19,7 @@ export {
 }
 
 export default function createResolver (
-  opts: {
-    ca?: string,
-    cert?: string,
-    fetchRetries?: number,
-    fetchRetryFactor?: number,
-    fetchRetryMintimeout?: number,
-    fetchRetryMaxtimeout?: number,
-    proxy?: string,
-    httpsProxy?: string,
-    localAddress?: string,
-    key?: string,
-    strictSsl?: boolean,
-    userAgent?: string,
-    offline?: boolean,
-    metaCache: Map<string, object>,
-    store: string,
-    rawNpmConfig: object,
-  },
+  opts: PnpmOptions & { rawNpmConfig: object },
 ) {
   const getJson = createGetJson({
     proxy: {

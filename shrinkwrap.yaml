@@ -1,5 +1,5 @@
 dependencies:
-  '@pnpm/types': 1.1.0
+  '@pnpm/types': 1.2.0
   '@types/load-json-file': 2.0.7
   '@types/mem': 1.1.2
   '@types/node': 8.0.53
@@ -50,10 +50,10 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha512-VRqE5/SiuR7ZrwBmS+Af89BTXli5xBbiqu7WPq56gEtWT8dKf9rFLoimmmMBVeRq5LmVZIXlOxs29F9I+vgSvQ==
-  /@pnpm/types/1.1.0:
+  /@pnpm/types/1.2.0:
     dev: false
     resolution:
-      integrity: sha512-KB3/erhXOVDj7D7mCWvaSKhGT9FBSZqhOCfyNXiy3/TI9ziUCcXxvEiF7hv6SpaU5aNRrMsxmH3+jrLJFrRWrw==
+      integrity: sha512-gsfkghtRI7MlJGwzRHgSMPvp/WF0h/q8VJMYC6X+bLJhqJNDYcbtThn6KiS6LqTnu3ipHdCtAv1NA4hQxSVZNg==
   /@types/fs-extra/4.0.5:
     dependencies:
       '@types/node': 8.0.53
@@ -3680,7 +3680,7 @@ shrinkwrapMinorVersion: 4
 shrinkwrapVersion: 3
 specifiers:
   '@pnpm/logger': ^1.0.0
-  '@pnpm/types': ^1.1.0
+  '@pnpm/types': ^1.2.0
   '@types/load-json-file': ^2.0.7
   '@types/mem': ^1.1.2
   '@types/node': ^8.0.53
