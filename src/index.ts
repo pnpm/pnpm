@@ -14,9 +14,7 @@ export interface FetchOptions {
   auth: object,
   cachedTarballLocation: string,
   pkgId: string,
-  offline: boolean,
   prefix: string,
-  ignore?: IgnoreFunction,
   onStart?: (totalSize: number | null, attempt: number) => void,
   onProgress?: (downloaded: number) => void,
 }
@@ -37,6 +35,8 @@ export default function (
     fetchRetryMintimeout?: number,
     fetchRetryMaxtimeout?: number,
     userAgent?: string,
+    ignoreFile?: IgnoreFunction,
+    offline?: boolean,
   },
 ) {
   const download = createDownloader({
@@ -62,13 +62,30 @@ export default function (
     userAgent: opts.userAgent,
   })
   return {
-    type: 'tarball',
-    fetch: fetchFromTarball.bind(null, download),
+    tarball: fetchFromTarball.bind(null, {
+      fetchFromRemoteTarball: fetchFromRemoteTarball.bind(null, {
+        download,
+        ignoreFile: opts.ignoreFile,
+        offline: opts.offline,
+      }),
+      ignore: opts.ignoreFile,
+    }),
   }
 }
 
 function fetchFromTarball (
-  download: DownloadFunction,
+  ctx: {
+    fetchFromRemoteTarball: (
+      dir: string,
+      dist: {
+        integrity?: string,
+        registry?: string,
+        tarball: string,
+      },
+      opts: FetchOptions
+    ) => unpackStream.Index,
+    ignore?: IgnoreFunction,
+  },
   resolution: {
     integrity?: string,
     registry?: string,
@@ -78,14 +95,18 @@ function fetchFromTarball (
   opts: FetchOptions,
 ) {
   if (resolution.tarball.startsWith('file:')) {
-    return fetchFromLocalTarball(target, path.join(opts.prefix, resolution.tarball.slice(5)), opts.ignore)
+    return fetchFromLocalTarball(target, path.join(opts.prefix, resolution.tarball.slice(5)), ctx.ignore)
   }
-  return fetchFromRemoteTarball(download, target, resolution, opts)
+  return ctx.fetchFromRemoteTarball(target, resolution, opts)
 }
 
 async function fetchFromRemoteTarball (
-  download: DownloadFunction,
-  dir: string,
+  ctx: {
+    offline: boolean,
+    download: DownloadFunction,
+    ignoreFile: IgnoreFunction,
+  },
+  unpackTo: string,
   dist: {
     integrity?: string,
     registry?: string,
@@ -94,23 +115,23 @@ async function fetchFromRemoteTarball (
   opts: FetchOptions,
 ) {
   try {
-    const index = await fetchFromLocalTarball(dir, opts.cachedTarballLocation)
+    const index = await fetchFromLocalTarball(unpackTo, opts.cachedTarballLocation)
     fetchLogger.debug(`finish ${dist.integrity} ${dist.tarball}`)
     return index
   } catch (err) {
     if (err.code !== 'ENOENT') throw err
 
-    if (opts.offline) {
+    if (ctx.offline) {
       throw new PnpmError('NO_OFFLINE_TARBALL', `Could not find ${opts.cachedTarballLocation} in local registry mirror`)
     }
-    return await download(dist.tarball, opts.cachedTarballLocation, {
+    return await ctx.download(dist.tarball, opts.cachedTarballLocation, {
       auth: opts.auth as any,
-      ignore: opts.ignore,
+      ignore: ctx.ignoreFile,
       integrity: dist.integrity,
       onProgress: opts.onProgress,
       onStart: opts.onStart,
       registry: dist.registry,
-      unpackTo: dir,
+      unpackTo,
     })
   }
 }
