@@ -34,12 +34,14 @@
     "@pnpm/logger": "^1.0.0"
   },
   "dependencies": {
+    "@types/mem": "^1.1.2",
     "@types/mz": "^0.0.32",
     "@types/node": "^8.0.53",
     "@types/retry": "^0.10.2",
     "credentials-by-uri": "^1.0.0",
     "fs-write-stream-atomic": "^1.0.10",
     "graceful-fs": "^4.1.11",
+    "mem": "^3.0.0",
     "mkdirp-promise": "^5.0.1",
     "mz": "^2.7.0",
     "npm-registry-client": "^8.5.0",

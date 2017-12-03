@@ -1,10 +1,12 @@
 dependencies:
+  '@types/mem': 1.1.2
   '@types/mz': 0.0.32
   '@types/node': 8.0.53
   '@types/retry': 0.10.2
   credentials-by-uri: 1.0.0
   fs-write-stream-atomic: 1.0.10
   graceful-fs: 4.1.11
+  mem: 3.0.0
   mkdirp-promise: 5.0.1
   mz: 2.7.0
   npm-registry-client: 8.5.0
@@ -69,6 +71,10 @@ packages:
     dev: true
     resolution:
       integrity: sha512-NrH6jPlV77QCVPhAHofWeiOr77TgpKt82c2RVxSBChWBJqyY/u4ngl3CA4mcsAg/w7rNLrkR7dkObMV0ihLLXw==
+  /@types/mem/1.1.2:
+    dev: false
+    resolution:
+      integrity: sha1-48iwlfLyVjtRjwqtWd+f5qi4IGU=
   /@types/mz/0.0.31:
     dependencies:
       '@types/node': 8.0.53
@@ -1150,6 +1156,15 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha1-plzSkIepJZi4eRJXpSPgISIqwfk=
+  /mem/3.0.0:
+    dependencies:
+      mimic-fn: 1.1.0
+      p-is-promise: 1.1.0
+    dev: false
+    engines:
+      node: '>=4'
+    resolution:
+      integrity: sha1-hOWK1N+99dEFsmtlSKOYsrOqiiE=
   /meow/4.0.0:
     dependencies:
       camelcase-keys: 4.2.0
@@ -1180,6 +1195,12 @@ packages:
       node: '>= 0.6'
     resolution:
       integrity: sha1-Cdejk/A+mVp5+K+Fe3Cp4KsWVXo=
+  /mimic-fn/1.1.0:
+    dev: false
+    engines:
+      node: '>=4'
+    resolution:
+      integrity: sha1-5md4PZLonb00KBi1IwudYqZyrRg=
   /mimic-response/1.0.0:
     dev: true
     engines:
@@ -1382,7 +1403,6 @@ packages:
     resolution:
       integrity: sha1-P7z7FbiZpEEjs0ttzBi3JDNqLK4=
   /p-is-promise/1.1.0:
-    dev: true
     engines:
       node: '>=4'
     resolution:
@@ -2165,6 +2185,7 @@ shrinkwrapMinorVersion: 4
 shrinkwrapVersion: 3
 specifiers:
   '@pnpm/logger': ^1.0.0
+  '@types/mem': ^1.1.2
   '@types/mz': ^0.0.32
   '@types/nock': ^8.2.1
   '@types/node': ^8.0.53
@@ -2174,6 +2195,7 @@ specifiers:
   credentials-by-uri: ^1.0.0
   fs-write-stream-atomic: ^1.0.10
   graceful-fs: ^4.1.11
+  mem: ^3.0.0
   mkdirp-promise: ^5.0.1
   mz: ^2.7.0
   nock: ^9.1.4

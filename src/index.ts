@@ -1,5 +1,7 @@
 import logger from '@pnpm/logger'
+import getCredentialsByURI = require('credentials-by-uri')
 import {IncomingMessage} from 'http'
+import mem = require('mem')
 import fs = require('mz/fs')
 import path = require('path')
 import * as unpackStream from 'unpack-stream'
@@ -11,7 +13,6 @@ const fetchLogger = logger('fetch')
 export type IgnoreFunction = (filename: string) => boolean
 
 export interface FetchOptions {
-  auth: object,
   cachedTarballLocation: string,
   pkgId: string,
   prefix: string,
@@ -37,6 +38,7 @@ export default function (
     userAgent?: string,
     ignoreFile?: IgnoreFunction,
     offline?: boolean,
+    rawNpmConfig: object,
   },
 ) {
   const download = createDownloader({
@@ -67,6 +69,7 @@ export default function (
         download,
         ignoreFile: opts.ignoreFile,
         offline: opts.offline,
+        getCredentialsByURI: mem((registry: string) => getCredentialsByURI(registry, opts.rawNpmConfig)),
       }),
       ignore: opts.ignoreFile,
     }),
@@ -105,6 +108,15 @@ async function fetchFromRemoteTarball (
     offline: boolean,
     download: DownloadFunction,
     ignoreFile: IgnoreFunction,
+    getCredentialsByURI: (registry: string) => {
+      scope: string,
+      token: string | undefined,
+      password: string | undefined,
+      username: string | undefined,
+      email: string | undefined,
+      auth: string | undefined,
+      alwaysAuth: string | undefined,
+    },
   },
   unpackTo: string,
   dist: {
@@ -124,8 +136,9 @@ async function fetchFromRemoteTarball (
     if (ctx.offline) {
       throw new PnpmError('NO_OFFLINE_TARBALL', `Could not find ${opts.cachedTarballLocation} in local registry mirror`)
     }
+    const auth = dist.registry ? ctx.getCredentialsByURI(dist.registry) : undefined
     return await ctx.download(dist.tarball, opts.cachedTarballLocation, {
-      auth: opts.auth as any,
+      auth,
       ignore: ctx.ignoreFile,
       integrity: dist.integrity,
       onProgress: opts.onProgress,
