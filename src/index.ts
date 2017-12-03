@@ -25,28 +25,42 @@ export default function (
   opts: {
     alwaysAuth: boolean,
     registry: string,
-    proxy?: {
-      http?: string,
-      https?: string,
-      localAddress?: string,
-    },
-    ssl?: {
-      certificate?: string,
-      key?: string,
-      ca?: string,
-      strict?: boolean,
-    },
-    retry?: {
-      count?: number,
-      factor?: number,
-      minTimeout?: number,
-      maxTimeout?: number,
-      randomize?: boolean,
-    },
+    proxy?: string,
+    httpsProxy?: string,
+    localAddress?: string,
+    cert?: string,
+    key?: string,
+    ca?: string,
+    strictSsl: boolean,
+    fetchRetries?: number,
+    fetchRetryFactor?: number,
+    fetchRetryMintimeout?: number,
+    fetchRetryMaxtimeout?: number,
     userAgent?: string,
   },
 ) {
-  const download = createDownloader(opts)
+  const download = createDownloader({
+    alwaysAuth: opts.alwaysAuth,
+    registry: opts.registry,
+    proxy: {
+      http: opts.proxy,
+      https: opts.httpsProxy,
+      localAddress: opts.localAddress
+    },
+    ssl: {
+      certificate: opts.cert,
+      key: opts.key,
+      ca: opts.ca,
+      strict: opts.strictSsl
+    },
+    retry: {
+      count: opts.fetchRetries,
+      factor: opts.fetchRetryFactor,
+      minTimeout: opts.fetchRetryMintimeout,
+      maxTimeout: opts.fetchRetryMaxtimeout
+    },
+    userAgent: opts.userAgent,
+  })
   return {
     type: 'tarball',
     fetch: fetchFromTarball.bind(null, download),
