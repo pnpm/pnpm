@@ -8,7 +8,7 @@ import {
   prune as pruneShrinkwrap,
 } from 'pnpm-shrinkwrap'
 import {DependencyTreeNodeMap, DependencyTreeNode} from './resolvePeers'
-import {Resolution} from 'package-store'
+import {Resolution} from '@pnpm/package-requester'
 import R = require('ramda')
 import {PackageJson, Dependencies} from '@pnpm/types'
 
@@ -168,19 +168,19 @@ function toShrResolution (
   resolution: Resolution,
   registry: string
 ): ShrinkwrapResolution {
-  if (dp.isAbsolute(dependencyPath) || resolution.type !== undefined || !resolution.integrity) {
-    return resolution
+  if (dp.isAbsolute(dependencyPath) || resolution.type !== undefined || !resolution['integrity']) {
+    return resolution as ShrinkwrapResolution
   }
   // This might be not the best solution to identify non-standard tarball URLs in the long run
   // but it at least solves the issues with npm Enterprise. See https://github.com/pnpm/pnpm/issues/867
-  if (!resolution.tarball.includes('/-/')) {
+  if (!resolution['tarball'].includes('/-/')) {
     return {
-      integrity: resolution.integrity,
-      tarball: relativeTarball(resolution.tarball, registry),
+      integrity: resolution['integrity'],
+      tarball: relativeTarball(resolution['tarball'], registry),
     }
   }
   return {
-    integrity: resolution.integrity,
+    integrity: resolution['integrity'],
   }
 }
 

@@ -5,7 +5,6 @@ import {
   StrictPnpmOptions,
 } from '@pnpm/types'
 import path = require('path')
-import RegClient = require('npm-registry-client')
 import logger, {
   streamParser,
 } from '@pnpm/logger'
@@ -49,17 +48,18 @@ import {DependencyTreeNode} from '../link/resolvePeers'
 import depsToSpecs, {similarDepsToSpecs} from '../depsToSpecs'
 import shrinkwrapsEqual from './shrinkwrapsEqual'
 import {
-  Got,
-  createGot,
   Store,
-  PackageContentInfo,
-  DirectoryResolution,
-  Resolution,
-  PackageMeta,
 } from 'package-store'
 import depsFromPackage from '../depsFromPackage'
 import writePkg = require('write-pkg')
 import parseWantedDependencies from '../parseWantedDependencies'
+import createFetcher from '@pnpm/default-fetcher'
+import createResolver from '@pnpm/default-resolver'
+import createPackageRequester, {
+  PackageContentInfo,
+  DirectoryResolution,
+  Resolution,
+} from '@pnpm/package-requester'
 
 export type InstalledPackages = {
   [name: string]: InstalledPackage
@@ -100,6 +100,7 @@ export type InstallContext = {
   }[],
   wantedShrinkwrap: Shrinkwrap,
   currentShrinkwrap: Shrinkwrap,
+  requestPackage: Function, //tslint:disable-line
   fetchingLocker: {
     [pkgId: string]: {
       fetchingFiles: Promise<PackageContentInfo>,
@@ -115,8 +116,7 @@ export type InstallContext = {
   prefix: string,
   storePath: string,
   registry: string,
-  metaCache: Map<string, PackageMeta>,
-  got: Got,
+  metaCache: Map<string, object>,
   depth: number,
   engineStrict: boolean,
   nodeVersion: string,
@@ -316,7 +316,6 @@ async function installInContext (
   )
 
   const nodeModulesPath = path.join(ctx.root, 'node_modules')
-  const client = new RegClient(adaptConfig(opts))
 
   // This works from minor version 1, so any number is fine
   // also, the shrinkwrapMinorVersion is going to be removed from shrinkwrap v4
@@ -356,21 +355,18 @@ async function installInContext (
     offline: opts.offline,
     rawNpmConfig: opts.rawNpmConfig,
     nodeModules: nodeModulesPath,
-    metaCache: opts.metaCache as Map<string, PackageMeta>,
+    metaCache: opts.metaCache,
     verifyStoreInegrity: opts.verifyStoreIntegrity,
     engineStrict: opts.engineStrict,
     nodeVersion: opts.nodeVersion,
     pnpmVersion: opts.packageManager.name === 'pnpm' ? opts.packageManager.version : '',
-    got: createGot(client, {
-      networkConcurrency: opts.networkConcurrency,
-      rawNpmConfig: opts.rawNpmConfig,
-      alwaysAuth: opts.alwaysAuth,
-      registry: opts.registry,
-      retries: opts.fetchRetries,
-      factor: opts.fetchRetryFactor,
-      maxTimeout: opts.fetchRetryMaxtimeout,
-      minTimeout: opts.fetchRetryMintimeout,
-    }),
+    requestPackage: createPackageRequester(
+      createResolver(opts),
+      createFetcher(opts) as {}, // TODO: remove `as {}`
+      {
+        networkConcurrency: opts.networkConcurrency,
+      },
+    ),
   }
   const installOpts = {
     root: ctx.root,
@@ -666,34 +662,4 @@ function getPref (
   let prefix = alias !== name ? `npm:${name}@` : ''
   if (opts.saveExact) return `${prefix}${version}`
   return `${prefix}${opts.savePrefix}${version}`
-}
-
-function adaptConfig (opts: StrictPnpmOptions) {
-  const registryLog = logger('registry')
-  return {
-    proxy: {
-      http: opts.proxy,
-      https: opts.httpsProxy,
-      localAddress: opts.localAddress
-    },
-    ssl: {
-      certificate: opts.cert,
-      key: opts.key,
-      ca: opts.ca,
-      strict: opts.strictSsl
-    },
-    retry: {
-      count: opts.fetchRetries,
-      factor: opts.fetchRetryFactor,
-      minTimeout: opts.fetchRetryMintimeout,
-      maxTimeout: opts.fetchRetryMaxtimeout
-    },
-    userAgent: opts.userAgent,
-    log: {
-      ...registryLog,
-      verbose: registryLog.debug.bind(null, 'http'),
-      http: registryLog.debug.bind(null, 'http'),
-    },
-    defaultTag: opts.tag
-  }
 }

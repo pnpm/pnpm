@@ -1,8 +1,10 @@
 import {
-  Resolution,
-  PackageContentInfo,
   pkgIdToFilename,
 } from 'package-store'
+import {
+  Resolution,
+  PackageContentInfo,
+} from '@pnpm/package-requester'
 import {Dependencies} from '@pnpm/types'
 import R = require('ramda')
 import semver = require('semver')

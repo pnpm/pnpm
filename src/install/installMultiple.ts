@@ -6,13 +6,10 @@ import getNpmTarballUrl from 'get-npm-tarball-url'
 import exists = require('path-exists')
 import url = require('url')
 import {
-  Got,
-  fetch,
   FetchedPackage,
   PackageContentInfo,
   Resolution,
-  PackageMeta,
-} from 'package-store'
+} from '@pnpm/package-requester'
 import {InstallContext, InstalledPackages} from '../api/install'
 import {
   WantedDependency,
@@ -268,7 +265,7 @@ async function install (
     pkg: loggedPkg,
   })
 
-  const fetchedPkg = await fetch(wantedDependency, {
+  const fetchedPkg = await ctx.requestPackage(wantedDependency, {
     loggedPkg,
     update: options.update,
     fetchingLocker: ctx.fetchingLocker,
@@ -276,7 +273,6 @@ async function install (
     prefix: ctx.prefix,
     storePath: ctx.storePath,
     metaCache: ctx.metaCache,
-    got: ctx.got,
     shrinkwrapResolution: options.shrinkwrapResolution,
     pkgId: options.pkgId,
     offline: ctx.offline,
@@ -335,8 +331,8 @@ async function install (
         : await fetchedPkg.fetchingPkg
     } catch (err) {
       // avoiding unhandled promise rejections
-      fetchedPkg.calculatingIntegrity.catch(err => {})
-      fetchedPkg.fetchingFiles.catch(err => {})
+      fetchedPkg.calculatingIntegrity.catch((err: Error) => {})
+      fetchedPkg.fetchingFiles.catch((err: Error) => {})
       throw err
     }
   }

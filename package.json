@@ -19,6 +19,9 @@
     "@pnpm/logger": "^1.0.0"
   },
   "dependencies": {
+    "@pnpm/default-fetcher": "^0.3.0",
+    "@pnpm/default-resolver": "^0.1.0",
+    "@pnpm/package-requester": "^0.2.0",
     "@pnpm/types": "^1.2.1",
     "@types/byline": "^4.2.31",
     "@types/common-tags": "^1.2.5",
@@ -57,12 +60,11 @@
     "node-gyp": "^3.6.0",
     "normalize-path": "^2.1.1",
     "normalize-registry-url": "^1.0.0",
-    "npm-registry-client": "^8.1.0",
     "os-homedir": "^1.0.2",
     "p-filter": "^1.0.0",
     "p-limit": "^1.1.0",
     "p-series": "^1.0.0",
-    "package-store": "^0.8.0",
+    "package-store": "^0.10.1",
     "path-absolute": "^1.0.0",
     "path-exists": "^3.0.0",
     "path-name": "^1.0.0",

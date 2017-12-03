@@ -1,4 +1,4 @@
-import {Resolution} from 'package-store'
+import {Resolution} from '@pnpm/package-requester'
 import encodeRegistry = require('encode-registry')
 
 export function absolutePathToRef (

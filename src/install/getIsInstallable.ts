@@ -4,7 +4,7 @@ import logger from '@pnpm/logger'
 import {PackageManifest} from '@pnpm/types'
 import {installCheckLogger} from '../loggers'
 import {InstalledPackages} from '../api/install'
-import {FetchedPackage} from 'package-store'
+import {FetchedPackage} from '@pnpm/package-requester'
 
 export default async function getIsInstallable (
   pkgId: string,

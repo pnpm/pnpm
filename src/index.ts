@@ -15,7 +15,7 @@ export {
 } from './loggers'
 
 import * as supiLogs from './loggers'
-import * as packageStoreLogs from 'package-store'
+import * as packageRequesterLogs from '@pnpm/package-requester'
 
-export type ProgressLog = supiLogs.ProgressLog | packageStoreLogs.ProgressLog
-export type Log = supiLogs.Log | packageStoreLogs.Log
+export type ProgressLog = supiLogs.ProgressLog | packageRequesterLogs.ProgressLog
+export type Log = supiLogs.Log | packageRequesterLogs.Log
