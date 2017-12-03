@@ -23,6 +23,9 @@ const resolveFromNpm = createResolveFromNpm({
   metaCache: new Map(),
   store: '.store',
   offline: false,
+  rawNpmConfig: {
+    registry: 'https://registry.npmjs.org/',
+  },
 })
 
 resolveFromNpm({alias: 'is-positive', pref: '1.0.0'}, {

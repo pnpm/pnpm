@@ -1,4 +1,6 @@
 import {PackageManifest} from '@pnpm/types'
+import getCredentialsByURI = require('credentials-by-uri')
+import mem = require('mem')
 import path = require('path')
 import semver = require('semver')
 import ssri = require('ssri')
@@ -30,6 +32,7 @@ export default function createResolver (
     offline?: boolean,
     metaCache: Map<string, object>,
     store: string,
+    rawNpmConfig: object,
   },
 ) {
   const getJson = createGetJson({
@@ -53,6 +56,7 @@ export default function createResolver (
     userAgent: opts.userAgent,
   })
   return resolveNpm.bind(null, {
+    getCredentialsByURI: mem((registry: string) => getCredentialsByURI(registry, opts.rawNpmConfig)),
     loadPkgMeta: loadPkgMeta.bind(null, getJson, opts.metaCache),
     offline: opts.offline,
     store: opts.store,
@@ -64,21 +68,22 @@ async function resolveNpm (
     loadPkgMeta: Function, //tslint:disable-line
     offline?: boolean,
     store: string,
+    getCredentialsByURI: (registry: string) => object,
   },
   wantedDependency: {
     alias?: string,
     pref: string,
   },
   opts: {
-    auth?: object,
     registry: string,
   },
 ) {
   const spec = parsePref(wantedDependency.pref, wantedDependency.alias)
   if (!spec) return null
   try {
+    const auth = ctx.getCredentialsByURI(opts.registry)
     const meta = await ctx.loadPkgMeta(spec, {
-      auth: opts.auth,
+      auth,
       offline: ctx.offline,
       registry: opts.registry,
       storePath: ctx.store,

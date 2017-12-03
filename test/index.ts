@@ -5,6 +5,9 @@ import tempy = require('tempy')
 const resolveFromNpm = createResolveFromNpm({
   metaCache: new Map(),
   store: tempy.directory(),
+  rawNpmConfig: {
+    registry: 'https://registry.npmjs.org/',
+  },
 })
 
 test('resolveFromNpm()', async t => {

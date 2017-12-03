@@ -1,11 +1,14 @@
 dependencies:
   '@pnpm/types': 1.1.0
   '@types/load-json-file': 2.0.7
+  '@types/mem': 1.1.2
   '@types/node': 8.0.53
   '@types/semver': 5.4.0
   '@types/write-json-file': 2.2.1
+  credentials-by-uri: 1.0.0
   encode-registry: 1.1.0
   load-json-file: 4.0.0
+  mem: 3.0.0
   npm-registry-client: 8.5.0
   p-limit: 1.1.0
   semver: 5.4.1
@@ -65,6 +68,10 @@ packages:
   /@types/load-json-file/2.0.7:
     resolution:
       integrity: sha512-NrH6jPlV77QCVPhAHofWeiOr77TgpKt82c2RVxSBChWBJqyY/u4ngl3CA4mcsAg/w7rNLrkR7dkObMV0ihLLXw==
+  /@types/mem/1.1.2:
+    dev: false
+    resolution:
+      integrity: sha1-48iwlfLyVjtRjwqtWd+f5qi4IGU=
   /@types/mz/0.0.31:
     dependencies:
       '@types/node': 8.0.53
@@ -763,6 +770,12 @@ packages:
       node: '>=0.10.0'
     resolution:
       integrity: sha1-Br56vvlHo/FKMP1hBnHUAbyot7Y=
+  /credentials-by-uri/1.0.0:
+    dependencies:
+      nerf-dart: 1.0.0
+    dev: false
+    resolution:
+      integrity: sha512-WtoZkGQV2KgEfEqWKPetJ2btv+GxldzOe2vHVqAcyuiYdpIwCX7viL2+P9EaZLLfR+SFAZgPdP1+HZJ7MqRc2A==
   /cross-spawn-async/2.2.2:
     dependencies:
       lru-cache: 4.1.1
@@ -2202,6 +2215,10 @@ packages:
     dev: true
     resolution:
       integrity: sha1-rmA7NrE0vOw0e0UkIrC/mNWDLsg=
+  /nerf-dart/1.0.0:
+    dev: false
+    resolution:
+      integrity: sha1-5tq3/r9a2Bbqgc9cYpxaDr3nLBo=
   /next-path/1.0.0:
     dev: true
     engines:
@@ -3664,13 +3681,16 @@ specifiers:
   '@pnpm/logger': ^1.0.0
   '@pnpm/types': ^1.1.0
   '@types/load-json-file': ^2.0.7
+  '@types/mem': ^1.1.2
   '@types/node': ^8.0.53
   '@types/semver': ^5.4.0
   '@types/tape': ^4.2.31
   '@types/tempy': ^0.1.0
   '@types/write-json-file': ^2.2.1
+  credentials-by-uri: ^1.0.0
   encode-registry: ^1.1.0
   load-json-file: ^4.0.0
+  mem: ^3.0.0
   mos: ^2.0.0-alpha.3
   mos-plugin-readme: ^1.0.4
   npm-registry-client: ^8.5.0
