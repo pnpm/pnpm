@@ -4,6 +4,8 @@ import {Stats} from 'fs'
 import loadJsonFile = require('load-json-file')
 import mkdirp = require('mkdirp-promise')
 import fs = require('mz/fs')
+import normalizeRegistryUrl = require('normalize-registry-url')
+import PQueue = require('p-queue')
 import path = require('path')
 import exists = require('path-exists')
 import renameOverwrite = require('rename-overwrite')
@@ -11,22 +13,24 @@ import rimraf = require('rimraf-then')
 import symlinkDir = require('symlink-dir')
 import * as unpackStream from 'unpack-stream'
 import writeJsonFile = require('write-json-file')
-import fetchResolution, {
-  IgnoreFunction,
-} from './fetchResolution'
+import combineFetchers, {
+  FetchFunction,
+} from './combineFetchers'
 import pkgIdToFilename from './fs/pkgIdToFilename'
 import {fromDir as readPkgFromDir} from './fs/readPkg'
 import {fromDir as safeReadPkgFromDir} from './fs/safeReadPkg'
 import {Store} from './fs/storeController'
 import {LoggedPkg, progressLogger} from './loggers'
 import memoize, {MemoizedFunc} from './memoize'
-import {Got} from './network/got'
 import untouched from './pkgIsUntouched'
-import resolvePkg, {
+import {
   DirectoryResolution,
-  PackageMeta,
   Resolution,
-} from './resolve'
+  ResolveFunction,
+  ResolveOptions,
+  ResolveResult,
+  WantedDependency,
+} from './resolvers'
 
 export interface PackageContentInfo {
   isNew: boolean,
@@ -54,7 +58,33 @@ export type FetchedPackage = {
   normalizedPref?: string,
 }
 
-export default async function fetch (
+export default function (
+  resolve: ResolveFunction,
+  fetch: FetchFunction,
+  opts: {
+    networkConcurrency: number,
+  },
+) {
+  opts = opts || {}
+
+  const networkConcurrency = opts.networkConcurrency || 16
+  const requestsQueue = new PQueue({
+    concurrency: networkConcurrency,
+  })
+  requestsQueue['counter'] = 0 // tslint:disable-line
+  requestsQueue['concurrency'] = networkConcurrency // tslint:disable-line
+
+  return resolveAndFetch.bind(null,
+    requestsQueue,
+    resolve,
+    fetch,
+  )
+}
+
+async function resolveAndFetch (
+  requestsQueue: {add: <T>(fn: () => Promise<T>, opts: {priority: number}) => Promise<T>},
+  resolve: ResolveFunction,
+  fetch: FetchFunction,
   wantedDependency: {
     alias?: string,
     pref: string,
@@ -68,10 +98,7 @@ export default async function fetch (
         fetchingPkg: Promise<PackageJson>,
       },
     },
-    got: Got,
-    ignore?: IgnoreFunction,
     loggedPkg: LoggedPkg,
-    metaCache: Map<string, PackageMeta>,
     offline: boolean,
     pkgId?: string,
     prefix: string,
@@ -90,15 +117,10 @@ export default async function fetch (
     let resolution = options.shrinkwrapResolution
     let pkgId = options.pkgId
     if (!resolution || options.update) {
-      const resolveResult = await resolvePkg(wantedDependency, {
-        getJson: <T>(url: string, registry: string) => options.got.getJSON<T>(url, registry, options.downloadPriority),
-        loggedPkg: options.loggedPkg,
-        metaCache: options.metaCache,
-        offline: options.offline,
+      const resolveResult = await requestsQueue.add<ResolveResult>(() => resolve(wantedDependency, {
         prefix: options.prefix,
         registry: options.registry,
-        storePath: options.storePath,
-      })
+      }), {priority: options.downloadPriority})
       // keep the shrinkwrap resolution when possible
       // to keep the original shasum
       if (pkgId !== resolveResult.id || !resolution) {
@@ -123,7 +145,7 @@ export default async function fetch (
         isLocal: true,
         normalizedPref,
         pkg,
-        resolution,
+        resolution: resolution as DirectoryResolution,
       }
     }
 
@@ -132,12 +154,11 @@ export default async function fetch (
 
     if (!options.fetchingLocker[id]) {
       options.fetchingLocker[id] = fetchToStore({
-        got: options.got,
-        ignore: options.ignore,
-        offline: options.offline,
+        fetch,
         pkg,
         pkgId: id,
         prefix: options.prefix,
+        requestsQueue,
         resolution: resolution as Resolution,
         storeIndex: options.storeIndex,
         storePath: options.storePath,
@@ -165,8 +186,8 @@ export default async function fetch (
 }
 
 function fetchToStore (opts: {
-  got: Got,
-  offline: boolean,
+  fetch: FetchFunction,
+  requestsQueue: {add: <T>(fn: () => Promise<T>, opts: {priority: number}) => Promise<T>},
   pkg?: PackageJson,
   pkgId: string,
   prefix: string,
@@ -176,7 +197,6 @@ function fetchToStore (opts: {
   storePath: string,
   storeIndex: Store,
   verifyStoreIntegrity: boolean,
-  ignore?: IgnoreFunction,
 }): {
   fetchingFiles: Promise<PackageContentInfo>,
   fetchingPkg: Promise<PackageJson>,
@@ -244,14 +264,23 @@ function fetchToStore (opts: {
       let packageIndex: {} = {}
       await Promise.all([
         (async () => {
-          packageIndex = await fetchResolution(opts.resolution, targetStage, {
-            got: opts.got,
-            ignore: opts.ignore,
-            offline: opts.offline,
+          // Tarballs are requested first because they are bigger than metadata files.
+          // However, when one line is left available, allow it to be picked up by a metadata request.
+          // This is done in order to avoid situations when tarballs are downloaded in chunks
+          // As much tarballs should be downloaded simultaneously as possible.
+          const priority = (++opts.requestsQueue['counter'] % opts.requestsQueue['concurrency'] === 0 ? -1 : 1) * 1000 // tslint:disable-line
+
+          packageIndex = await opts.requestsQueue.add(() => opts.fetch(opts.resolution, targetStage, {
+            cachedTarballLocation: path.join(opts.storePath, opts.pkgId, 'packed.tgz'),
+            onProgress: (downloaded) => {
+              progressLogger.debug({status: 'fetching_progress', pkgId: opts.pkgId, downloaded})
+            },
+            onStart: (size, attempt) => {
+              progressLogger.debug({status: 'fetching_started', pkgId: opts.pkgId, size, attempt})
+            },
             pkgId: opts.pkgId,
             prefix: opts.prefix,
-            storePath: opts.storePath,
-          })
+          }), {priority})
         })(),
         // removing only the folder with the unpacked files
         // not touching tarball and integrity.json
