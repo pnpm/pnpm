@@ -27,6 +27,7 @@ export default function createResolver (
     key?: string,
     strictSsl: boolean,
     userAgent?: string,
+    offline?: boolean,
   },
 ) {
   const getJson = createGetJson({
@@ -49,11 +50,17 @@ export default function createResolver (
     },
     userAgent: opts.userAgent,
   })
-  return resolveNpm.bind(null, loadPkgMeta.bind(null, getJson, new Map()))
+  return resolveNpm.bind(null, {
+    loadPkgMeta: loadPkgMeta.bind(null, getJson, new Map()),
+    offline: opts.offline,
+  })
 }
 
 async function resolveNpm (
-  loadPkgMetaBySpec: Function, //tslint:disable-line
+  ctx: {
+    loadPkgMeta: Function, //tslint:disable-line
+    offline?: boolean,
+  },
   wantedDependency: {
     alias?: string,
     pref: string,
@@ -62,15 +69,14 @@ async function resolveNpm (
     auth?: object,
     storePath: string,
     registry: string,
-    offline: boolean,
   },
 ) {
   const spec = parsePref(wantedDependency.pref, wantedDependency.alias)
   if (!spec) return null
   try {
-    const meta = await loadPkgMetaBySpec(spec, {
+    const meta = await ctx.loadPkgMeta(spec, {
       auth: opts.auth,
-      offline: opts.offline,
+      offline: ctx.offline,
       registry: opts.registry,
       storePath: opts.storePath,
     })
