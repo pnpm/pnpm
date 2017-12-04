@@ -35,9 +35,7 @@
   "dependencies": {
     "@pnpm/git-fetcher": "^0.1.0",
     "@pnpm/tarball-fetcher": "^0.2.0",
-    "@pnpm/types": "^1.2.1",
-    "package-store": "^0.9.0",
-    "unpack-stream": "^2.2.0"
+    "@pnpm/types": "^1.2.1"
   },
   "devDependencies": {
     "@pnpm/logger": "^1.0.0",

@@ -8,6 +8,6 @@ test('createFetcher()', t => {
     strictSsl: false,
     rawNpmConfig: {},
   })
-  t.equal(typeof fetcher, 'function')
+  t.equal(typeof fetcher, 'object')
   t.end()
 })
