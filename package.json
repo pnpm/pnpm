@@ -46,7 +46,7 @@
     "mz": "^2.7.0",
     "p-limit": "^1.1.0",
     "p-queue": "^2.3.0",
-    "package-store": "^0.9.0",
+    "package-store": "^0.10.0",
     "path-exists": "^3.0.0",
     "read-package-json": "^2.0.12",
     "rename-overwrite": "^1.0.0",
