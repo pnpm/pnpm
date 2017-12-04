@@ -32,9 +32,6 @@
     "url": "https://github.com/pnpm/default-resolver/issues"
   },
   "homepage": "https://github.com/pnpm/default-resolver#readme",
-  "peerDependencies": {
-    "@pnpm/logger": "^1.0.0"
-  },
   "dependencies": {
     "@pnpm/git-resolver": "^0.3.0",
     "@pnpm/local-resolver": "^0.1.0",
