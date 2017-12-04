@@ -3,7 +3,6 @@ import resolveFromLocal from '@pnpm/local-resolver'
 import createResolveFromNpm from '@pnpm/npm-resolver'
 import resolveFromTarball from '@pnpm/tarball-resolver'
 import {PnpmOptions} from '@pnpm/types'
-import {ResolveOptions} from 'package-store'
 
 export default function createResolver (
   pnpmOpts: PnpmOptions & {rawNpmConfig: object},

@@ -40,8 +40,7 @@
     "@pnpm/local-resolver": "^0.1.0",
     "@pnpm/npm-resolver": "^0.3.0",
     "@pnpm/tarball-resolver": "^0.1.0",
-    "@pnpm/types": "^1.2.0",
-    "package-store": "^0.9.0"
+    "@pnpm/types": "^1.2.0"
   },
   "devDependencies": {
     "@pnpm/logger": "^1.0.0",
