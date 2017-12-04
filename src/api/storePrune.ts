@@ -1,5 +1,5 @@
 import path = require('path')
-import {PnpmOptions} from '../types'
+import {PnpmOptions} from '@pnpm/types'
 import extendOptions from './extendOptions'
 import getContext from './getContext'
 import logger, {streamParser} from '@pnpm/logger'

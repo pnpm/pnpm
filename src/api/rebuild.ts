@@ -1,4 +1,4 @@
-import {PnpmOptions, StrictPnpmOptions} from '../types'
+import {PnpmOptions, StrictPnpmOptions} from '@pnpm/types'
 import extendOptions from './extendOptions'
 import getContext from './getContext'
 import logger, {streamParser} from '@pnpm/logger'

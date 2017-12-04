@@ -1,6 +1,6 @@
 import path = require('path')
 import pFilter = require('p-filter')
-import {PnpmOptions} from '../types'
+import {PnpmOptions} from '@pnpm/types'
 import extendOptions from './extendOptions'
 import getContext from './getContext'
 import {pkgIsUntouched as untouched} from 'package-store'

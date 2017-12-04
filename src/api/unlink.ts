@@ -1,5 +1,5 @@
 import path = require('path')
-import {PnpmOptions, StrictPnpmOptions} from '../types'
+import {PnpmOptions, StrictPnpmOptions} from '@pnpm/types'
 import extendOptions from './extendOptions'
 import isInnerLink = require('is-inner-link')
 import logger, {streamParser} from '@pnpm/logger'

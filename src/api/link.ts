@@ -5,7 +5,7 @@ import logger, {streamParser} from '@pnpm/logger'
 import {install} from './install'
 import pathAbsolute = require('path-absolute')
 import {linkPkgBins} from '../link/linkBins'
-import {PnpmOptions} from '../types'
+import {PnpmOptions} from '@pnpm/types'
 import extendOptions from './extendOptions'
 
 const linkLogger = logger('link')

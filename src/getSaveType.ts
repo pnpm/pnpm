@@ -1,4 +1,4 @@
-import {PnpmOptions} from './types'
+import {PnpmOptions} from '@pnpm/types'
 export type DependenciesType = 'dependencies' | 'devDependencies' | 'optionalDependencies'
 
 export const dependenciesTypes: DependenciesType[] = ['dependencies', 'devDependencies', 'optionalDependencies']

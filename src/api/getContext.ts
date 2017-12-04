@@ -6,7 +6,7 @@ import {
   Store,
   read as readStore,
 } from 'package-store'
-import {StrictPnpmOptions} from '../types'
+import {StrictPnpmOptions} from '@pnpm/types'
 import {
   readWanted as readWantedShrinkwrap,
   readCurrent as readCurrentShrinkwrap,

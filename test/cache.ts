@@ -25,7 +25,7 @@ test('should fail to update when requests are cached', async function (t) {
   await project.storeHas('dep-of-pkg-with-1-dep', '100.0.0')
 })
 
-test('should not cache when cache is not used', async function (t) {
+test('should not cache when cache is not used', async (t: tape.Test) => {
   const project = prepare(t)
 
   await addDistTag('dep-of-pkg-with-1-dep', '100.0.0', 'latest')

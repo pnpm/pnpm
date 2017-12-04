@@ -15,10 +15,10 @@ import {
 } from 'package-store'
 import {InstallContext, InstalledPackages} from '../api/install'
 import {
-  ReadPackageHook,
   WantedDependency,
 } from '../types'
 import {
+  ReadPackageHook,
   Dependencies,
   PackageManifest,
 } from '@pnpm/types'

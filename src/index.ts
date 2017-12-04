@@ -1,9 +1,8 @@
 // Patch the global fs module here at the app level
 import './fs/gracefulify'
 
-export {PackageManifest} from '@pnpm/types'
+export {PackageManifest, PnpmOptions} from '@pnpm/types'
 export * from './api'
-export {PnpmOptions} from './types'
 export {PnpmError, PnpmErrorCode} from './errorTypes'
 export {
   PackageJsonLog,

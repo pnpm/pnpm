@@ -2,7 +2,7 @@ import {PackageJson} from '@pnpm/types'
 import path = require('path')
 import R = require('ramda')
 import getContext from './getContext'
-import {PnpmOptions} from '../types'
+import {PnpmOptions} from '@pnpm/types'
 import extendOptions from './extendOptions'
 import getPkgDirs from '../fs/getPkgDirs'
 import {fromDir as readPkgFromDir} from '../fs/readPkg'

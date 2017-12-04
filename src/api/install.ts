@@ -1,6 +1,8 @@
 import {
   Dependencies,
   PackageJson,
+  PnpmOptions,
+  StrictPnpmOptions,
 } from '@pnpm/types'
 import path = require('path')
 import RegClient = require('npm-registry-client')
@@ -20,8 +22,6 @@ import R = require('ramda')
 import safeIsInnerLink from '../safeIsInnerLink'
 import {fromDir as safeReadPkgFromDir} from '../fs/safeReadPkg'
 import {
-  PnpmOptions,
-  StrictPnpmOptions,
   WantedDependency,
 } from '../types'
 import getContext, {PnpmContext} from './getContext'
@@ -356,7 +356,7 @@ async function installInContext (
     offline: opts.offline,
     rawNpmConfig: opts.rawNpmConfig,
     nodeModules: nodeModulesPath,
-    metaCache: opts.metaCache,
+    metaCache: opts.metaCache as Map<string, PackageMeta>,
     verifyStoreInegrity: opts.verifyStoreIntegrity,
     engineStrict: opts.engineStrict,
     nodeVersion: opts.nodeVersion,

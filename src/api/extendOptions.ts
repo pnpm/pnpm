@@ -1,4 +1,4 @@
-import {StrictPnpmOptions, PnpmOptions} from '../types'
+import {StrictPnpmOptions, PnpmOptions} from '@pnpm/types'
 import path = require('path')
 import logger from '@pnpm/logger'
 import pnpmPkgJson from '../pnpmPkgJson'
@@ -82,5 +82,6 @@ export default async (opts?: PnpmOptions): Promise<StrictPnpmOptions> => {
     const subfolder = LAYOUT_VERSION.toString() + (extendedOpts.independentLeaves ? '_independent_leaves' : '')
     extendedOpts.prefix = path.join(extendedOpts.prefix, subfolder)
   }
+  extendedOpts.rawNpmConfig['registry'] = extendedOpts.registry
   return extendedOpts
 }
