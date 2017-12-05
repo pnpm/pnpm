@@ -12,7 +12,7 @@ dependencies:
   npm-registry-client: 8.5.0
   retry: 0.10.1
   ssri: 5.0.0
-  unpack-stream: 2.2.0
+  unpack-stream: 3.0.0
 devDependencies:
   '@pnpm/logger': 1.0.0
   '@types/nock': 8.2.1
@@ -2073,10 +2073,22 @@ packages:
       decompress-maybe: 1.0.0
       ssri: 5.0.0
       tar-fs: 1.16.0
+    dev: true
     engines:
       node: '>=4'
     resolution:
       integrity: sha512-UU/97pTZMXBpWGRJLmmDq2mN3v3dBbFgrUNH26UpfvyVwbO1i0ZZnzQvm7YEoTcMJpFpuX9LWGYNu2rmh6K4Jg==
+  /unpack-stream/3.0.0:
+    dependencies:
+      '@types/node': 8.0.53
+      decompress-maybe: 1.0.0
+      ssri: 5.0.0
+      tar-fs: 1.16.0
+    dev: false
+    engines:
+      node: '>=4'
+    resolution:
+      integrity: sha512-0BxD6HlX99YEQZheFAScgneWu35TGSNrKw7iNGqGZo3X+Zv7cW+NNOLvJz7sQr17hZSljUB4vqk0h1zm6xwtaA==
   /url-parse-lax/3.0.0:
     dependencies:
       prepend-http: 2.0.0
@@ -2209,4 +2221,4 @@ specifiers:
   ts-node: ^3.3.0
   tslint: ^5.8.0
   typescript: ^2.6.2
-  unpack-stream: ^2.2.0
+  unpack-stream: ^3.0.0

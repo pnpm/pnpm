@@ -47,7 +47,7 @@
     "npm-registry-client": "^8.5.0",
     "retry": "^0.10.1",
     "ssri": "^5.0.0",
-    "unpack-stream": "^2.2.0"
+    "unpack-stream": "^3.0.0"
   },
   "devDependencies": {
     "@pnpm/logger": "^1.0.0",
