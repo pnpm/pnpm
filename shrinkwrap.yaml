@@ -1,6 +1,6 @@
 dependencies:
-  '@pnpm/git-fetcher': 0.1.0
-  '@pnpm/tarball-fetcher': 0.2.0
+  '@pnpm/git-fetcher': 0.2.0
+  '@pnpm/tarball-fetcher': 0.3.0
   '@pnpm/types': 1.2.1
 devDependencies:
   '@pnpm/logger': 1.0.0
@@ -26,17 +26,17 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha512-ZNaOAOvl9J45nhrnMcRxT9wd2G6hPzC444nRmo8Wk/GmY6dd8FVN/XG/nEdHPjcYPyyrW2UA3McNi+klB9oBHw==
-  /@pnpm/git-fetcher/0.1.0:
+  /@pnpm/git-fetcher/0.2.0:
     dependencies:
       '@types/node': 8.0.54
-      dint: 1.0.0
+      dint: 2.0.0
       execa: 0.8.0
       rimraf-then: 1.0.1
     dev: false
     engines:
       node: '>=4'
     resolution:
-      integrity: sha512-euO6D3tjsZjP0EjrzPqEaLEHZ/RE7x7y33AMM2wxAFGpcBHxqAvf9tSdLkByrlbnW9WmiOjcVoX6rKY9llS5kw==
+      integrity: sha512-IhFB0gZO38sf7hZAsIDuTcV3mtYggK20MHQjnPk0klCIMmJPpDlWQOQVOpmDTvXWrTl79bmjjvkwwfL/P7fUlQ==
   /@pnpm/logger/1.0.0:
     dependencies:
       '@types/node': 8.0.54
@@ -47,7 +47,7 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha512-VRqE5/SiuR7ZrwBmS+Af89BTXli5xBbiqu7WPq56gEtWT8dKf9rFLoimmmMBVeRq5LmVZIXlOxs29F9I+vgSvQ==
-  /@pnpm/tarball-fetcher/0.2.0:
+  /@pnpm/tarball-fetcher/0.3.0:
     dependencies:
       '@types/mem': 1.1.2
       '@types/mz': 0.0.32
@@ -62,14 +62,14 @@ packages:
       npm-registry-client: 8.5.0
       retry: 0.10.1
       ssri: 5.0.0
-      unpack-stream: 2.2.0
+      unpack-stream: 3.0.0
     dev: false
     engines:
       node: '>=4'
     peerDependencies:
       '@pnpm/logger': ^1.0.0
     resolution:
-      integrity: sha512-zSHb9SXY0sf6ZgHatK4fMIBgQ87DvLygLLqCrz36HC0GHJMJHS8Zc/FcVZ/5lPukHqn2vTGWBH6n/Hcu9RvL0g==
+      integrity: sha512-1yfEBDctBjX8sfk4fVdCpiXxv2XH+pRGaXrw4aNbQ0izvTYvMM0RidiyPw7meTbuib8gyl8p3iBq19FZyDtI4g==
   /@pnpm/types/1.2.1:
     dev: false
     resolution:
@@ -119,6 +119,10 @@ packages:
       '@types/events': 1.1.0
     resolution:
       integrity: sha512-qetMdTv3Ytz9u9ESLdcYs45LPI0mczYZIbC184n7kY0jczOqPNQsabBfVCh+na3B2shAfvC459JqHV771A8Rxg==
+  /@types/node/8.0.55:
+    dev: false
+    resolution:
+      integrity: sha512-K8w0FWNsIRcw615d/Et90wMRvLfg8XH1T77fC0xObbusE3+eXwnitdoF9j0CS9zBt8A57J/TKgRVe7RX9ZlT1g==
   /@types/retry/0.10.2:
     dev: false
     resolution:
@@ -458,10 +462,6 @@ packages:
       readable-stream: 2.3.3
     resolution:
       integrity: sha1-ysMo977kVzDUBLaSID/LWQ4XLV4=
-  /bluebird/3.5.1:
-    dev: false
-    resolution:
-      integrity: sha512-MKiLiV+I1AA596t9w1sQJ8jkiSr5+ZKi0WKrYGUn6d1Fx+Ij4tIj+m2WMQSGczs5jZVxV339chE8iwk6F64wjA==
   /bole/3.0.2:
     dependencies:
       fast-safe-stringify: 1.1.13
@@ -948,17 +948,18 @@ packages:
       node: '>=0.3.1'
     resolution:
       integrity: sha512-QpVuMTEoJMF7cKzi6bvWhRulU1fZqZnvyVQgNhPaxxuTYwyjn/j1v9falseQ/uXWwPnO56RBfwtg4h/EQXmucA==
-  /dint/1.0.0:
+  /dint/2.0.0:
     dependencies:
-      bluebird: 3.5.1
       graceful-fs: 4.1.11
+      mz: 2.7.0
       p-every: 1.0.2
-      ssri: 4.1.6
+      p-limit: 1.1.0
+      ssri: 5.0.0
     dev: false
     engines:
       node: '>=4'
     resolution:
-      integrity: sha1-S/7IGLOmVysyi96o0FHM1d5YDEQ=
+      integrity: sha512-lxYQEEebR4G/uGaubo5TBi9H6FJGSR8zJGyt5AhFHbmWyH73e+EenuntCytzKcDpPl2K2v2slXUTY9Ch39kKRQ==
   /dot-prop/3.0.0:
     dependencies:
       is-obj: 1.0.1
@@ -2425,7 +2426,6 @@ packages:
     resolution:
       integrity: sha1-nJRWmJ6fZYgBewQ01WCXZ1w9oF4=
   /p-limit/1.1.0:
-    dev: true
     engines:
       node: '>=4'
     resolution:
@@ -3524,10 +3524,22 @@ packages:
       decompress-maybe: 1.0.0
       ssri: 5.0.0
       tar-fs: 1.16.0
+    dev: true
     engines:
       node: '>=4'
     resolution:
       integrity: sha512-UU/97pTZMXBpWGRJLmmDq2mN3v3dBbFgrUNH26UpfvyVwbO1i0ZZnzQvm7YEoTcMJpFpuX9LWGYNu2rmh6K4Jg==
+  /unpack-stream/3.0.0:
+    dependencies:
+      '@types/node': 8.0.55
+      decompress-maybe: 1.0.0
+      ssri: 5.0.0
+      tar-fs: 1.16.0
+    dev: false
+    engines:
+      node: '>=4'
+    resolution:
+      integrity: sha512-0BxD6HlX99YEQZheFAScgneWu35TGSNrKw7iNGqGZo3X+Zv7cW+NNOLvJz7sQr17hZSljUB4vqk0h1zm6xwtaA==
   /unzip-response/1.0.2:
     dev: true
     engines:
@@ -3712,9 +3724,9 @@ registry: 'https://registry.npmjs.org/'
 shrinkwrapMinorVersion: 4
 shrinkwrapVersion: 3
 specifiers:
-  '@pnpm/git-fetcher': ^0.1.0
+  '@pnpm/git-fetcher': ^0.2.0
   '@pnpm/logger': ^1.0.0
-  '@pnpm/tarball-fetcher': ^0.2.0
+  '@pnpm/tarball-fetcher': ^0.3.0
   '@pnpm/types': ^1.2.1
   '@types/tape': ^4.2.31
   mos: ^2.0.0-alpha.3

@@ -5,6 +5,6 @@ import {PnpmOptions} from '@pnpm/types'
 export default function (opts: PnpmOptions & {alwaysAuth: boolean, registry: string, strictSsl: boolean, rawNpmConfig: object}) {
   return {
     ...createTarballFetcher(opts),
-    git: fetchFromGit,
+    ...fetchFromGit(),
   }
 }
