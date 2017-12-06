@@ -19,8 +19,24 @@ export {
 }
 
 export default function createResolver (
-  opts: PnpmOptions & { rawNpmConfig: object },
+  opts: PnpmOptions & {
+    rawNpmConfig: object,
+    metaCache: Map<string, object>,
+    store: string,
+  },
 ) {
+  if (typeof opts.rawNpmConfig !== 'object') {
+    throw new TypeError('`opts.rawNpmConfig` is required and needs to be an object')
+  }
+  if (typeof opts.rawNpmConfig['registry'] !== 'string') { // tslint:disable-line
+    throw new TypeError('`opts.rawNpmConfig.registry` is required and needs to be a string')
+  }
+  if (typeof opts.metaCache !== 'object') {
+    throw new TypeError('`opts.metaCache` is required and needs to be an object')
+  }
+  if (typeof opts.store !== 'string') {
+    throw new TypeError('`opts.store` is required and needs to be a string')
+  }
   const getJson = createGetJson({
     proxy: {
       http: opts.proxy,
