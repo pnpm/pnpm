@@ -298,10 +298,29 @@ function fetchToStore (opts: {
       // fetchingFilse shouldn't care about when this is saved at all
       if (!targetExists) {
         (async () => {
-          const integrity = opts.verifyStoreIntegrity
-            ? await (packageIndex as unpackStream.Index).integrityPromise
-            : await (packageIndex as unpackStream.Index).headers
-          writeJsonFile(path.join(target, 'integrity.json'), integrity, {indent: null})
+          if (opts.verifyStoreIntegrity) {
+            const fileIntegrities = await Promise.all(
+              Object.keys(packageIndex)
+                .map((filename) =>
+                  packageIndex[filename].generatingIntegrity
+                    .then((fileIntegrity: object) => ({
+                      [filename]: {
+                        integrity: fileIntegrity,
+                        size: packageIndex[filename].size,
+                      },
+                    })),
+                ),
+            )
+            const integrity = fileIntegrities
+              .reduce((acc, info) => {
+                Object.assign(acc, info)
+                return acc
+              }, {})
+            await writeJsonFile(path.join(target, 'integrity.json'), integrity, {indent: null})
+          } else {
+            // TODO: save only filename: {size}
+            await writeJsonFile(path.join(target, 'integrity.json'), packageIndex, {indent: null})
+          }
           calculatingIntegrity.resolve(undefined)
         })()
       } else {
@@ -325,7 +344,7 @@ function fetchToStore (opts: {
       await symlinkDir(unpacked, linkToUnpacked)
 
       fetchingFiles.resolve({
-        index: (packageIndex as unpackStream.Index).headers,
+        index: packageIndex,
         isNew: true,
       })
     } catch (err) {

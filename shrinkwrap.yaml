@@ -21,7 +21,7 @@ dependencies:
 devDependencies:
   '@pnpm/logger': 1.0.0
   '@pnpm/npm-resolver': 0.3.0
-  '@pnpm/tarball-fetcher': 0.2.0
+  '@pnpm/tarball-fetcher': 0.3.0
   '@types/tape': 4.2.31
   mos: 2.0.0-alpha.3
   mos-plugin-readme: 1.0.4
@@ -78,7 +78,7 @@ packages:
       '@pnpm/logger': ^1.0.0
     resolution:
       integrity: sha512-DWjHSHtiPgyKD6OYIpKnXin9gDJmkrPWv+RmjjpFGuzjNKXqoVBIAqSX1pfxezuqz/E/W4OlzqGy8VnUGRGQtw==
-  /@pnpm/tarball-fetcher/0.2.0:
+  /@pnpm/tarball-fetcher/0.3.0:
     dependencies:
       '@types/mem': 1.1.2
       '@types/mz': 0.0.32
@@ -93,14 +93,14 @@ packages:
       npm-registry-client: 8.5.0
       retry: 0.10.1
       ssri: 5.0.0
-      unpack-stream: 2.2.0
+      unpack-stream: 3.0.0
     dev: true
     engines:
       node: '>=4'
     peerDependencies:
       '@pnpm/logger': ^1.0.0
     resolution:
-      integrity: sha512-zSHb9SXY0sf6ZgHatK4fMIBgQ87DvLygLLqCrz36HC0GHJMJHS8Zc/FcVZ/5lPukHqn2vTGWBH6n/Hcu9RvL0g==
+      integrity: sha512-1yfEBDctBjX8sfk4fVdCpiXxv2XH+pRGaXrw4aNbQ0izvTYvMM0RidiyPw7meTbuib8gyl8p3iBq19FZyDtI4g==
   /@pnpm/types/1.2.1:
     resolution:
       integrity: sha512-gvOa3EP2z7O+IFiYsRBB+SBdnyE+SHTVFM5bPr2WGHhPhrScMUJ2jqgzlC79FgRP9c7uoe8Wbp3LYClEDh/U6A==
@@ -147,6 +147,10 @@ packages:
       '@types/events': 1.1.0
     resolution:
       integrity: sha512-qetMdTv3Ytz9u9ESLdcYs45LPI0mczYZIbC184n7kY0jczOqPNQsabBfVCh+na3B2shAfvC459JqHV771A8Rxg==
+  /@types/node/8.0.55:
+    dev: true
+    resolution:
+      integrity: sha512-K8w0FWNsIRcw615d/Et90wMRvLfg8XH1T77fC0xObbusE3+eXwnitdoF9j0CS9zBt8A57J/TKgRVe7RX9ZlT1g==
   /@types/p-queue/1.1.0:
     dev: false
     resolution:
@@ -3682,6 +3686,17 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha512-UU/97pTZMXBpWGRJLmmDq2mN3v3dBbFgrUNH26UpfvyVwbO1i0ZZnzQvm7YEoTcMJpFpuX9LWGYNu2rmh6K4Jg==
+  /unpack-stream/3.0.0:
+    dependencies:
+      '@types/node': 8.0.55
+      decompress-maybe: 1.0.0
+      ssri: 5.0.0
+      tar-fs: 1.16.0
+    dev: true
+    engines:
+      node: '>=4'
+    resolution:
+      integrity: sha512-0BxD6HlX99YEQZheFAScgneWu35TGSNrKw7iNGqGZo3X+Zv7cW+NNOLvJz7sQr17hZSljUB4vqk0h1zm6xwtaA==
   /unzip-response/1.0.2:
     engines:
       node: '>=0.10'
@@ -3873,7 +3888,7 @@ shrinkwrapVersion: 3
 specifiers:
   '@pnpm/logger': ^1.0.0
   '@pnpm/npm-resolver': ^0.3.0
-  '@pnpm/tarball-fetcher': ^0.2.0
+  '@pnpm/tarball-fetcher': ^0.3.0
   '@pnpm/types': ^1.2.1
   '@types/load-json-file': ^2.0.7
   '@types/mz': ^0.0.32
