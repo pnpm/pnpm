@@ -13,7 +13,9 @@ const outdatedOpts = {
   fetchRetryMintimeout: 1e4,
   networkConcurrency: 16,
   offline: false,
-  rawNpmConfig: {},
+  rawNpmConfig: {
+    registry: 'https://registry.npmjs.org/',
+  },
   store: temp,
   strictSsl: true,
   tag: 'latest',

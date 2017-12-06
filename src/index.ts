@@ -1,11 +1,7 @@
 import logger from '@pnpm/logger'
+import createResolver from '@pnpm/npm-resolver'
 import * as dp from 'dependency-path'
-import npa = require('npm-package-arg')
-import RegClient = require('npm-registry-client')
 import {
-  createGot,
-  PackageMeta,
-  resolve,
   resolveStore,
 } from 'package-store'
 import {
@@ -106,18 +102,18 @@ async function _outdated (
   const storePath = await resolveStore(opts.store, pkgPath)
   const currentShrinkwrap = await readCurrentShrinkwrap(pkgPath, {ignoreIncompatible: false}) || {}
 
-  const client = new RegClient(adaptConfig(opts))
-  const got = createGot(client, {
+  const resolve = createResolver({
     alwaysAuth: opts.alwaysAuth,
-    factor: opts.fetchRetryFactor,
-    maxTimeout: opts.fetchRetryMaxtimeout,
-    minTimeout: opts.fetchRetryMintimeout,
-    networkConcurrency: opts.networkConcurrency,
+    fetchRetries: opts.fetchRetries,
+    fetchRetryFactor: opts.fetchRetryFactor,
+    fetchRetryMaxtimeout: opts.fetchRetryMaxtimeout,
+    fetchRetryMintimeout: opts.fetchRetryMintimeout,
+    metaCache: new Map<string, object>(),
+    offline: opts.offline,
     rawNpmConfig: opts.rawNpmConfig,
     registry: wantedShrinkwrap.registry,
-    retries: opts.fetchRetries,
+    store: storePath,
   })
-  const metaCache = new Map<string, PackageMeta>()
 
   const outdated: OutdatedPackage[] = []
 
@@ -155,23 +151,14 @@ async function _outdated (
             return
           }
 
-          const resolution = await resolve(npa.resolve(packageName, 'latest'), {
-            downloadPriority: 0,
-            got,
-            loggedPkg: {
-              name: packageName,
-              rawSpec: `${packageName}@latest`,
-            },
-            metaCache,
-            offline: opts.offline,
-            prefix: pkgPath,
+          // TODO: what about aliased dependencies?
+          const resolution = await resolve({alias: packageName, pref: 'latest'}, {
             registry: wantedShrinkwrap.registry,
-            storePath,
           })
 
-          if (!resolution || !resolution.package) return
+          if (!resolution || !resolution.latest) return
 
-          const latest = resolution.package.version
+          const latest = resolution.latest
 
           if (!currentShrinkwrap[depType][packageName]) {
             outdated.push({

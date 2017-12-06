@@ -36,11 +36,10 @@
     "@pnpm/logger": "^1.0.0"
   },
   "dependencies": {
+    "@pnpm/npm-resolver": "^0.3.0",
     "@types/node": "^8.0.33",
     "dependency-path": "^1.2.0",
-    "npm-package-arg": "^6.0.0",
-    "npm-registry-client": "^8.5.0",
-    "package-store": "^0.5.0",
+    "package-store": "^0.10.1",
     "pnpm-shrinkwrap": "^5.0.0"
   },
   "devDependencies": {
