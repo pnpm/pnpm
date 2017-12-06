@@ -39,6 +39,7 @@ function getHelpText (command: string) {
           --production, --only prod[uction]  packages in \`devDependencies\` won't be installed
           --only dev[elopment]               only \`devDependencies\` are installed regardless of the \`NODE_ENV\`.
           --[no-]lock
+          --ignore-files-level [un]safe      ignore files that are not needed in production, when unpacking dependencies
       `
 
     case 'uninstall':

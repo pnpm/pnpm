@@ -15,6 +15,7 @@ import {
   prepare,
   addDistTag,
   testDefaults,
+  execPnpm,
   execPnpmSync,
 } from '../utils'
 import loadJsonFile = require('load-json-file')
@@ -54,6 +55,42 @@ test('create a pnpm-debug.log file when the command fails', async function (t) {
   t.equal(result.status, 1, 'install failed')
 
   t.ok(await exists('pnpm-debug.log'), 'log file created')
+
+  t.end()
+})
+
+test('install with no ignoration', async (t: tape.Test) => {
+  const project = prepare(t)
+
+  const result = execPnpmSync('install', 'is-positive@1.0.0')
+
+  t.ok(await exists(path.resolve('node_modules', 'is-positive', 'package.json')), 'package.json was not ignored')
+  t.ok(await exists(path.resolve('node_modules', 'is-positive', 'license')), 'license was not ignored')
+  t.ok(await exists(path.resolve('node_modules', 'is-positive', 'readme.md')), 'readme.md was not ignored')
+
+  t.end()
+})
+
+test('install with safe file ignoration level', async (t: tape.Test) => {
+  const project = prepare(t)
+
+  await execPnpm('install', 'is-positive@1.0.0', '--ignore-files-level', 'safe')
+
+  t.ok(await exists(path.resolve('node_modules', 'is-positive', 'package.json')), 'package.json was not ignored')
+  t.ok(await exists(path.resolve('node_modules', 'is-positive', 'license')), 'license was not ignored')
+  t.notOk(await exists(path.resolve('node_modules', 'is-positive', 'readme.md')), 'readme.md was ignored')
+
+  t.end()
+})
+
+test('install with safe file ignoration level', async (t: tape.Test) => {
+  const project = prepare(t)
+
+  const result = execPnpmSync('install', 'is-positive@1.0.0', '--ignore-files-level', 'unsafe')
+
+  t.ok(await exists(path.resolve('node_modules', 'is-positive', 'package.json')), 'package.json was not ignored')
+  t.notOk(await exists(path.resolve('node_modules', 'is-positive', 'license')), 'license was ignored')
+  t.notOk(await exists(path.resolve('node_modules', 'is-positive', 'readme.md')), 'readme.md was ignored')
 
   t.end()
 })

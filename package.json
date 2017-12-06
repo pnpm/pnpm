@@ -31,6 +31,7 @@
     "common-tags": "^1.4.0",
     "cross-spawn": "^5.0.0",
     "graceful-fs": "^4.1.11",
+    "ignorable": "^1.1.2",
     "is-ci": "^1.0.10",
     "load-json-file": "^4.0.0",
     "loud-rejection": "^1.6.0",
