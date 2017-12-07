@@ -1,0 +1,57 @@
+{
+  "name": "fetch-from-npm-registry",
+  "version": "0.0.0",
+  "description": "A fetch lib specifically for using with the npm registry",
+  "main": "lib/index.js",
+  "typings": "lib/index.d.ts",
+  "files": [
+    "lib"
+  ],
+  "engines": {
+    "node": ">=4"
+  },
+  "scripts": {
+    "lint": "tslint -c tslint.json --project .",
+    "tsc": "rimraf lib && tsc",
+    "test": "npm run lint && preview && ts-node test && mos t",
+    "md": "mos",
+    "prepublishOnly": "npm run tsc"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/pnpm/fetch-from-npm-registry.git"
+  },
+  "keywords": [
+    "fetch",
+    "npm"
+  ],
+  "author": "Zoltan Kochan <z@kochan.io> (https://www.kochan.io/)",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/pnpm/fetch-from-npm-registry/issues"
+  },
+  "homepage": "https://github.com/pnpm/fetch-from-npm-registry#readme",
+  "dependencies": {
+    "@types/node": "^8.0.57",
+    "make-fetch-happen": "^2.6.0"
+  },
+  "devDependencies": {
+    "@types/tape": "^4.2.31",
+    "mos": "^2.0.0-alpha.3",
+    "mos-plugin-readme": "^1.0.4",
+    "package-preview": "^1.0.1",
+    "rimraf": "^2.6.2",
+    "tape": "^4.8.0",
+    "ts-node": "^3.3.0",
+    "tslint": "^5.8.0",
+    "typescript": "^2.6.1"
+  },
+  "mos": {
+    "plugins": [
+      "readme"
+    ],
+    "installation": {
+      "useShortAlias": true
+    }
+  }
+}
