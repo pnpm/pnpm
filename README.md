@@ -9,7 +9,7 @@
 ## Installation
 
 ```sh
-npm i -S @pnpm/logger @pnpm/default-resolver
+npm i -S @pnpm/default-resolver
 ```
 
 ## License
