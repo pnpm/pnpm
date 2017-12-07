@@ -38,7 +38,7 @@ export type PackageInRegistry = PackageManifest & {
 const metafileOperationLimits = {}
 
 export default async function loadPkgMetaNonCached (
-  getJson: <T> (url: string, registry: string, auth?: object) => Promise<T>,
+  fetch: (url: string, opts: {auth?: object}) => Promise<{}>,
   metaCache: Map<string, object>,
   spec: RegistryPackageSpec,
   opts: {
@@ -76,7 +76,7 @@ export default async function loadPkgMetaNonCached (
   }
 
   try {
-    const meta = await fromRegistry(getJson, spec.name, opts.registry, opts.auth)
+    const meta = await fromRegistry(fetch, spec.name, opts.registry, opts.auth)
     // only save meta to cache, when it is fresh
     metaCache.set(spec.name, meta)
     limit(() => saveMeta(pkgMirror, meta))
@@ -91,13 +91,13 @@ export default async function loadPkgMetaNonCached (
 }
 
 async function fromRegistry (
-  getJson: <T>(url: string, registry: string, auth?: object) => Promise<T>,
+  fetch: (url: string, opts: {auth?: object}) => Promise<{}>,
   pkgName: string,
   registry: string,
   auth: object,
 ) {
   const uri = toUri(pkgName, registry)
-  const meta = await getJson<PackageMeta>(uri, registry, auth)
+  const meta = await (await fetch(uri, {auth}))['json']() // tslint:disable-line
   return meta
 }
 

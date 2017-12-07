@@ -3,11 +3,11 @@ import {
   PnpmOptions,
 } from '@pnpm/types'
 import getCredentialsByURI = require('credentials-by-uri')
+import createRegFetcher from 'fetch-from-npm-registry'
 import mem = require('mem')
 import path = require('path')
 import semver = require('semver')
 import ssri = require('ssri')
-import createGetJson from './createGetJson'
 import createPkgId from './createNpmPkgId'
 import loadPkgMeta, {PackageMeta} from './loadPackageMeta'
 import parsePref from './parsePref'
@@ -37,29 +37,24 @@ export default function createResolver (
   if (typeof opts.store !== 'string') {
     throw new TypeError('`opts.store` is required and needs to be a string')
   }
-  const getJson = createGetJson({
-    proxy: {
-      http: opts.proxy,
-      https: opts.httpsProxy,
-      localAddress: opts.localAddress,
-    },
+  const fetch = createRegFetcher({
+    ca: opts.ca,
+    cert: opts.cert,
+    key: opts.key,
+    localAddress: opts.localAddress,
+    proxy: opts.httpsProxy || opts.proxy,
     retry: {
-      count: opts.fetchRetries,
       factor: opts.fetchRetryFactor,
       maxTimeout: opts.fetchRetryMaxtimeout,
       minTimeout: opts.fetchRetryMintimeout,
+      retries: opts.fetchRetries,
     },
-    ssl: {
-      ca: opts.ca,
-      certificate: opts.cert,
-      key: opts.key,
-      strict: opts.strictSsl,
-    },
+    strictSSL: opts.strictSsl,
     userAgent: opts.userAgent,
   })
   return resolveNpm.bind(null, {
     getCredentialsByURI: mem((registry: string) => getCredentialsByURI(registry, opts.rawNpmConfig)),
-    loadPkgMeta: loadPkgMeta.bind(null, getJson, opts.metaCache),
+    loadPkgMeta: loadPkgMeta.bind(null, fetch, opts.metaCache),
     offline: opts.offline,
     store: opts.store,
   })
