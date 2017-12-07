@@ -61,7 +61,7 @@ function getHeaders (opts: {auth?: Auth, userAgent?: string}) {
   if (opts.auth) {
     const authorization = authObjectToHeaderValue(opts.auth)
     if (authorization) {
-      headers[authorization] = authorization
+      headers['authorization'] = authorization // tslint:disable-line
     }
   }
   if (opts.userAgent) {
