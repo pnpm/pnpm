@@ -63,6 +63,7 @@ const passedThroughCmds = new Set([
   'docs',
   'edit',
   'get',
+  'info',
   'init',
   'login',
   'logout',
