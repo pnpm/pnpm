@@ -3,12 +3,20 @@ import createPackageRequester from '@pnpm/package-requester'
 import createResolver from '@pnpm/npm-resolver'
 import createFetcher from '@pnpm/tarball-fetcher'
 
-const resolve = createResolver({rawNpmConfig: {}})
+const registry = 'https://registry.npmjs.org/'
+
+const rawNpmConfig = { registry }
+
+const resolve = createResolver({
+  rawNpmConfig,
+  metaCache: new Map(),
+  store: '.store',
+})
 const fetch = createFetcher({
   alwaysAuth: false,
   registry: 'https://registry.npmjs.org/',
   strictSsl: false,
-  rawNpmConfig: {},
+  rawNpmConfig,
 })
 
 test('createPackageRequester', t => {
