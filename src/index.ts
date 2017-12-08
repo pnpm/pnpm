@@ -1,4 +1,3 @@
-import logger from '@pnpm/logger'
 import getCredentialsByURI = require('credentials-by-uri')
 import {IncomingMessage} from 'http'
 import mem = require('mem')
@@ -7,8 +6,6 @@ import path = require('path')
 import * as unpackStream from 'unpack-stream'
 import createDownloader, {DownloadFunction} from './createDownloader'
 import {PnpmError} from './errorTypes'
-
-const fetchLogger = logger('fetch')
 
 export type IgnoreFunction = (filename: string) => boolean
 
@@ -44,23 +41,18 @@ export default function (
   const download = createDownloader({
     alwaysAuth: opts.alwaysAuth,
     registry: opts.registry,
-    proxy: {
-      http: opts.proxy,
-      https: opts.httpsProxy,
-      localAddress: opts.localAddress
-    },
-    ssl: {
-      certificate: opts.cert,
-      key: opts.key,
-      ca: opts.ca,
-      strict: opts.strictSsl
-    },
+    ca: opts.ca,
+    cert: opts.cert,
+    key: opts.key,
+    localAddress: opts.localAddress,
+    proxy: opts.httpsProxy || opts.proxy,
     retry: {
-      count: opts.fetchRetries,
       factor: opts.fetchRetryFactor,
+      maxTimeout: opts.fetchRetryMaxtimeout,
       minTimeout: opts.fetchRetryMintimeout,
-      maxTimeout: opts.fetchRetryMaxtimeout
+      retries: opts.fetchRetries,
     },
+    strictSSL: opts.strictSsl,
     userAgent: opts.userAgent,
   })
   return {
@@ -128,7 +120,6 @@ async function fetchFromRemoteTarball (
 ) {
   try {
     const index = await fetchFromLocalTarball(unpackTo, opts.cachedTarballLocation)
-    fetchLogger.debug(`finish ${dist.integrity} ${dist.tarball}`)
     return index
   } catch (err) {
     if (err.code !== 'ENOENT') throw err

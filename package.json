@@ -30,27 +30,23 @@
     "url": "https://github.com/pnpm/tarball-fetcher/issues"
   },
   "homepage": "https://github.com/pnpm/tarball-fetcher#readme",
-  "peerDependencies": {
-    "@pnpm/logger": "^1.0.0"
-  },
   "dependencies": {
     "@types/mem": "^1.1.2",
     "@types/mz": "^0.0.32",
     "@types/node": "^8.0.53",
     "@types/retry": "^0.10.2",
     "credentials-by-uri": "^1.0.0",
+    "fetch-from-npm-registry": "^0.1.0",
     "fs-write-stream-atomic": "^1.0.10",
     "graceful-fs": "^4.1.11",
     "mem": "^3.0.0",
     "mkdirp-promise": "^5.0.1",
     "mz": "^2.7.0",
-    "npm-registry-client": "^8.5.0",
     "retry": "^0.10.1",
     "ssri": "^5.0.0",
     "unpack-stream": "^3.0.0"
   },
   "devDependencies": {
-    "@pnpm/logger": "^1.0.0",
     "@types/nock": "^8.2.1",
     "@types/tape": "^4.2.31",
     "@types/tempy": "^0.1.0",

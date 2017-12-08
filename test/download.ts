@@ -8,7 +8,7 @@ const tarballPath = path.join(__dirname, 'tars', 'babel-helper-hoist-variables-6
 const tarballSize = 1279
 const tarballIntegrity = 'sha1-HssnaJydJVE+rbyZFKc/VAi+enY='
 const RETRY = {
-  count: 1,
+  retries: 1,
   minTimeout: 0,
   maxTimeout: 100,
 }

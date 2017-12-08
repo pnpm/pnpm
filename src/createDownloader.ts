@@ -1,8 +1,7 @@
-import logger from '@pnpm/logger'
+import createFetcher from 'fetch-from-npm-registry'
 import createWriteStreamAtomic = require('fs-write-stream-atomic')
 import {IncomingMessage} from 'http'
 import mkdirp = require('mkdirp-promise')
-import RegClient = require('npm-registry-client')
 import path = require('path')
 import retry = require('retry')
 import ssri = require('ssri')
@@ -42,19 +41,17 @@ export default (
   gotOpts: {
     alwaysAuth: boolean,
     registry: string,
-    proxy?: {
-      http?: string,
-      https?: string,
-      localAddress?: string,
-    },
-    ssl?: {
-      certificate?: string,
-      key?: string,
-      ca?: string,
-      strict?: boolean,
-    },
+    // proxy
+    proxy?: string,
+    localAddress?: string,
+    // ssl
+    ca?: string,
+    cert?: string,
+    key?: string,
+    strictSSL?: boolean,
+    // retry
     retry?: {
-      count?: number,
+      retries?: number,
       factor?: number,
       minTimeout?: number,
       maxTimeout?: number,
@@ -63,15 +60,7 @@ export default (
     userAgent?: string,
   },
 ): DownloadFunction => {
-  const registryLog = logger('registry')
-  const client = new RegClient({
-    ...gotOpts,
-    log: {
-      ...registryLog,
-      http: registryLog.debug.bind(null, 'http'),
-      verbose: registryLog.debug.bind(null, 'http'),
-    },
-  })
+  const fetchFromNpmRegistry = createFetcher(gotOpts)
 
   const retryOpts = gotOpts.retry
 
@@ -118,54 +107,52 @@ export default (
       })
     })
 
-    function fetch (currentAttempt: number) {
-      return new Promise((resolve, reject) => {
-        client.fetch(url, {auth: shouldAuth && opts.auth || undefined}, async (err: Error, res: IncomingMessage) => {
-          if (err) return reject(err)
+    async function fetch (currentAttempt: number) {
+      try {
+        const res = await fetchFromNpmRegistry(url, {auth: shouldAuth && opts.auth as any || undefined}) // tslint:disable-line
 
-          if (res.statusCode !== 200) {
-            return reject(new Error(`Invalid response: ${res.statusCode}`))
-          }
+        if (res.status !== 200) {
+          return new Error(`Invalid response: ${res.statusCode}`)
+        }
 
-          // Is saved to a variable only because TypeScript 5.3 errors otherwise
-          const contentLength = res.headers['content-length']
-          const size = typeof contentLength === 'string'
-            ? parseInt(contentLength, 10)
-            : null
-          if (opts.onStart) {
-            opts.onStart(size, currentAttempt)
-          }
-          const onProgress = opts.onProgress
-          let downloaded = 0
-          res.on('data', (chunk: Buffer) => {
-            downloaded += chunk.length
-            if (onProgress) onProgress(downloaded)
-          })
+        const contentLength = res.headers.has('content-length') && res.headers.get('content-length')
+        const size = typeof contentLength === 'string'
+          ? parseInt(contentLength, 10)
+          : null
+        if (opts.onStart) {
+          opts.onStart(size, currentAttempt)
+        }
+        const onProgress = opts.onProgress
+        let downloaded = 0
+        res.body.on('data', (chunk: Buffer) => {
+          downloaded += chunk.length
+          if (onProgress) onProgress(downloaded)
+        })
 
-          const writeStream = createWriteStreamAtomic(saveto)
+        const writeStream = createWriteStreamAtomic(saveto)
 
-          const stream = res
+        return await new Promise((resolve, reject) => {
+          const stream = res.body
             .on('error', reject)
             .pipe(writeStream)
             .on('error', reject)
 
-          Promise.all([
-            opts.integrity && ssri.checkStream(res, opts.integrity),
-            unpackStream.local(res, opts.unpackTo, {
-              generateIntegrity: opts.generatePackageIntegrity,
-              ignore: opts.ignore,
-            }),
-            waitTillClosed({ stream, size, getDownloaded: () => downloaded, url }),
-          ])
-          .then((vals) => resolve(vals[1]))
-          .catch(reject)
+            Promise.all([
+              opts.integrity && ssri.checkStream(res.body, opts.integrity),
+              unpackStream.local(res.body, opts.unpackTo, {
+                generateIntegrity: opts.generatePackageIntegrity,
+                ignore: opts.ignore,
+              }),
+              waitTillClosed({ stream, size, getDownloaded: () => downloaded, url }),
+            ])
+            .then((vals) => resolve(vals[1]))
+            .catch(reject)
         })
-      })
-      .catch((err) => {
+      } catch (err) {
         err.attempts = currentAttempt
         err.resource = url
         throw err
-      })
+      }
     }
   }
 }
