@@ -5,7 +5,11 @@ import resolveFromTarball from '@pnpm/tarball-resolver'
 import {PnpmOptions} from '@pnpm/types'
 
 export default function createResolver (
-  pnpmOpts: PnpmOptions & {rawNpmConfig: object},
+  pnpmOpts: PnpmOptions & {
+    rawNpmConfig: object,
+    metaCache: Map<string, object>,
+    store: string,
+  },
 ) {
   const resolveFromNpm = createResolveFromNpm(pnpmOpts)
   const resolveFromGit = createResolveFromGit(pnpmOpts)
