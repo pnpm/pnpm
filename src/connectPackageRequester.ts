@@ -1,4 +1,5 @@
 import {
+  PackageResponse,
   RequestPackageFunction,
   RequestPackageOptions,
   Resolution,
@@ -73,7 +74,7 @@ function requestPackage (
   waiters: object,
   wantedDependency: WantedDependency,
   options: RequestPackageOptions,
-) {
+): Promise<PackageResponse> {
   const msgId = uuid.v4()
 
   const fetchingManifest = waiters['add'](`manifestResponse:${msgId}`) // tslint:disable-line
@@ -83,6 +84,7 @@ function requestPackage (
       return Object.assign(packageResponse, {
         fetchingFiles,
         fetchingManifest,
+        finishing: Promise.all([fetchingManifest, fetchingFiles]).then(() => undefined),
       })
     })
 
