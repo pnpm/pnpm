@@ -596,8 +596,8 @@ async function installInContext (
       .map(pkg => pkg.fetchingFiles)
   )
 
-  // waiting till integrities are saved
-  await Promise.all(R.values(installCtx.installs).map(installed => installed.generatingIntegrity))
+  // waiting till package requests are finished
+  await Promise.all(R.values(installCtx.installs).map(installed => installed.finishing))
 
   summaryLogger.info(undefined)
 }

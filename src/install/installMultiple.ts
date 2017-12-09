@@ -47,7 +47,7 @@ export type InstalledPackage = {
   dev: boolean,
   optional: boolean,
   fetchingFiles: Promise<PackageFilesResponse>,
-  generatingIntegrity: Promise<void>,
+  finishing: Promise<void>,
   path: string,
   specRaw: string,
   name: string,
@@ -324,7 +324,7 @@ async function install (
         : await pkgResponse.fetchingManifest
     } catch (err) {
       // avoiding unhandled promise rejections
-      pkgResponse.generatingIntegrity.catch((err: Error) => {})
+      pkgResponse.finishing.catch((err: Error) => {})
       pkgResponse.fetchingFiles.catch((err: Error) => {})
       throw err
     }
@@ -381,7 +381,7 @@ async function install (
       prod: !wantedDependency.dev && !wantedDependency.optional,
       dev: wantedDependency.dev,
       fetchingFiles: pkgResponse.fetchingFiles,
-      generatingIntegrity: pkgResponse.generatingIntegrity,
+      finishing: pkgResponse.finishing,
       path: pkgResponse.inStoreLocation,
       specRaw: wantedDependency.raw,
       peerDependencies: peerDependencies || {},

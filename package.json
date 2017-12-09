@@ -21,7 +21,7 @@
   "dependencies": {
     "@pnpm/default-fetcher": "^0.3.0",
     "@pnpm/default-resolver": "^0.1.0",
-    "@pnpm/package-requester": "^0.3.0",
+    "@pnpm/package-requester": "^0.4.0",
     "@pnpm/types": "^1.2.1",
     "@types/byline": "^4.2.31",
     "@types/common-tags": "^1.2.5",
