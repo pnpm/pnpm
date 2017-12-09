@@ -1,6 +1,9 @@
 import prepare, {tempDir} from './prepare'
 import testDefaults from './testDefaults'
-import execPnpm, {sync as execPnpmSync} from './execPnpm'
+import execPnpm, {
+  sync as execPnpmSync,
+  spawn,
+} from './execPnpm'
 import isExecutable from './isExecutable'
 import {add as addDistTag} from './distTags'
 
@@ -10,6 +13,7 @@ export {
   testDefaults,
   execPnpm,
   execPnpmSync,
+  spawn,
   isExecutable,
   addDistTag,
 }

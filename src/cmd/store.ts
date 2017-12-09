@@ -4,6 +4,7 @@ import {
   storePrune,
   storeStatus,
 } from 'supi'
+import createStoreController from '../createStoreController'
 import {PnpmError} from '../errorTypes'
 import help from './help'
 
@@ -20,6 +21,7 @@ export default async function (input: string[], opts: PnpmOptions) {
     case 'status':
       return statusCmd(opts)
     case 'prune':
+      opts['storeController'] = await createStoreController(opts) // tslint:disable-line
       return storePrune(opts)
     default:
       help(['store'])
