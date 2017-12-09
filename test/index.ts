@@ -20,7 +20,11 @@ const fetch = createFetcher({
 })
 
 test('createPackageRequester', t => {
-  const requestPackage = createPackageRequester(resolve, fetch, {networkConcurrency: 1})
+  const requestPackage = createPackageRequester(resolve, fetch, {
+    networkConcurrency: 1,
+    storePath: '.store',
+    storeIndex: {},
+  })
   t.equal(typeof requestPackage, 'function')
   t.end()
 })

@@ -1,5 +1,5 @@
 import logger from '@pnpm/logger'
-import {PackageJson} from '@pnpm/types'
+import {PackageJson, PackageManifest} from '@pnpm/types'
 import {Stats} from 'fs'
 import loadJsonFile = require('load-json-file')
 import mkdirp = require('mkdirp-promise')
@@ -34,23 +34,23 @@ import {
   WantedDependency,
 } from './resolveTypes'
 
-export interface PackageContentInfo {
-  isNew: boolean,
+export interface PackageFilesResponse {
+  fromStore: boolean,
   index: {},
 }
 
-export type FetchedPackage = {
+export type PackageResponse = {
   isLocal: true,
   resolution: DirectoryResolution,
-  pkg: PackageJson,
+  fetchingManifest: Promise<PackageManifest>
   id: string,
   normalizedPref?: string,
 } | {
   isLocal: false,
-  fetchingPkg: Promise<PackageJson>,
-  fetchingFiles: Promise<PackageContentInfo>,
-  calculatingIntegrity: Promise<void>,
-  path: string,
+  fetchingManifest: Promise<PackageManifest>
+  fetchingFiles: Promise<PackageFilesResponse>,
+  generatingIntegrity: Promise<void>,
+  inStoreLocation: string,
   id: string,
   resolution: Resolution,
   // This is useful for recommending updates.
@@ -60,13 +60,33 @@ export type FetchedPackage = {
   normalizedPref?: string,
 }
 
+export type RequestPackageFunction = (
+  wantedDependency: {
+    alias?: string,
+    pref: string,
+  },
+  options: {
+    downloadPriority: number,
+    loggedPkg: LoggedPkg,
+    offline: boolean,
+    currentPkgId?: string,
+    prefix: string,
+    registry: string,
+    shrinkwrapResolution?: Resolution,
+    update?: boolean,
+    verifyStoreIntegrity: boolean,
+  },
+) => Promise<PackageResponse>
+
 export default function (
   resolve: ResolveFunction,
   fetchers: {[type: string]: FetchFunction},
   opts: {
     networkConcurrency: number,
+    storePath: string,
+    storeIndex: Store,
   },
-) {
+): RequestPackageFunction {
   opts = opts || {}
 
   const networkConcurrency = opts.networkConcurrency || 16
@@ -78,50 +98,55 @@ export default function (
 
   const fetch = fetcher.bind(null, fetchers)
 
-  return resolveAndFetch.bind(null,
+  return resolveAndFetch.bind(null, {
+    fetch,
+    fetchingLocker: {},
     requestsQueue,
     resolve,
-    fetch,
-  )
+    storeIndex: opts.storeIndex,
+    storePath: opts.storePath,
+  })
 }
 
 async function resolveAndFetch (
-  requestsQueue: {add: <T>(fn: () => Promise<T>, opts: {priority: number}) => Promise<T>},
-  resolve: ResolveFunction,
-  fetch: FetchFunction,
+  ctx: {
+    requestsQueue: {add: <T>(fn: () => Promise<T>, opts: {priority: number}) => Promise<T>},
+    resolve: ResolveFunction,
+    fetch: FetchFunction,
+    fetchingLocker: {
+      [pkgId: string]: {
+        generatingIntegrity: Promise<void>,
+        fetchingFiles: Promise<PackageFilesResponse>,
+        fetchingManifest: Promise<PackageManifest>,
+      },
+    },
+    storePath: string,
+    storeIndex: Store,
+  },
   wantedDependency: {
     alias?: string,
     pref: string,
   },
   options: {
     downloadPriority: number,
-    fetchingLocker: {
-      [pkgId: string]: {
-        calculatingIntegrity: Promise<void>,
-        fetchingFiles: Promise<PackageContentInfo>,
-        fetchingPkg: Promise<PackageJson>,
-      },
-    },
     loggedPkg: LoggedPkg,
     offline: boolean,
-    pkgId?: string,
+    currentPkgId?: string,
     prefix: string,
     registry: string,
     shrinkwrapResolution?: Resolution,
-    storeIndex: Store,
-    storePath: string,
     update?: boolean,
     verifyStoreIntegrity: boolean,
   },
-): Promise<FetchedPackage> {
+): Promise<PackageResponse> {
   try {
     let latest: string | undefined
     let pkg: PackageJson | undefined
     let normalizedPref: string | undefined
     let resolution = options.shrinkwrapResolution
-    let pkgId = options.pkgId
+    let pkgId = options.currentPkgId
     if (!resolution || options.update) {
-      const resolveResult = await requestsQueue.add<ResolveResult>(() => resolve(wantedDependency, {
+      const resolveResult = await ctx.requestsQueue.add<ResolveResult>(() => ctx.resolve(wantedDependency, {
         prefix: options.prefix,
         registry: options.registry,
       }), {priority: options.downloadPriority})
@@ -145,27 +170,27 @@ async function resolveAndFetch (
         throw new Error(`Couldn't read package.json of local dependency ${wantedDependency.alias ? wantedDependency.alias + '@' : ''}${wantedDependency.pref}`)
       }
       return {
+        fetchingManifest: Promise.resolve(pkg),
         id,
         isLocal: true,
         normalizedPref,
-        pkg,
         resolution: resolution as DirectoryResolution,
       }
     }
 
     const targetRelative = pkgIdToFilename(id)
-    const target = path.join(options.storePath, targetRelative)
+    const target = path.join(ctx.storePath, targetRelative)
 
-    if (!options.fetchingLocker[id]) {
-      options.fetchingLocker[id] = fetchToStore({
-        fetch,
+    if (!ctx.fetchingLocker[id]) {
+      ctx.fetchingLocker[id] = fetchToStore({
+        fetch: ctx.fetch,
         pkg,
         pkgId: id,
         prefix: options.prefix,
-        requestsQueue,
+        requestsQueue: ctx.requestsQueue,
         resolution: resolution as Resolution,
-        storeIndex: options.storeIndex,
-        storePath: options.storePath,
+        storeIndex: ctx.storeIndex,
+        storePath: ctx.storePath,
         target,
         targetRelative,
         verifyStoreIntegrity: options.verifyStoreIntegrity,
@@ -173,14 +198,14 @@ async function resolveAndFetch (
     }
 
     return {
-      calculatingIntegrity: options.fetchingLocker[id].calculatingIntegrity,
-      fetchingFiles: options.fetchingLocker[id].fetchingFiles,
-      fetchingPkg: options.fetchingLocker[id].fetchingPkg,
+      fetchingFiles: ctx.fetchingLocker[id].fetchingFiles,
+      fetchingManifest: ctx.fetchingLocker[id].fetchingManifest,
+      generatingIntegrity: ctx.fetchingLocker[id].generatingIntegrity,
       id,
+      inStoreLocation: target,
       isLocal: false,
       latest,
       normalizedPref,
-      path: target,
       resolution,
     }
   } catch (err) {
@@ -198,24 +223,24 @@ function fetchToStore (opts: {
   resolution: Resolution,
   target: string,
   targetRelative: string,
-  storePath: string,
   storeIndex: Store,
+  storePath: string,
   verifyStoreIntegrity: boolean,
 }): {
-  fetchingFiles: Promise<PackageContentInfo>,
-  fetchingPkg: Promise<PackageJson>,
-  calculatingIntegrity: Promise<void>,
+  fetchingFiles: Promise<PackageFilesResponse>,
+  fetchingManifest: Promise<PackageManifest>,
+  generatingIntegrity: Promise<void>,
 } {
-  const fetchingPkg = differed<PackageJson>()
-  const fetchingFiles = differed<PackageContentInfo>()
-  const calculatingIntegrity = differed<void>()
+  const fetchingManifest = differed<PackageManifest>()
+  const fetchingFiles = differed<PackageFilesResponse>()
+  const generatingIntegrity = differed<void>()
 
   doFetchToStore()
 
   return {
-    calculatingIntegrity: calculatingIntegrity.promise,
     fetchingFiles: fetchingFiles.promise,
-    fetchingPkg: opts.pkg && Promise.resolve(opts.pkg) || fetchingPkg.promise,
+    fetchingManifest: opts.pkg && Promise.resolve(opts.pkg) || fetchingManifest.promise,
+    generatingIntegrity: generatingIntegrity.promise,
   }
 
   async function doFetchToStore () {
@@ -244,15 +269,15 @@ function fetchToStore (opts: {
             status: 'found_in_store',
           })
           fetchingFiles.resolve({
+            fromStore: true,
             index: satisfiedIntegrity,
-            isNew: false,
           })
           if (!opts.pkg) {
             readPkgFromDir(linkToUnpacked)
-              .then(fetchingPkg.resolve)
-              .catch(fetchingPkg.reject)
+              .then(fetchingManifest.resolve)
+              .catch(fetchingManifest.reject)
           }
-          calculatingIntegrity.resolve(undefined)
+          generatingIntegrity.resolve(undefined)
           return
         }
         logger.warn(`Refetching ${target} to store, as it was modified`)
@@ -321,10 +346,10 @@ function fetchToStore (opts: {
             // TODO: save only filename: {size}
             await writeJsonFile(path.join(target, 'integrity.json'), packageIndex, {indent: null})
           }
-          calculatingIntegrity.resolve(undefined)
+          generatingIntegrity.resolve(undefined)
         })()
       } else {
-        calculatingIntegrity.resolve(undefined)
+        generatingIntegrity.resolve(undefined)
       }
 
       let pkg: PackageJson
@@ -332,7 +357,7 @@ function fetchToStore (opts: {
         pkg = opts.pkg
       } else {
         pkg = await readPkgFromDir(targetStage)
-        fetchingPkg.resolve(pkg)
+        fetchingManifest.resolve(pkg)
       }
 
       const unpacked = path.join(target, 'node_modules', pkg.name)
@@ -344,13 +369,13 @@ function fetchToStore (opts: {
       await symlinkDir(unpacked, linkToUnpacked)
 
       fetchingFiles.resolve({
+        fromStore: false,
         index: packageIndex,
-        isNew: true,
       })
     } catch (err) {
       fetchingFiles.reject(err)
       if (!opts.pkg) {
-        fetchingPkg.reject(err)
+        fetchingManifest.reject(err)
       }
     }
   }

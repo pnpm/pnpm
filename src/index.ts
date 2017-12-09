@@ -1,8 +1,9 @@
 import packageRequester from './packageRequester'
 
 export {
-  FetchedPackage,
-  PackageContentInfo,
+  PackageResponse,
+  PackageFilesResponse,
+  RequestPackageFunction,
 } from './packageRequester'
 
 export default packageRequester
