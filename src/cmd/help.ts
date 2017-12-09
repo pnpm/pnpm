@@ -162,6 +162,22 @@ function getHelpText (command: string) {
         Rebuild a package.
       `
 
+    case 'server':
+      return stripIndent`
+        pnpm server
+
+        **Experimental!** Starts a service that does all interactions with the store.
+        Other commands will delegate any store-related tasks to this service.
+
+        Options:
+
+          --store                        the location where all the packages are saved on the disk.
+          --network-concurrency <number> maximum number of concurrent network requests
+          --[no-]verify-store-integrity  if false, doesn't check whether packages in the store were mutated
+          --only dev[elopment]           only \`devDependencies\` are installed regardless of the \`NODE_ENV\`.
+          --[no-]lock
+      `
+
     default:
       return stripIndent`
         Usage: pnpm [command] [flags]
@@ -181,6 +197,9 @@ function getHelpText (command: string) {
           - store prune
           - root
           - rebuild
+
+        Experimental commands:
+          - server
 
         Other commands are passed through to npm
       `

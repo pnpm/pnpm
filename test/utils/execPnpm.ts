@@ -5,10 +5,7 @@ export default function (...args: string[]): Promise<void>
 export default async function () {
   const args = Array.prototype.slice.call(arguments)
   await new Promise((resolve, reject) => {
-    const proc = crossSpawn.spawn('pnpm', args, {
-      env: createEnv(),
-      stdio: 'inherit',
-    })
+    const proc = spawn(args)
 
     proc.on('error', reject)
 
@@ -16,6 +13,13 @@ export default async function () {
       if (code > 0) return reject(new Error('Exit code ' + code))
       resolve()
     })
+  })
+}
+
+export function spawn (args: string[]) {
+  return crossSpawn.spawn('pnpm', args, {
+    env: createEnv(),
+    stdio: 'inherit',
   })
 }
 
