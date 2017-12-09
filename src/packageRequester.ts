@@ -60,22 +60,26 @@ export type PackageResponse = {
   normalizedPref?: string,
 }
 
+export interface WantedDependency {
+  alias?: string,
+  pref: string,
+}
+
+export interface RequestPackageOptions {
+  downloadPriority: number,
+  loggedPkg: LoggedPkg,
+  offline: boolean,
+  currentPkgId?: string,
+  prefix: string,
+  registry: string,
+  shrinkwrapResolution?: Resolution,
+  update?: boolean,
+  verifyStoreIntegrity: boolean,
+}
+
 export type RequestPackageFunction = (
-  wantedDependency: {
-    alias?: string,
-    pref: string,
-  },
-  options: {
-    downloadPriority: number,
-    loggedPkg: LoggedPkg,
-    offline: boolean,
-    currentPkgId?: string,
-    prefix: string,
-    registry: string,
-    shrinkwrapResolution?: Resolution,
-    update?: boolean,
-    verifyStoreIntegrity: boolean,
-  },
+  wantedDependency: WantedDependency,
+  options: RequestPackageOptions,
 ) => Promise<PackageResponse>
 
 export default function (

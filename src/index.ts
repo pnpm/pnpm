@@ -4,6 +4,8 @@ export {
   PackageResponse,
   PackageFilesResponse,
   RequestPackageFunction,
+  RequestPackageOptions,
+  WantedDependency,
 } from './packageRequester'
 
 export default packageRequester
