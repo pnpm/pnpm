@@ -1,4 +1,11 @@
 #!/usr/bin/env node
+
+// Map SIGINT & SIGTERM to process exit
+// so that lockfiles are removed automatically
+process
+  .once('SIGINT', () => process.exit(1))
+  .once('SIGTERM', () => process.exit(1))
+
 // Patch the global fs module here at the app level
 import fs = require('fs')
 import gfs = require('graceful-fs')
