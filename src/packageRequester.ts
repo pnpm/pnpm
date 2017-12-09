@@ -36,7 +36,7 @@ import {
 
 export interface PackageFilesResponse {
   fromStore: boolean,
-  index: {},
+  filenames: string[],
 }
 
 export type PackageResponse = {
@@ -49,7 +49,7 @@ export type PackageResponse = {
   isLocal: false,
   fetchingManifest: Promise<PackageManifest>
   fetchingFiles: Promise<PackageFilesResponse>,
-  generatingIntegrity: Promise<void>,
+  finishing: Promise<void>, // a package request is finished once its integrity is generated and saved
   inStoreLocation: string,
   id: string,
   resolution: Resolution,
@@ -115,7 +115,7 @@ async function resolveAndFetch (
     fetch: FetchFunction,
     fetchingLocker: {
       [pkgId: string]: {
-        generatingIntegrity: Promise<void>,
+        finishing: Promise<void>,
         fetchingFiles: Promise<PackageFilesResponse>,
         fetchingManifest: Promise<PackageManifest>,
       },
@@ -200,7 +200,7 @@ async function resolveAndFetch (
     return {
       fetchingFiles: ctx.fetchingLocker[id].fetchingFiles,
       fetchingManifest: ctx.fetchingLocker[id].fetchingManifest,
-      generatingIntegrity: ctx.fetchingLocker[id].generatingIntegrity,
+      finishing: ctx.fetchingLocker[id].finishing,
       id,
       inStoreLocation: target,
       isLocal: false,
@@ -229,18 +229,18 @@ function fetchToStore (opts: {
 }): {
   fetchingFiles: Promise<PackageFilesResponse>,
   fetchingManifest: Promise<PackageManifest>,
-  generatingIntegrity: Promise<void>,
+  finishing: Promise<void>,
 } {
   const fetchingManifest = differed<PackageManifest>()
   const fetchingFiles = differed<PackageFilesResponse>()
-  const generatingIntegrity = differed<void>()
+  const finishing = differed<void>()
 
   doFetchToStore()
 
   return {
     fetchingFiles: fetchingFiles.promise,
     fetchingManifest: opts.pkg && Promise.resolve(opts.pkg) || fetchingManifest.promise,
-    generatingIntegrity: generatingIntegrity.promise,
+    finishing: finishing.promise,
   }
 
   async function doFetchToStore () {
@@ -269,15 +269,15 @@ function fetchToStore (opts: {
             status: 'found_in_store',
           })
           fetchingFiles.resolve({
+            filenames: Object.keys(satisfiedIntegrity).filter((f) => !satisfiedIntegrity[f].isDir), // Filtering can be removed for store v3
             fromStore: true,
-            index: satisfiedIntegrity,
           })
           if (!opts.pkg) {
             readPkgFromDir(linkToUnpacked)
               .then(fetchingManifest.resolve)
               .catch(fetchingManifest.reject)
           }
-          generatingIntegrity.resolve(undefined)
+          finishing.resolve(undefined)
           return
         }
         logger.warn(`Refetching ${target} to store, as it was modified`)
@@ -346,10 +346,10 @@ function fetchToStore (opts: {
             // TODO: save only filename: {size}
             await writeJsonFile(path.join(target, 'integrity.json'), packageIndex, {indent: null})
           }
-          generatingIntegrity.resolve(undefined)
+          finishing.resolve(undefined)
         })()
       } else {
-        generatingIntegrity.resolve(undefined)
+        finishing.resolve(undefined)
       }
 
       let pkg: PackageJson
@@ -369,8 +369,8 @@ function fetchToStore (opts: {
       await symlinkDir(unpacked, linkToUnpacked)
 
       fetchingFiles.resolve({
+        filenames: Object.keys(packageIndex).filter((f) => !packageIndex[f].isDir), // Filtering can be removed for store v3
         fromStore: false,
-        index: packageIndex,
       })
     } catch (err) {
       fetchingFiles.reject(err)
