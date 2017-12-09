@@ -41,6 +41,7 @@ const supportedCmds = new Set([
   'prune',
   'install-test',
   'run',
+  'server',
   'store',
   'list',
   'dislink',
