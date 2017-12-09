@@ -1,6 +1,8 @@
 import {
   RequestPackageFunction,
+  RequestPackageOptions,
   Resolution,
+  WantedDependency,
 } from '@pnpm/package-requester'
 import JsonSocket = require('json-socket')
 import net = require('net')
@@ -69,25 +71,8 @@ function deffered<T> (): {
 function requestPackage (
   socket: JsonSocket,
   waiters: object,
-  wantedDependency: {
-    alias?: string,
-    pref: string,
-  },
-  options: {
-    downloadPriority: number,
-    loggedPkg: {
-      rawSpec: string,
-      name?: string,
-      dependentId?: string,
-    },
-    offline: boolean,
-    currentPkgId?: string,
-    prefix: string,
-    registry: string,
-    shrinkwrapResolution?: Resolution,
-    update?: boolean,
-    verifyStoreIntegrity: boolean,
-  },
+  wantedDependency: WantedDependency,
+  options: RequestPackageOptions,
 ) {
   const msgId = uuid.v4()
 
@@ -103,7 +88,7 @@ function requestPackage (
 
   socket.sendMessage({
     msgId,
-    opts: options,
+    options,
     wantedDependency,
   }, (err) => err && console.error(err))
 

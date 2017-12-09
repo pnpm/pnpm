@@ -1,5 +1,8 @@
 import test = require('tape')
-import createServer from '@pnpm/server'
+import {
+  createServer,
+  connectPackageRequester,
+ } from '@pnpm/server'
 import createPackageRequester, {
   PackageFilesResponse,
 } from '@pnpm/package-requester'
@@ -7,7 +10,6 @@ import createResolver from '@pnpm/npm-resolver'
 import createFetcher from '@pnpm/tarball-fetcher'
 import net = require('net')
 import JsonSocket = require('json-socket')
-import createClient from '@pnpm/server/lib/client'
 
 test('server', async t => {
   const registry = 'https://registry.npmjs.org/'
@@ -24,7 +26,7 @@ test('server', async t => {
     strictSsl: true,
     rawNpmConfig,
   })
-  const requestPackage = createPackageRequester(resolve, fetchers, {
+  const requestPackageForServer = createPackageRequester(resolve, fetchers, {
     networkConcurrency: 1,
     storePath: store,
     storeIndex: {},
@@ -32,12 +34,12 @@ test('server', async t => {
 
   const port = 5813
   const hostname = '127.0.0.1';
-  const server = createServer(requestPackage, {
+  const server = createServer(requestPackageForServer, {
     port,
     hostname,
   })
-  const client = await createClient({port, hostname})
-  const response = await client(
+  const requestPackage = await connectPackageRequester({port, hostname})
+  const response = await requestPackage(
     {alias: 'is-positive', pref: '1.0.0'},
     {
       downloadPriority: 0,
@@ -60,6 +62,6 @@ test('server', async t => {
   t.ok(files.filenames.indexOf('package.json') !== -1)
 
   server.close()
-  client['end']() // tslint:disable-line
+  requestPackage['end']() // tslint:disable-line
   t.end()
 })
