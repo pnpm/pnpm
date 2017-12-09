@@ -21,6 +21,7 @@
   "dependencies": {
     "@pnpm/default-fetcher": "^0.3.0",
     "@pnpm/default-resolver": "^0.1.0",
+    "@pnpm/fs-locker": "^1.0.0",
     "@pnpm/package-requester": "^0.4.0",
     "@pnpm/types": "^1.2.1",
     "@types/byline": "^4.2.31",
@@ -70,7 +71,6 @@
     "path-name": "^1.0.0",
     "pnpm-install-checks": "^1.1.0",
     "pnpm-shrinkwrap": "^5.0.0",
-    "proper-lockfile": "^2.0.0",
     "ramda": "^0.25.0",
     "read-package-json": "^2.0.5",
     "remove-all-except-outer-links": "^1.0.0",

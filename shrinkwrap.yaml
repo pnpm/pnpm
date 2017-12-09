@@ -1,6 +1,7 @@
 dependencies:
   '@pnpm/default-fetcher': 0.3.0
   '@pnpm/default-resolver': 0.1.0
+  '@pnpm/fs-locker': 1.0.0
   '@pnpm/package-requester': 0.4.0
   '@pnpm/types': 1.2.1
   '@types/byline': 4.2.31
@@ -50,7 +51,6 @@ dependencies:
   path-name: 1.0.0
   pnpm-install-checks: 1.1.0
   pnpm-shrinkwrap: 5.0.0
-  proper-lockfile: 2.0.1
   ramda: 0.25.0
   read-package-json: 2.0.12
   remove-all-except-outer-links: 1.0.3
@@ -210,6 +210,16 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha512-ZNaOAOvl9J45nhrnMcRxT9wd2G6hPzC444nRmo8Wk/GmY6dd8FVN/XG/nEdHPjcYPyyrW2UA3McNi+klB9oBHw==
+  /@pnpm/fs-locker/1.0.0:
+    dependencies:
+      '@types/node': 8.0.57
+      mkdirp-promise: 5.0.1
+      proper-lockfile: 2.0.1
+    dev: false
+    engines:
+      node: '>=4'
+    resolution:
+      integrity: sha512-JRIhC8lBFJjuaDnTMgCfCaO8IEa04JHCrNMW4RAjNrCeWBdcw2sczxp7qjqZPDc90z1VgUMlkpkGzXePcS9flQ==
   /@pnpm/git-fetcher/0.2.0:
     dependencies:
       '@types/node': 8.0.57
@@ -4852,6 +4862,7 @@ specifiers:
   '@commitlint/prompt-cli': ^4.2.0
   '@pnpm/default-fetcher': ^0.3.0
   '@pnpm/default-resolver': ^0.1.0
+  '@pnpm/fs-locker': ^1.0.0
   '@pnpm/logger': ^1.0.0
   '@pnpm/package-requester': ^0.4.0
   '@pnpm/types': ^1.2.1
@@ -4916,7 +4927,6 @@ specifiers:
   pnpm-install-checks: ^1.1.0
   pnpm-registry-mock: ^1.14.0
   pnpm-shrinkwrap: ^5.0.0
-  proper-lockfile: ^2.0.0
   ramda: ^0.25.0
   read-package-json: ^2.0.5
   read-pkg: ^3.0.0

@@ -1,8 +1,3 @@
-declare module 'proper-lockfile' {
-  const anything: any;
-  export = anything;
-}
-
 declare module 'camelcase' {
   const anything: any;
   export = anything;
