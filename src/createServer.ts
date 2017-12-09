@@ -38,5 +38,7 @@ export default function (
     })
   })
 
-  return server
+  return {
+    close: () => server.close(),
+  }
 }

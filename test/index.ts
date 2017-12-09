@@ -65,6 +65,6 @@ test('server', async t => {
   await response['finishing']
 
   server.close()
-  requestPackage['end']() // tslint:disable-line
+  requestPackage.close()
   t.end()
 })

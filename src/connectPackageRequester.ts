@@ -14,7 +14,7 @@ export default function (
     port: number,
     hostname?: string,
   },
-): Promise<RequestPackageFunction> {
+): Promise<RequestPackageFunction & { close: () => void }> {
   const socket = new JsonSocket(new net.Socket());
   socket.connect(opts.port, opts.hostname || '127.0.0.1')
 
@@ -27,7 +27,7 @@ export default function (
       })
 
       const result = requestPackage.bind(null, socket, waiters)
-      result['end'] = () => socket.end() // tslint:disable-line
+      result['close'] = () => socket.end() // tslint:disable-line
       resolve(result)
     })
   })
