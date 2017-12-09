@@ -57,7 +57,7 @@
     }
   },
   "dependencies": {
-    "@pnpm/package-requester": "^0.3.0",
+    "@pnpm/package-requester": "^0.4.0",
     "@types/json-socket": "^0.1.17",
     "@types/node": "^8.0.57",
     "@types/uuid": "^3.4.3",

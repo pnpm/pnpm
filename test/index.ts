@@ -1,12 +1,13 @@
 import test = require('tape')
 import createServer from '@pnpm/server'
-import createPackageRequester from '@pnpm/package-requester'
+import createPackageRequester, {
+  PackageFilesResponse,
+} from '@pnpm/package-requester'
 import createResolver from '@pnpm/npm-resolver'
 import createFetcher from '@pnpm/tarball-fetcher'
 import net = require('net')
 import JsonSocket = require('json-socket')
 import createClient from '@pnpm/server/lib/client'
-import { PackageFilesResponse } from '../../__package_previews__/server/@pnpm/server/node_modules/.registry.npmjs.org/@pnpm/package-requester/0.3.0/node_modules/@pnpm/package-requester/lib/packageRequester';
 
 test('server', async t => {
   const registry = 'https://registry.npmjs.org/'
@@ -56,7 +57,7 @@ test('server', async t => {
 
   const files = await response['fetchingFiles'] as PackageFilesResponse
   t.notOk(files.fromStore)
-  t.ok(files.index['package.json'])
+  t.ok(files.filenames.indexOf('package.json') !== -1)
 
   server.close()
   client['end']() // tslint:disable-line
