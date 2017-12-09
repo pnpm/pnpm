@@ -56,9 +56,10 @@ import parseWantedDependencies from '../parseWantedDependencies'
 import createFetcher from '@pnpm/default-fetcher'
 import createResolver from '@pnpm/default-resolver'
 import createPackageRequester, {
-  PackageContentInfo,
+  PackageFilesResponse,
   DirectoryResolution,
   Resolution,
+  RequestPackageFunction,
 } from '@pnpm/package-requester'
 
 export type InstalledPackages = {
@@ -100,23 +101,13 @@ export type InstallContext = {
   }[],
   wantedShrinkwrap: Shrinkwrap,
   currentShrinkwrap: Shrinkwrap,
-  requestPackage: Function, //tslint:disable-line
-  fetchingLocker: {
-    [pkgId: string]: {
-      fetchingFiles: Promise<PackageContentInfo>,
-      fetchingPkg: Promise<PackageJson>,
-      calculatingIntegrity: Promise<void>,
-    },
-  },
+  requestPackage: RequestPackageFunction,
   // the IDs of packages that are not installable
   skipped: Set<string>,
   tree: {[nodeId: string]: TreeNode},
-  storeIndex: Store,
   force: boolean,
   prefix: string,
-  storePath: string,
   registry: string,
-  metaCache: Map<string, object>,
   depth: number,
   engineStrict: boolean,
   nodeVersion: string,
@@ -329,11 +320,8 @@ async function installInContext (
     nodesToBuild: [],
     wantedShrinkwrap: ctx.wantedShrinkwrap,
     currentShrinkwrap: ctx.currentShrinkwrap,
-    fetchingLocker: {},
     skipped: ctx.skipped,
     tree: {},
-    storeIndex: ctx.storeIndex,
-    storePath: ctx.storePath,
     registry: ctx.wantedShrinkwrap.registry,
     force: opts.force,
     depth: (function () {
@@ -355,7 +343,6 @@ async function installInContext (
     offline: opts.offline,
     rawNpmConfig: opts.rawNpmConfig,
     nodeModules: nodeModulesPath,
-    metaCache: opts.metaCache,
     verifyStoreInegrity: opts.verifyStoreIntegrity,
     engineStrict: opts.engineStrict,
     nodeVersion: opts.nodeVersion,
@@ -365,6 +352,8 @@ async function installInContext (
       createFetcher(opts) as {}, // TODO: remove `as {}`
       {
         networkConcurrency: opts.networkConcurrency,
+        storeIndex: ctx.storeIndex,
+        storePath: ctx.storePath,
       },
     ),
   }
@@ -381,7 +370,6 @@ async function installInContext (
     currentDepth: 0,
     readPackageHook: opts.hooks.readPackage,
     hasManifestInShrinkwrap,
-    ignoreFile: opts.ignoreFile,
   }
   const nonLinkedPkgs = await pFilter(packagesToInstall,
     async (wantedDependency: WantedDependency) => {
@@ -609,7 +597,7 @@ async function installInContext (
   )
 
   // waiting till integrities are saved
-  await Promise.all(R.values(installCtx.installs).map(installed => installed.calculatingIntegrity))
+  await Promise.all(R.values(installCtx.installs).map(installed => installed.generatingIntegrity))
 
   summaryLogger.info(undefined)
 }

@@ -10,7 +10,7 @@ import {InstalledPackages, TreeNode} from '../api/install'
 import linkBins, {linkPkgBins} from './linkBins'
 import {PackageJson, Dependencies} from '@pnpm/types'
 import {Store} from 'package-store'
-import {Resolution, PackageContentInfo} from '@pnpm/package-requester'
+import {Resolution, PackageFilesResponse} from '@pnpm/package-requester'
 import resolvePeers, {DependencyTreeNode, DependencyTreeNodeMap} from './resolvePeers'
 import logStatus from '../logging/logInstallStatus'
 import updateShrinkwrap from './updateShrinkwrap'
@@ -263,7 +263,7 @@ async function linkNewPackages (
 const limitLinking = pLimit(16)
 
 async function linkAllPkgs (
-  linkPkg: (fetchResult: PackageContentInfo, dependency: DependencyTreeNode, opts: {
+  linkPkg: (fetchResult: PackageFilesResponse, dependency: DependencyTreeNode, opts: {
     force: boolean,
     baseNodeModules: string,
   }) => Promise<void>,
@@ -359,7 +359,7 @@ async function linkAllModules (
 }
 
 async function linkPkg (
-  fetchResult: PackageContentInfo,
+  filesResponse: PackageFilesResponse,
   dependency: DependencyTreeNode,
   opts: {
     force: boolean,
@@ -368,13 +368,13 @@ async function linkPkg (
 ) {
   const pkgJsonPath = path.join(dependency.hardlinkedLocation, 'package.json')
 
-  if (fetchResult.isNew || opts.force || !await exists(pkgJsonPath) || !await pkgLinkedToStore(pkgJsonPath, dependency)) {
-    await linkIndexedDir(dependency.path, dependency.hardlinkedLocation, fetchResult.index)
+  if (!filesResponse.fromStore || opts.force || !await exists(pkgJsonPath) || !await pkgLinkedToStore(pkgJsonPath, dependency)) {
+    await linkIndexedDir(dependency.path, dependency.hardlinkedLocation, filesResponse.index)
   }
 }
 
 async function copyPkg (
-  fetchResult: PackageContentInfo,
+  filesResponse: PackageFilesResponse,
   dependency: DependencyTreeNode,
   opts: {
     force: boolean,

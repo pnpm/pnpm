@@ -3,7 +3,7 @@ import {
 } from 'package-store'
 import {
   Resolution,
-  PackageContentInfo,
+  PackageFilesResponse,
 } from '@pnpm/package-requester'
 import {Dependencies} from '@pnpm/types'
 import R = require('ramda')
@@ -22,7 +22,7 @@ export type DependencyTreeNode = {
   hasBundledDependencies: boolean,
   path: string,
   modules: string,
-  fetchingFiles: Promise<PackageContentInfo>,
+  fetchingFiles: Promise<PackageFilesResponse>,
   resolution: Resolution,
   hardlinkedLocation: string,
   children: {[alias: string]: string},
