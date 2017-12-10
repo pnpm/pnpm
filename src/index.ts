@@ -3,6 +3,9 @@ import pkgIdToFilename from './fs/pkgIdToFilename'
 import {read, save, Store} from './fs/storeIndex'
 import pkgIsUntouched from './pkgIsUntouched'
 import resolveStore from './resolveStore'
+import createStore, {StoreController} from './storeController'
+
+export default createStore
 
 export {
   pkgIdToFilename,
@@ -12,4 +15,5 @@ export {
   getRegistryName,
   pkgIsUntouched,
   resolveStore,
+  StoreController,
 }
