@@ -4,6 +4,7 @@ dependencies:
   '@types/node': 8.0.57
   '@types/uuid': 3.4.3
   json-socket: 0.3.0
+  package-store: 0.11.0
   uuid: 3.1.0
 devDependencies:
   '@pnpm/logger': 1.0.0
@@ -19,6 +20,16 @@ devDependencies:
   tslint: 5.8.0
   typescript: 2.6.2
 packages:
+  /@pnpm/check-package/1.0.0:
+    dependencies:
+      '@types/load-json-file': 2.0.7
+      dint: 2.0.0
+      load-json-file: 4.0.0
+    dev: false
+    engines:
+      node: '>=4'
+    resolution:
+      integrity: sha512-rN+hiOjGtxwwus7c/E0xkCs9prBeXzZCSCW/Q3k2WdHGSRNLAepr777iv+i2eqTfz9vXlTF0rLZOGi62ujzwYA==
   /@pnpm/exec/1.1.2:
     dependencies:
       '@types/got': 7.1.5
@@ -31,6 +42,16 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha512-ZNaOAOvl9J45nhrnMcRxT9wd2G6hPzC444nRmo8Wk/GmY6dd8FVN/XG/nEdHPjcYPyyrW2UA3McNi+klB9oBHw==
+  /@pnpm/fs-locker/1.0.0:
+    dependencies:
+      '@types/node': 8.0.57
+      mkdirp-promise: 5.0.1
+      proper-lockfile: 2.0.1
+    dev: false
+    engines:
+      node: '>=4'
+    resolution:
+      integrity: sha512-JRIhC8lBFJjuaDnTMgCfCaO8IEa04JHCrNMW4RAjNrCeWBdcw2sczxp7qjqZPDc90z1VgUMlkpkGzXePcS9flQ==
   /@pnpm/logger/1.0.0:
     dependencies:
       '@types/node': 8.0.57
@@ -93,6 +114,43 @@ packages:
       '@pnpm/logger': ^1.0.0
     resolution:
       integrity: sha512-x1h+ezzikqrwW3pq+vOudeQTowjkLG8dvr/4CzDyqpvmJZgZ6DLO+3h8Y0NwzKCPcnDQF7OUwy1VQYXYtgb5mw==
+  /@pnpm/package-requester/0.5.0:
+    dependencies:
+      '@pnpm/check-package': 1.0.0
+      '@pnpm/pkgid-to-filename': 1.0.0
+      '@pnpm/types': 1.3.0
+      '@types/load-json-file': 2.0.7
+      '@types/mz': 0.0.32
+      '@types/p-queue': 1.1.0
+      '@types/write-json-file': 2.2.1
+      load-json-file: 4.0.0
+      mkdirp-promise: 5.0.1
+      mz: 2.7.0
+      p-limit: 1.1.0
+      p-queue: 2.3.0
+      path-exists: 3.0.0
+      read-package-json: 2.0.12
+      rename-overwrite: 1.0.0
+      rimraf-then: 1.0.1
+      symlink-dir: 1.1.0
+      unpack-stream: 3.0.0
+      util.promisify: 1.0.0
+      write-json-file: 2.3.0
+    dev: false
+    engines:
+      node: '>=4'
+    peerDependencies:
+      '@pnpm/logger': ^1.0.0
+    resolution:
+      integrity: sha512-cqT435oyGBhQGMJhOJoexO+A7nucyuUf3fzznaTxSo1MMLjku8shntdcdY/t6rjCi0tHKIKqZEAHoWGX0/c9NQ==
+  /@pnpm/pkgid-to-filename/1.0.0:
+    dependencies:
+      normalize-path: 2.1.1
+    dev: false
+    engines:
+      node: '>=4'
+    resolution:
+      integrity: sha512-HnWDy3ecIKBsbRR9bwf+GJpV1CWLQ9Injj7eLSEQIsXQ+CLXU0h1NaxBCW7zcJm+2kbwnm0E1aFdFIEJXhHiTg==
   /@pnpm/tarball-fetcher/0.3.1:
     dependencies:
       '@types/mem': 1.1.2
@@ -117,6 +175,10 @@ packages:
   /@pnpm/types/1.2.1:
     resolution:
       integrity: sha512-gvOa3EP2z7O+IFiYsRBB+SBdnyE+SHTVFM5bPr2WGHhPhrScMUJ2jqgzlC79FgRP9c7uoe8Wbp3LYClEDh/U6A==
+  /@pnpm/types/1.3.0:
+    dev: false
+    resolution:
+      integrity: sha512-dhW0tHPWT19r1lwgv2RMnt31oC6PcsNeGcUlIDYRmC+J7g7Rcm19tZ0xmIAqh9R+U2Uw3PecXsuz+jkC/r5h+A==
   /@sindresorhus/is/0.6.0:
     dev: true
     engines:
@@ -2423,6 +2485,14 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha1-TgHYXCPaGe1xpK+6MZvbTZTIXgA=
+  /p-filter/1.0.0:
+    dependencies:
+      p-map: 1.2.0
+    dev: false
+    engines:
+      node: '>=4'
+    resolution:
+      integrity: sha1-Yp0xcVAgnI/VCLoTdxPvS7kg6ds=
   /p-finally/1.0.0:
     dev: true
     engines:
@@ -2524,6 +2594,32 @@ packages:
       '@pnpm/logger': ^1.0.0
     resolution:
       integrity: sha512-42OC/ytnVm+Tpzl3L8hdEAy+oAHd2wLcu85fnAL/4CEe7Zq/PjWHmrfmeJ3+YC6isMDD0avcIHaEhsbhEnyhvA==
+  /package-store/0.11.0:
+    dependencies:
+      '@pnpm/fs-locker': 1.0.0
+      '@pnpm/package-requester': 0.5.0
+      '@pnpm/types': 1.3.0
+      '@types/load-json-file': 2.0.7
+      '@types/node': 8.0.57
+      '@types/ramda': 0.25.8
+      drive-by-path: 1.0.0
+      encode-registry: 1.1.0
+      load-json-file: 4.0.0
+      os-homedir: 1.0.2
+      p-filter: 1.0.0
+      p-limit: 1.1.0
+      path-absolute: 1.0.0
+      path-exists: 3.0.0
+      ramda: 0.25.0
+      rimraf-then: 1.0.1
+      write-json-file: 2.3.0
+    dev: false
+    engines:
+      node: '>=4'
+    peerDependencies:
+      '@pnpm/logger': ^1.0.0
+    resolution:
+      integrity: sha512-sfw2GEpX7ZNfpOa0Ihy2d9ZpPROctLQsPDeUBJYMaer/SAIzdJK3B0XBFKWvvJX2jbOTrS+bBBWEw4KDFszXHQ==
   /pako/0.2.9:
     resolution:
       integrity: sha1-8/dSL073gjSNqBYbrZ7P1Rv4OnU=
@@ -2726,6 +2822,15 @@ packages:
     dev: true
     resolution:
       integrity: sha1-kRgvkckkhplXQPoF4NqUKsmGvvo=
+  /proper-lockfile/2.0.1:
+    dependencies:
+      graceful-fs: 4.1.11
+      retry: 0.10.1
+    dev: false
+    engines:
+      node: '>=4.0.0'
+    resolution:
+      integrity: sha1-FZ+wYZPTIAP0s2kd0uwaY0qoDR0=
   /pseudomap/1.0.2:
     dev: true
     resolution:
@@ -3005,7 +3110,6 @@ packages:
     resolution:
       integrity: sha1-8ej0YeQGS6Oegq883CqMiT0HZ1k=
   /retry/0.10.1:
-    dev: true
     resolution:
       integrity: sha1-52OI0heZLCUnUCQdPTlW/tmNj/Q=
   /rimraf-then/1.0.1:
@@ -3603,7 +3707,6 @@ packages:
       decompress-maybe: 1.0.0
       ssri: 5.0.0
       tar-fs: 1.16.0
-    dev: true
     engines:
       node: '>=4'
     resolution:
@@ -3798,6 +3901,7 @@ specifiers:
   mos: ^2.0.0-alpha.3
   mos-plugin-readme: ^1.0.4
   package-preview: ^1.0.1
+  package-store: ^0.11.0
   rimraf: ^2.6.2
   tape: ^4.8.0
   ts-node: ^3.3.0

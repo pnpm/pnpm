@@ -1,13 +1,14 @@
 import test = require('tape')
 import {
   createServer,
-  connectPackageRequester,
+  connectStoreController,
  } from '@pnpm/server'
-import createPackageRequester, {
+import {
   PackageFilesResponse,
 } from '@pnpm/package-requester'
 import createResolver from '@pnpm/npm-resolver'
 import createFetcher from '@pnpm/tarball-fetcher'
+import createStore from 'package-store'
 import net = require('net')
 import JsonSocket = require('json-socket')
 
@@ -26,20 +27,21 @@ test('server', async t => {
     strictSsl: true,
     rawNpmConfig,
   })
-  const requestPackageForServer = createPackageRequester(resolve, fetchers, {
+  const storeCtrlForServer = await createStore(resolve, fetchers, {
     networkConcurrency: 1,
-    storePath: store,
-    storeIndex: {},
+    store: store,
+    locks: undefined,
+    lockStaleDuration: 100,
   })
 
   const port = 5813
   const hostname = '127.0.0.1';
-  const server = createServer(requestPackageForServer, {
+  const server = createServer(storeCtrlForServer, {
     port,
     hostname,
   })
-  const requestPackage = await connectPackageRequester({port, hostname})
-  const response = await requestPackage(
+  const storeCtrl = await connectStoreController({port, hostname})
+  const response = await storeCtrl.requestPackage(
     {alias: 'is-positive', pref: '1.0.0'},
     {
       downloadPriority: 0,
@@ -65,6 +67,6 @@ test('server', async t => {
   await response['finishing']
 
   server.close()
-  requestPackage.close()
+  storeCtrl.close()
   t.end()
 })

@@ -1,7 +1,7 @@
-import connectPackageRequester from './connectPackageRequester'
+import connectStoreController from './connectStoreController'
 import createServer from './createServer'
 
 export {
   createServer,
-  connectPackageRequester,
+  connectStoreController,
 }

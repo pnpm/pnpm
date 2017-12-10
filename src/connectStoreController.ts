@@ -7,16 +7,17 @@ import {
 } from '@pnpm/package-requester'
 import JsonSocket = require('json-socket')
 import net = require('net')
+import {StoreController} from 'package-store'
 import uuid = require('uuid')
 
 export default function (
-  opts: {
+  initOpts: {
     port: number,
     hostname?: string,
   },
-): Promise<RequestPackageFunction & { close: () => void }> {
+): Promise<StoreController & { close: () => void }> {
   const socket = new JsonSocket(new net.Socket());
-  socket.connect(opts.port, opts.hostname || '127.0.0.1')
+  socket.connect(initOpts.port, initOpts.hostname || '127.0.0.1')
 
   return new Promise((resolve, reject) => {
     socket.on('connect', () => {
@@ -26,9 +27,31 @@ export default function (
         waiters.resolve(message.action, message.body)
       })
 
-      const result = requestPackage.bind(null, socket, waiters)
-      result['close'] = () => socket.end() // tslint:disable-line
-      resolve(result)
+      resolve({
+        close: () => socket.end(),
+        prune: async () => {
+          socket.sendMessage({
+            action: 'prune',
+          }, (err) => err && console.error(err))
+        },
+        requestPackage: requestPackage.bind(null, socket, waiters),
+        saveState: async () => {
+          socket.sendMessage({
+            action: 'saveState',
+          }, (err) => err && console.error(err))
+        },
+        saveStateAndClose: async () => {
+          socket.sendMessage({
+            action: 'saveStateAndClose',
+          }, (err) => err && console.error(err))
+        },
+        updateConnections: async (prefix: string, opts: {addDependencies: string[], removeDependencies: string[], prune: boolean}) => {
+          socket.sendMessage({
+            action: 'updateConnections',
+            args: [prefix, opts],
+          }, (err) => err && console.error(err))
+        },
+      })
     })
   })
 }
@@ -89,9 +112,9 @@ function requestPackage (
     })
 
   socket.sendMessage({
+    action: 'requestPackage',
+    args: [wantedDependency, options],
     msgId,
-    options,
-    wantedDependency,
   }, (err) => err && console.error(err))
 
   return response

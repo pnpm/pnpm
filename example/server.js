@@ -1,6 +1,6 @@
 'use strict'
 const createServer = require('@pnpm/server').createServer
-const createPackageRequester = require('@pnpm/package-requester').default
+const createStore = require('package-store').default
 const createResolver = require('@pnpm/npm-resolver').default
 const createFetcher = require('@pnpm/tarball-fetcher').default
 
@@ -23,15 +23,14 @@ async function main() {
     strictSsl: true,
     rawNpmConfig,
   })
-  const requestPackageForServer = createPackageRequester(resolve, fetchers, {
+  const storeCtrl = await createStore(resolve, fetchers, {
     networkConcurrency: 1,
-    storePath: store,
-    storeIndex: {},
+    store,
   })
 
   const port = 5813
   const hostname = '127.0.0.1';
-  const server = createServer(requestPackageForServer, {
+  const server = createServer(storeCtrl, {
     port,
     hostname,
   })
