@@ -4,11 +4,9 @@ dependencies:
   '@types/load-json-file': 2.0.7
   '@types/node': 8.0.53
   '@types/ramda': 0.25.6
-  dint: 2.0.0
   drive-by-path: 1.0.0
   encode-registry: 1.1.0
   load-json-file: 4.0.0
-  mz: 2.7.0
   normalize-path: 2.1.1
   os-homedir: 1.0.2
   p-filter: 1.0.0
@@ -2874,13 +2872,11 @@ specifiers:
   '@types/tape': ^4.2.30
   commitizen: ^2.8.6
   cz-conventional-changelog: ^2.0.0
-  dint: ^2.0.0
   drive-by-path: ^1.0.0
   encode-registry: ^1.1.0
   husky: ^0.14.3
   in-publish: ^2.0.0
   load-json-file: ^4.0.0
-  mz: ^2.6.0
   nock: ^9.0.14
   normalize-path: ^2.1.1
   npm-scripts-info: ^0.3.6
