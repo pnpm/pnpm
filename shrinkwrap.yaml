@@ -7,7 +7,6 @@ dependencies:
   drive-by-path: 1.0.0
   encode-registry: 1.1.0
   load-json-file: 4.0.0
-  normalize-path: 2.1.1
   os-homedir: 1.0.2
   p-filter: 1.0.0
   p-limit: 1.1.0
@@ -2878,7 +2877,6 @@ specifiers:
   in-publish: ^2.0.0
   load-json-file: ^4.0.0
   nock: ^9.0.14
-  normalize-path: ^2.1.1
   npm-scripts-info: ^0.3.6
   os-homedir: ^1.0.2
   p-filter: ^1.0.0
