@@ -5,6 +5,7 @@ import createPackageRequester, {
   RequestPackageFunction,
   ResolveFunction,
 } from '@pnpm/package-requester'
+import {StoreIndex} from '@pnpm/types'
 import pFilter = require('p-filter')
 import pLimit = require('p-limit')
 import path = require('path')
@@ -14,7 +15,6 @@ import rimraf = require('rimraf-then')
 import {
   read as readStore,
   save as saveStore,
-  Store,
 } from '../fs/storeIndex'
 
 export interface StoreController {
@@ -106,7 +106,7 @@ export default async function (
 
 const limitExistsCheck = pLimit(10)
 
-async function getRemovedProject (storeIndex: Store) {
+async function getRemovedProject (storeIndex: StoreIndex) {
   const allProjects = R.uniq(R.unnest<string>(R.values(storeIndex)))
 
   return await pFilter(allProjects,

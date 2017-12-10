@@ -1,14 +1,11 @@
+import {StoreIndex} from '@pnpm/types'
 import loadJsonFile = require('load-json-file')
 import path = require('path')
 import writeJsonFile = require('write-json-file')
 
 const STORE_JSON = 'store.json'
 
-export interface Store {
-  [name: string]: string[],
-}
-
-export async function read (storePath: string): Promise<Store | null> {
+export async function read (storePath: string): Promise<StoreIndex | null> {
   const storeJsonPath = path.join(storePath, STORE_JSON)
   try {
     return await loadJsonFile(storeJsonPath)
@@ -20,7 +17,7 @@ export async function read (storePath: string): Promise<Store | null> {
   }
 }
 
-export function save (storePath: string, store: Store) {
+export function save (storePath: string, store: StoreIndex) {
   const storeJsonPath = path.join(storePath, STORE_JSON)
   return writeJsonFile(storeJsonPath, store)
 }

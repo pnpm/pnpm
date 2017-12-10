@@ -1,6 +1,7 @@
 dependencies:
   '@pnpm/fs-locker': 1.0.0
   '@pnpm/package-requester': 0.4.0
+  '@pnpm/types': 1.3.0
   '@types/load-json-file': 2.0.7
   '@types/node': 8.0.53
   '@types/ramda': 0.25.6
@@ -97,6 +98,10 @@ packages:
     dev: false
     resolution:
       integrity: sha512-gvOa3EP2z7O+IFiYsRBB+SBdnyE+SHTVFM5bPr2WGHhPhrScMUJ2jqgzlC79FgRP9c7uoe8Wbp3LYClEDh/U6A==
+  /@pnpm/types/1.3.0:
+    dev: false
+    resolution:
+      integrity: sha512-dhW0tHPWT19r1lwgv2RMnt31oC6PcsNeGcUlIDYRmC+J7g7Rcm19tZ0xmIAqh9R+U2Uw3PecXsuz+jkC/r5h+A==
   /@types/fs-extra/4.0.5:
     dependencies:
       '@types/node': 8.0.53
@@ -2864,6 +2869,7 @@ specifiers:
   '@pnpm/fs-locker': ^1.0.0
   '@pnpm/logger': ^1.0.0
   '@pnpm/package-requester': ^0.4.0
+  '@pnpm/types': ^1.3.0
   '@types/load-json-file': ^2.0.5
   '@types/nock': ^8.2.1
   '@types/node': ^8.0.34
