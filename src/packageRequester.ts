@@ -1,15 +1,13 @@
 import checkPackage from '@pnpm/check-package'
 import logger from '@pnpm/logger'
+import pkgIdToFilename from '@pnpm/pkgid-to-filename'
 import {PackageJson, PackageManifest} from '@pnpm/types'
 import {Stats} from 'fs'
 import loadJsonFile = require('load-json-file')
 import mkdirp = require('mkdirp-promise')
 import fs = require('mz/fs')
 import PQueue = require('p-queue')
-import {
-  pkgIdToFilename,
-  Store,
-} from 'package-store'
+import { Store } from 'package-store'
 import path = require('path')
 import exists = require('path-exists')
 import renameOverwrite = require('rename-overwrite')

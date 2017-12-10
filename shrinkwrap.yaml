@@ -1,5 +1,6 @@
 dependencies:
   '@pnpm/check-package': 1.0.0
+  '@pnpm/pkgid-to-filename': 1.0.0
   '@pnpm/types': 1.2.1
   '@types/load-json-file': 2.0.7
   '@types/mz': 0.0.32
@@ -89,6 +90,14 @@ packages:
       '@pnpm/logger': ^1.0.0
     resolution:
       integrity: sha512-9Ln3phdOdq0is/iVsqPQdB/JV9qtEi4Dq9kTMzHA1R898bSEsk8G3aSqbNFz6skTVYAuLMyiAdrVtJJ8FqJsgQ==
+  /@pnpm/pkgid-to-filename/1.0.0:
+    dependencies:
+      normalize-path: 2.1.1
+    dev: false
+    engines:
+      node: '>=4'
+    resolution:
+      integrity: sha512-HnWDy3ecIKBsbRR9bwf+GJpV1CWLQ9Injj7eLSEQIsXQ+CLXU0h1NaxBCW7zcJm+2kbwnm0E1aFdFIEJXhHiTg==
   /@pnpm/tarball-fetcher/0.3.1:
     dependencies:
       '@types/mem': 1.1.2
@@ -3765,6 +3774,7 @@ specifiers:
   '@pnpm/check-package': ^1.0.0
   '@pnpm/logger': ^1.0.0
   '@pnpm/npm-resolver': ^0.3.0
+  '@pnpm/pkgid-to-filename': ^1.0.0
   '@pnpm/tarball-fetcher': ^0.3.0
   '@pnpm/types': ^1.2.1
   '@types/load-json-file': ^2.0.7
