@@ -1,13 +1,16 @@
 import checkPackage from '@pnpm/check-package'
 import logger from '@pnpm/logger'
 import pkgIdToFilename from '@pnpm/pkgid-to-filename'
-import {PackageJson, PackageManifest} from '@pnpm/types'
+import {
+  PackageJson,
+  PackageManifest,
+  StoreIndex,
+} from '@pnpm/types'
 import {Stats} from 'fs'
 import loadJsonFile = require('load-json-file')
 import mkdirp = require('mkdirp-promise')
 import fs = require('mz/fs')
 import PQueue = require('p-queue')
-import { Store } from 'package-store'
 import path = require('path')
 import exists = require('path-exists')
 import renameOverwrite = require('rename-overwrite')
@@ -86,7 +89,7 @@ export default function (
   opts: {
     networkConcurrency: number,
     storePath: string,
-    storeIndex: Store,
+    storeIndex: StoreIndex,
   },
 ): RequestPackageFunction {
   opts = opts || {}
@@ -123,7 +126,7 @@ async function resolveAndFetch (
       },
     },
     storePath: string,
-    storeIndex: Store,
+    storeIndex: StoreIndex,
   },
   wantedDependency: {
     alias?: string,
@@ -225,7 +228,7 @@ function fetchToStore (opts: {
   resolution: Resolution,
   target: string,
   targetRelative: string,
-  storeIndex: Store,
+  storeIndex: StoreIndex,
   storePath: string,
   verifyStoreIntegrity: boolean,
 }): {
