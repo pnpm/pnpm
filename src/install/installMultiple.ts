@@ -263,7 +263,7 @@ async function install (
     pkg: loggedPkg,
   })
 
-  const pkgResponse = await ctx.requestPackage(wantedDependency, {
+  const pkgResponse = await ctx.storeController.requestPackage(wantedDependency, {
     loggedPkg,
     update: options.update,
     registry,

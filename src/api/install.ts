@@ -47,15 +47,13 @@ import createMemoize, {MemoizedFunc} from '../memoize'
 import {DependencyTreeNode} from '../link/resolvePeers'
 import depsToSpecs, {similarDepsToSpecs} from '../depsToSpecs'
 import shrinkwrapsEqual from './shrinkwrapsEqual'
-import {
-  Store,
+import createStore, {
+  StoreController,
 } from 'package-store'
 import depsFromPackage from '../depsFromPackage'
 import writePkg = require('write-pkg')
 import parseWantedDependencies from '../parseWantedDependencies'
-import createFetcher from '@pnpm/default-fetcher'
-import createResolver from '@pnpm/default-resolver'
-import createPackageRequester, {
+import {
   PackageFilesResponse,
   DirectoryResolution,
   Resolution,
@@ -101,7 +99,7 @@ export type InstallContext = {
   }[],
   wantedShrinkwrap: Shrinkwrap,
   currentShrinkwrap: Shrinkwrap,
-  requestPackage: RequestPackageFunction,
+  storeController: StoreController,
   // the IDs of packages that are not installable
   skipped: Set<string>,
   tree: {[nodeId: string]: TreeNode},
@@ -181,11 +179,7 @@ export async function install (maybeOpts?: PnpmOptions) {
       await npmRunScript('preinstall', ctx.pkg, scriptsOpts)
     }
 
-    if (opts.lock === false) {
-      await run()
-    } else {
-      await lock(ctx.storePath, run, {stale: opts.lockStaleDuration, locks: opts.locks})
-    }
+    await installInContext(installType, specs, [], ctx, opts)
 
     if (scripts['install']) {
       await npmRunScript('install', ctx.pkg, scriptsOpts)
@@ -198,10 +192,6 @@ export async function install (maybeOpts?: PnpmOptions) {
     }
     if (scripts['prepare']) {
       await npmRunScript('prepare', ctx.pkg, scriptsOpts)
-    }
-
-    async function run () {
-      await installInContext(installType, specs, [], ctx, opts)
     }
   }
 }
@@ -273,20 +263,12 @@ export async function installPkgs (fuzzyDeps: string[] | Dependencies, maybeOpts
       throw new Error('At least one package has to be installed')
     }
 
-    if (opts.lock === false) {
-      return run()
-    }
-
-    return lock(ctx.storePath, run, {stale: opts.lockStaleDuration, locks: opts.locks})
-
-    function run () {
-      return installInContext(
-        installType,
-        packagesToInstall,
-        packagesToInstall.map(wantedDependency => wantedDependency.raw),
-        ctx,
-        opts)
-    }
+    return installInContext(
+      installType,
+      packagesToInstall,
+      packagesToInstall.map(wantedDependency => wantedDependency.raw),
+      ctx,
+      opts)
   }
 }
 
@@ -347,15 +329,7 @@ async function installInContext (
     engineStrict: opts.engineStrict,
     nodeVersion: opts.nodeVersion,
     pnpmVersion: opts.packageManager.name === 'pnpm' ? opts.packageManager.version : '',
-    requestPackage: createPackageRequester(
-      createResolver(opts),
-      createFetcher(opts) as {}, // TODO: remove `as {}`
-      {
-        networkConcurrency: opts.networkConcurrency,
-        storeIndex: ctx.storeIndex,
-        storePath: ctx.storePath,
-      },
-    ),
+    storeController: ctx.storeController,
   }
   const installOpts = {
     root: ctx.root,
@@ -520,11 +494,10 @@ async function installInContext (
     optional: opts.optional,
     root: ctx.root,
     currentShrinkwrap: ctx.currentShrinkwrap,
-    storePath: ctx.storePath,
     skipped: ctx.skipped,
     pkg: newPkg || ctx.pkg,
     independentLeaves: opts.independentLeaves,
-    storeIndex: ctx.storeIndex,
+    storeController: ctx.storeController,
     makePartialCurrentShrinkwrap,
     updateShrinkwrapMinorVersion: installType === 'general' || R.isEmpty(ctx.currentShrinkwrap.packages),
     outdatedPkgs: installCtx.outdatedPkgs,

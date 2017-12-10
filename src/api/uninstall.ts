@@ -46,15 +46,7 @@ export default async function uninstall (pkgsToUninstall: string[], maybeOpts?: 
       throw new Error('No package.json found - cannot uninstall')
     }
 
-    if (opts.lock === false) {
-      return run()
-    }
-
-    return lock(ctx.storePath, run, {stale: opts.lockStaleDuration, locks: opts.locks})
-
-    function run () {
-      return uninstallInContext(pkgsToUninstall, ctx, opts)
-    }
+    return uninstallInContext(pkgsToUninstall, ctx, opts)
   }
 }
 
@@ -69,8 +61,7 @@ export async function uninstallInContext (pkgsToUninstall: string[], ctx: PnpmCo
     oldShrinkwrap: ctx.currentShrinkwrap,
     newShrinkwrap: newShr,
     prefix: ctx.root,
-    store: ctx.storePath,
-    storeIndex: ctx.storeIndex,
+    storeController: ctx.storeController,
     bin: opts.bin,
   })
   const currentShrinkwrap = makePartialCurrentShrinkwrap

@@ -9,7 +9,7 @@ import {InstalledPackage} from '../install/installMultiple'
 import {InstalledPackages, TreeNode} from '../api/install'
 import linkBins, {linkPkgBins} from './linkBins'
 import {PackageJson, Dependencies} from '@pnpm/types'
-import {Store} from 'package-store'
+import {StoreController} from 'package-store'
 import {Resolution, PackageFilesResponse} from '@pnpm/package-requester'
 import resolvePeers, {DependencyTreeNode, DependencyTreeNodeMap} from './resolvePeers'
 import logStatus from '../logging/logInstallStatus'
@@ -40,8 +40,7 @@ export default async function (
     development: boolean,
     optional: boolean,
     root: string,
-    storePath: string,
-    storeIndex: Store,
+    storeController: StoreController,
     skipped: Set<string>,
     pkg: PackageJson,
     independentLeaves: boolean,
@@ -67,8 +66,7 @@ export default async function (
     oldShrinkwrap: opts.currentShrinkwrap,
     newShrinkwrap: newShr,
     prefix: opts.root,
-    store: opts.storePath,
-    storeIndex: opts.storeIndex,
+    storeController: opts.storeController,
     bin: opts.bin,
   })
 

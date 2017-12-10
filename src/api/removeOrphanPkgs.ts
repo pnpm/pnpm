@@ -2,7 +2,7 @@ import rimraf = require('rimraf-then')
 import path = require('path')
 import * as dp from 'dependency-path'
 import {Shrinkwrap, ResolvedPackages} from 'pnpm-shrinkwrap'
-import {Store, save as saveStore} from 'package-store'
+import {StoreController} from 'package-store'
 import R = require('ramda')
 import removeTopDependency from '../removeTopDependency'
 import logger from '@pnpm/logger'
@@ -14,8 +14,7 @@ export default async function removeOrphanPkgs (
     newShrinkwrap: Shrinkwrap,
     bin: string,
     prefix: string,
-    store: string,
-    storeIndex: Store,
+    storeController: StoreController,
     pruneStore?: boolean,
   }
 ): Promise<string[]> {
@@ -45,27 +44,19 @@ export default async function removeOrphanPkgs (
     logger.info(`Removing ${notDependents.length} orphan packages from node_modules`);
 
     await Promise.all(notDependents.map(async notDependent => {
-      if (opts.storeIndex[notDependent]) {
-        opts.storeIndex[notDependent].splice(opts.storeIndex[notDependent].indexOf(opts.prefix), 1)
-        if (opts.pruneStore && !opts.storeIndex[notDependent].length) {
-          delete opts.storeIndex[notDependent]
-          await rimraf(path.join(opts.store, notDependent))
-        }
-      }
       await rimraf(path.join(rootModules, `.${notDependent}`))
     }))
   }
 
   const newDependents = R.difference(newPkgIds, oldPkgIds)
 
-  newDependents.forEach(newDependent => {
-    opts.storeIndex[newDependent] = opts.storeIndex[newDependent] || []
-    if (opts.storeIndex[newDependent].indexOf(opts.prefix) === -1) {
-      opts.storeIndex[newDependent].push(opts.prefix)
-    }
+  await opts.storeController.updateConnections(opts.prefix, {
+    prune: opts.pruneStore || false,
+    removeDependencies: notDependents,
+    addDependencies: newDependents,
   })
 
-  await saveStore(opts.store, opts.storeIndex)
+  await opts.storeController.saveStateAndClose()
 
   return notDependents
 }

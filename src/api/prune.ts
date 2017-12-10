@@ -6,7 +6,6 @@ import {PnpmOptions} from '@pnpm/types'
 import extendOptions from './extendOptions'
 import getPkgDirs from '../fs/getPkgDirs'
 import {fromDir as readPkgFromDir} from '../fs/readPkg'
-import lock from './lock'
 import removeOrphanPkgs from './removeOrphanPkgs'
 import {
   ResolvedDependencies,
@@ -24,37 +23,28 @@ export async function prune(maybeOpts?: PnpmOptions): Promise<void> {
 
   const ctx = await getContext(opts)
 
-  if (opts.lock === false) {
-    await run()
-  } else {
-    await lock(ctx.storePath, run, {stale: opts.lockStaleDuration, locks: opts.locks})
+  if (!ctx.pkg) {
+    throw new Error('No package.json found - cannot prune')
   }
+
+  const pkg = {
+    dependencies: opts.production ? ctx.pkg.dependencies : {},
+    devDependencies: opts.development ? ctx.pkg.devDependencies : {},
+    optionalDependencies: opts.optional ? ctx.pkg.optionalDependencies : {},
+  } as PackageJson
+
+  const prunedShr = pruneShrinkwrap(ctx.wantedShrinkwrap, pkg)
+
+  await removeOrphanPkgs({
+    oldShrinkwrap: ctx.currentShrinkwrap,
+    newShrinkwrap: prunedShr,
+    prefix: ctx.root,
+    storeController: ctx.storeController,
+    pruneStore: true,
+    bin: opts.bin,
+  })
 
   if (reporter) {
     streamParser.removeListener('data', reporter)
-  }
-
-  async function run () {
-    if (!ctx.pkg) {
-      throw new Error('No package.json found - cannot prune')
-    }
-
-    const pkg = {
-      dependencies: opts.production ? ctx.pkg.dependencies : {},
-      devDependencies: opts.development ? ctx.pkg.devDependencies : {},
-      optionalDependencies: opts.optional ? ctx.pkg.optionalDependencies : {},
-    } as PackageJson
-
-    const prunedShr = pruneShrinkwrap(ctx.wantedShrinkwrap, pkg)
-
-    await removeOrphanPkgs({
-      oldShrinkwrap: ctx.currentShrinkwrap,
-      newShrinkwrap: prunedShr,
-      prefix: ctx.root,
-      store: ctx.storePath,
-      storeIndex: ctx.storeIndex,
-      pruneStore: true,
-      bin: opts.bin,
-    })
   }
 }

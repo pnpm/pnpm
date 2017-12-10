@@ -1,6 +1,4 @@
-import {
-  pkgIdToFilename,
-} from 'package-store'
+import pkgIdToFilename from '@pnpm/pkgid-to-filename'
 import {
   Resolution,
   PackageFilesResponse,

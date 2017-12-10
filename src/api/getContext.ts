@@ -2,9 +2,8 @@ import path = require('path')
 import isCI = require('is-ci')
 import {fromDir as readPkgFromDir} from '../fs/readPkg'
 import writePkg = require('write-pkg')
-import {
-  Store,
-  read as readStore,
+import createStore, {
+  StoreController,
 } from 'package-store'
 import {StrictPnpmOptions} from '@pnpm/types'
 import {
@@ -23,10 +22,12 @@ import removeAllExceptOuterLinks = require('remove-all-except-outer-links')
 import logger from '@pnpm/logger'
 import checkCompatibility from './checkCompatibility'
 import {packageJsonLogger} from '../loggers'
+import createFetcher from '@pnpm/default-fetcher'
+import createResolver from '@pnpm/default-resolver'
 
 export type PnpmContext = {
   pkg: PackageJson,
-  storeIndex: Store,
+  storeController: StoreController,
   storePath: string,
   root: string,
   existsWantedShrinkwrap: boolean,
@@ -72,7 +73,16 @@ export default async function getContext (opts: StrictPnpmOptions, installType?:
     (opts.global ? readGlobalPkgJson(opts.prefix) : readPkgFromDir(opts.prefix)),
     readWantedShrinkwrap(root, shrOpts),
     readCurrentShrinkwrap(root, shrOpts),
-    readStore(storePath),
+    createStore(
+      createResolver(opts),
+      createFetcher(opts) as {},
+      {
+        networkConcurrency: opts.networkConcurrency,
+        store: opts.store,
+        locks: opts.lock ? opts.locks : undefined,
+        lockStaleDuration: opts.lockStaleDuration,
+      }
+    ),
     mkdirp(storePath),
   ])
   const ctx: PnpmContext = {
@@ -83,7 +93,7 @@ export default async function getContext (opts: StrictPnpmOptions, installType?:
     currentShrinkwrap: files[2] || createShrinkwrap(opts.registry),
     existsWantedShrinkwrap: !!files[1],
     existsCurrentShrinkwrap: !!files[2],
-    storeIndex: files[3] || {},
+    storeController: files[3],
     skipped: new Set(modules && modules.skipped || []),
   }
   packageJsonLogger.debug({ initial: ctx.pkg })

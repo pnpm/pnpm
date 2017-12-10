@@ -3,7 +3,7 @@ import pFilter = require('p-filter')
 import {PnpmOptions} from '@pnpm/types'
 import extendOptions from './extendOptions'
 import getContext from './getContext'
-import {pkgIsUntouched as untouched} from 'package-store'
+import checkPackage from '@pnpm/check-package'
 import * as dp from 'dependency-path'
 import {streamParser} from '@pnpm/logger'
 
@@ -24,7 +24,7 @@ export default async function (maybeOpts: PnpmOptions) {
     .filter(pkgId => pkgId && !ctx.skipped.has(pkgId))
     .map((pkgPath: string) => path.join(ctx.storePath, pkgPath))
 
-  const modified = await pFilter(pkgPaths, async (pkgPath: string) => !await untouched(path.join(pkgPath, 'package')))
+  const modified = await pFilter(pkgPaths, async (pkgPath: string) => !await checkPackage(path.join(pkgPath, 'package')))
 
   if (reporter) {
     streamParser.removeListener('data', reporter)

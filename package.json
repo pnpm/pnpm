@@ -19,10 +19,12 @@
     "@pnpm/logger": "^1.0.0"
   },
   "dependencies": {
+    "@pnpm/check-package": "^1.0.0",
     "@pnpm/default-fetcher": "^0.3.0",
     "@pnpm/default-resolver": "^0.1.0",
     "@pnpm/fs-locker": "^1.0.0",
-    "@pnpm/package-requester": "^0.4.0",
+    "@pnpm/package-requester": "^0.5.0",
+    "@pnpm/pkgid-to-filename": "^1.0.0",
     "@pnpm/types": "^1.2.1",
     "@types/byline": "^4.2.31",
     "@types/common-tags": "^1.2.5",
@@ -65,7 +67,7 @@
     "p-filter": "^1.0.0",
     "p-limit": "^1.1.0",
     "p-series": "^1.0.0",
-    "package-store": "^0.10.1",
+    "package-store": "^0.11.0",
     "path-absolute": "^1.0.0",
     "path-exists": "^3.0.0",
     "path-name": "^1.0.0",
