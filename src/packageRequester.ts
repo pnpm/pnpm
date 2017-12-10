@@ -1,3 +1,4 @@
+import checkPackage from '@pnpm/check-package'
 import logger from '@pnpm/logger'
 import {PackageJson, PackageManifest} from '@pnpm/types'
 import {Stats} from 'fs'
@@ -7,7 +8,6 @@ import fs = require('mz/fs')
 import PQueue = require('p-queue')
 import {
   pkgIdToFilename,
-  pkgIsUntouched,
   Store,
 } from 'package-store'
 import path = require('path')
@@ -265,7 +265,7 @@ function fetchToStore (opts: {
       if (targetExists) {
         // if target exists and it wasn't modified, then no need to refetch it
         const satisfiedIntegrity = opts.verifyStoreIntegrity
-          ? await pkgIsUntouched(linkToUnpacked)
+          ? await checkPackage(linkToUnpacked)
           : await loadJsonFile(path.join(path.dirname(linkToUnpacked), 'integrity.json'))
         if (satisfiedIntegrity) {
           progressLogger.debug({
