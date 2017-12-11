@@ -50,7 +50,7 @@
     "package-preview": "^1.0.0",
     "rimraf": "^2.6.1",
     "tape": "^4.7.0",
-    "ts-node": "^3.3.0",
+    "ts-node": "^4.0.0",
     "tslint": "^5.4.2",
     "typescript": "^2.4.1",
     "validate-commit-msg": "^2.7.0"
@@ -85,7 +85,7 @@
     "fix": "tslint -c tslint.json --project . --fix",
     "lint": "tslint -c tslint.json --project .",
     "pretest": "rimraf .tmp",
-    "test": "npm run lint && preview && ts-node test",
+    "test": "npm run lint && preview && ts-node test --type-check",
     "tsc": "rimraf lib && tsc",
     "prepublishOnly": "npm run tsc"
   },
