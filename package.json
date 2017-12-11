@@ -87,7 +87,7 @@
     "tape": "^4.6.3",
     "tape-promise": "^2.0.1",
     "thenify": "^3.3.0",
-    "ts-node": "^3.0.0",
+    "ts-node": "^4.0.0",
     "tslint": "^5.4.2",
     "typescript": "^2.4.1",
     "write-pkg": "^3.1.0"
