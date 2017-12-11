@@ -5,7 +5,7 @@ import writePkg = require('write-pkg')
 import createStore, {
   StoreController,
 } from 'package-store'
-import {StrictPnpmOptions} from '@pnpm/types'
+import {StrictSupiOptions} from '../types'
 import {
   readWanted as readWantedShrinkwrap,
   readCurrent as readCurrentShrinkwrap,
@@ -37,7 +37,7 @@ export type PnpmContext = {
   skipped: Set<string>,
 }
 
-export default async function getContext (opts: StrictPnpmOptions, installType?: 'named' | 'general'): Promise<PnpmContext> {
+export default async function getContext (opts: StrictSupiOptions, installType?: 'named' | 'general'): Promise<PnpmContext> {
   const root = normalizePath(opts.prefix)
   const storePath = opts.store
 
@@ -73,16 +73,18 @@ export default async function getContext (opts: StrictPnpmOptions, installType?:
     (opts.global ? readGlobalPkgJson(opts.prefix) : readPkgFromDir(opts.prefix)),
     readWantedShrinkwrap(root, shrOpts),
     readCurrentShrinkwrap(root, shrOpts),
-    createStore(
-      createResolver(opts),
-      createFetcher(opts) as {},
-      {
-        networkConcurrency: opts.networkConcurrency,
-        store: opts.store,
-        locks: opts.lock ? opts.locks : undefined,
-        lockStaleDuration: opts.lockStaleDuration,
-      }
-    ),
+    opts.storeController
+      ? Promise.resolve(opts.storeController)
+      : createStore(
+        createResolver(opts),
+        createFetcher(opts) as {},
+        {
+          networkConcurrency: opts.networkConcurrency,
+          store: opts.store,
+          locks: opts.lock ? opts.locks : undefined,
+          lockStaleDuration: opts.lockStaleDuration,
+        }
+      ),
     mkdirp(storePath),
   ])
   const ctx: PnpmContext = {

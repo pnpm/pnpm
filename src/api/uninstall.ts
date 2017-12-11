@@ -20,8 +20,9 @@ import removeOrphanPkgs from './removeOrphanPkgs'
 import safeIsInnerLink from '../safeIsInnerLink'
 import removeTopDependency from '../removeTopDependency'
 import shrinkwrapsEqual from './shrinkwrapsEqual'
+import { SupiOptions, StrictSupiOptions } from '../types';
 
-export default async function uninstall (pkgsToUninstall: string[], maybeOpts?: PnpmOptions) {
+export default async function uninstall (pkgsToUninstall: string[], maybeOpts?: SupiOptions) {
   const reporter = maybeOpts && maybeOpts.reporter
   if (reporter) {
     streamParser.on('data', reporter)
@@ -50,7 +51,7 @@ export default async function uninstall (pkgsToUninstall: string[], maybeOpts?: 
   }
 }
 
-export async function uninstallInContext (pkgsToUninstall: string[], ctx: PnpmContext, opts: StrictPnpmOptions) {
+export async function uninstallInContext (pkgsToUninstall: string[], ctx: PnpmContext, opts: StrictSupiOptions) {
   const makePartialCurrentShrinkwrap = !shrinkwrapsEqual(ctx.currentShrinkwrap, ctx.wantedShrinkwrap)
 
   const pkgJsonPath = path.join(ctx.root, 'package.json')
@@ -64,6 +65,7 @@ export async function uninstallInContext (pkgsToUninstall: string[], ctx: PnpmCo
     storeController: ctx.storeController,
     bin: opts.bin,
   })
+  ctx.storeController.close()
   const currentShrinkwrap = makePartialCurrentShrinkwrap
     ? pruneShrinkwrap(ctx.currentShrinkwrap, pkg)
     : newShr

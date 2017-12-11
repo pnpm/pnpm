@@ -22,6 +22,7 @@ import safeIsInnerLink from '../safeIsInnerLink'
 import {fromDir as safeReadPkgFromDir} from '../fs/safeReadPkg'
 import {
   WantedDependency,
+  SupiOptions,
 } from '../types'
 import getContext, {PnpmContext} from './getContext'
 import installMultiple, {InstalledPackage} from '../install/installMultiple'
@@ -47,7 +48,7 @@ import createMemoize, {MemoizedFunc} from '../memoize'
 import {DependencyTreeNode} from '../link/resolvePeers'
 import depsToSpecs, {similarDepsToSpecs} from '../depsToSpecs'
 import shrinkwrapsEqual from './shrinkwrapsEqual'
-import createStore, {
+import {
   StoreController,
 } from 'package-store'
 import depsFromPackage from '../depsFromPackage'
@@ -116,7 +117,7 @@ export type InstallContext = {
   verifyStoreInegrity: boolean,
 }
 
-export async function install (maybeOpts?: PnpmOptions) {
+export async function install (maybeOpts?: SupiOptions) {
   const reporter = maybeOpts && maybeOpts.reporter
   if (reporter) {
     streamParser.on('data', reporter)
@@ -215,7 +216,7 @@ function specsToInstallFromPackage(
  * @example
  *     install({'lodash': '1.0.0', 'foo': '^2.1.0' }, { silent: true })
  */
-export async function installPkgs (fuzzyDeps: string[] | Dependencies, maybeOpts?: PnpmOptions) {
+export async function installPkgs (fuzzyDeps: string[] | Dependencies, maybeOpts?: SupiOptions) {
   const reporter = maybeOpts && maybeOpts.reporter
   if (reporter) {
     streamParser.on('data', reporter)
@@ -573,6 +574,8 @@ async function installInContext (
   await Promise.all(R.values(installCtx.installs).map(installed => installed.finishing))
 
   summaryLogger.info(undefined)
+
+  await ctx.storeController.close()
 }
 
 function buildTree (

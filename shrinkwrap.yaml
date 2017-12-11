@@ -47,7 +47,7 @@ dependencies:
   p-filter: 1.0.0
   p-limit: 1.1.0
   p-series: 1.0.0
-  package-store: 0.11.0
+  package-store: 0.12.0
   path-absolute: 1.0.0
   path-exists: 3.0.0
   path-name: 1.0.0
@@ -3327,7 +3327,7 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha512-nigldHuSWszV5IK53dfOdpgfLsG0++QwNAFIFo5bgv5MPm/F4tiDJX240CJ+wZVzftbPGBmk4bnN/UB8wHFoeA==
-  /package-store/0.11.0:
+  /package-store/0.12.0:
     dependencies:
       '@pnpm/fs-locker': 1.0.0
       '@pnpm/package-requester': 0.5.0
@@ -3352,7 +3352,7 @@ packages:
     peerDependencies:
       '@pnpm/logger': ^1.0.0
     resolution:
-      integrity: sha512-sfw2GEpX7ZNfpOa0Ihy2d9ZpPROctLQsPDeUBJYMaer/SAIzdJK3B0XBFKWvvJX2jbOTrS+bBBWEw4KDFszXHQ==
+      integrity: sha512-7v7yN1cIzsRwJj/7sEc6XdVSUgpaHdYZkXQDm3nZViCLK0/J/gNRhzcY9wI5Fdy5RqY/RK+4gAO6MQ9OVSWQHg==
   /pako/0.2.9:
     resolution:
       integrity: sha1-8/dSL073gjSNqBYbrZ7P1Rv4OnU=
@@ -4991,7 +4991,7 @@ specifiers:
   p-limit: ^1.1.0
   p-series: ^1.0.0
   package-preview: ^1.0.0
-  package-store: ^0.11.0
+  package-store: ^0.12.0
   path-absolute: ^1.0.0
   path-exists: ^3.0.0
   path-name: ^1.0.0

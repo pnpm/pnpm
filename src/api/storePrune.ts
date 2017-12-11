@@ -11,7 +11,8 @@ export default async function (maybeOpts: PnpmOptions) {
   const opts = await extendOptions(maybeOpts)
   const ctx = await getContext(opts)
   await ctx.storeController.prune()
-  await ctx.storeController.saveStateAndClose()
+  await ctx.storeController.saveState()
+  await ctx.storeController.close()
 
   if (reporter) {
     streamParser.removeListener('data', reporter)

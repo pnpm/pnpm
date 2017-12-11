@@ -1,19 +1,19 @@
-import {StrictPnpmOptions, PnpmOptions} from '@pnpm/types'
 import path = require('path')
 import logger from '@pnpm/logger'
 import pnpmPkgJson from '../pnpmPkgJson'
 import {LAYOUT_VERSION} from '../fs/modulesController'
 import normalizeRegistryUrl = require('normalize-registry-url')
 import {resolveStore} from 'package-store'
+import { SupiOptions, StrictSupiOptions } from '../types';
 
-const defaults = async (opts: PnpmOptions) => {
+const defaults = async (opts: SupiOptions) => {
   const packageManager = opts.packageManager || {
     name: pnpmPkgJson.name,
     version: pnpmPkgJson.version,
   }
   const prefix = opts.prefix || process.cwd()
   const store = await resolveStore(opts.store, prefix)
-  return <StrictPnpmOptions>{
+  return <StrictSupiOptions>{
     fetchRetries: 2,
     fetchRetryFactor: 10,
     fetchRetryMintimeout: 1e4, // 10 seconds
@@ -53,7 +53,7 @@ const defaults = async (opts: PnpmOptions) => {
   }
 }
 
-export default async (opts?: PnpmOptions): Promise<StrictPnpmOptions> => {
+export default async (opts?: SupiOptions): Promise<StrictSupiOptions> => {
   opts = opts || {}
   if (opts) {
     for (const key in opts) {

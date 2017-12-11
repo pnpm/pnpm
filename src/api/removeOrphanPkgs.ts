@@ -56,7 +56,7 @@ export default async function removeOrphanPkgs (
     addDependencies: newDependents,
   })
 
-  await opts.storeController.saveStateAndClose()
+  await opts.storeController.saveState()
 
   return notDependents
 }
