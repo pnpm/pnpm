@@ -136,7 +136,7 @@
     "lint": "tslint -c tslint.json --project .",
     "pnpm-registry-mock": "pnpm-registry-mock",
     "test:tap": "ts-node test --type-check",
-    "pretest:e2e": "rimraf ../.tmp/ && pnpm-registry-mock prepare",
+    "pretest:e2e": "rimraf ../.tmp/ && rimraf node_modules/.bin/pnpm && pnpm-registry-mock prepare",
     "test:e2e": "preview --skip-prepublishOnly && npm-run-all -p -r pnpm-registry-mock test:tap",
     "test": "npm run lint && npm run tsc && npm run test:e2e",
     "tsc": "rimraf lib && tsc",
