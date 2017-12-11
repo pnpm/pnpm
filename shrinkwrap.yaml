@@ -1,5 +1,5 @@
 dependencies:
-  '@pnpm/package-requester': 0.4.0
+  '@pnpm/package-requester': 0.5.0
   '@types/json-socket': 0.1.17
   '@types/node': 8.0.57
   '@types/uuid': 3.4.3
@@ -86,34 +86,6 @@ packages:
       '@pnpm/logger': ^1.0.0
     resolution:
       integrity: sha512-9Ln3phdOdq0is/iVsqPQdB/JV9qtEi4Dq9kTMzHA1R898bSEsk8G3aSqbNFz6skTVYAuLMyiAdrVtJJ8FqJsgQ==
-  /@pnpm/package-requester/0.4.0:
-    dependencies:
-      '@pnpm/types': 1.2.1
-      '@types/load-json-file': 2.0.7
-      '@types/mz': 0.0.32
-      '@types/p-queue': 1.1.0
-      '@types/write-json-file': 2.2.1
-      load-json-file: 4.0.0
-      mkdirp-promise: 5.0.1
-      mz: 2.7.0
-      p-limit: 1.1.0
-      p-queue: 2.3.0
-      package-store: 0.10.1
-      path-exists: 3.0.0
-      read-package-json: 2.0.12
-      rename-overwrite: 1.0.0
-      rimraf-then: 1.0.1
-      symlink-dir: 1.1.0
-      unpack-stream: 2.2.0
-      util.promisify: 1.0.0
-      write-json-file: 2.3.0
-    dev: false
-    engines:
-      node: '>=4'
-    peerDependencies:
-      '@pnpm/logger': ^1.0.0
-    resolution:
-      integrity: sha512-x1h+ezzikqrwW3pq+vOudeQTowjkLG8dvr/4CzDyqpvmJZgZ6DLO+3h8Y0NwzKCPcnDQF7OUwy1VQYXYtgb5mw==
   /@pnpm/package-requester/0.5.0:
     dependencies:
       '@pnpm/check-package': 1.0.0
@@ -173,6 +145,7 @@ packages:
     resolution:
       integrity: sha512-gnh1si28RSaPqiaMKF7dlIOcrVrJOfjb7oIc9OPeIPE/1A5bxrEYpwU8G8c8pt3ELdgDGTQ35k6N1ioBFbuLPQ==
   /@pnpm/types/1.2.1:
+    dev: true
     resolution:
       integrity: sha512-gvOa3EP2z7O+IFiYsRBB+SBdnyE+SHTVFM5bPr2WGHhPhrScMUJ2jqgzlC79FgRP9c7uoe8Wbp3LYClEDh/U6A==
   /@pnpm/types/1.3.0:
@@ -2572,28 +2545,6 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha512-c8pmMkot6F6VrlKUipbCwanIXRlYD9BXod6yTiNyeW45VFGH/JrWv+dY+FaAvhw3u/6zpfsW0gv+AiwIVWntAQ==
-  /package-store/0.10.1:
-    dependencies:
-      '@types/load-json-file': 2.0.7
-      '@types/node': 8.0.57
-      '@types/ramda': 0.25.8
-      dint: 2.0.0
-      drive-by-path: 1.0.0
-      encode-registry: 1.1.0
-      load-json-file: 4.0.0
-      mz: 2.7.0
-      normalize-path: 2.1.1
-      os-homedir: 1.0.2
-      path-absolute: 1.0.0
-      ramda: 0.25.0
-      write-json-file: 2.3.0
-    dev: false
-    engines:
-      node: '>=4'
-    peerDependencies:
-      '@pnpm/logger': ^1.0.0
-    resolution:
-      integrity: sha512-42OC/ytnVm+Tpzl3L8hdEAy+oAHd2wLcu85fnAL/4CEe7Zq/PjWHmrfmeJ3+YC6isMDD0avcIHaEhsbhEnyhvA==
   /package-store/0.11.0:
     dependencies:
       '@pnpm/fs-locker': 1.0.0
@@ -3690,17 +3641,6 @@ packages:
     dev: true
     resolution:
       integrity: sha1-+nG63UQ3r0wUiEHjs7Fl+enlkLc=
-  /unpack-stream/2.2.0:
-    dependencies:
-      '@types/node': 8.0.57
-      decompress-maybe: 1.0.0
-      ssri: 5.0.0
-      tar-fs: 1.16.0
-    dev: false
-    engines:
-      node: '>=4'
-    resolution:
-      integrity: sha512-UU/97pTZMXBpWGRJLmmDq2mN3v3dBbFgrUNH26UpfvyVwbO1i0ZZnzQvm7YEoTcMJpFpuX9LWGYNu2rmh6K4Jg==
   /unpack-stream/3.0.0:
     dependencies:
       '@types/node': 8.0.57
@@ -3891,7 +3831,7 @@ shrinkwrapVersion: 3
 specifiers:
   '@pnpm/logger': ^1.0.0
   '@pnpm/npm-resolver': ^0.3.1
-  '@pnpm/package-requester': ^0.4.0
+  '@pnpm/package-requester': ^0.5.0
   '@pnpm/tarball-fetcher': ^0.3.1
   '@types/json-socket': ^0.1.17
   '@types/node': ^8.0.57
