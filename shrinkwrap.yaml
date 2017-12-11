@@ -8,7 +8,7 @@ devDependencies:
   package-preview: 1.0.2
   rimraf: 2.6.2
   tape: 4.8.0
-  ts-node: 3.3.0
+  ts-node: 4.1.0
   tslint: 5.8.0
   typescript: 2.6.2
 packages:
@@ -61,6 +61,14 @@ packages:
   /@types/node/8.0.57:
     resolution:
       integrity: sha512-ZxrhcBxlZA7tn0HFf7ebUYfR9aHyBgjyavBLzyrYMYuAMbONBPY4S5O35562iV2FfwnZCjQky3gTDy1B3jSZ2Q==
+  /@types/strip-bom/3.0.0:
+    dev: true
+    resolution:
+      integrity: sha1-FKjsOVbC6B7bdSB5CuzyHCkK69I=
+  /@types/strip-json-comments/0.0.30:
+    dev: true
+    resolution:
+      integrity: sha512-7NQmHra/JILCd1QqpSzl8+mJRc8ZHz3uDm8YV1Ks9IhK0epEiTw8aIErbvH9PI+6XbqhyIQy3462nEsn7UVzjQ==
   /@types/tape/4.2.31:
     dependencies:
       '@types/node': 8.0.57
@@ -1619,10 +1627,10 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha512-0Pkui4wLJ7rxvmfUvs87skoEaxmu0hCUApF8nonzpl7q//FWp9zu8W61Scz4sd/kUiqDxvUhtoam2efDyiBzcA==
-  /make-error/1.3.0:
+  /make-error/1.3.3:
     dev: true
     resolution:
-      integrity: sha1-Uq06M5zPEM5itAQLcI/nByRLi5Y=
+      integrity: sha512-j3dZCri3cCd23wgPqK/0/KvTN8R+W6fXDqQe8BNLbTpONjbA8SPaRr+q0BQq9bx3Q/+g68/gDIh9FW3by702Tg==
   /make-fetch-happen/2.6.0:
     dependencies:
       agentkeepalive: 3.3.0
@@ -2789,6 +2797,12 @@ packages:
     dev: true
     resolution:
       integrity: sha512-try0/JqxPLF9nOjvSta7tVondkP5dwgyLDjVoyMDlmjugT2lRZ1OfsrYTkCd2hkDnJTKRbO/Rl3orm8vlsUzbA==
+  /source-map-support/0.5.3:
+    dependencies:
+      source-map: 0.6.1
+    dev: true
+    resolution:
+      integrity: sha512-eKkTgWYeBOQqFGXRfKabMFdnWepo51vWqEdoeikaEPFiJC7MCU5j2h4+6Q8npkZTeLGbSyecZvRxiSoWl3rh+w==
   /source-map/0.1.32:
     dependencies:
       amdefine: 1.0.1
@@ -2809,6 +2823,12 @@ packages:
       node: '>=0.10.0'
     resolution:
       integrity: sha1-igOdLRAh0i0eoUyA2OpGi6LvP8w=
+  /source-map/0.6.1:
+    dev: true
+    engines:
+      node: '>=0.10.0'
+    resolution:
+      integrity: sha512-UjgapumWlbMhkBgzT7Ykc5YXUT46F0iKu8SGXq0bcwP5dz/h0Plj6enJqjz1Zbq2l5WaqYnrVbwWOWMyF3F47g==
   /spdx-correct/1.0.2:
     dependencies:
       spdx-license-ids: 1.2.2
@@ -3102,30 +3122,32 @@ packages:
     dev: true
     resolution:
       integrity: sha1-WFhUf2spB1fulczMZm+1AITEYN0=
-  /ts-node/3.3.0:
+  /ts-node/4.1.0:
     dependencies:
       arrify: 1.0.1
       chalk: 2.3.0
       diff: 3.4.0
-      make-error: 1.3.0
+      make-error: 1.3.3
       minimist: 1.2.0
       mkdirp: 0.5.1
-      source-map-support: 0.4.18
-      tsconfig: 6.0.0
+      source-map-support: 0.5.3
+      tsconfig: 7.0.0
       v8flags: 3.0.1
       yn: 2.0.0
     dev: true
     engines:
       node: '>=4.2.0'
     resolution:
-      integrity: sha1-wTxqMCTjC+EYDdUwOPwgkonUv2k=
-  /tsconfig/6.0.0:
+      integrity: sha512-xcZH12oVg9PShKhy3UHyDmuDLV3y7iKwX25aMVPt1SIXSuAfWkFiGPEkg+th8R4YKW/QCxDoW7lJdb15lx6QWg==
+  /tsconfig/7.0.0:
     dependencies:
+      '@types/strip-bom': 3.0.0
+      '@types/strip-json-comments': 0.0.30
       strip-bom: 3.0.0
       strip-json-comments: 2.0.1
     dev: true
     resolution:
-      integrity: sha1-aw6DdgA9evGGT434+J3QBZ/80DI=
+      integrity: sha512-vZXmzPrL+EmC4T/4rVlT2jNVMWCi/O4DIiSj3UHg1OE5kCKbk4mfrXc6dZksLgRM/TZlKnousKH9bbTazUWRRw==
   /tslib/1.8.1:
     dev: true
     resolution:
@@ -3389,6 +3411,6 @@ specifiers:
   package-preview: ^1.0.1
   rimraf: ^2.6.2
   tape: ^4.8.0
-  ts-node: ^3.3.0
+  ts-node: ^4.0.0
   tslint: ^5.8.0
   typescript: ^2.6.1
