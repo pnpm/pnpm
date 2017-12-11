@@ -87,7 +87,7 @@
     "tape": "^4.6.3",
     "tape-promise": "^2.0.1",
     "thenify": "^3.3.0",
-    "ts-node": "^3.0.0",
+    "ts-node": "^4.0.0",
     "tslint": "^5.4.2",
     "typescript": "^2.4.1",
     "write-pkg": "^3.1.0"
@@ -135,7 +135,7 @@
     "commitmsg": "commitlint -e",
     "lint": "tslint -c tslint.json --project .",
     "pnpm-registry-mock": "pnpm-registry-mock",
-    "test:tap": "ts-node test",
+    "test:tap": "ts-node test --type-check",
     "pretest:e2e": "rimraf ../.tmp/ && pnpm-registry-mock prepare",
     "test:e2e": "preview --skip-prepublishOnly && npm-run-all -p -r pnpm-registry-mock test:tap",
     "test": "npm run lint && npm run tsc && npm run test:e2e",
