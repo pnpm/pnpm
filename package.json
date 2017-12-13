@@ -47,7 +47,7 @@
     "unpack-stream": "^3.0.0"
   },
   "devDependencies": {
-    "@types/nock": "^8.2.1",
+    "@types/nock": "^9.1.0",
     "@types/tape": "^4.2.31",
     "@types/tempy": "^0.1.0",
     "nock": "^9.1.4",
