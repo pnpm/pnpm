@@ -19,10 +19,10 @@ import {
 
 export interface StoreController {
   requestPackage: RequestPackageFunction,
+  close (): Promise<void>,
   updateConnections (prefix: string, opts: {addDependencies: string[], removeDependencies: string[], prune: boolean}): Promise<void>,
   prune (): Promise<void>,
   saveState (): Promise<void>,
-  saveStateAndClose (): Promise<void>,
 }
 
 export default async function (
@@ -48,10 +48,10 @@ export default async function (
   })
 
   return {
+    close: async () => { await unlock() },
     prune,
     requestPackage,
     saveState,
-    saveStateAndClose,
     updateConnections: async (prefix: string, opts: {addDependencies: string[], removeDependencies: string[], prune: boolean}) => {
       await removeDependencies(prefix, opts.removeDependencies, {prune: opts.prune})
       await addDependencies(prefix, opts.addDependencies)
@@ -60,11 +60,6 @@ export default async function (
 
   function saveState () {
     return saveStore(initOpts.store, storeIndex)
-  }
-
-  async function saveStateAndClose () {
-    await saveState()
-    await unlock()
   }
 
   async function removeDependencies (prefix: string, dependencyPkgIds: string[], opts: {prune: boolean}) {
