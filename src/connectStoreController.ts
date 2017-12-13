@@ -15,7 +15,7 @@ export default function (
     port: number,
     hostname?: string,
   },
-): Promise<StoreController & { close: () => void }> {
+): Promise<StoreController> {
   const socket = new JsonSocket(new net.Socket());
   socket.connect(initOpts.port, initOpts.hostname || '127.0.0.1')
 
@@ -24,11 +24,17 @@ export default function (
       const waiters = createWaiters()
 
       socket.on('message', (message) => {
-        waiters.resolve(message.action, message.body)
+        if (message.err) {
+          waiters.reject(message.action, message.err)
+        } else {
+          waiters.resolve(message.action, message.body)
+        }
       })
 
       resolve({
-        close: () => socket.end(),
+        close: async () => {
+          socket.end()
+        },
         prune: async () => {
           socket.sendMessage({
             action: 'prune',
@@ -38,11 +44,6 @@ export default function (
         saveState: async () => {
           socket.sendMessage({
             action: 'saveState',
-          }, (err) => err && console.error(err))
-        },
-        saveStateAndClose: async () => {
-          socket.sendMessage({
-            action: 'saveStateAndClose',
           }, (err) => err && console.error(err))
         },
         updateConnections: async (prefix: string, opts: {addDependencies: string[], removeDependencies: string[], prune: boolean}) => {
@@ -66,6 +67,11 @@ function createWaiters () {
     resolve (id: string, obj: object) {
       if (waiters[id]) {
         waiters[id].resolve(obj)
+      }
+    },
+    reject (id: string, err: object) {
+      if (waiters[id]) {
+        waiters[id].reject(err)
       }
     },
   }

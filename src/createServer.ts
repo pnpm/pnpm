@@ -34,8 +34,7 @@ export default function (
           await store.updateConnections(message.args[0], message.args[1])
           return
         }
-        case 'saveState':
-        case 'saveStateAndClose': {
+        case 'saveState': {
           await store.saveState()
           return
         }
@@ -57,25 +56,39 @@ async function requestPackageWithCtx (
   wantedDependency: WantedDependency,
   options: RequestPackageOptions,
 ) {
-  const packageResponse = await ctx.store.requestPackage(wantedDependency, options)
+  const packageResponse = await ctx.store.requestPackage(wantedDependency, options) // TODO: If this fails, also return the error
   ctx.jsonSocket.sendMessage({
     action: `packageResponse:${msgId}`,
     body: packageResponse,
   }, (err) => err && console.error(err))
 
   if (!packageResponse.isLocal) {
-    packageResponse.fetchingFiles.then((packageFilesResponse) => {
-      ctx.jsonSocket.sendMessage({
-        action: `packageFilesResponse:${msgId}`,
-        body: packageFilesResponse,
-      }, (err) => err && console.error(err))
-    })
+    packageResponse.fetchingFiles
+      .then((packageFilesResponse) => {
+        ctx.jsonSocket.sendMessage({
+          action: `packageFilesResponse:${msgId}`,
+          body: packageFilesResponse,
+        }, (err) => err && console.error(err))
+      })
+      .catch((err) => {
+        ctx.jsonSocket.sendMessage({
+          action: `packageFilesResponse:${msgId}`,
+          err,
+        }, (merr) => merr && console.error(merr))
+      })
 
-    packageResponse.fetchingManifest.then((manifestResponse) => {
-      ctx.jsonSocket.sendMessage({
-        action: `manifestResponse:${msgId}`,
-        body: manifestResponse,
-      }, (err) => err && console.error(err))
-    })
+    packageResponse.fetchingManifest
+      .then((manifestResponse) => {
+        ctx.jsonSocket.sendMessage({
+          action: `manifestResponse:${msgId}`,
+          body: manifestResponse,
+        }, (err) => err && console.error(err))
+      })
+      .catch((err) => {
+        ctx.jsonSocket.sendMessage({
+          action: `manifestResponse:${msgId}`,
+          err,
+        }, (merr) => merr && console.error(merr))
+      })
   }
 }

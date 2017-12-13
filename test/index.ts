@@ -67,6 +67,6 @@ test('server', async t => {
   await response['finishing']
 
   server.close()
-  storeCtrl.close()
+  await storeCtrl.close()
   t.end()
 })

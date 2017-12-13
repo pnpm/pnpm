@@ -30,5 +30,5 @@ main()
   await storeCtrl.updateConnections(prefix, {addDependencies: [response.id], removeDependencies: []})
   await storeCtrl.saveState()
 
-  storeCtrl.close()
+  await storeCtrl.close()
 }
