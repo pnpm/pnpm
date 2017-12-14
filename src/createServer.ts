@@ -9,13 +9,10 @@ import {StoreController} from 'package-store'
 
 export default function (
   store: StoreController,
-  opts: {
-    port: number,
-    hostname?: string,
-  },
+  opts: object,
 ) {
   const server = net.createServer()
-  server.listen(opts.port, opts.hostname);
+  server.listen(opts)
   server.on('connection', (socket) => {
     const jsonSocket = new JsonSocket(socket)
     const requestPackage = requestPackageWithCtx.bind(null, {jsonSocket, store})

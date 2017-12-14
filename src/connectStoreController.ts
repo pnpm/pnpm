@@ -11,13 +11,10 @@ import {StoreController} from 'package-store'
 import uuid = require('uuid')
 
 export default function (
-  initOpts: {
-    port: number,
-    hostname?: string,
-  },
+  initOpts: object,
 ): Promise<StoreController> {
   const socket = new JsonSocket(new net.Socket());
-  socket.connect(initOpts.port, initOpts.hostname || '127.0.0.1')
+  socket.connect(initOpts as any) // tslint:disable-line
 
   return new Promise((resolve, reject) => {
     socket.on('connect', () => {
