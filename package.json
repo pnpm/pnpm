@@ -39,13 +39,11 @@
   },
   "devDependencies": {
     "@pnpm/logger": "^1.0.0",
-    "@types/nock": "^9.1.0",
     "@types/tape": "^4.2.30",
     "commitizen": "^2.8.6",
     "cz-conventional-changelog": "^2.0.0",
     "husky": "^0.14.3",
     "in-publish": "^2.0.0",
-    "nock": "^9.0.14",
     "npm-scripts-info": "^0.3.6",
     "package-preview": "^1.0.0",
     "rimraf": "^2.6.1",

@@ -18,13 +18,11 @@ dependencies:
   write-json-file: 2.3.0
 devDependencies:
   '@pnpm/logger': 1.0.0
-  '@types/nock': 8.2.1
   '@types/tape': 4.2.31
   commitizen: 2.9.6
   cz-conventional-changelog: 2.1.0
   husky: 0.14.3
   in-publish: 2.0.0
-  nock: 9.1.4
   npm-scripts-info: 0.3.6
   package-preview: 1.0.3
   rimraf: 2.6.2
@@ -166,12 +164,6 @@ packages:
       '@types/node': 8.0.58
     resolution:
       integrity: sha512-cy3yebKhrHuOcrJGkfwNHhpTXQLgmXSv1BX+4p32j+VUQ6aP2eJ5cL7OvGcAQx75fCTFaAIIAKewvqL+iwSd4g==
-  /@types/nock/8.2.1:
-    dependencies:
-      '@types/node': 8.0.58
-    dev: true
-    resolution:
-      integrity: sha1-H75b3suUPBCad4VT+k0kAcuTlLQ=
   /@types/node/8.0.58:
     resolution:
       integrity: sha512-V746iUU7eHNdzQipoACuguDlVhC7IHK8CES1jSkuFt352wwA84BCWPXaGekBd7R5XdNK5ReHONDVKxlL9IreAw==
@@ -286,10 +278,6 @@ packages:
       node: '>=0.10.0'
     resolution:
       integrity: sha1-iYUI2iIm84DfkEcoRWhJwVAaSw0=
-  /assertion-error/1.0.2:
-    dev: true
-    resolution:
-      integrity: sha1-E8pRXYYgbaC6xm6DTdOX2HWBCUw=
   /babel-code-frame/6.26.0:
     dependencies:
       chalk: 1.1.3
@@ -414,16 +402,6 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha1-1UVjW+HjPFQmScaRc+Xeas+uNN0=
-  /chai/3.5.0:
-    dependencies:
-      assertion-error: 1.0.2
-      deep-eql: 0.1.3
-      type-detect: 1.0.0
-    dev: true
-    engines:
-      node: '>= 0.4.0'
-    resolution:
-      integrity: sha1-TQJjewZ/6Vi9v906QOxW/vc3Mkc=
   /chalk/1.1.3:
     dependencies:
       ansi-styles: 2.2.1
@@ -590,12 +568,6 @@ packages:
     dev: true
     resolution:
       integrity: sha1-L0vHOQ4yROTfKT5ro1Hkx0Cnx2Q=
-  /debug/2.6.9:
-    dependencies:
-      ms: 2.0.0
-    dev: true
-    resolution:
-      integrity: sha512-bC7ElrdJaJnPbAP+1EotYvqZsb3ecl5wi6Bfi6BJTUcNowp6cvspg0jXznRTKDjm/E7AdgFBVeAPVMNcKGsHMA==
   /debug/3.1.0:
     dependencies:
       ms: 2.0.0
@@ -643,12 +615,6 @@ packages:
     dev: true
     resolution:
       integrity: sha1-Dm2o8M5Sg471zsXI+TlrDBtko8s=
-  /deep-eql/0.1.3:
-    dependencies:
-      type-detect: 0.1.1
-    dev: true
-    resolution:
-      integrity: sha1-71WKyrjeJSBs1xOQbXTlaTDrafI=
   /deep-equal/1.0.1:
     dev: true
     resolution:
@@ -1747,6 +1713,7 @@ packages:
     resolution:
       integrity: sha1-MAV0OOrGz3+MR2fzhkjWaX11yQM=
   /ms/2.0.0:
+    optional: true
     resolution:
       integrity: sha1-VgiurfwAvmwpAd9fmGF4jeDVl8g=
   /mute-stream/0.0.6:
@@ -1780,22 +1747,6 @@ packages:
       node: '>=6'
     resolution:
       integrity: sha1-gixFgNer54PfGZZbeJYiyoAWA+Q=
-  /nock/9.1.4:
-    dependencies:
-      chai: 3.5.0
-      debug: 2.6.9
-      deep-equal: 1.0.1
-      json-stringify-safe: 5.0.1
-      lodash: 4.17.4
-      mkdirp: 0.5.1
-      propagate: 0.4.0
-      qs: 6.5.1
-      semver: 5.4.1
-    dev: true
-    engines:
-      '0': node >= 4.0
-    resolution:
-      integrity: sha512-O0tkPO0VkiQ7mfCAg3QyL+6tt7srXHq0+m6BMy+SyzuKX+2Oz10ERXnqDL0nJxpVhKFx/E/K/6nT75U6RpvugQ==
   /node-abi/2.1.2:
     dependencies:
       semver: 5.4.1
@@ -2168,12 +2119,6 @@ packages:
   /process-nextick-args/1.0.7:
     resolution:
       integrity: sha1-FQ4gt1ZZCtP5EJPyWk8q2L/zC6M=
-  /propagate/0.4.0:
-    dev: true
-    engines:
-      '0': node >= 0.8.1
-    resolution:
-      integrity: sha1-8/zKCm/gZzanulcpZgaWF8EwtIE=
   /proper-lockfile/2.0.1:
     dependencies:
       graceful-fs: 4.1.11
@@ -2200,12 +2145,6 @@ packages:
       pump: 1.0.3
     resolution:
       integrity: sha1-G2ccYZlAq8rqwK0OOjwWS+dgmTs=
-  /qs/6.5.1:
-    dev: true
-    engines:
-      node: '>=0.6'
-    resolution:
-      integrity: sha512-eRzhrN1WSINYCDCbrz796z37LOe3m5tmW7RQf6oBntukAG1nmovJvhnwHHRMAfeoItc1m2Hk02WER2aQ/iqs+A==
   /query-string/5.0.1:
     dependencies:
       decode-uri-component: 0.2.0
@@ -2822,14 +2761,6 @@ packages:
     optional: true
     resolution:
       integrity: sha1-J6XeoGs2sEoKmWZ3SykIaPD8QP0=
-  /type-detect/0.1.1:
-    dev: true
-    resolution:
-      integrity: sha1-C6XsKohWQORw6k6FBZcZANrFiCI=
-  /type-detect/1.0.0:
-    dev: true
-    resolution:
-      integrity: sha1-diIXzAbbJY7EiQihKY6LlRIejqI=
   /typedarray/0.0.6:
     dev: true
     resolution:
@@ -2996,7 +2927,6 @@ specifiers:
   '@pnpm/package-requester': ^0.5.0
   '@pnpm/types': ^1.3.0
   '@types/load-json-file': ^2.0.5
-  '@types/nock': ^8.2.1
   '@types/node': ^8.0.34
   '@types/ramda': ^0.25.0
   '@types/tape': ^4.2.30
@@ -3007,7 +2937,6 @@ specifiers:
   husky: ^0.14.3
   in-publish: ^2.0.0
   load-json-file: ^4.0.0
-  nock: ^9.0.14
   npm-scripts-info: ^0.3.6
   os-homedir: ^1.0.2
   p-filter: ^1.0.0
