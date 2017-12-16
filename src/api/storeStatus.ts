@@ -14,6 +14,7 @@ export default async function (maybeOpts: PnpmOptions) {
   }
   const opts = await extendOptions(maybeOpts)
   const ctx = await getContext(opts)
+  await ctx.storeController.close() // TODO: storeController should not be created at all in this case
   if (!ctx.wantedShrinkwrap) return []
 
   const pkgPaths = Object.keys(ctx.wantedShrinkwrap.packages || {})

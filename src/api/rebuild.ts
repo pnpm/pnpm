@@ -56,6 +56,7 @@ export async function rebuildPkgs (pkgSpecs: string[], maybeOpts: PnpmOptions) {
   }
   const opts = await extendOptions(maybeOpts)
   const ctx = await getContext(opts)
+  await ctx.storeController.close() // TODO: storeController should not be created at all in this case
   const modules = path.join(opts.prefix, 'node_modules')
 
   if (!ctx.currentShrinkwrap || !ctx.currentShrinkwrap.packages) return
@@ -102,6 +103,7 @@ export async function rebuild (maybeOpts: PnpmOptions) {
   }
   const opts = await extendOptions(maybeOpts)
   const ctx = await getContext(opts)
+  await ctx.storeController.close() // TODO: storeController should not be created at all in this case
   const modules = path.join(opts.prefix, 'node_modules')
 
   if (!ctx.currentShrinkwrap || !ctx.currentShrinkwrap.packages) return

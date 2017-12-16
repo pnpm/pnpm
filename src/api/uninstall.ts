@@ -65,7 +65,7 @@ export async function uninstallInContext (pkgsToUninstall: string[], ctx: PnpmCo
     storeController: ctx.storeController,
     bin: opts.bin,
   })
-  ctx.storeController.close()
+  await ctx.storeController.close()
   const currentShrinkwrap = makePartialCurrentShrinkwrap
     ? pruneShrinkwrap(ctx.currentShrinkwrap, pkg)
     : newShr
