@@ -27,10 +27,18 @@ export function tempDir (t: Test) {
   return tmpDir
 }
 
-export default function prepare (t: Test, pkg?: Object) {
-  const dirname = tempDir(t)
+export default function prepare (t: Test, pkg?: Object | Object[], pkgTmpPath?: string) {
+  pkgTmpPath = pkgTmpPath || path.join(tempDir(t), 'project')
 
-  const pkgTmpPath = path.join(dirname, 'project')
+  if (Array.isArray(pkg)) {
+    const dirname = path.dirname(pkgTmpPath)
+    const result = {}
+    for (let aPkg of pkg) {
+      result[aPkg['name']] = prepare(t, aPkg, path.join(dirname, aPkg['name']))
+    }
+    process.chdir('..')
+    return result
+  }
   mkdirp.sync(pkgTmpPath)
   writePkg.sync(pkgTmpPath, Object.assign({name: 'project', version: '0.0.0'}, pkg))
   process.chdir(pkgTmpPath)

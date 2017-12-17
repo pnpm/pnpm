@@ -49,6 +49,7 @@ const supportedCmds = new Set([
   'root',
   'outdated',
   'rebuild',
+  'recursive',
   // These might have to be implemented:
   // 'cache',
   // 'completion',

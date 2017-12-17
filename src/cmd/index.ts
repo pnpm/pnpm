@@ -7,6 +7,7 @@ import list from './list'
 import outdated from './outdated'
 import prune from './prune'
 import rebuild from './rebuild'
+import recursive from './recursive'
 import root from './root'
 import run from './run'
 import server from './server'
@@ -30,4 +31,5 @@ export {
   root,
   outdated,
   rebuild,
+  recursive,
 }

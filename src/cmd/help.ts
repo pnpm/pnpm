@@ -178,6 +178,23 @@ function getHelpText (command: string) {
           --[no-]lock
       `
 
+    case 'recursive':
+      return stripIndent`
+        pnpm recursive [concurrency] install
+
+        **Experimental!** Concurrently runs installation in all subdirectories with a \`package.json\` (excluding node_modules).
+
+        Options: same as for \`pnpm install\`
+
+        * * *
+
+        pnpm recursive [concurrency] update
+
+        **Experimental!** Concurrently runs update in all subdirectories with a \`package.json\` (excluding node_modules).
+
+        Options: same as for \`pnpm update\`
+      `
+
     default:
       return stripIndent`
         Usage: pnpm [command] [flags]
@@ -200,6 +217,8 @@ function getHelpText (command: string) {
 
         Experimental commands:
           - server
+          - recursive install
+          - recursive update
 
         Other commands are passed through to npm
       `
