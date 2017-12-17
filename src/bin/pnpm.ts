@@ -49,6 +49,7 @@ const supportedCmds = new Set([
   'root',
   'outdated',
   'rebuild',
+  'recursive',
   // These might have to be implemented:
   // 'cache',
   // 'completion',
@@ -197,7 +198,7 @@ async function run (argv: string[]) {
     opts.optional = true
   }
 
-  initReporter(silent ? 'silent' : (<any>opts.reporter || 'default')) // tslint:disable-line
+  initReporter(silent ? 'silent' : (<any>opts.reporter || 'default'), cmd) // tslint:disable-line
   delete opts.reporter // This is a silly workaround because supi expects a function as opts.reporter
 
   // `pnpm install ""` is going to be just `pnpm install`

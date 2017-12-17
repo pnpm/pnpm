@@ -293,3 +293,13 @@ declare module 'signal-exit' {
   const anything: any;
   export = anything;
 }
+
+declare module 'sort-pkgs' {
+  const anything: any;
+  export = anything;
+}
+
+declare module 'graph-sequencer' {
+  const anything: any;
+  export = anything;
+}
