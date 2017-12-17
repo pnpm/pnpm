@@ -64,11 +64,13 @@ function createWaiters () {
     resolve (id: string, obj: object) {
       if (waiters[id]) {
         waiters[id].resolve(obj)
+        delete waiters[id]
       }
     },
     reject (id: string, err: object) {
       if (waiters[id]) {
         waiters[id].reject(err)
+        delete waiters[id]
       }
     },
   }
