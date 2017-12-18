@@ -49,7 +49,7 @@
     "package-store": "^0.12.0",
     "path-name": "^1.0.0",
     "pkgs-graph": "^1.1.1",
-    "pnpm-default-reporter": "^0.10.3",
+    "pnpm-default-reporter": "^0.10.4",
     "pnpm-file-reporter": "^0.0.1",
     "pnpm-list": "^2.0.0",
     "ramda": "^0.25.0",
