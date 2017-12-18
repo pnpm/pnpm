@@ -243,7 +243,7 @@ function mergeOutputs (outputs: Array<xs<xs<{msg: string}>>>): Stream<string> {
   let fixedBlockNo = 0
   let started = false
   return flattenConcurrently(
-    xs.merge(...outputs)
+    (xs.merge.apply(xs, outputs) as xs<xs<{msg: string}>>)
     .map((log: Stream<{msg: string, fixed: boolean}>) => {
       let currentBlockNo = -1
       let currentFixedBlockNo = -1
