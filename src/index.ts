@@ -203,21 +203,25 @@ export function toOutput$(streamParser: object): Stream<string> {
     .map((msg) => ({msg}))
     .map(xs.of)
 
+  return mergeOutputs([
+    summaryOutput$,
+    progressSummaryOutput$,
+    registryOutput$,
+    installCheckOutput$,
+    lifecycleOutput$,
+    deprecationOutput$,
+    miscOutput$,
+    tarballsProgressOutput$,
+    alreadyUpToDate$,
+  ])
+}
+
+function mergeOutputs(outputs: Array<xs<xs<{msg: string}>>>): Stream<string> {
   let blockNo = 0
   let fixedBlockNo = 0
   let started = false
   return flattenConcurrently(
-    xs.merge(
-      summaryOutput$,
-      progressSummaryOutput$,
-      registryOutput$,
-      installCheckOutput$,
-      lifecycleOutput$,
-      deprecationOutput$,
-      miscOutput$,
-      tarballsProgressOutput$,
-      alreadyUpToDate$,
-    )
+    xs.merge(...outputs)
     .map((log: Stream<{msg: string, fixed: boolean}>) => {
       let currentBlockNo = -1
       let currentFixedBlockNo = -1
