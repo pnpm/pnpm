@@ -32,16 +32,16 @@ const linkSign = chalk.magentaBright('#')
 const hlValue = chalk.blue
 const hlPkgId = chalk['whiteBright']
 
-export default function(streamParser: object) {
+export default function (streamParser: object) {
   toOutput$(streamParser)
     .subscribe({
-      complete() {}, // tslint:disable-line:no-empty
+      complete () {}, // tslint:disable-line:no-empty
       error: (err) => logUpdate(err.message),
       next: logUpdate,
     })
 }
 
-export function toOutput$(streamParser: object): Stream<string> {
+export function toOutput$ (streamParser: object): Stream<string> {
   const obs = fromEvent(streamParser as EventEmitter, 'data')
   const log$ = xs.fromObservable<Log>(obs)
 
@@ -216,7 +216,7 @@ export function toOutput$(streamParser: object): Stream<string> {
   ])
 }
 
-function mergeOutputs(outputs: Array<xs<xs<{msg: string}>>>): Stream<string> {
+function mergeOutputs (outputs: Array<xs<xs<{msg: string}>>>): Stream<string> {
   let blockNo = 0
   let fixedBlockNo = 0
   let started = false
@@ -285,7 +285,7 @@ function mergeOutputs(outputs: Array<xs<xs<{msg: string}>>>): Stream<string> {
   .compose(dropRepeats())
 }
 
-function printDiffs(pkgsDiff: PackageDiff[]) {
+function printDiffs (pkgsDiff: PackageDiff[]) {
   // Sorts by alphabet then by removed/added
   // + ava 0.10.0
   // - chalk 1.0.0
@@ -319,7 +319,7 @@ function printDiffs(pkgsDiff: PackageDiff[]) {
   return msg
 }
 
-function formatLifecycle(logObj: LifecycleLog) {
+function formatLifecycle (logObj: LifecycleLog) {
   const prefix = `Running ${hlValue(logObj.script)} for ${hlPkgId(logObj.pkgId)}`
   if (logObj['exitCode'] === 0) {
     return `${prefix}, done`
@@ -331,14 +331,14 @@ function formatLifecycle(logObj: LifecycleLog) {
   return `${prefix}: ${line}`
 }
 
-function formatLine(logObj: LifecycleLog) {
+function formatLine (logObj: LifecycleLog) {
   if (typeof logObj['exitCode'] === 'number') return chalk.red(`Exited with ${logObj['exitCode']}`)
 
   const color = logObj.level === 'error' ? chalk.red : chalk.gray
   return color(logObj['line'])
 }
 
-function formatInstallCheck(logObj: InstallCheckLog) {
+function formatInstallCheck (logObj: InstallCheckLog) {
   switch (logObj.code) {
     case 'EBADPLATFORM':
       return formatWarn(`Unsupported system. Skipping dependency ${logObj.pkgId}`)
@@ -349,7 +349,7 @@ function formatInstallCheck(logObj: InstallCheckLog) {
   }
 }
 
-function formatWarn(message: string) {
+function formatWarn (message: string) {
   // The \u2009 is the "thin space" unicode character
   // It is used instead of ' ' because chalk (as of version 2.1.0)
   // trims whitespace at the beginning
