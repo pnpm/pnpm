@@ -32,8 +32,11 @@ const linkSign = chalk.magentaBright('#')
 const hlValue = chalk.blue
 const hlPkgId = chalk['whiteBright']
 
-export default function (streamParser: object) {
-  toOutput$(streamParser)
+export default function (
+  streamParser: object,
+  cmd?: string, // is optional only to be backward compatible
+) {
+  toOutput$(streamParser, cmd)
     .subscribe({
       complete () {}, // tslint:disable-line:no-empty
       error: (err) => logUpdate(err.message),
@@ -41,7 +44,11 @@ export default function (streamParser: object) {
     })
 }
 
-export function toOutput$ (streamParser: object): Stream<string> {
+export function toOutput$ (
+  streamParser: object,
+  cmd?: string, // is optional only to be backward compatible
+): Stream<string> {
+  const isRecursive = cmd === 'recursive'
   const obs = fromEvent(streamParser as EventEmitter, 'data')
   const log$ = xs.fromObservable<Log>(obs)
   const outputs: Array<xs<xs<{msg: string}>>> = []
@@ -49,11 +56,13 @@ export function toOutput$ (streamParser: object): Stream<string> {
   const progressLog$ = log$
     .filter((log) => log.name === 'pnpm:progress') as Stream<ProgressLog>
 
-  const resolutionDone$ = log$
-    .filter((log) => log.name === 'pnpm:stage' && log.message === 'resolution_done')
-    .mapTo(true)
-    .take(1)
-    .startWith(false)
+  const resolutionDone$ = isRecursive
+    ? xs.never()
+    : log$
+      .filter((log) => log.name === 'pnpm:stage' && log.message === 'resolution_done')
+      .mapTo(true)
+      .take(1)
+      .startWith(false)
 
   const resolvingContentLog$ = progressLog$
     .filter((log) => log.status === 'resolving_content')
@@ -69,27 +78,29 @@ export function toOutput$ (streamParser: object): Stream<string> {
     .filter((log) => log.status === 'found_in_store')
     .fold(R.inc, 0)
 
-  const alreadyUpToDate$ = xs.of(
-    resolvingContentLog$
-      .take(1)
-      .mapTo(false)
-      .startWith(true)
-      .last()
-      .filter(R.equals(true))
-      .mapTo({
-        fixed: false,
-        msg: 'Already up-to-date',
-      }),
-  )
+  if (!isRecursive) {
+    const alreadyUpToDate$ = xs.of(
+      resolvingContentLog$
+        .take(1)
+        .mapTo(false)
+        .startWith(true)
+        .last()
+        .filter(R.equals(true))
+        .mapTo({
+          fixed: false,
+          msg: 'Already up-to-date',
+        }),
+    )
 
-  outputs.push(alreadyUpToDate$)
+    outputs.push(alreadyUpToDate$)
+  }
 
   const progressSummaryOutput$ = xs.of(
     xs.combine(
       resolvingContentLog$,
       fedtchedLog$,
       foundInStoreLog$,
-      resolutionDone$,
+      isRecursive ? xs.of(false) : resolutionDone$,
     )
     .map(
       R.apply((resolving, fetched, foundInStore: number, resolutionDone) => {
@@ -134,34 +145,36 @@ export function toOutput$ (streamParser: object): Stream<string> {
   const deprecationLog$ = log$
     .filter((log) => log.name === 'pnpm:deprecation') as Stream<DeprecationLog>
 
-  const pkgsDiff$ = getPkgsDiff(log$, deprecationLog$)
+  if (!isRecursive) {
+    const pkgsDiff$ = getPkgsDiff(log$, deprecationLog$)
 
-  const summaryLog$ = log$
-    .filter((log) => log.name === 'pnpm:summary')
-    .take(1)
+    const summaryLog$ = log$
+      .filter((log) => log.name === 'pnpm:summary')
+      .take(1)
 
-  const summaryOutput$ = xs.combine(
-    pkgsDiff$,
-    summaryLog$,
-  )
-  .map(R.apply((pkgsDiff) => {
-    let msg = ''
-    for (const depType of ['prod', 'optional', 'dev']) {
-      const diffs = R.values(pkgsDiff[depType])
-      if (diffs.length) {
-        msg += EOL
-        msg += chalk.blue(`${propertyByDependencyType[depType]}:`)
-        msg += EOL
-        msg += printDiffs(diffs)
-        msg += EOL
+    const summaryOutput$ = xs.combine(
+      pkgsDiff$,
+      summaryLog$,
+    )
+    .map(R.apply((pkgsDiff) => {
+      let msg = ''
+      for (const depType of ['prod', 'optional', 'dev']) {
+        const diffs = R.values(pkgsDiff[depType])
+        if (diffs.length) {
+          msg += EOL
+          msg += chalk.blue(`${propertyByDependencyType[depType]}:`)
+          msg += EOL
+          msg += printDiffs(diffs)
+          msg += EOL
+        }
       }
-    }
-    return {msg}
-  }))
-  .take(1)
-  .map(xs.of)
+      return {msg}
+    }))
+    .take(1)
+    .map(xs.of)
 
-  outputs.push(summaryOutput$)
+    outputs.push(summaryOutput$)
+  }
 
   const deprecationOutput$ = deprecationLog$
     // print warnings only about deprecated packages from the root
@@ -206,7 +219,7 @@ export function toOutput$ (streamParser: object): Stream<string> {
   outputs.push(registryOutput$)
 
   const miscOutput$ = log$
-    .filter((log) => log.name as string === 'pnpm' || log.name as string === 'pnpm:link')
+    .filter((log) => log.name as string === 'pnpm' || !isRecursive && log.name as string === 'pnpm:link')
     .map((obj) => {
       if (obj.level === 'debug') return
       if (obj.level === 'warn') {
