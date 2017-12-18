@@ -11,7 +11,7 @@
   "scripts": {
     "lint": "tslint -c tslint.json --project .",
     "pretty-test": "ts-node test | tap-diff",
-    "test": "npm run lint && npm run tsc && preview && ts-node test",
+    "test": "npm run lint && npm run tsc && preview && ts-node test --type-check",
     "tsc": "rimraf lib && tsc",
     "prepublishOnly": "npm run tsc"
   },
@@ -65,7 +65,7 @@
     "rimraf": "^2.5.4",
     "supi": "^0.7.7",
     "tape": "^4.8.0",
-    "ts-node": "^3.3.0",
+    "ts-node": "^4.0.2",
     "tslint": "^5.7.0",
     "typescript": "^2.1.5",
     "validate-commit-msg": "^2.8.2"
