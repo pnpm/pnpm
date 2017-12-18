@@ -44,6 +44,7 @@ export default function (streamParser: object) {
 export function toOutput$ (streamParser: object): Stream<string> {
   const obs = fromEvent(streamParser as EventEmitter, 'data')
   const log$ = xs.fromObservable<Log>(obs)
+  const outputs: Array<xs<xs<{msg: string}>>> = []
 
   const progressLog$ = log$
     .filter((log) => log.name === 'pnpm:progress') as Stream<ProgressLog>
@@ -81,6 +82,8 @@ export function toOutput$ (streamParser: object): Stream<string> {
       }),
   )
 
+  outputs.push(alreadyUpToDate$)
+
   const progressSummaryOutput$ = xs.of(
     xs.combine(
       resolvingContentLog$,
@@ -105,6 +108,8 @@ export function toOutput$ (streamParser: object): Stream<string> {
     ),
   )
 
+  outputs.push(progressSummaryOutput$)
+
   const tarballsProgressOutput$ = progressLog$
     .filter((log) => log.status === 'fetching_started' &&
       typeof log.size === 'number' && log.size >= BIG_TARBALL_SIZE)
@@ -123,6 +128,8 @@ export function toOutput$ (streamParser: object): Stream<string> {
           }
         })
     })
+
+  outputs.push(tarballsProgressOutput$)
 
   const deprecationLog$ = log$
     .filter((log) => log.name === 'pnpm:deprecation') as Stream<DeprecationLog>
@@ -154,6 +161,8 @@ export function toOutput$ (streamParser: object): Stream<string> {
   .take(1)
   .map(xs.of)
 
+  outputs.push(summaryOutput$)
+
   const deprecationOutput$ = deprecationLog$
     // print warnings only about deprecated packages from the root
     .filter((log) => log.depth === 0)
@@ -163,6 +172,8 @@ export function toOutput$ (streamParser: object): Stream<string> {
       }
     })
     .map(xs.of)
+
+  outputs.push(deprecationOutput$)
 
   const lifecycleMessages: {[pkgId: string]: string} = {}
   const lifecycleOutput$ = xs.of(
@@ -176,6 +187,8 @@ export function toOutput$ (streamParser: object): Stream<string> {
       .map((msg) => ({msg})),
   )
 
+  outputs.push(lifecycleOutput$)
+
   const installCheckOutput$ = log$
     .filter((log) => log.name === 'pnpm:install-check')
     .map(formatInstallCheck)
@@ -183,10 +196,14 @@ export function toOutput$ (streamParser: object): Stream<string> {
     .map((msg) => ({msg}))
     .map(xs.of) as Stream<Stream<{msg: string}>>
 
+  outputs.push(installCheckOutput$)
+
   const registryOutput$ = log$
     .filter((log) => log.name === 'pnpm:registry' && log.level === 'warn')
     .map((log: RegistryLog) => ({msg: formatWarn(log.message)}))
     .map(xs.of)
+
+  outputs.push(registryOutput$)
 
   const miscOutput$ = log$
     .filter((log) => log.name as string === 'pnpm' || log.name as string === 'pnpm:link')
@@ -203,17 +220,9 @@ export function toOutput$ (streamParser: object): Stream<string> {
     .map((msg) => ({msg}))
     .map(xs.of)
 
-  return mergeOutputs([
-    summaryOutput$,
-    progressSummaryOutput$,
-    registryOutput$,
-    installCheckOutput$,
-    lifecycleOutput$,
-    deprecationOutput$,
-    miscOutput$,
-    tarballsProgressOutput$,
-    alreadyUpToDate$,
-  ])
+  outputs.push(miscOutput$)
+
+  return mergeOutputs(outputs)
 }
 
 function mergeOutputs (outputs: Array<xs<xs<{msg: string}>>>): Stream<string> {
