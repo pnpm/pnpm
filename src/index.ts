@@ -142,10 +142,10 @@ export function toOutput$ (
 
   outputs.push(tarballsProgressOutput$)
 
-  const deprecationLog$ = log$
-    .filter((log) => log.name === 'pnpm:deprecation') as Stream<DeprecationLog>
-
   if (!isRecursive) {
+    const deprecationLog$ = log$
+      .filter((log) => log.name === 'pnpm:deprecation') as Stream<DeprecationLog>
+
     const pkgsDiff$ = getPkgsDiff(log$, deprecationLog$)
 
     const summaryLog$ = log$
@@ -174,19 +174,19 @@ export function toOutput$ (
     .map(xs.of)
 
     outputs.push(summaryOutput$)
+
+    const deprecationOutput$ = deprecationLog$
+      // print warnings only about deprecated packages from the root
+      .filter((log) => log.depth === 0)
+      .map((log) => {
+        return {
+          msg: formatWarn(`${chalk.red('deprecated')} ${log.pkgName}@${log.pkgVersion}: ${log.deprecated}`),
+        }
+      })
+      .map(xs.of)
+
+    outputs.push(deprecationOutput$)
   }
-
-  const deprecationOutput$ = deprecationLog$
-    // print warnings only about deprecated packages from the root
-    .filter((log) => log.depth === 0)
-    .map((log) => {
-      return {
-        msg: formatWarn(`${chalk.red('deprecated')} ${log.pkgName}@${log.pkgVersion}: ${log.deprecated}`),
-      }
-    })
-    .map(xs.of)
-
-  outputs.push(deprecationOutput$)
 
   const lifecycleMessages: {[pkgId: string]: string} = {}
   const lifecycleOutput$ = xs.of(
@@ -202,38 +202,40 @@ export function toOutput$ (
 
   outputs.push(lifecycleOutput$)
 
-  const installCheckOutput$ = log$
-    .filter((log) => log.name === 'pnpm:install-check')
-    .map(formatInstallCheck)
-    .filter(Boolean)
-    .map((msg) => ({msg}))
-    .map(xs.of) as Stream<Stream<{msg: string}>>
+  if (!isRecursive) {
+    const installCheckOutput$ = log$
+      .filter((log) => log.name === 'pnpm:install-check')
+      .map(formatInstallCheck)
+      .filter(Boolean)
+      .map((msg) => ({msg}))
+      .map(xs.of) as Stream<Stream<{msg: string}>>
 
-  outputs.push(installCheckOutput$)
+    outputs.push(installCheckOutput$)
 
-  const registryOutput$ = log$
-    .filter((log) => log.name === 'pnpm:registry' && log.level === 'warn')
-    .map((log: RegistryLog) => ({msg: formatWarn(log.message)}))
-    .map(xs.of)
+    const registryOutput$ = log$
+      .filter((log) => log.name === 'pnpm:registry' && log.level === 'warn')
+      .map((log: RegistryLog) => ({msg: formatWarn(log.message)}))
+      .map(xs.of)
 
-  outputs.push(registryOutput$)
+    outputs.push(registryOutput$)
 
-  const miscOutput$ = log$
-    .filter((log) => log.name as string === 'pnpm' || !isRecursive && log.name as string === 'pnpm:link')
-    .map((obj) => {
-      if (obj.level === 'debug') return
-      if (obj.level === 'warn') {
-        return formatWarn(obj['message'])
-      }
-      if (obj.level === 'error') {
-        return reportError(obj)
-      }
-      return obj['message']
-    })
-    .map((msg) => ({msg}))
-    .map(xs.of)
+    const miscOutput$ = log$
+      .filter((log) => log.name as string === 'pnpm' || !isRecursive && log.name as string === 'pnpm:link')
+      .map((obj) => {
+        if (obj.level === 'debug') return
+        if (obj.level === 'warn') {
+          return formatWarn(obj['message'])
+        }
+        if (obj.level === 'error') {
+          return reportError(obj)
+        }
+        return obj['message']
+      })
+      .map((msg) => ({msg}))
+      .map(xs.of)
 
-  outputs.push(miscOutput$)
+    outputs.push(miscOutput$)
+  }
 
   return mergeOutputs(outputs)
 }
