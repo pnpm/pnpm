@@ -8,7 +8,7 @@ node_js:
 sudo: false
 before_install:
   - git fetch --unshallow
-  - curl -L https://unpkg.com/@pnpm/self-installer@1.16.2 | node
+  - curl -L https://unpkg.com/@pnpm/self-installer@1.23.2 | node
   # Testing whether pnpm can upgrade itself
   - pnpm i -g pnpm@next
   - pnpm -v
