@@ -9,8 +9,6 @@ import {
 import createResolver from '@pnpm/npm-resolver'
 import createFetcher from '@pnpm/tarball-fetcher'
 import createStore from 'package-store'
-import net = require('net')
-import JsonSocket = require('json-socket')
 
 test('server', async t => {
   const registry = 'https://registry.npmjs.org/'
@@ -35,12 +33,13 @@ test('server', async t => {
   })
 
   const port = 5813
-  const hostname = '127.0.0.1';
+  const hostname = '127.0.0.1'
+  const remotePrefix = `http://${hostname}:${port}`
   const server = createServer(storeCtrlForServer, {
     port,
     hostname,
   })
-  const storeCtrl = await connectStoreController({port, hostname})
+  const storeCtrl = await connectStoreController({remotePrefix, concurrency: 100})
   const response = await storeCtrl.requestPackage(
     {alias: 'is-positive', pref: '1.0.0'},
     {

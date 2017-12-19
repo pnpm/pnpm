@@ -58,10 +58,12 @@
   },
   "dependencies": {
     "@pnpm/package-requester": "^0.5.0",
-    "@types/json-socket": "^0.1.17",
+    "@types/got": "^7.1.6",
     "@types/node": "^8.0.57",
+    "@types/p-limit": "^1.1.1",
     "@types/uuid": "^3.4.3",
-    "json-socket": "^0.3.0",
+    "got": "^8.0.1",
+    "p-limit": "^1.1.0",
     "package-store": "^0.12.0",
     "uuid": "^3.1.0"
   }
