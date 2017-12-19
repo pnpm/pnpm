@@ -26,7 +26,7 @@
     "@pnpm/default-resolver": "^0.1.0",
     "@pnpm/logger": "^1.0.0",
     "@pnpm/outdated": "^0.2.1",
-    "@pnpm/server": "^0.3.0",
+    "@pnpm/server": "^0.4.0",
     "@types/write-json-file": "^2.2.1",
     "@zkochan/libnpx": "^9.6.1",
     "byline": "^5.0.0",
