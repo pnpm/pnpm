@@ -3,7 +3,7 @@ dependencies:
   '@pnpm/default-resolver': 0.1.0
   '@pnpm/logger': 1.0.0
   '@pnpm/outdated': 0.2.1
-  '@pnpm/server': 0.3.0
+  '@pnpm/server': 0.4.0
   '@types/write-json-file': 2.2.1
   '@zkochan/libnpx': 9.6.1
   byline: 5.0.0
@@ -358,13 +358,15 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha512-HnWDy3ecIKBsbRR9bwf+GJpV1CWLQ9Injj7eLSEQIsXQ+CLXU0h1NaxBCW7zcJm+2kbwnm0E1aFdFIEJXhHiTg==
-  /@pnpm/server/0.3.0:
+  /@pnpm/server/0.4.0:
     dependencies:
       '@pnpm/package-requester': 0.5.0
-      '@types/json-socket': 0.1.17
+      '@types/got': 7.1.6
       '@types/node': 8.0.58
+      '@types/p-limit': 1.1.1
       '@types/uuid': 3.4.3
-      json-socket: 0.3.0
+      got: 8.0.1
+      p-limit: 1.1.0
       package-store: 0.12.0
       uuid: 3.1.0
     dev: false
@@ -373,7 +375,7 @@ packages:
     peerDependencies:
       '@pnpm/logger': ^1.0.0
     resolution:
-      integrity: sha512-orvbV+KQlca28Dooopw8ObGZbNxMvwtL6VI4dpY/0oLosO4+xJrRFkqzdoY6b8yWGgfktEZGnerscUdlokT02Q==
+      integrity: sha512-FlKTVRcSqHQQ0fF+0D8YEVWrowaRUeWHOjixegUJa2kqLzjUBoYZNzZq1xZ4P/GdzuUogdmvTpsDwM7LHJ9fTA==
   /@pnpm/tarball-fetcher/0.3.1:
     dependencies:
       '@types/mem': 1.1.2
@@ -452,12 +454,12 @@ packages:
     dev: true
     resolution:
       integrity: sha512-fOby+9vGOB15+6GsNI3maUx/Ig4lW3hOH9is0OsrKRyyeJ42gk2mUn4UoRko3kXVPj44TSxDx81Th3EisXx8rg==
-  /@types/json-socket/0.1.17:
+  /@types/got/7.1.6:
     dependencies:
-      '@types/node': 8.0.58
+      '@types/node': 8.5.1
     dev: false
     resolution:
-      integrity: sha512-zBCcTx21ts99HNBOdPb0LmdUipXPu4rvVAcntEAnAS+fvQ7lXI1xdVYPkjSC9dYrnXUQNYDFAWYCWz2hR+Bi5Q==
+      integrity: sha512-MTgskaiThy9e07/V/gWj1PY3FWsfghgFQVgSLgEV+k7r+rTxvfKNDDNjIcFV/aDhDBCpUEaqdHAeaxjM9uaSKA==
   /@types/load-json-file/2.0.7:
     resolution:
       integrity: sha512-NrH6jPlV77QCVPhAHofWeiOr77TgpKt82c2RVxSBChWBJqyY/u4ngl3CA4mcsAg/w7rNLrkR7dkObMV0ihLLXw==
@@ -505,6 +507,10 @@ packages:
     dev: false
     resolution:
       integrity: sha512-McqGDdeT1tSMu8sPaL0ya7xBwojQYKGVwCrlPNBcaF+o+H4wLNH03nYRTfycU11Xdu8eziEb4cgdGmu4VF/NWA==
+  /@types/p-limit/1.1.1:
+    dev: false
+    resolution:
+      integrity: sha512-ALhS2XYfF1yM0eujP2Gt2WKY10/2PLn23i398mWukHqmrls8ugg4xIDnlDTDJjj4kZ0IP3bHRaBbIpAh7SRKZA==
   /@types/p-queue/1.1.0:
     dev: false
     resolution:
@@ -2919,10 +2925,6 @@ packages:
   /json-schema/0.2.3:
     resolution:
       integrity: sha1-tIDIkuWaLwWVTOcnvT8qTogvnhM=
-  /json-socket/0.3.0:
-    dev: false
-    resolution:
-      integrity: sha512-jc8ZbUnYIWdxERFWQKVgwSLkGSe+kyzvmYxwNaRgx/c8NNyuHes4UHnPM3LUrAFXUx1BhNJ94n1h/KCRlbvV0g==
   /json-stringify-safe/5.0.1:
     resolution:
       integrity: sha1-Epai1Y/UXxmg9s4B1lcB4sc1tus=
@@ -3510,6 +3512,7 @@ packages:
       minimist: 1.2.0
       split2: 2.2.0
       through2: 2.0.3
+    dev: false
     resolution:
       integrity: sha1-rmA7NrE0vOw0e0UkIrC/mNWDLsg=
   /negotiator/0.6.1:
@@ -5406,6 +5409,7 @@ packages:
   /strip-ansi/4.0.0:
     dependencies:
       ansi-regex: 3.0.0
+    dev: false
     engines:
       node: '>=4'
     resolution:
@@ -6290,7 +6294,7 @@ specifiers:
   '@pnpm/default-resolver': ^0.1.0
   '@pnpm/logger': ^1.0.0
   '@pnpm/outdated': ^0.2.1
-  '@pnpm/server': ^0.3.0
+  '@pnpm/server': ^0.4.0
   '@types/byline': ^4.2.31
   '@types/common-tags': ^1.2.5
   '@types/delay': ^2.0.1
