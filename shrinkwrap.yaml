@@ -1,6 +1,7 @@
 dependencies:
   '@pnpm/package-requester': 0.5.0
   '@types/got': 7.1.6
+  '@types/node': 8.0.58
   '@types/p-limit': 1.1.1
   '@types/uuid': 3.4.3
   got: 8.0.1
@@ -11,7 +12,6 @@ devDependencies:
   '@pnpm/logger': 1.0.0
   '@pnpm/npm-resolver': 0.3.1
   '@pnpm/tarball-fetcher': 0.3.1
-  '@types/node': 8.0.58
   '@types/tape': 4.2.31
   mos: 2.0.0-alpha.3
   mos-plugin-readme: 1.0.4
