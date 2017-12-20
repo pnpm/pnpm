@@ -31,13 +31,13 @@ export default async (input: string[], opts: PnpmOptions) => {
   }
 
   const pkgs = await findPackages(process.cwd())
-  const pkgGraph = createPkgGraph(pkgs)
+  const pkgGraphResult = createPkgGraph(pkgs)
   const graph = new Map(
-    Object.keys(pkgGraph).map((nodeId) => [nodeId, pkgGraph[nodeId].dependencies]) as Array<[string, string[]]>,
+    Object.keys(pkgGraphResult.graph).map((pkgPath) => [pkgPath, pkgGraphResult.graph[pkgPath].dependencies]) as Array<[string, string[]]>,
   )
   const graphSequencerResult = graphSequencer({
     graph,
-    groups: [Object.keys(pkgGraph)],
+    groups: [Object.keys(pkgGraphResult.graph)],
   })
   const chunks = graphSequencerResult.chunks
 
@@ -46,8 +46,8 @@ export default async (input: string[], opts: PnpmOptions) => {
   const limitInstallation = pLimit(concurrency)
 
   for (const chunk of chunks) {
-    await chunk.map((pkgId: string) =>
-      limitInstallation(() => install({...opts, storeController: store.ctrl, prefix: pkgGraph[pkgId].path})),
+    await chunk.map((pkgPath: string) =>
+      limitInstallation(() => install({...opts, storeController: store.ctrl, prefix: pkgPath})),
     )
   }
 }

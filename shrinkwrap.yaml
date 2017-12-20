@@ -26,7 +26,7 @@ dependencies:
   p-limit: 1.1.0
   package-store: 0.12.0
   path-name: 1.0.0
-  pkgs-graph: 1.1.1
+  pkgs-graph: 2.0.0-0
   pnpm-default-reporter: 0.10.4
   pnpm-file-reporter: 0.0.1
   pnpm-list: 2.0.0
@@ -3570,6 +3570,7 @@ packages:
       minimist: 1.2.0
       split2: 2.2.0
       through2: 2.0.3
+    dev: false
     resolution:
       integrity: sha1-rmA7NrE0vOw0e0UkIrC/mNWDLsg=
   /negotiator/0.6.1:
@@ -4417,24 +4418,19 @@ packages:
       node: '>= 0.4.0'
     resolution:
       integrity: sha1-tUGO8EOd5UJfxJlQQtztFPsqhP8=
-  /pkgs-graph/1.1.1:
+  /pkgs-graph/2.0.0-0:
     dependencies:
-      '@types/common-tags': 1.4.0
       '@types/node': 8.5.2
       '@types/ramda': 0.25.8
       '@types/semver': 5.4.0
-      chalk: 2.3.0
-      common-tags: 1.5.1
-      find-packages: 2.1.2
       npm-package-arg: 6.0.0
       ramda: 0.25.0
       semver: 5.4.1
-      toposort: 1.0.6
     dev: false
     engines:
       node: '>=4'
     resolution:
-      integrity: sha512-7zQ8B3SDUW9uN1TZykNq+PBLhYplPw14HvmV1HG6IOT8aXNgPVq125xhq90OgpcSs4ZwW5mESjXDUaQMHUQ43A==
+      integrity: sha512-DDjRXcmxXjaR/VAqI5dkNBoj7nh4Te4EvYDIm7L6gOk9cWzCOfcbSbbu+OsPt0mrOiShbXSTWhwbeKFGZ1Ma7g==
   /pnpm-default-reporter/0.10.4:
     dependencies:
       '@types/common-tags': 1.4.0
@@ -5482,6 +5478,7 @@ packages:
   /strip-ansi/4.0.0:
     dependencies:
       ansi-regex: 3.0.0
+    dev: false
     engines:
       node: '>=4'
     resolution:
@@ -5770,10 +5767,6 @@ packages:
       node: '>=0.10.40'
     resolution:
       integrity: sha1-6ddRYV0buH3IZdsYL6HKCl71NtU=
-  /toposort/1.0.6:
-    dev: false
-    resolution:
-      integrity: sha1-wxdI5V0hDv/AD9zcfW5o19e7nOw=
   /tough-cookie/2.3.3:
     dependencies:
       punycode: 1.4.1
@@ -6401,7 +6394,7 @@ specifiers:
   package-store: ^0.12.0
   path-exists: ^3.0.0
   path-name: ^1.0.0
-  pkgs-graph: ^1.1.1
+  pkgs-graph: ^2.0.0-0
   pnpm-default-reporter: ^0.10.4
   pnpm-file-reporter: ^0.0.1
   pnpm-list: ^2.0.0
