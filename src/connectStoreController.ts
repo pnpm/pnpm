@@ -7,7 +7,6 @@ import {
 import got = require('got')
 import pLimit = require('p-limit')
 import {StoreController} from 'package-store'
-import uuid = require('uuid')
 
 export default function (
   initOpts: {
@@ -58,19 +57,16 @@ function requestPackage (
   wantedDependency: WantedDependency,
   options: RequestPackageOptions,
 ): Promise<PackageResponse> {
-  const msgId = uuid.v4()
-
   return limitedFetch(`${remotePrefix}/requestPackage`, {
-    msgId,
     options,
     wantedDependency,
   })
   .then((packageResponse: PackageResponse) => {
     const fetchingManifest = limitedFetch(`${remotePrefix}/manifestResponse`, {
-      msgId,
+      pkgId: packageResponse.id,
     })
     const fetchingFiles = limitedFetch(`${remotePrefix}/packageFilesResponse`, {
-      msgId,
+      pkgId: packageResponse.id,
     })
     return Object.assign(packageResponse, {
       fetchingFiles,

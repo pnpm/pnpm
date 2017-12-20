@@ -5,7 +5,7 @@ import {RequestPackageOptions, WantedDependency} from '@pnpm/package-requester'
 import {StoreController} from 'package-store'
 
 interface RequestBody {
-  msgId: string,
+  pkgId: string,
   wantedDependency: WantedDependency,
   options: RequestPackageOptions,
   prefix: string,
@@ -60,21 +60,21 @@ export default function (
           body = await bodyPromise
           const pkgResponse = await store.requestPackage(body.wantedDependency, body.options)
           if (!pkgResponse.isLocal) {
-            manifestPromises[body.msgId] = pkgResponse.fetchingManifest
-            filesPromises[body.msgId] = pkgResponse.fetchingFiles
+            manifestPromises[pkgResponse.id] = pkgResponse.fetchingManifest
+            filesPromises[pkgResponse.id] = pkgResponse.fetchingFiles
           }
           res.end(JSON.stringify(pkgResponse))
           break
         case '/packageFilesResponse':
           body = await bodyPromise
-          const filesResponse = await filesPromises[body.msgId]
-          delete filesPromises[body.msgId]
+          const filesResponse = await filesPromises[body.pkgId]
+          delete filesPromises[body.pkgId]
           res.end(JSON.stringify(filesResponse))
           break
         case '/manifestResponse':
           body = await bodyPromise
-          const manifestResponse = await manifestPromises[body.msgId]
-          delete manifestPromises[body.msgId]
+          const manifestResponse = await manifestPromises[body.pkgId]
+          delete manifestPromises[body.pkgId]
           res.end(JSON.stringify(manifestResponse))
           break
         case '/updateConnections':
