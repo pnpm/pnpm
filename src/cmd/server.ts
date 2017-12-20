@@ -2,7 +2,9 @@ import createFetcher from '@pnpm/default-fetcher'
 import createResolver from '@pnpm/default-resolver'
 import logger from '@pnpm/logger'
 import {createServer} from '@pnpm/server'
+import getPort = require('get-port')
 import fs = require('graceful-fs')
+import isWindows = require('is-windows')
 import mkdirp = require('mkdirp-promise')
 import createStore from 'package-store'
 import path = require('path')
@@ -29,16 +31,15 @@ export default async (input: string[], opts: PnpmOptions) => {
   // for the IPC connection
   await mkdirp(strictOpts.store)
 
-  const ipcConnectionPath = createIpcConnectionPath(strictOpts.store)
+  const serverOptions = await getServerOptions(strictOpts.store)
   const connectionOptions = {
-    remotePrefix: `http://unix:${ipcConnectionPath}:`,
+    remotePrefix: serverOptions.path
+      ? `http://unix:${serverOptions.path}:`
+      : `http://${serverOptions.hostname}:${serverOptions.port}`,
   }
   const serverJsonPath = path.join(strictOpts.store, 'server.json')
   await writeJsonFile(serverJsonPath, {connectionOptions})
 
-  const serverOptions = {
-    path: ipcConnectionPath,
-  }
   const server = createServer(storeCtrl, serverOptions)
 
   onExit(() => {
@@ -47,10 +48,14 @@ export default async (input: string[], opts: PnpmOptions) => {
   })
 }
 
-function createIpcConnectionPath (fsPath: string) {
-  fsPath = path.normalize(fsPath) + path.sep + 'socket'
-  if (process.platform === 'win32') {
-    return `\\\\.\\pipe\\${fsPath}`
+async function getServerOptions (fsPath: string): Promise<{hostname?: string, port?: number, path?: string}> {
+  if (isWindows()) {
+    return {
+      hostname: 'localhost',
+      port: await getPort({port: 5813}),
+    }
   }
-  return fsPath
+  return {
+    path: path.normalize(fsPath) + path.sep + 'socket',
+  }
 }

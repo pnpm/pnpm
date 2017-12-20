@@ -4,6 +4,7 @@ dependencies:
   '@pnpm/logger': 1.0.0
   '@pnpm/outdated': 0.2.1
   '@pnpm/server': 0.4.0
+  '@types/get-port': 3.2.0
   '@types/write-json-file': 2.2.1
   '@zkochan/libnpx': 9.6.1
   byline: 5.0.0
@@ -11,8 +12,10 @@ dependencies:
   chalk: 2.3.0
   common-tags: 1.5.1
   cross-spawn: 5.1.0
+  get-port: 3.2.0
   graceful-fs: 4.1.11
   is-ci: 1.0.10
+  is-windows: 1.0.1
   load-json-file: 4.0.0
   loud-rejection: 1.6.0
   mkdirp-promise: 5.0.1
@@ -53,7 +56,6 @@ devDependencies:
   delay: 2.0.0
   execa: 0.7.0
   exists-link: 2.0.0
-  is-windows: 1.0.1
   isexe: 2.0.0
   load-yaml-file: 0.1.0
   mkdirp: 0.5.1
@@ -448,6 +450,10 @@ packages:
     dev: true
     resolution:
       integrity: sha512-SVQDcOe1t7qSRzJFjkMx4V/0hc3TcGX/f51Dxx3Q/rpeg7nvFiort6QJTpJATOZH/YqhzJ1xt0qjvotxOJiCkQ==
+  /@types/get-port/3.2.0:
+    dev: false
+    resolution:
+      integrity: sha512-TiNg8R1kjDde5Pub9F9vCwZA/BNW9HeXP5b9j7Qucqncy/McfPZ6xze/EyBdXS5FhMIGN6Fx3vg75l5KHy3V1Q==
   /@types/got/7.1.5:
     dependencies:
       '@types/node': 8.0.58
@@ -2257,6 +2263,12 @@ packages:
     dev: false
     resolution:
       integrity: sha1-Xr8eZAnPcxeszYfYLkHpNdEnJjg=
+  /get-port/3.2.0:
+    dev: false
+    engines:
+      node: '>=4'
+    resolution:
+      integrity: sha1-3Xzn3hh8Bsi/NTeWrHHgmfCYDrw=
   /get-proxy/2.1.0:
     dependencies:
       npm-conf: 1.1.3
@@ -6298,6 +6310,7 @@ specifiers:
   '@types/byline': ^4.2.31
   '@types/common-tags': ^1.2.5
   '@types/delay': ^2.0.1
+  '@types/get-port': ^3.2.0
   '@types/load-json-file': ^2.0.6
   '@types/mkdirp': ^0.5.0
   '@types/mz': ^0.0.31
@@ -6320,6 +6333,7 @@ specifiers:
   delay: ^2.0.0
   execa: ^0.7.0
   exists-link: ^2.0.0
+  get-port: ^3.2.0
   graceful-fs: ^4.1.11
   is-ci: ^1.0.10
   is-windows: ^1.0.1
