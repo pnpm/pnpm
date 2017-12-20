@@ -13,7 +13,7 @@ Features:
 * **Fast.** Faster than npm and Yarn.
 * **Efficient.** One version of a package is saved only ever once on a disk.
 * **Deterministic.** Has a lockfile called `shrinkwrap.yaml`.
-* **Strict.** A package can access only dependecies that are specified in its `package.json`.
+* **Strict.** A package can access only dependencies that are specified in its `package.json`.
 * **Works everywhere.** Works on Windows, Linux and OS X.
 * **Hooks.** `node_modules` is not a black box anymore.
 * **Aliases.** Install different versions of the same package or import it using a different name.
