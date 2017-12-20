@@ -6,11 +6,9 @@ main()
   .catch(err => console.error(err))
 
  async function main () {
-  const port = 5813
-  const hostname = '127.0.0.1'
   const registry = 'https://registry.npmjs.org/'
   const prefix = process.cwd()
-  const storeCtrl = await connectStoreController({port, hostname})
+  const storeCtrl = await connectStoreController({remotePrefix: 'http://localhost:5813'})
   const response = await storeCtrl.requestPackage(
     {alias: 'is-positive', pref: '1.0.0'},
     {
