@@ -15,6 +15,7 @@ dependencies:
   find-packages: 2.1.2
   get-port: 3.2.0
   graceful-fs: 4.1.11
+  graph-sequencer: 2.0.0
   is-ci: 1.0.10
   is-windows: 1.0.1
   load-json-file: 4.0.0
@@ -31,7 +32,6 @@ dependencies:
   pnpm-list: 2.0.0
   ramda: 0.25.0
   signal-exit: 3.0.2
-  sort-pkgs: 1.0.2
   strip-color: 0.1.0
   supi: 0.7.14
   text-table: 0.2.0
@@ -795,10 +795,23 @@ packages:
     dev: true
     resolution:
       integrity: sha1-ml9pkFGx5wczKPKgCJaLZOopVdI=
+  /array-flatten/2.1.1:
+    dev: false
+    resolution:
+      integrity: sha1-Qmu52oQJDBg42BLIFQryCoMx4pY=
   /array-ify/1.0.0:
     dev: true
     resolution:
       integrity: sha1-nlKHYrSpBmrRY6aWKjZEGOlibs4=
+  /array-includes/3.0.3:
+    dependencies:
+      define-properties: 1.1.2
+      es-abstract: 1.10.0
+    dev: false
+    engines:
+      node: '>= 0.4'
+    resolution:
+      integrity: sha1-GEtI9i2S10UrsxsyMWXH+L0CJm0=
   /array-map/0.0.0:
     dev: true
     resolution:
@@ -2433,6 +2446,13 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha512-tw+EeUeL5p8b312uJq6+Z6ld8M/rlkMSM7e3oGiRsfdDH3nH5I2u2aIhO5Sy6LWojzU92JTrZKP6T3D9YT6pwg==
+  /graph-sequencer/2.0.0:
+    dependencies:
+      array-flatten: 2.1.1
+      array-includes: 3.0.3
+    dev: false
+    resolution:
+      integrity: sha1-v7gJuK9YT29Sh83OUHow1K6m7nA=
   /gunzip-maybe/1.4.1:
     dependencies:
       browserify-zlib: 0.1.4
@@ -5268,13 +5288,6 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha1-ZYU1WEhh7JfXMNbPQYIuH1ZoQSg=
-  /sort-pkgs/1.0.2:
-    dependencies:
-      ramda: 0.25.0
-      toposort: 1.0.6
-    dev: false
-    resolution:
-      integrity: sha512-JUvjD353qQEtcNtsXYQZi2cumBSoWPWU+N1b1va0CYxUpT1gSyxKds9tVzRu+OLluN13TckevYwXKWyiQv5KfQ==
   /sorted-object/2.0.1:
     dev: false
     resolution:
@@ -6367,6 +6380,7 @@ specifiers:
   find-packages: ^2.1.2
   get-port: ^3.2.0
   graceful-fs: ^4.1.11
+  graph-sequencer: ^2.0.0
   is-ci: ^1.0.10
   is-windows: ^1.0.1
   isexe: ^2.0.0
@@ -6399,7 +6413,6 @@ specifiers:
   semver: ^5.3.0
   sepia: ^2.0.2
   signal-exit: ^3.0.2
-  sort-pkgs: ^1.0.2
   strip-color: ^0.1.0
   supi: ^0.7.14
   tape: ^4.6.3

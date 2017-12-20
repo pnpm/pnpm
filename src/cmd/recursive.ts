@@ -1,5 +1,6 @@
 import logger from '@pnpm/logger'
 import findPackages from 'find-packages'
+import graphSequencer = require('graph-sequencer')
 import pLimit = require('p-limit')
 import createPkgGraph, {PackageNode} from 'pkgs-graph'
 import sortPkgs = require('sort-pkgs')
@@ -30,13 +31,23 @@ export default async (input: string[], opts: PnpmOptions) => {
   }
 
   const pkgs = await findPackages(process.cwd())
-  const graph = createPkgGraph(pkgs)
-  const sortedPkgNodes = sortPkgs(graph)
+  const pkgGraph = createPkgGraph(pkgs)
+  const graph = new Map(
+    Object.keys(pkgGraph).map((nodeId) => [nodeId, pkgGraph[nodeId].dependencies]) as Array<[string, string[]]>,
+  )
+  const graphSequencerResult = graphSequencer({
+    graph,
+    groups: [Object.keys(pkgGraph)],
+  })
+  const chunks = graphSequencerResult.chunks
 
   const store = await createStore(opts)
 
   const limitInstallation = pLimit(concurrency)
-  await sortedPkgNodes.map((pkg: PackageNode) =>
-    limitInstallation(() => install({...opts, storeController: store.ctrl, prefix: pkg.path})),
-  )
+
+  for (const chunk of chunks) {
+    await chunk.map((pkgId: string) =>
+      limitInstallation(() => install({...opts, storeController: store.ctrl, prefix: pkgGraph[pkgId].path})),
+    )
+  }
 }
