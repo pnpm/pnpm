@@ -103,6 +103,7 @@ const passedThroughCmds = new Set([
   'version',
   'view',
   'whoami',
+  'xmas',
 ])
 
 async function run (argv: string[]) {
