@@ -6,11 +6,18 @@ import xs, {Stream} from 'xstream'
 import fromEvent from 'xstream/extra/fromEvent'
 import mergeOutputs from './mergeOutputs'
 import reporterForClient from './reporterForClient'
+import reporterForServer from './reporterForServer'
 
 export default function (
   streamParser: object,
   cmd?: string, // is optional only to be backward compatible
 ) {
+  if (cmd === 'server') {
+    const obs = fromEvent(streamParser as EventEmitter, 'data')
+    const log$ = xs.fromObservable<Log>(obs)
+    reporterForServer(log$)
+    return
+  }
   toOutput$(streamParser, cmd)
     .subscribe({
       complete () {}, // tslint:disable-line:no-empty
