@@ -8,7 +8,7 @@ import {
   install,
   PnpmOptions,
 } from 'supi'
-import createStore from '../createStore'
+import createStoreController from '../createStoreController'
 
 export default async (input: string[], opts: PnpmOptions) => {
   let concurrency = 4
@@ -46,7 +46,7 @@ export default async (input: string[], opts: PnpmOptions) => {
   })
   const chunks = graphSequencerResult.chunks
 
-  const store = await createStore(opts)
+  const store = await createStoreController(opts)
 
   const limitInstallation = pLimit(concurrency)
 

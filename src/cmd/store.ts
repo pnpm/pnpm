@@ -21,7 +21,7 @@ export default async function (input: string[], opts: PnpmOptions) {
     case 'status':
       return statusCmd(opts)
     case 'prune':
-      opts['storeController'] = await createStoreController(opts) // tslint:disable-line
+      opts['storeController'] = (await createStoreController(opts)).ctrl // tslint:disable-line
       return storePrune(opts)
     default:
       help(['store'])
