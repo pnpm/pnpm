@@ -9,6 +9,7 @@ import {
   PnpmOptions,
 } from 'supi'
 import createStoreController from '../createStoreController'
+import requireHooks from '../requireHooks'
 
 export default async (input: string[], opts: PnpmOptions) => {
   let concurrency = 4
@@ -61,8 +62,11 @@ export default async (input: string[], opts: PnpmOptions) => {
   const limitInstallation = pLimit(concurrency)
 
   for (const chunk of chunks) {
-    await chunk.map((pkgPath: string) =>
-      limitInstallation(() => install({...opts, storeController, prefix: pkgPath})),
+    await chunk.map((prefix: string) =>
+      limitInstallation(() => {
+        const hooks = requireHooks(prefix)
+        return install({...opts, hooks, storeController, prefix})
+      }),
     )
   }
 

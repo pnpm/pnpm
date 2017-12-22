@@ -91,7 +91,7 @@ export default function prepare (t: Test, pkg?: Object | Object[], pkgTmpPath?: 
     },
     loadShrinkwrap: async () => {
       try {
-        return await loadYamlFile<any>('shrinkwrap.yaml') // tslint:disable-line
+        return await loadYamlFile<any>(path.join(pkgTmpPath, 'shrinkwrap.yaml')) // tslint:disable-line
       } catch (err) {
         if (err.code === 'ENOENT') return null
         throw err
