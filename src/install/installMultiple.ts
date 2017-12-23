@@ -273,6 +273,7 @@ async function install (
     offline: ctx.offline,
     verifyStoreIntegrity: ctx.verifyStoreInegrity,
     downloadPriority: -options.currentDepth,
+    preferredVersions: ctx.preferredVersions,
   })
 
   if (pkgResponse.isLocal) {

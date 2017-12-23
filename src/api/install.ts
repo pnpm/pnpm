@@ -51,7 +51,7 @@ import shrinkwrapsEqual from './shrinkwrapsEqual'
 import {
   StoreController,
 } from 'package-store'
-import depsFromPackage from '../depsFromPackage'
+import depsFromPackage, {getPreferredVersionsFromPackage} from '../depsFromPackage'
 import writePkg = require('write-pkg')
 import parseWantedDependencies from '../parseWantedDependencies'
 import {
@@ -115,6 +115,12 @@ export type InstallContext = {
   rawNpmConfig: Object,
   nodeModules: string,
   verifyStoreInegrity: boolean,
+  preferredVersions: {
+    [packageName: string]: {
+      type: 'version' | 'range' | 'tag',
+      selector: string,
+    },
+  },
 }
 
 export async function install (maybeOpts?: SupiOptions) {
@@ -145,6 +151,7 @@ export async function install (maybeOpts?: SupiOptions) {
 
     if (!ctx.pkg) throw new Error('No package.json found')
 
+    const preferredVersions = getPreferredVersionsFromPackage(ctx.pkg)
     const specs = specsToInstallFromPackage(ctx.pkg, {
       prefix: opts.prefix,
     })
@@ -181,7 +188,7 @@ export async function install (maybeOpts?: SupiOptions) {
       await npmRunScript('preinstall', ctx.pkg, scriptsOpts)
     }
 
-    await installInContext(installType, specs, [], ctx, opts)
+    await installInContext(installType, specs, [], ctx, preferredVersions, opts)
 
     if (scripts['install']) {
       await npmRunScript('install', ctx.pkg, scriptsOpts)
@@ -265,11 +272,13 @@ export async function installPkgs (fuzzyDeps: string[] | Dependencies, maybeOpts
       throw new Error('At least one package has to be installed')
     }
 
+    const preferredVersions = getPreferredVersionsFromPackage(ctx.pkg)
     return installInContext(
       installType,
       packagesToInstall,
       packagesToInstall.map(wantedDependency => wantedDependency.raw),
       ctx,
+      preferredVersions,
       opts)
   }
 }
@@ -279,6 +288,12 @@ async function installInContext (
   packagesToInstall: WantedDependency[],
   newPkgRawSpecs: string[],
   ctx: PnpmContext,
+  preferredVersions: {
+    [packageName: string]: {
+      type: 'version' | 'range' | 'tag',
+      selector: string,
+    },
+  },
   opts: StrictPnpmOptions
 ) {
   // Unfortunately, the private shrinkwrap file may differ from the public one.
@@ -332,6 +347,7 @@ async function installInContext (
     nodeVersion: opts.nodeVersion,
     pnpmVersion: opts.packageManager.name === 'pnpm' ? opts.packageManager.version : '',
     storeController: ctx.storeController,
+    preferredVersions,
   }
   const installOpts = {
     root: ctx.root,

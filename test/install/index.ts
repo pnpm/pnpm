@@ -1,4 +1,5 @@
 import './aliases'
+import './dedupe'
 import './misc'
 import './only'
 import './lifecycleScripts'

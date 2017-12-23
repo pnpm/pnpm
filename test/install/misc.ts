@@ -285,7 +285,7 @@ test('reporting adding root package', async (t: tape.Test) => {
   }), 'reported that flatten added to the root')
 })
 
-test('overwriting (magic-hook@2.0.0 and @0.1.0)', async function (t) {
+test('overwriting (magic-hook@2.0.0 and @0.1.0)', async (t: tape.Test) => {
   const project = prepare(t)
   await installPkgs(['magic-hook@2.0.0'], testDefaults())
 
