@@ -215,7 +215,7 @@ async function linkNewPackages (
     // just skip the ones that are in the lockfile but were not analyzed
     .filter(resolvedId => pkgsToLink[resolvedId])
 
-  const newPkgs = R.props<DependencyTreeNode>(newPkgResolvedIds, pkgsToLink)
+  const newPkgs = R.props<string, DependencyTreeNode>(newPkgResolvedIds, pkgsToLink)
 
   if (!opts.force && currentShrinkwrap.packages && wantedShrinkwrap.packages) {
     // add subdependencies that have been updated

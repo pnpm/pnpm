@@ -522,7 +522,7 @@ async function installInContext (
     const limitChild = pLimit(opts.childConcurrency)
     const linkedPkgsMapValues = R.values(result.linkedPkgsMap)
     await Promise.all(
-      R.props<DependencyTreeNode>(result.newPkgResolvedIds, result.linkedPkgsMap)
+      R.props<string, DependencyTreeNode>(result.newPkgResolvedIds, result.linkedPkgsMap)
         .map(pkg => limitChild(async () => {
           try {
             await postInstall(pkg.hardlinkedLocation, {
@@ -563,7 +563,7 @@ async function installInContext (
 
   // waiting till the skipped packages are downloaded to the store
   await Promise.all(
-    R.props<InstalledPackage>(Array.from(installCtx.skipped), installCtx.installs)
+    R.props<string, InstalledPackage>(Array.from(installCtx.skipped), installCtx.installs)
       // skipped packages might have not been reanalized on a repeat install
       // so lets just ignore those by excluding nulls
       .filter(Boolean)
