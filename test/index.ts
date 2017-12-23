@@ -26,3 +26,19 @@ test('resolveFromNpm()', async t => {
   t.ok(resolveResult!.package!.version, '1.0.0')
   t.end()
 })
+
+test('can resolve aliased dependency', async t => {
+  const resolveResult = await resolveFromNpm({alias: 'positive', pref: 'npm:is-positive@1.0.0'}, {
+    registry: 'https://registry.npmjs.org/',
+  })
+  t.equal(resolveResult!.id, 'registry.npmjs.org/is-positive/1.0.0')
+  t.end()
+})
+
+test('can resolve aliased scoped dependency', async t => {
+  const resolveResult = await resolveFromNpm({alias: 'is', pref: 'npm:@sindresorhus/is@0.6.0'}, {
+    registry: 'https://registry.npmjs.org/',
+  })
+  t.equal(resolveResult!.id, 'registry.npmjs.org/@sindresorhus/is/0.6.0')
+  t.end()
+})

@@ -10,9 +10,9 @@ export default function parsePref (pref: string, alias?: string): RegistryPackag
   let name = alias
   if (pref.startsWith('npm:')) {
     pref = pref.substr(4)
-    const parts = pref.split('@')
-    name = parts[0]
-    pref = parts[1]
+    const index = pref.lastIndexOf('@')
+    name = pref.substr(0, index)
+    pref = pref.substr(index + 1)
   }
   if (!name) {
     return null
