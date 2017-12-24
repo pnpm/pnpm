@@ -37,6 +37,12 @@ export interface ResolveResult {
 export interface ResolveOptions {
   registry: string,
   prefix: string,
+  preferredVersions: {
+    [packageName: string]: {
+      selector: string,
+      type: 'version' | 'range' | 'tag',
+    },
+  },
 }
 
 export interface WantedDependency {

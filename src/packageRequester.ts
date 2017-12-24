@@ -76,6 +76,12 @@ export interface RequestPackageOptions {
   shrinkwrapResolution?: Resolution,
   update?: boolean,
   verifyStoreIntegrity: boolean,
+  preferredVersions: {
+    [packageName: string]: {
+      selector: string,
+      type: 'version' | 'range' | 'tag',
+    },
+  },
 }
 
 export type RequestPackageFunction = (
@@ -142,6 +148,12 @@ async function resolveAndFetch (
     shrinkwrapResolution?: Resolution,
     update?: boolean,
     verifyStoreIntegrity: boolean,
+    preferredVersions: {
+      [packageName: string]: {
+        selector: string,
+        type: 'version' | 'range' | 'tag',
+      },
+    },
   },
 ): Promise<PackageResponse> {
   try {
@@ -152,6 +164,7 @@ async function resolveAndFetch (
     let pkgId = options.currentPkgId
     if (!resolution || options.update) {
       const resolveResult = await ctx.requestsQueue.add<ResolveResult>(() => ctx.resolve(wantedDependency, {
+        preferredVersions: options.preferredVersions,
         prefix: options.prefix,
         registry: options.registry,
       }), {priority: options.downloadPriority})
