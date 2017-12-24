@@ -13,7 +13,11 @@
   "scripts": {
     "lint": "tslint -c tslint.json --project .",
     "tsc": "rimraf lib && tsc",
-    "test": "rimraf .store && npm run lint && preview && ts-node test --type-check && mos t",
+    "pretest": "pnpm-registry-mock prepare",
+    "test": "rimraf .store && npm run lint && preview && npm run test:e2e && mos t",
+    "test:tap": "ts-node test --type-check",
+    "test:e2e": "npm-run-all -p -r pnpm-registry-mock test:tap",
+    "pnpm-registry-mock": "pnpm-registry-mock",
     "md": "mos",
     "prepublishOnly": "npm run tsc"
   },
@@ -50,6 +54,7 @@
     "p-limit": "^1.1.0",
     "semver": "^5.4.1",
     "ssri": "^5.0.0",
+    "version-selector-type": "^1.0.0",
     "write-json-file": "^2.3.0"
   },
   "devDependencies": {
@@ -58,7 +63,9 @@
     "@types/tempy": "^0.1.0",
     "mos": "^2.0.0-alpha.3",
     "mos-plugin-readme": "^1.0.4",
+    "npm-run-all": "^4.1.2",
     "package-preview": "^1.0.1",
+    "pnpm-registry-mock": "^1.18.0",
     "rimraf": "^2.6.2",
     "tape": "^4.8.0",
     "tempy": "^0.2.1",

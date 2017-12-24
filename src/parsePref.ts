@@ -1,4 +1,5 @@
 import semver = require('semver')
+import getVersionSelectorType = require('version-selector-type')
 
 export interface RegistryPackageSpec {
   type: 'tag' | 'version' | 'range',
@@ -17,25 +18,12 @@ export default function parsePref (pref: string, alias?: string): RegistryPackag
   if (!name) {
     return null
   }
-  if (semver.valid(pref, true)) {
+  const type = getVersionSelectorType(pref, true)
+  if (type) {
     return {
       fetchSpec: pref,
       name,
-      type: 'version',
-    }
-  }
-  if (semver.validRange(pref, true)) {
-    return {
-      fetchSpec: pref,
-      name,
-      type: 'range',
-    }
-  }
-  if (encodeURIComponent(pref) === pref) {
-    return {
-      fetchSpec: pref,
-      name,
-      type: 'tag',
+      type,
     }
   }
   return null
