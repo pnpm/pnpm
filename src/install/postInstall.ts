@@ -1,15 +1,9 @@
 import path = require('path')
-import findUp = require('find-up')
 import fs = require('mz/fs')
 import {PackageJson} from '@pnpm/types'
-import runScript from '../runScript'
 import {fromDir as readPkgFromDir} from '../fs/readPkg'
-import lifecycle = require('@zkochan/npm-lifecycle')
-import logger from '@pnpm/logger'
+import lifecycle = require('npm-lifecycle')
 import {lifecycleLogger} from '../loggers'
-
-const pnpmNodeModules = findUp.sync('node_modules', {cwd: __dirname})
-const nodeGyp = path.resolve(pnpmNodeModules, 'node-gyp/bin/node-gyp.js')
 
 function noop () {}
 
@@ -27,7 +21,7 @@ export default async function postInstall (
   const scripts = pkg && pkg.scripts || {}
 
   if (!scripts['install']) {
-    await checkBindingGyp(root, opts)
+    await checkBindingGyp(root, scripts)
   }
 
   const modulesDir = path.join(opts.initialWD, 'node_modules')
@@ -114,21 +108,11 @@ export async function npmRunScript (
  */
 async function checkBindingGyp (
   root: string,
-  opts: {
-    userAgent: string,
-    pkgId: string,
-  }
+  scripts: {},
 ) {
   try {
     await fs.stat(path.join(root, 'binding.gyp'))
-  } catch (err) {
-    if ((<NodeJS.ErrnoException>err).code === 'ENOENT') {
-      return
-    }
-  }
-  return runScript(nodeGyp, ['rebuild'], {
-    cwd: root,
-    pkgId: opts.pkgId,
-    userAgent: opts.userAgent,
-  })
+    // if fs.stat didn't throw, it means that binding.gyp exists: the default install script is:
+    scripts['install'] = 'node-gyp rebuild'
+  } catch {}
 }

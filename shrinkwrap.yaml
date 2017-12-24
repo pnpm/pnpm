@@ -19,7 +19,6 @@ dependencies:
   '@types/semver': 5.4.0
   '@types/update-notifier': 1.0.2
   '@zkochan/cmd-shim': 2.2.4
-  '@zkochan/npm-lifecycle': 0.0.6
   '@zkochan/npm-package-arg': 1.0.0
   arr-flatten: 1.1.0
   byline: 5.0.0
@@ -28,7 +27,6 @@ dependencies:
   dependency-path: 1.2.0
   encode-registry: 1.1.0
   execa: 0.8.0
-  find-up: 2.1.0
   get-npm-tarball-url: 2.0.0
   graceful-fs: 4.1.11
   is-ci: 1.0.10
@@ -40,9 +38,9 @@ dependencies:
   mkdirp-promise: 5.0.1
   mz: 2.7.0
   ncp: 2.0.0
-  node-gyp: 3.6.2
   normalize-path: 2.1.1
   normalize-registry-url: 1.0.0
+  npm-lifecycle: 2.0.0
   os-homedir: 1.0.2
   p-filter: 1.0.0
   p-limit: 1.1.0
@@ -528,19 +526,6 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha512-onS0BpZl/Zj903N60DM58rENRH9qZPWUALc4M808CG7Kv2M6BHz1W4XREg1vivAYaD3z2Hd9O2iEy3SJlALnbg==
-  /@zkochan/npm-lifecycle/0.0.6:
-    dependencies:
-      byline: 5.0.0
-      graceful-fs: 4.1.11
-      node-gyp: 3.6.2
-      resolve-from: 4.0.0
-      slide: 1.1.6
-      uid-number: 0.0.6
-      umask: 1.1.0
-      which: 1.3.0
-    dev: false
-    resolution:
-      integrity: sha512-j1OJrYOACRfIHESTnvCBUg8WkVr7nHjkF/0A64qD/kabVulXJYGxu27w6Z9wrJHGQchePPCR31xJWOta4uVqxw==
   /@zkochan/npm-package-arg/1.0.0:
     dependencies:
       hosted-git-info: 2.5.0
@@ -1771,6 +1756,7 @@ packages:
   /find-up/2.1.0:
     dependencies:
       locate-path: 2.0.0
+    dev: true
     engines:
       node: '>=4'
     resolution:
@@ -2587,6 +2573,7 @@ packages:
     dependencies:
       p-locate: 2.0.0
       path-exists: 3.0.0
+    dev: true
     engines:
       node: '>=4'
     resolution:
@@ -3075,6 +3062,19 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha512-Yic4bZHJOt9RCFbRP3GgpqhScOY4HH3V2P8yBj6CeYq118Qr+BLXqT2JvpJ00mryLESpgOxf5XlFv4ZjXxLScw==
+  /npm-lifecycle/2.0.0:
+    dependencies:
+      byline: 5.0.0
+      graceful-fs: 4.1.11
+      node-gyp: 3.6.2
+      resolve-from: 4.0.0
+      slide: 1.1.6
+      uid-number: 0.0.6
+      umask: 1.1.0
+      which: 1.3.0
+    dev: false
+    resolution:
+      integrity: sha512-aE7H012O01GKXT9BWnsGMLVci+MOgkhpSwq02ok20aXcNHxFs7enfampNMkiOV1DJEU0LynzemwdjbtXahXKcw==
   /npm-package-arg/4.2.1:
     dependencies:
       hosted-git-info: 2.5.0
@@ -3261,6 +3261,7 @@ packages:
   /p-locate/2.0.0:
     dependencies:
       p-limit: 1.1.0
+    dev: true
     engines:
       node: '>=4'
     resolution:
@@ -4926,7 +4927,6 @@ specifiers:
   '@types/update-notifier': ^1.0.0
   '@zkochan/cmd-shim': ^2.2.4
   '@zkochan/husky': ^0.0.0
-  '@zkochan/npm-lifecycle': ^0.0.6
   '@zkochan/npm-package-arg': ^1.0.0
   anonymous-npm-registry-client: ^0.1.2
   arr-flatten: ^1.0.1
@@ -4939,7 +4939,6 @@ specifiers:
   encode-registry: ^1.0.0
   execa: ^0.8.0
   exists-link: ^2.0.0
-  find-up: ^2.1.0
   get-npm-tarball-url: ^2.0.0
   graceful-fs: ^4.1.11
   is-ci: ^1.0.10
@@ -4953,9 +4952,9 @@ specifiers:
   mkdirp-promise: ^5.0.1
   mz: ^2.7.0
   ncp: ^2.0.0
-  node-gyp: ^3.6.0
   normalize-path: ^2.1.1
   normalize-registry-url: ^1.0.0
+  npm-lifecycle: ^2.0.0
   npm-run-all: ^4.0.1
   npm-scripts-info: ^0.3.6
   os-homedir: ^1.0.2
