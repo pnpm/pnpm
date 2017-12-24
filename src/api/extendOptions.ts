@@ -50,6 +50,11 @@ const defaults = async (opts: SupiOptions) => {
     verifyStoreIntegrity: true,
     hooks: {},
     savePrefix: '^',
+    unsafePerm: process.platform === 'win32' ||
+                process.platform === 'cygwin' ||
+                !(process.getuid && process.setuid &&
+                  process.getgid && process.setgid) ||
+                process.getuid() !== 0,
   }
 }
 

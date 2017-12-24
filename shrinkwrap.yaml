@@ -5,7 +5,7 @@ dependencies:
   '@pnpm/fs-locker': 1.0.0
   '@pnpm/package-requester': 0.5.0
   '@pnpm/pkgid-to-filename': 1.0.0
-  '@pnpm/types': 1.3.0
+  '@pnpm/types': 1.4.0
   '@types/byline': 4.2.31
   '@types/common-tags': 1.4.0
   '@types/load-json-file': 2.0.7
@@ -374,6 +374,10 @@ packages:
     dev: false
     resolution:
       integrity: sha512-dhW0tHPWT19r1lwgv2RMnt31oC6PcsNeGcUlIDYRmC+J7g7Rcm19tZ0xmIAqh9R+U2Uw3PecXsuz+jkC/r5h+A==
+  /@pnpm/types/1.4.0:
+    dev: false
+    resolution:
+      integrity: sha512-VghLLKj5eoPnxl2H0g4uDrDzvVyDc1iqwk4JJN7iQJ6XuVdJvJsU0ecyywAT/XZKI8YZQNYm+zLlwuD4u4jpqQ==
   /@sindresorhus/is/0.6.0:
     engines:
       node: '>=4'
@@ -4904,7 +4908,7 @@ specifiers:
   '@pnpm/logger': ^1.0.0
   '@pnpm/package-requester': ^0.5.0
   '@pnpm/pkgid-to-filename': ^1.0.0
-  '@pnpm/types': ^1.2.1
+  '@pnpm/types': ^1.4.0
   '@types/byline': ^4.2.31
   '@types/common-tags': ^1.2.5
   '@types/load-json-file': ^2.0.5

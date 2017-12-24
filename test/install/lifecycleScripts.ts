@@ -84,6 +84,41 @@ test('run install scripts in the current project', async (t: tape.Test) => {
   t.deepEqual(output, ['preinstall', 'install', 'postinstall'])
 })
 
+test('run install scripts in the current project when its name is different than its directory', async (t: tape.Test) => {
+  const project = prepare(t, {
+    name: 'different-name',
+    scripts: {
+      preinstall: `node -e "process.stdout.write('preinstall')" | json-append output.json`,
+      install: `node -e "process.stdout.write('install')" | json-append output.json`,
+      postinstall: `node -e "process.stdout.write('postinstall')" | json-append output.json`,
+    }
+  })
+  await installPkgs(['json-append@1.1.1'], testDefaults())
+  await install(testDefaults())
+
+  const output = await loadJsonFile('output.json')
+
+  t.deepEqual(output, ['preinstall', 'install', 'postinstall'])
+})
+
+test('do not run install scripts if unsafePerm is false', async (t: tape.Test) => {
+  const project = prepare(t, {
+    name: 'different-name',
+    scripts: {
+      preinstall: `node -e "process.stdout.write('preinstall')" | json-append output.json`,
+      install: `node -e "process.stdout.write('install')" | json-append output.json`,
+      postinstall: `node -e "process.stdout.write('postinstall')" | json-append output.json`,
+    }
+  })
+  const opts = Object.assign(testDefaults(), { unsafePerm: false })
+  await installPkgs(['json-append@1.1.1'], opts)
+  await install(opts)
+
+  let outputExists = await exists('output.json')
+
+  t.false(outputExists, 'no output expected as install scripts should not run')
+})
+
 test('installation fails if lifecycle script fails', async (t: tape.Test) => {
   const project = prepare(t, {
     scripts: {
@@ -100,7 +135,7 @@ test('installation fails if lifecycle script fails', async (t: tape.Test) => {
 })
 
 // TODO: unskip
-// For some reason this fails on CI environents
+// For some reason this fails on CI environments
 test['skip']('creates env for scripts', async (t: tape.Test) => {
   const project = prepare(t, {
     scripts: {

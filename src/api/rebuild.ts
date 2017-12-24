@@ -131,6 +131,7 @@ async function _rebuild (
             initialWD: opts.prefix,
             userAgent: opts.userAgent,
             pkgId,
+            unsafePerm: opts.unsafePerm || false,
           })
         } catch (err) {
           if (pkgToRebuild.pkgShr.optional) {

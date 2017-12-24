@@ -174,6 +174,7 @@ export async function install (maybeOpts?: SupiOptions) {
       root: opts.prefix,
       pkgId: opts.prefix,
       stdio: 'inherit',
+      unsafePerm: opts.unsafePerm || false,
     }
 
     if (scripts['preinstall']) {
@@ -530,6 +531,7 @@ async function installInContext (
               initialWD: ctx.root,
               userAgent: opts.userAgent,
               pkgId: pkg.id,
+              unsafePerm: opts.unsafePerm || false,
             })
           } catch (err) {
             if (installCtx.installs[pkg.id].optional) {

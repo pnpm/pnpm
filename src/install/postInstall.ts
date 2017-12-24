@@ -20,6 +20,7 @@ export default async function postInstall (
     initialWD: string,
     userAgent: string,
     pkgId: string,
+    unsafePerm: boolean,
   }
 ) {
   const pkg = await readPkgFromDir(root)
@@ -33,6 +34,7 @@ export default async function postInstall (
   const scriptsOpts = {
     rawNpmConfig: opts.rawNpmConfig,
     pkgId: opts.pkgId,
+    unsafePerm: opts.unsafePerm,
     modulesDir,
     root,
   }
@@ -52,6 +54,7 @@ export async function npmRunScript (
     modulesDir: string,
     root: string,
     stdio?: string,
+    unsafePerm: boolean
   }
 ) {
   if (!pkg.scripts || !pkg.scripts[stage]) return
@@ -70,6 +73,7 @@ export async function npmRunScript (
       clearProgress: noop,
       showProgress: noop,
     },
+    unsafePerm: opts.unsafePerm
   })
 
   function npmLog (prefix: string, logid: string, stdtype: string, line: string) {
