@@ -34,7 +34,7 @@ dependencies:
   ramda: 0.25.0
   signal-exit: 3.0.2
   strip-color: 0.1.0
-  supi: 0.7.15
+  supi: 0.7.16
   text-table: 0.2.0
   tree-kill: 1.2.0
   update-notifier: 2.3.0
@@ -214,7 +214,7 @@ packages:
     dependencies:
       '@pnpm/git-resolver': 0.3.0
       '@pnpm/local-resolver': 0.1.0
-      '@pnpm/npm-resolver': 0.3.4
+      '@pnpm/npm-resolver': 0.3.5
       '@pnpm/tarball-resolver': 0.1.0
       '@pnpm/types': 1.4.0
     dev: false
@@ -292,7 +292,7 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha512-VRqE5/SiuR7ZrwBmS+Af89BTXli5xBbiqu7WPq56gEtWT8dKf9rFLoimmmMBVeRq5LmVZIXlOxs29F9I+vgSvQ==
-  /@pnpm/npm-resolver/0.3.4:
+  /@pnpm/npm-resolver/0.3.5:
     dependencies:
       '@pnpm/types': 1.4.0
       '@types/load-json-file': 2.0.7
@@ -308,7 +308,7 @@ packages:
       p-limit: 1.1.0
       semver: 5.4.1
       ssri: 5.0.0
-      version-selector-type: 1.0.0
+      version-selector-type: 2.0.0
       write-json-file: 2.3.0
     dev: false
     engines:
@@ -316,10 +316,10 @@ packages:
     peerDependencies:
       '@pnpm/logger': ^1.0.0
     resolution:
-      integrity: sha512-4K+Zu3t7zTGuHbp1bt9OfARQlyn0EymJU7OAGgvFN+9Smkz2LcjdxTivziU6JfgdBpOlC7qtq8jMTASQEXGzsA==
+      integrity: sha512-dUjiu6/WwIgtb7MV/FQl36zeEc8JMAkSw4tyUD9YR/zSvgUC0jjoAAxUKy3CO0J3QVtDmG1RyRt3Cpf0bbEFuQ==
   /@pnpm/outdated/0.2.2:
     dependencies:
-      '@pnpm/npm-resolver': 0.3.4
+      '@pnpm/npm-resolver': 0.3.5
       '@types/node': 8.5.2
       dependency-path: 1.2.0
       package-store: 0.12.0
@@ -5496,7 +5496,7 @@ packages:
       node: '>=0.10.0'
     resolution:
       integrity: sha1-PFMZQukIwml8DsNEhYwobHygpgo=
-  /supi/0.7.15:
+  /supi/0.7.16:
     dependencies:
       '@pnpm/check-package': 1.0.0
       '@pnpm/default-fetcher': 0.3.0
@@ -5558,7 +5558,7 @@ packages:
       symlink-dir: 1.1.1
       thenify: 3.3.0
       validate-npm-package-name: 3.0.0
-      version-selector-type: 1.0.0
+      version-selector-type: 2.0.0
       write-pkg: 3.1.0
       write-yaml-file: 1.0.0
     dev: false
@@ -5567,7 +5567,7 @@ packages:
     peerDependencies:
       '@pnpm/logger': ^1.0.0
     resolution:
-      integrity: sha512-TvKvxanNJjdpZrTSk03CT0zhxrEX0ic89G4oGSxhDIxBI3egcouZ0r+6d0uNopRJbPHFwb+Oqf7bP4CcOAb5Jw==
+      integrity: sha1-IiVZ5LZ4GJiYwqdsBHT/8/d4yeY=
   /supports-color/2.0.0:
     engines:
       node: '>=0.8.0'
@@ -6087,14 +6087,14 @@ packages:
       '0': node >=0.6.0
     resolution:
       integrity: sha1-OhBcoXBTr1XW4nDB+CiGguGNpAA=
-  /version-selector-type/1.0.0:
+  /version-selector-type/2.0.0:
     dependencies:
       semver: 5.4.1
     dev: false
     engines:
       node: '>=4'
     resolution:
-      integrity: sha512-v4qwzmB2jUeYSPwzPrpoeVvISUN4fmKUow7b+LVbhRMyHP7JoTDVARhXkrHvqYAlqtHmAKjjIidCDwgm0k0luw==
+      integrity: sha512-FYMSYiI76Pd8twRTtV/DBmDkZcrMqET3ar5G+alR7/VQgo2iwnu1xlgzpvaWUCwdx5R+mq8HxgFeSnJpssV17A==
   /vorpal/1.12.0:
     dependencies:
       babel-polyfill: 6.26.0
@@ -6385,7 +6385,7 @@ specifiers:
   sepia: ^2.0.2
   signal-exit: ^3.0.2
   strip-color: ^0.1.0
-  supi: ^0.7.15
+  supi: ^0.7.16
   tape: ^4.6.3
   tape-promise: ^2.0.1
   text-table: ^0.2.0
