@@ -7,7 +7,7 @@ import extendOptions from 'supi/lib/api/extendOptions'
 import createStore from './createStore'
 
 export default async function (opts: PnpmOptions) {
-  const strictOpts = await extendOptions(opts) // TODO: Only the store path is needed here
+  const strictOpts = await extendOptions(opts, false) // TODO: Only the store path is needed here
   try {
     const serverJson = await loadJsonFile(path.join(strictOpts.store, 'server.json'))
     logger.info('A store service is running and will be used to download the needed packages')

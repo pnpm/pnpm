@@ -14,7 +14,7 @@ import createStore from '../createStore'
 export default async (input: string[], opts: PnpmOptions) => {
   logger.warn('The store server is an experimental feature. Breaking changes may happen in non-major versions.')
 
-  const strictOpts = await extendOptions(opts)
+  const strictOpts = await extendOptions(opts, false)
   const store = await createStore(strictOpts)
 
   // the store folder will be needed because server will want to create a file there
