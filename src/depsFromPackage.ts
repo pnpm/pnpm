@@ -24,20 +24,20 @@ function getVersionSpecsByRealNames (deps: Dependencies) {
       if (deps[depName].startsWith('npm:')) {
         const pref = deps[depName].substr(4)
         const index = pref.lastIndexOf('@')
-        const selector = pref.substr(index + 1)
-        const type = getVerSelType(selector)
-        if (type) {
+        const spec = pref.substr(index + 1)
+        const selector = getVerSelType(spec)
+        if (selector) {
           acc[pref.substr(0, index)] = {
-            type,
-            selector,
+            type: selector.type,
+            selector: selector.normalized,
           }
         }
       } else if (deps[depName].indexOf(':') === -1) { // we really care only about semver specs
-        const type = getVerSelType(deps[depName])
-        if (type) {
+        const selector = getVerSelType(deps[depName])
+        if (selector) {
           acc[depName] = {
-            type,
-            selector: deps[depName],
+            type: selector.type,
+            selector: selector.normalized,
           }
         }
       }

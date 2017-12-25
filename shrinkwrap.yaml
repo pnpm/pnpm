@@ -59,7 +59,7 @@ dependencies:
   symlink-dir: 1.1.1
   thenify: 3.3.0
   validate-npm-package-name: 3.0.0
-  version-selector-type: 1.0.0
+  version-selector-type: 2.0.0
   write-pkg: 3.1.0
   write-yaml-file: 1.0.0
 devDependencies:
@@ -201,7 +201,7 @@ packages:
     dependencies:
       '@pnpm/git-resolver': 0.3.0
       '@pnpm/local-resolver': 0.1.0
-      '@pnpm/npm-resolver': 0.3.3
+      '@pnpm/npm-resolver': 0.3.5
       '@pnpm/tarball-resolver': 0.1.0
       '@pnpm/types': 1.4.0
     dev: false
@@ -279,7 +279,7 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha512-VRqE5/SiuR7ZrwBmS+Af89BTXli5xBbiqu7WPq56gEtWT8dKf9rFLoimmmMBVeRq5LmVZIXlOxs29F9I+vgSvQ==
-  /@pnpm/npm-resolver/0.3.3:
+  /@pnpm/npm-resolver/0.3.5:
     dependencies:
       '@pnpm/types': 1.4.0
       '@types/load-json-file': 2.0.7
@@ -295,7 +295,7 @@ packages:
       p-limit: 1.1.0
       semver: 5.4.1
       ssri: 5.0.0
-      version-selector-type: 1.0.0
+      version-selector-type: 2.0.0
       write-json-file: 2.3.0
     dev: false
     engines:
@@ -303,7 +303,7 @@ packages:
     peerDependencies:
       '@pnpm/logger': ^1.0.0
     resolution:
-      integrity: sha512-fNGhRWHtnI5CatygnZnI2C9fUhhPULxe8et16HWf/d7Cz6mg9EAS+493gqzbeJCFmR2Pcr3PxZoI2RhTLXwAoA==
+      integrity: sha512-dUjiu6/WwIgtb7MV/FQl36zeEc8JMAkSw4tyUD9YR/zSvgUC0jjoAAxUKy3CO0J3QVtDmG1RyRt3Cpf0bbEFuQ==
   /@pnpm/package-requester/0.5.1:
     dependencies:
       '@pnpm/check-package': 1.0.0
@@ -4760,14 +4760,14 @@ packages:
       '0': node >=0.6.0
     resolution:
       integrity: sha1-OhBcoXBTr1XW4nDB+CiGguGNpAA=
-  /version-selector-type/1.0.0:
+  /version-selector-type/2.0.0:
     dependencies:
       semver: 5.4.1
     dev: false
     engines:
       node: '>=4'
     resolution:
-      integrity: sha512-v4qwzmB2jUeYSPwzPrpoeVvISUN4fmKUow7b+LVbhRMyHP7JoTDVARhXkrHvqYAlqtHmAKjjIidCDwgm0k0luw==
+      integrity: sha512-FYMSYiI76Pd8twRTtV/DBmDkZcrMqET3ar5G+alR7/VQgo2iwnu1xlgzpvaWUCwdx5R+mq8HxgFeSnJpssV17A==
   /vorpal/1.12.0:
     dependencies:
       babel-polyfill: 6.26.0
@@ -4993,7 +4993,7 @@ specifiers:
   tslint: ^5.4.2
   typescript: ^2.6.1
   validate-npm-package-name: ^3.0.0
-  version-selector-type: ^1.0.0
+  version-selector-type: ^2.0.0
   write-json-file: ^2.2.0
   write-pkg: ^3.1.0
   write-yaml-file: ^1.0.0
