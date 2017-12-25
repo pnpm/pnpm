@@ -58,7 +58,12 @@ const defaults = async (opts: SupiOptions) => {
   }
 }
 
-export default async (opts?: SupiOptions): Promise<StrictSupiOptions> => {
+export default async (
+  opts?: SupiOptions,
+  // TODO: remove this option.
+  // extendOptions is now called twice, which should not really be happening
+  logWarnings?: boolean,
+): Promise<StrictSupiOptions> => {
   opts = opts || {}
   if (opts) {
     for (const key in opts) {
@@ -68,15 +73,17 @@ export default async (opts?: SupiOptions): Promise<StrictSupiOptions> => {
     }
   }
   if (opts.storePath && !opts.store) {
-    logger.warn('the `store-path` config is deprecated. Use `store` instead.')
+    if (logWarnings !== false) {
+      logger.warn('the `store-path` config is deprecated. Use `store` instead.')
+    }
     opts.store = opts.storePath
   }
   const defaultOpts = await defaults(opts)
   const extendedOpts = {...defaultOpts, ...opts, store: defaultOpts.store}
-  if (extendedOpts.force) {
+  if (logWarnings !== false && extendedOpts.force) {
     logger.warn('using --force I sure hope you know what you are doing')
   }
-  if (extendedOpts.lock === false) {
+  if (logWarnings !== false && extendedOpts.lock === false) {
     logger.warn('using --no-lock I sure hope you know what you are doing')
   }
   if (extendedOpts.userAgent.startsWith('npm/')) {
