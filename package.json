@@ -57,7 +57,7 @@
     "ramda": "^0.25.0",
     "signal-exit": "^3.0.2",
     "strip-color": "^0.1.0",
-    "supi": "^0.7.14",
+    "supi": "^0.7.15",
     "text-table": "^0.2.0",
     "tree-kill": "^1.2.0",
     "update-notifier": "^2.1.0",
