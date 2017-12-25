@@ -50,6 +50,15 @@ test('can resolve aliased scoped dependency', async t => {
   t.end()
 })
 
+test('can resolve package with version prefixed with v', async t => {
+  metaCache.clear()
+  const resolveResult = await resolveFromNpm({alias: 'is-positive', pref: 'v1.0.0'}, {
+    registry,
+  })
+  t.equal(resolveResult!.id, 'localhost+4873/is-positive/1.0.0')
+  t.end()
+})
+
 test("resolves to latest if it's inside the wanted range. Even if there are newer versions available inside the range", async t => {
   metaCache.clear()
   await addDistTag({package: 'pnpm-foo', version: '1.0.0', distTag: 'latest'})
