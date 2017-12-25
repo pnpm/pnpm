@@ -59,7 +59,6 @@
     "strip-color": "^0.1.0",
     "supi": "^0.7.16",
     "text-table": "^0.2.0",
-    "tree-kill": "^1.2.0",
     "update-notifier": "^2.1.0",
     "write-json-file": "^2.3.0"
   },
@@ -104,6 +103,7 @@
     "tape": "^4.6.3",
     "tape-promise": "^2.0.1",
     "thenify": "^3.3.0",
+    "tree-kill": "^1.2.0",
     "ts-node": "^4.0.0",
     "tslint": "^5.4.2",
     "typescript": "^2.4.1",

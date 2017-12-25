@@ -36,7 +36,6 @@ dependencies:
   strip-color: 0.1.0
   supi: 0.7.16
   text-table: 0.2.0
-  tree-kill: 1.2.0
   update-notifier: 2.3.0
   write-json-file: 2.3.0
 devDependencies:
@@ -80,6 +79,7 @@ devDependencies:
   tape: 4.8.0
   tape-promise: 2.0.1
   thenify: 3.3.0
+  tree-kill: 1.2.0
   ts-node: 4.1.0
   tslint: 5.8.0
   typescript: 2.6.2
@@ -5744,7 +5744,7 @@ packages:
     resolution:
       integrity: sha1-C2GKVWW23qkL80JdBNVe3EdadWE=
   /tree-kill/1.2.0:
-    dev: false
+    dev: true
     resolution:
       integrity: sha512-DlX6dR0lOIRDFxI0mjL9IYg6OTncLm/Zt+JiBhE5OlFcAR8yc9S7FFXU9so0oda47frdM/JFsk7UjNt9vscKcg==
   /trim-newlines/1.0.0:
