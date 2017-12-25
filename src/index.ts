@@ -97,7 +97,7 @@ async function resolveNpm (
     let version: string | undefined
     switch (spec.type) {
       case 'version':
-        version = semver.clean(spec.fetchSpec) as string
+        version = spec.fetchSpec
         break
       case 'tag':
         version = meta['dist-tags'][spec.fetchSpec]

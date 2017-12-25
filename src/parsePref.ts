@@ -18,13 +18,12 @@ export default function parsePref (pref: string, alias?: string): RegistryPackag
   if (!name) {
     return null
   }
-  // TODO: this should also return the clean version of the spec (what semver.valid returns)
-  const type = getVersionSelectorType(pref, true)
-  if (type) {
+  const selector = getVersionSelectorType(pref)
+  if (selector) {
     return {
-      fetchSpec: pref,
+      fetchSpec: selector.normalized,
       name,
-      type,
+      type: selector.type,
     }
   }
   return null
