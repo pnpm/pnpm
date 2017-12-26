@@ -28,6 +28,7 @@ import {
   RootLog,
   ProgressLog,
   PackageJsonLog,
+  StatsLog,
 } from 'supi'
 import writeJsonFile = require('write-json-file')
 
@@ -79,10 +80,16 @@ test('no dependencies (lodash)', async (t: tape.Test) => {
   //   level: 'info',
   //   message: 'Creating dependency tree',
   // }), 'informed about creating dependency tree')
-  t.ok(reporter.calledWithMatch({
-    level: 'info',
-    message: 'Adding 1 packages to node_modules',
-  }), 'informed about adding new packages to node_modules')
+  t.ok(reporter.calledWithMatch(<StatsLog>{
+    name: 'pnpm:stats',
+    level: 'debug',
+    added: 1,
+  }), 'added stat')
+  t.ok(reporter.calledWithMatch(<StatsLog>{
+    name: 'pnpm:stats',
+    level: 'debug',
+    removed: 0,
+ }), 'removed stat')
   t.ok(reporter.calledWithMatch(<RootLog>{
     name: 'pnpm:root',
     level: 'info',

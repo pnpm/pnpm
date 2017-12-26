@@ -12,6 +12,7 @@ export const deprecationLogger = baseLogger('deprecation') as Logger<Deprecation
 export const lifecycleLogger = baseLogger('lifecycle') as Logger<LifecycleMessage>
 export const rootLogger = baseLogger('root') as Logger<RootMessage>
 export const progressLogger = baseLogger('progress') as Logger<ProgressMessage>
+export const statsLogger = baseLogger('stats') as Logger<StatsMessage>
 
 export type PackageJsonMessage = {
   initial: PackageJson
@@ -93,9 +94,17 @@ export type ProgressMessage = {
   pkgVersion: string,
 }
 
+export type StatsMessage = {
+  added: number,
+} | {
+  removed: number,
+}
+
 export type ProgressLog = {name: 'pnpm:progress'} & LogBase & ProgressMessage
 
 export type StageLog = {name: 'pnpm:stage'} & LogBase & {message: 'resolution_done'}
+
+export type StatsLog = {name: 'pnpm:stats'} & LogBase & StatsMessage
 
 export type RegistryLog = {name: 'pnpm:registry'} & LogBase & {message: string}
 
@@ -107,4 +116,5 @@ export type Log = StageLog
   | InstallCheckLog
   | PackageJsonLog
   | RegistryLog
+  | StatsLog
   | {name: 'pnpm:summary'} & LogBase

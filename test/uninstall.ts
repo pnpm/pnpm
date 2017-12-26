@@ -19,6 +19,7 @@ import {
   link,
   storePrune,
   RootLog,
+  StatsLog,
 } from 'supi'
 import thenify = require('thenify')
 import sinon = require('sinon')
@@ -32,9 +33,10 @@ test('uninstall package with no dependencies', async (t: tape.Test) => {
   await installPkgs(['is-negative@2.1.0'], testDefaults({ save: true }))
   await uninstall(['is-negative'], testDefaults({ save: true, reporter }))
 
-  t.ok(reporter.calledWithMatch({
-    level: 'info',
-    message: 'Removing 1 orphan packages from node_modules',
+  t.ok(reporter.calledWithMatch(<StatsLog>{
+    name: 'pnpm:stats',
+    level: 'debug',
+    removed: 1,
   }), 'reported info message about removing orphans')
   t.ok(reporter.calledWithMatch(<RootLog>{
     name: 'pnpm:root',

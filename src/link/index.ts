@@ -20,7 +20,7 @@ import removeOrphanPkgs from '../api/removeOrphanPkgs'
 import linkIndexedDir from '../fs/linkIndexedDir'
 import ncpCB = require('ncp')
 import thenify = require('thenify')
-import {rootLogger} from '../loggers'
+import {rootLogger, statsLogger} from '../loggers'
 
 const ncp = thenify(ncpCB)
 
@@ -235,12 +235,11 @@ async function linkNewPackages (
     }
   }
 
+  statsLogger.debug({added: newPkgResolvedIdsSet.size})
   if (!newPkgResolvedIdsSet.size) return []
 
   const newPkgResolvedIds = Array.from(newPkgResolvedIdsSet)
   const newPkgs = R.props<string, DependencyTreeNode>(newPkgResolvedIds, pkgsToLink)
-
-  logger.info(`Adding ${newPkgs.length} packages to node_modules`)
 
   await Promise.all([
     linkAllModules(newPkgs, pkgsToLink, {optional: opts.optional}),

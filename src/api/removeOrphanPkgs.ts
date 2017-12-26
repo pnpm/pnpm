@@ -7,6 +7,7 @@ import R = require('ramda')
 import removeTopDependency from '../removeTopDependency'
 import logger from '@pnpm/logger'
 import {dependenciesTypes} from '../getSaveType'
+import {statsLogger} from '../loggers'
 
 export default async function removeOrphanPkgs (
   opts: {
@@ -40,9 +41,8 @@ export default async function removeOrphanPkgs (
 
   const notDependents = R.difference(oldPkgIds, newPkgIds)
 
+  statsLogger.debug({removed: notDependents.length})
   if (notDependents.length) {
-    logger.info(`Removing ${notDependents.length} orphan packages from node_modules`);
-
     await Promise.all(notDependents.map(async notDependent => {
       await rimraf(path.join(rootModules, `.${notDependent}`))
     }))
