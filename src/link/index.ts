@@ -205,7 +205,8 @@ async function linkNewPackages (
   const prevPkgResolvedIds = R.keys(currentShrinkwrap.packages)
 
   // TODO: what if the registries differ?
-  const newPkgResolvedIds = (
+  const newPkgResolvedIdsSet = new Set(
+    (
       opts.force
         ? nextPkgResolvedIds
         : R.difference(nextPkgResolvedIds, prevPkgResolvedIds)
@@ -214,8 +215,7 @@ async function linkNewPackages (
     // when installing a new package, not all the nodes are analyzed
     // just skip the ones that are in the lockfile but were not analyzed
     .filter(resolvedId => pkgsToLink[resolvedId])
-
-  const newPkgs = R.props<string, DependencyTreeNode>(newPkgResolvedIds, pkgsToLink)
+  )
 
   if (!opts.force && currentShrinkwrap.packages && wantedShrinkwrap.packages) {
     // add subdependencies that have been updated
@@ -229,13 +229,16 @@ async function linkNewPackages (
         // TODO: come up with a test that triggers the usecase of pkgsToLink[resolvedId] undefined
         // see related issue: https://github.com/pnpm/pnpm/issues/870
         if (pkgsToLink[resolvedId]) {
-          newPkgs.push(pkgsToLink[resolvedId])
+          newPkgResolvedIdsSet.add(resolvedId)
         }
       }
     }
   }
 
-  if (!newPkgs.length) return []
+  if (!newPkgResolvedIdsSet.size) return []
+
+  const newPkgResolvedIds = Array.from(newPkgResolvedIdsSet)
+  const newPkgs = R.props<string, DependencyTreeNode>(newPkgResolvedIds, pkgsToLink)
 
   logger.info(`Adding ${newPkgs.length} packages to node_modules`)
 
