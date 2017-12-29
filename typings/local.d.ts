@@ -22,3 +22,8 @@ declare module 'stacktracey' {
   const anything: any;
   export = anything;
 }
+
+declare module 'zen-push' {
+  const anything: any;
+  export = anything;
+}

@@ -1,27 +1,22 @@
 import chalk from 'chalk'
+import most = require('most')
 import os = require('os')
-import xs, {Stream} from 'xstream'
-import dropRepeats from 'xstream/extra/dropRepeats'
-import flattenConcurrently from 'xstream/extra/flattenConcurrently'
 
 const EOL = os.EOL
 
-export default function mergeOutputs (outputs: Array<xs<xs<{msg: string}>>>): Stream<string> {
+export default function mergeOutputs (outputs: Array<most.Stream<most.Stream<{msg: string}>>>): most.Stream<string> {
   let blockNo = 0
   let fixedBlockNo = 0
   let started = false
-  return flattenConcurrently(
-    (xs.merge.apply(xs, outputs) as xs<xs<{msg: string}>>)
-    .map((log: Stream<{msg: string, fixed: boolean}>) => {
+  return most.join(
+    most.mergeArray(outputs)
+    .map((log: most.Stream<{msg: string}>) => {
       let currentBlockNo = -1
       let currentFixedBlockNo = -1
-      let calculated = false
-      let fixedCalculated = false
       return log
         .map((msg) => {
           if (msg['fixed']) {
-            if (!fixedCalculated) {
-              fixedCalculated = true
+            if (currentFixedBlockNo === -1) {
               currentFixedBlockNo = fixedBlockNo++
             }
             return {
@@ -30,8 +25,7 @@ export default function mergeOutputs (outputs: Array<xs<xs<{msg: string}>>>): St
               msg: msg.msg,
             }
           }
-          if (!calculated) {
-            calculated = true
+          if (currentBlockNo === -1) {
             currentBlockNo = blockNo++
           }
           return {
@@ -43,7 +37,7 @@ export default function mergeOutputs (outputs: Array<xs<xs<{msg: string}>>>): St
         })
     }),
   )
-  .fold((acc, log) => {
+  .scan((acc, log) => {
     if (log.fixed === true) {
       acc.fixedBlocks[log.blockNo] = log.msg
     } else {
@@ -72,5 +66,5 @@ export default function mergeOutputs (outputs: Array<xs<xs<{msg: string}>>>): St
     started = true
     return true
   })
-  .compose(dropRepeats())
+  .skipRepeats()
 }

@@ -1,13 +1,15 @@
 import logger, {
   createStreamParser,
 } from '@pnpm/logger'
+import delay = require('delay')
 import test = require('tape')
 import normalizeNewline = require('normalize-newline')
 import {toOutput$} from 'pnpm-default-reporter'
 import {stripIndents} from 'common-tags'
 import chalk from 'chalk'
-import xs, {Stream} from 'xstream'
+import most = require('most')
 import StackTracey = require('stacktracey')
+import R = require('ramda')
 
 const WARN = chalk.bgYellow.black('\u2009WARN\u2009')
 const ERROR = chalk.bgRed.black('\u2009ERROR\u2009')
@@ -30,6 +32,7 @@ const deprecationLogger = logger<object>('deprecation')
 const summaryLogger = logger<object>('summary')
 const lifecycleLogger = logger<object>('lifecycle')
 const packageJsonLogger = logger<object>('package-json')
+const statsLogger = logger<object>('stats')
 
 test('prints progress beginning', t => {
   const output$ = toOutput$(createStreamParser())
@@ -48,7 +51,7 @@ test('prints progress beginning', t => {
       t.equal(output, `Resolving: total ${hlValue('1')}, reused ${hlValue('0')}, downloaded ${hlValue('0')}`)
     },
     error: t.end,
-    complete: t.end,
+    complete: () => t.end(),
   })
 })
 
@@ -69,7 +72,7 @@ test('prints progress beginning during recursive install', t => {
       t.equal(output, `Resolving: total ${hlValue('1')}, reused ${hlValue('0')}, downloaded ${hlValue('0')}`)
     },
     error: t.end,
-    complete: t.end,
+    complete: () => t.end(),
   })
 })
 
@@ -89,17 +92,28 @@ test('prints progress on first download', t => {
 
   t.plan(1)
 
-  output$.drop(1).take(1).subscribe({
+  output$.skip(1).take(1).subscribe({
     next: output => {
       t.equal(output, `Resolving: total ${hlValue('1')}, reused ${hlValue('0')}, downloaded ${hlValue('1')}`)
     },
-    complete: t.end,
+    complete: () => t.end(),
     error: t.end,
   })
 })
 
-test('moves fixed line to the end', t => {
+test('moves fixed line to the end', async t => {
   const output$ = toOutput$(createStreamParser())
+
+  output$.skip(3).take(1).map(normalizeNewline).subscribe({
+    next: output => {
+      t.equal(output, stripIndents`
+        ${WARN} foo
+        Resolving: total ${hlValue('1')}, reused ${hlValue('0')}, downloaded ${hlValue('1')}, done
+      `)
+    },
+    complete: v => t.end(),
+    error: t.end,
+  })
 
   const pkgId = 'registry.npmjs.org/foo/1.0.0'
 
@@ -112,20 +126,12 @@ test('moves fixed line to the end', t => {
     pkgId,
   })
   logger.warn('foo')
+
+  await delay(0) // w/o delay warning goes below for some reason. Started to happen after switch to most
+
   stageLogger.debug('resolution_done')
 
   t.plan(1)
-
-  output$.drop(3).take(1).map(normalizeNewline).subscribe({
-    next: output => {
-      t.equal(output, stripIndents`
-        ${WARN} foo
-        Resolving: total ${hlValue('1')}, reused ${hlValue('0')}, downloaded ${hlValue('1')}, done
-      `)
-    },
-    complete: t.end,
-    error: t.end,
-  })
 })
 
 test('prints "Already up-to-date"', t => {
@@ -141,7 +147,7 @@ test('prints "Already up-to-date"', t => {
         Already up-to-date
       `)
     },
-    complete: t.end,
+    complete: () => t.end(),
     error: t.end,
   })
 })
@@ -245,7 +251,7 @@ test('prints summary', t => {
 
   t.plan(1)
 
-  output$.drop(1).take(1).map(normalizeNewline).subscribe({
+  output$.skip(1).take(1).map(normalizeNewline).subscribe({
     next: output => {
       t.equal(output, stripIndents`
         ${WARN} ${DEPRECATED} bar@2.0.0: This package was deprecated because bla bla bla
@@ -269,7 +275,7 @@ test('prints summary', t => {
         ${ADD} qar ${versionColor('2.0.0')}
         ` + '\n')
     },
-    complete: t.end,
+    complete: () => t.end(),
     error: t.end,
   })
 })
@@ -319,7 +325,7 @@ test('groups lifecycle output', t => {
 
   const childOutputColor = chalk.grey
 
-  output$.drop(6).take(1).map(normalizeNewline).subscribe({
+  output$.skip(6).take(1).map(normalizeNewline).subscribe({
     next: output => {
       t.equal(output, stripIndents`
         Running ${PREINSTALL} for ${hlPkgId('registry.npmjs.org/foo/1.0.0')}: ${childOutputColor('foo')}
@@ -328,7 +334,7 @@ test('groups lifecycle output', t => {
         Running ${INSTALL} for ${hlPkgId('registry.npmjs.org/qar/1.0.0')}, done
       `)
     },
-    complete: t.end,
+    complete: () => t.end(),
     error: t.end,
   })
 })
@@ -365,7 +371,7 @@ test['skip']('prints lifecycle progress', t => {
   const childOutputColor = chalk.grey
   const childOutputError = chalk.red
 
-  output$.drop(3).take(1).map(normalizeNewline).subscribe({
+  output$.skip(3).take(1).map(normalizeNewline).subscribe({
     next: output => {
       t.equal(output, stripIndents`
         Running ${POSTINSTALL} for ${hlPkgId('registry.npmjs.org/foo/1.0.0')}: ${childOutputColor('foo I')}
@@ -374,7 +380,7 @@ test['skip']('prints lifecycle progress', t => {
         Running ${POSTINSTALL} for ${hlPkgId('registry.npmjs.org/bar/1.0.0')}: ${childOutputColor('bar I')}
       `)
     },
-    complete: t.end,
+    complete: () => t.end(),
     error: t.end,
   })
 })
@@ -394,7 +400,7 @@ test('prints generic error', t => {
         ${new StackTracey(err.stack).pretty}
       `)
     },
-    complete: t.end,
+    complete: () => t.end(),
     error: t.end,
   })
 })
@@ -410,30 +416,89 @@ test('prints info', t => {
     next: output => {
       t.equal(output, 'info message')
     },
-    complete: t.end,
+    complete: () => t.end(),
     error: t.end,
   })
 })
 
-test('prints progress of big files download', t => {
-  let output$ = toOutput$(createStreamParser()).map(normalizeNewline) as Stream<string>
-  const stream$: Stream<string>[] = []
+test('prints progress of big files download', async t => {
+  t.plan(6)
+
+  let output$ = toOutput$(createStreamParser()).map(normalizeNewline) as most.Stream<string>
+  const stream$: most.Stream<string>[] = []
 
   const pkgId1 = 'registry.npmjs.org/foo/1.0.0'
   const pkgId2 = 'registry.npmjs.org/bar/2.0.0'
   const pkgId3 = 'registry.npmjs.org/qar/3.0.0'
 
+  stream$.push(
+    output$.take(1)
+      .tap(output => t.equal(output, `Resolving: total ${hlValue('1')}, reused ${hlValue('0')}, downloaded ${hlValue('0')}`))
+  )
+
+  output$ = output$.skip(1)
+
+  stream$.push(
+    output$.take(1)
+      .tap(output => t.equal(output, stripIndents`
+        Resolving: total ${hlValue('1')}, reused ${hlValue('0')}, downloaded ${hlValue('0')}
+        Downloading ${hlPkgId(pkgId1)}: ${hlValue('0 B')}/${hlValue('10.5 MB')}
+      `))
+  )
+
+  output$ = output$.skip(1)
+
+  stream$.push(
+    output$.take(1)
+      .tap(output => t.equal(output, stripIndents`
+        Resolving: total ${hlValue('1')}, reused ${hlValue('0')}, downloaded ${hlValue('0')}
+        Downloading ${hlPkgId(pkgId1)}: ${hlValue('5.77 MB')}/${hlValue('10.5 MB')}
+      `))
+  )
+
+  output$ = output$.skip(2)
+
+  stream$.push(
+    output$.take(1)
+      .tap(output => t.equal(output, stripIndents`
+        Resolving: total ${hlValue('2')}, reused ${hlValue('0')}, downloaded ${hlValue('0')}
+        Downloading ${hlPkgId(pkgId1)}: ${hlValue('7.34 MB')}/${hlValue('10.5 MB')}
+      `, 'downloading of small package not reported'))
+  )
+
+  output$ = output$.skip(3)
+
+  stream$.push(
+    output$.take(1)
+      .tap(output => t.equal(output, stripIndents`
+        Resolving: total ${hlValue('3')}, reused ${hlValue('0')}, downloaded ${hlValue('0')}
+        Downloading ${hlPkgId(pkgId1)}: ${hlValue('7.34 MB')}/${hlValue('10.5 MB')}
+        Downloading ${hlPkgId(pkgId3)}: ${hlValue('19.9 MB')}/${hlValue('21 MB')}
+      `))
+  )
+
+  output$ = output$.skip(1)
+
+  stream$.push(
+    output$.take(1)
+      .tap(output => t.equal(output, stripIndents`
+        ${chalk.dim(`Downloading ${hlPkgId(pkgId1)}: ${hlValue('10.5 MB')}/${hlValue('10.5 MB')}, done`)}
+        Resolving: total ${hlValue('3')}, reused ${hlValue('0')}, downloaded ${hlValue('0')}
+        Downloading ${hlPkgId(pkgId3)}: ${hlValue('19.9 MB')}/${hlValue('21 MB')}
+      `))
+  )
+
+  most.mergeArray(stream$)
+    .subscribe({
+      next: () => undefined,
+      complete: () => t.end(),
+      error: t.end,
+    })
+
   progressLogger.debug({
     status: 'resolving_content',
     pkgId: pkgId1,
   })
-
-  stream$.push(
-    output$.take(1)
-      .debug(output => t.equal(output, `Resolving: total ${hlValue('1')}, reused ${hlValue('0')}, downloaded ${hlValue('0')}`))
-  )
-
-  output$ = output$.drop(1)
 
   progressLogger.debug({
     status: 'fetching_started',
@@ -442,31 +507,13 @@ test('prints progress of big files download', t => {
     attempt: 1,
   })
 
-  stream$.push(
-    output$.take(1)
-      .debug(output => t.equal(output, stripIndents`
-        Resolving: total ${hlValue('1')}, reused ${hlValue('0')}, downloaded ${hlValue('0')}
-        Downloading ${hlPkgId(pkgId1)}: ${hlValue('0 B')}/${hlValue('10.5 MB')}
-      `))
-  )
-
-  output$ = output$.drop(1)
+  await delay(0)
 
   progressLogger.debug({
     status: 'fetching_progress',
     pkgId: pkgId1,
     downloaded: 1024 * 1024 * 5.5, // 5.5 MB
   })
-
-  stream$.push(
-    output$.take(1)
-      .debug(output => t.equal(output, stripIndents`
-        Resolving: total ${hlValue('1')}, reused ${hlValue('0')}, downloaded ${hlValue('0')}
-        Downloading ${hlPkgId(pkgId1)}: ${hlValue('5.77 MB')}/${hlValue('10.5 MB')}
-      `))
-  )
-
-  output$ = output$.drop(1)
 
   progressLogger.debug({
     status: 'resolving_content',
@@ -486,16 +533,6 @@ test('prints progress of big files download', t => {
     downloaded: 1024 * 1024 * 7,
   })
 
-  stream$.push(
-    output$.drop(1).take(1)
-      .debug(output => t.equal(output, stripIndents`
-        Resolving: total ${hlValue('2')}, reused ${hlValue('0')}, downloaded ${hlValue('0')}
-        Downloading ${hlPkgId(pkgId1)}: ${hlValue('7.34 MB')}/${hlValue('10.5 MB')}
-      `, 'downloading of small package not reported'))
-  )
-
-  output$ = output$.drop(2)
-
   progressLogger.debug({
     status: 'resolving_content',
     pkgId: pkgId3,
@@ -508,42 +545,136 @@ test('prints progress of big files download', t => {
     attempt: 1,
   })
 
+  await delay(0)
+
   progressLogger.debug({
     status: 'fetching_progress',
     pkgId: pkgId3,
     downloaded: 1024 * 1024 * 19, // 19 MB
   })
 
-  stream$.push(
-    output$.drop(2).take(1)
-      .debug(output => t.equal(output, stripIndents`
-        Resolving: total ${hlValue('3')}, reused ${hlValue('0')}, downloaded ${hlValue('0')}
-        Downloading ${hlPkgId(pkgId1)}: ${hlValue('7.34 MB')}/${hlValue('10.5 MB')}
-        Downloading ${hlPkgId(pkgId3)}: ${hlValue('19.9 MB')}/${hlValue('21 MB')}
-      `))
-  )
-
-  output$ = output$.drop(3)
-
   progressLogger.debug({
     status: 'fetching_progress',
     pkgId: pkgId1,
     downloaded: 1024 * 1024 * 10, // 10 MB
   })
+})
 
-  stream$.push(
-    output$.take(1)
-      .debug(output => t.equal(output, stripIndents`
-        ${chalk.dim(`Downloading ${hlPkgId(pkgId1)}: ${hlValue('10.5 MB')}/${hlValue('10.5 MB')}, done`)}
-        Resolving: total ${hlValue('3')}, reused ${hlValue('0')}, downloaded ${hlValue('0')}
-        Downloading ${hlPkgId(pkgId3)}: ${hlValue('19.9 MB')}/${hlValue('21 MB')}
-      `))
-  )
+test('prints added/removed stats during installation', t => {
+  const output$ = toOutput$(createStreamParser(), 'install')
 
-  xs.combine
-    .apply(xs, stream$)
-    .subscribe({
-      complete: t.end,
-      error: t.end,
-    })
+  statsLogger.debug({ added: 5 })
+  statsLogger.debug({ removed: 1 })
+
+  t.plan(1)
+
+  output$.take(1).subscribe({
+    next: output => {
+      t.equal(output, stripIndents`
+        Packages: ${chalk.red('-1')} ${chalk.green('+5')}
+        ${SUB}${ADD + ADD + ADD + ADD + ADD}`
+      )
+    },
+    complete: () => t.end(),
+    error: t.end,
+  })
+})
+
+test('prints added/removed stats during installation when 0 removed', t => {
+  const output$ = toOutput$(createStreamParser(), 'install')
+
+  statsLogger.debug({ added: 2 })
+  statsLogger.debug({ removed: 0 })
+
+  t.plan(1)
+
+  output$.take(1).subscribe({
+    next: output => {
+      t.equal(output, stripIndents`
+        Packages: ${chalk.green('+2')}
+        ${ADD + ADD}`
+      )
+    },
+    complete: () => t.end(),
+    error: t.end,
+  })
+})
+
+test('prints only the added stats if nothing was removed', t => {
+  const output$ = toOutput$(createStreamParser(), 'install')
+
+  statsLogger.debug({ removed: 0 })
+  statsLogger.debug({ added: 1 })
+
+  t.plan(1)
+
+  output$.take(1).subscribe({
+    next: output => {
+      t.equal(output, stripIndents`
+        Packages: ${chalk.green('+1')}
+        ${ADD}`
+      )
+    },
+    complete: () => t.end(),
+    error: t.end,
+  })
+})
+
+test('prints at least one remove sign when removed !== 0', t => {
+  const output$ = toOutput$(createStreamParser(), 'install', 20)
+
+  statsLogger.debug({ removed: 1 })
+  statsLogger.debug({ added: 100 })
+
+  t.plan(1)
+
+  output$.take(1).subscribe({
+    next: output => {
+      t.equal(output, stripIndents`
+        Packages: ${chalk.red('-1')} ${chalk.green('+100')}
+        ${SUB}${R.repeat(ADD, 19).join('')}`
+      )
+    },
+    complete: () => t.end(),
+    error: t.end,
+  })
+})
+
+test('prints at least one add sign when added !== 0', t => {
+  const output$ = toOutput$(createStreamParser(), 'install', 20)
+
+  statsLogger.debug({ removed: 100 })
+  statsLogger.debug({ added: 1 })
+
+  t.plan(1)
+
+  output$.take(1).subscribe({
+    next: output => {
+      t.equal(output, stripIndents`
+        Packages: ${chalk.red('-100')} ${chalk.green('+1')}
+        ${R.repeat(SUB, 19).join('')}${ADD}`
+      )
+    },
+    complete: () => t.end(),
+    error: t.end,
+  })
+})
+
+test('prints just removed during uninstallation', t => {
+  const output$ = toOutput$(createStreamParser(), 'uninstall')
+
+  statsLogger.debug({ removed: 4 })
+
+  t.plan(1)
+
+  output$.take(1).subscribe({
+    next: output => {
+      t.equal(output, stripIndents`
+        Packages: ${chalk.red('-4')}
+        ${SUB + SUB + SUB + SUB}`
+      )
+    },
+    complete: () => t.end(),
+    error: t.end,
+  })
 })

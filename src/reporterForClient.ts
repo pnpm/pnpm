@@ -1,4 +1,6 @@
 import chalk from 'chalk'
+import most = require('most')
+import {last as mostLast} from 'most-last'
 import os = require('os')
 import prettyBytes = require('pretty-bytes')
 import R = require('ramda')
@@ -11,7 +13,7 @@ import {
   ProgressLog,
   RegistryLog,
 } from 'supi'
-import xs, {Stream} from 'xstream'
+import * as supi from 'supi'
 import getPkgsDiff, {
   PackageDiff,
   propertyByDependencyType,
@@ -28,45 +30,59 @@ const hlValue = chalk.blue
 const hlPkgId = chalk['whiteBright']
 
 export default function (
-  log$: xs<Log>,
+  log$: {
+    progress: most.Stream<supi.ProgressLog>,
+    stage: most.Stream<supi.StageLog>,
+    deprecation: most.Stream<supi.DeprecationLog>,
+    summary: most.Stream<supi.Log>,
+    lifecycle: most.Stream<supi.LifecycleLog>,
+    stats: most.Stream<supi.StatsLog>,
+    installCheck: most.Stream<supi.InstallCheckLog>,
+    registry: most.Stream<supi.RegistryLog>,
+    root: most.Stream<supi.RootLog>,
+    packageJson: most.Stream<supi.PackageJsonLog>,
+    link: most.Stream<supi.Log>,
+    other: most.Stream<supi.Log>,
+  },
   isRecursive: boolean,
-): Array<xs<xs<{msg: string}>>> {
-  const outputs: Array<xs<xs<{msg: string}>>> = []
-
-  const progressLog$ = log$
-    .filter((log) => log.name === 'pnpm:progress') as Stream<ProgressLog>
+  cmd?: string, // is optional only to be backward compatible
+  widthArg?: number,
+): Array<most.Stream<most.Stream<{msg: string}>>> {
+  const width = widthArg || process.stdout.columns || 80
+  const outputs: Array<most.Stream<most.Stream<{msg: string}>>> = []
 
   const resolutionDone$ = isRecursive
-    ? xs.never()
-    : log$
-      .filter((log) => log.name === 'pnpm:stage' && log.message === 'resolution_done')
-      .mapTo(true)
+    ? most.never()
+    : log$.stage
+      .filter((log) => log.message === 'resolution_done')
+      .constant(true)
       .take(1)
       .startWith(false)
 
-  const resolvingContentLog$ = progressLog$
+  const resolvingContentLog$ = log$.progress
     .filter((log) => log.status === 'resolving_content')
-    .fold(R.inc, 0)
-    .drop(1)
-    .endWhen(resolutionDone$.last())
+    .scan(R.inc, 0)
+    .skip(1)
+    .until(mostLast(resolutionDone$))
 
-  const fedtchedLog$ = progressLog$
+  const fedtchedLog$ = log$.progress
     .filter((log) => log.status === 'fetched')
-    .fold(R.inc, 0)
+    .scan(R.inc, 0)
 
-  const foundInStoreLog$ = progressLog$
+  const foundInStoreLog$ = log$.progress
     .filter((log) => log.status === 'found_in_store')
-    .fold(R.inc, 0)
+    .scan(R.inc, 0)
 
   if (!isRecursive) {
-    const alreadyUpToDate$ = xs.of(
-      resolvingContentLog$
-        .take(1)
-        .mapTo(false)
-        .startWith(true)
-        .last()
+    const alreadyUpToDate$ = most.of(
+      mostLast(
+        resolvingContentLog$
+          .take(1)
+          .constant(false)
+          .startWith(true),
+      )
         .filter(R.equals(true))
-        .mapTo({
+        .constant({
           fixed: false,
           msg: 'Already up-to-date',
         }),
@@ -75,15 +91,9 @@ export default function (
     outputs.push(alreadyUpToDate$)
   }
 
-  const progressSummaryOutput$ = xs.of(
-    xs.combine(
-      resolvingContentLog$,
-      fedtchedLog$,
-      foundInStoreLog$,
-      isRecursive ? xs.of(false) : resolutionDone$,
-    )
-    .map(
-      R.apply((resolving, fetched, foundInStore: number, resolutionDone) => {
+  const progressSummaryOutput$ = most.of(
+    most.combine(
+      (resolving, fetched, foundInStore: number, resolutionDone) => {
         const msg = `Resolving: total ${hlValue(resolving.toString())}, reused ${hlValue(foundInStore.toString())}, downloaded ${hlValue(fetched.toString())}`
         if (resolving === foundInStore + fetched && resolutionDone) {
           return {
@@ -95,18 +105,22 @@ export default function (
           fixed: true,
           msg,
         }
-      }),
+      },
+      resolvingContentLog$,
+      fedtchedLog$,
+      foundInStoreLog$,
+      isRecursive ? most.of(false) : resolutionDone$,
     ),
   )
 
   outputs.push(progressSummaryOutput$)
 
-  const tarballsProgressOutput$ = progressLog$
+  const tarballsProgressOutput$ = log$.progress
     .filter((log) => log.status === 'fetching_started' &&
       typeof log.size === 'number' && log.size >= BIG_TARBALL_SIZE)
     .map((startedLog) => {
       const size = prettyBytes(startedLog['size'])
-      return progressLog$
+      return log$.progress
         .filter((log) => log.status === 'fetching_progress' && log.pkgId === startedLog['pkgId'])
         .map((log) => log['downloaded'])
         .startWith(0)
@@ -123,39 +137,35 @@ export default function (
   outputs.push(tarballsProgressOutput$)
 
   if (!isRecursive) {
-    const deprecationLog$ = log$
-      .filter((log) => log.name === 'pnpm:deprecation') as Stream<DeprecationLog>
+    const pkgsDiff$ = getPkgsDiff(log$)
 
-    const pkgsDiff$ = getPkgsDiff(log$, deprecationLog$)
-
-    const summaryLog$ = log$
-      .filter((log) => log.name === 'pnpm:summary')
+    const summaryLog$ = log$.summary
       .take(1)
 
-    const summaryOutput$ = xs.combine(
+    const summaryOutput$ = most.combine(
+      (pkgsDiff) => {
+        let msg = ''
+        for (const depType of ['prod', 'optional', 'dev']) {
+          const diffs = R.values(pkgsDiff[depType])
+          if (diffs.length) {
+            msg += EOL
+            msg += chalk.blue(`${propertyByDependencyType[depType]}:`)
+            msg += EOL
+            msg += printDiffs(diffs)
+            msg += EOL
+          }
+        }
+        return {msg}
+      },
       pkgsDiff$,
       summaryLog$,
     )
-    .map(R.apply((pkgsDiff) => {
-      let msg = ''
-      for (const depType of ['prod', 'optional', 'dev']) {
-        const diffs = R.values(pkgsDiff[depType])
-        if (diffs.length) {
-          msg += EOL
-          msg += chalk.blue(`${propertyByDependencyType[depType]}:`)
-          msg += EOL
-          msg += printDiffs(diffs)
-          msg += EOL
-        }
-      }
-      return {msg}
-    }))
     .take(1)
-    .map(xs.of)
+    .map(most.of)
 
     outputs.push(summaryOutput$)
 
-    const deprecationOutput$ = deprecationLog$
+    const deprecationOutput$ = log$.deprecation
       // print warnings only about deprecated packages from the root
       .filter((log) => log.depth === 0)
       .map((log) => {
@@ -163,14 +173,14 @@ export default function (
           msg: formatWarn(`${chalk.red('deprecated')} ${log.pkgName}@${log.pkgVersion}: ${log.deprecated}`),
         }
       })
-      .map(xs.of)
+      .map(most.of)
 
     outputs.push(deprecationOutput$)
   }
 
   const lifecycleMessages: {[pkgId: string]: string} = {}
-  const lifecycleOutput$ = xs.of(
-    log$
+  const lifecycleOutput$ = most.of(
+    log$.lifecycle
       .filter((log) => log.name === 'pnpm:lifecycle')
       .map((log: LifecycleLog) => {
         const key = `${log.script}:${log.pkgId}`
@@ -183,24 +193,68 @@ export default function (
   outputs.push(lifecycleOutput$)
 
   if (!isRecursive) {
-    const installCheckOutput$ = log$
-      .filter((log) => log.name === 'pnpm:install-check')
+    outputs.push(
+      most.fromPromise(
+        log$.stats
+          .take((cmd === 'install' || cmd === 'update') ? 2 : 1)
+          .reduce((acc, log) => {
+            if (typeof log['added'] === 'number') {
+              acc['added'] = log['added']
+            } else if (typeof log['removed'] === 'number') {
+              acc['removed'] = log['removed']
+            }
+            return acc
+          }, {}),
+      )
+      .map((stats) => {
+        if (!stats['removed'] && !stats['added']) {
+          return most.empty()
+        }
+
+        let addSigns = (stats['added'] || 0)
+        let removeSigns = (stats['removed'] || 0)
+        const changes = addSigns + removeSigns
+        if (changes > width) {
+          if (!addSigns) {
+            addSigns = 0
+            removeSigns = width
+          } else if (!removedSign) {
+            addSigns = width
+            removeSigns = 0
+          } else {
+            const p = width / changes
+            addSigns = Math.min(Math.max(Math.floor(addSigns * p), 1), width - 1)
+            removeSigns = width - addSigns
+          }
+        }
+        let msg = 'Packages:'
+        if (stats['removed']) {
+          msg += ' ' + chalk.red(`-${stats['removed']}`)
+        }
+        if (stats['added']) {
+          msg += ' ' + chalk.green(`+${stats['added']}`)
+        }
+        msg += EOL + R.repeat(removedSign, removeSigns).join('') + R.repeat(addedSign, addSigns).join('')
+        return most.of({msg})
+      }),
+    )
+
+    const installCheckOutput$ = log$.installCheck
       .map(formatInstallCheck)
       .filter(Boolean)
       .map((msg) => ({msg}))
-      .map(xs.of) as Stream<Stream<{msg: string}>>
+      .map(most.of) as most.Stream<most.Stream<{msg: string}>>
 
     outputs.push(installCheckOutput$)
 
-    const registryOutput$ = log$
-      .filter((log) => log.name === 'pnpm:registry' && log.level === 'warn')
+    const registryOutput$ = log$.registry
+      .filter((log) => log.level === 'warn')
       .map((log: RegistryLog) => ({msg: formatWarn(log.message)}))
-      .map(xs.of)
+      .map(most.of)
 
     outputs.push(registryOutput$)
 
-    const miscOutput$ = log$
-      .filter((log) => log.name as string === 'pnpm' || !isRecursive && log.name as string === 'pnpm:link')
+    const miscOutput$ = (!isRecursive ? most.merge(log$.link, log$.other) : log$.other)
       .map((obj) => {
         if (obj.level === 'debug') return
         if (obj.level === 'warn') {
@@ -212,7 +266,7 @@ export default function (
         return obj['message']
       })
       .map((msg) => ({msg}))
-      .map(xs.of)
+      .map(most.of)
 
     outputs.push(miscOutput$)
   }

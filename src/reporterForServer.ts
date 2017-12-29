@@ -1,4 +1,5 @@
 import chalk from 'chalk'
+import most = require('most')
 import os = require('os')
 import prettyBytes = require('pretty-bytes')
 import R = require('ramda')
@@ -11,7 +12,6 @@ import {
   ProgressLog,
   RegistryLog,
 } from 'supi'
-import xs, {Stream} from 'xstream'
 import getPkgsDiff, {
   PackageDiff,
   propertyByDependencyType,
@@ -21,11 +21,11 @@ import reportError from './reportError'
 const EOL = os.EOL
 
 export default function (
-  log$: xs<Log>,
+  log$: most.Stream<Log>,
 ) {
-  const outputs: Array<xs<xs<{msg: string}>>> = []
-
-  log$.addListener({
+  log$.subscribe({
+    complete: () => undefined,
+    error: () => undefined,
     next (log) {
       if (log.name === 'pnpm:progress') {
         switch (log.status) {
