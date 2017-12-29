@@ -23,6 +23,9 @@ test('shrinkwrap file has correct format', async (t: tape.Test) => {
 
   await installPkgs(['pkg-with-1-dep', '@rstacruz/tap-spec@4.1.1', 'kevva/is-negative#1d7e288222b53a0cab90a331f1865220ec29560c'], testDefaults({save: true}))
 
+  const modules = await project.loadModules()
+  t.equal(modules['pendingBuilds'].length, 0)
+
   const shr = await project.loadShrinkwrap()
   const id = '/pkg-with-1-dep/100.0.0'
 
@@ -669,4 +672,25 @@ test('updating shrinkwrap version 3 to 3.1', async (t: tape.Test) => {
 
   t.equal(shr.shrinkwrapMinorVersion, 4)
   t.ok(shr.packages['/abc/1.0.0/peer-a@1.0.0+peer-b@1.0.0+peer-c@1.0.0'].peerDependencies)
+})
+
+test('pendingBuilds gets updated if install removes packages', async (t: tape.Test) => {
+  const project = prepare(t, {
+    dependencies: {
+      'is-negative': '2.1.0',
+      'sh-hello-world': '1.0.1',
+    },
+  })
+
+  await install(testDefaults({ ignoreScripts: true }))
+  const modules1 = await project.loadModules()
+
+  await project.rewriteDependencies({
+    'is-negative': '2.1.0',
+  })
+
+  await install(testDefaults({ ignoreScripts: true }))
+  const modules2 = await project.loadModules()
+
+  t.ok(modules1['pendingBuilds'].length > modules2['pendingBuilds'].length, 'pendingBuilds gets updated when install removes packages')
 })

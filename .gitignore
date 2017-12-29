@@ -17,3 +17,6 @@ lib
 
 # Visual Studio Code configs
 .vscode/
+
+# JetBrains IDEs
+.idea/

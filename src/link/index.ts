@@ -53,6 +53,7 @@ export default async function (
   wantedShrinkwrap: Shrinkwrap,
   currentShrinkwrap: Shrinkwrap,
   newPkgResolvedIds: string[],
+  removedPkgIds: Set<string>,
 }> {
   // TODO: decide what kind of logging should be here.
   // The `Creating dependency tree` is not good to report in all cases as
@@ -62,7 +63,7 @@ export default async function (
   const pkgsToLink = resolvePeersResult.resolvedTree
   const newShr = updateShrinkwrap(pkgsToLink, opts.wantedShrinkwrap, opts.pkg)
 
-  await removeOrphanPkgs({
+  const removedPkgIds = await removeOrphanPkgs({
     oldShrinkwrap: opts.currentShrinkwrap,
     newShrinkwrap: newShr,
     prefix: opts.root,
@@ -156,6 +157,7 @@ export default async function (
     wantedShrinkwrap: newShr,
     currentShrinkwrap,
     newPkgResolvedIds,
+    removedPkgIds,
   }
 }
 

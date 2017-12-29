@@ -24,7 +24,8 @@ export default function prepare (t: Test, pkg?: Object) {
   const dirname = dirNumber.toString()
   const pkgTmpPath = path.join(tmpPath, dirname, 'project')
   mkdirp.sync(pkgTmpPath)
-  writePkg.sync(pkgTmpPath, Object.assign({name: 'project', version: '0.0.0'}, pkg))
+  let pkgJson = Object.assign({name: 'project', version: '0.0.0'}, pkg)
+  writePkg.sync(pkgTmpPath, pkgJson)
   process.chdir(pkgTmpPath)
   t.pass(`create testing package ${dirname}`)
 
@@ -89,6 +90,18 @@ export default function prepare (t: Test, pkg?: Object) {
         if (err.code === 'ENOENT') return null
         throw err
       }
+    },
+    loadModules: async () => {
+      try {
+        return await loadYamlFile<any>('node_modules/.modules.yaml') // tslint:disable-line
+      } catch (err) {
+        if (err.code === 'ENOENT') return null
+        throw err
+      }
+    },
+    rewriteDependencies: async (deps) => {
+      pkgJson = Object.assign(pkgJson, { dependencies: deps })
+      writePkg.sync(pkgTmpPath, pkgJson)
     },
   }
   return project

@@ -18,7 +18,7 @@ export default async function removeOrphanPkgs (
     storeController: StoreController,
     pruneStore?: boolean,
   }
-): Promise<string[]> {
+): Promise<Set<string>> {
   const oldPkgs = R.toPairs(R.mergeAll(R.map(depType => opts.oldShrinkwrap[depType], dependenciesTypes)))
   const newPkgs = R.toPairs(R.mergeAll(R.map(depType => opts.newShrinkwrap[depType], dependenciesTypes)))
 
@@ -58,7 +58,7 @@ export default async function removeOrphanPkgs (
 
   await opts.storeController.saveState()
 
-  return notDependents
+  return new Set(notDependents)
 }
 
 function getPackageIds (

@@ -35,6 +35,7 @@ export type PnpmContext = {
   currentShrinkwrap: Shrinkwrap,
   wantedShrinkwrap: Shrinkwrap,
   skipped: Set<string>,
+  pendingBuilds: string[],
 }
 
 export default async function getContext (opts: StrictSupiOptions, installType?: 'named' | 'general'): Promise<PnpmContext> {
@@ -97,6 +98,7 @@ export default async function getContext (opts: StrictSupiOptions, installType?:
     existsCurrentShrinkwrap: !!files[2],
     storeController: files[3],
     skipped: new Set(modules && modules.skipped || []),
+    pendingBuilds: modules && modules.pendingBuilds || [],
   }
   packageJsonLogger.debug({ initial: ctx.pkg })
 

@@ -4,6 +4,7 @@ import {
   PnpmOptions,
   StrictPnpmOptions,
 } from '@pnpm/types'
+import * as dp from 'dependency-path'
 import path = require('path')
 import logger, {
   streamParser,
@@ -521,9 +522,18 @@ async function installInContext (
     outdatedPkgs: installCtx.outdatedPkgs,
   })
 
+  ctx.pendingBuilds = ctx.pendingBuilds
+    .filter(pkgId => !result.removedPkgIds.has(dp.resolve(ctx.wantedShrinkwrap.registry, pkgId)))
+
+  if (opts.ignoreScripts) {
+    // we can use concat here because we always only append new packages, which are guaranteed to not be there by definition
+    ctx.pendingBuilds = ctx.pendingBuilds
+      .concat(result.newPkgResolvedIds.map(absolutePath => dp.relative(ctx.wantedShrinkwrap.registry, absolutePath)))
+  }
+
   await Promise.all([
     saveShrinkwrap(ctx.root, result.wantedShrinkwrap, result.currentShrinkwrap),
-    result.currentShrinkwrap.packages === undefined
+    result.currentShrinkwrap.packages === undefined && result.removedPkgIds.size === 0
       ? Promise.resolve()
       : saveModules(path.join(ctx.root, 'node_modules'), {
         packageManager: `${opts.packageManager.name}@${opts.packageManager.version}`,
@@ -531,13 +541,13 @@ async function installInContext (
         skipped: Array.from(installCtx.skipped),
         layoutVersion: LAYOUT_VERSION,
         independentLeaves: opts.independentLeaves,
+        pendingBuilds: ctx.pendingBuilds,
       }),
   ])
 
   // postinstall hooks
   if (!(opts.ignoreScripts || !result.newPkgResolvedIds || !result.newPkgResolvedIds.length)) {
     const limitChild = pLimit(opts.childConcurrency)
-    const linkedPkgsMapValues = R.values(result.linkedPkgsMap)
     await Promise.all(
       R.props<string, DependencyTreeNode>(result.newPkgResolvedIds, result.linkedPkgsMap)
         .map(pkg => limitChild(async () => {

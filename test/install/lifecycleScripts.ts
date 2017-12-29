@@ -110,7 +110,7 @@ test('do not run install scripts if unsafePerm is false', async (t: tape.Test) =
       postinstall: `node -e "process.stdout.write('postinstall')" | json-append output.json`,
     }
   })
-  const opts = Object.assign(testDefaults(), { unsafePerm: false })
+  const opts = testDefaults({ unsafePerm: false })
   await installPkgs(['json-append@1.1.1'], opts)
   await install(opts)
 

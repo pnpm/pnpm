@@ -22,4 +22,5 @@ export type SupiOptions = PnpmOptions & {
 
 export type StrictSupiOptions = StrictPnpmOptions & {
   storeController?: StoreController
+  pending?: boolean
 }

@@ -95,5 +95,6 @@ export default async (
     extendedOpts.prefix = path.join(extendedOpts.prefix, subfolder)
   }
   extendedOpts.rawNpmConfig['registry'] = extendedOpts.registry
+  extendedOpts.pending = extendedOpts.rawNpmConfig['pending']
   return extendedOpts
 }

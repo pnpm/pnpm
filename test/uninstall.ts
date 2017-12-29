@@ -140,3 +140,18 @@ test('relative link is uninstalled', async (t: tape.Test) => {
 
   await project.hasNot(linkedPkgName)
 })
+
+test('pendingBuilds gets updated after uninstall', async (t: tape.Test) => {
+  const project = prepare(t)
+
+  await installPkgs(['is-negative@2.1.0', 'sh-hello-world@1.0.1'], testDefaults({save: true, ignoreScripts: true}))
+
+  const modules1 = await project.loadModules()
+  t.doesNotEqual(modules1['pendingBuilds'].length, 0, 'installPkgs should update pendingBuilds')
+
+  await uninstall(['sh-hello-world'], testDefaults({save: true}))
+
+  const modules2 = await project.loadModules()
+  t.doesNotEqual(modules2['pendingBuilds'].length, 0, 'uninstall should not remove all the pendingBuilds')
+  t.ok(modules1['pendingBuilds'].length > modules2['pendingBuilds'].length, 'uninstall should update pendingBuilds')
+})
