@@ -10,6 +10,7 @@ import logger from '@pnpm/logger'
 import {PackageManifest} from '@pnpm/types'
 import path = require('path')
 import {oneLine} from 'common-tags'
+import crypto = require('crypto')
 import {InstalledPackage} from '../install/installMultiple'
 import {TreeNode, TreeNodeMap} from '../api/install'
 
@@ -300,5 +301,16 @@ function toPkgByName (nodes: {alias: string, nodeId: string, node: TreeNode}[]):
 }
 
 function createPeersFolderName(peers: {name: string, version: string}[]) {
-  return peers.map(peer => `${peer.name.replace('/', '!')}@${peer.version}`).sort().join('+')
+  const folderName = peers.map(peer => `${peer.name.replace('/', '!')}@${peer.version}`).sort().join('+')
+
+  // We don't want the folder name to get too long.
+  // Otherwise, an ENAMETOOLONG error might happen.
+  // see: https://github.com/pnpm/pnpm/issues/977
+  //
+  // A bigger limit might be fine but the md5 hash will be 32 symbols,
+  // so for consistency's sake, we go with 32.
+  if (folderName.length > 32) {
+    return crypto.createHash('md5').update(folderName).digest('hex')
+  }
+  return folderName
 }

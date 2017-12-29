@@ -123,7 +123,7 @@ test('peer dependencies are linked when running one named installation', async (
 
   const pkgVariationsDir = path.join(NM, '.localhost+4873', 'abc', '1.0.0')
 
-  const pkgVariation1 = path.join(pkgVariationsDir, 'peer-a@1.0.0+peer-b@1.0.0+peer-c@1.0.0', NM)
+  const pkgVariation1 = path.join(pkgVariationsDir, '165e1e08a3f7e7f77ddb572ad0e55660', NM)
   await okFile(t, path.join(pkgVariation1, 'abc'))
   await okFile(t, path.join(pkgVariation1, 'peer-a'))
   await okFile(t, path.join(pkgVariation1, 'peer-b'))
@@ -147,7 +147,7 @@ test('peer dependencies are linked when running two separate named installations
 
   const pkgVariationsDir = path.join(NM, '.localhost+4873', 'abc', '1.0.0')
 
-  const pkgVariation1 = path.join(pkgVariationsDir, 'peer-a@1.0.0+peer-b@1.0.0+peer-c@1.0.0', NM)
+  const pkgVariation1 = path.join(pkgVariationsDir, '165e1e08a3f7e7f77ddb572ad0e55660', NM)
   await okFile(t, path.join(pkgVariation1, 'abc'))
   await okFile(t, path.join(pkgVariation1, 'peer-a'))
   await okFile(t, path.join(pkgVariation1, 'peer-b'))
@@ -178,7 +178,7 @@ test['skip']('peer dependencies are linked', async (t: tape.Test) => {
 
   const pkgVariationsDir = path.join(NM, '.localhost+4873', 'abc', '1.0.0')
 
-  const pkgVariation1 = path.join(pkgVariationsDir, 'peer-a@1.0.0+peer-b@1.0.0+peer-c@1.0.0', NM)
+  const pkgVariation1 = path.join(pkgVariationsDir, '165e1e08a3f7e7f77ddb572ad0e55660', NM)
   await okFile(t, path.join(pkgVariation1, 'abc'))
   await okFile(t, path.join(pkgVariation1, 'peer-a'))
   await okFile(t, path.join(pkgVariation1, 'peer-b'))

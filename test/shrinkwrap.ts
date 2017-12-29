@@ -631,13 +631,13 @@ test('updating shrinkwrap version 3 to 3.1', async (t: tape.Test) => {
           integrity: sha512-/sPoyuCaOuJAG6Gcq7HxiW8/++Jj3zmzfymr+mKbNG8VftROlRAd1qoOtA37xNJXYNRT2Zwb0Gym2fdt/eXKaQ==
       /abc-parent-with-ab/1.0.0/peer-c@1.0.0:
         dependencies:
-          abc: /abc/1.0.0/peer-a@1.0.0+peer-b@1.0.0+peer-c@1.0.0
+          abc: /abc/1.0.0/165e1e08a3f7e7f77ddb572ad0e55660
           peer-a: 1.0.0
           peer-b: 1.0.0
         id: localhost+4873/abc-parent-with-ab/1.0.0
         resolution:
           integrity: sha512-8ULNWX/kq0K8zdbLdN9rjxJIVaqihDJbTTJSeH8cfz0rXleV2RxBhKJ9kqjk/kmplpHJEDyhLKDjubWlS10WUA==
-      /abc/1.0.0/peer-a@1.0.0+peer-b@1.0.0+peer-c@1.0.0:
+      /abc/1.0.0/165e1e08a3f7e7f77ddb572ad0e55660:
         dependencies:
           dep-of-pkg-with-1-dep: 100.0.0
           peer-a: 1.0.0
@@ -671,7 +671,7 @@ test('updating shrinkwrap version 3 to 3.1', async (t: tape.Test) => {
   const shr = await project.loadShrinkwrap()
 
   t.equal(shr.shrinkwrapMinorVersion, 4)
-  t.ok(shr.packages['/abc/1.0.0/peer-a@1.0.0+peer-b@1.0.0+peer-c@1.0.0'].peerDependencies)
+  t.ok(shr.packages['/abc/1.0.0/165e1e08a3f7e7f77ddb572ad0e55660'].peerDependencies)
 })
 
 test('pendingBuilds gets updated if install removes packages', async (t: tape.Test) => {
