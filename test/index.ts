@@ -620,6 +620,66 @@ test('prints only the added stats if nothing was removed', t => {
   })
 })
 
+test('prints only the removed stats if nothing was added', t => {
+  const output$ = toOutput$(createStreamParser(), 'install')
+
+  statsLogger.debug({ removed: 1 })
+  statsLogger.debug({ added: 0 })
+
+  t.plan(1)
+
+  output$.take(1).subscribe({
+    next: output => {
+      t.equal(output, stripIndents`
+        Packages: ${chalk.red('-1')}
+        ${SUB}`
+      )
+    },
+    complete: () => t.end(),
+    error: t.end,
+  })
+})
+
+test('prints only the added stats if nothing was removed and a lot added', t => {
+  const output$ = toOutput$(createStreamParser(), 'install', 20)
+
+  statsLogger.debug({ removed: 0 })
+  statsLogger.debug({ added: 100 })
+
+  t.plan(1)
+
+  output$.take(1).subscribe({
+    next: output => {
+      t.equal(output, stripIndents`
+        Packages: ${chalk.green('+100')}
+        ${R.repeat(ADD, 20).join('')}`
+      )
+    },
+    complete: () => t.end(),
+    error: t.end,
+  })
+})
+
+test('prints only the removed stats if nothing was added and a lot removed', t => {
+  const output$ = toOutput$(createStreamParser(), 'install', 20)
+
+  statsLogger.debug({ removed: 100 })
+  statsLogger.debug({ added: 0 })
+
+  t.plan(1)
+
+  output$.take(1).subscribe({
+    next: output => {
+      t.equal(output, stripIndents`
+        Packages: ${chalk.red('-100')}
+        ${R.repeat(SUB, 20).join('')}`
+      )
+    },
+    complete: () => t.end(),
+    error: t.end,
+  })
+})
+
 test('prints at least one remove sign when removed !== 0', t => {
   const output$ = toOutput$(createStreamParser(), 'install', 20)
 

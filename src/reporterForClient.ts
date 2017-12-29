@@ -218,7 +218,7 @@ export default function (
           if (!addSigns) {
             addSigns = 0
             removeSigns = width
-          } else if (!removedSign) {
+          } else if (!removeSigns) {
             addSigns = width
             removeSigns = 0
           } else {
