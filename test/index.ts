@@ -245,3 +245,50 @@ test("prefer a version that is both inside the wanted and preferred ranges. Even
   t.equal(resolveResult!.id, 'localhost+4873/pnpm-foo/1.1.0')
   t.end()
 })
+
+test('offline resolution fails when package meta not found in the store', async t => {
+  const resolve = createResolveFromNpm({
+    metaCache: new Map(),
+    store: tempy.directory(),
+    rawNpmConfig: { registry },
+    offline: true,
+  })
+
+  try {
+    await resolve({ alias: 'is-positive', pref: '1.0.0' }, { registry })
+    t.fail('installation should have failed')
+  } catch (err) {
+    t.equal(err.code, 'NO_OFFLINE_META', 'failed with correct error code')
+    t.end()
+  }
+})
+
+test('offline resolution succeeds when package meta is found in the store', async t => {
+  const store = tempy.directory()
+
+  {
+    const resolve = createResolveFromNpm({
+      metaCache: new Map(),
+      store,
+      rawNpmConfig: { registry },
+      offline: false,
+    })
+
+    // This request will save the package's meta in the store
+    await resolve({ alias: 'is-positive', pref: '1.0.0' }, { registry })
+  }
+
+  {
+    const resolve = createResolveFromNpm({
+      metaCache: new Map(),
+      store,
+      rawNpmConfig: { registry },
+      offline: true,
+    })
+
+    const resolveResult = await resolve({ alias: 'is-positive', pref: '1.0.0' }, { registry })
+    t.equal(resolveResult!.id, 'localhost+4873/is-positive/1.0.0')
+  }
+
+  t.end()
+})
