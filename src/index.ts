@@ -86,54 +86,47 @@ async function resolveNpm (
 ) {
   const spec = parsePref(wantedDependency.pref, wantedDependency.alias)
   if (!spec) return null
-  try {
-    const auth = ctx.getCredentialsByURI(opts.registry)
-    const meta = await ctx.loadPkgMeta(spec, {
-      auth,
-      offline: ctx.offline,
-      registry: opts.registry,
-      storePath: ctx.store,
-    })
-    let version: string | undefined
-    switch (spec.type) {
-      case 'version':
-        version = spec.fetchSpec
-        break
-      case 'tag':
-        version = meta['dist-tags'][spec.fetchSpec]
-        break
-      case 'range':
-        version = pickVersionByVersionRange(meta, spec.fetchSpec, opts.preferredVersions && opts.preferredVersions[spec.name])
-        break
-    }
-    const correctPkg = meta.versions[version as string]
-    if (!correctPkg) {
-      const versions = Object.keys(meta.versions)
-      const message = versions.length
-        ? 'Versions in registry:\n' + versions.join(', ') + '\n'
-        : 'No valid version found.'
-      const err = new Error('No compatible version found: ' +
-        toRaw(spec) + '\n' + message)
-      throw err
-    }
-    const id = createPkgId(correctPkg.dist.tarball, correctPkg.name, correctPkg.version)
-
-    const resolution = {
-      integrity: getIntegrity(correctPkg.dist),
-      registry: opts.registry,
-      tarball: correctPkg.dist.tarball,
-    }
-    return {
-      id,
-      latest: meta['dist-tags'].latest,
-      package: correctPkg,
-      resolution,
-    }
-  } catch (err) {
-    if (err.statusCode === 404) {
-      throw new Error(`Module '${toRaw(spec)}' not found`)
-    }
+  const auth = ctx.getCredentialsByURI(opts.registry)
+  const meta = await ctx.loadPkgMeta(spec, {
+    auth,
+    offline: ctx.offline,
+    registry: opts.registry,
+    storePath: ctx.store,
+  })
+  let version: string | undefined
+  switch (spec.type) {
+    case 'version':
+      version = spec.fetchSpec
+      break
+    case 'tag':
+      version = meta['dist-tags'][spec.fetchSpec]
+      break
+    case 'range':
+      version = pickVersionByVersionRange(meta, spec.fetchSpec, opts.preferredVersions && opts.preferredVersions[spec.name])
+      break
+  }
+  const correctPkg = meta.versions[version as string]
+  if (!correctPkg) {
+    const versions = Object.keys(meta.versions)
+    const message = versions.length
+      ? 'Versions in registry:\n' + versions.join(', ') + '\n'
+      : 'No valid version found.'
+    const err = new Error('No compatible version found: ' +
+      toRaw(spec) + '\n' + message)
     throw err
+  }
+  const id = createPkgId(correctPkg.dist.tarball, correctPkg.name, correctPkg.version)
+
+  const resolution = {
+    integrity: getIntegrity(correctPkg.dist),
+    registry: opts.registry,
+    tarball: correctPkg.dist.tarball,
+  }
+  return {
+    id,
+    latest: meta['dist-tags'].latest,
+    package: correctPkg,
+    resolution,
   }
 }
 
