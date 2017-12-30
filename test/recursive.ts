@@ -119,3 +119,50 @@ test('recursive installation of packages with hooks', async t => {
 
   t.end()
 })
+
+test('ignores pnpmfile.js during recursive installation when --ignore-pnpmfile is used', async t => {
+  // This test hangs on Appveyor for some reason
+  if (isCI && isWindows()) return
+  const projects = prepare(t, [
+    {
+      name: 'project-1',
+      version: '1.0.0',
+      dependencies: {
+        'is-positive': '1.0.0',
+      },
+    },
+    {
+      name: 'project-2',
+      version: '1.0.0',
+      dependencies: {
+        'is-negative': '1.0.0',
+      },
+    },
+  ])
+
+  process.chdir('project-1')
+  const pnpmfile = `
+    module.exports = { hooks: { readPackage } }
+    function readPackage (pkg) {
+      pkg.dependencies = pkg.dependencies || {}
+      pkg.dependencies['dep-of-pkg-with-1-dep'] = '100.1.0'
+      return pkg
+    }
+  `
+  await fs.writeFile('pnpmfile.js', pnpmfile, 'utf8')
+
+  process.chdir('../project-2')
+  await fs.writeFile('pnpmfile.js', pnpmfile, 'utf8')
+
+  process.chdir('..')
+
+  await execPnpm('recursive', 'install', '--ignore-pnpmfile')
+
+  const shr1 = await projects['project-1'].loadShrinkwrap()
+  t.notOk(shr1.packages['/dep-of-pkg-with-1-dep/100.1.0'])
+
+  const shr2 = await projects['project-2'].loadShrinkwrap()
+  t.notOk(shr2.packages['/dep-of-pkg-with-1-dep/100.1.0'])
+
+  t.end()
+})
