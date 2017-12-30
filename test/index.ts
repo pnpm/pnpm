@@ -303,3 +303,33 @@ test('error is thrown when package is not found in registry', async t => {
     t.end()
   }
 })
+
+test('error is thrown when there is no package found for the requested version', async t => {
+  try {
+    await resolveFromNpm({ alias: 'is-positive', pref: '1000.0.0' }, { registry })
+    t.fail('installation should have failed')
+  } catch (err) {
+    t.ok(err.message.startsWith('No compatible version found: is-positive@1000.0.0'), 'failed with correct error message')
+    t.end()
+  }
+})
+
+test('error is thrown when there is no package found for the requested range', async t => {
+  try {
+    await resolveFromNpm({ alias: 'is-positive', pref: '^1000.0.0' }, { registry })
+    t.fail('installation should have failed')
+  } catch (err) {
+    t.ok(err.message.startsWith('No compatible version found: is-positive@>=1000.0.0 <1001.0.0'), 'failed with correct error message')
+    t.end()
+  }
+})
+
+test('error is thrown when there is no package found for the requested tag', async t => {
+  try {
+    await resolveFromNpm({ alias: 'is-positive', pref: 'unknown-tag' }, { registry })
+    t.fail('installation should have failed')
+  } catch (err) {
+    t.ok(err.message.startsWith('No compatible version found: is-positive@unknown-tag'), 'failed with correct error message')
+    t.end()
+  }
+})
