@@ -190,6 +190,14 @@ Can be passed in via a CLI option. `--no-lock` to set it to false. E.g.: `pnpm i
 > If you experience issues similar to the ones described in [#594](https://github.com/pnpm/pnpm/issues/594), use this option to disable locking.
 > In the meanwhile, we'll try to find a solution that will make locking work for everyone.
 
+#### ignore-pnpmfile
+
+* Default: **false**
+* Type: **Boolean**
+
+`pnpmfile.js` will be ignored. Useful together with `--ignore-scripts` when you want to make sure that
+no script gets executed during install.
+
 #### independent-leaves
 
 * Default: **false**

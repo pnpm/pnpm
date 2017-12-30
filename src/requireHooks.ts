@@ -4,7 +4,7 @@ import path = require('path')
 import {PnpmOptions} from 'supi'
 
 export default function requireHooks (prefix: string, opts: PnpmOptions) {
-  if (opts.rawNpmConfig && opts.rawNpmConfig['ignore-hooks']) { // tslint:disable-line
+  if (opts.ignorePnpmfile) {
     return {}
   }
   try {

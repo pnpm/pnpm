@@ -34,6 +34,7 @@ function getHelpText (command: string) {
           --offline                          trigger an error if any required dependencies are not available in local store
           --network-concurrency <number>     maximum number of concurrent network requests
           --child-concurrency <number>       controls the number of child processes run parallelly to build node modules
+          --ignore-pnpmfile                  disable pnpm hooks defined in pnpmfile.js
           --independent-leaves               symlinks leaf dependencies directly from the global store
           --[no-]verify-store-integrity      if false, doesn't check whether packages in the store were mutated
           --production, --only prod[uction]  packages in \`devDependencies\` won't be installed
