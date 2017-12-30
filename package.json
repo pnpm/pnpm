@@ -25,7 +25,7 @@
     "@pnpm/fs-locker": "^1.0.0",
     "@pnpm/package-requester": "^0.5.0",
     "@pnpm/pkgid-to-filename": "^1.0.0",
-    "@pnpm/types": "^1.4.0",
+    "@pnpm/types": "^1.5.0",
     "@types/byline": "^4.2.31",
     "@types/common-tags": "^1.2.5",
     "@types/load-json-file": "^2.0.5",

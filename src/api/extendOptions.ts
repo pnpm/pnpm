@@ -55,6 +55,7 @@ const defaults = async (opts: SupiOptions) => {
                 !(process.getuid && process.setuid &&
                   process.getgid && process.setgid) ||
                 process.getuid() !== 0,
+    packageImportMethod: 'auto',
   }
 }
 

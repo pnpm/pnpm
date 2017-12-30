@@ -46,6 +46,7 @@ Install packages.
 * `options.hooks` - *Object* - A property that contains installation hooks. Hooks are [documented separately](#hooks).
 * `options.ignoreFile` - *Function & (filename: string) => boolean* - A function that decides which files in a package are ignored. For instance,
   there's no need in `.travis.yml` files in production, so you can set `{ignoreFile: fn => fn === '.travis.yml'}`.
+* `options.packageImportMethod` - *auto | hardlink | reflink | copy* - how to import the packages from the store into node_modules. Defaults to `auto`, which will attempt to do hardlinks, and then copy if hardlinks fail.
 
 **Returns:** a Promise
 

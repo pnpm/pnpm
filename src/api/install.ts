@@ -520,6 +520,7 @@ async function installInContext (
     makePartialCurrentShrinkwrap,
     updateShrinkwrapMinorVersion: installType === 'general' || R.isEmpty(ctx.currentShrinkwrap.packages),
     outdatedPkgs: installCtx.outdatedPkgs,
+    packageImportMethod: opts.packageImportMethod,
   })
 
   ctx.pendingBuilds = ctx.pendingBuilds
