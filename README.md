@@ -214,6 +214,18 @@ that rely on location but gives an average of **8% installation speed improvemen
 
 If false, doesn't check whether packages in the store were mutated.
 
+#### package-import-method
+
+* Default: **auto**
+* Type: **auto**, **hardlink**, **copy**, **reflink**
+
+Controls the way packages are imported from the store.
+
+* **auto** - try to hardlink packages from the store. If it fails, fallback to copy
+* **hardlink** - hardlink packages from the store
+* **copy** - copy packages from the store
+* **reflink** - reflink (aka copy-on-write) packages from the store
+
 ### Hooks
 
 pnpm allows to step directly into the installation process via special functions called *hooks*.

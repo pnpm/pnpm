@@ -40,6 +40,11 @@ function getHelpText (command: string) {
           --production, --only prod[uction]  packages in \`devDependencies\` won't be installed
           --only dev[elopment]               only \`devDependencies\` are installed regardless of the \`NODE_ENV\`.
           --[no-]lock
+
+          --package-import-method auto       try to hardlink packages from the store. If it fails, fallback to copy
+          --package-import-method hardlink   hardlink packages from the store
+          --package-import-method copy       copy packages from the store
+          --package-import-method reflink    reflink (aka copy-on-write) packages from the store
       `
 
     case 'uninstall':
@@ -161,6 +166,10 @@ function getHelpText (command: string) {
         Aliases: rb
 
         Rebuild a package.
+
+        Options:
+          --pending  rebuild packages that were not build during installation.
+                     Packages are not build when installing with the --ignore-scripts flag
       `
 
     case 'server':

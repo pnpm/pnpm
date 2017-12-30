@@ -120,6 +120,8 @@ async function run (argv: string[]) {
     'lock-stale-duration': Number,
     'network-concurrency': Number,
     'offline': Boolean,
+    'package-import-method': ['auto', 'hardlink', 'reflink', 'copy'],
+    'pending': Boolean,
     'reporter': String,
     'store': path,
     'store-path': path, // DEPRECATE! store should be used
