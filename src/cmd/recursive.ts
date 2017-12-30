@@ -64,7 +64,7 @@ export default async (input: string[], opts: PnpmOptions) => {
   for (const chunk of chunks) {
     await chunk.map((prefix: string) =>
       limitInstallation(() => {
-        const hooks = requireHooks(prefix)
+        const hooks = requireHooks(prefix, opts)
         return install({...opts, hooks, storeController, prefix})
       }),
     )

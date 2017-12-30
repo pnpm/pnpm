@@ -12,7 +12,7 @@ export default async function installCmd (input: string[], opts: PnpmOptions) {
   input = input.filter(Boolean)
 
   const prefix = opts.prefix || process.cwd()
-  opts.hooks = requireHooks(prefix)
+  opts.hooks = requireHooks(prefix, opts)
 
   opts['storeController'] = (await createStoreController(opts)).ctrl // tslint:disable-line
 

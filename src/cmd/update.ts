@@ -6,7 +6,7 @@ export default async function (input: string[], opts: PnpmOptions) {
   opts = Object.assign({update: true}, opts)
 
   const prefix = opts.prefix || process.cwd()
-  opts.hooks = requireHooks(prefix)
+  opts.hooks = requireHooks(prefix, opts)
   opts['storeController'] = (await createStoreController(opts)).ctrl // tslint:disable-line
 
   if (!input || !input.length) {

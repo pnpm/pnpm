@@ -1,8 +1,12 @@
 import logger from '@pnpm/logger'
 import chalk from 'chalk'
 import path = require('path')
+import {PnpmOptions} from 'supi'
 
-export default function requireHooks (prefix: string) {
+export default function requireHooks (prefix: string, opts: PnpmOptions) {
+  if (opts.rawNpmConfig && opts.rawNpmConfig['ignore-hooks']) { // tslint:disable-line
+    return {}
+  }
   try {
     const pnpmFilePath = path.join(prefix, 'pnpmfile.js')
     const pnpmFile = require(pnpmFilePath)
