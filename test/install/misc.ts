@@ -618,7 +618,7 @@ test('building native addons', async function (t) {
   t.ok(await exists(path.join('node_modules', 'runas', 'build')), 'build folder created')
 })
 
-test('should update subdep on second install', async function (t) {
+test('should update subdep on second install', async (t: tape.Test) => {
   const project = prepare(t)
 
   await addDistTag('dep-of-pkg-with-1-dep', '100.0.0', 'latest')
@@ -633,7 +633,15 @@ test('should update subdep on second install', async function (t) {
 
   await addDistTag('dep-of-pkg-with-1-dep', '100.1.0', 'latest')
 
-  await install(testDefaults({depth: 1, update: true}))
+  const reporter = sinon.spy()
+
+  await install(testDefaults({depth: 1, update: true, reporter}))
+
+  t.ok(reporter.calledWithMatch(<StatsLog>{
+    name: 'pnpm:stats',
+    level: 'debug',
+    added: 1,
+  }), 'added stat')
 
   await project.storeHas('dep-of-pkg-with-1-dep', '100.1.0')
 

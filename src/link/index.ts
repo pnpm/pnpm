@@ -223,7 +223,9 @@ async function linkNewPackages (
     // just skip the ones that are in the lockfile but were not analyzed
     .filter(resolvedId => pkgsToLink[resolvedId])
   )
+  statsLogger.debug({added: newPkgResolvedIdsSet.size})
 
+  const existingWithUpdatedDeps = []
   if (!opts.force && currentShrinkwrap.packages && wantedShrinkwrap.packages) {
     // add subdependencies that have been updated
     // TODO: no need to relink everything. Can be relinked only what was changed
@@ -235,21 +237,21 @@ async function linkNewPackages (
 
         // TODO: come up with a test that triggers the usecase of pkgsToLink[resolvedId] undefined
         // see related issue: https://github.com/pnpm/pnpm/issues/870
-        if (pkgsToLink[resolvedId]) {
-          newPkgResolvedIdsSet.add(resolvedId)
+        if (pkgsToLink[resolvedId] && !newPkgResolvedIdsSet.has(resolvedId)) {
+          existingWithUpdatedDeps.push(pkgsToLink[resolvedId])
         }
       }
     }
   }
 
-  statsLogger.debug({added: newPkgResolvedIdsSet.size})
-  if (!newPkgResolvedIdsSet.size) return []
+  if (!newPkgResolvedIdsSet.size && !existingWithUpdatedDeps.length) return []
 
   const newPkgResolvedIds = Array.from(newPkgResolvedIdsSet)
   const newPkgs = R.props<string, DependencyTreeNode>(newPkgResolvedIds, pkgsToLink)
 
   await Promise.all([
     linkAllModules(newPkgs, pkgsToLink, {optional: opts.optional}),
+    linkAllModules(existingWithUpdatedDeps, pkgsToLink, {optional: opts.optional}),
     (async () => {
       // this works in the following way:
       // - hardlink: hardlink the packages, no fallback
