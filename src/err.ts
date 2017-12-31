@@ -5,5 +5,7 @@ export default function err (error: Error) {
   // that is why we pass error as a message as well, to pass
   // any additional info
   logger.error(error, error)
-  process.exit(1)
+
+  // Differing exit. Otherwise, the reporter wouldn't show the error
+  setTimeout(() => process.exit(1), 0)
 }
