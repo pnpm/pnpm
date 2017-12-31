@@ -97,14 +97,22 @@ async function fromRegistry (
   auth: object,
 ) {
   const uri = toUri(pkgName, registry)
-  const response = await fetch(uri, {auth}) as {
+  const res = await fetch(uri, {auth}) as {
     status: number,
+    statusText: string,
     json: () => Promise<PackageMeta>,
   }
-  if (response.status === 404) {
-    throw new Error(`'${pkgName}' not found in the registry.`)
+  if (res.status > 400) {
+    const err = new Error(`${res.status} ${res.statusText}: ${pkgName}`)
+    // tslint:disable
+    err['code'] = `E${res.status}`
+    err['uri'] = uri
+    err['response'] = res
+    err['package'] = pkgName
+    // tslint:enable
+    throw err
   }
-  return await response.json()
+  return await res.json()
 }
 
 // This file contains meta information
