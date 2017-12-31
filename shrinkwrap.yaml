@@ -28,7 +28,7 @@ dependencies:
   package-store: 0.12.0
   path-name: 1.0.0
   pkgs-graph: 2.0.0-0
-  pnpm-default-reporter: 0.11.1
+  pnpm-default-reporter: 0.11.2
   pnpm-file-reporter: 0.0.1
   pnpm-list: 2.0.0
   ramda: 0.25.0
@@ -317,7 +317,7 @@ packages:
     dependencies:
       '@pnpm/git-resolver': 0.3.0
       '@pnpm/local-resolver': 0.1.0
-      '@pnpm/npm-resolver': 0.3.6
+      '@pnpm/npm-resolver': 0.3.7
       '@pnpm/tarball-resolver': 0.1.0
       '@pnpm/types': 1.5.0
     dev: false
@@ -395,7 +395,7 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha512-VRqE5/SiuR7ZrwBmS+Af89BTXli5xBbiqu7WPq56gEtWT8dKf9rFLoimmmMBVeRq5LmVZIXlOxs29F9I+vgSvQ==
-  /@pnpm/npm-resolver/0.3.6:
+  /@pnpm/npm-resolver/0.3.7:
     dependencies:
       '@pnpm/types': 1.5.0
       '@types/load-json-file': 2.0.7
@@ -419,10 +419,10 @@ packages:
     peerDependencies:
       '@pnpm/logger': ^1.0.0
     resolution:
-      integrity: sha1-ab3y24qzo8qFXAVIS5k98Mi7rX4=
+      integrity: sha512-16O2vFALOC+dwUCdWHBPBOh8Qvj4mIzGJf82SFJlsmaV7hT7tiL0x5bgtBwvhbiPLjucT2W4fOkHfN02LC62Ew==
   /@pnpm/outdated/0.2.2:
     dependencies:
-      '@pnpm/npm-resolver': 0.3.6
+      '@pnpm/npm-resolver': 0.3.7
       '@types/node': 8.5.2
       dependency-path: 1.2.0
       package-store: 0.12.0
@@ -3710,6 +3710,7 @@ packages:
       minimist: 1.2.0
       split2: 2.2.0
       through2: 2.0.3
+    dev: false
     resolution:
       integrity: sha1-rmA7NrE0vOw0e0UkIrC/mNWDLsg=
   /negotiator/0.6.1:
@@ -4561,7 +4562,7 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha512-DDjRXcmxXjaR/VAqI5dkNBoj7nh4Te4EvYDIm7L6gOk9cWzCOfcbSbbu+OsPt0mrOiShbXSTWhwbeKFGZ1Ma7g==
-  /pnpm-default-reporter/0.11.1:
+  /pnpm-default-reporter/0.11.2:
     dependencies:
       '@types/common-tags': 1.4.0
       '@types/node': 8.5.2
@@ -4584,7 +4585,7 @@ packages:
     peerDependencies:
       supi: ^0.8.0
     resolution:
-      integrity: sha512-scwFaG7skjWIUxPyXwLLadCfbUn7E5Ni1wyJJ5RIs6693oJXg6EqQQkvNSttU5E7eoBGC427nCikzv8CMrxPUw==
+      integrity: sha512-Ymb2YONyCDJNrSiOQroY380kr6xP0rRfGHzMNDzKQZDMc7oWkOwBY/JUgFWFVxp+EJz0FBke8B+3F1FFebZEKg==
   /pnpm-file-reporter/0.0.1:
     dependencies:
       '@types/chalk': 0.4.31
@@ -5611,6 +5612,7 @@ packages:
   /strip-ansi/4.0.0:
     dependencies:
       ansi-regex: 3.0.0
+    dev: false
     engines:
       node: '>=4'
     resolution:
@@ -6539,7 +6541,7 @@ specifiers:
   path-exists: ^3.0.0
   path-name: ^1.0.0
   pkgs-graph: ^2.0.0-0
-  pnpm-default-reporter: ^0.11.0
+  pnpm-default-reporter: ^0.11.2
   pnpm-file-reporter: ^0.0.1
   pnpm-list: ^2.0.0
   pnpm-registry-mock: ^1.5.0
