@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/self-installer",
-  "version": "1.24.3",
+  "version": "1.25.0",
   "description": "Installs and uninstalls pnpm",
   "author": {
     "name": "Zoltan Kochan",
