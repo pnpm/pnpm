@@ -94,10 +94,18 @@ function formatRelatedSources (msg: object) {
 
 function formatGenericError (errorMessage: string, stack: object) {
   if (stack) {
-    return stripIndents`
-      ${formatErrorSummary(errorMessage)}
-      ${new StackTracey(stack).pretty}
-    `
+    let prettyStack: string | undefined
+    try {
+      prettyStack = new StackTracey(stack).pretty
+    } catch (err) {
+      prettyStack = undefined
+    }
+    if (prettyStack) {
+      return stripIndents`
+          ${formatErrorSummary(errorMessage)}
+          ${prettyStack}
+        `
+    }
   }
   return formatErrorSummary(errorMessage)
 }
