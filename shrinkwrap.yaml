@@ -34,7 +34,7 @@ dependencies:
   ramda: 0.25.0
   signal-exit: 3.0.2
   strip-color: 0.1.0
-  supi: 0.8.1
+  supi: 0.8.2
   text-table: 0.2.0
   update-notifier: 2.3.0
   write-json-file: 2.3.0
@@ -5660,7 +5660,7 @@ packages:
       node: '>=0.10.0'
     resolution:
       integrity: sha1-PFMZQukIwml8DsNEhYwobHygpgo=
-  /supi/0.8.1:
+  /supi/0.8.2:
     dependencies:
       '@pnpm/check-package': 1.0.0
       '@pnpm/default-fetcher': 0.3.0
@@ -5731,7 +5731,7 @@ packages:
     peerDependencies:
       '@pnpm/logger': ^1.0.0
     resolution:
-      integrity: sha512-8XREeg1tUOzo6w+LcO4aFnICihIoaMBfzfcm4CDCRgJqxx64eAIG8ZCdKg8mLW3Y9/qwBmCdAcx4ytX2jTFbRA==
+      integrity: sha512-xU5IcmaO5V3erb4qUJQr2lbeY0eum5QmBsF2z1ZcW1dD6DUghDcqXZv8jV4xxCvKaNCr79zXqXoIMFXgr3UnAg==
   /supports-color/2.0.0:
     engines:
       node: '>=0.8.0'
@@ -6553,7 +6553,7 @@ specifiers:
   sepia: ^2.0.2
   signal-exit: ^3.0.2
   strip-color: ^0.1.0
-  supi: ^0.8.1
+  supi: ^0.8.2
   tape: ^4.6.3
   tape-promise: ^2.0.1
   text-table: ^0.2.0
