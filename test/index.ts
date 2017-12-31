@@ -293,13 +293,13 @@ test('offline resolution succeeds when package meta is found in the store', asyn
   t.end()
 })
 
-test('error is thrown when package is not found in registry', async t => {
+test('error is thrown when package is not found in the registry', async t => {
   try {
     const notExistingPackage = 'sndof240jg34g-kwesdgk'
     await resolveFromNpm({ alias: notExistingPackage, pref: '1.0.0' }, { registry })
     t.fail('installation should have failed')
   } catch (err) {
-    t.ok(err.message.startsWith("Cannot get 'sndof240jg34g-kwesdgk' from the registry. Registry responded with: "), 'failed with correct error message')
+    t.ok(err.message.startsWith("'sndof240jg34g-kwesdgk' not found in the registry."), 'failed with correct error message')
     t.end()
   }
 })
