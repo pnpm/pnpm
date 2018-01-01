@@ -85,10 +85,10 @@ export default async function loadPkgMetaNonCached (
     }
     return meta
   } catch (err) {
-    const meta = await loadMeta(opts.storePath)
+    const meta = await loadMeta(pkgMirror) // TODO: add test for this usecase
     if (!meta) throw err
     logger.error(err)
-    logger.info(`Using cached meta from ${opts.storePath}`)
+    logger.info(`Using cached meta from ${pkgMirror}`)
     return meta
   }
 }
