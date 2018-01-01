@@ -1,7 +1,7 @@
 dependencies:
   '@pnpm/check-package': 1.0.0
   '@pnpm/pkgid-to-filename': 1.0.0
-  '@pnpm/types': 1.4.0
+  '@pnpm/types': 1.5.0
   '@types/load-json-file': 2.0.7
   '@types/mz': 0.0.32
   '@types/p-queue': 1.1.0
@@ -21,7 +21,7 @@ dependencies:
   write-json-file: 2.3.0
 devDependencies:
   '@pnpm/logger': 1.0.0
-  '@pnpm/npm-resolver': 0.3.3
+  '@pnpm/npm-resolver': 0.3.8
   '@pnpm/tarball-fetcher': 0.3.1
   '@types/tape': 4.2.31
   mos: 2.0.0-alpha.3
@@ -65,9 +65,9 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha512-VRqE5/SiuR7ZrwBmS+Af89BTXli5xBbiqu7WPq56gEtWT8dKf9rFLoimmmMBVeRq5LmVZIXlOxs29F9I+vgSvQ==
-  /@pnpm/npm-resolver/0.3.3:
+  /@pnpm/npm-resolver/0.3.8:
     dependencies:
-      '@pnpm/types': 1.4.0
+      '@pnpm/types': 1.5.0
       '@types/load-json-file': 2.0.7
       '@types/mem': 1.1.2
       '@types/node': 8.5.2
@@ -81,7 +81,7 @@ packages:
       p-limit: 1.1.0
       semver: 5.4.1
       ssri: 5.0.0
-      version-selector-type: 1.0.0
+      version-selector-type: 2.0.0
       write-json-file: 2.3.0
     dev: true
     engines:
@@ -89,7 +89,7 @@ packages:
     peerDependencies:
       '@pnpm/logger': ^1.0.0
     resolution:
-      integrity: sha512-fNGhRWHtnI5CatygnZnI2C9fUhhPULxe8et16HWf/d7Cz6mg9EAS+493gqzbeJCFmR2Pcr3PxZoI2RhTLXwAoA==
+      integrity: sha512-3Jg+t4MipWdnLKwTM+nDxCBOZdFaE48t0xBISSwWlqdM3vF0c9hpX46/nk/L7WUl0vsudPoUEJ9yoo6xuTklIQ==
   /@pnpm/pkgid-to-filename/1.0.0:
     dependencies:
       normalize-path: 2.1.1
@@ -119,9 +119,9 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha512-gnh1si28RSaPqiaMKF7dlIOcrVrJOfjb7oIc9OPeIPE/1A5bxrEYpwU8G8c8pt3ELdgDGTQ35k6N1ioBFbuLPQ==
-  /@pnpm/types/1.4.0:
+  /@pnpm/types/1.5.0:
     resolution:
-      integrity: sha512-VghLLKj5eoPnxl2H0g4uDrDzvVyDc1iqwk4JJN7iQJ6XuVdJvJsU0ecyywAT/XZKI8YZQNYm+zLlwuD4u4jpqQ==
+      integrity: sha512-TSVIseQbSxXF60P9YauEzGfV6T1LdWMG+XACWKh6zxUI1aUDxQBb3w2LryR6+nGBEvudUrnQ5sRFPFzdxsIj3A==
   /@sindresorhus/is/0.6.0:
     dev: true
     engines:
@@ -556,18 +556,18 @@ packages:
     dev: true
     resolution:
       integrity: sha512-dRHYcs9LvG9cHgdPzjiI+/eS7e1xRhULrcyOx04RZQsszNJXU2SL9CyG60yLnge282Qq5nwTv+ieK2fH+WPZmA==
-  /cacheable-request/2.1.3:
+  /cacheable-request/2.1.4:
     dependencies:
       clone-response: 1.0.2
       get-stream: 3.0.0
       http-cache-semantics: 3.8.1
       keyv: 3.0.0
       lowercase-keys: 1.0.0
-      normalize-url: 2.0.0
+      normalize-url: 2.0.1
       responselike: 1.0.2
     dev: true
     resolution:
-      integrity: sha1-uTVgfdKrKBKJi++yJPZqqGxTPbs=
+      integrity: sha1-DYCIAbY0KtM8kd+dC0TcCbkeXD0=
   /caller-path/0.1.0:
     dependencies:
       callsites: 0.2.0
@@ -1256,7 +1256,7 @@ packages:
   /got/8.0.1:
     dependencies:
       '@sindresorhus/is': 0.6.0
-      cacheable-request: 2.1.3
+      cacheable-request: 2.1.4
       decompress-response: 3.3.0
       duplexer3: 0.1.4
       get-stream: 3.0.0
@@ -1758,10 +1758,10 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha512-0Pkui4wLJ7rxvmfUvs87skoEaxmu0hCUApF8nonzpl7q//FWp9zu8W61Scz4sd/kUiqDxvUhtoam2efDyiBzcA==
-  /make-error/1.3.0:
+  /make-error/1.3.2:
     dev: true
     resolution:
-      integrity: sha1-Uq06M5zPEM5itAQLcI/nByRLi5Y=
+      integrity: sha512-l9ra35l5VWLF24y75Tg8XgfGLX0ueRhph118WKM6H5denx4bB5QF59+4UAm9oJ2qsPQZas/CQUDdtDdfvYHBdQ==
   /make-fetch-happen/2.6.0:
     dependencies:
       agentkeepalive: 3.3.0
@@ -2235,7 +2235,7 @@ packages:
       node: '>=0.10.0'
     resolution:
       integrity: sha1-GrKLVW4Zg2Oowab35vogE3/mrtk=
-  /normalize-url/2.0.0:
+  /normalize-url/2.0.1:
     dependencies:
       prepend-http: 2.0.0
       query-string: 5.0.1
@@ -2244,7 +2244,7 @@ packages:
     engines:
       node: '>=4'
     resolution:
-      integrity: sha1-4E2KNp86TK3IUKKFT4+w+KgSAyg=
+      integrity: sha512-D6MUW4K/VzoJ4rJ01JFKxDrtY1v9wrgzCX5f2qj/lzH1m/lW6MhUZFKerVsnyjOhOsYzI9Kqqak+10l4LvLpMw==
   /number-is-nan/1.0.1:
     dev: true
     engines:
@@ -3321,7 +3321,7 @@ packages:
       arrify: 1.0.1
       chalk: 2.3.0
       diff: 3.4.0
-      make-error: 1.3.0
+      make-error: 1.3.2
       minimist: 1.2.0
       mkdirp: 0.5.1
       source-map-support: 0.5.0
@@ -3503,14 +3503,14 @@ packages:
       spdx-expression-parse: 1.0.4
     resolution:
       integrity: sha1-KAS6vnEq0zeUWaz74kdGqywwP7w=
-  /version-selector-type/1.0.0:
+  /version-selector-type/2.0.0:
     dependencies:
       semver: 5.4.1
     dev: true
     engines:
       node: '>=4'
     resolution:
-      integrity: sha512-v4qwzmB2jUeYSPwzPrpoeVvISUN4fmKUow7b+LVbhRMyHP7JoTDVARhXkrHvqYAlqtHmAKjjIidCDwgm0k0luw==
+      integrity: sha512-FYMSYiI76Pd8twRTtV/DBmDkZcrMqET3ar5G+alR7/VQgo2iwnu1xlgzpvaWUCwdx5R+mq8HxgFeSnJpssV17A==
   /which/1.3.0:
     dependencies:
       isexe: 2.0.0
