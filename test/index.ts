@@ -3,6 +3,7 @@ import createResolveFromNpm from '@pnpm/npm-resolver'
 import tempy = require('tempy')
 import {addDistTag} from 'pnpm-registry-mock'
 import path = require('path')
+import exists = require('path-exists')
 import loadJsonFile = require('load-json-file')
 
 const registry = 'http://localhost:4873/'
@@ -45,6 +46,37 @@ test('resolveFromNpm()', async t => {
     t.ok(meta.name)
     t.ok(meta.versions)
     t.ok(meta['dist-tags'])
+    t.end()
+  }, 100)
+})
+
+test('dry run', async t => {
+  const store = tempy.directory()
+  const resolve = createResolveFromNpm({
+    metaCache: new Map(),
+    store,
+    rawNpmConfig: { registry },
+    dryRun: true,
+  })
+  const resolveResult = await resolve({alias: 'is-positive', pref: '1.0.0'}, {
+    registry,
+  })
+
+  t.equal(resolveResult!.id, 'localhost+4873/is-positive/1.0.0')
+  t.equal(resolveResult!.latest!.split('.').length, 3)
+  t.deepEqual(resolveResult!.resolution, {
+    integrity: 'sha1-iACYVrZKLx632LsBeUGEJK4EUss=',
+    registry,
+    tarball: 'http://localhost:4873/is-positive/-/is-positive-1.0.0.tgz',
+  })
+  t.ok(resolveResult!.package)
+  t.ok(resolveResult!.package!.name, 'is-positive')
+  t.ok(resolveResult!.package!.version, '1.0.0')
+
+  // The resolve function does not wait for the package meta cache file to be saved
+  // so we must delay for a bit in order to read it
+  setTimeout(async () => {
+    t.notOk(await exists(path.join(store, resolveResult!.id, '..', 'index.json')))
     t.end()
   }, 100)
 })

@@ -65,6 +65,7 @@
     "mos-plugin-readme": "^1.0.4",
     "npm-run-all": "^4.1.2",
     "package-preview": "^1.0.1",
+    "path-exists": "^3.0.0",
     "pnpm-registry-mock": "^1.18.0",
     "rimraf": "^2.6.2",
     "tape": "^4.8.0",

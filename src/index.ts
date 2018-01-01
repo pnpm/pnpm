@@ -26,6 +26,7 @@ export default function createResolver (
     rawNpmConfig: object,
     metaCache: Map<string, object>,
     store: string,
+    dryRun?: boolean,
   },
 ) {
   if (typeof opts.rawNpmConfig !== 'object') {
@@ -56,6 +57,7 @@ export default function createResolver (
     userAgent: opts.userAgent,
   })
   return resolveNpm.bind(null, {
+    dryRun: opts.dryRun === true,
     getCredentialsByURI: mem((registry: string) => getCredentialsByURI(registry, opts.rawNpmConfig)),
     loadPkgMeta: loadPkgMeta.bind(null, fetch, opts.metaCache),
     offline: opts.offline,
@@ -65,6 +67,7 @@ export default function createResolver (
 
 async function resolveNpm (
   ctx: {
+    dryRun: boolean,
     loadPkgMeta: Function, //tslint:disable-line
     offline?: boolean,
     store: string,
@@ -89,6 +92,7 @@ async function resolveNpm (
   const auth = ctx.getCredentialsByURI(opts.registry)
   const meta = await ctx.loadPkgMeta(spec, {
     auth,
+    dryRun: ctx.dryRun,
     offline: ctx.offline,
     registry: opts.registry,
     storePath: ctx.store,
