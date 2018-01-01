@@ -56,9 +56,9 @@ test('dry run', async t => {
     metaCache: new Map(),
     store,
     rawNpmConfig: { registry },
-    dryRun: true,
   })
   const resolveResult = await resolve({alias: 'is-positive', pref: '1.0.0'}, {
+    dryRun: true,
     registry,
   })
 
