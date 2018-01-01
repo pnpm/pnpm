@@ -35,6 +35,7 @@ export interface ResolveResult {
 }
 
 export interface ResolveOptions {
+  dryRun?: boolean,
   registry: string,
   prefix: string,
   preferredVersions: {

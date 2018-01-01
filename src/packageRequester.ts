@@ -50,8 +50,8 @@ export type PackageResponse = {
   },
 } | (
   {
-    fetchingFiles: Promise<PackageFilesResponse>,
-    finishing: Promise<void>, // a package request is finished once its integrity is generated and saved
+    fetchingFiles?: Promise<PackageFilesResponse>,
+    finishing?: Promise<void>, // a package request is finished once its integrity is generated and saved
     body: {
       isLocal: false,
       inStoreLocation: string,
@@ -80,6 +80,7 @@ export interface WantedDependency {
 }
 
 export interface RequestPackageOptions {
+  dryRun?: boolean,
   downloadPriority: number,
   loggedPkg: LoggedPkg,
   offline: boolean,
@@ -167,6 +168,7 @@ async function resolveAndFetch (
         type: 'version' | 'range' | 'tag',
       },
     },
+    dryRun: boolean,
   },
 ): Promise<PackageResponse> {
   try {
@@ -177,6 +179,7 @@ async function resolveAndFetch (
     let pkgId = options.currentPkgId
     if (!resolution || options.update) {
       const resolveResult = await ctx.requestsQueue.add<ResolveResult>(() => ctx.resolve(wantedDependency, {
+        dryRun: options.dryRun,
         preferredVersions: options.preferredVersions,
         prefix: options.prefix,
         registry: options.registry,
@@ -213,6 +216,22 @@ async function resolveAndFetch (
 
     const targetRelative = pkgIdToFilename(id)
     const target = path.join(ctx.storePath, targetRelative)
+
+    // Even during dry run, we can skip fetching the package only if the manifest
+    // is present after resolution
+    if (options.dryRun && pkg) {
+      return {
+        body: {
+          id,
+          inStoreLocation: target,
+          isLocal: false,
+          latest,
+          manifest: pkg,
+          normalizedPref,
+          resolution,
+        },
+      }
+    }
 
     if (!ctx.fetchingLocker[id]) {
       ctx.fetchingLocker[id] = fetchToStore({
