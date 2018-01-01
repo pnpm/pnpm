@@ -29,6 +29,7 @@ devDependencies:
   package-preview: 1.0.3
   rimraf: 2.6.2
   tape: 4.8.0
+  tempy: 0.2.1
   ts-node: 4.1.0
   tslint: 5.8.0
   typescript: 2.6.2
@@ -830,6 +831,12 @@ packages:
     dev: true
     resolution:
       integrity: sha1-6L0O/uWPz/b4+UUQoKVUu/ojVEk=
+  /crypto-random-string/1.0.0:
+    dev: true
+    engines:
+      node: '>=4'
+    resolution:
+      integrity: sha1-ojD2T1aDEOFJgAmUB5DsmVRbyn4=
   /currently-unhandled/0.4.1:
     dependencies:
       array-find-index: 1.0.2
@@ -3241,6 +3248,21 @@ packages:
       node: '>= 0.8.0'
     resolution:
       integrity: sha512-mQdgLPc/Vjfr3VWqWbfxW8yQNiJCbAZ+Gf6GDu1Cy0bdb33ofyiNGBtAY96jHFhDuivCwgW1H9DgTON+INiXgg==
+  /temp-dir/1.0.0:
+    dev: true
+    engines:
+      node: '>=4'
+    resolution:
+      integrity: sha1-CnwOom06Oa+n4OvqnB/AvE2qAR0=
+  /tempy/0.2.1:
+    dependencies:
+      temp-dir: 1.0.0
+      unique-string: 1.0.0
+    dev: true
+    engines:
+      node: '>=4'
+    resolution:
+      integrity: sha512-LB83o9bfZGrntdqPuRdanIVCPReam9SOZKW0fOy5I9X3A854GGWi0tjCqoXEk84XIEYBc/x9Hq3EFop/H5wJaw==
   /the-argv/1.0.0:
     dev: true
     resolution:
@@ -3402,6 +3424,14 @@ packages:
     dev: true
     resolution:
       integrity: sha1-22Z258fMBimHj/GWCXx4hVrp9Ks=
+  /unique-string/1.0.0:
+    dependencies:
+      crypto-random-string: 1.0.0
+    dev: true
+    engines:
+      node: '>=4'
+    resolution:
+      integrity: sha1-nhBXzKhRq7kzmPizOuGHuZyuwRo=
   /unist-util-is/2.1.1:
     dev: true
     resolution:
@@ -3634,6 +3664,7 @@ specifiers:
   rimraf-then: ^1.0.1
   symlink-dir: ^1.1.0
   tape: ^4.8.0
+  tempy: ^0.2.1
   ts-node: ^4.0.0
   tslint: ^5.8.0
   typescript: ^2.6.1
