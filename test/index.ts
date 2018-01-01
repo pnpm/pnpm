@@ -49,14 +49,14 @@ test('server', async t => {
       prefix: process.cwd(),
       registry,
       verifyStoreIntegrity: false,
+      preferredVersions: {},
     }
   )
 
-  t.equal(response.id, 'registry.npmjs.org/is-positive/1.0.0')
+  t.equal(response.body.id, 'registry.npmjs.org/is-positive/1.0.0', 'responded with correct ID')
 
-  const manifest = await response.fetchingManifest
-  t.equal(manifest.name, 'is-positive')
-  t.equal(manifest.version, '1.0.0')
+  t.equal(response.body['manifest'].name, 'is-positive', 'responded with correct name in manifest')
+  t.equal(response.body['manifest'].version, '1.0.0', 'responded with correct version in manifest')
 
   const files = await response['fetchingFiles'] as PackageFilesResponse
   t.notOk(files.fromStore)

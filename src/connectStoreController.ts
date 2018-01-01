@@ -61,17 +61,28 @@ function requestPackage (
     options,
     wantedDependency,
   })
-  .then((packageResponse: PackageResponse) => {
-    const fetchingManifest = limitedFetch(`${remotePrefix}/manifestResponse`, {
-      pkgId: packageResponse.id,
-    })
+  .then((packageResponseBody: object) => {
+    const fetchingManifest = packageResponseBody['manifest'] // tslint:disable-line
+      ? undefined
+      : limitedFetch(`${remotePrefix}/manifestResponse`, {
+          pkgId: packageResponseBody['id'], // tslint:disable-line
+        })
+
+    if (options.dryRun) {
+      return {
+        body: packageResponseBody,
+        fetchingManifest,
+      }
+    }
+
     const fetchingFiles = limitedFetch(`${remotePrefix}/packageFilesResponse`, {
-      pkgId: packageResponse.id,
+      pkgId: packageResponseBody['id'], // tslint:disable-line
     })
-    return Object.assign(packageResponse, {
+    return {
+      body: packageResponseBody,
       fetchingFiles,
       fetchingManifest,
       finishing: Promise.all([fetchingManifest, fetchingFiles]).then(() => undefined),
-    })
+    }
   })
 }

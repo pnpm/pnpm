@@ -59,11 +59,13 @@ export default function (
         case '/requestPackage':
           body = await bodyPromise
           const pkgResponse = await store.requestPackage(body.wantedDependency, body.options)
-          if (!pkgResponse.isLocal) {
-            manifestPromises[pkgResponse.id] = pkgResponse.fetchingManifest
-            filesPromises[pkgResponse.id] = pkgResponse.fetchingFiles
+          if (pkgResponse['fetchingManifest']) { // tslint:disable-line
+            manifestPromises[pkgResponse.body.id] = pkgResponse['fetchingManifest'] // tslint:disable-line
           }
-          res.end(JSON.stringify(pkgResponse))
+          if (pkgResponse['fetchingFiles']) { // tslint:disable-line
+            filesPromises[pkgResponse.body.id] = pkgResponse['fetchingFiles'] // tslint:disable-line
+          }
+          res.end(JSON.stringify(pkgResponse.body))
           break
         case '/packageFilesResponse':
           body = await bodyPromise
