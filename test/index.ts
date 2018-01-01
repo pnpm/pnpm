@@ -2,6 +2,8 @@ import test = require('tape')
 import createResolveFromNpm from '@pnpm/npm-resolver'
 import tempy = require('tempy')
 import {addDistTag} from 'pnpm-registry-mock'
+import path = require('path')
+import loadJsonFile = require('load-json-file')
 
 const registry = 'http://localhost:4873/'
 const metaCache = new Map()
@@ -15,10 +17,16 @@ const resolveFromNpm = createResolveFromNpm({
 test('waiting for verdaccio to startup', t => setTimeout(() => t.end(), 1000))
 
 test('resolveFromNpm()', async t => {
-  metaCache.clear()
-  const resolveResult = await resolveFromNpm({alias: 'is-positive', pref: '1.0.0'}, {
+  const store = tempy.directory()
+  const resolve = createResolveFromNpm({
+    metaCache: new Map(),
+    store,
+    rawNpmConfig: { registry },
+  })
+  const resolveResult = await resolve({alias: 'is-positive', pref: '1.0.0'}, {
     registry,
   })
+
   t.equal(resolveResult!.id, 'localhost+4873/is-positive/1.0.0')
   t.equal(resolveResult!.latest!.split('.').length, 3)
   t.deepEqual(resolveResult!.resolution, {
@@ -29,7 +37,16 @@ test('resolveFromNpm()', async t => {
   t.ok(resolveResult!.package)
   t.ok(resolveResult!.package!.name, 'is-positive')
   t.ok(resolveResult!.package!.version, '1.0.0')
-  t.end()
+
+  // The resolve function does not wait for the package meta cache file to be saved
+  // so we must delay for a bit in order to read it
+  setTimeout(async () => {
+    const meta = await loadJsonFile(path.join(store, resolveResult!.id, '..', 'index.json'))
+    t.ok(meta.name)
+    t.ok(meta.versions)
+    t.ok(meta['dist-tags'])
+    t.end()
+  }, 100)
 })
 
 test('can resolve aliased dependency', async t => {
