@@ -41,25 +41,38 @@ export interface PackageFilesResponse {
 }
 
 export type PackageResponse = {
-  isLocal: true,
-  resolution: DirectoryResolution,
-  fetchingManifest: Promise<PackageManifest>
-  id: string,
-  normalizedPref?: string,
-} | {
-  isLocal: false,
-  fetchingManifest: Promise<PackageManifest>
-  fetchingFiles: Promise<PackageFilesResponse>,
-  finishing: Promise<void>, // a package request is finished once its integrity is generated and saved
-  inStoreLocation: string,
-  id: string,
-  resolution: Resolution,
-  // This is useful for recommending updates.
-  // If latest does not equal the version of the
-  // resolved package, it is out-of-date.
-  latest?: string,
-  normalizedPref?: string,
-}
+  body: {
+    isLocal: true,
+    resolution: DirectoryResolution,
+    manifest: PackageManifest
+    id: string,
+    normalizedPref?: string,
+  },
+} | (
+  {
+    fetchingFiles: Promise<PackageFilesResponse>,
+    finishing: Promise<void>, // a package request is finished once its integrity is generated and saved
+    body: {
+      isLocal: false,
+      inStoreLocation: string,
+      id: string,
+      resolution: Resolution,
+      // This is useful for recommending updates.
+      // If latest does not equal the version of the
+      // resolved package, it is out-of-date.
+      latest?: string,
+      normalizedPref?: string,
+    },
+  } & (
+    {
+      fetchingManifest: Promise<PackageManifest>,
+    } | {
+      body: {
+        manifest: PackageManifest,
+      },
+    }
+  )
+)
 
 export interface WantedDependency {
   alias?: string,
@@ -128,7 +141,7 @@ async function resolveAndFetch (
       [pkgId: string]: {
         finishing: Promise<void>,
         fetchingFiles: Promise<PackageFilesResponse>,
-        fetchingManifest: Promise<PackageManifest>,
+        fetchingManifest?: Promise<PackageManifest>,
       },
     },
     storePath: string,
@@ -188,11 +201,13 @@ async function resolveAndFetch (
         throw new Error(`Couldn't read package.json of local dependency ${wantedDependency.alias ? wantedDependency.alias + '@' : ''}${wantedDependency.pref}`)
       }
       return {
-        fetchingManifest: Promise.resolve(pkg),
-        id,
-        isLocal: true,
-        normalizedPref,
-        resolution: resolution as DirectoryResolution,
+        body: {
+          id,
+          isLocal: true,
+          manifest: pkg,
+          normalizedPref,
+          resolution: resolution as DirectoryResolution,
+        },
       }
     }
 
@@ -215,16 +230,33 @@ async function resolveAndFetch (
       })
     }
 
+    if (pkg) {
+      return {
+        body: {
+          id,
+          inStoreLocation: target,
+          isLocal: false,
+          latest,
+          manifest: pkg,
+          normalizedPref,
+          resolution,
+        },
+        fetchingFiles: ctx.fetchingLocker[id].fetchingFiles,
+        finishing: ctx.fetchingLocker[id].finishing,
+      }
+    }
     return {
+      body: {
+        id,
+        inStoreLocation: target,
+        isLocal: false,
+        latest,
+        normalizedPref,
+        resolution,
+      },
       fetchingFiles: ctx.fetchingLocker[id].fetchingFiles,
-      fetchingManifest: ctx.fetchingLocker[id].fetchingManifest,
+      fetchingManifest: ctx.fetchingLocker[id].fetchingManifest as Promise<PackageManifest>,
       finishing: ctx.fetchingLocker[id].finishing,
-      id,
-      inStoreLocation: target,
-      isLocal: false,
-      latest,
-      normalizedPref,
-      resolution,
     }
   } catch (err) {
     progressLogger.debug({status: 'error', pkg: options.loggedPkg})
@@ -246,7 +278,7 @@ function fetchToStore (opts: {
   verifyStoreIntegrity: boolean,
 }): {
   fetchingFiles: Promise<PackageFilesResponse>,
-  fetchingManifest: Promise<PackageManifest>,
+  fetchingManifest?: Promise<PackageManifest>,
   finishing: Promise<void>,
 } {
   const fetchingManifest = differed<PackageManifest>()
@@ -255,9 +287,15 @@ function fetchToStore (opts: {
 
   doFetchToStore()
 
+  if (!opts.pkg) {
+    return {
+      fetchingFiles: fetchingFiles.promise,
+      fetchingManifest: fetchingManifest.promise,
+      finishing: finishing.promise,
+    }
+  }
   return {
     fetchingFiles: fetchingFiles.promise,
-    fetchingManifest: opts.pkg && Promise.resolve(opts.pkg) || fetchingManifest.promise,
     finishing: finishing.promise,
   }
 
