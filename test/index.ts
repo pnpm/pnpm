@@ -47,7 +47,7 @@ test('resolveFromNpm()', async t => {
     t.ok(meta.versions)
     t.ok(meta['dist-tags'])
     t.end()
-  }, 100)
+  }, 500)
 })
 
 test('dry run', async t => {
@@ -78,7 +78,7 @@ test('dry run', async t => {
   setTimeout(async () => {
     t.notOk(await exists(path.join(store, resolveResult!.id, '..', 'index.json')))
     t.end()
-  }, 100)
+  }, 500)
 })
 
 test('can resolve aliased dependency', async t => {
