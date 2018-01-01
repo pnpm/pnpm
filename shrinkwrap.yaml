@@ -21,7 +21,7 @@ dependencies:
   write-json-file: 2.3.0
 devDependencies:
   '@pnpm/logger': 1.0.0
-  '@pnpm/npm-resolver': 0.3.8
+  '@pnpm/npm-resolver': 0.3.9
   '@pnpm/tarball-fetcher': 0.3.1
   '@types/tape': 4.2.31
   mos: 2.0.0-alpha.3
@@ -66,7 +66,7 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha512-VRqE5/SiuR7ZrwBmS+Af89BTXli5xBbiqu7WPq56gEtWT8dKf9rFLoimmmMBVeRq5LmVZIXlOxs29F9I+vgSvQ==
-  /@pnpm/npm-resolver/0.3.8:
+  /@pnpm/npm-resolver/0.3.9:
     dependencies:
       '@pnpm/types': 1.5.0
       '@types/load-json-file': 2.0.7
@@ -90,7 +90,7 @@ packages:
     peerDependencies:
       '@pnpm/logger': ^1.0.0
     resolution:
-      integrity: sha512-3Jg+t4MipWdnLKwTM+nDxCBOZdFaE48t0xBISSwWlqdM3vF0c9hpX46/nk/L7WUl0vsudPoUEJ9yoo6xuTklIQ==
+      integrity: sha512-J0V65jUasnWehZ1CsvekFHgy06Jqw7f0PbxVk9iEX2TBHCdJBaMke6Peof9yj61t/fxTzo3qgrxuzTLkM0mW4w==
   /@pnpm/pkgid-to-filename/1.0.0:
     dependencies:
       normalize-path: 2.1.1
@@ -3380,7 +3380,7 @@ packages:
       resolve: 1.5.0
       semver: 5.4.1
       tslib: 1.8.1
-      tsutils: 2.14.0
+      tsutils: 2.15.0
     dev: true
     engines:
       node: '>=4.1.2'
@@ -3388,14 +3388,14 @@ packages:
       typescript: '>=2.1.0 || >=2.1.0-dev || >=2.2.0-dev || >=2.3.0-dev || >=2.4.0-dev || >=2.5.0-dev || >=2.6.0-dev || >=2.7.0-dev'
     resolution:
       integrity: sha1-H0mtWy53x2w69N3K5VKuTjYS6xM=
-  /tsutils/2.14.0:
+  /tsutils/2.15.0:
     dependencies:
       tslib: 1.8.1
     dev: true
     peerDependencies:
       typescript: '>=2.1.0 || >=2.1.0-dev || >=2.2.0-dev || >=2.3.0-dev || >= 2.4.0-dev || >= 2.5.0-dev || >= 2.6.0-dev || >= 2.7.0-dev || >= 2.8.0-dev'
     resolution:
-      integrity: sha512-f6axSMV0RoUufiKiRQgmRlN1c+Ag+mDaZjcd6bHdvplT/zyhuMCGqw3pJS8s3+0x4EVkdoQajs9PchdDZlguvw==
+      integrity: sha512-kKb1mSqRMwF0GHKya5/hZsI2m7Flg4ONZDeYu4e6Gx+kYAu86zsLNCHcUmNWhCRaUcKshNI272hOzuaCQDzJ2g==
   /typedarray/0.0.6:
     dev: true
     resolution:
