@@ -276,28 +276,28 @@ async function install (
     preferredVersions: ctx.preferredVersions,
   })
 
-  if (pkgResponse.isLocal) {
-    const pkg = await pkgResponse.fetchingManifest
+  if (pkgResponse.body.isLocal) {
+    const pkg = pkgResponse.body.manifest || await pkgResponse['fetchingManifest']
     if (options.currentDepth > 0) {
       logger.warn(`Ignoring file dependency because it is not a root dependency ${wantedDependency}`)
     } else {
       ctx.localPackages.push({
         alias: wantedDependency.alias || pkg.name,
-        id: pkgResponse.id,
+        id: pkgResponse.body.id,
         specRaw: wantedDependency.raw,
         name: pkg.name,
         version: pkg.version,
         dev: wantedDependency.dev,
         optional: wantedDependency.optional,
-        resolution: pkgResponse.resolution,
-        normalizedPref: pkgResponse.normalizedPref,
+        resolution: pkgResponse.body.resolution,
+        normalizedPref: pkgResponse.body.normalizedPref,
       })
     }
-    logStatus({status: 'downloaded_manifest', pkgId: pkgResponse.id, pkgVersion: pkg.version})
+    logStatus({status: 'downloaded_manifest', pkgId: pkgResponse.body.id, pkgVersion: pkg.version})
     return null
   }
 
-  if (options.parentNodeId.indexOf(`:${dependentId}:${pkgResponse.id}:`) !== -1) {
+  if (options.parentNodeId.indexOf(`:${dependentId}:${pkgResponse.body.id}:`) !== -1) {
     return null
   }
 
@@ -321,36 +321,36 @@ async function install (
   } else {
     try {
       pkg = options.readPackageHook
-        ? options.readPackageHook(await pkgResponse.fetchingManifest)
-        : await pkgResponse.fetchingManifest
+        ? options.readPackageHook(pkgResponse.body['manifest'] || await pkgResponse['fetchingManifest'])
+        : pkgResponse.body['manifest'] || await pkgResponse['fetchingManifest']
     } catch (err) {
       // avoiding unhandled promise rejections
-      pkgResponse.finishing.catch((err: Error) => {})
-      pkgResponse.fetchingFiles.catch((err: Error) => {})
+      if (pkgResponse['finishing']) pkgResponse['finishing'].catch((err: Error) => {})
+      if (pkgResponse['fetchingFiles']) pkgResponse['fetchingFiles'].catch((err: Error) => {})
       throw err
     }
   }
-  if (options.currentDepth === 0 && pkgResponse.latest && pkgResponse.latest !== pkg.version) {
-    ctx.outdatedPkgs[pkgResponse.id] = pkgResponse.latest
+  if (options.currentDepth === 0 && pkgResponse.body.latest && pkgResponse.body.latest !== pkg.version) {
+    ctx.outdatedPkgs[pkgResponse.body.id] = pkgResponse.body.latest
   }
   if (pkg.deprecated) {
     deprecationLogger.warn({
       pkgName: pkg.name,
       pkgVersion: pkg.version,
-      pkgId: pkgResponse.id,
+      pkgId: pkgResponse.body.id,
       deprecated: pkg.deprecated,
       depth: options.currentDepth,
     })
   }
 
-  logStatus({status: 'downloaded_manifest', pkgId: pkgResponse.id, pkgVersion: pkg.version})
+  logStatus({status: 'downloaded_manifest', pkgId: pkgResponse.body.id, pkgVersion: pkg.version})
 
   // using colon as it will never be used inside a package ID
-  const nodeId = `${options.parentNodeId}${pkgResponse.id}:`
+  const nodeId = `${options.parentNodeId}${pkgResponse.body.id}:`
 
   const currentIsInstallable = (
       ctx.force ||
-      await getIsInstallable(pkgResponse.id, pkg, {
+      await getIsInstallable(pkgResponse.body.id, pkg, {
         nodeId,
         installs: ctx.installs,
         optional: wantedDependency.optional,
@@ -362,28 +362,28 @@ async function install (
   const installable = parentIsInstallable && currentIsInstallable
 
   if (installable) {
-    ctx.skipped.delete(pkgResponse.id)
+    ctx.skipped.delete(pkgResponse.body.id)
   }
-  if (!ctx.installs[pkgResponse.id]) {
+  if (!ctx.installs[pkgResponse.body.id]) {
     if (!installable) {
       // optional dependencies are resolved for consistent shrinkwrap.yaml files
       // but installed only on machines that are supported by the package
-      ctx.skipped.add(pkgResponse.id)
+      ctx.skipped.add(pkgResponse.body.id)
     }
 
     const peerDependencies = peerDependenciesWithoutOwn(pkg)
 
-    ctx.installs[pkgResponse.id] = {
-      id: pkgResponse.id,
-      resolution: pkgResponse.resolution,
+    ctx.installs[pkgResponse.body.id] = {
+      id: pkgResponse.body.id,
+      resolution: pkgResponse.body.resolution,
       optional: wantedDependency.optional,
       name: pkg.name,
       version: pkg.version,
       prod: !wantedDependency.dev && !wantedDependency.optional,
       dev: wantedDependency.dev,
-      fetchingFiles: pkgResponse.fetchingFiles,
-      finishing: pkgResponse.finishing,
-      path: pkgResponse.inStoreLocation,
+      fetchingFiles: pkgResponse['fetchingFiles'],
+      finishing: pkgResponse['finishing'],
+      path: pkgResponse.body.inStoreLocation,
       specRaw: wantedDependency.raw,
       peerDependencies: peerDependencies || {},
       optionalDependencies: new Set(R.keys(pkg.optionalDependencies)),
@@ -405,11 +405,11 @@ async function install (
         parentIsInstallable: installable,
         currentDepth: options.currentDepth + 1,
         parentNodeId: nodeId,
-        keypath: options.keypath.concat([ pkgResponse.id ]),
-        resolvedDependencies: pkgResponse.id !== options.pkgId
+        keypath: options.keypath.concat([ pkgResponse.body.id ]),
+        resolvedDependencies: pkgResponse.body.id !== options.pkgId
           ? undefined
           : options.resolvedDependencies,
-        preferedDependencies: pkgResponse.id !== options.pkgId
+        preferedDependencies: pkgResponse.body.id !== options.pkgId
           ? options.resolvedDependencies
           : undefined,
         optionalDependencyNames: options.optionalDependencyNames,
@@ -419,12 +419,12 @@ async function install (
         useManifestInfoFromShrinkwrap,
       }
     )
-    ctx.childrenByParentId[pkgResponse.id] = children.map(child => ({
+    ctx.childrenByParentId[pkgResponse.body.id] = children.map(child => ({
       alias: child.alias,
       pkgId: child.pkgId,
     }))
     ctx.tree[nodeId] = {
-      pkg: ctx.installs[pkgResponse.id],
+      pkg: ctx.installs[pkgResponse.body.id],
       children: children.reduce((children, child) => {
         children[child.alias] = child.nodeId
         return children
@@ -433,30 +433,30 @@ async function install (
       installable,
     }
   } else {
-    ctx.installs[pkgResponse.id].prod = ctx.installs[pkgResponse.id].prod || !wantedDependency.dev && !wantedDependency.optional
-    ctx.installs[pkgResponse.id].dev = ctx.installs[pkgResponse.id].dev || wantedDependency.dev
-    ctx.installs[pkgResponse.id].optional = ctx.installs[pkgResponse.id].optional && wantedDependency.optional
+    ctx.installs[pkgResponse.body.id].prod = ctx.installs[pkgResponse.body.id].prod || !wantedDependency.dev && !wantedDependency.optional
+    ctx.installs[pkgResponse.body.id].dev = ctx.installs[pkgResponse.body.id].dev || wantedDependency.dev
+    ctx.installs[pkgResponse.body.id].optional = ctx.installs[pkgResponse.body.id].optional && wantedDependency.optional
 
     ctx.nodesToBuild.push({
       alias: wantedDependency.alias || pkg.name,
       nodeId,
-      pkg: ctx.installs[pkgResponse.id],
+      pkg: ctx.installs[pkgResponse.body.id],
       depth: options.currentDepth,
       installable,
     })
   }
   // we need this for saving to package.json
   if (options.currentDepth === 0) {
-    ctx.installs[pkgResponse.id].specRaw = wantedDependency.raw
+    ctx.installs[pkgResponse.body.id].specRaw = wantedDependency.raw
   }
 
-  logStatus({status: 'dependencies_installed', pkgId: pkgResponse.id})
+  logStatus({status: 'dependencies_installed', pkgId: pkgResponse.body.id})
 
   return {
     alias: wantedDependency.alias || pkg.name,
     nodeId,
-    pkgId: pkgResponse.id,
-    normalizedPref: options.currentDepth === 0 ? pkgResponse.normalizedPref : undefined,
+    pkgId: pkgResponse.body.id,
+    normalizedPref: options.currentDepth === 0 ? pkgResponse.body.normalizedPref : undefined,
   }
 }
 

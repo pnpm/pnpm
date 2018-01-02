@@ -3,7 +3,7 @@ dependencies:
   '@pnpm/default-fetcher': 0.3.0
   '@pnpm/default-resolver': 0.1.0
   '@pnpm/fs-locker': 1.0.0
-  '@pnpm/package-requester': 0.5.1
+  '@pnpm/package-requester': 0.6.0
   '@pnpm/pkgid-to-filename': 1.0.0
   '@pnpm/types': 1.5.0
   '@types/byline': 4.2.31
@@ -45,7 +45,7 @@ dependencies:
   p-filter: 1.0.0
   p-limit: 1.1.0
   p-series: 1.0.0
-  package-store: 0.12.0
+  package-store: 0.13.0
   path-absolute: 1.0.0
   path-exists: 3.0.0
   path-name: 1.0.0
@@ -304,7 +304,7 @@ packages:
       '@pnpm/logger': ^1.0.0
     resolution:
       integrity: sha1-ab3y24qzo8qFXAVIS5k98Mi7rX4=
-  /@pnpm/package-requester/0.5.1:
+  /@pnpm/package-requester/0.6.0:
     dependencies:
       '@pnpm/check-package': 1.0.0
       '@pnpm/pkgid-to-filename': 1.0.0
@@ -332,7 +332,7 @@ packages:
     peerDependencies:
       '@pnpm/logger': ^1.0.0
     resolution:
-      integrity: sha1-c6ojXfjzO02De4BKzOIUFPq2afg=
+      integrity: sha512-l6DZobzIVkFoS2dVIADgysZlC6X6342pakmbj5tpt4rgxg4gWBxRC9HPD4wbNMSo+yZ3ZjYOGCxvcMTAEJOxOg==
   /@pnpm/pkgid-to-filename/1.0.0:
     dependencies:
       normalize-path: 2.1.1
@@ -3321,10 +3321,10 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha512-nigldHuSWszV5IK53dfOdpgfLsG0++QwNAFIFo5bgv5MPm/F4tiDJX240CJ+wZVzftbPGBmk4bnN/UB8wHFoeA==
-  /package-store/0.12.0:
+  /package-store/0.13.0:
     dependencies:
       '@pnpm/fs-locker': 1.0.0
-      '@pnpm/package-requester': 0.5.1
+      '@pnpm/package-requester': 0.6.0
       '@pnpm/types': 1.5.0
       '@types/load-json-file': 2.0.7
       '@types/node': 8.5.2
@@ -3346,7 +3346,7 @@ packages:
     peerDependencies:
       '@pnpm/logger': ^1.0.0
     resolution:
-      integrity: sha512-7v7yN1cIzsRwJj/7sEc6XdVSUgpaHdYZkXQDm3nZViCLK0/J/gNRhzcY9wI5Fdy5RqY/RK+4gAO6MQ9OVSWQHg==
+      integrity: sha512-arrwP6hh3jZ+Z3Mqq1mfuoA0IoTLw+E/pcAMlHVGq7/OMu/SPL74yBDmAoMQltNkDdXljYXzjPOjy3eQTjdy5A==
   /pako/0.2.9:
     resolution:
       integrity: sha1-8/dSL073gjSNqBYbrZ7P1Rv4OnU=
@@ -4914,7 +4914,7 @@ specifiers:
   '@pnpm/default-resolver': ^0.1.0
   '@pnpm/fs-locker': ^1.0.0
   '@pnpm/logger': ^1.0.0
-  '@pnpm/package-requester': ^0.5.0
+  '@pnpm/package-requester': ^0.6.0
   '@pnpm/pkgid-to-filename': ^1.0.0
   '@pnpm/types': ^1.5.0
   '@types/byline': ^4.2.31
@@ -4969,7 +4969,7 @@ specifiers:
   p-limit: ^1.1.0
   p-series: ^1.0.0
   package-preview: ^1.0.0
-  package-store: ^0.12.0
+  package-store: ^0.13.0
   path-absolute: ^1.0.0
   path-exists: ^3.0.0
   path-name: ^1.0.0
