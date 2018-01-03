@@ -226,6 +226,13 @@ Controls the way packages are imported from the store.
 * **copy** - copy packages from the store
 * **reflink** - reflink (aka copy-on-write) packages from the store
 
+#### shrinkwrap-only
+
+* Default: **false**
+* Type: **Boolean**
+
+When used, only updates `shrinkwrap.yaml` and `package.json` instead of checking `node_modules` and downloading dependencies.
+
 ### Hooks
 
 pnpm allows to step directly into the installation process via special functions called *hooks*.

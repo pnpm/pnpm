@@ -15,6 +15,7 @@ import {
   prepare,
   addDistTag,
   testDefaults,
+  execPnpm,
   execPnpmSync,
 } from '../utils'
 import loadJsonFile = require('load-json-file')
@@ -56,4 +57,15 @@ test('create a pnpm-debug.log file when the command fails', async function (t) {
   t.ok(await exists('pnpm-debug.log'), 'log file created')
 
   t.end()
+})
+
+test('install --shrinkwrap-only', async (t: tape.Test) => {
+  const project = prepare(t)
+
+  await execPnpm('install', 'rimraf@2.5.1', '--shrinkwrap-only')
+
+  await project.hasNot('rimraf')
+
+  const shr = await project.loadShrinkwrap()
+  t.ok(shr.packages['/rimraf/2.5.1'])
 })

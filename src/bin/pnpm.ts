@@ -123,6 +123,7 @@ async function run (argv: string[]) {
     'package-import-method': ['auto', 'hardlink', 'reflink', 'copy'],
     'pending': Boolean,
     'reporter': String,
+    'shrinkwrap-only': Boolean,
     'store': path,
     'store-path': path, // DEPRECATE! store should be used
     'verify-store-integrity': Boolean,

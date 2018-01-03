@@ -40,6 +40,7 @@ function getHelpText (command: string) {
           --production, --only prod[uction]  packages in \`devDependencies\` won't be installed
           --only dev[elopment]               only \`devDependencies\` are installed regardless of the \`NODE_ENV\`.
           --[no-]lock
+          --shrinkwrap-only                  dependencies are not downloaded only \`shrinkwrap.yaml\` is updated
 
           --package-import-method auto       try to hardlink packages from the store. If it fails, fallback to copy
           --package-import-method hardlink   hardlink packages from the store
