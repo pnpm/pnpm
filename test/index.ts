@@ -64,7 +64,7 @@ test('request package', async t => {
   t.end()
 })
 
-test('request package with dry run', async t => {
+test('request package but skip fetching', async t => {
   const requestPackage = createPackageRequester(resolve, fetch, {
     networkConcurrency: 1,
     storePath: '.store',
@@ -73,7 +73,7 @@ test('request package with dry run', async t => {
   t.equal(typeof requestPackage, 'function')
 
   const pkgResponse = await requestPackage({alias: 'is-positive', pref: '1.0.0'}, {
-    dryRun: true,
+    skipFetch: true,
     downloadPriority: 0,
     offline: false,
     loggedPkg: {},

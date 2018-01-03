@@ -80,7 +80,7 @@ export interface WantedDependency {
 }
 
 export interface RequestPackageOptions {
-  dryRun?: boolean,
+  skipFetch?: boolean,
   downloadPriority: number,
   loggedPkg: LoggedPkg,
   offline: boolean,
@@ -168,7 +168,7 @@ async function resolveAndFetch (
         type: 'version' | 'range' | 'tag',
       },
     },
-    dryRun: boolean,
+    skipFetch: boolean,
   },
 ): Promise<PackageResponse> {
   try {
@@ -179,7 +179,6 @@ async function resolveAndFetch (
     let pkgId = options.currentPkgId
     if (!resolution || options.update) {
       const resolveResult = await ctx.requestsQueue.add<ResolveResult>(() => ctx.resolve(wantedDependency, {
-        dryRun: options.dryRun,
         preferredVersions: options.preferredVersions,
         prefix: options.prefix,
         registry: options.registry,
@@ -217,9 +216,9 @@ async function resolveAndFetch (
     const targetRelative = pkgIdToFilename(id)
     const target = path.join(ctx.storePath, targetRelative)
 
-    // Even during dry run, we can skip fetching the package only if the manifest
+    // We can skip fetching the package only if the manifest
     // is present after resolution
-    if (options.dryRun && pkg) {
+    if (options.skipFetch && pkg) {
       return {
         body: {
           id,
