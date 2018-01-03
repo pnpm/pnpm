@@ -7,6 +7,7 @@ dependencies:
   got: 8.0.1
   p-limit: 1.1.0
   package-store: 0.13.0
+  uuid: 3.1.0
 devDependencies:
   '@pnpm/logger': 1.0.0
   '@pnpm/npm-resolver': 0.3.9
@@ -3683,6 +3684,10 @@ packages:
     dev: true
     resolution:
       integrity: sha1-Z+LoY3lyFVMN/zGOW/nc6/1Hsho=
+  /uuid/3.1.0:
+    dev: false
+    resolution:
+      integrity: sha512-DIWtzUkw04M4k3bf1IcpS2tngXEL26YUD2M0tMDUpnUrz2hgzUBlD55a4FjdLGPvfHxS6uluGWvaVEqgBcVa+g==
   /v8flags/3.0.1:
     dependencies:
       homedir-polyfill: 1.0.1
@@ -3829,3 +3834,4 @@ specifiers:
   ts-node: ^4.0.1
   tslint: ^5.8.0
   typescript: ^2.6.1
+  uuid: ^3.1.0

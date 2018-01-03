@@ -7,6 +7,7 @@ import {
 import got = require('got')
 import pLimit = require('p-limit')
 import {StoreController} from 'package-store'
+import uuid = require('uuid')
 
 export default function (
   initOpts: {
@@ -57,7 +58,10 @@ function requestPackage (
   wantedDependency: WantedDependency,
   options: RequestPackageOptions,
 ): Promise<PackageResponse> {
+  const msgId = uuid.v4()
+
   return limitedFetch(`${remotePrefix}/requestPackage`, {
+    msgId,
     options,
     wantedDependency,
   })
@@ -65,7 +69,7 @@ function requestPackage (
     const fetchingManifest = packageResponseBody['manifest'] // tslint:disable-line
       ? undefined
       : limitedFetch(`${remotePrefix}/manifestResponse`, {
-          pkgId: packageResponseBody['id'], // tslint:disable-line
+          msgId,
         })
 
     if (options.skipFetch) {
@@ -76,7 +80,7 @@ function requestPackage (
     }
 
     const fetchingFiles = limitedFetch(`${remotePrefix}/packageFilesResponse`, {
-      pkgId: packageResponseBody['id'], // tslint:disable-line
+      msgId,
     })
     return {
       body: packageResponseBody,

@@ -5,7 +5,7 @@ import {RequestPackageOptions, WantedDependency} from '@pnpm/package-requester'
 import {StoreController} from 'package-store'
 
 interface RequestBody {
-  pkgId: string,
+  msgId: string,
   wantedDependency: WantedDependency,
   options: RequestPackageOptions,
   prefix: string,
@@ -60,23 +60,23 @@ export default function (
           body = await bodyPromise
           const pkgResponse = await store.requestPackage(body.wantedDependency, body.options)
           if (pkgResponse['fetchingManifest']) { // tslint:disable-line
-            manifestPromises[pkgResponse.body.id] = pkgResponse['fetchingManifest'] // tslint:disable-line
+            manifestPromises[body.msgId] = pkgResponse['fetchingManifest'] // tslint:disable-line
           }
           if (pkgResponse['fetchingFiles']) { // tslint:disable-line
-            filesPromises[pkgResponse.body.id] = pkgResponse['fetchingFiles'] // tslint:disable-line
+            filesPromises[body.msgId] = pkgResponse['fetchingFiles'] // tslint:disable-line
           }
           res.end(JSON.stringify(pkgResponse.body))
           break
         case '/packageFilesResponse':
           body = await bodyPromise
-          const filesResponse = await filesPromises[body.pkgId]
-          delete filesPromises[body.pkgId]
+          const filesResponse = await filesPromises[body.msgId]
+          delete filesPromises[body.msgId]
           res.end(JSON.stringify(filesResponse))
           break
         case '/manifestResponse':
           body = await bodyPromise
-          const manifestResponse = await manifestPromises[body.pkgId]
-          delete manifestPromises[body.pkgId]
+          const manifestResponse = await manifestPromises[body.msgId]
+          delete manifestPromises[body.msgId]
           res.end(JSON.stringify(manifestResponse))
           break
         case '/updateConnections':
