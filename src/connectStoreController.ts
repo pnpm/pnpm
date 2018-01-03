@@ -68,7 +68,7 @@ function requestPackage (
           pkgId: packageResponseBody['id'], // tslint:disable-line
         })
 
-    if (options.dryRun) {
+    if (options.skipFetch) {
       return {
         body: packageResponseBody,
         fetchingManifest,
