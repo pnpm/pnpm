@@ -166,7 +166,12 @@
   },
   "greenkeeper": {
     "ignore": [
+      "@pnpm/default-fetcher",
+      "@pnpm/default-resolver",
       "@pnpm/logger",
+      "@pnpm/outdated",
+      "@pnpm/server",
+      "@pnpm/types",
       "pnpm-default-reporter",
       "pnpm-file-reporter",
       "pnpm-install-checks",
