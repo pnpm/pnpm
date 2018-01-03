@@ -19,7 +19,7 @@ test('install with shrinkwrapOnly = true', async (t: tape.Test) => {
   await installPkgs(['rimraf@2.5.1'], testDefaults({shrinkwrapOnly: true}))
 
   await project.storeHasNot('rimraf', '2.5.1')
-  project.hasNot('rimraf')
+  await project.hasNot('rimraf')
 
   const pkg = await loadJsonFile('package.json')
   t.ok(pkg.dependencies['rimraf'], 'the new dependency added to package.json')
@@ -50,7 +50,7 @@ test('warn when installing with shrinkwrapOnly = true and node_modules exists', 
   }), 'log warning')
 
   await project.storeHasNot('rimraf', '2.5.1')
-  project.hasNot('rimraf')
+  await project.hasNot('rimraf')
 
   const pkg = await loadJsonFile('package.json')
   t.ok(pkg.dependencies['rimraf'], 'the new dependency added to package.json')

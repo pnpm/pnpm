@@ -774,7 +774,7 @@ test('install on project with lockfile and no node_modules', async (t: tape.Test
 
   t.ok(project.requireModule('is-positive'), 'installed new dependency')
 
-  t.ok(project.hasNot('is-negative'), 'did not reinstall removed dependency')
+  await project.hasNot('is-negative')
 })
 
 test('install a dependency with * range', async (t: tape.Test) => {
@@ -787,7 +787,7 @@ test('install a dependency with * range', async (t: tape.Test) => {
 
   await install(testDefaults({reporter}))
 
-  project.has('has-beta-only')
+  await project.has('has-beta-only')
 
   t.ok(reporter.calledWithMatch(<PackageJsonLog>{
     name: 'pnpm:package-json',

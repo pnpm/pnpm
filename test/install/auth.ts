@@ -50,7 +50,7 @@ test('a package that need authentication', async function (t: tape.Test) {
     },
   }))
 
-  project.has('needs-auth')
+  await project.has('needs-auth')
 })
 
 test('a package that need authentication, legacy way', async function (t: tape.Test) {
@@ -106,7 +106,7 @@ test('a scoped package that need authentication specific to scope', async functi
   })
   await installPkgs(['@private/foo'], opts)
 
-  project.has('@private/foo')
+  await project.has('@private/foo')
 
   // should work when a shrinkwrap is available
   await rimraf('node_modules')
@@ -114,7 +114,7 @@ test('a scoped package that need authentication specific to scope', async functi
 
   await installPkgs(['@private/foo'], opts)
 
-  project.has('@private/foo')
+  await project.has('@private/foo')
 })
 
 test('a package that need authentication reuses authorization tokens for tarball fetching', async function (t: tape.Test) {

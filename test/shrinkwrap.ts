@@ -551,7 +551,7 @@ test['skip']('installing from shrinkwrap when using npm enterprise', async (t: t
 
   await install(opts)
 
-  project.has('is-positive')
+  await project.has('is-positive')
 })
 
 test('packages are placed in devDependencies even if they are present as non-dev as well', async (t: tape.Test) => {
