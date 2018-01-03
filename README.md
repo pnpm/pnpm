@@ -38,6 +38,11 @@ Reads the shrinkwrap file from `node_modules/.shrinkwrap.yaml`.
 
 Writes the wanted/current shrinkwrap files. When they are empty, removes them.
 
+### `writeWantedOnly(pkgPath, wantedShrinkwrap) => Promise<void>`
+
+Writes the wanted shrinkwrap file only. Sometimes it is needed just to update the wanted shrinkwrap
+without touching `node_modules`.
+
 ### `prune(shrinkwrap, package) => Promise<Shrinkwrap>`
 
 Prunes a shrinkwrap file. Prunning means removing packages that are not referenced.
