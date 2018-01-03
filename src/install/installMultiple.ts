@@ -274,6 +274,7 @@ async function install (
     verifyStoreIntegrity: ctx.verifyStoreInegrity,
     downloadPriority: -options.currentDepth,
     preferredVersions: ctx.preferredVersions,
+    skipFetch: ctx.dryRun,
   })
 
   if (pkgResponse.body.isLocal) {

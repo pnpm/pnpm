@@ -36,6 +36,7 @@ import extendOptions from './extendOptions'
 import lock from './lock'
 import {
   write as saveShrinkwrap,
+  writeWantedOnly as saveWantedShrinkwrapOnly,
   Shrinkwrap,
   ResolvedDependencies,
 } from 'pnpm-shrinkwrap'
@@ -78,6 +79,7 @@ export type TreeNodeMap = {
 }
 
 export type InstallContext = {
+  dryRun: boolean,
   installs: InstalledPackages,
   outdatedPkgs: {[pkgId: string]: string},
   localPackages: {
@@ -306,6 +308,10 @@ async function installInContext (
     !shrinkwrapsEqual(ctx.currentShrinkwrap, ctx.wantedShrinkwrap)
   )
 
+  if (opts.shrinkwrapOnly && ctx.existsCurrentShrinkwrap) {
+    logger.warn('`node_modules` is present. Shrinkwrap only installation will make it out-of-date')
+  }
+
   const nodeModulesPath = path.join(ctx.root, 'node_modules')
 
   // This works from minor version 1, so any number is fine
@@ -313,6 +319,7 @@ async function installInContext (
   const hasManifestInShrinkwrap = typeof ctx.wantedShrinkwrap.shrinkwrapMinorVersion === 'number'
 
   const installCtx: InstallContext = {
+    dryRun: opts.shrinkwrapOnly,
     installs: {},
     outdatedPkgs: {},
     localPackages: [],
@@ -502,6 +509,7 @@ async function installInContext (
     : []
 
   const result = await linkPackages(rootNodeIdsByAlias, installCtx.tree, {
+    dryRun: opts.shrinkwrapOnly,
     force: opts.force,
     global: opts.global,
     baseNodeModules: nodeModulesPath,
@@ -532,62 +540,66 @@ async function installInContext (
       .concat(result.newPkgResolvedIds.map(absolutePath => dp.relative(ctx.wantedShrinkwrap.registry, absolutePath)))
   }
 
-  await Promise.all([
-    saveShrinkwrap(ctx.root, result.wantedShrinkwrap, result.currentShrinkwrap),
-    result.currentShrinkwrap.packages === undefined && result.removedPkgIds.size === 0
-      ? Promise.resolve()
-      : saveModules(path.join(ctx.root, 'node_modules'), {
-        packageManager: `${opts.packageManager.name}@${opts.packageManager.version}`,
-        store: ctx.storePath,
-        skipped: Array.from(installCtx.skipped),
-        layoutVersion: LAYOUT_VERSION,
-        independentLeaves: opts.independentLeaves,
-        pendingBuilds: ctx.pendingBuilds,
-      }),
-  ])
+  if (opts.shrinkwrapOnly) {
+    await saveWantedShrinkwrapOnly(ctx.root, result.wantedShrinkwrap)
+  } else {
+    await Promise.all([
+      saveShrinkwrap(ctx.root, result.wantedShrinkwrap, result.currentShrinkwrap),
+      result.currentShrinkwrap.packages === undefined && result.removedPkgIds.size === 0
+        ? Promise.resolve()
+        : saveModules(path.join(ctx.root, 'node_modules'), {
+          packageManager: `${opts.packageManager.name}@${opts.packageManager.version}`,
+          store: ctx.storePath,
+          skipped: Array.from(installCtx.skipped),
+          layoutVersion: LAYOUT_VERSION,
+          independentLeaves: opts.independentLeaves,
+          pendingBuilds: ctx.pendingBuilds,
+        }),
+    ])
 
-  // postinstall hooks
-  if (!(opts.ignoreScripts || !result.newPkgResolvedIds || !result.newPkgResolvedIds.length)) {
-    const limitChild = pLimit(opts.childConcurrency)
-    await Promise.all(
-      R.props<string, DependencyTreeNode>(result.newPkgResolvedIds, result.linkedPkgsMap)
-        .map(pkg => limitChild(async () => {
-          try {
-            await postInstall(pkg.hardlinkedLocation, {
-              rawNpmConfig: installCtx.rawNpmConfig,
-              initialWD: ctx.root,
-              userAgent: opts.userAgent,
-              pkgId: pkg.id,
-              unsafePerm: opts.unsafePerm || false,
-            })
-          } catch (err) {
-            if (installCtx.installs[pkg.id].optional) {
-              logger.warn({
-                message: `Skipping failed optional dependency ${pkg.id}`,
-                err,
+    // postinstall hooks
+    if (!(opts.ignoreScripts || !result.newPkgResolvedIds || !result.newPkgResolvedIds.length)) {
+      const limitChild = pLimit(opts.childConcurrency)
+      await Promise.all(
+        R.props<string, DependencyTreeNode>(result.newPkgResolvedIds, result.linkedPkgsMap)
+          .map(pkg => limitChild(async () => {
+            try {
+              await postInstall(pkg.hardlinkedLocation, {
+                rawNpmConfig: installCtx.rawNpmConfig,
+                initialWD: ctx.root,
+                userAgent: opts.userAgent,
+                pkgId: pkg.id,
+                unsafePerm: opts.unsafePerm || false,
               })
-              return
+            } catch (err) {
+              if (installCtx.installs[pkg.id].optional) {
+                logger.warn({
+                  message: `Skipping failed optional dependency ${pkg.id}`,
+                  err,
+                })
+                return
+              }
+              throw err
             }
-            throw err
-          }
-        })
+          })
+        )
       )
-    )
-  }
-
-  if (installCtx.localPackages.length) {
-    const linkOpts = {
-      ...opts,
-      skipInstall: true,
-      linkToBin: opts.bin,
     }
-    await Promise.all(installCtx.localPackages.map(async localPackage => {
-      await externalLink(localPackage.resolution.directory, opts.prefix, linkOpts)
-      logStatus({
-        status: 'installed',
-        pkgId: localPackage.id,
-      })
-    }))
+
+    if (installCtx.localPackages.length) {
+      const linkOpts = {
+        ...opts,
+        skipInstall: true,
+        linkToBin: opts.bin,
+      }
+      await Promise.all(installCtx.localPackages.map(async localPackage => {
+        await externalLink(localPackage.resolution.directory, opts.prefix, linkOpts)
+        logStatus({
+          status: 'installed',
+          pkgId: localPackage.id,
+        })
+      }))
+    }
   }
 
   // waiting till the skipped packages are downloaded to the store

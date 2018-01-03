@@ -11,6 +11,7 @@ import {statsLogger} from '../loggers'
 
 export default async function removeOrphanPkgs (
   opts: {
+    dryRun?: boolean,
     oldShrinkwrap: Shrinkwrap,
     newShrinkwrap: Shrinkwrap,
     bin: string,
@@ -31,6 +32,7 @@ export default async function removeOrphanPkgs (
       dev: Boolean(opts.oldShrinkwrap.devDependencies && opts.oldShrinkwrap.devDependencies[depName[0]]),
       optional: Boolean(opts.oldShrinkwrap.optionalDependencies && opts.oldShrinkwrap.optionalDependencies[depName[0]]),
     }, {
+      dryRun: opts.dryRun,
       modules: rootModules,
       bin: opts.bin,
     })
@@ -42,21 +44,24 @@ export default async function removeOrphanPkgs (
   const notDependents = R.difference(oldPkgIds, newPkgIds)
 
   statsLogger.debug({removed: notDependents.length})
-  if (notDependents.length) {
-    await Promise.all(notDependents.map(async notDependent => {
-      await rimraf(path.join(rootModules, `.${notDependent}`))
-    }))
+
+  if (!opts.dryRun) {
+    if (notDependents.length) {
+      await Promise.all(notDependents.map(async notDependent => {
+        await rimraf(path.join(rootModules, `.${notDependent}`))
+      }))
+    }
+
+    const newDependents = R.difference(newPkgIds, oldPkgIds)
+
+    await opts.storeController.updateConnections(opts.prefix, {
+      prune: opts.pruneStore || false,
+      removeDependencies: notDependents,
+      addDependencies: newDependents,
+    })
+
+    await opts.storeController.saveState()
   }
-
-  const newDependents = R.difference(newPkgIds, oldPkgIds)
-
-  await opts.storeController.updateConnections(opts.prefix, {
-    prune: opts.pruneStore || false,
-    removeDependencies: notDependents,
-    addDependencies: newDependents,
-  })
-
-  await opts.storeController.saveState()
 
   return new Set(notDependents)
 }
