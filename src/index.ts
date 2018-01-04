@@ -2,13 +2,26 @@ import createResolveFromGit from '@pnpm/git-resolver'
 import resolveFromLocal from '@pnpm/local-resolver'
 import createResolveFromNpm from '@pnpm/npm-resolver'
 import resolveFromTarball from '@pnpm/tarball-resolver'
-import {PnpmOptions} from '@pnpm/types'
 
 export default function createResolver (
-  pnpmOpts: PnpmOptions & {
+  pnpmOpts: {
     rawNpmConfig: object,
     metaCache: Map<string, object>,
     store: string,
+    // TODO: export options type from @pnpm/npm-resolver
+    cert?: string,
+    key?: string,
+    ca?: string,
+    strictSsl?: boolean,
+    proxy?: string,
+    httpsProxy?: string,
+    localAddress?: string,
+    userAgent?: string,
+    offline?: boolean,
+    fetchRetries?: number,
+    fetchRetryFactor?: number,
+    fetchRetryMintimeout?: number,
+    fetchRetryMaxtimeout?: number,
   },
 ) {
   const resolveFromNpm = createResolveFromNpm(pnpmOpts)
