@@ -1,7 +1,6 @@
 dependencies:
   '@pnpm/git-fetcher': 0.2.0
   '@pnpm/tarball-fetcher': 0.3.1
-  '@pnpm/types': 1.3.0
 devDependencies:
   '@pnpm/logger': 1.0.0
   '@types/tape': 4.2.31
@@ -68,10 +67,6 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha512-gnh1si28RSaPqiaMKF7dlIOcrVrJOfjb7oIc9OPeIPE/1A5bxrEYpwU8G8c8pt3ELdgDGTQ35k6N1ioBFbuLPQ==
-  /@pnpm/types/1.3.0:
-    dev: false
-    resolution:
-      integrity: sha512-dhW0tHPWT19r1lwgv2RMnt31oC6PcsNeGcUlIDYRmC+J7g7Rcm19tZ0xmIAqh9R+U2Uw3PecXsuz+jkC/r5h+A==
   /@sindresorhus/is/0.6.0:
     dev: true
     engines:
@@ -3597,7 +3592,6 @@ specifiers:
   '@pnpm/git-fetcher': ^0.2.0
   '@pnpm/logger': ^1.0.0
   '@pnpm/tarball-fetcher': ^0.3.0
-  '@pnpm/types': ^1.2.1
   '@types/tape': ^4.2.31
   mos: ^2.0.0-alpha.3
   mos-plugin-readme: ^1.0.4
