@@ -1,7 +1,3 @@
-import {
-  PackageManifest,
-  PnpmOptions,
-} from '@pnpm/types'
 import getCredentialsByURI = require('credentials-by-uri')
 import createRegFetcher from 'fetch-from-npm-registry'
 import mem = require('mem')
@@ -16,16 +12,24 @@ import loadPkgMeta, {
 import parsePref from './parsePref'
 import toRaw from './toRaw'
 
-export {
-  PackageManifest,
-  PackageMeta,
-}
-
 export default function createResolver (
-  opts: PnpmOptions & {
+  opts: {
+    cert?: string,
+    key?: string,
+    ca?: string,
+    strictSsl?: boolean,
     rawNpmConfig: object,
     metaCache: Map<string, object>,
     store: string,
+    proxy?: string,
+    httpsProxy?: string,
+    localAddress?: string,
+    userAgent?: string,
+    offline?: boolean,
+    fetchRetries?: number,
+    fetchRetryFactor?: number,
+    fetchRetryMintimeout?: number,
+    fetchRetryMaxtimeout?: number,
   },
 ) {
   if (typeof opts.rawNpmConfig !== 'object') {
