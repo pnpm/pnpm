@@ -40,7 +40,7 @@ if (!caw() && !IS_WINDOWS) {
 
 test('small with dependencies (rimraf)', async (t: tape.Test) => {
   const project = prepare(t)
-  await installPkgs(['rimraf@2.5.1'], testDefaults())
+  await installPkgs(['rimraf@2.5.1'], await testDefaults())
 
   const m = project.requireModule('rimraf')
   t.ok(typeof m === 'function', 'rimraf() is available')
@@ -51,7 +51,7 @@ test('ignoring some files in the dependency', async (t: tape.Test) => {
   const project = prepare(t)
 
   const ignoreFile = (filename: string) => filename === 'readme.md'
-  await installPkgs(['is-positive@1.0.0'], testDefaults({ignoreFile}))
+  await installPkgs(['is-positive@1.0.0'], await testDefaults({}, {}, {ignoreFile}))
 
   t.ok(await exists(path.resolve('node_modules', 'is-positive', 'package.json')), 'package.json was not ignored')
   t.notOk(await exists(path.resolve('node_modules', 'is-positive', 'readme.md')), 'readme.md was ignored')
@@ -63,7 +63,7 @@ test('no dependencies (lodash)', async (t: tape.Test) => {
 
   await addDistTag('lodash', '4.1.0', 'latest')
 
-  await installPkgs(['lodash@4.0.0'], testDefaults({reporter}))
+  await installPkgs(['lodash@4.0.0'], await testDefaults({reporter}))
 
   t.ok(reporter.calledWithMatch(<PackageJsonLog>{
     name: 'pnpm:package-json',
@@ -120,7 +120,7 @@ test('no dependencies (lodash)', async (t: tape.Test) => {
 
 test('scoped modules without version spec (@rstacruz/tap-spec)', async function (t) {
   const project = prepare(t)
-  await installPkgs(['@rstacruz/tap-spec'], testDefaults())
+  await installPkgs(['@rstacruz/tap-spec'], await testDefaults())
 
   const m = project.requireModule('@rstacruz/tap-spec')
   t.ok(typeof m === 'function', 'tap-spec is available')
@@ -129,7 +129,7 @@ test('scoped modules without version spec (@rstacruz/tap-spec)', async function 
 test('scoped package with custom registry', async function (t) {
   const project = prepare(t)
 
-  await installPkgs(['@scoped/peer'], testDefaults({
+  await installPkgs(['@scoped/peer'], await testDefaults({
     // setting an incorrect default registry URL
     registry: 'http://localhost:9999/',
     rawNpmConfig: {
@@ -149,7 +149,7 @@ test('modules without version spec, with custom tag config', async function (t) 
   await addDistTag('dep-of-pkg-with-1-dep', '100.1.0', 'latest')
   await addDistTag('dep-of-pkg-with-1-dep', '100.0.0', tag)
 
-  await installPkgs(['dep-of-pkg-with-1-dep'], testDefaults({tag}))
+  await installPkgs(['dep-of-pkg-with-1-dep'], await testDefaults({tag}))
 
   await project.storeHas('dep-of-pkg-with-1-dep', '100.0.0')
 })
@@ -160,7 +160,7 @@ test('installing a package by specifying a specific dist-tag', async function (t
   await addDistTag('dep-of-pkg-with-1-dep', '100.1.0', 'latest')
   await addDistTag('dep-of-pkg-with-1-dep', '100.0.0', 'beta')
 
-  await installPkgs(['dep-of-pkg-with-1-dep@beta'], testDefaults())
+  await installPkgs(['dep-of-pkg-with-1-dep@beta'], await testDefaults())
 
   await project.storeHas('dep-of-pkg-with-1-dep', '100.0.0')
 })
@@ -171,11 +171,11 @@ test('update a package when installing with a dist-tag', async function (t: tape
   await addDistTag('dep-of-pkg-with-1-dep', '100.0.0', 'latest')
   await addDistTag('dep-of-pkg-with-1-dep', '100.1.0', 'beta')
 
-  await installPkgs(['dep-of-pkg-with-1-dep'], testDefaults({saveDev: true}))
+  await installPkgs(['dep-of-pkg-with-1-dep'], await testDefaults({saveDev: true}))
 
   const reporter = sinon.spy()
 
-  await installPkgs(['dep-of-pkg-with-1-dep@beta'], testDefaults({saveDev: true, reporter}))
+  await installPkgs(['dep-of-pkg-with-1-dep@beta'], await testDefaults({saveDev: true, reporter}))
 
   t.ok(reporter.calledWithMatch(<RootLog>{
     name: 'pnpm:root',
@@ -206,7 +206,7 @@ test('update a package when installing with a dist-tag', async function (t: tape
 
 test('scoped modules with versions (@rstacruz/tap-spec@4.1.1)', async function (t) {
   const project = prepare(t)
-  await installPkgs(['@rstacruz/tap-spec@4.1.1'], testDefaults())
+  await installPkgs(['@rstacruz/tap-spec@4.1.1'], await testDefaults())
 
   const m = project.requireModule('@rstacruz/tap-spec')
   t.ok(typeof m === 'function', 'tap-spec is available')
@@ -214,7 +214,7 @@ test('scoped modules with versions (@rstacruz/tap-spec@4.1.1)', async function (
 
 test('scoped modules (@rstacruz/tap-spec@*)', async function (t) {
   const project = prepare(t)
-  await installPkgs(['@rstacruz/tap-spec@*'], testDefaults())
+  await installPkgs(['@rstacruz/tap-spec@*'], await testDefaults())
 
   const m = project.requireModule('@rstacruz/tap-spec')
   t.ok(typeof m === 'function', 'tap-spec is available')
@@ -222,7 +222,7 @@ test('scoped modules (@rstacruz/tap-spec@*)', async function (t) {
 
 test('multiple scoped modules (@rstacruz/...)', async function (t) {
   const project = prepare(t)
-  await installPkgs(['@rstacruz/tap-spec@*', '@rstacruz/travis-encrypt@*'], testDefaults())
+  await installPkgs(['@rstacruz/tap-spec@*', '@rstacruz/travis-encrypt@*'], await testDefaults())
 
   t.equal(typeof project.requireModule('@rstacruz/tap-spec'), 'function', 'tap-spec is available')
   t.equal(typeof project.requireModule('@rstacruz/travis-encrypt'), 'function', 'travis-encrypt is available')
@@ -230,7 +230,7 @@ test('multiple scoped modules (@rstacruz/...)', async function (t) {
 
 test('nested scoped modules (test-pnpm-issue219 -> @zkochan/test-pnpm-issue219)', async function (t) {
   const project = prepare(t)
-  await installPkgs(['test-pnpm-issue219@1.0.2'], testDefaults())
+  await installPkgs(['test-pnpm-issue219@1.0.2'], await testDefaults())
 
   const m = project.requireModule('test-pnpm-issue219')
   t.ok(m === 'test-pnpm-issue219,@zkochan/test-pnpm-issue219', 'nested scoped package is available')
@@ -239,7 +239,7 @@ test('nested scoped modules (test-pnpm-issue219 -> @zkochan/test-pnpm-issue219)'
 test('idempotency (rimraf)', async (t: tape.Test) => {
   const project = prepare(t)
   const reporter = sinon.spy()
-  const opts = testDefaults({reporter})
+  const opts = await testDefaults({reporter})
 
   await installPkgs(['rimraf@2.5.1'], opts)
 
@@ -273,13 +273,13 @@ test('idempotency (rimraf)', async (t: tape.Test) => {
 
 test('reporting adding root package', async (t: tape.Test) => {
   const project = prepare(t)
-  await installPkgs(['magic-hook@2.0.0'], testDefaults())
+  await installPkgs(['magic-hook@2.0.0'], await testDefaults())
 
   await project.storeHas('flatten', '1.0.2')
 
   const reporter = sinon.spy()
 
-  await installPkgs(['flatten@1.0.2'], testDefaults({reporter}))
+  await installPkgs(['flatten@1.0.2'], await testDefaults({reporter}))
 
   t.ok(reporter.calledWithMatch(<RootLog>{
     name: 'pnpm:root',
@@ -294,11 +294,11 @@ test('reporting adding root package', async (t: tape.Test) => {
 
 test('overwriting (magic-hook@2.0.0 and @0.1.0)', async (t: tape.Test) => {
   const project = prepare(t)
-  await installPkgs(['magic-hook@2.0.0'], testDefaults())
+  await installPkgs(['magic-hook@2.0.0'], await testDefaults())
 
   await project.storeHas('flatten', '1.0.2')
 
-  await installPkgs(['magic-hook@0.1.0'], testDefaults())
+  await installPkgs(['magic-hook@0.1.0'], await testDefaults())
 
   // flatten is not removed from store even though it is unreferenced
   // store should be pruned to have this removed
@@ -310,23 +310,23 @@ test('overwriting (magic-hook@2.0.0 and @0.1.0)', async (t: tape.Test) => {
 
 test('overwriting (is-positive@3.0.0 with is-positive@latest)', async function (t) {
   const project = prepare(t)
-  await installPkgs(['is-positive@3.0.0'], testDefaults({save: true}))
+  await installPkgs(['is-positive@3.0.0'], await testDefaults({save: true}))
 
   await project.storeHas('is-positive', '3.0.0')
 
-  await installPkgs(['is-positive@latest'], testDefaults({save: true}))
+  await installPkgs(['is-positive@latest'], await testDefaults({save: true}))
 
   await project.storeHas('is-positive', '3.1.0')
 })
 
 test('forcing', async function (t) {
   const project = prepare(t)
-  await installPkgs(['magic-hook@2.0.0'], testDefaults())
+  await installPkgs(['magic-hook@2.0.0'], await testDefaults())
 
   const distPath = path.resolve('node_modules', 'magic-hook', 'dist')
   await rimraf(distPath)
 
-  await installPkgs(['magic-hook@2.0.0'], testDefaults({force: true}))
+  await installPkgs(['magic-hook@2.0.0'], await testDefaults({force: true}))
 
   const distPathExists = await exists(distPath)
   t.ok(distPathExists, 'magic-hook@2.0.0 dist folder reinstalled')
@@ -334,12 +334,12 @@ test('forcing', async function (t) {
 
 test('argumentless forcing', async function (t: tape.Test) {
   const project = prepare(t)
-  await installPkgs(['magic-hook@2.0.0'], testDefaults())
+  await installPkgs(['magic-hook@2.0.0'], await testDefaults())
 
   const distPath = path.resolve('node_modules', 'magic-hook', 'dist')
   await rimraf(distPath)
 
-  await install(testDefaults({force: true}))
+  await install(await testDefaults({force: true}))
 
   const distPathExists = await exists(distPath)
   t.ok(distPathExists, 'magic-hook@2.0.0 dist folder reinstalled')
@@ -347,12 +347,12 @@ test('argumentless forcing', async function (t: tape.Test) {
 
 test('no forcing', async function (t) {
   const project = prepare(t)
-  await installPkgs(['magic-hook@2.0.0'], testDefaults())
+  await installPkgs(['magic-hook@2.0.0'], await testDefaults())
 
   const distPath = path.resolve('node_modules', 'magic-hook', 'dist')
   await rimraf(distPath)
 
-  await installPkgs(['magic-hook@2.0.0'], testDefaults())
+  await installPkgs(['magic-hook@2.0.0'], await testDefaults())
 
   const distPathExists = await exists(distPath)
   t.notOk(distPathExists, 'magic-hook@2.0.0 dist folder not reinstalled')
@@ -360,14 +360,14 @@ test('no forcing', async function (t) {
 
 test('refetch package to store if it has been modified', async function (t) {
   const project = prepare(t)
-  await installPkgs(['magic-hook@2.0.0'], testDefaults())
+  await installPkgs(['magic-hook@2.0.0'], await testDefaults())
 
   const distPathInStore = await project.resolve('magic-hook', '2.0.0', 'dist')
   await rimraf(distPathInStore)
   await rimraf('node_modules')
   const distPath = path.resolve('node_modules', 'magic-hook', 'dist')
 
-  await installPkgs(['magic-hook@2.0.0'], testDefaults())
+  await installPkgs(['magic-hook@2.0.0'], await testDefaults())
 
   const distPathExists = await exists(distPath)
   t.ok(distPathExists, 'magic-hook@2.0.0 dist folder reinstalled')
@@ -375,7 +375,7 @@ test('refetch package to store if it has been modified', async function (t) {
 
 test("don't refetch package to store if it has been modified and verify-store-integrity = false", async (t: tape.Test) => {
   const project = prepare(t)
-  const opts = testDefaults({verifyStoreIntegrity: false})
+  const opts = await testDefaults({verifyStoreIntegrity: false})
   await installPkgs(['magic-hook@2.0.0'], opts)
 
   await writeJsonFile(path.join(await project.getStorePath(), 'localhost+4873', 'magic-hook', '2.0.0', 'node_modules', 'magic-hook', 'package.json'), {})
@@ -390,7 +390,7 @@ test("don't refetch package to store if it has been modified and verify-store-in
 // TODO: decide what to do with this case
 test['skip']('relink package to project if the dependency is not linked from store', async function (t: tape.Test) {
   const project = prepare(t)
-  await installPkgs(['magic-hook@2.0.0'], testDefaults({save: true, saveExact: true}))
+  await installPkgs(['magic-hook@2.0.0'], await testDefaults({save: true, saveExact: true}))
 
   const pkgJsonPath = path.resolve('node_modules', 'magic-hook', 'package.json')
 
@@ -407,14 +407,14 @@ test['skip']('relink package to project if the dependency is not linked from sto
 
   t.ok(storeInode !== await getInode(), 'package.json inode changed')
 
-  await install(testDefaults({repeatInstallDepth: 0}))
+  await install(await testDefaults({repeatInstallDepth: 0}))
 
   t.ok(storeInode === await getInode(), 'package.json inode matches the one that is in store')
 })
 
 test('circular deps', async function (t: tape.Test) {
   const project = prepare(t)
-  await installPkgs(['circular-deps-1-of-2'], testDefaults())
+  await installPkgs(['circular-deps-1-of-2'], await testDefaults())
 
   const m = project.requireModule('circular-deps-1-of-2/mirror')
 
@@ -430,7 +430,7 @@ test('concurrent circular deps', async (t: tape.Test) => {
   await addDistTag('es6-iterator', '2.0.1', 'latest')
 
   const project = prepare(t)
-  await installPkgs(['es6-iterator@2.0.0'], testDefaults())
+  await installPkgs(['es6-iterator@2.0.0'], await testDefaults())
 
   const m = project.requireModule('es6-iterator')
 
@@ -446,7 +446,7 @@ test('concurrent installation of the same packages', async function (t) {
 
   // the same version of core-js is required by two different dependencies
   // of babek-core
-  await installPkgs(['babel-core@6.21.0'], testDefaults())
+  await installPkgs(['babel-core@6.21.0'], await testDefaults())
 
   const m = project.requireModule('babel-core')
 
@@ -455,7 +455,7 @@ test('concurrent installation of the same packages', async function (t) {
 
 test('big with dependencies and circular deps (babel-preset-2015)', async function (t) {
   const project = prepare(t)
-  await installPkgs(['babel-preset-es2015@6.3.13'], testDefaults())
+  await installPkgs(['babel-preset-es2015@6.3.13'], await testDefaults())
 
   const m = project.requireModule('babel-preset-es2015')
   t.ok(typeof m === 'object', 'babel-preset-es2015 is available')
@@ -464,7 +464,7 @@ test('big with dependencies and circular deps (babel-preset-2015)', async functi
 test('bundledDependencies (pkg-with-bundled-dependencies@1.0.0)', async function (t: tape.Test) {
   const project = prepare(t)
 
-  await installPkgs(['pkg-with-bundled-dependencies@1.0.0'], testDefaults())
+  await installPkgs(['pkg-with-bundled-dependencies@1.0.0'], await testDefaults())
 
   await project.isExecutable('pkg-with-bundled-dependencies/node_modules/.bin/hello-world-js-bin')
 
@@ -479,7 +479,7 @@ test('bundledDependencies (pkg-with-bundled-dependencies@1.0.0)', async function
 test('bundleDependencies (pkg-with-bundle-dependencies@1.0.0)', async function (t: tape.Test) {
   const project = prepare(t)
 
-  await installPkgs(['pkg-with-bundle-dependencies@1.0.0'], testDefaults())
+  await installPkgs(['pkg-with-bundle-dependencies@1.0.0'], await testDefaults())
 
   await project.isExecutable('pkg-with-bundle-dependencies/node_modules/.bin/hello-world-js-bin')
 
@@ -499,7 +499,7 @@ test('compiled modules (ursa@0.9.1)', async function (t) {
   }
 
   const project = prepare(t)
-  await installPkgs(['ursa@0.9.1'], testDefaults())
+  await installPkgs(['ursa@0.9.1'], await testDefaults())
 
   const m = project.requireModule('ursa')
   t.ok(typeof m === 'object', 'ursa() is available')
@@ -512,7 +512,7 @@ test('shrinkwrap compatibility', async function (t) {
   }
   const project = prepare(t, { dependencies: { rimraf: '*' } })
 
-  await installPkgs(['rimraf@2.5.1'], testDefaults())
+  await installPkgs(['rimraf@2.5.1'], await testDefaults())
 
   return new Promise((resolve, reject) => {
     const proc = crossSpawn.spawn('npm', ['shrinkwrap'])
@@ -534,11 +534,11 @@ const wait = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
 test('support installing into the same store simultaneously', async t => {
   const project = prepare(t)
   await Promise.all([
-    installPkgs(['pkg-that-installs-slowly'], testDefaults()),
+    installPkgs(['pkg-that-installs-slowly'], await testDefaults()),
     wait(500) // to be sure that lock was created
       .then(async () => {
         await project.storeHasNot('pkg-that-installs-slowly')
-        await installPkgs(['rimraf@2.5.1'], testDefaults())
+        await installPkgs(['rimraf@2.5.1'], await testDefaults())
       })
       .then(async  () => {
         await project.has('pkg-that-installs-slowly')
@@ -551,11 +551,11 @@ test('support installing into the same store simultaneously', async t => {
 test('support installing and uninstalling from the same store simultaneously', async t => {
   const project = prepare(t)
   await Promise.all([
-    installPkgs(['pkg-that-installs-slowly'], testDefaults()),
+    installPkgs(['pkg-that-installs-slowly'], await testDefaults()),
     wait(500) // to be sure that lock was created
       .then(async () => {
         await project.storeHasNot('pkg-that-installs-slowly')
-        await uninstall(['rimraf@2.5.1'], testDefaults())
+        await uninstall(['rimraf@2.5.1'], await testDefaults())
       })
       .then(async () => {
         await project.has('pkg-that-installs-slowly')
@@ -571,7 +571,7 @@ test('top-level packages should find the plugins they use', async function (t) {
       test: 'pkg-that-uses-plugins'
     }
   })
-  await installPkgs(['pkg-that-uses-plugins', 'plugin-example'], testDefaults({ save: true }))
+  await installPkgs(['pkg-that-uses-plugins', 'plugin-example'], await testDefaults({ save: true }))
   const result = spawnSync('npm', ['test'])
   t.ok(result.stdout.toString().indexOf('My plugin is plugin-example') !== -1, 'package executable have found its plugin')
   t.equal(result.status, 0, 'executable exited with success')
@@ -584,7 +584,7 @@ test('not top-level packages should find the plugins they use', async function (
       test: 'standard'
     }
   })
-  await installPkgs(['standard@8.6.0'], testDefaults({ save: true }))
+  await installPkgs(['standard@8.6.0'], await testDefaults({ save: true }))
   const result = spawnSync('npm', ['test'])
   t.equal(result.status, 0, 'standard exited with success')
 })
@@ -592,7 +592,7 @@ test('not top-level packages should find the plugins they use', async function (
 test('bin specified in the directories property linked to .bin folder', async function (t) {
   const project = prepare(t)
 
-  await installPkgs(['pkg-with-directories-bin'], testDefaults())
+  await installPkgs(['pkg-with-directories-bin'], await testDefaults())
 
   await project.isExecutable('.bin/pkg-with-directories-bin')
 })
@@ -603,7 +603,7 @@ test('run js bin file', async function (t) {
       test: 'hello-world-js-bin'
     }
   })
-  await installPkgs(['hello-world-js-bin'], testDefaults({ save: true }))
+  await installPkgs(['hello-world-js-bin'], await testDefaults({ save: true }))
 
   const result = spawnSync('npm', ['test'])
   t.ok(result.stdout.toString().indexOf('Hello world!') !== -1, 'package executable printed its message')
@@ -613,7 +613,7 @@ test('run js bin file', async function (t) {
 test('building native addons', async function (t) {
   const project = prepare(t)
 
-  await installPkgs(['runas@3.1.1'], testDefaults())
+  await installPkgs(['runas@3.1.1'], await testDefaults())
 
   t.ok(await exists(path.join('node_modules', 'runas', 'build')), 'build folder created')
 })
@@ -623,7 +623,7 @@ test('should update subdep on second install', async (t: tape.Test) => {
 
   await addDistTag('dep-of-pkg-with-1-dep', '100.0.0', 'latest')
 
-  await installPkgs(['pkg-with-1-dep'], testDefaults({save: true}))
+  await installPkgs(['pkg-with-1-dep'], await testDefaults({save: true}))
 
   await project.storeHas('dep-of-pkg-with-1-dep', '100.0.0')
 
@@ -635,7 +635,7 @@ test('should update subdep on second install', async (t: tape.Test) => {
 
   const reporter = sinon.spy()
 
-  await install(testDefaults({depth: 1, update: true, reporter}))
+  await install(await testDefaults({depth: 1, update: true, reporter}))
 
   t.ok(reporter.calledWithMatch(<StatsLog>{
     name: 'pnpm:stats',
@@ -658,7 +658,7 @@ test('should not update subdep when depth is smaller than depth of package', asy
 
   await addDistTag('dep-of-pkg-with-1-dep', '100.0.0', 'latest')
 
-  await installPkgs(['pkg-with-1-dep'], testDefaults({save: true}))
+  await installPkgs(['pkg-with-1-dep'], await testDefaults({save: true}))
 
   await project.storeHas('dep-of-pkg-with-1-dep', '100.0.0')
 
@@ -668,7 +668,7 @@ test('should not update subdep when depth is smaller than depth of package', asy
 
   await addDistTag('dep-of-pkg-with-1-dep', '100.1.0', 'latest')
 
-  await install(testDefaults({depth: 0, update: true}))
+  await install(await testDefaults({depth: 0, update: true}))
 
   await project.storeHas('dep-of-pkg-with-1-dep', '100.0.0')
 
@@ -683,12 +683,12 @@ test('should not update subdep when depth is smaller than depth of package', asy
 test('should install dependency in second project', async function (t) {
   const project1 = prepare(t)
 
-  await installPkgs(['pkg-with-1-dep'], testDefaults({save: true, store: '../store'}))
+  await installPkgs(['pkg-with-1-dep'], await testDefaults({save: true, store: '../store'}))
   t.equal(project1.requireModule('pkg-with-1-dep')().name, 'dep-of-pkg-with-1-dep', 'can require in 1st pkg')
 
   const project2 = prepare(t)
 
-  await installPkgs(['pkg-with-1-dep'], testDefaults({save: true, store: '../store'}))
+  await installPkgs(['pkg-with-1-dep'], await testDefaults({save: true, store: '../store'}))
 
   t.equal(project2.requireModule('pkg-with-1-dep')().name, 'dep-of-pkg-with-1-dep', 'can require in 2nd pkg')
 })
@@ -696,10 +696,10 @@ test('should install dependency in second project', async function (t) {
 test('should throw error when trying to install using a different store then the previous one', async function(t) {
   const project = prepare(t)
 
-  await installPkgs(['rimraf@2.5.1'], testDefaults({store: 'node_modules/.store1'}))
+  await installPkgs(['rimraf@2.5.1'], await testDefaults({store: 'node_modules/.store1'}))
 
   try {
-    await installPkgs(['is-negative'], testDefaults({store: 'node_modules/.store2'}))
+    await installPkgs(['is-negative'], await testDefaults({store: 'node_modules/.store2'}))
     t.fail('installation should have failed')
   } catch (err) {
     t.equal(err.code, 'UNEXPECTED_STORE', 'failed with correct error code')
@@ -716,7 +716,7 @@ test('shrinkwrap locks npm dependencies', async function (t: tape.Test) {
 
   await addDistTag('dep-of-pkg-with-1-dep', '100.0.0', 'latest')
 
-  await installPkgs(['pkg-with-1-dep'], testDefaults({save: true, reporter}))
+  await installPkgs(['pkg-with-1-dep'], await testDefaults({save: true, reporter}))
 
   t.ok(reporter.calledWithMatch(<ProgressLog>{
     name: 'pnpm:progress',
@@ -737,7 +737,7 @@ test('shrinkwrap locks npm dependencies', async function (t: tape.Test) {
   await rimraf('node_modules')
 
   reporter.reset()
-  await install(testDefaults({reporter}))
+  await install(await testDefaults({reporter}))
 
   t.ok(reporter.calledWithMatch(<ProgressLog>{
     level: 'debug',
@@ -758,7 +758,7 @@ test('shrinkwrap locks npm dependencies', async function (t: tape.Test) {
 test('self-require should work', async function (t) {
   const project = prepare(t)
 
-  await installPkgs(['uses-pkg-with-self-usage'], testDefaults())
+  await installPkgs(['uses-pkg-with-self-usage'], await testDefaults())
 
   t.ok(project.requireModule('uses-pkg-with-self-usage'))
 })
@@ -766,11 +766,11 @@ test('self-require should work', async function (t) {
 test('install on project with lockfile and no node_modules', async (t: tape.Test) => {
   const project = prepare(t)
 
-  await installPkgs(['is-negative'], testDefaults())
+  await installPkgs(['is-negative'], await testDefaults())
 
   await rimraf('node_modules')
 
-  await installPkgs(['is-positive'], testDefaults())
+  await installPkgs(['is-positive'], await testDefaults())
 
   t.ok(project.requireModule('is-positive'), 'installed new dependency')
 
@@ -785,7 +785,7 @@ test('install a dependency with * range', async (t: tape.Test) => {
   })
   const reporter = sinon.spy()
 
-  await install(testDefaults({reporter}))
+  await install(await testDefaults({reporter}))
 
   await project.has('has-beta-only')
 

@@ -29,7 +29,7 @@ test('relative link', async (t: tape.Test) => {
   const linkedPkgPath = path.resolve('..', linkedPkgName)
 
   await ncp(pathToLocalPkg(linkedPkgName), linkedPkgPath)
-  await link(`../${linkedPkgName}`, process.cwd(), testDefaults())
+  await link(`../${linkedPkgName}`, process.cwd(), await testDefaults())
 
   isExecutable(t, path.resolve('node_modules', '.bin', 'hello-world-js-bin'))
 
@@ -45,11 +45,11 @@ test('relative link is not rewritten by install', async (t: tape.Test) => {
   const linkedPkgPath = path.resolve('..', linkedPkgName)
 
   await ncp(pathToLocalPkg(linkedPkgName), linkedPkgPath)
-  await link(`../${linkedPkgName}`, process.cwd(), testDefaults())
+  await link(`../${linkedPkgName}`, process.cwd(), await testDefaults())
 
   const reporter = sinon.spy()
 
-  await installPkgs(['hello-world-js-bin'], testDefaults({reporter}))
+  await installPkgs(['hello-world-js-bin'], await testDefaults({reporter}))
 
   t.ok(project.requireModule('hello-world-js-bin/package.json').isLocal)
 
@@ -77,7 +77,7 @@ test('global link', async function (t: tape.Test) {
   process.chdir(linkedPkgPath)
   const globalPrefix = path.resolve('..', 'global')
   const globalBin = path.resolve('..', 'global', 'bin')
-  await linkToGlobal(process.cwd(), Object.assign(testDefaults(), {globalPrefix, globalBin}))
+  await linkToGlobal(process.cwd(), await testDefaults({globalPrefix, globalBin}))
 
   isExecutable(t, path.join(globalBin, 'hello-world-js-bin'))
 
@@ -87,7 +87,7 @@ test('global link', async function (t: tape.Test) {
 
   process.chdir(projectPath)
 
-  await linkFromGlobal(linkedPkgName, process.cwd(), Object.assign(testDefaults(), {globalPrefix}))
+  await linkFromGlobal(linkedPkgName, process.cwd(), await testDefaults({globalPrefix}))
 
   isExecutable(t, path.resolve('node_modules', '.bin', 'hello-world-js-bin'))
 })
@@ -98,7 +98,7 @@ test('failed linking should not create empty folder', async (t: tape.Test) => {
   const globalPrefix = path.resolve('..', 'global')
 
   try {
-    await linkFromGlobal('does-not-exist', process.cwd(), Object.assign(testDefaults(), {globalPrefix}))
+    await linkFromGlobal('does-not-exist', process.cwd(), await testDefaults({globalPrefix}))
     t.fail('should have failed')
   } catch (err) {
     t.notOk(await exists(path.join(globalPrefix, 'node_modules', 'does-not-exist')))

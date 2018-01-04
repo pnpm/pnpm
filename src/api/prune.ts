@@ -3,7 +3,10 @@ import path = require('path')
 import R = require('ramda')
 import getContext from './getContext'
 import {PnpmOptions} from '@pnpm/types'
-import extendOptions from './extendOptions'
+import extendOptions, {
+  PruneOptions,
+  StrictPruneOptions,
+} from './extendPruneOptions'
 import getPkgDirs from '../fs/getPkgDirs'
 import {fromDir as readPkgFromDir} from '../fs/readPkg'
 import removeOrphanPkgs from './removeOrphanPkgs'
@@ -13,7 +16,9 @@ import {
 } from 'pnpm-shrinkwrap'
 import {streamParser} from '@pnpm/logger'
 
-export async function prune(maybeOpts?: PnpmOptions): Promise<void> {
+export async function prune (
+  maybeOpts: PruneOptions,
+): Promise<void> {
   const reporter = maybeOpts && maybeOpts.reporter
   if (reporter) {
     streamParser.on('data', reporter)
@@ -39,7 +44,7 @@ export async function prune(maybeOpts?: PnpmOptions): Promise<void> {
     oldShrinkwrap: ctx.currentShrinkwrap,
     newShrinkwrap: prunedShr,
     prefix: ctx.root,
-    storeController: ctx.storeController,
+    storeController: opts.storeController,
     pruneStore: true,
     bin: opts.bin,
   })

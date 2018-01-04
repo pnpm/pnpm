@@ -1,6 +1,8 @@
 import path = require('path')
-import {PnpmOptions, StrictPnpmOptions} from '@pnpm/types'
-import extendOptions from './extendOptions'
+import extendOptions, {
+  InstallOptions,
+  StrictInstallOptions,
+} from './extendInstallOptions'
 import isInnerLink = require('is-inner-link')
 import logger, {streamParser} from '@pnpm/logger'
 import rimraf = require('rimraf-then')
@@ -15,7 +17,7 @@ import isSubdir = require('is-subdir')
 
 export async function unlinkPkgs (
   pkgNames: string[],
-  maybeOpts: PnpmOptions
+  maybeOpts: InstallOptions
 ) {
   const reporter = maybeOpts && maybeOpts.reporter
   if (reporter) {
@@ -34,7 +36,7 @@ export async function unlinkPkgs (
 
 export async function _unlinkPkgs (
   pkgNames: string[],
-  opts: StrictPnpmOptions
+  opts: StrictInstallOptions
 ) {
   const modules = path.join(opts.prefix, 'node_modules')
   const pkg = await readPkgFromDir(opts.prefix)
@@ -57,7 +59,7 @@ export async function _unlinkPkgs (
   await installPkgs(packagesToInstall, opts)
 }
 
-export async function unlink (maybeOpts: PnpmOptions) {
+export async function unlink (maybeOpts: InstallOptions) {
   const reporter = maybeOpts && maybeOpts.reporter
   if (reporter) {
     streamParser.on('data', reporter)
@@ -109,7 +111,7 @@ async function isExternalLink (store: string, modules: string, pkgName: string) 
   return !link.isInner && !isSubdir(store, link.target)
 }
 
-async function _extendOptions (maybeOpts: PnpmOptions): Promise<StrictPnpmOptions> {
+async function _extendOptions (maybeOpts: InstallOptions): Promise<StrictInstallOptions> {
   maybeOpts = maybeOpts || {}
   if (maybeOpts.depth === undefined) maybeOpts.depth = -1
   return await extendOptions(maybeOpts)

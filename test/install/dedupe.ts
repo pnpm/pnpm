@@ -19,7 +19,7 @@ test('prefer version ranges specified for top dependencies', async (t: tape.Test
 
   await addDistTag({ package: 'dep-of-pkg-with-1-dep', version: '100.1.0', distTag: 'latest' })
 
-  await install(testDefaults())
+  await install(await testDefaults())
 
   const shr = await project.loadShrinkwrap()
   t.ok(shr.packages['/dep-of-pkg-with-1-dep/100.0.0'])
@@ -35,8 +35,8 @@ test('prefer version ranges specified for top dependencies, when doing named ins
 
   await addDistTag({ package: 'dep-of-pkg-with-1-dep', version: '100.1.0', distTag: 'latest' })
 
-  await install(testDefaults())
-  await installPkgs(['pkg-with-1-dep'], testDefaults())
+  await install(await testDefaults())
+  await installPkgs(['pkg-with-1-dep'], await testDefaults())
 
   const shr = await project.loadShrinkwrap()
   t.ok(shr.packages['/dep-of-pkg-with-1-dep/100.0.0'])
@@ -53,7 +53,7 @@ test('prefer version ranges specified for top dependencies, even if they are ali
 
   await addDistTag({ package: 'dep-of-pkg-with-1-dep', version: '100.1.0', distTag: 'latest' })
 
-  await install(testDefaults())
+  await install(await testDefaults())
 
   const shr = await project.loadShrinkwrap()
   t.ok(shr.packages['/dep-of-pkg-with-1-dep/100.0.0'])
@@ -70,7 +70,7 @@ test('prefer version ranges specified for top dependencies, even if the subdepen
 
   await addDistTag({ package: 'dep-of-pkg-with-1-dep', version: '100.1.0', distTag: 'latest' })
 
-  await install(testDefaults())
+  await install(await testDefaults())
 
   const shr = await project.loadShrinkwrap()
   t.ok(shr.packages['/dep-of-pkg-with-1-dep/100.0.0'])
@@ -87,7 +87,7 @@ test('ignore version of root dependency when it is incompatible with the indirec
 
   await addDistTag({ package: 'dep-of-pkg-with-1-dep', version: '100.0.0', distTag: 'latest' })
 
-  await install(testDefaults())
+  await install(await testDefaults())
 
   const shr = await project.loadShrinkwrap()
   t.ok(shr.packages['/dep-of-pkg-with-1-dep/100.0.0'])
@@ -105,7 +105,7 @@ test('prefer dist-tag specified for top dependency', async (t: tape.Test) => {
   await addDistTag({ package: 'dep-of-pkg-with-1-dep', version: '100.1.0', distTag: 'latest' })
   await addDistTag({ package: 'dep-of-pkg-with-1-dep', version: '100.0.0', distTag: 'stable' })
 
-  await install(testDefaults())
+  await install(await testDefaults())
 
   const shr = await project.loadShrinkwrap()
   t.ok(shr.packages['/dep-of-pkg-with-1-dep/100.0.0'])

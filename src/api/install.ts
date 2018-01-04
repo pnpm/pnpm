@@ -3,6 +3,7 @@ import {
   PackageJson,
   PnpmOptions,
   StrictPnpmOptions,
+  ReadPackageHook,
 } from '@pnpm/types'
 import * as dp from 'dependency-path'
 import path = require('path')
@@ -24,6 +25,7 @@ import {fromDir as safeReadPkgFromDir} from '../fs/safeReadPkg'
 import {
   WantedDependency,
   SupiOptions,
+  ReporterFunction,
 } from '../types'
 import getContext, {PnpmContext} from './getContext'
 import installMultiple, {InstalledPackage} from '../install/installMultiple'
@@ -32,7 +34,10 @@ import linkPackages from '../link'
 import save from '../save'
 import getSaveType from '../getSaveType'
 import postInstall, {npmRunScript} from '../install/postInstall'
-import extendOptions from './extendOptions'
+import extendOptions, {
+  InstallOptions,
+  StrictInstallOptions,
+} from './extendInstallOptions'
 import lock from './lock'
 import {
   write as saveShrinkwrap,
@@ -126,7 +131,7 @@ export type InstallContext = {
   },
 }
 
-export async function install (maybeOpts?: SupiOptions) {
+export async function install (maybeOpts: InstallOptions) {
   const reporter = maybeOpts && maybeOpts.reporter
   if (reporter) {
     streamParser.on('data', reporter)
@@ -227,13 +232,15 @@ function specsToInstallFromPackage(
  * @example
  *     install({'lodash': '1.0.0', 'foo': '^2.1.0' }, { silent: true })
  */
-export async function installPkgs (fuzzyDeps: string[] | Dependencies, maybeOpts?: SupiOptions) {
+export async function installPkgs (
+  fuzzyDeps: string[] | Dependencies,
+  maybeOpts: InstallOptions,
+) {
   const reporter = maybeOpts && maybeOpts.reporter
   if (reporter) {
     streamParser.on('data', reporter)
   }
 
-  maybeOpts = maybeOpts || {}
   if (maybeOpts.update === undefined) maybeOpts.update = true
   const opts = await extendOptions(maybeOpts)
 
@@ -297,7 +304,7 @@ async function installInContext (
       selector: string,
     },
   },
-  opts: StrictPnpmOptions
+  opts: StrictInstallOptions,
 ) {
   // Unfortunately, the private shrinkwrap file may differ from the public one.
   // A user might run named installations on a project that has a shrinkwrap.yaml file before running a noop install
@@ -354,7 +361,7 @@ async function installInContext (
     engineStrict: opts.engineStrict,
     nodeVersion: opts.nodeVersion,
     pnpmVersion: opts.packageManager.name === 'pnpm' ? opts.packageManager.version : '',
-    storeController: ctx.storeController,
+    storeController: opts.storeController,
     preferredVersions,
   }
   const installOpts = {
@@ -524,7 +531,7 @@ async function installInContext (
     skipped: ctx.skipped,
     pkg: newPkg || ctx.pkg,
     independentLeaves: opts.independentLeaves,
-    storeController: ctx.storeController,
+    storeController: opts.storeController,
     makePartialCurrentShrinkwrap,
     updateShrinkwrapMinorVersion: installType === 'general' || R.isEmpty(ctx.currentShrinkwrap.packages),
     outdatedPkgs: installCtx.outdatedPkgs,
@@ -616,7 +623,7 @@ async function installInContext (
 
   summaryLogger.info(undefined)
 
-  await ctx.storeController.close()
+  await opts.storeController.close()
 }
 
 function buildTree (

@@ -17,10 +17,12 @@ export type WantedDependency = {
 }
 
 export type SupiOptions = PnpmOptions & {
-  storeController?: StoreController
+  storeController: StoreController
 }
 
 export type StrictSupiOptions = StrictPnpmOptions & {
-  storeController?: StoreController
+  storeController: StoreController
   pending?: boolean
 }
+
+export type ReporterFunction = (logObj: LogBase) => void

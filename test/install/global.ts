@@ -2,7 +2,11 @@ import tape = require('tape')
 import promisifyTape from 'tape-promise'
 import path = require('path')
 import readPkg = require('read-pkg')
-import {prepare, testDefaults, addDistTag} from '../utils'
+import {
+  prepare,
+  testDefaults,
+  addDistTag,
+} from '../utils'
 import {installPkgs} from 'supi'
 
 const test = promisifyTape(tape)
@@ -12,7 +16,7 @@ const LAYOUT_VERSION = '1'
 test('global installation', async function (t) {
   prepare(t)
   const globalPrefix = path.resolve('..', 'global')
-  const opts = testDefaults({global: true, prefix: globalPrefix})
+  const opts = await testDefaults({global: true, prefix: globalPrefix})
   await installPkgs(['is-positive'], opts)
 
   // there was an issue when subsequent installations were removing everything installed prior
@@ -31,7 +35,7 @@ test('always install latest when doing global installation without spec', async 
 
   const project = prepare(t)
   const globalPrefix = process.cwd()
-  const opts = testDefaults({global: true, prefix: globalPrefix})
+  const opts = await testDefaults({global: true, prefix: globalPrefix})
 
   await installPkgs(['peer-c@1'], opts)
   await installPkgs(['peer-c'], opts)

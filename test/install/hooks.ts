@@ -22,7 +22,7 @@ test('readPackage hook', async (t: tape.Test) => {
     return pkg
   }
 
-  await installPkgs(['pkg-with-1-dep'], testDefaults({
+  await installPkgs(['pkg-with-1-dep'], await testDefaults({
     hooks: {readPackage: readPackageHook}
   }))
 

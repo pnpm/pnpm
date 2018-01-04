@@ -2,9 +2,6 @@ import path = require('path')
 import isCI = require('is-ci')
 import {fromDir as readPkgFromDir} from '../fs/readPkg'
 import writePkg = require('write-pkg')
-import createStore, {
-  StoreController,
-} from 'package-store'
 import {StrictSupiOptions} from '../types'
 import {
   readWanted as readWantedShrinkwrap,
@@ -22,12 +19,9 @@ import removeAllExceptOuterLinks = require('remove-all-except-outer-links')
 import logger from '@pnpm/logger'
 import checkCompatibility from './checkCompatibility'
 import {packageJsonLogger} from '../loggers'
-import createFetcher from '@pnpm/default-fetcher'
-import createResolver from '@pnpm/default-resolver'
 
 export type PnpmContext = {
   pkg: PackageJson,
-  storeController: StoreController,
   storePath: string,
   root: string,
   existsWantedShrinkwrap: boolean,
@@ -38,7 +32,17 @@ export type PnpmContext = {
   pendingBuilds: string[],
 }
 
-export default async function getContext (opts: StrictSupiOptions, installType?: 'named' | 'general'): Promise<PnpmContext> {
+export default async function getContext (
+  opts: {
+    prefix: string,
+    store: string,
+    independentLeaves: boolean,
+    force: boolean,
+    global: boolean,
+    registry: string,
+  },
+  installType?: 'named' | 'general',
+): Promise<PnpmContext> {
   const root = normalizePath(opts.prefix)
   const storePath = opts.store
 
@@ -74,18 +78,6 @@ export default async function getContext (opts: StrictSupiOptions, installType?:
     (opts.global ? readGlobalPkgJson(opts.prefix) : readPkgFromDir(opts.prefix)),
     readWantedShrinkwrap(root, shrOpts),
     readCurrentShrinkwrap(root, shrOpts),
-    opts.storeController
-      ? Promise.resolve(opts.storeController)
-      : createStore(
-        createResolver(opts),
-        createFetcher(opts) as {},
-        {
-          networkConcurrency: opts.networkConcurrency,
-          store: opts.store,
-          locks: opts.lock ? opts.locks : undefined,
-          lockStaleDuration: opts.lockStaleDuration,
-        }
-      ),
     mkdirp(storePath),
   ])
   const ctx: PnpmContext = {
@@ -96,7 +88,6 @@ export default async function getContext (opts: StrictSupiOptions, installType?:
     currentShrinkwrap: files[2] || createShrinkwrap(opts.registry),
     existsWantedShrinkwrap: !!files[1],
     existsCurrentShrinkwrap: !!files[2],
-    storeController: files[3],
     skipped: new Set(modules && modules.skipped || []),
     pendingBuilds: modules && modules.pendingBuilds || [],
   }

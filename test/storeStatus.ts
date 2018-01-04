@@ -9,7 +9,7 @@ const test = promisifyTape(tape)
 test('store status returns empty array when store was not modified', async function (t: tape.Test) {
   const project = prepare(t)
 
-  const opts = testDefaults()
+  const opts = await testDefaults()
   await installPkgs(['is-positive@3.1.0'], opts)
 
   const mutatedPkgs = await storeStatus(opts)
@@ -20,7 +20,7 @@ test('store status returns empty array when store was not modified', async funct
 test('store status does not fail on not installed optional dependencies', async function (t: tape.Test) {
   const project = prepare(t)
 
-  const opts = testDefaults({saveOptional: true})
+  const opts = await testDefaults({saveOptional: true})
   await installPkgs(['not-compatible-with-any-os'], opts)
 
   const mutatedPkgs = await storeStatus(opts)
@@ -31,7 +31,7 @@ test('store status does not fail on not installed optional dependencies', async 
 test('store status returns path to the modified package', async function (t: tape.Test) {
   const project = prepare(t)
 
-  const opts = testDefaults()
+  const opts = await testDefaults()
   await installPkgs(['is-positive@3.1.0'], opts)
 
   const isPositive = await project.resolve('is-positive', '3.1.0', 'index.js')

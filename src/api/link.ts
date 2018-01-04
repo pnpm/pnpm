@@ -6,14 +6,16 @@ import {install} from './install'
 import pathAbsolute = require('path-absolute')
 import {linkPkgBins} from '../link/linkBins'
 import {PnpmOptions} from '@pnpm/types'
-import extendOptions from './extendOptions'
+import extendOptions, {
+  InstallOptions,
+} from './extendInstallOptions'
 
 const linkLogger = logger('link')
 
 export default async function link (
   linkFrom: string,
   linkTo: string,
-  maybeOpts?: PnpmOptions & {
+  maybeOpts: InstallOptions & {
     skipInstall?: boolean,
     linkToBin?: string,
   }
@@ -53,7 +55,7 @@ async function linkToModules (linkFrom: string, modules: string) {
 export async function linkFromGlobal (
   pkgName: string,
   linkTo: string,
-  maybeOpts: PnpmOptions & {globalPrefix: string}
+  maybeOpts: InstallOptions & {globalPrefix: string}
 ) {
   const reporter = maybeOpts && maybeOpts.reporter
   if (reporter) {
@@ -71,7 +73,7 @@ export async function linkFromGlobal (
 
 export async function linkToGlobal (
   linkFrom: string,
-  maybeOpts: PnpmOptions & {
+  maybeOpts: InstallOptions & {
     globalPrefix: string,
     globalBin: string,
   }

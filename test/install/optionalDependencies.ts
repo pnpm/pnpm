@@ -19,12 +19,12 @@ const test = promisifyTape(tape)
 test('successfully install optional dependency with subdependencies', async function (t) {
   const project = prepare(t)
 
-  await installPkgs(['fsevents@1.0.14'], testDefaults({saveOptional: true}))
+  await installPkgs(['fsevents@1.0.14'], await testDefaults({saveOptional: true}))
 })
 
 test('skip failing optional dependencies', async (t: tape.Test) => {
   const project = prepare(t)
-  await installPkgs(['pkg-with-failing-optional-dependency@1.0.1'], testDefaults())
+  await installPkgs(['pkg-with-failing-optional-dependency@1.0.1'], await testDefaults())
 
   const m = project.requireModule('pkg-with-failing-optional-dependency')
   t.ok(m(-1), 'package with failed optional dependency has the dependencies installed correctly')
@@ -38,7 +38,7 @@ test('skip optional dependency that does not support the current OS', async (t: 
   })
   const reporter = sinon.spy()
 
-  await install(testDefaults({reporter}))
+  await install(await testDefaults({reporter}))
 
   await project.hasNot('not-compatible-with-any-os')
   await project.storeHas('not-compatible-with-any-os', '1.0.0')
@@ -70,7 +70,7 @@ test('skip optional dependency that does not support the current Node version', 
   })
   const reporter = sinon.spy()
 
-  await install(testDefaults({reporter}))
+  await install(await testDefaults({reporter}))
 
   await project.hasNot('for-legacy-node')
   await project.storeHas('for-legacy-node', '1.0.0')
@@ -91,7 +91,7 @@ test('skip optional dependency that does not support the current pnpm version', 
   })
   const reporter = sinon.spy()
 
-  await install(testDefaults({reporter}))
+  await install(await testDefaults({reporter}))
 
   await project.hasNot('for-legacy-pnpm')
   await project.storeHas('for-legacy-pnpm', '1.0.0')
@@ -111,7 +111,7 @@ test('don\'t skip optional dependency that does not support the current OS when 
     }
   })
 
-  await install(testDefaults({
+  await install(await testDefaults({
     force: true
   }))
 
@@ -123,7 +123,7 @@ test('optional subdependency is skipped', async (t: tape.Test) => {
   const project = prepare(t)
   const reporter = sinon.spy()
 
-  await installPkgs(['pkg-with-optional', 'dep-of-optional-pkg'], testDefaults({reporter}))
+  await installPkgs(['pkg-with-optional', 'dep-of-optional-pkg'], await testDefaults({reporter}))
 
   const modulesInfo = await loadYamlFile<{skipped: string[]}>(path.join('node_modules', '.modules.yaml'))
 
@@ -147,7 +147,7 @@ test('not installing optional dependencies when optional is false', async (t: ta
     },
   })
 
-  await install(testDefaults({optional: false}))
+  await install(await testDefaults({optional: false}))
 
   await project.hasNot('is-positive')
   await project.has('pkg-with-good-optional')
@@ -166,7 +166,7 @@ test('optional dependency has bigger priority than regular dependency', async (t
     },
   })
 
-  await install(testDefaults())
+  await install(await testDefaults())
 
   t.ok(deepRequireCwd(['is-positive', './package.json']).version, '3.1.0')
 })

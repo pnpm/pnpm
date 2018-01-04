@@ -17,13 +17,13 @@ const test = promisifyTape(tape)
 test('remove unreferenced packages', async (t: tape.Test) => {
   const project = prepare(t)
 
-  await installPkgs(['is-negative@2.1.0'], testDefaults({ save: true }))
-  await uninstall(['is-negative'], testDefaults({ save: true }))
+  await installPkgs(['is-negative@2.1.0'], await testDefaults({ save: true }))
+  await uninstall(['is-negative'], await testDefaults({ save: true }))
 
   await project.storeHas('is-negative', '2.1.0')
 
   const reporter = sinon.spy()
-  await storePrune(testDefaults({reporter}))
+  await storePrune(await testDefaults({reporter}))
 
   t.ok(reporter.calledWithMatch({
     level: 'info',
@@ -33,7 +33,7 @@ test('remove unreferenced packages', async (t: tape.Test) => {
   await project.storeHasNot('is-negative', '2.1.0')
 
   reporter.reset()
-  await storePrune(testDefaults({reporter}))
+  await storePrune(await testDefaults({reporter}))
 
   t.notOk(reporter.calledWithMatch({
     level: 'info',
@@ -44,7 +44,7 @@ test('remove unreferenced packages', async (t: tape.Test) => {
 test('remove packages that are used by project that no longer exist', async (t: tape.Test) => {
   const project = prepare(t)
 
-  await installPkgs(['is-negative@2.1.0'], testDefaults({ save: true }))
+  await installPkgs(['is-negative@2.1.0'], await testDefaults({ save: true }))
 
   const pkgInStore = await project.resolve('is-negative', '2.1.0')
 
@@ -53,7 +53,7 @@ test('remove packages that are used by project that no longer exist', async (t: 
   t.ok(await exists(pkgInStore))
 
   const reporter = sinon.spy()
-  await storePrune(testDefaults({reporter}))
+  await storePrune(await testDefaults({reporter}))
 
   t.ok(reporter.calledWithMatch({
     level: 'info',
@@ -65,9 +65,9 @@ test('remove packages that are used by project that no longer exist', async (t: 
 
 test('keep dependencies used by others', async function (t: tape.Test) {
   const project = prepare(t)
-  await installPkgs(['camelcase-keys@3.0.0'], testDefaults({ save: true }))
-  await installPkgs(['hastscript@3.0.0'], testDefaults({ saveDev: true }))
-  await uninstall(['camelcase-keys'], testDefaults({ save: true }))
+  await installPkgs(['camelcase-keys@3.0.0'], await testDefaults({ save: true }))
+  await installPkgs(['hastscript@3.0.0'], await testDefaults({ saveDev: true }))
+  await uninstall(['camelcase-keys'], await testDefaults({ save: true }))
 
   await project.storeHas('camelcase-keys', '3.0.0')
   await project.hasNot('camelcase-keys')
@@ -86,7 +86,7 @@ test('keep dependencies used by others', async function (t: tape.Test) {
 
   R.toPairs(shr.packages).forEach(pair => t.ok(pair[1]['dev'], `${pair[0]} is dev`))
 
-  await storePrune(testDefaults())
+  await storePrune(await testDefaults())
 
   await project.storeHasNot('camelcase-keys', '3.0.0')
   await project.storeHasNot('map-obj', '1.0.1')
@@ -95,10 +95,10 @@ test('keep dependencies used by others', async function (t: tape.Test) {
 
 test('keep dependency used by package', async (t: tape.Test) => {
   const project = prepare(t)
-  await installPkgs(['is-not-positive@1.0.0', 'is-positive@3.1.0'], testDefaults({ save: true }))
-  await uninstall(['is-not-positive'], testDefaults({ save: true }))
+  await installPkgs(['is-not-positive@1.0.0', 'is-positive@3.1.0'], await testDefaults({ save: true }))
+  await uninstall(['is-not-positive'], await testDefaults({ save: true }))
 
-  await storePrune(testDefaults())
+  await storePrune(await testDefaults())
 
   await project.storeHas('is-positive', '3.1.0')
 })

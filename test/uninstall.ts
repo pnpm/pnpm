@@ -30,8 +30,8 @@ test('uninstall package with no dependencies', async (t: tape.Test) => {
   const project = prepare(t)
 
   const reporter = sinon.spy()
-  await installPkgs(['is-negative@2.1.0'], testDefaults({ save: true }))
-  await uninstall(['is-negative'], testDefaults({ save: true, reporter }))
+  await installPkgs(['is-negative@2.1.0'], await testDefaults({ save: true }))
+  await uninstall(['is-negative'], await testDefaults({ save: true, reporter }))
 
   t.ok(reporter.calledWithMatch(<StatsLog>{
     name: 'pnpm:stats',
@@ -60,8 +60,8 @@ test('uninstall package with no dependencies', async (t: tape.Test) => {
 
 test('uninstall scoped package', async function (t) {
   const project = prepare(t)
-  await installPkgs(['@zkochan/logger@0.1.0'], testDefaults({ save: true }))
-  await uninstall(['@zkochan/logger'], testDefaults({ save: true }))
+  await installPkgs(['@zkochan/logger@0.1.0'], await testDefaults({ save: true }))
+  await uninstall(['@zkochan/logger'], await testDefaults({ save: true }))
 
   await project.storeHas('@zkochan/logger', '0.1.0')
 
@@ -73,8 +73,8 @@ test('uninstall scoped package', async function (t) {
 
 test('uninstall tarball dependency', async (t: tape.Test) => {
   const project = prepare(t)
-  await installPkgs(['http://registry.npmjs.org/is-array/-/is-array-1.0.1.tgz'], testDefaults({ save: true }))
-  await uninstall(['is-array'], testDefaults({ save: true }))
+  await installPkgs(['http://registry.npmjs.org/is-array/-/is-array-1.0.1.tgz'], await testDefaults({ save: true }))
+  await uninstall(['is-array'], await testDefaults({ save: true }))
 
   t.ok(await exists(path.join(await project.getStorePath(), 'registry.npmjs.org', 'is-array', '1.0.1')))
 
@@ -86,10 +86,10 @@ test('uninstall tarball dependency', async (t: tape.Test) => {
 
 test('uninstall package with dependencies and do not touch other deps', async function (t) {
   const project = prepare(t)
-  await installPkgs(['is-negative@2.1.0', 'camelcase-keys@3.0.0'], testDefaults({ save: true }))
-  await uninstall(['camelcase-keys'], testDefaults({ save: true }))
+  await installPkgs(['is-negative@2.1.0', 'camelcase-keys@3.0.0'], await testDefaults({ save: true }))
+  await uninstall(['camelcase-keys'], await testDefaults({ save: true }))
 
-  await storePrune(testDefaults())
+  await storePrune(await testDefaults())
 
   await project.storeHasNot('camelcase-keys', '3.0.0')
   await project.hasNot('camelcase-keys')
@@ -117,8 +117,8 @@ test('uninstall package with dependencies and do not touch other deps', async fu
 
 test('uninstall package with its bin files', async function (t) {
   prepare(t)
-  await installPkgs(['sh-hello-world@1.0.1'], testDefaults({ save: true }))
-  await uninstall(['sh-hello-world'], testDefaults({ save: true }))
+  await installPkgs(['sh-hello-world@1.0.1'], await testDefaults({ save: true }))
+  await uninstall(['sh-hello-world'], await testDefaults({ save: true }))
 
   // check for both a symlink and a file because in some cases the file will be a proxied not symlinked
   let stat = await existsSymlink(path.resolve('node_modules', '.bin', 'sh-hello-world'))
@@ -135,8 +135,8 @@ test('relative link is uninstalled', async (t: tape.Test) => {
   const linkedPkgPath = path.resolve('..', linkedPkgName)
 
   await ncp(pathToLocalPkg(linkedPkgName), linkedPkgPath)
-  await link(`../${linkedPkgName}`, process.cwd(), testDefaults())
-  await uninstall([linkedPkgName], testDefaults())
+  await link(`../${linkedPkgName}`, process.cwd(), await testDefaults())
+  await uninstall([linkedPkgName], await testDefaults())
 
   await project.hasNot(linkedPkgName)
 })
@@ -144,12 +144,12 @@ test('relative link is uninstalled', async (t: tape.Test) => {
 test('pendingBuilds gets updated after uninstall', async (t: tape.Test) => {
   const project = prepare(t)
 
-  await installPkgs(['is-negative@2.1.0', 'sh-hello-world@1.0.1'], testDefaults({save: true, ignoreScripts: true}))
+  await installPkgs(['is-negative@2.1.0', 'sh-hello-world@1.0.1'], await testDefaults({save: true, ignoreScripts: true}))
 
   const modules1 = await project.loadModules()
   t.doesNotEqual(modules1['pendingBuilds'].length, 0, 'installPkgs should update pendingBuilds')
 
-  await uninstall(['sh-hello-world'], testDefaults({save: true}))
+  await uninstall(['sh-hello-world'], await testDefaults({save: true}))
 
   const modules2 = await project.loadModules()
   t.doesNotEqual(modules2['pendingBuilds'].length, 0, 'uninstall should not remove all the pendingBuilds')

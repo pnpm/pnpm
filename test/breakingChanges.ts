@@ -2,20 +2,17 @@ import tape = require('tape')
 import promisifyTape from 'tape-promise'
 import fs = require('mz/fs')
 import mkdirp = require('mkdirp-promise')
-import path = require('path')
 import isCI = require('is-ci')
 import {prepare, testDefaults} from './utils'
 import {installPkgs, install} from 'supi'
 
 const test = promisifyTape(tape)
 
-const STORE_VERSION = '2'
-
 test('fail on non-compatible node_modules', async t => {
   const project = prepare(t)
-  const opts = testDefaults()
+  const opts = await testDefaults()
 
-  await saveModulesYaml('0.50.0', path.join(opts.store, STORE_VERSION))
+  await saveModulesYaml('0.50.0', opts.store)
 
   try {
     await installPkgs(['is-negative'], opts)
@@ -27,9 +24,9 @@ test('fail on non-compatible node_modules', async t => {
 
 test("don't fail on non-compatible node_modules when forced", async t => {
   const project = prepare(t)
-  const opts = testDefaults({force: true})
+  const opts = await testDefaults({force: true})
 
-  await saveModulesYaml('0.50.0', path.join(opts.store, STORE_VERSION))
+  await saveModulesYaml('0.50.0', opts.store)
 
   await install(opts)
 
@@ -38,9 +35,9 @@ test("don't fail on non-compatible node_modules when forced", async t => {
 
 test('fail on non-compatible node_modules when forced with a named installation', async t => {
   const project = prepare(t)
-  const opts = testDefaults({force: true})
+  const opts = await testDefaults({force: true})
 
-  await saveModulesYaml('0.50.0', path.join(opts.store, STORE_VERSION))
+  await saveModulesYaml('0.50.0', opts.store)
 
   try {
     await installPkgs(['is-negative'], opts)
@@ -52,9 +49,9 @@ test('fail on non-compatible node_modules when forced with a named installation'
 
 test("don't fail on non-compatible store when forced", async t => {
   const project = prepare(t)
-  const opts = testDefaults({force: true})
+  const opts = await testDefaults({force: true})
 
-  await saveModulesYaml('0.32.0', path.join(opts.store, STORE_VERSION))
+  await saveModulesYaml('0.32.0', opts.store)
 
   await install(opts)
 
@@ -63,9 +60,9 @@ test("don't fail on non-compatible store when forced", async t => {
 
 test('fail on non-compatible store when forced during named installation', async t => {
   const project = prepare(t)
-  const opts = testDefaults({force: true})
+  const opts = await testDefaults({force: true})
 
-  await saveModulesYaml('0.32.0', path.join(opts.store, STORE_VERSION))
+  await saveModulesYaml('0.32.0', opts.store)
 
   try {
     await installPkgs(['is-negative'], opts)
@@ -90,7 +87,7 @@ test('fail on non-compatible shrinkwrap.yaml', async t => {
   await fs.writeFile('shrinkwrap.yaml', '')
 
   try {
-    await installPkgs(['is-negative'], testDefaults())
+    await installPkgs(['is-negative'], await testDefaults())
     t.fail('should have failed')
   } catch (err) {
     t.equal(err.code, 'SHRINKWRAP_BREAKING_CHANGE', 'shrinkwrap breaking change error is thrown')
@@ -101,7 +98,7 @@ test("don't fail on non-compatible shrinkwrap.yaml when forced", async t => {
   const project = prepare(t)
   await fs.writeFile('shrinkwrap.yaml', '')
 
-  await installPkgs(['is-negative'], testDefaults({force: true}))
+  await installPkgs(['is-negative'], await testDefaults({force: true}))
 
   t.pass('install did not fail')
 })

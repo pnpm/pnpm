@@ -85,7 +85,6 @@ export default async function installMultiple (
     update: boolean,
     readPackageHook?: ReadPackageHook,
     hasManifestInShrinkwrap: boolean,
-    ignoreFile?: (filename: string) => boolean,
   }
 ): Promise<PkgAddress[]> {
   const resolvedDependencies = options.resolvedDependencies || {}
@@ -118,7 +117,6 @@ export default async function installMultiple (
               parentIsInstallable: options.parentIsInstallable,
               readPackageHook: options.readPackageHook,
               hasManifestInShrinkwrap: options.hasManifestInShrinkwrap,
-              ignoreFile: options.ignoreFile,
               update,
               proceed,
             },
@@ -502,7 +500,6 @@ async function installDependencies (
     readPackageHook?: ReadPackageHook,
     hasManifestInShrinkwrap: boolean,
     useManifestInfoFromShrinkwrap: boolean,
-    ignoreFile?: (filename: string) => boolean,
   }
 ): Promise<PkgAddress[]> {
 

@@ -18,7 +18,7 @@ const test = promisifyTape(tape)
 
 test('scoped modules from a directory', async function (t: tape.Test) {
   const project = prepare(t)
-  await installPkgs([local('local-scoped-pkg')], testDefaults())
+  await installPkgs([local('local-scoped-pkg')], await testDefaults())
 
   const m = project.requireModule('@scope/local-scoped-pkg')
 
@@ -29,7 +29,7 @@ test('local file', async function (t: tape.Test) {
   const project = prepare(t)
   await ncp(pathToLocalPkg('local-pkg'), path.resolve('..', 'local-pkg'))
 
-  await installPkgs(['file:../local-pkg'], testDefaults())
+  await installPkgs(['file:../local-pkg'], await testDefaults())
 
   const pkgJson = await readPkg()
   const expectedSpecs = {'local-pkg': `file:..${path.sep}local-pkg`}
@@ -54,7 +54,7 @@ test('local file', async function (t: tape.Test) {
 
 test('package with a broken symlink', async function (t) {
   const project = prepare(t)
-  await installPkgs([pathToLocalPkg('has-broken-symlink/has-broken-symlink.tar.gz')], testDefaults())
+  await installPkgs([pathToLocalPkg('has-broken-symlink/has-broken-symlink.tar.gz')], await testDefaults())
 
   const m = project.requireModule('has-broken-symlink')
 
@@ -63,7 +63,7 @@ test('package with a broken symlink', async function (t) {
 
 test('tarball local package', async function (t) {
   const project = prepare(t)
-  await installPkgs([pathToLocalPkg('tar-pkg/tar-pkg-1.0.0.tgz')], testDefaults())
+  await installPkgs([pathToLocalPkg('tar-pkg/tar-pkg-1.0.0.tgz')], await testDefaults())
 
   const m = project.requireModule('tar-pkg')
 

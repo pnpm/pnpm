@@ -4,7 +4,10 @@ import * as dp from 'dependency-path'
 import getContext, {PnpmContext} from './getContext'
 import getSaveType from '../getSaveType'
 import removeDeps from '../removeDeps'
-import extendOptions from './extendOptions'
+import extendOptions, {
+  UninstallOptions,
+  StrictUninstallOptions,
+} from './extendUninstallOptions'
 import {PnpmOptions, StrictPnpmOptions} from '@pnpm/types'
 import lock from './lock'
 import {
@@ -23,7 +26,10 @@ import removeTopDependency from '../removeTopDependency'
 import shrinkwrapsEqual from './shrinkwrapsEqual'
 import { SupiOptions, StrictSupiOptions } from '../types';
 
-export default async function uninstall (pkgsToUninstall: string[], maybeOpts?: SupiOptions) {
+export default async function uninstall (
+  pkgsToUninstall: string[],
+  maybeOpts: UninstallOptions,
+) {
   const reporter = maybeOpts && maybeOpts.reporter
   if (reporter) {
     streamParser.on('data', reporter)
@@ -52,7 +58,11 @@ export default async function uninstall (pkgsToUninstall: string[], maybeOpts?: 
   }
 }
 
-export async function uninstallInContext (pkgsToUninstall: string[], ctx: PnpmContext, opts: StrictSupiOptions) {
+export async function uninstallInContext (
+  pkgsToUninstall: string[],
+  ctx: PnpmContext,
+  opts: StrictUninstallOptions,
+) {
   const makePartialCurrentShrinkwrap = !shrinkwrapsEqual(ctx.currentShrinkwrap, ctx.wantedShrinkwrap)
 
   const pkgJsonPath = path.join(ctx.root, 'package.json')
@@ -63,11 +73,11 @@ export async function uninstallInContext (pkgsToUninstall: string[], ctx: PnpmCo
     oldShrinkwrap: ctx.currentShrinkwrap,
     newShrinkwrap: newShr,
     prefix: ctx.root,
-    storeController: ctx.storeController,
+    storeController: opts.storeController,
     bin: opts.bin,
   })
   ctx.pendingBuilds = ctx.pendingBuilds.filter(pkgId => !removedPkgIds.has(dp.resolve(newShr.registry, pkgId)))
-  await ctx.storeController.close()
+  await opts.storeController.close()
   const currentShrinkwrap = makePartialCurrentShrinkwrap
     ? pruneShrinkwrap(ctx.currentShrinkwrap, pkg)
     : newShr

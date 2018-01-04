@@ -21,7 +21,7 @@ test('production install (with --production flag)', async (t: tape.Test) => {
     },
   })
 
-  await install(testDefaults({ development: false }))
+  await install(await testDefaults({ development: false }))
 
   const rimraf = project.requireModule('rimraf')
 
@@ -47,7 +47,7 @@ test('install dev dependencies only', async (t: tape.Test) => {
     },
   })
 
-  await install(testDefaults({ production: false }))
+  await install(await testDefaults({ production: false }))
 
   const inflight = project.requireModule('inflight')
   t.equal(typeof inflight, 'function', 'dev dependency is available')
@@ -65,7 +65,7 @@ test('install dev dependencies only', async (t: tape.Test) => {
   }
 
   // Repeat normal installation adds missing deps to node_modules
-  await install(testDefaults())
+  await install(await testDefaults())
 
   await project.has('once')
 

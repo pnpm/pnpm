@@ -12,7 +12,7 @@ const test = promisifyTape(tape)
 
 test('save to package.json (rimraf@2.5.1)', async function (t) {
   const project = prepare(t)
-  await installPkgs(['rimraf@2.5.1'], testDefaults({ save: true }))
+  await installPkgs(['rimraf@2.5.1'], await testDefaults({ save: true }))
 
   const m = project.requireModule('rimraf')
   t.ok(typeof m === 'function', 'rimraf() is available')
@@ -30,9 +30,9 @@ test("don't override existing spec in package.json on named installation", async
       sec: 'sindresorhus/sec',
     }
   })
-  await installPkgs(['is-positive'], testDefaults())
-  await installPkgs(['is-negative'], testDefaults())
-  await installPkgs(['sec'], testDefaults())
+  await installPkgs(['is-positive'], await testDefaults())
+  await installPkgs(['is-negative'], await testDefaults())
+  await installPkgs(['sec'], await testDefaults())
 
   t.equal(project.requireModule('is-positive/package.json').version, '2.0.0')
   t.equal(project.requireModule('is-negative/package.json').version, '1.0.1')
@@ -47,7 +47,7 @@ test("don't override existing spec in package.json on named installation", async
 
 test('saveDev scoped module to package.json (@rstacruz/tap-spec)', async function (t) {
   const project = prepare(t)
-  await installPkgs(['@rstacruz/tap-spec'], testDefaults({ saveDev: true }))
+  await installPkgs(['@rstacruz/tap-spec'], await testDefaults({ saveDev: true }))
 
   const m = project.requireModule('@rstacruz/tap-spec')
   t.ok(typeof m === 'function', 'tapSpec() is available')
@@ -68,7 +68,7 @@ test('dependency should not be added to package.json if it is already there', as
       bar: '^100.0.0',
     },
   })
-  await installPkgs(['foo', 'bar'], testDefaults())
+  await installPkgs(['foo', 'bar'], await testDefaults())
 
   const pkgJson = await readPkg({normalize: false})
   t.deepEqual(pkgJson, {
@@ -103,7 +103,7 @@ test('dependencies should be updated in the fields where they already are', asyn
       bar: '^100.0.0',
     },
   })
-  await installPkgs(['foo@latest', 'bar@latest'], testDefaults())
+  await installPkgs(['foo@latest', 'bar@latest'], await testDefaults())
 
   const pkgJson = await readPkg({normalize: false})
   t.deepEqual(pkgJson, {
@@ -134,9 +134,9 @@ test('dependency should be removed from the old field when installing it as a di
       qar: '^100.0.0',
     },
   })
-  await installPkgs(['foo'], testDefaults({saveOptional: true}))
-  await installPkgs(['bar'], testDefaults({saveProd: true}))
-  await installPkgs(['qar'], testDefaults({saveDev: true}))
+  await installPkgs(['foo'], await testDefaults({saveOptional: true}))
+  await installPkgs(['bar'], await testDefaults({saveProd: true}))
+  await installPkgs(['qar'], await testDefaults({saveDev: true}))
 
   const pkgJson = await readPkg({normalize: false})
   t.deepEqual(pkgJson, {
@@ -156,7 +156,7 @@ test('dependency should be removed from the old field when installing it as a di
 
 test('multiple save to package.json with `exact` versions (@rstacruz/tap-spec & rimraf@2.5.1) (in sorted order)', async function (t: tape.Test) {
   const project = prepare(t)
-  await installPkgs(['rimraf@2.5.1', '@rstacruz/tap-spec@latest'], testDefaults({ save: true, saveExact: true }))
+  await installPkgs(['rimraf@2.5.1', '@rstacruz/tap-spec@latest'], await testDefaults({ save: true, saveExact: true }))
 
   const m1 = project.requireModule('@rstacruz/tap-spec')
   t.ok(typeof m1 === 'function', 'tapSpec() is available')
@@ -175,7 +175,7 @@ test('multiple save to package.json with `exact` versions (@rstacruz/tap-spec & 
 
 test('save to package.json with save-prefix=~', async (t: tape.Test) => {
   const project = prepare(t)
-  await installPkgs(['rimraf@2.5.1'], testDefaults({ savePrefix: '~' }))
+  await installPkgs(['rimraf@2.5.1'], await testDefaults({ savePrefix: '~' }))
 
   const pkgJson = await readPkg()
   t.deepEqual(pkgJson.dependencies, {rimraf: '~2.5.1'}, 'rimraf have been added to dependencies')

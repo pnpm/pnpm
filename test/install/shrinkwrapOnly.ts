@@ -16,7 +16,7 @@ const test = promisifyTape(tape)
 test('install with shrinkwrapOnly = true', async (t: tape.Test) => {
   const project = prepare(t)
 
-  await installPkgs(['rimraf@2.5.1'], testDefaults({shrinkwrapOnly: true}))
+  await installPkgs(['rimraf@2.5.1'], await testDefaults({shrinkwrapOnly: true}))
 
   await project.storeHasNot('rimraf', '2.5.1')
   await project.hasNot('rimraf')
@@ -37,8 +37,8 @@ test('warn when installing with shrinkwrapOnly = true and node_modules exists', 
   const project = prepare(t)
   const reporter = sinon.spy()
 
-  await installPkgs(['is-positive'], testDefaults())
-  await installPkgs(['rimraf@2.5.1'], testDefaults({
+  await installPkgs(['is-positive'], await testDefaults())
+  await installPkgs(['rimraf@2.5.1'], await testDefaults({
     shrinkwrapOnly: true,
     reporter,
   }))

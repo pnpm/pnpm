@@ -1,5 +1,8 @@
 import {PnpmOptions, StrictPnpmOptions} from '@pnpm/types'
-import extendOptions from './extendOptions'
+import extendOptions, {
+  RebuildOptions,
+  StrictRebuildOptions,
+} from './extendRebuildOptions'
 import getContext from './getContext'
 import logger, {streamParser} from '@pnpm/logger'
 import R = require('ramda')
@@ -50,14 +53,16 @@ type PackageSelector = string | {
   range: string,
 }
 
-export async function rebuildPkgs (pkgSpecs: string[], maybeOpts: PnpmOptions) {
+export async function rebuildPkgs (
+  pkgSpecs: string[],
+  maybeOpts: RebuildOptions,
+) {
   const reporter = maybeOpts && maybeOpts.reporter
   if (reporter) {
     streamParser.on('data', reporter)
   }
   const opts = await extendOptions(maybeOpts)
   const ctx = await getContext(opts)
-  await ctx.storeController.close() // TODO: storeController should not be created at all in this case
   const modules = path.join(opts.prefix, 'node_modules')
 
   if (!ctx.currentShrinkwrap || !ctx.currentShrinkwrap.packages) return
@@ -97,14 +102,13 @@ function matches (
   })
 }
 
-export async function rebuild (maybeOpts: PnpmOptions) {
+export async function rebuild (maybeOpts: RebuildOptions) {
   const reporter = maybeOpts && maybeOpts.reporter
   if (reporter) {
     streamParser.on('data', reporter)
   }
   const opts = await extendOptions(maybeOpts)
   const ctx = await getContext(opts)
-  await ctx.storeController.close() // TODO: storeController should not be created at all in this case
   const modules = path.join(opts.prefix, 'node_modules')
 
   let idsToRebuild: string[] = []
@@ -135,7 +139,7 @@ async function _rebuild (
   pkgs: PackageToRebuild[],
   modules: string,
   registry: string,
-  opts: StrictPnpmOptions
+  opts: StrictRebuildOptions,
 ) {
   await pSeries(
     pkgs

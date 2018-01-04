@@ -16,9 +16,9 @@ const test = promisifyTape(tape)
 
 test('rebuilds dependencies', async function (t: tape.Test) {
   const project = prepare(t)
-  await installPkgs(['pre-and-postinstall-scripts-example', 'zkochan/install-scripts-example'], testDefaults({saveDev: true, ignoreScripts: true}))
+  await installPkgs(['pre-and-postinstall-scripts-example', 'zkochan/install-scripts-example'], await testDefaults({saveDev: true, ignoreScripts: true}))
 
-  await rebuild(testDefaults())
+  await rebuild(await testDefaults())
 
   {
     const generatedByPreinstall = project.requireModule('pre-and-postinstall-scripts-example/generated-by-preinstall')
@@ -39,9 +39,9 @@ test('rebuilds dependencies', async function (t: tape.Test) {
 
 test('rebuilds specific dependencies', async function (t: tape.Test) {
   const project = prepare(t)
-  await installPkgs(['pre-and-postinstall-scripts-example', 'zkochan/install-scripts-example'], testDefaults({saveDev: true, ignoreScripts: true}))
+  await installPkgs(['pre-and-postinstall-scripts-example', 'zkochan/install-scripts-example'], await testDefaults({saveDev: true, ignoreScripts: true}))
 
-  await rebuildPkgs(['install-scripts-example-for-pnpm'], testDefaults())
+  await rebuildPkgs(['install-scripts-example-for-pnpm'], await testDefaults())
 
   await project.hasNot('pre-and-postinstall-scripts-example/generated-by-preinstall')
   await project.hasNot('pre-and-postinstall-scripts-example/generated-by-postinstall')
@@ -55,8 +55,8 @@ test('rebuilds specific dependencies', async function (t: tape.Test) {
 
 test('rebuild with pending option', async function (t: tape.Test) {
   const project = prepare(t)
-  await installPkgs(['pre-and-postinstall-scripts-example'], testDefaults({ignoreScripts: true}))
-  await installPkgs(['zkochan/install-scripts-example'], testDefaults({ignoreScripts: true}))
+  await installPkgs(['pre-and-postinstall-scripts-example'], await testDefaults({ignoreScripts: true}))
+  await installPkgs(['zkochan/install-scripts-example'], await testDefaults({ignoreScripts: true}))
 
   let modules = await project.loadModules()
   t.doesNotEqual(modules['pendingBuilds'].length, 0)
@@ -67,7 +67,7 @@ test('rebuild with pending option', async function (t: tape.Test) {
   await project.hasNot('install-scripts-example-for-pnpm/generated-by-preinstall')
   await project.hasNot('install-scripts-example-for-pnpm/generated-by-postinstall')
 
-  await rebuild(testDefaults({rawNpmConfig: {'pending': true}}))
+  await rebuild(await testDefaults({rawNpmConfig: {'pending': true}}))
 
   modules = await project.loadModules()
   t.equal(modules['pendingBuilds'].length, 0)

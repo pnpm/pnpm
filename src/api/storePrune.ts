@@ -1,18 +1,20 @@
-import {PnpmOptions} from '@pnpm/types'
-import extendOptions from './extendOptions'
-import getContext from './getContext'
+import {StoreController} from 'package-store'
 import {streamParser} from '@pnpm/logger'
+import {ReporterFunction} from '../types'
 
-export default async function (maybeOpts: PnpmOptions) {
-  const reporter = maybeOpts && maybeOpts.reporter
+export default async function (
+  opts: {
+    reporter?: ReporterFunction,
+    storeController: StoreController,
+  },
+) {
+  const reporter = opts && opts.reporter
   if (reporter) {
     streamParser.on('data', reporter)
   }
-  const opts = await extendOptions(maybeOpts)
-  const ctx = await getContext(opts)
-  await ctx.storeController.prune()
-  await ctx.storeController.saveState()
-  await ctx.storeController.close()
+  await opts.storeController.prune()
+  await opts.storeController.saveState()
+  await opts.storeController.close()
 
   if (reporter) {
     streamParser.removeListener('data', reporter)

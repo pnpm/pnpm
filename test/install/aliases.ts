@@ -15,7 +15,7 @@ const test = promisifyTape(tape)
 
 test('installing aliased dependency', async (t: tape.Test) => {
   const project = prepare(t)
-  await installPkgs(['negative@npm:is-negative@1.0.0'], testDefaults())
+  await installPkgs(['negative@npm:is-negative@1.0.0'], await testDefaults())
 
   const m = project.requireModule('negative')
   t.ok(typeof m === 'function', 'negative() is available')
@@ -47,7 +47,7 @@ test('installing aliased dependency', async (t: tape.Test) => {
 test('a dependency has an aliased subdependency', async (t: tape.Test) => {
   const project = prepare(t)
 
-  await installPkgs(['pkg-with-1-aliased-dep'], testDefaults())
+  await installPkgs(['pkg-with-1-aliased-dep'], await testDefaults())
 
   t.equal(project.requireModule('pkg-with-1-aliased-dep')().name, 'dep-of-pkg-with-1-dep', 'can require aliased subdep')
 

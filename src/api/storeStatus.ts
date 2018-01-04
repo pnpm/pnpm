@@ -1,20 +1,20 @@
 import path = require('path')
 import pFilter = require('p-filter')
-import {PnpmOptions} from '@pnpm/types'
-import extendOptions from './extendOptions'
+import extendOptions, {
+  StoreStatusOptions,
+} from './extendStoreStatusOptions'
 import getContext from './getContext'
 import checkPackage from '@pnpm/check-package'
 import * as dp from 'dependency-path'
 import {streamParser} from '@pnpm/logger'
 
-export default async function (maybeOpts: PnpmOptions) {
+export default async function (maybeOpts: StoreStatusOptions) {
   const reporter = maybeOpts && maybeOpts.reporter
   if (reporter) {
     streamParser.on('data', reporter)
   }
   const opts = await extendOptions(maybeOpts)
   const ctx = await getContext(opts)
-  await ctx.storeController.close() // TODO: storeController should not be created at all in this case
   if (!ctx.wantedShrinkwrap) return []
 
   const pkgPaths = Object.keys(ctx.wantedShrinkwrap.packages || {})

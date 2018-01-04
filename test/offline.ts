@@ -13,7 +13,7 @@ test('offline installation fails when package meta not found in local registry m
   const project = prepare(t)
 
   try {
-    await installPkgs(['is-positive@3.0.0'], testDefaults({offline: true}))
+    await installPkgs(['is-positive@3.0.0'], await testDefaults({}, {offline: true}, {offline: true}))
     t.fail('installation should have failed')
   } catch (err) {
     t.equal(err.code, 'NO_OFFLINE_META', 'failed with correct error code')
@@ -23,12 +23,12 @@ test('offline installation fails when package meta not found in local registry m
 test('offline installation fails when package tarball not found in local registry mirror', async function (t) {
   const project = prepare(t)
 
-  await installPkgs(['is-positive@3.0.0'], testDefaults())
+  await installPkgs(['is-positive@3.0.0'], await testDefaults())
 
   await rimraf('node_modules')
 
   try {
-    await installPkgs(['is-positive@3.1.0'], testDefaults({offline: true}))
+    await installPkgs(['is-positive@3.1.0'], await testDefaults({}, {offline: true}, {offline: true}))
     t.fail('installation should have failed')
   } catch (err) {
     t.equal(err.code, 'NO_OFFLINE_TARBALL', 'failed with correct error code')
@@ -38,11 +38,11 @@ test('offline installation fails when package tarball not found in local registr
 test('successful offline installation', async function (t) {
   const project = prepare(t)
 
-  await installPkgs(['is-positive@3.0.0'], testDefaults({save: true}))
+  await installPkgs(['is-positive@3.0.0'], await testDefaults({save: true}))
 
   await rimraf('node_modules')
 
-  await install(testDefaults({offline: true}))
+  await install(await testDefaults({}, {offline: true}, {offline: true}))
 
   const m = project.requireModule('is-positive')
   t.ok(typeof m === 'function', 'module is available')

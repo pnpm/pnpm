@@ -18,7 +18,7 @@ test('preserve subdeps on update', async (t: tape.Test) => {
     addDistTag('bar', '100.0.0', 'latest'),
   ])
 
-  await installPkgs(['foobarqar'], testDefaults())
+  await installPkgs(['foobarqar'], await testDefaults())
 
   await Promise.all([
     addDistTag('foobarqar', '1.0.1', 'latest'),
@@ -26,7 +26,7 @@ test('preserve subdeps on update', async (t: tape.Test) => {
     addDistTag('bar', '100.1.0', 'latest'),
   ])
 
-  await install(testDefaults({update: true, depth: 0}))
+  await install(await testDefaults({update: true, depth: 0}))
 
   const shr = await project.loadShrinkwrap()
 
@@ -42,9 +42,9 @@ test('preserve subdeps on update', async (t: tape.Test) => {
 test('update does not fail when package has only peer dependencies', async (t: tape.Test) => {
   prepare(t)
 
-  await installPkgs(['has-pkg-with-peer-only'], testDefaults())
+  await installPkgs(['has-pkg-with-peer-only'], await testDefaults())
 
-  await install(testDefaults({update: true, depth: Infinity}))
+  await install(await testDefaults({update: true, depth: Infinity}))
 
   t.pass('did not fail')
 })

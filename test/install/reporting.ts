@@ -15,7 +15,7 @@ test('reports warning when installing deprecated packages', async (t: tape.Test)
 
   const reporter = sinon.spy()
 
-  await installPkgs(['jade@1.11.0'], testDefaults({reporter}))
+  await installPkgs(['jade@1.11.0'], await testDefaults({reporter}))
 
   t.ok(reporter.calledWithMatch(<DeprecationLog>{
     name: 'pnpm:deprecation',

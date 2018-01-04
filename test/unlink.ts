@@ -43,11 +43,11 @@ test('unlink 1 package that exists in package.json', async (t: tape.Test) => {
     }),
   ])
 
-  await link('is-subdir', 'project')
-  await link('is-positive', 'project')
+  await link('is-subdir', 'project', await testDefaults())
+  await link('is-positive', 'project', await testDefaults())
 
   process.chdir('project')
-  await unlinkPkgs(['is-subdir'], testDefaults())
+  await unlinkPkgs(['is-subdir'], await testDefaults())
 
   t.equal(typeof project.requireModule('is-subdir'), 'function', 'is-subdir installed after unlinked')
   t.notOk((await isInnerLink('node_modules', 'is-positive')).isInner, 'is-positive left linked')
@@ -57,7 +57,7 @@ test("don't update package when unlinking", async (t: tape.Test) => {
   const project = prepare(t)
 
   await addDistTag('foo', '100.0.0', 'latest')
-  await installPkgs(['foo'], testDefaults())
+  await installPkgs(['foo'], await testDefaults())
 
   process.chdir('..')
 
@@ -66,11 +66,11 @@ test("don't update package when unlinking", async (t: tape.Test) => {
     version: '100.0.0',
   })
 
-  await link('foo', 'project')
+  await link('foo', 'project', await testDefaults())
   await addDistTag('foo', '100.1.0', 'latest')
 
   process.chdir('project')
-  await unlinkPkgs(['foo'], testDefaults())
+  await unlinkPkgs(['foo'], await testDefaults())
 
   t.equal(project.requireModule('foo/package.json').version, '100.0.0', 'foo not updated after unlink')
 })
@@ -97,11 +97,11 @@ test('unlink 2 packages. One of them exists in package.json', async (t: tape.Tes
     }),
   ])
 
-  await link('is-subdir', 'project')
-  await link('is-positive', 'project')
+  await link('is-subdir', 'project', await testDefaults())
+  await link('is-positive', 'project', await testDefaults())
 
   process.chdir('project')
-  await unlinkPkgs(['is-subdir', 'is-positive'], testDefaults())
+  await unlinkPkgs(['is-subdir', 'is-positive'], await testDefaults())
 
   t.equal(typeof project.requireModule('is-subdir'), 'function', 'is-subdir installed after unlinked')
   t.notOk(await exists(path.join('node_modules', 'is-positive')), 'is-positive removed as it is not in package.json')
@@ -130,11 +130,11 @@ test('unlink all packages', async (t: tape.Test) => {
     }),
   ])
 
-  await link('is-subdir', 'project')
-  await link('logger', 'project')
+  await link('is-subdir', 'project', await testDefaults())
+  await link('logger', 'project', await testDefaults())
 
   process.chdir('project')
-  await unlink(testDefaults())
+  await unlink(await testDefaults())
 
   t.equal(typeof project.requireModule('is-subdir'), 'function', 'is-subdir installed after unlinked')
   t.equal(typeof project.requireModule('@zkochan/logger'), 'object', '@zkochan/logger installed after unlinked')
@@ -143,10 +143,10 @@ test('unlink all packages', async (t: tape.Test) => {
 test("don't warn about scoped packages when running unlink w/o params", async (t: tape.Test) => {
   const project = prepare(t)
 
-  await installPkgs(['@zkochan/logger'], testDefaults())
+  await installPkgs(['@zkochan/logger'], await testDefaults())
 
   const reporter = sinon.spy()
-  await unlink(testDefaults({reporter}))
+  await unlink(await testDefaults({reporter}))
 
   t.notOk(reporter.calledWithMatch({
     level: 'warn',
@@ -159,9 +159,9 @@ test("don't unlink package that is not a link", async (t: tape.Test) => {
 
   const reporter = sinon.spy()
 
-  await installPkgs(['is-positive'], testDefaults())
+  await installPkgs(['is-positive'], await testDefaults())
 
-  await unlinkPkgs(['is-positive'], testDefaults({reporter}))
+  await unlinkPkgs(['is-positive'], await testDefaults({reporter}))
 
   t.ok(reporter.calledWithMatch({
     level: 'warn',
@@ -174,9 +174,9 @@ test("don't unlink package that is not a link when independent-leaves = true", a
 
   const reporter = sinon.spy()
 
-  await installPkgs(['is-positive'], testDefaults({independentLeaves: true}))
+  await installPkgs(['is-positive'], await testDefaults({independentLeaves: true}))
 
-  await unlinkPkgs(['is-positive'], testDefaults({independentLeaves: true, reporter}))
+  await unlinkPkgs(['is-positive'], await testDefaults({independentLeaves: true, reporter}))
 
   t.ok(reporter.calledWithMatch({
     level: 'warn',
