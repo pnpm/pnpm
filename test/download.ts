@@ -1,37 +1,40 @@
 import test = require('tape')
 import nock = require('nock')
-import createDownloader, {NpmRegistryClient} from '@pnpm/tarball-fetcher/lib/createDownloader'
+import createFetcher from '@pnpm/tarball-fetcher'
 import path = require('path')
 import tempy = require('tempy')
 
 const tarballPath = path.join(__dirname, 'tars', 'babel-helper-hoist-variables-6.24.1.tgz')
 const tarballSize = 1279
 const tarballIntegrity = 'sha1-HssnaJydJVE+rbyZFKc/VAi+enY='
-const RETRY = {
-  retries: 1,
-  minTimeout: 0,
-  maxTimeout: 100,
-}
+const registry = 'http://example.com/'
+const fetch = createFetcher({
+  registry,
+  rawNpmConfig: {
+    registry,
+  },
+  fetchRetries: 1,
+  fetchRetryMintimeout: 0,
+  fetchRetryMaxtimeout: 100,
+})
 
 test('fail when tarball size does not match content-length', async t => {
-  nock('http://example.com')
+  nock(registry)
     .get('/foo.tgz')
     .times(2)
     .replyWithFile(200, tarballPath, {
       'Content-Length': (1024 * 1024).toString(),
     })
 
-  const download = createDownloader({
-    alwaysAuth: false,
-    registry: 'http://example.com/',
-    retry: RETRY,
-  })
+  process.chdir(tempy.directory())
+  const unpackTo = path.resolve('unpacked')
+  const cachedTarballLocation = path.resolve('cached')
+  const resolution = { tarball: `${registry}foo.tgz` }
 
   try {
-    const tmpDir = tempy.directory()
-    await download('http://example.com/foo.tgz', path.join(tmpDir, 'foo.tgz'), {
-      unpackTo: path.join(tmpDir, 'unpacked'),
-      generatePackageIntegrity: false,
+    await fetch.tarball(resolution, unpackTo, {
+      cachedTarballLocation,
+      prefix: process.cwd(),
     })
     t.fail('should have failed')
   } catch (err) {
@@ -45,52 +48,55 @@ test('fail when tarball size does not match content-length', async t => {
 })
 
 test('retry when tarball size does not match content-length', async t => {
-  const scope = nock('http://example.com')
+  const scope = nock(registry)
     .get('/foo.tgz')
     .replyWithFile(200, tarballPath, {
       'Content-Length': (1024 * 1024).toString(),
     })
 
-  nock('http://example.com')
+  nock(registry)
     .get('/foo.tgz')
     .replyWithFile(200, tarballPath, {
       'Content-Length': tarballSize.toString(),
     })
 
-  const download = createDownloader({
-    alwaysAuth: false,
-    registry: 'http://example.com/',
-    retry: RETRY,
+  process.chdir(tempy.directory())
+  t.comment(`testing in ${process.cwd()}`)
+
+  const unpackTo = path.resolve('unpacked')
+  const cachedTarballLocation = path.resolve('cached')
+  const resolution = { tarball: 'http://example.com/foo.tgz' }
+
+  await fetch.tarball(resolution, unpackTo, {
+    cachedTarballLocation,
+    prefix: process.cwd(),
   })
 
-  const tmpDir = tempy.directory()
-  await download('http://example.com/foo.tgz', path.join(tmpDir, 'foo.tgz'), {
-    unpackTo: path.join(tmpDir, 'unpacked'),
-    generatePackageIntegrity: false,
-  })
   t.end()
 })
 
 test('fail when integrity check fails two times in a row', async t => {
-  nock('http://example.com')
+  nock(registry)
     .get('/foo.tgz')
     .times(2)
     .replyWithFile(200, path.join(__dirname, 'tars', 'babel-helper-hoist-variables-7.0.0-alpha.10.tgz'), {
       'Content-Length': '1194',
     })
 
-  const download = createDownloader({
-    alwaysAuth: false,
-    registry: 'http://example.com/',
-    retry: RETRY,
-  })
+  process.chdir(tempy.directory())
+  t.comment(`testing in ${process.cwd()}`)
+
+  const unpackTo = path.resolve('unpacked')
+  const cachedTarballLocation = path.resolve('cached')
+  const resolution = {
+    tarball: 'http://example.com/foo.tgz',
+    integrity: tarballIntegrity,
+  }
 
   try {
-    const tmpDir = tempy.directory()
-    await download('http://example.com/foo.tgz', path.join(tmpDir, 'foo.tgz'), {
-      unpackTo: path.join(tmpDir, 'unpacked'),
-      generatePackageIntegrity: false,
-      integrity: tarballIntegrity,
+    await fetch.tarball(resolution, unpackTo, {
+      cachedTarballLocation,
+      prefix: process.cwd(),
     })
     t.fail('should have failed')
   } catch (err) {
@@ -103,30 +109,32 @@ test('fail when integrity check fails two times in a row', async t => {
 })
 
 test('retry when integrity check fails', async t => {
-  nock('http://example.com')
+  nock(registry)
     .get('/foo.tgz')
     .replyWithFile(200, path.join(__dirname, 'tars', 'babel-helper-hoist-variables-7.0.0-alpha.10.tgz'), {
       'Content-Length': '1194',
     })
 
-  nock('http://example.com')
+  nock(registry)
     .get('/foo.tgz')
     .replyWithFile(200, tarballPath, {
       'Content-Length': tarballSize.toString(),
     })
 
-  const download = createDownloader({
-    alwaysAuth: false,
-    registry: 'http://example.com/',
-    retry: RETRY,
-  })
+  process.chdir(tempy.directory())
+  t.comment(`testing in ${process.cwd()}`)
+
+  const unpackTo = path.resolve('unpacked')
+  const cachedTarballLocation = path.resolve('cached')
+  const resolution = {
+    tarball: 'http://example.com/foo.tgz',
+    integrity: tarballIntegrity,
+  }
 
   const params: any = []
-  const tmpDir = tempy.directory()
-  await download('http://example.com/foo.tgz', path.join(tmpDir, 'foo.tgz'), {
-    unpackTo: path.join(tmpDir, 'unpacked'),
-    generatePackageIntegrity: false,
-    integrity: tarballIntegrity,
+  await fetch.tarball(resolution, unpackTo, {
+    cachedTarballLocation,
+    prefix: process.cwd(),
     onStart (size, attempts) {
       params.push([size, attempts])
     },
