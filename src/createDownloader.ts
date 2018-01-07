@@ -105,8 +105,7 @@ export default (
         fetch(currentAttempt)
           .then(resolve)
           .catch((err) => {
-            if (err.code !== 'BAD_TARBALL_SIZE' && err.code !== 'EINTEGRITY') {
-              // These other error types shoud've been retried by `make-fetch-happen`
+            if (err.code === 'E403') {
               reject(err)
               return
             }
