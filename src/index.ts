@@ -11,7 +11,6 @@ export type IgnoreFunction = (filename: string) => boolean
 
 export interface FetchOptions {
   cachedTarballLocation: string,
-  pkgId: string,
   prefix: string,
   onStart?: (totalSize: number | null, attempt: number) => void,
   onProgress?: (downloaded: number) => void,
@@ -19,15 +18,16 @@ export interface FetchOptions {
 
 export default function (
   opts: {
-    alwaysAuth: boolean,
     registry: string,
+    rawNpmConfig: object,
+    alwaysAuth?: boolean,
     proxy?: string,
     httpsProxy?: string,
     localAddress?: string,
     cert?: string,
     key?: string,
     ca?: string,
-    strictSsl: boolean,
+    strictSsl?: boolean,
     fetchRetries?: number,
     fetchRetryFactor?: number,
     fetchRetryMintimeout?: number,
@@ -35,11 +35,20 @@ export default function (
     userAgent?: string,
     ignoreFile?: IgnoreFunction,
     offline?: boolean,
-    rawNpmConfig: object,
   },
-) {
+): {
+  tarball: (
+    resolution: {
+      integrity?: string,
+      registry?: string,
+      tarball: string,
+    },
+    target: string,
+    opts: FetchOptions,
+  ) => Promise<{}>
+} {
   const download = createDownloader({
-    alwaysAuth: opts.alwaysAuth,
+    alwaysAuth: opts.alwaysAuth || false,
     registry: opts.registry,
     ca: opts.ca,
     cert: opts.cert,
@@ -52,7 +61,7 @@ export default function (
       minTimeout: opts.fetchRetryMintimeout,
       retries: opts.fetchRetries,
     },
-    strictSSL: opts.strictSsl,
+    strictSSL: opts.strictSsl || true,
     userAgent: opts.userAgent,
   })
   return {
