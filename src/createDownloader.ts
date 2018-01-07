@@ -62,7 +62,13 @@ export default (
 ): DownloadFunction => {
   const fetchFromNpmRegistry = createFetcher(gotOpts)
 
-  const retryOpts = gotOpts.retry
+  const retryOpts = {
+    retries: 2,
+    factor: 10,
+    minTimeout: 1e4, // 10 seconds
+    maxTimeout: 6e4, // 1 minute
+    ...gotOpts.retry
+  }
 
   return async function download (url: string, saveto: string, opts: {
     auth?: {
@@ -112,7 +118,8 @@ export default (
         const res = await fetchFromNpmRegistry(url, {auth: shouldAuth && opts.auth as any || undefined}) // tslint:disable-line
 
         if (res.status !== 200) {
-          return new Error(`Invalid response: ${res.statusCode}`)
+          // TODO: throw a meaningfull error
+          throw new Error(`Invalid response: ${res.status}`)
         }
 
         const contentLength = res.headers.has('content-length') && res.headers.get('content-length')
