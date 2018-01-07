@@ -10,7 +10,7 @@
   "scripts": {
     "prepublishOnly": "npm run tsc",
     "tsc": "rimraf lib && tsc",
-    "test": "preview && ts-node test"
+    "test": "preview && ts-node test && node example"
   },
   "repository": {
     "type": "git",
