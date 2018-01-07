@@ -1,18 +1,25 @@
-import {install, installPkgs, PnpmOptions} from 'supi'
+import {
+  install,
+  installPkgs,
+} from 'supi'
 import createStoreController from '../createStoreController'
 import requireHooks from '../requireHooks'
+import {PnpmOptions} from '../types'
 
-export default async function (input: string[], opts: PnpmOptions) {
-  opts = Object.assign({update: true}, opts)
-
-  const prefix = opts.prefix || process.cwd()
-  if (!opts.ignorePnpmfile) {
-    opts.hooks = requireHooks(prefix)
-  }
-  opts['storeController'] = (await createStoreController(opts)).ctrl // tslint:disable-line
+export default async function (
+  input: string[],
+  opts: PnpmOptions,
+) {
+  const store = await createStoreController(opts)
+  const updateOpts = Object.assign(opts, {
+    hooks: !opts.ignorePnpmfile && requireHooks(opts.prefix),
+    store: store.path,
+    storeController: store.ctrl,
+    update: true,
+  })
 
   if (!input || !input.length) {
-    return install(opts)
+    return install(updateOpts)
   }
-  return installPkgs(input, opts)
+  return installPkgs(input, updateOpts)
 }

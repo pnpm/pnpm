@@ -18,6 +18,7 @@
     "no-require-imports": false,
     "no-console": false,
     "space-before-function-paren": [true, "always"],
+    "interface-name": [true, "never-prefix"],
     "one-line": [true,
       "check-else",
       "check-whitespace",

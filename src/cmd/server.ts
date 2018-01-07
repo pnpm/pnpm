@@ -4,18 +4,19 @@ import getPort = require('get-port')
 import fs = require('graceful-fs')
 import isWindows = require('is-windows')
 import mkdirp = require('mkdirp-promise')
+import {resolveStore} from 'package-store'
 import path = require('path')
 import onExit = require('signal-exit')
-import { PnpmOptions } from 'supi'
-import extendOptions from 'supi/lib/api/extendOptions'
 import writeJsonFile = require('write-json-file')
 import createStore from '../createStore'
+import { PnpmOptions } from '../types'
 
 export default async (input: string[], opts: PnpmOptions) => {
   logger.warn('The store server is an experimental feature. Breaking changes may happen in non-major versions.')
 
-  const strictOpts = await extendOptions(opts, false)
-  const store = await createStore(strictOpts)
+  const store = await createStore(Object.assign(opts, {
+    store: await resolveStore(opts.store, opts.prefix),
+  }))
 
   // the store folder will be needed because server will want to create a file there
   // for the IPC connection

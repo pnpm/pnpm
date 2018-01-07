@@ -14,6 +14,7 @@ gfs.gracefulify(fs)
 
 import loudRejection = require('loud-rejection')
 loudRejection()
+import logger from '@pnpm/logger'
 import camelcase = require('camelcase')
 import {stripIndent} from 'common-tags'
 import isCI = require('is-ci')
@@ -206,9 +207,30 @@ async function run (argv: string[]) {
   initReporter(silent ? 'silent' : (<any>opts.reporter || 'default'), cmd) // tslint:disable-line
   delete opts.reporter // This is a silly workaround because supi expects a function as opts.reporter
 
-  // `pnpm install ""` is going to be just `pnpm install`
-  const cliArgs = cliConf.argv.remain.slice(1).filter(Boolean)
-  return pnpmCmds[cmd](cliArgs, opts, cliConf.argv.remain[0])
+  // NOTE: we defer the next stage, otherwise reporter might not catch all the logs
+  return new Promise((resolve, reject) => {
+    setTimeout(() => {
+      if (opts.storePath && !opts.store) {
+        logger.warn('the `store-path` config is deprecated. Use `store` instead.')
+        opts.store = opts.storePath
+      }
+
+      // `pnpm install ""` is going to be just `pnpm install`
+      const cliArgs = cliConf.argv.remain.slice(1).filter(Boolean)
+      try {
+        const result = pnpmCmds[cmd](cliArgs, opts, cliConf.argv.remain[0])
+        if (result instanceof Promise) {
+          result
+            .then(resolve)
+            .catch(reject)
+        } else {
+          resolve()
+        }
+      } catch (err) {
+        reject(err)
+      }
+    }, 0)
+  })
 }
 
 export = run

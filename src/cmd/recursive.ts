@@ -6,12 +6,16 @@ import createPkgGraph, {PackageNode} from 'pkgs-graph'
 import sortPkgs = require('sort-pkgs')
 import {
   install,
-  PnpmOptions,
+  InstallOptions,
 } from 'supi'
 import createStoreController from '../createStoreController'
 import requireHooks from '../requireHooks'
+import {PnpmOptions} from '../types'
 
-export default async (input: string[], opts: PnpmOptions) => {
+export default async (
+  input: string[],
+  opts: PnpmOptions,
+) => {
   let concurrency = 4
   if (!isNaN(parseInt(input[0], 10))) {
     concurrency = parseInt(input.shift() as string, 10)
@@ -58,6 +62,10 @@ export default async (input: string[], opts: PnpmOptions) => {
     ...store.ctrl,
     saveState: async () => undefined,
   }
+  const installOpts = Object.assign(opts, {
+    store: store.path,
+    storeController,
+  }) as InstallOptions
 
   const limitInstallation = pLimit(concurrency)
 
@@ -65,7 +73,7 @@ export default async (input: string[], opts: PnpmOptions) => {
     await chunk.map((prefix: string) =>
       limitInstallation(() => {
         const hooks = opts.ignorePnpmfile ? {} : requireHooks(prefix)
-        return install({...opts, hooks, storeController, prefix})
+        return install({...installOpts, hooks, storeController, prefix})
       }),
     )
   }

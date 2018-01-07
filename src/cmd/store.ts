@@ -1,11 +1,12 @@
 import logger from '@pnpm/logger'
+import {resolveStore} from 'package-store'
 import {
-  PnpmOptions,
   storePrune,
   storeStatus,
 } from 'supi'
 import createStoreController from '../createStoreController'
 import {PnpmError} from '../errorTypes'
+import {PnpmOptions} from '../types'
 import help from './help'
 
 class StoreStatusError extends PnpmError {
@@ -21,15 +22,21 @@ export default async function (input: string[], opts: PnpmOptions) {
     case 'status':
       return statusCmd(opts)
     case 'prune':
-      opts['storeController'] = (await createStoreController(opts)).ctrl // tslint:disable-line
-      return storePrune(opts)
+      const store = await createStoreController(opts)
+      const storePruneOptions = Object.assign(opts, {
+        store: store.path,
+        storeController: store.ctrl,
+      })
+      return storePrune(storePruneOptions)
     default:
       help(['store'])
   }
 }
 
 async function statusCmd (opts: PnpmOptions) {
-  const modifiedPkgs = await storeStatus(opts)
+  const modifiedPkgs = await storeStatus(Object.assign(opts, {
+    store: await resolveStore(opts.store, opts.prefix),
+  }))
   if (!modifiedPkgs || !modifiedPkgs.length) {
     logger.info('Packages in the store are untouched')
     return

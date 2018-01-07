@@ -3,31 +3,36 @@ import {
   link,
   linkFromGlobal,
   linkToGlobal,
-  PnpmOptions,
 } from 'supi'
+import createStoreController from '../createStoreController'
+import {PnpmOptions} from '../types'
 
-export default (
+export default async (
   input: string[],
-  opts: PnpmOptions & {
-    globalPrefix: string,
-    globalBin: string,
-  },
+  opts: PnpmOptions,
 ) => {
   const cwd = opts && opts.prefix || process.cwd()
 
+  const store = await createStoreController(opts)
+  const linkOpts = Object.assign(opts, {
+    store: store.path,
+    storeController: store.ctrl,
+  })
+
   // pnpm link
   if (!input || !input.length) {
-    return linkToGlobal(cwd, opts)
+    await linkToGlobal(cwd, linkOpts)
+    return
   }
 
-  return input.reduce((previous: Promise<void>, inp: string) => {
+  await input.reduce((previous: Promise<void>, inp: string) => {
     // pnpm link ../foo
     if (inp[0].indexOf('.') === 0) {
       const linkFrom = path.join(cwd, inp)
-      return previous.then(() => link(linkFrom, cwd, opts))
+      return previous.then(() => link(linkFrom, cwd, linkOpts))
     }
 
     // pnpm link foo
-    return previous.then(() => linkFromGlobal(inp, cwd, opts))
+    return previous.then(() => linkFromGlobal(inp, cwd, linkOpts))
   }, Promise.resolve())
 }
