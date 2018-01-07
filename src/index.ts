@@ -1,12 +1,15 @@
 import fetchFromGit from '@pnpm/git-fetcher'
-import createTarballFetcher, {IgnoreFunction} from '@pnpm/tarball-fetcher'
+import createTarballFetcher, {
+  FetchOptions,
+  IgnoreFunction,
+} from '@pnpm/tarball-fetcher'
 
 export default function (
   opts: {
-    alwaysAuth: boolean,
+    alwaysAuth?: boolean,
     registry: string,
     rawNpmConfig: object,
-    strictSsl: boolean,
+    strictSsl?: boolean,
     proxy?: string,
     httpsProxy?: string,
     localAddress?: string,
