@@ -107,7 +107,7 @@ export default function (
   resolve: ResolveFunction,
   fetchers: {[type: string]: FetchFunction},
   opts: {
-    networkConcurrency: number,
+    networkConcurrency?: number,
     storePath: string,
     storeIndex: StoreIndex,
   },
