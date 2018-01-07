@@ -30,13 +30,16 @@ export default async function (
   fetchers: {[type: string]: FetchFunction},
   initOpts: {
     locks?: string,
-    lockStaleDuration: number,
+    lockStaleDuration?: number,
     store: string,
-    networkConcurrency: number,
+    networkConcurrency?: number,
   },
 ): Promise<StoreController> {
   const unlock = initOpts.locks
-    ? await lock(initOpts.store, { stale: initOpts.lockStaleDuration, locks: initOpts.locks })
+    ? await lock(initOpts.store, {
+        locks: initOpts.locks,
+        stale: initOpts.lockStaleDuration || 60 * 1000, // 1 minute,
+      })
     : () => Promise.resolve(undefined)
 
   const store = initOpts.store
