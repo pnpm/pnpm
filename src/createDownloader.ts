@@ -105,6 +105,11 @@ export default (
         fetch(currentAttempt)
           .then(resolve)
           .catch((err) => {
+            if (err.code !== 'BAD_TARBALL_SIZE' && err.code !== 'EINTEGRITY') {
+              // These other error types shoud've been retried by `make-fetch-happen`
+              reject(err)
+              return
+            }
             if (op.retry(err)) {
               return
             }
@@ -118,8 +123,13 @@ export default (
         const res = await fetchFromNpmRegistry(url, {auth: shouldAuth && opts.auth as any || undefined}) // tslint:disable-line
 
         if (res.status !== 200) {
-          // TODO: throw a meaningfull error
-          throw new Error(`Invalid response: ${res.status}`)
+          const err = new Error(`${res.status} ${res.statusText}: ${url}`)
+          // tslint:disable
+          err['code'] = `E${res.status}`
+          err['uri'] = url
+          err['response'] = res
+          // tslint:enable
+          throw err
         }
 
         const contentLength = res.headers.has('content-length') && res.headers.get('content-length')

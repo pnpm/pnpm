@@ -145,3 +145,110 @@ test('retry when integrity check fails', async t => {
 
   t.end()
 })
+
+test('retry on server error', async t => {
+  nock(registry)
+    .get('/foo.tgz')
+    .reply(500)
+
+  nock(registry)
+    .get('/foo.tgz')
+    .replyWithFile(200, tarballPath, {
+      'Content-Length': tarballSize.toString(),
+    })
+
+  process.chdir(tempy.directory())
+  t.comment(`testing in ${process.cwd()}`)
+
+  const unpackTo = path.resolve('unpacked')
+  const cachedTarballLocation = path.resolve('cached')
+  const resolution = {
+    tarball: 'http://example.com/foo.tgz',
+    integrity: tarballIntegrity,
+  }
+
+  const index = await fetch.tarball(resolution, unpackTo, {
+    cachedTarballLocation,
+    prefix: process.cwd(),
+  })
+
+  t.ok(index)
+
+  t.end()
+})
+
+test('throw error when accessing private package w/o authorization', async t => {
+  nock(registry)
+    .get('/foo.tgz')
+    .reply(403)
+
+  process.chdir(tempy.directory())
+  t.comment(`testing in ${process.cwd()}`)
+
+  const unpackTo = path.resolve('unpacked')
+  const cachedTarballLocation = path.resolve('cached')
+  const resolution = {
+    tarball: 'http://example.com/foo.tgz',
+    integrity: tarballIntegrity,
+  }
+
+  try {
+    await fetch.tarball(resolution, unpackTo, {
+      cachedTarballLocation,
+      prefix: process.cwd(),
+    })
+    t.fail('should have failed')
+  } catch (err) {
+    t.equal(err.message, '403 Forbidden: http://example.com/foo.tgz')
+    t.equal(err['code'], 'E403')
+    t.equal(err['uri'], 'http://example.com/foo.tgz')
+    t.end()
+  }
+})
+
+test('accessing private packages', async t => {
+  nock(
+    registry,
+    {
+      reqheaders: {
+        'authorization': 'Bearer ofjergrg349gj3f2'
+      }
+    }
+  )
+    .get('/foo.tgz')
+    .replyWithFile(200, tarballPath, {
+      'Content-Length': tarballSize.toString(),
+    })
+
+  process.chdir(tempy.directory())
+  t.comment(`testing in ${process.cwd()}`)
+
+  const fetch = createFetcher({
+    alwaysAuth: true,
+    registry,
+    rawNpmConfig: {
+      registry,
+      '//example.com/:_authToken': 'ofjergrg349gj3f2',
+    },
+    fetchRetries: 1,
+    fetchRetryMintimeout: 0,
+    fetchRetryMaxtimeout: 100,
+  })
+
+  const unpackTo = path.resolve('unpacked')
+  const cachedTarballLocation = path.resolve('cached')
+  const resolution = {
+    registry,
+    tarball: 'http://example.com/foo.tgz',
+    integrity: tarballIntegrity,
+  }
+
+  const index = await fetch.tarball(resolution, unpackTo, {
+    cachedTarballLocation,
+    prefix: process.cwd(),
+  })
+
+  t.ok(index)
+
+  t.end()
+})
