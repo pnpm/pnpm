@@ -1,4 +1,3 @@
-import fs = require('mz/fs')
 import path = require('path')
 import symlinkDir = require('symlink-dir')
 import exists = require('path-exists')
@@ -17,15 +16,9 @@ import updateShrinkwrap from './updateShrinkwrap'
 import * as dp from 'dependency-path'
 import {Shrinkwrap, DependencyShrinkwrap} from 'pnpm-shrinkwrap'
 import removeOrphanPkgs from '../api/removeOrphanPkgs'
-import linkIndexedDir from '../fs/linkIndexedDir'
 import mkdirp = require('mkdirp-promise')
-import ncpCB = require('ncp')
 import thenify = require('thenify')
 import {rootLogger, statsLogger} from '../loggers'
-import child_process = require('child_process')
-
-const execFilePromise = thenify(child_process.execFile)
-const ncp = thenify(ncpCB)
 
 export default async function linkPackages (
   rootNodeIdsByAlias: {[alias: string]: string},
@@ -51,7 +44,6 @@ export default async function linkPackages (
     // This is only needed till shrinkwrap v4
     updateShrinkwrapMinorVersion: boolean,
     outdatedPkgs: {[pkgId: string]: string},
-    packageImportMethod: 'auto' | 'hardlink' | 'copy' | 'reflink',
   }
 ): Promise<{
   linkedPkgsMap: DependencyTreeNodeMap,
@@ -209,7 +201,7 @@ async function linkNewPackages (
     global: boolean,
     baseNodeModules: string,
     optional: boolean,
-    packageImportMethod: 'auto' | 'hardlink' | 'copy' | 'reflink',
+    storeController: StoreController,
   }
 ): Promise<string[]> {
   const nextPkgResolvedIds = R.keys(wantedShrinkwrap.packages)
@@ -259,34 +251,7 @@ async function linkNewPackages (
   await Promise.all([
     linkAllModules(newPkgs, pkgsToLink, {optional: opts.optional}),
     linkAllModules(existingWithUpdatedDeps, pkgsToLink, {optional: opts.optional}),
-    (async () => {
-      // this works in the following way:
-      // - hardlink: hardlink the packages, no fallback
-      // - reflink: reflink the packages, no fallback
-      // - auto: try to hardlink the packages, if it fails, fallback to copy
-      // - copy: copy the packages, do not try to link them first
-      switch (opts.packageImportMethod) {
-        case 'reflink':
-          await linkAllPkgs(reflinkPkg, newPkgs, opts)
-          break
-        case 'hardlink':
-          await linkAllPkgs(hardlinkPkg, newPkgs, opts)
-          break
-        case 'auto':
-          try {
-            await linkAllPkgs(hardlinkPkg, newPkgs, opts)
-          } catch (err) {
-            if (!err.message.startsWith('EXDEV: cross-device link not permitted')) throw err
-            logger.warn(err.message)
-            logger.info('Falling back to copying packages from store')
-            await linkAllPkgs(copyPkg, newPkgs, opts)
-          }
-          break
-        case 'copy':
-          await linkAllPkgs(copyPkg, newPkgs, opts)
-          break
-      }
-    })()
+    linkAllPkgs(opts.storeController, newPkgs, opts),
   ])
 
   await linkAllBins(newPkgs, pkgsToLink, {optional: opts.optional})
@@ -297,25 +262,21 @@ async function linkNewPackages (
 const limitLinking = pLimit(16)
 
 async function linkAllPkgs (
-  linkPkg: (fetchResult: PackageFilesResponse, dependency: DependencyTreeNode, opts: {
-    force: boolean,
-    baseNodeModules: string,
-    packageImportMethod: 'auto' | 'hardlink' | 'copy' | 'reflink',
-  }) => Promise<void>,
+  storeController: StoreController,
   alldeps: DependencyTreeNode[],
   opts: {
     force: boolean,
-    global: boolean,
-    baseNodeModules: string,
-    packageImportMethod: 'auto' | 'hardlink' | 'copy' | 'reflink',
   }
 ) {
   return Promise.all(
     alldeps.map(async pkg => {
-      const fetchResult = await pkg.fetchingFiles
+      const filesResponse = await pkg.fetchingFiles
 
       if (pkg.independent) return
-      return limitLinking(() => linkPkg(fetchResult, pkg, opts))
+      return storeController.importPackage(pkg.centralLocation, pkg.peripheralLocation, {
+        force: opts.force,
+        filesResponse,
+      })
     })
   )
 }
@@ -329,7 +290,7 @@ async function linkAllBins (
 ) {
   return Promise.all(
     pkgs.map(dependency => limitLinking(async () => {
-      const binPath = path.join(dependency.hardlinkedLocation, 'node_modules', '.bin')
+      const binPath = path.join(dependency.peripheralLocation, 'node_modules', '.bin')
 
       const childrenToLink = opts.optional
           ? dependency.children
@@ -354,7 +315,7 @@ async function linkAllBins (
 
       // link also the bundled dependencies` bins
       if (dependency.hasBundledDependencies) {
-        const bundledModules = path.join(dependency.hardlinkedLocation, 'node_modules')
+        const bundledModules = path.join(dependency.peripheralLocation, 'node_modules')
         await linkBins(bundledModules, binPath)
       }
     }))
@@ -394,69 +355,7 @@ async function linkAllModules (
   )
 }
 
-async function reflinkPkg (
-  filesResponse: PackageFilesResponse,
-  dependency: DependencyTreeNode,
-  opts: {
-    force: boolean,
-    baseNodeModules: string,
-    packageImportMethod: 'auto' | 'hardlink' | 'copy' | 'reflink',
-  }
-) {
-  const pkgJsonPath = path.join(dependency.hardlinkedLocation, 'package.json')
-
-  if (!filesResponse.fromStore || opts.force || !await exists(pkgJsonPath)) {
-    await mkdirp(dependency.hardlinkedLocation)
-    await execFilePromise('cp', ['-r', '--reflink', dependency.path + '/.', dependency.hardlinkedLocation])
-  }
-}
-
-async function hardlinkPkg (
-  filesResponse: PackageFilesResponse,
-  dependency: DependencyTreeNode,
-  opts: {
-    force: boolean,
-    baseNodeModules: string,
-    packageImportMethod: 'auto' | 'hardlink' | 'copy' | 'reflink',
-  }
-) {
-  const pkgJsonPath = path.join(dependency.hardlinkedLocation, 'package.json')
-
-  if (!filesResponse.fromStore || opts.force || !await exists(pkgJsonPath) || !await pkgLinkedToStore(pkgJsonPath, dependency)) {
-    await linkIndexedDir(dependency.path, dependency.hardlinkedLocation, filesResponse.filenames)
-  }
-}
-
-async function copyPkg (
-  filesResponse: PackageFilesResponse,
-  dependency: DependencyTreeNode,
-  opts: {
-    force: boolean,
-    baseNodeModules: string,
-  }
-) {
-  const newlyFetched = await dependency.fetchingFiles
-
-  const pkgJsonPath = path.join(dependency.hardlinkedLocation, 'package.json')
-  if (newlyFetched || opts.force || !await exists(pkgJsonPath)) {
-    await mkdirp(dependency.hardlinkedLocation)
-    await ncp(dependency.path + '/.', dependency.hardlinkedLocation)
-  }
-}
-
-async function pkgLinkedToStore (pkgJsonPath: string, dependency: DependencyTreeNode) {
-  const pkgJsonPathInStore = path.join(dependency.path, 'package.json')
-  if (await isSameFile(pkgJsonPath, pkgJsonPathInStore)) return true
-  logger.info(`Relinking ${dependency.hardlinkedLocation} from the store`)
-  return false
-}
-
-async function isSameFile (file1: string, file2: string) {
-  const stats = await Promise.all([fs.stat(file1), fs.stat(file2)])
-  return stats[0].ino === stats[1].ino
-}
-
 function symlinkDependencyTo (alias: string, dependency: DependencyTreeNode, dest: string) {
   dest = path.join(dest, alias)
-  return symlinkDir(dependency.hardlinkedLocation, dest)
+  return symlinkDir(dependency.peripheralLocation, dest)
 }

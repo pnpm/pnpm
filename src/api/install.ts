@@ -535,7 +535,6 @@ async function installInContext (
     makePartialCurrentShrinkwrap,
     updateShrinkwrapMinorVersion: installType === 'general' || R.isEmpty(ctx.currentShrinkwrap.packages),
     outdatedPkgs: installCtx.outdatedPkgs,
-    packageImportMethod: opts.packageImportMethod,
   })
 
   ctx.pendingBuilds = ctx.pendingBuilds
@@ -571,7 +570,7 @@ async function installInContext (
         R.props<string, DependencyTreeNode>(result.newPkgResolvedIds, result.linkedPkgsMap)
           .map(pkg => limitChild(async () => {
             try {
-              await postInstall(pkg.hardlinkedLocation, {
+              await postInstall(pkg.peripheralLocation, {
                 rawNpmConfig: installCtx.rawNpmConfig,
                 initialWD: ctx.root,
                 userAgent: opts.userAgent,

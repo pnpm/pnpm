@@ -39,7 +39,6 @@ export type InstallOptions = {
   development?: boolean,
   optional?: boolean,
   independentLeaves?: boolean,
-  packageImportMethod?: 'auto' | 'hardlink' | 'copy' | 'reflink',
   ignoreScripts?: boolean,
   childConcurrency?: number,
   userAgent?: string,
@@ -80,7 +79,6 @@ export type StrictInstallOptions = InstallOptions & {
   development: boolean,
   optional: boolean,
   independentLeaves: boolean,
-  packageImportMethod: 'auto' | 'hardlink' | 'copy' | 'reflink',
   ignoreScripts: boolean,
   childConcurrency: number,
   userAgent: string,
@@ -134,7 +132,6 @@ const defaults = async (opts: InstallOptions) => {
                 !(process.getuid && process.setuid &&
                   process.getgid && process.setgid) ||
                 process.getuid() !== 0,
-    packageImportMethod: 'auto',
     saveDev: false,
     saveOptional: false,
   }

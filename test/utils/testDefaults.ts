@@ -10,6 +10,7 @@ export default async function testDefaults (
   opts?: any,
   resolveOpts?: any,
   fetchOpts?: any,
+  storeOpts?: any,
 ): Promise<InstallOptions> {
   let store = opts && opts.store || path.resolve('..', '.store')
   store = await resolveStore(store, opts && opts.prefix || process.cwd())
@@ -31,6 +32,7 @@ export default async function testDefaults (
     {
       store,
       locks: path.join(store, '_locks'),
+      ...storeOpts,
     }
   )
   return Object.assign({

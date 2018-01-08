@@ -19,11 +19,11 @@ export type DependencyTreeNode = {
   // at this point the version is really needed only for logging
   version: string,
   hasBundledDependencies: boolean,
-  path: string,
+  centralLocation: string,
   modules: string,
   fetchingFiles: Promise<PackageFilesResponse>,
   resolution: Resolution,
-  hardlinkedLocation: string,
+  peripheralLocation: string,
   children: {[alias: string]: string},
   // an independent package is a package that
   // has neither regular nor peer dependencies
@@ -163,19 +163,19 @@ function resolvePeersOfNode (
   ctx.absolutePathsByNodeId[nodeId] = absolutePath
   if (!ctx.resolvedTree[absolutePath] || ctx.resolvedTree[absolutePath].depth > node.depth) {
     const independent = ctx.independentLeaves && R.isEmpty(node.children) && R.isEmpty(node.pkg.peerDependencies)
-    const pathToUnpacked = path.join(node.pkg.path, 'node_modules', node.pkg.name)
-    const hardlinkedLocation = !independent
+    const centralLocation = path.join(node.pkg.path, 'node_modules', node.pkg.name)
+    const peripheralLocation = !independent
       ? path.join(modules, node.pkg.name)
-      : pathToUnpacked
+      : centralLocation
     ctx.resolvedTree[absolutePath] = {
       name: node.pkg.name,
       version: node.pkg.version,
       hasBundledDependencies: node.pkg.hasBundledDependencies,
       fetchingFiles: node.pkg.fetchingFiles,
       resolution: node.pkg.resolution,
-      path: pathToUnpacked,
+      centralLocation,
       modules,
-      hardlinkedLocation,
+      peripheralLocation,
       independent,
       optionalDependencies: node.pkg.optionalDependencies,
       children: Object.assign(children, resolvedPeers),

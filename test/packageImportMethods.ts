@@ -25,7 +25,7 @@ const test = promisifyTape(tape)
 test('packageImportMethod can be set to copy', async (t: tape.Test) => {
   const project = prepare(t)
 
-  await installPkgs(['is-negative'], await testDefaults({packageImportMethod: 'copy'}))
+  await installPkgs(['is-negative'], await testDefaults({}, {}, {}, {packageImportMethod: 'copy'}))
 
   const m = project.requireModule('is-negative')
   t.ok(m, 'is-negative is available with packageImportMethod = copy')

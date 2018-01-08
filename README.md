@@ -44,7 +44,6 @@ Install packages.
 * `options.reporter` - *Function* - A function that listens for logs.
 * `options.packageManager` - *Object* - The `package.json` of the package manager.
 * `options.hooks` - *Object* - A property that contains installation hooks. Hooks are [documented separately](#hooks).
-* `options.packageImportMethod` - *auto | hardlink | reflink | copy* - how to import the packages from the store into node_modules. Defaults to `auto`, which will attempt to do hardlinks, and then copy if hardlinks fail.
 * `options.shrinkwrapOnly` - *Boolean* - `false` by default. When `true`, only updates `shrinkwrap.yaml` and `package.json` instead of checking `node_modules` and downloading dependencies.
 
 **Returns:** a Promise
