@@ -92,6 +92,11 @@ export default function (
           await store.saveState()
           res.end(JSON.stringify('OK'))
           break
+        case '/importPackage':
+          const importPackageBody = (await bodyPromise) as any // tslint:disable-line:no-any
+          await store.importPackage(importPackageBody.from, importPackageBody.to, importPackageBody.opts)
+          res.end(JSON.stringify('OK'))
+          break
         default:
           res.statusCode = 404
           res.end(`${req.url} does not match any route`)

@@ -1,4 +1,5 @@
 import {
+  PackageFilesResponse,
   PackageResponse,
   RequestPackageOptions,
   WantedDependency,
@@ -21,6 +22,16 @@ export default function (
   return new Promise((resolve, reject) => {
     resolve({
       close: async () => { return },
+      importPackage: async (from: string, to: string, opts: {
+        filesResponse: PackageFilesResponse,
+        force: boolean,
+      }) => {
+        await limitedFetch(`${remotePrefix}/importPackage`, {
+          from,
+          opts,
+          to,
+        })
+      },
       prune: async () => {
         await limitedFetch(`${remotePrefix}/prune`, {})
       },
