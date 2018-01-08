@@ -57,7 +57,7 @@ why it works fine with the Node.js ecosystem, read this small article: [Why shou
 
 ## Install
 
-Using a [standalone script](.scripts/self-installer):
+Using a [standalone script](https://github.com/pnpm/self-installer#readme):
 
 ```
 curl -L https://unpkg.com/@pnpm/self-installer | node
