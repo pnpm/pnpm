@@ -263,3 +263,8 @@ declare module 'osenv' {
   const anything: any;
   export = anything;
 }
+
+declare module 'util.promisify' {
+  const anything: any;
+  export = anything;
+}

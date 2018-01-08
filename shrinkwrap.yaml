@@ -3,11 +3,15 @@ dependencies:
   '@pnpm/package-requester': 0.6.2
   '@pnpm/types': 1.7.0
   '@types/load-json-file': 2.0.7
+  '@types/mz': 0.0.32
   '@types/node': 9.3.0
   '@types/ramda': 0.25.14
   drive-by-path: 1.0.0
   encode-registry: 1.1.0
   load-json-file: 4.0.0
+  mkdirp-promise: 5.0.1
+  mz: 2.7.0
+  ncp: 2.0.0
   os-homedir: 1.0.2
   p-filter: 1.0.0
   p-limit: 1.2.0
@@ -15,6 +19,7 @@ dependencies:
   path-exists: 3.0.0
   ramda: 0.25.0
   rimraf-then: 1.0.1
+  util.promisify: 1.0.0
   write-json-file: 2.3.0
 devDependencies:
   '@pnpm/logger': 1.0.0
@@ -138,14 +143,13 @@ packages:
       integrity: sha512-NrH6jPlV77QCVPhAHofWeiOr77TgpKt82c2RVxSBChWBJqyY/u4ngl3CA4mcsAg/w7rNLrkR7dkObMV0ihLLXw==
   /@types/mz/0.0.32:
     dependencies:
-      '@types/node': 8.5.8
+      '@types/node': 9.3.0
     resolution:
       integrity: sha512-cy3yebKhrHuOcrJGkfwNHhpTXQLgmXSv1BX+4p32j+VUQ6aP2eJ5cL7OvGcAQx75fCTFaAIIAKewvqL+iwSd4g==
   /@types/node/8.5.8:
     resolution:
       integrity: sha512-8KmlRxwbKZfjUHFIt3q8TF5S2B+/E5BaAoo/3mgc5h6FJzqxXkCK/VMetO+IRDtwtU6HUvovHMBn+XRj7SV9Qg==
   /@types/node/9.3.0:
-    dev: false
     resolution:
       integrity: sha512-wNBfvNjzsJl4tswIZKXCFQY0lss9nKUyJnG6T94X/eqjRgI2jHZ4evdjhQYBSan/vGtF6XVXPApOmNH2rf0KKw==
   /@types/p-queue/1.1.0:
@@ -1708,6 +1712,10 @@ packages:
     optional: true
     resolution:
       integrity: sha1-7XFfP+neArV6XmJS2QqWZ14fCFo=
+  /ncp/2.0.0:
+    dev: false
+    resolution:
+      integrity: sha1-GVoh1sRuNh0vsSgbo4uR6d9727M=
   /ndjson/1.5.0:
     dependencies:
       json-stringify-safe: 5.0.1
@@ -2890,6 +2898,7 @@ specifiers:
   '@pnpm/package-requester': ^0.6.2
   '@pnpm/types': ^1.3.0
   '@types/load-json-file': ^2.0.5
+  '@types/mz': ^0.0.32
   '@types/node': ^9.3.0
   '@types/ramda': ^0.25.0
   '@types/tape': ^4.2.30
@@ -2900,6 +2909,9 @@ specifiers:
   husky: ^0.14.3
   in-publish: ^2.0.0
   load-json-file: ^4.0.0
+  mkdirp-promise: ^5.0.1
+  mz: ^2.7.0
+  ncp: ^2.0.0
   npm-scripts-info: ^0.3.6
   os-homedir: ^1.0.2
   p-filter: ^1.0.0
@@ -2914,5 +2926,6 @@ specifiers:
   ts-node: ^4.0.0
   tslint: ^5.4.2
   typescript: ^2.4.1
+  util.promisify: ^1.0.0
   validate-commit-msg: ^2.7.0
   write-json-file: ^2.2.0

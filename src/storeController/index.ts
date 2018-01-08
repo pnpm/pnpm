@@ -16,9 +16,11 @@ import {
   read as readStore,
   save as saveStore,
 } from '../fs/storeIndex'
+import createImportPackage, {ImportPackageFunction} from './createImportPackage'
 
 export interface StoreController {
   requestPackage: RequestPackageFunction,
+  importPackage: ImportPackageFunction,
   close (): Promise<void>,
   updateConnections (prefix: string, opts: {addDependencies: string[], removeDependencies: string[], prune: boolean}): Promise<void>,
   prune (): Promise<void>,
@@ -33,6 +35,7 @@ export default async function (
     lockStaleDuration?: number,
     store: string,
     networkConcurrency?: number,
+    packageImportMethod?: 'auto' | 'hardlink' | 'copy' | 'reflink',
   },
 ): Promise<StoreController> {
   const unlock = initOpts.locks
@@ -52,6 +55,7 @@ export default async function (
 
   return {
     close: async () => { await unlock() },
+    importPackage: createImportPackage(initOpts.packageImportMethod),
     prune,
     requestPackage,
     saveState,
