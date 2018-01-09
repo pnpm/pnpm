@@ -27,6 +27,7 @@ export default async (
     offline?: boolean,
     lockStaleDuration?: number,
     networkConcurrency?: number,
+    packageImportMethod?: 'auto' | 'hardlink' | 'copy' | 'reflink',
   },
 ) => {
   const sopts = Object.assign(opts, {
@@ -40,6 +41,7 @@ export default async (
       lockStaleDuration: sopts.lockStaleDuration,
       locks: sopts.locks,
       networkConcurrency: sopts.networkConcurrency,
+      packageImportMethod: sopts.packageImportMethod,
       store: sopts.store,
     }),
     path: sopts.store,
