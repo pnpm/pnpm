@@ -111,6 +111,8 @@ function copyDependencySubTree (
       depShr.dev = true
     } else if (depShr.dev === true) { // keeping if dev is explicitly false
       delete depShr.dev
+    } else if (depShr.dev === undefined) {
+      depShr.dev = false
     }
     const newDependencies = R.keys(depShr.dependencies)
       .map((pkgName: string) => refToRelative((depShr.dependencies && depShr.dependencies[pkgName]) as string, pkgName))

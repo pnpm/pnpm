@@ -13,11 +13,13 @@ test('remove one redundant package', t => {
     },
     packages: {
       '/is-positive/1.0.0': {
+        dev: false,
         resolution: {
           integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g='
         }
       },
       '/is-positive/2.0.0': {
+        dev: false,
         resolution: {
           integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g='
         }
@@ -40,6 +42,7 @@ test('remove one redundant package', t => {
     },
     packages: {
       '/is-positive/1.0.0': {
+        dev: false,
         resolution: {
           integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g='
         }
@@ -64,11 +67,13 @@ test('keep all', t => {
     },
     packages: {
       '/is-positive/1.0.0': {
+        dev: false,
         resolution: {
           integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g='
         }
       },
       '/is-negative/1.0.0': {
+        dev: false,
         dependencies: {
           'is-positive': '2.0.0',
         },
@@ -77,6 +82,7 @@ test('keep all', t => {
         }
       },
       '/is-positive/2.0.0': {
+        dev: false,
         resolution: {
           integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g='
         }
@@ -102,11 +108,13 @@ test('keep all', t => {
     },
     packages: {
       '/is-positive/1.0.0': {
+        dev: false,
         resolution: {
           integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g='
         }
       },
       '/is-negative/1.0.0': {
+        dev: false,
         dependencies: {
           'is-positive': '2.0.0',
         },
@@ -115,6 +123,7 @@ test('keep all', t => {
         }
       },
       '/is-positive/2.0.0': {
+        dev: false,
         resolution: {
           integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g='
         }
@@ -141,11 +150,13 @@ test('optional dependency should have optional = true', t => {
     },
     packages: {
       '/is-positive/1.0.0': {
+        dev: false,
         resolution: {
           integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g='
         }
       },
       '/pkg-with-good-optional/1.0.0': {
+        dev: false,
         optionalDependencies: {
           'is-positive': '1.0.0',
         },
@@ -178,12 +189,14 @@ test('optional dependency should have optional = true', t => {
     },
     packages: {
       '/is-positive/1.0.0': {
+        dev: false,
         optional: true,
         resolution: {
           integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g='
         }
       },
       '/pkg-with-good-optional/1.0.0': {
+        dev: false,
         optionalDependencies: {
           'is-positive': '1.0.0',
         },
@@ -211,11 +224,13 @@ test('optional dependency should not have optional = true if used not only as op
     },
     packages: {
       '/is-positive/1.0.0': {
+        dev: false,
         resolution: {
           integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g='
         }
       },
       '/pkg-with-good-optional/1.0.0': {
+        dev: false,
         optionalDependencies: {
           'is-positive': '1.0.0',
         },
@@ -244,11 +259,13 @@ test('optional dependency should not have optional = true if used not only as op
     },
     packages: {
       '/is-positive/1.0.0': {
+        dev: false,
         resolution: {
           integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g='
         }
       },
       '/pkg-with-good-optional/1.0.0': {
+        dev: false,
         optionalDependencies: {
           'is-positive': '1.0.0',
         },
@@ -283,6 +300,7 @@ test('dev dependency should have dev = true', t => {
         }
       },
       '/pkg-with-good-optional/1.0.0': {
+        dev: false,
         resolution: {
           integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g='
         }
@@ -318,6 +336,7 @@ test('dev dependency should have dev = true', t => {
         }
       },
       '/pkg-with-good-optional/1.0.0': {
+        dev: false,
         resolution: {
           integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g='
         }
@@ -349,6 +368,7 @@ test('dev dependency should not have dev = true if it is used not only as dev', 
         }
       },
       '/some-pkg/1.0.0': {
+        dev: false,
         dependencies: {
           'is-positive': '1.0.0',
         },
@@ -386,9 +406,55 @@ test('dev dependency should not have dev = true if it is used not only as dev', 
         }
       },
       '/some-pkg/1.0.0': {
+        dev: false,
         dependencies: {
           'is-positive': '1.0.0',
         },
+        resolution: {
+          integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g='
+        }
+      },
+    }
+  })
+
+  t.end()
+})
+
+test('the dev field should be updated to dev = false if it is not a dev dependency anymore', t => {
+  t.deepEqual(prune({
+    shrinkwrapVersion: 3,
+    registry: 'https://registry.npmjs.org',
+    dependencies: {
+      'a': '1.0.0',
+    },
+    specifiers: {
+      'a': '^1.0.0',
+    },
+    packages: {
+      '/a/1.0.0': {
+        resolution: {
+          integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g='
+        }
+      },
+    }
+  }, {
+    name: 'foo',
+    version: '1.0.0',
+    dependencies: {
+      a: '^1.0.0',
+    },
+  }), {
+    shrinkwrapVersion: 3,
+    registry: 'https://registry.npmjs.org',
+    dependencies: {
+      'a': '1.0.0',
+    },
+    specifiers: {
+      'a': '^1.0.0',
+    },
+    packages: {
+      '/a/1.0.0': {
+        dev: false,
         resolution: {
           integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g='
         }
@@ -458,6 +524,7 @@ test('ignore dependencies that are in package.json but are not in shrinkwrap.yam
     },
     packages: {
       '/is-positive/1.0.0': {
+        dev: false,
         resolution: {
           integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g='
         }
@@ -481,6 +548,7 @@ test('ignore dependencies that are in package.json but are not in shrinkwrap.yam
     },
     packages: {
       '/is-positive/1.0.0': {
+        dev: false,
         resolution: {
           integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g='
         }
@@ -504,6 +572,7 @@ test('keep shrinkwrapMinorVersion, if present', t => {
     },
     packages: {
       '/is-positive/1.0.0': {
+        dev: false,
         resolution: {
           integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g='
         }
@@ -527,6 +596,7 @@ test('keep shrinkwrapMinorVersion, if present', t => {
     },
     packages: {
       '/is-positive/1.0.0': {
+        dev: false,
         resolution: {
           integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g='
         }
