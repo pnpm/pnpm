@@ -182,6 +182,8 @@ function getHelpText (command: string) {
 
         Options:
 
+          --protocol <auto|tcp|ipc>      the communication protocol used by the server
+          --port <number>                the port number to use, when TCP is used for communication
           --store                        the location where all the packages are saved on the disk.
           --network-concurrency <number> maximum number of concurrent network requests
           --[no-]verify-store-integrity  if false, doesn't check whether packages in the store were mutated
