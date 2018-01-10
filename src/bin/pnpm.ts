@@ -123,6 +123,7 @@ async function run (argv: string[]) {
     'offline': Boolean,
     'package-import-method': ['auto', 'hardlink', 'reflink', 'copy'],
     'pending': Boolean,
+    'port': Number,
     'protocol': ['auto', 'tcp', 'ipc'],
     'reporter': String,
     'shrinkwrap-only': Boolean,

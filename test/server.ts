@@ -11,6 +11,7 @@ import thenify = require('thenify')
 import {
   prepare,
   execPnpm,
+  execPnpmSync,
   spawn,
 } from './utils'
 
@@ -88,4 +89,32 @@ test('installation using pnpm server via TCP', async (t: tape.Test) => {
 
     t.notOk(await pathExists(serverJsonPath), 'server.json removed')
   }
+})
+
+test('pnpm server uses TCP when port specified', async (t: tape.Test) => {
+  const project = prepare(t)
+
+  const server = spawn(['server', '--port', '7856'])
+
+  await delay(2000) // lets' wait till the server starts
+
+  const serverJsonPath = path.resolve('..', 'store', '2', 'server.json')
+  const serverJson = await loadJsonFile(serverJsonPath)
+  t.ok(serverJson)
+  t.equal(serverJson.connectionOptions.remotePrefix, 'http://localhost:7856', 'TCP with specified port is used for communication')
+
+  await kill(server.pid, 'SIGINT')
+
+  // TODO: fix this test for Windows
+  if (!IS_WINDOWS) {
+    await delay(2000) // lets' wait till the server starts
+
+    t.notOk(await pathExists(serverJsonPath), 'server.json removed')
+  }
+})
+
+test('pnpm server fails when trying to set --port for IPC protocol', async (t: tape.Test) => {
+  const project = prepare(t)
+
+  t.equal(execPnpmSync('server', '--protocol', 'ipc', '--port', '7856').status, 1, 'process failed')
 })
