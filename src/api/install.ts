@@ -67,6 +67,11 @@ import {
   Resolution,
   RequestPackageFunction,
 } from '@pnpm/package-requester'
+import {
+  nodeIdContainsSequence,
+  createNodeId,
+  ROOT_NODE_ID,
+} from '../nodeIdUtils'
 
 export type InstalledPackages = {
   [name: string]: InstalledPackage
@@ -373,7 +378,7 @@ async function installInContext (
     },
     update: opts.update,
     keypath: [],
-    parentNodeId: ':/:',
+    parentNodeId: ROOT_NODE_ID,
     currentDepth: 0,
     readPackageHook: opts.hooks.readPackage,
     hasManifestInShrinkwrap,
@@ -635,10 +640,10 @@ function buildTree (
 ) {
   const childrenNodeIds = {}
   for (const child of children) {
-    if (parentNodeId.indexOf(`:${parentId}:${child.pkgId}:`) !== -1) {
+    if (nodeIdContainsSequence(parentNodeId, parentId, child.pkgId)) {
       continue
     }
-    const childNodeId = `${parentNodeId}${child.pkgId}:`
+    const childNodeId = createNodeId(parentNodeId, child.pkgId)
     childrenNodeIds[child.alias] = childNodeId
     installable = installable && !ctx.skipped.has(child.pkgId)
     ctx.tree[childNodeId] = {

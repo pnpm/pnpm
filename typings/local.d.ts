@@ -273,3 +273,8 @@ declare module 'validate-npm-package-name' {
   const anything: any;
   export = anything;
 }
+
+declare module 'replace-string' {
+  const anything: any;
+  export = anything;
+}

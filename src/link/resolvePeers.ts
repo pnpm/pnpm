@@ -13,6 +13,11 @@ import {oneLine} from 'common-tags'
 import crypto = require('crypto')
 import {InstalledPackage} from '../install/installMultiple'
 import {TreeNode, TreeNodeMap} from '../api/install'
+import {
+  splitNodeId,
+  createNodeId,
+  ROOT_NODE_ID,
+} from '../nodeIdUtils'
 
 export type DependencyTreeNode = {
   name: string,
@@ -271,8 +276,8 @@ function packageFriendlyId (pkg: {name: string, version: string}) {
 }
 
 function nodeIdToFriendlyPath (nodeId: string, tree: TreeNodeMap) {
-  const parts = nodeId.split(':').slice(2, -2)
-  return R.tail(R.scan((prevNodeId, pkgId) => `${prevNodeId}${pkgId}:`, ':/:', parts))
+  const parts = splitNodeId(nodeId).slice(2, -2)
+  return R.tail(R.scan((prevNodeId, pkgId) => createNodeId(prevNodeId, pkgId), ROOT_NODE_ID, parts))
     .map(nodeId => tree[nodeId].pkg.name)
     .join(' > ')
 }

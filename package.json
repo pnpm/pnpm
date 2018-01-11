@@ -71,6 +71,7 @@
     "ramda": "^0.25.0",
     "read-package-json": "^2.0.5",
     "remove-all-except-outer-links": "^1.0.0",
+    "replace-string": "^1.1.0",
     "rimraf-then": "^1.0.1",
     "semver": "^5.3.0",
     "symlink-dir": "^1.1.0",

@@ -51,6 +51,7 @@ dependencies:
   ramda: 0.25.0
   read-package-json: 2.0.12
   remove-all-except-outer-links: 1.0.3
+  replace-string: 1.1.0
   rimraf-then: 1.0.1
   semver: 5.4.1
   symlink-dir: 1.1.2
@@ -3880,6 +3881,12 @@ packages:
       node: '>=0.10.0'
     resolution:
       integrity: sha1-UhTFOpJtNVJwdSf7q0FdvAjQbdo=
+  /replace-string/1.1.0:
+    dev: false
+    engines:
+      node: '>=4'
+    resolution:
+      integrity: sha1-hwYhF/gj/lgAwwa6yyz6NZuTX+o=
   /request/2.83.0:
     dependencies:
       aws-sign2: 0.7.0
@@ -5015,6 +5022,7 @@ specifiers:
   read-package-json: ^2.0.5
   read-pkg: ^3.0.0
   remove-all-except-outer-links: ^1.0.0
+  replace-string: ^1.1.0
   rimraf: ^2.6.2
   rimraf-then: ^1.0.1
   semver: ^5.3.0

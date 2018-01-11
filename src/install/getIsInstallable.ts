@@ -4,6 +4,7 @@ import logger from '@pnpm/logger'
 import {PackageManifest} from '@pnpm/types'
 import {installCheckLogger} from '../loggers'
 import {InstalledPackages} from '../api/install'
+import {splitNodeId} from '../nodeIdUtils'
 
 export default async function getIsInstallable (
   pkgId: string,
@@ -45,7 +46,7 @@ function nodeIdToFriendlyPath (
   nodeId: string,
   installs: InstalledPackages,
 ) {
-  const pkgIds = nodeId.split(':').slice(2, -2)
+  const pkgIds = splitNodeId(nodeId).slice(2, -2)
   return pkgIds
     .map(pkgId => installs[pkgId].name)
     .join(' > ')
