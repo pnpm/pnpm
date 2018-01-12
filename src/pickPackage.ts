@@ -8,6 +8,7 @@ import url = require('url')
 import writeJsonFile = require('write-json-file')
 import createPkgId from './createNpmPkgId'
 import {RegistryPackageSpec} from './parsePref'
+import pickPackageFromMeta from './pickPackageFromMeta'
 import toRaw from './toRaw'
 
 class PnpmError extends Error {
@@ -37,59 +38,95 @@ export type PackageInRegistry = PackageManifest & {
 // otherwise it would cause EPERM exceptions
 const metafileOperationLimits = {}
 
-export default async function loadPkgMetaNonCached (
-  fetch: (url: string, opts: {auth?: object}) => Promise<{}>,
-  metaCache: Map<string, object>,
+export default async (
+  ctx: {
+    fetch: (url: string, opts: {auth?: object}) => Promise<{}>,
+    metaCache: Map<string, object>,
+    storePath: string,
+    offline: boolean,
+    preferOffline: boolean,
+  },
   spec: RegistryPackageSpec,
   opts: {
     auth: object,
-    storePath: string,
-    offline: boolean,
+    preferredVersionSelector: {
+      selector: string,
+      type: 'version' | 'range' | 'tag',
+    } | undefined,
     registry: string,
     dryRun: boolean,
   },
-): Promise<PackageMeta> {
+): Promise<{meta: PackageMeta, pickedPackage: PackageInRegistry | null}> => {
   opts = opts || {}
 
-  if (metaCache.has(spec.name)) {
-    return metaCache.get(spec.name) as PackageMeta
+  if (ctx.metaCache.has(spec.name)) {
+    const meta = ctx.metaCache.get(spec.name) as PackageMeta
+    return {
+      meta,
+      pickedPackage: pickPackageFromMeta(spec, opts.preferredVersionSelector, meta),
+    }
   }
 
   const registryName = getRegistryName(opts.registry)
-  const pkgMirror = path.join(opts.storePath, registryName, spec.name)
+  const pkgMirror = path.join(ctx.storePath, registryName, spec.name)
   const limit = metafileOperationLimits[pkgMirror] = metafileOperationLimits[pkgMirror] || pLimit(1)
 
-  if (opts.offline) {
-    const meta = await limit(() => loadMeta(pkgMirror))
+  let metaCachedInStore: PackageMeta | undefined
+  if (ctx.offline || ctx.preferOffline) {
+    metaCachedInStore = await limit(() => loadMeta(pkgMirror))
 
-    if (meta) return meta
+    if (ctx.offline) {
+      if (metaCachedInStore) return {
+        meta: metaCachedInStore,
+        pickedPackage: pickPackageFromMeta(spec, opts.preferredVersionSelector, metaCachedInStore),
+      }
 
-    throw new PnpmError('NO_OFFLINE_META', `Failed to resolve ${toRaw(spec)} in package mirror ${pkgMirror}`)
+      throw new PnpmError('NO_OFFLINE_META', `Failed to resolve ${toRaw(spec)} in package mirror ${pkgMirror}`)
+    }
+
+    if (metaCachedInStore) {
+      const pickedPackage = pickPackageFromMeta(spec, opts.preferredVersionSelector, metaCachedInStore)
+      if (pickedPackage) {
+        return {
+          meta: metaCachedInStore,
+          pickedPackage,
+        }
+      }
+    }
   }
 
   if (spec.type === 'version') {
-    const meta = await limit(() => loadMeta(pkgMirror))
+    metaCachedInStore = metaCachedInStore || await limit(() => loadMeta(pkgMirror))
     // use the cached meta only if it has the required package version
     // otherwise it is probably out of date
-    if (meta && meta.versions && meta.versions[spec.fetchSpec]) {
-      return meta
+    if (metaCachedInStore && metaCachedInStore.versions && metaCachedInStore.versions[spec.fetchSpec]) {
+      return {
+        meta: metaCachedInStore,
+        pickedPackage: metaCachedInStore.versions[spec.fetchSpec],
+      }
     }
   }
 
   try {
-    const meta = await fromRegistry(fetch, spec.name, opts.registry, opts.auth)
+    const meta = await fromRegistry(ctx.fetch, spec.name, opts.registry, opts.auth)
     // only save meta to cache, when it is fresh
-    metaCache.set(spec.name, meta)
+    ctx.metaCache.set(spec.name, meta)
     if (!opts.dryRun) {
       limit(() => saveMeta(pkgMirror, meta))
     }
-    return meta
+    return {
+      meta,
+      pickedPackage: pickPackageFromMeta(spec, opts.preferredVersionSelector, meta),
+    }
   } catch (err) {
     const meta = await loadMeta(pkgMirror) // TODO: add test for this usecase
     if (!meta) throw err
     logger.error(err)
     logger.info(`Using cached meta from ${pkgMirror}`)
-    return meta
+    return {
+      meta,
+      pickedPackage: pickPackageFromMeta(spec, opts.preferredVersionSelector, meta),
+    }
   }
 }
 

@@ -476,6 +476,68 @@ test('offline resolution succeeds when package meta is found in the store', asyn
   t.end()
 })
 
+test('prefer offline resolution does not fail when package meta not found in the store', async t => {
+  nock(registry)
+    .get('/is-positive')
+    .reply(200, isPositiveMeta)
+
+  const resolve = createResolveFromNpm({
+    metaCache: new Map(),
+    store: tempy.directory(),
+    rawNpmConfig: { registry },
+    preferOffline: true,
+  })
+
+  const resolveResult = await resolve({ alias: 'is-positive', pref: '1.0.0' }, { registry })
+  t.equal(resolveResult!.id, 'registry.npmjs.org/is-positive/1.0.0')
+
+  t.end()
+})
+
+test('when prefer offline is used, meta from store is used, where latest might be out-of-date', async t => {
+  nock(registry)
+    .get('/is-positive')
+    .reply(200, {
+      ...isPositiveMeta,
+      'dist-tags': { latest: '3.0.0' },
+    })
+
+  const store = tempy.directory()
+
+  {
+    const resolve = createResolveFromNpm({
+      metaCache: new Map(),
+      store,
+      rawNpmConfig: { registry },
+    })
+
+    // This request will save the package's meta in the store
+    await resolve({ alias: 'is-positive', pref: '1.0.0' }, { registry })
+  }
+
+  nock(registry)
+    .get('/is-positive')
+    .reply(200, {
+      ...isPositiveMeta,
+      'dist-tags': { latest: '3.1.0' },
+    })
+
+  {
+    const resolve = createResolveFromNpm({
+      metaCache: new Map(),
+      store,
+      rawNpmConfig: { registry },
+      preferOffline: true,
+    })
+
+    const resolveResult = await resolve({ alias: 'is-positive', pref: '^3.0.0' }, { registry })
+    t.equal(resolveResult!.id, 'registry.npmjs.org/is-positive/3.0.0')
+  }
+
+  nock.cleanAll()
+  t.end()
+})
+
 test('error is thrown when package is not found in the registry', async t => {
   const notExistingPackage = 'foo'
 
