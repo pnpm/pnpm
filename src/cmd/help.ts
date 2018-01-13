@@ -32,6 +32,7 @@ function getHelpText (command: string) {
           -g, --global                       install as a global package
           --store                            the location where all the packages are saved on the disk.
           --offline                          trigger an error if any required dependencies are not available in local store
+          --prefer-offline                   skip staleness checks for cached data, but request missing data from the server
           --network-concurrency <number>     maximum number of concurrent network requests
           --child-concurrency <number>       controls the number of child processes run parallelly to build node modules
           --ignore-pnpmfile                  disable pnpm hooks defined in pnpmfile.js

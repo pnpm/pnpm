@@ -163,6 +163,14 @@ Hard links are possible only inside a filesystem.
 If true, pnpm will use only packages already available in the store.
 If a package won't be found locally, the installation will fail.
 
+#### prefer-offline
+
+* Default: **false**
+* Type: **Boolean**
+
+If true, staleness checks for cached data will be bypassed, but missing data will be requested from the server.
+To force full offline mode, use `--offline`.
+
 #### network-concurrency
 
 * Default: **16**

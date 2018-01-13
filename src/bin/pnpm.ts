@@ -124,6 +124,7 @@ async function run (argv: string[]) {
     'package-import-method': ['auto', 'hardlink', 'reflink', 'copy'],
     'pending': Boolean,
     'port': Number,
+    'prefer-offline': Boolean,
     'protocol': ['auto', 'tcp', 'ipc'],
     'reporter': String,
     'shrinkwrap-only': Boolean,
