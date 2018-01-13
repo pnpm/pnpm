@@ -20,6 +20,7 @@ import {
   storePrune,
   RootLog,
   StatsLog,
+  PackageJsonLog,
 } from 'supi'
 import thenify = require('thenify')
 import sinon = require('sinon')
@@ -29,10 +30,22 @@ const ncp = thenify(ncpCB.ncp)
 test('uninstall package with no dependencies', async (t: tape.Test) => {
   const project = prepare(t)
 
-  const reporter = sinon.spy()
   await installPkgs(['is-negative@2.1.0'], await testDefaults({ save: true }))
+
+  const reporter = sinon.spy()
   await uninstall(['is-negative'], await testDefaults({ save: true, reporter }))
 
+  t.ok(reporter.calledWithMatch(<PackageJsonLog>{
+    name: 'pnpm:package-json',
+    level: 'debug',
+    initial: {
+      name: 'project',
+      version: '0.0.0',
+      dependencies: {
+        'is-negative': '^2.1.0',
+      },
+    },
+  }), 'initial package.json logged')
   t.ok(reporter.calledWithMatch(<StatsLog>{
     name: 'pnpm:stats',
     level: 'debug',
@@ -47,6 +60,14 @@ test('uninstall package with no dependencies', async (t: tape.Test) => {
       dependencyType: 'prod',
     },
   }), 'removing root dependency reported')
+  t.ok(reporter.calledWithMatch(<PackageJsonLog>{
+    name: 'pnpm:package-json',
+    level: 'debug',
+    updated: {
+      name: 'project',
+      version: '0.0.0',
+    },
+  }), 'updated package.json logged')
 
   // uninstall does not remove packages from store
   // even if they become unreferenced
