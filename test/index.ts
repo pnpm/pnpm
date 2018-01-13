@@ -1,23 +1,21 @@
 import test = require('tape')
 import createResolveFromNpm from '@pnpm/npm-resolver'
 import tempy = require('tempy')
-import {addDistTag} from 'pnpm-registry-mock'
+import nock = require('nock')
 import path = require('path')
 import exists = require('path-exists')
 import loadJsonFile = require('load-json-file')
 
-const registry = 'http://localhost:4873/'
-const metaCache = new Map()
+const isPositiveMeta = loadJsonFile.sync(path.join(__dirname, 'meta', 'is-positive.json'))
+const sindresorhusIsMeta = loadJsonFile.sync(path.join(__dirname, 'meta', 'sindresorhus-is.json'))
 
-const resolveFromNpm = createResolveFromNpm({
-  metaCache,
-  store: tempy.directory(),
-  rawNpmConfig: { registry },
-})
-
-test('waiting for verdaccio to startup', t => setTimeout(() => t.end(), 1000))
+const registry = 'https://registry.npmjs.org/'
 
 test('resolveFromNpm()', async t => {
+  nock(registry)
+    .get('/is-positive')
+    .reply(200, isPositiveMeta)
+
   const store = tempy.directory()
   const resolve = createResolveFromNpm({
     metaCache: new Map(),
@@ -28,12 +26,12 @@ test('resolveFromNpm()', async t => {
     registry,
   })
 
-  t.equal(resolveResult!.id, 'localhost+4873/is-positive/1.0.0')
+  t.equal(resolveResult!.id, 'registry.npmjs.org/is-positive/1.0.0')
   t.equal(resolveResult!.latest!.split('.').length, 3)
   t.deepEqual(resolveResult!.resolution, {
-    integrity: 'sha1-iACYVrZKLx632LsBeUGEJK4EUss=',
+    integrity: 'sha512-9cI+DmhNhA8ioT/3EJFnt0s1yehnAECyIOXdT+2uQGzcEEBaj8oNmVWj33+ZjPndMIFRQh8JeJlEu1uv5/J7pQ==',
     registry,
-    tarball: 'http://localhost:4873/is-positive/-/is-positive-1.0.0.tgz',
+    tarball: 'https://registry.npmjs.org/is-positive/-/is-positive-1.0.0.tgz',
   })
   t.ok(resolveResult!.package)
   t.ok(resolveResult!.package!.name, 'is-positive')
@@ -51,6 +49,10 @@ test('resolveFromNpm()', async t => {
 })
 
 test('dry run', async t => {
+  nock(registry)
+    .get('/is-positive')
+    .reply(200, isPositiveMeta)
+
   const store = tempy.directory()
   const resolve = createResolveFromNpm({
     metaCache: new Map(),
@@ -62,12 +64,12 @@ test('dry run', async t => {
     registry,
   })
 
-  t.equal(resolveResult!.id, 'localhost+4873/is-positive/1.0.0')
+  t.equal(resolveResult!.id, 'registry.npmjs.org/is-positive/1.0.0')
   t.equal(resolveResult!.latest!.split('.').length, 3)
   t.deepEqual(resolveResult!.resolution, {
-    integrity: 'sha1-iACYVrZKLx632LsBeUGEJK4EUss=',
+    integrity: 'sha512-9cI+DmhNhA8ioT/3EJFnt0s1yehnAECyIOXdT+2uQGzcEEBaj8oNmVWj33+ZjPndMIFRQh8JeJlEu1uv5/J7pQ==',
     registry,
-    tarball: 'http://localhost:4873/is-positive/-/is-positive-1.0.0.tgz',
+    tarball: 'https://registry.npmjs.org/is-positive/-/is-positive-1.0.0.tgz',
   })
   t.ok(resolveResult!.package)
   t.ok(resolveResult!.package!.name, 'is-positive')
@@ -82,216 +84,344 @@ test('dry run', async t => {
 })
 
 test('can resolve aliased dependency', async t => {
-  metaCache.clear()
+  nock(registry)
+    .get('/is-positive')
+    .reply(200, isPositiveMeta)
+
+  const resolveFromNpm = createResolveFromNpm({
+    metaCache: new Map(),
+    store: tempy.directory(),
+    rawNpmConfig: { registry },
+  })
   const resolveResult = await resolveFromNpm({alias: 'positive', pref: 'npm:is-positive@1.0.0'}, {
     registry,
   })
-  t.equal(resolveResult!.id, 'localhost+4873/is-positive/1.0.0')
+  t.equal(resolveResult!.id, 'registry.npmjs.org/is-positive/1.0.0')
   t.end()
 })
 
 test('can resolve aliased scoped dependency', async t => {
-  metaCache.clear()
+  nock(registry)
+    .get('/@sindresorhus%2Fis')
+    .reply(200, sindresorhusIsMeta)
+
+  const resolveFromNpm = createResolveFromNpm({
+    metaCache: new Map(),
+    store: tempy.directory(),
+    rawNpmConfig: { registry },
+  })
   const resolveResult = await resolveFromNpm({alias: 'is', pref: 'npm:@sindresorhus/is@0.6.0'}, {
     registry,
   })
-  t.equal(resolveResult!.id, 'localhost+4873/@sindresorhus/is/0.6.0')
+  t.equal(resolveResult!.id, 'registry.npmjs.org/@sindresorhus/is/0.6.0')
   t.end()
 })
 
 test('can resolve package with version prefixed with v', async t => {
-  metaCache.clear()
+  nock(registry)
+    .get('/is-positive')
+    .reply(200, isPositiveMeta)
+
+  const resolveFromNpm = createResolveFromNpm({
+    metaCache: new Map(),
+    store: tempy.directory(),
+    rawNpmConfig: { registry },
+  })
   const resolveResult = await resolveFromNpm({alias: 'is-positive', pref: 'v1.0.0'}, {
     registry,
   })
-  t.equal(resolveResult!.id, 'localhost+4873/is-positive/1.0.0')
+  t.equal(resolveResult!.id, 'registry.npmjs.org/is-positive/1.0.0')
   t.end()
 })
 
 test('can resolve package version loosely', async t => {
-  metaCache.clear()
+  nock(registry)
+    .get('/is-positive')
+    .reply(200, isPositiveMeta)
+
+  const resolveFromNpm = createResolveFromNpm({
+    metaCache: new Map(),
+    store: tempy.directory(),
+    rawNpmConfig: { registry },
+  })
   const resolveResult = await resolveFromNpm({alias: 'is-positive', pref: '= 1.0.0'}, {
     registry,
   })
-  t.equal(resolveResult!.id, 'localhost+4873/is-positive/1.0.0')
+  t.equal(resolveResult!.id, 'registry.npmjs.org/is-positive/1.0.0')
   t.end()
 })
 
 test("resolves to latest if it's inside the wanted range. Even if there are newer versions available inside the range", async t => {
-  metaCache.clear()
-  await addDistTag({package: 'pnpm-foo', version: '1.0.0', distTag: 'latest'})
+  nock(registry)
+    .get('/is-positive')
+    .reply(200, {
+      ...isPositiveMeta,
+      'dist-tags': { latest: '3.0.0' },
+    })
 
+  const resolveFromNpm = createResolveFromNpm({
+    metaCache: new Map(),
+    store: tempy.directory(),
+    rawNpmConfig: { registry },
+  })
   const resolveResult = await resolveFromNpm({
-    alias: 'pnpm-foo',
-    pref: '^1.0.0',
+    alias: 'is-positive',
+    pref: '^3.0.0',
   }, {
     registry,
   })
 
-  // 1.1.0 is available but latest is 1.0.0, so preferring it
-  t.equal(resolveResult!.id, 'localhost+4873/pnpm-foo/1.0.0')
+  // 3.1.0 is available but latest is 3.0.0, so preferring it
+  t.equal(resolveResult!.id, 'registry.npmjs.org/is-positive/3.0.0')
   t.end()
 })
 
 test("resolves to latest if it's inside the preferred range. Even if there are newer versions available inside the preferred range", async t => {
-  metaCache.clear()
-  await addDistTag({package: 'pnpm-foo', version: '1.0.0', distTag: 'latest'})
+  nock(registry)
+    .get('/is-positive')
+    .reply(200, {
+      ...isPositiveMeta,
+      'dist-tags': { latest: '3.0.0' },
+    })
 
+  const resolveFromNpm = createResolveFromNpm({
+    metaCache: new Map(),
+    store: tempy.directory(),
+    rawNpmConfig: { registry },
+  })
   const resolveResult = await resolveFromNpm({
-    alias: 'pnpm-foo',
-    pref: '^1.0.0',
+    alias: 'is-positive',
+    pref: '^3.0.0',
   }, {
     registry,
     preferredVersions: {
-      'pnpm-foo': {type: 'range', selector: '^1.0.0'},
+      'is-positive': {type: 'range', selector: '^3.0.0'},
     },
   })
 
-  // 1.1.0 is available but latest is 1.0.0, so preferring it
-  t.equal(resolveResult!.id, 'localhost+4873/pnpm-foo/1.0.0')
+  // 3.1.0 is available but latest is 3.0.0, so preferring it
+  t.equal(resolveResult!.id, 'registry.npmjs.org/is-positive/3.0.0')
   t.end()
 })
 
 test("resolve using the wanted range, when it doesn't intersect with the preferred range. Even if the preferred range contains the latest version", async t => {
-  metaCache.clear()
-  await addDistTag({package: 'pnpm-foo', version: '2.0.0', distTag: 'latest'})
+  nock(registry)
+    .get('/is-positive')
+    .reply(200, {
+      ...isPositiveMeta,
+      'dist-tags': { latest: '2.0.0' },
+    })
 
+  const resolveFromNpm = createResolveFromNpm({
+    metaCache: new Map(),
+    store: tempy.directory(),
+    rawNpmConfig: { registry },
+  })
   const resolveResult = await resolveFromNpm({
-    alias: 'pnpm-foo',
-    pref: '^1.0.0',
+    alias: 'is-positive',
+    pref: '^3.0.0',
   }, {
     registry,
     preferredVersions: {
-      'pnpm-foo': {type: 'range', selector: '^2.0.0'},
+      'is-positive': {type: 'range', selector: '^2.0.0'},
     },
   })
 
-  t.equal(resolveResult!.id, 'localhost+4873/pnpm-foo/1.3.0')
+  t.equal(resolveResult!.id, 'registry.npmjs.org/is-positive/3.1.0')
   t.end()
 })
 
 test("use the preferred version if it's inside the wanted range", async t => {
-  metaCache.clear()
-  await addDistTag({package: 'pnpm-foo', version: '1.1.0', distTag: 'latest'})
+  nock(registry)
+    .get('/is-positive')
+    .reply(200, {
+      ...isPositiveMeta,
+      'dist-tags': { latest: '3.1.0' },
+    })
 
+  const resolveFromNpm = createResolveFromNpm({
+    metaCache: new Map(),
+    store: tempy.directory(),
+    rawNpmConfig: { registry },
+  })
   const resolveResult = await resolveFromNpm({
-    alias: 'pnpm-foo',
-    pref: '^1.0.0',
+    alias: 'is-positive',
+    pref: '^3.0.0',
   }, {
     registry,
     preferredVersions: {
-      'pnpm-foo': {type: 'version', selector: '1.0.0'},
+      'is-positive': {type: 'version', selector: '3.0.0'},
     },
   })
 
-  // 1.1.0 is the latest but we prefer the 1.0.0
-  t.equal(resolveResult!.id, 'localhost+4873/pnpm-foo/1.0.0')
+  // 3.1.0 is the latest but we prefer the 3.0.0
+  t.equal(resolveResult!.id, 'registry.npmjs.org/is-positive/3.0.0')
   t.end()
 })
 
 test("ignore the preferred version if it's not inside the wanted range", async t => {
-  metaCache.clear()
-  await addDistTag({package: 'pnpm-foo', version: '1.1.0', distTag: 'latest'})
+  nock(registry)
+    .get('/is-positive')
+    .reply(200, {
+      ...isPositiveMeta,
+      'dist-tags': { latest: '3.1.0' },
+    })
 
+  const resolveFromNpm = createResolveFromNpm({
+    metaCache: new Map(),
+    store: tempy.directory(),
+    rawNpmConfig: { registry },
+  })
   const resolveResult = await resolveFromNpm({
-    alias: 'pnpm-foo',
-    pref: '^1.0.0',
+    alias: 'is-positive',
+    pref: '^3.0.0',
   }, {
     registry,
     preferredVersions: {
-      'pnpm-foo': {type: 'version', selector: '2.0.0'},
+      'is-positive': {type: 'version', selector: '2.0.0'},
     },
   })
-  t.equal(resolveResult!.id, 'localhost+4873/pnpm-foo/1.1.0')
+  t.equal(resolveResult!.id, 'registry.npmjs.org/is-positive/3.1.0')
   t.end()
 })
 
 test('use the preferred range if it intersects with the wanted range', async t => {
-  metaCache.clear()
-  await addDistTag({package: 'pnpm-foo', version: '1.0.0', distTag: 'latest'})
+  nock(registry)
+    .get('/is-positive')
+    .reply(200, {
+      ...isPositiveMeta,
+      'dist-tags': { latest: '1.0.0' },
+    })
 
+  const resolveFromNpm = createResolveFromNpm({
+    metaCache: new Map(),
+    store: tempy.directory(),
+    rawNpmConfig: { registry },
+  })
   const resolveResult = await resolveFromNpm({
-    alias: 'pnpm-foo',
-    pref: '^1.0.0',
+    alias: 'is-positive',
+    pref: '>=1.0.0',
   }, {
     registry,
     preferredVersions: {
-      'pnpm-foo': {type: 'range', selector: '^1.1.0'},
+      'is-positive': {type: 'range', selector: '^3.0.0'},
     },
   })
 
   // 1.0.0 is the latest but we prefer a version that is also in the preferred range
-  t.equal(resolveResult!.id, 'localhost+4873/pnpm-foo/1.3.0')
+  t.equal(resolveResult!.id, 'registry.npmjs.org/is-positive/3.1.0')
   t.end()
 })
 
 test("ignore the preferred range if it doesn't intersect with the wanted range", async t => {
-  metaCache.clear()
-  await addDistTag({package: 'pnpm-foo', version: '1.1.0', distTag: 'latest'})
+  nock(registry)
+    .get('/is-positive')
+    .reply(200, {
+      ...isPositiveMeta,
+      'dist-tags': { latest: '3.1.0' },
+    })
 
+  const resolveFromNpm = createResolveFromNpm({
+    metaCache: new Map(),
+    store: tempy.directory(),
+    rawNpmConfig: { registry },
+  })
   const resolveResult = await resolveFromNpm({
-    alias: 'pnpm-foo',
-    pref: '^1.0.0',
+    alias: 'is-positive',
+    pref: '^3.0.0',
   }, {
     registry,
     preferredVersions: {
-      'pnpm-foo': {type: 'range', selector: '^2.0.0'},
+      'is-positive': {type: 'range', selector: '^2.0.0'},
     },
   })
-  t.equal(resolveResult!.id, 'localhost+4873/pnpm-foo/1.1.0')
+  t.equal(resolveResult!.id, 'registry.npmjs.org/is-positive/3.1.0')
   t.end()
 })
 
 test("use the preferred dist-tag if it's inside the wanted range", async t => {
-  metaCache.clear()
-  await addDistTag({package: 'pnpm-foo', version: '1.1.0', distTag: 'latest'})
-  await addDistTag({package: 'pnpm-foo', version: '1.0.0', distTag: 'stable'})
+  nock(registry)
+    .get('/is-positive')
+    .reply(200, {
+      ...isPositiveMeta,
+      'dist-tags': {
+        latest: '3.1.0',
+        stable: '3.0.0',
+      },
+    })
 
+  const resolveFromNpm = createResolveFromNpm({
+    metaCache: new Map(),
+    store: tempy.directory(),
+    rawNpmConfig: { registry },
+  })
   const resolveResult = await resolveFromNpm({
-    alias: 'pnpm-foo',
-    pref: '^1.0.0',
+    alias: 'is-positive',
+    pref: '^3.0.0',
   }, {
     registry,
     preferredVersions: {
-      'pnpm-foo': {type: 'tag', selector: 'stable'},
+      'is-positive': {type: 'tag', selector: 'stable'},
     },
   })
-  t.equal(resolveResult!.id, 'localhost+4873/pnpm-foo/1.0.0')
+  t.equal(resolveResult!.id, 'registry.npmjs.org/is-positive/3.0.0')
   t.end()
 })
 
 test("ignore the preferred dist-tag if it's not inside the wanted range", async t => {
-  metaCache.clear()
-  await addDistTag({package: 'pnpm-foo', version: '1.1.0', distTag: 'latest'})
-  await addDistTag({package: 'pnpm-foo', version: '2.0.0', distTag: 'stable'})
+  nock(registry)
+    .get('/is-positive')
+    .reply(200, {
+      ...isPositiveMeta,
+      'dist-tags': {
+        latest: '3.1.0',
+        stable: '2.0.0',
+      },
+    })
 
+  const resolveFromNpm = createResolveFromNpm({
+    metaCache: new Map(),
+    store: tempy.directory(),
+    rawNpmConfig: { registry },
+  })
   const resolveResult = await resolveFromNpm({
-    alias: 'pnpm-foo',
-    pref: '^1.0.0',
+    alias: 'is-positive',
+    pref: '^3.0.0',
   }, {
     registry,
     preferredVersions: {
-      'pnpm-foo': {type: 'tag', selector: 'stable'},
+      'is-positive': {type: 'tag', selector: 'stable'},
     },
   })
-  t.equal(resolveResult!.id, 'localhost+4873/pnpm-foo/1.1.0')
+  t.equal(resolveResult!.id, 'registry.npmjs.org/is-positive/3.1.0')
   t.end()
 })
 
 test("prefer a version that is both inside the wanted and preferred ranges. Even if it's not the latest of any of them", async t => {
-  metaCache.clear()
-  await addDistTag({package: 'pnpm-foo', version: '1.2.0', distTag: 'latest'})
+  nock(registry)
+    .get('/is-positive')
+    .reply(200, {
+      ...isPositiveMeta,
+      'dist-tags': {
+        latest: '3.0.0',
+      },
+    })
 
+  const resolveFromNpm = createResolveFromNpm({
+    metaCache: new Map(),
+    store: tempy.directory(),
+    rawNpmConfig: { registry },
+  })
   const resolveResult = await resolveFromNpm({
-    alias: 'pnpm-foo',
-    pref: '1.1.0 || 1.3.0',
+    alias: 'is-positive',
+    pref: '1.0.0 || 2.0.0',
   }, {
     registry,
     preferredVersions: {
-      'pnpm-foo': {type: 'range', selector: '1.1.0 || 1.2.0'},
+      'is-positive': {type: 'range', selector: '1.0.0 || 3.0.0'},
     },
   })
-  t.equal(resolveResult!.id, 'localhost+4873/pnpm-foo/1.1.0')
+  t.equal(resolveResult!.id, 'registry.npmjs.org/is-positive/1.0.0')
   t.end()
 })
 
@@ -313,6 +443,10 @@ test('offline resolution fails when package meta not found in the store', async 
 })
 
 test('offline resolution succeeds when package meta is found in the store', async t => {
+  nock(registry)
+    .get('/is-positive')
+    .reply(200, isPositiveMeta)
+
   const store = tempy.directory()
 
   {
@@ -336,27 +470,46 @@ test('offline resolution succeeds when package meta is found in the store', asyn
     })
 
     const resolveResult = await resolve({ alias: 'is-positive', pref: '1.0.0' }, { registry })
-    t.equal(resolveResult!.id, 'localhost+4873/is-positive/1.0.0')
+    t.equal(resolveResult!.id, 'registry.npmjs.org/is-positive/1.0.0')
   }
 
   t.end()
 })
 
 test('error is thrown when package is not found in the registry', async t => {
+  const notExistingPackage = 'foo'
+
+  nock(registry)
+    .get(`/${notExistingPackage}`)
+    .reply(404, {})
+
+  const resolveFromNpm = createResolveFromNpm({
+    metaCache: new Map(),
+    store: tempy.directory(),
+    rawNpmConfig: { registry },
+  })
   try {
-    const notExistingPackage = 'sndof240jg34g-kwesdgk'
     await resolveFromNpm({ alias: notExistingPackage, pref: '1.0.0' }, { registry })
     t.fail('installation should have failed')
   } catch (err) {
-    t.equal(err.message, '404 Not Found: sndof240jg34g-kwesdgk')
-    t.equal(err['package'], 'sndof240jg34g-kwesdgk')
+    t.equal(err.message, `404 Not Found: ${notExistingPackage}`)
+    t.equal(err['package'], notExistingPackage)
     t.equal(err['code'], 'E404')
-    t.equal(err['uri'], 'http://localhost:4873/sndof240jg34g-kwesdgk')
+    t.equal(err['uri'], `${registry}${notExistingPackage}`)
     t.end()
   }
 })
 
 test('error is thrown when there is no package found for the requested version', async t => {
+  nock(registry)
+    .get('/is-positive')
+    .reply(200, isPositiveMeta)
+
+  const resolveFromNpm = createResolveFromNpm({
+    metaCache: new Map(),
+    store: tempy.directory(),
+    rawNpmConfig: { registry },
+  })
   try {
     await resolveFromNpm({ alias: 'is-positive', pref: '1000.0.0' }, { registry })
     t.fail('installation should have failed')
@@ -367,6 +520,15 @@ test('error is thrown when there is no package found for the requested version',
 })
 
 test('error is thrown when package needs authorization', async t => {
+  nock(registry)
+    .get('/needs-auth')
+    .reply(403)
+
+  const resolveFromNpm = createResolveFromNpm({
+    metaCache: new Map(),
+    store: tempy.directory(),
+    rawNpmConfig: { registry },
+  })
   try {
     await resolveFromNpm({ alias: 'needs-auth', pref: '*' }, { registry })
     t.fail('installation should have failed')
@@ -374,12 +536,21 @@ test('error is thrown when package needs authorization', async t => {
     t.equal(err.message, '403 Forbidden: needs-auth')
     t.equal(err['package'], 'needs-auth')
     t.equal(err['code'], 'E403')
-    t.equal(err['uri'], 'http://localhost:4873/needs-auth')
+    t.equal(err['uri'], `${registry}needs-auth`)
     t.end()
   }
 })
 
 test('error is thrown when there is no package found for the requested range', async t => {
+  nock(registry)
+    .get('/is-positive')
+    .reply(200, isPositiveMeta)
+
+  const resolveFromNpm = createResolveFromNpm({
+    metaCache: new Map(),
+    store: tempy.directory(),
+    rawNpmConfig: { registry },
+  })
   try {
     await resolveFromNpm({ alias: 'is-positive', pref: '^1000.0.0' }, { registry })
     t.fail('installation should have failed')
@@ -390,6 +561,15 @@ test('error is thrown when there is no package found for the requested range', a
 })
 
 test('error is thrown when there is no package found for the requested tag', async t => {
+  nock(registry)
+    .get('/is-positive')
+    .reply(200, isPositiveMeta)
+
+  const resolveFromNpm = createResolveFromNpm({
+    metaCache: new Map(),
+    store: tempy.directory(),
+    rawNpmConfig: { registry },
+  })
   try {
     await resolveFromNpm({ alias: 'is-positive', pref: 'unknown-tag' }, { registry })
     t.fail('installation should have failed')

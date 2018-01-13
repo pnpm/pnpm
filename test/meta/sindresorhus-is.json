@@ -1,0 +1,172 @@
+{
+    "versions": {
+        "0.1.0": {
+            "name": "@sindresorhus/is",
+            "version": "0.1.0",
+            "devDependencies": {
+                "ava": "*",
+                "xo": "*"
+            },
+            "directories": {},
+            "dist": {
+                "shasum": "d0ff822b2b92e6476b7f52ca0f0289992f47061b",
+                "tarball": "https://registry.npmjs.org/@sindresorhus/is/-/is-0.1.0.tgz"
+            },
+            "engines": {
+                "node": ">=4"
+            },
+            "_hasShrinkwrap": false
+        },
+        "0.2.0": {
+            "name": "@sindresorhus/is",
+            "version": "0.2.0",
+            "devDependencies": {
+                "ava": "*",
+                "xo": "*"
+            },
+            "directories": {},
+            "dist": {
+                "shasum": "c7f5e01c8d3372c682e888f73fd72992514c13c9",
+                "tarball": "https://registry.npmjs.org/@sindresorhus/is/-/is-0.2.0.tgz"
+            },
+            "engines": {
+                "node": ">=4"
+            },
+            "_hasShrinkwrap": false
+        },
+        "0.2.1": {
+            "name": "@sindresorhus/is",
+            "version": "0.2.1",
+            "devDependencies": {
+                "ava": "*",
+                "xo": "*"
+            },
+            "directories": {},
+            "dist": {
+                "shasum": "537fe5655c9e6b22313776494abc712f0b327e79",
+                "tarball": "https://registry.npmjs.org/@sindresorhus/is/-/is-0.2.1.tgz"
+            },
+            "engines": {
+                "node": ">=4"
+            },
+            "_hasShrinkwrap": false
+        },
+        "0.3.0": {
+            "name": "@sindresorhus/is",
+            "version": "0.3.0",
+            "devDependencies": {
+                "ava": "*",
+                "jsdom": "^9.12.0",
+                "xo": "*"
+            },
+            "directories": {},
+            "dist": {
+                "shasum": "ae248b274cb9eec2d8c7acdf6a70689126ff7237",
+                "tarball": "https://registry.npmjs.org/@sindresorhus/is/-/is-0.3.0.tgz"
+            },
+            "engines": {
+                "node": ">=4"
+            },
+            "_hasShrinkwrap": false
+        },
+        "0.4.0": {
+            "name": "@sindresorhus/is",
+            "version": "0.4.0",
+            "devDependencies": {
+                "ava": "*",
+                "jsdom": "^9.12.0",
+                "xo": "*"
+            },
+            "directories": {},
+            "dist": {
+                "integrity": "sha512-5WG0MPK5JOCf16GDyP26gmTYI2pMU5eBbiN0bUTb5GzEgBYT7Dj7S7Jjl6dn/pgAXegmACqjD009v5tVFX200g==",
+                "shasum": "45bfece11eb55cac415e65b8de352eb75de1b968",
+                "tarball": "https://registry.npmjs.org/@sindresorhus/is/-/is-0.4.0.tgz"
+            },
+            "engines": {
+                "node": ">=4"
+            },
+            "_hasShrinkwrap": false
+        },
+        "0.5.0": {
+            "name": "@sindresorhus/is",
+            "version": "0.5.0",
+            "devDependencies": {
+                "@types/jsdom": "^2.0.31",
+                "@types/node": "^8.0.47",
+                "ava": "*",
+                "del-cli": "^1.1.0",
+                "jsdom": "^9.12.0",
+                "tslint": "^5.8.0",
+                "tslint-xo": "^0.3.0",
+                "typescript": "^2.6.1"
+            },
+            "directories": {},
+            "dist": {
+                "integrity": "sha512-6cNJTqnikB7E8BV8kYgoYCAwMBh3QSCUte3fq56ldWASPxrGteIDJR5kJ+BJ+AaTRTzI073VUFMHlWrhACn+Jg==",
+                "shasum": "5398b9c4f0963c170d0c8d5873709999f82f508c",
+                "tarball": "https://registry.npmjs.org/@sindresorhus/is/-/is-0.5.0.tgz"
+            },
+            "engines": {
+                "node": ">=4"
+            },
+            "_hasShrinkwrap": false
+        },
+        "0.6.0": {
+            "name": "@sindresorhus/is",
+            "version": "0.6.0",
+            "devDependencies": {
+                "@types/jsdom": "^2.0.31",
+                "@types/node": "^8.0.47",
+                "@types/tempy": "^0.1.0",
+                "ava": "*",
+                "del-cli": "^1.1.0",
+                "jsdom": "^9.12.0",
+                "tempy": "^0.2.1",
+                "tslint": "^5.8.0",
+                "tslint-xo": "^0.3.0",
+                "typescript": "^2.6.1"
+            },
+            "directories": {},
+            "dist": {
+                "shasum": "383f456b26bc96c7889f0332079f4358b16c58dc",
+                "tarball": "https://registry.npmjs.org/@sindresorhus/is/-/is-0.6.0.tgz"
+            },
+            "engines": {
+                "node": ">=4"
+            },
+            "_hasShrinkwrap": false
+        },
+        "0.7.0": {
+            "name": "@sindresorhus/is",
+            "version": "0.7.0",
+            "devDependencies": {
+                "@types/jsdom": "^2.0.31",
+                "@types/node": "^8.0.47",
+                "@types/tempy": "^0.1.0",
+                "ava": "*",
+                "del-cli": "^1.1.0",
+                "jsdom": "^9.12.0",
+                "tempy": "^0.2.1",
+                "tslint": "^5.8.0",
+                "tslint-xo": "^0.3.0",
+                "typescript": "^2.6.1"
+            },
+            "directories": {},
+            "dist": {
+                "integrity": "sha512-ONhaKPIufzzrlNbqtWFFd+jlnemX6lJAgq9ZeiZtS7I1PIf/la7CW4m83rTXRnVnsMbW2k56pGYu7AUFJD9Pow==",
+                "shasum": "9a06f4f137ee84d7df0460c1fdb1135ffa6c50fd",
+                "tarball": "https://registry.npmjs.org/@sindresorhus/is/-/is-0.7.0.tgz"
+            },
+            "engines": {
+                "node": ">=4"
+            },
+            "_hasShrinkwrap": false
+        }
+    },
+    "name": "@sindresorhus/is",
+    "dist-tags": {
+        "latest": "0.7.0"
+    },
+    "modified": "2017-12-11T20:40:22.859Z"
+}
