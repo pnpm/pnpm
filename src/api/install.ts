@@ -124,7 +124,6 @@ export type InstallContext = {
   engineStrict: boolean,
   nodeVersion: string,
   pnpmVersion: string,
-  offline: boolean,
   rawNpmConfig: Object,
   nodeModules: string,
   verifyStoreInegrity: boolean,
@@ -359,7 +358,6 @@ async function installInContext (
       return Infinity
     })(),
     prefix: opts.prefix,
-    offline: opts.offline,
     rawNpmConfig: opts.rawNpmConfig,
     nodeModules: nodeModulesPath,
     verifyStoreInegrity: opts.verifyStoreIntegrity,

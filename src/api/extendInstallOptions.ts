@@ -17,7 +17,6 @@ export type InstallOptions = {
   depth?: number,
   repeatInstallDepth?: number,
   prefix?: string,
-  offline?: boolean,
   rawNpmConfig?: object,
   verifyStoreIntegrity?: boolean,
   engineStrict?: boolean,
@@ -59,7 +58,6 @@ export type StrictInstallOptions = InstallOptions & {
   repeatInstallDepth: number,
   engineStrict: boolean,
   nodeVersion: string,
-  offline: boolean,
   rawNpmConfig: object,
   verifyStoreIntegrity: boolean,
   packageManager: {
@@ -115,7 +113,6 @@ const defaults = async (opts: InstallOptions) => {
     lockStaleDuration: 60 * 1000, // 1 minute
     lock: true,
     childConcurrency: 5,
-    offline: false,
     registry: 'https://registry.npmjs.org/',
     userAgent: `${packageManager.name}/${packageManager.version} npm/? node/${process.version} ${process.platform} ${process.arch}`,
     rawNpmConfig: {},

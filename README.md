@@ -40,7 +40,6 @@ Install packages.
 * `options.saveExact` - *Boolean* - saved dependencies will be configured with an exact version rather than using npm's default semver range operator.
 * `options.global` - *Boolean* - the packages will be installed globally rather than locally.
 * `options.prefix` - *String* - the directory in which the installation will be performed. By default the `process.cwd()` value is used.
-* `options.offline` - *Boolean* - `false` by default. Install packages using only the local registry mirror, w/o doing any network requests.
 * `options.reporter` - *Function* - A function that listens for logs.
 * `options.packageManager` - *Object* - The `package.json` of the package manager.
 * `options.hooks` - *Object* - A property that contains installation hooks. Hooks are [documented separately](#hooks).

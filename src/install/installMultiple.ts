@@ -273,7 +273,6 @@ async function install (
     prefix: ctx.prefix,
     shrinkwrapResolution: options.shrinkwrapResolution,
     currentPkgId: options.pkgId,
-    offline: ctx.offline,
     verifyStoreIntegrity: ctx.verifyStoreInegrity,
     downloadPriority: -options.currentDepth,
     preferredVersions: ctx.preferredVersions,
