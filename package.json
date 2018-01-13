@@ -59,7 +59,7 @@
   "dependencies": {
     "@pnpm/package-requester": "^0.6.1",
     "@types/got": "^7.1.6",
-    "@types/node": "^8.0.57",
+    "@types/node": "^9.3.0",
     "@types/p-limit": "^1.1.1",
     "@types/uuid": "^3.4.3",
     "got": "^8.0.1",
