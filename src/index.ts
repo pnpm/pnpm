@@ -18,6 +18,7 @@ export default function createResolver (
     localAddress?: string,
     userAgent?: string,
     offline?: boolean,
+    preferOffline?: boolean,
     fetchRetries?: number,
     fetchRetryFactor?: number,
     fetchRetryMintimeout?: number,
