@@ -164,6 +164,7 @@ packages:
     resolution:
       integrity: sha512-cy3yebKhrHuOcrJGkfwNHhpTXQLgmXSv1BX+4p32j+VUQ6aP2eJ5cL7OvGcAQx75fCTFaAIIAKewvqL+iwSd4g==
   /@types/node/8.5.1:
+    dev: false
     resolution:
       integrity: sha512-SrmAO+NhnsuG/6TychSl2VdxBZiw/d6V+8j+DFo8O3PwFi+QeYXWHhAw+b170aSc6zYab6/PjEWRZHIDN9mNUw==
   /@types/node/8.5.2:
@@ -209,6 +210,7 @@ packages:
     resolution:
       integrity: sha512-NEVi6tD+oYzmNCB05JQ6+jHa7J6oU1+rbUMD6nLLfExluGKpVHuzZo9skN1y9XAT4UTJIrUZ0+f3xiLtHXYTQA==
   /@types/ramda/0.25.8:
+    dev: false
     resolution:
       integrity: sha512-xLU94I8bn8pBAKdntp67DgSfvyHYqMjzSbUguScMywqKbrthrfsJcZX8hpp1Ih29cvUWWm26cdYtV5A+eF0QFQ==
   /@types/rc/0.0.1:
@@ -749,6 +751,7 @@ packages:
     resolution:
       integrity: sha1-isw4NFgk8W2DZbfJtCWRaOjtYD4=
   /core-util-is/1.0.2:
+    dev: false
     resolution:
       integrity: sha1-tf1UIgqivFq1eqtxQMlAdUUDwac=
   /cross-spawn/5.1.0:
@@ -1600,6 +1603,7 @@ packages:
     resolution:
       integrity: sha1-Sb1jMdfQLQwJvJEKEHW6gWW1bfk=
   /inherits/2.0.3:
+    dev: false
     resolution:
       integrity: sha1-Yzwsg+PaQqUC9SRmAiSA9CCCYd4=
   /ini/1.3.5:
@@ -1849,6 +1853,7 @@ packages:
     resolution:
       integrity: sha1-MQ23D3QtJZoWo2kgK1GvhCMzENk=
   /isarray/1.0.0:
+    dev: false
     resolution:
       integrity: sha1-u5NdSFgsuhaMBoNJV6VKPgcSTxE=
   /isexe/2.0.0:
@@ -2844,6 +2849,7 @@ packages:
     resolution:
       integrity: sha1-du+ErM/X+DZvtxOPuSRmqRbVmbw=
   /process-nextick-args/1.0.7:
+    dev: false
     resolution:
       integrity: sha1-FQ4gt1ZZCtP5EJPyWk8q2L/zC6M=
   /proper-lockfile/2.0.1:
@@ -2965,6 +2971,7 @@ packages:
       safe-buffer: 5.1.1
       string_decoder: 1.0.3
       util-deprecate: 1.0.2
+    dev: false
     resolution:
       integrity: sha512-m+qzzcn7KUxEmd1gMbchF+Y2eIUbieUaxkWtptyHywrX0rE8QEYqPC07Vuy4Wm32/xE16NcdBctb8S0Xe/5IeQ==
   /rechoir/0.6.2:
@@ -3168,6 +3175,7 @@ packages:
     resolution:
       integrity: sha1-pfE/957zt0D+MKqAP7CfmIBdR4I=
   /safe-buffer/5.1.1:
+    dev: false
     resolution:
       integrity: sha512-kKvNJn6Mm93gAczWVJg7wH+wGYWNrDHdWvpUmHyEsgCtIwwo3bqPtV4tR5tuPaUhTOo/kvhVwd8XwwOllGYkbg==
   /semver-regex/1.0.0:
@@ -3369,6 +3377,7 @@ packages:
   /string_decoder/1.0.3:
     dependencies:
       safe-buffer: 5.1.1
+    dev: false
     resolution:
       integrity: sha512-4AH6Z5fzNNBcH+6XDMfA/BTt87skxqJlO0lAh3Dker5zThcAxG6mKz+iGu308UKoPPQ8Dcqx/4JhujzltRa+hQ==
   /stringstream/0.0.5:
@@ -3608,6 +3617,7 @@ packages:
     dependencies:
       readable-stream: 2.3.3
       xtend: 4.0.1
+    dev: false
     resolution:
       integrity: sha1-AARWmzfHx0ujnEPzzteNGtlBQL4=
   /timed-out/4.0.1:
@@ -3775,6 +3785,7 @@ packages:
     resolution:
       integrity: sha1-FQWgOiiaSMvXpDTvuu7FBV9WM6k=
   /util-deprecate/1.0.2:
+    dev: false
     resolution:
       integrity: sha1-RQ1Nyfpw3nMnYvvS1KKJgUGaDM8=
   /util.promisify/1.0.0:
@@ -3917,6 +3928,7 @@ packages:
     resolution:
       integrity: sha1-e0vQ33LKE/vp1rAXj9g8B3uOqGs=
   /xtend/4.0.1:
+    dev: false
     engines:
       node: '>=0.4'
     resolution:
