@@ -30,7 +30,6 @@ test('request package', async t => {
 
   const pkgResponse = await requestPackage({alias: 'is-positive', pref: '1.0.0'}, {
     downloadPriority: 0,
-    offline: false,
     loggedPkg: {},
     prefix: tempy.directory(),
     registry,
@@ -75,7 +74,6 @@ test('request package but skip fetching', async t => {
   const pkgResponse = await requestPackage({alias: 'is-positive', pref: '1.0.0'}, {
     skipFetch: true,
     downloadPriority: 0,
-    offline: false,
     loggedPkg: {},
     prefix: tempy.directory(),
     registry,

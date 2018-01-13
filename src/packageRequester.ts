@@ -83,7 +83,6 @@ export interface RequestPackageOptions {
   skipFetch?: boolean,
   downloadPriority: number,
   loggedPkg: LoggedPkg,
-  offline: boolean,
   currentPkgId?: string,
   prefix: string,
   registry: string,
@@ -155,7 +154,6 @@ async function resolveAndFetch (
   options: {
     downloadPriority: number,
     loggedPkg: LoggedPkg,
-    offline: boolean,
     currentPkgId?: string,
     prefix: string,
     registry: string,
