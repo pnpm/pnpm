@@ -182,8 +182,6 @@ async function run (argv: string[]) {
     })
   })
 
-  const silent = npm.config.get('loglevel') === 'silent' || !npm.config.get('reporter') && isCI
-
   const opts = R.fromPairs(<any>R.keys(types).map(configKey => [camelcase(configKey), npm.config.get(configKey)])) // tslint:disable-line
   opts.rawNpmConfig = Object.assign.apply(Object, npm.config.list.reverse())
   opts.bin = npm.bin
@@ -208,7 +206,7 @@ async function run (argv: string[]) {
   }
 
   const reporterType: ReporterType = (() => {
-    if (silent) return 'silent'
+    if (npm.config.get('loglevel') === 'silent') return 'silent'
     if (opts.reporter) return opts.reporter as ReporterType
     if (isCI || !process.stdout.isTTY) return 'append-only'
     return 'default'
