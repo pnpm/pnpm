@@ -47,6 +47,7 @@ export default function (
   isRecursive: boolean,
   cmd?: string, // is optional only to be backward compatible
   widthArg?: number,
+  appendOnly?: boolean,
 ): Array<most.Stream<most.Stream<{msg: string}>>> {
   const width = widthArg || process.stdout.columns || 80
   const outputs: Array<most.Stream<most.Stream<{msg: string}>>> = []
@@ -64,14 +65,6 @@ export default function (
     .scan(R.inc, 0)
     .skip(1)
     .until(mostLast(resolutionDone$))
-
-  const fedtchedLog$ = log$.progress
-    .filter((log) => log.status === 'fetched')
-    .scan(R.inc, 0)
-
-  const foundInStoreLog$ = log$.progress
-    .filter((log) => log.status === 'found_in_store')
-    .scan(R.inc, 0)
 
   if (!isRecursive) {
     const alreadyUpToDate$ = most.of(
@@ -91,50 +84,81 @@ export default function (
     outputs.push(alreadyUpToDate$)
   }
 
-  const progressSummaryOutput$ = most.of(
-    most.combine(
-      (resolving, fetched, foundInStore: number, resolutionDone) => {
-        const msg = `Resolving: total ${hlValue(resolving.toString())}, reused ${hlValue(foundInStore.toString())}, downloaded ${hlValue(fetched.toString())}`
-        if (resolving === foundInStore + fetched && resolutionDone) {
-          return {
-            fixed: false,
-            msg: `${msg}, done`,
-          }
-        }
-        return {
-          fixed: true,
-          msg,
-        }
-      },
-      resolvingContentLog$,
-      fedtchedLog$,
-      foundInStoreLog$,
-      isRecursive ? most.of(false) : resolutionDone$,
-    ),
-  )
+  if (!appendOnly) {
+    const fedtchedLog$ = log$.progress
+      .filter((log) => log.status === 'fetched')
+      .scan(R.inc, 0)
 
-  outputs.push(progressSummaryOutput$)
+    const foundInStoreLog$ = log$.progress
+      .filter((log) => log.status === 'found_in_store')
+      .scan(R.inc, 0)
 
-  const tarballsProgressOutput$ = log$.progress
-    .filter((log) => log.status === 'fetching_started' &&
-      typeof log.size === 'number' && log.size >= BIG_TARBALL_SIZE)
-    .map((startedLog) => {
-      const size = prettyBytes(startedLog['size'])
-      return log$.progress
-        .filter((log) => log.status === 'fetching_progress' && log.pkgId === startedLog['pkgId'])
-        .map((log) => log['downloaded'])
-        .startWith(0)
-        .map((downloadedRaw) => {
-          const done = startedLog['size'] === downloadedRaw
-          const downloaded = prettyBytes(downloadedRaw)
-          return {
-            fixed: !done,
-            msg: `Downloading ${hlPkgId(startedLog['pkgId'])}: ${hlValue(downloaded)}/${hlValue(size)}${done ? ', done' : ''}`,
+    const progressSummaryOutput$ = most.of(
+      most.combine(
+        (resolving, fetched, foundInStore: number, resolutionDone) => {
+          const msg = `Resolving: total ${hlValue(resolving.toString())}, reused ${hlValue(foundInStore.toString())}, downloaded ${hlValue(fetched.toString())}`
+          if (resolving === foundInStore + fetched && resolutionDone) {
+            return {
+              fixed: false,
+              msg: `${msg}, done`,
+            }
           }
+          return {
+            fixed: true,
+            msg,
+          }
+        },
+        resolvingContentLog$,
+        fedtchedLog$,
+        foundInStoreLog$,
+        isRecursive ? most.of(false) : resolutionDone$,
+      ),
+    )
+
+    outputs.push(progressSummaryOutput$)
+
+    const tarballsProgressOutput$ = log$.progress
+      .filter((log) => log.status === 'fetching_started' &&
+        typeof log.size === 'number' && log.size >= BIG_TARBALL_SIZE)
+      .map((startedLog) => {
+        const size = prettyBytes(startedLog['size'])
+        return log$.progress
+          .filter((log) => log.status === 'fetching_progress' && log.pkgId === startedLog['pkgId'])
+          .map((log) => log['downloaded'])
+          .startWith(0)
+          .map((downloadedRaw) => {
+            const done = startedLog['size'] === downloadedRaw
+            const downloaded = prettyBytes(downloadedRaw)
+            return {
+              fixed: !done,
+              msg: `Downloading ${hlPkgId(startedLog['pkgId'])}: ${hlValue(downloaded)}/${hlValue(size)}${done ? ', done' : ''}`,
+            }
+          })
+      })
+
+    outputs.push(tarballsProgressOutput$)
+
+    const lifecycleMessages: {[pkgId: string]: string} = {}
+    const lifecycleOutput$ = most.of(
+      log$.lifecycle
+        .map((log: LifecycleLog) => {
+          const key = `${log.script}:${log.pkgId}`
+          lifecycleMessages[key] = formatLifecycle(log)
+          return R.values(lifecycleMessages).join(EOL)
         })
-    })
+        .map((msg) => ({msg})),
+    )
 
-  outputs.push(tarballsProgressOutput$)
+    outputs.push(lifecycleOutput$)
+  } else {
+    const lifecycleMessages: {[pkgId: string]: string} = {}
+    const lifecycleOutput$ = most.of(
+      log$.lifecycle
+        .map((log: LifecycleLog) => ({ msg: formatLifecycle(log) })),
+    )
+
+    outputs.push(lifecycleOutput$)
+  }
 
   if (!isRecursive) {
     const pkgsDiff$ = getPkgsDiff(log$)
@@ -177,20 +201,6 @@ export default function (
 
     outputs.push(deprecationOutput$)
   }
-
-  const lifecycleMessages: {[pkgId: string]: string} = {}
-  const lifecycleOutput$ = most.of(
-    log$.lifecycle
-      .filter((log) => log.name === 'pnpm:lifecycle')
-      .map((log: LifecycleLog) => {
-        const key = `${log.script}:${log.pkgId}`
-        lifecycleMessages[key] = formatLifecycle(log)
-        return R.values(lifecycleMessages).join(EOL)
-      })
-      .map((msg) => ({msg})),
-  )
-
-  outputs.push(lifecycleOutput$)
 
   if (!isRecursive) {
     outputs.push(

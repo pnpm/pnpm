@@ -12,13 +12,24 @@ export default function (
   streamParser: object,
   cmd?: string, // is optional only to be backward compatible
   width?: number,
+  appendOnly?: boolean,
 ) {
   if (cmd === 'server') {
     const log$ = most.fromEvent<supi.Log>('data', streamParser)
     reporterForServer(log$)
     return
   }
-  toOutput$(streamParser, cmd)
+  const output$ = toOutput$(streamParser, cmd, undefined, appendOnly)
+  if (appendOnly) {
+    output$
+      .subscribe({
+        complete () {}, // tslint:disable-line:no-empty
+        error: (err) => console.error(err.message),
+        next: (line) => console.log(line),
+      })
+    return
+  }
+  output$
     .subscribe({
       complete () {}, // tslint:disable-line:no-empty
       error: (err) => logUpdate(err.message),
@@ -30,6 +41,7 @@ export function toOutput$ (
   streamParser: object,
   cmd?: string, // is optional only to be backward compatible
   width?: number,
+  appendOnly?: boolean,
 ): most.Stream<string> {
   const isRecursive = cmd === 'recursive'
   const progressPushStream = new PushStream()
@@ -100,7 +112,13 @@ export function toOutput$ (
     stats: most.from<supi.StatsLog>(statsPushStream.observable),
     summary: most.from<supi.Log>(summaryPushStream.observable),
   }
-  const outputs: Array<most.Stream<most.Stream<{msg: string}>>> = reporterForClient(log$, isRecursive, cmd, width)
+  const outputs: Array<most.Stream<most.Stream<{msg: string}>>> = reporterForClient(log$, isRecursive, cmd, width, appendOnly)
 
+  if (appendOnly) {
+    return most.join(
+      most.mergeArray(outputs)
+      .map((log: most.Stream<{msg: string}>) => log.map((msg) => msg.msg)),
+    )
+  }
   return mergeOutputs(outputs).multicast()
 }
