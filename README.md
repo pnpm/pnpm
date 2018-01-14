@@ -241,6 +241,21 @@ Controls the way packages are imported from the store.
 
 When used, only updates `shrinkwrap.yaml` and `package.json` instead of checking `node_modules` and downloading dependencies.
 
+#### reporter
+
+* Default:
+    * For TTY stdout: **default**
+    * For non-TTY stdout: **append-only**
+* Type: **default**, **append-only**, **ndjson**, **silent**
+
+Allows to choose the reporter that will print info about
+the installation progress.
+
+* **silent** - no output is logged to the console, except fatal errors
+* **default** - the default reporter when the stdout is TTY
+* **append-only** - the output is always appended to the end. No cursor manipulations are performed
+* **ndjson** - the most verbose reporter. Prints all logs in [ndjson](http://ndjson.org/) format
+
 ### Hooks
 
 pnpm allows to step directly into the installation process via special functions called *hooks*.

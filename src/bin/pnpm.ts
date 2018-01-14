@@ -29,7 +29,7 @@ import runNpm from '../cmd/runNpm'
 import getCommandFullName from '../getCommandFullName'
 import '../logging/fileLogger'
 import pkg from '../pnpmPkgJson'
-import initReporter from '../reporter'
+import initReporter, { ReporterType } from '../reporter'
 
 pnpmCmds['install-test'] = pnpmCmds.installTest
 
@@ -207,7 +207,13 @@ async function run (argv: string[]) {
     opts.optional = true
   }
 
-  initReporter(silent ? 'silent' : (<any>opts.reporter || 'default'), cmd) // tslint:disable-line
+  const reporterType: ReporterType = (() => {
+    if (silent) return 'silent'
+    if (opts.reporter) return opts.reporter as ReporterType
+    if (isCI || !process.stdout.isTTY) return 'append-only'
+    return 'default'
+  })()
+  initReporter(reporterType, cmd) // tslint:disable-line
   delete opts.reporter // This is a silly workaround because supi expects a function as opts.reporter
 
   // NOTE: we defer the next stage, otherwise reporter might not catch all the logs

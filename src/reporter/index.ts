@@ -2,12 +2,15 @@ import {streamParser, writeToConsole} from '@pnpm/logger'
 import defaultReporter from 'pnpm-default-reporter'
 import silentReporter from './silentReporter'
 
-export type ReporterType = 'default' | 'ndjson' | 'silent'
+export type ReporterType = 'default' | 'ndjson' | 'silent' | 'append-only'
 
 export default (reporterType: ReporterType, cmd: string) => {
   switch (reporterType) {
     case 'default':
-      defaultReporter(streamParser, cmd)
+      defaultReporter(streamParser, cmd, undefined, false)
+      return
+    case 'append-only':
+      defaultReporter(streamParser, cmd, undefined, true)
       return
     case 'ndjson':
       writeToConsole()

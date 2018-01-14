@@ -47,6 +47,11 @@ function getHelpText (command: string) {
           --package-import-method hardlink   hardlink packages from the store
           --package-import-method copy       copy packages from the store
           --package-import-method reflink    reflink (aka copy-on-write) packages from the store
+
+          -s, --silent, --reporter silent    no output is logged to the console, except fatal errors
+          --reporter default                 the default reporter when the stdout is TTY
+          --reporter append-only             the output is always appended to the end. No cursor manipulations are performed
+          --reporter ndjson                  the most verbose reporter. Prints all logs in ndjson format
       `
 
     case 'uninstall':
