@@ -22,7 +22,7 @@ const kill = thenify(killcb)
 test('installation using pnpm server', async (t: tape.Test) => {
   const project = prepare(t)
 
-  const server = spawn(['server'])
+  const server = spawn(['server', 'start'])
 
   await delay(2000) // lets' wait till the server starts
 
@@ -53,7 +53,7 @@ test('installation using pnpm server', async (t: tape.Test) => {
 test('installation using pnpm server via TCP', async (t: tape.Test) => {
   const project = prepare(t)
 
-  const server = spawn(['server', '--protocol', 'tcp'])
+  const server = spawn(['server', 'start', '--protocol', 'tcp'])
 
   await delay(2000) // lets' wait till the server starts
 
@@ -84,7 +84,7 @@ test('installation using pnpm server via TCP', async (t: tape.Test) => {
 test('pnpm server uses TCP when port specified', async (t: tape.Test) => {
   const project = prepare(t)
 
-  const server = spawn(['server', '--port', '7856'])
+  const server = spawn(['server', 'start', '--port', '7856'])
 
   await delay(2000) // lets' wait till the server starts
 
@@ -101,13 +101,13 @@ test('pnpm server uses TCP when port specified', async (t: tape.Test) => {
 test('pnpm server fails when trying to set --port for IPC protocol', async (t: tape.Test) => {
   const project = prepare(t)
 
-  t.equal(execPnpmSync('server', '--protocol', 'ipc', '--port', '7856').status, 1, 'process failed')
+  t.equal(execPnpmSync('server', 'start', '--protocol', 'ipc', '--port', '7856').status, 1, 'process failed')
 })
 
 test('stopping server fails when the server disallows stopping via remote call', async (t: tape.Test) => {
   const project = prepare(t)
 
-  const server = spawn(['server', '--unstoppable'])
+  const server = spawn(['server', 'start', '--unstoppable'])
 
   await delay(2000) // lets' wait till the server starts
 
