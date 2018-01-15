@@ -13,6 +13,7 @@ devDependencies:
   '@pnpm/npm-resolver': 0.3.11
   '@pnpm/tarball-fetcher': 0.3.3
   '@types/tape': 4.2.31
+  is-port-reachable: 2.0.0
   mos: 2.0.0-alpha.3
   mos-plugin-readme: 1.0.4
   package-preview: 1.0.4
@@ -1711,6 +1712,12 @@ packages:
       node: '>=0.10.0'
     resolution:
       integrity: sha1-caUMhCnfync8kqOQpKA7OfzVHT4=
+  /is-port-reachable/2.0.0:
+    dev: true
+    engines:
+      node: '>=4'
+    resolution:
+      integrity: sha1-VNE9ZUkX60M64+4ty8N3TyzUTrI=
   /is-promise/2.1.0:
     dev: true
     resolution:
@@ -4000,6 +4007,7 @@ specifiers:
   '@types/tape': ^4.2.31
   '@types/uuid': ^3.4.3
   got: ^8.0.1
+  is-port-reachable: ^2.0.0
   mos: ^2.0.0-alpha.3
   mos-plugin-readme: ^1.0.4
   p-limit: ^1.1.0

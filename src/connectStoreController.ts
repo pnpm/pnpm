@@ -10,12 +10,16 @@ import pLimit = require('p-limit')
 import {StoreController} from 'package-store'
 import uuid = require('uuid')
 
+export type StoreServerController = StoreController & {
+  stop (): Promise<void>,
+}
+
 export default function (
   initOpts: {
     remotePrefix: string,
     concurrency?: number,
   },
-): Promise<StoreController> {
+): Promise<StoreServerController> {
   const remotePrefix = initOpts.remotePrefix
   const limitedFetch = fetch.bind(null, pLimit(initOpts.concurrency || 100))
 
@@ -39,6 +43,7 @@ export default function (
       saveState: async () => {
         await limitedFetch(`${remotePrefix}/saveState`, {})
       },
+      stop: () => limitedFetch(`${remotePrefix}/stop`, {}),
       updateConnections: async (prefix: string, opts: {addDependencies: string[], removeDependencies: string[], prune: boolean}) => {
         await limitedFetch(`${remotePrefix}/updateConnections`, {
           opts,

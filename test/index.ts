@@ -6,12 +6,15 @@ import {
 import {
   PackageFilesResponse,
 } from '@pnpm/package-requester'
+import got = require('got')
+import isPortReachable = require('is-port-reachable')
 import createResolver from '@pnpm/npm-resolver'
 import createFetcher from '@pnpm/tarball-fetcher'
 import createStore from 'package-store'
 
-test('server', async t => {
-  const registry = 'https://registry.npmjs.org/'
+const registry = 'https://registry.npmjs.org/'
+
+async function createStoreController () {
   const rawNpmConfig = { registry }
   const store = '.store'
   const resolve = createResolver({
@@ -25,16 +28,19 @@ test('server', async t => {
     strictSsl: true,
     rawNpmConfig,
   })
-  const storeCtrlForServer = await createStore(resolve, fetchers, {
+  return await createStore(resolve, fetchers, {
     networkConcurrency: 1,
     store: store,
     locks: undefined,
     lockStaleDuration: 100,
   })
+}
 
+test('server', async t => {
   const port = 5813
   const hostname = '127.0.0.1'
   const remotePrefix = `http://${hostname}:${port}`
+  const storeCtrlForServer = await createStoreController()
   const server = createServer(storeCtrlForServer, {
     port,
     hostname,
@@ -45,7 +51,6 @@ test('server', async t => {
     {
       downloadPriority: 0,
       loggedPkg: {rawSpec: 'sfdf'},
-      offline: false,
       prefix: process.cwd(),
       registry,
       verifyStoreIntegrity: false,
@@ -65,7 +70,55 @@ test('server', async t => {
 
   await response['finishing']
 
-  server.close()
+  await server.close()
   await storeCtrl.close()
+  t.end()
+})
+
+test('stop server with remote call', async t => {
+  const port = 5813
+  const hostname = '127.0.0.1'
+  const remotePrefix = `http://${hostname}:${port}`
+  const storeCtrlForServer = await createStoreController()
+  const server = createServer(storeCtrlForServer, {
+    port,
+    hostname,
+    ignoreStopRequests: false,
+  })
+
+  t.ok(await isPortReachable(port), 'server is running')
+
+  const response = await got(`${remotePrefix}/stop`, {method: 'POST'})
+
+  t.equal(response.statusCode, 200, 'success returned by server stopping endpoint')
+
+  t.notOk(await isPortReachable(port), 'server is not running')
+
+  t.end()
+})
+
+test('disallow stop server with remote call', async t => {
+  const port = 5813
+  const hostname = '127.0.0.1'
+  const remotePrefix = `http://${hostname}:${port}`
+  const storeCtrlForServer = await createStoreController()
+  const server = createServer(storeCtrlForServer, {
+    port,
+    hostname,
+    ignoreStopRequests: true,
+  })
+
+  t.ok(await isPortReachable(port), 'server is running')
+
+  try {
+    const response = await got(`${remotePrefix}/stop`, {method: 'POST'})
+    t.fail('request should have failed')
+  } catch (err) {
+    t.equal(err.statusCode, 403, 'server not stopped')
+  }
+
+  t.ok(await isPortReachable(port), 'server is running')
+
+  await server.close()
   t.end()
 })
