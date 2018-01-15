@@ -3,5 +3,5 @@
     "config:base"
   ],
   "pinVersions": false,
-  "ignorePaths": ["/test/"]
+  "ignorePaths": ["test/", "example/"]
 }
