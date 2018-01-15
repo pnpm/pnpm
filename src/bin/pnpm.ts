@@ -131,6 +131,7 @@ async function run (argv: string[]) {
     'shrinkwrap-only': Boolean,
     'store': path,
     'store-path': path, // DEPRECATE! store should be used
+    'use-store-server': Boolean,
     'verify-store-integrity': Boolean,
   }
   const types = R.merge(npmDefaults.types, pnpmTypes)

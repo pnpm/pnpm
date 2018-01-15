@@ -115,3 +115,41 @@ test('stopping server fails when the server disallows stopping via remote call',
 
   await kill(server.pid, 'SIGINT')
 })
+
+test('installation using store server started in the background', async (t: tape.Test) => {
+  const project = prepare(t)
+
+  await execPnpm('install', 'is-positive@1.0.0', '--use-store-server')
+
+  const serverJsonPath = path.resolve('..', 'store', '2', 'server.json')
+  const serverJson = await loadJsonFile(serverJsonPath)
+  t.ok(serverJson)
+  t.ok(serverJson.connectionOptions)
+
+  t.ok(project.requireModule('is-positive'))
+
+  await execPnpm('uninstall', 'is-positive')
+
+  await execPnpm('store', 'prune')
+
+  // we don't actually know when the server will prune the store
+  // lets' just wait a bit before checking
+  await delay(1000)
+
+  await project.storeHasNot('is-positive', '1.0.0')
+
+  await execPnpm('server', 'stop')
+
+  t.notOk(await pathExists(serverJsonPath), 'server.json removed')
+})
+
+test('installation without store server running in the background', async (t: tape.Test) => {
+  const project = prepare(t)
+
+  await execPnpm('install', 'is-positive@1.0.0', '--no-use-store-server')
+
+  const serverJsonPath = path.resolve('..', 'store', '2', 'server.json')
+  t.notOk(await pathExists(serverJsonPath), 'store server not running')
+
+  t.ok(project.requireModule('is-positive'))
+})

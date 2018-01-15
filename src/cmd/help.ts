@@ -42,6 +42,9 @@ function getHelpText (command: string) {
           --only dev[elopment]               only \`devDependencies\` are installed regardless of the \`NODE_ENV\`.
           --[no-]lock
           --shrinkwrap-only                  dependencies are not downloaded only \`shrinkwrap.yaml\` is updated
+          --use-store-server                 starts a store server in the background.
+                                             The store server will keep running after installation is done.
+                                             To stop the store server, run \`pnpm server stop\`
 
           --package-import-method auto       try to hardlink packages from the store. If it fails, fallback to copy
           --package-import-method hardlink   hardlink packages from the store
