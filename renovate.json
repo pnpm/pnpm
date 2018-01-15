@@ -2,5 +2,6 @@
   "extends": [
     "config:base"
   ],
-  "pinVersions": false
+  "pinVersions": false,
+  "ignorePaths": ["/test/"]
 }
