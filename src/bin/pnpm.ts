@@ -112,6 +112,7 @@ async function run (argv: string[]) {
     argv = ['help'].concat(argv)
   }
   const pnpmTypes = {
+    'background': Boolean,
     'child-concurrency': Number,
     'fetching-concurrency': Number,
     'global-path': path,

@@ -1,11 +1,11 @@
 import logger from '@pnpm/logger'
 import {connectStoreController} from '@pnpm/server'
-import diable = require('diable')
 import loadJsonFile = require('load-json-file')
 import {resolveStore, StoreController} from 'package-store'
 import path = require('path')
 import retry = require('retry')
 import createStore from './createStore'
+import runServerInBackground from './runServerInBackground'
 
 export default async function (
   opts: {
@@ -49,7 +49,7 @@ export default async function (
     if (err.code !== 'ENOENT') throw err
   }
   if (opts.useStoreServer) {
-    const proc = diable.daemonize(path.join(__dirname, 'bin', 'pnpm.js'), ['server', 'start'], {stdio: 'inherit'})
+    runServerInBackground()
     const operation = retry.operation()
 
     return new Promise<{

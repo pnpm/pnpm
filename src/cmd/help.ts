@@ -184,13 +184,14 @@ function getHelpText (command: string) {
 
     case 'server':
       return stripIndent`
-        pnpm server
+        pnpm server start
 
         **Experimental!** Starts a service that does all interactions with the store.
         Other commands will delegate any store-related tasks to this service.
 
         Options:
 
+          --background                   runs the server in the background
           --protocol <auto|tcp|ipc>      the communication protocol used by the server
           --port <number>                the port number to use, when TCP is used for communication
           --store                        the location where all the packages are saved on the disk.
