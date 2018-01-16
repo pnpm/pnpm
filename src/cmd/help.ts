@@ -195,7 +195,7 @@ function getHelpText (command: string) {
           --[no-]verify-store-integrity  if false, doesn't check whether packages in the store were mutated
           --only dev[elopment]           only \`devDependencies\` are installed regardless of the \`NODE_ENV\`.
           --[no-]lock
-          --unstoppable                  disallows stopping the server using \`pnpm server stop\`
+          --ignore-stop-requests         disallows stopping the server using \`pnpm server stop\`
 
         pnpm server stop
 

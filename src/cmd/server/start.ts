@@ -15,7 +15,7 @@ export default async (
   opts: PnpmOptions & {
     protocol?: 'auto' | 'tcp' | 'ipc',
     port?: number,
-    unstoppable?: boolean,
+    ignoreStopRequests?: boolean,
   },
 ) => {
   if (opts.protocol === 'ipc' && opts.port) {
@@ -42,7 +42,7 @@ export default async (
 
   const server = createServer(store.ctrl, {
     ...serverOptions,
-    allowStoppingByRequest: !opts.unstoppable,
+    ignoreStopRequests: opts.ignoreStopRequests,
   })
 
   onExit(() => {

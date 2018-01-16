@@ -116,6 +116,7 @@ async function run (argv: string[]) {
     'fetching-concurrency': Number,
     'global-path': path,
     'ignore-pnpmfile': Boolean,
+    'ignore-stop-requests': Boolean,
     'independent-leaves': Boolean,
     'lock': Boolean,
     'lock-stale-duration': Number,
@@ -130,7 +131,6 @@ async function run (argv: string[]) {
     'shrinkwrap-only': Boolean,
     'store': path,
     'store-path': path, // DEPRECATE! store should be used
-    'unstoppable': Boolean,
     'verify-store-integrity': Boolean,
   }
   const types = R.merge(npmDefaults.types, pnpmTypes)

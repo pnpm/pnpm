@@ -107,7 +107,7 @@ test('pnpm server fails when trying to set --port for IPC protocol', async (t: t
 test('stopping server fails when the server disallows stopping via remote call', async (t: tape.Test) => {
   const project = prepare(t)
 
-  const server = spawn(['server', 'start', '--unstoppable'])
+  const server = spawn(['server', 'start', '--ignore-stop-requests'])
 
   await delay(2000) // lets' wait till the server starts
 
