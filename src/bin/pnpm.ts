@@ -128,6 +128,8 @@ async function run (argv: string[]) {
     'protocol': ['auto', 'tcp', 'ipc'],
     'reporter': String,
     'shrinkwrap-only': Boolean,
+    'side-effects-cache': Boolean,
+    'side-effects-cache-readonly': Boolean,
     'store': path,
     'store-path': path, // DEPRECATE! store should be used
     'verify-store-integrity': Boolean,
