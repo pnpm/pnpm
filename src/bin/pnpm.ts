@@ -116,6 +116,7 @@ async function run (argv: string[]) {
     'fetching-concurrency': Number,
     'global-path': path,
     'ignore-pnpmfile': Boolean,
+    'ignore-stop-requests': Boolean,
     'independent-leaves': Boolean,
     'lock': Boolean,
     'lock-stale-duration': Number,
