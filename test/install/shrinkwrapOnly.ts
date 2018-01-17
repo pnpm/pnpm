@@ -1,4 +1,5 @@
 import {
+  install,
   installPkgs,
   uninstall,
 } from 'supi'
@@ -10,27 +11,40 @@ import {
   prepare,
   testDefaults,
 } from '../utils'
+import path = require('path')
+import fs = require('mz/fs')
 
 const test = promisifyTape(tape)
 
 test('install with shrinkwrapOnly = true', async (t: tape.Test) => {
   const project = prepare(t)
 
-  await installPkgs(['rimraf@2.5.1'], await testDefaults({shrinkwrapOnly: true}))
+  const opts = await testDefaults({shrinkwrapOnly: true, saveExact: true})
+  await installPkgs(['pkg-with-1-dep@100.0.0'], opts)
 
-  await project.storeHasNot('rimraf', '2.5.1')
-  await project.hasNot('rimraf')
+  t.deepEqual(await fs.readdir(path.join(opts.store, 'localhost+4873', 'pkg-with-1-dep')), ['index.json'])
+  t.deepEqual(await fs.readdir(path.join(opts.store, 'localhost+4873', 'dep-of-pkg-with-1-dep')), ['index.json'])
+  await project.hasNot('pkg-with-1-dep')
 
   const pkg = await loadJsonFile('package.json')
-  t.ok(pkg.dependencies['rimraf'], 'the new dependency added to package.json')
+  t.ok(pkg.dependencies['pkg-with-1-dep'], 'the new dependency added to package.json')
 
   const shr = await project.loadShrinkwrap()
-  t.ok(shr.dependencies.rimraf)
-  t.ok(shr.packages['/rimraf/2.5.1'])
-  t.ok(shr.specifiers.rimraf)
+  t.ok(shr.dependencies['pkg-with-1-dep'])
+  t.ok(shr.packages['/pkg-with-1-dep/100.0.0'])
+  t.ok(shr.specifiers['pkg-with-1-dep'])
 
   const currentShr = await project.loadCurrentShrinkwrap()
   t.notOk(currentShr, 'current shrinkwrap not created')
+
+  t.comment('doing repeat install when shrinkwrap.yaml is available already')
+  await install(opts)
+
+  t.deepEqual(await fs.readdir(path.join(opts.store, 'localhost+4873', 'pkg-with-1-dep')), ['index.json'])
+  t.deepEqual(await fs.readdir(path.join(opts.store, 'localhost+4873', 'dep-of-pkg-with-1-dep')), ['index.json'])
+  await project.hasNot('pkg-with-1-dep')
+
+  t.notOk(await project.loadCurrentShrinkwrap(), 'current shrinkwrap not created')
 })
 
 test('warn when installing with shrinkwrapOnly = true and node_modules exists', async (t: tape.Test) => {
