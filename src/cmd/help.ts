@@ -244,7 +244,8 @@ function getHelpText (command: string) {
           - rebuild
 
         Experimental commands:
-          - server
+          - server start
+          - server stop
           - recursive install
           - recursive update
 
