@@ -1,5 +1,6 @@
 import logger from '@pnpm/logger'
 import {createServer} from '@pnpm/server'
+import Diable = require('diable')
 import getPort = require('get-port')
 import fs = require('graceful-fs')
 import isWindows = require('is-windows')
@@ -13,6 +14,7 @@ import { PnpmOptions } from '../../types'
 
 export default async (
   opts: PnpmOptions & {
+    background?: boolean,
     protocol?: 'auto' | 'tcp' | 'ipc',
     port?: number,
     ignoreStopRequests?: boolean,
@@ -20,6 +22,10 @@ export default async (
 ) => {
   if (opts.protocol === 'ipc' && opts.port) {
     throw new Error('Port cannot be selected when server communicates via IPC')
+  }
+
+  if (opts.background && !Diable.isDaemon()) {
+    Diable()
   }
 
   const store = await createStore(Object.assign(opts, {
