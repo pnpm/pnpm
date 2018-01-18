@@ -42,6 +42,8 @@ function getHelpText (command: string) {
           --only dev[elopment]               only \`devDependencies\` are installed regardless of the \`NODE_ENV\`.
           --[no-]lock
           --shrinkwrap-only                  dependencies are not downloaded only \`shrinkwrap.yaml\` is updated
+          --side-effects-cache               use or cache the results of (pre/post)install hooks
+          --side-effects-cache-readonly      only use the side effects cache if present, do not create it for new packages
 
           --package-import-method auto       try to hardlink packages from the store. If it fails, fallback to copy
           --package-import-method hardlink   hardlink packages from the store
