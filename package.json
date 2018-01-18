@@ -37,7 +37,7 @@
     "chalk": "^2.2.0",
     "common-tags": "^1.4.0",
     "cross-spawn": "^5.0.0",
-    "diable": "^3.0.1",
+    "diable": "^4.0.1",
     "find-packages": "^2.1.2",
     "get-port": "^3.2.0",
     "graceful-fs": "^4.1.11",

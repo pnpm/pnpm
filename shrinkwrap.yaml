@@ -14,7 +14,7 @@ dependencies:
   chalk: 2.3.0
   common-tags: 1.7.2
   cross-spawn: 5.1.0
-  diable: 3.0.1
+  diable: 4.0.1
   find-packages: 2.1.2
   get-port: 3.2.0
   graceful-fs: 4.1.11
@@ -2015,7 +2015,7 @@ packages:
     dev: false
     resolution:
       integrity: sha1-f3Qt4Gb8dIvI24IFad3c5Jvw1FY=
-  /diable/3.0.1:
+  /diable/4.0.1:
     dependencies:
       bug-killer: 4.4.4
       clp: 3.2.1
@@ -2024,7 +2024,7 @@ packages:
       ul: 5.2.13
     dev: false
     resolution:
-      integrity: sha1-V46GQmlfrA7HZCwAp7yK22N48yI=
+      integrity: sha512-hs5+ypobtDxR9LcPD4YLjsw3U5O6OwkGUTsGXX0RGKCUUGQYapyVzpaOccBfQepsv9UTfoYfPZaUf4NDR9aj+w==
   /diff-dates/1.0.11:
     dependencies:
       date-unit-ms: 1.1.12
@@ -7087,7 +7087,7 @@ specifiers:
   common-tags: ^1.4.0
   cross-spawn: ^5.0.0
   delay: ^2.0.0
-  diable: ^3.0.1
+  diable: ^4.0.1
   execa: ^0.8.0
   exists-link: ^2.0.0
   find-packages: ^2.1.2
