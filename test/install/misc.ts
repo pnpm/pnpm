@@ -706,6 +706,20 @@ test('should throw error when trying to install using a different store then the
   }
 })
 
+test('ignores drive case in store path', async (t: tape.Test) => {
+  if (!isWindows()) return
+
+  const project = prepare(t)
+
+  // paths are case-insensitive on windows, so we will test with an upper and lower-case store
+  const storePathUpper: string = path.resolve('node_modules/.store1').toUpperCase();
+  const storePathLower: string = storePathUpper.toLowerCase();
+
+  await installPkgs(['rimraf@2.5.1'], await testDefaults({store: storePathUpper}))
+  await installPkgs(['is-negative'], await testDefaults({store: storePathLower}))
+  t.pass('Install did not fail')
+})
+
 test('should not throw error if using a different store after all the packages were uninstalled', async function(t) {
   // TODO: implement
 })

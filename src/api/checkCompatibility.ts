@@ -2,6 +2,7 @@ import {stripIndent, oneLine} from 'common-tags'
 import {Modules, LAYOUT_VERSION} from '../fs/modulesController'
 import {PnpmError, PnpmErrorCode} from '../errorTypes'
 import semver = require('semver')
+import path = require('path')
 
 class UnexpectedStoreError extends PnpmError {
   constructor (
@@ -66,7 +67,7 @@ export default function checkCompatibility (
     modulesPath: string,
   }
 ) {
-  if (modules.store !== opts.storePath) {
+  if (path.relative(modules.store, opts.storePath) !== '') {
     throw new UnexpectedStoreError({
       expectedStorePath: modules.store,
       actualStorePath: opts.storePath,
