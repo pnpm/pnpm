@@ -8,12 +8,16 @@ import {resolveStore} from 'package-store'
 import path = require('path')
 import onExit = require('signal-exit')
 import writeJsonFile = require('write-json-file')
-import createStore from '../createStore'
-import { PnpmOptions } from '../types'
+import createStore from '../../createStore'
+import { PnpmOptions } from '../../types'
 
-export default async (input: string[], opts: PnpmOptions & {protocol?: 'auto' | 'tcp' | 'ipc', port?: number}) => {
-  logger.warn('The store server is an experimental feature. Breaking changes may happen in non-major versions.')
-
+export default async (
+  opts: PnpmOptions & {
+    protocol?: 'auto' | 'tcp' | 'ipc',
+    port?: number,
+    ignoreStopRequests?: boolean,
+  },
+) => {
   if (opts.protocol === 'ipc' && opts.port) {
     throw new Error('Port cannot be selected when server communicates via IPC')
   }
@@ -36,7 +40,10 @@ export default async (input: string[], opts: PnpmOptions & {protocol?: 'auto' | 
   const serverJsonPath = path.join(store.path, 'server.json')
   await writeJsonFile(serverJsonPath, {connectionOptions})
 
-  const server = createServer(store.ctrl, serverOptions)
+  const server = createServer(store.ctrl, {
+    ...serverOptions,
+    ignoreStopRequests: opts.ignoreStopRequests,
+  })
 
   onExit(() => {
     server.close()

@@ -3,7 +3,7 @@ dependencies:
   '@pnpm/default-resolver': 0.1.2
   '@pnpm/logger': 1.0.0
   '@pnpm/outdated': 0.2.4
-  '@pnpm/server': 0.6.1
+  '@pnpm/server': 0.6.2
   '@pnpm/types': 1.7.0
   '@types/get-port': 3.2.0
   '@types/write-json-file': 2.2.1
@@ -475,7 +475,7 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha512-+Hg7mBqDOXUlH4UvYffXMJwln8EIfqpf0+y7ODYqbO9GF9Kc1GG7/tbl5cWyA1OKF04XQH9jugoIxtCOxN9/dg==
-  /@pnpm/server/0.6.1:
+  /@pnpm/server/0.6.2:
     dependencies:
       '@pnpm/package-requester': 0.6.3
       '@types/got': 7.1.6
@@ -492,7 +492,7 @@ packages:
     peerDependencies:
       '@pnpm/logger': ^1.0.0
     resolution:
-      integrity: sha512-eD8G5eQWPmVTYvv+blpeclr+8UNIVoR1Qr5znESWVklVVhrQtczmaPsCyhuo7yNHmlYTVXXbW8/K7SFXdP/+6Q==
+      integrity: sha512-pjaJGpCYjixu2DtGwA9pSQjaIudjJnw6rTVl+S3suR6mJoCCxsc8b0EVrCyarn8BXqRksEKIDfJ6MlXWwl16jA==
   /@pnpm/tarball-fetcher/0.3.3:
     dependencies:
       '@types/mem': 1.1.2
@@ -6803,7 +6803,7 @@ specifiers:
   '@pnpm/default-resolver': ^0.1.0
   '@pnpm/logger': ^1.0.0
   '@pnpm/outdated': ^0.2.4
-  '@pnpm/server': ^0.6.0
+  '@pnpm/server': ^0.6.2
   '@pnpm/types': ^1.5.0
   '@types/byline': ^4.2.31
   '@types/common-tags': ^1.2.5

@@ -4,7 +4,6 @@ import isCI = require('is-ci')
 import isWindows = require('is-windows')
 import tape = require('tape')
 import promisifyTape from 'tape-promise'
-import killcb = require('tree-kill')
 import thenify = require('thenify')
 import {
   prepare,
@@ -13,7 +12,6 @@ import {
 } from './utils'
 
 const test = promisifyTape(tape)
-const kill = thenify(killcb)
 
 test('recursive installation', async t => {
   const projects = prepare(t, [
@@ -59,7 +57,7 @@ test('recursive installation using server', async t => {
     },
   ])
 
-  const server = spawn(['server'])
+  const server = spawn(['server', 'start'])
 
   await delay(2000) // lets' wait till the server starts
 
@@ -68,7 +66,7 @@ test('recursive installation using server', async t => {
   t.ok(projects['project-1'].requireModule('is-positive'))
   t.ok(projects['project-2'].requireModule('is-negative'))
 
-  await kill(server.pid, 'SIGINT')
+  await execPnpm('server', 'stop')
 
   t.end()
 })
