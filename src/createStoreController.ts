@@ -40,7 +40,7 @@ export default async function (
   const store = await resolveStore(opts.store, opts.prefix)
   try {
     const serverJson = await loadJsonFile(path.join(store, 'server.json'))
-    logger.info('A store service is running and will be used to download the needed packages')
+    logger.info('A store server is running. All store manipulations are delegated to it.')
     return {
       ctrl: await connectStoreController(serverJson.connectionOptions), // tslint:disable-line
       path: store,
@@ -59,7 +59,7 @@ export default async function (
       operation.attempt(async (currentAttempt) => {
         try {
           const serverJson = await loadJsonFile(path.join(store, 'server.json'))
-          logger.info('A store service is running and will be used to download the needed packages')
+          logger.info('A store server has been started. To stop it, use \`pnpm server stop\`')
           resolve({
             ctrl: await connectStoreController(serverJson.connectionOptions), // tslint:disable-line
             path: store,
