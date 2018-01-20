@@ -1,3 +1,4 @@
+import logger from '@pnpm/logger'
 import getCredentialsByURI = require('credentials-by-uri')
 import {IncomingMessage} from 'http'
 import mem = require('mem')
@@ -131,7 +132,12 @@ async function fetchFromRemoteTarball (
     const index = await fetchFromLocalTarball(unpackTo, opts.cachedTarballLocation)
     return index
   } catch (err) {
-    if (err.code !== 'ENOENT') throw err
+    // ignore errors for missing files or broken/partial archives
+    if (err.code !== 'ENOENT' && err.code !== 'Z_BUF_ERROR') throw err
+
+    if (err.code === 'Z_BUF_ERROR') {
+      logger.warn(`Redownloading corrupted cached tarball: ${opts.cachedTarballLocation}`);
+    }
 
     if (ctx.offline) {
       throw new PnpmError('NO_OFFLINE_TARBALL', `Could not find ${opts.cachedTarballLocation} in local registry mirror`)

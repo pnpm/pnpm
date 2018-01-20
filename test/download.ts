@@ -1,3 +1,4 @@
+import fs = require('fs')
 import test = require('tape')
 import nock = require('nock')
 import createFetcher from '@pnpm/tarball-fetcher'
@@ -5,6 +6,7 @@ import path = require('path')
 import tempy = require('tempy')
 
 const tarballPath = path.join(__dirname, 'tars', 'babel-helper-hoist-variables-6.24.1.tgz')
+const tarballData = fs.readFileSync(tarballPath);
 const tarballSize = 1279
 const tarballIntegrity = 'sha1-HssnaJydJVE+rbyZFKc/VAi+enY='
 const registry = 'http://example.com/'
@@ -72,6 +74,38 @@ test('retry when tarball size does not match content-length', async t => {
     prefix: process.cwd(),
   })
 
+  t.end()
+})
+
+test('redownload incomplete cached tarballs', async t => {
+  const scope = nock(registry)
+    .get('/foo.tgz')
+    .replyWithFile(200, tarballPath, {
+      'Content-Length': tarballSize.toString(),
+    })
+
+  process.chdir(tempy.directory())
+  t.comment(`testing in ${process.cwd()}`)
+
+  const unpackTo = path.resolve('unpacked')
+  const cachedTarballLocation = path.resolve('cached')
+  const cachedTarballFd = fs.openSync(cachedTarballLocation, 'w');
+  fs.writeSync(cachedTarballFd, tarballData, 0, tarballSize/2);
+  fs.closeSync(cachedTarballFd)
+
+  const resolution = { tarball: 'http://example.com/foo.tgz' }
+
+  try {
+    await fetch.tarball(resolution, unpackTo, {
+      cachedTarballLocation,
+      prefix: process.cwd(),
+    })
+  } catch (err) {
+    nock.cleanAll()
+    t.fail(err)
+  }
+
+  scope.done()
   t.end()
 })
 
