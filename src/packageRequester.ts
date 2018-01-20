@@ -55,6 +55,7 @@ export type PackageResponse = {
     body: {
       isLocal: false,
       inStoreLocation: string,
+      cacheByEngine: Map<string, string>,
       id: string,
       resolution: Resolution,
       // This is useful for recommending updates.
@@ -95,6 +96,7 @@ export interface RequestPackageOptions {
       type: 'version' | 'range' | 'tag',
     },
   },
+  sideEffectsCache: boolean,
 }
 
 export type RequestPackageFunction = (
@@ -167,6 +169,7 @@ async function resolveAndFetch (
       },
     },
     skipFetch: boolean,
+    sideEffectsCache: boolean,
   },
 ): Promise<PackageResponse> {
   try {
@@ -202,6 +205,7 @@ async function resolveAndFetch (
       }
       return {
         body: {
+          cacheByEngine: options.sideEffectsCache ? await getCacheByEngine(ctx.storePath, id) : new Map(),
           id,
           isLocal: true,
           manifest: pkg,
@@ -219,6 +223,7 @@ async function resolveAndFetch (
     if (options.skipFetch && pkg) {
       return {
         body: {
+          cacheByEngine: options.sideEffectsCache ? await getCacheByEngine(ctx.storePath, id) : new Map(),
           id,
           inStoreLocation: target,
           isLocal: false,
@@ -249,6 +254,7 @@ async function resolveAndFetch (
     if (pkg) {
       return {
         body: {
+          cacheByEngine: options.sideEffectsCache ? await getCacheByEngine(ctx.storePath, id) : new Map(),
           id,
           inStoreLocation: target,
           isLocal: false,
@@ -263,6 +269,7 @@ async function resolveAndFetch (
     }
     return {
       body: {
+        cacheByEngine: options.sideEffectsCache ? await getCacheByEngine(ctx.storePath, id) : new Map(),
         id,
         inStoreLocation: target,
         isLocal: false,
@@ -392,7 +399,7 @@ function fetchToStore (opts: {
         status: 'fetched',
       })
 
-      // fetchingFilse shouldn't care about when this is saved at all
+      // fetchingFiles shouldn't care about when this is saved at all
       if (!targetExists) {
         (async () => {
           if (opts.verifyStoreIntegrity) {
@@ -485,4 +492,24 @@ async function fetcher (
     throw new Error(`Fetching for dependency type "${resolution.type}" is not supported`)
   }
   return await fetch(resolution, target, opts)
+}
+
+async function getCacheByEngine (storePath: string, id: string): Promise<Map<string, string>> {
+  const map = new Map()
+
+  const cacheRoot = path.join(storePath, id, 'side_effects')
+  if (!await fs.exists(cacheRoot)) {
+    return map
+  }
+
+  const dirContents = (await fs.readdir(cacheRoot)).map((content) => path.join(cacheRoot, content))
+  await Promise.all(dirContents.map(async (dir) => {
+    if (!(await fs.lstat(dir)).isDirectory()) {
+      return
+    }
+    const engineName = path.basename(dir)
+    map[engineName] = path.join(dir, 'package')
+  }))
+
+  return map
 }

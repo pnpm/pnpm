@@ -11,6 +11,7 @@
     "node": ">=4"
   },
   "scripts": {
+    "start": "npm run tsc -- --watch",
     "lint": "tslint -c tslint.json --project .",
     "tsc": "rimraf lib && tsc",
     "test": "npm run lint && preview && ts-node test --type-check && mos t",
