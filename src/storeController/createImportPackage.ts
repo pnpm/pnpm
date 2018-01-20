@@ -9,6 +9,7 @@ import ncpCB = require('ncp')
 import pLimit = require('p-limit')
 import path = require('path')
 import exists = require('path-exists')
+import renameOverwrite = require('rename-overwrite')
 import promisify = require('util.promisify')
 import linkIndexedDir from '../fs/linkIndexedDir'
 
@@ -68,7 +69,7 @@ function createImportPackage (packageImportMethod?: 'auto' | 'hardlink' | 'copy'
     case 'copy':
       return copyPkg
     default:
-      throw new Error(`Unknow package import pethod ${packageImportMethod}`)
+      throw new Error(`Unknown package import method ${packageImportMethod}`)
   }
 }
 
@@ -83,8 +84,9 @@ async function reflinkPkg (
   const pkgJsonPath = path.join(to, 'package.json')
 
   if (!opts.filesResponse.fromStore || opts.force || !await exists(pkgJsonPath)) {
-    await mkdirp(to)
-    await execFilePromise('cp', ['-r', '--reflink', from + '/.', to])
+    const staging = `${to}+stage${Math.random()}`
+    await execFilePromise('cp', ['-r', '--reflink', from + '/.', staging])
+    await renameOverwrite(staging, to)
   }
 }
 
@@ -119,7 +121,7 @@ async function isSameFile (file1: string, file2: string) {
   return stats[0].ino === stats[1].ino
 }
 
-async function copyPkg (
+export async function copyPkg (
   from: string,
   to: string,
   opts: {
@@ -129,7 +131,9 @@ async function copyPkg (
 ) {
   const pkgJsonPath = path.join(to, 'package.json')
   if (!opts.filesResponse.fromStore || opts.force || !await exists(pkgJsonPath)) {
-    await mkdirp(to)
-    await ncp(from + '/.', to)
+    const staging = `${to}+stage${Math.random()}`
+    await mkdirp(staging)
+    await ncp(from + '/.', staging)
+    await renameOverwrite(staging, to)
   }
 }

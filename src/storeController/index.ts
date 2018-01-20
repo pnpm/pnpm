@@ -16,7 +16,7 @@ import {
   read as readStore,
   save as saveStore,
 } from '../fs/storeIndex'
-import createImportPackage, {ImportPackageFunction} from './createImportPackage'
+import createImportPackage, {copyPkg, ImportPackageFunction} from './createImportPackage'
 
 export interface StoreController {
   requestPackage: RequestPackageFunction,
@@ -25,6 +25,7 @@ export interface StoreController {
   updateConnections (prefix: string, opts: {addDependencies: string[], removeDependencies: string[], prune: boolean}): Promise<void>,
   prune (): Promise<void>,
   saveState (): Promise<void>,
+  upload (builtPkgLocation: string, opts: {pkgId: string, engine: string}): Promise<void>,
 }
 
 export default async function (
@@ -63,6 +64,7 @@ export default async function (
       await removeDependencies(prefix, opts.removeDependencies, {prune: opts.prune})
       await addDependencies(prefix, opts.addDependencies)
     },
+    upload,
   }
 
   function saveState () {
@@ -103,6 +105,13 @@ export default async function (
         }
       }
     }
+  }
+
+  async function upload (builtPkgLocation: string, opts: {pkgId: string, engine: string}) {
+    const cachePath = path.join(store, opts.pkgId, 'side_effects', opts.engine, 'package')
+    // TODO calculate integrity.json here
+    const filenames: string[] = []
+    await copyPkg(builtPkgLocation, cachePath, {filesResponse: { fromStore: true, filenames }, force: true})
   }
 }
 
