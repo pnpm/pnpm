@@ -133,10 +133,14 @@ async function fetchFromRemoteTarball (
     return index
   } catch (err) {
     // ignore errors for missing files or broken/partial archives
-    if (err.code !== 'ENOENT' && err.code !== 'Z_BUF_ERROR') throw err
-
-    if (err.code === 'Z_BUF_ERROR') {
-      logger.warn(`Redownloading corrupted cached tarball: ${opts.cachedTarballLocation}`);
+    switch (err.code) {
+      case 'Z_BUF_ERROR':
+        logger.warn(`Redownloading corrupted cached tarball: ${opts.cachedTarballLocation}`);
+        break
+      case 'ENOENT':
+        break
+      default:
+        throw err
     }
 
     if (ctx.offline) {
