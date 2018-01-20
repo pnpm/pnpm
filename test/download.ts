@@ -4,6 +4,7 @@ import nock = require('nock')
 import createFetcher from '@pnpm/tarball-fetcher'
 import path = require('path')
 import tempy = require('tempy')
+import {streamParser} from '@pnpm/logger'
 
 const tarballPath = path.join(__dirname, 'tars', 'babel-helper-hoist-variables-6.24.1.tgz')
 const tarballSize = 1279
@@ -101,6 +102,13 @@ test('redownload incomplete cached tarballs', async t => {
 
   const resolution = { tarball: 'http://example.com/foo.tgz' }
 
+  t.plan(2)
+  function reporter (log) {
+    if (log.level === 'warn' && log.name === 'pnpm' && log.message.startsWith(`Redownloading corrupted cached tarball: ${cachedTarballLocation}`)) {
+      t.pass('warning logged')
+    }
+  }
+  streamParser.on('data', reporter)
   try {
     await fetch.tarball(resolution, unpackTo, {
       cachedTarballLocation,
@@ -110,6 +118,7 @@ test('redownload incomplete cached tarballs', async t => {
     nock.cleanAll()
     t.fail(err)
   }
+  streamParser.removeListener('data', reporter)
 
   t.ok(scope.isDone())
   t.end()
