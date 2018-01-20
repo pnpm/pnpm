@@ -70,12 +70,12 @@ export default async (
   const limitInstallation = pLimit(concurrency)
 
   for (const chunk of chunks) {
-    await chunk.map((prefix: string) =>
+    await Promise.all(chunk.map((prefix: string) =>
       limitInstallation(() => {
         const hooks = opts.ignorePnpmfile ? {} : requireHooks(prefix)
         return install({...installOpts, hooks, storeController, prefix})
       }),
-    )
+    ))
   }
 
   await saveState()
