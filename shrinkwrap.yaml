@@ -11,7 +11,7 @@ dependencies:
   mkdirp-promise: 5.0.1
   mz: 2.7.0
   retry: 0.10.1
-  ssri: 5.1.0
+  ssri: 5.0.0
   unpack-stream: 3.0.1
 devDependencies:
   '@types/nock': 9.1.2
@@ -1431,6 +1431,12 @@ packages:
     dev: true
     resolution:
       integrity: sha1-BOaSb2YolTVPPdAVIDYzuFcpfiw=
+  /ssri/5.0.0:
+    dependencies:
+      safe-buffer: 5.1.1
+    dev: false
+    resolution:
+      integrity: sha512-728D4yoQcQm1ooZvSbywLkV1RjfITZXh0oWrhM/lnsx3nAHx7LsRGJWB/YyvoceAYRq98xqbstiN4JBv1/wNHg==
   /ssri/5.1.0:
     dependencies:
       safe-buffer: 5.1.1
@@ -1805,7 +1811,7 @@ specifiers:
   package-preview: ^1.0.1
   retry: ^0.10.1
   rimraf: ^2.6.2
-  ssri: ^5.0.0
+  ssri: 5.0.0
   tape: ^4.8.0
   tempy: ^0.2.1
   ts-node: ^4.0.0
