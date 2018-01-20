@@ -56,7 +56,7 @@ devDependencies:
   '@types/ramda': 0.25.16
   '@types/semver': 5.4.0
   '@types/tape': 4.2.31
-  '@types/update-notifier': 1.0.2
+  '@types/update-notifier': 1.0.3
   '@zkochan/husky': 0.0.0
   anonymous-npm-registry-client: 0.1.2
   caw: 2.0.1
@@ -299,7 +299,7 @@ packages:
   /@pnpm/check-package/1.0.0:
     dependencies:
       '@types/load-json-file': 2.0.7
-      dint: 2.0.0
+      dint: 2.0.2
       load-json-file: 4.0.0
     dev: false
     engines:
@@ -309,7 +309,7 @@ packages:
   /@pnpm/default-fetcher/0.3.2:
     dependencies:
       '@pnpm/git-fetcher': 0.2.0
-      '@pnpm/tarball-fetcher': 0.3.3
+      '@pnpm/tarball-fetcher': 0.3.4
     dev: false
     engines:
       node: '>=4'
@@ -351,7 +351,7 @@ packages:
   /@pnpm/git-fetcher/0.2.0:
     dependencies:
       '@types/node': 8.5.9
-      dint: 2.0.0
+      dint: 2.0.2
       execa: 0.8.0
       rimraf-then: 1.0.1
     dev: false
@@ -362,7 +362,7 @@ packages:
   /@pnpm/git-resolver/0.3.0:
     dependencies:
       '@types/node': 8.5.9
-      got: 8.0.2
+      got: 8.0.3
       graceful-git: 1.0.1
       hosted-git-info: 2.5.0
       normalize-ssh: 1.0.0
@@ -411,7 +411,7 @@ packages:
       mem: 3.0.0
       p-limit: 1.2.0
       semver: 5.5.0
-      ssri: 5.0.0
+      ssri: 5.1.0
       version-selector-type: 2.0.0
       write-json-file: 2.3.0
     dev: false
@@ -485,7 +485,7 @@ packages:
       '@types/node': 9.3.0
       '@types/p-limit': 1.1.1
       '@types/uuid': 3.4.3
-      got: 8.0.2
+      got: 8.0.3
       p-limit: 1.2.0
       package-store: 0.14.0
       uuid: 3.2.1
@@ -496,11 +496,11 @@ packages:
       '@pnpm/logger': ^1.0.0
     resolution:
       integrity: sha512-pjaJGpCYjixu2DtGwA9pSQjaIudjJnw6rTVl+S3suR6mJoCCxsc8b0EVrCyarn8BXqRksEKIDfJ6MlXWwl16jA==
-  /@pnpm/tarball-fetcher/0.3.3:
+  /@pnpm/tarball-fetcher/0.3.4:
     dependencies:
       '@types/mem': 1.1.2
       '@types/mz': 0.0.32
-      '@types/node': 8.5.9
+      '@types/node': 9.3.0
       '@types/retry': 0.10.2
       credentials-by-uri: 1.0.0
       fetch-from-npm-registry: 0.1.0
@@ -515,8 +515,10 @@ packages:
     dev: false
     engines:
       node: '>=4'
+    peerDependencies:
+      '@pnpm/logger': ^1.0.0
     resolution:
-      integrity: sha512-VNO6idIdgEckqFuOG82hQl90KUy0zpecNiIfsfCaXt8kW2CIvgxA/c5wQAR4jxRhd3X56XLK1UiyNH300S2c4A==
+      integrity: sha512-HHziqmaV3UJIE/3P3ubjAjWA0M5NLI1SPKdmWmFNcP6N0ur62+WptZwHEXq5lOTaZOKJyZwiGwHgPn/mHuR3aw==
   /@pnpm/tarball-resolver/0.1.0:
     dependencies:
       parse-npm-tarball-url: 1.0.2
@@ -654,9 +656,9 @@ packages:
     dev: true
     resolution:
       integrity: sha512-DEPn8FJKQR6eeMHZ407TuAqlhBKQa54PTM3c7Z6pKOI1uHaPnidmpmOXYtNZTcDrL5hnZofSHPwX1AQ9HbaMUg==
-  /@types/update-notifier/1.0.2:
+  /@types/update-notifier/1.0.3:
     resolution:
-      integrity: sha512-NwfqJ7OT7MgzgV+SiWJr7jMdBezFIWuBSmCOmScvesL/SV8A17SUQR0sCI+shxo+4THHPNGgzaLzfbjQMYLHFA==
+      integrity: sha512-BLStNhP2DFF7funARwTcoD6tetRte8NK3Sc59mn7GNALCN975jOlKX3dGvsFxXr/HwQMxxCuRn9IWB3WQ7odHQ==
   /@types/uuid/3.4.3:
     dependencies:
       '@types/node': 9.3.0
@@ -1232,7 +1234,7 @@ packages:
       move-concurrently: 1.0.1
       promise-inflight: 1.0.1
       rimraf: 2.6.2
-      ssri: 5.0.0
+      ssri: 5.1.0
       unique-filename: 1.1.0
       y18n: 3.2.1
     dev: false
@@ -1722,7 +1724,6 @@ packages:
       flat-colors: 3.0.0
       typpy: 2.0.0
       x256: 0.0.2
-    dev: false
     resolution:
       integrity: sha1-HNOs5cyhvsAEFXiydGSyZ2OH9ts=
   /couleurs/6.0.9:
@@ -2022,18 +2023,18 @@ packages:
       node: '>=0.3.1'
     resolution:
       integrity: sha512-QpVuMTEoJMF7cKzi6bvWhRulU1fZqZnvyVQgNhPaxxuTYwyjn/j1v9falseQ/uXWwPnO56RBfwtg4h/EQXmucA==
-  /dint/2.0.0:
+  /dint/2.0.2:
     dependencies:
       graceful-fs: 4.1.11
       mz: 2.7.0
       p-every: 1.0.2
       p-limit: 1.2.0
-      ssri: 5.0.0
+      ssri: 5.1.0
     dev: false
     engines:
       node: '>=4'
     resolution:
-      integrity: sha512-lxYQEEebR4G/uGaubo5TBi9H6FJGSR8zJGyt5AhFHbmWyH73e+EenuntCytzKcDpPl2K2v2slXUTY9Ch39kKRQ==
+      integrity: sha512-O7ma/wc+Sf6ETmKtH678v94d1zx3EqHoiwIGKlF2zArUzXItQ1ZXrKZY7RGl4RuFr7eYyK8bEeZkOX4dEv8iZw==
   /dir-glob/2.0.0:
     dependencies:
       arrify: 1.0.1
@@ -2759,7 +2760,7 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha1-JAzQV4WpoY5WHcG0S0HHY+8ejbA=
-  /got/8.0.2:
+  /got/8.0.3:
     dependencies:
       '@sindresorhus/is': 0.7.0
       cacheable-request: 2.1.4
@@ -2782,7 +2783,7 @@ packages:
     engines:
       node: '>=4'
     resolution:
-      integrity: sha512-6zqdrXga5IfVEgnOwVRcDeSBIRM6oFMcznmZs8iq4herWtVNRMWMSQS+qaBwzMuutuonWJEhGKmWMslvmWcFMw==
+      integrity: sha512-U9GopEw0RLE8c3rbMmQ5/LtM2pLMopRxV7cVh6pNcX6ITLsH/iweqEn6GqoFxoGJHRbNZFvpFJ/knc+RITL6lg==
   /graceful-fs/4.1.11:
     dev: false
     engines:
@@ -3769,7 +3770,7 @@ packages:
       node-fetch-npm: 2.0.2
       promise-retry: 1.1.1
       socks-proxy-agent: 3.0.1
-      ssri: 5.0.0
+      ssri: 5.1.0
     dev: false
     resolution:
       integrity: sha512-FFq0lNI0ax+n9IWzWpH8A4JdgYiAp2DDYIZ3rsaav8JDe8I+72CzK6PQW/oom15YDZpV5bYW/9INd6nIJ2ZfZw==
@@ -5903,12 +5904,12 @@ packages:
     dev: false
     resolution:
       integrity: sha1-x3lMfgd4gAUv9xqNSi27Sppjisc=
-  /source-map-support/0.5.1:
+  /source-map-support/0.5.2:
     dependencies:
       source-map: 0.6.1
     dev: true
     resolution:
-      integrity: sha512-EZNecLNrsdRk9fcdOcjjy+Z/id7cr68sdmsYtR1gA45oQ81Ccea0UvM7DdSRblO0Ie5zWX31bvJTC7Y3QZVujg==
+      integrity: sha512-9zHceZbQwERaMK1MiFguvx1dL9GQPLXInr2D/wUxAsuV6ZKc9F0DHYWeloMcalkYRbtanwqUakoDjvj55cL/4A==
   /source-map/0.4.4:
     dependencies:
       amdefine: 1.0.1
@@ -5993,6 +5994,12 @@ packages:
     dev: false
     resolution:
       integrity: sha512-728D4yoQcQm1ooZvSbywLkV1RjfITZXh0oWrhM/lnsx3nAHx7LsRGJWB/YyvoceAYRq98xqbstiN4JBv1/wNHg==
+  /ssri/5.1.0:
+    dependencies:
+      safe-buffer: 5.1.1
+    dev: false
+    resolution:
+      integrity: sha512-TevC8fgxQKTfQ1nWtM9GNzr3q5rrHNntG9CDMH1k3QhSZI6Kb+NbjLRs8oPFZa2Hgo7zoekL+UTvoEk7tsbjQg==
   /stacktracey/1.2.100:
     dependencies:
       as-table: 1.0.31
@@ -6179,7 +6186,7 @@ packages:
       '@types/ramda': 0.25.16
       '@types/rc': 0.0.1
       '@types/semver': 5.4.0
-      '@types/update-notifier': 1.0.2
+      '@types/update-notifier': 1.0.3
       '@zkochan/cmd-shim': 2.2.4
       '@zkochan/npm-package-arg': 1.0.0
       arr-flatten: 1.1.0
@@ -6455,7 +6462,7 @@ packages:
       make-error: 1.3.2
       minimist: 1.2.0
       mkdirp: 0.5.1
-      source-map-support: 0.5.1
+      source-map-support: 0.5.2
       tsconfig: 7.0.0
       v8flags: 3.0.1
       yn: 2.0.0
@@ -6624,7 +6631,7 @@ packages:
     dependencies:
       '@types/node': 9.3.0
       decompress-maybe: 1.0.0
-      ssri: 5.0.0
+      ssri: 5.1.0
       tar-fs: 1.16.0
     dev: false
     engines:
