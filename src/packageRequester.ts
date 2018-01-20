@@ -491,7 +491,12 @@ async function fetcher (
   if (!fetch) {
     throw new Error(`Fetching for dependency type "${resolution.type}" is not supported`)
   }
-  return await fetch(resolution, target, opts)
+  try {
+    return await fetch(resolution, target, opts)
+  } catch (err) {
+    logger.error(`Fetching ${opts.pkgId} failed!`)
+    throw err
+  }
 }
 
 async function getCacheByEngine (storePath: string, id: string): Promise<Map<string, string>> {
