@@ -21,7 +21,7 @@ const fetch = createFetcher({
 })
 
 test('fail when tarball size does not match content-length', async t => {
-  nock(registry)
+  const scope = nock(registry)
     .get('/foo.tgz')
     .times(2)
     .replyWithFile(200, tarballPath, {
@@ -45,6 +45,8 @@ test('fail when tarball size does not match content-length', async t => {
     t.equal(err['expectedSize'], 1048576)
     t.equal(err['receivedSize'], tarballSize)
     t.equal(err['attempts'], 2)
+
+    t.ok(scope.isDone())
     t.end()
   }
 })
@@ -74,6 +76,7 @@ test('retry when tarball size does not match content-length', async t => {
     prefix: process.cwd(),
   })
 
+  t.ok(nock.isDone())
   t.end()
 })
 
@@ -125,7 +128,7 @@ test('redownload incomplete cached tarballs', async t => {
 })
 
 test('fail when integrity check fails two times in a row', async t => {
-  nock(registry)
+  const scope = nock(registry)
     .get('/foo.tgz')
     .times(2)
     .replyWithFile(200, path.join(__dirname, 'tars', 'babel-helper-hoist-variables-7.0.0-alpha.10.tgz'), {
@@ -153,18 +156,18 @@ test('fail when integrity check fails two times in a row', async t => {
     t.equal(err['code'], 'EINTEGRITY')
     t.equal(err['resource'], 'http://example.com/foo.tgz')
     t.equal(err['attempts'], 2)
+
+    t.ok(scope.isDone())
     t.end()
   }
 })
 
 test('retry when integrity check fails', async t => {
-  nock(registry)
+  const scope = nock(registry)
     .get('/foo.tgz')
     .replyWithFile(200, path.join(__dirname, 'tars', 'babel-helper-hoist-variables-7.0.0-alpha.10.tgz'), {
       'Content-Length': '1194',
     })
-
-  nock(registry)
     .get('/foo.tgz')
     .replyWithFile(200, tarballPath, {
       'Content-Length': tarballSize.toString(),
@@ -192,15 +195,14 @@ test('retry when integrity check fails', async t => {
   t.deepEqual(params[0], [1194, 1])
   t.deepEqual(params[1], [tarballSize, 2])
 
+  t.ok(scope.isDone())
   t.end()
 })
 
 test('retry on server error', async t => {
-  nock(registry)
+  const scope = nock(registry)
     .get('/foo.tgz')
     .reply(500)
-
-  nock(registry)
     .get('/foo.tgz')
     .replyWithFile(200, tarballPath, {
       'Content-Length': tarballSize.toString(),
@@ -223,11 +225,12 @@ test('retry on server error', async t => {
 
   t.ok(index)
 
+  t.ok(scope.isDone())
   t.end()
 })
 
 test('throw error when accessing private package w/o authorization', async t => {
-  nock(registry)
+  const scope = nock(registry)
     .get('/foo.tgz')
     .reply(403)
 
@@ -251,12 +254,14 @@ test('throw error when accessing private package w/o authorization', async t => 
     t.equal(err.message, '403 Forbidden: http://example.com/foo.tgz')
     t.equal(err['code'], 'E403')
     t.equal(err['uri'], 'http://example.com/foo.tgz')
+
+    t.ok(scope.isDone())
     t.end()
   }
 })
 
 test('accessing private packages', async t => {
-  nock(
+  const scope = nock(
     registry,
     {
       reqheaders: {
@@ -264,10 +269,10 @@ test('accessing private packages', async t => {
       }
     }
   )
-    .get('/foo.tgz')
-    .replyWithFile(200, tarballPath, {
-      'Content-Length': tarballSize.toString(),
-    })
+  .get('/foo.tgz')
+  .replyWithFile(200, tarballPath, {
+    'Content-Length': tarballSize.toString(),
+  })
 
   process.chdir(tempy.directory())
   t.comment(`testing in ${process.cwd()}`)
@@ -299,5 +304,6 @@ test('accessing private packages', async t => {
 
   t.ok(index)
 
+  t.ok(scope.isDone())
   t.end()
 })
