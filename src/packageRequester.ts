@@ -392,34 +392,36 @@ function fetchToStore (opts: {
         status: 'fetched',
       })
 
-      // fetchingFilse shouldn't care about when this is saved at all
+      // Ideally, fetchingFiles shouldn't care about when integrity is calculated
+      //
+      // TODO: Move renaming of the stage folder into the fetcher.
+      //       It will allow to finish fetchingFiles earlier
+      //       than integrity is generated
       if (!targetExists) {
-        (async () => {
-          if (opts.verifyStoreIntegrity) {
-            const fileIntegrities = await Promise.all(
-              Object.keys(packageIndex)
-                .map((filename) =>
-                  packageIndex[filename].generatingIntegrity
-                    .then((fileIntegrity: object) => ({
-                      [filename]: {
-                        integrity: fileIntegrity,
-                        size: packageIndex[filename].size,
-                      },
-                    })),
-                ),
-            )
-            const integrity = fileIntegrities
-              .reduce((acc, info) => {
-                Object.assign(acc, info)
-                return acc
-              }, {})
-            await writeJsonFile(path.join(target, 'integrity.json'), integrity, {indent: null})
-          } else {
-            // TODO: save only filename: {size}
-            await writeJsonFile(path.join(target, 'integrity.json'), packageIndex, {indent: null})
-          }
-          finishing.resolve(undefined)
-        })()
+        if (opts.verifyStoreIntegrity) {
+          const fileIntegrities = await Promise.all(
+            Object.keys(packageIndex)
+              .map((filename) =>
+                packageIndex[filename].generatingIntegrity
+                  .then((fileIntegrity: object) => ({
+                    [filename]: {
+                      integrity: fileIntegrity,
+                      size: packageIndex[filename].size,
+                    },
+                  })),
+              ),
+          )
+          const integrity = fileIntegrities
+            .reduce((acc, info) => {
+              Object.assign(acc, info)
+              return acc
+            }, {})
+          await writeJsonFile(path.join(target, 'integrity.json'), integrity, {indent: null})
+        } else {
+          // TODO: save only filename: {size}
+          await writeJsonFile(path.join(target, 'integrity.json'), packageIndex, {indent: null})
+        }
+        finishing.resolve(undefined)
       } else {
         finishing.resolve(undefined)
       }
