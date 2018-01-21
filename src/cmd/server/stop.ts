@@ -1,8 +1,14 @@
 import logger from '@pnpm/logger'
 import {connectStoreController} from '@pnpm/server'
+import delay = require('delay')
+import isRunning = require('is-running')
 import loadJsonFile = require('load-json-file')
 import {resolveStore} from 'package-store'
 import path = require('path')
+import killcb = require('tree-kill')
+import promisify = require('util.promisify')
+
+const kill = promisify(killcb)
 
 export default async (
   opts: {
@@ -11,13 +17,25 @@ export default async (
   },
 ) => {
   const store = await resolveStore(opts.store, opts.prefix)
+  let serverJson: any | undefined // tslint:disable-line
   try {
-    const serverJson = await loadJsonFile(path.join(store, 'server.json'))
-    const storeController = await connectStoreController(serverJson.connectionOptions)
-    await storeController.stop()
-    return
+    serverJson = await loadJsonFile(path.join(store, 'server.json'))
   } catch (err) {
-    if (err.code !== 'ENOENT') throw err
+    if (err.code !== 'ENOENT') {
+      throw err
+    } else {
+      logger.info(`Nothing to stop. No server is running for the store at ${store}`)
+      return
+    }
   }
-  logger.info(`Nothing to stop. No server is running for the store at ${store}`)
+  const storeController = await connectStoreController(serverJson.connectionOptions)
+  await storeController.stop()
+
+  if (!isRunning(serverJson.pid) || await delay(5000) && !isRunning(serverJson.pid)) {
+    logger.info('Server gracefully stopped')
+    return
+  }
+  logger.warn('Graceful shutdown failed')
+  await kill(serverJson.pid, 'SIGINT')
+  logger.info('Server process terminated')
 }

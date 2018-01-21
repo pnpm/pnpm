@@ -4,7 +4,6 @@ import isCI = require('is-ci')
 import isWindows = require('is-windows')
 import tape = require('tape')
 import promisifyTape from 'tape-promise'
-import thenify = require('thenify')
 import path = require('path')
 import {
   prepare,
