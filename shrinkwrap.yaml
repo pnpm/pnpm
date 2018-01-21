@@ -435,7 +435,7 @@ packages:
       '@pnpm/logger': ^1.0.0
     resolution:
       integrity: sha512-+epHrewyTp3CGyINDddHyiWgKM0oSTi0HTe1wzgXwk3Cw0CDVzjRTl8ZvAcPDWS7gJYBqftMELkhEgOTtXDt1Q==
-  /@pnpm/package-requester/0.6.3:
+  /@pnpm/package-requester/0.6.5:
     dependencies:
       '@pnpm/check-package': 1.0.0
       '@pnpm/pkgid-to-filename': 1.0.0
@@ -463,7 +463,7 @@ packages:
     peerDependencies:
       '@pnpm/logger': ^1.0.0
     resolution:
-      integrity: sha512-HajmDYa0XnRS6EJ46wePxS3QTBLvKFVq8w3vO+p/b6WsOGBTU/d1b68AtgOB6AnyReaT4R72mq79EFJmQfMdHw==
+      integrity: sha512-vYjk8NCVpLN0qQVpor81CPWDSQjVOX33VJo3PLaajYNT3lkItc3PIKnE69FB3BlK68fuQnvGEiS6bkMZVPFtUg==
   /@pnpm/pkgid-to-filename/1.0.0:
     dependencies:
       normalize-path: 2.1.1
@@ -480,7 +480,7 @@ packages:
       integrity: sha512-+Hg7mBqDOXUlH4UvYffXMJwln8EIfqpf0+y7ODYqbO9GF9Kc1GG7/tbl5cWyA1OKF04XQH9jugoIxtCOxN9/dg==
   /@pnpm/server/0.6.2:
     dependencies:
-      '@pnpm/package-requester': 0.6.3
+      '@pnpm/package-requester': 0.6.5
       '@types/got': 7.1.6
       '@types/node': 9.3.0
       '@types/p-limit': 1.1.1
@@ -4728,7 +4728,7 @@ packages:
   /package-store/0.14.0:
     dependencies:
       '@pnpm/fs-locker': 1.0.1
-      '@pnpm/package-requester': 0.6.3
+      '@pnpm/package-requester': 0.6.5
       '@pnpm/types': 1.7.0
       '@types/load-json-file': 2.0.7
       '@types/mz': 0.0.32
@@ -6172,7 +6172,7 @@ packages:
     dependencies:
       '@pnpm/check-package': 1.0.0
       '@pnpm/fs-locker': 1.0.1
-      '@pnpm/package-requester': 0.6.3
+      '@pnpm/package-requester': 0.6.5
       '@pnpm/pkgid-to-filename': 1.0.0
       '@pnpm/types': 1.7.0
       '@types/byline': 4.2.31
