@@ -16,7 +16,7 @@
     "tsc": "rimraf lib && tsc",
     "test": "npm run lint && preview && ts-node test --type-check && mos t",
     "md": "mos",
-    "prepublishOnly": "npm run tsc"
+    "prepare": "npm run tsc"
   },
   "repository": {
     "type": "git",
@@ -80,5 +80,8 @@
     "installation": {
       "useShortAlias": true
     }
+  },
+  "publishConfig": {
+    "scripts": {}
   }
 }
