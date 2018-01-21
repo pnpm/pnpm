@@ -1,3 +1,6 @@
+import fs = require('mz/fs')
+import path = require('path')
+
 import test = require('tape')
 import {
   createServer,
@@ -69,6 +72,34 @@ test('server', async t => {
   t.ok(response['finishing'])
 
   await response['finishing']
+
+  await server.close()
+  await storeCtrl.close()
+  t.end()
+})
+
+test('server upload', async t => {
+  const port = 5813
+  const hostname = '127.0.0.1'
+  const remotePrefix = `http://${hostname}:${port}`
+  const storeCtrlForServer = await createStoreController()
+  const server = createServer(storeCtrlForServer, {
+    hostname,
+    port,
+  })
+  const storeCtrl = await connectStoreController({remotePrefix, concurrency: 100})
+
+  const fakeEngine = 'client-engine'
+  const fakePkgId = 'test.example.com/fake-pkg/1.0.0'
+
+  await storeCtrl.upload(path.join(__dirname, 'side-effect-fake-dir'), {
+    engine: fakeEngine,
+    pkgId: fakePkgId,
+  })
+
+  const cachePath = path.join('.store', fakePkgId, 'side_effects', fakeEngine, 'package')
+  t.ok(await fs.exists(cachePath), 'cache directory created')
+  t.deepEqual(await fs.readdir(cachePath), ['side-effect.js', 'side-effect.txt'], 'all files uploaded to cache')
 
   await server.close()
   await storeCtrl.close()
