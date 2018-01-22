@@ -303,3 +303,8 @@ declare module 'graph-sequencer' {
   const anything: any;
   export = anything;
 }
+
+declare module 'diable' {
+  const anything: any;
+  export = anything;
+}

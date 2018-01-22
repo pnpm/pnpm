@@ -42,8 +42,9 @@ function getHelpText (command: string) {
           --only dev[elopment]               only \`devDependencies\` are installed regardless of the \`NODE_ENV\`.
           --[no-]lock
           --shrinkwrap-only                  dependencies are not downloaded only \`shrinkwrap.yaml\` is updated
-          --side-effects-cache               use or cache the results of (pre/post)install hooks
-          --side-effects-cache-readonly      only use the side effects cache if present, do not create it for new packages
+          --use-store-server                 starts a store server in the background.
+                                             The store server will keep running after installation is done.
+                                             To stop the store server, run \`pnpm server stop\`
 
           --package-import-method auto       try to hardlink packages from the store. If it fails, fallback to copy
           --package-import-method hardlink   hardlink packages from the store
@@ -54,6 +55,10 @@ function getHelpText (command: string) {
           --reporter default                 the default reporter when the stdout is TTY
           --reporter append-only             the output is always appended to the end. No cursor manipulations are performed
           --reporter ndjson                  the most verbose reporter. Prints all logs in ndjson format
+
+        Experimental options:
+          --side-effects-cache               use or cache the results of (pre/post)install hooks
+          --side-effects-cache-readonly      only use the side effects cache if present, do not create it for new packages
       `
 
     case 'uninstall':
@@ -183,13 +188,14 @@ function getHelpText (command: string) {
 
     case 'server':
       return stripIndent`
-        pnpm server
+        pnpm server start
 
         **Experimental!** Starts a service that does all interactions with the store.
         Other commands will delegate any store-related tasks to this service.
 
         Options:
 
+          --background                   runs the server in the background
           --protocol <auto|tcp|ipc>      the communication protocol used by the server
           --port <number>                the port number to use, when TCP is used for communication
           --store                        the location where all the packages are saved on the disk.
@@ -242,7 +248,8 @@ function getHelpText (command: string) {
           - rebuild
 
         Experimental commands:
-          - server
+          - server start
+          - server stop
           - recursive install
           - recursive update
 
