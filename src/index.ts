@@ -103,7 +103,6 @@ async function _outdated (
   const currentShrinkwrap = await readCurrentShrinkwrap(pkgPath, {ignoreIncompatible: false}) || {}
 
   const resolve = createResolver({
-    alwaysAuth: opts.alwaysAuth,
     fetchRetries: opts.fetchRetries,
     fetchRetryFactor: opts.fetchRetryFactor,
     fetchRetryMaxtimeout: opts.fetchRetryMaxtimeout,
@@ -111,7 +110,6 @@ async function _outdated (
     metaCache: new Map<string, object>(),
     offline: opts.offline,
     rawNpmConfig: opts.rawNpmConfig,
-    registry: wantedShrinkwrap.registry,
     store: storePath,
   })
 
