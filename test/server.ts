@@ -5,7 +5,6 @@ import fs = require('mz/fs')
 import tape = require('tape')
 import promisifyTape from 'tape-promise'
 import killcb = require('tree-kill')
-import loadJsonFile = require('load-json-file')
 import pathExists = require('path-exists')
 import thenify = require('thenify')
 import {
@@ -13,6 +12,7 @@ import {
   execPnpm,
   execPnpmSync,
   spawn,
+  retryLoadJsonFile,
 } from './utils'
 
 const IS_WINDOWS = isWindows()
@@ -24,10 +24,8 @@ test('installation using pnpm server', async (t: tape.Test) => {
 
   const server = spawn(['server', 'start'])
 
-  await delay(2000) // lets' wait till the server starts
-
   const serverJsonPath = path.resolve('..', 'store', '2', 'server.json')
-  const serverJson = await loadJsonFile(serverJsonPath)
+  const serverJson = await retryLoadJsonFile(serverJsonPath)
   t.ok(serverJson)
   t.ok(serverJson.connectionOptions)
 
@@ -55,10 +53,8 @@ test('installation using pnpm server that runs in the background', async (t: tap
 
   await execPnpm('server', 'start', '--background')
 
-  await delay(2000) // lets' wait till the server starts
-
   const serverJsonPath = path.resolve('..', 'store', '2', 'server.json')
-  const serverJson = await loadJsonFile(serverJsonPath)
+  const serverJson = await retryLoadJsonFile(serverJsonPath)
   t.ok(serverJson)
   t.ok(serverJson.connectionOptions)
 
@@ -86,10 +82,8 @@ test('installation using pnpm server via TCP', async (t: tape.Test) => {
 
   const server = spawn(['server', 'start', '--protocol', 'tcp'])
 
-  await delay(2000) // lets' wait till the server starts
-
   const serverJsonPath = path.resolve('..', 'store', '2', 'server.json')
-  const serverJson = await loadJsonFile(serverJsonPath)
+  const serverJson = await retryLoadJsonFile(serverJsonPath)
   t.ok(serverJson)
   t.ok(serverJson.connectionOptions.remotePrefix.indexOf('http://localhost:') === 0, 'TCP is used for communication')
 
@@ -117,10 +111,8 @@ test('pnpm server uses TCP when port specified', async (t: tape.Test) => {
 
   const server = spawn(['server', 'start', '--port', '7856'])
 
-  await delay(2000) // lets' wait till the server starts
-
   const serverJsonPath = path.resolve('..', 'store', '2', 'server.json')
-  const serverJson = await loadJsonFile(serverJsonPath)
+  const serverJson = await retryLoadJsonFile(serverJsonPath)
   t.ok(serverJson)
   t.equal(serverJson.connectionOptions.remotePrefix, 'http://localhost:7856', 'TCP with specified port is used for communication')
 
@@ -153,7 +145,7 @@ test('installation using store server started in the background', async (t: tape
   await execPnpm('install', 'is-positive@1.0.0', '--use-store-server')
 
   const serverJsonPath = path.resolve('..', 'store', '2', 'server.json')
-  const serverJson = await loadJsonFile(serverJsonPath)
+  const serverJson = await retryLoadJsonFile(serverJsonPath)
   t.ok(serverJson)
   t.ok(serverJson.connectionOptions)
 

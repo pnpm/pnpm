@@ -5,10 +5,12 @@ import isWindows = require('is-windows')
 import tape = require('tape')
 import promisifyTape from 'tape-promise'
 import thenify = require('thenify')
+import path = require('path')
 import {
   prepare,
   execPnpm,
   spawn,
+  retryLoadJsonFile,
 } from './utils'
 
 const test = promisifyTape(tape)
@@ -59,7 +61,10 @@ test('recursive installation using server', async t => {
 
   const server = spawn(['server', 'start'])
 
-  await delay(2000) // lets' wait till the server starts
+  const serverJsonPath = path.resolve('..', 'store', '2', 'server.json')
+  const serverJson = await retryLoadJsonFile(serverJsonPath)
+  t.ok(serverJson)
+  t.ok(serverJson.connectionOptions)
 
   await execPnpm('recursive', 'install')
 
