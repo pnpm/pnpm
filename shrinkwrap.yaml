@@ -21,7 +21,6 @@ dependencies:
   graceful-fs: 4.1.11
   graph-sequencer: 2.0.0
   is-ci: 1.1.0
-  is-running: 2.1.0
   is-windows: 1.0.1
   load-json-file: 4.0.0
   loud-rejection: 1.6.0
@@ -35,6 +34,7 @@ dependencies:
   pnpm-default-reporter: 0.11.8
   pnpm-file-reporter: 0.0.1
   pnpm-list: 2.0.1
+  process-exists: 3.0.0
   ramda: 0.25.0
   retry: 0.10.1
   signal-exit: 3.0.2
@@ -1782,6 +1782,16 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha1-ojD2T1aDEOFJgAmUB5DsmVRbyn4=
+  /csv-parser/1.12.0:
+    dependencies:
+      generate-function: 1.1.0
+      generate-object-property: 1.2.0
+      inherits: 2.0.3
+      minimist: 1.2.0
+      ndjson: 1.5.0
+    dev: false
+    resolution:
+      integrity: sha512-kdJUgym8a+vWzAwkqspFEXnDwD3QRWoNsak6H+CrhrrD3hcFsqeb3GiMUUZs5DY6zgMAsvgskfVia1DjxItW1Q==
   /currently-unhandled/0.4.1:
     dependencies:
       array-find-index: 1.0.2
@@ -2618,6 +2628,16 @@ packages:
     dev: false
     resolution:
       integrity: sha1-LANAXHU4w51+s3sxcCLjJfsBi/c=
+  /generate-function/1.1.0:
+    dev: false
+    resolution:
+      integrity: sha1-VMIbCAGSsW2Yd3ecW7gWZudyNl8=
+  /generate-object-property/1.2.0:
+    dependencies:
+      is-property: 1.0.2
+    dev: false
+    resolution:
+      integrity: sha1-nA4cQDCM6AT0eDYYuTf6iPmdUNA=
   /genfun/4.0.1:
     dev: false
     resolution:
@@ -2667,6 +2687,15 @@ packages:
       node: '>=0.12.0'
     resolution:
       integrity: sha1-Ei4WFZHiH/TFJTAwVpPyDmOTo5g=
+  /get-stream/2.3.1:
+    dependencies:
+      object-assign: 4.1.1
+      pinkie-promise: 2.0.1
+    dev: false
+    engines:
+      node: '>=0.10.0'
+    resolution:
+      integrity: sha1-Xzj5PzRgCWZu4BUKBUFn+Rvdld4=
   /get-stream/3.0.0:
     dev: false
     engines:
@@ -3079,6 +3108,14 @@ packages:
     dev: true
     resolution:
       integrity: sha1-dEi/qSQJKvMR1HFzu6uZDK4rsCc=
+  /into-stream/2.0.1:
+    dependencies:
+      from2: 2.3.0
+    dev: false
+    engines:
+      node: '>=0.10.0'
+    resolution:
+      integrity: sha1-25sANpRFPq4JHYpchMwRUHt4HTE=
   /into-stream/3.1.0:
     dependencies:
       from2: 2.3.0
@@ -3244,6 +3281,10 @@ packages:
     dev: true
     resolution:
       integrity: sha1-eaKp7OfwlugPNtKy87wWwf9L8/o=
+  /is-property/1.0.2:
+    dev: false
+    resolution:
+      integrity: sha1-V/4cTkhHTt1lsJkR8msc1Ald2oQ=
   /is-redirect/1.0.0:
     dev: false
     engines:
@@ -3264,10 +3305,6 @@ packages:
       node: '>=0.10.0'
     resolution:
       integrity: sha1-EaBgVotnM5REAz0BJaYaINVk+zQ=
-  /is-running/2.1.0:
-    dev: false
-    resolution:
-      integrity: sha1-MKc/9cw4VOT8JUkICen1q/jeCeA=
   /is-ssh/1.3.0:
     dependencies:
       protocols: 1.4.6
@@ -4083,6 +4120,16 @@ packages:
     dev: false
     resolution:
       integrity: sha1-rmA7NrE0vOw0e0UkIrC/mNWDLsg=
+  /neat-csv/2.1.0:
+    dependencies:
+      csv-parser: 1.12.0
+      get-stream: 2.3.1
+      into-stream: 2.0.1
+    dev: false
+    engines:
+      node: '>=4'
+    resolution:
+      integrity: sha1-BvWDYMTDuVW9Rn3cha5FEaOQekw=
   /negotiator/0.6.1:
     dev: true
     engines:
@@ -4966,13 +5013,11 @@ packages:
   /pinkie-promise/2.0.1:
     dependencies:
       pinkie: 2.0.4
-    dev: true
     engines:
       node: '>=0.10.0'
     resolution:
       integrity: sha1-ITXW36ejWMBprJsXh3YogihFD/o=
   /pinkie/2.0.4:
-    dev: true
     engines:
       node: '>=0.10.0'
     resolution:
@@ -5136,6 +5181,14 @@ packages:
     dev: false
     resolution:
       integrity: sha1-n/z7OsahVu4yt+vWnwJKT22JY1A=
+  /process-exists/3.0.0:
+    dependencies:
+      ps-list: 4.0.0
+    dev: false
+    engines:
+      node: '>=4'
+    resolution:
+      integrity: sha512-MK0GMLNYLqmUAR+9g4chQgQLqtE5U4Pvg8xwkvxe/EyAjmOniT0sJCs0UeS4B+6mQJpNMibzxmht99fo87fO6Q==
   /process-nextick-args/1.0.7:
     dev: false
     resolution:
@@ -5200,6 +5253,15 @@ packages:
     dev: false
     resolution:
       integrity: sha1-0/wRS6BplaRexok/SEzrHXj19HY=
+  /ps-list/4.0.0:
+    dependencies:
+      pify: 3.0.0
+      tasklist: 3.1.0
+    dev: false
+    engines:
+      node: '>=4'
+    resolution:
+      integrity: sha1-V8iz04Fh7ol3gRzTKl3FIjf9spk=
   /ps-tree/1.1.0:
     dependencies:
       event-stream: 3.3.4
@@ -5731,6 +5793,12 @@ packages:
     optional: true
     resolution:
       integrity: sha1-gaCY9Efku8P/MxKiQ1IbwGDvWRE=
+  /sec/1.0.0:
+    dev: false
+    engines:
+      node: '>=0.10.0'
+    resolution:
+      integrity: sha1-Az1go60g7PLgCUDRT5eCNGV3QzU=
   /semver-diff/2.1.0:
     dependencies:
       semver: 5.5.0
@@ -6364,6 +6432,16 @@ packages:
       node: '>=4.5'
     resolution:
       integrity: sha512-Ta5X6BSrA8QHznB156/nbqXUFf1M6A7rXrChKY5+6CkOjoFuOOBcJAj8FvMzDYyYBn7tb1UQNg4vUr7tkSlCUA==
+  /tasklist/3.1.0:
+    dependencies:
+      neat-csv: 2.1.0
+      pify: 2.3.0
+      sec: 1.0.0
+    dev: false
+    engines:
+      node: '>=4'
+    resolution:
+      integrity: sha1-hzqYpORcvez6LC7hiGU1MFfmNpY=
   /term-size/1.2.0:
     dependencies:
       execa: 0.7.0
@@ -7110,7 +7188,6 @@ specifiers:
   graceful-fs: ^4.1.11
   graph-sequencer: ^2.0.0
   is-ci: ^1.0.10
-  is-running: ^2.1.0
   is-windows: ^1.0.1
   isexe: ^2.0.0
   load-json-file: ^4.0.0
@@ -7135,6 +7212,7 @@ specifiers:
   pnpm-file-reporter: ^0.0.1
   pnpm-list: ^2.0.0
   pnpm-registry-mock: ^1.5.0
+  process-exists: ^3.0.0
   ramda: ^0.25.0
   read-pkg: ^3.0.0
   retry: ^0.10.1

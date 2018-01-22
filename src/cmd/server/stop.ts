@@ -1,10 +1,10 @@
 import logger from '@pnpm/logger'
 import {connectStoreController} from '@pnpm/server'
 import delay = require('delay')
-import isRunning = require('is-running')
 import loadJsonFile = require('load-json-file')
 import {resolveStore} from 'package-store'
 import path = require('path')
+import processExists = require('process-exists')
 import killcb = require('tree-kill')
 import promisify = require('util.promisify')
 
@@ -31,7 +31,7 @@ export default async (
   const storeController = await connectStoreController(serverJson.connectionOptions)
   await storeController.stop()
 
-  if (!isRunning(serverJson.pid) || await delay(5000) && !isRunning(serverJson.pid)) {
+  if (!await processExists(serverJson.pid) || await delay(5000) && !await processExists(serverJson.pid)) {
     logger.info('Server gracefully stopped')
     return
   }

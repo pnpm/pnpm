@@ -309,7 +309,7 @@ declare module 'diable' {
   export = anything;
 }
 
-declare module 'is-running' {
+declare module 'process-exists' {
   const anything: any;
   export = anything;
 }
