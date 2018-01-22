@@ -73,6 +73,8 @@ import {
   ROOT_NODE_ID,
 } from '../nodeIdUtils'
 
+const ENGINE_NAME = `${process.platform}-${process.arch}-node-${process.version.split('.')[0]}`
+
 export type InstalledPackages = {
   [name: string]: InstalledPackage
 }
@@ -380,6 +382,7 @@ async function installInContext (
     currentDepth: 0,
     readPackageHook: opts.hooks.readPackage,
     hasManifestInShrinkwrap,
+    sideEffectsCache: opts.sideEffectsCache,
   }
   const nonLinkedPkgs = await pFilter(packagesToInstall,
     async (wantedDependency: WantedDependency) => {
@@ -538,6 +541,7 @@ async function installInContext (
     makePartialCurrentShrinkwrap,
     updateShrinkwrapMinorVersion: installType === 'general' || R.isEmpty(ctx.currentShrinkwrap.packages),
     outdatedPkgs: installCtx.outdatedPkgs,
+    sideEffectsCache: opts.sideEffectsCache,
   })
 
   ctx.pendingBuilds = ctx.pendingBuilds
@@ -571,15 +575,22 @@ async function installInContext (
       const limitChild = pLimit(opts.childConcurrency)
       await Promise.all(
         R.props<string, DependencyTreeNode>(result.newPkgResolvedIds, result.linkedPkgsMap)
+          .filter(pkg => !pkg.isBuilt)
           .map(pkg => limitChild(async () => {
             try {
-              await postInstall(pkg.peripheralLocation, {
+              const hasSideEffects = await postInstall(pkg.peripheralLocation, {
                 rawNpmConfig: installCtx.rawNpmConfig,
                 initialWD: ctx.root,
                 userAgent: opts.userAgent,
                 pkgId: pkg.id,
                 unsafePerm: opts.unsafePerm || false,
               })
+              if (hasSideEffects && opts.sideEffectsCache && !opts.sideEffectsCacheReadonly) {
+                await installCtx.storeController.upload(pkg.peripheralLocation, {
+                  engine: ENGINE_NAME,
+                  pkgId: pkg.id,
+                })
+              }
             } catch (err) {
               if (installCtx.installs[pkg.id].optional) {
                 logger.warn({

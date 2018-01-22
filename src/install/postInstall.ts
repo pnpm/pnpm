@@ -16,7 +16,7 @@ export default async function postInstall (
     pkgId: string,
     unsafePerm: boolean,
   }
-) {
+): Promise<boolean> {
   const pkg = await readPkgFromDir(root)
   const scripts = pkg && pkg.scripts || {}
 
@@ -36,7 +36,8 @@ export default async function postInstall (
   await npmRunScript('preinstall', pkg, scriptsOpts)
   await npmRunScript('install', pkg, scriptsOpts)
   await npmRunScript('postinstall', pkg, scriptsOpts)
-  return
+
+  return !!scripts['preinstall'] || !!scripts['install'] || !!scripts['postinstall']
 }
 
 export async function npmRunScript (

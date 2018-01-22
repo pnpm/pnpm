@@ -44,6 +44,7 @@ export default async function linkPackages (
     // This is only needed till shrinkwrap v4
     updateShrinkwrapMinorVersion: boolean,
     outdatedPkgs: {[pkgId: string]: string},
+    sideEffectsCache: boolean,
   }
 ): Promise<{
   linkedPkgsMap: DependencyTreeNodeMap,
@@ -202,6 +203,7 @@ async function linkNewPackages (
     baseNodeModules: string,
     optional: boolean,
     storeController: StoreController,
+    sideEffectsCache: boolean,
   }
 ): Promise<string[]> {
   const nextPkgResolvedIds = R.keys(wantedShrinkwrap.packages)
@@ -266,6 +268,7 @@ async function linkAllPkgs (
   alldeps: DependencyTreeNode[],
   opts: {
     force: boolean,
+    sideEffectsCache: boolean,
   }
 ) {
   return Promise.all(

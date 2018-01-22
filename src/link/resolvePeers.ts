@@ -53,6 +53,7 @@ export type DependencyTreeNode = {
     cpu?: string[],
     os?: string[],
   },
+  isBuilt?: boolean,
 }
 
 export type DependencyTreeNodeMap = {
@@ -168,7 +169,7 @@ function resolvePeersOfNode (
   ctx.absolutePathsByNodeId[nodeId] = absolutePath
   if (!ctx.resolvedTree[absolutePath] || ctx.resolvedTree[absolutePath].depth > node.depth) {
     const independent = ctx.independentLeaves && R.isEmpty(node.children) && R.isEmpty(node.pkg.peerDependencies)
-    const centralLocation = path.join(node.pkg.path, 'node_modules', node.pkg.name)
+    const centralLocation = node.pkg.engineCache || path.join(node.pkg.path, 'node_modules', node.pkg.name)
     const peripheralLocation = !independent
       ? path.join(modules, node.pkg.name)
       : centralLocation
@@ -179,6 +180,7 @@ function resolvePeersOfNode (
       fetchingFiles: node.pkg.fetchingFiles,
       resolution: node.pkg.resolution,
       centralLocation,
+      isBuilt: !!node.pkg.engineCache,
       modules,
       peripheralLocation,
       independent,

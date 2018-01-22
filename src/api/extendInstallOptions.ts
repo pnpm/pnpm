@@ -32,6 +32,8 @@ export type InstallOptions = {
   savePrefix?: string,
   saveDev?: boolean,
   saveOptional?: boolean,
+  sideEffectsCache?: boolean,
+  sideEffectsCacheReadonly?: boolean,
   global?: boolean,
   bin?: string,
   production?: boolean,
@@ -71,6 +73,8 @@ export type StrictInstallOptions = InstallOptions & {
   savePrefix: string,
   saveDev: boolean,
   saveOptional: boolean,
+  sideEffectsCache: boolean,
+  sideEffectsCacheReadonly: boolean,
   global: boolean,
   bin: string,
   production: boolean,
@@ -124,6 +128,8 @@ const defaults = async (opts: InstallOptions) => {
     verifyStoreIntegrity: true,
     hooks: {},
     savePrefix: '^',
+    sideEffectsCache: false,
+    sideEffectsCacheReadonly: false,
     unsafePerm: process.platform === 'win32' ||
                 process.platform === 'cygwin' ||
                 !(process.getuid && process.setuid &&
@@ -161,5 +167,10 @@ export default async (
     extendedOpts.prefix = path.join(extendedOpts.prefix, subfolder)
   }
   extendedOpts.rawNpmConfig['registry'] = extendedOpts.registry
+  // if sideEffectsCacheReadonly is true, sideEffectsCache is necessarily true too
+  if (extendedOpts.sideEffectsCache && extendedOpts.sideEffectsCacheReadonly) {
+    logger.warn("--side-effects-cache-readonly turns on side effects cache too, you don't need to specify both")
+  }
+  extendedOpts.sideEffectsCache = extendedOpts.sideEffectsCache || extendedOpts.sideEffectsCacheReadonly
   return extendedOpts
 }

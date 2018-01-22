@@ -38,6 +38,8 @@ import {
 import encodePkgId from '../encodePkgId'
 import semver = require('semver')
 
+const ENGINE_NAME = `${process.platform}-${process.arch}-node-${process.version.split('.')[0]}`
+
 export type PkgAddress = {
   alias: string,
   nodeId: string,
@@ -72,6 +74,7 @@ export type InstalledPackage = {
     cpu?: string[],
     os?: string[],
   },
+  engineCache?: string,
 }
 
 export default async function installMultiple (
@@ -90,6 +93,7 @@ export default async function installMultiple (
     update: boolean,
     readPackageHook?: ReadPackageHook,
     hasManifestInShrinkwrap: boolean,
+    sideEffectsCache: boolean,
   }
 ): Promise<PkgAddress[]> {
   const resolvedDependencies = options.resolvedDependencies || {}
@@ -124,6 +128,7 @@ export default async function installMultiple (
               hasManifestInShrinkwrap: options.hasManifestInShrinkwrap,
               update,
               proceed,
+              sideEffectsCache: options.sideEffectsCache,
             },
             getInfoFromShrinkwrap(ctx.wantedShrinkwrap, reference, wantedDependency.alias, ctx.registry)))
         })
@@ -235,6 +240,7 @@ async function install (
     proceed: boolean,
     readPackageHook?: ReadPackageHook,
     hasManifestInShrinkwrap: boolean,
+    sideEffectsCache: boolean,
   }
 ): Promise<PkgAddress | null> {
   const keypath = options.keypath || []
@@ -277,6 +283,7 @@ async function install (
     downloadPriority: -options.currentDepth,
     preferredVersions: ctx.preferredVersions,
     skipFetch: ctx.dryRun,
+    sideEffectsCache: options.sideEffectsCache
   })
 
   pkgResponse.body.id = encodePkgId(pkgResponse.body.id)
@@ -403,7 +410,8 @@ async function install (
         engines: pkg.engines,
         cpu: pkg.cpu,
         os: pkg.os,
-      }
+      },
+      engineCache: !ctx.force && pkgResponse.body.cacheByEngine && pkgResponse.body.cacheByEngine[ENGINE_NAME],
     }
     const children = await installDependencies(
       pkg,
@@ -424,6 +432,7 @@ async function install (
         readPackageHook: options.readPackageHook,
         hasManifestInShrinkwrap: options.hasManifestInShrinkwrap,
         useManifestInfoFromShrinkwrap,
+        sideEffectsCache: options.sideEffectsCache,
       }
     )
     ctx.childrenByParentId[pkgResponse.body.id] = children.map(child => ({
@@ -508,6 +517,7 @@ async function installDependencies (
     readPackageHook?: ReadPackageHook,
     hasManifestInShrinkwrap: boolean,
     useManifestInfoFromShrinkwrap: boolean,
+    sideEffectsCache: boolean,
   }
 ): Promise<PkgAddress[]> {
 
