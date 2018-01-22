@@ -38,14 +38,14 @@ test('using side effects cache', async function (t) {
 
   // Right now, hardlink does not work with side effects, so we specify copy as the packageImportMethod
   // We disable verifyStoreIntegrity because we are going to change the cache
-  await execPnpm(...'install runas@3.1.1 --side-effects-cache --no-verify-store-integrity --package-import-method copy'.split(' '))
+  await execPnpm('install', 'runas@3.1.1', '--side-effects-cache', '--no-verify-store-integrity', '--package-import-method', 'copy')
   const storePath = await project.getStorePath()
 
   const cacheBuildDir = path.join(storePath, 'localhost+4873', 'runas', '3.1.1', 'side_effects', `${process.platform}-${process.arch}-node-${process.version.split('.')[0]}`, 'package', 'build')
   await fs.writeFile(path.join(cacheBuildDir, 'new-file.txt'), 'some new content')
 
   await rimraf('node_modules')
-  await execPnpm(...'install runas@3.1.1 --side-effects-cache --no-verify-store-integrity --package-import-method copy'.split(' '))
+  await execPnpm('install', 'runas@3.1.1', '--side-effects-cache', '--no-verify-store-integrity', '--package-import-method', 'copy')
 
   t.ok(await fs.exists(path.join('node_modules', 'runas', 'build', 'new-file.txt')), 'side effects cache correctly used')
 
@@ -55,7 +55,7 @@ test('using side effects cache', async function (t) {
 test('readonly side effects cache', async function (t) {
   const project = prepare(t)
 
-  await execPnpm(...'install runas@3.1.1 --side-effects-cache --no-verify-store-integrity'.split(' '))
+  await execPnpm('install', 'runas@3.1.1', '--side-effects-cache', '--no-verify-store-integrity')
   const storePath = await project.getStorePath()
 
   // Modify the side effects cache to make sure we are using it
@@ -63,13 +63,13 @@ test('readonly side effects cache', async function (t) {
   await fs.writeFile(path.join(cacheBuildDir, 'new-file.txt'), 'some new content')
 
   await rimraf('node_modules')
-  await execPnpm(...'install runas@3.1.1 --side-effects-cache-readonly --no-verify-store-integrity --package-import-method copy'.split(' '))
+  await execPnpm('install', 'runas@3.1.1', '--side-effects-cache-readonly', '--no-verify-store-integrity', '--package-import-method', 'copy')
 
   t.ok(await fs.exists(path.join('node_modules', 'runas', 'build', 'new-file.txt')), 'readonly side effects cache correctly used')
 
   await rimraf('node_modules')
   // changing version to make sure we don't create the cache
-  await execPnpm(...'install runas@3.1.0 --side-effects-cache-readonly --no-verify-store-integrity --package-import-method copy'.split(' '))
+  await execPnpm('install', 'runas@3.1.0', '--side-effects-cache-readonly', '--no-verify-store-integrity', '--package-import-method', 'copy')
 
   t.ok(await fs.exists(path.join('node_modules', 'runas', 'build')), 'build folder created')
   t.notOk(await fs.exists(path.join(storePath, 'localhost+4873', 'runas', '3.1.0', 'side_effects', `${process.platform}-${process.arch}-node-${process.version.split('.')[0]}`, 'package', 'build')), 'cache folder not created')
