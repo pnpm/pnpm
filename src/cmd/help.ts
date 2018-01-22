@@ -55,6 +55,10 @@ function getHelpText (command: string) {
           --reporter default                 the default reporter when the stdout is TTY
           --reporter append-only             the output is always appended to the end. No cursor manipulations are performed
           --reporter ndjson                  the most verbose reporter. Prints all logs in ndjson format
+
+        Experimental options:
+          --side-effects-cache               use or cache the results of (pre/post)install hooks
+          --side-effects-cache-readonly      only use the side effects cache if present, do not create it for new packages
       `
 
     case 'uninstall':
