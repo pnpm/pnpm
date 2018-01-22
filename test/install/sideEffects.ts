@@ -7,15 +7,11 @@ import {
   execPnpm,
 } from '../utils'
 import path = require('path')
-import loadJsonFile = require('load-json-file')
 import rimraf = require('rimraf-then')
-
-const pkgRoot = path.join(__dirname, '..', '..')
-const pnpmPkg = loadJsonFile.sync(path.join(pkgRoot, 'package.json'))
 
 const test = promisifyTape(tape)
 
-test.only('caching side effects of native package', async function (t) {
+test('caching side effects of native package', async function (t) {
   const project = prepare(t)
 
   await execPnpm('install', '--side-effects-cache', 'runas@3.1.1')
