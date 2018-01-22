@@ -1724,6 +1724,7 @@ packages:
       flat-colors: 3.0.0
       typpy: 2.0.0
       x256: 0.0.2
+    dev: false
     resolution:
       integrity: sha1-HNOs5cyhvsAEFXiydGSyZ2OH9ts=
   /couleurs/6.0.9:
