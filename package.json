@@ -45,6 +45,7 @@
     "mz": "^2.7.0",
     "package-preview": "^1.0.1",
     "rimraf": "^2.6.2",
+    "rimraf-then": "^1.0.1",
     "tape": "^4.8.0",
     "ts-node": "^4.0.1",
     "tslint": "^5.8.0",

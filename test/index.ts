@@ -1,5 +1,6 @@
 import fs = require('mz/fs')
 import path = require('path')
+import rimraf = require('rimraf-then')
 
 import test = require('tape')
 import {
@@ -100,6 +101,42 @@ test('server upload', async t => {
   const cachePath = path.join('.store', fakePkgId, 'side_effects', fakeEngine, 'package')
   t.ok(await fs.exists(cachePath), 'cache directory created')
   t.deepEqual(await fs.readdir(cachePath), ['side-effect.js', 'side-effect.txt'], 'all files uploaded to cache')
+
+  await server.close()
+  await storeCtrl.close()
+  t.end()
+})
+
+test('disable server upload', async t => {
+  await rimraf('.store')
+
+  const port = 5813
+  const hostname = '127.0.0.1'
+  const remotePrefix = `http://${hostname}:${port}`
+  const storeCtrlForServer = await createStoreController()
+  const server = createServer(storeCtrlForServer, {
+    hostname,
+    ignoreUploadRequests: true,
+    port,
+  })
+  const storeCtrl = await connectStoreController({remotePrefix, concurrency: 100})
+
+  const fakeEngine = 'client-engine'
+  const fakePkgId = 'test.example.com/fake-pkg/1.0.0'
+
+  let thrown = false
+  try {
+    await storeCtrl.upload(path.join(__dirname, 'side-effect-fake-dir'), {
+      engine: fakeEngine,
+      pkgId: fakePkgId,
+    })
+  } catch (e) {
+    thrown = true
+  }
+  t.ok(thrown, 'error is thrown when trying to upload')
+
+  const cachePath = path.join('.store', fakePkgId, 'side_effects', fakeEngine, 'package')
+  t.notOk(await fs.exists(cachePath), 'cache directory not created')
 
   await server.close()
   await storeCtrl.close()

@@ -28,6 +28,7 @@ export default function (
     port?: number,
     hostname?: string,
     ignoreStopRequests?: boolean,
+    ignoreUploadRequests?: boolean,
   },
 ) {
   const manifestPromises = {}
@@ -106,6 +107,12 @@ export default function (
           res.end(JSON.stringify('OK'))
           break
         case '/upload':
+          // Do not return an error status code, just ignore the upload request entirely
+          if (opts.ignoreUploadRequests) {
+            res.statusCode = 403
+            res.end()
+            break
+          }
           const uploadBody = (await bodyPromise) as any // tslint:disable-line:no-any
           await lock(uploadBody.builtPkgLocation, () => store.upload(uploadBody.builtPkgLocation, uploadBody.opts))
           res.end(JSON.stringify('OK'))

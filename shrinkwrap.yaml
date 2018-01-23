@@ -19,6 +19,7 @@ devDependencies:
   mz: 2.7.0
   package-preview: 1.0.4
   rimraf: 2.6.2
+  rimraf-then: 1.0.1
   tape: 4.8.0
   ts-node: 4.1.0
   tslint: 5.9.1
@@ -4017,6 +4018,7 @@ specifiers:
   package-preview: ^1.0.1
   package-store: ^0.15.1
   rimraf: ^2.6.2
+  rimraf-then: ^1.0.1
   tape: ^4.8.0
   ts-node: ^4.0.1
   tslint: ^5.8.0
