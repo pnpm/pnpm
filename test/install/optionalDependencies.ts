@@ -30,6 +30,29 @@ test('skip failing optional dependencies', async (t: tape.Test) => {
   t.ok(m(-1), 'package with failed optional dependency has the dependencies installed correctly')
 })
 
+test('skip non-existing optional dependency', async (t: tape.Test) => {
+  const project = prepare(t, {
+    dependencies: {
+      'is-positive': '*',
+    },
+    optionalDependencies: {
+      'i-do-not-exist': '1000',
+    },
+  })
+
+  const reporter = sinon.spy()
+  await install(await testDefaults({reporter}))
+
+  t.ok(reporter.calledWithMatch({
+    name: 'pnpm',
+    level: 'warn',
+    message: 'Skipping optional dependency i-do-not-exist@1000. Error: 404 Not Found: i-do-not-exist',
+  }), 'warning reported')
+
+  const m = project.requireModule('is-positive')
+  t.ok(m, 'installation succeded')
+})
+
 test('skip optional dependency that does not support the current OS', async (t: tape.Test) => {
   const project = prepare(t, {
     optionalDependencies: {

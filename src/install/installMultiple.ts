@@ -8,6 +8,7 @@ import url = require('url')
 import {
   PackageFilesResponse,
   Resolution,
+  PackageResponse,
 } from '@pnpm/package-requester'
 import {InstallContext, InstalledPackages} from '../api/install'
 import {
@@ -272,19 +273,35 @@ async function install (
     pkg: loggedPkg,
   })
 
-  const pkgResponse = await ctx.storeController.requestPackage(wantedDependency, {
-    loggedPkg,
-    update: options.update,
-    registry,
-    prefix: ctx.prefix,
-    shrinkwrapResolution: options.shrinkwrapResolution,
-    currentPkgId: options.pkgId,
-    verifyStoreIntegrity: ctx.verifyStoreInegrity,
-    downloadPriority: -options.currentDepth,
-    preferredVersions: ctx.preferredVersions,
-    skipFetch: ctx.dryRun,
-    sideEffectsCache: options.sideEffectsCache
-  })
+  let pkgResponse: PackageResponse | undefined
+  try {
+    pkgResponse = await ctx.storeController.requestPackage(wantedDependency, {
+      loggedPkg,
+      update: options.update,
+      registry,
+      prefix: ctx.prefix,
+      shrinkwrapResolution: options.shrinkwrapResolution,
+      currentPkgId: options.pkgId,
+      verifyStoreIntegrity: ctx.verifyStoreInegrity,
+      downloadPriority: -options.currentDepth,
+      preferredVersions: ctx.preferredVersions,
+      skipFetch: ctx.dryRun,
+      sideEffectsCache: options.sideEffectsCache
+    })
+  } catch (err) {
+    if (wantedDependency.optional) {
+      logger.warn({
+        message: `Skipping optional dependency ${wantedDependency.raw}. ${err.toString()}`,
+        err,
+      })
+      return null
+    }
+    throw err
+  }
+
+  if (!pkgResponse) {
+    throw new Error(`Store returned nothing for ${wantedDependency.raw} request`)
+  }
 
   pkgResponse.body.id = encodePkgId(pkgResponse.body.id)
 
