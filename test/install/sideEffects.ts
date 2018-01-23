@@ -12,6 +12,7 @@ import {
 } from '../utils'
 
 const test = promisifyTape(tape)
+test.only = promisifyTape(tape.only)
 
 test('caching side effects of native package', async function (t) {
   const project = prepare(t)
@@ -73,4 +74,21 @@ test('readonly side effects cache', async function (t) {
 
   t.ok(await exists(path.join('node_modules', 'runas', 'build')), 'build folder created')
   t.notOk(await exists(path.join(opts2.store, 'localhost+4873', 'runas', '3.1.0', 'side_effects', `${process.platform}-${process.arch}-node-${process.version.split('.')[0]}`, 'package', 'build')), 'cache folder not created')
+})
+
+test('uploading errors do not interrupt installation', async function (t) {
+  const project = prepare(t)
+
+  const opts = await testDefaults({sideEffectsCache: true})
+  opts.storeController.upload = async () => {
+    throw new Error('an unexpected error')
+  }
+  await installPkgs(['runas@3.1.1'], opts)
+
+  t.ok(await exists(path.join('node_modules', 'runas', 'build')), 'build folder created')
+
+  const cacheBuildDir = path.join(opts.store, 'localhost+4873', 'runas', '3.1.1', 'side_effects', `${process.platform}-${process.arch}-node-${process.version.split('.')[0]}`, 'package', 'build')
+  t.notOk(await exists(cacheBuildDir), 'side effects cache not created')
+
+  t.end()
 })

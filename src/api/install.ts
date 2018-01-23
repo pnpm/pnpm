@@ -586,10 +586,21 @@ async function installInContext (
                 unsafePerm: opts.unsafePerm || false,
               })
               if (hasSideEffects && opts.sideEffectsCache && !opts.sideEffectsCacheReadonly) {
-                await installCtx.storeController.upload(pkg.peripheralLocation, {
-                  engine: ENGINE_NAME,
-                  pkgId: pkg.id,
-                })
+                try {
+                  await installCtx.storeController.upload(pkg.peripheralLocation, {
+                    engine: ENGINE_NAME,
+                    pkgId: pkg.id,
+                  })
+                } catch (err) {
+                  if (err && err.statusCode === 403) {
+                    logger.warn(`The store server disabled upload requests, could not upload ${pkg.id}`)
+                  } else {
+                    logger.warn({
+                      message: `An error occurred while uploading ${pkg.id}`,
+                      err,
+                    })
+                  }
+                }
               }
             } catch (err) {
               if (installCtx.installs[pkg.id].optional) {
