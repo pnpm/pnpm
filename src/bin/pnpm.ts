@@ -118,6 +118,7 @@ async function run (argv: string[]) {
     'global-path': path,
     'ignore-pnpmfile': Boolean,
     'ignore-stop-requests': Boolean,
+    'ignore-upload-requests': Boolean,
     'independent-leaves': Boolean,
     'lock': Boolean,
     'lock-stale-duration': Number,

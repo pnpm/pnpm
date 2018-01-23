@@ -18,6 +18,7 @@ export default async (
     protocol?: 'auto' | 'tcp' | 'ipc',
     port?: number,
     ignoreStopRequests?: boolean,
+    ignoreUploadRequests?: boolean,
   },
 ) => {
   if (opts.protocol === 'ipc' && opts.port) {
@@ -49,6 +50,7 @@ export default async (
   const server = createServer(store.ctrl, {
     ...serverOptions,
     ignoreStopRequests: opts.ignoreStopRequests,
+    ignoreUploadRequests: opts.ignoreUploadRequests,
   })
 
   onExit(() => {
