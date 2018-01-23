@@ -7,7 +7,6 @@ import {
   testDefaults,
   execPnpm,
 } from './utils'
-import thenify = require('thenify')
 import path = require('path')
 import isWindows = require('is-windows')
 import exists = require('path-exists')
