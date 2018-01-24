@@ -17,6 +17,7 @@ import {
 
 const IS_WINDOWS = isWindows()
 const test = promisifyTape(tape)
+test.only = promisifyTape(tape.only)
 const kill = promisify(killcb)
 
 test('installation using pnpm server', async (t: tape.Test) => {
@@ -137,6 +138,26 @@ test('stopping server fails when the server disallows stopping via remote call',
   t.equal(execPnpmSync('server', 'stop').status, 1, 'process failed')
 
   await kill(server.pid, 'SIGINT')
+})
+
+test('uploading cache can be disabled without breaking install', async (t: tape.Test) => {
+  const project = prepare(t)
+
+  const server = spawn(['server', 'start', '--ignore-upload-requests'])
+
+  await delay(2000)
+
+  // install a package that has side effects
+  await execPnpm('install', '--side-effects-cache', 'runas@3.1.1')
+
+  // make sure the installation is successful, but the cache has not been written
+  await project.has('runas')
+  const storePath = await project.getStorePath()
+  const engine = `${process.platform}-${process.arch}-node-${process.version.split('.')[0]}`
+  const cacheDir = path.join(storePath, 'localhost+4873', 'runas', '3.1.1', 'side_effects', engine, 'package')
+  t.notOk(await pathExists(cacheDir), 'side effects cache not uploaded')
+
+  await execPnpm('server', 'stop')
 })
 
 test('installation using store server started in the background', async (t: tape.Test) => {

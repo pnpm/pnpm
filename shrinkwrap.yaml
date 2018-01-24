@@ -3,7 +3,7 @@ dependencies:
   '@pnpm/default-resolver': 0.1.2
   '@pnpm/logger': 1.0.0
   '@pnpm/outdated': 0.2.5
-  '@pnpm/server': 0.7.0
+  '@pnpm/server': 0.7.1
   '@pnpm/types': 1.7.0
   '@types/get-port': 3.2.0
   '@types/retry': 0.10.2
@@ -39,7 +39,7 @@ dependencies:
   retry: 0.10.1
   signal-exit: 3.0.2
   strip-color: 0.1.0
-  supi: 0.12.0
+  supi: 0.12.1
   text-table: 0.2.0
   tree-kill: 1.2.0
   update-notifier: 2.3.0
@@ -480,7 +480,7 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha512-+Hg7mBqDOXUlH4UvYffXMJwln8EIfqpf0+y7ODYqbO9GF9Kc1GG7/tbl5cWyA1OKF04XQH9jugoIxtCOxN9/dg==
-  /@pnpm/server/0.7.0:
+  /@pnpm/server/0.7.1:
     dependencies:
       '@pnpm/package-requester': 0.7.1
       '@types/got': 7.1.6
@@ -497,7 +497,7 @@ packages:
     peerDependencies:
       '@pnpm/logger': ^1.0.0
     resolution:
-      integrity: sha512-UMbbX0AiE8/y/AIvUSYz/5lQh6Ya36ZVjSYXBhZUBhGra3YEOgYxIqk64PRMiq33PGhUOHrjcwmquokgdvzAZA==
+      integrity: sha512-ZgG6ZKBT2GY4EVI3jzNj3BpDpdJeYOksREZxY/eXamobpHDJpBwA5A6KZzNGIsujL1mZg3gdb1qHN42+IBQoPA==
   /@pnpm/tarball-fetcher/0.3.4:
     dependencies:
       '@types/mem': 1.1.2
@@ -2025,6 +2025,13 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha1-OHHMCmoALow+Wzz38zYmRnXwa50=
+  /detect-libc/1.0.3:
+    dev: false
+    engines:
+      node: '>=0.10'
+    optional: true
+    resolution:
+      integrity: sha1-+hN8S9aY7fVc1c0CrFWfkaTEups=
   /dezalgo/1.0.3:
     dependencies:
       asap: 2.0.6
@@ -2120,7 +2127,7 @@ packages:
       debug: 3.1.0
       js-yaml: 3.10.0
       nan: 2.8.0
-      prebuild-install: 2.4.1
+      prebuild-install: 2.5.0
     dev: false
     engines:
       node: '>=4'
@@ -5154,8 +5161,9 @@ packages:
       '@pnpm/logger': ^1.0.0
     resolution:
       integrity: sha512-rTDk5r3OKdOU+6P/QDh0RZX9fohf4iUs5Wa4T3mTIF0Wb4TH9jJlvQVI4XSidwlgWIZHHbDiHWgIHACOTS+bLQ==
-  /prebuild-install/2.4.1:
+  /prebuild-install/2.5.0:
     dependencies:
+      detect-libc: 1.0.3
       expand-template: 1.1.0
       github-from-package: 0.0.0
       minimist: 1.2.0
@@ -5173,7 +5181,7 @@ packages:
     dev: false
     optional: true
     resolution:
-      integrity: sha512-99TyEFYTTkBWANT+mwSptmLb9ZCLQ6qKIUE36fXSIOtShB0JNprL2hzBD8F1yIuT9btjFrFEwbRHXhqDi1HmRA==
+      integrity: sha512-3wlyZgmkeeyduOR8Ursu5gKr3yWAYObACa5aJOtt2farRRFV/+zXk/Y3wM6yQRMqmqHh+pHAwyKp5r82K699Rg==
   /prepend-http/1.0.4:
     dev: false
     engines:
@@ -5300,18 +5308,18 @@ packages:
     dev: false
     resolution:
       integrity: sha512-8k0JupWme55+9tCVE+FS5ULT3K6AbgqrGa58lTT49RpyfwwcGedHqaC5LlQNdEAumn/wFsu6aPwkuPMioy8kqw==
-  /pump/2.0.0:
+  /pump/2.0.1:
     dependencies:
       end-of-stream: 1.4.1
       once: 1.4.0
     dev: false
     resolution:
-      integrity: sha512-6MYypjOvtiXhBSTOD0Zs5eNjCGfnqi5mPsCsW+dgKTxrZzQMZQNpBo3XRkLx7id753f3EeyHLBqzqqUymIolgw==
+      integrity: sha512-ruPMNRkN3MHP1cWJc9OWr+T/xDP0jhXYCLfJcBuX54hhfIBnaQmAUMfDcG4DM5UMWByBbJY69QSphm3jtDKIkA==
   /pumpify/1.4.0:
     dependencies:
       duplexify: 3.5.3
       inherits: 2.0.3
-      pump: 2.0.0
+      pump: 2.0.1
     dev: false
     resolution:
       integrity: sha512-2kmNR9ry+Pf45opRVirpNuIFotsxUGLaYqxIwuR77AYrYRMuFCz9eryHBS52L360O+NcR383CL4QYlMKPq4zYA==
@@ -6262,7 +6270,7 @@ packages:
       node: '>=0.10.0'
     resolution:
       integrity: sha1-PFMZQukIwml8DsNEhYwobHygpgo=
-  /supi/0.12.0:
+  /supi/0.12.1:
     dependencies:
       '@pnpm/check-package': 1.0.0
       '@pnpm/fs-locker': 1.0.1
@@ -6331,7 +6339,7 @@ packages:
     peerDependencies:
       '@pnpm/logger': ^1.0.0
     resolution:
-      integrity: sha512-Qlvz0SKvR6gspUmzvuGrM7f/4xnuc3roEBXV4HtclgESp9wS53TMgCQYAcTUSrw7IP1cLkSZsaUn0kqPCU9WjA==
+      integrity: sha512-52eGmMjNoYe5uSoLeYVIs1MXgOMvC8vYbTRaEhvQvXmlx5/2AbLdZKbHILlFiwhySUEK1/GfSqjDfJB5djqzXA==
   /supports-color/2.0.0:
     dev: false
     engines:
@@ -7172,7 +7180,7 @@ specifiers:
   '@pnpm/default-resolver': ^0.1.0
   '@pnpm/logger': ^1.0.0
   '@pnpm/outdated': ^0.2.5
-  '@pnpm/server': ^0.7.0
+  '@pnpm/server': ^0.7.1
   '@pnpm/types': ^1.5.0
   '@types/byline': ^4.2.31
   '@types/common-tags': ^1.2.5
@@ -7242,7 +7250,7 @@ specifiers:
   sepia: ^2.0.2
   signal-exit: ^3.0.2
   strip-color: ^0.1.0
-  supi: ^0.12.0
+  supi: ^0.12.1
   tape: ^4.6.3
   tape-promise: ^2.0.1
   text-table: ^0.2.0
