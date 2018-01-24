@@ -200,7 +200,6 @@ async function run (argv: string[]) {
   if (opts.only === 'prod' || opts.only === 'production' || !opts.only && opts.production) {
     opts.production = true
     opts.development = false
-    opts.optional = true
   } else if (opts.only === 'dev' || opts.only === 'development') {
     opts.production = false
     opts.development = true
@@ -208,7 +207,6 @@ async function run (argv: string[]) {
   } else {
     opts.production = true
     opts.development = true
-    opts.optional = true
   }
 
   const reporterType: ReporterType = (() => {

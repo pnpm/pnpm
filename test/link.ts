@@ -9,7 +9,6 @@ import {
   execPnpm,
   isExecutable,
  } from './utils'
-import thenify = require('thenify')
 import fs = require('mz/fs')
 import isWindows = require('is-windows')
 

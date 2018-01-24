@@ -45,7 +45,10 @@ export default async (
       : `http://${serverOptions.hostname}:${serverOptions.port}`,
   }
   const serverJsonPath = path.join(store.path, 'server.json')
-  await writeJsonFile(serverJsonPath, {connectionOptions})
+  await writeJsonFile(serverJsonPath, {
+    connectionOptions,
+    pid: process.pid,
+  })
 
   const server = createServer(store.ctrl, {
     ...serverOptions,

@@ -68,7 +68,7 @@ declare module 'rimraf-then' {
   export = anything;
 }
 
-declare module 'thenify' {
+declare module 'util.promisify' {
   const anything: any;
   export = anything;
 }
@@ -305,6 +305,11 @@ declare module 'graph-sequencer' {
 }
 
 declare module 'diable' {
+  const anything: any;
+  export = anything;
+}
+
+declare module 'process-exists' {
   const anything: any;
   export = anything;
 }

@@ -6,7 +6,7 @@ import tape = require('tape')
 import promisifyTape from 'tape-promise'
 import killcb = require('tree-kill')
 import pathExists = require('path-exists')
-import thenify = require('thenify')
+import promisify = require('util.promisify')
 import {
   prepare,
   execPnpm,
