@@ -60,7 +60,7 @@
     "retry": "^0.10.1",
     "signal-exit": "^3.0.2",
     "strip-color": "^0.1.0",
-    "supi": "^0.12.0",
+    "supi": "^0.12.1",
     "text-table": "^0.2.0",
     "update-notifier": "^2.1.0",
     "write-json-file": "^2.3.0"
