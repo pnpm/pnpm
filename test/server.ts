@@ -18,7 +18,7 @@ import {
 const IS_WINDOWS = isWindows()
 const test = promisifyTape(tape)
 test.only = promisifyTape(tape.only)
-const kill = thenify(killcb)
+const kill = promisify(killcb)
 
 test('installation using pnpm server', async (t: tape.Test) => {
   const project = prepare(t)
