@@ -11,23 +11,16 @@ import {
 
 const basicPackageJson = loadJsonFile.sync(path.join(__dirname, '../utils/simple-package.json'))
 const test = promisifyTape(tape)
+test.only = promisifyTape(tape.only)
 
 test('production install (with --production flag)', async (t: tape.Test) => {
   const project = prepare(t, basicPackageJson)
 
   await execPnpm('install', '--production')
 
-  const rimrafDir = fs.statSync(path.resolve('node_modules', 'rimraf'))
-
-  let tapStatErrCode: number = 0
-  try {
-    fs.statSync(path.resolve('node_modules', '@rstacruz'))
-  } catch (err) {
-    tapStatErrCode = err.code
-  }
-
-  t.ok(rimrafDir.isSymbolicLink, 'rimraf exists')
-  t.is(tapStatErrCode, 'ENOENT', 'tap-spec does not exist')
+  await project.hasNot('@rstacruze/tap-spect')
+  await project.has('rimraf')
+  await project.has('is-positive')
 })
 
 test('production install (with production NODE_ENV)', async (t: tape.Test) => {
@@ -40,15 +33,9 @@ test('production install (with production NODE_ENV)', async (t: tape.Test) => {
   // reset NODE_ENV
   process.env.NODE_ENV = originalNodeEnv
 
-  const rimrafDir = fs.statSync(path.resolve('node_modules', 'rimraf'))
-
-  let tapStatErrCode: number = 0
-  try {
-    fs.statSync(path.resolve('node_modules', '@rstacruz'))
-  } catch (err) { tapStatErrCode = err.code }
-
-  t.ok(rimrafDir.isSymbolicLink, 'rimraf exists')
-  t.is(tapStatErrCode, 'ENOENT', 'tap-spec does not exist')
+  await project.hasNot('@rstacruze/tap-spect')
+  await project.has('rimraf')
+  await project.has('is-positive')
 })
 
 test('install dev dependencies only', async (t: tape.Test) => {

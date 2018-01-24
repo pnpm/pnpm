@@ -64,6 +64,7 @@ devDependencies:
   '@zkochan/husky': 0.0.0
   anonymous-npm-registry-client: 0.1.2
   caw: 2.0.1
+  deep-require-cwd: 1.0.0
   execa: 0.9.0
   exists-link: 2.0.0
   isexe: 2.0.0
@@ -1915,6 +1916,24 @@ packages:
       node: '>=0.12.0'
     resolution:
       integrity: sha1-SLaZwn4zS/ifEIkr5DL25MfTSn8=
+  /deep-require-cwd/1.0.0:
+    dependencies:
+      deep-require-from: 1.0.0
+    dev: true
+    resolution:
+      integrity: sha1-ZWmitmyT7mBlQ2dufUhqk6H3aXc=
+  /deep-require-from/1.0.0:
+    dependencies:
+      deep-resolve-from: 1.1.0
+    dev: true
+    resolution:
+      integrity: sha1-BkXTXGy+BjfNQisYdps7HnJG3Yk=
+  /deep-resolve-from/1.1.0:
+    dependencies:
+      resolve-from: 3.0.0
+    dev: true
+    resolution:
+      integrity: sha1-ghlR7I3zWdul9hXzXXa+XJ1Y9Oc=
   /defaults/1.0.3:
     dependencies:
       clone: 1.0.3
@@ -7179,6 +7198,7 @@ specifiers:
   chalk: ^2.2.0
   common-tags: ^1.4.0
   cross-spawn: ^5.0.0
+  deep-require-cwd: ^1.0.0
   delay: ^2.0.0
   diable: ^4.0.1
   execa: ^0.9.0
