@@ -204,6 +204,7 @@ function getHelpText (command: string) {
           --only dev[elopment]           only \`devDependencies\` are installed regardless of the \`NODE_ENV\`.
           --[no-]lock
           --ignore-stop-requests         disallows stopping the server using \`pnpm server stop\`
+          --ignore-upload-requests       disallows creating new side effect cache during install
 
         pnpm server stop
 
