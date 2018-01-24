@@ -1,9 +1,9 @@
 import path = require('path')
 import {PackageJson} from '@pnpm/types'
 import readPackageJsonCB = require('read-package-json')
-import thenify = require('thenify')
+import promisify = require('util.promisify')
 
-const readPackageJson = thenify(readPackageJsonCB)
+const readPackageJson = promisify(readPackageJsonCB)
 
 export default function readPkg (pkgPath: string): Promise<PackageJson> {
   return readPackageJson(pkgPath)

@@ -63,7 +63,7 @@ declare module 'rimraf-then' {
   export = anything;
 }
 
-declare module 'thenify' {
+declare module 'util.promisify' {
   const anything: any;
   export = anything;
 }

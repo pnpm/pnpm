@@ -55,7 +55,7 @@ dependencies:
   rimraf-then: 1.0.1
   semver: 5.5.0
   symlink-dir: 1.1.2
-  thenify: 3.3.0
+  util.promisify: 1.0.0
   validate-npm-package-name: 3.0.0
   version-selector-type: 2.0.0
   write-pkg: 3.1.0
@@ -5215,10 +5215,10 @@ specifiers:
   symlink-dir: ^1.1.0
   tape: ^4.8.0
   tape-promise: ^2.0.1
-  thenify: ^3.3.0
   ts-node: ^4.0.1
   tslint: ^5.4.2
   typescript: ^2.6.1
+  util.promisify: ^1.0.0
   validate-npm-package-name: ^3.0.0
   version-selector-type: ^2.0.0
   write-json-file: ^2.2.0

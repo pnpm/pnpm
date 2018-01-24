@@ -3,7 +3,7 @@ import promisifyTape from 'tape-promise'
 import normalizePath = require('normalize-path')
 import readPkg = require('read-pkg')
 import ncpCB = require('ncp')
-import thenify = require('thenify')
+import promisify = require('util.promisify')
 import path = require('path')
 import {install, installPkgs} from 'supi'
 import {
@@ -13,7 +13,7 @@ import {
   local,
 } from '../utils'
 
-const ncp = thenify(ncpCB.ncp)
+const ncp = promisify(ncpCB.ncp)
 const test = promisifyTape(tape)
 
 test('scoped modules from a directory', async function (t: tape.Test) {

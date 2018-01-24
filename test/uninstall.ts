@@ -22,10 +22,10 @@ import {
   StatsLog,
   PackageJsonLog,
 } from 'supi'
-import thenify = require('thenify')
+import promisify = require('util.promisify')
 import sinon = require('sinon')
 
-const ncp = thenify(ncpCB.ncp)
+const ncp = promisify(ncpCB.ncp)
 
 test('uninstall package with no dependencies', async (t: tape.Test) => {
   const project = prepare(t)

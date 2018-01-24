@@ -10,9 +10,9 @@ import {
   pathToLocalPkg,
   testDefaults,
  } from './utils'
-import thenify = require('thenify')
+import promisify = require('util.promisify')
 import ncpCB = require('ncp')
-const ncp = thenify(ncpCB.ncp)
+const ncp = promisify(ncpCB.ncp)
 import {
   link,
   linkToGlobal,

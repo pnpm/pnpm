@@ -17,7 +17,6 @@ import * as dp from 'dependency-path'
 import {Shrinkwrap, DependencyShrinkwrap} from 'pnpm-shrinkwrap'
 import removeOrphanPkgs from '../api/removeOrphanPkgs'
 import mkdirp = require('mkdirp-promise')
-import thenify = require('thenify')
 import {rootLogger, statsLogger} from '../loggers'
 
 export default async function linkPackages (
