@@ -19,8 +19,11 @@ import rimraf = require('rimraf-then')
 import sinon = require('sinon')
 import {stripIndent} from 'common-tags'
 import fs = require('mz/fs')
+import R = require('ramda')
 
 const test = promisifyTape(tape)
+test.only = promisifyTape(tape.only)
+test.skip = promisifyTape(tape.skip)
 
 test('shrinkwrap file has correct format', async (t: tape.Test) => {
   const project = prepare(t)
@@ -697,4 +700,15 @@ test('pendingBuilds gets updated if install removes packages', async (t: tape.Te
   const modules2 = await project.loadModules()
 
   t.ok(modules1['pendingBuilds'].length > modules2['pendingBuilds'].length, 'pendingBuilds gets updated when install removes packages')
+})
+
+// TODO: make it pass. Related issue: #41
+test.skip('dev properties are correctly updated on named install', async (t: tape.Test) => {
+  const project = prepare(t)
+
+  await installPkgs(['rimraf@2.6.2'], await testDefaults({saveDev: true}))
+  await installPkgs(['foo@npm:rimraf@2.6.2'], await testDefaults({}))
+
+  const shr = await project.loadShrinkwrap()
+  t.deepEqual(R.values(shr.packages).filter(dep => typeof dep.dev !== 'undefined'), [], 'there are 0 packages with dev property in shrinkwrap.yaml')
 })
