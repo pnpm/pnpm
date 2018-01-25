@@ -4,7 +4,7 @@ import path = require('path')
 import rimraf = require('rimraf-then')
 
 export default async function linkIndexedDir (existingDir: string, newDir: string, filenames: string[]) {
-  const stage = `${newDir}+stage`
+  const stage = `${newDir}+stage${Math.random()}`
   try {
     await rimraf(stage)
     await tryLinkIndexedDir(existingDir, stage, filenames)

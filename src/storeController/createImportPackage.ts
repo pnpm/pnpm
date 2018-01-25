@@ -85,6 +85,7 @@ async function reflinkPkg (
 
   if (!opts.filesResponse.fromStore || opts.force || !await exists(pkgJsonPath)) {
     const staging = `${to}+stage${Math.random()}`
+    await mkdirp(staging)
     await execFilePromise('cp', ['-r', '--reflink', from + '/.', staging])
     await renameOverwrite(staging, to)
   }
