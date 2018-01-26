@@ -71,9 +71,14 @@ export default async (
 
   for (const chunk of chunks) {
     await Promise.all(chunk.map((prefix: string) =>
-      limitInstallation(() => {
+      limitInstallation(async () => {
         const hooks = opts.ignorePnpmfile ? {} : requireHooks(prefix)
-        return install({...installOpts, hooks, storeController, prefix})
+        try {
+          return await install({...installOpts, hooks, storeController, prefix})
+        } catch (err) {
+          err['prefix'] = prefix
+          return err
+        }
       }),
     ))
   }
