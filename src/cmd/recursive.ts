@@ -2,6 +2,7 @@ import logger from '@pnpm/logger'
 import findPackages from 'find-packages'
 import graphSequencer = require('graph-sequencer')
 import pLimit = require('p-limit')
+import path = require('path')
 import createPkgGraph, {PackageNode} from 'pkgs-graph'
 import sortPkgs = require('sort-pkgs')
 import {
@@ -74,9 +75,15 @@ export default async (
       limitInstallation(async () => {
         const hooks = opts.ignorePnpmfile ? {} : requireHooks(prefix)
         try {
-          return await install({...installOpts, hooks, storeController, prefix})
+          return await install({
+            ...installOpts,
+            bin: path.join(prefix, 'node_modules', '.bin'),
+            hooks,
+            prefix,
+            storeController,
+          })
         } catch (err) {
-          err['prefix'] = prefix
+          err['prefix'] = prefix // tslint:disable-line:no-string-literal
           return err
         }
       }),
