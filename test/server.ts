@@ -145,6 +145,8 @@ test('uploading cache can be disabled without breaking install', async (t: tape.
 
   const server = spawn(['server', 'start', '--ignore-upload-requests'])
 
+  // TODO: remove the delay and run install by connecting it to the store server
+  // Can be done once this gets implemented: https://github.com/pnpm/pnpm/issues/1018
   await delay(2000)
 
   // install a package that has side effects
