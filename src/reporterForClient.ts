@@ -264,7 +264,7 @@ export default function (
 
     outputs.push(registryOutput$)
 
-    const miscOutput$ = (!isRecursive ? most.merge(log$.link, log$.other) : log$.other)
+    const miscOutput$ = most.merge(log$.link, log$.other)
       .map((obj) => {
         if (obj.level === 'debug') return
         if (obj.level === 'warn') {
@@ -274,6 +274,19 @@ export default function (
           return reportError(obj)
         }
         return obj['message']
+      })
+      .map((msg) => ({msg}))
+      .map(most.of)
+
+    outputs.push(miscOutput$)
+  } else {
+    const miscOutput$ = log$.other
+      .filter((obj) => obj.level === 'error')
+      .map((obj) => {
+        if (obj['message']['prefix']) {
+          return obj['message']['prefix'] + ':' + os.EOL + reportError(obj)
+        }
+        return reportError(obj)
       })
       .map((msg) => ({msg}))
       .map(most.of)

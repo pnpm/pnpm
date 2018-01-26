@@ -405,6 +405,28 @@ test('prints generic error', t => {
   })
 })
 
+test('prints generic error when recursive install fails', t => {
+  const output$ = toOutput$(createStreamParser(), 'recursive')
+
+  const err = new Error('some error')
+  err['prefix'] = '/home/src/'
+  logger.error(err, err)
+
+  t.plan(1)
+
+  output$.take(1).subscribe({
+    next: output => {
+      t.equal(output, stripIndents`
+        /home/src/:
+        ${ERROR} ${chalk.red('some error')}
+        ${new StackTracey(err.stack).pretty}
+      `)
+    },
+    complete: () => t.end(),
+    error: t.end,
+  })
+})
+
 test('prints info', t => {
   const output$ = toOutput$(createStreamParser())
 
