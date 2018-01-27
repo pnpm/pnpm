@@ -1,7 +1,7 @@
 dependencies:
   '@pnpm/git-resolver': 0.3.0
   '@pnpm/local-resolver': 0.1.0
-  '@pnpm/npm-resolver': 0.3.11
+  '@pnpm/npm-resolver': 0.3.13
   '@pnpm/tarball-resolver': 0.1.0
 devDependencies:
   '@pnpm/logger': 1.0.0
@@ -64,7 +64,7 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha512-VRqE5/SiuR7ZrwBmS+Af89BTXli5xBbiqu7WPq56gEtWT8dKf9rFLoimmmMBVeRq5LmVZIXlOxs29F9I+vgSvQ==
-  /@pnpm/npm-resolver/0.3.11:
+  /@pnpm/npm-resolver/0.3.13:
     dependencies:
       '@pnpm/types': 1.4.0
       '@types/load-json-file': 2.0.7
@@ -88,7 +88,7 @@ packages:
     peerDependencies:
       '@pnpm/logger': ^1.0.0
     resolution:
-      integrity: sha512-v3Flq4l1/1L+BuazvsxwwcQvd0QqnJjfY81qo69IQognSvhPIz+/ZBUrkvWNYk9e7tyvzvFYfnFkgMKGadIvaw==
+      integrity: sha512-6QMNp7KuMex2xrkInDnU/PxFNfPCrlAM7T7zqcYpiXlmY6K6tDL6TIE6p+B/uvK3ksA3QaPnUK/H3Es2qcDu8g==
   /@pnpm/tarball-resolver/0.1.0:
     dependencies:
       parse-npm-tarball-url: 1.0.1
@@ -3662,7 +3662,7 @@ specifiers:
   '@pnpm/git-resolver': ^0.3.0
   '@pnpm/local-resolver': ^0.1.0
   '@pnpm/logger': ^1.0.0
-  '@pnpm/npm-resolver': ^0.3.11
+  '@pnpm/npm-resolver': ^0.3.13
   '@pnpm/tarball-resolver': ^0.1.0
   '@types/tape': ^4.2.31
   mos: ^2.0.0-alpha.3

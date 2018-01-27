@@ -27,11 +27,16 @@ export default function createResolver (
 ) {
   const resolveFromNpm = createResolveFromNpm(pnpmOpts)
   const resolveFromGit = createResolveFromGit(pnpmOpts)
-  return async (wantedDependency: {alias?: string, pref: string}, opts: { registry: string, prefix: string }) => {
+  return async (
+    wantedDependency: {alias?: string, pref?: string} & ({alias: string, pref: string} | {alias: string} | {pref: string}),
+    opts: { registry: string, prefix: string },
+  ) => {
     const resolution = await resolveFromNpm(wantedDependency, opts)
-      || await resolveFromTarball(wantedDependency)
-      || await resolveFromGit(wantedDependency)
-      || await resolveFromLocal(wantedDependency, opts)
+      || wantedDependency.pref && (
+        await resolveFromTarball(wantedDependency as {pref: string})
+        || await resolveFromGit(wantedDependency as {pref: string})
+        || await resolveFromLocal(wantedDependency as {pref: string}, opts)
+      )
     if (!resolution) {
       throw new Error(`Cannot resolve ${wantedDependency.alias ? wantedDependency.alias + '@' : ''}${wantedDependency.pref} packages not supported`)
     }
