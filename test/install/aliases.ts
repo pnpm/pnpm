@@ -12,17 +12,20 @@ import {
 } from 'supi'
 
 const test = promisifyTape(tape)
+test.only = promisifyTape(tape.only)
 
 test('installing aliased dependency', async (t: tape.Test) => {
   const project = prepare(t)
-  await installPkgs(['negative@npm:is-negative@1.0.0'], await testDefaults())
+  await installPkgs(['negative@npm:is-negative@1.0.0', 'positive@npm:is-positive'], await testDefaults())
 
   const m = project.requireModule('negative')
   t.ok(typeof m === 'function', 'negative() is available')
+  t.ok(typeof project.requireModule('positive') === 'function', 'positive() is available')
 
   t.deepEqual(await project.loadShrinkwrap(), {
     dependencies: {
       negative: '/is-negative/1.0.0',
+      positive: '/is-positive/3.1.0',
     },
     packages: {
       '/is-negative/1.0.0': {
@@ -34,12 +37,22 @@ test('installing aliased dependency', async (t: tape.Test) => {
           integrity: 'sha1-clmHeoPIAKwxkd17nZ+80PdS1P4=',
         },
       },
+      '/is-positive/3.1.0': {
+        dev: false,
+        engines: {
+          node: '>=0.10.0',
+        },
+        resolution: {
+          integrity: 'sha1-hX21hKG6XRyymAUn/DtsQ103sP0=',
+        },
+      },
     },
     registry: 'http://localhost:4873/',
     shrinkwrapMinorVersion: 4,
     shrinkwrapVersion: 3,
     specifiers: {
       negative: 'npm:is-negative@^1.0.0',
+      positive: 'npm:is-positive@^3.1.0',
     },
   }, 'correct shrinkwrap.yaml')
 })
