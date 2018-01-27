@@ -35,6 +35,7 @@ export interface ResolveResult {
 }
 
 export interface ResolveOptions {
+  defaultTag?: string,
   registry: string,
   prefix: string,
   preferredVersions: {
@@ -45,9 +46,13 @@ export interface ResolveOptions {
   },
 }
 
-export interface WantedDependency {
+export type WantedDependency = {
   alias?: string,
-  pref: string,
-}
+  pref?: string,
+} & (
+  {alias: string, pref: string}
+  | {alias: string}
+  | {pref: string}
+)
 
 export type ResolveFunction = (wantedDependency: WantedDependency, opts: ResolveOptions) => Promise<ResolveResult>
