@@ -5,7 +5,9 @@ import path = require('path')
 import semver = require('semver')
 import ssri = require('ssri')
 import createPkgId from './createNpmPkgId'
-import parsePref from './parsePref'
+import parsePref, {
+  RegistryPackageSpec,
+} from './parsePref'
 import pickPackage, {
   PackageInRegistry,
   PackageMeta,
@@ -79,9 +81,10 @@ async function resolveNpm (
   },
   wantedDependency: {
     alias?: string,
-    pref: string,
-  },
+    pref?: string,
+  } & ({alias: string, pref: string} | {alias: string} | {pref: string}),
   opts: {
+    defaultTag?: string,
     dryRun?: boolean,
     registry: string,
     preferredVersions?: {
@@ -92,7 +95,9 @@ async function resolveNpm (
     },
   },
 ) {
-  const spec = parsePref(wantedDependency.pref, wantedDependency.alias)
+  const spec = wantedDependency.pref
+    ? parsePref(wantedDependency.pref, wantedDependency.alias, opts.defaultTag || 'latest')
+    : defaultTagForAlias(wantedDependency.alias as string, opts.defaultTag || 'latest')
   if (!spec) return null
   const auth = ctx.getCredentialsByURI(opts.registry)
   const pickResult = await ctx.pickPackage(spec, {
@@ -124,6 +129,14 @@ async function resolveNpm (
     latest: meta['dist-tags'].latest,
     package: pickedPackage,
     resolution,
+  }
+}
+
+function defaultTagForAlias (alias: string, defaultTag: string): RegistryPackageSpec {
+  return {
+    fetchSpec: defaultTag,
+    name: alias,
+    type: 'tag' as 'tag',
   }
 }
 

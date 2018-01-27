@@ -72,6 +72,7 @@
   },
   "name": "is-positive",
   "dist-tags": {
+      "stable": "3.0.0",
       "latest": "3.1.0"
   },
   "modified": "2017-08-17T19:26:00.508Z"

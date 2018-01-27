@@ -83,6 +83,41 @@ test('dry run', async t => {
   }, 500)
 })
 
+test('resolve to latest when no pref specified', async t => {
+  nock(registry)
+    .get('/is-positive')
+    .reply(200, isPositiveMeta)
+
+  const resolveFromNpm = createResolveFromNpm({
+    metaCache: new Map(),
+    store: tempy.directory(),
+    rawNpmConfig: { registry },
+  })
+  const resolveResult = await resolveFromNpm({alias: 'is-positive'}, {
+    registry,
+  })
+  t.equal(resolveResult!.id, 'registry.npmjs.org/is-positive/3.1.0')
+  t.end()
+})
+
+test('resolve to defaultTag when no pref specified', async t => {
+  nock(registry)
+    .get('/is-positive')
+    .reply(200, isPositiveMeta)
+
+  const resolveFromNpm = createResolveFromNpm({
+    metaCache: new Map(),
+    store: tempy.directory(),
+    rawNpmConfig: { registry },
+  })
+  const resolveResult = await resolveFromNpm({alias: 'is-positive'}, {
+    defaultTag: 'stable',
+    registry,
+  })
+  t.equal(resolveResult!.id, 'registry.npmjs.org/is-positive/3.0.0')
+  t.end()
+})
+
 test('can resolve aliased dependency', async t => {
   nock(registry)
     .get('/is-positive')
@@ -114,6 +149,24 @@ test('can resolve aliased dependency w/o version specifier', async t => {
     registry,
   })
   t.equal(resolveResult!.id, 'registry.npmjs.org/is-positive/3.1.0')
+  t.end()
+})
+
+test('can resolve aliased dependency w/o version specifier to default tag', async t => {
+  nock(registry)
+    .get('/is-positive')
+    .reply(200, isPositiveMeta)
+
+  const resolveFromNpm = createResolveFromNpm({
+    metaCache: new Map(),
+    store: tempy.directory(),
+    rawNpmConfig: { registry },
+  })
+  const resolveResult = await resolveFromNpm({alias: 'positive', pref: 'npm:is-positive'}, {
+    defaultTag: 'stable',
+    registry,
+  })
+  t.equal(resolveResult!.id, 'registry.npmjs.org/is-positive/3.0.0')
   t.end()
 })
 

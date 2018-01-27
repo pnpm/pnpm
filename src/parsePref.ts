@@ -7,14 +7,18 @@ export interface RegistryPackageSpec {
   fetchSpec: string,
 }
 
-export default function parsePref (pref: string, alias?: string): RegistryPackageSpec | null {
+export default function parsePref (
+  pref: string,
+  alias: string | undefined,
+  defaultTag: string,
+): RegistryPackageSpec | null {
   let name = alias
   if (pref.startsWith('npm:')) {
     pref = pref.substr(4)
     const index = pref.lastIndexOf('@')
     if (index < 1) {
       name = pref
-      pref = 'latest'
+      pref = defaultTag
     } else {
       name = pref.substr(0, index)
       pref = pref.substr(index + 1)
