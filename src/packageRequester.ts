@@ -81,6 +81,7 @@ export interface WantedDependency {
 }
 
 export interface RequestPackageOptions {
+  defaultTag?: string,
   skipFetch?: boolean,
   downloadPriority: number,
   loggedPkg: LoggedPkg,
@@ -154,6 +155,7 @@ async function resolveAndFetch (
     pref: string,
   },
   options: {
+    defaultTag?: string,
     downloadPriority: number,
     loggedPkg: LoggedPkg,
     currentPkgId?: string,
@@ -180,6 +182,7 @@ async function resolveAndFetch (
     let pkgId = options.currentPkgId
     if (!resolution || options.update) {
       const resolveResult = await ctx.requestsQueue.add<ResolveResult>(() => ctx.resolve(wantedDependency, {
+        defaultTag: options.defaultTag,
         preferredVersions: options.preferredVersions,
         prefix: options.prefix,
         registry: options.registry,
