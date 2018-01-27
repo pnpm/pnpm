@@ -100,6 +100,23 @@ test('can resolve aliased dependency', async t => {
   t.end()
 })
 
+test('can resolve aliased dependency w/o version specifier', async t => {
+  nock(registry)
+    .get('/is-positive')
+    .reply(200, isPositiveMeta)
+
+  const resolveFromNpm = createResolveFromNpm({
+    metaCache: new Map(),
+    store: tempy.directory(),
+    rawNpmConfig: { registry },
+  })
+  const resolveResult = await resolveFromNpm({alias: 'positive', pref: 'npm:is-positive'}, {
+    registry,
+  })
+  t.equal(resolveResult!.id, 'registry.npmjs.org/is-positive/3.1.0')
+  t.end()
+})
+
 test('can resolve aliased scoped dependency', async t => {
   nock(registry)
     .get('/@sindresorhus%2Fis')
@@ -114,6 +131,23 @@ test('can resolve aliased scoped dependency', async t => {
     registry,
   })
   t.equal(resolveResult!.id, 'registry.npmjs.org/@sindresorhus/is/0.6.0')
+  t.end()
+})
+
+test('can resolve aliased scoped dependency w/o version specifier', async t => {
+  nock(registry)
+    .get('/@sindresorhus%2Fis')
+    .reply(200, sindresorhusIsMeta)
+
+  const resolveFromNpm = createResolveFromNpm({
+    metaCache: new Map(),
+    store: tempy.directory(),
+    rawNpmConfig: { registry },
+  })
+  const resolveResult = await resolveFromNpm({alias: 'is', pref: 'npm:@sindresorhus/is'}, {
+    registry,
+  })
+  t.equal(resolveResult!.id, 'registry.npmjs.org/@sindresorhus/is/0.7.0')
   t.end()
 })
 

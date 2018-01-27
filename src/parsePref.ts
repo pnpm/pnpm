@@ -12,8 +12,13 @@ export default function parsePref (pref: string, alias?: string): RegistryPackag
   if (pref.startsWith('npm:')) {
     pref = pref.substr(4)
     const index = pref.lastIndexOf('@')
-    name = pref.substr(0, index)
-    pref = pref.substr(index + 1)
+    if (index < 1) {
+      name = pref
+      pref = 'latest'
+    } else {
+      name = pref.substr(0, index)
+      pref = pref.substr(index + 1)
+    }
   }
   if (!name) {
     return null
