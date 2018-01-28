@@ -49,7 +49,7 @@ export default async function (
     if (err.code !== 'ENOENT') throw err
   }
   if (opts.useStoreServer) {
-    runServerInBackground()
+    runServerInBackground(store)
     const operation = retry.operation()
 
     return new Promise<{

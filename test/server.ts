@@ -189,6 +189,33 @@ test('installation using store server started in the background', async (t: tape
   t.notOk(await pathExists(serverJsonPath), 'server.json removed')
 })
 
+test('store server started in the background should use store location wanted by install', async (t: tape.Test) => {
+  const project = prepare(t)
+
+  await execPnpm('install', 'is-positive@1.0.0', '--use-store-server', '--store', '../store2')
+
+  const serverJsonPath = path.resolve('..', 'store2', '2', 'server.json')
+  const serverJson = await retryLoadJsonFile(serverJsonPath)
+  t.ok(serverJson)
+  t.ok(serverJson.connectionOptions)
+
+  t.ok(project.requireModule('is-positive'))
+
+  await execPnpm('uninstall', 'is-positive', '--store', '../store2')
+
+  await execPnpm('store', 'prune', '--store', '../store2')
+
+  // we don't actually know when the server will prune the store
+  // lets' just wait a bit before checking
+  await delay(1000)
+
+  await project.storeHasNot('is-positive', '1.0.0')
+
+  await execPnpm('server', 'stop', '--store', '../store2')
+
+  t.notOk(await pathExists(serverJsonPath), 'server.json removed')
+})
+
 test('installation without store server running in the background', async (t: tape.Test) => {
   const project = prepare(t)
 
