@@ -24,7 +24,7 @@ declare module 'write-file-atomic' {
   export = anything;
 }
 
-declare module 'thenify' {
+declare module 'util.promisify' {
   const anything: any;
   export = anything;
 }

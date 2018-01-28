@@ -2,7 +2,7 @@ import yaml = require('js-yaml')
 import mkdirp = require('mkdirp-promise')
 import path = require('path')
 import rimraf = require('rimraf-then')
-import thenify = require('thenify')
+import promisify = require('util.promisify')
 import writeFileAtomicCB = require('write-file-atomic')
 import {
   CURRENT_SHRINKWRAP_FILENAME,
@@ -11,7 +11,7 @@ import {
 import logger from './logger'
 import {Shrinkwrap} from './types'
 
-const writeFileAtomic = thenify(writeFileAtomicCB)
+const writeFileAtomic = promisify(writeFileAtomicCB)
 
 const SHRINKWRAP_YAML_FORMAT = {
   lineWidth: 1000,

@@ -57,7 +57,7 @@
     "mkdirp-promise": "^5.0.1",
     "ramda": "^0.25.0",
     "rimraf-then": "^1.0.1",
-    "thenify": "^3.3.0",
+    "util.promisify": "^1.0.0",
     "write-file-atomic": "^2.1.0"
   }
 }
