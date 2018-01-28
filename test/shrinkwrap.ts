@@ -721,3 +721,13 @@ test('optional properties are correctly updated on named install', async (t: tap
   const shr = await project.loadShrinkwrap()
   t.deepEqual(R.values(shr.packages).filter(dep => typeof dep.optional !== 'undefined'), [], 'there are 0 packages with optional property in shrinkwrap.yaml')
 })
+
+test('dev property is correctly set for package that is duplicated to both the dependencies and devDependencies group', async (t: tape.Test) => {
+  const project = prepare(t)
+
+  //TODO: use a smaller package for testing
+  await installPkgs(['overlap@2.2.8'], await testDefaults())
+
+  const shr = await project.loadShrinkwrap()
+  t.ok(shr.packages['/couleurs/5.0.0'].dev === false)
+})

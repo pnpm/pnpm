@@ -544,7 +544,7 @@ async function installDependencies (
   let deps = depsToSpecs(
     filterDeps({...pkg.optionalDependencies, ...pkg.dependencies}),
     {
-      devDependencies: pkg.devDependencies || {},
+      devDependencies: {},
       optionalDependencies: pkg.optionalDependencies || {},
     }
   )
