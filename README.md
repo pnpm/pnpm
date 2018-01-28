@@ -401,6 +401,10 @@ Direct symlinking to the global store would work with Node's `--preserve-symlink
 with a bunch of different issues, so we decided to stick with hard links.
 For more details about why this decision was made, see: https://github.com/nodejs/node-eps/issues/46.
 
+### What does `pnpm` stand for?
+
+`pnpm` stands for `performant npm`. [Rico Sta. Cruz](https://github.com/rstacruz/) came up with the name.
+
 ## Support
 
 - [Stack Overflow](https://stackoverflow.com/questions/tagged/pnpm)
