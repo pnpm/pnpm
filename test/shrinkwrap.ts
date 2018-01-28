@@ -702,13 +702,22 @@ test('pendingBuilds gets updated if install removes packages', async (t: tape.Te
   t.ok(modules1['pendingBuilds'].length > modules2['pendingBuilds'].length, 'pendingBuilds gets updated when install removes packages')
 })
 
-// TODO: make it pass. Related issue: #41
-test.skip('dev properties are correctly updated on named install', async (t: tape.Test) => {
+test('dev properties are correctly updated on named install', async (t: tape.Test) => {
   const project = prepare(t)
 
-  await installPkgs(['rimraf@2.6.2'], await testDefaults({saveDev: true}))
-  await installPkgs(['foo@npm:rimraf@2.6.2'], await testDefaults({}))
+  await installPkgs(['inflight@1.0.6'], await testDefaults({saveDev: true}))
+  await installPkgs(['foo@npm:inflight@1.0.6'], await testDefaults({}))
 
   const shr = await project.loadShrinkwrap()
   t.deepEqual(R.values(shr.packages).filter(dep => typeof dep.dev !== 'undefined'), [], 'there are 0 packages with dev property in shrinkwrap.yaml')
+})
+
+test('optional properties are correctly updated on named install', async (t: tape.Test) => {
+  const project = prepare(t)
+
+  await installPkgs(['inflight@1.0.6'], await testDefaults({saveOptional: true}))
+  await installPkgs(['foo@npm:inflight@1.0.6'], await testDefaults({}))
+
+  const shr = await project.loadShrinkwrap()
+  t.deepEqual(R.values(shr.packages).filter(dep => typeof dep.optional !== 'undefined'), [], 'there are 0 packages with optional property in shrinkwrap.yaml')
 })
