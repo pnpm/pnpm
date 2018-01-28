@@ -35,21 +35,21 @@ export default function prune (shr: Shrinkwrap, pkg: Package): Shrinkwrap {
   })
 
   if (shrOptionalDependencies) {
-    const optionalPkgIds: string[] = R.keys(shrOptionalDependencies)
+    const optionalDepRelativePaths: string[] = R.keys(shrOptionalDependencies)
       .map((pkgName: string) => refToRelative(shrOptionalDependencies[pkgName], pkgName))
-    copyDependencySubTree(packages, optionalPkgIds, shr, new Set(), {registry: shr.registry, nonOptional, optional: true})
+    copyDependencySubTree(packages, optionalDepRelativePaths, shr, new Set(), {registry: shr.registry, nonOptional, optional: true})
   }
 
   if (shrDevDependencies) {
-    const devPkgIds: string[] = R.keys(shrDevDependencies)
+    const devDepRelativePaths: string[] = R.keys(shrDevDependencies)
       .map((pkgName: string) => refToRelative(shrDevDependencies[pkgName], pkgName))
-    copyDependencySubTree(packages, devPkgIds, shr, new Set(), {registry: shr.registry, nonOptional, dev: true})
+    copyDependencySubTree(packages, devDepRelativePaths, shr, new Set(), {registry: shr.registry, nonOptional, dev: true})
   }
 
-  const pkgIds: string[] = R.keys(shrDependencies)
+  const depRelativePaths: string[] = R.keys(shrDependencies)
     .map((pkgName: string) => refToRelative(shrDependencies[pkgName], pkgName))
 
-  copyDependencySubTree(packages, pkgIds, shr, new Set(), {
+  copyDependencySubTree(packages, depRelativePaths, shr, new Set(), {
     nonOptional,
     registry: shr.registry,
   })
@@ -79,7 +79,7 @@ export default function prune (shr: Shrinkwrap, pkg: Package): Shrinkwrap {
 
 function copyDependencySubTree (
   resolvedPackages: ResolvedPackages,
-  pkgIds: string[],
+  depRelativePaths: string[],
   shr: Shrinkwrap,
   walked: Set<string>,
   opts: {
@@ -89,23 +89,23 @@ function copyDependencySubTree (
     nonOptional: Set<string>,
   },
 ) {
-  for (const pkgId of pkgIds) {
-    if (walked.has(pkgId)) continue
-    walked.add(pkgId)
-    if (!shr.packages || !shr.packages[pkgId]) {
+  for (const depRalativePath of depRelativePaths) {
+    if (walked.has(depRalativePath)) continue
+    walked.add(depRalativePath)
+    if (!shr.packages || !shr.packages[depRalativePath]) {
       // local dependencies don't need to be resolved in shrinkwrap.yaml
       // except local tarball dependencies
-      if (pkgId.startsWith('file:') && !pkgId.endsWith('.tar.gz')) continue
+      if (depRalativePath.startsWith('file:') && !depRalativePath.endsWith('.tar.gz')) continue
 
-      logger.warn(`Cannot find resolution of ${pkgId} in shrinkwrap file`)
+      logger.warn(`Cannot find resolution of ${depRalativePath} in shrinkwrap file`)
       continue
     }
-    const depShr = shr.packages[pkgId]
-    resolvedPackages[pkgId] = depShr
-    if (opts.optional && !opts.nonOptional.has(pkgId)) {
+    const depShr = shr.packages[depRalativePath]
+    resolvedPackages[depRalativePath] = depShr
+    if (opts.optional && !opts.nonOptional.has(depRalativePath)) {
       depShr.optional = true
     } else {
-      opts.nonOptional.add(pkgId)
+      opts.nonOptional.add(depRalativePath)
       delete depShr.optional
     }
     if (opts.dev) {
