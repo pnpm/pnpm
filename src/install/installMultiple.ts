@@ -276,6 +276,7 @@ async function install (
   let pkgResponse: PackageResponse | undefined
   try {
     pkgResponse = await ctx.storeController.requestPackage(wantedDependency, {
+      defaultTag: ctx.defaultTag,
       loggedPkg,
       update: options.update,
       registry,

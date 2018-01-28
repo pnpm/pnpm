@@ -91,6 +91,7 @@ export type TreeNodeMap = {
 }
 
 export type InstallContext = {
+  defaultTag: string,
   dryRun: boolean,
   installs: InstalledPackages,
   outdatedPkgs: {[pkgId: string]: string},
@@ -332,6 +333,7 @@ async function installInContext (
   const hasManifestInShrinkwrap = typeof ctx.wantedShrinkwrap.shrinkwrapMinorVersion === 'number'
 
   const installCtx: InstallContext = {
+    defaultTag: opts.tag,
     dryRun: opts.shrinkwrapOnly,
     installs: {},
     outdatedPkgs: {},

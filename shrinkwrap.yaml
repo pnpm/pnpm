@@ -1,7 +1,7 @@
 dependencies:
   '@pnpm/check-package': 1.0.0
   '@pnpm/fs-locker': 1.0.1
-  '@pnpm/package-requester': 0.7.1
+  '@pnpm/package-requester': 0.7.3
   '@pnpm/pkgid-to-filename': 1.0.0
   '@pnpm/types': 1.7.0
   '@types/byline': 4.2.31
@@ -42,7 +42,7 @@ dependencies:
   p-filter: 1.0.0
   p-limit: 1.2.0
   p-series: 1.0.0
-  package-store: 0.15.2
+  package-store: 0.15.3
   path-absolute: 1.0.0
   path-exists: 3.0.0
   path-name: 1.0.0
@@ -65,7 +65,7 @@ devDependencies:
   '@commitlint/config-angular': 4.3.0
   '@commitlint/prompt-cli': 4.3.0
   '@pnpm/default-fetcher': 0.3.2
-  '@pnpm/default-resolver': 0.1.2
+  '@pnpm/default-resolver': 0.1.3
   '@pnpm/logger': 1.0.0
   '@types/mkdirp': 0.5.2
   '@types/sinon': 4.1.3
@@ -197,17 +197,17 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha512-icyvz75XAP7iNsRRELrdzzhzAeZOG3NdNuObPLwoYcIQPzlBsHGRiCn0QcmN16dAVzIpRqxaLjAMrrE+7pJFiw==
-  /@pnpm/default-resolver/0.1.2:
+  /@pnpm/default-resolver/0.1.3:
     dependencies:
       '@pnpm/git-resolver': 0.3.0
       '@pnpm/local-resolver': 0.1.1
-      '@pnpm/npm-resolver': 0.3.12
+      '@pnpm/npm-resolver': 0.3.13
       '@pnpm/tarball-resolver': 0.1.0
     dev: true
     engines:
       node: '>=4'
     resolution:
-      integrity: sha512-HbrSL5GnsztuvTiGFXfddsjOEOa9HN7Pwirfnd9sHR3LbWmIuyH4domOLzcXVUJOxFHHgXBTFEItS3VlHTVb9Q==
+      integrity: sha512-rK+MzRDuUG1qM2QyZPzSX7uP0PzWfKrE8GjjomlqE8A5LMK7in4b1XYxMO+rbBGDS4xjkUYAA0452MLwTrProA==
   /@pnpm/exec/1.1.4:
     dependencies:
       '@pnpm/self-installer': 2.0.0
@@ -278,7 +278,7 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha512-VRqE5/SiuR7ZrwBmS+Af89BTXli5xBbiqu7WPq56gEtWT8dKf9rFLoimmmMBVeRq5LmVZIXlOxs29F9I+vgSvQ==
-  /@pnpm/npm-resolver/0.3.12:
+  /@pnpm/npm-resolver/0.3.13:
     dependencies:
       '@pnpm/types': 1.7.0
       '@types/load-json-file': 2.0.7
@@ -302,8 +302,8 @@ packages:
     peerDependencies:
       '@pnpm/logger': ^1.0.0
     resolution:
-      integrity: sha512-oBrSMsulKzO0ZE+4XRe2ACtzOYggIqrF8Hmap2wiiJLdL0Hz4JrL43fGA5AbquBkMg7WIrdijTo5+9SwUC9edw==
-  /@pnpm/package-requester/0.7.1:
+      integrity: sha512-6QMNp7KuMex2xrkInDnU/PxFNfPCrlAM7T7zqcYpiXlmY6K6tDL6TIE6p+B/uvK3ksA3QaPnUK/H3Es2qcDu8g==
+  /@pnpm/package-requester/0.7.3:
     dependencies:
       '@pnpm/check-package': 1.0.0
       '@pnpm/pkgid-to-filename': 1.0.0
@@ -331,7 +331,7 @@ packages:
     peerDependencies:
       '@pnpm/logger': ^1.0.0
     resolution:
-      integrity: sha512-31lHzW6kydRT7Gg/GAWMSNlxWKc+0BhU3CnQ0i70t44YjVggGOLJJU6g9jHv6+0reldcLqG28D7aFQYq1rqvEg==
+      integrity: sha512-kXjzsbpk91zmMy+SeGjclFehEhWWGRobYeUyG/Rk8HkVNMo50JHP15eQSKvZdkrn9II/MUeKcs2p3wxyb1kP/Q==
   /@pnpm/pkgid-to-filename/1.0.0:
     dependencies:
       normalize-path: 2.1.1
@@ -3458,10 +3458,10 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha512-JFT3uudfk3qtNHpCb3GwOq/n3NrEisxeQC/yTJLk7GHStYleXaFur4yW/SXqOtGMaKAAq5qTrkeFWdXheX+GPA==
-  /package-store/0.15.2:
+  /package-store/0.15.3:
     dependencies:
       '@pnpm/fs-locker': 1.0.1
-      '@pnpm/package-requester': 0.7.1
+      '@pnpm/package-requester': 0.7.3
       '@pnpm/types': 1.7.0
       '@types/load-json-file': 2.0.7
       '@types/mz': 0.0.32
@@ -3489,7 +3489,7 @@ packages:
     peerDependencies:
       '@pnpm/logger': ^1.0.0
     resolution:
-      integrity: sha512-+YRNm6KgrsXso3ENCTP/fdeGiex/xvv+nH7JNQGSrA3MKi0sL3FcWsrnBTvv7PWcniEIDvkQXJshI5FihupODg==
+      integrity: sha512-8MpzcMFFHdSt1hTBgmGtOFkt61+ATRbc3wyVOA35yaxFYMezuyd/DiiSfJCZIG0DRTCqCx6oeIs58YpLVAW/nw==
   /pako/0.2.9:
     dev: false
     resolution:
@@ -5148,7 +5148,7 @@ specifiers:
   '@pnpm/default-resolver': ^0.1.1
   '@pnpm/fs-locker': ^1.0.0
   '@pnpm/logger': ^1.0.0
-  '@pnpm/package-requester': ^0.7.0
+  '@pnpm/package-requester': ^0.7.3
   '@pnpm/pkgid-to-filename': ^1.0.0
   '@pnpm/types': ^1.7.0
   '@types/byline': ^4.2.31
@@ -5203,7 +5203,7 @@ specifiers:
   p-limit: ^1.1.0
   p-series: ^1.0.0
   package-preview: ^1.0.0
-  package-store: ^0.15.1
+  package-store: ^0.15.3
   path-absolute: ^1.0.0
   path-exists: ^3.0.0
   path-name: ^1.0.0

@@ -57,6 +57,19 @@ test('installing aliased dependency', async (t: tape.Test) => {
   }, 'correct shrinkwrap.yaml')
 })
 
+test('aliased dependency w/o version spec, with custom tag config', async function (t) {
+  const project = prepare(t)
+
+  const tag = 'beta'
+
+  await addDistTag('dep-of-pkg-with-1-dep', '100.1.0', 'latest')
+  await addDistTag('dep-of-pkg-with-1-dep', '100.0.0', tag)
+
+  await installPkgs(['foo@npm:dep-of-pkg-with-1-dep'], await testDefaults({tag}))
+
+  await project.storeHas('dep-of-pkg-with-1-dep', '100.0.0')
+})
+
 test('a dependency has an aliased subdependency', async (t: tape.Test) => {
   const project = prepare(t)
 
