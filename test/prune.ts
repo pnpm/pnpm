@@ -1,5 +1,6 @@
 import test = require('tape')
 import {prune} from 'pnpm-shrinkwrap'
+import yaml = require('yaml-tag')
 
 test('remove one redundant package', t => {
   t.deepEqual(prune({
@@ -461,6 +462,149 @@ test('the dev field should be updated to dev = false if it is not a dev dependen
       },
     }
   })
+
+  t.end()
+})
+
+test('dev = true is removed if dependency is used both as dev and prod dependency', t => {
+  t.deepEqual(prune(yaml`
+    dependencies:
+      foo: /inflight/1.0.6
+    devDependencies:
+      inflight: 1.0.6
+    packages:
+      /inflight/1.0.6:
+        dev: true
+        dependencies:
+          once: 1.4.0
+          wrappy: 1.0.2
+        resolution:
+          integrity: sha1-Sb1jMdfQLQwJvJEKEHW6gWW1bfk=
+      /once/1.4.0:
+        dev: true
+        dependencies:
+          wrappy: 1.0.2
+        resolution:
+          integrity: sha1-WDsap3WWHUsROsF9nFC6753Xa9E=
+      /wrappy/1.0.2:
+        dev: true
+        resolution:
+          integrity: sha1-tSQ9jz7BqjXxNkYFvA0QNuMKtp8=
+    registry: 'http://localhost:4873/'
+    shrinkwrapMinorVersion: 4
+    shrinkwrapVersion: 3
+    specifiers:
+      foo: 'npm:inflight@^1.0.6'
+      inflight: ^1.0.6
+  `, {
+    name: 'foo',
+    version: '1.0.0',
+    dependencies: {
+      foo: 'npm:inflight@^1.0.6',
+    },
+    devDependencies: {
+      inflight: '^1.0.6',
+    },
+  }), yaml`
+    dependencies:
+      foo: /inflight/1.0.6
+    devDependencies:
+      inflight: 1.0.6
+    packages:
+      /inflight/1.0.6:
+        dependencies:
+          once: 1.4.0
+          wrappy: 1.0.2
+        resolution:
+          integrity: sha1-Sb1jMdfQLQwJvJEKEHW6gWW1bfk=
+      /once/1.4.0:
+        dependencies:
+          wrappy: 1.0.2
+        resolution:
+          integrity: sha1-WDsap3WWHUsROsF9nFC6753Xa9E=
+      /wrappy/1.0.2:
+        resolution:
+          integrity: sha1-tSQ9jz7BqjXxNkYFvA0QNuMKtp8=
+    registry: 'http://localhost:4873/'
+    shrinkwrapMinorVersion: 4
+    shrinkwrapVersion: 3
+    specifiers:
+      foo: 'npm:inflight@^1.0.6'
+      inflight: ^1.0.6
+  `)
+
+  t.end()
+})
+
+test('optional = true is removed if dependency is used both as optional and prod dependency', t => {
+  t.deepEqual(prune(yaml`
+    dependencies:
+      foo: /inflight/1.0.6
+    optionalDependencies:
+      inflight: 1.0.6
+    packages:
+      /inflight/1.0.6:
+        optional: true
+        dependencies:
+          once: 1.4.0
+          wrappy: 1.0.2
+        resolution:
+          integrity: sha1-Sb1jMdfQLQwJvJEKEHW6gWW1bfk=
+      /once/1.4.0:
+        optional: true
+        dependencies:
+          wrappy: 1.0.2
+        resolution:
+          integrity: sha1-WDsap3WWHUsROsF9nFC6753Xa9E=
+      /wrappy/1.0.2:
+        optional: true
+        resolution:
+          integrity: sha1-tSQ9jz7BqjXxNkYFvA0QNuMKtp8=
+    registry: 'http://localhost:4873/'
+    shrinkwrapMinorVersion: 4
+    shrinkwrapVersion: 3
+    specifiers:
+      foo: 'npm:inflight@^1.0.6'
+      inflight: ^1.0.6
+  `, {
+    name: 'foo',
+    version: '1.0.0',
+    dependencies: {
+      foo: 'npm:inflight@^1.0.6',
+    },
+    optionalDependencies: {
+      inflight: '^1.0.6',
+    },
+  }), yaml`
+    dependencies:
+      foo: /inflight/1.0.6
+    optionalDependencies:
+      inflight: 1.0.6
+    packages:
+      /inflight/1.0.6:
+        dev: false
+        dependencies:
+          once: 1.4.0
+          wrappy: 1.0.2
+        resolution:
+          integrity: sha1-Sb1jMdfQLQwJvJEKEHW6gWW1bfk=
+      /once/1.4.0:
+        dev: false
+        dependencies:
+          wrappy: 1.0.2
+        resolution:
+          integrity: sha1-WDsap3WWHUsROsF9nFC6753Xa9E=
+      /wrappy/1.0.2:
+        dev: false
+        resolution:
+          integrity: sha1-tSQ9jz7BqjXxNkYFvA0QNuMKtp8=
+    registry: 'http://localhost:4873/'
+    shrinkwrapMinorVersion: 4
+    shrinkwrapVersion: 3
+    specifiers:
+      foo: 'npm:inflight@^1.0.6'
+      inflight: ^1.0.6
+  `)
 
   t.end()
 })

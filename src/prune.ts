@@ -37,19 +37,19 @@ export default function prune (shr: Shrinkwrap, pkg: Package): Shrinkwrap {
   if (shrOptionalDependencies) {
     const optionalPkgIds: string[] = R.keys(shrOptionalDependencies)
       .map((pkgName: string) => refToRelative(shrOptionalDependencies[pkgName], pkgName))
-    copyDependencySubTree(packages, optionalPkgIds, shr, [], {registry: shr.registry, nonOptional, optional: true})
+    copyDependencySubTree(packages, optionalPkgIds, shr, new Set(), {registry: shr.registry, nonOptional, optional: true})
   }
 
   if (shrDevDependencies) {
     const devPkgIds: string[] = R.keys(shrDevDependencies)
       .map((pkgName: string) => refToRelative(shrDevDependencies[pkgName], pkgName))
-    copyDependencySubTree(packages, devPkgIds, shr, [], {registry: shr.registry, nonOptional, dev: true})
+    copyDependencySubTree(packages, devPkgIds, shr, new Set(), {registry: shr.registry, nonOptional, dev: true})
   }
 
   const pkgIds: string[] = R.keys(shrDependencies)
     .map((pkgName: string) => refToRelative(shrDependencies[pkgName], pkgName))
 
-  copyDependencySubTree(packages, pkgIds, shr, [], {
+  copyDependencySubTree(packages, pkgIds, shr, new Set(), {
     nonOptional,
     registry: shr.registry,
   })
@@ -81,7 +81,7 @@ function copyDependencySubTree (
   resolvedPackages: ResolvedPackages,
   pkgIds: string[],
   shr: Shrinkwrap,
-  keypath: string[],
+  walked: Set<string>,
   opts: {
     registry: string,
     dev?: boolean,
@@ -90,7 +90,8 @@ function copyDependencySubTree (
   },
 ) {
   for (const pkgId of pkgIds) {
-    if (keypath.indexOf(pkgId) !== -1) continue
+    if (walked.has(pkgId)) continue
+    walked.add(pkgId)
     if (!shr.packages || !shr.packages[pkgId]) {
       // local dependencies don't need to be resolved in shrinkwrap.yaml
       // except local tarball dependencies
@@ -116,11 +117,10 @@ function copyDependencySubTree (
     }
     const newDependencies = R.keys(depShr.dependencies)
       .map((pkgName: string) => refToRelative((depShr.dependencies && depShr.dependencies[pkgName]) as string, pkgName))
-    const newKeypath = keypath.concat([pkgId])
-    copyDependencySubTree(resolvedPackages, newDependencies, shr, newKeypath, opts)
+    copyDependencySubTree(resolvedPackages, newDependencies, shr, walked, opts)
 
     const newOptionalDependencies = R.keys(depShr.optionalDependencies)
       .map((pkgName: string) => refToRelative((depShr.optionalDependencies && depShr.optionalDependencies[pkgName]) as string, pkgName))
-    copyDependencySubTree(resolvedPackages, newOptionalDependencies, shr, newKeypath, Object.assign({}, opts, {optional: true}))
+    copyDependencySubTree(resolvedPackages, newOptionalDependencies, shr, walked, Object.assign({}, opts, {optional: true}))
   }
 }

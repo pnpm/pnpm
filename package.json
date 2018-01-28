@@ -46,7 +46,8 @@
     "tempy": "^0.2.1",
     "ts-node": "^4.1.0",
     "tslint": "^5.8.0",
-    "typescript": "^2.3.4"
+    "typescript": "^2.3.4",
+    "yaml-tag": "github:zkochan/yaml-tag"
   },
   "dependencies": {
     "@types/node": "^9.3.0",

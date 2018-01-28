@@ -19,6 +19,7 @@ devDependencies:
   ts-node: 4.1.0
   tslint: 5.9.1
   typescript: 2.6.2
+  yaml-tag: github.com/zkochan/yaml-tag/5dc60b313a917434585d02031c4fd4c326a751c1
 packages:
   /@pnpm/exec/1.1.4:
     dependencies:
@@ -1478,6 +1479,14 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha1-5a2ryKz0CPY4X8dklWhMiOavaJo=
+  github.com/zkochan/yaml-tag/5dc60b313a917434585d02031c4fd4c326a751c1:
+    dependencies:
+      js-yaml: 3.10.0
+    dev: true
+    name: yaml-tag
+    resolution:
+      tarball: 'https://codeload.github.com/zkochan/yaml-tag/tar.gz/5dc60b313a917434585d02031c4fd4c326a751c1'
+    version: 1.1.0
 registry: 'https://registry.npmjs.org/'
 shrinkwrapMinorVersion: 4
 shrinkwrapVersion: 3
@@ -1501,3 +1510,4 @@ specifiers:
   typescript: ^2.3.4
   util.promisify: ^1.0.0
   write-file-atomic: ^2.1.0
+  yaml-tag: 'github:zkochan/yaml-tag'
