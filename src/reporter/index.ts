@@ -8,14 +8,16 @@ export default (reporterType: ReporterType, cmd: string) => {
   switch (reporterType) {
     case 'default':
       defaultReporter(streamParser, {
-        cmd,
         appendOnly: false,
+        cmd,
+        throttleProgress: 0,
       })
       return
     case 'append-only':
       defaultReporter(streamParser, {
-        cmd,
         appendOnly: true,
+        cmd,
+        throttleProgress: 0,
       })
       return
     case 'ndjson':
