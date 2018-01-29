@@ -7,10 +7,16 @@ export type ReporterType = 'default' | 'ndjson' | 'silent' | 'append-only'
 export default (reporterType: ReporterType, cmd: string) => {
   switch (reporterType) {
     case 'default':
-      defaultReporter(streamParser, cmd, undefined, false)
+      defaultReporter(streamParser, {
+        cmd,
+        appendOnly: false,
+      })
       return
     case 'append-only':
-      defaultReporter(streamParser, cmd, undefined, true)
+      defaultReporter(streamParser, {
+        cmd,
+        appendOnly: true,
+      })
       return
     case 'ndjson':
       writeToConsole()

@@ -54,7 +54,7 @@
     "package-store": "^0.15.3",
     "path-name": "^1.0.0",
     "pkgs-graph": "^2.0.0-0",
-    "pnpm-default-reporter": "^0.11.8",
+    "pnpm-default-reporter": "^0.12.0",
     "pnpm-file-reporter": "^0.0.1",
     "pnpm-list": "^2.0.0",
     "process-exists": "^3.0.0",
