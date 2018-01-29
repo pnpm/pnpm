@@ -56,7 +56,7 @@ test('prints progress beginning', t => {
 })
 
 test('prints progress beginning during recursive install', t => {
-  const output$ = toOutput$(createStreamParser(), 'recursive')
+  const output$ = toOutput$(createStreamParser(), {cmd: 'recursive'})
 
   const pkgId = 'registry.npmjs.org/foo/1.0.0'
 
@@ -77,7 +77,7 @@ test('prints progress beginning during recursive install', t => {
 })
 
 test('prints progress on first download', t => {
-  const output$ = toOutput$(createStreamParser())
+  const output$ = toOutput$(createStreamParser(), {throttleProgress: 0})
 
   const pkgId = 'registry.npmjs.org/foo/1.0.0'
 
@@ -102,7 +102,7 @@ test('prints progress on first download', t => {
 })
 
 test('moves fixed line to the end', async t => {
-  const output$ = toOutput$(createStreamParser())
+  const output$ = toOutput$(createStreamParser(), {throttleProgress: 0})
 
   output$.skip(3).take(1).map(normalizeNewline).subscribe({
     next: output => {
@@ -406,7 +406,7 @@ test('prints generic error', t => {
 })
 
 test('prints generic error when recursive install fails', t => {
-  const output$ = toOutput$(createStreamParser(), 'recursive')
+  const output$ = toOutput$(createStreamParser(), {cmd: 'recursive'})
 
   const err = new Error('some error')
   err['prefix'] = '/home/src/'
@@ -446,7 +446,8 @@ test('prints info', t => {
 test('prints progress of big files download', async t => {
   t.plan(6)
 
-  let output$ = toOutput$(createStreamParser()).map(normalizeNewline) as most.Stream<string>
+  let output$ = toOutput$(createStreamParser(), {throttleProgress: 0})
+    .map(normalizeNewline) as most.Stream<string>
   const stream$: most.Stream<string>[] = []
 
   const pkgId1 = 'registry.npmjs.org/foo/1.0.0'
@@ -583,7 +584,7 @@ test('prints progress of big files download', async t => {
 })
 
 test('prints added/removed stats during installation', t => {
-  const output$ = toOutput$(createStreamParser(), 'install')
+  const output$ = toOutput$(createStreamParser(), {cmd: 'install'})
 
   statsLogger.debug({ added: 5 })
   statsLogger.debug({ removed: 1 })
@@ -603,7 +604,7 @@ test('prints added/removed stats during installation', t => {
 })
 
 test('prints added/removed stats during installation when 0 removed', t => {
-  const output$ = toOutput$(createStreamParser(), 'install')
+  const output$ = toOutput$(createStreamParser(), {cmd: 'install'})
 
   statsLogger.debug({ added: 2 })
   statsLogger.debug({ removed: 0 })
@@ -623,7 +624,7 @@ test('prints added/removed stats during installation when 0 removed', t => {
 })
 
 test('prints only the added stats if nothing was removed', t => {
-  const output$ = toOutput$(createStreamParser(), 'install')
+  const output$ = toOutput$(createStreamParser(), {cmd: 'install'})
 
   statsLogger.debug({ removed: 0 })
   statsLogger.debug({ added: 1 })
@@ -643,7 +644,7 @@ test('prints only the added stats if nothing was removed', t => {
 })
 
 test('prints only the removed stats if nothing was added', t => {
-  const output$ = toOutput$(createStreamParser(), 'install')
+  const output$ = toOutput$(createStreamParser(), {cmd: 'install'})
 
   statsLogger.debug({ removed: 1 })
   statsLogger.debug({ added: 0 })
@@ -663,7 +664,7 @@ test('prints only the removed stats if nothing was added', t => {
 })
 
 test('prints only the added stats if nothing was removed and a lot added', t => {
-  const output$ = toOutput$(createStreamParser(), 'install', 20)
+  const output$ = toOutput$(createStreamParser(), {cmd: 'install', width: 20})
 
   statsLogger.debug({ removed: 0 })
   statsLogger.debug({ added: 100 })
@@ -683,7 +684,7 @@ test('prints only the added stats if nothing was removed and a lot added', t => 
 })
 
 test('prints only the removed stats if nothing was added and a lot removed', t => {
-  const output$ = toOutput$(createStreamParser(), 'install', 20)
+  const output$ = toOutput$(createStreamParser(), {cmd: 'install', width: 20})
 
   statsLogger.debug({ removed: 100 })
   statsLogger.debug({ added: 0 })
@@ -703,7 +704,7 @@ test('prints only the removed stats if nothing was added and a lot removed', t =
 })
 
 test('prints at least one remove sign when removed !== 0', t => {
-  const output$ = toOutput$(createStreamParser(), 'install', 20)
+  const output$ = toOutput$(createStreamParser(), {cmd: 'install', width: 20})
 
   statsLogger.debug({ removed: 1 })
   statsLogger.debug({ added: 100 })
@@ -723,7 +724,7 @@ test('prints at least one remove sign when removed !== 0', t => {
 })
 
 test('prints at least one add sign when added !== 0', t => {
-  const output$ = toOutput$(createStreamParser(), 'install', 20)
+  const output$ = toOutput$(createStreamParser(), {cmd: 'install', width: 20})
 
   statsLogger.debug({ removed: 100 })
   statsLogger.debug({ added: 1 })
@@ -743,7 +744,7 @@ test('prints at least one add sign when added !== 0', t => {
 })
 
 test('prints just removed during uninstallation', t => {
-  const output$ = toOutput$(createStreamParser(), 'uninstall')
+  const output$ = toOutput$(createStreamParser(), {cmd: 'uninstall'})
 
   statsLogger.debug({ removed: 4 })
 

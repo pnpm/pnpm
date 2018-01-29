@@ -48,6 +48,7 @@ export default function (
   cmd?: string, // is optional only to be backward compatible
   widthArg?: number,
   appendOnly?: boolean,
+  throttleProgress?: number,
 ): Array<most.Stream<most.Stream<{msg: string}>>> {
   const width = widthArg || process.stdout.columns || 80
   const outputs: Array<most.Stream<most.Stream<{msg: string}>>> = []
@@ -112,7 +113,8 @@ export default function (
         fedtchedLog$,
         foundInStoreLog$,
         isRecursive ? most.of(false) : resolutionDone$,
-      ),
+      )
+      .throttle(typeof throttleProgress === 'number' ? throttleProgress : 200),
     )
 
     outputs.push(progressSummaryOutput$)
