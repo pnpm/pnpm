@@ -17,7 +17,11 @@ import * as dp from 'dependency-path'
 import {Shrinkwrap, DependencyShrinkwrap} from 'pnpm-shrinkwrap'
 import removeOrphanPkgs from '../api/removeOrphanPkgs'
 import mkdirp = require('mkdirp-promise')
-import {rootLogger, statsLogger} from '../loggers'
+import {
+  rootLogger,
+  statsLogger,
+  stageLogger,
+} from '../loggers'
 
 export default async function linkPackages (
   rootNodeIdsByAlias: {[alias: string]: string},
@@ -93,6 +97,7 @@ export default async function linkPackages (
     pkgsToLink,
     opts
   )
+  stageLogger.debug('importing_done')
 
   const rootPkgsToLinkByAbsolutePath = flatResolvedDeps
     .filter(pkg => pkg.depth === 0)
