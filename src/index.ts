@@ -62,6 +62,7 @@ export function toOutput$ (
   const rootPushStream = new PushStream()
   const packageJsonPushStream = new PushStream()
   const linkPushStream = new PushStream()
+  const cliPushStream = new PushStream()
   const otherPushStream = new PushStream()
   setTimeout(() => { // setTimeout is a workaround for a strange bug in most https://github.com/cujojs/most/issues/491
     streamParser['on']('data', (log: supi.Log) => {
@@ -99,6 +100,9 @@ export function toOutput$ (
         case 'pnpm:link' as any: // tslint:disable-line
           linkPushStream.next(log)
           break
+        case 'pnpm:cli' as any: // tslint:disable-line
+          cliPushStream.next(log)
+          break
         case 'pnpm' as any: // tslint:disable-line
           otherPushStream.next(log)
           break
@@ -106,6 +110,7 @@ export function toOutput$ (
     })
   }, 0)
   const log$ = {
+    cli: most.from<supi.Log>(cliPushStream.observable),
     deprecation: most.from<supi.DeprecationLog>(deprecationPushStream.observable),
     installCheck: most.from<supi.InstallCheckLog>(installCheckPushStream.observable),
     lifecycle: most.from<supi.LifecycleLog>(lifecyclePushStream.observable),

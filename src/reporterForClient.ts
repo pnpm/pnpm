@@ -43,9 +43,10 @@ export default function (
     packageJson: most.Stream<supi.PackageJsonLog>,
     link: most.Stream<supi.Log>,
     other: most.Stream<supi.Log>,
+    cli: most.Stream<supi.Log>,
   },
   isRecursive: boolean,
-  cmd?: string, // is optional only to be backward compatible
+  cmd: string,
   widthArg?: number,
   appendOnly?: boolean,
   throttleProgress?: number,
@@ -110,11 +111,13 @@ export default function (
 
     if (!isRecursive && typeof throttleProgress === 'number' && throttleProgress > 0) {
       const importingDone$ = log$.stage.filter((log) => log.message === 'importing_done').multicast()
+      const resolutionStarted$ = log$.stage.filter((log) => log.message === 'resolution_started')
+      const commandDone$ = log$.cli.filter((log) => log['message'] === 'command_done')
 
       // Reporting is done every `throttleProgress` milliseconds
       // and once all packages are fetched.
       const sampler = most.merge(
-        most.periodic(throttleProgress).until(importingDone$),
+        most.periodic(throttleProgress).since(resolutionStarted$).until(most.merge(importingDone$, commandDone$)),
         importingDone$,
       )
       const progress = most.sample(
