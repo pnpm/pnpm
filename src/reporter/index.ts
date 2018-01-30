@@ -10,14 +10,13 @@ export default (reporterType: ReporterType, cmd: string) => {
       defaultReporter(streamParser, {
         appendOnly: false,
         cmd,
-        throttleProgress: 0,
+        throttleProgress: 200,
       })
       return
     case 'append-only':
       defaultReporter(streamParser, {
         appendOnly: true,
         cmd,
-        throttleProgress: 0,
       })
       return
     case 'ndjson':

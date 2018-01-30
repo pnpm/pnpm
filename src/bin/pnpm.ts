@@ -219,7 +219,7 @@ async function run (argv: string[]) {
   delete opts.reporter // This is a silly workaround because supi expects a function as opts.reporter
 
   // NOTE: we defer the next stage, otherwise reporter might not catch all the logs
-  return new Promise((resolve, reject) => {
+  await new Promise((resolve, reject) => {
     setTimeout(() => {
       if (opts.storePath && !opts.store) {
         logger.warn('the `store-path` config is deprecated. Use `store` instead.')
@@ -242,6 +242,7 @@ async function run (argv: string[]) {
       }
     }, 0)
   })
+  logger('cli').debug('command_done')
 }
 
 export = run

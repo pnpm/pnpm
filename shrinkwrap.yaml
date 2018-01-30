@@ -31,7 +31,7 @@ dependencies:
   package-store: 0.15.3
   path-name: 1.0.0
   pkgs-graph: 2.0.0-1
-  pnpm-default-reporter: 0.12.0
+  pnpm-default-reporter: 0.14.0
   pnpm-file-reporter: 0.0.1
   pnpm-list: 2.0.1
   process-exists: 3.0.0
@@ -39,7 +39,7 @@ dependencies:
   retry: 0.10.1
   signal-exit: 3.0.2
   strip-color: 0.1.0
-  supi: 0.12.3
+  supi: 0.12.5
   text-table: 0.2.0
   tree-kill: 1.2.0
   update-notifier: 2.3.0
@@ -4918,7 +4918,7 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha512-rKzsDOico9EZPMt6xq/5ulebekkmAhSeivDz+tPArfuGrp3UKg8pJgvPLL/t33YT222Qo4tMSq7kxKX34P4D/w==
-  /pnpm-default-reporter/0.12.0:
+  /pnpm-default-reporter/0.14.0:
     dependencies:
       '@types/common-tags': 1.4.0
       '@types/node': 9.4.0
@@ -4939,9 +4939,9 @@ packages:
     engines:
       node: '>=4'
     peerDependencies:
-      supi: '>=0.8.0 <0.13.0'
+      supi: '>=0.12.5 <0.13.0'
     resolution:
-      integrity: sha512-kLj5mTQbm9JQmNTdksZTuFPMdLgB54xjFrmlWVdvdE9sOs7NO9YtHryMSjWrzI9fK8c1YCPBqkYaukQqffTWyg==
+      integrity: sha512-+OaSGxmiF5RoRoWL91NYpVZr8nzqDiLdi5OSLVf9jab//dVjOSZ8e4PR+O9ZNnK9mZ5gSZtFkWcdy3PlUWuazw==
   /pnpm-file-reporter/0.0.1:
     dependencies:
       '@types/chalk': 0.4.31
@@ -6087,7 +6087,7 @@ packages:
       node: '>=0.10.0'
     resolution:
       integrity: sha1-PFMZQukIwml8DsNEhYwobHygpgo=
-  /supi/0.12.3:
+  /supi/0.12.5:
     dependencies:
       '@pnpm/check-package': 1.0.0
       '@pnpm/fs-locker': 1.0.1
@@ -6156,7 +6156,7 @@ packages:
     peerDependencies:
       '@pnpm/logger': ^1.0.0
     resolution:
-      integrity: sha512-h/iuS7jw49wPGshUoDbSnPsnpMW96N7vsnT6E+N4hte2pnJ7U+Pote6C4fZRlJMo60F5npelAVwmqfhi+xwq3A==
+      integrity: sha512-AFHV/TiBu7RBQkVnAmuRyOjDtCL+SIijg9WYb7RGeBGvGALr74ESspfYltN+EA8vDdeBa2qRVh6T0pooy+t0+Q==
   /supports-color/2.0.0:
     engines:
       node: '>=0.8.0'
@@ -7019,7 +7019,7 @@ specifiers:
   path-exists: ^3.0.0
   path-name: ^1.0.0
   pkgs-graph: ^2.0.0-0
-  pnpm-default-reporter: ^0.12.0
+  pnpm-default-reporter: ^0.14.0
   pnpm-file-reporter: ^0.0.1
   pnpm-list: ^2.0.0
   pnpm-registry-mock: ^1.5.0
@@ -7033,7 +7033,7 @@ specifiers:
   sepia: ^2.0.2
   signal-exit: ^3.0.2
   strip-color: ^0.1.0
-  supi: ^0.12.3
+  supi: ^0.12.5
   tape: ^4.6.3
   tape-promise: ^2.0.1
   text-table: ^0.2.0
