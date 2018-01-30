@@ -405,6 +405,7 @@ async function installInContext (
         logger.info(`${wantedDependency.alias} is linked to ${nodeModulesPath} from ${isInnerLink}`)
         return false
     })
+  stageLogger.debug('resolution_started')
   const rootPkgs = await installMultiple(
     installCtx,
     nonLinkedPkgs,

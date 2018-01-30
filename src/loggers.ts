@@ -5,7 +5,7 @@ import baseLogger, {
 import {PackageJson} from '@pnpm/types'
 
 export const packageJsonLogger = baseLogger('package-json') as Logger<PackageJsonMessage>
-export const stageLogger = baseLogger('stage') as Logger<'resolution_done' | 'importing_done'>
+export const stageLogger = baseLogger('stage') as Logger<'resolution_started' | 'resolution_done' | 'importing_started' | 'importing_done'>
 export const summaryLogger = baseLogger('summary') as Logger<void>
 export const installCheckLogger = baseLogger('install-check') as Logger<InstallCheckMessage>
 export const deprecationLogger = baseLogger('deprecation') as Logger<DeprecationMessage>
@@ -102,7 +102,7 @@ export type StatsMessage = {
 
 export type ProgressLog = {name: 'pnpm:progress'} & LogBase & ProgressMessage
 
-export type StageLog = {name: 'pnpm:stage'} & LogBase & {message: 'resolution_done' | 'importing_done'}
+export type StageLog = {name: 'pnpm:stage'} & LogBase & {message: 'resolution_started' | 'resolution_done' | 'importing_started' | 'importing_done'}
 
 export type StatsLog = {name: 'pnpm:stats'} & LogBase & StatsMessage
 

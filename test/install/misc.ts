@@ -73,8 +73,18 @@ test('no dependencies (lodash)', async (t: tape.Test) => {
   t.ok(reporter.calledWithMatch(<StageLog>{
     name: 'pnpm:stage',
     level: 'debug',
+    message: 'resolution_started',
+  }), 'resolution stage start logged')
+  t.ok(reporter.calledWithMatch(<StageLog>{
+    name: 'pnpm:stage',
+    level: 'debug',
     message: 'resolution_done',
   }), 'resolution stage done logged')
+  t.ok(reporter.calledWithMatch(<StageLog>{
+    name: 'pnpm:stage',
+    level: 'debug',
+    message: 'importing_started',
+  }), 'importing stage start logged')
   t.ok(reporter.calledWithMatch(<StageLog>{
     name: 'pnpm:stage',
     level: 'debug',

@@ -91,6 +91,7 @@ export default async function linkPackages (
     skipped: opts.skipped,
   }
   const newCurrentShrinkwrap = filterShrinkwrap(newShr, filterOpts)
+  stageLogger.debug('importing_started')
   const newPkgResolvedIds = await linkNewPackages(
     filterShrinkwrap(opts.currentShrinkwrap, filterOpts),
     newCurrentShrinkwrap,
