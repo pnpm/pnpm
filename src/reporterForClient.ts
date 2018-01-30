@@ -94,30 +94,48 @@ export default function (
       .filter((log) => log.status === 'found_in_store')
       .scan(R.inc, 0)
 
-    const progressSummaryOutput$ = most.of(
-      most.combine(
-        (resolving, fetched, foundInStore: number, resolutionDone) => {
-          const msg = `Resolving: total ${hlValue(resolving.toString())}, reused ${hlValue(foundInStore.toString())}, downloaded ${hlValue(fetched.toString())}`
-          if (resolving === foundInStore + fetched && resolutionDone) {
-            return {
-              fixed: false,
-              msg: `${msg}, done`,
-            }
-          }
-          return {
-            fixed: true,
-            msg,
-          }
-        },
+    function createStatusMessage (resolving: number, fetched: number, foundInStore: number, resolutionDone: boolean) {
+      const msg = `Resolving: total ${hlValue(resolving.toString())}, reused ${hlValue(foundInStore.toString())}, downloaded ${hlValue(fetched.toString())}`
+      if (resolving === foundInStore + fetched && resolutionDone) {
+        return {
+          fixed: false,
+          msg: `${msg}, done`,
+        }
+      }
+      return {
+        fixed: true,
+        msg,
+      }
+    }
+
+    if (!isRecursive && typeof throttleProgress === 'number' && throttleProgress > 0) {
+      const importingDone$ = log$.stage.filter((log) => log.message === 'importing_done').multicast()
+
+      // Reporting is done every `throttleProgress` milliseconds
+      // and once all packages are fetched.
+      const sampler = most.merge(
+        most.periodic(throttleProgress).until(importingDone$),
+        importingDone$,
+      )
+      const progress = most.sample(
+        createStatusMessage,
+        sampler,
+        resolvingContentLog$,
+        fedtchedLog$,
+        foundInStoreLog$,
+        resolutionDone$,
+      )
+      outputs.push(most.of(progress))
+    } else {
+      const progress = most.combine(
+        createStatusMessage,
         resolvingContentLog$,
         fedtchedLog$,
         foundInStoreLog$,
         isRecursive ? most.of(false) : resolutionDone$,
       )
-      .throttle(typeof throttleProgress === 'number' ? throttleProgress : 200),
-    )
-
-    outputs.push(progressSummaryOutput$)
+      outputs.push(most.of(progress))
+    }
 
     const tarballsProgressOutput$ = log$.progress
       .filter((log) => log.status === 'fetching_started' &&
