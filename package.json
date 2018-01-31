@@ -111,7 +111,7 @@
     "tape-promise": "^2.0.1",
     "ts-node": "^4.0.0",
     "tslint": "^5.4.2",
-    "typescript": "^2.4.1",
+    "typescript": "^2.7.1",
     "write-pkg": "^3.1.0"
   },
   "directories": {
