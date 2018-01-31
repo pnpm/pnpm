@@ -10,6 +10,7 @@ import {
   install,
   InstallOptions,
   link,
+  unlink,
 } from 'supi'
 import createStoreController from '../createStoreController'
 import requireHooks from '../requireHooks'
@@ -23,6 +24,7 @@ const supportedRecursiveCommands = new Set([
   'upgrade',
   'link',
   'ln',
+  'dislink',
 ])
 
 export default async (
@@ -83,13 +85,14 @@ export default async (
   }) as InstallOptions
 
   const limitInstallation = pLimit(concurrency)
+  const action = cmd === 'dislink' ? unlink : install
 
   for (const chunk of chunks) {
     await Promise.all(chunk.map((prefix: string) =>
       limitInstallation(async () => {
         const hooks = opts.ignorePnpmfile ? {} : requireHooks(prefix)
         try {
-          return await install({
+          return await action({
             ...installOpts,
             bin: path.join(prefix, 'node_modules', '.bin'),
             hooks,

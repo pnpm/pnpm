@@ -5,6 +5,7 @@ import isWindows = require('is-windows')
 import tape = require('tape')
 import promisifyTape from 'tape-promise'
 import path = require('path')
+import exists = require('path-exists')
 import {
   prepare,
   execPnpm,
@@ -169,18 +170,17 @@ test('ignores pnpmfile.js during recursive installation when --ignore-pnpmfile i
   t.end()
 })
 
-test('recursive linking', async t => {
+test('recursive linking/unlinking', async t => {
   const projects = prepare(t, [
     {
       name: 'project-1',
       version: '1.0.0',
       dependencies: {
         'is-positive': '1.0.0',
-        'project-2': '^1.0.0',
       },
     },
     {
-      name: 'project-2',
+      name: 'is-positive',
       version: '1.0.0',
       dependencies: {
         'is-negative': '1.0.0',
@@ -190,9 +190,13 @@ test('recursive linking', async t => {
 
   await execPnpm('recursive', 'link')
 
-  t.ok(projects['project-1'].requireModule('is-positive'))
-  t.ok(projects['project-2'].requireModule('is-negative'))
-  t.ok(projects['project-1'].requireModule('project-2/package.json'), 'local package is linked')
+  t.ok(projects['is-positive'].requireModule('is-negative'))
+  t.notOk(projects['project-1'].requireModule('is-positive/package.json').author, 'local package is linked')
+
+  await execPnpm('recursive', 'dislink')
+
+  process.chdir('project-1')
+  t.ok(await exists('node_modules', 'is-positive', 'index.js'), 'local package is dislinked')
 
   t.end()
 })
