@@ -168,3 +168,31 @@ test('ignores pnpmfile.js during recursive installation when --ignore-pnpmfile i
 
   t.end()
 })
+
+test('recursive linking', async t => {
+  const projects = prepare(t, [
+    {
+      name: 'project-1',
+      version: '1.0.0',
+      dependencies: {
+        'is-positive': '1.0.0',
+        'project-2': '^1.0.0',
+      },
+    },
+    {
+      name: 'project-2',
+      version: '1.0.0',
+      dependencies: {
+        'is-negative': '1.0.0',
+      },
+    },
+  ])
+
+  await execPnpm('recursive', 'link')
+
+  t.ok(projects['project-1'].requireModule('is-positive'))
+  t.ok(projects['project-2'].requireModule('is-negative'))
+  t.ok(projects['project-1'].requireModule('project-2/package.json'), 'local package is linked')
+
+  t.end()
+})
