@@ -111,7 +111,7 @@
     "tape-promise": "^2.0.1",
     "ts-node": "^4.0.1",
     "tslint": "^5.4.2",
-    "typescript": "^2.6.1",
+    "typescript": "^2.7.1",
     "write-json-file": "^2.2.0"
   },
   "directories": {
