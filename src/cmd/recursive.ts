@@ -2,16 +2,28 @@ import logger from '@pnpm/logger'
 import findPackages from 'find-packages'
 import graphSequencer = require('graph-sequencer')
 import pLimit = require('p-limit')
+import { StoreController } from 'package-store'
 import path = require('path')
 import createPkgGraph, {PackageNode} from 'pkgs-graph'
 import sortPkgs = require('sort-pkgs')
 import {
   install,
   InstallOptions,
+  link,
 } from 'supi'
 import createStoreController from '../createStoreController'
 import requireHooks from '../requireHooks'
 import {PnpmOptions} from '../types'
+
+const supportedRecursiveCommands = new Set([
+  'install',
+  'i',
+  'update',
+  'up',
+  'upgrade',
+  'link',
+  'ln',
+])
 
 export default async (
   input: string[],
@@ -27,7 +39,7 @@ export default async (
   }
 
   const cmd = input.shift()
-  if (cmd && ['install', 'i', 'update', 'up', 'upgrade'].indexOf(cmd) === -1) {
+  if (cmd && !supportedRecursiveCommands.has(cmd)) {
     throw new Error('Unsupported recursive command')
   }
   logger.warn('The recursive command is an experimental feature. Breaking changes may happen in non-major versions.')
@@ -43,6 +55,10 @@ export default async (
     ],
   })
   const pkgGraphResult = createPkgGraph(pkgs)
+  const store = await createStoreController(opts)
+  if (cmd === 'link' || cmd === 'ln') {
+    await linkPackages(pkgGraphResult.graph, store.ctrl, store.path)
+  }
   const graph = new Map(
     Object.keys(pkgGraphResult.graph).map((pkgPath) => [pkgPath, pkgGraphResult.graph[pkgPath].dependencies]) as Array<[string, string[]]>,
   )
@@ -51,8 +67,6 @@ export default async (
     groups: [Object.keys(pkgGraphResult.graph)],
   })
   const chunks = graphSequencerResult.chunks
-
-  const store = await createStoreController(opts)
 
   // It is enough to save the store.json file once,
   // once all installations are done.
@@ -91,4 +105,19 @@ export default async (
   }
 
   await saveState()
+}
+
+function linkPackages (
+  graph: {[pkgPath: string]: {dependencies: string[]}},
+  storeController: StoreController,
+  store: string,
+) {
+  const limitLinking = pLimit(12)
+  const linkOpts = {skipInstall: true, store, storeController}
+  return Promise.all(
+    Object.keys(graph)
+      .map((pkgPath) => Promise.all(
+        (graph[pkgPath].dependencies || [])
+          .map((depPath) => limitLinking(() => link(depPath, pkgPath, linkOpts))))),
+  )
 }

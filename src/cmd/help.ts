@@ -226,6 +226,15 @@ function getHelpText (command: string) {
         **Experimental!** Concurrently runs update in all subdirectories with a \`package.json\` (excluding node_modules).
 
         Options: same as for \`pnpm update\`
+
+        * * *
+
+        pnpm recursive [concurrency] link
+
+        **Experimental!** Concurrently runs installation in all subdirectories with a \`package.json\` (excluding node_modules).
+        If a package is available locally, the local version is linked.
+
+        Options: same as for \`pnpm install\`
       `
 
     default:
