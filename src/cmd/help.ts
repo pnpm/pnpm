@@ -235,6 +235,12 @@ function getHelpText (command: string) {
         If a package is available locally, the local version is linked.
 
         Options: same as for \`pnpm install\`
+
+        * * *
+
+        pnpm recursive [concurrency] dislink
+
+        **Experimental!** Removes links to local packages and reinstalls them from the registry.
       `
 
     default:
