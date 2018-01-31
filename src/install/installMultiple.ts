@@ -273,7 +273,7 @@ async function install (
     pkg: loggedPkg,
   })
 
-  let pkgResponse: PackageResponse | undefined
+  let pkgResponse!: PackageResponse
   try {
     pkgResponse = await ctx.storeController.requestPackage(wantedDependency, {
       defaultTag: ctx.defaultTag,
@@ -298,10 +298,6 @@ async function install (
       return null
     }
     throw err
-  }
-
-  if (!pkgResponse) {
-    throw new Error(`Store returned nothing for ${wantedDependency.raw} request`)
   }
 
   pkgResponse.body.id = encodePkgId(pkgResponse.body.id)
