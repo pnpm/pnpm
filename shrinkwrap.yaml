@@ -3,6 +3,7 @@ dependencies:
   '@types/mz': 0.0.32
   '@types/node': 9.4.0
   '@types/retry': 0.10.2
+  '@types/rimraf': 2.0.2
   credentials-by-uri: 1.0.0
   fetch-from-npm-registry: 0.1.0
   fs-write-stream-atomic: 1.0.10
@@ -10,7 +11,9 @@ dependencies:
   mem: 3.0.0
   mkdirp-promise: 5.0.1
   mz: 2.7.0
+  rename-overwrite: 1.0.1
   retry: 0.10.1
+  rimraf: 2.6.2
   ssri: 5.0.0
   unpack-stream: 3.0.1
 devDependencies:
@@ -20,7 +23,6 @@ devDependencies:
   '@types/tempy': 0.1.0
   nock: 9.1.6
   package-preview: 1.0.4
-  rimraf: 2.6.2
   tape: 4.8.0
   tempy: 0.2.1
   ts-node: 4.1.0
@@ -55,12 +57,24 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha512-+Hg7mBqDOXUlH4UvYffXMJwln8EIfqpf0+y7ODYqbO9GF9Kc1GG7/tbl5cWyA1OKF04XQH9jugoIxtCOxN9/dg==
+  /@types/events/1.1.0:
+    dev: false
+    resolution:
+      integrity: sha512-y3bR98mzYOo0pAZuiLari+cQyiKk3UXRuT45h1RjhfeCzqkjaVsfZJNaxdgtk7/3tzOm1ozLTqEqMP3VbI48jw==
   /@types/fs-extra/5.0.0:
     dependencies:
       '@types/node': 9.4.0
     dev: true
     resolution:
       integrity: sha512-qtxDULQKUenuaDLW003CgC+0T0eiAfH3BrH+vSt87GLzbz5EZ6Ox6mv9rMttvhDOatbb9nYh0E1m7ydoYwUrAg==
+  /@types/glob/5.0.35:
+    dependencies:
+      '@types/events': 1.1.0
+      '@types/minimatch': 3.0.3
+      '@types/node': 9.4.0
+    dev: false
+    resolution:
+      integrity: sha512-wc+VveszMLyMWFvXLkloixT4n0harUIVZjnpzztaZ0nKLuul7Z32iMt2fUFGAaZ4y1XWjFRMtCI5ewvyh4aIeg==
   /@types/got/7.1.6:
     dependencies:
       '@types/node': 9.4.0
@@ -75,6 +89,10 @@ packages:
     dev: false
     resolution:
       integrity: sha1-48iwlfLyVjtRjwqtWd+f5qi4IGU=
+  /@types/minimatch/3.0.3:
+    dev: false
+    resolution:
+      integrity: sha512-tHq6qdbT9U1IRSGf14CL0pUlULksvY9OZ+5eEgl1N7t+OA3tGvNpxJCzuKQlsNgCVwbAs670L1vcVQi8j9HjnA==
   /@types/mz/0.0.32:
     dependencies:
       '@types/node': 9.4.0
@@ -97,6 +115,13 @@ packages:
     dev: false
     resolution:
       integrity: sha512-LqJkY4VQ7S09XhI7kA3ON71AxauROhSv74639VsNXC9ish4IWHnIi98if+nP1MxQV3RMPqXSCYgpPsDHjlg9UQ==
+  /@types/rimraf/2.0.2:
+    dependencies:
+      '@types/glob': 5.0.35
+      '@types/node': 9.4.0
+    dev: false
+    resolution:
+      integrity: sha512-Hm/bnWq0TCy7jmjeN5bKYij9vw5GrDFWME4IuxV08278NtU/VdGbzsBohcCUJ7+QMqmUq5hpRKB39HeQWJjztQ==
   /@types/strip-bom/3.0.0:
     dev: true
     resolution:
@@ -442,7 +467,6 @@ packages:
     dependencies:
       foreach: 2.0.5
       object-keys: 1.0.11
-    dev: true
     engines:
       node: '>= 0.4'
     resolution:
@@ -451,6 +475,14 @@ packages:
     dev: true
     resolution:
       integrity: sha1-yY2bzvdWdBiOEQlpFRGZ45sfppM=
+  /delay/2.0.0:
+    dependencies:
+      p-defer: 1.0.0
+    dev: false
+    engines:
+      node: '>=4'
+    resolution:
+      integrity: sha1-kRLq3APk7H4AKXM3iW8nO72R+uU=
   /detect-indent/5.0.0:
     dev: true
     engines:
@@ -499,7 +531,6 @@ packages:
       has: 1.0.1
       is-callable: 1.1.3
       is-regex: 1.0.4
-    dev: true
     engines:
       node: '>= 0.4'
     resolution:
@@ -509,7 +540,6 @@ packages:
       is-callable: 1.1.3
       is-date-object: 1.0.1
       is-symbol: 1.0.1
-    dev: true
     engines:
       node: '>= 0.4'
     resolution:
@@ -586,7 +616,6 @@ packages:
     resolution:
       integrity: sha1-LEBFC5NI6X8oEyJZO6lnBLmr1NQ=
   /foreach/2.0.5:
-    dev: true
     resolution:
       integrity: sha1-C+4AUBiusmDQo6865ljdATbsG5k=
   /from2/2.3.0:
@@ -617,7 +646,6 @@ packages:
     resolution:
       integrity: sha1-FQStJSMVjKpA20onh8sBQRmU6k8=
   /function-bind/1.1.1:
-    dev: true
     resolution:
       integrity: sha512-yIovAzMX49sF8Yl58fSCWJ5svSLuaibPxXQJFLmBObTuCr0Mf1KiPopGM9NiFjiYBCbfaa2Fh6breQ6ANVTI0A==
   /glob/7.1.2:
@@ -662,7 +690,6 @@ packages:
   /has/1.0.1:
     dependencies:
       function-bind: 1.1.1
-    dev: true
     engines:
       node: '>= 0.8.0'
     resolution:
@@ -762,13 +789,11 @@ packages:
     resolution:
       integrity: sha1-XuWOqlounIDiFAe+3yOuWsCRs/w=
   /is-callable/1.1.3:
-    dev: true
     engines:
       node: '>= 0.4'
     resolution:
       integrity: sha1-hut1OSgF3cM69xySoO7fdO52BLI=
   /is-date-object/1.0.1:
-    dev: true
     engines:
       node: '>= 0.4'
     resolution:
@@ -794,13 +819,11 @@ packages:
   /is-regex/1.0.4:
     dependencies:
       has: 1.0.1
-    dev: true
     engines:
       node: '>= 0.4'
     resolution:
       integrity: sha1-VRdIm1RwkbCTDglWVM7SXul+lJE=
   /is-symbol/1.0.1:
-    dev: true
     engines:
       node: '>= 0.4'
     resolution:
@@ -1089,16 +1112,30 @@ packages:
     resolution:
       integrity: sha512-OHHnLgLNXpM++GnJRyyhbr2bwl3pPVm4YvaraHrRvDt/N3r+s/gDVHciA7EJBTkijKXj61ssgSAikq1fb0IBRg==
   /object-keys/1.0.11:
-    dev: true
     engines:
       node: '>= 0.4'
     resolution:
       integrity: sha1-xUYBd4rVYPEULODgG8yotW0TQm0=
+  /object.getownpropertydescriptors/2.0.3:
+    dependencies:
+      define-properties: 1.1.2
+      es-abstract: 1.10.0
+    dev: false
+    engines:
+      node: '>= 0.8'
+    resolution:
+      integrity: sha1-h1jIRvW0B62rDyNuCYbxSwUcqhY=
   /once/1.4.0:
     dependencies:
       wrappy: 1.0.2
     resolution:
       integrity: sha1-WDsap3WWHUsROsF9nFC6753Xa9E=
+  /p-defer/1.0.0:
+    dev: false
+    engines:
+      node: '>=4'
+    resolution:
+      integrity: sha1-n26xgvbJqozXQwBKfU+WsZaw+ww=
   /p-is-promise/1.1.0:
     dev: false
     engines:
@@ -1307,6 +1344,17 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha1-wbIAe0LVfrE4kHmzyDM2OdXhzKo=
+  /rename-overwrite/1.0.1:
+    dependencies:
+      delay: 2.0.0
+      graceful-fs: 4.1.11
+      rimraf: 2.6.2
+      util.promisify: 1.0.0
+    dev: false
+    engines:
+      node: '>=4'
+    resolution:
+      integrity: sha512-T/7u/iSRX4RcuQ15QYvZh8uZMQkYLPBuJjIddmYpYQ/RWBEoRUay/Xy3qf6s8DSQ4TQ55ToJJnlCaJ3tV6Se4w==
   /resolve/1.4.0:
     dependencies:
       path-parse: 1.0.5
@@ -1721,6 +1769,13 @@ packages:
   /util-deprecate/1.0.2:
     resolution:
       integrity: sha1-RQ1Nyfpw3nMnYvvS1KKJgUGaDM8=
+  /util.promisify/1.0.0:
+    dependencies:
+      define-properties: 1.1.2
+      object.getownpropertydescriptors: 2.0.3
+    dev: false
+    resolution:
+      integrity: sha512-i+6qA2MPhvoKLuxnJNpXAGhg7HphQOSUq2LKMZD0m15EiskXUkMvKdF4Uui0WYeCUGea+o2cw/ZuwehtfsrNkA==
   /v8flags/3.0.1:
     dependencies:
       homedir-polyfill: 1.0.1
@@ -1794,6 +1849,7 @@ specifiers:
   '@types/nock': ^9.1.0
   '@types/node': ^9.3.0
   '@types/retry': ^0.10.2
+  '@types/rimraf': ^2.0.2
   '@types/tape': ^4.2.31
   '@types/tempy': ^0.1.0
   credentials-by-uri: ^1.0.0
@@ -1805,6 +1861,7 @@ specifiers:
   mz: ^2.7.0
   nock: ^9.1.4
   package-preview: ^1.0.1
+  rename-overwrite: ^1.0.1
   retry: ^0.10.1
   rimraf: ^2.6.2
   ssri: 5.0.0

@@ -1,9 +1,11 @@
 import createFetcher from 'fetch-from-npm-registry'
 import createWriteStreamAtomic = require('fs-write-stream-atomic')
+import renameOverwrite = require('rename-overwrite')
 import {IncomingMessage} from 'http'
 import mkdirp = require('mkdirp-promise')
 import path = require('path')
 import retry = require('retry')
+import rimraf = require('rimraf')
 import ssri = require('ssri')
 import unpackStream = require('unpack-stream')
 import urlLib = require('url')
@@ -153,16 +155,28 @@ export default (
             .pipe(writeStream)
             .on('error', reject)
 
+            // TODO: Currently the unpackTo is also a stage folder
+            // use just one stage folder. Either here or in @pnpm/package-requester
+            const stage = `${opts.unpackTo}${Math.random()}`
             Promise.all([
               opts.integrity && ssri.checkStream(res.body, opts.integrity),
-              unpackStream.local(res.body, opts.unpackTo, {
+              unpackStream.local(res.body, stage, {
                 generateIntegrity: opts.generatePackageIntegrity,
                 ignore: opts.ignore,
               }),
               waitTillClosed({ stream, size, getDownloaded: () => downloaded, url }),
             ])
-            .then((vals) => resolve(vals[1]))
-            .catch(reject)
+            .catch((err) => {
+              rimraf(stage, (err) => {
+                // Just ignoring this error
+                // A redundant stage folder won't break anything
+              })
+              reject(err)
+            })
+            .then((vals) => {
+              return renameOverwrite(stage, opts.unpackTo)
+                .then(() => resolve(vals[1]))
+            })
         })
       } catch (err) {
         err.attempts = currentAttempt
