@@ -23,7 +23,8 @@ export default function (
     reporterForServer(log$)
     return
   }
-  const output$ = toOutput$(streamParser, opts)
+  const width = opts.width || process.stdout.columns && process.stdout.columns - 2 || 80
+  const output$ = toOutput$(streamParser, {...opts, width})
   if (opts.appendOnly) {
     output$
       .subscribe({
@@ -36,7 +37,7 @@ export default function (
   cliCursor.hide()
   const diff = createDiffer({
     height: process.stdout.rows,
-    width: process.stdout.columns,
+    width,
   })
   output$
     .subscribe({
