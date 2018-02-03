@@ -131,6 +131,6 @@ function copyDependencySubTree (
     if (!opts.walkOptionals) continue
     const newOptionalDependencies = R.keys(depShr.optionalDependencies)
       .map((pkgName: string) => refToRelative((depShr.optionalDependencies && depShr.optionalDependencies[pkgName]) as string, pkgName))
-    copyDependencySubTree(resolvedPackages, newOptionalDependencies, shr, walked, Object.assign({}, opts, {optional: true}))
+    copyDependencySubTree(resolvedPackages, newOptionalDependencies, shr, walked, {...opts, optional: true})
   }
 }
