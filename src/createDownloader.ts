@@ -166,16 +166,16 @@ export default (
               }),
               waitTillClosed({ stream, size, getDownloaded: () => downloaded, url }),
             ])
+            .then((vals) => {
+              return renameOverwrite(stage, opts.unpackTo)
+                .then(() => resolve(vals[1]))
+            })
             .catch((err) => {
               rimraf(stage, (err) => {
                 // Just ignoring this error
                 // A redundant stage folder won't break anything
               })
               reject(err)
-            })
-            .then((vals) => {
-              return renameOverwrite(stage, opts.unpackTo)
-                .then(() => resolve(vals[1]))
             })
         })
       } catch (err) {
