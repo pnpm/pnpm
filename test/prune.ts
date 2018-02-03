@@ -141,6 +141,7 @@ test('optional dependency should have optional = true', t => {
     registry: 'https://registry.npmjs.org',
     dependencies: {
       'pkg-with-good-optional': '1.0.0',
+      'parent-of-foo': '1.0.0',
     },
     optionalDependencies: {
       'is-positive': '1.0.0',
@@ -148,8 +149,33 @@ test('optional dependency should have optional = true', t => {
     specifiers: {
       'is-positive': '^1.0.0',
       'pkg-with-good-optional': '^1.0.0',
+      'parent-of-foo': '1.0.0',
     },
     packages: {
+      '/foo/1.0.0': {
+        optional: true,
+        dependencies: {
+          'foo-child': '1.0.0',
+        },
+        resolution: {
+          integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g=',
+        },
+      },
+      '/foo-child/1.0.0': {
+        optional: true,
+        resolution: {
+          integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g=',
+        },
+      },
+      '/parent-of-foo/1.0.0': {
+        dev: false,
+        dependencies: {
+          foo: '1.0.0',
+        },
+        resolution: {
+          integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g=',
+        },
+      },
       '/is-positive/1.0.0': {
         dev: false,
         resolution: {
@@ -159,6 +185,7 @@ test('optional dependency should have optional = true', t => {
       '/pkg-with-good-optional/1.0.0': {
         dev: false,
         optionalDependencies: {
+          foo: '1.0.0',
           'is-positive': '1.0.0',
         },
         resolution: {
@@ -174,12 +201,14 @@ test('optional dependency should have optional = true', t => {
     },
     dependencies: {
       'pkg-with-good-optional': '^1.0.0',
+      'parent-of-foo': '1.0.0',
     },
   }), {
     shrinkwrapVersion: 3,
     registry: 'https://registry.npmjs.org',
     dependencies: {
       'pkg-with-good-optional': '1.0.0',
+      'parent-of-foo': '1.0.0',
     },
     optionalDependencies: {
       'is-positive': '1.0.0',
@@ -187,8 +216,33 @@ test('optional dependency should have optional = true', t => {
     specifiers: {
       'is-positive': '^1.0.0',
       'pkg-with-good-optional': '^1.0.0',
+      'parent-of-foo': '1.0.0',
     },
     packages: {
+      '/foo/1.0.0': {
+        dev: false,
+        dependencies: {
+          'foo-child': '1.0.0',
+        },
+        resolution: {
+          integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g=',
+        },
+      },
+      '/foo-child/1.0.0': {
+        dev: false,
+        resolution: {
+          integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g=',
+        },
+      },
+      '/parent-of-foo/1.0.0': {
+        dev: false,
+        dependencies: {
+          foo: '1.0.0',
+        },
+        resolution: {
+          integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g=',
+        },
+      },
       '/is-positive/1.0.0': {
         dev: false,
         optional: true,
@@ -199,6 +253,7 @@ test('optional dependency should have optional = true', t => {
       '/pkg-with-good-optional/1.0.0': {
         dev: false,
         optionalDependencies: {
+          foo: '1.0.0',
           'is-positive': '1.0.0',
         },
         resolution: {

@@ -34,17 +34,10 @@ export default function prune (shr: Shrinkwrap, pkg: Package): Shrinkwrap {
     }
   })
 
-  if (shrOptionalDependencies) {
-    const optionalDepRelativePaths: string[] = R.keys(shrOptionalDependencies)
-      .map((pkgName: string) => refToRelative(shrOptionalDependencies[pkgName], pkgName))
-    copyDependencySubTree(packages, optionalDepRelativePaths, shr, new Set(), {registry: shr.registry, nonOptional, optional: true})
-  }
+  const devDepRelativePaths: string[] = R.keys(shrDevDependencies)
+    .map((pkgName: string) => refToRelative(shrDevDependencies[pkgName], pkgName))
 
-  if (shrDevDependencies) {
-    const devDepRelativePaths: string[] = R.keys(shrDevDependencies)
-      .map((pkgName: string) => refToRelative(shrDevDependencies[pkgName], pkgName))
-    copyDependencySubTree(packages, devDepRelativePaths, shr, new Set(), {registry: shr.registry, nonOptional, dev: true})
-  }
+  copyDependencySubTree(packages, devDepRelativePaths, shr, new Set(), {registry: shr.registry, nonOptional, dev: true})
 
   const depRelativePaths: string[] = R.keys(shrDependencies)
     .map((pkgName: string) => refToRelative(shrDependencies[pkgName], pkgName))
@@ -52,6 +45,20 @@ export default function prune (shr: Shrinkwrap, pkg: Package): Shrinkwrap {
   copyDependencySubTree(packages, depRelativePaths, shr, new Set(), {
     nonOptional,
     registry: shr.registry,
+  })
+
+  if (shrOptionalDependencies) {
+    const optionalDepRelativePaths: string[] = R.keys(shrOptionalDependencies)
+      .map((pkgName: string) => refToRelative(shrOptionalDependencies[pkgName], pkgName))
+    copyDependencySubTree(packages, optionalDepRelativePaths, shr, new Set(), {registry: shr.registry, nonOptional, optional: true})
+  }
+
+  copyDependencySubTree(packages, devDepRelativePaths, shr, new Set(), {registry: shr.registry, nonOptional, dev: true, walkOptionals: true})
+
+  copyDependencySubTree(packages, depRelativePaths, shr, new Set(), {
+    nonOptional,
+    registry: shr.registry,
+    walkOptionals: true,
   })
 
   const result: Shrinkwrap = {
@@ -87,6 +94,7 @@ function copyDependencySubTree (
     dev?: boolean,
     optional?: boolean,
     nonOptional: Set<string>,
+    walkOptionals?: boolean,
   },
 ) {
   for (const depRalativePath of depRelativePaths) {
@@ -108,17 +116,19 @@ function copyDependencySubTree (
       opts.nonOptional.add(depRalativePath)
       delete depShr.optional
     }
-    if (opts.dev) {
-      depShr.dev = true
-    } else if (depShr.dev === true) { // keeping if dev is explicitly false
-      delete depShr.dev
-    } else if (depShr.dev === undefined) {
-      depShr.dev = false
+    if (!opts.walkOptionals) {
+      if (opts.dev) {
+        depShr.dev = true
+      } else if (depShr.dev === true) { // keeping if dev is explicitly false
+        delete depShr.dev
+      } else if (depShr.dev === undefined) {
+        depShr.dev = false
+      }
     }
     const newDependencies = R.keys(depShr.dependencies)
       .map((pkgName: string) => refToRelative((depShr.dependencies && depShr.dependencies[pkgName]) as string, pkgName))
     copyDependencySubTree(resolvedPackages, newDependencies, shr, walked, opts)
-
+    if (!opts.walkOptionals) continue
     const newOptionalDependencies = R.keys(depShr.optionalDependencies)
       .map((pkgName: string) => refToRelative((depShr.optionalDependencies && depShr.optionalDependencies[pkgName]) as string, pkgName))
     copyDependencySubTree(resolvedPackages, newOptionalDependencies, shr, walked, Object.assign({}, opts, {optional: true}))
