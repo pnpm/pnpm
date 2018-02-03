@@ -1,6 +1,5 @@
 import chalk from 'chalk'
 import most = require('most')
-import os = require('os')
 import prettyBytes = require('pretty-bytes')
 import R = require('ramda')
 import semver = require('semver')
@@ -17,8 +16,6 @@ import getPkgsDiff, {
   propertyByDependencyType,
 } from './pkgsDiff'
 import reportError from './reportError'
-
-const EOL = os.EOL
 
 export default function (
   log$: most.Stream<Log>,

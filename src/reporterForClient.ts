@@ -14,13 +14,13 @@ import {
   RegistryLog,
 } from 'supi'
 import * as supi from 'supi'
+import {EOL} from './constants'
 import getPkgsDiff, {
   PackageDiff,
   propertyByDependencyType,
 } from './pkgsDiff'
 import reportError from './reportError'
 
-const EOL = os.EOL
 const BIG_TARBALL_SIZE = 1024 * 1024 * 5 // 5 MB
 
 const addedSign = chalk.green('+')

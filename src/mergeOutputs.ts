@@ -1,7 +1,5 @@
 import most = require('most')
-import os = require('os')
-
-const EOL = os.EOL
+import {EOL} from './constants'
 
 export default function mergeOutputs (outputs: Array<most.Stream<most.Stream<{msg: string}>>>): most.Stream<string> {
   let blockNo = 0

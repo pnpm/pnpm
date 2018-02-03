@@ -1,12 +1,11 @@
 import chalk from 'chalk'
 import commonTags = require('common-tags')
-import os = require('os')
 import StackTracey = require('stacktracey')
 import {Log} from 'supi'
+import {EOL} from './constants'
 
 const stripIndent = commonTags.stripIndent
 const stripIndents = commonTags.stripIndents
-const EOL = os.EOL
 const highlight = chalk.yellow
 const colorPath = chalk.gray
 

@@ -1,10 +1,10 @@
 import createDiffer = require('ansi-diff')
 import cliCursor = require('cli-cursor')
 import most = require('most')
-import os = require('os')
 import R = require('ramda')
 import * as supi from 'supi'
 import PushStream = require('zen-push')
+import {EOL} from './constants'
 import mergeOutputs from './mergeOutputs'
 import reporterForClient from './reporterForClient'
 import reporterForServer from './reporterForServer'
@@ -45,7 +45,7 @@ export default function (
       next: logUpdate,
     })
   function logUpdate (view: string) {
-    process.stdout.write(diff.update(`${view}${os.EOL}`))
+    process.stdout.write(diff.update(`${view}${EOL}`))
   }
 }
 
