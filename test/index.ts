@@ -393,7 +393,7 @@ test('prints generic error', t => {
 
   t.plan(1)
 
-  output$.take(1).subscribe({
+  output$.take(1).map(normalizeNewline).subscribe({
     next: output => {
       t.equal(output, stripIndents`
         ${ERROR} ${chalk.red('some error')}
@@ -414,7 +414,7 @@ test('prints generic error when recursive install fails', t => {
 
   t.plan(1)
 
-  output$.take(1).subscribe({
+  output$.take(1).map(normalizeNewline).subscribe({
     next: output => {
       t.equal(output, stripIndents`
         /home/src/:
@@ -434,7 +434,7 @@ test('prints info', t => {
 
   t.plan(1)
 
-  output$.take(1).subscribe({
+  output$.take(1).map(normalizeNewline).subscribe({
     next: output => {
       t.equal(output, 'info message')
     },
@@ -591,7 +591,7 @@ test('prints added/removed stats during installation', t => {
 
   t.plan(1)
 
-  output$.take(1).subscribe({
+  output$.take(1).map(normalizeNewline).subscribe({
     next: output => {
       t.equal(output, stripIndents`
         Packages: ${chalk.red('-1')} ${chalk.green('+5')}
@@ -611,7 +611,7 @@ test('prints added/removed stats during installation when 0 removed', t => {
 
   t.plan(1)
 
-  output$.take(1).subscribe({
+  output$.take(1).map(normalizeNewline).subscribe({
     next: output => {
       t.equal(output, stripIndents`
         Packages: ${chalk.green('+2')}
@@ -631,7 +631,7 @@ test('prints only the added stats if nothing was removed', t => {
 
   t.plan(1)
 
-  output$.take(1).subscribe({
+  output$.take(1).map(normalizeNewline).subscribe({
     next: output => {
       t.equal(output, stripIndents`
         Packages: ${chalk.green('+1')}
@@ -651,7 +651,7 @@ test('prints only the removed stats if nothing was added', t => {
 
   t.plan(1)
 
-  output$.take(1).subscribe({
+  output$.take(1).map(normalizeNewline).subscribe({
     next: output => {
       t.equal(output, stripIndents`
         Packages: ${chalk.red('-1')}
@@ -671,7 +671,7 @@ test('prints only the added stats if nothing was removed and a lot added', t => 
 
   t.plan(1)
 
-  output$.take(1).subscribe({
+  output$.take(1).map(normalizeNewline).subscribe({
     next: output => {
       t.equal(output, stripIndents`
         Packages: ${chalk.green('+100')}
@@ -691,7 +691,7 @@ test('prints only the removed stats if nothing was added and a lot removed', t =
 
   t.plan(1)
 
-  output$.take(1).subscribe({
+  output$.take(1).map(normalizeNewline).subscribe({
     next: output => {
       t.equal(output, stripIndents`
         Packages: ${chalk.red('-100')}
@@ -711,7 +711,7 @@ test('prints at least one remove sign when removed !== 0', t => {
 
   t.plan(1)
 
-  output$.take(1).subscribe({
+  output$.take(1).map(normalizeNewline).subscribe({
     next: output => {
       t.equal(output, stripIndents`
         Packages: ${chalk.red('-1')} ${chalk.green('+100')}
@@ -731,7 +731,7 @@ test('prints at least one add sign when added !== 0', t => {
 
   t.plan(1)
 
-  output$.take(1).subscribe({
+  output$.take(1).map(normalizeNewline).subscribe({
     next: output => {
       t.equal(output, stripIndents`
         Packages: ${chalk.red('-100')} ${chalk.green('+1')}
@@ -750,7 +750,7 @@ test('prints just removed during uninstallation', t => {
 
   t.plan(1)
 
-  output$.take(1).subscribe({
+  output$.take(1).map(normalizeNewline).subscribe({
     next: output => {
       t.equal(output, stripIndents`
         Packages: ${chalk.red('-4')}
