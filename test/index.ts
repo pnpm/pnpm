@@ -505,7 +505,7 @@ test('prints progress of big files download', async t => {
   stream$.push(
     output$.take(1)
       .tap(output => t.equal(output, stripIndents`
-        ${chalk.dim(`Downloading ${hlPkgId(pkgId1)}: ${hlValue('10.5 MB')}/${hlValue('10.5 MB')}, done`)}
+        Downloading ${hlPkgId(pkgId1)}: ${hlValue('10.5 MB')}/${hlValue('10.5 MB')}, done
         Resolving: total ${hlValue('3')}, reused ${hlValue('0')}, downloaded ${hlValue('0')}
         Downloading ${hlPkgId(pkgId3)}: ${hlValue('19.9 MB')}/${hlValue('21 MB')}
       `))

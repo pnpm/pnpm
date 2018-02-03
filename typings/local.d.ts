@@ -1,4 +1,9 @@
-declare module 'log-update' {
+declare module 'ansi-diff' {
+  const anything: any;
+  export = anything;
+}
+
+declare module 'cli-cursor' {
   const anything: any;
   export = anything;
 }

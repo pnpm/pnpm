@@ -1,4 +1,3 @@
-import chalk from 'chalk'
 import most = require('most')
 import os = require('os')
 
@@ -56,7 +55,7 @@ export default function mergeOutputs (outputs: Array<most.Stream<most.Stream<{ms
     if (!nonFixedPart) {
       return fixedPart
     }
-    return chalk.dim(nonFixedPart) + EOL + fixedPart
+    return `${nonFixedPart}${EOL}${fixedPart}`
   })
   .filter((msg) => {
     if (started) {

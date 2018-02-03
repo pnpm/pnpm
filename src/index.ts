@@ -1,6 +1,7 @@
-import {EventEmitter} from 'events'
-import logUpdate = require('log-update')
+import createDiffer = require('ansi-diff')
+import cliCursor = require('cli-cursor')
 import most = require('most')
+import os = require('os')
 import R = require('ramda')
 import * as supi from 'supi'
 import PushStream = require('zen-push')
@@ -32,12 +33,20 @@ export default function (
       })
     return
   }
+  cliCursor.hide()
+  const diff = createDiffer({
+    height: process.stdout.rows,
+    width: process.stdout.columns,
+  })
   output$
     .subscribe({
       complete () {}, // tslint:disable-line:no-empty
       error: (err) => logUpdate(err.message),
       next: logUpdate,
     })
+  function logUpdate (view: string) {
+    process.stdout.write(diff.update(`${view}${os.EOL}`))
+  }
 }
 
 export function toOutput$ (

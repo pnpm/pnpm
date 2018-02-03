@@ -3,9 +3,10 @@ dependencies:
   '@types/node': 9.3.0
   '@types/ramda': 0.25.16
   '@types/semver': 5.4.0
+  ansi-diff: 1.0.10
   chalk: 2.3.0
+  cli-cursor: 2.1.0
   common-tags: 1.7.2
-  log-update: 2.3.0
   most: 1.7.2
   most-last: 1.0.0
   ndjson: 1.5.0
@@ -255,18 +256,18 @@ packages:
     dev: true
     resolution:
       integrity: sha1-c7Xuyj+rZT49P5Qis0GtQiBdyWU=
+  /ansi-diff/1.0.10:
+    dependencies:
+      ansi-split: 1.0.1
+    dev: false
+    resolution:
+      integrity: sha512-pgsU9HUWzN2JqNBcuhn5vIDtSwfKetdjy6EQl3UsTRluyIL3S2tINgFZO8SERS13uB0/5/stxf5pVCNLcSW99w==
   /ansi-escapes/1.4.0:
     dev: true
     engines:
       node: '>=0.10.0'
     resolution:
       integrity: sha1-06ioOzGapneTZisT52HHkRQiMG4=
-  /ansi-escapes/3.0.0:
-    dev: false
-    engines:
-      node: '>=4'
-    resolution:
-      integrity: sha512-O/klc27mWNUigtv0F8NJWbLF00OcegQalkqKURWdosW08YZKi4m6CnSUSvIZG1otNJbTWhN01Hhz389DW7mvDQ==
   /ansi-regex/0.2.1:
     dev: true
     engines:
@@ -285,6 +286,12 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha1-7QMXwyIGT3lGbAKWa922Bas32Zg=
+  /ansi-split/1.0.1:
+    dependencies:
+      ansi-regex: 3.0.0
+    dev: false
+    resolution:
+      integrity: sha512-RRxQym4DFtDNmHIkW6aeFVvrXURb11lGAEPXNiryjCe8bK8RsANjzJ0M2aGOkvBYwP4Bl/xZ8ijtr6D3j1x/eg==
   /ansi-styles/1.1.0:
     dev: true
     engines:
@@ -1628,12 +1635,6 @@ packages:
       node: '>=0.10.0'
     resolution:
       integrity: sha1-754xOG8DGn8NZDr4L95QxFfvAMs=
-  /is-fullwidth-code-point/2.0.0:
-    dev: false
-    engines:
-      node: '>=4'
-    resolution:
-      integrity: sha1-o7MKXE8ZkYMWeqq5O+764937ZU8=
   /is-function/1.0.1:
     dev: true
     resolution:
@@ -1901,16 +1902,6 @@ packages:
     dev: true
     resolution:
       integrity: sha1-eCA6TRwyiuHYbcpkYONptX9AVa4=
-  /log-update/2.3.0:
-    dependencies:
-      ansi-escapes: 3.0.0
-      cli-cursor: 2.1.0
-      wrap-ansi: 3.0.1
-    dev: false
-    engines:
-      node: '>=4'
-    resolution:
-      integrity: sha1-iDKP19HOeTiykoN0bwsbwSayRwg=
   /longest/1.0.1:
     dev: true
     engines:
@@ -2025,10 +2016,17 @@ packages:
     resolution:
       integrity: sha1-Cdejk/A+mVp5+K+Fe3Cp4KsWVXo=
   /mimic-fn/1.1.0:
+    dev: true
     engines:
       node: '>=4'
     resolution:
       integrity: sha1-5md4PZLonb00KBi1IwudYqZyrRg=
+  /mimic-fn/1.2.0:
+    dev: false
+    engines:
+      node: '>=4'
+    resolution:
+      integrity: sha512-jf84uxzwiuiIVKiOLpfYk7N46TSy8ubTonmneY9vrpHNAnp0QBt2BxWV9dO3/j+BoVAb+a5G6YDPW3M5HOdMWQ==
   /minimatch/3.0.4:
     dependencies:
       brace-expansion: 1.1.8
@@ -2287,7 +2285,7 @@ packages:
       integrity: sha1-ofeDj4MUxRbwXs78vEzP4EtO14k=
   /onetime/2.0.1:
     dependencies:
-      mimic-fn: 1.1.0
+      mimic-fn: 1.2.0
     dev: false
     engines:
       node: '>=4'
@@ -3169,15 +3167,6 @@ packages:
       node: '>=0.10.0'
     resolution:
       integrity: sha1-EYvfW4zcUaKn5w0hHgfisLmxB9M=
-  /string-width/2.1.1:
-    dependencies:
-      is-fullwidth-code-point: 2.0.0
-      strip-ansi: 4.0.0
-    dev: false
-    engines:
-      node: '>=4'
-    resolution:
-      integrity: sha512-nOqH59deCq9SRHlxq1Aw85Jnt4w6KvLKqWVik6oA9ZklXLNIOlqg4F2yrT1MVaTjAqvVwdfeZ7w7aCvJD7ugkw==
   /string.prototype.trim/1.1.2:
     dependencies:
       define-properties: 1.1.2
@@ -3213,14 +3202,6 @@ packages:
       node: '>=0.10.0'
     resolution:
       integrity: sha1-ajhfuIU9lS1f8F0Oiq+UJ43GPc8=
-  /strip-ansi/4.0.0:
-    dependencies:
-      ansi-regex: 3.0.0
-    dev: false
-    engines:
-      node: '>=4'
-    resolution:
-      integrity: sha1-qEeQIusaw2iocTibY1JixQXuNo8=
   /strip-bom/3.0.0:
     dev: true
     engines:
@@ -3653,15 +3634,6 @@ packages:
       node: '>=0.10.0'
     resolution:
       integrity: sha512-Hz/mrNwitNRh/HUAtM/VT/5VH+ygD6DV7mYKZAtHOrbs8U7lvPS6xf7EJKMF0uW1KJCl0H701g3ZGus+muE5vQ==
-  /wrap-ansi/3.0.1:
-    dependencies:
-      string-width: 2.1.1
-      strip-ansi: 4.0.0
-    dev: false
-    engines:
-      node: '>=4'
-    resolution:
-      integrity: sha1-KIoE2H7aXChuBg3+jxNc6NAH+Lo=
   /wrappy/1.0.2:
     dev: true
     resolution:
@@ -3749,12 +3721,13 @@ specifiers:
   '@types/ramda': ^0.25.6
   '@types/semver': ^5.4.0
   '@types/tape': ^4.2.30
+  ansi-diff: ^1.0.10
   chalk: ^2.2.0
+  cli-cursor: ^2.1.0
   commitizen: ^2.9.5
   common-tags: ^1.4.0
   delay: ^2.0.0
   ghooks: ^2.0.0
-  log-update: ^2.3.0
   mos-tap-diff: ^1.0.0
   most: ^1.7.2
   most-last: ^1.0.0
