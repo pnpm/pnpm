@@ -523,15 +523,26 @@ test('the dev field should be updated to dev = false if it is not a dev dependen
 
 test('subdependency is both optional and dev', t => {
   t.deepEqual(prune(yaml`
+    dependencies:
+      prod-parent: 1.0.0
     devDependencies:
       parent: 1.0.0
     packages:
       /parent/1.0.0:
         optionalDependencies:
           subdep: 1.0.0
+          subdep2: 1.0.0
+        resolution:
+          integrity: sha1-Sb1jMdfQLQwJvJEKEHW6gWW1bfk=
+      /prod-parent/1.0.0:
+        dependencies:
+          subdep2: 1.0.0
         resolution:
           integrity: sha1-Sb1jMdfQLQwJvJEKEHW6gWW1bfk=
       /subdep/1.0.0:
+        resolution:
+          integrity: sha1-Sb1jMdfQLQwJvJEKEHW6gWW1bfk=
+      /subdep2/1.0.0:
         resolution:
           integrity: sha1-Sb1jMdfQLQwJvJEKEHW6gWW1bfk=
     registry: 'http://localhost:4873/'
@@ -539,13 +550,19 @@ test('subdependency is both optional and dev', t => {
     shrinkwrapVersion: 3
     specifiers:
       parent: ^1.0.0
+      prod-parent: ^1.0.0
   `, {
     name: 'foo',
     version: '1.0.0',
+    dependencies: {
+      'prod-parent': '^1.0.0',
+    },
     devDependencies: {
       parent: '^1.0.0',
     },
   }), yaml`
+    dependencies:
+      prod-parent: 1.0.0
     devDependencies:
       parent: 1.0.0
     packages:
@@ -553,6 +570,13 @@ test('subdependency is both optional and dev', t => {
         dev: true
         optionalDependencies:
           subdep: 1.0.0
+          subdep2: 1.0.0
+        resolution:
+          integrity: sha1-Sb1jMdfQLQwJvJEKEHW6gWW1bfk=
+      /prod-parent/1.0.0:
+        dev: false
+        dependencies:
+          subdep2: 1.0.0
         resolution:
           integrity: sha1-Sb1jMdfQLQwJvJEKEHW6gWW1bfk=
       /subdep/1.0.0:
@@ -560,11 +584,15 @@ test('subdependency is both optional and dev', t => {
         optional: true
         resolution:
           integrity: sha1-Sb1jMdfQLQwJvJEKEHW6gWW1bfk=
+      /subdep2/1.0.0:
+        resolution:
+          integrity: sha1-Sb1jMdfQLQwJvJEKEHW6gWW1bfk=
     registry: 'http://localhost:4873/'
     shrinkwrapMinorVersion: 4
     shrinkwrapVersion: 3
     specifiers:
       parent: ^1.0.0
+      prod-parent: ^1.0.0
   `)
 
   t.end()

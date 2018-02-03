@@ -21,6 +21,7 @@ export default function prune (shr: Shrinkwrap, pkg: Package): Shrinkwrap {
   const shrOptionalDependencies: ResolvedDependencies = {}
   const shrDevDependencies: ResolvedDependencies = {}
   const nonOptional = new Set()
+  const notProdOnly = new Set()
 
   R.keys(shr.specifiers).forEach((depName) => {
     if (allDeps.indexOf(depName) === -1) return
@@ -37,26 +38,34 @@ export default function prune (shr: Shrinkwrap, pkg: Package): Shrinkwrap {
   const devDepRelativePaths: string[] = R.keys(shrDevDependencies)
     .map((pkgName: string) => refToRelative(shrDevDependencies[pkgName], pkgName))
 
-  copyDependencySubTree(packages, devDepRelativePaths, shr, new Set(), {registry: shr.registry, nonOptional, dev: true})
+  copyDependencySubTree(packages, devDepRelativePaths, shr, new Set(), {registry: shr.registry, nonOptional, notProdOnly, dev: true})
 
   const depRelativePaths: string[] = R.keys(shrDependencies)
     .map((pkgName: string) => refToRelative(shrDependencies[pkgName], pkgName))
 
   copyDependencySubTree(packages, depRelativePaths, shr, new Set(), {
     nonOptional,
+    notProdOnly,
     registry: shr.registry,
   })
 
   if (shrOptionalDependencies) {
     const optionalDepRelativePaths: string[] = R.keys(shrOptionalDependencies)
       .map((pkgName: string) => refToRelative(shrOptionalDependencies[pkgName], pkgName))
-    copyDependencySubTree(packages, optionalDepRelativePaths, shr, new Set(), {registry: shr.registry, nonOptional, optional: true})
+    copyDependencySubTree(packages, optionalDepRelativePaths, shr, new Set(), {registry: shr.registry, nonOptional, notProdOnly, optional: true})
   }
 
-  copyDependencySubTree(packages, devDepRelativePaths, shr, new Set(), {registry: shr.registry, nonOptional, dev: true, walkOptionals: true})
+  copyDependencySubTree(packages, devDepRelativePaths, shr, new Set(), {
+    dev: true,
+    nonOptional,
+    notProdOnly,
+    registry: shr.registry,
+    walkOptionals: true,
+  })
 
   copyDependencySubTree(packages, depRelativePaths, shr, new Set(), {
     nonOptional,
+    notProdOnly,
     registry: shr.registry,
     walkOptionals: true,
   })
@@ -94,6 +103,7 @@ function copyDependencySubTree (
     dev?: boolean,
     optional?: boolean,
     nonOptional: Set<string>,
+    notProdOnly: Set<string>,
     walkOptionals?: boolean,
   },
 ) {
@@ -109,7 +119,6 @@ function copyDependencySubTree (
       continue
     }
     const depShr = shr.packages[depRalativePath]
-    const checkDev = !opts.walkOptionals || !resolvedPackages[depRalativePath]
     resolvedPackages[depRalativePath] = depShr
     if (opts.optional && !opts.nonOptional.has(depRalativePath)) {
       depShr.optional = true
@@ -117,14 +126,13 @@ function copyDependencySubTree (
       opts.nonOptional.add(depRalativePath)
       delete depShr.optional
     }
-    if (checkDev) {
-      if (opts.dev) {
-        depShr.dev = true
-      } else if (depShr.dev === true) { // keeping if dev is explicitly false
-        delete depShr.dev
-      } else if (depShr.dev === undefined) {
-        depShr.dev = false
-      }
+    if (opts.dev) {
+      opts.notProdOnly.add(depRalativePath)
+      depShr.dev = true
+    } else if (depShr.dev === true) { // keeping if dev is explicitly false
+      delete depShr.dev
+    } else if (depShr.dev === undefined && !opts.notProdOnly.has(depRalativePath)) {
+      depShr.dev = false
     }
     const newDependencies = R.keys(depShr.dependencies)
       .map((pkgName: string) => refToRelative((depShr.dependencies && depShr.dependencies[pkgName]) as string, pkgName))
