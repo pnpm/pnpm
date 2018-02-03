@@ -521,6 +521,55 @@ test('the dev field should be updated to dev = false if it is not a dev dependen
   t.end()
 })
 
+test('subdependency is both optional and dev', t => {
+  t.deepEqual(prune(yaml`
+    devDependencies:
+      parent: 1.0.0
+    packages:
+      /parent/1.0.0:
+        optionalDependencies:
+          subdep: 1.0.0
+        resolution:
+          integrity: sha1-Sb1jMdfQLQwJvJEKEHW6gWW1bfk=
+      /subdep/1.0.0:
+        resolution:
+          integrity: sha1-Sb1jMdfQLQwJvJEKEHW6gWW1bfk=
+    registry: 'http://localhost:4873/'
+    shrinkwrapMinorVersion: 4
+    shrinkwrapVersion: 3
+    specifiers:
+      parent: ^1.0.0
+  `, {
+    name: 'foo',
+    version: '1.0.0',
+    devDependencies: {
+      parent: '^1.0.0',
+    },
+  }), yaml`
+    devDependencies:
+      parent: 1.0.0
+    packages:
+      /parent/1.0.0:
+        dev: true
+        optionalDependencies:
+          subdep: 1.0.0
+        resolution:
+          integrity: sha1-Sb1jMdfQLQwJvJEKEHW6gWW1bfk=
+      /subdep/1.0.0:
+        dev: true
+        optional: true
+        resolution:
+          integrity: sha1-Sb1jMdfQLQwJvJEKEHW6gWW1bfk=
+    registry: 'http://localhost:4873/'
+    shrinkwrapMinorVersion: 4
+    shrinkwrapVersion: 3
+    specifiers:
+      parent: ^1.0.0
+  `)
+
+  t.end()
+})
+
 test('dev = true is removed if dependency is used both as dev and prod dependency', t => {
   t.deepEqual(prune(yaml`
     dependencies:

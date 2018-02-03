@@ -109,6 +109,7 @@ function copyDependencySubTree (
       continue
     }
     const depShr = shr.packages[depRalativePath]
+    const checkDev = !opts.walkOptionals || !resolvedPackages[depRalativePath]
     resolvedPackages[depRalativePath] = depShr
     if (opts.optional && !opts.nonOptional.has(depRalativePath)) {
       depShr.optional = true
@@ -116,7 +117,7 @@ function copyDependencySubTree (
       opts.nonOptional.add(depRalativePath)
       delete depShr.optional
     }
-    if (!opts.walkOptionals) {
+    if (checkDev) {
       if (opts.dev) {
         depShr.dev = true
       } else if (depShr.dev === true) { // keeping if dev is explicitly false
