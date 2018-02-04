@@ -1,4 +1,5 @@
 import {
+  existsWanted,
   readWanted,
   readCurrent,
   readPrivate,
@@ -139,6 +140,45 @@ test('writeCurrentOnly()', async t => {
   await writeCurrentOnly(projectPath, wantedShrinkwrap)
   t.equal(await readWanted(projectPath, {ignoreIncompatible: false}), null)
   t.deepEqual(await readCurrent(projectPath, {ignoreIncompatible: false}), wantedShrinkwrap)
+  t.end()
+})
+
+test('existsWanted()', async t => {
+  const projectPath = tempy.directory()
+  t.notOk(await existsWanted(projectPath))
+  await writeWantedOnly(projectPath, {
+    shrinkwrapVersion: 3,
+    registry: 'https://registry.npmjs.org',
+    dependencies: {
+      'is-positive': '1.0.0',
+      'is-negative': '1.0.0',
+    },
+    specifiers: {
+      'is-positive': '^1.0.0',
+      'is-negative': '^1.0.0',
+    },
+    packages: {
+      '/is-positive/1.0.0': {
+        resolution: {
+          integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g='
+        }
+      },
+      '/is-negative/1.0.0': {
+        dependencies: {
+          'is-positive': '2.0.0',
+        },
+        resolution: {
+          integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g='
+        }
+      },
+      '/is-positive/2.0.0': {
+        resolution: {
+          integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g='
+        }
+      },
+    }
+  })
+  t.ok(await existsWanted(projectPath))
   t.end()
 })
 

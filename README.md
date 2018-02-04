@@ -34,6 +34,10 @@ Alias: `readPrivate`
 
 Reads the shrinkwrap file from `node_modules/.shrinkwrap.yaml`.
 
+### `existsWanted(pkgPath) => Promise<Boolean>`
+
+Returns `true` if a `shrinkwrap.yaml` exists in the root of the package.
+
 ### `write(pkgPath, wantedShrinkwrap, currentShrinkwrap) => Promise<void>`
 
 Writes the wanted/current shrinkwrap files. When they are empty, removes them.
