@@ -3,9 +3,12 @@ export * from './read'
 export * from './types'
 
 import prune from './prune'
-import write, {writeWantedOnly} from './write'
+import write, {
+  writeCurrentOnly,
+  writeWantedOnly,
+} from './write'
 
-export {prune, write, writeWantedOnly}
+export {prune, write, writeWantedOnly, writeCurrentOnly}
 
 // for backward compatibility
 import {refToRelative} from 'dependency-path'

@@ -23,16 +23,31 @@ export function writeWantedOnly (
   pkgPath: string,
   wantedShrinkwrap: Shrinkwrap,
 ) {
-  const wantedShrinkwrapPath = path.join(pkgPath, WANTED_SHRINKWRAP_FILENAME)
+  return writeShrinkwrap(WANTED_SHRINKWRAP_FILENAME, pkgPath, wantedShrinkwrap)
+}
+
+export function writeCurrentOnly (
+  pkgPath: string,
+  currentShrinkwrap: Shrinkwrap,
+) {
+  return writeShrinkwrap(CURRENT_SHRINKWRAP_FILENAME, pkgPath, currentShrinkwrap)
+}
+
+function writeShrinkwrap (
+  shrinkwrapFilename: string,
+  pkgPath: string,
+  wantedShrinkwrap: Shrinkwrap,
+) {
+  const shrinkwrapPath = path.join(pkgPath, shrinkwrapFilename)
 
   // empty shrinkwrap is not saved
   if (Object.keys(wantedShrinkwrap.specifiers).length === 0) {
-    return rimraf(wantedShrinkwrapPath)
+    return rimraf(shrinkwrapPath)
   }
 
   const yamlDoc = yaml.safeDump(wantedShrinkwrap, SHRINKWRAP_YAML_FORMAT)
 
-  return writeFileAtomic(wantedShrinkwrapPath, yamlDoc)
+  return writeFileAtomic(shrinkwrapPath, yamlDoc)
 }
 
 export default function write (

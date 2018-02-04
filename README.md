@@ -43,6 +43,10 @@ Writes the wanted/current shrinkwrap files. When they are empty, removes them.
 Writes the wanted shrinkwrap file only. Sometimes it is needed just to update the wanted shrinkwrap
 without touching `node_modules`.
 
+### `writeCurrentOnly(pkgPath, currentShrinkwrap) => Promise<void>`
+
+Writes the current shrinkwrap file only. Fails if there is no `node_modules` directory in the `pkgPath`.
+
 ### `prune(shrinkwrap, package) => Promise<Shrinkwrap>`
 
 Prunes a shrinkwrap file. Prunning means removing packages that are not referenced.
