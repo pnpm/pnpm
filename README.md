@@ -43,6 +43,7 @@ Install packages.
 * `options.reporter` - *Function* - A function that listens for logs.
 * `options.packageManager` - *Object* - The `package.json` of the package manager.
 * `options.hooks` - *Object* - A property that contains installation hooks. Hooks are [documented separately](#hooks).
+* `options.shrinkwrap` - *Boolean* - `true` by default. When `false`, ignores the `shrinkwrap.yaml` file and doesn't create/update one.
 * `options.shrinkwrapOnly` - *Boolean* - `false` by default. When `true`, only updates `shrinkwrap.yaml` and `package.json` instead of checking `node_modules` and downloading dependencies.
 
 **Returns:** a Promise
