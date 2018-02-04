@@ -31,7 +31,7 @@ dependencies:
   package-store: 0.15.3
   path-name: 1.0.0
   pkgs-graph: 2.0.0-1
-  pnpm-default-reporter: 0.14.0
+  pnpm-default-reporter: 0.14.1
   pnpm-file-reporter: 0.0.1
   pnpm-list: 2.0.1
   process-exists: 3.0.0
@@ -838,17 +838,17 @@ packages:
     dev: false
     resolution:
       integrity: sha1-w2rsy6VjuJzrVW82kPCx2eNUf38=
+  /ansi-diff/1.0.10:
+    dependencies:
+      ansi-split: 1.0.1
+    dev: false
+    resolution:
+      integrity: sha512-pgsU9HUWzN2JqNBcuhn5vIDtSwfKetdjy6EQl3UsTRluyIL3S2tINgFZO8SERS13uB0/5/stxf5pVCNLcSW99w==
   /ansi-escapes/1.4.0:
     engines:
       node: '>=0.10.0'
     resolution:
       integrity: sha1-06ioOzGapneTZisT52HHkRQiMG4=
-  /ansi-escapes/3.0.0:
-    dev: false
-    engines:
-      node: '>=4'
-    resolution:
-      integrity: sha512-O/klc27mWNUigtv0F8NJWbLF00OcegQalkqKURWdosW08YZKi4m6CnSUSvIZG1otNJbTWhN01Hhz389DW7mvDQ==
   /ansi-parser/2.0.0:
     dev: false
     resolution:
@@ -872,6 +872,12 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha1-7QMXwyIGT3lGbAKWa922Bas32Zg=
+  /ansi-split/1.0.1:
+    dependencies:
+      ansi-regex: 3.0.0
+    dev: false
+    resolution:
+      integrity: sha512-RRxQym4DFtDNmHIkW6aeFVvrXURb11lGAEPXNiryjCe8bK8RsANjzJ0M2aGOkvBYwP4Bl/xZ8ijtr6D3j1x/eg==
   /ansi-styles/2.2.1:
     engines:
       node: '>=0.10.0'
@@ -3680,16 +3686,6 @@ packages:
       node: '>=0.10.0'
     resolution:
       integrity: sha1-GZKfZMQJPS0ucHWh2tivWcKWuNE=
-  /log-update/2.3.0:
-    dependencies:
-      ansi-escapes: 3.0.0
-      cli-cursor: 2.1.0
-      wrap-ansi: 3.0.1
-    dev: false
-    engines:
-      node: '>=4'
-    resolution:
-      integrity: sha1-iDKP19HOeTiykoN0bwsbwSayRwg=
   /longest/1.0.1:
     dev: true
     engines:
@@ -4936,15 +4932,16 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha512-rKzsDOico9EZPMt6xq/5ulebekkmAhSeivDz+tPArfuGrp3UKg8pJgvPLL/t33YT222Qo4tMSq7kxKX34P4D/w==
-  /pnpm-default-reporter/0.14.0:
+  /pnpm-default-reporter/0.14.1:
     dependencies:
       '@types/common-tags': 1.4.0
       '@types/node': 9.4.0
       '@types/ramda': 0.25.17
       '@types/semver': 5.5.0
+      ansi-diff: 1.0.10
       chalk: 2.3.0
+      cli-cursor: 2.1.0
       common-tags: 1.7.2
-      log-update: 2.3.0
       most: 1.7.3
       most-last: /most-last/1.0.0/most@1.7.3
       ndjson: 1.5.0
@@ -4959,7 +4956,7 @@ packages:
     peerDependencies:
       supi: '>=0.12.5 <0.13.0'
     resolution:
-      integrity: sha512-+OaSGxmiF5RoRoWL91NYpVZr8nzqDiLdi5OSLVf9jab//dVjOSZ8e4PR+O9ZNnK9mZ5gSZtFkWcdy3PlUWuazw==
+      integrity: sha512-w7u8xgbUbAO4MrKN9+sqvMzZO9VR4JqVdVbFf/8ZuIH4PEiFlyvfOlDccOZ5GjwgkcyQcMkpJKu0nz2jhtPrCw==
   /pnpm-file-reporter/0.0.1:
     dependencies:
       '@types/chalk': 0.4.31
@@ -6834,15 +6831,6 @@ packages:
       node: '>=0.10.0'
     resolution:
       integrity: sha1-2Pw9KE3QV5T+hJc8rs3Rz4JP3YU=
-  /wrap-ansi/3.0.1:
-    dependencies:
-      string-width: 2.1.1
-      strip-ansi: 4.0.0
-    dev: false
-    engines:
-      node: '>=4'
-    resolution:
-      integrity: sha1-KIoE2H7aXChuBg3+jxNc6NAH+Lo=
   /wrappy/1.0.2:
     resolution:
       integrity: sha1-tSQ9jz7BqjXxNkYFvA0QNuMKtp8=
@@ -7044,7 +7032,7 @@ specifiers:
   path-exists: ^3.0.0
   path-name: ^1.0.0
   pkgs-graph: ^2.0.0-0
-  pnpm-default-reporter: ^0.14.0
+  pnpm-default-reporter: ^0.14.1
   pnpm-file-reporter: ^0.0.1
   pnpm-list: ^2.0.0
   pnpm-registry-mock: ^1.5.0
