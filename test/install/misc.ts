@@ -69,3 +69,23 @@ test('install --shrinkwrap-only', async (t: tape.Test) => {
   const shr = await project.loadShrinkwrap()
   t.ok(shr.packages['/rimraf/2.5.1'])
 })
+
+test('install --no-shrinkwrap', async (t: tape.Test) => {
+  const project = prepare(t)
+
+  await execPnpm('install', 'is-positive', '--no-shrinkwrap')
+
+  await project.has('is-positive')
+
+  t.notOk(await project.loadShrinkwrap(), 'shrinkwrap.yaml not created')
+})
+
+test('install --no-package-lock', async (t: tape.Test) => {
+  const project = prepare(t)
+
+  await execPnpm('install', 'is-positive', '--no-package-lock')
+
+  await project.has('is-positive')
+
+  t.notOk(await project.loadShrinkwrap(), 'shrinkwrap.yaml not created')
+})

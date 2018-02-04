@@ -234,6 +234,13 @@ Controls the way packages are imported from the store.
 * **copy** - copy packages from the store
 * **reflink** - reflink (aka copy-on-write) packages from the store
 
+#### shrinkwrap
+
+* Default: **true**
+* Type: **Boolean**
+
+When set to `false`, pnpm won't read or generate a `shrinkwrap.yaml` file.
+
 #### shrinkwrap-only
 
 * Default: **false**

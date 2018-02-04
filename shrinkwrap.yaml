@@ -39,7 +39,7 @@ dependencies:
   retry: 0.10.1
   signal-exit: 3.0.2
   strip-color: 0.1.0
-  supi: 0.12.5
+  supi: 0.12.6
   text-table: 0.2.0
   tree-kill: 1.2.0
   update-notifier: 2.3.0
@@ -75,7 +75,7 @@ devDependencies:
   npm-registry-client: 8.5.0
   npm-run-all: 4.1.2
   npm-scripts-info: 0.3.6
-  package-preview: 1.0.4
+  package-preview: 1.0.5
   path-exists: 3.0.0
   pnpm-registry-mock: 1.18.0
   read-pkg: 3.0.0
@@ -96,7 +96,7 @@ packages:
       babel-polyfill: 6.26.0
       chalk: 2.3.0
       get-stdin: 5.0.1
-      lodash: 4.17.4
+      lodash: 4.17.5
       meow: 3.7.0
     dev: true
     engines:
@@ -117,7 +117,7 @@ packages:
       conventional-changelog-angular: 1.6.1
       cosmiconfig: 3.1.0
       find-up: 2.1.0
-      lodash: 4.17.4
+      lodash: 4.17.5
       path-exists: 3.0.0
       resolve-from: 3.0.0
       semver: 5.5.0
@@ -258,7 +258,7 @@ packages:
     dependencies:
       JSONStream: 1.3.2
       is-text-path: 1.0.1
-      lodash: 4.17.4
+      lodash: 4.17.5
       meow: 3.7.0
       split2: 2.2.0
       through2: 2.0.3
@@ -429,7 +429,7 @@ packages:
       '@types/node': 9.4.0
       dependency-path: 1.2.0
       package-store: 0.15.3
-      pnpm-shrinkwrap: 5.1.5
+      pnpm-shrinkwrap: 5.3.0
     dev: false
     engines:
       node: '>=4'
@@ -1021,7 +1021,7 @@ packages:
       integrity: sha1-7GphrlZIDAw8skHJVhjiCJL5Zyo=
   /async/2.6.0:
     dependencies:
-      lodash: 4.17.4
+      lodash: 4.17.5
     dev: true
     resolution:
       integrity: sha512-xAfGg1/NTLBBKlHFmnd7PlmUW9KhVQIUuSrYem9xzFUZy13ScvtyGGejaae9iAVRiRq9+Cx7DPFaAAhCpyxyPw==
@@ -1645,7 +1645,7 @@ packages:
     dependencies:
       JSONStream: 1.3.2
       is-text-path: 1.0.1
-      lodash: 4.17.4
+      lodash: 4.17.5
       meow: 3.7.0
       split2: 2.2.0
       through2: 2.0.3
@@ -1763,7 +1763,6 @@ packages:
       semver: 5.5.0
       shebang-command: 1.2.0
       which: 1.3.0
-    dev: false
     engines:
       node: '>=4.8'
     resolution:
@@ -1991,7 +1990,7 @@ packages:
       '@types/node': 9.4.0
       '@types/semver': 5.5.0
       dependency-path: 1.2.0
-      pnpm-shrinkwrap: 5.1.5
+      pnpm-shrinkwrap: 5.3.0
       semver: 5.5.0
     dev: false
     engines:
@@ -3677,6 +3676,10 @@ packages:
     dev: true
     resolution:
       integrity: sha1-eCA6TRwyiuHYbcpkYONptX9AVa4=
+  /lodash/4.17.5:
+    dev: true
+    resolution:
+      integrity: sha512-svL3uiZf1RwhH+cWrfZn3A4+U58wbP0tGVTLQPbjplZxZ8ROD9VLuNgsRniTlLe7OlSqR79RUehXgpBW/s0IQw==
   /log-update/1.0.2:
     dependencies:
       ansi-escapes: 1.4.0
@@ -4061,7 +4064,6 @@ packages:
     resolution:
       integrity: sha1-gixFgNer54PfGZZbeJYiyoAWA+Q=
   /nice-try/1.0.4:
-    dev: false
     resolution:
       integrity: sha512-2NpiFHqC87y/zFke0fC0spBXL3bBsoh/p5H1EFhshxjCR5+0g2d6BiXbUFz9v1sAcxsk2htp2eQnNIci2dIYcA==
   /node-abi/2.2.0:
@@ -4656,7 +4658,7 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha1-iGmgQBJTZhxMTKPabCEh7VVfXu0=
-  /package-preview/1.0.4:
+  /package-preview/1.0.5:
     dependencies:
       '@pnpm/exec': 1.1.4
       '@types/fs-extra': 5.0.0
@@ -4664,7 +4666,7 @@ packages:
       '@types/mz': 0.0.32
       '@types/node': 9.4.0
       '@types/write-json-file': 2.2.1
-      cross-spawn: 5.1.0
+      cross-spawn: 6.0.4
       find-down: 0.1.4
       fs-extra: 5.0.0
       graceful-fs: 4.1.11
@@ -4679,7 +4681,7 @@ packages:
     engines:
       node: '>=4'
     resolution:
-      integrity: sha512-JFT3uudfk3qtNHpCb3GwOq/n3NrEisxeQC/yTJLk7GHStYleXaFur4yW/SXqOtGMaKAAq5qTrkeFWdXheX+GPA==
+      integrity: sha512-Qmhr23K9e2jI4LK4MU2be4xWX0CyniBDwmyCi6K+3lTZtryd2r29Wh6wPXo6wdP++jNsJ5ayZT4yJlZWVHnluQ==
   /package-store/0.15.3:
     dependencies:
       '@pnpm/fs-locker': 1.0.1
@@ -5008,7 +5010,7 @@ packages:
     dev: true
     resolution:
       integrity: sha512-PijlGxk564x1E/3Pw0hzcE6tw9Va/lZ/UVfheq+ld62c8mqOmgC/49DCx+YIV1RAwscDttsVUT3EeAjAZHh55g==
-  /pnpm-shrinkwrap/5.1.5:
+  /pnpm-shrinkwrap/5.3.0:
     dependencies:
       '@types/node': 9.4.0
       '@types/ramda': 0.25.17
@@ -5026,7 +5028,7 @@ packages:
     peerDependencies:
       '@pnpm/logger': ^1.0.0
     resolution:
-      integrity: sha512-ai/7AWn/95I6UbF4gmtB1FOpDkRBkcDvbQAPE0n/4SxMH6MlOy8e7oe4tpgK3UQmpYDDykNXDMTSC/yXNb2WQQ==
+      integrity: sha512-WdBYsVsaRbKLnU7Vb7QAk2SE9UAD0j0AaWcv5VTX1ky2bJWqF1JE5NJSpedyL/rTr3eBNQiqM5nzV+WbzX0mUQ==
   /prebuild-install/2.5.0:
     dependencies:
       detect-libc: 1.0.3
@@ -6110,7 +6112,7 @@ packages:
       node: '>=0.10.0'
     resolution:
       integrity: sha1-PFMZQukIwml8DsNEhYwobHygpgo=
-  /supi/0.12.5:
+  /supi/0.12.6:
     dependencies:
       '@pnpm/check-package': 1.0.0
       '@pnpm/fs-locker': 1.0.1
@@ -6160,7 +6162,7 @@ packages:
       path-exists: 3.0.0
       path-name: 1.0.0
       pnpm-install-checks: 1.1.0
-      pnpm-shrinkwrap: 5.1.5
+      pnpm-shrinkwrap: 5.3.0
       ramda: 0.25.0
       read-package-json: 2.0.12
       remove-all-except-outer-links: 1.0.3
@@ -6179,7 +6181,7 @@ packages:
     peerDependencies:
       '@pnpm/logger': ^1.0.0
     resolution:
-      integrity: sha512-AFHV/TiBu7RBQkVnAmuRyOjDtCL+SIijg9WYb7RGeBGvGALr74ESspfYltN+EA8vDdeBa2qRVh6T0pooy+t0+Q==
+      integrity: sha512-RrZxnm4cZ63+qu2ZPnYTmcfgBOXnXiBwQUWJnM9Ba0A/8bDmH+cb5IcE/t19ZziJo6gdSt9GBHHupvZNcwiEFQ==
   /supports-color/2.0.0:
     engines:
       node: '>=0.8.0'
@@ -6756,7 +6758,7 @@ packages:
       chalk: 1.1.3
       in-publish: 2.0.0
       inquirer: 0.11.0
-      lodash: 4.17.4
+      lodash: 4.17.5
       log-update: 1.0.2
       minimist: 1.2.0
       node-localstorage: 0.6.0
@@ -7046,7 +7048,7 @@ specifiers:
   sepia: ^2.0.2
   signal-exit: ^3.0.2
   strip-color: ^0.1.0
-  supi: ^0.12.5
+  supi: ^0.12.6
   tape: ^4.6.3
   tape-promise: ^2.0.1
   text-table: ^0.2.0

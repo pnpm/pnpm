@@ -209,6 +209,10 @@ async function run (argv: string[]) {
     opts.development = true
   }
 
+  if (!opts.packageLock && opts.shrinkwrap) {
+    opts.shrinkwrap = false
+  }
+
   const reporterType: ReporterType = (() => {
     if (npm.config.get('loglevel') === 'silent') return 'silent'
     if (opts.reporter) return opts.reporter as ReporterType
