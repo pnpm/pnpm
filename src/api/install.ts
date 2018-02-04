@@ -42,6 +42,7 @@ import lock from './lock'
 import {
   write as saveShrinkwrap,
   writeWantedOnly as saveWantedShrinkwrapOnly,
+  writeCurrentOnly as saveCurrentShrinkwrapOnly,
   Shrinkwrap,
   ResolvedDependencies,
 } from 'pnpm-shrinkwrap'
@@ -560,7 +561,9 @@ async function installInContext (
     await saveWantedShrinkwrapOnly(ctx.root, result.wantedShrinkwrap)
   } else {
     await Promise.all([
-      saveShrinkwrap(ctx.root, result.wantedShrinkwrap, result.currentShrinkwrap),
+      opts.shrinkwrap
+        ? saveShrinkwrap(ctx.root, result.wantedShrinkwrap, result.currentShrinkwrap)
+        : saveCurrentShrinkwrapOnly(ctx.root, result.currentShrinkwrap),
       result.currentShrinkwrap.packages === undefined && result.removedPkgIds.size === 0
         ? Promise.resolve()
         : saveModules(path.join(ctx.root, 'node_modules'), {

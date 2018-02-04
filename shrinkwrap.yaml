@@ -47,7 +47,7 @@ dependencies:
   path-exists: 3.0.0
   path-name: 1.0.0
   pnpm-install-checks: 1.1.0
-  pnpm-shrinkwrap: 5.1.5
+  pnpm-shrinkwrap: 5.3.0
   ramda: 0.25.0
   read-package-json: 2.0.12
   remove-all-except-outer-links: 1.0.3
@@ -3617,7 +3617,7 @@ packages:
     dev: true
     resolution:
       integrity: sha512-PijlGxk564x1E/3Pw0hzcE6tw9Va/lZ/UVfheq+ld62c8mqOmgC/49DCx+YIV1RAwscDttsVUT3EeAjAZHh55g==
-  /pnpm-shrinkwrap/5.1.5:
+  /pnpm-shrinkwrap/5.3.0:
     dependencies:
       '@types/node': 9.4.0
       '@types/ramda': 0.25.17
@@ -3635,7 +3635,7 @@ packages:
     peerDependencies:
       '@pnpm/logger': ^1.0.0
     resolution:
-      integrity: sha512-ai/7AWn/95I6UbF4gmtB1FOpDkRBkcDvbQAPE0n/4SxMH6MlOy8e7oe4tpgK3UQmpYDDykNXDMTSC/yXNb2WQQ==
+      integrity: sha512-WdBYsVsaRbKLnU7Vb7QAk2SE9UAD0j0AaWcv5VTX1ky2bJWqF1JE5NJSpedyL/rTr3eBNQiqM5nzV+WbzX0mUQ==
   /prebuild-install/2.5.0:
     dependencies:
       detect-libc: 1.0.3
@@ -5085,7 +5085,7 @@ specifiers:
   path-name: ^1.0.0
   pnpm-install-checks: ^1.1.0
   pnpm-registry-mock: ^1.17.0
-  pnpm-shrinkwrap: ^5.1.5
+  pnpm-shrinkwrap: ^5.3.0
   ramda: ^0.25.0
   read-package-json: ^2.0.5
   read-pkg: ^3.0.0

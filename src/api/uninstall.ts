@@ -13,6 +13,7 @@ import lock from './lock'
 import {
   Shrinkwrap,
   write as saveShrinkwrap,
+  writeCurrentOnly as saveCurrentShrinkwrapOnly,
   prune as pruneShrinkwrap,
 } from 'pnpm-shrinkwrap'
 import logger, {streamParser} from '@pnpm/logger'
@@ -81,7 +82,11 @@ export async function uninstallInContext (
   const currentShrinkwrap = makePartialCurrentShrinkwrap
     ? pruneShrinkwrap(ctx.currentShrinkwrap, pkg)
     : newShr
-  await saveShrinkwrap(ctx.root, newShr, currentShrinkwrap)
+  if (opts.shrinkwrap) {
+    await saveShrinkwrap(ctx.root, newShr, currentShrinkwrap)
+  } else {
+    await saveCurrentShrinkwrapOnly(ctx.root, currentShrinkwrap)
+  }
   await saveModules(path.join(ctx.root, 'node_modules'), {
     packageManager: `${opts.packageManager.name}@${opts.packageManager.version}`,
     store: ctx.storePath,

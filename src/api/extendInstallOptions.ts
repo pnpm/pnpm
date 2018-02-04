@@ -11,6 +11,7 @@ export type InstallOptions = {
   storeController: StoreController,
   store: string,
   reporter?: ReporterFunction,
+  shrinkwrap?: boolean,
   shrinkwrapOnly?: boolean,
   force?: boolean,
   update?: boolean,
@@ -52,6 +53,7 @@ export type InstallOptions = {
 }
 
 export type StrictInstallOptions = InstallOptions & {
+  shrinkwrap: boolean,
   shrinkwrapOnly: boolean,
   force: boolean,
   update: boolean,
@@ -99,6 +101,7 @@ const defaults = async (opts: InstallOptions) => {
   const prefix = opts.prefix || process.cwd()
   return <StrictInstallOptions>{
     storeController: opts.storeController,
+    shrinkwrap: true,
     shrinkwrapOnly: false,
     saveExact: false,
     global: false,
@@ -157,6 +160,9 @@ export default async (
   }
   if (extendedOpts.lock === false) {
     logger.warn('using --no-lock I sure hope you know what you are doing')
+  }
+  if (!extendedOpts.shrinkwrap && extendedOpts.shrinkwrapOnly) {
+    throw new Error('Cannot generate a shrinkwrap.yaml because shrinkwrap is set to false')
   }
   if (extendedOpts.userAgent.startsWith('npm/')) {
     extendedOpts.userAgent = `${extendedOpts.packageManager.name}/${extendedOpts.packageManager.version} ${extendedOpts.userAgent}`

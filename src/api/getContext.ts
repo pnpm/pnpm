@@ -4,6 +4,7 @@ import {fromDir as readPkgFromDir} from '../fs/readPkg'
 import writePkg = require('write-pkg')
 import {StrictSupiOptions} from '../types'
 import {
+  existsWanted as existsWantedShrinkwrap,
   readWanted as readWantedShrinkwrap,
   readCurrent as readCurrentShrinkwrap,
   Shrinkwrap,
@@ -35,6 +36,7 @@ export type PnpmContext = {
 export default async function getContext (
   opts: {
     prefix: string,
+    shrinkwrap: boolean,
     store: string,
     independentLeaves: boolean,
     force: boolean,
@@ -76,7 +78,8 @@ export default async function getContext (
   const shrOpts = {ignoreIncompatible: opts.force || isCI}
   const files = await Promise.all([
     (opts.global ? readGlobalPkgJson(opts.prefix) : readPkgFromDir(opts.prefix)),
-    readWantedShrinkwrap(root, shrOpts),
+    opts.shrinkwrap && readWantedShrinkwrap(root, shrOpts)
+      || await existsWantedShrinkwrap(root) && logger.warn('A shrinkwrap.yaml file exists. The current configuration prohibits to read or write a shrinkwrap file'),
     readCurrentShrinkwrap(root, shrOpts),
     mkdirp(storePath),
   ])

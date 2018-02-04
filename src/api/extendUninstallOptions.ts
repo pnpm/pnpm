@@ -14,6 +14,7 @@ export type UninstallOptions = {
   storeController: StoreController,
   global?: boolean,
   registry?: string,
+  shrinkwrap?: boolean,
 
   reporter?: ReporterFunction,
   lock?: boolean,
@@ -34,6 +35,7 @@ export type StrictUninstallOptions = UninstallOptions & {
   storeController: StoreController,
   global: boolean,
   registry: string,
+  shrinkwrap: boolean,
 
   lock: boolean,
   lockStaleDuration: number,
@@ -64,6 +66,7 @@ const defaults = async (opts: UninstallOptions) => {
     registry: 'https://registry.npmjs.org/',
     independentLeaves: false,
     packageManager,
+    shrinkwrap: true,
   }
 }
 

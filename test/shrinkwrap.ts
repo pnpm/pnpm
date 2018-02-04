@@ -11,6 +11,7 @@ import {
 import {
   installPkgs,
   install,
+  uninstall,
   RootLog,
 } from 'supi'
 import loadJsonFile = require('load-json-file')
@@ -24,6 +25,12 @@ import R = require('ramda')
 const test = promisifyTape(tape)
 test.only = promisifyTape(tape.only)
 test.skip = promisifyTape(tape.skip)
+
+const SHRINKWRAP_WARN_LOG = {
+  name: 'pnpm',
+  level: 'warn',
+  message: 'A shrinkwrap.yaml file exists. The current configuration prohibits to read or write a shrinkwrap file',
+}
 
 test('shrinkwrap file has correct format', async (t: tape.Test) => {
   const project = prepare(t)
@@ -285,8 +292,12 @@ test('doing named installation when shrinkwrap.yaml exists already', async (t: t
     }
   })
 
-  await installPkgs(['is-positive'], await testDefaults())
-  await install(await testDefaults())
+  const reporter = sinon.spy()
+
+  await installPkgs(['is-positive'], await testDefaults({reporter}))
+  await install(await testDefaults({reporter}))
+
+  t.notOk(reporter.calledWithMatch(SHRINKWRAP_WARN_LOG), 'no warning about ignoring shrinkwrap.yaml')
 
   await project.has('is-negative')
 })
@@ -730,4 +741,86 @@ test('dev property is correctly set for package that is duplicated to both the d
 
   const shr = await project.loadShrinkwrap()
   t.ok(shr.packages['/couleurs/5.0.0'].dev === false)
+})
+
+test('no shrinkwrap', async (t: tape.Test) => {
+  const project = prepare(t)
+  const reporter = sinon.spy()
+
+  await installPkgs(['is-positive'], await testDefaults({shrinkwrap: false, reporter}))
+
+  t.notOk(reporter.calledWithMatch(SHRINKWRAP_WARN_LOG), 'no warning about ignoring shrinkwrap.yaml')
+
+  await project.has('is-positive')
+
+  t.notOk(await project.loadShrinkwrap(), 'shrinkwrap.yaml not created')
+})
+
+test('shrinkwrap is ignored when shrinkwrap = false', async (t: tape.Test) => {
+  const project = prepare(t, {
+    dependencies: {
+      'is-negative': '2.1.0',
+    },
+  })
+
+  await writeYamlFile('shrinkwrap.yaml', {
+    version: 3,
+    registry: 'http://localhost:4873',
+    dependencies: {
+      'is-negative': '2.1.0',
+    },
+    packages: {
+      '/is-negative/2.1.0': {
+        resolution: {
+          integrity: 'sha1-uZnX2TX0P1IHsBsA094ghS9Mp10=', // Invalid integrity
+          tarball: 'http://localhost:4873/is-negative/-/is-negative-2.1.0.tgz',
+        },
+      },
+    },
+  })
+
+  const reporter = sinon.spy()
+
+  await install(await testDefaults({shrinkwrap: false, reporter}))
+
+  t.ok(reporter.calledWithMatch(SHRINKWRAP_WARN_LOG), 'warning about ignoring shrinkwrap.yaml')
+
+  await project.has('is-negative')
+
+  t.ok(await project.loadShrinkwrap(), 'existing shrinkwrap.yaml not removed')
+})
+
+test("don't update shrinkwrap.yaml during uninstall when shrinkwrap: false", async (t: tape.Test) => {
+  const project = prepare(t)
+
+  {
+    const reporter = sinon.spy()
+
+    await installPkgs(['is-positive'], await testDefaults({reporter}))
+
+    t.notOk(reporter.calledWithMatch(SHRINKWRAP_WARN_LOG), 'no warning about ignoring shrinkwrap.yaml')
+  }
+
+  {
+    const reporter = sinon.spy()
+
+    await uninstall(['is-positive'], await testDefaults({shrinkwrap: false, reporter}))
+
+    t.ok(reporter.calledWithMatch(SHRINKWRAP_WARN_LOG), 'warning about ignoring shrinkwrap.yaml')
+  }
+
+  await project.hasNot('is-positive')
+
+  t.ok(await project.loadShrinkwrap(), 'shrinkwrap.yaml not removed during uninstall')
+})
+
+test('fail when installing with shrinkwrap: false and shrinkwrapOnly: true', async (t: tape.Test) => {
+  const project = prepare(t)
+
+  try {
+    await install(await testDefaults({shrinkwrap: false, shrinkwrapOnly: true}))
+    t.fail('installation should have failed')
+  } catch (err) {
+    t.equal(err.message, 'Cannot generate a shrinkwrap.yaml because shrinkwrap is set to false')
+  }
 })

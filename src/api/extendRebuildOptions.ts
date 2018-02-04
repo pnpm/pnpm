@@ -13,6 +13,7 @@ export type RebuildOptions = {
   force?: boolean,
   global?: boolean,
   registry?: string,
+  shrinkwrap?: boolean,
 
   reporter?: ReporterFunction,
   production?: boolean,
@@ -45,6 +46,7 @@ export type StrictRebuildOptions = RebuildOptions & {
   },
   unsafePerm: boolean,
   pending: boolean,
+  shrinkwrap: boolean,
 }
 
 const defaults = async (opts: RebuildOptions) => {
@@ -70,6 +72,7 @@ const defaults = async (opts: RebuildOptions) => {
                 !(process.getuid && process.setuid &&
                   process.getgid && process.setgid) ||
                 process.getuid() !== 0,
+    shrinkwrap: true,
   }
 }
 

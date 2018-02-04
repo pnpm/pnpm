@@ -14,6 +14,7 @@ export type PruneOptions = {
   storeController: StoreController,
   global?: boolean,
   registry?: string,
+  shrinkwrap?: boolean,
 
   reporter?: ReporterFunction,
   production?: boolean,
@@ -34,6 +35,7 @@ export type StrictPruneOptions = PruneOptions & {
   production: boolean,
   development: boolean,
   optional: boolean,
+  shrinkwrap: boolean,
 }
 
 const defaults = async (opts: PruneOptions) => {
@@ -50,6 +52,7 @@ const defaults = async (opts: PruneOptions) => {
     production: true,
     development: true,
     optional: true,
+    shrinkwrap: true,
   }
 }
 

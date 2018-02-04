@@ -14,6 +14,7 @@ export type StoreStatusOptions = {
   force?: boolean,
   global?: boolean,
   registry?: string,
+  shrinkwrap?: boolean,
 
   reporter?: ReporterFunction,
   production?: boolean,
@@ -30,6 +31,7 @@ export type StrictStoreStatusOptions = StoreStatusOptions & {
   global: boolean,
   registry: string,
   bin: string,
+  shrinkwrap: boolean,
 }
 
 const defaults = async (opts: StoreStatusOptions) => {
@@ -42,6 +44,7 @@ const defaults = async (opts: StoreStatusOptions) => {
     force: false,
     registry: 'https://registry.npmjs.org/',
     independentLeaves: false,
+    shrinkwrap: true,
   }
 }
 
