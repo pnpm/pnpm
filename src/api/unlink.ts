@@ -6,7 +6,7 @@ import extendOptions, {
 import isInnerLink = require('is-inner-link')
 import logger, {streamParser} from '@pnpm/logger'
 import rimraf = require('rimraf-then')
-import {installPkgs} from './install'
+import {install} from './install'
 import {fromDir as readPkgFromDir} from '../fs/readPkg'
 import depsFromPackage from '../depsFromPackage'
 import fs = require('mz/fs')
@@ -56,7 +56,9 @@ export async function _unlinkPkgs (
 
   if (!packagesToInstall.length) return
 
-  await installPkgs(packagesToInstall, opts)
+  // TODO: install only those that were unlinked
+  // but don't update their version specs in package.json
+  await install(opts)
 }
 
 export async function unlink (maybeOpts: InstallOptions) {

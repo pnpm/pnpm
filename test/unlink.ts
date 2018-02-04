@@ -7,6 +7,7 @@ import {
   addDistTag,
 } from './utils'
 import writeJsonFile = require('write-json-file')
+import loadJsonFile = require('load-json-file')
 import {
   link,
   unlinkPkgs,
@@ -73,6 +74,30 @@ test("don't update package when unlinking", async (t: tape.Test) => {
   await unlinkPkgs(['foo'], await testDefaults())
 
   t.equal(project.requireModule('foo/package.json').version, '100.0.0', 'foo not updated after unlink')
+})
+
+test("don't update package when unlinking. Initial link is done on a package w/o shrinkwrap.yaml", async (t: tape.Test) => {
+  const project = prepare(t, {
+    dependencies: {
+      foo: '^100.0.0',
+    },
+  })
+
+  process.chdir('..')
+
+  await writeJsonFile('foo/package.json', {
+    name: 'foo',
+    version: '100.0.0',
+  })
+
+  await link('foo', 'project', await testDefaults())
+  await addDistTag('foo', '100.1.0', 'latest')
+
+  process.chdir('project')
+  await unlinkPkgs(['foo'], await testDefaults())
+
+  t.equal(project.requireModule('foo/package.json').version, '100.1.0', 'latest foo is installed')
+  t.deepEqual((await loadJsonFile('./package.json')).dependencies, {foo: '^100.0.0'}, 'package.json not updated')
 })
 
 test('unlink 2 packages. One of them exists in package.json', async (t: tape.Test) => {
