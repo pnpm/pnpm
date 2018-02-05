@@ -13,7 +13,7 @@
   "scripts": {
     "start": "npm run tsc -- --watch",
     "lint": "tslint -c tslint.json --project .",
-    "tsc": "rimraf lib && tsc",
+    "tsc": "rimraf lib && tsc --pretty",
     "test": "npm run lint && preview && ts-node test --type-check && mos t",
     "md": "mos",
     "prepare": "npm run tsc"
@@ -71,7 +71,7 @@
     "tempy": "^0.2.1",
     "ts-node": "^4.0.0",
     "tslint": "^5.8.0",
-    "typescript": "^2.6.1"
+    "typescript": "^2.7.1"
   },
   "mos": {
     "plugins": [
