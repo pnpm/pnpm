@@ -372,7 +372,7 @@ function fetchToStore (opts: {
 
       await rimraf(targetStage)
 
-      let packageIndex: {} = {}
+      let packageIndex!: {}
       await Promise.all([
         (async () => {
           // Tarballs are requested first because they are bigger than metadata files.
