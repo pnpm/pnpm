@@ -18,28 +18,28 @@ export default function (
   pkg: PackageJson
 ): Shrinkwrap {
   shrinkwrap.packages = shrinkwrap.packages || {}
-  for (const dependencyAbsolutePath of R.keys(pkgsToLink)) {
-    const dependencyPath = dp.relative(shrinkwrap.registry, dependencyAbsolutePath)
+  for (const depPath of R.keys(pkgsToLink)) {
+    const relDepPath = dp.relative(shrinkwrap.registry, depPath)
     const result = R.partition(
-      (child) => pkgsToLink[dependencyAbsolutePath].optionalDependencies.has(pkgsToLink[child.nodeId].name),
-      R.keys(pkgsToLink[dependencyAbsolutePath].children).map(alias => ({alias, nodeId: pkgsToLink[dependencyAbsolutePath].children[alias]}))
+      (child) => pkgsToLink[depPath].optionalDependencies.has(pkgsToLink[child.nodeId].name),
+      R.keys(pkgsToLink[depPath].children).map(alias => ({alias, nodeId: pkgsToLink[depPath].children[alias]}))
     )
-    shrinkwrap.packages[dependencyPath] = toShrDependency(pkgsToLink[dependencyAbsolutePath].additionalInfo, {
-      dependencyAbsolutePath,
-      name: pkgsToLink[dependencyAbsolutePath].name,
-      version: pkgsToLink[dependencyAbsolutePath].version,
-      id: pkgsToLink[dependencyAbsolutePath].id,
-      dependencyPath,
-      resolution: pkgsToLink[dependencyAbsolutePath].resolution,
+    shrinkwrap.packages[relDepPath] = toShrDependency(pkgsToLink[depPath].additionalInfo, {
+      depPath,
+      name: pkgsToLink[depPath].name,
+      version: pkgsToLink[depPath].version,
+      id: pkgsToLink[depPath].id,
+      relDepPath,
+      resolution: pkgsToLink[depPath].resolution,
       updatedOptionalDeps: result[0],
       updatedDeps: result[1],
       registry: shrinkwrap.registry,
       pkgsToLink,
-      prevResolvedDeps: shrinkwrap.packages[dependencyPath] && shrinkwrap.packages[dependencyPath].dependencies || {},
-      prevResolvedOptionalDeps: shrinkwrap.packages[dependencyPath] && shrinkwrap.packages[dependencyPath].optionalDependencies || {},
-      prod: pkgsToLink[dependencyAbsolutePath].prod,
-      dev: pkgsToLink[dependencyAbsolutePath].dev,
-      optional: pkgsToLink[dependencyAbsolutePath].optional,
+      prevResolvedDeps: shrinkwrap.packages[relDepPath] && shrinkwrap.packages[relDepPath].dependencies || {},
+      prevResolvedOptionalDeps: shrinkwrap.packages[relDepPath] && shrinkwrap.packages[relDepPath].optionalDependencies || {},
+      prod: pkgsToLink[depPath].prod,
+      dev: pkgsToLink[depPath].dev,
+      optional: pkgsToLink[depPath].optional,
     })
   }
   return pruneShrinkwrap(shrinkwrap, pkg)
@@ -59,11 +59,11 @@ function toShrDependency (
     os?: string[],
   },
   opts: {
-    dependencyAbsolutePath: string,
+    depPath: string,
     name: string,
     version: string,
     id: string,
-    dependencyPath: string,
+    relDepPath: string,
     resolution: Resolution,
     registry: string,
     updatedDeps: {alias: string, nodeId: string}[],
@@ -76,13 +76,13 @@ function toShrDependency (
     optional: boolean,
   }
 ): DependencyShrinkwrap {
-  const shrResolution = toShrResolution(opts.dependencyPath, opts.resolution, opts.registry)
+  const shrResolution = toShrResolution(opts.relDepPath, opts.resolution, opts.registry)
   const newResolvedDeps = updateResolvedDeps(opts.prevResolvedDeps, opts.updatedDeps, opts.registry, opts.pkgsToLink)
   const newResolvedOptionalDeps = updateResolvedDeps(opts.prevResolvedOptionalDeps, opts.updatedOptionalDeps, opts.registry, opts.pkgsToLink)
   const result = {
     resolution: shrResolution
   }
-  if (dp.isAbsolute(opts.dependencyPath)) {
+  if (dp.isAbsolute(opts.relDepPath)) {
     result['name'] = opts.name
 
     // There is no guarantee that a non-npmjs.org-hosted package
@@ -105,7 +105,7 @@ function toShrDependency (
   if (opts.optional) {
     result['optional'] = true
   }
-  if (opts.dependencyAbsolutePath !== opts.id) {
+  if (opts.depPath !== opts.id) {
     result['id'] = opts.id
   }
   if (pkg.peerDependencies) {
@@ -164,11 +164,11 @@ function updateResolvedDeps (
 }
 
 function toShrResolution (
-  dependencyPath: string,
+  relDepPath: string,
   resolution: Resolution,
   registry: string
 ): ShrinkwrapResolution {
-  if (dp.isAbsolute(dependencyPath) || resolution.type !== undefined || !resolution['integrity']) {
+  if (dp.isAbsolute(relDepPath) || resolution.type !== undefined || !resolution['integrity']) {
     return resolution as ShrinkwrapResolution
   }
   // This might be not the best solution to identify non-standard tarball URLs in the long run

@@ -161,22 +161,22 @@ function getInfoFromShrinkwrap (
     return null
   }
 
-  const dependencyPath = dp.refToRelative(reference, pkgName)
+  const relDepPath = dp.refToRelative(reference, pkgName)
 
-  if (!dependencyPath) {
+  if (!relDepPath) {
     return null
   }
 
-  const dependencyShrinkwrap = shrinkwrap.packages && shrinkwrap.packages[dependencyPath]
+  const dependencyShrinkwrap = shrinkwrap.packages && shrinkwrap.packages[relDepPath]
 
   if (dependencyShrinkwrap) {
-    const absoluteDependencyPath = dp.resolve(shrinkwrap.registry, dependencyPath)
+    const depPath = dp.resolve(shrinkwrap.registry, relDepPath)
     return {
-      dependencyPath,
-      absoluteDependencyPath,
+      relDepPath,
+      depPath,
       dependencyShrinkwrap,
-      pkgId: dependencyShrinkwrap.id || absoluteDependencyPath,
-      shrinkwrapResolution: dependencyShrToResolution(dependencyPath, dependencyShrinkwrap, shrinkwrap.registry),
+      pkgId: dependencyShrinkwrap.id || depPath,
+      shrinkwrapResolution: dependencyShrToResolution(relDepPath, dependencyShrinkwrap, shrinkwrap.registry),
       resolvedDependencies: {
         ...dependencyShrinkwrap.dependencies,
         ...dependencyShrinkwrap.optionalDependencies,
@@ -185,14 +185,14 @@ function getInfoFromShrinkwrap (
     }
   } else {
     return {
-      dependencyPath,
-      pkgId: dp.resolve(shrinkwrap.registry, dependencyPath),
+      relDepPath,
+      pkgId: dp.resolve(shrinkwrap.registry, relDepPath),
     }
   }
 }
 
 function dependencyShrToResolution (
-  dependencyPath: string,
+  relDepPath: string,
   depShr: DependencyShrinkwrap,
   registry: string
 ): Resolution {
@@ -213,9 +213,9 @@ function dependencyShrToResolution (
   })
 
   function getTarball () {
-    const parsed = dp.parse(dependencyPath)
+    const parsed = dp.parse(relDepPath)
     if (!parsed['name'] || !parsed['version']) {
-      throw new Error(`Couldn't get tarball URL from dependency path ${dependencyPath}`)
+      throw new Error(`Couldn't get tarball URL from dependency path ${relDepPath}`)
     }
     return getNpmTarballUrl(parsed['name'], parsed['version'], {registry})
   }
@@ -227,8 +227,8 @@ async function install (
   options: {
     keypath: string[], // TODO: remove. Currently used only for logging
     pkgId?: string,
-    absoluteDependencyPath?: string,
-    dependencyPath?: string,
+    depPath?: string,
+    relDepPath?: string,
     parentNodeId: string,
     currentDepth: number,
     dependencyShrinkwrap?: DependencyShrinkwrap,
@@ -247,11 +247,11 @@ async function install (
   const proceed = options.proceed || !options.shrinkwrapResolution || ctx.force || keypath.length <= ctx.depth
   const parentIsInstallable = options.parentIsInstallable === undefined || options.parentIsInstallable
 
-  if (!proceed && options.absoluteDependencyPath &&
+  if (!proceed && options.depPath &&
     // if package is not in `node_modules/.shrinkwrap.yaml`
     // we can safely assume that it doesn't exist in `node_modules`
-    options.dependencyPath && ctx.currentShrinkwrap.packages && ctx.currentShrinkwrap.packages[options.dependencyPath] &&
-    await exists(path.join(ctx.nodeModules, `.${options.absoluteDependencyPath}`)) && (
+    options.relDepPath && ctx.currentShrinkwrap.packages && ctx.currentShrinkwrap.packages[options.relDepPath] &&
+    await exists(path.join(ctx.nodeModules, `.${options.depPath}`)) && (
       options.currentDepth > 0 || wantedDependency.alias && await exists(path.join(ctx.nodeModules, wantedDependency.alias))
     )) {
 
@@ -330,10 +330,10 @@ async function install (
 
   let pkg: PackageManifest
   let useManifestInfoFromShrinkwrap = false
-  if (options.hasManifestInShrinkwrap && !options.update && options.dependencyShrinkwrap && options.dependencyPath) {
+  if (options.hasManifestInShrinkwrap && !options.update && options.dependencyShrinkwrap && options.relDepPath) {
     useManifestInfoFromShrinkwrap = true
     pkg = Object.assign(
-      getPkgInfoFromShr(options.dependencyPath, options.dependencyShrinkwrap),
+      getPkgInfoFromShr(options.relDepPath, options.dependencyShrinkwrap),
       options.dependencyShrinkwrap
     )
     if (pkg.peerDependencies) {
