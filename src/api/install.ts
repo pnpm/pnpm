@@ -554,7 +554,7 @@ async function installInContext (
   if (opts.ignoreScripts) {
     // we can use concat here because we always only append new packages, which are guaranteed to not be there by definition
     ctx.pendingBuilds = ctx.pendingBuilds
-      .concat(result.newPkgResolvedIds.map(absolutePath => dp.relative(ctx.wantedShrinkwrap.registry, absolutePath)))
+      .concat(result.newDepPaths.map(depPath => dp.relative(ctx.wantedShrinkwrap.registry, depPath)))
   }
 
   if (opts.shrinkwrapOnly) {
@@ -577,10 +577,10 @@ async function installInContext (
     ])
 
     // postinstall hooks
-    if (!(opts.ignoreScripts || !result.newPkgResolvedIds || !result.newPkgResolvedIds.length)) {
+    if (!(opts.ignoreScripts || !result.newDepPaths || !result.newDepPaths.length)) {
       const limitChild = pLimit(opts.childConcurrency)
       await Promise.all(
-        R.props<string, DependencyTreeNode>(result.newPkgResolvedIds, result.linkedPkgsMap)
+        R.props<string, DependencyTreeNode>(result.newDepPaths, result.linkedPkgsMap)
           .filter(pkg => !pkg.isBuilt)
           .map(pkg => limitChild(async () => {
             try {

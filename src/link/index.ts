@@ -53,7 +53,7 @@ export default async function linkPackages (
   linkedPkgsMap: DependencyTreeNodeMap,
   wantedShrinkwrap: Shrinkwrap,
   currentShrinkwrap: Shrinkwrap,
-  newPkgResolvedIds: string[],
+  newDepPaths: string[],
   removedPkgIds: Set<string>,
 }> {
   // TODO: decide what kind of logging should be here.
@@ -92,7 +92,7 @@ export default async function linkPackages (
   }
   const newCurrentShrinkwrap = filterShrinkwrap(newShr, filterOpts)
   stageLogger.debug('importing_started')
-  const newPkgResolvedIds = await linkNewPackages(
+  const newDepPaths = await linkNewPackages(
     filterShrinkwrap(opts.currentShrinkwrap, filterOpts),
     newCurrentShrinkwrap,
     pkgsToLink,
@@ -143,10 +143,10 @@ export default async function linkPackages (
   if (opts.makePartialCurrentShrinkwrap) {
     const packages = opts.currentShrinkwrap.packages || {}
     if (newShr.packages) {
-      for (const shortId in newShr.packages) {
-        const resolvedId = dp.resolve(newShr.registry, shortId)
-        if (pkgsToLink[resolvedId]) {
-          packages[shortId] = newShr.packages[shortId]
+      for (const relDepPath in newShr.packages) {
+        const depPath = dp.resolve(newShr.registry, relDepPath)
+        if (pkgsToLink[depPath]) {
+          packages[relDepPath] = newShr.packages[relDepPath]
         }
       }
     }
@@ -161,7 +161,7 @@ export default async function linkPackages (
     linkedPkgsMap: pkgsToLink,
     wantedShrinkwrap: newShr,
     currentShrinkwrap,
-    newPkgResolvedIds,
+    newDepPaths,
     removedPkgIds,
   }
 }
@@ -211,49 +211,49 @@ async function linkNewPackages (
     sideEffectsCache: boolean,
   }
 ): Promise<string[]> {
-  const nextPkgResolvedIds = R.keys(wantedShrinkwrap.packages)
-  const prevPkgResolvedIds = R.keys(currentShrinkwrap.packages)
+  const wantedRelDepPaths = R.keys(wantedShrinkwrap.packages)
+  const prevRelDepPaths = R.keys(currentShrinkwrap.packages)
 
   // TODO: what if the registries differ?
-  const newPkgResolvedIdsSet = new Set(
+  const newDepPathsSet = new Set(
     (
       opts.force
-        ? nextPkgResolvedIds
-        : R.difference(nextPkgResolvedIds, prevPkgResolvedIds)
+        ? wantedRelDepPaths
+        : R.difference(wantedRelDepPaths, prevRelDepPaths)
     )
-    .map(shortId => dp.resolve(wantedShrinkwrap.registry, shortId))
+    .map(relDepPath => dp.resolve(wantedShrinkwrap.registry, relDepPath))
     // when installing a new package, not all the nodes are analyzed
     // just skip the ones that are in the lockfile but were not analyzed
-    .filter(resolvedId => pkgsToLink[resolvedId])
+    .filter(depPath => pkgsToLink[depPath])
   )
-  statsLogger.debug({added: newPkgResolvedIdsSet.size})
+  statsLogger.debug({added: newDepPathsSet.size})
 
   const existingWithUpdatedDeps = []
   if (!opts.force && currentShrinkwrap.packages && wantedShrinkwrap.packages) {
     // add subdependencies that have been updated
     // TODO: no need to relink everything. Can be relinked only what was changed
-    for (const shortId of nextPkgResolvedIds) {
-      if (currentShrinkwrap.packages[shortId] &&
-        (!R.equals(currentShrinkwrap.packages[shortId].dependencies, wantedShrinkwrap.packages[shortId].dependencies) ||
-        !R.equals(currentShrinkwrap.packages[shortId].optionalDependencies, wantedShrinkwrap.packages[shortId].optionalDependencies))) {
-        const resolvedId = dp.resolve(wantedShrinkwrap.registry, shortId)
+    for (const relDepPath of wantedRelDepPaths) {
+      if (currentShrinkwrap.packages[relDepPath] &&
+        (!R.equals(currentShrinkwrap.packages[relDepPath].dependencies, wantedShrinkwrap.packages[relDepPath].dependencies) ||
+        !R.equals(currentShrinkwrap.packages[relDepPath].optionalDependencies, wantedShrinkwrap.packages[relDepPath].optionalDependencies))) {
+        const depPath = dp.resolve(wantedShrinkwrap.registry, relDepPath)
 
-        // TODO: come up with a test that triggers the usecase of pkgsToLink[resolvedId] undefined
+        // TODO: come up with a test that triggers the usecase of pkgsToLink[depPath] undefined
         // see related issue: https://github.com/pnpm/pnpm/issues/870
-        if (pkgsToLink[resolvedId] && !newPkgResolvedIdsSet.has(resolvedId)) {
-          existingWithUpdatedDeps.push(pkgsToLink[resolvedId])
+        if (pkgsToLink[depPath] && !newDepPathsSet.has(depPath)) {
+          existingWithUpdatedDeps.push(pkgsToLink[depPath])
         }
       }
     }
   }
 
-  if (!newPkgResolvedIdsSet.size && !existingWithUpdatedDeps.length) return []
+  if (!newDepPathsSet.size && !existingWithUpdatedDeps.length) return []
 
-  const newPkgResolvedIds = Array.from(newPkgResolvedIdsSet)
+  const newDepPaths = Array.from(newDepPathsSet)
 
-  if (opts.dryRun) return newPkgResolvedIds
+  if (opts.dryRun) return newDepPaths
 
-  const newPkgs = R.props<string, DependencyTreeNode>(newPkgResolvedIds, pkgsToLink)
+  const newPkgs = R.props<string, DependencyTreeNode>(newDepPaths, pkgsToLink)
 
   await Promise.all([
     linkAllModules(newPkgs, pkgsToLink, {optional: opts.optional}),
@@ -263,7 +263,7 @@ async function linkNewPackages (
 
   await linkAllBins(newPkgs, pkgsToLink, {optional: opts.optional})
 
-  return newPkgResolvedIds
+  return newDepPaths
 }
 
 const limitLinking = pLimit(16)
