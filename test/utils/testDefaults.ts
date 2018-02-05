@@ -6,6 +6,13 @@ import createResolver from '@pnpm/default-resolver'
 
 const registry = 'http://localhost:4873/'
 
+const retryOpts = {
+  fetchRetries: 2,
+  fetchRetryFactor: 10,
+  fetchRetryMintimeout: 10_000,
+  fetchRetryMaxtimeout: 60_000,
+}
+
 export default async function testDefaults (
   opts?: any,
   resolveOpts?: any,
@@ -21,12 +28,14 @@ export default async function testDefaults (
       rawNpmConfig,
       store,
       strictSsl: true,
+      ...retryOpts,
       ...resolveOpts,
     }),
     createFetcher({
       alwaysAuth: true,
       registry,
       rawNpmConfig,
+      ...retryOpts,
       ...fetchOpts,
     }) as {},
     {
