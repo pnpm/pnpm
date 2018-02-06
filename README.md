@@ -134,6 +134,9 @@ pnpx create-react-app my-cool-new-app
 ### Configuring
 
 pnpm uses npm's programmatic API to read configs. Hence, you should set configs for pnpm the same way you would for npm.
+For example,
+
+    npm config set store /path/to/.pnpm-store
 
 Furthermore, pnpm uses the same configs that npm uses for doing installations. If you have a private registry and npm is configured
 to work with it, pnpm should be able to authorize requests as well, with no additional configuration.
