@@ -71,11 +71,12 @@ test('retry when tarball size does not match content-length', async t => {
   const cachedTarballLocation = path.resolve('cached')
   const resolution = { tarball: 'http://example.com/foo.tgz' }
 
-  await fetch.tarball(resolution, unpackTo, {
+  const result = await fetch.tarball(resolution, unpackTo, {
     cachedTarballLocation,
     prefix: process.cwd(),
   })
 
+  t.equal(typeof result.tempLocation, 'string')
   t.ok(nock.isDone())
   t.end()
 })

@@ -1,9 +1,10 @@
+import {FetchResult} from '@pnpm/fetcher-base'
 import createFetcher from 'fetch-from-npm-registry'
 import createWriteStreamAtomic = require('fs-write-stream-atomic')
-import renameOverwrite = require('rename-overwrite')
 import {IncomingMessage} from 'http'
 import mkdirp = require('mkdirp-promise')
 import path = require('path')
+import pathTemp = require('path-temp')
 import retry = require('retry')
 import rimraf = require('rimraf')
 import ssri = require('ssri')
@@ -32,7 +33,7 @@ export type DownloadFunction = (url: string, saveto: string, opts: {
   ignore?: (filename: string) => boolean,
   integrity?: string
   generatePackageIntegrity?: boolean,
-}) => Promise<{}>
+}) => Promise<FetchResult>
 
 export interface NpmRegistryClient {
   get: (url: string, getOpts: object, cb: (err: Error, data: object, raw: object, res: HttpResponse) => void) => void,
@@ -89,7 +90,7 @@ export default (
     ignore?: (filename: string) => boolean,
     integrity?: string,
     generatePackageIntegrity?: boolean,
-  }): Promise<{}> {
+  }): Promise<FetchResult> {
     await mkdirp(path.dirname(saveto))
 
     // If a tarball is hosted on a different place than the manifest, only send
@@ -102,7 +103,7 @@ export default (
 
     const op = retry.operation(retryOpts)
 
-    return new Promise((resolve, reject) => {
+    return new Promise<FetchResult>((resolve, reject) => {
       op.attempt((currentAttempt) => {
         fetch(currentAttempt)
           .then(resolve)
@@ -119,7 +120,7 @@ export default (
       })
     })
 
-    async function fetch (currentAttempt: number) {
+    async function fetch (currentAttempt: number): Promise<FetchResult> {
       try {
         const res = await fetchFromNpmRegistry(url, {auth: shouldAuth && opts.auth as any || undefined}) // tslint:disable-line
 
@@ -149,29 +150,24 @@ export default (
 
         const writeStream = createWriteStreamAtomic(saveto)
 
-        return await new Promise((resolve, reject) => {
+        return await new Promise<FetchResult>((resolve, reject) => {
           const stream = res.body
             .on('error', reject)
             .pipe(writeStream)
             .on('error', reject)
 
-            // TODO: Currently the unpackTo is also a stage folder
-            // use just one stage folder. Either here or in @pnpm/package-requester
-            const stage = `${opts.unpackTo}${Math.random()}`
+            const tempLocation = pathTemp(opts.unpackTo)
             Promise.all([
               opts.integrity && ssri.checkStream(res.body, opts.integrity),
-              unpackStream.local(res.body, stage, {
+              unpackStream.local(res.body, tempLocation, {
                 generateIntegrity: opts.generatePackageIntegrity,
                 ignore: opts.ignore,
               }),
               waitTillClosed({ stream, size, getDownloaded: () => downloaded, url }),
             ])
-            .then((vals) => {
-              return renameOverwrite(stage, opts.unpackTo)
-                .then(() => resolve(vals[1]))
-            })
+            .then((vals) => resolve({ tempLocation, filesIndex: vals[1] }))
             .catch((err) => {
-              rimraf(stage, (err) => {
+              rimraf(tempLocation, (err) => {
                 // Just ignoring this error
                 // A redundant stage folder won't break anything
               })

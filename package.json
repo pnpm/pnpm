@@ -34,6 +34,7 @@
     "@pnpm/logger": "^1.0.0"
   },
   "dependencies": {
+    "@pnpm/fetcher-base": "^1.0.0",
     "@types/mem": "^1.1.2",
     "@types/mz": "^0.0.32",
     "@types/node": "^9.3.0",
@@ -46,7 +47,7 @@
     "mem": "^3.0.0",
     "mkdirp-promise": "^5.0.1",
     "mz": "^2.7.0",
-    "rename-overwrite": "^1.0.1",
+    "path-temp": "^1.0.0",
     "retry": "^0.10.1",
     "rimraf": "^2.6.2",
     "ssri": "5.0.0",

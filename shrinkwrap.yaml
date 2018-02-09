@@ -1,4 +1,5 @@
 dependencies:
+  '@pnpm/fetcher-base': 1.0.0
   '@types/mem': 1.1.2
   '@types/mz': 0.0.32
   '@types/node': 9.4.0
@@ -11,7 +12,7 @@ dependencies:
   mem: 3.0.0
   mkdirp-promise: 5.0.1
   mz: 2.7.0
-  rename-overwrite: 1.0.1
+  path-temp: 1.0.0
   retry: 0.10.1
   rimraf: 2.6.2
   ssri: 5.0.0
@@ -41,6 +42,14 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha512-sYJOXPxpQxFcTSACFRFCuIQdnZLNaOgTHGF+CQNYlKnlc2ZnmEW+lAZVTc0hJSU+8mnTY7ei39MbYpI5q+li+w==
+  /@pnpm/fetcher-base/1.0.0:
+    dependencies:
+      '@pnpm/resolver-base': 1.0.0
+    dev: false
+    engines:
+      node: '>=4'
+    resolution:
+      integrity: sha512-kp5ooq4wC84gelVjkQuV8GzDHe/m99+yvlx3HTHOP25SdfkshIG5k/q784cmw8axjBke/LXdgE9sR5JRNs8TTw==
   /@pnpm/logger/1.0.1:
     dependencies:
       '@types/node': 9.4.0
@@ -51,12 +60,24 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha512-23FWOXgCkJ9q73mIqS5H/x98uaZcvO7ov/nt0HZGgLci3MHsqBgEfh3UzZiLZIxlxmA3XoUp4fgbjM7S96pBRg==
+  /@pnpm/resolver-base/1.0.0:
+    dependencies:
+      '@pnpm/types': 1.7.0
+    dev: false
+    engines:
+      node: '>=4'
+    resolution:
+      integrity: sha512-+y47No75LZFnkN7VAnoEtkIzDgOuc8ZT4QjyhuNIBVLx4oqFa/R16DpSyRjmaTZMCSREXunObULKL/hoLipNDA==
   /@pnpm/self-installer/2.0.0:
     dev: true
     engines:
       node: '>=4'
     resolution:
       integrity: sha512-+Hg7mBqDOXUlH4UvYffXMJwln8EIfqpf0+y7ODYqbO9GF9Kc1GG7/tbl5cWyA1OKF04XQH9jugoIxtCOxN9/dg==
+  /@pnpm/types/1.7.0:
+    dev: false
+    resolution:
+      integrity: sha512-pn7g4uxcofWTNG/cxmKvkMK2lxr4OUIhrQDrEVYEdVhW0WkWztsHkFrYjFgfNzPbYu3ITlB3T6aSVjCoJQTOlw==
   /@types/events/1.1.0:
     dev: false
     resolution:
@@ -403,7 +424,6 @@ packages:
     resolution:
       integrity: sha1-6L0O/uWPz/b4+UUQoKVUu/ojVEk=
   /crypto-random-string/1.0.0:
-    dev: true
     engines:
       node: '>=4'
     resolution:
@@ -467,6 +487,7 @@ packages:
     dependencies:
       foreach: 2.0.5
       object-keys: 1.0.11
+    dev: true
     engines:
       node: '>= 0.4'
     resolution:
@@ -475,14 +496,6 @@ packages:
     dev: true
     resolution:
       integrity: sha1-yY2bzvdWdBiOEQlpFRGZ45sfppM=
-  /delay/2.0.0:
-    dependencies:
-      p-defer: 1.0.0
-    dev: false
-    engines:
-      node: '>=4'
-    resolution:
-      integrity: sha1-kRLq3APk7H4AKXM3iW8nO72R+uU=
   /detect-indent/5.0.0:
     dev: true
     engines:
@@ -531,6 +544,7 @@ packages:
       has: 1.0.1
       is-callable: 1.1.3
       is-regex: 1.0.4
+    dev: true
     engines:
       node: '>= 0.4'
     resolution:
@@ -540,6 +554,7 @@ packages:
       is-callable: 1.1.3
       is-date-object: 1.0.1
       is-symbol: 1.0.1
+    dev: true
     engines:
       node: '>= 0.4'
     resolution:
@@ -616,6 +631,7 @@ packages:
     resolution:
       integrity: sha1-LEBFC5NI6X8oEyJZO6lnBLmr1NQ=
   /foreach/2.0.5:
+    dev: true
     resolution:
       integrity: sha1-C+4AUBiusmDQo6865ljdATbsG5k=
   /from2/2.3.0:
@@ -646,6 +662,7 @@ packages:
     resolution:
       integrity: sha1-FQStJSMVjKpA20onh8sBQRmU6k8=
   /function-bind/1.1.1:
+    dev: true
     resolution:
       integrity: sha512-yIovAzMX49sF8Yl58fSCWJ5svSLuaibPxXQJFLmBObTuCr0Mf1KiPopGM9NiFjiYBCbfaa2Fh6breQ6ANVTI0A==
   /glob/7.1.2:
@@ -690,6 +707,7 @@ packages:
   /has/1.0.1:
     dependencies:
       function-bind: 1.1.1
+    dev: true
     engines:
       node: '>= 0.8.0'
     resolution:
@@ -789,11 +807,13 @@ packages:
     resolution:
       integrity: sha1-XuWOqlounIDiFAe+3yOuWsCRs/w=
   /is-callable/1.1.3:
+    dev: true
     engines:
       node: '>= 0.4'
     resolution:
       integrity: sha1-hut1OSgF3cM69xySoO7fdO52BLI=
   /is-date-object/1.0.1:
+    dev: true
     engines:
       node: '>= 0.4'
     resolution:
@@ -819,11 +839,13 @@ packages:
   /is-regex/1.0.4:
     dependencies:
       has: 1.0.1
+    dev: true
     engines:
       node: '>= 0.4'
     resolution:
       integrity: sha1-VRdIm1RwkbCTDglWVM7SXul+lJE=
   /is-symbol/1.0.1:
+    dev: true
     engines:
       node: '>= 0.4'
     resolution:
@@ -1112,30 +1134,16 @@ packages:
     resolution:
       integrity: sha512-OHHnLgLNXpM++GnJRyyhbr2bwl3pPVm4YvaraHrRvDt/N3r+s/gDVHciA7EJBTkijKXj61ssgSAikq1fb0IBRg==
   /object-keys/1.0.11:
+    dev: true
     engines:
       node: '>= 0.4'
     resolution:
       integrity: sha1-xUYBd4rVYPEULODgG8yotW0TQm0=
-  /object.getownpropertydescriptors/2.0.3:
-    dependencies:
-      define-properties: 1.1.2
-      es-abstract: 1.10.0
-    dev: false
-    engines:
-      node: '>= 0.8'
-    resolution:
-      integrity: sha1-h1jIRvW0B62rDyNuCYbxSwUcqhY=
   /once/1.4.0:
     dependencies:
       wrappy: 1.0.2
     resolution:
       integrity: sha1-WDsap3WWHUsROsF9nFC6753Xa9E=
-  /p-defer/1.0.0:
-    dev: false
-    engines:
-      node: '>=4'
-    resolution:
-      integrity: sha1-n26xgvbJqozXQwBKfU+WsZaw+ww=
   /p-is-promise/1.1.0:
     dev: false
     engines:
@@ -1229,6 +1237,14 @@ packages:
     dev: true
     resolution:
       integrity: sha1-PBrfhx6pzWyUMbbqK9dKD/BVxME=
+  /path-temp/1.0.0:
+    dependencies:
+      unique-string: 1.0.0
+    dev: false
+    engines:
+      node: '>=4'
+    resolution:
+      integrity: sha512-TeQgoH67RYUT3xt6WaRASbWyJmvrUnpeToQQT7RW+uighCh/gfs4VCO2/P8mIpjt6JsyJ6DxE6Q1FOJXVc3ANg==
   /path-type/3.0.0:
     dependencies:
       pify: 3.0.0
@@ -1344,17 +1360,6 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha1-wbIAe0LVfrE4kHmzyDM2OdXhzKo=
-  /rename-overwrite/1.0.1:
-    dependencies:
-      delay: 2.0.0
-      graceful-fs: 4.1.11
-      rimraf: 2.6.2
-      util.promisify: 1.0.0
-    dev: false
-    engines:
-      node: '>=4'
-    resolution:
-      integrity: sha512-T/7u/iSRX4RcuQ15QYvZh8uZMQkYLPBuJjIddmYpYQ/RWBEoRUay/Xy3qf6s8DSQ4TQ55ToJJnlCaJ3tV6Se4w==
   /resolve/1.4.0:
     dependencies:
       path-parse: 1.0.5
@@ -1747,7 +1752,6 @@ packages:
   /unique-string/1.0.0:
     dependencies:
       crypto-random-string: 1.0.0
-    dev: true
     engines:
       node: '>=4'
     resolution:
@@ -1769,13 +1773,6 @@ packages:
   /util-deprecate/1.0.2:
     resolution:
       integrity: sha1-RQ1Nyfpw3nMnYvvS1KKJgUGaDM8=
-  /util.promisify/1.0.0:
-    dependencies:
-      define-properties: 1.1.2
-      object.getownpropertydescriptors: 2.0.3
-    dev: false
-    resolution:
-      integrity: sha512-i+6qA2MPhvoKLuxnJNpXAGhg7HphQOSUq2LKMZD0m15EiskXUkMvKdF4Uui0WYeCUGea+o2cw/ZuwehtfsrNkA==
   /v8flags/3.0.1:
     dependencies:
       homedir-polyfill: 1.0.1
@@ -1843,6 +1840,7 @@ registry: 'https://registry.npmjs.org/'
 shrinkwrapMinorVersion: 4
 shrinkwrapVersion: 3
 specifiers:
+  '@pnpm/fetcher-base': ^1.0.0
   '@pnpm/logger': ^1.0.0
   '@types/mem': ^1.1.2
   '@types/mz': ^0.0.32
@@ -1861,7 +1859,7 @@ specifiers:
   mz: ^2.7.0
   nock: ^9.1.4
   package-preview: ^1.0.1
-  rename-overwrite: ^1.0.1
+  path-temp: ^1.0.0
   retry: ^0.10.1
   rimraf: ^2.6.2
   ssri: 5.0.0

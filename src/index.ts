@@ -1,4 +1,8 @@
 import logger from '@pnpm/logger'
+import {
+  FetchOptions,
+  FetchResult,
+} from '@pnpm/fetcher-base'
 import getCredentialsByURI = require('credentials-by-uri')
 import {IncomingMessage} from 'http'
 import mem = require('mem')
@@ -6,16 +10,10 @@ import fs = require('mz/fs')
 import path = require('path')
 import * as unpackStream from 'unpack-stream'
 import createDownloader, {DownloadFunction} from './createDownloader'
+import pathTemp = require('path-temp')
 import {PnpmError} from './errorTypes'
 
 export type IgnoreFunction = (filename: string) => boolean
-
-export interface FetchOptions {
-  cachedTarballLocation: string,
-  prefix: string,
-  onStart?: (totalSize: number | null, attempt: number) => void,
-  onProgress?: (downloaded: number) => void,
-}
 
 export default function (
   opts: {
@@ -129,8 +127,7 @@ async function fetchFromRemoteTarball (
   opts: FetchOptions,
 ) {
   try {
-    const index = await fetchFromLocalTarball(unpackTo, opts.cachedTarballLocation)
-    return index
+    return await fetchFromLocalTarball(unpackTo, opts.cachedTarballLocation)
   } catch (err) {
     // ignore errors for missing files or broken/partial archives
     switch (err.code) {
@@ -163,12 +160,14 @@ async function fetchFromLocalTarball (
   dir: string,
   tarball: string,
   ignore?: IgnoreFunction,
-): Promise<unpackStream.Index> {
-  return await unpackStream.local(
+): Promise<FetchResult> {
+  const tempLocation = pathTemp(dir)
+  const filesIndex = await unpackStream.local(
     fs.createReadStream(tarball),
-    dir,
+    tempLocation,
     {
       ignore,
     },
-  ) as unpackStream.Index
+  )
+  return {filesIndex, tempLocation}
 }
