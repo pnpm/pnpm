@@ -1,6 +1,19 @@
 import checkPackage from '@pnpm/check-package'
+import {
+  FetchFunction,
+  FetchOptions,
+  FetchResult,
+} from '@pnpm/fetcher-base'
 import logger from '@pnpm/logger'
 import pkgIdToFilename from '@pnpm/pkgid-to-filename'
+import {
+  DirectoryResolution,
+  Resolution,
+  ResolveFunction,
+  ResolveOptions,
+  ResolveResult,
+  WantedDependency,
+} from '@pnpm/resolver-base'
 import {
   PackageJson,
   PackageManifest,
@@ -16,24 +29,11 @@ import exists = require('path-exists')
 import renameOverwrite = require('rename-overwrite')
 import rimraf = require('rimraf-then')
 import symlinkDir = require('symlink-dir')
-import * as unpackStream from 'unpack-stream'
 import writeJsonFile = require('write-json-file')
-import {
-  FetchFunction,
-  FetchOptions,
-} from './fetchTypes'
 import {fromDir as readPkgFromDir} from './fs/readPkg'
 import {fromDir as safeReadPkgFromDir} from './fs/safeReadPkg'
 import {LoggedPkg, progressLogger} from './loggers'
 import memoize, {MemoizedFunc} from './memoize'
-import {
-  DirectoryResolution,
-  Resolution,
-  ResolveFunction,
-  ResolveOptions,
-  ResolveResult,
-  WantedDependency,
-} from './resolveTypes'
 
 export interface PackageFilesResponse {
   fromStore: boolean,
@@ -368,11 +368,8 @@ function fetchToStore (opts: {
       // We fetch into targetStage directory first and then fs.rename() it to the
       // target directory.
 
-      const targetStage = `${target}_stage`
-
-      await rimraf(targetStage)
-
-      let packageIndex!: {}
+      let filesIndex!: {}
+      let tempLocation!: string
       await Promise.all([
         (async () => {
           // Tarballs are requested first because they are bigger than metadata files.
@@ -381,7 +378,7 @@ function fetchToStore (opts: {
           // As much tarballs should be downloaded simultaneously as possible.
           const priority = (++opts.requestsQueue['counter'] % opts.requestsQueue['concurrency'] === 0 ? -1 : 1) * 1000 // tslint:disable-line
 
-          packageIndex = await opts.requestsQueue.add(() => opts.fetch(opts.resolution, targetStage, {
+          const fetchedPackage = await opts.requestsQueue.add(() => opts.fetch(opts.resolution, target, {
             cachedTarballLocation: path.join(opts.storePath, opts.pkgId, 'packed.tgz'),
             onProgress: (downloaded) => {
               progressLogger.debug({status: 'fetching_progress', pkgId: opts.pkgId, downloaded})
@@ -392,6 +389,9 @@ function fetchToStore (opts: {
             pkgId: opts.pkgId,
             prefix: opts.prefix,
           }), {priority})
+
+          filesIndex = fetchedPackage.filesIndex
+          tempLocation = fetchedPackage.tempLocation
         })(),
         // removing only the folder with the unpacked files
         // not touching tarball and integrity.json
@@ -402,21 +402,19 @@ function fetchToStore (opts: {
         status: 'fetched',
       })
 
-      // Ideally, fetchingFiles shouldn't care about when integrity is calculated
-      //
-      // TODO: Move renaming of the stage folder into the fetcher.
-      //       It will allow to finish fetchingFiles earlier
-      //       than integrity is generated
+      // Ideally, fetchingFiles wouldn't care about when integrity is calculated.
+      // However, we can only rename the temp folder once we know the package name.
+      // And we cannot rename the temp folder till we're calculating integrities.
       if (!targetExists) {
         if (opts.verifyStoreIntegrity) {
           const fileIntegrities = await Promise.all(
-            Object.keys(packageIndex)
+            Object.keys(filesIndex)
               .map((filename) =>
-                packageIndex[filename].generatingIntegrity
+              filesIndex[filename].generatingIntegrity
                   .then((fileIntegrity: object) => ({
                     [filename]: {
                       integrity: fileIntegrity,
-                      size: packageIndex[filename].size,
+                      size: filesIndex[filename].size,
                     },
                   })),
               ),
@@ -429,7 +427,7 @@ function fetchToStore (opts: {
           await writeJsonFile(path.join(target, 'integrity.json'), integrity, {indent: null})
         } else {
           // TODO: save only filename: {size}
-          await writeJsonFile(path.join(target, 'integrity.json'), packageIndex, {indent: null})
+          await writeJsonFile(path.join(target, 'integrity.json'), filesIndex, {indent: null})
         }
         finishing.resolve(undefined)
       } else {
@@ -440,7 +438,7 @@ function fetchToStore (opts: {
       if (opts.pkg) {
         pkg = opts.pkg
       } else {
-        pkg = await readPkgFromDir(targetStage)
+        pkg = await readPkgFromDir(tempLocation)
         fetchingManifest.resolve(pkg)
       }
 
@@ -449,11 +447,11 @@ function fetchToStore (opts: {
 
       // rename(oldPath, newPath) is an atomic operation, so we do it at the
       // end
-      await renameOverwrite(targetStage, unpacked)
+      await renameOverwrite(tempLocation, unpacked)
       await symlinkDir(unpacked, linkToUnpacked)
 
       fetchingFiles.resolve({
-        filenames: Object.keys(packageIndex).filter((f) => !packageIndex[f].isDir), // Filtering can be removed for store v3
+        filenames: Object.keys(filesIndex).filter((f) => !filesIndex[f].isDir), // Filtering can be removed for store v3
         fromStore: false,
       })
     } catch (err) {
@@ -491,7 +489,7 @@ async function fetcher (
   resolution: Resolution,
   target: string,
   opts: FetchOptions,
-): Promise<unpackStream.Index> {
+): Promise<FetchResult> {
   const fetch = fetcherByHostingType[resolution.type || 'tarball']
   if (!fetch) {
     throw new Error(`Fetching for dependency type "${resolution.type}" is not supported`)

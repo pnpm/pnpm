@@ -14,6 +14,3 @@ export {
   ProgressLog,
   Log,
 } from './loggers'
-
-export * from './fetchTypes'
-export * from './resolveTypes'
