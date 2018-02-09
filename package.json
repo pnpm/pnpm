@@ -32,7 +32,7 @@
   },
   "homepage": "https://github.com/pnpm/fetch-from-npm-registry#readme",
   "dependencies": {
-    "@types/node": "^8.0.57",
+    "@types/node": "^9.4.4",
     "make-fetch-happen": "^2.6.0"
   },
   "devDependencies": {
