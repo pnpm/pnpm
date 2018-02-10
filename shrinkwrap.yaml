@@ -19,6 +19,7 @@ dependencies:
   p-limit: 1.2.0
   path-absolute: 1.0.0
   path-exists: 3.0.0
+  path-temp: 1.0.0
   ramda: 0.25.0
   rename-overwrite: 1.0.2
   rimraf-then: 1.0.1
@@ -531,6 +532,12 @@ packages:
       node: '>=4.8'
     resolution:
       integrity: sha512-LDYnK41m8td+nBTk5Jmn55aGVP18iYuUqoM1X3u+ptt7M/g9FPS8C38PNoJTMfjoNx4fmiwWToPpiZklGRLbIA==
+  /crypto-random-string/1.0.0:
+    dev: false
+    engines:
+      node: '>=4'
+    resolution:
+      integrity: sha1-ojD2T1aDEOFJgAmUB5DsmVRbyn4=
   /currently-unhandled/0.4.1:
     dependencies:
       array-find-index: 1.0.2
@@ -1943,6 +1950,14 @@ packages:
     dev: true
     resolution:
       integrity: sha1-PBrfhx6pzWyUMbbqK9dKD/BVxME=
+  /path-temp/1.0.0:
+    dependencies:
+      unique-string: 1.0.0
+    dev: false
+    engines:
+      node: '>=4'
+    resolution:
+      integrity: sha512-TeQgoH67RYUT3xt6WaRASbWyJmvrUnpeToQQT7RW+uighCh/gfs4VCO2/P8mIpjt6JsyJ6DxE6Q1FOJXVc3ANg==
   /path-type/1.1.0:
     dependencies:
       graceful-fs: 4.1.11
@@ -2656,6 +2671,14 @@ packages:
     dev: true
     resolution:
       integrity: sha512-izD3jxT8xkzwtXRUZjtmRwKnZoeECrfZ8ra/ketwOcusbZEp4mjULMnJOCfTDZBgGQAAY1AJ/IgxcwkavcX9Og==
+  /unique-string/1.0.0:
+    dependencies:
+      crypto-random-string: 1.0.0
+    dev: false
+    engines:
+      node: '>=4'
+    resolution:
+      integrity: sha1-nhBXzKhRq7kzmPizOuGHuZyuwRo=
   /universalify/0.1.1:
     dev: true
     resolution:
@@ -2802,6 +2825,7 @@ specifiers:
   package-preview: ^1.0.0
   path-absolute: ^1.0.0
   path-exists: ^3.0.0
+  path-temp: ^1.0.0
   ramda: ^0.25.0
   rename-overwrite: ^1.0.0
   rimraf: ^2.6.1

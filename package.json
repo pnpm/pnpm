@@ -39,6 +39,7 @@
     "p-limit": "^1.1.0",
     "path-absolute": "^1.0.0",
     "path-exists": "^3.0.0",
+    "path-temp": "^1.0.0",
     "ramda": "^0.25.0",
     "rename-overwrite": "^1.0.0",
     "rimraf-then": "^1.0.1",

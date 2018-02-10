@@ -9,6 +9,7 @@ import ncpCB = require('ncp')
 import pLimit = require('p-limit')
 import path = require('path')
 import exists = require('path-exists')
+import pathTemp = require('path-temp')
 import renameOverwrite = require('rename-overwrite')
 import promisify = require('util.promisify')
 import linkIndexedDir from '../fs/linkIndexedDir'
@@ -84,7 +85,7 @@ async function reflinkPkg (
   const pkgJsonPath = path.join(to, 'package.json')
 
   if (!opts.filesResponse.fromStore || opts.force || !await exists(pkgJsonPath)) {
-    const staging = `${to}+stage${Math.random()}`
+    const staging = pathTemp(path.dirname(to))
     await mkdirp(staging)
     await execFilePromise('cp', ['-r', '--reflink', from + '/.', staging])
     await renameOverwrite(staging, to)
@@ -132,7 +133,7 @@ export async function copyPkg (
 ) {
   const pkgJsonPath = path.join(to, 'package.json')
   if (!opts.filesResponse.fromStore || opts.force || !await exists(pkgJsonPath)) {
-    const staging = `${to}+stage${Math.random()}`
+    const staging = pathTemp(path.dirname(to))
     await mkdirp(staging)
     await ncp(from + '/.', staging)
     await renameOverwrite(staging, to)

@@ -1,10 +1,11 @@
 import mkdirp = require('mkdirp-promise')
 import fs = require('mz/fs')
 import path = require('path')
+import pathTemp = require('path-temp')
 import rimraf = require('rimraf-then')
 
 export default async function linkIndexedDir (existingDir: string, newDir: string, filenames: string[]) {
-  const stage = `${newDir}+stage${Math.random()}`
+  const stage = pathTemp(path.dirname(newDir))
   try {
     await rimraf(stage)
     await tryLinkIndexedDir(existingDir, stage, filenames)
