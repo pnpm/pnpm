@@ -86,60 +86,60 @@ export default function (
     outputs.push(alreadyUpToDate$)
   }
 
-  if (!appendOnly) {
-    const fedtchedLog$ = log$.progress
-      .filter((log) => log.status === 'fetched')
-      .scan(R.inc, 0)
+  const fedtchedLog$ = log$.progress
+    .filter((log) => log.status === 'fetched')
+    .scan(R.inc, 0)
 
-    const foundInStoreLog$ = log$.progress
-      .filter((log) => log.status === 'found_in_store')
-      .scan(R.inc, 0)
+  const foundInStoreLog$ = log$.progress
+    .filter((log) => log.status === 'found_in_store')
+    .scan(R.inc, 0)
 
-    function createStatusMessage (resolving: number, fetched: number, foundInStore: number, resolutionDone: boolean) {
-      const msg = `Resolving: total ${hlValue(resolving.toString())}, reused ${hlValue(foundInStore.toString())}, downloaded ${hlValue(fetched.toString())}`
-      if (resolving === foundInStore + fetched && resolutionDone) {
-        return {
-          fixed: false,
-          msg: `${msg}, done`,
-        }
-      }
+  function createStatusMessage (resolving: number, fetched: number, foundInStore: number, resolutionDone: boolean) {
+    const msg = `Resolving: total ${hlValue(resolving.toString())}, reused ${hlValue(foundInStore.toString())}, downloaded ${hlValue(fetched.toString())}`
+    if (resolving === foundInStore + fetched && resolutionDone) {
       return {
-        fixed: true,
-        msg,
+        fixed: false,
+        msg: `${msg}, done`,
       }
     }
-
-    if (!isRecursive && typeof throttleProgress === 'number' && throttleProgress > 0) {
-      const importingDone$ = log$.stage.filter((log) => log.message === 'importing_done').multicast()
-      const resolutionStarted$ = log$.stage.filter((log) => log.message === 'resolution_started')
-      const commandDone$ = log$.cli.filter((log) => log['message'] === 'command_done')
-
-      // Reporting is done every `throttleProgress` milliseconds
-      // and once all packages are fetched.
-      const sampler = most.merge(
-        most.periodic(throttleProgress).since(resolutionStarted$).until(most.merge(importingDone$, commandDone$)),
-        importingDone$,
-      )
-      const progress = most.sample(
-        createStatusMessage,
-        sampler,
-        resolvingContentLog$,
-        fedtchedLog$,
-        foundInStoreLog$,
-        resolutionDone$,
-      )
-      outputs.push(most.of(progress))
-    } else {
-      const progress = most.combine(
-        createStatusMessage,
-        resolvingContentLog$,
-        fedtchedLog$,
-        foundInStoreLog$,
-        isRecursive ? most.of(false) : resolutionDone$,
-      )
-      outputs.push(most.of(progress))
+    return {
+      fixed: true,
+      msg,
     }
+  }
 
+  if (!isRecursive && typeof throttleProgress === 'number' && throttleProgress > 0) {
+    const importingDone$ = log$.stage.filter((log) => log.message === 'importing_done').multicast()
+    const resolutionStarted$ = log$.stage.filter((log) => log.message === 'resolution_started')
+    const commandDone$ = log$.cli.filter((log) => log['message'] === 'command_done')
+
+    // Reporting is done every `throttleProgress` milliseconds
+    // and once all packages are fetched.
+    const sampler = most.merge(
+      most.periodic(throttleProgress).since(resolutionStarted$).until(most.merge(importingDone$, commandDone$)),
+      importingDone$,
+    )
+    const progress = most.sample(
+      createStatusMessage,
+      sampler,
+      resolvingContentLog$,
+      fedtchedLog$,
+      foundInStoreLog$,
+      resolutionDone$,
+    )
+    outputs.push(most.of(progress))
+  } else {
+    const progress = most.combine(
+      createStatusMessage,
+      resolvingContentLog$,
+      fedtchedLog$,
+      foundInStoreLog$,
+      isRecursive ? most.of(false) : resolutionDone$,
+    )
+    outputs.push(most.of(progress))
+  }
+
+  if (!appendOnly) {
     const tarballsProgressOutput$ = log$.progress
       .filter((log) => log.status === 'fetching_started' &&
         typeof log.size === 'number' && log.size >= BIG_TARBALL_SIZE)

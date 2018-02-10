@@ -55,6 +55,27 @@ test('prints progress beginning', t => {
   })
 })
 
+test('prints progress beginning when appendOnly is true', t => {
+  const output$ = toOutput$(createStreamParser(), {appendOnly: true})
+
+  const pkgId = 'registry.npmjs.org/foo/1.0.0'
+
+  progressLogger.debug({
+    status: 'resolving_content',
+    pkgId,
+  })
+
+  t.plan(1)
+
+  output$.take(1).subscribe({
+    next: output => {
+      t.equal(output, `Resolving: total ${hlValue('1')}, reused ${hlValue('0')}, downloaded ${hlValue('0')}`)
+    },
+    error: t.end,
+    complete: () => t.end(),
+  })
+})
+
 test('prints progress beginning during recursive install', t => {
   const output$ = toOutput$(createStreamParser(), {cmd: 'recursive'})
 
