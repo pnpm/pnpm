@@ -17,6 +17,7 @@ export default (reporterType: ReporterType, cmd: string) => {
       defaultReporter(streamParser, {
         appendOnly: true,
         cmd,
+        throttleProgress: 1000,
       })
       return
     case 'ndjson':
