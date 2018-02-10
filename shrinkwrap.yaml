@@ -1,6 +1,7 @@
 dependencies:
-  '@pnpm/git-fetcher': 0.2.0
-  '@pnpm/tarball-fetcher': 0.3.6
+  '@pnpm/fetcher-base': 1.0.0
+  '@pnpm/git-fetcher': 0.3.0
+  '@pnpm/tarball-fetcher': 0.4.0
 devDependencies:
   '@pnpm/logger': 1.0.1
   '@types/tape': 4.2.31
@@ -25,17 +26,26 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha512-sYJOXPxpQxFcTSACFRFCuIQdnZLNaOgTHGF+CQNYlKnlc2ZnmEW+lAZVTc0hJSU+8mnTY7ei39MbYpI5q+li+w==
-  /@pnpm/git-fetcher/0.2.0:
+  /@pnpm/fetcher-base/1.0.0:
     dependencies:
-      '@types/node': 8.9.2
+      '@pnpm/resolver-base': 1.0.0
+    dev: false
+    engines:
+      node: '>=4'
+    resolution:
+      integrity: sha512-kp5ooq4wC84gelVjkQuV8GzDHe/m99+yvlx3HTHOP25SdfkshIG5k/q784cmw8axjBke/LXdgE9sR5JRNs8TTw==
+  /@pnpm/git-fetcher/0.3.0:
+    dependencies:
+      '@types/node': 9.4.4
       dint: 2.0.2
-      execa: 0.8.0
+      execa: 0.9.0
+      path-temp: 1.0.0
       rimraf-then: 1.0.1
     dev: false
     engines:
       node: '>=4'
     resolution:
-      integrity: sha512-IhFB0gZO38sf7hZAsIDuTcV3mtYggK20MHQjnPk0klCIMmJPpDlWQOQVOpmDTvXWrTl79bmjjvkwwfL/P7fUlQ==
+      integrity: sha512-T2oLpuP5hYX2sgr5W6FfKodeGPSo3Y/R0EEg2eZM++htOOleNci8JFNS5bK5BmFb8b0cvt1LLsNqvsAscv1TGQ==
   /@pnpm/logger/1.0.1:
     dependencies:
       '@types/node': 9.4.4
@@ -46,14 +56,23 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha512-23FWOXgCkJ9q73mIqS5H/x98uaZcvO7ov/nt0HZGgLci3MHsqBgEfh3UzZiLZIxlxmA3XoUp4fgbjM7S96pBRg==
+  /@pnpm/resolver-base/1.0.0:
+    dependencies:
+      '@pnpm/types': 1.7.0
+    dev: false
+    engines:
+      node: '>=4'
+    resolution:
+      integrity: sha512-+y47No75LZFnkN7VAnoEtkIzDgOuc8ZT4QjyhuNIBVLx4oqFa/R16DpSyRjmaTZMCSREXunObULKL/hoLipNDA==
   /@pnpm/self-installer/2.0.0:
     dev: true
     engines:
       node: '>=4'
     resolution:
       integrity: sha512-+Hg7mBqDOXUlH4UvYffXMJwln8EIfqpf0+y7ODYqbO9GF9Kc1GG7/tbl5cWyA1OKF04XQH9jugoIxtCOxN9/dg==
-  /@pnpm/tarball-fetcher/0.3.6:
+  /@pnpm/tarball-fetcher/0.4.0:
     dependencies:
+      '@pnpm/fetcher-base': 1.0.0
       '@types/mem': 1.1.2
       '@types/mz': 0.0.32
       '@types/node': 9.4.4
@@ -66,7 +85,7 @@ packages:
       mem: 3.0.0
       mkdirp-promise: 5.0.1
       mz: 2.7.0
-      rename-overwrite: 1.0.2
+      path-temp: 1.0.0
       retry: 0.10.1
       rimraf: 2.6.2
       ssri: 5.0.0
@@ -77,7 +96,11 @@ packages:
     peerDependencies:
       '@pnpm/logger': ^1.0.0
     resolution:
-      integrity: sha512-Tf3XzwEhCjWM8/ZNt+BkPWp6zKV0nG3IDzf054ikVpwC95B98aMnzla2JAP3huUCEQ0545Mm/xR9BylCA2aPYQ==
+      integrity: sha512-logBWMMHf9p2Um45UiT6ZJd72Xlo6uh7WBCQiX2tPOGTUmay4ulbPLKX6kKeosrBPlP4D7qp+ZhXRSIGinp86A==
+  /@pnpm/types/1.7.0:
+    dev: false
+    resolution:
+      integrity: sha512-pn7g4uxcofWTNG/cxmKvkMK2lxr4OUIhrQDrEVYEdVhW0WkWztsHkFrYjFgfNzPbYu3ITlB3T6aSVjCoJQTOlw==
   /@types/events/1.1.0:
     dev: false
     resolution:
@@ -119,10 +142,6 @@ packages:
       '@types/node': 9.4.4
     resolution:
       integrity: sha512-cy3yebKhrHuOcrJGkfwNHhpTXQLgmXSv1BX+4p32j+VUQ6aP2eJ5cL7OvGcAQx75fCTFaAIIAKewvqL+iwSd4g==
-  /@types/node/8.9.2:
-    dev: false
-    resolution:
-      integrity: sha512-+IIOUfGkGIUu310djXpOZNR1jHftzr/W7DwoUPiRfzhZWFLXdRt80ePYUjSEYVEs4hJUK4ikXWWo7eHd10RQlA==
   /@types/node/9.4.4:
     resolution:
       integrity: sha512-pTi6f79uELOTQ2TtXxWcjmJ+iZa1C3ypm6pGNU/viOQX/VfBXLmsZEcJPk1rm+lia+GP6GpgFGUkCvLJ7JOKDA==
@@ -795,6 +814,12 @@ packages:
       node: '>=4.8'
     resolution:
       integrity: sha512-LDYnK41m8td+nBTk5Jmn55aGVP18iYuUqoM1X3u+ptt7M/g9FPS8C38PNoJTMfjoNx4fmiwWToPpiZklGRLbIA==
+  /crypto-random-string/1.0.0:
+    dev: false
+    engines:
+      node: '>=4'
+    resolution:
+      integrity: sha1-ojD2T1aDEOFJgAmUB5DsmVRbyn4=
   /currently-unhandled/0.4.1:
     dependencies:
       array-find-index: 1.0.2
@@ -855,6 +880,7 @@ packages:
     dependencies:
       foreach: 2.0.5
       object-keys: 1.0.11
+    dev: true
     engines:
       node: '>= 0.4'
     resolution:
@@ -863,14 +889,6 @@ packages:
     dev: true
     resolution:
       integrity: sha1-yY2bzvdWdBiOEQlpFRGZ45sfppM=
-  /delay/2.0.0:
-    dependencies:
-      p-defer: 1.0.0
-    dev: false
-    engines:
-      node: '>=4'
-    resolution:
-      integrity: sha1-kRLq3APk7H4AKXM3iW8nO72R+uU=
   /detect-indent/4.0.0:
     dependencies:
       repeating: 2.0.1
@@ -967,6 +985,7 @@ packages:
       has: 1.0.1
       is-callable: 1.1.3
       is-regex: 1.0.4
+    dev: true
     engines:
       node: '>= 0.4'
     resolution:
@@ -976,6 +995,7 @@ packages:
       is-callable: 1.1.3
       is-date-object: 1.0.1
       is-symbol: 1.0.1
+    dev: true
     engines:
       node: '>= 0.4'
     resolution:
@@ -1016,7 +1036,7 @@ packages:
     dev: true
     resolution:
       integrity: sha1-LUH1Y+H+QA7Uli/hpNXGp1Od9/Y=
-  /execa/0.8.0:
+  /execa/0.9.0:
     dependencies:
       cross-spawn: 5.1.0
       get-stream: 3.0.0
@@ -1029,7 +1049,7 @@ packages:
     engines:
       node: '>=4'
     resolution:
-      integrity: sha1-2NdrvBtVIX7RkP1t1J08d07PyNo=
+      integrity: sha512-BbUMBiX4hqiHZUA5+JujIjNb6TyAlp2D5KLheMjMluwOuzcnylDL4AxZYLLn1n2AGB49eSWwyKvvEQoRpnAtmA==
   /fast-safe-stringify/1.1.13:
     dev: true
     resolution:
@@ -1110,6 +1130,7 @@ packages:
     resolution:
       integrity: sha1-LEBFC5NI6X8oEyJZO6lnBLmr1NQ=
   /foreach/2.0.5:
+    dev: true
     resolution:
       integrity: sha1-C+4AUBiusmDQo6865ljdATbsG5k=
   /from2/2.3.0:
@@ -1140,6 +1161,7 @@ packages:
     resolution:
       integrity: sha1-FQStJSMVjKpA20onh8sBQRmU6k8=
   /function-bind/1.1.1:
+    dev: true
     resolution:
       integrity: sha512-yIovAzMX49sF8Yl58fSCWJ5svSLuaibPxXQJFLmBObTuCr0Mf1KiPopGM9NiFjiYBCbfaa2Fh6breQ6ANVTI0A==
   /get-stdin/4.0.1:
@@ -1255,6 +1277,7 @@ packages:
   /has/1.0.1:
     dependencies:
       function-bind: 1.1.1
+    dev: true
     engines:
       node: '>= 0.8.0'
     resolution:
@@ -1402,11 +1425,13 @@ packages:
     resolution:
       integrity: sha1-XuWOqlounIDiFAe+3yOuWsCRs/w=
   /is-callable/1.1.3:
+    dev: true
     engines:
       node: '>= 0.4'
     resolution:
       integrity: sha1-hut1OSgF3cM69xySoO7fdO52BLI=
   /is-date-object/1.0.1:
+    dev: true
     engines:
       node: '>= 0.4'
     resolution:
@@ -1478,6 +1503,7 @@ packages:
   /is-regex/1.0.4:
     dependencies:
       has: 1.0.1
+    dev: true
     engines:
       node: '>= 0.4'
     resolution:
@@ -1494,6 +1520,7 @@ packages:
     resolution:
       integrity: sha1-EtSj3U5o4Lec6428hBc66A2RykQ=
   /is-symbol/1.0.1:
+    dev: true
     engines:
       node: '>= 0.4'
     resolution:
@@ -2162,19 +2189,11 @@ packages:
     resolution:
       integrity: sha512-OHHnLgLNXpM++GnJRyyhbr2bwl3pPVm4YvaraHrRvDt/N3r+s/gDVHciA7EJBTkijKXj61ssgSAikq1fb0IBRg==
   /object-keys/1.0.11:
+    dev: true
     engines:
       node: '>= 0.4'
     resolution:
       integrity: sha1-xUYBd4rVYPEULODgG8yotW0TQm0=
-  /object.getownpropertydescriptors/2.0.3:
-    dependencies:
-      define-properties: 1.1.2
-      es-abstract: 1.10.0
-    dev: false
-    engines:
-      node: '>= 0.8'
-    resolution:
-      integrity: sha1-h1jIRvW0B62rDyNuCYbxSwUcqhY=
   /once/1.4.0:
     dependencies:
       wrappy: 1.0.2
@@ -2199,12 +2218,6 @@ packages:
     dev: true
     resolution:
       integrity: sha1-Qv5tWVPfBsgGS+bxdsPQWqqjRkQ=
-  /p-defer/1.0.0:
-    dev: false
-    engines:
-      node: '>=4'
-    resolution:
-      integrity: sha1-n26xgvbJqozXQwBKfU+WsZaw+ww=
   /p-every/1.0.2:
     dependencies:
       p-map: 1.2.0
@@ -2365,6 +2378,14 @@ packages:
     dev: true
     resolution:
       integrity: sha1-PBrfhx6pzWyUMbbqK9dKD/BVxME=
+  /path-temp/1.0.0:
+    dependencies:
+      unique-string: 1.0.0
+    dev: false
+    engines:
+      node: '>=4'
+    resolution:
+      integrity: sha512-TeQgoH67RYUT3xt6WaRASbWyJmvrUnpeToQQT7RW+uighCh/gfs4VCO2/P8mIpjt6JsyJ6DxE6Q1FOJXVc3ANg==
   /path-type/1.1.0:
     dependencies:
       graceful-fs: 4.1.11
@@ -2636,17 +2657,6 @@ packages:
     dev: true
     resolution:
       integrity: sha1-wkvOKig62tW8P1jg1IJJuSN52O8=
-  /rename-overwrite/1.0.2:
-    dependencies:
-      delay: 2.0.0
-      graceful-fs: 4.1.11
-      rimraf: 2.6.2
-      util.promisify: 1.0.0
-    dev: false
-    engines:
-      node: '>=4'
-    resolution:
-      integrity: sha512-H7bHUSiUG9xIAtGAoP7MrpQYGxpkcnIWuDBlMWXdYra+NvkL8kQnjnLlseuSdRFRgwxs61So+qsX8AHQaWCTmg==
   /repeat-string/1.6.1:
     dev: true
     engines:
@@ -3276,6 +3286,14 @@ packages:
     dev: false
     resolution:
       integrity: sha1-22Z258fMBimHj/GWCXx4hVrp9Ks=
+  /unique-string/1.0.0:
+    dependencies:
+      crypto-random-string: 1.0.0
+    dev: false
+    engines:
+      node: '>=4'
+    resolution:
+      integrity: sha1-nhBXzKhRq7kzmPizOuGHuZyuwRo=
   /unist-util-is/2.1.1:
     dev: true
     resolution:
@@ -3338,13 +3356,6 @@ packages:
   /util-deprecate/1.0.2:
     resolution:
       integrity: sha1-RQ1Nyfpw3nMnYvvS1KKJgUGaDM8=
-  /util.promisify/1.0.0:
-    dependencies:
-      define-properties: 1.1.2
-      object.getownpropertydescriptors: 2.0.3
-    dev: false
-    resolution:
-      integrity: sha512-i+6qA2MPhvoKLuxnJNpXAGhg7HphQOSUq2LKMZD0m15EiskXUkMvKdF4Uui0WYeCUGea+o2cw/ZuwehtfsrNkA==
   /uuid/2.0.3:
     dev: true
     resolution:
@@ -3461,9 +3472,10 @@ registry: 'https://registry.npmjs.org/'
 shrinkwrapMinorVersion: 4
 shrinkwrapVersion: 3
 specifiers:
-  '@pnpm/git-fetcher': ^0.2.0
+  '@pnpm/fetcher-base': ^1.0.0
+  '@pnpm/git-fetcher': ^0.3.0
   '@pnpm/logger': ^1.0.0
-  '@pnpm/tarball-fetcher': ^0.3.2
+  '@pnpm/tarball-fetcher': ^0.4.0
   '@types/tape': ^4.2.31
   mos: ^2.0.0-alpha.3
   mos-plugin-readme: ^1.0.4

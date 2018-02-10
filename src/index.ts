@@ -1,6 +1,6 @@
+import {FetchOptions} from '@pnpm/fetcher-base'
 import fetchFromGit from '@pnpm/git-fetcher'
 import createTarballFetcher, {
-  FetchOptions,
   IgnoreFunction,
 } from '@pnpm/tarball-fetcher'
 

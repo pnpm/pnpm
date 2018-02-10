@@ -33,8 +33,9 @@
   },
   "homepage": "https://github.com/pnpm/default-fetcher#readme",
   "dependencies": {
-    "@pnpm/git-fetcher": "^0.2.0",
-    "@pnpm/tarball-fetcher": "^0.3.2"
+    "@pnpm/fetcher-base": "^1.0.0",
+    "@pnpm/git-fetcher": "^0.3.0",
+    "@pnpm/tarball-fetcher": "^0.4.0"
   },
   "devDependencies": {
     "@pnpm/logger": "^1.0.0",
