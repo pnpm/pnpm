@@ -38,7 +38,7 @@ export default function mergeOutputs (outputs: Array<most.Stream<most.Stream<{ms
     if (log.fixed === true) {
       acc.fixedBlocks[log.blockNo] = log.msg
     } else {
-      delete acc.fixedBlocks[log['prevFixedBlockNo']]
+      delete acc.fixedBlocks[log['prevFixedBlockNo'] as number]
       acc.blocks[log.blockNo] = log.msg
     }
     return acc
