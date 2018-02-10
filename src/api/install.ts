@@ -64,10 +64,12 @@ import writePkg = require('write-pkg')
 import parseWantedDependencies from '../parseWantedDependencies'
 import {
   PackageFilesResponse,
-  DirectoryResolution,
-  Resolution,
   RequestPackageFunction,
 } from '@pnpm/package-requester'
+import {
+  DirectoryResolution,
+  Resolution,
+} from '@pnpm/resolver-base'
 import {
   nodeIdContainsSequence,
   createNodeId,

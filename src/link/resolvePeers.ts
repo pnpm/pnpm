@@ -1,8 +1,6 @@
 import pkgIdToFilename from '@pnpm/pkgid-to-filename'
-import {
-  Resolution,
-  PackageFilesResponse,
-} from '@pnpm/package-requester'
+import {PackageFilesResponse} from '@pnpm/package-requester'
+import {Resolution} from '@pnpm/resolver-base'
 import {Dependencies} from '@pnpm/types'
 import R = require('ramda')
 import semver = require('semver')

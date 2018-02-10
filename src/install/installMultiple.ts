@@ -7,9 +7,9 @@ import exists = require('path-exists')
 import url = require('url')
 import {
   PackageFilesResponse,
-  Resolution,
   PackageResponse,
 } from '@pnpm/package-requester'
+import {Resolution} from '@pnpm/resolver-base'
 import {InstallContext, InstalledPackages} from '../api/install'
 import {
   WantedDependency,
