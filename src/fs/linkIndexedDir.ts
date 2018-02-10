@@ -2,6 +2,7 @@ import mkdirp = require('mkdirp-promise')
 import fs = require('mz/fs')
 import path = require('path')
 import pathTemp = require('path-temp')
+import renameOverwrite = require('rename-overwrite')
 import rimraf = require('rimraf-then')
 
 export default async function linkIndexedDir (existingDir: string, newDir: string, filenames: string[]) {
@@ -9,8 +10,7 @@ export default async function linkIndexedDir (existingDir: string, newDir: strin
   try {
     await rimraf(stage)
     await tryLinkIndexedDir(existingDir, stage, filenames)
-    await rimraf(newDir)
-    await fs.rename(stage, newDir)
+    await renameOverwrite(stage, newDir)
   } catch (err) {
     try { await rimraf(stage) } catch (err) {} // tslint:disable-line:no-empty
     throw err
