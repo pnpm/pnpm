@@ -1,10 +1,10 @@
+import {FetchFunction} from '@pnpm/fetcher-base'
 import lock from '@pnpm/fs-locker'
 import logger from '@pnpm/logger'
 import createPackageRequester, {
-  FetchFunction,
   RequestPackageFunction,
-  ResolveFunction,
 } from '@pnpm/package-requester'
+import {ResolveFunction} from '@pnpm/resolver-base'
 import {StoreIndex} from '@pnpm/types'
 import pFilter = require('p-filter')
 import pLimit = require('p-limit')
