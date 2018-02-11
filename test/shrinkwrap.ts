@@ -824,3 +824,13 @@ test('fail when installing with shrinkwrap: false and shrinkwrapOnly: true', asy
     t.equal(err.message, 'Cannot generate a shrinkwrap.yaml because shrinkwrap is set to false')
   }
 })
+
+test("don't remove packages during named install when shrinkwrap: false", async (t: tape.Test) => {
+  const project = prepare(t)
+
+  await installPkgs(['is-positive'], await testDefaults({shrinkwrap: false}))
+  await installPkgs(['is-negative'], await testDefaults({shrinkwrap: false}))
+
+  await project.has('is-positive')
+  await project.has('is-negative')
+})

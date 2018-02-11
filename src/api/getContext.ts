@@ -18,6 +18,7 @@ import {PackageJson} from '@pnpm/types'
 import normalizePath = require('normalize-path')
 import removeAllExceptOuterLinks = require('remove-all-except-outer-links')
 import logger from '@pnpm/logger'
+import R = require('ramda')
 import checkCompatibility from './checkCompatibility'
 import {packageJsonLogger} from '../loggers'
 
@@ -83,12 +84,13 @@ export default async function getContext (
     readCurrentShrinkwrap(root, shrOpts),
     mkdirp(storePath),
   ])
+  const currentShrinkwrap = files[2] || createShrinkwrap(opts.registry)
   const ctx: PnpmContext = {
     pkg: files[0],
     root,
     storePath,
-    wantedShrinkwrap: files[1] || createShrinkwrap(opts.registry),
-    currentShrinkwrap: files[2] || createShrinkwrap(opts.registry),
+    wantedShrinkwrap: files[1] || !opts.shrinkwrap && currentShrinkwrap && R.clone(currentShrinkwrap) || createShrinkwrap(opts.registry),
+    currentShrinkwrap,
     existsWantedShrinkwrap: !!files[1],
     existsCurrentShrinkwrap: !!files[2],
     skipped: new Set(modules && modules.skipped || []),
