@@ -44,9 +44,10 @@ export default async function testDefaults (
       ...storeOpts,
     }
   )
-  return Object.assign({
+  return {
     store,
     storeController,
     registry,
-  }, opts)
+    ...opts,
+  }
 }

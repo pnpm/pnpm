@@ -119,18 +119,18 @@ export default async function installMultiple (
             reference = preferedDependencies[wantedDependency.alias]
           }
 
-          return await install(wantedDependency, ctx, Object.assign({
-              keypath: options.keypath,
-              parentNodeId: options.parentNodeId,
-              currentDepth: options.currentDepth,
-              parentIsInstallable: options.parentIsInstallable,
-              readPackageHook: options.readPackageHook,
-              hasManifestInShrinkwrap: options.hasManifestInShrinkwrap,
-              update,
-              proceed,
-              sideEffectsCache: options.sideEffectsCache,
-            },
-            getInfoFromShrinkwrap(ctx.wantedShrinkwrap, reference, wantedDependency.alias, ctx.registry)))
+          return await install(wantedDependency, ctx, {
+            keypath: options.keypath,
+            parentNodeId: options.parentNodeId,
+            currentDepth: options.currentDepth,
+            parentIsInstallable: options.parentIsInstallable,
+            readPackageHook: options.readPackageHook,
+            hasManifestInShrinkwrap: options.hasManifestInShrinkwrap,
+            update,
+            proceed,
+            sideEffectsCache: options.sideEffectsCache,
+            ...getInfoFromShrinkwrap(ctx.wantedShrinkwrap, reference, wantedDependency.alias, ctx.registry),
+          })
         })
     )
   )
@@ -200,17 +200,19 @@ function dependencyShrToResolution (
     return depShr.resolution as Resolution
   }
   if (!depShr.resolution['tarball']) {
-    return Object.assign({}, depShr.resolution, {
+    return {
+      ...depShr.resolution,
       tarball: getTarball(),
       registry: depShr.resolution['registry'] || registry,
-    })
+    } as Resolution
   }
   if (depShr.resolution['tarball'].startsWith('file:')) {
     return depShr.resolution as Resolution
   }
-  return Object.assign({}, depShr.resolution, {
-    tarball: url.resolve(registry, depShr.resolution['tarball'])
-  })
+  return {
+    ...depShr.resolution,
+    tarball: url.resolve(registry, depShr.resolution['tarball']),
+  } as Resolution
 
   function getTarball () {
     const parsed = dp.parse(relDepPath)

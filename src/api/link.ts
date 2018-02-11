@@ -27,11 +27,12 @@ export default async function link (
   const opts = await extendOptions(maybeOpts)
 
   if (!maybeOpts || !maybeOpts.skipInstall) {
-    await install(Object.assign({}, opts, {
+    await install({
+      ...opts,
       prefix: linkFrom,
       bin: path.join(linkFrom, 'node_modules', '.bin'),
       global: false,
-    }))
+    })
   }
 
   const destModules = path.join(linkTo, 'node_modules')
@@ -84,9 +85,10 @@ export async function linkToGlobal (
   }
   const opts = await extendOptions(maybeOpts)
   const globalPkgPath = pathAbsolute(maybeOpts.globalPrefix)
-  await link(linkFrom, globalPkgPath, Object.assign(opts, {
+  await link(linkFrom, globalPkgPath, {
+    ...opts,
     linkToBin: maybeOpts.globalBin,
-  }))
+  })
 
   if (reporter) {
     streamParser.removeListener('data', reporter)
