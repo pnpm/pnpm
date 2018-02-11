@@ -28,7 +28,7 @@ import {
   ReporterFunction,
 } from '../types'
 import getContext, {PnpmContext} from './getContext'
-import installMultiple, {InstalledPackage} from '../install/installMultiple'
+import resolveDependencies, {InstalledPackage} from '../resolveDependencies'
 import externalLink from './link'
 import linkPackages from '../link'
 import save from '../save'
@@ -405,7 +405,7 @@ async function installInContext (
         return false
     })
   stageLogger.debug('resolution_started')
-  const rootPkgs = await installMultiple(
+  const rootPkgs = await resolveDependencies(
     installCtx,
     nonLinkedPkgs,
     installOpts

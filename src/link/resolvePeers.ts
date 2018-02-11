@@ -9,7 +9,7 @@ import {PackageManifest} from '@pnpm/types'
 import path = require('path')
 import {oneLine} from 'common-tags'
 import crypto = require('crypto')
-import {InstalledPackage} from '../install/installMultiple'
+import {InstalledPackage} from '../resolveDependencies'
 import {TreeNode, TreeNodeMap} from '../api/install'
 import {
   splitNodeId,

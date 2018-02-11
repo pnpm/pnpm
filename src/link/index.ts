@@ -4,7 +4,7 @@ import exists = require('path-exists')
 import logger from '@pnpm/logger'
 import R = require('ramda')
 import pLimit = require('p-limit')
-import {InstalledPackage} from '../install/installMultiple'
+import {InstalledPackage} from '../resolveDependencies'
 import {InstalledPackages, TreeNode} from '../api/install'
 import linkBins, {linkPkgBins} from './linkBins'
 import {PackageJson, Dependencies} from '@pnpm/types'

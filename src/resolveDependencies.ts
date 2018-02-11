@@ -1,6 +1,6 @@
 import path = require('path')
 import logger from '@pnpm/logger'
-import {deprecationLogger} from '../loggers'
+import {deprecationLogger} from './loggers'
 import R = require('ramda')
 import getNpmTarballUrl from 'get-npm-tarball-url'
 import exists = require('path-exists')
@@ -10,17 +10,17 @@ import {
   PackageResponse,
 } from '@pnpm/package-requester'
 import {Resolution} from '@pnpm/resolver-base'
-import {InstallContext, InstalledPackages} from '../api/install'
+import {InstallContext, InstalledPackages} from './api/install'
 import {
   WantedDependency,
-} from '../types'
+} from './types'
 import {
   ReadPackageHook,
   Dependencies,
   PackageManifest,
 } from '@pnpm/types'
-import memoize from '../memoize'
-import logStatus from '../logging/logInstallStatus'
+import memoize from './memoize'
+import logStatus from './logging/logInstallStatus'
 import fs = require('mz/fs')
 import * as dp from 'dependency-path'
 import {
@@ -28,14 +28,14 @@ import {
   DependencyShrinkwrap,
   ResolvedDependencies,
 } from 'pnpm-shrinkwrap'
-import depsToSpecs from '../depsToSpecs'
-import getIsInstallable from './getIsInstallable'
-import getPkgInfoFromShr from '../getPkgInfoFromShr'
+import depsToSpecs from './depsToSpecs'
+import getIsInstallable from './install/getIsInstallable'
+import getPkgInfoFromShr from './getPkgInfoFromShr'
 import {
   nodeIdContainsSequence,
   createNodeId,
-} from '../nodeIdUtils'
-import encodePkgId from '../encodePkgId'
+} from './nodeIdUtils'
+import encodePkgId from './encodePkgId'
 import semver = require('semver')
 
 const ENGINE_NAME = `${process.platform}-${process.arch}-node-${process.version.split('.')[0]}`
@@ -77,7 +77,7 @@ export type InstalledPackage = {
   engineCache?: string,
 }
 
-export default async function installMultiple (
+export default async function resolveDependencies (
   ctx: InstallContext,
   wantedDependencies: WantedDependency[],
   options: {
@@ -428,7 +428,7 @@ async function install (
       },
       engineCache: !ctx.force && pkgResponse.body.cacheByEngine && pkgResponse.body.cacheByEngine[ENGINE_NAME],
     }
-    const children = await installDependencies(
+    const children = await resolveDependenciesOfPackage(
       pkg,
       ctx,
       {
@@ -517,7 +517,7 @@ function normalizeRegistry (registry: string) {
   return `${registry}/`
 }
 
-async function installDependencies (
+async function resolveDependenciesOfPackage (
   pkg: PackageManifest,
   ctx: InstallContext,
   opts: {
@@ -554,7 +554,7 @@ async function installDependencies (
       }))
   }
 
-  return await installMultiple(ctx, deps, opts)
+  return await resolveDependencies(ctx, deps, opts)
 }
 
 function getNotBundledDeps (bundledDeps: string[], deps: Dependencies) {
