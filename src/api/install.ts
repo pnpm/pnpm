@@ -63,10 +63,6 @@ import depsFromPackage, {getPreferredVersionsFromPackage} from '../depsFromPacka
 import writePkg = require('write-pkg')
 import parseWantedDependencies from '../parseWantedDependencies'
 import {
-  PackageFilesResponse,
-  RequestPackageFunction,
-} from '@pnpm/package-requester'
-import {
   DirectoryResolution,
   Resolution,
 } from '@pnpm/resolver-base'
