@@ -178,24 +178,33 @@ async function resolveAndFetch (
     let latest: string | undefined
     let pkg: PackageJson | undefined
     let normalizedPref: string | undefined
-    let resolution = options.shrinkwrapResolution
+    let resolution = options.shrinkwrapResolution as Resolution
     let pkgId = options.currentPkgId
-    if (!resolution || options.update) {
+    const skipResolution = resolution && !options.update
+
+    // When fetching is skipped, resolution cannot be skipped.
+    // We need the package's manifest when doing `shrinkwrap-only` installs.
+    // When we don't fetch, the only way to get the package's manifest is via resolving it.
+    if (!skipResolution || options.skipFetch) {
       const resolveResult = await ctx.requestsQueue.add<ResolveResult>(() => ctx.resolve(wantedDependency, {
         defaultTag: options.defaultTag,
         preferredVersions: options.preferredVersions,
         prefix: options.prefix,
         registry: options.registry,
       }), {priority: options.downloadPriority})
-      // keep the shrinkwrap resolution when possible
-      // to keep the original shasum
-      if (pkgId !== resolveResult.id || !resolution) {
-        resolution = resolveResult.resolution
-      }
-      pkgId = resolveResult.id
+
       pkg = resolveResult.package
       latest = resolveResult.latest
-      normalizedPref = resolveResult.normalizedPref
+
+      if (!skipResolution) {
+        // keep the shrinkwrap resolution when possible
+        // to keep the original shasum
+        if (pkgId !== resolveResult.id || !resolution) {
+          resolution = resolveResult.resolution
+        }
+        pkgId = resolveResult.id
+        normalizedPref = resolveResult.normalizedPref
+      }
     }
 
     const id = pkgId as string
