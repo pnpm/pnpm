@@ -17,8 +17,8 @@ import camelcase = require('camelcase')
 import {stripIndent} from 'common-tags'
 import isCI = require('is-ci')
 import nopt = require('nopt')
-import npm = require('not-bundled-npm')
-import npmDefaults = require('not-bundled-npm/lib/config/defaults')
+import loadNpmConf = require('npm-conf')
+import npmTypes = require('npm-conf/lib/types')
 import path = require('path')
 import R = require('ramda')
 import checkForUpdates from './checkForUpdates'
@@ -106,7 +106,7 @@ const passedThroughCmds = new Set([
 ])
 
 export default async function run (argv: string[]) {
-  const pnpmTypes = {
+  const knownOpts = Object.assign({
     'background': Boolean,
     'child-concurrency': Number,
     'fetching-concurrency': Number,
@@ -132,14 +132,46 @@ export default async function run (argv: string[]) {
     'store-path': path, // DEPRECATE! store should be used
     'use-store-server': Boolean,
     'verify-store-integrity': Boolean,
+  }, npmTypes.types)
+  // tslint:disable
+  const shortHands = {
+    's': ['--loglevel', 'silent'],
+    'd': ['--loglevel', 'info'],
+    'dd': ['--loglevel', 'verbose'],
+    'ddd': ['--loglevel', 'silly'],
+    'noreg': ['--no-registry'],
+    'N': ['--no-registry'],
+    'reg': ['--registry'],
+    'no-reg': ['--no-registry'],
+    'silent': ['--loglevel', 'silent'],
+    'verbose': ['--loglevel', 'verbose'],
+    'quiet': ['--loglevel', 'warn'],
+    'q': ['--loglevel', 'warn'],
+    'h': ['--usage'],
+    'H': ['--usage'],
+    '?': ['--usage'],
+    'help': ['--usage'],
+    'v': ['--version'],
+    'f': ['--force'],
+    'desc': ['--description'],
+    'no-desc': ['--no-description'],
+    'local': ['--no-global'],
+    'l': ['--long'],
+    'm': ['--message'],
+    'p': ['--parseable'],
+    'porcelain': ['--parseable'],
+    'g': ['--global'],
+    'S': ['--save'],
+    'D': ['--save-dev'],
+    'E': ['--save-exact'],
+    'O': ['--save-optional'],
+    'y': ['--yes'],
+    'n': ['--no-yes'],
+    'B': ['--save-bundle'],
+    'C': ['--prefix'],
   }
-  const types = R.merge(npmDefaults.types, pnpmTypes)
-  const cliConf = nopt(
-    types,
-    npmDefaults.shorthands,
-    argv,
-    0, // argv should be already sliced by now
-  )
+  // tslint:enable
+  const cliConf = nopt(knownOpts, shortHands, argv, 0)
 
   if (!isCI) {
     checkForUpdates()
@@ -159,33 +191,27 @@ export default async function run (argv: string[]) {
     process.exit(1)
   }
 
-  cliConf.save = cliConf.save || !cliConf.saveDev && !cliConf.saveOptional
+  cliConf.save = cliConf.save || !cliConf['save-dev'] && !cliConf['save-optional']
   if (!cliConf['user-agent']) {
     cliConf['user-agent'] = `${pkg.name}/${pkg.version} npm/? node/${process.version} ${process.platform} ${process.arch}`
   }
-  const force = cliConf.force === true
-  // removing force to avoid redundant logs from npm
-  // see issue #878 and #877
-  delete cliConf.force
 
-  await new Promise((resolve, reject) => {
-    npm.load(cliConf as any, (err: Error) => { // tslint:disable-line
-      if (err) {
-        reject(err)
-        return
-      }
-      resolve()
-    })
-  })
+  const npmConfig = loadNpmConf()
 
-  const opts = R.fromPairs(<any>R.keys(types).map(configKey => [camelcase(configKey), npm.config.get(configKey)])) // tslint:disable-line
-  opts.rawNpmConfig = Object.assign.apply(Object, npm.config.list.reverse())
-  opts.bin = npm.bin
-  opts.globalBin = npm.globalBin
-  opts.globalPrefix = path.join(npm.globalPrefix, 'pnpm-global')
-  opts.prefix = opts.global ? opts.globalPrefix : npm.prefix
+  const opts = R.fromPairs(<any>Object.keys(knownOpts).map(configKey => [ // tslint:disable-line
+    camelcase(configKey),
+    typeof cliConf[configKey] !== 'undefined' ? cliConf[configKey] : npmConfig.get(configKey),
+  ]))
+  opts.rawNpmConfig = Object.assign.apply(Object, npmConfig.list.reverse().concat([cliConf]))
+  opts.globalBin = process.platform === 'win32'
+    ? npmConfig.globalPrefix
+    : path.resolve(npmConfig.globalPrefix, 'bin')
+  opts.bin = opts.global
+    ? opts.globalBin
+    : path.join(npmConfig.localPrefix, 'node_modules', '.bin')
+  opts.globalPrefix = path.join(npmConfig.globalPrefix, 'pnpm-global')
+  opts.prefix = opts.global ? opts.globalPrefix : npmConfig.prefix
   opts.packageManager = pkg
-  opts.force = force
 
   if (opts.only === 'prod' || opts.only === 'production' || !opts.only && opts.production) {
     opts.production = true
@@ -204,7 +230,7 @@ export default async function run (argv: string[]) {
   }
 
   const reporterType: ReporterType = (() => {
-    if (npm.config.get('loglevel') === 'silent') return 'silent'
+    if (npmConfig.get('loglevel') === 'silent') return 'silent'
     if (opts.reporter) return opts.reporter as ReporterType
     if (isCI || !process.stdout.isTTY) return 'append-only'
     return 'default'
