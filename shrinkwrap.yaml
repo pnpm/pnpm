@@ -15,7 +15,7 @@ dependencies:
   path-temp: 1.0.0
   retry: 0.10.1
   rimraf: 2.6.2
-  ssri: 5.0.0
+  ssri: 5.2.2
   unpack-stream: 3.0.1
 devDependencies:
   '@pnpm/logger': 1.0.1
@@ -1498,6 +1498,12 @@ packages:
       safe-buffer: 5.1.1
     resolution:
       integrity: sha512-728D4yoQcQm1ooZvSbywLkV1RjfITZXh0oWrhM/lnsx3nAHx7LsRGJWB/YyvoceAYRq98xqbstiN4JBv1/wNHg==
+  /ssri/5.2.2:
+    dependencies:
+      safe-buffer: 5.1.1
+    dev: false
+    resolution:
+      integrity: sha512-hm46mN8YSzjGuJtVocXPjwo0yTRXobXqYuK/tV6gr557/tRck4yWXKPRW8OxyJgRvcL3QgX+5ng/kMHBMco7KA==
   /stream-each/1.2.2:
     dependencies:
       end-of-stream: 1.4.1
@@ -1862,7 +1868,7 @@ specifiers:
   path-temp: ^1.0.0
   retry: ^0.10.1
   rimraf: ^2.6.2
-  ssri: 5.0.0
+  ssri: ^5.2.2
   tape: ^4.8.0
   tempy: ^0.2.1
   ts-node: ^4.0.0

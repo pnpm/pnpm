@@ -50,7 +50,7 @@
     "path-temp": "^1.0.0",
     "retry": "^0.10.1",
     "rimraf": "^2.6.2",
-    "ssri": "5.0.0",
+    "ssri": "^5.2.2",
     "unpack-stream": "^3.0.0"
   },
   "devDependencies": {
