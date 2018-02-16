@@ -96,7 +96,6 @@
     "mkdirp": "^0.5.1",
     "mz": "^2.6.0",
     "normalize-newline": "^3.0.0",
-    "npm-registry-client": "^8.4.0",
     "npm-run-all": "^4.0.1",
     "npm-scripts-info": "^0.3.6",
     "package-preview": "^1.0.0",
