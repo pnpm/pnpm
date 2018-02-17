@@ -3,7 +3,7 @@ import logger from '@pnpm/logger'
 import pnpmPkgJson from '../pnpmPkgJson'
 import {LAYOUT_VERSION} from '../fs/modulesController'
 import normalizeRegistryUrl = require('normalize-registry-url')
-import {resolveStore, StoreController} from 'package-store'
+import {StoreController} from 'package-store'
 import { ReporterFunction } from '../types'
 import { ReadPackageHook } from '@pnpm/types'
 
