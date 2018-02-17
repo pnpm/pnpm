@@ -1,5 +1,5 @@
 import logger from '@pnpm/logger'
-import {resolveStore} from 'package-store'
+import storePath from '@pnpm/store-path'
 import {
   storePrune,
   storeStatus,
@@ -35,7 +35,7 @@ export default async function (input: string[], opts: PnpmOptions) {
 
 async function statusCmd (opts: PnpmOptions) {
   const modifiedPkgs = await storeStatus(Object.assign(opts, {
-    store: await resolveStore(opts.store, opts.prefix),
+    store: await storePath(opts.prefix, opts.store),
   }))
   if (!modifiedPkgs || !modifiedPkgs.length) {
     logger.info('Packages in the store are untouched')

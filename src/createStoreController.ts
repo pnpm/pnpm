@@ -1,7 +1,8 @@
 import logger from '@pnpm/logger'
 import {connectStoreController} from '@pnpm/server'
+import storePath from '@pnpm/store-path'
 import loadJsonFile = require('load-json-file')
-import {resolveStore, StoreController} from 'package-store'
+import {StoreController} from 'package-store'
 import path = require('path')
 import retry = require('retry')
 import createStore from './createStore'
@@ -37,7 +38,7 @@ export default async function (
   ctrl: StoreController,
   path: string,
 }> {
-  const store = await resolveStore(opts.store, opts.prefix)
+  const store = await storePath(opts.prefix, opts.store)
   try {
     const serverJson = await loadJsonFile(path.join(store, 'server.json'))
     logger.info('A store server is running. All store manipulations are delegated to it.')

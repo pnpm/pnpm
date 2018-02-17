@@ -1,8 +1,8 @@
 import logger from '@pnpm/logger'
 import {connectStoreController} from '@pnpm/server'
+import storePath from '@pnpm/store-path'
 import delay = require('delay')
 import loadJsonFile = require('load-json-file')
-import {resolveStore} from 'package-store'
 import path = require('path')
 import processExists = require('process-exists')
 import killcb = require('tree-kill')
@@ -16,7 +16,7 @@ export default async (
     prefix: string,
   },
 ) => {
-  const store = await resolveStore(opts.store, opts.prefix)
+  const store = await storePath(opts.prefix, opts.store)
   let serverJson: any | undefined // tslint:disable-line
   try {
     serverJson = await loadJsonFile(path.join(store, 'server.json'))

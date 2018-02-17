@@ -1,11 +1,11 @@
 import logger from '@pnpm/logger'
 import {createServer} from '@pnpm/server'
+import storePath from '@pnpm/store-path'
 import Diable = require('diable')
 import getPort = require('get-port')
 import fs = require('graceful-fs')
 import isWindows = require('is-windows')
 import mkdirp = require('mkdirp-promise')
-import {resolveStore} from 'package-store'
 import path = require('path')
 import onExit = require('signal-exit')
 import writeJsonFile = require('write-json-file')
@@ -30,7 +30,7 @@ export default async (
   }
 
   const store = await createStore(Object.assign(opts, {
-    store: await resolveStore(opts.store, opts.prefix),
+    store: await storePath(opts.prefix, opts.store),
   }))
 
   // the store folder will be needed because server will want to create a file there

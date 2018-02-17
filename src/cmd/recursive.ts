@@ -100,6 +100,7 @@ export default async (
             storeController,
           })
         } catch (err) {
+          logger.info(err)
           err['prefix'] = prefix // tslint:disable-line:no-string-literal
           return err
         }
