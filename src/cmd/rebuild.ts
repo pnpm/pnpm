@@ -1,4 +1,4 @@
-import {resolveStore} from 'package-store'
+import storePath from '@pnpm/store-path'
 import path = require('path')
 import {
   rebuild,
@@ -11,7 +11,9 @@ export default async function (
   opts: PnpmOptions,
   command: string,
 ) {
-  const rebuildOpts = Object.assign(opts, {store: await resolveStore(opts.store, opts.prefix)})
+  const rebuildOpts = Object.assign(opts, {
+    store: await storePath(opts.prefix, opts.store),
+  })
 
   if (args.length === 0) {
     await rebuild(rebuildOpts)
