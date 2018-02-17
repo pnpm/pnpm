@@ -1,6 +1,5 @@
 {
   "name": "pnpm",
-  "bundledName": "@pnpm/bundled",
   "description": "Fast, disk space efficient package manager",
   "version": "1.32.1",
   "author": {
@@ -18,8 +17,7 @@
   },
   "main": "lib/bin/pnpm.js",
   "files": [
-    "lib/",
-    "npm-shrinkwrap.json"
+    "lib/"
   ],
   "dependencies": {
     "@pnpm/default-fetcher": "^0.4.0",
