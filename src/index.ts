@@ -1,9 +1,7 @@
 import logger from '@pnpm/logger'
 import createResolver from '@pnpm/npm-resolver'
+import resolveStore from '@pnpm/store-path'
 import * as dp from 'dependency-path'
-import {
-  resolveStore,
-} from 'package-store'
 import {
   readCurrent as readCurrentShrinkwrap,
   readWanted as readWantedShrinkwrap,
@@ -99,7 +97,7 @@ async function _outdated (
   if (!wantedShrinkwrap) {
     throw new Error('No shrinkwrapfile in this directory. Run `pnpm install` to generate one.')
   }
-  const storePath = await resolveStore(opts.store, pkgPath)
+  const storePath = await resolveStore(pkgPath, opts.store)
   const currentShrinkwrap = await readCurrentShrinkwrap(pkgPath, {ignoreIncompatible: false}) || {}
 
   const resolve = createResolver({
