@@ -1,0 +1,57 @@
+{
+  "name": "@pnpm/config",
+  "version": "0.0.0",
+  "description": "Gets configs for pnpm",
+  "main": "lib/index.js",
+  "typings": "lib/index.d.ts",
+  "files": [
+    "lib"
+  ],
+  "scripts": {
+    "prepublishOnly": "npm run tsc",
+    "tsc": "rimraf lib && tsc",
+    "lint": "tslint -c tslint.json --project .",
+    "test": "npm run lint && preview && ts-node test && mos t"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/pnpm/config.git"
+  },
+  "keywords": [
+    "pnpm",
+    "config"
+  ],
+  "engines": {
+    "node": ">=4"
+  },
+  "author": "Zoltan Kochan <z@kochan.io> (https://www.kochan.io/)",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/pnpm/config/issues"
+  },
+  "homepage": "https://github.com/pnpm/config#readme",
+  "dependencies": {
+    "@types/camelcase": "^4.1.0",
+    "@types/node": "^9.4.6",
+    "camelcase": "^4.1.0",
+    "npm-conf": "^1.1.3"
+  },
+  "devDependencies": {
+    "mos": "^2.0.0-alpha.3",
+    "mos-plugin-readme": "^1.0.4",
+    "package-preview": "^1.0.1",
+    "rimraf": "^2.6.2",
+    "tape": "^4.8.0",
+    "ts-node": "^4.0.0",
+    "tslint": "^5.8.0",
+    "typescript": "^2.6.2"
+  },
+  "mos": {
+    "plugins": [
+      "readme"
+    ],
+    "installation": {
+      "useShortAlias": true
+    }
+  }
+}
