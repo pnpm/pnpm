@@ -12,21 +12,19 @@ gfs.gracefulify(fs)
 
 import loudRejection = require('loud-rejection')
 loudRejection()
+import getConfigs, {types} from '@pnpm/config'
 import logger from '@pnpm/logger'
 import camelcase = require('camelcase')
 import {stripIndent} from 'common-tags'
 import isCI = require('is-ci')
 import nopt = require('nopt')
-import loadNpmConf = require('npm-conf')
-import npmTypes = require('npm-conf/lib/types')
 import path = require('path')
-import R = require('ramda')
 import checkForUpdates from './checkForUpdates'
 import * as pnpmCmds from './cmd'
 import runNpm from './cmd/runNpm'
 import getCommandFullName from './getCommandFullName'
 import './logging/fileLogger'
-import pkg from './pnpmPkgJson'
+import packageManager from './pnpmPkgJson'
 import initReporter, { ReporterType } from './reporter'
 
 pnpmCmds['install-test'] = pnpmCmds.installTest
@@ -106,33 +104,6 @@ const passedThroughCmds = new Set([
 ])
 
 export default async function run (argv: string[]) {
-  const knownOpts = Object.assign({
-    'background': Boolean,
-    'child-concurrency': Number,
-    'fetching-concurrency': Number,
-    'global-path': path,
-    'ignore-pnpmfile': Boolean,
-    'ignore-stop-requests': Boolean,
-    'ignore-upload-requests': Boolean,
-    'independent-leaves': Boolean,
-    'lock': Boolean,
-    'lock-stale-duration': Number,
-    'network-concurrency': Number,
-    'offline': Boolean,
-    'package-import-method': ['auto', 'hardlink', 'reflink', 'copy'],
-    'pending': Boolean,
-    'port': Number,
-    'prefer-offline': Boolean,
-    'protocol': ['auto', 'tcp', 'ipc'],
-    'reporter': String,
-    'shrinkwrap-only': Boolean,
-    'side-effects-cache': Boolean,
-    'side-effects-cache-readonly': Boolean,
-    'store': path,
-    'store-path': path, // DEPRECATE! store should be used
-    'use-store-server': Boolean,
-    'verify-store-integrity': Boolean,
-  }, npmTypes.types)
   // tslint:disable
   const shortHands = {
     's': ['--loglevel', 'silent'],
@@ -171,7 +142,7 @@ export default async function run (argv: string[]) {
     'C': ['--prefix'],
   }
   // tslint:enable
-  const cliConf = nopt(knownOpts, shortHands, argv, 0)
+  const cliConf = nopt(types, shortHands, argv, 0)
 
   if (!isCI) {
     checkForUpdates()
@@ -192,45 +163,14 @@ export default async function run (argv: string[]) {
   }
 
   cliConf.save = cliConf.save || !cliConf['save-dev'] && !cliConf['save-optional']
-  if (!cliConf['user-agent']) {
-    cliConf['user-agent'] = `${pkg.name}/${pkg.version} npm/? node/${process.version} ${process.platform} ${process.arch}`
-  }
 
-  const npmConfig = loadNpmConf()
-
-  const opts = R.fromPairs(<any>Object.keys(knownOpts).map(configKey => [ // tslint:disable-line
-    camelcase(configKey),
-    typeof cliConf[configKey] !== 'undefined' ? cliConf[configKey] : npmConfig.get(configKey),
-  ]))
-  opts.rawNpmConfig = Object.assign.apply(Object, npmConfig.list.reverse().concat([cliConf]))
-  opts.globalBin = process.platform === 'win32'
-    ? npmConfig.globalPrefix
-    : path.resolve(npmConfig.globalPrefix, 'bin')
-  opts.bin = opts.global
-    ? opts.globalBin
-    : path.join(npmConfig.localPrefix, 'node_modules', '.bin')
-  opts.globalPrefix = path.join(npmConfig.globalPrefix, 'pnpm-global')
-  opts.prefix = opts.global ? opts.globalPrefix : npmConfig.prefix
-  opts.packageManager = pkg
-
-  if (opts.only === 'prod' || opts.only === 'production' || !opts.only && opts.production) {
-    opts.production = true
-    opts.development = false
-  } else if (opts.only === 'dev' || opts.only === 'development') {
-    opts.production = false
-    opts.development = true
-    opts.optional = false
-  } else {
-    opts.production = true
-    opts.development = true
-  }
-
-  if (!opts.packageLock && opts.shrinkwrap) {
-    opts.shrinkwrap = false
-  }
+  const opts = getConfigs({
+    cliArgs: cliConf,
+    packageManager,
+  })
 
   const reporterType: ReporterType = (() => {
-    if (npmConfig.get('loglevel') === 'silent') return 'silent'
+    if (opts.loglevel === 'silent') return 'silent'
     if (opts.reporter) return opts.reporter as ReporterType
     if (isCI || !process.stdout.isTTY) return 'append-only'
     return 'default'
