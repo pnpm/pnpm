@@ -4,7 +4,7 @@ dependencies:
   '@pnpm/logger': 1.0.1
   '@pnpm/outdated': 0.2.7
   '@pnpm/server': 0.8.1
-  '@pnpm/store-path': 1.0.0
+  '@pnpm/store-path': 1.0.1
   '@pnpm/types': 1.7.0
   '@types/get-port': 3.2.0
   '@types/retry': 0.10.2
@@ -533,6 +533,23 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha512-riDDiLBSt1Wxo8nKnv6JzNkDa4xoJzHSHIEQOWE8WphnArSy9zxHC4Zh9ZDqPwm/zt7u45tACyAqk4qN5z6EWA==
+  /@pnpm/store-path/1.0.1:
+    dependencies:
+      '@types/node': 9.4.6
+      '@types/touch': 3.1.0
+      can-link: 1.0.1
+      mkdirp-promise: 5.0.1
+      mz: 2.7.0
+      os-homedir: 1.0.2
+      path-absolute: 1.0.0
+      path-temp: 1.0.0
+      root-link-target: 1.0.1
+      touch: 3.1.0
+    dev: false
+    engines:
+      node: '>=4'
+    resolution:
+      integrity: sha512-KEOK1fZiK5mRijWOeUfNne6SsTlwwHMHiFz98EifV9sBleoigW1M0l0ApfSWoP3fIhkjkNIKE9fAkOSVJQ66Hg==
   /@pnpm/tarball-fetcher/0.4.1:
     dependencies:
       '@pnpm/fetcher-base': 1.0.0
@@ -6350,7 +6367,7 @@ specifiers:
   '@pnpm/logger': ^1.0.0
   '@pnpm/outdated': ^0.2.7
   '@pnpm/server': ^0.8.1
-  '@pnpm/store-path': ^1.0.0
+  '@pnpm/store-path': ^1.0.1
   '@pnpm/types': ^1.5.0
   '@types/byline': ^4.2.31
   '@types/common-tags': ^1.2.5
