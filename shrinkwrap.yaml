@@ -8,8 +8,8 @@ devDependencies:
   mos-plugin-readme: 1.0.4
   package-preview: 1.0.5
   rimraf: 2.6.2
-  tape: 4.8.0
-  ts-node: 4.1.0
+  tape: 4.9.0
+  ts-node: 5.0.0
   tslint: 5.9.1
   typescript: 2.7.2
 packages:
@@ -60,14 +60,6 @@ packages:
   /@types/node/9.4.6:
     resolution:
       integrity: sha512-CTUtLb6WqCCgp6P59QintjHWqzf4VL1uPA27bipLAPxFqrtK1gEYllePzTICGqQ8rYsCbpnsNypXjjDzGAAjEQ==
-  /@types/strip-bom/3.0.0:
-    dev: true
-    resolution:
-      integrity: sha1-FKjsOVbC6B7bdSB5CuzyHCkK69I=
-  /@types/strip-json-comments/0.0.30:
-    dev: true
-    resolution:
-      integrity: sha512-7NQmHra/JILCd1QqpSzl8+mJRc8ZHz3uDm8YV1Ks9IhK0epEiTw8aIErbvH9PI+6XbqhyIQy3462nEsn7UVzjQ==
   /@types/write-json-file/2.2.1:
     dev: true
     resolution:
@@ -318,7 +310,7 @@ packages:
       babylon: 6.18.0
       debug: 2.6.9
       globals: 9.18.0
-      invariant: 2.2.2
+      invariant: 2.2.3
       lodash: 4.17.5
     dev: true
     resolution:
@@ -1035,14 +1027,6 @@ packages:
       node: '>=0.10.0'
     resolution:
       integrity: sha1-42w/LSyufXRqhX440Y1fMqeILbg=
-  /homedir-polyfill/1.0.1:
-    dependencies:
-      parse-passwd: 1.0.0
-    dev: true
-    engines:
-      node: '>=0.10.0'
-    resolution:
-      integrity: sha1-TCu8inWJmP7r9e1oWA921GdotLw=
   /hosted-git-info/2.5.0:
     dev: true
     resolution:
@@ -1095,12 +1079,12 @@ packages:
   /ini/1.3.5:
     resolution:
       integrity: sha512-RZY5huIKCMRWDUqZlEi72f/lmXKMvuszcMBduliQ3nnWbx9X/ZBQO7DijMEYS9EhHBb2qacRUMtC7svLwe0lcw==
-  /invariant/2.2.2:
+  /invariant/2.2.3:
     dependencies:
       loose-envify: 1.3.1
     dev: true
     resolution:
-      integrity: sha1-nh9WrArNtr8wMwbzOL47IErmA2A=
+      integrity: sha512-7Z5PPegwDTyjbaeCnV0efcyS6vdKAU51kpEmS7QFib3P4822l8ICYyMn7qvJnc+WzLoDsuI9gPMKbJ8pCu8XtA==
   /is-alphabetical/1.0.1:
     dev: true
     resolution:
@@ -1386,14 +1370,14 @@ packages:
     dev: true
     resolution:
       integrity: sha1-mu2GAadRK1axlUcNonSk7jqVCfA=
-  /make-dir/1.1.0:
+  /make-dir/1.2.0:
     dependencies:
       pify: 3.0.0
     dev: true
     engines:
       node: '>=4'
     resolution:
-      integrity: sha512-0Pkui4wLJ7rxvmfUvs87skoEaxmu0hCUApF8nonzpl7q//FWp9zu8W61Scz4sd/kUiqDxvUhtoam2efDyiBzcA==
+      integrity: sha512-aNUAa4UMg/UougV25bbrU4ZaaKNjJ/3/xnvg/twpmKROPdKZPZ9wGgI0opdZzO8q/zUFawoUuixuOv33eZ61Iw==
   /make-error/1.3.4:
     dev: true
     resolution:
@@ -1817,10 +1801,10 @@ packages:
     dev: true
     resolution:
       integrity: sha1-NLymRKgPlPi6QaD50JhOr2Os8U0=
-  /object-inspect/1.3.0:
+  /object-inspect/1.5.0:
     dev: true
     resolution:
-      integrity: sha512-OHHnLgLNXpM++GnJRyyhbr2bwl3pPVm4YvaraHrRvDt/N3r+s/gDVHciA7EJBTkijKXj61ssgSAikq1fb0IBRg==
+      integrity: sha512-UmOFbHbwvv+XHj7BerrhVq+knjceBdkvU5AriwLMvhv2qi+e7DJzxfBeFpILEjVzCp+xA+W/pIf06RGPWlZNfw==
   /object-keys/1.0.11:
     dev: true
     engines:
@@ -1947,12 +1931,6 @@ packages:
       node: '>=0.10.0'
     resolution:
       integrity: sha1-VjRtR0nXjyNDDKDHE4UK75GqNh0=
-  /parse-passwd/1.0.0:
-    dev: true
-    engines:
-      node: '>=0.10.0'
-    resolution:
-      integrity: sha1-bVuTSkVpk7I9N/QKOC1vFmao5cY=
   /path-exists/2.1.0:
     dependencies:
       pinkie-promise: 2.0.1
@@ -2302,12 +2280,6 @@ packages:
     dev: true
     resolution:
       integrity: sha1-IDEU2CrSxe2ejgQRs5ModeiJ6Xs=
-  /resolve/1.4.0:
-    dependencies:
-      path-parse: 1.0.5
-    dev: true
-    resolution:
-      integrity: sha512-aW7sVKPufyHqOmyyLzg/J+8606v5nevBgaliIlV7nUpVMsDnoBGV/cbSLNjZAg9q0Cfd/+easKVKQ8vOu8fn1Q==
   /resolve/1.5.0:
     dependencies:
       path-parse: 1.0.5
@@ -2644,7 +2616,7 @@ packages:
     dev: true
     resolution:
       integrity: sha1-K7PqGb3J9SJSF7P5fL95hsxMbow=
-  /tape/4.8.0:
+  /tape/4.9.0:
     dependencies:
       deep-equal: 1.0.1
       defined: 1.0.0
@@ -2654,14 +2626,14 @@ packages:
       has: 1.0.1
       inherits: 2.0.3
       minimist: 1.2.0
-      object-inspect: 1.3.0
-      resolve: 1.4.0
+      object-inspect: 1.5.0
+      resolve: 1.5.0
       resumer: 0.0.0
       string.prototype.trim: 1.1.2
       through: 2.3.8
     dev: true
     resolution:
-      integrity: sha512-TWILfEnvO7I8mFe35d98F6T5fbLaEtbFTG/lxWvid8qDfFTxt19EBijWmB4j3+Hoh5TfHE2faWs73ua+EphuBA==
+      integrity: sha512-j0jO9BiScfqtPBb9QmPLL0qvxXMz98xjkMb7x8lKipFlJZwNJkqkWPou+NU4V6T9RnVh1kuSthLE8gLrN8bBfw==
   /tar-fs/1.16.0:
     dependencies:
       chownr: 1.0.1
@@ -2749,7 +2721,7 @@ packages:
     dev: true
     resolution:
       integrity: sha1-WFhUf2spB1fulczMZm+1AITEYN0=
-  /ts-node/4.1.0:
+  /ts-node/5.0.0:
     dependencies:
       arrify: 1.0.1
       chalk: 2.3.1
@@ -2758,23 +2730,12 @@ packages:
       minimist: 1.2.0
       mkdirp: 0.5.1
       source-map-support: 0.5.3
-      tsconfig: 7.0.0
-      v8flags: 3.0.1
       yn: 2.0.0
     dev: true
     engines:
       node: '>=4.2.0'
     resolution:
-      integrity: sha512-xcZH12oVg9PShKhy3UHyDmuDLV3y7iKwX25aMVPt1SIXSuAfWkFiGPEkg+th8R4YKW/QCxDoW7lJdb15lx6QWg==
-  /tsconfig/7.0.0:
-    dependencies:
-      '@types/strip-bom': 3.0.0
-      '@types/strip-json-comments': 0.0.30
-      strip-bom: 3.0.0
-      strip-json-comments: 2.0.1
-    dev: true
-    resolution:
-      integrity: sha512-vZXmzPrL+EmC4T/4rVlT2jNVMWCi/O4DIiSj3UHg1OE5kCKbk4mfrXc6dZksLgRM/TZlKnousKH9bbTazUWRRw==
+      integrity: sha512-mlSim/sQS1s5iT3KZEKXRaqsGC7xM2QoxkrhfznZJyou18dl47PTnY7/KMmbGqiVoQrO9Hk53CYpcychF5TNrQ==
   /tslib/1.9.0:
     dev: true
     resolution:
@@ -2889,14 +2850,6 @@ packages:
     dev: true
     resolution:
       integrity: sha1-Z+LoY3lyFVMN/zGOW/nc6/1Hsho=
-  /v8flags/3.0.1:
-    dependencies:
-      homedir-polyfill: 1.0.1
-    dev: true
-    engines:
-      node: '>= 0.10.0'
-    resolution:
-      integrity: sha1-3Oj8N5wX2fLJ6e142JzgAFKxt2s=
   /validate-npm-package-license/3.0.1:
     dependencies:
       spdx-correct: 1.0.2
@@ -2956,7 +2909,7 @@ packages:
     dependencies:
       detect-indent: 5.0.0
       graceful-fs: 4.1.11
-      make-dir: 1.1.0
+      make-dir: 1.2.0
       pify: 3.0.0
       sort-keys: 2.0.0
       write-file-atomic: 2.3.0
@@ -3010,6 +2963,6 @@ specifiers:
   package-preview: ^1.0.1
   rimraf: ^2.6.2
   tape: ^4.8.0
-  ts-node: ^4.0.0
+  ts-node: ^5.0.0
   tslint: ^5.8.0
   typescript: ^2.6.2
