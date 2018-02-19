@@ -54,7 +54,7 @@
     "package-preview": "^1.0.0",
     "rimraf": "^2.6.1",
     "tape": "^4.7.0",
-    "ts-node": "^4.0.0",
+    "ts-node": "^5.0.0",
     "tslint": "^5.4.2",
     "typescript": "^2.4.1",
     "validate-commit-msg": "^2.7.0"
