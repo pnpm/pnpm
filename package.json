@@ -160,7 +160,6 @@
     "test:e2e": "preview --skip-prepublishOnly && npm-run-all -p -r pnpm-registry-mock test:tap",
     "test": "npm run lint && npm run tsc && npm run test:e2e",
     "tsc": "rimraf lib && tsc",
-    "prepublishOnly": "echo \"Publish is only allowed via 'npm run release'\" && exit 1",
     "release": "sh .scripts/release.sh"
   },
   "publishconfig": {
