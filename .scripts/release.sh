@@ -4,4 +4,4 @@ set -u
 
 npm run tsc
 pnpx npm@4 cache clear
-pnpx publish-packed next
+pnpx publish-packed@2 --tag next --prune
