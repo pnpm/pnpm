@@ -22,6 +22,7 @@ export const types = Object.assign({
   'prefer-offline': Boolean,
   'protocol': ['auto', 'tcp', 'ipc'],
   'reporter': String,
+  'shamefully-flatten': Boolean,
   'shrinkwrap-only': Boolean,
   'side-effects-cache': Boolean,
   'side-effects-cache-readonly': Boolean,
