@@ -65,6 +65,7 @@ export interface PnpmOptions {
   ignorePnpmfile?: boolean,
   independentLeaves?: boolean,
   packageImportMethod?: 'auto' | 'hardlink' | 'copy' | 'reflink',
+  shamefullyFlatten?: boolean,
   shrinkwrapOnly?: boolean, // like npm's --package-lock-only
   useStoreServer?: boolean,
 
