@@ -173,7 +173,9 @@ export default async (
   }
   extendedOpts.registry = normalizeRegistryUrl(extendedOpts.registry)
   if (extendedOpts.global) {
-    const subfolder = LAYOUT_VERSION.toString() + (extendedOpts.independentLeaves ? '_independent_leaves' : '')
+    const independentLeavesSuffix = extendedOpts.independentLeaves ? '_independent_leaves' : ''
+    const shamefullyFlattenSuffix = extendedOpts.shamefullyFlatten ? '_shamefully_flatten' : ''
+    const subfolder = LAYOUT_VERSION.toString() + independentLeavesSuffix + shamefullyFlattenSuffix
     extendedOpts.prefix = path.join(extendedOpts.prefix, subfolder)
   }
   extendedOpts.rawNpmConfig['registry'] = extendedOpts.registry
