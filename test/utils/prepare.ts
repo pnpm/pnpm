@@ -101,7 +101,7 @@ export default function prepare (t: Test, pkg?: Object) {
         throw err
       }
     },
-    rewriteDependencies: async (deps) => {
+    rewriteDependencies: async (deps: object) => {
       pkgJson = Object.assign(pkgJson, { dependencies: deps })
       writePkg.sync(pkgTmpPath, pkgJson)
     },

@@ -53,6 +53,7 @@ dependencies:
   read-package-json: 2.0.12
   remove-all-except-outer-links: 1.0.3
   replace-string: 1.1.0
+  resolve-link-target: 1.0.1
   rimraf-then: 1.0.1
   semver: 5.5.0
   symlink-dir: 1.1.2
@@ -5107,6 +5108,7 @@ specifiers:
   read-pkg: ^3.0.0
   remove-all-except-outer-links: ^1.0.0
   replace-string: ^1.1.0
+  resolve-link-target: ^1.0.1
   rimraf: ^2.6.2
   rimraf-then: ^1.0.1
   semver: ^5.3.0

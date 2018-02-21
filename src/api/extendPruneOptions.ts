@@ -11,6 +11,7 @@ export type PruneOptions = {
   store: string,
   independentLeaves?: boolean,
   force?: boolean,
+  shamefullyFlatten?: boolean,
   storeController: StoreController,
   global?: boolean,
   registry?: string,
@@ -28,6 +29,7 @@ export type StrictPruneOptions = PruneOptions & {
   store: string,
   independentLeaves: boolean,
   force: boolean,
+  shamefullyFlatten: boolean,
   storeController: StoreController,
   global: boolean,
   registry: string,
@@ -41,6 +43,7 @@ export type StrictPruneOptions = PruneOptions & {
 const defaults = async (opts: PruneOptions) => {
   const prefix = opts.prefix || process.cwd()
   return <StrictPruneOptions>{
+    shamefullyFlatten: false,
     storeController: opts.storeController,
     global: false,
     store: opts.store,

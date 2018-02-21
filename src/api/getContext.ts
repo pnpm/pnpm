@@ -37,6 +37,7 @@ export type PnpmContext = {
 export default async function getContext (
   opts: {
     prefix: string,
+    shamefullyFlatten: boolean,
     shrinkwrap: boolean,
     store: string,
     independentLeaves: boolean,
@@ -61,6 +62,14 @@ export default async function getContext (
         }
         throw new Error(`This node_modules was not installed with the --independent-leaves option.
           Don't use --independent-leaves run same command with --force to recreated node_modules`)
+      }
+      if (Boolean(modules.shamefullyFlatten) !== opts.shamefullyFlatten) {
+        if (modules.shamefullyFlatten) {
+          throw new Error(`This node_modules was installed with --shamefully-flatten option.
+            Use this option or run same command with --force to recreated node_modules`)
+        }
+        throw new Error(`This node_modules was not installed with the --shamefully-flatten option.
+          Don't use --shamefully-flatten or run same command with --force to recreated node_modules`)
       }
       checkCompatibility(modules, {storePath, modulesPath})
     } catch (err) {

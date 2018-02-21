@@ -15,6 +15,7 @@ export type Modules = {
   layoutVersion: number,
   independentLeaves: boolean,
   pendingBuilds: string[],
+  shamefullyFlatten: boolean,
 }
 
 export async function read (modulesPath: string): Promise<Modules | null> {

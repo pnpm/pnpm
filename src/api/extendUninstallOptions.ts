@@ -15,6 +15,7 @@ export type UninstallOptions = {
   global?: boolean,
   registry?: string,
   shrinkwrap?: boolean,
+  shamefullyFlatten?: boolean,
 
   reporter?: ReporterFunction,
   lock?: boolean,
@@ -32,6 +33,7 @@ export type StrictUninstallOptions = UninstallOptions & {
   store: string,
   independentLeaves: boolean,
   force: boolean,
+  shamefullyFlatten: boolean,
   storeController: StoreController,
   global: boolean,
   registry: string,
@@ -54,6 +56,7 @@ const defaults = async (opts: UninstallOptions) => {
   }
   const prefix = opts.prefix || process.cwd()
   return <StrictUninstallOptions>{
+    shamefullyFlatten: false,
     storeController: opts.storeController,
     global: false,
     store: opts.store,

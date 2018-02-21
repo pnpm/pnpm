@@ -3,11 +3,13 @@ import path = require('path')
 import * as dp from 'dependency-path'
 import {Shrinkwrap, ResolvedPackages} from 'pnpm-shrinkwrap'
 import {StoreController} from 'package-store'
+import exists = require('path-exists')
 import R = require('ramda')
+import resolveLinkTarget = require('resolve-link-target')
 import removeTopDependency from '../removeTopDependency'
-import logger from '@pnpm/logger'
 import {dependenciesTypes} from '../getSaveType'
 import {statsLogger} from '../loggers'
+import getPkgInfoFromShr from '../getPkgInfoFromShr'
 
 export default async function removeOrphanPkgs (
   opts: {
@@ -16,6 +18,7 @@ export default async function removeOrphanPkgs (
     newShrinkwrap: Shrinkwrap,
     bin: string,
     prefix: string,
+    shamefullyFlatten: boolean,
     storeController: StoreController,
     pruneStore?: boolean,
   }
@@ -47,6 +50,32 @@ export default async function removeOrphanPkgs (
 
   if (!opts.dryRun) {
     if (notDependents.length) {
+
+      if (opts.shamefullyFlatten && opts.oldShrinkwrap.packages) {
+        const packages = opts.oldShrinkwrap.packages
+        await Promise.all(notDependents.map(async notDependent => {
+          const pkgShr = packages[dp.relative(opts.oldShrinkwrap.registry, notDependent)]
+          const pkgInfo = getPkgInfoFromShr(notDependent, pkgShr)
+          const rootLink = path.join(rootModules, pkgInfo.name)
+          // rootLink might not exist anymore because it might have been delete earlier
+          if (await exists(rootLink)) {
+            const linkTarget = await resolveLinkTarget(rootLink)
+            const notDependentDir = path.join(rootModules, `.${notDependent}`)
+            // we only want to remove the root link if it points to a version that we are removing
+            if (linkTarget.startsWith(notDependentDir)) {
+              await removeTopDependency({
+                name: pkgInfo.name,
+                dev: false,
+                optional: false,
+              }, {
+                modules: rootModules,
+                bin: opts.bin
+              })
+            }
+          }
+        }))
+      }
+
       await Promise.all(notDependents.map(async notDependent => {
         await rimraf(path.join(rootModules, `.${notDependent}`))
       }))

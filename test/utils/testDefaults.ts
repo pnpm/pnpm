@@ -15,10 +15,10 @@ const retryOpts = {
 }
 
 export default async function testDefaults (
-  opts?: any,
-  resolveOpts?: any,
-  fetchOpts?: any,
-  storeOpts?: any,
+  opts?: any, // tslint:disable-line
+  resolveOpts?: any, // tslint:disable-line
+  fetchOpts?: any, // tslint:disable-line
+  storeOpts?: any, // tslint:disable-line
 ): Promise<InstallOptions> {
   let store = opts && opts.store || path.resolve('..', '.store')
   store = await storePath(opts && opts.prefix || process.cwd(), store)

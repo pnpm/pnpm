@@ -1,22 +1,17 @@
 import path = require('path')
 import symlinkDir = require('symlink-dir')
-import exists = require('path-exists')
-import logger from '@pnpm/logger'
 import R = require('ramda')
 import pLimit = require('p-limit')
-import {InstalledPackage} from '../resolveDependencies'
-import {InstalledPackages, TreeNode} from '../api/install'
+import {TreeNode} from '../api/install'
 import linkBins, {linkPkgBins} from './linkBins'
-import {PackageJson, Dependencies} from '@pnpm/types'
+import {PackageJson} from '@pnpm/types'
 import {StoreController} from 'package-store'
-import {Resolution} from '@pnpm/resolver-base'
 import resolvePeers, {DependencyTreeNode, DependencyTreeNodeMap} from './resolvePeers'
 import logStatus from '../logging/logInstallStatus'
 import updateShrinkwrap from './updateShrinkwrap'
 import * as dp from 'dependency-path'
 import {Shrinkwrap, DependencyShrinkwrap} from 'pnpm-shrinkwrap'
 import removeOrphanPkgs from '../api/removeOrphanPkgs'
-import mkdirp = require('mkdirp-promise')
 import {
   rootLogger,
   statsLogger,
@@ -48,6 +43,7 @@ export default async function linkPackages (
     updateShrinkwrapMinorVersion: boolean,
     outdatedPkgs: {[pkgId: string]: string},
     sideEffectsCache: boolean,
+    shamefullyFlatten: boolean,
   }
 ): Promise<{
   linkedPkgsMap: DependencyTreeNodeMap,
@@ -69,6 +65,7 @@ export default async function linkPackages (
     oldShrinkwrap: opts.currentShrinkwrap,
     newShrinkwrap: newShr,
     prefix: opts.root,
+    shamefullyFlatten: opts.shamefullyFlatten,
     storeController: opts.storeController,
     bin: opts.bin,
   })
@@ -128,6 +125,11 @@ export default async function linkPackages (
       pkgId: pkg.id,
     })
   }
+
+  if (opts.shamefullyFlatten) {
+    await shamefullyFlattenTree(flatResolvedDeps, opts)
+  }
+
   if (!opts.dryRun) {
     await linkBins(opts.baseNodeModules, opts.bin)
   }
@@ -164,6 +166,61 @@ export default async function linkPackages (
     newDepPaths,
     removedPkgIds,
   }
+}
+
+async function shamefullyFlattenTree(
+  flatResolvedDeps: DependencyTreeNode[],
+  opts: {
+    force: boolean,
+    dryRun: boolean,
+    baseNodeModules: string,
+    bin: string,
+    pkg: PackageJson,
+    outdatedPkgs: {[pkgId: string]: string},
+    wantedShrinkwrap: Shrinkwrap,
+  },
+) {
+  const pkgNamesExcludedFromFlattening = {}
+  // first of all, exclude the root packages, as they are already linked
+  for (let name of R.keys(opts.wantedShrinkwrap.specifiers)) {
+    pkgNamesExcludedFromFlattening[name] = true
+  }
+
+  await Promise.all(flatResolvedDeps
+    // map to make a copy before the sort
+    // sort by depth and then alphabetically
+    .map(pkg => pkg).sort((a, b) => {
+      const depthDiff = a.depth - b.depth
+      return depthDiff === 0 ? a.name.localeCompare(b.name) : depthDiff
+    })
+    .filter(pkg => {
+      const shouldAdd = !pkgNamesExcludedFromFlattening[pkg.name]
+      // after we add the package to the packages to flatten, exclude subsequent packages with the same name
+      if (shouldAdd) {
+        pkgNamesExcludedFromFlattening[pkg.name] = true
+      }
+      return shouldAdd
+    })
+    .map(async pkg => {
+      if (opts.dryRun || !(await symlinkDependencyTo(pkg.name, pkg, opts.baseNodeModules)).reused) {
+        const isDev = opts.pkg.devDependencies && opts.pkg.devDependencies[pkg.name]
+        const isOptional = opts.pkg.optionalDependencies && opts.pkg.optionalDependencies[pkg.name]
+        rootLogger.info({
+          added: {
+            id: pkg.id,
+            name: pkg.name,
+            realName: pkg.name,
+            version: pkg.version,
+            latest: opts.outdatedPkgs[pkg.id],
+            dependencyType: isDev && 'dev' || isOptional && 'optional' || 'prod',
+          },
+        })
+      }
+      logStatus({
+        status: 'installed',
+        pkgId: pkg.id,
+      })
+    }))
 }
 
 function filterShrinkwrap (

@@ -132,6 +132,7 @@ export async function rebuild (maybeOpts: RebuildOptions) {
     layoutVersion: LAYOUT_VERSION,
     independentLeaves: opts.independentLeaves,
     pendingBuilds: [],
+    shamefullyFlatten: opts.shamefullyFlatten,
   })
 }
 

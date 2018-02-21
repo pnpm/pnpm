@@ -44,6 +44,7 @@ export async function prune (
     oldShrinkwrap: ctx.currentShrinkwrap,
     newShrinkwrap: prunedShr,
     prefix: ctx.root,
+    shamefullyFlatten: opts.shamefullyFlatten,
     storeController: opts.storeController,
     pruneStore: true,
     bin: opts.bin,

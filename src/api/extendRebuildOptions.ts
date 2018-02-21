@@ -28,6 +28,7 @@ export type RebuildOptions = {
   },
   unsafePerm?: boolean,
   pending?: boolean,
+  shamefullyFlatten?: boolean,
 }
 
 export type StrictRebuildOptions = RebuildOptions & {
@@ -47,6 +48,7 @@ export type StrictRebuildOptions = RebuildOptions & {
   unsafePerm: boolean,
   pending: boolean,
   shrinkwrap: boolean,
+  shamefullyFlatten: boolean,
 }
 
 const defaults = async (opts: RebuildOptions) => {
@@ -73,6 +75,7 @@ const defaults = async (opts: RebuildOptions) => {
                   process.getgid && process.setgid) ||
                 process.getuid() !== 0,
     shrinkwrap: true,
+    shamefullyFlatten: false,
   }
 }
 

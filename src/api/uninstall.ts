@@ -1,6 +1,6 @@
-import rimraf = require('rimraf-then')
 import path = require('path')
 import * as dp from 'dependency-path'
+import R = require('ramda')
 import getContext, {PnpmContext} from './getContext'
 import getSaveType from '../getSaveType'
 import removeDeps from '../removeDeps'
@@ -8,10 +8,8 @@ import extendOptions, {
   UninstallOptions,
   StrictUninstallOptions,
 } from './extendUninstallOptions'
-import {PnpmOptions, StrictPnpmOptions} from '@pnpm/types'
 import lock from './lock'
 import {
-  Shrinkwrap,
   write as saveShrinkwrap,
   writeCurrentOnly as saveCurrentShrinkwrapOnly,
   prune as pruneShrinkwrap,
@@ -25,7 +23,7 @@ import removeOrphanPkgs from './removeOrphanPkgs'
 import safeIsInnerLink from '../safeIsInnerLink'
 import removeTopDependency from '../removeTopDependency'
 import shrinkwrapsEqual from './shrinkwrapsEqual'
-import { SupiOptions, StrictSupiOptions } from '../types';
+import {installPkgs} from './install'
 
 export default async function uninstall (
   pkgsToUninstall: string[],
@@ -74,6 +72,7 @@ export async function uninstallInContext (
     oldShrinkwrap: ctx.currentShrinkwrap,
     newShrinkwrap: newShr,
     prefix: ctx.root,
+    shamefullyFlatten: opts.shamefullyFlatten,
     storeController: opts.storeController,
     bin: opts.bin,
   })
@@ -94,11 +93,18 @@ export async function uninstallInContext (
     layoutVersion: LAYOUT_VERSION,
     independentLeaves: opts.independentLeaves,
     pendingBuilds: ctx.pendingBuilds,
+    shamefullyFlatten: opts.shamefullyFlatten,
   })
   await removeOuterLinks(pkgsToUninstall, path.join(ctx.root, 'node_modules'), {
     storePath: ctx.storePath,
     bin: opts.bin,
   })
+
+  if (opts.shamefullyFlatten && R.keys(currentShrinkwrap.specifiers).length > 0) {
+    await installPkgs(currentShrinkwrap.specifiers, Object.assign({},
+      opts, {lock: false, reinstallForFlatten: true, update: false}
+    ))
+  }
 
   logger('summary').info()
 }

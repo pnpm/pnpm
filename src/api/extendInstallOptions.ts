@@ -33,6 +33,7 @@ export type InstallOptions = {
   savePrefix?: string,
   saveDev?: boolean,
   saveOptional?: boolean,
+  shamefullyFlatten?: boolean,
   sideEffectsCache?: boolean,
   sideEffectsCacheReadonly?: boolean,
   global?: boolean,
@@ -47,6 +48,7 @@ export type InstallOptions = {
   unsafePerm?: boolean,
   registry?: string,
   lock?: boolean,
+  reinstallForFlatten?: boolean,
   lockStaleDuration?: number,
   tag?: string,
   locks?: string,
@@ -75,6 +77,7 @@ export type StrictInstallOptions = InstallOptions & {
   savePrefix: string,
   saveDev: boolean,
   saveOptional: boolean,
+  shamefullyFlatten: boolean,
   sideEffectsCache: boolean,
   sideEffectsCacheReadonly: boolean,
   global: boolean,
@@ -131,6 +134,7 @@ const defaults = async (opts: InstallOptions) => {
     verifyStoreIntegrity: true,
     hooks: {},
     savePrefix: '^',
+    shamefullyFlatten: false,
     sideEffectsCache: false,
     sideEffectsCacheReadonly: false,
     unsafePerm: process.platform === 'win32' ||
@@ -158,7 +162,7 @@ export default async (
   if (extendedOpts.force) {
     logger.warn('using --force I sure hope you know what you are doing')
   }
-  if (extendedOpts.lock === false) {
+  if (extendedOpts.lock === false && !extendedOpts.reinstallForFlatten) {
     logger.warn('using --no-lock I sure hope you know what you are doing')
   }
   if (!extendedOpts.shrinkwrap && extendedOpts.shrinkwrapOnly) {

@@ -689,7 +689,7 @@ test('should not update subdep when depth is smaller than depth of package', asy
 
   shr = await project.loadShrinkwrap()
 
-  t.ok(shr.packages['/dep-of-pkg-with-1-dep/100.0.0'], "shrinkwrap has old dependency")
+  t.ok(shr.packages['/dep-of-pkg-with-1-dep/100.0.0'], 'shrinkwrap has old dependency')
   t.notOk(shr.packages['/dep-of-pkg-with-1-dep/100.1.0'], 'shrinkwrap has not the new dependency')
 
   t.equal(deepRequireCwd(['pkg-with-1-dep', 'dep-of-pkg-with-1-dep', './package.json']).version, '100.0.0', 'not updated in node_modules')
