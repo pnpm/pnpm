@@ -20,7 +20,7 @@
     "lib/"
   ],
   "dependencies": {
-    "@pnpm/config": "^0.1.0",
+    "@pnpm/config": "^0.1.1",
     "@pnpm/default-fetcher": "^0.4.0",
     "@pnpm/default-resolver": "^0.1.3",
     "@pnpm/logger": "^1.0.0",
@@ -61,7 +61,7 @@
     "retry": "^0.10.1",
     "signal-exit": "^3.0.2",
     "strip-color": "^0.1.0",
-    "supi": "^0.12.9",
+    "supi": "^0.12.10",
     "text-table": "^0.2.0",
     "tree-kill": "^1.2.0",
     "update-notifier": "^2.1.0",
