@@ -60,6 +60,9 @@ function getHelpText (command: string) {
         Experimental options:
           --side-effects-cache               use or cache the results of (pre/post)install hooks
           --side-effects-cache-readonly      only use the side effects cache if present, do not create it for new packages
+
+        Discouraged options:
+          --shamefully-flatten               Attempt to flatten the dependency tree, similar to what npm does
       `
 
     case 'uninstall':
@@ -69,6 +72,9 @@ function getHelpText (command: string) {
         Aliases: remove, rm, r, un, unlink
 
         Removes packages from \`node_modules\` and from the project's \`packages.json\`
+
+        Discouraged options:
+          --shamefully-flatten           Attempt to flatten the dependency tree, similar to what npm does
       `
 
     case 'link':
@@ -99,6 +105,9 @@ function getHelpText (command: string) {
           -g, --global                    update globally installed packages
           --depth                         how deep should levels of dependencies be inspected
                                           0 is default, which means top-level dependencies
+
+        Discouraged options:
+          --shamefully-flatten            Attempt to flatten the dependency tree, similar to what npm does
       `
 
     case 'list':
@@ -152,7 +161,7 @@ function getHelpText (command: string) {
         It is good to keep unreferenced packages in the store for a while because frequently unreferenced packages are again needed
         very soon. For instance, after changing branch on a project and installing from an older shrinkwrap file.
 
-        Prunning the store makes no harm. It only makes installation a bit slower in case the unreferenced files will be needed again.
+        Pruning the store makes no harm. It only makes installation a bit slower in case the unreferenced files will be needed again.
       `
 
     case 'root':
