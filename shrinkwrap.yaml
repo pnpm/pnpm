@@ -40,7 +40,7 @@ dependencies:
   retry: 0.10.1
   signal-exit: 3.0.2
   strip-color: 0.1.0
-  supi: 0.12.10
+  supi: 0.12.11
   text-table: 0.2.0
   tree-kill: 1.2.0
   update-notifier: 2.3.0
@@ -5582,7 +5582,7 @@ packages:
       node: '>=0.10.0'
     resolution:
       integrity: sha1-PFMZQukIwml8DsNEhYwobHygpgo=
-  /supi/0.12.10:
+  /supi/0.12.11:
     dependencies:
       '@pnpm/check-package': 1.0.0
       '@pnpm/fs-locker': 1.0.1
@@ -5653,7 +5653,7 @@ packages:
     peerDependencies:
       '@pnpm/logger': ^1.0.0
     resolution:
-      integrity: sha1-RJsYEIikFmT814vIvo/V6HRCNtY=
+      integrity: sha512-l1lp01kTexWUnv2VThfYBDIR5emDI/hkhTjTNOIr76nviBZeyUlYZZrJMQHp9XjimMcbBhQVzo41qItBLkagyA==
   /supports-color/2.0.0:
     engines:
       node: '>=0.8.0'
@@ -6452,7 +6452,7 @@ specifiers:
   sepia: ^2.0.2
   signal-exit: ^3.0.2
   strip-color: ^0.1.0
-  supi: ^0.12.10
+  supi: ^0.12.11
   tape: ^4.6.3
   tape-promise: ^2.0.1
   text-table: ^0.2.0
