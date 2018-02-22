@@ -165,6 +165,9 @@ export default async (
   if (extendedOpts.lock === false && !extendedOpts.reinstallForFlatten) {
     logger.warn('using --no-lock I sure hope you know what you are doing')
   }
+  if (extendedOpts.shamefullyFlatten && !extendedOpts.reinstallForFlatten) {
+    logger.warn('using --shamefully-flatten is discouraged, you should declare all of your dependencies in package.json')
+  }
   if (!extendedOpts.shrinkwrap && extendedOpts.shrinkwrapOnly) {
     throw new Error('Cannot generate a shrinkwrap.yaml because shrinkwrap is set to false')
   }
