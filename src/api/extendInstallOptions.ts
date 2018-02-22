@@ -159,33 +159,35 @@ export default async (
   }
   const defaultOpts = await defaults(opts)
   const extendedOpts = {...defaultOpts, ...opts, store: defaultOpts.store}
-  if (extendedOpts.force) {
-    logger.warn('using --force I sure hope you know what you are doing')
+  if (!extendedOpts.reinstallForFlatten) {
+    if (extendedOpts.force) {
+      logger.warn('using --force I sure hope you know what you are doing')
+    }
+    if (extendedOpts.lock === false) {
+      logger.warn('using --no-lock I sure hope you know what you are doing')
+    }
+    if (extendedOpts.shamefullyFlatten) {
+      logger.warn('using --shamefully-flatten is discouraged, you should declare all of your dependencies in package.json')
+    }
+    if (!extendedOpts.shrinkwrap && extendedOpts.shrinkwrapOnly) {
+      throw new Error('Cannot generate a shrinkwrap.yaml because shrinkwrap is set to false')
+    }
+    if (extendedOpts.userAgent.startsWith('npm/')) {
+      extendedOpts.userAgent = `${extendedOpts.packageManager.name}/${extendedOpts.packageManager.version} ${extendedOpts.userAgent}`
+    }
+    extendedOpts.registry = normalizeRegistryUrl(extendedOpts.registry)
+    if (extendedOpts.global) {
+      const independentLeavesSuffix = extendedOpts.independentLeaves ? '_independent_leaves' : ''
+      const shamefullyFlattenSuffix = extendedOpts.shamefullyFlatten ? '_shamefully_flatten' : ''
+      const subfolder = LAYOUT_VERSION.toString() + independentLeavesSuffix + shamefullyFlattenSuffix
+      extendedOpts.prefix = path.join(extendedOpts.prefix, subfolder)
+    }
+    extendedOpts.rawNpmConfig['registry'] = extendedOpts.registry
+    // if sideEffectsCacheReadonly is true, sideEffectsCache is necessarily true too
+    if (extendedOpts.sideEffectsCache && extendedOpts.sideEffectsCacheReadonly) {
+      logger.warn("--side-effects-cache-readonly turns on side effects cache too, you don't need to specify both")
+    }
+    extendedOpts.sideEffectsCache = extendedOpts.sideEffectsCache || extendedOpts.sideEffectsCacheReadonly
   }
-  if (extendedOpts.lock === false && !extendedOpts.reinstallForFlatten) {
-    logger.warn('using --no-lock I sure hope you know what you are doing')
-  }
-  if (extendedOpts.shamefullyFlatten && !extendedOpts.reinstallForFlatten) {
-    logger.warn('using --shamefully-flatten is discouraged, you should declare all of your dependencies in package.json')
-  }
-  if (!extendedOpts.shrinkwrap && extendedOpts.shrinkwrapOnly) {
-    throw new Error('Cannot generate a shrinkwrap.yaml because shrinkwrap is set to false')
-  }
-  if (extendedOpts.userAgent.startsWith('npm/')) {
-    extendedOpts.userAgent = `${extendedOpts.packageManager.name}/${extendedOpts.packageManager.version} ${extendedOpts.userAgent}`
-  }
-  extendedOpts.registry = normalizeRegistryUrl(extendedOpts.registry)
-  if (extendedOpts.global) {
-    const independentLeavesSuffix = extendedOpts.independentLeaves ? '_independent_leaves' : ''
-    const shamefullyFlattenSuffix = extendedOpts.shamefullyFlatten ? '_shamefully_flatten' : ''
-    const subfolder = LAYOUT_VERSION.toString() + independentLeavesSuffix + shamefullyFlattenSuffix
-    extendedOpts.prefix = path.join(extendedOpts.prefix, subfolder)
-  }
-  extendedOpts.rawNpmConfig['registry'] = extendedOpts.registry
-  // if sideEffectsCacheReadonly is true, sideEffectsCache is necessarily true too
-  if (extendedOpts.sideEffectsCache && extendedOpts.sideEffectsCacheReadonly) {
-    logger.warn("--side-effects-cache-readonly turns on side effects cache too, you don't need to specify both")
-  }
-  extendedOpts.sideEffectsCache = extendedOpts.sideEffectsCache || extendedOpts.sideEffectsCacheReadonly
   return extendedOpts
 }
