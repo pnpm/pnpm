@@ -62,18 +62,22 @@ export default function (
 
 function fetch(limit: (fn: () => PromiseLike<object>) => Promise<object>, url: string, body: object): Promise<object | undefined> { // tslint:disable-line
   return limit(async () => {
-    const response = await got(url, {
-      body: JSON.stringify(body),
-      headers: {'Content-Type': 'application/json'},
-      method: 'POST',
-      retries: () => {
-        return 100
-      },
-    })
-    if (!response.body) {
-      return undefined
+    try {
+      const response = await got(url, {
+        body: JSON.stringify(body),
+        headers: {'Content-Type': 'application/json'},
+        method: 'POST',
+        retries: () => {
+          return 100
+        },
+      })
+      if (!response.body) {
+        return undefined
+      }
+      return JSON.parse(response.body)
+    } catch (e) {
+      throw JSON.parse(e.response.body)
     }
-    return JSON.parse(response.body)
   })
 }
 

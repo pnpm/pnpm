@@ -79,6 +79,44 @@ test('server', async t => {
   t.end()
 })
 
+test('server errors should arrive to the client', async t => {
+  const port = 5813
+  const hostname = '127.0.0.1'
+  const remotePrefix = `http://${hostname}:${port}`
+  const storeCtrlForServer = await createStoreController()
+  const server = createServer(storeCtrlForServer, {
+    port,
+    hostname,
+  })
+  const storeCtrl = await connectStoreController({remotePrefix, concurrency: 100})
+  let caught = false
+  try {
+    await storeCtrl.requestPackage(
+      {alias: 'not-an-existing-package', pref: '1.0.0'},
+      {
+        downloadPriority: 0,
+        loggedPkg: {rawSpec: 'sfdf'},
+        prefix: process.cwd(),
+        registry,
+        verifyStoreIntegrity: false,
+        preferredVersions: {},
+      }
+    )
+  } catch (e) {
+    caught = true
+    t.equal(e.message, '404 Not Found: not-an-existing-package', 'error message delivered correctly')
+    t.equal(e.code, 'E404', 'error code delivered correctly')
+    t.ok(e.uri, 'error uri field delivered')
+    t.ok(e.response, 'error response field delivered')
+    t.ok(e.package, 'error package field delivered')
+  }
+  t.ok(caught, 'exception raised correctly')
+
+  await server.close()
+  await storeCtrl.close()
+  t.end()
+})
+
 test('server upload', async t => {
   const port = 5813
   const hostname = '127.0.0.1'
