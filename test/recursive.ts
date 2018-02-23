@@ -6,11 +6,12 @@ import tape = require('tape')
 import promisifyTape from 'tape-promise'
 import path = require('path')
 import exists = require('path-exists')
+import writeYamlFile = require('write-yaml-file')
 import {
-  prepare,
   execPnpm,
-  spawn,
+  prepare,
   retryLoadJsonFile,
+  spawn,
 } from './utils'
 
 const test = promisifyTape(tape)
@@ -197,6 +198,34 @@ test('recursive linking/unlinking', async t => {
 
   process.chdir('project-1')
   t.ok(await exists('node_modules', 'is-positive', 'index.js'), 'local package is dislinked')
+
+  t.end()
+})
+
+test('running `pnpm recursive` on a subset of packages', async t => {
+  const projects = prepare(t, [
+    {
+      name: 'project-1',
+      version: '1.0.0',
+      dependencies: {
+        'is-positive': '1.0.0',
+      },
+    },
+    {
+      name: 'project-2',
+      version: '1.0.0',
+      dependencies: {
+        'is-negative': '1.0.0',
+      },
+    },
+  ])
+
+  await writeYamlFile('pnpm-workspace.yaml', {packages: ['project-1']})
+
+  await execPnpm('recursive', 'install')
+
+  await projects['project-1'].has('is-positive')
+  await projects['project-2'].hasNot('is-negative')
 
   t.end()
 })
