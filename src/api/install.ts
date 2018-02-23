@@ -204,12 +204,6 @@ export async function install (maybeOpts: InstallOptions) {
 
     await installInContext(installType, specs, [], ctx, preferredVersions, opts)
 
-    if (opts.shamefullyFlatten && specs.length > 0) {
-      await installPkgs(specs.map(spec => spec.raw), Object.assign({},
-        opts, {lock: false, reinstallForFlatten: true, update: false}
-      ))
-    }
-
     if (scripts['install']) {
       await npmRunScript('install', ctx.pkg, scriptsOpts)
     }
@@ -391,6 +385,7 @@ async function installInContext (
     hasManifestInShrinkwrap,
     sideEffectsCache: opts.sideEffectsCache,
     reinstallForFlatten: opts.reinstallForFlatten,
+    shamefullyFlatten: opts.shamefullyFlatten,
   }
   const nonLinkedPkgs = await pFilter(packagesToInstall,
     async (wantedDependency: WantedDependency) => {
@@ -552,6 +547,7 @@ async function installInContext (
     outdatedPkgs: installCtx.outdatedPkgs,
     sideEffectsCache: opts.sideEffectsCache,
     shamefullyFlatten: opts.shamefullyFlatten,
+    reinstallForFlatten: Boolean(opts.reinstallForFlatten),
   })
 
   ctx.pendingBuilds = ctx.pendingBuilds

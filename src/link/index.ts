@@ -44,6 +44,7 @@ export default async function linkPackages (
     outdatedPkgs: {[pkgId: string]: string},
     sideEffectsCache: boolean,
     shamefullyFlatten: boolean,
+    reinstallForFlatten: boolean,
   }
 ): Promise<{
   linkedPkgsMap: DependencyTreeNodeMap,
@@ -126,10 +127,6 @@ export default async function linkPackages (
     })
   }
 
-  if (opts.shamefullyFlatten) {
-    await shamefullyFlattenTree(flatResolvedDeps, opts)
-  }
-
   if (!opts.dryRun) {
     await linkBins(opts.baseNodeModules, opts.bin)
   }
@@ -159,6 +156,10 @@ export default async function linkPackages (
     currentShrinkwrap = newCurrentShrinkwrap
   }
 
+  if (opts.shamefullyFlatten && (opts.reinstallForFlatten || newDepPaths.length > 0 || removedPkgIds.size > 0)) {
+    await shamefullyFlattenTree(flatResolvedDeps, currentShrinkwrap, opts)
+  }
+
   return {
     linkedPkgsMap: pkgsToLink,
     wantedShrinkwrap: newShr,
@@ -170,6 +171,7 @@ export default async function linkPackages (
 
 async function shamefullyFlattenTree(
   flatResolvedDeps: DependencyTreeNode[],
+  currentShrinkwrap: Shrinkwrap,
   opts: {
     force: boolean,
     dryRun: boolean,
@@ -177,12 +179,11 @@ async function shamefullyFlattenTree(
     bin: string,
     pkg: PackageJson,
     outdatedPkgs: {[pkgId: string]: string},
-    wantedShrinkwrap: Shrinkwrap,
   },
 ) {
   const pkgNamesExcludedFromFlattening = {}
   // first of all, exclude the root packages, as they are already linked
-  for (let name of R.keys(opts.wantedShrinkwrap.specifiers)) {
+  for (let name of R.keys(currentShrinkwrap.specifiers)) {
     pkgNamesExcludedFromFlattening[name] = true
   }
 
