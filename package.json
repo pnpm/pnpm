@@ -39,13 +39,14 @@
     "cross-spawn": "^6.0.3",
     "delay": "^2.0.0",
     "diable": "^4.0.1",
-    "find-packages": "^2.1.2",
+    "find-packages": "^2.2.0",
     "get-port": "^3.2.0",
     "graceful-fs": "^4.1.11",
     "graph-sequencer": "^2.0.0",
     "is-ci": "^1.0.10",
     "is-windows": "^1.0.1",
     "load-json-file": "^4.0.0",
+    "load-yaml-file": "^0.1.0",
     "loud-rejection": "^1.6.0",
     "mkdirp-promise": "^5.0.1",
     "nopt": "^4.0.1",
@@ -91,7 +92,6 @@
     "execa": "^0.9.0",
     "exists-link": "^2.0.0",
     "isexe": "^2.0.0",
-    "load-yaml-file": "^0.1.0",
     "mkdirp": "^0.5.1",
     "mz": "^2.6.0",
     "normalize-newline": "^3.0.0",
@@ -110,7 +110,8 @@
     "ts-node": "^4.0.0",
     "tslint": "^5.4.2",
     "typescript": "^2.7.1",
-    "write-pkg": "^3.1.0"
+    "write-pkg": "^3.1.0",
+    "write-yaml-file": "^1.0.0"
   },
   "directories": {
     "test": "test"
