@@ -134,6 +134,7 @@ export default async function run (argv: string[]) {
     'g': ['--global'],
     'S': ['--save'],
     'D': ['--save-dev'],
+    'P': ['--save-prod'],
     'E': ['--save-exact'],
     'O': ['--save-optional'],
     'y': ['--yes'],
