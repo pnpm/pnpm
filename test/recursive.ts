@@ -229,3 +229,31 @@ test('running `pnpm recursive` on a subset of packages', async t => {
 
   t.end()
 })
+
+test('recursive installation fails when installation in one of the packages fails', async t => {
+  const projects = prepare(t, [
+    {
+      name: 'project-1',
+      version: '1.0.0',
+      dependencies: {
+        'this-pkg-does-not-exist': '100.100.100',
+      },
+    },
+    {
+      name: 'project-2',
+      version: '1.0.0',
+      dependencies: {
+        'is-negative': '1.0.0',
+      },
+    },
+  ])
+
+  try {
+    await execPnpm('recursive', 'install')
+    t.fail('The command should have failed')
+  } catch (err) {
+    t.ok(err, 'the command failed')
+  }
+
+  t.end()
+})
