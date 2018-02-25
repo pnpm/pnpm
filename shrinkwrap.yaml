@@ -5,7 +5,7 @@ dependencies:
   '@pnpm/logger': 1.0.1
   '@pnpm/outdated': 0.2.7
   '@pnpm/server': 0.8.2
-  '@pnpm/store-path': 1.0.1
+  '@pnpm/store-path': 1.0.2
   '@pnpm/types': 1.7.0
   '@types/get-port': 3.2.0
   '@types/retry': 0.10.2
@@ -41,7 +41,7 @@ dependencies:
   retry: 0.10.1
   signal-exit: 3.0.2
   strip-color: 0.1.0
-  supi: 0.12.12
+  supi: 0.12.13
   text-table: 0.2.0
   tree-kill: 1.2.0
   update-notifier: 2.3.0
@@ -115,7 +115,7 @@ packages:
       '@marionebl/sander': 0.6.1
       babel-runtime: 6.26.0
       chalk: 2.3.1
-      conventional-changelog-angular: 1.6.5
+      conventional-changelog-angular: 1.6.6
       cosmiconfig: 3.1.0
       find-up: 2.1.0
       lodash: 4.17.5
@@ -139,7 +139,7 @@ packages:
       babel-runtime: 6.26.0
       chalk: 2.3.1
       cosmiconfig: 3.1.0
-      git-raw-commits: 1.3.3
+      git-raw-commits: 1.3.4
       lodash.merge: 4.6.0
       lodash.mergewith: 4.6.0
       lodash.pick: 4.4.0
@@ -186,8 +186,8 @@ packages:
       integrity: sha512-5k4pOPX5hwS34xAYzSZZFxsW0MCaJbbcjCTiqbyf8WEPep0ru2dsZg6EsBqLTe9IG1YjQM/Z5/udkfIwBXOYpw==
   /@commitlint/parse/5.2.8:
     dependencies:
-      conventional-changelog-angular: 1.6.5
-      conventional-commits-parser: 2.1.4
+      conventional-changelog-angular: 1.6.6
+      conventional-commits-parser: 2.1.5
     dev: true
     engines:
       node: '>=4'
@@ -457,7 +457,7 @@ packages:
   /@pnpm/outdated/0.2.7:
     dependencies:
       '@pnpm/npm-resolver': 0.3.13
-      '@pnpm/store-path': 1.0.1
+      '@pnpm/store-path': 1.0.2
       '@types/node': 9.4.6
       dependency-path: 1.2.0
       pnpm-shrinkwrap: 5.3.0
@@ -538,11 +538,11 @@ packages:
       '@pnpm/logger': ^1.0.0
     resolution:
       integrity: sha1-LKQlBAjpKdh6mewQNvNi0/7fv3s=
-  /@pnpm/store-path/1.0.1:
+  /@pnpm/store-path/1.0.2:
     dependencies:
       '@types/node': 9.4.6
       '@types/touch': 3.1.0
-      can-link: 1.0.1
+      can-link: 1.0.2
       mkdirp-promise: 5.0.1
       mz: 2.7.0
       os-homedir: 1.0.2
@@ -554,7 +554,7 @@ packages:
     engines:
       node: '>=4'
     resolution:
-      integrity: sha512-KEOK1fZiK5mRijWOeUfNne6SsTlwwHMHiFz98EifV9sBleoigW1M0l0ApfSWoP3fIhkjkNIKE9fAkOSVJQ66Hg==
+      integrity: sha512-HPXqBCJoCk20Shl79ORU6GnC+TdmeZgRZeSVP3asUBC7+OUl/AsafGQNaZyrZAtfCKPphEVHxWdlSU3XT4jG+A==
   /@pnpm/tarball-fetcher/0.4.1:
     dependencies:
       '@pnpm/fetcher-base': 1.0.0
@@ -1432,14 +1432,14 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha1-1UVjW+HjPFQmScaRc+Xeas+uNN0=
-  /can-link/1.0.1:
+  /can-link/1.0.2:
     dependencies:
       graceful-fs: 4.1.11
     dev: false
     engines:
       node: '>=4'
     resolution:
-      integrity: sha512-UsNOqt2d9kRQYnVRQpA0Sr0DEoWTOBqoqSbWY1y45Ds8uLttyyr91TRM1hDDjvvW2wngY9cbRekrervbr2IuIA==
+      integrity: sha512-2zyqEs49pyv+Ne1rUsOYWo5kgaMJ62ztHV2agWHdkYSOcNLohOGB4rY8xjjCKnByWeBnOOvjBRAPdG+7LKUpcA==
   /capture-stack-trace/1.0.0:
     dev: false
     engines:
@@ -1709,25 +1709,25 @@ packages:
       node: '>= 0.6'
     resolution:
       integrity: sha512-hIP3EEPs8tB9AT1L+NUqtwOAps4mk2Zob89MWXMHjHWg9milF/j4osnnQLXBCBFBk/tvIG/tUc9mOUJiPBhPXA==
-  /conventional-changelog-angular/1.6.5:
+  /conventional-changelog-angular/1.6.6:
     dependencies:
       compare-func: 1.3.2
       q: 1.5.1
     dev: true
     resolution:
-      integrity: sha512-70zO0ThLMlAzPOiYqRAFcMTQbe1Qewy+4v/TJuKMZueCJwR1fLqJCVfvjRlnPrYDwgjI0kc74VymbFO7rJDIPg==
-  /conventional-commits-parser/2.1.4:
+      integrity: sha512-suQnFSqCxRwyBxY68pYTsFkG0taIdinHLNEAX5ivtw8bCRnIgnpvcHmlR/yjUyZIrNPYAoXlY1WiEKWgSE4BNg==
+  /conventional-commits-parser/2.1.5:
     dependencies:
       JSONStream: 1.3.2
       is-text-path: 1.0.1
       lodash: 4.17.5
-      meow: 3.7.0
+      meow: 4.0.0
       split2: 2.2.0
       through2: 2.0.3
       trim-off-newlines: 1.0.1
     dev: true
     resolution:
-      integrity: sha512-dyTFuqQQzTynPN81zk9Pvm6d4mGiTuPz+Qi1ee8CmhupBji7gwO0DKXvAWo3MEFilE50pm8h8kRbETL5wsI65A==
+      integrity: sha512-jaAP61py+ISMF3/n3yIiIuY5h6mJlucOqawu5mLB1HaQADLvg/y5UB3pT7HSucZJan34lp7+7ylQPfbKEGmxrA==
   /cookie-signature/1.0.6:
     dev: true
     resolution:
@@ -2796,16 +2796,16 @@ packages:
       assert-plus: 1.0.0
     resolution:
       integrity: sha1-Xv+OPmhNVprkyysSgmBOi6YhSfo=
-  /git-raw-commits/1.3.3:
+  /git-raw-commits/1.3.4:
     dependencies:
       dargs: 4.1.0
       lodash.template: 4.4.0
-      meow: 3.7.0
+      meow: 4.0.0
       split2: 2.2.0
       through2: 2.0.3
     dev: true
     resolution:
-      integrity: sha512-EKgNIRhpCYFgLTM+o4lbu5+JxTGhUBgaRN3JQv/X2dm7zuSf64tay/igxf2RMJfOZYpmUYX96JOk3Q7JajPLVA==
+      integrity: sha512-G3O+41xHbscpgL5nA0DUkbFVgaAz5rd57AMSIMew8p7C8SyFwZDyn08MoXHkTl9zcD0LmxsLFPxbqFY4YPbpPA==
   /glob-parent/3.1.0:
     dependencies:
       is-glob: 3.1.0
@@ -2975,12 +2975,12 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha1-tdRU3CGZriJWmfNGfloH87lVuv0=
-  /has-symbol-support-x/1.4.1:
+  /has-symbol-support-x/1.4.2:
     resolution:
-      integrity: sha512-JkaetveU7hFbqnAC1EV1sF4rlojU2D4Usc5CmS69l6NfmPDnpnFUegzFg33eDkkpNCxZ0mQp65HwUDrNFS/8MA==
+      integrity: sha512-3ToOva++HaW+eCpgqZrCfN51IPB+7bJNVT6CUATzueB5Heb8o6Nam0V3HG5dlDvZU1Gn5QLcbahiKw/XVk5JJw==
   /has-to-string-tag-x/1.4.1:
     dependencies:
-      has-symbol-support-x: 1.4.1
+      has-symbol-support-x: 1.4.2
     resolution:
       integrity: sha512-vdbKfmw+3LoOYVr+mtxHaX5a96+0f3DljYd8JOqvOLsf5mw2Otda2qCDT9qRqLAhrjyQ0h7ual5nOiASpsGNFw==
   /has-unicode/2.0.1:
@@ -5674,7 +5674,7 @@ packages:
       integrity: sha512-lreewLK/BlghmxtfH36YYVg1i8IAce4TI7oao75I1g245+6BctqTVQiBP3YUJ9C6DQOXJmkYR9X9fCLtCOJc5w==
   /root-link-target/1.0.1:
     dependencies:
-      can-link: 1.0.1
+      can-link: 1.0.2
       graceful-fs: 4.1.11
       next-path: 1.0.0
       path-temp: 1.0.0
@@ -6183,7 +6183,7 @@ packages:
       node: '>=0.10.0'
     resolution:
       integrity: sha1-PFMZQukIwml8DsNEhYwobHygpgo=
-  /supi/0.12.12:
+  /supi/0.12.13:
     dependencies:
       '@pnpm/check-package': 1.0.0
       '@pnpm/fs-locker': 1.0.1
@@ -6254,7 +6254,7 @@ packages:
     peerDependencies:
       '@pnpm/logger': ^1.0.0
     resolution:
-      integrity: sha512-yw7g9vDwJHggvX07AnfriwaOaUmlykkQiCqvOePGiKQ9WgwcAWiYpI+NyDVPQ8pN2nmYQaiflG1AB/MqfzmIGg==
+      integrity: sha512-WedWaiaeCAz04/fecPE136be6++6ITpQz1AbCCVTN8uYD/748bJlhAWx+A2B4RPCjDQ+8Wloe4LNnsMV79PFwg==
   /supports-color/2.0.0:
     engines:
       node: '>=0.8.0'
@@ -7045,7 +7045,7 @@ specifiers:
   '@pnpm/logger': ^1.0.0
   '@pnpm/outdated': ^0.2.7
   '@pnpm/server': ^0.8.2
-  '@pnpm/store-path': ^1.0.1
+  '@pnpm/store-path': ^1.0.2
   '@pnpm/types': ^1.5.0
   '@types/byline': ^4.2.31
   '@types/common-tags': ^1.2.5
@@ -7113,7 +7113,7 @@ specifiers:
   sepia: ^2.0.2
   signal-exit: ^3.0.2
   strip-color: ^0.1.0
-  supi: ^0.12.12
+  supi: ^0.12.13
   tape: ^4.6.3
   tape-promise: ^2.0.1
   text-table: ^0.2.0
