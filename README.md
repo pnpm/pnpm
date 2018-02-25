@@ -417,41 +417,49 @@ For more details about why this decision was made, see: https://github.com/nodej
 
 ### `pnpm` does not work with <YOUR-PROJECT-HERE>?
 
-The problem must be the project has unresolved dependencies.
+In most cases it means that one of the dependencies require packages not declared in `package.json`.
+It is a common mistake caused by flat `node_modules`. If this happens, this is an erro in the dependency and the
+dependency should be fixed. That might take time though, so pnpm supports workarounds to make the buggy packages work.
 
-Solution is to use [hooks](#hooks) with all those unresolved dependencies for that project.
+#### Solution 1
 
-An example was [Webpack Dashboard](https://github.com/pnpm/pnpm/issues/1043) wasn't working with `pnpm`. Notice, it has been since resolved such that it works with `pnpm` now.
+One of the solutions is to use [hooks](#hooks) for adding the missing dependencies to the package's `package.json`.
 
-It used to throw an error
+An example was [Webpack Dashboard](https://github.com/pnpm/pnpm/issues/1043) which wasn't working with `pnpm`. Notice, it has been since resolved such that it works with `pnpm` now.
+
+It used to throw an error:
 
 ```console
 Error: Cannot find module 'babel-traverse'
   at /node_modules/.registry.npmjs.org/inspectpack/2.2.3/node_modules/inspectpack/lib/actions/parse
 ```
 
-The problem was `babel-traverse` was used in `inspectpack` library which was used by `webpack-dashboard`. But `babel-traverse` wasn't specified in `inspectpack`'s `package.json`. But it still worked with `npm` & `yarn` because it resolves dependencies differently than `pnpm` as `pnpm` uses hardlinks.
+The problem was `babel-traverse` was used in `inspectpack` library which was used by `webpack-dashboard`. But `babel-traverse` wasn't specified in `inspectpack`'s `package.json`. It still worked with `npm` and `yarn` because they create flat `node_modules`.
 
-Solution was to create a `pnpmfile.js` with the following contents -
+Solution was to create a `pnpmfile.js` with the following contents:
 
 ```js
 module.exports = {
   hooks: {
-    readPackage(pkg) {
-      if (pkg.name === "inspectpack") {
-        pkg.dependencies["babel-traverse"] = "^6.26.0";
+    readPackage (pkg) {
+      switch (pkg.name) {
+        case 'inspectpack':
+          pkg.dependencies['babel-traverse'] = '^6.26.0'
+          break
       }
-      return pkg;
+      return pkg
     }
   }
-};
+}
 ```
 
 After creating `pnpmfile.js`, delete `shrinkwrap.yaml` only. No need to delete `node_modules`. Then install the dependencies & it should be working.
 
-However, this sometimes throws error as there are many unresolved dependencies. If that happens, then try the config `--shamefully-flatten`. This creates a dependency structure like `npm` or `yarn`.
+#### Solution 2
 
-To use it try `pnpm install --shamefully-flatten`.
+In case there are too many issues, you can use the `shamefully-flatten` config. This creates a flat `node_modules` structure similar to the one created by `npm` or `yarn`.
+
+To use it, try `pnpm install --shamefully-flatten`.
 
 ## Support
 
