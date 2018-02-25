@@ -2,6 +2,8 @@ import test = require('tape')
 import createPackageRequester from '@pnpm/package-requester'
 import createResolver from '@pnpm/npm-resolver'
 import createFetcher from '@pnpm/tarball-fetcher'
+import pkgIdToFilename from '@pnpm/pkgid-to-filename'
+import path = require('path')
 import tempy = require('tempy')
 
 const registry = 'https://registry.npmjs.org/'
@@ -144,6 +146,106 @@ test('request package but skip fetching, when resolution is already available', 
 
   t.notOk(pkgResponse.fetchingFiles, 'files fetching not done')
   t.notOk(pkgResponse.finishing)
+
+  t.end()
+})
+
+test('refetch local tarball if its integrity has changed', async t => {
+  const prefix = tempy.directory()
+  const tarballPath = path.relative(prefix, path.join(__dirname, 'pnpm-package-requester-0.8.1.tgz'))
+  const tarball = `file:${tarballPath}`
+  const pkgId = `file:${encodeURIComponent(tarball)}`
+  const wantedPackage = {alias: 'is-positive', pref: '1.0.0'}
+  const storePath = '.store'
+  const requestPackageOpts = {
+    currentPkgId: pkgId,
+    update: false,
+    loggedPkg: {},
+    prefix,
+    registry,
+  }
+
+  {
+    const fakeResolve = () => Promise.resolve({
+      id: pkgId,
+      resolution: {
+        integrity: 'sha1-BBBBBBBBBBBBBBBBBBBBBBBBBBB=',
+        tarball,
+      },
+    })
+    const requestPackage = createPackageRequester(fakeResolve, fetch, {
+      storePath,
+      storeIndex: {},
+    })
+
+    const response = await requestPackage(wantedPackage, {
+      ...requestPackageOpts,
+      shrinkwrapResolution: {
+        integrity: 'sha1-BBBBBBBBBBBBBBBBBBBBBBBBBBB=',
+        tarball,
+      },
+    })
+    await response.fetchingFiles
+    await response.finishing
+
+    t.notOk((await response.fetchingFiles).fromStore, 'unpack tarball if it is not in store yet')
+  }
+
+  {
+    const fakeResolve = () => Promise.resolve({
+      id: pkgId,
+      resolution: {
+        integrity: 'sha1-AAAAAAAAAAAAAAAAAAAAAAAAAAA=',
+        tarball,
+      },
+    })
+    const requestPackage = createPackageRequester(fakeResolve, fetch, {
+      storePath,
+      storeIndex: {
+        [pkgIdToFilename(pkgId)]: true,
+      },
+    })
+
+    const response = await requestPackage(wantedPackage, {
+      ...requestPackageOpts,
+      shrinkwrapResolution: {
+        integrity: 'sha1-BBBBBBBBBBBBBBBBBBBBBBBBBBB=',
+        tarball,
+      },
+    })
+    await response.fetchingFiles
+    await response.finishing
+
+    t.notOk((await response.fetchingFiles).fromStore, 're-unpack tarball if its integrity has changed')
+  }
+
+  {
+    const fakeResolve = () => Promise.resolve({
+      id: pkgId,
+      resolution: {
+        integrity: 'sha1-AAAAAAAAAAAAAAAAAAAAAAAAAAA=',
+        tarball,
+      },
+    })
+    const requestPackage = createPackageRequester(fakeResolve, fetch, {
+      storePath,
+      storeIndex: {
+        [pkgIdToFilename(pkgId)]: true,
+      },
+    })
+
+    const response = await requestPackage(wantedPackage, {
+      ...requestPackageOpts,
+      shrinkwrapResolution: {
+        integrity: 'sha1-AAAAAAAAAAAAAAAAAAAAAAAAAAA=',
+        tarball,
+      },
+    })
+    await response.fetchingFiles
+    await response.finishing
+
+    t.ok((await response.fetchingFiles).fromStore, 'use existing package from store if integrities matched')
+  }
 
   t.end()
 })

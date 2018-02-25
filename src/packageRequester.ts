@@ -181,11 +181,14 @@ async function resolveAndFetch (
     let resolution = options.shrinkwrapResolution as Resolution
     let pkgId = options.currentPkgId
     const skipResolution = resolution && !options.update
+    let forceFetch = false
 
     // When fetching is skipped, resolution cannot be skipped.
     // We need the package's manifest when doing `shrinkwrap-only` installs.
     // When we don't fetch, the only way to get the package's manifest is via resolving it.
-    if (!skipResolution || options.skipFetch) {
+    //
+    // The resolution step is never skipped for local dependencies.
+    if (!skipResolution || options.skipFetch || pkgId && pkgId.startsWith('file:')) {
       const resolveResult = await ctx.requestsQueue.add<ResolveResult>(() => ctx.resolve(wantedDependency, {
         defaultTag: options.defaultTag,
         preferredVersions: options.preferredVersions,
@@ -196,10 +199,18 @@ async function resolveAndFetch (
       pkg = resolveResult.package
       latest = resolveResult.latest
 
-      if (!skipResolution) {
-        // keep the shrinkwrap resolution when possible
-        // to keep the original shasum
-        if (pkgId !== resolveResult.id || !resolution) {
+      // If the integrity of a local tarball dependency has changed,
+      // the local tarball should be unpacked, so a fetch to the store should be forced
+      forceFetch = Boolean(
+        options.shrinkwrapResolution &&
+        pkgId && pkgId.startsWith('file:') &&
+        options.shrinkwrapResolution['integrity'] !== resolveResult.resolution['integrity'], // tslint:disable-line:no-string-literal
+      )
+
+      if (!skipResolution || forceFetch) {
+        // Keep the shrinkwrap resolution when possible
+        // to keep the original shasum.
+        if (pkgId !== resolveResult.id || !resolution || forceFetch) {
           resolution = resolveResult.resolution
         }
         pkgId = resolveResult.id
@@ -250,6 +261,7 @@ async function resolveAndFetch (
     if (!ctx.fetchingLocker[id]) {
       ctx.fetchingLocker[id] = fetchToStore({
         fetch: ctx.fetch,
+        forceFetch,
         pkg,
         pkgId: id,
         prefix: options.prefix,
@@ -301,6 +313,7 @@ async function resolveAndFetch (
 
 function fetchToStore (opts: {
   fetch: FetchFunction,
+  forceFetch: boolean,
   requestsQueue: {add: <T>(fn: () => Promise<T>, opts: {priority: number}) => Promise<T>},
   pkg?: PackageJson,
   pkgId: string,
@@ -349,7 +362,7 @@ function fetchToStore (opts: {
       // In case there is record about the package in `store.json`, we check it in the file system just in case
       const targetExists = opts.storeIndex[opts.targetRelative] && await exists(path.join(linkToUnpacked, 'package.json'))
 
-      if (targetExists) {
+      if (!opts.forceFetch && targetExists) {
         // if target exists and it wasn't modified, then no need to refetch it
         const satisfiedIntegrity = opts.verifyStoreIntegrity
           ? await checkPackage(linkToUnpacked)
