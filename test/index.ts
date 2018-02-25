@@ -75,3 +75,16 @@ test('forPackages()', async (t) => {
   ])
   t.end()
 })
+
+test('outdated() when only current shrinkwrap is present', async (t) => {
+  const outdatedPkgs = await outdated('current-shrinkwrap-only', outdatedOpts)
+  t.deepEqual(outdatedPkgs, [
+    {
+      current: '1.1.0',
+      latest: '2.1.0',
+      packageName: 'is-negative',
+      wanted: '1.1.0',
+    },
+  ])
+  t.end()
+})

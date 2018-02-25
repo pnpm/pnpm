@@ -94,6 +94,7 @@ async function _outdated (
   },
 ): Promise<OutdatedPackage[]> {
   const wantedShrinkwrap = await readWantedShrinkwrap(pkgPath, {ignoreIncompatible: false})
+    || await readCurrentShrinkwrap(pkgPath, {ignoreIncompatible: false})
   if (!wantedShrinkwrap) {
     throw new Error('No shrinkwrapfile in this directory. Run `pnpm install` to generate one.')
   }
