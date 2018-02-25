@@ -447,7 +447,11 @@ module.exports = {
 };
 ```
 
-After creating `pnpmfile.js`, delete `shrinkwrap.yaml` only. No need to delete `node_modules`. Then install it again & it should be working.
+After creating `pnpmfile.js`, delete `shrinkwrap.yaml` only. No need to delete `node_modules`. Then install the dependencies & it should be working.
+
+However, this sometimes throws error as there are many unresolved dependencies. If that happens, then try the config `--shamefully-flatten`. This creates a dependency structure like `npm` or `yarn`.
+
+To use it try `pnpm install --shamefully-flatten`.
 
 ## Support
 
