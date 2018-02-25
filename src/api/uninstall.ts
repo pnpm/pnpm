@@ -75,6 +75,7 @@ export async function uninstallInContext (
     shamefullyFlatten: opts.shamefullyFlatten,
     storeController: opts.storeController,
     bin: opts.bin,
+    hoistedAliases: ctx.hoistedAliases,
   })
   ctx.pendingBuilds = ctx.pendingBuilds.filter(pkgId => !removedPkgIds.has(dp.resolve(newShr.registry, pkgId)))
   await opts.storeController.close()
@@ -94,16 +95,15 @@ export async function uninstallInContext (
     independentLeaves: opts.independentLeaves,
     pendingBuilds: ctx.pendingBuilds,
     shamefullyFlatten: opts.shamefullyFlatten,
+    hoistedAliases: ctx.hoistedAliases,
   })
   await removeOuterLinks(pkgsToUninstall, path.join(ctx.root, 'node_modules'), {
     storePath: ctx.storePath,
     bin: opts.bin,
   })
 
-  if (opts.shamefullyFlatten && R.keys(currentShrinkwrap.specifiers).length > 0) {
-    await installPkgs(currentShrinkwrap.specifiers, Object.assign({},
-      opts, {lock: false, reinstallForFlatten: true, update: false}
-    ))
+  if (opts.shamefullyFlatten) {
+    await installPkgs(currentShrinkwrap.specifiers, {...opts, lock: false, reinstallForFlatten: true, update: false})
   }
 
   logger('summary').info()

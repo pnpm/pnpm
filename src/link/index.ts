@@ -45,6 +45,7 @@ export default async function linkPackages (
     sideEffectsCache: boolean,
     shamefullyFlatten: boolean,
     reinstallForFlatten: boolean,
+    hoistedAliases: {[pkgId: string]: string[]},
   }
 ): Promise<{
   linkedPkgsMap: DependencyTreeNodeMap,
@@ -52,6 +53,7 @@ export default async function linkPackages (
   currentShrinkwrap: Shrinkwrap,
   newDepPaths: string[],
   removedPkgIds: Set<string>,
+  hoistedAliases: {[pkgId: string]: string[]},
 }> {
   // TODO: decide what kind of logging should be here.
   // The `Creating dependency tree` is not good to report in all cases as
@@ -69,6 +71,7 @@ export default async function linkPackages (
     shamefullyFlatten: opts.shamefullyFlatten,
     storeController: opts.storeController,
     bin: opts.bin,
+    hoistedAliases: opts.hoistedAliases,
   })
 
   let flatResolvedDeps =  R.values(pkgsToLink).filter(dep => !opts.skipped.has(dep.id))
@@ -156,8 +159,9 @@ export default async function linkPackages (
     currentShrinkwrap = newCurrentShrinkwrap
   }
 
+  // Important: shamefullyFlattenTree changes flatResolvedDeps, so keep this at the end
   if (opts.shamefullyFlatten && (opts.reinstallForFlatten || newDepPaths.length > 0 || removedPkgIds.size > 0)) {
-    await shamefullyFlattenTree(flatResolvedDeps, currentShrinkwrap, opts)
+    opts.hoistedAliases = await shamefullyFlattenTree(flatResolvedDeps, currentShrinkwrap, opts)
   }
 
   return {
@@ -166,6 +170,7 @@ export default async function linkPackages (
     currentShrinkwrap,
     newDepPaths,
     removedPkgIds,
+    hoistedAliases: opts.hoistedAliases,
   }
 }
 
@@ -180,48 +185,51 @@ async function shamefullyFlattenTree(
     pkg: PackageJson,
     outdatedPkgs: {[pkgId: string]: string},
   },
-) {
-  const pkgNamesExcludedFromFlattening = {}
-  // first of all, exclude the root packages, as they are already linked
-  for (let name of R.keys(currentShrinkwrap.specifiers)) {
-    pkgNamesExcludedFromFlattening[name] = true
-  }
+): Promise<{[alias: string]: string[]}> {
+  const pkgIdByAlias = {}
+  const aliasByPkgId: {[pkgId: string]: string[]} = {}
 
   await Promise.all(flatResolvedDeps
-    // map to make a copy before the sort
     // sort by depth and then alphabetically
-    .map(pkg => pkg).sort((a, b) => {
+    .sort((a, b) => {
       const depthDiff = a.depth - b.depth
       return depthDiff === 0 ? a.name.localeCompare(b.name) : depthDiff
     })
-    .filter(pkg => {
-      const shouldAdd = !pkgNamesExcludedFromFlattening[pkg.name]
-      // after we add the package to the packages to flatten, exclude subsequent packages with the same name
-      if (shouldAdd) {
-        pkgNamesExcludedFromFlattening[pkg.name] = true
+    // build the alias map and the id map
+    .map(pkg => {
+      for (let childAlias of R.keys(pkg.children)) {
+        // if this alias is in the root dependencies, skip it
+        if (currentShrinkwrap.specifiers[childAlias]) {
+          continue
+        }
+        // if this alias has already been taken, skip it
+        if (pkgIdByAlias[childAlias]) {
+          continue
+        }
+        const childId = pkg.children[childAlias]
+        pkgIdByAlias[childAlias] = childId
+        if (!aliasByPkgId[childId]) {
+          aliasByPkgId[childId] = []
+        }
+        aliasByPkgId[childId].push(childAlias)
       }
-      return shouldAdd
+      return pkg
     })
     .map(async pkg => {
-      if (opts.dryRun || !(await symlinkDependencyTo(pkg.name, pkg, opts.baseNodeModules)).reused) {
-        const isDev = opts.pkg.devDependencies && opts.pkg.devDependencies[pkg.name]
-        const isOptional = opts.pkg.optionalDependencies && opts.pkg.optionalDependencies[pkg.name]
-        rootLogger.info({
-          added: {
-            id: pkg.id,
-            name: pkg.name,
-            realName: pkg.name,
-            version: pkg.version,
-            latest: opts.outdatedPkgs[pkg.id],
-            dependencyType: isDev && 'dev' || isOptional && 'optional' || 'prod',
-          },
-        })
+      const pkgAliases = aliasByPkgId[pkg.id]
+      if (!pkgAliases) {
+        return
       }
-      logStatus({
-        status: 'installed',
-        pkgId: pkg.id,
-      })
+      // TODO when putting logs back in for hoisted packages, you've to put back the condition inside the map,
+      // TODO look how it is done in linkPackages
+      if (!opts.dryRun) {
+        await Promise.all(pkgAliases.map(async pkgAlias => {
+          await symlinkDependencyTo(pkgAlias, pkg, opts.baseNodeModules)
+        }))
+      }
     }))
+
+  return aliasByPkgId
 }
 
 function filterShrinkwrap (

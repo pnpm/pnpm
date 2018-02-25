@@ -284,7 +284,7 @@ export async function installPkgs (
         devDependencies,
       })
 
-    if (!Object.keys(packagesToInstall).length) {
+    if (!Object.keys(packagesToInstall).length && !opts.reinstallForFlatten) {
       throw new Error('At least one package has to be installed')
     }
 
@@ -548,7 +548,9 @@ async function installInContext (
     sideEffectsCache: opts.sideEffectsCache,
     shamefullyFlatten: opts.shamefullyFlatten,
     reinstallForFlatten: Boolean(opts.reinstallForFlatten),
+    hoistedAliases: ctx.hoistedAliases,
   })
+  ctx.hoistedAliases = result.hoistedAliases
 
   ctx.pendingBuilds = ctx.pendingBuilds
     .filter(pkgId => !result.removedPkgIds.has(dp.resolve(ctx.wantedShrinkwrap.registry, pkgId)))
@@ -576,6 +578,7 @@ async function installInContext (
           independentLeaves: opts.independentLeaves,
           pendingBuilds: ctx.pendingBuilds,
           shamefullyFlatten: opts.shamefullyFlatten,
+          hoistedAliases: ctx.hoistedAliases,
         }),
     ])
 

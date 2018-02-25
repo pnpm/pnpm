@@ -1,20 +1,14 @@
 import {PackageJson} from '@pnpm/types'
-import path = require('path')
-import R = require('ramda')
 import getContext from './getContext'
-import {PnpmOptions} from '@pnpm/types'
 import extendOptions, {
   PruneOptions,
-  StrictPruneOptions,
 } from './extendPruneOptions'
-import getPkgDirs from '../fs/getPkgDirs'
-import {fromDir as readPkgFromDir} from '../fs/readPkg'
 import removeOrphanPkgs from './removeOrphanPkgs'
 import {
-  ResolvedDependencies,
   prune as pruneShrinkwrap,
 } from 'pnpm-shrinkwrap'
 import {streamParser} from '@pnpm/logger'
+import {installPkgs} from './install'
 
 export async function prune (
   maybeOpts: PruneOptions,
@@ -48,7 +42,12 @@ export async function prune (
     storeController: opts.storeController,
     pruneStore: true,
     bin: opts.bin,
+    hoistedAliases: ctx.hoistedAliases,
   })
+
+  if (opts.shamefullyFlatten) {
+    await installPkgs(prunedShr.specifiers, {...opts, lock: false, reinstallForFlatten: true, update: false})
+  }
 
   if (reporter) {
     streamParser.removeListener('data', reporter)
