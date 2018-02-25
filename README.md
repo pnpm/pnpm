@@ -415,6 +415,40 @@ For more details about why this decision was made, see: https://github.com/nodej
 
 `pnpm` stands for `performant npm`. [Rico Sta. Cruz](https://github.com/rstacruz/) came up with the name.
 
+### `pnpm` does not work with <YOUR-PROJECT-HERE>?
+
+The problem must be the project has unresolved dependencies.
+
+Solution is to use [hooks](#hooks) with all those unresolved dependencies for that project.
+
+An example was [Webpack Dashboard](https://github.com/pnpm/pnpm/issues/1043) wasn't working with `pnpm`. Notice, it has been since resolved such that it works with `pnpm` now.
+
+It used to throw an error
+
+```console
+Error: Cannot find module 'babel-traverse'
+  at /node_modules/.registry.npmjs.org/inspectpack/2.2.3/node_modules/inspectpack/lib/actions/parse
+```
+
+The problem was `babel-traverse` was used in `inspectpack` library which was used by `webpack-dashboard`. But `babel-traverse` wasn't specified in `inspectpack`'s `package.json`. But it still worked with `npm` & `yarn` because it resolves dependencies differently than `pnpm` as `pnpm` uses hardlinks.
+
+Solution was to create a `pnpmfile.js` with the following contents -
+
+```js
+module.exports = {
+  hooks: {
+    readPackage(pkg) {
+      if (pkg.name === "inspectpack") {
+        pkg.dependencies["babel-traverse"] = "^6.26.0";
+      }
+      return pkg;
+    }
+  }
+};
+```
+
+After creating `pnpmfile.js`, delete `shrinkwrap.yaml` only. No need to delete `node_modules`. Then install it again & it should be working.
+
 ## Support
 
 - [Stack Overflow](https://stackoverflow.com/questions/tagged/pnpm)
