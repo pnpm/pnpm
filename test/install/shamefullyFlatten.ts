@@ -198,3 +198,10 @@ test('should reflatten after pruning', async function (t) {
 
   await project.hasNot('is-positive')
 })
+
+test('should flatten correctly peer dependencies', async function (t) {
+  const project = prepare(t)
+  await installPkgs(['using-ajv'], await testDefaults({shamefullyFlatten: true}))
+
+  await project.has('ajv-keywords')
+})
