@@ -70,7 +70,33 @@ test('tarball local package', async function (t) {
   t.equal(m(), 'tar-pkg', 'tarPkg() is available')
 
   const pkgJson = await readPkg()
-  t.deepEqual(pkgJson.dependencies,
-    {'tar-pkg': `file:${normalizePath(pathToLocalPkg('tar-pkg/tar-pkg-1.0.0.tgz'))}`},
-    'has been added to dependencies in package.json')
+  const pkgSpec = `file:${normalizePath(pathToLocalPkg('tar-pkg/tar-pkg-1.0.0.tgz'))}`
+  t.deepEqual(pkgJson.dependencies, {'tar-pkg': pkgSpec}, 'has been added to dependencies in package.json')
+
+  const shr = await project.loadShrinkwrap()
+  t.deepEqual(shr.packages[shr.dependencies['tar-pkg']], {
+    dev: false,
+    name: 'tar-pkg',
+    resolution: {
+      integrity: 'sha512-HP/5Rgt3pVFLzjmN9qJJ6vZMgCwoCIl/m2bPndYT283CUqnmFiMx0GeeIJ7SyK6TYoJM78SEvFEOQie++caHqw==',
+      tarball: 'file:../../../supi/test/packages/tar-pkg/tar-pkg-1.0.0.tgz',
+    },
+    version: '1.0.0',
+  }, 'a snapshot of the local dep tarball added to shrinkwrap.yaml')
+})
+
+test('update tarball local package when its integrity changes', async function (t) {
+  const project = prepare(t)
+
+  await ncp(pathToLocalPkg('tar-pkg-with-dep-1/tar-pkg-with-dep-1.0.0.tgz'), path.resolve('..', 'tar.tgz'))
+  await installPkgs(['../tar.tgz'], await testDefaults())
+
+  const shr1 = await project.loadShrinkwrap()
+  t.equal(shr1.packages['file:../tar.tgz'].dependencies['is-positive'], '1.0.0')
+
+  await ncp(pathToLocalPkg('tar-pkg-with-dep-2/tar-pkg-with-dep-1.0.0.tgz'), path.resolve('..', 'tar.tgz'))
+  await installPkgs(['../tar.tgz'], await testDefaults())
+
+  const shr2 = await project.loadShrinkwrap()
+  t.equal(shr2.packages['file:../tar.tgz'].dependencies['is-positive'], '2.0.0', 'the local tarball dep has been updated')
 })
