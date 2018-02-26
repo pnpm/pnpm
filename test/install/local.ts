@@ -85,7 +85,7 @@ test('tarball local package', async function (t) {
   }, 'a snapshot of the local dep tarball added to shrinkwrap.yaml')
 })
 
-test('update tarball local package when its integrity changes', async function (t) {
+test.skip('update tarball local package when its integrity changes', async function (t) {
   const project = prepare(t)
 
   await ncp(pathToLocalPkg('tar-pkg-with-dep-1/tar-pkg-with-dep-1.0.0.tgz'), path.resolve('..', 'tar.tgz'))
@@ -95,7 +95,7 @@ test('update tarball local package when its integrity changes', async function (
   t.equal(shr1.packages['file:../tar.tgz'].dependencies['is-positive'], '1.0.0')
 
   await ncp(pathToLocalPkg('tar-pkg-with-dep-2/tar-pkg-with-dep-1.0.0.tgz'), path.resolve('..', 'tar.tgz'))
-  await installPkgs(['../tar.tgz'], await testDefaults())
+  await install(await testDefaults())
 
   const shr2 = await project.loadShrinkwrap()
   t.equal(shr2.packages['file:../tar.tgz'].dependencies['is-positive'], '2.0.0', 'the local tarball dep has been updated')
