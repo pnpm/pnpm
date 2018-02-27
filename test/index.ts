@@ -188,6 +188,7 @@ test('refetch local tarball if its integrity has changed', async t => {
     await response.fetchingFiles
     await response.finishing
 
+    t.ok(response.body.updated === false, 'resolution not updated')
     t.notOk((await response.fetchingFiles).fromStore, 'unpack tarball if it is not in store yet')
   }
 
@@ -216,6 +217,7 @@ test('refetch local tarball if its integrity has changed', async t => {
     await response.fetchingFiles
     await response.finishing
 
+    t.ok(response.body.updated === true)
     t.notOk((await response.fetchingFiles).fromStore, 're-unpack tarball if its integrity has changed')
   }
 
@@ -244,6 +246,7 @@ test('refetch local tarball if its integrity has changed', async t => {
     await response.fetchingFiles
     await response.finishing
 
+    t.ok(response.body.updated === false)
     t.ok((await response.fetchingFiles).fromStore, 'use existing package from store if integrities matched')
   }
 

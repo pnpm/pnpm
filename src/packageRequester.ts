@@ -47,6 +47,7 @@ export type PackageResponse = {
     manifest: PackageManifest
     id: string,
     normalizedPref?: string,
+    updated: boolean,
   },
 } | (
   {
@@ -63,6 +64,7 @@ export type PackageResponse = {
       // resolved package, it is out-of-date.
       latest?: string,
       normalizedPref?: string,
+      updated: boolean,
     },
   } & (
     {
@@ -70,6 +72,7 @@ export type PackageResponse = {
     } | {
       body: {
         manifest: PackageManifest,
+        updated: boolean,
       },
     }
   )
@@ -182,6 +185,7 @@ async function resolveAndFetch (
     let pkgId = options.currentPkgId
     const skipResolution = resolution && !options.update
     let forceFetch = false
+    let updated = false
 
     // When fetching is skipped, resolution cannot be skipped.
     // We need the package's manifest when doing `shrinkwrap-only` installs.
@@ -208,9 +212,10 @@ async function resolveAndFetch (
       )
 
       if (!skipResolution || forceFetch) {
+        updated = pkgId !== resolveResult.id || !resolution || forceFetch
         // Keep the shrinkwrap resolution when possible
         // to keep the original shasum.
-        if (pkgId !== resolveResult.id || !resolution || forceFetch) {
+        if (updated) {
           resolution = resolveResult.resolution
         }
         pkgId = resolveResult.id
@@ -234,6 +239,7 @@ async function resolveAndFetch (
           manifest: pkg,
           normalizedPref,
           resolution: resolution as DirectoryResolution,
+          updated,
         },
       }
     }
@@ -254,6 +260,7 @@ async function resolveAndFetch (
           manifest: pkg,
           normalizedPref,
           resolution,
+          updated,
         },
       }
     }
@@ -286,6 +293,7 @@ async function resolveAndFetch (
           manifest: pkg,
           normalizedPref,
           resolution,
+          updated,
         },
         fetchingFiles: ctx.fetchingLocker[id].fetchingFiles,
         finishing: ctx.fetchingLocker[id].finishing,
@@ -300,6 +308,7 @@ async function resolveAndFetch (
         latest,
         normalizedPref,
         resolution,
+        updated,
       },
       fetchingFiles: ctx.fetchingLocker[id].fetchingFiles,
       fetchingManifest: ctx.fetchingLocker[id].fetchingManifest as Promise<PackageManifest>,
