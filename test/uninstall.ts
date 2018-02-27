@@ -2,12 +2,10 @@ import tape = require('tape')
 import promisifyTape from 'tape-promise'
 const test = promisifyTape(tape)
 import path = require('path')
-import fs = require('fs')
 import exists = require('path-exists')
 import existsSymlink = require('exists-link')
 import readPkg = require('read-pkg')
 import ncpCB = require('ncp')
-import R = require('ramda')
 import {
   prepare,
   testDefaults,
@@ -156,7 +154,7 @@ test('relative link is uninstalled', async (t: tape.Test) => {
   const linkedPkgPath = path.resolve('..', linkedPkgName)
 
   await ncp(pathToLocalPkg(linkedPkgName), linkedPkgPath)
-  await link(`../${linkedPkgName}`, process.cwd(), await testDefaults())
+  await link(`../${linkedPkgName}`, path.join(process.cwd(), 'node_modules'), await testDefaults())
   await uninstall([linkedPkgName], await testDefaults())
 
   await project.hasNot(linkedPkgName)

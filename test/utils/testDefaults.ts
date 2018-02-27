@@ -19,7 +19,7 @@ export default async function testDefaults (
   resolveOpts?: any, // tslint:disable-line
   fetchOpts?: any, // tslint:disable-line
   storeOpts?: any, // tslint:disable-line
-): Promise<InstallOptions> {
+): Promise<InstallOptions & {globalPrefix: string, globalBin: string}> {
   let store = opts && opts.store || path.resolve('..', '.store')
   store = await storePath(opts && opts.prefix || process.cwd(), store)
   const rawNpmConfig = {registry}

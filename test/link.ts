@@ -2,8 +2,8 @@ import tape = require('tape')
 import promisifyTape from 'tape-promise'
 import sinon = require('sinon')
 const test = promisifyTape(tape)
+const testOnly = promisifyTape(tape.only)
 import path = require('path')
-import writePkg = require('write-pkg')
 import {
   prepare,
   isExecutable,
@@ -29,13 +29,13 @@ test('relative link', async (t: tape.Test) => {
   const linkedPkgPath = path.resolve('..', linkedPkgName)
 
   await ncp(pathToLocalPkg(linkedPkgName), linkedPkgPath)
-  await link(`../${linkedPkgName}`, process.cwd(), await testDefaults())
+  await link(`../${linkedPkgName}`, path.join(process.cwd(), 'node_modules'), await testDefaults())
 
-  isExecutable(t, path.resolve('node_modules', '.bin', 'hello-world-js-bin'))
+  await isExecutable(t, path.resolve('node_modules', '.bin', 'hello-world-js-bin'))
 
   // The linked package has been installed successfully as well with bins linked
   // to node_modules/.bin
-  isExecutable(t, path.join(linkedPkgPath, 'node_modules', '.bin', 'cowsay'))
+  await isExecutable(t, path.join(linkedPkgPath, 'node_modules', '.bin', 'cowsay'))
 })
 
 test('relative link is not rewritten by install', async (t: tape.Test) => {
@@ -45,7 +45,7 @@ test('relative link is not rewritten by install', async (t: tape.Test) => {
   const linkedPkgPath = path.resolve('..', linkedPkgName)
 
   await ncp(pathToLocalPkg(linkedPkgName), linkedPkgPath)
-  await link(`../${linkedPkgName}`, process.cwd(), await testDefaults())
+  await link(`../${linkedPkgName}`, path.join(process.cwd(), 'node_modules'), await testDefaults())
 
   const reporter = sinon.spy()
 

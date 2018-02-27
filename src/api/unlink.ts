@@ -14,6 +14,7 @@ import {
   read as readModules,
 } from '../fs/modulesController'
 import isSubdir = require('is-subdir')
+import realNodeModulesDir from '../fs/realNodeModulesDir'
 
 export async function unlinkPkgs (
   pkgNames: string[],
@@ -38,7 +39,7 @@ export async function _unlinkPkgs (
   pkgNames: string[],
   opts: StrictInstallOptions
 ) {
-  const modules = path.join(opts.prefix, 'node_modules')
+  const modules = await realNodeModulesDir(opts.prefix)
   const pkg = await readPkgFromDir(opts.prefix)
   const allDeps = depsFromPackage(pkg)
   const packagesToInstall: string[] = []
@@ -70,7 +71,7 @@ export async function unlink (maybeOpts: InstallOptions) {
   const modulesYaml = await readModules(opts.prefix)
   opts.store = modulesYaml && modulesYaml.store || opts.store
 
-  const modules = path.join(opts.prefix, 'node_modules')
+  const modules = await realNodeModulesDir(opts.prefix)
 
   const externalPackages = await getExternalPackages(modules, opts.store)
 

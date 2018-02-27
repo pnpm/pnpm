@@ -1,4 +1,3 @@
-import {PnpmOptions, StrictPnpmOptions} from '@pnpm/types'
 import extendOptions, {
   RebuildOptions,
   StrictRebuildOptions,
@@ -18,6 +17,7 @@ import npa = require('@zkochan/npm-package-arg')
 import semver = require('semver')
 import getPkgInfoFromShr from '../getPkgInfoFromShr'
 import {save as saveModules, LAYOUT_VERSION} from '../fs/modulesController';
+import realNodeModulesDir from '../fs/realNodeModulesDir';
 
 type PackageToRebuild = {
   relativeDepPath: string,
@@ -63,7 +63,7 @@ export async function rebuildPkgs (
   }
   const opts = await extendOptions(maybeOpts)
   const ctx = await getContext(opts)
-  const modules = path.join(opts.prefix, 'node_modules')
+  const modules = await realNodeModulesDir(opts.prefix)
 
   if (!ctx.currentShrinkwrap || !ctx.currentShrinkwrap.packages) return
   const packages = ctx.currentShrinkwrap.packages
@@ -109,7 +109,7 @@ export async function rebuild (maybeOpts: RebuildOptions) {
   }
   const opts = await extendOptions(maybeOpts)
   const ctx = await getContext(opts)
-  const modules = path.join(opts.prefix, 'node_modules')
+  const modules = await realNodeModulesDir(opts.prefix)
 
   let idsToRebuild: string[] = []
 
