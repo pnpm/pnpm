@@ -83,14 +83,14 @@ Uninstalls a package, completely removing everything pnpm installed on its behal
 * `options.global` - *Boolean* - the packages will be uninstalled globally.
 * `options.reporter` - *Function* - A function that listens for logs.
 
-### `supi.link(linkFrom, lintTo, [options])`
+### `supi.link(linkFrom, linkToNodeModules, [options])`
 
 Create a symbolic link from the linked package to the target package's `node_modules` (and its `node_modules/.bin`).
 
 **Arguments:**
 
 * `linkFrom` - *String* - path to the package that should be linked.
-* `lintTo` - *String* - path to the dependent package.
+* `linkToNodeModules` - *String* - path to the dependent package's `node_modules` directory.
 * `options.reporter` - *Function* - A function that listens for logs.
 
 ### `supi.linkToGlobal(linkFrom, options)`
