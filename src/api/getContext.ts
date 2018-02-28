@@ -1,6 +1,7 @@
 import path = require('path')
 import isCI = require('is-ci')
 import {fromDir as safeReadPkgFromDir} from '../fs/safeReadPkg'
+import writePkg = require('write-pkg')
 import {StrictSupiOptions} from '../types'
 import {
   existsWanted as existsWantedShrinkwrap,
@@ -118,5 +119,8 @@ const DefaultGlobalPkg: PackageJson = {
 }
 
 async function readGlobalPkgJson (globalPkgPath: string) {
-  return await safeReadPkgFromDir(globalPkgPath) || DefaultGlobalPkg
+  const globalPkgJson = await safeReadPkgFromDir(globalPkgPath)
+  if (globalPkgJson) return globalPkgJson
+  await writePkg(globalPkgPath, DefaultGlobalPkg)
+  return DefaultGlobalPkg
 }
