@@ -41,7 +41,7 @@ dependencies:
   retry: 0.10.1
   signal-exit: 3.0.2
   strip-color: 0.1.0
-  supi: 0.13.0
+  supi: 0.13.1
   text-table: 0.2.0
   tree-kill: 1.2.0
   update-notifier: 2.3.0
@@ -333,7 +333,7 @@ packages:
     dependencies:
       '@pnpm/fetcher-base': 1.0.0
       '@pnpm/git-fetcher': 0.3.1
-      '@pnpm/tarball-fetcher': 0.4.1
+      '@pnpm/tarball-fetcher': 0.4.2
     dev: false
     engines:
       node: '>=4'
@@ -352,7 +352,7 @@ packages:
       integrity: sha512-rK+MzRDuUG1qM2QyZPzSX7uP0PzWfKrE8GjjomlqE8A5LMK7in4b1XYxMO+rbBGDS4xjkUYAA0452MLwTrProA==
   /@pnpm/exec/1.1.4:
     dependencies:
-      '@pnpm/self-installer': 2.0.1
+      '@pnpm/self-installer': 2.0.2
       '@types/got': 7.1.7
       '@types/node': 9.4.6
       command-exists: 1.2.2
@@ -517,12 +517,12 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha512-+y47No75LZFnkN7VAnoEtkIzDgOuc8ZT4QjyhuNIBVLx4oqFa/R16DpSyRjmaTZMCSREXunObULKL/hoLipNDA==
-  /@pnpm/self-installer/2.0.1:
+  /@pnpm/self-installer/2.0.2:
     dev: true
     engines:
       node: '>=4'
     resolution:
-      integrity: sha512-ZnWWMPCCewTSI+1cNrRNCAGsVsdzFvN1+WU8GkjtvwAW2lnBpIVZm4MHQBI3basFYn7DWCs4lBihGuH1DiCAAg==
+      integrity: sha1-hbuHZMfM0iOZn2FCGQBixibo8oc=
   /@pnpm/server/0.8.2:
     dependencies:
       '@pnpm/package-requester': 0.8.3
@@ -558,7 +558,7 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha512-kYhalp/SFn3m2yq8d2VBdyRFiaKHBapk1U/WiJc7vR1brePS06rkKQeG/Z9CN4GVAdNXj+XOyBCMz8XAUGCGuQ==
-  /@pnpm/tarball-fetcher/0.4.1:
+  /@pnpm/tarball-fetcher/0.4.2:
     dependencies:
       '@pnpm/fetcher-base': 1.0.0
       '@types/mem': 1.1.2
@@ -584,7 +584,7 @@ packages:
     peerDependencies:
       '@pnpm/logger': ^1.0.0
     resolution:
-      integrity: sha512-z11WEKb8o11tDzPZ4E8EruDs2vsXkxhFd+A86FohsDny1oJd2dJQIQTr6+R3m8sWVejjenit1xKXVYmoT/KDEg==
+      integrity: sha1-tPizLKI3zstcG76UZ5LMFgO3EyQ=
   /@pnpm/tarball-resolver/0.1.0:
     dependencies:
       parse-npm-tarball-url: 1.0.3
@@ -6187,7 +6187,7 @@ packages:
       node: '>=0.10.0'
     resolution:
       integrity: sha1-PFMZQukIwml8DsNEhYwobHygpgo=
-  /supi/0.13.0:
+  /supi/0.13.1:
     dependencies:
       '@pnpm/check-package': 1.0.0
       '@pnpm/fs-locker': 1.0.1
@@ -6258,7 +6258,7 @@ packages:
     peerDependencies:
       '@pnpm/logger': ^1.0.0
     resolution:
-      integrity: sha512-6JxN85Kv7VNSHbW6lKmqxxSWJTnwqK6u+DuGyvTU2rWn0TtkXPZSB8OCa9s+ohf52QmlsHVCQWDKLc5gpNO8Vg==
+      integrity: sha512-LYAzGfdH/q3Vfp+rTdmDtQrITg9IhCRiZbxl+pMUyU6mdwUP9cWxOYt0S4leWK2XH0e26nuCU3Tc/R6SfZ/7aA==
   /supports-color/2.0.0:
     engines:
       node: '>=0.8.0'
@@ -7098,7 +7098,7 @@ specifiers:
   sepia: ^2.0.2
   signal-exit: ^3.0.2
   strip-color: ^0.1.0
-  supi: ^0.13.0
+  supi: ^0.13.1
   tape: ^4.6.3
   tape-promise: ^2.0.1
   text-table: ^0.2.0
