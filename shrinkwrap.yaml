@@ -25,7 +25,7 @@ devDependencies:
   normalize-newline: 3.0.0
   package-preview: 1.0.5
   rimraf: 2.6.2
-  supi: 0.12.14
+  supi: 0.13.0
   tape: 4.9.0
   ts-node: 5.0.0
   tslint: 5.9.1
@@ -3128,7 +3128,7 @@ packages:
       node: '>=0.10.0'
     resolution:
       integrity: sha1-PFMZQukIwml8DsNEhYwobHygpgo=
-  /supi/0.12.14:
+  /supi/0.13.0:
     dependencies:
       '@pnpm/check-package': 1.0.0
       '@pnpm/fs-locker': 1.0.1
@@ -3199,7 +3199,7 @@ packages:
     peerDependencies:
       '@pnpm/logger': ^1.0.0
     resolution:
-      integrity: sha512-PL/sRzHC1JnqLyiprH9tUurpeetkjRVDM8zbrE1RrFOdNOMuoEA63vJtLgHlFyJB6RmPsx3W2ZeIrmwwk8SwHw==
+      integrity: sha512-6JxN85Kv7VNSHbW6lKmqxxSWJTnwqK6u+DuGyvTU2rWn0TtkXPZSB8OCa9s+ohf52QmlsHVCQWDKLc5gpNO8Vg==
   /supports-color/0.2.0:
     dev: true
     engines:
@@ -3625,7 +3625,7 @@ specifiers:
   rimraf: ^2.5.4
   semver: ^5.4.1
   stacktracey: ^1.2.87
-  supi: ^0.12.5
+  supi: ^0.13.0
   tape: ^4.8.0
   ts-node: ^5.0.0
   tslint: ^5.7.0
