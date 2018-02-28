@@ -125,7 +125,7 @@ function linkPackages (
     Object.keys(graph)
       .map((pkgPath) => Promise.all(
         (graph[pkgPath].dependencies || [])
-          .map((depPath) => limitLinking(() => link(depPath, pkgPath, linkOpts))))),
+          .map((depPath) => limitLinking(() => link(depPath, path.join(pkgPath, 'node_modules'), linkOpts))))),
   )
 }
 

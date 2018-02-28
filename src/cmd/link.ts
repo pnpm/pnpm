@@ -29,7 +29,7 @@ export default async (
     // pnpm link ../foo
     if (inp[0].indexOf('.') === 0) {
       const linkFrom = path.join(cwd, inp)
-      return previous.then(() => link(linkFrom, cwd, linkOpts))
+      return previous.then(() => link(linkFrom, path.join(cwd, 'node_modules'), linkOpts))
     }
 
     // pnpm link foo
