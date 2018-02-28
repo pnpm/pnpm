@@ -338,7 +338,8 @@ async function install (
 
   let pkg: PackageManifest
   let useManifestInfoFromShrinkwrap = false
-  if (options.hasManifestInShrinkwrap && !options.update && options.dependencyShrinkwrap && options.relDepPath) {
+  if (options.hasManifestInShrinkwrap && !options.update && options.dependencyShrinkwrap && options.relDepPath
+    && !pkgResponse.body.updated) {
     useManifestInfoFromShrinkwrap = true
     pkg = Object.assign(
       getPkgInfoFromShr(options.relDepPath, options.dependencyShrinkwrap),
@@ -442,10 +443,10 @@ async function install (
         currentDepth: options.currentDepth + 1,
         parentNodeId: nodeId,
         keypath: options.keypath.concat([ pkgResponse.body.id ]),
-        resolvedDependencies: pkgResponse.body.id !== options.pkgId
+        resolvedDependencies: pkgResponse.body.updated
           ? undefined
           : options.resolvedDependencies,
-        preferedDependencies: pkgResponse.body.id !== options.pkgId
+        preferedDependencies: pkgResponse.body.updated
           ? options.resolvedDependencies
           : undefined,
         optionalDependencyNames: options.optionalDependencyNames,

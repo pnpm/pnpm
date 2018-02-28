@@ -117,7 +117,7 @@ test('tarball local package', async function (t) {
   }, 'a snapshot of the local dep tarball added to shrinkwrap.yaml')
 })
 
-test.skip('update tarball local package when its integrity changes', async function (t) {
+test('update tarball local package when its integrity changes', async function (t) {
   const project = prepare(t)
 
   await ncp(pathToLocalPkg('tar-pkg-with-dep-1/tar-pkg-with-dep-1.0.0.tgz'), path.resolve('..', 'tar.tgz'))
