@@ -60,7 +60,11 @@ export default function (
       minTimeout: opts.fetchRetryMintimeout,
       retries: opts.fetchRetries,
     },
-    strictSSL: opts.strictSsl || true,
+    // TODO: cover with tests this option
+    // https://github.com/pnpm/pnpm/issues/1062
+    strictSSL: typeof opts.strictSsl === 'boolean'
+      ? opts.strictSsl
+      : true,
     userAgent: opts.userAgent,
   })
   return {
