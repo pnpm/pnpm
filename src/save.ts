@@ -13,7 +13,13 @@ export default async function save (
   saveType?: DependenciesType
 ): Promise<PackageJson> {
   // Read the latest version of package.json to avoid accidental overwriting
-  const packageJson = await loadJsonFile(pkgJsonPath)
+  let packageJson: object
+  try {
+    packageJson = await loadJsonFile(pkgJsonPath)
+  } catch (err) {
+    if (err['code'] !== 'ENOENT') throw err
+    packageJson = {}
+  }
   if (saveType) {
     packageJson[saveType] = packageJson[saveType] || {}
     packageSpecs.forEach(dependency => {
@@ -26,7 +32,7 @@ export default async function save (
     })
   } else {
     packageSpecs.forEach(dependency => {
-      const usedDepType = guessDependencyType(dependency.name, packageJson) || 'dependencies'
+      const usedDepType = guessDependencyType(dependency.name, packageJson as PackageJson) || 'dependencies'
       packageJson[usedDepType] = packageJson[usedDepType] || {}
       packageJson[usedDepType][dependency.name] = dependency.pref
     })
@@ -34,7 +40,7 @@ export default async function save (
 
   await writePkg(pkgJsonPath, packageJson)
   packageJsonLogger.debug({ updated: packageJson })
-  return packageJson
+  return packageJson as PackageJson
 }
 
 function guessDependencyType (depName: string, pkg: PackageJson): DependenciesType | undefined {

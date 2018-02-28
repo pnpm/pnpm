@@ -830,3 +830,16 @@ test('install a dependency with * range', async (t: tape.Test) => {
     },
   }), 'should log package-json updated even when package.json was not changed')
 })
+
+test('create a package.json if there is none', async (t: tape.Test) => {
+  const project = prepare(t)
+  await rimraf('package.json')
+
+  await installPkgs(['dep-of-pkg-with-1-dep@100.1.0'], await testDefaults())
+
+  t.deepEqual(await readPkg({normalize: false}), {
+    dependencies: {
+      'dep-of-pkg-with-1-dep': '^100.1.0',
+    },
+  }, 'package.json created')
+})

@@ -1,7 +1,6 @@
 import path = require('path')
 import isCI = require('is-ci')
-import {fromDir as readPkgFromDir} from '../fs/readPkg'
-import writePkg = require('write-pkg')
+import {fromDir as safeReadPkgFromDir} from '../fs/safeReadPkg'
 import {StrictSupiOptions} from '../types'
 import {
   existsWanted as existsWantedShrinkwrap,
@@ -88,7 +87,7 @@ export default async function getContext (
   // a latest pnpm should not break all the builds
   const shrOpts = {ignoreIncompatible: opts.force || isCI}
   const files = await Promise.all([
-    (opts.global ? readGlobalPkgJson(opts.prefix) : readPkgFromDir(opts.prefix)),
+    (opts.global ? readGlobalPkgJson(opts.prefix) : safeReadPkgFromDir(opts.prefix)),
     opts.shrinkwrap && readWantedShrinkwrap(root, shrOpts)
       || await existsWantedShrinkwrap(root) && logger.warn('A shrinkwrap.yaml file exists. The current configuration prohibits to read or write a shrinkwrap file'),
     readCurrentShrinkwrap(root, shrOpts),
@@ -96,7 +95,7 @@ export default async function getContext (
   ])
   const currentShrinkwrap = files[2] || createShrinkwrap(opts.registry)
   const ctx: PnpmContext = {
-    pkg: files[0],
+    pkg: files[0] || {},
     root,
     storePath,
     wantedShrinkwrap: files[1] || !opts.shrinkwrap && currentShrinkwrap && R.clone(currentShrinkwrap) || createShrinkwrap(opts.registry),
@@ -119,11 +118,5 @@ const DefaultGlobalPkg: PackageJson = {
 }
 
 async function readGlobalPkgJson (globalPkgPath: string) {
-  try {
-    const globalPkgJson = await readPkgFromDir(globalPkgPath)
-    return globalPkgJson
-  } catch (err) {
-    await writePkg(globalPkgPath, DefaultGlobalPkg)
-    return DefaultGlobalPkg
-  }
+  return await safeReadPkgFromDir(globalPkgPath) || DefaultGlobalPkg
 }
