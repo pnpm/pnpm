@@ -38,7 +38,7 @@
   },
   "homepage": "https://github.com/pnpm/pnpm-reporter-default#readme",
   "peerDependencies": {
-    "supi": ">=0.12.5 <0.13.0"
+    "supi": ">=0.12.5 <0.14.0"
   },
   "dependencies": {
     "@types/common-tags": "^1.2.5",
