@@ -34,7 +34,11 @@ export default function prepare (t: Test, pkg?: Object | Object[], pkgTmpPath?: 
     const dirname = path.dirname(pkgTmpPath)
     const result = {}
     for (let aPkg of pkg) {
-      result[aPkg['name']] = prepare(t, aPkg, path.join(dirname, aPkg['name']))
+      if (typeof aPkg['location'] === 'string') {
+        result[aPkg['package']['name']] = prepare(t, aPkg['package'], path.join(dirname, aPkg['location']))
+      } else {
+        result[aPkg['name']] = prepare(t, aPkg, path.join(dirname, aPkg['name']))
+      }
     }
     process.chdir('..')
     return result

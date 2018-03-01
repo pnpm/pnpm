@@ -51,8 +51,9 @@ export default async (
     opts = {...opts, update: true}
   }
 
-  const packagesManifest = await requirePackagesManifest(opts.prefix)
-  const pkgs = await findPackages(opts.prefix, {
+  const cwd = process.cwd()
+  const packagesManifest = await requirePackagesManifest(cwd)
+  const pkgs = await findPackages(cwd, {
     ignore: [
       '**/node_modules/**',
       '**/bower_components/**',

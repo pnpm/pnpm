@@ -13,6 +13,7 @@ import {
   retryLoadJsonFile,
   spawn,
 } from './utils'
+import mkdirp = require('mkdirp-promise')
 
 const test = promisifyTape(tape)
 
@@ -226,6 +227,52 @@ test('running `pnpm recursive` on a subset of packages', async t => {
 
   await projects['project-1'].has('is-positive')
   await projects['project-2'].hasNot('is-negative')
+
+  t.end()
+})
+
+test('running `pnpm recursive` only for packages in subdirectories of cwd', async t => {
+  const projects = prepare(t, [
+    {
+      location: 'packages/project-1',
+      package: {
+        name: 'project-1',
+        version: '1.0.0',
+        dependencies: {
+          'is-positive': '1.0.0',
+        },
+      },
+    },
+    {
+      location: 'packages/project-2',
+      package: {
+        name: 'project-2',
+        version: '1.0.0',
+        dependencies: {
+          'is-negative': '1.0.0',
+        },
+      }
+    },
+    {
+      location: 'root-project',
+      package: {
+        name: 'root-project',
+        version: '1.0.0',
+        dependencies: {
+          'debug': '*',
+        },
+      }
+    }
+  ])
+
+  await mkdirp('node_modules')
+  process.chdir('packages')
+
+  await execPnpm('recursive', 'install')
+
+  await projects['project-1'].has('is-positive')
+  await projects['project-2'].has('is-negative')
+  await projects['root-project'].hasNot('debug')
 
   t.end()
 })
