@@ -1,7 +1,7 @@
 dependencies:
   '@pnpm/config': 0.1.1
   '@pnpm/default-fetcher': 0.4.0
-  '@pnpm/default-resolver': 0.1.3
+  '@pnpm/default-resolver': 0.1.4
   '@pnpm/logger': 1.0.1
   '@pnpm/outdated': 0.2.8
   '@pnpm/server': 0.8.2
@@ -339,17 +339,17 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha512-2MI76gHQQKZkivQVU57oXdXzmntWSSlY0yX2/2j3pkX469mwtHC2e53Eq1ELBETGpgX4kt7vC5S96saoVd/ADw==
-  /@pnpm/default-resolver/0.1.3:
+  /@pnpm/default-resolver/0.1.4:
     dependencies:
       '@pnpm/git-resolver': 0.3.1
-      '@pnpm/local-resolver': 0.1.2
+      '@pnpm/local-resolver': 0.2.0
       '@pnpm/npm-resolver': 0.3.13
       '@pnpm/tarball-resolver': 0.1.0
     dev: false
     engines:
       node: '>=4'
     resolution:
-      integrity: sha512-rK+MzRDuUG1qM2QyZPzSX7uP0PzWfKrE8GjjomlqE8A5LMK7in4b1XYxMO+rbBGDS4xjkUYAA0452MLwTrProA==
+      integrity: sha512-wdkKYNi7tGe3bD+nJFhYLCNS/cxDVIg1EKpZ/Sl1NrSwYLz7kM/r7FrJO7cQyPQFFmCT9BB3f/uJfzGqKwwRfw==
   /@pnpm/exec/1.1.4:
     dependencies:
       '@pnpm/self-installer': 2.0.2
@@ -406,7 +406,7 @@ packages:
       '@pnpm/logger': ^1.0.0
     resolution:
       integrity: sha512-V6oKCFxi8+3jVoVoZ216KOEBaf+S5a6bajOj0iHLfnVE0u1G9SA7j0TDNx1IWD26+LTA0EUIKCPmmgrRVlpt1g==
-  /@pnpm/local-resolver/0.1.2:
+  /@pnpm/local-resolver/0.2.0:
     dependencies:
       '@pnpm/types': 1.7.0
       '@types/graceful-fs': 4.1.2
@@ -421,7 +421,7 @@ packages:
     engines:
       node: '>=4'
     resolution:
-      integrity: sha512-cFIDQfhu64oc1Sw8X8kIaWZV2bIMNvgRKGLhb6WqssqBB0pyfOWFini5AvPhWC/FSd6gApNp+m7BX9rVwU1KLA==
+      integrity: sha512-z2JAaG1lzvQ1ykmPfbKpipw46/u4r6TI3nFQK+XMIKIt7Or0xT13D4OMKOKJpNIqj3MalrNmXVXZ3uN8um+Rrg==
   /@pnpm/logger/1.0.1:
     dependencies:
       '@types/node': 9.4.6
@@ -7026,7 +7026,7 @@ specifiers:
   '@commitlint/prompt-cli': ^5.0.0
   '@pnpm/config': ^0.1.1
   '@pnpm/default-fetcher': ^0.4.0
-  '@pnpm/default-resolver': ^0.1.3
+  '@pnpm/default-resolver': ^0.1.4
   '@pnpm/logger': ^1.0.0
   '@pnpm/outdated': ^0.2.8
   '@pnpm/server': ^0.8.2
