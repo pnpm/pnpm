@@ -34,7 +34,7 @@
   "homepage": "https://github.com/pnpm/default-resolver#readme",
   "dependencies": {
     "@pnpm/git-resolver": "^0.3.0",
-    "@pnpm/local-resolver": "^0.1.0",
+    "@pnpm/local-resolver": "^0.2.0",
     "@pnpm/npm-resolver": "^0.3.13",
     "@pnpm/tarball-resolver": "^0.1.0"
   },
