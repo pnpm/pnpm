@@ -55,6 +55,33 @@ test('local file', async function (t: tape.Test) {
   })
 })
 
+test('local file via link:', async function (t: tape.Test) {
+  const project = prepare(t)
+  await ncp(pathToLocalPkg('local-pkg'), path.resolve('..', 'local-pkg'))
+
+  await installPkgs(['link:../local-pkg'], await testDefaults())
+
+  const pkgJson = await readPkg()
+  const expectedSpecs = {'local-pkg': `link:..${path.sep}local-pkg`}
+  t.deepEqual(pkgJson.dependencies, expectedSpecs, 'local-pkg has been added to dependencies')
+
+  const m = project.requireModule('local-pkg')
+
+  t.ok(m, 'localPkg() is available')
+
+  const shr = await project.loadShrinkwrap()
+
+  t.deepEqual(shr, {
+    specifiers: expectedSpecs,
+    dependencies: {
+      'local-pkg': 'link:../local-pkg',
+    },
+    registry: 'http://localhost:4873/',
+    shrinkwrapVersion: 3,
+    shrinkwrapMinorVersion: 4,
+  })
+})
+
 test('local file with symlinked node_modules', async function (t: tape.Test) {
   const project = prepare(t)
   await ncp(pathToLocalPkg('local-pkg'), path.resolve('..', 'local-pkg'))
