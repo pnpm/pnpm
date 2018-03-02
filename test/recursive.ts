@@ -6,6 +6,7 @@ import tape = require('tape')
 import promisifyTape from 'tape-promise'
 import path = require('path')
 import exists = require('path-exists')
+import writeJsonFile = require('write-json-file')
 import writeYamlFile = require('write-yaml-file')
 import {
   execPnpm,
@@ -301,6 +302,39 @@ test('recursive installation fails when installation in one of the packages fail
   } catch (err) {
     t.ok(err, 'the command failed')
   }
+
+  t.end()
+})
+
+// TODO: make this test pass
+test.skip('second run of `recursive linking` and a new package should linked', async t => {
+  const projects = prepare(t, [
+    {
+      name: 'is-negative',
+      version: '1.0.0',
+      dependencies: {
+        'is-positive': '2.0.0',
+      },
+    },
+    {
+      name: 'is-positive',
+      version: '1.0.0',
+    },
+  ])
+
+  await execPnpm('recursive', 'link')
+
+  await writeJsonFile('is-negative/package.json', {
+    name: 'is-negative',
+    version: '1.0.0',
+    dependencies: {
+      'is-positive': '1.0.0',
+    },
+  })
+
+  await execPnpm('recursive', 'link')
+
+  t.ok(projects['is-negative'].requireModule('is-positive/package.json'))
 
   t.end()
 })
