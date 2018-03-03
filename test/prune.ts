@@ -882,3 +882,49 @@ test('keep shrinkwrapMinorVersion, if present', t => {
 
   t.end()
 })
+
+test('remove one redundant package when no package.json passed', t => {
+  t.deepEqual(prune({
+    shrinkwrapVersion: 3,
+    registry: 'https://registry.npmjs.org',
+    dependencies: {
+      'is-positive': '1.0.0'
+    },
+    specifiers: {
+      'is-positive': '^1.0.0'
+    },
+    packages: {
+      '/is-positive/1.0.0': {
+        dev: false,
+        resolution: {
+          integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g='
+        }
+      },
+      '/is-positive/2.0.0': {
+        dev: false,
+        resolution: {
+          integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g='
+        }
+      }
+    }
+  }), {
+    shrinkwrapVersion: 3,
+    registry: 'https://registry.npmjs.org',
+    dependencies: {
+      'is-positive': '1.0.0'
+    },
+    specifiers: {
+      'is-positive': '^1.0.0'
+    },
+    packages: {
+      '/is-positive/1.0.0': {
+        dev: false,
+        resolution: {
+          integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g='
+        }
+      }
+    }
+  })
+
+  t.end()
+})

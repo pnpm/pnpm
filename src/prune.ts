@@ -9,13 +9,17 @@ import {
   Shrinkwrap,
 } from './types'
 
-export default function prune (shr: Shrinkwrap, pkg: Package): Shrinkwrap {
+export default function prune (shr: Shrinkwrap, pkg?: Package): Shrinkwrap {
   const packages: ResolvedPackages = {}
-  const optionalDependencies = R.keys(pkg.optionalDependencies)
-  const dependencies = R.difference(R.keys(pkg.dependencies), optionalDependencies)
-  const devDependencies = R.difference(R.difference(R.keys(pkg.devDependencies), optionalDependencies), dependencies)
-
-  const allDeps = R.reduce(R.union, [], [optionalDependencies, devDependencies, dependencies])
+  let allDeps!: string[]
+  if (pkg) {
+    const optionalDependencies = R.keys(pkg.optionalDependencies)
+    const dependencies = R.difference(R.keys(pkg.dependencies), optionalDependencies)
+    const devDependencies = R.difference(R.difference(R.keys(pkg.devDependencies), optionalDependencies), dependencies)
+    allDeps = R.reduce(R.union, [], [optionalDependencies, devDependencies, dependencies]) as string[]
+  } else {
+    allDeps = R.keys(shr.specifiers)
+  }
   const specifiers: ResolvedDependencies = {}
   const shrDependencies: ResolvedDependencies = {}
   const shrOptionalDependencies: ResolvedDependencies = {}
