@@ -221,3 +221,19 @@ test('write()', async t => {
   t.deepEqual(await readWanted(projectPath, {ignoreIncompatible: false}), wantedShrinkwrap)
   t.end()
 })
+
+test('write() when no specifiers but dependencies present', async t => {
+  const projectPath = tempy.directory()
+  const wantedShrinkwrap = {
+    shrinkwrapVersion: 3,
+    registry: 'https://registry.npmjs.org',
+    dependencies: {
+      'is-positive': 'link:../is-positive',
+    },
+    specifiers: {},
+  }
+  await write(projectPath, wantedShrinkwrap, wantedShrinkwrap)
+  t.deepEqual(await readCurrent(projectPath, {ignoreIncompatible: false}), wantedShrinkwrap)
+  t.deepEqual(await readWanted(projectPath, {ignoreIncompatible: false}), wantedShrinkwrap)
+  t.end()
+})

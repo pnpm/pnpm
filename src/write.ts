@@ -1,6 +1,7 @@
 import yaml = require('js-yaml')
 import mkdirp = require('mkdirp-promise')
 import path = require('path')
+import R = require('ramda')
 import rimraf = require('rimraf-then')
 import promisify = require('util.promisify')
 import writeFileAtomicCB = require('write-file-atomic')
@@ -41,7 +42,7 @@ function writeShrinkwrap (
   const shrinkwrapPath = path.join(pkgPath, shrinkwrapFilename)
 
   // empty shrinkwrap is not saved
-  if (Object.keys(wantedShrinkwrap.specifiers).length === 0) {
+  if (R.isEmpty(wantedShrinkwrap.specifiers || {}) && R.isEmpty(wantedShrinkwrap.dependencies || {})) {
     return rimraf(shrinkwrapPath)
   }
 
@@ -59,7 +60,7 @@ export default function write (
   const currentShrinkwrapPath = path.join(pkgPath, CURRENT_SHRINKWRAP_FILENAME)
 
   // empty shrinkwrap is not saved
-  if (Object.keys(wantedShrinkwrap.specifiers).length === 0) {
+  if (R.isEmpty(wantedShrinkwrap.specifiers || {}) && R.isEmpty(wantedShrinkwrap.dependencies || {})) {
     return Promise.all([
       rimraf(wantedShrinkwrapPath),
       rimraf(currentShrinkwrapPath),
