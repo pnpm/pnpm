@@ -38,6 +38,13 @@ export default function prune (shr: Shrinkwrap, pkg?: Package): Shrinkwrap {
       shrDevDependencies[depName] = shr.devDependencies[depName]
     }
   })
+  if (shr.dependencies) {
+    for (const dep of R.keys(shr.dependencies)) {
+      if (!shrDependencies[dep] && shr.dependencies[dep].startsWith('link:')) {
+        shrDependencies[dep] = shr.dependencies[dep]
+      }
+    }
+  }
 
   const devDepRelativePaths: string[] = R.keys(shrDevDependencies)
     .map((pkgName: string) => refToRelative(shrDevDependencies[pkgName], pkgName))

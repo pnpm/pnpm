@@ -928,3 +928,51 @@ test('remove one redundant package when no package.json passed', t => {
 
   t.end()
 })
+
+test('keep linked package even if it is not in package.json', t => {
+  t.deepEqual(prune({
+    shrinkwrapVersion: 3,
+    registry: 'https://registry.npmjs.org',
+    dependencies: {
+      'is-positive': 'link:../is-positive',
+      'is-negative': '1.0.0',
+    },
+    specifiers: {
+      'is-negative': '^1.0.0',
+    },
+    packages: {
+      '/is-negative/1.0.0': {
+        dev: false,
+        resolution: {
+          integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g=',
+        },
+      },
+    },
+  }, {
+    name: 'foo',
+    version: '1.0.0',
+    dependencies: {
+      'is-negative': '^1.0.0'
+    }
+  }), {
+    shrinkwrapVersion: 3,
+    registry: 'https://registry.npmjs.org',
+    dependencies: {
+      'is-positive': 'link:../is-positive',
+      'is-negative': '1.0.0',
+    },
+    specifiers: {
+      'is-negative': '^1.0.0',
+    },
+    packages: {
+      '/is-negative/1.0.0': {
+        dev: false,
+        resolution: {
+          integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g=',
+        },
+      },
+    },
+  })
+
+  t.end()
+})
