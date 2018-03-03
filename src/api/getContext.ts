@@ -1,15 +1,8 @@
 import path = require('path')
-import isCI = require('is-ci')
 import {fromDir as safeReadPkgFromDir} from '../fs/safeReadPkg'
 import writePkg = require('write-pkg')
 import {StrictSupiOptions} from '../types'
-import {
-  existsWanted as existsWantedShrinkwrap,
-  readWanted as readWantedShrinkwrap,
-  readCurrent as readCurrentShrinkwrap,
-  Shrinkwrap,
-  create as createShrinkwrap,
-} from 'pnpm-shrinkwrap'
+import {Shrinkwrap} from 'pnpm-shrinkwrap'
 import {
   read as readModules,
 } from '../fs/modulesController'
@@ -18,9 +11,9 @@ import {PackageJson} from '@pnpm/types'
 import normalizePath = require('normalize-path')
 import removeAllExceptOuterLinks = require('remove-all-except-outer-links')
 import logger from '@pnpm/logger'
-import R = require('ramda')
 import checkCompatibility from './checkCompatibility'
 import {packageJsonLogger} from '../loggers'
+import readShrinkwrapFile from '../readShrinkwrapFiles'
 
 export type PnpmContext = {
   pkg: PackageJson,
@@ -84,28 +77,18 @@ export default async function getContext (
     }
   }
 
-  // ignore `shrinkwrap.yaml` on CI servers
-  // a latest pnpm should not break all the builds
-  const shrOpts = {ignoreIncompatible: opts.force || isCI}
   const files = await Promise.all([
     (opts.global ? readGlobalPkgJson(opts.prefix) : safeReadPkgFromDir(opts.prefix)),
-    opts.shrinkwrap && readWantedShrinkwrap(root, shrOpts)
-      || await existsWantedShrinkwrap(root) && logger.warn('A shrinkwrap.yaml file exists. The current configuration prohibits to read or write a shrinkwrap file'),
-    readCurrentShrinkwrap(root, shrOpts),
     mkdirp(storePath),
   ])
-  const currentShrinkwrap = files[2] || createShrinkwrap(opts.registry)
   const ctx: PnpmContext = {
-    pkg: files[0] || {},
+    pkg: files[0] || {} as PackageJson,
     root,
     storePath,
-    wantedShrinkwrap: files[1] || !opts.shrinkwrap && currentShrinkwrap && R.clone(currentShrinkwrap) || createShrinkwrap(opts.registry),
-    currentShrinkwrap,
-    existsWantedShrinkwrap: !!files[1],
-    existsCurrentShrinkwrap: !!files[2],
     skipped: new Set(modules && modules.skipped || []),
     pendingBuilds: modules && modules.pendingBuilds || [],
     hoistedAliases: modules && modules.hoistedAliases || {},
+    ...await readShrinkwrapFile(opts),
   }
   packageJsonLogger.debug({ initial: ctx.pkg })
 
