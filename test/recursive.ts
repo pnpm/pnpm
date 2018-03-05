@@ -306,8 +306,7 @@ test('recursive installation fails when installation in one of the packages fail
   t.end()
 })
 
-// TODO: make this test pass
-test.skip('second run of `recursive linking` and a new package should linked', async t => {
+test('second run of `recursive link` after package.json has been edited manually', async t => {
   const projects = prepare(t, [
     {
       name: 'is-negative',

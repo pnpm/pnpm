@@ -1,4 +1,5 @@
 import path = require('path')
+import R = require('ramda')
 import {
   link,
   linkFromGlobal,
@@ -25,14 +26,11 @@ export default async (
     return
   }
 
-  await input.reduce((previous: Promise<void>, inp: string) => {
-    // pnpm link ../foo
-    if (inp[0].indexOf('.') === 0) {
-      const linkFrom = path.join(cwd, inp)
-      return previous.then(() => link(linkFrom, path.join(cwd, 'node_modules'), linkOpts))
-    }
+  const result = R.partition((inp) => inp.startsWith('.'), input)
 
-    // pnpm link foo
-    return previous.then(() => linkFromGlobal(inp, cwd, linkOpts))
-  }, Promise.resolve())
+  const localLinkedPkgs = result[0]
+  const globalLinkedPkgs = result[1]
+
+  await link(localLinkedPkgs, path.join(cwd, 'node_modules'), linkOpts)
+  await linkFromGlobal(globalLinkedPkgs, cwd, linkOpts)
 }

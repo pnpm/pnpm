@@ -124,9 +124,12 @@ function linkPackages (
   const linkOpts = {skipInstall: true, store, storeController}
   return Promise.all(
     Object.keys(graph)
-      .map((pkgPath) => Promise.all(
-        (graph[pkgPath].dependencies || [])
-          .map((depPath) => limitLinking(() => link(depPath, path.join(pkgPath, 'node_modules'), linkOpts))))),
+      .filter((pkgPath) => graph[pkgPath].dependencies && graph[pkgPath].dependencies.length)
+      .map((pkgPath) =>
+        limitLinking(() =>
+          link(graph[pkgPath].dependencies, path.join(pkgPath, 'node_modules'), {...linkOpts, prefix: pkgPath}),
+        ),
+      ),
   )
 }
 
