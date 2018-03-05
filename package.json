@@ -70,7 +70,7 @@
     "write-json-file": "^2.3.0"
   },
   "devDependencies": {
-    "@commitlint/cli": "^4.0.0",
+    "@commitlint/cli": "^5.0.0",
     "@commitlint/config-angular": "^4.2.0",
     "@commitlint/prompt-cli": "^5.0.0",
     "@types/byline": "^4.2.31",
