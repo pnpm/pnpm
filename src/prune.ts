@@ -124,7 +124,7 @@ function copyDependencySubTree (
     if (!shr.packages || !shr.packages[depRalativePath]) {
       // local dependencies don't need to be resolved in shrinkwrap.yaml
       // except local tarball dependencies
-      if (depRalativePath.startsWith('file:') && !depRalativePath.endsWith('.tar.gz')) continue
+      if (depRalativePath.startsWith('link:') || depRalativePath.startsWith('file:') && !depRalativePath.endsWith('.tar.gz')) continue
 
       logger.warn(`Cannot find resolution of ${depRalativePath} in shrinkwrap file`)
       continue
