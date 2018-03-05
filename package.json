@@ -43,7 +43,7 @@
     "@pnpm/store-path": "^1.0.0",
     "@types/node": "^9.3.0",
     "dependency-path": "^1.2.0",
-    "pnpm-shrinkwrap": "^5.0.0"
+    "pnpm-shrinkwrap": "^6.0.0"
   },
   "devDependencies": {
     "@pnpm/logger": "^1.0.0",
