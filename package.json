@@ -38,7 +38,7 @@
   },
   "homepage": "https://github.com/pnpm/pnpm-reporter-default#readme",
   "peerDependencies": {
-    "supi": ">=0.12.5 <0.14.0"
+    "supi": ">=0.12.5 <0.15.0"
   },
   "dependencies": {
     "@types/common-tags": "^1.2.5",
@@ -68,7 +68,7 @@
     "normalize-newline": "^3.0.0",
     "package-preview": "^1.0.0",
     "rimraf": "^2.5.4",
-    "supi": "^0.13.0",
+    "supi": "^0.14.0",
     "tape": "^4.8.0",
     "ts-node": "^5.0.0",
     "tslint": "^5.7.0",
