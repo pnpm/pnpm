@@ -42,7 +42,7 @@
     "@types/node": "^9.3.0",
     "@types/semver": "^5.3.32",
     "dependency-path": "^1.0.0",
-    "pnpm-shrinkwrap": "^5.0.0",
+    "pnpm-shrinkwrap": "^6.0.0",
     "semver": "^5.3.0"
   },
   "devDependencies": {
@@ -52,7 +52,7 @@
     "mos-plugin-readme": "^1.0.4",
     "package-preview": "^1.0.0",
     "tape": "^4.7.0",
-    "ts-node": "^4.0.0",
+    "ts-node": "^5.0.1",
     "tslint": "^5.8.0",
     "typescript": "^2.4.1"
   },
