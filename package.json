@@ -68,7 +68,7 @@
     "path-exists": "^3.0.0",
     "path-name": "^1.0.0",
     "pnpm-install-checks": "^1.1.0",
-    "pnpm-shrinkwrap": "^5.3.0",
+    "pnpm-shrinkwrap": "^6.0.0",
     "ramda": "^0.25.0",
     "read-package-json": "^2.0.5",
     "remove-all-except-outer-links": "^1.0.0",

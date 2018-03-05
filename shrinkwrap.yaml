@@ -48,7 +48,7 @@ dependencies:
   path-exists: 3.0.0
   path-name: 1.0.0
   pnpm-install-checks: 1.1.0
-  pnpm-shrinkwrap: 5.3.0
+  pnpm-shrinkwrap: 6.0.0
   ramda: 0.25.0
   read-package-json: 2.0.12
   remove-all-except-outer-links: 1.0.3
@@ -204,7 +204,7 @@ packages:
   /@pnpm/default-resolver/0.1.4:
     dependencies:
       '@pnpm/git-resolver': 0.3.1
-      '@pnpm/local-resolver': 0.2.0
+      '@pnpm/local-resolver': 0.2.2
       '@pnpm/npm-resolver': 0.3.13
       '@pnpm/tarball-resolver': 0.1.0
     dev: true
@@ -267,7 +267,7 @@ packages:
       '@pnpm/logger': ^1.0.0
     resolution:
       integrity: sha512-V6oKCFxi8+3jVoVoZ216KOEBaf+S5a6bajOj0iHLfnVE0u1G9SA7j0TDNx1IWD26+LTA0EUIKCPmmgrRVlpt1g==
-  /@pnpm/local-resolver/0.2.0:
+  /@pnpm/local-resolver/0.2.2:
     dependencies:
       '@pnpm/types': 1.7.0
       '@types/graceful-fs': 4.1.2
@@ -282,7 +282,7 @@ packages:
     engines:
       node: '>=4'
     resolution:
-      integrity: sha512-z2JAaG1lzvQ1ykmPfbKpipw46/u4r6TI3nFQK+XMIKIt7Or0xT13D4OMKOKJpNIqj3MalrNmXVXZ3uN8um+Rrg==
+      integrity: sha512-tAGRiCX8EjMj2sJuiJlWncv1N8CUSoYmmfgJIoWu2q3uMdBvkY4/K5sCjghjGnB9mEmb1inObRyOwBOKrlBOlA==
   /@pnpm/logger/1.0.1:
     dependencies:
       '@types/node': 9.4.6
@@ -732,7 +732,7 @@ packages:
   /are-we-there-yet/1.1.4:
     dependencies:
       delegates: 1.0.0
-      readable-stream: 2.3.4
+      readable-stream: 2.3.5
     resolution:
       integrity: sha1-u13KOCu5TwXhUZQ3PRb9O6HKEQ0=
   /argparse/1.0.10:
@@ -856,7 +856,7 @@ packages:
       integrity: sha1-Y7xdy2EzG5K8Bf1SiVPDNGKgb40=
   /bl/1.2.1:
     dependencies:
-      readable-stream: 2.3.4
+      readable-stream: 2.3.5
     dev: true
     resolution:
       integrity: sha1-ysMo977kVzDUBLaSID/LWQ4XLV4=
@@ -1211,7 +1211,7 @@ packages:
   /concat-stream/1.6.1:
     dependencies:
       inherits: 2.0.3
-      readable-stream: 2.3.4
+      readable-stream: 2.3.5
       typedarray: 0.0.6
     dev: true
     engines:
@@ -1554,7 +1554,7 @@ packages:
     dependencies:
       end-of-stream: 1.4.1
       inherits: 2.0.3
-      readable-stream: 2.3.4
+      readable-stream: 2.3.5
       stream-shift: 1.0.0
     dev: true
     resolution:
@@ -1853,7 +1853,7 @@ packages:
   /flush-write-stream/1.0.2:
     dependencies:
       inherits: 2.0.3
-      readable-stream: 2.3.4
+      readable-stream: 2.3.5
     dev: true
     resolution:
       integrity: sha1-yBuQ2HRnZvGmCaRoCZRsRd2K5Bc=
@@ -1897,7 +1897,7 @@ packages:
   /from2/2.3.0:
     dependencies:
       inherits: 2.0.3
-      readable-stream: 2.3.4
+      readable-stream: 2.3.5
     dev: true
     resolution:
       integrity: sha1-i/tVAr3kpNNs/e6gB/zKIdfjgq8=
@@ -1914,7 +1914,7 @@ packages:
       graceful-fs: 4.1.11
       iferr: 0.1.5
       imurmurhash: 0.1.4
-      readable-stream: 2.3.4
+      readable-stream: 2.3.5
     dev: true
     resolution:
       integrity: sha1-tH31NJPvkR33VzHnCp3tAYnbQMk=
@@ -2208,13 +2208,15 @@ packages:
       npm: '>=1.3.7'
     resolution:
       integrity: sha1-muzZJRFHcvPZW2WmCruPfBj7rOE=
-  /https-proxy-agent/2.1.1:
+  /https-proxy-agent/2.2.0:
     dependencies:
       agent-base: 4.2.0
       debug: 3.1.0
     dev: true
+    engines:
+      node: '>= 4.5.0'
     resolution:
-      integrity: sha512-LK6tQUR/VOkTI6ygAfWUKKP95I+e6M1h7N3PncGu1CATHCnex+CAv9ttR0lbHu1Uk2PXm/WoAHFo6JCGwMjVMw==
+      integrity: sha512-uUWcfXHvy/dwfM9bqa6AozvAjS32dZSTUYd/4SEpYKRg6LEcPLshksnQYRudM9AyNvUARMfAg5TLjUDyX/K4vA==
   /humanize-ms/1.2.1:
     dependencies:
       ms: 2.1.1
@@ -2781,7 +2783,7 @@ packages:
       cacache: 10.0.4
       http-cache-semantics: 3.8.1
       http-proxy-agent: 2.0.0
-      https-proxy-agent: 2.1.1
+      https-proxy-agent: 2.2.0
       lru-cache: 4.1.1
       mississippi: 1.3.1
       node-fetch-npm: 2.0.2
@@ -3483,7 +3485,7 @@ packages:
     dependencies:
       cyclist: 0.2.2
       inherits: 2.0.3
-      readable-stream: 2.3.4
+      readable-stream: 2.3.5
     dev: true
     resolution:
       integrity: sha1-1BDwZbBdojCB/NEPKIVMKb2jOwY=
@@ -3671,7 +3673,7 @@ packages:
     dev: true
     resolution:
       integrity: sha512-PijlGxk564x1E/3Pw0hzcE6tw9Va/lZ/UVfheq+ld62c8mqOmgC/49DCx+YIV1RAwscDttsVUT3EeAjAZHh55g==
-  /pnpm-shrinkwrap/5.3.0:
+  /pnpm-shrinkwrap/6.0.0:
     dependencies:
       '@types/node': 9.4.6
       '@types/ramda': 0.25.19
@@ -3689,7 +3691,7 @@ packages:
     peerDependencies:
       '@pnpm/logger': ^1.0.0
     resolution:
-      integrity: sha512-WdBYsVsaRbKLnU7Vb7QAk2SE9UAD0j0AaWcv5VTX1ky2bJWqF1JE5NJSpedyL/rTr3eBNQiqM5nzV+WbzX0mUQ==
+      integrity: sha512-c+GWM0deEHpp5nb2RG6FXyl2jX04lwiOAG14+hMhtYg6BwyDqdK9gURIxCwcgXZFifj2X5rze+6eOAYUSkghtQ==
   /prepend-http/2.0.0:
     dev: true
     engines:
@@ -3877,7 +3879,7 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha1-nLxoaXj+5l0WwA4rGcI3/Pbjg4k=
-  /readable-stream/2.3.4:
+  /readable-stream/2.3.5:
     dependencies:
       core-util-is: 1.0.2
       inherits: 2.0.3
@@ -3887,7 +3889,7 @@ packages:
       string_decoder: 1.0.3
       util-deprecate: 1.0.2
     resolution:
-      integrity: sha512-vuYxeWYM+fde14+rajzqgeohAI7YoJcHE7kXDAc4Nk0EbuKnJfqtY9YtRkLo/tqkuF7MsBQRhPnPeyjYITp3ZQ==
+      integrity: sha512-tK0yDhrkygt/knjowCUiWP9YdV7c5R+8cR0r/kt9ZhBU906Fs6RpQJCEilamRJj1Nx2rWI6LkW9gKqjTkshhEw==
   /readline2/1.0.1:
     dependencies:
       code-point-at: 1.1.0
@@ -4522,7 +4524,7 @@ packages:
     dependencies:
       bl: 1.2.1
       end-of-stream: 1.4.1
-      readable-stream: 2.3.4
+      readable-stream: 2.3.5
       xtend: 4.0.1
     dev: true
     engines:
@@ -4569,7 +4571,7 @@ packages:
       integrity: sha1-DdTJ/6q8NXlgsbckEV1+Doai4fU=
   /through2/2.0.3:
     dependencies:
-      readable-stream: 2.3.4
+      readable-stream: 2.3.5
       xtend: 4.0.1
     dev: true
     resolution:
@@ -4662,7 +4664,7 @@ packages:
       resolve: 1.5.0
       semver: 5.5.0
       tslib: 1.9.0
-      tsutils: 2.22.0
+      tsutils: 2.22.1
     dev: true
     engines:
       node: '>=4.8.0'
@@ -4670,14 +4672,14 @@ packages:
       typescript: '>=2.1.0 || >=2.1.0-dev || >=2.2.0-dev || >=2.3.0-dev || >=2.4.0-dev || >=2.5.0-dev || >=2.6.0-dev || >=2.7.0-dev || >=2.8.0-dev'
     resolution:
       integrity: sha1-ElX4ej/1frCw4fDmEKi0dIBGya4=
-  /tsutils/2.22.0:
+  /tsutils/2.22.1:
     dependencies:
       tslib: 1.9.0
     dev: true
     peerDependencies:
       typescript: '>=2.1.0 || >=2.1.0-dev || >=2.2.0-dev || >=2.3.0-dev || >=2.4.0-dev || >=2.5.0-dev || >=2.6.0-dev || >=2.7.0-dev || >=2.8.0-dev || >=2.9.0-dev'
     resolution:
-      integrity: sha512-05iMIQXsLVBx2vPTvpsHriRuNpKpU1Z9jqYUOBvwglO6I+QzdA1UQcVoNhsVkSZfns5TjFMFbdxdrkOW6cfwUQ==
+      integrity: sha512-j4Nx7aeMPyIrKtDftSfDiTFBYW3o/41T3zAxm0C/9fSKT62jnfqOZooC9uKLr4rQF9QsZaVTVY6QY+vVnWSisw==
   /tunnel-agent/0.6.0:
     dependencies:
       safe-buffer: 5.1.1
@@ -5114,7 +5116,7 @@ specifiers:
   path-name: ^1.0.0
   pnpm-install-checks: ^1.1.0
   pnpm-registry-mock: ^1.17.0
-  pnpm-shrinkwrap: ^5.3.0
+  pnpm-shrinkwrap: ^6.0.0
   ramda: ^0.25.0
   read-package-json: ^2.0.5
   read-pkg: ^3.0.0

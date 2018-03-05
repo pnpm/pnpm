@@ -154,7 +154,7 @@ test('relative link is uninstalled', async (t: tape.Test) => {
   const linkedPkgPath = path.resolve('..', linkedPkgName)
 
   await ncp(pathToLocalPkg(linkedPkgName), linkedPkgPath)
-  await link(`../${linkedPkgName}`, path.join(process.cwd(), 'node_modules'), await testDefaults())
+  await link([`../${linkedPkgName}`], path.join(process.cwd(), 'node_modules'), await testDefaults())
   await uninstall([linkedPkgName], await testDefaults())
 
   await project.hasNot(linkedPkgName)

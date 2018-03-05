@@ -83,13 +83,13 @@ Uninstalls a package, completely removing everything pnpm installed on its behal
 * `options.global` - *Boolean* - the packages will be uninstalled globally.
 * `options.reporter` - *Function* - A function that listens for logs.
 
-### `supi.link(linkFrom, linkToNodeModules, [options])`
+### `supi.link(linkFromPkgs, linkToNodeModules, [options])`
 
-Create a symbolic link from the linked package to the target package's `node_modules` (and its `node_modules/.bin`).
+Create symbolic links from the linked packages to the target package's `node_modules` (and its `node_modules/.bin`).
 
 **Arguments:**
 
-* `linkFrom` - *String* - path to the package that should be linked.
+* `linkFromPkgs` - *String[]* - paths to the packages that should be linked.
 * `linkToNodeModules` - *String* - path to the dependent package's `node_modules` directory.
 * `options.reporter` - *Function* - A function that listens for logs.
 
@@ -103,13 +103,13 @@ Create a symbolic link from the specified package to the global `node_modules`.
 * `globalPrefix` - *String* - path to the global directory.
 * `options.reporter` - *Function* - A function that listens for logs.
 
-### `supi.linkFromGlobal(pkgName, linkTo, options)`
+### `supi.linkFromGlobal(pkgNames, linkTo, options)`
 
-Create a symbolic link from the global `pkgName` to the `linkTo/node_modules` folder.
+Create symbolic links from the global `pkgName`s to the `linkTo/node_modules` folder.
 
 **Arguments:**
 
-* `pkgName` - *String* - package to link.
+* `pkgNames` - *String[]* - packages to link.
 * `linkTo` - *String* - package to link to.
 * `globalPrefix` - *String* - path to the global directory.
 * `options.reporter` - *Function* - A function that listens for logs.

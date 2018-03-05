@@ -21,21 +21,33 @@ import {
   RootLog,
 } from 'supi'
 import exists = require('path-exists')
+import writeJsonFile = require('write-json-file')
 
 test('relative link', async (t: tape.Test) => {
-  prepare(t)
+  const project = prepare(t, {
+    dependencies: {
+      'hello-world-js-bin': '*',
+    },
+  })
 
   const linkedPkgName = 'hello-world-js-bin'
   const linkedPkgPath = path.resolve('..', linkedPkgName)
 
   await ncp(pathToLocalPkg(linkedPkgName), linkedPkgPath)
-  await link(`../${linkedPkgName}`, path.join(process.cwd(), 'node_modules'), await testDefaults())
+  await link([`../${linkedPkgName}`], path.join(process.cwd(), 'node_modules'), await testDefaults())
 
   await isExecutable(t, path.resolve('node_modules', '.bin', 'hello-world-js-bin'))
 
   // The linked package has been installed successfully as well with bins linked
   // to node_modules/.bin
   await isExecutable(t, path.join(linkedPkgPath, 'node_modules', '.bin', 'cowsay'))
+
+  const wantedShrinkwrap = await project.loadShrinkwrap()
+  t.equal(wantedShrinkwrap.dependencies['hello-world-js-bin'], 'link:../hello-world-js-bin', 'link added to wanted shrinkwrap')
+  t.equal(wantedShrinkwrap.specifiers['hello-world-js-bin'], '*', 'specifier of linked dependency added to shrinkwrap.yaml')
+
+  const currentShrinkwrap = await project.loadCurrentShrinkwrap()
+  t.equal(currentShrinkwrap.dependencies['hello-world-js-bin'], 'link:../hello-world-js-bin', 'link added to wanted shrinkwrap')
 })
 
 test('relative link is not rewritten by install', async (t: tape.Test) => {
@@ -45,7 +57,7 @@ test('relative link is not rewritten by install', async (t: tape.Test) => {
   const linkedPkgPath = path.resolve('..', linkedPkgName)
 
   await ncp(pathToLocalPkg(linkedPkgName), linkedPkgPath)
-  await link(`../${linkedPkgName}`, path.join(process.cwd(), 'node_modules'), await testDefaults())
+  await link([`../${linkedPkgName}`], path.join(process.cwd(), 'node_modules'), await testDefaults())
 
   const reporter = sinon.spy()
 
@@ -63,6 +75,12 @@ test('relative link is not rewritten by install', async (t: tape.Test) => {
       // TODO: the dependencyType should be `undefined` in this case
     },
   }), 'linked root dependency logged')
+
+  const wantedShrinkwrap = await project.loadShrinkwrap()
+  t.equal(wantedShrinkwrap.dependencies['hello-world-js-bin'], 'link:../hello-world-js-bin', 'link still in wanted shrinkwrap')
+
+  const currentShrinkwrap = await project.loadCurrentShrinkwrap()
+  t.equal(currentShrinkwrap.dependencies['hello-world-js-bin'], 'link:../hello-world-js-bin', 'link still in wanted shrinkwrap')
 })
 
 test('global link', async function (t: tape.Test) {
@@ -87,7 +105,7 @@ test('global link', async function (t: tape.Test) {
 
   process.chdir(projectPath)
 
-  await linkFromGlobal(linkedPkgName, process.cwd(), await testDefaults({globalPrefix}))
+  await linkFromGlobal([linkedPkgName], process.cwd(), await testDefaults({globalPrefix}))
 
   isExecutable(t, path.resolve('node_modules', '.bin', 'hello-world-js-bin'))
 })
@@ -98,9 +116,23 @@ test('failed linking should not create empty folder', async (t: tape.Test) => {
   const globalPrefix = path.resolve('..', 'global')
 
   try {
-    await linkFromGlobal('does-not-exist', process.cwd(), await testDefaults({globalPrefix}))
+    await linkFromGlobal(['does-not-exist'], process.cwd(), await testDefaults({globalPrefix}))
     t.fail('should have failed')
   } catch (err) {
     t.notOk(await exists(path.join(globalPrefix, 'node_modules', 'does-not-exist')))
   }
+})
+
+test('node_modules is pruned after linking', async (t: tape.Test) => {
+  const project = prepare(t)
+
+  await writeJsonFile('../is-positive/package.json', {name: 'is-positive', version: '1.0.0'})
+
+  await installPkgs(['is-positive@1.0.0'], await testDefaults())
+
+  t.ok(await exists('node_modules/.localhost+4873/is-positive/1.0.0/node_modules/is-positive/package.json'))
+
+  await link(['../is-positive'], path.resolve('node_modules'), await testDefaults())
+
+  t.notOk(await exists('node_modules/.localhost+4873/is-positive/1.0.0/node_modules/is-positive/package.json'), 'pruned')
 })

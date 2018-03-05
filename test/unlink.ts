@@ -44,8 +44,7 @@ test('unlink 1 package that exists in package.json', async (t: tape.Test) => {
     }),
   ])
 
-  await link('is-subdir', path.join('project', 'node_modules'), await testDefaults())
-  await link('is-positive', path.join('project', 'node_modules'), await testDefaults())
+  await link(['is-subdir', 'is-positive'], path.join('project', 'node_modules'), await testDefaults({prefix: path.resolve('project')}))
 
   process.chdir('project')
   await unlinkPkgs(['is-subdir'], await testDefaults())
@@ -58,7 +57,8 @@ test("don't update package when unlinking", async (t: tape.Test) => {
   const project = prepare(t)
 
   await addDistTag('foo', '100.0.0', 'latest')
-  await installPkgs(['foo'], await testDefaults())
+  const opts = await testDefaults({prefix: process.cwd()})
+  await installPkgs(['foo'], opts)
 
   process.chdir('..')
 
@@ -67,11 +67,11 @@ test("don't update package when unlinking", async (t: tape.Test) => {
     version: '100.0.0',
   })
 
-  await link('foo', path.join('project', 'node_modules'), await testDefaults())
+  await link(['foo'], path.join('project', 'node_modules'), opts)
   await addDistTag('foo', '100.1.0', 'latest')
 
   process.chdir('project')
-  await unlinkPkgs(['foo'], await testDefaults())
+  await unlinkPkgs(['foo'], opts)
 
   t.equal(project.requireModule('foo/package.json').version, '100.0.0', 'foo not updated after unlink')
 })
@@ -83,6 +83,7 @@ test("don't update package when unlinking. Initial link is done on a package w/o
     },
   })
 
+  const opts = await testDefaults({prefix: process.cwd()})
   process.chdir('..')
 
   await writeJsonFile('foo/package.json', {
@@ -90,11 +91,11 @@ test("don't update package when unlinking. Initial link is done on a package w/o
     version: '100.0.0',
   })
 
-  await link('foo', path.join('project', 'node_modules'), await testDefaults())
+  await link(['foo'], path.join('project', 'node_modules'), opts)
   await addDistTag('foo', '100.1.0', 'latest')
 
   process.chdir('project')
-  await unlinkPkgs(['foo'], await testDefaults())
+  await unlinkPkgs(['foo'], opts)
 
   t.equal(project.requireModule('foo/package.json').version, '100.1.0', 'latest foo is installed')
   t.deepEqual((await loadJsonFile('./package.json')).dependencies, {foo: '^100.0.0'}, 'package.json not updated')
@@ -106,6 +107,7 @@ test('unlink 2 packages. One of them exists in package.json', async (t: tape.Tes
       'is-subdir': '^1.0.0',
     }
   })
+  const opts = await testDefaults({prefix: process.cwd()})
   process.chdir('..')
 
   await Promise.all([
@@ -122,11 +124,10 @@ test('unlink 2 packages. One of them exists in package.json', async (t: tape.Tes
     }),
   ])
 
-  await link('is-subdir', path.join('project', 'node_modules'), await testDefaults())
-  await link('is-positive', path.join('project', 'node_modules'), await testDefaults())
+  await link(['is-subdir', 'is-positive'], path.join('project', 'node_modules'), opts)
 
   process.chdir('project')
-  await unlinkPkgs(['is-subdir', 'is-positive'], await testDefaults())
+  await unlinkPkgs(['is-subdir', 'is-positive'], opts)
 
   t.equal(typeof project.requireModule('is-subdir'), 'function', 'is-subdir installed after unlinked')
   t.notOk(await exists(path.join('node_modules', 'is-positive')), 'is-positive removed as it is not in package.json')
@@ -139,6 +140,7 @@ test('unlink all packages', async (t: tape.Test) => {
       '@zkochan/logger': '^0.1.0',
     }
   })
+  const opts = await testDefaults({prefix: process.cwd()})
   process.chdir('..')
 
   await Promise.all([
@@ -155,11 +157,9 @@ test('unlink all packages', async (t: tape.Test) => {
     }),
   ])
 
-  await link('is-subdir', path.join('project', 'node_modules'), await testDefaults())
-  await link('logger', path.join('project', 'node_modules'), await testDefaults())
+  await link(['is-subdir', 'logger'], path.join('project', 'node_modules'), opts)
 
-  process.chdir('project')
-  await unlink(await testDefaults())
+  await unlink(opts)
 
   t.equal(typeof project.requireModule('is-subdir'), 'function', 'is-subdir installed after unlinked')
   t.equal(typeof project.requireModule('@zkochan/logger'), 'object', '@zkochan/logger installed after unlinked')

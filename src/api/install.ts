@@ -63,6 +63,7 @@ import {
   ROOT_NODE_ID,
 } from '../nodeIdUtils'
 import realNodeModulesDir from '../fs/realNodeModulesDir'
+import getSpecFromPackageJson from '../getSpecFromPackageJson'
 
 const ENGINE_NAME = `${process.platform}-${process.arch}-node-${process.version.split('.')[0]}`
 
@@ -168,7 +169,9 @@ export async function install (maybeOpts: InstallOptions) {
       ctx.wantedShrinkwrap.optionalDependencies = ctx.wantedShrinkwrap.optionalDependencies || {}
       for (const spec of specs) {
         if (spec.alias && ctx.wantedShrinkwrap.specifiers[spec.alias] !== spec.pref) {
-          delete ctx.wantedShrinkwrap.dependencies[spec.alias]
+          if (ctx.wantedShrinkwrap.dependencies[spec.alias] && !ctx.wantedShrinkwrap.dependencies[spec.alias].startsWith('link:')) {
+            delete ctx.wantedShrinkwrap.dependencies[spec.alias]
+          }
           delete ctx.wantedShrinkwrap.devDependencies[spec.alias]
           delete ctx.wantedShrinkwrap.optionalDependencies[spec.alias]
         }
@@ -379,25 +382,32 @@ async function installInContext (
     reinstallForFlatten: opts.reinstallForFlatten,
     shamefullyFlatten: opts.shamefullyFlatten,
   }
-  const nonLinkedPkgs = await pFilter(packagesToInstall,
-    async (wantedDependency: WantedDependency) => {
-        if (!wantedDependency.alias) return true
-        const isInnerLink = await safeIsInnerLink(nodeModulesPath, wantedDependency.alias, {
-          storePath: ctx.storePath,
-        })
-        if (isInnerLink === true) return true
-        rootLogger.debug({
-          linked: {
-            name: wantedDependency.alias,
-            from: isInnerLink as string,
-            to: nodeModulesPath,
-            dependencyType: wantedDependency.dev && 'dev' || wantedDependency.optional && 'optional' || 'prod',
-          },
-        })
-        // This info-log might be better to be moved to the reporter
-        logger.info(`${wantedDependency.alias} is linked to ${nodeModulesPath} from ${isInnerLink}`)
-        return false
+  const nonLinkedPkgs: WantedDependency[] = []
+  const linkedPkgs: (WantedDependency & {alias: string})[] = []
+  for (const wantedDependency of packagesToInstall) {
+    if (!wantedDependency.alias) {
+      nonLinkedPkgs.push(wantedDependency)
+      continue
+    }
+    const isInnerLink = await safeIsInnerLink(nodeModulesPath, wantedDependency.alias, {
+      storePath: ctx.storePath,
     })
+    if (isInnerLink === true) {
+      nonLinkedPkgs.push(wantedDependency)
+      continue
+    }
+    rootLogger.debug({
+      linked: {
+        name: wantedDependency.alias,
+        from: isInnerLink as string,
+        to: nodeModulesPath,
+        dependencyType: wantedDependency.dev && 'dev' || wantedDependency.optional && 'optional' || 'prod',
+      },
+    })
+    // This info-log might be better to be moved to the reporter
+    logger.info(`${wantedDependency.alias} is linked to ${nodeModulesPath} from ${isInnerLink}`)
+    linkedPkgs.push(wantedDependency as (WantedDependency & {alias: string}))
+  }
   stageLogger.debug('resolution_started')
   const rootPkgs = await resolveDependencies(
     installCtx,
@@ -472,11 +482,12 @@ async function installInContext (
     ctx.wantedShrinkwrap.optionalDependencies = ctx.wantedShrinkwrap.optionalDependencies || {}
     ctx.wantedShrinkwrap.devDependencies = ctx.wantedShrinkwrap.devDependencies || {}
 
-    const deps = newPkg.dependencies || {}
     const devDeps = newPkg.devDependencies || {}
     const optionalDeps = newPkg.optionalDependencies || {}
 
-    const getSpecFromPkg = (depName: string) => deps[depName] || devDeps[depName] || optionalDeps[depName]
+    linkedPkgs.forEach(linkedPkg => {
+      ctx.wantedShrinkwrap.specifiers[linkedPkg.alias] = getSpecFromPackageJson(newPkg as PackageJson, linkedPkg.alias) as string
+    })
 
     for (const dep of pkgsToSave) {
       const ref = absolutePathToRef(dep.id, {
@@ -503,7 +514,7 @@ async function installInContext (
       if (isDev || isOptional) {
         delete ctx.wantedShrinkwrap.dependencies[dep.alias]
       }
-      ctx.wantedShrinkwrap.specifiers[dep.alias] = getSpecFromPkg(dep.alias)
+      ctx.wantedShrinkwrap.specifiers[dep.alias] = getSpecFromPackageJson(newPkg, dep.alias) as string
     }
   }
 
@@ -627,13 +638,14 @@ async function installInContext (
         skipInstall: true,
         linkToBin: opts.bin,
       }
-      await Promise.all(installCtx.localPackages.map(async localPackage => {
-        await externalLink(localPackage.resolution.directory, installCtx.nodeModules, linkOpts)
+      const externalPkgs = installCtx.localPackages.map(localPackage => localPackage.resolution.directory)
+      await externalLink(externalPkgs, installCtx.nodeModules, linkOpts)
+      installCtx.localPackages.forEach(async localPackage => {
         logStatus({
           status: 'installed',
           pkgId: localPackage.id,
         })
-      }))
+      })
     }
   }
 
