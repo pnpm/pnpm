@@ -48,7 +48,7 @@ dependencies:
   path-exists: 3.0.0
   path-name: 1.0.0
   pnpm-install-checks: 1.1.0
-  pnpm-shrinkwrap: 6.0.0
+  pnpm-shrinkwrap: 6.0.1
   ramda: 0.25.0
   read-package-json: 2.0.12
   remove-all-except-outer-links: 1.0.3
@@ -1504,12 +1504,12 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha1-OHHMCmoALow+Wzz38zYmRnXwa50=
-  /diff/3.4.0:
+  /diff/3.5.0:
     dev: true
     engines:
       node: '>=0.3.1'
     resolution:
-      integrity: sha512-QpVuMTEoJMF7cKzi6bvWhRulU1fZqZnvyVQgNhPaxxuTYwyjn/j1v9falseQ/uXWwPnO56RBfwtg4h/EQXmucA==
+      integrity: sha512-A46qtFgd+g7pDZinpnwiRJtxbC1hpgf0uzP3iG89scHk0AUC7A1TGxf5OiiOUv/JMZR8GOt8hL900hV0bOy5xA==
   /dint/2.0.2:
     dependencies:
       graceful-fs: 4.1.11
@@ -2191,13 +2191,15 @@ packages:
       node: '>= 0.6'
     resolution:
       integrity: sha1-CgAsyFcHGSp+eUbO7cERVfYOxzY=
-  /http-proxy-agent/2.0.0:
+  /http-proxy-agent/2.1.0:
     dependencies:
       agent-base: 4.2.0
-      debug: 2.6.9
+      debug: 3.1.0
     dev: true
+    engines:
+      node: '>= 4.5.0'
     resolution:
-      integrity: sha1-RkgqLwUjpNYIJVFwn0acs+SoX/Q=
+      integrity: sha512-qwHbBLV7WviBl0rQsOzH6o5lwyOIvwp/BdFnvVxXORldu5TmjFfjzBcWUWS5kWAZhmv+JtiDhSuQCp4sBfbIgg==
   /http-signature/1.2.0:
     dependencies:
       assert-plus: 1.0.0
@@ -2782,7 +2784,7 @@ packages:
       agentkeepalive: 3.4.0
       cacache: 10.0.4
       http-cache-semantics: 3.8.1
-      http-proxy-agent: 2.0.0
+      http-proxy-agent: 2.1.0
       https-proxy-agent: 2.2.0
       lru-cache: 4.1.1
       mississippi: 1.3.1
@@ -3673,7 +3675,7 @@ packages:
     dev: true
     resolution:
       integrity: sha512-PijlGxk564x1E/3Pw0hzcE6tw9Va/lZ/UVfheq+ld62c8mqOmgC/49DCx+YIV1RAwscDttsVUT3EeAjAZHh55g==
-  /pnpm-shrinkwrap/6.0.0:
+  /pnpm-shrinkwrap/6.0.1:
     dependencies:
       '@types/node': 9.4.6
       '@types/ramda': 0.25.19
@@ -3691,7 +3693,7 @@ packages:
     peerDependencies:
       '@pnpm/logger': ^1.0.0
     resolution:
-      integrity: sha512-c+GWM0deEHpp5nb2RG6FXyl2jX04lwiOAG14+hMhtYg6BwyDqdK9gURIxCwcgXZFifj2X5rze+6eOAYUSkghtQ==
+      integrity: sha512-2V4ned5KSFUPWqk3EJ9zOvM/GFD8O0JHHCRqqYMlp8LBmAtwz8bt9q1aDHO8Ud0UR5nZHFki/PaFcW+LSXjZhA==
   /prepend-http/2.0.0:
     dev: true
     engines:
@@ -4208,7 +4210,7 @@ packages:
   /sinon/4.4.2:
     dependencies:
       '@sinonjs/formatio': 2.0.0
-      diff: 3.4.0
+      diff: 3.5.0
       lodash.get: 4.4.2
       lolex: 2.3.2
       nise: 1.3.0
@@ -4625,7 +4627,7 @@ packages:
     dependencies:
       arrify: 1.0.1
       chalk: 2.3.2
-      diff: 3.4.0
+      diff: 3.5.0
       make-error: 1.3.4
       minimist: 1.2.0
       mkdirp: 0.5.1
@@ -4657,14 +4659,14 @@ packages:
       builtin-modules: 1.1.1
       chalk: 2.3.2
       commander: 2.14.1
-      diff: 3.4.0
+      diff: 3.5.0
       glob: 7.1.2
       js-yaml: 3.10.0
       minimatch: 3.0.4
       resolve: 1.5.0
       semver: 5.5.0
       tslib: 1.9.0
-      tsutils: 2.22.1
+      tsutils: 2.22.2
     dev: true
     engines:
       node: '>=4.8.0'
@@ -4672,14 +4674,14 @@ packages:
       typescript: '>=2.1.0 || >=2.1.0-dev || >=2.2.0-dev || >=2.3.0-dev || >=2.4.0-dev || >=2.5.0-dev || >=2.6.0-dev || >=2.7.0-dev || >=2.8.0-dev'
     resolution:
       integrity: sha1-ElX4ej/1frCw4fDmEKi0dIBGya4=
-  /tsutils/2.22.1:
+  /tsutils/2.22.2:
     dependencies:
       tslib: 1.9.0
     dev: true
     peerDependencies:
       typescript: '>=2.1.0 || >=2.1.0-dev || >=2.2.0-dev || >=2.3.0-dev || >=2.4.0-dev || >=2.5.0-dev || >=2.6.0-dev || >=2.7.0-dev || >=2.8.0-dev || >=2.9.0-dev'
     resolution:
-      integrity: sha512-j4Nx7aeMPyIrKtDftSfDiTFBYW3o/41T3zAxm0C/9fSKT62jnfqOZooC9uKLr4rQF9QsZaVTVY6QY+vVnWSisw==
+      integrity: sha512-u06FUSulCJ+Y8a2ftuqZN6kIGqdP2yJjUPEngXqmdPND4UQfb04igcotH+dw+IFr417yP6muCLE8/5/Qlfnx0w==
   /tunnel-agent/0.6.0:
     dependencies:
       safe-buffer: 5.1.1
@@ -5116,7 +5118,7 @@ specifiers:
   path-name: ^1.0.0
   pnpm-install-checks: ^1.1.0
   pnpm-registry-mock: ^1.17.0
-  pnpm-shrinkwrap: ^6.0.0
+  pnpm-shrinkwrap: ^6.0.1
   ramda: ^0.25.0
   read-package-json: ^2.0.5
   read-pkg: ^3.0.0

@@ -20,7 +20,7 @@ import {
   write as saveShrinkwrap,
   writeCurrentOnly as saveCurrentShrinkwrapOnly,
 } from 'pnpm-shrinkwrap'
-import readPackage from '../fs/readPkg'
+import safeReadPackage from '../fs/safeReadPkg'
 import getSpecFromPackageJson from '../getSpecFromPackageJson'
 import {
   read as readModules,
@@ -62,7 +62,7 @@ export default async function link (
     registry: opts.registry,
   })
   const oldShrinkwrap = R.clone(shrFiles.currentShrinkwrap)
-  const pkg = await readPackage(path.join(opts.prefix, 'package.json'))
+  const pkg = await safeReadPackage(path.join(opts.prefix, 'package.json')) || undefined
   const linkedPkgs: {path: string, pkg: PackageJson}[] = []
 
   for (const linkFrom of linkFromPkgs) {
@@ -118,7 +118,7 @@ function addLinkToShrinkwrap (
   opts: {
     packagePath: string,
     linkedPkgName: string,
-    pkg: PackageJson,
+    pkg?: PackageJson,
   },
 ) {
   const legacyId = `file:${opts.packagePath}`
@@ -135,6 +135,10 @@ function addLinkToShrinkwrap (
     shr.dependencies = shr.dependencies || {}
     shr.dependencies[opts.linkedPkgName] = id
   }
+
+  // package.json might not be available when linking to global
+  if (!opts.pkg) return
+
   const availableSpec = getSpecFromPackageJson(opts.pkg, opts.linkedPkgName)
   if (availableSpec) {
     shr.specifiers[opts.linkedPkgName] = availableSpec
@@ -184,6 +188,7 @@ export async function linkToGlobal (
   await link([linkFrom], path.join(globalPkgPath, 'node_modules'), {
     ...opts,
     linkToBin: maybeOpts.globalBin,
+    prefix: maybeOpts.globalPrefix,
   })
 
   if (reporter) {
