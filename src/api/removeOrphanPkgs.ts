@@ -1,41 +1,41 @@
-import rimraf = require('rimraf-then')
-import path = require('path')
 import * as dp from 'dependency-path'
-import {Shrinkwrap, ResolvedPackages} from 'pnpm-shrinkwrap'
 import {StoreController} from 'package-store'
+import path = require('path')
+import {ResolvedPackages, Shrinkwrap} from 'pnpm-shrinkwrap'
 import R = require('ramda')
-import removeTopDependency from '../removeTopDependency'
+import rimraf = require('rimraf-then')
 import {dependenciesTypes} from '../getSaveType'
 import {statsLogger} from '../loggers'
+import removeTopDependency from '../removeTopDependency'
 
 export default async function removeOrphanPkgs (
   opts: {
-    dryRun?: boolean,
-    oldShrinkwrap: Shrinkwrap,
-    newShrinkwrap: Shrinkwrap,
     bin: string,
+    dryRun?: boolean,
+    hoistedAliases: {[pkgId: string]: string[]},
+    newShrinkwrap: Shrinkwrap,
+    oldShrinkwrap: Shrinkwrap,
     prefix: string,
+    pruneStore?: boolean,
     shamefullyFlatten: boolean,
     storeController: StoreController,
-    pruneStore?: boolean,
-    hoistedAliases: {[pkgId: string]: string[]},
-  }
+  },
 ): Promise<Set<string>> {
-  const oldPkgs = R.toPairs(R.mergeAll(R.map(depType => opts.oldShrinkwrap[depType], dependenciesTypes)))
-  const newPkgs = R.toPairs(R.mergeAll(R.map(depType => opts.newShrinkwrap[depType], dependenciesTypes)))
+  const oldPkgs = R.toPairs(R.mergeAll(R.map((depType) => opts.oldShrinkwrap[depType], dependenciesTypes)))
+  const newPkgs = R.toPairs(R.mergeAll(R.map((depType) => opts.newShrinkwrap[depType], dependenciesTypes)))
 
-  const removedTopDeps: [string, string][] = R.difference(oldPkgs, newPkgs) as [string, string][]
+  const removedTopDeps: Array<[string, string]> = R.difference(oldPkgs, newPkgs) as Array<[string, string]>
 
   const rootModules = path.join(opts.prefix, 'node_modules')
-  await Promise.all(removedTopDeps.map(depName => {
+  await Promise.all(removedTopDeps.map((depName) => {
     return removeTopDependency({
-      name: depName[0],
       dev: Boolean(opts.oldShrinkwrap.devDependencies && opts.oldShrinkwrap.devDependencies[depName[0]]),
+      name: depName[0],
       optional: Boolean(opts.oldShrinkwrap.optionalDependencies && opts.oldShrinkwrap.optionalDependencies[depName[0]]),
     }, {
+      bin: opts.bin,
       dryRun: opts.dryRun,
       modules: rootModules,
-      bin: opts.bin,
     })
   }))
 
@@ -50,17 +50,17 @@ export default async function removeOrphanPkgs (
     if (notDependents.length) {
 
       if (opts.shamefullyFlatten && opts.oldShrinkwrap.packages) {
-        await Promise.all(notDependents.map(async notDependent => {
+        await Promise.all(notDependents.map(async (notDependent) => {
           if (opts.hoistedAliases[notDependent]) {
-            await Promise.all(opts.hoistedAliases[notDependent].map(async alias => {
+            await Promise.all(opts.hoistedAliases[notDependent].map(async (alias) => {
               await removeTopDependency({
-                name: alias,
                 dev: false,
+                name: alias,
                 optional: false,
               }, {
-                modules: rootModules,
                 bin: opts.bin,
-                muteLogs: true
+                modules: rootModules,
+                muteLogs: true,
               })
             }))
           }
@@ -68,7 +68,7 @@ export default async function removeOrphanPkgs (
         }))
       }
 
-      await Promise.all(notDependents.map(async notDependent => {
+      await Promise.all(notDependents.map(async (notDependent) => {
         await rimraf(path.join(rootModules, `.${notDependent}`))
       }))
     }
@@ -76,9 +76,9 @@ export default async function removeOrphanPkgs (
     const newDependents = R.difference(newPkgIds, oldPkgIds)
 
     await opts.storeController.updateConnections(opts.prefix, {
+      addDependencies: newDependents,
       prune: opts.pruneStore || false,
       removeDependencies: notDependents,
-      addDependencies: newDependents,
     })
 
     await opts.storeController.saveState()
@@ -89,15 +89,15 @@ export default async function removeOrphanPkgs (
 
 function getPackageIds (
   registry: string,
-  packages: ResolvedPackages
+  packages: ResolvedPackages,
 ): string[] {
   return R.uniq(
     R.keys(packages)
-      .map(depPath => {
+      .map((depPath) => {
         if (packages[depPath].id) {
           return packages[depPath].id
         }
         return dp.resolve(registry, depPath)
-      })
+      }),
   ) as string[]
 }

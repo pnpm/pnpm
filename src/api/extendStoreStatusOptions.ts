@@ -1,13 +1,13 @@
-import path = require('path')
 import logger from '@pnpm/logger'
-import pnpmPkgJson from '../pnpmPkgJson'
-import {LAYOUT_VERSION} from '../fs/modulesController'
+import { ReadPackageHook } from '@pnpm/types'
 import normalizeRegistryUrl = require('normalize-registry-url')
 import {StoreController} from 'package-store'
+import path = require('path')
+import {LAYOUT_VERSION} from '../fs/modulesController'
+import pnpmPkgJson from '../pnpmPkgJson'
 import { ReporterFunction } from '../types'
-import { ReadPackageHook } from '@pnpm/types'
 
-export type StoreStatusOptions = {
+export interface StoreStatusOptions {
   prefix?: string,
   store: string,
   independentLeaves?: boolean,
@@ -38,17 +38,17 @@ export type StrictStoreStatusOptions = StoreStatusOptions & {
 
 const defaults = async (opts: StoreStatusOptions) => {
   const prefix = opts.prefix || process.cwd()
-  return <StrictStoreStatusOptions>{
-    global: false,
-    store: opts.store,
+  return {
     bin: path.join(prefix, 'node_modules', '.bin'),
-    prefix,
     force: false,
-    registry: 'https://registry.npmjs.org/',
+    global: false,
     independentLeaves: false,
-    shrinkwrap: true,
+    prefix,
+    registry: 'https://registry.npmjs.org/',
     shamefullyFlatten: false,
-  }
+    shrinkwrap: true,
+    store: opts.store,
+  } as StrictStoreStatusOptions
 }
 
 export default async (

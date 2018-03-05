@@ -1,5 +1,5 @@
-import R = require('ramda')
 import {Shrinkwrap} from 'pnpm-shrinkwrap'
+import R = require('ramda')
 
 export default function shrinkwrapsEqual (shr1: Shrinkwrap, shr2: Shrinkwrap) {
   const specs1 = R.keys(shr1.specifiers)

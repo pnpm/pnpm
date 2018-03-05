@@ -1,16 +1,16 @@
-import tape = require('tape')
-import promisifyTape from 'tape-promise'
-import rimraf = require('rimraf-then')
-import {prepare, testDefaults} from './utils'
-import {
-  storePrune,
-  installPkgs,
-  uninstall,
-} from 'supi'
-import sinon = require('sinon')
+import loadJsonFile = require('load-json-file')
 import exists = require('path-exists')
 import R = require('ramda')
-import loadJsonFile = require('load-json-file')
+import rimraf = require('rimraf-then')
+import sinon = require('sinon')
+import {
+  installPkgs,
+  storePrune,
+  uninstall,
+} from 'supi'
+import tape = require('tape')
+import promisifyTape from 'tape-promise'
+import {prepare, testDefaults} from './utils'
 
 const test = promisifyTape(tape)
 
@@ -63,7 +63,7 @@ test('remove packages that are used by project that no longer exist', async (t: 
   t.notOk(await exists(pkgInStore))
 })
 
-test('keep dependencies used by others', async function (t: tape.Test) {
+test('keep dependencies used by others', async (t: tape.Test) => {
   const project = prepare(t)
   await installPkgs(['camelcase-keys@3.0.0'], await testDefaults({ save: true }))
   await installPkgs(['hastscript@3.0.0'], await testDefaults({ saveDev: true }))
@@ -84,7 +84,7 @@ test('keep dependencies used by others', async function (t: tape.Test) {
   const shr = await project.loadShrinkwrap()
   t.notOk(R.isEmpty(shr.packages))
 
-  R.toPairs(shr.packages).forEach(pair => t.ok(pair[1]['dev'], `${pair[0]} is dev`))
+  R.toPairs(shr.packages).forEach((pair) => t.ok(pair[1].dev, `${pair[0]} is dev`))
 
   await storePrune(await testDefaults())
 

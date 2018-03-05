@@ -1,11 +1,11 @@
+import {installPkgs, PackageManifest} from 'supi'
 import tape = require('tape')
 import promisifyTape from 'tape-promise'
 import {
-  prepare,
   addDistTag,
+  prepare,
   testDefaults,
 } from '../utils'
-import {installPkgs, PackageManifest} from 'supi'
 
 const test = promisifyTape(tape)
 
@@ -23,7 +23,7 @@ test('readPackage hook', async (t: tape.Test) => {
   }
 
   await installPkgs(['pkg-with-1-dep'], await testDefaults({
-    hooks: {readPackage: readPackageHook}
+    hooks: {readPackage: readPackageHook},
   }))
 
   await project.storeHas('dep-of-pkg-with-1-dep', '100.0.0')

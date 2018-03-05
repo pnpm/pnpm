@@ -1,17 +1,17 @@
-import storePath from '@pnpm/store-path'
-import {InstallOptions} from 'supi'
-import path = require('path')
-import createStore from 'package-store'
 import createFetcher from '@pnpm/default-fetcher'
 import createResolver from '@pnpm/default-resolver'
+import storePath from '@pnpm/store-path'
+import createStore from 'package-store'
+import path = require('path')
+import {InstallOptions} from 'supi'
 
 const registry = 'http://localhost:4873/'
 
 const retryOpts = {
   fetchRetries: 2,
   fetchRetryFactor: 10,
-  fetchRetryMintimeout: 10_000,
   fetchRetryMaxtimeout: 60_000,
+  fetchRetryMintimeout: 10_000,
 }
 
 export default async function testDefaults (
@@ -34,21 +34,21 @@ export default async function testDefaults (
     }),
     createFetcher({
       alwaysAuth: true,
-      registry,
       rawNpmConfig,
+      registry,
       ...retryOpts,
       ...fetchOpts,
     }) as {},
     {
-      store,
       locks: path.join(store, '_locks'),
+      store,
       ...storeOpts,
-    }
+    },
   )
   return {
+    registry,
     store,
     storeController,
-    registry,
     ...opts,
   }
 }

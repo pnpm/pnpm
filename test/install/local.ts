@@ -1,25 +1,25 @@
 import fs = require('mz/fs')
-import tape = require('tape')
-import promisifyTape from 'tape-promise'
-import normalizePath = require('normalize-path')
-import readPkg = require('read-pkg')
 import ncpCB = require('ncp')
-import promisify = require('util.promisify')
+import normalizePath = require('normalize-path')
 import path = require('path')
+import readPkg = require('read-pkg')
 import {install, installPkgs} from 'supi'
 import symlinkDir = require('symlink-dir')
+import tape = require('tape')
+import promisifyTape from 'tape-promise'
+import promisify = require('util.promisify')
 import {
+  local,
+  pathToLocalPkg,
   prepare,
   testDefaults,
-  pathToLocalPkg,
-  local,
 } from '../utils'
 
 const ncp = promisify(ncpCB.ncp)
 const test = promisifyTape(tape)
 const testOnly = promisifyTape(tape.only)
 
-test('scoped modules from a directory', async function (t: tape.Test) {
+test('scoped modules from a directory', async (t: tape.Test) => {
   const project = prepare(t)
   await installPkgs([local('local-scoped-pkg')], await testDefaults())
 
@@ -28,7 +28,7 @@ test('scoped modules from a directory', async function (t: tape.Test) {
   t.equal(m(), '@scope/local-scoped-pkg', 'localScopedPkg() is available')
 })
 
-test('local file', async function (t: tape.Test) {
+test('local file', async (t: tape.Test) => {
   const project = prepare(t)
   await ncp(pathToLocalPkg('local-pkg'), path.resolve('..', 'local-pkg'))
 
@@ -45,17 +45,17 @@ test('local file', async function (t: tape.Test) {
   const shr = await project.loadShrinkwrap()
 
   t.deepEqual(shr, {
-    specifiers: expectedSpecs,
     dependencies: {
       'local-pkg': 'file:../local-pkg',
     },
     registry: 'http://localhost:4873/',
-    shrinkwrapVersion: 3,
     shrinkwrapMinorVersion: 4,
+    shrinkwrapVersion: 3,
+    specifiers: expectedSpecs,
   })
 })
 
-test('local file via link:', async function (t: tape.Test) {
+test('local file via link:', async (t: tape.Test) => {
   const project = prepare(t)
   await ncp(pathToLocalPkg('local-pkg'), path.resolve('..', 'local-pkg'))
 
@@ -72,17 +72,17 @@ test('local file via link:', async function (t: tape.Test) {
   const shr = await project.loadShrinkwrap()
 
   t.deepEqual(shr, {
-    specifiers: expectedSpecs,
     dependencies: {
       'local-pkg': 'link:../local-pkg',
     },
     registry: 'http://localhost:4873/',
-    shrinkwrapVersion: 3,
     shrinkwrapMinorVersion: 4,
+    shrinkwrapVersion: 3,
+    specifiers: expectedSpecs,
   })
 })
 
-test('local file with symlinked node_modules', async function (t: tape.Test) {
+test('local file with symlinked node_modules', async (t: tape.Test) => {
   const project = prepare(t)
   await ncp(pathToLocalPkg('local-pkg'), path.resolve('..', 'local-pkg'))
   await fs.mkdir(path.join('..', 'node_modules'))
@@ -101,17 +101,17 @@ test('local file with symlinked node_modules', async function (t: tape.Test) {
   const shr = await project.loadShrinkwrap()
 
   t.deepEqual(shr, {
-    specifiers: expectedSpecs,
     dependencies: {
       'local-pkg': 'file:../local-pkg',
     },
     registry: 'http://localhost:4873/',
-    shrinkwrapVersion: 3,
     shrinkwrapMinorVersion: 4,
+    shrinkwrapVersion: 3,
+    specifiers: expectedSpecs,
   })
 })
 
-test('package with a broken symlink', async function (t) {
+test('package with a broken symlink', async (t) => {
   const project = prepare(t)
   await installPkgs([pathToLocalPkg('has-broken-symlink/has-broken-symlink.tar.gz')], await testDefaults())
 
@@ -120,7 +120,7 @@ test('package with a broken symlink', async function (t) {
   t.ok(m, 'has-broken-symlink is available')
 })
 
-test('tarball local package', async function (t) {
+test('tarball local package', async (t) => {
   const project = prepare(t)
   await installPkgs([pathToLocalPkg('tar-pkg/tar-pkg-1.0.0.tgz')], await testDefaults())
 
@@ -144,7 +144,7 @@ test('tarball local package', async function (t) {
   }, 'a snapshot of the local dep tarball added to shrinkwrap.yaml')
 })
 
-test('update tarball local package when its integrity changes', async function (t) {
+test('update tarball local package when its integrity changes', async (t) => {
   const project = prepare(t)
 
   await ncp(pathToLocalPkg('tar-pkg-with-dep-1/tar-pkg-with-dep-1.0.0.tgz'), path.resolve('..', 'tar.tgz'))

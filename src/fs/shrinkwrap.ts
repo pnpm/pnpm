@@ -8,7 +8,7 @@ export function absolutePathToRef (
     realName: string,
     resolution: Resolution,
     standardRegistry: string,
-  }
+  },
 ) {
   if (opts.resolution.type) return absolutePath
 

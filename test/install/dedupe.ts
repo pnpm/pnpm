@@ -1,7 +1,7 @@
+import {addDistTag} from 'pnpm-registry-mock'
+import {install, installPkgs} from 'supi'
 import tape = require('tape')
 import promisifyTape from 'tape-promise'
-import {install, installPkgs} from 'supi'
-import {addDistTag} from 'pnpm-registry-mock'
 import {
   prepare,
   testDefaults,

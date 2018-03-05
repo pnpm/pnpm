@@ -1,12 +1,12 @@
-import path = require('path')
 import logger from '@pnpm/logger'
-import pnpmPkgJson from '../pnpmPkgJson'
-import {LAYOUT_VERSION} from '../fs/modulesController'
 import normalizeRegistryUrl = require('normalize-registry-url')
 import {StoreController} from 'package-store'
+import path = require('path')
+import {LAYOUT_VERSION} from '../fs/modulesController'
+import pnpmPkgJson from '../pnpmPkgJson'
 import { ReporterFunction } from '../types'
 
-export type UninstallOptions = {
+export interface UninstallOptions {
   prefix?: string,
   store: string,
   independentLeaves?: boolean,
@@ -55,22 +55,22 @@ const defaults = async (opts: UninstallOptions) => {
     version: pnpmPkgJson.version,
   }
   const prefix = opts.prefix || process.cwd()
-  return <StrictUninstallOptions>{
-    shamefullyFlatten: false,
-    storeController: opts.storeController,
-    global: false,
-    store: opts.store,
-    locks: path.join(opts.store, '_locks'),
+  return {
     bin: path.join(prefix, 'node_modules', '.bin'),
-    prefix,
     force: false,
-    lockStaleDuration: 60 * 1000, // 1 minute
-    lock: true,
-    registry: 'https://registry.npmjs.org/',
+    global: false,
     independentLeaves: false,
+    lock: true,
+    lockStaleDuration: 60 * 1000, // 1 minute
+    locks: path.join(opts.store, '_locks'),
     packageManager,
+    prefix,
+    registry: 'https://registry.npmjs.org/',
+    shamefullyFlatten: false,
     shrinkwrap: true,
-  }
+    store: opts.store,
+    storeController: opts.storeController,
+  } as StrictUninstallOptions
 }
 
 export default async (

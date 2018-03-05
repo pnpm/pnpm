@@ -1,8 +1,8 @@
-import test = require('tape')
 import * as pnpm from 'supi'
+import test = require('tape')
 import {testDefaults} from './utils'
 
-test('API', t => {
+test('API', (t) => {
   t.equal(typeof pnpm.install, 'function', 'exports install()')
   t.equal(typeof pnpm.installPkgs, 'function', 'exports installPkgs()')
   t.equal(typeof pnpm.uninstall, 'function', 'exports uninstall()')

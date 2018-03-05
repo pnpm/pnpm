@@ -1,22 +1,22 @@
-import path = require('path')
-import tape = require('tape')
-import promisifyTape from 'tape-promise'
-import loadYamlFile = require('load-yaml-file')
-import exists = require('path-exists')
 import deepRequireCwd = require('deep-require-cwd')
+import loadYamlFile = require('load-yaml-file')
+import path = require('path')
+import exists = require('path-exists')
 import sinon = require('sinon')
 import {install, installPkgs} from 'supi'
+import tape = require('tape')
+import promisifyTape from 'tape-promise'
 import {
-  prepare,
   addDistTag,
-  testDefaults,
-  pathToLocalPkg,
   local,
+  pathToLocalPkg,
+  prepare,
+  testDefaults,
 } from '../utils'
 
 const test = promisifyTape(tape)
 
-test('successfully install optional dependency with subdependencies', async function (t) {
+test('successfully install optional dependency with subdependencies', async (t) => {
   const project = prepare(t)
 
   await installPkgs(['fsevents@1.0.14'], await testDefaults({saveOptional: true}))
@@ -44,9 +44,9 @@ test('skip non-existing optional dependency', async (t: tape.Test) => {
   await install(await testDefaults({reporter}))
 
   t.ok(reporter.calledWithMatch({
-    name: 'pnpm',
     level: 'warn',
     message: 'Skipping optional dependency i-do-not-exist@1000. Error: 404 Not Found: i-do-not-exist',
+    name: 'pnpm',
   }), 'warning reported')
 
   const m = project.requireModule('is-positive')
@@ -56,8 +56,8 @@ test('skip non-existing optional dependency', async (t: tape.Test) => {
 test('skip optional dependency that does not support the current OS', async (t: tape.Test) => {
   const project = prepare(t, {
     optionalDependencies: {
-      'not-compatible-with-any-os': '*'
-    }
+      'not-compatible-with-any-os': '*',
+    },
   })
   const reporter = sinon.spy()
 
@@ -88,8 +88,8 @@ test('skip optional dependency that does not support the current OS', async (t: 
 test('skip optional dependency that does not support the current Node version', async (t: tape.Test) => {
   const project = prepare(t, {
     optionalDependencies: {
-      'for-legacy-node': '*'
-    }
+      'for-legacy-node': '*',
+    },
   })
   const reporter = sinon.spy()
 
@@ -109,8 +109,8 @@ test('skip optional dependency that does not support the current Node version', 
 test('skip optional dependency that does not support the current pnpm version', async (t: tape.Test) => {
   const project = prepare(t, {
     optionalDependencies: {
-      'for-legacy-pnpm': '*'
-    }
+      'for-legacy-pnpm': '*',
+    },
   })
   const reporter = sinon.spy()
 
@@ -127,15 +127,15 @@ test('skip optional dependency that does not support the current pnpm version', 
   t.equal(reportedTimes, 1, 'skipping optional dependency is logged')
 })
 
-test('don\'t skip optional dependency that does not support the current OS when forcing', async function (t) {
+test('don\'t skip optional dependency that does not support the current OS when forcing', async (t) => {
   const project = prepare(t, {
     optionalDependencies: {
-      'not-compatible-with-any-os': '*'
-    }
+      'not-compatible-with-any-os': '*',
+    },
   })
 
   await install(await testDefaults({
-    force: true
+    force: true,
   }))
 
   await project.has('not-compatible-with-any-os')

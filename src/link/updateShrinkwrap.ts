@@ -1,45 +1,45 @@
-import * as dp from 'dependency-path'
-import {absolutePathToRef} from '../fs/shrinkwrap'
-import {
-  Shrinkwrap,
-  DependencyShrinkwrap,
-  ShrinkwrapResolution,
-  ResolvedDependencies,
-  prune as pruneShrinkwrap,
-} from 'pnpm-shrinkwrap'
-import {DependencyTreeNodeMap, DependencyTreeNode} from './resolvePeers'
 import {Resolution} from '@pnpm/resolver-base'
+import {Dependencies, PackageJson} from '@pnpm/types'
+import * as dp from 'dependency-path'
+import {
+  DependencyShrinkwrap,
+  prune as pruneShrinkwrap,
+  ResolvedDependencies,
+  Shrinkwrap,
+  ShrinkwrapResolution,
+} from 'pnpm-shrinkwrap'
 import R = require('ramda')
-import {PackageJson, Dependencies} from '@pnpm/types'
+import {absolutePathToRef} from '../fs/shrinkwrap'
+import {DependencyTreeNode, DependencyTreeNodeMap} from './resolvePeers'
 
 export default function (
   pkgsToLink: DependencyTreeNodeMap,
   shrinkwrap: Shrinkwrap,
-  pkg: PackageJson
+  pkg: PackageJson,
 ): Shrinkwrap {
   shrinkwrap.packages = shrinkwrap.packages || {}
   for (const depPath of R.keys(pkgsToLink)) {
     const relDepPath = dp.relative(shrinkwrap.registry, depPath)
     const result = R.partition(
       (child) => pkgsToLink[depPath].optionalDependencies.has(pkgsToLink[child.nodeId].name),
-      R.keys(pkgsToLink[depPath].children).map(alias => ({alias, nodeId: pkgsToLink[depPath].children[alias]}))
+      R.keys(pkgsToLink[depPath].children).map((alias) => ({alias, nodeId: pkgsToLink[depPath].children[alias]})),
     )
     shrinkwrap.packages[relDepPath] = toShrDependency(pkgsToLink[depPath].additionalInfo, {
       depPath,
-      name: pkgsToLink[depPath].name,
-      version: pkgsToLink[depPath].version,
+      dev: pkgsToLink[depPath].dev,
       id: pkgsToLink[depPath].id,
-      relDepPath,
-      resolution: pkgsToLink[depPath].resolution,
-      updatedOptionalDeps: result[0],
-      updatedDeps: result[1],
-      registry: shrinkwrap.registry,
+      name: pkgsToLink[depPath].name,
+      optional: pkgsToLink[depPath].optional,
       pkgsToLink,
       prevResolvedDeps: shrinkwrap.packages[relDepPath] && shrinkwrap.packages[relDepPath].dependencies || {},
       prevResolvedOptionalDeps: shrinkwrap.packages[relDepPath] && shrinkwrap.packages[relDepPath].optionalDependencies || {},
       prod: pkgsToLink[depPath].prod,
-      dev: pkgsToLink[depPath].dev,
-      optional: pkgsToLink[depPath].optional,
+      registry: shrinkwrap.registry,
+      relDepPath,
+      resolution: pkgsToLink[depPath].resolution,
+      updatedDeps: result[1],
+      updatedOptionalDeps: result[0],
+      version: pkgsToLink[depPath].version,
     })
   }
   return pruneShrinkwrap(shrinkwrap, pkg)
@@ -66,22 +66,23 @@ function toShrDependency (
     relDepPath: string,
     resolution: Resolution,
     registry: string,
-    updatedDeps: {alias: string, nodeId: string}[],
-    updatedOptionalDeps: {alias: string, nodeId: string}[],
+    updatedDeps: Array<{alias: string, nodeId: string}>,
+    updatedOptionalDeps: Array<{alias: string, nodeId: string}>,
     pkgsToLink: DependencyTreeNodeMap,
     prevResolvedDeps: ResolvedDependencies,
     prevResolvedOptionalDeps: ResolvedDependencies,
     prod: boolean,
     dev: boolean,
     optional: boolean,
-  }
+  },
 ): DependencyShrinkwrap {
   const shrResolution = toShrResolution(opts.relDepPath, opts.resolution, opts.registry)
   const newResolvedDeps = updateResolvedDeps(opts.prevResolvedDeps, opts.updatedDeps, opts.registry, opts.pkgsToLink)
   const newResolvedOptionalDeps = updateResolvedDeps(opts.prevResolvedOptionalDeps, opts.updatedOptionalDeps, opts.registry, opts.pkgsToLink)
   const result = {
-    resolution: shrResolution
+    resolution: shrResolution,
   }
+  // tslint:disable:no-string-literal
   if (dp.isAbsolute(opts.relDepPath)) {
     result['name'] = opts.name
 
@@ -112,7 +113,7 @@ function toShrDependency (
     result['peerDependencies'] = pkg.peerDependencies
   }
   if (pkg.engines) {
-    for (let engine of R.keys(pkg.engines)) {
+    for (const engine of R.keys(pkg.engines)) {
       if (pkg.engines[engine] === '*') continue
       result['engines'] = result['engines'] || {}
       result['engines'][engine] = pkg.engines[engine]
@@ -130,6 +131,7 @@ function toShrDependency (
   if (pkg.deprecated) {
     result['deprecated'] = pkg.deprecated
   }
+  // tslint:enable:no-string-literal
   return result
 }
 
@@ -138,9 +140,9 @@ function toShrDependency (
 // the `depth` property defines how deep should dependencies be checked
 function updateResolvedDeps (
   prevResolvedDeps: ResolvedDependencies,
-  updatedDeps: {alias: string, nodeId: string}[],
+  updatedDeps: Array<{alias: string, nodeId: string}>,
   registry: string,
-  pkgsToLink: DependencyTreeNodeMap
+  pkgsToLink: DependencyTreeNodeMap,
 ) {
   const newResolvedDeps = R.fromPairs<string>(
     updatedDeps
@@ -153,21 +155,22 @@ function updateResolvedDeps (
             realName: pkgToLink.name,
             resolution: pkgToLink.resolution,
             standardRegistry: registry,
-          })
+          }),
         ]
-      })
+      }),
   )
   return R.merge(
     prevResolvedDeps,
-    newResolvedDeps
+    newResolvedDeps,
   )
 }
 
 function toShrResolution (
   relDepPath: string,
   resolution: Resolution,
-  registry: string
+  registry: string,
 ): ShrinkwrapResolution {
+  // tslint:disable:no-string-literal
   if (dp.isAbsolute(relDepPath) || resolution.type !== undefined || !resolution['integrity']) {
     return resolution as ShrinkwrapResolution
   }
@@ -182,6 +185,7 @@ function toShrResolution (
   return {
     integrity: resolution['integrity'],
   }
+  // tslint:enable:no-string-literal
 }
 
 function relativeTarball (tarball: string, registry: string) {

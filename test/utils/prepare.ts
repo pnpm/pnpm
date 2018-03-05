@@ -1,13 +1,13 @@
-import mkdirp = require('mkdirp')
-import fs = require('fs')
-import path = require('path')
 import {stripIndent} from 'common-tags'
-import {Test} from 'tape'
-import exists = require('path-exists')
+import fs = require('fs')
 import loadYamlFile = require('load-yaml-file')
+import mkdirp = require('mkdirp')
+import path = require('path')
+import exists = require('path-exists')
+import {Test} from 'tape'
+import writePkg = require('write-pkg')
 import {Modules, read as readModules} from '../../src/fs/modulesController'
 import isExecutable from './isExecutable'
-import writePkg = require('write-pkg')
 
 // the testing folder should be outside of the project to avoid lookup in the project's node_modules
 const tmpPath = path.join(__dirname, '..', '..', '..', '.tmp')
@@ -15,7 +15,7 @@ mkdirp.sync(tmpPath)
 
 let dirNumber = 0
 
-export default function prepare (t: Test, pkg?: Object) {
+export default function prepare (t: Test, pkg?: object) {
   process.env.NPM_CONFIG_REGISTRY = 'http://localhost:4873/'
   process.env.NPM_CONFIG_STORE_PATH = '../.store'
   process.env.NPM_CONFIG_SILENT = 'true'
@@ -35,13 +35,13 @@ export default function prepare (t: Test, pkg?: Object) {
     requireModule (pkgName: string) {
       return require(path.join(modules, pkgName))
     },
-    has: async function (pkgName: string) {
+    async has (pkgName: string) {
       t.ok(await exists(path.join(modules, pkgName)), `${pkgName} is in node_modules`)
     },
-    hasNot: async function (pkgName: string) {
+    async hasNot (pkgName: string) {
       t.notOk(await exists(path.join(modules, pkgName)), `${pkgName} is not in node_modules`)
     },
-    getStorePath: async function () {
+    async getStorePath () {
       if (!cachedStorePath) {
         const modulesYaml = await readModules(modules)
         if (!modulesYaml) {
@@ -51,18 +51,18 @@ export default function prepare (t: Test, pkg?: Object) {
       }
       return cachedStorePath
     },
-    resolve: async function (pkgName: string, version?: string, relativePath?: string) {
+    async resolve (pkgName: string, version?: string, relativePath?: string) {
       const pkgFolder = version ? path.join('localhost+4873', pkgName, version) : pkgName
       if (relativePath) {
         return path.join(await project.getStorePath(), pkgFolder, 'package', relativePath)
       }
       return path.join(await project.getStorePath(), pkgFolder, 'package')
     },
-    storeHas: async function (pkgName: string, version?: string) {
+    async storeHas (pkgName: string, version?: string) {
       const pathToCheck = await project.resolve(pkgName, version)
       t.ok(await exists(pathToCheck), `${pkgName}@${version} is in store (at ${pathToCheck})`)
     },
-    storeHasNot: async function (pkgName: string, version?: string) {
+    async storeHasNot (pkgName: string, version?: string) {
       try {
         const pathToCheck = await project.resolve(pkgName, version)
         t.notOk(await exists(pathToCheck), `${pkgName}@${version} is not in store (at ${pathToCheck})`)
@@ -74,16 +74,8 @@ export default function prepare (t: Test, pkg?: Object) {
         throw err
       }
     },
-    isExecutable: function (pathToExe: string) {
+    isExecutable (pathToExe: string) {
       return isExecutable(t, path.join(modules, pathToExe))
-    },
-    loadShrinkwrap: async () => {
-      try {
-        return await loadYamlFile<any>('shrinkwrap.yaml') // tslint:disable-line
-      } catch (err) {
-        if (err.code === 'ENOENT') return null
-        throw err
-      }
     },
     loadCurrentShrinkwrap: async () => {
       try {
@@ -96,6 +88,14 @@ export default function prepare (t: Test, pkg?: Object) {
     loadModules: async () => {
       try {
         return await loadYamlFile<any>('node_modules/.modules.yaml') // tslint:disable-line
+      } catch (err) {
+        if (err.code === 'ENOENT') return null
+        throw err
+      }
+    },
+    loadShrinkwrap: async () => {
+      try {
+        return await loadYamlFile<any>('shrinkwrap.yaml') // tslint:disable-line
       } catch (err) {
         if (err.code === 'ENOENT') return null
         throw err

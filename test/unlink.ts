@@ -1,42 +1,42 @@
-import tape = require('tape')
-import promisifyTape from 'tape-promise'
-import {
-  prepare,
-  testDefaults,
-  pathToLocalPkg,
-  addDistTag,
-} from './utils'
-import writeJsonFile = require('write-json-file')
-import loadJsonFile = require('load-json-file')
-import {
-  link,
-  unlinkPkgs,
-  unlink,
-  installPkgs,
-} from 'supi'
 import isInnerLink = require('is-inner-link')
+import loadJsonFile = require('load-json-file')
 import path = require('path')
 import exists = require('path-exists')
 import sinon = require('sinon')
+import {
+  installPkgs,
+  link,
+  unlink,
+  unlinkPkgs,
+} from 'supi'
+import tape = require('tape')
+import promisifyTape from 'tape-promise'
+import writeJsonFile = require('write-json-file')
+import {
+  addDistTag,
+  pathToLocalPkg,
+  prepare,
+  testDefaults,
+} from './utils'
 
 const test = promisifyTape(tape)
 
 test('unlink 1 package that exists in package.json', async (t: tape.Test) => {
   const project = prepare(t, {
     dependencies: {
-      'is-subdir': '^1.0.0',
       'is-positive': '^1.0.0',
-    }
+      'is-subdir': '^1.0.0',
+    },
   })
   process.chdir('..')
 
   await Promise.all([
     writeJsonFile('is-subdir/package.json', {
+      dependencies: {
+        'is-windows': '^1.0.0',
+      },
       name: 'is-subdir',
       version: '1.0.0',
-      dependencies: {
-        'is-windows': '^1.0.0'
-      }
     }),
     writeJsonFile('is-positive/package.json', {
       name: 'is-positive',
@@ -105,18 +105,18 @@ test('unlink 2 packages. One of them exists in package.json', async (t: tape.Tes
   const project = prepare(t, {
     dependencies: {
       'is-subdir': '^1.0.0',
-    }
+    },
   })
   const opts = await testDefaults({prefix: process.cwd()})
   process.chdir('..')
 
   await Promise.all([
     writeJsonFile('is-subdir/package.json', {
+      dependencies: {
+        'is-windows': '^1.0.0',
+      },
       name: 'is-subdir',
       version: '1.0.0',
-      dependencies: {
-        'is-windows': '^1.0.0'
-      }
     }),
     writeJsonFile('is-positive/package.json', {
       name: 'is-positive',
@@ -136,20 +136,20 @@ test('unlink 2 packages. One of them exists in package.json', async (t: tape.Tes
 test('unlink all packages', async (t: tape.Test) => {
   const project = prepare(t, {
     dependencies: {
-      'is-subdir': '^1.0.0',
       '@zkochan/logger': '^0.1.0',
-    }
+      'is-subdir': '^1.0.0',
+    },
   })
   const opts = await testDefaults({prefix: process.cwd()})
   process.chdir('..')
 
   await Promise.all([
     writeJsonFile('is-subdir/package.json', {
+      dependencies: {
+        'is-windows': '^1.0.0',
+      },
       name: 'is-subdir',
       version: '1.0.0',
-      dependencies: {
-        'is-windows': '^1.0.0'
-      }
     }),
     writeJsonFile('logger/package.json', {
       name: '@zkochan/logger',

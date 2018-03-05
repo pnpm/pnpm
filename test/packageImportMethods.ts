@@ -1,24 +1,24 @@
-import path = require('path')
-import tape = require('tape')
-import promisifyTape from 'tape-promise'
-import writeYamlFile = require('write-yaml-file')
-import exists = require('path-exists')
-import {
-  prepare,
-  testDefaults,
-  addDistTag,
-} from './utils'
-import {
-  installPkgs,
-  install,
-  RootLog,
-} from 'supi'
+import {stripIndent} from 'common-tags'
 import loadJsonFile = require('load-json-file')
-import writePkg = require('write-pkg')
+import fs = require('mz/fs')
+import path = require('path')
+import exists = require('path-exists')
 import rimraf = require('rimraf-then')
 import sinon = require('sinon')
-import {stripIndent} from 'common-tags'
-import fs = require('mz/fs')
+import {
+  install,
+  installPkgs,
+  RootLog,
+} from 'supi'
+import tape = require('tape')
+import promisifyTape from 'tape-promise'
+import writePkg = require('write-pkg')
+import writeYamlFile = require('write-yaml-file')
+import {
+  addDistTag,
+  prepare,
+  testDefaults,
+} from './utils'
 
 const test = promisifyTape(tape)
 

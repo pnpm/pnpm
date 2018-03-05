@@ -1,5 +1,5 @@
-import path = require('path')
 import loadYamlFile = require('load-yaml-file')
+import path = require('path')
 import writeYamlFile = require('write-yaml-file')
 
 // The dot prefix is needed because otherwise `npm shrinkwrap`
@@ -8,7 +8,7 @@ const modulesFileName = '.modules.yaml'
 
 export const LAYOUT_VERSION = 1
 
-export type Modules = {
+export interface Modules {
   packageManager: string,
   store: string,
   skipped: string[],
@@ -24,13 +24,15 @@ export async function read (modulesPath: string): Promise<Modules | null> {
   try {
     const m = await loadYamlFile<Modules>(modulesYamlPath)
     // for backward compatibility
+    // tslint:disable:no-string-literal
     if (m['storePath']) {
       m.store = m['storePath']
       delete m['storePath']
     }
+    // tslint:enable:no-string-literal
     return m
   } catch (err) {
-    if ((<NodeJS.ErrnoException>err).code !== 'ENOENT') {
+    if ((err as NodeJS.ErrnoException).code !== 'ENOENT') {
       throw err
     }
     return null

@@ -1,35 +1,35 @@
-import path = require('path')
-import tape = require('tape')
-import promisifyTape from 'tape-promise'
-import writeYamlFile = require('write-yaml-file')
-import exists = require('path-exists')
-import {
-  prepare,
-  testDefaults,
-  addDistTag,
-} from './utils'
-import {
-  installPkgs,
-  install,
-  uninstall,
-  RootLog,
-} from 'supi'
+import {stripIndent} from 'common-tags'
 import loadJsonFile = require('load-json-file')
-import writePkg = require('write-pkg')
+import fs = require('mz/fs')
+import path = require('path')
+import exists = require('path-exists')
+import R = require('ramda')
 import rimraf = require('rimraf-then')
 import sinon = require('sinon')
-import {stripIndent} from 'common-tags'
-import fs = require('mz/fs')
-import R = require('ramda')
+import {
+  install,
+  installPkgs,
+  RootLog,
+  uninstall,
+} from 'supi'
+import tape = require('tape')
+import promisifyTape from 'tape-promise'
+import writePkg = require('write-pkg')
+import writeYamlFile = require('write-yaml-file')
+import {
+  addDistTag,
+  prepare,
+  testDefaults,
+} from './utils'
 
 const test = promisifyTape(tape)
 test.only = promisifyTape(tape.only)
 test.skip = promisifyTape(tape.skip)
 
 const SHRINKWRAP_WARN_LOG = {
-  name: 'pnpm',
   level: 'warn',
   message: 'A shrinkwrap.yaml file exists. The current configuration prohibits to read or write a shrinkwrap file',
+  name: 'pnpm',
 }
 
 test('shrinkwrap file has correct format', async (t: tape.Test) => {
@@ -38,7 +38,7 @@ test('shrinkwrap file has correct format', async (t: tape.Test) => {
   await installPkgs(['pkg-with-1-dep', '@rstacruz/tap-spec@4.1.1', 'kevva/is-negative#1d7e288222b53a0cab90a331f1865220ec29560c'], await testDefaults({save: true}))
 
   const modules = await project.loadModules()
-  t.equal(modules['pendingBuilds'].length, 0)
+  t.equal(modules.pendingBuilds.length, 0)
 
   const shr = await project.loadShrinkwrap()
   const id = '/pkg-with-1-dep/100.0.0'
@@ -85,7 +85,7 @@ test('shrinkwrap file has dev deps even when installing for prod only', async (t
   t.ok(shr.packages[id], `has resolution for ${id}`)
 })
 
-test('shrinkwrap with scoped package', async t => {
+test('shrinkwrap with scoped package', async (t) => {
   const project = prepare(t, {
     dependencies: {
       '@types/semver': '^5.3.31',
@@ -118,8 +118,6 @@ test('fail when shasum from shrinkwrap does not match with the actual one', asyn
   })
 
   await writeYamlFile('shrinkwrap.yaml', {
-    version: 3,
-    registry: 'http://localhost:4873',
     dependencies: {
       'is-negative': '2.1.0',
     },
@@ -131,6 +129,8 @@ test('fail when shasum from shrinkwrap does not match with the actual one', asyn
         },
       },
     },
+    registry: 'http://localhost:4873',
+    version: 3,
   })
 
   try {
@@ -169,12 +169,10 @@ test('shrinkwrap not created when no deps in package.json', async (t: tape.Test)
   t.notOk(await exists('node_modules'), 'empty node_modules not created')
 })
 
-test('shrinkwrap removed when no deps in package.json', async t => {
+test('shrinkwrap removed when no deps in package.json', async (t) => {
   const project = prepare(t)
 
   await writeYamlFile('shrinkwrap.yaml', {
-    version: 3,
-    registry: 'http://localhost:4873',
     dependencies: {
       'is-negative': '2.1.0',
     },
@@ -185,6 +183,8 @@ test('shrinkwrap removed when no deps in package.json', async t => {
         },
       },
     },
+    registry: 'http://localhost:4873',
+    version: 3,
   })
 
   await install(await testDefaults())
@@ -198,19 +198,22 @@ test('shrinkwrap is fixed when it does not match package.json', async (t: tape.T
       'is-negative': '^2.1.0',
     },
     optionalDependencies: {
-      'is-positive': '^3.1.0'
-    }
+      'is-positive': '^3.1.0',
+    },
   })
 
   await writeYamlFile('shrinkwrap.yaml', {
-    version: 3,
-    registry: 'http://localhost:4873',
     dependencies: {
+      '@types/semver': '5.3.31',
       'is-negative': '2.1.0',
       'is-positive': '3.1.0',
-      '@types/semver': '5.3.31',
     },
     packages: {
+      '/@types/semver/5.3.31': {
+        resolution: {
+          integrity: 'sha1-uZnX2TX0P1IHsBsA094ghS9Mp18=',
+        },
+      },
       '/is-negative/2.1.0': {
         resolution: {
           tarball: 'http://localhost:4873/is-negative/-/is-negative-2.1.0.tgz',
@@ -218,20 +221,17 @@ test('shrinkwrap is fixed when it does not match package.json', async (t: tape.T
       },
       '/is-positive/3.1.0': {
         resolution: {
-          integrity: 'sha1-hX21hKG6XRyymAUn/DtsQ103sP0='
-        },
-      },
-      '/@types/semver/5.3.31': {
-        resolution: {
-          integrity: 'sha1-uZnX2TX0P1IHsBsA094ghS9Mp18=',
+          integrity: 'sha1-hX21hKG6XRyymAUn/DtsQ103sP0=',
         },
       },
     },
+    registry: 'http://localhost:4873',
     specifiers: {
+      '@types/semver': '5.3.31',
       'is-negative': '^2.1.0',
       'is-positive': '^3.1.0',
-      '@types/semver': '5.3.31',
-    }
+    },
+    version: 3,
   })
 
   const reporter = sinon.spy()
@@ -254,21 +254,24 @@ test('shrinkwrap is fixed when it does not match package.json', async (t: tape.T
 test('doing named installation when shrinkwrap.yaml exists already', async (t: tape.Test) => {
   const project = prepare(t, {
     dependencies: {
+      '@types/semver': '5.3.31',
       'is-negative': '^2.1.0',
       'is-positive': '^3.1.0',
-      '@types/semver': '5.3.31',
-    }
+    },
   })
 
   await writeYamlFile('shrinkwrap.yaml', {
-    version: 3,
-    registry: 'http://localhost:4873',
     dependencies: {
+      '@types/semver': '5.3.31',
       'is-negative': '2.1.0',
       'is-positive': '3.1.0',
-      '@types/semver': '5.3.31',
     },
     packages: {
+      '/@types/semver/5.3.31': {
+        resolution: {
+          integrity: 'sha1-uZnX2TX0P1IHsBsA094ghS9Mp18=',
+        },
+      },
       '/is-negative/2.1.0': {
         resolution: {
           tarball: 'http://localhost:4873/is-negative/-/is-negative-2.1.0.tgz',
@@ -276,20 +279,17 @@ test('doing named installation when shrinkwrap.yaml exists already', async (t: t
       },
       '/is-positive/3.1.0': {
         resolution: {
-          integrity: 'sha1-hX21hKG6XRyymAUn/DtsQ103sP0='
-        },
-      },
-      '/@types/semver/5.3.31': {
-        resolution: {
-          integrity: 'sha1-uZnX2TX0P1IHsBsA094ghS9Mp18=',
+          integrity: 'sha1-hX21hKG6XRyymAUn/DtsQ103sP0=',
         },
       },
     },
+    registry: 'http://localhost:4873',
     specifiers: {
+      '@types/semver': '5.3.31',
       'is-negative': '^2.1.0',
       'is-positive': '^3.1.0',
-      '@types/semver': '5.3.31',
-    }
+    },
+    version: 3,
   })
 
   const reporter = sinon.spy()
@@ -314,7 +314,7 @@ test('respects shrinkwrap.yaml for top dependencies', async (t: tape.Test) => {
   // })
 
   const pkgs = ['foo', 'bar', 'qar']
-  await Promise.all(pkgs.map(pkgName => addDistTag(pkgName, '100.0.0', 'latest')))
+  await Promise.all(pkgs.map((pkgName) => addDistTag(pkgName, '100.0.0', 'latest')))
 
   await installPkgs(['foo'], await testDefaults({save: true, reporter}))
   // t.equal(reporter.withArgs(fooProgress).callCount, 1, 'reported foo once')
@@ -328,7 +328,7 @@ test('respects shrinkwrap.yaml for top dependencies', async (t: tape.Test) => {
   t.equal((await loadJsonFile(path.resolve('node_modules', '.localhost+4873', 'foobar', '100.0.0', 'node_modules', 'foo', 'package.json'))).version, '100.0.0')
   t.equal((await loadJsonFile(path.resolve('node_modules', '.localhost+4873', 'foobar', '100.0.0', 'node_modules', 'bar', 'package.json'))).version, '100.0.0')
 
-  await Promise.all(pkgs.map(pkgName => addDistTag(pkgName, '100.1.0', 'latest')))
+  await Promise.all(pkgs.map((pkgName) => addDistTag(pkgName, '100.1.0', 'latest')))
 
   await rimraf('node_modules')
   await rimraf(path.join('..', '.store'))
@@ -338,10 +338,10 @@ test('respects shrinkwrap.yaml for top dependencies', async (t: tape.Test) => {
   // shouldn't care about what the registry in npmrc is
   // the one in shrinkwrap should be used
   await install(await testDefaults({
-    registry: 'https://registry.npmjs.org',
     rawNpmConfig: {
       registry: 'https://registry.npmjs.org',
     },
+    registry: 'https://registry.npmjs.org',
     reporter,
   }))
 
@@ -376,7 +376,7 @@ test('subdeps are updated on repeat install if outer shrinkwrap.yaml does not ma
     },
   }
 
-  shr.packages['/pkg-with-1-dep/100.0.0']['dependencies']['dep-of-pkg-with-1-dep'] = '100.1.0'
+  shr.packages['/pkg-with-1-dep/100.0.0'].dependencies['dep-of-pkg-with-1-dep'] = '100.1.0'
 
   await writeYamlFile('shrinkwrap.yaml', shr)
 
@@ -451,7 +451,7 @@ test('package is not marked dev if it is also a subdep of a regular dependency',
 
   const shr = await project.loadShrinkwrap()
 
-  t.notOk(shr.packages['/dep-of-pkg-with-1-dep/100.0.0']['dev'], 'package is not marked as dev')
+  t.notOk(shr.packages['/dep-of-pkg-with-1-dep/100.0.0'].dev, 'package is not marked as dev')
 })
 
 test('package is not marked optional if it is also a subdep of a regular dependency', async (t: tape.Test) => {
@@ -464,15 +464,15 @@ test('package is not marked optional if it is also a subdep of a regular depende
 
   const shr = await project.loadShrinkwrap()
 
-  t.notOk(shr.packages['/dep-of-pkg-with-1-dep/100.0.0']['optional'], 'package is not marked as optional')
+  t.notOk(shr.packages['/dep-of-pkg-with-1-dep/100.0.0'].optional, 'package is not marked as optional')
 })
 
-test('scoped module from different registry', async function (t: tape.Test) {
+test('scoped module from different registry', async (t: tape.Test) => {
   const project = prepare(t)
   await installPkgs(['@zkochan/foo', 'is-positive'], await testDefaults({
     rawNpmConfig: {
-      '@zkochan:registry': 'https://registry.npmjs.org/'
-    }
+      '@zkochan:registry': 'https://registry.npmjs.org/',
+    },
   }))
 
   const m = project.requireModule('@zkochan/foo')
@@ -483,7 +483,7 @@ test('scoped module from different registry', async function (t: tape.Test) {
   t.deepEqual(shr, {
     dependencies: {
       '@zkochan/foo': 'registry.npmjs.org/@zkochan/foo/1.0.0',
-      'is-positive': '3.1.0'
+      'is-positive': '3.1.0',
     },
     packages: {
       '/is-positive/3.1.0': {
@@ -492,27 +492,27 @@ test('scoped module from different registry', async function (t: tape.Test) {
           node: '>=0.10.0',
         },
         resolution: {
-          integrity: 'sha1-hX21hKG6XRyymAUn/DtsQ103sP0='
-        }
+          integrity: 'sha1-hX21hKG6XRyymAUn/DtsQ103sP0=',
+        },
       },
       'registry.npmjs.org/@zkochan/foo/1.0.0': {
-        name: '@zkochan/foo',
         dev: false,
-        version: '1.0.0',
+        name: '@zkochan/foo',
         resolution: {
           integrity: 'sha512-IFvrYpq7E6BqKex7A7czIFnFncPiUVdhSzGhAOWpp8RlkXns4y/9ZdynxaA/e0VkihRxQkihE2pTyvxjfe/wBg==',
           registry: 'https://registry.npmjs.org/',
-          tarball: 'https://registry.npmjs.org/@zkochan/foo/-/foo-1.0.0.tgz'
-        }
-      }
+          tarball: 'https://registry.npmjs.org/@zkochan/foo/-/foo-1.0.0.tgz',
+        },
+        version: '1.0.0',
+      },
     },
     registry: 'http://localhost:4873/',
+    shrinkwrapMinorVersion: 4,
+    shrinkwrapVersion: 3,
     specifiers: {
       '@zkochan/foo': '^1.0.0',
       'is-positive': '^3.1.0',
     },
-    shrinkwrapVersion: 3,
-    shrinkwrapMinorVersion: 4,
   })
 })
 
@@ -531,7 +531,7 @@ test('repeat install with no inner shrinkwrap should not rewrite packages in nod
 
 // Skipped because the npm-registry.compass.com server was down
 // might be a good idea to mock it
-test['skip']('installing from shrinkwrap when using npm enterprise', async (t: tape.Test) => {
+test.skip('installing from shrinkwrap when using npm enterprise', async (t: tape.Test) => {
   const project = prepare(t)
 
   const opts = await testDefaults({registry: 'https://npm-registry.compass.com/'})
@@ -542,7 +542,7 @@ test['skip']('installing from shrinkwrap when using npm enterprise', async (t: t
 
   t.deepEqual(shr, {
     dependencies: {
-      'is-positive': '3.1.0'
+      'is-positive': '3.1.0',
     },
     packages: {
       '/is-positive/3.1.0': {
@@ -552,16 +552,16 @@ test['skip']('installing from shrinkwrap when using npm enterprise', async (t: t
         },
         resolution: {
           integrity: 'sha1-hX21hKG6XRyymAUn/DtsQ103sP0=',
-          tarball: '/i/is-positive/_attachments/is-positive-3.1.0.tgz'
-        }
+          tarball: '/i/is-positive/_attachments/is-positive-3.1.0.tgz',
+        },
       },
     },
     registry: 'https://npm-registry.compass.com/',
+    shrinkwrapMinorVersion: 4,
+    shrinkwrapVersion: 3,
     specifiers: {
       'is-positive': '^3.1.0',
     },
-    shrinkwrapVersion: 3,
-    shrinkwrapMinorVersion: 4,
   })
 
   await rimraf(opts.store)
@@ -575,8 +575,8 @@ test['skip']('installing from shrinkwrap when using npm enterprise', async (t: t
 test('packages are placed in devDependencies even if they are present as non-dev as well', async (t: tape.Test) => {
   const project = prepare(t, {
     devDependencies: {
-      'pkg-with-1-dep': '^1.0.0',
       'dep-of-pkg-with-1-dep': '^1.1.0',
+      'pkg-with-1-dep': '^1.0.0',
     },
   })
 
@@ -590,24 +590,24 @@ test('packages are placed in devDependencies even if they are present as non-dev
   t.ok(shr.devDependencies['dep-of-pkg-with-1-dep'])
   t.ok(shr.devDependencies['pkg-with-1-dep'])
 
-  t.ok(reporter.calledWithMatch(<RootLog>{
-    name: 'pnpm:root',
-    level: 'info',
+  t.ok(reporter.calledWithMatch({
     added: {
+      dependencyType: 'dev',
       name: 'dep-of-pkg-with-1-dep',
       version: '1.1.0',
-      dependencyType: 'dev',
     },
-  }), 'dep-of-pkg-with-1-dep added to root')
-  t.ok(reporter.calledWithMatch(<RootLog>{
-    name: 'pnpm:root',
     level: 'info',
+    name: 'pnpm:root',
+  } as RootLog), 'dep-of-pkg-with-1-dep added to root')
+  t.ok(reporter.calledWithMatch({
     added: {
+      dependencyType: 'dev',
       name: 'pkg-with-1-dep',
       version: '1.0.0',
-      dependencyType: 'dev',
     },
-  }), 'pkg-with-1-dep added to root')
+    level: 'info',
+    name: 'pnpm:root',
+  } as RootLog), 'pkg-with-1-dep added to root')
 })
 
 // This testcase verifies that pnpm is not failing when trying to preserve dependencies.
@@ -710,7 +710,7 @@ test('pendingBuilds gets updated if install removes packages', async (t: tape.Te
   await install(await testDefaults({ ignoreScripts: true }))
   const modules2 = await project.loadModules()
 
-  t.ok(modules1['pendingBuilds'].length > modules2['pendingBuilds'].length, 'pendingBuilds gets updated when install removes packages')
+  t.ok(modules1.pendingBuilds.length > modules2.pendingBuilds.length, 'pendingBuilds gets updated when install removes packages')
 })
 
 test('dev properties are correctly updated on named install', async (t: tape.Test) => {
@@ -720,7 +720,7 @@ test('dev properties are correctly updated on named install', async (t: tape.Tes
   await installPkgs(['foo@npm:inflight@1.0.6'], await testDefaults({}))
 
   const shr = await project.loadShrinkwrap()
-  t.deepEqual(R.values(shr.packages).filter(dep => typeof dep.dev !== 'undefined'), [], 'there are 0 packages with dev property in shrinkwrap.yaml')
+  t.deepEqual(R.values(shr.packages).filter((dep) => typeof dep.dev !== 'undefined'), [], 'there are 0 packages with dev property in shrinkwrap.yaml')
 })
 
 test('optional properties are correctly updated on named install', async (t: tape.Test) => {
@@ -730,13 +730,13 @@ test('optional properties are correctly updated on named install', async (t: tap
   await installPkgs(['foo@npm:inflight@1.0.6'], await testDefaults({}))
 
   const shr = await project.loadShrinkwrap()
-  t.deepEqual(R.values(shr.packages).filter(dep => typeof dep.optional !== 'undefined'), [], 'there are 0 packages with optional property in shrinkwrap.yaml')
+  t.deepEqual(R.values(shr.packages).filter((dep) => typeof dep.optional !== 'undefined'), [], 'there are 0 packages with optional property in shrinkwrap.yaml')
 })
 
 test('dev property is correctly set for package that is duplicated to both the dependencies and devDependencies group', async (t: tape.Test) => {
   const project = prepare(t)
 
-  //TODO: use a smaller package for testing
+  // TODO: use a smaller package for testing
   await installPkgs(['overlap@2.2.8'], await testDefaults())
 
   const shr = await project.loadShrinkwrap()
@@ -764,8 +764,6 @@ test('shrinkwrap is ignored when shrinkwrap = false', async (t: tape.Test) => {
   })
 
   await writeYamlFile('shrinkwrap.yaml', {
-    version: 3,
-    registry: 'http://localhost:4873',
     dependencies: {
       'is-negative': '2.1.0',
     },
@@ -777,6 +775,8 @@ test('shrinkwrap is ignored when shrinkwrap = false', async (t: tape.Test) => {
         },
       },
     },
+    registry: 'http://localhost:4873',
+    version: 3,
   })
 
   const reporter = sinon.spy()

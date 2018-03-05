@@ -1,12 +1,12 @@
+import rimraf = require('rimraf-then')
+import {installPkgs, storeStatus} from 'supi'
 import tape = require('tape')
 import promisifyTape from 'tape-promise'
-import rimraf = require('rimraf-then')
 import {prepare, testDefaults} from './utils'
-import {storeStatus, installPkgs} from 'supi'
 
 const test = promisifyTape(tape)
 
-test('store status returns empty array when store was not modified', async function (t: tape.Test) {
+test('store status returns empty array when store was not modified', async (t: tape.Test) => {
   const project = prepare(t)
 
   const opts = await testDefaults()
@@ -17,7 +17,7 @@ test('store status returns empty array when store was not modified', async funct
   t.equal(mutatedPkgs && mutatedPkgs.length, 0, 'no packages were modified')
 })
 
-test('store status does not fail on not installed optional dependencies', async function (t: tape.Test) {
+test('store status does not fail on not installed optional dependencies', async (t: tape.Test) => {
   const project = prepare(t)
 
   const opts = await testDefaults({saveOptional: true})
@@ -28,7 +28,7 @@ test('store status does not fail on not installed optional dependencies', async 
   t.equal(mutatedPkgs && mutatedPkgs.length, 0, 'no packages were modified')
 })
 
-test('store status returns path to the modified package', async function (t: tape.Test) {
+test('store status returns path to the modified package', async (t: tape.Test) => {
   const project = prepare(t)
 
   const opts = await testDefaults()

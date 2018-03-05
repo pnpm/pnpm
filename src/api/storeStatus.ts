@@ -1,12 +1,12 @@
-import path = require('path')
+import checkPackage from '@pnpm/check-package'
+import {streamParser} from '@pnpm/logger'
+import * as dp from 'dependency-path'
 import pFilter = require('p-filter')
+import path = require('path')
 import extendOptions, {
   StoreStatusOptions,
 } from './extendStoreStatusOptions'
 import getContext from './getContext'
-import checkPackage from '@pnpm/check-package'
-import * as dp from 'dependency-path'
-import {streamParser} from '@pnpm/logger'
 
 export default async function (maybeOpts: StoreStatusOptions) {
   const reporter = maybeOpts && maybeOpts.reporter
@@ -18,11 +18,11 @@ export default async function (maybeOpts: StoreStatusOptions) {
   if (!ctx.wantedShrinkwrap) return []
 
   const pkgPaths = Object.keys(ctx.wantedShrinkwrap.packages || {})
-    .map(id => {
+    .map((id) => {
       if (id === '/') return null
       return dp.resolve(ctx.wantedShrinkwrap.registry, id)
     })
-    .filter(pkgId => pkgId && !ctx.skipped.has(pkgId))
+    .filter((pkgId) => pkgId && !ctx.skipped.has(pkgId))
     .map((pkgPath: string) => path.join(ctx.storePath, pkgPath))
 
   const modified = await pFilter(pkgPaths, async (pkgPath: string) => !await checkPackage(path.join(pkgPath, 'package')))

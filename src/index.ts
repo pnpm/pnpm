@@ -20,8 +20,8 @@ export {PruneOptions} from './api/extendPruneOptions'
 export {RebuildOptions} from './api/extendRebuildOptions'
 export {UninstallOptions} from './api/extendUninstallOptions'
 
-import * as supiLogs from './loggers'
 import * as packageRequesterLogs from '@pnpm/package-requester'
+import * as supiLogs from './loggers'
 
 export type ProgressLog = supiLogs.ProgressLog | packageRequesterLogs.ProgressLog
 export type Log = supiLogs.Log | packageRequesterLogs.Log

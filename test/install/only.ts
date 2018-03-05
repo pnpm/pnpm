@@ -1,12 +1,12 @@
-import path = require('path')
 import fs = require('mz/fs')
+import path = require('path')
+import {install} from 'supi'
 import tape = require('tape')
 import promisifyTape from 'tape-promise'
 import {
   prepare,
   testDefaults,
 } from '../utils'
-import {install} from 'supi'
 
 const test = promisifyTape(tape)
 
@@ -16,8 +16,8 @@ test('production install (with --production flag)', async (t: tape.Test) => {
       rimraf: '2.6.2',
     },
     devDependencies: {
-      once: '^1.4.0', // once is also a transitive dependency of rimraf
       '@rstacruz/tap-spec': '4.1.1',
+      'once': '^1.4.0', // once is also a transitive dependency of rimraf
     },
   })
 
@@ -39,8 +39,8 @@ test('production install (with --production flag)', async (t: tape.Test) => {
 test('install dev dependencies only', async (t: tape.Test) => {
   const project = prepare(t, {
     dependencies: {
-      once: '^1.4.0',
       'is-positive': '1.0.0',
+      'once': '^1.4.0',
     },
     devDependencies: {
       inflight: '1.0.6',

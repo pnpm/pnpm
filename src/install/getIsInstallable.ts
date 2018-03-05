@@ -1,26 +1,26 @@
-import R = require('ramda')
-import installChecks = require('pnpm-install-checks')
 import logger from '@pnpm/logger'
 import {PackageManifest} from '@pnpm/types'
-import {installCheckLogger} from '../loggers'
+import installChecks = require('pnpm-install-checks')
+import R = require('ramda')
 import {InstalledPackages} from '../api/install'
+import {installCheckLogger} from '../loggers'
 import {splitNodeId} from '../nodeIdUtils'
 
 export default async function getIsInstallable (
   pkgId: string,
   pkg: PackageManifest,
   options: {
-    nodeId: string,
-    installs: InstalledPackages,
-    optional: boolean,
     engineStrict: boolean,
+    installs: InstalledPackages,
+    nodeId: string,
     nodeVersion: string,
+    optional: boolean,
     pnpmVersion: string,
-  }
+  },
 ): Promise<boolean> {
   const warn = await installChecks.checkPlatform(pkg) || await installChecks.checkEngine(pkg, {
+    nodeVersion: options.nodeVersion,
     pnpmVersion: options.pnpmVersion,
-    nodeVersion: options.nodeVersion
   })
 
   if (!warn) return true
@@ -48,6 +48,6 @@ function nodeIdToFriendlyPath (
 ) {
   const pkgIds = splitNodeId(nodeId).slice(2, -2)
   return pkgIds
-    .map(pkgId => installs[pkgId].name)
+    .map((pkgId) => installs[pkgId].name)
     .join(' > ')
 }

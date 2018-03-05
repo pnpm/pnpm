@@ -1,12 +1,12 @@
-import path = require('path')
 import logger from '@pnpm/logger'
-import pnpmPkgJson from '../pnpmPkgJson'
-import {LAYOUT_VERSION} from '../fs/modulesController'
 import normalizeRegistryUrl = require('normalize-registry-url')
 import {StoreController} from 'package-store'
+import path = require('path')
+import {LAYOUT_VERSION} from '../fs/modulesController'
+import pnpmPkgJson from '../pnpmPkgJson'
 import { ReporterFunction } from '../types'
 
-export type RebuildOptions = {
+export interface RebuildOptions {
   prefix?: string,
   store: string, // TODO: remove this property
   independentLeaves?: boolean,
@@ -57,26 +57,26 @@ const defaults = async (opts: RebuildOptions) => {
     version: pnpmPkgJson.version,
   }
   const prefix = opts.prefix || process.cwd()
-  return <StrictRebuildOptions>{
-    pending: false,
-    global: false,
-    store: opts.store,
+  return {
     bin: path.join(prefix, 'node_modules', '.bin'),
-    userAgent: `${packageManager.name}/${packageManager.version} npm/? node/${process.version} ${process.platform} ${process.arch}`,
-    packageManager,
-    prefix,
     force: false,
-    registry: 'https://registry.npmjs.org/',
-    rawNpmConfig: {},
+    global: false,
     independentLeaves: false,
-    unsafePerm: process.platform === 'win32' ||
-                process.platform === 'cygwin' ||
-                !(process.getuid && process.setuid &&
-                  process.getgid && process.setgid) ||
-                process.getuid() !== 0,
-    shrinkwrap: true,
+    packageManager,
+    pending: false,
+    prefix,
+    rawNpmConfig: {},
+    registry: 'https://registry.npmjs.org/',
     shamefullyFlatten: false,
-  }
+    shrinkwrap: true,
+    store: opts.store,
+    unsafePerm: process.platform === 'win32' ||
+      process.platform === 'cygwin' ||
+      !(process.getuid && process.setuid &&
+        process.getgid && process.setgid) ||
+      process.getuid() !== 0,
+    userAgent: `${packageManager.name}/${packageManager.version} npm/? node/${process.version} ${process.platform} ${process.arch}`,
+  } as StrictRebuildOptions
 }
 
 export default async (

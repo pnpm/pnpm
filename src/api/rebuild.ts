@@ -1,25 +1,25 @@
+import logger, {streamParser} from '@pnpm/logger'
+import npa = require('@zkochan/npm-package-arg')
+import * as dp from 'dependency-path'
+import pSeries = require('p-series')
+import path = require('path')
+import {
+  DependencyShrinkwrap,
+  ResolvedPackages,
+} from 'pnpm-shrinkwrap'
+import R = require('ramda')
+import semver = require('semver')
+import {LAYOUT_VERSION, save as saveModules} from '../fs/modulesController';
+import realNodeModulesDir from '../fs/realNodeModulesDir';
+import getPkgInfoFromShr from '../getPkgInfoFromShr'
+import postInstall from '../install/postInstall'
 import extendOptions, {
   RebuildOptions,
   StrictRebuildOptions,
 } from './extendRebuildOptions'
 import getContext from './getContext'
-import logger, {streamParser} from '@pnpm/logger'
-import R = require('ramda')
-import * as dp from 'dependency-path'
-import postInstall from '../install/postInstall'
-import path = require('path')
-import pSeries = require('p-series')
-import {
-  ResolvedPackages,
-  DependencyShrinkwrap,
-} from 'pnpm-shrinkwrap'
-import npa = require('@zkochan/npm-package-arg')
-import semver = require('semver')
-import getPkgInfoFromShr from '../getPkgInfoFromShr'
-import {save as saveModules, LAYOUT_VERSION} from '../fs/modulesController';
-import realNodeModulesDir from '../fs/realNodeModulesDir';
 
-type PackageToRebuild = {
+interface PackageToRebuild {
   relativeDepPath: string,
   name: string,
   version?: string,
@@ -28,17 +28,17 @@ type PackageToRebuild = {
 
 function getPackagesInfo (packages: ResolvedPackages, idsToRebuild: string[]): PackageToRebuild[] {
   return idsToRebuild
-    .map(relativeDepPath => {
+    .map((relativeDepPath) => {
       const pkgShr = packages[relativeDepPath]
       const pkgInfo = getPkgInfoFromShr(relativeDepPath, pkgShr)
       return {
-        relativeDepPath,
-        name: pkgInfo['name'],
-        version: pkgInfo['version'],
+        name: pkgInfo.name,
         pkgShr,
+        relativeDepPath,
+        version: pkgInfo.version,
       }
     })
-    .filter(pkgInfo => {
+    .filter((pkgInfo) => {
       if (!pkgInfo.name) {
         logger.warn(`Skipping ${pkgInfo.relativeDepPath} because cannot get the package name from shrinkwrap.yaml.
           Try to run run \`pnpm update --depth 100\` to create a new shrinkwrap.yaml with all the necessary info.`)
@@ -68,7 +68,7 @@ export async function rebuildPkgs (
   if (!ctx.currentShrinkwrap || !ctx.currentShrinkwrap.packages) return
   const packages = ctx.currentShrinkwrap.packages
 
-  const searched: PackageSelector[] = pkgSpecs.map(arg => {
+  const searched: PackageSelector[] = pkgSpecs.map((arg) => {
     const parsed = npa(arg)
     if (parsed.raw === parsed.name) {
       return parsed.name
@@ -83,7 +83,7 @@ export async function rebuildPkgs (
   })
 
   const pkgs = getPackagesInfo(packages, R.keys(packages))
-    .filter(pkg => matches(searched, pkg))
+    .filter((pkg) => matches(searched, pkg))
 
   await _rebuild(pkgs, modules, ctx.currentShrinkwrap.registry, opts)
 }
@@ -91,9 +91,9 @@ export async function rebuildPkgs (
 // TODO: move this logic to separate package as this is also used in dependencies-hierarchy
 function matches (
   searched: PackageSelector[],
-  pkg: {name: string, version?: string}
+  pkg: {name: string, version?: string},
 ) {
-  return searched.some(searchedPkg => {
+  return searched.some((searchedPkg) => {
     if (typeof searchedPkg === 'string') {
       return pkg.name === searchedPkg
     }
@@ -126,14 +126,14 @@ export async function rebuild (maybeOpts: RebuildOptions) {
   await _rebuild(pkgs, modules, ctx.currentShrinkwrap.registry, opts)
 
   await saveModules(path.join(ctx.root, 'node_modules'), {
-    packageManager: `${opts.packageManager.name}@${opts.packageManager.version}`,
-    store: ctx.storePath,
-    skipped: Array.from(ctx.skipped),
-    layoutVersion: LAYOUT_VERSION,
+    hoistedAliases: ctx.hoistedAliases,
     independentLeaves: opts.independentLeaves,
+    layoutVersion: LAYOUT_VERSION,
+    packageManager: `${opts.packageManager.name}@${opts.packageManager.version}`,
     pendingBuilds: [],
     shamefullyFlatten: opts.shamefullyFlatten,
-    hoistedAliases: ctx.hoistedAliases,
+    skipped: Array.from(ctx.skipped),
+    store: ctx.storePath,
   })
 }
 
@@ -145,27 +145,27 @@ async function _rebuild (
 ) {
   await pSeries(
     pkgs
-      .map(pkgToRebuild => async () => {
+      .map((pkgToRebuild) => async () => {
         const depAbsolutePath = dp.resolve(registry, pkgToRebuild.relativeDepPath)
         const pkgId = pkgToRebuild.pkgShr.id || depAbsolutePath
         try {
           await postInstall(path.join(modules, `.${depAbsolutePath}`, 'node_modules', pkgToRebuild.name), {
-            rawNpmConfig: opts.rawNpmConfig,
             initialWD: opts.prefix,
-            userAgent: opts.userAgent,
             pkgId,
+            rawNpmConfig: opts.rawNpmConfig,
             unsafePerm: opts.unsafePerm || false,
+            userAgent: opts.userAgent,
           })
         } catch (err) {
           if (pkgToRebuild.pkgShr.optional) {
             logger.warn({
-              message: `Skipping failed optional dependency ${pkgId}`,
               err,
+              message: `Skipping failed optional dependency ${pkgId}`,
             })
             return
           }
           throw err
         }
-      })
+      }),
   )
 }

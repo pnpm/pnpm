@@ -1,17 +1,17 @@
-import {installPkgs, install} from 'supi'
-import {
-  prepare,
-  addDistTag,
-  testDefaults,
-} from './utils'
+import path = require('path')
+import exists = require('path-exists')
+import {install, installPkgs} from 'supi'
 import tape = require('tape')
 import promisifyTape from 'tape-promise'
-import exists = require('path-exists')
-import path = require('path')
+import {
+  addDistTag,
+  prepare,
+  testDefaults,
+} from './utils'
 
 const test = promisifyTape(tape)
 
-test('should fail to update when requests are cached', async function (t) {
+test('should fail to update when requests are cached', async (t) => {
   const project = prepare(t)
 
   const metaCache = new Map()

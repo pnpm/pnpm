@@ -1,7 +1,7 @@
-import tape = require('tape')
-import promisifyTape from 'tape-promise'
 import readPkg = require('read-pkg')
 import {installPkgs} from 'supi'
+import tape = require('tape')
+import promisifyTape from 'tape-promise'
 import {
   prepare,
   testDefaults,
@@ -9,7 +9,7 @@ import {
 
 const test = promisifyTape(tape)
 
-test('tarball from npm registry', async function (t) {
+test('tarball from npm registry', async (t) => {
   const project = prepare(t)
   await installPkgs(['http://registry.npmjs.org/is-array/-/is-array-1.0.1.tgz'], await testDefaults())
 
@@ -23,7 +23,7 @@ test('tarball from npm registry', async function (t) {
   t.deepEqual(pkgJson.dependencies, {'is-array': 'http://registry.npmjs.org/is-array/-/is-array-1.0.1.tgz'}, 'has been added to dependencies in package.json')
 })
 
-test('tarball not from npm registry', async function (t) {
+test('tarball not from npm registry', async (t) => {
   const project = prepare(t)
   await installPkgs(['https://github.com/hegemonic/taffydb/tarball/master'], await testDefaults())
 
@@ -34,7 +34,7 @@ test('tarball not from npm registry', async function (t) {
   await project.storeHas('github.com/hegemonic/taffydb/tarball/master')
 })
 
-test('tarballs from GitHub (is-negative)', async function (t) {
+test('tarballs from GitHub (is-negative)', async (t) => {
   const project = prepare(t)
   await installPkgs(['is-negative@https://github.com/kevva/is-negative/archive/1d7e288222b53a0cab90a331f1865220ec29560c.tar.gz'], await testDefaults())
 

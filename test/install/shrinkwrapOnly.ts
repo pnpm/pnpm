@@ -1,18 +1,18 @@
+import loadJsonFile = require('load-json-file')
+import fs = require('mz/fs')
+import path = require('path')
+import sinon = require('sinon')
 import {
   install,
   installPkgs,
   uninstall,
 } from 'supi'
-import loadJsonFile = require('load-json-file')
 import tape = require('tape')
 import promisifyTape from 'tape-promise'
-import sinon = require('sinon')
 import {
   prepare,
   testDefaults,
 } from '../utils'
-import path = require('path')
-import fs = require('mz/fs')
 
 const test = promisifyTape(tape)
 
@@ -53,21 +53,21 @@ test('warn when installing with shrinkwrapOnly = true and node_modules exists', 
 
   await installPkgs(['is-positive'], await testDefaults())
   await installPkgs(['rimraf@2.5.1'], await testDefaults({
-    shrinkwrapOnly: true,
     reporter,
+    shrinkwrapOnly: true,
   }))
 
   t.ok(reporter.calledWithMatch({
-    name: 'pnpm',
     level: 'warn',
     message: '`node_modules` is present. Shrinkwrap only installation will make it out-of-date',
+    name: 'pnpm',
   }), 'log warning')
 
   await project.storeHasNot('rimraf', '2.5.1')
   await project.hasNot('rimraf')
 
   const pkg = await loadJsonFile('package.json')
-  t.ok(pkg.dependencies['rimraf'], 'the new dependency added to package.json')
+  t.ok(pkg.dependencies.rimraf, 'the new dependency added to package.json')
 
   const shr = await project.loadShrinkwrap()
   t.ok(shr.dependencies.rimraf)

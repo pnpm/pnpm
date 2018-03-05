@@ -1,29 +1,29 @@
-import path = require('path')
+import logger, {streamParser} from '@pnpm/logger'
 import * as dp from 'dependency-path'
-import R = require('ramda')
-import getContext, {PnpmContext} from './getContext'
-import getSaveType from '../getSaveType'
-import removeDeps from '../removeDeps'
-import extendOptions, {
-  UninstallOptions,
-  StrictUninstallOptions,
-} from './extendUninstallOptions'
-import lock from './lock'
+import path = require('path')
 import {
+  prune as pruneShrinkwrap,
   write as saveShrinkwrap,
   writeCurrentOnly as saveCurrentShrinkwrapOnly,
-  prune as pruneShrinkwrap,
 } from 'pnpm-shrinkwrap'
-import logger, {streamParser} from '@pnpm/logger'
+import R = require('ramda')
 import {
-  save as saveModules,
   LAYOUT_VERSION,
+  save as saveModules,
 } from '../fs/modulesController'
-import removeOrphanPkgs from './removeOrphanPkgs'
-import safeIsInnerLink from '../safeIsInnerLink'
+import getSaveType from '../getSaveType'
+import removeDeps from '../removeDeps'
 import removeTopDependency from '../removeTopDependency'
-import shrinkwrapsEqual from './shrinkwrapsEqual'
+import safeIsInnerLink from '../safeIsInnerLink'
+import extendOptions, {
+  StrictUninstallOptions,
+  UninstallOptions,
+} from './extendUninstallOptions'
+import getContext, {PnpmContext} from './getContext'
 import {installPkgs} from './install'
+import lock from './lock'
+import removeOrphanPkgs from './removeOrphanPkgs'
+import shrinkwrapsEqual from './shrinkwrapsEqual'
 
 export default async function uninstall (
   pkgsToUninstall: string[],
@@ -69,15 +69,15 @@ export async function uninstallInContext (
   const pkg = await removeDeps(pkgJsonPath, pkgsToUninstall, saveType)
   const newShr = pruneShrinkwrap(ctx.wantedShrinkwrap, pkg)
   const removedPkgIds = await removeOrphanPkgs({
-    oldShrinkwrap: ctx.currentShrinkwrap,
+    bin: opts.bin,
+    hoistedAliases: ctx.hoistedAliases,
     newShrinkwrap: newShr,
+    oldShrinkwrap: ctx.currentShrinkwrap,
     prefix: ctx.root,
     shamefullyFlatten: opts.shamefullyFlatten,
     storeController: opts.storeController,
-    bin: opts.bin,
-    hoistedAliases: ctx.hoistedAliases,
   })
-  ctx.pendingBuilds = ctx.pendingBuilds.filter(pkgId => !removedPkgIds.has(dp.resolve(newShr.registry, pkgId)))
+  ctx.pendingBuilds = ctx.pendingBuilds.filter((pkgId) => !removedPkgIds.has(dp.resolve(newShr.registry, pkgId)))
   await opts.storeController.close()
   const currentShrinkwrap = makePartialCurrentShrinkwrap
     ? pruneShrinkwrap(ctx.currentShrinkwrap, pkg)
@@ -88,18 +88,18 @@ export async function uninstallInContext (
     await saveCurrentShrinkwrapOnly(ctx.root, currentShrinkwrap)
   }
   await saveModules(path.join(ctx.root, 'node_modules'), {
-    packageManager: `${opts.packageManager.name}@${opts.packageManager.version}`,
-    store: ctx.storePath,
-    skipped: Array.from(ctx.skipped).filter(pkgId => !removedPkgIds.has(pkgId)),
-    layoutVersion: LAYOUT_VERSION,
+    hoistedAliases: ctx.hoistedAliases,
     independentLeaves: opts.independentLeaves,
+    layoutVersion: LAYOUT_VERSION,
+    packageManager: `${opts.packageManager.name}@${opts.packageManager.version}`,
     pendingBuilds: ctx.pendingBuilds,
     shamefullyFlatten: opts.shamefullyFlatten,
-    hoistedAliases: ctx.hoistedAliases,
+    skipped: Array.from(ctx.skipped).filter((pkgId) => !removedPkgIds.has(pkgId)),
+    store: ctx.storePath,
   })
   await removeOuterLinks(pkgsToUninstall, path.join(ctx.root, 'node_modules'), {
-    storePath: ctx.storePath,
     bin: opts.bin,
+    storePath: ctx.storePath,
   })
 
   if (opts.shamefullyFlatten) {
@@ -113,20 +113,20 @@ async function removeOuterLinks (
   pkgsToUninstall: string[],
   modules: string,
   opts: {
-    storePath: string,
     bin: string,
-  }
+    storePath: string,
+  },
 ) {
   // These packages are not in package.json, they were just linked in not installed
   for (const pkgToUninstall of pkgsToUninstall) {
     if (await safeIsInnerLink(modules, pkgToUninstall, opts) !== true) {
       await removeTopDependency({
-        name: pkgToUninstall,
         dev: false,
+        name: pkgToUninstall,
         optional: false,
       }, {
-        modules,
         bin: opts.bin,
+        modules,
       })
     }
   }

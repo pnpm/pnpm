@@ -1,11 +1,11 @@
+import {install, installPkgs} from 'supi'
 import tape = require('tape')
 import promisifyTape from 'tape-promise'
 import {
-  prepare,
   addDistTag,
+  prepare,
   testDefaults,
 } from '../utils'
-import {install, installPkgs} from 'supi'
 
 const test = promisifyTape(tape)
 

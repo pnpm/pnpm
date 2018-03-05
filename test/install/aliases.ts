@@ -1,15 +1,15 @@
-import tape = require('tape')
-import promisifyTape from 'tape-promise'
-import {
-  prepare,
-  addDistTag,
-  testDefaults,
-} from '../utils'
 import {
   install,
   installPkgs,
   uninstall,
 } from 'supi'
+import tape = require('tape')
+import promisifyTape from 'tape-promise'
+import {
+  addDistTag,
+  prepare,
+  testDefaults,
+} from '../utils'
 
 const test = promisifyTape(tape)
 test.only = promisifyTape(tape.only)
@@ -57,7 +57,7 @@ test('installing aliased dependency', async (t: tape.Test) => {
   }, 'correct shrinkwrap.yaml')
 })
 
-test('aliased dependency w/o version spec, with custom tag config', async function (t) {
+test('aliased dependency w/o version spec, with custom tag config', async (t) => {
   const project = prepare(t)
 
   const tag = 'beta'

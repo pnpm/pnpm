@@ -1,18 +1,18 @@
-import {PackageJson, Dependencies} from '@pnpm/types'
+import {Dependencies, PackageJson} from '@pnpm/types'
 import getVerSelType = require('version-selector-type')
 
 export default function depsFromPackage (pkg: PackageJson): Dependencies {
   return {
     ...pkg.devDependencies,
     ...pkg.dependencies,
-    ...pkg.optionalDependencies
+    ...pkg.optionalDependencies,
   } as Dependencies
 }
 
 export function getPreferredVersionsFromPackage (pkg: PackageJson): {
   [packageName: string]: {
-    type: 'version' | 'range' | 'tag',
     selector: string,
+    type: 'version' | 'range' | 'tag',
   },
 } {
   return getVersionSpecsByRealNames(depsFromPackage(pkg))
@@ -28,16 +28,16 @@ function getVersionSpecsByRealNames (deps: Dependencies) {
         const selector = getVerSelType(spec)
         if (selector) {
           acc[pref.substr(0, index)] = {
-            type: selector.type,
             selector: selector.normalized,
+            type: selector.type,
           }
         }
       } else if (deps[depName].indexOf(':') === -1) { // we really care only about semver specs
         const selector = getVerSelType(deps[depName])
         if (selector) {
           acc[depName] = {
-            type: selector.type,
             selector: selector.normalized,
+            type: selector.type,
           }
         }
       }

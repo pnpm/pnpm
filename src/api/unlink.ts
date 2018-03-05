@@ -1,24 +1,24 @@
+import logger, {streamParser} from '@pnpm/logger'
+import isInnerLink = require('is-inner-link')
+import isSubdir = require('is-subdir')
+import fs = require('mz/fs')
 import path = require('path')
+import rimraf = require('rimraf-then')
+import depsFromPackage from '../depsFromPackage'
+import {
+  read as readModules,
+} from '../fs/modulesController'
+import {fromDir as readPkgFromDir} from '../fs/readPkg'
+import realNodeModulesDir from '../fs/realNodeModulesDir'
 import extendOptions, {
   InstallOptions,
   StrictInstallOptions,
 } from './extendInstallOptions'
-import isInnerLink = require('is-inner-link')
-import logger, {streamParser} from '@pnpm/logger'
-import rimraf = require('rimraf-then')
 import {install} from './install'
-import {fromDir as readPkgFromDir} from '../fs/readPkg'
-import depsFromPackage from '../depsFromPackage'
-import fs = require('mz/fs')
-import {
-  read as readModules,
-} from '../fs/modulesController'
-import isSubdir = require('is-subdir')
-import realNodeModulesDir from '../fs/realNodeModulesDir'
 
 export async function unlinkPkgs (
   pkgNames: string[],
-  maybeOpts: InstallOptions
+  maybeOpts: InstallOptions,
 ) {
   const reporter = maybeOpts && maybeOpts.reporter
   if (reporter) {
@@ -37,7 +37,7 @@ export async function unlinkPkgs (
 
 export async function _unlinkPkgs (
   pkgNames: string[],
-  opts: StrictInstallOptions
+  opts: StrictInstallOptions,
 ) {
   const modules = await realNodeModulesDir(opts.prefix)
   const pkg = await readPkgFromDir(opts.prefix)
@@ -85,7 +85,7 @@ export async function unlink (maybeOpts: InstallOptions) {
 async function getExternalPackages (
   modules: string,
   store: string,
-  scope?: string
+  scope?: string,
 ): Promise<string[]> {
   let externalLinks: string[] = []
   const parentDir = scope ? path.join(modules, scope) : modules

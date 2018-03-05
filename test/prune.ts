@@ -1,13 +1,13 @@
 import tape = require('tape')
 import promisifyTape from 'tape-promise'
 const test = promisifyTape(tape)
-import path = require('path')
-import {installPkgs, prune} from 'supi'
-import {prepare, testDefaults} from './utils'
-import exists = require('path-exists')
 import existsSymlink = require('exists-link')
+import path = require('path')
+import exists = require('path-exists')
 import readPkg = require('read-pkg')
+import {installPkgs, prune} from 'supi'
 import writePkg = require('write-pkg')
+import {prepare, testDefaults} from './utils'
 
 test('prune removes extraneous packages', async (t: tape.Test) => {
   const project = prepare(t)
@@ -49,8 +49,8 @@ test('prune removes dev dependencies in production', async (t: tape.Test) => {
   await installPkgs(['is-negative@2.1.0'], await testDefaults({save: true}))
   await installPkgs(['fnumber@0.1.0'], await testDefaults({saveOptional: true}))
   await prune(await testDefaults({
-    production: true,
     development: false,
+    production: true,
   }))
 
   await project.storeHasNot('is-positive', '2.0.0')

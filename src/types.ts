@@ -1,3 +1,4 @@
+import {LogBase} from '@pnpm/logger'
 import {
   Dependencies,
   PackageBin,
@@ -5,10 +6,9 @@ import {
   PnpmOptions,
   StrictPnpmOptions,
 } from '@pnpm/types'
-import {LogBase} from '@pnpm/logger'
 import {StoreController} from 'package-store'
 
-export type WantedDependency = {
+export interface WantedDependency {
   alias?: string,
   pref: string, // package reference
   dev: boolean,
@@ -17,12 +17,12 @@ export type WantedDependency = {
 }
 
 export type SupiOptions = PnpmOptions & {
-  storeController: StoreController
+  storeController: StoreController,
 }
 
 export type StrictSupiOptions = StrictPnpmOptions & {
   storeController: StoreController
-  pending?: boolean
+  pending?: boolean,
 }
 
 export type ReporterFunction = (logObj: LogBase) => void

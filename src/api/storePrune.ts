@@ -1,5 +1,5 @@
-import {StoreController} from 'package-store'
 import {streamParser} from '@pnpm/logger'
+import {StoreController} from 'package-store'
 import {ReporterFunction} from '../types'
 
 export default async function (

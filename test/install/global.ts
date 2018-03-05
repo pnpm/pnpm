@@ -1,19 +1,19 @@
-import tape = require('tape')
-import promisifyTape from 'tape-promise'
 import path = require('path')
 import readPkg = require('read-pkg')
+import {installPkgs} from 'supi'
+import tape = require('tape')
+import promisifyTape from 'tape-promise'
 import {
+  addDistTag,
   prepare,
   testDefaults,
-  addDistTag,
 } from '../utils'
-import {installPkgs} from 'supi'
 
 const test = promisifyTape(tape)
 
 const LAYOUT_VERSION = '1'
 
-test('global installation', async function (t) {
+test('global installation', async (t) => {
   prepare(t)
   const globalPrefix = path.resolve('..', 'global')
   const opts = await testDefaults({global: true, prefix: globalPrefix})
@@ -30,7 +30,7 @@ test('global installation', async function (t) {
   t.ok(typeof isNegative === 'function', 'isNegative() is available')
 })
 
-test('always install latest when doing global installation without spec', async function (t: tape.Test) {
+test('always install latest when doing global installation without spec', async (t: tape.Test) => {
   await addDistTag('peer-c', '2.0.0', 'latest')
 
   const project = prepare(t)

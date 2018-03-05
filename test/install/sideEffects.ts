@@ -1,11 +1,11 @@
 import fs = require('mz/fs')
 import rimraf = require('rimraf-then')
 
-import tape = require('tape')
-import promisifyTape from 'tape-promise'
-import {installPkgs} from 'supi'
 import path = require('path')
 import exists = require('path-exists')
+import {installPkgs} from 'supi'
+import tape = require('tape')
+import promisifyTape from 'tape-promise'
 import {
   prepare,
   testDefaults,
@@ -14,7 +14,7 @@ import {
 const test = promisifyTape(tape)
 test.only = promisifyTape(tape.only)
 
-test('caching side effects of native package', async function (t) {
+test('caching side effects of native package', async (t) => {
   const project = prepare(t)
 
   const opts = await testDefaults({sideEffectsCache: true})
@@ -35,7 +35,7 @@ test('caching side effects of native package', async function (t) {
   t.notEqual(stat1.ino, stat3.ino, 'cache is overridden when force is true')
 })
 
-test('using side effects cache', async function (t) {
+test('using side effects cache', async (t) => {
   const project = prepare(t)
 
   // Right now, hardlink does not work with side effects, so we specify copy as the packageImportMethod
@@ -52,7 +52,7 @@ test('using side effects cache', async function (t) {
   t.ok(await exists(path.join('node_modules', 'runas', 'build', 'new-file.txt')), 'side effects cache correctly used')
 })
 
-test('readonly side effects cache', async function (t) {
+test('readonly side effects cache', async (t) => {
   const project = prepare(t)
 
   const opts1 = await testDefaults({sideEffectsCache: true, verifyStoreIntegrity: false})
@@ -76,7 +76,7 @@ test('readonly side effects cache', async function (t) {
   t.notOk(await exists(path.join(opts2.store, 'localhost+4873', 'runas', '3.1.0', 'side_effects', `${process.platform}-${process.arch}-node-${process.version.split('.')[0]}`, 'package', 'build')), 'cache folder not created')
 })
 
-test('uploading errors do not interrupt installation', async function (t) {
+test('uploading errors do not interrupt installation', async (t) => {
   const project = prepare(t)
 
   const opts = await testDefaults({sideEffectsCache: true})

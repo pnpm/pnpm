@@ -1,21 +1,21 @@
-import tape = require('tape')
-import promisifyTape from 'tape-promise'
+import deepRequireCwd = require('deep-require-cwd')
+import loadJsonFile = require('load-json-file')
 import path = require('path')
 import exists = require('path-exists')
-import {installPkgs, install} from 'supi'
+import rimraf = require('rimraf-then')
+import sinon = require('sinon')
+import {install, installPkgs} from 'supi'
+import tape = require('tape')
+import promisifyTape from 'tape-promise'
 import {
   prepare,
   testDefaults,
 } from '../utils'
-import deepRequireCwd = require('deep-require-cwd')
-import rimraf = require('rimraf-then')
-import sinon = require('sinon')
-import loadJsonFile = require('load-json-file')
 
 const test = promisifyTape(tape)
 const NM = 'node_modules'
 
-test("don't fail when peer dependency is fetched from GitHub", async t => {
+test("don't fail when peer dependency is fetched from GitHub", async (t) => {
   const project = prepare(t)
   await installPkgs(['test-pnpm-peer-deps'], await testDefaults())
 })
@@ -164,7 +164,7 @@ test('peer dependencies are linked when running two separate named installations
   t.equal(deepRequireCwd(['abc-grand-parent-with-c', 'abc-parent-with-ab', 'abc', 'peer-c', './package.json']).version, '1.0.0')
 })
 
-test['skip']('peer dependencies are linked', async (t: tape.Test) => {
+test.skip('peer dependencies are linked', async (t: tape.Test) => {
   const project = prepare(t, {
     dependencies: {
       'abc-grand-parent-with-c': '*',
@@ -251,7 +251,7 @@ test('package that resolves its own peer dependency', async (t: tape.Test) => {
   t.ok(shr.packages['/pkg-with-resolved-peer/1.0.0'].optionalDependencies['peer-b'])
 })
 
-test('own peer installed in root as well is linked to root', async function (t: tape.Test) {
+test('own peer installed in root as well is linked to root', async (t: tape.Test) => {
   const project = prepare(t)
 
   await installPkgs(['is-negative@kevva/is-negative#2.1.0', 'peer-deps-in-child-pkg'], await testDefaults())

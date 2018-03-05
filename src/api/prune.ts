@@ -1,14 +1,14 @@
+import {streamParser} from '@pnpm/logger'
 import {PackageJson} from '@pnpm/types'
-import getContext from './getContext'
-import extendOptions, {
-  PruneOptions,
-} from './extendPruneOptions'
-import removeOrphanPkgs from './removeOrphanPkgs'
 import {
   prune as pruneShrinkwrap,
 } from 'pnpm-shrinkwrap'
-import {streamParser} from '@pnpm/logger'
+import extendOptions, {
+  PruneOptions,
+} from './extendPruneOptions'
+import getContext from './getContext'
 import {installPkgs} from './install'
+import removeOrphanPkgs from './removeOrphanPkgs'
 
 export async function prune (
   maybeOpts: PruneOptions,
@@ -35,14 +35,14 @@ export async function prune (
   const prunedShr = pruneShrinkwrap(ctx.wantedShrinkwrap, pkg)
 
   await removeOrphanPkgs({
-    oldShrinkwrap: ctx.currentShrinkwrap,
-    newShrinkwrap: prunedShr,
-    prefix: ctx.root,
-    shamefullyFlatten: opts.shamefullyFlatten,
-    storeController: opts.storeController,
-    pruneStore: true,
     bin: opts.bin,
     hoistedAliases: ctx.hoistedAliases,
+    newShrinkwrap: prunedShr,
+    oldShrinkwrap: ctx.currentShrinkwrap,
+    prefix: ctx.root,
+    pruneStore: true,
+    shamefullyFlatten: opts.shamefullyFlatten,
+    storeController: opts.storeController,
   })
 
   if (opts.shamefullyFlatten) {

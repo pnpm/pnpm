@@ -1,21 +1,21 @@
+import logger from '@pnpm/logger'
+import {PackageJson} from '@pnpm/types'
+import mkdirp = require('mkdirp-promise')
+import normalizePath = require('normalize-path')
 import path = require('path')
-import {fromDir as safeReadPkgFromDir} from '../fs/safeReadPkg'
-import writePkg = require('write-pkg')
-import {StrictSupiOptions} from '../types'
 import {Shrinkwrap} from 'pnpm-shrinkwrap'
+import removeAllExceptOuterLinks = require('remove-all-except-outer-links')
+import writePkg = require('write-pkg')
 import {
   read as readModules,
 } from '../fs/modulesController'
-import mkdirp = require('mkdirp-promise')
-import {PackageJson} from '@pnpm/types'
-import normalizePath = require('normalize-path')
-import removeAllExceptOuterLinks = require('remove-all-except-outer-links')
-import logger from '@pnpm/logger'
-import checkCompatibility from './checkCompatibility'
+import {fromDir as safeReadPkgFromDir} from '../fs/safeReadPkg'
 import {packageJsonLogger} from '../loggers'
 import readShrinkwrapFile from '../readShrinkwrapFiles'
+import {StrictSupiOptions} from '../types'
+import checkCompatibility from './checkCompatibility'
 
-export type PnpmContext = {
+export interface PnpmContext {
   pkg: PackageJson,
   storePath: string,
   root: string,
@@ -82,12 +82,12 @@ export default async function getContext (
     mkdirp(storePath),
   ])
   const ctx: PnpmContext = {
+    hoistedAliases: modules && modules.hoistedAliases || {},
+    pendingBuilds: modules && modules.pendingBuilds || [],
     pkg: files[0] || {} as PackageJson,
     root,
-    storePath,
     skipped: new Set(modules && modules.skipped || []),
-    pendingBuilds: modules && modules.pendingBuilds || [],
-    hoistedAliases: modules && modules.hoistedAliases || {},
+    storePath,
     ...await readShrinkwrapFile(opts),
   }
   packageJsonLogger.debug({ initial: ctx.pkg })
@@ -97,8 +97,8 @@ export default async function getContext (
 
 const DefaultGlobalPkg: PackageJson = {
   name: 'pnpm-global-pkg',
-  version: '1.0.0',
   private: true,
+  version: '1.0.0',
 }
 
 async function readGlobalPkgJson (globalPkgPath: string) {

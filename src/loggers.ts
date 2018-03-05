@@ -15,9 +15,9 @@ export const progressLogger = baseLogger('progress') as Logger<ProgressMessage>
 export const statsLogger = baseLogger('stats') as Logger<StatsMessage>
 
 export type PackageJsonMessage = {
-  initial: PackageJson
+  initial: PackageJson,
 } | {
-  updated: object
+  updated: object,
 }
 
 export type PackageJsonLog = {name: 'pnpm:package-json'} & LogBase & PackageJsonMessage
@@ -71,7 +71,7 @@ export type RootMessage = {
     from: string,
     to: string,
     dependencyType?: DependencyType,
-  }
+  },
 }
 
 export type RootLog = {name: 'pnpm:root'} & LogBase & RootMessage
@@ -84,7 +84,7 @@ export interface LoggedPkg {
 
 export type ProgressMessage = {
   pkgId: string,
-  status: 'installed' | 'dependencies_installed'
+  status: 'installed' | 'dependencies_installed',
 } | {
    pkg: LoggedPkg,
    status: 'installing',

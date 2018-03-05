@@ -1,30 +1,30 @@
-import path = require('path')
-import loadJsonFile = require('load-json-file')
-import symlinkDir = require('symlink-dir')
 import logger, {streamParser} from '@pnpm/logger'
 import {PackageJson} from '@pnpm/types'
-import {install} from './install'
-import pathAbsolute = require('path-absolute')
+import loadJsonFile = require('load-json-file')
 import normalize = require('normalize-path')
-import R = require('ramda')
-import {linkPkgBins} from '../link/linkBins'
-import extendOptions, {
-  InstallOptions,
-} from './extendInstallOptions'
-import readShrinkwrapFile from '../readShrinkwrapFiles'
-import removeOrphanPkgs from './removeOrphanPkgs'
 import pLimit = require('p-limit')
+import path = require('path')
+import pathAbsolute = require('path-absolute')
 import {
-  Shrinkwrap,
   prune as pruneShrinkwrap,
+  Shrinkwrap,
   write as saveShrinkwrap,
   writeCurrentOnly as saveCurrentShrinkwrapOnly,
 } from 'pnpm-shrinkwrap'
-import safeReadPackage from '../fs/safeReadPkg'
-import getSpecFromPackageJson from '../getSpecFromPackageJson'
+import R = require('ramda')
+import symlinkDir = require('symlink-dir')
 import {
   read as readModules,
 } from '../fs/modulesController'
+import safeReadPackage from '../fs/safeReadPkg'
+import getSpecFromPackageJson from '../getSpecFromPackageJson'
+import {linkPkgBins} from '../link/linkBins'
+import readShrinkwrapFile from '../readShrinkwrapFiles'
+import extendOptions, {
+  InstallOptions,
+} from './extendInstallOptions'
+import {install} from './install'
+import removeOrphanPkgs from './removeOrphanPkgs'
 
 const linkLogger = logger('link')
 const installLimit = pLimit(4)
@@ -35,7 +35,7 @@ export default async function link (
   maybeOpts: InstallOptions & {
     skipInstall?: boolean,
     linkToBin?: string,
-  }
+  },
 ) {
   const reporter = maybeOpts && maybeOpts.reporter
   if (reporter) {
@@ -45,33 +45,33 @@ export default async function link (
 
   if (!maybeOpts || !maybeOpts.skipInstall) {
     await Promise.all(
-      linkFromPkgs.map(prefix => installLimit(() =>
+      linkFromPkgs.map((prefix) => installLimit(() =>
         install({
           ...opts,
-          prefix,
           bin: path.join(prefix, 'node_modules', '.bin'),
           global: false,
-        })
-      ))
+          prefix,
+        }),
+      )),
     )
   }
   const shrFiles = await readShrinkwrapFile({
-    prefix: opts.prefix,
-    shrinkwrap: opts.shrinkwrap,
     force: opts.force,
+    prefix: opts.prefix,
     registry: opts.registry,
+    shrinkwrap: opts.shrinkwrap,
   })
   const oldShrinkwrap = R.clone(shrFiles.currentShrinkwrap)
   const pkg = await safeReadPackage(path.join(opts.prefix, 'package.json')) || undefined
-  const linkedPkgs: {path: string, pkg: PackageJson}[] = []
+  const linkedPkgs: Array<{path: string, pkg: PackageJson}> = []
 
   for (const linkFrom of linkFromPkgs) {
     const linkedPkg = await loadJsonFile(path.join(linkFrom, 'package.json'))
 
     const packagePath = normalize(path.relative(opts.prefix, linkFrom))
     const addLinkOpts = {
-      packagePath,
       linkedPkgName: linkedPkg.name,
+      packagePath,
       pkg,
     }
     addLinkToShrinkwrap(shrFiles.currentShrinkwrap, addLinkOpts)
@@ -84,13 +84,13 @@ export default async function link (
   const updatedWantedShrinkwrap = pruneShrinkwrap(shrFiles.wantedShrinkwrap)
   const modulesInfo = await readModules(destModules)
   await removeOrphanPkgs({
-    oldShrinkwrap,
-    newShrinkwrap: updatedCurrentShrinkwrap,
     bin: opts.bin,
+    hoistedAliases: modulesInfo && modulesInfo.hoistedAliases || {},
+    newShrinkwrap: updatedCurrentShrinkwrap,
+    oldShrinkwrap,
     prefix: opts.prefix,
     shamefullyFlatten: opts.shamefullyFlatten,
     storeController: opts.storeController,
-    hoistedAliases: modulesInfo && modulesInfo.hoistedAliases || {},
   })
 
   // Linking should happen after removing orphans
@@ -116,8 +116,8 @@ export default async function link (
 function addLinkToShrinkwrap (
   shr: Shrinkwrap,
   opts: {
-    packagePath: string,
     linkedPkgName: string,
+    packagePath: string,
     pkg?: PackageJson,
   },
 ) {
@@ -156,7 +156,7 @@ async function linkToModules (pkgName: string, linkFrom: string, modules: string
 export async function linkFromGlobal (
   pkgNames: string[],
   linkTo: string,
-  maybeOpts: InstallOptions & {globalPrefix: string}
+  maybeOpts: InstallOptions & {globalPrefix: string},
 ) {
   const reporter = maybeOpts && maybeOpts.reporter
   if (reporter) {
@@ -164,7 +164,7 @@ export async function linkFromGlobal (
   }
   const opts = await extendOptions(maybeOpts)
   const globalPkgPath = pathAbsolute(maybeOpts.globalPrefix)
-  const linkFromPkgs = pkgNames.map(pkgName => path.join(globalPkgPath, 'node_modules', pkgName))
+  const linkFromPkgs = pkgNames.map((pkgName) => path.join(globalPkgPath, 'node_modules', pkgName))
   await link(linkFromPkgs, path.join(linkTo, 'node_modules'), opts)
 
   if (reporter) {
@@ -175,9 +175,9 @@ export async function linkFromGlobal (
 export async function linkToGlobal (
   linkFrom: string,
   maybeOpts: InstallOptions & {
-    globalPrefix: string,
     globalBin: string,
-  }
+    globalPrefix: string,
+  },
 ) {
   const reporter = maybeOpts && maybeOpts.reporter
   if (reporter) {

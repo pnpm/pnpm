@@ -1,15 +1,15 @@
-import path = require('path')
-import tape = require('tape')
-import promisifyTape from 'tape-promise'
 import isCI = require('is-ci')
-import readPkg = require('read-pkg')
+import path = require('path')
 import exists = require('path-exists')
+import readPkg = require('read-pkg')
 import sinon = require('sinon')
 import {
   install,
   installPkgs,
   RootLog,
 } from 'supi'
+import tape = require('tape')
+import promisifyTape from 'tape-promise'
 import {
   prepare,
   testDefaults,
@@ -29,7 +29,7 @@ test('from a github repo', async (t: tape.Test) => {
   t.deepEqual(pkgJson.dependencies, {'is-negative': 'github:kevva/is-negative'}, 'has been added to dependencies in package.json')
 })
 
-test('from a github repo with different name via named installation', async function (t: tape.Test) {
+test('from a github repo with different name via named installation', async (t: tape.Test) => {
   const project = prepare(t)
 
   const reporter = sinon.spy()
@@ -38,16 +38,16 @@ test('from a github repo with different name via named installation', async func
 
   const m = project.requireModule('say-hi')
 
-  t.ok(reporter.calledWithMatch(<RootLog>{
-    name: 'pnpm:root',
-    level: 'info',
+  t.ok(reporter.calledWithMatch({
     added: {
+      dependencyType: 'prod',
       name: 'say-hi',
       realName: 'hi',
       version: '1.0.0',
-      dependencyType: 'prod',
     },
-  }), 'adding to root logged with real name and alias name')
+    level: 'info',
+    name: 'pnpm:root',
+  } as RootLog), 'adding to root logged with real name and alias name')
 
   t.equal(m, 'Hi', 'dep is available')
 
@@ -64,11 +64,11 @@ test('from a github repo with different name via named installation', async func
 })
 
 // This used to fail. Maybe won't be needed once api/install.ts gets refactored and covered with dedicated unit tests
-test('from a github repo with different name', async function (t: tape.Test) {
+test('from a github repo with different name', async (t: tape.Test) => {
   const project = prepare(t, {
     dependencies: {
-      'say-hi': 'github:zkochan/hi#4cdebec76b7b9d1f6e219e06c42d92a6b8ea60cd'
-    }
+      'say-hi': 'github:zkochan/hi#4cdebec76b7b9d1f6e219e06c42d92a6b8ea60cd',
+    },
   })
 
   const reporter = sinon.spy()
@@ -77,16 +77,16 @@ test('from a github repo with different name', async function (t: tape.Test) {
 
   const m = project.requireModule('say-hi')
 
-  t.ok(reporter.calledWithMatch(<RootLog>{
-    name: 'pnpm:root',
-    level: 'info',
+  t.ok(reporter.calledWithMatch({
     added: {
+      dependencyType: 'prod',
       name: 'say-hi',
       realName: 'hi',
       version: '1.0.0',
-      dependencyType: 'prod',
     },
-  }), 'adding to root logged with real name and alias name')
+    level: 'info',
+    name: 'pnpm:root',
+  } as RootLog), 'adding to root logged with real name and alias name')
 
   t.equal(m, 'Hi', 'dep is available')
 
@@ -102,7 +102,7 @@ test('from a github repo with different name', async function (t: tape.Test) {
   await project.isExecutable('.bin/szia')
 })
 
-test('a subdependency is from a github repo with different name', async function (t: tape.Test) {
+test('a subdependency is from a github repo with different name', async (t: tape.Test) => {
   const project = prepare(t)
 
   await installPkgs(['has-aliased-git-dependency'], await testDefaults())

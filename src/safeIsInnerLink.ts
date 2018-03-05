@@ -1,16 +1,16 @@
 import logger from '@pnpm/logger'
-import path = require('path')
 import isInnerLink = require('is-inner-link')
-import fs = require('mz/fs')
-import mkdirp = require('mkdirp-promise')
 import isSubdir = require('is-subdir')
+import mkdirp = require('mkdirp-promise')
+import fs = require('mz/fs')
+import path = require('path')
 
 export default async function safeIsInnerLink (
   modules: string,
   depName: string,
   opts: {
     storePath: string,
-  }
+  },
 ): Promise<true | string> {
   try {
     const link = await isInnerLink(modules, depName)

@@ -1,32 +1,32 @@
-import {
-  existsWanted as existsWantedShrinkwrap,
-  readWanted as readWantedShrinkwrap,
-  readCurrent as readCurrentShrinkwrap,
-  Shrinkwrap,
-  create as createShrinkwrap,
-} from 'pnpm-shrinkwrap'
 import logger from '@pnpm/logger'
-import R = require('ramda')
 import isCI = require('is-ci')
+import {
+  create as createShrinkwrap,
+  existsWanted as existsWantedShrinkwrap,
+  readCurrent as readCurrentShrinkwrap,
+  readWanted as readWantedShrinkwrap,
+  Shrinkwrap,
+} from 'pnpm-shrinkwrap'
+import R = require('ramda')
 
-export type PnpmContext = {
-  existsWantedShrinkwrap: boolean,
-  existsCurrentShrinkwrap: boolean,
+export interface PnpmContext {
   currentShrinkwrap: Shrinkwrap,
+  existsCurrentShrinkwrap: boolean,
+  existsWantedShrinkwrap: boolean,
   wantedShrinkwrap: Shrinkwrap,
 }
 
 export default async function getContext (
   opts: {
-    prefix: string,
-    shrinkwrap: boolean,
     force: boolean,
+    prefix: string,
     registry: string,
+    shrinkwrap: boolean,
   },
 ): Promise<{
-  existsWantedShrinkwrap: boolean,
-  existsCurrentShrinkwrap: boolean,
   currentShrinkwrap: Shrinkwrap,
+  existsCurrentShrinkwrap: boolean,
+  existsWantedShrinkwrap: boolean,
   wantedShrinkwrap: Shrinkwrap,
 }> {
   // ignore `shrinkwrap.yaml` on CI servers
@@ -40,9 +40,9 @@ export default async function getContext (
   ])
   const currentShrinkwrap = files[1] || createShrinkwrap(opts.registry)
   return {
-    wantedShrinkwrap: files[0] || !opts.shrinkwrap && currentShrinkwrap && R.clone(currentShrinkwrap) || createShrinkwrap(opts.registry),
     currentShrinkwrap,
-    existsWantedShrinkwrap: !!files[0],
     existsCurrentShrinkwrap: !!files[1],
+    existsWantedShrinkwrap: !!files[0],
+    wantedShrinkwrap: files[0] || !opts.shrinkwrap && currentShrinkwrap && R.clone(currentShrinkwrap) || createShrinkwrap(opts.registry),
   }
 }

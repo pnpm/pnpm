@@ -6,7 +6,7 @@ export default async function realNodeModulesDir (prefix: string): Promise<strin
   try {
     return await fs.realpath(dirName)
   } catch (err) {
-    if (err['code'] === 'ENOENT') {
+    if (err['code'] === 'ENOENT') { // tslint:disable-line:no-string-literal
       return dirName
     }
     throw err

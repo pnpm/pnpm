@@ -1,12 +1,12 @@
-import path = require('path')
 import logger from '@pnpm/logger'
-import pnpmPkgJson from '../pnpmPkgJson'
-import {LAYOUT_VERSION} from '../fs/modulesController'
 import normalizeRegistryUrl = require('normalize-registry-url')
 import {StoreController} from 'package-store'
+import path = require('path')
+import {LAYOUT_VERSION} from '../fs/modulesController'
+import pnpmPkgJson from '../pnpmPkgJson'
 import { ReporterFunction } from '../types'
 
-export type PruneOptions = {
+export interface PruneOptions {
   prefix?: string,
   store: string,
   independentLeaves?: boolean,
@@ -42,21 +42,21 @@ export type StrictPruneOptions = PruneOptions & {
 
 const defaults = async (opts: PruneOptions) => {
   const prefix = opts.prefix || process.cwd()
-  return <StrictPruneOptions>{
-    shamefullyFlatten: false,
-    storeController: opts.storeController,
-    global: false,
-    store: opts.store,
+  return {
     bin: path.join(prefix, 'node_modules', '.bin'),
-    prefix,
-    force: false,
-    registry: 'https://registry.npmjs.org/',
-    independentLeaves: false,
-    production: true,
     development: true,
+    force: false,
+    global: false,
+    independentLeaves: false,
     optional: true,
+    prefix,
+    production: true,
+    registry: 'https://registry.npmjs.org/',
+    shamefullyFlatten: false,
     shrinkwrap: true,
-  }
+    store: opts.store,
+    storeController: opts.storeController,
+  } as StrictPruneOptions
 }
 
 export default async (

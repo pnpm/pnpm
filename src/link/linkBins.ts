@@ -1,15 +1,15 @@
-import path = require('path')
-import normalizePath = require('normalize-path')
-import fs = require('mz/fs')
-import mkdirp = require('mkdirp-promise')
-import {fromDir as safeReadPkgFromDir} from '../fs/safeReadPkg'
-import getPkgDirs from '../fs/getPkgDirs'
-import binify from '../binify'
-import isWindows = require('is-windows')
-import cmdShim = require('@zkochan/cmd-shim')
 import logger from '@pnpm/logger'
+import cmdShim = require('@zkochan/cmd-shim')
+import isWindows = require('is-windows')
+import mkdirp = require('mkdirp-promise')
 import Module = require('module')
+import fs = require('mz/fs')
+import normalizePath = require('normalize-path')
+import path = require('path')
 import R = require('ramda')
+import binify from '../binify'
+import getPkgDirs from '../fs/getPkgDirs'
+import {fromDir as safeReadPkgFromDir} from '../fs/safeReadPkg'
 
 const IS_WINDOWS = isWindows()
 
@@ -17,9 +17,9 @@ export default async function linkAllBins (modules: string, binPath: string, exc
   const pkgDirs = await getPkgDirs(modules)
   return Promise.all(
     pkgDirs
-      .map(pkgDir => normalizePath(pkgDir))
-      .filter(pkgDir => !exceptPkgName || !pkgDir.endsWith(`/${exceptPkgName}`))
-      .map((pkgDir: string) => linkPkgBins(pkgDir, binPath))
+      .map((pkgDir) => normalizePath(pkgDir))
+      .filter((pkgDir) => !exceptPkgName || !pkgDir.endsWith(`/${exceptPkgName}`))
+      .map((pkgDir: string) => linkPkgBins(pkgDir, binPath)),
   )
 }
 
@@ -39,7 +39,7 @@ export async function linkPkgBins (target: string, binPath: string) {
   if (!cmds.length) return
 
   await mkdirp(binPath)
-  await Promise.all(cmds.map(async cmd => {
+  await Promise.all(cmds.map(async (cmd) => {
     const externalBinPath = path.join(binPath, cmd.name)
 
     const nodePath = (await getBinNodePaths(target)).join(path.delimiter)
@@ -51,7 +51,7 @@ async function getBinNodePaths (target: string) {
   const targetRealPath = await fs.realpath(target)
 
   return R.union(
-    Module['_nodeModulePaths'](targetRealPath),
-    Module['_nodeModulePaths'](target)
+    Module['_nodeModulePaths'](targetRealPath), // tslint:disable-line:no-string-literal
+    Module['_nodeModulePaths'](target), // tslint:disable-line:no-string-literal
   )
 }

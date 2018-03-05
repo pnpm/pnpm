@@ -1,15 +1,15 @@
+import rimraf = require('rimraf-then')
+import {install, installPkgs} from 'supi'
 import tape = require('tape')
 import promisifyTape from 'tape-promise'
 import {
   prepare,
   testDefaults,
 } from './utils'
-import rimraf = require('rimraf-then')
-import {installPkgs, install} from 'supi'
 
 const test = promisifyTape(tape)
 
-test('offline installation fails when package meta not found in local registry mirror', async function (t) {
+test('offline installation fails when package meta not found in local registry mirror', async (t) => {
   const project = prepare(t)
 
   try {
@@ -20,7 +20,7 @@ test('offline installation fails when package meta not found in local registry m
   }
 })
 
-test('offline installation fails when package tarball not found in local registry mirror', async function (t) {
+test('offline installation fails when package tarball not found in local registry mirror', async (t) => {
   const project = prepare(t)
 
   await installPkgs(['is-positive@3.0.0'], await testDefaults())
@@ -35,7 +35,7 @@ test('offline installation fails when package tarball not found in local registr
   }
 })
 
-test('successful offline installation', async function (t) {
+test('successful offline installation', async (t) => {
   const project = prepare(t)
 
   await installPkgs(['is-positive@3.0.0'], await testDefaults({save: true}))

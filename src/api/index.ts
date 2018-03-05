@@ -5,8 +5,8 @@ export * from './unlink'
 export * from './rebuild'
 
 import link from './link'
-import storeStatus from './storeStatus'
 import storePrune from './storePrune'
+import storeStatus from './storeStatus'
 import uninstall from './uninstall'
 export {
   link,

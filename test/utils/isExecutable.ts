@@ -1,9 +1,9 @@
-import isexe = require('isexe')
-import fs = require('mz/fs')
-import {Test} from 'tape'
-import semver = require('semver')
 import {Stats} from 'fs'
 import isWindows = require('is-windows')
+import isexe = require('isexe')
+import fs = require('mz/fs')
+import semver = require('semver')
+import {Test} from 'tape'
 
 const IS_WINDOWS = isWindows()
 

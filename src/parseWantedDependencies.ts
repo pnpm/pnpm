@@ -9,25 +9,27 @@ import {
 export default function parseWantedDependencies (
   rawWantedDependencies: string[],
   opts: {
+    currentPrefs: Dependencies,
     defaultTag: string,
     dev: boolean,
-    optional: boolean,
-    currentPrefs: Dependencies,
-    optionalDependencies: Dependencies,
     devDependencies: Dependencies,
-  }
+    optional: boolean,
+    optionalDependencies: Dependencies,
+  },
 ): WantedDependency[] {
   return rawWantedDependencies
-    .map(rawWantedDependency => {
+    .map((rawWantedDependency) => {
       const parsed = parseWantedDependency(rawWantedDependency)
+      // tslint:disable:no-string-literal
       const alias = parsed['alias'] as (string | undefined)
       const pref = parsed['pref'] as (string | undefined)
+      // tslint:enable:no-string-literal
       return {
         alias,
-        raw: rawWantedDependency,
-        pref: pref || alias && opts.currentPrefs[alias] || opts.defaultTag,
         dev: Boolean(opts.dev || alias && !!opts.devDependencies[alias]),
         optional: Boolean(opts.optional || alias && !!opts.optionalDependencies[alias]),
+        pref: pref || alias && opts.currentPrefs[alias] || opts.defaultTag,
+        raw: rawWantedDependency,
       }
     })
 }

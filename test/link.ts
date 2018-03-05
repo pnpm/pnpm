@@ -1,26 +1,26 @@
+import sinon = require('sinon')
 import tape = require('tape')
 import promisifyTape from 'tape-promise'
-import sinon = require('sinon')
 const test = promisifyTape(tape)
 const testOnly = promisifyTape(tape.only)
+import ncpCB = require('ncp')
 import path = require('path')
+import promisify = require('util.promisify')
 import {
-  prepare,
   isExecutable,
   pathToLocalPkg,
+  prepare,
   testDefaults,
  } from './utils'
-import promisify = require('util.promisify')
-import ncpCB = require('ncp')
 const ncp = promisify(ncpCB.ncp)
+import exists = require('path-exists')
 import {
-  link,
-  linkToGlobal,
-  linkFromGlobal,
   installPkgs,
+  link,
+  linkFromGlobal,
+  linkToGlobal,
   RootLog,
 } from 'supi'
-import exists = require('path-exists')
 import writeJsonFile = require('write-json-file')
 
 test('relative link', async (t: tape.Test) => {
@@ -65,16 +65,16 @@ test('relative link is not rewritten by install', async (t: tape.Test) => {
 
   t.ok(project.requireModule('hello-world-js-bin/package.json').isLocal)
 
-  t.ok(reporter.calledWithMatch(<RootLog>{
-    name: 'pnpm:root',
+  t.ok(reporter.calledWithMatch({
     level: 'debug',
     linked: {
-      name: 'hello-world-js-bin',
       from: linkedPkgPath,
+      name: 'hello-world-js-bin',
       to: path.resolve('node_modules'),
       // TODO: the dependencyType should be `undefined` in this case
     },
-  }), 'linked root dependency logged')
+    name: 'pnpm:root',
+  } as RootLog), 'linked root dependency logged')
 
   const wantedShrinkwrap = await project.loadShrinkwrap()
   t.equal(wantedShrinkwrap.dependencies['hello-world-js-bin'], 'link:../hello-world-js-bin', 'link still in wanted shrinkwrap')
@@ -83,7 +83,7 @@ test('relative link is not rewritten by install', async (t: tape.Test) => {
   t.equal(currentShrinkwrap.dependencies['hello-world-js-bin'], 'link:../hello-world-js-bin', 'link still in wanted shrinkwrap')
 })
 
-test('global link', async function (t: tape.Test) {
+test('global link', async (t: tape.Test) => {
   prepare(t)
   const projectPath = process.cwd()
 

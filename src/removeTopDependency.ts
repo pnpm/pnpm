@@ -1,21 +1,21 @@
-import rimraf = require('rimraf-then')
 import path = require('path')
+import rimraf = require('rimraf-then')
 import binify from './binify'
 import {fromDir as safeReadPkgFromDir} from './fs/safeReadPkg'
 import {rootLogger} from './loggers'
 
 export default async function removeTopDependency (
   dependency: {
-    name: string,
     dev: boolean,
+    name: string,
     optional: boolean,
   },
   opts: {
+    bin: string,
     dryRun?: boolean,
     modules: string,
-    bin: string,
     muteLogs?: boolean,
-  }
+  },
 ) {
   const results = await Promise.all([
     removeBins(dependency.name, opts),
@@ -26,9 +26,9 @@ export default async function removeTopDependency (
   if (!opts.muteLogs) {
     rootLogger.info({
       removed: {
+        dependencyType: dependency.dev && 'dev' || dependency.optional && 'optional' || 'prod',
         name: dependency.name,
         version: uninstalledPkg && uninstalledPkg.version,
-        dependencyType: dependency.dev && 'dev' || dependency.optional && 'optional' || 'prod'
       },
     })
   }
@@ -40,7 +40,7 @@ async function removeBins (
     dryRun?: boolean,
     modules: string,
     bin: string,
-  }
+  },
 ) {
   const uninstalledPkgPath = path.join(opts.modules, uninstalledPkg)
   const uninstalledPkgJson = await safeReadPkgFromDir(uninstalledPkgPath)
@@ -50,7 +50,7 @@ async function removeBins (
 
   if (!opts.dryRun) {
     await Promise.all(
-      cmds.map(cmd => path.join(opts.bin, cmd.name)).map(rimraf)
+      cmds.map((cmd) => path.join(opts.bin, cmd.name)).map(rimraf),
     )
   }
 

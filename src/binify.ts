@@ -1,10 +1,10 @@
-import {PackageJson, PackageBin} from '@pnpm/types'
-import path = require('path')
+import {PackageBin, PackageJson} from '@pnpm/types'
 import {Stats} from 'fs'
 import fs = require('mz/fs')
 import pFilter = require('p-filter')
+import path = require('path')
 
-export type Command = {
+export interface Command {
   name: string,
   path: string,
 }
@@ -28,11 +28,11 @@ export default async function binify (pkg: PackageJson, pkgPath: string): Promis
     const binDir = path.join(pkgPath, pkg.directories.bin)
     const files = await findFiles(binDir)
     return pFilter(
-      files.map(file => ({
+      files.map((file) => ({
         name: file,
-        path: path.join(binDir, file)
+        path: path.join(binDir, file),
       })),
-      async (cmd: Command) => (await fs.stat(cmd.path)).isFile()
+      async (cmd: Command) => (await fs.stat(cmd.path)).isFile(),
     )
   }
   return []
@@ -42,7 +42,7 @@ async function findFiles (dir: string): Promise<string[]> {
   try {
     return await fs.readdir(dir)
   } catch (err) {
-    if ((<NodeJS.ErrnoException>err).code !== 'ENOENT') {
+    if ((err as NodeJS.ErrnoException).code !== 'ENOENT') {
       throw err
     }
     return []
@@ -59,8 +59,8 @@ function commandsFromBin (bin: PackageBin, pkgName: string, pkgPath: string) {
     ]
   }
   return Object.keys(bin)
-    .map(commandName => ({
+    .map((commandName) => ({
       name: commandName,
-      path: path.join(pkgPath, bin[commandName])
+      path: path.join(pkgPath, bin[commandName]),
     }))
 }
