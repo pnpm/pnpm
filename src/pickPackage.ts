@@ -6,10 +6,11 @@ import pLimit = require('p-limit')
 import path = require('path')
 import url = require('url')
 import writeJsonFile = require('write-json-file')
-import createPkgId from './createNpmPkgId'
 import {RegistryPackageSpec} from './parsePref'
 import pickPackageFromMeta from './pickPackageFromMeta'
 import toRaw from './toRaw'
+
+const DEFAULT_CACHE_TTL = 120 * 1000 // 2 minutes
 
 class PnpmError extends Error {
   public code: string
@@ -24,6 +25,7 @@ export interface PackageMeta {
   versions: {
     [name: string]: PackageInRegistry,
   }
+  cachedAt?: number,
 }
 
 export type PackageInRegistry = PackageManifest & {
@@ -45,6 +47,7 @@ export default async (
     storePath: string,
     offline: boolean,
     preferOffline: boolean,
+    cacheTtl?: number,
   },
   spec: RegistryPackageSpec,
   opts: {
@@ -58,12 +61,15 @@ export default async (
   },
 ): Promise<{meta: PackageMeta, pickedPackage: PackageInRegistry | null}> => {
   opts = opts || {}
+  ctx.cacheTtl = ctx.cacheTtl || DEFAULT_CACHE_TTL
 
   if (ctx.metaCache.has(spec.name)) {
     const meta = ctx.metaCache.get(spec.name) as PackageMeta
-    return {
-      meta,
-      pickedPackage: pickPackageFromMeta(spec, opts.preferredVersionSelector, meta),
+    if (meta.cachedAt && Date.now() - meta.cachedAt < ctx.cacheTtl) {
+      return {
+        meta,
+        pickedPackage: pickPackageFromMeta(spec, opts.preferredVersionSelector, meta),
+      }
     }
   }
 
@@ -109,6 +115,7 @@ export default async (
 
   try {
     const meta = await fromRegistry(ctx.fetch, spec.name, opts.registry, opts.auth)
+    meta.cachedAt = Date.now()
     // only save meta to cache, when it is fresh
     ctx.metaCache.set(spec.name, meta)
     if (!opts.dryRun) {
