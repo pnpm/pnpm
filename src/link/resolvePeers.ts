@@ -55,10 +55,7 @@ export interface DepGraphNode {
 }
 
 export interface DepGraphNodesByDepPath {
-  // a node ID is the join of the package's keypath with a colon
-  // E.g., a subdeps node ID which parent is `foo` will be
-  // registry.npmjs.org/foo/1.0.0:registry.npmjs.org/bar/1.0.0
-  [nodeId: string]: DepGraphNode
+  [depPath: string]: DepGraphNode
 }
 
 export default function (
@@ -208,7 +205,7 @@ function resolvePeersOfChildren (
     nodeModules: string,
     purePkgs: Set<string>,
     depGraph: DepGraphNodesByDepPath,
-    pkgGraph: {[nodeId: string]: PkgGraphNode},
+    pkgGraph: PkgGraphNodeByNodeId,
   },
   exceptNodeId?: string,
 ): {[alias: string]: string} {

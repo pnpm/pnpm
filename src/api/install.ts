@@ -79,6 +79,9 @@ export interface PkgGraphNode {
 }
 
 export interface PkgGraphNodeByNodeId {
+  // a node ID is the join of the package's keypath with a colon
+  // E.g., a subdeps node ID which parent is `foo` will be
+  // registry.npmjs.org/foo/1.0.0:registry.npmjs.org/bar/1.0.0
   [nodeId: string]: PkgGraphNode,
 }
 

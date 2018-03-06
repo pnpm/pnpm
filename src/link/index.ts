@@ -101,14 +101,14 @@ export default async function linkPackages (
   )
   stageLogger.debug('importing_done')
 
-  const rootPkgsToLinkByAbsolutePath = depNodes
+  const rootDepsByDepPath = depNodes
     .filter((depNode) => depNode.depth === 0)
-    .reduce((rootPkgsToLink, depNode) => {
-      rootPkgsToLink[depNode.absolutePath] = depNode
-      return rootPkgsToLink
+    .reduce((acc, depNode) => {
+      acc[depNode.absolutePath] = depNode
+      return acc
     }, {})
   for (const rootAlias of R.keys(resolvePeersResult.rootAbsolutePathsByAlias)) {
-    const pkg = rootPkgsToLinkByAbsolutePath[resolvePeersResult.rootAbsolutePathsByAlias[rootAlias]]
+    const pkg = rootDepsByDepPath[resolvePeersResult.rootAbsolutePathsByAlias[rootAlias]]
     if (!pkg) continue
     if (opts.dryRun || !(await symlinkDependencyTo(rootAlias, pkg, opts.baseNodeModules)).reused) {
       const isDev = opts.pkg.devDependencies && opts.pkg.devDependencies[pkg.name]
@@ -374,13 +374,9 @@ async function linkAllBins (
 
       await Promise.all(
         R.keys(childrenToLink)
-          .map(async (alias) => {
-            const childToLink = childrenToLink[alias]
-            const child = depGraph[childToLink]
-            if (child.installable) {
-              await linkPkgBins(path.join(depNode.modules, alias), binPath)
-            }
-          }),
+          .filter((alias) => depGraph[childrenToLink[alias]].installable)
+          .map((alias) => path.join(depNode.modules, alias))
+          .map((target) => linkPkgBins(target, binPath)),
       )
 
       // link also the bundled dependencies` bins
