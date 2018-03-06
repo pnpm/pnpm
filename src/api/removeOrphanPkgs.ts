@@ -39,10 +39,10 @@ export default async function removeOrphanPkgs (
     })
   }))
 
-  const oldPkgIds = getPackageIds(opts.oldShrinkwrap.registry, opts.oldShrinkwrap.packages || {})
-  const newPkgIds = getPackageIds(opts.newShrinkwrap.registry, opts.newShrinkwrap.packages || {})
+  const oldDepPaths = getPkgsDepPaths(opts.oldShrinkwrap.registry, opts.oldShrinkwrap.packages || {})
+  const newDepPaths = getPkgsDepPaths(opts.newShrinkwrap.registry, opts.newShrinkwrap.packages || {})
 
-  const notDependents = R.difference(oldPkgIds, newPkgIds)
+  const notDependents = R.difference(oldDepPaths, newDepPaths)
 
   statsLogger.debug({removed: notDependents.length})
 
@@ -73,7 +73,7 @@ export default async function removeOrphanPkgs (
       }))
     }
 
-    const newDependents = R.difference(newPkgIds, oldPkgIds)
+    const newDependents = R.difference(newDepPaths, oldDepPaths)
 
     await opts.storeController.updateConnections(opts.prefix, {
       addDependencies: newDependents,
@@ -87,7 +87,7 @@ export default async function removeOrphanPkgs (
   return new Set(notDependents)
 }
 
-function getPackageIds (
+function getPkgsDepPaths (
   registry: string,
   packages: ResolvedPackages,
 ): string[] {

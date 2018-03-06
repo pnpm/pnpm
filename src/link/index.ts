@@ -6,7 +6,7 @@ import path = require('path')
 import {DependencyShrinkwrap, Shrinkwrap} from 'pnpm-shrinkwrap'
 import R = require('ramda')
 import symlinkDir = require('symlink-dir')
-import {TreeNode} from '../api/install'
+import {PkgGraphNodeByNodeId} from '../api/install'
 import removeOrphanPkgs from '../api/removeOrphanPkgs'
 import {
   rootLogger,
@@ -15,12 +15,12 @@ import {
 } from '../loggers'
 import logStatus from '../logging/logInstallStatus'
 import linkBins, {linkPkgBins} from './linkBins'
-import resolvePeers, {DependencyTreeNode, DependencyTreeNodeMap} from './resolvePeers'
+import resolvePeers, {DepGraphNode, DepGraphNodesByDepPath} from './resolvePeers'
 import updateShrinkwrap from './updateShrinkwrap'
 
 export default async function linkPackages (
   rootNodeIdsByAlias: {[alias: string]: string},
-  tree: {[nodeId: string]: TreeNode},
+  pkgGraph: PkgGraphNodeByNodeId,
   opts: {
     force: boolean,
     dryRun: boolean,
@@ -48,22 +48,22 @@ export default async function linkPackages (
     hoistedAliases: {[pkgId: string]: string[]},
   },
 ): Promise<{
-  linkedPkgsMap: DependencyTreeNodeMap,
-  wantedShrinkwrap: Shrinkwrap,
   currentShrinkwrap: Shrinkwrap,
-  newDepPaths: string[],
-  removedPkgIds: Set<string>,
+  depGraph: DepGraphNodesByDepPath,
   hoistedAliases: {[pkgId: string]: string[]},
+  newDepPaths: string[],
+  removedDepPaths: Set<string>,
+  wantedShrinkwrap: Shrinkwrap,
 }> {
   // TODO: decide what kind of logging should be here.
-  // The `Creating dependency tree` is not good to report in all cases as
+  // The `Creating dependency graph` is not good to report in all cases as
   // sometimes node_modules is alread up-to-date
-  // logger.info(`Creating dependency tree`)
-  const resolvePeersResult = await resolvePeers(tree, rootNodeIdsByAlias, opts.topParents, opts.independentLeaves, opts.baseNodeModules)
-  const pkgsToLink = resolvePeersResult.resolvedTree
-  const newShr = updateShrinkwrap(pkgsToLink, opts.wantedShrinkwrap, opts.pkg)
+  // logger.info(`Creating dependency graph`)
+  const resolvePeersResult = await resolvePeers(pkgGraph, rootNodeIdsByAlias, opts.topParents, opts.independentLeaves, opts.baseNodeModules)
+  const depGraph = resolvePeersResult.depGraph
+  const newShr = updateShrinkwrap(depGraph, opts.wantedShrinkwrap, opts.pkg)
 
-  const removedPkgIds = await removeOrphanPkgs({
+  const removedDepPaths = await removeOrphanPkgs({
     bin: opts.bin,
     dryRun: opts.dryRun,
     hoistedAliases: opts.hoistedAliases,
@@ -74,15 +74,15 @@ export default async function linkPackages (
     storeController: opts.storeController,
   })
 
-  let flatResolvedDeps =  R.values(pkgsToLink).filter((dep) => !opts.skipped.has(dep.id))
+  let depNodes =  R.values(depGraph).filter((depNode) => !opts.skipped.has(depNode.id))
   if (!opts.production) {
-    flatResolvedDeps = flatResolvedDeps.filter((dep) => dep.dev !== false || dep.optional)
+    depNodes = depNodes.filter((depNode) => depNode.dev !== false || depNode.optional)
   }
   if (!opts.development) {
-    flatResolvedDeps = flatResolvedDeps.filter((dep) => dep.dev !== true)
+    depNodes = depNodes.filter((depNode) => depNode.dev !== true)
   }
   if (!opts.optional) {
-    flatResolvedDeps = flatResolvedDeps.filter((dep) => !dep.optional)
+    depNodes = depNodes.filter((depNode) => !depNode.optional)
   }
 
   const filterOpts = {
@@ -96,15 +96,15 @@ export default async function linkPackages (
   const newDepPaths = await linkNewPackages(
     filterShrinkwrap(opts.currentShrinkwrap, filterOpts),
     newCurrentShrinkwrap,
-    pkgsToLink,
+    depGraph,
     opts,
   )
   stageLogger.debug('importing_done')
 
-  const rootPkgsToLinkByAbsolutePath = flatResolvedDeps
-    .filter((pkg) => pkg.depth === 0)
-    .reduce((rootPkgsToLink, pkg) => {
-      rootPkgsToLink[pkg.absolutePath] = pkg
+  const rootPkgsToLinkByAbsolutePath = depNodes
+    .filter((depNode) => depNode.depth === 0)
+    .reduce((rootPkgsToLink, depNode) => {
+      rootPkgsToLink[depNode.absolutePath] = depNode
       return rootPkgsToLink
     }, {})
   for (const rootAlias of R.keys(resolvePeersResult.rootAbsolutePathsByAlias)) {
@@ -147,7 +147,7 @@ export default async function linkPackages (
     if (newShr.packages) {
       for (const relDepPath in newShr.packages) { // tslint:disable-line:forin
         const depPath = dp.resolve(newShr.registry, relDepPath)
-        if (pkgsToLink[depPath]) {
+        if (depGraph[depPath]) {
           packages[relDepPath] = newShr.packages[relDepPath]
         }
       }
@@ -159,23 +159,23 @@ export default async function linkPackages (
     currentShrinkwrap = newCurrentShrinkwrap
   }
 
-  // Important: shamefullyFlattenTree changes flatResolvedDeps, so keep this at the end
-  if (opts.shamefullyFlatten && (opts.reinstallForFlatten || newDepPaths.length > 0 || removedPkgIds.size > 0)) {
-    opts.hoistedAliases = await shamefullyFlattenTree(flatResolvedDeps, currentShrinkwrap, opts)
+  // Important: shamefullyFlattenTree changes flatPkgByPkgId, so keep this at the end
+  if (opts.shamefullyFlatten && (opts.reinstallForFlatten || newDepPaths.length > 0 || removedDepPaths.size > 0)) {
+    opts.hoistedAliases = await shamefullyFlattenTree(depNodes, currentShrinkwrap, opts)
   }
 
   return {
     currentShrinkwrap,
+    depGraph,
     hoistedAliases: opts.hoistedAliases,
-    linkedPkgsMap: pkgsToLink,
     newDepPaths,
-    removedPkgIds,
+    removedDepPaths,
     wantedShrinkwrap: newShr,
   }
 }
 
 async function shamefullyFlattenTree (
-  flatResolvedDeps: DependencyTreeNode[],
+  depNodes: DepGraphNode[],
   currentShrinkwrap: Shrinkwrap,
   opts: {
     baseNodeModules: string,
@@ -189,15 +189,15 @@ async function shamefullyFlattenTree (
   const dependencyPathByAlias = {}
   const aliasesByDependencyPath: {[pkgId: string]: string[]} = {}
 
-  await Promise.all(flatResolvedDeps
+  await Promise.all(depNodes
     // sort by depth and then alphabetically
     .sort((a, b) => {
       const depthDiff = a.depth - b.depth
       return depthDiff === 0 ? a.name.localeCompare(b.name) : depthDiff
     })
     // build the alias map and the id map
-    .map((pkg) => {
-      for (const childAlias of R.keys(pkg.children)) {
+    .map((depNode) => {
+      for (const childAlias of R.keys(depNode.children)) {
         // if this alias is in the root dependencies, skip it
         if (currentShrinkwrap.specifiers[childAlias]) {
           continue
@@ -206,17 +206,17 @@ async function shamefullyFlattenTree (
         if (dependencyPathByAlias[childAlias]) {
           continue
         }
-        const childPath = pkg.children[childAlias]
+        const childPath = depNode.children[childAlias]
         dependencyPathByAlias[childAlias] = childPath
         if (!aliasesByDependencyPath[childPath]) {
           aliasesByDependencyPath[childPath] = []
         }
         aliasesByDependencyPath[childPath].push(childAlias)
       }
-      return pkg
+      return depNode
     })
-    .map(async (pkg) => {
-      const pkgAliases = aliasesByDependencyPath[pkg.absolutePath]
+    .map(async (depNode) => {
+      const pkgAliases = aliasesByDependencyPath[depNode.absolutePath]
       if (!pkgAliases) {
         return
       }
@@ -224,7 +224,7 @@ async function shamefullyFlattenTree (
       // TODO look how it is done in linkPackages
       if (!opts.dryRun) {
         await Promise.all(pkgAliases.map(async (pkgAlias) => {
-          await symlinkDependencyTo(pkgAlias, pkg, opts.baseNodeModules)
+          await symlinkDependencyTo(pkgAlias, depNode, opts.baseNodeModules)
         }))
       }
     }))
@@ -266,7 +266,7 @@ function filterShrinkwrap (
 async function linkNewPackages (
   currentShrinkwrap: Shrinkwrap,
   wantedShrinkwrap: Shrinkwrap,
-  pkgsToLink: DependencyTreeNodeMap,
+  depGraph: DepGraphNodesByDepPath,
   opts: {
     baseNodeModules: string,
     dryRun: boolean,
@@ -290,7 +290,7 @@ async function linkNewPackages (
     .map((relDepPath) => dp.resolve(wantedShrinkwrap.registry, relDepPath))
     // when installing a new package, not all the nodes are analyzed
     // just skip the ones that are in the lockfile but were not analyzed
-    .filter((depPath) => pkgsToLink[depPath]),
+    .filter((depPath) => depGraph[depPath]),
   )
   statsLogger.debug({added: newDepPathsSet.size})
 
@@ -304,10 +304,10 @@ async function linkNewPackages (
         !R.equals(currentShrinkwrap.packages[relDepPath].optionalDependencies, wantedShrinkwrap.packages[relDepPath].optionalDependencies))) {
         const depPath = dp.resolve(wantedShrinkwrap.registry, relDepPath)
 
-        // TODO: come up with a test that triggers the usecase of pkgsToLink[depPath] undefined
+        // TODO: come up with a test that triggers the usecase of depGraph[depPath] undefined
         // see related issue: https://github.com/pnpm/pnpm/issues/870
-        if (pkgsToLink[depPath] && !newDepPathsSet.has(depPath)) {
-          existingWithUpdatedDeps.push(pkgsToLink[depPath])
+        if (depGraph[depPath] && !newDepPathsSet.has(depPath)) {
+          existingWithUpdatedDeps.push(depGraph[depPath])
         }
       }
     }
@@ -319,15 +319,15 @@ async function linkNewPackages (
 
   if (opts.dryRun) return newDepPaths
 
-  const newPkgs = R.props<string, DependencyTreeNode>(newDepPaths, pkgsToLink)
+  const newPkgs = R.props<string, DepGraphNode>(newDepPaths, depGraph)
 
   await Promise.all([
-    linkAllModules(newPkgs, pkgsToLink, {optional: opts.optional}),
-    linkAllModules(existingWithUpdatedDeps, pkgsToLink, {optional: opts.optional}),
+    linkAllModules(newPkgs, depGraph, {optional: opts.optional}),
+    linkAllModules(existingWithUpdatedDeps, depGraph, {optional: opts.optional}),
     linkAllPkgs(opts.storeController, newPkgs, opts),
   ])
 
-  await linkAllBins(newPkgs, pkgsToLink, {optional: opts.optional})
+  await linkAllBins(newPkgs, depGraph, {optional: opts.optional})
 
   return newDepPaths
 }
@@ -336,18 +336,18 @@ const limitLinking = pLimit(16)
 
 async function linkAllPkgs (
   storeController: StoreController,
-  alldeps: DependencyTreeNode[],
+  depNodes: DepGraphNode[],
   opts: {
     force: boolean,
     sideEffectsCache: boolean,
   },
 ) {
   return Promise.all(
-    alldeps.map(async (pkg) => {
-      const filesResponse = await pkg.fetchingFiles
+    depNodes.map(async (depNode) => {
+      const filesResponse = await depNode.fetchingFiles
 
-      if (pkg.independent) return
-      return storeController.importPackage(pkg.centralLocation, pkg.peripheralLocation, {
+      if (depNode.independent) return
+      return storeController.importPackage(depNode.centralLocation, depNode.peripheralLocation, {
         filesResponse,
         force: opts.force,
       })
@@ -356,22 +356,22 @@ async function linkAllPkgs (
 }
 
 async function linkAllBins (
-  pkgs: DependencyTreeNode[],
-  pkgMap: DependencyTreeNodeMap,
+  depNodes: DepGraphNode[],
+  depGraph: DepGraphNodesByDepPath,
   opts: {
     optional: boolean,
   },
 ) {
   return Promise.all(
-    pkgs.map((dependency) => limitLinking(async () => {
-      const binPath = path.join(dependency.peripheralLocation, 'node_modules', '.bin')
+    depNodes.map((depNode) => limitLinking(async () => {
+      const binPath = path.join(depNode.peripheralLocation, 'node_modules', '.bin')
 
       const childrenToLink = opts.optional
-          ? dependency.children
-          : R.keys(dependency.children)
+          ? depNode.children
+          : R.keys(depNode.children)
             .reduce((nonOptionalChildren, childAlias) => {
-              if (!dependency.optionalDependencies.has(childAlias)) {
-                nonOptionalChildren[childAlias] = dependency.children[childAlias]
+              if (!depNode.optionalDependencies.has(childAlias)) {
+                nonOptionalChildren[childAlias] = depNode.children[childAlias]
               }
               return nonOptionalChildren
             }, {})
@@ -380,16 +380,16 @@ async function linkAllBins (
         R.keys(childrenToLink)
           .map(async (alias) => {
             const childToLink = childrenToLink[alias]
-            const child = pkgMap[childToLink]
+            const child = depGraph[childToLink]
             if (child.installable) {
-              await linkPkgBins(path.join(dependency.modules, alias), binPath)
+              await linkPkgBins(path.join(depNode.modules, alias), binPath)
             }
           }),
       )
 
       // link also the bundled dependencies` bins
-      if (dependency.hasBundledDependencies) {
-        const bundledModules = path.join(dependency.peripheralLocation, 'node_modules')
+      if (depNode.hasBundledDependencies) {
+        const bundledModules = path.join(depNode.peripheralLocation, 'node_modules')
         await linkBins(bundledModules, binPath)
       }
     })),
@@ -397,22 +397,22 @@ async function linkAllBins (
 }
 
 async function linkAllModules (
-  pkgs: DependencyTreeNode[],
-  pkgMap: DependencyTreeNodeMap,
+  depNodes: DepGraphNode[],
+  depGraph: DepGraphNodesByDepPath,
   opts: {
     optional: boolean,
   },
 ) {
   return Promise.all(
-    pkgs
-      .filter((dependency) => !dependency.independent)
-      .map((dependency) => limitLinking(async () => {
+    depNodes
+      .filter((depNode) => !depNode.independent)
+      .map((depNode) => limitLinking(async () => {
         const childrenToLink = opts.optional
-          ? dependency.children
-          : R.keys(dependency.children)
+          ? depNode.children
+          : R.keys(depNode.children)
             .reduce((nonOptionalChildren, childAlias) => {
-              if (!dependency.optionalDependencies.has(childAlias)) {
-                nonOptionalChildren[childAlias] = dependency.children[childAlias]
+              if (!depNode.optionalDependencies.has(childAlias)) {
+                nonOptionalChildren[childAlias] = depNode.children[childAlias]
               }
               return nonOptionalChildren
             }, {})
@@ -420,16 +420,16 @@ async function linkAllModules (
         await Promise.all(
           R.keys(childrenToLink)
             .map(async (alias) => {
-              const pkg = pkgMap[childrenToLink[alias]]
+              const pkg = depGraph[childrenToLink[alias]]
               if (!pkg.installable) return
-              await symlinkDependencyTo(alias, pkg, dependency.modules)
+              await symlinkDependencyTo(alias, pkg, depNode.modules)
             }),
         )
       })),
   )
 }
 
-function symlinkDependencyTo (alias: string, dependency: DependencyTreeNode, dest: string) {
+function symlinkDependencyTo (alias: string, depNode: DepGraphNode, dest: string) {
   dest = path.join(dest, alias)
-  return symlinkDir(dependency.peripheralLocation, dest)
+  return symlinkDir(depNode.peripheralLocation, dest)
 }

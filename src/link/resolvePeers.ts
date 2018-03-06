@@ -9,15 +9,15 @@ import crypto = require('crypto')
 import path = require('path')
 import R = require('ramda')
 import semver = require('semver')
-import {TreeNode, TreeNodeMap} from '../api/install'
+import {PkgGraphNode, PkgGraphNodeByNodeId} from '../api/install'
 import {
   createNodeId,
   ROOT_NODE_ID,
   splitNodeId,
 } from '../nodeIdUtils'
-import {InstalledPackage} from '../resolveDependencies'
+import {Pkg} from '../resolveDependencies'
 
-export interface DependencyTreeNode {
+export interface DepGraphNode {
   name: string,
   // at this point the version is really needed only for logging
   version: string,
@@ -54,15 +54,15 @@ export interface DependencyTreeNode {
   isBuilt?: boolean,
 }
 
-export interface DependencyTreeNodeMap {
+export interface DepGraphNodesByDepPath {
   // a node ID is the join of the package's keypath with a colon
   // E.g., a subdeps node ID which parent is `foo` will be
   // registry.npmjs.org/foo/1.0.0:registry.npmjs.org/bar/1.0.0
-  [nodeId: string]: DependencyTreeNode
+  [nodeId: string]: DepGraphNode
 }
 
 export default function (
-  tree: TreeNodeMap,
+  pkgGraph: PkgGraphNodeByNodeId,
   rootNodeIdsByAlias: {[alias: string]: string},
   // only the top dependencies that were already installed
   // to avoid warnings about unresolved peer dependencies
@@ -70,7 +70,7 @@ export default function (
   independentLeaves: boolean,
   nodeModules: string,
 ): {
-  resolvedTree: DependencyTreeNodeMap,
+  depGraph: DepGraphNodesByDepPath,
   rootAbsolutePathsByAlias: {[alias: string]: string},
 } {
   const pkgsByName = Object.assign(
@@ -83,28 +83,28 @@ export default function (
         },
       ]),
     ),
-    toPkgByName(R.keys(rootNodeIdsByAlias).map((alias) => ({alias, nodeId: rootNodeIdsByAlias[alias], node: tree[rootNodeIdsByAlias[alias]]}))),
+    toPkgByName(R.keys(rootNodeIdsByAlias).map((alias) => ({alias, nodeId: rootNodeIdsByAlias[alias], node: pkgGraph[rootNodeIdsByAlias[alias]]}))),
   )
 
   const absolutePathsByNodeId = {}
-  const resolvedTree: DependencyTreeNodeMap = {}
+  const depGraph: DepGraphNodesByDepPath = {}
   resolvePeersOfChildren(rootNodeIdsByAlias, pkgsByName, {
     absolutePathsByNodeId,
+    depGraph,
     independentLeaves,
     nodeModules,
+    pkgGraph,
     purePkgs: new Set(),
-    resolvedTree,
-    tree,
   })
 
-  R.values(resolvedTree).forEach((node) => {
+  R.values(depGraph).forEach((node) => {
     node.children = R.keys(node.children).reduce((acc, alias) => {
       acc[alias] = absolutePathsByNodeId[node.children[alias]]
       return acc
     }, {})
   })
   return {
-    resolvedTree,
+    depGraph,
     rootAbsolutePathsByAlias: R.keys(rootNodeIdsByAlias).reduce((rootAbsolutePathsByAlias, alias) => {
       rootAbsolutePathsByAlias[alias] = absolutePathsByNodeId[rootNodeIdsByAlias[alias]]
       return rootAbsolutePathsByAlias
@@ -116,16 +116,16 @@ function resolvePeersOfNode (
   nodeId: string,
   parentParentPkgs: ParentRefs,
   ctx: {
-    tree: TreeNodeMap,
+    pkgGraph: PkgGraphNodeByNodeId,
     absolutePathsByNodeId: {[nodeId: string]: string},
-    resolvedTree: DependencyTreeNodeMap,
+    depGraph: DepGraphNodesByDepPath,
     independentLeaves: boolean,
     nodeModules: string,
     purePkgs: Set<string>, // pure packages are those that don't rely on externally resolved peers
   },
 ): {[alias: string]: string} {
-  const node = ctx.tree[nodeId]
-  if (ctx.purePkgs.has(node.pkg.id) && ctx.resolvedTree[node.pkg.id].depth <= node.depth) {
+  const node = ctx.pkgGraph[nodeId]
+  if (ctx.purePkgs.has(node.pkg.id) && ctx.depGraph[node.pkg.id].depth <= node.depth) {
     ctx.absolutePathsByNodeId[nodeId] = node.pkg.id
     return {}
   }
@@ -135,13 +135,13 @@ function resolvePeersOfNode (
     ? parentParentPkgs
     : {
         ...parentParentPkgs,
-        ...toPkgByName(R.keys(children).map((alias) => ({alias, nodeId: children[alias], node: ctx.tree[children[alias]]}))),
+        ...toPkgByName(R.keys(children).map((alias) => ({alias, nodeId: children[alias], node: ctx.pkgGraph[children[alias]]}))),
       }
   const unknownResolvedPeersOfChildren = resolvePeersOfChildren(children, parentPkgs, ctx, nodeId)
 
   const resolvedPeers = R.isEmpty(node.pkg.peerDependencies)
     ? {}
-    : resolvePeers(nodeId, node, parentPkgs, ctx.tree)
+    : resolvePeers(nodeId, node, parentPkgs, ctx.pkgGraph)
 
   const allResolvedPeers = Object.assign(unknownResolvedPeersOfChildren, resolvedPeers)
 
@@ -158,20 +158,20 @@ function resolvePeersOfNode (
     const peersFolder = createPeersFolderName(
       R.keys(allResolvedPeers).map((alias) => ({
         name: alias,
-        version: ctx.tree[allResolvedPeers[alias]].pkg.version,
+        version: ctx.pkgGraph[allResolvedPeers[alias]].pkg.version,
       })))
     modules = path.join(localLocation, peersFolder, 'node_modules')
     absolutePath = `${node.pkg.id}/${peersFolder}`
   }
 
   ctx.absolutePathsByNodeId[nodeId] = absolutePath
-  if (!ctx.resolvedTree[absolutePath] || ctx.resolvedTree[absolutePath].depth > node.depth) {
+  if (!ctx.depGraph[absolutePath] || ctx.depGraph[absolutePath].depth > node.depth) {
     const independent = ctx.independentLeaves && R.isEmpty(node.children) && R.isEmpty(node.pkg.peerDependencies)
     const centralLocation = node.pkg.engineCache || path.join(node.pkg.path, 'node_modules', node.pkg.name)
     const peripheralLocation = !independent
       ? path.join(modules, node.pkg.name)
       : centralLocation
-    ctx.resolvedTree[absolutePath] = {
+    ctx.depGraph[absolutePath] = {
       absolutePath,
       additionalInfo: node.pkg.additionalInfo,
       centralLocation,
@@ -207,8 +207,8 @@ function resolvePeersOfChildren (
     independentLeaves: boolean,
     nodeModules: string,
     purePkgs: Set<string>,
-    resolvedTree: DependencyTreeNodeMap,
-    tree: {[nodeId: string]: TreeNode},
+    depGraph: DepGraphNodesByDepPath,
+    pkgGraph: {[nodeId: string]: PkgGraphNode},
   },
   exceptNodeId?: string,
 ): {[alias: string]: string} {
@@ -230,9 +230,9 @@ function resolvePeersOfChildren (
 
 function resolvePeers (
   nodeId: string,
-  node: TreeNode,
+  node: PkgGraphNode,
   parentPkgs: ParentRefs,
-  tree: TreeNodeMap,
+  pkgGraph: PkgGraphNodeByNodeId,
 ): {
   [alias: string]: string,
 } {
@@ -242,8 +242,8 @@ function resolvePeers (
 
     const resolved = parentPkgs[peerName]
 
-    if (!resolved || resolved.nodeId && !tree[resolved.nodeId].installable) {
-      const friendlyPath = nodeIdToFriendlyPath(nodeId, tree)
+    if (!resolved || resolved.nodeId && !pkgGraph[resolved.nodeId].installable) {
+      const friendlyPath = nodeIdToFriendlyPath(nodeId, pkgGraph)
       logger.warn(oneLine`
         ${friendlyPath ? `${friendlyPath}: ` : ''}${packageFriendlyId(node.pkg)}
         requires a peer of ${peerName}@${peerVersionRange} but none was installed.`,
@@ -252,7 +252,7 @@ function resolvePeers (
     }
 
     if (!semver.satisfies(resolved.version, peerVersionRange)) {
-      const friendlyPath = nodeIdToFriendlyPath(nodeId, tree)
+      const friendlyPath = nodeIdToFriendlyPath(nodeId, pkgGraph)
       logger.warn(oneLine`
         ${friendlyPath ? `${friendlyPath}: ` : ''}${packageFriendlyId(node.pkg)}
         requires a peer of ${peerName}@${peerVersionRange} but version ${resolved.version} was installed.`,
@@ -275,10 +275,10 @@ function packageFriendlyId (pkg: {name: string, version: string}) {
   return `${pkg.name}@${pkg.version}`
 }
 
-function nodeIdToFriendlyPath (nodeId: string, tree: TreeNodeMap) {
+function nodeIdToFriendlyPath (nodeId: string, pkgGraph: PkgGraphNodeByNodeId) {
   const parts = splitNodeId(nodeId).slice(2, -2)
   return R.tail(R.scan((prevNodeId, pkgId) => createNodeId(prevNodeId, pkgId), ROOT_NODE_ID, parts))
-    .map((nid) => tree[nid].pkg.name)
+    .map((nid) => pkgGraph[nid].pkg.name)
     .join(' > ')
 }
 
@@ -293,7 +293,7 @@ interface ParentRef {
   nodeId?: string,
 }
 
-function toPkgByName (nodes: Array<{alias: string, nodeId: string, node: TreeNode}>): ParentRefs {
+function toPkgByName (nodes: Array<{alias: string, nodeId: string, node: PkgGraphNode}>): ParentRefs {
   const pkgsByName: ParentRefs = {}
   for (const node of nodes) {
     pkgsByName[node.alias] = {

@@ -22,7 +22,7 @@ import {
 import R = require('ramda')
 import semver = require('semver')
 import url = require('url')
-import {InstallContext, InstalledPackages} from './api/install'
+import {InstallContext, PkgByPkgId} from './api/install'
 import depsToSpecs from './depsToSpecs'
 import encodePkgId from './encodePkgId'
 import getPkgInfoFromShr from './getPkgInfoFromShr'
@@ -47,7 +47,7 @@ export interface PkgAddress {
   normalizedPref?: string, // is returned only for root dependencies
 }
 
-export interface InstalledPackage {
+export interface Pkg {
   id: string,
   resolution: Resolution,
   prod: boolean,
@@ -394,10 +394,10 @@ async function install (
       ctx.force ||
       await getIsInstallable(pkgResponse.body.id, pkg, {
         engineStrict: ctx.engineStrict,
-        installs: ctx.installs,
         nodeId,
         nodeVersion: ctx.nodeVersion,
         optional: wantedDependency.optional,
+        pkgByPkgId: ctx.pkgByPkgId,
         pnpmVersion: ctx.pnpmVersion,
       })
     )
@@ -406,7 +406,7 @@ async function install (
   if (installable) {
     ctx.skipped.delete(pkgResponse.body.id)
   }
-  if (!ctx.installs[pkgResponse.body.id]) {
+  if (!ctx.pkgByPkgId[pkgResponse.body.id]) {
     if (!installable) {
       // optional dependencies are resolved for consistent shrinkwrap.yaml files
       // but installed only on machines that are supported by the package
@@ -415,7 +415,7 @@ async function install (
 
     const peerDependencies = peerDependenciesWithoutOwn(pkg)
 
-    ctx.installs[pkgResponse.body.id] = {
+    ctx.pkgByPkgId[pkgResponse.body.id] = {
       additionalInfo: {
         bundleDependencies: pkg.bundleDependencies,
         bundledDependencies: pkg.bundledDependencies,
@@ -469,31 +469,31 @@ async function install (
       alias: child.alias,
       pkgId: child.pkgId,
     }))
-    ctx.tree[nodeId] = {
+    ctx.pkgGraph[nodeId] = {
       children: children.reduce((chn, child) => {
         chn[child.alias] = child.nodeId
         return chn
       }, {}),
       depth: options.currentDepth,
       installable,
-      pkg: ctx.installs[pkgResponse.body.id],
+      pkg: ctx.pkgByPkgId[pkgResponse.body.id],
     }
   } else {
-    ctx.installs[pkgResponse.body.id].prod = ctx.installs[pkgResponse.body.id].prod || !wantedDependency.dev && !wantedDependency.optional
-    ctx.installs[pkgResponse.body.id].dev = ctx.installs[pkgResponse.body.id].dev || wantedDependency.dev
-    ctx.installs[pkgResponse.body.id].optional = ctx.installs[pkgResponse.body.id].optional && wantedDependency.optional
+    ctx.pkgByPkgId[pkgResponse.body.id].prod = ctx.pkgByPkgId[pkgResponse.body.id].prod || !wantedDependency.dev && !wantedDependency.optional
+    ctx.pkgByPkgId[pkgResponse.body.id].dev = ctx.pkgByPkgId[pkgResponse.body.id].dev || wantedDependency.dev
+    ctx.pkgByPkgId[pkgResponse.body.id].optional = ctx.pkgByPkgId[pkgResponse.body.id].optional && wantedDependency.optional
 
     ctx.nodesToBuild.push({
       alias: wantedDependency.alias || pkg.name,
       depth: options.currentDepth,
       installable,
       nodeId,
-      pkg: ctx.installs[pkgResponse.body.id],
+      pkg: ctx.pkgByPkgId[pkgResponse.body.id],
     })
   }
   // we need this for saving to package.json
   if (options.currentDepth === 0) {
-    ctx.installs[pkgResponse.body.id].specRaw = wantedDependency.raw
+    ctx.pkgByPkgId[pkgResponse.body.id].specRaw = wantedDependency.raw
   }
 
   logStatus({status: 'dependencies_installed', pkgId: pkgResponse.body.id})

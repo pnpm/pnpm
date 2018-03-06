@@ -10,36 +10,36 @@ import {
 } from 'pnpm-shrinkwrap'
 import R = require('ramda')
 import {absolutePathToRef} from '../fs/shrinkwrap'
-import {DependencyTreeNode, DependencyTreeNodeMap} from './resolvePeers'
+import {DepGraphNode, DepGraphNodesByDepPath} from './resolvePeers'
 
 export default function (
-  pkgsToLink: DependencyTreeNodeMap,
+  depGraph: DepGraphNodesByDepPath,
   shrinkwrap: Shrinkwrap,
   pkg: PackageJson,
 ): Shrinkwrap {
   shrinkwrap.packages = shrinkwrap.packages || {}
-  for (const depPath of R.keys(pkgsToLink)) {
+  for (const depPath of R.keys(depGraph)) {
     const relDepPath = dp.relative(shrinkwrap.registry, depPath)
     const result = R.partition(
-      (child) => pkgsToLink[depPath].optionalDependencies.has(pkgsToLink[child.nodeId].name),
-      R.keys(pkgsToLink[depPath].children).map((alias) => ({alias, nodeId: pkgsToLink[depPath].children[alias]})),
+      (child) => depGraph[depPath].optionalDependencies.has(depGraph[child.depPath].name),
+      R.keys(depGraph[depPath].children).map((alias) => ({alias, depPath: depGraph[depPath].children[alias]})),
     )
-    shrinkwrap.packages[relDepPath] = toShrDependency(pkgsToLink[depPath].additionalInfo, {
+    shrinkwrap.packages[relDepPath] = toShrDependency(depGraph[depPath].additionalInfo, {
+      depGraph,
       depPath,
-      dev: pkgsToLink[depPath].dev,
-      id: pkgsToLink[depPath].id,
-      name: pkgsToLink[depPath].name,
-      optional: pkgsToLink[depPath].optional,
-      pkgsToLink,
+      dev: depGraph[depPath].dev,
+      id: depGraph[depPath].id,
+      name: depGraph[depPath].name,
+      optional: depGraph[depPath].optional,
       prevResolvedDeps: shrinkwrap.packages[relDepPath] && shrinkwrap.packages[relDepPath].dependencies || {},
       prevResolvedOptionalDeps: shrinkwrap.packages[relDepPath] && shrinkwrap.packages[relDepPath].optionalDependencies || {},
-      prod: pkgsToLink[depPath].prod,
+      prod: depGraph[depPath].prod,
       registry: shrinkwrap.registry,
       relDepPath,
-      resolution: pkgsToLink[depPath].resolution,
+      resolution: depGraph[depPath].resolution,
       updatedDeps: result[1],
       updatedOptionalDeps: result[0],
-      version: pkgsToLink[depPath].version,
+      version: depGraph[depPath].version,
     })
   }
   return pruneShrinkwrap(shrinkwrap, pkg)
@@ -66,9 +66,9 @@ function toShrDependency (
     relDepPath: string,
     resolution: Resolution,
     registry: string,
-    updatedDeps: Array<{alias: string, nodeId: string}>,
-    updatedOptionalDeps: Array<{alias: string, nodeId: string}>,
-    pkgsToLink: DependencyTreeNodeMap,
+    updatedDeps: Array<{alias: string, depPath: string}>,
+    updatedOptionalDeps: Array<{alias: string, depPath: string}>,
+    depGraph: DepGraphNodesByDepPath,
     prevResolvedDeps: ResolvedDependencies,
     prevResolvedOptionalDeps: ResolvedDependencies,
     prod: boolean,
@@ -77,8 +77,8 @@ function toShrDependency (
   },
 ): DependencyShrinkwrap {
   const shrResolution = toShrResolution(opts.relDepPath, opts.resolution, opts.registry)
-  const newResolvedDeps = updateResolvedDeps(opts.prevResolvedDeps, opts.updatedDeps, opts.registry, opts.pkgsToLink)
-  const newResolvedOptionalDeps = updateResolvedDeps(opts.prevResolvedOptionalDeps, opts.updatedOptionalDeps, opts.registry, opts.pkgsToLink)
+  const newResolvedDeps = updateResolvedDeps(opts.prevResolvedDeps, opts.updatedDeps, opts.registry, opts.depGraph)
+  const newResolvedOptionalDeps = updateResolvedDeps(opts.prevResolvedOptionalDeps, opts.updatedOptionalDeps, opts.registry, opts.depGraph)
   const result = {
     resolution: shrResolution,
   }
@@ -136,24 +136,24 @@ function toShrDependency (
 }
 
 // previous resolutions should not be removed from shrinkwrap
-// as installation might not reanalize the whole dependency tree
+// as installation might not reanalize the whole dependency graph
 // the `depth` property defines how deep should dependencies be checked
 function updateResolvedDeps (
   prevResolvedDeps: ResolvedDependencies,
-  updatedDeps: Array<{alias: string, nodeId: string}>,
+  updatedDeps: Array<{alias: string, depPath: string}>,
   registry: string,
-  pkgsToLink: DependencyTreeNodeMap,
+  depGraph: DepGraphNodesByDepPath,
 ) {
   const newResolvedDeps = R.fromPairs<string>(
     updatedDeps
       .map((dep): R.KeyValuePair<string, string> => {
-        const pkgToLink = pkgsToLink[dep.nodeId]
+        const depNode = depGraph[dep.depPath]
         return [
           dep.alias,
-          absolutePathToRef(pkgToLink.absolutePath, {
+          absolutePathToRef(depNode.absolutePath, {
             alias: dep.alias,
-            realName: pkgToLink.name,
-            resolution: pkgToLink.resolution,
+            realName: depNode.name,
+            resolution: depNode.resolution,
             standardRegistry: registry,
           }),
         ]

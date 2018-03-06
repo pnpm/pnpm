@@ -93,8 +93,8 @@ test('no dependencies (lodash)', async (t: tape.Test) => {
   // Not logged for now
   // t.ok(reporter.calledWithMatch({
   //   level: 'info',
-  //   message: 'Creating dependency tree',
-  // }), 'informed about creating dependency tree')
+  //   message: 'Creating dependency graph',
+  // }), 'informed about creating dependency graph')
   t.ok(reporter.calledWithMatch({
     added: 1,
     level: 'debug',
