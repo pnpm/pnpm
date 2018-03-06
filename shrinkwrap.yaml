@@ -343,7 +343,7 @@ packages:
     dependencies:
       '@pnpm/git-resolver': 0.3.1
       '@pnpm/local-resolver': 0.2.2
-      '@pnpm/npm-resolver': 0.3.13
+      '@pnpm/npm-resolver': 0.3.14
       '@pnpm/tarball-resolver': 0.1.0
     dev: false
     engines:
@@ -432,7 +432,7 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha512-23FWOXgCkJ9q73mIqS5H/x98uaZcvO7ov/nt0HZGgLci3MHsqBgEfh3UzZiLZIxlxmA3XoUp4fgbjM7S96pBRg==
-  /@pnpm/npm-resolver/0.3.13:
+  /@pnpm/npm-resolver/0.3.14:
     dependencies:
       '@pnpm/types': 1.7.0
       '@types/load-json-file': 2.0.7
@@ -456,10 +456,10 @@ packages:
     peerDependencies:
       '@pnpm/logger': ^1.0.0
     resolution:
-      integrity: sha512-6QMNp7KuMex2xrkInDnU/PxFNfPCrlAM7T7zqcYpiXlmY6K6tDL6TIE6p+B/uvK3ksA3QaPnUK/H3Es2qcDu8g==
+      integrity: sha512-a0ik7fIbYzfqrOuMAmdi4fN82nJJKi1if4KnY2Maq4J4SlK/3LkFfjTz5ZoPYXKl8L1QQ6uQpeT98cy7nJuLaA==
   /@pnpm/outdated/0.2.9:
     dependencies:
-      '@pnpm/npm-resolver': 0.3.13
+      '@pnpm/npm-resolver': 0.3.14
       '@pnpm/store-path': 1.0.3
       '@types/node': 9.4.6
       dependency-path: 1.2.0
@@ -1783,7 +1783,7 @@ packages:
   /cosmiconfig/3.1.0:
     dependencies:
       is-directory: 0.3.1
-      js-yaml: 3.10.0
+      js-yaml: 3.11.0
       parse-json: 3.0.0
       require-from-string: 2.0.1
     dev: true
@@ -3578,12 +3578,12 @@ packages:
     dev: true
     resolution:
       integrity: sha1-mGbfOVECEw449/mWvOtlRDIJwls=
-  /js-yaml/3.10.0:
+  /js-yaml/3.11.0:
     dependencies:
       argparse: 1.0.10
       esprima: 4.0.0
     resolution:
-      integrity: sha512-O2v52ffjLa9VeM43J4XocZE//WT9N0IiwDa3KSHH7Tu8CtH+1qM8SIZvnsTh6v+4yFy5KUY3BHUVwjpfAWsjIA==
+      integrity: sha512-saJstZWv7oNeOyBh3+Dx1qWzhW0+e6/8eDzo7p5rDFqxntSztloLtuKu+Ejhtq82jsilwOIZYsCz+lIjthg1Hw==
   /jsbn/0.1.1:
     optional: true
     resolution:
@@ -3788,7 +3788,7 @@ packages:
   /load-yaml-file/0.1.0:
     dependencies:
       graceful-fs: 4.1.11
-      js-yaml: 3.10.0
+      js-yaml: 3.11.0
       pify: 2.3.0
       strip-bom: 3.0.0
     dev: false
@@ -5116,7 +5116,7 @@ packages:
       '@types/node': 9.4.6
       '@types/ramda': 0.25.19
       dependency-path: 1.2.0
-      js-yaml: 3.10.0
+      js-yaml: 3.11.0
       load-yaml-file: 0.1.0
       mkdirp-promise: 5.0.1
       ramda: 0.25.0
@@ -6509,7 +6509,7 @@ packages:
       commander: 2.14.1
       diff: 3.5.0
       glob: 7.1.2
-      js-yaml: 3.10.0
+      js-yaml: 3.11.0
       minimatch: 3.0.4
       resolve: 1.5.0
       semver: 5.5.0
@@ -6793,7 +6793,7 @@ packages:
       handlebars: 4.0.5
       http-errors: 1.6.2
       js-string-escape: 1.0.1
-      js-yaml: 3.10.0
+      js-yaml: 3.11.0
       jsonwebtoken: 7.4.3
       lockfile: 1.0.3
       lodash: 4.17.4
@@ -6937,7 +6937,7 @@ packages:
   /write-yaml-file/1.0.0:
     dependencies:
       graceful-fs: 4.1.11
-      js-yaml: 3.10.0
+      js-yaml: 3.11.0
       mkdirp: 0.5.1
       pify: 2.3.0
       write-file-atomic: 1.3.4
