@@ -9,14 +9,14 @@ const modulesFileName = '.modules.yaml'
 export const LAYOUT_VERSION = 1
 
 export interface Modules {
-  packageManager: string,
-  store: string,
-  skipped: string[],
-  layoutVersion: number,
+  hoistedAliases: {[depPath: string]: string[]}
   independentLeaves: boolean,
+  layoutVersion: number,
+  packageManager: string,
   pendingBuilds: string[],
   shamefullyFlatten: boolean,
-  hoistedAliases: {[pkgId: string]: string[]}
+  skipped: string[],
+  store: string,
 }
 
 export async function read (modulesPath: string): Promise<Modules | null> {

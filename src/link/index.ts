@@ -45,12 +45,12 @@ export default async function linkPackages (
     sideEffectsCache: boolean,
     shamefullyFlatten: boolean,
     reinstallForFlatten: boolean,
-    hoistedAliases: {[pkgId: string]: string[]},
+    hoistedAliases: {[depPath: string]: string[]},
   },
 ): Promise<{
   currentShrinkwrap: Shrinkwrap,
   depGraph: DepGraphNodesByDepPath,
-  hoistedAliases: {[pkgId: string]: string[]},
+  hoistedAliases: {[depPath: string]: string[]},
   newDepPaths: string[],
   removedDepPaths: Set<string>,
   wantedShrinkwrap: Shrinkwrap,
@@ -159,9 +159,9 @@ export default async function linkPackages (
     currentShrinkwrap = newCurrentShrinkwrap
   }
 
-  // Important: shamefullyFlattenTree changes flatPkgByPkgId, so keep this at the end
+  // Important: shamefullyFlattenGraph changes depGraph, so keep this at the end
   if (opts.shamefullyFlatten && (opts.reinstallForFlatten || newDepPaths.length > 0 || removedDepPaths.size > 0)) {
-    opts.hoistedAliases = await shamefullyFlattenTree(depNodes, currentShrinkwrap, opts)
+    opts.hoistedAliases = await shamefullyFlattenGraph(depNodes, currentShrinkwrap, opts)
   }
 
   return {
@@ -174,20 +174,16 @@ export default async function linkPackages (
   }
 }
 
-async function shamefullyFlattenTree (
+async function shamefullyFlattenGraph (
   depNodes: DepGraphNode[],
   currentShrinkwrap: Shrinkwrap,
   opts: {
     baseNodeModules: string,
-    bin: string,
     dryRun: boolean,
-    force: boolean,
-    outdatedPkgs: {[pkgId: string]: string},
-    pkg: PackageJson,
   },
 ): Promise<{[alias: string]: string[]}> {
   const dependencyPathByAlias = {}
-  const aliasesByDependencyPath: {[pkgId: string]: string[]} = {}
+  const aliasesByDependencyPath: {[depPath: string]: string[]} = {}
 
   await Promise.all(depNodes
     // sort by depth and then alphabetically

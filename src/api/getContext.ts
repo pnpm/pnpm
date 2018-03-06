@@ -25,7 +25,7 @@ export interface PnpmContext {
   wantedShrinkwrap: Shrinkwrap,
   skipped: Set<string>,
   pendingBuilds: string[],
-  hoistedAliases: {[pkgId: string]: string[]}
+  hoistedAliases: {[depPath: string]: string[]}
 }
 
 export default async function getContext (

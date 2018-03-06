@@ -12,7 +12,7 @@ export default async function removeOrphanPkgs (
   opts: {
     bin: string,
     dryRun?: boolean,
-    hoistedAliases: {[pkgId: string]: string[]},
+    hoistedAliases: {[depPath: string]: string[]},
     newShrinkwrap: Shrinkwrap,
     oldShrinkwrap: Shrinkwrap,
     prefix: string,
