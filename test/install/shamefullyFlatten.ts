@@ -207,7 +207,7 @@ test('should flatten correctly peer dependencies', async (t) => {
   await project.has('ajv-keywords')
 })
 
-testOnly('should uninstall correctly peer dependencies', async (t) => {
+test('should uninstall correctly peer dependencies', async (t) => {
   const project = prepare(t)
   await installPkgs(['using-ajv'], await testDefaults({shamefullyFlatten: true}))
   await uninstall(['using-ajv'], await testDefaults({shamefullyFlatten: true}))
