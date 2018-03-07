@@ -145,10 +145,6 @@ export default async function run (argv: string[]) {
   // tslint:enable
   const cliConf = nopt(types, shortHands, argv, 0)
 
-  if (!isCI) {
-    checkForUpdates()
-  }
-
   let cmd = getCommandFullName(cliConf.argv.remain[0]) || 'help'
   if (!supportedCmds.has(cmd)) {
     if (passedThroughCmds.has(cmd)) {
@@ -156,6 +152,13 @@ export default async function run (argv: string[]) {
       return Promise.resolve()
     }
     cmd = 'help'
+  }
+
+  // Don't check for updates
+  //   1. on CI environments
+  //   2. when in the middle of an actual update
+  if (!isCI && ((cmd !== 'install' && cmd !== 'update') || cliConf.argv.remain.indexOf(packageManager.name) === -1)) {
+    checkForUpdates()
   }
 
   if (cliConf['dry-run']) {
