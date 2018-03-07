@@ -1,7 +1,7 @@
 import getConfigs from '@pnpm/config'
 import test = require('tape')
 
-test('getConfigs()', t => {
-  t.ok(getConfigs())
+test('getConfigs()', async (t) => {
+  t.ok(await getConfigs())
   t.end()
 })

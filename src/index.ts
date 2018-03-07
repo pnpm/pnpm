@@ -2,6 +2,13 @@ import camelcase = require('camelcase')
 import loadNpmConf = require('npm-conf')
 import npmTypes = require('npm-conf/lib/types')
 import path = require('path')
+import whichcb = require('which')
+
+function which (cmd: string) {
+  return new Promise<string>((resolve, reject) => {
+    whichcb(cmd, (err: Error, resolvedPath: string) => err ? reject(err) : resolve(resolvedPath))
+  })
+}
 
 export const types = Object.assign({
   'background': Boolean,
@@ -32,7 +39,7 @@ export const types = Object.assign({
   'verify-store-integrity': Boolean,
 }, npmTypes.types)
 
-export default (
+export default async (
   opts: {
     cliArgs: object,
     packageManager: {
@@ -43,7 +50,21 @@ export default (
 ) => {
   const packageManager = opts && opts.packageManager || {name: 'pnpm', version: 'undefined'}
   const cliArgs = opts && opts.cliArgs || {}
+
+  // This is what npm does as well, overriding process.execPath with the resolved location of Node.
+  // The value of process.execPath is changed only for the duration of config initialization.
+  // Otherwise, npmConfig.globalPrefix would sometimes have the bad location.
+  const originalExecPath = process.execPath
+  try {
+    const node = await which(process.argv[0])
+    if (node.toUpperCase() !== process.execPath.toUpperCase()) {
+      process.execPath = node
+    }
+  } catch (err) {} // tslint:disable-line:no-empty
+
   const npmConfig = loadNpmConf()
+
+  process.execPath = originalExecPath
 
   if (!cliArgs['user-agent']) {
     cliArgs['user-agent'] = `${packageManager.name}/${packageManager.version} npm/? node/${process.version} ${process.platform} ${process.arch}`

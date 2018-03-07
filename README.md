@@ -17,7 +17,7 @@ npm i -S @pnpm/config
 ```ts
 import getConfigs from '@pnpm/config'
 
-const pnpmConfigs = getConfigs()
+getConfigs().then(pnpmConfigs => console.log(pnpmConfigs))
 ```
 
 ## License

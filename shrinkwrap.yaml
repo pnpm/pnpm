@@ -1,8 +1,11 @@
 dependencies:
+  '@pnpm/config': 'link:../__package_previews__/config/@pnpm/config'
   '@types/camelcase': 4.1.0
   '@types/node': 9.4.6
+  '@types/which': 1.3.1
   camelcase: 4.1.0
   npm-conf: 1.1.3
+  which: 1.3.0
 devDependencies:
   mos: 2.0.0-alpha.3
   mos-plugin-readme: 1.0.4
@@ -60,6 +63,10 @@ packages:
   /@types/node/9.4.6:
     resolution:
       integrity: sha512-CTUtLb6WqCCgp6P59QintjHWqzf4VL1uPA27bipLAPxFqrtK1gEYllePzTICGqQ8rYsCbpnsNypXjjDzGAAjEQ==
+  /@types/which/1.3.1:
+    dev: false
+    resolution:
+      integrity: sha512-ZrJDWpvg75LTGX4XwuneY9s6bF3OeZcGTpoGh3zDV9ytzcHMFsRrMIaLBRJZQMBoGyKs6unBQfVdrLZiYfb1zQ==
   /@types/write-json-file/2.2.1:
     dev: true
     resolution:
@@ -1237,7 +1244,6 @@ packages:
     resolution:
       integrity: sha1-u5NdSFgsuhaMBoNJV6VKPgcSTxE=
   /isexe/2.0.0:
-    dev: true
     resolution:
       integrity: sha1-6PvzdNxVb/iUehDcsFctYz8s+hA=
   /isobject/2.1.0:
@@ -2860,7 +2866,6 @@ packages:
   /which/1.3.0:
     dependencies:
       isexe: 2.0.0
-    dev: true
     resolution:
       integrity: sha512-xcJpopdamTuY5duC/KnTTNBraPK54YwpenP4lzxU8H91GudWpFv38u0CKjclE1Wi2EH2EDz5LRcHcKbCIzqGyg==
   /widest-line/1.0.0:
@@ -2956,6 +2961,7 @@ shrinkwrapVersion: 3
 specifiers:
   '@types/camelcase': ^4.1.0
   '@types/node': ^9.4.6
+  '@types/which': ^1.3.1
   camelcase: ^4.1.0
   mos: ^2.0.0-alpha.3
   mos-plugin-readme: ^1.0.4
@@ -2966,3 +2972,4 @@ specifiers:
   ts-node: ^5.0.0
   tslint: ^5.8.0
   typescript: ^2.6.2
+  which: ^1.3.0
