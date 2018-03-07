@@ -3,7 +3,7 @@ dependencies:
   '@pnpm/default-fetcher': 0.4.0
   '@pnpm/default-resolver': 0.1.4
   '@pnpm/logger': 1.0.1
-  '@pnpm/outdated': 0.2.9
+  '@pnpm/outdated': 0.2.10
   '@pnpm/server': 0.8.2
   '@pnpm/store-path': 1.0.3
   '@pnpm/types': 1.7.0
@@ -35,14 +35,14 @@ dependencies:
   pkgs-graph: 2.0.0
   pnpm: 'link:../__package_previews__/pnpm/pnpm'
   pnpm-default-reporter: 0.14.4
-  pnpm-file-reporter: 0.0.1
+  pnpm-file-reporter: 0.1.0
   pnpm-list: 2.0.1
   process-exists: 3.1.0
   ramda: 0.25.0
   retry: 0.10.1
   signal-exit: 3.0.2
   strip-color: 0.1.0
-  supi: 0.14.1
+  supi: 0.14.2
   text-table: 0.2.0
   tree-kill: 1.2.0
   update-notifier: 2.3.0
@@ -460,7 +460,7 @@ packages:
       '@pnpm/logger': ^1.0.0
     resolution:
       integrity: sha512-a0ik7fIbYzfqrOuMAmdi4fN82nJJKi1if4KnY2Maq4J4SlK/3LkFfjTz5ZoPYXKl8L1QQ6uQpeT98cy7nJuLaA==
-  /@pnpm/outdated/0.2.9:
+  /@pnpm/outdated/0.2.10:
     dependencies:
       '@pnpm/npm-resolver': 0.3.14
       '@pnpm/store-path': 1.0.3
@@ -473,7 +473,7 @@ packages:
     peerDependencies:
       '@pnpm/logger': ^1.0.0
     resolution:
-      integrity: sha512-Lh3C3ywf+h+Ye1OaWgfiExLk6OyQrsvLQhVaT23pnURpKX+h+baNzPXFViSYeATDW1F3eU7FBr90qdR2pGfXmQ==
+      integrity: sha1-Uvjm35z4ILxI1FbXTOLOIbrWfJc=
   /@pnpm/package-requester/0.8.3:
     dependencies:
       '@pnpm/check-package': 1.0.0
@@ -489,7 +489,7 @@ packages:
       mkdirp-promise: 5.0.1
       mz: 2.7.0
       p-limit: 1.2.0
-      p-queue: 2.3.0
+      p-queue: 2.3.1
       path-exists: 3.0.0
       read-package-json: 2.0.12
       rename-overwrite: 1.0.2
@@ -619,10 +619,6 @@ packages:
     dev: false
     resolution:
       integrity: sha512-nsaprOtNLvUrLyFX5+mRpE9h2Q0d5YzQRr+Lav3fxdYtc1/E/U7G+Ld861NWBDDtWY3MnwKoUOhCrE1nrVxUQA==
-  /@types/chalk/0.4.31:
-    dev: false
-    resolution:
-      integrity: sha1-ox10JBprHtu5c8822XooloNKUfk=
   /@types/common-tags/1.4.0:
     resolution:
       integrity: sha512-HI1tSO87vmd1sPS3DOVSK4gvVKROvCBFvAnXlLiQtAus/+1xXMQcNyu9TX2ChwRXFeQZeB9+f+nMo99xLd5DdA==
@@ -685,10 +681,6 @@ packages:
       '@types/node': 9.4.6
     resolution:
       integrity: sha512-cy3yebKhrHuOcrJGkfwNHhpTXQLgmXSv1BX+4p32j+VUQ6aP2eJ5cL7OvGcAQx75fCTFaAIIAKewvqL+iwSd4g==
-  /@types/node/7.0.55:
-    dev: false
-    resolution:
-      integrity: sha512-diCxfWNT4g2UM9Y+BPgy4s3egcZ2qOXc0mXLauvbsBUq9SBKQfh0SmuEUEhJVFZt/p6UDsjg1s2EgfM6OSlp4g==
   /@types/node/8.9.4:
     dev: false
     resolution:
@@ -922,6 +914,7 @@ packages:
     resolution:
       integrity: sha512-pgsU9HUWzN2JqNBcuhn5vIDtSwfKetdjy6EQl3UsTRluyIL3S2tINgFZO8SERS13uB0/5/stxf5pVCNLcSW99w==
   /ansi-escapes/1.4.0:
+    dev: true
     engines:
       node: '>=0.10.0'
     resolution:
@@ -956,6 +949,7 @@ packages:
     resolution:
       integrity: sha512-RRxQym4DFtDNmHIkW6aeFVvrXURb11lGAEPXNiryjCe8bK8RsANjzJ0M2aGOkvBYwP4Bl/xZ8ijtr6D3j1x/eg==
   /ansi-styles/2.2.1:
+    dev: true
     engines:
       node: '>=0.10.0'
     resolution:
@@ -1485,6 +1479,7 @@ packages:
       has-ansi: 2.0.0
       strip-ansi: 3.0.1
       supports-color: 2.0.0
+    dev: true
     engines:
       node: '>=0.10.0'
     resolution:
@@ -2962,6 +2957,7 @@ packages:
   /has-ansi/2.0.0:
     dependencies:
       ansi-regex: 2.1.1
+    dev: true
     engines:
       node: '>=0.10.0'
     resolution:
@@ -3877,6 +3873,7 @@ packages:
     resolution:
       integrity: sha1-E2Xt9DFIBIHvDRxolXpe2Z1J984=
   /lodash/3.10.1:
+    dev: true
     resolution:
       integrity: sha1-W/Rejkm6QYnhfUgnid/RW9FAt7Y=
   /lodash/4.17.4:
@@ -4593,14 +4590,6 @@ packages:
       node: '>=0.10.0'
     resolution:
       integrity: sha1-h6EKxMFpS9Lhy/U1kaZhQftd10c=
-  /observatory/1.0.0:
-    dependencies:
-      ansi-escapes: 1.4.0
-      chalk: 1.1.3
-      lodash: 3.10.1
-    dev: false
-    resolution:
-      integrity: sha1-K6pgboKZ5oZpFOycik22pBE25Zs=
   /on-finished/2.3.0:
     dependencies:
       ee-first: 1.1.1
@@ -4736,26 +4725,27 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha512-r6zKACMNhjPJMTl8KcFH4li//gkrXWfbD6feV8l6doRHlzljFWGJ2AP6iKaCJXyZmAUMOPtvbW7EXkbWO/pLEA==
-  /p-queue/2.3.0:
+  /p-queue/2.3.1:
     dev: false
     engines:
       node: '>=4'
     resolution:
-      integrity: sha1-ZdVecbwVAPxBMSLamK5Ff/inwDg=
+      integrity: sha512-MJGD2eVNHhtCsGLBDsfNzhBDlWxBFb5BvVXhJFbmlXH76Llo792ylwqEYJguLo+BnxZpos/Qw9dq0voyQRD3pg==
   /p-reduce/1.0.0:
     dev: false
     engines:
       node: '>=4'
     resolution:
       integrity: sha1-GMKw3ZNqRpClKfgjH1ig/bakffo=
-  /p-series/1.0.0:
+  /p-series/1.1.0:
     dependencies:
+      '@sindresorhus/is': 0.7.0
       p-reduce: 1.0.0
     dev: false
     engines:
       node: '>=4'
     resolution:
-      integrity: sha1-fsnntEBswyBmKYpvmGDlXpGzbgc=
+      integrity: sha512-356covArc9UCfj2twY/sxCJKGMzzO+pJJtucizsPC6aS1xKSTBc9PQrQhvFR3+7F+fa2KBKdJjdIcv6NEWDcIQ==
   /p-timeout/2.0.1:
     dependencies:
       p-finally: 1.0.0
@@ -5067,18 +5057,18 @@ packages:
       supi: '>=0.12.5 <0.15.0'
     resolution:
       integrity: sha512-ApMOpogZaN/DPG2i5GNhgq6XoNMgwtWiS2XRxciSJ/+P1k3pAZVViPx3ic6W/7CFT7M2ApI95Eg+ERmRZ1owUA==
-  /pnpm-file-reporter/0.0.1:
+  /pnpm-file-reporter/0.1.0:
     dependencies:
-      '@types/chalk': 0.4.31
-      '@types/node': 7.0.55
-      chalk: 1.1.3
+      '@types/graceful-fs': 4.1.2
+      '@types/node': 9.4.6
+      graceful-fs: 4.1.11
       json2yaml: 1.1.0
-      ndjson: 1.5.0
-      observatory: 1.0.0
-      pnpm-logger: 0.0.0
+      path-exists: 3.0.0
     dev: false
+    engines:
+      node: '>=4'
     resolution:
-      integrity: sha1-98PiFkxcyVWgs+1mExTmNXs/LmM=
+      integrity: sha512-ZvCSe4hTJHWfAXZUgydkbRre3h1svqtlb3Wq70fkbdZF4Wbvr0LEQRG5kCsiEnkt27PpdzlZ2b3XmV2dvUpHwg==
   /pnpm-install-checks/1.1.0:
     dependencies:
       semver: 5.5.0
@@ -5103,12 +5093,6 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha512-i25BBw812skLMy6WtQ5Fj5dVXGuYDmeJQz/F+kwvObu5CC3SSEpe1X+v5g5qCFn1AEtl82rWrvAx28IdBLKaMw==
-  /pnpm-logger/0.0.0:
-    dependencies:
-      bole: 3.0.2
-    dev: false
-    resolution:
-      integrity: sha1-KHAbl2GKH8MtL+4b9BB0ZYi7GoU=
   /pnpm-registry-mock/1.18.0:
     dependencies:
       anonymous-npm-registry-client: 0.1.2
@@ -6198,7 +6182,7 @@ packages:
       node: '>=0.10.0'
     resolution:
       integrity: sha1-PFMZQukIwml8DsNEhYwobHygpgo=
-  /supi/0.14.1:
+  /supi/0.14.2:
     dependencies:
       '@pnpm/check-package': 1.0.0
       '@pnpm/fs-locker': 1.0.1
@@ -6243,7 +6227,7 @@ packages:
       os-homedir: 1.0.2
       p-filter: 1.0.0
       p-limit: 1.2.0
-      p-series: 1.0.0
+      p-series: 1.1.0
       package-store: 0.17.2
       path-absolute: 1.0.0
       path-exists: 3.0.0
@@ -6269,8 +6253,9 @@ packages:
     peerDependencies:
       '@pnpm/logger': ^1.0.0
     resolution:
-      integrity: sha512-oPTEKgwv9wTxXFSs228sgcXqSXjJLhAm/tIRYkCmI/Q68qKZlGftv3lMjy/co9wAP9avBKdPXMWflY26uqSm5A==
+      integrity: sha512-1o7aBl2rcw+7WPNcOBiqWTY5kVbmtuz4A8f2Ajz7Kw8D6b1AmRfipQ8XY6gl53RZ3ygIS9ODBYECth2i98qL7w==
   /supports-color/2.0.0:
+    dev: true
     engines:
       node: '>=0.8.0'
     resolution:
@@ -7039,7 +7024,7 @@ specifiers:
   '@pnpm/default-fetcher': ^0.4.0
   '@pnpm/default-resolver': ^0.1.4
   '@pnpm/logger': ^1.0.0
-  '@pnpm/outdated': ^0.2.8
+  '@pnpm/outdated': ^0.2.10
   '@pnpm/server': ^0.8.2
   '@pnpm/store-path': ^1.0.3
   '@pnpm/types': ^1.5.0
@@ -7096,7 +7081,7 @@ specifiers:
   path-name: ^1.0.0
   pkgs-graph: ^2.0.0
   pnpm-default-reporter: ^0.14.4
-  pnpm-file-reporter: ^0.0.1
+  pnpm-file-reporter: ^0.1.0
   pnpm-list: ^2.0.0
   pnpm-registry-mock: ^1.5.0
   process-exists: ^3.0.0
@@ -7109,7 +7094,7 @@ specifiers:
   sepia: ^2.0.2
   signal-exit: ^3.0.2
   strip-color: ^0.1.0
-  supi: ^0.14.1
+  supi: ^0.14.2
   tape: ^4.6.3
   tape-promise: ^2.0.1
   text-table: ^0.2.0
