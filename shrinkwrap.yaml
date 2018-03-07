@@ -1,5 +1,5 @@
 dependencies:
-  '@pnpm/config': 0.1.1
+  '@pnpm/config': 0.2.0
   '@pnpm/default-fetcher': 0.4.0
   '@pnpm/default-resolver': 0.1.4
   '@pnpm/logger': 1.0.1
@@ -33,6 +33,7 @@ dependencies:
   package-store: 0.17.2
   path-name: 1.0.0
   pkgs-graph: 2.0.0
+  pnpm: 'link:../__package_previews__/pnpm/pnpm'
   pnpm-default-reporter: 0.14.4
   pnpm-file-reporter: 0.0.1
   pnpm-list: 2.0.1
@@ -318,17 +319,19 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha512-rN+hiOjGtxwwus7c/E0xkCs9prBeXzZCSCW/Q3k2WdHGSRNLAepr777iv+i2eqTfz9vXlTF0rLZOGi62ujzwYA==
-  /@pnpm/config/0.1.1:
+  /@pnpm/config/0.2.0:
     dependencies:
       '@types/camelcase': 4.1.0
       '@types/node': 9.4.6
+      '@types/which': 1.3.1
       camelcase: 4.1.0
       npm-conf: 1.1.3
+      which: 1.3.0
     dev: false
     engines:
       node: '>=4'
     resolution:
-      integrity: sha1-6anVVu5DkuF5OBnqAv2JFwNjkyY=
+      integrity: sha512-+N/cJdEpTZxR8auK9UweY+fSZhS2uffYzRTVNxSKjv+v06IUj2wAr2CFNlnpyKBH5o/hG4ma6ram10jVsVrqkg==
   /@pnpm/default-fetcher/0.4.0:
     dependencies:
       '@pnpm/fetcher-base': 1.0.0
@@ -761,6 +764,10 @@ packages:
     dev: false
     resolution:
       integrity: sha512-5fRLCYhLtDb3hMWqQyH10qtF+Ud2JnNCXTCZ+9ktNdCcgslcuXkDTkFcJNk++MT29yDntDnlF1+jD+uVGumsbw==
+  /@types/which/1.3.1:
+    dev: false
+    resolution:
+      integrity: sha512-ZrJDWpvg75LTGX4XwuneY9s6bF3OeZcGTpoGh3zDV9ytzcHMFsRrMIaLBRJZQMBoGyKs6unBQfVdrLZiYfb1zQ==
   /@types/write-json-file/2.2.1:
     resolution:
       integrity: sha512-JdO/UpPm9RrtQBNVcZdt3M7j3mHO/kXaea9LBGx3UgWJd1f9BkIWP7jObLBG6ZtRyqp7KzLFEsaPhWcidVittA==
@@ -7028,7 +7035,7 @@ specifiers:
   '@commitlint/cli': ^4.0.0
   '@commitlint/config-angular': ^4.2.0
   '@commitlint/prompt-cli': ^5.0.0
-  '@pnpm/config': ^0.1.1
+  '@pnpm/config': ^0.2.0
   '@pnpm/default-fetcher': ^0.4.0
   '@pnpm/default-resolver': ^0.1.4
   '@pnpm/logger': ^1.0.0

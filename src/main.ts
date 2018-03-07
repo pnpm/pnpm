@@ -165,7 +165,7 @@ export default async function run (argv: string[]) {
 
   cliConf.save = cliConf.save || !cliConf['save-dev'] && !cliConf['save-optional']
 
-  const opts = getConfigs({
+  const opts = await getConfigs({
     cliArgs: cliConf,
     packageManager,
   })
