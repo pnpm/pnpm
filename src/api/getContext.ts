@@ -1,5 +1,8 @@
 import logger from '@pnpm/logger'
-import {PackageJson} from '@pnpm/types'
+import {
+  PackageJson,
+  ReadPackageHook,
+} from '@pnpm/types'
 import mkdirp = require('mkdirp-promise')
 import normalizePath = require('normalize-path')
 import path = require('path')
@@ -30,14 +33,17 @@ export interface PnpmContext {
 
 export default async function getContext (
   opts: {
+    force: boolean,
+    global: boolean,
+    hooks?: {
+      readPackage?: ReadPackageHook,
+    },
+    independentLeaves: boolean,
     prefix: string,
+    registry: string,
     shamefullyFlatten: boolean,
     shrinkwrap: boolean,
     store: string,
-    independentLeaves: boolean,
-    force: boolean,
-    global: boolean,
-    registry: string,
   },
   installType?: 'named' | 'general',
 ): Promise<PnpmContext> {
@@ -81,10 +87,11 @@ export default async function getContext (
     (opts.global ? readGlobalPkgJson(opts.prefix) : safeReadPkgFromDir(opts.prefix)),
     mkdirp(storePath),
   ])
+  const pkg = files[0] || {} as PackageJson
   const ctx: PnpmContext = {
     hoistedAliases: modules && modules.hoistedAliases || {},
     pendingBuilds: modules && modules.pendingBuilds || [],
-    pkg: files[0] || {} as PackageJson,
+    pkg: opts.hooks && opts.hooks.readPackage ? opts.hooks.readPackage(pkg) : pkg,
     root,
     skipped: new Set(modules && modules.skipped || []),
     storePath,
