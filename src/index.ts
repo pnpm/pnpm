@@ -54,6 +54,8 @@ export default async (
   // This is what npm does as well, overriding process.execPath with the resolved location of Node.
   // The value of process.execPath is changed only for the duration of config initialization.
   // Otherwise, npmConfig.globalPrefix would sometimes have the bad location.
+  //
+  // TODO: use this workaround only during global installation
   const originalExecPath = process.execPath
   try {
     const node = await which(process.argv[0])
