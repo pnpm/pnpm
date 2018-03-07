@@ -3,6 +3,8 @@ dependencies:
   is-positive: 3.1.0
   from-github: github.com/blabla/from-github/d5f8d5500f7faf593d32e134c1b0043ff69151b3
   from-github-2: github.com/blabla/from-github-2/d5f8d5500f7faf593d32e134c1b0043ff69151b3
+  linked-1: link:../linked-1
+  linked-2: file:../linked-2
 packages:
   /is-negative/1.1.0:
     resolution:

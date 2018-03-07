@@ -127,6 +127,12 @@ async function _outdated (
       await Promise.all(
         pkgs.map(async (packageName) => {
           const ref = wantedShrinkwrap[depType][packageName]
+
+          // ignoring linked packages
+          if (ref.startsWith('file:') || ref.startsWith('link:')) {
+            return
+          }
+
           const relativeDepPath = dp.refToRelative(ref, packageName)
           const pkgSnapshot = wantedShrinkwrap.packages && wantedShrinkwrap.packages[relativeDepPath]
 
