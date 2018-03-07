@@ -94,9 +94,6 @@ function getPkgsDepPaths (
   return R.uniq(
     R.keys(packages)
       .map((depPath) => {
-        if (packages[depPath].id) {
-          return packages[depPath].id
-        }
         return dp.resolve(registry, depPath)
       }),
   ) as string[]
