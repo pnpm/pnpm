@@ -98,6 +98,7 @@ export default function (
     const msg = `Resolving: total ${hlValue(resolving.toString())}, reused ${hlValue(foundInStore.toString())}, downloaded ${hlValue(fetched.toString())}`
     if (resolving === foundInStore + fetched && resolutionDone) {
       return {
+        done: true,
         fixed: false,
         msg: `${msg}, done`,
       }
@@ -127,6 +128,10 @@ export default function (
       foundInStoreLog$,
       resolutionDone$,
     )
+    // Avoid logs after all resolved packages were downloaded.
+    // Related issue: https://github.com/pnpm/pnpm/issues/1028#issuecomment-364782901
+    .skipAfter((msg) => msg.done === true)
+
     outputs.push(most.of(progress))
   } else {
     const progress = most.combine(
