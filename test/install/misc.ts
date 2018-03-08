@@ -89,3 +89,17 @@ test('install --no-package-lock', async (t: tape.Test) => {
 
   t.notOk(await project.loadShrinkwrap(), 'shrinkwrap.yaml not created')
 })
+
+test('install from any location via the --prefix flag', async (t) => {
+  const project = prepare(t, {
+    dependencies: {
+      'is-positive': '1.0.0',
+    },
+  })
+
+  process.chdir('..')
+
+  await execPnpm('install', '--prefix', 'project')
+
+  await project.has('is-positive')
+})
