@@ -46,7 +46,7 @@ export default async function removeOrphanPkgs (
   const newDepPaths = R.keys(newPkgIdsByDepPaths)
 
   const notDependentDepPaths = R.difference(oldDepPaths, newDepPaths)
-  const notDependentPkgIds = R.uniq(R.props(notDependentDepPaths, oldPkgIdsByDepPaths as any)) as any // tslint:disable-line
+  const notDependentPkgIds = R.uniq(R.props<string, string>(notDependentDepPaths, oldPkgIdsByDepPaths))
 
   statsLogger.debug({removed: notDependentPkgIds.length})
 
@@ -78,7 +78,7 @@ export default async function removeOrphanPkgs (
     }
 
     const newDependentDepPaths = R.difference(newDepPaths, oldDepPaths)
-    const newDependentPkgIds = R.uniq(R.props(newDependentDepPaths, newPkgIdsByDepPaths as any)) as any // tslint:disable-line
+    const newDependentPkgIds = R.uniq(R.props<string, string>(newDependentDepPaths, newPkgIdsByDepPaths))
 
     await opts.storeController.updateConnections(opts.prefix, {
       addDependencies: newDependentPkgIds,
