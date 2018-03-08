@@ -1,3 +1,4 @@
+import fs = require('fs')
 import resolveLinkTarget = require('resolve-link-target')
 import {install, installPkgs, prune, uninstall} from 'supi'
 import tape = require('tape')
@@ -204,4 +205,12 @@ test('should flatten correctly peer dependencies', async (t) => {
   await installPkgs(['using-ajv'], await testDefaults({shamefullyFlatten: true}))
 
   await project.has('ajv-keywords')
+})
+
+test('should uninstall correctly peer dependencies', async (t) => {
+  const project = prepare(t)
+  await installPkgs(['using-ajv'], await testDefaults({shamefullyFlatten: true}))
+  await uninstall(['using-ajv'], await testDefaults({shamefullyFlatten: true}))
+
+  t.throws(() => fs.lstatSync('node_modules/ajv-keywords'), Error, 'symlink to peer dependency is deleted')
 })
