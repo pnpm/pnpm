@@ -39,18 +39,22 @@ export default async function removeOrphanPkgs (
     })
   }))
 
-  const oldDepPaths = getPkgsDepPaths(opts.oldShrinkwrap.registry, opts.oldShrinkwrap.packages || {})
-  const newDepPaths = getPkgsDepPaths(opts.newShrinkwrap.registry, opts.newShrinkwrap.packages || {})
+  const oldPkgIdsByDepPaths = getPkgsDepPaths(opts.oldShrinkwrap.registry, opts.oldShrinkwrap.packages || {})
+  const newPkgIdsByDepPaths = getPkgsDepPaths(opts.newShrinkwrap.registry, opts.newShrinkwrap.packages || {})
 
-  const notDependents = R.difference(oldDepPaths, newDepPaths)
+  const oldDepPaths = R.keys(oldPkgIdsByDepPaths)
+  const newDepPaths = R.keys(newPkgIdsByDepPaths)
 
-  statsLogger.debug({removed: notDependents.length})
+  const notDependentDepPaths = R.difference(oldDepPaths, newDepPaths)
+  const notDependentPkgIds = R.uniq(R.props(notDependentDepPaths, oldPkgIdsByDepPaths as any)) as any // tslint:disable-line
+
+  statsLogger.debug({removed: notDependentPkgIds.length})
 
   if (!opts.dryRun) {
-    if (notDependents.length) {
+    if (notDependentDepPaths.length) {
 
       if (opts.shamefullyFlatten && opts.oldShrinkwrap.packages) {
-        await Promise.all(notDependents.map(async (notDependent) => {
+        await Promise.all(notDependentDepPaths.map(async (notDependent) => {
           if (opts.hoistedAliases[notDependent]) {
             await Promise.all(opts.hoistedAliases[notDependent].map(async (alias) => {
               await removeTopDependency({
@@ -68,33 +72,36 @@ export default async function removeOrphanPkgs (
         }))
       }
 
-      await Promise.all(notDependents.map(async (notDependent) => {
+      await Promise.all(notDependentDepPaths.map(async (notDependent) => {
         await rimraf(path.join(rootModules, `.${notDependent}`))
       }))
     }
 
-    const newDependents = R.difference(newDepPaths, oldDepPaths)
+    const newDependentDepPaths = R.difference(newDepPaths, oldDepPaths)
+    const newDependentPkgIds = R.uniq(R.props(newDependentDepPaths, newPkgIdsByDepPaths as any)) as any // tslint:disable-line
 
     await opts.storeController.updateConnections(opts.prefix, {
-      addDependencies: newDependents,
+      addDependencies: newDependentPkgIds,
       prune: opts.pruneStore || false,
-      removeDependencies: notDependents,
+      removeDependencies: notDependentPkgIds,
     })
 
     await opts.storeController.saveState()
   }
 
-  return new Set(notDependents)
+  return new Set(notDependentDepPaths)
 }
 
 function getPkgsDepPaths (
   registry: string,
   packages: ResolvedPackages,
-): string[] {
-  return R.uniq(
-    R.keys(packages)
-      .map((depPath) => {
-        return dp.resolve(registry, depPath)
-      }),
-  ) as string[]
+): {[depPath: string]: string} {
+  return R.keys(packages)
+    .reduce((acc, relDepPath) => {
+      const depPath = dp.resolve(registry, relDepPath)
+      acc[depPath] = packages[relDepPath].id
+        ? packages[relDepPath].id
+        : depPath
+      return acc
+    }, {})
 }
