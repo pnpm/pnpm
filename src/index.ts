@@ -86,7 +86,7 @@ export default async (
     ? pnpmConfig.globalBin
     : path.join(npmConfig.localPrefix, 'node_modules', '.bin')
   pnpmConfig.globalPrefix = path.join(npmConfig.globalPrefix, 'pnpm-global')
-  pnpmConfig.prefix = pnpmConfig.global ? pnpmConfig.globalPrefix : npmConfig.prefix
+  pnpmConfig.prefix = pnpmConfig.global ? pnpmConfig.globalPrefix : pnpmConfig.prefix
   pnpmConfig.packageManager = packageManager
 
   if (pnpmConfig.only === 'prod' || pnpmConfig.only === 'production' || !pnpmConfig.only && pnpmConfig.production) {
