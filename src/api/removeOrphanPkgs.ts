@@ -42,21 +42,21 @@ export default async function removeOrphanPkgs (
   const oldPkgIdsByDepPaths = getPkgsDepPaths(opts.oldShrinkwrap.registry, opts.oldShrinkwrap.packages || {})
   const newPkgIdsByDepPaths = getPkgsDepPaths(opts.newShrinkwrap.registry, opts.newShrinkwrap.packages || {})
 
-  const oldDepPaths = R.keys(oldPkgIdsByDepPaths)
-  const newDepPaths = R.keys(newPkgIdsByDepPaths)
+  const oldDepPaths = Object.keys(oldPkgIdsByDepPaths)
+  const newDepPaths = Object.keys(newPkgIdsByDepPaths)
 
-  const notDependentDepPaths = R.difference(oldDepPaths, newDepPaths)
-  const notDependentPkgIds = R.uniq(R.props<string, string>(notDependentDepPaths, oldPkgIdsByDepPaths))
+  const orphanDepPaths = R.difference(oldDepPaths, newDepPaths)
+  const orphanPkgIds = new Set(R.props<string, string>(orphanDepPaths, oldPkgIdsByDepPaths))
 
-  statsLogger.debug({removed: notDependentPkgIds.length})
+  statsLogger.debug({removed: orphanPkgIds.size})
 
   if (!opts.dryRun) {
-    if (notDependentDepPaths.length) {
+    if (orphanDepPaths.length) {
 
       if (opts.shamefullyFlatten && opts.oldShrinkwrap.packages) {
-        await Promise.all(notDependentDepPaths.map(async (notDependent) => {
-          if (opts.hoistedAliases[notDependent]) {
-            await Promise.all(opts.hoistedAliases[notDependent].map(async (alias) => {
+        await Promise.all(orphanDepPaths.map(async (orphanDepPath) => {
+          if (opts.hoistedAliases[orphanDepPath]) {
+            await Promise.all(opts.hoistedAliases[orphanDepPath].map(async (alias) => {
               await removeTopDependency({
                 dev: false,
                 name: alias,
@@ -68,40 +68,40 @@ export default async function removeOrphanPkgs (
               })
             }))
           }
-          delete opts.hoistedAliases[notDependent]
+          delete opts.hoistedAliases[orphanDepPath]
         }))
       }
 
-      await Promise.all(notDependentDepPaths.map(async (notDependent) => {
-        await rimraf(path.join(rootModules, `.${notDependent}`))
+      await Promise.all(orphanDepPaths.map(async (orphanDepPath) => {
+        await rimraf(path.join(rootModules, `.${orphanDepPath}`))
       }))
     }
 
-    const newDependentDepPaths = R.difference(newDepPaths, oldDepPaths)
-    const newDependentPkgIds = R.uniq(R.props<string, string>(newDependentDepPaths, newPkgIdsByDepPaths))
+    const addedDepPaths = R.difference(newDepPaths, oldDepPaths)
+    const addedPkgIds = new Set(R.props<string, string>(addedDepPaths, newPkgIdsByDepPaths))
 
     await opts.storeController.updateConnections(opts.prefix, {
-      addDependencies: newDependentPkgIds,
+      addDependencies: Array.from(addedPkgIds),
       prune: opts.pruneStore || false,
-      removeDependencies: notDependentPkgIds,
+      removeDependencies: Array.from(orphanPkgIds),
     })
 
     await opts.storeController.saveState()
   }
 
-  return new Set(notDependentDepPaths)
+  return new Set(orphanDepPaths)
 }
 
 function getPkgsDepPaths (
   registry: string,
   packages: ResolvedPackages,
 ): {[depPath: string]: string} {
-  return R.keys(packages)
-    .reduce((acc, relDepPath) => {
-      const depPath = dp.resolve(registry, relDepPath)
-      acc[depPath] = packages[relDepPath].id
-        ? packages[relDepPath].id
-        : depPath
-      return acc
-    }, {})
+  const pkgIdsByDepPath = {}
+  for (const relDepPath of Object.keys(packages)) {
+    const depPath = dp.resolve(registry, relDepPath)
+    pkgIdsByDepPath[depPath] = packages[relDepPath].id
+      ? packages[relDepPath].id
+      : depPath
+  }
+  return pkgIdsByDepPath
 }
