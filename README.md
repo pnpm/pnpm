@@ -1,3 +1,5 @@
+![](https://i.imgur.com/qlW1eEG.png)
+
 # pnpm
 
 [![npm version](https://img.shields.io/npm/v/pnpm.svg)](https://www.npmjs.com/package/pnpm)
