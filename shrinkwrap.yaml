@@ -49,9 +49,9 @@ dependencies:
   util.promisify: 1.0.0
   write-json-file: 2.3.0
 devDependencies:
-  '@commitlint/cli': 4.3.0
-  '@commitlint/config-angular': 4.3.0
-  '@commitlint/prompt-cli': 5.2.8
+  '@commitlint/cli': 6.1.3
+  '@commitlint/config-conventional': 6.1.3
+  '@commitlint/prompt-cli': 6.1.3
   '@types/byline': 4.2.31
   '@types/common-tags': 1.4.0
   '@types/delay': 2.0.1
@@ -62,8 +62,8 @@ devDependencies:
   '@types/nopt': 3.0.29
   '@types/ramda': 0.25.19
   '@types/semver': 5.5.0
-  '@types/tape': 4.2.31
-  '@types/update-notifier': 2.0.0
+  '@types/tape': 4.2.32
+  '@types/update-notifier': 2.2.0
   '@zkochan/husky': 0.0.0
   anonymous-npm-registry-client: 0.1.2
   caw: 2.0.1
@@ -92,66 +92,28 @@ devDependencies:
   write-pkg: 3.1.0
   write-yaml-file: 1.0.0
 packages:
-  /@commitlint/cli/4.3.0:
+  /@commitlint/cli/6.1.3:
     dependencies:
-      '@commitlint/core': 4.3.0
+      '@commitlint/format': 6.1.3
+      '@commitlint/lint': 6.1.3
+      '@commitlint/load': 6.1.3
+      '@commitlint/read': 6.1.3
       babel-polyfill: 6.26.0
-      chalk: 2.3.2
+      chalk: 2.3.1
       get-stdin: 5.0.1
-      lodash: 4.17.5
+      lodash.merge: 4.6.1
+      lodash.pick: 4.4.0
       meow: 3.7.0
     dev: true
     engines:
       node: '>=4'
     resolution:
-      integrity: sha512-FPV2cylCzQ26gmU0KxfqOMyR2H05Eyx1sITq8HHrBdoi4V+Cwfjz9XPw/6NLPPa9B5Wjtu5KLvp8xbWB3gVuXg==
-  /@commitlint/config-angular/4.3.0:
+      integrity: sha1-RgbhOLBbQwNNyErxXaGOITkFhTc=
+  /@commitlint/config-conventional/6.1.3:
     dev: true
     resolution:
-      integrity: sha512-GLvwZVxCUMT92VGU0pTKi0RAbJDnm0BGZPEOL+dduKiJCgYH72ZRabgJrYwwRX/4Q+xZytp9TCG+oH6BnFFOwA==
-  /@commitlint/core/4.3.0:
-    dependencies:
-      '@marionebl/conventional-commits-parser': 3.0.0
-      '@marionebl/git-raw-commits': 1.2.0
-      '@marionebl/sander': 0.6.1
-      babel-runtime: 6.26.0
-      chalk: 2.3.2
-      conventional-changelog-angular: 1.6.6
-      cosmiconfig: 3.1.0
-      find-up: 2.1.0
-      lodash: 4.17.5
-      path-exists: 3.0.0
-      resolve-from: 3.0.0
-      semver: 5.5.0
-    dev: true
-    engines:
-      node: '>=4'
-    resolution:
-      integrity: sha512-oWAlGWIOoquQVErLeAXFUOlAQDVJxa0196z7kt/BNcEGjfqRrEwxncZ9GFjycGYb0CyS/YQ1VDe4l8YfrSmbQg==
-  /@commitlint/core/5.2.8:
-    dependencies:
-      '@commitlint/execute-rule': 5.2.8
-      '@commitlint/is-ignored': 5.2.8
-      '@commitlint/parse': 5.2.8
-      '@commitlint/resolve-extends': 5.2.8
-      '@commitlint/rules': 5.2.8
-      '@commitlint/top-level': 5.2.8
-      '@marionebl/sander': 0.6.1
-      babel-runtime: 6.26.0
-      chalk: 2.3.2
-      cosmiconfig: 3.1.0
-      git-raw-commits: 1.3.4
-      lodash.merge: 4.6.0
-      lodash.mergewith: 4.6.0
-      lodash.pick: 4.4.0
-      lodash.topairs: 4.3.0
-      resolve-from: 4.0.0
-    dev: true
-    engines:
-      node: '>=4'
-    resolution:
-      integrity: sha512-E/2gJ6BpO43E3OeT1z99oPzVu9SHOprdjiBZ8ZwgmW8NynzhfSsSqrP+fHcro0ig8FcynRI/tYnpGeBGFC8DXg==
-  /@commitlint/ensure/5.2.8:
+      integrity: sha1-bAburgTFrHicNhjfTVKu2on/uBA=
+  /@commitlint/ensure/6.1.3:
     dependencies:
       lodash.camelcase: 4.3.0
       lodash.kebabcase: 4.1.1
@@ -162,30 +124,67 @@ packages:
     engines:
       node: '>=4'
     resolution:
-      integrity: sha512-SWclCuYUmzTUDw0RL/ktO6qzkX2uo3PwGz+4nEyZK00ZCnZk9V99A4AX1fW3VyhB3J1C40QIztNGpafk3iCvkg==
-  /@commitlint/execute-rule/5.2.8:
+      integrity: sha1-gTtYyf364VNRty/mRqFi69tx6io=
+  /@commitlint/execute-rule/6.1.3:
     dependencies:
       babel-runtime: 6.26.0
     dev: true
     engines:
       node: '>=4'
     resolution:
-      integrity: sha512-0ShMDkTXdGnb21U2MfTtpnhySVZJ8FuEH4F9S9c0zoRlbVrphIfX8m+2T4p4ge3AGM0E/QDi8bZqLrD/E8edHQ==
-  /@commitlint/is-ignored/5.2.8:
+      integrity: sha1-SJKOc27xXocQ0zKhXHyJlVXk4Qs=
+  /@commitlint/format/6.1.3:
     dependencies:
-      semver: 5.4.1
+      babel-runtime: 6.26.0
+      chalk: 2.3.2
     dev: true
     engines:
       node: '>=4'
     resolution:
-      integrity: sha512-AGViKcJ2/F2HXJNM+vBHxGrAMxJ3ZXGqQYZXC9hjF5d1x3tLFe5uYkI2WBdX6YiAsZbKk5a+Cchr2qojkckqRA==
-  /@commitlint/message/5.2.8:
+      integrity: sha1-QUuQSKmvVFh9qWIicXujMjR6veM=
+  /@commitlint/is-ignored/6.1.3:
+    dependencies:
+      semver: 5.5.0
     dev: true
     engines:
       node: '>=4'
     resolution:
-      integrity: sha512-5k4pOPX5hwS34xAYzSZZFxsW0MCaJbbcjCTiqbyf8WEPep0ru2dsZg6EsBqLTe9IG1YjQM/Z5/udkfIwBXOYpw==
-  /@commitlint/parse/5.2.8:
+      integrity: sha1-icm5ZKTWIoh1pXnCv1UtADc0t+g=
+  /@commitlint/lint/6.1.3:
+    dependencies:
+      '@commitlint/is-ignored': 6.1.3
+      '@commitlint/parse': 6.1.3
+      '@commitlint/rules': 6.1.3
+      babel-runtime: 6.26.0
+      lodash.topairs: 4.3.0
+    dev: true
+    engines:
+      node: '>=4'
+    resolution:
+      integrity: sha1-aneI6uOBrahz90IeMVWecgPKrfM=
+  /@commitlint/load/6.1.3:
+    dependencies:
+      '@commitlint/execute-rule': 6.1.3
+      '@commitlint/resolve-extends': 6.1.3
+      babel-runtime: 6.26.0
+      cosmiconfig: 4.0.0
+      lodash.merge: 4.6.1
+      lodash.mergewith: 4.6.1
+      lodash.pick: 4.4.0
+      lodash.topairs: 4.3.0
+      resolve-from: 4.0.0
+    dev: true
+    engines:
+      node: '>=4'
+    resolution:
+      integrity: sha1-G+QHETl5WPMWz0BXepyHmhbwClQ=
+  /@commitlint/message/6.1.3:
+    dev: true
+    engines:
+      node: '>=4'
+    resolution:
+      integrity: sha1-XgRzMwyIcBYBDExWJwcjuAARRdI=
+  /@commitlint/parse/6.1.3:
     dependencies:
       conventional-changelog-angular: 1.6.6
       conventional-commits-parser: 2.1.5
@@ -193,18 +192,18 @@ packages:
     engines:
       node: '>=4'
     resolution:
-      integrity: sha512-XSBuLXuyOJ7u4aOM4XdGUvcfaLZ8By4abFF9VzF6tbek+R3jylSlrULqeX8oNnzkSn2PWtf9sYDb2dt5z9XWjw==
-  /@commitlint/prompt-cli/5.2.8:
+      integrity: sha1-/x5NksJ81naBK7a512zYhTwNlAc=
+  /@commitlint/prompt-cli/6.1.3:
     dependencies:
-      '@commitlint/prompt': 5.2.8
-      execa: 0.8.0
+      '@commitlint/prompt': 6.1.3
+      execa: 0.9.0
       meow: 3.7.0
     dev: true
     resolution:
-      integrity: sha512-AdK2UMef8mokPldgz15+rrAvd9JUPRi7l6TqPTaryKgobQaIbReHtNK79H8iXMkpjnKw+nw3BmMVNIPAN4fUsQ==
-  /@commitlint/prompt/5.2.8:
+      integrity: sha1-pptfmH2siFZvYQ3sMesn5Ya5xJU=
+  /@commitlint/prompt/6.1.3:
     dependencies:
-      '@commitlint/core': 5.2.8
+      '@commitlint/load': 6.1.3
       babel-runtime: 6.26.0
       chalk: 2.3.2
       lodash.camelcase: 4.3.0
@@ -217,11 +216,22 @@ packages:
       vorpal: 1.12.0
     dev: true
     resolution:
-      integrity: sha512-ATcjnG6CagCDMc2ZGbrBr0rL+LKJM5WRqH7stVfrorzYQi6ZCy3N+GuiwcfjP/GH+SHf36sDtrCpuJN4rXy1bw==
-  /@commitlint/resolve-extends/5.2.8:
+      integrity: sha1-yk3uWCocJClyZta7b16w7UWh20Y=
+  /@commitlint/read/6.1.3:
+    dependencies:
+      '@commitlint/top-level': 6.1.3
+      '@marionebl/sander': 0.6.1
+      babel-runtime: 6.26.0
+      git-raw-commits: 1.3.4
+    dev: true
+    engines:
+      node: '>=4'
+    resolution:
+      integrity: sha1-n52NtQ+/Z/MACSFlftbvrbjPnxo=
+  /@commitlint/resolve-extends/6.1.3:
     dependencies:
       babel-runtime: 6.26.0
-      lodash.merge: 4.6.0
+      lodash.merge: 4.6.1
       lodash.omit: 4.5.0
       require-uncached: 1.0.3
       resolve-from: 4.0.0
@@ -230,54 +240,32 @@ packages:
     engines:
       node: '>=4'
     resolution:
-      integrity: sha512-3d4Qk5/IQiX95nGn5pmtPAkoueKZLgz8VCdOxf1fNegudyl2EaRxKLIoaZ9DmZz6RE1CpRCinvsFFdESq3tvTw==
-  /@commitlint/rules/5.2.8:
+      integrity: sha1-9F/P5Dhg4F4489lNVMrtfdqkHiU=
+  /@commitlint/rules/6.1.3:
     dependencies:
-      '@commitlint/ensure': 5.2.8
-      '@commitlint/message': 5.2.8
-      '@commitlint/to-lines': 5.2.8
+      '@commitlint/ensure': 6.1.3
+      '@commitlint/message': 6.1.3
+      '@commitlint/to-lines': 6.1.3
       babel-runtime: 6.26.0
     dev: true
     engines:
       node: '>=4'
     resolution:
-      integrity: sha512-R2shsQJk2q0Wd+zBKbeKDVJszEpiTNL7OnPavXr9wdseHPtpXNUTn3YiWtipgNOW3Rfb9t2A5mxgn0uF0ce3iQ==
-  /@commitlint/to-lines/5.2.8:
+      integrity: sha1-NOvSYsA3DUgwnlFnmUJNMsM/mEs=
+  /@commitlint/to-lines/6.1.3:
     dev: true
     engines:
       node: '>=4'
     resolution:
-      integrity: sha512-BI0wuimKkV/DrEHf7Ze2DIY9tY9E1MWz3/Ox3hheyQeTjDD3MSNdEs4KmXtIXfoAAPifOMmRUccbcEIR6vW3UQ==
-  /@commitlint/top-level/5.2.8:
+      integrity: sha1-erFqAsrtjapH6Vkmm5YWRhCinQw=
+  /@commitlint/top-level/6.1.3:
     dependencies:
       find-up: 2.1.0
     dev: true
     engines:
       node: '>=4'
     resolution:
-      integrity: sha512-0WdwHKLUXVCr2CYtAIZWdYLo4kSIlEs+q24/rt55SNl7/QRT6/UKMiyHN/gLeK7Q0CzEOebXD8Jjrl3BCUTyYg==
-  /@marionebl/conventional-commits-parser/3.0.0:
-    dependencies:
-      JSONStream: 1.3.2
-      is-text-path: 1.0.1
-      lodash: 4.17.5
-      meow: 3.7.0
-      split2: 2.2.0
-      through2: 2.0.3
-      trim-off-newlines: 1.0.1
-    dev: true
-    resolution:
-      integrity: sha1-naKbTSyPBcD5zdApNnE7gJbJWNM=
-  /@marionebl/git-raw-commits/1.2.0:
-    dependencies:
-      dargs: 4.1.0
-      lodash.template: 4.4.0
-      meow: 3.7.0
-      split2: 2.2.0
-      through2: 2.0.3
-    dev: true
-    resolution:
-      integrity: sha512-kI7s1W+GFMLJkuesgBdMgr1NCkChqfhP+wT6REoPsgtJGGwN0L/84gSw9pyH3u1bAK3uHjAkGZQ2bileBVVWtg==
+      integrity: sha1-Em3LbeFnY0LGnNQiYUg/RHhUcpk=
   /@marionebl/sander/0.6.1:
     dependencies:
       graceful-fs: 4.1.11
@@ -730,12 +718,12 @@ packages:
   /@types/semver/5.5.0:
     resolution:
       integrity: sha512-41qEJgBH/TWgo5NFSvBCJ1qkoi3Q6ONSF2avrHq1LVEZfYpdHmj0y9SuTK+u9ZhG1sYQKBL1AWXKyLWP4RaUoQ==
-  /@types/tape/4.2.31:
+  /@types/tape/4.2.32:
     dependencies:
       '@types/node': 9.4.7
     dev: true
     resolution:
-      integrity: sha512-DEPn8FJKQR6eeMHZ407TuAqlhBKQa54PTM3c7Z6pKOI1uHaPnidmpmOXYtNZTcDrL5hnZofSHPwX1AQ9HbaMUg==
+      integrity: sha512-xil0KO5wkPoixdBWGIGolPv9dekf6dVkjjJLAFYchfKcd4DICou67rgGCIO7wAh3i5Ff/6j9IDgZz+GU9cMaqQ==
   /@types/touch/3.1.0:
     dependencies:
       '@types/node': 9.4.7
@@ -746,10 +734,10 @@ packages:
     dev: false
     resolution:
       integrity: sha512-BLStNhP2DFF7funARwTcoD6tetRte8NK3Sc59mn7GNALCN975jOlKX3dGvsFxXr/HwQMxxCuRn9IWB3WQ7odHQ==
-  /@types/update-notifier/2.0.0:
+  /@types/update-notifier/2.2.0:
     dev: true
     resolution:
-      integrity: sha512-O/LFDBg0M6QADktkMYlxuBYxEsQnVmYvXTK+ezfFjBHr+n4WGaC3KAQJx/JmGKDOZYxPyyIcosuSjLB+HmjRkg==
+      integrity: sha512-QdVXvKa36soA86VI09WCAxLU44udSWFNPDpeXq9pNhZs0Yj2hQcuL4NDGrolD4NY4akjuXgBubjgplGucQ0FJQ==
   /@types/uuid/3.4.3:
     dependencies:
       '@types/node': 9.4.7
@@ -1484,6 +1472,16 @@ packages:
       node: '>=0.10.0'
     resolution:
       integrity: sha1-qBFcVeSnAv5NFQq9OHKCKn4J/Jg=
+  /chalk/2.3.1:
+    dependencies:
+      ansi-styles: 3.2.1
+      escape-string-regexp: 1.0.5
+      supports-color: 5.3.0
+    dev: true
+    engines:
+      node: '>=4'
+    resolution:
+      integrity: sha512-QUU4ofkDoMIVO7hcx1iPTISs88wsO8jA92RQIm4JAwZvFGGAV2hSAA1NX7oVj2Ej2Q6NDTcRDjPTFrMCRZoJ6g==
   /chalk/2.3.2:
     dependencies:
       ansi-styles: 3.2.1
@@ -1782,17 +1780,17 @@ packages:
       node: '>=0.10.0'
     resolution:
       integrity: sha1-K9OB8usgECAQXNUOpZ2mMJBpRoY=
-  /cosmiconfig/3.1.0:
+  /cosmiconfig/4.0.0:
     dependencies:
       is-directory: 0.3.1
       js-yaml: 3.11.0
-      parse-json: 3.0.0
+      parse-json: 4.0.0
       require-from-string: 2.0.1
     dev: true
     engines:
       node: '>=4'
     resolution:
-      integrity: sha512-zedsBhLSbPBms+kE7AH4vHg6JsKDz6epSv2/+5XHs8ILHlgDciSJfSWf8sX9aQ52Jb7KI7VswUTsLpR/G0cr2Q==
+      integrity: sha512-6e5vDdrXZD+t5v0L8CrurPeybg4Fmf+FCSYxXKYVAqLUtyCSbuyqE059d0kDthTNRzKVjL7QMgNpEUlsoYH3iQ==
   /couleurs/5.0.0:
     dependencies:
       flat-colors: 3.0.0
@@ -2344,6 +2342,7 @@ packages:
       p-finally: 1.0.0
       signal-exit: 3.0.2
       strip-eof: 1.0.0
+    dev: false
     engines:
       node: '>=4'
     resolution:
@@ -3825,14 +3824,14 @@ packages:
     dev: true
     resolution:
       integrity: sha1-hImxyw0p/4gZXM7KRI/21swpXDY=
-  /lodash.merge/4.6.0:
+  /lodash.merge/4.6.1:
     dev: true
     resolution:
-      integrity: sha1-aYhLoUSsM/5plzemCG3v+t0PicU=
-  /lodash.mergewith/4.6.0:
+      integrity: sha512-AOYza4+Hf5z1/0Hztxpm2/xiPZgi/cjMqdnKTUWTBSKchJlxXXuUSxCCl8rJlf4g6yww/j6mA8nC8Hw/EZWxKQ==
+  /lodash.mergewith/4.6.1:
     dev: true
     resolution:
-      integrity: sha1-FQzwoWeR9ZA7iJHqsVRgknS96lU=
+      integrity: sha512-eWw5r+PYICtEBgrBE5hhlT6aAa75f411bgDz/ZL2KZqYV03USvucsxcHUIlGTDTECs1eunpI7HOV7U+WLDvNdQ==
   /lodash.omit/4.5.0:
     dev: true
     resolution:
@@ -4852,14 +4851,6 @@ packages:
       node: '>=0.10.0'
     resolution:
       integrity: sha1-9ID0BDTvgHQfhGkJn43qGPVaTck=
-  /parse-json/3.0.0:
-    dependencies:
-      error-ex: 1.3.1
-    dev: true
-    engines:
-      node: '>=4'
-    resolution:
-      integrity: sha1-+m9HsY4jgm6tMvJj50TQ4ehH+xM=
   /parse-json/4.0.0:
     dependencies:
       error-ex: 1.3.1
@@ -5730,10 +5721,6 @@ packages:
     dev: false
     resolution:
       integrity: sha1-myzl094C0XxgEq0yaqa00M9U+U8=
-  /semver/5.4.1:
-    dev: true
-    resolution:
-      integrity: sha512-WfG/X9+oATh81XtllIo/I8gOiY9EXRdv1cQdyykeXK17YcUW3EXUAi2To4pcH6nZtJPr7ZOpM5OMyWJZm+8Rsg==
   /semver/5.5.0:
     resolution:
       integrity: sha512-4SJ3dm0WAwWy/NVeioZh5AntkdJoWKxHxcmyP622fOkgHa4z3R0TdBJICINyaSDE6uNwVc8gZr+ZinwZAH4xIA==
@@ -7019,9 +7006,9 @@ registry: 'https://registry.npmjs.org/'
 shrinkwrapMinorVersion: 4
 shrinkwrapVersion: 3
 specifiers:
-  '@commitlint/cli': ^4.0.0
-  '@commitlint/config-angular': ^4.2.0
-  '@commitlint/prompt-cli': ^5.0.0
+  '@commitlint/cli': ^6.1.3
+  '@commitlint/config-conventional': ^6.1.3
+  '@commitlint/prompt-cli': ^6.1.3
   '@pnpm/config': ^0.2.2
   '@pnpm/default-fetcher': ^0.4.0
   '@pnpm/default-resolver': ^0.1.4
