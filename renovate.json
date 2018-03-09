@@ -1,0 +1,22 @@
+{
+  "extends": [
+    "config:base"
+  ],
+  "pinVersions": false,
+  "ignorePaths": ["test/"],
+  "ignoreDeps": [
+    "@pnpm/default-fetcher",
+    "@pnpm/default-resolver",
+    "@pnpm/logger",
+    "@pnpm/outdated",
+    "@pnpm/server",
+    "@pnpm/types",
+    "pnpm-default-reporter",
+    "pnpm-file-reporter",
+    "pnpm-install-checks",
+    "pnpm-registry-mock",
+    "remove-all-except-outer-links",
+    "pnpm-shrinkwrap",
+    "supi"
+  ]
+}
