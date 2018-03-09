@@ -147,7 +147,10 @@ export default function (
   if (!appendOnly) {
     const tarballsProgressOutput$ = log$.progress
       .filter((log) => log.status === 'fetching_started' &&
-        typeof log.size === 'number' && log.size >= BIG_TARBALL_SIZE)
+        typeof log.size === 'number' && log.size >= BIG_TARBALL_SIZE &&
+        // When retrying the download, keep the existing progress line.
+        // Fixing issue: https://github.com/pnpm/pnpm/issues/1013
+        log.attempt === 1)
       .map((startedLog) => {
         const size = prettyBytes(startedLog['size'])
         return log$.progress
