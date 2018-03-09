@@ -1,0 +1,16 @@
+language: node_js
+node_js:
+  - 4
+  - 6
+  - 8
+  - 9
+sudo: false
+before_install:
+  - git fetch --unshallow
+  - curl -L https://unpkg.com/@pnpm/self-installer | node
+install:
+  - pnpm install
+script:
+  - npm test
+notifications:
+  email: false

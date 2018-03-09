@@ -1,0 +1,21 @@
+clone_depth: 1
+skip_branch_with_pr: true
+skip_commits:
+  files:
+    - '**/*.md'
+environment:
+  matrix:
+    - nodejs_version: 4
+    - nodejs_version: 6
+    - nodejs_version: 8
+    - nodejs_version: 9
+install:
+  - ps: Install-Product node $env:nodejs_version
+  - curl -L https://unpkg.com/@pnpm/self-installer | node
+  - pnpm install
+matrix:
+  fast_finish: true
+build: off
+version: '{build}'
+test_script:
+  - npm test
