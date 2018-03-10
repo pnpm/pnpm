@@ -2,6 +2,7 @@ import {FetchFunction} from '@pnpm/fetcher-base'
 import lock from '@pnpm/fs-locker'
 import logger from '@pnpm/logger'
 import createPackageRequester, {
+  FetchPackageToStoreFunction,
   RequestPackageFunction,
 } from '@pnpm/package-requester'
 import {ResolveFunction} from '@pnpm/resolver-base'
@@ -20,6 +21,7 @@ import createImportPackage, {copyPkg, ImportPackageFunction} from './createImpor
 
 export interface StoreController {
   requestPackage: RequestPackageFunction,
+  fetchPackage: FetchPackageToStoreFunction,
   importPackage: ImportPackageFunction,
   close (): Promise<void>,
   updateConnections (prefix: string, opts: {addDependencies: string[], removeDependencies: string[], prune: boolean}): Promise<void>,
@@ -48,7 +50,7 @@ export default async function (
 
   const store = initOpts.store
   const storeIndex = await readStore(initOpts.store) || {}
-  const requestPackage = createPackageRequester(resolve, fetchers, {
+  const packageRequester = createPackageRequester(resolve, fetchers, {
     networkConcurrency: initOpts.networkConcurrency,
     storeIndex,
     storePath: initOpts.store,
@@ -56,9 +58,10 @@ export default async function (
 
   return {
     close: async () => { await unlock() },
+    fetchPackage: packageRequester.fetchPackageToStore,
     importPackage: createImportPackage(initOpts.packageImportMethod),
     prune,
-    requestPackage,
+    requestPackage: packageRequester.requestPackage,
     saveState,
     updateConnections: async (prefix: string, opts: {addDependencies: string[], removeDependencies: string[], prune: boolean}) => {
       await removeDependencies(prefix, opts.removeDependencies, {prune: opts.prune})
