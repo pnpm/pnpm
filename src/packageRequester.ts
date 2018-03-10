@@ -108,6 +108,22 @@ export type RequestPackageFunction = (
   options: RequestPackageOptions,
 ) => Promise<PackageResponse>
 
+export type FetchPackageToStoreFunction = (
+  opts: {
+    force: boolean,
+    pkg?: PackageJson,
+    pkgId: string,
+    prefix: string,
+    resolution: Resolution,
+    verifyStoreIntegrity: boolean,
+  },
+) => {
+  fetchingFiles: Promise<PackageFilesResponse>,
+  fetchingManifest?: Promise<PackageManifest>,
+  finishing: Promise<void>,
+  inStoreLocation: string,
+}
+
 export default function (
   resolve: ResolveFunction,
   fetchers: {[type: string]: FetchFunction},
@@ -116,7 +132,10 @@ export default function (
     storePath: string,
     storeIndex: StoreIndex,
   },
-): RequestPackageFunction {
+): RequestPackageFunction & {
+  fetchPackageToStore: FetchPackageToStoreFunction,
+  requestPackage: RequestPackageFunction,
+} {
   opts = opts || {}
 
   const networkConcurrency = opts.networkConcurrency || 16
@@ -127,31 +146,40 @@ export default function (
   requestsQueue['concurrency'] = networkConcurrency // tslint:disable-line
 
   const fetch = fetcher.bind(null, fetchers)
-
-  return resolveAndFetch.bind(null, {
+  const fetchPackageToStore = fetchToStore.bind(null, {
     fetch,
-    fetchingLocker: {},
     requestsQueue,
-    resolve,
     storeIndex: opts.storeIndex,
     storePath: opts.storePath,
   })
+  const requestPackage = resolveAndFetch.bind(null, {
+    fetchPackageToStore,
+    fetchingLocker: {},
+    requestsQueue,
+    resolve,
+    storePath: opts.storePath,
+  })
+
+  requestPackage['requestPackage'] = requestPackage // tslint:disable-line
+  requestPackage['fetchPackageToStore'] = fetchPackageToStore // tslint:disable-line
+
+  return requestPackage
 }
 
 async function resolveAndFetch (
   ctx: {
     requestsQueue: {add: <T>(fn: () => Promise<T>, opts: {priority: number}) => Promise<T>},
     resolve: ResolveFunction,
-    fetch: FetchFunction,
+    fetchPackageToStore: FetchPackageToStoreFunction,
     fetchingLocker: {
       [pkgId: string]: {
         finishing: Promise<void>,
         fetchingFiles: Promise<PackageFilesResponse>,
         fetchingManifest?: Promise<PackageManifest>,
+        inStoreLocation: string,
       },
     },
     storePath: string,
-    storeIndex: StoreIndex,
   },
   wantedDependency: {
     alias?: string,
@@ -244,9 +272,6 @@ async function resolveAndFetch (
       }
     }
 
-    const targetRelative = pkgIdToFilename(id)
-    const target = path.join(ctx.storePath, targetRelative)
-
     // We can skip fetching the package only if the manifest
     // is present after resolution
     if (options.skipFetch && pkg) {
@@ -254,7 +279,7 @@ async function resolveAndFetch (
         body: {
           cacheByEngine: options.sideEffectsCache ? await getCacheByEngine(ctx.storePath, id) : new Map(),
           id,
-          inStoreLocation: target,
+          inStoreLocation: path.join(ctx.storePath, pkgIdToFilename(id)),
           isLocal: false as false,
           latest,
           manifest: pkg,
@@ -266,18 +291,12 @@ async function resolveAndFetch (
     }
 
     if (!ctx.fetchingLocker[id]) {
-      ctx.fetchingLocker[id] = fetchToStore({
-        fetch: ctx.fetch,
-        forceFetch,
+      ctx.fetchingLocker[id] = ctx.fetchPackageToStore({
+        force: forceFetch,
         pkg,
         pkgId: id,
         prefix: options.prefix,
-        requestsQueue: ctx.requestsQueue,
         resolution: resolution as Resolution,
-        storeIndex: ctx.storeIndex,
-        storePath: ctx.storePath,
-        target,
-        targetRelative,
         verifyStoreIntegrity: options.verifyStoreIntegrity,
       })
     }
@@ -287,7 +306,7 @@ async function resolveAndFetch (
         body: {
           cacheByEngine: options.sideEffectsCache ? await getCacheByEngine(ctx.storePath, id) : new Map(),
           id,
-          inStoreLocation: target,
+          inStoreLocation: ctx.fetchingLocker[id].inStoreLocation,
           isLocal: false as false,
           latest,
           manifest: pkg,
@@ -303,7 +322,7 @@ async function resolveAndFetch (
       body: {
         cacheByEngine: options.sideEffectsCache ? await getCacheByEngine(ctx.storePath, id) : new Map(),
         id,
-        inStoreLocation: target,
+        inStoreLocation: ctx.fetchingLocker[id].inStoreLocation,
         isLocal: false as false,
         latest,
         normalizedPref,
@@ -320,24 +339,29 @@ async function resolveAndFetch (
   }
 }
 
-function fetchToStore (opts: {
-  fetch: FetchFunction,
-  forceFetch: boolean,
-  requestsQueue: {add: <T>(fn: () => Promise<T>, opts: {priority: number}) => Promise<T>},
-  pkg?: PackageJson,
-  pkgId: string,
-  prefix: string,
-  resolution: Resolution,
-  target: string,
-  targetRelative: string,
-  storeIndex: StoreIndex,
-  storePath: string,
-  verifyStoreIntegrity: boolean,
-}): {
+function fetchToStore (
+  ctx: {
+    fetch: FetchFunction,
+    requestsQueue: {add: <T>(fn: () => Promise<T>, opts: {priority: number}) => Promise<T>},
+    storeIndex: StoreIndex,
+    storePath: string,
+  },
+  opts: {
+    force: boolean,
+    pkg?: PackageJson,
+    pkgId: string,
+    prefix: string,
+    resolution: Resolution,
+    verifyStoreIntegrity: boolean,
+  },
+): {
   fetchingFiles: Promise<PackageFilesResponse>,
   fetchingManifest?: Promise<PackageManifest>,
   finishing: Promise<void>,
+  inStoreLocation: string,
 } {
+  const targetRelative = pkgIdToFilename(opts.pkgId)
+  const target = path.join(ctx.storePath, targetRelative)
   const fetchingManifest = differed<PackageManifest>()
   const fetchingFiles = differed<PackageFilesResponse>()
   const finishing = differed<void>()
@@ -349,11 +373,13 @@ function fetchToStore (opts: {
       fetchingFiles: fetchingFiles.promise,
       fetchingManifest: fetchingManifest.promise,
       finishing: finishing.promise,
+      inStoreLocation: target,
     }
   }
   return {
     fetchingFiles: fetchingFiles.promise,
     finishing: finishing.promise,
+    inStoreLocation: target,
   }
 
   async function doFetchToStore () {
@@ -363,15 +389,14 @@ function fetchToStore (opts: {
         status: 'resolving_content',
       })
 
-      const target = opts.target
       const linkToUnpacked = path.join(target, 'package')
 
       // We can safely assume that if there is no data about the package in `store.json` then
       // it is not in the store yet.
       // In case there is record about the package in `store.json`, we check it in the file system just in case
-      const targetExists = opts.storeIndex[opts.targetRelative] && await exists(path.join(linkToUnpacked, 'package.json'))
+      const targetExists = ctx.storeIndex[targetRelative] && await exists(path.join(linkToUnpacked, 'package.json'))
 
-      if (!opts.forceFetch && targetExists) {
+      if (!opts.force && targetExists) {
         // if target exists and it wasn't modified, then no need to refetch it
         const satisfiedIntegrity = opts.verifyStoreIntegrity
           ? await checkPackage(linkToUnpacked)
@@ -407,10 +432,10 @@ function fetchToStore (opts: {
           // However, when one line is left available, allow it to be picked up by a metadata request.
           // This is done in order to avoid situations when tarballs are downloaded in chunks
           // As much tarballs should be downloaded simultaneously as possible.
-          const priority = (++opts.requestsQueue['counter'] % opts.requestsQueue['concurrency'] === 0 ? -1 : 1) * 1000 // tslint:disable-line
+          const priority = (++ctx.requestsQueue['counter'] % ctx.requestsQueue['concurrency'] === 0 ? -1 : 1) * 1000 // tslint:disable-line
 
-          const fetchedPackage = await opts.requestsQueue.add(() => opts.fetch(opts.resolution, target, {
-            cachedTarballLocation: path.join(opts.storePath, opts.pkgId, 'packed.tgz'),
+          const fetchedPackage = await ctx.requestsQueue.add(() => ctx.fetch(opts.resolution, target, {
+            cachedTarballLocation: path.join(ctx.storePath, opts.pkgId, 'packed.tgz'),
             onProgress: (downloaded) => {
               progressLogger.debug({status: 'fetching_progress', pkgId: opts.pkgId, downloaded})
             },
@@ -533,7 +558,10 @@ async function fetcher (
   }
 }
 
-async function getCacheByEngine (storePath: string, id: string): Promise<Map<string, string>> {
+// TODO: It might make sense to have this function as part of storeController.
+//  Ask @etamponi if it is fine for when pnpm is used as a server
+// TODO: cover with tests
+export async function getCacheByEngine (storePath: string, id: string): Promise<Map<string, string>> {
   const map = new Map()
 
   const cacheRoot = path.join(storePath, id, 'side_effects')

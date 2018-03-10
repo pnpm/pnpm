@@ -252,3 +252,33 @@ test('refetch local tarball if its integrity has changed', async t => {
 
   t.end()
 })
+
+test('fetchPackageToStore()', async (t) => {
+  const packageRequester = createPackageRequester(resolve, fetch, {
+    networkConcurrency: 1,
+    storePath: '.store',
+    storeIndex: {},
+  })
+
+  const pkgId = 'registry.npmjs.org/is-positive/1.0.0'
+  const storePath = '.store'
+  const fetchResult = await packageRequester.fetchPackageToStore({
+    pkgId,
+    prefix: tempy.directory(),
+    resolution: {
+      integrity: 'sha1-iACYVrZKLx632LsBeUGEJK4EUss=',
+      registry: 'https://registry.npmjs.org/',
+      tarball: 'https://registry.npmjs.org/is-positive/-/is-positive-1.0.0.tgz',
+    }
+  })
+
+  const files = await fetchResult.fetchingFiles
+  t.deepEqual(files, {
+    filenames: [ 'package.json', 'index.js', 'license', 'readme.md' ],
+    fromStore: false,
+  }, 'returned info about files after fetch completed')
+
+  t.ok(fetchResult.finishing)
+
+  t.end()
+})

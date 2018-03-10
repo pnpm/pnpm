@@ -1,6 +1,8 @@
 import packageRequester from './packageRequester'
 
 export {
+  FetchPackageToStoreFunction,
+  getCacheByEngine,
   PackageResponse,
   PackageFilesResponse,
   RequestPackageFunction,
