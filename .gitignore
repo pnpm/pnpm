@@ -10,7 +10,6 @@ _node_modules
 # Coverage directory used by tools like istanbul
 coverage
 
-fixtures
 .tmp
 _docpress
 

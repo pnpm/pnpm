@@ -15,18 +15,31 @@
   "files": [
     "lib/"
   ],
+  "peerDependencies": {
+    "@pnpm/logger": "^1.0.0"
+  },
   "devDependencies": {
     "@commitlint/cli": "^6.1.3",
     "@commitlint/config-conventional": "^6.1.3",
     "@commitlint/prompt-cli": "^6.1.3",
+    "@pnpm/default-fetcher": "^0.4.0",
+    "@pnpm/default-resolver": "^0.1.4",
+    "@pnpm/exec": "^1.1.4",
+    "@pnpm/logger": "^1.0.1",
+    "@pnpm/store-path": "^1.0.3",
+    "@types/mz": "^0.0.32",
     "@types/tape": "^4.2.30",
     "@zkochan/husky": "^0.0.0",
+    "is-windows": "^1.0.2",
+    "isexe": "^2.0.0",
+    "mz": "^2.7.0",
     "npm-run-all": "^4.0.1",
     "package-preview": "^1.0.0",
     "pnpm-registry-mock": "^1.17.0",
     "rimraf": "^2.6.2",
     "tape": "^4.8.0",
     "tape-promise": "^2.0.1",
+    "tempy": "^0.2.1",
     "ts-node": "^5.0.1",
     "tslint": "^5.4.2",
     "typescript": "^2.7.1"
@@ -57,9 +70,23 @@
     "pnpm-registry-mock": "pnpm-registry-mock",
     "test:tap": "ts-node test",
     "test:e2e": "npm-run-all -p -r pnpm-registry-mock test:tap",
-    "pretest": "rimraf ../.tmp/ && pnpm-registry-mock prepare",
+    "pretest": "rimraf ../.tmp/ && pnpm-registry-mock prepare && ts-node test/pretest",
     "test": "npm run lint && npm run lint-test && preview && npm run test:e2e",
     "tsc": "rimraf lib && tsc",
-    "prepublishOnly": "npm run tsc"
+    "prepublishOnly": "npm run tsc",
+    "prepareFixtures": "ts-node test/prepareFixtures"
+  },
+  "dependencies": {
+    "@pnpm/package-requester": "^0.8.4",
+    "@pnpm/resolver-base": "^1.0.0",
+    "@types/ramda": "^0.25.19",
+    "dependency-path": "^1.2.0",
+    "get-npm-tarball-url": "^2.0.1",
+    "p-limit": "^1.2.0",
+    "package-store": "^0.18.0",
+    "pnpm-shrinkwrap": "^6.0.1",
+    "ramda": "^0.25.0",
+    "supi": "^0.14.4",
+    "symlink-dir": "^1.1.2"
   }
 }
