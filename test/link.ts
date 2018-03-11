@@ -1,4 +1,4 @@
-import assertProject from '@pnpm/assert-project'
+import assertProject, {isExecutable} from '@pnpm/assert-project'
 import sinon = require('sinon')
 import tape = require('tape')
 import promisifyTape from 'tape-promise'
@@ -8,7 +8,6 @@ import ncpCB = require('ncp')
 import path = require('path')
 import promisify = require('util.promisify')
 import {
-  isExecutable,
   pathToLocalPkg,
   prepare,
   testDefaults,
@@ -99,7 +98,7 @@ test('global link', async (t: tape.Test) => {
   const globalBin = path.resolve('..', 'global', 'bin')
   await linkToGlobal(process.cwd(), await testDefaults({globalPrefix, globalBin}))
 
-  isExecutable(t, path.join(globalBin, 'hello-world-js-bin'))
+  await isExecutable(t, path.join(globalBin, 'hello-world-js-bin'))
 
   // bins of dependencies should not be linked, see issue https://github.com/pnpm/pnpm/issues/905
   t.notOk(await exists(path.join(globalBin, 'cowsay')), 'cowsay not linked')

@@ -66,7 +66,7 @@ devDependencies:
   '@commitlint/cli': 6.1.3
   '@commitlint/config-conventional': 6.1.3
   '@commitlint/prompt-cli': 6.1.3
-  '@pnpm/assert-project': 1.0.0
+  '@pnpm/assert-project': 1.1.0
   '@pnpm/default-fetcher': 0.4.0
   '@pnpm/default-resolver': 0.1.4
   '@pnpm/logger': 1.0.1
@@ -79,7 +79,6 @@ devDependencies:
   caw: 2.0.1
   deep-require-cwd: 1.0.0
   exists-link: 2.0.0
-  isexe: 2.0.0
   mkdirp: 0.5.1
   ncp: 2.0.0
   npm-run-all: 4.1.2
@@ -279,7 +278,7 @@ packages:
     dev: true
     resolution:
       integrity: sha1-GViWWHTyS8Ub5Ih1/rUNZC/EH3s=
-  /@pnpm/assert-project/1.0.0:
+  /@pnpm/assert-project/1.1.0:
     dependencies:
       '@types/mz': 0.0.32
       '@types/path-exists': 3.0.0
@@ -298,7 +297,7 @@ packages:
     engines:
       node: '>=4'
     resolution:
-      integrity: sha512-3Z+LQST2JtPN9FZZrEu9pG1f72G1C4xYtukAwrsU1f1mhZJncHkOuZlaSTbiHaYoSxaUHzEEQoHhxuFP1fpYpQ==
+      integrity: sha512-D9ojkXI56czRKyrqfd7Bg0KNCKHT36t9gZCJjo2q13cKkrJ2nUERIzYUVHDaF1z3xvp0g9dt8/ovOnwbrVNG9A==
   /@pnpm/check-package/1.0.0:
     dependencies:
       '@types/load-json-file': 2.0.7
@@ -5273,7 +5272,7 @@ specifiers:
   '@commitlint/cli': ^6.1.3
   '@commitlint/config-conventional': ^6.1.3
   '@commitlint/prompt-cli': ^6.1.3
-  '@pnpm/assert-project': ^1.0.0
+  '@pnpm/assert-project': ^1.1.0
   '@pnpm/check-package': ^1.0.0
   '@pnpm/default-fetcher': ^0.4.0
   '@pnpm/default-resolver': ^0.1.4
@@ -5318,7 +5317,6 @@ specifiers:
   is-inner-link: ^2.0.0
   is-subdir: ^1.0.1
   is-windows: ^1.0.0
-  isexe: ^2.0.0
   load-json-file: ^4.0.0
   load-yaml-file: ^0.1.0
   mkdirp: ^0.5.1
