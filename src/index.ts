@@ -336,7 +336,7 @@ function filterShrinkwrap (
     noProd: boolean,
   },
 ): Shrinkwrap {
-  let pairs = R.toPairs<string, PackageSnapshot>(shr.packages || {})
+  let pairs = R.toPairs(shr.packages || {}) as Array<[string, PackageSnapshot]>
   if (opts.noProd) {
     pairs = pairs.filter((pair) => pair[1].dev !== false || pair[1].optional)
   }
