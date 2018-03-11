@@ -74,7 +74,8 @@
     "test": "npm run lint && npm run lint-test && preview && npm run test:e2e",
     "tsc": "rimraf lib && tsc",
     "prepublishOnly": "npm run tsc",
-    "prepareFixtures": "ts-node test/prepareFixtures"
+    "runPrepareFixtures": "ts-node test/prepareFixtures",
+    "prepareFixtures": "npm-run-all -p -r pnpm-registry-mock runPrepareFixtures"
   },
   "dependencies": {
     "@pnpm/package-requester": "^0.8.4",

@@ -19,3 +19,16 @@ test('installing a simple project', async (t) => {
 
   t.end()
 })
+
+test('run pre/postinstall scripts', async (t) => {
+  const prefix = path.join(fixtures, 'deps-have-lifecycle-scripts')
+  await headless(await testDefaults({prefix}))
+
+  const generatedByPreinstall = require(path.join(prefix, 'node_modules', 'pre-and-postinstall-scripts-example/generated-by-preinstall'))
+  t.ok(typeof generatedByPreinstall === 'function', 'generatedByPreinstall() is available')
+
+  const generatedByPostinstall = require(path.join(prefix, 'node_modules', 'pre-and-postinstall-scripts-example/generated-by-postinstall'))
+  t.ok(typeof generatedByPostinstall === 'function', 'generatedByPostinstall() is available')
+
+  t.end()
+})

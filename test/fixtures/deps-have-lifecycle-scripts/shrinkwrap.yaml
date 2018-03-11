@@ -1,0 +1,18 @@
+dependencies:
+  pre-and-postinstall-scripts-example: 1.0.0
+packages:
+  /hello-world-js-bin/1.0.0:
+    dev: false
+    resolution:
+      integrity: sha512-DshYOod7RtDUhgFWSR5pwyOtwkqMvS6HEmYV+DdVcfAQrLh96tHpSeCK/caP1LBJWI+gHu9em0slOJFdLFUluA==
+  /pre-and-postinstall-scripts-example/1.0.0:
+    dependencies:
+      hello-world-js-bin: 1.0.0
+    dev: false
+    resolution:
+      integrity: sha512-SeA235K1DsYAkk6u8SBTA/w4IEG7HFcxVyRR4FD1FQqHk64mrTWfdmn7EX+CLLkRqzDJQSj+tjYcOqR9BAR51A==
+registry: 'http://localhost:4873/'
+shrinkwrapMinorVersion: 4
+shrinkwrapVersion: 3
+specifiers:
+  pre-and-postinstall-scripts-example: '*'

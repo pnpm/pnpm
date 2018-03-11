@@ -67,6 +67,7 @@ export default async function testDefaults (
     registry,
     storePath: store,
     storeController,
+    rawNpmConfig: {},
     ...opts,
   }
 }

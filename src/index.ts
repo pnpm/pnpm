@@ -13,14 +13,16 @@ import {
 } from 'pnpm-shrinkwrap'
 import R = require('ramda')
 import getPkgInfoFromShr from 'supi/lib/getPkgInfoFromShr'
-import postInstall from 'supi/lib/install/postInstall'
 import linkBins, {linkPkgBins} from 'supi/lib/link/linkBins' // TODO: move to separate package
-import {rootLogger} from 'supi/lib/loggers'
+import {
+  rootLogger,
+  summaryLogger,
+} from 'supi/lib/loggers'
 import logStatus from 'supi/lib/logging/logInstallStatus'
 import symlinkDir = require('symlink-dir')
+import {ENGINE_NAME} from './constants'
 import depSnapshotToResolution from './depSnapshotToResolution'
-
-const ENGINE_NAME = `${process.platform}-${process.arch}-node-${process.version.split('.')[0]}`
+import runDependenciesScripts from './runDependenciesScripts'
 
 export default async (
   opts: {
@@ -73,54 +75,16 @@ export default async (
   await linkRootPackages(filteredShrinkwrap, depGraph, nodeModules)
   await linkBins(nodeModules, bin)
 
-  // TODO: move to separate package. It is used in supi/lib/install.ts as well
-  // postinstall hooks
-  // if (!opts.ignoreScripts) {
-  //   const limitChild = pLimit(opts.childConcurrency)
-  //   await Promise.all(
-  //     R.keys(depGraph)
-  //       .filter((depPath) => !depGraph[depPath].isBuilt)
-  //       .map((depPath) => limitChild(async () => {
-  //         const depNode = depGraph[depPath]
-  //         try {
-  //           const hasSideEffects = await postInstall(depNode.peripheralLocation, {
-  //             initialWD: opts.prefix,
-  //             pkgId: depPath, // TODO: postInstall should expect depPath, not pkgId
-  //             rawNpmConfig: opts.rawNpmConfig,
-  //             unsafePerm: opts.unsafePerm || false,
-  //             userAgent: opts.userAgent,
-  //           })
-  //           if (hasSideEffects && opts.sideEffectsCache && !opts.sideEffectsCacheReadonly) {
-  //             try {
-  //               await opts.storeController.upload(depNode.peripheralLocation, {
-  //                 engine: ENGINE_NAME,
-  //                 pkgId: pkg.id,
-  //               })
-  //             } catch (err) {
-  //               if (err && err.statusCode === 403) {
-  //                 logger.warn(`The store server disabled upload requests, could not upload ${pkg.id}`)
-  //               } else {
-  //                 logger.warn({
-  //                   err,
-  //                   message: `An error occurred while uploading ${pkg.id}`,
-  //                 })
-  //               }
-  //             }
-  //           }
-  //         } catch (err) {
-  //           if (installCtx.pkgByPkgId[pkg.id].optional) {
-  //             logger.warn({
-  //               err,
-  //               message: `Skipping failed optional dependency ${pkg.id}`,
-  //             })
-  //             return
-  //           }
-  //           throw err
-  //         }
-  //       }),
-  //     ),
-  //   )
-  // }
+  if (!opts.ignoreScripts) {
+    await runDependenciesScripts(depGraph, opts)
+  }
+
+  // waiting till package requests are finished
+  await Promise.all(R.values(depGraph).map((depNode) => depNode.finishing))
+
+  summaryLogger.info(undefined)
+
+  await opts.storeController.close()
 }
 
 async function linkRootPackages (
@@ -201,12 +165,15 @@ async function shrinkwrapToDepGraph (
         centralLocation,
         children: getChildren(depSnapshot, shr.registry),
         fetchingFiles: fetchResponse.fetchingFiles,
+        finishing: fetchResponse.finishing,
         hasBundledDependencies: !!depSnapshot.bundledDependencies,
         independent,
         isBuilt: !!cache,
         modules,
+        optional: !!depSnapshot.optional,
         optionalDependencies: new Set(R.keys(depSnapshot.optionalDependencies)),
         peripheralLocation,
+        pkgId,
       }
     }
   }
@@ -230,6 +197,7 @@ export interface DepGraphNode {
   centralLocation: string,
   modules: string,
   fetchingFiles: Promise<PackageFilesResponse>,
+  finishing: Promise<void>,
   peripheralLocation: string,
   children: {[alias: string]: string},
   // an independent package is a package that
@@ -239,8 +207,8 @@ export interface DepGraphNode {
   // depth: number,
   // prod: boolean,
   // dev: boolean,
-  // optional: boolean,
-  // id: string,
+  optional: boolean,
+  pkgId: string, // TODO: this option is currently only needed when running postinstall scripts but even there it should be not used
   // installable: boolean,
   // additionalInfo: {
   //   deprecated?: string,
