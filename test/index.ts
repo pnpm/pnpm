@@ -1,3 +1,4 @@
+import assertProject from '@pnpm/assert-project'
 import test = require('tape')
 import headless from '@pnpm/headless'
 import path = require('path')
@@ -10,10 +11,11 @@ test('installing a simple project', async (t) => {
   const prefix = path.join(fixtures, 'simple')
   await headless(await testDefaults({prefix}))
 
-  t.ok(require(path.join(prefix, 'node_modules', 'is-positive')), 'prod dep installed')
-  t.ok(require(path.join(prefix, 'node_modules', 'rimraf')), 'prod dep installed')
-  t.ok(require(path.join(prefix, 'node_modules', 'is-negative')), 'dev dep installed')
-  t.ok(require(path.join(prefix, 'node_modules', 'colors')), 'optional dep installed')
+  const project = assertProject(t, prefix)
+  t.ok(project.requireModule('is-positive'), 'prod dep installed')
+  t.ok(project.requireModule('rimraf'), 'prod dep installed')
+  t.ok(project.requireModule('is-negative'), 'dev dep installed')
+  t.ok(project.requireModule('colors'), 'optional dep installed')
 
   await isExecutable(t, path.join(prefix, 'node_modules', '.bin', 'rimraf'))
 
@@ -24,10 +26,11 @@ test('run pre/postinstall scripts', async (t) => {
   const prefix = path.join(fixtures, 'deps-have-lifecycle-scripts')
   await headless(await testDefaults({prefix}))
 
-  const generatedByPreinstall = require(path.join(prefix, 'node_modules', 'pre-and-postinstall-scripts-example/generated-by-preinstall'))
+  const project = assertProject(t, prefix)
+  const generatedByPreinstall = project.requireModule('pre-and-postinstall-scripts-example/generated-by-preinstall')
   t.ok(typeof generatedByPreinstall === 'function', 'generatedByPreinstall() is available')
 
-  const generatedByPostinstall = require(path.join(prefix, 'node_modules', 'pre-and-postinstall-scripts-example/generated-by-postinstall'))
+  const generatedByPostinstall = project.requireModule('pre-and-postinstall-scripts-example/generated-by-postinstall')
   t.ok(typeof generatedByPostinstall === 'function', 'generatedByPostinstall() is available')
 
   t.end()
