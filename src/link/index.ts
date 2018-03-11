@@ -3,7 +3,7 @@ import * as dp from 'dependency-path'
 import pLimit = require('p-limit')
 import {StoreController} from 'package-store'
 import path = require('path')
-import {DependencyShrinkwrap, Shrinkwrap} from 'pnpm-shrinkwrap'
+import {PackageSnapshot, Shrinkwrap} from 'pnpm-shrinkwrap'
 import R = require('ramda')
 import symlinkDir = require('symlink-dir')
 import {PkgGraphNodeByNodeId} from '../api/install'
@@ -237,7 +237,7 @@ function filterShrinkwrap (
     skipped: Set<string>,
   },
 ): Shrinkwrap {
-  let pairs = R.toPairs<string, DependencyShrinkwrap>(shr.packages || {})
+  let pairs = (R.toPairs(shr.packages || {}) as Array<[string, PackageSnapshot]>)
     .filter((pair) => !opts.skipped.has(pair[1].id || dp.resolve(shr.registry, pair[0])))
   if (opts.noProd) {
     pairs = pairs.filter((pair) => pair[1].dev !== false || pair[1].optional)
