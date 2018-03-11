@@ -1,3 +1,4 @@
+import {isExecutable} from '@pnpm/assert-project'
 import tape = require('tape')
 import promisifyTape from 'tape-promise'
 const test = promisifyTape(tape)
@@ -7,7 +8,6 @@ import {
   prepare,
   testDefaults,
   execPnpm,
-  isExecutable,
  } from './utils'
 import fs = require('mz/fs')
 import isWindows = require('is-windows')
@@ -50,5 +50,5 @@ test('link global bin', async function (t: tape.Test) {
   await execPnpm('link')
 
   const globalBin = isWindows() ? global : path.join(global, 'bin')
-  isExecutable(t, path.join(globalBin, 'package-with-bin'))
+  await isExecutable(t, path.join(globalBin, 'package-with-bin'))
 })

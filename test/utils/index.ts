@@ -4,7 +4,6 @@ import execPnpm, {
   sync as execPnpmSync,
   spawn,
 } from './execPnpm'
-import isExecutable from './isExecutable'
 import retryLoadJsonFile from './retryLoadJsonFile'
 import {add as addDistTag} from './distTags'
 
@@ -15,7 +14,6 @@ export {
   execPnpm,
   execPnpmSync,
   spawn,
-  isExecutable,
   addDistTag,
   retryLoadJsonFile,
 }
