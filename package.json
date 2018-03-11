@@ -1,7 +1,7 @@
 {
   "name": "pnpm-shrinkwrap",
   "version": "6.0.1",
-  "description": "pnpm's shrinkwrap",
+  "description": "Read/write/prune and other utils for dealing with shrinkwrap.yaml files",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
   "engines": {

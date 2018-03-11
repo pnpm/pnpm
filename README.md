@@ -1,8 +1,8 @@
 # pnpm-shrinkwrap
 
-[![Build Status](https://travis-ci.org/pnpm/pnpm-shrinkwrap.svg?branch=master)](https://travis-ci.org/pnpm/pnpm-shrinkwrap)
+> Read/write/prune and other utils for dealing with shrinkwrap.yaml files
 
-> pnpm's shrinkwrap
+[![Build Status](https://travis-ci.org/pnpm/pnpm-shrinkwrap.svg?branch=master)](https://travis-ci.org/pnpm/pnpm-shrinkwrap)
 
 Reads and writes the public (`shrinkwrap.yaml`) and private (`node_modules/.shrinkwrap.yaml`) shrinkwrap files of pnpm.
 Shrinkwrap files are the state files of the `node_modules` installed via pnpm. They are like
