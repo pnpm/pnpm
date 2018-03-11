@@ -23,6 +23,7 @@ export default async (
 ) => {
   // postinstall hooks
   const limitChild = pLimit(opts.childConcurrency || 4)
+  // TODO: run depencies first then dependents. Use graph-sequencer to sort the graph
   await Promise.all(
     R.keys(depGraph)
       .filter((depPath) => !depGraph[depPath].isBuilt)
