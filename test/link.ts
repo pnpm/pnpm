@@ -1,3 +1,4 @@
+import assertProject from '@pnpm/assert-project'
 import sinon = require('sinon')
 import tape = require('tape')
 import promisifyTape from 'tape-promise'
@@ -36,11 +37,12 @@ test('relative link', async (t: tape.Test) => {
   await ncp(pathToLocalPkg(linkedPkgName), linkedPkgPath)
   await link([`../${linkedPkgName}`], path.join(process.cwd(), 'node_modules'), await testDefaults())
 
-  await isExecutable(t, path.resolve('node_modules', '.bin', 'hello-world-js-bin'))
+  await project.isExecutable('.bin/hello-world-js-bin')
 
   // The linked package has been installed successfully as well with bins linked
   // to node_modules/.bin
-  await isExecutable(t, path.join(linkedPkgPath, 'node_modules', '.bin', 'cowsay'))
+  const linkedProject = assertProject(t, linkedPkgPath)
+  await linkedProject.isExecutable('.bin/cowsay')
 
   const wantedShrinkwrap = await project.loadShrinkwrap()
   t.equal(wantedShrinkwrap.dependencies['hello-world-js-bin'], 'link:../hello-world-js-bin', 'link added to wanted shrinkwrap')
@@ -84,7 +86,7 @@ test('relative link is not rewritten by install', async (t: tape.Test) => {
 })
 
 test('global link', async (t: tape.Test) => {
-  prepare(t)
+  const project = prepare(t)
   const projectPath = process.cwd()
 
   const linkedPkgName = 'hello-world-js-bin'
@@ -107,7 +109,7 @@ test('global link', async (t: tape.Test) => {
 
   await linkFromGlobal([linkedPkgName], process.cwd(), await testDefaults({globalPrefix}))
 
-  isExecutable(t, path.resolve('node_modules', '.bin', 'hello-world-js-bin'))
+  await project.isExecutable('.bin/hello-world-js-bin')
 })
 
 test('failed linking should not create empty folder', async (t: tape.Test) => {

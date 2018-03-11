@@ -6,7 +6,6 @@ import {
 import tape = require('tape')
 import promisifyTape from 'tape-promise'
 import {
-  isExecutable,
   pathToLocalPkg,
   prepare,
   testDefaults,
