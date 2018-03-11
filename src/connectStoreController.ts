@@ -1,9 +1,11 @@
 import {
+  FetchPackageToStoreOptions,
   PackageFilesResponse,
   PackageResponse,
   RequestPackageOptions,
   WantedDependency,
 } from '@pnpm/package-requester'
+import {PackageManifest} from '@pnpm/types'
 
 import got = require('got')
 import pLimit = require('p-limit')
@@ -26,6 +28,7 @@ export default function (
   return new Promise((resolve, reject) => {
     resolve({
       close: async () => { return },
+      fetchPackage: fetchPackage.bind(null, remotePrefix, limitedFetch),
       importPackage: async (from: string, to: string, opts: {
         filesResponse: PackageFilesResponse,
         force: boolean,
@@ -116,6 +119,39 @@ function requestPackage (
       fetchingFiles,
       fetchingManifest,
       finishing: Promise.all([fetchingManifest, fetchingFiles]).then(() => undefined),
+    }
+  })
+}
+
+function fetchPackage (
+  remotePrefix: string,
+  limitedFetch: (url: string, body: object) => any, // tslint:disable-line
+  options: FetchPackageToStoreOptions,
+): Promise<{
+  fetchingFiles: Promise<PackageFilesResponse>,
+  fetchingManifest?: Promise<PackageManifest>,
+  finishing: Promise<void>,
+  inStoreLocation: string,
+}> {
+  const msgId = uuid.v4()
+
+  return limitedFetch(`${remotePrefix}/fetchPackage`, {
+    msgId,
+    options,
+  })
+  .then((fetchResponseBody: object & {inStoreLocation: string}) => {
+    const fetchingManifest = limitedFetch(`${remotePrefix}/manifestResponse`, {
+      msgId,
+    })
+
+    const fetchingFiles = limitedFetch(`${remotePrefix}/packageFilesResponse`, {
+      msgId,
+    })
+    return {
+      fetchingFiles,
+      fetchingManifest,
+      finishing: Promise.all([fetchingManifest, fetchingFiles]).then(() => undefined),
+      inStoreLocation: fetchResponseBody.inStoreLocation,
     }
   })
 }

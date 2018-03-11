@@ -3,6 +3,7 @@ import {
   RequestPackageOptions,
   WantedDependency,
 } from '@pnpm/package-requester'
+import {Resolution} from '@pnpm/resolver-base'
 import http = require('http')
 import {IncomingMessage, Server, ServerResponse} from 'http'
 import {StoreController} from 'package-store'
@@ -65,7 +66,7 @@ export default function (
     try {
       let body: RequestBody
       switch (req.url) {
-        case '/requestPackage':
+        case '/requestPackage': {
           body = await bodyPromise
           const pkgResponse = await store.requestPackage(body.wantedDependency, body.options)
           if (pkgResponse['fetchingManifest']) { // tslint:disable-line
@@ -76,6 +77,19 @@ export default function (
           }
           res.end(JSON.stringify(pkgResponse.body))
           break
+        }
+        case '/fetchPackage': {
+          body = await bodyPromise
+          const pkgResponse = await store.fetchPackage(body.options as RequestPackageOptions & {force: boolean, pkgId: string, resolution: Resolution})
+          if (pkgResponse['fetchingManifest']) { // tslint:disable-line
+            manifestPromises[body.msgId] = pkgResponse['fetchingManifest'] // tslint:disable-line
+          }
+          if (pkgResponse['fetchingFiles']) { // tslint:disable-line
+            filesPromises[body.msgId] = pkgResponse['fetchingFiles'] // tslint:disable-line
+          }
+          res.end(JSON.stringify({inStoreLocation: pkgResponse.inStoreLocation}))
+          break
+        }
         case '/packageFilesResponse':
           body = await bodyPromise
           const filesResponse = await filesPromises[body.msgId]

@@ -79,6 +79,42 @@ test('server', async t => {
   t.end()
 })
 
+test('fetchPackage', async t => {
+  const port = 5813
+  const hostname = '127.0.0.1'
+  const remotePrefix = `http://${hostname}:${port}`
+  const storeCtrlForServer = await createStoreController()
+  const server = createServer(storeCtrlForServer, {
+    port,
+    hostname,
+  })
+  const storeCtrl = await connectStoreController({remotePrefix, concurrency: 100})
+  const response = await storeCtrl.fetchPackage({
+    pkgId: 'registry.npmjs.org/is-positive/1.0.0',
+    prefix: process.cwd(),
+    resolution: {
+      integrity: 'sha1-iACYVrZKLx632LsBeUGEJK4EUss=',
+      registry: 'https://registry.npmjs.org/',
+      tarball: 'https://registry.npmjs.org/is-positive/-/is-positive-1.0.0.tgz',
+    },
+  })
+
+  t.equal(typeof response.inStoreLocation, 'string', 'location in store returned')
+
+  t.ok(await response.fetchingManifest)
+
+  const files = await response['fetchingFiles'] as PackageFilesResponse
+  t.notOk(files.fromStore)
+  t.ok(files.filenames.indexOf('package.json') !== -1)
+  t.ok(response['finishing'])
+
+  await response['finishing']
+
+  await server.close()
+  await storeCtrl.close()
+  t.end()
+})
+
 test('server errors should arrive to the client', async t => {
   const port = 5813
   const hostname = '127.0.0.1'

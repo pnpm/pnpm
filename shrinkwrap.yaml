@@ -1,5 +1,8 @@
 dependencies:
-  '@pnpm/package-requester': 0.8.4
+  '@pnpm/package-requester': 0.8.5
+  '@pnpm/resolver-base': 1.0.0
+  '@pnpm/server': 'link:../__package_previews__/server/@pnpm/server'
+  '@pnpm/types': 1.7.0
   '@types/got': 7.1.7
   '@types/node': 9.4.7
   '@types/p-limit': 1.1.2
@@ -129,6 +132,36 @@ packages:
       '@pnpm/logger': ^1.0.0
     resolution:
       integrity: sha512-jgSl5c1mmUAOFUy38LR8/hUop6m7oCiptPK7kUJnjMHPqyql4aFY8z4/AocckCZOmh5TMfs4IcxcuIoyfhjlBw==
+  /@pnpm/package-requester/0.8.5:
+    dependencies:
+      '@pnpm/check-package': 1.0.0
+      '@pnpm/fetcher-base': 1.0.0
+      '@pnpm/pkgid-to-filename': 1.0.0
+      '@pnpm/resolver-base': 1.0.0
+      '@pnpm/types': 1.7.0
+      '@types/load-json-file': 2.0.7
+      '@types/mz': 0.0.32
+      '@types/p-queue': 2.3.1
+      '@types/write-json-file': 2.2.1
+      load-json-file: 4.0.0
+      mkdirp-promise: 5.0.1
+      mz: 2.7.0
+      p-limit: 1.2.0
+      p-queue: 2.3.1
+      path-exists: 3.0.0
+      read-package-json: 2.0.13
+      rename-overwrite: 1.0.2
+      rimraf-then: 1.0.1
+      symlink-dir: 1.1.2
+      util.promisify: 1.0.0
+      write-json-file: 2.3.0
+    dev: false
+    engines:
+      node: '>=4'
+    peerDependencies:
+      '@pnpm/logger': ^1.0.0
+    resolution:
+      integrity: sha512-y2JRHtpmRnh18ew24BozxPsrZQBMYzF8SNx0yYPLYRB/tR/JUR33f9HFAIgMb2eH69rAVifNtH45BqmXdQ+gSg==
   /@pnpm/pkgid-to-filename/1.0.0:
     dependencies:
       normalize-path: 2.1.1
@@ -3837,8 +3870,10 @@ shrinkwrapVersion: 3
 specifiers:
   '@pnpm/logger': ^1.0.0
   '@pnpm/npm-resolver': ^0.3.9
-  '@pnpm/package-requester': ^0.8.0
+  '@pnpm/package-requester': ^0.8.5
+  '@pnpm/resolver-base': ^1.0.0
   '@pnpm/tarball-fetcher': ^0.4.0
+  '@pnpm/types': ^1.7.0
   '@types/got': ^7.1.6
   '@types/node': ^9.3.0
   '@types/p-limit': ^1.1.1
