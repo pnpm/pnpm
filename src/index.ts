@@ -2,6 +2,7 @@ import packageRequester from './packageRequester'
 
 export {
   FetchPackageToStoreFunction,
+  FetchPackageToStoreOptions,
   getCacheByEngine,
   PackageResponse,
   PackageFilesResponse,

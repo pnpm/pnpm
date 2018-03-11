@@ -93,7 +93,7 @@ export interface RequestPackageOptions {
   registry: string,
   shrinkwrapResolution?: Resolution,
   update?: boolean,
-  verifyStoreIntegrity: boolean,
+  verifyStoreIntegrity: boolean, // TODO: this should be a context field
   preferredVersions: {
     [packageName: string]: {
       selector: string,
@@ -108,15 +108,17 @@ export type RequestPackageFunction = (
   options: RequestPackageOptions,
 ) => Promise<PackageResponse>
 
+export interface FetchPackageToStoreOptions {
+  force: boolean,
+  pkg?: PackageJson,
+  pkgId: string,
+  prefix: string,
+  resolution: Resolution,
+  verifyStoreIntegrity: boolean, // TODO: this should be a context field
+}
+
 export type FetchPackageToStoreFunction = (
-  opts: {
-    force: boolean,
-    pkg?: PackageJson,
-    pkgId: string,
-    prefix: string,
-    resolution: Resolution,
-    verifyStoreIntegrity: boolean,
-  },
+  opts: FetchPackageToStoreOptions,
 ) => {
   fetchingFiles: Promise<PackageFilesResponse>,
   fetchingManifest?: Promise<PackageManifest>,
