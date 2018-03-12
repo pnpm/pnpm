@@ -20,6 +20,9 @@ test('installing a simple project', async (t) => {
 
   await project.isExecutable('.bin/rimraf')
 
+  t.ok(await project.loadCurrentShrinkwrap())
+  t.ok(await project.loadModules())
+
   t.end()
 })
 

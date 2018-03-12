@@ -69,6 +69,10 @@ export default async function testDefaults (
     storeController,
     rawNpmConfig: {},
     unsafePerm: true,
+    packageManager: {
+      name: 'pnpm',
+      version: '1.0.0',
+    },
     ...opts,
   }
 }

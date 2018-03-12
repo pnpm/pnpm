@@ -11,9 +11,14 @@ import {
   PackageSnapshot,
   readWanted,
   Shrinkwrap,
+  writeCurrentOnly as writeCurrentShrinkwrapOnly,
 } from 'pnpm-shrinkwrap'
 import R = require('ramda')
 import readPkgCB = require('read-package-json')
+import {
+  LAYOUT_VERSION,
+  save as saveModules,
+} from 'supi/lib/fs/modulesController'
 import realNodeModulesDir from 'supi/lib/fs/realNodeModulesDir'
 import getPkgInfoFromShr from 'supi/lib/getPkgInfoFromShr'
 import {npmRunScript} from 'supi/lib/install/postInstall'
@@ -49,6 +54,10 @@ export default async (
     rawNpmConfig: object,
     unsafePerm: boolean,
     userAgent: string,
+    packageManager: {
+      name: string,
+      version: string,
+    },
   },
 ) => {
   if (typeof opts.prefix !== 'string') {
@@ -98,6 +107,18 @@ export default async (
   const bin = path.join(opts.prefix, 'node_modules', '.bin')
   await linkRootPackages(filteredShrinkwrap, depGraph, nodeModules)
   await linkBins(nodeModules, bin)
+
+  await writeCurrentShrinkwrapOnly(opts.prefix, filteredShrinkwrap)
+  await saveModules(path.join(opts.prefix, 'node_modules'), {
+    hoistedAliases: {},
+    independentLeaves: opts.independentLeaves,
+    layoutVersion: LAYOUT_VERSION,
+    packageManager: `${opts.packageManager.name}@${opts.packageManager.version}`,
+    pendingBuilds: [], // TODO: populate this array when runnig with --ignore-scripts
+    shamefullyFlatten: false,
+    skipped: [],
+    store: opts.storePath,
+  })
 
   if (!opts.ignoreScripts) {
     await runDependenciesScripts(depGraph, opts)
