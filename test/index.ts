@@ -5,7 +5,6 @@ import path = require('path')
 import exists = require('path-exists')
 import rimraf = require('rimraf-then')
 import testDefaults from './utils/testDefaults'
-import isExecutable from './utils/isExecutable'
 
 const fixtures = path.join(__dirname, 'fixtures')
 
@@ -19,7 +18,7 @@ test('installing a simple project', async (t) => {
   t.ok(project.requireModule('is-negative'), 'dev dep installed')
   t.ok(project.requireModule('colors'), 'optional dep installed')
 
-  await isExecutable(t, path.join(prefix, 'node_modules', '.bin', 'rimraf'))
+  await project.isExecutable('.bin/rimraf')
 
   t.end()
 })
