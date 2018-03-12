@@ -834,3 +834,13 @@ test("don't remove packages during named install when shrinkwrap: false", async 
   await project.has('is-positive')
   await project.has('is-negative')
 })
+
+test('save tarball URL when it is non-standard', async (t: tape.Test) => {
+  const project = prepare(t)
+
+  await installPkgs(['esprima-fb@3001.1.0-dev-harmony-fb'], await testDefaults())
+
+  const shr = await project.loadShrinkwrap()
+
+  t.equal(shr.packages['/esprima-fb/3001.1.0-dev-harmony-fb'].resolution.tarball, '/esprima-fb/-/esprima-fb-3001.0001.0000-dev-harmony-fb.tgz')
+})

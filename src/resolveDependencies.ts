@@ -216,6 +216,7 @@ function dependencyShrToResolution (
   }
   return {
     ...depShr.resolution,
+    registry: depShr.resolution['registry'] || registry,
     tarball: url.resolve(registry, depShr.resolution['tarball']),
   } as Resolution
 

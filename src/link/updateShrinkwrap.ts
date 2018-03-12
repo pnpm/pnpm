@@ -1,6 +1,7 @@
 import {Resolution} from '@pnpm/resolver-base'
 import {Dependencies, PackageJson} from '@pnpm/types'
 import * as dp from 'dependency-path'
+import getNpmTarballUrl from 'get-npm-tarball-url'
 import {
   DependencyShrinkwrap,
   prune as pruneShrinkwrap,
@@ -76,7 +77,7 @@ function toShrDependency (
     optional: boolean,
   },
 ): DependencyShrinkwrap {
-  const shrResolution = toShrResolution(opts.relDepPath, opts.resolution, opts.registry)
+  const shrResolution = toShrResolution({name: opts.name, version: opts.version}, opts.relDepPath, opts.resolution, opts.registry)
   const newResolvedDeps = updateResolvedDeps(opts.prevResolvedDeps, opts.updatedDeps, opts.registry, opts.depGraph)
   const newResolvedOptionalDeps = updateResolvedDeps(opts.prevResolvedOptionalDeps, opts.updatedOptionalDeps, opts.registry, opts.depGraph)
   const result = {
@@ -166,6 +167,10 @@ function updateResolvedDeps (
 }
 
 function toShrResolution (
+  pkg: {
+    name: string,
+    version: string,
+  },
   relDepPath: string,
   resolution: Resolution,
   registry: string,
@@ -174,9 +179,10 @@ function toShrResolution (
   if (dp.isAbsolute(relDepPath) || resolution.type !== undefined || !resolution['integrity']) {
     return resolution as ShrinkwrapResolution
   }
-  // This might be not the best solution to identify non-standard tarball URLs in the long run
-  // but it at least solves the issues with npm Enterprise. See https://github.com/pnpm/pnpm/issues/867
-  if (!resolution['tarball'].includes('/-/')) {
+  // Sometimes packages are hosted under non-standard tarball URLs.
+  // For instance, when they are hosted on npm Enterprise. See https://github.com/pnpm/pnpm/issues/867
+  // Or in othere weird cases, like https://github.com/pnpm/pnpm/issues/1072
+  if (getNpmTarballUrl(pkg.name, pkg.version, {registry}) !== resolution['tarball']) {
     return {
       integrity: resolution['integrity'],
       tarball: relativeTarball(resolution['tarball'], registry),
