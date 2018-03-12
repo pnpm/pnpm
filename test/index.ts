@@ -23,6 +23,68 @@ test('installing a simple project', async (t) => {
   t.end()
 })
 
+test('installing only prod deps', async (t) => {
+  const prefix = path.join(fixtures, 'simple')
+  await rimraf(path.join(prefix, 'node_modules'))
+
+  await headless(await testDefaults({
+    prefix,
+    production: true,
+    development: false,
+    optional: false,
+  }))
+
+  const project = assertProject(t, prefix)
+  await project.has('is-positive')
+  await project.has('rimraf')
+  await project.hasNot('is-negative')
+  await project.hasNot('colors')
+
+  await project.isExecutable('.bin/rimraf')
+
+  t.end()
+})
+
+test('installing only dev deps', async (t) => {
+  const prefix = path.join(fixtures, 'simple')
+  await rimraf(path.join(prefix, 'node_modules'))
+
+  await headless(await testDefaults({
+    prefix,
+    production: false,
+    development: true,
+    optional: false,
+  }))
+
+  const project = assertProject(t, prefix)
+  await project.hasNot('is-positive')
+  await project.hasNot('rimraf')
+  await project.has('is-negative')
+  await project.hasNot('colors')
+
+  t.end()
+})
+
+test('installing only optional deps', async (t) => {
+  const prefix = path.join(fixtures, 'simple')
+  await rimraf(path.join(prefix, 'node_modules'))
+
+  await headless(await testDefaults({
+    prefix,
+    production: false,
+    development: false,
+    optional: true,
+  }))
+
+  const project = assertProject(t, prefix)
+  await project.hasNot('is-positive')
+  await project.hasNot('rimraf')
+  await project.hasNot('is-negative')
+  await project.has('colors')
+
+  t.end()
+})
+
 test('run pre/postinstall scripts', async (t) => {
   const prefix = path.join(fixtures, 'deps-have-lifecycle-scripts')
   const outputJsonPath = path.join(prefix, 'output.json')
