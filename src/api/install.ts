@@ -196,22 +196,22 @@ export async function install (maybeOpts: InstallOptions) {
       unsafePerm: opts.unsafePerm || false,
     }
 
-    if (scripts['preinstall']) { // tslint:disable-line:no-string-literal
+    if (scripts.preinstall) {
       await npmRunScript('preinstall', ctx.pkg, scriptsOpts)
     }
 
     await installInContext(installType, specs, [], ctx, preferredVersions, opts)
 
-    if (scripts['install']) {// tslint:disable-line:no-string-literal
+    if (scripts.install) {
       await npmRunScript('install', ctx.pkg, scriptsOpts)
     }
-    if (scripts['postinstall']) {// tslint:disable-line:no-string-literal
+    if (scripts.postinstall) {
       await npmRunScript('postinstall', ctx.pkg, scriptsOpts)
     }
-    if (scripts['prepublish']) {// tslint:disable-line:no-string-literal
+    if (scripts.prepublish) {
       await npmRunScript('prepublish', ctx.pkg, scriptsOpts)
     }
-    if (scripts['prepare']) {// tslint:disable-line:no-string-literal
+    if (scripts.prepare) {
       await npmRunScript('prepare', ctx.pkg, scriptsOpts)
     }
   }
