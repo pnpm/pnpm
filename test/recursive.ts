@@ -201,6 +201,12 @@ test('recursive linking/unlinking', async t => {
   process.chdir('project-1')
   t.ok(await exists('node_modules', 'is-positive', 'index.js'), 'local package is dislinked')
 
+  const project1Shr = await projects['project-1'].loadShrinkwrap()
+  t.equal(project1Shr.registry, 'http://localhost:4873/', 'project-1 has correct registry specified in shrinkwrap.yaml')
+
+  const isPositiveShr = await projects['is-positive'].loadShrinkwrap()
+  t.equal(isPositiveShr.registry, 'http://localhost:4873/', 'is-positive has correct registry specified in shrinkwrap.yaml')
+
   t.end()
 })
 

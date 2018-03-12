@@ -63,7 +63,11 @@ export default async (
   const pkgGraphResult = createPkgGraph(pkgs)
   const store = await createStoreController(opts)
   if (cmd === 'link' || cmd === 'ln') {
-    await linkPackages(pkgGraphResult.graph, store.ctrl, store.path)
+    await linkPackages(pkgGraphResult.graph, {
+      registry: opts.registry,
+      store: store.path,
+      storeController: store.ctrl,
+    })
   }
   const graph = new Map(
     Object.keys(pkgGraphResult.graph).map((pkgPath) => [pkgPath, pkgGraphResult.graph[pkgPath].dependencies]) as Array<[string, string[]]>,
@@ -117,11 +121,14 @@ export default async (
 
 function linkPackages (
   graph: {[pkgPath: string]: {dependencies: string[]}},
-  storeController: StoreController,
-  store: string,
+  opts: {
+    registry?: string,
+    store: string,
+    storeController: StoreController,
+  },
 ) {
   const limitLinking = pLimit(12)
-  const linkOpts = {skipInstall: true, store, storeController}
+  const linkOpts = {...opts, skipInstall: true}
   return Promise.all(
     Object.keys(graph)
       .filter((pkgPath) => graph[pkgPath].dependencies && graph[pkgPath].dependencies.length)
