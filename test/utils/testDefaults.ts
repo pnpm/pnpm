@@ -68,6 +68,7 @@ export default async function testDefaults (
     storePath: store,
     storeController,
     rawNpmConfig: {},
+    unsafePerm: true,
     ...opts,
   }
 }

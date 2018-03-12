@@ -8,5 +8,6 @@ run()
   .catch(err => console.error(err))
 
 async function run () {
-  await pnpm(['recursive', 'install', '--shrinkwrap-only', '--registry', 'http://localhost:4873/'], {cwd: fixtures})
+  // TODO: remove --ignore-scripts. pnpm should ignore scripts when --shrinkwrap-only is used
+  await pnpm(['recursive', 'install', '--shrinkwrap-only', '--registry', 'http://localhost:4873/', '--ignore-scripts'], {cwd: fixtures})
 }

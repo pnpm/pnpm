@@ -38,6 +38,7 @@
     "package-preview": "^1.0.0",
     "pnpm-registry-mock": "^1.17.0",
     "rimraf": "^2.6.2",
+    "rimraf-then": "^1.0.1",
     "tape": "^4.8.0",
     "tape-promise": "^2.0.1",
     "tempy": "^0.2.1",
@@ -81,6 +82,7 @@
   "dependencies": {
     "@pnpm/package-requester": "^0.8.4",
     "@pnpm/resolver-base": "^1.0.0",
+    "@pnpm/types": "^1.7.0",
     "@types/ramda": "^0.25.19",
     "dependency-path": "^1.2.0",
     "get-npm-tarball-url": "^2.0.1",
@@ -88,7 +90,9 @@
     "package-store": "^0.18.0",
     "pnpm-shrinkwrap": "^6.0.1",
     "ramda": "^0.25.0",
+    "read-package-json": "^2.0.13",
     "supi": "^0.14.4",
-    "symlink-dir": "^1.1.2"
+    "symlink-dir": "^1.1.2",
+    "util.promisify": "^1.0.0"
   }
 }

@@ -2,6 +2,7 @@ import {
   getCacheByEngine,
   PackageFilesResponse,
 } from '@pnpm/package-requester'
+import {PackageJson} from '@pnpm/types'
 import dp = require('dependency-path')
 import pLimit = require('p-limit')
 import {StoreController} from 'package-store'
@@ -12,7 +13,10 @@ import {
   Shrinkwrap,
 } from 'pnpm-shrinkwrap'
 import R = require('ramda')
+import readPkgCB = require('read-package-json')
+import realNodeModulesDir from 'supi/lib/fs/realNodeModulesDir'
 import getPkgInfoFromShr from 'supi/lib/getPkgInfoFromShr'
+import {npmRunScript} from 'supi/lib/install/postInstall'
 import linkBins, {linkPkgBins} from 'supi/lib/link/linkBins' // TODO: move to separate package
 import {
   rootLogger,
@@ -20,9 +24,12 @@ import {
 } from 'supi/lib/loggers'
 import logStatus from 'supi/lib/logging/logInstallStatus'
 import symlinkDir = require('symlink-dir')
+import promisify = require('util.promisify')
 import {ENGINE_NAME} from './constants'
 import depSnapshotToResolution from './depSnapshotToResolution'
 import runDependenciesScripts from './runDependenciesScripts'
+
+const readPkg = promisify(readPkgCB)
 
 export default async (
   opts: {
@@ -52,6 +59,23 @@ export default async (
 
   if (!wantedShrinkwrap) {
     throw new Error('Headless installation can be done only with a shrinkwrap.yaml file')
+  }
+
+  const pkg = await readPkg(path.join(opts.prefix, 'package.json')) as PackageJson
+
+  const scripts = !opts.ignoreScripts && pkg.scripts || {}
+
+  const scriptsOpts = {
+    modulesDir: await realNodeModulesDir(opts.prefix),
+    pkgId: opts.prefix,
+    rawNpmConfig: opts.rawNpmConfig,
+    root: opts.prefix,
+    stdio: 'inherit',
+    unsafePerm: opts.unsafePerm || false,
+  }
+
+  if (scripts.preinstall) {
+    await npmRunScript('preinstall', pkg, scriptsOpts)
   }
 
   const filterOpts = {
@@ -85,6 +109,19 @@ export default async (
   summaryLogger.info(undefined)
 
   await opts.storeController.close()
+
+  if (scripts.install) {
+    await npmRunScript('install', pkg, scriptsOpts)
+  }
+  if (scripts.postinstall) {
+    await npmRunScript('postinstall', pkg, scriptsOpts)
+  }
+  if (scripts.prepublish) {
+    await npmRunScript('prepublish', pkg, scriptsOpts)
+  }
+  if (scripts.prepare) {
+    await npmRunScript('prepare', pkg, scriptsOpts)
+  }
 }
 
 async function linkRootPackages (

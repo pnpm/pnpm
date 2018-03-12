@@ -1,5 +1,10 @@
 {
+  "scripts": {
+    "install": "node -e \"process.stdout.write('install')\" | json-append output.json",
+    "postinstall": "node -e \"process.stdout.write('postinstall')\" | json-append output.json"
+  },
   "dependencies": {
+    "json-append": "1.1.1",
     "pre-and-postinstall-scripts-example": "*"
   }
 }

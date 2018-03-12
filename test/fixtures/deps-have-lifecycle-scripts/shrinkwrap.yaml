@@ -1,18 +1,82 @@
 dependencies:
+  json-append: 1.1.1
   pre-and-postinstall-scripts-example: 1.0.0
 packages:
+  /concat-stream/1.6.1:
+    dependencies:
+      inherits: 2.0.3
+      readable-stream: 2.3.5
+      typedarray: 0.0.6
+    dev: false
+    engines:
+      '0': node >= 0.8
+    resolution:
+      integrity: sha512-gslSSJx03QKa59cIKqeJO9HQ/WZMotvYJCuaUULrLpjj8oG40kV2Z+gz82pVxlTkOADi4PJxQPPfhl1ELYrrXw==
+  /core-util-is/1.0.2:
+    dev: false
+    resolution:
+      integrity: sha1-tf1UIgqivFq1eqtxQMlAdUUDwac=
   /hello-world-js-bin/1.0.0:
     dev: false
     resolution:
       integrity: sha512-DshYOod7RtDUhgFWSR5pwyOtwkqMvS6HEmYV+DdVcfAQrLh96tHpSeCK/caP1LBJWI+gHu9em0slOJFdLFUluA==
+  /inherits/2.0.3:
+    dev: false
+    resolution:
+      integrity: sha1-Yzwsg+PaQqUC9SRmAiSA9CCCYd4=
+  /isarray/1.0.0:
+    dev: false
+    resolution:
+      integrity: sha1-u5NdSFgsuhaMBoNJV6VKPgcSTxE=
+  /json-append/1.1.1:
+    dependencies:
+      concat-stream: 1.6.1
+    dev: false
+    resolution:
+      integrity: sha1-Pnu6YqBHvzHJjexDGaU5uyhrsQQ=
   /pre-and-postinstall-scripts-example/1.0.0:
     dependencies:
       hello-world-js-bin: 1.0.0
     dev: false
     resolution:
       integrity: sha512-SeA235K1DsYAkk6u8SBTA/w4IEG7HFcxVyRR4FD1FQqHk64mrTWfdmn7EX+CLLkRqzDJQSj+tjYcOqR9BAR51A==
+  /process-nextick-args/2.0.0:
+    dev: false
+    resolution:
+      integrity: sha512-MtEC1TqN0EU5nephaJ4rAtThHtC86dNN9qCuEhtshvpVBkAW5ZO7BASN9REnF9eoXGcRub+pFuKEpOHE+HbEMw==
+  /readable-stream/2.3.5:
+    dependencies:
+      core-util-is: 1.0.2
+      inherits: 2.0.3
+      isarray: 1.0.0
+      process-nextick-args: 2.0.0
+      safe-buffer: 5.1.1
+      string_decoder: 1.0.3
+      util-deprecate: 1.0.2
+    dev: false
+    resolution:
+      integrity: sha512-tK0yDhrkygt/knjowCUiWP9YdV7c5R+8cR0r/kt9ZhBU906Fs6RpQJCEilamRJj1Nx2rWI6LkW9gKqjTkshhEw==
+  /safe-buffer/5.1.1:
+    dev: false
+    resolution:
+      integrity: sha512-kKvNJn6Mm93gAczWVJg7wH+wGYWNrDHdWvpUmHyEsgCtIwwo3bqPtV4tR5tuPaUhTOo/kvhVwd8XwwOllGYkbg==
+  /string_decoder/1.0.3:
+    dependencies:
+      safe-buffer: 5.1.1
+    dev: false
+    resolution:
+      integrity: sha512-4AH6Z5fzNNBcH+6XDMfA/BTt87skxqJlO0lAh3Dker5zThcAxG6mKz+iGu308UKoPPQ8Dcqx/4JhujzltRa+hQ==
+  /typedarray/0.0.6:
+    dev: false
+    resolution:
+      integrity: sha1-hnrHTjhkGHsdPUfZlqeOxciDB3c=
+  /util-deprecate/1.0.2:
+    dev: false
+    resolution:
+      integrity: sha1-RQ1Nyfpw3nMnYvvS1KKJgUGaDM8=
 registry: 'http://localhost:4873/'
 shrinkwrapMinorVersion: 4
 shrinkwrapVersion: 3
 specifiers:
+  json-append: 1.1.1
   pre-and-postinstall-scripts-example: '*'

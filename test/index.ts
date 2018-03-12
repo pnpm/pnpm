@@ -2,6 +2,7 @@ import assertProject from '@pnpm/assert-project'
 import test = require('tape')
 import headless from '@pnpm/headless'
 import path = require('path')
+import rimraf = require('rimraf-then')
 import testDefaults from './utils/testDefaults'
 import isExecutable from './utils/isExecutable'
 
@@ -24,6 +25,8 @@ test('installing a simple project', async (t) => {
 
 test('run pre/postinstall scripts', async (t) => {
   const prefix = path.join(fixtures, 'deps-have-lifecycle-scripts')
+  await rimraf(path.join(prefix, 'output.json'))
+
   await headless(await testDefaults({prefix}))
 
   const project = assertProject(t, prefix)
@@ -32,6 +35,8 @@ test('run pre/postinstall scripts', async (t) => {
 
   const generatedByPostinstall = project.requireModule('pre-and-postinstall-scripts-example/generated-by-postinstall')
   t.ok(typeof generatedByPostinstall === 'function', 'generatedByPostinstall() is available')
+
+  t.deepEqual(require(path.join(prefix, 'output.json')), ['install', 'postinstall'])
 
   t.end()
 })
