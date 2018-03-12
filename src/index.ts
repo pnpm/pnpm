@@ -227,9 +227,6 @@ function getChildren (depSnapshot: PackageSnapshot, registry: string) {
 }
 
 export interface DepGraphNode {
-  // name: string,
-  // at this point the version is really needed only for logging
-  // version: string,
   hasBundledDependencies: boolean,
   centralLocation: string,
   modules: string,
@@ -241,24 +238,8 @@ export interface DepGraphNode {
   // has neither regular nor peer dependencies
   independent: boolean,
   optionalDependencies: Set<string>,
-  // depth: number,
-  // prod: boolean,
-  // dev: boolean,
   optional: boolean,
   pkgId: string, // TODO: this option is currently only needed when running postinstall scripts but even there it should be not used
-  // installable: boolean,
-  // additionalInfo: {
-  //   deprecated?: string,
-  //   peerDependencies?: Dependencies,
-  //   bundleDependencies?: string[],
-  //   bundledDependencies?: string[],
-  //   engines?: {
-  //     node?: string,
-  //     npm?: string,
-  //   },
-  //   cpu?: string[],
-  //   os?: string[],
-  // },
   isBuilt: boolean,
 }
 
