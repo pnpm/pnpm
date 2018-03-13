@@ -471,7 +471,7 @@ packages:
       '@pnpm/store-path': 1.0.3
       '@types/node': 9.4.7
       dependency-path: 1.2.0
-      pnpm-shrinkwrap: 6.0.1
+      pnpm-shrinkwrap: 6.0.2
     dev: false
     engines:
       node: '>=4'
@@ -661,6 +661,9 @@ packages:
     dev: false
     resolution:
       integrity: sha512-epDhsJAVxJsWfeqpzEDFhLnhHMbHie/VMFY+2Hvt5p7FemeW5ELM+6gcVYL/ZsUwdu3zrWpDE3VUTddXW+EMYg==
+  /@types/js-yaml/3.10.1:
+    resolution:
+      integrity: sha512-IpKg0KGIUNcydttaGURhSLrq1eSNoSjN7T1MokAuasIPBKzsHxcz3MAdFGzasmYQVWf6XxG+jQTJ9UFOL29Ubg==
   /@types/load-json-file/2.0.7:
     resolution:
       integrity: sha512-NrH6jPlV77QCVPhAHofWeiOr77TgpKt82c2RVxSBChWBJqyY/u4ngl3CA4mcsAg/w7rNLrkR7dkObMV0ihLLXw==
@@ -2091,7 +2094,7 @@ packages:
       '@types/node': 9.4.7
       '@types/semver': 5.5.0
       dependency-path: 1.2.0
-      pnpm-shrinkwrap: 6.0.1
+      pnpm-shrinkwrap: 6.0.2
       semver: 5.5.0
     dev: false
     engines:
@@ -3084,7 +3087,7 @@ packages:
     dependencies:
       assert-plus: 1.0.0
       jsprim: 1.4.1
-      sshpk: 1.13.1
+      sshpk: 1.14.1
     engines:
       node: '>=0.8'
       npm: '>=1.3.7'
@@ -5060,8 +5063,9 @@ packages:
     dev: true
     resolution:
       integrity: sha512-PijlGxk564x1E/3Pw0hzcE6tw9Va/lZ/UVfheq+ld62c8mqOmgC/49DCx+YIV1RAwscDttsVUT3EeAjAZHh55g==
-  /pnpm-shrinkwrap/6.0.1:
+  /pnpm-shrinkwrap/6.0.2:
     dependencies:
+      '@types/js-yaml': 3.10.1
       '@types/node': 9.4.7
       '@types/ramda': 0.25.20
       dependency-path: 1.2.0
@@ -5077,7 +5081,7 @@ packages:
     peerDependencies:
       '@pnpm/logger': ^1.0.0
     resolution:
-      integrity: sha512-2V4ned5KSFUPWqk3EJ9zOvM/GFD8O0JHHCRqqYMlp8LBmAtwz8bt9q1aDHO8Ud0UR5nZHFki/PaFcW+LSXjZhA==
+      integrity: sha512-IcsQrUaFvK773C4sKsTrcqAD2rMbZGdg95H4FsrJ0lZvVt0I6GnkQWU9sdXwrwyO+l1VciBJEAYvjuHrgfKxKA==
   /posix-character-classes/0.1.1:
     dev: false
     engines:
@@ -5945,7 +5949,7 @@ packages:
   /sprintf-js/1.0.3:
     resolution:
       integrity: sha1-BOaSb2YolTVPPdAVIDYzuFcpfiw=
-  /sshpk/1.13.1:
+  /sshpk/1.14.1:
     dependencies:
       asn1: 0.2.3
       assert-plus: 1.0.0
@@ -5959,7 +5963,7 @@ packages:
       jsbn: 0.1.1
       tweetnacl: 0.14.5
     resolution:
-      integrity: sha1-US322mKHFEMW3EwY/hzx2UBzm+M=
+      integrity: sha1-Ew9Zde3a2WPx1W+SuaxsUfqfg+s=
   /ssri/5.2.4:
     dependencies:
       safe-buffer: 5.1.1
@@ -6168,7 +6172,7 @@ packages:
       path-exists: 3.0.0
       path-name: 1.0.0
       pnpm-install-checks: 1.1.0
-      pnpm-shrinkwrap: 6.0.1
+      pnpm-shrinkwrap: 6.0.2
       ramda: 0.25.0
       read-package-json: 2.0.13
       remove-all-except-outer-links: 1.0.3
