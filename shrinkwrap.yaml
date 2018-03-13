@@ -1,10 +1,12 @@
 dependencies:
+  '@types/js-yaml': 3.10.1
   '@types/node': 9.4.6
   '@types/ramda': 0.25.18
   dependency-path: 1.2.0
   js-yaml: 3.10.0
   load-yaml-file: 0.1.0
   mkdirp-promise: 5.0.1
+  pnpm-shrinkwrap: 'link:../__package_previews__/pnpm-shrinkwrap/pnpm-shrinkwrap'
   ramda: 0.25.0
   rimraf-then: 1.0.1
   util.promisify: 1.0.0
@@ -61,6 +63,10 @@ packages:
     dev: true
     resolution:
       integrity: sha512-quhlNPGIkaRyO4PnEuP9pEkUPktjfrvPESENGOhiEzgOUNbunETSQXY5bkZY+Bb/J9V5p/f50Rh1eDklD4Z2FQ==
+  /@types/js-yaml/3.10.1:
+    dev: false
+    resolution:
+      integrity: sha512-IpKg0KGIUNcydttaGURhSLrq1eSNoSjN7T1MokAuasIPBKzsHxcz3MAdFGzasmYQVWf6XxG+jQTJ9UFOL29Ubg==
   /@types/load-json-file/2.0.7:
     dev: true
     resolution:
@@ -1444,6 +1450,7 @@ shrinkwrapMinorVersion: 4
 shrinkwrapVersion: 3
 specifiers:
   '@pnpm/logger': ^1.0.0
+  '@types/js-yaml': ^3.10.1
   '@types/node': ^9.3.0
   '@types/ramda': ^0.25.12
   '@types/tape': ^4.2.30

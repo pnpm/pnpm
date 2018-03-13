@@ -50,6 +50,7 @@
     "yaml-tag": "github:zkochan/yaml-tag"
   },
   "dependencies": {
+    "@types/js-yaml": "^3.10.1",
     "@types/node": "^9.3.0",
     "@types/ramda": "^0.25.12",
     "dependency-path": "^1.0.0",
