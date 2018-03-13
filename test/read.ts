@@ -260,7 +260,7 @@ test("write does not use yaml anchors/aliases", async t => {
           prop-types: 15.6.1
           react: 15.6.1
         dev: false
-        id: onedrive.pkgs.visualstudio.com/react-dnd/2.5.4
+        id: registry.npmjs.org/react-dnd/2.5.4
         peerDependencies: &ref_11
           react: '1'
         resolution:
@@ -275,7 +275,7 @@ test("write does not use yaml anchors/aliases", async t => {
           prop-types: 15.6.1
           react: 15.6.2
         dev: false
-        id: onedrive.pkgs.visualstudio.com/react-dnd/2.5.4
+        id: registry.npmjs.org/react-dnd/2.5.4
         peerDependencies: *ref_11
         resolution:
           integrity: sha512-y9YmnusURc+3KPgvhYKvZ9oCucj51MSZWODyaeV0KFU0cquzA7dCD1g/OIYUKtNoZ+MXtacDngkdud2TklMSjw==
