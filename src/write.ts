@@ -17,6 +17,7 @@ const writeFileAtomic = promisify(writeFileAtomicCB)
 const SHRINKWRAP_YAML_FORMAT = {
   lineWidth: 1000,
   noCompatMode: true,
+  noRefs: true,
   sortKeys: true,
 }
 

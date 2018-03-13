@@ -14,11 +14,6 @@ declare module 'rimraf-then' {
   export = anything;
 }
 
-declare module 'js-yaml' {
-  const anything: any;
-  export = anything;
-}
-
 declare module 'write-file-atomic' {
   const anything: any;
   export = anything;

@@ -12,6 +12,8 @@ import test = require('tape')
 import path = require('path')
 import tempy = require('tempy')
 import mkdirp = require('mkdirp-promise')
+import yaml = require('yaml-tag')
+import fs = require('fs')
 
 process.chdir(__dirname)
 
@@ -235,5 +237,59 @@ test('write() when no specifiers but dependencies present', async t => {
   await write(projectPath, wantedShrinkwrap, wantedShrinkwrap)
   t.deepEqual(await readCurrent(projectPath, {ignoreIncompatible: false}), wantedShrinkwrap)
   t.deepEqual(await readWanted(projectPath, {ignoreIncompatible: false}), wantedShrinkwrap)
+  t.end()
+})
+
+test("write does not use yaml anchors/aliases", async t => {
+  const projectPath = tempy.directory()
+  const wantedShrinkwrap = {
+    shrinkwrapVersion: 3,
+    registry: 'https://registry.npmjs.org',
+    dependencies: {
+      'is-positive': '1.0.0',
+      'is-negative': '1.0.0',
+    },
+    packages: yaml`
+      /react-dnd/2.5.4/react@15.6.1:
+        dependencies:
+          disposables: 1.0.2
+          dnd-core: 2.5.4
+          hoist-non-react-statics: 2.5.0
+          invariant: 2.2.3
+          lodash: 4.15.0
+          prop-types: 15.6.1
+          react: 15.6.1
+        dev: false
+        id: onedrive.pkgs.visualstudio.com/react-dnd/2.5.4
+        peerDependencies: &ref_11
+          react: '1'
+        resolution:
+          integrity: sha512-y9YmnusURc+3KPgvhYKvZ9oCucj51MSZWODyaeV0KFU0cquzA7dCD1g/OIYUKtNoZ+MXtacDngkdud2TklMSjw==
+      /react-dnd/2.5.4/react@15.6.2:
+        dependencies:
+          disposables: 1.0.2
+          dnd-core: 2.5.4
+          hoist-non-react-statics: 2.5.0
+          invariant: 2.2.3
+          lodash: 4.15.0
+          prop-types: 15.6.1
+          react: 15.6.2
+        dev: false
+        id: onedrive.pkgs.visualstudio.com/react-dnd/2.5.4
+        peerDependencies: *ref_11
+        resolution:
+          integrity: sha512-y9YmnusURc+3KPgvhYKvZ9oCucj51MSZWODyaeV0KFU0cquzA7dCD1g/OIYUKtNoZ+MXtacDngkdud2TklMSjw==
+    `,
+    specifiers: {
+      'is-positive': '1.0.0',
+      'is-negative': '1.0.0',
+    },
+  }
+  await write(projectPath, wantedShrinkwrap, wantedShrinkwrap)
+
+  const shrContent = fs.readFileSync(path.join(projectPath, 'shrinkwrap.yaml'), 'utf8')
+  t.ok(shrContent.indexOf('&') === -1, 'shrinkwrap contains no anchors')
+  t.ok(shrContent.indexOf('*') === -1, 'shrinkwrap contains no aliases')
+
   t.end()
 })
