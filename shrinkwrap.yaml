@@ -351,7 +351,7 @@ packages:
       integrity: sha512-2MI76gHQQKZkivQVU57oXdXzmntWSSlY0yX2/2j3pkX469mwtHC2e53Eq1ELBETGpgX4kt7vC5S96saoVd/ADw==
   /@pnpm/default-resolver/0.1.4:
     dependencies:
-      '@pnpm/git-resolver': 0.3.1
+      '@pnpm/git-resolver': 0.3.2
       '@pnpm/local-resolver': 0.2.2
       '@pnpm/npm-resolver': 0.3.14
       '@pnpm/tarball-resolver': 0.1.0
@@ -400,20 +400,22 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha512-DRaaQSRxv+GBnepzb5OH2ar9hqzPd3zGULcTXv9EGzIt23ZsAA1h548EiNH6G9UCyqRkMjweUIzpr2d0PuS0kg==
-  /@pnpm/git-resolver/0.3.1:
+  /@pnpm/git-resolver/0.3.2:
     dependencies:
       '@types/node': 9.4.7
+      '@types/semver': 5.5.0
       got: 8.3.0
       graceful-git: 1.0.1
       hosted-git-info: 2.6.0
       normalize-ssh: 1.0.0
+      semver: 5.5.0
     dev: false
     engines:
       node: '>=4'
     peerDependencies:
       '@pnpm/logger': ^1.0.0
     resolution:
-      integrity: sha512-V6oKCFxi8+3jVoVoZ216KOEBaf+S5a6bajOj0iHLfnVE0u1G9SA7j0TDNx1IWD26+LTA0EUIKCPmmgrRVlpt1g==
+      integrity: sha512-3g7y7q86A4zbQA0DHpoNitZbb/LF0swGRg1OI0Dnhr8yjE0ISnuRvNnX4KGYALONvlDJTKUHUWAYGhzLlp328w==
   /@pnpm/local-resolver/0.2.2:
     dependencies:
       '@pnpm/types': 1.7.0
@@ -423,7 +425,7 @@ packages:
       normalize-path: 2.1.1
       osenv: 0.1.5
       read-package-json: 2.0.13
-      ssri: 5.2.4
+      ssri: 5.3.0
       util.promisify: 1.0.0
     dev: false
     engines:
@@ -455,7 +457,7 @@ packages:
       mem: 3.0.0
       p-limit: 1.2.0
       semver: 5.5.0
-      ssri: 5.2.4
+      ssri: 5.3.0
       version-selector-type: 2.0.0
       write-json-file: 2.3.0
     dev: false
@@ -583,7 +585,7 @@ packages:
       path-temp: 1.0.0
       retry: 0.10.1
       rimraf: 2.6.2
-      ssri: 5.2.4
+      ssri: 5.3.0
       unpack-stream: 3.0.1
     dev: false
     engines:
@@ -1343,7 +1345,7 @@ packages:
       move-concurrently: 1.0.1
       promise-inflight: 1.0.1
       rimraf: 2.6.2
-      ssri: 5.2.4
+      ssri: 5.3.0
       unique-filename: 1.1.0
       y18n: 4.0.0
     dev: false
@@ -2145,7 +2147,7 @@ packages:
       mz: 2.7.0
       p-every: 1.0.2
       p-limit: 1.2.0
-      ssri: 5.2.4
+      ssri: 5.3.0
     engines:
       node: '>=4'
     resolution:
@@ -3938,7 +3940,7 @@ packages:
       node-fetch-npm: 2.0.2
       promise-retry: 1.1.1
       socks-proxy-agent: 3.0.1
-      ssri: 5.2.4
+      ssri: 5.3.0
     dev: false
     resolution:
       integrity: sha512-FmWY7gC0mL6Z4N86vE14+m719JKE4H0A+pyiOH18B025gF/C113pyfb4gHDDYP5cqnRMHOz06JGdmffC/SES+w==
@@ -4418,7 +4420,7 @@ packages:
   /normalize-url/2.0.1:
     dependencies:
       prepend-http: 2.0.0
-      query-string: 5.1.0
+      query-string: 5.1.1
       sort-keys: 2.0.0
     dev: false
     engines:
@@ -5229,7 +5231,7 @@ packages:
       node: '>=0.6'
     resolution:
       integrity: sha512-eRzhrN1WSINYCDCbrz796z37LOe3m5tmW7RQf6oBntukAG1nmovJvhnwHHRMAfeoItc1m2Hk02WER2aQ/iqs+A==
-  /query-string/5.1.0:
+  /query-string/5.1.1:
     dependencies:
       decode-uri-component: 0.2.0
       object-assign: 4.1.1
@@ -5238,7 +5240,7 @@ packages:
     engines:
       node: '>=0.10.0'
     resolution:
-      integrity: sha512-F3DkxxlY0AqD/rwe4YAwjRE2HjOkKW7TxsuteyrS/Jbwrxw887PqYBL4sWUJ9D/V1hmFns0SCD6FDyvlwo9RCQ==
+      integrity: sha512-gjWOsm2SoGlgLEdAGt7a6slVOk9mGiXmPFMqrEhLQ68rhQuBnpfs3+EmlvqKyxnCo9/PPlF+9MtY02S1aFg+Jw==
   /quick-lru/1.1.0:
     dev: true
     engines:
@@ -5265,7 +5267,7 @@ packages:
       node: '>= 0.8'
     resolution:
       integrity: sha1-vNYMd9Prk83gBQKVw/N5OJvIj4k=
-  /rc/1.2.5:
+  /rc/1.2.6:
     dependencies:
       deep-extend: 0.4.2
       ini: 1.3.5
@@ -5273,7 +5275,7 @@ packages:
       strip-json-comments: 2.0.1
     dev: false
     resolution:
-      integrity: sha1-J1zWh/bjs2zHVrqibf7oCnkDAf0=
+      integrity: sha1-6xiYnG1PTxYsOZ953dKfODVWgJI=
   /read-package-json/2.0.13:
     dependencies:
       glob: 7.1.2
@@ -5399,14 +5401,14 @@ packages:
       integrity: sha512-J6SDjUgDxQj5NusnOtdFxDwN/+HWykR8GELwctJ7mdqhcyy1xEc4SRFHUXvxTp661YaVKAjfRLZ9cCqS6tn32A==
   /registry-auth-token/3.3.2:
     dependencies:
-      rc: 1.2.5
+      rc: 1.2.6
       safe-buffer: 5.1.1
     dev: false
     resolution:
       integrity: sha512-JL39c60XlzCVgNrO+qq68FoNb56w/m7JYvGR2jT5iR1xBrUA3Mfx5Twk5rqTThPmQKMWydGmq8oFtDlxfrmxnQ==
   /registry-url/3.1.0:
     dependencies:
-      rc: 1.2.5
+      rc: 1.2.6
     dev: false
     engines:
       node: '>=0.10.0'
@@ -5964,11 +5966,11 @@ packages:
       tweetnacl: 0.14.5
     resolution:
       integrity: sha1-Ew9Zde3a2WPx1W+SuaxsUfqfg+s=
-  /ssri/5.2.4:
+  /ssri/5.3.0:
     dependencies:
       safe-buffer: 5.1.1
     resolution:
-      integrity: sha512-UnEAgMZa15973iH7cUi0AHjJn1ACDIkaMyZILoqwN6yzt+4P81I8tBc5Hl+qwi5auMplZtPQsHrPBR5vJLcQtQ==
+      integrity: sha512-XRSIPqLij52MtgoQavH/x/dU1qVKtWUAAZeOHsR9c2Ddi4XerFy3mc1alf+dLJKl9EUIm/Ht+EowFkTUOA6GAQ==
   /stacktracey/1.2.100:
     dependencies:
       as-table: 1.0.31
@@ -6581,7 +6583,7 @@ packages:
     dependencies:
       '@types/node': 9.4.7
       decompress-maybe: 1.0.0
-      ssri: 5.2.4
+      ssri: 5.3.0
       tar-fs: 1.16.0
     engines:
       node: '>=4'
