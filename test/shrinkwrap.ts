@@ -844,3 +844,19 @@ test('save tarball URL when it is non-standard', async (t: tape.Test) => {
 
   t.equal(shr.packages['/esprima-fb/3001.1.0-dev-harmony-fb'].resolution.tarball, '/esprima-fb/-/esprima-fb-3001.0001.0000-dev-harmony-fb.tgz')
 })
+
+test('when package registry differs from default one, save it to resolution field', async (t: tape.Test) => {
+  const project = prepare(t)
+
+  await installPkgs(['@zkochan/git-config', 'is-positive'], await testDefaults({
+    rawNpmConfig: {
+      '@zkochan:registry': 'https://registry.node-modules.io/',
+      'registry': 'https://registry.npmjs.org/',
+    },
+    registry: 'https://registry.npmjs.org/',
+  }))
+
+  const shr = await project.loadShrinkwrap()
+
+  t.equal(shr.packages['/@zkochan/git-config/0.1.0'].resolution.registry, 'https://registry.node-modules.io/')
+})

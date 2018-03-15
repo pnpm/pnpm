@@ -179,16 +179,19 @@ function toShrResolution (
   if (dp.isAbsolute(relDepPath) || resolution.type !== undefined || !resolution['integrity']) {
     return resolution as ShrinkwrapResolution
   }
+  const base = registry !== resolution['registry'] ? {registry: resolution['registry']} : {}
   // Sometimes packages are hosted under non-standard tarball URLs.
   // For instance, when they are hosted on npm Enterprise. See https://github.com/pnpm/pnpm/issues/867
   // Or in othere weird cases, like https://github.com/pnpm/pnpm/issues/1072
   if (getNpmTarballUrl(pkg.name, pkg.version, {registry}) !== resolution['tarball']) {
     return {
+      ...base,
       integrity: resolution['integrity'],
       tarball: relativeTarball(resolution['tarball'], registry),
     }
   }
   return {
+    ...base,
     integrity: resolution['integrity'],
   }
   // tslint:enable:no-string-literal
