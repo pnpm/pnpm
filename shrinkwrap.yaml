@@ -363,7 +363,7 @@ packages:
   /@pnpm/exec/1.1.4:
     dependencies:
       '@pnpm/self-installer': 2.0.2
-      '@types/got': 7.1.7
+      '@types/got': 7.1.8
       '@types/node': 9.4.7
       command-exists: 1.2.2
       cross-spawn: 5.1.0
@@ -535,7 +535,7 @@ packages:
       '@pnpm/package-requester': 0.8.5
       '@pnpm/resolver-base': 1.0.0
       '@pnpm/types': 1.7.0
-      '@types/got': 7.1.7
+      '@types/got': 7.1.8
       '@types/node': 9.4.7
       '@types/p-limit': 1.1.2
       '@types/uuid': 3.4.3
@@ -652,11 +652,11 @@ packages:
     dev: false
     resolution:
       integrity: sha512-wc+VveszMLyMWFvXLkloixT4n0harUIVZjnpzztaZ0nKLuul7Z32iMt2fUFGAaZ4y1XWjFRMtCI5ewvyh4aIeg==
-  /@types/got/7.1.7:
+  /@types/got/7.1.8:
     dependencies:
       '@types/node': 9.4.7
     resolution:
-      integrity: sha512-quhlNPGIkaRyO4PnEuP9pEkUPktjfrvPESENGOhiEzgOUNbunETSQXY5bkZY+Bb/J9V5p/f50Rh1eDklD4Z2FQ==
+      integrity: sha512-QxcSkx9PjHH7uqbzqKTKOAjGbayyo+dECnnqM3BBMC0WjYAqx0e6Qi9AFR4jluvx91e7qzgz4aGka7AhCTHYRw==
   /@types/graceful-fs/4.1.2:
     dependencies:
       '@types/node': 9.4.7
@@ -1353,7 +1353,6 @@ packages:
     dev: false
     resolution:
       integrity: sha512-Dph0MzuH+rTQzGPNT9fAnrPmMmjKfST6trxJeK7NQuHRaVw24VzPRWTmg9MpcwOVQZO0E1FBICUlFeNaKPIfHA==
-      tarball: 'http://registry.npmjs.org/cacache/-/cacache-10.0.4.tgz'
   /cache-base/1.0.1:
     dependencies:
       collection-visit: 1.0.0
@@ -2325,6 +2324,7 @@ packages:
     dev: true
     resolution:
       integrity: sha1-SrTJoPWlTbkzi0w02Gv86PSzVXE=
+      tarball: 'http://registry.npmjs.org/event-stream/-/event-stream-3.3.4.tgz'
   /exclude-arr/1.0.9:
     dev: false
     resolution:
@@ -4977,7 +4977,6 @@ packages:
       node: '>=0.10.0'
     resolution:
       integrity: sha1-ITXW36ejWMBprJsXh3YogihFD/o=
-      tarball: 'http://registry.npmjs.org/pinkie-promise/-/pinkie-promise-2.0.1.tgz'
   /pinkie/2.0.4:
     engines:
       node: '>=0.10.0'
