@@ -90,7 +90,7 @@
     "anonymous-npm-registry-client": "^0.1.2",
     "caw": "^2.0.0",
     "deep-require-cwd": "^1.0.0",
-    "execa": "^0.9.0",
+    "execa": "^0.10.0",
     "exists-link": "^2.0.0",
     "mkdirp": "^0.5.1",
     "mz": "^2.6.0",
