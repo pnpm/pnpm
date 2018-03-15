@@ -44,7 +44,7 @@
     "cross-spawn": "^6.0.5",
     "dependency-path": "^1.2.0",
     "encode-registry": "^1.0.0",
-    "execa": "^0.9.0",
+    "execa": "^0.10.0",
     "get-npm-tarball-url": "^2.0.0",
     "graceful-fs": "^4.1.11",
     "is-ci": "^1.0.10",
