@@ -33,7 +33,6 @@ dependencies:
   package-store: 0.18.0
   path-name: 1.0.0
   pkgs-graph: 2.0.0
-  pnpm: 'link:../__package_previews__/pnpm/pnpm'
   pnpm-default-reporter: 0.14.6
   pnpm-file-reporter: 0.1.0
   pnpm-list: 2.0.1
@@ -69,7 +68,7 @@ devDependencies:
   anonymous-npm-registry-client: 0.1.2
   caw: 2.0.1
   deep-require-cwd: 1.0.0
-  execa: 0.9.0
+  execa: 0.10.0
   exists-link: 2.0.0
   mkdirp: 0.5.1
   mz: 2.7.0
@@ -692,9 +691,11 @@ packages:
     dev: false
     resolution:
       integrity: sha512-jRHfWsvyMtXdbhnz5CVHxaBgnV6duZnPlQuRSo/dm/GnmikNcmZhxIES4E9OZjUmQ8C+HCl4KJux+cXN/ErGDQ==
+      tarball: 'http://registry.npmjs.org/@types/node/-/node-8.9.5.tgz'
   /@types/node/9.4.7:
     resolution:
       integrity: sha512-4Ba90mWNx8ddbafuyGGwjkZMigi+AWfYLSDCpovwsE63ia8w93r3oJ8PIAQc3y8U+XHcnMOHPIzNe3o438Ywcw==
+      tarball: 'http://registry.npmjs.org/@types/node/-/node-9.4.7.tgz'
   /@types/nopt/3.0.29:
     resolution:
       integrity: sha1-8Z3z20yX7hRZonQAKDIKcdcJZM4=
@@ -1351,6 +1352,7 @@ packages:
     dev: false
     resolution:
       integrity: sha512-Dph0MzuH+rTQzGPNT9fAnrPmMmjKfST6trxJeK7NQuHRaVw24VzPRWTmg9MpcwOVQZO0E1FBICUlFeNaKPIfHA==
+      tarball: 'http://registry.npmjs.org/cacache/-/cacache-10.0.4.tgz'
   /cache-base/1.0.1:
     dependencies:
       collection-visit: 1.0.0
@@ -1675,6 +1677,7 @@ packages:
       node: '>= 0.8.0'
     resolution:
       integrity: sha1-qv+81qr4VLROuygDU9WtFlH1mmk=
+      tarball: 'http://registry.npmjs.org/compression/-/compression-1.7.2.tgz'
   /concat-map/0.0.1:
     resolution:
       integrity: sha1-2Klr13/Wjfd5OnMDajug1UBdR3s=
@@ -2325,6 +2328,20 @@ packages:
     dev: false
     resolution:
       integrity: sha512-56pdiJngqQg7Rc4RR0ypVoOlm3GpJUkDNr0p8MKLWo4eavZEhYZDQmCM8QftvIuNjem4yoPf5xwQ9NKVq56VZA==
+  /execa/0.10.0:
+    dependencies:
+      cross-spawn: 6.0.5
+      get-stream: 3.0.0
+      is-stream: 1.1.0
+      npm-run-path: 2.0.2
+      p-finally: 1.0.0
+      signal-exit: 3.0.2
+      strip-eof: 1.0.0
+    dev: true
+    engines:
+      node: '>=4'
+    resolution:
+      integrity: sha512-7XOMnz8Ynx1gGo/3hyV9loYNPWM94jG3+3T3Y8tsfSstFmETmENCMU/A/zj8Lyaj1lkgEepKepvd6240tBRvlw==
   /execa/0.7.0:
     dependencies:
       cross-spawn: 5.1.0
@@ -4602,6 +4619,7 @@ packages:
       node: '>=0.10.0'
     resolution:
       integrity: sha1-ofeDj4MUxRbwXs78vEzP4EtO14k=
+      tarball: 'http://registry.npmjs.org/onetime/-/onetime-1.1.0.tgz'
   /onetime/2.0.1:
     dependencies:
       mimic-fn: 1.2.0
@@ -4972,6 +4990,7 @@ packages:
       node: '>=0.10.0'
     resolution:
       integrity: sha1-ITXW36ejWMBprJsXh3YogihFD/o=
+      tarball: 'http://registry.npmjs.org/pinkie-promise/-/pinkie-promise-2.0.1.tgz'
   /pinkie/2.0.4:
     engines:
       node: '>=0.10.0'
@@ -6428,6 +6447,7 @@ packages:
       node: '>=4.2.0'
     resolution:
       integrity: sha512-XK7QmDcNHVmZkVtkiwNDWiERRHPyU8nBqZB1+iv2UhOG0q3RQ9HsZ2CMqISlFbxjrYFGfG2mX7bW4dAyxBVzUw==
+      tarball: 'http://registry.npmjs.org/ts-node/-/ts-node-5.0.1.tgz'
   /tslib/1.9.0:
     dev: true
     resolution:
@@ -6987,7 +7007,7 @@ specifiers:
   deep-require-cwd: ^1.0.0
   delay: ^2.0.0
   diable: ^4.0.1
-  execa: ^0.9.0
+  execa: ^0.10.0
   exists-link: ^2.0.0
   find-packages: ^2.2.0
   get-port: ^3.2.0
