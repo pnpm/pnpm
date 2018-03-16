@@ -4,13 +4,17 @@ import headless from '@pnpm/headless'
 import path = require('path')
 import exists = require('path-exists')
 import rimraf = require('rimraf-then')
+import sinon = require('sinon')
+import {StageLog} from 'supi'
 import testDefaults from './utils/testDefaults'
 
 const fixtures = path.join(__dirname, 'fixtures')
 
 test('installing a simple project', async (t) => {
   const prefix = path.join(fixtures, 'simple')
-  await headless(await testDefaults({prefix}))
+  const reporter = sinon.spy()
+
+  await headless(await testDefaults({prefix, reporter}))
 
   const project = assertProject(t, prefix)
   t.ok(project.requireModule('is-positive'), 'prod dep installed')
@@ -22,6 +26,12 @@ test('installing a simple project', async (t) => {
 
   t.ok(await project.loadCurrentShrinkwrap())
   t.ok(await project.loadModules())
+
+  t.ok(reporter.calledWithMatch({
+    level: 'debug',
+    message: 'importing_done',
+    name: 'pnpm:stage',
+  } as StageLog), 'importing stage done logged')
 
   t.end()
 })

@@ -1,4 +1,8 @@
 import {
+  LogBase,
+  streamParser,
+} from '@pnpm/logger'
+import {
   getCacheByEngine,
   PackageFilesResponse,
 } from '@pnpm/package-requester'
@@ -25,6 +29,7 @@ import {npmRunScript} from 'supi/lib/install/postInstall'
 import linkBins, {linkPkgBins} from 'supi/lib/link/linkBins' // TODO: move to separate package
 import {
   rootLogger,
+  stageLogger,
   summaryLogger,
 } from 'supi/lib/loggers'
 import logStatus from 'supi/lib/logging/logInstallStatus'
@@ -36,9 +41,11 @@ import runDependenciesScripts from './runDependenciesScripts'
 
 const readPkg = promisify(readPkgCB)
 
+export type ReporterFunction = (logObj: LogBase) => void
+
 export default async (
   opts: {
-    childConcurrency: number,
+    childConcurrency?: number,
     development: boolean,
     optional: boolean,
     prefix: string,
@@ -54,12 +61,18 @@ export default async (
     rawNpmConfig: object,
     unsafePerm: boolean,
     userAgent: string,
+    reporter?: ReporterFunction,
     packageManager: {
       name: string,
       version: string,
     },
   },
 ) => {
+  const reporter = opts.reporter
+  if (reporter) {
+    streamParser.on('data', reporter)
+  }
+
   if (typeof opts.prefix !== 'string') {
     throw new TypeError('opts.prefix should be a string')
   }
@@ -94,12 +107,14 @@ export default async (
   }
   const filteredShrinkwrap = filterShrinkwrap(wantedShrinkwrap, filterOpts)
 
+  stageLogger.debug('importing_started')
   const depGraph = await shrinkwrapToDepGraph(filteredShrinkwrap, opts)
 
   await Promise.all([
     linkAllModules(depGraph, {optional: opts.optional}),
     linkAllPkgs(opts.storeController, R.values(depGraph), opts),
   ])
+  stageLogger.debug('importing_done')
 
   await linkAllBins(depGraph, {optional: opts.optional})
 
@@ -111,7 +126,7 @@ export default async (
   await writeCurrentShrinkwrapOnly(opts.prefix, filteredShrinkwrap)
   await saveModules(path.join(opts.prefix, 'node_modules'), {
     hoistedAliases: {},
-    independentLeaves: opts.independentLeaves,
+    independentLeaves: !!opts.independentLeaves,
     layoutVersion: LAYOUT_VERSION,
     packageManager: `${opts.packageManager.name}@${opts.packageManager.version}`,
     pendingBuilds: [], // TODO: populate this array when runnig with --ignore-scripts
@@ -142,6 +157,10 @@ export default async (
   }
   if (scripts.prepare) {
     await npmRunScript('prepare', pkg, scriptsOpts)
+  }
+
+  if (reporter) {
+    streamParser.removeListener('data', reporter)
   }
 }
 
@@ -203,7 +222,7 @@ async function shrinkwrapToDepGraph (
       // TODO: optimize. This info can be already returned by depSnapshotToResolution()
       const pkgName = depSnapshot.name || dp.parse(relDepPath)['name'] // tslint:disable-line
       const pkgId = depSnapshot.id || depPath
-      const fetchResponse = await opts.storeController.fetchPackage({
+      const fetchResponse = opts.storeController.fetchPackage({
         force: false,
         pkgId,
         prefix: opts.prefix,

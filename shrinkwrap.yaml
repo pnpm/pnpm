@@ -26,6 +26,7 @@ devDependencies:
   '@pnpm/logger': 1.0.1
   '@pnpm/store-path': 1.0.3
   '@types/mz': 0.0.32
+  '@types/sinon': 4.3.0
   '@types/tape': 4.2.32
   '@zkochan/husky': 0.0.0
   is-windows: 1.0.2
@@ -36,6 +37,7 @@ devDependencies:
   pnpm-registry-mock: 1.18.0
   rimraf: 2.6.2
   rimraf-then: 1.0.1
+  sinon: 4.4.6
   tape: 4.9.0
   tape-promise: 2.0.1
   tempy: 0.2.1
@@ -489,6 +491,13 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha512-ONhaKPIufzzrlNbqtWFFd+jlnemX6lJAgq9ZeiZtS7I1PIf/la7CW4m83rTXRnVnsMbW2k56pGYu7AUFJD9Pow==
+  /@sinonjs/formatio/2.0.0:
+    dependencies:
+      samsam: 1.3.0
+    dev: true
+    resolution:
+      integrity: sha512-ls6CAMA6/5gG+O/IdsBcblvnd8qcO/l1TYoNeAzp3wcISOxlPXQEus0mLcdwazEkWjaBdaJ3TaxmNgCLWwvWzg==
+      tarball: 'http://registry.npmjs.org/@sinonjs/formatio/-/formatio-2.0.0.tgz'
   /@types/byline/4.2.31:
     dependencies:
       '@types/node': 9.4.7
@@ -584,6 +593,10 @@ packages:
   /@types/semver/5.5.0:
     resolution:
       integrity: sha512-41qEJgBH/TWgo5NFSvBCJ1qkoi3Q6ONSF2avrHq1LVEZfYpdHmj0y9SuTK+u9ZhG1sYQKBL1AWXKyLWP4RaUoQ==
+  /@types/sinon/4.3.0:
+    dev: true
+    resolution:
+      integrity: sha512-rvgY5bK5ZBRJPuJF0vJI+NC2gt+lakobTa8pnDS/oRH2gk/tooeDEel8piZA8Ng6pxq0A5QGzilIFSyashP6jw==
   /@types/tape/4.2.32:
     dependencies:
       '@types/node': 9.4.7
@@ -2470,6 +2483,10 @@ packages:
       node: '>=0.10.0'
     resolution:
       integrity: sha512-eXK1UInq2bPmjyX6e3VHIzMLobc4J94i4AWn+Hpq3OU5KkrRC96OAcR3PRJ/pGu6m8TRnBHP9dkXQVsT/COVIA==
+  /isarray/0.0.1:
+    dev: true
+    resolution:
+      integrity: sha1-ihis/Kmo9Bd+Cav8YDiTmwXR7t8=
   /isarray/1.0.0:
     resolution:
       integrity: sha1-u5NdSFgsuhaMBoNJV6VKPgcSTxE=
@@ -2581,6 +2598,10 @@ packages:
       '0': node >=0.6.0
     resolution:
       integrity: sha1-MT5mvB5cwG5Di8G3SZwuXFastqI=
+  /just-extend/1.1.27:
+    dev: true
+    resolution:
+      integrity: sha512-mJVp13Ix6gFo3SBAy9U/kL+oeZqzlYYYLQBwXVBlVzIsZwBqGREnOro24oC/8s8aox+rJhtZ2DiQof++IrkA+g==
   /jwa/1.1.5:
     dependencies:
       base64url: 2.0.0
@@ -2679,6 +2700,10 @@ packages:
     dev: true
     resolution:
       integrity: sha1-soqmKIorn8ZRA1x3EfZathkDMaY=
+  /lodash.get/4.4.2:
+    dev: true
+    resolution:
+      integrity: sha1-LRd/ZS+jHpObRDjVNBSZ36OCXpk=
   /lodash.kebabcase/4.1.1:
     dev: true
     resolution:
@@ -2753,6 +2778,10 @@ packages:
       node: '>=0.10.0'
     resolution:
       integrity: sha1-GZKfZMQJPS0ucHWh2tivWcKWuNE=
+  /lolex/2.3.2:
+    dev: true
+    resolution:
+      integrity: sha512-A5pN2tkFj7H0dGIAM6MFvHKMJcPnjZsOMvR7ujCjfgW5TbV6H9vb1PgxLtHvjqNZTHsUolz+6/WEO0N1xNx2ng==
   /longest/1.0.1:
     dev: true
     engines:
@@ -3084,6 +3113,16 @@ packages:
   /nice-try/1.0.4:
     resolution:
       integrity: sha512-2NpiFHqC87y/zFke0fC0spBXL3bBsoh/p5H1EFhshxjCR5+0g2d6BiXbUFz9v1sAcxsk2htp2eQnNIci2dIYcA==
+  /nise/1.3.1:
+    dependencies:
+      '@sinonjs/formatio': 2.0.0
+      just-extend: 1.1.27
+      lolex: 2.3.2
+      path-to-regexp: 1.7.0
+      text-encoding: 0.6.4
+    dev: true
+    resolution:
+      integrity: sha512-kIH3X5YCj1vvj/32zDa9KNgzvfZd51ItGbiaCbtYhpnsCedLo0tIkb9zl169a41ATzF4z7kwMLz35XXDypma3g==
   /node-fetch-npm/2.0.2:
     dependencies:
       encoding: 0.1.12
@@ -3554,6 +3593,12 @@ packages:
     dev: true
     resolution:
       integrity: sha1-32BBeABfUi8V60SQ5yR6G/qmf4w=
+  /path-to-regexp/1.7.0:
+    dependencies:
+      isarray: 0.0.1
+    dev: true
+    resolution:
+      integrity: sha1-Wf3g9DW62suhA6hOnTvGTpa5k30=
   /path-type/1.1.0:
     dependencies:
       graceful-fs: 4.1.11
@@ -4078,6 +4123,10 @@ packages:
     optional: true
     resolution:
       integrity: sha512-EzBtUaFH9bHYPc69wqjp0efJI/DPNHdFbGE3uIMn4sVbO0zx8vZ8cG4WKxQfOpUOKsQyGBiT2mTqnCw+6nLswA==
+  /samsam/1.3.0:
+    dev: true
+    resolution:
+      integrity: sha512-1HwIYD/8UlOtFS3QO3w7ey+SdSDFE4HRNLZoZRYVQefrOY3l17epswImeB1ijgJFQJodIaHcwkp3r/myBjFVbg==
   /semver-regex/1.0.0:
     dev: true
     engines:
@@ -4156,6 +4205,18 @@ packages:
   /signal-exit/3.0.2:
     resolution:
       integrity: sha1-tf3AjxKH6hF4Yo5BXiUTK3NkbG0=
+  /sinon/4.4.6:
+    dependencies:
+      '@sinonjs/formatio': 2.0.0
+      diff: 3.5.0
+      lodash.get: 4.4.2
+      lolex: 2.3.2
+      nise: 1.3.1
+      supports-color: 5.3.0
+      type-detect: 4.0.8
+    dev: true
+    resolution:
+      integrity: sha512-bzQag30yErCC4lJPv+C2HcmD1+3ula4JQNePZldKcagi0Exq6XDfcC2yqXVfEwtfTIq1rYGujrUIZbwHPpKjog==
   /slash/1.0.0:
     engines:
       node: '>=0.10.0'
@@ -4556,6 +4617,10 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha512-LB83o9bfZGrntdqPuRdanIVCPReam9SOZKW0fOy5I9X3A854GGWi0tjCqoXEk84XIEYBc/x9Hq3EFop/H5wJaw==
+  /text-encoding/0.6.4:
+    dev: true
+    resolution:
+      integrity: sha1-45mpgiV6J22uQou5KEXLcb3CbRk=
   /text-extensions/1.7.0:
     dev: true
     engines:
@@ -4691,6 +4756,12 @@ packages:
     optional: true
     resolution:
       integrity: sha1-WuaBd/GS1EViadEIr6k/+HQ/T2Q=
+  /type-detect/4.0.8:
+    dev: true
+    engines:
+      node: '>=4'
+    resolution:
+      integrity: sha512-0fr/mIH1dlO+x7TlcMy+bIDqKPsw/70tVyeHW787goQjhmqaZe10uwLujubK9q9Lg6Fiho1KUKDYz0Z7k7g5/g==
   /type-is/1.6.16:
     dependencies:
       media-typer: 0.3.0
@@ -5037,6 +5108,7 @@ specifiers:
   '@pnpm/types': ^1.7.0
   '@types/mz': ^0.0.32
   '@types/ramda': ^0.25.19
+  '@types/sinon': ^4.3.0
   '@types/tape': ^4.2.30
   '@zkochan/husky': ^0.0.0
   dependency-path: ^1.2.0
@@ -5055,6 +5127,7 @@ specifiers:
   read-package-json: ^2.0.13
   rimraf: ^2.6.2
   rimraf-then: ^1.0.1
+  sinon: ^4.4.6
   supi: ^0.14.4
   symlink-dir: ^1.1.2
   tape: ^4.8.0

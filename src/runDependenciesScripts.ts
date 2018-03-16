@@ -11,7 +11,7 @@ import {ENGINE_NAME} from './constants'
 export default async (
   depGraph: DepGraphNodesByDepPath,
   opts: {
-    childConcurrency: number,
+    childConcurrency?: number,
     prefix: string,
     rawNpmConfig: object,
     unsafePerm: boolean,
