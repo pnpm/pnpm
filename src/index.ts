@@ -3,6 +3,7 @@ export * from './read'
 export * from './types'
 
 import existsWanted from './existsWanted'
+import nameVerFromPkgSnapshot from './nameVerFromPkgSnapshot'
 import prune from './prune'
 import write, {
   writeCurrentOnly,
@@ -11,6 +12,7 @@ import write, {
 
 export {
   existsWanted,
+  nameVerFromPkgSnapshot,
   prune,
   write,
   writeWantedOnly,

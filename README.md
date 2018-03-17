@@ -55,6 +55,8 @@ Writes the current shrinkwrap file only. Fails if there is no `node_modules` dir
 
 Prunes a shrinkwrap file. Prunning means removing packages that are not referenced.
 
+### `nameVerFromPkgSnapshot(relDepPath, pkgSnapshot): {name: string, version: string}`
+
 ## License
 
 [MIT](LICENSE)
