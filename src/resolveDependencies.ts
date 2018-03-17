@@ -10,12 +10,13 @@ import {
   ReadPackageHook,
 } from '@pnpm/types'
 import * as dp from 'dependency-path'
-import getNpmTarballUrl from 'get-npm-tarball-url'
 import fs = require('mz/fs')
 import path = require('path')
 import exists = require('path-exists')
 import {
   DependencyShrinkwrap,
+  nameVerFromPkgSnapshot,
+  pkgSnapshotToResolution,
   ResolvedDependencies,
   Shrinkwrap,
 } from 'pnpm-shrinkwrap'
@@ -25,7 +26,6 @@ import url = require('url')
 import {InstallContext, PkgByPkgId} from './api/install'
 import depsToSpecs from './depsToSpecs'
 import encodePkgId from './encodePkgId'
-import getPkgInfoFromShr from './getPkgInfoFromShr'
 import getIsInstallable from './install/getIsInstallable'
 import {deprecationLogger} from './loggers'
 import logStatus from './logging/logInstallStatus'
@@ -185,7 +185,7 @@ function getInfoFromShrinkwrap (
         ...dependencyShrinkwrap.dependencies,
         ...dependencyShrinkwrap.optionalDependencies,
       },
-      shrinkwrapResolution: dependencyShrToResolution(relDepPath, dependencyShrinkwrap, shrinkwrap.registry),
+      shrinkwrapResolution: pkgSnapshotToResolution(relDepPath, dependencyShrinkwrap, shrinkwrap.registry),
     }
   } else {
     return {
@@ -193,41 +193,6 @@ function getInfoFromShrinkwrap (
       relDepPath,
     }
   }
-}
-
-function dependencyShrToResolution (
-  relDepPath: string,
-  depShr: DependencyShrinkwrap,
-  registry: string,
-): Resolution {
-  // tslint:disable:no-string-literal
-  if (depShr.resolution['type']) {
-    return depShr.resolution as Resolution
-  }
-  if (!depShr.resolution['tarball']) {
-    return {
-      ...depShr.resolution,
-      registry: depShr.resolution['registry'] || registry,
-      tarball: getTarball(),
-    } as Resolution
-  }
-  if (depShr.resolution['tarball'].startsWith('file:')) {
-    return depShr.resolution as Resolution
-  }
-  return {
-    ...depShr.resolution,
-    registry: depShr.resolution['registry'] || registry,
-    tarball: url.resolve(registry, depShr.resolution['tarball']),
-  } as Resolution
-
-  function getTarball () {
-    const parsed = dp.parse(relDepPath)
-    if (!parsed['name'] || !parsed['version']) {
-      throw new Error(`Couldn't get tarball URL from dependency path ${relDepPath}`)
-    }
-    return getNpmTarballUrl(parsed['name'], parsed['version'], {registry})
-  }
-  // tslint:enable:no-string-literal
 }
 
 async function install (
@@ -345,7 +310,7 @@ async function install (
     && !pkgResponse.body.updated) {
     useManifestInfoFromShrinkwrap = true
     pkg = Object.assign(
-      getPkgInfoFromShr(options.relDepPath, options.dependencyShrinkwrap),
+      nameVerFromPkgSnapshot(options.relDepPath, options.dependencyShrinkwrap),
       options.dependencyShrinkwrap,
     )
     if (pkg.peerDependencies) {

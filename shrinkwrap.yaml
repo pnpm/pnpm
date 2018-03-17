@@ -47,7 +47,7 @@ dependencies:
   path-exists: 3.0.0
   path-name: 1.0.0
   pnpm-install-checks: 1.1.0
-  pnpm-shrinkwrap: 6.0.2
+  pnpm-shrinkwrap: 6.1.0
   ramda: 0.25.0
   read-package-json: 2.0.13
   remove-all-except-outer-links: 1.0.3
@@ -3885,12 +3885,14 @@ packages:
     dev: true
     resolution:
       integrity: sha512-PijlGxk564x1E/3Pw0hzcE6tw9Va/lZ/UVfheq+ld62c8mqOmgC/49DCx+YIV1RAwscDttsVUT3EeAjAZHh55g==
-  /pnpm-shrinkwrap/6.0.2:
+  /pnpm-shrinkwrap/6.1.0:
     dependencies:
+      '@pnpm/resolver-base': 1.0.0
       '@types/js-yaml': 3.10.1
       '@types/node': 9.4.7
       '@types/ramda': 0.25.20
       dependency-path: 1.2.0
+      get-npm-tarball-url: 2.0.1
       js-yaml: 3.11.0
       load-yaml-file: 0.1.0
       mkdirp-promise: 5.0.1
@@ -3904,7 +3906,7 @@ packages:
     peerDependencies:
       '@pnpm/logger': ^1.0.0
     resolution:
-      integrity: sha512-IcsQrUaFvK773C4sKsTrcqAD2rMbZGdg95H4FsrJ0lZvVt0I6GnkQWU9sdXwrwyO+l1VciBJEAYvjuHrgfKxKA==
+      integrity: sha512-s+cVnMpZ25ci0l5a6WSoG8QvBqQbZMF/0gHOdU2WkFigD05IP323VFC6s443dpsanvJe8WSYPBDTBQnivKjPxA==
   /prepend-http/2.0.0:
     dev: true
     engines:
@@ -5322,7 +5324,7 @@ specifiers:
   path-name: ^1.0.0
   pnpm-install-checks: ^1.1.0
   pnpm-registry-mock: ^1.17.0
-  pnpm-shrinkwrap: ^6.0.1
+  pnpm-shrinkwrap: ^6.1.0
   ramda: ^0.25.0
   read-package-json: ^2.0.5
   read-pkg: ^3.0.0

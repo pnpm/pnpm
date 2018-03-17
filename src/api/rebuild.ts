@@ -6,13 +6,13 @@ import pSeries = require('p-series')
 import path = require('path')
 import {
   DependencyShrinkwrap,
+  nameVerFromPkgSnapshot,
   ResolvedPackages,
 } from 'pnpm-shrinkwrap'
 import R = require('ramda')
 import semver = require('semver')
 import {LAYOUT_VERSION} from '../constants'
 import realNodeModulesDir from '../fs/realNodeModulesDir'
-import getPkgInfoFromShr from '../getPkgInfoFromShr'
 import postInstall from '../install/postInstall'
 import extendOptions, {
   RebuildOptions,
@@ -31,7 +31,7 @@ function getPackagesInfo (packages: ResolvedPackages, idsToRebuild: string[]): P
   return idsToRebuild
     .map((relativeDepPath) => {
       const pkgShr = packages[relativeDepPath]
-      const pkgInfo = getPkgInfoFromShr(relativeDepPath, pkgShr)
+      const pkgInfo = nameVerFromPkgSnapshot(relativeDepPath, pkgShr)
       return {
         name: pkgInfo.name,
         pkgShr,
