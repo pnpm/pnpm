@@ -97,7 +97,12 @@ export default function (
   })
 
   const packageJson$ = most.fromPromise(
-    log$.packageJson.take(2).reduce(R.merge, {}),
+    most.merge(
+      log$.packageJson,
+      log$.summary.constant({}),
+    )
+    .take(2)
+    .reduce(R.merge, {}),
   )
 
   return most.combine(
