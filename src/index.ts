@@ -2,6 +2,7 @@ import {
   LogBase,
   streamParser,
 } from '@pnpm/logger'
+import {write as writeModulesYaml} from '@pnpm/modules-yaml'
 import {
   getCacheByEngine,
   PackageFilesResponse,
@@ -19,10 +20,6 @@ import {
 } from 'pnpm-shrinkwrap'
 import R = require('ramda')
 import readPkgCB = require('read-package-json')
-import {
-  LAYOUT_VERSION,
-  save as saveModules,
-} from 'supi/lib/fs/modulesController'
 import realNodeModulesDir from 'supi/lib/fs/realNodeModulesDir'
 import getPkgInfoFromShr from 'supi/lib/getPkgInfoFromShr'
 import {npmRunScript} from 'supi/lib/install/postInstall'
@@ -37,7 +34,10 @@ import {
 import logStatus from 'supi/lib/logging/logInstallStatus'
 import symlinkDir = require('symlink-dir')
 import promisify = require('util.promisify')
-import {ENGINE_NAME} from './constants'
+import {
+  ENGINE_NAME,
+  LAYOUT_VERSION,
+} from './constants'
 import depSnapshotToResolution from './depSnapshotToResolution'
 import runDependenciesScripts from './runDependenciesScripts'
 
@@ -131,7 +131,7 @@ export default async (
   await linkBins(nodeModules, bin)
 
   await writeCurrentShrinkwrapOnly(opts.prefix, filteredShrinkwrap)
-  await saveModules(path.join(opts.prefix, 'node_modules'), {
+  await writeModulesYaml(path.join(opts.prefix, 'node_modules'), {
     hoistedAliases: {},
     independentLeaves: !!opts.independentLeaves,
     layoutVersion: LAYOUT_VERSION,

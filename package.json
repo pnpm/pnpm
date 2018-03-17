@@ -82,6 +82,7 @@
     "prepareFixtures": "npm-run-all -p -r pnpm-registry-mock runPrepareFixtures"
   },
   "dependencies": {
+    "@pnpm/modules-yaml": "^1.0.0",
     "@pnpm/package-requester": "^0.8.4",
     "@pnpm/resolver-base": "^1.0.0",
     "@pnpm/types": "^1.7.0",
