@@ -13,7 +13,9 @@ import pLimit = require('p-limit')
 import {StoreController} from 'package-store'
 import path = require('path')
 import {
+  nameVerFromPkgSnapshot,
   PackageSnapshot,
+  pkgSnapshotToResolution,
   readWanted,
   Shrinkwrap,
   writeCurrentOnly as writeCurrentShrinkwrapOnly,
@@ -21,7 +23,6 @@ import {
 import R = require('ramda')
 import readPkgCB = require('read-package-json')
 import realNodeModulesDir from 'supi/lib/fs/realNodeModulesDir'
-import getPkgInfoFromShr from 'supi/lib/getPkgInfoFromShr'
 import {npmRunScript} from 'supi/lib/install/postInstall'
 import linkBins, {linkPkgBins} from 'supi/lib/link/linkBins' // TODO: move to separate package
 import {
@@ -38,7 +39,6 @@ import {
   ENGINE_NAME,
   LAYOUT_VERSION,
 } from './constants'
-import depSnapshotToResolution from './depSnapshotToResolution'
 import runDependenciesScripts from './runDependenciesScripts'
 
 const readPkg = promisify(readPkgCB)
@@ -189,7 +189,7 @@ async function linkRootPackages (
       const depSnapshot = shr.packages && shr.packages[relDepPath]
       if (!depSnapshot) return // this won't ever happen. Just making typescript happy
       const pkgId = depSnapshot.id || depPath
-      const pkgInfo = getPkgInfoFromShr(relDepPath, depSnapshot)
+      const pkgInfo = nameVerFromPkgSnapshot(relDepPath, depSnapshot)
       rootLogger.info({
         added: {
           dependencyType: isDev && 'dev' || isOptional && 'optional' || 'prod',
@@ -225,7 +225,7 @@ async function shrinkwrapToDepGraph (
       const depPath = dp.resolve(shr.registry, relDepPath)
       const depSnapshot = shr.packages[relDepPath]
       const independent = opts.independentLeaves && R.isEmpty(depSnapshot.dependencies) && R.isEmpty(depSnapshot.optionalDependencies)
-      const resolution = depSnapshotToResolution(relDepPath, depSnapshot, shr.registry)
+      const resolution = pkgSnapshotToResolution(relDepPath, depSnapshot, shr.registry)
       // TODO: optimize. This info can be already returned by depSnapshotToResolution()
       const pkgName = depSnapshot.name || dp.parse(relDepPath)['name'] // tslint:disable-line
       const pkgId = depSnapshot.id || depPath
