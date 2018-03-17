@@ -1,4 +1,5 @@
 import logger from '@pnpm/logger'
+import {read as readModulesYaml} from '@pnpm/modules-yaml'
 import {
   PackageJson,
   ReadPackageHook,
@@ -9,9 +10,6 @@ import path = require('path')
 import {Shrinkwrap} from 'pnpm-shrinkwrap'
 import removeAllExceptOuterLinks = require('remove-all-except-outer-links')
 import writePkg = require('write-pkg')
-import {
-  read as readModules,
-} from '../fs/modulesController'
 import {fromDir as safeReadPkgFromDir} from '../fs/safeReadPkg'
 import {packageJsonLogger} from '../loggers'
 import readShrinkwrapFile from '../readShrinkwrapFiles'
@@ -51,7 +49,7 @@ export default async function getContext (
   const storePath = opts.store
 
   const modulesPath = path.join(root, 'node_modules')
-  const modules = await readModules(modulesPath)
+  const modules = await readModulesYaml(modulesPath)
 
   if (modules) {
     try {

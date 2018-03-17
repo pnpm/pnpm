@@ -1,6 +1,7 @@
 import logger, {
   streamParser,
 } from '@pnpm/logger'
+import {write as writeModulesYaml} from '@pnpm/modules-yaml'
 import {
   DirectoryResolution,
   Resolution,
@@ -23,12 +24,9 @@ import {
   writeWantedOnly as saveWantedShrinkwrapOnly,
 } from 'pnpm-shrinkwrap'
 import R = require('ramda')
+import {LAYOUT_VERSION} from '../constants'
 import depsFromPackage, {getPreferredVersionsFromPackage} from '../depsFromPackage'
 import depsToSpecs, {similarDepsToSpecs} from '../depsToSpecs'
-import {
-  LAYOUT_VERSION,
-  save as saveModules,
-} from '../fs/modulesController'
 import realNodeModulesDir from '../fs/realNodeModulesDir'
 import {fromDir as safeReadPkgFromDir} from '../fs/safeReadPkg'
 import {absolutePathToRef} from '../fs/shrinkwrap'
@@ -576,7 +574,7 @@ async function installInContext (
         : saveCurrentShrinkwrapOnly(ctx.root, result.currentShrinkwrap),
       result.currentShrinkwrap.packages === undefined && result.removedDepPaths.size === 0
         ? Promise.resolve()
-        : saveModules(path.join(ctx.root, 'node_modules'), {
+        : writeModulesYaml(path.join(ctx.root, 'node_modules'), {
           hoistedAliases: ctx.hoistedAliases,
           independentLeaves: opts.independentLeaves,
           layoutVersion: LAYOUT_VERSION,

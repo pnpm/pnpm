@@ -1,13 +1,11 @@
 import logger, {streamParser} from '@pnpm/logger'
+import {read as readModulesYaml} from '@pnpm/modules-yaml'
 import isInnerLink = require('is-inner-link')
 import isSubdir = require('is-subdir')
 import fs = require('mz/fs')
 import path = require('path')
 import rimraf = require('rimraf-then')
 import depsFromPackage from '../depsFromPackage'
-import {
-  read as readModules,
-} from '../fs/modulesController'
 import {fromDir as readPkgFromDir} from '../fs/readPkg'
 import realNodeModulesDir from '../fs/realNodeModulesDir'
 import extendOptions, {
@@ -25,7 +23,7 @@ export async function unlinkPkgs (
     streamParser.on('data', reporter)
   }
   const opts = await _extendOptions(maybeOpts)
-  const modulesYaml = await readModules(opts.prefix)
+  const modulesYaml = await readModulesYaml(opts.prefix)
   opts.store = modulesYaml && modulesYaml.store || opts.store
 
   await _unlinkPkgs(pkgNames, opts)
@@ -68,7 +66,7 @@ export async function unlink (maybeOpts: InstallOptions) {
     streamParser.on('data', reporter)
   }
   const opts = await _extendOptions(maybeOpts)
-  const modulesYaml = await readModules(opts.prefix)
+  const modulesYaml = await readModulesYaml(opts.prefix)
   opts.store = modulesYaml && modulesYaml.store || opts.store
 
   const modules = await realNodeModulesDir(opts.prefix)

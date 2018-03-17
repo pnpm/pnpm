@@ -1,4 +1,5 @@
 import logger, {streamParser} from '@pnpm/logger'
+import {write as writeModulesYaml} from '@pnpm/modules-yaml'
 import npa = require('@zkochan/npm-package-arg')
 import * as dp from 'dependency-path'
 import pSeries = require('p-series')
@@ -9,8 +10,8 @@ import {
 } from 'pnpm-shrinkwrap'
 import R = require('ramda')
 import semver = require('semver')
-import {LAYOUT_VERSION, save as saveModules} from '../fs/modulesController';
-import realNodeModulesDir from '../fs/realNodeModulesDir';
+import {LAYOUT_VERSION} from '../constants'
+import realNodeModulesDir from '../fs/realNodeModulesDir'
 import getPkgInfoFromShr from '../getPkgInfoFromShr'
 import postInstall from '../install/postInstall'
 import extendOptions, {
@@ -125,7 +126,7 @@ export async function rebuild (maybeOpts: RebuildOptions) {
 
   await _rebuild(pkgs, modules, ctx.currentShrinkwrap.registry, opts)
 
-  await saveModules(path.join(ctx.root, 'node_modules'), {
+  await writeModulesYaml(path.join(ctx.root, 'node_modules'), {
     hoistedAliases: ctx.hoistedAliases,
     independentLeaves: opts.independentLeaves,
     layoutVersion: LAYOUT_VERSION,

@@ -1,4 +1,5 @@
 import logger, {streamParser} from '@pnpm/logger'
+import {read as readModulesYaml} from '@pnpm/modules-yaml'
 import {PackageJson} from '@pnpm/types'
 import loadJsonFile = require('load-json-file')
 import normalize = require('normalize-path')
@@ -13,9 +14,6 @@ import {
 } from 'pnpm-shrinkwrap'
 import R = require('ramda')
 import symlinkDir = require('symlink-dir')
-import {
-  read as readModules,
-} from '../fs/modulesController'
 import safeReadPackage from '../fs/safeReadPkg'
 import getSpecFromPackageJson from '../getSpecFromPackageJson'
 import {linkPkgBins} from '../link/linkBins'
@@ -82,7 +80,7 @@ export default async function link (
 
   const updatedCurrentShrinkwrap = pruneShrinkwrap(shrFiles.currentShrinkwrap)
   const updatedWantedShrinkwrap = pruneShrinkwrap(shrFiles.wantedShrinkwrap)
-  const modulesInfo = await readModules(destModules)
+  const modulesInfo = await readModulesYaml(destModules)
   await removeOrphanPkgs({
     bin: opts.bin,
     hoistedAliases: modulesInfo && modulesInfo.hoistedAliases || {},

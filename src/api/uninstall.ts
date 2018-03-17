@@ -1,4 +1,5 @@
 import logger, {streamParser} from '@pnpm/logger'
+import {write as writeModulesYaml} from '@pnpm/modules-yaml'
 import * as dp from 'dependency-path'
 import path = require('path')
 import {
@@ -7,10 +8,7 @@ import {
   writeCurrentOnly as saveCurrentShrinkwrapOnly,
 } from 'pnpm-shrinkwrap'
 import R = require('ramda')
-import {
-  LAYOUT_VERSION,
-  save as saveModules,
-} from '../fs/modulesController'
+import {LAYOUT_VERSION} from '../constants'
 import getSaveType from '../getSaveType'
 import removeDeps from '../removeDeps'
 import removeTopDependency from '../removeTopDependency'
@@ -87,7 +85,7 @@ export async function uninstallInContext (
   } else {
     await saveCurrentShrinkwrapOnly(ctx.root, currentShrinkwrap)
   }
-  await saveModules(path.join(ctx.root, 'node_modules'), {
+  await writeModulesYaml(path.join(ctx.root, 'node_modules'), {
     hoistedAliases: ctx.hoistedAliases,
     independentLeaves: opts.independentLeaves,
     layoutVersion: LAYOUT_VERSION,
