@@ -5,7 +5,11 @@ import path = require('path')
 import exists = require('path-exists')
 import rimraf = require('rimraf-then')
 import sinon = require('sinon')
-import {StageLog} from 'supi'
+import {
+  StageLog,
+  StatsLog,
+  PackageJsonLog,
+} from 'supi'
 import testDefaults from './utils/testDefaults'
 
 const fixtures = path.join(__dirname, 'fixtures')
@@ -27,6 +31,21 @@ test('installing a simple project', async (t) => {
   t.ok(await project.loadCurrentShrinkwrap())
   t.ok(await project.loadModules())
 
+  t.ok(reporter.calledWithMatch({
+    initial: require(path.join(prefix, 'package.json')),
+    level: 'debug',
+    name: 'pnpm:package-json',
+  } as PackageJsonLog), 'initial package.json logged')
+  t.ok(reporter.calledWithMatch({
+    added: 15,
+    level: 'debug',
+    name: 'pnpm:stats',
+  } as StatsLog), 'added stat')
+  t.ok(reporter.calledWithMatch({
+    removed: 0,
+    level: 'debug',
+    name: 'pnpm:stats',
+  } as StatsLog), 'removed stat')
   t.ok(reporter.calledWithMatch({
     level: 'debug',
     message: 'importing_done',

@@ -28,8 +28,10 @@ import getPkgInfoFromShr from 'supi/lib/getPkgInfoFromShr'
 import {npmRunScript} from 'supi/lib/install/postInstall'
 import linkBins, {linkPkgBins} from 'supi/lib/link/linkBins' // TODO: move to separate package
 import {
+  packageJsonLogger,
   rootLogger,
   stageLogger,
+  statsLogger,
   summaryLogger,
 } from 'supi/lib/loggers'
 import logStatus from 'supi/lib/logging/logInstallStatus'
@@ -85,6 +87,8 @@ export default async (
 
   const pkg = await readPkg(path.join(opts.prefix, 'package.json')) as PackageJson
 
+  packageJsonLogger.debug({ initial: pkg })
+
   const scripts = !opts.ignoreScripts && pkg.scripts || {}
 
   const scriptsOpts = {
@@ -109,6 +113,9 @@ export default async (
 
   stageLogger.debug('importing_started')
   const depGraph = await shrinkwrapToDepGraph(filteredShrinkwrap, opts)
+
+  statsLogger.debug({added: Object.keys(depGraph).length})
+  statsLogger.debug({removed: 0}) // TODO: implement removing orphans
 
   await Promise.all([
     linkAllModules(depGraph, {optional: opts.optional}),
