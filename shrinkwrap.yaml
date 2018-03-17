@@ -1,8 +1,10 @@
 dependencies:
+  '@pnpm/resolver-base': 1.0.0
   '@types/js-yaml': 3.10.1
   '@types/node': 9.4.6
   '@types/ramda': 0.25.18
   dependency-path: 1.2.0
+  get-npm-tarball-url: 2.0.1
   js-yaml: 3.10.0
   load-yaml-file: 0.1.0
   mkdirp-promise: 5.0.1
@@ -45,12 +47,24 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha512-23FWOXgCkJ9q73mIqS5H/x98uaZcvO7ov/nt0HZGgLci3MHsqBgEfh3UzZiLZIxlxmA3XoUp4fgbjM7S96pBRg==
+  /@pnpm/resolver-base/1.0.0:
+    dependencies:
+      '@pnpm/types': 1.7.0
+    dev: false
+    engines:
+      node: '>=4'
+    resolution:
+      integrity: sha512-+y47No75LZFnkN7VAnoEtkIzDgOuc8ZT4QjyhuNIBVLx4oqFa/R16DpSyRjmaTZMCSREXunObULKL/hoLipNDA==
   /@pnpm/self-installer/2.0.1:
     dev: true
     engines:
       node: '>=4'
     resolution:
       integrity: sha512-ZnWWMPCCewTSI+1cNrRNCAGsVsdzFvN1+WU8GkjtvwAW2lnBpIVZm4MHQBI3basFYn7DWCs4lBihGuH1DiCAAg==
+  /@pnpm/types/1.7.0:
+    dev: false
+    resolution:
+      integrity: sha512-pn7g4uxcofWTNG/cxmKvkMK2lxr4OUIhrQDrEVYEdVhW0WkWztsHkFrYjFgfNzPbYu3ITlB3T6aSVjCoJQTOlw==
   /@types/fs-extra/5.0.0:
     dependencies:
       '@types/node': 9.4.6
@@ -474,6 +488,14 @@ packages:
   /function-bind/1.1.1:
     resolution:
       integrity: sha512-yIovAzMX49sF8Yl58fSCWJ5svSLuaibPxXQJFLmBObTuCr0Mf1KiPopGM9NiFjiYBCbfaa2Fh6breQ6ANVTI0A==
+  /get-npm-tarball-url/2.0.1:
+    dependencies:
+      normalize-registry-url: 1.0.0
+    dev: false
+    engines:
+      node: '>=4'
+    resolution:
+      integrity: sha512-POrVRGyS9X5w+855/H46JGVYBGuVgJXyIkbsTCzW+sv5x2qH+rfQjc7652DzkgOskF+cqLevA2En7V0hu0gZCg==
   /glob/7.1.2:
     dependencies:
       fs.realpath: 1.0.0
@@ -822,6 +844,10 @@ packages:
     dev: true
     resolution:
       integrity: sha512-9jjUFbTPfEy3R/ad/2oNbKtW9Hgovl5O1FvFWKkKblNXoN/Oou6+9+KKohPK13Yc3/TyunyWhJp6gvRNR/PPAw==
+  /normalize-registry-url/1.0.0:
+    dev: false
+    resolution:
+      integrity: sha512-0v6T4851b72ykk5zEtFoN4QX/Fqyk7pouIj9xZyAvAe9jlDhAwT4z6FlwsoQCHjeuK2EGUoAwy/F4y4B1uZq9A==
   /object-assign/4.1.1:
     dev: true
     engines:
@@ -1450,11 +1476,13 @@ shrinkwrapMinorVersion: 4
 shrinkwrapVersion: 3
 specifiers:
   '@pnpm/logger': ^1.0.0
+  '@pnpm/resolver-base': ^1.0.0
   '@types/js-yaml': ^3.10.1
   '@types/node': ^9.3.0
   '@types/ramda': ^0.25.12
   '@types/tape': ^4.2.30
   dependency-path: ^1.0.0
+  get-npm-tarball-url: ^2.0.1
   js-yaml: ^3.8.4
   load-yaml-file: ^0.1.0
   mkdirp-promise: ^5.0.1

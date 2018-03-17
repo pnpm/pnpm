@@ -50,10 +50,12 @@
     "yaml-tag": "github:zkochan/yaml-tag"
   },
   "dependencies": {
+    "@pnpm/resolver-base": "^1.0.0",
     "@types/js-yaml": "^3.10.1",
     "@types/node": "^9.3.0",
     "@types/ramda": "^0.25.12",
     "dependency-path": "^1.0.0",
+    "get-npm-tarball-url": "^2.0.1",
     "js-yaml": "^3.8.4",
     "load-yaml-file": "^0.1.0",
     "mkdirp-promise": "^5.0.1",

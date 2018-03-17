@@ -57,6 +57,8 @@ Prunes a shrinkwrap file. Prunning means removing packages that are not referenc
 
 ### `nameVerFromPkgSnapshot(relDepPath, pkgSnapshot): {name: string, version: string}`
 
+### `pkgSnapshotToResolution(relDepPath, pkgSnapshot, registry): Resolution`
+
 ## License
 
 [MIT](LICENSE)
