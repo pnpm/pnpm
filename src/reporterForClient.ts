@@ -68,24 +68,6 @@ export default function (
     .skip(1)
     .until(mostLast(resolutionDone$))
 
-  if (!isRecursive) {
-    const alreadyUpToDate$ = most.of(
-      mostLast(
-        resolvingContentLog$
-          .take(1)
-          .constant(false)
-          .startWith(true),
-      )
-        .filter(R.equals(true))
-        .constant({
-          fixed: false,
-          msg: 'Already up-to-date',
-        }),
-    )
-
-    outputs.push(alreadyUpToDate$)
-  }
-
   const fedtchedLog$ = log$.progress
     .filter((log) => log.status === 'fetched')
     .scan(R.inc, 0)
@@ -249,7 +231,7 @@ export default function (
       )
       .map((stats) => {
         if (!stats['removed'] && !stats['added']) {
-          return most.empty()
+          return most.of({msg: 'Already up-to-date'})
         }
 
         let addSigns = (stats['added'] || 0)

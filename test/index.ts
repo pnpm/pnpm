@@ -158,7 +158,8 @@ test('moves fixed line to the end', async t => {
 test('prints "Already up-to-date"', t => {
   const output$ = toOutput$(createStreamParser())
 
-  stageLogger.debug('resolution_done')
+  statsLogger.debug({ added: 0 })
+  statsLogger.debug({ removed: 0 })
 
   t.plan(1)
 
