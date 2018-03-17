@@ -151,6 +151,7 @@ test('moves fixed line to the end', async t => {
   await delay(0) // w/o delay warning goes below for some reason. Started to happen after switch to most
 
   stageLogger.debug('resolution_done')
+  stageLogger.debug('importing_done')
 
   t.plan(1)
 })

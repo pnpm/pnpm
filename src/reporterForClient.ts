@@ -58,15 +58,12 @@ export default function (
     ? most.never()
     : log$.stage
       .filter((log) => log.message === 'resolution_done')
-      .constant(true)
-      .take(1)
-      .startWith(false)
 
   const resolvingContentLog$ = log$.progress
     .filter((log) => log.status === 'resolving_content')
     .scan(R.inc, 0)
     .skip(1)
-    .until(mostLast(resolutionDone$))
+    .until(resolutionDone$)
 
   const fedtchedLog$ = log$.progress
     .filter((log) => log.status === 'fetched')
@@ -76,9 +73,9 @@ export default function (
     .filter((log) => log.status === 'found_in_store')
     .scan(R.inc, 0)
 
-  function createStatusMessage (resolving: number, fetched: number, foundInStore: number, resolutionDone: boolean) {
+  function createStatusMessage (resolving: number, fetched: number, foundInStore: number, importingDone: boolean) {
     const msg = `Resolving: total ${hlValue(resolving.toString())}, reused ${hlValue(foundInStore.toString())}, downloaded ${hlValue(fetched.toString())}`
-    if (resolving === foundInStore + fetched && resolutionDone) {
+    if (importingDone) {
       return {
         done: true,
         fixed: false,
@@ -91,15 +88,21 @@ export default function (
     }
   }
 
+  const importingDone$ = log$.stage.filter((log) => log.message === 'importing_done')
+    .constant(true)
+    .take(1)
+    .startWith(false)
+    .multicast()
+
   if (!isRecursive && typeof throttleProgress === 'number' && throttleProgress > 0) {
-    const importingDone$ = log$.stage.filter((log) => log.message === 'importing_done').multicast()
-    const resolutionStarted$ = log$.stage.filter((log) => log.message === 'resolution_started')
+    const resolutionStarted$ = log$.stage
+      .filter((log) => log.message === 'resolution_started' || log.message === 'importing_started').take(1)
     const commandDone$ = log$.cli.filter((log) => log['message'] === 'command_done')
 
     // Reporting is done every `throttleProgress` milliseconds
     // and once all packages are fetched.
     const sampler = most.merge(
-      most.periodic(throttleProgress).since(resolutionStarted$).until(most.merge(importingDone$, commandDone$)),
+      most.periodic(throttleProgress).since(resolutionStarted$).until(most.merge<{}>(importingDone$.skip(1), commandDone$)),
       importingDone$,
     )
     const progress = most.sample(
@@ -108,7 +111,7 @@ export default function (
       resolvingContentLog$,
       fedtchedLog$,
       foundInStoreLog$,
-      resolutionDone$,
+      importingDone$,
     )
     // Avoid logs after all resolved packages were downloaded.
     // Fixing issue: https://github.com/pnpm/pnpm/issues/1028#issuecomment-364782901
@@ -121,7 +124,7 @@ export default function (
       resolvingContentLog$,
       fedtchedLog$,
       foundInStoreLog$,
-      isRecursive ? most.of(false) : resolutionDone$,
+      isRecursive ? most.of(false) : importingDone$,
     )
     outputs.push(most.of(progress))
   }
