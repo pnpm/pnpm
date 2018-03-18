@@ -22,7 +22,7 @@ test('runLifecycleHook()', async (t) => {
   t.end()
 })
 
-test('runLifecycleHook()', async (t) => {
+test('runPostinstallHooks()', async (t) => {
   const pkgRoot = path.join(fixtures, 'with-many-scripts')
   const pkg = require(path.join(pkgRoot, 'package.json'))
   await runPostinstallHooks({
