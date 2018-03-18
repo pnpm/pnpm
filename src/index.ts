@@ -1,3 +1,4 @@
+import runLifecycleHooks from '@pnpm/lifecycle'
 import {
   LogBase,
   streamParser,
@@ -23,7 +24,6 @@ import {
 import R = require('ramda')
 import readPkgCB = require('read-package-json')
 import realNodeModulesDir from 'supi/lib/fs/realNodeModulesDir'
-import {npmRunScript} from 'supi/lib/install/postInstall'
 import linkBins, {linkPkgBins} from 'supi/lib/link/linkBins' // TODO: move to separate package
 import {
   packageJsonLogger,
@@ -92,16 +92,16 @@ export default async (
   const scripts = !opts.ignoreScripts && pkg.scripts || {}
 
   const scriptsOpts = {
-    modulesDir: await realNodeModulesDir(opts.prefix),
     pkgId: opts.prefix,
+    pkgRoot: opts.prefix,
     rawNpmConfig: opts.rawNpmConfig,
-    root: opts.prefix,
+    rootNodeModulesDir: await realNodeModulesDir(opts.prefix),
     stdio: 'inherit',
     unsafePerm: opts.unsafePerm || false,
   }
 
   if (scripts.preinstall) {
-    await npmRunScript('preinstall', pkg, scriptsOpts)
+    await runLifecycleHooks('preinstall', pkg, scriptsOpts)
   }
 
   const filterOpts = {
@@ -154,16 +154,16 @@ export default async (
   await opts.storeController.close()
 
   if (scripts.install) {
-    await npmRunScript('install', pkg, scriptsOpts)
+    await runLifecycleHooks('install', pkg, scriptsOpts)
   }
   if (scripts.postinstall) {
-    await npmRunScript('postinstall', pkg, scriptsOpts)
+    await runLifecycleHooks('postinstall', pkg, scriptsOpts)
   }
   if (scripts.prepublish) {
-    await npmRunScript('prepublish', pkg, scriptsOpts)
+    await runLifecycleHooks('prepublish', pkg, scriptsOpts)
   }
   if (scripts.prepare) {
-    await npmRunScript('prepare', pkg, scriptsOpts)
+    await runLifecycleHooks('prepare', pkg, scriptsOpts)
   }
 
   if (reporter) {

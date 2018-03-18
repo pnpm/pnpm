@@ -1,10 +1,10 @@
 // TODO: move to separate package. It is used in supi/lib/install.ts as well
 
+import {runPostinstallHooks} from '@pnpm/lifecycle'
 import logger from '@pnpm/logger'
 import pLimit = require('p-limit')
 import {StoreController} from 'package-store'
 import R = require('ramda')
-import postInstall from 'supi/lib/install/postInstall'
 import {DepGraphNodesByDepPath} from '.'
 import {ENGINE_NAME} from './constants'
 
@@ -30,12 +30,12 @@ export default async (
       .map((depPath) => limitChild(async () => {
         const depNode = depGraph[depPath]
         try {
-          const hasSideEffects = await postInstall(depNode.peripheralLocation, {
-            initialWD: opts.prefix,
+          const hasSideEffects = await runPostinstallHooks({
             pkgId: depPath, // TODO: postInstall should expect depPath, not pkgId
+            pkgRoot: depNode.peripheralLocation,
             rawNpmConfig: opts.rawNpmConfig,
+            rootNodeModulesDir: opts.prefix,
             unsafePerm: opts.unsafePerm || false,
-            userAgent: opts.userAgent,
           })
           if (hasSideEffects && opts.sideEffectsCache && !opts.sideEffectsCacheReadonly) {
             try {
