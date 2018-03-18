@@ -1,4 +1,4 @@
-  # @pnpm/lifecycle
+# @pnpm/lifecycle
 
 > Package lifecycle hook runner
 
