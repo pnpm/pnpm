@@ -4,11 +4,13 @@ import path = require('path')
 import exists = require('path-exists')
 import readPackageJsonCB = require('read-package-json')
 import promisify = require('util.promisify')
-import {lifecycleLogger} from './logger'
+import {LifecycleLog, lifecycleLogger} from './logger'
 
 const readPackageJson = promisify(readPackageJsonCB)
 
 function noop () {} // tslint:disable-line:no-empty
+
+export {LifecycleLog}
 
 export async function runPostinstallHooks (
   opts: {
