@@ -186,10 +186,10 @@ async function linkRootPackages (
       const isOptional = shr.optionalDependencies && shr.optionalDependencies[alias]
 
       const relDepPath = dp.refToRelative(allDeps[alias], alias)
-      const depSnapshot = shr.packages && shr.packages[relDepPath]
-      if (!depSnapshot) return // this won't ever happen. Just making typescript happy
-      const pkgId = depSnapshot.id || depPath
-      const pkgInfo = nameVerFromPkgSnapshot(relDepPath, depSnapshot)
+      const pkgSnapshot = shr.packages && shr.packages[relDepPath]
+      if (!pkgSnapshot) return // this won't ever happen. Just making typescript happy
+      const pkgId = pkgSnapshot.id || depPath
+      const pkgInfo = nameVerFromPkgSnapshot(relDepPath, pkgSnapshot)
       rootLogger.info({
         added: {
           dependencyType: isDev && 'dev' || isOptional && 'optional' || 'prod',
@@ -223,12 +223,12 @@ async function shrinkwrapToDepGraph (
   if (shr.packages) {
     for (const relDepPath of R.keys(shr.packages)) {
       const depPath = dp.resolve(shr.registry, relDepPath)
-      const depSnapshot = shr.packages[relDepPath]
-      const independent = opts.independentLeaves && R.isEmpty(depSnapshot.dependencies) && R.isEmpty(depSnapshot.optionalDependencies)
-      const resolution = pkgSnapshotToResolution(relDepPath, depSnapshot, shr.registry)
-      // TODO: optimize. This info can be already returned by depSnapshotToResolution()
-      const pkgName = depSnapshot.name || dp.parse(relDepPath)['name'] // tslint:disable-line
-      const pkgId = depSnapshot.id || depPath
+      const pkgSnapshot = shr.packages[relDepPath]
+      const independent = opts.independentLeaves && R.isEmpty(pkgSnapshot.dependencies) && R.isEmpty(pkgSnapshot.optionalDependencies)
+      const resolution = pkgSnapshotToResolution(relDepPath, pkgSnapshot, shr.registry)
+      // TODO: optimize. This info can be already returned by pkgSnapshotToResolution()
+      const pkgName = pkgSnapshot.name || dp.parse(relDepPath)['name'] // tslint:disable-line
+      const pkgId = pkgSnapshot.id || depPath
       const fetchResponse = opts.storeController.fetchPackage({
         force: false,
         pkgId,
@@ -247,15 +247,15 @@ async function shrinkwrapToDepGraph (
         : centralLocation
       graph[depPath] = {
         centralLocation,
-        children: getChildren(depSnapshot, shr.registry),
+        children: getChildren(pkgSnapshot, shr.registry),
         fetchingFiles: fetchResponse.fetchingFiles,
         finishing: fetchResponse.finishing,
-        hasBundledDependencies: !!depSnapshot.bundledDependencies,
+        hasBundledDependencies: !!pkgSnapshot.bundledDependencies,
         independent,
         isBuilt: !!cache,
         modules,
-        optional: !!depSnapshot.optional,
-        optionalDependencies: new Set(R.keys(depSnapshot.optionalDependencies)),
+        optional: !!pkgSnapshot.optional,
+        optionalDependencies: new Set(R.keys(pkgSnapshot.optionalDependencies)),
         peripheralLocation,
         pkgId,
       }
@@ -264,8 +264,8 @@ async function shrinkwrapToDepGraph (
   return graph
 }
 
-function getChildren (depSnapshot: PackageSnapshot, registry: string) {
-  const allDeps = Object.assign({}, depSnapshot.dependencies, depSnapshot.optionalDependencies)
+function getChildren (pkgSnapshot: PackageSnapshot, registry: string) {
+  const allDeps = Object.assign({}, pkgSnapshot.dependencies, pkgSnapshot.optionalDependencies)
   return R.keys(allDeps)
     .reduce((acc, alias) => {
       acc[alias] = dp.refToAbsolute(allDeps[alias], alias, registry)
