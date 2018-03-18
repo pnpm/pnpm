@@ -1,6 +1,7 @@
 dependencies:
   '@pnpm/check-package': 1.0.0
   '@pnpm/fs-locker': 1.0.1
+  '@pnpm/lifecycle': 1.0.1
   '@pnpm/modules-yaml': 1.0.0
   '@pnpm/package-requester': 0.8.5
   '@pnpm/pkgid-to-filename': 1.0.0
@@ -35,7 +36,6 @@ dependencies:
   mz: 2.7.0
   normalize-path: 2.1.1
   normalize-registry-url: 1.0.0
-  npm-lifecycle: 2.0.1
   os-homedir: 1.0.2
   p-filter: 1.0.0
   p-limit: 1.2.0
@@ -386,6 +386,20 @@ packages:
       '@pnpm/logger': ^1.0.0
     resolution:
       integrity: sha512-3g7y7q86A4zbQA0DHpoNitZbb/LF0swGRg1OI0Dnhr8yjE0ISnuRvNnX4KGYALONvlDJTKUHUWAYGhzLlp328w==
+  /@pnpm/lifecycle/1.0.1:
+    dependencies:
+      '@pnpm/types': 1.7.0
+      npm-lifecycle: 2.0.1
+      path-exists: 3.0.0
+      read-package-json: 2.0.13
+      util.promisify: 1.0.0
+    dev: false
+    engines:
+      node: '>=4'
+    peerDependencies:
+      '@pnpm/logger': ^1.0.0
+    resolution:
+      integrity: sha512-/N3Oxfi6JMFVejmDvZqQO3kQfRZdClyznO5J+NMIFzembDHYC6wMzvhXAmlcrNC3TlyfK59gg0Qhaigb10tPHQ==
   /@pnpm/local-resolver/0.2.2:
     dependencies:
       '@pnpm/types': 1.7.0
@@ -5260,6 +5274,7 @@ specifiers:
   '@pnpm/default-fetcher': ^0.4.0
   '@pnpm/default-resolver': ^0.1.4
   '@pnpm/fs-locker': ^1.0.0
+  '@pnpm/lifecycle': ^1.0.1
   '@pnpm/logger': ^1.0.0
   '@pnpm/modules-yaml': ^1.0.0
   '@pnpm/package-requester': ^0.8.3
@@ -5308,7 +5323,6 @@ specifiers:
   ncp: ^2.0.0
   normalize-path: ^2.1.1
   normalize-registry-url: ^1.0.0
-  npm-lifecycle: ^2.0.0
   npm-run-all: ^4.0.1
   npm-scripts-info: ^0.3.6
   os-homedir: ^1.0.2

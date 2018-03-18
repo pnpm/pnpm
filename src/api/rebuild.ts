@@ -1,3 +1,4 @@
+import {runPostinstallHooks} from '@pnpm/lifecycle'
 import logger, {streamParser} from '@pnpm/logger'
 import {write as writeModulesYaml} from '@pnpm/modules-yaml'
 import npa = require('@zkochan/npm-package-arg')
@@ -13,7 +14,6 @@ import R = require('ramda')
 import semver = require('semver')
 import {LAYOUT_VERSION} from '../constants'
 import realNodeModulesDir from '../fs/realNodeModulesDir'
-import postInstall from '../install/postInstall'
 import extendOptions, {
   RebuildOptions,
   StrictRebuildOptions,
@@ -150,12 +150,12 @@ async function _rebuild (
         const depAbsolutePath = dp.resolve(registry, pkgToRebuild.relativeDepPath)
         const pkgId = pkgToRebuild.pkgShr.id || depAbsolutePath
         try {
-          await postInstall(path.join(modules, `.${depAbsolutePath}`, 'node_modules', pkgToRebuild.name), {
-            initialWD: opts.prefix,
+          await runPostinstallHooks({
             pkgId,
+            pkgRoot: path.join(modules, `.${depAbsolutePath}`, 'node_modules', pkgToRebuild.name),
             rawNpmConfig: opts.rawNpmConfig,
+            rootNodeModulesDir: opts.prefix,
             unsafePerm: opts.unsafePerm || false,
-            userAgent: opts.userAgent,
           })
         } catch (err) {
           if (pkgToRebuild.pkgShr.optional) {

@@ -8,12 +8,14 @@ export {
   PackageJsonLog,
   InstallCheckLog,
   DeprecationLog,
-  LifecycleLog,
   RootLog,
   StageLog,
   RegistryLog,
   StatsLog,
 } from './loggers'
+import {LifecycleLog} from '@pnpm/lifecycle'
+
+export {LifecycleLog}
 
 export {InstallOptions} from './api/extendInstallOptions'
 export {PruneOptions} from './api/extendPruneOptions'
@@ -24,4 +26,4 @@ import * as packageRequesterLogs from '@pnpm/package-requester'
 import * as supiLogs from './loggers'
 
 export type ProgressLog = supiLogs.ProgressLog | packageRequesterLogs.ProgressLog
-export type Log = supiLogs.Log | packageRequesterLogs.Log
+export type Log = supiLogs.Log | packageRequesterLogs.Log | LifecycleLog

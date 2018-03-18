@@ -9,7 +9,6 @@ export const stageLogger = baseLogger('stage') as Logger<'resolution_started' | 
 export const summaryLogger = baseLogger('summary') as Logger<void>
 export const installCheckLogger = baseLogger('install-check') as Logger<InstallCheckMessage>
 export const deprecationLogger = baseLogger('deprecation') as Logger<DeprecationMessage>
-export const lifecycleLogger = baseLogger('lifecycle') as Logger<LifecycleMessage>
 export const rootLogger = baseLogger('root') as Logger<RootMessage>
 export const progressLogger = baseLogger('progress') as Logger<ProgressMessage>
 export const statsLogger = baseLogger('stats') as Logger<StatsMessage>
@@ -38,17 +37,6 @@ export interface DeprecationMessage {
 }
 
 export type DeprecationLog = {name: 'pnpm:deprecation'} & LogBase & DeprecationMessage
-
-export type LifecycleMessage = {
-  pkgId: string,
-  script: string,
-} & ({
-  line: string,
-} | {
-  exitCode: number,
-})
-
-export type LifecycleLog = {name: 'pnpm:lifecycle'} & LogBase & LifecycleMessage
 
 export type DependencyType = 'prod' | 'dev' | 'optional'
 
@@ -111,7 +99,6 @@ export type RegistryLog = {name: 'pnpm:registry'} & LogBase & {message: string}
 export type Log = StageLog
   | ProgressLog
   | RootLog
-  | LifecycleLog
   | DeprecationLog
   | InstallCheckLog
   | PackageJsonLog

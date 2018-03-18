@@ -21,6 +21,7 @@
   "dependencies": {
     "@pnpm/check-package": "^1.0.0",
     "@pnpm/fs-locker": "^1.0.0",
+    "@pnpm/lifecycle": "^1.0.1",
     "@pnpm/modules-yaml": "^1.0.0",
     "@pnpm/package-requester": "^0.8.3",
     "@pnpm/pkgid-to-filename": "^1.0.0",
@@ -55,7 +56,6 @@
     "mz": "^2.7.0",
     "normalize-path": "^2.1.1",
     "normalize-registry-url": "^1.0.0",
-    "npm-lifecycle": "^2.0.0",
     "os-homedir": "^1.0.2",
     "p-filter": "^1.0.0",
     "p-limit": "^1.1.0",

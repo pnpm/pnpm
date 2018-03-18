@@ -1,3 +1,4 @@
+import runLifecycleHooks, {runPostinstallHooks} from '@pnpm/lifecycle'
 import logger, {
   streamParser,
 } from '@pnpm/logger'
@@ -32,7 +33,6 @@ import {fromDir as safeReadPkgFromDir} from '../fs/safeReadPkg'
 import {absolutePathToRef} from '../fs/shrinkwrap'
 import getSaveType from '../getSaveType'
 import getSpecFromPackageJson from '../getSpecFromPackageJson'
-import postInstall, {npmRunScript} from '../install/postInstall'
 import linkPackages from '../link'
 import {DepGraphNode} from '../link/resolvePeers'
 import {
@@ -186,31 +186,31 @@ export async function install (maybeOpts: InstallOptions) {
     }
 
     const scriptsOpts = {
-      modulesDir: await realNodeModulesDir(opts.prefix),
       pkgId: opts.prefix,
+      pkgRoot: opts.prefix,
       rawNpmConfig: opts.rawNpmConfig,
-      root: opts.prefix,
+      rootNodeModulesDir: await realNodeModulesDir(opts.prefix),
       stdio: 'inherit',
       unsafePerm: opts.unsafePerm || false,
     }
 
     if (scripts.preinstall) {
-      await npmRunScript('preinstall', ctx.pkg, scriptsOpts)
+      await runLifecycleHooks('preinstall', ctx.pkg, scriptsOpts)
     }
 
     await installInContext(installType, specs, [], ctx, preferredVersions, opts)
 
     if (scripts.install) {
-      await npmRunScript('install', ctx.pkg, scriptsOpts)
+      await runLifecycleHooks('install', ctx.pkg, scriptsOpts)
     }
     if (scripts.postinstall) {
-      await npmRunScript('postinstall', ctx.pkg, scriptsOpts)
+      await runLifecycleHooks('postinstall', ctx.pkg, scriptsOpts)
     }
     if (scripts.prepublish) {
-      await npmRunScript('prepublish', ctx.pkg, scriptsOpts)
+      await runLifecycleHooks('prepublish', ctx.pkg, scriptsOpts)
     }
     if (scripts.prepare) {
-      await npmRunScript('prepare', ctx.pkg, scriptsOpts)
+      await runLifecycleHooks('prepare', ctx.pkg, scriptsOpts)
     }
   }
 }
@@ -594,12 +594,12 @@ async function installInContext (
           .filter((pkg) => !pkg.isBuilt)
           .map((pkg) => limitChild(async () => {
             try {
-              const hasSideEffects = await postInstall(pkg.peripheralLocation, {
-                initialWD: ctx.root,
+              const hasSideEffects = await runPostinstallHooks({
                 pkgId: pkg.id,
+                pkgRoot: pkg.peripheralLocation,
                 rawNpmConfig: installCtx.rawNpmConfig,
+                rootNodeModulesDir: ctx.root,
                 unsafePerm: opts.unsafePerm || false,
-                userAgent: opts.userAgent,
               })
               if (hasSideEffects && opts.sideEffectsCache && !opts.sideEffectsCacheReadonly) {
                 try {

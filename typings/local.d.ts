@@ -264,11 +264,6 @@ declare module 'encode-registry' {
   export = anything;
 }
 
-declare module 'npm-lifecycle' {
-  const anything: any;
-  export = anything;
-}
-
 declare module 'validate-npm-package-name' {
   const anything: any;
   export = anything;
