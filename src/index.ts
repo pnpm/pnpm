@@ -26,9 +26,15 @@ export async function runPostinstallHooks (
     await checkBindingGyp(opts.pkgRoot, scripts)
   }
 
-  await runLifecycleHook('preinstall', pkg, opts)
-  await runLifecycleHook('install', pkg, opts)
-  await runLifecycleHook('postinstall', pkg, opts)
+  if (scripts.preinstall) {
+    await runLifecycleHook('preinstall', pkg, opts)
+  }
+  if (scripts.install) {
+    await runLifecycleHook('install', pkg, opts)
+  }
+  if (scripts.postinstall) {
+    await runLifecycleHook('postinstall', pkg, opts)
+  }
 
   return !!scripts.preinstall || !!scripts.install || !!scripts.postinstall
 }
@@ -45,7 +51,6 @@ export default async function runLifecycleHook (
     unsafePerm: boolean,
   },
 ) {
-  if (!pkg.scripts || !pkg.scripts[stage]) return
   return lifecycle(pkg, stage, opts.pkgRoot, {
     config: opts.rawNpmConfig,
     dir: opts.rootNodeModulesDir,
