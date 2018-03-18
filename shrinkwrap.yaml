@@ -20,9 +20,7 @@ dependencies:
   '@zkochan/cmd-shim': 2.2.4
   '@zkochan/npm-package-arg': 1.0.0
   arr-flatten: 1.1.0
-  byline: 5.0.0
   common-tags: 1.7.2
-  cross-spawn: 6.0.5
   dependency-path: 1.2.0
   encode-registry: 1.1.0
   execa: 0.10.0
@@ -45,7 +43,6 @@ dependencies:
   package-store: 0.18.0
   path-absolute: 1.0.0
   path-exists: 3.0.0
-  path-name: 1.0.0
   pnpm-install-checks: 1.1.0
   pnpm-shrinkwrap: 6.1.0
   ramda: 0.25.0
@@ -76,6 +73,7 @@ devDependencies:
   '@zkochan/husky': 0.0.0
   anonymous-npm-registry-client: 0.1.2
   caw: 2.0.1
+  cross-spawn: 6.0.5
   deep-require-cwd: 1.0.0
   exists-link: 2.0.0
   load-yaml-file: 0.1.0
@@ -84,6 +82,7 @@ devDependencies:
   npm-run-all: 4.1.2
   npm-scripts-info: 0.3.7
   package-preview: 1.0.5
+  path-name: 1.0.0
   pnpm-registry-mock: 1.18.0
   read-pkg: 3.0.0
   rimraf: 2.6.2
@@ -3781,7 +3780,7 @@ packages:
     resolution:
       integrity: sha1-QRyttXTFoUDTpLGRDUDYDMn0C0A=
   /path-name/1.0.0:
-    dev: false
+    dev: true
     resolution:
       integrity: sha1-jKBjpj3nmC36lXYO2v/RAhRJTyQ=
   /path-parse/1.0.5:
@@ -5287,7 +5286,6 @@ specifiers:
   '@zkochan/npm-package-arg': ^1.0.0
   anonymous-npm-registry-client: ^0.1.2
   arr-flatten: ^1.0.1
-  byline: ^5.0.0
   caw: ^2.0.0
   common-tags: ^1.4.0
   cross-spawn: ^6.0.5
