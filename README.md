@@ -1,4 +1,4 @@
-# @pnpm/lifecycle
+  # @pnpm/lifecycle
 
 > Package lifecycle hook runner
 
@@ -11,6 +11,39 @@
 ```sh
 npm i -S @pnpm/logger @pnpm/lifecycle
 ```
+
+## Usage
+
+```ts
+import runLifecycleHook, {runPostinstallHooks} from '@pnpm/lifecycle'
+
+const targetPkgRoot = path.resolve('node_modules/target-pkg')
+const pkg = require(path.join(targetPkgRoot, 'package.json'))
+
+// Run a specific hook
+await runLifecycleHook('preinstall', pkg, {
+  pkgId: 'target-pkg/1.0.0',
+  pkgRoot: targetPkgRoot,
+  rawNpmConfig: {},
+  rootNodeModulesDir: path.resolve('node_modules'),
+  unsafePerm: true,
+})
+
+// Run all install hooks
+await runPostinstallHooks({
+  pkgId: 'target-pkg/1.0.0',
+  pkgRoot: targetPkgRoot,
+  rawNpmConfig: {},
+  rootNodeModulesDir: path.resolve('node_modules'),
+  unsafePerm: true,
+})
+```
+
+## API
+
+### `runLifecycleHook(stage, packageJson, opts): Promise<void>`
+
+### `runPostinstallHooks(opts): Promise<void>`
 
 ## License
 
