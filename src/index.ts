@@ -17,7 +17,6 @@ export async function runPostinstallHooks (
     rawNpmConfig: object,
     pkgRoot: string,
     unsafePerm: boolean,
-    userAgent: string,
   },
 ): Promise<boolean> {
   const pkg = await readPackageJson(path.join(opts.pkgRoot, 'package.json'))
