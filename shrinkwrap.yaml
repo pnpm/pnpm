@@ -2,6 +2,7 @@ dependencies:
   '@pnpm/check-package': 1.0.0
   '@pnpm/fs-locker': 1.0.1
   '@pnpm/lifecycle': 1.0.1
+  '@pnpm/link-bins': 1.0.1
   '@pnpm/modules-yaml': 1.0.0
   '@pnpm/package-bins': 1.0.0
   '@pnpm/package-requester': 0.8.5
@@ -19,9 +20,7 @@ dependencies:
   '@types/ramda': 0.25.20
   '@types/rc': 0.0.1
   '@types/semver': 5.5.0
-  '@zkochan/cmd-shim': 2.2.4
   '@zkochan/npm-package-arg': 1.0.0
-  arr-flatten: 1.1.0
   common-tags: 1.7.2
   dependency-path: 1.2.0
   encode-registry: 1.1.0
@@ -31,7 +30,6 @@ dependencies:
   is-ci: 1.1.0
   is-inner-link: 2.0.2
   is-subdir: 1.0.2
-  is-windows: 1.0.2
   load-json-file: 4.0.0
   mkdirp-promise: 5.0.1
   mz: 2.7.0
@@ -77,6 +75,7 @@ devDependencies:
   cross-spawn: 6.0.5
   deep-require-cwd: 1.0.0
   exists-link: 2.0.0
+  is-windows: 1.0.2
   load-yaml-file: 0.1.0
   mkdirp: 0.5.1
   ncp: 2.0.0
@@ -401,6 +400,28 @@ packages:
       '@pnpm/logger': ^1.0.0
     resolution:
       integrity: sha512-/N3Oxfi6JMFVejmDvZqQO3kQfRZdClyznO5J+NMIFzembDHYC6wMzvhXAmlcrNC3TlyfK59gg0Qhaigb10tPHQ==
+  /@pnpm/link-bins/1.0.1:
+    dependencies:
+      '@pnpm/package-bins': 1.0.0
+      '@pnpm/types': 1.7.0
+      '@types/mz': 0.0.32
+      '@types/ramda': 0.25.20
+      '@zkochan/cmd-shim': 2.2.4
+      arr-flatten: 1.1.0
+      is-windows: 1.0.2
+      mkdirp-promise: 5.0.1
+      mz: 2.7.0
+      normalize-path: 2.1.1
+      p-filter: 1.0.0
+      ramda: 0.25.0
+      read-package-json: 2.0.13
+    dev: false
+    engines:
+      node: '>=4'
+    peerDependencies:
+      '@pnpm/logger': ^1.0.0
+    resolution:
+      integrity: sha512-6hHV7qwIxYizwpSfcSR5A/ChBkTdJYVvAxB70WYbdbj6Wc0enS2sOSuFWO8yhOUDpzBph6T+qTWYeZrlpFTqzA==
   /@pnpm/local-resolver/0.2.2:
     dependencies:
       '@pnpm/types': 1.7.0
@@ -658,7 +679,6 @@ packages:
   /@types/node/9.4.7:
     resolution:
       integrity: sha512-4Ba90mWNx8ddbafuyGGwjkZMigi+AWfYLSDCpovwsE63ia8w93r3oJ8PIAQc3y8U+XHcnMOHPIzNe3o438Ywcw==
-      tarball: 'http://registry.npmjs.org/@types/node/-/node-9.4.7.tgz'
   /@types/nopt/3.0.29:
     dev: false
     resolution:
@@ -5287,6 +5307,7 @@ specifiers:
   '@pnpm/default-resolver': ^0.1.4
   '@pnpm/fs-locker': ^1.0.0
   '@pnpm/lifecycle': ^1.0.1
+  '@pnpm/link-bins': ^1.0.1
   '@pnpm/logger': ^1.0.0
   '@pnpm/modules-yaml': ^1.0.0
   '@pnpm/package-bins': ^1.0.0
@@ -5309,11 +5330,9 @@ specifiers:
   '@types/semver': ^5.3.30
   '@types/sinon': ^4.1.2
   '@types/tape': ^4.2.30
-  '@zkochan/cmd-shim': ^2.2.4
   '@zkochan/husky': ^0.0.0
   '@zkochan/npm-package-arg': ^1.0.0
   anonymous-npm-registry-client: ^0.1.2
-  arr-flatten: ^1.0.1
   caw: ^2.0.0
   common-tags: ^1.4.0
   cross-spawn: ^6.0.5
@@ -5327,7 +5346,7 @@ specifiers:
   is-ci: ^1.0.10
   is-inner-link: ^2.0.0
   is-subdir: ^1.0.1
-  is-windows: ^1.0.0
+  is-windows: ^1.0.2
   load-json-file: ^4.0.0
   load-yaml-file: ^0.1.0
   mkdirp: ^0.5.1

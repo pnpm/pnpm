@@ -1,3 +1,4 @@
+import {linkPackageBins} from '@pnpm/link-bins'
 import logger, {streamParser} from '@pnpm/logger'
 import {read as readModulesYaml} from '@pnpm/modules-yaml'
 import {PackageJson} from '@pnpm/types'
@@ -16,7 +17,6 @@ import R = require('ramda')
 import symlinkDir = require('symlink-dir')
 import safeReadPackage from '../fs/safeReadPkg'
 import getSpecFromPackageJson from '../getSpecFromPackageJson'
-import {linkPkgBins} from '../link/linkBins'
 import readShrinkwrapFile from '../readShrinkwrapFiles'
 import extendOptions, {
   InstallOptions,
@@ -97,7 +97,7 @@ export default async function link (
     await linkToModules(linkedPkg.pkg.name, linkedPkg.path, destModules)
 
     const linkToBin = maybeOpts && maybeOpts.linkToBin || path.join(destModules, '.bin')
-    await linkPkgBins(linkedPkg.path, linkToBin)
+    await linkPackageBins(linkedPkg.path, linkToBin)
   }
 
   if (opts.shrinkwrap) {

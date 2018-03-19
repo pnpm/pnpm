@@ -88,11 +88,6 @@ declare module 'anonymous-npm-registry-client' {
   export = anything;
 }
 
-declare module 'arr-flatten' {
-  const anything: any;
-  export = anything;
-}
-
 declare module 'find-up' {
   const anything: any;
   export = anything;
@@ -109,11 +104,6 @@ declare module 'exists-link' {
 }
 
 declare module 'path-name' {
-  const anything: any;
-  export = anything;
-}
-
-declare module '@zkochan/cmd-shim' {
   const anything: any;
   export = anything;
 }
@@ -136,11 +126,6 @@ declare module 'mem' {
 declare module 'pnpm-install-checks' {
   const anything: any;
   export = anything;
-}
-
-declare module 'is-windows' {
-  function isWindows(): boolean;
-  export = isWindows;
 }
 
 declare module 'bole' {

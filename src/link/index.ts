@@ -1,3 +1,4 @@
+import linkBins, {linkPackageBins} from '@pnpm/link-bins'
 import {PackageJson} from '@pnpm/types'
 import * as dp from 'dependency-path'
 import pLimit = require('p-limit')
@@ -14,7 +15,6 @@ import {
   statsLogger,
 } from '../loggers'
 import logStatus from '../logging/logInstallStatus'
-import linkBins, {linkPkgBins} from './linkBins'
 import resolvePeers, {DepGraphNode, DepGraphNodesByDepPath} from './resolvePeers'
 import updateShrinkwrap from './updateShrinkwrap'
 
@@ -376,7 +376,7 @@ async function linkAllBins (
         R.keys(childrenToLink)
           .filter((alias) => depGraph[childrenToLink[alias]].installable)
           .map((alias) => path.join(depNode.modules, alias))
-          .map((target) => linkPkgBins(target, binPath)),
+          .map((target) => linkPackageBins(target, binPath)),
       )
 
       // link also the bundled dependencies` bins
