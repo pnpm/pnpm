@@ -1,4 +1,5 @@
 import runLifecycleHooks from '@pnpm/lifecycle'
+import linkBins, {linkPackageBins} from '@pnpm/link-bins'
 import {
   LogBase,
   streamParser,
@@ -24,7 +25,6 @@ import {
 import R = require('ramda')
 import readPkgCB = require('read-package-json')
 import realNodeModulesDir from 'supi/lib/fs/realNodeModulesDir'
-import linkBins, {linkPkgBins} from 'supi/lib/link/linkBins' // TODO: move to separate package
 import {
   packageJsonLogger,
   rootLogger,
@@ -341,7 +341,7 @@ async function linkAllBins (
         R.keys(childrenToLink)
           // .filter((alias) => depGraph[childrenToLink[alias]].installable)
           .map((alias) => path.join(depNode.modules, alias))
-          .map((target) => linkPkgBins(target, binPath)),
+          .map((target) => linkPackageBins(target, binPath)),
       )
 
       // link also the bundled dependencies` bins
