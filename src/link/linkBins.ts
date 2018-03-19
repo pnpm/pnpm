@@ -1,4 +1,5 @@
 import logger from '@pnpm/logger'
+import binify from '@pnpm/package-bins'
 import cmdShim = require('@zkochan/cmd-shim')
 import isWindows = require('is-windows')
 import mkdirp = require('mkdirp-promise')
@@ -7,7 +8,6 @@ import fs = require('mz/fs')
 import normalizePath = require('normalize-path')
 import path = require('path')
 import R = require('ramda')
-import binify from '../binify'
 import getPkgDirs from '../fs/getPkgDirs'
 import {fromDir as safeReadPkgFromDir} from '../fs/safeReadPkg'
 

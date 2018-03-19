@@ -1,6 +1,6 @@
+import binify from '@pnpm/package-bins'
 import path = require('path')
 import rimraf = require('rimraf-then')
-import binify from './binify'
 import {fromDir as safeReadPkgFromDir} from './fs/safeReadPkg'
 import {rootLogger} from './loggers'
 

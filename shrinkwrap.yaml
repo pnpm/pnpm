@@ -3,6 +3,7 @@ dependencies:
   '@pnpm/fs-locker': 1.0.1
   '@pnpm/lifecycle': 1.0.1
   '@pnpm/modules-yaml': 1.0.0
+  '@pnpm/package-bins': 1.0.0
   '@pnpm/package-requester': 0.8.5
   '@pnpm/pkgid-to-filename': 1.0.0
   '@pnpm/resolver-base': 1.0.0
@@ -459,6 +460,17 @@ packages:
       '@pnpm/logger': ^1.0.0
     resolution:
       integrity: sha512-a0ik7fIbYzfqrOuMAmdi4fN82nJJKi1if4KnY2Maq4J4SlK/3LkFfjTz5ZoPYXKl8L1QQ6uQpeT98cy7nJuLaA==
+  /@pnpm/package-bins/1.0.0:
+    dependencies:
+      '@pnpm/types': 1.7.0
+      '@types/mz': 0.0.32
+      mz: 2.7.0
+      p-filter: 1.0.0
+    dev: false
+    engines:
+      node: '>=4'
+    resolution:
+      integrity: sha512-ZqVfIXK3r5AsP5VAhPHrhf3isF+T4yEuUpJTF9T03oFTJ9LBnkKvx8F7P7biKEManxSGOkSpNoIBdsura9pY5Q==
   /@pnpm/package-requester/0.8.5:
     dependencies:
       '@pnpm/check-package': 1.0.0
@@ -5277,6 +5289,7 @@ specifiers:
   '@pnpm/lifecycle': ^1.0.1
   '@pnpm/logger': ^1.0.0
   '@pnpm/modules-yaml': ^1.0.0
+  '@pnpm/package-bins': ^1.0.0
   '@pnpm/package-requester': ^0.8.3
   '@pnpm/pkgid-to-filename': ^1.0.0
   '@pnpm/resolver-base': ^1.0.0
