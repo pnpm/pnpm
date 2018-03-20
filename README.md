@@ -4,7 +4,7 @@
 
 [![Build Status](https://travis-ci.org/pnpm/pnpm-shrinkwrap.svg?branch=master)](https://travis-ci.org/pnpm/pnpm-shrinkwrap)
 
-Reads and writes the public (`shrinkwrap.yaml`) and private (`node_modules/.shrinkwrap.yaml`) shrinkwrap files of pnpm.
+Reads and writes the wanted (`shrinkwrap.yaml`) and current (`node_modules/.shrinkwrap.yaml`) shrinkwrap files of pnpm.
 Shrinkwrap files are the state files of the `node_modules` installed via pnpm. They are like
 the `package-lock.json` of npm or the `yarn.lock` of Yarn.
 
