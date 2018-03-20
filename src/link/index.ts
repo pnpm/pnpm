@@ -124,10 +124,6 @@ export default async function linkPackages (
         },
       })
     }
-    logStatus({
-      pkgId: pkg.id,
-      status: 'installed',
-    })
   }
 
   if (!opts.dryRun) {

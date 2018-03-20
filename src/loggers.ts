@@ -72,7 +72,7 @@ export interface LoggedPkg {
 
 export type ProgressMessage = {
   pkgId: string,
-  status: 'installed' | 'dependencies_installed',
+  status: 'dependencies_installed',
 } | {
    pkg: LoggedPkg,
    status: 'installing',

@@ -641,12 +641,6 @@ async function installInContext (
       }
       const externalPkgs = installCtx.localPackages.map((localPackage) => localPackage.resolution.directory)
       await externalLink(externalPkgs, installCtx.nodeModules, linkOpts)
-      installCtx.localPackages.forEach(async (localPackage) => {
-        logStatus({
-          pkgId: localPackage.id,
-          status: 'installed',
-        })
-      })
     }
   }
 
