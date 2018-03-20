@@ -32,7 +32,6 @@ import {
   statsLogger,
   summaryLogger,
 } from 'supi/lib/loggers'
-import logStatus from 'supi/lib/logging/logInstallStatus'
 import symlinkDir = require('symlink-dir')
 import promisify = require('util.promisify')
 import {
@@ -199,10 +198,6 @@ async function linkRootPackages (
           realName: pkgInfo.name,
           version: pkgInfo.version,
         },
-      })
-      logStatus({
-        pkgId,
-        status: 'installed',
       })
     })
 }
