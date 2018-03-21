@@ -59,6 +59,10 @@ Prunes a shrinkwrap file. Prunning means removing packages that are not referenc
 
 ### `pkgSnapshotToResolution(relDepPath, pkgSnapshot, registry): Resolution`
 
+### `satisfiesPackageJson(shrinkwrap, packageJson): Boolean`
+
+Returns `true` if the shrinkwrap file resolves the dependencies in the `package.json`.
+
 ## License
 
 [MIT](LICENSE)
