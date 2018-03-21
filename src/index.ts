@@ -4,7 +4,10 @@ import {
   LogBase,
   streamParser,
 } from '@pnpm/logger'
-import {write as writeModulesYaml} from '@pnpm/modules-yaml'
+import {
+  read as readModulesYaml,
+  write as writeModulesYaml,
+} from '@pnpm/modules-yaml'
 import {
   getCacheByEngine,
   PackageFilesResponse,
@@ -18,12 +21,14 @@ import {
   nameVerFromPkgSnapshot,
   PackageSnapshot,
   pkgSnapshotToResolution,
+  readCurrent,
   readWanted,
   Shrinkwrap,
   writeCurrentOnly as writeCurrentShrinkwrapOnly,
 } from 'pnpm-shrinkwrap'
 import R = require('ramda')
 import readPkgCB = require('read-package-json')
+import removeOrphanPkgs from 'supi/lib/api/removeOrphanPkgs'
 import realNodeModulesDir from 'supi/lib/fs/realNodeModulesDir'
 import {
   packageJsonLogger,
@@ -84,23 +89,44 @@ export default async (
     throw new Error('Headless installation can be done only with a shrinkwrap.yaml file')
   }
 
+  const currentShrinkwrap = await readCurrent(opts.prefix, {ignoreIncompatible: false})
+  const modules = await readModulesYaml(path.join(opts.prefix, 'node_modules'))
+
   const pkg = await readPkg(path.join(opts.prefix, 'package.json')) as PackageJson
 
   packageJsonLogger.debug({ initial: pkg })
 
   const scripts = !opts.ignoreScripts && pkg.scripts || {}
 
+  const nodeModules = await realNodeModulesDir(opts.prefix)
+  const bin = path.join(nodeModules, '.bin')
+
   const scriptsOpts = {
     pkgId: opts.prefix,
     pkgRoot: opts.prefix,
     rawNpmConfig: opts.rawNpmConfig,
-    rootNodeModulesDir: await realNodeModulesDir(opts.prefix),
+    rootNodeModulesDir: nodeModules,
     stdio: 'inherit',
     unsafePerm: opts.unsafePerm || false,
   }
 
   if (scripts.preinstall) {
     await runLifecycleHooks('preinstall', pkg, scriptsOpts)
+  }
+
+  if (currentShrinkwrap) {
+    await removeOrphanPkgs({
+      bin,
+      dryRun: false,
+      hoistedAliases: modules && modules.hoistedAliases || {},
+      newShrinkwrap: wantedShrinkwrap,
+      oldShrinkwrap: currentShrinkwrap,
+      prefix: opts.prefix,
+      shamefullyFlatten: false,
+      storeController: opts.storeController,
+    })
+  } else {
+    statsLogger.debug({removed: 0})
   }
 
   const filterOpts = {
@@ -111,10 +137,9 @@ export default async (
   const filteredShrinkwrap = filterShrinkwrap(wantedShrinkwrap, filterOpts)
 
   stageLogger.debug('importing_started')
-  const depGraph = await shrinkwrapToDepGraph(filteredShrinkwrap, opts)
+  const depGraph = await shrinkwrapToDepGraph(filteredShrinkwrap, currentShrinkwrap, opts)
 
   statsLogger.debug({added: Object.keys(depGraph).length})
-  statsLogger.debug({removed: 0}) // TODO: implement removing orphans
 
   await Promise.all([
     linkAllModules(depGraph, {optional: opts.optional}),
@@ -124,8 +149,6 @@ export default async (
 
   await linkAllBins(depGraph, {optional: opts.optional})
 
-  const nodeModules = path.join(opts.prefix, 'node_modules')
-  const bin = path.join(opts.prefix, 'node_modules', '.bin')
   await linkRootPackages(filteredShrinkwrap, depGraph, nodeModules)
   await linkBins(nodeModules, bin)
 
@@ -176,34 +199,40 @@ async function linkRootPackages (
   baseNodeModules: string,
 ) {
   const allDeps = Object.assign({}, shr.devDependencies, shr.dependencies, shr.optionalDependencies)
-  return R.keys(allDeps)
-    .map(async (alias) => {
-      const depPath = dp.refToAbsolute(allDeps[alias], alias, shr.registry)
-      const depNode = depGraph[depPath]
-      await symlinkDependencyTo(alias, depNode, baseNodeModules)
-      const isDev = shr.devDependencies && shr.devDependencies[alias]
-      const isOptional = shr.optionalDependencies && shr.optionalDependencies[alias]
+  return Promise.all(
+    R.keys(allDeps)
+      .map(async (alias) => {
+        const depPath = dp.refToAbsolute(allDeps[alias], alias, shr.registry)
+        const depNode = depGraph[depPath]
+        if (!depNode) {
+          return
+        }
+        await symlinkDependencyTo(alias, depNode, baseNodeModules)
+        const isDev = shr.devDependencies && shr.devDependencies[alias]
+        const isOptional = shr.optionalDependencies && shr.optionalDependencies[alias]
 
-      const relDepPath = dp.refToRelative(allDeps[alias], alias)
-      const pkgSnapshot = shr.packages && shr.packages[relDepPath]
-      if (!pkgSnapshot) return // this won't ever happen. Just making typescript happy
-      const pkgId = pkgSnapshot.id || depPath
-      const pkgInfo = nameVerFromPkgSnapshot(relDepPath, pkgSnapshot)
-      rootLogger.info({
-        added: {
-          dependencyType: isDev && 'dev' || isOptional && 'optional' || 'prod',
-          id: pkgId,
-          // latest: opts.outdatedPkgs[pkg.id],
-          name: alias,
-          realName: pkgInfo.name,
-          version: pkgInfo.version,
-        },
-      })
-    })
+        const relDepPath = dp.refToRelative(allDeps[alias], alias)
+        const pkgSnapshot = shr.packages && shr.packages[relDepPath]
+        if (!pkgSnapshot) return // this won't ever happen. Just making typescript happy
+        const pkgId = pkgSnapshot.id || depPath
+        const pkgInfo = nameVerFromPkgSnapshot(relDepPath, pkgSnapshot)
+        rootLogger.info({
+          added: {
+            dependencyType: isDev && 'dev' || isOptional && 'optional' || 'prod',
+            id: pkgId,
+            // latest: opts.outdatedPkgs[pkg.id],
+            name: alias,
+            realName: pkgInfo.name,
+            version: pkgInfo.version,
+          },
+        })
+      }),
+  )
 }
 
 async function shrinkwrapToDepGraph (
   shr: Shrinkwrap,
+  currentShrinkwrap: Shrinkwrap | null,
   opts: {
     force: boolean,
     independentLeaves: boolean,
@@ -214,9 +243,14 @@ async function shrinkwrapToDepGraph (
   },
 ) {
   const nodeModules = path.join(opts.prefix, 'node_modules')
+  const currentPackages = currentShrinkwrap && currentShrinkwrap.packages || {}
   const graph: DepGraphNodesByDepPath = {}
   if (shr.packages) {
     for (const relDepPath of R.keys(shr.packages)) {
+      if (currentPackages[relDepPath] && R.equals(currentPackages[relDepPath].dependencies, shr.packages[relDepPath].dependencies) &&
+        R.equals(currentPackages[relDepPath].optionalDependencies, shr.packages[relDepPath].optionalDependencies)) {
+        continue
+      }
       const depPath = dp.resolve(shr.registry, relDepPath)
       const pkgSnapshot = shr.packages[relDepPath]
       const independent = opts.independentLeaves && R.isEmpty(pkgSnapshot.dependencies) && R.isEmpty(pkgSnapshot.optionalDependencies)

@@ -1,6 +1,8 @@
 import assertProject from '@pnpm/assert-project'
-import test = require('tape')
 import headless from '@pnpm/headless'
+import fse = require('fs-extra')
+import test = require('tape')
+import tempy = require('tempy')
 import path = require('path')
 import exists = require('path-exists')
 import rimraf = require('rimraf-then')
@@ -139,6 +141,46 @@ test('run pre/postinstall scripts', async (t) => {
   await headless(await testDefaults({prefix, ignoreScripts: true}))
 
   t.notOk(await exists(outputJsonPath))
+
+  t.end()
+})
+
+test('orphan packages are removed', async (t) => {
+  const projectDir = tempy.directory()
+  t.comment(projectDir)
+
+  const destPackageJsonPath = path.join(projectDir, 'package.json')
+  const destShrinkwrapYamlPath = path.join(projectDir, 'shrinkwrap.yaml')
+
+  const simpleWithMoreDepsDir = path.join(fixtures, 'simple-with-more-deps')
+  const simpleDir = path.join(fixtures, 'simple')
+  fse.copySync(path.join(simpleWithMoreDepsDir, 'package.json'), destPackageJsonPath)
+  fse.copySync(path.join(simpleWithMoreDepsDir, 'shrinkwrap.yaml'), destShrinkwrapYamlPath)
+
+  await headless(await testDefaults({
+    prefix: projectDir,
+  }))
+
+  fse.copySync(path.join(simpleDir, 'package.json'), destPackageJsonPath)
+  fse.copySync(path.join(simpleDir, 'shrinkwrap.yaml'), destShrinkwrapYamlPath)
+
+  const reporter = sinon.spy()
+  await headless(await testDefaults({
+    prefix: projectDir,
+    reporter,
+  }))
+
+  t.ok(reporter.calledWithMatch({
+    removed: 1,
+    level: 'debug',
+    name: 'pnpm:stats',
+  } as StatsLog), 'removed stat')
+
+  const project = assertProject(t, projectDir)
+  await project.hasNot('resolve-from')
+  await project.has('rimraf')
+  await project.has('is-negative')
+  await project.has('colors')
 
   t.end()
 })

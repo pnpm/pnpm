@@ -9,5 +9,5 @@ run()
 
 async function run () {
   // TODO: remove --ignore-scripts. pnpm should ignore scripts when --shrinkwrap-only is used
-  await pnpm(['recursive', 'install', '--shrinkwrap-only', '--registry', 'http://localhost:4873/', '--ignore-scripts'], {cwd: fixtures})
+  await pnpm(['recursive', 'install', '--shrinkwrap-only', '--registry', 'http://localhost:4873/', '--ignore-scripts', '--force'], {cwd: fixtures})
 }
