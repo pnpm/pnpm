@@ -63,7 +63,7 @@ export default async (
     sideEffectsCache: boolean,
     sideEffectsCacheReadonly: boolean,
     force: boolean,
-    storePath: string,
+    store: string,
     rawNpmConfig: object,
     unsafePerm: boolean,
     userAgent: string,
@@ -161,7 +161,7 @@ export default async (
     pendingBuilds: [], // TODO: populate this array when runnig with --ignore-scripts
     shamefullyFlatten: false,
     skipped: [],
-    store: opts.storePath,
+    store: opts.store,
   })
 
   if (!opts.ignoreScripts) {
@@ -237,7 +237,7 @@ async function shrinkwrapToDepGraph (
     force: boolean,
     independentLeaves: boolean,
     storeController: StoreController,
-    storePath: string,
+    store: string,
     prefix: string,
     verifyStoreIntegrity: boolean,
   },
@@ -265,7 +265,7 @@ async function shrinkwrapToDepGraph (
         resolution,
         verifyStoreIntegrity: opts.verifyStoreIntegrity,
       })
-      const cacheByEngine = opts.force ? new Map() : await getCacheByEngine(opts.storePath, pkgId)
+      const cacheByEngine = opts.force ? new Map() : await getCacheByEngine(opts.store, pkgId)
       const cache = cacheByEngine[ENGINE_NAME]
       const centralLocation = cache || path.join(fetchResponse.inStoreLocation, 'node_modules', pkgName)
 

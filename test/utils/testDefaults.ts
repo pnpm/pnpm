@@ -29,7 +29,7 @@ export default async function testDefaults (
   verifyStoreIntegrity: boolean,
   sideEffectsCache: boolean,
   force: boolean,
-  storePath: string,
+  store: string,
 }> {
   let store = opts && opts.store || tempy.directory()
   store = await storePath(opts && opts.prefix || process.cwd(), store)
@@ -65,7 +65,7 @@ export default async function testDefaults (
     sideEffectsCache: true,
     force: false,
     registry,
-    storePath: store,
+    store,
     storeController,
     rawNpmConfig: {},
     unsafePerm: true,
