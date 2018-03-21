@@ -10,7 +10,7 @@ export default (shr: Shrinkwrap, pkg: Package) => {
     if (emptyDep !== R.isEmpty(R.keys(shr[depType]))) return false
     if (emptyDep) continue
     for (const depName of Object.keys(pkg[depType])) {
-      if (!shr[depType] || shr.specifiers[depName] !== pkg[depType][depName]) return false
+      if (!shr[depType][depName] || shr.specifiers[depName] !== pkg[depType][depName]) return false
     }
   }
   return true

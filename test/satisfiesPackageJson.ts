@@ -9,5 +9,6 @@ test('satisfiesPackageJson()', t => {
   t.notOk(satisfiesPackageJson({dependencies: {foo: '1.0.0'}, specifiers: {foo: '^1.0.0'}}, {optionalDependencies: {foo: '^1.0.0'}}), 'dep type differs')
   t.notOk(satisfiesPackageJson({dependencies: {foo: '1.0.0'}, specifiers: {foo: '^1.0.0'}}, {dependencies: {foo: '^1.1.0'}}), 'spec does not match' )
   t.notOk(satisfiesPackageJson({dependencies: {foo: '1.0.0'}, specifiers: {foo: '^1.0.0'}}, {dependencies: {foo: '^1.0.0', bar: '2.0.0'}}), 'dep spec missing')
+  t.notOk(satisfiesPackageJson({dependencies: {foo: '1.0.0'}, specifiers: {foo: '^1.0.0', bar: '2.0.0'}}, {dependencies: {foo: '^1.0.0', bar: '2.0.0'}}))
   t.end()
 })
