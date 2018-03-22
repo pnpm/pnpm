@@ -36,5 +36,42 @@ test('satisfiesPackageJson()', t => {
     t.ok(satisfiesPackageJson(shr, pkg))
   }
 
+  {
+    const shr = {
+      dependencies: {
+        bar: '2.0.0',
+        qar: '1.0.0',
+      },
+      specifiers: {
+        bar: '2.0.0',
+        qar: '^1.0.0'
+      }
+    }
+    const pkg = {
+      dependencies: {
+        bar: '2.0.0'
+      },
+    }
+    t.notOk(satisfiesPackageJson(shr, pkg))
+  }
+
+  {
+    const shr = {
+      dependencies: {
+        bar: '2.0.0',
+        qar: '1.0.0',
+      },
+      specifiers: {
+        bar: '2.0.0',
+      }
+    }
+    const pkg = {
+      dependencies: {
+        bar: '2.0.0'
+      },
+    }
+    t.notOk(satisfiesPackageJson(shr, pkg))
+  }
+
   t.end()
 })
