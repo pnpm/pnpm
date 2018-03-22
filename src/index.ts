@@ -23,6 +23,7 @@ import {
   pkgSnapshotToResolution,
   readCurrent,
   readWanted,
+  satisfiesPackageJson,
   Shrinkwrap,
   writeCurrentOnly as writeCurrentShrinkwrapOnly,
 } from 'pnpm-shrinkwrap'
@@ -93,6 +94,10 @@ export default async (
   const modules = await readModulesYaml(path.join(opts.prefix, 'node_modules'))
 
   const pkg = await readPkg(path.join(opts.prefix, 'package.json')) as PackageJson
+
+  if (!satisfiesPackageJson(wantedShrinkwrap, pkg)) {
+    throw new Error('Cannot run headless installation because shrinkwrap.yaml is not up-to-date with package.json')
+  }
 
   packageJsonLogger.debug({ initial: pkg })
 

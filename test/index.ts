@@ -184,3 +184,23 @@ test('orphan packages are removed', async (t) => {
 
   t.end()
 })
+
+test('fail when shrinkwrap.yaml is not up-to-date with package.json', async (t) => {
+  const projectDir = tempy.directory()
+  t.comment(projectDir)
+
+  const simpleDir = path.join(fixtures, 'simple')
+  fse.copySync(path.join(simpleDir, 'package.json'), path.join(projectDir, 'package.json'))
+
+  const simpleWithMoreDepsDir = path.join(fixtures, 'simple-with-more-deps')
+  fse.copySync(path.join(simpleWithMoreDepsDir, 'shrinkwrap.yaml'), path.join(projectDir, 'shrinkwrap.yaml'))
+
+  try {
+    await headless(await testDefaults({prefix: projectDir}))
+    t.fail()
+  } catch (err) {
+    t.equal(err.message, 'Cannot run headless installation because shrinkwrap.yaml is not up-to-date with package.json')
+  }
+
+  t.end()
+})

@@ -94,7 +94,7 @@
     "p-limit": "^1.2.0",
     "package-store": "^0.18.0",
     "path-exists": "^3.0.0",
-    "pnpm-shrinkwrap": "^6.1.0",
+    "pnpm-shrinkwrap": "^6.2.3",
     "ramda": "^0.25.0",
     "read-package-json": "^2.0.13",
     "supi": "^0.14.4",
