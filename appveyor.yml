@@ -12,7 +12,7 @@ install:
   # Testing whether pnpm can upgrade itself
   - pnpm i -g pnpm@next
   - pnpm -v
-  - pnpm install
+  - pnpm install --frozen-shrinkwrap --no-verify-store-integrity --no-lock
 matrix:
   fast_finish: true
 build: off
