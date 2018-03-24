@@ -51,34 +51,34 @@ const readPkg = promisify(readPkgCB)
 
 export type ReporterFunction = (logObj: LogBase) => void
 
-export default async (
-  opts: {
-    childConcurrency?: number,
-    currentShrinkwrap?: Shrinkwrap,
-    development: boolean,
-    optional: boolean,
-    prefix: string,
-    production: boolean,
-    ignoreScripts: boolean,
-    independentLeaves: boolean,
-    storeController: StoreController,
-    verifyStoreIntegrity: boolean,
-    sideEffectsCache: boolean,
-    sideEffectsCacheReadonly: boolean,
-    force: boolean,
-    store: string,
-    rawNpmConfig: object,
-    unsafePerm: boolean,
-    userAgent: string,
-    reporter?: ReporterFunction,
-    packageJson?: PackageJson,
-    packageManager: {
-      name: string,
-      version: string,
-    },
-    wantedShrinkwrap?: Shrinkwrap,
+export interface HeadlessOptions {
+  childConcurrency?: number,
+  currentShrinkwrap?: Shrinkwrap,
+  development: boolean,
+  optional: boolean,
+  prefix: string,
+  production: boolean,
+  ignoreScripts: boolean,
+  independentLeaves: boolean,
+  storeController: StoreController,
+  verifyStoreIntegrity: boolean,
+  sideEffectsCache: boolean,
+  sideEffectsCacheReadonly: boolean,
+  force: boolean,
+  store: string,
+  rawNpmConfig: object,
+  unsafePerm: boolean,
+  userAgent: string,
+  reporter?: ReporterFunction,
+  packageJson?: PackageJson,
+  packageManager: {
+    name: string,
+    version: string,
   },
-) => {
+  wantedShrinkwrap?: Shrinkwrap,
+}
+
+export default async (opts: HeadlessOptions) => {
   const reporter = opts.reporter
   if (reporter) {
     streamParser.on('data', reporter)

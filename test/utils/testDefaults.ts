@@ -5,6 +5,7 @@ import createStore, {StoreController} from 'package-store'
 import path = require('path')
 import {InstallOptions} from 'supi'
 import tempy = require('tempy')
+import {HeadlessOptions} from '@pnpm/headless'
 
 const registry = 'http://localhost:4873/'
 
@@ -20,17 +21,7 @@ export default async function testDefaults (
   resolveOpts?: any, // tslint:disable-line
   fetchOpts?: any, // tslint:disable-line
   storeOpts?: any, // tslint:disable-line
-): Promise<{
-  development: boolean,
-  optional: boolean,
-  production: boolean,
-  independentLeaves: boolean,
-  storeController: StoreController,
-  verifyStoreIntegrity: boolean,
-  sideEffectsCache: boolean,
-  force: boolean,
-  store: string,
-}> {
+): Promise<HeadlessOptions> {
   let store = opts && opts.store || tempy.directory()
   store = await storePath(opts && opts.prefix || process.cwd(), store)
   const rawNpmConfig = {registry}
