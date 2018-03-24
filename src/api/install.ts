@@ -1,3 +1,4 @@
+import headless, {HeadlessOptions} from '@pnpm/headless'
 import runLifecycleHooks, {runPostinstallHooks} from '@pnpm/lifecycle'
 import logger, {
   streamParser,
@@ -19,6 +20,7 @@ import {
 } from 'package-store'
 import path = require('path')
 import {
+  satisfiesPackageJson,
   Shrinkwrap,
   write as saveShrinkwrap,
   writeCurrentOnly as saveCurrentShrinkwrapOnly,
@@ -158,6 +160,23 @@ export async function install (maybeOpts: InstallOptions) {
     const ctx = await getContext(opts, installType)
 
     if (!ctx.pkg) throw new Error('No package.json found')
+
+    if (!opts.update && (opts.frozenShrinkwrap || opts.preferFrozenShrinkwrap && satisfiesPackageJson(ctx.wantedShrinkwrap, ctx.pkg))) {
+      if (opts.shamefullyFlatten) {
+        logger.warn('Headless installation does not support flat node_modules layout yet')
+      } else if (!ctx.existsWantedShrinkwrap) {
+        throw new Error('Headless installation requires a shrinkwrap.yaml file')
+      } else {
+        logger.info('Performing headless installation')
+        await headless({
+          ...opts,
+          currentShrinkwrap: ctx.currentShrinkwrap,
+          packageJson: ctx.pkg,
+          wantedShrinkwrap: ctx.wantedShrinkwrap,
+        } as HeadlessOptions)
+        return
+      }
+    }
 
     const preferredVersions = getPreferredVersionsFromPackage(ctx.pkg)
     const specs = specsToInstallFromPackage(ctx.pkg, {

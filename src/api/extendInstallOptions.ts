@@ -8,6 +8,8 @@ import pnpmPkgJson from '../pnpmPkgJson'
 import { ReporterFunction } from '../types'
 
 export interface InstallOptions {
+  frozenShrinkwrap?: boolean,
+  preferFrozenShrinkwrap?: boolean,
   storeController: StoreController,
   store: string,
   reporter?: ReporterFunction,
@@ -55,6 +57,8 @@ export interface InstallOptions {
 }
 
 export type StrictInstallOptions = InstallOptions & {
+  frozenShrinkwrap: boolean,
+  preferFrozenShrinkwrap: boolean,
   shrinkwrap: boolean,
   shrinkwrapOnly: boolean,
   force: boolean,
@@ -94,6 +98,7 @@ export type StrictInstallOptions = InstallOptions & {
   lockStaleDuration: number,
   tag: string,
   locks: string,
+  unsafePerm: boolean,
 }
 
 const defaults = async (opts: InstallOptions) => {
@@ -109,6 +114,7 @@ const defaults = async (opts: InstallOptions) => {
     development: true,
     engineStrict: false,
     force: false,
+    frozenShrinkwrap: false,
     global: false,
     hooks: {},
     ignoreScripts: false,
@@ -119,6 +125,7 @@ const defaults = async (opts: InstallOptions) => {
     nodeVersion: process.version,
     optional: typeof opts.production === 'boolean' ? opts.production : true,
     packageManager,
+    preferFrozenShrinkwrap: false,
     prefix,
     production: true,
     rawNpmConfig: {},

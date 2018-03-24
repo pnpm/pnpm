@@ -21,6 +21,7 @@
   "dependencies": {
     "@pnpm/check-package": "^1.0.0",
     "@pnpm/fs-locker": "^1.0.0",
+    "@pnpm/headless": "^0.1.2",
     "@pnpm/lifecycle": "^1.0.1",
     "@pnpm/link-bins": "^1.0.1",
     "@pnpm/modules-yaml": "^1.0.0",
@@ -63,7 +64,7 @@
     "path-absolute": "^1.0.0",
     "path-exists": "^3.0.0",
     "pnpm-install-checks": "^1.1.0",
-    "pnpm-shrinkwrap": "^6.1.0",
+    "pnpm-shrinkwrap": "^6.2.3",
     "ramda": "^0.25.0",
     "read-package-json": "^2.0.5",
     "remove-all-except-outer-links": "^1.0.0",
