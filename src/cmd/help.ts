@@ -41,8 +41,13 @@ function getHelpText (command: string) {
           --production, --only prod[uction]  packages in \`devDependencies\` won't be installed
           --only dev[elopment]               only \`devDependencies\` are installed regardless of the \`NODE_ENV\`.
           --[no-]lock
+
           --no-shrinkwrap                    don't read or generate a \`shrinkwrap.yaml\` file
           --shrinkwrap-only                  dependencies are not downloaded only \`shrinkwrap.yaml\` is updated
+          --frozen-shrinkwrap                don't generate a shrinkwrap file and fail if an update is needed
+          --prefer-frozen-shrinkwrap         if the available \`shrinkwrap.yaml\` satisfies the \`package.json\`
+                                             then perform a headless installation.
+
           --use-store-server                 starts a store server in the background.
                                              The store server will keep running after installation is done.
                                              To stop the store server, run \`pnpm server stop\`
