@@ -16,10 +16,17 @@ export default (shr: Shrinkwrap, pkg: Package) => {
     const pkgDepNames = depType === 'optionalDependencies'
       ? Object.keys(pkg.optionalDependencies || {})
       : Object.keys(pkg[depType]).filter((depName) => !pkg.optionalDependencies || !pkg.optionalDependencies[depName])
-    if (pkgDepNames.length !== Object.keys(shr[depType]).length) return false
+    if (pkgDepNames.length !== Object.keys(shr[depType]).length &&
+      pkgDepNames.length !== countOfNonLinkedDeps(shr[depType])) {
+        return false
+      }
     for (const depName of pkgDepNames) {
       if (!shr[depType][depName] || shr.specifiers[depName] !== pkg[depType][depName]) return false
     }
   }
   return true
+}
+
+function countOfNonLinkedDeps (shrDeps: {[depName: string]: string}): number {
+  return R.values(shrDeps).filter((ref) => ref.indexOf('link:') === -1 && ref.indexOf('file:') === -1).length
 }

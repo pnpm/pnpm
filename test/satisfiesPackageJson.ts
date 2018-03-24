@@ -73,5 +73,12 @@ test('satisfiesPackageJson()', t => {
     t.notOk(satisfiesPackageJson(shr, pkg))
   }
 
+  t.ok(satisfiesPackageJson({
+    dependencies: {foo: '1.0.0', linked: 'link:../linked'},
+    specifiers: {foo: '^1.0.0'}
+  }, {
+    dependencies: {foo: '^1.0.0'}
+  }), 'linked packages that are not in package.json are ignored')
+
   t.end()
 })
