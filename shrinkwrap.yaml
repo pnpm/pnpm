@@ -428,7 +428,7 @@ packages:
       '@pnpm/pkgid-to-filename': 1.0.0
       '@pnpm/types': 1.7.0
       '@types/ramda': 0.25.20
-      dependency-path: 1.2.0
+      dependency-path: 1.2.1
       p-limit: 1.2.0
       package-store: 0.18.0
       path-exists: 3.0.0
@@ -545,7 +545,7 @@ packages:
       '@pnpm/npm-resolver': 0.3.14
       '@pnpm/store-path': 1.0.3
       '@types/node': 9.6.0
-      dependency-path: 1.2.0
+      dependency-path: 1.2.1
       pnpm-shrinkwrap: 6.2.4
     dev: false
     engines:
@@ -2222,7 +2222,7 @@ packages:
     dependencies:
       '@types/node': 9.6.0
       '@types/semver': 5.5.0
-      dependency-path: 1.2.0
+      dependency-path: 1.2.1
       pnpm-shrinkwrap: 6.2.4
       semver: 5.5.0
     dev: false
@@ -2230,14 +2230,16 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha512-VueYP2eR0eHvE4meoIUetFcmPuqChq6Bx14/uNqKV42PlqIYtf0AE+067U7dMRSOCnt1IOAMFv3QEOdY0+cwcw==
-  /dependency-path/1.2.0:
+  /dependency-path/1.2.1:
     dependencies:
       '@types/semver': 5.5.0
       encode-registry: 1.1.0
       semver: 5.5.0
     dev: false
+    engines:
+      node: '>=4'
     resolution:
-      integrity: sha512-WCVHx8m35ChWmemrAtp67EiXxp02Z0TRpJUYG1Kh7aloQcPdribxtcOm+GtMzhVnzgANj+mf0eo9aCtrxzzS3Q==
+      integrity: sha512-VcFlKHsD8EoTuVeRY/cKXHhbUDOVLboIaleqEh9qbzpRW9eAhMdbhT7yID274qtq6UvTdpxMxNocfG8Mtg+i0Q==
   /destroy/1.0.4:
     dev: true
     resolution:
@@ -5238,7 +5240,7 @@ packages:
       '@types/js-yaml': 3.10.1
       '@types/node': 9.6.0
       '@types/ramda': 0.25.20
-      dependency-path: 1.2.0
+      dependency-path: 1.2.1
       get-npm-tarball-url: 2.0.1
       js-yaml: 3.11.0
       load-yaml-file: 0.1.0
@@ -6337,7 +6339,7 @@ packages:
       '@types/semver': 5.5.0
       '@zkochan/npm-package-arg': 1.0.0
       common-tags: 1.7.2
-      dependency-path: 1.2.0
+      dependency-path: 1.2.1
       encode-registry: 1.1.0
       execa: 0.10.0
       get-npm-tarball-url: 2.0.1
