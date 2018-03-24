@@ -262,7 +262,7 @@ async function shrinkwrapToDepGraph (
       }
       const depPath = dp.resolve(shr.registry, relDepPath)
       const pkgSnapshot = shr.packages[relDepPath]
-      const independent = opts.independentLeaves && R.isEmpty(pkgSnapshot.dependencies) && R.isEmpty(pkgSnapshot.optionalDependencies)
+      const independent = opts.independentLeaves && pkgSnapshot.dependencies === undefined && pkgSnapshot.optionalDependencies === undefined
       const resolution = pkgSnapshotToResolution(relDepPath, pkgSnapshot, shr.registry)
       // TODO: optimize. This info can be already returned by pkgSnapshotToResolution()
       const pkgName = pkgSnapshot.name || dp.parse(relDepPath)['name'] as string // tslint:disable-line

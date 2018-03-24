@@ -29,6 +29,9 @@ test('installing a simple project', async (t) => {
   t.ok(project.requireModule('is-negative'), 'dev dep installed')
   t.ok(project.requireModule('colors'), 'optional dep installed')
 
+  // test that independent leaves is false by default
+  t.ok(project.has('.localhost+4873/colors'), 'colors is not symlinked from the store')
+
   await project.isExecutable('.bin/rimraf')
 
   t.ok(await project.loadCurrentShrinkwrap())
@@ -245,6 +248,49 @@ test('installation of a dependency that has a resolved peer in subdeps', async (
 
   const project = assertProject(t, prefix)
   t.ok(project.requireModule('pnpm-default-reporter'), 'prod dep installed')
+
+  t.end()
+})
+
+test('independent-leaves: installing a simple project', async (t) => {
+  const prefix = path.join(fixtures, 'simple')
+  await rimraf(path.join(prefix, 'node_modules'))
+  const reporter = sinon.spy()
+
+  await headless(await testDefaults({prefix, reporter, independentLeaves: true}))
+
+  const project = assertProject(t, prefix)
+  t.ok(project.requireModule('is-positive'), 'prod dep installed')
+  t.ok(project.requireModule('rimraf'), 'prod dep installed')
+  t.ok(project.requireModule('is-negative'), 'dev dep installed')
+  t.ok(project.requireModule('colors'), 'optional dep installed')
+  t.ok(project.hasNot('.localhost+4873/colors'), 'colors is symlinked from the store')
+
+  await project.isExecutable('.bin/rimraf')
+
+  t.ok(await project.loadCurrentShrinkwrap())
+  t.ok(await project.loadModules())
+
+  t.ok(reporter.calledWithMatch({
+    initial: require(path.join(prefix, 'package.json')),
+    level: 'debug',
+    name: 'pnpm:package-json',
+  } as PackageJsonLog), 'initial package.json logged')
+  t.ok(reporter.calledWithMatch({
+    added: 15,
+    level: 'debug',
+    name: 'pnpm:stats',
+  } as StatsLog), 'added stat')
+  t.ok(reporter.calledWithMatch({
+    removed: 0,
+    level: 'debug',
+    name: 'pnpm:stats',
+  } as StatsLog), 'removed stat')
+  t.ok(reporter.calledWithMatch({
+    level: 'debug',
+    message: 'importing_done',
+    name: 'pnpm:stage',
+  } as StageLog), 'importing stage done logged')
 
   t.end()
 })
