@@ -1,0 +1,7 @@
+{
+  "name": "resolved-peer-deps-in-subdeps",
+  "version": "1.0.0",
+  "dependencies": {
+    "pnpm-default-reporter": "0.14.7"
+  }
+}

@@ -265,7 +265,7 @@ async function shrinkwrapToDepGraph (
       const independent = opts.independentLeaves && R.isEmpty(pkgSnapshot.dependencies) && R.isEmpty(pkgSnapshot.optionalDependencies)
       const resolution = pkgSnapshotToResolution(relDepPath, pkgSnapshot, shr.registry)
       // TODO: optimize. This info can be already returned by pkgSnapshotToResolution()
-      const pkgName = pkgSnapshot.name || dp.parse(relDepPath)['name'] // tslint:disable-line
+      const pkgName = pkgSnapshot.name || dp.parse(relDepPath)['name'] as string // tslint:disable-line
       const pkgId = pkgSnapshot.id || depPath
       const fetchResponse = opts.storeController.fetchPackage({
         force: false,

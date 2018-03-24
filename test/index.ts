@@ -237,3 +237,14 @@ test('installing using passed in shrinkwrap files', async (t) => {
 
   t.end()
 })
+
+test('installation of a dependency that has a resolved peer in subdeps', async (t) => {
+  const prefix = path.join(fixtures, 'resolved-peer-deps-in-subdeps')
+
+  await headless(await testDefaults({prefix}))
+
+  const project = assertProject(t, prefix)
+  t.ok(project.requireModule('pnpm-default-reporter'), 'prod dep installed')
+
+  t.end()
+})
