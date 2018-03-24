@@ -54,6 +54,7 @@ export type ReporterFunction = (logObj: LogBase) => void
 export default async (
   opts: {
     childConcurrency?: number,
+    currentShrinkwrap?: Shrinkwrap,
     development: boolean,
     optional: boolean,
     prefix: string,
@@ -70,10 +71,12 @@ export default async (
     unsafePerm: boolean,
     userAgent: string,
     reporter?: ReporterFunction,
+    packageJson?: PackageJson,
     packageManager: {
       name: string,
       version: string,
     },
+    wantedShrinkwrap?: Shrinkwrap,
   },
 ) => {
   const reporter = opts.reporter
@@ -85,16 +88,16 @@ export default async (
     throw new TypeError('opts.prefix should be a string')
   }
 
-  const wantedShrinkwrap = await readWanted(opts.prefix, {ignoreIncompatible: false})
+  const wantedShrinkwrap = opts.wantedShrinkwrap || await readWanted(opts.prefix, {ignoreIncompatible: false})
 
   if (!wantedShrinkwrap) {
-    throw new Error('Headless installation can be done only with a shrinkwrap.yaml file')
+    throw new Error('Headless installation requires a shrinkwrap.yaml file')
   }
 
-  const currentShrinkwrap = await readCurrent(opts.prefix, {ignoreIncompatible: false})
+  const currentShrinkwrap = opts.currentShrinkwrap || await readCurrent(opts.prefix, {ignoreIncompatible: false})
   const modules = await readModulesYaml(path.join(opts.prefix, 'node_modules'))
 
-  const pkg = await readPkg(path.join(opts.prefix, 'package.json')) as PackageJson
+  const pkg = opts.packageJson || await readPkg(path.join(opts.prefix, 'package.json')) as PackageJson
 
   if (!satisfiesPackageJson(wantedShrinkwrap, pkg)) {
     throw new Error('Cannot run headless installation because shrinkwrap.yaml is not up-to-date with package.json')

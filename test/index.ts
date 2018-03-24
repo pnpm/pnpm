@@ -5,6 +5,7 @@ import test = require('tape')
 import tempy = require('tempy')
 import path = require('path')
 import exists = require('path-exists')
+import {readWanted} from 'pnpm-shrinkwrap'
 import rimraf = require('rimraf-then')
 import sinon = require('sinon')
 import {
@@ -213,6 +214,26 @@ test('installing local dependency', async (t) => {
 
   const project = assertProject(t, prefix)
   t.ok(project.requireModule('tar-pkg'), 'prod dep installed')
+
+  t.end()
+})
+
+test('installing using passed in shrinkwrap files', async (t) => {
+  const prefix = tempy.directory()
+  t.comment(prefix)
+
+  const simplePkgPath = path.join(fixtures, 'simple')
+  const wantedShr = await readWanted(simplePkgPath, {ignoreIncompatible: false})
+  const pkg = require(path.join(simplePkgPath, 'package.json'))
+
+  await headless(await testDefaults({prefix, wantedShrinkwrap: wantedShr, packageJson: pkg}))
+
+  const project = assertProject(t, prefix)
+
+  t.ok(project.requireModule('is-positive'), 'prod dep installed')
+  t.ok(project.requireModule('rimraf'), 'prod dep installed')
+  t.ok(project.requireModule('is-negative'), 'dev dep installed')
+  t.ok(project.requireModule('colors'), 'optional dep installed')
 
   t.end()
 })
