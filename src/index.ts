@@ -12,6 +12,7 @@ import {
   getCacheByEngine,
   PackageFilesResponse,
 } from '@pnpm/package-requester'
+import pkgIdToFilename from '@pnpm/pkgid-to-filename'
 import {PackageJson} from '@pnpm/types'
 import dp = require('dependency-path')
 import pLimit = require('p-limit')
@@ -274,8 +275,10 @@ async function shrinkwrapToDepGraph (
       const cache = cacheByEngine[ENGINE_NAME]
       const centralLocation = cache || path.join(fetchResponse.inStoreLocation, 'node_modules', pkgName)
 
-      // TODO: make this work with local deps. Local deps have IDs that can be converted to location, only via `.${pkgIdToFilename(node.pkg.id)}`
-      const modules = path.join(nodeModules, `.${depPath}`, 'node_modules')
+      // NOTE: This code will not convert the depPath with peer deps correctly
+      // Unfortunately, there is currently no way to tell if the last dir in the path is originally there or added to separate
+      // the diferent peer dependency sets
+      const modules = path.join(nodeModules, `.${pkgIdToFilename(depPath)}`, 'node_modules')
       const peripheralLocation = !independent
         ? path.join(modules, pkgName)
         : centralLocation

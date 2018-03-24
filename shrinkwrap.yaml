@@ -4,6 +4,7 @@ dependencies:
   '@pnpm/link-bins': 1.0.1
   '@pnpm/modules-yaml': 1.0.0
   '@pnpm/package-requester': 0.8.5
+  '@pnpm/pkgid-to-filename': 1.0.0
   '@pnpm/types': 1.7.0
   '@types/ramda': 0.25.20
   dependency-path: 1.2.0
@@ -5244,6 +5245,7 @@ specifiers:
   '@pnpm/logger': ^1.0.1
   '@pnpm/modules-yaml': ^1.0.0
   '@pnpm/package-requester': ^0.8.4
+  '@pnpm/pkgid-to-filename': ^1.0.0
   '@pnpm/store-path': ^1.0.3
   '@pnpm/types': ^1.7.0
   '@types/fs-extra': ^5.0.1

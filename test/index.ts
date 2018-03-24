@@ -204,3 +204,15 @@ test('fail when shrinkwrap.yaml is not up-to-date with package.json', async (t) 
 
   t.end()
 })
+
+test('installing local dependency', async (t) => {
+  const prefix = path.join(fixtures, 'has-local-dep')
+  const reporter = sinon.spy()
+
+  await headless(await testDefaults({prefix, reporter}))
+
+  const project = assertProject(t, prefix)
+  t.ok(project.requireModule('tar-pkg'), 'prod dep installed')
+
+  t.end()
+})
