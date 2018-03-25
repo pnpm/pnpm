@@ -16,14 +16,18 @@ test('preserve subdeps on update', async (t: tape.Test) => {
     addDistTag('foobarqar', '1.0.0', 'latest'),
     addDistTag('foo', '100.0.0', 'latest'),
     addDistTag('bar', '100.0.0', 'latest'),
+    addDistTag('abc-grand-parent-with-c', '1.0.0', 'latest'),
+    addDistTag('abc-parent-with-ab', '1.0.0', 'latest'),
   ])
 
-  await installPkgs(['foobarqar'], await testDefaults())
+  await installPkgs(['foobarqar', 'abc-grand-parent-with-c'], await testDefaults())
 
   await Promise.all([
     addDistTag('foobarqar', '1.0.1', 'latest'),
     addDistTag('foo', '100.1.0', 'latest'),
     addDistTag('bar', '100.1.0', 'latest'),
+    addDistTag('abc-grand-parent-with-c', '1.0.1', 'latest'),
+    addDistTag('abc-parent-with-ab', '1.0.1', 'latest'),
   ])
 
   await install(await testDefaults({update: true, depth: 0}))
@@ -31,6 +35,7 @@ test('preserve subdeps on update', async (t: tape.Test) => {
   const shr = await project.loadShrinkwrap()
 
   t.ok(shr.packages)
+  t.ok(shr.packages['/abc-parent-with-ab/1.0.0/peer-c@1.0.0'], 'preserve version of package that has resolved peer deps')
   t.ok(shr.packages['/foobarqar/1.0.1'])
   t.deepEqual(shr.packages['/foobarqar/1.0.1'].dependencies, {
     bar: '100.0.0',

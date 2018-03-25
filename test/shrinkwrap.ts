@@ -372,7 +372,7 @@ test('subdeps are updated on repeat install if outer shrinkwrap.yaml does not ma
 
   shr.packages['/dep-of-pkg-with-1-dep/100.1.0'] = {
     resolution: {
-      integrity: 'sha1-TorYQB9bz9ktHFqtbcZrL1MxGK0=',
+      integrity: 'sha512-NrDz2149fygGT7uMe8Jj6rsgxZWuJQJqXfWk/gj5KWoxfRxmXkQZnPgOdoLnxCEq3RrKOotVcgUJtlM8fNRgvA==',
     },
   }
 
@@ -575,12 +575,12 @@ test.skip('installing from shrinkwrap when using npm enterprise', async (t: tape
 test('packages are placed in devDependencies even if they are present as non-dev as well', async (t: tape.Test) => {
   const project = prepare(t, {
     devDependencies: {
-      'dep-of-pkg-with-1-dep': '^1.1.0',
-      'pkg-with-1-dep': '^1.0.0',
+      'dep-of-pkg-with-1-dep': '^100.1.0',
+      'pkg-with-1-dep': '^100.0.0',
     },
   })
 
-  await addDistTag('dep-of-pkg-with-1-dep', '1.1.0', 'latest')
+  await addDistTag('dep-of-pkg-with-1-dep', '100.1.0', 'latest')
 
   const reporter = sinon.spy()
   await install(await testDefaults({reporter}))
@@ -594,7 +594,7 @@ test('packages are placed in devDependencies even if they are present as non-dev
     added: {
       dependencyType: 'dev',
       name: 'dep-of-pkg-with-1-dep',
-      version: '1.1.0',
+      version: '100.1.0',
     },
     level: 'info',
     name: 'pnpm:root',
@@ -603,7 +603,7 @@ test('packages are placed in devDependencies even if they are present as non-dev
     added: {
       dependencyType: 'dev',
       name: 'pkg-with-1-dep',
-      version: '1.0.0',
+      version: '100.0.0',
     },
     level: 'info',
     name: 'pnpm:root',
@@ -646,7 +646,7 @@ test('updating shrinkwrap version 3 to 3.1', async (t: tape.Test) => {
           abc-parent-with-ab: /abc-parent-with-ab/1.0.0/peer-c@1.0.0
           peer-c: 1.0.0
         resolution:
-          integrity: sha512-/sPoyuCaOuJAG6Gcq7HxiW8/++Jj3zmzfymr+mKbNG8VftROlRAd1qoOtA37xNJXYNRT2Zwb0Gym2fdt/eXKaQ==
+          integrity: sha512-3EErLw7/353/uC+pncEwER5VrBL5H4ZW92zGWsIsO+FrldwHEg4jkPjkFA/QGiZzkFMpJE9ttZ2+Hn15zINLWQ==
       /abc-parent-with-ab/1.0.0/peer-c@1.0.0:
         dependencies:
           abc: /abc/1.0.0/165e1e08a3f7e7f77ddb572ad0e55660
@@ -654,7 +654,7 @@ test('updating shrinkwrap version 3 to 3.1', async (t: tape.Test) => {
           peer-b: 1.0.0
         id: localhost+4873/abc-parent-with-ab/1.0.0
         resolution:
-          integrity: sha512-8ULNWX/kq0K8zdbLdN9rjxJIVaqihDJbTTJSeH8cfz0rXleV2RxBhKJ9kqjk/kmplpHJEDyhLKDjubWlS10WUA==
+          integrity: sha512-t0Hk901ZrPzw7xZa3vqQn6IO5IDhOCee2SGYP0Lt1DKSDWWsm5SdZG0Wc61l0yXnEn3Fhp6NodWEJ9kCSjjXjg==
       /abc/1.0.0/165e1e08a3f7e7f77ddb572ad0e55660:
         dependencies:
           dep-of-pkg-with-1-dep: 100.0.0
@@ -663,19 +663,19 @@ test('updating shrinkwrap version 3 to 3.1', async (t: tape.Test) => {
           peer-c: 1.0.0
         id: localhost+4873/abc/1.0.0
         resolution:
-          integrity: sha512-PH3blWOnt6/jzbuoTHXRoV5jeBsIv+Xg0CyVmAarB/n086637teQj6hnCgGp2oc18ytYeNxjUAKM1jzm0CPSZA==
+          integrity: sha512-zbZb8ge7WUrBOv9xYmZ/1M5Y4Mw1bX7nl/oHMDv2PTjBjvVIth4ekgYl/fv6HMltv8WFvvOQyX8DrdOiik9u5A==
       /dep-of-pkg-with-1-dep/100.0.0:
         resolution:
-          integrity: sha512-X7jXbtkdH5N79IYmVGSV3KHQjOo+RsbgO7xIQZ0OpOQlVzxoJ+e30l0G6STwgw1lgOOo5GQQ9C7VFSjnCaX1Sw==
+          integrity: sha512-RWObNQIluSr56fVbOwD75Dt5CE2aiPReTMMUblYEMEqUI+iJw5ovTyO7LzUG/VJ4iVL2uUrbkQ6+rq4z4WOdDw==
       /peer-a/1.0.0:
         resolution:
-          integrity: sha512-B8kajty4JNgNS7Oc82g9pY/nqUTjgMYzgXwbQL3NS2Mgi5asBcd5G3P0P38F8jdqhLy/OjYJ5FJlvmbJQX5azQ==
+          integrity: sha512-7askcvPrlKmQ6rZ7DYMlqm5OzjH/YGA1ya52ORZDFg7iQe/tdbUYy9dkhRVK7f0fw/eijwzq8n35gJVdxwtWAQ==
       /peer-b/1.0.0:
         resolution:
-          integrity: sha512-MJi3M3Z34W8H97kn9wd0yV4sGStWuEm9eGhSqB7YpHi6sMIBGAVM8OAUyTNPHHoLvdZpbzcRScUWgkTqHpBdrQ==
+          integrity: sha512-ITIi+Xxva7/j2aRh/LydLppOk0SbCvgxnnNXq++BwGOiN/89Z5cbCThldVmUEYlHx5RSGY9yjcre8+YT4vjc0A==
       /peer-c/1.0.0:
         resolution:
-          integrity: sha512-/bP9J3v+pIx6S6HWlZdWIHlmNOuiKSXZxxn7CXdjXwm8ypOtaEw6F08aXTxPDzFotpaRcdS6nN6K2DzA40XyPg==
+          integrity: sha512-iTTaaqSlxmLgaaadWpTWL2CSCbzRkYRk8UhqdYgwNkqrKW5w9woqjyPxJI0da6BDd4Ebj0TwpJ775ybqOjYUKw==
     registry: 'http://localhost:4873/'
     shrinkwrapVersion: 3
     specifiers:

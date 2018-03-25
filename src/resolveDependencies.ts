@@ -116,7 +116,7 @@ export default async function resolveDependencies (
           // then bar@1.0.0 can be reused for foo@1.1.0
           if (!reference && wantedDependency.alias && semver.validRange(wantedDependency.pref) !== null &&
             preferedDependencies[wantedDependency.alias] &&
-            refSatisfies(preferedDependencies[wantedDependency.alias], wantedDependency.pref)) {
+            preferedSatisfiesWanted(preferedDependencies[wantedDependency.alias], wantedDependency as {alias: string, pref: string}, ctx.wantedShrinkwrap)) {
             proceed = true
             reference = preferedDependencies[wantedDependency.alias]
           }
@@ -143,16 +143,19 @@ export default async function resolveDependencies (
   return pkgAddresses
 }
 
-// A reference is not always a version.
-// We assume that it does not satisfy the range if it's raw form is not a version
-// This logic can be made smarter because
-// if the reference is /foo/1.0.0/bar@2.0.0, foo's version if 1.0.0
-function refSatisfies (reference: string, range: string) {
-  try {
-    return semver.satisfies(reference, range, true)
-  } catch (err) {
+function preferedSatisfiesWanted (
+  preferredRef: string,
+  wantedDep: {alias: string, pref: string},
+  shr: Shrinkwrap,
+) {
+  const relDepPath = dp.refToRelative(preferredRef, wantedDep.alias)
+  const pkgSnapshot = shr.packages && shr.packages[relDepPath]
+  if (!pkgSnapshot) {
+    logger.warn(`Could not find prefered package ${relDepPath} in shrinkwrap`)
     return false
   }
+  const nameVer = nameVerFromPkgSnapshot(relDepPath, pkgSnapshot)
+  return semver.satisfies(nameVer.version, wantedDep.pref, true)
 }
 
 function getInfoFromShrinkwrap (
@@ -221,6 +224,7 @@ async function install (
 ): Promise<PkgAddress | null> {
   const keypath = options.keypath || []
   const proceed = options.proceed || !options.shrinkwrapResolution || ctx.force || keypath.length <= ctx.depth
+    || options.dependencyShrinkwrap && options.dependencyShrinkwrap.peerDependencies
   const parentIsInstallable = options.parentIsInstallable === undefined || options.parentIsInstallable
 
   if (!options.shamefullyFlatten && !options.reinstallForFlatten && !proceed && options.depPath &&
