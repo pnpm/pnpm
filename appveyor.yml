@@ -21,3 +21,4 @@ test_script:
   - node --version
   - npm --version
   - npm t
+skip_tags: true
