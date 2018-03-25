@@ -12,6 +12,7 @@ import {
   StageLog,
   StatsLog,
   PackageJsonLog,
+  ProgressLog,
 } from 'supi'
 import testDefaults from './utils/testDefaults'
 
@@ -57,6 +58,11 @@ test('installing a simple project', async (t) => {
     message: 'importing_done',
     name: 'pnpm:stage',
   } as StageLog), 'importing stage done logged')
+  t.ok(reporter.calledWithMatch({
+    level: 'debug',
+    pkgId: 'localhost+4873/is-negative/2.1.0',
+    status: 'resolving_content',
+  } as ProgressLog), 'logs that package is being resolved')
 
   t.end()
 })
@@ -206,11 +212,23 @@ test('available packages are used when node_modules is not clean', async (t) => 
   fse.copySync(path.join(hasGlobAndRimrafDir, 'package.json'), destPackageJsonPath)
   fse.copySync(path.join(hasGlobAndRimrafDir, 'shrinkwrap.yaml'), destShrinkwrapYamlPath)
 
-  await headless(await testDefaults({prefix: projectDir}))
+  const reporter = sinon.spy()
+  await headless(await testDefaults({prefix: projectDir, reporter}))
 
   const project = assertProject(t, projectDir)
   await project.has('rimraf')
   await project.has('glob')
+
+  t.notOk(reporter.calledWithMatch({
+    level: 'debug',
+    pkgId: 'localhost+4873/balanced-match/1.0.0',
+    status: 'resolving_content',
+  } as ProgressLog), 'does not resolve already available package')
+  t.ok(reporter.calledWithMatch({
+    level: 'debug',
+    pkgId: 'localhost+4873/rimraf/2.6.2',
+    status: 'resolving_content',
+  } as ProgressLog), 'resolves rimraf')
 
   t.end()
 })
