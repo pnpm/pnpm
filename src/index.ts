@@ -152,7 +152,7 @@ export default async (opts: HeadlessOptions) => {
 
   await Promise.all([
     linkAllModules(depGraph, {optional: opts.optional}),
-    linkAllPkgs(opts.storeController, R.values(depGraph), opts),
+    linkAllPkgs(opts.storeController, R.values(depGraph).filter((depNode) => !depNode.skip), opts),
   ])
   stageLogger.debug('importing_done')
 
@@ -213,7 +213,7 @@ async function linkRootPackages (
       .map(async (alias) => {
         const depPath = dp.refToAbsolute(allDeps[alias], alias, shr.registry)
         const depNode = depGraph[depPath]
-        if (!depNode) {
+        if (!depNode || depNode.skip) {
           return
         }
         await symlinkDependencyTo(alias, depNode, baseNodeModules)
@@ -256,10 +256,8 @@ async function shrinkwrapToDepGraph (
   const graph: DepGraphNodesByDepPath = {}
   if (shr.packages) {
     for (const relDepPath of R.keys(shr.packages)) {
-      if (currentPackages[relDepPath] && R.equals(currentPackages[relDepPath].dependencies, shr.packages[relDepPath].dependencies) &&
-        R.equals(currentPackages[relDepPath].optionalDependencies, shr.packages[relDepPath].optionalDependencies)) {
-        continue
-      }
+      const skip = (currentPackages[relDepPath] && R.equals(currentPackages[relDepPath].dependencies, shr.packages[relDepPath].dependencies) &&
+        R.equals(currentPackages[relDepPath].optionalDependencies, shr.packages[relDepPath].optionalDependencies))
       const depPath = dp.resolve(shr.registry, relDepPath)
       const pkgSnapshot = shr.packages[relDepPath]
       const independent = opts.independentLeaves && pkgSnapshot.dependencies === undefined && pkgSnapshot.optionalDependencies === undefined
@@ -287,6 +285,8 @@ async function shrinkwrapToDepGraph (
         : centralLocation
       graph[depPath] = {
         centralLocation,
+        // TODO: This could be just a map of alias to the child's peripheralLocation.
+        // In that case the skipping field could be avoided
         children: getChildren(pkgSnapshot, shr.registry),
         fetchingFiles: fetchResponse.fetchingFiles,
         finishing: fetchResponse.finishing,
@@ -298,6 +298,7 @@ async function shrinkwrapToDepGraph (
         optionalDependencies: new Set(R.keys(pkgSnapshot.optionalDependencies)),
         peripheralLocation,
         pkgId,
+        skip,
       }
     }
   }
@@ -328,6 +329,7 @@ export interface DepGraphNode {
   optional: boolean,
   pkgId: string, // TODO: this option is currently only needed when running postinstall scripts but even there it should be not used
   isBuilt: boolean,
+  skip: boolean,
 }
 
 export interface DepGraphNodesByDepPath {
@@ -364,32 +366,34 @@ async function linkAllBins (
   },
 ) {
   return Promise.all(
-    R.values(depGraph).map((depNode) => limitLinking(async () => {
-      const binPath = path.join(depNode.peripheralLocation, 'node_modules', '.bin')
+    R.values(depGraph)
+      .filter((depNode) => !depNode.skip)
+      .map((depNode) => limitLinking(async () => {
+        const binPath = path.join(depNode.peripheralLocation, 'node_modules', '.bin')
 
-      const childrenToLink = opts.optional
-          ? depNode.children
-          : R.keys(depNode.children)
-            .reduce((nonOptionalChildren, childAlias) => {
-              if (!depNode.optionalDependencies.has(childAlias)) {
-                nonOptionalChildren[childAlias] = depNode.children[childAlias]
-              }
-              return nonOptionalChildren
-            }, {})
+        const childrenToLink = opts.optional
+            ? depNode.children
+            : R.keys(depNode.children)
+              .reduce((nonOptionalChildren, childAlias) => {
+                if (!depNode.optionalDependencies.has(childAlias)) {
+                  nonOptionalChildren[childAlias] = depNode.children[childAlias]
+                }
+                return nonOptionalChildren
+              }, {})
 
-      await Promise.all(
-        R.keys(childrenToLink)
-          // .filter((alias) => depGraph[childrenToLink[alias]].installable)
-          .map((alias) => path.join(depNode.modules, alias))
-          .map((target) => linkPackageBins(target, binPath)),
-      )
+        await Promise.all(
+          R.keys(childrenToLink)
+            // .filter((alias) => depGraph[childrenToLink[alias]].installable)
+            .map((alias) => path.join(depNode.modules, alias))
+            .map((target) => linkPackageBins(target, binPath)),
+        )
 
-      // link also the bundled dependencies` bins
-      if (depNode.hasBundledDependencies) {
-        const bundledModules = path.join(depNode.peripheralLocation, 'node_modules')
-        await linkBins(bundledModules, binPath)
-      }
-    })),
+        // link also the bundled dependencies` bins
+        if (depNode.hasBundledDependencies) {
+          const bundledModules = path.join(depNode.peripheralLocation, 'node_modules')
+          await linkBins(bundledModules, binPath)
+        }
+      })),
   )
 }
 
@@ -401,7 +405,7 @@ async function linkAllModules (
 ) {
   return Promise.all(
     R.values(depGraph)
-      .filter((depNode) => !depNode.independent)
+      .filter((depNode) => !depNode.independent && !depNode.skip)
       .map((depNode) => limitLinking(async () => {
         const childrenToLink = opts.optional
           ? depNode.children

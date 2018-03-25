@@ -1,0 +1,8 @@
+{
+  "name": "has-glob",
+  "version": "1.0.0",
+  "dependencies": {
+    "glob": "^7.0.5",
+    "rimraf": "^2.6.2"
+  }
+}

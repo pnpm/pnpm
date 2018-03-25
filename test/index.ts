@@ -189,6 +189,32 @@ test('orphan packages are removed', async (t) => {
   t.end()
 })
 
+test('available packages are used when node_modules is not clean', async (t) => {
+  const projectDir = tempy.directory()
+  t.comment(projectDir)
+
+  const destPackageJsonPath = path.join(projectDir, 'package.json')
+  const destShrinkwrapYamlPath = path.join(projectDir, 'shrinkwrap.yaml')
+
+  const hasGlobDir = path.join(fixtures, 'has-glob')
+  const hasGlobAndRimrafDir = path.join(fixtures, 'has-glob-and-rimraf')
+  fse.copySync(path.join(hasGlobDir, 'package.json'), destPackageJsonPath)
+  fse.copySync(path.join(hasGlobDir, 'shrinkwrap.yaml'), destShrinkwrapYamlPath)
+
+  await headless(await testDefaults({prefix: projectDir}))
+
+  fse.copySync(path.join(hasGlobAndRimrafDir, 'package.json'), destPackageJsonPath)
+  fse.copySync(path.join(hasGlobAndRimrafDir, 'shrinkwrap.yaml'), destShrinkwrapYamlPath)
+
+  await headless(await testDefaults({prefix: projectDir}))
+
+  const project = assertProject(t, projectDir)
+  await project.has('rimraf')
+  await project.has('glob')
+
+  t.end()
+})
+
 test('fail when shrinkwrap.yaml is not up-to-date with package.json', async (t) => {
   const projectDir = tempy.directory()
   t.comment(projectDir)
