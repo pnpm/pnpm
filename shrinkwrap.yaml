@@ -42,7 +42,7 @@ dependencies:
   retry: 0.10.1
   signal-exit: 3.0.2
   strip-color: 0.1.0
-  supi: 0.14.8
+  supi: 0.14.9
   text-table: 0.2.0
   tree-kill: 1.2.0
   update-notifier: 2.3.0
@@ -419,7 +419,7 @@ packages:
       '@pnpm/logger': ^1.0.0
     resolution:
       integrity: sha512-shgFfcZ4Eu7UXR95xgt+x8lFA0tXFciLOuA8Me771dAx7Idgh3s257Aua9piSSR3KyVODL/NAULb+BIuAuQRXg==
-  /@pnpm/headless/0.1.2:
+  /@pnpm/headless/0.1.4:
     dependencies:
       '@pnpm/lifecycle': 1.0.1
       '@pnpm/link-bins': 1.0.1
@@ -435,7 +435,7 @@ packages:
       pnpm-shrinkwrap: 6.2.4
       ramda: 0.25.0
       read-package-json: 2.0.13
-      supi: 0.14.8
+      supi: 0.14.9
       symlink-dir: 1.1.2
       util.promisify: 1.0.0
     dev: false
@@ -444,7 +444,7 @@ packages:
     peerDependencies:
       '@pnpm/logger': ^1.0.0
     resolution:
-      integrity: sha512-VCSMQYdFy/7/dC997Rvc0adSiAj0NXXVj6GJT/y8LRQHwGdSjkKoJHiuGGkSEQqAooEvMJFRm/iITM3mI+9GyA==
+      integrity: sha512-pZTn/kCm6SDRubWx2DNPnqJuNKVJGZ2x1l3C7rGoYKyAx6gnKTuIpHYl1rFqhPc+Wbh0bt/laeURLKT6Xx4gEA==
   /@pnpm/lifecycle/1.0.1:
     dependencies:
       '@pnpm/types': 1.7.0
@@ -6313,11 +6313,11 @@ packages:
       node: '>=0.10.0'
     resolution:
       integrity: sha1-PFMZQukIwml8DsNEhYwobHygpgo=
-  /supi/0.14.8:
+  /supi/0.14.9:
     dependencies:
       '@pnpm/check-package': 1.0.0
       '@pnpm/fs-locker': 1.0.1
-      '@pnpm/headless': 0.1.2
+      '@pnpm/headless': 0.1.4
       '@pnpm/lifecycle': 1.0.1
       '@pnpm/link-bins': 1.0.1
       '@pnpm/modules-yaml': 1.0.0
@@ -6379,7 +6379,7 @@ packages:
     peerDependencies:
       '@pnpm/logger': ^1.0.0
     resolution:
-      integrity: sha512-L8Cik1xMrKEU5MDX1Z2EtPbZ7y4K27Ld58vYu/TsbIF5YrEKzT1X14QKeJdBvaauF/V2R6E+/H/QtXn4a1dSlQ==
+      integrity: sha512-+9HFpF2cjhGDSrN8obubBonxQbW4lcpzcv/VegTbnJ5kyqLFQK1DGr8pZWC7U3Agf7jEiWJs3AvVDHojumxIRQ==
   /supports-color/2.0.0:
     dev: true
     engines:
@@ -7212,7 +7212,7 @@ specifiers:
   sepia: ^2.0.2
   signal-exit: ^3.0.2
   strip-color: ^0.1.0
-  supi: ^0.14.8
+  supi: ^0.14.9
   tape: ^4.6.3
   tape-promise: ^2.0.1
   text-table: ^0.2.0
