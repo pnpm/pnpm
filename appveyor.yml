@@ -19,3 +19,4 @@ build: off
 version: '{build}'
 test_script:
   - npm test
+skip_tags: true
