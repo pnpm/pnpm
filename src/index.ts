@@ -152,7 +152,7 @@ export default async (opts: HeadlessOptions) => {
 
   await Promise.all([
     linkAllModules(depGraph, {optional: opts.optional}),
-    linkAllPkgs(opts.storeController, R.values(depGraph).filter((depNode) => !depNode.skip), opts),
+    linkAllPkgs(opts.storeController, R.values(depGraph), opts),
   ])
   stageLogger.debug('importing_done')
 
@@ -213,10 +213,10 @@ async function linkRootPackages (
       .map(async (alias) => {
         const depPath = dp.refToAbsolute(allDeps[alias], alias, shr.registry)
         const depNode = depGraph[depPath]
-        if (!depNode || depNode.skip) {
+        if (!depNode) {
           return
         }
-        await symlinkDependencyTo(alias, depNode, baseNodeModules)
+        await symlinkDependencyTo(alias, depNode.peripheralLocation, baseNodeModules)
         const isDev = shr.devDependencies && shr.devDependencies[alias]
         const isOptional = shr.optionalDependencies && shr.optionalDependencies[alias]
 
@@ -255,15 +255,19 @@ async function shrinkwrapToDepGraph (
   const currentPackages = currentShrinkwrap && currentShrinkwrap.packages || {}
   const graph: DepGraphNodesByDepPath = {}
   if (shr.packages) {
+    const pkgSnapshotByDepPath = {}
     for (const relDepPath of R.keys(shr.packages)) {
-      const skip = (currentPackages[relDepPath] && R.equals(currentPackages[relDepPath].dependencies, shr.packages[relDepPath].dependencies) &&
-        R.equals(currentPackages[relDepPath].optionalDependencies, shr.packages[relDepPath].optionalDependencies))
+      if (currentPackages[relDepPath] && R.equals(currentPackages[relDepPath].dependencies, shr.packages[relDepPath].dependencies) &&
+        R.equals(currentPackages[relDepPath].optionalDependencies, shr.packages[relDepPath].optionalDependencies)) {
+          continue
+        }
       const depPath = dp.resolve(shr.registry, relDepPath)
       const pkgSnapshot = shr.packages[relDepPath]
-      const independent = opts.independentLeaves && pkgSnapshot.dependencies === undefined && pkgSnapshot.optionalDependencies === undefined
+      pkgSnapshotByDepPath[depPath] = pkgSnapshot
+      const independent = opts.independentLeaves && pkgIsIndependent(pkgSnapshot)
       const resolution = pkgSnapshotToResolution(relDepPath, pkgSnapshot, shr.registry)
       // TODO: optimize. This info can be already returned by pkgSnapshotToResolution()
-      const pkgName = pkgSnapshot.name || dp.parse(relDepPath)['name'] as string // tslint:disable-line
+      const pkgName = nameVerFromPkgSnapshot(relDepPath, pkgSnapshot).name
       const pkgId = pkgSnapshot.id || depPath
       const fetchResponse = opts.storeController.fetchPackage({
         force: false,
@@ -272,8 +276,7 @@ async function shrinkwrapToDepGraph (
         resolution,
         verifyStoreIntegrity: opts.verifyStoreIntegrity,
       })
-      const cacheByEngine = opts.force ? new Map() : await getCacheByEngine(opts.store, pkgId)
-      const cache = cacheByEngine[ENGINE_NAME]
+      const cache = !opts.force && await getCache(opts.store, pkgId)
       const centralLocation = cache || path.join(fetchResponse.inStoreLocation, 'node_modules', pkgName)
 
       // NOTE: This code will not convert the depPath with peer deps correctly
@@ -285,9 +288,7 @@ async function shrinkwrapToDepGraph (
         : centralLocation
       graph[depPath] = {
         centralLocation,
-        // TODO: This could be just a map of alias to the child's peripheralLocation.
-        // In that case the skipping field could be avoided
-        children: getChildren(pkgSnapshot, shr.registry),
+        children: {},
         fetchingFiles: fetchResponse.fetchingFiles,
         finishing: fetchResponse.finishing,
         hasBundledDependencies: !!pkgSnapshot.bundledDependencies,
@@ -298,20 +299,40 @@ async function shrinkwrapToDepGraph (
         optionalDependencies: new Set(R.keys(pkgSnapshot.optionalDependencies)),
         peripheralLocation,
         pkgId,
-        skip,
+      }
+    }
+    for (const depPath of R.keys(graph)) {
+      const pkgSnapshot = pkgSnapshotByDepPath[depPath]
+      const allDeps = {...pkgSnapshot.dependencies, ...pkgSnapshot.optionalDependencies}
+
+      for (const alias of R.keys(allDeps)) {
+        const childDepPath = dp.refToAbsolute(allDeps[alias], alias, shr.registry)
+        if (graph[childDepPath]) {
+          graph[depPath].children[alias] = graph[childDepPath].peripheralLocation
+        } else if (opts.independentLeaves && pkgIsIndependent(pkgSnapshot)) {
+          const pkgId = pkgSnapshot.id || childDepPath
+          const cache = !opts.force && await getCache(opts.store, pkgId)
+          const relDepPath = dp.relative(shr.registry, childDepPath)
+          const pkgName = nameVerFromPkgSnapshot(relDepPath, pkgSnapshot).name
+          const inStoreLocation = pkgIdToFilename(pkgId)
+          graph[depPath].children[alias] = cache || path.join(inStoreLocation, 'node_modules', pkgName)
+        } else {
+          const relDepPath = dp.relative(shr.registry, childDepPath)
+          const pkgName = nameVerFromPkgSnapshot(relDepPath, pkgSnapshot).name
+          graph[depPath].children[alias] = path.join(nodeModules, `.${pkgIdToFilename(childDepPath)}`, 'node_modules', pkgName)
+        }
       }
     }
   }
   return graph
 }
 
-function getChildren (pkgSnapshot: PackageSnapshot, registry: string) {
-  const allDeps = Object.assign({}, pkgSnapshot.dependencies, pkgSnapshot.optionalDependencies)
-  return R.keys(allDeps)
-    .reduce((acc, alias) => {
-      acc[alias] = dp.refToAbsolute(allDeps[alias], alias, registry)
-      return acc
-    }, {})
+async function getCache (storePath: string, pkgId: string) {
+  return (await getCacheByEngine(storePath, pkgId))[ENGINE_NAME] as string
+}
+
+function pkgIsIndependent (pkgSnapshot: PackageSnapshot) {
+  return pkgSnapshot.dependencies === undefined && pkgSnapshot.optionalDependencies === undefined
 }
 
 export interface DepGraphNode {
@@ -329,7 +350,6 @@ export interface DepGraphNode {
   optional: boolean,
   pkgId: string, // TODO: this option is currently only needed when running postinstall scripts but even there it should be not used
   isBuilt: boolean,
-  skip: boolean,
 }
 
 export interface DepGraphNodesByDepPath {
@@ -367,7 +387,6 @@ async function linkAllBins (
 ) {
   return Promise.all(
     R.values(depGraph)
-      .filter((depNode) => !depNode.skip)
       .map((depNode) => limitLinking(async () => {
         const binPath = path.join(depNode.peripheralLocation, 'node_modules', '.bin')
 
@@ -405,7 +424,7 @@ async function linkAllModules (
 ) {
   return Promise.all(
     R.values(depGraph)
-      .filter((depNode) => !depNode.independent && !depNode.skip)
+      .filter((depNode) => !depNode.independent)
       .map((depNode) => limitLinking(async () => {
         const childrenToLink = opts.optional
           ? depNode.children
@@ -420,18 +439,17 @@ async function linkAllModules (
         await Promise.all(
           R.keys(childrenToLink)
             .map(async (alias) => {
-              const pkg = depGraph[childrenToLink[alias]]
               // if (!pkg.installable) return
-              await symlinkDependencyTo(alias, pkg, depNode.modules)
+              await symlinkDependencyTo(alias, childrenToLink[alias], depNode.modules)
             }),
         )
       })),
   )
 }
 
-function symlinkDependencyTo (alias: string, depNode: DepGraphNode, dest: string) {
+function symlinkDependencyTo (alias: string, peripheralLocation: string, dest: string) {
   dest = path.join(dest, alias)
-  return symlinkDir(depNode.peripheralLocation, dest)
+  return symlinkDir(peripheralLocation, dest)
 }
 
 // TODO: move this to separate package
