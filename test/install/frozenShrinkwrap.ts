@@ -115,3 +115,15 @@ test('prefer-frozen-shrinkwrap: should not prefer headless installation when shr
 
   project.has('is-negative')
 })
+
+test('prefer-frozen-shrinkwrap: should not fail if no shrinkwrap.yaml is present and project has no deps', async (t) => {
+  const project = prepare(t)
+
+  await install(await testDefaults({preferFrozenShrinkwrap: true}))
+})
+
+test('frozen-shrinkwrap: should not fail if no shrinkwrap.yaml is present and project has no deps', async (t) => {
+  const project = prepare(t)
+
+  await install(await testDefaults({frozenShrinkwrap: true}))
+})

@@ -161,11 +161,16 @@ export async function install (maybeOpts: InstallOptions) {
 
     if (!ctx.pkg) throw new Error('No package.json found')
 
-    if (!opts.update && (opts.frozenShrinkwrap || opts.preferFrozenShrinkwrap && satisfiesPackageJson(ctx.wantedShrinkwrap, ctx.pkg))) {
+    if (!opts.update && (
+      opts.frozenShrinkwrap ||
+      opts.preferFrozenShrinkwrap && ctx.existsWantedShrinkwrap && satisfiesPackageJson(ctx.wantedShrinkwrap, ctx.pkg))
+    ) {
       if (opts.shamefullyFlatten) {
         logger.warn('Headless installation does not support flat node_modules layout yet')
       } else if (!ctx.existsWantedShrinkwrap) {
-        throw new Error('Headless installation requires a shrinkwrap.yaml file')
+        if (R.keys(ctx.pkg.dependencies).length || R.keys(ctx.pkg.devDependencies).length || R.keys(ctx.pkg.optionalDependencies).length) {
+          throw new Error('Headless installation requires a shrinkwrap.yaml file')
+        }
       } else {
         logger.info('Performing headless installation')
         await headless({
