@@ -2,6 +2,7 @@
 
 import {runPostinstallHooks} from '@pnpm/lifecycle'
 import logger from '@pnpm/logger'
+import graphSequencer = require('graph-sequencer')
 import pLimit = require('p-limit')
 import {StoreController} from 'package-store'
 import R = require('ramda')
@@ -23,12 +24,20 @@ export default async (
 ) => {
   // postinstall hooks
   const limitChild = pLimit(opts.childConcurrency || 4)
-  // TODO: run depencies first then dependents. Use graph-sequencer to sort the graph
-  await Promise.all(
-    R.keys(depGraph)
-      .filter((depPath) => !depGraph[depPath].isBuilt)
-      .map((depPath) => limitChild(async () => {
-        const depNode = depGraph[depPath]
+
+  const depPaths = Object.keys(depGraph)
+  const graph = new Map(
+    depPaths.map((depPath) => [depPath, R.keys(depGraph[depPath].children)]) as Array<[string, string[]]>,
+  )
+  const graphSequencerResult = graphSequencer({
+    graph,
+    groups: [depPaths],
+  })
+  const chunks = graphSequencerResult.chunks as string[][]
+
+  for (const chunk of chunks) {
+    await Promise.all(chunk.filter((depPath) => !depGraph[depPath].isBuilt).map((depPath: string) => limitChild(async () => {
+      const depNode = depGraph[depPath]
         try {
           const hasSideEffects = await runPostinstallHooks({
             pkgId: depPath, // TODO: postInstall should expect depPath, not pkgId
@@ -64,7 +73,6 @@ export default async (
           }
           throw err
         }
-      }),
-    ),
-  )
+    })))
+  }
 }
