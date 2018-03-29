@@ -9,7 +9,7 @@ before_install:
   - git fetch --unshallow
   - curl -L https://unpkg.com/@pnpm/self-installer | node
 install:
-  - pnpm install
+  - pnpm install --frozen-shrinkwrap --no-lock
 script:
   - /bin/bash lint-commits.sh
   - ./node_modules/.bin/commitlint --from=$TRAVIS_COMMIT
