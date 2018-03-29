@@ -12,7 +12,7 @@ environment:
 install:
   - ps: Install-Product node $env:nodejs_version
   - curl -L https://unpkg.com/@pnpm/self-installer | node
-  - pnpm install
+  - pnpm install --frozen-shrinkwrap --no-lock
 matrix:
   fast_finish: true
 build: off

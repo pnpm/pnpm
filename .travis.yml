@@ -8,7 +8,7 @@ sudo: false
 before_install:
   - curl -L https://unpkg.com/@pnpm/self-installer | node
 install:
-  - pnpm install
+  - pnpm install --frozen-shrinkwrap --no-lock
 script:
   - npm test
 notifications:
