@@ -1,7 +1,7 @@
 dependencies:
   '@pnpm/check-package': 1.0.0
   '@pnpm/fs-locker': 1.0.1
-  '@pnpm/headless': 0.1.5
+  '@pnpm/headless': 0.1.6
   '@pnpm/lifecycle': 1.0.1
   '@pnpm/link-bins': 1.0.1
   '@pnpm/modules-yaml': 1.0.0
@@ -28,6 +28,7 @@ dependencies:
   execa: 0.10.0
   get-npm-tarball-url: 2.0.1
   graceful-fs: 4.1.11
+  graph-sequencer: 2.0.0
   is-ci: 1.1.0
   is-inner-link: 2.0.2
   is-subdir: 1.0.2
@@ -39,7 +40,6 @@ dependencies:
   os-homedir: 1.0.2
   p-filter: 1.0.0
   p-limit: 1.2.0
-  p-series: 1.1.0
   package-store: 0.18.0
   path-absolute: 1.0.0
   path-exists: 3.0.0
@@ -52,6 +52,7 @@ dependencies:
   resolve-link-target: 1.0.1
   rimraf-then: 1.0.1
   semver: 5.5.0
+  supi: 'link:../__package_previews__/supi/supi'
   symlink-dir: 1.1.2
   util.promisify: 1.0.0
   validate-npm-package-name: 3.0.0
@@ -83,7 +84,7 @@ devDependencies:
   npm-scripts-info: 0.3.7
   package-preview: 1.0.5
   path-name: 1.0.0
-  pnpm-registry-mock: 1.20.3
+  pnpm-registry-mock: 1.21.0
   read-pkg: 3.0.0
   rimraf: 2.6.2
   sepia: 2.0.2
@@ -386,7 +387,7 @@ packages:
       '@pnpm/logger': ^1.0.0
     resolution:
       integrity: sha512-shgFfcZ4Eu7UXR95xgt+x8lFA0tXFciLOuA8Me771dAx7Idgh3s257Aua9piSSR3KyVODL/NAULb+BIuAuQRXg==
-  /@pnpm/headless/0.1.5:
+  /@pnpm/headless/0.1.6:
     dependencies:
       '@pnpm/lifecycle': 1.0.1
       '@pnpm/link-bins': 1.0.1
@@ -396,6 +397,7 @@ packages:
       '@pnpm/types': 1.7.0
       '@types/ramda': 0.25.21
       dependency-path: 1.2.1
+      graph-sequencer: 2.0.0
       p-limit: 1.2.0
       package-store: 0.18.0
       path-exists: 3.0.0
@@ -411,7 +413,7 @@ packages:
     peerDependencies:
       '@pnpm/logger': ^1.0.0
     resolution:
-      integrity: sha512-sfzSHrVu8RWLLxlFA1DBxtJPRfmOduuU3MeMUjxMDdH+6uc5ytDAWF7NaUBIyCzpXJd7pJ/lbZCq27dgbNdZag==
+      integrity: sha512-31z+Xpg344gEX/d03KWZCbZ8oCJUhrivGMI7KLhMUA0d3F4a6dw2PU6Utmg8Z7lI7OdcrxTJEjr9fdz/hNAdUQ==
   /@pnpm/lifecycle/1.0.1:
     dependencies:
       '@pnpm/types': 1.7.0
@@ -676,10 +678,10 @@ packages:
     dev: true
     resolution:
       integrity: sha512-epDhsJAVxJsWfeqpzEDFhLnhHMbHie/VMFY+2Hvt5p7FemeW5ELM+6gcVYL/ZsUwdu3zrWpDE3VUTddXW+EMYg==
-  /@types/js-yaml/3.11.0:
+  /@types/js-yaml/3.11.1:
     dev: false
     resolution:
-      integrity: sha512-VlX80BUEp8DGjYEBfhGhi6+36fez8QRupvWtbjxda/zXyTiLuHOtps9fvfGECWKTakLmLvWBaQX8dmjrheafZw==
+      integrity: sha512-M5qhhfuTt4fwHGqqANNQilp3Htb5cHwBxlMHDUw/TYRVkEp3s3IIFSH3Fe9HIAeEtnO4p3SSowLmCVavdRYfpw==
   /@types/load-json-file/2.0.7:
     resolution:
       integrity: sha512-NrH6jPlV77QCVPhAHofWeiOr77TgpKt82c2RVxSBChWBJqyY/u4ngl3CA4mcsAg/w7rNLrkR7dkObMV0ihLLXw==
@@ -960,10 +962,23 @@ packages:
     dev: true
     resolution:
       integrity: sha1-ml9pkFGx5wczKPKgCJaLZOopVdI=
+  /array-flatten/2.1.1:
+    dev: false
+    resolution:
+      integrity: sha1-Qmu52oQJDBg42BLIFQryCoMx4pY=
   /array-ify/1.0.0:
     dev: true
     resolution:
       integrity: sha1-nlKHYrSpBmrRY6aWKjZEGOlibs4=
+  /array-includes/3.0.3:
+    dependencies:
+      define-properties: 1.1.2
+      es-abstract: 1.11.0
+    dev: false
+    engines:
+      node: '>= 0.4'
+    resolution:
+      integrity: sha1-GEtI9i2S10UrsxsyMWXH+L0CJm0=
   /array-map/0.0.0:
     dev: true
     resolution:
@@ -1079,7 +1094,7 @@ packages:
       content-type: 1.0.4
       debug: 2.6.9
       depd: 1.1.2
-      http-errors: 1.6.2
+      http-errors: 1.6.3
       iconv-lite: 0.4.19
       on-finished: 2.3.0
       qs: 6.5.1
@@ -1154,7 +1169,7 @@ packages:
       '0': node >=0.10.0
     optionalDependencies:
       dtrace-provider: 0.8.6
-      moment: 2.21.0
+      moment: 2.22.0
       mv: 2.1.1
       safe-json-stringify: 1.1.0
     resolution:
@@ -2113,7 +2128,6 @@ packages:
   /formatio/1.2.0:
     dependencies:
       samsam: 1.3.0
-    deprecated: This package is unmaintained. Use @sinonjs/formatio instead
     dev: true
     resolution:
       integrity: sha1-87IWfZBoxGmKjVH092CjmlTYGOs=
@@ -2324,6 +2338,13 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha512-cnIqeyz4ptvqCp/5j4NbhKJ5W3ZRRdeDPta8mUMcSJtWSSf7QCSKv6TqzRhz8rT8Kjwat4wsxEGaGxRIqRwivQ==
+  /graph-sequencer/2.0.0:
+    dependencies:
+      array-flatten: 2.1.1
+      array-includes: 3.0.3
+    dev: false
+    resolution:
+      integrity: sha1-v7gJuK9YT29Sh83OUHow1K6m7nA=
   /gunzip-maybe/1.4.1:
     dependencies:
       browserify-zlib: 0.1.4
@@ -2448,6 +2469,17 @@ packages:
       node: '>= 0.6'
     resolution:
       integrity: sha1-CgAsyFcHGSp+eUbO7cERVfYOxzY=
+  /http-errors/1.6.3:
+    dependencies:
+      depd: 1.1.2
+      inherits: 2.0.3
+      setprototypeof: 1.1.0
+      statuses: 1.5.0
+    dev: true
+    engines:
+      node: '>= 0.6'
+    resolution:
+      integrity: sha1-i1VoC7S+KDoLW/TqLjhYC+HZMg0=
   /http-proxy-agent/2.1.0:
     dependencies:
       agent-base: 4.2.0
@@ -2759,7 +2791,7 @@ packages:
     dependencies:
       hoek: 2.16.3
       isemail: 1.2.0
-      moment: 2.21.0
+      moment: 2.22.0
       topo: 1.1.0
     dev: true
     engines:
@@ -2791,9 +2823,9 @@ packages:
     dev: true
     resolution:
       integrity: sha1-Wx85evx11ne96Lz8Dkfh+aPZqJg=
-  /json-parse-better-errors/1.0.1:
+  /json-parse-better-errors/1.0.2:
     resolution:
-      integrity: sha512-xyQpxeWWMKyJps9CuGJYeng6ssI5bpqS9ltQpdVQ90t4ql6NdnxFKh95JcRt2cun/DjMVNrdjniLPuMA69xmCw==
+      integrity: sha512-mrqyZKfX5EhL7hvqcV6WG1yYjnjeuYDzDhhcAAUrq8Po85NBQBJP+ZDUT75qZQ98IkUoBqdkExkukOU7Ts2wrw==
   /json-schema-traverse/0.3.1:
     resolution:
       integrity: sha1-NJptRMU6Ud6JtAgFxdXlm0F9M0A=
@@ -3291,10 +3323,10 @@ packages:
       minimist: 0.0.8
     resolution:
       integrity: sha1-MAV0OOrGz3+MR2fzhkjWaX11yQM=
-  /moment/2.21.0:
+  /moment/2.22.0:
     dev: true
     resolution:
-      integrity: sha512-TCZ36BjURTeFTM/CwRcViQlfkMvL1/vFISuNLO5GkcVm1+QHfbSiNqZuWeMFjj1/3+uAjXswgRk30j1kkLYJBQ==
+      integrity: sha512-1muXCh8jb1N/gHRbn9VDUBr0GYb8A/aVcHlII9QSB68a50spqEVLIGN6KVmCOnSvJrUhC0edGgKU5ofnGXdYdg==
   /move-concurrently/1.0.1:
     dependencies:
       aproba: 1.2.0
@@ -3385,7 +3417,7 @@ packages:
   /node-fetch-npm/2.0.2:
     dependencies:
       encoding: 0.1.12
-      json-parse-better-errors: 1.0.1
+      json-parse-better-errors: 1.0.2
       safe-buffer: 5.1.1
     dev: true
     engines:
@@ -3808,7 +3840,7 @@ packages:
   /parse-json/4.0.0:
     dependencies:
       error-ex: 1.3.1
-      json-parse-better-errors: 1.0.1
+      json-parse-better-errors: 1.0.2
     engines:
       node: '>=4'
     resolution:
@@ -3959,7 +3991,7 @@ packages:
     dev: false
     resolution:
       integrity: sha1-dB2ZeXYv362T8+Rp3rSoFNNDAAg=
-  /pnpm-registry-mock/1.20.3:
+  /pnpm-registry-mock/1.21.0:
     dependencies:
       anonymous-npm-registry-client: 0.1.2
       cpr: 3.0.1
@@ -3967,11 +3999,11 @@ packages:
       verdaccio: 2.7.4
     dev: true
     resolution:
-      integrity: sha512-0v3nfyBgLjwu9SrgQhMgIjSzpua08qcJBNQCahUe2quE5UstICWLdA+41u6FC2qVW2R6nvIMQoax3rU6+uza2Q==
+      integrity: sha512-GHWWTjKQUs8VLb/DYQeVUjmr3DPqGx5uzaKXqCS0Vm5Hr7P3oRD7P3u984806+1bRsjIoWLhk0Uw0sHJZFDU2Q==
   /pnpm-shrinkwrap/6.2.4:
     dependencies:
       '@pnpm/resolver-base': 1.0.0
-      '@types/js-yaml': 3.11.0
+      '@types/js-yaml': 3.11.1
       '@types/node': 9.6.1
       '@types/ramda': 0.25.21
       dependency-path: 1.2.1
@@ -4140,7 +4172,7 @@ packages:
   /read-package-json/2.0.13:
     dependencies:
       glob: 7.1.2
-      json-parse-better-errors: 1.0.1
+      json-parse-better-errors: 1.0.2
       normalize-package-data: 2.4.0
       slash: 1.0.0
     optionalDependencies:
@@ -4474,7 +4506,7 @@ packages:
       escape-html: 1.0.3
       etag: 1.8.1
       fresh: 0.5.2
-      http-errors: 1.6.2
+      http-errors: 1.6.3
       mime: 1.4.1
       ms: 2.0.0
       on-finished: 2.3.0
@@ -4794,7 +4826,7 @@ packages:
     dependencies:
       '@pnpm/check-package': 1.0.0
       '@pnpm/fs-locker': 1.0.1
-      '@pnpm/headless': 0.1.5
+      '@pnpm/headless': 0.1.6
       '@pnpm/lifecycle': 1.0.1
       '@pnpm/link-bins': 1.0.1
       '@pnpm/modules-yaml': 1.0.0
@@ -5255,7 +5287,7 @@ packages:
       express: 4.16.3
       global: 4.3.2
       handlebars: 4.0.5
-      http-errors: 1.6.2
+      http-errors: 1.6.3
       js-string-escape: 1.0.1
       js-yaml: 3.11.0
       jsonwebtoken: 7.4.3
@@ -5470,6 +5502,7 @@ specifiers:
   exists-link: ^2.0.0
   get-npm-tarball-url: ^2.0.0
   graceful-fs: ^4.1.11
+  graph-sequencer: ^2.0.0
   is-ci: ^1.0.10
   is-inner-link: ^2.0.0
   is-subdir: ^1.0.1
@@ -5487,14 +5520,13 @@ specifiers:
   os-homedir: ^1.0.2
   p-filter: ^1.0.0
   p-limit: ^1.1.0
-  p-series: ^1.0.0
   package-preview: ^1.0.0
   package-store: ^0.18.0
   path-absolute: ^1.0.0
   path-exists: ^3.0.0
   path-name: ^1.0.0
   pnpm-install-checks: ^1.1.0
-  pnpm-registry-mock: ^1.20.3
+  pnpm-registry-mock: ^1.21.0
   pnpm-shrinkwrap: ^6.2.3
   ramda: ^0.25.0
   read-package-json: ^2.0.5

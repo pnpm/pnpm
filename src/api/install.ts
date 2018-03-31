@@ -13,6 +13,7 @@ import {
   PackageJson,
 } from '@pnpm/types'
 import * as dp from 'dependency-path'
+import graphSequencer = require('graph-sequencer')
 import pFilter = require('p-filter')
 import pLimit = require('p-limit')
 import {
@@ -613,9 +614,21 @@ async function installInContext (
     // postinstall hooks
     if (!(opts.ignoreScripts || !result.newDepPaths || !result.newDepPaths.length)) {
       const limitChild = pLimit(opts.childConcurrency)
-      await Promise.all(
-        R.props<string, DepGraphNode>(result.newDepPaths, result.depGraph)
-          .filter((pkg) => !pkg.isBuilt)
+
+      const depPaths = Object.keys(result.depGraph)
+      const graph = new Map(
+        depPaths.map((depPath) => [depPath, R.keys(result.depGraph[depPath].children)]) as Array<[string, string[]]>,
+      )
+      const graphSequencerResult = graphSequencer({
+        graph,
+        groups: [depPaths],
+      })
+      const chunks = graphSequencerResult.chunks as string[][]
+
+      for (const chunk of chunks) {
+        await Promise.all(chunk
+          .filter((depPath) => !result.depGraph[depPath].isBuilt && result.newDepPaths.indexOf(depPath) !== -1)
+          .map((depPath) => result.depGraph[depPath])
           .map((pkg) => limitChild(async () => {
             try {
               const hasSideEffects = await runPostinstallHooks({
@@ -652,9 +665,9 @@ async function installInContext (
               }
               throw err
             }
-          }),
-        ),
-      )
+          },
+        )))
+      }
     }
 
     if (installCtx.localPackages.length) {

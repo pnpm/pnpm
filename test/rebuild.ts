@@ -87,3 +87,22 @@ test('rebuild with pending option', async (t: tape.Test) => {
     t.ok(typeof generatedByPostinstall === 'function', 'generatedByPostinstall() is available')
   }
 })
+
+test('rebuild dependencies in correct order', async (t: tape.Test) => {
+  const project = prepare(t)
+
+  await installPkgs(['with-postinstall-a'], await testDefaults({ignoreScripts: true}))
+
+  let modules = await project.loadModules()
+  t.doesNotEqual(modules.pendingBuilds.length, 0)
+
+  await project.hasNot('.localhost+4873/with-postinstall-b/1.0.0/node_modules/with-postinstall-b/output.json')
+  await project.hasNot('with-postinstall-a/output.json')
+
+  await rebuild(await testDefaults({rawNpmConfig: {pending: true}}))
+
+  modules = await project.loadModules()
+  t.equal(modules.pendingBuilds.length, 0)
+
+  t.ok(+project.requireModule('.localhost+4873/with-postinstall-b/1.0.0/node_modules/with-postinstall-b/output.json')[0] < +project.requireModule('with-postinstall-a/output.json')[0])
+})

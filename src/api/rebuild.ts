@@ -3,12 +3,15 @@ import logger, {streamParser} from '@pnpm/logger'
 import {write as writeModulesYaml} from '@pnpm/modules-yaml'
 import npa = require('@zkochan/npm-package-arg')
 import * as dp from 'dependency-path'
-import pSeries = require('p-series')
+import graphSequencer = require('graph-sequencer')
+import pLimit = require('p-limit')
 import path = require('path')
 import {
   DependencyShrinkwrap,
   nameVerFromPkgSnapshot,
+  PackageSnapshots,
   ResolvedPackages,
+  Shrinkwrap,
 } from 'pnpm-shrinkwrap'
 import R = require('ramda')
 import semver = require('semver')
@@ -27,26 +30,35 @@ interface PackageToRebuild {
   pkgShr: DependencyShrinkwrap
 }
 
-function getPackagesInfo (packages: ResolvedPackages, idsToRebuild: string[]): PackageToRebuild[] {
-  return idsToRebuild
-    .map((relativeDepPath) => {
+function findPackages (
+  packages: ResolvedPackages,
+  searched: PackageSelector[],
+): string[] {
+  return R.keys(packages)
+    .filter((relativeDepPath) => {
       const pkgShr = packages[relativeDepPath]
       const pkgInfo = nameVerFromPkgSnapshot(relativeDepPath, pkgShr)
-      return {
-        name: pkgInfo.name,
-        pkgShr,
-        relativeDepPath,
-        version: pkgInfo.version,
-      }
-    })
-    .filter((pkgInfo) => {
       if (!pkgInfo.name) {
-        logger.warn(`Skipping ${pkgInfo.relativeDepPath} because cannot get the package name from shrinkwrap.yaml.
+        logger.warn(`Skipping ${relativeDepPath} because cannot get the package name from shrinkwrap.yaml.
           Try to run run \`pnpm update --depth 100\` to create a new shrinkwrap.yaml with all the necessary info.`)
         return false
       }
-      return true
+      return matches(searched, pkgInfo)
     })
+}
+
+// TODO: move this logic to separate package as this is also used in dependencies-hierarchy
+function matches (
+  searched: PackageSelector[],
+  pkg: {name: string, version?: string},
+) {
+  return searched.some((searchedPkg) => {
+    if (typeof searchedPkg === 'string') {
+      return pkg.name === searchedPkg
+    }
+    return searchedPkg.name === pkg.name && !!pkg.version &&
+      semver.satisfies(pkg.version, searchedPkg.range)
+  })
 }
 
 type PackageSelector = string | {
@@ -83,24 +95,9 @@ export async function rebuildPkgs (
     }
   })
 
-  const pkgs = getPackagesInfo(packages, R.keys(packages))
-    .filter((pkg) => matches(searched, pkg))
+  const pkgs = findPackages(packages, searched)
 
-  await _rebuild(pkgs, modules, ctx.currentShrinkwrap.registry, opts)
-}
-
-// TODO: move this logic to separate package as this is also used in dependencies-hierarchy
-function matches (
-  searched: PackageSelector[],
-  pkg: {name: string, version?: string},
-) {
-  return searched.some((searchedPkg) => {
-    if (typeof searchedPkg === 'string') {
-      return pkg.name === searchedPkg
-    }
-    return searchedPkg.name === pkg.name && !!pkg.version &&
-      semver.satisfies(pkg.version, searchedPkg.range)
-  })
+  await _rebuild(new Set(pkgs), modules, ctx.currentShrinkwrap, opts)
 }
 
 export async function rebuild (maybeOpts: RebuildOptions) {
@@ -122,9 +119,7 @@ export async function rebuild (maybeOpts: RebuildOptions) {
     return
   }
 
-  const pkgs = getPackagesInfo(ctx.currentShrinkwrap.packages || {}, idsToRebuild)
-
-  await _rebuild(pkgs, modules, ctx.currentShrinkwrap.registry, opts)
+  await _rebuild(new Set(idsToRebuild), modules, ctx.currentShrinkwrap, opts)
 
   await writeModulesYaml(path.join(ctx.root, 'node_modules'), {
     hoistedAliases: ctx.hoistedAliases,
@@ -139,34 +134,56 @@ export async function rebuild (maybeOpts: RebuildOptions) {
 }
 
 async function _rebuild (
-  pkgs: PackageToRebuild[],
+  pkgsToRebuild: Set<string>,
   modules: string,
-  registry: string,
+  shr: Shrinkwrap,
   opts: StrictRebuildOptions,
 ) {
-  await pSeries(
-    pkgs
-      .map((pkgToRebuild) => async () => {
-        const depAbsolutePath = dp.resolve(registry, pkgToRebuild.relativeDepPath)
-        const pkgId = pkgToRebuild.pkgShr.id || depAbsolutePath
-        try {
-          await runPostinstallHooks({
-            pkgId,
-            pkgRoot: path.join(modules, `.${depAbsolutePath}`, 'node_modules', pkgToRebuild.name),
-            rawNpmConfig: opts.rawNpmConfig,
-            rootNodeModulesDir: opts.prefix,
-            unsafePerm: opts.unsafePerm || false,
-          })
-        } catch (err) {
-          if (pkgToRebuild.pkgShr.optional) {
-            logger.warn({
-              err,
-              message: `Skipping failed optional dependency ${pkgId}`,
+  const limitChild = pLimit(opts.childConcurrency)
+  const graph = new Map()
+  const pkgSnapshots: PackageSnapshots = shr.packages || {}
+  const relDepPaths = R.keys(pkgSnapshots)
+  for (const relDepPath of relDepPaths) {
+    const pkgSnapshot = pkgSnapshots[relDepPath]
+    graph.set(relDepPath, R.toPairs({...pkgSnapshot.dependencies, ...pkgSnapshot.optionalDependencies}).map((pair) => {
+      return dp.refToRelative(pair[1], pair[0])
+    }))
+  }
+  const graphSequencerResult = graphSequencer({
+    graph,
+    groups: [relDepPaths],
+  })
+  const chunks = graphSequencerResult.chunks as string[][]
+
+  for (const chunk of chunks) {
+    await Promise.all(chunk
+      .filter((relDepPath) => pkgsToRebuild.has(relDepPath))
+      .map((relDepPath) => {
+        const pkgSnapshot = pkgSnapshots[relDepPath]
+        return limitChild(async () => {
+          const depAbsolutePath = dp.resolve(shr.registry, relDepPath)
+          const pkgId = pkgSnapshot.id || depAbsolutePath
+          try {
+            const pkgInfo = nameVerFromPkgSnapshot(relDepPath, pkgSnapshot)
+            await runPostinstallHooks({
+              pkgId,
+              pkgRoot: path.join(modules, `.${depAbsolutePath}`, 'node_modules', pkgInfo.name),
+              rawNpmConfig: opts.rawNpmConfig,
+              rootNodeModulesDir: opts.prefix,
+              unsafePerm: opts.unsafePerm || false,
             })
-            return
+          } catch (err) {
+            if (pkgSnapshot.optional) {
+              logger.warn({
+                err,
+                message: `Skipping failed optional dependency ${pkgId}`,
+              })
+              return
+            }
+            throw err
           }
-          throw err
-        }
+        })
       }),
-  )
+    )
+  }
 }

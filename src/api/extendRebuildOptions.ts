@@ -7,6 +7,7 @@ import pnpmPkgJson from '../pnpmPkgJson'
 import { ReporterFunction } from '../types'
 
 export interface RebuildOptions {
+  childConcurrency?: number,
   prefix?: string,
   store: string, // TODO: remove this property
   independentLeaves?: boolean,
@@ -32,6 +33,7 @@ export interface RebuildOptions {
 }
 
 export type StrictRebuildOptions = RebuildOptions & {
+  childConcurrency?: number,
   prefix: string,
   store: string,
   independentLeaves: boolean,
@@ -59,6 +61,7 @@ const defaults = async (opts: RebuildOptions) => {
   const prefix = opts.prefix || process.cwd()
   return {
     bin: path.join(prefix, 'node_modules', '.bin'),
+    childConcurrency: 5,
     force: false,
     global: false,
     independentLeaves: false,
