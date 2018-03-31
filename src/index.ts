@@ -146,7 +146,7 @@ export default async (opts: HeadlessOptions) => {
   const filteredShrinkwrap = filterShrinkwrap(wantedShrinkwrap, filterOpts)
 
   stageLogger.debug('importing_started')
-  const depGraph = await shrinkwrapToDepGraph(filteredShrinkwrap, currentShrinkwrap, opts)
+  const depGraph = await shrinkwrapToDepGraph(filteredShrinkwrap, opts.force ? null : currentShrinkwrap, opts)
 
   statsLogger.debug({added: Object.keys(depGraph).length})
 
