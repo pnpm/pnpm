@@ -146,7 +146,8 @@ export default async (opts: HeadlessOptions) => {
   const filteredShrinkwrap = filterShrinkwrap(wantedShrinkwrap, filterOpts)
 
   stageLogger.debug('importing_started')
-  const depGraph = await shrinkwrapToDepGraph(filteredShrinkwrap, opts.force ? null : currentShrinkwrap, opts)
+  const res = await shrinkwrapToDepGraph(filteredShrinkwrap, opts.force ? null : currentShrinkwrap, opts)
+  const depGraph = res.graph
 
   statsLogger.debug({added: Object.keys(depGraph).length})
 
@@ -158,7 +159,7 @@ export default async (opts: HeadlessOptions) => {
 
   await linkAllBins(depGraph, {optional: opts.optional})
 
-  await linkRootPackages(filteredShrinkwrap, depGraph, nodeModules)
+  await linkRootPackages(filteredShrinkwrap, depGraph, res.rootDependencies, nodeModules)
   await linkBins(nodeModules, bin)
 
   await writeCurrentShrinkwrapOnly(opts.prefix, filteredShrinkwrap)
@@ -205,6 +206,7 @@ export default async (opts: HeadlessOptions) => {
 async function linkRootPackages (
   shr: Shrinkwrap,
   depGraph: DepGraphNodesByDepPath,
+  rootDependencies: {[alias: string]: string},
   baseNodeModules: string,
 ) {
   const allDeps = Object.assign({}, shr.devDependencies, shr.dependencies, shr.optionalDependencies)
@@ -212,11 +214,8 @@ async function linkRootPackages (
     R.keys(allDeps)
       .map(async (alias) => {
         const depPath = dp.refToAbsolute(allDeps[alias], alias, shr.registry)
-        const depNode = depGraph[depPath]
-        if (!depNode) {
-          return
-        }
-        await symlinkDependencyTo(alias, depNode.peripheralLocation, baseNodeModules)
+        const peripheralLocation = rootDependencies[alias]
+        await symlinkDependencyTo(alias, peripheralLocation, baseNodeModules)
         const isDev = shr.devDependencies && shr.devDependencies[alias]
         const isOptional = shr.optionalDependencies && shr.optionalDependencies[alias]
 
@@ -254,6 +253,7 @@ async function shrinkwrapToDepGraph (
   const nodeModules = path.join(opts.prefix, 'node_modules')
   const currentPackages = currentShrinkwrap && currentShrinkwrap.packages || {}
   const graph: DepGraphNodesByDepPath = {}
+  let rootDependencies: {[alias: string]: string} = {}
   if (shr.packages) {
     const pkgSnapshotByDepPath = {}
     for (const relDepPath of R.keys(shr.packages)) {
@@ -301,30 +301,59 @@ async function shrinkwrapToDepGraph (
         pkgId,
       }
     }
+    const ctx = {
+      force: opts.force,
+      graph,
+      independentLeaves: opts.independentLeaves,
+      nodeModules,
+      pkgSnapshotsByRelDepPaths: shr.packages,
+      registry: shr.registry,
+      store: opts.store,
+    }
     for (const depPath of R.keys(graph)) {
       const pkgSnapshot = pkgSnapshotByDepPath[depPath]
       const allDeps = {...pkgSnapshot.dependencies, ...pkgSnapshot.optionalDependencies}
 
-      for (const alias of R.keys(allDeps)) {
-        const childDepPath = dp.refToAbsolute(allDeps[alias], alias, shr.registry)
-        if (graph[childDepPath]) {
-          graph[depPath].children[alias] = graph[childDepPath].peripheralLocation
-        } else if (opts.independentLeaves && pkgIsIndependent(pkgSnapshot)) {
-          const pkgId = pkgSnapshot.id || childDepPath
-          const cache = !opts.force && await getCache(opts.store, pkgId)
-          const relDepPath = dp.relative(shr.registry, childDepPath)
-          const pkgName = nameVerFromPkgSnapshot(relDepPath, pkgSnapshot).name
-          const inStoreLocation = pkgIdToFilename(pkgId)
-          graph[depPath].children[alias] = cache || path.join(inStoreLocation, 'node_modules', pkgName)
-        } else {
-          const relDepPath = dp.relative(shr.registry, childDepPath)
-          const pkgName = nameVerFromPkgSnapshot(relDepPath, pkgSnapshot).name
-          graph[depPath].children[alias] = path.join(nodeModules, `.${pkgIdToFilename(childDepPath)}`, 'node_modules', pkgName)
-        }
-      }
+      graph[depPath].children = await getChildrenPaths(ctx, allDeps)
+    }
+    const rootDeps = {...shr.devDependencies, ...shr.dependencies, ...shr.optionalDependencies}
+    rootDependencies = await getChildrenPaths(ctx, rootDeps)
+  }
+  return {graph, rootDependencies}
+}
+
+async function getChildrenPaths (
+  ctx: {
+    graph: DepGraphNodesByDepPath,
+    force: boolean,
+    registry: string,
+    nodeModules: string,
+    independentLeaves: boolean,
+    store: string,
+    pkgSnapshotsByRelDepPaths: {[relDepPath: string]: PackageSnapshot},
+  },
+  allDeps: {[alias: string]: string},
+) {
+  const children: {[alias: string]: string} = {}
+  for (const alias of R.keys(allDeps)) {
+    const childDepPath = dp.refToAbsolute(allDeps[alias], alias, ctx.registry)
+    const childRelDepPath = dp.relative(ctx.registry, childDepPath)
+    const childPkgSnapshot = ctx.pkgSnapshotsByRelDepPaths[childRelDepPath]
+    if (ctx.graph[childDepPath]) {
+      children[alias] = ctx.graph[childDepPath].peripheralLocation
+    } else if (ctx.independentLeaves && pkgIsIndependent(childPkgSnapshot)) {
+      const pkgId = childPkgSnapshot.id || childDepPath
+      const cache = !ctx.force && await getCache(ctx.store, pkgId)
+      const pkgName = nameVerFromPkgSnapshot(childRelDepPath, childPkgSnapshot).name
+      const inStoreLocation = pkgIdToFilename(pkgId)
+      children[alias] = cache || path.join(inStoreLocation, 'node_modules', pkgName)
+    } else {
+      const relDepPath = dp.relative(ctx.registry, childDepPath)
+      const pkgName = nameVerFromPkgSnapshot(relDepPath, childPkgSnapshot).name
+      children[alias] = path.join(ctx.nodeModules, `.${pkgIdToFilename(childDepPath)}`, 'node_modules', pkgName)
     }
   }
-  return graph
+  return children
 }
 
 async function getCache (storePath: string, pkgId: string) {

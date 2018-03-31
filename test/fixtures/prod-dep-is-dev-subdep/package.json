@@ -1,0 +1,11 @@
+{
+  "name": "prod-dep-is-dev-subdep",
+  "version": "1.0.0",
+  "dependencies": {
+    "is-positive": "1.0.0",
+    "once": "^1.4.0"
+  },
+  "devDependencies": {
+    "inflight": "1.0.6"
+  }
+}

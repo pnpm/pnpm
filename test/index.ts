@@ -109,6 +109,43 @@ test('installing only dev deps', async (t) => {
   t.end()
 })
 
+test('installing non-prod deps then all deps', async (t: tape.Test) => {
+  const prefix = path.join(fixtures, 'prod-dep-is-dev-subdep')
+
+  await headless(await testDefaults({
+    prefix,
+    production: false,
+  }))
+
+  const project = assertProject(t, prefix)
+  const inflight = project.requireModule('inflight')
+  t.equal(typeof inflight, 'function', 'dev dependency is available')
+
+  await project.hasNot('once')
+
+  {
+    const shr = await project.loadShrinkwrap()
+    t.ok(shr.packages['/is-positive/1.0.0'].dev === false)
+  }
+
+  {
+    const currentShrinkwrap = await project.loadCurrentShrinkwrap()
+    t.notOk(currentShrinkwrap.packages['/is-positive/1.0.0'], 'prod dep only not added to current shrinkwrap.yaml')
+  }
+
+  // Repeat normal installation adds missing deps to node_modules
+  await headless(await testDefaults({prefix}))
+
+  await project.has('once')
+
+  {
+    const currentShrinkwrap = await project.loadCurrentShrinkwrap()
+    t.ok(currentShrinkwrap.packages['/is-positive/1.0.0'], 'prod dep added to current shrinkwrap.yaml')
+  }
+
+  t.end()
+})
+
 test('installing only optional deps', async (t) => {
   const prefix = path.join(fixtures, 'simple')
   await rimraf(path.join(prefix, 'node_modules'))
@@ -346,6 +383,7 @@ test('independent-leaves: installing a simple project', async (t) => {
   t.ok(project.requireModule('rimraf'), 'prod dep installed')
   t.ok(project.requireModule('is-negative'), 'dev dep installed')
   t.ok(project.requireModule('colors'), 'optional dep installed')
+  t.ok(project.has('.localhost+4873/rimraf'), 'rimraf is not symlinked from the store')
   t.ok(project.hasNot('.localhost+4873/colors'), 'colors is symlinked from the store')
 
   await project.isExecutable('.bin/rimraf')
