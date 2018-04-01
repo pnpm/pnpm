@@ -42,7 +42,7 @@ dependencies:
   retry: 0.10.1
   signal-exit: 3.0.2
   strip-color: 0.1.0
-  supi: 0.14.12
+  supi: 0.14.13
   text-table: 0.2.0
   tree-kill: 1.2.0
   update-notifier: 2.4.0
@@ -436,7 +436,7 @@ packages:
       pnpm-shrinkwrap: 6.2.4
       ramda: 0.25.0
       read-package-json: 2.0.13
-      supi: 0.14.12
+      supi: 0.14.13
       symlink-dir: 1.1.2
       util.promisify: 1.0.0
     dev: false
@@ -6316,7 +6316,7 @@ packages:
       node: '>=0.10.0'
     resolution:
       integrity: sha1-PFMZQukIwml8DsNEhYwobHygpgo=
-  /supi/0.14.12:
+  /supi/0.14.13:
     dependencies:
       '@pnpm/check-package': 1.0.0
       '@pnpm/fs-locker': 1.0.1
@@ -6382,7 +6382,7 @@ packages:
     peerDependencies:
       '@pnpm/logger': ^1.0.0
     resolution:
-      integrity: sha512-hoxd3tDtENb4M6vGn856t/8quH5uENYYKNsP/LZ3Vy+B/0mDscBbiKBOH1q8EVFN1DOS3iVJ/8p7q7lrNMzaBw==
+      integrity: sha512-whglee94QxcDAg6Kcka5ik9gGKq5roDW2kwgDznyVYmDFkvLorDf8LJLwPoxa7QH99T5XoXF3eJhm0YfzWMNkg==
   /supports-color/2.0.0:
     dev: true
     engines:
@@ -7216,7 +7216,7 @@ specifiers:
   sepia: ^2.0.2
   signal-exit: ^3.0.2
   strip-color: ^0.1.0
-  supi: ^0.14.12
+  supi: ^0.14.13
   tape: ^4.6.3
   tape-promise: ^2.0.1
   text-table: ^0.2.0
