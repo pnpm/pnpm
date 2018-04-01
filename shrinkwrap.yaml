@@ -1,7 +1,7 @@
 dependencies:
   '@pnpm/check-package': 1.0.0
   '@pnpm/fs-locker': 1.0.1
-  '@pnpm/headless': 0.1.6
+  '@pnpm/headless': 0.1.7
   '@pnpm/lifecycle': 1.0.1
   '@pnpm/link-bins': 1.0.1
   '@pnpm/modules-yaml': 1.0.0
@@ -414,6 +414,33 @@ packages:
       '@pnpm/logger': ^1.0.0
     resolution:
       integrity: sha512-31z+Xpg344gEX/d03KWZCbZ8oCJUhrivGMI7KLhMUA0d3F4a6dw2PU6Utmg8Z7lI7OdcrxTJEjr9fdz/hNAdUQ==
+  /@pnpm/headless/0.1.7:
+    dependencies:
+      '@pnpm/lifecycle': 1.0.1
+      '@pnpm/link-bins': 1.0.1
+      '@pnpm/modules-yaml': 1.0.0
+      '@pnpm/package-requester': 0.8.5
+      '@pnpm/pkgid-to-filename': 1.0.0
+      '@pnpm/types': 1.7.0
+      '@types/ramda': 0.25.21
+      dependency-path: 1.2.1
+      graph-sequencer: 2.0.0
+      p-limit: 1.2.0
+      package-store: 0.18.0
+      path-exists: 3.0.0
+      pnpm-shrinkwrap: 6.2.4
+      ramda: 0.25.0
+      read-package-json: 2.0.13
+      supi: 0.14.10
+      symlink-dir: 1.1.2
+      util.promisify: 1.0.0
+    dev: false
+    engines:
+      node: '>=4'
+    peerDependencies:
+      '@pnpm/logger': ^1.0.0
+    resolution:
+      integrity: sha512-Uy0ZI7SE0fEvao4477EEqt2H86JHaZ+0UvhBo7rE4AxoX2qQgiFBVt/4X4maziL5ojVHUcWQ10KCtcVoKoRZdA==
   /@pnpm/lifecycle/1.0.1:
     dependencies:
       '@pnpm/types': 1.7.0
@@ -5464,7 +5491,7 @@ specifiers:
   '@pnpm/default-fetcher': ^0.4.0
   '@pnpm/default-resolver': ^0.1.4
   '@pnpm/fs-locker': ^1.0.0
-  '@pnpm/headless': ^0.1.2
+  '@pnpm/headless': ^0.1.7
   '@pnpm/lifecycle': ^1.0.1
   '@pnpm/link-bins': ^1.0.1
   '@pnpm/logger': ^1.0.0
