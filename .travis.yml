@@ -6,6 +6,7 @@ node_js:
   - 9
 sudo: false
 before_install:
+  - npm set verify-store-integrity false
   - git fetch --unshallow
   - curl -L https://unpkg.com/@pnpm/self-installer | PNPM_VERSION=1.33.2 node
   # Testing whether pnpm can upgrade itself

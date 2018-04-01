@@ -6,6 +6,7 @@ environment:
     - nodejs_version: 9
 install:
   - ps: Install-Product node $env:nodejs_version
+  - npm set verify-store-integrity false
   - npm set fetch-retry-maxtimeout 180000
   - set PNPM_VERSION=1.33.2
   - curl -L https://unpkg.com/@pnpm/self-installer | node
