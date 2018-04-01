@@ -13,6 +13,7 @@ import {
   StatsLog,
   PackageJsonLog,
   ProgressLog,
+  RootLog,
 } from 'supi'
 import testDefaults from './utils/testDefaults'
 
@@ -133,8 +134,29 @@ test('installing non-prod deps then all deps', async (t: tape.Test) => {
     t.notOk(currentShrinkwrap.packages['/is-positive/1.0.0'], 'prod dep only not added to current shrinkwrap.yaml')
   }
 
+  const reporter = sinon.spy()
+
   // Repeat normal installation adds missing deps to node_modules
-  await headless(await testDefaults({prefix}))
+  await headless(await testDefaults({prefix, reporter}))
+
+  t.ok(reporter.calledWithMatch({
+    added: {
+      dependencyType: 'prod',
+      name: 'once',
+      realName: 'once',
+    },
+    level: 'info',
+    name: 'pnpm:root',
+  } as RootLog), 'added to root')
+  t.notOk(reporter.calledWithMatch({
+    added: {
+      dependencyType: 'dev',
+      name: 'inflight',
+      realName: 'inflight',
+    },
+    level: 'info',
+    name: 'pnpm:root',
+  } as RootLog), 'not added to root')
 
   await project.has('once')
 

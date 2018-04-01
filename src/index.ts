@@ -219,7 +219,9 @@ async function linkRootPackages (
         if (!peripheralLocation) {
           return
         }
-        await symlinkDependencyTo(alias, peripheralLocation, baseNodeModules)
+        if ((await symlinkDependencyTo(alias, peripheralLocation, baseNodeModules)).reused) {
+          return
+        }
         const isDev = shr.devDependencies && shr.devDependencies[alias]
         const isOptional = shr.optionalDependencies && shr.optionalDependencies[alias]
 
