@@ -215,6 +215,10 @@ async function linkRootPackages (
       .map(async (alias) => {
         const depPath = dp.refToAbsolute(allDeps[alias], alias, shr.registry)
         const peripheralLocation = rootDependencies[alias]
+        // Skipping linked packages
+        if (!peripheralLocation) {
+          return
+        }
         await symlinkDependencyTo(alias, peripheralLocation, baseNodeModules)
         const isDev = shr.devDependencies && shr.devDependencies[alias]
         const isOptional = shr.optionalDependencies && shr.optionalDependencies[alias]
@@ -347,10 +351,12 @@ async function getChildrenPaths (
       const pkgName = nameVerFromPkgSnapshot(childRelDepPath, childPkgSnapshot).name
       const inStoreLocation = pkgIdToFilename(pkgId)
       children[alias] = cache || path.join(inStoreLocation, 'node_modules', pkgName)
-    } else {
+    } else if (childPkgSnapshot) {
       const relDepPath = dp.relative(ctx.registry, childDepPath)
       const pkgName = nameVerFromPkgSnapshot(relDepPath, childPkgSnapshot).name
       children[alias] = path.join(ctx.nodeModules, `.${pkgIdToFilename(childDepPath)}`, 'node_modules', pkgName)
+    } else if (childRelDepPath.indexOf('link:') !== 0) {
+      throw new Error(`${childRelDepPath} not found in shrinkwrap.yaml`)
     }
   }
   return children
