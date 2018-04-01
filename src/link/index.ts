@@ -9,6 +9,7 @@ import R = require('ramda')
 import symlinkDir = require('symlink-dir')
 import {PkgGraphNodeByNodeId} from '../api/install'
 import removeOrphanPkgs from '../api/removeOrphanPkgs'
+import {SHRINKWRAP_MINOR_VERSION} from '../constants'
 import {
   rootLogger,
   stageLogger,
@@ -135,7 +136,7 @@ export default async function linkPackages (
     // have new backward-compatible versions of `shrinkwrap.yaml`
     // w/o changing `shrinkwrapVersion`. From version 4, the
     // `shrinkwrapVersion` field allows numbers like 4.1
-    newShr.shrinkwrapMinorVersion = 4
+    newShr.shrinkwrapMinorVersion = SHRINKWRAP_MINOR_VERSION
   }
   let currentShrinkwrap: Shrinkwrap
   if (opts.makePartialCurrentShrinkwrap) {

@@ -28,7 +28,10 @@ import {
   writeWantedOnly as saveWantedShrinkwrapOnly,
 } from 'pnpm-shrinkwrap'
 import R = require('ramda')
-import {LAYOUT_VERSION} from '../constants'
+import {
+  LAYOUT_VERSION,
+  SHRINKWRAP_MINOR_VERSION,
+} from '../constants'
 import depsFromPackage, {getPreferredVersionsFromPackage} from '../depsFromPackage'
 import depsToSpecs, {similarDepsToSpecs} from '../depsToSpecs'
 import realNodeModulesDir from '../fs/realNodeModulesDir'
@@ -164,7 +167,8 @@ export async function install (maybeOpts: InstallOptions) {
 
     if (!opts.update && (
       opts.frozenShrinkwrap ||
-      opts.preferFrozenShrinkwrap && ctx.existsWantedShrinkwrap && satisfiesPackageJson(ctx.wantedShrinkwrap, ctx.pkg))
+      opts.preferFrozenShrinkwrap && ctx.existsWantedShrinkwrap && ctx.wantedShrinkwrap.shrinkwrapMinorVersion === SHRINKWRAP_MINOR_VERSION &&
+      satisfiesPackageJson(ctx.wantedShrinkwrap, ctx.pkg))
     ) {
       if (opts.shamefullyFlatten) {
         logger.warn('Headless installation does not support flat node_modules layout yet')
