@@ -42,7 +42,7 @@ dependencies:
   retry: 0.10.1
   signal-exit: 3.0.2
   strip-color: 0.1.0
-  supi: 0.14.11
+  supi: 0.14.12
   text-table: 0.2.0
   tree-kill: 1.2.0
   update-notifier: 2.4.0
@@ -419,7 +419,7 @@ packages:
       '@pnpm/logger': ^1.0.0
     resolution:
       integrity: sha512-shgFfcZ4Eu7UXR95xgt+x8lFA0tXFciLOuA8Me771dAx7Idgh3s257Aua9piSSR3KyVODL/NAULb+BIuAuQRXg==
-  /@pnpm/headless/0.1.6:
+  /@pnpm/headless/0.1.8:
     dependencies:
       '@pnpm/lifecycle': 1.0.1
       '@pnpm/link-bins': 1.0.1
@@ -436,7 +436,7 @@ packages:
       pnpm-shrinkwrap: 6.2.4
       ramda: 0.25.0
       read-package-json: 2.0.13
-      supi: 0.14.11
+      supi: 0.14.12
       symlink-dir: 1.1.2
       util.promisify: 1.0.0
     dev: false
@@ -445,7 +445,7 @@ packages:
     peerDependencies:
       '@pnpm/logger': ^1.0.0
     resolution:
-      integrity: sha512-31z+Xpg344gEX/d03KWZCbZ8oCJUhrivGMI7KLhMUA0d3F4a6dw2PU6Utmg8Z7lI7OdcrxTJEjr9fdz/hNAdUQ==
+      integrity: sha512-UHXW4RcRD1R+HvNQ1nLc8AOz18eyr3abLMP9FdjUa39J2BwrjXyuvOiNB9gdcJGv7IPGByy+hcDsm/V1wm0Pxg==
   /@pnpm/lifecycle/1.0.1:
     dependencies:
       '@pnpm/types': 1.7.0
@@ -3025,7 +3025,7 @@ packages:
       isurl: 1.0.0
       lowercase-keys: 1.0.1
       mimic-response: 1.0.0
-      p-cancelable: 0.4.0
+      p-cancelable: 0.4.1
       p-timeout: 2.0.1
       pify: 3.0.0
       safe-buffer: 5.1.1
@@ -4817,12 +4817,12 @@ packages:
     dev: false
     resolution:
       integrity: sha1-sptrsq11acTmb67yjLXXQ2EXnLQ=
-  /p-cancelable/0.4.0:
+  /p-cancelable/0.4.1:
     dev: false
     engines:
       node: '>=4'
     resolution:
-      integrity: sha512-/AodqPe1y/GYbhSlnMjxukLGQfQIgsmjSy2CXCNB96kg4ozKvmlovuHEKICToOO/yS3LLWgrWI1dFtFfrePS1g==
+      integrity: sha512-HNa1A8LvB1kie7cERyy21VNeHb2CWJJYqyyC2o3klWFfMGlFmWv2Z7sFgZH8ZiaYL95ydToKTFVXgMV/Os0bBQ==
   /p-defer/1.0.0:
     dev: false
     engines:
@@ -6316,11 +6316,11 @@ packages:
       node: '>=0.10.0'
     resolution:
       integrity: sha1-PFMZQukIwml8DsNEhYwobHygpgo=
-  /supi/0.14.11:
+  /supi/0.14.12:
     dependencies:
       '@pnpm/check-package': 1.0.0
       '@pnpm/fs-locker': 1.0.1
-      '@pnpm/headless': 0.1.6
+      '@pnpm/headless': 0.1.8
       '@pnpm/lifecycle': 1.0.1
       '@pnpm/link-bins': 1.0.1
       '@pnpm/modules-yaml': 1.0.0
@@ -6382,7 +6382,7 @@ packages:
     peerDependencies:
       '@pnpm/logger': ^1.0.0
     resolution:
-      integrity: sha512-C0lD1dgtmsS2810wuh39N4aYSiLcvIBebL5tp+BldUsxjzWqHynOr3BEe0oS6IwkcLFiNy9Jjy7PCskMJXfbcQ==
+      integrity: sha512-hoxd3tDtENb4M6vGn856t/8quH5uENYYKNsP/LZ3Vy+B/0mDscBbiKBOH1q8EVFN1DOS3iVJ/8p7q7lrNMzaBw==
   /supports-color/2.0.0:
     dev: true
     engines:
@@ -7216,7 +7216,7 @@ specifiers:
   sepia: ^2.0.2
   signal-exit: ^3.0.2
   strip-color: ^0.1.0
-  supi: ^0.14.11
+  supi: ^0.14.12
   tape: ^4.6.3
   tape-promise: ^2.0.1
   text-table: ^0.2.0
