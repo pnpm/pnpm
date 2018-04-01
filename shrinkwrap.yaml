@@ -419,7 +419,7 @@ packages:
       '@pnpm/logger': ^1.0.0
     resolution:
       integrity: sha512-shgFfcZ4Eu7UXR95xgt+x8lFA0tXFciLOuA8Me771dAx7Idgh3s257Aua9piSSR3KyVODL/NAULb+BIuAuQRXg==
-  /@pnpm/headless/0.1.8:
+  /@pnpm/headless/0.1.9:
     dependencies:
       '@pnpm/lifecycle': 1.0.1
       '@pnpm/link-bins': 1.0.1
@@ -445,7 +445,7 @@ packages:
     peerDependencies:
       '@pnpm/logger': ^1.0.0
     resolution:
-      integrity: sha512-UHXW4RcRD1R+HvNQ1nLc8AOz18eyr3abLMP9FdjUa39J2BwrjXyuvOiNB9gdcJGv7IPGByy+hcDsm/V1wm0Pxg==
+      integrity: sha512-rhFhBv7g5/GIZZb4nW3poxkkakr+GGmLNhi4ctJ09/v51IWyfz29x6Nj+CRcsT2+IsesDq/67mWUxfWYXhxfmQ==
   /@pnpm/lifecycle/1.0.1:
     dependencies:
       '@pnpm/types': 1.7.0
@@ -6320,7 +6320,7 @@ packages:
     dependencies:
       '@pnpm/check-package': 1.0.0
       '@pnpm/fs-locker': 1.0.1
-      '@pnpm/headless': 0.1.8
+      '@pnpm/headless': 0.1.9
       '@pnpm/lifecycle': 1.0.1
       '@pnpm/link-bins': 1.0.1
       '@pnpm/modules-yaml': 1.0.0
