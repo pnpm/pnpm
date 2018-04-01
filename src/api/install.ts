@@ -168,6 +168,7 @@ export async function install (maybeOpts: InstallOptions) {
     if (!opts.update && (
       opts.frozenShrinkwrap ||
       opts.preferFrozenShrinkwrap && ctx.existsWantedShrinkwrap && ctx.wantedShrinkwrap.shrinkwrapMinorVersion === SHRINKWRAP_MINOR_VERSION &&
+      !hasLocalTarballDepsInRoot(ctx.wantedShrinkwrap) &&
       satisfiesPackageJson(ctx.wantedShrinkwrap, ctx.pkg))
     ) {
       if (opts.shamefullyFlatten) {
@@ -242,6 +243,16 @@ export async function install (maybeOpts: InstallOptions) {
       await runLifecycleHooks('prepare', ctx.pkg, scriptsOpts)
     }
   }
+}
+
+function hasLocalTarballDepsInRoot (shr: Shrinkwrap) {
+  return R.any(refIsLocalTarbal, R.values(shr.dependencies || {}))
+    || R.any(refIsLocalTarbal, R.values(shr.devDependencies || {}))
+    || R.any(refIsLocalTarbal, R.values(shr.optionalDependencies || {}))
+}
+
+function refIsLocalTarbal (ref: string) {
+  return (ref.startsWith('file:') || ref.startsWith('link:')) && (ref.endsWith('.tgz') || ref.endsWith('.tar.gz') || ref.endsWith('.tar'))
 }
 
 function specsToInstallFromPackage (

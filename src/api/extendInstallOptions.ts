@@ -125,7 +125,7 @@ const defaults = async (opts: InstallOptions) => {
     nodeVersion: process.version,
     optional: typeof opts.production === 'boolean' ? opts.production : true,
     packageManager,
-    preferFrozenShrinkwrap: false,
+    preferFrozenShrinkwrap: true,
     prefix,
     production: true,
     rawNpmConfig: {},
