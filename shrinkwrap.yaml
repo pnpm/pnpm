@@ -34,7 +34,7 @@ dependencies:
   path-name: 1.0.0
   pkgs-graph: 2.0.0
   pnpm: 'link:../__package_previews__/pnpm/pnpm'
-  pnpm-default-reporter: 0.14.7
+  pnpm-default-reporter: 0.15.0
   pnpm-file-reporter: 0.1.0
   pnpm-list: 2.0.1
   process-exists: 3.1.0
@@ -42,7 +42,7 @@ dependencies:
   retry: 0.10.1
   signal-exit: 3.0.2
   strip-color: 0.1.0
-  supi: 0.14.13
+  supi: 0.15.0
   text-table: 0.2.0
   tree-kill: 1.2.0
   update-notifier: 2.4.0
@@ -419,7 +419,7 @@ packages:
       '@pnpm/logger': ^1.0.0
     resolution:
       integrity: sha512-shgFfcZ4Eu7UXR95xgt+x8lFA0tXFciLOuA8Me771dAx7Idgh3s257Aua9piSSR3KyVODL/NAULb+BIuAuQRXg==
-  /@pnpm/headless/0.1.9:
+  /@pnpm/headless/0.1.10:
     dependencies:
       '@pnpm/lifecycle': 1.0.1
       '@pnpm/link-bins': 1.0.1
@@ -436,7 +436,7 @@ packages:
       pnpm-shrinkwrap: 6.2.4
       ramda: 0.25.0
       read-package-json: 2.0.13
-      supi: 0.14.13
+      supi: 0.15.0
       symlink-dir: 1.1.2
       util.promisify: 1.0.0
     dev: false
@@ -445,7 +445,7 @@ packages:
     peerDependencies:
       '@pnpm/logger': ^1.0.0
     resolution:
-      integrity: sha512-rhFhBv7g5/GIZZb4nW3poxkkakr+GGmLNhi4ctJ09/v51IWyfz29x6Nj+CRcsT2+IsesDq/67mWUxfWYXhxfmQ==
+      integrity: sha512-LIWuQU5Ee0ijBs1nsJobdbIxUon6WOcOWpVgEM6gsHKKYEz7oncVHkg+Ode5IJGhVwXfA3DPs6IZb/eIWqyzUA==
   /@pnpm/lifecycle/1.0.1:
     dependencies:
       '@pnpm/types': 1.7.0
@@ -832,6 +832,10 @@ packages:
   /@types/semver/5.5.0:
     resolution:
       integrity: sha512-41qEJgBH/TWgo5NFSvBCJ1qkoi3Q6ONSF2avrHq1LVEZfYpdHmj0y9SuTK+u9ZhG1sYQKBL1AWXKyLWP4RaUoQ==
+  /@types/strip-ansi/3.0.0:
+    dev: false
+    resolution:
+      integrity: sha1-m2PUU6a1SqhJGCIHcRoIvo7qSK4=
   /@types/tape/4.2.32:
     dependencies:
       '@types/node': 9.6.1
@@ -5161,12 +5165,13 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha1-puODKevukuhGh/UvSt8W9iE5lS8=
-  /pnpm-default-reporter/0.14.7:
+  /pnpm-default-reporter/0.15.0:
     dependencies:
       '@types/common-tags': 1.4.0
       '@types/node': 9.6.1
       '@types/ramda': 0.25.21
       '@types/semver': 5.5.0
+      '@types/strip-ansi': 3.0.0
       ansi-diff: 1.1.0
       chalk: 2.3.2
       cli-cursor: 2.1.0
@@ -5176,16 +5181,18 @@ packages:
       ndjson: 1.5.0
       pretty-bytes: 4.0.2
       ramda: 0.25.0
+      right-pad: 1.0.1
       semver: 5.5.0
       stacktracey: 1.2.100
+      strip-ansi: 4.0.0
       zen-push: 0.2.1
     dev: false
     engines:
       node: '>=4'
     peerDependencies:
-      supi: '>=0.12.5 <0.15.0'
+      supi: '>=0.15.0 <0.16.0'
     resolution:
-      integrity: sha512-uHBIrBDxS/K82cGaxSQnhMYPJyYI4mX/28voWxqtFwIqhR0Gjf73EGN1wUc3lD38HdQDkCrSk5HBwp5N21AONw==
+      integrity: sha1-ZiU2WsAykHRIRMsN2e1EaxmoL8k=
   /pnpm-file-reporter/0.1.0:
     dependencies:
       '@types/graceful-fs': 4.1.2
@@ -5790,6 +5797,12 @@ packages:
     optional: true
     resolution:
       integrity: sha1-YTObci/mo1FWiSENJOFMlhSGE+8=
+  /right-pad/1.0.1:
+    dev: false
+    engines:
+      node: '>= 0.10'
+    resolution:
+      integrity: sha1-jKCMLLtbVedNr6lr9/0aJ9VoyNA=
   /rimraf-then/1.0.1:
     dependencies:
       any-promise: 1.3.0
@@ -6316,11 +6329,11 @@ packages:
       node: '>=0.10.0'
     resolution:
       integrity: sha1-PFMZQukIwml8DsNEhYwobHygpgo=
-  /supi/0.14.13:
+  /supi/0.15.0:
     dependencies:
       '@pnpm/check-package': 1.0.0
       '@pnpm/fs-locker': 1.0.1
-      '@pnpm/headless': 0.1.9
+      '@pnpm/headless': 0.1.10
       '@pnpm/lifecycle': 1.0.1
       '@pnpm/link-bins': 1.0.1
       '@pnpm/modules-yaml': 1.0.0
@@ -6382,7 +6395,7 @@ packages:
     peerDependencies:
       '@pnpm/logger': ^1.0.0
     resolution:
-      integrity: sha512-whglee94QxcDAg6Kcka5ik9gGKq5roDW2kwgDznyVYmDFkvLorDf8LJLwPoxa7QH99T5XoXF3eJhm0YfzWMNkg==
+      integrity: sha512-0BCOBT2ADxdojhy35ZV3idKq/E8bfib+0lJRLVGE/d+d6Tf63xiZfHhOJtxNBRNsaGl966awbEvgBSZJlHuFaQ==
   /supports-color/2.0.0:
     dev: true
     engines:
@@ -6635,7 +6648,7 @@ packages:
       resolve: 1.6.0
       semver: 5.5.0
       tslib: 1.9.0
-      tsutils: 2.25.0
+      tsutils: 2.25.1
     dev: true
     engines:
       node: '>=4.8.0'
@@ -6643,14 +6656,14 @@ packages:
       typescript: '>=2.1.0 || >=2.1.0-dev || >=2.2.0-dev || >=2.3.0-dev || >=2.4.0-dev || >=2.5.0-dev || >=2.6.0-dev || >=2.7.0-dev || >=2.8.0-dev'
     resolution:
       integrity: sha1-ElX4ej/1frCw4fDmEKi0dIBGya4=
-  /tsutils/2.25.0:
+  /tsutils/2.25.1:
     dependencies:
       tslib: 1.9.0
     dev: true
     peerDependencies:
       typescript: '>=2.1.0 || >=2.1.0-dev || >=2.2.0-dev || >=2.3.0-dev || >=2.4.0-dev || >=2.5.0-dev || >=2.6.0-dev || >=2.7.0-dev || >=2.8.0-dev || >=2.9.0-dev || >= 2.10.0-dev'
     resolution:
-      integrity: sha512-SPgUlOAUAe6fCyPi0QR4U0jRuDsHHKvzIR6/hHd0YR0bb8MzeLJgCagkPSmZeJjWImnpJ0xq6XHa9goTvMBBCQ==
+      integrity: sha512-xHiTER5XIRYlWbylk4vpGZSYo8FUTVn32bAxxM1rJopXs2DYG7lWp40LqNvM3iMNpXa50wmnC9bFXsPTV6xAiQ==
   /tunnel-agent/0.6.0:
     dependencies:
       safe-buffer: 5.1.1
@@ -7202,7 +7215,7 @@ specifiers:
   path-exists: ^3.0.0
   path-name: ^1.0.0
   pkgs-graph: ^2.0.0
-  pnpm-default-reporter: ^0.14.7
+  pnpm-default-reporter: ^0.15.0
   pnpm-file-reporter: ^0.1.0
   pnpm-list: ^2.0.0
   pnpm-registry-mock: ^1.5.0
@@ -7216,7 +7229,7 @@ specifiers:
   sepia: ^2.0.2
   signal-exit: ^3.0.2
   strip-color: ^0.1.0
-  supi: ^0.14.13
+  supi: ^0.15.0
   tape: ^4.6.3
   tape-promise: ^2.0.1
   text-table: ^0.2.0
