@@ -48,7 +48,10 @@ export default async function removeOrphanPkgs (
   const orphanDepPaths = R.difference(oldDepPaths, newDepPaths)
   const orphanPkgIds = new Set(R.props<string, string>(orphanDepPaths, oldPkgIdsByDepPaths))
 
-  statsLogger.debug({removed: orphanPkgIds.size})
+  statsLogger.debug({
+    prefix: opts.prefix,
+    removed: orphanPkgIds.size,
+  })
 
   if (!opts.dryRun) {
     if (orphanDepPaths.length) {

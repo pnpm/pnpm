@@ -83,10 +83,12 @@ export type ProgressMessage = {
 }
 
 export type StatsMessage = {
+  prefix: string,
+} & ({
   added: number,
 } | {
   removed: number,
-}
+})
 
 export type ProgressLog = {name: 'pnpm:progress'} & LogBase & ProgressMessage
 

@@ -268,6 +268,7 @@ async function linkNewPackages (
     optional: boolean,
     sideEffectsCache: boolean,
     storeController: StoreController,
+    root: string,
   },
 ): Promise<string[]> {
   const wantedRelDepPaths = R.keys(wantedShrinkwrap.packages)
@@ -285,7 +286,10 @@ async function linkNewPackages (
     // just skip the ones that are in the lockfile but were not analyzed
     .filter((depPath) => depGraph[depPath]),
   )
-  statsLogger.debug({added: newDepPathsSet.size})
+  statsLogger.debug({
+    added: newDepPathsSet.size,
+    prefix: opts.root,
+  })
 
   const existingWithUpdatedDeps = []
   if (!opts.force && currentShrinkwrap.packages && wantedShrinkwrap.packages) {
