@@ -135,7 +135,10 @@ export default async (opts: HeadlessOptions) => {
       storeController: opts.storeController,
     })
   } else {
-    statsLogger.debug({removed: 0})
+    statsLogger.debug({
+      prefix: opts.prefix,
+      removed: 0,
+    })
   }
 
   const filterOpts = {
@@ -149,7 +152,10 @@ export default async (opts: HeadlessOptions) => {
   const res = await shrinkwrapToDepGraph(filteredShrinkwrap, opts.force ? null : currentShrinkwrap, opts)
   const depGraph = res.graph
 
-  statsLogger.debug({added: Object.keys(depGraph).length})
+  statsLogger.debug({
+    added: Object.keys(depGraph).length,
+    prefix: opts.prefix,
+  })
 
   await Promise.all([
     linkAllModules(depGraph, {optional: opts.optional}),

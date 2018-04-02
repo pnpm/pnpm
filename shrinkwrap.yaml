@@ -15,7 +15,7 @@ dependencies:
   pnpm-shrinkwrap: 6.2.4
   ramda: 0.25.0
   read-package-json: 2.0.13
-  supi: 0.14.8
+  supi: 0.15.0
   symlink-dir: 1.1.2
   util.promisify: 1.0.0
 devDependencies:
@@ -340,7 +340,7 @@ packages:
       '@pnpm/logger': ^1.0.0
     resolution:
       integrity: sha512-shgFfcZ4Eu7UXR95xgt+x8lFA0tXFciLOuA8Me771dAx7Idgh3s257Aua9piSSR3KyVODL/NAULb+BIuAuQRXg==
-  /@pnpm/headless/0.1.2:
+  /@pnpm/headless/0.1.9:
     dependencies:
       '@pnpm/lifecycle': 1.0.1
       '@pnpm/link-bins': 1.0.1
@@ -348,15 +348,16 @@ packages:
       '@pnpm/package-requester': 0.8.5
       '@pnpm/pkgid-to-filename': 1.0.0
       '@pnpm/types': 1.7.0
-      '@types/ramda': 0.25.20
+      '@types/ramda': 0.25.21
       dependency-path: 1.2.1
+      graph-sequencer: 2.0.0
       p-limit: 1.2.0
       package-store: 0.18.0
       path-exists: 3.0.0
       pnpm-shrinkwrap: 6.2.4
       ramda: 0.25.0
       read-package-json: 2.0.13
-      supi: 0.14.8
+      supi: 0.14.13
       symlink-dir: 1.1.2
       util.promisify: 1.0.0
     dev: false
@@ -365,7 +366,7 @@ packages:
     peerDependencies:
       '@pnpm/logger': ^1.0.0
     resolution:
-      integrity: sha512-VCSMQYdFy/7/dC997Rvc0adSiAj0NXXVj6GJT/y8LRQHwGdSjkKoJHiuGGkSEQqAooEvMJFRm/iITM3mI+9GyA==
+      integrity: sha512-rhFhBv7g5/GIZZb4nW3poxkkakr+GGmLNhi4ctJ09/v51IWyfz29x6Nj+CRcsT2+IsesDq/67mWUxfWYXhxfmQ==
   /@pnpm/lifecycle/1.0.1:
     dependencies:
       '@pnpm/types': 1.7.0
@@ -579,6 +580,7 @@ packages:
     resolution:
       integrity: sha512-pn7g4uxcofWTNG/cxmKvkMK2lxr4OUIhrQDrEVYEdVhW0WkWztsHkFrYjFgfNzPbYu3ITlB3T6aSVjCoJQTOlw==
   /@sindresorhus/is/0.7.0:
+    dev: true
     engines:
       node: '>=4'
     resolution:
@@ -653,6 +655,10 @@ packages:
   /@types/node/9.6.0:
     resolution:
       integrity: sha512-h3YZbOq2+ZoDFI1z8Zx0Ck/xRWkOESVaLdgLdd/c25mMQ1Y2CAkILu9ny5A15S5f32gGcQdaUIZ2jzYr8D7IFg==
+  /@types/node/9.6.1:
+    dev: false
+    resolution:
+      integrity: sha512-xwlHq5DXQFRpe+u6hmmNkzYk/3oxxqDp71a/AJMupOQYmxyaBetqrVMqdNlSQfbg7XTJYD8vARjf3Op06OzdtQ==
   /@types/nopt/3.0.29:
     dev: false
     resolution:
@@ -679,6 +685,10 @@ packages:
     dev: false
     resolution:
       integrity: sha512-hzYRBRWCrtYlqZomYRGreFVZOt6X7KsQ3i838RYdGDIc0/T3Ektt+rvO6c90byNoGR3+rjSOuR5ei1LOympgqg==
+  /@types/ramda/0.25.21:
+    dev: false
+    resolution:
+      integrity: sha512-y4Dx3t+EA5Y+s87cwUoIzo0Tsj9z7QCu4gaXrdFln4wQRgk9igBskEEe7gZ0PG8dSXtQb29oA3RS//3XquHdiw==
   /@types/rc/0.0.1:
     dev: false
     resolution:
@@ -3580,21 +3590,6 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha512-MJGD2eVNHhtCsGLBDsfNzhBDlWxBFb5BvVXhJFbmlXH76Llo792ylwqEYJguLo+BnxZpos/Qw9dq0voyQRD3pg==
-  /p-reduce/1.0.0:
-    dev: false
-    engines:
-      node: '>=4'
-    resolution:
-      integrity: sha1-GMKw3ZNqRpClKfgjH1ig/bakffo=
-  /p-series/1.1.0:
-    dependencies:
-      '@sindresorhus/is': 0.7.0
-      p-reduce: 1.0.0
-    dev: false
-    engines:
-      node: '>=4'
-    resolution:
-      integrity: sha512-356covArc9UCfj2twY/sxCJKGMzzO+pJJtucizsPC6aS1xKSTBc9PQrQhvFR3+7F+fa2KBKdJjdIcv6NEWDcIQ==
   /p-timeout/2.0.1:
     dependencies:
       p-finally: 1.0.0
@@ -4640,11 +4635,78 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha1-XvjbKV0B5u1sv3qrlpmNeCJSe2g=
-  /supi/0.14.8:
+  /supi/0.14.13:
     dependencies:
       '@pnpm/check-package': 1.0.0
       '@pnpm/fs-locker': 1.0.1
-      '@pnpm/headless': 0.1.2
+      '@pnpm/headless': 0.1.9
+      '@pnpm/lifecycle': 1.0.1
+      '@pnpm/link-bins': 1.0.1
+      '@pnpm/modules-yaml': 1.0.0
+      '@pnpm/package-bins': 1.0.0
+      '@pnpm/package-requester': 0.8.5
+      '@pnpm/pkgid-to-filename': 1.0.0
+      '@pnpm/resolver-base': 1.0.0
+      '@pnpm/types': 1.7.0
+      '@types/byline': 4.2.31
+      '@types/common-tags': 1.4.0
+      '@types/load-json-file': 2.0.7
+      '@types/mz': 0.0.32
+      '@types/node': 9.6.1
+      '@types/nopt': 3.0.29
+      '@types/npm': 2.0.29
+      '@types/p-series': 1.0.1
+      '@types/ramda': 0.25.21
+      '@types/rc': 0.0.1
+      '@types/semver': 5.5.0
+      '@zkochan/npm-package-arg': 1.0.0
+      common-tags: 1.7.2
+      dependency-path: 1.2.1
+      encode-registry: 1.1.0
+      execa: 0.10.0
+      get-npm-tarball-url: 2.0.1
+      graceful-fs: 4.1.11
+      graph-sequencer: 2.0.0
+      is-ci: 1.1.0
+      is-inner-link: 2.0.2
+      is-subdir: 1.0.2
+      load-json-file: 4.0.0
+      mkdirp-promise: 5.0.1
+      mz: 2.7.0
+      normalize-path: 2.1.1
+      normalize-registry-url: 1.0.0
+      os-homedir: 1.0.2
+      p-filter: 1.0.0
+      p-limit: 1.2.0
+      package-store: 0.18.0
+      path-absolute: 1.0.0
+      path-exists: 3.0.0
+      pnpm-install-checks: 1.1.0
+      pnpm-shrinkwrap: 6.2.4
+      ramda: 0.25.0
+      read-package-json: 2.0.13
+      remove-all-except-outer-links: 1.0.3
+      replace-string: 1.1.0
+      resolve-link-target: 1.0.1
+      rimraf-then: 1.0.1
+      semver: 5.5.0
+      symlink-dir: 1.1.2
+      util.promisify: 1.0.0
+      validate-npm-package-name: 3.0.0
+      version-selector-type: 2.0.0
+      write-pkg: 3.1.0
+    dev: false
+    engines:
+      node: '>=4'
+    peerDependencies:
+      '@pnpm/logger': ^1.0.0
+    resolution:
+      integrity: sha512-whglee94QxcDAg6Kcka5ik9gGKq5roDW2kwgDznyVYmDFkvLorDf8LJLwPoxa7QH99T5XoXF3eJhm0YfzWMNkg==
+  /supi/0.15.0:
+    dependencies:
+      '@pnpm/check-package': 1.0.0
+      '@pnpm/fs-locker': 1.0.1
+      '@pnpm/headless': 0.1.9
       '@pnpm/lifecycle': 1.0.1
       '@pnpm/link-bins': 1.0.1
       '@pnpm/modules-yaml': 1.0.0
@@ -4671,6 +4733,7 @@ packages:
       execa: 0.10.0
       get-npm-tarball-url: 2.0.1
       graceful-fs: 4.1.11
+      graph-sequencer: 2.0.0
       is-ci: 1.1.0
       is-inner-link: 2.0.2
       is-subdir: 1.0.2
@@ -4682,7 +4745,6 @@ packages:
       os-homedir: 1.0.2
       p-filter: 1.0.0
       p-limit: 1.2.0
-      p-series: 1.1.0
       package-store: 0.18.0
       path-absolute: 1.0.0
       path-exists: 3.0.0
@@ -4706,7 +4768,7 @@ packages:
     peerDependencies:
       '@pnpm/logger': ^1.0.0
     resolution:
-      integrity: sha512-L8Cik1xMrKEU5MDX1Z2EtPbZ7y4K27Ld58vYu/TsbIF5YrEKzT1X14QKeJdBvaauF/V2R6E+/H/QtXn4a1dSlQ==
+      integrity: sha512-0BCOBT2ADxdojhy35ZV3idKq/E8bfib+0lJRLVGE/d+d6Tf63xiZfHhOJtxNBRNsaGl966awbEvgBSZJlHuFaQ==
   /supports-color/2.0.0:
     dev: true
     engines:
@@ -5316,7 +5378,7 @@ specifiers:
   rimraf: ^2.6.2
   rimraf-then: ^1.0.1
   sinon: ^4.4.6
-  supi: ^0.14.4
+  supi: ^0.15.0
   symlink-dir: ^1.1.2
   tape: ^4.8.0
   tape-promise: ^2.0.1
