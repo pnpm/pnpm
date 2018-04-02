@@ -32,3 +32,8 @@ declare module 'zen-push' {
   const anything: any;
   export = anything;
 }
+
+declare module 'right-pad' {
+  const anything: any;
+  export = anything;
+}

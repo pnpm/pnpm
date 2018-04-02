@@ -4,7 +4,9 @@ import {last as mostLast} from 'most-last'
 import os = require('os')
 import prettyBytes = require('pretty-bytes')
 import R = require('ramda')
+import rightPad = require('right-pad')
 import semver = require('semver')
+import stripAnsi = require('strip-ansi')
 import {
   DeprecationLog,
   InstallCheckLog,
@@ -28,6 +30,7 @@ const removedSign = chalk.red('-')
 const linkSign = chalk.magentaBright('#')
 const hlValue = chalk.blue
 const hlPkgId = chalk['whiteBright']
+const PREFIX_MAX_LENGTH = 30
 
 export default function (
   log$: {
@@ -237,22 +240,6 @@ export default function (
           return most.of({msg: 'Already up-to-date'})
         }
 
-        let addSigns = (stats['added'] || 0)
-        let removeSigns = (stats['removed'] || 0)
-        const changes = addSigns + removeSigns
-        if (changes > width) {
-          if (!addSigns) {
-            addSigns = 0
-            removeSigns = width
-          } else if (!removeSigns) {
-            addSigns = width
-            removeSigns = 0
-          } else {
-            const p = width / changes
-            addSigns = Math.min(Math.max(Math.floor(addSigns * p), 1), width - 1)
-            removeSigns = width - addSigns
-          }
-        }
         let msg = 'Packages:'
         if (stats['removed']) {
           msg += ' ' + chalk.red(`-${stats['removed']}`)
@@ -260,7 +247,7 @@ export default function (
         if (stats['added']) {
           msg += ' ' + chalk.green(`+${stats['added']}`)
         }
-        msg += EOL + R.repeat(removedSign, removeSigns).join('') + R.repeat(addedSign, addSigns).join('')
+        msg += EOL + printPlusesAndMinuses(width, (stats['added'] || 0), (stats['removed'] || 0))
         return most.of({msg})
       }),
     )
@@ -296,6 +283,38 @@ export default function (
 
     outputs.push(miscOutput$)
   } else {
+    outputs.push(
+      log$.stats
+      .loop((stats, log) => {
+        if (stats[log.prefix]) {
+          const value = {...stats[log.prefix], ...log}
+          delete stats[log.prefix]
+          return {seed: stats, value}
+        }
+        stats[log.prefix] = log
+        return {seed: stats, value: null}
+      }, {})
+      .filter((stats) => stats !== null && (stats['removed'] || stats['added']))
+      .map((stats) => {
+        const prefix = stats['prefix'].length <= PREFIX_MAX_LENGTH
+          ? stats['prefix']
+          : `...${stats['prefix'].substr(-PREFIX_MAX_LENGTH)}`
+
+        let msg = `${rightPad(prefix, PREFIX_MAX_LENGTH)} |`
+
+        if (stats['removed']) {
+          msg += ' ' + chalk.red(`-${stats['removed']}`)
+        }
+        if (stats['added']) {
+          msg += ' ' + chalk.green(`+${stats['added']}`)
+        }
+
+        const rest = Math.max(0, width - 1 - stripAnsi(msg).length)
+        msg += ' ' + printPlusesAndMinuses(rest, (stats['added'] || 0), (stats['removed'] || 0))
+        return most.of({msg})
+      }),
+    )
+
     const miscOutput$ = log$.other
       .filter((obj) => obj.level === 'error')
       .map((obj) => {
@@ -311,6 +330,24 @@ export default function (
   }
 
   return outputs
+}
+
+function printPlusesAndMinuses (maxWidth: number, addSigns: number, removeSigns: number) {
+  const changes = addSigns + removeSigns
+  if (changes > maxWidth) {
+    if (!addSigns) {
+      addSigns = 0
+      removeSigns = maxWidth
+    } else if (!removeSigns) {
+      addSigns = maxWidth
+      removeSigns = 0
+    } else {
+      const p = maxWidth / changes
+      addSigns = Math.min(Math.max(Math.floor(addSigns * p), 1), maxWidth - 1)
+      removeSigns = maxWidth - addSigns
+    }
+  }
+  return R.repeat(removedSign, removeSigns).join('') + R.repeat(addedSign, addSigns).join('')
 }
 
 function printDiffs (pkgsDiff: PackageDiff[]) {

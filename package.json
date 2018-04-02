@@ -38,13 +38,14 @@
   },
   "homepage": "https://github.com/pnpm/pnpm-reporter-default#readme",
   "peerDependencies": {
-    "supi": ">=0.12.5 <0.15.0"
+    "supi": ">=0.15.0 <0.16.0"
   },
   "dependencies": {
     "@types/common-tags": "^1.2.5",
     "@types/node": "^9.3.0",
     "@types/ramda": "^0.25.6",
     "@types/semver": "^5.4.0",
+    "@types/strip-ansi": "^3.0.0",
     "ansi-diff": "^1.0.10",
     "chalk": "^2.2.0",
     "cli-cursor": "^2.1.0",
@@ -54,8 +55,10 @@
     "ndjson": "^1.5.0",
     "pretty-bytes": "^4.0.2",
     "ramda": "^0.25.0",
+    "right-pad": "^1.0.1",
     "semver": "^5.4.1",
     "stacktracey": "^1.2.87",
+    "strip-ansi": "^4.0.0",
     "zen-push": "^0.2.1"
   },
   "devDependencies": {
@@ -68,7 +71,7 @@
     "normalize-newline": "^3.0.0",
     "package-preview": "^1.0.0",
     "rimraf": "^2.5.4",
-    "supi": "^0.14.0",
+    "supi": "^0.15.0",
     "tape": "^4.8.0",
     "ts-node": "^5.0.0",
     "tslint": "^5.7.0",
