@@ -804,7 +804,7 @@ test('prints added/removed stats during recursive installation', t => {
   output$.skip(3).take(1).map(normalizeNewline).subscribe({
     next: output => {
       t.equal(output, stripIndents`
-        pkg-1                          | ${chalk.red('-1')} ${chalk.green('+5')} ${SUB}${ADD}
+        pkg-1                          |   ${chalk.red('-1')}   ${chalk.green('+5')} ${SUB}${ADD}
         dir/pkg-2                      |   ${chalk.green('+2')} ${ADD}
         .../pkg-3                      |   ${chalk.green('+1')} ${ADD}
         ...ooooooooooooooooooong-pkg-4 |   ${chalk.red('-1')} ${SUB}`
@@ -854,7 +854,7 @@ test('recursive installation: prints only the removed stats if nothing was added
 })
 
 test('recursive installation: prints at least one remove sign when removed !== 0', t => {
-  const output$ = toOutput$(createStreamParser(), {cmd: 'recursive', width: 50, cwd: '/home/jane/repo'})
+  const output$ = toOutput$(createStreamParser(), {cmd: 'recursive', width: 52, cwd: '/home/jane/repo'})
 
   statsLogger.debug({ removed: 1, prefix: '/home/jane/repo/pkg-1' })
   statsLogger.debug({ added: 100, prefix: '/home/jane/repo/pkg-1' })
@@ -864,7 +864,7 @@ test('recursive installation: prints at least one remove sign when removed !== 0
   output$.take(1).map(normalizeNewline).subscribe({
     next: output => {
       t.equal(output, stripIndents`
-        pkg-1                          | ${chalk.red('-1')} ${chalk.green('+100')} ${SUB}${R.repeat(ADD, 8).join('')}`
+        pkg-1                          |   ${chalk.red('-1')} ${chalk.green('+100')} ${SUB}${R.repeat(ADD, 8).join('')}`
       )
     },
     complete: () => t.end(),
@@ -873,7 +873,7 @@ test('recursive installation: prints at least one remove sign when removed !== 0
 })
 
 test('recursive installation: prints at least one add sign when added !== 0', t => {
-  const output$ = toOutput$(createStreamParser(), {cmd: 'recursive', width: 50, cwd: '/home/jane/repo'})
+  const output$ = toOutput$(createStreamParser(), {cmd: 'recursive', width: 52, cwd: '/home/jane/repo'})
 
   statsLogger.debug({ removed: 100, prefix: '/home/jane/repo/pkg-1' })
   statsLogger.debug({ added: 1, prefix: '/home/jane/repo/pkg-1' })
@@ -883,7 +883,7 @@ test('recursive installation: prints at least one add sign when added !== 0', t 
   output$.take(1).map(normalizeNewline).subscribe({
     next: output => {
       t.equal(output, stripIndents`
-        pkg-1                          | ${chalk.red('-100')} ${chalk.green('+1')} ${R.repeat(SUB, 8).join('')}${ADD}`
+        pkg-1                          | ${chalk.red('-100')}   ${chalk.green('+1')} ${R.repeat(SUB, 8).join('')}${ADD}`
       )
     },
     complete: () => t.end(),

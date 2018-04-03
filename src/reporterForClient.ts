@@ -304,20 +304,12 @@ export default function (
 
         let msg = `${rightPad(prefix, PREFIX_MAX_LENGTH)} |`
 
-        let statsChunk = ''
         if (stats['removed']) {
-          statsChunk += ' ' + chalk.red(`-${stats['removed']}`)
+          msg += ` ${padStep(chalk.red(`-${stats['removed']}`), 4)}`
         }
         if (stats['added']) {
-          statsChunk += ' ' + chalk.green(`+${stats['added']}`)
+          msg += ` ${padStep(chalk.green(`+${stats['added']}`), 4)}`
         }
-
-        const statsChunkLength = stringLength(statsChunk)
-        if (statsChunkLength < 5) {
-          msg += R.repeat(' ', 5 - statsChunkLength).join('')
-        }
-
-        msg += statsChunk
 
         const rest = Math.max(0, width - 1 - stringLength(msg))
         msg += ' ' + printPlusesAndMinuses(rest, roundStats(stats['added'] || 0), roundStats(stats['removed'] || 0))
@@ -340,6 +332,15 @@ export default function (
   }
 
   return outputs
+}
+
+function padStep (s: string, step: number) {
+  const sLength = stringLength(s)
+  const placeholderLength = Math.ceil(sLength / step) * step
+  if (sLength < placeholderLength) {
+    return R.repeat(' ', placeholderLength - sLength).join('') + s
+  }
+  return s
 }
 
 function roundStats (stat: number): number {
