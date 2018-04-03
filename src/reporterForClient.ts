@@ -32,7 +32,7 @@ const removedSign = chalk.red('-')
 const linkSign = chalk.magentaBright('#')
 const hlValue = chalk.blue
 const hlPkgId = chalk['whiteBright']
-const PREFIX_MAX_LENGTH = 30
+const PREFIX_MAX_LENGTH = 40
 
 export default function (
   log$: {
@@ -367,6 +367,7 @@ function formatPrefix (cwd: string, prefix: string) {
 }
 
 function printPlusesAndMinuses (maxWidth: number, addSigns: number, removeSigns: number) {
+  if (maxWidth === 0) return ''
   const changes = addSigns + removeSigns
   if (changes > maxWidth) {
     if (!addSigns) {
