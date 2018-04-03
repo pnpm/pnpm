@@ -34,7 +34,7 @@ dependencies:
   path-name: 1.0.0
   pkgs-graph: 2.0.0
   pnpm: 'link:../__package_previews__/pnpm/pnpm'
-  pnpm-default-reporter: 0.15.0
+  pnpm-default-reporter: 0.15.1
   pnpm-file-reporter: 0.1.0
   pnpm-list: 2.0.1
   process-exists: 3.1.0
@@ -1191,6 +1191,12 @@ packages:
       node: '>=0.10.0'
     resolution:
       integrity: sha1-WWZ/QfrdTyDMvCu5a41Pf3jsA2c=
+  /astral-regex/1.0.0:
+    dev: false
+    engines:
+      node: '>=4'
+    resolution:
+      integrity: sha512-+Ryf6g3BKoRc7jfp7ad8tM4TtMiaWvbF/1/sQcZPkkS7ag3D5nMBCe2UfOTONtAkaG0tO0ij3C5Lwmf1EiyjHg==
   /async/1.5.2:
     dev: true
     resolution:
@@ -5165,7 +5171,7 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha1-puODKevukuhGh/UvSt8W9iE5lS8=
-  /pnpm-default-reporter/0.15.0:
+  /pnpm-default-reporter/0.15.1:
     dependencies:
       '@types/common-tags': 1.4.0
       '@types/node': 9.6.1
@@ -5179,12 +5185,13 @@ packages:
       most: 1.7.3
       most-last: /most-last/1.0.0/most@1.7.3
       ndjson: 1.5.0
+      normalize-path: 2.1.1
       pretty-bytes: 4.0.2
       ramda: 0.25.0
       right-pad: 1.0.1
       semver: 5.5.0
       stacktracey: 1.2.100
-      strip-ansi: 4.0.0
+      string-length: 2.0.0
       zen-push: 0.2.1
     dev: false
     engines:
@@ -5192,7 +5199,7 @@ packages:
     peerDependencies:
       supi: '>=0.15.0 <0.16.0'
     resolution:
-      integrity: sha1-ZiU2WsAykHRIRMsN2e1EaxmoL8k=
+      integrity: sha512-E3Z8VmI/n6OsAk2OdZsd4gw7HVDBdDQKvUtSGGQj5XUupQMsAcgC1y0zXINSq+PjMPeABxJD9z0QdGqb4SMr8Q==
   /pnpm-file-reporter/0.1.0:
     dependencies:
       '@types/graceful-fs': 4.1.2
@@ -6224,6 +6231,15 @@ packages:
       node: '>=0.10.0'
     resolution:
       integrity: sha1-J5siXfHVgrH1TmWt3UNS4Y+qBxM=
+  /string-length/2.0.0:
+    dependencies:
+      astral-regex: 1.0.0
+      strip-ansi: 4.0.0
+    dev: false
+    engines:
+      node: '>=4'
+    resolution:
+      integrity: sha1-1A27aGo6zpYMHP/KVivyxF+DY+0=
   /string-width/1.0.2:
     dependencies:
       code-point-at: 1.1.0
@@ -7215,7 +7231,7 @@ specifiers:
   path-exists: ^3.0.0
   path-name: ^1.0.0
   pkgs-graph: ^2.0.0
-  pnpm-default-reporter: ^0.15.0
+  pnpm-default-reporter: ^0.15.1
   pnpm-file-reporter: ^0.1.0
   pnpm-list: ^2.0.0
   pnpm-registry-mock: ^1.5.0
