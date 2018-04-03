@@ -37,3 +37,8 @@ declare module 'right-pad' {
   const anything: any;
   export = anything;
 }
+
+declare module 'string-length' {
+  function stringLength (s: string): number;
+  export = stringLength;
+}

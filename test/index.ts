@@ -807,7 +807,7 @@ test('prints added/removed stats during recursive installation', t => {
         pkg-1                          | ${chalk.red('-1')} ${chalk.green('+5')} ${SUB}${ADD + ADD + ADD + ADD + ADD}
         pkg-2                          |   ${chalk.green('+2')} ${ADD + ADD}
         pkg-3                          |   ${chalk.green('+1')} ${ADD}
-        ...oooooooooooooooooooooong/pkg-4 |   ${chalk.red('-1')} ${SUB}`
+        ...ooooooooooooooooooong/pkg-4 |   ${chalk.red('-1')} ${SUB}`
       )
     },
     complete: () => t.end(),

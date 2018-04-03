@@ -7,7 +7,7 @@ import prettyBytes = require('pretty-bytes')
 import R = require('ramda')
 import rightPad = require('right-pad')
 import semver = require('semver')
-import stripAnsi = require('strip-ansi')
+import stringLength = require('string-length')
 import {
   DeprecationLog,
   InstallCheckLog,
@@ -302,7 +302,7 @@ export default function (
         let prefix = path.relative(cwd, stats['prefix'])
         prefix = prefix.length <= PREFIX_MAX_LENGTH
           ? prefix
-          : `...${prefix.substr(-PREFIX_MAX_LENGTH)}`
+          : `...${prefix.substr(-PREFIX_MAX_LENGTH + 3)}`
 
         let msg = `${rightPad(prefix, PREFIX_MAX_LENGTH)} |`
 
@@ -314,13 +314,14 @@ export default function (
           statsChunk += ' ' + chalk.green(`+${stats['added']}`)
         }
 
-        if (stripAnsi(statsChunk).length < 5) {
-          msg += R.repeat(' ', 5 - stripAnsi(statsChunk).length).join('')
+        const statsChunkLength = stringLength(statsChunk)
+        if (statsChunkLength < 5) {
+          msg += R.repeat(' ', 5 - statsChunkLength).join('')
         }
 
         msg += statsChunk
 
-        const rest = Math.max(0, width - 1 - stripAnsi(msg).length)
+        const rest = Math.max(0, width - 1 - stringLength(msg))
         msg += ' ' + printPlusesAndMinuses(rest, (stats['added'] || 0), (stats['removed'] || 0))
         return most.of({msg})
       }),

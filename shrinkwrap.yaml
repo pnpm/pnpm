@@ -17,7 +17,7 @@ dependencies:
   right-pad: 1.0.1
   semver: 5.5.0
   stacktracey: 1.2.100
-  strip-ansi: 4.0.0
+  string-length: 2.0.0
   zen-push: 0.2.1
 devDependencies:
   '@pnpm/logger': 1.0.1
@@ -490,6 +490,12 @@ packages:
       node: '>=0.8'
     resolution:
       integrity: sha1-8S4PPF13sLHN2RRpQuTpbB5N1SU=
+  /astral-regex/1.0.0:
+    dev: false
+    engines:
+      node: '>=4'
+    resolution:
+      integrity: sha512-+Ryf6g3BKoRc7jfp7ad8tM4TtMiaWvbF/1/sQcZPkkS7ag3D5nMBCe2UfOTONtAkaG0tO0ij3C5Lwmf1EiyjHg==
   /asynckit/0.4.0:
     dev: true
     resolution:
@@ -3171,6 +3177,15 @@ packages:
     dev: true
     resolution:
       integrity: sha1-1cdSgl5TZ+eG944Y5EXqIjoVWVI=
+  /string-length/2.0.0:
+    dependencies:
+      astral-regex: 1.0.0
+      strip-ansi: 4.0.0
+    dev: false
+    engines:
+      node: '>=4'
+    resolution:
+      integrity: sha1-1A27aGo6zpYMHP/KVivyxF+DY+0=
   /string-width/1.0.2:
     dependencies:
       code-point-at: 1.1.0
@@ -3736,7 +3751,7 @@ specifiers:
   rimraf: ^2.5.4
   semver: ^5.4.1
   stacktracey: ^1.2.87
-  strip-ansi: ^4.0.0
+  string-length: ^2.0.0
   supi: ^0.15.0
   tape: ^4.8.0
   ts-node: ^5.0.0
