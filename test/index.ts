@@ -362,6 +362,18 @@ test('installing local dependency', async (t) => {
   t.end()
 })
 
+test('installing local directory dependency', async (t) => {
+  const prefix = path.join(fixtures, 'has-local-dir-dep')
+  const reporter = sinon.spy()
+
+  await headless(await testDefaults({prefix, reporter}))
+
+  const project = assertProject(t, prefix)
+  t.ok(project.requireModule('example/package.json'), 'prod dep installed')
+
+  t.end()
+})
+
 test('installing using passed in shrinkwrap files', async (t) => {
   const prefix = tempy.directory()
   t.comment(prefix)

@@ -319,6 +319,7 @@ async function shrinkwrapToDepGraph (
       independentLeaves: opts.independentLeaves,
       nodeModules,
       pkgSnapshotsByRelDepPaths: shr.packages,
+      prefix: opts.prefix,
       registry: shr.registry,
       store: opts.store,
     }
@@ -343,6 +344,7 @@ async function getChildrenPaths (
     independentLeaves: boolean,
     store: string,
     pkgSnapshotsByRelDepPaths: {[relDepPath: string]: PackageSnapshot},
+    prefix: string,
   },
   allDeps: {[alias: string]: string},
 ) {
@@ -363,7 +365,9 @@ async function getChildrenPaths (
       const relDepPath = dp.relative(ctx.registry, childDepPath)
       const pkgName = nameVerFromPkgSnapshot(relDepPath, childPkgSnapshot).name
       children[alias] = path.join(ctx.nodeModules, `.${pkgIdToFilename(childDepPath)}`, 'node_modules', pkgName)
-    } else if (childRelDepPath.indexOf('link:') !== 0) {
+    } else if (allDeps[alias].indexOf('link:') === 0 || allDeps[alias].indexOf('file:') === 0) {
+      children[alias] = path.resolve(ctx.prefix, allDeps[alias].substr(5))
+    } else {
       throw new Error(`${childRelDepPath} not found in shrinkwrap.yaml`)
     }
   }

@@ -1,0 +1,7 @@
+{
+  "name": "has-local-dir-dep",
+  "version": "1.0.0",
+  "dependencies": {
+    "example": "link:example"
+  }
+}
