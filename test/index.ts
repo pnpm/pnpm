@@ -790,14 +790,14 @@ test('prints added/removed stats during recursive installation', t => {
 
   statsLogger.debug({ removed: 0, prefix: '/home/jane/repo/pkg-5' })
   statsLogger.debug({ added: 0, prefix: '/home/jane/repo/pkg-5' })
-  statsLogger.debug({ added: 2, prefix: '/home/jane/repo/pkg-2' })
+  statsLogger.debug({ added: 2, prefix: '/home/jane/repo/dir/pkg-2' })
   statsLogger.debug({ added: 5, prefix: '/home/jane/repo/pkg-1' })
   statsLogger.debug({ removed: 1, prefix: '/home/jane/repo/pkg-1' })
-  statsLogger.debug({ removed: 0, prefix: '/home/jane/repo/pkg-2' })
-  statsLogger.debug({ removed: 0, prefix: '/home/jane/repo/pkg-3' })
-  statsLogger.debug({ added: 1, prefix: '/home/jane/repo/pkg-3' })
-  statsLogger.debug({ removed: 1, prefix: '/home/jane/repo/loooooooooooooooooooooooong/pkg-4' })
-  statsLogger.debug({ added: 0, prefix: '/home/jane/repo/loooooooooooooooooooooooong/pkg-4' })
+  statsLogger.debug({ removed: 0, prefix: '/home/jane/repo/dir/pkg-2' })
+  statsLogger.debug({ removed: 0, prefix: '/home/jane/repo/loooooooooooooooooooooooong/pkg-3' })
+  statsLogger.debug({ added: 1, prefix: '/home/jane/repo/loooooooooooooooooooooooong/pkg-3' })
+  statsLogger.debug({ removed: 1, prefix: '/home/jane/repo/loooooooooooooooooooooooong-pkg-4' })
+  statsLogger.debug({ added: 0, prefix: '/home/jane/repo/loooooooooooooooooooooooong-pkg-4' })
 
   t.plan(1)
 
@@ -805,9 +805,9 @@ test('prints added/removed stats during recursive installation', t => {
     next: output => {
       t.equal(output, stripIndents`
         pkg-1                          | ${chalk.red('-1')} ${chalk.green('+5')} ${SUB}${ADD + ADD + ADD + ADD + ADD}
-        pkg-2                          |   ${chalk.green('+2')} ${ADD + ADD}
-        pkg-3                          |   ${chalk.green('+1')} ${ADD}
-        ...ooooooooooooooooooong/pkg-4 |   ${chalk.red('-1')} ${SUB}`
+        dir/pkg-2                      |   ${chalk.green('+2')} ${ADD + ADD}
+        .../pkg-3                      |   ${chalk.green('+1')} ${ADD}
+        ...ooooooooooooooooooong-pkg-4 |   ${chalk.red('-1')} ${SUB}`
       )
     },
     complete: () => t.end(),

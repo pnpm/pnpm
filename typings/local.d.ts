@@ -42,3 +42,8 @@ declare module 'string-length' {
   function stringLength (s: string): number;
   export = stringLength;
 }
+
+declare module 'normalize-path' {
+  function normalize (path: string): string;
+  export = normalize;
+}

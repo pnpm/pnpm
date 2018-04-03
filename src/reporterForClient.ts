@@ -1,6 +1,7 @@
 import chalk from 'chalk'
 import most = require('most')
 import {last as mostLast} from 'most-last'
+import normalize = require('normalize-path')
 import os = require('os')
 import path = require('path')
 import prettyBytes = require('pretty-bytes')
@@ -299,10 +300,7 @@ export default function (
       }, {})
       .filter((stats) => stats !== null && (stats['removed'] || stats['added']))
       .map((stats) => {
-        let prefix = path.relative(cwd, stats['prefix'])
-        prefix = prefix.length <= PREFIX_MAX_LENGTH
-          ? prefix
-          : `...${prefix.substr(-PREFIX_MAX_LENGTH + 3)}`
+        const prefix = formatPrefix(cwd, stats['prefix'])
 
         let msg = `${rightPad(prefix, PREFIX_MAX_LENGTH)} |`
 
@@ -342,6 +340,24 @@ export default function (
   }
 
   return outputs
+}
+
+function formatPrefix (cwd: string, prefix: string) {
+  prefix = normalize(path.relative(cwd, prefix))
+
+  if (prefix.length <= PREFIX_MAX_LENGTH) {
+    return prefix
+  }
+
+  const shortPrefix = prefix.substr(-PREFIX_MAX_LENGTH + 3)
+
+  const separatorLocation = shortPrefix.indexOf('/')
+
+  if (separatorLocation <= 0) {
+    return `...${shortPrefix}`
+  }
+
+  return `...${shortPrefix.substr(separatorLocation)}`
 }
 
 function printPlusesAndMinuses (maxWidth: number, addSigns: number, removeSigns: number) {

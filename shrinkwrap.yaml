@@ -11,6 +11,7 @@ dependencies:
   most: 1.7.3
   most-last: 1.0.0
   ndjson: 1.5.0
+  normalize-path: 2.1.1
   pnpm-default-reporter: 'link:../__package_previews__/pnpm-default-reporter/pnpm-default-reporter'
   pretty-bytes: 4.0.2
   ramda: 0.25.0
@@ -2251,7 +2252,6 @@ packages:
   /normalize-path/2.1.1:
     dependencies:
       remove-trailing-separator: 1.1.0
-    dev: true
     engines:
       node: '>=0.10.0'
     resolution:
@@ -2852,7 +2852,6 @@ packages:
     resolution:
       integrity: sha512-h9Pl2xE1ZxYOhlKh0nYeMfzfv0GYUfglE5Eb0ILFFUiDnvVcbKwxGGukETEeIteR0JTVfesOaKqiwrOoUz1ajw==
   /remove-trailing-separator/1.1.0:
-    dev: true
     resolution:
       integrity: sha1-wkvOKig62tW8P1jg1IJJuSN52O8=
   /rename-overwrite/1.0.2:
@@ -3744,6 +3743,7 @@ specifiers:
   most-last: ^1.0.0
   ndjson: ^1.5.0
   normalize-newline: ^3.0.0
+  normalize-path: ^2.1.1
   package-preview: ^1.0.0
   pretty-bytes: ^4.0.2
   ramda: ^0.25.0

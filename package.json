@@ -10,7 +10,7 @@
   "bin": "lib/bin/pnpm-default-reporter.js",
   "scripts": {
     "lint": "tslint -c tslint.json --project .",
-    "pretty-test": "ts-node test | tap-diff",
+    "pretty-test": "preview && ts-node test | tap-diff",
     "test": "npm run lint && npm run just-test",
     "just-test": "preview && ts-node test --type-check",
     "tsc": "rimraf lib && tsc",
@@ -53,6 +53,7 @@
     "most": "^1.7.2",
     "most-last": "^1.0.0",
     "ndjson": "^1.5.0",
+    "normalize-path": "^2.1.1",
     "pretty-bytes": "^4.0.2",
     "ramda": "^0.25.0",
     "right-pad": "^1.0.1",
