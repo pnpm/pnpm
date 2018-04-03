@@ -2,6 +2,7 @@ import chalk from 'chalk'
 import most = require('most')
 import {last as mostLast} from 'most-last'
 import os = require('os')
+import path = require('path')
 import prettyBytes = require('pretty-bytes')
 import R = require('ramda')
 import rightPad = require('right-pad')
@@ -53,9 +54,11 @@ export default function (
   widthArg?: number,
   appendOnly?: boolean,
   throttleProgress?: number,
+  cwdArg?: string,
 ): Array<most.Stream<most.Stream<{msg: string}>>> {
   const width = widthArg || process.stdout.columns || 80
   const outputs: Array<most.Stream<most.Stream<{msg: string}>>> = []
+  const cwd = cwdArg || process.cwd()
 
   const resolutionDone$ = isRecursive
     ? most.never()
@@ -296,18 +299,26 @@ export default function (
       }, {})
       .filter((stats) => stats !== null && (stats['removed'] || stats['added']))
       .map((stats) => {
-        const prefix = stats['prefix'].length <= PREFIX_MAX_LENGTH
-          ? stats['prefix']
-          : `...${stats['prefix'].substr(-PREFIX_MAX_LENGTH)}`
+        let prefix = path.relative(cwd, stats['prefix'])
+        prefix = prefix.length <= PREFIX_MAX_LENGTH
+          ? prefix
+          : `...${prefix.substr(-PREFIX_MAX_LENGTH)}`
 
         let msg = `${rightPad(prefix, PREFIX_MAX_LENGTH)} |`
 
+        let statsChunk = ''
         if (stats['removed']) {
-          msg += ' ' + chalk.red(`-${stats['removed']}`)
+          statsChunk += ' ' + chalk.red(`-${stats['removed']}`)
         }
         if (stats['added']) {
-          msg += ' ' + chalk.green(`+${stats['added']}`)
+          statsChunk += ' ' + chalk.green(`+${stats['added']}`)
         }
+
+        if (stripAnsi(statsChunk).length < 5) {
+          msg += R.repeat(' ', 5 - stripAnsi(statsChunk).length).join('')
+        }
+
+        msg += statsChunk
 
         const rest = Math.max(0, width - 1 - stripAnsi(msg).length)
         msg += ' ' + printPlusesAndMinuses(rest, (stats['added'] || 0), (stats['removed'] || 0))

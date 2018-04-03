@@ -786,7 +786,7 @@ test('prints just removed during uninstallation', t => {
 })
 
 test('prints added/removed stats during recursive installation', t => {
-  const output$ = toOutput$(createStreamParser(), {cmd: 'recursive'})
+  const output$ = toOutput$(createStreamParser(), {cmd: 'recursive', cwd: '/home/jane/repo'})
 
   statsLogger.debug({ removed: 0, prefix: '/home/jane/repo/pkg-5' })
   statsLogger.debug({ added: 0, prefix: '/home/jane/repo/pkg-5' })
@@ -796,18 +796,18 @@ test('prints added/removed stats during recursive installation', t => {
   statsLogger.debug({ removed: 0, prefix: '/home/jane/repo/pkg-2' })
   statsLogger.debug({ removed: 0, prefix: '/home/jane/repo/pkg-3' })
   statsLogger.debug({ added: 1, prefix: '/home/jane/repo/pkg-3' })
-  statsLogger.debug({ removed: 1, prefix: '/home/jane/repo/loooooooooooooong/pkg-4' })
-  statsLogger.debug({ added: 0, prefix: '/home/jane/repo/loooooooooooooong/pkg-4' })
+  statsLogger.debug({ removed: 1, prefix: '/home/jane/repo/loooooooooooooooooooooooong/pkg-4' })
+  statsLogger.debug({ added: 0, prefix: '/home/jane/repo/loooooooooooooooooooooooong/pkg-4' })
 
   t.plan(1)
 
   output$.skip(3).take(1).map(normalizeNewline).subscribe({
     next: output => {
       t.equal(output, stripIndents`
-        /home/jane/repo/pkg-1          | ${chalk.red('-1')} ${chalk.green('+5')} ${SUB}${ADD + ADD + ADD + ADD + ADD}
-        /home/jane/repo/pkg-2          | ${chalk.green('+2')} ${ADD + ADD}
-        /home/jane/repo/pkg-3          | ${chalk.green('+1')} ${ADD}
-        ...e/repo/loooooooooooooong/pkg-4 | ${chalk.red('-1')} ${SUB}`
+        pkg-1                          | ${chalk.red('-1')} ${chalk.green('+5')} ${SUB}${ADD + ADD + ADD + ADD + ADD}
+        pkg-2                          |   ${chalk.green('+2')} ${ADD + ADD}
+        pkg-3                          |   ${chalk.green('+1')} ${ADD}
+        ...oooooooooooooooooooooong/pkg-4 |   ${chalk.red('-1')} ${SUB}`
       )
     },
     complete: () => t.end(),
@@ -816,7 +816,7 @@ test('prints added/removed stats during recursive installation', t => {
 })
 
 test('recursive installation: prints only the added stats if nothing was removed and a lot added', t => {
-  const output$ = toOutput$(createStreamParser(), {cmd: 'recursive', width: 50})
+  const output$ = toOutput$(createStreamParser(), {cmd: 'recursive', width: 50, cwd: '/home/jane/repo'})
 
   statsLogger.debug({ removed: 0, prefix: '/home/jane/repo/pkg-1' })
   statsLogger.debug({ added: 100, prefix: '/home/jane/repo/pkg-1' })
@@ -826,7 +826,7 @@ test('recursive installation: prints only the added stats if nothing was removed
   output$.take(1).map(normalizeNewline).subscribe({
     next: output => {
       t.equal(output, stripIndents`
-        /home/jane/repo/pkg-1          | ${chalk.green('+100')} ${R.repeat(ADD, 12).join('')}`
+        pkg-1                          | ${chalk.green('+100')} ${R.repeat(ADD, 12).join('')}`
       )
     },
     complete: () => t.end(),
@@ -835,7 +835,7 @@ test('recursive installation: prints only the added stats if nothing was removed
 })
 
 test('recursive installation: prints only the removed stats if nothing was added and a lot removed', t => {
-  const output$ = toOutput$(createStreamParser(), {cmd: 'recursive', width: 50})
+  const output$ = toOutput$(createStreamParser(), {cmd: 'recursive', width: 50, cwd: '/home/jane/repo'})
 
   statsLogger.debug({ removed: 100, prefix: '/home/jane/repo/pkg-1' })
   statsLogger.debug({ added: 0, prefix: '/home/jane/repo/pkg-1' })
@@ -845,7 +845,7 @@ test('recursive installation: prints only the removed stats if nothing was added
   output$.take(1).map(normalizeNewline).subscribe({
     next: output => {
       t.equal(output, stripIndents`
-        /home/jane/repo/pkg-1          | ${chalk.red('-100')} ${R.repeat(SUB, 12).join('')}`
+        pkg-1                          | ${chalk.red('-100')} ${R.repeat(SUB, 12).join('')}`
       )
     },
     complete: () => t.end(),
@@ -854,7 +854,7 @@ test('recursive installation: prints only the removed stats if nothing was added
 })
 
 test('recursive installation: prints at least one remove sign when removed !== 0', t => {
-  const output$ = toOutput$(createStreamParser(), {cmd: 'recursive', width: 50})
+  const output$ = toOutput$(createStreamParser(), {cmd: 'recursive', width: 50, cwd: '/home/jane/repo'})
 
   statsLogger.debug({ removed: 1, prefix: '/home/jane/repo/pkg-1' })
   statsLogger.debug({ added: 100, prefix: '/home/jane/repo/pkg-1' })
@@ -864,7 +864,7 @@ test('recursive installation: prints at least one remove sign when removed !== 0
   output$.take(1).map(normalizeNewline).subscribe({
     next: output => {
       t.equal(output, stripIndents`
-        /home/jane/repo/pkg-1          | ${chalk.red('-1')} ${chalk.green('+100')} ${SUB}${R.repeat(ADD, 8).join('')}`
+        pkg-1                          | ${chalk.red('-1')} ${chalk.green('+100')} ${SUB}${R.repeat(ADD, 8).join('')}`
       )
     },
     complete: () => t.end(),
@@ -873,7 +873,7 @@ test('recursive installation: prints at least one remove sign when removed !== 0
 })
 
 test('recursive installation: prints at least one add sign when added !== 0', t => {
-  const output$ = toOutput$(createStreamParser(), {cmd: 'recursive', width: 50})
+  const output$ = toOutput$(createStreamParser(), {cmd: 'recursive', width: 50, cwd: '/home/jane/repo'})
 
   statsLogger.debug({ removed: 100, prefix: '/home/jane/repo/pkg-1' })
   statsLogger.debug({ added: 1, prefix: '/home/jane/repo/pkg-1' })
@@ -883,7 +883,7 @@ test('recursive installation: prints at least one add sign when added !== 0', t 
   output$.take(1).map(normalizeNewline).subscribe({
     next: output => {
       t.equal(output, stripIndents`
-        /home/jane/repo/pkg-1          | ${chalk.red('-100')} ${chalk.green('+1')} ${R.repeat(SUB, 8).join('')}${ADD}`
+        pkg-1                          | ${chalk.red('-100')} ${chalk.green('+1')} ${R.repeat(SUB, 8).join('')}${ADD}`
       )
     },
     complete: () => t.end(),
