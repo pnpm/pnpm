@@ -349,7 +349,7 @@ function roundStats (stat: number): number {
 }
 
 function formatPrefix (cwd: string, prefix: string) {
-  prefix = normalize(path.relative(cwd, prefix))
+  prefix = normalize(path.relative(cwd, prefix) || '.')
 
   if (prefix.length <= PREFIX_MAX_LENGTH) {
     return prefix

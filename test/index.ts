@@ -788,6 +788,8 @@ test('prints just removed during uninstallation', t => {
 test('prints added/removed stats during recursive installation', t => {
   const output$ = toOutput$(createStreamParser(), {cmd: 'recursive', cwd: '/home/jane/repo'})
 
+  statsLogger.debug({ removed: 1, prefix: '/home/jane/repo' })
+  statsLogger.debug({ added: 0, prefix: '/home/jane/repo' })
   statsLogger.debug({ removed: 0, prefix: '/home/jane/repo/pkg-5' })
   statsLogger.debug({ added: 0, prefix: '/home/jane/repo/pkg-5' })
   statsLogger.debug({ added: 2, prefix: '/home/jane/repo/dir/pkg-2' })
@@ -801,9 +803,10 @@ test('prints added/removed stats during recursive installation', t => {
 
   t.plan(1)
 
-  output$.skip(3).take(1).map(normalizeNewline).subscribe({
+  output$.skip(4).take(1).map(normalizeNewline).subscribe({
     next: output => {
       t.equal(output, stripIndents`
+        .                                        |   ${chalk.red('-1')} ${SUB}
         pkg-1                                    |   ${chalk.red('-1')}   ${chalk.green('+5')} ${SUB}${ADD}
         dir/pkg-2                                |   ${chalk.green('+2')} ${ADD}
         .../pkg-3                                |   ${chalk.green('+1')} ${ADD}
