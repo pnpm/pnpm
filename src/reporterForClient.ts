@@ -320,7 +320,7 @@ export default function (
         msg += statsChunk
 
         const rest = Math.max(0, width - 1 - stringLength(msg))
-        msg += ' ' + printPlusesAndMinuses(rest, (stats['added'] || 0), (stats['removed'] || 0))
+        msg += ' ' + printPlusesAndMinuses(rest, roundStats(stats['added'] || 0), roundStats(stats['removed'] || 0))
         return most.of({msg})
       }),
     )
@@ -340,6 +340,11 @@ export default function (
   }
 
   return outputs
+}
+
+function roundStats (stat: number): number {
+  if (stat === 0) return 0
+  return Math.max(1, Math.round(stat / 10))
 }
 
 function formatPrefix (cwd: string, prefix: string) {
