@@ -72,7 +72,7 @@ Install all modules listed as dependencies in `package.json`.
 * `options.frozenShrinkwrap` - *Boolean* - `false` by default. When `true`, shrinkwrap file is not generated and installation fails if an update is needed.
   With this option, a headless installation is performed. A headless installation is ~33% faster than a regular one because it skips
   dependencies resolution and peers resolution.
-* `options.preferFrozenShrinkwrap` - *Boolean* - `false` by default. When `true`, a headless installation is performed if the shrinkwrap file
+* `options.preferFrozenShrinkwrap` - *Boolean* - `true` by default. When `true`, a headless installation is performed if the shrinkwrap file
   is up-to-date with the `package.json` file.
 
 ### `supi.uninstall(pkgsToUninstall, [options])`
