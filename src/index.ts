@@ -281,13 +281,14 @@ async function shrinkwrapToDepGraph (
       // TODO: optimize. This info can be already returned by pkgSnapshotToResolution()
       const pkgName = nameVerFromPkgSnapshot(relDepPath, pkgSnapshot).name
       const pkgId = pkgSnapshot.id || depPath
-      const fetchResponse = opts.storeController.fetchPackage({
+      let fetchResponse = opts.storeController.fetchPackage({
         force: false,
         pkgId,
         prefix: opts.prefix,
         resolution,
         verifyStoreIntegrity: opts.verifyStoreIntegrity,
       })
+      if (fetchResponse instanceof Promise) fetchResponse = await fetchResponse
       const cache = !opts.force && await getCache(opts.store, pkgId)
       const centralLocation = cache || path.join(fetchResponse.inStoreLocation, 'node_modules', pkgName)
 
