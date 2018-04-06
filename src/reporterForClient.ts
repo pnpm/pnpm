@@ -245,11 +245,11 @@ export default function (
         }
 
         let msg = 'Packages:'
-        if (stats['removed']) {
-          msg += ' ' + chalk.red(`-${stats['removed']}`)
-        }
         if (stats['added']) {
           msg += ' ' + chalk.green(`+${stats['added']}`)
+        }
+        if (stats['removed']) {
+          msg += ' ' + chalk.red(`-${stats['removed']}`)
         }
         msg += EOL + printPlusesAndMinuses(width, (stats['added'] || 0), (stats['removed'] || 0))
         return most.of({msg})
@@ -304,11 +304,11 @@ export default function (
 
         let msg = `${rightPad(prefix, PREFIX_MAX_LENGTH)} |`
 
-        if (stats['removed']) {
-          msg += ` ${padStep(chalk.red(`-${stats['removed']}`), 4)}`
-        }
         if (stats['added']) {
           msg += ` ${padStep(chalk.green(`+${stats['added']}`), 4)}`
+        }
+        if (stats['removed']) {
+          msg += ` ${padStep(chalk.red(`-${stats['removed']}`), 4)}`
         }
 
         const rest = Math.max(0, width - 1 - stringLength(msg))
@@ -382,7 +382,7 @@ function printPlusesAndMinuses (maxWidth: number, addSigns: number, removeSigns:
       removeSigns = maxWidth - addSigns
     }
   }
-  return R.repeat(removedSign, removeSigns).join('') + R.repeat(addedSign, addSigns).join('')
+  return R.repeat(addedSign, addSigns).join('') + R.repeat(removedSign, removeSigns).join('')
 }
 
 function printDiffs (pkgsDiff: PackageDiff[]) {
