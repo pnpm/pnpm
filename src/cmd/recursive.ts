@@ -62,11 +62,22 @@ export default async (
   })
   const pkgGraphResult = createPkgGraph(pkgs)
   const store = await createStoreController(opts)
+
+  // It is enough to save the store.json file once,
+  // once all installations are done.
+  // That's why saveState that is passed to the install engine
+  // does nothing.
+  const saveState = store.ctrl.saveState
+  const storeController = {
+    ...store.ctrl,
+    saveState: async () => undefined,
+  }
+
   if (cmd === 'link' || cmd === 'ln') {
     await linkPackages(pkgGraphResult.graph, {
       registry: opts.registry,
       store: store.path,
-      storeController: store.ctrl,
+      storeController,
     })
   }
   const graph = new Map(
@@ -78,15 +89,6 @@ export default async (
   })
   const chunks = graphSequencerResult.chunks
 
-  // It is enough to save the store.json file once,
-  // once all installations are done.
-  // That's why saveState that is passed to the install engine
-  // does nothing.
-  const saveState = store.ctrl.saveState
-  const storeController = {
-    ...store.ctrl,
-    saveState: async () => undefined,
-  }
   const installOpts = Object.assign(opts, {
     store: store.path,
     storeController,
