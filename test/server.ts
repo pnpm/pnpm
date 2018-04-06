@@ -49,6 +49,27 @@ test('installation using pnpm server', async (t: tape.Test) => {
   t.notOk(await pathExists(serverJsonPath), 'server.json removed')
 })
 
+test('store server: headless installation', async (t: tape.Test) => {
+  const project = prepare(t)
+
+  const server = spawn(['server', 'start'])
+
+  const serverJsonPath = path.resolve('..', 'store', '2', 'server.json')
+  const serverJson = await retryLoadJsonFile(serverJsonPath)
+  t.ok(serverJson)
+  t.ok(serverJson.connectionOptions)
+
+  await execPnpm('install', 'is-positive@1.0.0', '--shrinkwrap-only')
+
+  await execPnpm('install', '--frozen-shrinkwrap')
+
+  t.ok(project.requireModule('is-positive'))
+
+  await execPnpm('server', 'stop')
+
+  t.notOk(await pathExists(serverJsonPath), 'server.json removed')
+})
+
 test('installation using pnpm server that runs in the background', async (t: tape.Test) => {
   const project = prepare(t)
 
