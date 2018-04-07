@@ -100,7 +100,7 @@ export default async (
   for (const chunk of chunks) {
     await Promise.all(chunk.map((prefix: string) =>
       limitInstallation(async () => {
-        const hooks = opts.ignorePnpmfile ? {} : requireHooks(prefix)
+        const hooks = opts.ignorePnpmfile ? {} : requireHooks(prefix, opts.pnpmfile)
         try {
           return await action({
             ...installOpts,
