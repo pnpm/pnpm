@@ -111,7 +111,7 @@ export default async (opts: HeadlessOptions) => {
   const bin = path.join(nodeModules, '.bin')
 
   const scriptsOpts = {
-    pkgId: opts.prefix,
+    depPath: opts.prefix,
     pkgRoot: opts.prefix,
     rawNpmConfig: opts.rawNpmConfig,
     rootNodeModulesDir: nodeModules,

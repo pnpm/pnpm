@@ -40,7 +40,7 @@ export default async (
       const depNode = depGraph[depPath]
         try {
           const hasSideEffects = await runPostinstallHooks({
-            pkgId: depPath, // TODO: postInstall should expect depPath, not pkgId
+            depPath,
             pkgRoot: depNode.peripheralLocation,
             rawNpmConfig: opts.rawNpmConfig,
             rootNodeModulesDir: opts.prefix,

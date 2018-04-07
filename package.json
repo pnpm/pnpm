@@ -84,7 +84,7 @@
     "prepareFixtures": "npm-run-all -p -r pnpm-registry-mock runPrepareFixtures"
   },
   "dependencies": {
-    "@pnpm/lifecycle": "^1.0.1",
+    "@pnpm/lifecycle": "^2.0.0",
     "@pnpm/link-bins": "^1.0.1",
     "@pnpm/modules-yaml": "^1.0.0",
     "@pnpm/package-requester": "^0.8.4",
