@@ -161,6 +161,7 @@ test('INIT_CWD is set correctly', async (t: tape.Test) => {
   t.equal(childEnv.INIT_CWD, process.cwd())
 })
 
+// TODO: duplicate this test to @pnpm/lifecycle
 test("reports child's output", async (t: tape.Test) => {
   const project = prepare(t)
 
@@ -169,29 +170,39 @@ test("reports child's output", async (t: tape.Test) => {
   await installPkgs(['count-to-10'], await testDefaults({reporter}))
 
   t.ok(reporter.calledWithMatch({
-    level: 'info',
+    depPath: 'localhost+4873/count-to-10/1.0.0',
+    level: 'debug',
+    name: 'pnpm:lifecycle',
+    script: 'node postinstall',
+    stage: 'postinstall',
+  } as LifecycleLog))
+  t.ok(reporter.calledWithMatch({
+    depPath: 'localhost+4873/count-to-10/1.0.0',
+    level: 'debug',
     line: '1',
     name: 'pnpm:lifecycle',
-    pkgId: 'localhost+4873/count-to-10/1.0.0',
+    stage: 'postinstall',
   } as LifecycleLog))
   t.ok(reporter.calledWithMatch({
-    level: 'info',
+    depPath: 'localhost+4873/count-to-10/1.0.0',
+    level: 'debug',
     line: '2',
     name: 'pnpm:lifecycle',
-    pkgId: 'localhost+4873/count-to-10/1.0.0',
+    stage: 'postinstall',
   } as LifecycleLog))
   t.ok(reporter.calledWithMatch({
+    depPath: 'localhost+4873/count-to-10/1.0.0',
     level: 'error',
     line: '6',
     name: 'pnpm:lifecycle',
-    pkgId: 'localhost+4873/count-to-10/1.0.0',
+    stage: 'postinstall',
   } as LifecycleLog))
   t.ok(reporter.calledWithMatch({
+    depPath: 'localhost+4873/count-to-10/1.0.0',
     exitCode: 0,
-    level: 'info',
+    level: 'debug',
     name: 'pnpm:lifecycle',
-    pkgId: 'localhost+4873/count-to-10/1.0.0',
-    script: 'postinstall',
+    stage: 'postinstall',
   } as LifecycleLog))
 })
 
@@ -205,11 +216,11 @@ test("reports child's close event", async (t: tape.Test) => {
     t.fail()
   } catch (err) {
     t.ok(reporter.calledWithMatch({
+      depPath: 'localhost+4873/failing-postinstall/1.0.0',
       exitCode: 1,
       level: 'error',
       name: 'pnpm:lifecycle',
-      pkgId: 'localhost+4873/failing-postinstall/1.0.0',
-      script: 'postinstall',
+      stage: 'postinstall',
     } as LifecycleLog))
   }
 })

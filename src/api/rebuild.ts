@@ -162,11 +162,10 @@ async function _rebuild (
         const pkgSnapshot = pkgSnapshots[relDepPath]
         return limitChild(async () => {
           const depAbsolutePath = dp.resolve(shr.registry, relDepPath)
-          const pkgId = pkgSnapshot.id || depAbsolutePath
           try {
             const pkgInfo = nameVerFromPkgSnapshot(relDepPath, pkgSnapshot)
             await runPostinstallHooks({
-              pkgId,
+              depPath: depAbsolutePath,
               pkgRoot: path.join(modules, `.${depAbsolutePath}`, 'node_modules', pkgInfo.name),
               rawNpmConfig: opts.rawNpmConfig,
               rootNodeModulesDir: opts.prefix,
@@ -176,7 +175,7 @@ async function _rebuild (
             if (pkgSnapshot.optional) {
               logger.warn({
                 err,
-                message: `Skipping failed optional dependency ${pkgId}`,
+                message: `Skipping failed optional dependency ${depAbsolutePath}`,
               })
               return
             }

@@ -216,7 +216,7 @@ export async function install (maybeOpts: InstallOptions) {
     }
 
     const scriptsOpts = {
-      pkgId: opts.prefix,
+      depPath: opts.prefix,
       pkgRoot: opts.prefix,
       rawNpmConfig: opts.rawNpmConfig,
       rootNodeModulesDir: await realNodeModulesDir(opts.prefix),
@@ -647,7 +647,7 @@ async function installInContext (
           .map((pkg) => limitChild(async () => {
             try {
               const hasSideEffects = await runPostinstallHooks({
-                pkgId: pkg.id,
+                depPath: pkg.absolutePath,
                 pkgRoot: pkg.peripheralLocation,
                 rawNpmConfig: installCtx.rawNpmConfig,
                 rootNodeModulesDir: ctx.root,
