@@ -26,6 +26,7 @@ export const types = Object.assign({
   'offline': Boolean,
   'package-import-method': ['auto', 'hardlink', 'reflink', 'copy'],
   'pending': Boolean,
+  'pnpmfile': String,
   'port': Number,
   'prefer-frozen-shrinkwrap': Boolean,
   'prefer-offline': Boolean,
