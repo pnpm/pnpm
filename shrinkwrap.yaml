@@ -34,7 +34,7 @@ dependencies:
   path-name: 1.0.0
   pkgs-graph: 2.0.0
   pnpm: 'link:../__package_previews__/pnpm/pnpm'
-  pnpm-default-reporter: 0.15.2
+  pnpm-default-reporter: 0.15.3
   pnpm-file-reporter: 0.1.0
   pnpm-list: 2.0.1
   process-exists: 3.1.0
@@ -2378,7 +2378,7 @@ packages:
       integrity: sha1-rT/0yG7C0CkyL1oCw6mmBslbP1k=
   /encoding/0.1.12:
     dependencies:
-      iconv-lite: 0.4.19
+      iconv-lite: 0.4.21
     dev: false
     resolution:
       integrity: sha1-U4tm8+5izRq1HsMjgp0flIDHS+s=
@@ -3269,10 +3269,19 @@ packages:
     resolution:
       integrity: sha1-xG4xWaKT9riW2ikxbYtv6Lt5u+0=
   /iconv-lite/0.4.19:
+    dev: true
     engines:
       node: '>=0.10.0'
     resolution:
       integrity: sha512-oTZqweIP51xaGPI4uPa56/Pri/480R+mo7SeU+YETByQNhDG55ycFyNLIgta9vXhILrxXDmF7ZGhqZIcuN0gJQ==
+  /iconv-lite/0.4.21:
+    dependencies:
+      safer-buffer: 2.1.0
+    dev: false
+    engines:
+      node: '>=0.10.0'
+    resolution:
+      integrity: sha512-En5V9za5mBt2oUA03WGD3TwDv0MKAruqsuxstbMUZaj9W9k/m1CV/9py3l0L5kw9Bln8fdHQmzHSYtvpvTLpKw==
   /ieee754/1.1.11:
     resolution:
       integrity: sha512-VhDzCKN7K8ufStx/CLj5/PDTMgph+qwN5Pkd5i0sGnVwk56zJ0lkT8Qzi1xqWLS0Wp29DgDtNeS7v8/wMoZeHg==
@@ -5171,7 +5180,7 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha1-puODKevukuhGh/UvSt8W9iE5lS8=
-  /pnpm-default-reporter/0.15.2:
+  /pnpm-default-reporter/0.15.3:
     dependencies:
       '@types/common-tags': 1.4.0
       '@types/node': 9.6.2
@@ -5199,7 +5208,7 @@ packages:
     peerDependencies:
       supi: '>=0.15.0 <0.16.0'
     resolution:
-      integrity: sha512-xGg6txJ4vjdmRkcjLOrmd5ZECByKn7lLQH6R63Z+YIm7k7325gp7qmvIs/h6iyK9cyKcGR2FXkLllmwySYzh/Q==
+      integrity: sha512-T6i/Qwp+qRPMvagxm2zRYjBA2TqUaPUBn6pV2uCqMlj/XL+45LPgoH3SwcKfnwiCuMmeAFj3QX7JqlPnDLx23A==
   /pnpm-file-reporter/0.1.0:
     dependencies:
       '@types/graceful-fs': 4.1.2
@@ -5869,6 +5878,10 @@ packages:
     dev: false
     resolution:
       integrity: sha1-QKNmnzsHfR6UPURinhV91IAjvy4=
+  /safer-buffer/2.1.0:
+    dev: false
+    resolution:
+      integrity: sha512-HQhCIIl7TrF1aa7d352EXG+xumPERvoIWxOqq2CagDId0FVGtlG/fuQ7kZT+wZ7ytyGiP3pnYUVni5otBzOVmA==
   /sec/1.0.0:
     dev: false
     engines:
@@ -7231,7 +7244,7 @@ specifiers:
   path-exists: ^3.0.0
   path-name: ^1.0.0
   pkgs-graph: ^2.0.0
-  pnpm-default-reporter: ^0.15.2
+  pnpm-default-reporter: ^0.15.3
   pnpm-file-reporter: ^0.1.0
   pnpm-list: ^2.0.0
   pnpm-registry-mock: ^1.5.0
