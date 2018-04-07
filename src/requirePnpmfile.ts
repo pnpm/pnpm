@@ -1,10 +1,12 @@
+import logger from '@pnpm/logger'
 import chalk from 'chalk'
 import path = require('path')
 
-export default (prefix: string) => {
+export default (pnpmFilePath: string) => {
   try {
-    const pnpmFilePath = path.join(prefix, 'pnpmfile.js')
-    return require(pnpmFilePath)
+    const pnpmfile = require(pnpmFilePath)
+    logger.info(`Using hooks from: ${pnpmFilePath}`)
+    return pnpmfile
   } catch (err) {
     if (err instanceof SyntaxError) {
       console.error(chalk.red('A syntax error in the pnpmfile.js\n'))
@@ -13,6 +15,6 @@ export default (prefix: string) => {
       return
     }
     if (err.code !== 'MODULE_NOT_FOUND') throw err
-    return {}
+    return undefined
   }
 }

@@ -63,6 +63,7 @@ export interface PnpmOptions {
   childConcurrency?: number,
   repeatInstallDepth?: number,
   ignorePnpmfile?: boolean,
+  pnpmfile: string,
   independentLeaves?: boolean,
   packageImportMethod?: 'auto' | 'hardlink' | 'copy' | 'reflink',
   shamefullyFlatten?: boolean,

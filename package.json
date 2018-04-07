@@ -20,7 +20,7 @@
     "lib/"
   ],
   "dependencies": {
-    "@pnpm/config": "^0.2.3",
+    "@pnpm/config": "^0.3.0",
     "@pnpm/default-fetcher": "^0.4.0",
     "@pnpm/default-resolver": "^0.1.4",
     "@pnpm/logger": "^1.0.0",
@@ -52,6 +52,7 @@
     "nopt": "^4.0.1",
     "p-limit": "^1.1.0",
     "package-store": "^0.18.0",
+    "path-absolute": "^1.0.0",
     "path-name": "^1.0.0",
     "pkgs-graph": "^2.0.0",
     "pnpm-default-reporter": "^0.15.3",

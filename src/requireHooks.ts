@@ -1,8 +1,11 @@
 import logger from '@pnpm/logger'
+import path = require('path')
+import pathAbsolute = require('path-absolute')
 import requirePnpmfile from './requirePnpmfile'
 
-export default function requireHooks (prefix: string) {
-  const pnpmFile = requirePnpmfile(prefix)
+export default function requireHooks (prefix: string, customPnpmfileLocation: string | undefined) {
+  const pnpmFile = requirePnpmfile(path.join(prefix, 'pnpmfile.js'))
+    || customPnpmfileLocation && requirePnpmfile(pathAbsolute(customPnpmfileLocation, prefix))
   const hooks = pnpmFile && pnpmFile.hooks
   if (!hooks) return {}
   if (hooks.readPackage) {
