@@ -6,12 +6,14 @@ import baseLogger, {
 export const lifecycleLogger = baseLogger('lifecycle') as Logger<LifecycleMessage>
 
 export type LifecycleMessage = {
-  pkgId: string,
-  script: string,
+  depPath: string,
+  stage: string,
 } & ({
   line: string,
 } | {
   exitCode: number,
+} | {
+  script: string,
 })
 
 export type LifecycleLog = {name: 'pnpm:lifecycle'} & LogBase & LifecycleMessage

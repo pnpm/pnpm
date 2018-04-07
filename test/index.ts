@@ -10,7 +10,7 @@ test('runLifecycleHook()', async (t) => {
   const pkg = require(path.join(pkgRoot, 'package.json'))
   await runLifecycleHook('postinstall', pkg, {
     rootNodeModulesDir,
-    pkgId: '/simple/1.0.0',
+    depPath: '/simple/1.0.0',
     rawNpmConfig: {},
     pkgRoot,
     unsafePerm: true,
@@ -27,7 +27,7 @@ test('runPostinstallHooks()', async (t) => {
   const pkg = require(path.join(pkgRoot, 'package.json'))
   await runPostinstallHooks({
     rootNodeModulesDir,
-    pkgId: '/with-many-scripts/1.0.0',
+    depPath: '/with-many-scripts/1.0.0',
     rawNpmConfig: {},
     pkgRoot,
     unsafePerm: true,

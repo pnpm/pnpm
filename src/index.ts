@@ -14,8 +14,8 @@ export {LifecycleLog}
 
 export async function runPostinstallHooks (
   opts: {
+    depPath: string,
     rootNodeModulesDir: string,
-    pkgId: string,
     rawNpmConfig: object,
     pkgRoot: string,
     unsafePerm: boolean,
@@ -45,14 +45,20 @@ export default async function runLifecycleHook (
   stage: string,
   pkg: PackageJson,
   opts: {
+    depPath: string,
     rootNodeModulesDir: string,
-    pkgId: string,
     rawNpmConfig: object,
     pkgRoot: string,
     stdio?: string,
     unsafePerm: boolean,
   },
 ) {
+  lifecycleLogger.debug({
+    depPath: opts.depPath,
+    script: pkg!.scripts![stage],
+    stage,
+  })
+
   return lifecycle(pkg, stage, opts.pkgRoot, {
     config: opts.rawNpmConfig,
     dir: opts.rootNodeModulesDir,
@@ -74,17 +80,17 @@ export default async function runLifecycleHook (
   function npmLog (prefix: string, logid: string, stdtype: string, line: string) {
     switch (stdtype) {
       case 'stdout':
-        lifecycleLogger.info({
+        lifecycleLogger.debug({
+          depPath: opts.depPath,
           line: line.toString(),
-          pkgId: opts.pkgId,
-          script: stage,
+          stage,
         })
         return
       case 'stderr':
         lifecycleLogger.error({
+          depPath: opts.depPath,
           line: line.toString(),
-          pkgId: opts.pkgId,
-          script: stage,
+          stage,
         })
         return
       case 'Returned: code:':
@@ -93,10 +99,10 @@ export default async function runLifecycleHook (
           return
         }
         const code = arguments[3]
-        lifecycleLogger[code === 0 ? 'info' : 'error']({
+        lifecycleLogger[code === 0 ? 'debug' : 'error']({
+          depPath: opts.depPath,
           exitCode: code,
-          pkgId: opts.pkgId,
-          script: stage,
+          stage,
         })
         return
     }
