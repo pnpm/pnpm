@@ -33,7 +33,6 @@ dependencies:
   package-store: 0.18.0
   path-name: 1.0.0
   pkgs-graph: 2.0.0
-  pnpm: 'link:../__package_previews__/pnpm/pnpm'
   pnpm-default-reporter: 0.15.3
   pnpm-file-reporter: 0.1.0
   pnpm-list: 2.0.1
@@ -85,7 +84,7 @@ devDependencies:
   semver: 5.5.0
   sepia: 2.0.2
   tape: 4.9.0
-  tape-promise: 2.0.1
+  tape-promise: 3.0.0
   ts-node: 5.0.1
   tslint: 5.9.1
   typescript: 2.8.1
@@ -6464,13 +6463,13 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha512-GXEvwF1zpalvovqO+x18H7k+4adCXn9NU6vjfEQ+cVS7Ltq7YXFQyitdl7WoQqNUMce3RGMPo037GJrtM7f7lw==
-  /tape-promise/2.0.1:
+  /tape-promise/3.0.0:
     dependencies:
       is-promise: 2.1.0
       onetime: 2.0.1
     dev: true
     resolution:
-      integrity: sha1-dryf91CLPgV9CW9ErJqTw8rk7TQ=
+      integrity: sha512-3LZy5ieZleqn9PbZgr2Aqkw5ikxdJT5DhnNxWH8tCL6yzNQyv0jPZH8nkpboTPDRO5COYmYbjKhn9Fl2GchOKg==
   /tape/4.9.0:
     dependencies:
       deep-equal: 1.0.1
@@ -7260,7 +7259,7 @@ specifiers:
   strip-color: ^0.1.0
   supi: ^0.15.0
   tape: ^4.6.3
-  tape-promise: ^2.0.1
+  tape-promise: ^3.0.0
   text-table: ^0.2.0
   tree-kill: ^1.2.0
   ts-node: ^5.0.0
