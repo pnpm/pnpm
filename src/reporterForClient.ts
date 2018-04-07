@@ -167,7 +167,7 @@ export default function (
     const lifecycleOutput$ = most.of(
       log$.lifecycle
         .map((log: LifecycleLog) => {
-          const key = `${log.script}:${log.pkgId}`
+          const key = `${log.stage}:${log.depPath}`
           lifecycleMessages[key] = lifecycleMessages[key] || []
           if (!lifecycleMessages[key].length || log['exitCode'] !== 0) {
             lifecycleMessages[key].push(formatLifecycle(log))
@@ -433,7 +433,7 @@ function printDiffs (pkgsDiff: PackageDiff[]) {
 }
 
 function formatLifecycle (logObj: LifecycleLog) {
-  const prefix = `${rightPad(logObj.pkgId, PREFIX_MAX_LENGTH)} | ${hlValue(padStart(logObj.script, 11))}: `
+  const prefix = `${rightPad(logObj.depPath, PREFIX_MAX_LENGTH)} | ${hlValue(padStart(logObj.stage, 11))}: `
   if (logObj['exitCode'] === 0) {
     return `${prefix}done`
   }

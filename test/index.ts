@@ -309,39 +309,39 @@ test('groups lifecycle output', t => {
   const pkgId = 'registry.npmjs.org/foo/1.0.0'
 
   lifecycleLogger.debug({
-    pkgId: 'registry.npmjs.org/foo/1.0.0',
+    depPath: 'registry.npmjs.org/foo/1.0.0',
     line: 'foo',
-    script: 'preinstall',
+    stage: 'preinstall',
   })
   lifecycleLogger.debug({
-    pkgId: 'registry.npmjs.org/foo/1.0.0',
+    depPath: 'registry.npmjs.org/foo/1.0.0',
     line: 'foo I',
-    script: 'postinstall',
+    stage: 'postinstall',
   })
   lifecycleLogger.debug({
-    pkgId: 'registry.npmjs.org/bar/1.0.0',
+    depPath: 'registry.npmjs.org/bar/1.0.0',
     line: 'bar I',
-    script: 'postinstall',
+    stage: 'postinstall',
   })
   lifecycleLogger.debug({
-    pkgId: 'registry.npmjs.org/foo/1.0.0',
+    depPath: 'registry.npmjs.org/foo/1.0.0',
     line: 'foo II',
-    script: 'postinstall',
+    stage: 'postinstall',
   })
   lifecycleLogger.debug({
-    pkgId: 'registry.npmjs.org/foo/1.0.0',
+    depPath: 'registry.npmjs.org/foo/1.0.0',
     line: 'foo III',
-    script: 'postinstall',
+    stage: 'postinstall',
   })
   lifecycleLogger.debug({
-    pkgId: 'registry.npmjs.org/qar/1.0.0',
+    depPath: 'registry.npmjs.org/qar/1.0.0',
     exitCode: 0,
-    script: 'install',
+    stage: 'install',
   })
   lifecycleLogger.debug({
-    pkgId: 'registry.npmjs.org/foo/1.0.0',
+    depPath: 'registry.npmjs.org/foo/1.0.0',
     exitCode: 0,
-    script: 'postinstall',
+    stage: 'postinstall',
   })
 
   t.plan(1)
