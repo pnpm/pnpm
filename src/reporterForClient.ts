@@ -9,6 +9,7 @@ import R = require('ramda')
 import rightPad = require('right-pad')
 import semver = require('semver')
 import stringLength = require('string-length')
+import padStart = require('string.prototype.padstart')
 import {
   DeprecationLog,
   InstallCheckLog,
@@ -162,13 +163,19 @@ export default function (
 
     outputs.push(tarballsProgressOutput$)
 
-    const lifecycleMessages: {[pkgId: string]: string} = {}
+    const lifecycleMessages: {[pkgId: string]: string[]} = {}
     const lifecycleOutput$ = most.of(
       log$.lifecycle
         .map((log: LifecycleLog) => {
           const key = `${log.script}:${log.pkgId}`
-          lifecycleMessages[key] = formatLifecycle(log)
-          return R.values(lifecycleMessages).join(EOL)
+          lifecycleMessages[key] = lifecycleMessages[key] || []
+          if (!lifecycleMessages[key].length || log['exitCode'] !== 0) {
+            lifecycleMessages[key].push(formatLifecycle(log))
+          }
+          if (lifecycleMessages[key].length > 3) {
+            lifecycleMessages[key].shift()
+          }
+          return R.unnest(R.values(lifecycleMessages)).join(EOL)
         })
         .map((msg) => ({msg})),
     )
@@ -426,22 +433,24 @@ function printDiffs (pkgsDiff: PackageDiff[]) {
 }
 
 function formatLifecycle (logObj: LifecycleLog) {
-  const prefix = `Running ${hlValue(logObj.script)} for ${hlPkgId(logObj.pkgId)}`
+  const prefix = `${rightPad(logObj.pkgId, PREFIX_MAX_LENGTH)} | ${hlValue(padStart(logObj.script, 11))}: `
   if (logObj['exitCode'] === 0) {
-    return `${prefix}, done`
+    return `${prefix}done`
   }
   const line = formatLine(logObj)
   if (logObj.level === 'error') {
-    return `${prefix}! ${line}`
+    return `${prefix}${line}`
   }
-  return `${prefix}: ${line}`
+  return `${prefix}${line}`
 }
 
 function formatLine (logObj: LifecycleLog) {
   if (typeof logObj['exitCode'] === 'number') return chalk.red(`Exited with ${logObj['exitCode']}`)
 
-  const color = logObj.level === 'error' ? chalk.red : chalk.gray
-  return color(logObj['line'])
+  if (logObj.level === 'error') {
+    return chalk.gray(logObj['line'])
+  }
+  return logObj['line']
 }
 
 function formatInstallCheck (logObj: InstallCheckLog) {

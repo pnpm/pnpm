@@ -22,8 +22,8 @@ const h1 = chalk.blue
 const hlValue = chalk.blue
 const hlPkgId = chalk['whiteBright']
 const POSTINSTALL = hlValue('postinstall')
-const PREINSTALL = hlValue('preinstall')
-const INSTALL = hlValue('install')
+const PREINSTALL = hlValue(' preinstall')
+const INSTALL = hlValue('    install')
 
 const progressLogger = logger<object>('progress')
 const stageLogger = logger<string>('stage')
@@ -335,26 +335,26 @@ test('groups lifecycle output', t => {
   })
   lifecycleLogger.debug({
     pkgId: 'registry.npmjs.org/qar/1.0.0',
-    line: '...',
+    exitCode: 0,
     script: 'install',
   })
   lifecycleLogger.debug({
-    pkgId: 'registry.npmjs.org/qar/1.0.0',
+    pkgId: 'registry.npmjs.org/foo/1.0.0',
     exitCode: 0,
-    script: 'install',
+    script: 'postinstall',
   })
 
   t.plan(1)
 
-  const childOutputColor = chalk.grey
-
-  output$.skip(6).take(1).map(normalizeNewline).subscribe({
+  output$.skip(5).take(1).map(normalizeNewline).subscribe({
     next: output => {
       t.equal(output, stripIndents`
-        Running ${PREINSTALL} for ${hlPkgId('registry.npmjs.org/foo/1.0.0')}: ${childOutputColor('foo')}
-        Running ${POSTINSTALL} for ${hlPkgId('registry.npmjs.org/foo/1.0.0')}: ${childOutputColor('foo III')}
-        Running ${POSTINSTALL} for ${hlPkgId('registry.npmjs.org/bar/1.0.0')}: ${childOutputColor('bar I')}
-        Running ${INSTALL} for ${hlPkgId('registry.npmjs.org/qar/1.0.0')}, done
+        registry.npmjs.org/foo/1.0.0             | ${PREINSTALL}: foo
+        registry.npmjs.org/foo/1.0.0             | ${POSTINSTALL}: foo I
+        registry.npmjs.org/foo/1.0.0             | ${POSTINSTALL}: foo II
+        registry.npmjs.org/foo/1.0.0             | ${POSTINSTALL}: foo III
+        registry.npmjs.org/bar/1.0.0             | ${POSTINSTALL}: bar I
+        registry.npmjs.org/qar/1.0.0             | ${INSTALL}: done
       `)
     },
     complete: () => t.end(),

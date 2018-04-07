@@ -19,6 +19,7 @@ dependencies:
   semver: 5.5.0
   stacktracey: 1.2.100
   string-length: 2.0.0
+  string.prototype.padstart: 3.0.0
   zen-push: 0.2.1
 devDependencies:
   '@pnpm/logger': 1.0.1
@@ -943,7 +944,6 @@ packages:
     dependencies:
       foreach: 2.0.5
       object-keys: 1.0.11
-    dev: true
     engines:
       node: '>= 0.4'
     resolution:
@@ -1073,7 +1073,6 @@ packages:
       has: 1.0.1
       is-callable: 1.1.3
       is-regex: 1.0.4
-    dev: true
     engines:
       node: '>= 0.4'
     resolution:
@@ -1083,7 +1082,6 @@ packages:
       is-callable: 1.1.3
       is-date-object: 1.0.1
       is-symbol: 1.0.1
-    dev: true
     engines:
       node: '>= 0.4'
     resolution:
@@ -1297,7 +1295,6 @@ packages:
     resolution:
       integrity: sha1-UmXGgaTylNq78XyVCbZ2OqhFEM4=
   /foreach/2.0.5:
-    dev: true
     resolution:
       integrity: sha1-C+4AUBiusmDQo6865ljdATbsG5k=
   /forever-agent/0.6.1:
@@ -1352,7 +1349,6 @@ packages:
     resolution:
       integrity: sha1-XB+x8RdHcRTwYyoOtLcbPLD9MXE=
   /function-bind/1.1.1:
-    dev: true
     resolution:
       integrity: sha512-yIovAzMX49sF8Yl58fSCWJ5svSLuaibPxXQJFLmBObTuCr0Mf1KiPopGM9NiFjiYBCbfaa2Fh6breQ6ANVTI0A==
   /gauge/2.7.4:
@@ -1534,7 +1530,6 @@ packages:
   /has/1.0.1:
     dependencies:
       function-bind: 1.1.1
-    dev: true
     engines:
       node: '>= 0.8.0'
     resolution:
@@ -1661,7 +1656,6 @@ packages:
     resolution:
       integrity: sha1-XuWOqlounIDiFAe+3yOuWsCRs/w=
   /is-callable/1.1.3:
-    dev: true
     engines:
       node: '>= 0.4'
     resolution:
@@ -1673,7 +1667,6 @@ packages:
     resolution:
       integrity: sha512-c7TnwxLePuqIlxHgr7xtxzycJPegNHFuIrBkwbf8hc58//+Op1CqFkyS+xnIMkwn9UsJIwc174BIjkyBmSpjKg==
   /is-date-object/1.0.1:
-    dev: true
     engines:
       node: '>= 0.4'
     resolution:
@@ -1791,7 +1784,6 @@ packages:
   /is-regex/1.0.4:
     dependencies:
       has: 1.0.1
-    dev: true
     engines:
       node: '>= 0.4'
     resolution:
@@ -1811,7 +1803,6 @@ packages:
     resolution:
       integrity: sha512-2H3vM92ez7TjW6T2e4G7AQVm/1/UA/qikNO0/aIi2SkouUU2wXW2CQ5Owiz8oaaFQpjNl74B5LIjTcM1htr2mQ==
   /is-symbol/1.0.1:
-    dev: true
     engines:
       node: '>= 0.4'
     resolution:
@@ -2311,7 +2302,6 @@ packages:
     resolution:
       integrity: sha512-UmOFbHbwvv+XHj7BerrhVq+knjceBdkvU5AriwLMvhv2qi+e7DJzxfBeFpILEjVzCp+xA+W/pIf06RGPWlZNfw==
   /object-keys/1.0.11:
-    dev: true
     engines:
       node: '>= 0.4'
     resolution:
@@ -3195,6 +3185,16 @@ packages:
       node: '>=0.10.0'
     resolution:
       integrity: sha1-EYvfW4zcUaKn5w0hHgfisLmxB9M=
+  /string.prototype.padstart/3.0.0:
+    dependencies:
+      define-properties: 1.1.2
+      es-abstract: 1.11.0
+      function-bind: 1.1.1
+    dev: false
+    engines:
+      node: '>= 0.4'
+    resolution:
+      integrity: sha1-W8+tOfRkm7LQMSkuGbzwtRDUskI=
   /string.prototype.trim/1.1.2:
     dependencies:
       define-properties: 1.1.2
@@ -3752,6 +3752,7 @@ specifiers:
   semver: ^5.4.1
   stacktracey: ^1.2.87
   string-length: ^2.0.0
+  string.prototype.padstart: ^3.0.0
   supi: ^0.15.0
   tape: ^4.8.0
   ts-node: ^5.0.0

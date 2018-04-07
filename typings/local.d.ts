@@ -47,3 +47,8 @@ declare module 'normalize-path' {
   function normalize (path: string): string;
   export = normalize;
 }
+
+declare module 'string.prototype.padstart' {
+  function padStart (s: string, targetLength: number, padString?: string): string;
+  export = padStart;
+}
