@@ -12,7 +12,7 @@ dependencies:
   '@types/write-json-file': 2.2.1
   '@zkochan/libnpx': 9.6.1
   byline: 5.0.0
-  camelcase: 4.1.0
+  camelcase: 5.0.0
   chalk: 2.3.2
   common-tags: 1.7.2
   cross-spawn: 6.0.5
@@ -33,7 +33,6 @@ dependencies:
   package-store: 0.18.0
   path-name: 1.0.0
   pkgs-graph: 2.0.0
-  pnpm: 'link:../__package_previews__/pnpm/pnpm'
   pnpm-default-reporter: 0.15.3
   pnpm-file-reporter: 0.1.0
   pnpm-list: 2.0.1
@@ -1565,6 +1564,12 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha1-1UVjW+HjPFQmScaRc+Xeas+uNN0=
+  /camelcase/5.0.0:
+    dev: false
+    engines:
+      node: '>=6'
+    resolution:
+      integrity: sha512-faqwZqnWxbxn+F1d399ygeamQNy3lPp/H9H6rNrqYh4FSVCtcY+3cub1MxA8o9mDd55mM8Aghuu/kuyYA6VTsA==
   /can-link/1.0.2:
     dependencies:
       graceful-fs: 4.1.11
@@ -7212,7 +7217,7 @@ specifiers:
   '@zkochan/libnpx': ^9.6.1
   anonymous-npm-registry-client: ^0.1.2
   byline: ^5.0.0
-  camelcase: ^4.1.0
+  camelcase: ^5.0.0
   caw: ^2.0.0
   chalk: ^2.2.0
   common-tags: ^1.4.0

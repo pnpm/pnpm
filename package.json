@@ -33,7 +33,7 @@
     "@types/write-json-file": "^2.2.1",
     "@zkochan/libnpx": "^9.6.1",
     "byline": "^5.0.0",
-    "camelcase": "^4.1.0",
+    "camelcase": "^5.0.0",
     "chalk": "^2.2.0",
     "common-tags": "^1.4.0",
     "cross-spawn": "^6.0.3",
