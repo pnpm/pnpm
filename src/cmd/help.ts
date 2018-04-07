@@ -228,7 +228,7 @@ function getHelpText (command: string) {
 
     case 'recursive':
       return stripIndent`
-        pnpm recursive [concurrency] install
+        pnpm recursive install
 
         **Experimental!** Concurrently runs installation in all subdirectories with a \`package.json\` (excluding node_modules).
 
@@ -236,7 +236,7 @@ function getHelpText (command: string) {
 
         * * *
 
-        pnpm recursive [concurrency] update
+        pnpm recursive update
 
         **Experimental!** Concurrently runs update in all subdirectories with a \`package.json\` (excluding node_modules).
 
@@ -244,7 +244,7 @@ function getHelpText (command: string) {
 
         * * *
 
-        pnpm recursive [concurrency] link
+        pnpm recursive link
 
         **Experimental!** Concurrently runs installation in all subdirectories with a \`package.json\` (excluding node_modules).
         If a package is available locally, the local version is linked.
@@ -253,7 +253,7 @@ function getHelpText (command: string) {
 
         * * *
 
-        pnpm recursive [concurrency] dislink
+        pnpm recursive dislink
 
         **Experimental!** Removes links to local packages and reinstalls them from the registry.
       `
