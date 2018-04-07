@@ -27,12 +27,13 @@ import reportError from './reportError'
 
 const BIG_TARBALL_SIZE = 1024 * 1024 * 5 // 5 MB
 
-const addedSign = chalk.green('+')
-const removedSign = chalk.red('-')
-const linkSign = chalk.magentaBright('#')
+const ADDED_CHAR = chalk.green('+')
+const REMOVED_CHAR = chalk.red('-')
+const LINKED_CHAR = chalk.magentaBright('#')
+const PREFIX_MAX_LENGTH = 40
+
 const hlValue = chalk.blue
 const hlPkgId = chalk['whiteBright']
-const PREFIX_MAX_LENGTH = 40
 
 export default function (
   log$: {
@@ -366,23 +367,28 @@ function formatPrefix (cwd: string, prefix: string) {
   return `...${shortPrefix.substr(separatorLocation)}`
 }
 
-function printPlusesAndMinuses (maxWidth: number, addSigns: number, removeSigns: number) {
+function printPlusesAndMinuses (maxWidth: number, added: number, removed: number) {
   if (maxWidth === 0) return ''
-  const changes = addSigns + removeSigns
+  const changes = added + removed
+  let addedChars: number
+  let removedChars: number
   if (changes > maxWidth) {
-    if (!addSigns) {
-      addSigns = 0
-      removeSigns = maxWidth
-    } else if (!removeSigns) {
-      addSigns = maxWidth
-      removeSigns = 0
+    if (!added) {
+      addedChars = 0
+      removedChars = maxWidth
+    } else if (!removed) {
+      addedChars = maxWidth
+      removedChars = 0
     } else {
       const p = maxWidth / changes
-      addSigns = Math.min(Math.max(Math.floor(addSigns * p), 1), maxWidth - 1)
-      removeSigns = maxWidth - addSigns
+      addedChars = Math.min(Math.max(Math.floor(added * p), 1), maxWidth - 1)
+      removedChars = maxWidth - addedChars
     }
+  } else {
+    addedChars = added
+    removedChars = removed
   }
-  return R.repeat(addedSign, addSigns).join('') + R.repeat(removedSign, removeSigns).join('')
+  return `${R.repeat(ADDED_CHAR, addedChars).join('')}${R.repeat(REMOVED_CHAR, removedChars).join('')}`
 }
 
 function printDiffs (pkgsDiff: PackageDiff[]) {
@@ -393,10 +399,10 @@ function printDiffs (pkgsDiff: PackageDiff[]) {
   pkgsDiff.sort((a, b) => (a.name.localeCompare(b.name) * 10 + (Number(!b.added) - Number(!a.added))))
   const msg = pkgsDiff.map((pkg) => {
     let result = pkg.added
-      ? addedSign
+      ? ADDED_CHAR
       : pkg.linked
-        ? linkSign
-        : removedSign
+        ? LINKED_CHAR
+        : REMOVED_CHAR
     if (!pkg.realName || pkg.name === pkg.realName) {
       result += ` ${pkg.name}`
     } else {
