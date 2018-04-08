@@ -16,6 +16,7 @@ export const types = Object.assign({
   'fetching-concurrency': Number,
   'frozen-shrinkwrap': Boolean,
   'global-path': path,
+  'global-pnpmfile': String,
   'ignore-pnpmfile': Boolean,
   'ignore-stop-requests': Boolean,
   'ignore-upload-requests': Boolean,
