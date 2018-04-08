@@ -1,7 +1,7 @@
 {
   "name": "@pnpm/headless",
   "description": "Fast installation using only shrinkwrap.yaml",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "author": {
     "name": "Zoltan Kochan",
     "email": "z@kochan.io",
