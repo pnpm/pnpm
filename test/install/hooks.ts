@@ -6,6 +6,7 @@ import {
   execPnpm,
   execPnpmSync,
 } from '../utils'
+import path = require('path')
 import fs = require('mz/fs')
 
 const test = promisifyTape(tape)
@@ -58,6 +59,72 @@ test('readPackage hook from custom location', async (t: tape.Test) => {
   await execPnpm('install', 'pkg-with-1-dep', '--pnpmfile', 'pnpm.js')
 
   await project.storeHas('dep-of-pkg-with-1-dep', '100.0.0')
+})
+
+test('readPackage hook from global pnpmfile', async (t: tape.Test) => {
+  const project = prepare(t)
+
+  await fs.writeFile('../pnpmfile.js', `
+    'use strict'
+    module.exports = {
+      hooks: {
+        readPackage (pkg) {
+          if (pkg.name === 'pkg-with-1-dep') {
+            pkg.dependencies['dep-of-pkg-with-1-dep'] = '100.0.0'
+          }
+          return pkg
+        }
+      }
+    }
+  `, 'utf8')
+
+  // w/o the hook, 100.1.0 would be installed
+  await addDistTag('dep-of-pkg-with-1-dep', '100.1.0', 'latest')
+
+  await execPnpm('install', 'pkg-with-1-dep', '--global-pnpmfile', path.resolve('..', 'pnpmfile.js'))
+
+  await project.storeHas('dep-of-pkg-with-1-dep', '100.0.0')
+})
+
+test('readPackage hook from global pnpmfile and local pnpmfile', async (t: tape.Test) => {
+  const project = prepare(t)
+
+  await fs.writeFile('../pnpmfile.js', `
+    'use strict'
+    module.exports = {
+      hooks: {
+        readPackage (pkg) {
+          if (pkg.name === 'pkg-with-1-dep') {
+            pkg.dependencies['dep-of-pkg-with-1-dep'] = '100.0.0'
+            pkg.dependencies['is-positive'] = '3.0.0'
+          }
+          return pkg
+        }
+      }
+    }
+  `, 'utf8')
+
+  await fs.writeFile('pnpmfile.js', `
+    'use strict'
+    module.exports = {
+      hooks: {
+        readPackage (pkg) {
+          if (pkg.name === 'pkg-with-1-dep') {
+            pkg.dependencies['is-positive'] = '1.0.0'
+          }
+          return pkg
+        }
+      }
+    }
+  `, 'utf8')
+
+  // w/o the hook, 100.1.0 would be installed
+  await addDistTag('dep-of-pkg-with-1-dep', '100.1.0', 'latest')
+
+  await execPnpm('install', 'pkg-with-1-dep', '--global-pnpmfile', path.resolve('..', 'pnpmfile.js'))
+
+  await project.storeHas('dep-of-pkg-with-1-dep', '100.0.0')
+  await project.storeHas('is-positive', '1.0.0')
 })
 
 test('readPackage hook during update', async (t: tape.Test) => {

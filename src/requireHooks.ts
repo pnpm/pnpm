@@ -1,18 +1,41 @@
 import logger from '@pnpm/logger'
+import {PackageManifest} from '@pnpm/types'
 import path = require('path')
 import pathAbsolute = require('path-absolute')
 import requirePnpmfile from './requirePnpmfile'
 
-export default function requireHooks (prefix: string, customPnpmfileLocation: string | undefined) {
-  const pnpmFile = requirePnpmfile(path.join(prefix, 'pnpmfile.js'))
-    || customPnpmfileLocation && requirePnpmfile(pathAbsolute(customPnpmfileLocation, prefix))
-  const hooks = pnpmFile && pnpmFile.hooks
-  if (!hooks) return {}
-  if (hooks.readPackage) {
-    if (typeof hooks.readPackage !== 'function') {
-      throw new TypeError('hooks.readPackage should be a function')
-    }
+export default function requireHooks (
+  prefix: string,
+  opts: {
+    globalPnpmfile?: string,
+    pnpmfile?: string,
+  },
+) {
+  const globalPnpmfile = opts.globalPnpmfile && requirePnpmfile(pathAbsolute(opts.globalPnpmfile, prefix))
+  let globalHooks = globalPnpmfile && globalPnpmfile.hooks
+
+  const pnpmFile = opts.pnpmfile && requirePnpmfile(pathAbsolute(opts.pnpmfile, prefix))
+    || requirePnpmfile(path.join(prefix, 'pnpmfile.js'))
+  let hooks = pnpmFile && pnpmFile.hooks
+
+  if (!globalHooks && !hooks) return {}
+  globalHooks = globalHooks || {}
+  hooks = hooks || {}
+  if (globalHooks.readPackage || hooks.readPackage) {
     logger.info('readPackage hook is declared. Manifests of dependencies might get overridden')
+    if (globalHooks.readPackage && hooks.readPackage) {
+      return {
+        readPackage: (pkg: PackageManifest) => hooks.readPackage(globalHooks.readPackage(pkg)),
+      }
+    }
+    if (globalHooks.readPackage) {
+      return {
+        readPackage: globalHooks.readPackage,
+      }
+    }
+    return {
+      readPackage: hooks.readPackage,
+    }
   }
-  return hooks
+  return {}
 }

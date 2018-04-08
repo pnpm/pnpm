@@ -1,5 +1,5 @@
 dependencies:
-  '@pnpm/config': 0.3.0
+  '@pnpm/config': 0.3.1
   '@pnpm/default-fetcher': 0.4.0
   '@pnpm/default-resolver': 0.1.4
   '@pnpm/logger': 1.0.1
@@ -328,7 +328,7 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha512-rN+hiOjGtxwwus7c/E0xkCs9prBeXzZCSCW/Q3k2WdHGSRNLAepr777iv+i2eqTfz9vXlTF0rLZOGi62ujzwYA==
-  /@pnpm/config/0.3.0:
+  /@pnpm/config/0.3.1:
     dependencies:
       '@types/camelcase': 4.1.0
       '@types/node': 9.6.2
@@ -340,7 +340,7 @@ packages:
     engines:
       node: '>=4'
     resolution:
-      integrity: sha512-xRlrkTKAWp2EoPf1wH3h/ueb3wBYjdEYjGCDP/NJaF8lfi7uB8gGE2FxXKg6Ui6rYOdmzm2W8o3NfB0WO1P5Wg==
+      integrity: sha512-ePlhPzDhrBRpQpCzouzxmzdcGrM7PGPKlGe6eqpKlzxgawPNEDbqO4XFsssXDy9jKyZ+lPtcTwsI1JiqAmZrWA==
   /@pnpm/default-fetcher/0.4.0:
     dependencies:
       '@pnpm/fetcher-base': 1.0.0
@@ -7195,7 +7195,7 @@ specifiers:
   '@commitlint/config-conventional': ^6.1.3
   '@commitlint/prompt-cli': ^6.1.3
   '@pnpm/assert-project': ^1.1.1
-  '@pnpm/config': ^0.3.0
+  '@pnpm/config': ^0.3.1
   '@pnpm/default-fetcher': ^0.4.0
   '@pnpm/default-resolver': ^0.1.4
   '@pnpm/logger': ^1.0.0

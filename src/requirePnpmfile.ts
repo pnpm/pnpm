@@ -6,6 +6,9 @@ export default (pnpmFilePath: string) => {
   try {
     const pnpmfile = require(pnpmFilePath)
     logger.info(`Using hooks from: ${pnpmFilePath}`)
+    if (pnpmfile && pnpmfile.hooks && pnpmfile.hooks.readPackage && typeof pnpmfile.hooks.readPackage !== 'function') {
+      throw new TypeError('hooks.readPackage should be a function')
+    }
     return pnpmfile
   } catch (err) {
     if (err instanceof SyntaxError) {
