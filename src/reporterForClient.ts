@@ -163,19 +163,23 @@ export default function (
 
     outputs.push(tarballsProgressOutput$)
 
-    const lifecycleMessages: {[pkgId: string]: string[]} = {}
+    const lifecycleMessages: {[pkgId: string]: {output: string[], script: string}} = {}
     const lifecycleOutput$ = most.of(
       log$.lifecycle
         .map((log: LifecycleLog) => {
           const key = `${log.stage}:${log.depPath}`
-          lifecycleMessages[key] = lifecycleMessages[key] || []
-          if (!lifecycleMessages[key].length || log['exitCode'] !== 0) {
-            lifecycleMessages[key].push(formatLifecycle(log))
+          lifecycleMessages[key] = lifecycleMessages[key] || {output: []}
+          if (log['script']) {
+            lifecycleMessages[key].script = formatLifecycle(log)
+          } else {
+            if (!lifecycleMessages[key].output.length || log['exitCode'] !== 0) {
+              lifecycleMessages[key].output.push(formatLifecycle(log))
+            }
+            if (lifecycleMessages[key].output.length > 3) {
+              lifecycleMessages[key].output.shift()
+            }
           }
-          if (lifecycleMessages[key].length > 3) {
-            lifecycleMessages[key].shift()
-          }
-          return R.unnest(R.values(lifecycleMessages)).join(EOL)
+          return EOL + EOL + R.values(lifecycleMessages).map((msg) => [msg.script].concat(msg.output).join(EOL)).join(EOL + EOL + EOL)
         })
         .map((msg) => ({msg})),
     )
@@ -433,15 +437,18 @@ function printDiffs (pkgsDiff: PackageDiff[]) {
 }
 
 function formatLifecycle (logObj: LifecycleLog) {
-  const prefix = `${rightPad(logObj.depPath, PREFIX_MAX_LENGTH)} | ${hlValue(padStart(logObj.stage, 11))}: `
+  const prefix = `${rightPad(logObj.depPath, PREFIX_MAX_LENGTH)} | ${hlValue(padStart(logObj.stage, 11))}`
+  if (logObj['script']) {
+    return `${prefix}$ ${logObj['script']}`
+  }
   if (logObj['exitCode'] === 0) {
-    return `${prefix}done`
+    return `${prefix}: done`
   }
   const line = formatLine(logObj)
   if (logObj.level === 'error') {
-    return `${prefix}${line}`
+    return `${prefix}: ${line}`
   }
-  return `${prefix}${line}`
+  return `${prefix}: ${line}`
 }
 
 function formatLine (logObj: LifecycleLog) {

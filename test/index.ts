@@ -33,6 +33,7 @@ const summaryLogger = logger<object>('summary')
 const lifecycleLogger = logger<object>('lifecycle')
 const packageJsonLogger = logger<object>('package-json')
 const statsLogger = logger<object>('stats')
+const EOL = '\n'
 
 test('prints progress beginning', t => {
   const output$ = toOutput$(createStreamParser())
@@ -310,12 +311,27 @@ test('groups lifecycle output', t => {
 
   lifecycleLogger.debug({
     depPath: 'registry.npmjs.org/foo/1.0.0',
+    script: 'node foo',
+    stage: 'preinstall',
+  })
+  lifecycleLogger.debug({
+    depPath: 'registry.npmjs.org/foo/1.0.0',
     line: 'foo',
     stage: 'preinstall',
   })
   lifecycleLogger.debug({
     depPath: 'registry.npmjs.org/foo/1.0.0',
+    script: 'node foo',
+    stage: 'postinstall',
+  })
+  lifecycleLogger.debug({
+    depPath: 'registry.npmjs.org/foo/1.0.0',
     line: 'foo I',
+    stage: 'postinstall',
+  })
+  lifecycleLogger.debug({
+    depPath: 'registry.npmjs.org/bar/1.0.0',
+    script: 'node bar',
     stage: 'postinstall',
   })
   lifecycleLogger.debug({
@@ -335,6 +351,11 @@ test('groups lifecycle output', t => {
   })
   lifecycleLogger.debug({
     depPath: 'registry.npmjs.org/qar/1.0.0',
+    script: 'node qar',
+    stage: 'install',
+  })
+  lifecycleLogger.debug({
+    depPath: 'registry.npmjs.org/qar/1.0.0',
     exitCode: 0,
     stage: 'install',
   })
@@ -346,14 +367,24 @@ test('groups lifecycle output', t => {
 
   t.plan(1)
 
-  output$.skip(5).take(1).map(normalizeNewline).subscribe({
+  output$.skip(9).take(1).map(normalizeNewline).subscribe({
     next: output => {
-      t.equal(output, stripIndents`
+      t.equal(output, EOL + EOL + stripIndents`
+        registry.npmjs.org/foo/1.0.0             | ${PREINSTALL}$ node foo
         registry.npmjs.org/foo/1.0.0             | ${PREINSTALL}: foo
+
+
+        registry.npmjs.org/foo/1.0.0             | ${POSTINSTALL}$ node foo
         registry.npmjs.org/foo/1.0.0             | ${POSTINSTALL}: foo I
         registry.npmjs.org/foo/1.0.0             | ${POSTINSTALL}: foo II
         registry.npmjs.org/foo/1.0.0             | ${POSTINSTALL}: foo III
+
+
+        registry.npmjs.org/bar/1.0.0             | ${POSTINSTALL}$ node bar
         registry.npmjs.org/bar/1.0.0             | ${POSTINSTALL}: bar I
+
+
+        registry.npmjs.org/qar/1.0.0             | ${INSTALL}$ node qar
         registry.npmjs.org/qar/1.0.0             | ${INSTALL}: done
       `)
     },
