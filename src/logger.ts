@@ -5,9 +5,11 @@ import baseLogger, {
 
 export const lifecycleLogger = baseLogger('lifecycle') as Logger<LifecycleMessage>
 
+// TODO: make depPath optional
 export type LifecycleMessage = {
   depPath: string,
   stage: string,
+  wd: string,
 } & ({
   line: string,
 } | {

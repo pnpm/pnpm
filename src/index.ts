@@ -58,6 +58,7 @@ export default async function runLifecycleHook (
       depPath: opts.depPath,
       script: pkg!.scripts![stage],
       stage,
+      wd: opts.pkgRoot,
     })
   }
 
@@ -86,6 +87,7 @@ export default async function runLifecycleHook (
           depPath: opts.depPath,
           line: line.toString(),
           stage,
+          wd: opts.pkgRoot,
         })
         return
       case 'stderr':
@@ -93,6 +95,7 @@ export default async function runLifecycleHook (
           depPath: opts.depPath,
           line: line.toString(),
           stage,
+          wd: opts.pkgRoot,
         })
         return
       case 'Returned: code:':
@@ -105,6 +108,7 @@ export default async function runLifecycleHook (
           depPath: opts.depPath,
           exitCode: code,
           stage,
+          wd: opts.pkgRoot,
         })
         return
     }
