@@ -186,10 +186,10 @@ export default function (
         const key = `${log.stage}:${log.depPath}`
         lifecycleMessages[key] = lifecycleMessages[key] || {output: []}
         if (log['script']) {
-          lifecycleMessages[key].script = formatLifecycle(log)
+          lifecycleMessages[key].script = formatLifecycle(cwd, log)
         } else {
           if (!lifecycleMessages[key].output.length || log['exitCode'] !== 0) {
-            lifecycleMessages[key].output.push(formatLifecycle(log))
+            lifecycleMessages[key].output.push(formatLifecycle(cwd, log))
           }
           if (lifecycleMessages[key].output.length > 3) {
             lifecycleMessages[key].output.shift()
@@ -210,7 +210,7 @@ export default function (
     const lifecycleMessages: {[pkgId: string]: string} = {}
     const lifecycleOutput$ = most.of(
       log$.lifecycle
-        .map((log: LifecycleLog) => ({ msg: formatLifecycle(log) })),
+        .map((log: LifecycleLog) => ({ msg: formatLifecycle(cwd, log) })),
     )
 
     outputs.push(lifecycleOutput$)
@@ -457,8 +457,12 @@ function printDiffs (pkgsDiff: PackageDiff[]) {
   return msg
 }
 
-function formatLifecycle (logObj: LifecycleLog) {
-  const prefix = `${rightPad(logObj.depPath, PREFIX_MAX_LENGTH)} | ${hlValue(padStart(logObj.stage, 11))}`
+function formatLifecycle (cwd: string, logObj: LifecycleLog) {
+  const prefix = `${
+    logObj.wd === logObj.depPath
+      ? rightPad(formatPrefix(cwd, logObj.wd), PREFIX_MAX_LENGTH)
+      : rightPad(logObj.depPath, PREFIX_MAX_LENGTH)
+  } | ${hlValue(padStart(logObj.stage, 11))}`
   if (logObj['script']) {
     return `${prefix}$ ${logObj['script']}`
   }
