@@ -19,6 +19,7 @@ import {
   RegistryLog,
 } from 'supi'
 import * as supi from 'supi'
+import PushStream = require('zen-push')
 import {EOL} from './constants'
 import getPkgsDiff, {
   PackageDiff,
@@ -163,28 +164,47 @@ export default function (
 
     outputs.push(tarballsProgressOutput$)
 
-    const lifecycleMessages: {[pkgId: string]: {output: string[], script: string}} = {}
-    const lifecycleOutput$ = most.of(
-      log$.lifecycle
-        .map((log: LifecycleLog) => {
-          const key = `${log.stage}:${log.depPath}`
-          lifecycleMessages[key] = lifecycleMessages[key] || {output: []}
-          if (log['script']) {
-            lifecycleMessages[key].script = formatLifecycle(log)
-          } else {
-            if (!lifecycleMessages[key].output.length || log['exitCode'] !== 0) {
-              lifecycleMessages[key].output.push(formatLifecycle(log))
-            }
-            if (lifecycleMessages[key].output.length > 3) {
-              lifecycleMessages[key].output.shift()
-            }
-          }
-          return EOL + EOL + R.values(lifecycleMessages).map((msg) => [msg.script].concat(msg.output).join(EOL)).join(EOL + EOL + EOL)
-        })
-        .map((msg) => ({msg})),
-    )
+    const lifecycleMessages: {
+      [depPath: string]: {
+        output: string[],
+        script: string,
+      },
+    } = {}
+    const lifecycleStreamByDepPath: {
+      [depPath: string]: {
+        observable: most.Observable<{msg: string}>,
+        complete (): void,
+        next (obj: object): void,
+      },
+    } = {}
+    const lifecyclePushStream = new PushStream()
+    outputs.push(most.from(lifecyclePushStream.observable))
 
-    outputs.push(lifecycleOutput$)
+    log$.lifecycle
+      .forEach((log: LifecycleLog) => {
+        const key = `${log.stage}:${log.depPath}`
+        lifecycleMessages[key] = lifecycleMessages[key] || {output: []}
+        if (log['script']) {
+          lifecycleMessages[key].script = formatLifecycle(log)
+        } else {
+          if (!lifecycleMessages[key].output.length || log['exitCode'] !== 0) {
+            lifecycleMessages[key].output.push(formatLifecycle(log))
+          }
+          if (lifecycleMessages[key].output.length > 3) {
+            lifecycleMessages[key].output.shift()
+          }
+        }
+        if (!lifecycleStreamByDepPath[key]) {
+          lifecycleStreamByDepPath[key] = new PushStream()
+          lifecyclePushStream.next(most.from(lifecycleStreamByDepPath[key].observable))
+        }
+        lifecycleStreamByDepPath[key].next({
+          msg: EOL + EOL + [lifecycleMessages[key].script].concat(lifecycleMessages[key].output).join(EOL),
+        })
+        if (typeof log['exitCode'] === 'number') {
+          lifecycleStreamByDepPath[key].complete()
+        }
+      })
   } else {
     const lifecycleMessages: {[pkgId: string]: string} = {}
     const lifecycleOutput$ = most.of(
