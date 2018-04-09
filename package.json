@@ -55,7 +55,7 @@
     "path-absolute": "^1.0.0",
     "path-name": "^1.0.0",
     "pkgs-graph": "^2.0.0",
-    "pnpm-default-reporter": "^0.16.0",
+    "pnpm-default-reporter": "^0.16.1",
     "pnpm-file-reporter": "^0.1.0",
     "pnpm-list": "^2.0.0",
     "process-exists": "^3.0.0",

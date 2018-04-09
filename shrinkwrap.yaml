@@ -35,7 +35,7 @@ dependencies:
   path-name: 1.0.0
   pkgs-graph: 2.0.0
   pnpm: 'link:../__package_previews__/pnpm/pnpm'
-  pnpm-default-reporter: 0.16.0
+  pnpm-default-reporter: 0.16.1
   pnpm-file-reporter: 0.1.0
   pnpm-list: 2.0.1
   process-exists: 3.1.0
@@ -422,7 +422,7 @@ packages:
       integrity: sha512-shgFfcZ4Eu7UXR95xgt+x8lFA0tXFciLOuA8Me771dAx7Idgh3s257Aua9piSSR3KyVODL/NAULb+BIuAuQRXg==
   /@pnpm/headless/0.2.2:
     dependencies:
-      '@pnpm/lifecycle': 2.0.1
+      '@pnpm/lifecycle': 2.1.0
       '@pnpm/link-bins': 1.0.1
       '@pnpm/modules-yaml': 1.0.0
       '@pnpm/package-requester': 0.8.5
@@ -447,7 +447,7 @@ packages:
       '@pnpm/logger': ^1.0.0
     resolution:
       integrity: sha512-X5fI89Dp6dCuKpdEBqi9LZrTW6rVmfJVCEHE+Djqgf7fskEjn+DGLF3jDkefzcGQYTnRoYiVNxxQHOAEu9XxQQ==
-  /@pnpm/lifecycle/2.0.1:
+  /@pnpm/lifecycle/2.1.0:
     dependencies:
       '@pnpm/types': 1.7.0
       npm-lifecycle: 2.0.1
@@ -460,7 +460,7 @@ packages:
     peerDependencies:
       '@pnpm/logger': ^1.0.0
     resolution:
-      integrity: sha512-3uXguYwciwReLes/tXa0yh0Lss5NhkMQfrNyLyWah08aL3E2PWK0oouMyKHEEujyvAX4RPfH8y4Nq94ua9mh6w==
+      integrity: sha512-f/Dtu0kUDlzZI2+8QVOvFbBra82aa5VLXpTOLEndJzddCooY/Qhva7Rc0xULfciy83BohBF9sp8OFZCTugnMVQ==
   /@pnpm/link-bins/1.0.1:
     dependencies:
       '@pnpm/package-bins': 1.0.0
@@ -4378,11 +4378,8 @@ packages:
       node: '>=0.10.0'
     resolution:
       integrity: sha512-zFM7hUpziSYGk2DNObYGWgHdRRxAOgjl8CC1Rbl50p/q0rGDsREfk0nbxxmSIquVi/lEAuUY8nwbwkZ8biNCOQ==
-  /most-last/1.0.1/most@1.7.3:
-    dependencies:
-      most: 1.7.3
+  /most-last/1.0.1:
     dev: false
-    id: registry.npmjs.org/most-last/1.0.1
     peerDependencies:
       most: ^1.0.3
     resolution:
@@ -5179,7 +5176,7 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha1-puODKevukuhGh/UvSt8W9iE5lS8=
-  /pnpm-default-reporter/0.16.0:
+  /pnpm-default-reporter/0.16.1:
     dependencies:
       '@types/common-tags': 1.4.0
       '@types/node': 9.6.2
@@ -5191,7 +5188,7 @@ packages:
       cli-cursor: 2.1.0
       common-tags: 1.7.2
       most: 1.7.3
-      most-last: /most-last/1.0.1/most@1.7.3
+      most-last: 1.0.1
       ndjson: 1.5.0
       normalize-path: 2.1.1
       pretty-bytes: 4.0.2
@@ -5201,6 +5198,7 @@ packages:
       stacktracey: 1.2.100
       string-length: 2.0.0
       string.prototype.padstart: 3.0.0
+      strip-ansi: 4.0.0
       zen-push: 0.2.1
     dev: false
     engines:
@@ -5208,7 +5206,7 @@ packages:
     peerDependencies:
       supi: '>=0.16.0 <0.17.0'
     resolution:
-      integrity: sha512-3uJ0QKZCgRPsPdpZYspXgGNvCbMrxlE4oxQI0pMA2Q9YqKc9A+REJdNeSOLq9y5xbGQU2p1fTmeGpKKeiaRwbw==
+      integrity: sha512-PEg8MIGES+ktZ9Gd98U+a0gfGHk6F+NHm0Ac2p8KxWxQFn5wl9YWp8xALMJz8mxmZ3NVYEuytu4y7kRwklpf5Q==
   /pnpm-file-reporter/0.1.0:
     dependencies:
       '@types/graceful-fs': 4.1.2
@@ -6379,7 +6377,7 @@ packages:
       '@pnpm/check-package': 1.0.0
       '@pnpm/fs-locker': 1.0.1
       '@pnpm/headless': 0.2.2
-      '@pnpm/lifecycle': 2.0.1
+      '@pnpm/lifecycle': 2.1.0
       '@pnpm/link-bins': 1.0.1
       '@pnpm/modules-yaml': 1.0.0
       '@pnpm/package-bins': 1.0.0
@@ -7261,7 +7259,7 @@ specifiers:
   path-exists: ^3.0.0
   path-name: ^1.0.0
   pkgs-graph: ^2.0.0
-  pnpm-default-reporter: ^0.16.0
+  pnpm-default-reporter: ^0.16.1
   pnpm-file-reporter: ^0.1.0
   pnpm-list: ^2.0.0
   pnpm-registry-mock: ^1.5.0
