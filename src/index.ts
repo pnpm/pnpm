@@ -53,11 +53,13 @@ export default async function runLifecycleHook (
     unsafePerm: boolean,
   },
 ) {
-  lifecycleLogger.debug({
-    depPath: opts.depPath,
-    script: pkg!.scripts![stage],
-    stage,
-  })
+  if (opts.stdio !== 'inherit') {
+    lifecycleLogger.debug({
+      depPath: opts.depPath,
+      script: pkg!.scripts![stage],
+      stage,
+    })
+  }
 
   return lifecycle(pkg, stage, opts.pkgRoot, {
     config: opts.rawNpmConfig,
