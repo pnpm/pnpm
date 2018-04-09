@@ -220,7 +220,7 @@ export async function install (maybeOpts: InstallOptions) {
       pkgRoot: opts.prefix,
       rawNpmConfig: opts.rawNpmConfig,
       rootNodeModulesDir: await realNodeModulesDir(opts.prefix),
-      stdio: 'inherit',
+      stdio: opts.ownLifecycleHooksStdio,
       unsafePerm: opts.unsafePerm || false,
     }
 

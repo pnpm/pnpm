@@ -74,6 +74,7 @@ Install all modules listed as dependencies in `package.json`.
   dependencies resolution and peers resolution.
 * `options.preferFrozenShrinkwrap` - *Boolean* - `true` by default. When `true`, a headless installation is performed if the shrinkwrap file
   is up-to-date with the `package.json` file.
+* `options.ownLifecycleHooksStdio` - *'inherit' | 'pipe'* - the stdio of the project's lifecycle hooks. Does not affect the stdio of the dependencies' hooks.
 
 ### `supi.uninstall(pkgsToUninstall, [options])`
 

@@ -54,6 +54,7 @@ export interface InstallOptions {
   lockStaleDuration?: number,
   tag?: string,
   locks?: string,
+  ownLifecycleHooksStdio?: 'inherit' | 'pipe',
 }
 
 export type StrictInstallOptions = InstallOptions & {
@@ -99,6 +100,7 @@ export type StrictInstallOptions = InstallOptions & {
   tag: string,
   locks: string,
   unsafePerm: boolean,
+  ownLifecycleHooksStdio: 'inherit' | 'pipe',
 }
 
 const defaults = async (opts: InstallOptions) => {
@@ -124,6 +126,7 @@ const defaults = async (opts: InstallOptions) => {
     locks: path.join(opts.store, '_locks'),
     nodeVersion: process.version,
     optional: typeof opts.production === 'boolean' ? opts.production : true,
+    ownLifecycleHooksStdio: 'inherit',
     packageManager,
     preferFrozenShrinkwrap: true,
     prefix,
