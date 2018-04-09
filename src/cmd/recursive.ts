@@ -90,6 +90,7 @@ export default async (
   const chunks = graphSequencerResult.chunks
 
   const installOpts = Object.assign(opts, {
+    ownLifecycleHooksStdio: 'pipe',
     store: store.path,
     storeController,
   }) as InstallOptions
