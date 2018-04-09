@@ -48,7 +48,7 @@
     "mkdirp-promise": "^5.0.1",
     "mz": "^2.7.0",
     "path-temp": "^1.0.0",
-    "retry": "^0.10.1",
+    "retry": "^0.12.0",
     "rimraf": "^2.6.2",
     "ssri": "^5.2.2",
     "unpack-stream": "^3.0.0"
