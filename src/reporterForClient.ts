@@ -10,6 +10,7 @@ import rightPad = require('right-pad')
 import semver = require('semver')
 import stringLength = require('string-length')
 import padStart = require('string.prototype.padstart')
+import stripAnsi = require('strip-ansi')
 import {
   DeprecationLog,
   InstallCheckLog,
@@ -474,10 +475,11 @@ function formatLifecycle (logObj: LifecycleLog) {
 function formatLine (logObj: LifecycleLog) {
   if (typeof logObj['exitCode'] === 'number') return chalk.red(`Exited with ${logObj['exitCode']}`)
 
+  // TODO: strip only the non-color/style ansi escape codes
   if (logObj.level === 'error') {
-    return chalk.gray(logObj['line'])
+    return chalk.gray(stripAnsi(logObj['line']))
   }
-  return logObj['line']
+  return stripAnsi(logObj['line'])
 }
 
 function formatInstallCheck (logObj: InstallCheckLog) {

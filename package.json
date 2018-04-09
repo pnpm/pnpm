@@ -61,6 +61,7 @@
     "stacktracey": "^1.2.87",
     "string-length": "^2.0.0",
     "string.prototype.padstart": "^3.0.0",
+    "strip-ansi": "^4.0.0",
     "zen-push": "^0.2.1"
   },
   "devDependencies": {

@@ -20,6 +20,7 @@ dependencies:
   stacktracey: 1.2.100
   string-length: 2.0.0
   string.prototype.padstart: 3.0.0
+  strip-ansi: 4.0.0
   zen-push: 0.2.1
 devDependencies:
   '@pnpm/logger': 1.0.1
@@ -3861,6 +3862,7 @@ specifiers:
   stacktracey: ^1.2.87
   string-length: ^2.0.0
   string.prototype.padstart: ^3.0.0
+  strip-ansi: ^4.0.0
   supi: ^0.16.0
   tape: ^4.8.0
   ts-node: ^5.0.0
