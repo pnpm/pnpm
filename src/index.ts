@@ -76,6 +76,7 @@ export interface HeadlessOptions {
     version: string,
   },
   wantedShrinkwrap?: Shrinkwrap,
+  ownLifecycleHooksStdio?: 'inherit' | 'pipe',
 }
 
 export default async (opts: HeadlessOptions) => {
@@ -115,7 +116,7 @@ export default async (opts: HeadlessOptions) => {
     pkgRoot: opts.prefix,
     rawNpmConfig: opts.rawNpmConfig,
     rootNodeModulesDir: nodeModules,
-    stdio: 'inherit',
+    stdio: opts.ownLifecycleHooksStdio || 'inherit',
     unsafePerm: opts.unsafePerm || false,
   }
 
