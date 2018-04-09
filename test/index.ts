@@ -280,6 +280,7 @@ test('prints summary', t => {
       t.equal(output, stripIndents`
         ${WARN} ${DEPRECATED} bar@2.0.0: This package was deprecated because bla bla bla
 
+
         ${h1('dependencies:')}
         ${ADD} bar ${versionColor('2.0.0')} ${DEPRECATED}
         ${SUB} foo ${versionColor('0.1.0')}

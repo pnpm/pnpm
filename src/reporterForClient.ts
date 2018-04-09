@@ -223,7 +223,7 @@ export default function (
 
     const summaryOutput$ = most.combine(
       (pkgsDiff) => {
-        let msg = ''
+        let msg = EOL
         for (const depType of ['prod', 'optional', 'dev']) {
           const diffs = R.values(pkgsDiff[depType])
           if (diffs.length) {
