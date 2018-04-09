@@ -60,7 +60,7 @@
     "pnpm-list": "^2.0.0",
     "process-exists": "^3.0.0",
     "ramda": "^0.25.0",
-    "retry": "^0.10.1",
+    "retry": "^0.12.0",
     "signal-exit": "^3.0.2",
     "strip-color": "^0.1.0",
     "supi": "^0.16.0",
