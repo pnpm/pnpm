@@ -280,7 +280,6 @@ test('prints summary', t => {
       t.equal(output, stripIndents`
         ${WARN} ${DEPRECATED} bar@2.0.0: This package was deprecated because bla bla bla
 
-
         ${h1('dependencies:')}
         ${ADD} bar ${versionColor('2.0.0')} ${DEPRECATED}
         ${SUB} foo ${versionColor('0.1.0')}
@@ -370,20 +369,17 @@ test('groups lifecycle output', t => {
 
   output$.skip(9).take(1).map(normalizeNewline).subscribe({
     next: output => {
-      t.equal(output, EOL + EOL + stripIndents`
+      t.equal(output, EOL + stripIndents`
         registry.npmjs.org/foo/1.0.0             | ${PREINSTALL}$ node foo
         registry.npmjs.org/foo/1.0.0             | ${PREINSTALL}: foo
-
 
         registry.npmjs.org/foo/1.0.0             | ${POSTINSTALL}$ node foo
         registry.npmjs.org/foo/1.0.0             | ${POSTINSTALL}: foo I
         registry.npmjs.org/foo/1.0.0             | ${POSTINSTALL}: foo II
         registry.npmjs.org/foo/1.0.0             | ${POSTINSTALL}: foo III
 
-
         registry.npmjs.org/bar/1.0.0             | ${POSTINSTALL}$ node bar
         registry.npmjs.org/bar/1.0.0             | ${POSTINSTALL}: bar I
-
 
         registry.npmjs.org/qar/1.0.0             | ${INSTALL}$ node qar
         registry.npmjs.org/qar/1.0.0             | ${INSTALL}: done

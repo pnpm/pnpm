@@ -200,7 +200,7 @@ export default function (
           lifecyclePushStream.next(most.from(lifecycleStreamByDepPath[key].observable))
         }
         lifecycleStreamByDepPath[key].next({
-          msg: EOL + EOL + [lifecycleMessages[key].script].concat(lifecycleMessages[key].output).join(EOL),
+          msg: EOL + [lifecycleMessages[key].script].concat(lifecycleMessages[key].output).join(EOL),
         })
         if (typeof log['exitCode'] === 'number') {
           lifecycleStreamByDepPath[key].complete()
@@ -224,7 +224,7 @@ export default function (
 
     const summaryOutput$ = most.combine(
       (pkgsDiff) => {
-        let msg = EOL
+        let msg = ''
         for (const depType of ['prod', 'optional', 'dev']) {
           const diffs = R.values(pkgsDiff[depType])
           if (diffs.length) {
