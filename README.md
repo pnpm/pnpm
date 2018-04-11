@@ -43,6 +43,15 @@ fetchFromNpmRegistry('https://registry.npmjs.org/is-positive')
 ```
 <!--/@-->
 
+## API
+
+### `fetchFromNpmRegistry(url, opts)`
+
+#### Arguments
+
+* **url** - *String* - url to request
+* **opts.fullMetadata** - *Boolean* - If true, don't attempt to fetch filtered ("corgi") registry metadata. (default: false)
+
 ## License
 
 [MIT](./LICENSE) © [Zoltan Kochan](https://www.kochan.io/)

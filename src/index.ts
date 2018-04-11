@@ -16,6 +16,7 @@ export type Auth = (
 
 export default function (
   defaultOpts: {
+    fullMetadata?: boolean,
     // proxy
     proxy?: string,
     localAddress?: string,
@@ -48,15 +49,25 @@ export default function (
 
   return (url: string, opts?: {auth?: Auth}) => {
     const fetchOpts = {
-      headers: getHeaders({auth: opts && opts.auth, userAgent: defaultOpts.userAgent}),
+      headers: getHeaders({
+        auth: opts && opts.auth,
+        fullMetadata: defaultOpts.fullMetadata,
+        userAgent: defaultOpts.userAgent,
+      }),
     }
     return fetch(url, fetchOpts)
   }
 }
 
-function getHeaders (opts: {auth?: Auth, userAgent?: string}) {
+function getHeaders (
+  opts: {
+    auth?: Auth,
+    fullMetadata?: boolean,
+    userAgent?: string,
+  },
+) {
   const headers = {
-    accept: CORGI_DOC,
+    accept: opts.fullMetadata === true ? JSON_DOC : CORGI_DOC,
   }
   if (opts.auth) {
     const authorization = authObjectToHeaderValue(opts.auth)
