@@ -3488,7 +3488,7 @@ specifiers:
   '@types/write-json-file': ^2.2.1
   credentials-by-uri: ^1.0.0
   encode-registry: ^1.1.0
-  fetch-from-npm-registry: ^0.1.0
+  fetch-from-npm-registry: ^0.1.3
   load-json-file: ^4.0.0
   mem: ^3.0.0
   mos: ^2.0.0-alpha.3

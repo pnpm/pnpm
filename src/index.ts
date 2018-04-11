@@ -17,6 +17,7 @@ import toRaw from './toRaw'
 export default function createResolver (
   opts: {
     cert?: string,
+    fullMetadata?: boolean,
     key?: string,
     ca?: string,
     strictSsl?: boolean,
@@ -50,6 +51,7 @@ export default function createResolver (
   const fetch = createRegFetcher({
     ca: opts.ca,
     cert: opts.cert,
+    fullMetadata: opts.fullMetadata,
     key: opts.key,
     localAddress: opts.localAddress,
     proxy: opts.httpsProxy || opts.proxy,
