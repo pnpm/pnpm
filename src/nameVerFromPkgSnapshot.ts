@@ -14,6 +14,6 @@ export default (
   }
   return {
     name: pkgSnapshot.name,
-    version: pkgSnapshot.version,
+    version: pkgSnapshot.version as string,
   }
 }
