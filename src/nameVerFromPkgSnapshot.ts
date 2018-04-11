@@ -8,10 +8,8 @@ export default (
   if (!pkgSnapshot.name) {
     const pkgInfo = dp.parse(relDepPath)
     return {
-      // tslint:disable:no-string-literal
-      name: pkgInfo['name'],
-      version: pkgInfo['version'],
-      // tslint:enable:no-string-literal
+      name: pkgInfo.name as string,
+      version: pkgInfo.version as string,
     }
   }
   return {

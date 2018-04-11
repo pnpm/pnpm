@@ -1506,7 +1506,7 @@ specifiers:
   '@types/node': ^9.3.0
   '@types/ramda': ^0.25.12
   '@types/tape': ^4.2.30
-  dependency-path: ^1.0.0
+  dependency-path: ^1.2.1
   get-npm-tarball-url: ^2.0.1
   js-yaml: ^3.8.4
   load-yaml-file: ^0.1.0
