@@ -31,10 +31,10 @@ export default (
 
   function getTarball () {
     const parsed = dp.parse(relDepPath)
-    if (!parsed['name'] || !parsed['version']) {
+    if (!parsed.name || !parsed.version) {
       throw new Error(`Couldn't get tarball URL from dependency path ${relDepPath}`)
     }
-    return getNpmTarballUrl(parsed['name'], parsed['version'], {registry})
+    return getNpmTarballUrl(parsed.name, parsed.version, {registry})
   }
   // tslint:enable:no-string-literal
 }
