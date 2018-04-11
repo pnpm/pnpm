@@ -10,6 +10,7 @@ export default function createResolver (
     store: string,
     // TODO: export options type from @pnpm/npm-resolver
     cert?: string,
+    fullMetadata?: boolean,
     key?: string,
     ca?: string,
     strictSsl?: boolean,
