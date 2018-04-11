@@ -133,6 +133,38 @@ export async function rebuild (maybeOpts: RebuildOptions) {
   })
 }
 
+function getSubgraphToBuild (
+  pkgSnapshots: PackageSnapshots,
+  entryNodes: string[],
+  nodesToBuildAndTransitive: Set<string>,
+  walked: Set<string>,
+  opts: {
+    optional: boolean,
+    pkgsToRebuild: Set<string>,
+  },
+) {
+  let currentShouldBeBuilt = false
+  for (const depPath of entryNodes) {
+    if (nodesToBuildAndTransitive.has(depPath)) {
+      currentShouldBeBuilt = true
+    }
+    if (walked.has(depPath)) continue
+    walked.add(depPath)
+    const pkgSnapshot = pkgSnapshots[depPath]
+    const nextEntryNodes = R.toPairs({
+      ...pkgSnapshot.dependencies,
+      ...(opts.optional && pkgSnapshot.optionalDependencies || {}),
+    }).map((pair) => dp.refToRelative(pair[1], pair[0]))
+    const childShouldBeBuilt = getSubgraphToBuild(pkgSnapshots, nextEntryNodes, nodesToBuildAndTransitive, walked, opts)
+      || opts.pkgsToRebuild.has(depPath)
+    if (childShouldBeBuilt) {
+      nodesToBuildAndTransitive.add(depPath)
+      currentShouldBeBuilt = true
+    }
+  }
+  return currentShouldBeBuilt
+}
+
 async function _rebuild (
   pkgsToRebuild: Set<string>,
   modules: string,
@@ -143,15 +175,26 @@ async function _rebuild (
   const graph = new Map()
   const pkgSnapshots: PackageSnapshots = shr.packages || {}
   const relDepPaths = R.keys(pkgSnapshots)
-  for (const relDepPath of relDepPaths) {
+
+  const entryNodes = R.toPairs({
+    ...(opts.development && shr.devDependencies || {}),
+    ...(opts.production && shr.dependencies || {}),
+    ...(opts.optional && shr.optionalDependencies || {}),
+  }).map((pair) => dp.refToRelative(pair[1], pair[0]))
+
+  const nodesToBuildAndTransitive = new Set()
+  getSubgraphToBuild(pkgSnapshots, entryNodes, nodesToBuildAndTransitive, new Set(), {optional: opts.optional === true, pkgsToRebuild})
+  const nodesToBuildAndTransitiveArray = Array.from(nodesToBuildAndTransitive)
+
+  for (const relDepPath of nodesToBuildAndTransitiveArray) {
     const pkgSnapshot = pkgSnapshots[relDepPath]
-    graph.set(relDepPath, R.toPairs({...pkgSnapshot.dependencies, ...pkgSnapshot.optionalDependencies}).map((pair) => {
-      return dp.refToRelative(pair[1], pair[0])
-    }))
+    graph.set(relDepPath, R.toPairs({...pkgSnapshot.dependencies, ...pkgSnapshot.optionalDependencies})
+      .map((pair) => dp.refToRelative(pair[1], pair[0]))
+      .filter((childRelDepPath) => nodesToBuildAndTransitive.has(childRelDepPath)))
   }
   const graphSequencerResult = graphSequencer({
     graph,
-    groups: [relDepPaths],
+    groups: [nodesToBuildAndTransitiveArray],
   })
   const chunks = graphSequencerResult.chunks as string[][]
 

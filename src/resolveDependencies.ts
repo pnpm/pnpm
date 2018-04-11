@@ -62,6 +62,7 @@ export interface Pkg {
   peerDependencies: Dependencies,
   optionalDependencies: Set<string>,
   hasBundledDependencies: boolean,
+  requiresBuild: boolean,
   additionalInfo: {
     deprecated?: string,
     peerDependencies?: Dependencies,
@@ -310,9 +311,11 @@ async function install (
 
   let pkg: PackageManifest
   let useManifestInfoFromShrinkwrap = false
+  let requiresBuild!: boolean
   if (options.hasManifestInShrinkwrap && !options.update && options.dependencyShrinkwrap && options.relDepPath
     && !pkgResponse.body.updated) {
     useManifestInfoFromShrinkwrap = true
+    requiresBuild = options.dependencyShrinkwrap.requiresBuild === true
     pkg = Object.assign(
       nameVerFromPkgSnapshot(options.relDepPath, options.dependencyShrinkwrap),
       options.dependencyShrinkwrap,
@@ -332,6 +335,9 @@ async function install (
       pkg = options.readPackageHook
         ? options.readPackageHook(pkgResponse.body['manifest'] || await pkgResponse['fetchingManifest'])
         : pkgResponse.body['manifest'] || await pkgResponse['fetchingManifest']
+
+      // TODO: check the scripts field of the real package.json that is unpacked from the tarball
+      requiresBuild = Boolean(pkg['scripts'] && (pkg['scripts']['preinstall'] || pkg['scripts']['install'] || pkg['scripts']['postinstall']))
     } catch (err) {
       // tslint:disable:no-empty
       // avoiding unhandled promise rejections
@@ -407,6 +413,7 @@ async function install (
       path: pkgResponse.body.inStoreLocation,
       peerDependencies: peerDependencies || {},
       prod: !wantedDependency.dev && !wantedDependency.optional,
+      requiresBuild,
       resolution: pkgResponse.body.resolution,
       specRaw: wantedDependency.raw,
       version: pkg.version,

@@ -47,6 +47,9 @@ test('run pre/postinstall scripts', async (t: tape.Test) => {
     const generatedByPostinstall = project.requireModule('pre-and-postinstall-scripts-example/generated-by-postinstall')
     t.ok(typeof generatedByPostinstall === 'function', 'generatedByPostinstall() is not available')
   }
+
+  const shr = await project.loadShrinkwrap()
+  t.ok(shr.packages['/pre-and-postinstall-scripts-example/1.0.0'].requiresBuild, 'requiresBuild: true added to shrinkwrap')
 })
 
 test('testing that the bins are linked when the package with the bins was already in node_modules', async (t: tape.Test) => {

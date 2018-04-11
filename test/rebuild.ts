@@ -17,7 +17,16 @@ test('rebuilds dependencies', async (t: tape.Test) => {
   const project = prepare(t)
   await installPkgs(['pre-and-postinstall-scripts-example', 'zkochan/install-scripts-example'], await testDefaults({saveDev: true, ignoreScripts: true}))
 
+  let modules = await project.loadModules()
+  t.deepEqual(modules.pendingBuilds, [
+    '/pre-and-postinstall-scripts-example/1.0.0',
+    'github.com/zkochan/install-scripts-example/26950260310939009680b6a377a0efd0925df9ba',
+  ])
+
   await rebuild(await testDefaults())
+
+  modules = await project.loadModules()
+  t.equal(modules.pendingBuilds.length, 0)
 
   {
     const generatedByPreinstall = project.requireModule('pre-and-postinstall-scripts-example/generated-by-preinstall')
@@ -58,7 +67,10 @@ test('rebuild with pending option', async (t: tape.Test) => {
   await installPkgs(['zkochan/install-scripts-example'], await testDefaults({ignoreScripts: true}))
 
   let modules = await project.loadModules()
-  t.doesNotEqual(modules.pendingBuilds.length, 0)
+  t.deepEqual(modules.pendingBuilds, [
+    '/pre-and-postinstall-scripts-example/1.0.0',
+    'github.com/zkochan/install-scripts-example/26950260310939009680b6a377a0efd0925df9ba',
+  ])
 
   await project.hasNot('pre-and-postinstall-scripts-example/generated-by-preinstall')
   await project.hasNot('pre-and-postinstall-scripts-example/generated-by-postinstall')

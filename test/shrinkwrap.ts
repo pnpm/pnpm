@@ -507,7 +507,7 @@ test('scoped module from different registry', async (t: tape.Test) => {
       },
     },
     registry: 'http://localhost:4873/',
-    shrinkwrapMinorVersion: 4,
+    shrinkwrapMinorVersion: 5,
     shrinkwrapVersion: 3,
     specifiers: {
       '@zkochan/foo': '^1.0.0',
@@ -557,7 +557,7 @@ test.skip('installing from shrinkwrap when using npm enterprise', async (t: tape
       },
     },
     registry: 'https://npm-registry.compass.com/',
-    shrinkwrapMinorVersion: 4,
+    shrinkwrapMinorVersion: 5,
     shrinkwrapVersion: 3,
     specifiers: {
       'is-positive': '^3.1.0',
@@ -630,7 +630,7 @@ test('updating package that has deps with peers', async (t: tape.Test) => {
   t.pass('installation of latest did not fail')
 })
 
-test('updating shrinkwrap version 3 to 3.1', async (t: tape.Test) => {
+test('updating shrinkwrap version 3 to 3.5', async (t: tape.Test) => {
   const project = prepare(t, {
     dependencies: {
       'abc-grand-parent-with-c': '^1.0.0',
@@ -688,15 +688,15 @@ test('updating shrinkwrap version 3 to 3.1', async (t: tape.Test) => {
 
   const shr = await project.loadShrinkwrap()
 
-  t.equal(shr.shrinkwrapMinorVersion, 4)
+  t.equal(shr.shrinkwrapMinorVersion, 5)
   t.ok(shr.packages['/abc/1.0.0/165e1e08a3f7e7f77ddb572ad0e55660'].peerDependencies)
 })
 
 test('pendingBuilds gets updated if install removes packages', async (t: tape.Test) => {
   const project = prepare(t, {
     dependencies: {
-      'is-negative': '2.1.0',
-      'sh-hello-world': '1.0.1',
+      'pre-and-postinstall-scripts-example': '*',
+      'with-postinstall-b': '*',
     },
   })
 
@@ -704,7 +704,7 @@ test('pendingBuilds gets updated if install removes packages', async (t: tape.Te
   const modules1 = await project.loadModules()
 
   await project.rewriteDependencies({
-    'is-negative': '2.1.0',
+    'pre-and-postinstall-scripts-example': '*',
   })
 
   await install(await testDefaults({ ignoreScripts: true }))

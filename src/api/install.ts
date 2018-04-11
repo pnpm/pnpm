@@ -39,7 +39,7 @@ import {fromDir as safeReadPkgFromDir} from '../fs/safeReadPkg'
 import {absolutePathToRef} from '../fs/shrinkwrap'
 import getSaveType from '../getSaveType'
 import getSpecFromPackageJson from '../getSpecFromPackageJson'
-import linkPackages from '../link'
+import linkPackages, {DepGraphNodesByDepPath} from '../link'
 import {DepGraphNode} from '../link/resolvePeers'
 import {
   packageJsonLogger,
@@ -608,7 +608,11 @@ async function installInContext (
   if (opts.ignoreScripts) {
     // we can use concat here because we always only append new packages, which are guaranteed to not be there by definition
     ctx.pendingBuilds = ctx.pendingBuilds
-      .concat(result.newDepPaths.map((depPath) => dp.relative(ctx.wantedShrinkwrap.registry, depPath)))
+      .concat(
+        result.newDepPaths
+          .filter((depPath) => result.depGraph[depPath].requiresBuild)
+          .map((depPath) => dp.relative(ctx.wantedShrinkwrap.registry, depPath)),
+      )
   }
 
   if (opts.shrinkwrapOnly) {
@@ -637,18 +641,25 @@ async function installInContext (
       const limitChild = pLimit(opts.childConcurrency)
 
       const depPaths = Object.keys(result.depGraph)
+      const rootNodes = depPaths.filter((depPath) => result.depGraph[depPath].depth === 0)
+      const nodesToBuild = new Set<string>()
+      getSubgraphToBuild(result.depGraph, rootNodes, nodesToBuild, new Set<string>())
+      const onlyFromBuildGraph = R.filter((depPath: string) => nodesToBuild.has(depPath))
+
+      const nodesToBuildArray = Array.from(nodesToBuild)
       const graph = new Map(
-        depPaths.map((depPath) => [depPath, R.values(result.depGraph[depPath].children)]) as Array<[string, string[]]>,
+        nodesToBuildArray
+          .map((depPath) => [depPath, onlyFromBuildGraph(R.values(result.depGraph[depPath].children))]) as Array<[string, string[]]>,
       )
       const graphSequencerResult = graphSequencer({
         graph,
-        groups: [depPaths],
+        groups: [nodesToBuildArray],
       })
       const chunks = graphSequencerResult.chunks as string[][]
 
       for (const chunk of chunks) {
         await Promise.all(chunk
-          .filter((depPath) => !result.depGraph[depPath].isBuilt && result.newDepPaths.indexOf(depPath) !== -1)
+          .filter((depPath) => result.depGraph[depPath].requiresBuild && !result.depGraph[depPath].isBuilt && result.newDepPaths.indexOf(depPath) !== -1)
           .map((depPath) => result.depGraph[depPath])
           .map((pkg) => limitChild(async () => {
             try {
@@ -717,6 +728,29 @@ async function installInContext (
   summaryLogger.info(undefined)
 
   await opts.storeController.close()
+}
+
+function getSubgraphToBuild (
+  graph: DepGraphNodesByDepPath,
+  entryNodes: string[],
+  nodesToBuild: Set<string>,
+  walked: Set<string>,
+) {
+  let currentShouldBeBuilt = false
+  for (const depPath of entryNodes) {
+    if (nodesToBuild.has(depPath)) {
+      currentShouldBeBuilt = true
+    }
+    if (walked.has(depPath)) continue
+    walked.add(depPath)
+    const childShouldBeBuilt = getSubgraphToBuild(graph, R.values(graph[depPath].children), nodesToBuild, walked)
+      || graph[depPath].requiresBuild
+    if (childShouldBeBuilt) {
+      nodesToBuild.add(depPath)
+      currentShouldBeBuilt = true
+    }
+  }
+  return currentShouldBeBuilt
 }
 
 function buildTree (

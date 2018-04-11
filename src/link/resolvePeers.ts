@@ -2,7 +2,7 @@ import logger from '@pnpm/logger'
 import {PackageFilesResponse} from '@pnpm/package-requester'
 import pkgIdToFilename from '@pnpm/pkgid-to-filename'
 import {Resolution} from '@pnpm/resolver-base'
-import {PackageManifest} from '@pnpm/types'
+import {PackageManifest, PackageScripts} from '@pnpm/types'
 import {Dependencies} from '@pnpm/types'
 import {oneLine} from 'common-tags'
 import crypto = require('crypto')
@@ -52,6 +52,7 @@ export interface DepGraphNode {
     os?: string[],
   },
   isBuilt?: boolean,
+  requiresBuild: boolean,
 }
 
 export interface DepGraphNodesByDepPath {
@@ -187,6 +188,7 @@ function resolvePeersOfNode (
       optionalDependencies: node.pkg.optionalDependencies,
       peripheralLocation,
       prod: node.pkg.prod,
+      requiresBuild: node.pkg.requiresBuild,
       resolution: node.pkg.resolution,
       version: node.pkg.version,
     }

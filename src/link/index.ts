@@ -19,6 +19,8 @@ import logStatus from '../logging/logInstallStatus'
 import resolvePeers, {DepGraphNode, DepGraphNodesByDepPath} from './resolvePeers'
 import updateShrinkwrap from './updateShrinkwrap'
 
+export {DepGraphNodesByDepPath}
+
 export default async function linkPackages (
   rootNodeIdsByAlias: {[alias: string]: string},
   pkgGraph: PkgGraphNodeByNodeId,
@@ -342,6 +344,10 @@ async function linkAllPkgs (
   return Promise.all(
     depNodes.map(async (depNode) => {
       const filesResponse = await depNode.fetchingFiles
+      if (!depNode.requiresBuild) {
+        depNode.requiresBuild = Boolean(filesResponse.filenames.indexOf('binding.gyp') !== -1 ||
+          filesResponse.filenames.some((filename) => !!filename.match(/^[.]hooks[\\/]/))) // TODO: optimize this
+      }
 
       if (depNode.independent) return
       return storeController.importPackage(depNode.centralLocation, depNode.peripheralLocation, {

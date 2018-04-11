@@ -37,6 +37,7 @@ export default function (
       prod: depGraph[depPath].prod,
       registry: shrinkwrap.registry,
       relDepPath,
+      requiresBuild: depGraph[depPath].requiresBuild,
       resolution: depGraph[depPath].resolution,
       updatedDeps: result[1],
       updatedOptionalDeps: result[0],
@@ -65,6 +66,7 @@ function toShrDependency (
     version: string,
     id: string,
     relDepPath: string,
+    requiresBuild: boolean,
     resolution: Resolution,
     registry: string,
     updatedDeps: Array<{alias: string, depPath: string}>,
@@ -131,6 +133,9 @@ function toShrDependency (
   }
   if (pkg.deprecated) {
     result['deprecated'] = pkg.deprecated
+  }
+  if (opts.requiresBuild) {
+    result['requiresBuild'] = opts.requiresBuild
   }
   // tslint:enable:no-string-literal
   return result
