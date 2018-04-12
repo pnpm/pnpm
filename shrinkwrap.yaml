@@ -903,6 +903,7 @@ packages:
     dev: true
     engines:
       node: '>=4'
+    requiresBuild: true
     resolution:
       integrity: sha512-onS0BpZl/Zj903N60DM58rENRH9qZPWUALc4M808CG7Kv2M6BHz1W4XREg1vivAYaD3z2Hd9O2iEy3SJlALnbg==
   /@zkochan/libnpx/9.6.1:
@@ -2326,6 +2327,7 @@ packages:
     engines:
       node: '>=0.10'
     optional: true
+    requiresBuild: true
     resolution:
       integrity: sha1-QooiOv4DQl0s1tY0f99AxmkDVj0=
   /duplexer/0.1.1:
@@ -7195,7 +7197,7 @@ packages:
     resolution:
       integrity: sha512-Qv4qvc8ZIue51B/0zmeIMxpIGDVhz4GhJALBvnKs/FRa2T7jy4Ori9wFwaHVt0zWV7MIFglKAHbgnVxVTw7U1w==
 registry: 'https://registry.npmjs.org/'
-shrinkwrapMinorVersion: 4
+shrinkwrapMinorVersion: 5
 shrinkwrapVersion: 3
 specifiers:
   '@commitlint/cli': ^6.1.3
