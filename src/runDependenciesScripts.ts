@@ -27,7 +27,7 @@ export default async (
 
   const depPaths = Object.keys(depGraph)
   const graph = new Map(
-    depPaths.map((depPath) => [depPath, R.keys(depGraph[depPath].children)]) as Array<[string, string[]]>,
+    depPaths.map((depPath) => [depPath, R.values(depGraph[depPath].children)]) as Array<[string, string[]]>,
   )
   const graphSequencerResult = graphSequencer({
     graph,
