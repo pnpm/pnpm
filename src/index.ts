@@ -182,7 +182,7 @@ export default async (opts: HeadlessOptions) => {
   })
 
   if (!opts.ignoreScripts) {
-    await runDependenciesScripts(depGraph, opts)
+    await runDependenciesScripts(depGraph, R.values(res.rootDependencies).filter((loc) => depGraph[loc]), opts)
   }
 
   // waiting till package requests are finished
@@ -268,7 +268,7 @@ async function shrinkwrapToDepGraph (
   const graph: DepGraphNodesByDepPath = {}
   let rootDependencies: {[alias: string]: string} = {}
   if (shr.packages) {
-    const pkgSnapshotByDepPath = {}
+    const pkgSnapshotByLocation = {}
     for (const relDepPath of R.keys(shr.packages)) {
       if (currentPackages[relDepPath] && R.equals(currentPackages[relDepPath].dependencies, shr.packages[relDepPath].dependencies) &&
         R.equals(currentPackages[relDepPath].optionalDependencies, shr.packages[relDepPath].optionalDependencies)) {
@@ -276,7 +276,6 @@ async function shrinkwrapToDepGraph (
         }
       const depPath = dp.resolve(shr.registry, relDepPath)
       const pkgSnapshot = shr.packages[relDepPath]
-      pkgSnapshotByDepPath[depPath] = pkgSnapshot
       const independent = opts.independentLeaves && pkgIsIndependent(pkgSnapshot)
       const resolution = pkgSnapshotToResolution(relDepPath, pkgSnapshot, shr.registry)
       // TODO: optimize. This info can be already returned by pkgSnapshotToResolution()
@@ -300,7 +299,7 @@ async function shrinkwrapToDepGraph (
       const peripheralLocation = !independent
         ? path.join(modules, pkgName)
         : centralLocation
-      graph[depPath] = {
+      graph[peripheralLocation] = {
         centralLocation,
         children: {},
         fetchingFiles: fetchResponse.fetchingFiles,
@@ -313,7 +312,9 @@ async function shrinkwrapToDepGraph (
         optionalDependencies: new Set(R.keys(pkgSnapshot.optionalDependencies)),
         peripheralLocation,
         pkgId,
+        requiresBuild: pkgSnapshot.requiresBuild === true,
       }
+      pkgSnapshotByLocation[peripheralLocation] = pkgSnapshot
     }
     const ctx = {
       force: opts.force,
@@ -325,11 +326,11 @@ async function shrinkwrapToDepGraph (
       registry: shr.registry,
       store: opts.store,
     }
-    for (const depPath of R.keys(graph)) {
-      const pkgSnapshot = pkgSnapshotByDepPath[depPath]
+    for (const peripheralLocation of R.keys(graph)) {
+      const pkgSnapshot = pkgSnapshotByLocation[peripheralLocation]
       const allDeps = {...pkgSnapshot.dependencies, ...pkgSnapshot.optionalDependencies}
 
-      graph[depPath].children = await getChildrenPaths(ctx, allDeps)
+      graph[peripheralLocation].children = await getChildrenPaths(ctx, allDeps)
     }
     const rootDeps = {...shr.devDependencies, ...shr.dependencies, ...shr.optionalDependencies}
     rootDependencies = await getChildrenPaths(ctx, rootDeps)
@@ -399,6 +400,7 @@ export interface DepGraphNode {
   optional: boolean,
   pkgId: string, // TODO: this option is currently only needed when running postinstall scripts but even there it should be not used
   isBuilt: boolean,
+  requiresBuild: boolean,
 }
 
 export interface DepGraphNodesByDepPath {

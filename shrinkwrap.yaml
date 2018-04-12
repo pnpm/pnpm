@@ -12,7 +12,7 @@ dependencies:
   p-limit: 1.2.0
   package-store: 0.18.0
   path-exists: 3.0.0
-  pnpm-shrinkwrap: 6.2.4
+  pnpm-shrinkwrap: 6.3.2
   ramda: 0.25.0
   read-package-json: 2.0.13
   supi: 0.16.0
@@ -3912,6 +3912,28 @@ packages:
       '@pnpm/logger': ^1.0.0
     resolution:
       integrity: sha512-6jS1RYFe5vfaoo2+JRQ9xIQ91oDOsYp6xCrJyCkmweKJ5ezXd2PNiYhOpZkwvVNj1NoBRN9IWS4L0/Ld2rIQcg==
+  /pnpm-shrinkwrap/6.3.2:
+    dependencies:
+      '@pnpm/resolver-base': 1.0.0
+      '@types/js-yaml': 3.11.1
+      '@types/node': 9.6.2
+      '@types/ramda': 0.25.21
+      dependency-path: 1.2.1
+      get-npm-tarball-url: 2.0.1
+      js-yaml: 3.11.0
+      load-yaml-file: 0.1.0
+      mkdirp-promise: 5.0.1
+      ramda: 0.25.0
+      rimraf-then: 1.0.1
+      util.promisify: 1.0.0
+      write-file-atomic: 2.3.0
+    dev: false
+    engines:
+      node: '>=4'
+    peerDependencies:
+      '@pnpm/logger': ^1.0.0
+    resolution:
+      integrity: sha512-DPfj3g997WtP4glNx0brXXp45Q+w9tluy90HST2md+oOPDXa9WlF9+OZkwAgoi/qgseRecUpK2d8EgIqU6H5Qw==
   /prepend-http/2.0.0:
     dev: true
     engines:
@@ -5434,7 +5456,7 @@ specifiers:
   package-store: ^0.18.0
   path-exists: ^3.0.0
   pnpm-registry-mock: ^1.17.0
-  pnpm-shrinkwrap: ^6.2.3
+  pnpm-shrinkwrap: ^6.3.2
   ramda: ^0.25.0
   read-package-json: ^2.0.13
   rimraf: ^2.6.2

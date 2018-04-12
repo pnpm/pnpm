@@ -11,6 +11,7 @@ import {ENGINE_NAME} from './constants'
 
 export default async (
   depGraph: DepGraphNodesByDepPath,
+  rootDepPaths: string[],
   opts: {
     childConcurrency?: number,
     prefix: string,
@@ -26,53 +27,85 @@ export default async (
   const limitChild = pLimit(opts.childConcurrency || 4)
 
   const depPaths = Object.keys(depGraph)
+  const nodesToBuild = new Set<string>()
+  getSubgraphToBuild(depGraph, rootDepPaths, nodesToBuild, new Set<string>())
+  const onlyFromBuildGraph = R.filter((depPath: string) => nodesToBuild.has(depPath))
+
+  const nodesToBuildArray = Array.from(nodesToBuild)
   const graph = new Map(
-    depPaths.map((depPath) => [depPath, R.values(depGraph[depPath].children)]) as Array<[string, string[]]>,
+    nodesToBuildArray
+      .map((depPath) => [depPath, onlyFromBuildGraph(R.values(depGraph[depPath].children))]) as Array<[string, string[]]>,
   )
   const graphSequencerResult = graphSequencer({
     graph,
-    groups: [depPaths],
+    groups: [nodesToBuildArray],
   })
   const chunks = graphSequencerResult.chunks as string[][]
 
   for (const chunk of chunks) {
-    await Promise.all(chunk.filter((depPath) => !depGraph[depPath].isBuilt).map((depPath: string) => limitChild(async () => {
-      const depNode = depGraph[depPath]
-        try {
-          const hasSideEffects = await runPostinstallHooks({
-            depPath,
-            pkgRoot: depNode.peripheralLocation,
-            rawNpmConfig: opts.rawNpmConfig,
-            rootNodeModulesDir: opts.prefix,
-            unsafePerm: opts.unsafePerm || false,
-          })
-          if (hasSideEffects && opts.sideEffectsCache && !opts.sideEffectsCacheReadonly) {
-            try {
-              await opts.storeController.upload(depNode.peripheralLocation, {
-                engine: ENGINE_NAME,
-                pkgId: depNode.pkgId,
-              })
-            } catch (err) {
-              if (err && err.statusCode === 403) {
-                logger.warn(`The store server disabled upload requests, could not upload ${depNode.pkgId}`)
-              } else {
-                logger.warn({
-                  err,
-                  message: `An error occurred while uploading ${depNode.pkgId}`,
+    await Promise.all(chunk
+      .filter((depPath) => depGraph[depPath].requiresBuild && !depGraph[depPath].isBuilt)
+      .map((depPath: string) => limitChild(async () => {
+        const depNode = depGraph[depPath]
+          try {
+            const hasSideEffects = await runPostinstallHooks({
+              depPath,
+              pkgRoot: depNode.peripheralLocation,
+              rawNpmConfig: opts.rawNpmConfig,
+              rootNodeModulesDir: opts.prefix,
+              unsafePerm: opts.unsafePerm || false,
+            })
+            if (hasSideEffects && opts.sideEffectsCache && !opts.sideEffectsCacheReadonly) {
+              try {
+                await opts.storeController.upload(depNode.peripheralLocation, {
+                  engine: ENGINE_NAME,
+                  pkgId: depNode.pkgId,
                 })
+              } catch (err) {
+                if (err && err.statusCode === 403) {
+                  logger.warn(`The store server disabled upload requests, could not upload ${depNode.pkgId}`)
+                } else {
+                  logger.warn({
+                    err,
+                    message: `An error occurred while uploading ${depNode.pkgId}`,
+                  })
+                }
               }
             }
+          } catch (err) {
+            if (depNode.optional) {
+              logger.warn({
+                err,
+                message: `Skipping failed optional dependency ${depNode.pkgId}`,
+              })
+              return
+            }
+            throw err
           }
-        } catch (err) {
-          if (depNode.optional) {
-            logger.warn({
-              err,
-              message: `Skipping failed optional dependency ${depNode.pkgId}`,
-            })
-            return
-          }
-          throw err
-        }
-    })))
+      })))
   }
+}
+
+function getSubgraphToBuild (
+  graph: DepGraphNodesByDepPath,
+  entryNodes: string[],
+  nodesToBuild: Set<string>,
+  walked: Set<string>,
+) {
+  let currentShouldBeBuilt = false
+  for (const depPath of entryNodes) {
+    if (!graph[depPath]) return // packages that are already in node_modules are skipped
+    if (nodesToBuild.has(depPath)) {
+      currentShouldBeBuilt = true
+    }
+    if (walked.has(depPath)) continue
+    walked.add(depPath)
+    const childShouldBeBuilt = getSubgraphToBuild(graph, R.values(graph[depPath].children), nodesToBuild, walked)
+      || graph[depPath].requiresBuild
+    if (childShouldBeBuilt) {
+      nodesToBuild.add(depPath)
+      currentShouldBeBuilt = true
+    }
+  }
+  return currentShouldBeBuilt
 }

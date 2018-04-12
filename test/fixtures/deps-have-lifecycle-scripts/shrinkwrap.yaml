@@ -38,6 +38,7 @@ packages:
     dependencies:
       hello-world-js-bin: 1.0.0
     dev: false
+    requiresBuild: true
     resolution:
       integrity: sha512-SeA235K1DsYAkk6u8SBTA/w4IEG7HFcxVyRR4FD1FQqHk64mrTWfdmn7EX+CLLkRqzDJQSj+tjYcOqR9BAR51A==
   /process-nextick-args/2.0.0:
