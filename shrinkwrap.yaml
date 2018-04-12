@@ -43,7 +43,7 @@ dependencies:
   retry: 0.12.0
   signal-exit: 3.0.2
   strip-color: 0.1.0
-  supi: 0.16.2
+  supi: 0.16.3
   text-table: 0.2.0
   tree-kill: 1.2.0
   update-notifier: 2.4.0
@@ -420,7 +420,7 @@ packages:
       '@pnpm/logger': ^1.0.0
     resolution:
       integrity: sha512-shgFfcZ4Eu7UXR95xgt+x8lFA0tXFciLOuA8Me771dAx7Idgh3s257Aua9piSSR3KyVODL/NAULb+BIuAuQRXg==
-  /@pnpm/headless/0.2.3:
+  /@pnpm/headless/0.2.4:
     dependencies:
       '@pnpm/lifecycle': 2.1.0
       '@pnpm/link-bins': 1.0.1
@@ -437,7 +437,7 @@ packages:
       pnpm-shrinkwrap: 6.3.2
       ramda: 0.25.0
       read-package-json: 2.0.13
-      supi: 0.16.2
+      supi: 0.16.3
       symlink-dir: 1.1.2
       util.promisify: 1.0.0
     dev: false
@@ -446,7 +446,7 @@ packages:
     peerDependencies:
       '@pnpm/logger': ^1.0.0
     resolution:
-      integrity: sha512-otZqkUKMUY67m/MomyOkS8ge9Skjt0P0Jy9yZtNn10Oyx4HmQL8sV086MFIfAQU7hzv+jUWP1pgwSk0JIJPyiA==
+      integrity: sha512-G2uU3IUcoClz9yxVdNXTLQLppD3AyeDKEBEFT3uImwhRDZ7YCRiBh6IDVY1hNi/cxH17E19ahR7bWQ7QzHffcg==
   /@pnpm/lifecycle/2.1.0:
     dependencies:
       '@pnpm/types': 1.7.0
@@ -5760,12 +5760,12 @@ packages:
     dev: true
     resolution:
       integrity: sha512-hgoSGrc3pjzAPHNBg+KnFcK2HwlHTs/YrAGUr6qgTVUZmXv1UEXXl0bZNBKMA9fud6lRYFdPGz0xXxycPzmmiw==
-  /resolve/1.7.0:
+  /resolve/1.7.1:
     dependencies:
       path-parse: 1.0.5
     dev: true
     resolution:
-      integrity: sha512-QdgZ5bjR1WAlpLaO5yHepFvC+o3rCr6wpfE2tpJNMkXdulf2jKomQBdNRQITF3ZKHNlT71syG98yQP03gasgnA==
+      integrity: sha512-c7rwLofp8g1U+h1KNyHL/jicrKg1Ek4q+Lr33AL65uZTinUZHe30D5HlyN5V9NW0JX1D5dXQ4jqW5l7Sy/kGfw==
   /responselike/1.0.2:
     dependencies:
       lowercase-keys: 1.0.1
@@ -6375,11 +6375,11 @@ packages:
       node: '>=0.10.0'
     resolution:
       integrity: sha1-PFMZQukIwml8DsNEhYwobHygpgo=
-  /supi/0.16.2:
+  /supi/0.16.3:
     dependencies:
       '@pnpm/check-package': 1.0.0
       '@pnpm/fs-locker': 1.0.1
-      '@pnpm/headless': 0.2.3
+      '@pnpm/headless': 0.2.4
       '@pnpm/lifecycle': 2.1.0
       '@pnpm/link-bins': 1.0.1
       '@pnpm/modules-yaml': 1.0.0
@@ -6441,7 +6441,7 @@ packages:
     peerDependencies:
       '@pnpm/logger': ^1.0.0
     resolution:
-      integrity: sha512-jo/t33OQR4likj//g6gUzasQ6sI55ezWe7kfcbhSNJc4cmeTPpLWmi5t+N5RAvurTL0SUAPozkE02VNIjvYzwA==
+      integrity: sha512-kjLfAzcIy35HPFY7BCf0mInmWCtSRzV9UWz+J6ko9pLOlXerxMdhqLHCsKuLdHhu8rEoUcWZR7dBmtdTvhC6Zg==
   /supports-color/2.0.0:
     dev: true
     engines:
@@ -6691,7 +6691,7 @@ packages:
       glob: 7.1.2
       js-yaml: 3.11.0
       minimatch: 3.0.4
-      resolve: 1.7.0
+      resolve: 1.7.1
       semver: 5.5.0
       tslib: 1.9.0
       tsutils: 2.26.1
@@ -7204,7 +7204,7 @@ specifiers:
   '@pnpm/assert-project': ^1.1.1
   '@pnpm/config': ^0.3.1
   '@pnpm/default-fetcher': ^0.4.0
-  '@pnpm/default-resolver': ^0.1.4
+  '@pnpm/default-resolver': ^0.1.5
   '@pnpm/logger': ^1.0.0
   '@pnpm/outdated': ^0.2.10
   '@pnpm/server': ^0.9.0
@@ -7276,7 +7276,7 @@ specifiers:
   sepia: ^2.0.2
   signal-exit: ^3.0.2
   strip-color: ^0.1.0
-  supi: ^0.16.2
+  supi: ^0.16.3
   tape: ^4.6.3
   tape-promise: ^2.0.1
   text-table: ^0.2.0
