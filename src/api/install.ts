@@ -632,7 +632,7 @@ async function installInContext (
 
       const depPaths = Object.keys(result.depGraph)
       const graph = new Map(
-        depPaths.map((depPath) => [depPath, R.keys(result.depGraph[depPath].children)]) as Array<[string, string[]]>,
+        depPaths.map((depPath) => [depPath, R.values(result.depGraph[depPath].children)]) as Array<[string, string[]]>,
       )
       const graphSequencerResult = graphSequencer({
         graph,
