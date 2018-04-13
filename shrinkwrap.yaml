@@ -43,7 +43,7 @@ dependencies:
   retry: 0.12.0
   signal-exit: 3.0.2
   strip-color: 0.1.0
-  supi: 0.16.3
+  supi: 0.16.4
   text-table: 0.2.0
   tree-kill: 1.2.0
   update-notifier: 2.4.0
@@ -367,7 +367,7 @@ packages:
       '@pnpm/self-installer': 2.0.2
       '@types/got': 7.1.8
       '@types/node': 9.6.4
-      command-exists: 1.2.2
+      command-exists: 1.2.4
       cross-spawn: 5.1.0
     dev: true
     engines:
@@ -437,7 +437,7 @@ packages:
       pnpm-shrinkwrap: 6.3.2
       ramda: 0.25.0
       read-package-json: 2.0.13
-      supi: 0.16.3
+      supi: 0.16.4
       symlink-dir: 1.1.2
       util.promisify: 1.0.0
     dev: false
@@ -1758,10 +1758,10 @@ packages:
       node: '>= 0.8'
     resolution:
       integrity: sha1-cj599ugBrFYTETp+RFqbactjKBg=
-  /command-exists/1.2.2:
+  /command-exists/1.2.4:
     dev: true
     resolution:
-      integrity: sha1-EoGcZPr5VEbsCuB/5sr7brNwiyI=
+      integrity: sha512-9NoZJMIzkBfe26RwXIGr0thU/bZw68pw3dHjPav+m+AIns73SDe2ggMLTGXkzed4R67D8eTUnRZ2fraxAffQqw==
   /commander/2.15.1:
     dev: true
     resolution:
@@ -6377,7 +6377,7 @@ packages:
       node: '>=0.10.0'
     resolution:
       integrity: sha1-PFMZQukIwml8DsNEhYwobHygpgo=
-  /supi/0.16.3:
+  /supi/0.16.4:
     dependencies:
       '@pnpm/check-package': 1.0.0
       '@pnpm/fs-locker': 1.0.1
@@ -6443,7 +6443,7 @@ packages:
     peerDependencies:
       '@pnpm/logger': ^1.0.0
     resolution:
-      integrity: sha512-kjLfAzcIy35HPFY7BCf0mInmWCtSRzV9UWz+J6ko9pLOlXerxMdhqLHCsKuLdHhu8rEoUcWZR7dBmtdTvhC6Zg==
+      integrity: sha512-nUPW+rh4MnNIqqKzfaj1hBgKTHgHtCBJVwPQamV6oD+OymTtwaMgHRmalBmSOBRRB6/wC6AdGm9qBgMlB/j98g==
   /supports-color/2.0.0:
     dev: true
     engines:
@@ -7278,7 +7278,7 @@ specifiers:
   sepia: ^2.0.2
   signal-exit: ^3.0.2
   strip-color: ^0.1.0
-  supi: ^0.16.3
+  supi: ^0.16.4
   tape: ^4.6.3
   tape-promise: ^2.0.1
   text-table: ^0.2.0
