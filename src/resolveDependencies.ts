@@ -338,6 +338,9 @@ async function install (
 
       // TODO: check the scripts field of the real package.json that is unpacked from the tarball
       requiresBuild = Boolean(pkg['scripts'] && (pkg['scripts']['preinstall'] || pkg['scripts']['install'] || pkg['scripts']['postinstall']))
+      if (options.dependencyShrinkwrap && options.dependencyShrinkwrap.deprecated && !pkg.deprecated) {
+        pkg.deprecated = options.dependencyShrinkwrap.deprecated
+      }
     } catch (err) {
       // tslint:disable:no-empty
       // avoiding unhandled promise rejections

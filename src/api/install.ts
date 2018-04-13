@@ -369,9 +369,9 @@ async function installInContext (
 
   const nodeModulesPath = await realNodeModulesDir(ctx.root)
 
-  // This works from minor version 1, so any number is fine
-  // also, the shrinkwrapMinorVersion is going to be removed from shrinkwrap v4
-  const hasManifestInShrinkwrap = typeof ctx.wantedShrinkwrap.shrinkwrapMinorVersion === 'number'
+  // Avoid requesting package meta info from registry only when the shrinkwrap version is at least the expected
+  const hasManifestInShrinkwrap = typeof ctx.wantedShrinkwrap.shrinkwrapMinorVersion === 'number' &&
+    ctx.wantedShrinkwrap.shrinkwrapMinorVersion >= SHRINKWRAP_MINOR_VERSION
 
   const installCtx: InstallContext = {
     childrenByParentId: {},

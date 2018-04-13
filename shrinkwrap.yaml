@@ -335,7 +335,7 @@ packages:
       '@pnpm/self-installer': 2.0.2
       '@types/got': 7.1.8
       '@types/node': 9.6.4
-      command-exists: 1.2.2
+      command-exists: 1.2.4
       cross-spawn: 5.1.0
     dev: true
     engines:
@@ -404,7 +404,7 @@ packages:
       pnpm-shrinkwrap: 6.3.2
       ramda: 0.25.0
       read-package-json: 2.0.13
-      supi: 0.16.2
+      supi: 0.16.3
       symlink-dir: 1.1.2
       util.promisify: 1.0.0
     dev: false
@@ -808,6 +808,7 @@ packages:
     dev: true
     engines:
       node: '>=4'
+    requiresBuild: true
     resolution:
       integrity: sha512-onS0BpZl/Zj903N60DM58rENRH9qZPWUALc4M808CG7Kv2M6BHz1W4XREg1vivAYaD3z2Hd9O2iEy3SJlALnbg==
   /@zkochan/npm-package-arg/1.0.0:
@@ -1405,10 +1406,10 @@ packages:
       node: '>= 0.8'
     resolution:
       integrity: sha1-cj599ugBrFYTETp+RFqbactjKBg=
-  /command-exists/1.2.2:
+  /command-exists/1.2.4:
     dev: true
     resolution:
-      integrity: sha1-EoGcZPr5VEbsCuB/5sr7brNwiyI=
+      integrity: sha512-9NoZJMIzkBfe26RwXIGr0thU/bZw68pw3dHjPav+m+AIns73SDe2ggMLTGXkzed4R67D8eTUnRZ2fraxAffQqw==
   /commander/2.15.1:
     dev: true
     resolution:
@@ -1801,6 +1802,7 @@ packages:
     engines:
       node: '>=0.10'
     optional: true
+    requiresBuild: true
     resolution:
       integrity: sha1-QooiOv4DQl0s1tY0f99AxmkDVj0=
   /duplexer/0.1.1:
@@ -4586,6 +4588,7 @@ packages:
       type-detect: 4.0.8
     deprecated: this version has been deprecated
     dev: true
+    requiresBuild: true
     resolution:
       integrity: sha512-dMX7ZB2E1iQ5DOEOePoNJQp03uyhdMfb+kLXlNPbquv2FwfezD+0GbbHSgCw4MFhpSSS9NMoYJfOPMjCMJtXWA==
   /slash/1.0.0:
@@ -4826,7 +4829,7 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha1-XvjbKV0B5u1sv3qrlpmNeCJSe2g=
-  /supi/0.16.2:
+  /supi/0.16.3:
     dependencies:
       '@pnpm/check-package': 1.0.0
       '@pnpm/fs-locker': 1.0.1
@@ -4892,7 +4895,7 @@ packages:
     peerDependencies:
       '@pnpm/logger': ^1.0.0
     resolution:
-      integrity: sha512-jo/t33OQR4likj//g6gUzasQ6sI55ezWe7kfcbhSNJc4cmeTPpLWmi5t+N5RAvurTL0SUAPozkE02VNIjvYzwA==
+      integrity: sha512-kjLfAzcIy35HPFY7BCf0mInmWCtSRzV9UWz+J6ko9pLOlXerxMdhqLHCsKuLdHhu8rEoUcWZR7dBmtdTvhC6Zg==
   /supports-color/2.0.0:
     dev: true
     engines:
@@ -5457,7 +5460,7 @@ packages:
     resolution:
       integrity: sha1-5a2ryKz0CPY4X8dklWhMiOavaJo=
 registry: 'https://registry.npmjs.org/'
-shrinkwrapMinorVersion: 4
+shrinkwrapMinorVersion: 5
 shrinkwrapVersion: 3
 specifiers:
   '@commitlint/cli': ^6.1.3
