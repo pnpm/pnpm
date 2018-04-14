@@ -57,7 +57,7 @@ export async function _unlinkPkgs (
 
   // TODO: install only those that were unlinked
   // but don't update their version specs in package.json
-  await install(opts)
+  await install({...opts, preferFrozenShrinkwrap: false})
 }
 
 export async function unlink (maybeOpts: InstallOptions) {

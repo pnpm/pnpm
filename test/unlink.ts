@@ -4,6 +4,7 @@ import path = require('path')
 import exists = require('path-exists')
 import sinon = require('sinon')
 import {
+  install,
   installPkgs,
   link,
   unlink,
@@ -47,6 +48,9 @@ test('unlink 1 package that exists in package.json', async (t: tape.Test) => {
   await link(['is-subdir', 'is-positive'], path.join('project', 'node_modules'), await testDefaults({prefix: path.resolve('project')}))
 
   process.chdir('project')
+
+  await install(await testDefaults())
+
   await unlinkPkgs(['is-subdir'], await testDefaults())
 
   t.equal(typeof project.requireModule('is-subdir'), 'function', 'is-subdir installed after unlinked')
