@@ -45,7 +45,10 @@
   },
   "devDependencies": {
     "@pnpm/logger": "^1.0.0",
+    "@pnpm/npm-resolver": "^0.3.15",
+    "@pnpm/tarball-fetcher": "^0.4.3",
     "@types/tape": "^4.2.30",
+    "@types/tempy": "^0.1.0",
     "commitizen": "^2.8.6",
     "cz-conventional-changelog": "^2.0.0",
     "husky": "^0.14.3",
@@ -54,6 +57,7 @@
     "package-preview": "^1.0.0",
     "rimraf": "^2.6.1",
     "tape": "^4.7.0",
+    "tempy": "^0.2.1",
     "ts-node": "^5.0.0",
     "tslint": "^5.4.2",
     "typescript": "^2.4.1",
