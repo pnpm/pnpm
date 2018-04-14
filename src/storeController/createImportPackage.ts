@@ -13,6 +13,7 @@ import pathTemp = require('path-temp')
 import renameOverwrite = require('rename-overwrite')
 import promisify = require('util.promisify')
 import linkIndexedDir from '../fs/linkIndexedDir'
+import {importingLogger} from '../loggers'
 
 const execFilePromise = promisify(child_process.execFile)
 const ncp = promisify(ncpCB)
@@ -85,6 +86,7 @@ async function reflinkPkg (
   const pkgJsonPath = path.join(to, 'package.json')
 
   if (!opts.filesResponse.fromStore || opts.force || !await exists(pkgJsonPath)) {
+    importingLogger.debug({from, to, method: 'reflink'})
     const staging = pathTemp(path.dirname(to))
     await mkdirp(staging)
     await execFilePromise('cp', ['-r', '--reflink', from + '/.', staging])
@@ -103,6 +105,7 @@ async function hardlinkPkg (
   const pkgJsonPath = path.join(to, 'package.json')
 
   if (!opts.filesResponse.fromStore || opts.force || !await exists(pkgJsonPath) || !await pkgLinkedToStore(pkgJsonPath, from, to)) {
+    importingLogger.debug({from, to, method: 'hardlink'})
     await linkIndexedDir(from, to, opts.filesResponse.filenames)
   }
 }
@@ -133,6 +136,7 @@ export async function copyPkg (
 ) {
   const pkgJsonPath = path.join(to, 'package.json')
   if (!opts.filesResponse.fromStore || opts.force || !await exists(pkgJsonPath)) {
+    importingLogger.debug({from, to, method: 'copy'})
     const staging = pathTemp(path.dirname(to))
     await mkdirp(staging)
     await ncp(from + '/.', staging)
