@@ -122,7 +122,7 @@ const defaults = async (opts: InstallOptions) => {
     ignoreScripts: false,
     independentLeaves: false,
     lock: true,
-    lockStaleDuration: 60 * 1000, // 1 minute
+    lockStaleDuration: 5 * 60 * 1000, // 5 minutes
     locks: path.join(opts.store, '_locks'),
     nodeVersion: process.version,
     optional: typeof opts.production === 'boolean' ? opts.production : true,

@@ -61,7 +61,7 @@ const defaults = async (opts: UninstallOptions) => {
     global: false,
     independentLeaves: false,
     lock: true,
-    lockStaleDuration: 60 * 1000, // 1 minute
+    lockStaleDuration: 5 * 60 * 1000, // 5 minutes
     locks: path.join(opts.store, '_locks'),
     packageManager,
     prefix,
