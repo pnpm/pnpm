@@ -476,8 +476,6 @@ async function install (
     ctx.pkgByPkgId[pkgResponse.body.id].specRaw = wantedDependency.raw
   }
 
-  logStatus({status: 'dependencies_installed', pkgId: pkgResponse.body.id})
-
   return {
     alias: wantedDependency.alias || pkg.name,
     nodeId,
