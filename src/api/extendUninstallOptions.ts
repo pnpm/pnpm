@@ -88,9 +88,6 @@ export default async (
   if (extendedOpts.force) {
     logger.warn('using --force I sure hope you know what you are doing')
   }
-  if (extendedOpts.lock === false) {
-    logger.warn('using --no-lock I sure hope you know what you are doing')
-  }
   extendedOpts.registry = normalizeRegistryUrl(extendedOpts.registry)
   if (extendedOpts.global) {
     const subfolder = LAYOUT_VERSION.toString() + (extendedOpts.independentLeaves ? '_independent_leaves' : '')

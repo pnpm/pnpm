@@ -173,9 +173,6 @@ export default async (
     if (extendedOpts.force) {
       logger.warn('using --force I sure hope you know what you are doing')
     }
-    if (extendedOpts.lock === false) {
-      logger.warn('using --no-lock I sure hope you know what you are doing')
-    }
     if (extendedOpts.shamefullyFlatten) {
       logger.warn('using --shamefully-flatten is discouraged, you should declare all of your dependencies in package.json')
     }
