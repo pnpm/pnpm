@@ -47,6 +47,19 @@ test('small with dependencies (rimraf)', async (t: tape.Test) => {
   await project.isExecutable('.bin/rimraf')
 })
 
+test('spec not specified in package.json.dependencies', async (t: tape.Test) => {
+  const project = prepare(t, {
+    dependencies: {
+      'is-positive': '',
+    },
+  })
+
+  await install(await testDefaults())
+
+  const shr = await project.loadShrinkwrap()
+  t.ok(shr.specifiers['is-positive'] === '', 'spec saved properly in shrinkwrap.yaml')
+})
+
 test('ignoring some files in the dependency', async (t: tape.Test) => {
   const project = prepare(t)
 
