@@ -218,3 +218,105 @@ test('ignore pnpmfile.js during update when --ignore-pnpmfile is used', async (t
 
   await project.storeHas('dep-of-pkg-with-1-dep', '100.1.0')
 })
+
+test('pnpmfile: pass log function to readPackage hook', async (t: tape.Test) => {
+  const project = prepare(t)
+
+  await fs.writeFile('pnpmfile.js', `
+    'use strict'
+    module.exports = {
+      hooks: {
+        readPackage (pkg, context) {
+          if (pkg.name === 'pkg-with-1-dep') {
+            pkg.dependencies['dep-of-pkg-with-1-dep'] = '100.0.0'
+            context.log('dep-of-pkg-with-1-dep pinned to 100.0.0')
+          }
+          return pkg
+        }
+      }
+    }
+  `, 'utf8')
+
+  // w/o the hook, 100.1.0 would be installed
+  await addDistTag('dep-of-pkg-with-1-dep', '100.1.0', 'latest')
+
+  const proc = execPnpmSync('install', 'pkg-with-1-dep', '--reporter', 'ndjson')
+
+  await project.storeHas('dep-of-pkg-with-1-dep', '100.0.0')
+
+  const outputs = proc.stdout.toString().split(/\r?\n/)
+
+  const hookLog = outputs.filter(Boolean)
+    .map((output) => JSON.parse(output))
+    .find((log) => log.name === 'pnpm:hook')
+
+  t.ok(hookLog, 'logged')
+  t.ok(hookLog.prefix, 'logged prefix')
+  t.ok(hookLog.from, 'logged the hook source')
+  t.equal(hookLog.hook, 'readPackage', 'logged hook name')
+  t.equal(hookLog.message, 'dep-of-pkg-with-1-dep pinned to 100.0.0', 'logged the message')
+})
+
+test('pnpmfile: pass log function to readPackage hook of global and local pnpmfile', async (t: tape.Test) => {
+  const project = prepare(t)
+
+  await fs.writeFile('../pnpmfile.js', `
+    'use strict'
+    module.exports = {
+      hooks: {
+        readPackage (pkg, context) {
+          if (pkg.name === 'pkg-with-1-dep') {
+            pkg.dependencies['dep-of-pkg-with-1-dep'] = '100.0.0'
+            pkg.dependencies['is-positive'] = '3.0.0'
+            context.log('is-positive pinned to 3.0.0')
+          }
+          return pkg
+        }
+      }
+    }
+  `, 'utf8')
+
+  await fs.writeFile('pnpmfile.js', `
+    'use strict'
+    module.exports = {
+      hooks: {
+        readPackage (pkg, context) {
+          if (pkg.name === 'pkg-with-1-dep') {
+            pkg.dependencies['is-positive'] = '1.0.0'
+            context.log('is-positive pinned to 1.0.0')
+          }
+          return pkg
+        }
+      }
+    }
+  `, 'utf8')
+
+  // w/o the hook, 100.1.0 would be installed
+  await addDistTag('dep-of-pkg-with-1-dep', '100.1.0', 'latest')
+
+  const proc = execPnpmSync('install', 'pkg-with-1-dep', '--global-pnpmfile', path.resolve('..', 'pnpmfile.js'), '--reporter', 'ndjson')
+
+  await project.storeHas('dep-of-pkg-with-1-dep', '100.0.0')
+  await project.storeHas('is-positive', '1.0.0')
+
+  const outputs = proc.stdout.toString().split(/\r?\n/)
+
+  const hookLogs = outputs.filter(Boolean)
+    .map((output) => JSON.parse(output))
+    .filter((log) => log.name === 'pnpm:hook')
+
+  t.ok(hookLogs[0], 'logged')
+  t.ok(hookLogs[0].prefix, 'logged prefix')
+  t.ok(hookLogs[0].from, 'logged the hook source')
+  t.equal(hookLogs[0].hook, 'readPackage', 'logged hook name')
+  t.equal(hookLogs[0].message, 'is-positive pinned to 3.0.0', 'logged the message')
+
+  t.ok(hookLogs[1], 'logged')
+  t.ok(hookLogs[1].prefix, 'logged prefix')
+  t.ok(hookLogs[1].from, 'logged the hook source')
+  t.equal(hookLogs[1].hook, 'readPackage', 'logged hook name')
+  t.equal(hookLogs[1].message, 'is-positive pinned to 1.0.0', 'logged the message')
+
+  t.ok(hookLogs[0].prefix === hookLogs[1].prefix, 'logged prefix correctly')
+  t.ok(hookLogs[0].from !== hookLogs[1].from, 'logged from correctly')
+})

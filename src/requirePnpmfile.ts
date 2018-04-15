@@ -9,6 +9,7 @@ export default (pnpmFilePath: string) => {
     if (pnpmfile && pnpmfile.hooks && pnpmfile.hooks.readPackage && typeof pnpmfile.hooks.readPackage !== 'function') {
       throw new TypeError('hooks.readPackage should be a function')
     }
+    pnpmfile.filename = pnpmFilePath
     return pnpmfile
   } catch (err) {
     if (err instanceof SyntaxError) {
