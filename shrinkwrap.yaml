@@ -6,7 +6,7 @@ dependencies:
   '@pnpm/link-bins': 1.0.1
   '@pnpm/modules-yaml': 1.0.0
   '@pnpm/package-bins': 1.0.0
-  '@pnpm/package-requester': 0.8.5
+  '@pnpm/package-requester': 0.8.6
   '@pnpm/pkgid-to-filename': 1.0.0
   '@pnpm/resolver-base': 1.0.0
   '@pnpm/types': 1.7.0
@@ -392,7 +392,7 @@ packages:
       '@pnpm/lifecycle': 2.1.0
       '@pnpm/link-bins': 1.0.1
       '@pnpm/modules-yaml': 1.0.0
-      '@pnpm/package-requester': 0.8.5
+      '@pnpm/package-requester': 0.8.6
       '@pnpm/pkgid-to-filename': 1.0.0
       '@pnpm/types': 1.7.0
       '@types/ramda': 0.25.21
@@ -520,7 +520,7 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha512-ZqVfIXK3r5AsP5VAhPHrhf3isF+T4yEuUpJTF9T03oFTJ9LBnkKvx8F7P7biKEManxSGOkSpNoIBdsura9pY5Q==
-  /@pnpm/package-requester/0.8.5:
+  /@pnpm/package-requester/0.8.6:
     dependencies:
       '@pnpm/check-package': 1.0.0
       '@pnpm/fetcher-base': 1.0.0
@@ -549,7 +549,7 @@ packages:
     peerDependencies:
       '@pnpm/logger': ^1.0.0
     resolution:
-      integrity: sha512-y2JRHtpmRnh18ew24BozxPsrZQBMYzF8SNx0yYPLYRB/tR/JUR33f9HFAIgMb2eH69rAVifNtH45BqmXdQ+gSg==
+      integrity: sha512-1K9V9w/fogs4ZJ2JJF0YvhZu1ehRvQ/h3lD07DhzHOX/GrfRLyT34M2PwPHtmXjxpGYJPPz+4zVx8TScjS9yfw==
   /@pnpm/pkgid-to-filename/1.0.0:
     dependencies:
       normalize-path: 2.1.1
@@ -1171,7 +1171,7 @@ packages:
       '0': node >=0.10.0
     optionalDependencies:
       dtrace-provider: 0.8.6
-      moment: 2.22.0
+      moment: 2.22.1
       mv: 2.1.1
       safe-json-stringify: 1.1.0
     resolution:
@@ -2802,7 +2802,7 @@ packages:
     dependencies:
       hoek: 2.16.3
       isemail: 1.2.0
-      moment: 2.22.0
+      moment: 2.22.1
       topo: 1.1.0
     dev: true
     engines:
@@ -3334,10 +3334,10 @@ packages:
       minimist: 0.0.8
     resolution:
       integrity: sha1-MAV0OOrGz3+MR2fzhkjWaX11yQM=
-  /moment/2.22.0:
+  /moment/2.22.1:
     dev: true
     resolution:
-      integrity: sha512-1muXCh8jb1N/gHRbn9VDUBr0GYb8A/aVcHlII9QSB68a50spqEVLIGN6KVmCOnSvJrUhC0edGgKU5ofnGXdYdg==
+      integrity: sha512-shJkRTSebXvsVqk56I+lkb2latjBs8I+pc2TzWc545y2iFnSjm7Wg0QMh+ZWcdSLQyGEau5jI8ocnmkyTgr9YQ==
   /move-concurrently/1.0.1:
     dependencies:
       aproba: 1.2.0
@@ -3785,7 +3785,7 @@ packages:
     dependencies:
       '@pnpm/fetcher-base': 1.0.0
       '@pnpm/fs-locker': 1.0.1
-      '@pnpm/package-requester': 0.8.5
+      '@pnpm/package-requester': 0.8.6
       '@pnpm/resolver-base': 1.0.0
       '@pnpm/types': 1.7.0
       '@types/load-json-file': 2.0.7
@@ -4838,7 +4838,7 @@ packages:
       '@pnpm/link-bins': 1.0.1
       '@pnpm/modules-yaml': 1.0.0
       '@pnpm/package-bins': 1.0.0
-      '@pnpm/package-requester': 0.8.5
+      '@pnpm/package-requester': 0.8.6
       '@pnpm/pkgid-to-filename': 1.0.0
       '@pnpm/resolver-base': 1.0.0
       '@pnpm/types': 1.7.0
@@ -5477,7 +5477,7 @@ specifiers:
   '@pnpm/logger': ^1.0.0
   '@pnpm/modules-yaml': ^1.0.0
   '@pnpm/package-bins': ^1.0.0
-  '@pnpm/package-requester': ^0.8.3
+  '@pnpm/package-requester': ^0.8.6
   '@pnpm/pkgid-to-filename': ^1.0.0
   '@pnpm/resolver-base': ^1.0.0
   '@pnpm/store-path': ^1.0.0

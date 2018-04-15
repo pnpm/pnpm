@@ -26,7 +26,7 @@
     "@pnpm/link-bins": "^1.0.1",
     "@pnpm/modules-yaml": "^1.0.0",
     "@pnpm/package-bins": "^1.0.0",
-    "@pnpm/package-requester": "^0.8.3",
+    "@pnpm/package-requester": "^0.8.6",
     "@pnpm/pkgid-to-filename": "^1.0.0",
     "@pnpm/resolver-base": "^1.0.0",
     "@pnpm/types": "^1.7.0",
