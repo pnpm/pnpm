@@ -15,6 +15,7 @@ import {
   spawn,
 } from './utils'
 import mkdirp = require('mkdirp-promise')
+import loadYamlFile = require('load-yaml-file')
 
 const test = promisifyTape(tape)
 
@@ -40,6 +41,40 @@ test('recursive installation', async t => {
 
   t.ok(projects['project-1'].requireModule('is-positive'))
   t.ok(projects['project-2'].requireModule('is-negative'))
+
+  t.end()
+})
+
+test('recursive installation with package-specific .npmrc', async t => {
+  const projects = prepare(t, [
+    {
+      name: 'project-1',
+      version: '1.0.0',
+      dependencies: {
+        'is-positive': '1.0.0',
+      },
+    },
+    {
+      name: 'project-2',
+      version: '1.0.0',
+      dependencies: {
+        'is-negative': '1.0.0',
+      },
+    },
+  ])
+
+  await fs.writeFile('project-1/.npmrc', 'shamefully-flatten = true', 'utf8')
+
+  await execPnpm('recursive', 'install')
+
+  t.ok(projects['project-1'].requireModule('is-positive'))
+  t.ok(projects['project-2'].requireModule('is-negative'))
+
+  const modulesYaml1 = await projects['project-1'].loadModules()
+  t.ok(modulesYaml1.shamefullyFlatten)
+
+  const modulesYaml2 = await projects['project-2'].loadModules()
+  t.notOk(modulesYaml2.shamefullyFlatten)
 
   t.end()
 })

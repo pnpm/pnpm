@@ -318,3 +318,8 @@ declare module 'npm-conf/lib/types' {
   const anything: any;
   export = anything;
 }
+
+declare module 'read-ini-file' {
+  function readIniFile (filename: string): Object;
+  export = readIniFile;
+}

@@ -1,4 +1,5 @@
 import logger from '@pnpm/logger'
+import camelcaseKeys = require('camelcase-keys')
 import findPackages from 'find-packages'
 import graphSequencer = require('graph-sequencer')
 import loadYamlFile = require('load-yaml-file')
@@ -6,6 +7,7 @@ import pLimit = require('p-limit')
 import { StoreController } from 'package-store'
 import path = require('path')
 import createPkgGraph, {PackageNode} from 'pkgs-graph'
+import readIniFile = require('read-ini-file')
 import sortPkgs = require('sort-pkgs')
 import {
   install,
@@ -103,11 +105,17 @@ export default async (
       limitInstallation(async () => {
         const hooks = opts.ignorePnpmfile ? {} : requireHooks(prefix, opts)
         try {
+          const localConfigs = await readLocalConfigs(prefix)
           return await action({
             ...installOpts,
+            ...localConfigs,
             bin: path.join(prefix, 'node_modules', '.bin'),
             hooks,
             prefix,
+            rawNpmConfig: {
+              ...installOpts.rawNpmConfig,
+              ...localConfigs.rawNpmConfig,
+            },
             storeController,
           })
         } catch (err) {
@@ -120,6 +128,16 @@ export default async (
   }
 
   await saveState()
+}
+
+async function readLocalConfigs (prefix: string) {
+  try {
+    const ini = await readIniFile(path.join(prefix, '.npmrc'))
+    return camelcaseKeys(ini)
+  } catch (err) {
+    if (err.code !== 'ENOENT') throw err
+    return {}
+  }
 }
 
 function linkPackages (
