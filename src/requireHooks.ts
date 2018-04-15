@@ -2,6 +2,7 @@ import logger from '@pnpm/logger'
 import {PackageManifest} from '@pnpm/types'
 import path = require('path')
 import pathAbsolute = require('path-absolute')
+import R = require('ramda')
 import requirePnpmfile from './requirePnpmfile'
 
 export default function requireHooks (
@@ -24,18 +25,37 @@ export default function requireHooks (
   if (globalHooks.readPackage || hooks.readPackage) {
     logger.info('readPackage hook is declared. Manifests of dependencies might get overridden')
     if (globalHooks.readPackage && hooks.readPackage) {
+      const globalHookContext = createReadPackageHookContext(globalPnpmfile.filename, prefix)
+      const localHookContext = createReadPackageHookContext(pnpmFile.filename, prefix)
       return {
-        readPackage: (pkg: PackageManifest) => hooks.readPackage(globalHooks.readPackage(pkg)),
+        readPackage: (pkg: PackageManifest) => {
+          return hooks.readPackage(
+            globalHooks.readPackage(pkg, globalHookContext),
+            localHookContext,
+          )
+        },
       }
     }
     if (globalHooks.readPackage) {
       return {
-        readPackage: globalHooks.readPackage,
+        readPackage: R.partialRight(globalHooks.readPackage, [createReadPackageHookContext(globalPnpmfile.filename, prefix)]),
       }
     }
     return {
-      readPackage: hooks.readPackage,
+      readPackage: R.partialRight(hooks.readPackage, [createReadPackageHookContext(pnpmFile.filename, prefix)]),
     }
   }
   return {}
+}
+
+function createReadPackageHookContext (calledFrom: string, prefix: string) {
+  const readPackageHookLogger = logger('hook')
+  return {
+    log: (message: string) => readPackageHookLogger.debug({
+      from: calledFrom,
+      hook: 'readPackage',
+      message,
+      prefix,
+    }),
+  }
 }
