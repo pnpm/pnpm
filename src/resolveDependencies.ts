@@ -29,7 +29,6 @@ import encodePkgId from './encodePkgId'
 import getIsInstallable from './install/getIsInstallable'
 import {deprecationLogger} from './loggers'
 import logStatus from './logging/logInstallStatus'
-import memoize from './memoize'
 import {
   createNodeId,
   nodeIdContainsSequence,
