@@ -1,4 +1,5 @@
 import loadJsonFile = require('load-json-file')
+import sinon = require('sinon')
 import {
   install,
   installPkgs,
@@ -14,7 +15,7 @@ import {
 
 const test = promisifyTape(tape)
 
-test('readPackage hook', async (t: tape.Test) => {
+test('readPackage, afterAllResolved hooks', async (t: tape.Test) => {
   const project = prepare(t)
 
   // w/o the hook, 100.1.0 would be installed
@@ -29,11 +30,17 @@ test('readPackage hook', async (t: tape.Test) => {
     return pkg
   }
 
+  const afterAllResolved = sinon.spy()
+
   await installPkgs(['pkg-with-1-dep'], await testDefaults({
-    hooks: {readPackage: readPackageHook},
+    hooks: {
+      afterAllResolved,
+      readPackage: readPackageHook,
+    },
   }))
 
   await project.storeHas('dep-of-pkg-with-1-dep', '100.0.0')
+  t.ok(afterAllResolved.calledOnce, 'afterAllResolved() called once')
 })
 
 test('readPackage hook overrides project package', async (t: tape.Test) => {

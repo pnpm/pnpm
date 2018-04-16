@@ -194,6 +194,10 @@ function readPackage (pkg) {
 }
 ```
 
+### `afterAllResolved()`
+
+This hook is called after all dependencies are resolved.
+
 ## Acknowledgements
 
 Thanks to [Valentina Kozlova](https://github.com/ValentinaKozlova) for the supi logo
