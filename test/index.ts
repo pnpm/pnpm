@@ -33,6 +33,7 @@ const summaryLogger = logger<object>('summary')
 const lifecycleLogger = logger<object>('lifecycle')
 const packageJsonLogger = logger<object>('package-json')
 const statsLogger = logger<object>('stats')
+const hookLogger = logger<object>('hook')
 const EOL = '\n'
 
 test('prints progress beginning', t => {
@@ -915,6 +916,52 @@ test('recursive installation: prints at least one add sign when added !== 0', t 
     next: output => {
       t.equal(output, stripIndents`
         pkg-1                                    |   ${chalk.green('+1')} ${chalk.red('-100')} ${ADD + R.repeat(SUB, 8).join('')}`
+      )
+    },
+    complete: () => t.end(),
+    error: t.end,
+  })
+})
+
+test('install: print hook message', t => {
+  const output$ = toOutput$(createStreamParser(), {cmd: 'install', cwd: '/home/jane/repo'})
+
+  hookLogger.debug({
+    from: '/home/jane/repo/pnpmfile.js',
+    prefix: '/home/jane/repo',
+    hook: 'readPackage',
+    message: 'foo',
+  })
+
+  t.plan(1)
+
+  output$.take(1).map(normalizeNewline).subscribe({
+    next: output => {
+      t.equal(output, stripIndents`
+        ${chalk.magentaBright('readPackage')}: foo`
+      )
+    },
+    complete: () => t.end(),
+    error: t.end,
+  })
+})
+
+test('recursive: print hook message', t => {
+  const output$ = toOutput$(createStreamParser(), {cmd: 'recursive', cwd: '/home/jane/repo'})
+
+  hookLogger.debug({
+    from: '/home/jane/repo/pnpmfile.js',
+    prefix: '/home/jane/repo/pkg-1',
+    hook: 'readPackage',
+    message: 'foo',
+  })
+
+  t.plan(1)
+
+  output$.take(1).map(normalizeNewline).subscribe({
+    next: output => {
+      t.equal(output, stripIndents`
+        pkg-1                                    | ${chalk.magentaBright('readPackage')}: foo`
       )
     },
     complete: () => t.end(),

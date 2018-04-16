@@ -53,6 +53,7 @@ export default function (
     link: most.Stream<supi.Log>,
     other: most.Stream<supi.Log>,
     cli: most.Stream<supi.Log>,
+    hook: most.Stream<supi.Log>,
   },
   isRecursive: boolean,
   cmd: string,
@@ -362,6 +363,22 @@ export default function (
       .map(most.of)
 
     outputs.push(miscOutput$)
+  }
+
+  if (!isRecursive) {
+    const hookOutput$ = log$.hook
+      .map((log) => ({msg: `${chalk.magentaBright(log['hook'])}: ${log['message']}`}))
+      .map(most.of)
+
+    outputs.push(hookOutput$)
+  } else {
+    const hookOutput$ = log$.hook
+      .map((log) => ({
+        msg: `${rightPad(formatPrefix(cwd, log['prefix']), PREFIX_MAX_LENGTH)} | ${chalk.magentaBright(log['hook'])}: ${log['message']}`,
+      }))
+      .map(most.of)
+
+    outputs.push(hookOutput$)
   }
 
   return outputs
