@@ -59,6 +59,7 @@ test('server', async t => {
       registry,
       verifyStoreIntegrity: false,
       preferredVersions: {},
+      sideEffectsCache: false,
     }
   )
 
@@ -90,8 +91,10 @@ test('fetchPackage', async t => {
   })
   const storeCtrl = await connectStoreController({remotePrefix, concurrency: 100})
   const response = await storeCtrl.fetchPackage({
+    force: false,
     pkgId: 'registry.npmjs.org/is-positive/1.0.0',
     prefix: process.cwd(),
+    verifyStoreIntegrity: true,
     resolution: {
       integrity: 'sha1-iACYVrZKLx632LsBeUGEJK4EUss=',
       registry: 'https://registry.npmjs.org/',
@@ -136,6 +139,7 @@ test('server errors should arrive to the client', async t => {
         registry,
         verifyStoreIntegrity: false,
         preferredVersions: {},
+        sideEffectsCache: false,
       }
     )
   } catch (e) {

@@ -1,6 +1,7 @@
 dependencies:
   '@pnpm/package-requester': 0.8.6
   '@pnpm/resolver-base': 1.0.0
+  '@pnpm/server': 'link:../__package_previews__/server/@pnpm/server'
   '@pnpm/types': 1.7.0
   '@types/got': 7.1.8
   '@types/node': 9.6.5
@@ -14,6 +15,7 @@ devDependencies:
   '@pnpm/logger': 1.0.1
   '@pnpm/npm-resolver': 0.3.15
   '@pnpm/tarball-fetcher': 0.4.3
+  '@types/mz': 0.0.32
   '@types/tape': 4.2.32
   is-port-reachable: 2.0.0
   mos: 2.0.0-alpha.3
@@ -3885,6 +3887,7 @@ specifiers:
   '@pnpm/tarball-fetcher': ^0.4.0
   '@pnpm/types': ^1.7.0
   '@types/got': ^7.1.6
+  '@types/mz': ^0.0.32
   '@types/node': ^9.3.0
   '@types/p-limit': ^1.1.1
   '@types/tape': ^4.2.31
