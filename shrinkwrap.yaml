@@ -13,7 +13,7 @@ dependencies:
   '@zkochan/libnpx': 9.6.1
   byline: 5.0.0
   camelcase: 4.1.0
-  chalk: 2.3.2
+  chalk: 2.4.0
   common-tags: 1.7.2
   cross-spawn: 6.0.5
   delay: 2.0.0
@@ -34,7 +34,6 @@ dependencies:
   path-absolute: 1.0.0
   path-name: 1.0.0
   pkgs-graph: 2.0.0
-  pnpm: 'link:../__package_previews__/pnpm/pnpm'
   pnpm-default-reporter: 0.16.1
   pnpm-file-reporter: 0.1.0
   pnpm-list: 2.0.1
@@ -62,7 +61,7 @@ devDependencies:
   '@types/mz': 0.0.32
   '@types/node': 9.6.5
   '@types/nopt': 3.0.29
-  '@types/ramda': 0.25.21
+  '@types/ramda': 0.25.22
   '@types/semver': 5.5.0
   '@types/tape': 4.2.32
   '@types/update-notifier': 2.2.0
@@ -87,7 +86,7 @@ devDependencies:
   sepia: 2.0.2
   tape: 4.9.0
   tape-promise: 2.0.1
-  ts-node: 5.0.1
+  ts-node: 6.0.0
   tslint: 5.9.1
   typescript: 2.8.1
   write-pkg: 3.1.0
@@ -137,7 +136,7 @@ packages:
   /@commitlint/format/6.1.3:
     dependencies:
       babel-runtime: 6.26.0
-      chalk: 2.3.2
+      chalk: 2.4.0
     dev: true
     engines:
       node: '>=4'
@@ -206,7 +205,7 @@ packages:
     dependencies:
       '@commitlint/load': 6.1.3
       babel-runtime: 6.26.0
-      chalk: 2.3.2
+      chalk: 2.4.0
       lodash.camelcase: 4.3.0
       lodash.kebabcase: 4.1.1
       lodash.snakecase: 4.1.1
@@ -428,7 +427,7 @@ packages:
       '@pnpm/package-requester': 0.8.6
       '@pnpm/pkgid-to-filename': 1.0.0
       '@pnpm/types': 1.7.0
-      '@types/ramda': 0.25.21
+      '@types/ramda': 0.25.22
       dependency-path: 1.2.1
       graph-sequencer: 2.0.0
       p-limit: 1.2.0
@@ -466,7 +465,7 @@ packages:
       '@pnpm/package-bins': 1.0.0
       '@pnpm/types': 1.7.0
       '@types/mz': 0.0.32
-      '@types/ramda': 0.25.21
+      '@types/ramda': 0.25.22
       '@zkochan/cmd-shim': 2.2.4
       arr-flatten: 1.1.0
       is-windows: 1.0.2
@@ -812,9 +811,9 @@ packages:
     dev: true
     resolution:
       integrity: sha512-ApUp/Eo/D4lQ/8yI+dlNVz1LslAdvycBbKmsr77sw2Ovymyj0nYowS+xuTChzfGdnEdcqBTPM2OtKmvTFKIXPA==
-  /@types/ramda/0.25.21:
+  /@types/ramda/0.25.22:
     resolution:
-      integrity: sha512-y4Dx3t+EA5Y+s87cwUoIzo0Tsj9z7QCu4gaXrdFln4wQRgk9igBskEEe7gZ0PG8dSXtQb29oA3RS//3XquHdiw==
+      integrity: sha512-p0iNFhF6/eCdiTL5Ga6aBws/SBwEbHHzrRi7yR5QWe/7Yh6C511RztExK61gCBDs8zCvUzYxUUwah90l+KKe0A==
   /@types/rc/0.0.1:
     dev: false
     resolution:
@@ -1346,7 +1345,7 @@ packages:
     dependencies:
       ansi-align: 2.0.0
       camelcase: 4.1.0
-      chalk: 2.3.2
+      chalk: 2.4.0
       cli-boxes: 1.0.0
       string-width: 2.1.1
       term-size: 1.2.0
@@ -1619,21 +1618,21 @@ packages:
     dependencies:
       ansi-styles: 3.2.1
       escape-string-regexp: 1.0.5
-      supports-color: 5.3.0
+      supports-color: 5.4.0
     dev: true
     engines:
       node: '>=4'
     resolution:
       integrity: sha512-QUU4ofkDoMIVO7hcx1iPTISs88wsO8jA92RQIm4JAwZvFGGAV2hSAA1NX7oVj2Ej2Q6NDTcRDjPTFrMCRZoJ6g==
-  /chalk/2.3.2:
+  /chalk/2.4.0:
     dependencies:
       ansi-styles: 3.2.1
       escape-string-regexp: 1.0.5
-      supports-color: 5.3.0
+      supports-color: 5.4.0
     engines:
       node: '>=4'
     resolution:
-      integrity: sha512-ZM4j2/ld/YZDc3Ma8PgN7gyAk+kHMMMyzLNryCPGhWrsfAuDVeuid5bpRFTDgMH9JBK2lA4dyyAkkZYF/WcqDQ==
+      integrity: sha512-Wr/w0f4o9LuE7K53cD0qmbAMM+2XNLzR29vFn5hqko4sxGlUsyy363NvmyGIyk5tpe9cjTr9SJYbysEyPkRnFw==
   /chownr/1.0.1:
     resolution:
       integrity: sha1-4qdQQqlVGQi+vSW4Uj1fl2nXkYE=
@@ -3974,6 +3973,12 @@ packages:
     dev: true
     resolution:
       integrity: sha1-Jjj8OaAzHpysGgS3F5mTHJxQ33k=
+  /lockfile/1.0.4:
+    dependencies:
+      signal-exit: 3.0.2
+    dev: true
+    resolution:
+      integrity: sha512-cvbTwETRfsFh4nHsL1eGWapU1XFi5Ot9E85sWAwia7Y7EgB7vfqcZhTKZ+l7hCGxSPoushMv5GKhT5PdLv03WA==
   /lodash._reinterpolate/3.0.0:
     dev: true
     resolution:
@@ -4657,7 +4662,7 @@ packages:
   /npm-run-all/4.1.2:
     dependencies:
       ansi-styles: 3.2.1
-      chalk: 2.3.2
+      chalk: 2.4.0
       cross-spawn: 5.1.0
       memorystream: 0.3.1
       minimatch: 3.0.4
@@ -4679,7 +4684,7 @@ packages:
       integrity: sha1-NakjLfo11wZ7TLLd8jV7GHFTbF8=
   /npm-scripts-info/0.3.7:
     dependencies:
-      chalk: 2.3.2
+      chalk: 2.4.0
       meow: 4.0.0
       unquote: 1.1.1
     dev: true
@@ -4960,7 +4965,7 @@ packages:
       '@types/load-json-file': 2.0.7
       '@types/mz': 0.0.32
       '@types/node': 9.6.5
-      '@types/ramda': 0.25.21
+      '@types/ramda': 0.25.22
       encode-registry: 1.1.0
       load-json-file: 4.0.0
       mkdirp-promise: 5.0.1
@@ -5171,7 +5176,7 @@ packages:
   /pkgs-graph/2.0.0:
     dependencies:
       '@types/node': 9.6.5
-      '@types/ramda': 0.25.21
+      '@types/ramda': 0.25.22
       '@types/semver': 5.5.0
       npm-package-arg: 6.1.0
       ramda: 0.25.0
@@ -5185,11 +5190,11 @@ packages:
     dependencies:
       '@types/common-tags': 1.4.0
       '@types/node': 9.6.5
-      '@types/ramda': 0.25.21
+      '@types/ramda': 0.25.22
       '@types/semver': 5.5.0
       '@types/strip-ansi': 3.0.0
       ansi-diff: 1.1.0
-      chalk: 2.3.2
+      chalk: 2.4.0
       cli-cursor: 2.1.0
       common-tags: 1.7.2
       most: 1.7.3
@@ -5234,9 +5239,9 @@ packages:
     dependencies:
       '@types/archy': 0.0.31
       '@types/node': 9.6.5
-      '@types/ramda': 0.25.21
+      '@types/ramda': 0.25.22
       archy: 1.0.0
-      chalk: 2.3.2
+      chalk: 2.4.0
       dependencies-hierarchy: 2.0.2
       npm-package-arg: 6.1.0
       p-limit: 1.2.0
@@ -5262,7 +5267,7 @@ packages:
       '@pnpm/resolver-base': 1.0.0
       '@types/js-yaml': 3.11.1
       '@types/node': 9.6.5
-      '@types/ramda': 0.25.21
+      '@types/ramda': 0.25.22
       dependency-path: 1.2.1
       get-npm-tarball-url: 2.0.1
       js-yaml: 3.11.0
@@ -6398,7 +6403,7 @@ packages:
       '@types/nopt': 3.0.29
       '@types/npm': 2.0.29
       '@types/p-series': 1.0.1
-      '@types/ramda': 0.25.21
+      '@types/ramda': 0.25.22
       '@types/rc': 0.0.1
       '@types/semver': 5.5.0
       '@zkochan/npm-package-arg': 1.0.0
@@ -6458,13 +6463,13 @@ packages:
       node: '>=0.8.0'
     resolution:
       integrity: sha1-ZawFBLOVQXHYpklGsq48u4pfVPY=
-  /supports-color/5.3.0:
+  /supports-color/5.4.0:
     dependencies:
       has-flag: 3.0.0
     engines:
       node: '>=4'
     resolution:
-      integrity: sha512-0aP01LLIskjKs3lq52EC0aGBAJhLq7B2Rd8HC/DR/PtNNpcLilNmHC12O+hu0usQpo7wtHNRqtrhBwtDb0+dNg==
+      integrity: sha512-zjaXglF5nnWpsq470jSv6P9DwPvgLkuapYmfDm3JWOm0vkNTVF2tI4UrN2r6jH1qM/uc/WtxYY1hYoA2dOKj5w==
   /symbol-observable/1.2.0:
     dev: false
     engines:
@@ -6664,10 +6669,10 @@ packages:
       node: '>=0.10.0'
     resolution:
       integrity: sha1-n5up2e+odkw4dpi8v+sshI8RrbM=
-  /ts-node/5.0.1:
+  /ts-node/6.0.0:
     dependencies:
       arrify: 1.0.1
-      chalk: 2.3.2
+      chalk: 2.4.0
       diff: 3.5.0
       make-error: 1.3.4
       minimist: 1.2.0
@@ -6678,7 +6683,7 @@ packages:
     engines:
       node: '>=4.2.0'
     resolution:
-      integrity: sha512-XK7QmDcNHVmZkVtkiwNDWiERRHPyU8nBqZB1+iv2UhOG0q3RQ9HsZ2CMqISlFbxjrYFGfG2mX7bW4dAyxBVzUw==
+      integrity: sha512-+CQev+4J7BAUNUnW9piRzSfSZZWeFCjgUjMSgGs4+dJ2RZa86NVW9MOlP4e6/kEHTyOqdxHxcIMd7KgmY/ynVw==
   /tslib/1.9.0:
     dev: true
     resolution:
@@ -6687,7 +6692,7 @@ packages:
     dependencies:
       babel-code-frame: 6.26.0
       builtin-modules: 1.1.1
-      chalk: 2.3.2
+      chalk: 2.4.0
       commander: 2.15.1
       diff: 3.5.0
       glob: 7.1.2
@@ -6871,7 +6876,7 @@ packages:
   /update-notifier/2.5.0:
     dependencies:
       boxen: 1.3.0
-      chalk: 2.3.2
+      chalk: 2.4.0
       configstore: 3.1.2
       import-lazy: 2.1.0
       is-ci: 1.1.0
@@ -6963,7 +6968,7 @@ packages:
       async: 2.6.0
       body-parser: 1.18.2
       bunyan: 1.8.12
-      chalk: 2.3.2
+      chalk: 2.4.0
       commander: 2.15.1
       compression: 1.7.2
       cookies: 0.7.1
@@ -6975,7 +6980,7 @@ packages:
       js-string-escape: 1.0.1
       js-yaml: 3.11.0
       jsonwebtoken: 7.4.3
-      lockfile: 1.0.3
+      lockfile: 1.0.4
       lodash: 4.17.4
       lunr: 0.7.2
       marked: 0.3.9
@@ -7283,7 +7288,7 @@ specifiers:
   tape-promise: ^2.0.1
   text-table: ^0.2.0
   tree-kill: ^1.2.0
-  ts-node: ^5.0.0
+  ts-node: ^6.0.0
   tslint: ^5.4.2
   typescript: ^2.7.1
   update-notifier: ^2.1.0
