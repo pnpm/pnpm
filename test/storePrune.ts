@@ -84,7 +84,8 @@ test('keep dependencies used by others', async (t: tape.Test) => {
   const shr = await project.loadShrinkwrap()
   t.notOk(R.isEmpty(shr.packages))
 
-  R.toPairs(shr.packages).forEach((pair) => t.ok(pair[1].dev, `${pair[0]} is dev`))
+  // tslint:disable-next-line:no-string-literal
+  R.toPairs(shr.packages).forEach((pair) => t.ok(pair[1]['dev'], `${pair[0]} is dev`))
 
   await storePrune(await testDefaults())
 

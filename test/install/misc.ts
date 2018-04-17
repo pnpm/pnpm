@@ -416,7 +416,8 @@ test("don't refetch package to store if it has been modified and verify-store-in
 })
 
 // TODO: decide what to do with this case
-test.skip('relink package to project if the dependency is not linked from store', async (t: tape.Test) => {
+// tslint:disable-next-line:no-string-literal
+test['skip']('relink package to project if the dependency is not linked from store', async (t: tape.Test) => {
   const project = prepare(t)
   await installPkgs(['magic-hook@2.0.0'], await testDefaults({save: true, saveExact: true}))
 

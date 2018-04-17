@@ -141,7 +141,8 @@ test('installation fails if lifecycle script fails', async (t: tape.Test) => {
 
 // TODO: unskip
 // For some reason this fails on CI environments
-test.skip('creates env for scripts', async (t: tape.Test) => {
+// tslint:disable-next-line:no-string-literal
+test['skip']('creates env for scripts', async (t: tape.Test) => {
   const project = prepare(t, {
     scripts: {
       install: `node -e "process.stdout.write(process.env.INIT_CWD)" | json-append output.json`,

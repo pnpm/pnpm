@@ -25,7 +25,7 @@ test('a package that need authentication', async (t: tape.Test) => {
         username: 'foo',
       },
     }, (err: Error, d: object) => err ? reject(err) : resolve(d))
-  })
+  }) as {token: string}
 
   let rawNpmConfig = {
     '//localhost:4873/:_authToken': data.token,
@@ -104,7 +104,7 @@ test('a scoped package that need authentication specific to scope', async (t: ta
         username: 'foo',
       },
     }, (err: Error, d: object) => err ? reject(err) : resolve(d))
-  })
+  }) as {token: string}
 
   const rawNpmConfig = {
     '//localhost:4873/:_authToken': data.token,
@@ -150,7 +150,7 @@ test('a package that need authentication reuses authorization tokens for tarball
         username: 'foo',
       },
     }, (err: Error, d: object) => err ? reject(err) : resolve(d))
-  })
+  }) as {token: string}
 
   const rawNpmConfig = {
     '//127.0.0.1:4873/:_authToken': data.token,
@@ -184,7 +184,7 @@ test('a package that need authentication reuses authorization tokens for tarball
         username: 'foo',
       },
     }, (err: Error, d: object) => err ? reject(err) : resolve(d))
-  })
+  }) as {token: string}
 
   const rawNpmConfig = {
     '//127.0.0.1:4873/:_authToken': data.token,

@@ -18,7 +18,7 @@ test('rebuilds dependencies', async (t: tape.Test) => {
   await installPkgs(['pre-and-postinstall-scripts-example', 'zkochan/install-scripts-example'], await testDefaults({saveDev: true, ignoreScripts: true}))
 
   let modules = await project.loadModules()
-  t.deepEqual(modules.pendingBuilds, [
+  t.deepEqual(modules!.pendingBuilds, [
     '/pre-and-postinstall-scripts-example/1.0.0',
     'github.com/zkochan/install-scripts-example/26950260310939009680b6a377a0efd0925df9ba',
   ])
@@ -26,7 +26,8 @@ test('rebuilds dependencies', async (t: tape.Test) => {
   await rebuild(await testDefaults())
 
   modules = await project.loadModules()
-  t.equal(modules.pendingBuilds.length, 0)
+  t.ok(modules)
+  t.equal(modules!.pendingBuilds.length, 0)
 
   {
     const generatedByPreinstall = project.requireModule('pre-and-postinstall-scripts-example/generated-by-preinstall')
@@ -67,7 +68,7 @@ test('rebuild with pending option', async (t: tape.Test) => {
   await installPkgs(['zkochan/install-scripts-example'], await testDefaults({ignoreScripts: true}))
 
   let modules = await project.loadModules()
-  t.deepEqual(modules.pendingBuilds, [
+  t.deepEqual(modules!.pendingBuilds, [
     '/pre-and-postinstall-scripts-example/1.0.0',
     'github.com/zkochan/install-scripts-example/26950260310939009680b6a377a0efd0925df9ba',
   ])
@@ -81,7 +82,8 @@ test('rebuild with pending option', async (t: tape.Test) => {
   await rebuild(await testDefaults({rawNpmConfig: {pending: true}}))
 
   modules = await project.loadModules()
-  t.equal(modules.pendingBuilds.length, 0)
+  t.ok(modules)
+  t.equal(modules!.pendingBuilds.length, 0)
 
   {
     const generatedByPreinstall = project.requireModule('pre-and-postinstall-scripts-example/generated-by-preinstall')
@@ -106,7 +108,8 @@ test('rebuild dependencies in correct order', async (t: tape.Test) => {
   await installPkgs(['with-postinstall-a'], await testDefaults({ignoreScripts: true}))
 
   let modules = await project.loadModules()
-  t.doesNotEqual(modules.pendingBuilds.length, 0)
+  t.ok(modules)
+  t.doesNotEqual(modules!.pendingBuilds.length, 0)
 
   await project.hasNot('.localhost+4873/with-postinstall-b/1.0.0/node_modules/with-postinstall-b/output.json')
   await project.hasNot('with-postinstall-a/output.json')
@@ -114,7 +117,8 @@ test('rebuild dependencies in correct order', async (t: tape.Test) => {
   await rebuild(await testDefaults({rawNpmConfig: {pending: true}}))
 
   modules = await project.loadModules()
-  t.equal(modules.pendingBuilds.length, 0)
+  t.ok(modules)
+  t.equal(modules!.pendingBuilds.length, 0)
 
   t.ok(+project.requireModule('.localhost+4873/with-postinstall-b/1.0.0/node_modules/with-postinstall-b/output.json')[0] < +project.requireModule('with-postinstall-a/output.json')[0])
 })

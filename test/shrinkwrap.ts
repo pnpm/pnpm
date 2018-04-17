@@ -23,8 +23,8 @@ import {
 } from './utils'
 
 const test = promisifyTape(tape)
-test.only = promisifyTape(tape.only)
-test.skip = promisifyTape(tape.skip)
+test['only'] = promisifyTape(tape.only) // tslint:disable-line:no-string-literal
+test['skip'] = promisifyTape(tape.skip) // tslint:disable-line:no-string-literal
 
 const SHRINKWRAP_WARN_LOG = {
   level: 'warn',
@@ -38,7 +38,8 @@ test('shrinkwrap file has correct format', async (t: tape.Test) => {
   await installPkgs(['pkg-with-1-dep', '@rstacruz/tap-spec@4.1.1', 'kevva/is-negative#1d7e288222b53a0cab90a331f1865220ec29560c'], await testDefaults({save: true}))
 
   const modules = await project.loadModules()
-  t.equal(modules.pendingBuilds.length, 0)
+  t.ok(modules)
+  t.equal(modules!.pendingBuilds.length, 0)
 
   const shr = await project.loadShrinkwrap()
   const id = '/pkg-with-1-dep/100.0.0'
@@ -531,7 +532,8 @@ test('repeat install with no inner shrinkwrap should not rewrite packages in nod
 
 // Skipped because the npm-registry.compass.com server was down
 // might be a good idea to mock it
-test.skip('installing from shrinkwrap when using npm enterprise', async (t: tape.Test) => {
+// tslint:disable-next-line:no-string-literal
+test['skip']('installing from shrinkwrap when using npm enterprise', async (t: tape.Test) => {
   const project = prepare(t)
 
   const opts = await testDefaults({registry: 'https://npm-registry.compass.com/'})
@@ -710,7 +712,9 @@ test('pendingBuilds gets updated if install removes packages', async (t: tape.Te
   await install(await testDefaults({ ignoreScripts: true }))
   const modules2 = await project.loadModules()
 
-  t.ok(modules1.pendingBuilds.length > modules2.pendingBuilds.length, 'pendingBuilds gets updated when install removes packages')
+  t.ok(modules1)
+  t.ok(modules2)
+  t.ok(modules1!.pendingBuilds.length > modules2!.pendingBuilds.length, 'pendingBuilds gets updated when install removes packages')
 })
 
 test('dev properties are correctly updated on named install', async (t: tape.Test) => {

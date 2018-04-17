@@ -1,4 +1,4 @@
-import {addDistTag} from 'pnpm-registry-mock'
+import pnpmRegistryMock = require('pnpm-registry-mock')
 import {install, installPkgs} from 'supi'
 import tape = require('tape')
 import promisifyTape from 'tape-promise'
@@ -8,6 +8,7 @@ import {
 } from '../utils'
 
 const test = promisifyTape(tape)
+const addDistTag = pnpmRegistryMock.addDistTag
 
 test('prefer version ranges specified for top dependencies', async (t: tape.Test) => {
   const project = prepare(t, {

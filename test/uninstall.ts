@@ -166,10 +166,12 @@ test('pendingBuilds gets updated after uninstall', async (t: tape.Test) => {
   await installPkgs(['pre-and-postinstall-scripts-example', 'with-postinstall-b'], await testDefaults({save: true, ignoreScripts: true}))
 
   const modules1 = await project.loadModules()
-  t.equal(modules1.pendingBuilds.length, 2, 'installPkgs should update pendingBuilds')
+  t.ok(modules1)
+  t.equal(modules1!.pendingBuilds.length, 2, 'installPkgs should update pendingBuilds')
 
   await uninstall(['with-postinstall-b'], await testDefaults({save: true}))
 
   const modules2 = await project.loadModules()
-  t.equal(modules2.pendingBuilds.length, 1, 'uninstall should update pendingBuilds')
+  t.ok(modules2)
+  t.equal(modules2!.pendingBuilds.length, 1, 'uninstall should update pendingBuilds')
 })
