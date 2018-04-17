@@ -11,7 +11,7 @@ import {
 
 const basicPackageJson = loadJsonFile.sync(path.join(__dirname, '../utils/simple-package.json'))
 const test = promisifyTape(tape)
-test.only = promisifyTape(tape.only)
+test['only'] = promisifyTape(tape.only)
 
 test('production install (with --production flag)', async (t: tape.Test) => {
   const project = prepare(t, basicPackageJson)

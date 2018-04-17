@@ -12,7 +12,7 @@ import {
 
 const basicPackageJson = loadJsonFile.sync(path.join(__dirname, '../utils/simple-package.json'))
 const test = promisifyTape(tape)
-test.only = promisifyTape(tape.only)
+test['only'] = promisifyTape(tape.only)
 
 test('installing optional dependencies when --no-optional is not used', async (t: tape.Test) => {
   const project = prepare(t, {

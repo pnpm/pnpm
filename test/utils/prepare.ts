@@ -23,7 +23,7 @@ export function tempDir (t: Test) {
   return tmpDir
 }
 
-export default function prepare (t: Test, pkg?: Object | Object[], pkgTmpPath?: string) {
+export default function prepare (t: Test, pkg?: Object | Object[], pkgTmpPath?: string): any {
   pkgTmpPath = pkgTmpPath || path.join(tempDir(t), 'project')
 
   if (Array.isArray(pkg)) {
