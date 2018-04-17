@@ -62,7 +62,7 @@
     "package-preview": "^1.0.1",
     "tape": "^4.8.0",
     "tempy": "^0.2.1",
-    "ts-node": "^5.0.0",
+    "ts-node": "^6.0.0",
     "tslint": "^5.8.0",
     "typescript": "^2.6.2"
   }
