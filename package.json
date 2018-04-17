@@ -56,6 +56,7 @@
   "devDependencies": {
     "@pnpm/logger": "^1.0.0",
     "@types/nock": "^9.1.1",
+    "@types/path-exists": "^3.0.0",
     "@types/tape": "^4.2.31",
     "@types/tempy": "^0.1.0",
     "mos": "^2.0.0-alpha.3",
@@ -66,7 +67,7 @@
     "rimraf": "^2.6.2",
     "tape": "^4.8.0",
     "tempy": "^0.2.1",
-    "ts-node": "^5.0.0",
+    "ts-node": "^6.0.0",
     "tslint": "^5.8.0",
     "typescript": "^2.6.1"
   },
