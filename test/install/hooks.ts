@@ -320,3 +320,32 @@ test('pnpmfile: pass log function to readPackage hook of global and local pnpmfi
   t.ok(hookLogs[0].prefix === hookLogs[1].prefix, 'logged prefix correctly')
   t.ok(hookLogs[0].from !== hookLogs[1].from, 'logged from correctly')
 })
+
+test('pnpmfile: run afterAllResolved hook', async (t: tape.Test) => {
+  const project = prepare(t)
+
+  await fs.writeFile('pnpmfile.js', `
+    'use strict'
+    module.exports = {
+      hooks: {
+        afterAllResolved (shr, context) {
+          context.log('All resolved')
+        }
+      }
+    }
+  `, 'utf8')
+
+  const proc = execPnpmSync('install', 'pkg-with-1-dep', '--reporter', 'ndjson')
+
+  const outputs = proc.stdout.toString().split(/\r?\n/)
+
+  const hookLog = outputs.filter(Boolean)
+    .map((output) => JSON.parse(output))
+    .find((log) => log.name === 'pnpm:hook')
+
+  t.ok(hookLog, 'logged')
+  t.ok(hookLog.prefix, 'logged prefix')
+  t.ok(hookLog.from, 'logged the hook source')
+  t.equal(hookLog.hook, 'afterAllResolved', 'logged hook name')
+  t.equal(hookLog.message, 'All resolved', 'logged the message')
+})
