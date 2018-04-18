@@ -462,9 +462,6 @@ async function installInContext (
     installOpts,
   )
   stageLogger.debug('resolution_done')
-  if (opts.hooks && opts.hooks.afterAllResolved) {
-    opts.hooks.afterAllResolved()
-  }
   installCtx.nodesToBuild.forEach((nodeToBuild) => {
     installCtx.pkgGraph[nodeToBuild.nodeId] = {
       children: () => buildTree(installCtx, nodeToBuild.nodeId, nodeToBuild.pkg.id,
@@ -579,6 +576,7 @@ async function installInContext (
     : []
 
   const result = await linkPackages(rootNodeIdsByAlias, installCtx.pkgGraph, {
+    afterAllResolvedHook: opts.hooks && opts.hooks.afterAllResolved,
     baseNodeModules: nodeModulesPath,
     bin: opts.bin,
     currentShrinkwrap: ctx.currentShrinkwrap,

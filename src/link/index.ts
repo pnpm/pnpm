@@ -25,6 +25,7 @@ export default async function linkPackages (
   rootNodeIdsByAlias: {[alias: string]: string},
   pkgGraph: PkgGraphNodeByNodeId,
   opts: {
+    afterAllResolvedHook?: (shr: Shrinkwrap) => Shrinkwrap,
     force: boolean,
     dryRun: boolean,
     global: boolean,
@@ -64,7 +65,10 @@ export default async function linkPackages (
   // logger.info(`Creating dependency graph`)
   const resolvePeersResult = await resolvePeers(pkgGraph, rootNodeIdsByAlias, opts.topParents, opts.independentLeaves, opts.baseNodeModules)
   const depGraph = resolvePeersResult.depGraph
-  const newShr = updateShrinkwrap(depGraph, opts.wantedShrinkwrap, opts.pkg)
+  let newShr = updateShrinkwrap(depGraph, opts.wantedShrinkwrap, opts.pkg)
+  if (opts.afterAllResolvedHook) {
+    newShr = opts.afterAllResolvedHook(newShr)
+  }
 
   const removedDepPaths = await removeOrphanPkgs({
     bin: opts.bin,

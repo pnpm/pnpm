@@ -194,9 +194,9 @@ function readPackage (pkg) {
 }
 ```
 
-### `afterAllResolved()`
+### `afterAllResolved(shr: Shrinkwrap): Shrinkwrap`
 
-This hook is called after all dependencies are resolved.
+This hook is called after all dependencies are resolved. It recieves and returns the resolved shrinkwrap object.
 
 ## Acknowledgements
 

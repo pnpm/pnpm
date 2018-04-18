@@ -1,4 +1,5 @@
 import loadJsonFile = require('load-json-file')
+import {Shrinkwrap} from 'pnpm-shrinkwrap'
 import sinon = require('sinon')
 import {
   install,
@@ -30,7 +31,10 @@ test('readPackage, afterAllResolved hooks', async (t: tape.Test) => {
     return pkg
   }
 
-  const afterAllResolved = sinon.spy()
+  const afterAllResolved = sinon.spy((shr: Shrinkwrap) => {
+    shr['foo'] = 'foo' // tslint:disable-line
+    return shr
+  })
 
   await installPkgs(['pkg-with-1-dep'], await testDefaults({
     hooks: {
@@ -41,6 +45,10 @@ test('readPackage, afterAllResolved hooks', async (t: tape.Test) => {
 
   await project.storeHas('dep-of-pkg-with-1-dep', '100.0.0')
   t.ok(afterAllResolved.calledOnce, 'afterAllResolved() called once')
+  t.equal(afterAllResolved.getCall(0).args[0].registry, 'http://localhost:4873/')
+
+  const wantedShr = await project.loadShrinkwrap()
+  t.equal(wantedShr['foo'], 'foo', 'the shrinkwrap object has been updated by the hook') // tslint:disable-line:no-string-literal
 })
 
 test('readPackage hook overrides project package', async (t: tape.Test) => {
