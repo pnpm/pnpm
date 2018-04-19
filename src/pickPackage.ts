@@ -43,7 +43,7 @@ const metafileOperationLimits = {}
 export default async (
   ctx: {
     fetch: (url: string, opts: {auth?: object}) => Promise<{}>,
-    fullMetadata: boolean,
+    metaFileName: string,
     metaCache: Map<string, object>,
     storePath: string,
     offline: boolean,
@@ -80,7 +80,7 @@ export default async (
 
   let metaCachedInStore: PackageMeta | undefined
   if (ctx.offline || ctx.preferOffline) {
-    metaCachedInStore = await limit(() => loadMeta(ctx.fullMetadata, pkgMirror))
+    metaCachedInStore = await limit(() => loadMeta(pkgMirror, ctx.metaFileName))
 
     if (ctx.offline) {
       if (metaCachedInStore) return {
@@ -103,7 +103,7 @@ export default async (
   }
 
   if (spec.type === 'version') {
-    metaCachedInStore = metaCachedInStore || await limit(() => loadMeta(ctx.fullMetadata, pkgMirror))
+    metaCachedInStore = metaCachedInStore || await limit(() => loadMeta(pkgMirror, ctx.metaFileName))
     // use the cached meta only if it has the required package version
     // otherwise it is probably out of date
     if (metaCachedInStore && metaCachedInStore.versions && metaCachedInStore.versions[spec.fetchSpec]) {
@@ -120,14 +120,14 @@ export default async (
     // only save meta to cache, when it is fresh
     ctx.metaCache.set(spec.name, meta)
     if (!opts.dryRun) {
-      limit(() => saveMeta(pkgMirror, meta))
+      limit(() => saveMeta(pkgMirror, meta, ctx.metaFileName))
     }
     return {
       meta,
       pickedPackage: pickPackageFromMeta(spec, opts.preferredVersionSelector, meta),
     }
   } catch (err) {
-    const meta = await loadMeta(ctx.fullMetadata, pkgMirror) // TODO: add test for this usecase
+    const meta = await loadMeta(pkgMirror, ctx.metaFileName) // TODO: add test for this usecase
     if (!meta) throw err
     logger.error(err)
     logger.info(`Using cached meta from ${pkgMirror}`)
@@ -163,22 +163,16 @@ async function fromRegistry (
   return await res.json()
 }
 
-// This file contains meta information
-// about all the packages published by the same name, not just the manifest
-// of one package/version
-const META_FILENAME = 'index.json'
-const FULL_META_FILENAME = 'index-full.json'
-
-async function loadMeta (fullMetadata: boolean, pkgMirror: string): Promise<PackageMeta | null> {
+async function loadMeta (pkgMirror: string, metaFileName: string): Promise<PackageMeta | null> {
   try {
-    return await loadJsonFile(path.join(pkgMirror, fullMetadata ? FULL_META_FILENAME : META_FILENAME))
+    return await loadJsonFile(path.join(pkgMirror, metaFileName))
   } catch (err) {
     return null
   }
 }
 
-function saveMeta (pkgMirror: string, meta: PackageMeta): Promise<void> {
-  return writeJsonFile(path.join(pkgMirror, META_FILENAME), meta)
+function saveMeta (pkgMirror: string, meta: PackageMeta, metaFileName: string): Promise<void> {
+  return writeJsonFile(path.join(pkgMirror, metaFileName), meta)
 }
 
 function toUri (pkgName: string, registry: string) {

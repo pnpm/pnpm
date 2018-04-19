@@ -7,6 +7,7 @@ import exists = require('path-exists')
 import loadJsonFile = require('load-json-file')
 
 const isPositiveMeta = loadJsonFile.sync(path.join(__dirname, 'meta', 'is-positive.json'))
+const isPositiveMetaFull = loadJsonFile.sync(path.join(__dirname, 'meta', 'is-positive-full.json'))
 const sindresorhusIsMeta = loadJsonFile.sync(path.join(__dirname, 'meta', 'sindresorhus-is.json'))
 
 const registry = 'https://registry.npmjs.org/'
@@ -726,4 +727,43 @@ test('error is thrown when there is no package found for the requested tag', asy
     t.ok(err.message.startsWith('No compatible version found: is-positive@unknown-tag'), 'failed with correct error message')
     t.end()
   }
+})
+
+test('resolveFromNpm() loads full metadata even if non-full metadata is alread cached in store', async t => {
+  nock(registry)
+    .get('/is-positive')
+    .reply(200, isPositiveMeta)
+    .get('/is-positive')
+    .reply(200, isPositiveMetaFull)
+
+  const store = tempy.directory()
+  t.comment(`store at ${store}`)
+
+  {
+    const resolve = createResolveFromNpm({
+      fullMetadata: false,
+      metaCache: new Map(),
+      store,
+      rawNpmConfig: { registry },
+    })
+    const resolveResult = await resolve({alias: 'is-positive', pref: '1.0.0'}, {
+      registry,
+    })
+    t.notOk(resolveResult!.package!['scripts'])
+  }
+
+  {
+    const resolve = createResolveFromNpm({
+      fullMetadata: true,
+      metaCache: new Map(),
+      store,
+      rawNpmConfig: { registry },
+    })
+    const resolveResult = await resolve({alias: 'is-positive', pref: '1.0.0'}, {
+      registry,
+    })
+    t.ok(resolveResult!.package!['scripts'])
+  }
+
+  t.end()
 })
