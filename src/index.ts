@@ -96,7 +96,8 @@ export default async (opts: HeadlessOptions) => {
   }
 
   const currentShrinkwrap = opts.currentShrinkwrap || await readCurrent(opts.prefix, {ignoreIncompatible: false})
-  const modules = await readModulesYaml(path.join(opts.prefix, 'node_modules'))
+  const nodeModulesDir = await realNodeModulesDir(opts.prefix)
+  const modules = await readModulesYaml(nodeModulesDir)
 
   const pkg = opts.packageJson || await readPkg(path.join(opts.prefix, 'package.json')) as PackageJson
 
@@ -108,14 +109,13 @@ export default async (opts: HeadlessOptions) => {
 
   const scripts = !opts.ignoreScripts && pkg.scripts || {}
 
-  const nodeModules = await realNodeModulesDir(opts.prefix)
-  const bin = path.join(nodeModules, '.bin')
+  const bin = path.join(nodeModulesDir, '.bin')
 
   const scriptsOpts = {
     depPath: opts.prefix,
     pkgRoot: opts.prefix,
     rawNpmConfig: opts.rawNpmConfig,
-    rootNodeModulesDir: nodeModules,
+    rootNodeModulesDir: nodeModulesDir,
     stdio: opts.ownLifecycleHooksStdio || 'inherit',
     unsafePerm: opts.unsafePerm || false,
   }
@@ -150,7 +150,11 @@ export default async (opts: HeadlessOptions) => {
   const filteredShrinkwrap = filterShrinkwrap(wantedShrinkwrap, filterOpts)
 
   stageLogger.debug('importing_started')
-  const res = await shrinkwrapToDepGraph(filteredShrinkwrap, opts.force ? null : currentShrinkwrap, opts)
+  const res = await shrinkwrapToDepGraph(
+    filteredShrinkwrap,
+    opts.force ? null : currentShrinkwrap,
+    {...opts, nodeModulesDir} as ShrinkwrapToDepGraphOptions,
+  )
   const depGraph = res.graph
 
   statsLogger.debug({
@@ -166,11 +170,11 @@ export default async (opts: HeadlessOptions) => {
 
   await linkAllBins(depGraph, {optional: opts.optional})
 
-  await linkRootPackages(filteredShrinkwrap, depGraph, res.rootDependencies, nodeModules)
-  await linkBins(nodeModules, bin)
+  await linkRootPackages(filteredShrinkwrap, depGraph, res.rootDependencies, nodeModulesDir)
+  await linkBins(nodeModulesDir, bin)
 
   await writeCurrentShrinkwrapOnly(opts.prefix, filteredShrinkwrap)
-  await writeModulesYaml(path.join(opts.prefix, 'node_modules'), {
+  await writeModulesYaml(nodeModulesDir, {
     hoistedAliases: {},
     independentLeaves: !!opts.independentLeaves,
     layoutVersion: LAYOUT_VERSION,
@@ -251,19 +255,21 @@ async function linkRootPackages (
   )
 }
 
+interface ShrinkwrapToDepGraphOptions {
+  force: boolean,
+  independentLeaves: boolean,
+  storeController: StoreController,
+  store: string,
+  prefix: string,
+  verifyStoreIntegrity: boolean,
+  nodeModulesDir: string,
+}
+
 async function shrinkwrapToDepGraph (
   shr: Shrinkwrap,
   currentShrinkwrap: Shrinkwrap | null,
-  opts: {
-    force: boolean,
-    independentLeaves: boolean,
-    storeController: StoreController,
-    store: string,
-    prefix: string,
-    verifyStoreIntegrity: boolean,
-  },
+  opts: ShrinkwrapToDepGraphOptions,
 ) {
-  const nodeModules = path.join(opts.prefix, 'node_modules')
   const currentPackages = currentShrinkwrap && currentShrinkwrap.packages || {}
   const graph: DepGraphNodesByDepPath = {}
   let rootDependencies: {[alias: string]: string} = {}
@@ -295,7 +301,7 @@ async function shrinkwrapToDepGraph (
       // NOTE: This code will not convert the depPath with peer deps correctly
       // Unfortunately, there is currently no way to tell if the last dir in the path is originally there or added to separate
       // the diferent peer dependency sets
-      const modules = path.join(nodeModules, `.${pkgIdToFilename(depPath)}`, 'node_modules')
+      const modules = path.join(opts.nodeModulesDir, `.${pkgIdToFilename(depPath)}`, 'node_modules')
       const peripheralLocation = !independent
         ? path.join(modules, pkgName)
         : centralLocation
@@ -320,7 +326,7 @@ async function shrinkwrapToDepGraph (
       force: opts.force,
       graph,
       independentLeaves: opts.independentLeaves,
-      nodeModules,
+      nodeModules: opts.nodeModulesDir,
       pkgSnapshotsByRelDepPaths: shr.packages,
       prefix: opts.prefix,
       registry: shr.registry,
