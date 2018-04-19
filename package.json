@@ -66,6 +66,7 @@
   },
   "devDependencies": {
     "@pnpm/logger": "^1.0.0",
+    "@types/delay": "^2.0.1",
     "@types/tape": "^4.2.30",
     "commitizen": "^2.9.5",
     "delay": "^2.0.0",

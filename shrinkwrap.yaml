@@ -12,6 +12,7 @@ dependencies:
   most-last: 1.0.1
   ndjson: 1.5.0
   normalize-path: 3.0.0
+  pnpm-default-reporter: 'link:../__package_previews__/pnpm-default-reporter/pnpm-default-reporter'
   pretty-bytes: 4.0.2
   ramda: 0.25.0
   right-pad: 1.0.1
@@ -23,6 +24,7 @@ dependencies:
   zen-push: 0.2.1
 devDependencies:
   '@pnpm/logger': 1.0.1
+  '@types/delay': 2.0.1
   '@types/tape': 4.2.32
   commitizen: 2.9.6
   delay: 2.0.0
@@ -248,6 +250,10 @@ packages:
   /@types/common-tags/1.4.0:
     resolution:
       integrity: sha512-HI1tSO87vmd1sPS3DOVSK4gvVKROvCBFvAnXlLiQtAus/+1xXMQcNyu9TX2ChwRXFeQZeB9+f+nMo99xLd5DdA==
+  /@types/delay/2.0.1:
+    dev: true
+    resolution:
+      integrity: sha512-D1/YuYOcdOIdaQnaiUJ77VcilVvESkynw79CtGqpjkXyv4OUezEVZtdXnSOwXL8Zcelu66QbyC8QQcVQ/ZPdig==
   /@types/fs-extra/5.0.2:
     dependencies:
       '@types/node': 9.6.5
@@ -3737,6 +3743,7 @@ shrinkwrapVersion: 3
 specifiers:
   '@pnpm/logger': ^1.0.0
   '@types/common-tags': ^1.2.5
+  '@types/delay': ^2.0.1
   '@types/node': ^9.3.0
   '@types/ramda': ^0.25.6
   '@types/semver': ^5.4.0

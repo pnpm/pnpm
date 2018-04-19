@@ -37,7 +37,7 @@ const hookLogger = logger<object>('hook')
 const EOL = '\n'
 
 test('prints progress beginning', t => {
-  const output$ = toOutput$(createStreamParser())
+  const output$ = toOutput$(createStreamParser(), {cmd: 'install'})
 
   const pkgId = 'registry.npmjs.org/foo/1.0.0'
 
@@ -58,7 +58,7 @@ test('prints progress beginning', t => {
 })
 
 test('prints progress beginning when appendOnly is true', t => {
-  const output$ = toOutput$(createStreamParser(), {appendOnly: true})
+  const output$ = toOutput$(createStreamParser(), {cmd: 'install', appendOnly: true})
 
   const pkgId = 'registry.npmjs.org/foo/1.0.0'
 
@@ -100,7 +100,7 @@ test('prints progress beginning during recursive install', t => {
 })
 
 test('prints progress on first download', t => {
-  const output$ = toOutput$(createStreamParser(), {throttleProgress: 0})
+  const output$ = toOutput$(createStreamParser(), {cmd: 'install', throttleProgress: 0})
 
   const pkgId = 'registry.npmjs.org/foo/1.0.0'
 
@@ -125,7 +125,7 @@ test('prints progress on first download', t => {
 })
 
 test('moves fixed line to the end', async t => {
-  const output$ = toOutput$(createStreamParser(), {throttleProgress: 0})
+  const output$ = toOutput$(createStreamParser(), {cmd: 'install', throttleProgress: 0})
 
   output$.skip(3).take(1).map(normalizeNewline).subscribe({
     next: output => {
@@ -159,7 +159,7 @@ test('moves fixed line to the end', async t => {
 })
 
 test('prints "Already up-to-date"', t => {
-  const output$ = toOutput$(createStreamParser())
+  const output$ = toOutput$(createStreamParser(), {cmd: 'install'})
 
   statsLogger.debug({ added: 0 })
   statsLogger.debug({ removed: 0 })
@@ -178,7 +178,7 @@ test('prints "Already up-to-date"', t => {
 })
 
 test('prints summary', t => {
-  const output$ = toOutput$(createStreamParser())
+  const output$ = toOutput$(createStreamParser(), {cmd: 'install'})
 
   packageJsonLogger.debug({
     initial: {
@@ -306,7 +306,7 @@ test('prints summary', t => {
 })
 
 test('groups lifecycle output', t => {
-  const output$ = toOutput$(createStreamParser())
+  const output$ = toOutput$(createStreamParser(), {cmd: 'install'})
 
   const pkgId = 'registry.npmjs.org/foo/1.0.0'
 
@@ -393,7 +393,7 @@ test('groups lifecycle output', t => {
 
 // Many libs use stderr for logging, so showing all stderr adds not much value
 test['skip']('prints lifecycle progress', t => {
-  const output$ = toOutput$(createStreamParser())
+  const output$ = toOutput$(createStreamParser(), {cmd: 'install'})
 
   const pkgId = 'registry.npmjs.org/foo/1.0.0'
 
@@ -438,7 +438,7 @@ test['skip']('prints lifecycle progress', t => {
 })
 
 test('prints generic error', t => {
-  const output$ = toOutput$(createStreamParser())
+  const output$ = toOutput$(createStreamParser(), {cmd: 'install'})
 
   const err = new Error('some error')
   logger.error(err)
@@ -480,7 +480,7 @@ test('prints generic error when recursive install fails', t => {
 })
 
 test('prints info', t => {
-  const output$ = toOutput$(createStreamParser())
+  const output$ = toOutput$(createStreamParser(), {cmd: 'install'})
 
   logger.info('info message')
 
@@ -498,7 +498,7 @@ test('prints info', t => {
 test('prints progress of big files download', async t => {
   t.plan(6)
 
-  let output$ = toOutput$(createStreamParser(), {throttleProgress: 0})
+  let output$ = toOutput$(createStreamParser(), {cmd: 'install', throttleProgress: 0})
     .map(normalizeNewline) as most.Stream<string>
   const stream$: most.Stream<string>[] = []
 
