@@ -1,18 +1,17 @@
 dependencies:
   '@types/common-tags': 1.4.0
   '@types/node': 9.6.5
-  '@types/ramda': 0.25.21
+  '@types/ramda': 0.25.23
   '@types/semver': 5.5.0
   '@types/strip-ansi': 3.0.0
   ansi-diff: 1.1.0
-  chalk: 2.3.2
+  chalk: 2.4.0
   cli-cursor: 2.1.0
   common-tags: 1.7.2
   most: 1.7.3
   most-last: 1.0.1
   ndjson: 1.5.0
-  normalize-path: 2.1.1
-  pnpm-default-reporter: 'link:../__package_previews__/pnpm-default-reporter/pnpm-default-reporter'
+  normalize-path: 3.0.0
   pretty-bytes: 4.0.2
   ramda: 0.25.0
   right-pad: 1.0.1
@@ -32,7 +31,7 @@ devDependencies:
   normalize-newline: 3.0.0
   package-preview: 1.0.5
   rimraf: 2.6.2
-  supi: 0.16.5
+  supi: 0.16.6
   tape: 4.9.0
   ts-node: 5.0.1
   tslint: 5.9.1
@@ -99,7 +98,7 @@ packages:
       '@pnpm/package-requester': 0.8.6
       '@pnpm/pkgid-to-filename': 1.0.0
       '@pnpm/types': 1.7.0
-      '@types/ramda': 0.25.21
+      '@types/ramda': 0.25.23
       dependency-path: 1.2.1
       graph-sequencer: 2.0.0
       p-limit: 1.2.0
@@ -108,7 +107,7 @@ packages:
       pnpm-shrinkwrap: 6.3.2
       ramda: 0.25.0
       read-package-json: 2.0.13
-      supi: 0.16.5
+      supi: 0.16.6
       symlink-dir: 1.1.2
       util.promisify: 1.0.0
     dev: true
@@ -137,7 +136,7 @@ packages:
       '@pnpm/package-bins': 1.0.0
       '@pnpm/types': 1.7.0
       '@types/mz': 0.0.32
-      '@types/ramda': 0.25.21
+      '@types/ramda': 0.25.23
       '@zkochan/cmd-shim': 2.2.4
       arr-flatten: 1.1.0
       is-windows: 1.0.2
@@ -300,9 +299,9 @@ packages:
     dev: true
     resolution:
       integrity: sha512-dwv960sf5inFWiufjhDfK7ZG3nYyHXt58I+14bJJBKV5MPlZm6Tu1sQS63NWEtLpIw6+RhbNbXjNStdMXxR8Nw==
-  /@types/ramda/0.25.21:
+  /@types/ramda/0.25.23:
     resolution:
-      integrity: sha512-y4Dx3t+EA5Y+s87cwUoIzo0Tsj9z7QCu4gaXrdFln4wQRgk9igBskEEe7gZ0PG8dSXtQb29oA3RS//3XquHdiw==
+      integrity: sha512-JYovPjyl7dLbYSXLjnqZlQCyw2NJ2+X5W9JrJLiQh6BMkB9KdfZ8eqBaK2kPlesj+wA6VLEra0UCx1R9ZkpmZQ==
   /@types/rc/0.0.1:
     dev: true
     resolution:
@@ -691,15 +690,15 @@ packages:
       node: '>=0.10.0'
     resolution:
       integrity: sha1-qBFcVeSnAv5NFQq9OHKCKn4J/Jg=
-  /chalk/2.3.2:
+  /chalk/2.4.0:
     dependencies:
       ansi-styles: 3.2.1
       escape-string-regexp: 1.0.5
-      supports-color: 5.3.0
+      supports-color: 5.4.0
     engines:
       node: '>=4'
     resolution:
-      integrity: sha512-ZM4j2/ld/YZDc3Ma8PgN7gyAk+kHMMMyzLNryCPGhWrsfAuDVeuid5bpRFTDgMH9JBK2lA4dyyAkkZYF/WcqDQ==
+      integrity: sha512-Wr/w0f4o9LuE7K53cD0qmbAMM+2XNLzR29vFn5hqko4sxGlUsyy363NvmyGIyk5tpe9cjTr9SJYbysEyPkRnFw==
   /chownr/1.0.1:
     dev: true
     resolution:
@@ -2245,10 +2244,17 @@ packages:
   /normalize-path/2.1.1:
     dependencies:
       remove-trailing-separator: 1.1.0
+    dev: true
     engines:
       node: '>=0.10.0'
     resolution:
       integrity: sha1-GrKLVW4Zg2Oowab35vogE3/mrtk=
+  /normalize-path/3.0.0:
+    dev: false
+    engines:
+      node: '>=0.10.0'
+    resolution:
+      integrity: sha512-6eZs5Ls3WtCisHWp9S2GUy8dqkpGi4BVSz3GaqiE6ezub0512ESztXUwUB6C6IKbQkY2Pnb/mD4WYojCRwcwLA==
   /normalize-registry-url/1.0.0:
     dev: true
     resolution:
@@ -2338,6 +2344,7 @@ packages:
       node: '>=0.10.0'
     resolution:
       integrity: sha1-ofeDj4MUxRbwXs78vEzP4EtO14k=
+      tarball: 'http://registry.npmjs.org/onetime/-/onetime-1.1.0.tgz'
   /onetime/2.0.1:
     dependencies:
       mimic-fn: 1.2.0
@@ -2482,7 +2489,7 @@ packages:
       '@types/load-json-file': 2.0.7
       '@types/mz': 0.0.32
       '@types/node': 9.6.5
-      '@types/ramda': 0.25.21
+      '@types/ramda': 0.25.23
       encode-registry: 1.1.0
       load-json-file: 4.0.0
       mkdirp-promise: 5.0.1
@@ -2655,7 +2662,7 @@ packages:
       '@pnpm/resolver-base': 1.0.0
       '@types/js-yaml': 3.11.1
       '@types/node': 9.6.5
-      '@types/ramda': 0.25.21
+      '@types/ramda': 0.25.23
       dependency-path: 1.2.1
       get-npm-tarball-url: 2.0.1
       js-yaml: 3.11.0
@@ -2844,6 +2851,7 @@ packages:
     resolution:
       integrity: sha512-h9Pl2xE1ZxYOhlKh0nYeMfzfv0GYUfglE5Eb0ILFFUiDnvVcbKwxGGukETEeIteR0JTVfesOaKqiwrOoUz1ajw==
   /remove-trailing-separator/1.1.0:
+    dev: true
     resolution:
       integrity: sha1-wkvOKig62tW8P1jg1IJJuSN52O8=
   /rename-overwrite/1.0.2:
@@ -3265,7 +3273,7 @@ packages:
       node: '>=0.10.0'
     resolution:
       integrity: sha1-PFMZQukIwml8DsNEhYwobHygpgo=
-  /supi/0.16.5:
+  /supi/0.16.6:
     dependencies:
       '@pnpm/check-package': 1.0.0
       '@pnpm/fs-locker': 1.0.1
@@ -3286,7 +3294,7 @@ packages:
       '@types/nopt': 3.0.29
       '@types/npm': 2.0.29
       '@types/p-series': 1.0.1
-      '@types/ramda': 0.25.21
+      '@types/ramda': 0.25.23
       '@types/rc': 0.0.1
       '@types/semver': 5.5.0
       '@zkochan/npm-package-arg': 1.0.0
@@ -3331,7 +3339,7 @@ packages:
     peerDependencies:
       '@pnpm/logger': ^1.0.0
     resolution:
-      integrity: sha512-wAYWRCgpoA3X40SFh4ZGkP1PkgL0dt1AO5f9qr4GMBSe87/K0pyrz12oUeUFAkVQFfSgrmT4mhsQyFvO4TdHLA==
+      integrity: sha512-A90KRrVD7Gmr/afq/MVQ/8KSSfQpBdu9lApIkm1LJnQ9mvOxUa6oS4ihiVSQ6gBBxe65c6VNcdCAoL4+he1vOQ==
   /supports-color/0.2.0:
     dev: true
     engines:
@@ -3344,13 +3352,13 @@ packages:
       node: '>=0.8.0'
     resolution:
       integrity: sha1-U10EXOa2Nj+kARcIRimZXp3zJMc=
-  /supports-color/5.3.0:
+  /supports-color/5.4.0:
     dependencies:
       has-flag: 3.0.0
     engines:
       node: '>=4'
     resolution:
-      integrity: sha512-0aP01LLIskjKs3lq52EC0aGBAJhLq7B2Rd8HC/DR/PtNNpcLilNmHC12O+hu0usQpo7wtHNRqtrhBwtDb0+dNg==
+      integrity: sha512-zjaXglF5nnWpsq470jSv6P9DwPvgLkuapYmfDm3JWOm0vkNTVF2tI4UrN2r6jH1qM/uc/WtxYY1hYoA2dOKj5w==
   /symbol-observable/1.2.0:
     dev: false
     engines:
@@ -3475,7 +3483,7 @@ packages:
   /ts-node/5.0.1:
     dependencies:
       arrify: 1.0.1
-      chalk: 2.3.2
+      chalk: 2.4.0
       diff: 3.5.0
       make-error: 1.3.4
       minimist: 1.2.0
@@ -3495,7 +3503,7 @@ packages:
     dependencies:
       babel-code-frame: 6.26.0
       builtin-modules: 1.1.1
-      chalk: 2.3.2
+      chalk: 2.4.0
       commander: 2.15.1
       diff: 3.5.0
       glob: 7.1.2
@@ -3746,7 +3754,7 @@ specifiers:
   most-last: ^1.0.0
   ndjson: ^1.5.0
   normalize-newline: ^3.0.0
-  normalize-path: ^2.1.1
+  normalize-path: ^3.0.0
   package-preview: ^1.0.0
   pretty-bytes: ^4.0.2
   ramda: ^0.25.0
