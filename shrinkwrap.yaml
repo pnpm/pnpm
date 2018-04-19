@@ -33,7 +33,7 @@ devDependencies:
   rimraf: 2.6.2
   supi: 0.16.6
   tape: 4.9.0
-  ts-node: 5.0.1
+  ts-node: 6.0.0
   tslint: 5.9.1
   typescript: 2.8.1
   validate-commit-msg: 2.14.0
@@ -274,10 +274,10 @@ packages:
     dev: true
     resolution:
       integrity: sha512-cy3yebKhrHuOcrJGkfwNHhpTXQLgmXSv1BX+4p32j+VUQ6aP2eJ5cL7OvGcAQx75fCTFaAIIAKewvqL+iwSd4g==
-  /@types/node/8.10.8:
+  /@types/node/8.10.9:
     dev: false
     resolution:
-      integrity: sha512-BvcUxNZe9JgiiUVivtiQt3NrPVu9OAQzkxR1Ko9ESftCYU7V6Np5kpDzQwxd+34lsop7SNRdL292Flv52OvCaw==
+      integrity: sha512-GUUTbeDaJSRaoLkqVQ5jwwKbDiLWFX3JrKLvC078q2P51Z9Dcb5F5UdnApSYqdMk4X0VrKod1gzeoX8bGl8DMg==
   /@types/node/9.6.5:
     resolution:
       integrity: sha512-NOLEgsT6UiDTjnWG5Hd2Mg25LRyz/oe8ql3wbjzgSFeRzRROhPmtlsvIrei4B46UjERF0td9SZ1ZXPLOdcrBHg==
@@ -905,7 +905,7 @@ packages:
       integrity: sha1-hTz6D3y+L+1d4gMmuN1YEDX24vA=
   /data-uri-to-buffer/2.0.0:
     dependencies:
-      '@types/node': 8.10.8
+      '@types/node': 8.10.9
     dev: false
     resolution:
       integrity: sha512-YbKCNLPPP4inc0E5If4OaalBc7gpaM2MRv77Pv2VThVComLKfbGYtJcdDCViDyp1Wd4SebhHLz94vp91zbK6bw==
@@ -3480,7 +3480,7 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha1-tAPQuRvlDDMd/EuC7s6yLD3hbSA=
-  /ts-node/5.0.1:
+  /ts-node/6.0.0:
     dependencies:
       arrify: 1.0.1
       chalk: 2.4.0
@@ -3494,7 +3494,7 @@ packages:
     engines:
       node: '>=4.2.0'
     resolution:
-      integrity: sha512-XK7QmDcNHVmZkVtkiwNDWiERRHPyU8nBqZB1+iv2UhOG0q3RQ9HsZ2CMqISlFbxjrYFGfG2mX7bW4dAyxBVzUw==
+      integrity: sha512-+CQev+4J7BAUNUnW9piRzSfSZZWeFCjgUjMSgGs4+dJ2RZa86NVW9MOlP4e6/kEHTyOqdxHxcIMd7KgmY/ynVw==
   /tslib/1.9.0:
     dev: true
     resolution:
@@ -3767,7 +3767,7 @@ specifiers:
   strip-ansi: ^4.0.0
   supi: ^0.16.0
   tape: ^4.8.0
-  ts-node: ^5.0.0
+  ts-node: ^6.0.0
   tslint: ^5.7.0
   typescript: ^2.6.2
   validate-commit-msg: ^2.8.2

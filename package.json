@@ -76,7 +76,7 @@
     "rimraf": "^2.5.4",
     "supi": "^0.16.0",
     "tape": "^4.8.0",
-    "ts-node": "^5.0.0",
+    "ts-node": "^6.0.0",
     "tslint": "^5.7.0",
     "typescript": "^2.6.2",
     "validate-commit-msg": "^2.8.2"
