@@ -55,7 +55,7 @@
     "load-json-file": "^4.0.0",
     "mkdirp-promise": "^5.0.1",
     "mz": "^2.7.0",
-    "normalize-path": "^2.1.1",
+    "normalize-path": "^3.0.0",
     "normalize-registry-url": "^1.0.0",
     "os-homedir": "^1.0.2",
     "p-filter": "^1.0.0",

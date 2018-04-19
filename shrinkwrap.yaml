@@ -18,7 +18,7 @@ dependencies:
   '@types/nopt': 3.0.29
   '@types/npm': 2.0.29
   '@types/p-series': 1.0.1
-  '@types/ramda': 0.25.22
+  '@types/ramda': 0.25.23
   '@types/rc': 0.0.1
   '@types/semver': 5.5.0
   '@zkochan/npm-package-arg': 1.0.0
@@ -35,7 +35,7 @@ dependencies:
   load-json-file: 4.0.0
   mkdirp-promise: 5.0.1
   mz: 2.7.0
-  normalize-path: 2.1.1
+  normalize-path: 3.0.0
   normalize-registry-url: 1.0.0
   os-homedir: 1.0.2
   p-filter: 1.0.0
@@ -52,7 +52,6 @@ dependencies:
   resolve-link-target: 1.0.1
   rimraf-then: 1.0.1
   semver: 5.5.0
-  supi: 'link:../__package_previews__/supi/supi'
   symlink-dir: 1.1.2
   util.promisify: 1.0.0
   validate-npm-package-name: 3.0.0
@@ -396,7 +395,7 @@ packages:
       '@pnpm/package-requester': 0.8.6
       '@pnpm/pkgid-to-filename': 1.0.0
       '@pnpm/types': 1.7.0
-      '@types/ramda': 0.25.22
+      '@types/ramda': 0.25.23
       dependency-path: 1.2.1
       graph-sequencer: 2.0.0
       p-limit: 1.2.0
@@ -405,7 +404,7 @@ packages:
       pnpm-shrinkwrap: 6.3.2
       ramda: 0.25.0
       read-package-json: 2.0.13
-      supi: 0.16.5
+      supi: 0.16.6
       symlink-dir: 1.1.2
       util.promisify: 1.0.0
     dev: false
@@ -434,7 +433,7 @@ packages:
       '@pnpm/package-bins': 1.0.0
       '@pnpm/types': 1.7.0
       '@types/mz': 0.0.32
-      '@types/ramda': 0.25.22
+      '@types/ramda': 0.25.23
       '@zkochan/cmd-shim': 2.2.4
       arr-flatten: 1.1.0
       is-windows: 1.0.2
@@ -735,10 +734,10 @@ packages:
     dev: true
     resolution:
       integrity: sha512-ApUp/Eo/D4lQ/8yI+dlNVz1LslAdvycBbKmsr77sw2Ovymyj0nYowS+xuTChzfGdnEdcqBTPM2OtKmvTFKIXPA==
-  /@types/ramda/0.25.22:
+  /@types/ramda/0.25.23:
     dev: false
     resolution:
-      integrity: sha512-p0iNFhF6/eCdiTL5Ga6aBws/SBwEbHHzrRi7yR5QWe/7Yh6C511RztExK61gCBDs8zCvUzYxUUwah90l+KKe0A==
+      integrity: sha512-JYovPjyl7dLbYSXLjnqZlQCyw2NJ2+X5W9JrJLiQh6BMkB9KdfZ8eqBaK2kPlesj+wA6VLEra0UCx1R9ZkpmZQ==
   /@types/rc/0.0.1:
     dev: false
     resolution:
@@ -3427,7 +3426,7 @@ packages:
   /nice-try/1.0.4:
     resolution:
       integrity: sha512-2NpiFHqC87y/zFke0fC0spBXL3bBsoh/p5H1EFhshxjCR5+0g2d6BiXbUFz9v1sAcxsk2htp2eQnNIci2dIYcA==
-  /nise/1.3.2:
+  /nise/1.3.3:
     dependencies:
       '@sinonjs/formatio': 2.0.0
       just-extend: 1.1.27
@@ -3436,7 +3435,7 @@ packages:
       text-encoding: 0.6.4
     dev: true
     resolution:
-      integrity: sha512-KPKb+wvETBiwb4eTwtR/OsA2+iijXP+VnlSFYJo3EHjm2yjek1NWxHOUQat3i7xNLm1Bm18UA5j5Wor0yO2GtA==
+      integrity: sha512-v1J/FLUB9PfGqZLGDBhQqODkbLotP0WtLo9R4EJY2PPu5f5Xg4o0rA8FDlmrjFSv9vBBKcfnOSpfYYuu5RTHqg==
   /node-fetch-npm/2.0.2:
     dependencies:
       encoding: 0.1.12
@@ -3506,6 +3505,12 @@ packages:
       node: '>=0.10.0'
     resolution:
       integrity: sha1-GrKLVW4Zg2Oowab35vogE3/mrtk=
+  /normalize-path/3.0.0:
+    dev: false
+    engines:
+      node: '>=0.10.0'
+    resolution:
+      integrity: sha512-6eZs5Ls3WtCisHWp9S2GUy8dqkpGi4BVSz3GaqiE6ezub0512ESztXUwUB6C6IKbQkY2Pnb/mD4WYojCRwcwLA==
   /normalize-registry-url/1.0.0:
     dev: false
     resolution:
@@ -3803,7 +3808,7 @@ packages:
       '@types/load-json-file': 2.0.7
       '@types/mz': 0.0.32
       '@types/node': 9.6.5
-      '@types/ramda': 0.25.22
+      '@types/ramda': 0.25.23
       encode-registry: 1.1.0
       load-json-file: 4.0.0
       mkdirp-promise: 5.0.1
@@ -4013,7 +4018,7 @@ packages:
       '@pnpm/resolver-base': 1.0.0
       '@types/js-yaml': 3.11.1
       '@types/node': 9.6.5
-      '@types/ramda': 0.25.22
+      '@types/ramda': 0.25.23
       dependency-path: 1.2.1
       get-npm-tarball-url: 2.0.1
       js-yaml: 3.11.0
@@ -4595,7 +4600,7 @@ packages:
       formatio: 1.2.0
       lodash.get: 4.4.2
       lolex: 2.3.2
-      nise: 1.3.2
+      nise: 1.3.3
       supports-color: 4.5.0
       type-detect: 4.0.8
     deprecated: this version has been deprecated
@@ -4841,7 +4846,7 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha1-XvjbKV0B5u1sv3qrlpmNeCJSe2g=
-  /supi/0.16.5:
+  /supi/0.16.6:
     dependencies:
       '@pnpm/check-package': 1.0.0
       '@pnpm/fs-locker': 1.0.1
@@ -4862,7 +4867,7 @@ packages:
       '@types/nopt': 3.0.29
       '@types/npm': 2.0.29
       '@types/p-series': 1.0.1
-      '@types/ramda': 0.25.22
+      '@types/ramda': 0.25.23
       '@types/rc': 0.0.1
       '@types/semver': 5.5.0
       '@zkochan/npm-package-arg': 1.0.0
@@ -4907,7 +4912,7 @@ packages:
     peerDependencies:
       '@pnpm/logger': ^1.0.0
     resolution:
-      integrity: sha512-wAYWRCgpoA3X40SFh4ZGkP1PkgL0dt1AO5f9qr4GMBSe87/K0pyrz12oUeUFAkVQFfSgrmT4mhsQyFvO4TdHLA==
+      integrity: sha512-A90KRrVD7Gmr/afq/MVQ/8KSSfQpBdu9lApIkm1LJnQ9mvOxUa6oS4ihiVSQ6gBBxe65c6VNcdCAoL4+he1vOQ==
   /supports-color/2.0.0:
     dev: true
     engines:
@@ -5533,7 +5538,7 @@ specifiers:
   mkdirp-promise: ^5.0.1
   mz: ^2.7.0
   ncp: ^2.0.0
-  normalize-path: ^2.1.1
+  normalize-path: ^3.0.0
   normalize-registry-url: ^1.0.0
   npm-run-all: ^4.0.1
   npm-scripts-info: ^0.3.6
