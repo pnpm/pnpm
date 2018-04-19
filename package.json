@@ -46,7 +46,7 @@
     "tape": "^4.8.0",
     "tape-promise": "^2.0.1",
     "tempy": "^0.2.1",
-    "ts-node": "^5.0.1",
+    "ts-node": "^6.0.0",
     "tslint": "^5.4.2",
     "typescript": "^2.7.1"
   },
