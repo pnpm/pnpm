@@ -1,4 +1,5 @@
 dependencies:
+  '@pnpm/headless': 'link:../__package_previews__/headless/@pnpm/headless'
   '@pnpm/lifecycle': 2.1.0
   '@pnpm/link-bins': 1.0.1
   '@pnpm/modules-yaml': 1.0.0
@@ -29,8 +30,12 @@ devDependencies:
   '@pnpm/store-path': 1.0.3
   '@types/fs-extra': 5.0.2
   '@types/mz': 0.0.32
+  '@types/node': 9.6.6
+  '@types/path-exists': 3.0.0
+  '@types/rimraf': 2.0.2
   '@types/sinon': 4.3.1
   '@types/tape': 4.2.32
+  '@types/tempy': 0.1.0
   '@zkochan/husky': 0.0.0
   fs-extra: 5.0.0
   is-windows: 1.0.2
@@ -708,6 +713,10 @@ packages:
     dev: true
     resolution:
       integrity: sha512-xil0KO5wkPoixdBWGIGolPv9dekf6dVkjjJLAFYchfKcd4DICou67rgGCIO7wAh3i5Ff/6j9IDgZz+GU9cMaqQ==
+  /@types/tempy/0.1.0:
+    dev: true
+    resolution:
+      integrity: sha512-2qeSxI2bMucW58Jsj8jrBXZxobtcKkvO44AvJzKGaD8+m/3KRuBqeKitJ5U6sqy3a9tFsqhzsxMkqR4Wcl6AmQ==
   /@types/touch/3.1.0:
     dependencies:
       '@types/node': 9.6.6
@@ -5327,9 +5336,13 @@ specifiers:
   '@pnpm/types': ^1.7.0
   '@types/fs-extra': ^5.0.1
   '@types/mz': ^0.0.32
+  '@types/node': ^9.6.6
+  '@types/path-exists': ^3.0.0
   '@types/ramda': ^0.25.19
+  '@types/rimraf': ^2.0.2
   '@types/sinon': ^4.3.0
   '@types/tape': ^4.2.30
+  '@types/tempy': ^0.1.0
   '@zkochan/husky': ^0.0.0
   dependency-path: ^1.2.1
   fs-extra: ^5.0.0

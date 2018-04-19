@@ -110,7 +110,7 @@ test('installing only dev deps', async (t) => {
   t.end()
 })
 
-test('installing non-prod deps then all deps', async (t: tape.Test) => {
+test('installing non-prod deps then all deps', async (t) => {
   const prefix = path.join(fixtures, 'prod-dep-is-dev-subdep')
 
   await headless(await testDefaults({
