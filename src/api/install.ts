@@ -175,10 +175,6 @@ export async function install (maybeOpts: InstallOptions) {
         if (opts.frozenShrinkwrap) {
           logger.warn('Headless installation does not support flat node_modules layout yet')
         }
-      } else if (opts.ignoreScripts) {
-        if (opts.frozenShrinkwrap) {
-          logger.warn('Headless installation does not support ignoring scripts yet')
-        }
       } else if (!ctx.existsWantedShrinkwrap) {
         if (R.keys(ctx.pkg.dependencies).length || R.keys(ctx.pkg.devDependencies).length || R.keys(ctx.pkg.optionalDependencies).length) {
           throw new Error('Headless installation requires a shrinkwrap.yaml file')

@@ -1,13 +1,13 @@
 dependencies:
   '@pnpm/check-package': 1.0.0
   '@pnpm/fs-locker': 1.0.1
-  '@pnpm/headless': 0.2.5
+  '@pnpm/headless': 0.2.6
   '@pnpm/lifecycle': 2.1.0
-  '@pnpm/link-bins': 1.0.1
+  '@pnpm/link-bins': 1.0.2
   '@pnpm/modules-yaml': 1.0.0
   '@pnpm/package-bins': 1.0.0
   '@pnpm/package-requester': 0.8.6
-  '@pnpm/pkgid-to-filename': 1.0.0
+  '@pnpm/pkgid-to-filename': 1.0.1
   '@pnpm/resolver-base': 1.0.0
   '@pnpm/types': 1.7.0
   '@types/byline': 4.2.31
@@ -18,7 +18,7 @@ dependencies:
   '@types/nopt': 3.0.29
   '@types/npm': 2.0.29
   '@types/p-series': 1.0.1
-  '@types/ramda': 0.25.23
+  '@types/ramda': 0.25.24
   '@types/rc': 0.0.1
   '@types/semver': 5.5.0
   '@zkochan/npm-package-arg': 1.0.0
@@ -323,7 +323,7 @@ packages:
   /@pnpm/default-resolver/0.1.5:
     dependencies:
       '@pnpm/git-resolver': 0.3.3
-      '@pnpm/local-resolver': 0.2.2
+      '@pnpm/local-resolver': 0.2.3
       '@pnpm/npm-resolver': 0.3.17
       '@pnpm/tarball-resolver': 0.1.0
     dev: true
@@ -388,15 +388,15 @@ packages:
       '@pnpm/logger': ^1.0.0
     resolution:
       integrity: sha512-shgFfcZ4Eu7UXR95xgt+x8lFA0tXFciLOuA8Me771dAx7Idgh3s257Aua9piSSR3KyVODL/NAULb+BIuAuQRXg==
-  /@pnpm/headless/0.2.5:
+  /@pnpm/headless/0.2.6:
     dependencies:
       '@pnpm/lifecycle': 2.1.0
-      '@pnpm/link-bins': 1.0.1
+      '@pnpm/link-bins': 1.0.2
       '@pnpm/modules-yaml': 1.0.0
       '@pnpm/package-requester': 0.8.6
-      '@pnpm/pkgid-to-filename': 1.0.0
+      '@pnpm/pkgid-to-filename': 1.0.1
       '@pnpm/types': 1.7.0
-      '@types/ramda': 0.25.23
+      '@types/ramda': 0.25.24
       dependency-path: 1.2.1
       graph-sequencer: 2.0.0
       p-limit: 1.2.0
@@ -405,7 +405,7 @@ packages:
       pnpm-shrinkwrap: 6.3.2
       ramda: 0.25.0
       read-package-json: 2.0.13
-      supi: 0.16.6
+      supi: 0.16.7
       symlink-dir: 1.1.2
       util.promisify: 1.0.0
     dev: false
@@ -414,7 +414,7 @@ packages:
     peerDependencies:
       '@pnpm/logger': ^1.0.0
     resolution:
-      integrity: sha512-lNaj2jOMFA7NX51gIgUeq7RbBboNKAgtoJIofI60AjdVGOfp7yyQTncQMaR1KMEr8PxsQOX/mJpEB7i/IYymBQ==
+      integrity: sha512-0Vm78Hchh/N39N8x5mDuNgrxlxvdo1kDyT9/btZ+HkexmwWP5u/QW3uOQSPLC6wERIHAOwO5t0aSfCiOXtdRHw==
   /@pnpm/lifecycle/2.1.0:
     dependencies:
       '@pnpm/types': 1.7.0
@@ -429,18 +429,19 @@ packages:
       '@pnpm/logger': ^1.0.0
     resolution:
       integrity: sha512-f/Dtu0kUDlzZI2+8QVOvFbBra82aa5VLXpTOLEndJzddCooY/Qhva7Rc0xULfciy83BohBF9sp8OFZCTugnMVQ==
-  /@pnpm/link-bins/1.0.1:
+  /@pnpm/link-bins/1.0.2:
     dependencies:
       '@pnpm/package-bins': 1.0.0
       '@pnpm/types': 1.7.0
       '@types/mz': 0.0.32
-      '@types/ramda': 0.25.23
+      '@types/node': 9.6.6
+      '@types/ramda': 0.25.24
       '@zkochan/cmd-shim': 2.2.4
       arr-flatten: 1.1.0
       is-windows: 1.0.2
       mkdirp-promise: 5.0.1
       mz: 2.7.0
-      normalize-path: 2.1.1
+      normalize-path: 3.0.0
       p-filter: 1.0.0
       ramda: 0.25.0
       read-package-json: 2.0.13
@@ -450,14 +451,14 @@ packages:
     peerDependencies:
       '@pnpm/logger': ^1.0.0
     resolution:
-      integrity: sha512-6hHV7qwIxYizwpSfcSR5A/ChBkTdJYVvAxB70WYbdbj6Wc0enS2sOSuFWO8yhOUDpzBph6T+qTWYeZrlpFTqzA==
-  /@pnpm/local-resolver/0.2.2:
+      integrity: sha512-xFLSomtWjEN6Oa4YPSBamhiYYDefh+zkUNkh0xpUmJVOSYASZ9BnJ38eGJuvb9Kcz+hkzoz75ZzwGIlyZrGL2A==
+  /@pnpm/local-resolver/0.2.3:
     dependencies:
       '@pnpm/types': 1.7.0
       '@types/graceful-fs': 4.1.2
       '@types/node': 9.6.6
       graceful-fs: 4.1.11
-      normalize-path: 2.1.1
+      normalize-path: 3.0.0
       osenv: 0.1.5
       read-package-json: 2.0.13
       ssri: 5.3.0
@@ -466,7 +467,7 @@ packages:
     engines:
       node: '>=4'
     resolution:
-      integrity: sha512-tAGRiCX8EjMj2sJuiJlWncv1N8CUSoYmmfgJIoWu2q3uMdBvkY4/K5sCjghjGnB9mEmb1inObRyOwBOKrlBOlA==
+      integrity: sha512-LclcVTZ/L35lvZyhnuzOvm2KzJinWqS+6LV8sPBdBNsvFCz0cZng9PHlRFsh5gAloP0kKPu3+WiK82TxDCqCcw==
   /@pnpm/logger/1.0.1:
     dependencies:
       '@types/node': 9.6.6
@@ -525,7 +526,7 @@ packages:
     dependencies:
       '@pnpm/check-package': 1.0.0
       '@pnpm/fetcher-base': 1.0.0
-      '@pnpm/pkgid-to-filename': 1.0.0
+      '@pnpm/pkgid-to-filename': 1.0.1
       '@pnpm/resolver-base': 1.0.0
       '@pnpm/types': 1.7.0
       '@types/load-json-file': 2.0.7
@@ -551,14 +552,14 @@ packages:
       '@pnpm/logger': ^1.0.0
     resolution:
       integrity: sha512-1K9V9w/fogs4ZJ2JJF0YvhZu1ehRvQ/h3lD07DhzHOX/GrfRLyT34M2PwPHtmXjxpGYJPPz+4zVx8TScjS9yfw==
-  /@pnpm/pkgid-to-filename/1.0.0:
+  /@pnpm/pkgid-to-filename/1.0.1:
     dependencies:
-      normalize-path: 2.1.1
+      normalize-path: 3.0.0
     dev: false
     engines:
       node: '>=4'
     resolution:
-      integrity: sha512-HnWDy3ecIKBsbRR9bwf+GJpV1CWLQ9Injj7eLSEQIsXQ+CLXU0h1NaxBCW7zcJm+2kbwnm0E1aFdFIEJXhHiTg==
+      integrity: sha512-PxAHIeraDV9YE0mBriqWewN4iOGL3UMzS7XTaYhu1OvoTqEuJ3cFCHGUW2GR0sYiMf0krj2WIASgoXi4XpAGuA==
   /@pnpm/resolver-base/1.0.0:
     dependencies:
       '@pnpm/types': 1.7.0
@@ -735,10 +736,10 @@ packages:
     dev: true
     resolution:
       integrity: sha512-ApUp/Eo/D4lQ/8yI+dlNVz1LslAdvycBbKmsr77sw2Ovymyj0nYowS+xuTChzfGdnEdcqBTPM2OtKmvTFKIXPA==
-  /@types/ramda/0.25.23:
+  /@types/ramda/0.25.24:
     dev: false
     resolution:
-      integrity: sha512-JYovPjyl7dLbYSXLjnqZlQCyw2NJ2+X5W9JrJLiQh6BMkB9KdfZ8eqBaK2kPlesj+wA6VLEra0UCx1R9ZkpmZQ==
+      integrity: sha512-c0TmWA7d4y9KLJJwL/cLPEfSReSgFQK9BtemcCATT48lMeyD7HG8IfGY8bamSuz/Byx1l+13hZV0PCvHsgMB3w==
   /@types/rc/0.0.1:
     dev: false
     resolution:
@@ -3499,15 +3500,7 @@ packages:
       node: '>=0.10.0'
     resolution:
       integrity: sha1-MtDkcvkf80VwHBWoMRAY07CpA3k=
-  /normalize-path/2.1.1:
-    dependencies:
-      remove-trailing-separator: 1.1.0
-    engines:
-      node: '>=0.10.0'
-    resolution:
-      integrity: sha1-GrKLVW4Zg2Oowab35vogE3/mrtk=
   /normalize-path/3.0.0:
-    dev: false
     engines:
       node: '>=0.10.0'
     resolution:
@@ -3809,7 +3802,7 @@ packages:
       '@types/load-json-file': 2.0.7
       '@types/mz': 0.0.32
       '@types/node': 9.6.6
-      '@types/ramda': 0.25.23
+      '@types/ramda': 0.25.24
       encode-registry: 1.1.0
       load-json-file: 4.0.0
       mkdirp-promise: 5.0.1
@@ -4019,7 +4012,7 @@ packages:
       '@pnpm/resolver-base': 1.0.0
       '@types/js-yaml': 3.11.1
       '@types/node': 9.6.6
-      '@types/ramda': 0.25.23
+      '@types/ramda': 0.25.24
       dependency-path: 1.2.1
       get-npm-tarball-url: 2.0.1
       js-yaml: 3.11.0
@@ -4285,9 +4278,6 @@ packages:
     dev: false
     resolution:
       integrity: sha512-h9Pl2xE1ZxYOhlKh0nYeMfzfv0GYUfglE5Eb0ILFFUiDnvVcbKwxGGukETEeIteR0JTVfesOaKqiwrOoUz1ajw==
-  /remove-trailing-separator/1.1.0:
-    resolution:
-      integrity: sha1-wkvOKig62tW8P1jg1IJJuSN52O8=
   /rename-overwrite/1.0.2:
     dependencies:
       delay: 2.0.0
@@ -4847,17 +4837,17 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha1-XvjbKV0B5u1sv3qrlpmNeCJSe2g=
-  /supi/0.16.6:
+  /supi/0.16.7:
     dependencies:
       '@pnpm/check-package': 1.0.0
       '@pnpm/fs-locker': 1.0.1
-      '@pnpm/headless': 0.2.5
+      '@pnpm/headless': 0.2.6
       '@pnpm/lifecycle': 2.1.0
-      '@pnpm/link-bins': 1.0.1
+      '@pnpm/link-bins': 1.0.2
       '@pnpm/modules-yaml': 1.0.0
       '@pnpm/package-bins': 1.0.0
       '@pnpm/package-requester': 0.8.6
-      '@pnpm/pkgid-to-filename': 1.0.0
+      '@pnpm/pkgid-to-filename': 1.0.1
       '@pnpm/resolver-base': 1.0.0
       '@pnpm/types': 1.7.0
       '@types/byline': 4.2.31
@@ -4868,7 +4858,7 @@ packages:
       '@types/nopt': 3.0.29
       '@types/npm': 2.0.29
       '@types/p-series': 1.0.1
-      '@types/ramda': 0.25.23
+      '@types/ramda': 0.25.24
       '@types/rc': 0.0.1
       '@types/semver': 5.5.0
       '@zkochan/npm-package-arg': 1.0.0
@@ -4885,7 +4875,7 @@ packages:
       load-json-file: 4.0.0
       mkdirp-promise: 5.0.1
       mz: 2.7.0
-      normalize-path: 2.1.1
+      normalize-path: 3.0.0
       normalize-registry-url: 1.0.0
       os-homedir: 1.0.2
       p-filter: 1.0.0
@@ -4913,7 +4903,7 @@ packages:
     peerDependencies:
       '@pnpm/logger': ^1.0.0
     resolution:
-      integrity: sha512-A90KRrVD7Gmr/afq/MVQ/8KSSfQpBdu9lApIkm1LJnQ9mvOxUa6oS4ihiVSQ6gBBxe65c6VNcdCAoL4+he1vOQ==
+      integrity: sha512-jsG6Br/00wTl3HdUw8qJVyWVoS4cVQugRXgu+9Aox4XrCJYM2MO9+0sPvQJLO8L8KzdAOsH1MGZ2jWCPG7W+oA==
   /supports-color/2.0.0:
     dev: true
     engines:
@@ -5489,7 +5479,7 @@ specifiers:
   '@pnpm/default-fetcher': ^0.4.0
   '@pnpm/default-resolver': ^0.1.5
   '@pnpm/fs-locker': ^1.0.0
-  '@pnpm/headless': ^0.2.5
+  '@pnpm/headless': ^0.2.6
   '@pnpm/lifecycle': ^2.0.0
   '@pnpm/link-bins': ^1.0.1
   '@pnpm/logger': ^1.0.0
