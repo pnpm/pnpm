@@ -33,7 +33,6 @@ import writeJsonFile = require('write-json-file')
 import {fromDir as readPkgFromDir} from './fs/readPkg'
 import {fromDir as safeReadPkgFromDir} from './fs/safeReadPkg'
 import {LoggedPkg, progressLogger} from './loggers'
-import memoize, {MemoizedFunc} from './memoize'
 
 export interface PackageFilesResponse {
   fromStore: boolean,
