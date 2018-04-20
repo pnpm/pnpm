@@ -282,3 +282,50 @@ test('fetchPackageToStore()', async (t) => {
 
   t.end()
 })
+
+// This test was added to cover the issue described here: https://github.com/pnpm/supi/issues/65
+test('always return a package manifest in the response', async t => {
+  const requestPackage = createPackageRequester(resolve, fetch, {
+    networkConcurrency: 1,
+    storePath: '.store',
+    storeIndex: {},
+  })
+  t.equal(typeof requestPackage, 'function')
+  const prefix = tempy.directory()
+
+  {
+    const pkgResponse = await requestPackage({alias: 'is-positive', pref: '1.0.0'}, {
+      downloadPriority: 0,
+      loggedPkg: {},
+      prefix,
+      registry,
+      verifyStoreIntegrity: true,
+      preferredVersions: {},
+    })
+
+    t.ok(pkgResponse.body, 'response has body')
+    t.ok(pkgResponse.body.manifest.name, 'response has manifest')
+  }
+
+  {
+    const pkgResponse = await requestPackage({alias: 'is-positive', pref: '1.0.0'}, {
+      currentPkgId: 'registry.npmjs.org/is-positive/1.0.0',
+      downloadPriority: 0,
+      loggedPkg: {},
+      prefix,
+      registry,
+      verifyStoreIntegrity: true,
+      preferredVersions: {},
+      shrinkwrapResolution: {
+        integrity: 'sha1-iACYVrZKLx632LsBeUGEJK4EUss=',
+        registry: 'https://registry.npmjs.org/',
+        tarball: 'https://registry.npmjs.org/is-positive/-/is-positive-1.0.0.tgz',
+      },
+    })
+
+    t.ok(pkgResponse.body, 'response has body')
+    t.ok((await pkgResponse.fetchingManifest).name, 'response has manifest')
+  }
+
+  t.end()
+})

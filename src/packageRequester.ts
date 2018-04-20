@@ -331,7 +331,8 @@ async function resolveAndFetch (
         updated,
       },
       fetchingFiles: ctx.fetchingLocker[id].fetchingFiles,
-      fetchingManifest: ctx.fetchingLocker[id].fetchingManifest as Promise<PackageManifest>,
+      fetchingManifest: ctx.fetchingLocker[id].fetchingManifest as Promise<PackageManifest> ||
+        ctx.fetchingLocker[id].fetchingFiles.then(() => readPkgFromDir(path.join(ctx.fetchingLocker[id].inStoreLocation, 'package'))),
       finishing: ctx.fetchingLocker[id].finishing,
     }
   } catch (err) {
