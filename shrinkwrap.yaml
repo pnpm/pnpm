@@ -6,7 +6,7 @@ dependencies:
   '@pnpm/link-bins': 1.0.2
   '@pnpm/modules-yaml': 1.0.0
   '@pnpm/package-bins': 1.0.0
-  '@pnpm/package-requester': 0.8.6
+  '@pnpm/package-requester': 0.8.7
   '@pnpm/pkgid-to-filename': 1.0.1
   '@pnpm/resolver-base': 1.0.0
   '@pnpm/types': 1.7.0
@@ -393,7 +393,7 @@ packages:
       '@pnpm/lifecycle': 2.1.0
       '@pnpm/link-bins': 1.0.2
       '@pnpm/modules-yaml': 1.0.0
-      '@pnpm/package-requester': 0.8.6
+      '@pnpm/package-requester': 0.8.7
       '@pnpm/pkgid-to-filename': 1.0.1
       '@pnpm/types': 1.7.0
       '@types/ramda': 0.25.24
@@ -522,7 +522,7 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha512-ZqVfIXK3r5AsP5VAhPHrhf3isF+T4yEuUpJTF9T03oFTJ9LBnkKvx8F7P7biKEManxSGOkSpNoIBdsura9pY5Q==
-  /@pnpm/package-requester/0.8.6:
+  /@pnpm/package-requester/0.8.7:
     dependencies:
       '@pnpm/check-package': 1.0.0
       '@pnpm/fetcher-base': 1.0.0
@@ -551,7 +551,7 @@ packages:
     peerDependencies:
       '@pnpm/logger': ^1.0.0
     resolution:
-      integrity: sha512-1K9V9w/fogs4ZJ2JJF0YvhZu1ehRvQ/h3lD07DhzHOX/GrfRLyT34M2PwPHtmXjxpGYJPPz+4zVx8TScjS9yfw==
+      integrity: sha512-P7Ca2utY6Rd1vqY+hAPWyUZgjPoqRsXAfq8v4IrZNNpfbp9daONFPMAwgzbTnClGi1qxAUGbT0RKLUYKIaw2Qg==
   /@pnpm/pkgid-to-filename/1.0.1:
     dependencies:
       normalize-path: 3.0.0
@@ -3796,7 +3796,7 @@ packages:
     dependencies:
       '@pnpm/fetcher-base': 1.0.0
       '@pnpm/fs-locker': 1.0.1
-      '@pnpm/package-requester': 0.8.6
+      '@pnpm/package-requester': 0.8.7
       '@pnpm/resolver-base': 1.0.0
       '@pnpm/types': 1.7.0
       '@types/load-json-file': 2.0.7
@@ -4846,7 +4846,7 @@ packages:
       '@pnpm/link-bins': 1.0.2
       '@pnpm/modules-yaml': 1.0.0
       '@pnpm/package-bins': 1.0.0
-      '@pnpm/package-requester': 0.8.6
+      '@pnpm/package-requester': 0.8.7
       '@pnpm/pkgid-to-filename': 1.0.1
       '@pnpm/resolver-base': 1.0.0
       '@pnpm/types': 1.7.0
@@ -5485,7 +5485,7 @@ specifiers:
   '@pnpm/logger': ^1.0.0
   '@pnpm/modules-yaml': ^1.0.0
   '@pnpm/package-bins': ^1.0.0
-  '@pnpm/package-requester': ^0.8.6
+  '@pnpm/package-requester': ^0.8.7
   '@pnpm/pkgid-to-filename': ^1.0.0
   '@pnpm/resolver-base': ^1.0.0
   '@pnpm/store-path': ^1.0.0
