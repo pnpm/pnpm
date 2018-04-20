@@ -6,6 +6,7 @@ import tempy = require('tempy')
 import path = require('path')
 import exists = require('path-exists')
 import {readWanted} from 'pnpm-shrinkwrap'
+import {read as readModulesYaml} from '@pnpm/modules-yaml'
 import rimraf = require('rimraf-then')
 import sinon = require('sinon')
 import {
@@ -210,6 +211,10 @@ test('run pre/postinstall scripts', async (t) => {
   await headless(await testDefaults({prefix, ignoreScripts: true}))
 
   t.notOk(await exists(outputJsonPath))
+
+  const modulesYaml = await readModulesYaml(path.join(prefix, 'node_modules'))
+  t.ok(modulesYaml)
+  t.deepEqual(modulesYaml!.pendingBuilds, ['localhost+4873/pre-and-postinstall-scripts-example/1.0.0'])
 
   t.end()
 })

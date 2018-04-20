@@ -97,7 +97,7 @@ export default async (opts: HeadlessOptions) => {
 
   const currentShrinkwrap = opts.currentShrinkwrap || await readCurrent(opts.prefix, {ignoreIncompatible: false})
   const nodeModulesDir = await realNodeModulesDir(opts.prefix)
-  const modules = await readModulesYaml(nodeModulesDir)
+  const modules = await readModulesYaml(nodeModulesDir) || {pendingBuilds: [] as string[], hoistedAliases: {}}
 
   const pkg = opts.packageJson || await readPkg(path.join(opts.prefix, 'package.json')) as PackageJson
 
@@ -174,12 +174,21 @@ export default async (opts: HeadlessOptions) => {
   await linkBins(nodeModulesDir, bin)
 
   await writeCurrentShrinkwrapOnly(opts.prefix, filteredShrinkwrap)
+  if (opts.ignoreScripts) {
+    // we can use concat here because we always only append new packages, which are guaranteed to not be there by definition
+    modules.pendingBuilds = modules.pendingBuilds
+      .concat(
+        R.values(depGraph)
+          .filter((node) => node.requiresBuild)
+          .map((node) => node.relDepPath),
+      )
+  }
   await writeModulesYaml(nodeModulesDir, {
     hoistedAliases: {},
     independentLeaves: !!opts.independentLeaves,
     layoutVersion: LAYOUT_VERSION,
     packageManager: `${opts.packageManager.name}@${opts.packageManager.version}`,
-    pendingBuilds: [], // TODO: populate this array when runnig with --ignore-scripts
+    pendingBuilds: modules.pendingBuilds,
     shamefullyFlatten: false,
     skipped: [],
     store: opts.store,
@@ -318,6 +327,7 @@ async function shrinkwrapToDepGraph (
         optionalDependencies: new Set(R.keys(pkgSnapshot.optionalDependencies)),
         peripheralLocation,
         pkgId,
+        relDepPath: depPath,
         requiresBuild: pkgSnapshot.requiresBuild === true,
       }
       pkgSnapshotByLocation[peripheralLocation] = pkgSnapshot
@@ -404,6 +414,7 @@ export interface DepGraphNode {
   independent: boolean,
   optionalDependencies: Set<string>,
   optional: boolean,
+  relDepPath: string, // this option is only needed for saving pendingBuild when running with --ignore-scripts flag
   pkgId: string, // TODO: this option is currently only needed when running postinstall scripts but even there it should be not used
   isBuilt: boolean,
   requiresBuild: boolean,
