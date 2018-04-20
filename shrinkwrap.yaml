@@ -46,7 +46,7 @@ dependencies:
   retry: 0.12.0
   signal-exit: 3.0.2
   strip-color: 0.1.0
-  supi: 0.16.7
+  supi: 0.16.8
   text-table: 0.2.0
   tree-kill: 1.2.0
   update-notifier: 2.5.0
@@ -65,7 +65,7 @@ devDependencies:
   '@types/mz': 0.0.32
   '@types/node': 9.6.6
   '@types/nopt': 3.0.29
-  '@types/ramda': 0.25.23
+  '@types/ramda': 0.25.24
   '@types/semver': 5.5.0
   '@types/tape': 4.2.32
   '@types/update-notifier': 2.2.0
@@ -423,15 +423,15 @@ packages:
       '@pnpm/logger': ^1.0.0
     resolution:
       integrity: sha512-shgFfcZ4Eu7UXR95xgt+x8lFA0tXFciLOuA8Me771dAx7Idgh3s257Aua9piSSR3KyVODL/NAULb+BIuAuQRXg==
-  /@pnpm/headless/0.2.5:
+  /@pnpm/headless/0.2.6:
     dependencies:
       '@pnpm/lifecycle': 2.1.0
       '@pnpm/link-bins': 1.0.2
       '@pnpm/modules-yaml': 1.0.0
-      '@pnpm/package-requester': 0.8.6
+      '@pnpm/package-requester': 0.8.7
       '@pnpm/pkgid-to-filename': 1.0.1
       '@pnpm/types': 1.7.0
-      '@types/ramda': 0.25.23
+      '@types/ramda': 0.25.24
       dependency-path: 1.2.1
       graph-sequencer: 2.0.0
       p-limit: 1.2.0
@@ -440,7 +440,7 @@ packages:
       pnpm-shrinkwrap: 6.3.2
       ramda: 0.25.0
       read-package-json: 2.0.13
-      supi: 0.16.7
+      supi: 0.16.8
       symlink-dir: 1.1.2
       util.promisify: 1.0.0
     dev: false
@@ -449,7 +449,7 @@ packages:
     peerDependencies:
       '@pnpm/logger': ^1.0.0
     resolution:
-      integrity: sha512-lNaj2jOMFA7NX51gIgUeq7RbBboNKAgtoJIofI60AjdVGOfp7yyQTncQMaR1KMEr8PxsQOX/mJpEB7i/IYymBQ==
+      integrity: sha512-0Vm78Hchh/N39N8x5mDuNgrxlxvdo1kDyT9/btZ+HkexmwWP5u/QW3uOQSPLC6wERIHAOwO5t0aSfCiOXtdRHw==
   /@pnpm/lifecycle/2.1.0:
     dependencies:
       '@pnpm/types': 1.7.0
@@ -470,7 +470,7 @@ packages:
       '@pnpm/types': 1.7.0
       '@types/mz': 0.0.32
       '@types/node': 9.6.6
-      '@types/ramda': 0.25.23
+      '@types/ramda': 0.25.24
       '@zkochan/cmd-shim': 2.2.4
       arr-flatten: 1.1.0
       is-windows: 1.0.2
@@ -571,7 +571,7 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha512-ZqVfIXK3r5AsP5VAhPHrhf3isF+T4yEuUpJTF9T03oFTJ9LBnkKvx8F7P7biKEManxSGOkSpNoIBdsura9pY5Q==
-  /@pnpm/package-requester/0.8.6:
+  /@pnpm/package-requester/0.8.7:
     dependencies:
       '@pnpm/check-package': 1.0.0
       '@pnpm/fetcher-base': 1.0.0
@@ -600,7 +600,7 @@ packages:
     peerDependencies:
       '@pnpm/logger': ^1.0.0
     resolution:
-      integrity: sha512-1K9V9w/fogs4ZJ2JJF0YvhZu1ehRvQ/h3lD07DhzHOX/GrfRLyT34M2PwPHtmXjxpGYJPPz+4zVx8TScjS9yfw==
+      integrity: sha512-P7Ca2utY6Rd1vqY+hAPWyUZgjPoqRsXAfq8v4IrZNNpfbp9daONFPMAwgzbTnClGi1qxAUGbT0RKLUYKIaw2Qg==
   /@pnpm/pkgid-to-filename/1.0.1:
     dependencies:
       normalize-path: 3.0.0
@@ -625,7 +625,7 @@ packages:
       integrity: sha1-hbuHZMfM0iOZn2FCGQBixibo8oc=
   /@pnpm/server/0.9.0:
     dependencies:
-      '@pnpm/package-requester': 0.8.6
+      '@pnpm/package-requester': 0.8.7
       '@pnpm/resolver-base': 1.0.0
       '@pnpm/types': 1.7.0
       '@types/got': 7.1.8
@@ -820,9 +820,9 @@ packages:
     dev: true
     resolution:
       integrity: sha512-ApUp/Eo/D4lQ/8yI+dlNVz1LslAdvycBbKmsr77sw2Ovymyj0nYowS+xuTChzfGdnEdcqBTPM2OtKmvTFKIXPA==
-  /@types/ramda/0.25.23:
+  /@types/ramda/0.25.24:
     resolution:
-      integrity: sha512-JYovPjyl7dLbYSXLjnqZlQCyw2NJ2+X5W9JrJLiQh6BMkB9KdfZ8eqBaK2kPlesj+wA6VLEra0UCx1R9ZkpmZQ==
+      integrity: sha512-c0TmWA7d4y9KLJJwL/cLPEfSReSgFQK9BtemcCATT48lMeyD7HG8IfGY8bamSuz/Byx1l+13hZV0PCvHsgMB3w==
   /@types/rc/0.0.1:
     dev: false
     resolution:
@@ -4964,13 +4964,13 @@ packages:
     dependencies:
       '@pnpm/fetcher-base': 1.0.0
       '@pnpm/fs-locker': 1.0.1
-      '@pnpm/package-requester': 0.8.6
+      '@pnpm/package-requester': 0.8.7
       '@pnpm/resolver-base': 1.0.0
       '@pnpm/types': 1.7.0
       '@types/load-json-file': 2.0.7
       '@types/mz': 0.0.32
       '@types/node': 9.6.6
-      '@types/ramda': 0.25.23
+      '@types/ramda': 0.25.24
       encode-registry: 1.1.0
       load-json-file: 4.0.0
       mkdirp-promise: 5.0.1
@@ -5181,7 +5181,7 @@ packages:
   /pkgs-graph/2.0.0:
     dependencies:
       '@types/node': 9.6.6
-      '@types/ramda': 0.25.23
+      '@types/ramda': 0.25.24
       '@types/semver': 5.5.0
       npm-package-arg: 6.1.0
       ramda: 0.25.0
@@ -5195,7 +5195,7 @@ packages:
     dependencies:
       '@types/common-tags': 1.4.0
       '@types/node': 9.6.6
-      '@types/ramda': 0.25.23
+      '@types/ramda': 0.25.24
       '@types/semver': 5.5.0
       '@types/strip-ansi': 3.0.0
       ansi-diff: 1.1.0
@@ -5244,7 +5244,7 @@ packages:
     dependencies:
       '@types/archy': 0.0.31
       '@types/node': 9.6.6
-      '@types/ramda': 0.25.23
+      '@types/ramda': 0.25.24
       archy: 1.0.0
       chalk: 2.4.0
       dependencies-hierarchy: 2.0.2
@@ -5272,7 +5272,7 @@ packages:
       '@pnpm/resolver-base': 1.0.0
       '@types/js-yaml': 3.11.1
       '@types/node': 9.6.6
-      '@types/ramda': 0.25.23
+      '@types/ramda': 0.25.24
       dependency-path: 1.2.1
       get-npm-tarball-url: 2.0.1
       js-yaml: 3.11.0
@@ -6391,16 +6391,16 @@ packages:
       node: '>=0.10.0'
     resolution:
       integrity: sha1-PFMZQukIwml8DsNEhYwobHygpgo=
-  /supi/0.16.7:
+  /supi/0.16.8:
     dependencies:
       '@pnpm/check-package': 1.0.0
       '@pnpm/fs-locker': 1.0.1
-      '@pnpm/headless': 0.2.5
+      '@pnpm/headless': 0.2.6
       '@pnpm/lifecycle': 2.1.0
       '@pnpm/link-bins': 1.0.2
       '@pnpm/modules-yaml': 1.0.0
       '@pnpm/package-bins': 1.0.0
-      '@pnpm/package-requester': 0.8.6
+      '@pnpm/package-requester': 0.8.7
       '@pnpm/pkgid-to-filename': 1.0.1
       '@pnpm/resolver-base': 1.0.0
       '@pnpm/types': 1.7.0
@@ -6412,7 +6412,7 @@ packages:
       '@types/nopt': 3.0.29
       '@types/npm': 2.0.29
       '@types/p-series': 1.0.1
-      '@types/ramda': 0.25.23
+      '@types/ramda': 0.25.24
       '@types/rc': 0.0.1
       '@types/semver': 5.5.0
       '@zkochan/npm-package-arg': 1.0.0
@@ -6457,7 +6457,7 @@ packages:
     peerDependencies:
       '@pnpm/logger': ^1.0.0
     resolution:
-      integrity: sha512-jsG6Br/00wTl3HdUw8qJVyWVoS4cVQugRXgu+9Aox4XrCJYM2MO9+0sPvQJLO8L8KzdAOsH1MGZ2jWCPG7W+oA==
+      integrity: sha512-uIkr1EFyTYFOl8PPg7Q0vPJzdl+kIN2AEBT42AlCKsvqemFCCr9rYbS2ulOBsMk36NNCOirvvCAlnfZVNN0XiQ==
   /supports-color/2.0.0:
     dev: true
     engines:
@@ -7295,7 +7295,7 @@ specifiers:
   sepia: ^2.0.2
   signal-exit: ^3.0.2
   strip-color: ^0.1.0
-  supi: ^0.16.7
+  supi: ^0.16.8
   tape: ^4.6.3
   tape-promise: ^2.0.1
   text-table: ^0.2.0
