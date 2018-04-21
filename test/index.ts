@@ -1,7 +1,9 @@
 import test = require('tape')
-import createPackageRequester from '@pnpm/package-requester'
+import {FetchFunction} from '@pnpm/fetcher-base'
+import createPackageRequester, { PackageResponse, PackageFilesResponse } from '@pnpm/package-requester'
 import createResolver from '@pnpm/npm-resolver'
 import createFetcher from '@pnpm/tarball-fetcher'
+import {PackageManifest} from '@pnpm/types'
 import pkgIdToFilename from '@pnpm/pkgid-to-filename'
 import path = require('path')
 import tempy = require('tempy')
@@ -32,12 +34,18 @@ test('request package', async t => {
 
   const pkgResponse = await requestPackage({alias: 'is-positive', pref: '1.0.0'}, {
     downloadPriority: 0,
-    loggedPkg: {},
+    loggedPkg: {
+      rawSpec: 'is-positive@1.0.0',
+    },
     prefix: tempy.directory(),
     registry,
     verifyStoreIntegrity: true,
     preferredVersions: {},
-  })
+  }) as PackageResponse & {
+    body: {inStoreLocation: string, latest: string, manifest: {name: string}},
+    fetchingFiles: Promise<{filenames: string[], fromStore: boolean}>,
+    finishing: Promise<void>,
+  }
 
   t.ok(pkgResponse, 'response received')
   t.ok(pkgResponse.body, 'response has body')
@@ -76,12 +84,18 @@ test('request package but skip fetching', async t => {
   const pkgResponse = await requestPackage({alias: 'is-positive', pref: '1.0.0'}, {
     skipFetch: true,
     downloadPriority: 0,
-    loggedPkg: {},
+    loggedPkg: {
+      rawSpec: 'is-positive@1.0.0',
+    },
     prefix: tempy.directory(),
     registry,
     verifyStoreIntegrity: true,
     preferredVersions: {},
-  })
+  }) as PackageResponse & {
+    body: {inStoreLocation: string, latest: string, manifest: {name: string}},
+    fetchingFiles: Promise<object>,
+    finishing: Promise<void>,
+  }
 
   t.ok(pkgResponse, 'response received')
   t.ok(pkgResponse.body, 'response has body')
@@ -117,7 +131,9 @@ test('request package but skip fetching, when resolution is already available', 
     update: false,
     skipFetch: true,
     downloadPriority: 0,
-    loggedPkg: {},
+    loggedPkg: {
+      rawSpec: 'is-positive@1.0.0',
+    },
     prefix: tempy.directory(),
     registry,
     verifyStoreIntegrity: true,
@@ -127,7 +143,15 @@ test('request package but skip fetching, when resolution is already available', 
       registry: 'https://registry.npmjs.org/',
       tarball: 'https://registry.npmjs.org/is-positive/-/is-positive-1.0.0.tgz',
     },
-  })
+  }) as PackageResponse & {
+    body: {
+      inStoreLocation: string,
+      latest: string,
+      manifest: {name: string},
+    },
+    fetchingFiles: Promise<object>,
+    finishing: Promise<void>,
+  }
 
   t.ok(pkgResponse, 'response received')
   t.ok(pkgResponse.body, 'response has body')
@@ -159,8 +183,13 @@ test('refetch local tarball if its integrity has changed', async t => {
   const storePath = '.store'
   const requestPackageOpts = {
     currentPkgId: pkgId,
+    downloadPriority: 0,
+    verifyStoreIntegrity: true,
+    preferredVersions: {},
     update: false,
-    loggedPkg: {},
+    loggedPkg: {
+      rawSpec: tarball,
+    },
     prefix,
     registry,
   }
@@ -184,7 +213,10 @@ test('refetch local tarball if its integrity has changed', async t => {
         integrity: 'sha1-BBBBBBBBBBBBBBBBBBBBBBBBBBB=',
         tarball,
       },
-    })
+    }) as PackageResponse & {
+      fetchingFiles: Promise<PackageFilesResponse>,
+      finishing: Promise<void>,
+    }
     await response.fetchingFiles
     await response.finishing
 
@@ -203,7 +235,7 @@ test('refetch local tarball if its integrity has changed', async t => {
     const requestPackage = createPackageRequester(fakeResolve, fetch, {
       storePath,
       storeIndex: {
-        [pkgIdToFilename(pkgId)]: true,
+        [pkgIdToFilename(pkgId)]: [] as string[],
       },
     })
 
@@ -213,7 +245,7 @@ test('refetch local tarball if its integrity has changed', async t => {
         integrity: 'sha1-BBBBBBBBBBBBBBBBBBBBBBBBBBB=',
         tarball,
       },
-    })
+    }) as PackageResponse & {fetchingFiles: Promise<PackageFilesResponse>, finishing: Promise<void>}
     await response.fetchingFiles
     await response.finishing
 
@@ -232,7 +264,7 @@ test('refetch local tarball if its integrity has changed', async t => {
     const requestPackage = createPackageRequester(fakeResolve, fetch, {
       storePath,
       storeIndex: {
-        [pkgIdToFilename(pkgId)]: true,
+        [pkgIdToFilename(pkgId)]: [] as string[],
       },
     })
 
@@ -242,7 +274,7 @@ test('refetch local tarball if its integrity has changed', async t => {
         integrity: 'sha1-AAAAAAAAAAAAAAAAAAAAAAAAAAA=',
         tarball,
       },
-    })
+    }) as PackageResponse & {fetchingFiles: Promise<PackageFilesResponse>, finishing: Promise<void>}
     await response.fetchingFiles
     await response.finishing
 
@@ -263,8 +295,10 @@ test('fetchPackageToStore()', async (t) => {
   const pkgId = 'registry.npmjs.org/is-positive/1.0.0'
   const storePath = '.store'
   const fetchResult = await packageRequester.fetchPackageToStore({
+    force: false,
     pkgId,
     prefix: tempy.directory(),
+    verifyStoreIntegrity: true,
     resolution: {
       integrity: 'sha1-iACYVrZKLx632LsBeUGEJK4EUss=',
       registry: 'https://registry.npmjs.org/',
@@ -296,12 +330,14 @@ test('always return a package manifest in the response', async t => {
   {
     const pkgResponse = await requestPackage({alias: 'is-positive', pref: '1.0.0'}, {
       downloadPriority: 0,
-      loggedPkg: {},
+      loggedPkg: {
+        rawSpec: 'is-positive@1.0.0',
+      },
       prefix,
       registry,
       verifyStoreIntegrity: true,
       preferredVersions: {},
-    })
+    }) as PackageResponse & {body: {manifest: {name: string}}}
 
     t.ok(pkgResponse.body, 'response has body')
     t.ok(pkgResponse.body.manifest.name, 'response has manifest')
@@ -311,7 +347,9 @@ test('always return a package manifest in the response', async t => {
     const pkgResponse = await requestPackage({alias: 'is-positive', pref: '1.0.0'}, {
       currentPkgId: 'registry.npmjs.org/is-positive/1.0.0',
       downloadPriority: 0,
-      loggedPkg: {},
+      loggedPkg: {
+        rawSpec: 'is-positive@1.0.0',
+      },
       prefix,
       registry,
       verifyStoreIntegrity: true,
@@ -321,7 +359,7 @@ test('always return a package manifest in the response', async t => {
         registry: 'https://registry.npmjs.org/',
         tarball: 'https://registry.npmjs.org/is-positive/-/is-positive-1.0.0.tgz',
       },
-    })
+    }) as PackageResponse & {fetchingManifest: Promise<PackageManifest>}
 
     t.ok(pkgResponse.body, 'response has body')
     t.ok((await pkgResponse.fetchingManifest).name, 'response has manifest')

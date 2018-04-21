@@ -99,7 +99,7 @@ export interface RequestPackageOptions {
       type: 'version' | 'range' | 'tag',
     },
   },
-  sideEffectsCache: boolean,
+  sideEffectsCache?: boolean,
 }
 
 export type RequestPackageFunction = (
