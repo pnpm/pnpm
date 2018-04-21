@@ -1,5 +1,6 @@
 dependencies:
   '@pnpm/fetcher-base': 1.0.0
+  '@pnpm/tarball-fetcher': 'link:../__package_previews__/tarball-fetcher/@pnpm/tarball-fetcher'
   '@types/mem': 1.1.2
   '@types/mz': 0.0.32
   '@types/node': 9.6.2
@@ -1876,7 +1877,7 @@ packages:
     resolution:
       integrity: sha1-5a2ryKz0CPY4X8dklWhMiOavaJo=
 registry: 'https://registry.npmjs.org/'
-shrinkwrapMinorVersion: 4
+shrinkwrapMinorVersion: 5
 shrinkwrapVersion: 3
 specifiers:
   '@pnpm/fetcher-base': ^1.0.0

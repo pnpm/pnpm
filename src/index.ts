@@ -1,5 +1,6 @@
 import logger from '@pnpm/logger'
 import {
+  FetchFunction,
   FetchOptions,
   FetchResult,
 } from '@pnpm/fetcher-base'
@@ -35,17 +36,7 @@ export default function (
     ignoreFile?: IgnoreFunction,
     offline?: boolean,
   },
-): {
-  tarball: (
-    resolution: {
-      integrity?: string,
-      registry?: string,
-      tarball: string,
-    },
-    target: string,
-    opts: FetchOptions,
-  ) => Promise<{}>
-} {
+): { tarball: FetchFunction } {
   const download = createDownloader({
     alwaysAuth: opts.alwaysAuth || false,
     registry: opts.registry,
