@@ -4,7 +4,7 @@ import nock = require('nock')
 import createFetcher from '@pnpm/tarball-fetcher'
 import path = require('path')
 import tempy = require('tempy')
-import {streamParser} from '@pnpm/logger'
+import {streamParser, LogBase} from '@pnpm/logger'
 
 const tarballPath = path.join(__dirname, 'tars', 'babel-helper-hoist-variables-6.24.1.tgz')
 const tarballSize = 1279
@@ -37,6 +37,7 @@ test('fail when tarball size does not match content-length', async t => {
     await fetch.tarball(resolution, unpackTo, {
       cachedTarballLocation,
       prefix: process.cwd(),
+      pkgId: 'registry.npmjs.org/foo/1.0.0',
     })
     t.fail('should have failed')
   } catch (err) {
@@ -74,6 +75,7 @@ test('retry when tarball size does not match content-length', async t => {
   const result = await fetch.tarball(resolution, unpackTo, {
     cachedTarballLocation,
     prefix: process.cwd(),
+    pkgId: 'registry.npmjs.org/foo/1.0.0',
   })
 
   t.equal(typeof result.tempLocation, 'string')
@@ -107,7 +109,7 @@ test('redownload incomplete cached tarballs', async t => {
   const resolution = { tarball: 'http://example.com/foo.tgz' }
 
   t.plan(2)
-  function reporter (log) {
+  function reporter (log: LogBase & {level: string, name: string, message: string}) {
     if (log.level === 'warn' && log.name === 'pnpm' && log.message.startsWith(`Redownloading corrupted cached tarball: ${cachedTarballLocation}`)) {
       t.pass('warning logged')
     }
@@ -117,6 +119,7 @@ test('redownload incomplete cached tarballs', async t => {
     await fetch.tarball(resolution, unpackTo, {
       cachedTarballLocation,
       prefix: process.cwd(),
+      pkgId: 'registry.npmjs.org/foo/1.0.0',
     })
   } catch (err) {
     nock.cleanAll()
@@ -150,6 +153,7 @@ test('fail when integrity check fails two times in a row', async t => {
     await fetch.tarball(resolution, unpackTo, {
       cachedTarballLocation,
       prefix: process.cwd(),
+      pkgId: 'registry.npmjs.org/foo/1.0.0',
     })
     t.fail('should have failed')
   } catch (err) {
@@ -189,6 +193,7 @@ test('retry when integrity check fails', async t => {
   await fetch.tarball(resolution, unpackTo, {
     cachedTarballLocation,
     prefix: process.cwd(),
+    pkgId: 'registry.npmjs.org/foo/1.0.0',
     onStart (size, attempts) {
       params.push([size, attempts])
     },
@@ -223,6 +228,7 @@ test('retry on server error', async t => {
   const index = await fetch.tarball(resolution, unpackTo, {
     cachedTarballLocation,
     prefix: process.cwd(),
+    pkgId: 'registry.npmjs.org/foo/1.0.0',
   })
 
   t.ok(index)
@@ -250,6 +256,7 @@ test('throw error when accessing private package w/o authorization', async t => 
     await fetch.tarball(resolution, unpackTo, {
       cachedTarballLocation,
       prefix: process.cwd(),
+      pkgId: 'registry.npmjs.org/foo/1.0.0',
     })
     t.fail('should have failed')
   } catch (err) {
@@ -302,6 +309,7 @@ test('accessing private packages', async t => {
   const index = await fetch.tarball(resolution, unpackTo, {
     cachedTarballLocation,
     prefix: process.cwd(),
+    pkgId: 'registry.npmjs.org/foo/1.0.0',
   })
 
   t.ok(index)
