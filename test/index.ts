@@ -8,6 +8,7 @@ import pkgIdToFilename from '@pnpm/pkgid-to-filename'
 import fs = require('fs')
 import path = require('path')
 import tempy = require('tempy')
+import nock = require('nock')
 
 const registry = 'https://registry.npmjs.org/'
 
@@ -386,6 +387,74 @@ test('fetchPackageToStore() concurrency check', async (t) => {
   }
 
   t.equal(ino1, ino2, 'package fetched only once to the store')
+
+  t.end()
+})
+
+test('fetchPackageToStore() does not cache errors', async (t) => {
+  const tarballPath = path.join(__dirname, 'is-positive-1.0.0.tgz')
+
+  nock(registry)
+    .get('/is-positive/-/is-positive-1.0.0.tgz')
+    .reply(404)
+
+  nock(registry)
+    .get('/is-positive/-/is-positive-1.0.0.tgz')
+    .replyWithFile(200, tarballPath)
+
+  const noRetryFetch = createFetcher({
+    alwaysAuth: false,
+    registry: 'https://registry.npmjs.org/',
+    strictSsl: false,
+    rawNpmConfig,
+    fetchRetries: 0,
+  })
+
+  const packageRequester = createPackageRequester(resolve, noRetryFetch, {
+    networkConcurrency: 1,
+    storePath: tempy.directory(),
+    storeIndex: {},
+  })
+
+  const pkgId = 'registry.npmjs.org/is-positive/1.0.0'
+
+  try {
+    const badRequest = await packageRequester.fetchPackageToStore({
+      force: false,
+      pkgId,
+      prefix: tempy.directory(),
+      verifyStoreIntegrity: true,
+      resolution: {
+        integrity: 'sha1-iACYVrZKLx632LsBeUGEJK4EUss=',
+        registry: 'https://registry.npmjs.org/',
+        tarball: 'https://registry.npmjs.org/is-positive/-/is-positive-1.0.0.tgz',
+      }
+    })
+    await badRequest.fetchingFiles
+    t.fail('first fetch should have failed')
+  } catch (err) {
+    t.pass('first fetch failed')
+  }
+
+  const fetchResult = await packageRequester.fetchPackageToStore({
+    force: false,
+    pkgId,
+    prefix: tempy.directory(),
+    verifyStoreIntegrity: true,
+    resolution: {
+      integrity: 'sha1-iACYVrZKLx632LsBeUGEJK4EUss=',
+      registry: 'https://registry.npmjs.org/',
+      tarball: 'https://registry.npmjs.org/is-positive/-/is-positive-1.0.0.tgz',
+    }
+  })
+  const files = await fetchResult.fetchingFiles
+  t.deepEqual(files, {
+    filenames: [ 'package.json', 'index.js', 'license', 'readme.md' ],
+    fromStore: false,
+  }, 'returned info about files after fetch completed')
+
+  t.ok(fetchResult.finishing)
+  t.ok(nock.isDone())
 
   t.end()
 })
