@@ -5,6 +5,7 @@ import createResolver from '@pnpm/npm-resolver'
 import createFetcher from '@pnpm/tarball-fetcher'
 import {PackageManifest} from '@pnpm/types'
 import pkgIdToFilename from '@pnpm/pkgid-to-filename'
+import fs = require('fs')
 import path = require('path')
 import tempy = require('tempy')
 
@@ -313,6 +314,78 @@ test('fetchPackageToStore()', async (t) => {
   }, 'returned info about files after fetch completed')
 
   t.ok(fetchResult.finishing)
+
+  t.end()
+})
+
+test('fetchPackageToStore() concurrency check', async (t) => {
+  const packageRequester = createPackageRequester(resolve, fetch, {
+    networkConcurrency: 1,
+    storePath: '.store',
+    storeIndex: {},
+  })
+
+  const pkgId = 'registry.npmjs.org/is-positive/1.0.0'
+  const storePath = '.store'
+  const prefix1 = tempy.directory()
+  const prefix2 = tempy.directory()
+  const fetchResults = await Promise.all([
+    packageRequester.fetchPackageToStore({
+      force: false,
+      pkgId,
+      prefix: prefix1,
+      verifyStoreIntegrity: true,
+      resolution: {
+        integrity: 'sha1-iACYVrZKLx632LsBeUGEJK4EUss=',
+        registry: 'https://registry.npmjs.org/',
+        tarball: 'https://registry.npmjs.org/is-positive/-/is-positive-1.0.0.tgz',
+      }
+    }),
+    packageRequester.fetchPackageToStore({
+      force: false,
+      pkgId,
+      prefix: prefix2,
+      verifyStoreIntegrity: true,
+      resolution: {
+        integrity: 'sha1-iACYVrZKLx632LsBeUGEJK4EUss=',
+        registry: 'https://registry.npmjs.org/',
+        tarball: 'https://registry.npmjs.org/is-positive/-/is-positive-1.0.0.tgz',
+      }
+    })
+  ])
+
+  let ino1!: Number
+  let ino2!: Number
+
+  {
+    const fetchResult = await fetchResults[0]
+    const files = await fetchResult.fetchingFiles
+
+    ino1 = fs.statSync(path.join(fetchResult.inStoreLocation, 'package', 'package.json')).ino
+
+    t.deepEqual(files, {
+      filenames: [ 'package.json', 'index.js', 'license', 'readme.md' ],
+      fromStore: false,
+    }, 'returned info about files after fetch completed')
+
+    t.ok(fetchResult.finishing)
+  }
+
+  {
+    const fetchResult = await fetchResults[1]
+    const files = await fetchResult.fetchingFiles
+
+    ino2 = fs.statSync(path.join(fetchResult.inStoreLocation, 'package', 'package.json')).ino
+
+    t.deepEqual(files, {
+      filenames: [ 'package.json', 'index.js', 'license', 'readme.md' ],
+      fromStore: false,
+    }, 'returned info about files after fetch completed')
+
+    t.ok(fetchResult.finishing)
+  }
+
+  t.equal(ino1, ino2, 'package fetched only once to the store')
 
   t.end()
 })

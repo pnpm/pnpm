@@ -149,13 +149,13 @@ export default function (
   const fetch = fetcher.bind(null, fetchers)
   const fetchPackageToStore = fetchToStore.bind(null, {
     fetch,
+    fetchingLocker: {},
     requestsQueue,
     storeIndex: opts.storeIndex,
     storePath: opts.storePath,
   })
   const requestPackage = resolveAndFetch.bind(null, {
     fetchPackageToStore,
-    fetchingLocker: {},
     requestsQueue,
     resolve,
     storePath: opts.storePath,
@@ -172,14 +172,6 @@ async function resolveAndFetch (
     requestsQueue: {add: <T>(fn: () => Promise<T>, opts: {priority: number}) => Promise<T>},
     resolve: ResolveFunction,
     fetchPackageToStore: FetchPackageToStoreFunction,
-    fetchingLocker: {
-      [pkgId: string]: {
-        finishing: Promise<void>,
-        fetchingFiles: Promise<PackageFilesResponse>,
-        fetchingManifest?: Promise<PackageManifest>,
-        inStoreLocation: string,
-      },
-    },
     storePath: string,
   },
   wantedDependency: {
@@ -291,23 +283,21 @@ async function resolveAndFetch (
       }
     }
 
-    if (!ctx.fetchingLocker[id]) {
-      ctx.fetchingLocker[id] = ctx.fetchPackageToStore({
-        force: forceFetch,
-        pkg,
-        pkgId: id,
-        prefix: options.prefix,
-        resolution: resolution as Resolution,
-        verifyStoreIntegrity: options.verifyStoreIntegrity,
-      })
-    }
+    const fetchResult = ctx.fetchPackageToStore({
+      force: forceFetch,
+      pkg,
+      pkgId: id,
+      prefix: options.prefix,
+      resolution: resolution as Resolution,
+      verifyStoreIntegrity: options.verifyStoreIntegrity,
+    })
 
     if (pkg) {
       return {
         body: {
           cacheByEngine: options.sideEffectsCache ? await getCacheByEngine(ctx.storePath, id) : new Map(),
           id,
-          inStoreLocation: ctx.fetchingLocker[id].inStoreLocation,
+          inStoreLocation: fetchResult.inStoreLocation,
           isLocal: false as false,
           latest,
           manifest: pkg,
@@ -315,25 +305,25 @@ async function resolveAndFetch (
           resolution,
           updated,
         },
-        fetchingFiles: ctx.fetchingLocker[id].fetchingFiles,
-        finishing: ctx.fetchingLocker[id].finishing,
+        fetchingFiles: fetchResult.fetchingFiles,
+        finishing: fetchResult.finishing,
       }
     }
     return {
       body: {
         cacheByEngine: options.sideEffectsCache ? await getCacheByEngine(ctx.storePath, id) : new Map(),
         id,
-        inStoreLocation: ctx.fetchingLocker[id].inStoreLocation,
+        inStoreLocation: fetchResult.inStoreLocation,
         isLocal: false as false,
         latest,
         normalizedPref,
         resolution,
         updated,
       },
-      fetchingFiles: ctx.fetchingLocker[id].fetchingFiles,
-      fetchingManifest: ctx.fetchingLocker[id].fetchingManifest as Promise<PackageManifest> ||
-        ctx.fetchingLocker[id].fetchingFiles.then(() => readPkgFromDir(path.join(ctx.fetchingLocker[id].inStoreLocation, 'package'))),
-      finishing: ctx.fetchingLocker[id].finishing,
+      fetchingFiles: fetchResult.fetchingFiles,
+      fetchingManifest: fetchResult.fetchingManifest as Promise<PackageManifest> ||
+        fetchResult.fetchingFiles.then(() => readPkgFromDir(path.join(fetchResult.inStoreLocation, 'package'))),
+      finishing: fetchResult.finishing,
     }
   } catch (err) {
     progressLogger.debug({status: 'error', pkg: options.loggedPkg})
@@ -344,6 +334,14 @@ async function resolveAndFetch (
 function fetchToStore (
   ctx: {
     fetch: FetchFunction,
+    fetchingLocker: {
+      [pkgId: string]: {
+        finishing: Promise<void>,
+        fetchingFiles: Promise<PackageFilesResponse>,
+        fetchingManifest?: Promise<PackageManifest>,
+        inStoreLocation: string,
+      },
+    },
     requestsQueue: {add: <T>(fn: () => Promise<T>, opts: {priority: number}) => Promise<T>},
     storeIndex: StoreIndex,
     storePath: string,
@@ -364,27 +362,37 @@ function fetchToStore (
 } {
   const targetRelative = pkgIdToFilename(opts.pkgId)
   const target = path.join(ctx.storePath, targetRelative)
-  const fetchingManifest = differed<PackageManifest>()
-  const fetchingFiles = differed<PackageFilesResponse>()
-  const finishing = differed<void>()
 
-  doFetchToStore()
+  if (!ctx.fetchingLocker[opts.pkgId]) {
+    const fetchingManifest = differed<PackageManifest>()
+    const fetchingFiles = differed<PackageFilesResponse>()
+    const finishing = differed<void>()
 
-  if (!opts.pkg) {
-    return {
-      fetchingFiles: fetchingFiles.promise,
-      fetchingManifest: fetchingManifest.promise,
-      finishing: finishing.promise,
-      inStoreLocation: target,
+    doFetchToStore(fetchingManifest, fetchingFiles, finishing)
+
+    if (!opts.pkg) {
+      ctx.fetchingLocker[opts.pkgId] = {
+        fetchingFiles: fetchingFiles.promise,
+        fetchingManifest: fetchingManifest.promise,
+        finishing: finishing.promise,
+        inStoreLocation: target,
+      }
+    } else {
+      ctx.fetchingLocker[opts.pkgId] = {
+        fetchingFiles: fetchingFiles.promise,
+        finishing: finishing.promise,
+        inStoreLocation: target,
+      }
     }
   }
-  return {
-    fetchingFiles: fetchingFiles.promise,
-    finishing: finishing.promise,
-    inStoreLocation: target,
-  }
 
-  async function doFetchToStore () {
+  return ctx.fetchingLocker[opts.pkgId]
+
+  async function doFetchToStore (
+    fetchingManifest: PromiseContainer<PackageManifest>,
+    fetchingFiles: PromiseContainer<PackageFilesResponse>,
+    finishing: PromiseContainer<void>,
+  ) {
     try {
       progressLogger.debug({
         pkgId: opts.pkgId,
@@ -524,11 +532,13 @@ function fetchToStore (
 // tslint:disable-next-line
 function noop () {}
 
-function differed<T> (): {
+interface PromiseContainer <T> {
   promise: Promise<T>,
   resolve: (v: T) => void,
   reject: (err: Error) => void,
-} {
+}
+
+function differed<T> (): PromiseContainer<T> {
   let pResolve: (v: T) => void = noop
   let pReject: (err: Error) => void = noop
   const promise = new Promise<T>((resolve, reject) => {
