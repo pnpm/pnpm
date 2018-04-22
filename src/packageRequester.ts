@@ -149,7 +149,7 @@ export default function (
   const fetch = fetcher.bind(null, fetchers)
   const fetchPackageToStore = fetchToStore.bind(null, {
     fetch,
-    fetchingLocker: {},
+    fetchingLocker: new Map(),
     requestsQueue,
     storeIndex: opts.storeIndex,
     storePath: opts.storePath,
@@ -334,14 +334,12 @@ async function resolveAndFetch (
 function fetchToStore (
   ctx: {
     fetch: FetchFunction,
-    fetchingLocker: {
-      [pkgId: string]: {
-        finishing: Promise<void>,
-        fetchingFiles: Promise<PackageFilesResponse>,
-        fetchingManifest?: Promise<PackageManifest>,
-        inStoreLocation: string,
-      },
-    },
+    fetchingLocker: Map<string, {
+      finishing: Promise<void>,
+      fetchingFiles: Promise<PackageFilesResponse>,
+      fetchingManifest?: Promise<PackageManifest>,
+      inStoreLocation: string,
+    }>,
     requestsQueue: {add: <T>(fn: () => Promise<T>, opts: {priority: number}) => Promise<T>},
     storeIndex: StoreIndex,
     storePath: string,
@@ -363,7 +361,7 @@ function fetchToStore (
   const targetRelative = pkgIdToFilename(opts.pkgId)
   const target = path.join(ctx.storePath, targetRelative)
 
-  if (!ctx.fetchingLocker[opts.pkgId]) {
+  if (!ctx.fetchingLocker.has(opts.pkgId)) {
     const fetchingManifest = differed<PackageManifest>()
     const fetchingFiles = differed<PackageFilesResponse>()
     const finishing = differed<void>()
@@ -371,22 +369,27 @@ function fetchToStore (
     doFetchToStore(fetchingManifest, fetchingFiles, finishing)
 
     if (!opts.pkg) {
-      ctx.fetchingLocker[opts.pkgId] = {
+      ctx.fetchingLocker.set(opts.pkgId, {
         fetchingFiles: fetchingFiles.promise,
         fetchingManifest: fetchingManifest.promise,
         finishing: finishing.promise,
         inStoreLocation: target,
-      }
+      })
     } else {
-      ctx.fetchingLocker[opts.pkgId] = {
+      ctx.fetchingLocker.set(opts.pkgId, {
         fetchingFiles: fetchingFiles.promise,
         finishing: finishing.promise,
         inStoreLocation: target,
-      }
+      })
     }
   }
 
-  return ctx.fetchingLocker[opts.pkgId]
+  return ctx.fetchingLocker.get(opts.pkgId) as {
+    fetchingFiles: Promise<PackageFilesResponse>,
+    fetchingManifest?: Promise<PackageManifest>,
+    finishing: Promise<void>,
+    inStoreLocation: string,
+  }
 
   async function doFetchToStore (
     fetchingManifest: PromiseContainer<PackageManifest>,
