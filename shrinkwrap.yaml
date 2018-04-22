@@ -348,7 +348,7 @@ packages:
     dependencies:
       '@pnpm/fetcher-base': 1.0.0
       '@pnpm/git-fetcher': 0.3.2
-      '@pnpm/tarball-fetcher': 0.4.3
+      '@pnpm/tarball-fetcher': 0.4.4
     dev: false
     engines:
       node: '>=4'
@@ -428,7 +428,7 @@ packages:
       '@pnpm/lifecycle': 2.1.0
       '@pnpm/link-bins': 1.0.2
       '@pnpm/modules-yaml': 1.0.0
-      '@pnpm/package-requester': 0.8.7
+      '@pnpm/package-requester': 0.8.8
       '@pnpm/pkgid-to-filename': 1.0.1
       '@pnpm/types': 1.7.0
       '@types/ramda': 0.25.24
@@ -571,7 +571,7 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha512-ZqVfIXK3r5AsP5VAhPHrhf3isF+T4yEuUpJTF9T03oFTJ9LBnkKvx8F7P7biKEManxSGOkSpNoIBdsura9pY5Q==
-  /@pnpm/package-requester/0.8.7:
+  /@pnpm/package-requester/0.8.8:
     dependencies:
       '@pnpm/check-package': 1.0.0
       '@pnpm/fetcher-base': 1.0.0
@@ -580,13 +580,14 @@ packages:
       '@pnpm/types': 1.7.0
       '@types/load-json-file': 2.0.7
       '@types/mz': 0.0.32
+      '@types/node': 9.6.6
       '@types/p-queue': 2.3.1
       '@types/write-json-file': 2.2.1
       load-json-file: 4.0.0
       mkdirp-promise: 5.0.1
       mz: 2.7.0
       p-limit: 1.2.0
-      p-queue: 2.4.0
+      p-queue: 2.4.1
       path-exists: 3.0.0
       read-package-json: 2.0.13
       rename-overwrite: 1.0.2
@@ -600,7 +601,7 @@ packages:
     peerDependencies:
       '@pnpm/logger': ^1.0.0
     resolution:
-      integrity: sha512-P7Ca2utY6Rd1vqY+hAPWyUZgjPoqRsXAfq8v4IrZNNpfbp9daONFPMAwgzbTnClGi1qxAUGbT0RKLUYKIaw2Qg==
+      integrity: sha512-EN1LBSKJg1wcBjt7O1OMbVrmtUdnVkSmXJj+VlCNqVaMckcwMuefMIDsafb1JpTA0ie+K9dfbtomUFMZVrb1jQ==
   /@pnpm/pkgid-to-filename/1.0.1:
     dependencies:
       normalize-path: 3.0.0
@@ -625,7 +626,7 @@ packages:
       integrity: sha1-hbuHZMfM0iOZn2FCGQBixibo8oc=
   /@pnpm/server/0.9.0:
     dependencies:
-      '@pnpm/package-requester': 0.8.7
+      '@pnpm/package-requester': 0.8.8
       '@pnpm/resolver-base': 1.0.0
       '@pnpm/types': 1.7.0
       '@types/got': 7.1.8
@@ -660,7 +661,7 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha512-kYhalp/SFn3m2yq8d2VBdyRFiaKHBapk1U/WiJc7vR1brePS06rkKQeG/Z9CN4GVAdNXj+XOyBCMz8XAUGCGuQ==
-  /@pnpm/tarball-fetcher/0.4.3:
+  /@pnpm/tarball-fetcher/0.4.4:
     dependencies:
       '@pnpm/fetcher-base': 1.0.0
       '@types/mem': 1.1.2
@@ -686,7 +687,7 @@ packages:
     peerDependencies:
       '@pnpm/logger': ^1.0.0
     resolution:
-      integrity: sha512-JwsBlLCKNIpvs79N1MKQz+A98KmLOjE5cWGpuSkpG5RvfVOPjx3uYdPQ6IiNh2a3XXlxYt0ljjAmuxfKBh3+Vw==
+      integrity: sha512-TPVpcvtNz4Zxw+ZQP0s5k/sX6ScWI/ke8NRLUaX54sfpI0SpTAxa+4obnRcaBX/c5fxr5UKA/6XlwD9pTlRgxA==
   /@pnpm/tarball-resolver/0.1.0:
     dependencies:
       parse-npm-tarball-url: 1.0.3
@@ -4906,12 +4907,12 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha512-r6zKACMNhjPJMTl8KcFH4li//gkrXWfbD6feV8l6doRHlzljFWGJ2AP6iKaCJXyZmAUMOPtvbW7EXkbWO/pLEA==
-  /p-queue/2.4.0:
+  /p-queue/2.4.1:
     dev: false
     engines:
       node: '>=4'
     resolution:
-      integrity: sha512-ZXisZuQjnDcRd4/Np7lNrE2f3qq2Cy8Ikg8T2gbLjQZbRnSVqOr9cQUMbyVJJuIDUJYWMOZ+Q/5fJbYJtMbZ2A==
+      integrity: sha512-xqevcHZy5F9ewg/pnox4S1gFo+9wbLuo+XRMIpdreSaB7d2hAm4JNDuDauOKtHvSmFiS00gTSQoYNbo8rbLoBA==
   /p-timeout/2.0.1:
     dependencies:
       p-finally: 1.0.0
@@ -4964,7 +4965,7 @@ packages:
     dependencies:
       '@pnpm/fetcher-base': 1.0.0
       '@pnpm/fs-locker': 1.0.1
-      '@pnpm/package-requester': 0.8.7
+      '@pnpm/package-requester': 0.8.8
       '@pnpm/resolver-base': 1.0.0
       '@pnpm/types': 1.7.0
       '@types/load-json-file': 2.0.7
@@ -6400,7 +6401,7 @@ packages:
       '@pnpm/link-bins': 1.0.2
       '@pnpm/modules-yaml': 1.0.0
       '@pnpm/package-bins': 1.0.0
-      '@pnpm/package-requester': 0.8.7
+      '@pnpm/package-requester': 0.8.8
       '@pnpm/pkgid-to-filename': 1.0.1
       '@pnpm/resolver-base': 1.0.0
       '@pnpm/types': 1.7.0
