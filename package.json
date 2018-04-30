@@ -46,7 +46,7 @@
     "pnpm-registry-mock": "^1.17.0",
     "rimraf": "^2.6.2",
     "rimraf-then": "^1.0.1",
-    "sinon": "^4.4.6",
+    "sinon": "^5.0.0",
     "tape": "^4.8.0",
     "tape-promise": "^2.0.1",
     "tempy": "^0.2.1",
