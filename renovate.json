@@ -3,5 +3,11 @@
     "config:base"
   ],
   "pinVersions": false,
-  "ignorePaths": ["test/"]
+  "ignorePaths": ["test/"],
+  "packageRules": [
+    {
+      "packageNames": "fs-extra",
+      "allowedVersions": "<6"
+    }
+  ]
 }
