@@ -32,7 +32,7 @@ test('remove unreferenced packages', async (t: tape.Test) => {
 
   await project.storeHasNot('is-negative', '2.1.0')
 
-  reporter.reset()
+  reporter.resetHistory()
   await storePrune(await testDefaults({reporter}))
 
   t.notOk(reporter.calledWithMatch({

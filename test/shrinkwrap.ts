@@ -334,7 +334,7 @@ test('respects shrinkwrap.yaml for top dependencies', async (t: tape.Test) => {
   await rimraf('node_modules')
   await rimraf(path.join('..', '.store'))
 
-  reporter.reset()
+  reporter.resetHistory()
 
   // shouldn't care about what the registry in npmrc is
   // the one in shrinkwrap should be used

@@ -281,7 +281,7 @@ test('idempotency (rimraf)', async (t: tape.Test) => {
     name: 'pnpm:root',
   } as RootLog), 'reported that rimraf added to the root')
 
-  reporter.reset()
+  reporter.resetHistory()
 
   await installPkgs(['rimraf@2.5.1'], opts)
 
@@ -779,7 +779,7 @@ test('shrinkwrap locks npm dependencies', async (t: tape.Test) => {
 
   await rimraf('node_modules')
 
-  reporter.reset()
+  reporter.resetHistory()
   await install(await testDefaults({reporter}))
 
   t.ok(reporter.calledWithMatch({
