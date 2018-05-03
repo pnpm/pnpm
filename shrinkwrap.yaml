@@ -26,6 +26,7 @@ dependencies:
   dependency-path: 1.2.1
   encode-registry: 1.1.0
   execa: 0.10.0
+  fs-vacuum: 1.2.10
   get-npm-tarball-url: 2.0.1
   graceful-fs: 4.1.11
   graph-sequencer: 2.0.0
@@ -2172,6 +2173,14 @@ packages:
     dev: true
     resolution:
       integrity: sha512-66Pm4RYbjzdyeuqudYqhFiNBbCIuI9kgRqLPSHIlXHidW8NIQtVdkM1yeZ4lXwuhbTETv3EUGMNHAAw6hiundQ==
+  /fs-vacuum/1.2.10:
+    dependencies:
+      graceful-fs: 4.1.11
+      path-is-inside: 1.0.2
+      rimraf: 2.6.2
+    dev: false
+    resolution:
+      integrity: sha1-t2Kb7AekAxolSP35n17PHMizHjY=
   /fs-write-stream-atomic/1.0.10:
     dependencies:
       graceful-fs: 4.1.11
@@ -3897,6 +3906,10 @@ packages:
       node: '>=0.10.0'
     resolution:
       integrity: sha1-F0uSaHNVNP+8es5r9TpanhtcX18=
+  /path-is-inside/1.0.2:
+    dev: false
+    resolution:
+      integrity: sha1-NlQX3t5EQw0cEa9hAn+s8HS9/FM=
   /path-key/2.0.1:
     engines:
       node: '>=4'
@@ -5516,6 +5529,7 @@ specifiers:
   encode-registry: ^1.0.0
   execa: ^0.10.0
   exists-link: ^2.0.0
+  fs-vacuum: ^1.2.10
   get-npm-tarball-url: ^2.0.0
   graceful-fs: ^4.1.11
   graph-sequencer: ^2.0.0

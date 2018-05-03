@@ -4,7 +4,11 @@ import path = require('path')
 import exists = require('path-exists')
 import rimraf = require('rimraf-then')
 import sinon = require('sinon')
-import {install, installPkgs} from 'supi'
+import {
+  install,
+  installPkgs,
+  uninstall,
+} from 'supi'
 import tape = require('tape')
 import promisifyTape from 'tape-promise'
 import {
@@ -39,6 +43,22 @@ test('peer dependency is grouped with dependency when peer is resolved not from 
 
   t.ok(await exists(path.join(NM, '.localhost+4873', 'ajv-keywords', '1.5.0', 'ajv@4.10.4', NM, 'ajv')), 'peer dependency is linked')
   t.equal(deepRequireCwd(['using-ajv', 'ajv-keywords', 'ajv', './package.json']).version, '4.10.4')
+})
+
+// Covers https://github.com/pnpm/pnpm/issues/1133
+test('nothing is needlessly removed from node_modules', async (t: tape.Test) => {
+  const project = prepare(t)
+  const opts = await testDefaults()
+  await installPkgs(['using-ajv', 'ajv-keywords@1.5.0'], opts)
+
+  t.ok(await exists(path.join(NM, '.localhost+4873', 'ajv-keywords', '1.5.0', 'ajv@4.10.4', NM, 'ajv')), 'peer dependency is linked')
+  t.ok(await exists(path.join(NM, '.localhost+4873', 'ajv-keywords', '1.5.0', NM, 'ajv-keywords')), 'root dependency resolution is present')
+  t.equal(deepRequireCwd(['using-ajv', 'ajv-keywords', 'ajv', './package.json']).version, '4.10.4')
+
+  await uninstall(['ajv-keywords'], opts)
+
+  t.ok(await exists(path.join(NM, '.localhost+4873', 'ajv-keywords', '1.5.0', 'ajv@4.10.4', NM, 'ajv')), 'peer dependency link is not removed')
+  t.notOk(await exists(path.join(NM, '.localhost+4873', 'ajv-keywords', '1.5.0', NM, 'ajv-keywords')), 'root dependency resolution is removed')
 })
 
 test('peer dependency is not grouped with dependent when the peer is a top dependency', async (t: tape.Test) => {

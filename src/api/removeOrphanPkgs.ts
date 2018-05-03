@@ -1,12 +1,15 @@
 import * as dp from 'dependency-path'
+import vacuumCB = require('fs-vacuum')
 import {StoreController} from 'package-store'
 import path = require('path')
 import {ResolvedPackages, Shrinkwrap} from 'pnpm-shrinkwrap'
 import R = require('ramda')
-import rimraf = require('rimraf-then')
+import promisify = require('util.promisify')
 import {dependenciesTypes} from '../getSaveType'
 import {statsLogger} from '../loggers'
 import removeTopDependency from '../removeTopDependency'
+
+const vacuum = promisify(vacuumCB)
 
 export default async function removeOrphanPkgs (
   opts: {
@@ -76,7 +79,10 @@ export default async function removeOrphanPkgs (
       }
 
       await Promise.all(orphanDepPaths.map(async (orphanDepPath) => {
-        await rimraf(path.join(rootModules, `.${orphanDepPath}`))
+        await vacuum(path.join(rootModules, `.${orphanDepPath}`, 'node_modules'), {
+           base: rootModules,
+           purge: true,
+        })
       }))
     }
 

@@ -263,3 +263,8 @@ declare module 'graph-sequencer' {
   const anything: any;
   export = anything;
 }
+
+declare module 'fs-vacuum' {
+  const anything: any;
+  export = anything;
+}
