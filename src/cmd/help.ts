@@ -230,7 +230,7 @@ function getHelpText (command: string) {
       return stripIndent`
         pnpm recursive install
 
-        **Experimental!** Concurrently runs installation in all subdirectories with a \`package.json\` (excluding node_modules).
+        Concurrently runs installation in all subdirectories with a \`package.json\` (excluding node_modules).
 
         Options: same as for \`pnpm install\`
 
@@ -238,7 +238,7 @@ function getHelpText (command: string) {
 
         pnpm recursive update
 
-        **Experimental!** Concurrently runs update in all subdirectories with a \`package.json\` (excluding node_modules).
+        Concurrently runs update in all subdirectories with a \`package.json\` (excluding node_modules).
 
         Options: same as for \`pnpm update\`
 
@@ -246,7 +246,7 @@ function getHelpText (command: string) {
 
         pnpm recursive link
 
-        **Experimental!** Concurrently runs installation in all subdirectories with a \`package.json\` (excluding node_modules).
+        Concurrently runs installation in all subdirectories with a \`package.json\` (excluding node_modules).
         If a package is available locally, the local version is linked.
 
         Options: same as for \`pnpm install\`
@@ -255,7 +255,7 @@ function getHelpText (command: string) {
 
         pnpm recursive dislink
 
-        **Experimental!** Removes links to local packages and reinstalls them from the registry.
+        Removes links to local packages and reinstalls them from the registry.
       `
 
     default:
@@ -277,12 +277,14 @@ function getHelpText (command: string) {
           - store prune
           - root
           - rebuild
+          - recursive link
+          - recursive dislink
+          - recursive install
+          - recursive update
 
         Experimental commands:
           - server start
           - server stop
-          - recursive install
-          - recursive update
 
         Other commands are passed through to npm
       `
