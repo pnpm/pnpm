@@ -82,7 +82,7 @@ devDependencies:
   npm-scripts-info: 0.3.7
   package-preview: 1.0.5
   path-exists: 3.0.0
-  pnpm-registry-mock: 1.18.0
+  pnpm-registry-mock: 1.21.1
   read-pkg: 3.0.0
   rimraf: 2.6.2
   rimraf-then: 1.0.1
@@ -5283,7 +5283,7 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha512-i25BBw812skLMy6WtQ5Fj5dVXGuYDmeJQz/F+kwvObu5CC3SSEpe1X+v5g5qCFn1AEtl82rWrvAx28IdBLKaMw==
-  /pnpm-registry-mock/1.18.0:
+  /pnpm-registry-mock/1.21.1:
     dependencies:
       anonymous-npm-registry-client: 0.1.2
       cpr: 3.0.1
@@ -5291,7 +5291,7 @@ packages:
       verdaccio: 2.7.4
     dev: true
     resolution:
-      integrity: sha512-PijlGxk564x1E/3Pw0hzcE6tw9Va/lZ/UVfheq+ld62c8mqOmgC/49DCx+YIV1RAwscDttsVUT3EeAjAZHh55g==
+      integrity: sha512-QTl/+7uTK88mlK1pq18SrFlokrxC4h4esIBaYsEBTYRvZMBhEP8S90PXBSF7RvOChqYVMALFrnxIkH9YeVrmPg==
   /pnpm-shrinkwrap/6.3.2:
     dependencies:
       '@pnpm/resolver-base': 1.0.0
@@ -7320,7 +7320,7 @@ specifiers:
   pnpm-default-reporter: ^0.16.2
   pnpm-file-reporter: ^0.1.0
   pnpm-list: ^2.0.0
-  pnpm-registry-mock: ^1.5.0
+  pnpm-registry-mock: ^1.21.1
   process-exists: ^3.0.0
   ramda: ^0.25.0
   read-ini-file: ^1.0.0
