@@ -7,6 +7,7 @@ import path = require('path')
 import processExists = require('process-exists')
 import killcb = require('tree-kill')
 import promisify = require('util.promisify')
+import serverConnectionInfoDir from '../../serverConnectionInfoDir'
 
 const kill = promisify(killcb)
 
@@ -19,7 +20,8 @@ export default async (
   const store = await storePath(opts.prefix, opts.store)
   let serverJson: any | undefined // tslint:disable-line
   try {
-    serverJson = await loadJsonFile(path.join(store, 'server.json'))
+    const connectionInfoDir = serverConnectionInfoDir(store)
+    serverJson = await loadJsonFile(path.join(connectionInfoDir, 'server.json'))
   } catch (err) {
     if (err.code !== 'ENOENT') {
       throw err

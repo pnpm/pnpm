@@ -10,6 +10,7 @@ import path = require('path')
 import onExit = require('signal-exit')
 import writeJsonFile = require('write-json-file')
 import createStore from '../../createStore'
+import serverConnectionInfoDir from '../../serverConnectionInfoDir'
 import { PnpmOptions } from '../../types'
 
 export default async (
@@ -33,18 +34,17 @@ export default async (
     store: await storePath(opts.prefix, opts.store),
   }))
 
-  // the store folder will be needed because server will want to create a file there
-  // for the IPC connection
-  await mkdirp(store.path)
+  const connectionInfoDir = serverConnectionInfoDir(store.path)
+  await mkdirp(connectionInfoDir)
 
   const protocol = opts.protocol || opts.port && 'tcp' || 'auto'
-  const serverOptions = await getServerOptions(store.path, {protocol, port: opts.port})
+  const serverOptions = await getServerOptions(connectionInfoDir, {protocol, port: opts.port})
   const connectionOptions = {
     remotePrefix: serverOptions.path
       ? `http://unix:${serverOptions.path}:`
       : `http://${serverOptions.hostname}:${serverOptions.port}`,
   }
-  const serverJsonPath = path.join(store.path, 'server.json')
+  const serverJsonPath = path.join(connectionInfoDir, 'server.json')
   await writeJsonFile(serverJsonPath, {
     connectionOptions,
     pid: process.pid,
@@ -63,7 +63,7 @@ export default async (
 }
 
 async function getServerOptions (
-  fsPath: string,
+  connectionInfoDir: string,
   opts: {
     protocol: 'auto' | 'tcp' | 'ipc',
     port?: number,
@@ -95,7 +95,7 @@ async function getServerOptions (
 
   function getIpcOptions () {
     return {
-      path: path.normalize(fsPath) + path.sep + 'socket',
+      path: path.join(connectionInfoDir, 'socket'),
     }
   }
 }
