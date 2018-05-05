@@ -99,7 +99,7 @@ test('recursive installation using server', async t => {
 
   const server = spawn(['server', 'start'])
 
-  const serverJsonPath = path.resolve('..', 'store', '2', 'server.json')
+  const serverJsonPath = path.resolve('..', 'store', '2', 'server', 'server.json')
   const serverJson = await retryLoadJsonFile(serverJsonPath)
   t.ok(serverJson)
   t.ok(serverJson.connectionOptions)

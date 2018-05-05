@@ -7,6 +7,7 @@ import path = require('path')
 import retry = require('retry')
 import createStore from './createStore'
 import runServerInBackground from './runServerInBackground'
+import serverConnectionInfoDir from './serverConnectionInfoDir'
 
 export default async function (
   opts: {
@@ -39,8 +40,9 @@ export default async function (
   path: string,
 }> {
   const store = await storePath(opts.prefix, opts.store)
+  const connectionInfoDir = serverConnectionInfoDir(store)
   try {
-    const serverJson = await loadJsonFile(path.join(store, 'server.json'))
+    const serverJson = await loadJsonFile(path.join(connectionInfoDir, 'server.json'))
     logger.info('A store server is running. All store manipulations are delegated to it.')
     return {
       ctrl: await connectStoreController(serverJson.connectionOptions), // tslint:disable-line
@@ -59,7 +61,7 @@ export default async function (
     }>((resolve, reject) => {
       operation.attempt(async (currentAttempt) => {
         try {
-          const serverJson = await loadJsonFile(path.join(store, 'server.json'))
+          const serverJson = await loadJsonFile(path.join(connectionInfoDir, 'server.json'))
           logger.info('A store server has been started. To stop it, use \`pnpm server stop\`')
           resolve({
             ctrl: await connectStoreController(serverJson.connectionOptions), // tslint:disable-line
