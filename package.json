@@ -43,7 +43,7 @@
     "mz": "^2.7.0",
     "npm-run-all": "^4.0.1",
     "package-preview": "^1.0.0",
-    "pnpm-registry-mock": "^1.17.0",
+    "pnpm-registry-mock": "^1.22.0",
     "rimraf": "^2.6.2",
     "rimraf-then": "^1.0.1",
     "sinon": "^5.0.0",

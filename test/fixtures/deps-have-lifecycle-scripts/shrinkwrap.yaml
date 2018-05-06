@@ -2,16 +2,21 @@ dependencies:
   json-append: 1.1.1
   pre-and-postinstall-scripts-example: 1.0.0
 packages:
-  /concat-stream/1.6.1:
+  /buffer-from/1.0.0:
+    dev: false
+    resolution:
+      integrity: sha512-83apNb8KK0Se60UE1+4Ukbe3HbfELJ6UlI4ldtOGs7So4KD26orJM8hIY9lxdzP+UpItH1Yh/Y8GUvNFWFFRxA==
+  /concat-stream/1.6.2:
     dependencies:
+      buffer-from: 1.0.0
       inherits: 2.0.3
-      readable-stream: 2.3.5
+      readable-stream: 2.3.6
       typedarray: 0.0.6
     dev: false
     engines:
       '0': node >= 0.8
     resolution:
-      integrity: sha512-gslSSJx03QKa59cIKqeJO9HQ/WZMotvYJCuaUULrLpjj8oG40kV2Z+gz82pVxlTkOADi4PJxQPPfhl1ELYrrXw==
+      integrity: sha512-27HBghJxjiZtIk3Ycvn/4kbJk/1uZuJFfuPEns6LaEvpvG1f0hTea8lilrouyo9mVc2GWdcEZ8OLoGmSADlrCw==
   /core-util-is/1.0.2:
     dev: false
     resolution:
@@ -30,7 +35,7 @@ packages:
       integrity: sha1-u5NdSFgsuhaMBoNJV6VKPgcSTxE=
   /json-append/1.1.1:
     dependencies:
-      concat-stream: 1.6.1
+      concat-stream: 1.6.2
     dev: false
     resolution:
       integrity: sha1-Pnu6YqBHvzHJjexDGaU5uyhrsQQ=
@@ -40,33 +45,33 @@ packages:
     dev: false
     requiresBuild: true
     resolution:
-      integrity: sha512-SeA235K1DsYAkk6u8SBTA/w4IEG7HFcxVyRR4FD1FQqHk64mrTWfdmn7EX+CLLkRqzDJQSj+tjYcOqR9BAR51A==
+      integrity: sha512-qsqg3Wsi0dKAHgIG/26QPX/iORjMEMqFQ+ANQBLLK8z1T5+4ETsRKZTofu+5fInLphfuNVQt9+CEHPzRbiVwXQ==
   /process-nextick-args/2.0.0:
     dev: false
     resolution:
       integrity: sha512-MtEC1TqN0EU5nephaJ4rAtThHtC86dNN9qCuEhtshvpVBkAW5ZO7BASN9REnF9eoXGcRub+pFuKEpOHE+HbEMw==
-  /readable-stream/2.3.5:
+  /readable-stream/2.3.6:
     dependencies:
       core-util-is: 1.0.2
       inherits: 2.0.3
       isarray: 1.0.0
       process-nextick-args: 2.0.0
-      safe-buffer: 5.1.1
-      string_decoder: 1.0.3
+      safe-buffer: 5.1.2
+      string_decoder: 1.1.1
       util-deprecate: 1.0.2
     dev: false
     resolution:
-      integrity: sha512-tK0yDhrkygt/knjowCUiWP9YdV7c5R+8cR0r/kt9ZhBU906Fs6RpQJCEilamRJj1Nx2rWI6LkW9gKqjTkshhEw==
-  /safe-buffer/5.1.1:
+      integrity: sha512-tQtKA9WIAhBF3+VLAseyMqZeBjW0AHJoxOtYqSUZNJxauErmLbVm2FW1y+J/YA9dUrAC39ITejlZWhVIwawkKw==
+  /safe-buffer/5.1.2:
     dev: false
     resolution:
-      integrity: sha512-kKvNJn6Mm93gAczWVJg7wH+wGYWNrDHdWvpUmHyEsgCtIwwo3bqPtV4tR5tuPaUhTOo/kvhVwd8XwwOllGYkbg==
-  /string_decoder/1.0.3:
+      integrity: sha512-Gd2UZBJDkXlY7GbJxfsE8/nvKkUEU1G38c1siN6QP6a9PT9MmHB8GnpscSmMJSoF8LOIrt8ud/wPtojys4G6+g==
+  /string_decoder/1.1.1:
     dependencies:
-      safe-buffer: 5.1.1
+      safe-buffer: 5.1.2
     dev: false
     resolution:
-      integrity: sha512-4AH6Z5fzNNBcH+6XDMfA/BTt87skxqJlO0lAh3Dker5zThcAxG6mKz+iGu308UKoPPQ8Dcqx/4JhujzltRa+hQ==
+      integrity: sha512-n/ShnvDi6FHbbVfviro+WojiFzv+s8MPMHBczVePfUpDJLwoLT0ht1l4YwBCbi8pJAveEEdnkHyPyTP/mzRfwg==
   /typedarray/0.0.6:
     dev: false
     resolution:
@@ -76,7 +81,7 @@ packages:
     resolution:
       integrity: sha1-RQ1Nyfpw3nMnYvvS1KKJgUGaDM8=
 registry: 'http://localhost:4873/'
-shrinkwrapMinorVersion: 4
+shrinkwrapMinorVersion: 5
 shrinkwrapVersion: 3
 specifiers:
   json-append: 1.1.1
