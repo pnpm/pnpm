@@ -111,6 +111,8 @@ export type StatsLog = {name: 'pnpm:stats'} & LogBase & StatsMessage
 
 export type RegistryLog = {name: 'pnpm:registry'} & LogBase & {message: string}
 
+export type SkippedOptionalDependencyLog = {name: 'pnpm:skipped-optional-dependency'} & LogBase & SkippedOptionalDependencyMessage
+
 export type Log = StageLog
   | ProgressLog
   | RootLog
@@ -119,4 +121,5 @@ export type Log = StageLog
   | PackageJsonLog
   | RegistryLog
   | StatsLog
+  | SkippedOptionalDependencyLog
   | {name: 'pnpm:summary'} & LogBase
