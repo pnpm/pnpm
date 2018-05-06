@@ -20,7 +20,7 @@ test('rebuilds dependencies', async (t: tape.Test) => {
   let modules = await project.loadModules()
   t.deepEqual(modules!.pendingBuilds, [
     '/pre-and-postinstall-scripts-example/1.0.0',
-    'github.com/zkochan/install-scripts-example/26950260310939009680b6a377a0efd0925df9ba',
+    'github.com/zkochan/install-scripts-example/6d879afcee10ece4d3f0e8c09de2993232f3430a',
   ])
 
   await rebuild(await testDefaults())
@@ -70,7 +70,7 @@ test('rebuild with pending option', async (t: tape.Test) => {
   let modules = await project.loadModules()
   t.deepEqual(modules!.pendingBuilds, [
     '/pre-and-postinstall-scripts-example/1.0.0',
-    'github.com/zkochan/install-scripts-example/26950260310939009680b6a377a0efd0925df9ba',
+    'github.com/zkochan/install-scripts-example/6d879afcee10ece4d3f0e8c09de2993232f3430a',
   ])
 
   await project.hasNot('pre-and-postinstall-scripts-example/generated-by-preinstall')

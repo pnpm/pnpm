@@ -65,7 +65,7 @@ test('testing that the bins are linked when the package with the bins was alread
   t.ok(typeof generatedByPostinstall === 'function', 'generatedByPostinstall() is available')
 })
 
-test('run install scripts', async (t) => {
+test('run install scripts', async (t: tape.Test) => {
   const project = prepare(t)
   await installPkgs(['install-script-example'], await testDefaults())
 

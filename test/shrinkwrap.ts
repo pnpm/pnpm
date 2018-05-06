@@ -3,6 +3,7 @@ import loadJsonFile = require('load-json-file')
 import fs = require('mz/fs')
 import path = require('path')
 import exists = require('path-exists')
+import {getIntegrity} from 'pnpm-registry-mock'
 import R = require('ramda')
 import rimraf = require('rimraf-then')
 import sinon = require('sinon')
@@ -373,7 +374,7 @@ test('subdeps are updated on repeat install if outer shrinkwrap.yaml does not ma
 
   shr.packages['/dep-of-pkg-with-1-dep/100.1.0'] = {
     resolution: {
-      integrity: 'sha512-NrDz2149fygGT7uMe8Jj6rsgxZWuJQJqXfWk/gj5KWoxfRxmXkQZnPgOdoLnxCEq3RrKOotVcgUJtlM8fNRgvA==',
+      integrity: getIntegrity('dep-of-pkg-with-1-dep', '100.1.0'),
     },
   }
 
@@ -648,7 +649,7 @@ test('updating shrinkwrap version 3 to 3.5', async (t: tape.Test) => {
           abc-parent-with-ab: /abc-parent-with-ab/1.0.0/peer-c@1.0.0
           peer-c: 1.0.0
         resolution:
-          integrity: sha512-3EErLw7/353/uC+pncEwER5VrBL5H4ZW92zGWsIsO+FrldwHEg4jkPjkFA/QGiZzkFMpJE9ttZ2+Hn15zINLWQ==
+          integrity: ${getIntegrity('abc-grand-parent-with-c', '1.0.0')}
       /abc-parent-with-ab/1.0.0/peer-c@1.0.0:
         dependencies:
           abc: /abc/1.0.0/165e1e08a3f7e7f77ddb572ad0e55660
@@ -656,7 +657,7 @@ test('updating shrinkwrap version 3 to 3.5', async (t: tape.Test) => {
           peer-b: 1.0.0
         id: localhost+4873/abc-parent-with-ab/1.0.0
         resolution:
-          integrity: sha512-t0Hk901ZrPzw7xZa3vqQn6IO5IDhOCee2SGYP0Lt1DKSDWWsm5SdZG0Wc61l0yXnEn3Fhp6NodWEJ9kCSjjXjg==
+          integrity: ${getIntegrity('abc-parent-with-ab', '1.0.0')}
       /abc/1.0.0/165e1e08a3f7e7f77ddb572ad0e55660:
         dependencies:
           dep-of-pkg-with-1-dep: 100.0.0
@@ -665,19 +666,19 @@ test('updating shrinkwrap version 3 to 3.5', async (t: tape.Test) => {
           peer-c: 1.0.0
         id: localhost+4873/abc/1.0.0
         resolution:
-          integrity: sha512-zbZb8ge7WUrBOv9xYmZ/1M5Y4Mw1bX7nl/oHMDv2PTjBjvVIth4ekgYl/fv6HMltv8WFvvOQyX8DrdOiik9u5A==
+          integrity: ${getIntegrity('abc', '1.0.0')}
       /dep-of-pkg-with-1-dep/100.0.0:
         resolution:
-          integrity: sha512-RWObNQIluSr56fVbOwD75Dt5CE2aiPReTMMUblYEMEqUI+iJw5ovTyO7LzUG/VJ4iVL2uUrbkQ6+rq4z4WOdDw==
+          integrity: ${getIntegrity('dep-of-pkg-with-1-dep', '100.0.0')}
       /peer-a/1.0.0:
         resolution:
-          integrity: sha512-7askcvPrlKmQ6rZ7DYMlqm5OzjH/YGA1ya52ORZDFg7iQe/tdbUYy9dkhRVK7f0fw/eijwzq8n35gJVdxwtWAQ==
+          integrity: ${getIntegrity('peer-a', '1.0.0')}
       /peer-b/1.0.0:
         resolution:
-          integrity: sha512-ITIi+Xxva7/j2aRh/LydLppOk0SbCvgxnnNXq++BwGOiN/89Z5cbCThldVmUEYlHx5RSGY9yjcre8+YT4vjc0A==
+          integrity: ${getIntegrity('peer-b', '1.0.0')}
       /peer-c/1.0.0:
         resolution:
-          integrity: sha512-iTTaaqSlxmLgaaadWpTWL2CSCbzRkYRk8UhqdYgwNkqrKW5w9woqjyPxJI0da6BDd4Ebj0TwpJ775ybqOjYUKw==
+          integrity: ${getIntegrity('peer-c', '1.0.0')}
     registry: 'http://localhost:4873/'
     shrinkwrapVersion: 3
     specifiers:

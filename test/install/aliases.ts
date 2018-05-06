@@ -1,3 +1,4 @@
+import {getIntegrity} from 'pnpm-registry-mock'
 import {
   install,
   installPkgs,
@@ -85,7 +86,7 @@ test('a dependency has an aliased subdependency', async (t: tape.Test) => {
       '/dep-of-pkg-with-1-dep/100.1.0': {
         dev: false,
         resolution: {
-          integrity: 'sha512-NrDz2149fygGT7uMe8Jj6rsgxZWuJQJqXfWk/gj5KWoxfRxmXkQZnPgOdoLnxCEq3RrKOotVcgUJtlM8fNRgvA==',
+          integrity: getIntegrity('dep-of-pkg-with-1-dep', '100.1.0'),
         },
       },
       '/pkg-with-1-aliased-dep/100.0.0': {
@@ -94,7 +95,7 @@ test('a dependency has an aliased subdependency', async (t: tape.Test) => {
         },
         dev: false,
         resolution: {
-          integrity: 'sha512-zazvlUhlPW5Rr64YqOiZ9KRvPOcVI5ESbbBZ7obfDiwLwbI02EUX+Oo25D7GwTP0o2GoGPB3UkGdpz3HNQq0uw==',
+          integrity: getIntegrity('pkg-with-1-aliased-dep', '100.0.0'),
         },
       },
     },

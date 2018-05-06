@@ -209,9 +209,13 @@ declare module 'npm/lib/config/get-credentials-by-uri' {
   export = anything;
 }
 
+declare namespace pnpmRegistryMock {
+  function getIntegrity (pkgName: string, pkgVersion: string): string
+  function addDistTag (opts: {package: string, version: string, distTag: string}): Promise<void>
+}
+
 declare module 'pnpm-registry-mock' {
-  const anything: any;
-  export = anything;
+  export = pnpmRegistryMock
 }
 
 declare module 'read-package-json' {
