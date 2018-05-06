@@ -5,9 +5,15 @@ import logger from '@pnpm/logger'
 import graphSequencer = require('graph-sequencer')
 import pLimit = require('p-limit')
 import {StoreController} from 'package-store'
+import path = require('path')
 import R = require('ramda')
+import readPkgCB = require('read-package-json')
+import {skippedOptionalDependencyLogger} from 'supi/lib/loggers'
+import promisify = require('util.promisify')
 import {DepGraphNodesByDepPath} from '.'
 import {ENGINE_NAME} from './constants'
+
+const readPkg = promisify(readPkgCB)
 
 export default async (
   depGraph: DepGraphNodesByDepPath,
@@ -74,9 +80,14 @@ export default async (
             }
           } catch (err) {
             if (depNode.optional) {
-              logger.warn({
-                err,
-                message: `Skipping failed optional dependency ${depNode.pkgId}`,
+              // TODO: add parents field to the log
+              const pkg = await readPkg(path.join(depNode.peripheralLocation, 'package.json'))
+              skippedOptionalDependencyLogger.debug({
+                details: err,
+                id: depNode.pkgId,
+                name: pkg.name,
+                reason: 'build_failure',
+                version: pkg.version,
               })
               return
             }
