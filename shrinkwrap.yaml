@@ -33,9 +33,9 @@ devDependencies:
   normalize-newline: 3.0.0
   package-preview: 1.0.5
   rimraf: 2.6.2
-  supi: 0.16.9
+  supi: 0.17.4
   tape: 4.9.0
-  ts-node: 6.0.2
+  ts-node: 6.0.3
   tslint: 5.10.0
   typescript: 2.8.3
   validate-commit-msg: 2.14.0
@@ -92,7 +92,7 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha512-gmM3SM6fBpssvbSD1U8wJbArNPiQchFzt90ICkfawo0OGQBYY6mgt+sqxF93E9yLfNY7WGtPJYhAQW3Uht6m7A==
-  /@pnpm/headless/0.2.6:
+  /@pnpm/headless/0.2.9:
     dependencies:
       '@pnpm/lifecycle': 2.1.0
       '@pnpm/link-bins': 1.0.2
@@ -109,7 +109,7 @@ packages:
       pnpm-shrinkwrap: 6.3.2
       ramda: 0.25.0
       read-package-json: 2.0.13
-      supi: 0.16.9
+      supi: 0.17.4
       symlink-dir: 1.1.2
       util.promisify: 1.0.0
     dev: true
@@ -118,7 +118,7 @@ packages:
     peerDependencies:
       '@pnpm/logger': ^1.0.0
     resolution:
-      integrity: sha512-0Vm78Hchh/N39N8x5mDuNgrxlxvdo1kDyT9/btZ+HkexmwWP5u/QW3uOQSPLC6wERIHAOwO5t0aSfCiOXtdRHw==
+      integrity: sha512-seziRwFYiqDVO8WYSgoeYvTrwAB7AIRt6/x7+jbq3/BSn7AbsUsslE8uTwLeBoYva0wJ31moEee829rlhDYZCA==
   /@pnpm/lifecycle/2.1.0:
     dependencies:
       '@pnpm/types': 1.7.0
@@ -528,7 +528,7 @@ packages:
       integrity: sha1-Y/1D99weO7fONZR9uP42mj9Yx0s=
   /babel-runtime/6.26.0:
     dependencies:
-      core-js: 2.5.5
+      core-js: 2.5.6
       regenerator-runtime: 0.11.1
     resolution:
       integrity: sha1-llxwWGaOgrVde/4E/yM3vItWR/4=
@@ -860,8 +860,12 @@ packages:
     resolution:
       integrity: sha1-XblXOdbCEqy+e29lahG5QLqmiUY=
   /core-js/2.5.5:
+    dev: true
     resolution:
       integrity: sha1-sU3ek2xkDAV5prUMq8wTLdYSfjs=
+  /core-js/2.5.6:
+    resolution:
+      integrity: sha512-lQUVfQi0aLix2xpyjrrJEvfuYCqPc/HwmTKsC/VNf8q0zsjX7SQZtp4+oRONN5Tsur9GDETPjj+Ub2iDiGZfSQ==
   /core-util-is/1.0.2:
     resolution:
       integrity: sha1-tf1UIgqivFq1eqtxQMlAdUUDwac=
@@ -3312,11 +3316,11 @@ packages:
       node: '>=0.10.0'
     resolution:
       integrity: sha1-PFMZQukIwml8DsNEhYwobHygpgo=
-  /supi/0.16.9:
+  /supi/0.17.4:
     dependencies:
       '@pnpm/check-package': 1.0.0
       '@pnpm/fs-locker': 1.0.1
-      '@pnpm/headless': 0.2.6
+      '@pnpm/headless': 0.2.9
       '@pnpm/lifecycle': 2.1.0
       '@pnpm/link-bins': 1.0.2
       '@pnpm/modules-yaml': 1.0.0
@@ -3379,7 +3383,7 @@ packages:
     peerDependencies:
       '@pnpm/logger': ^1.0.0
     resolution:
-      integrity: sha512-WvktG5DWynV11BVUOKxe6H7mcZpAswd6QU7Q4FiKhCn/iojb/FXoqIQNvUnHHsNBfxxScsedixDE/G36QC1UyQ==
+      integrity: sha512-EpaxmnPXnj/aHw9AqLYvN/zcsmJ6ZIJWZULUSXFFVxCkBZfF1wSEom/TaF7OCHd3IAbjo8NPqoVITTnCIQJaMg==
   /supports-color/0.2.0:
     dev: true
     engines:
@@ -3527,7 +3531,7 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha1-tAPQuRvlDDMd/EuC7s6yLD3hbSA=
-  /ts-node/6.0.2:
+  /ts-node/6.0.3:
     dependencies:
       arrify: 1.0.1
       chalk: 2.4.1
@@ -3541,7 +3545,7 @@ packages:
     engines:
       node: '>=4.2.0'
     resolution:
-      integrity: sha512-H/KWK27B3JJAc5WFOBBUxN638DukbV8PptdQgiHWPO2SGDVJzuVOl8Ye0XJ5+FiZIdFtgUuGOJRV4c/XBQ5dBg==
+      integrity: sha512-ARaOMNFEPKg2ZuC1qJddFvHxHNFVckR0g9xLxMIoMqSSIkDc8iS4/LoV53EdDWWNq2FGwqcEf0bVVGJIWpsznw==
   /tslib/1.9.0:
     dev: true
     resolution:
@@ -3813,7 +3817,7 @@ specifiers:
   string-length: ^2.0.0
   string.prototype.padstart: ^3.0.0
   strip-ansi: ^4.0.0
-  supi: ^0.16.0
+  supi: ^0.17.4
   tape: ^4.8.0
   ts-node: ^6.0.0
   tslint: ^5.7.0
