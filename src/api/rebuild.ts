@@ -17,6 +17,7 @@ import R = require('ramda')
 import semver = require('semver')
 import {LAYOUT_VERSION} from '../constants'
 import realNodeModulesDir from '../fs/realNodeModulesDir'
+import {skippedOptionalDependencyLogger} from '../loggers'
 import extendOptions, {
   RebuildOptions,
   StrictRebuildOptions,
@@ -205,8 +206,8 @@ async function _rebuild (
         const pkgSnapshot = pkgSnapshots[relDepPath]
         return limitChild(async () => {
           const depAbsolutePath = dp.resolve(shr.registry, relDepPath)
+          const pkgInfo = nameVerFromPkgSnapshot(relDepPath, pkgSnapshot)
           try {
-            const pkgInfo = nameVerFromPkgSnapshot(relDepPath, pkgSnapshot)
             await runPostinstallHooks({
               depPath: depAbsolutePath,
               pkgRoot: path.join(modules, `.${depAbsolutePath}`, 'node_modules', pkgInfo.name),
@@ -216,9 +217,13 @@ async function _rebuild (
             })
           } catch (err) {
             if (pkgSnapshot.optional) {
-              logger.warn({
-                err,
-                message: `Skipping failed optional dependency ${depAbsolutePath}`,
+              // TODO: add parents field to the log
+              skippedOptionalDependencyLogger.debug({
+                details: err,
+                id: pkgSnapshot.id || depAbsolutePath,
+                name: pkgInfo.name,
+                reason: 'build_failure',
+                version: pkgInfo.version,
               })
               return
             }

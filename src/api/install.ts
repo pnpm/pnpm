@@ -695,10 +695,6 @@ async function installInContext (
                   reason: 'build_failure',
                   version: pkg.version,
                 })
-                logger.warn({
-                  err,
-                  message: `Skipping failed optional dependency ${pkg.id}`,
-                })
                 return
               }
               throw err
