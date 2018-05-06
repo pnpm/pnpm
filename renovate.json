@@ -2,5 +2,11 @@
   "extends": [
     "config:base"
   ],
+  "packageRules": [
+    {
+      "packageNames": "load-json-file",
+      "allowedVersions": "<5"
+    }
+  ],
   "pinVersions": false
 }
