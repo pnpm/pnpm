@@ -12,6 +12,7 @@ export const deprecationLogger = baseLogger('deprecation') as Logger<Deprecation
 export const rootLogger = baseLogger('root') as Logger<RootMessage>
 export const progressLogger = baseLogger('progress') as Logger<ProgressMessage>
 export const statsLogger = baseLogger('stats') as Logger<StatsMessage>
+export const skippedOptionalDependencyLogger = baseLogger('skipped-optional-dependency') as Logger<SkippedOptionalDependencyMessage>
 
 export type PackageJsonMessage = {
   initial: PackageJson,
@@ -85,6 +86,21 @@ export type StatsMessage = {
   added: number,
 } | {
   removed: number,
+})
+
+export type SkippedOptionalDependencyMessage = {
+  details?: object,
+  parents?: Array<{id: string, name: string, version: string}>,
+} & ({
+  id: string,
+  name: string,
+  reason: 'incompatible_engine' | 'build_failure',
+  version: string,
+} | {
+  name: string | undefined,
+  version: string | undefined,
+  pref: string,
+  reason: 'resolution_failure',
 })
 
 export type ProgressLog = {name: 'pnpm:progress'} & LogBase & ProgressMessage

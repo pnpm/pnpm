@@ -3,7 +3,10 @@ import {PackageManifest} from '@pnpm/types'
 import installChecks = require('pnpm-install-checks')
 import R = require('ramda')
 import {PkgByPkgId} from '../api/install'
-import {installCheckLogger} from '../loggers'
+import {
+  installCheckLogger,
+  skippedOptionalDependencyLogger,
+} from '../loggers'
 import {splitNodeId} from '../nodeIdUtils'
 
 export default async function getIsInstallable (
@@ -28,10 +31,13 @@ export default async function getIsInstallable (
   installCheckLogger.warn(warn)
 
   if (options.optional) {
-    const friendlyPath = nodeIdToFriendlyPath(options.nodeId, options.pkgByPkgId)
-    logger.warn({
-      message: `${friendlyPath ? `${friendlyPath}: ` : ''}Skipping failed optional dependency ${pkg.name}@${pkg.version}`,
-      warn,
+    skippedOptionalDependencyLogger.debug({
+      details: warn,
+      id: pkgId,
+      name: pkg.name,
+      parents: nodeIdToParents(options.nodeId, options.pkgByPkgId),
+      reason: 'incompatible_engine',
+      version: pkg.version,
     })
 
     return false
@@ -42,12 +48,18 @@ export default async function getIsInstallable (
   return true
 }
 
-function nodeIdToFriendlyPath (
+export function nodeIdToParents (
   nodeId: string,
   pkgByPkgId: PkgByPkgId,
 ) {
   const pkgIds = splitNodeId(nodeId).slice(2, -2)
   return pkgIds
-    .map((pkgId) => pkgByPkgId[pkgId].name)
-    .join(' > ')
+    .map((pkgId) => {
+      const pkg = pkgByPkgId[pkgId]
+      return {
+        id: pkg.id,
+        name: pkg.name,
+        version: pkg.version,
+      }
+    })
 }

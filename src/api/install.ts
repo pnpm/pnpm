@@ -44,6 +44,7 @@ import {DepGraphNode} from '../link/resolvePeers'
 import {
   packageJsonLogger,
   rootLogger,
+  skippedOptionalDependencyLogger,
   stageLogger,
   summaryLogger,
 } from '../loggers'
@@ -686,6 +687,14 @@ async function installInContext (
               }
             } catch (err) {
               if (installCtx.pkgByPkgId[pkg.id].optional) {
+                // TODO: add parents field to the log
+                skippedOptionalDependencyLogger.debug({
+                  details: err,
+                  id: pkg.id,
+                  name: pkg.name,
+                  reason: 'build_failure',
+                  version: pkg.version,
+                })
                 logger.warn({
                   err,
                   message: `Skipping failed optional dependency ${pkg.id}`,

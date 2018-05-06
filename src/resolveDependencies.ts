@@ -26,8 +26,11 @@ import url = require('url')
 import {InstallContext, PkgByPkgId} from './api/install'
 import depsToSpecs from './depsToSpecs'
 import encodePkgId from './encodePkgId'
-import getIsInstallable from './install/getIsInstallable'
-import {deprecationLogger} from './loggers'
+import getIsInstallable, {nodeIdToParents} from './install/getIsInstallable'
+import {
+  deprecationLogger,
+  skippedOptionalDependencyLogger,
+} from './loggers'
 import logStatus from './logging/logInstallStatus'
 import {
   createNodeId,
@@ -270,9 +273,13 @@ async function install (
     })
   } catch (err) {
     if (wantedDependency.optional) {
-      logger.warn({
-        err,
-        message: `Skipping optional dependency ${wantedDependency.raw}. ${err.toString()}`,
+      skippedOptionalDependencyLogger.debug({
+        details: err,
+        name: wantedDependency.alias,
+        parents: nodeIdToParents(createNodeId(options.parentNodeId, 'fake-id'), ctx.pkgByPkgId),
+        pref: wantedDependency.pref,
+        reason: 'resolution_failure',
+        version: wantedDependency.alias ? wantedDependency.pref : undefined,
       })
       return null
     }

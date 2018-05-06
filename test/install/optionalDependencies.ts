@@ -44,9 +44,10 @@ test('skip non-existing optional dependency', async (t: tape.Test) => {
   await install(await testDefaults({reporter}))
 
   t.ok(reporter.calledWithMatch({
-    level: 'warn',
-    message: 'Skipping optional dependency i-do-not-exist@1000. Error: 404 Not Found: i-do-not-exist',
-    name: 'pnpm',
+    name: 'i-do-not-exist',
+    parents: [],
+    reason: 'resolution_failure',
+    version: '1000',
   }), 'warning reported')
 
   const m = project.requireModule('is-positive')
@@ -78,8 +79,11 @@ test('skip optional dependency that does not support the current OS', async (t: 
   ])
 
   const logMatcher = sinon.match({
-    level: 'warn',
-    message: 'Skipping failed optional dependency not-compatible-with-any-os@1.0.0',
+    id: 'localhost+4873/not-compatible-with-any-os/1.0.0',
+    name: 'not-compatible-with-any-os',
+    parents: [],
+    reason: 'incompatible_engine',
+    version: '1.0.0',
   })
   const reportedTimes = reporter.withArgs(logMatcher).callCount
   t.equal(reportedTimes, 1, 'skipping optional dependency is logged')
@@ -99,8 +103,11 @@ test('skip optional dependency that does not support the current Node version', 
   await project.storeHas('for-legacy-node', '1.0.0')
 
   const logMatcher = sinon.match({
-    level: 'warn',
-    message: 'Skipping failed optional dependency for-legacy-node@1.0.0',
+    id: 'localhost+4873/for-legacy-node/1.0.0',
+    name: 'for-legacy-node',
+    parents: [],
+    reason: 'incompatible_engine',
+    version: '1.0.0',
   })
   const reportedTimes = reporter.withArgs(logMatcher).callCount
   t.equal(reportedTimes, 1, 'skipping optional dependency is logged')
@@ -120,8 +127,11 @@ test('skip optional dependency that does not support the current pnpm version', 
   await project.storeHas('for-legacy-pnpm', '1.0.0')
 
   const logMatcher = sinon.match({
-    level: 'warn',
-    message: 'Skipping failed optional dependency for-legacy-pnpm@1.0.0',
+    id: 'localhost+4873/for-legacy-pnpm/1.0.0',
+    name: 'for-legacy-pnpm',
+    parents: [],
+    reason: 'incompatible_engine',
+    version: '1.0.0',
   })
   const reportedTimes = reporter.withArgs(logMatcher).callCount
   t.equal(reportedTimes, 1, 'skipping optional dependency is logged')
@@ -153,8 +163,17 @@ test('optional subdependency is skipped', async (t: tape.Test) => {
   t.deepEqual(modulesInfo.skipped, ['localhost+4873/not-compatible-with-any-os/1.0.0'], 'optional subdep skipped')
 
   const logMatcher = sinon.match({
-    level: 'warn',
-    message: 'pkg-with-optional: Skipping failed optional dependency not-compatible-with-any-os@1.0.0',
+    id: 'localhost+4873/not-compatible-with-any-os/1.0.0',
+    name: 'not-compatible-with-any-os',
+    parents: [
+      {
+        id: 'localhost+4873/pkg-with-optional/1.0.0',
+        name: 'pkg-with-optional',
+        version: '1.0.0',
+      },
+    ],
+    reason: 'incompatible_engine',
+    version: '1.0.0',
   })
   const reportedTimes = reporter.withArgs(logMatcher).callCount
   t.equal(reportedTimes, 1, 'skipping optional dependency is logged')
