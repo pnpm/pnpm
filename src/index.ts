@@ -12,6 +12,7 @@ export {
   StageLog,
   RegistryLog,
   StatsLog,
+  SkippedOptionalDependencyLog,
 } from './loggers'
 import {LifecycleLog} from '@pnpm/lifecycle'
 
