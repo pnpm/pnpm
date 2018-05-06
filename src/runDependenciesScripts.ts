@@ -84,10 +84,12 @@ export default async (
               const pkg = await readPkg(path.join(depNode.peripheralLocation, 'package.json'))
               skippedOptionalDependencyLogger.debug({
                 details: err,
-                id: depNode.pkgId,
-                name: pkg.name,
+                package: {
+                  id: depNode.pkgId,
+                  name: pkg.name,
+                  version: pkg.version,
+                },
                 reason: 'build_failure',
-                version: pkg.version,
               })
               return
             }
