@@ -275,11 +275,13 @@ async function install (
     if (wantedDependency.optional) {
       skippedOptionalDependencyLogger.debug({
         details: err,
-        name: wantedDependency.alias,
+        package: {
+          name: wantedDependency.alias,
+          pref: wantedDependency.pref,
+          version: wantedDependency.alias ? wantedDependency.pref : undefined,
+        },
         parents: nodeIdToParents(createNodeId(options.parentNodeId, 'fake-id'), ctx.pkgByPkgId),
-        pref: wantedDependency.pref,
         reason: 'resolution_failure',
-        version: wantedDependency.alias ? wantedDependency.pref : undefined,
       })
       return null
     }

@@ -92,14 +92,18 @@ export type SkippedOptionalDependencyMessage = {
   details?: object,
   parents?: Array<{id: string, name: string, version: string}>,
 } & ({
-  id: string,
-  name: string,
+  package: {
+    id: string,
+    name: string,
+    version: string,
+  },
   reason: 'incompatible_engine' | 'build_failure',
-  version: string,
 } | {
-  name: string | undefined,
-  version: string | undefined,
-  pref: string,
+  package: {
+    name: string | undefined,
+    version: string | undefined,
+    pref: string,
+  },
   reason: 'resolution_failure',
 })
 

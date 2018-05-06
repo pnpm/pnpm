@@ -690,10 +690,12 @@ async function installInContext (
                 // TODO: add parents field to the log
                 skippedOptionalDependencyLogger.debug({
                   details: err,
-                  id: pkg.id,
-                  name: pkg.name,
+                  package: {
+                    id: pkg.id,
+                    name: pkg.name,
+                    version: pkg.version,
+                  },
                   reason: 'build_failure',
-                  version: pkg.version,
                 })
                 return
               }

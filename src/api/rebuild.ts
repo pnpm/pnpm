@@ -220,10 +220,12 @@ async function _rebuild (
               // TODO: add parents field to the log
               skippedOptionalDependencyLogger.debug({
                 details: err,
-                id: pkgSnapshot.id || depAbsolutePath,
-                name: pkgInfo.name,
+                package: {
+                  id: pkgSnapshot.id || depAbsolutePath,
+                  name: pkgInfo.name,
+                  version: pkgInfo.version,
+                },
                 reason: 'build_failure',
-                version: pkgInfo.version,
               })
               return
             }

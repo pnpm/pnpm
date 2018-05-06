@@ -33,11 +33,13 @@ export default async function getIsInstallable (
   if (options.optional) {
     skippedOptionalDependencyLogger.debug({
       details: warn,
-      id: pkgId,
-      name: pkg.name,
+      package: {
+        id: pkgId,
+        name: pkg.name,
+        version: pkg.version,
+      },
       parents: nodeIdToParents(options.nodeId, options.pkgByPkgId),
       reason: 'incompatible_engine',
-      version: pkg.version,
     })
 
     return false
