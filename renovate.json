@@ -12,6 +12,10 @@
     {
       "packageNames": "tape-promise",
       "allowedVersions": "<3"
+    },
+    {
+      "packageNames": "load-json-file",
+      "allowedVersions": "<5"
     }
   ],
   "ignoreDeps": [
