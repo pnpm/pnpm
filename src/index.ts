@@ -18,11 +18,16 @@ export async function runPostinstallHooks (
     rootNodeModulesDir: string,
     rawNpmConfig: object,
     pkgRoot: string,
+    prepare?: boolean,
     unsafePerm: boolean,
   },
 ): Promise<boolean> {
   const pkg = await readPackageJson(path.join(opts.pkgRoot, 'package.json'))
   const scripts = pkg && pkg.scripts || {}
+
+  if (opts.prepare && scripts.prepare) {
+    await runLifecycleHook('prepare', pkg, opts)
+  }
 
   if (!scripts.install) {
     await checkBindingGyp(opts.pkgRoot, scripts)

@@ -9,6 +9,7 @@ devDependencies:
   '@pnpm/logger': 1.0.1
   '@types/tape': 4.2.32
   json-append: 1.1.1
+  load-json-file: 4.0.0
   mos: 2.0.0-alpha.3
   mos-plugin-readme: 1.0.4
   package-preview: 1.0.5
@@ -3529,6 +3530,7 @@ specifiers:
   '@pnpm/types': ^1.7.0
   '@types/tape': ^4.2.31
   json-append: ^1.1.1
+  load-json-file: ^4.0.0
   mos: ^2.0.0-alpha.3
   mos-plugin-readme: ^1.0.4
   npm-lifecycle: ^2.0.1

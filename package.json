@@ -47,6 +47,7 @@
     "@pnpm/logger": "^1.0.1",
     "@types/tape": "^4.2.31",
     "json-append": "^1.1.1",
+    "load-json-file": "^4.0.0",
     "mos": "^2.0.0-alpha.3",
     "mos-plugin-readme": "^1.0.4",
     "package-preview": "^1.0.1",
