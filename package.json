@@ -45,6 +45,9 @@
   },
   "devDependencies": {
     "@pnpm/logger": "^1.0.1",
+    "@types/load-json-file": "^2.0.7",
+    "@types/node": "^10.0.4",
+    "@types/rimraf": "^2.0.2",
     "@types/tape": "^4.2.31",
     "json-append": "^1.1.1",
     "load-json-file": "^4.0.0",
@@ -53,7 +56,7 @@
     "package-preview": "^1.0.1",
     "rimraf": "^2.6.2",
     "tape": "^4.8.0",
-    "ts-node": "^5.0.0",
+    "ts-node": "^6.0.3",
     "tslint": "^5.8.0",
     "typescript": "^2.6.1"
   },

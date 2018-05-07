@@ -16,7 +16,6 @@ test('runLifecycleHook()', async (t) => {
     rawNpmConfig: {},
     pkgRoot,
     unsafePerm: true,
-    userAgent: 'pnpm',
   })
 
   t.deepEqual(require(path.join(pkgRoot, 'output.json')), ['install'])
@@ -34,7 +33,6 @@ test('runPostinstallHooks()', async (t) => {
     rawNpmConfig: {},
     pkgRoot,
     unsafePerm: true,
-    userAgent: 'pnpm',
   })
 
   t.deepEqual(loadJsonFile.sync(path.join(pkgRoot, 'output.json')), ['preinstall', 'install', 'postinstall'])
@@ -53,7 +51,6 @@ test('runPostinstallHooks() with prepare = true', async (t) => {
     prepare: true,
     pkgRoot,
     unsafePerm: true,
-    userAgent: 'pnpm',
   })
 
   t.deepEqual(loadJsonFile.sync(path.join(pkgRoot, 'output.json')), ['prepare', 'preinstall', 'install', 'postinstall'])

@@ -7,6 +7,9 @@ dependencies:
   util.promisify: 1.0.0
 devDependencies:
   '@pnpm/logger': 1.0.1
+  '@types/load-json-file': 2.0.7
+  '@types/node': 10.0.4
+  '@types/rimraf': 2.0.2
   '@types/tape': 4.2.32
   json-append: 1.1.1
   load-json-file: 4.0.0
@@ -15,7 +18,7 @@ devDependencies:
   package-preview: 1.0.5
   rimraf: 2.6.2
   tape: 4.9.0
-  ts-node: 5.0.1
+  ts-node: 6.0.3
   tslint: 5.10.0
   typescript: 2.8.3
 packages:
@@ -51,12 +54,24 @@ packages:
     dev: false
     resolution:
       integrity: sha512-pn7g4uxcofWTNG/cxmKvkMK2lxr4OUIhrQDrEVYEdVhW0WkWztsHkFrYjFgfNzPbYu3ITlB3T6aSVjCoJQTOlw==
+  /@types/events/1.2.0:
+    dev: true
+    resolution:
+      integrity: sha512-KEIlhXnIutzKwRbQkGWb/I4HFqBuUykAdHgDED6xqwXJfONCjF5VoE0cXEiurh3XauygxzeDzgtXUqvLkxFzzA==
   /@types/fs-extra/5.0.2:
     dependencies:
       '@types/node': 10.0.4
     dev: true
     resolution:
       integrity: sha512-Q3FWsbdmkQd1ib11A4XNWQvRD//5KpPoGawA8aB2DR7pWKoW9XQv3+dGxD/Z1eVFze23Okdo27ZQytVFlweKvQ==
+  /@types/glob/5.0.35:
+    dependencies:
+      '@types/events': 1.2.0
+      '@types/minimatch': 3.0.3
+      '@types/node': 10.0.4
+    dev: true
+    resolution:
+      integrity: sha512-wc+VveszMLyMWFvXLkloixT4n0harUIVZjnpzztaZ0nKLuul7Z32iMt2fUFGAaZ4y1XWjFRMtCI5ewvyh4aIeg==
   /@types/got/7.1.8:
     dependencies:
       '@types/node': 10.0.4
@@ -67,6 +82,10 @@ packages:
     dev: true
     resolution:
       integrity: sha512-NrH6jPlV77QCVPhAHofWeiOr77TgpKt82c2RVxSBChWBJqyY/u4ngl3CA4mcsAg/w7rNLrkR7dkObMV0ihLLXw==
+  /@types/minimatch/3.0.3:
+    dev: true
+    resolution:
+      integrity: sha512-tHq6qdbT9U1IRSGf14CL0pUlULksvY9OZ+5eEgl1N7t+OA3tGvNpxJCzuKQlsNgCVwbAs670L1vcVQi8j9HjnA==
   /@types/mz/0.0.32:
     dependencies:
       '@types/node': 10.0.4
@@ -81,6 +100,13 @@ packages:
     dev: true
     resolution:
       integrity: sha512-2Z8ziWjJbvV8hHL5YcqCG9ng+/qwUlO1gB4frBD7QI5Wm1Y1iM+AEkGVEv0S5P+aDMwTtAhPJFR4rp1uqagSig==
+  /@types/rimraf/2.0.2:
+    dependencies:
+      '@types/glob': 5.0.35
+      '@types/node': 10.0.4
+    dev: true
+    resolution:
+      integrity: sha512-Hm/bnWq0TCy7jmjeN5bKYij9vw5GrDFWME4IuxV08278NtU/VdGbzsBohcCUJ7+QMqmUq5hpRKB39HeQWJjztQ==
   /@types/tape/4.2.32:
     dependencies:
       '@types/node': 10.0.4
@@ -3247,7 +3273,7 @@ packages:
     dev: true
     resolution:
       integrity: sha1-WFhUf2spB1fulczMZm+1AITEYN0=
-  /ts-node/5.0.1:
+  /ts-node/6.0.3:
     dependencies:
       arrify: 1.0.1
       chalk: 2.4.1
@@ -3261,7 +3287,7 @@ packages:
     engines:
       node: '>=4.2.0'
     resolution:
-      integrity: sha512-XK7QmDcNHVmZkVtkiwNDWiERRHPyU8nBqZB1+iv2UhOG0q3RQ9HsZ2CMqISlFbxjrYFGfG2mX7bW4dAyxBVzUw==
+      integrity: sha512-ARaOMNFEPKg2ZuC1qJddFvHxHNFVckR0g9xLxMIoMqSSIkDc8iS4/LoV53EdDWWNq2FGwqcEf0bVVGJIWpsznw==
   /tslib/1.9.0:
     dev: true
     resolution:
@@ -3528,6 +3554,9 @@ shrinkwrapVersion: 3
 specifiers:
   '@pnpm/logger': ^1.0.1
   '@pnpm/types': ^1.7.0
+  '@types/load-json-file': ^2.0.7
+  '@types/node': ^10.0.4
+  '@types/rimraf': ^2.0.2
   '@types/tape': ^4.2.31
   json-append: ^1.1.1
   load-json-file: ^4.0.0
@@ -3539,7 +3568,7 @@ specifiers:
   read-package-json: ^2.0.13
   rimraf: ^2.6.2
   tape: ^4.8.0
-  ts-node: ^5.0.0
+  ts-node: ^6.0.3
   tslint: ^5.8.0
   typescript: ^2.6.1
   util.promisify: ^1.0.0
