@@ -15,7 +15,7 @@ dependencies:
   pnpm-shrinkwrap: 6.3.2
   ramda: 0.25.0
   read-package-json: 2.0.13
-  supi: 0.17.3
+  supi: 0.17.4
   symlink-dir: 1.1.2
   util.promisify: 1.0.0
 devDependencies:
@@ -4805,7 +4805,7 @@ packages:
       '@pnpm/logger': ^1.0.0
     resolution:
       integrity: sha512-WvktG5DWynV11BVUOKxe6H7mcZpAswd6QU7Q4FiKhCn/iojb/FXoqIQNvUnHHsNBfxxScsedixDE/G36QC1UyQ==
-  /supi/0.17.3:
+  /supi/0.17.4:
     dependencies:
       '@pnpm/check-package': 1.0.0
       '@pnpm/fs-locker': 1.0.1
@@ -4872,7 +4872,7 @@ packages:
     peerDependencies:
       '@pnpm/logger': ^1.0.0
     resolution:
-      integrity: sha512-TIfFb+2QTPjrLfsTDGCSTm38AysvFKd5uFI+EQaLmPnok/o3ealZlw4V0PtJ/AMw2WjtiTI4CXsZasoHmjJpzw==
+      integrity: sha512-EpaxmnPXnj/aHw9AqLYvN/zcsmJ6ZIJWZULUSXFFVxCkBZfF1wSEom/TaF7OCHd3IAbjo8NPqoVITTnCIQJaMg==
   /supports-color/2.0.0:
     dev: true
     engines:
@@ -5493,7 +5493,7 @@ specifiers:
   rimraf: ^2.6.2
   rimraf-then: ^1.0.1
   sinon: ^5.0.0
-  supi: ^0.17.3
+  supi: ^0.17.4
   symlink-dir: ^1.1.2
   tape: ^4.8.0
   tape-promise: ^2.0.1

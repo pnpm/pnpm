@@ -83,7 +83,7 @@ export default async (
               // TODO: add parents field to the log
               const pkg = await readPkg(path.join(depNode.peripheralLocation, 'package.json'))
               skippedOptionalDependencyLogger.debug({
-                details: err,
+                details: err.toString(),
                 package: {
                   id: depNode.pkgId,
                   name: pkg.name,

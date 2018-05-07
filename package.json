@@ -103,7 +103,7 @@
     "pnpm-shrinkwrap": "^6.3.2",
     "ramda": "^0.25.0",
     "read-package-json": "^2.0.13",
-    "supi": "^0.17.3",
+    "supi": "^0.17.4",
     "symlink-dir": "^1.1.2",
     "util.promisify": "^1.0.0"
   }
