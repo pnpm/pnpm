@@ -77,6 +77,7 @@ export function toOutput$ (
   const cliPushStream = new PushStream()
   const otherPushStream = new PushStream()
   const hookPushStream = new PushStream()
+  const skippedOptionalDependencyPushStream = new PushStream()
   setTimeout(() => { // setTimeout is a workaround for a strange bug in most https://github.com/cujojs/most/issues/491
     streamParser['on']('data', (log: supi.Log) => {
       switch (log.name) {
@@ -119,6 +120,9 @@ export function toOutput$ (
         case 'pnpm:hook' as any: // tslint:disable-line
           hookPushStream.next(log)
           break
+        case 'pnpm:skipped-optional-dependency':
+          skippedOptionalDependencyPushStream.next(log as supi.SkippedOptionalDependencyLog)
+          break
         case 'pnpm' as any: // tslint:disable-line
           otherPushStream.next(log)
           break
@@ -137,6 +141,7 @@ export function toOutput$ (
     progress: most.from<supi.ProgressLog>(progressPushStream.observable),
     registry: most.from<supi.RegistryLog>(registryPushStream.observable),
     root: most.from<supi.RootLog>(rootPushStream.observable),
+    skippedOptionalDependency: most.from<supi.SkippedOptionalDependencyLog>(skippedOptionalDependencyPushStream.observable),
     stage: most.from<supi.StageLog>(stagePushStream.observable),
     stats: most.from<supi.StatsLog>(statsPushStream.observable),
     summary: most.from<supi.Log>(summaryPushStream.observable),

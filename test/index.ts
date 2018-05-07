@@ -34,6 +34,7 @@ const lifecycleLogger = logger<object>('lifecycle')
 const packageJsonLogger = logger<object>('package-json')
 const statsLogger = logger<object>('stats')
 const hookLogger = logger<object>('hook')
+const skippedOptionalDependencyLogger = logger<object>('skipped-optional-dependency')
 const EOL = '\n'
 
 test('prints progress beginning', t => {
@@ -966,5 +967,31 @@ test('recursive: print hook message', t => {
     },
     complete: () => t.end(),
     error: t.end,
+  })
+})
+
+test('prints skipped optional dependency info message', t => {
+  const output$ = toOutput$(createStreamParser(), {cmd: 'install'})
+
+  const pkgId = 'registry.npmjs.org/foo/1.0.0'
+
+  skippedOptionalDependencyLogger.debug({
+    package: {
+      id: pkgId,
+      name: 'foo',
+      version: '1.0.0',
+    },
+    parents: [],
+    reason: 'unsupported_platform',
+  })
+
+  t.plan(1)
+
+  output$.take(1).subscribe({
+    next: output => {
+      t.equal(output, `info: ${pkgId} is an optional dependency and failed compatibility check. Excluding it from installation.`)
+    },
+    error: t.end,
+    complete: () => t.end(),
   })
 })

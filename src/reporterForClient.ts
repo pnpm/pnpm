@@ -54,6 +54,7 @@ export default function (
     other: most.Stream<supi.Log>,
     cli: most.Stream<supi.Log>,
     hook: most.Stream<supi.Log>,
+    skippedOptionalDependency: most.Stream<supi.SkippedOptionalDependencyLog>,
   },
   isRecursive: boolean,
   cmd: string,
@@ -320,6 +321,16 @@ export default function (
       .map(most.of)
 
     outputs.push(miscOutput$)
+
+    outputs.push(
+      log$.skippedOptionalDependency
+        .filter((log) => Boolean(log.parents && log.parents.length === 0))
+        .map((log) => most.of({
+          msg: `info: ${
+            log.package['id'] || log.package.name && (`${log.package.name}@${log.package.version}`) || log.package['pref']
+          } is an optional dependency and failed compatibility check. Excluding it from installation.`,
+        })),
+    )
   } else {
     outputs.push(
       log$.stats
