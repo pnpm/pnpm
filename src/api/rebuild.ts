@@ -219,7 +219,7 @@ async function _rebuild (
             if (pkgSnapshot.optional) {
               // TODO: add parents field to the log
               skippedOptionalDependencyLogger.debug({
-                details: err,
+                details: err.toString(),
                 package: {
                   id: pkgSnapshot.id || depAbsolutePath,
                   name: pkgInfo.name,

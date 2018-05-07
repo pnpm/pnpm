@@ -689,7 +689,7 @@ async function installInContext (
               if (installCtx.pkgByPkgId[pkg.id].optional) {
                 // TODO: add parents field to the log
                 skippedOptionalDependencyLogger.debug({
-                  details: err,
+                  details: err.toString(),
                   package: {
                     id: pkg.id,
                     name: pkg.name,

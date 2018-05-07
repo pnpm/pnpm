@@ -274,7 +274,7 @@ async function install (
   } catch (err) {
     if (wantedDependency.optional) {
       skippedOptionalDependencyLogger.debug({
-        details: err,
+        details: err.toString(),
         package: {
           name: wantedDependency.alias,
           pref: wantedDependency.pref,

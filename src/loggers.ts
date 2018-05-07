@@ -89,7 +89,7 @@ export type StatsMessage = {
 })
 
 export type SkippedOptionalDependencyMessage = {
-  details?: object,
+  details?: string,
   parents?: Array<{id: string, name: string, version: string}>,
 } & ({
   package: {
@@ -97,7 +97,9 @@ export type SkippedOptionalDependencyMessage = {
     name: string,
     version: string,
   },
-  reason: 'incompatible_engine' | 'build_failure',
+  reason: 'unsupported_engine'
+    | 'unsupported_platform'
+    | 'build_failure',
 } | {
   package: {
     name: string | undefined,

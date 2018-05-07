@@ -87,7 +87,7 @@ test('skip optional dependency that does not support the current OS', async (t: 
       version: '1.0.0',
     },
     parents: [],
-    reason: 'incompatible_engine',
+    reason: 'unsupported_platform',
   })
   const reportedTimes = reporter.withArgs(logMatcher).callCount
   t.equal(reportedTimes, 1, 'skipping optional dependency is logged')
@@ -113,7 +113,7 @@ test('skip optional dependency that does not support the current Node version', 
       version: '1.0.0',
     },
     parents: [],
-    reason: 'incompatible_engine',
+    reason: 'unsupported_engine',
   })
   const reportedTimes = reporter.withArgs(logMatcher).callCount
   t.equal(reportedTimes, 1, 'skipping optional dependency is logged')
@@ -139,7 +139,7 @@ test('skip optional dependency that does not support the current pnpm version', 
       version: '1.0.0',
     },
     parents: [],
-    reason: 'incompatible_engine',
+    reason: 'unsupported_engine',
   })
   const reportedTimes = reporter.withArgs(logMatcher).callCount
   t.equal(reportedTimes, 1, 'skipping optional dependency is logged')
@@ -183,7 +183,7 @@ test('optional subdependency is skipped', async (t: tape.Test) => {
         version: '1.0.0',
       },
     ],
-    reason: 'incompatible_engine',
+    reason: 'unsupported_platform',
   })
   const reportedTimes = reporter.withArgs(logMatcher).callCount
   t.equal(reportedTimes, 1, 'skipping optional dependency is logged')

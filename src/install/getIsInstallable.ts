@@ -21,10 +21,18 @@ export default async function getIsInstallable (
     pnpmVersion: string,
   },
 ): Promise<boolean> {
-  const warn = await installChecks.checkPlatform(pkg) || await installChecks.checkEngine(pkg, {
-    nodeVersion: options.nodeVersion,
-    pnpmVersion: options.pnpmVersion,
-  })
+  const warn = await installChecks.checkPlatform({
+      _id: pkgId,
+      cpu: pkg.cpu,
+      os: pkg.os,
+    }) ||
+    await installChecks.checkEngine({
+      _id: pkgId,
+      engines: pkg.engines,
+    }, {
+      nodeVersion: options.nodeVersion,
+      pnpmVersion: options.pnpmVersion,
+    })
 
   if (!warn) return true
 
@@ -32,14 +40,14 @@ export default async function getIsInstallable (
 
   if (options.optional) {
     skippedOptionalDependencyLogger.debug({
-      details: warn,
+      details: warn.toString(),
       package: {
         id: pkgId,
         name: pkg.name,
         version: pkg.version,
       },
       parents: nodeIdToParents(options.nodeId, options.pkgByPkgId),
-      reason: 'incompatible_engine',
+      reason: warn.code === 'ENOTSUP' ? 'unsupported_engine' : 'unsupported_platform',
     })
 
     return false
