@@ -9,7 +9,7 @@ export default (filePath: string): Promise<any> => {
       try {
         resolve(await loadJsonFile(filePath))
       } catch (err) {
-        if (err.code === 'ENOENT' && operation.retry(err)) {
+        if (operation.retry(err)) {
           return
         }
         reject(err)
