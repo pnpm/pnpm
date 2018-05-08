@@ -4,6 +4,9 @@ node_js:
   - 6
   - 8
   - 10
+cache:
+  directories:
+    - "node_modules"
 sudo: false
 before_install:
   - npm set verify-store-integrity false
