@@ -327,6 +327,7 @@ async function shrinkwrapToDepGraph (
         optionalDependencies: new Set(R.keys(pkgSnapshot.optionalDependencies)),
         peripheralLocation,
         pkgId,
+        prepare: pkgSnapshot.prepare === true,
         relDepPath: depPath,
         requiresBuild: pkgSnapshot.requiresBuild === true,
       }
@@ -418,6 +419,7 @@ export interface DepGraphNode {
   pkgId: string, // TODO: this option is currently only needed when running postinstall scripts but even there it should be not used
   isBuilt: boolean,
   requiresBuild: boolean,
+  prepare: boolean,
 }
 
 export interface DepGraphNodesByDepPath {

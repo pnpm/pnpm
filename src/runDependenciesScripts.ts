@@ -57,6 +57,7 @@ export default async (
             const hasSideEffects = await runPostinstallHooks({
               depPath,
               pkgRoot: depNode.peripheralLocation,
+              prepare: depNode.prepare,
               rawNpmConfig: opts.rawNpmConfig,
               rootNodeModulesDir: opts.prefix,
               unsafePerm: opts.unsafePerm || false,
