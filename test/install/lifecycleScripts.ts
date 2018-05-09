@@ -26,6 +26,9 @@ test('run pre/postinstall scripts', async (t: tape.Test) => {
   await installPkgs(['pre-and-postinstall-scripts-example'], await testDefaults({saveDev: true}))
 
   {
+    t.notOk(await exists('node_modules/pre-and-postinstall-scripts-example/generated-by-prepare.js'))
+    t.ok(await exists('node_modules/pre-and-postinstall-scripts-example/generated-by-preinstall.js'))
+
     const generatedByPreinstall = project.requireModule('pre-and-postinstall-scripts-example/generated-by-preinstall')
     t.ok(typeof generatedByPreinstall === 'function', 'generatedByPreinstall() is available')
 
@@ -256,4 +259,19 @@ test('run lifecycle scripts of dependent packages after running scripts of their
   await installPkgs(['with-postinstall-a'], await testDefaults())
 
   t.ok(+project.requireModule('.localhost+4873/with-postinstall-b/1.0.0/node_modules/with-postinstall-b/output.json')[0] < +project.requireModule('with-postinstall-a/output.json')[0])
+})
+
+test('run prepare script for git-hosted dependencies', async (t: tape.Test) => {
+  const project = prepare(t)
+
+  await installPkgs(['zkochan/install-scripts-example#prepare'], await testDefaults())
+
+  const scripts = project.requireModule('install-scripts-example-for-pnpm/output.json')
+  t.equal(scripts[0], 'prepare')
+  t.equal(scripts[1], 'preinstall')
+  t.equal(scripts[2], 'install')
+  t.equal(scripts[3], 'postinstall')
+
+  const shr = await project.loadShrinkwrap()
+  t.ok(shr.packages['github.com/zkochan/install-scripts-example/2de638b8b572cd1e87b74f4540754145fb2c0ebb'].prepare === true, 'prepare field added to shrinkwrap.yaml')
 })

@@ -32,6 +32,7 @@ export default function (
       id: depGraph[depPath].id,
       name: depGraph[depPath].name,
       optional: depGraph[depPath].optional,
+      prepare: depGraph[depPath].prepare,
       prevResolvedDeps: shrinkwrap.packages[relDepPath] && shrinkwrap.packages[relDepPath].dependencies || {},
       prevResolvedOptionalDeps: shrinkwrap.packages[relDepPath] && shrinkwrap.packages[relDepPath].optionalDependencies || {},
       prod: depGraph[depPath].prod,
@@ -67,6 +68,7 @@ function toShrDependency (
     id: string,
     relDepPath: string,
     requiresBuild: boolean,
+    prepare: boolean,
     resolution: Resolution,
     registry: string,
     updatedDeps: Array<{alias: string, depPath: string}>,
@@ -136,6 +138,9 @@ function toShrDependency (
   }
   if (opts.requiresBuild) {
     result['requiresBuild'] = opts.requiresBuild
+  }
+  if (opts.prepare) {
+    result['prepare'] = opts.prepare
   }
   // tslint:enable:no-string-literal
   return result

@@ -664,6 +664,7 @@ async function installInContext (
               const hasSideEffects = await runPostinstallHooks({
                 depPath: pkg.absolutePath,
                 pkgRoot: pkg.peripheralLocation,
+                prepare: pkg.prepare,
                 rawNpmConfig: installCtx.rawNpmConfig,
                 rootNodeModulesDir: ctx.root,
                 unsafePerm: opts.unsafePerm || false,

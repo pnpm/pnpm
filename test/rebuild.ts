@@ -1,3 +1,4 @@
+import exists = require('path-exists')
 import {
   installPkgs,
   rebuild,
@@ -15,12 +16,12 @@ const test = promisifyTape(tape)
 
 test('rebuilds dependencies', async (t: tape.Test) => {
   const project = prepare(t)
-  await installPkgs(['pre-and-postinstall-scripts-example', 'zkochan/install-scripts-example'], await testDefaults({saveDev: true, ignoreScripts: true}))
+  await installPkgs(['pre-and-postinstall-scripts-example', 'zkochan/install-scripts-example#prepare'], await testDefaults({saveDev: true, ignoreScripts: true}))
 
   let modules = await project.loadModules()
   t.deepEqual(modules!.pendingBuilds, [
     '/pre-and-postinstall-scripts-example/1.0.0',
-    'github.com/zkochan/install-scripts-example/6d879afcee10ece4d3f0e8c09de2993232f3430a',
+    'github.com/zkochan/install-scripts-example/2de638b8b572cd1e87b74f4540754145fb2c0ebb',
   ])
 
   await rebuild(await testDefaults())
@@ -30,6 +31,9 @@ test('rebuilds dependencies', async (t: tape.Test) => {
   t.equal(modules!.pendingBuilds.length, 0)
 
   {
+    t.notOk(await exists('node_modules/pre-and-postinstall-scripts-example/generated-by-prepare.js'))
+    t.ok(await exists('node_modules/pre-and-postinstall-scripts-example/generated-by-preinstall.js'))
+
     const generatedByPreinstall = project.requireModule('pre-and-postinstall-scripts-example/generated-by-preinstall')
     t.ok(typeof generatedByPreinstall === 'function', 'generatedByPreinstall() is available')
 
@@ -38,11 +42,11 @@ test('rebuilds dependencies', async (t: tape.Test) => {
   }
 
   {
-    const generatedByPreinstall = project.requireModule('install-scripts-example-for-pnpm/generated-by-preinstall')
-    t.ok(typeof generatedByPreinstall === 'function', 'generatedByPreinstall() is available')
-
-    const generatedByPostinstall = project.requireModule('install-scripts-example-for-pnpm/generated-by-postinstall')
-    t.ok(typeof generatedByPostinstall === 'function', 'generatedByPostinstall() is available')
+    const scripts = project.requireModule('install-scripts-example-for-pnpm/output.json')
+    t.equal(scripts[0], 'prepare')
+    t.equal(scripts[1], 'preinstall')
+    t.equal(scripts[2], 'install')
+    t.equal(scripts[3], 'postinstall')
   }
 })
 

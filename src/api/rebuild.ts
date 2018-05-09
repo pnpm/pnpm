@@ -211,6 +211,7 @@ async function _rebuild (
             await runPostinstallHooks({
               depPath: depAbsolutePath,
               pkgRoot: path.join(modules, `.${depAbsolutePath}`, 'node_modules', pkgInfo.name),
+              prepare: pkgSnapshot.prepare,
               rawNpmConfig: opts.rawNpmConfig,
               rootNodeModulesDir: opts.prefix,
               unsafePerm: opts.unsafePerm || false,

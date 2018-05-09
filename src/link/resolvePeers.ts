@@ -53,6 +53,7 @@ export interface DepGraphNode {
   },
   isBuilt?: boolean,
   requiresBuild: boolean,
+  prepare: boolean,
 }
 
 export interface DepGraphNodesByDepPath {
@@ -187,6 +188,7 @@ function resolvePeersOfNode (
       optional: node.pkg.optional,
       optionalDependencies: node.pkg.optionalDependencies,
       peripheralLocation,
+      prepare: node.pkg.prepare,
       prod: node.pkg.prod,
       requiresBuild: node.pkg.requiresBuild,
       resolution: node.pkg.resolution,

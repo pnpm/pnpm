@@ -65,6 +65,7 @@ export interface Pkg {
   optionalDependencies: Set<string>,
   hasBundledDependencies: boolean,
   requiresBuild: boolean,
+  prepare: boolean,
   additionalInfo: {
     deprecated?: string,
     peerDependencies?: Dependencies,
@@ -320,10 +321,12 @@ async function install (
   let pkg: PackageManifest
   let useManifestInfoFromShrinkwrap = false
   let requiresBuild!: boolean
+  let prepare!: boolean
   if (options.hasManifestInShrinkwrap && !options.update && options.dependencyShrinkwrap && options.relDepPath
     && !pkgResponse.body.updated) {
     useManifestInfoFromShrinkwrap = true
     requiresBuild = options.dependencyShrinkwrap.requiresBuild === true
+    prepare = options.dependencyShrinkwrap.prepare === true
     pkg = Object.assign(
       nameVerFromPkgSnapshot(options.relDepPath, options.dependencyShrinkwrap),
       options.dependencyShrinkwrap,
@@ -345,7 +348,8 @@ async function install (
         : pkgResponse.body['manifest'] || await pkgResponse['fetchingManifest']
 
       // TODO: check the scripts field of the real package.json that is unpacked from the tarball
-      requiresBuild = Boolean(pkg['scripts'] && (pkg['scripts']['preinstall'] || pkg['scripts']['install'] || pkg['scripts']['postinstall']))
+      prepare = Boolean(pkgResponse.body['resolvedVia'] === 'git-repository' && pkg['scripts'] && typeof pkg['scripts']['prepare'] === 'string')
+      requiresBuild = prepare || Boolean(pkg['scripts'] && (pkg['scripts']['preinstall'] || pkg['scripts']['install'] || pkg['scripts']['postinstall']))
       if (options.dependencyShrinkwrap && options.dependencyShrinkwrap.deprecated && !pkg.deprecated) {
         pkg.deprecated = options.dependencyShrinkwrap.deprecated
       }
@@ -423,6 +427,7 @@ async function install (
       optionalDependencies: new Set(R.keys(pkg.optionalDependencies)),
       path: pkgResponse.body.inStoreLocation,
       peerDependencies: peerDependencies || {},
+      prepare,
       prod: !wantedDependency.dev && !wantedDependency.optional,
       requiresBuild,
       resolution: pkgResponse.body.resolution,

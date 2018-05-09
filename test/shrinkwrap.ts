@@ -509,7 +509,7 @@ test('scoped module from different registry', async (t: tape.Test) => {
       },
     },
     registry: 'http://localhost:4873/',
-    shrinkwrapMinorVersion: 5,
+    shrinkwrapMinorVersion: 6,
     shrinkwrapVersion: 3,
     specifiers: {
       '@zkochan/foo': '^1.0.0',
@@ -560,7 +560,7 @@ test['skip']('installing from shrinkwrap when using npm enterprise', async (t: t
       },
     },
     registry: 'https://npm-registry.compass.com/',
-    shrinkwrapMinorVersion: 5,
+    shrinkwrapMinorVersion: 6,
     shrinkwrapVersion: 3,
     specifiers: {
       'is-positive': '^3.1.0',
@@ -691,7 +691,7 @@ test('updating shrinkwrap version 3 to 3.5', async (t: tape.Test) => {
 
   const shr = await project.loadShrinkwrap()
 
-  t.equal(shr.shrinkwrapMinorVersion, 5)
+  t.equal(shr.shrinkwrapMinorVersion, 6)
   t.ok(shr.packages['/abc/1.0.0/165e1e08a3f7e7f77ddb572ad0e55660'].peerDependencies)
 })
 
