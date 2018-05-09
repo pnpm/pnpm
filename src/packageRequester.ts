@@ -47,6 +47,7 @@ export type PackageResponse = {
     id: string,
     normalizedPref?: string,
     updated: boolean,
+    resolvedVia?: string,
   },
 } | (
   {
@@ -64,6 +65,7 @@ export type PackageResponse = {
       latest?: string,
       normalizedPref?: string,
       updated: boolean,
+      resolvedVia?: string,
     },
   } & (
     {
@@ -207,6 +209,7 @@ async function resolveAndFetch (
     const skipResolution = resolution && !options.update
     let forceFetch = false
     let updated = false
+    let resolvedVia: string | undefined
 
     // When fetching is skipped, resolution cannot be skipped.
     // We need the package's manifest when doing `shrinkwrap-only` installs.
@@ -223,6 +226,7 @@ async function resolveAndFetch (
 
       pkg = resolveResult.package
       latest = resolveResult.latest
+      resolvedVia = resolveResult.resolvedVia
 
       // If the integrity of a local tarball dependency has changed,
       // the local tarball should be unpacked, so a fetch to the store should be forced
@@ -260,6 +264,7 @@ async function resolveAndFetch (
           manifest: pkg,
           normalizedPref,
           resolution: resolution as DirectoryResolution,
+          resolvedVia,
           updated,
         },
       }
@@ -278,6 +283,7 @@ async function resolveAndFetch (
           manifest: pkg,
           normalizedPref,
           resolution,
+          resolvedVia,
           updated,
         },
       }
@@ -303,6 +309,7 @@ async function resolveAndFetch (
           manifest: pkg,
           normalizedPref,
           resolution,
+          resolvedVia,
           updated,
         },
         fetchingFiles: fetchResult.fetchingFiles,
@@ -318,6 +325,7 @@ async function resolveAndFetch (
         latest,
         normalizedPref,
         resolution,
+        resolvedVia,
         updated,
       },
       fetchingFiles: fetchResult.fetchingFiles,

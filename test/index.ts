@@ -53,6 +53,7 @@ test('request package', async t => {
   t.ok(pkgResponse.body, 'response has body')
 
   t.equal(pkgResponse.body.id, 'registry.npmjs.org/is-positive/1.0.0', 'responded with correct package ID')
+  t.equal(pkgResponse.body.resolvedVia, 'npm-registry', 'responded with correct resolvedVia')
   t.equal(pkgResponse.body.inStoreLocation, '.store/registry.npmjs.org/is-positive/1.0.0', 'package location in store returned')
   t.equal(pkgResponse.body.isLocal, false, 'package is not local')
   t.equal(typeof pkgResponse.body.latest, 'string', 'latest is returned')
@@ -203,6 +204,7 @@ test('refetch local tarball if its integrity has changed', async t => {
         integrity: 'sha1-BBBBBBBBBBBBBBBBBBBBBBBBBBB=',
         tarball,
       },
+      resolvedVia: 'npm-registry',
     })
     const requestPackage = createPackageRequester(fakeResolve, fetch, {
       storePath,
@@ -233,6 +235,7 @@ test('refetch local tarball if its integrity has changed', async t => {
         integrity: 'sha1-AAAAAAAAAAAAAAAAAAAAAAAAAAA=',
         tarball,
       },
+      resolvedVia: 'npm-registry',
     })
     const requestPackage = createPackageRequester(fakeResolve, fetch, {
       storePath,
@@ -262,6 +265,7 @@ test('refetch local tarball if its integrity has changed', async t => {
         integrity: 'sha1-AAAAAAAAAAAAAAAAAAAAAAAAAAA=',
         tarball,
       },
+      resolvedVia: 'npm-registry',
     })
     const requestPackage = createPackageRequester(fakeResolve, fetch, {
       storePath,
