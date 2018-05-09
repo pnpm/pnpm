@@ -5,12 +5,19 @@ test('nameVerFromPkgSnapshot()', (t) => {
   t.deepEqual(nameVerFromPkgSnapshot('/some-weird-path', {
     name: 'foo',
     version: '1.0.0',
+    resolution: {
+      integrity: 'AAA',
+    },
   }), {
     name: 'foo',
     version: '1.0.0',
   })
 
-  t.deepEqual(nameVerFromPkgSnapshot('/foo/1.0.0', {}), {
+  t.deepEqual(nameVerFromPkgSnapshot('/foo/1.0.0', {
+    resolution: {
+      integrity: 'AAA',
+    },
+  }), {
     name: 'foo',
     version: '1.0.0',
   })

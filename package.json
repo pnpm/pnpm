@@ -40,11 +40,12 @@
   "devDependencies": {
     "@pnpm/logger": "^1.0.0",
     "@types/tape": "^4.2.30",
+    "@types/tempy": "^0.1.0",
     "package-preview": "^1.0.0",
     "rimraf": "^2.6.1",
     "tape": "^4.6.3",
     "tempy": "^0.2.1",
-    "ts-node": "^5.0.0",
+    "ts-node": "^6.0.0",
     "tslint": "^5.8.0",
     "typescript": "^2.3.4",
     "yaml-tag": "github:zkochan/yaml-tag"
