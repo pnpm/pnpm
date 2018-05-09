@@ -65,7 +65,7 @@ devDependencies:
   '@types/mz': 0.0.32
   '@types/node': 10.0.6
   '@types/nopt': 3.0.29
-  '@types/ramda': 0.25.26
+  '@types/ramda': 0.25.27
   '@types/semver': 5.5.0
   '@types/tape': 4.2.32
   '@types/update-notifier': 2.2.0
@@ -432,7 +432,7 @@ packages:
       '@pnpm/package-requester': 0.9.0
       '@pnpm/pkgid-to-filename': 1.0.1
       '@pnpm/types': 1.7.0
-      '@types/ramda': 0.25.26
+      '@types/ramda': 0.25.27
       dependency-path: 1.2.1
       graph-sequencer: 2.0.0
       p-limit: 1.2.0
@@ -471,7 +471,7 @@ packages:
       '@pnpm/types': 1.7.0
       '@types/mz': 0.0.32
       '@types/node': 9.6.14
-      '@types/ramda': 0.25.26
+      '@types/ramda': 0.25.27
       '@zkochan/cmd-shim': 2.2.4
       arr-flatten: 1.1.0
       is-windows: 1.0.2
@@ -828,9 +828,9 @@ packages:
     dev: true
     resolution:
       integrity: sha512-ApUp/Eo/D4lQ/8yI+dlNVz1LslAdvycBbKmsr77sw2Ovymyj0nYowS+xuTChzfGdnEdcqBTPM2OtKmvTFKIXPA==
-  /@types/ramda/0.25.26:
+  /@types/ramda/0.25.27:
     resolution:
-      integrity: sha512-/hhvF9xyBNhS+pTHupqpqT885r7ZhOUgeyIi/tiNVuTHSW3vOuV5wVcdB90lNsuwbZuziAXmoYhtYok+RKbJ0Q==
+      integrity: sha512-nhbolWPkkThgTvpZW6wSGKn1FzYd0AgIZMi3h+yKkg/PUB8bEaz9OuabixkTm+hR8+4RmPdGFzQ9YCs5vmhEkw==
   /@types/rc/0.0.1:
     dev: false
     resolution:
@@ -5002,7 +5002,7 @@ packages:
       '@types/load-json-file': 2.0.7
       '@types/mz': 0.0.32
       '@types/node': 10.0.6
-      '@types/ramda': 0.25.26
+      '@types/ramda': 0.25.27
       encode-registry: 1.1.0
       load-json-file: 4.0.0
       mkdirp-promise: 5.0.1
@@ -5213,7 +5213,7 @@ packages:
   /pkgs-graph/2.0.0:
     dependencies:
       '@types/node': 9.6.14
-      '@types/ramda': 0.25.26
+      '@types/ramda': 0.25.27
       '@types/semver': 5.5.0
       npm-package-arg: 6.1.0
       ramda: 0.25.0
@@ -5227,7 +5227,7 @@ packages:
     dependencies:
       '@types/common-tags': 1.4.0
       '@types/node': 9.6.14
-      '@types/ramda': 0.25.26
+      '@types/ramda': 0.25.27
       '@types/semver': 5.5.0
       '@types/strip-ansi': 3.0.0
       ansi-diff: 1.1.0
@@ -5276,7 +5276,7 @@ packages:
     dependencies:
       '@types/archy': 0.0.31
       '@types/node': 9.6.14
-      '@types/ramda': 0.25.26
+      '@types/ramda': 0.25.27
       archy: 1.0.0
       chalk: 2.4.1
       dependencies-hierarchy: 2.0.2
@@ -5304,7 +5304,7 @@ packages:
       '@pnpm/resolver-base': 1.1.0
       '@types/js-yaml': 3.11.1
       '@types/node': 10.0.6
-      '@types/ramda': 0.25.26
+      '@types/ramda': 0.25.27
       dependency-path: 1.2.1
       get-npm-tarball-url: 2.0.1
       js-yaml: 3.11.0
@@ -6455,7 +6455,7 @@ packages:
       '@types/nopt': 3.0.29
       '@types/npm': 2.0.29
       '@types/p-series': 1.0.1
-      '@types/ramda': 0.25.26
+      '@types/ramda': 0.25.27
       '@types/rc': 0.0.1
       '@types/semver': 5.5.0
       '@zkochan/npm-package-arg': 1.0.0
@@ -7261,7 +7261,7 @@ packages:
     resolution:
       integrity: sha512-Qv4qvc8ZIue51B/0zmeIMxpIGDVhz4GhJALBvnKs/FRa2T7jy4Ori9wFwaHVt0zWV7MIFglKAHbgnVxVTw7U1w==
 registry: 'https://registry.npmjs.org/'
-shrinkwrapMinorVersion: 5
+shrinkwrapMinorVersion: 6
 shrinkwrapVersion: 3
 specifiers:
   '@commitlint/cli': ^6.1.3
