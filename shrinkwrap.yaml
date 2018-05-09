@@ -2,7 +2,7 @@ dependencies:
   '@pnpm/check-package': 1.0.0
   '@pnpm/fs-locker': 1.0.1
   '@pnpm/headless': 0.3.0
-  '@pnpm/lifecycle': 2.2.0
+  '@pnpm/lifecycle': 2.2.1
   '@pnpm/link-bins': 1.0.2
   '@pnpm/modules-yaml': 1.0.0
   '@pnpm/package-bins': 1.0.0
@@ -392,7 +392,7 @@ packages:
       integrity: sha512-LJBbkzlDj6RZF3jZzSIB3jle7h/DVjMHKft32gbMlH6hH4XvqQEfV5cV2pj0nb4TEoShzA6ehBkbEAff3Wp87g==
   /@pnpm/headless/0.2.9:
     dependencies:
-      '@pnpm/lifecycle': 2.2.0
+      '@pnpm/lifecycle': 2.2.1
       '@pnpm/link-bins': 1.0.2
       '@pnpm/modules-yaml': 1.0.0
       '@pnpm/package-requester': 0.8.8
@@ -419,7 +419,7 @@ packages:
       integrity: sha512-seziRwFYiqDVO8WYSgoeYvTrwAB7AIRt6/x7+jbq3/BSn7AbsUsslE8uTwLeBoYva0wJ31moEee829rlhDYZCA==
   /@pnpm/headless/0.3.0:
     dependencies:
-      '@pnpm/lifecycle': 2.2.0
+      '@pnpm/lifecycle': 2.2.1
       '@pnpm/link-bins': 1.0.2
       '@pnpm/modules-yaml': 1.0.0
       '@pnpm/package-requester': 0.9.0
@@ -444,7 +444,7 @@ packages:
       '@pnpm/logger': ^1.0.0
     resolution:
       integrity: sha512-44w+do+CW12jTGMOPXyyFiTT9HsCVcbV1m8JkloJJTHkpFA3mqnLu+pClKL+8a33kw+oSJXptuaTJxwDbrflOg==
-  /@pnpm/lifecycle/2.2.0:
+  /@pnpm/lifecycle/2.2.1:
     dependencies:
       '@pnpm/types': 1.7.0
       npm-lifecycle: 2.0.1
@@ -457,7 +457,7 @@ packages:
     peerDependencies:
       '@pnpm/logger': ^1.0.0
     resolution:
-      integrity: sha512-GCPxyufnytJRTvqU6iUTFBGUyVnJeUfRt3RGo9sWg2FU3zOL+lVz8IHDN2BvGMzr7N2bxMlXC6LQ9TJ6qiMhxQ==
+      integrity: sha512-jB8OzeApGS5zHi79p4O3m6WVH4X8zDYv5CTT3GAScxr5yA1RqFam5MAOhrMhYZa5CY+kXcL6T0D25IclQzmTUQ==
   /@pnpm/link-bins/1.0.2:
     dependencies:
       '@pnpm/package-bins': 1.0.0
@@ -4985,7 +4985,7 @@ packages:
       '@pnpm/check-package': 1.0.0
       '@pnpm/fs-locker': 1.0.1
       '@pnpm/headless': 0.2.9
-      '@pnpm/lifecycle': 2.2.0
+      '@pnpm/lifecycle': 2.2.1
       '@pnpm/link-bins': 1.0.2
       '@pnpm/modules-yaml': 1.0.0
       '@pnpm/package-bins': 1.0.0
@@ -5053,7 +5053,7 @@ packages:
       '@pnpm/check-package': 1.0.0
       '@pnpm/fs-locker': 1.0.1
       '@pnpm/headless': 0.2.9
-      '@pnpm/lifecycle': 2.2.0
+      '@pnpm/lifecycle': 2.2.1
       '@pnpm/link-bins': 1.0.2
       '@pnpm/modules-yaml': 1.0.0
       '@pnpm/package-bins': 1.0.0
@@ -5691,7 +5691,7 @@ specifiers:
   '@pnpm/default-resolver': ^0.1.5
   '@pnpm/fs-locker': ^1.0.0
   '@pnpm/headless': ^0.3.0
-  '@pnpm/lifecycle': ^2.2.0
+  '@pnpm/lifecycle': ^2.2.1
   '@pnpm/link-bins': ^1.0.1
   '@pnpm/logger': ^1.0.0
   '@pnpm/modules-yaml': ^1.0.0

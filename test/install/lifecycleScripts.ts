@@ -267,10 +267,10 @@ test('run prepare script for git-hosted dependencies', async (t: tape.Test) => {
   await installPkgs(['zkochan/install-scripts-example#prepare'], await testDefaults())
 
   const scripts = project.requireModule('install-scripts-example-for-pnpm/output.json')
-  t.equal(scripts[0], 'prepare')
-  t.equal(scripts[1], 'preinstall')
-  t.equal(scripts[2], 'install')
-  t.equal(scripts[3], 'postinstall')
+  t.equal(scripts[0], 'preinstall')
+  t.equal(scripts[1], 'install')
+  t.equal(scripts[2], 'postinstall')
+  t.equal(scripts[3], 'prepare')
 
   const shr = await project.loadShrinkwrap()
   t.ok(shr.packages['github.com/zkochan/install-scripts-example/2de638b8b572cd1e87b74f4540754145fb2c0ebb'].prepare === true, 'prepare field added to shrinkwrap.yaml')

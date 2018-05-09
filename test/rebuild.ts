@@ -43,10 +43,10 @@ test('rebuilds dependencies', async (t: tape.Test) => {
 
   {
     const scripts = project.requireModule('install-scripts-example-for-pnpm/output.json')
-    t.equal(scripts[0], 'prepare')
-    t.equal(scripts[1], 'preinstall')
-    t.equal(scripts[2], 'install')
-    t.equal(scripts[3], 'postinstall')
+    t.equal(scripts[0], 'preinstall')
+    t.equal(scripts[1], 'install')
+    t.equal(scripts[2], 'postinstall')
+    t.equal(scripts[3], 'prepare')
   }
 })
 

@@ -22,7 +22,7 @@
     "@pnpm/check-package": "^1.0.0",
     "@pnpm/fs-locker": "^1.0.0",
     "@pnpm/headless": "^0.3.0",
-    "@pnpm/lifecycle": "^2.2.0",
+    "@pnpm/lifecycle": "^2.2.1",
     "@pnpm/link-bins": "^1.0.1",
     "@pnpm/modules-yaml": "^1.0.0",
     "@pnpm/package-bins": "^1.0.0",
