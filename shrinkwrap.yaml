@@ -1,7 +1,7 @@
 dependencies:
   '@pnpm/resolver-base': 1.0.0
   '@types/js-yaml': 3.11.1
-  '@types/node': 9.6.14
+  '@types/node': 10.0.6
   '@types/ramda': 0.25.26
   dependency-path: 1.2.1
   get-npm-tarball-url: 2.0.1
@@ -68,13 +68,13 @@ packages:
       integrity: sha512-pn7g4uxcofWTNG/cxmKvkMK2lxr4OUIhrQDrEVYEdVhW0WkWztsHkFrYjFgfNzPbYu3ITlB3T6aSVjCoJQTOlw==
   /@types/fs-extra/5.0.2:
     dependencies:
-      '@types/node': 9.6.14
+      '@types/node': 10.0.6
     dev: true
     resolution:
       integrity: sha512-Q3FWsbdmkQd1ib11A4XNWQvRD//5KpPoGawA8aB2DR7pWKoW9XQv3+dGxD/Z1eVFze23Okdo27ZQytVFlweKvQ==
   /@types/got/7.1.8:
     dependencies:
-      '@types/node': 9.6.14
+      '@types/node': 10.0.6
     dev: true
     resolution:
       integrity: sha512-QxcSkx9PjHH7uqbzqKTKOAjGbayyo+dECnnqM3BBMC0WjYAqx0e6Qi9AFR4jluvx91e7qzgz4aGka7AhCTHYRw==
@@ -88,11 +88,15 @@ packages:
       integrity: sha512-NrH6jPlV77QCVPhAHofWeiOr77TgpKt82c2RVxSBChWBJqyY/u4ngl3CA4mcsAg/w7rNLrkR7dkObMV0ihLLXw==
   /@types/mz/0.0.32:
     dependencies:
-      '@types/node': 9.6.14
+      '@types/node': 10.0.6
     dev: true
     resolution:
       integrity: sha512-cy3yebKhrHuOcrJGkfwNHhpTXQLgmXSv1BX+4p32j+VUQ6aP2eJ5cL7OvGcAQx75fCTFaAIIAKewvqL+iwSd4g==
+  /@types/node/10.0.6:
+    resolution:
+      integrity: sha512-2whhQUfDHRBiZ3L54Ulyl1X+fZWbWabxPYRDAsibgOAtE6adwusD15Xv0Bw/D7cPah35Z/wKTdW3iAKsevw1uw==
   /@types/node/9.6.14:
+    dev: true
     resolution:
       integrity: sha512-a0mGovBom+nXeDQkgS13AgHGpN+DLR+qTuRWZA7y9FTEiuTbDlXUwhz4+yShOobZGebmjBcl+tTEirTwBlA2LA==
   /@types/ramda/0.25.26:
@@ -105,7 +109,7 @@ packages:
       integrity: sha512-41qEJgBH/TWgo5NFSvBCJ1qkoi3Q6ONSF2avrHq1LVEZfYpdHmj0y9SuTK+u9ZhG1sYQKBL1AWXKyLWP4RaUoQ==
   /@types/tape/4.2.32:
     dependencies:
-      '@types/node': 9.6.14
+      '@types/node': 10.0.6
     dev: true
     resolution:
       integrity: sha512-xil0KO5wkPoixdBWGIGolPv9dekf6dVkjjJLAFYchfKcd4DICou67rgGCIO7wAh3i5Ff/6j9IDgZz+GU9cMaqQ==
@@ -1535,7 +1539,7 @@ specifiers:
   '@pnpm/logger': ^1.0.0
   '@pnpm/resolver-base': ^1.0.0
   '@types/js-yaml': ^3.10.1
-  '@types/node': ^9.3.0
+  '@types/node': ^10.0.6
   '@types/ramda': ^0.25.12
   '@types/tape': ^4.2.30
   '@types/tempy': ^0.1.0
