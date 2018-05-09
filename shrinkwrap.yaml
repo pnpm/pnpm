@@ -6,7 +6,7 @@ dependencies:
   '@pnpm/link-bins': 1.0.2
   '@pnpm/modules-yaml': 1.0.0
   '@pnpm/package-bins': 1.0.0
-  '@pnpm/package-requester': 0.8.8
+  '@pnpm/package-requester': 0.9.0
   '@pnpm/pkgid-to-filename': 1.0.1
   '@pnpm/resolver-base': 1.1.0
   '@pnpm/types': 1.7.0
@@ -5696,7 +5696,7 @@ specifiers:
   '@pnpm/logger': ^1.0.0
   '@pnpm/modules-yaml': ^1.0.0
   '@pnpm/package-bins': ^1.0.0
-  '@pnpm/package-requester': ^0.8.7
+  '@pnpm/package-requester': ^0.9.0
   '@pnpm/pkgid-to-filename': ^1.0.0
   '@pnpm/resolver-base': ^1.1.0
   '@pnpm/store-path': ^1.0.0
