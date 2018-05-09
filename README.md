@@ -55,7 +55,8 @@ resolveFromNpm({alias: 'is-positive', pref: '1.0.0'}, {
 //      "integrity": "sha1-iACYVrZKLx632LsBeUGEJK4EUss=",
 //      "registry": "https://registry.npmjs.org/",
 //      "tarball": "https://registry.npmjs.org/is-positive/-/is-positive-1.0.0.tgz"
-//    }
+//    },
+//    "resolvedVia": "npm-registry"
 //  }
 ```
 <!--/@-->

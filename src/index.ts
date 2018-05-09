@@ -1,3 +1,4 @@
+import {ResolveResult} from '@pnpm/resolver-base'
 import getCredentialsByURI = require('credentials-by-uri')
 import createRegFetcher from 'fetch-from-npm-registry'
 import mem = require('mem')
@@ -103,7 +104,7 @@ async function resolveNpm (
       },
     },
   },
-) {
+): Promise<ResolveResult | null> {
   const spec = wantedDependency.pref
     ? parsePref(wantedDependency.pref, wantedDependency.alias, opts.defaultTag || 'latest')
     : defaultTagForAlias(wantedDependency.alias as string, opts.defaultTag || 'latest')
@@ -138,6 +139,7 @@ async function resolveNpm (
     latest: meta['dist-tags'].latest,
     package: pickedPackage,
     resolution,
+    resolvedVia: 'npm-registry',
   }
 }
 

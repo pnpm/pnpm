@@ -27,6 +27,7 @@ test('resolveFromNpm()', async t => {
     registry,
   })
 
+  t.equal(resolveResult!.resolvedVia, 'npm-registry')
   t.equal(resolveResult!.id, 'registry.npmjs.org/is-positive/1.0.0')
   t.equal(resolveResult!.latest!.split('.').length, 3)
   t.deepEqual(resolveResult!.resolution, {
