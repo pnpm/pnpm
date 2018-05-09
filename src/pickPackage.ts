@@ -10,8 +10,6 @@ import {RegistryPackageSpec} from './parsePref'
 import pickPackageFromMeta from './pickPackageFromMeta'
 import toRaw from './toRaw'
 
-const DEFAULT_CACHE_TTL = 120 * 1000 // 2 minutes
-
 class PnpmError extends Error {
   public code: string
   constructor (code: string, message: string) {
@@ -26,6 +24,12 @@ export interface PackageMeta {
     [name: string]: PackageInRegistry,
   }
   cachedAt?: number,
+}
+
+export interface PackageMetaCache {
+  get (key: string): PackageMeta
+  set (key: string, meta: PackageMeta): void
+  has (key: string): boolean
 }
 
 export type PackageInRegistry = PackageManifest & {
@@ -44,11 +48,10 @@ export default async (
   ctx: {
     fetch: (url: string, opts: {auth?: object}) => Promise<{}>,
     metaFileName: string,
-    metaCache: Map<string, object>,
+    metaCache: PackageMetaCache,
     storePath: string,
     offline: boolean,
     preferOffline: boolean,
-    cacheTtl?: number,
   },
   spec: RegistryPackageSpec,
   opts: {
@@ -62,15 +65,12 @@ export default async (
   },
 ): Promise<{meta: PackageMeta, pickedPackage: PackageInRegistry | null}> => {
   opts = opts || {}
-  ctx.cacheTtl = ctx.cacheTtl || DEFAULT_CACHE_TTL
 
   if (ctx.metaCache.has(spec.name)) {
-    const meta = ctx.metaCache.get(spec.name) as PackageMeta
-    if (meta.cachedAt && Date.now() - meta.cachedAt < ctx.cacheTtl) {
-      return {
-        meta,
-        pickedPackage: pickPackageFromMeta(spec, opts.preferredVersionSelector, meta),
-      }
+    const meta = ctx.metaCache.get(spec.name)
+    return {
+      meta,
+      pickedPackage: pickPackageFromMeta(spec, opts.preferredVersionSelector, meta),
     }
   }
 

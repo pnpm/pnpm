@@ -12,8 +12,14 @@ import parsePref, {
 import pickPackage, {
   PackageInRegistry,
   PackageMeta,
+  PackageMetaCache,
 } from './pickPackage'
 import toRaw from './toRaw'
+
+export {
+  PackageMeta,
+  PackageMetaCache,
+}
 
 // This file contains meta information
 // about all the packages published by the same name, not just the manifest
@@ -29,7 +35,7 @@ export default function createResolver (
     ca?: string,
     strictSsl?: boolean,
     rawNpmConfig: object,
-    metaCache: Map<string, object>,
+    metaCache: PackageMetaCache,
     store: string,
     proxy?: string,
     httpsProxy?: string,
