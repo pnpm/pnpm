@@ -58,7 +58,7 @@
     "rimraf": "^2.6.1",
     "tape": "^4.7.0",
     "tempy": "^0.2.1",
-    "ts-node": "^5.0.0",
+    "ts-node": "^6.0.3",
     "tslint": "^5.4.2",
     "typescript": "^2.4.1",
     "validate-commit-msg": "^2.7.0"

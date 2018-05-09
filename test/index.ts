@@ -28,6 +28,8 @@ test('store.importPackage()', async (t) => {
   const storeController = await createStore(resolver, fetcher, {store})
   const pkgId = 'registry.npmjs.org/is-positive/1.0.0'
   const fetchResult = await storeController.fetchPackage({
+    force: false,
+    verifyStoreIntegrity: true,
     pkgId,
     prefix: tempy.directory(),
     resolution: {

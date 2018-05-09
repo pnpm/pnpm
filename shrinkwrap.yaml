@@ -38,7 +38,7 @@ devDependencies:
   rimraf: 2.6.2
   tape: 4.9.0
   tempy: 0.2.1
-  ts-node: 5.0.1
+  ts-node: 6.0.3
   tslint: 5.10.0
   typescript: 2.8.3
   validate-commit-msg: 2.14.0
@@ -2716,7 +2716,7 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha1-tAPQuRvlDDMd/EuC7s6yLD3hbSA=
-  /ts-node/5.0.1:
+  /ts-node/6.0.3:
     dependencies:
       arrify: 1.0.1
       chalk: 2.4.1
@@ -2730,7 +2730,7 @@ packages:
     engines:
       node: '>=4.2.0'
     resolution:
-      integrity: sha512-XK7QmDcNHVmZkVtkiwNDWiERRHPyU8nBqZB1+iv2UhOG0q3RQ9HsZ2CMqISlFbxjrYFGfG2mX7bW4dAyxBVzUw==
+      integrity: sha512-ARaOMNFEPKg2ZuC1qJddFvHxHNFVckR0g9xLxMIoMqSSIkDc8iS4/LoV53EdDWWNq2FGwqcEf0bVVGJIWpsznw==
   /tslib/1.9.0:
     dev: true
     resolution:
@@ -2947,7 +2947,7 @@ specifiers:
   rimraf-then: ^1.0.1
   tape: ^4.7.0
   tempy: ^0.2.1
-  ts-node: ^5.0.0
+  ts-node: ^6.0.3
   tslint: ^5.4.2
   typescript: ^2.4.1
   util.promisify: ^1.0.0
