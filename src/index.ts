@@ -25,10 +25,6 @@ export async function runPostinstallHooks (
   const pkg = await readPackageJson(path.join(opts.pkgRoot, 'package.json'))
   const scripts = pkg && pkg.scripts || {}
 
-  if (opts.prepare && scripts.prepare) {
-    await runLifecycleHook('prepare', pkg, opts)
-  }
-
   if (!scripts.install) {
     await checkBindingGyp(opts.pkgRoot, scripts)
   }
@@ -41,6 +37,10 @@ export async function runPostinstallHooks (
   }
   if (scripts.postinstall) {
     await runLifecycleHook('postinstall', pkg, opts)
+  }
+
+  if (opts.prepare && scripts.prepare) {
+    await runLifecycleHook('prepare', pkg, opts)
   }
 
   return !!scripts.preinstall || !!scripts.install || !!scripts.postinstall

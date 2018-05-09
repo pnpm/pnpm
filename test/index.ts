@@ -53,7 +53,7 @@ test('runPostinstallHooks() with prepare = true', async (t) => {
     unsafePerm: true,
   })
 
-  t.deepEqual(loadJsonFile.sync(path.join(pkgRoot, 'output.json')), ['prepare', 'preinstall', 'install', 'postinstall'])
+  t.deepEqual(loadJsonFile.sync(path.join(pkgRoot, 'output.json')), ['preinstall', 'install', 'postinstall', 'prepare'])
 
   t.end()
 })
