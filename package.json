@@ -50,7 +50,7 @@
     "mem": "^3.0.0",
     "p-limit": "^1.1.0",
     "semver": "^5.4.1",
-    "ssri": "^5.0.0",
+    "ssri": "^6.0.0",
     "version-selector-type": "^2.0.0",
     "write-json-file": "^2.3.0"
   },
