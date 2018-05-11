@@ -1,0 +1,24 @@
+language: node_js
+node_js:
+  - 4
+  - 6
+  - 8
+  - 10
+sudo: false
+before_install:
+  - git fetch --unshallow
+  - curl -L https://unpkg.com/@pnpm/self-installer | node
+install:
+  - pnpm install --frozen-shrinkwrap --no-lock
+script:
+  - /bin/bash lint-commits.sh
+  - ./node_modules/.bin/commitlint --from=$TRAVIS_COMMIT
+  - npm test
+env:
+  global:
+    - CC=clang CXX=clang++ npm_config_clang=1
+    - GIT_NAME: Travis CI
+    - GIT_EMAIL: nobody@nobody.org
+    - GITHUB_REPO: pnpm/pnpm
+notifications:
+  email: false

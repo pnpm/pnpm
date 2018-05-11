@@ -1,0 +1,10 @@
+{
+  "name": "simple-test-package",
+  "version": "1.0.0",
+  "dependencies": {
+    "rimraf": "~2.5.1"
+  },
+  "devDependencies": {
+    "@rstacruz/tap-spec": "~4.1.1"
+  }
+}
