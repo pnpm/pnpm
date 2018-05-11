@@ -41,8 +41,6 @@ test('recursive installation', async t => {
 
   t.ok(projects['project-1'].requireModule('is-positive'))
   t.ok(projects['project-2'].requireModule('is-negative'))
-
-  t.end()
 })
 
 test('recursive installation with package-specific .npmrc', async t => {
@@ -75,8 +73,6 @@ test('recursive installation with package-specific .npmrc', async t => {
 
   const modulesYaml2 = await projects['project-2'].loadModules()
   t.notOk(modulesYaml2.shamefullyFlatten)
-
-  t.end()
 })
 
 test('recursive installation using server', async t => {
@@ -110,8 +106,6 @@ test('recursive installation using server', async t => {
   t.ok(projects['project-2'].requireModule('is-negative'))
 
   await execPnpm('server', 'stop')
-
-  t.end()
 })
 
 test('recursive installation of packages with hooks', async t => {
@@ -157,8 +151,6 @@ test('recursive installation of packages with hooks', async t => {
 
   const shr2 = await projects['project-2'].loadShrinkwrap()
   t.ok(shr2.packages['/dep-of-pkg-with-1-dep/100.1.0'])
-
-  t.end()
 })
 
 test('ignores pnpmfile.js during recursive installation when --ignore-pnpmfile is used', async t => {
@@ -204,8 +196,6 @@ test('ignores pnpmfile.js during recursive installation when --ignore-pnpmfile i
 
   const shr2 = await projects['project-2'].loadShrinkwrap()
   t.notOk(shr2.packages['/dep-of-pkg-with-1-dep/100.1.0'])
-
-  t.end()
 })
 
 test('recursive linking/unlinking', async t => {
@@ -241,8 +231,6 @@ test('recursive linking/unlinking', async t => {
 
   const isPositiveShr = await projects['is-positive'].loadShrinkwrap()
   t.equal(isPositiveShr.registry, 'http://localhost:4873/', 'is-positive has correct registry specified in shrinkwrap.yaml')
-
-  t.end()
 })
 
 test('running `pnpm recursive` on a subset of packages', async t => {
@@ -269,8 +257,6 @@ test('running `pnpm recursive` on a subset of packages', async t => {
 
   await projects['project-1'].has('is-positive')
   await projects['project-2'].hasNot('is-negative')
-
-  t.end()
 })
 
 test('running `pnpm recursive` only for packages in subdirectories of cwd', async t => {
@@ -315,8 +301,6 @@ test('running `pnpm recursive` only for packages in subdirectories of cwd', asyn
   await projects['project-1'].has('is-positive')
   await projects['project-2'].has('is-negative')
   await projects['root-project'].hasNot('debug')
-
-  t.end()
 })
 
 test('recursive installation fails when installation in one of the packages fails', async t => {
@@ -343,8 +327,6 @@ test('recursive installation fails when installation in one of the packages fail
   } catch (err) {
     t.ok(err, 'the command failed')
   }
-
-  t.end()
 })
 
 test('second run of `recursive link` after package.json has been edited manually', async t => {
@@ -375,6 +357,4 @@ test('second run of `recursive link` after package.json has been edited manually
   await execPnpm('recursive', 'link')
 
   t.ok(projects['is-negative'].requireModule('is-positive/package.json'))
-
-  t.end()
 })

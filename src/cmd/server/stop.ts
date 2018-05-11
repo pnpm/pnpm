@@ -7,6 +7,7 @@ import path = require('path')
 import processExists = require('process-exists')
 import killcb = require('tree-kill')
 import promisify = require('util.promisify')
+import {tryLoadServerJson} from '../../createStoreController'
 import serverConnectionInfoDir from '../../serverConnectionInfoDir'
 
 const kill = promisify(killcb)
@@ -18,17 +19,14 @@ export default async (
   },
 ) => {
   const store = await storePath(opts.prefix, opts.store)
-  let serverJson: any | undefined // tslint:disable-line
-  try {
-    const connectionInfoDir = serverConnectionInfoDir(store)
-    serverJson = await loadJsonFile(path.join(connectionInfoDir, 'server.json'))
-  } catch (err) {
-    if (err.code !== 'ENOENT') {
-      throw err
-    } else {
-      logger.info(`Nothing to stop. No server is running for the store at ${store}`)
-      return
-    }
+  const connectionInfoDir = serverConnectionInfoDir(store)
+  const serverJson = await tryLoadServerJson({
+    serverJsonPath: path.join(connectionInfoDir, 'server.json'),
+    shouldRetryOnNoent: false,
+  })
+  if (serverJson === null) {
+    logger.info(`Nothing to stop. No server is running for the store at ${store}`)
+    return
   }
   const storeController = await connectStoreController(serverJson.connectionOptions)
   await storeController.stop()

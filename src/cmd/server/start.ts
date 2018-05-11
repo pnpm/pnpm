@@ -3,12 +3,11 @@ import {createServer} from '@pnpm/server'
 import storePath from '@pnpm/store-path'
 import Diable = require('diable')
 import getPort = require('get-port')
-import fs = require('graceful-fs')
 import isWindows = require('is-windows')
 import mkdirp = require('mkdirp-promise')
+import fs = require('mz/fs')
 import path = require('path')
 import onExit = require('signal-exit')
-import writeJsonFile = require('write-json-file')
 import createStore from '../../createStore'
 import serverConnectionInfoDir from '../../serverConnectionInfoDir'
 import { PnpmOptions } from '../../types'
@@ -25,18 +24,51 @@ export default async (
   if (opts.protocol === 'ipc' && opts.port) {
     throw new Error('Port cannot be selected when server communicates via IPC')
   }
-
   if (opts.background && !Diable.isDaemon()) {
     Diable()
   }
-
-  const store = await createStore(Object.assign(opts, {
-    store: await storePath(opts.prefix, opts.store),
-  }))
-
-  const connectionInfoDir = serverConnectionInfoDir(store.path)
+  const pathOfStore = await storePath(opts.prefix, opts.store)
+  const connectionInfoDir = serverConnectionInfoDir(pathOfStore)
+  const serverJsonPath = path.join(connectionInfoDir, 'server.json')
   await mkdirp(connectionInfoDir)
 
+  // Open server.json with exclusive write access to ensure only one process can successfully
+  // start the server. Note: NFS does not support exclusive writing, but do we really care?
+  // Source: https://github.com/moxystudio/node-proper-lockfile#user-content-comparison
+  let fd: number|null
+  try {
+    fd = await fs.open(serverJsonPath, 'wx')
+  } catch (error) {
+    if (error.code !== 'EEXIST') {
+      throw error
+    }
+    throw new Error(`Canceling startup of server (pid ${process.pid}) because another process got exclusive access to server.json`)
+  }
+  let server: null|{close (): Promise<void>} = null
+  onExit(() => {
+    if (server !== null) {
+      // Note that server.close returns a Promise, but we cannot wait for it because we may be
+      // inside the 'exit' even of process.
+      server.close()
+    }
+    if (fd !== null) {
+      try {
+        fs.closeSync(fd)
+      } catch (error) {
+        logger.error(error, `Got error while closing file descriptor of server.json, but the process is already exiting`)
+      }
+    }
+    try {
+      fs.unlinkSync(serverJsonPath)
+    } catch (error) {
+      if (error.code !== 'ENOENT') {
+        logger.error(error, `Got error unlinking server.json, but the process is already exiting`)
+      }
+    }
+  })
+  const store = await createStore(Object.assign(opts, {
+    store: pathOfStore,
+  }))
   const protocol = opts.protocol || opts.port && 'tcp' || 'auto'
   const serverOptions = await getServerOptions(connectionInfoDir, {protocol, port: opts.port})
   const connectionOptions = {
@@ -44,22 +76,27 @@ export default async (
       ? `http://unix:${serverOptions.path}:`
       : `http://${serverOptions.hostname}:${serverOptions.port}`,
   }
-  const serverJsonPath = path.join(connectionInfoDir, 'server.json')
-  await writeJsonFile(serverJsonPath, {
-    connectionOptions,
-    pid: process.pid,
-  })
-
-  const server = createServer(store.ctrl, {
+  server = createServer(store.ctrl, {
     ...serverOptions,
     ignoreStopRequests: opts.ignoreStopRequests,
     ignoreUploadRequests: opts.ignoreUploadRequests,
   })
+  // Make sure to populate server.json after the server has started, so clients know that the server is
+  // listening if a server.json with valid JSON content exists.
+  const serverJson = {
+    connectionOptions,
+    pid: process.pid,
+  }
+  const serverJsonStr = JSON.stringify(serverJson, undefined, 2) // undefined and 2 are for formatting.
+  const serverJsonBuffer = Buffer.from(serverJsonStr, 'utf8')
+  // fs.write on NodeJS 4 requires the parameters offset and length to be set:
+  // https://nodejs.org/docs/latest-v4.x/api/fs.html#fs_fs_write_fd_buffer_offset_length_position_callback
+  await fs.write(fd, serverJsonBuffer, 0, serverJsonBuffer.byteLength)
 
-  onExit(() => {
-    server.close()
-    fs.unlinkSync(serverJsonPath)
-  })
+  const fdForClose = fd
+  // Set fd to null so we only attempt to close it once.
+  fd = null
+  await fs.close(fdForClose)
 }
 
 async function getServerOptions (
