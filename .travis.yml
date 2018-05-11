@@ -15,11 +15,12 @@ before_install:
   - pnpm i -g pnpm@next
   - pnpm -v
 install:
-  - pnpm i --frozen-shrinkwrap --no-lock
+  - pnpm recursive link --no-lock
 script:
   - /bin/bash lint-commits.sh
   - ./node_modules/.bin/commitlint --from=$TRAVIS_COMMIT
-  - npm t
+  - npm t --prefix packages/supi
+  - npm t --prefix packages/pnpm
 env:
   global:
     - CC=clang CXX=clang++ npm_config_clang=1

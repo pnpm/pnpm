@@ -10,7 +10,7 @@ install:
   # Testing whether pnpm can upgrade itself
   - pnpm i -g pnpm@next
   - pnpm -v
-  - pnpm install --frozen-shrinkwrap --no-lock
+  - pnpm recursive link --no-lock
 matrix:
   fast_finish: true
 build: off
@@ -18,5 +18,6 @@ version: '{build}'
 test_script:
   - node --version
   - npm --version
-  - npm t
+  - npm t --prefix packages/supi
+  - npm t --prefix packages/pnpm
 skip_tags: true

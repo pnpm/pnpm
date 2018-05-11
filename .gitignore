@@ -26,3 +26,5 @@ lib
 # dependencies bundled but the npm lockfile is not needed
 # because pnpm use pnpm for installation
 package-lock.json
+
+__package_previews__
