@@ -82,7 +82,7 @@
     "@pnpm/default-resolver": "^0.1.5",
     "@pnpm/logger": "^1.0.0",
     "@pnpm/store-path": "^1.0.0",
-    "@pnpm/utils": "^0.0.0",
+    "@pnpm/utils": "^0.1.0",
     "@types/is-windows": "^0.2.0",
     "@types/mkdirp": "^0.5.1",
     "@types/sinon": "^4.1.2",
