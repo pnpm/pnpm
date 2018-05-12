@@ -19,6 +19,7 @@ test_script:
   - node --version
   - npm --version
   - npm t --prefix packages/utils
+  - npm t --prefix packages/headless
   - npm t --prefix packages/supi
   - npm t --prefix packages/pnpm
 skip_tags: true

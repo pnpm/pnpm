@@ -8,7 +8,7 @@
     "url": "https://www.kochan.io/"
   },
   "bugs": {
-    "url": "https://github.com/pnpm/headless/issues"
+    "url": "https://github.com/pnpm/pnpm/issues"
   },
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
@@ -19,9 +19,6 @@
     "@pnpm/logger": "^1.0.0"
   },
   "devDependencies": {
-    "@commitlint/cli": "^6.1.3",
-    "@commitlint/config-conventional": "^6.1.3",
-    "@commitlint/prompt-cli": "^6.1.3",
     "@pnpm/assert-project": "^1.1.1",
     "@pnpm/default-fetcher": "^0.4.0",
     "@pnpm/default-resolver": "^0.1.4",
@@ -67,10 +64,7 @@
   "engines": {
     "node": ">=4"
   },
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/pnpm/headless.git"
-  },
+  "repository": "https://github.com/pnpm/pnpm/blob/master/packages/headless",
   "scripts": {
     "start": "npm run tsc -- --watch",
     "commit": "commit",
@@ -81,7 +75,8 @@
     "test:tap": "ts-node test",
     "test:e2e": "npm-run-all -p -r pnpm-registry-mock test:tap",
     "pretest": "rimraf ../.tmp/ && pnpm-registry-mock prepare && ts-node test/pretest",
-    "test": "npm run lint && npm run lint-test && preview && npm run test:e2e",
+    "test-with-preview": "npm run lint && npm run lint-test && preview && npm run test:e2e",
+    "test": "npm run lint && npm run lint-test && npm run tsc && pnpm link . && npm run test:e2e",
     "tsc": "rimraf lib && tsc",
     "prepublishOnly": "npm run tsc",
     "runPrepareFixtures": "ts-node test/prepareFixtures",

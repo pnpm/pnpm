@@ -20,6 +20,7 @@ script:
   - /bin/bash lint-commits.sh
   - ./tools/node_modules/.bin/commitlint --from=$TRAVIS_COMMIT
   - npm t --prefix packages/utils
+  - npm t --prefix packages/headless
   - npm t --prefix packages/supi
   - npm t --prefix packages/pnpm
 env:
