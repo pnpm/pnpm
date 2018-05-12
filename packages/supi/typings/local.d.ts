@@ -218,11 +218,6 @@ declare module 'pnpm-registry-mock' {
   export = pnpmRegistryMock
 }
 
-declare module 'read-package-json' {
-  const anything: any;
-  export = anything;
-}
-
 declare module 'ssri' {
   const anything: any;
   export = anything;
@@ -264,11 +259,6 @@ declare module 'replace-string' {
 }
 
 declare module 'graph-sequencer' {
-  const anything: any;
-  export = anything;
-}
-
-declare module 'fs-vacuum' {
   const anything: any;
   export = anything;
 }

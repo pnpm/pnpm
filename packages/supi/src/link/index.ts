@@ -1,5 +1,11 @@
 import linkBins, {linkPackageBins} from '@pnpm/link-bins'
 import {PackageJson} from '@pnpm/types'
+import {
+  removeOrphanPackages as removeOrphanPkgs,
+  rootLogger,
+  stageLogger,
+  statsLogger,
+} from '@pnpm/utils'
 import * as dp from 'dependency-path'
 import pLimit = require('p-limit')
 import {StoreController} from 'package-store'
@@ -8,13 +14,7 @@ import {PackageSnapshot, Shrinkwrap} from 'pnpm-shrinkwrap'
 import R = require('ramda')
 import symlinkDir = require('symlink-dir')
 import {PkgGraphNodeByNodeId} from '../api/install'
-import removeOrphanPkgs from '../api/removeOrphanPkgs'
 import {SHRINKWRAP_MINOR_VERSION} from '../constants'
-import {
-  rootLogger,
-  stageLogger,
-  statsLogger,
-} from '../loggers'
 import logStatus from '../logging/logInstallStatus'
 import resolvePeers, {DepGraphNode, DepGraphNodesByDepPath} from './resolvePeers'
 import updateShrinkwrap from './updateShrinkwrap'

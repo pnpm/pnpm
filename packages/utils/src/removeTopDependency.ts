@@ -1,8 +1,8 @@
 import binify from '@pnpm/package-bins'
 import path = require('path')
 import rimraf = require('rimraf-then')
-import {fromDir as safeReadPkgFromDir} from './fs/safeReadPkg'
 import {rootLogger} from './loggers'
+import {fromDir as safeReadPkgFromDir} from './safeReadPkg'
 
 export default async function removeTopDependency (
   dependency: {

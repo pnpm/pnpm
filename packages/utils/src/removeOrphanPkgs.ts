@@ -5,9 +5,9 @@ import path = require('path')
 import {ResolvedPackages, Shrinkwrap} from 'pnpm-shrinkwrap'
 import R = require('ramda')
 import promisify = require('util.promisify')
-import {dependenciesTypes} from '../getSaveType'
-import {statsLogger} from '../loggers'
-import removeTopDependency from '../removeTopDependency'
+import {dependenciesTypes} from './getSaveType'
+import {statsLogger} from './loggers'
+import removeTopDependency from './removeTopDependency'
 
 const vacuum = promisify(vacuumCB)
 

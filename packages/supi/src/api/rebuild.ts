@@ -1,6 +1,10 @@
 import {runPostinstallHooks} from '@pnpm/lifecycle'
 import logger, {streamParser} from '@pnpm/logger'
 import {write as writeModulesYaml} from '@pnpm/modules-yaml'
+import {
+  realNodeModulesDir,
+  skippedOptionalDependencyLogger,
+} from '@pnpm/utils'
 import npa = require('@zkochan/npm-package-arg')
 import * as dp from 'dependency-path'
 import graphSequencer = require('graph-sequencer')
@@ -16,8 +20,6 @@ import {
 import R = require('ramda')
 import semver = require('semver')
 import {LAYOUT_VERSION} from '../constants'
-import realNodeModulesDir from '../fs/realNodeModulesDir'
-import {skippedOptionalDependencyLogger} from '../loggers'
 import extendOptions, {
   RebuildOptions,
   StrictRebuildOptions,

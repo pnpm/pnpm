@@ -12,6 +12,16 @@ import {
   Dependencies,
   PackageJson,
 } from '@pnpm/types'
+import {
+  getSaveType,
+  packageJsonLogger,
+  realNodeModulesDir,
+  rootLogger,
+  safeReadPackageFromDir as safeReadPkgFromDir,
+  skippedOptionalDependencyLogger,
+  stageLogger,
+  summaryLogger,
+} from '@pnpm/utils'
 import * as dp from 'dependency-path'
 import graphSequencer = require('graph-sequencer')
 import pFilter = require('p-filter')
@@ -34,20 +44,10 @@ import {
 } from '../constants'
 import depsFromPackage, {getPreferredVersionsFromPackage} from '../depsFromPackage'
 import depsToSpecs, {similarDepsToSpecs} from '../depsToSpecs'
-import realNodeModulesDir from '../fs/realNodeModulesDir'
-import {fromDir as safeReadPkgFromDir} from '../fs/safeReadPkg'
 import {absolutePathToRef} from '../fs/shrinkwrap'
-import getSaveType from '../getSaveType'
 import getSpecFromPackageJson from '../getSpecFromPackageJson'
 import linkPackages, {DepGraphNodesByDepPath} from '../link'
 import {DepGraphNode} from '../link/resolvePeers'
-import {
-  packageJsonLogger,
-  rootLogger,
-  skippedOptionalDependencyLogger,
-  stageLogger,
-  summaryLogger,
-} from '../loggers'
 import logStatus from '../logging/logInstallStatus'
 import {
   createNodeId,

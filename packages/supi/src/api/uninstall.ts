@@ -1,5 +1,10 @@
 import logger, {streamParser} from '@pnpm/logger'
 import {write as writeModulesYaml} from '@pnpm/modules-yaml'
+import {
+  getSaveType,
+  removeOrphanPackages as removeOrphanPkgs,
+  removeTopDependency,
+} from '@pnpm/utils'
 import * as dp from 'dependency-path'
 import path = require('path')
 import {
@@ -9,9 +14,7 @@ import {
 } from 'pnpm-shrinkwrap'
 import R = require('ramda')
 import {LAYOUT_VERSION} from '../constants'
-import getSaveType from '../getSaveType'
 import removeDeps from '../removeDeps'
-import removeTopDependency from '../removeTopDependency'
 import safeIsInnerLink from '../safeIsInnerLink'
 import extendOptions, {
   StrictUninstallOptions,
@@ -20,7 +23,6 @@ import extendOptions, {
 import getContext, {PnpmContext} from './getContext'
 import {installPkgs} from './install'
 import lock from './lock'
-import removeOrphanPkgs from './removeOrphanPkgs'
 import shrinkwrapsEqual from './shrinkwrapsEqual'
 
 export default async function uninstall (

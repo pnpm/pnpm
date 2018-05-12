@@ -9,6 +9,9 @@ import {
   PackageManifest,
   ReadPackageHook,
 } from '@pnpm/types'
+import {
+  skippedOptionalDependencyLogger,
+} from '@pnpm/utils'
 import * as dp from 'dependency-path'
 import fs = require('mz/fs')
 import path = require('path')
@@ -29,7 +32,6 @@ import encodePkgId from './encodePkgId'
 import getIsInstallable, {nodeIdToParents} from './install/getIsInstallable'
 import {
   deprecationLogger,
-  skippedOptionalDependencyLogger,
 } from './loggers'
 import logStatus from './logging/logInstallStatus'
 import {

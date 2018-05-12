@@ -1,5 +1,6 @@
 import {streamParser} from '@pnpm/logger'
 import {PackageJson} from '@pnpm/types'
+import {removeOrphanPackages as removeOrphanPkgs} from '@pnpm/utils'
 import {
   prune as pruneShrinkwrap,
 } from 'pnpm-shrinkwrap'
@@ -8,7 +9,6 @@ import extendOptions, {
 } from './extendPruneOptions'
 import getContext from './getContext'
 import {installPkgs} from './install'
-import removeOrphanPkgs from './removeOrphanPkgs'
 
 export async function prune (
   maybeOpts: PruneOptions,

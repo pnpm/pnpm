@@ -2,6 +2,10 @@ import {linkPackageBins} from '@pnpm/link-bins'
 import logger, {streamParser} from '@pnpm/logger'
 import {read as readModulesYaml} from '@pnpm/modules-yaml'
 import {PackageJson} from '@pnpm/types'
+import {
+  removeOrphanPackages as removeOrphanPkgs,
+  safeReadPackage,
+} from '@pnpm/utils'
 import loadJsonFile = require('load-json-file')
 import normalize = require('normalize-path')
 import pLimit = require('p-limit')
@@ -15,14 +19,12 @@ import {
 } from 'pnpm-shrinkwrap'
 import R = require('ramda')
 import symlinkDir = require('symlink-dir')
-import safeReadPackage from '../fs/safeReadPkg'
 import getSpecFromPackageJson from '../getSpecFromPackageJson'
 import readShrinkwrapFile from '../readShrinkwrapFiles'
 import extendOptions, {
   InstallOptions,
 } from './extendInstallOptions'
 import {install} from './install'
-import removeOrphanPkgs from './removeOrphanPkgs'
 
 const linkLogger = logger('link')
 const installLimit = pLimit(4)

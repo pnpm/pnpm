@@ -4,14 +4,16 @@ import {
   PackageJson,
   ReadPackageHook,
 } from '@pnpm/types'
+import {
+  packageJsonLogger,
+  safeReadPackageFromDir as safeReadPkgFromDir,
+} from '@pnpm/utils'
 import mkdirp = require('mkdirp-promise')
 import normalizePath = require('normalize-path')
 import path = require('path')
 import {Shrinkwrap} from 'pnpm-shrinkwrap'
 import removeAllExceptOuterLinks = require('remove-all-except-outer-links')
 import writePkg = require('write-pkg')
-import {fromDir as safeReadPkgFromDir} from '../fs/safeReadPkg'
-import {packageJsonLogger} from '../loggers'
 import readShrinkwrapFile from '../readShrinkwrapFiles'
 import {StrictSupiOptions} from '../types'
 import checkCompatibility from './checkCompatibility'

@@ -1,13 +1,15 @@
 import logger, {streamParser} from '@pnpm/logger'
 import {read as readModulesYaml} from '@pnpm/modules-yaml'
+import {
+  readPackageFromDir as readPkgFromDir,
+  realNodeModulesDir,
+} from '@pnpm/utils'
 import isInnerLink = require('is-inner-link')
 import isSubdir = require('is-subdir')
 import fs = require('mz/fs')
 import path = require('path')
 import rimraf = require('rimraf-then')
 import depsFromPackage from '../depsFromPackage'
-import {fromDir as readPkgFromDir} from '../fs/readPkg'
-import realNodeModulesDir from '../fs/realNodeModulesDir'
 import extendOptions, {
   InstallOptions,
   StrictInstallOptions,

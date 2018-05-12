@@ -5,11 +5,11 @@ dependencies:
   '@pnpm/lifecycle': 2.2.1
   '@pnpm/link-bins': 1.0.2
   '@pnpm/modules-yaml': 1.0.0
-  '@pnpm/package-bins': 1.0.0
   '@pnpm/package-requester': 0.9.0
   '@pnpm/pkgid-to-filename': 1.0.1
   '@pnpm/resolver-base': 1.1.0
   '@pnpm/types': 1.7.0
+  '@pnpm/utils': 'link:../utils'
   '@types/byline': 4.2.31
   '@types/common-tags': 1.4.0
   '@types/load-json-file': 2.0.7
@@ -26,7 +26,6 @@ dependencies:
   dependency-path: 1.2.1
   encode-registry: 1.1.0
   execa: 0.10.0
-  fs-vacuum: 1.2.10
   get-npm-tarball-url: 2.0.1
   graceful-fs: 4.1.11
   graph-sequencer: 2.0.0
@@ -47,7 +46,6 @@ dependencies:
   pnpm-install-checks: 1.1.0
   pnpm-shrinkwrap: 6.4.0
   ramda: 0.25.0
-  read-package-json: 2.0.13
   remove-all-except-outer-links: 1.0.3
   replace-string: 1.1.0
   resolve-link-target: 1.0.1
@@ -4921,12 +4919,12 @@ specifiers:
   '@pnpm/link-bins': ^1.0.1
   '@pnpm/logger': ^1.0.0
   '@pnpm/modules-yaml': ^1.0.0
-  '@pnpm/package-bins': ^1.0.0
   '@pnpm/package-requester': ^0.9.0
   '@pnpm/pkgid-to-filename': ^1.0.0
   '@pnpm/resolver-base': ^1.1.0
   '@pnpm/store-path': ^1.0.0
   '@pnpm/types': ^1.7.0
+  '@pnpm/utils': ^0.0.0
   '@types/byline': ^4.2.31
   '@types/common-tags': ^1.2.5
   '@types/is-windows': ^0.2.0
@@ -4953,7 +4951,6 @@ specifiers:
   encode-registry: ^1.0.0
   execa: ^0.10.0
   exists-link: ^2.0.0
-  fs-vacuum: ^1.2.10
   get-npm-tarball-url: ^2.0.0
   graceful-fs: ^4.1.11
   graph-sequencer: ^2.0.0
@@ -4983,7 +4980,6 @@ specifiers:
   pnpm-registry-mock: ^1.23.0
   pnpm-shrinkwrap: ^6.4.0
   ramda: ^0.25.0
-  read-package-json: ^2.0.5
   read-pkg: ^3.0.0
   remove-all-except-outer-links: ^1.0.0
   replace-string: ^1.1.0
