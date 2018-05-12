@@ -1,0 +1,13 @@
+{
+  "extends": [
+    "config:base"
+  ],
+  "pinVersions": false,
+  "ignorePaths": ["test/"],
+  "packageRules": [
+    {
+      "packageNames": "fs-extra",
+      "allowedVersions": "<6"
+    }
+  ]
+}

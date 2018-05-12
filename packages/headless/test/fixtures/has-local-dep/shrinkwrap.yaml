@@ -1,0 +1,15 @@
+dependencies:
+  tar-pkg: 'file:../tar-pkg-1.0.0.tgz'
+packages:
+  'file:../tar-pkg-1.0.0.tgz':
+    dev: false
+    name: tar-pkg
+    resolution:
+      integrity: sha512-HP/5Rgt3pVFLzjmN9qJJ6vZMgCwoCIl/m2bPndYT283CUqnmFiMx0GeeIJ7SyK6TYoJM78SEvFEOQie++caHqw==
+      tarball: 'file:../tar-pkg-1.0.0.tgz'
+    version: 1.0.0
+registry: 'http://localhost:4873/'
+shrinkwrapMinorVersion: 5
+shrinkwrapVersion: 3
+specifiers:
+  tar-pkg: 'file:../tar-pkg-1.0.0.tgz'

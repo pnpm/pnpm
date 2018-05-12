@@ -1,0 +1,7 @@
+{
+  "name": "has-local-dep",
+  "version": "1.0.0",
+  "dependencies": {
+    "tar-pkg": "file:../tar-pkg-1.0.0.tgz"
+  }
+}
