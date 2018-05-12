@@ -163,7 +163,7 @@
     "test:e2e": "npm-run-all -p -r pnpm-registry-mock test:tap",
     "pretest": "rimraf ../.tmp/ && pnpm-registry-mock prepare",
     "test-with-preview": "npm run lint && npm run lint-test && preview && npm run test:e2e",
-    "test": "npm run lint && npm run lint-test && pnpm link . && npm run test:e2e",
+    "test": "npm run lint && npm run lint-test && npm run tsc && pnpm link . && npm run test:e2e",
     "tsc": "rimraf lib && tsc",
     "prepublishOnly": "npm run tsc"
   },
