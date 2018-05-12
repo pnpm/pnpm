@@ -1,4 +1,5 @@
 packages:
+  - tools/**
   - packages/**
   - "!**/test/**"
   - "!**/__package_previews__/**"

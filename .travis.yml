@@ -18,7 +18,7 @@ install:
   - pnpm recursive link --no-lock
 script:
   - /bin/bash lint-commits.sh
-  - ./node_modules/.bin/commitlint --from=$TRAVIS_COMMIT
+  - ./tools/node_modules/.bin/commitlint --from=$TRAVIS_COMMIT
   - npm t --prefix packages/supi
   - npm t --prefix packages/pnpm
 env:

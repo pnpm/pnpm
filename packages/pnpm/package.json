@@ -72,9 +72,6 @@
     "util.promisify": "^1.0.0"
   },
   "devDependencies": {
-    "@commitlint/cli": "^6.1.3",
-    "@commitlint/config-conventional": "^6.1.3",
-    "@commitlint/prompt-cli": "^6.1.3",
     "@pnpm/assert-project": "^1.1.1",
     "@types/byline": "^4.2.31",
     "@types/common-tags": "^1.2.5",
@@ -162,7 +159,8 @@
     "pnpm-registry-mock": "pnpm-registry-mock",
     "test:tap": "ts-node test --type-check",
     "pretest:e2e": "rimraf ../.tmp/ && rimraf node_modules/.bin/pnpm && pnpm-registry-mock prepare",
-    "test:e2e": "preview --skip-prepublishOnly && npm-run-all -p -r pnpm-registry-mock test:tap",
+    "test:e2e": "pnpm link . && npm-run-all -p -r pnpm-registry-mock test:tap",
+    "test:e2e-with-preview": "preview --skip-prepublishOnly && npm-run-all -p -r pnpm-registry-mock test:tap",
     "test": "npm run lint && npm run tsc && npm run test:e2e",
     "tsc": "rimraf lib && tsc",
     "release": "sh .scripts/release.sh"

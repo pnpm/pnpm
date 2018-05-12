@@ -17,8 +17,8 @@ fi
 # Lint all commits in the PR
 # - Covers fork pull requests (when TO=slug/branch)
 # - Covers branch pull requests (when TO=branch)
-./node_modules/.bin/commitlint --from="$TRAVIS_BRANCH" --to="$TO"
+./tools/node_modules/.bin/commitlint --from="$TRAVIS_BRANCH" --to="$TO"
 
 # Always lint the triggerig commit
 # - Covers direct commits
-./node_modules/.bin/commitlint --from="$TRAVIS_COMMIT"
+./tools/node_modules/.bin/commitlint --from="$TRAVIS_COMMIT"
