@@ -94,6 +94,7 @@
     "@pnpm/package-requester": "^0.9.0",
     "@pnpm/pkgid-to-filename": "^1.0.0",
     "@pnpm/types": "^1.7.0",
+    "@pnpm/utils": "^0.1.0",
     "@types/ramda": "^0.25.19",
     "dependency-path": "^1.2.1",
     "graph-sequencer": "^2.0.0",
@@ -103,7 +104,6 @@
     "pnpm-shrinkwrap": "^6.4.0",
     "ramda": "^0.25.0",
     "read-package-json": "^2.0.13",
-    "supi": "^0.18.0",
     "symlink-dir": "^1.1.2",
     "util.promisify": "^1.0.0"
   }

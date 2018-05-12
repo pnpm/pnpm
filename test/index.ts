@@ -13,9 +13,8 @@ import {
   StageLog,
   StatsLog,
   PackageJsonLog,
-  ProgressLog,
   RootLog,
-} from 'supi'
+} from '@pnpm/utils'
 import testDefaults from './utils/testDefaults'
 
 const fixtures = path.join(__dirname, 'fixtures')
@@ -64,7 +63,7 @@ test('installing a simple project', async (t) => {
     level: 'debug',
     pkgId: 'localhost+4873/is-negative/2.1.0',
     status: 'resolving_content',
-  } as ProgressLog), 'logs that package is being resolved')
+  }), 'logs that package is being resolved')
 
   t.end()
 })
@@ -287,12 +286,12 @@ test('available packages are used when node_modules is not clean', async (t) => 
     level: 'debug',
     pkgId: 'localhost+4873/balanced-match/1.0.0',
     status: 'resolving_content',
-  } as ProgressLog), 'does not resolve already available package')
+  }), 'does not resolve already available package')
   t.ok(reporter.calledWithMatch({
     level: 'debug',
     pkgId: 'localhost+4873/rimraf/2.6.2',
     status: 'resolving_content',
-  } as ProgressLog), 'resolves rimraf')
+  }), 'resolves rimraf')
 
   t.end()
 })
@@ -325,12 +324,12 @@ test('available packages are relinked during forced install', async (t) => {
     level: 'debug',
     pkgId: 'localhost+4873/balanced-match/1.0.0',
     status: 'resolving_content',
-  } as ProgressLog), 'does not resolve already available package')
+  }), 'does not resolve already available package')
   t.ok(reporter.calledWithMatch({
     level: 'debug',
     pkgId: 'localhost+4873/rimraf/2.6.2',
     status: 'resolving_content',
-  } as ProgressLog), 'resolves rimraf')
+  }), 'resolves rimraf')
 
   t.end()
 })

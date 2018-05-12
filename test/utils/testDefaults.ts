@@ -3,7 +3,6 @@ import createResolver from '@pnpm/default-resolver'
 import storePath from '@pnpm/store-path'
 import createStore, {StoreController} from 'package-store'
 import path = require('path')
-import {InstallOptions} from 'supi'
 import tempy = require('tempy')
 import {HeadlessOptions} from '@pnpm/headless'
 

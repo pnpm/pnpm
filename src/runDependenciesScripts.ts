@@ -2,13 +2,13 @@
 
 import {runPostinstallHooks} from '@pnpm/lifecycle'
 import logger from '@pnpm/logger'
+import {skippedOptionalDependencyLogger} from '@pnpm/utils'
 import graphSequencer = require('graph-sequencer')
 import pLimit = require('p-limit')
 import {StoreController} from 'package-store'
 import path = require('path')
 import R = require('ramda')
 import readPkgCB = require('read-package-json')
-import {skippedOptionalDependencyLogger} from 'supi/lib/loggers'
 import promisify = require('util.promisify')
 import {DepGraphNodesByDepPath} from '.'
 import {ENGINE_NAME} from './constants'

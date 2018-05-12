@@ -14,6 +14,15 @@ import {
 } from '@pnpm/package-requester'
 import pkgIdToFilename from '@pnpm/pkgid-to-filename'
 import {PackageJson} from '@pnpm/types'
+import {
+  packageJsonLogger,
+  realNodeModulesDir,
+  removeOrphanPackages as removeOrphanPkgs,
+  rootLogger,
+  stageLogger,
+  statsLogger,
+  summaryLogger,
+} from '@pnpm/utils'
 import dp = require('dependency-path')
 import pLimit = require('p-limit')
 import {StoreController} from 'package-store'
@@ -30,15 +39,6 @@ import {
 } from 'pnpm-shrinkwrap'
 import R = require('ramda')
 import readPkgCB = require('read-package-json')
-import removeOrphanPkgs from 'supi/lib/api/removeOrphanPkgs'
-import realNodeModulesDir from 'supi/lib/fs/realNodeModulesDir'
-import {
-  packageJsonLogger,
-  rootLogger,
-  stageLogger,
-  statsLogger,
-  summaryLogger,
-} from 'supi/lib/loggers'
 import symlinkDir = require('symlink-dir')
 import promisify = require('util.promisify')
 import {
