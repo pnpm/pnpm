@@ -5,21 +5,20 @@
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
   "files": [
+    "bin.js",
     "lib"
   ],
-  "bin": "lib/bin/pnpm-default-reporter.js",
+  "bin": "bin.js",
   "scripts": {
     "lint": "tslint -c tslint.json --project .",
     "pretty-test": "preview && ts-node test | tap-diff",
     "test": "npm run lint && npm run just-test",
-    "just-test": "preview && ts-node test --type-check",
+    "just-test-preview": "preview && ts-node test --type-check",
+    "just-test": "npm run tsc && pnpm link . && ts-node test --type-check",
     "tsc": "rimraf lib && tsc",
     "prepublishOnly": "npm run tsc"
   },
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/pnpm/pnpm-reporter-default.git"
-  },
+  "repository": "https://github.com/pnpm/pnpm/blob/master/packages/default-reporter",
   "keywords": [
     "pnpm-reporter"
   ],
@@ -34,9 +33,8 @@
   },
   "license": "MIT",
   "bugs": {
-    "url": "https://github.com/pnpm/pnpm-reporter-default/issues"
+    "url": "https://github.com/pnpm/pnpm/issues"
   },
-  "homepage": "https://github.com/pnpm/pnpm-reporter-default#readme",
   "peerDependencies": {
     "supi": ">=0.16.0 <0.19.0"
   },

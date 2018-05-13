@@ -17,12 +17,15 @@ before_install:
 install:
   - pnpm recursive link --no-lock
 script:
+  - set -e # Fail on first error
   - /bin/bash lint-commits.sh
   - ./tools/node_modules/.bin/commitlint --from=$TRAVIS_COMMIT
   - npm t --prefix packages/utils
   - npm t --prefix packages/headless
   - npm t --prefix packages/supi
+  - npm t --prefix packages/default-reporter
   - npm t --prefix packages/pnpm
+  - set +e
 env:
   global:
     - CC=clang CXX=clang++ npm_config_clang=1

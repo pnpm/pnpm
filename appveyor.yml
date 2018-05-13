@@ -21,5 +21,6 @@ test_script:
   - npm t --prefix packages/utils
   - npm t --prefix packages/headless
   - npm t --prefix packages/supi
+  - npm t --prefix packages/default-reporter
   - npm t --prefix packages/pnpm
 skip_tags: true

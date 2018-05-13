@@ -1,4 +1,3 @@
-#!/usr/bin/env node
 import ndjson = require('ndjson')
 import reporter from '..'
 
