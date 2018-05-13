@@ -28,6 +28,7 @@ const supportedRecursiveCommands = new Set([
   'link',
   'ln',
   'dislink',
+  'unlink',
 ])
 
 export default async (
@@ -98,7 +99,7 @@ export default async (
   }) as InstallOptions
 
   const limitInstallation = pLimit(concurrency)
-  const action = cmd === 'dislink' ? unlink : install
+  const action = cmd === 'unlink' || cmd === 'dislink' ? unlink : install
 
   for (const chunk of chunks) {
     await Promise.all(chunk.map((prefix: string) =>

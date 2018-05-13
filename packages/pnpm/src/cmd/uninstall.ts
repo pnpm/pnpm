@@ -8,7 +8,6 @@ import {PnpmOptions} from '../types'
 export default async function uninstallCmd (
   input: string[],
   opts: PnpmOptions,
-  cmdName: string,
 ) {
   const store = await createStoreController(opts)
   const uninstallOpts = Object.assign(opts, {
@@ -16,8 +15,5 @@ export default async function uninstallCmd (
     storeController: store.ctrl,
   })
 
-  if (cmdName === 'unlink') {
-    logger.warn('This command will behave as `pnpm dislink` in the future')
-  }
   return uninstall(input, uninstallOpts)
 }
