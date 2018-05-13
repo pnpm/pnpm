@@ -1,6 +1,7 @@
 dependencies:
   '@pnpm/check-package': 1.0.0
   '@pnpm/fetcher-base': 1.0.0
+  '@pnpm/package-requester': 'link:../__package_previews__/package-requester/@pnpm/package-requester'
   '@pnpm/pkgid-to-filename': 1.0.1
   '@pnpm/resolver-base': 1.1.0
   '@pnpm/types': 1.7.0
@@ -9,7 +10,7 @@ dependencies:
   '@types/node': 10.0.8
   '@types/p-queue': 2.3.1
   '@types/write-json-file': 2.2.1
-  load-json-file: 4.0.0
+  load-json-file: 5.0.0
   mkdirp-promise: 5.0.1
   mz: 2.7.0
   p-limit: 1.2.0
@@ -1743,7 +1744,6 @@ packages:
       parse-json: 4.0.0
       pify: 3.0.0
       strip-bom: 3.0.0
-    dev: true
     engines:
       node: '>=6'
     resolution:
@@ -3739,7 +3739,7 @@ specifiers:
   '@types/tape': ^4.2.31
   '@types/tempy': ^0.1.0
   '@types/write-json-file': ^2.2.1
-  load-json-file: ^4.0.0
+  load-json-file: ^5.0.0
   mkdirp-promise: ^5.0.1
   mos: ^2.0.0-alpha.3
   mos-plugin-readme: ^1.0.4

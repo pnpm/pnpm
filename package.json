@@ -8,7 +8,7 @@
     "lib"
   ],
   "engines": {
-    "node": ">=4"
+    "node": ">=6"
   },
   "scripts": {
     "start": "npm run tsc -- --watch",
@@ -47,7 +47,7 @@
     "@types/node": "^10.0.6",
     "@types/p-queue": "^2.3.1",
     "@types/write-json-file": "^2.2.1",
-    "load-json-file": "^4.0.0",
+    "load-json-file": "^5.0.0",
     "mkdirp-promise": "^5.0.1",
     "mz": "^2.7.0",
     "p-limit": "^1.1.0",
