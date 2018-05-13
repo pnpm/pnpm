@@ -13,7 +13,7 @@ dependencies:
   ndjson: 1.5.0
   normalize-path: 3.0.0
   pnpm-default-reporter: 'link:'
-  pretty-bytes: 4.0.2
+  pretty-bytes: 5.0.0
   ramda: 0.25.0
   right-pad: 1.0.1
   semver: 5.5.0
@@ -1844,12 +1844,12 @@ packages:
       node: '>=0.10.0'
     resolution:
       integrity: sha1-gV7R9uvGWSb4ZbMQwHE7yzMVzks=
-  /pretty-bytes/4.0.2:
+  /pretty-bytes/5.0.0:
     dev: false
     engines:
-      node: '>=4'
+      node: '>=6'
     resolution:
-      integrity: sha1-sr+C5zUNZcbDOqlaqlpPYyf2HNk=
+      integrity: sha512-y2vTE3T7ODiNA8FL/x6QpSuG0yKu6M6aIXUCbKzFZ4/6EG4CazYu/eyMWweukcCRTrOOypBe5R8xZU0aE0X9JA==
   /pretty-ms/2.1.0:
     dependencies:
       is-finite: 1.0.2
@@ -2590,7 +2590,7 @@ specifiers:
   normalize-newline: ^3.0.0
   normalize-path: ^3.0.0
   package-preview: ^1.0.0
-  pretty-bytes: ^4.0.2
+  pretty-bytes: ^5.0.0
   ramda: ^0.25.0
   right-pad: ^1.0.1
   rimraf: ^2.5.4
