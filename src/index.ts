@@ -1,5 +1,9 @@
-import {FetchOptions} from '@pnpm/fetcher-base'
+import {FetchOptions, FetchResult} from '@pnpm/fetcher-base'
 import fetchFromGit from '@pnpm/git-fetcher'
+import {
+  DirectoryResolution,
+  TarballResolution,
+} from '@pnpm/resolver-base'
 import createTarballFetcher, {
   IgnoreFunction,
 } from '@pnpm/tarball-fetcher'
