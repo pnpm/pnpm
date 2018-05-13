@@ -79,7 +79,7 @@
   "devDependencies": {
     "@pnpm/assert-project": "^1.1.2",
     "@pnpm/default-fetcher": "^0.4.0",
-    "@pnpm/default-resolver": "^0.1.5",
+    "@pnpm/default-resolver": "^1.0.0",
     "@pnpm/logger": "^1.0.0",
     "@pnpm/store-path": "^1.0.0",
     "@pnpm/utils": "^0.1.0",
