@@ -8,7 +8,7 @@
     "url": "https://www.kochan.io/"
   },
   "bugs": {
-    "url": "https://github.com/pnpm/supi/issues"
+    "url": "https://github.com/pnpm/pnpm/issues"
   },
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
