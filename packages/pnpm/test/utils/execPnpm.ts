@@ -16,9 +16,9 @@ export default async function () {
   })
 }
 
-export function spawn (args: string[]) {
+export function spawn (args: string[], opts?: {storeDir?: string}) {
   return crossSpawn.spawn('pnpm', args, {
-    env: createEnv(),
+    env: createEnv(opts),
     stdio: 'inherit',
   })
 }
@@ -37,10 +37,10 @@ export function sync (): ChildProcess {
   })
 }
 
-function createEnv () {
+function createEnv (opts?: {storeDir?: string}) {
   const _ = Object.assign({}, process.env, {
     npm_config_registry: 'http://localhost:4873/',
-    npm_config_store: '../store',
+    npm_config_store: opts && opts.storeDir || '../store',
     npm_config_silent: 'true',
     // Although this is the default value of verify-store-integrity (as of pnpm 1.38.0)
     // on CI servers we set it to `false`. That is why we set it back to true for the tests

@@ -75,7 +75,7 @@ test('recursive installation with package-specific .npmrc', async t => {
   t.notOk(modulesYaml2.shamefullyFlatten)
 })
 
-test('recursive installation using server', async t => {
+test('recursive installation using server', async (t: tape.Test) => {
   const projects = prepare(t, [
     {
       name: 'project-1',
@@ -93,9 +93,10 @@ test('recursive installation using server', async t => {
     },
   ])
 
-  const server = spawn(['server', 'start'])
+  const storeDir = path.resolve('store')
+  const server = spawn(['server', 'start'], {storeDir})
 
-  const serverJsonPath = path.resolve('..', 'store', '2', 'server', 'server.json')
+  const serverJsonPath = path.resolve(storeDir, '2', 'server', 'server.json')
   const serverJson = await retryLoadJsonFile(serverJsonPath)
   t.ok(serverJson)
   t.ok(serverJson.connectionOptions)
@@ -105,7 +106,7 @@ test('recursive installation using server', async t => {
   t.ok(projects['project-1'].requireModule('is-positive'))
   t.ok(projects['project-2'].requireModule('is-negative'))
 
-  await execPnpm('server', 'stop')
+  await execPnpm('server', 'stop', '--store', storeDir)
 })
 
 test('recursive installation of packages with hooks', async t => {
