@@ -5,7 +5,7 @@
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
   "engines": {
-    "node": ">=4"
+    "node": ">=6"
   },
   "files": [
     "lib"
@@ -41,7 +41,7 @@
   "dependencies": {
     "@pnpm/npm-resolver": "^1.0.0",
     "@pnpm/store-path": "^1.0.0",
-    "@types/node": "^9.3.0",
+    "@types/node": "^9.3.0 || 10",
     "dependency-path": "^1.2.0",
     "pnpm-shrinkwrap": "^6.0.0"
   },

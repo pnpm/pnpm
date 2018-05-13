@@ -1,7 +1,8 @@
 dependencies:
   '@pnpm/npm-resolver': 1.0.1
+  '@pnpm/outdated': 'link:../__package_previews__/outdated/@pnpm/outdated'
   '@pnpm/store-path': 1.0.3
-  '@types/node': 9.6.15
+  '@types/node': 10.0.8
   dependency-path: 1.2.1
   pnpm-shrinkwrap: 6.4.0
 devDependencies:
@@ -29,7 +30,7 @@ packages:
       integrity: sha512-1zLmh6tRftQXfZ1IFHq1IexP0KaJhN6pSCA/IzK+Vixn4hPvxwcIbGjKW0KH9hsHSmrPpmSit2EWj7jGNgfa6Q==
   /@pnpm/logger/1.0.2:
     dependencies:
-      '@types/node': 9.6.15
+      '@types/node': 10.0.8
       bole: 3.0.2
       ndjson: 1.5.0
     dev: true
@@ -100,13 +101,13 @@ packages:
       integrity: sha512-pn7g4uxcofWTNG/cxmKvkMK2lxr4OUIhrQDrEVYEdVhW0WkWztsHkFrYjFgfNzPbYu3ITlB3T6aSVjCoJQTOlw==
   /@types/fs-extra/5.0.2:
     dependencies:
-      '@types/node': 9.6.15
+      '@types/node': 10.0.8
     dev: true
     resolution:
       integrity: sha512-Q3FWsbdmkQd1ib11A4XNWQvRD//5KpPoGawA8aB2DR7pWKoW9XQv3+dGxD/Z1eVFze23Okdo27ZQytVFlweKvQ==
   /@types/got/8.3.1:
     dependencies:
-      '@types/node': 9.6.15
+      '@types/node': 10.0.8
     dev: true
     resolution:
       integrity: sha512-CGEPw67/Ub6gNMusk062tueurxN+HyjDCvYl4QVBKiSO+fqluXmRX/wSqST/4RtKth4mz8lDZiaZIpXr/uPROg==
@@ -123,7 +124,7 @@ packages:
       integrity: sha1-48iwlfLyVjtRjwqtWd+f5qi4IGU=
   /@types/mz/0.0.32:
     dependencies:
-      '@types/node': 9.6.15
+      '@types/node': 10.0.8
     dev: true
     resolution:
       integrity: sha512-cy3yebKhrHuOcrJGkfwNHhpTXQLgmXSv1BX+4p32j+VUQ6aP2eJ5cL7OvGcAQx75fCTFaAIIAKewvqL+iwSd4g==
@@ -131,6 +132,7 @@ packages:
     resolution:
       integrity: sha512-MFFKFv2X4iZy/NFl1m1E8uwE1CR96SGwJjgHma09PLtqOWoj3nqeJHMG+P/EuJGVLvC2I6MdQRQsr4TcRduIow==
   /@types/node/9.6.15:
+    dev: false
     resolution:
       integrity: sha512-16zIiQkIZBc1ZpfrOZZZ/6LKDixPiAIZq5q1YE1stxG4Ic1VmQlkNNWGBydqBFcX8eS+m/Dd4z5HzDa+q0b2Xg==
   /@types/ramda/0.25.28:
@@ -143,13 +145,13 @@ packages:
       integrity: sha512-41qEJgBH/TWgo5NFSvBCJ1qkoi3Q6ONSF2avrHq1LVEZfYpdHmj0y9SuTK+u9ZhG1sYQKBL1AWXKyLWP4RaUoQ==
   /@types/tape/4.2.32:
     dependencies:
-      '@types/node': 9.6.15
+      '@types/node': 10.0.8
     dev: true
     resolution:
       integrity: sha512-xil0KO5wkPoixdBWGIGolPv9dekf6dVkjjJLAFYchfKcd4DICou67rgGCIO7wAh3i5Ff/6j9IDgZz+GU9cMaqQ==
   /@types/touch/3.1.0:
     dependencies:
-      '@types/node': 9.6.15
+      '@types/node': 10.0.8
     dev: false
     resolution:
       integrity: sha512-Bskfd5wztYbQ/mvU4rgHUB3fKcjW2hA6o/F0JN8O+jRPJQDN/2pPV6SmdIiFm2vLyyN/XQzoCULTE05ZOpnNbQ==
@@ -1056,7 +1058,7 @@ packages:
       integrity: sha1-oB6c2cnkkXFcmKdaQtXwu9EH/3Y=
   /fetch-from-npm-registry/1.0.0:
     dependencies:
-      '@types/node': 9.6.15
+      '@types/node': 10.0.8
       make-fetch-happen: 4.0.1
     dev: false
     engines:
@@ -3558,7 +3560,7 @@ specifiers:
   '@pnpm/logger': ^1.0.0
   '@pnpm/npm-resolver': ^1.0.0
   '@pnpm/store-path': ^1.0.0
-  '@types/node': ^9.3.0
+  '@types/node': ^9.3.0 || 10
   '@types/tape': ^4.2.31
   dependency-path: ^1.2.0
   mos: ^2.0.0-alpha.3
