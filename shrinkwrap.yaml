@@ -1,6 +1,7 @@
 dependencies:
-  '@pnpm/package-requester': 0.9.0
+  '@pnpm/package-requester': 1.0.0
   '@pnpm/resolver-base': 1.1.0
+  '@pnpm/server': 'link:../__package_previews__/server/@pnpm/server'
   '@pnpm/types': 1.7.0
   '@types/got': 8.3.1
   '@types/node': 10.0.8
@@ -8,7 +9,7 @@ dependencies:
   '@types/uuid': 3.4.3
   got: 8.3.1
   p-limit: 1.2.0
-  package-store: 0.19.0
+  package-store: 0.20.0
   uuid: 3.2.1
 devDependencies:
   '@pnpm/logger': 1.0.2
@@ -103,7 +104,7 @@ packages:
       '@pnpm/logger': ^1.0.0
     resolution:
       integrity: sha1-O506ZrtVP+O26ttVpzei744IK4k=
-  /@pnpm/package-requester/0.9.0:
+  /@pnpm/package-requester/1.0.0:
     dependencies:
       '@pnpm/check-package': 1.0.0
       '@pnpm/fetcher-base': 1.0.0
@@ -115,7 +116,7 @@ packages:
       '@types/node': 10.0.8
       '@types/p-queue': 2.3.1
       '@types/write-json-file': 2.2.1
-      load-json-file: 4.0.0
+      load-json-file: 5.0.0
       mkdirp-promise: 5.0.1
       mz: 2.7.0
       p-limit: 1.2.0
@@ -129,11 +130,11 @@ packages:
       write-json-file: 2.3.0
     dev: false
     engines:
-      node: '>=4'
+      node: '>=6'
     peerDependencies:
       '@pnpm/logger': ^1.0.0
     resolution:
-      integrity: sha512-u1ftVFdBiDKkorwsST0ZYRWcxo8/6KtAZ/hGhb+6VElSDQiEqC4NPSqlBnf8E3UmRYQgX9HzZYn5q4xcUVNTeQ==
+      integrity: sha512-LGnPJ/Rz4zjr3niBxeV/QeddR8KCREMtj9jrUuwTm92p1SVOxZG49tWNAJYLPbVwip51+Cv3yHjSXG780yGniQ==
   /@pnpm/pkgid-to-filename/1.0.1:
     dependencies:
       normalize-path: 3.0.0
@@ -1856,7 +1857,6 @@ packages:
       parse-json: 4.0.0
       pify: 3.0.0
       strip-bom: 3.0.0
-    dev: true
     engines:
       node: '>=6'
     resolution:
@@ -2601,11 +2601,11 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha512-GQ4w5vrDXoy8UVJM+0W7oWd5MYF21/IXkdzcupGNXdfqQuMzgQT+LXde109uHaH7xyqvCzPPBSxYM/HqQOi3+w==
-  /package-store/0.19.0:
+  /package-store/0.20.0:
     dependencies:
       '@pnpm/fetcher-base': 1.0.0
       '@pnpm/fs-locker': 1.0.2
-      '@pnpm/package-requester': 0.9.0
+      '@pnpm/package-requester': 1.0.0
       '@pnpm/resolver-base': 1.1.0
       '@pnpm/types': 1.7.0
       '@types/load-json-file': 2.0.7
@@ -2613,7 +2613,7 @@ packages:
       '@types/node': 10.0.8
       '@types/ramda': 0.25.28
       encode-registry: 1.1.0
-      load-json-file: 4.0.0
+      load-json-file: 5.0.0
       mkdirp-promise: 5.0.1
       mz: 2.7.0
       ncp: 2.0.0
@@ -2628,11 +2628,11 @@ packages:
       write-json-file: 2.3.0
     dev: false
     engines:
-      node: '>=4'
+      node: '>=6'
     peerDependencies:
       '@pnpm/logger': ^1.0.0
     resolution:
-      integrity: sha512-d1cvhAX4C9fw5VHI18mH2oNWiuPH1lcTrvqUloCIZezvuFc31zEauLWIvjisg6HwvvxAdiQ4EDmEd9dnyhaL+g==
+      integrity: sha512-Q7Y3tykIABGAhXq0PGejRrbZVrnumse3TXUxxBTGIlybCpg0MT3gXViMKsnXQP/+8/MxD0tPheooIZXEWJsvNA==
   /pako/0.2.9:
     dev: true
     resolution:
@@ -3925,7 +3925,7 @@ shrinkwrapVersion: 3
 specifiers:
   '@pnpm/logger': ^1.0.0
   '@pnpm/npm-resolver': ^1.0.0
-  '@pnpm/package-requester': ^0.9.0
+  '@pnpm/package-requester': ^0.9.0 || 1
   '@pnpm/resolver-base': ^1.1.0
   '@pnpm/tarball-fetcher': ^1.0.0
   '@pnpm/types': ^1.7.0
@@ -3942,7 +3942,7 @@ specifiers:
   mz: ^2.7.0
   p-limit: ^1.1.0
   package-preview: ^1.0.1
-  package-store: ^0.19.0
+  package-store: ^0.19.0 || 0.20
   rimraf: ^2.6.2
   rimraf-then: ^1.0.1
   tape: ^4.8.0
