@@ -1,7 +1,7 @@
 dependencies:
   '@pnpm/fetcher-base': 1.0.0
   '@pnpm/fs-locker': 1.0.2
-  '@pnpm/package-requester': 0.9.0
+  '@pnpm/package-requester': 1.0.0
   '@pnpm/resolver-base': 1.1.0
   '@pnpm/types': 1.7.0
   '@types/load-json-file': 2.0.7
@@ -9,12 +9,13 @@ dependencies:
   '@types/node': 10.0.8
   '@types/ramda': 0.25.28
   encode-registry: 1.1.0
-  load-json-file: 4.0.0
+  load-json-file: 5.0.0
   mkdirp-promise: 5.0.1
   mz: 2.7.0
   ncp: 2.0.0
   p-filter: 1.0.0
   p-limit: 1.2.0
+  package-store: 'link:../__package_previews__/package-store/package-store'
   path-exists: 3.0.0
   path-temp: 1.0.0
   ramda: 0.25.0
@@ -117,7 +118,7 @@ packages:
       '@pnpm/logger': ^1.0.0
     resolution:
       integrity: sha1-O506ZrtVP+O26ttVpzei744IK4k=
-  /@pnpm/package-requester/0.9.0:
+  /@pnpm/package-requester/1.0.0:
     dependencies:
       '@pnpm/check-package': 1.0.0
       '@pnpm/fetcher-base': 1.0.0
@@ -129,7 +130,7 @@ packages:
       '@types/node': 10.0.8
       '@types/p-queue': 2.3.1
       '@types/write-json-file': 2.2.1
-      load-json-file: 4.0.0
+      load-json-file: 5.0.0
       mkdirp-promise: 5.0.1
       mz: 2.7.0
       p-limit: 1.2.0
@@ -143,11 +144,11 @@ packages:
       write-json-file: 2.3.0
     dev: false
     engines:
-      node: '>=4'
+      node: '>=6'
     peerDependencies:
       '@pnpm/logger': ^1.0.0
     resolution:
-      integrity: sha512-u1ftVFdBiDKkorwsST0ZYRWcxo8/6KtAZ/hGhb+6VElSDQiEqC4NPSqlBnf8E3UmRYQgX9HzZYn5q4xcUVNTeQ==
+      integrity: sha512-LGnPJ/Rz4zjr3niBxeV/QeddR8KCREMtj9jrUuwTm92p1SVOxZG49tWNAJYLPbVwip51+Cv3yHjSXG780yGniQ==
   /@pnpm/pkgid-to-filename/1.0.1:
     dependencies:
       normalize-path: 3.0.0
@@ -1559,7 +1560,6 @@ packages:
       parse-json: 4.0.0
       pify: 3.0.0
       strip-bom: 3.0.0
-    dev: true
     engines:
       node: '>=6'
     resolution:
@@ -2925,7 +2925,7 @@ specifiers:
   '@pnpm/fs-locker': ^1.0.0
   '@pnpm/logger': ^1.0.0
   '@pnpm/npm-resolver': ^1.0.0
-  '@pnpm/package-requester': ^0.9.0
+  '@pnpm/package-requester': ^0.9.0 || 1
   '@pnpm/resolver-base': ^1.1.0
   '@pnpm/tarball-fetcher': ^1.0.0
   '@pnpm/types': ^1.3.0
@@ -2940,7 +2940,7 @@ specifiers:
   encode-registry: ^1.1.0
   husky: ^0.14.3
   in-publish: ^2.0.0
-  load-json-file: ^4.0.0
+  load-json-file: ^4.0.0 || 5
   mkdirp-promise: ^5.0.1
   mz: ^2.7.0
   ncp: ^2.0.0
