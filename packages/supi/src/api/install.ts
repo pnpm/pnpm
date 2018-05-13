@@ -249,13 +249,13 @@ export async function install (maybeOpts: InstallOptions) {
 }
 
 function hasLocalTarballDepsInRoot (shr: Shrinkwrap) {
-  return R.any(refIsLocalTarbal, R.values(shr.dependencies || {}))
-    || R.any(refIsLocalTarbal, R.values(shr.devDependencies || {}))
-    || R.any(refIsLocalTarbal, R.values(shr.optionalDependencies || {}))
+  return R.any(refIsLocalTarball, R.values(shr.dependencies || {}))
+    || R.any(refIsLocalTarball, R.values(shr.devDependencies || {}))
+    || R.any(refIsLocalTarball, R.values(shr.optionalDependencies || {}))
 }
 
-function refIsLocalTarbal (ref: string) {
-  return (ref.startsWith('file:') || ref.startsWith('link:')) && (ref.endsWith('.tgz') || ref.endsWith('.tar.gz') || ref.endsWith('.tar'))
+function refIsLocalTarball (ref: string) {
+  return ref.startsWith('file:') && (ref.endsWith('.tgz') || ref.endsWith('.tar.gz') || ref.endsWith('.tar'))
 }
 
 function specsToInstallFromPackage (

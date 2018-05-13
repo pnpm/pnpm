@@ -35,7 +35,7 @@ test('local file', async (t: tape.Test) => {
   await installPkgs(['file:../local-pkg'], await testDefaults())
 
   const pkgJson = await readPkg()
-  const expectedSpecs = {'local-pkg': `file:..${path.sep}local-pkg`}
+  const expectedSpecs = {'local-pkg': `link:..${path.sep}local-pkg`}
   t.deepEqual(pkgJson.dependencies, expectedSpecs, 'local-pkg has been added to dependencies')
 
   const m = project.requireModule('local-pkg')
@@ -46,7 +46,7 @@ test('local file', async (t: tape.Test) => {
 
   t.deepEqual(shr, {
     dependencies: {
-      'local-pkg': 'file:../local-pkg',
+      'local-pkg': 'link:../local-pkg',
     },
     registry: 'http://localhost:4873/',
     shrinkwrapMinorVersion: 6,
@@ -91,7 +91,7 @@ test('local file with symlinked node_modules', async (t: tape.Test) => {
   await installPkgs(['file:../local-pkg'], await testDefaults())
 
   const pkgJson = await readPkg()
-  const expectedSpecs = {'local-pkg': `file:..${path.sep}local-pkg`}
+  const expectedSpecs = {'local-pkg': `link:..${path.sep}local-pkg`}
   t.deepEqual(pkgJson.dependencies, expectedSpecs, 'local-pkg has been added to dependencies')
 
   const m = project.requireModule('local-pkg')
@@ -102,7 +102,7 @@ test('local file with symlinked node_modules', async (t: tape.Test) => {
 
   t.deepEqual(shr, {
     dependencies: {
-      'local-pkg': 'file:../local-pkg',
+      'local-pkg': 'link:../local-pkg',
     },
     registry: 'http://localhost:4873/',
     shrinkwrapMinorVersion: 6,
