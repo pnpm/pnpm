@@ -130,10 +130,8 @@ test('moves fixed line to the end', async t => {
 
   output$.skip(3).take(1).map(normalizeNewline).subscribe({
     next: output => {
-      t.equal(output, stripIndents`
-        ${WARN} foo
-        Resolving: total ${hlValue('1')}, reused ${hlValue('0')}, downloaded ${hlValue('1')}, done
-      `)
+      t.equal(output, `${WARN} foo` + EOL +
+        `Resolving: total ${hlValue('1')}, reused ${hlValue('0')}, downloaded ${hlValue('1')}, done`)
     },
     complete: v => t.end(),
     error: t.end,
@@ -279,9 +277,8 @@ test('prints summary', t => {
 
   output$.skip(1).take(1).map(normalizeNewline).subscribe({
     next: output => {
-      t.equal(output, stripIndents`
-        ${WARN} ${DEPRECATED} bar@2.0.0: This package was deprecated because bla bla bla
-
+      t.equal(output, `${WARN} ${DEPRECATED} bar@2.0.0: This package was deprecated because bla bla bla` + EOL + EOL +
+        stripIndents`
         ${h1('dependencies:')}
         ${ADD} bar ${versionColor('2.0.0')} ${DEPRECATED}
         ${SUB} foo ${versionColor('0.1.0')}
