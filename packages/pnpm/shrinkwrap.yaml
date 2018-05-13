@@ -1,5 +1,5 @@
 dependencies:
-  '@pnpm/config': 0.3.1
+  '@pnpm/config': 'link:../config'
   '@pnpm/default-fetcher': 0.4.0
   '@pnpm/default-resolver': 0.1.6
   '@pnpm/logger': 1.0.1
@@ -132,19 +132,6 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha512-rN+hiOjGtxwwus7c/E0xkCs9prBeXzZCSCW/Q3k2WdHGSRNLAepr777iv+i2eqTfz9vXlTF0rLZOGi62ujzwYA==
-  /@pnpm/config/0.3.1:
-    dependencies:
-      '@types/camelcase': 4.1.0
-      '@types/node': 9.6.15
-      '@types/which': 1.3.1
-      camelcase: 4.1.0
-      npm-conf: 1.1.3
-      which: 1.3.0
-    dev: false
-    engines:
-      node: '>=4'
-    resolution:
-      integrity: sha512-ePlhPzDhrBRpQpCzouzxmzdcGrM7PGPKlGe6eqpKlzxgawPNEDbqO4XFsssXDy9jKyZ+lPtcTwsI1JiqAmZrWA==
   /@pnpm/default-fetcher/0.4.0:
     dependencies:
       '@pnpm/fetcher-base': 1.0.0
@@ -451,10 +438,6 @@ packages:
     dev: false
     resolution:
       integrity: sha1-Uo2iPnvUEGjuJeO6UqlqTQ0mPtU=
-  /@types/camelcase/4.1.0:
-    dev: false
-    resolution:
-      integrity: sha512-nsaprOtNLvUrLyFX5+mRpE9h2Q0d5YzQRr+Lav3fxdYtc1/E/U7G+Ld861NWBDDtWY3MnwKoUOhCrE1nrVxUQA==
   /@types/common-tags/1.4.0:
     dev: true
     resolution:
@@ -582,10 +565,6 @@ packages:
     dev: false
     resolution:
       integrity: sha512-5fRLCYhLtDb3hMWqQyH10qtF+Ud2JnNCXTCZ+9ktNdCcgslcuXkDTkFcJNk++MT29yDntDnlF1+jD+uVGumsbw==
-  /@types/which/1.3.1:
-    dev: false
-    resolution:
-      integrity: sha512-ZrJDWpvg75LTGX4XwuneY9s6bF3OeZcGTpoGh3zDV9ytzcHMFsRrMIaLBRJZQMBoGyKs6unBQfVdrLZiYfb1zQ==
   /@types/write-json-file/2.2.1:
     resolution:
       integrity: sha512-JdO/UpPm9RrtQBNVcZdt3M7j3mHO/kXaea9LBGx3UgWJd1f9BkIWP7jObLBG6ZtRyqp7KzLFEsaPhWcidVittA==
@@ -1423,6 +1402,7 @@ packages:
     dependencies:
       ini: 1.3.5
       proto-list: 1.2.4
+    dev: true
     resolution:
       integrity: sha1-q6CXR9++TD5w52am5BWG4YWfxvI=
   /configstore/3.1.2:
@@ -3883,6 +3863,7 @@ packages:
     dependencies:
       config-chain: 1.1.11
       pify: 3.0.0
+    dev: true
     engines:
       node: '>=4'
     resolution:
@@ -4534,6 +4515,7 @@ packages:
     resolution:
       integrity: sha1-FZ+wYZPTIAP0s2kd0uwaY0qoDR0=
   /proto-list/1.2.4:
+    dev: true
     resolution:
       integrity: sha1-IS1b/hMYMGpCD2QCuOJv85ZHqEk=
   /protocols/1.4.6:

@@ -11,12 +11,10 @@
     "prepublishOnly": "npm run tsc",
     "tsc": "rimraf lib && tsc",
     "lint": "tslint -c tslint.json --project .",
-    "test": "npm run lint && preview && ts-node test && mos t"
+    "test-with-preview": "npm run lint && preview && ts-node test && mos t",
+    "test": "npm run lint && npm run tsc && pnpm link . && ts-node test && mos t"
   },
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/pnpm/config.git"
-  },
+  "repository": "https://github.com/pnpm/pnpm/blob/master/packages/config",
   "keywords": [
     "pnpm",
     "config"
@@ -27,9 +25,9 @@
   "author": "Zoltan Kochan <z@kochan.io> (https://www.kochan.io/)",
   "license": "MIT",
   "bugs": {
-    "url": "https://github.com/pnpm/config/issues"
+    "url": "https://github.com/pnpm/pnpm/issues"
   },
-  "homepage": "https://github.com/pnpm/config#readme",
+  "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/config#readme",
   "dependencies": {
     "@types/camelcase": "^4.1.0",
     "@types/node": "^9.4.6",
