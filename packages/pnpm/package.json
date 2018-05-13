@@ -53,7 +53,7 @@
     "mz": "^2.7.0",
     "nopt": "^4.0.1",
     "p-limit": "^1.1.0",
-    "package-store": "^0.19.0",
+    "package-store": "^0.20.0",
     "path-absolute": "^1.0.0",
     "path-name": "^1.0.0",
     "pkgs-graph": "^2.0.0",
