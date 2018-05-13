@@ -36,7 +36,7 @@
   },
   "devDependencies": {
     "@pnpm/logger": "^1.0.0",
-    "@pnpm/npm-resolver": "^0.3.9",
+    "@pnpm/npm-resolver": "^1.0.0",
     "@pnpm/tarball-fetcher": "^1.0.0",
     "@types/mz": "^0.0.32",
     "@types/tape": "^4.2.31",
