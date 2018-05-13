@@ -4,20 +4,6 @@
   ],
   "pinVersions": false,
   "ignorePaths": ["test/"],
-  "packageRules": [
-    {
-      "packageNames": "camelcase",
-      "allowedVersions": "<5"
-    },
-    {
-      "packageNames": "tape-promise",
-      "allowedVersions": "<3"
-    },
-    {
-      "packageNames": "load-json-file",
-      "allowedVersions": "<5"
-    }
-  ],
   "ignoreDeps": [
     "@pnpm/default-fetcher",
     "@pnpm/default-resolver",
