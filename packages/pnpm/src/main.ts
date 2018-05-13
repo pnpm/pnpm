@@ -41,7 +41,7 @@ const supportedCmds = new Set([
   'server',
   'store',
   'list',
-  'dislink',
+  'unlink',
   'help',
   'root',
   'outdated',

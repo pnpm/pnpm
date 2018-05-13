@@ -1,4 +1,3 @@
-import dislink from './dislink'
 import help from './help'
 import install from './install'
 import installTest from './installTest'
@@ -13,6 +12,7 @@ import run from './run'
 import server from './server'
 import store from './store'
 import uninstall from './uninstall'
+import unlink from './unlink'
 import update from './update'
 
 export {
@@ -24,7 +24,7 @@ export {
   server,
   store,
   uninstall,
-  dislink,
+  unlink,
   update,
   list,
   help,

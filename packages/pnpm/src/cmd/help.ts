@@ -91,10 +91,12 @@ function getHelpText (command: string) {
         Aliases: ln
       `
 
-    case 'dislink':
+    case 'unlink':
       return stripIndent`
-        pnpm dislink (in package dir)
-        pnpm dislink [<@scope>/]<pkg>...
+        pnpm unlink (in package dir)
+        pnpm unlink [<@scope>/]<pkg>...
+
+        Aliases: dislink
 
         Removes the link created by \`pnpm link\` and reinstalls package if it is saved in \`package.json\`
       `
@@ -253,7 +255,7 @@ function getHelpText (command: string) {
 
         * * *
 
-        pnpm recursive dislink
+        pnpm recursive unlink
 
         Removes links to local packages and reinstalls them from the registry.
       `
@@ -268,7 +270,7 @@ function getHelpText (command: string) {
           - update
           - uninstall
           - link
-          - dislink
+          - unlink
           - list
           - outdated
           - prune
@@ -278,7 +280,7 @@ function getHelpText (command: string) {
           - root
           - rebuild
           - recursive link
-          - recursive dislink
+          - recursive unlink
           - recursive install
           - recursive update
 
