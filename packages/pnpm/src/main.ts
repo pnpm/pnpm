@@ -185,11 +185,6 @@ export default async function run (argv: string[]) {
   // NOTE: we defer the next stage, otherwise reporter might not catch all the logs
   await new Promise((resolve, reject) => {
     setTimeout(() => {
-      if (opts.storePath && !opts.store) {
-        logger.warn('the `store-path` config is deprecated. Use `store` instead.')
-        opts.store = opts.storePath
-      }
-
       // `pnpm install ""` is going to be just `pnpm install`
       const cliArgs = cliConf.argv.remain.slice(1).filter(Boolean)
       try {
