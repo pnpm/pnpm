@@ -77,6 +77,18 @@ function pickVersionByVersionRange (
   if (versionRange === '*' || semver.satisfies(latest, versionRange, true)) {
     return latest
   }
-  const maxVersion = semver.maxSatisfying(versions || Object.keys(meta.versions), versionRange, true)
+  versions = versions || Object.keys(meta.versions)
+
+  const maxVersion = semver.maxSatisfying(versions, versionRange, true)
+
+  // if the selected version is deprecated, try to find a non-deprecated one that satisfies the range
+  if (maxVersion && meta.versions[maxVersion].deprecated && versions.length > 1) {
+    const nonDeprecatedVersions = versions.map((version) => meta.versions[version])
+      .filter((versionMeta) => !versionMeta.deprecated)
+      .map((versionMeta) => versionMeta.version)
+
+    const maxNonDeprecatedVersion = semver.maxSatisfying(nonDeprecatedVersions, versionRange, true)
+    if (maxNonDeprecatedVersion) return maxNonDeprecatedVersion
+  }
   return maxVersion
 }

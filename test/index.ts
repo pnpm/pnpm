@@ -7,6 +7,7 @@ import exists = require('path-exists')
 import loadJsonFile = require('load-json-file')
 
 const isPositiveMeta = loadJsonFile.sync(path.join(__dirname, 'meta', 'is-positive.json'))
+const isPositiveMetaWithDeprecated = loadJsonFile.sync(path.join(__dirname, 'meta', 'is-positive-with-deprecated.json'))
 const isPositiveMetaFull = loadJsonFile.sync(path.join(__dirname, 'meta', 'is-positive-full.json'))
 const sindresorhusIsMeta = loadJsonFile.sync(path.join(__dirname, 'meta', 'sindresorhus-is.json'))
 
@@ -114,6 +115,23 @@ test('resolve to defaultTag when no pref specified', async t => {
   })
   const resolveResult = await resolveFromNpm({alias: 'is-positive'}, {
     defaultTag: 'stable',
+    registry,
+  })
+  t.equal(resolveResult!.id, 'registry.npmjs.org/is-positive/3.0.0')
+  t.end()
+})
+
+test('resolve to biggest non-deprecate version that satisfies the range', async t => {
+  nock(registry)
+    .get('/is-positive')
+    .reply(200, isPositiveMetaWithDeprecated)
+
+  const resolveFromNpm = createResolveFromNpm({
+    metaCache: new Map(),
+    store: tempy.directory(),
+    rawNpmConfig: { registry },
+  })
+  const resolveResult = await resolveFromNpm({alias: 'is-positive', pref: '3'}, {
     registry,
   })
   t.equal(resolveResult!.id, 'registry.npmjs.org/is-positive/3.0.0')
