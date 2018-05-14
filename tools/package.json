@@ -2,6 +2,12 @@
   "dependencies": {
     "@commitlint/cli": "^6.1.3",
     "@commitlint/config-conventional": "^6.1.3",
-    "@commitlint/prompt-cli": "^6.1.3"
+    "@commitlint/prompt-cli": "^6.1.3",
+    "husky": "^1.0.0-rc.6"
+  },
+  "husky": {
+    "hooks": {
+      "commit-msg": "commitlint -e"
+    }
   }
 }

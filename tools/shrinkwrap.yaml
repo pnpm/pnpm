@@ -2,6 +2,7 @@ dependencies:
   '@commitlint/cli': 6.2.0
   '@commitlint/config-conventional': 6.1.3
   '@commitlint/prompt-cli': 6.1.3
+  husky: 1.0.0-rc.6
 packages:
   /@commitlint/cli/6.2.0:
     dependencies:
@@ -349,6 +350,10 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha512-ObN6h1v2fTJSmUXoS3nMQ92LbDK9be4TV+6G+omQlGJFdcUX5heKi1LZ1YnRMIgwTLEj3E24bT6tYni50rlCfQ==
+  /ci-info/1.1.3:
+    dev: false
+    resolution:
+      integrity: sha512-SK/846h/Rcy8q9Z9CAwGBLfCJ6EkjJWdpelWDufQpqVDYq2Wnnv8zlSO6AMQap02jvhVruKKpEtQOufo3pFhLg==
   /cli-cursor/1.0.2:
     dependencies:
       restore-cursor: 1.0.1
@@ -614,6 +619,23 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha512-lIbgIIQA3lz5XaB6vxakj6sDHADJiZadYEJB+FgA+C4nubM1NwcuvUr9EJPmnH1skZqpqUzWborWo8EIUi0Sdw==
+  /husky/1.0.0-rc.6:
+    dependencies:
+      cosmiconfig: 4.0.0
+      execa: 0.9.0
+      find-up: 2.1.0
+      is-ci: 1.1.0
+      pkg-dir: 2.0.0
+      pupa: 1.0.0
+      read-pkg: 3.0.0
+      run-node: 1.0.0
+      slash: 2.0.0
+    dev: false
+    engines:
+      node: '>=6'
+    requiresBuild: true
+    resolution:
+      integrity: sha512-glraqjyMBNAOlAs1JJTxELJbrBT7v9VNiIDerywshHLDnzdC4iqwhHTkWXsY+L8Clt1Gade2/CppLcxEwY/HgQ==
   /in-publish/2.0.0:
     dev: false
     resolution:
@@ -676,6 +698,12 @@ packages:
       node: '>=0.10.0'
     resolution:
       integrity: sha1-VAVy0096wxGfj3bDDLwbHgN6/74=
+  /is-ci/1.1.0:
+    dependencies:
+      ci-info: 1.1.3
+    dev: false
+    resolution:
+      integrity: sha512-c7TnwxLePuqIlxHgr7xtxzycJPegNHFuIrBkwbf8hc58//+Op1CqFkyS+xnIMkwn9UsJIwc174BIjkyBmSpjKg==
   /is-directory/0.3.1:
     dev: false
     engines:
@@ -1132,6 +1160,14 @@ packages:
       node: '>=0.10.0'
     resolution:
       integrity: sha1-clVrgM+g1IqXToDnckjoDtT3+HA=
+  /pkg-dir/2.0.0:
+    dependencies:
+      find-up: 2.1.0
+    dev: false
+    engines:
+      node: '>=4'
+    resolution:
+      integrity: sha1-9tXREJ4Z1j7fQo4L1X4Sd3YVM0s=
   /process-nextick-args/2.0.0:
     dev: false
     resolution:
@@ -1140,6 +1176,12 @@ packages:
     dev: false
     resolution:
       integrity: sha1-8FKijacOYYkX7wqKw0wa5aaChrM=
+  /pupa/1.0.0:
+    dev: false
+    engines:
+      node: '>=4'
+    resolution:
+      integrity: sha1-mpVopa9+ZXuEYqbp1TKHQ1YM7/Y=
   /q/1.5.1:
     dev: false
     engines:
@@ -1301,6 +1343,12 @@ packages:
     dev: false
     resolution:
       integrity: sha1-yK1KXhEGYeQCp9IbUw4AnyX444k=
+  /run-node/1.0.0:
+    dev: false
+    engines:
+      node: '>=4'
+    resolution:
+      integrity: sha512-kc120TBlQ3mih1LSzdAJXo4xn/GWS2ec0l3S+syHDXP9uRr0JAT8Qd3mdMuyjqCzeZktgP3try92cEgf9Nks8A==
   /rx-lite/3.1.2:
     dev: false
     resolution:
@@ -1331,6 +1379,12 @@ packages:
     dev: false
     resolution:
       integrity: sha1-tf3AjxKH6hF4Yo5BXiUTK3NkbG0=
+  /slash/2.0.0:
+    dev: false
+    engines:
+      node: '>=6'
+    resolution:
+      integrity: sha512-ZYKh3Wh2z1PpEXWr0MpSBZ0V6mZHAQfYevttO11c51CaWjGTaadiKZ+wVt1PbMlDV5qhMFslpZCemhwOK7C89A==
   /spdx-correct/3.0.0:
     dependencies:
       spdx-expression-parse: 3.0.0
@@ -1539,3 +1593,4 @@ specifiers:
   '@commitlint/cli': ^6.1.3
   '@commitlint/config-conventional': ^6.1.3
   '@commitlint/prompt-cli': ^6.1.3
+  husky: ^1.0.0-rc.6
