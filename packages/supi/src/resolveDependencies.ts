@@ -546,7 +546,8 @@ async function resolveDependenciesOfPackage (
   },
 ): Promise<PkgAddress[]> {
 
-  const bundledDeps = pkg.bundleDependencies || pkg.bundledDependencies || []
+  const bundledDeps = new Set(pkg.bundleDependencies || pkg.bundledDependencies || [])
+  bundledDeps.add(pkg.name)
   const filterDeps = getNotBundledDeps.bind(null, bundledDeps)
   let deps = depsToSpecs(
     filterDeps({...pkg.optionalDependencies, ...pkg.dependencies}),
@@ -567,9 +568,9 @@ async function resolveDependenciesOfPackage (
   return await resolveDependencies(ctx, deps, opts)
 }
 
-function getNotBundledDeps (bundledDeps: string[], deps: Dependencies) {
+function getNotBundledDeps (bundledDeps: Set<string>, deps: Dependencies) {
   return Object.keys(deps)
-    .filter((depName) => bundledDeps.indexOf(depName) === -1)
+    .filter((depName) => !bundledDeps.has(depName))
     .reduce((notBundledDeps, depName) => {
       notBundledDeps[depName] = deps[depName]
       return notBundledDeps

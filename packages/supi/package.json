@@ -101,7 +101,7 @@
     "npm-scripts-info": "^0.3.6",
     "package-preview": "^1.0.0",
     "path-name": "^1.0.0",
-    "pnpm-registry-mock": "^1.23.0",
+    "pnpm-registry-mock": "^1.24.0",
     "read-pkg": "^3.0.0",
     "rimraf": "^2.6.2",
     "sepia": "^2.0.2",
