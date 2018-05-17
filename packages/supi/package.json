@@ -1,7 +1,7 @@
 {
   "name": "supi",
   "description": "Fast, disk space efficient installation engine",
-  "version": "0.18.2",
+  "version": "0.19.1",
   "author": {
     "name": "Zoltan Kochan",
     "email": "z@kochan.io",
@@ -21,7 +21,7 @@
   "dependencies": {
     "@pnpm/check-package": "^1.0.0",
     "@pnpm/fs-locker": "^1.0.0",
-    "@pnpm/headless": "^0.3.0",
+    "@pnpm/headless": "^0.4.0",
     "@pnpm/lifecycle": "^2.2.1",
     "@pnpm/link-bins": "^1.0.1",
     "@pnpm/modules-yaml": "^1.0.0",
@@ -29,6 +29,7 @@
     "@pnpm/pkgid-to-filename": "^1.0.0",
     "@pnpm/resolver-base": "^1.1.0",
     "@pnpm/types": "^1.7.0",
+    "@pnpm/utils": "^0.2.0",
     "@types/byline": "^4.2.31",
     "@types/common-tags": "^1.2.5",
     "@types/load-json-file": "^2.0.5",
@@ -82,7 +83,6 @@
     "@pnpm/default-resolver": "^1.0.0",
     "@pnpm/logger": "^1.0.0",
     "@pnpm/store-path": "^1.0.0",
-    "@pnpm/utils": "^0.1.0",
     "@types/is-windows": "^0.2.0",
     "@types/mkdirp": "^0.5.1",
     "@types/sinon": "^4.1.2",
