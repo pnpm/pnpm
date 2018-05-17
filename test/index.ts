@@ -121,7 +121,7 @@ test('resolve to defaultTag when no pref specified', async t => {
   t.end()
 })
 
-test('resolve to biggest non-deprecate version that satisfies the range', async t => {
+test('resolve to biggest non-deprecated version that satisfies the range', async t => {
   nock(registry)
     .get('/is-positive')
     .reply(200, isPositiveMetaWithDeprecated)
@@ -135,6 +135,23 @@ test('resolve to biggest non-deprecate version that satisfies the range', async 
     registry,
   })
   t.equal(resolveResult!.id, 'registry.npmjs.org/is-positive/3.0.0')
+  t.end()
+})
+
+test('resolve to a deprecated version if there are no non-deprecated ones that satisfy the range', async t => {
+  nock(registry)
+    .get('/is-positive')
+    .reply(200, isPositiveMetaWithDeprecated)
+
+  const resolveFromNpm = createResolveFromNpm({
+    metaCache: new Map(),
+    store: tempy.directory(),
+    rawNpmConfig: { registry },
+  })
+  const resolveResult = await resolveFromNpm({alias: 'is-positive', pref: '2'}, {
+    registry,
+  })
+  t.equal(resolveResult!.id, 'registry.npmjs.org/is-positive/2.0.0')
   t.end()
 })
 

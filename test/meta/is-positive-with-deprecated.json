@@ -20,6 +20,7 @@
       "2.0.0": {
           "name": "is-positive",
           "version": "2.0.0",
+          "deprecated": "This version is deprecated",
           "devDependencies": {
               "ava": "^0.0.4"
           },
