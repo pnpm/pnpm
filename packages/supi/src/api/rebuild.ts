@@ -154,6 +154,7 @@ function getSubgraphToBuild (
     if (walked.has(depPath)) continue
     walked.add(depPath)
     const pkgSnapshot = pkgSnapshots[depPath]
+    if (!pkgSnapshot && depPath.startsWith('link:')) continue
     const nextEntryNodes = R.toPairs({
       ...pkgSnapshot.dependencies,
       ...(opts.optional && pkgSnapshot.optionalDependencies || {}),

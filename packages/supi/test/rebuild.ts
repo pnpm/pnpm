@@ -1,4 +1,7 @@
+import ncpCB = require('ncp')
+import path = require('path')
 import exists = require('path-exists')
+import readPkg = require('read-pkg')
 import {
   installPkgs,
   rebuild,
@@ -6,12 +9,14 @@ import {
 } from 'supi'
 import tape = require('tape')
 import promisifyTape from 'tape-promise'
+import promisify = require('util.promisify')
 import {
   pathToLocalPkg,
   prepare,
   testDefaults,
  } from './utils'
 
+const ncp = promisify(ncpCB.ncp)
 const test = promisifyTape(tape)
 
 test('rebuilds dependencies', async (t: tape.Test) => {
@@ -48,6 +53,18 @@ test('rebuilds dependencies', async (t: tape.Test) => {
     t.equal(scripts[2], 'postinstall')
     t.equal(scripts[3], 'prepare')
   }
+})
+
+test('rebuild does not fail when a linked package is present', async (t: tape.Test) => {
+  const project = prepare(t)
+  await ncp(pathToLocalPkg('local-pkg'), path.resolve('..', 'local-pkg'))
+
+  await installPkgs(['link:../local-pkg', 'is-positive'], await testDefaults())
+
+  await rebuild(await testDefaults())
+
+  // see related issue https://github.com/pnpm/pnpm/issues/1155
+  t.pass('rebuild did not fail')
 })
 
 test('rebuilds specific dependencies', async (t: tape.Test) => {
