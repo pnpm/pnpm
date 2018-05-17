@@ -5,18 +5,21 @@
   "pinVersions": false,
   "ignorePaths": ["test/"],
   "ignoreDeps": [
+    "@pnpm/config",
     "@pnpm/default-fetcher",
     "@pnpm/default-resolver",
+    "@pnpm/headless",
     "@pnpm/logger",
     "@pnpm/outdated",
     "@pnpm/server",
     "@pnpm/types",
+    "@pnpm/utils",
     "pnpm-default-reporter",
     "pnpm-file-reporter",
     "pnpm-install-checks",
     "pnpm-registry-mock",
-    "remove-all-except-outer-links",
     "pnpm-shrinkwrap",
+    "remove-all-except-outer-links",
     "supi"
   ]
 }
