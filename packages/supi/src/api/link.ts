@@ -3,6 +3,8 @@ import logger, {streamParser} from '@pnpm/logger'
 import {read as readModulesYaml} from '@pnpm/modules-yaml'
 import {PackageJson} from '@pnpm/types'
 import {
+  DependenciesType,
+  dependenciesTypes,
   removeOrphanPackages as removeOrphanPkgs,
   safeReadPackage,
 } from '@pnpm/utils'
@@ -121,17 +123,19 @@ function addLinkToShrinkwrap (
     pkg?: PackageJson,
   },
 ) {
-  const legacyId = `file:${opts.packagePath}`
   const id = `link:${opts.packagePath}`
-  if (shr.devDependencies && shr.devDependencies[opts.linkedPkgName]) {
-    if (shr.devDependencies[opts.linkedPkgName] !== legacyId) {
-      shr.devDependencies[opts.linkedPkgName] = id
+  let addedTo: DependenciesType | undefined
+  for (const depType of dependenciesTypes) {
+    if (opts.pkg && opts.pkg[depType]) {
+      addedTo = depType
+      shr[depType] = shr[depType] || {}
+      shr[depType]![opts.linkedPkgName] = id
+    } else if (shr[depType]) {
+      delete shr[depType]![opts.linkedPkgName]
     }
-  } else if (shr.optionalDependencies && shr.optionalDependencies[opts.linkedPkgName]) {
-    if (shr.optionalDependencies[opts.linkedPkgName] !== legacyId) {
-      shr.optionalDependencies[opts.linkedPkgName] = id
-    }
-  } else if (!shr.dependencies || shr.dependencies[opts.linkedPkgName] !== legacyId) {
+  }
+
+  if (!addedTo) {
     shr.dependencies = shr.dependencies || {}
     shr.dependencies[opts.linkedPkgName] = id
   }
