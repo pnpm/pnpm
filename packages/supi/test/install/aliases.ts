@@ -49,7 +49,7 @@ test('installing aliased dependency', async (t: tape.Test) => {
       },
     },
     registry: 'http://localhost:4873/',
-    shrinkwrapMinorVersion: 6,
+    shrinkwrapMinorVersion: 7,
     shrinkwrapVersion: 3,
     specifiers: {
       negative: 'npm:is-negative@^1.0.0',
@@ -100,7 +100,7 @@ test('a dependency has an aliased subdependency', async (t: tape.Test) => {
       },
     },
     registry: 'http://localhost:4873/',
-    shrinkwrapMinorVersion: 6,
+    shrinkwrapMinorVersion: 7,
     shrinkwrapVersion: 3,
     specifiers: {
       'pkg-with-1-aliased-dep': '^100.0.0',
