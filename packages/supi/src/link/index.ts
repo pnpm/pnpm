@@ -65,16 +65,16 @@ export default async function linkPackages (
   // logger.info(`Creating dependency graph`)
   const resolvePeersResult = await resolvePeers(pkgGraph, rootNodeIdsByAlias, opts.topParents, opts.independentLeaves, opts.baseNodeModules)
   const depGraph = resolvePeersResult.depGraph
-  let newShr = updateShrinkwrap(depGraph, opts.wantedShrinkwrap, opts.pkg)
+  let newShrinkwrap = updateShrinkwrap(depGraph, opts.wantedShrinkwrap, opts.pkg)
   if (opts.afterAllResolvedHook) {
-    newShr = opts.afterAllResolvedHook(newShr)
+    newShrinkwrap = opts.afterAllResolvedHook(newShrinkwrap)
   }
 
   const removedDepPaths = await removeOrphanPkgs({
     bin: opts.bin,
     dryRun: opts.dryRun,
     hoistedAliases: opts.hoistedAliases,
-    newShrinkwrap: newShr,
+    newShrinkwrap,
     oldShrinkwrap: opts.currentShrinkwrap,
     prefix: opts.root,
     shamefullyFlatten: opts.shamefullyFlatten,
@@ -98,7 +98,7 @@ export default async function linkPackages (
     noProd: !opts.production,
     skipped: opts.skipped,
   }
-  const newCurrentShrinkwrap = filterShrinkwrap(newShr, filterOpts)
+  const newCurrentShrinkwrap = filterShrinkwrap(newShrinkwrap, filterOpts)
   stageLogger.debug('importing_started')
   const newDepPaths = await linkNewPackages(
     filterShrinkwrap(opts.currentShrinkwrap, filterOpts),
@@ -142,22 +142,22 @@ export default async function linkPackages (
     // have new backward-compatible versions of `shrinkwrap.yaml`
     // w/o changing `shrinkwrapVersion`. From version 4, the
     // `shrinkwrapVersion` field allows numbers like 4.1
-    newShr.shrinkwrapMinorVersion = SHRINKWRAP_MINOR_VERSION
+    newShrinkwrap.shrinkwrapMinorVersion = SHRINKWRAP_MINOR_VERSION
   }
   let currentShrinkwrap: Shrinkwrap
   if (opts.makePartialCurrentShrinkwrap) {
     const packages = opts.currentShrinkwrap.packages || {}
-    if (newShr.packages) {
-      for (const relDepPath in newShr.packages) { // tslint:disable-line:forin
-        const depPath = dp.resolve(newShr.registry, relDepPath)
+    if (newShrinkwrap.packages) {
+      for (const relDepPath in newShrinkwrap.packages) { // tslint:disable-line:forin
+        const depPath = dp.resolve(newShrinkwrap.registry, relDepPath)
         if (depGraph[depPath]) {
-          packages[relDepPath] = newShr.packages[relDepPath]
+          packages[relDepPath] = newShrinkwrap.packages[relDepPath]
         }
       }
     }
-    currentShrinkwrap = {...newShr, packages}
+    currentShrinkwrap = {...newShrinkwrap, packages}
   } else if (opts.production && opts.development && opts.optional) {
-    currentShrinkwrap = newShr
+    currentShrinkwrap = newShrinkwrap
   } else {
     currentShrinkwrap = newCurrentShrinkwrap
   }
@@ -173,7 +173,7 @@ export default async function linkPackages (
     hoistedAliases: opts.hoistedAliases,
     newDepPaths,
     removedDepPaths,
-    wantedShrinkwrap: newShr,
+    wantedShrinkwrap: newShrinkwrap,
   }
 }
 
