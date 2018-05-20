@@ -35,7 +35,7 @@ export default async (
     registry: opts.registry || 'https://registry.npmjs.org/',
   })
   const resolve = createResolver(Object.assign(sopts, {
-    fullMetadata: true, // temporarily. Till the lifecycle hooks performance issue is solved. See https://github.com/pnpm/pnpm/issues/1109
+    fullMetadata: false,
     metaCache: new Map(),
   }))
   const fetchers = createFetcher(sopts)

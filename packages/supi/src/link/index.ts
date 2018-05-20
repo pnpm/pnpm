@@ -65,7 +65,7 @@ export default async function linkPackages (
   // logger.info(`Creating dependency graph`)
   const resolvePeersResult = await resolvePeers(pkgGraph, rootNodeIdsByAlias, opts.topParents, opts.independentLeaves, opts.baseNodeModules)
   const depGraph = resolvePeersResult.depGraph
-  let newShrinkwrap = updateShrinkwrap(depGraph, opts.wantedShrinkwrap, opts.pkg)
+  let {newShrinkwrap, pendingRequiresBuilds} = updateShrinkwrap(depGraph, opts.wantedShrinkwrap, opts.pkg) // tslint:disable-line:prefer-const
   if (opts.afterAllResolvedHook) {
     newShrinkwrap = opts.afterAllResolvedHook(newShrinkwrap)
   }
@@ -144,6 +144,15 @@ export default async function linkPackages (
     // `shrinkwrapVersion` field allows numbers like 4.1
     newShrinkwrap.shrinkwrapMinorVersion = SHRINKWRAP_MINOR_VERSION
   }
+
+  await Promise.all(pendingRequiresBuilds.map(async (pendingRequiresBuild) => {
+    const requiresBuild = await pendingRequiresBuild.value
+    depGraph[pendingRequiresBuild.absoluteDepPath].requiresBuild = requiresBuild
+    if (requiresBuild) {
+      newShrinkwrap!.packages![pendingRequiresBuild.relativeDepPath].requiresBuild = true
+    }
+  }))
+
   let currentShrinkwrap: Shrinkwrap
   if (opts.makePartialCurrentShrinkwrap) {
     const packages = opts.currentShrinkwrap.packages || {}
@@ -348,10 +357,6 @@ async function linkAllPkgs (
   return Promise.all(
     depNodes.map(async (depNode) => {
       const filesResponse = await depNode.fetchingFiles
-      if (!depNode.requiresBuild) {
-        depNode.requiresBuild = Boolean(filesResponse.filenames.indexOf('binding.gyp') !== -1 ||
-          filesResponse.filenames.some((filename) => !!filename.match(/^[.]hooks[\\/]/))) // TODO: optimize this
-      }
 
       if (depNode.independent) return
       return storeController.importPackage(depNode.centralLocation, depNode.peripheralLocation, {

@@ -22,8 +22,8 @@ test('install with shrinkwrapOnly = true', async (t: tape.Test) => {
   const opts = await testDefaults({shrinkwrapOnly: true, saveExact: true})
   await installPkgs(['pkg-with-1-dep@100.0.0'], opts)
 
-  t.deepEqual(await fs.readdir(path.join(opts.store, 'localhost+4873', 'pkg-with-1-dep')), ['index-full.json'])
-  t.deepEqual(await fs.readdir(path.join(opts.store, 'localhost+4873', 'dep-of-pkg-with-1-dep')), ['index-full.json'])
+  t.deepEqual(await fs.readdir(path.join(opts.store, 'localhost+4873', 'pkg-with-1-dep')), ['100.0.0', 'index.json'])
+  t.deepEqual(await fs.readdir(path.join(opts.store, 'localhost+4873', 'dep-of-pkg-with-1-dep')), ['100.1.0', 'index.json'])
   await project.hasNot('pkg-with-1-dep')
 
   const pkg = await loadJsonFile('package.json')
@@ -40,8 +40,8 @@ test('install with shrinkwrapOnly = true', async (t: tape.Test) => {
   t.comment('doing repeat install when shrinkwrap.yaml is available already')
   await install(opts)
 
-  t.deepEqual(await fs.readdir(path.join(opts.store, 'localhost+4873', 'pkg-with-1-dep')), ['index-full.json'])
-  t.deepEqual(await fs.readdir(path.join(opts.store, 'localhost+4873', 'dep-of-pkg-with-1-dep')), ['index-full.json'])
+  t.deepEqual(await fs.readdir(path.join(opts.store, 'localhost+4873', 'pkg-with-1-dep')), ['100.0.0', 'index.json'])
+  t.deepEqual(await fs.readdir(path.join(opts.store, 'localhost+4873', 'dep-of-pkg-with-1-dep')), ['100.1.0', 'index.json'])
   await project.hasNot('pkg-with-1-dep')
 
   t.notOk(await project.loadCurrentShrinkwrap(), 'current shrinkwrap not created')
@@ -63,7 +63,7 @@ test('warn when installing with shrinkwrapOnly = true and node_modules exists', 
     name: 'pnpm',
   }), 'log warning')
 
-  await project.storeHasNot('rimraf', '2.5.1')
+  await project.storeHas('rimraf', '2.5.1')
   await project.hasNot('rimraf')
 
   const pkg = await loadJsonFile('package.json')

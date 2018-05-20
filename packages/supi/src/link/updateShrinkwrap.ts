@@ -1,5 +1,6 @@
 import {Resolution} from '@pnpm/resolver-base'
 import {Dependencies, PackageJson} from '@pnpm/types'
+import { readPackageFromDir } from '@pnpm/utils'
 import * as dp from 'dependency-path'
 import getNpmTarballUrl from 'get-npm-tarball-url'
 import {
@@ -18,15 +19,19 @@ export default function (
   depGraph: DepGraphNodesByDepPath,
   shrinkwrap: Shrinkwrap,
   pkg: PackageJson,
-): Shrinkwrap {
+): {
+  newShrinkwrap: Shrinkwrap,
+  pendingRequiresBuilds: PendingRequiresBuild[],
+} {
   shrinkwrap.packages = shrinkwrap.packages || {}
+  const pendingRequiresBuilds = [] as PendingRequiresBuild[]
   for (const depPath of R.keys(depGraph)) {
     const relDepPath = dp.relative(shrinkwrap.registry, depPath)
     const result = R.partition(
       (child) => depGraph[depPath].optionalDependencies.has(depGraph[child.depPath].name),
       R.keys(depGraph[depPath].children).map((alias) => ({alias, depPath: depGraph[depPath].children[alias]})),
     )
-    shrinkwrap.packages[relDepPath] = toShrDependency(depGraph[depPath].additionalInfo, {
+    shrinkwrap.packages[relDepPath] = toShrDependency(pendingRequiresBuilds, depGraph[depPath].additionalInfo, {
       depGraph,
       depPath,
       prevSnapshot: shrinkwrap.packages[relDepPath],
@@ -36,10 +41,20 @@ export default function (
       updatedOptionalDeps: result[0],
     })
   }
-  return pruneShrinkwrap(shrinkwrap, pkg)
+  return {
+    newShrinkwrap: pruneShrinkwrap(shrinkwrap, pkg),
+    pendingRequiresBuilds,
+  }
+}
+
+export interface PendingRequiresBuild {
+  relativeDepPath: string,
+  absoluteDepPath: string,
+  value: Promise<boolean>,
 }
 
 function toShrDependency (
+  pendingRequiresBuilds: PendingRequiresBuild[],
   pkg: {
     deprecated?: string,
     peerDependencies?: Dependencies,
@@ -133,12 +148,33 @@ function toShrDependency (
   if (pkg.deprecated) {
     result['deprecated'] = pkg.deprecated
   }
-  if (depNode.requiresBuild) {
-    result['requiresBuild'] = depNode.requiresBuild
+  if (opts.prevSnapshot) {
+    if (opts.prevSnapshot.requiresBuild) {
+      result['requiresBuild'] = opts.prevSnapshot.requiresBuild
+    }
+    if (opts.prevSnapshot.prepare) {
+      result['prepare'] = opts.prevSnapshot.prepare
+    }
+  } else if (depNode.prepare) {
+    result['prepare'] = true
+    result['requiresBuild'] = true
+  } else {
+    pendingRequiresBuilds.push({
+      absoluteDepPath: opts.depPath,
+      relativeDepPath: opts.relDepPath,
+      value: (async () => {
+        // The npm team suggests to always read the package.json for deciding whether the package has lifecycle scripts
+        const filesResponse = await depNode.fetchingFiles
+        const pkgJson = await readPackageFromDir(depNode.centralLocation)
+        return Boolean(
+          pkgJson.scripts && (pkgJson.scripts.preinstall || pkgJson.scripts.install || pkgJson.scripts.postinstall) ||
+          filesResponse.filenames.indexOf('binding.gyp') !== -1 ||
+            filesResponse.filenames.some((filename) => !!filename.match(/^[.]hooks[\\/]/)), // TODO: optimize this
+        )
+      })(),
+    })
   }
-  if (depNode.prepare) {
-    result['prepare'] = depNode.prepare
-  }
+  depNode.requiresBuild = result['requiresBuild']
   // tslint:enable:no-string-literal
   return result
 }

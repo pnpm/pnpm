@@ -25,7 +25,7 @@ export default async function testDefaults (
   const rawNpmConfig = {registry}
   const storeController = await createStore(
     createResolver({
-      fullMetadata: true, // temporarily. Till the lifecycle hooks performance issue is solved
+      fullMetadata: false,
       metaCache: new Map(),
       rawNpmConfig,
       store,
