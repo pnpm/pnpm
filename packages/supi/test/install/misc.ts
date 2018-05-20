@@ -639,12 +639,15 @@ test('run js bin file', async (t) => {
   t.equal(result.status, 0, 'executable exited with success')
 })
 
-test('building native addons', async (t) => {
+test('building native addons', async (t: tape.Test) => {
   const project = prepare(t)
 
   await installPkgs(['runas@3.1.1'], await testDefaults())
 
   t.ok(await exists(path.join('node_modules', 'runas', 'build')), 'build folder created')
+
+  const shr = await project.loadShrinkwrap()
+  t.ok(shr.packages['/runas/3.1.1'].requiresBuild)
 })
 
 test('should update subdep on second install', async (t: tape.Test) => {
