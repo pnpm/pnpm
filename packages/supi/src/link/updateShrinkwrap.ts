@@ -4,6 +4,7 @@ import * as dp from 'dependency-path'
 import getNpmTarballUrl from 'get-npm-tarball-url'
 import {
   DependencyShrinkwrap,
+  PackageSnapshot,
   prune as pruneShrinkwrap,
   ResolvedDependencies,
   Shrinkwrap,
@@ -28,21 +29,11 @@ export default function (
     shrinkwrap.packages[relDepPath] = toShrDependency(depGraph[depPath].additionalInfo, {
       depGraph,
       depPath,
-      dev: depGraph[depPath].dev,
-      id: depGraph[depPath].id,
-      name: depGraph[depPath].name,
-      optional: depGraph[depPath].optional,
-      prepare: depGraph[depPath].prepare,
-      prevResolvedDeps: shrinkwrap.packages[relDepPath] && shrinkwrap.packages[relDepPath].dependencies || {},
-      prevResolvedOptionalDeps: shrinkwrap.packages[relDepPath] && shrinkwrap.packages[relDepPath].optionalDependencies || {},
-      prod: depGraph[depPath].prod,
+      prevSnapshot: shrinkwrap.packages[relDepPath],
       registry: shrinkwrap.registry,
       relDepPath,
-      requiresBuild: depGraph[depPath].requiresBuild,
-      resolution: depGraph[depPath].resolution,
       updatedDeps: result[1],
       updatedOptionalDeps: result[0],
-      version: depGraph[depPath].version,
     })
   }
   return pruneShrinkwrap(shrinkwrap, pkg)
@@ -63,38 +54,44 @@ function toShrDependency (
   },
   opts: {
     depPath: string,
-    name: string,
-    version: string,
-    id: string,
     relDepPath: string,
-    requiresBuild: boolean,
-    prepare: boolean,
-    resolution: Resolution,
     registry: string,
     updatedDeps: Array<{alias: string, depPath: string}>,
     updatedOptionalDeps: Array<{alias: string, depPath: string}>,
     depGraph: DepGraphNodesByDepPath,
-    prevResolvedDeps: ResolvedDependencies,
-    prevResolvedOptionalDeps: ResolvedDependencies,
-    prod: boolean,
-    dev: boolean,
-    optional: boolean,
+    prevSnapshot?: PackageSnapshot,
   },
 ): DependencyShrinkwrap {
-  const shrResolution = toShrResolution({name: opts.name, version: opts.version}, opts.relDepPath, opts.resolution, opts.registry)
-  const newResolvedDeps = updateResolvedDeps(opts.prevResolvedDeps, opts.updatedDeps, opts.registry, opts.depGraph)
-  const newResolvedOptionalDeps = updateResolvedDeps(opts.prevResolvedOptionalDeps, opts.updatedOptionalDeps, opts.registry, opts.depGraph)
+  const depNode = opts.depGraph[opts.depPath]
+  const shrResolution = toShrResolution(
+    {name: depNode.name, version: depNode.version},
+    opts.relDepPath,
+    depNode.resolution,
+    opts.registry,
+  )
+  const newResolvedDeps = updateResolvedDeps(
+    opts.prevSnapshot && opts.prevSnapshot.dependencies || {},
+    opts.updatedDeps,
+    opts.registry,
+    opts.depGraph,
+  )
+  const newResolvedOptionalDeps = updateResolvedDeps(
+    opts.prevSnapshot && opts.prevSnapshot.optionalDependencies || {},
+    opts.updatedOptionalDeps,
+    opts.registry,
+    opts.depGraph,
+  )
   const result = {
     resolution: shrResolution,
   }
   // tslint:disable:no-string-literal
   if (dp.isAbsolute(opts.relDepPath)) {
-    result['name'] = opts.name
+    result['name'] = depNode.name
 
     // There is no guarantee that a non-npmjs.org-hosted package
     // is going to have a version field
-    if (opts.version) {
-      result['version'] = opts.version
+    if (depNode.version) {
+      result['version'] = depNode.version
     }
   }
   if (!R.isEmpty(newResolvedDeps)) {
@@ -103,16 +100,16 @@ function toShrDependency (
   if (!R.isEmpty(newResolvedOptionalDeps)) {
     result['optionalDependencies'] = newResolvedOptionalDeps
   }
-  if (opts.dev && !opts.prod) {
+  if (depNode.dev && !depNode.prod) {
     result['dev'] = true
-  } else if (opts.prod && !opts.dev) {
+  } else if (depNode.prod && !depNode.dev) {
     result['dev'] = false
   }
-  if (opts.optional) {
+  if (depNode.optional) {
     result['optional'] = true
   }
-  if (opts.depPath !== opts.id) {
-    result['id'] = opts.id
+  if (opts.depPath !== depNode.id) {
+    result['id'] = depNode.id
   }
   if (pkg.peerDependencies) {
     result['peerDependencies'] = pkg.peerDependencies
@@ -136,11 +133,11 @@ function toShrDependency (
   if (pkg.deprecated) {
     result['deprecated'] = pkg.deprecated
   }
-  if (opts.requiresBuild) {
-    result['requiresBuild'] = opts.requiresBuild
+  if (depNode.requiresBuild) {
+    result['requiresBuild'] = depNode.requiresBuild
   }
-  if (opts.prepare) {
-    result['prepare'] = opts.prepare
+  if (depNode.prepare) {
+    result['prepare'] = depNode.prepare
   }
   // tslint:enable:no-string-literal
   return result
