@@ -66,7 +66,6 @@ export interface Pkg {
   peerDependencies: Dependencies,
   optionalDependencies: Set<string>,
   hasBundledDependencies: boolean,
-  requiresBuild: boolean,
   prepare: boolean,
   additionalInfo: {
     deprecated?: string,
@@ -270,7 +269,9 @@ async function install (
       registry,
       shrinkwrapResolution: options.shrinkwrapResolution,
       sideEffectsCache: options.sideEffectsCache,
-      skipFetch: ctx.dryRun,
+      // Unfortunately, even when run with --shrinkwrap-only, we need the *real* package.json
+      // so fetching of the tarball cannot be ever avoided. Related issue: https://github.com/pnpm/pnpm/issues/1176
+      skipFetch: false,
       update: options.update,
       verifyStoreIntegrity: ctx.verifyStoreInegrity,
     })
@@ -351,7 +352,6 @@ async function install (
 
       // TODO: check the scripts field of the real package.json that is unpacked from the tarball
       prepare = Boolean(pkgResponse.body['resolvedVia'] === 'git-repository' && pkg['scripts'] && typeof pkg['scripts']['prepare'] === 'string')
-      requiresBuild = prepare || Boolean(pkg['scripts'] && (pkg['scripts']['preinstall'] || pkg['scripts']['install'] || pkg['scripts']['postinstall']))
       if (options.dependencyShrinkwrap && options.dependencyShrinkwrap.deprecated && !pkg.deprecated) {
         pkg.deprecated = options.dependencyShrinkwrap.deprecated
       }
@@ -431,7 +431,6 @@ async function install (
       peerDependencies: peerDependencies || {},
       prepare,
       prod: !wantedDependency.dev && !wantedDependency.optional,
-      requiresBuild,
       resolution: pkgResponse.body.resolution,
       specRaw: wantedDependency.raw,
       version: pkg.version,
