@@ -258,6 +258,13 @@ function getHelpText (command: string) {
         pnpm recursive unlink
 
         Removes links to local packages and reinstalls them from the registry.
+
+        * * *
+
+        pnpm recursive list
+
+        List packages in each project of the multi-package repo.
+        Accepts the same arguments and flags as the regular \`pnpm list\` command.
       `
 
     default:
@@ -283,6 +290,7 @@ function getHelpText (command: string) {
           - recursive unlink
           - recursive install
           - recursive update
+          - recursive list
 
         Experimental commands:
           - server start

@@ -13,6 +13,7 @@ export default async function (
     parseable?: boolean,
     global: boolean,
     independentLeaves: boolean,
+    alwaysPrintRootPackage?: boolean,
   },
   command: string,
 ) {
@@ -30,5 +31,6 @@ export default async function (
   const output = args.length
     ? await listForPackages(args, prefix, opts)
     : await list(prefix, opts)
-  console.log(output)
+
+  if (output) console.log(output)
 }

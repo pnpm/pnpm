@@ -39,7 +39,7 @@ dependencies:
   pnpm: 'link:'
   pnpm-default-reporter: 'link:../default-reporter'
   pnpm-file-reporter: 0.1.0
-  pnpm-list: 2.0.1
+  pnpm-list: 2.1.0
   process-exists: 3.1.0
   ramda: 0.25.0
   read-ini-file: 1.0.0
@@ -692,7 +692,7 @@ packages:
       normalize-package-data: 2.4.0
       npm-package-arg: 4.2.1
       once: 1.4.0
-      request: 2.86.0
+      request: 2.87.0
       retry: 0.10.1
       semver: 5.5.0
       slide: 1.1.6
@@ -865,12 +865,12 @@ packages:
     dev: true
     resolution:
       integrity: sha1-7GphrlZIDAw8skHJVhjiCJL5Zyo=
-  /async/2.6.0:
+  /async/2.6.1:
     dependencies:
       lodash: 4.17.10
     dev: true
     resolution:
-      integrity: sha512-xAfGg1/NTLBBKlHFmnd7PlmUW9KhVQIUuSrYem9xzFUZy13ScvtyGGejaae9iAVRiRq9+Cx7DPFaAAhCpyxyPw==
+      integrity: sha512-fNEiL2+AZt6AlAw/29Cr0UDe4sRAHCpEHh54WMz+Bb7QfNcFw4h3loofyJpLeQs4Yx7yuqu/2dLgM5hKOs6HlQ==
   /asynckit/0.4.0:
     dev: true
     resolution:
@@ -991,22 +991,6 @@ packages:
     dev: false
     resolution:
       integrity: sha1-vIpIPKlASdqbg3wa0Rzf6+5uBRQ=
-  /boom/4.3.1:
-    dependencies:
-      hoek: 4.2.1
-    dev: true
-    engines:
-      node: '>=4.0.0'
-    resolution:
-      integrity: sha1-T4owBctKfjiJ90kDD9JbluAdLjE=
-  /boom/5.2.0:
-    dependencies:
-      hoek: 4.2.1
-    dev: true
-    engines:
-      node: '>=4.0.0'
-    resolution:
-      integrity: sha512-Z5BTk6ZRe4tXXQlkqftmsAUANpXmuwlsF5Oov8ThoMbQRzdGTA1ngYRW160GexgOgjsFOKJz0LYhoNi+2AMBUw==
   /boxen/1.3.0:
     dependencies:
       ansi-align: 2.0.0
@@ -1573,14 +1557,6 @@ packages:
       node: '>=4.8'
     resolution:
       integrity: sha512-eTVLrBSt7fjbDygz805pMnstIs2VTBNkRm0qxZd+M7A5XDdxVRWO5MxGBXZhjY4cqLYLdtrGqRf8mBPmzwSpWQ==
-  /cryptiles/3.1.2:
-    dependencies:
-      boom: 5.2.0
-    dev: true
-    engines:
-      node: '>=4.0.0'
-    resolution:
-      integrity: sha1-qJ+7Ig9c4l7FboxKqKT9e1sNKf4=
   /crypto-random-string/1.0.0:
     dev: false
     engines:
@@ -1799,9 +1775,9 @@ packages:
       node: '>= 0.6'
     resolution:
       integrity: sha1-m81S4UwJd2PnSbJ0xDRu0uVgtak=
-  /dependencies-hierarchy/2.0.2:
+  /dependencies-hierarchy/2.0.3:
     dependencies:
-      '@types/node': 9.6.18
+      '@types/node': 10.1.2
       '@types/semver': 5.5.0
       dependency-path: 1.2.1
       pnpm-shrinkwrap: 6.4.0
@@ -1810,7 +1786,7 @@ packages:
     engines:
       node: '>=4'
     resolution:
-      integrity: sha512-VueYP2eR0eHvE4meoIUetFcmPuqChq6Bx14/uNqKV42PlqIYtf0AE+067U7dMRSOCnt1IOAMFv3QEOdY0+cwcw==
+      integrity: sha512-52fMUFdiBvk3UZ+IWdEPu7dTKRD2zHc6BUhHRYKsaWhfS6xgAD8EVrAAvWPVtVRHhAovU0wLQj2gq1AcM5N2TQ==
   /dependency-path/1.2.1:
     dependencies:
       '@types/semver': 5.5.0
@@ -2687,29 +2663,12 @@ packages:
       node: '>= 0.8.0'
     resolution:
       integrity: sha1-hGFzP1OLCDfJNh45qauelwTcLyg=
-  /hawk/6.0.2:
-    dependencies:
-      boom: 4.3.1
-      cryptiles: 3.1.2
-      hoek: 4.2.1
-      sntp: 2.1.0
-    dev: true
-    engines:
-      node: '>=4.5.0'
-    resolution:
-      integrity: sha512-miowhl2+U7Qle4vdLqDdPt9m09K6yZhkLDTWGoUiUzrQCn+mHHSmfJgAyGaLRZbPmTqfFFjRV1QWCW0VWUJBbQ==
   /hoek/2.16.3:
     dev: true
     engines:
       node: '>=0.10.40'
     resolution:
       integrity: sha1-ILt0A9POo5jpHcRxCo/xuCdKJe0=
-  /hoek/4.2.1:
-    dev: true
-    engines:
-      node: '>=4.0.0'
-    resolution:
-      integrity: sha512-QLg82fGkfnJ/4iy1xZ81/9SIJiq1NGFUMGs6ParyjBZr6jW2Ufj/snDqTHixNlHdPNwN2RLVD0Pi3igeK9+JfA==
   /hosted-git-info/2.6.0:
     engines:
       node: '>=4'
@@ -4441,14 +4400,14 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha512-ZvCSe4hTJHWfAXZUgydkbRre3h1svqtlb3Wq70fkbdZF4Wbvr0LEQRG5kCsiEnkt27PpdzlZ2b3XmV2dvUpHwg==
-  /pnpm-list/2.0.1:
+  /pnpm-list/2.1.0:
     dependencies:
       '@types/archy': 0.0.31
-      '@types/node': 9.6.18
+      '@types/node': 10.1.2
       '@types/ramda': 0.25.29
       archy: 1.0.0
       chalk: 2.4.1
-      dependencies-hierarchy: 2.0.2
+      dependencies-hierarchy: 2.0.3
       npm-package-arg: 6.1.0
       p-limit: 1.2.0
       ramda: 0.25.0
@@ -4458,7 +4417,7 @@ packages:
     engines:
       node: '>=4'
     resolution:
-      integrity: sha512-i25BBw812skLMy6WtQ5Fj5dVXGuYDmeJQz/F+kwvObu5CC3SSEpe1X+v5g5qCFn1AEtl82rWrvAx28IdBLKaMw==
+      integrity: sha512-Cm4WlaMr38z878bTdSq126iSTv6RKQatmuv8meOv/ZqQ+Qjx7hXAZ1Az9Ed6SZoY6sXK9ag5xXUf61HKtMkK4Q==
   /pnpm-registry-mock/1.24.0:
     dependencies:
       anonymous-npm-registry-client: 0.1.2
@@ -4825,7 +4784,7 @@ packages:
       node: '>=0.10'
     resolution:
       integrity: sha1-jcrkcOHIirwtYA//Sndihtp15jc=
-  /request/2.86.0:
+  /request/2.87.0:
     dependencies:
       aws-sign2: 0.7.0
       aws4: 1.7.0
@@ -4835,7 +4794,6 @@ packages:
       forever-agent: 0.6.1
       form-data: 2.3.2
       har-validator: 5.0.3
-      hawk: 6.0.2
       http-signature: 1.2.0
       is-typedarray: 1.0.0
       isstream: 0.1.2
@@ -4852,7 +4810,7 @@ packages:
     engines:
       node: '>= 4'
     resolution:
-      integrity: sha512-BQZih67o9r+Ys94tcIW4S7Uu8pthjrQVxhsZ/weOwHbDfACxvIyvnAbzFQxjy1jMtvFSzv5zf4my6cZsJBbVzw==
+      integrity: sha512-fcogkm7Az5bsS6Sl0sibkbhcKsnyon/jV1kF3ajGmF0c8HrttdKTPRT9hieOaQHA5HEq6r8OyWOo/o781C1tNw==
   /require-directory/2.1.1:
     dev: false
     engines:
@@ -5145,14 +5103,6 @@ packages:
       node: '>=0.10.0'
     resolution:
       integrity: sha512-FtyOnWN/wCHTVXOMwvSv26d+ko5vWlIDD6zoUJ7LW8vh+ZBC8QdljveRP+crNrtBwioEUWy/4dMtbBjA4ioNlg==
-  /sntp/2.1.0:
-    dependencies:
-      hoek: 4.2.1
-    dev: true
-    engines:
-      node: '>=4.0.0'
-    resolution:
-      integrity: sha512-FL1b58BDrqS3A11lJ0zEdnJ3UOKqVxawAkF3k7F0CVN7VQ34aZrV+G8BZ1WC9ZL7NyrwsW0oviwsWDgRuVYtJg==
   /socks-proxy-agent/4.0.1:
     dependencies:
       agent-base: 4.2.0
@@ -5917,7 +5867,7 @@ packages:
       '@verdaccio/streams': 0.0.2
       JSONStream: 1.3.2
       apache-md5: 1.1.2
-      async: 2.6.0
+      async: 2.6.1
       body-parser: 1.18.3
       bunyan: 1.8.12
       chalk: 2.4.1
@@ -5940,7 +5890,7 @@ packages:
       minimatch: 3.0.4
       mkdirp: 0.5.1
       pkginfo: 0.4.1
-      request: 2.86.0
+      request: 2.87.0
       semver: 5.5.0
       unix-crypt-td-js: 1.0.0
     dev: true
@@ -6201,7 +6151,7 @@ specifiers:
   pkgs-graph: ^2.0.0
   pnpm-default-reporter: ^0.17.0
   pnpm-file-reporter: ^0.1.0
-  pnpm-list: ^2.0.0
+  pnpm-list: ^2.1.0
   pnpm-registry-mock: ^1.21.1
   process-exists: ^3.0.0
   ramda: ^0.25.0
