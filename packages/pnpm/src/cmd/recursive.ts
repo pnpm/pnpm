@@ -18,6 +18,7 @@ import {
 import createStoreController from '../createStoreController'
 import requireHooks from '../requireHooks'
 import {PnpmOptions} from '../types'
+import list from './list'
 
 const supportedRecursiveCommands = new Set([
   'install',
@@ -29,6 +30,10 @@ const supportedRecursiveCommands = new Set([
   'ln',
   'dislink',
   'unlink',
+  'list',
+  'ls',
+  'la',
+  'll',
 ])
 
 export default async (
@@ -63,6 +68,12 @@ export default async (
     ],
     patterns: packagesManifest && packagesManifest.packages || undefined,
   })
+  if (cmd === 'list' || cmd === 'ls' || cmd === 'la' || cmd === 'll') {
+    for (const pkg of pkgs) {
+      await list(input, {...opts, prefix: pkg.path, alwaysPrintRootPackage: false} as any, cmd) // tslint:disable-line:no-any
+    }
+    return
+  }
   const pkgGraphResult = createPkgGraph(pkgs)
   const store = await createStoreController(opts)
 
