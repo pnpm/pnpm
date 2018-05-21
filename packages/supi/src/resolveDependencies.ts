@@ -293,6 +293,11 @@ async function install (
 
   pkgResponse.body.id = encodePkgId(pkgResponse.body.id)
 
+  if (!pkgResponse.body.updated && options.update && options.currentDepth >= ctx.depth && options.relDepPath &&
+    ctx.currentShrinkwrap.packages && ctx.currentShrinkwrap.packages[options.relDepPath] && !ctx.force) {
+    return null
+  }
+
   if (pkgResponse.body.isLocal) {
     const manifest = pkgResponse.body.manifest || await pkgResponse['fetchingManifest'] // tslint:disable-line:no-string-literal
     if (options.currentDepth > 0) {
