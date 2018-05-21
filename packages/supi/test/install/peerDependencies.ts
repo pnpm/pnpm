@@ -43,6 +43,12 @@ test('peer dependency is grouped with dependency when peer is resolved not from 
 
   t.ok(await exists(path.join(NM, '.localhost+4873', 'ajv-keywords', '1.5.0', 'ajv@4.10.4', NM, 'ajv')), 'peer dependency is linked')
   t.equal(deepRequireCwd(['using-ajv', 'ajv-keywords', 'ajv', './package.json']).version, '4.10.4')
+
+  await installPkgs(['using-ajv'], await testDefaults({update: true}))
+
+  const shr = await project.loadShrinkwrap()
+  // covers https://github.com/pnpm/pnpm/issues/1150
+  t.ok(shr.packages['/ajv-keywords/1.5.0/ajv@4.10.4'])
 })
 
 // Covers https://github.com/pnpm/pnpm/issues/1133
