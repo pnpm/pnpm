@@ -7,6 +7,7 @@ import chalk from 'chalk'
 const highlighted = chalk.yellow.bgBlack
 
 const fixture = path.join(__dirname, 'fixture')
+const emptyFixture = path.join(__dirname, 'empty')
 
 test('list with default parameters', async t => {
   t.equal(await list(fixture), stripIndent`
@@ -146,5 +147,15 @@ test('long parseable list with depth 1', async t => {
     ${fixture}/node_modules/.registry.npmjs.org/write-json-file/2.2.0:write-json-file@2.2.0
   ` + '\n')
 
+  t.end()
+})
+
+test('print empty', async t => {
+  t.equal(await list(emptyFixture), `empty@1.0.0 ${emptyFixture}\n`)
+  t.end()
+})
+
+test("don't print empty", async t => {
+  t.equal(await list(emptyFixture, {alwaysPrintRootPackage: false}), '')
   t.end()
 })

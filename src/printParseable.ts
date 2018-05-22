@@ -10,10 +10,12 @@ export default async function(
   tree: PackageNode[],
   opts: {
     long: boolean,
+    alwaysPrintRootPackage: boolean,
   },
 ) {
   const pkgs = sortPackages(flatten(tree))
   const prefix = path.join(projectPath, 'node_modules')
+  if (!opts.alwaysPrintRootPackage && !pkgs.length) return ''
   if (opts.long) {
     const entryPkg = await readPkg(path.resolve(projectPath, 'package.json'))
     return `${projectPath}:${entryPkg.name}@${entryPkg.version}\n` +

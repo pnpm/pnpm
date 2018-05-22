@@ -7,6 +7,7 @@ import printParseable from './printParseable'
 import printTree from './printTree'
 
 const DEFAULTS = {
+  alwaysPrintRootPackage: true,
   depth: 0,
   long: false,
   only: undefined,
@@ -17,6 +18,7 @@ export async function forPackages(
   packages: string[],
   projectPath: string,
   maybeOpts?: {
+    alwaysPrintRootPackage?: boolean,
     depth?: number,
     only?: 'dev' | 'prod',
     long?: boolean,
@@ -46,6 +48,7 @@ export async function forPackages(
 
   const print = getPrinter(opts.parseable)
   return print(projectPath, tree, {
+    alwaysPrintRootPackage: opts.alwaysPrintRootPackage,
     long: opts.long,
   })
 }
@@ -53,6 +56,7 @@ export async function forPackages(
 export default async function(
   projectPath: string,
   maybeOpts?: {
+    alwaysPrintRootPackage?: boolean,
     depth?: number,
     only?: 'dev' | 'prod',
     long?: boolean,
@@ -68,6 +72,7 @@ export default async function(
 
   const print = getPrinter(opts.parseable)
   return print(projectPath, tree, {
+    alwaysPrintRootPackage: opts.alwaysPrintRootPackage,
     long: opts.long,
   })
 }

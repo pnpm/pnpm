@@ -11,11 +11,13 @@ export default async function(
   projectPath: string,
   tree: PackageNode[],
   opts: {
+    alwaysPrintRootPackage: boolean,
     long: boolean,
   },
 ) {
   const pkg = await readPkg(path.resolve(projectPath, 'package.json'))
 
+  if (!opts.alwaysPrintRootPackage && !tree.length) return ''
   const s = archy({
     label: `${pkg.name}@${pkg.version} ${projectPath}`,
     nodes: await toArchyTree(tree, {

@@ -50,6 +50,7 @@ Returns a string output similar to the `npm ls` but for [pnpm](github.com/pnpm/p
 * `[opts.only]` - *dev | prod* - `null` by default. Display only the dependency tree for packages in `devDependencies` or `dependencies`.
 * `[opts.long]` - *Boolean* - `false` by default. If true, show extended information.
 * `[opts.parseable]` - *Boolean* - `false` by default. Show parseable output instead of tree view.
+* `[opts.alwaysPrintRootPackage]` - *Boolean* - `true` by default. Print the root package even if no dependencies found/matched.
 
 ### `forPackages(packages, path, [opts]): Promise<string>`
 
@@ -63,6 +64,7 @@ Returns a string output similar to the `npm ls [<@scope>/]<pkg> ...` but for [pn
 * `[opts.only]` - *dev | prod* - `null` by default. Display only the dependency tree for packages in `devDependencies` or `dependencies`.
 * `[opts.long]` - *Boolean* - `false` by default. If true, show extended information.
 * `[opts.parseable]` - *Boolean* - `false` by default. Show parseable output instead of tree view.
+* `[opts.alwaysPrintRootPackage]` - *Boolean* - `true` by default. Print the root package even if no dependencies found/matched..
 
 ## License
 
