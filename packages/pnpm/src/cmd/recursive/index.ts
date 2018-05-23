@@ -19,7 +19,7 @@ import createStoreController from '../../createStoreController'
 import getCommandFullName from '../../getCommandFullName'
 import requireHooks from '../../requireHooks'
 import {PnpmOptions} from '../../types'
-import list from '../list'
+import list from './list'
 
 const supportedRecursiveCommands = new Set([
   'install',
@@ -52,10 +52,6 @@ export default async (
   }
   logger.warn('The recursive command is an experimental feature. Breaking changes may happen in non-major versions.')
 
-  if (cmdFullName === 'update') {
-    opts = {...opts, update: true}
-  }
-
   const cwd = process.cwd()
   const packagesManifest = await requirePackagesManifest(cwd)
   const pkgs = await findPackages(cwd, {
@@ -66,10 +62,11 @@ export default async (
     patterns: packagesManifest && packagesManifest.packages || undefined,
   })
   if (cmdFullName === 'list') {
-    for (const pkg of pkgs) {
-      await list(input, {...opts, prefix: pkg.path, alwaysPrintRootPackage: false} as any, cmd) // tslint:disable-line:no-any
-    }
+    await list(pkgs, input, cmd, opts as any) // tslint:disable-line:no-any
     return
+  }
+  if (cmdFullName === 'update') {
+    opts = {...opts, update: true}
   }
   const pkgGraphResult = createPkgGraph(pkgs)
   const store = await createStoreController(opts)
