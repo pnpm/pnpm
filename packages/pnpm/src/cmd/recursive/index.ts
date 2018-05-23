@@ -16,24 +16,17 @@ import {
   unlink,
 } from 'supi'
 import createStoreController from '../../createStoreController'
+import getCommandFullName from '../../getCommandFullName'
 import requireHooks from '../../requireHooks'
 import {PnpmOptions} from '../../types'
 import list from '../list'
 
 const supportedRecursiveCommands = new Set([
   'install',
-  'i',
   'update',
-  'up',
-  'upgrade',
   'link',
-  'ln',
-  'dislink',
   'unlink',
   'list',
-  'ls',
-  'la',
-  'll',
 ])
 
 export default async (
@@ -50,12 +43,16 @@ export default async (
   }
 
   const cmd = input.shift()
-  if (cmd && !supportedRecursiveCommands.has(cmd)) {
+  if (!cmd) {
+    throw new Error('Unsupported recursive command')
+  }
+  const cmdFullName = getCommandFullName(cmd)
+  if (!supportedRecursiveCommands.has(cmdFullName)) {
     throw new Error('Unsupported recursive command')
   }
   logger.warn('The recursive command is an experimental feature. Breaking changes may happen in non-major versions.')
 
-  if (cmd === 'update' || cmd === 'up' || cmd === 'upgrade') {
+  if (cmdFullName === 'update') {
     opts = {...opts, update: true}
   }
 
@@ -68,7 +65,7 @@ export default async (
     ],
     patterns: packagesManifest && packagesManifest.packages || undefined,
   })
-  if (cmd === 'list' || cmd === 'ls' || cmd === 'la' || cmd === 'll') {
+  if (cmdFullName === 'list') {
     for (const pkg of pkgs) {
       await list(input, {...opts, prefix: pkg.path, alwaysPrintRootPackage: false} as any, cmd) // tslint:disable-line:no-any
     }
@@ -87,7 +84,7 @@ export default async (
     saveState: async () => undefined,
   }
 
-  if (cmd === 'link' || cmd === 'ln') {
+  if (cmdFullName === 'link') {
     await linkPackages(pkgGraphResult.graph, {
       registry: opts.registry,
       store: store.path,
@@ -110,7 +107,7 @@ export default async (
   }) as InstallOptions
 
   const limitInstallation = pLimit(concurrency)
-  const action = cmd === 'unlink' || cmd === 'dislink' ? unlink : install
+  const action = cmdFullName === 'unlink' ? unlink : install
 
   for (const chunk of chunks) {
     await Promise.all(chunk.map((prefix: string) =>
