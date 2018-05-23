@@ -15,10 +15,10 @@ import {
   link,
   unlink,
 } from 'supi'
-import createStoreController from '../createStoreController'
-import requireHooks from '../requireHooks'
-import {PnpmOptions} from '../types'
-import list from './list'
+import createStoreController from '../../createStoreController'
+import requireHooks from '../../requireHooks'
+import {PnpmOptions} from '../../types'
+import list from '../list'
 
 const supportedRecursiveCommands = new Set([
   'install',
