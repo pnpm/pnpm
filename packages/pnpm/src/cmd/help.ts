@@ -261,10 +261,16 @@ function getHelpText (command: string) {
 
         * * *
 
-        pnpm recursive list
+        pnpm recursive list [[<@scope>/]<pkg> ...]
 
         List packages in each project of the multi-package repo.
         Accepts the same arguments and flags as the regular \`pnpm list\` command.
+
+        * * *
+
+        pnpm recursive outdated [[<@scope>/]<pkg> ...]
+
+        Check for outdated packages in every project of the multi-package repo.
       `
 
     default:
@@ -291,6 +297,7 @@ function getHelpText (command: string) {
           - recursive install
           - recursive update
           - recursive list
+          - recursive outdated
 
         Experimental commands:
           - server start

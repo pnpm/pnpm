@@ -1,4 +1,4 @@
-import {stripIndent} from 'common-tags'
+import {stripIndent, stripIndents} from 'common-tags'
 import delay = require('delay')
 import fs = require('mz/fs')
 import isCI = require('is-ci')
@@ -17,6 +17,7 @@ import {
   spawn,
 } from './utils'
 import mkdirp = require('mkdirp-promise')
+import normalizeNewline = require('normalize-newline')
 import loadYamlFile = require('load-yaml-file')
 
 const test = promisifyTape(tape)
@@ -406,4 +407,48 @@ test('recursive list', async (t: tape.Test) => {
     project-2@1.0.0 ${path.resolve('project-2')}
     └── is-negative@1.0.0
   ` + '\n\n')
+})
+
+test('pnpm recursive outdated', async (t: tape.Test) => {
+  const projects = prepare(t, [
+    {
+      name: 'project-1',
+      version: '1.0.0',
+      dependencies: {
+        'is-positive': '1.0.0',
+      },
+    },
+    {
+      name: 'project-2',
+      version: '1.0.0',
+      dependencies: {
+        'is-negative': '1.0.0',
+      },
+    },
+  ])
+
+  await execPnpm('recursive', 'install')
+
+  {
+    const result = execPnpmSync('recursive', 'outdated')
+
+    t.equal(result.status, 0)
+
+    t.equal(normalizeNewline(result.stdout.toString()), '           ' + stripIndents`
+                Package      Current  Wanted  Latest
+      project-1  is-positive  1.0.0    1.0.0   3.1.0
+      project-2  is-negative  1.0.0    1.0.0   2.1.0
+    ` + '\n')
+  }
+
+  {
+    const result = execPnpmSync('recursive', 'outdated', 'is-positive')
+
+    t.equal(result.status, 0)
+
+    t.equal(normalizeNewline(result.stdout.toString()), '           ' + stripIndents`
+                Package      Current  Wanted  Latest
+      project-1  is-positive  1.0.0    1.0.0   3.1.0
+    ` + '\n')
+  }
 })
