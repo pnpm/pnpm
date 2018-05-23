@@ -20,6 +20,7 @@ import getCommandFullName from '../../getCommandFullName'
 import requireHooks from '../../requireHooks'
 import {PnpmOptions} from '../../types'
 import list from './list'
+import outdated from './outdated'
 
 const supportedRecursiveCommands = new Set([
   'install',
@@ -27,6 +28,7 @@ const supportedRecursiveCommands = new Set([
   'link',
   'unlink',
   'list',
+  'outdated',
 ])
 
 export default async (
@@ -61,13 +63,19 @@ export default async (
     ],
     patterns: packagesManifest && packagesManifest.packages || undefined,
   })
-  if (cmdFullName === 'list') {
-    await list(pkgs, input, cmd, opts as any) // tslint:disable-line:no-any
-    return
+
+  switch (cmdFullName) {
+    case 'list':
+      await list(pkgs, input, cmd, opts as any) // tslint:disable-line:no-any
+      return
+    case 'outdated':
+      await outdated(pkgs, input, cmd, opts as any) // tslint:disable-line:no-any
+      return
+    case 'update':
+      opts = {...opts, update: true}
+      break
   }
-  if (cmdFullName === 'update') {
-    opts = {...opts, update: true}
-  }
+
   const pkgGraphResult = createPkgGraph(pkgs)
   const store = await createStoreController(opts)
 
