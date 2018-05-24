@@ -3,7 +3,7 @@ dependencies:
   '@pnpm/default-fetcher': 1.0.0
   '@pnpm/default-resolver': 1.0.0
   '@pnpm/logger': 1.0.2
-  '@pnpm/outdated': 0.3.0
+  '@pnpm/outdated': 0.3.1
   '@pnpm/server': 0.11.0
   '@pnpm/store-path': 1.0.3
   '@pnpm/types': 1.7.0
@@ -281,10 +281,11 @@ packages:
       '@pnpm/logger': ^1.0.0
     resolution:
       integrity: sha512-Vm37jaOTw+oW+lO3INjwbidXucJ4By/GuHYAXOyWAjwWiuBbcIxyoC82vFNGHTC3zGcBi1PA/4DNgJ8tbaDnwQ==
-  /@pnpm/outdated/0.3.0:
+  /@pnpm/outdated/0.3.1:
     dependencies:
       '@pnpm/npm-resolver': 1.0.2
       '@pnpm/store-path': 1.0.3
+      '@pnpm/utils': 0.2.0
       '@types/node': 10.1.2
       dependency-path: 1.2.1
       pnpm-shrinkwrap: 6.4.0
@@ -294,7 +295,18 @@ packages:
     peerDependencies:
       '@pnpm/logger': ^1.0.0
     resolution:
-      integrity: sha512-0cbe1hgGNqlr8QfnHqoRAULEY7mlfoN0+qcgFR0QmypYozZU4Bq146Hi8nSYKJnONJQrqh6y8CbjJ/Rm7gDZdw==
+      integrity: sha512-cIttg8P3vXt0tK9Ty3R0O0lpEigZfOQ3yUsfHno4Do0MQbhMWfWp4JxWIj3ynZvJRNsdCx4w21ATqWd7LgYtJg==
+  /@pnpm/package-bins/1.0.0:
+    dependencies:
+      '@pnpm/types': 1.7.0
+      '@types/mz': 0.0.32
+      mz: 2.7.0
+      p-filter: 1.0.0
+    dev: false
+    engines:
+      node: '>=4'
+    resolution:
+      integrity: sha512-ZqVfIXK3r5AsP5VAhPHrhf3isF+T4yEuUpJTF9T03oFTJ9LBnkKvx8F7P7biKEManxSGOkSpNoIBdsura9pY5Q==
   /@pnpm/package-requester/1.0.0:
     dependencies:
       '@pnpm/check-package': 1.0.0
@@ -425,6 +437,29 @@ packages:
     dev: false
     resolution:
       integrity: sha512-pn7g4uxcofWTNG/cxmKvkMK2lxr4OUIhrQDrEVYEdVhW0WkWztsHkFrYjFgfNzPbYu3ITlB3T6aSVjCoJQTOlw==
+  /@pnpm/utils/0.2.0:
+    dependencies:
+      '@pnpm/package-bins': 1.0.0
+      '@pnpm/types': 1.7.0
+      '@types/mz': 0.0.32
+      '@types/node': 10.1.2
+      '@types/ramda': 0.25.29
+      dependency-path: 1.2.1
+      fs-vacuum: 1.2.10
+      mz: 2.7.0
+      package-store: 0.20.0
+      pnpm-shrinkwrap: 6.4.0
+      ramda: 0.25.0
+      read-package-json: 2.0.13
+      rimraf-then: 1.0.1
+      util.promisify: 1.0.0
+    dev: false
+    engines:
+      node: '>=6'
+    peerDependencies:
+      '@pnpm/logger': ^1.0.0
+    resolution:
+      integrity: sha512-/bvIumvklNDPKr14ZOwofpbBqcNNOhY1vBX5klKvde/Bofl8Y9Lbi8sBkuJPhtpY5bii2Pk+sQ8LZlYyWD/HOQ==
   /@sindresorhus/is/0.7.0:
     dev: false
     engines:
@@ -2337,6 +2372,14 @@ packages:
     dev: true
     resolution:
       integrity: sha512-66Pm4RYbjzdyeuqudYqhFiNBbCIuI9kgRqLPSHIlXHidW8NIQtVdkM1yeZ4lXwuhbTETv3EUGMNHAAw6hiundQ==
+  /fs-vacuum/1.2.10:
+    dependencies:
+      graceful-fs: 4.1.11
+      path-is-inside: 1.0.2
+      rimraf: 2.6.2
+    dev: false
+    resolution:
+      integrity: sha1-t2Kb7AekAxolSP35n17PHMizHjY=
   /fs-write-stream-atomic/1.0.10:
     dependencies:
       graceful-fs: 4.1.11
@@ -6091,7 +6134,7 @@ specifiers:
   '@pnpm/default-fetcher': ^0.4.0 || 1
   '@pnpm/default-resolver': ^1.0.0
   '@pnpm/logger': ^1.0.0
-  '@pnpm/outdated': ^0.2.10 || 0.3
+  '@pnpm/outdated': ^0.3.1
   '@pnpm/server': ^0.10.0 || 0.11
   '@pnpm/store-path': ^1.0.3
   '@pnpm/types': ^1.5.0
