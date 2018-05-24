@@ -30,7 +30,7 @@
     "@types/node": "^10.0.6",
     "@types/path-exists": "^3.0.0",
     "@types/rimraf": "^2.0.2",
-    "@types/sinon": "^4.3.0",
+    "@types/sinon": "^5.0.0",
     "@types/tape": "^4.2.30",
     "@types/tempy": "^0.1.0",
     "@zkochan/husky": "^0.0.0",

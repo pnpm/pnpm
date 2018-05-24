@@ -30,7 +30,7 @@ devDependencies:
   '@types/node': 10.1.2
   '@types/path-exists': 3.0.0
   '@types/rimraf': 2.0.2
-  '@types/sinon': 4.3.3
+  '@types/sinon': 5.0.0
   '@types/tape': 4.2.32
   '@types/tempy': 0.1.0
   '@zkochan/husky': 0.0.0
@@ -43,11 +43,11 @@ devDependencies:
   pnpm-registry-mock: 1.22.2
   rimraf: 2.6.2
   rimraf-then: 1.0.1
-  sinon: 5.0.7
+  sinon: 5.0.10
   tape: 4.9.0
   tape-promise: 3.0.0
   tempy: 0.2.1
-  ts-node: 6.0.3
+  ts-node: 6.0.5
   tslint: 5.10.0
   typescript: 2.8.3
 packages:
@@ -390,7 +390,6 @@ packages:
     dev: true
     resolution:
       integrity: sha512-ls6CAMA6/5gG+O/IdsBcblvnd8qcO/l1TYoNeAzp3wcISOxlPXQEus0mLcdwazEkWjaBdaJ3TaxmNgCLWwvWzg==
-      tarball: 'http://registry.npmjs.org/@sinonjs/formatio/-/formatio-2.0.0.tgz'
   /@types/events/1.2.0:
     dev: true
     resolution:
@@ -474,10 +473,10 @@ packages:
   /@types/semver/5.5.0:
     resolution:
       integrity: sha512-41qEJgBH/TWgo5NFSvBCJ1qkoi3Q6ONSF2avrHq1LVEZfYpdHmj0y9SuTK+u9ZhG1sYQKBL1AWXKyLWP4RaUoQ==
-  /@types/sinon/4.3.3:
+  /@types/sinon/5.0.0:
     dev: true
     resolution:
-      integrity: sha512-Tt7w/ylBS/OEAlSCwzB0Db1KbxnkycP/1UkQpbvKFYoUuRn4uYsC3xh5TRPrOjTy0i8TIkSz1JdNL4GPVdf3KQ==
+      integrity: sha512-RsisuFAkhtCB3DKwQrBZYdkqtOyck7y5GkMZ7KeYVjLNBoV9ZMI0Kxj304Myp+B5Jj4LeEdPMTPlXNylG9x94A==
   /@types/tape/4.2.32:
     dependencies:
       '@types/node': 10.1.2
@@ -537,13 +536,13 @@ packages:
     requiresBuild: true
     resolution:
       integrity: sha512-onS0BpZl/Zj903N60DM58rENRH9qZPWUALc4M808CG7Kv2M6BHz1W4XREg1vivAYaD3z2Hd9O2iEy3SJlALnbg==
-  /JSONStream/1.3.2:
+  /JSONStream/1.3.3:
     dependencies:
       jsonparse: 1.3.1
       through: 2.3.8
     dev: true
     resolution:
-      integrity: sha1-wQI3G27Dp887hHygDCC7D85Mbeo=
+      integrity: sha512-3Sp6WZZ/lXl+nTDoGpGWHEpTnnC6X5fnkolYZR6nwIfzbxxvA8utPWe1gCt7i0m9uVGsSz2IS8K8mJ7HmlduMg==
   /abbrev/1.1.1:
     resolution:
       integrity: sha512-nne9/IiQ/hzIhY6pdDnbBtz7DjPTKrY00P/zvPSm5pOFkl6xuGrGnXn/VtTNNfNtAfZ9/1RtehkszU9qcTii0Q==
@@ -883,7 +882,7 @@ packages:
       dtrace-provider: 0.8.6
       moment: 2.22.1
       mv: 2.1.1
-      safe-json-stringify: 1.1.0
+      safe-json-stringify: 1.2.0
     resolution:
       integrity: sha1-8VDw9nSKvdcq6uhPBEA74u8RN5c=
   /byline/5.0.0:
@@ -3566,11 +3565,11 @@ packages:
   /safe-buffer/5.1.2:
     resolution:
       integrity: sha512-Gd2UZBJDkXlY7GbJxfsE8/nvKkUEU1G38c1siN6QP6a9PT9MmHB8GnpscSmMJSoF8LOIrt8ud/wPtojys4G6+g==
-  /safe-json-stringify/1.1.0:
+  /safe-json-stringify/1.2.0:
     dev: true
     optional: true
     resolution:
-      integrity: sha512-EzBtUaFH9bHYPc69wqjp0efJI/DPNHdFbGE3uIMn4sVbO0zx8vZ8cG4WKxQfOpUOKsQyGBiT2mTqnCw+6nLswA==
+      integrity: sha512-gH8eh2nZudPQO6TytOvbxnuhYBOvDBBLW52tz5q6X58lJcd/tkmqFR+5Z9adS8aJtURSXWThWy/xJtJwixErvg==
   /safer-buffer/2.1.2:
     dev: true
     resolution:
@@ -3660,7 +3659,7 @@ packages:
   /signal-exit/3.0.2:
     resolution:
       integrity: sha1-tf3AjxKH6hF4Yo5BXiUTK3NkbG0=
-  /sinon/5.0.7:
+  /sinon/5.0.10:
     dependencies:
       '@sinonjs/formatio': 2.0.0
       diff: 3.5.0
@@ -3671,7 +3670,7 @@ packages:
       type-detect: 4.0.8
     dev: true
     resolution:
-      integrity: sha512-GvNLrwpvLZ8jIMZBUhHGUZDq5wlUdceJWyHvZDmqBxnjazpxY1L0FNbGBX6VpcOEoQ8Q4XMWFzm2myJMvx+VjA==
+      integrity: sha512-+YT7Mjr8BpNndQqUUydO/daggF4yuOAnsVjo+5Ayx3mLLUqojfkXhDkho4HB5VgfnZYSdhxVDPbfJ2EBXFMSvA==
   /slash/1.0.0:
     engines:
       node: '>=0.10.0'
@@ -4052,7 +4051,7 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha1-tAPQuRvlDDMd/EuC7s6yLD3hbSA=
-  /ts-node/6.0.3:
+  /ts-node/6.0.5:
     dependencies:
       arrify: 1.0.1
       chalk: 2.4.1
@@ -4066,7 +4065,7 @@ packages:
     engines:
       node: '>=4.2.0'
     resolution:
-      integrity: sha512-ARaOMNFEPKg2ZuC1qJddFvHxHNFVckR0g9xLxMIoMqSSIkDc8iS4/LoV53EdDWWNq2FGwqcEf0bVVGJIWpsznw==
+      integrity: sha512-iNhWu2hli9/1p9PGLJ/4OZS+NR0IVEVk63KCrH3qa7jJZxXa+oPheBj5JyM8tuQM9RkBpw1PrNUEUPJR9wTGDw==
   /tslib/1.9.1:
     dev: true
     resolution:
@@ -4269,7 +4268,7 @@ packages:
     dependencies:
       '@verdaccio/file-locking': 0.0.3
       '@verdaccio/streams': 0.0.2
-      JSONStream: 1.3.2
+      JSONStream: 1.3.3
       apache-md5: 1.1.2
       async: 2.6.1
       body-parser: 1.18.3
@@ -4445,7 +4444,7 @@ specifiers:
   '@types/path-exists': ^3.0.0
   '@types/ramda': ^0.25.19
   '@types/rimraf': ^2.0.2
-  '@types/sinon': ^4.3.0
+  '@types/sinon': ^5.0.0
   '@types/tape': ^4.2.30
   '@types/tempy': ^0.1.0
   '@zkochan/husky': ^0.0.0
