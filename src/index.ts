@@ -1,6 +1,7 @@
 import logger from '@pnpm/logger'
 import createResolver from '@pnpm/npm-resolver'
 import resolveStore from '@pnpm/store-path'
+import {readPackageFromDir} from '@pnpm/utils'
 import * as dp from 'dependency-path'
 import {
   readCurrent as readCurrentShrinkwrap,
@@ -93,6 +94,8 @@ async function _outdated (
     alwaysAuth: boolean,
   },
 ): Promise<OutdatedPackage[]> {
+  const pkg = await readPackageFromDir(pkgPath)
+  if (!pkg.dependencies && !pkg.devDependencies && !pkg.optionalDependencies) return []
   const wantedShrinkwrap = await readWantedShrinkwrap(pkgPath, {ignoreIncompatible: false})
     || await readCurrentShrinkwrap(pkgPath, {ignoreIncompatible: false})
   if (!wantedShrinkwrap) {

@@ -1,4 +1,7 @@
 {
   "name": "no-shrinkwrap",
-  "version": "0.0.0"
+  "version": "0.0.0",
+  "dependencies": {
+    "is-positive": "3.1.0"
+  }
 }

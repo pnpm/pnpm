@@ -32,6 +32,11 @@ test('fail when there is no shrinkwrap.yaml file in the root of the project', as
   }
 })
 
+test('dont fail when there is no shrinkwrap.yaml file but no dependencies in package.json', async (t) => {
+  t.deepEqual(await outdated('no-deps', outdatedOpts), [])
+  t.end()
+})
+
 test('outdated()', async (t) => {
   const outdatedPkgs = await outdated('wanted-shrinkwrap', outdatedOpts)
   t.deepEqual(outdatedPkgs, [

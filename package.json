@@ -41,6 +41,7 @@
   "dependencies": {
     "@pnpm/npm-resolver": "^1.0.0",
     "@pnpm/store-path": "^1.0.0",
+    "@pnpm/utils": "^0.2.0",
     "@types/node": "^9.3.0 || 10",
     "dependency-path": "^1.2.0",
     "pnpm-shrinkwrap": "^6.0.0"
