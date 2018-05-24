@@ -1,3 +1,4 @@
+import logger from '@pnpm/logger'
 import outdated, {
   forPackages as outdatedForPackages,
 } from '@pnpm/outdated'
@@ -44,9 +45,16 @@ export default async (
   }>
   const getOutdated = args.length ? outdatedForPackages.bind(null, args) : outdated
   for (const pkg of pkgs) {
-    const op = await getOutdated(pkg.path, opts)
+    let outdatedPackagesOfProject
+    try {
+      outdatedPackagesOfProject = await getOutdated(pkg.path, opts)
+    } catch (err) {
+      logger.info(err)
+      err['prefix'] = pkg.path // tslint:disable-line:no-string-literal
+      throw err
+    }
     const prefix = path.relative(opts.prefix, pkg.path)
-    op.forEach((outdatedPkg: any) => outdatedPkgs.push({...outdatedPkg, prefix})) // tslint:disable-line:no-any
+    outdatedPackagesOfProject.forEach((outdatedPkg: any) => outdatedPkgs.push({...outdatedPkg, prefix})) // tslint:disable-line:no-any
   }
 
   const columnNames = ['', 'Package', 'Current', 'Wanted', 'Latest'].map((txt) => chalk.underline(txt))

@@ -1,3 +1,4 @@
+import logger from '@pnpm/logger'
 import {PackageJson} from '@pnpm/types'
 import list from '../list'
 
@@ -15,6 +16,12 @@ export default async (
   },
 ) => {
   for (const pkg of pkgs) {
-    await list(args, {...opts, prefix: pkg.path, alwaysPrintRootPackage: false}, cmd)
+    try {
+      await list(args, {...opts, prefix: pkg.path, alwaysPrintRootPackage: false}, cmd)
+    } catch (err) {
+      logger.info(err)
+      err['prefix'] = pkg.path // tslint:disable-line:no-string-literal
+      throw err
+    }
   }
 }
