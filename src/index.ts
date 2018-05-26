@@ -95,7 +95,7 @@ async function _outdated (
   },
 ): Promise<OutdatedPackage[]> {
   const pkg = await readPackageFromDir(pkgPath)
-  if (!pkg.dependencies && !pkg.devDependencies && !pkg.optionalDependencies) return []
+  if (packageHasNoDeps(pkg)) return []
   const wantedShrinkwrap = await readWantedShrinkwrap(pkgPath, {ignoreIncompatible: false})
     || await readCurrentShrinkwrap(pkgPath, {ignoreIncompatible: false})
   if (!wantedShrinkwrap) {
@@ -190,6 +190,17 @@ async function _outdated (
   )
 
   return outdated.sort((pkg1, pkg2) => pkg1.packageName.localeCompare(pkg2.packageName))
+}
+
+// tslint:disable-next-line:no-any
+function packageHasNoDeps (pkg: any) {
+  return (!pkg.dependencies || isEmpty(pkg.dependencies)
+    && (!pkg.devDependencies || isEmpty(pkg.devDependencies))
+    && (!pkg.optionalDependencies || isEmpty(pkg.optionalDependencies)))
+}
+
+function isEmpty (obj: object) {
+  return Object.keys(obj).length === 0
 }
 
 function adaptConfig (
