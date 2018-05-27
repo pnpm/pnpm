@@ -268,3 +268,27 @@ test('disallow stop server with remote call', async t => {
   await server.close()
   t.end()
 })
+
+test('disallow store prune', async t => {
+  const port = 5813
+  const hostname = '127.0.0.1'
+  const remotePrefix = `http://${hostname}:${port}`
+  const storeCtrlForServer = await createStoreController()
+  const server = createServer(storeCtrlForServer, {
+    port,
+    hostname,
+  })
+
+  t.ok(await isPortReachable(port), 'server is running')
+
+  try {
+    const response = await got(`${remotePrefix}/prune`, {method: 'POST'})
+    t.fail('request should have failed')
+  } catch (err) {
+    t.equal(err.statusCode, 403, 'store not pruned')
+  }
+
+  await server.close()
+  await storeCtrlForServer.close()
+  t.end()
+})

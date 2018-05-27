@@ -108,8 +108,9 @@ export default function (
           res.end(JSON.stringify('OK'))
           break
         case '/prune':
-          await store.prune()
-          res.end(JSON.stringify('OK'))
+          // Disable store pruning when a server is running
+          res.statusCode = 403
+          res.end()
           break
         case '/saveState':
           await store.saveState()
