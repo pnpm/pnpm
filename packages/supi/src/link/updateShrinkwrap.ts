@@ -165,7 +165,7 @@ function toShrDependency (
       value: (async () => {
         // The npm team suggests to always read the package.json for deciding whether the package has lifecycle scripts
         const filesResponse = await depNode.fetchingFiles
-        const pkgJson = await readPackageFromDir(depNode.centralLocation)
+        const pkgJson = await readPackageFromDir(depNode.peripheralLocation)
         return Boolean(
           pkgJson.scripts && (pkgJson.scripts.preinstall || pkgJson.scripts.install || pkgJson.scripts.postinstall) ||
           filesResponse.filenames.indexOf('binding.gyp') !== -1 ||
