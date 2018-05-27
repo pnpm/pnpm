@@ -38,7 +38,7 @@
     "chalk": "^2.2.0",
     "common-tags": "^1.4.0",
     "cross-spawn": "^6.0.3",
-    "delay": "^2.0.0",
+    "delay": "^3.0.0",
     "diable": "^4.0.1",
     "find-packages": "^2.2.0",
     "get-port": "^3.2.0",

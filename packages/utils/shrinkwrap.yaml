@@ -87,7 +87,7 @@ packages:
       p-queue: 2.4.2
       path-exists: 3.0.0
       read-package-json: 2.0.13
-      rename-overwrite: 1.0.2
+      rename-overwrite: 1.0.3
       rimraf-then: 1.0.1
       symlink-dir: 1.1.3
       util.promisify: 1.0.0
@@ -268,14 +268,6 @@ packages:
       node: '>= 0.4'
     resolution:
       integrity: sha1-g6c/L+pWmJj7c3GTyPhzyvbUXJQ=
-  /delay/2.0.0:
-    dependencies:
-      p-defer: 1.0.0
-    dev: false
-    engines:
-      node: '>=4'
-    resolution:
-      integrity: sha1-kRLq3APk7H4AKXM3iW8nO72R+uU=
   /dependency-path/1.2.1:
     dependencies:
       '@types/semver': 5.5.0
@@ -678,12 +670,6 @@ packages:
       wrappy: 1.0.2
     resolution:
       integrity: sha1-WDsap3WWHUsROsF9nFC6753Xa9E=
-  /p-defer/1.0.0:
-    dev: false
-    engines:
-      node: '>=4'
-    resolution:
-      integrity: sha1-n26xgvbJqozXQwBKfU+WsZaw+ww=
   /p-every/1.0.2:
     dependencies:
       p-map: 1.2.0
@@ -753,7 +739,7 @@ packages:
       path-exists: 3.0.0
       path-temp: 1.0.0
       ramda: 0.25.0
-      rename-overwrite: 1.0.2
+      rename-overwrite: 1.0.3
       rimraf-then: 1.0.1
       util.promisify: 1.0.0
       write-json-file: 2.3.0
@@ -874,9 +860,8 @@ packages:
     dev: true
     resolution:
       integrity: sha512-tQtKA9WIAhBF3+VLAseyMqZeBjW0AHJoxOtYqSUZNJxauErmLbVm2FW1y+J/YA9dUrAC39ITejlZWhVIwawkKw==
-  /rename-overwrite/1.0.2:
+  /rename-overwrite/1.0.3:
     dependencies:
-      delay: 2.0.0
       graceful-fs: 4.1.11
       rimraf: 2.6.2
       util.promisify: 1.0.0
@@ -884,7 +869,7 @@ packages:
     engines:
       node: '>=4'
     resolution:
-      integrity: sha512-H7bHUSiUG9xIAtGAoP7MrpQYGxpkcnIWuDBlMWXdYra+NvkL8kQnjnLlseuSdRFRgwxs61So+qsX8AHQaWCTmg==
+      integrity: sha512-hehcDzwprE09J1NkKbL8IEqKDB1g8yF0xKZcBN7uzGQKYfiHgY7pmQ66H7BzDeMcvfHDixPxDr4cDIAnVWYIeA==
   /resolve/1.7.1:
     dependencies:
       path-parse: 1.0.5
