@@ -69,7 +69,7 @@ export type PackageResponse = {
     },
   } & (
     {
-      fetchingManifest: Promise<PackageManifest>,
+      fetchingFullManifest: Promise<PackageManifest>,
     } | {
       body: {
         manifest: PackageManifest,
@@ -110,8 +110,9 @@ export type RequestPackageFunction = (
 ) => Promise<PackageResponse>
 
 export interface FetchPackageToStoreOptions {
+  fetchFullManifest?: boolean,
   force: boolean,
-  pkg?: PackageJson,
+  pkgName?: string,
   pkgId: string,
   prefix: string,
   resolution: Resolution,
@@ -122,7 +123,7 @@ export type FetchPackageToStoreFunction = (
   opts: FetchPackageToStoreOptions,
 ) => {
   fetchingFiles: Promise<PackageFilesResponse>,
-  fetchingManifest?: Promise<PackageManifest>,
+  fetchingFullManifest?: Promise<PackageManifest>,
   finishing: Promise<void>,
   inStoreLocation: string,
 }
@@ -290,32 +291,15 @@ async function resolveAndFetch (
     }
 
     const fetchResult = ctx.fetchPackageToStore({
+      fetchFullManifest: updated || !pkg,
       force: forceFetch,
-      pkg,
       pkgId: id,
+      pkgName: pkg && pkg.name,
       prefix: options.prefix,
       resolution: resolution as Resolution,
       verifyStoreIntegrity: options.verifyStoreIntegrity,
     })
 
-    if (pkg) {
-      return {
-        body: {
-          cacheByEngine: options.sideEffectsCache ? await getCacheByEngine(ctx.storePath, id) : new Map(),
-          id,
-          inStoreLocation: fetchResult.inStoreLocation,
-          isLocal: false as false,
-          latest,
-          manifest: pkg,
-          normalizedPref,
-          resolution,
-          resolvedVia,
-          updated,
-        },
-        fetchingFiles: fetchResult.fetchingFiles,
-        finishing: fetchResult.finishing,
-      }
-    }
     return {
       body: {
         cacheByEngine: options.sideEffectsCache ? await getCacheByEngine(ctx.storePath, id) : new Map(),
@@ -323,16 +307,16 @@ async function resolveAndFetch (
         inStoreLocation: fetchResult.inStoreLocation,
         isLocal: false as false,
         latest,
+        manifest: pkg,
         normalizedPref,
         resolution,
         resolvedVia,
         updated,
       },
       fetchingFiles: fetchResult.fetchingFiles,
-      fetchingManifest: fetchResult.fetchingManifest as Promise<PackageManifest> ||
-        fetchResult.fetchingFiles.then(() => readPkgFromDir(path.join(fetchResult.inStoreLocation, 'package'))),
+      fetchingFullManifest: fetchResult.fetchingFullManifest,
       finishing: fetchResult.finishing,
-    }
+    } as PackageResponse
   } catch (err) {
     progressLogger.debug({status: 'error', pkg: options.loggedPkg})
     throw err
@@ -345,7 +329,7 @@ function fetchToStore (
     fetchingLocker: Map<string, {
       finishing: Promise<void>,
       fetchingFiles: Promise<PackageFilesResponse>,
-      fetchingManifest?: Promise<PackageManifest>,
+      fetchingFullManifest?: Promise<PackageManifest>,
       inStoreLocation: string,
     }>,
     requestsQueue: {add: <T>(fn: () => Promise<T>, opts: {priority: number}) => Promise<T>},
@@ -353,8 +337,9 @@ function fetchToStore (
     storePath: string,
   },
   opts: {
+    fetchFullManifest?: boolean,
     force: boolean,
-    pkg?: PackageJson,
+    pkgName?: string,
     pkgId: string,
     prefix: string,
     resolution: Resolution,
@@ -362,7 +347,7 @@ function fetchToStore (
   },
 ): {
   fetchingFiles: Promise<PackageFilesResponse>,
-  fetchingManifest?: Promise<PackageManifest>,
+  fetchingFullManifest?: Promise<PackageManifest>,
   finishing: Promise<void>,
   inStoreLocation: string,
 } {
@@ -370,11 +355,11 @@ function fetchToStore (
   const target = path.join(ctx.storePath, targetRelative)
 
   if (!ctx.fetchingLocker.has(opts.pkgId)) {
-    const fetchingManifest = differed<PackageManifest>()
+    const fetchingFullManifest = differed<PackageManifest>()
     const fetchingFiles = differed<PackageFilesResponse>()
     const finishing = differed<void>()
 
-    doFetchToStore(fetchingManifest, fetchingFiles, finishing)
+    doFetchToStore(fetchingFullManifest, fetchingFiles, finishing)
 
     function removeKeyOnFail<T> (p: Promise<T>): Promise<T> {
       return p.catch((err) => {
@@ -383,10 +368,10 @@ function fetchToStore (
       })
     }
 
-    if (!opts.pkg) {
+    if (opts.fetchFullManifest) {
       ctx.fetchingLocker.set(opts.pkgId, {
         fetchingFiles: removeKeyOnFail(fetchingFiles.promise),
-        fetchingManifest: removeKeyOnFail(fetchingManifest.promise),
+        fetchingFullManifest: removeKeyOnFail(fetchingFullManifest.promise),
         finishing: removeKeyOnFail(finishing.promise),
         inStoreLocation: target,
       })
@@ -406,13 +391,13 @@ function fetchToStore (
 
   return ctx.fetchingLocker.get(opts.pkgId) as {
     fetchingFiles: Promise<PackageFilesResponse>,
-    fetchingManifest?: Promise<PackageManifest>,
+    fetchingFullManifest?: Promise<PackageManifest>,
     finishing: Promise<void>,
     inStoreLocation: string,
   }
 
   async function doFetchToStore (
-    fetchingManifest: PromiseContainer<PackageManifest>,
+    fetchingFullManifest: PromiseContainer<PackageManifest>,
     fetchingFiles: PromiseContainer<PackageFilesResponse>,
     finishing: PromiseContainer<void>,
   ) {
@@ -443,10 +428,10 @@ function fetchToStore (
             filenames: Object.keys(satisfiedIntegrity).filter((f) => !satisfiedIntegrity[f].isDir), // Filtering can be removed for store v3
             fromStore: true,
           })
-          if (!opts.pkg) {
+          if (opts.fetchFullManifest) {
             readPkgFromDir(linkToUnpacked)
-              .then(fetchingManifest.resolve)
-              .catch(fetchingManifest.reject)
+              .then(fetchingFullManifest.resolve)
+              .catch(fetchingFullManifest.reject)
           }
           finishing.resolve(undefined)
           return
@@ -523,15 +508,16 @@ function fetchToStore (
         finishing.resolve(undefined)
       }
 
-      let pkg: PackageJson
-      if (opts.pkg) {
-        pkg = opts.pkg
-      } else {
-        pkg = await readPkgFromDir(tempLocation)
-        fetchingManifest.resolve(pkg)
+      let pkgName: string | undefined = opts.pkgName
+      if (!pkgName || opts.fetchFullManifest) {
+        const pkg = await readPkgFromDir(tempLocation)
+        fetchingFullManifest.resolve(pkg)
+        if (!pkgName) {
+          pkgName = pkg.name
+        }
       }
 
-      const unpacked = path.join(target, 'node_modules', pkg.name)
+      const unpacked = path.join(target, 'node_modules', pkgName)
       await mkdirp(path.dirname(unpacked))
 
       // rename(oldPath, newPath) is an atomic operation, so we do it at the
@@ -545,8 +531,8 @@ function fetchToStore (
       })
     } catch (err) {
       fetchingFiles.reject(err)
-      if (!opts.pkg) {
-        fetchingManifest.reject(err)
+      if (opts.fetchFullManifest) {
+        fetchingFullManifest.reject(err)
       }
     }
   }

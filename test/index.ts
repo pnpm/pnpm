@@ -505,10 +505,10 @@ test('always return a package manifest in the response', async t => {
         registry: 'https://registry.npmjs.org/',
         tarball: 'https://registry.npmjs.org/is-positive/-/is-positive-1.0.0.tgz',
       },
-    }) as PackageResponse & {fetchingManifest: Promise<PackageManifest>}
+    }) as PackageResponse & {fetchingFullManifest: Promise<PackageManifest>}
 
     t.ok(pkgResponse.body, 'response has body')
-    t.ok((await pkgResponse.fetchingManifest).name, 'response has manifest')
+    t.ok((await pkgResponse.fetchingFullManifest).name, 'response has manifest')
   }
 
   t.end()
