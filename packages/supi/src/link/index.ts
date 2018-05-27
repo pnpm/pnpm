@@ -1,6 +1,7 @@
 import linkBins, {linkPackageBins} from '@pnpm/link-bins'
 import {PackageJson} from '@pnpm/types'
 import {
+  readPackageFromDir,
   removeOrphanPackages as removeOrphanPkgs,
   rootLogger,
   stageLogger,
@@ -146,9 +147,17 @@ export default async function linkPackages (
   }
 
   await Promise.all(pendingRequiresBuilds.map(async (pendingRequiresBuild) => {
-    const requiresBuild = await pendingRequiresBuild.value
-    depGraph[pendingRequiresBuild.absoluteDepPath].requiresBuild = requiresBuild
-    if (requiresBuild) {
+    const depNode = depGraph[pendingRequiresBuild.absoluteDepPath]
+    const filesResponse = await depNode.fetchingFiles
+    // The npm team suggests to always read the package.json for deciding whether the package has lifecycle scripts
+    const pkgJson = await readPackageFromDir(depNode.peripheralLocation)
+    depNode.requiresBuild = Boolean(
+      pkgJson.scripts && (pkgJson.scripts.preinstall || pkgJson.scripts.install || pkgJson.scripts.postinstall) ||
+      filesResponse.filenames.indexOf('binding.gyp') !== -1 ||
+        filesResponse.filenames.some((filename) => !!filename.match(/^[.]hooks[\\/]/)), // TODO: optimize this
+    )
+
+    if (depNode.requiresBuild) {
       newShrinkwrap!.packages![pendingRequiresBuild.relativeDepPath].requiresBuild = true
     }
   }))

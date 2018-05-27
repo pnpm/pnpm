@@ -1,6 +1,5 @@
 import {Resolution} from '@pnpm/resolver-base'
 import {Dependencies, PackageJson} from '@pnpm/types'
-import { readPackageFromDir } from '@pnpm/utils'
 import * as dp from 'dependency-path'
 import getNpmTarballUrl from 'get-npm-tarball-url'
 import {
@@ -50,7 +49,6 @@ export default function (
 export interface PendingRequiresBuild {
   relativeDepPath: string,
   absoluteDepPath: string,
-  value: Promise<boolean>,
 }
 
 function toShrDependency (
@@ -162,16 +160,6 @@ function toShrDependency (
     pendingRequiresBuilds.push({
       absoluteDepPath: opts.depPath,
       relativeDepPath: opts.relDepPath,
-      value: (async () => {
-        // The npm team suggests to always read the package.json for deciding whether the package has lifecycle scripts
-        const filesResponse = await depNode.fetchingFiles
-        const pkgJson = await readPackageFromDir(depNode.centralLocation)
-        return Boolean(
-          pkgJson.scripts && (pkgJson.scripts.preinstall || pkgJson.scripts.install || pkgJson.scripts.postinstall) ||
-          filesResponse.filenames.indexOf('binding.gyp') !== -1 ||
-            filesResponse.filenames.some((filename) => !!filename.match(/^[.]hooks[\\/]/)), // TODO: optimize this
-        )
-      })(),
     })
   }
   depNode.requiresBuild = result['requiresBuild']
