@@ -45,14 +45,6 @@ test('installation using pnpm server', async (t: tape.Test) => {
 
   await execPnpm('uninstall', 'is-positive')
 
-  await execPnpm('store', 'prune')
-
-  // we don't actually know when the server will prune the store
-  // lets' just wait a bit before checking
-  await delay(1000)
-
-  await project.storeHasNot('is-positive', '1.0.0')
-
   await execPnpm('server', 'stop')
 
   t.notOk(await pathExists(serverJsonPath), 'server.json removed')
@@ -95,14 +87,6 @@ test('installation using pnpm server that runs in the background', async (t: tap
 
   await execPnpm('uninstall', 'is-positive')
 
-  await execPnpm('store', 'prune')
-
-  // we don't actually know when the server will prune the store
-  // lets' just wait a bit before checking
-  await delay(1000)
-
-  await project.storeHasNot('is-positive', '1.0.0')
-
   await execPnpm('server', 'stop')
 
   t.notOk(await pathExists(serverJsonPath), 'server.json removed')
@@ -123,14 +107,6 @@ test('installation using pnpm server via TCP', async (t: tape.Test) => {
   t.ok(project.requireModule('is-positive'))
 
   await execPnpm('uninstall', 'is-positive')
-
-  await execPnpm('store', 'prune')
-
-  // we don't actually know when the server will prune the store
-  // lets' just wait a bit before checking
-  await delay(1000)
-
-  await project.storeHasNot('is-positive', '1.0.0')
 
   await execPnpm('server', 'stop')
 
@@ -206,14 +182,6 @@ test('installation using store server started in the background', async (t: tape
 
   await execPnpm('uninstall', 'is-positive')
 
-  await execPnpm('store', 'prune')
-
-  // we don't actually know when the server will prune the store
-  // lets' just wait a bit before checking
-  await delay(1000)
-
-  await project.storeHasNot('is-positive', '1.0.0')
-
   await execPnpm('server', 'stop')
 
   t.notOk(await pathExists(serverJsonPath), 'server.json removed')
@@ -232,14 +200,6 @@ test('store server started in the background should use store location wanted by
   t.ok(project.requireModule('is-positive'))
 
   await execPnpm('uninstall', 'is-positive', '--store', '../store2')
-
-  await execPnpm('store', 'prune', '--store', '../store2')
-
-  // we don't actually know when the server will prune the store
-  // lets' just wait a bit before checking
-  await delay(1000)
-
-  await project.storeHasNot('is-positive', '1.0.0')
 
   await execPnpm('server', 'stop', '--store', '../store2')
 
