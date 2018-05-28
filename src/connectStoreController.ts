@@ -129,7 +129,7 @@ function fetchPackage (
   options: FetchPackageToStoreOptions,
 ): Promise<{
   fetchingFiles: Promise<PackageFilesResponse>,
-  fetchingManifest?: Promise<PackageManifest>,
+  fetchingFullManifest?: Promise<PackageManifest>,
   finishing: Promise<void>,
   inStoreLocation: string,
 }> {
@@ -140,17 +140,17 @@ function fetchPackage (
     options,
   })
   .then((fetchResponseBody: object & {inStoreLocation: string}) => {
-    const fetchingManifest = limitedFetch(`${remotePrefix}/manifestResponse`, {
-      msgId,
-    })
+    const fetchingFullManifest = options.fetchFullManifest
+      ? limitedFetch(`${remotePrefix}/manifestResponse`, {msgId})
+      : undefined
 
     const fetchingFiles = limitedFetch(`${remotePrefix}/packageFilesResponse`, {
       msgId,
     })
     return {
       fetchingFiles,
-      fetchingManifest,
-      finishing: Promise.all([fetchingManifest, fetchingFiles]).then(() => undefined),
+      fetchingFullManifest,
+      finishing: Promise.all([fetchingFullManifest, fetchingFiles]).then(() => undefined),
       inStoreLocation: fetchResponseBody.inStoreLocation,
     }
   })

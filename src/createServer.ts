@@ -69,8 +69,8 @@ export default function (
         case '/requestPackage': {
           body = await bodyPromise
           const pkgResponse = await store.requestPackage(body.wantedDependency, body.options)
-          if (pkgResponse['fetchingManifest']) { // tslint:disable-line
-            manifestPromises[body.msgId] = pkgResponse['fetchingManifest'] // tslint:disable-line
+          if (pkgResponse['fetchingFullManifest']) { // tslint:disable-line
+            manifestPromises[body.msgId] = pkgResponse['fetchingFullManifest'] // tslint:disable-line
           }
           if (pkgResponse['fetchingFiles']) { // tslint:disable-line
             filesPromises[body.msgId] = pkgResponse['fetchingFiles'] // tslint:disable-line
@@ -81,8 +81,8 @@ export default function (
         case '/fetchPackage': {
           body = await bodyPromise
           const pkgResponse = await store.fetchPackage(body.options as RequestPackageOptions & {force: boolean, pkgId: string, resolution: Resolution})
-          if (pkgResponse['fetchingManifest']) { // tslint:disable-line
-            manifestPromises[body.msgId] = pkgResponse['fetchingManifest'] // tslint:disable-line
+          if (pkgResponse['fetchingFullManifest']) { // tslint:disable-line
+            manifestPromises[body.msgId] = pkgResponse['fetchingFullManifest'] // tslint:disable-line
           }
           if (pkgResponse['fetchingFiles']) { // tslint:disable-line
             filesPromises[body.msgId] = pkgResponse['fetchingFiles'] // tslint:disable-line

@@ -91,6 +91,7 @@ test('fetchPackage', async t => {
   })
   const storeCtrl = await connectStoreController({remotePrefix, concurrency: 100})
   const response = await storeCtrl.fetchPackage({
+    fetchFullManifest: true,
     force: false,
     pkgId: 'registry.npmjs.org/is-positive/1.0.0',
     prefix: process.cwd(),
@@ -104,7 +105,7 @@ test('fetchPackage', async t => {
 
   t.equal(typeof response.inStoreLocation, 'string', 'location in store returned')
 
-  t.ok(await response.fetchingManifest)
+  t.ok(await response.fetchingFullManifest)
 
   const files = await response['fetchingFiles'] as PackageFilesResponse
   t.notOk(files.fromStore)
