@@ -312,6 +312,8 @@ test('fetchPackageToStore()', async (t) => {
     }
   })
 
+  t.notOk(fetchResult.fetchingFullManifest, 'full manifest not returned')
+
   const files = await fetchResult.fetchingFiles
   t.deepEqual(files, {
     filenames: [ 'package.json', 'index.js', 'license', 'readme.md' ],
@@ -319,6 +321,23 @@ test('fetchPackageToStore()', async (t) => {
   }, 'returned info about files after fetch completed')
 
   t.ok(fetchResult.finishing)
+
+  const fetchResult2 = await packageRequester.fetchPackageToStore({
+    fetchFullManifest: true,
+    force: false,
+    pkgId,
+    prefix: tempy.directory(),
+    verifyStoreIntegrity: true,
+    resolution: {
+      integrity: 'sha1-iACYVrZKLx632LsBeUGEJK4EUss=',
+      registry: 'https://registry.npmjs.org/',
+      tarball: 'https://registry.npmjs.org/is-positive/-/is-positive-1.0.0.tgz',
+    }
+  })
+
+  // This verifies that when a package has been cached with no full manifest
+  // the full manifest is requested and added to the cache
+  t.ok((await fetchResult2.fetchingFullManifest)!.name, 'full manifest returned')
 
   t.end()
 })

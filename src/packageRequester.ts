@@ -361,13 +361,6 @@ function fetchToStore (
 
     doFetchToStore(fetchingFullManifest, fetchingFiles, finishing)
 
-    function removeKeyOnFail<T> (p: Promise<T>): Promise<T> {
-      return p.catch((err) => {
-        ctx.fetchingLocker.delete(opts.pkgId)
-        throw err
-      })
-    }
-
     if (opts.fetchFullManifest) {
       ctx.fetchingLocker.set(opts.pkgId, {
         fetchingFiles: removeKeyOnFail(fetchingFiles.promise),
@@ -389,11 +382,26 @@ function fetchToStore (
     })
   }
 
-  return ctx.fetchingLocker.get(opts.pkgId) as {
+  const result = ctx.fetchingLocker.get(opts.pkgId) as {
     fetchingFiles: Promise<PackageFilesResponse>,
     fetchingFullManifest?: Promise<PackageManifest>,
     finishing: Promise<void>,
     inStoreLocation: string,
+  }
+
+  if (opts.fetchFullManifest && !result.fetchingFullManifest) {
+    result.fetchingFullManifest = removeKeyOnFail(
+      readPkgFromDir(path.join(result.inStoreLocation, 'package')) as Promise<PackageManifest>,
+    )
+  }
+
+  return result
+
+  function removeKeyOnFail<T> (p: Promise<T>): Promise<T> {
+    return p.catch((err) => {
+      ctx.fetchingLocker.delete(opts.pkgId)
+      throw err
+    })
   }
 
   async function doFetchToStore (
