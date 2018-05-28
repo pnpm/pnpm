@@ -148,9 +148,10 @@ export default async function linkPackages (
 
   await Promise.all(pendingRequiresBuilds.map(async (pendingRequiresBuild) => {
     const depNode = depGraph[pendingRequiresBuild.absoluteDepPath]
+    if (!depNode.fetchingFullManifest) return
     const filesResponse = await depNode.fetchingFiles
     // The npm team suggests to always read the package.json for deciding whether the package has lifecycle scripts
-    const pkgJson = await readPackageFromDir(depNode.peripheralLocation)
+    const pkgJson = await depNode.fetchingFullManifest as PackageJson
     depNode.requiresBuild = Boolean(
       pkgJson.scripts && (pkgJson.scripts.preinstall || pkgJson.scripts.install || pkgJson.scripts.postinstall) ||
       filesResponse.filenames.indexOf('binding.gyp') !== -1 ||
