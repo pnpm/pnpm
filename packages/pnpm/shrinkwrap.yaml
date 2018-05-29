@@ -4,7 +4,7 @@ dependencies:
   '@pnpm/default-resolver': 1.0.0
   '@pnpm/logger': 1.0.2
   '@pnpm/outdated': 0.3.2
-  '@pnpm/server': 0.13.0-0
+  '@pnpm/server': 0.13.0
   '@pnpm/store-path': 1.0.3
   '@pnpm/types': 1.7.0
   '@types/camelcase-keys': 4.0.0
@@ -32,7 +32,7 @@ dependencies:
   mz: 2.7.0
   nopt: 4.0.1
   p-limit: 1.2.0
-  package-store: 0.21.0-1
+  package-store: 0.21.0
   path-absolute: 1.0.0
   path-name: 1.0.0
   pkgs-graph: 2.0.0
@@ -338,7 +338,7 @@ packages:
       '@pnpm/logger': ^1.0.0
     resolution:
       integrity: sha512-LGnPJ/Rz4zjr3niBxeV/QeddR8KCREMtj9jrUuwTm92p1SVOxZG49tWNAJYLPbVwip51+Cv3yHjSXG780yGniQ==
-  /@pnpm/package-requester/2.0.0-1:
+  /@pnpm/package-requester/2.0.0:
     dependencies:
       '@pnpm/check-package': 1.0.0
       '@pnpm/fetcher-base': 1.0.0
@@ -368,7 +368,7 @@ packages:
     peerDependencies:
       '@pnpm/logger': ^1.0.0
     resolution:
-      integrity: sha512-lLtf4Q6W0VvttzVdcn4Io4Rf7Wzadqmme/hcWP8PbadBZjty+gBrljVCwLV5J0jhC1pXYuViQT/moedLZeHjTw==
+      integrity: sha512-/viPcxuZGyYGlsyRjx9ebfV62nYlpeaMOEZlxyct5P2waY3O37wlI0naUC5fpbto0c9eXp/9hB2g7FAw7pTu3w==
   /@pnpm/pkgid-to-filename/1.0.1:
     dependencies:
       normalize-path: 3.0.0
@@ -391,9 +391,9 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha512-xfqm5VkoTPwuiEmqIbLMA6ogdtyBZHy70Ddh1BsQQDNJ/xRk1YvdFxYggS3D2O0VPJVU3aku0TaF/1FpfCg7rA==
-  /@pnpm/server/0.13.0-0:
+  /@pnpm/server/0.13.0:
     dependencies:
-      '@pnpm/package-requester': 2.0.0-1
+      '@pnpm/package-requester': 2.0.0
       '@pnpm/resolver-base': 1.1.0
       '@pnpm/types': 1.7.0
       '@types/got': 8.3.1
@@ -402,7 +402,7 @@ packages:
       '@types/uuid': 3.4.3
       got: 8.3.1
       p-limit: 1.2.0
-      package-store: 0.21.0-1
+      package-store: 0.21.0
       uuid: 3.2.1
     dev: false
     engines:
@@ -410,7 +410,7 @@ packages:
     peerDependencies:
       '@pnpm/logger': ^1.0.0
     resolution:
-      integrity: sha512-fre+uZztuINbAea9P6Grq3xT9Soroy+YORSeO/8j+zDO8B5ANBi2S+42Uij+XBY/yU7NI90gIbZkWF+SLMl4CA==
+      integrity: sha512-nqfMRA/6aBj7vlmAHGNLyG1B33xdxUTXzgOavOC9QIsua8BZ6xJy7bGiMeX9qJe9KCdM2ByUbxBFOTgndwfKwA==
   /@pnpm/store-path/1.0.3:
     dependencies:
       '@types/node': 9.6.18
@@ -4273,11 +4273,11 @@ packages:
       '@pnpm/logger': ^1.0.0
     resolution:
       integrity: sha512-Q7Y3tykIABGAhXq0PGejRrbZVrnumse3TXUxxBTGIlybCpg0MT3gXViMKsnXQP/+8/MxD0tPheooIZXEWJsvNA==
-  /package-store/0.21.0-1:
+  /package-store/0.21.0:
     dependencies:
       '@pnpm/fetcher-base': 1.0.0
       '@pnpm/fs-locker': 1.0.2
-      '@pnpm/package-requester': 2.0.0-1
+      '@pnpm/package-requester': 2.0.0
       '@pnpm/resolver-base': 1.1.0
       '@pnpm/types': 1.7.0
       '@types/load-json-file': 2.0.7
@@ -4304,7 +4304,7 @@ packages:
     peerDependencies:
       '@pnpm/logger': ^1.0.0
     resolution:
-      integrity: sha512-MXfxaV4yBv9jEjvY/h9VHxaYDEpEJRWi3bMq67h5YDz7VaPqOUje6Ws9tcwTQGgIwRQieutsrfEuZMxXNTaM5A==
+      integrity: sha512-OqesXK7KNeXafOUIx3ERkYjZFbTQLrAMstePeQ3CJqXWevmVtctenC9XI4HuzcgWMjtowZCZ8/RqaWFSl8Uggw==
   /pako/0.2.9:
     resolution:
       integrity: sha1-8/dSL073gjSNqBYbrZ7P1Rv4OnU=
@@ -6191,7 +6191,7 @@ specifiers:
   '@pnpm/default-resolver': ^1.0.0
   '@pnpm/logger': ^1.0.0
   '@pnpm/outdated': ^0.3.1
-  '@pnpm/server': ^0.13.0-0
+  '@pnpm/server': ^0.13.0
   '@pnpm/store-path': ^1.0.3
   '@pnpm/types': ^1.5.0
   '@types/byline': ^4.2.31
@@ -6243,7 +6243,7 @@ specifiers:
   npm-scripts-info: ^0.3.6
   p-limit: ^1.1.0
   package-preview: ^1.0.0
-  package-store: ^0.21.0-1
+  package-store: ^0.21.0
   path-absolute: ^1.0.0
   path-exists: ^3.0.0
   path-name: ^1.0.0

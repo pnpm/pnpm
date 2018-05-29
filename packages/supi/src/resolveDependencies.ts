@@ -6,6 +6,7 @@ import {
 import {Resolution} from '@pnpm/resolver-base'
 import {
   Dependencies,
+  PackageJson,
   PackageManifest,
   ReadPackageHook,
 } from '@pnpm/types'
@@ -58,7 +59,7 @@ export interface Pkg {
   dev: boolean,
   optional: boolean,
   fetchingFiles: Promise<PackageFilesResponse>,
-  fetchingFullManifest?: Promise<PackageManifest>,
+  fetchingRawManifest?: Promise<PackageJson>,
   finishing: Promise<void>,
   path: string,
   specRaw: string,
@@ -301,7 +302,7 @@ async function install (
   }
 
   if (pkgResponse.body.isLocal) {
-    const manifest = pkgResponse.body.manifest || await pkgResponse['fetchingFullManifest'] // tslint:disable-line:no-string-literal
+    const manifest = pkgResponse.body.manifest || await pkgResponse['fetchingRawManifest'] // tslint:disable-line:no-string-literal
     if (options.currentDepth > 0) {
       logger.warn(`Ignoring file dependency because it is not a root dependency ${wantedDependency}`)
     } else {
@@ -353,8 +354,8 @@ async function install (
     // tslint:disable:no-string-literal
     try {
       pkg = options.readPackageHook
-        ? options.readPackageHook(pkgResponse.body['manifest'] || await pkgResponse['fetchingFullManifest'])
-        : pkgResponse.body['manifest'] || await pkgResponse['fetchingFullManifest']
+        ? options.readPackageHook(pkgResponse.body['manifest'] || await pkgResponse['fetchingRawManifest'])
+        : pkgResponse.body['manifest'] || await pkgResponse['fetchingRawManifest']
 
       // TODO: check the scripts field of the real package.json that is unpacked from the tarball
       prepare = Boolean(pkgResponse.body['resolvedVia'] === 'git-repository' && pkg['scripts'] && typeof pkg['scripts']['prepare'] === 'string')
@@ -427,7 +428,7 @@ async function install (
       dev: wantedDependency.dev,
       engineCache: !ctx.force && pkgResponse.body.cacheByEngine && pkgResponse.body.cacheByEngine[ENGINE_NAME],
       fetchingFiles: pkgResponse['fetchingFiles'], // tslint:disable-line:no-string-literal
-      fetchingFullManifest: pkgResponse['fetchingFullManifest'], // tslint:disable-line:no-string-literal
+      fetchingRawManifest: pkgResponse['fetchingRawManifest'], // tslint:disable-line:no-string-literal
       finishing: pkgResponse['finishing'], // tslint:disable-line:no-string-literal
       hasBundledDependencies: !!(pkg.bundledDependencies || pkg.bundleDependencies),
       id: pkgResponse.body.id,

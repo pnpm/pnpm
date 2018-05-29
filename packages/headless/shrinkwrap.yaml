@@ -3,7 +3,7 @@ dependencies:
   '@pnpm/lifecycle': 2.2.1
   '@pnpm/link-bins': 1.0.3
   '@pnpm/modules-yaml': 1.0.0
-  '@pnpm/package-requester': 2.0.0-1
+  '@pnpm/package-requester': 2.0.0
   '@pnpm/pkgid-to-filename': 1.0.1
   '@pnpm/types': 1.7.0
   '@pnpm/utils': 'link:../utils'
@@ -11,7 +11,7 @@ dependencies:
   dependency-path: 1.2.1
   graph-sequencer: 2.0.0
   p-limit: 1.2.0
-  package-store: 0.21.0-1
+  package-store: 0.21.0
   path-exists: 3.0.0
   pnpm-shrinkwrap: 6.4.0
   ramda: 0.25.0
@@ -270,7 +270,7 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha512-ZqVfIXK3r5AsP5VAhPHrhf3isF+T4yEuUpJTF9T03oFTJ9LBnkKvx8F7P7biKEManxSGOkSpNoIBdsura9pY5Q==
-  /@pnpm/package-requester/2.0.0-1:
+  /@pnpm/package-requester/2.0.0:
     dependencies:
       '@pnpm/check-package': 1.0.0
       '@pnpm/fetcher-base': 1.0.0
@@ -300,7 +300,7 @@ packages:
     peerDependencies:
       '@pnpm/logger': ^1.0.0
     resolution:
-      integrity: sha512-lLtf4Q6W0VvttzVdcn4Io4Rf7Wzadqmme/hcWP8PbadBZjty+gBrljVCwLV5J0jhC1pXYuViQT/moedLZeHjTw==
+      integrity: sha512-/viPcxuZGyYGlsyRjx9ebfV62nYlpeaMOEZlxyct5P2waY3O37wlI0naUC5fpbto0c9eXp/9hB2g7FAw7pTu3w==
   /@pnpm/pkgid-to-filename/1.0.1:
     dependencies:
       normalize-path: 3.0.0
@@ -3035,11 +3035,11 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha512-GQ4w5vrDXoy8UVJM+0W7oWd5MYF21/IXkdzcupGNXdfqQuMzgQT+LXde109uHaH7xyqvCzPPBSxYM/HqQOi3+w==
-  /package-store/0.21.0-1:
+  /package-store/0.21.0:
     dependencies:
       '@pnpm/fetcher-base': 1.0.0
       '@pnpm/fs-locker': 1.0.2
-      '@pnpm/package-requester': 2.0.0-1
+      '@pnpm/package-requester': 2.0.0
       '@pnpm/resolver-base': 1.1.0
       '@pnpm/types': 1.7.0
       '@types/load-json-file': 2.0.7
@@ -3066,7 +3066,7 @@ packages:
     peerDependencies:
       '@pnpm/logger': ^1.0.0
     resolution:
-      integrity: sha512-MXfxaV4yBv9jEjvY/h9VHxaYDEpEJRWi3bMq67h5YDz7VaPqOUje6Ws9tcwTQGgIwRQieutsrfEuZMxXNTaM5A==
+      integrity: sha512-OqesXK7KNeXafOUIx3ERkYjZFbTQLrAMstePeQ3CJqXWevmVtctenC9XI4HuzcgWMjtowZCZ8/RqaWFSl8Uggw==
   /pako/0.2.9:
     dev: true
     resolution:
@@ -4450,7 +4450,7 @@ specifiers:
   '@pnpm/link-bins': ^1.0.1
   '@pnpm/logger': ^1.0.1
   '@pnpm/modules-yaml': ^1.0.0
-  '@pnpm/package-requester': ^2.0.0-1
+  '@pnpm/package-requester': ^2.0.0
   '@pnpm/pkgid-to-filename': ^1.0.0
   '@pnpm/store-path': ^1.0.3
   '@pnpm/types': ^1.7.0
@@ -4474,7 +4474,7 @@ specifiers:
   npm-run-all: ^4.0.1
   p-limit: ^1.2.0
   package-preview: ^1.0.0
-  package-store: ^0.21.0-1
+  package-store: ^0.21.0
   path-exists: ^3.0.0
   pnpm-registry-mock: ^1.22.2
   pnpm-shrinkwrap: ^6.4.0
