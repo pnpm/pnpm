@@ -357,7 +357,6 @@ async function install (
         ? options.readPackageHook(pkgResponse.body['manifest'] || await pkgResponse['fetchingRawManifest'])
         : pkgResponse.body['manifest'] || await pkgResponse['fetchingRawManifest']
 
-      // TODO: check the scripts field of the real package.json that is unpacked from the tarball
       prepare = Boolean(pkgResponse.body['resolvedVia'] === 'git-repository' && pkg['scripts'] && typeof pkg['scripts']['prepare'] === 'string')
       if (options.dependencyShrinkwrap && options.dependencyShrinkwrap.deprecated && !pkg.deprecated) {
         pkg.deprecated = options.dependencyShrinkwrap.deprecated
