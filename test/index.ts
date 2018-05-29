@@ -63,6 +63,7 @@ test('server', async t => {
     }
   )
 
+  t.equal((await response['fetchingRawManifest']).name, 'is-positive', 'responded with fetchingRawManifest')
   t.equal(response.body.id, 'registry.npmjs.org/is-positive/1.0.0', 'responded with correct ID')
 
   t.equal(response.body['manifest'].name, 'is-positive', 'responded with correct name in manifest')

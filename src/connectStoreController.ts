@@ -98,16 +98,17 @@ function requestPackage (
     wantedDependency,
   })
   .then((packageResponseBody: object) => {
-    const fetchingManifest = packageResponseBody['manifest'] // tslint:disable-line
+    const fetchingRawManifest = !packageResponseBody['fetchingRawManifestInProgress'] // tslint:disable-line
       ? undefined
-      : limitedFetch(`${remotePrefix}/manifestResponse`, {
+      : limitedFetch(`${remotePrefix}/rawManifestResponse`, {
           msgId,
         })
+    delete packageResponseBody['fetchingRawManifestInProgress'] // tslint:disable-line
 
     if (options.skipFetch) {
       return {
         body: packageResponseBody,
-        fetchingManifest,
+        fetchingRawManifest,
       }
     }
 
@@ -117,8 +118,8 @@ function requestPackage (
     return {
       body: packageResponseBody,
       fetchingFiles,
-      fetchingManifest,
-      finishing: Promise.all([fetchingManifest, fetchingFiles]).then(() => undefined),
+      fetchingRawManifest,
+      finishing: Promise.all([fetchingRawManifest, fetchingFiles]).then(() => undefined),
     }
   })
 }

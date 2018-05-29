@@ -71,6 +71,7 @@ export default function (
           const pkgResponse = await store.requestPackage(body.wantedDependency, body.options)
           if (pkgResponse['fetchingRawManifest']) { // tslint:disable-line
             rawManifestPromises[body.msgId] = pkgResponse['fetchingRawManifest'] // tslint:disable-line
+            pkgResponse.body['fetchingRawManifestInProgress'] = true // tslint:disable-line
           }
           if (pkgResponse['fetchingFiles']) { // tslint:disable-line
             filesPromises[body.msgId] = pkgResponse['fetchingFiles'] // tslint:disable-line
