@@ -140,8 +140,8 @@ function fetchPackage (
     options,
   })
   .then((fetchResponseBody: object & {inStoreLocation: string}) => {
-    const fetchingFullManifest = options.fetchFullManifest
-      ? limitedFetch(`${remotePrefix}/manifestResponse`, {msgId})
+    const fetchingRawManifest = options.fetchRawManifest
+      ? limitedFetch(`${remotePrefix}/rawManifestResponse`, {msgId})
       : undefined
 
     const fetchingFiles = limitedFetch(`${remotePrefix}/packageFilesResponse`, {
@@ -149,8 +149,8 @@ function fetchPackage (
     })
     return {
       fetchingFiles,
-      fetchingFullManifest,
-      finishing: Promise.all([fetchingFullManifest, fetchingFiles]).then(() => undefined),
+      fetchingRawManifest,
+      finishing: Promise.all([fetchingRawManifest, fetchingFiles]).then(() => undefined),
       inStoreLocation: fetchResponseBody.inStoreLocation,
     }
   })

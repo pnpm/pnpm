@@ -61,7 +61,7 @@
     }
   },
   "dependencies": {
-    "@pnpm/package-requester": "^2.0.0-1",
+    "@pnpm/package-requester": "^2.0.0",
     "@pnpm/resolver-base": "^1.1.0",
     "@pnpm/types": "^1.7.0",
     "@types/got": "^8.3.0",
@@ -70,7 +70,7 @@
     "@types/uuid": "^3.4.3",
     "got": "^8.0.1",
     "p-limit": "^1.1.0",
-    "package-store": "^0.21.0-1",
+    "package-store": "^0.21.0",
     "uuid": "^3.1.0"
   }
 }

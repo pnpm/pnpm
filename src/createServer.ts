@@ -32,7 +32,7 @@ export default function (
     ignoreUploadRequests?: boolean,
   },
 ) {
-  const manifestPromises = {}
+  const rawManifestPromises = {}
   const filesPromises = {}
 
   const lock = locking<void>()
@@ -69,8 +69,8 @@ export default function (
         case '/requestPackage': {
           body = await bodyPromise
           const pkgResponse = await store.requestPackage(body.wantedDependency, body.options)
-          if (pkgResponse['fetchingFullManifest']) { // tslint:disable-line
-            manifestPromises[body.msgId] = pkgResponse['fetchingFullManifest'] // tslint:disable-line
+          if (pkgResponse['fetchingRawManifest']) { // tslint:disable-line
+            rawManifestPromises[body.msgId] = pkgResponse['fetchingRawManifest'] // tslint:disable-line
           }
           if (pkgResponse['fetchingFiles']) { // tslint:disable-line
             filesPromises[body.msgId] = pkgResponse['fetchingFiles'] // tslint:disable-line
@@ -81,8 +81,8 @@ export default function (
         case '/fetchPackage': {
           body = await bodyPromise
           const pkgResponse = await store.fetchPackage(body.options as RequestPackageOptions & {force: boolean, pkgId: string, resolution: Resolution})
-          if (pkgResponse['fetchingFullManifest']) { // tslint:disable-line
-            manifestPromises[body.msgId] = pkgResponse['fetchingFullManifest'] // tslint:disable-line
+          if (pkgResponse['fetchingRawManifest']) { // tslint:disable-line
+            rawManifestPromises[body.msgId] = pkgResponse['fetchingRawManifest'] // tslint:disable-line
           }
           if (pkgResponse['fetchingFiles']) { // tslint:disable-line
             filesPromises[body.msgId] = pkgResponse['fetchingFiles'] // tslint:disable-line
@@ -96,10 +96,10 @@ export default function (
           delete filesPromises[body.msgId]
           res.end(JSON.stringify(filesResponse))
           break
-        case '/manifestResponse':
+        case '/rawManifestResponse':
           body = await bodyPromise
-          const manifestResponse = await manifestPromises[body.msgId]
-          delete manifestPromises[body.msgId]
+          const manifestResponse = await rawManifestPromises[body.msgId]
+          delete rawManifestPromises[body.msgId]
           res.end(JSON.stringify(manifestResponse))
           break
         case '/updateConnections':
