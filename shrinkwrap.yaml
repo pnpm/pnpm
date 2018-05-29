@@ -1,7 +1,7 @@
 dependencies:
   '@pnpm/fetcher-base': 1.0.0
   '@pnpm/fs-locker': 1.0.2
-  '@pnpm/package-requester': 2.0.0-1
+  '@pnpm/package-requester': 2.0.0
   '@pnpm/resolver-base': 1.1.0
   '@pnpm/types': 1.7.0
   '@types/load-json-file': 2.0.7
@@ -118,7 +118,7 @@ packages:
       '@pnpm/logger': ^1.0.0
     resolution:
       integrity: sha512-Vm37jaOTw+oW+lO3INjwbidXucJ4By/GuHYAXOyWAjwWiuBbcIxyoC82vFNGHTC3zGcBi1PA/4DNgJ8tbaDnwQ==
-  /@pnpm/package-requester/2.0.0-1:
+  /@pnpm/package-requester/2.0.0:
     dependencies:
       '@pnpm/check-package': 1.0.0
       '@pnpm/fetcher-base': 1.0.0
@@ -148,7 +148,7 @@ packages:
     peerDependencies:
       '@pnpm/logger': ^1.0.0
     resolution:
-      integrity: sha512-lLtf4Q6W0VvttzVdcn4Io4Rf7Wzadqmme/hcWP8PbadBZjty+gBrljVCwLV5J0jhC1pXYuViQT/moedLZeHjTw==
+      integrity: sha512-/viPcxuZGyYGlsyRjx9ebfV62nYlpeaMOEZlxyct5P2waY3O37wlI0naUC5fpbto0c9eXp/9hB2g7FAw7pTu3w==
   /@pnpm/pkgid-to-filename/1.0.1:
     dependencies:
       normalize-path: 3.0.0
@@ -3078,7 +3078,7 @@ specifiers:
   '@pnpm/fs-locker': ^1.0.0
   '@pnpm/logger': ^1.0.0
   '@pnpm/npm-resolver': ^1.0.0
-  '@pnpm/package-requester': ^2.0.0-1
+  '@pnpm/package-requester': ^2.0.0
   '@pnpm/resolver-base': ^1.1.0
   '@pnpm/tarball-fetcher': ^1.0.0
   '@pnpm/types': ^1.3.0
