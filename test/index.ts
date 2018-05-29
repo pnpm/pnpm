@@ -3,7 +3,7 @@ import {FetchFunction} from '@pnpm/fetcher-base'
 import createPackageRequester, { PackageResponse, PackageFilesResponse } from '@pnpm/package-requester'
 import createResolver from '@pnpm/npm-resolver'
 import createFetcher from '@pnpm/tarball-fetcher'
-import {PackageManifest} from '@pnpm/types'
+import {PackageJson} from '@pnpm/types'
 import pkgIdToFilename from '@pnpm/pkgid-to-filename'
 import fs = require('fs')
 import path = require('path')
@@ -312,7 +312,7 @@ test('fetchPackageToStore()', async (t) => {
     }
   })
 
-  t.notOk(fetchResult.fetchingFullManifest, 'full manifest not returned')
+  t.notOk(fetchResult.fetchingRawManifest, 'full manifest not returned')
 
   const files = await fetchResult.fetchingFiles
   t.deepEqual(files, {
@@ -323,7 +323,7 @@ test('fetchPackageToStore()', async (t) => {
   t.ok(fetchResult.finishing)
 
   const fetchResult2 = await packageRequester.fetchPackageToStore({
-    fetchFullManifest: true,
+    fetchRawManifest: true,
     force: false,
     pkgId,
     prefix: tempy.directory(),
@@ -337,7 +337,7 @@ test('fetchPackageToStore()', async (t) => {
 
   // This verifies that when a package has been cached with no full manifest
   // the full manifest is requested and added to the cache
-  t.ok((await fetchResult2.fetchingFullManifest)!.name, 'full manifest returned')
+  t.ok((await fetchResult2.fetchingRawManifest)!.name, 'full manifest returned')
 
   t.end()
 })
@@ -524,10 +524,10 @@ test('always return a package manifest in the response', async t => {
         registry: 'https://registry.npmjs.org/',
         tarball: 'https://registry.npmjs.org/is-positive/-/is-positive-1.0.0.tgz',
       },
-    }) as PackageResponse & {fetchingFullManifest: Promise<PackageManifest>}
+    }) as PackageResponse & {fetchingRawManifest: Promise<PackageJson>}
 
     t.ok(pkgResponse.body, 'response has body')
-    t.ok((await pkgResponse.fetchingFullManifest).name, 'response has manifest')
+    t.ok((await pkgResponse.fetchingRawManifest).name, 'response has manifest')
   }
 
   t.end()

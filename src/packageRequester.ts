@@ -69,7 +69,7 @@ export type PackageResponse = {
     },
   } & (
     {
-      fetchingFullManifest: Promise<PackageManifest>,
+      fetchingRawManifest: Promise<PackageJson>,
     } | {
       body: {
         manifest: PackageManifest,
@@ -110,7 +110,7 @@ export type RequestPackageFunction = (
 ) => Promise<PackageResponse>
 
 export interface FetchPackageToStoreOptions {
-  fetchFullManifest?: boolean,
+  fetchRawManifest?: boolean,
   force: boolean,
   pkgName?: string,
   pkgId: string,
@@ -123,7 +123,7 @@ export type FetchPackageToStoreFunction = (
   opts: FetchPackageToStoreOptions,
 ) => {
   fetchingFiles: Promise<PackageFilesResponse>,
-  fetchingFullManifest?: Promise<PackageManifest>,
+  fetchingRawManifest?: Promise<PackageJson>,
   finishing: Promise<void>,
   inStoreLocation: string,
 }
@@ -291,7 +291,7 @@ async function resolveAndFetch (
     }
 
     const fetchResult = ctx.fetchPackageToStore({
-      fetchFullManifest: updated || !pkg,
+      fetchRawManifest: updated || !pkg,
       force: forceFetch,
       pkgId: id,
       pkgName: pkg && pkg.name,
@@ -314,7 +314,7 @@ async function resolveAndFetch (
         updated,
       },
       fetchingFiles: fetchResult.fetchingFiles,
-      fetchingFullManifest: fetchResult.fetchingFullManifest,
+      fetchingRawManifest: fetchResult.fetchingRawManifest,
       finishing: fetchResult.finishing,
     } as PackageResponse
   } catch (err) {
@@ -329,7 +329,7 @@ function fetchToStore (
     fetchingLocker: Map<string, {
       finishing: Promise<void>,
       fetchingFiles: Promise<PackageFilesResponse>,
-      fetchingFullManifest?: Promise<PackageManifest>,
+      fetchingRawManifest?: Promise<PackageJson>,
       inStoreLocation: string,
     }>,
     requestsQueue: {add: <T>(fn: () => Promise<T>, opts: {priority: number}) => Promise<T>},
@@ -337,7 +337,7 @@ function fetchToStore (
     storePath: string,
   },
   opts: {
-    fetchFullManifest?: boolean,
+    fetchRawManifest?: boolean,
     force: boolean,
     pkgName?: string,
     pkgId: string,
@@ -347,7 +347,7 @@ function fetchToStore (
   },
 ): {
   fetchingFiles: Promise<PackageFilesResponse>,
-  fetchingFullManifest?: Promise<PackageManifest>,
+  fetchingRawManifest?: Promise<PackageJson>,
   finishing: Promise<void>,
   inStoreLocation: string,
 } {
@@ -355,16 +355,16 @@ function fetchToStore (
   const target = path.join(ctx.storePath, targetRelative)
 
   if (!ctx.fetchingLocker.has(opts.pkgId)) {
-    const fetchingFullManifest = differed<PackageManifest>()
+    const fetchingRawManifest = differed<PackageJson>()
     const fetchingFiles = differed<PackageFilesResponse>()
     const finishing = differed<void>()
 
-    doFetchToStore(fetchingFullManifest, fetchingFiles, finishing)
+    doFetchToStore(fetchingRawManifest, fetchingFiles, finishing)
 
-    if (opts.fetchFullManifest) {
+    if (opts.fetchRawManifest) {
       ctx.fetchingLocker.set(opts.pkgId, {
         fetchingFiles: removeKeyOnFail(fetchingFiles.promise),
-        fetchingFullManifest: removeKeyOnFail(fetchingFullManifest.promise),
+        fetchingRawManifest: removeKeyOnFail(fetchingRawManifest.promise),
         finishing: removeKeyOnFail(finishing.promise),
         inStoreLocation: target,
       })
@@ -384,14 +384,14 @@ function fetchToStore (
 
   const result = ctx.fetchingLocker.get(opts.pkgId) as {
     fetchingFiles: Promise<PackageFilesResponse>,
-    fetchingFullManifest?: Promise<PackageManifest>,
+    fetchingRawManifest?: Promise<PackageJson>,
     finishing: Promise<void>,
     inStoreLocation: string,
   }
 
-  if (opts.fetchFullManifest && !result.fetchingFullManifest) {
-    result.fetchingFullManifest = removeKeyOnFail(
-      readPkgFromDir(path.join(result.inStoreLocation, 'package')) as Promise<PackageManifest>,
+  if (opts.fetchRawManifest && !result.fetchingRawManifest) {
+    result.fetchingRawManifest = removeKeyOnFail(
+      readPkgFromDir(path.join(result.inStoreLocation, 'package')),
     )
   }
 
@@ -405,7 +405,7 @@ function fetchToStore (
   }
 
   async function doFetchToStore (
-    fetchingFullManifest: PromiseContainer<PackageManifest>,
+    fetchingRawManifest: PromiseContainer<PackageJson>,
     fetchingFiles: PromiseContainer<PackageFilesResponse>,
     finishing: PromiseContainer<void>,
   ) {
@@ -436,10 +436,10 @@ function fetchToStore (
             filenames: Object.keys(satisfiedIntegrity).filter((f) => !satisfiedIntegrity[f].isDir), // Filtering can be removed for store v3
             fromStore: true,
           })
-          if (opts.fetchFullManifest) {
+          if (opts.fetchRawManifest) {
             readPkgFromDir(linkToUnpacked)
-              .then(fetchingFullManifest.resolve)
-              .catch(fetchingFullManifest.reject)
+              .then(fetchingRawManifest.resolve)
+              .catch(fetchingRawManifest.reject)
           }
           finishing.resolve(undefined)
           return
@@ -517,9 +517,9 @@ function fetchToStore (
       }
 
       let pkgName: string | undefined = opts.pkgName
-      if (!pkgName || opts.fetchFullManifest) {
+      if (!pkgName || opts.fetchRawManifest) {
         const pkg = await readPkgFromDir(tempLocation)
-        fetchingFullManifest.resolve(pkg)
+        fetchingRawManifest.resolve(pkg)
         if (!pkgName) {
           pkgName = pkg.name
         }
@@ -539,8 +539,8 @@ function fetchToStore (
       })
     } catch (err) {
       fetchingFiles.reject(err)
-      if (opts.fetchFullManifest) {
-        fetchingFullManifest.reject(err)
+      if (opts.fetchRawManifest) {
+        fetchingRawManifest.reject(err)
       }
     }
   }
