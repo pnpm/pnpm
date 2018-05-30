@@ -6248,7 +6248,7 @@ specifiers:
   path-exists: ^3.0.0
   path-name: ^1.0.0
   pkgs-graph: ^2.0.0
-  pnpm-default-reporter: ^0.17.1
+  pnpm-default-reporter: ^0.17.2
   pnpm-file-reporter: ^0.1.0
   pnpm-list: ^2.1.0
   pnpm-registry-mock: ^1.21.1
@@ -6263,7 +6263,7 @@ specifiers:
   sepia: ^2.0.2
   signal-exit: ^3.0.2
   strip-color: ^0.1.0
-  supi: ^0.20.0
+  supi: ^0.20.1
   tape: ^4.6.3
   tape-promise: ^3.0.0
   text-table: ^0.2.0

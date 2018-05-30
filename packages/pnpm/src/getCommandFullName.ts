@@ -30,6 +30,9 @@ export default function getCommandFullName (cmd: string) {
     case 'rebuild':
     case 'rb':
       return 'rebuild'
+    case 't':
+    case 'tst':
+      return 'test'
     // some commands have no aliases: publish, prune
     default:
       return cmd
