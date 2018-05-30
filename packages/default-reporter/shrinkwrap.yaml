@@ -1849,7 +1849,7 @@ specifiers:
   string-length: ^2.0.0
   string.prototype.padstart: ^3.0.0
   strip-ansi: ^4.0.0
-  supi: ^0.19.0
+  supi: ^0.20.0
   tape: ^4.8.0
   ts-node: ^6.0.0
   tslint: ^5.7.0
