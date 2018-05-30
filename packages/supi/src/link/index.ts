@@ -146,9 +146,21 @@ export default async function linkPackages (
   }
 
   await Promise.all(pendingRequiresBuilds.map(async (pendingRequiresBuild) => {
-    const requiresBuild = await pendingRequiresBuild.value
-    depGraph[pendingRequiresBuild.absoluteDepPath].requiresBuild = requiresBuild
-    if (requiresBuild) {
+    const depNode = depGraph[pendingRequiresBuild.absoluteDepPath]
+    if (!depNode.fetchingRawManifest) {
+      // This should never ever happen
+      throw new Error(`Cannot create shrinkwrap.yaml because raw manifest (aka package.json) wasn't fetched for "${pendingRequiresBuild.absoluteDepPath}"`)
+    }
+    const filesResponse = await depNode.fetchingFiles
+    // The npm team suggests to always read the package.json for deciding whether the package has lifecycle scripts
+    const pkgJson = await depNode.fetchingRawManifest
+    depNode.requiresBuild = Boolean(
+      pkgJson.scripts && (pkgJson.scripts.preinstall || pkgJson.scripts.install || pkgJson.scripts.postinstall) ||
+      filesResponse.filenames.indexOf('binding.gyp') !== -1 ||
+        filesResponse.filenames.some((filename) => !!filename.match(/^[.]hooks[\\/]/)), // TODO: optimize this
+    )
+
+    if (depNode.requiresBuild) {
       newShrinkwrap!.packages![pendingRequiresBuild.relativeDepPath].requiresBuild = true
     }
   }))

@@ -2,7 +2,7 @@ import logger from '@pnpm/logger'
 import {PackageFilesResponse} from '@pnpm/package-requester'
 import pkgIdToFilename from '@pnpm/pkgid-to-filename'
 import {Resolution} from '@pnpm/resolver-base'
-import {PackageManifest, PackageScripts} from '@pnpm/types'
+import {PackageJson, PackageScripts} from '@pnpm/types'
 import {Dependencies} from '@pnpm/types'
 import {oneLine} from 'common-tags'
 import crypto = require('crypto')
@@ -25,6 +25,7 @@ export interface DepGraphNode {
   centralLocation: string,
   modules: string,
   fetchingFiles: Promise<PackageFilesResponse>,
+  fetchingRawManifest?: Promise<PackageJson>,
   resolution: Resolution,
   peripheralLocation: string,
   children: {[alias: string]: string},
@@ -178,6 +179,7 @@ function resolvePeersOfNode (
       depth: node.depth,
       dev: node.pkg.dev,
       fetchingFiles: node.pkg.fetchingFiles,
+      fetchingRawManifest: node.pkg.fetchingRawManifest,
       hasBundledDependencies: node.pkg.hasBundledDependencies,
       id: node.pkg.id,
       independent,

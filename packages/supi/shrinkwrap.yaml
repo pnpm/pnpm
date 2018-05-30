@@ -5,7 +5,7 @@ dependencies:
   '@pnpm/lifecycle': 2.2.1
   '@pnpm/link-bins': 1.0.3
   '@pnpm/modules-yaml': 1.0.0
-  '@pnpm/package-requester': 1.0.0
+  '@pnpm/package-requester': 2.0.0
   '@pnpm/pkgid-to-filename': 1.0.1
   '@pnpm/resolver-base': 1.1.0
   '@pnpm/types': 1.7.0
@@ -40,7 +40,7 @@ dependencies:
   os-homedir: 1.0.2
   p-filter: 1.0.0
   p-limit: 1.2.0
-  package-store: 0.20.0
+  package-store: 0.21.0
   path-absolute: 1.0.0
   path-exists: 3.0.0
   pnpm-install-checks: 1.1.0
@@ -167,7 +167,7 @@ packages:
       integrity: sha512-kp5ooq4wC84gelVjkQuV8GzDHe/m99+yvlx3HTHOP25SdfkshIG5k/q784cmw8axjBke/LXdgE9sR5JRNs8TTw==
   /@pnpm/fs-locker/1.0.2:
     dependencies:
-      '@types/node': 10.1.2
+      '@types/node': 10.1.3
       mkdirp-promise: 5.0.1
       proper-lockfile: 2.0.1
     dev: false
@@ -313,7 +313,7 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha512-ZqVfIXK3r5AsP5VAhPHrhf3isF+T4yEuUpJTF9T03oFTJ9LBnkKvx8F7P7biKEManxSGOkSpNoIBdsura9pY5Q==
-  /@pnpm/package-requester/1.0.0:
+  /@pnpm/package-requester/2.0.0:
     dependencies:
       '@pnpm/check-package': 1.0.0
       '@pnpm/fetcher-base': 1.0.0
@@ -322,7 +322,7 @@ packages:
       '@pnpm/types': 1.7.0
       '@types/load-json-file': 2.0.7
       '@types/mz': 0.0.32
-      '@types/node': 10.1.2
+      '@types/node': 10.1.3
       '@types/p-queue': 2.3.1
       '@types/write-json-file': 2.2.1
       load-json-file: 5.0.0
@@ -343,7 +343,7 @@ packages:
     peerDependencies:
       '@pnpm/logger': ^1.0.0
     resolution:
-      integrity: sha512-LGnPJ/Rz4zjr3niBxeV/QeddR8KCREMtj9jrUuwTm92p1SVOxZG49tWNAJYLPbVwip51+Cv3yHjSXG780yGniQ==
+      integrity: sha512-/viPcxuZGyYGlsyRjx9ebfV62nYlpeaMOEZlxyct5P2waY3O37wlI0naUC5fpbto0c9eXp/9hB2g7FAw7pTu3w==
   /@pnpm/pkgid-to-filename/1.0.1:
     dependencies:
       normalize-path: 3.0.0
@@ -500,12 +500,15 @@ packages:
       integrity: sha512-U5icWpv7YnZYGsN4/cmh3WD2onMY0aJIiTE6+51TwJCttdHvtCYmkBNOobHlXwrJRL0nkH9jH4kD+1FAdMN4Tg==
   /@types/mz/0.0.32:
     dependencies:
-      '@types/node': 10.1.2
+      '@types/node': 10.1.3
     resolution:
       integrity: sha512-cy3yebKhrHuOcrJGkfwNHhpTXQLgmXSv1BX+4p32j+VUQ6aP2eJ5cL7OvGcAQx75fCTFaAIIAKewvqL+iwSd4g==
   /@types/node/10.1.2:
     resolution:
       integrity: sha512-bjk1RIeZBCe/WukrFToIVegOf91Pebr8cXYBwLBIsfiGWVQ+ifwWsT59H3RxrWzWrzd1l/Amk1/ioY5Fq3/bpA==
+  /@types/node/10.1.3:
+    resolution:
+      integrity: sha512-GiCx7dRvta0hbxXoJFAUxz+CKX6bZSCKjM5slq2vPp/5zwK01T4ibYZkGr6EN4F2QmxDQR76/ZHg6q+7iFWCWw==
   /@types/node/9.6.18:
     dev: true
     resolution:
@@ -536,6 +539,10 @@ packages:
     dev: false
     resolution:
       integrity: sha512-fWuYGHXie0IfRMh7zh90fsbgEvAfPt+SBmg1eNhTVecnjDQujP4npzJJFZdron9RwxfKmZ2PWmcfa1oKln4yfA==
+  /@types/ramda/0.25.30:
+    dev: false
+    resolution:
+      integrity: sha512-+ntNvcHAcu/+ZH7v3lC18kyT0JhUaVEdN9C/Wpqh7uL2hUlWYETtM7l5LVLzhphrfEOBpIuawsOzoB/ZnAM4wg==
   /@types/rc/0.0.1:
     dev: false
     resolution:
@@ -3200,17 +3207,17 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha512-GQ4w5vrDXoy8UVJM+0W7oWd5MYF21/IXkdzcupGNXdfqQuMzgQT+LXde109uHaH7xyqvCzPPBSxYM/HqQOi3+w==
-  /package-store/0.20.0:
+  /package-store/0.21.0:
     dependencies:
       '@pnpm/fetcher-base': 1.0.0
       '@pnpm/fs-locker': 1.0.2
-      '@pnpm/package-requester': 1.0.0
+      '@pnpm/package-requester': 2.0.0
       '@pnpm/resolver-base': 1.1.0
       '@pnpm/types': 1.7.0
       '@types/load-json-file': 2.0.7
       '@types/mz': 0.0.32
-      '@types/node': 10.1.2
-      '@types/ramda': 0.25.29
+      '@types/node': 10.1.3
+      '@types/ramda': 0.25.30
       encode-registry: 1.1.0
       load-json-file: 5.0.0
       mkdirp-promise: 5.0.1
@@ -3231,7 +3238,7 @@ packages:
     peerDependencies:
       '@pnpm/logger': ^1.0.0
     resolution:
-      integrity: sha512-Q7Y3tykIABGAhXq0PGejRrbZVrnumse3TXUxxBTGIlybCpg0MT3gXViMKsnXQP/+8/MxD0tPheooIZXEWJsvNA==
+      integrity: sha512-OqesXK7KNeXafOUIx3ERkYjZFbTQLrAMstePeQ3CJqXWevmVtctenC9XI4HuzcgWMjtowZCZ8/RqaWFSl8Uggw==
   /pako/0.2.9:
     dev: true
     resolution:
@@ -4135,7 +4142,7 @@ packages:
   /symlink-dir/1.1.3:
     dependencies:
       '@types/mz': 0.0.32
-      '@types/node': 10.1.2
+      '@types/node': 10.1.3
       graceful-fs: 4.1.11
       is-windows: 1.0.2
       mkdirp-promise: 5.0.1
@@ -4656,7 +4663,7 @@ specifiers:
   '@pnpm/link-bins': ^1.0.1
   '@pnpm/logger': ^1.0.0
   '@pnpm/modules-yaml': ^1.0.0
-  '@pnpm/package-requester': ^0.9.0 || 1
+  '@pnpm/package-requester': ^2.0.0
   '@pnpm/pkgid-to-filename': ^1.0.0
   '@pnpm/resolver-base': ^1.1.0
   '@pnpm/store-path': ^1.0.0
@@ -4709,7 +4716,7 @@ specifiers:
   p-filter: ^1.0.0
   p-limit: ^1.1.0
   package-preview: ^1.0.0
-  package-store: ^0.19.0 || 0.20
+  package-store: ^0.21.0
   path-absolute: ^1.0.0
   path-exists: ^3.0.0
   path-name: ^1.0.0
