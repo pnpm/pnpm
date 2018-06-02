@@ -90,7 +90,7 @@ devDependencies:
   tape-promise: 3.0.0
   ts-node: 6.0.5
   tslint: 5.10.0
-  typescript: 2.8.3
+  typescript: 2.9.1
   write-json-file: 2.3.0
   write-yaml-file: 1.0.1
 packages:
@@ -4347,12 +4347,12 @@ packages:
     dev: true
     resolution:
       integrity: sha1-hnrHTjhkGHsdPUfZlqeOxciDB3c=
-  /typescript/2.8.3:
+  /typescript/2.9.1:
     dev: true
     engines:
       node: '>=4.2.0'
     resolution:
-      integrity: sha512-K7g15Bb6Ra4lKf7Iq2l/I5/En+hLIHmxWZGq3D4DIRNFxMNV6j2SHSvDOqs2tGd4UvD/fJvrwopzQXjLrT7Itw==
+      integrity: sha512-h6pM2f/GDchCFlldnriOhs1QHuwbnmj6/v7499eMHqPeW4V2G0elua2eIc2nu8v2NdHV0Gm+tzX83Hr6nUFjQA==
   /uglify-js/2.8.29:
     dependencies:
       source-map: 0.5.7
@@ -4738,7 +4738,7 @@ specifiers:
   tape-promise: ^3.0.0
   ts-node: ^6.0.0
   tslint: ^5.4.2
-  typescript: ^2.7.1
+  typescript: ^2.9.1
   util.promisify: ^1.0.0
   validate-npm-package-name: ^3.0.0
   version-selector-type: ^2.0.0

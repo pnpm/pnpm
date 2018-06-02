@@ -22,7 +22,7 @@
     "@pnpm/logger": "^1.0.1",
     "rimraf": "^2.6.2",
     "tslint": "^5.4.2",
-    "typescript": "^2.7.1"
+    "typescript": "^2.9.1"
   },
   "directories": {
     "test": "test"

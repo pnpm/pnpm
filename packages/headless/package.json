@@ -49,7 +49,7 @@
     "tempy": "^0.2.1",
     "ts-node": "^6.0.0",
     "tslint": "^5.4.2",
-    "typescript": "^2.7.1"
+    "typescript": "^2.9.1"
   },
   "directories": {
     "test": "test"

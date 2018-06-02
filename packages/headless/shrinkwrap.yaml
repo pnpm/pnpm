@@ -49,7 +49,7 @@ devDependencies:
   tempy: 0.2.1
   ts-node: 6.0.5
   tslint: 5.10.0
-  typescript: 2.8.3
+  typescript: 2.9.1
 packages:
   /@pnpm/assert-project/1.1.2:
     dependencies:
@@ -4144,12 +4144,12 @@ packages:
     dev: true
     resolution:
       integrity: sha1-hnrHTjhkGHsdPUfZlqeOxciDB3c=
-  /typescript/2.8.3:
+  /typescript/2.9.1:
     dev: true
     engines:
       node: '>=4.2.0'
     resolution:
-      integrity: sha512-K7g15Bb6Ra4lKf7Iq2l/I5/En+hLIHmxWZGq3D4DIRNFxMNV6j2SHSvDOqs2tGd4UvD/fJvrwopzQXjLrT7Itw==
+      integrity: sha512-h6pM2f/GDchCFlldnriOhs1QHuwbnmj6/v7499eMHqPeW4V2G0elua2eIc2nu8v2NdHV0Gm+tzX83Hr6nUFjQA==
   /uglify-js/2.8.29:
     dependencies:
       source-map: 0.5.7
@@ -4489,5 +4489,5 @@ specifiers:
   tempy: ^0.2.1
   ts-node: ^6.0.0
   tslint: ^5.4.2
-  typescript: ^2.7.1
+  typescript: ^2.9.1
   util.promisify: ^1.0.0
