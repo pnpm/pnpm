@@ -22,7 +22,7 @@ import loadYamlFile = require('load-yaml-file')
 
 const test = promisifyTape(tape)
 
-test('recursive installation', async t => {
+test('recursive installation', async (t: tape.Test) => {
   const projects = prepare(t, [
     {
       name: 'project-1',
@@ -44,6 +44,11 @@ test('recursive installation', async t => {
 
   t.ok(projects['project-1'].requireModule('is-positive'))
   t.ok(projects['project-2'].requireModule('is-negative'))
+
+  await execPnpm('recursive', 'install', 'noop')
+
+  t.ok(projects['project-1'].requireModule('noop'))
+  t.ok(projects['project-2'].requireModule('noop'))
 })
 
 test('recursive installation with package-specific .npmrc', async t => {

@@ -12,8 +12,10 @@ import sortPkgs = require('sort-pkgs')
 import {
   install,
   InstallOptions,
+  installPkgs,
   link,
   unlink,
+  unlinkPkgs,
 } from 'supi'
 import createStoreController from '../../createStoreController'
 import getCommandFullName from '../../getCommandFullName'
@@ -112,7 +114,9 @@ export default async (
   }) as InstallOptions
 
   const limitInstallation = pLimit(concurrency)
-  const action = cmdFullName === 'unlink' ? unlink : install
+  const action = cmdFullName === 'unlink'
+    ? (input.length === 0 ? unlink : unlinkPkgs.bind(null, input))
+    : (input.length === 0 ? install : installPkgs.bind(null, input))
 
   for (const chunk of chunks) {
     await Promise.all(chunk.map((prefix: string) =>
