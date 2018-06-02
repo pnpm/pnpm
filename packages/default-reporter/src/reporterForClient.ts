@@ -35,7 +35,7 @@ const REMOVED_CHAR = chalk.red('-')
 const LINKED_CHAR = chalk.magentaBright('#')
 const PREFIX_MAX_LENGTH = 40
 
-const hlValue = chalk.blue
+const hlValue = chalk.cyanBright
 const hlPkgId = chalk['whiteBright']
 
 export default function (
@@ -231,7 +231,7 @@ export default function (
           const diffs = R.values(pkgsDiff[depType])
           if (diffs.length) {
             msg += EOL
-            msg += chalk.blue(`${propertyByDependencyType[depType]}:`)
+            msg += chalk.cyanBright(`${propertyByDependencyType[depType]}:`)
             msg += EOL
             msg += printDiffs(diffs)
             msg += EOL
