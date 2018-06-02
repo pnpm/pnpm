@@ -9,6 +9,7 @@ import {
 export default function parseWantedDependencies (
   rawWantedDependencies: string[],
   opts: {
+    allowNew: boolean,
     currentPrefs: Dependencies,
     defaultTag: string,
     dev: boolean,
@@ -24,6 +25,9 @@ export default function parseWantedDependencies (
       const alias = parsed['alias'] as (string | undefined)
       const pref = parsed['pref'] as (string | undefined)
       // tslint:enable:no-string-literal
+      if (!opts.allowNew && (!alias || !opts.currentPrefs[alias])) {
+        return null
+      }
       return {
         alias,
         dev: Boolean(opts.dev || alias && !!opts.devDependencies[alias]),
@@ -32,6 +36,7 @@ export default function parseWantedDependencies (
         raw: rawWantedDependency,
       }
     })
+    .filter((wd) => wd !== null) as WantedDependency[]
 }
 
 function parseWantedDependency (

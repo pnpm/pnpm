@@ -12,6 +12,7 @@ export default async function (
 ) {
   const store = await createStoreController(opts)
   const updateOpts = Object.assign(opts, {
+    allowNew: false,
     hooks: !opts.ignorePnpmfile && requireHooks(opts.prefix, opts),
     store: store.path,
     storeController: store.ctrl,

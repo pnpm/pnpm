@@ -9,6 +9,7 @@ import pnpmPkgJson from '../pnpmPkgJson'
 import { ReporterFunction } from '../types'
 
 export interface InstallOptions {
+  allowNew?: boolean,
   frozenShrinkwrap?: boolean,
   preferFrozenShrinkwrap?: boolean,
   storeController: StoreController,
@@ -60,6 +61,7 @@ export interface InstallOptions {
 }
 
 export type StrictInstallOptions = InstallOptions & {
+  allowNew: boolean,
   frozenShrinkwrap: boolean,
   preferFrozenShrinkwrap: boolean,
   shrinkwrap: boolean,
@@ -112,6 +114,7 @@ const defaults = async (opts: InstallOptions) => {
   }
   const prefix = opts.prefix || process.cwd()
   return {
+    allowNew: true,
     bin: path.join(prefix, 'node_modules', '.bin'),
     childConcurrency: 5,
     depth: 0,

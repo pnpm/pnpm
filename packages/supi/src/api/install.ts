@@ -289,6 +289,10 @@ export async function installPkgs (
   if (maybeOpts.update === undefined) maybeOpts.update = true
   const opts = await extendOptions(maybeOpts)
 
+  if (R.isEmpty(fuzzyDeps) && !opts.reinstallForFlatten) {
+    throw new Error('At least one package has to be installed')
+  }
+
   if (opts.lock) {
     await lock(opts.prefix, _installPkgs, {stale: opts.lockStaleDuration, locks: opts.locks})
   } else {
@@ -303,11 +307,13 @@ export async function installPkgs (
     const installType = 'named'
     const ctx = await getContext(opts, installType)
     const currentPrefs = opts.global ? {} : depsFromPackage(ctx.pkg)
+    opts.allowNew = opts.allowNew || opts.global // TODO: global install should also know about globally installed packages
     const saveType = getSaveType(opts)
     const optionalDependencies = saveType ? {} : ctx.pkg.optionalDependencies || {}
     const devDependencies = saveType ? {} : ctx.pkg.devDependencies || {}
     const packagesToInstall = Array.isArray(fuzzyDeps)
       ? parseWantedDependencies(fuzzyDeps, {
+        allowNew: opts.allowNew,
         currentPrefs,
         defaultTag: opts.tag,
         dev: opts.saveDev,
@@ -316,16 +322,13 @@ export async function installPkgs (
         optionalDependencies,
       })
       : similarDepsToSpecs(fuzzyDeps, {
+        allowNew: opts.allowNew,
         currentPrefs,
         dev: opts.saveDev,
         devDependencies,
         optional: opts.saveOptional,
         optionalDependencies,
       })
-
-    if (!Object.keys(packagesToInstall).length && !opts.reinstallForFlatten) {
-      throw new Error('At least one package has to be installed')
-    }
 
     const preferredVersions = getPreferredVersionsFromPackage(ctx.pkg)
     return installInContext(

@@ -53,3 +53,14 @@ test('update does not fail when package has only peer dependencies', async (t: t
 
   t.pass('did not fail')
 })
+
+test('update does not install the package if it is not present in package.json', async (t: tape.Test) => {
+  const project = prepare(t)
+
+  await installPkgs(['is-positive'], await testDefaults({
+    allowNew: false,
+    update: true,
+  }))
+
+  project.hasNot('is-positive')
+})

@@ -51,6 +51,32 @@ test('recursive installation', async (t: tape.Test) => {
   t.ok(projects['project-2'].requireModule('noop'))
 })
 
+test('recursive update', async (t: tape.Test) => {
+  const projects = prepare(t, [
+    {
+      name: 'project-1',
+      version: '1.0.0',
+      dependencies: {
+        'is-positive': '1.0.0',
+      },
+    },
+    {
+      name: 'project-2',
+      version: '1.0.0',
+      dependencies: {
+        'is-negative': '1.0.0',
+      },
+    },
+  ])
+
+  await execPnpm('recursive', 'install')
+
+  await execPnpm('recursive', 'update', 'is-positive@2.0.0')
+
+  t.equal(projects['project-1'].requireModule('is-positive/package.json').version, '2.0.0')
+  projects['project-2'].hasNot('is-positive')
+})
+
 test('recursive installation with package-specific .npmrc', async t => {
   const projects = prepare(t, [
     {

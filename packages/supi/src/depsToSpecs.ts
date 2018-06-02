@@ -21,6 +21,7 @@ export default function (
 export function similarDepsToSpecs (
   deps: Dependencies,
   opts: {
+    allowNew: boolean,
     currentPrefs: Dependencies,
     dev: boolean,
     devDependencies: Dependencies,
@@ -29,11 +30,12 @@ export function similarDepsToSpecs (
   },
 ): WantedDependency[] {
   if (!deps) return []
-  return Object.keys(deps).map((alias) => ({
-    alias,
-    dev: opts.dev || !!opts.devDependencies[alias],
-    optional: opts.optional || !!opts.optionalDependencies[alias],
-    pref: deps[alias] || opts.currentPrefs[alias],
-    raw: `${alias}@${deps[alias]}`,
-  }))
+  return (opts.allowNew ? Object.keys(deps) : Object.keys(deps).filter((alias) => opts.currentPrefs[alias]))
+    .map((alias) => ({
+      alias,
+      dev: opts.dev || !!opts.devDependencies[alias],
+      optional: opts.optional || !!opts.optionalDependencies[alias],
+      pref: deps[alias] || opts.currentPrefs[alias],
+      raw: `${alias}@${deps[alias]}`,
+    }))
 }

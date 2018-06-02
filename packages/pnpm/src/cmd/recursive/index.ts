@@ -74,7 +74,7 @@ export default async (
       await outdated(pkgs, input, cmd, opts as any) // tslint:disable-line:no-any
       return
     case 'update':
-      opts = {...opts, update: true}
+      opts = {...opts, update: true, allowNew: false} as any // tslint:disable-line:no-any
       break
   }
 
