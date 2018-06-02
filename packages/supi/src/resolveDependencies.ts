@@ -69,6 +69,7 @@ export interface Pkg {
   optionalDependencies: Set<string>,
   hasBundledDependencies: boolean,
   prepare: boolean,
+  requiresBuild: boolean | undefined, // added to fix issue #1201
   additionalInfo: {
     deprecated?: string,
     peerDependencies?: Dependencies,
@@ -438,6 +439,7 @@ async function install (
       peerDependencies: peerDependencies || {},
       prepare,
       prod: !wantedDependency.dev && !wantedDependency.optional,
+      requiresBuild: options.dependencyShrinkwrap && Boolean(options.dependencyShrinkwrap.requiresBuild),
       resolution: pkgResponse.body.resolution,
       specRaw: wantedDependency.raw,
       version: pkg.version,

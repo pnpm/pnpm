@@ -156,6 +156,10 @@ function toShrDependency (
   } else if (depNode.prepare) {
     result['prepare'] = true
     result['requiresBuild'] = true
+  } else if (depNode.requiresBuild !== undefined) {
+    if (depNode.requiresBuild) {
+      result['requiresBuild'] = true
+    }
   } else {
     pendingRequiresBuilds.push({
       absoluteDepPath: opts.depPath,

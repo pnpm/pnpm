@@ -192,6 +192,7 @@ function resolvePeersOfNode (
       peripheralLocation,
       prepare: node.pkg.prepare,
       prod: node.pkg.prod,
+      requiresBuild: node.pkg.requiresBuild,
       resolution: node.pkg.resolution,
       version: node.pkg.version,
     }

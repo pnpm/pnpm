@@ -2,6 +2,7 @@ import deepRequireCwd = require('deep-require-cwd')
 import loadJsonFile = require('load-json-file')
 import path = require('path')
 import exists = require('path-exists')
+import {addDistTag} from 'pnpm-registry-mock'
 import rimraf = require('rimraf-then')
 import sinon = require('sinon')
 import {
@@ -143,6 +144,8 @@ async function okFile (t: tape.Test, filename: string) {
 
 // This usecase was failing. See https://github.com/pnpm/supi/issues/15
 test('peer dependencies are linked when running one named installation', async (t: tape.Test) => {
+  await addDistTag({package: 'peer-a', version: '1.0.0', distTag: 'latest'})
+
   const project = prepare(t)
 
   await installPkgs(['abc-grand-parent-with-c', 'abc-parent-with-ab', 'peer-c@2.0.0'], await testDefaults())
@@ -164,10 +167,16 @@ test('peer dependencies are linked when running one named installation', async (
 
   t.equal(deepRequireCwd(['abc-parent-with-ab', 'abc', 'peer-c', './package.json']).version, '2.0.0')
   t.equal(deepRequireCwd(['abc-grand-parent-with-c', 'abc-parent-with-ab', 'abc', 'peer-c', './package.json']).version, '1.0.0')
+
+  // this part was failing. See issue: https://github.com/pnpm/pnpm/issues/1201
+  await addDistTag({package: 'peer-a', version: '1.0.1', distTag: 'latest'})
+  await install(await testDefaults({update: true, depth: 100}))
 })
 
 test('peer dependencies are linked when running two separate named installations', async (t: tape.Test) => {
+  await addDistTag({package: 'peer-a', version: '1.0.0', distTag: 'latest'})
   const project = prepare(t)
+
   await installPkgs(['abc-grand-parent-with-c', 'peer-c@2.0.0'], await testDefaults())
   await installPkgs(['abc-parent-with-ab'], await testDefaults())
 
