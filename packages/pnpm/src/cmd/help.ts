@@ -271,6 +271,24 @@ function getHelpText (command: string) {
         pnpm recursive outdated [[<@scope>/]<pkg> ...]
 
         Check for outdated packages in every project of the multi-package repo.
+
+        * * *
+
+        pnpm recursive run <command> [-- <args>...]
+
+        alias: pnpm recursive run-script
+
+        This runs an arbitrary command from each package's "scripts" object.
+        If a package doesn't have the command, it is skipped.
+        If none of the packages have the command, the command fails.
+
+        * * *
+
+        pnpm recursive test <command> [-- <args>...]
+
+        alias: pnpm recursive t, pnpm recursive tst
+
+        This runs each package's "test" script, if one was provided.
       `
 
     default:
@@ -298,6 +316,8 @@ function getHelpText (command: string) {
           - recursive update
           - recursive list
           - recursive outdated
+          - recursive run
+          - recursive test
 
         Experimental commands:
           - server start

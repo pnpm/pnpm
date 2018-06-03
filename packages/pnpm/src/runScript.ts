@@ -1,46 +1,6 @@
-import logger from '@pnpm/logger'
-import byline = require('byline')
 import spawn = require('cross-spawn')
 import path = require('path')
 import PATH = require('path-name')
-
-const scriptLogger = logger('run_script')
-
-function noop () {} // tslint:disable-line
-
-export default function runScript (
-  command: string,
-  args: string[],
-  opts: {
-    cwd: string,
-    log: (...msg: string[]) => void,
-    userAgent: string,
-  },
-) {
-  opts = Object.assign({log: noop}, opts)
-  args = args || []
-  const log = opts.log
-  const script = `${command}${args.length ? ' ' + args.join(' ') : ''}`
-  if (script) scriptLogger.debug(`runscript ${script}`)
-  if (!command) return Promise.resolve()
-  return new Promise((resolve, reject) => {
-    const proc = spawn(command, args, {
-      cwd: opts.cwd,
-      env: createEnv(opts),
-    })
-
-    log('stdout', '$ ' + script)
-
-    proc.on('error', reject)
-    byline(proc.stdout).on('data', (line: Buffer) => log('stdout', line.toString()))
-    byline(proc.stderr).on('data', (line: Buffer) => log('stderr', line.toString()))
-
-    proc.on('close', (code: number) => {
-      if (code > 0) return reject(new Error('Exit code ' + code))
-      return resolve()
-    })
-  })
-}
 
 export function sync (
   command: string,

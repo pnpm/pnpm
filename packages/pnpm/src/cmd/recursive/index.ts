@@ -23,6 +23,7 @@ import requireHooks from '../../requireHooks'
 import {PnpmOptions} from '../../types'
 import list from './list'
 import outdated from './outdated'
+import run from './run'
 
 const supportedRecursiveCommands = new Set([
   'install',
@@ -31,6 +32,8 @@ const supportedRecursiveCommands = new Set([
   'unlink',
   'list',
   'outdated',
+  'run',
+  'test',
 ])
 
 export default async (
@@ -73,8 +76,12 @@ export default async (
     case 'outdated':
       await outdated(pkgs, input, cmd, opts as any) // tslint:disable-line:no-any
       return
+    case 'test':
+      return run(pkgs, ['test', ...input], cmd, {...opts, concurrency} as any) // tslint:disable-line:no-any
+    case 'run':
+      return run(pkgs, input, cmd, {...opts, concurrency} as any) // tslint:disable-line:no-any
     case 'update':
-      opts = {...opts, update: true, allowNew: false} as any // tslint:disable-line:no-any
+      opts = {...opts, update: true, allowNew: false, concurrency} as any // tslint:disable-line:no-any
       break
   }
 
