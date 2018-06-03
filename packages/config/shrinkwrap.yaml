@@ -1,4 +1,5 @@
 dependencies:
+  '@pnpm/config': 'link:'
   '@types/camelcase': 4.1.0
   '@types/node': 10.1.2
   '@types/which': 1.3.1

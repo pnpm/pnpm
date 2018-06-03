@@ -504,7 +504,9 @@ test('pnpm recursive run', async (t: tape.Test) => {
         'project-1': '1'
       },
       scripts: {
+        prebuild: `node -e "process.stdout.write('project-2-prebuild')" | json-append ../output.json`,
         build: `node -e "process.stdout.write('project-2')" | json-append ../output.json`,
+        postbuild: `node -e "process.stdout.write('project-2-postbuild')" | json-append ../output.json`,
       },
     },
     {
@@ -529,11 +531,16 @@ test('pnpm recursive run', async (t: tape.Test) => {
   await execPnpm('recursive', 'link')
   await execPnpm('recursive', 'run', 'build')
 
-  t.deepEqual(await import(path.resolve('output.json')), [
-    'project-1',
-    'project-2',
-    'project-3',
-  ])
+  const outputs = await import(path.resolve('output.json')) as string[]
+  const p1 = outputs.indexOf('project-1')
+  const p2 = outputs.indexOf('project-2')
+  const p2pre = outputs.indexOf('project-2-prebuild')
+  const p2post = outputs.indexOf('project-2-postbuild')
+  const p3 = outputs.indexOf('project-3')
+
+  t.ok(p1 < p2 && p1 < p3)
+  t.ok(p1 < p2pre && p1 < p2post)
+  t.ok(p2 < p2post && p2 > p2pre)
 })
 
 test('`pnpm recursive run` fails if none of the packaegs has the desired command', async (t: tape.Test) => {

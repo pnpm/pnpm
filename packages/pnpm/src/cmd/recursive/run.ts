@@ -16,6 +16,7 @@ export default async (
     rawNpmConfig: object,
   },
 ) => {
+  const scriptName = args[0]
   const pkgGraphResult = createPkgGraph(pkgs)
   const graph = new Map(
     Object.keys(pkgGraphResult.graph).map((pkgPath) => [pkgPath, pkgGraphResult.graph[pkgPath].dependencies]) as Array<[string, string[]]>,
@@ -33,20 +34,25 @@ export default async (
     await Promise.all(chunk.map((prefix: string) =>
       limitRun(async () => {
         const pkg = pkgGraphResult.graph[prefix] as {manifest: PackageJson, path: string}
-        if (!pkg.manifest.scripts || !pkg.manifest.scripts[args[0]]) {
+        if (!pkg.manifest.scripts || !pkg.manifest.scripts[scriptName]) {
           return
         }
         hasCommand++
         try {
-          await runLifecycleHooks(
-            args[0],
-            pkg.manifest, {
-              depPath: prefix,
-              pkgRoot: prefix,
-              rawNpmConfig: opts.rawNpmConfig,
-              rootNodeModulesDir: await realNodeModulesDir(prefix),
-              unsafePerm: opts.unsafePerm || false,
-          })
+          const lifecycleOpts = {
+            depPath: prefix,
+            pkgRoot: prefix,
+            rawNpmConfig: opts.rawNpmConfig,
+            rootNodeModulesDir: await realNodeModulesDir(prefix),
+            unsafePerm: opts.unsafePerm || false,
+          }
+          if (pkg.manifest.scripts[`pre${scriptName}`]) {
+            await runLifecycleHooks(`pre${scriptName}`, pkg.manifest, lifecycleOpts)
+          }
+          await runLifecycleHooks(scriptName, pkg.manifest, lifecycleOpts)
+          if (pkg.manifest.scripts[`post${scriptName}`]) {
+            await runLifecycleHooks(`post${scriptName}`, pkg.manifest, lifecycleOpts)
+          }
         } catch (err) {
           logger.info(err)
           err['prefix'] = prefix // tslint:disable-line:no-string-literal
@@ -56,8 +62,8 @@ export default async (
     )))
   }
 
-  if (args[0] !== 'test' && !hasCommand) {
-    const err = new Error(`None of the packages has a "${args[0]}" script`)
+  if (scriptName !== 'test' && !hasCommand) {
+    const err = new Error(`None of the packages has a "${scriptName}" script`)
     err['code'] = 'RECURSIVE_RUN_NO_SCRIPT' // tslint:disable-line:no-string-literal
     throw err
   }
