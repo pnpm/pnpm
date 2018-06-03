@@ -640,11 +640,13 @@ test('pnpm recursive test', async (t: tape.Test) => {
   await execPnpm('recursive', 'link')
   await execPnpm('recursive', 'test')
 
-  t.deepEqual(await import(path.resolve('output.json')), [
-    'project-1',
-    'project-2',
-    'project-3',
-  ])
+  const outputs = await import(path.resolve('output.json')) as string[]
+
+  const p1 = outputs.indexOf('project-1')
+  const p2 = outputs.indexOf('project-2')
+  const p3 = outputs.indexOf('project-3')
+
+  t.ok(p1 < p2 && p1 < p3)
 })
 
 test('`pnpm recursive test` does not fail if none of the packaegs has a test command', async (t: tape.Test) => {
