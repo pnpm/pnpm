@@ -2,6 +2,7 @@
 
 ## Table of contents
 
+- [Setting Up the Environment](#setting-up-the-environment)
 - [Submitting a Pull Request (PR)](#submitting-a-pull-request-pr)
   - [After your pull request is merged](#after-your-pull-request-is-merged)
 - [Coding Style Guidelines](#coding-style-guidelines)
@@ -13,6 +14,12 @@
     - [Subject](#subject)
     - [Body](#body)
     - [Footer](#footer)
+
+## Setting Up the Environment
+
+1. Run `pnpm recursive link` or `npm run bootstrap` in the root of the repository to install all dependencies.
+2. For compiling all packages in the repo, run `pnpm recursive run tsc` or `npm run build` in the root of the repo.
+3. To run tests, run `npm test` in the root of the repo.
 
 ## Submitting a Pull Request (PR)
 

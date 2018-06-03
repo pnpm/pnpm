@@ -120,7 +120,7 @@ test('package with a broken symlink', async (t) => {
   t.ok(m, 'has-broken-symlink is available')
 })
 
-test('tarball local package', async (t) => {
+test('tarball local package', async (t: tape.Test) => {
   const project = prepare(t)
   await installPkgs([pathToLocalPkg('tar-pkg/tar-pkg-1.0.0.tgz')], await testDefaults())
 
@@ -138,7 +138,7 @@ test('tarball local package', async (t) => {
     name: 'tar-pkg',
     resolution: {
       integrity: 'sha512-HP/5Rgt3pVFLzjmN9qJJ6vZMgCwoCIl/m2bPndYT283CUqnmFiMx0GeeIJ7SyK6TYoJM78SEvFEOQie++caHqw==',
-      tarball: 'file:../../../supi/test/packages/tar-pkg/tar-pkg-1.0.0.tgz',
+      tarball: `file:${normalizePath(path.relative(process.cwd(), pathToLocalPkg('tar-pkg/tar-pkg-1.0.0.tgz')))}`,
     },
     version: '1.0.0',
   }, 'a snapshot of the local dep tarball added to shrinkwrap.yaml')

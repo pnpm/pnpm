@@ -5,7 +5,7 @@ import {Test} from 'tape'
 import writePkg = require('write-pkg')
 
 // the testing folder should be outside of the project to avoid lookup in the project's node_modules
-const tmpPath = path.join(__dirname, '..', '..', '..', '.tmp')
+const tmpPath = path.join(__dirname, '..', '..', '..', '..', '..', '.tmp')
 mkdirp.sync(tmpPath)
 
 let dirNumber = 0

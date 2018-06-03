@@ -1,0 +1,7 @@
+{
+  "scripts": {
+    "test": "pnpm recursive 1 test --reporter append-only",
+    "build": "pnpm recursive run tsc",
+    "bootstrap": "pnpm recursive link"
+  }
+}
