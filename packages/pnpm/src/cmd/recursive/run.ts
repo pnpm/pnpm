@@ -1,13 +1,20 @@
+import runLifecycleHooks from '@pnpm/lifecycle'
 import logger from '@pnpm/logger'
 import {PackageJson} from '@pnpm/types'
+import {realNodeModulesDir} from '@pnpm/utils'
 import graphSequencer = require('graph-sequencer')
+import pLimit = require('p-limit')
 import createPkgGraph from 'pkgs-graph'
-import {sync as runScriptSync} from '../../runScript'
 
 export default async (
   pkgs: Array<{path: string, manifest: PackageJson}>,
   args: string[],
   cmd: string,
+  opts: {
+    concurrency: number,
+    unsafePerm: boolean,
+    rawNpmConfig: object,
+  },
 ) => {
   const pkgGraphResult = createPkgGraph(pkgs)
   const graph = new Map(
@@ -20,29 +27,33 @@ export default async (
   const chunks = graphSequencerResult.chunks
   let hasCommand = 0
 
-  // TODO: run chunks concurrently
+  const limitRun = pLimit(opts.concurrency)
+
   for (const chunk of chunks) {
-    for (const prefix of chunk) {
-      const pkg = pkgGraphResult.graph[prefix] as {manifest: PackageJson, path: string}
-      if (!pkg.manifest.scripts || !pkg.manifest.scripts[args[0]]) {
-        continue
-      }
-      hasCommand++
-      try {
-        const result = runScriptSync('npm', ['run'].concat(args), {
-          cwd: prefix,
-          stdio: 'inherit',
-          userAgent: undefined,
-        })
-        if (result.status !== 0) {
-          throw new Error(`Running "${args.join(' ')}" failed with exit code "${result.status}"`)
+    await Promise.all(chunk.map((prefix: string) =>
+      limitRun(async () => {
+        const pkg = pkgGraphResult.graph[prefix] as {manifest: PackageJson, path: string}
+        if (!pkg.manifest.scripts || !pkg.manifest.scripts[args[0]]) {
+          return
         }
-      } catch (err) {
-        logger.info(err)
-        err['prefix'] = prefix // tslint:disable-line:no-string-literal
-        throw err
-      }
-    }
+        hasCommand++
+        try {
+          await runLifecycleHooks(
+            args[0],
+            pkg.manifest, {
+              depPath: prefix,
+              pkgRoot: prefix,
+              rawNpmConfig: opts.rawNpmConfig,
+              rootNodeModulesDir: await realNodeModulesDir(prefix),
+              unsafePerm: opts.unsafePerm || false,
+          })
+        } catch (err) {
+          logger.info(err)
+          err['prefix'] = prefix // tslint:disable-line:no-string-literal
+          throw err
+        }
+      },
+    )))
   }
 
   if (args[0] !== 'test' && !hasCommand) {
