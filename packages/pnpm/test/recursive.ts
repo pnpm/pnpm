@@ -536,6 +536,58 @@ test('pnpm recursive run', async (t: tape.Test) => {
   ])
 })
 
+test('`pnpm recursive run` fails if none of the packaegs has the desired command', async (t: tape.Test) => {
+  const projects = prepare(t, [
+    {
+      name: 'project-1',
+      version: '1.0.0',
+      dependencies: {
+        'json-append': '1',
+      },
+      scripts: {
+        build: `node -e "process.stdout.write('project-1')" | json-append ../output.json`,
+      },
+    },
+    {
+      name: 'project-2',
+      version: '1.0.0',
+      dependencies: {
+        'json-append': '1',
+        'project-1': '1'
+      },
+      scripts: {
+        build: `node -e "process.stdout.write('project-2')" | json-append ../output.json`,
+      },
+    },
+    {
+      name: 'project-3',
+      version: '1.0.0',
+      dependencies: {
+        'json-append': '1',
+        'project-1': '1'
+      },
+      scripts: {
+        build: `node -e "process.stdout.write('project-3')" | json-append ../output.json`,
+      },
+    },
+    {
+      name: 'project-0',
+      version: '1.0.0',
+      dependencies: {
+      },
+    },
+  ])
+
+  await execPnpm('recursive', 'link')
+
+  try {
+    await execPnpm('recursive', 'run', 'this-command-does-not-exist')
+    t.fail('should have failed')
+  } catch (err) {
+    t.pass('`recursive run` failed because none of the packages has the wanted script')
+  }
+})
+
 test('pnpm recursive test', async (t: tape.Test) => {
   const projects = prepare(t, [
     {
@@ -586,4 +638,39 @@ test('pnpm recursive test', async (t: tape.Test) => {
     'project-2',
     'project-3',
   ])
+})
+
+test('`pnpm recursive test` does not fail if none of the packaegs has a test command', async (t: tape.Test) => {
+  const projects = prepare(t, [
+    {
+      name: 'project-1',
+      version: '1.0.0',
+    },
+    {
+      name: 'project-2',
+      version: '1.0.0',
+      dependencies: {
+        'project-1': '1'
+      },
+    },
+    {
+      name: 'project-3',
+      version: '1.0.0',
+      dependencies: {
+        'project-1': '1'
+      },
+    },
+    {
+      name: 'project-0',
+      version: '1.0.0',
+      dependencies: {
+      },
+    },
+  ])
+
+  await execPnpm('recursive', 'link')
+
+  await execPnpm('recursive', 'test')
+
+  t.pass('command did not fail')
 })

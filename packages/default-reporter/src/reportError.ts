@@ -23,6 +23,8 @@ export default function reportError (logObj: Log) {
         return reportModifiedDependency(err, logObj['message'])
       case 'SHRINKWRAP_BREAKING_CHANGE':
         return reportShrinkwrapBreakingChange(err, logObj['message'])
+      case 'RECURSIVE_RUN_NO_SCRIPT':
+        return formatErrorSummary(err.message)
       default:
         return formatGenericError(err.message || logObj['message'], err.stack)
     }

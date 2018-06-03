@@ -18,6 +18,7 @@ export default async (
     groups: [Object.keys(pkgGraphResult.graph)],
   })
   const chunks = graphSequencerResult.chunks
+  let hasCommand = 0
 
   // TODO: run chunks concurrently
   for (const chunk of chunks) {
@@ -26,6 +27,7 @@ export default async (
       if (!pkg.manifest.scripts || !pkg.manifest.scripts[args[0]]) {
         continue
       }
+      hasCommand++
       try {
         const result = runScriptSync('npm', ['run'].concat(args), {
           cwd: prefix,
@@ -41,5 +43,11 @@ export default async (
         throw err
       }
     }
+  }
+
+  if (args[0] !== 'test' && !hasCommand) {
+    const err = new Error(`None of the packages has a "${args[0]}" script`)
+    err['code'] = 'RECURSIVE_RUN_NO_SCRIPT' // tslint:disable-line:no-string-literal
+    throw err
   }
 }
