@@ -483,3 +483,107 @@ test('pnpm recursive outdated', async (t: tape.Test) => {
     ` + '\n')
   }
 })
+
+test('pnpm recursive run', async (t: tape.Test) => {
+  const projects = prepare(t, [
+    {
+      name: 'project-1',
+      version: '1.0.0',
+      dependencies: {
+        'json-append': '1',
+      },
+      scripts: {
+        build: `node -e "process.stdout.write('project-1')" | json-append ../output.json`,
+      },
+    },
+    {
+      name: 'project-2',
+      version: '1.0.0',
+      dependencies: {
+        'json-append': '1',
+        'project-1': '1'
+      },
+      scripts: {
+        build: `node -e "process.stdout.write('project-2')" | json-append ../output.json`,
+      },
+    },
+    {
+      name: 'project-3',
+      version: '1.0.0',
+      dependencies: {
+        'json-append': '1',
+        'project-1': '1'
+      },
+      scripts: {
+        build: `node -e "process.stdout.write('project-3')" | json-append ../output.json`,
+      },
+    },
+    {
+      name: 'project-0',
+      version: '1.0.0',
+      dependencies: {
+      },
+    },
+  ])
+
+  await execPnpm('recursive', 'link')
+  await execPnpm('recursive', 'run', 'build')
+
+  t.deepEqual(await import(path.resolve('output.json')), [
+    'project-1',
+    'project-2',
+    'project-3',
+  ])
+})
+
+test('pnpm recursive test', async (t: tape.Test) => {
+  const projects = prepare(t, [
+    {
+      name: 'project-1',
+      version: '1.0.0',
+      dependencies: {
+        'json-append': '1',
+      },
+      scripts: {
+        test: `node -e "process.stdout.write('project-1')" | json-append ../output.json`,
+      },
+    },
+    {
+      name: 'project-2',
+      version: '1.0.0',
+      dependencies: {
+        'json-append': '1',
+        'project-1': '1'
+      },
+      scripts: {
+        test: `node -e "process.stdout.write('project-2')" | json-append ../output.json`,
+      },
+    },
+    {
+      name: 'project-3',
+      version: '1.0.0',
+      dependencies: {
+        'json-append': '1',
+        'project-1': '1'
+      },
+      scripts: {
+        test: `node -e "process.stdout.write('project-3')" | json-append ../output.json`,
+      },
+    },
+    {
+      name: 'project-0',
+      version: '1.0.0',
+      dependencies: {
+      },
+    },
+  ])
+
+  await execPnpm('recursive', 'link')
+  await execPnpm('recursive', 'test')
+
+  t.deepEqual(await import(path.resolve('output.json')), [
+    'project-1',
+    'project-2',
+    'project-3',
+  ])
+})
