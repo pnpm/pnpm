@@ -1,6 +1,7 @@
 dependencies:
   '@types/node': 10.1.2
   '@types/semver': 5.5.0
+  dependencies-hierarchy: 'link:../__package_previews__/dependencies-hierarchy/dependencies-hierarchy'
   dependency-path: 1.2.1
   pnpm-shrinkwrap: 6.4.0
   semver: 5.5.0

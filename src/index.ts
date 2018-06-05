@@ -136,7 +136,7 @@ function getTree(
   keypath: string[],
   parentId: string,
 ): PackageNode[] {
-  if (opts.currentDepth > opts.maxDepth || !packages[parentId]) return []
+  if (opts.currentDepth > opts.maxDepth || !packages || !packages[parentId]) return []
 
   const deps = opts.prod
     ? packages[parentId].dependencies

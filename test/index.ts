@@ -6,6 +6,7 @@ const fixtures = path.join(__dirname, 'fixtures')
 const generalFixture = path.join(fixtures, 'general')
 const circularFixture = path.join(fixtures, 'circular')
 const withFileDepFixture = path.join(fixtures, 'with-file-dep')
+const withLinksOnlyFixture = path.join(fixtures, 'with-links-only')
 
 test('one package depth 0', async t => {
   const tree = await dh(generalFixture, {depth: 0})
@@ -264,6 +265,22 @@ test('local package depth 0', async t => {
     },
     {
       pkg: { name: 'is-positive', path: 'registry.npmjs.org/is-positive/3.1.0', version: '3.1.0' }
+    },
+  ])
+
+  t.end()
+})
+
+test('on a package that has only links', async t => {
+  const tree = await dh(withLinksOnlyFixture, {depth: 1000})
+
+  t.deepEqual(tree, [
+    {
+      pkg: {
+        name: 'general',
+        path: 'link:../general',
+        version: 'link:../general',
+      },
     },
   ])
 
