@@ -1,6 +1,6 @@
 dependencies:
   '@commitlint/cli': 7.0.0
-  '@commitlint/config-conventional': 7.0.0
+  '@commitlint/config-conventional': 7.0.1
   '@commitlint/prompt-cli': 7.0.0
   husky: 1.0.0-rc.8
 packages:
@@ -21,10 +21,10 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha1-O/htirL71QdMMRS3uj9LQbd189w=
-  /@commitlint/config-conventional/7.0.0:
+  /@commitlint/config-conventional/7.0.1:
     dev: false
     resolution:
-      integrity: sha1-IX+fWvx5pkA3HW8XZ6vhTtn0j74=
+      integrity: sha1-J2l3+O5g2MVtf91DKWr3bf7ptfc=
   /@commitlint/ensure/7.0.0:
     dependencies:
       lodash.camelcase: 4.3.0
@@ -1068,17 +1068,17 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha1-P7z7FbiZpEEjs0ttzBi3JDNqLK4=
-  /p-limit/1.2.0:
+  /p-limit/1.3.0:
     dependencies:
       p-try: 1.0.0
     dev: false
     engines:
       node: '>=4'
     resolution:
-      integrity: sha512-Y/OtIaXtUPr4/YpMv1pCL5L5ed0rumAaAeBSj12F+bSlMdys7i8oQF/GUJmfpTS/QoaRrS/k6pma29haJpsMng==
+      integrity: sha512-vvcXsLAJ9Dr5rQOPk7toZQZJApBl2K4J6dANSsEuh6QI41JYcsS/qhTGa9ErIUUgK3WNQoJYvylxvjqmiqEA9Q==
   /p-locate/2.0.0:
     dependencies:
-      p-limit: 1.2.0
+      p-limit: 1.3.0
     dev: false
     engines:
       node: '>=4'

@@ -2,8 +2,8 @@ dependencies:
   '@pnpm/package-bins': 1.0.0
   '@pnpm/types': 1.7.0
   '@types/mz': 0.0.32
-  '@types/node': 10.1.2
-  '@types/ramda': 0.25.29
+  '@types/node': 10.3.2
+  '@types/ramda': 0.25.32
   dependency-path: 1.2.1
   fs-vacuum: 1.2.10
   mz: 2.7.0
@@ -39,7 +39,7 @@ packages:
       integrity: sha512-kp5ooq4wC84gelVjkQuV8GzDHe/m99+yvlx3HTHOP25SdfkshIG5k/q784cmw8axjBke/LXdgE9sR5JRNs8TTw==
   /@pnpm/fs-locker/1.0.2:
     dependencies:
-      '@types/node': 10.1.3
+      '@types/node': 10.3.2
       mkdirp-promise: 5.0.1
       proper-lockfile: 2.0.1
     dev: false
@@ -49,7 +49,7 @@ packages:
       integrity: sha512-ASULw2KzrapsjQVSMYdDc3f6+wYOs9cPt0M5Ip9VUkTfYfPrfxd0UYXcOPoUHkk7L12HUj0vwUYK0DE1da2gww==
   /@pnpm/logger/1.0.2:
     dependencies:
-      '@types/node': 10.1.2
+      '@types/node': 10.3.2
       bole: 3.0.2
       ndjson: 1.5.0
     dev: true
@@ -77,13 +77,13 @@ packages:
       '@pnpm/types': 1.7.0
       '@types/load-json-file': 2.0.7
       '@types/mz': 0.0.32
-      '@types/node': 10.1.3
+      '@types/node': 10.3.2
       '@types/p-queue': 2.3.1
       '@types/write-json-file': 2.2.1
       load-json-file: 5.0.0
       mkdirp-promise: 5.0.1
       mz: 2.7.0
-      p-limit: 1.2.0
+      p-limit: 1.3.0
       p-queue: 2.4.2
       path-exists: 3.0.0
       read-package-json: 2.0.13
@@ -129,29 +129,21 @@ packages:
       integrity: sha512-NrH6jPlV77QCVPhAHofWeiOr77TgpKt82c2RVxSBChWBJqyY/u4ngl3CA4mcsAg/w7rNLrkR7dkObMV0ihLLXw==
   /@types/mz/0.0.32:
     dependencies:
-      '@types/node': 10.1.3
+      '@types/node': 10.3.2
     dev: false
     resolution:
       integrity: sha512-cy3yebKhrHuOcrJGkfwNHhpTXQLgmXSv1BX+4p32j+VUQ6aP2eJ5cL7OvGcAQx75fCTFaAIIAKewvqL+iwSd4g==
-  /@types/node/10.1.2:
+  /@types/node/10.3.2:
     resolution:
-      integrity: sha512-bjk1RIeZBCe/WukrFToIVegOf91Pebr8cXYBwLBIsfiGWVQ+ifwWsT59H3RxrWzWrzd1l/Amk1/ioY5Fq3/bpA==
-  /@types/node/10.1.3:
-    dev: false
-    resolution:
-      integrity: sha512-GiCx7dRvta0hbxXoJFAUxz+CKX6bZSCKjM5slq2vPp/5zwK01T4ibYZkGr6EN4F2QmxDQR76/ZHg6q+7iFWCWw==
+      integrity: sha512-9NfEUDp3tgRhmoxzTpTo+lq+KIVFxZahuRX0LHF/9IzKHaWuoWsIrrJ61zw5cnnlGINX8lqJzXYfQTOICS5Q+A==
   /@types/p-queue/2.3.1:
     dev: false
     resolution:
       integrity: sha512-JyO7uMAtkcMMULmsTQ4t/lCC8nxirTtweGG1xAFNNIAoC1RemmeIxq8PiKghuEy99XdbS6Lwx4zpbXUjfeSSAA==
-  /@types/ramda/0.25.29:
+  /@types/ramda/0.25.32:
     dev: false
     resolution:
-      integrity: sha512-fWuYGHXie0IfRMh7zh90fsbgEvAfPt+SBmg1eNhTVecnjDQujP4npzJJFZdron9RwxfKmZ2PWmcfa1oKln4yfA==
-  /@types/ramda/0.25.30:
-    dev: false
-    resolution:
-      integrity: sha512-+ntNvcHAcu/+ZH7v3lC18kyT0JhUaVEdN9C/Wpqh7uL2hUlWYETtM7l5LVLzhphrfEOBpIuawsOzoB/ZnAM4wg==
+      integrity: sha512-KvkOhOprW8ln1XtlBoUPxrObnrZ1SQZezF9UlkWMYF0ZKpzlbwZDEcMZo6XcMsg/9M9Vl1lstCnCE8J7qxFAvQ==
   /@types/semver/5.5.0:
     dev: false
     resolution:
@@ -303,7 +295,7 @@ packages:
       graceful-fs: 4.1.11
       mz: 2.7.0
       p-every: 1.0.2
-      p-limit: 1.2.0
+      p-limit: 1.3.0
       ssri: 5.3.0
     dev: false
     engines:
@@ -324,18 +316,18 @@ packages:
     dev: false
     resolution:
       integrity: sha1-+FWobOYa3E6GIcPNoh56dhLDqNw=
-  /es-abstract/1.11.0:
+  /es-abstract/1.12.0:
     dependencies:
       es-to-primitive: 1.1.1
       function-bind: 1.1.1
-      has: 1.0.1
+      has: 1.0.3
       is-callable: 1.1.3
       is-regex: 1.0.4
     dev: false
     engines:
       node: '>= 0.4'
     resolution:
-      integrity: sha512-ZnQrE/lXTTQ39ulXZ+J1DTFazV9qBy61x2bY071B+qGco8Z8q1QddsLdt/EF8Ai9hcWH72dWS0kFqXLxOxqslA==
+      integrity: sha512-C8Fx/0jFmV5IPoMOFPA9P9G5NtqW+4cOPit3MIuvR2t7Ag2K15EJTpxnHAYTzL+aYQJIESYeXZmDBfOBE1HcpA==
   /es-to-primitive/1.1.1:
     dependencies:
       is-callable: 1.1.3
@@ -424,14 +416,14 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha1-tdRU3CGZriJWmfNGfloH87lVuv0=
-  /has/1.0.1:
+  /has/1.0.3:
     dependencies:
       function-bind: 1.1.1
     dev: false
     engines:
-      node: '>= 0.8.0'
+      node: '>= 0.4.0'
     resolution:
-      integrity: sha1-hGFzP1OLCDfJNh45qauelwTcLyg=
+      integrity: sha512-f2dvO0VU6Oej7RkWJGrehjbzMAjFp5/VKPp5tTpWIV4JHHZK1/BxbFRtf/siA2SWTe09caDmVtYYzWEIbBS4zw==
   /hosted-git-info/2.6.0:
     dev: false
     engines:
@@ -489,7 +481,7 @@ packages:
       integrity: sha1-caUMhCnfync8kqOQpKA7OfzVHT4=
   /is-regex/1.0.4:
     dependencies:
-      has: 1.0.1
+      has: 1.0.3
     dev: false
     engines:
       node: '>= 0.4'
@@ -515,12 +507,12 @@ packages:
     dev: true
     resolution:
       integrity: sha1-mGbfOVECEw449/mWvOtlRDIJwls=
-  /js-yaml/3.11.0:
+  /js-yaml/3.12.0:
     dependencies:
       argparse: 1.0.10
       esprima: 4.0.0
     resolution:
-      integrity: sha512-saJstZWv7oNeOyBh3+Dx1qWzhW0+e6/8eDzo7p5rDFqxntSztloLtuKu+Ejhtq82jsilwOIZYsCz+lIjthg1Hw==
+      integrity: sha512-PIt2cnwmPfL4hKNwqeiuz4bKfnzHTBv6HyVgjahA6mPLwPDzjDWrplJBMjHUFxku/N3FlmrbyPclad+I+4mJ3A==
   /json-parse-better-errors/1.0.2:
     dev: false
     resolution:
@@ -554,7 +546,7 @@ packages:
   /load-yaml-file/0.1.0:
     dependencies:
       graceful-fs: 4.1.11
-      js-yaml: 3.11.0
+      js-yaml: 3.12.0
       pify: 2.3.0
       strip-bom: 3.0.0
     dev: false
@@ -667,7 +659,7 @@ packages:
   /object.getownpropertydescriptors/2.0.3:
     dependencies:
       define-properties: 1.1.2
-      es-abstract: 1.11.0
+      es-abstract: 1.12.0
     dev: false
     engines:
       node: '>= 0.8'
@@ -700,14 +692,14 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha1-nJRWmJ6fZYgBewQ01WCXZ1w9oF4=
-  /p-limit/1.2.0:
+  /p-limit/1.3.0:
     dependencies:
       p-try: 1.0.0
     dev: false
     engines:
       node: '>=4'
     resolution:
-      integrity: sha512-Y/OtIaXtUPr4/YpMv1pCL5L5ed0rumAaAeBSj12F+bSlMdys7i8oQF/GUJmfpTS/QoaRrS/k6pma29haJpsMng==
+      integrity: sha512-vvcXsLAJ9Dr5rQOPk7toZQZJApBl2K4J6dANSsEuh6QI41JYcsS/qhTGa9ErIUUgK3WNQoJYvylxvjqmiqEA9Q==
   /p-map/1.2.0:
     dev: false
     engines:
@@ -735,15 +727,15 @@ packages:
       '@pnpm/types': 1.7.0
       '@types/load-json-file': 2.0.7
       '@types/mz': 0.0.32
-      '@types/node': 10.1.3
-      '@types/ramda': 0.25.30
+      '@types/node': 10.3.2
+      '@types/ramda': 0.25.32
       encode-registry: 1.1.0
       load-json-file: 5.0.0
       mkdirp-promise: 5.0.1
       mz: 2.7.0
       ncp: 2.0.0
       p-filter: 1.0.0
-      p-limit: 1.2.0
+      p-limit: 1.3.0
       path-exists: 3.0.0
       path-temp: 1.0.0
       ramda: 0.25.0
@@ -810,11 +802,11 @@ packages:
     dependencies:
       '@pnpm/resolver-base': 1.1.0
       '@types/js-yaml': 3.11.1
-      '@types/node': 10.1.2
-      '@types/ramda': 0.25.29
+      '@types/node': 10.3.2
+      '@types/ramda': 0.25.32
       dependency-path: 1.2.1
       get-npm-tarball-url: 2.0.1
-      js-yaml: 3.11.0
+      js-yaml: 3.12.0
       load-yaml-file: 0.1.0
       mkdirp-promise: 5.0.1
       ramda: 0.25.0
@@ -998,7 +990,7 @@ packages:
   /symlink-dir/1.1.3:
     dependencies:
       '@types/mz': 0.0.32
-      '@types/node': 10.1.3
+      '@types/node': 10.3.2
       graceful-fs: 4.1.11
       is-windows: 1.0.2
       mkdirp-promise: 5.0.1
@@ -1029,10 +1021,10 @@ packages:
     dev: true
     resolution:
       integrity: sha1-AARWmzfHx0ujnEPzzteNGtlBQL4=
-  /tslib/1.9.1:
+  /tslib/1.9.2:
     dev: true
     resolution:
-      integrity: sha512-avfPS28HmGLLc2o4elcc2EIq2FcH++Yo5YxpBZi9Yw93BCTGFthI4HPE4Rpep6vSYQaK8e69PelM44tPj+RaQg==
+      integrity: sha512-AVP5Xol3WivEr7hnssHDsaM+lVrVXWUvd1cfXTRkTj80b//6g2wIFEH6hZG0muGZRnHGrfttpdzRk3YlBkWjKw==
   /tslint/5.10.0:
     dependencies:
       babel-code-frame: 6.26.0
@@ -1041,11 +1033,11 @@ packages:
       commander: 2.15.1
       diff: 3.5.0
       glob: 7.1.2
-      js-yaml: 3.11.0
+      js-yaml: 3.12.0
       minimatch: 3.0.4
       resolve: 1.7.1
       semver: 5.5.0
-      tslib: 1.9.1
+      tslib: 1.9.2
       tsutils: 2.27.1
     dev: true
     engines:
@@ -1056,7 +1048,7 @@ packages:
       integrity: sha1-EeJrzLiK+gLdDZlWyuPUVAtfVMM=
   /tsutils/2.27.1:
     dependencies:
-      tslib: 1.9.1
+      tslib: 1.9.2
     dev: true
     peerDependencies:
       typescript: '>=2.1.0 || >=2.1.0-dev || >=2.2.0-dev || >=2.3.0-dev || >=2.4.0-dev || >=2.5.0-dev || >=2.6.0-dev || >=2.7.0-dev || >=2.8.0-dev || >=2.9.0-dev || >= 3.0.0-dev'
