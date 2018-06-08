@@ -289,6 +289,15 @@ function getHelpText (command: string) {
         alias: pnpm recursive t, pnpm recursive tst
 
         This runs each package's "test" script, if one was provided.
+
+        * * *
+
+        pnpm recursive rebuild [[<@scope>/<name>]...]
+
+        alias: pnpm recursive rb
+
+        This command runs the "npm build" command on each package.
+        This is useful when you install a new version of node, and must recompile all your C++ addons with the new binary.
       `
 
     default:
@@ -318,6 +327,7 @@ function getHelpText (command: string) {
           - recursive outdated
           - recursive run
           - recursive test
+          - recursive rebuild
 
         Experimental commands:
           - server start

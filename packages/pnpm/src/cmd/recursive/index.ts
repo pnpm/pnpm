@@ -14,6 +14,8 @@ import {
   InstallOptions,
   installPkgs,
   link,
+  rebuild,
+  rebuildPkgs,
   unlink,
   unlinkPkgs,
 } from 'supi'
@@ -32,6 +34,7 @@ const supportedRecursiveCommands = new Set([
   'unlink',
   'list',
   'outdated',
+  'rebuild',
   'run',
   'test',
 ])
@@ -121,9 +124,18 @@ export default async (
   }) as InstallOptions
 
   const limitInstallation = pLimit(concurrency)
-  const action = cmdFullName === 'unlink'
-    ? (input.length === 0 ? unlink : unlinkPkgs.bind(null, input))
-    : (input.length === 0 ? install : installPkgs.bind(null, input))
+  let action!: any // tslint:disable-line:no-any
+  switch (cmdFullName) {
+    case 'unlink':
+      action = (input.length === 0 ? unlink : unlinkPkgs.bind(null, input))
+      break
+    case 'rebuild':
+      action = (input.length === 0 ? rebuild : rebuildPkgs.bind(null, input))
+      break
+    default:
+      action = (input.length === 0 ? install : installPkgs.bind(null, input))
+      break
+  }
 
   for (const chunk of chunks) {
     await Promise.all(chunk.map((prefix: string) =>
