@@ -12,7 +12,7 @@ devDependencies:
   mos-plugin-readme: 1.0.4
   package-preview: 1.0.6
   rimraf: 2.6.2
-  tape: 4.9.0
+  tape: 4.9.1
   ts-node: 6.1.0
   tslint: 5.10.0
   typescript: 2.9.1
@@ -1834,10 +1834,10 @@ packages:
     dev: true
     resolution:
       integrity: sha1-NLymRKgPlPi6QaD50JhOr2Os8U0=
-  /object-inspect/1.5.0:
+  /object-inspect/1.6.0:
     dev: true
     resolution:
-      integrity: sha512-UmOFbHbwvv+XHj7BerrhVq+knjceBdkvU5AriwLMvhv2qi+e7DJzxfBeFpILEjVzCp+xA+W/pIf06RGPWlZNfw==
+      integrity: sha512-GJzfBZ6DgDAmnuaM3104jR4s1Myxr3Y3zfIyN4z3UdqN69oSRacNK8UhnobDdC+7J2AHCjGwxQubNJfE70SXXQ==
   /object-keys/1.0.11:
     dev: true
     engines:
@@ -2314,12 +2314,6 @@ packages:
     dev: true
     resolution:
       integrity: sha1-IDEU2CrSxe2ejgQRs5ModeiJ6Xs=
-  /resolve/1.5.0:
-    dependencies:
-      path-parse: 1.0.5
-    dev: true
-    resolution:
-      integrity: sha512-hgoSGrc3pjzAPHNBg+KnFcK2HwlHTs/YrAGUr6qgTVUZmXv1UEXXl0bZNBKMA9fud6lRYFdPGz0xXxycPzmmiw==
   /resolve/1.7.1:
     dependencies:
       path-parse: 1.0.5
@@ -2665,7 +2659,7 @@ packages:
     dev: true
     resolution:
       integrity: sha1-K7PqGb3J9SJSF7P5fL95hsxMbow=
-  /tape/4.9.0:
+  /tape/4.9.1:
     dependencies:
       deep-equal: 1.0.1
       defined: 1.0.0
@@ -2675,14 +2669,14 @@ packages:
       has: 1.0.3
       inherits: 2.0.3
       minimist: 1.2.0
-      object-inspect: 1.5.0
-      resolve: 1.5.0
+      object-inspect: 1.6.0
+      resolve: 1.7.1
       resumer: 0.0.0
       string.prototype.trim: 1.1.2
       through: 2.3.8
     dev: true
     resolution:
-      integrity: sha512-j0jO9BiScfqtPBb9QmPLL0qvxXMz98xjkMb7x8lKipFlJZwNJkqkWPou+NU4V6T9RnVh1kuSthLE8gLrN8bBfw==
+      integrity: sha512-6fKIXknLpoe/Jp4rzHKFPpJUHDHDqn8jus99IfPnHIjyz78HYlefTGD3b5EkbQzuLfaEvmfPK3IolLgq2xT3kw==
   /tar-fs/1.16.2:
     dependencies:
       chownr: 1.0.1

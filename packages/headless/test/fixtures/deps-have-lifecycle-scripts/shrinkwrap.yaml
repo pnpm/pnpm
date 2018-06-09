@@ -2,13 +2,13 @@ dependencies:
   json-append: 1.1.1
   pre-and-postinstall-scripts-example: 1.0.0
 packages:
-  /buffer-from/1.0.0:
+  /buffer-from/1.1.0:
     dev: false
     resolution:
-      integrity: sha512-83apNb8KK0Se60UE1+4Ukbe3HbfELJ6UlI4ldtOGs7So4KD26orJM8hIY9lxdzP+UpItH1Yh/Y8GUvNFWFFRxA==
+      integrity: sha512-c5mRlguI/Pe2dSZmpER62rSCu0ryKmWddzRYsuXc50U2/g8jMOulc31VZMa4mYx31U5xsmSOpDCgH88Vl9cDGQ==
   /concat-stream/1.6.2:
     dependencies:
-      buffer-from: 1.0.0
+      buffer-from: 1.1.0
       inherits: 2.0.3
       readable-stream: 2.3.6
       typedarray: 0.0.6
@@ -24,7 +24,7 @@ packages:
   /hello-world-js-bin/1.0.0:
     dev: false
     resolution:
-      integrity: sha512-DshYOod7RtDUhgFWSR5pwyOtwkqMvS6HEmYV+DdVcfAQrLh96tHpSeCK/caP1LBJWI+gHu9em0slOJFdLFUluA==
+      integrity: sha512-WH2M1dtgDK8YWal8k2D6I6K3zjtdcjHhhCGg1AFEUv5eQttxvIgJDofyTxbqsSfb304Ju5iARBcBKxpXRPyLlg==
   /inherits/2.0.3:
     dev: false
     resolution:
@@ -45,7 +45,7 @@ packages:
     dev: false
     requiresBuild: true
     resolution:
-      integrity: sha512-qsqg3Wsi0dKAHgIG/26QPX/iORjMEMqFQ+ANQBLLK8z1T5+4ETsRKZTofu+5fInLphfuNVQt9+CEHPzRbiVwXQ==
+      integrity: sha512-lBRS3bdfqFLP88XRdgNKOoAdoESMeJ9/zpmj2uHG1LyqIF6g7ilqX3fPCwP58HwMg+1xXy7yeZz8pcG7ZUmWUA==
   /process-nextick-args/2.0.0:
     dev: false
     resolution:
@@ -81,7 +81,7 @@ packages:
     resolution:
       integrity: sha1-RQ1Nyfpw3nMnYvvS1KKJgUGaDM8=
 registry: 'http://localhost:4873/'
-shrinkwrapMinorVersion: 5
+shrinkwrapMinorVersion: 7
 shrinkwrapVersion: 3
 specifiers:
   json-append: 1.1.1

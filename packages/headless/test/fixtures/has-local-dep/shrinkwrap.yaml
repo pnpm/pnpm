@@ -9,7 +9,7 @@ packages:
       tarball: 'file:../tar-pkg-1.0.0.tgz'
     version: 1.0.0
 registry: 'http://localhost:4873/'
-shrinkwrapMinorVersion: 5
+shrinkwrapMinorVersion: 7
 shrinkwrapVersion: 3
 specifiers:
   tar-pkg: 'file:../tar-pkg-1.0.0.tgz'
