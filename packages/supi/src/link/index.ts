@@ -15,7 +15,6 @@ import R = require('ramda')
 import symlinkDir = require('symlink-dir')
 import {PkgGraphNodeByNodeId} from '../api/install'
 import {SHRINKWRAP_MINOR_VERSION} from '../constants'
-import logStatus from '../logging/logInstallStatus'
 import resolvePeers, {DepGraphNode, DepGraphNodesByDepPath} from './resolvePeers'
 import updateShrinkwrap from './updateShrinkwrap'
 

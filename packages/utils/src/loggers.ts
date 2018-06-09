@@ -10,6 +10,7 @@ export const summaryLogger = baseLogger('summary') as Logger<void>
 export const rootLogger = baseLogger('root') as Logger<RootMessage>
 export const statsLogger = baseLogger('stats') as Logger<StatsMessage>
 export const skippedOptionalDependencyLogger = baseLogger('skipped-optional-dependency') as Logger<SkippedOptionalDependencyMessage>
+export const progressLogger = baseLogger('progress') as Logger<ProgressMessage>
 
 export type PackageJsonMessage = {
   initial: PackageJson,
@@ -82,9 +83,30 @@ export type StageLog = {name: 'pnpm:stage'} & LogBase & {message: 'resolution_st
 
 export type SummaryLog = {name: 'pnpm:summary'} & LogBase
 
+export interface LoggedPkg {
+  rawSpec: string,
+  name?: string, // sometimes known for the root dependency on named installation
+  dependentId?: string,
+}
+
+export type ProgressMessage = {
+  pkg: LoggedPkg,
+  status: 'installing',
+} | {
+ status: 'downloaded_manifest',
+ pkgId: string,
+ pkgVersion: string,
+} | {
+ pkgId: string,
+ status: 'fetched' | 'found_in_store' | 'resolving_content',
+}
+
+export type ProgressLog = {name: 'pnpm:progress'} & LogBase & ProgressMessage
+
 export type Log = StageLog
   | StatsLog
   | SkippedOptionalDependencyLog
   | RootLog
   | PackageJsonLog
   | SummaryLog
+  | ProgressLog

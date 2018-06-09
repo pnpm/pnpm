@@ -16,6 +16,7 @@ import pkgIdToFilename from '@pnpm/pkgid-to-filename'
 import {PackageJson} from '@pnpm/types'
 import {
   packageJsonLogger,
+  progressLogger,
   realNodeModulesDir,
   removeOrphanPackages as removeOrphanPkgs,
   rootLogger,
@@ -296,6 +297,10 @@ async function shrinkwrapToDepGraph (
       // TODO: optimize. This info can be already returned by pkgSnapshotToResolution()
       const pkgName = nameVerFromPkgSnapshot(relDepPath, pkgSnapshot).name
       const pkgId = pkgSnapshot.id || depPath
+      progressLogger.debug({
+        pkgId,
+        status: 'resolving_content',
+      })
       let fetchResponse = opts.storeController.fetchPackage({
         force: false,
         pkgId,
@@ -304,6 +309,14 @@ async function shrinkwrapToDepGraph (
         verifyStoreIntegrity: opts.verifyStoreIntegrity,
       })
       if (fetchResponse instanceof Promise) fetchResponse = await fetchResponse
+      fetchResponse.fetchingFiles
+        .then((fetchResult) => {
+          progressLogger.debug({
+            pkgId,
+            status: fetchResult.fromStore
+              ? 'found_in_store' : 'fetched',
+          })
+        })
       const cache = !opts.force && await getCache(opts.store, pkgId)
       const centralLocation = cache || path.join(fetchResponse.inStoreLocation, 'node_modules', pkgName)
 

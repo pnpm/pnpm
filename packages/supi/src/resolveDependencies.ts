@@ -11,6 +11,7 @@ import {
   ReadPackageHook,
 } from '@pnpm/types'
 import {
+  progressLogger,
   skippedOptionalDependencyLogger,
 } from '@pnpm/utils'
 import * as dp from 'dependency-path'
@@ -34,7 +35,6 @@ import getIsInstallable, {nodeIdToParents} from './install/getIsInstallable'
 import {
   deprecationLogger,
 } from './loggers'
-import logStatus from './logging/logInstallStatus'
 import {
   createNodeId,
   nodeIdContainsSequence,
@@ -255,7 +255,7 @@ async function install (
     name: wantedDependency.alias,
     rawSpec: wantedDependency.raw,
   }
-  logStatus({
+  progressLogger.debug({
     pkg: loggedPkg,
     status: 'installing',
   })
@@ -297,6 +297,23 @@ async function install (
 
   pkgResponse.body.id = encodePkgId(pkgResponse.body.id)
 
+  progressLogger.debug({
+    pkgId: pkgResponse.body.id,
+    status: 'resolving_content',
+  })
+  // tslint:disable:no-string-literal
+  if (pkgResponse['fetchingFiles']) {
+    pkgResponse['fetchingFiles']
+      .then((fetchResult: PackageFilesResponse) => {
+        progressLogger.debug({
+          pkgId: pkgResponse.body.id,
+          status: fetchResult.fromStore
+            ? 'found_in_store' : 'fetched',
+        })
+      })
+  }
+  // tslint:enable:no-string-literal
+
   if (!pkgResponse.body.updated && options.update && options.currentDepth >= ctx.depth && options.relDepPath &&
     ctx.currentShrinkwrap.packages && ctx.currentShrinkwrap.packages[options.relDepPath] && !ctx.force) {
     return null
@@ -319,7 +336,11 @@ async function install (
         version: manifest.version,
       })
     }
-    logStatus({status: 'downloaded_manifest', pkgId: pkgResponse.body.id, pkgVersion: manifest.version})
+    progressLogger.debug({
+      pkgId: pkgResponse.body.id,
+      pkgVersion: manifest.version,
+      status: 'downloaded_manifest',
+    })
     return null
   }
 
@@ -385,7 +406,11 @@ async function install (
     })
   }
 
-  logStatus({status: 'downloaded_manifest', pkgId: pkgResponse.body.id, pkgVersion: pkg.version})
+  progressLogger.debug({
+    pkgId: pkgResponse.body.id,
+    pkgVersion: pkg.version,
+    status: 'downloaded_manifest',
+  })
 
   // using colon as it will never be used inside a package ID
   const nodeId = createNodeId(options.parentNodeId, pkgResponse.body.id)

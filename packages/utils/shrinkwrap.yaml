@@ -7,7 +7,7 @@ dependencies:
   dependency-path: 1.2.1
   fs-vacuum: 1.2.10
   mz: 2.7.0
-  package-store: 0.21.0
+  package-store: 0.22.0
   pnpm-shrinkwrap: 6.4.0
   ramda: 0.25.0
   read-package-json: 2.0.13
@@ -68,7 +68,7 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha512-ZqVfIXK3r5AsP5VAhPHrhf3isF+T4yEuUpJTF9T03oFTJ9LBnkKvx8F7P7biKEManxSGOkSpNoIBdsura9pY5Q==
-  /@pnpm/package-requester/2.0.0:
+  /@pnpm/package-requester/3.0.0:
     dependencies:
       '@pnpm/check-package': 1.0.0
       '@pnpm/fetcher-base': 1.0.0
@@ -98,7 +98,7 @@ packages:
     peerDependencies:
       '@pnpm/logger': ^1.0.0
     resolution:
-      integrity: sha512-/viPcxuZGyYGlsyRjx9ebfV62nYlpeaMOEZlxyct5P2waY3O37wlI0naUC5fpbto0c9eXp/9hB2g7FAw7pTu3w==
+      integrity: sha512-0/YQP/UGkyyyMMruE83hY4b68dgSr9kqX/XpCr8zmGGL/1rNaJfPFuXrr8a9JHLYFTNBAzhVquTSTUnC/sM4lg==
   /@pnpm/pkgid-to-filename/1.0.1:
     dependencies:
       normalize-path: 3.0.0
@@ -718,11 +718,11 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha1-y8ec26+P1CKOE/Yh8rGiN8GyB7M=
-  /package-store/0.21.0:
+  /package-store/0.22.0:
     dependencies:
       '@pnpm/fetcher-base': 1.0.0
       '@pnpm/fs-locker': 1.0.2
-      '@pnpm/package-requester': 2.0.0
+      '@pnpm/package-requester': 3.0.0
       '@pnpm/resolver-base': 1.1.0
       '@pnpm/types': 1.7.0
       '@types/load-json-file': 2.0.7
@@ -749,7 +749,7 @@ packages:
     peerDependencies:
       '@pnpm/logger': ^1.0.0
     resolution:
-      integrity: sha512-OqesXK7KNeXafOUIx3ERkYjZFbTQLrAMstePeQ3CJqXWevmVtctenC9XI4HuzcgWMjtowZCZ8/RqaWFSl8Uggw==
+      integrity: sha512-FY2WdT9dsBwU8ccYlsRjmDhbizniNqLGR9HsaS/uPg7k3/PbC+wwpP2bhKZSebGrvKgXMnB7A8DZ1sNbHyxrfA==
   /parse-json/4.0.0:
     dependencies:
       error-ex: 1.3.1
@@ -1129,7 +1129,7 @@ specifiers:
   dependency-path: ^1.2.1
   fs-vacuum: ^1.2.10
   mz: ^2.7.0
-  package-store: ^0.21.0
+  package-store: ^0.22.0
   pnpm-shrinkwrap: ^6.4.0
   ramda: ^0.25.0
   read-package-json: ^2.0.13

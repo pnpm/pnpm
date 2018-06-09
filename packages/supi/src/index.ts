@@ -12,6 +12,7 @@ export {
 import {LifecycleLog} from '@pnpm/lifecycle'
 import {
   PackageJsonLog,
+  ProgressLog,
   RootLog,
   SkippedOptionalDependencyLog,
   StageLog,
@@ -37,7 +38,7 @@ export {UninstallOptions} from './api/extendUninstallOptions'
 import * as packageRequesterLogs from '@pnpm/package-requester'
 import * as supiLogs from './loggers'
 
-export type ProgressLog = supiLogs.ProgressLog | packageRequesterLogs.ProgressLog
+export type ProgressLog = ProgressLog | packageRequesterLogs.ProgressLog
 export type Log = supiLogs.Log
   | packageRequesterLogs.Log
   | LifecycleLog
@@ -47,3 +48,4 @@ export type Log = supiLogs.Log
   | PackageJsonLog
   | StageLog
   | SummaryLog
+  | ProgressLog

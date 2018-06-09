@@ -2,6 +2,8 @@ import getSaveType, {DependenciesType, dependenciesTypes} from './getSaveType'
 import {
   PackageJsonLog,
   packageJsonLogger,
+  ProgressLog,
+  progressLogger,
   RootLog,
   rootLogger,
   SkippedOptionalDependencyLog,
@@ -27,6 +29,8 @@ export {
   getSaveType,
   PackageJsonLog,
   packageJsonLogger,
+  ProgressLog,
+  progressLogger,
   readPackage,
   readPackageFromDir,
   realNodeModulesDir,

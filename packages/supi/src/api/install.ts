@@ -48,7 +48,6 @@ import {absolutePathToRef} from '../fs/shrinkwrap'
 import getSpecFromPackageJson from '../getSpecFromPackageJson'
 import linkPackages, {DepGraphNodesByDepPath} from '../link'
 import {DepGraphNode} from '../link/resolvePeers'
-import logStatus from '../logging/logInstallStatus'
 import {
   createNodeId,
   nodeIdContainsSequence,

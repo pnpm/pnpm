@@ -49,7 +49,7 @@
     "dependency-path": "^1.2.1",
     "fs-vacuum": "^1.2.10",
     "mz": "^2.7.0",
-    "package-store": "^0.21.0",
+    "package-store": "^0.22.0",
     "pnpm-shrinkwrap": "^6.4.0",
     "ramda": "^0.25.0",
     "read-package-json": "^2.0.13",
