@@ -109,7 +109,7 @@ async function _outdated (
     fetchRetryFactor: opts.fetchRetryFactor,
     fetchRetryMaxtimeout: opts.fetchRetryMaxtimeout,
     fetchRetryMintimeout: opts.fetchRetryMintimeout,
-    metaCache: new Map<string, object>(),
+    metaCache: new Map<string, object>() as any, // tslint:disable-line
     offline: opts.offline,
     rawNpmConfig: opts.rawNpmConfig,
     store: storePath,
