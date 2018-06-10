@@ -15,14 +15,11 @@ export interface LoggedPkg {
 // some of them can be removed
 export type ProgressMessage = {
   pkgId: string,
-  status: 'fetched' | 'installed' | 'dependencies_installed' | 'found_in_store' | 'resolving_content',
-} | {
-  pkgId: string,
   pkg: LoggedPkg,
   status: 'resolved',
 } | {
   pkg: LoggedPkg,
-  status: 'resolving' | 'error' | 'installing',
+  status: 'error',
 } | {
   pkgId: string,
   status: 'fetching_started',
@@ -32,10 +29,6 @@ export type ProgressMessage = {
   pkgId: string,
   status: 'fetching_progress',
   downloaded: number,
-} | {
-  status: 'downloaded_manifest',
-  pkgId: string,
-  pkgVersion: string,
 }
 
 export type ProgressLog = {name: 'pnpm:progress'} & LogBase & ProgressMessage

@@ -410,11 +410,6 @@ function fetchToStore (
     finishing: PromiseContainer<void>,
   ) {
     try {
-      progressLogger.debug({
-        pkgId: opts.pkgId,
-        status: 'resolving_content',
-      })
-
       const linkToUnpacked = path.join(target, 'package')
 
       // We can safely assume that if there is no data about the package in `store.json` then
@@ -428,10 +423,6 @@ function fetchToStore (
           ? await checkPackage(linkToUnpacked)
           : await loadJsonFile(path.join(path.dirname(linkToUnpacked), 'integrity.json'))
         if (satisfiedIntegrity) {
-          progressLogger.debug({
-            pkgId: opts.pkgId,
-            status: 'found_in_store',
-          })
           fetchingFiles.resolve({
             filenames: Object.keys(satisfiedIntegrity).filter((f) => !satisfiedIntegrity[f].isDir), // Filtering can be removed for store v3
             fromStore: true,
@@ -479,10 +470,6 @@ function fetchToStore (
         // not touching tarball and integrity.json
         targetExists && await rimraf(path.join(target, 'node_modules')),
       ])
-      progressLogger.debug({
-        pkgId: opts.pkgId,
-        status: 'fetched',
-      })
 
       // Ideally, fetchingFiles wouldn't care about when integrity is calculated.
       // However, we can only rename the temp folder once we know the package name.
