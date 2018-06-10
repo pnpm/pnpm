@@ -1,12 +1,20 @@
 import createResolveFromGit from '@pnpm/git-resolver'
 import resolveFromLocal from '@pnpm/local-resolver'
-import createResolveFromNpm from '@pnpm/npm-resolver'
+import createResolveFromNpm, {
+  PackageMeta,
+  PackageMetaCache,
+} from '@pnpm/npm-resolver'
 import resolveFromTarball from '@pnpm/tarball-resolver'
+
+export {
+  PackageMeta,
+  PackageMetaCache,
+}
 
 export default function createResolver (
   pnpmOpts: {
     rawNpmConfig: object,
-    metaCache: Map<string, object>,
+    metaCache: PackageMetaCache,
     store: string,
     // TODO: export options type from @pnpm/npm-resolver
     cert?: string,
