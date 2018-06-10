@@ -21,7 +21,7 @@ dependencies:
 devDependencies:
   '@pnpm/assert-project': 1.1.2
   '@pnpm/default-fetcher': 1.0.0
-  '@pnpm/default-resolver': 1.0.0
+  '@pnpm/default-resolver': 2.0.0
   '@pnpm/exec': 1.1.5
   '@pnpm/logger': 1.0.2
   '@pnpm/store-path': 1.0.3
@@ -92,17 +92,17 @@ packages:
       node: '>=6'
     resolution:
       integrity: sha1-cr3Cab6AEDhQsAIFPr/Vn8MF/0Y=
-  /@pnpm/default-resolver/1.0.0:
+  /@pnpm/default-resolver/2.0.0:
     dependencies:
       '@pnpm/git-resolver': 0.3.4
       '@pnpm/local-resolver': 1.0.0
-      '@pnpm/npm-resolver': 1.0.2
+      '@pnpm/npm-resolver': 2.0.0
       '@pnpm/tarball-resolver': 0.1.1
     dev: true
     engines:
       node: '>=6'
     resolution:
-      integrity: sha512-+HXVzRSXoT9mqEyr38hQtaWQerVYJuLlYpVGkQzn4dv7ECtn5J9hY4ZJ/3mO/mBvyXRIO0zbxlx9QhS6Dnynkg==
+      integrity: sha512-UFzIXMmdbIhu0wX2EW5KI7H3LjMhP2XjQfEU9jiYS2cKMLx7Cw9+0/W0an2lhikj4XG1KgvUlQW2Hm0UlIe2tg==
   /@pnpm/exec/1.1.5:
     dependencies:
       '@pnpm/self-installer': 2.0.4
@@ -233,7 +233,7 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha512-bl9TPt2UObSEpGPQHZ2soXSSwz+/0XZqK+afBRJ4L78NKV41oZTUnrLjeNbeNEVwIG9icrQ3ZeSslIvQy4L+Dw==
-  /@pnpm/npm-resolver/1.0.2:
+  /@pnpm/npm-resolver/2.0.0:
     dependencies:
       '@pnpm/resolver-base': 1.1.0
       '@pnpm/types': 1.7.0
@@ -258,7 +258,7 @@ packages:
     peerDependencies:
       '@pnpm/logger': ^1.0.0
     resolution:
-      integrity: sha512-Vm37jaOTw+oW+lO3INjwbidXucJ4By/GuHYAXOyWAjwWiuBbcIxyoC82vFNGHTC3zGcBi1PA/4DNgJ8tbaDnwQ==
+      integrity: sha512-BzFfdKTi7ahTAOQLdd4mGmYjXdONtHxlkMp9ecAfHO/DgpfKFtXYfwdTJ6hv2B+Mcs4Qf669HAX3dPYsDa29mw==
   /@pnpm/package-bins/1.0.0:
     dependencies:
       '@pnpm/types': 1.7.0
@@ -4711,7 +4711,7 @@ shrinkwrapVersion: 3
 specifiers:
   '@pnpm/assert-project': ^1.1.1
   '@pnpm/default-fetcher': ^0.4.0 || 1
-  '@pnpm/default-resolver': ^0.1.4 || 1
+  '@pnpm/default-resolver': ^2.0.0
   '@pnpm/exec': ^1.1.4
   '@pnpm/lifecycle': ^2.2.0
   '@pnpm/link-bins': ^1.0.1

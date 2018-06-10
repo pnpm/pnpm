@@ -1,6 +1,7 @@
 import createFetcher from '@pnpm/default-fetcher'
 import createResolver from '@pnpm/default-resolver'
 import { StrictPnpmOptions } from '@pnpm/types'
+import LRU = require('lru-cache')
 import createStore from 'package-store'
 import path = require('path')
 
@@ -36,7 +37,10 @@ export default async (
   })
   const resolve = createResolver(Object.assign(sopts, {
     fullMetadata: false,
-    metaCache: new Map(),
+    metaCache: LRU({
+      max: 10000,
+      maxAge: 120 * 1000, // 2 minutes
+    }) as any, // tslint:disable-line:no-any
   }))
   const fetchers = createFetcher(sopts)
   return {
