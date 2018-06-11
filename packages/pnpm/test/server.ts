@@ -326,3 +326,17 @@ test('fail if the store server is run by a different version of pnpm', async (t:
   t.equal(result.status, 1)
   t.ok(result.stdout.toString().indexOf('The store server runs on pnpm v2.0.0. The same pnpm version should be used to connect (current is') !== -1)
 })
+
+test('print server status', async (t: tape.Test) => {
+  const project = prepare(t)
+
+  const server = spawn(['server', 'start'])
+
+  const result = execPnpmSync('server', 'status', '--store', path.resolve('..', 'store'))
+
+  t.equal(result.status, 0)
+  const output = result.stdout.toString()
+  t.ok(output.includes('process id: '), 'process ID of the store server printed')
+
+  await execPnpm('server', 'stop')
+})

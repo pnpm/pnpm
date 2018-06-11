@@ -207,7 +207,7 @@ function getHelpText (command: string) {
       return stripIndent`
         pnpm server start
 
-        **Experimental!** Starts a service that does all interactions with the store.
+        Starts a service that does all interactions with the store.
         Other commands will delegate any store-related tasks to this service.
 
         Options:
@@ -218,14 +218,17 @@ function getHelpText (command: string) {
           --store                        the location where all the packages are saved on the disk.
           --network-concurrency <number> maximum number of concurrent network requests
           --[no-]verify-store-integrity  if false, doesn't check whether packages in the store were mutated
-          --only dev[elopment]           only \`devDependencies\` are installed regardless of the \`NODE_ENV\`.
           --[no-]lock
           --ignore-stop-requests         disallows stopping the server using \`pnpm server stop\`
           --ignore-upload-requests       disallows creating new side effect cache during install
 
         pnpm server stop
 
-        **Experimental!** Stops the store server.
+        Stops the store server.
+
+        pnpm server status
+
+        Prints information about the running server.
       `
 
     case 'recursive':
@@ -319,6 +322,7 @@ function getHelpText (command: string) {
           - store prune
           - root
           - rebuild
+
           - recursive link
           - recursive unlink
           - recursive install
@@ -329,9 +333,9 @@ function getHelpText (command: string) {
           - recursive test
           - recursive rebuild
 
-        Experimental commands:
           - server start
           - server stop
+          - server status
 
         Other commands are passed through to npm
       `

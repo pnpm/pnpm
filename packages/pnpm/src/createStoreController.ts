@@ -62,7 +62,7 @@ export default async function (
     serverJson = await tryLoadServerJson({ serverJsonPath, shouldRetryOnNoent: true })
     logger.info('A store server has been started. To stop it, use \`pnpm server stop\`')
     return {
-      ctrl: await connectStoreController(serverJson.connectionOptions), // tslint:disable-line
+      ctrl: await connectStoreController(serverJson!.connectionOptions), // tslint:disable-line
       path: store,
     }
   }
@@ -71,10 +71,18 @@ export default async function (
   }))
 }
 
-export async function tryLoadServerJson (options: {
-  serverJsonPath: string;
-  shouldRetryOnNoent: boolean;
-}) {
+export async function tryLoadServerJson (
+  options: {
+    serverJsonPath: string;
+    shouldRetryOnNoent: boolean;
+  },
+): Promise<null | {
+  connectionOptions: {
+    remotePrefix: string,
+  },
+  pid: number,
+  pnpmVersion: string,
+}> {
   let beforeFirstAttempt = true
   const startHRTime = process.hrtime()
   while (true) {
