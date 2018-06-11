@@ -1,9 +1,7 @@
 import logger, {streamParser} from '@pnpm/logger'
 import {read as readModulesYaml} from '@pnpm/modules-yaml'
-import {
-  readPackageFromDir as readPkgFromDir,
-  realNodeModulesDir,
-} from '@pnpm/utils'
+import {fromDir as readPkgFromDir} from '@pnpm/read-package-json'
+import {realNodeModulesDir} from '@pnpm/utils'
 import isInnerLink = require('is-inner-link')
 import isSubdir = require('is-subdir')
 import fs = require('mz/fs')

@@ -7,6 +7,7 @@ dependencies:
   '@pnpm/modules-yaml': 1.0.0
   '@pnpm/package-requester': 3.0.0
   '@pnpm/pkgid-to-filename': 1.0.1
+  '@pnpm/read-package-json': 1.0.0
   '@pnpm/resolver-base': 1.1.0
   '@pnpm/types': 1.7.0
   '@pnpm/utils': 'link:../utils'
@@ -352,6 +353,16 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha512-PxAHIeraDV9YE0mBriqWewN4iOGL3UMzS7XTaYhu1OvoTqEuJ3cFCHGUW2GR0sYiMf0krj2WIASgoXi4XpAGuA==
+  /@pnpm/read-package-json/1.0.0:
+    dependencies:
+      '@pnpm/types': 1.7.0
+      read-package-json: 2.0.13
+      util.promisify: 1.0.0
+    dev: false
+    engines:
+      node: '>=6'
+    resolution:
+      integrity: sha512-G2bs2KRL84eJggkUYxDpI8RA0xFKR4tNqvHy6bGF8fDIzNtkp17nOgEMIcA2ShSwUX80gQ8BpBh6ix5KKF46tw==
   /@pnpm/resolver-base/1.1.0:
     dependencies:
       '@pnpm/types': 1.7.0
@@ -1002,7 +1013,7 @@ packages:
   /buffer/3.6.0:
     dependencies:
       base64-js: 0.0.8
-      ieee754: 1.1.11
+      ieee754: 1.1.12
       isarray: 1.0.0
     dev: true
     resolution:
@@ -2270,10 +2281,10 @@ packages:
       node: '>=0.10.0'
     resolution:
       integrity: sha512-neyTUVFtahjf0mB3dZT77u+8O0QB89jFdnBkd5P1JgYPbPaia3gXXOVL2fq8VyU2gMMD7SaN7QukTB/pmXYvDA==
-  /ieee754/1.1.11:
+  /ieee754/1.1.12:
     dev: true
     resolution:
-      integrity: sha512-VhDzCKN7K8ufStx/CLj5/PDTMgph+qwN5Pkd5i0sGnVwk56zJ0lkT8Qzi1xqWLS0Wp29DgDtNeS7v8/wMoZeHg==
+      integrity: sha512-GguP+DRY+pJ3soyIiGPTvdiVXjZ+DbXOxGpXn3eMvNW4x4irjqXm4wHKscC+TfxSJ0yw/S1F24tqdMNsMZTiLA==
   /iferr/0.1.5:
     dev: true
     resolution:
@@ -4933,6 +4944,7 @@ specifiers:
   '@pnpm/modules-yaml': ^1.0.0
   '@pnpm/package-requester': ^3.0.0
   '@pnpm/pkgid-to-filename': ^1.0.0
+  '@pnpm/read-package-json': ^1.0.0
   '@pnpm/resolver-base': ^1.1.0
   '@pnpm/store-path': ^1.0.0
   '@pnpm/types': ^1.7.0

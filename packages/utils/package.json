@@ -42,6 +42,7 @@
   },
   "dependencies": {
     "@pnpm/package-bins": "^1.0.0",
+    "@pnpm/read-package-json": "^1.0.0",
     "@pnpm/types": "^1.7.0",
     "@types/mz": "^0.0.32",
     "@types/node": "^10.0.8",
@@ -52,7 +53,6 @@
     "package-store": "^0.22.0",
     "pnpm-shrinkwrap": "^6.4.0",
     "ramda": "^0.25.0",
-    "read-package-json": "^2.0.13",
     "rimraf-then": "^1.0.1",
     "util.promisify": "^1.0.0"
   }

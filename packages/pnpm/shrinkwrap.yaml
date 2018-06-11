@@ -4,7 +4,7 @@ dependencies:
   '@pnpm/default-resolver': 2.0.0
   '@pnpm/lifecycle': 2.2.1
   '@pnpm/logger': 1.0.2
-  '@pnpm/outdated': 0.3.3
+  '@pnpm/outdated': 0.3.4
   '@pnpm/server': 0.13.1
   '@pnpm/store-path': 1.0.3
   '@pnpm/types': 1.7.0
@@ -299,11 +299,11 @@ packages:
       '@pnpm/logger': ^1.0.0
     resolution:
       integrity: sha512-BzFfdKTi7ahTAOQLdd4mGmYjXdONtHxlkMp9ecAfHO/DgpfKFtXYfwdTJ6hv2B+Mcs4Qf669HAX3dPYsDa29mw==
-  /@pnpm/outdated/0.3.3:
+  /@pnpm/outdated/0.3.4:
     dependencies:
       '@pnpm/npm-resolver': 2.0.0
+      '@pnpm/read-package-json': 1.0.0
       '@pnpm/store-path': 1.0.3
-      '@pnpm/utils': 0.2.1
       '@types/node': 10.3.2
       dependency-path: 1.2.1
       pnpm-shrinkwrap: 6.4.0
@@ -313,18 +313,7 @@ packages:
     peerDependencies:
       '@pnpm/logger': ^1.0.0
     resolution:
-      integrity: sha512-zd57sJGvfd6vUQa9ct2+uFIhssfM57oGPPRPLu3kNR+mI+zwtCB1BK7AY3tRgmPsiPFgJ/vhluTYDXA2hUEk+w==
-  /@pnpm/package-bins/1.0.0:
-    dependencies:
-      '@pnpm/types': 1.7.0
-      '@types/mz': 0.0.32
-      mz: 2.7.0
-      p-filter: 1.0.0
-    dev: false
-    engines:
-      node: '>=4'
-    resolution:
-      integrity: sha512-ZqVfIXK3r5AsP5VAhPHrhf3isF+T4yEuUpJTF9T03oFTJ9LBnkKvx8F7P7biKEManxSGOkSpNoIBdsura9pY5Q==
+      integrity: sha512-iGRWu5AaKZ/bA9cJj266JV+HH1uOPNlCi9IlbfkxL0O5H1nudUOqj5VzGitifEuSqbPaXxM67NsShVCYllvZjQ==
   /@pnpm/package-requester/2.0.0:
     dependencies:
       '@pnpm/check-package': 1.0.0
@@ -395,6 +384,16 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha512-PxAHIeraDV9YE0mBriqWewN4iOGL3UMzS7XTaYhu1OvoTqEuJ3cFCHGUW2GR0sYiMf0krj2WIASgoXi4XpAGuA==
+  /@pnpm/read-package-json/1.0.0:
+    dependencies:
+      '@pnpm/types': 1.7.0
+      read-package-json: 2.0.13
+      util.promisify: 1.0.0
+    dev: false
+    engines:
+      node: '>=6'
+    resolution:
+      integrity: sha512-G2bs2KRL84eJggkUYxDpI8RA0xFKR4tNqvHy6bGF8fDIzNtkp17nOgEMIcA2ShSwUX80gQ8BpBh6ix5KKF46tw==
   /@pnpm/resolver-base/1.1.0:
     dependencies:
       '@pnpm/types': 1.7.0
@@ -486,29 +485,6 @@ packages:
     dev: false
     resolution:
       integrity: sha512-pn7g4uxcofWTNG/cxmKvkMK2lxr4OUIhrQDrEVYEdVhW0WkWztsHkFrYjFgfNzPbYu3ITlB3T6aSVjCoJQTOlw==
-  /@pnpm/utils/0.2.1:
-    dependencies:
-      '@pnpm/package-bins': 1.0.0
-      '@pnpm/types': 1.7.0
-      '@types/mz': 0.0.32
-      '@types/node': 10.3.2
-      '@types/ramda': 0.25.32
-      dependency-path: 1.2.1
-      fs-vacuum: 1.2.10
-      mz: 2.7.0
-      package-store: 0.21.0
-      pnpm-shrinkwrap: 6.4.0
-      ramda: 0.25.0
-      read-package-json: 2.0.13
-      rimraf-then: 1.0.1
-      util.promisify: 1.0.0
-    dev: false
-    engines:
-      node: '>=6'
-    peerDependencies:
-      '@pnpm/logger': ^1.0.0
-    resolution:
-      integrity: sha512-mndMH3oZOYXcTPdFQZIht13Wk0ISl6se1xn8Dbjc0JR2dnx55PzqGfzDR16FTxqzLgt1pWl7zJbTN2hh/mtyfw==
   /@sindresorhus/is/0.7.0:
     dev: false
     engines:
@@ -1189,7 +1165,7 @@ packages:
   /buffer/3.6.0:
     dependencies:
       base64-js: 0.0.8
-      ieee754: 1.1.11
+      ieee754: 1.1.12
       isarray: 1.0.0
     resolution:
       integrity: sha1-pyyTb3e5a/UvX357RnGAYoVR3vs=
@@ -2482,14 +2458,6 @@ packages:
     dev: true
     resolution:
       integrity: sha512-66Pm4RYbjzdyeuqudYqhFiNBbCIuI9kgRqLPSHIlXHidW8NIQtVdkM1yeZ4lXwuhbTETv3EUGMNHAAw6hiundQ==
-  /fs-vacuum/1.2.10:
-    dependencies:
-      graceful-fs: 4.1.11
-      path-is-inside: 1.0.2
-      rimraf: 2.6.2
-    dev: false
-    resolution:
-      integrity: sha1-t2Kb7AekAxolSP35n17PHMizHjY=
   /fs-write-stream-atomic/1.0.10:
     dependencies:
       graceful-fs: 4.1.11
@@ -2976,9 +2944,9 @@ packages:
       node: '>=0.10.0'
     resolution:
       integrity: sha512-neyTUVFtahjf0mB3dZT77u+8O0QB89jFdnBkd5P1JgYPbPaia3gXXOVL2fq8VyU2gMMD7SaN7QukTB/pmXYvDA==
-  /ieee754/1.1.11:
+  /ieee754/1.1.12:
     resolution:
-      integrity: sha512-VhDzCKN7K8ufStx/CLj5/PDTMgph+qwN5Pkd5i0sGnVwk56zJ0lkT8Qzi1xqWLS0Wp29DgDtNeS7v8/wMoZeHg==
+      integrity: sha512-GguP+DRY+pJ3soyIiGPTvdiVXjZ+DbXOxGpXn3eMvNW4x4irjqXm4wHKscC+TfxSJ0yw/S1F24tqdMNsMZTiLA==
   /iferr/0.1.5:
     dev: false
     resolution:

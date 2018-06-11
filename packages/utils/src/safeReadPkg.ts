@@ -1,6 +1,6 @@
+import readPkg from '@pnpm/read-package-json'
 import {PackageJson} from '@pnpm/types'
 import path = require('path')
-import readPkg from './readPkg'
 
 export default async function safeReadPkg (pkgPath: string): Promise<PackageJson | null> {
   try {

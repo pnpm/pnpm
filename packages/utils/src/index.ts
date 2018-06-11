@@ -15,7 +15,6 @@ import {
   SummaryLog,
   summaryLogger,
 } from './loggers'
-import {fromDir as readPackageFromDir} from './readPkg'
 import realNodeModulesDir from './realNodeModulesDir'
 import removeOrphanPackages from './removeOrphanPkgs'
 import removeTopDependency from './removeTopDependency'
@@ -32,7 +31,6 @@ export {
   ProgressLog,
   progressLogger,
   readPackage,
-  readPackageFromDir,
   realNodeModulesDir,
   removeOrphanPackages,
   removeTopDependency,

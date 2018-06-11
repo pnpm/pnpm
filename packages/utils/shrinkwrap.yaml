@@ -1,5 +1,6 @@
 dependencies:
   '@pnpm/package-bins': 1.0.0
+  '@pnpm/read-package-json': 1.0.0
   '@pnpm/types': 1.7.0
   '@types/mz': 0.0.32
   '@types/node': 10.3.2
@@ -10,7 +11,6 @@ dependencies:
   package-store: 0.22.0
   pnpm-shrinkwrap: 6.4.0
   ramda: 0.25.0
-  read-package-json: 2.0.13
   rimraf-then: 1.0.1
   util.promisify: 1.0.0
 devDependencies:
@@ -107,6 +107,16 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha512-PxAHIeraDV9YE0mBriqWewN4iOGL3UMzS7XTaYhu1OvoTqEuJ3cFCHGUW2GR0sYiMf0krj2WIASgoXi4XpAGuA==
+  /@pnpm/read-package-json/1.0.0:
+    dependencies:
+      '@pnpm/types': 1.7.0
+      read-package-json: 2.0.13
+      util.promisify: 1.0.0
+    dev: false
+    engines:
+      node: '>=6'
+    resolution:
+      integrity: sha512-G2bs2KRL84eJggkUYxDpI8RA0xFKR4tNqvHy6bGF8fDIzNtkp17nOgEMIcA2ShSwUX80gQ8BpBh6ix5KKF46tw==
   /@pnpm/resolver-base/1.1.0:
     dependencies:
       '@pnpm/types': 1.7.0
@@ -1122,6 +1132,7 @@ shrinkwrapVersion: 3
 specifiers:
   '@pnpm/logger': ^1.0.1
   '@pnpm/package-bins': ^1.0.0
+  '@pnpm/read-package-json': ^1.0.0
   '@pnpm/types': ^1.7.0
   '@types/mz': ^0.0.32
   '@types/node': ^10.0.8
@@ -1132,7 +1143,6 @@ specifiers:
   package-store: ^0.22.0
   pnpm-shrinkwrap: ^6.4.0
   ramda: ^0.25.0
-  read-package-json: ^2.0.13
   rimraf: ^2.6.2
   rimraf-then: ^1.0.1
   tslint: ^5.4.2

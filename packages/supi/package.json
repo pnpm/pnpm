@@ -27,6 +27,7 @@
     "@pnpm/modules-yaml": "^1.0.0",
     "@pnpm/package-requester": "^3.0.0",
     "@pnpm/pkgid-to-filename": "^1.0.0",
+    "@pnpm/read-package-json": "^1.0.0",
     "@pnpm/resolver-base": "^1.1.0",
     "@pnpm/types": "^1.7.0",
     "@pnpm/utils": "^0.2.0",
