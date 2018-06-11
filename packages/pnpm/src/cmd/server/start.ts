@@ -9,6 +9,7 @@ import fs = require('mz/fs')
 import path = require('path')
 import onExit = require('signal-exit')
 import createStore from '../../createStore'
+import packageManager from '../../pnpmPkgJson'
 import serverConnectionInfoDir from '../../serverConnectionInfoDir'
 import { PnpmOptions } from '../../types'
 
@@ -86,6 +87,7 @@ export default async (
   const serverJson = {
     connectionOptions,
     pid: process.pid,
+    pnpmVersion: packageManager.version,
   }
   const serverJsonStr = JSON.stringify(serverJson, undefined, 2) // undefined and 2 are for formatting.
   const serverJsonBuffer = Buffer.from(serverJsonStr, 'utf8')

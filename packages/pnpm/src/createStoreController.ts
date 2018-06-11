@@ -7,6 +7,7 @@ import fs = require('mz/fs')
 import {StoreController} from 'package-store'
 import path = require('path')
 import createStore from './createStore'
+import packageManager from './pnpmPkgJson'
 import runServerInBackground from './runServerInBackground'
 import serverConnectionInfoDir from './serverConnectionInfoDir'
 
@@ -45,6 +46,11 @@ export default async function (
   const serverJsonPath = path.join(connectionInfoDir, 'server.json')
   let serverJson = await tryLoadServerJson({ serverJsonPath, shouldRetryOnNoent: false })
   if (serverJson !== null) {
+    if (serverJson.pnpmVersion !== packageManager.version) {
+      const err = new Error(`The store server runs on pnpm v${serverJson.pnpmVersion}. The same pnpm version should be used to connect (current is v${packageManager.version})`)
+      err['code'] = 'ERR_PNPM_INCOMPATIBLE_STORE_SERVER' // tslint:disable-line:no-string-literal
+      throw err
+    }
     logger.info('A store server is running. All store manipulations are delegated to it.')
     return {
       ctrl: await connectStoreController(serverJson.connectionOptions), // tslint:disable-line

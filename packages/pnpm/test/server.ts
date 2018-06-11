@@ -11,6 +11,7 @@ import tape = require('tape')
 import promisifyTape from 'tape-promise'
 import killcb = require('tree-kill')
 import promisify = require('util.promisify')
+import writeJsonFile = require('write-json-file')
 import {
   createDeferred,
   Deferred,
@@ -38,6 +39,7 @@ test('installation using pnpm server', async (t: tape.Test) => {
   const serverJson = await retryLoadJsonFile(serverJsonPath)
   t.ok(serverJson)
   t.ok(serverJson.connectionOptions)
+  t.equal(typeof serverJson.pnpmVersion, 'string', 'pnpm version added added to server.json')
 
   await execPnpm('install', 'is-positive@1.0.0')
 
@@ -311,4 +313,16 @@ test('installation without store server running in the background', async (t: ta
   t.notOk(await pathExists(serverJsonPath), 'store server not running')
 
   t.ok(project.requireModule('is-positive'))
+})
+
+test('fail if the store server is run by a different version of pnpm', async (t: tape.Test) => {
+  const project = prepare(t)
+
+  const serverJsonPath = path.resolve('..', 'store', '2', 'server', 'server.json')
+  await writeJsonFile(serverJsonPath, {pnpmVersion: '2.0.0'})
+
+  const result = execPnpmSync('install', 'is-positive@1.0.0')
+
+  t.equal(result.status, 1)
+  t.ok(result.stdout.toString().indexOf('The store server runs on pnpm v2.0.0. The same pnpm version should be used to connect (current is') !== -1)
 })
