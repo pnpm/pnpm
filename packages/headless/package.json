@@ -1,7 +1,7 @@
 {
   "name": "@pnpm/headless",
   "description": "Fast installation using only shrinkwrap.yaml",
-  "version": "0.5.0",
+  "version": "0.5.1",
   "author": {
     "name": "Zoltan Kochan",
     "email": "z@kochan.io",
@@ -89,7 +89,7 @@
     "@pnpm/package-requester": "^3.0.0",
     "@pnpm/pkgid-to-filename": "^1.0.0",
     "@pnpm/types": "^1.7.0",
-    "@pnpm/utils": "^0.2.0",
+    "@pnpm/utils": "^0.3.0",
     "@types/ramda": "^0.25.19",
     "dependency-path": "^1.2.1",
     "graph-sequencer": "^2.0.0",
