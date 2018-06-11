@@ -1,7 +1,7 @@
 import logger from '@pnpm/logger'
 import createResolver from '@pnpm/npm-resolver'
+import {fromDir as readPackageFromDir} from '@pnpm/read-package-json'
 import resolveStore from '@pnpm/store-path'
-import {readPackageFromDir} from '@pnpm/utils'
 import * as dp from 'dependency-path'
 import {
   readCurrent as readCurrentShrinkwrap,
