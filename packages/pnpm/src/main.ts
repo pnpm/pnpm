@@ -154,13 +154,6 @@ export default async function run (argv: string[]) {
     cmd = 'help'
   }
 
-  // Don't check for updates
-  //   1. on CI environments
-  //   2. when in the middle of an actual update
-  if (!isCI && ((cmd !== 'install' && cmd !== 'update') || cliConf.argv.remain.indexOf(packageManager.name) === -1)) {
-    checkForUpdates()
-  }
-
   if (cliConf['dry-run']) {
     console.error(`Error: 'dry-run' is not supported yet, sorry!`)
     process.exit(1)
@@ -173,6 +166,15 @@ export default async function run (argv: string[]) {
     packageManager,
   })
 
+  const selfUpdate = opts.global && (cmd === 'install' || cmd === 'update') && cliConf.argv.remain.indexOf(packageManager.name) !== -1
+
+  // Don't check for updates
+  //   1. on CI environments
+  //   2. when in the middle of an actual update
+  if (!isCI && !selfUpdate) {
+    checkForUpdates()
+  }
+
   const reporterType: ReporterType = (() => {
     if (opts.loglevel === 'silent') return 'silent'
     if (opts.reporter) return opts.reporter as ReporterType
@@ -181,6 +183,10 @@ export default async function run (argv: string[]) {
   })()
   initReporter(reporterType, cmd) // tslint:disable-line
   delete opts.reporter // This is a silly workaround because supi expects a function as opts.reporter
+
+  if (selfUpdate) {
+    await pnpmCmds.server(['stop'], opts)
+  }
 
   // NOTE: we defer the next stage, otherwise reporter might not catch all the logs
   await new Promise((resolve, reject) => {
