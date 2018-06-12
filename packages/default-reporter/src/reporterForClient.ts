@@ -101,23 +101,27 @@ export default function (
     }
   }
 
-  const importingDone$ = log$.stage.filter((log) => log.message === 'importing_done')
-    .constant(true)
-    .take(1)
-    .startWith(false)
-    .multicast()
+  const importingDone$ = isRecursive
+    ? most.of(false)
+    : log$.stage.filter((log) => log.message === 'importing_done')
+      .constant(true)
+      .take(1)
+      .startWith(false)
+      .multicast()
 
-  if (!isRecursive && typeof throttleProgress === 'number' && throttleProgress > 0) {
+  if (typeof throttleProgress === 'number' && throttleProgress > 0) {
     const resolutionStarted$ = log$.stage
       .filter((log) => log.message === 'resolution_started' || log.message === 'importing_started').take(1)
     const commandDone$ = log$.cli.filter((log) => log['message'] === 'command_done')
 
     // Reporting is done every `throttleProgress` milliseconds
     // and once all packages are fetched.
-    const sampler = most.merge(
-      most.periodic(throttleProgress).since(resolutionStarted$).until(most.merge<{}>(importingDone$.skip(1), commandDone$)),
-      importingDone$,
-    )
+    const sampler = isRecursive
+      ? most.merge(most.periodic(throttleProgress).until(commandDone$), commandDone$)
+      : most.merge(
+        most.periodic(throttleProgress).since(resolutionStarted$).until(most.merge<{}>(importingDone$.skip(1), commandDone$)),
+        importingDone$,
+      )
     const progress = most.sample(
       createStatusMessage,
       sampler,
