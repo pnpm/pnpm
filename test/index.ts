@@ -680,7 +680,7 @@ test('error is thrown when package is not found in the registry', async t => {
   } catch (err) {
     t.equal(err.message, `404 Not Found: ${notExistingPackage} (via https://registry.npmjs.org/foo)`)
     t.equal(err['package'], notExistingPackage)
-    t.equal(err['code'], 'ERR_PNPM_REGISTRY_RESPONSE_404')
+    t.equal(err['code'], 'ERR_PNPM_REGISTRY_META_RESPONSE_404')
     t.equal(err['uri'], `${registry}${notExistingPackage}`)
     t.end()
   }
@@ -700,8 +700,8 @@ test('error is thrown when there is no package found for the requested version',
     await resolveFromNpm({ alias: 'is-positive', pref: '1000.0.0' }, { registry })
     t.fail('installation should have failed')
   } catch (err) {
-    t.ok(err.message.startsWith('No compatible version found: is-positive@1000.0.0'), 'failed with correct error message')
-    t.equal(err['code'], 'ERR_PNPM_NO_COMPATIBLE_VERSION')
+    t.ok(err.message.startsWith('No matching version found for is-positive@1000.0.0'), 'failed with correct error message')
+    t.equal(err['code'], 'ERR_PNPM_NO_MATCHING_VERSION')
     t.ok(err['packageMeta'])
     t.end()
   }
@@ -723,7 +723,7 @@ test('error is thrown when package needs authorization', async t => {
   } catch (err) {
     t.equal(err.message, '403 Forbidden: needs-auth (via https://registry.npmjs.org/needs-auth)')
     t.equal(err['package'], 'needs-auth')
-    t.equal(err['code'], 'ERR_PNPM_REGISTRY_RESPONSE_403')
+    t.equal(err['code'], 'ERR_PNPM_REGISTRY_META_RESPONSE_403')
     t.equal(err['uri'], `${registry}needs-auth`)
     t.end()
   }
@@ -743,7 +743,7 @@ test('error is thrown when there is no package found for the requested range', a
     await resolveFromNpm({ alias: 'is-positive', pref: '^1000.0.0' }, { registry })
     t.fail('installation should have failed')
   } catch (err) {
-    t.ok(err.message.startsWith('No compatible version found: is-positive@>=1000.0.0 <1001.0.0'), 'failed with correct error message')
+    t.ok(err.message.startsWith('No matching version found for is-positive@>=1000.0.0 <1001.0.0'), 'failed with correct error message')
     t.end()
   }
 })
@@ -762,7 +762,7 @@ test('error is thrown when there is no package found for the requested tag', asy
     await resolveFromNpm({ alias: 'is-positive', pref: 'unknown-tag' }, { registry })
     t.fail('installation should have failed')
   } catch (err) {
-    t.ok(err.message.startsWith('No compatible version found: is-positive@unknown-tag'), 'failed with correct error message')
+    t.ok(err.message.startsWith('No matching version found for is-positive@unknown-tag'), 'failed with correct error message')
     t.end()
   }
 })

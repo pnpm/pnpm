@@ -153,7 +153,7 @@ async function fromRegistry (
   if (res.status > 400) {
     const err = new Error(`${res.status} ${res.statusText}: ${pkgName} (via ${uri})`)
     // tslint:disable
-    err['code'] = `ERR_PNPM_REGISTRY_RESPONSE_${res.status}`
+    err['code'] = `ERR_PNPM_REGISTRY_META_RESPONSE_${res.status}`
     err['uri'] = uri
     err['response'] = res
     err['package'] = pkgName

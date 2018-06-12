@@ -129,10 +129,10 @@ async function resolveNpm (
     const message = versions.length
       ? 'Versions in registry:\n' + versions.join(', ') + '\n'
       : 'No valid version found.'
-    const err = new Error('No compatible version found: ' +
+    const err = new Error('No matching version found for ' +
       toRaw(spec) + '\n' + message)
     // tslint:disable:no-string-literal
-    err['code'] = 'ERR_PNPM_NO_COMPATIBLE_VERSION'
+    err['code'] = 'ERR_PNPM_NO_MATCHING_VERSION'
     err['packageMeta'] = meta
     // tslint:enable:no-string-literal
     throw err
