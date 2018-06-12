@@ -5,11 +5,13 @@ import delay = require('delay')
 import test = require('tape')
 import normalizeNewline = require('normalize-newline')
 import {toOutput$} from 'pnpm-default-reporter'
-import {stripIndents} from 'common-tags'
+import {stripIndents, stripIndent} from 'common-tags'
 import chalk from 'chalk'
 import most = require('most')
 import StackTracey = require('stacktracey')
 import R = require('ramda')
+import loadJsonFile = require('load-json-file')
+import path = require('path')
 
 const WARN = chalk.bgYellow.black('\u2009WARN\u2009')
 const ERROR = chalk.bgRed.black('\u2009ERROR\u2009')
@@ -475,6 +477,61 @@ test('prints generic error when recursive install fails', t => {
     complete: () => t.end(),
     error: t.end,
   })
+})
+
+test('prints no matching version error when many dist-tags exist', async (t) => {
+  const output$ = toOutput$(createStreamParser(), {cmd: 'install'})
+
+  t.plan(1)
+
+  output$.take(1).map(normalizeNewline).subscribe({
+    next: output => {
+      t.equal(output, stripIndent`
+        ${ERROR} ${chalk.red('No matching version found for pnpm@1000.0.0')}
+
+        The latest release of pnpm is "2.4.0".
+
+        Other releases are:
+          * stable: 2.2.2
+          * next: 2.4.0
+          * latest-1: 1.43.1
+
+        If you need the full list of all 281 published versions run "$ pnpm view pnpm versions".
+      `)
+    },
+    complete: () => t.end(),
+    error: t.end,
+  })
+
+  const err = new Error('No matching version found for pnpm@1000.0.0')
+  err['code'] = 'ERR_PNPM_NO_MATCHING_VERSION'
+  err['packageMeta'] = await loadJsonFile(path.join(__dirname, 'pnpm-meta.json'))
+  logger.error(err, err)
+})
+
+test('prints no matching version error when only the latest dist-tag exists', async (t) => {
+  const output$ = toOutput$(createStreamParser(), {cmd: 'install'})
+
+  t.plan(1)
+
+  output$.take(1).map(normalizeNewline).subscribe({
+    next: output => {
+      t.equal(output, stripIndent`
+        ${ERROR} ${chalk.red('No matching version found for is-positive@1000.0.0')}
+
+        The latest release of is-positive is "3.1.0".
+
+        If you need the full list of all 4 published versions run "$ pnpm view is-positive versions".
+      `)
+    },
+    complete: () => t.end(),
+    error: t.end,
+  })
+
+  const err = new Error('No matching version found for is-positive@1000.0.0')
+  err['code'] = 'ERR_PNPM_NO_MATCHING_VERSION'
+  err['packageMeta'] = await loadJsonFile(path.join(__dirname, 'is-positive-meta.json'))
+  logger.error(err, err)
 })
 
 test('prints info', t => {

@@ -157,7 +157,7 @@ packages:
     dependencies:
       '@pnpm/git-resolver': 0.3.4
       '@pnpm/local-resolver': 1.0.0
-      '@pnpm/npm-resolver': 2.1.1
+      '@pnpm/npm-resolver': 2.1.2
       '@pnpm/tarball-resolver': 0.1.1
     dev: false
     engines:
@@ -273,7 +273,7 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha512-bl9TPt2UObSEpGPQHZ2soXSSwz+/0XZqK+afBRJ4L78NKV41oZTUnrLjeNbeNEVwIG9icrQ3ZeSslIvQy4L+Dw==
-  /@pnpm/npm-resolver/2.1.1:
+  /@pnpm/npm-resolver/2.1.2:
     dependencies:
       '@pnpm/resolver-base': 1.1.0
       '@pnpm/types': 1.7.0
@@ -298,10 +298,10 @@ packages:
     peerDependencies:
       '@pnpm/logger': ^1.0.0
     resolution:
-      integrity: sha512-M9LYZIPEs93dwq2HSVhD2YNAFf4V37YpzK6pTO/jaH/jLAHw/452ai1L4H7cI0hrvV9HuOQoORNe2b7h1nSt1w==
+      integrity: sha512-cxI4EoP8dy+ghgATDYqVprov333sQ6qRSyxvCu+J7kKnUXRRGTSkUUfSzDz5UosvBnCJgW3jcOPzPWC601iVPA==
   /@pnpm/outdated/0.3.4:
     dependencies:
-      '@pnpm/npm-resolver': 2.1.1
+      '@pnpm/npm-resolver': 2.1.2
       '@pnpm/read-package-json': 1.0.0
       '@pnpm/store-path': 1.0.3
       '@types/node': 10.3.2

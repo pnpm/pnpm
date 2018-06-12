@@ -26,9 +26,11 @@ dependencies:
 devDependencies:
   '@pnpm/logger': 1.0.2
   '@types/delay': 2.0.1
+  '@types/load-json-file': 2.0.7
   '@types/tape': 4.2.32
   delay: 3.0.0
   ghooks: 2.0.4
+  load-json-file: 5.0.0
   mos-tap-diff: 1.0.0
   normalize-newline: 3.0.0
   package-preview: 1.0.6
@@ -885,6 +887,17 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha1-L19Fq5HjMhYjT9U62rZo607AmTs=
+  /load-json-file/5.0.0:
+    dependencies:
+      graceful-fs: 4.1.11
+      parse-json: 4.0.0
+      pify: 3.0.0
+      strip-bom: 3.0.0
+    dev: true
+    engines:
+      node: '>=6'
+    resolution:
+      integrity: sha512-wWRJeA/YQ2s53fBSrPrr6gnSKmNcnk4TV4c40ITRGQ4uxpgPddBL9xNh3WxPjJHewwzo2rFkEJWt87OR/35MEw==
   /locate-path/2.0.0:
     dependencies:
       p-locate: 2.0.0
@@ -1812,6 +1825,7 @@ specifiers:
   '@pnpm/logger': ^1.0.0
   '@types/common-tags': ^1.2.5
   '@types/delay': ^2.0.1
+  '@types/load-json-file': ^2.0.7
   '@types/node': ^9.3.0 || 10
   '@types/ramda': ^0.25.6
   '@types/semver': ^5.4.0
@@ -1823,6 +1837,7 @@ specifiers:
   common-tags: ^1.4.0
   delay: ^3.0.0
   ghooks: ^2.0.0
+  load-json-file: ^5.0.0
   mos-tap-diff: ^1.0.0
   most: ^1.7.2
   most-last: ^1.0.0

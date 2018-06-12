@@ -1,0 +1,74 @@
+{
+    "versions": {
+        "1.0.0": {
+            "name": "is-positive",
+            "version": "1.0.0",
+            "devDependencies": {
+                "ava": "^0.0.4"
+            },
+            "_hasShrinkwrap": false,
+            "directories": {},
+            "dist": {
+                "shasum": "88009856b64a2f1eb7d8bb0179418424ae0452cb",
+                "tarball": "https://registry.npmjs.org/is-positive/-/is-positive-1.0.0.tgz"
+            },
+            "engines": {
+                "node": ">=0.10.0"
+            }
+        },
+        "2.0.0": {
+            "name": "is-positive",
+            "version": "2.0.0",
+            "devDependencies": {
+                "ava": "^0.0.4"
+            },
+            "_hasShrinkwrap": false,
+            "directories": {},
+            "dist": {
+                "shasum": "b14f06bd2db810ae6c8b12741d136bfaef0d87bd",
+                "tarball": "https://registry.npmjs.org/is-positive/-/is-positive-2.0.0.tgz"
+            },
+            "engines": {
+                "node": ">=0.10.0"
+            }
+        },
+        "3.0.0": {
+            "name": "is-positive",
+            "version": "3.0.0",
+            "devDependencies": {
+                "ava": "^0.0.4"
+            },
+            "_hasShrinkwrap": false,
+            "directories": {},
+            "dist": {
+                "shasum": "8ef0ee22f7ce24f7633f8908030ec48b62acf4a3",
+                "tarball": "https://registry.npmjs.org/is-positive/-/is-positive-3.0.0.tgz"
+            },
+            "engines": {
+                "node": ">=0.10.0"
+            }
+        },
+        "3.1.0": {
+            "name": "is-positive",
+            "version": "3.1.0",
+            "devDependencies": {
+                "ava": "*",
+                "xo": "*"
+            },
+            "_hasShrinkwrap": false,
+            "directories": {},
+            "dist": {
+                "shasum": "857db584a1ba5d1cb2980527fc3b6c435d37b0fd",
+                "tarball": "https://registry.npmjs.org/is-positive/-/is-positive-3.1.0.tgz"
+            },
+            "engines": {
+                "node": ">=0.10.0"
+            }
+        }
+    },
+    "name": "is-positive",
+    "dist-tags": {
+        "latest": "3.1.0"
+    },
+    "modified": "2017-08-17T19:26:00.508Z"
+}

@@ -65,9 +65,11 @@
   "devDependencies": {
     "@pnpm/logger": "^1.0.0",
     "@types/delay": "^2.0.1",
+    "@types/load-json-file": "^2.0.7",
     "@types/tape": "^4.2.30",
     "delay": "^3.0.0",
     "ghooks": "^2.0.0",
+    "load-json-file": "^5.0.0",
     "mos-tap-diff": "^1.0.0",
     "normalize-newline": "^3.0.0",
     "package-preview": "^1.0.0",

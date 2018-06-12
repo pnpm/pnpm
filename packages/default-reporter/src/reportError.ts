@@ -1,5 +1,6 @@
 import chalk from 'chalk'
 import commonTags = require('common-tags')
+import R = require('ramda')
 import StackTracey = require('stacktracey')
 import {Log} from 'supi'
 import {EOL} from './constants'
@@ -25,6 +26,8 @@ export default function reportError (logObj: Log) {
         return reportShrinkwrapBreakingChange(err, logObj['message'])
       case 'RECURSIVE_RUN_NO_SCRIPT':
         return formatErrorSummary(err.message)
+      case 'ERR_PNPM_NO_MATCHING_VERSION':
+        return formatNoMatchingVersion(err, logObj['message'])
       default:
         // Errors with known error codes are printed w/o stack trace
         if (err.code && err.code.startsWith('ERR_PNPM_')) {
@@ -34,6 +37,28 @@ export default function reportError (logObj: Log) {
     }
   }
   return formatErrorSummary(logObj['message'])
+}
+
+function formatNoMatchingVersion (err: Error, msg: object) {
+  const meta = msg['packageMeta']
+  let output = stripIndent`
+    ${formatErrorSummary(err.message)}
+
+    The latest release of ${meta.name} is "${meta['dist-tags'].latest}".
+  ` + EOL
+
+  if (!R.equals(R.keys(meta['dist-tags']), ['latest'])) {
+    output += EOL + 'Other releases are:' + EOL
+    for (const tag in meta['dist-tags']) {
+      if (tag !== 'latest') {
+        output += `  * ${tag}: ${meta['dist-tags'][tag]}${EOL}`
+      }
+    }
+  }
+
+  output += `${EOL}If you need the full list of all ${Object.keys(meta.versions).length} published versions run "$ pnpm view ${meta.name} versions".`
+
+  return output
 }
 
 function reportUnexpectedStore (err: Error, msg: object) {
