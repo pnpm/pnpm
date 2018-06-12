@@ -332,6 +332,8 @@ test('print server status', async (t: tape.Test) => {
 
   const server = spawn(['server', 'start'])
 
+  await delay(2000)
+
   const result = execPnpmSync('server', 'status', '--store', path.resolve('..', 'store'))
 
   t.equal(result.status, 0)
