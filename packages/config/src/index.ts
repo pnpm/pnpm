@@ -38,6 +38,7 @@ export const types = Object.assign({
   'side-effects-cache': Boolean,
   'side-effects-cache-readonly': Boolean,
   'store': path,
+  'use-running-store-server': Boolean,
   'use-store-server': Boolean,
   'verify-store-integrity': Boolean,
 }, npmTypes.types)

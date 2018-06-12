@@ -35,6 +35,7 @@ export default async function (
     networkConcurrency?: number,
     store?: string,
     prefix: string,
+    useRunningStoreServer?: boolean,
     useStoreServer?: boolean,
   },
 ): Promise<{
@@ -56,6 +57,11 @@ export default async function (
       ctrl: await connectStoreController(serverJson.connectionOptions), // tslint:disable-line
       path: store,
     }
+  }
+  if (opts.useRunningStoreServer) {
+    const err = new Error('No store server is running.')
+    err['code'] = 'ERR_PNPM_NO_STORE_SERVER' // tslint:disable-line:no-string-literal
+    throw err
   }
   if (opts.useStoreServer) {
     runServerInBackground(store)

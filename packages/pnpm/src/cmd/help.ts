@@ -52,6 +52,9 @@ function getHelpText (command: string) {
                                              The store server will keep running after installation is done.
                                              To stop the store server, run \`pnpm server stop\`
 
+          --use-running-store-server         only allows installation with a store server. If no store server
+                                             is running, installation will fail.
+
           --package-import-method auto       try to hardlink packages from the store. If it fails, fallback to copy
           --package-import-method hardlink   hardlink packages from the store
           --package-import-method copy       copy packages from the store

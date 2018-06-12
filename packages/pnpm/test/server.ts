@@ -342,3 +342,13 @@ test('print server status', async (t: tape.Test) => {
 
   await execPnpm('server', 'stop')
 })
+
+test('fail if no store server is running and --use-running-store-server flag is used', async (t: tape.Test) => {
+  const project = prepare(t)
+
+  const result = execPnpmSync('install', 'is-positive', '--use-running-store-server', '--store', path.resolve('..', 'store'))
+
+  t.equal(result.status, 1)
+  const output = result.stdout.toString()
+  t.ok(output.includes('No store server is running.'), 'the correct error is thrown')
+})
