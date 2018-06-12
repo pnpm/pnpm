@@ -131,6 +131,10 @@ async function resolveNpm (
       : 'No valid version found.'
     const err = new Error('No compatible version found: ' +
       toRaw(spec) + '\n' + message)
+    // tslint:disable:no-string-literal
+    err['code'] = 'ERR_PNPM_NO_COMPATIBLE_VERSION'
+    err['packageMeta'] = meta
+    // tslint:enable:no-string-literal
     throw err
   }
   const id = createPkgId(pickedPackage.dist.tarball, pickedPackage.name, pickedPackage.version)

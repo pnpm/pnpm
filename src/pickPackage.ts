@@ -151,9 +151,9 @@ async function fromRegistry (
     json: () => Promise<PackageMeta>,
   }
   if (res.status > 400) {
-    const err = new Error(`${res.status} ${res.statusText}: ${pkgName}`)
+    const err = new Error(`${res.status} ${res.statusText}: ${pkgName} (via ${uri})`)
     // tslint:disable
-    err['code'] = `E${res.status}`
+    err['code'] = `ERR_PNPM_REGISTRY_RESPONSE_${res.status}`
     err['uri'] = uri
     err['response'] = res
     err['package'] = pkgName
