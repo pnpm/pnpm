@@ -126,11 +126,7 @@ async function resolveNpm (
   const meta = pickResult.meta
   if (!pickedPackage) {
     const versions = Object.keys(meta.versions)
-    const message = versions.length
-      ? 'Versions in registry:\n' + versions.join(', ') + '\n'
-      : 'No valid version found.'
-    const err = new Error('No matching version found for ' +
-      toRaw(spec) + '\n' + message)
+    const err = new Error(`No matching version found for ${toRaw(spec)}`)
     // tslint:disable:no-string-literal
     err['code'] = 'ERR_PNPM_NO_MATCHING_VERSION'
     err['packageMeta'] = meta
