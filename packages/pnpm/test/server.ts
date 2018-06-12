@@ -315,7 +315,11 @@ test('installation without store server running in the background', async (t: ta
   t.ok(project.requireModule('is-positive'))
 })
 
-test('fail if the store server is run by a different version of pnpm', async (t: tape.Test) => {
+// Failing would create issues for glitch.com
+// per @etamponi:
+// > I update it on the host, which triggers a restart of the pnpm server,
+//   and then I update it on the container images, but that doesn't restart the running containers
+test['skip']('fail if the store server is run by a different version of pnpm', async (t: tape.Test) => {
   const project = prepare(t)
 
   const serverJsonPath = path.resolve('..', 'store', '2', 'server', 'server.json')

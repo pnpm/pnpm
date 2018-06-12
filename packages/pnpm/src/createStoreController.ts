@@ -48,9 +48,7 @@ export default async function (
   let serverJson = await tryLoadServerJson({ serverJsonPath, shouldRetryOnNoent: false })
   if (serverJson !== null) {
     if (serverJson.pnpmVersion !== packageManager.version) {
-      const err = new Error(`The store server runs on pnpm v${serverJson.pnpmVersion}. The same pnpm version should be used to connect (current is v${packageManager.version})`)
-      err['code'] = 'ERR_PNPM_INCOMPATIBLE_STORE_SERVER' // tslint:disable-line:no-string-literal
-      throw err
+      logger.warn(`The store server runs on pnpm v${serverJson.pnpmVersion}. It is recommended to connect with the same version (current is v${packageManager.version})`)
     }
     logger.info('A store server is running. All store manipulations are delegated to it.')
     return {
