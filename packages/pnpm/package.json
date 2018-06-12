@@ -1,7 +1,7 @@
 {
   "name": "pnpm",
   "description": "Fast, disk space efficient package manager",
-  "version": "2.4.0",
+  "version": "2.5.0",
   "author": {
     "name": "Zoltan Kochan",
     "email": "z@kochan.io",
@@ -20,7 +20,7 @@
     "lib/"
   ],
   "dependencies": {
-    "@pnpm/config": "^1.0.0",
+    "@pnpm/config": "^1.1.0",
     "@pnpm/default-fetcher": "^0.4.0 || 1",
     "@pnpm/default-resolver": "^2.0.0",
     "@pnpm/lifecycle": "^2.2.1",
@@ -60,7 +60,7 @@
     "path-absolute": "^1.0.0",
     "path-name": "^1.0.0",
     "pkgs-graph": "^2.0.0",
-    "pnpm-default-reporter": "^0.17.3",
+    "pnpm-default-reporter": "^0.17.4",
     "pnpm-file-reporter": "^0.1.0",
     "pnpm-list": "^2.1.0",
     "process-exists": "^3.0.0",
