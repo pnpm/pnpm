@@ -26,6 +26,10 @@ export default function reportError (logObj: Log) {
       case 'RECURSIVE_RUN_NO_SCRIPT':
         return formatErrorSummary(err.message)
       default:
+        // Errors with known error codes are printed w/o stack trace
+        if (err.code && err.code.startsWith('ERR_PNPM_')) {
+          return formatErrorSummary(err.message)
+        }
         return formatGenericError(err.message || logObj['message'], err.stack)
     }
   }
