@@ -18,6 +18,7 @@ export interface PnpmOptions {
   saveProd?: boolean,
   saveDev?: boolean,
   saveOptional?: boolean,
+  scope: string,
   production?: boolean,
   development?: boolean,
   fetchRetries?: number,
