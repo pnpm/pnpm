@@ -8,7 +8,8 @@ export default async (
   cmd: string,
   opts: {
     depth?: number,
-    only?: 'dev' | 'prod',
+    production: boolean,
+    development: boolean,
     long?: boolean,
     parseable?: boolean,
     global: boolean,

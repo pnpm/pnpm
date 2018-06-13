@@ -8,9 +8,10 @@ export default async function (
   opts: {
     prefix: string,
     depth?: number,
-    only?: 'dev' | 'prod',
     long?: boolean,
     parseable?: boolean,
+    production: boolean,
+    development: boolean,
     global: boolean,
     independentLeaves: boolean,
     alwaysPrintRootPackage?: boolean,
@@ -28,9 +29,17 @@ export default async function (
   }
 
   opts.long = opts.long || command === 'll' || command === 'la'
+  const only = (opts.production && opts.development ? undefined : (opts.production ? 'prod' : 'dev')) as ('prod' | 'dev' | undefined)
+  const listOpts = {
+    alwaysPrintRootPackage: opts.alwaysPrintRootPackage,
+    depth: opts.depth,
+    long: opts.long,
+    only,
+    parseable: opts.parseable,
+  }
   const output = args.length
-    ? await listForPackages(args, prefix, opts)
-    : await list(prefix, opts)
+    ? await listForPackages(args, prefix, listOpts)
+    : await list(prefix, listOpts)
 
   if (output) console.log(output)
 }

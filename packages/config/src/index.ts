@@ -10,9 +10,10 @@ function which (cmd: string) {
   })
 }
 
-export const types = Object.assign({
+export const types = Object.assign(npmTypes.types, {
   'background': Boolean,
   'child-concurrency': Number,
+  'dev': [null, true],
   'fetching-concurrency': Number,
   'frozen-shrinkwrap': Boolean,
   'global-path': path,
@@ -31,6 +32,7 @@ export const types = Object.assign({
   'port': Number,
   'prefer-frozen-shrinkwrap': Boolean,
   'prefer-offline': Boolean,
+  'production': [null, true],
   'protocol': ['auto', 'tcp', 'ipc'],
   'reporter': String,
   'shamefully-flatten': Boolean,
@@ -41,7 +43,7 @@ export const types = Object.assign({
   'use-running-store-server': Boolean,
   'use-store-server': Boolean,
   'verify-store-integrity': Boolean,
-}, npmTypes.types)
+})
 
 export default async (
   opts: {
@@ -98,7 +100,7 @@ export default async (
   if (pnpmConfig.only === 'prod' || pnpmConfig.only === 'production' || !pnpmConfig.only && pnpmConfig.production) {
     pnpmConfig.production = true
     pnpmConfig.development = false
-  } else if (pnpmConfig.only === 'dev' || pnpmConfig.only === 'development') {
+  } else if (pnpmConfig.only === 'dev' || pnpmConfig.only === 'development' || pnpmConfig.dev) {
     pnpmConfig.production = false
     pnpmConfig.development = true
     pnpmConfig.optional = false

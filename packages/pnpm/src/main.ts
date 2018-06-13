@@ -131,6 +131,7 @@ export default async function run (argv: string[]) {
     'm': ['--message'],
     'p': ['--parseable'],
     'porcelain': ['--parseable'],
+    'prod': ['--production'],
     'g': ['--global'],
     'S': ['--save'],
     'D': ['--save-dev'],
