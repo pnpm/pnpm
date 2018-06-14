@@ -57,7 +57,7 @@
     "mkdirp-promise": "^5.0.1",
     "mz": "^2.7.0",
     "nopt": "^4.0.1",
-    "p-limit": "^1.1.0",
+    "p-limit": "^2.0.0",
     "package-store": "^0.22.0",
     "path-absolute": "^1.0.0",
     "path-name": "^1.0.0",
