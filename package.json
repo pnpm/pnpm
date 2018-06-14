@@ -45,7 +45,7 @@
     "chalk": "^2.3.0",
     "dependencies-hierarchy": "^2.0.0",
     "npm-package-arg": "^6.0.0",
-    "p-limit": "^1.1.0",
+    "p-limit": "^2.0.0",
     "ramda": "^0.25.0",
     "read-package-json": "^2.0.12",
     "thenify": "^3.3.0"
