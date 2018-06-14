@@ -287,6 +287,16 @@ test('package that resolves its own peer dependency', async (t: tape.Test) => {
   t.ok(shr.packages['/pkg-with-resolved-peer/1.0.0'].optionalDependencies['peer-b'])
 })
 
+test('package that has parent as peer dependency', async (t: tape.Test) => {
+  const project = prepare(t)
+  await installPkgs(['has-alpha', 'alpha'], await testDefaults())
+
+  const shr = await project.loadShrinkwrap()
+
+  t.ok(shr.packages['/has-alpha-as-peer/1.0.0/alpha@1.0.0'])
+  t.ok(shr.packages['/has-alpha-as-peer/1.0.0'])
+})
+
 test('own peer installed in root as well is linked to root', async (t: tape.Test) => {
   const project = prepare(t)
 
