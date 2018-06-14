@@ -48,7 +48,7 @@
     "fetch-from-npm-registry": "^1.0.0",
     "load-json-file": "^5.0.0",
     "mem": "^3.0.0",
-    "p-limit": "^1.1.0",
+    "p-limit": "^2.0.0",
     "semver": "^5.4.1",
     "ssri": "^6.0.0",
     "version-selector-type": "^2.0.0",

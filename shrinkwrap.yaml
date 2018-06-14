@@ -4,7 +4,7 @@ dependencies:
   '@pnpm/types': 1.7.0
   '@types/load-json-file': 2.0.7
   '@types/mem': 1.1.2
-  '@types/node': 10.3.2
+  '@types/node': 10.3.3
   '@types/semver': 5.5.0
   '@types/write-json-file': 2.2.1
   credentials-by-uri: 1.0.0
@@ -12,7 +12,7 @@ dependencies:
   fetch-from-npm-registry: 1.0.0
   load-json-file: 5.0.0
   mem: 3.0.0
-  p-limit: 1.3.0
+  p-limit: 2.0.0
   semver: 5.5.0
   ssri: 6.0.0
   version-selector-type: 2.0.0
@@ -25,21 +25,21 @@ devDependencies:
   '@types/tempy': 0.1.0
   mos: 2.0.0-alpha.3
   mos-plugin-readme: 1.0.4
-  nock: 9.3.2
+  nock: 9.3.3
   package-preview: 1.0.6
   path-exists: 3.0.0
   rimraf: 2.6.2
   tape: 4.9.1
   tempy: 0.2.1
-  ts-node: 6.1.0
+  ts-node: 6.1.1
   tslint: 5.10.0
-  typescript: 2.9.1
+  typescript: 2.9.2
 packages:
   /@pnpm/exec/1.1.5:
     dependencies:
       '@pnpm/self-installer': 2.0.4
       '@types/got': 8.3.1
-      '@types/node': 10.3.2
+      '@types/node': 10.3.3
       command-exists: 1.2.6
       cross-spawn: 6.0.5
     dev: true
@@ -49,7 +49,7 @@ packages:
       integrity: sha512-1zLmh6tRftQXfZ1IFHq1IexP0KaJhN6pSCA/IzK+Vixn4hPvxwcIbGjKW0KH9hsHSmrPpmSit2EWj7jGNgfa6Q==
   /@pnpm/logger/1.0.2:
     dependencies:
-      '@types/node': 10.3.2
+      '@types/node': 10.3.3
       bole: 3.0.2
       ndjson: 1.5.0
     dev: true
@@ -77,13 +77,13 @@ packages:
       integrity: sha512-pn7g4uxcofWTNG/cxmKvkMK2lxr4OUIhrQDrEVYEdVhW0WkWztsHkFrYjFgfNzPbYu3ITlB3T6aSVjCoJQTOlw==
   /@types/fs-extra/5.0.3:
     dependencies:
-      '@types/node': 10.3.2
+      '@types/node': 10.3.3
     dev: true
     resolution:
       integrity: sha512-m2QKoRrJnei1s10e1ZfMIa7QcABBVLdQhVUv5+bMRaHhPzxO/IWMmREiags59AqFbI+piWPq/PupTahNS/0kyA==
   /@types/got/8.3.1:
     dependencies:
-      '@types/node': 10.3.2
+      '@types/node': 10.3.3
     dev: true
     resolution:
       integrity: sha512-CGEPw67/Ub6gNMusk062tueurxN+HyjDCvYl4QVBKiSO+fqluXmRX/wSqST/4RtKth4mz8lDZiaZIpXr/uPROg==
@@ -96,19 +96,19 @@ packages:
       integrity: sha1-48iwlfLyVjtRjwqtWd+f5qi4IGU=
   /@types/mz/0.0.32:
     dependencies:
-      '@types/node': 10.3.2
+      '@types/node': 10.3.3
     dev: true
     resolution:
       integrity: sha512-cy3yebKhrHuOcrJGkfwNHhpTXQLgmXSv1BX+4p32j+VUQ6aP2eJ5cL7OvGcAQx75fCTFaAIIAKewvqL+iwSd4g==
   /@types/nock/9.1.3:
     dependencies:
-      '@types/node': 10.3.2
+      '@types/node': 10.3.3
     dev: true
     resolution:
       integrity: sha512-S8rJ+SaW82ICX87pZP62UcMifrMfjEdqNzSp+llx4YcvKw6bO650Ye6HwTqER1Dar3S40GIZECQisOrAICDCjA==
-  /@types/node/10.3.2:
+  /@types/node/10.3.3:
     resolution:
-      integrity: sha512-9NfEUDp3tgRhmoxzTpTo+lq+KIVFxZahuRX0LHF/9IzKHaWuoWsIrrJ61zw5cnnlGINX8lqJzXYfQTOICS5Q+A==
+      integrity: sha512-/gwCgiI2e9RzzZTKbl+am3vgNqOt7a9fJ/uxv4SqYKxenoEDNVU3KZEadlpusWhQI0A0dOrZ0T68JYKVjzmgdQ==
   /@types/path-exists/3.0.0:
     dev: true
     resolution:
@@ -119,7 +119,7 @@ packages:
       integrity: sha512-41qEJgBH/TWgo5NFSvBCJ1qkoi3Q6ONSF2avrHq1LVEZfYpdHmj0y9SuTK+u9ZhG1sYQKBL1AWXKyLWP4RaUoQ==
   /@types/tape/4.2.32:
     dependencies:
-      '@types/node': 10.3.2
+      '@types/node': 10.3.3
     dev: true
     resolution:
       integrity: sha512-xil0KO5wkPoixdBWGIGolPv9dekf6dVkjjJLAFYchfKcd4DICou67rgGCIO7wAh3i5Ff/6j9IDgZz+GU9cMaqQ==
@@ -197,7 +197,7 @@ packages:
       integrity: sha1-tDLdM1i2NM914eRmQ2gkBTPB3b4=
   /ansi-styles/3.2.1:
     dependencies:
-      color-convert: 1.9.1
+      color-convert: 1.9.2
     dev: true
     engines:
       node: '>=4'
@@ -700,16 +700,16 @@ packages:
     dev: true
     resolution:
       integrity: sha512-YfQ1tAUZm561vpYD+5eyWN8+UsceQbSrqqlc/6zDY2gtAE+uZLSdkkovhnGpmCThsvKBFakq4EdY/FF93E8XIw==
-  /color-convert/1.9.1:
+  /color-convert/1.9.2:
     dependencies:
-      color-name: 1.1.3
+      color-name: 1.1.1
     dev: true
     resolution:
-      integrity: sha512-mjGanIiwQJskCC18rPR6OmrZ6fm2Lc7PeGFYwCmy5J34wC6F1PzdGL6xeMfmgicfYcNLGuVFA3WzXtIDCQSZxQ==
-  /color-name/1.1.3:
+      integrity: sha512-3NUJZdhMhcdPn8vJ9v2UQJoH0qqoGUkYTgFEPZaPjEtwmmKUfNV46zZmgB2M5M4DCEQHMaCfWHCxiBflLm04Tg==
+  /color-name/1.1.1:
     dev: true
     resolution:
-      integrity: sha1-p9BVi9icQveV3UIyj3QIMcpTvCU=
+      integrity: sha1-SxQVMEz1ACjqgWQ2Q72C6gWANok=
   /command-exists/1.2.6:
     dev: true
     resolution:
@@ -1041,7 +1041,7 @@ packages:
       integrity: sha1-oB6c2cnkkXFcmKdaQtXwu9EH/3Y=
   /fetch-from-npm-registry/1.0.0:
     dependencies:
-      '@types/node': 10.3.2
+      '@types/node': 10.3.3
       make-fetch-happen: 4.0.1
     dev: false
     engines:
@@ -2122,7 +2122,7 @@ packages:
     dev: true
     resolution:
       integrity: sha512-2NpiFHqC87y/zFke0fC0spBXL3bBsoh/p5H1EFhshxjCR5+0g2d6BiXbUFz9v1sAcxsk2htp2eQnNIci2dIYcA==
-  /nock/9.3.2:
+  /nock/9.3.3:
     dependencies:
       chai: 4.1.2
       debug: 3.1.0
@@ -2137,7 +2137,7 @@ packages:
     engines:
       '0': node >= 4.0
     resolution:
-      integrity: sha512-pulpsRVFneYGpgktmt99s10fFh10zSpYhydwkG28xLps/p19n39lBSq5kjb7UW2YOPyQtt7FLyXuP+xHyRRI0w==
+      integrity: sha512-FBgnx25er2ly7KBr0Est5F0z5g+lnyr6a72vZI1KMi7nTL4ojU6XpFhlrfw6CXRdnT2FA5i8exHiT1uVNUM1qA==
   /node-fetch-npm/2.0.2:
     dependencies:
       encoding: 0.1.12
@@ -2242,10 +2242,19 @@ packages:
   /p-limit/1.3.0:
     dependencies:
       p-try: 1.0.0
+    dev: true
     engines:
       node: '>=4'
     resolution:
       integrity: sha512-vvcXsLAJ9Dr5rQOPk7toZQZJApBl2K4J6dANSsEuh6QI41JYcsS/qhTGa9ErIUUgK3WNQoJYvylxvjqmiqEA9Q==
+  /p-limit/2.0.0:
+    dependencies:
+      p-try: 2.0.0
+    dev: false
+    engines:
+      node: '>=6'
+    resolution:
+      integrity: sha512-fl5s52lI5ahKCernzzIyAP0QAZbGIovtVHGwpcu1Jr/EpzLVDI2myISHwGqK7m8uQFugVWSrbxH7XnhGtvEc+A==
   /p-locate/2.0.0:
     dependencies:
       p-limit: 1.3.0
@@ -2255,10 +2264,17 @@ packages:
     resolution:
       integrity: sha1-IKAQOyIqcMj9OcwuWAaA893l7EM=
   /p-try/1.0.0:
+    dev: true
     engines:
       node: '>=4'
     resolution:
       integrity: sha1-y8ec26+P1CKOE/Yh8rGiN8GyB7M=
+  /p-try/2.0.0:
+    dev: false
+    engines:
+      node: '>=6'
+    resolution:
+      integrity: sha512-hMp0onDKIajHfIkdRk3P4CdCmErkYAxxDtP3Wx/4nZ3aGlau2VKh3mZpcuFkH27WQkL/3WBCPOktzA9ZOAnMQQ==
   /package-json/2.4.0:
     dependencies:
       got: 5.7.1
@@ -2276,7 +2292,7 @@ packages:
       '@types/fs-extra': 5.0.3
       '@types/load-json-file': 2.0.7
       '@types/mz': 0.0.32
-      '@types/node': 10.3.2
+      '@types/node': 10.3.3
       '@types/write-json-file': 2.2.1
       cross-spawn: 6.0.5
       find-down: 0.1.4
@@ -3072,7 +3088,7 @@ packages:
   /symlink-dir/1.1.3:
     dependencies:
       '@types/mz': 0.0.32
-      '@types/node': 10.3.2
+      '@types/node': 10.3.3
       graceful-fs: 4.1.11
       is-windows: 1.0.2
       mkdirp-promise: 5.0.1
@@ -3235,7 +3251,7 @@ packages:
     dev: true
     resolution:
       integrity: sha1-WFhUf2spB1fulczMZm+1AITEYN0=
-  /ts-node/6.1.0:
+  /ts-node/6.1.1:
     dependencies:
       arrify: 1.0.1
       diff: 3.5.0
@@ -3248,7 +3264,7 @@ packages:
     engines:
       node: '>=4.2.0'
     resolution:
-      integrity: sha512-mw11Bq08RZgrU/bzcVw/Ti9wNyefpOanXgWsHg008wyVHjvFhWxNatVVrciOAu8BcWSECoNOSunRzUokKH8Mmw==
+      integrity: sha512-79FnymLGDBd/nXoiak1L6w6fd9Zz9Ge/x8/Aglaeh31KkqRLDzbfT1vBGlO5dqc76WzufTlW4IYl7e01CVUF5A==
   /tslib/1.9.2:
     dev: true
     resolution:
@@ -3292,12 +3308,12 @@ packages:
     dev: false
     resolution:
       integrity: sha1-hnrHTjhkGHsdPUfZlqeOxciDB3c=
-  /typescript/2.9.1:
+  /typescript/2.9.2:
     dev: true
     engines:
       node: '>=4.2.0'
     resolution:
-      integrity: sha512-h6pM2f/GDchCFlldnriOhs1QHuwbnmj6/v7499eMHqPeW4V2G0elua2eIc2nu8v2NdHV0Gm+tzX83Hr6nUFjQA==
+      integrity: sha512-Gr4p6nFNaoufRIY4NMdpQRNmgxVIGMs4Fcu/ujdYk3nAZqk7supzBE9idmvfZIlH/Cuj//dvi+019qEue9lV0w==
   /unbzip2-stream/1.2.5:
     dependencies:
       buffer: 3.6.0
@@ -3347,7 +3363,7 @@ packages:
       integrity: sha1-+nG63UQ3r0wUiEHjs7Fl+enlkLc=
   /unpack-stream/3.0.3:
     dependencies:
-      '@types/node': 10.3.2
+      '@types/node': 10.3.3
       decompress-maybe: 1.0.0
       ssri: 5.3.0
       tar-fs: 1.16.2
@@ -3523,7 +3539,7 @@ specifiers:
   mos: ^2.0.0-alpha.3
   mos-plugin-readme: ^1.0.4
   nock: ^9.1.6
-  p-limit: ^1.1.0
+  p-limit: ^2.0.0
   package-preview: ^1.0.1
   path-exists: ^3.0.0
   rimraf: ^2.6.2
