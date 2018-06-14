@@ -10,7 +10,7 @@ function which (cmd: string) {
   })
 }
 
-export const types = Object.assign(npmTypes.types, {
+export const types = Object.assign({
   'background': Boolean,
   'child-concurrency': Number,
   'dev': [null, true],
@@ -44,7 +44,7 @@ export const types = Object.assign(npmTypes.types, {
   'use-running-store-server': Boolean,
   'use-store-server': Boolean,
   'verify-store-integrity': Boolean,
-})
+}, npmTypes.types)
 
 export default async (
   opts: {
