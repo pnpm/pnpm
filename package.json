@@ -69,7 +69,7 @@
     "@types/p-limit": "^1.1.1",
     "@types/uuid": "^3.4.3",
     "got": "^8.0.1",
-    "p-limit": "^1.1.0",
+    "p-limit": "^2.0.0",
     "package-store": "^0.22.0",
     "uuid": "^3.1.0"
   }
