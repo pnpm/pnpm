@@ -137,7 +137,7 @@ function resolvePeersOfNode (
         ...parentParentPkgs,
         ...toPkgByName(R.keys(children).map((alias) => ({alias, nodeId: children[alias], node: ctx.pkgGraph[children[alias]]}))),
       }
-  const unknownResolvedPeersOfChildren = resolvePeersOfChildren(children, parentPkgs, ctx, nodeId)
+  const unknownResolvedPeersOfChildren = resolvePeersOfChildren(children, parentPkgs, ctx)
 
   const resolvedPeers = R.isEmpty(node.pkg.peerDependencies)
     ? {}
@@ -213,7 +213,6 @@ function resolvePeersOfChildren (
     depGraph: DepGraphNodesByDepPath,
     pkgGraph: PkgGraphNodeByNodeId,
   },
-  exceptNodeId?: string,
 ): {[alias: string]: string} {
   const allResolvedPeers: {[alias: string]: string} = {}
 
@@ -222,7 +221,7 @@ function resolvePeersOfChildren (
   }
 
   const unknownResolvedPeersOfChildren = R.keys(allResolvedPeers)
-    .filter((alias) => !children[alias] && allResolvedPeers[alias] !== exceptNodeId)
+    .filter((alias) => !children[alias])
     .reduce((acc, peer) => {
       acc[peer] = allResolvedPeers[peer]
       return acc
