@@ -50,7 +50,7 @@
     "load-json-file": "^5.0.0",
     "mkdirp-promise": "^5.0.1",
     "mz": "^2.7.0",
-    "p-limit": "^1.1.0",
+    "p-limit": "^2.0.0",
     "p-queue": "^2.3.0",
     "path-exists": "^3.0.0",
     "read-package-json": "^2.0.12",
