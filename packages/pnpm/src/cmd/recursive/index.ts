@@ -3,10 +3,12 @@ import camelcaseKeys = require('camelcase-keys')
 import findPackages from 'find-packages'
 import graphSequencer = require('graph-sequencer')
 import loadYamlFile = require('load-yaml-file')
+import minimatch = require('minimatch')
 import pLimit = require('p-limit')
 import { StoreController } from 'package-store'
 import path = require('path')
 import createPkgGraph, {PackageNode} from 'pkgs-graph'
+import R = require('ramda')
 import readIniFile = require('read-ini-file')
 import sortPkgs = require('sort-pkgs')
 import {
@@ -64,13 +66,19 @@ export default async (
 
   const cwd = process.cwd()
   const packagesManifest = await requirePackagesManifest(cwd)
-  const pkgs = await findPackages(cwd, {
+  let pkgs = await findPackages(cwd, {
     ignore: [
       '**/node_modules/**',
       '**/bower_components/**',
     ],
     patterns: packagesManifest && packagesManifest.packages || undefined,
   })
+
+  const pkgGraphResult = createPkgGraph(pkgs)
+  if (opts.scope) {
+    pkgGraphResult.graph = filterGraph(pkgGraphResult.graph, opts.scope)
+    pkgs = pkgs.filter((pkg: {path: string}) => pkgGraphResult.graph[pkg.path])
+  }
 
   switch (cmdFullName) {
     case 'list':
@@ -88,7 +96,6 @@ export default async (
       break
   }
 
-  const pkgGraphResult = createPkgGraph(pkgs)
   const store = await createStoreController(opts)
 
   // It is enough to save the store.json file once,
@@ -206,5 +213,35 @@ async function requirePackagesManifest (dir: string): Promise<{packages: string[
       return null
     }
     throw err
+  }
+}
+
+interface PackageGraph {
+  [id: string]: PackageNode,
+}
+
+function filterGraph (
+  graph: PackageGraph,
+  scope: string,
+): PackageGraph {
+  const root = R.keys(graph).filter((id) => graph[id].manifest.name && minimatch(graph[id].manifest.name, scope))
+  if (!root.length) return {}
+
+  const subgraphNodeIds = new Set()
+  pickSubgraph(graph, root, subgraphNodeIds)
+
+  return R.pick(Array.from(subgraphNodeIds), graph)
+}
+
+function pickSubgraph (
+  graph: PackageGraph,
+  nextNodeIds: string[],
+  walked: Set<string>,
+) {
+  for (const nextNodeId of nextNodeIds) {
+    if (!walked.has(nextNodeId)) {
+      walked.add(nextNodeId)
+      pickSubgraph(graph, graph[nextNodeId].dependencies, walked)
+    }
   }
 }

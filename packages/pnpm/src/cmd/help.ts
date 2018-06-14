@@ -304,6 +304,10 @@ function getHelpText (command: string) {
 
         This command runs the "npm build" command on each package.
         This is useful when you install a new version of node, and must recompile all your C++ addons with the new binary.
+
+        Options:
+
+          --scope  restricts the scope to package names matching the given glob.
       `
 
     default:

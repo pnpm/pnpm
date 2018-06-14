@@ -35,6 +35,7 @@ export const types = Object.assign(npmTypes.types, {
   'production': [null, true],
   'protocol': ['auto', 'tcp', 'ipc'],
   'reporter': String,
+  'scope': String,
   'shamefully-flatten': Boolean,
   'shrinkwrap-only': Boolean,
   'side-effects-cache': Boolean,
