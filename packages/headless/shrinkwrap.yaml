@@ -1,12 +1,11 @@
 dependencies:
-  '@pnpm/headless': 'link:'
   '@pnpm/lifecycle': 2.2.1
   '@pnpm/link-bins': 1.0.3
   '@pnpm/modules-yaml': 1.0.0
   '@pnpm/package-requester': 3.0.0
   '@pnpm/pkgid-to-filename': 1.0.1
   '@pnpm/types': 1.7.0
-  '@pnpm/utils': 'link:../utils'
+  '@pnpm/utils': 0.3.0
   '@types/ramda': 0.25.33
   dependency-path: 1.2.1
   graph-sequencer: 2.0.0
@@ -43,7 +42,7 @@ devDependencies:
   pnpm-registry-mock: 2.1.0
   rimraf: 2.6.2
   rimraf-then: 1.0.1
-  sinon: 5.1.1
+  sinon: 6.0.0
   tape: 4.9.1
   tape-promise: 3.0.0
   tempy: 0.2.1
@@ -309,6 +308,16 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha512-PxAHIeraDV9YE0mBriqWewN4iOGL3UMzS7XTaYhu1OvoTqEuJ3cFCHGUW2GR0sYiMf0krj2WIASgoXi4XpAGuA==
+  /@pnpm/read-package-json/1.0.0:
+    dependencies:
+      '@pnpm/types': 1.7.0
+      read-package-json: 2.0.13
+      util.promisify: 1.0.0
+    dev: false
+    engines:
+      node: '>=6'
+    resolution:
+      integrity: sha512-G2bs2KRL84eJggkUYxDpI8RA0xFKR4tNqvHy6bGF8fDIzNtkp17nOgEMIcA2ShSwUX80gQ8BpBh6ix5KKF46tw==
   /@pnpm/resolver-base/1.1.0:
     dependencies:
       '@pnpm/types': 1.7.0
@@ -378,6 +387,29 @@ packages:
   /@pnpm/types/1.7.0:
     resolution:
       integrity: sha512-pn7g4uxcofWTNG/cxmKvkMK2lxr4OUIhrQDrEVYEdVhW0WkWztsHkFrYjFgfNzPbYu3ITlB3T6aSVjCoJQTOlw==
+  /@pnpm/utils/0.3.0:
+    dependencies:
+      '@pnpm/package-bins': 1.0.0
+      '@pnpm/read-package-json': 1.0.0
+      '@pnpm/types': 1.7.0
+      '@types/mz': 0.0.32
+      '@types/node': 10.3.3
+      '@types/ramda': 0.25.33
+      dependency-path: 1.2.1
+      fs-vacuum: 1.2.10
+      mz: 2.7.0
+      package-store: 0.22.1
+      pnpm-shrinkwrap: 6.4.0
+      ramda: 0.25.0
+      rimraf-then: 1.0.1
+      util.promisify: 1.0.0
+    dev: false
+    engines:
+      node: '>=6'
+    peerDependencies:
+      '@pnpm/logger': ^1.0.0
+    resolution:
+      integrity: sha512-yWbOyZJXf5PB9wpPWcsXdPHykVOY+xXLCruMKH1+gbG+rnWCQEzZ9VBMWW3iHw1T0dPWFC+lrr2uxB0njtxsJQ==
   /@sindresorhus/is/0.7.0:
     dev: true
     engines:
@@ -1777,6 +1809,14 @@ packages:
     dev: true
     resolution:
       integrity: sha512-GnyIkKhhzXZUWFCaJzvyDLEEgDkPfb4/TPvJCJVuS8MWZgoSsErf++QpiAlDnKFcqhRlm+tIOcencCjyJE6ZCA==
+  /fs-vacuum/1.2.10:
+    dependencies:
+      graceful-fs: 4.1.11
+      path-is-inside: 1.0.2
+      rimraf: 2.6.2
+    dev: false
+    resolution:
+      integrity: sha1-t2Kb7AekAxolSP35n17PHMizHjY=
   /fs-write-stream-atomic/1.0.10:
     dependencies:
       graceful-fs: 4.1.11
@@ -3291,6 +3331,10 @@ packages:
       node: '>=0.10.0'
     resolution:
       integrity: sha1-F0uSaHNVNP+8es5r9TpanhtcX18=
+  /path-is-inside/1.0.2:
+    dev: false
+    resolution:
+      integrity: sha1-NlQX3t5EQw0cEa9hAn+s8HS9/FM=
   /path-key/2.0.1:
     dev: true
     engines:
@@ -3913,7 +3957,7 @@ packages:
   /signal-exit/3.0.2:
     resolution:
       integrity: sha1-tf3AjxKH6hF4Yo5BXiUTK3NkbG0=
-  /sinon/5.1.1:
+  /sinon/6.0.0:
     dependencies:
       '@sinonjs/formatio': 2.0.0
       diff: 3.5.0
@@ -3924,7 +3968,7 @@ packages:
       type-detect: 4.0.8
     dev: true
     resolution:
-      integrity: sha512-h/3uHscbt5pQNxkf7Y/Lb9/OM44YNCicHakcq73ncbrIS8lXg+ZGOZbtuU+/km4YnyiCYfQQEwANaReJz7KDfw==
+      integrity: sha512-MatciKXyM5pXMSoqd593MqTsItJNCkSSl53HJYeKR5wfsDdp2yljjUQJLfVwAWLoBNfx1HThteqygGQ0ZEpXpQ==
   /slash/1.0.0:
     engines:
       node: '>=0.10.0'
@@ -4767,7 +4811,7 @@ specifiers:
   read-package-json: ^2.0.13
   rimraf: ^2.6.2
   rimraf-then: ^1.0.1
-  sinon: ^5.0.0
+  sinon: ^6.0.0
   symlink-dir: ^1.1.2
   tape: ^4.8.0
   tape-promise: ^2.0.1 || 3
