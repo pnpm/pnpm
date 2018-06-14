@@ -6442,7 +6442,7 @@ shrinkwrapMinorVersion: 7
 shrinkwrapVersion: 3
 specifiers:
   '@pnpm/assert-project': ^1.1.1
-  '@pnpm/config': ^1.1.0
+  '@pnpm/config': ^1.2.0
   '@pnpm/default-fetcher': ^0.4.0 || 1
   '@pnpm/default-resolver': ^2.0.0
   '@pnpm/lifecycle': ^2.2.1
@@ -6525,7 +6525,7 @@ specifiers:
   sepia: ^2.0.2
   signal-exit: ^3.0.2
   strip-color: ^0.1.0
-  supi: ^0.20.2
+  supi: ^0.20.3
   tape: ^4.6.3
   tape-promise: ^3.0.0
   text-table: ^0.2.0
