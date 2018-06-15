@@ -236,6 +236,10 @@ function getHelpText (command: string) {
 
     case 'recursive':
       return stripIndent`
+        Usage: pnpm recursive [command] [flags]
+
+        Aliases: multi, m
+
         pnpm recursive install
 
         Concurrently runs installation in all subdirectories with a \`package.json\` (excluding node_modules).
