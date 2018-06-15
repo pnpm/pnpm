@@ -1,4 +1,4 @@
-declare module 'ansi-diff' {
+declare module '@zkochan/ansi-diff' {
   const anything: any;
   export = anything;
 }

@@ -44,7 +44,7 @@
     "@types/ramda": "^0.25.6",
     "@types/semver": "^5.4.0",
     "@types/strip-ansi": "^3.0.0",
-    "ansi-diff": "^1.0.10",
+    "@zkochan/ansi-diff": "^1.0.0",
     "chalk": "^2.2.0",
     "cli-cursor": "^2.1.0",
     "common-tags": "^1.4.0",

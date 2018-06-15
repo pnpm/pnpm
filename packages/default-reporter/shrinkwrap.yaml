@@ -4,7 +4,7 @@ dependencies:
   '@types/ramda': 0.25.33
   '@types/semver': 5.5.0
   '@types/strip-ansi': 3.0.0
-  ansi-diff: 1.1.0
+  '@zkochan/ansi-diff': 1.0.0
   chalk: 2.4.1
   cli-cursor: 2.1.0
   common-tags: 1.8.0
@@ -139,12 +139,12 @@ packages:
     dev: true
     resolution:
       integrity: sha512-JdO/UpPm9RrtQBNVcZdt3M7j3mHO/kXaea9LBGx3UgWJd1f9BkIWP7jObLBG6ZtRyqp7KzLFEsaPhWcidVittA==
-  /ansi-diff/1.1.0:
+  /@zkochan/ansi-diff/1.0.0:
     dependencies:
       ansi-split: 1.0.1
     dev: false
     resolution:
-      integrity: sha512-fBcvTGkqVSdJNEBk6mL+1FCcbfI5pyWARjHdM4pfLpHeJUfOmN4SIJ4XWGEzKJNYBATbEOISTLuGAX9jqSrpFA==
+      integrity: sha512-v7HtrtFrN7TjGYxZmizlGV3r1EmHgzJbHIthv4BDVaLMqTuDwpsHhpCUM+KJdBMiIpKGSm+a+0pScDmSHmN3mg==
   /ansi-regex/0.2.1:
     dev: true
     engines:
@@ -1831,7 +1831,7 @@ specifiers:
   '@types/semver': ^5.4.0
   '@types/strip-ansi': ^3.0.0
   '@types/tape': ^4.2.30
-  ansi-diff: ^1.0.10
+  '@zkochan/ansi-diff': ^1.0.0
   chalk: ^2.2.0
   cli-cursor: ^2.1.0
   common-tags: ^1.4.0
