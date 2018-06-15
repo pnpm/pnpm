@@ -36,6 +36,23 @@ test('readPackage hook', async (t: tape.Test) => {
   await project.storeHas('dep-of-pkg-with-1-dep', '100.0.0')
 })
 
+test('readPackage hook makes installation fail if it does not return the modified package manifests', async (t: tape.Test) => {
+  const project = prepare(t)
+
+  await fs.writeFile('pnpmfile.js', `
+    'use strict'
+    module.exports = {
+      hooks: {
+        readPackage (pkg) {}
+      }
+    }
+  `, 'utf8')
+
+  const result = await execPnpmSync('install', 'pkg-with-1-dep')
+
+  t.equal(result.status, 1, 'installation failed')
+})
+
 test('readPackage hook from custom location', async (t: tape.Test) => {
   const project = prepare(t)
 
