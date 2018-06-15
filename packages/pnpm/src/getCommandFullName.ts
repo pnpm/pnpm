@@ -37,6 +37,10 @@ export default function getCommandFullName (cmd: string) {
     case 'run':
     case 'run-script':
       return 'run'
+    case 'recursive':
+    case 'multi':
+    case 'm':
+      return 'recursive'
     // some commands have no aliases: publish, prune
     default:
       return cmd
