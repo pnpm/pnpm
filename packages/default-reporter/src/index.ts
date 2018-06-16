@@ -1,4 +1,4 @@
-import createDiffer = require('@zkochan/ansi-diff')
+import createDiffer = require('ansi-diff')
 import cliCursor = require('cli-cursor')
 import most = require('most')
 import R = require('ramda')
