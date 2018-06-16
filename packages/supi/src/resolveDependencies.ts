@@ -297,23 +297,6 @@ async function install (
 
   pkgResponse.body.id = encodePkgId(pkgResponse.body.id)
 
-  progressLogger.debug({
-    pkgId: pkgResponse.body.id,
-    status: 'resolving_content',
-  })
-  // tslint:disable:no-string-literal
-  if (pkgResponse['fetchingFiles']) {
-    pkgResponse['fetchingFiles']
-      .then((fetchResult: PackageFilesResponse) => {
-        progressLogger.debug({
-          pkgId: pkgResponse.body.id,
-          status: fetchResult.fromStore
-            ? 'found_in_store' : 'fetched',
-        })
-      })
-  }
-  // tslint:enable:no-string-literal
-
   if (!pkgResponse.body.updated && options.update && options.currentDepth >= ctx.depth && options.relDepPath &&
     ctx.currentShrinkwrap.packages && ctx.currentShrinkwrap.packages[options.relDepPath] && !ctx.force) {
     return null
@@ -432,6 +415,23 @@ async function install (
     ctx.skipped.delete(pkgResponse.body.id)
   }
   if (!ctx.pkgByPkgId[pkgResponse.body.id]) {
+    progressLogger.debug({
+      pkgId: pkgResponse.body.id,
+      status: 'resolving_content',
+    })
+    // tslint:disable:no-string-literal
+    if (pkgResponse['fetchingFiles']) {
+      pkgResponse['fetchingFiles']
+        .then((fetchResult: PackageFilesResponse) => {
+          progressLogger.debug({
+            pkgId: pkgResponse.body.id,
+            status: fetchResult.fromStore
+              ? 'found_in_store' : 'fetched',
+          })
+        })
+    }
+    // tslint:enable:no-string-literal
+
     if (!installable) {
       // optional dependencies are resolved for consistent shrinkwrap.yaml files
       // but installed only on machines that are supported by the package
