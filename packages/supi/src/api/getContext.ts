@@ -14,6 +14,7 @@ import path = require('path')
 import {Shrinkwrap} from 'pnpm-shrinkwrap'
 import removeAllExceptOuterLinks = require('remove-all-except-outer-links')
 import writePkg = require('write-pkg')
+import {PnpmError} from '../errorTypes'
 import readShrinkwrapFile from '../readShrinkwrapFiles'
 import {StrictSupiOptions} from '../types'
 import checkCompatibility from './checkCompatibility'
@@ -57,19 +58,31 @@ export default async function getContext (
     try {
       if (Boolean(modules.independentLeaves) !== opts.independentLeaves) {
         if (modules.independentLeaves) {
-          throw new Error(`This node_modules was installed with --independent-leaves option.
-            Use this option or run same command with --force to recreated node_modules`)
+          throw new PnpmError(
+            'ERR_PNPM_INDEPENDENT_LEAVES_WANTED',
+            `This node_modules was installed with --independent-leaves option.
+            Use this option or run same command with --force to recreated node_modules`,
+          )
         }
-        throw new Error(`This node_modules was not installed with the --independent-leaves option.
-          Don't use --independent-leaves run same command with --force to recreated node_modules`)
+        throw new PnpmError(
+          'ERR_PNPM_INDEPENDENT_LEAVES_NOT_WANTED',
+          `This node_modules was not installed with the --independent-leaves option.
+          Don't use --independent-leaves run same command with --force to recreated node_modules`,
+        )
       }
       if (Boolean(modules.shamefullyFlatten) !== opts.shamefullyFlatten) {
         if (modules.shamefullyFlatten) {
-          throw new Error(`This node_modules was installed with --shamefully-flatten option.
-            Use this option or run same command with --force to recreated node_modules`)
+          throw new PnpmError(
+            'ERR_PNPM_SHAMEFULLY_FLATTEN_WANTED',
+            `This node_modules was installed with --shamefully-flatten option.
+            Use this option or run same command with --force to recreated node_modules`,
+          )
         }
-        throw new Error(`This node_modules was not installed with the --shamefully-flatten option.
-          Don't use --shamefully-flatten or run same command with --force to recreated node_modules`)
+        throw new PnpmError(
+          'ERR_PNPM_SHAMEFULLY_FLATTEN_NOT_WANTED',
+          `This node_modules was not installed with the --shamefully-flatten option.
+          Don't use --shamefully-flatten or run same command with --force to recreated node_modules`,
+        )
       }
       checkCompatibility(modules, {storePath, modulesPath})
     } catch (err) {

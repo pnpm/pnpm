@@ -99,6 +99,7 @@ test('--shamefully-flatten throws exception when executed on node_modules instal
     await installPkgs(['is-negative'], await testDefaults({shamefullyFlatten: true}))
     t.fail('installation should have failed')
   } catch (err) {
+    t.ok(err['code'], 'ERR_PNPM_SHAMEFULLY_FLATTEN_NOT_WANTED') // tslint:disable-line:no-string-literal
     t.ok(err.message.indexOf('This node_modules was not installed with the --shamefully-flatten option.') === 0)
   }
 })
@@ -111,6 +112,7 @@ test('--no-shamefully-flatten throws exception when executed on node_modules ins
     await installPkgs(['is-negative'], await testDefaults({shamefullyFlatten: false}))
     t.fail('installation should have failed')
   } catch (err) {
+    t.ok(err['code'], 'ERR_PNPM_SHAMEFULLY_FLATTEN_WANTED') // tslint:disable-line:no-string-literal
     t.ok(err.message.indexOf('This node_modules was installed with --shamefully-flatten option.') === 0)
   }
 })

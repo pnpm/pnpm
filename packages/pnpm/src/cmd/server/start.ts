@@ -43,7 +43,9 @@ export default async (
     if (error.code !== 'EEXIST') {
       throw error
     }
-    throw new Error(`Canceling startup of server (pid ${process.pid}) because another process got exclusive access to server.json`)
+    const err = new Error(`Canceling startup of server (pid ${process.pid}) because another process got exclusive access to server.json`)
+    err['code'] = 'ERR_PNPM_SERVER_MANIFEST_LOCKED' // tslint:disable-line:no-string-literal
+    throw err
   }
   let server: null|{close (): Promise<void>} = null
   onExit(() => {
