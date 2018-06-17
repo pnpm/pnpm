@@ -25,6 +25,7 @@ import createStoreController from '../../createStoreController'
 import getCommandFullName from '../../getCommandFullName'
 import requireHooks from '../../requireHooks'
 import {PnpmOptions} from '../../types'
+import help from '../help'
 import list from './list'
 import outdated from './outdated'
 import run from './run'
@@ -56,11 +57,15 @@ export default async (
 
   const cmd = input.shift()
   if (!cmd) {
-    throw new Error('Unsupported recursive command')
+    help(['recursive'])
+    return
   }
   const cmdFullName = getCommandFullName(cmd)
   if (!supportedRecursiveCommands.has(cmdFullName)) {
-    throw new Error('Unsupported recursive command')
+    help(['recursive'])
+    const err = new Error(`"recursive ${cmdFullName}" is not a pnpm command. See "pnpm help recursive".`)
+    err['code'] = 'ERR_PNPM_INVALID_RECURSIVE_COMMAND' // tslint:disable-line:no-string-literal
+    throw err
   }
   logger.warn('The recursive command is an experimental feature. Breaking changes may happen in non-major versions.')
 
