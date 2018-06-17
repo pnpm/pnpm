@@ -30,6 +30,11 @@ export default async function (input: string[], opts: PnpmOptions) {
       return storePrune(storePruneOptions)
     default:
       help(['store'])
+      if (input[0]) {
+        const err = new Error(`"store ${input[0]}" is not a pnpm command. See "pnpm help store".`)
+        err['code'] = 'ERR_PNPM_INVALID_STORE_COMMAND' // tslint:disable-line:no-string-literal
+        throw err
+      }
   }
 }
 
