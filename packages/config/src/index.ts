@@ -1,6 +1,6 @@
+import loadNpmConf = require('@zkochan/npm-conf')
+import npmTypes = require('@zkochan/npm-conf/lib/types')
 import camelcase = require('camelcase')
-import loadNpmConf = require('npm-conf')
-import npmTypes = require('npm-conf/lib/types')
 import path = require('path')
 import whichcb = require('which')
 
@@ -71,7 +71,7 @@ export default async (
     }
   } catch (err) {} // tslint:disable-line:no-empty
 
-  const npmConfig = loadNpmConf()
+  const npmConfig = loadNpmConf(null, types)
 
   process.execPath = originalExecPath
 

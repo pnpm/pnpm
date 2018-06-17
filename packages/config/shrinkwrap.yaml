@@ -3,8 +3,8 @@ dependencies:
   '@types/camelcase': 4.1.0
   '@types/node': 10.3.3
   '@types/which': 1.3.1
+  '@zkochan/npm-conf': 1.0.0
   camelcase: 5.0.0
-  npm-conf: 1.1.3
   which: 1.3.1
 devDependencies:
   '@types/tape': 4.2.32
@@ -85,6 +85,15 @@ packages:
     dev: true
     resolution:
       integrity: sha1-TPO97s9S8vasjzKw2IpoLrSEiXk=
+  /@zkochan/npm-conf/1.0.0:
+    dependencies:
+      config-chain: 1.1.11
+      pify: 3.0.0
+    dev: false
+    engines:
+      node: '>=6'
+    resolution:
+      integrity: sha512-I7vEO4uHspd6qc+OPXXRRpggGQ8CqFSH6Dw3gAE2qagf25Wznt1a23cIBK9hwHf+VJmnrUqWgNd/DQ19hW/6kg==
   /acorn/3.0.4:
     dev: true
     engines:
@@ -1809,15 +1818,6 @@ packages:
       node: '>=0.10.0'
     resolution:
       integrity: sha1-GrKLVW4Zg2Oowab35vogE3/mrtk=
-  /npm-conf/1.1.3:
-    dependencies:
-      config-chain: 1.1.11
-      pify: 3.0.0
-    dev: false
-    engines:
-      node: '>=4'
-    resolution:
-      integrity: sha512-Yic4bZHJOt9RCFbRP3GgpqhScOY4HH3V2P8yBj6CeYq118Qr+BLXqT2JvpJ00mryLESpgOxf5XlFv4ZjXxLScw==
   /number-is-nan/1.0.1:
     dev: true
     engines:
@@ -3006,10 +3006,10 @@ specifiers:
   '@types/node': ^9.4.6 || 10
   '@types/tape': ^4.2.32
   '@types/which': ^1.3.1
+  '@zkochan/npm-conf': ^1.0.0
   camelcase: ^5.0.0
   mos: ^2.0.0-alpha.3
   mos-plugin-readme: ^1.0.4
-  npm-conf: ^1.1.3
   package-preview: ^1.0.1
   rimraf: ^2.6.2
   tape: ^4.8.0
