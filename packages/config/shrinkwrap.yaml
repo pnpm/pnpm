@@ -2320,6 +2320,12 @@ packages:
     dev: true
     resolution:
       integrity: sha512-c7rwLofp8g1U+h1KNyHL/jicrKg1Ek4q+Lr33AL65uZTinUZHe30D5HlyN5V9NW0JX1D5dXQ4jqW5l7Sy/kGfw==
+  /resolve/1.8.1:
+    dependencies:
+      path-parse: 1.0.5
+    dev: true
+    resolution:
+      integrity: sha512-AicPrAC7Qu1JxPCZ9ZgCZlY35QgFnNqc+0LtbRNxnVw4TXvjQ72wnuL9JQcEBgXkI9JM8MsT9kaQoHcpCRJOYA==
   /resumer/0.0.0:
     dependencies:
       through: 2.3.8
@@ -2799,7 +2805,7 @@ packages:
       glob: 7.1.2
       js-yaml: 3.12.0
       minimatch: 3.0.4
-      resolve: 1.7.1
+      resolve: 1.8.1
       semver: 5.5.0
       tslib: 1.9.2
       tsutils: 2.27.1

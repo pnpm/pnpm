@@ -2,7 +2,7 @@ dependencies:
   '@commitlint/cli': 7.0.0
   '@commitlint/config-conventional': 7.0.1
   '@commitlint/prompt-cli': 7.0.0
-  husky: 1.0.0-rc.8
+  husky: 1.0.0-rc.9
 packages:
   /@commitlint/cli/7.0.0:
     dependencies:
@@ -635,7 +635,7 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha512-lIbgIIQA3lz5XaB6vxakj6sDHADJiZadYEJB+FgA+C4nubM1NwcuvUr9EJPmnH1skZqpqUzWborWo8EIUi0Sdw==
-  /husky/1.0.0-rc.8:
+  /husky/1.0.0-rc.9:
     dependencies:
       cosmiconfig: 5.0.5
       execa: 0.9.0
@@ -643,7 +643,6 @@ packages:
       get-stdin: 6.0.0
       is-ci: 1.1.0
       pkg-dir: 2.0.0
-      pupa: 1.0.0
       read-pkg: 3.0.0
       run-node: 1.0.0
       slash: 2.0.0
@@ -652,7 +651,7 @@ packages:
       node: '>=6'
     requiresBuild: true
     resolution:
-      integrity: sha512-BNy9GoP/nl8f/fw+8xf3WSgpYGKg0yy51TOYygZhX10gJH4dLuZjVJyiKmFKNrPbRnjo58g/I+hMKnKjHtntLA==
+      integrity: sha512-iGGRXcpwl3qGysa73KAtiZWN/YuQVqwgVsPR0UihVasfIsWaAbOfAsswsGmBhKivGtDCdOiLJPTvEZfGJWiCVw==
   /in-publish/2.0.0:
     dev: false
     resolution:
@@ -1193,12 +1192,6 @@ packages:
     dev: false
     resolution:
       integrity: sha1-8FKijacOYYkX7wqKw0wa5aaChrM=
-  /pupa/1.0.0:
-    dev: false
-    engines:
-      node: '>=4'
-    resolution:
-      integrity: sha1-mpVopa9+ZXuEYqbp1TKHQ1YM7/Y=
   /q/1.5.1:
     dev: false
     engines:

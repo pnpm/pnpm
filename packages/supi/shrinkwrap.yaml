@@ -378,7 +378,7 @@ packages:
       integrity: sha512-xfqm5VkoTPwuiEmqIbLMA6ogdtyBZHy70Ddh1BsQQDNJ/xRk1YvdFxYggS3D2O0VPJVU3aku0TaF/1FpfCg7rA==
   /@pnpm/store-path/1.0.3:
     dependencies:
-      '@types/node': 9.6.21
+      '@types/node': 9.6.22
       '@types/touch': 3.1.0
       can-link: 1.0.2
       mkdirp-promise: 5.0.1
@@ -517,10 +517,10 @@ packages:
   /@types/node/10.3.3:
     resolution:
       integrity: sha512-/gwCgiI2e9RzzZTKbl+am3vgNqOt7a9fJ/uxv4SqYKxenoEDNVU3KZEadlpusWhQI0A0dOrZ0T68JYKVjzmgdQ==
-  /@types/node/9.6.21:
+  /@types/node/9.6.22:
     dev: true
     resolution:
-      integrity: sha512-zQS6mHzxEstR8Vvnpc3JDUCDGWnHFzMTcBu9UCZoVLuj1Uvkkk0qFKJQEhlvbsX34m3xt12ejV09eO/ljZcn7A==
+      integrity: sha512-RIg9EkxzVMkNH0M4sLRngK23f5QiigJC0iODQmu4nopzstt8AjegYund3r82iMrd2BNCjcZVnklaItvKHaGfBA==
   /@types/nopt/3.0.29:
     dev: false
     resolution:
@@ -3028,7 +3028,7 @@ packages:
   /nice-try/1.0.4:
     resolution:
       integrity: sha512-2NpiFHqC87y/zFke0fC0spBXL3bBsoh/p5H1EFhshxjCR5+0g2d6BiXbUFz9v1sAcxsk2htp2eQnNIci2dIYcA==
-  /nise/1.4.1:
+  /nise/1.4.2:
     dependencies:
       '@sinonjs/formatio': 2.0.0
       just-extend: 1.1.27
@@ -3037,7 +3037,7 @@ packages:
       text-encoding: 0.6.4
     dev: true
     resolution:
-      integrity: sha512-9JX3YwoIt3kS237scmSSOpEv7vCukVzLfwK0I0XhocDSHUANid8ZHnLEULbbSkfeMn98B2y5kphIWzZUylESRQ==
+      integrity: sha512-BxH/DxoQYYdhKgVAfqVy4pzXRZELHOIewzoesxpjYvpU+7YOalQhGNPf7wAx8pLrTNPrHRDlLOkAl8UI0ZpXjw==
   /node-fetch-npm/2.0.2:
     dependencies:
       encoding: 0.1.12
@@ -3438,7 +3438,7 @@ packages:
       integrity: sha1-vjX1Qlvh9/bHRxhPmKeIy5lHfuA=
   /parse-npm-tarball-url/1.0.3:
     dependencies:
-      '@types/node': 9.6.21
+      '@types/node': 9.6.22
       semver-regex: 1.0.0
     dev: true
     engines:
@@ -3560,7 +3560,7 @@ packages:
       anonymous-npm-registry-client: 0.1.2
       cpr: 3.0.1
       rimraf: 2.6.2
-      verdaccio: 3.1.2
+      verdaccio: 3.2.0
     dev: true
     engines:
       node: '>=6'
@@ -3973,6 +3973,12 @@ packages:
     dev: true
     resolution:
       integrity: sha512-c7rwLofp8g1U+h1KNyHL/jicrKg1Ek4q+Lr33AL65uZTinUZHe30D5HlyN5V9NW0JX1D5dXQ4jqW5l7Sy/kGfw==
+  /resolve/1.8.1:
+    dependencies:
+      path-parse: 1.0.5
+    dev: true
+    resolution:
+      integrity: sha512-AicPrAC7Qu1JxPCZ9ZgCZlY35QgFnNqc+0LtbRNxnVw4TXvjQ72wnuL9JQcEBgXkI9JM8MsT9kaQoHcpCRJOYA==
   /responselike/1.0.2:
     dependencies:
       lowercase-keys: 1.0.1
@@ -4150,7 +4156,7 @@ packages:
       diff: 3.5.0
       lodash.get: 4.4.2
       lolex: 2.7.0
-      nise: 1.4.1
+      nise: 1.4.2
       supports-color: 5.4.0
       type-detect: 4.0.8
     dev: true
@@ -4575,7 +4581,7 @@ packages:
       glob: 7.1.2
       js-yaml: 3.12.0
       minimatch: 3.0.4
-      resolve: 1.7.1
+      resolve: 1.8.1
       semver: 5.5.0
       tslib: 1.9.2
       tsutils: 2.27.1
@@ -4789,7 +4795,7 @@ packages:
       node: '>=6.12.0'
     resolution:
       integrity: sha512-60R1AEAjKmIGms7gSfotWmUhw0JOPdeyx6DOATtCuOJNfgameiDm2gPlAGJ/XKHoXn96EaVfuhg2ruDmq1AQug==
-  /verdaccio/3.1.2:
+  /verdaccio/3.2.0:
     dependencies:
       '@verdaccio/file-locking': 0.0.7
       '@verdaccio/local-storage': 1.1.2
@@ -4828,7 +4834,7 @@ packages:
       node: '>=6.12.0'
       npm: '>=3'
     resolution:
-      integrity: sha512-XgRptCZjCQDhMLE30oMadx0AdYSI0lPIgwU8pPdhF1MKW7PXxZ6UuKH8MWAMxOogtbZbpuTU3WRLsvs76Vw6rw==
+      integrity: sha512-ZObdhhMT10mY30I0GNPMZNrS5Cog7ZvceNrmrthRUegYGOxn1FyWxcoYJRd/JwimDGKKoscSI+dk6bgsvfBZ3A==
   /verror/1.10.0:
     dependencies:
       assert-plus: 1.0.0
