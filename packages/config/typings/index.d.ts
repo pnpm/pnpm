@@ -1,9 +1,9 @@
-declare module 'npm-conf' {
+declare module '@zkochan/npm-conf' {
   const anything: any;
   export = anything;
 }
 
-declare module 'npm-conf/lib/types' {
+declare module '@zkochan/npm-conf/lib/types' {
   const anything: any;
   export = anything;
 }
