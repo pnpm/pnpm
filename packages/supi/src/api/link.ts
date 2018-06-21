@@ -1,4 +1,4 @@
-import {linkPackageBins} from '@pnpm/link-bins'
+import {linkBinsOfPackages} from '@pnpm/link-bins'
 import logger, {streamParser} from '@pnpm/logger'
 import {read as readModulesYaml} from '@pnpm/modules-yaml'
 import {PackageJson} from '@pnpm/types'
@@ -99,10 +99,10 @@ export default async function link (
   // Otherwise would've been removed
   for (const linkedPkg of linkedPkgs) {
     await linkToModules(linkedPkg.pkg.name, linkedPkg.path, destModules)
-
-    const linkToBin = maybeOpts && maybeOpts.linkToBin || path.join(destModules, '.bin')
-    await linkPackageBins(linkedPkg.path, linkToBin)
   }
+
+  const linkToBin = maybeOpts && maybeOpts.linkToBin || path.join(destModules, '.bin')
+  await linkBinsOfPackages(linkedPkgs.map((p) => ({manifest: p.pkg, location: p.path})), linkToBin)
 
   if (opts.shrinkwrap) {
     await saveShrinkwrap(opts.prefix, updatedWantedShrinkwrap, updatedCurrentShrinkwrap)
