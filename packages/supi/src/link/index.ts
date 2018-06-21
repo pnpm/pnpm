@@ -1,4 +1,5 @@
-import linkBins, {linkPackageBins} from '@pnpm/link-bins'
+import linkBins, {linkBinsOfPackages} from '@pnpm/link-bins'
+import {fromDir as readPackageFromDir} from '@pnpm/read-package-json'
 import {PackageJson} from '@pnpm/types'
 import {
   removeOrphanPackages as removeOrphanPkgs,
@@ -7,6 +8,7 @@ import {
   statsLogger,
 } from '@pnpm/utils'
 import * as dp from 'dependency-path'
+import pFilter = require('p-filter')
 import pLimit = require('p-limit')
 import {StoreController} from 'package-store'
 import path = require('path')
@@ -387,8 +389,6 @@ async function linkAllBins (
 ) {
   return Promise.all(
     depNodes.map((depNode) => limitLinking(async () => {
-      const binPath = path.join(depNode.peripheralLocation, 'node_modules', '.bin')
-
       const childrenToLink = opts.optional
           ? depNode.children
           : R.keys(depNode.children)
@@ -399,12 +399,22 @@ async function linkAllBins (
               return nonOptionalChildren
             }, {})
 
-      await Promise.all(
+      const pkgs = await Promise.all(
         R.keys(childrenToLink)
           .filter((alias) => depGraph[childrenToLink[alias]].installable)
-          .map((alias) => path.join(depNode.modules, alias))
-          .map((target) => linkPackageBins(target, binPath)),
+          .map(async (alias) => {
+            const dep = depGraph[childrenToLink[alias]]
+            return {
+              location: dep.peripheralLocation,
+              manifest: (await dep.fetchingRawManifest) || await readPackageFromDir(dep.peripheralLocation),
+            }
+          }),
       )
+      const pkgsWithBins = pkgs
+        .filter((p) => !R.isEmpty(p.manifest.bin) || p.manifest.directories && p.manifest.directories.bin)
+
+      const binPath = path.join(depNode.peripheralLocation, 'node_modules', '.bin')
+      await linkBinsOfPackages(pkgsWithBins, binPath)
 
       // link also the bundled dependencies` bins
       if (depNode.hasBundledDependencies) {

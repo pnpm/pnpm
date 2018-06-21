@@ -23,7 +23,7 @@
     "@pnpm/fs-locker": "^1.0.0",
     "@pnpm/headless": "^0.5.2",
     "@pnpm/lifecycle": "^2.2.1",
-    "@pnpm/link-bins": "^1.0.1",
+    "@pnpm/link-bins": "^2.0.0",
     "@pnpm/modules-yaml": "^1.0.0",
     "@pnpm/package-requester": "^3.0.0",
     "@pnpm/pkgid-to-filename": "^1.0.0",

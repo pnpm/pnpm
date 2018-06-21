@@ -1,5 +1,5 @@
 import runLifecycleHooks from '@pnpm/lifecycle'
-import linkBins, {linkPackageBins} from '@pnpm/link-bins'
+import linkBins from '@pnpm/link-bins'
 import {
   LogBase,
   streamParser,
@@ -473,22 +473,7 @@ async function linkAllBins (
       .map((depNode) => limitLinking(async () => {
         const binPath = path.join(depNode.peripheralLocation, 'node_modules', '.bin')
 
-        const childrenToLink = opts.optional
-            ? depNode.children
-            : R.keys(depNode.children)
-              .reduce((nonOptionalChildren, childAlias) => {
-                if (!depNode.optionalDependencies.has(childAlias)) {
-                  nonOptionalChildren[childAlias] = depNode.children[childAlias]
-                }
-                return nonOptionalChildren
-              }, {})
-
-        await Promise.all(
-          R.keys(childrenToLink)
-            // .filter((alias) => depGraph[childrenToLink[alias]].installable)
-            .map((alias) => path.join(depNode.modules, alias))
-            .map((target) => linkPackageBins(target, binPath)),
-        )
+        await linkBins(depNode.modules, binPath)
 
         // link also the bundled dependencies` bins
         if (depNode.hasBundledDependencies) {
