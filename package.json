@@ -45,7 +45,7 @@
     "rimraf": "^2.6.1",
     "tape": "^4.6.3",
     "tempy": "^0.2.1",
-    "ts-node": "^6.0.0",
+    "ts-node": "^7.0.0",
     "tslint": "^5.8.0",
     "typescript": "^2.3.4",
     "yaml-tag": "github:zkochan/yaml-tag"
