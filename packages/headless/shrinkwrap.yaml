@@ -1,13 +1,12 @@
 dependencies:
-  '@pnpm/headless': 'link:'
   '@pnpm/lifecycle': 2.2.1
   '@pnpm/link-bins': 2.0.0
   '@pnpm/modules-yaml': 1.0.0
   '@pnpm/package-requester': 3.0.0
   '@pnpm/pkgid-to-filename': 1.0.1
   '@pnpm/types': 1.7.0
-  '@pnpm/utils': 'link:../utils'
-  '@types/ramda': 0.25.33
+  '@pnpm/utils': 0.3.0
+  '@types/ramda': 0.25.34
   dependency-path: 1.2.1
   graph-sequencer: 2.0.0
   p-limit: 2.0.0
@@ -47,7 +46,7 @@ devDependencies:
   tape: 4.9.1
   tape-promise: 3.0.0
   tempy: 0.2.1
-  ts-node: 6.1.2
+  ts-node: 7.0.0
   tslint: 5.10.0
   typescript: 2.9.2
 packages:
@@ -181,7 +180,7 @@ packages:
       '@pnpm/types': 1.7.0
       '@types/mz': 0.0.32
       '@types/node': 10.3.4
-      '@types/ramda': 0.25.33
+      '@types/ramda': 0.25.34
       '@zkochan/cmd-shim': 2.2.4
       arr-flatten: 1.1.0
       is-windows: 1.0.2
@@ -309,6 +308,16 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha512-PxAHIeraDV9YE0mBriqWewN4iOGL3UMzS7XTaYhu1OvoTqEuJ3cFCHGUW2GR0sYiMf0krj2WIASgoXi4XpAGuA==
+  /@pnpm/read-package-json/1.0.0:
+    dependencies:
+      '@pnpm/types': 1.7.0
+      read-package-json: 2.0.13
+      util.promisify: 1.0.0
+    dev: false
+    engines:
+      node: '>=6'
+    resolution:
+      integrity: sha512-G2bs2KRL84eJggkUYxDpI8RA0xFKR4tNqvHy6bGF8fDIzNtkp17nOgEMIcA2ShSwUX80gQ8BpBh6ix5KKF46tw==
   /@pnpm/resolver-base/1.1.0:
     dependencies:
       '@pnpm/types': 1.7.0
@@ -378,6 +387,29 @@ packages:
   /@pnpm/types/1.7.0:
     resolution:
       integrity: sha512-pn7g4uxcofWTNG/cxmKvkMK2lxr4OUIhrQDrEVYEdVhW0WkWztsHkFrYjFgfNzPbYu3ITlB3T6aSVjCoJQTOlw==
+  /@pnpm/utils/0.3.0:
+    dependencies:
+      '@pnpm/package-bins': 1.0.0
+      '@pnpm/read-package-json': 1.0.0
+      '@pnpm/types': 1.7.0
+      '@types/mz': 0.0.32
+      '@types/node': 10.3.4
+      '@types/ramda': 0.25.34
+      dependency-path: 1.2.1
+      fs-vacuum: 1.2.10
+      mz: 2.7.0
+      package-store: 0.22.1
+      pnpm-shrinkwrap: 6.4.0
+      ramda: 0.25.0
+      rimraf-then: 1.0.1
+      util.promisify: 1.0.0
+    dev: false
+    engines:
+      node: '>=6'
+    peerDependencies:
+      '@pnpm/logger': ^1.0.0
+    resolution:
+      integrity: sha512-yWbOyZJXf5PB9wpPWcsXdPHykVOY+xXLCruMKH1+gbG+rnWCQEzZ9VBMWW3iHw1T0dPWFC+lrr2uxB0njtxsJQ==
   /@sindresorhus/is/0.7.0:
     dev: true
     engines:
@@ -455,10 +487,10 @@ packages:
     dev: true
     resolution:
       integrity: sha512-ApUp/Eo/D4lQ/8yI+dlNVz1LslAdvycBbKmsr77sw2Ovymyj0nYowS+xuTChzfGdnEdcqBTPM2OtKmvTFKIXPA==
-  /@types/ramda/0.25.33:
+  /@types/ramda/0.25.34:
     dev: false
     resolution:
-      integrity: sha512-2sR+RhlNo7yWoa8qPCLMC2lnIslXPXcyXYmM6ddh8ZHhFO1Ec/OCvCpV7ACTvMFes/nsJ+jVJMGfZL7kW8gxNg==
+      integrity: sha512-KWyRl3qPe2NILs0s5sNHaHVB8zzSvw57JMKF1AzWTMuPZ7MM7MdVNr10UBCRzFWf7wvq7H9tygmjdSzymaq1jA==
   /@types/retry/0.10.2:
     dev: true
     resolution:
@@ -1777,6 +1809,14 @@ packages:
     dev: true
     resolution:
       integrity: sha512-GnyIkKhhzXZUWFCaJzvyDLEEgDkPfb4/TPvJCJVuS8MWZgoSsErf++QpiAlDnKFcqhRlm+tIOcencCjyJE6ZCA==
+  /fs-vacuum/1.2.10:
+    dependencies:
+      graceful-fs: 4.1.11
+      path-is-inside: 1.0.2
+      rimraf: 2.6.2
+    dev: false
+    resolution:
+      integrity: sha1-t2Kb7AekAxolSP35n17PHMizHjY=
   /fs-write-stream-atomic/1.0.10:
     dependencies:
       graceful-fs: 4.1.11
@@ -3211,7 +3251,7 @@ packages:
       '@types/load-json-file': 2.0.7
       '@types/mz': 0.0.32
       '@types/node': 10.3.4
-      '@types/ramda': 0.25.33
+      '@types/ramda': 0.25.34
       encode-registry: 1.1.0
       load-json-file: 5.0.0
       mkdirp-promise: 5.0.1
@@ -3291,6 +3331,10 @@ packages:
       node: '>=0.10.0'
     resolution:
       integrity: sha1-F0uSaHNVNP+8es5r9TpanhtcX18=
+  /path-is-inside/1.0.2:
+    dev: false
+    resolution:
+      integrity: sha1-NlQX3t5EQw0cEa9hAn+s8HS9/FM=
   /path-key/2.0.1:
     dev: true
     engines:
@@ -3380,7 +3424,7 @@ packages:
       '@pnpm/resolver-base': 1.1.0
       '@types/js-yaml': 3.11.1
       '@types/node': 10.3.4
-      '@types/ramda': 0.25.33
+      '@types/ramda': 0.25.34
       dependency-path: 1.2.1
       get-npm-tarball-url: 2.0.1
       js-yaml: 3.12.0
@@ -4338,7 +4382,7 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha1-tAPQuRvlDDMd/EuC7s6yLD3hbSA=
-  /ts-node/6.1.2:
+  /ts-node/7.0.0:
     dependencies:
       arrify: 1.0.1
       buffer-from: 1.1.0
@@ -4352,11 +4396,11 @@ packages:
     engines:
       node: '>=4.2.0'
     resolution:
-      integrity: sha512-FS0pXZK0RAHFn+aq7iuWx4FPHiyUMM6p6DgKCl44c5tZKad2aUnwDH09XhsUmR0ncV2gd+ND1EV/Br5HpTxGJg==
-  /tslib/1.9.2:
+      integrity: sha512-klJsfswHP0FuOLsvBZ/zzCfUvakOSSxds78mVeK7I+qP76YWtxf16hEZsp3U+b0kIo82R5UatGFeblYMqabb2Q==
+  /tslib/1.9.3:
     dev: true
     resolution:
-      integrity: sha512-AVP5Xol3WivEr7hnssHDsaM+lVrVXWUvd1cfXTRkTj80b//6g2wIFEH6hZG0muGZRnHGrfttpdzRk3YlBkWjKw==
+      integrity: sha512-4krF8scpejhaOgqzBEcGM7yDIEfi0/8+8zDRZhNZZ2kjmHJ4hv3zCbQWxoJGz1iw5U0Jl0nma13xzHXcncMavQ==
   /tslint/5.10.0:
     dependencies:
       babel-code-frame: 6.26.0
@@ -4369,7 +4413,7 @@ packages:
       minimatch: 3.0.4
       resolve: 1.8.1
       semver: 5.5.0
-      tslib: 1.9.2
+      tslib: 1.9.3
       tsutils: 2.27.1
     dev: true
     engines:
@@ -4380,7 +4424,7 @@ packages:
       integrity: sha1-EeJrzLiK+gLdDZlWyuPUVAtfVMM=
   /tsutils/2.27.1:
     dependencies:
-      tslib: 1.9.2
+      tslib: 1.9.3
     dev: true
     peerDependencies:
       typescript: '>=2.1.0 || >=2.1.0-dev || >=2.2.0-dev || >=2.3.0-dev || >=2.4.0-dev || >=2.5.0-dev || >=2.6.0-dev || >=2.7.0-dev || >=2.8.0-dev || >=2.9.0-dev || >= 3.0.0-dev'
@@ -4781,7 +4825,7 @@ specifiers:
   tape: ^4.8.0
   tape-promise: ^2.0.1 || 3
   tempy: ^0.2.1
-  ts-node: ^6.0.0
+  ts-node: ^7.0.0
   tslint: ^5.4.2
   typescript: ^2.9.1
   util.promisify: ^1.0.0
