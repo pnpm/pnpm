@@ -67,6 +67,7 @@ export interface Pkg {
   version: string,
   peerDependencies: Dependencies,
   optionalDependencies: Set<string>,
+  hasBin: boolean,
   hasBundledDependencies: boolean,
   prepare: boolean,
   requiresBuild: boolean | undefined, // added to fix issue #1201
@@ -337,11 +338,13 @@ async function install (
   let useManifestInfoFromShrinkwrap = false
   let requiresBuild!: boolean
   let prepare!: boolean
+  let hasBin!: boolean
   if (options.hasManifestInShrinkwrap && !options.update && options.dependencyShrinkwrap && options.relDepPath
     && !pkgResponse.body.updated) {
     useManifestInfoFromShrinkwrap = true
     requiresBuild = options.dependencyShrinkwrap.requiresBuild === true
     prepare = options.dependencyShrinkwrap.prepare === true
+    hasBin = options.dependencyShrinkwrap.hasBin === true
     pkg = Object.assign(
       nameVerFromPkgSnapshot(options.relDepPath, options.dependencyShrinkwrap),
       options.dependencyShrinkwrap,
@@ -366,6 +369,7 @@ async function install (
       if (options.dependencyShrinkwrap && options.dependencyShrinkwrap.deprecated && !pkg.deprecated) {
         pkg.deprecated = options.dependencyShrinkwrap.deprecated
       }
+      hasBin = Boolean(pkg.bin && !R.isEmpty(pkg.bin) || pkg.directories && pkg.directories.bin)
     } catch (err) {
       // tslint:disable:no-empty
       // avoiding unhandled promise rejections
@@ -455,6 +459,7 @@ async function install (
       fetchingFiles: pkgResponse['fetchingFiles'], // tslint:disable-line:no-string-literal
       fetchingRawManifest: pkgResponse['fetchingRawManifest'], // tslint:disable-line:no-string-literal
       finishing: pkgResponse['finishing'], // tslint:disable-line:no-string-literal
+      hasBin,
       hasBundledDependencies: !!(pkg.bundledDependencies || pkg.bundleDependencies),
       id: pkgResponse.body.id,
       name: pkg.name,

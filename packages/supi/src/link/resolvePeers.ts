@@ -21,6 +21,7 @@ export interface DepGraphNode {
   name: string,
   // at this point the version is really needed only for logging
   version: string,
+  hasBin: boolean,
   hasBundledDependencies: boolean,
   centralLocation: string,
   modules: string,
@@ -180,6 +181,7 @@ function resolvePeersOfNode (
       dev: node.pkg.dev,
       fetchingFiles: node.pkg.fetchingFiles,
       fetchingRawManifest: node.pkg.fetchingRawManifest,
+      hasBin: node.pkg.hasBin,
       hasBundledDependencies: node.pkg.hasBundledDependencies,
       id: node.pkg.id,
       independent,
