@@ -146,6 +146,9 @@ function toShrDependency (
   if (pkg.deprecated) {
     result['deprecated'] = pkg.deprecated
   }
+  if (depNode.hasBin) {
+    result['hasBin'] = true
+  }
   if (opts.prevSnapshot) {
     if (opts.prevSnapshot.requiresBuild) {
       result['requiresBuild'] = opts.prevSnapshot.requiresBuild

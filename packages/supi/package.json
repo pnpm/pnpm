@@ -65,7 +65,7 @@
     "path-absolute": "^1.0.0",
     "path-exists": "^3.0.0",
     "pnpm-install-checks": "^1.1.0",
-    "pnpm-shrinkwrap": "^6.4.0",
+    "pnpm-shrinkwrap": "^6.5.0",
     "ramda": "^0.25.0",
     "remove-all-except-outer-links": "^1.0.0",
     "replace-string": "^1.1.0",

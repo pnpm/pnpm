@@ -401,7 +401,7 @@ async function linkAllBins (
 
       const pkgs = await Promise.all(
         R.keys(childrenToLink)
-          .filter((alias) => depGraph[childrenToLink[alias]].installable)
+          .filter((alias) => depGraph[childrenToLink[alias]].hasBin && depGraph[childrenToLink[alias]].installable)
           .map(async (alias) => {
             const dep = depGraph[childrenToLink[alias]]
             return {
@@ -410,11 +410,9 @@ async function linkAllBins (
             }
           }),
       )
-      const pkgsWithBins = pkgs
-        .filter((p) => p.manifest.bin && !R.isEmpty(p.manifest.bin) || p.manifest.directories && p.manifest.directories.bin)
 
       const binPath = path.join(depNode.peripheralLocation, 'node_modules', '.bin')
-      await linkBinsOfPackages(pkgsWithBins, binPath)
+      await linkBinsOfPackages(pkgs, binPath)
 
       // link also the bundled dependencies` bins
       if (depNode.hasBundledDependencies) {

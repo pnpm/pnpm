@@ -1,5 +1,5 @@
 import runLifecycleHooks from '@pnpm/lifecycle'
-import linkBins from '@pnpm/link-bins'
+import linkBins, {linkBinsOfPackages} from '@pnpm/link-bins'
 import {
   LogBase,
   streamParser,
@@ -329,6 +329,7 @@ async function shrinkwrapToDepGraph (
         children: {},
         fetchingFiles: fetchResponse.fetchingFiles,
         finishing: fetchResponse.finishing,
+        hasBin: pkgSnapshot.hasBin === true,
         hasBundledDependencies: !!pkgSnapshot.bundledDependencies,
         independent,
         isBuilt: !!cache,
@@ -430,6 +431,7 @@ export interface DepGraphNode {
   isBuilt: boolean,
   requiresBuild: boolean,
   prepare: boolean,
+  hasBin: boolean,
 }
 
 export interface DepGraphNodesByDepPath {
@@ -468,9 +470,33 @@ async function linkAllBins (
   return Promise.all(
     R.values(depGraph)
       .map((depNode) => limitLinking(async () => {
-        const binPath = path.join(depNode.peripheralLocation, 'node_modules', '.bin')
+        const childrenToLink = opts.optional
+          ? depNode.children
+          : R.keys(depNode.children)
+            .reduce((nonOptionalChildren, childAlias) => {
+              if (!depNode.optionalDependencies.has(childAlias)) {
+                nonOptionalChildren[childAlias] = depNode.children[childAlias]
+              }
+              return nonOptionalChildren
+            }, {})
 
-        await linkBins(depNode.modules, binPath)
+        const binPath = path.join(depNode.peripheralLocation, 'node_modules', '.bin')
+        const pkgSnapshots = R.props<string, DepGraphNode>(R.values(childrenToLink), depGraph)
+
+        if (pkgSnapshots.indexOf(undefined as any) !== -1) { // tslint:disable-line
+          await linkBins(depNode.modules, binPath)
+        } else {
+          const pkgs = await Promise.all(
+            pkgSnapshots
+              .filter((dep) => dep.hasBin)
+              .map(async (dep) => ({
+                  location: dep.peripheralLocation,
+                  manifest: await readPackageFromDir(dep.peripheralLocation),
+              })),
+          )
+
+          await linkBinsOfPackages(pkgs, binPath)
+        }
 
         // link also the bundled dependencies` bins
         if (depNode.hasBundledDependencies) {

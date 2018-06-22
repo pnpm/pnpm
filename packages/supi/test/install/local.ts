@@ -49,7 +49,7 @@ test('local file', async (t: tape.Test) => {
       'local-pkg': 'link:../local-pkg',
     },
     registry: 'http://localhost:4873/',
-    shrinkwrapMinorVersion: 7,
+    shrinkwrapMinorVersion: 8,
     shrinkwrapVersion: 3,
     specifiers: expectedSpecs,
   })
@@ -76,7 +76,7 @@ test('local file via link:', async (t: tape.Test) => {
       'local-pkg': 'link:../local-pkg',
     },
     registry: 'http://localhost:4873/',
-    shrinkwrapMinorVersion: 7,
+    shrinkwrapMinorVersion: 8,
     shrinkwrapVersion: 3,
     specifiers: expectedSpecs,
   })
@@ -105,7 +105,7 @@ test('local file with symlinked node_modules', async (t: tape.Test) => {
       'local-pkg': 'link:../local-pkg',
     },
     registry: 'http://localhost:4873/',
-    shrinkwrapMinorVersion: 7,
+    shrinkwrapMinorVersion: 8,
     shrinkwrapVersion: 3,
     specifiers: expectedSpecs,
   })

@@ -45,6 +45,9 @@ test('small with dependencies (rimraf)', async (t: tape.Test) => {
   const m = project.requireModule('rimraf')
   t.ok(typeof m === 'function', 'rimraf() is available')
   await project.isExecutable('.bin/rimraf')
+
+  const shr = await project.loadShrinkwrap()
+  t.ok(shr.packages['/rimraf/2.5.1'].hasBin, 'package marked with "hasBin: true" in shrinkwrap.yaml')
 })
 
 test('spec not specified in package.json.dependencies', async (t: tape.Test) => {

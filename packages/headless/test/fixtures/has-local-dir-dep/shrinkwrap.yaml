@@ -1,7 +1,7 @@
 dependencies:
   example: 'link:example'
 registry: 'http://localhost:4873/'
-shrinkwrapMinorVersion: 7
+shrinkwrapMinorVersion: 8
 shrinkwrapVersion: 3
 specifiers:
   example: 'link:example'

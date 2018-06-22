@@ -23,6 +23,7 @@ packages:
       integrity: sha1-tf1UIgqivFq1eqtxQMlAdUUDwac=
   /hello-world-js-bin/1.0.0:
     dev: false
+    hasBin: true
     resolution:
       integrity: sha512-WH2M1dtgDK8YWal8k2D6I6K3zjtdcjHhhCGg1AFEUv5eQttxvIgJDofyTxbqsSfb304Ju5iARBcBKxpXRPyLlg==
   /inherits/2.0.3:
@@ -37,6 +38,7 @@ packages:
     dependencies:
       concat-stream: 1.6.2
     dev: false
+    hasBin: true
     resolution:
       integrity: sha1-Pnu6YqBHvzHJjexDGaU5uyhrsQQ=
   /pre-and-postinstall-scripts-example/1.0.0:
@@ -81,7 +83,7 @@ packages:
     resolution:
       integrity: sha1-RQ1Nyfpw3nMnYvvS1KKJgUGaDM8=
 registry: 'http://localhost:4873/'
-shrinkwrapMinorVersion: 7
+shrinkwrapMinorVersion: 8
 shrinkwrapVersion: 3
 specifiers:
   json-append: 1.1.1

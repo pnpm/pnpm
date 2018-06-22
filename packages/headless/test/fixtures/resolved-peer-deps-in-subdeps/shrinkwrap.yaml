@@ -184,6 +184,7 @@ packages:
       split2: 2.2.0
       through2: 2.0.3
     dev: false
+    hasBin: true
     resolution:
       integrity: sha1-rmA7NrE0vOw0e0UkIrC/mNWDLsg=
   /onetime/2.0.1:
@@ -215,6 +216,7 @@ packages:
     dev: false
     engines:
       node: '>=4'
+    hasBin: true
     peerDependencies:
       supi: '>=0.12.5 <0.15.0'
     resolution:
@@ -264,6 +266,7 @@ packages:
       integrity: sha512-Gd2UZBJDkXlY7GbJxfsE8/nvKkUEU1G38c1siN6QP6a9PT9MmHB8GnpscSmMJSoF8LOIrt8ud/wPtojys4G6+g==
   /semver/5.5.0:
     dev: false
+    hasBin: true
     resolution:
       integrity: sha512-4SJ3dm0WAwWy/NVeioZh5AntkdJoWKxHxcmyP622fOkgHa4z3R0TdBJICINyaSDE6uNwVc8gZr+ZinwZAH4xIA==
   /signal-exit/3.0.2:
@@ -337,7 +340,7 @@ packages:
     resolution:
       integrity: sha512-Qv4qvc8ZIue51B/0zmeIMxpIGDVhz4GhJALBvnKs/FRa2T7jy4Ori9wFwaHVt0zWV7MIFglKAHbgnVxVTw7U1w==
 registry: 'http://localhost:4873/'
-shrinkwrapMinorVersion: 7
+shrinkwrapMinorVersion: 8
 shrinkwrapVersion: 3
 specifiers:
   pnpm-default-reporter: 0.14.7
