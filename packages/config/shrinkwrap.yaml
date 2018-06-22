@@ -1,5 +1,4 @@
 dependencies:
-  '@pnpm/config': 'link:'
   '@types/camelcase': 4.1.0
   '@types/node': 10.3.4
   '@types/which': 1.3.1
@@ -13,7 +12,7 @@ devDependencies:
   package-preview: 1.0.6
   rimraf: 2.6.2
   tape: 4.9.1
-  ts-node: 6.1.2
+  ts-node: 7.0.0
   tslint: 5.10.0
   typescript: 2.9.2
 packages:
@@ -2777,7 +2776,7 @@ packages:
     dev: true
     resolution:
       integrity: sha1-WFhUf2spB1fulczMZm+1AITEYN0=
-  /ts-node/6.1.2:
+  /ts-node/7.0.0:
     dependencies:
       arrify: 1.0.1
       buffer-from: 1.1.0
@@ -2791,11 +2790,11 @@ packages:
     engines:
       node: '>=4.2.0'
     resolution:
-      integrity: sha512-FS0pXZK0RAHFn+aq7iuWx4FPHiyUMM6p6DgKCl44c5tZKad2aUnwDH09XhsUmR0ncV2gd+ND1EV/Br5HpTxGJg==
-  /tslib/1.9.2:
+      integrity: sha512-klJsfswHP0FuOLsvBZ/zzCfUvakOSSxds78mVeK7I+qP76YWtxf16hEZsp3U+b0kIo82R5UatGFeblYMqabb2Q==
+  /tslib/1.9.3:
     dev: true
     resolution:
-      integrity: sha512-AVP5Xol3WivEr7hnssHDsaM+lVrVXWUvd1cfXTRkTj80b//6g2wIFEH6hZG0muGZRnHGrfttpdzRk3YlBkWjKw==
+      integrity: sha512-4krF8scpejhaOgqzBEcGM7yDIEfi0/8+8zDRZhNZZ2kjmHJ4hv3zCbQWxoJGz1iw5U0Jl0nma13xzHXcncMavQ==
   /tslint/5.10.0:
     dependencies:
       babel-code-frame: 6.26.0
@@ -2808,7 +2807,7 @@ packages:
       minimatch: 3.0.4
       resolve: 1.8.1
       semver: 5.5.0
-      tslib: 1.9.2
+      tslib: 1.9.3
       tsutils: 2.27.1
     dev: true
     engines:
@@ -2819,7 +2818,7 @@ packages:
       integrity: sha1-EeJrzLiK+gLdDZlWyuPUVAtfVMM=
   /tsutils/2.27.1:
     dependencies:
-      tslib: 1.9.2
+      tslib: 1.9.3
     dev: true
     peerDependencies:
       typescript: '>=2.1.0 || >=2.1.0-dev || >=2.2.0-dev || >=2.3.0-dev || >=2.4.0-dev || >=2.5.0-dev || >=2.6.0-dev || >=2.7.0-dev || >=2.8.0-dev || >=2.9.0-dev || >= 3.0.0-dev'
@@ -3022,7 +3021,7 @@ specifiers:
   package-preview: ^1.0.1
   rimraf: ^2.6.2
   tape: ^4.8.0
-  ts-node: ^6.0.3
+  ts-node: ^7.0.0
   tslint: ^5.8.0
   typescript: ^2.9.1
   which: ^1.3.0
