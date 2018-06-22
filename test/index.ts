@@ -1,3 +1,4 @@
+///<reference path="../typings/index.d.ts"/>
 import fs = require('mz/fs')
 import path = require('path')
 import rimraf = require('rimraf-then')
