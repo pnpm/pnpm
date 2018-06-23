@@ -357,6 +357,7 @@ packages:
   /esprima/4.0.0:
     engines:
       node: '>=4'
+    hasBin: true
     resolution:
       integrity: sha512-oftTcaMu/EGrEIu904mWteKIv8vMuOgGYo7EhVJJN00R/EED9DCua/xxHRdYnKtcECzVg7xOWhflvJMnqcFZjw==
   /esutils/2.0.2:
@@ -521,6 +522,7 @@ packages:
     dependencies:
       argparse: 1.0.10
       esprima: 4.0.0
+    hasBin: true
     resolution:
       integrity: sha512-PIt2cnwmPfL4hKNwqeiuz4bKfnzHTBv6HyVgjahA6mPLwPDzjDWrplJBMjHUFxku/N3FlmrbyPclad+I+4mJ3A==
   /json-parse-better-errors/1.0.2:
@@ -612,6 +614,7 @@ packages:
     dependencies:
       minimist: 0.0.8
     dev: false
+    hasBin: true
     resolution:
       integrity: sha1-MAV0OOrGz3+MR2fzhkjWaX11yQM=
   /mz/2.7.0:
@@ -624,6 +627,7 @@ packages:
       integrity: sha512-z81GNO7nnYMEhrGh9LeymoE4+Yr0Wn5McHIZMK5cfQCl+NDX08sCZgUc9/6MHni9IWuFLm1Z3HTCXu2z9fN62Q==
   /ncp/2.0.0:
     dev: false
+    hasBin: true
     resolution:
       integrity: sha1-GVoh1sRuNh0vsSgbo4uR6d9727M=
   /ndjson/1.5.0:
@@ -633,6 +637,7 @@ packages:
       split2: 2.2.0
       through2: 2.0.3
     dev: true
+    hasBin: true
     resolution:
       integrity: sha1-rmA7NrE0vOw0e0UkIrC/mNWDLsg=
   /normalize-package-data/2.4.0:
@@ -914,12 +919,14 @@ packages:
   /rimraf/2.6.2:
     dependencies:
       glob: 7.1.2
+    hasBin: true
     resolution:
       integrity: sha512-lreewLK/BlghmxtfH36YYVg1i8IAce4TI7oao75I1g245+6BctqTVQiBP3YUJ9C6DQOXJmkYR9X9fCLtCOJc5w==
   /safe-buffer/5.1.2:
     resolution:
       integrity: sha512-Gd2UZBJDkXlY7GbJxfsE8/nvKkUEU1G38c1siN6QP6a9PT9MmHB8GnpscSmMJSoF8LOIrt8ud/wPtojys4G6+g==
   /semver/5.5.0:
+    hasBin: true
     resolution:
       integrity: sha512-4SJ3dm0WAwWy/NVeioZh5AntkdJoWKxHxcmyP622fOkgHa4z3R0TdBJICINyaSDE6uNwVc8gZr+ZinwZAH4xIA==
   /signal-exit/3.0.2:
@@ -1022,6 +1029,7 @@ packages:
     dev: false
     engines:
       node: '>=4'
+    hasBin: true
     resolution:
       integrity: sha512-klQgTYk7en8A69nAzZjJdaMXbGCmfh0DU+YLaZG/stHNp00VZSS3Pos238Ua7oCKVw57UszViod4D7RVRH6XHg==
   /thenify-all/1.6.0:
@@ -1066,6 +1074,7 @@ packages:
     dev: true
     engines:
       node: '>=4.8.0'
+    hasBin: true
     peerDependencies:
       typescript: '>=2.1.0 || >=2.1.0-dev || >=2.2.0-dev || >=2.3.0-dev || >=2.4.0-dev || >=2.5.0-dev || >=2.6.0-dev || >=2.7.0-dev || >=2.8.0-dev || >=2.9.0-dev'
     resolution:
@@ -1082,6 +1091,7 @@ packages:
     dev: true
     engines:
       node: '>=4.2.0'
+    hasBin: true
     resolution:
       integrity: sha512-Gr4p6nFNaoufRIY4NMdpQRNmgxVIGMs4Fcu/ujdYk3nAZqk7supzBE9idmvfZIlH/Cuj//dvi+019qEue9lV0w==
   /unique-string/1.0.0:
@@ -1141,7 +1151,7 @@ packages:
     resolution:
       integrity: sha1-pcbVMr5lbiPbgg77lDofBJmNY68=
 registry: 'https://registry.npmjs.org/'
-shrinkwrapMinorVersion: 7
+shrinkwrapMinorVersion: 8
 shrinkwrapVersion: 3
 specifiers:
   '@pnpm/logger': ^1.0.1

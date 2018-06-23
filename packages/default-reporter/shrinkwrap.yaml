@@ -315,6 +315,7 @@ packages:
       through2: 2.0.3
       unbzip2-stream: 1.2.5
     dev: true
+    hasBin: true
     resolution:
       integrity: sha1-ya73AIprlDy+mcxhcSXrS9R4KWs=
   /camelcase-keys/4.2.0:
@@ -574,6 +575,7 @@ packages:
     dev: true
     engines:
       node: '>=4'
+    hasBin: true
     resolution:
       integrity: sha512-oftTcaMu/EGrEIu904mWteKIv8vMuOgGYo7EhVJJN00R/EED9DCua/xxHRdYnKtcECzVg7xOWhflvJMnqcFZjw==
   /esutils/2.0.2:
@@ -623,6 +625,7 @@ packages:
     dev: true
     engines:
       node: '>=0.6'
+    hasBin: true
     resolution:
       integrity: sha1-itkpozk7rGJ5V6fl3kYjsGsOLOs=
   /for-each/0.3.3:
@@ -702,6 +705,7 @@ packages:
       pumpify: 1.5.1
       through2: 2.0.3
     dev: true
+    hasBin: true
     resolution:
       integrity: sha512-qtutIKMthNJJgeHQS7kZ9FqDq59/Wn0G2HYCRNjpup7yKfVI6/eqwpmroyZGFoCYaG+sW6psNVb4zoLADHpp2g==
   /has-ansi/0.1.0:
@@ -710,6 +714,7 @@ packages:
     dev: true
     engines:
       node: '>=0.10.0'
+    hasBin: true
     resolution:
       integrity: sha1-hPJlqujA5qiKEtcCKJS3VoiUxi4=
   /has-ansi/2.0.0:
@@ -854,6 +859,7 @@ packages:
       argparse: 1.0.10
       esprima: 4.0.0
     dev: true
+    hasBin: true
     resolution:
       integrity: sha512-PIt2cnwmPfL4hKNwqeiuz4bKfnzHTBv6HyVgjahA6mPLwPDzjDWrplJBMjHUFxku/N3FlmrbyPclad+I+4mJ3A==
   /json-parse-better-errors/1.0.2:
@@ -868,6 +874,7 @@ packages:
     dependencies:
       chalk: 0.5.1
     dev: true
+    hasBin: true
     resolution:
       integrity: sha1-wFKImpnvfroZ0AlfkPclz6cKVhE=
   /jsonfile/4.0.0:
@@ -1014,6 +1021,7 @@ packages:
     dependencies:
       minimist: 0.0.8
     dev: true
+    hasBin: true
     resolution:
       integrity: sha1-MAV0OOrGz3+MR2fzhkjWaX11yQM=
   /mos-tap-diff/1.0.0:
@@ -1029,6 +1037,7 @@ packages:
       tap-parser: 1.3.2
       through2: 2.0.3
     dev: true
+    hasBin: true
     resolution:
       integrity: sha1-NDOB0f2e1RljsLMVNbf9i64E/3A=
   /most-last/1.0.1:
@@ -1059,6 +1068,7 @@ packages:
       minimist: 1.2.0
       split2: 2.2.0
       through2: 2.0.3
+    hasBin: true
     resolution:
       integrity: sha1-rmA7NrE0vOw0e0UkIrC/mNWDLsg=
   /next-path/1.0.0:
@@ -1134,6 +1144,7 @@ packages:
       manage-path: 2.0.0
       spawn-command: 0.0.2-1
     dev: true
+    hasBin: true
     resolution:
       integrity: sha1-BNtEexPJa5kusxaFJm9O0NlzbcI=
   /p-limit/1.3.0:
@@ -1180,6 +1191,7 @@ packages:
     dev: true
     engines:
       node: '>=4'
+    hasBin: true
     resolution:
       integrity: sha512-GQ4w5vrDXoy8UVJM+0W7oWd5MYF21/IXkdzcupGNXdfqQuMzgQT+LXde109uHaH7xyqvCzPPBSxYM/HqQOi3+w==
   /pako/0.2.9:
@@ -1393,12 +1405,14 @@ packages:
     dependencies:
       glob: 7.1.2
     dev: true
+    hasBin: true
     resolution:
       integrity: sha512-lreewLK/BlghmxtfH36YYVg1i8IAce4TI7oao75I1g245+6BctqTVQiBP3YUJ9C6DQOXJmkYR9X9fCLtCOJc5w==
   /safe-buffer/5.1.2:
     resolution:
       integrity: sha512-Gd2UZBJDkXlY7GbJxfsE8/nvKkUEU1G38c1siN6QP6a9PT9MmHB8GnpscSmMJSoF8LOIrt8ud/wPtojys4G6+g==
   /semver/5.5.0:
+    hasBin: true
     resolution:
       integrity: sha512-4SJ3dm0WAwWy/NVeioZh5AntkdJoWKxHxcmyP622fOkgHa4z3R0TdBJICINyaSDE6uNwVc8gZr+ZinwZAH4xIA==
   /shebang-command/1.2.0:
@@ -1534,6 +1548,7 @@ packages:
     dev: true
     engines:
       node: '>=0.10.0'
+    hasBin: true
     resolution:
       integrity: sha1-JfSOoiynkYfzF0pNuHWTR7sSYiA=
   /strip-ansi/3.0.1:
@@ -1568,6 +1583,7 @@ packages:
     dev: true
     engines:
       node: '>=0.10.0'
+    hasBin: true
     resolution:
       integrity: sha1-2S3iaU6z9nMjlz1649i1W0wiGQo=
   /supports-color/2.0.0:
@@ -1600,6 +1616,7 @@ packages:
     dev: true
     engines:
       node: '>=4'
+    hasBin: true
     resolution:
       integrity: sha512-klQgTYk7en8A69nAzZjJdaMXbGCmfh0DU+YLaZG/stHNp00VZSS3Pos238Ua7oCKVw57UszViod4D7RVRH6XHg==
   /tap-parser/1.3.2:
@@ -1608,6 +1625,7 @@ packages:
       inherits: 2.0.3
       js-yaml: 3.12.0
     dev: true
+    hasBin: true
     optionalDependencies:
       readable-stream: 2.3.6
     resolution:
@@ -1628,6 +1646,7 @@ packages:
       string.prototype.trim: 1.1.2
       through: 2.3.8
     dev: true
+    hasBin: true
     resolution:
       integrity: sha512-6fKIXknLpoe/Jp4rzHKFPpJUHDHDqn8jus99IfPnHIjyz78HYlefTGD3b5EkbQzuLfaEvmfPK3IolLgq2xT3kw==
   /tar-fs/1.16.3:
@@ -1700,6 +1719,7 @@ packages:
     dev: true
     engines:
       node: '>=4.2.0'
+    hasBin: true
     resolution:
       integrity: sha512-klJsfswHP0FuOLsvBZ/zzCfUvakOSSxds78mVeK7I+qP76YWtxf16hEZsp3U+b0kIo82R5UatGFeblYMqabb2Q==
   /tslib/1.9.3:
@@ -1723,6 +1743,7 @@ packages:
     dev: true
     engines:
       node: '>=4.8.0'
+    hasBin: true
     peerDependencies:
       typescript: '>=2.1.0 || >=2.1.0-dev || >=2.2.0-dev || >=2.3.0-dev || >=2.4.0-dev || >=2.5.0-dev || >=2.6.0-dev || >=2.7.0-dev || >=2.8.0-dev || >=2.9.0-dev'
     resolution:
@@ -1739,6 +1760,7 @@ packages:
     dev: true
     engines:
       node: '>=4.2.0'
+    hasBin: true
     resolution:
       integrity: sha512-Gr4p6nFNaoufRIY4NMdpQRNmgxVIGMs4Fcu/ujdYk3nAZqk7supzBE9idmvfZIlH/Cuj//dvi+019qEue9lV0w==
   /unbzip2-stream/1.2.5:
@@ -1779,6 +1801,7 @@ packages:
     dependencies:
       isexe: 2.0.0
     dev: true
+    hasBin: true
     resolution:
       integrity: sha512-HxJdYWq1MTIQbJ3nw0cqssHoTNU267KlrDuGZ1WYlxDStUtKUhOaJmh112/TZmHxxUfuJqPXSOm7tDyas0OSIQ==
   /wrappy/1.0.2:
@@ -1828,7 +1851,7 @@ packages:
     resolution:
       integrity: sha512-Qv4qvc8ZIue51B/0zmeIMxpIGDVhz4GhJALBvnKs/FRa2T7jy4Ori9wFwaHVt0zWV7MIFglKAHbgnVxVTw7U1w==
 registry: 'https://registry.npmjs.org/'
-shrinkwrapMinorVersion: 7
+shrinkwrapMinorVersion: 8
 shrinkwrapVersion: 3
 specifiers:
   '@pnpm/logger': ^1.0.0

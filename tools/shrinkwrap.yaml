@@ -19,6 +19,7 @@ packages:
     dev: false
     engines:
       node: '>=4'
+    hasBin: true
     resolution:
       integrity: sha1-O/htirL71QdMMRS3uj9LQbd189w=
   /@commitlint/config-conventional/7.0.1:
@@ -111,6 +112,7 @@ packages:
       execa: 0.9.0
       meow: 3.7.0
     dev: false
+    hasBin: true
     resolution:
       integrity: sha1-+BrRe/5rZA7LzRMKFvybnfG5HfQ=
   /@commitlint/prompt/7.0.0:
@@ -191,6 +193,7 @@ packages:
       jsonparse: 1.3.1
       through: 2.3.8
     dev: false
+    hasBin: true
     resolution:
       integrity: sha512-3Sp6WZZ/lXl+nTDoGpGWHEpTnnC6X5fnkolYZR6nwIfzbxxvA8utPWe1gCt7i0m9uVGsSz2IS8K8mJ7HmlduMg==
   /ansi-escapes/1.4.0:
@@ -410,6 +413,7 @@ packages:
       through2: 2.0.3
       trim-off-newlines: 1.0.1
     dev: false
+    hasBin: true
     resolution:
       integrity: sha512-BoMaddIEJ6B4QVMSDu9IkVImlGOSGA1I2BQyOZHeLQ6qVOJLcLKn97+fL6dGbzWEiqDzfH4OkcveULmeq2MHFQ==
   /core-js/2.5.7:
@@ -504,6 +508,7 @@ packages:
     dev: false
     engines:
       node: '>=4'
+    hasBin: true
     resolution:
       integrity: sha512-oftTcaMu/EGrEIu904mWteKIv8vMuOgGYo7EhVJJN00R/EED9DCua/xxHRdYnKtcECzVg7xOWhflvJMnqcFZjw==
   /execa/0.9.0:
@@ -588,6 +593,7 @@ packages:
       split2: 2.2.0
       through2: 2.0.3
     dev: false
+    hasBin: true
     resolution:
       integrity: sha512-svsK26tQ8vEKnMshTDatSIQSMDdz8CxIIqKsvPqbtV23Etmw6VNaFAitu8zwZ0VrOne7FztwPyRLxK7/DIUTQg==
   /glob/7.1.2:
@@ -649,11 +655,13 @@ packages:
     dev: false
     engines:
       node: '>=6'
+    hasBin: true
     requiresBuild: true
     resolution:
       integrity: sha512-iGGRXcpwl3qGysa73KAtiZWN/YuQVqwgVsPR0UihVasfIsWaAbOfAsswsGmBhKivGtDCdOiLJPTvEZfGJWiCVw==
   /in-publish/2.0.0:
     dev: false
+    hasBin: true
     resolution:
       integrity: sha1-4g/146KvwmkDILbcVSaCqcf631E=
   /indent-string/2.1.0:
@@ -718,6 +726,7 @@ packages:
     dependencies:
       ci-info: 1.1.3
     dev: false
+    hasBin: true
     resolution:
       integrity: sha512-c7TnwxLePuqIlxHgr7xtxzycJPegNHFuIrBkwbf8hc58//+Op1CqFkyS+xnIMkwn9UsJIwc174BIjkyBmSpjKg==
   /is-directory/0.3.1:
@@ -785,6 +794,7 @@ packages:
       argparse: 1.0.10
       esprima: 4.0.0
     dev: false
+    hasBin: true
     resolution:
       integrity: sha512-PIt2cnwmPfL4hKNwqeiuz4bKfnzHTBv6HyVgjahA6mPLwPDzjDWrplJBMjHUFxku/N3FlmrbyPclad+I+4mJ3A==
   /json-parse-better-errors/1.0.2:
@@ -1007,6 +1017,7 @@ packages:
     dependencies:
       minimist: 0.0.8
     dev: false
+    hasBin: true
     resolution:
       integrity: sha1-MAV0OOrGz3+MR2fzhkjWaX11yQM=
   /mute-stream/0.0.5:
@@ -1345,6 +1356,7 @@ packages:
     dependencies:
       glob: 7.1.2
     dev: false
+    hasBin: true
     resolution:
       integrity: sha512-lreewLK/BlghmxtfH36YYVg1i8IAce4TI7oao75I1g245+6BctqTVQiBP3YUJ9C6DQOXJmkYR9X9fCLtCOJc5w==
   /run-async/0.1.0:
@@ -1357,6 +1369,7 @@ packages:
     dev: false
     engines:
       node: '>=4'
+    hasBin: true
     resolution:
       integrity: sha512-kc120TBlQ3mih1LSzdAJXo4xn/GWS2ec0l3S+syHDXP9uRr0JAT8Qd3mdMuyjqCzeZktgP3try92cEgf9Nks8A==
   /rx-lite/3.1.2:
@@ -1369,6 +1382,7 @@ packages:
       integrity: sha512-Gd2UZBJDkXlY7GbJxfsE8/nvKkUEU1G38c1siN6QP6a9PT9MmHB8GnpscSmMJSoF8LOIrt8ud/wPtojys4G6+g==
   /semver/5.5.0:
     dev: false
+    hasBin: true
     resolution:
       integrity: sha512-4SJ3dm0WAwWy/NVeioZh5AntkdJoWKxHxcmyP622fOkgHa4z3R0TdBJICINyaSDE6uNwVc8gZr+ZinwZAH4xIA==
   /shebang-command/1.2.0:
@@ -1477,6 +1491,7 @@ packages:
     dev: false
     engines:
       node: '>=0.10.0'
+    hasBin: true
     resolution:
       integrity: sha1-DHlipq3vp7vUrDZkYKY4VSrhoKI=
   /strip-indent/2.0.0:
@@ -1571,6 +1586,7 @@ packages:
     dependencies:
       isexe: 2.0.0
     dev: false
+    hasBin: true
     resolution:
       integrity: sha512-HxJdYWq1MTIQbJ3nw0cqssHoTNU267KlrDuGZ1WYlxDStUtKUhOaJmh112/TZmHxxUfuJqPXSOm7tDyas0OSIQ==
   /wrap-ansi/2.1.0:
@@ -1603,7 +1619,7 @@ packages:
     resolution:
       integrity: sha512-+DHejWujTVYeMHLff8U96rLc4uE4Emncoftvn5AjhB1Jw1pWxLzgBUT/WYbPrHmy6YPEBTZQx5myHhVcuuu64g==
 registry: 'https://registry.npmjs.org/'
-shrinkwrapMinorVersion: 7
+shrinkwrapMinorVersion: 8
 shrinkwrapVersion: 3
 specifiers:
   '@commitlint/cli': ^7.0.0
