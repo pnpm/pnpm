@@ -13,7 +13,7 @@ devDependencies:
   package-preview: 1.0.6
   rimraf: 2.6.2
   tape: 4.9.1
-  ts-node: 6.1.2
+  ts-node: 7.0.0
   tslint: 5.10.0
   typescript: 2.9.2
 packages:
@@ -2777,7 +2777,7 @@ packages:
     dev: true
     resolution:
       integrity: sha1-WFhUf2spB1fulczMZm+1AITEYN0=
-  /ts-node/6.1.2:
+  /ts-node/7.0.0:
     dependencies:
       arrify: 1.0.1
       buffer-from: 1.1.0
@@ -2791,7 +2791,7 @@ packages:
     engines:
       node: '>=4.2.0'
     resolution:
-      integrity: sha512-FS0pXZK0RAHFn+aq7iuWx4FPHiyUMM6p6DgKCl44c5tZKad2aUnwDH09XhsUmR0ncV2gd+ND1EV/Br5HpTxGJg==
+      integrity: sha512-klJsfswHP0FuOLsvBZ/zzCfUvakOSSxds78mVeK7I+qP76YWtxf16hEZsp3U+b0kIo82R5UatGFeblYMqabb2Q==
   /tslib/1.9.2:
     dev: true
     resolution:
@@ -3022,7 +3022,7 @@ specifiers:
   package-preview: ^1.0.1
   rimraf: ^2.6.2
   tape: ^4.8.0
-  ts-node: ^6.0.3
+  ts-node: ^7.0.0
   tslint: ^5.8.0
   typescript: ^2.9.1
   which: ^1.3.0

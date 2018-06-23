@@ -14,8 +14,8 @@ declare module 'cross-spawn' {
 }
 
 declare module 'is-ci' {
-  const anything: any;
-  export = anything;
+  const isCI: boolean;
+  export = isCI;
 }
 
 declare module 'loud-rejection' {

@@ -1,3 +1,4 @@
+///<reference path="../typings/index.d.ts" />
 import './cli'
 import './install'
 import './uninstall'

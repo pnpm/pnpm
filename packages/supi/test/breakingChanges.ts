@@ -8,7 +8,7 @@ import {prepare, testDefaults} from './utils'
 
 const test = promisifyTape(tape)
 
-test('fail on non-compatible node_modules', async (t) => {
+test('fail on non-compatible node_modules', async (t: tape.Test) => {
   const project = prepare(t)
   const opts = await testDefaults()
 
@@ -22,7 +22,7 @@ test('fail on non-compatible node_modules', async (t) => {
   }
 })
 
-test("don't fail on non-compatible node_modules when forced", async (t) => {
+test("don't fail on non-compatible node_modules when forced", async (t: tape.Test) => {
   const project = prepare(t)
   const opts = await testDefaults({force: true})
 
@@ -33,7 +33,7 @@ test("don't fail on non-compatible node_modules when forced", async (t) => {
   t.pass('install did not fail')
 })
 
-test('fail on non-compatible node_modules when forced with a named installation', async (t) => {
+test('fail on non-compatible node_modules when forced with a named installation', async (t: tape.Test) => {
   const project = prepare(t)
   const opts = await testDefaults({force: true})
 
@@ -47,7 +47,7 @@ test('fail on non-compatible node_modules when forced with a named installation'
   }
 })
 
-test("don't fail on non-compatible store when forced", async (t) => {
+test("don't fail on non-compatible store when forced", async (t: tape.Test) => {
   const project = prepare(t)
   const opts = await testDefaults({force: true})
 
@@ -58,7 +58,7 @@ test("don't fail on non-compatible store when forced", async (t) => {
   t.pass('install did not fail')
 })
 
-test('fail on non-compatible store when forced during named installation', async (t) => {
+test('fail on non-compatible store when forced during named installation', async (t: tape.Test) => {
   const project = prepare(t)
   const opts = await testDefaults({force: true})
 
@@ -77,7 +77,7 @@ async function saveModulesYaml (pnpmVersion: string, storePath: string) {
   await fs.writeFile('node_modules/.modules.yaml', `packageManager: pnpm@${pnpmVersion}\nstore: ${storePath}\nindependentLeaves: false`)
 }
 
-test('fail on non-compatible shrinkwrap.yaml', async (t) => {
+test('fail on non-compatible shrinkwrap.yaml', async (t: tape.Test) => {
   if (isCI) {
     t.skip('this test will always fail on CI servers')
     return
@@ -94,7 +94,7 @@ test('fail on non-compatible shrinkwrap.yaml', async (t) => {
   }
 })
 
-test("don't fail on non-compatible shrinkwrap.yaml when forced", async (t) => {
+test("don't fail on non-compatible shrinkwrap.yaml when forced", async (t: tape.Test) => {
   const project = prepare(t)
   await fs.writeFile('shrinkwrap.yaml', '')
 

@@ -1,3 +1,4 @@
+///<reference path="../typings/index.d.ts" />
 import assertProject from '@pnpm/assert-project'
 import headless from '@pnpm/headless'
 import fse = require('fs-extra')

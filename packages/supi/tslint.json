@@ -16,6 +16,7 @@
     "no-use-before-declare": true,
     "no-var-requires": true,
     "no-require-imports": false,
+    "no-reference": false,
     "space-before-function-paren": [true, "always"],
     "interface-name": [true, "never-prefix"],
     "one-line": [true,

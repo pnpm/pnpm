@@ -92,7 +92,7 @@ devDependencies:
   sepia: 2.0.2
   tape: 4.9.1
   tape-promise: 3.0.0
-  ts-node: 6.1.2
+  ts-node: 7.0.0
   tslint: 5.10.0
   typescript: 2.9.2
   write-json-file: 2.3.0
@@ -5916,7 +5916,7 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha1-tAPQuRvlDDMd/EuC7s6yLD3hbSA=
-  /ts-node/6.1.2:
+  /ts-node/7.0.0:
     dependencies:
       arrify: 1.0.1
       buffer-from: 1.1.0
@@ -5930,7 +5930,7 @@ packages:
     engines:
       node: '>=4.2.0'
     resolution:
-      integrity: sha512-FS0pXZK0RAHFn+aq7iuWx4FPHiyUMM6p6DgKCl44c5tZKad2aUnwDH09XhsUmR0ncV2gd+ND1EV/Br5HpTxGJg==
+      integrity: sha512-klJsfswHP0FuOLsvBZ/zzCfUvakOSSxds78mVeK7I+qP76YWtxf16hEZsp3U+b0kIo82R5UatGFeblYMqabb2Q==
   /tslib/1.9.2:
     dev: true
     resolution:
@@ -6553,7 +6553,7 @@ specifiers:
   tape-promise: ^3.0.0
   text-table: ^0.2.0
   tree-kill: ^1.2.0
-  ts-node: ^6.0.0
+  ts-node: ^7.0.0
   tslint: ^5.4.2
   typescript: ^2.9.1
   update-notifier: ^2.1.0

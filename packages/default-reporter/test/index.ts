@@ -1,3 +1,4 @@
+///<reference path="../typings/index.d.ts"/>
 import logger, {
   createStreamParser,
 } from '@pnpm/logger'
