@@ -2,9 +2,8 @@ import runLifecycleHooks from '@pnpm/lifecycle'
 import logger from '@pnpm/logger'
 import {PackageJson} from '@pnpm/types'
 import {realNodeModulesDir} from '@pnpm/utils'
-import graphSequencer = require('graph-sequencer')
 import pLimit = require('p-limit')
-import createPkgGraph from 'pkgs-graph'
+import dividePackagesToChunks from './dividePackagesToChunks'
 
 export default async (
   pkgs: Array<{path: string, manifest: PackageJson}>,
@@ -17,15 +16,7 @@ export default async (
   },
 ) => {
   const scriptName = args[0]
-  const pkgGraphResult = createPkgGraph(pkgs)
-  const graph = new Map(
-    Object.keys(pkgGraphResult.graph).map((pkgPath) => [pkgPath, pkgGraphResult.graph[pkgPath].dependencies]) as Array<[string, string[]]>,
-  )
-  const graphSequencerResult = graphSequencer({
-    graph,
-    groups: [Object.keys(pkgGraphResult.graph)],
-  })
-  const chunks = graphSequencerResult.chunks
+  const {chunks, graph} = dividePackagesToChunks(pkgs)
   let hasCommand = 0
 
   const limitRun = pLimit(opts.concurrency)
@@ -33,7 +24,7 @@ export default async (
   for (const chunk of chunks) {
     await Promise.all(chunk.map((prefix: string) =>
       limitRun(async () => {
-        const pkg = pkgGraphResult.graph[prefix] as {manifest: PackageJson, path: string}
+        const pkg = graph[prefix] as {manifest: PackageJson, path: string}
         if (!pkg.manifest.scripts || !pkg.manifest.scripts[scriptName]) {
           return
         }

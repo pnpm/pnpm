@@ -26,6 +26,7 @@ import getCommandFullName from '../../getCommandFullName'
 import requireHooks from '../../requireHooks'
 import {PnpmOptions} from '../../types'
 import help from '../help'
+import exec from './exec'
 import list from './list'
 import outdated from './outdated'
 import run from './run'
@@ -40,6 +41,7 @@ const supportedRecursiveCommands = new Set([
   'rebuild',
   'run',
   'test',
+  'exec',
 ])
 
 export default async (
@@ -99,6 +101,8 @@ export default async (
     case 'update':
       opts = {...opts, update: true, allowNew: false, concurrency} as any // tslint:disable-line:no-any
       break
+    case 'exec':
+      return exec(pkgs, input, cmd, {...opts, concurrency} as any) // tslint:disable-line:no-any
   }
 
   const store = await createStoreController(opts)
