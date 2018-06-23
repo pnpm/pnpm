@@ -236,78 +236,33 @@ function getHelpText (command: string) {
 
     case 'recursive':
       return stripIndent`
-        Usage: pnpm recursive [command] [flags]
+        pnpm recursive [command] [flags]
+        pnpm multi [command] [flags]
+        pnpm m [command] [flags]
 
-        Aliases: multi, m
+        Concurrently performs some actions in all subdirectories with a \`package.json\` (excluding node_modules).
+        A \`pnpm-workspace.yaml\` file may be used to control what directories are searched for packages.
 
-        pnpm recursive install
+        Commands:
 
-        Concurrently runs installation in all subdirectories with a \`package.json\` (excluding node_modules).
+          install
+          update
+          link                             runs installation in each package. If a package is available locally, the local version is linked.
+          unlink                           removes links to local packages and reinstalls them from the registry.
+          list [[<@scope>/]<pkg> ...]      list dependencies in each package.
+          outdated [[<@scope>/]<pkg> ...]  check for outdated dependencies in every package.
 
-        Options: same as for \`pnpm install\`
+          run <command> [-- <args>...]     this runs an arbitrary command from each package's "scripts" object.
+                                           If a package doesn't have the command, it is skipped.
+                                           If none of the packages have the command, the command fails.
 
-        * * *
+          test [-- <args>...]              this runs each package's "test" script, if one was provided.
 
-        pnpm recursive update
+          rebuild [[<@scope>/<name>]...]   this command runs the "npm build" command on each package.
+                                           This is useful when you install a new version of node,
+                                           and must recompile all your C++ addons with the new binary.
 
-        Concurrently runs update in all subdirectories with a \`package.json\` (excluding node_modules).
-
-        Options: same as for \`pnpm update\`
-
-        * * *
-
-        pnpm recursive link
-
-        Concurrently runs installation in all subdirectories with a \`package.json\` (excluding node_modules).
-        If a package is available locally, the local version is linked.
-
-        Options: same as for \`pnpm install\`
-
-        * * *
-
-        pnpm recursive unlink
-
-        Removes links to local packages and reinstalls them from the registry.
-
-        * * *
-
-        pnpm recursive list [[<@scope>/]<pkg> ...]
-
-        List packages in each project of the multi-package repo.
-        Accepts the same arguments and flags as the regular \`pnpm list\` command.
-
-        * * *
-
-        pnpm recursive outdated [[<@scope>/]<pkg> ...]
-
-        Check for outdated packages in every project of the multi-package repo.
-
-        * * *
-
-        pnpm recursive run <command> [-- <args>...]
-
-        alias: pnpm recursive run-script
-
-        This runs an arbitrary command from each package's "scripts" object.
-        If a package doesn't have the command, it is skipped.
-        If none of the packages have the command, the command fails.
-
-        * * *
-
-        pnpm recursive test <command> [-- <args>...]
-
-        alias: pnpm recursive t, pnpm recursive tst
-
-        This runs each package's "test" script, if one was provided.
-
-        * * *
-
-        pnpm recursive rebuild [[<@scope>/<name>]...]
-
-        alias: pnpm recursive rb
-
-        This command runs the "npm build" command on each package.
-        This is useful when you install a new version of node, and must recompile all your C++ addons with the new binary.
+          exec -- <command> [args...]      run a command in each package.
 
         Options:
 
@@ -343,6 +298,7 @@ function getHelpText (command: string) {
           - recursive run
           - recursive test
           - recursive rebuild
+          - recursive exec
 
           - server start
           - server stop
