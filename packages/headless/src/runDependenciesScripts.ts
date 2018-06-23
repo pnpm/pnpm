@@ -2,18 +2,15 @@
 
 import {runPostinstallHooks} from '@pnpm/lifecycle'
 import logger from '@pnpm/logger'
+import {fromDir as readPackageFromDir} from '@pnpm/read-package-json'
 import {skippedOptionalDependencyLogger} from '@pnpm/utils'
 import graphSequencer = require('graph-sequencer')
 import pLimit = require('p-limit')
 import {StoreController} from 'package-store'
 import path = require('path')
 import R = require('ramda')
-import readPkgCB = require('read-package-json')
-import promisify = require('util.promisify')
 import {DepGraphNodesByDepPath} from '.'
 import {ENGINE_NAME} from './constants'
-
-const readPkg = promisify(readPkgCB)
 
 export default async (
   depGraph: DepGraphNodesByDepPath,
@@ -82,7 +79,7 @@ export default async (
           } catch (err) {
             if (depNode.optional) {
               // TODO: add parents field to the log
-              const pkg = await readPkg(path.join(depNode.peripheralLocation, 'package.json'))
+              const pkg = await readPackageFromDir(path.join(depNode.peripheralLocation))
               skippedOptionalDependencyLogger.debug({
                 details: err.toString(),
                 package: {

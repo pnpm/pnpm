@@ -13,6 +13,7 @@ import {
   PackageFilesResponse,
 } from '@pnpm/package-requester'
 import pkgIdToFilename from '@pnpm/pkgid-to-filename'
+import {fromDir as readPackageFromDir} from '@pnpm/read-package-json'
 import {PackageJson} from '@pnpm/types'
 import {
   packageJsonLogger,
@@ -39,16 +40,12 @@ import {
   writeCurrentOnly as writeCurrentShrinkwrapOnly,
 } from 'pnpm-shrinkwrap'
 import R = require('ramda')
-import readPkgCB = require('read-package-json')
 import symlinkDir = require('symlink-dir')
-import promisify = require('util.promisify')
 import {
   ENGINE_NAME,
   LAYOUT_VERSION,
 } from './constants'
 import runDependenciesScripts from './runDependenciesScripts'
-
-const readPkg = promisify(readPkgCB)
 
 export type ReporterFunction = (logObj: LogBase) => void
 
@@ -100,7 +97,7 @@ export default async (opts: HeadlessOptions) => {
   const nodeModulesDir = await realNodeModulesDir(opts.prefix)
   const modules = await readModulesYaml(nodeModulesDir) || {pendingBuilds: [] as string[], hoistedAliases: {}}
 
-  const pkg = opts.packageJson || await readPkg(path.join(opts.prefix, 'package.json')) as PackageJson
+  const pkg = opts.packageJson || await readPackageFromDir(opts.prefix)
 
   if (!satisfiesPackageJson(wantedShrinkwrap, pkg)) {
     throw new Error('Cannot run headless installation because shrinkwrap.yaml is not up-to-date with package.json')

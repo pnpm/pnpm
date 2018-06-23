@@ -22,7 +22,6 @@
     "@pnpm/assert-project": "^1.1.1",
     "@pnpm/default-fetcher": "^0.4.0 || 1",
     "@pnpm/default-resolver": "^2.0.0",
-    "@pnpm/exec": "^1.1.4",
     "@pnpm/logger": "^1.0.1",
     "@pnpm/store-path": "^1.0.3",
     "@types/fs-extra": "^5.0.1",
@@ -79,7 +78,7 @@
     "test": "npm run lint && npm run lint-test && npm run tsc && pnpm link . && npm run test:e2e",
     "tsc": "rimraf lib && tsc",
     "prepublishOnly": "npm run tsc",
-    "runPrepareFixtures": "ts-node test/prepareFixtures",
+    "runPrepareFixtures": "node ../pnpm/lib/bin/pnpm.js m i --shrinkwrap-only --registry http://localhost:4873/ --ignore-scripts --force",
     "prepareFixtures": "npm-run-all -p -r pnpm-registry-mock runPrepareFixtures"
   },
   "dependencies": {
@@ -88,6 +87,7 @@
     "@pnpm/modules-yaml": "^1.0.0",
     "@pnpm/package-requester": "^3.0.0",
     "@pnpm/pkgid-to-filename": "^1.0.0",
+    "@pnpm/read-package-json": "^1.0.0",
     "@pnpm/types": "^1.7.0",
     "@pnpm/utils": "^0.3.0",
     "@types/ramda": "^0.25.19",
@@ -98,8 +98,6 @@
     "path-exists": "^3.0.0",
     "pnpm-shrinkwrap": "^6.4.0",
     "ramda": "^0.25.0",
-    "read-package-json": "^2.0.13",
-    "symlink-dir": "^1.1.2",
-    "util.promisify": "^1.0.0"
+    "symlink-dir": "^1.1.2"
   }
 }
