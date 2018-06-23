@@ -1533,7 +1533,7 @@ packages:
       tarball: 'https://codeload.github.com/zkochan/yaml-tag/tar.gz/5dc60b313a917434585d02031c4fd4c326a751c1'
     version: 1.1.0
 registry: 'https://registry.npmjs.org/'
-shrinkwrapMinorVersion: 5
+shrinkwrapMinorVersion: 7
 shrinkwrapVersion: 3
 specifiers:
   '@pnpm/logger': ^1.0.0
