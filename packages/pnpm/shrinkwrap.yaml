@@ -6510,7 +6510,7 @@ shrinkwrapMinorVersion: 8
 shrinkwrapVersion: 3
 specifiers:
   '@pnpm/assert-project': ^1.1.1
-  '@pnpm/config': ^1.2.2
+  '@pnpm/config': ^1.2.3
   '@pnpm/default-fetcher': ^0.4.0 || 1
   '@pnpm/default-resolver': ^2.0.0
   '@pnpm/lifecycle': ^2.2.1
