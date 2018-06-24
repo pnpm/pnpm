@@ -86,13 +86,16 @@ export default async (
       return acc
     }, {})
   pnpmConfig.rawNpmConfig = Object.assign.apply(Object, npmConfig.list.reverse().concat([cliArgs]))
+  const npmGlobalPrefix = process.env.APPDATA
+    ? path.join(process.env.APPDATA, 'npm')
+    : npmConfig.globalPrefix
   pnpmConfig.globalBin = process.platform === 'win32'
-    ? npmConfig.globalPrefix
-    : path.resolve(npmConfig.globalPrefix, 'bin')
+    ? npmGlobalPrefix
+    : path.resolve(npmGlobalPrefix, 'bin')
   pnpmConfig.bin = pnpmConfig.global
     ? pnpmConfig.globalBin
     : path.join(npmConfig.localPrefix, 'node_modules', '.bin')
-  pnpmConfig.globalPrefix = path.join(npmConfig.globalPrefix, 'pnpm-global')
+  pnpmConfig.globalPrefix = path.join(npmGlobalPrefix, 'pnpm-global')
   pnpmConfig.prefix = pnpmConfig.global
     ? pnpmConfig.globalPrefix
     : (cliArgs['prefix'] ? path.resolve(cliArgs['prefix']) : npmConfig.localPrefix) // tslint:disable-line
