@@ -2,6 +2,7 @@ import tape = require('tape')
 import promisifyTape from 'tape-promise'
 import path = require('path')
 import {stripIndent} from 'common-tags'
+import isWindows = require('is-windows')
 import {
   execPnpm,
   execPnpmSync,
@@ -17,6 +18,7 @@ test('listing global packages', async (t: tape.Test) => {
 
   const global = path.resolve('global')
 
+  if (process.env.APPDATA) process.env.APPDATA = global
   process.env.NPM_CONFIG_PREFIX = global
 
   await execPnpm('install', '-g', 'is-positive@3.1.0')
@@ -25,8 +27,11 @@ test('listing global packages', async (t: tape.Test) => {
 
   t.equal(result.status, 0)
 
+  const globalPrefix = isWindows()
+    ? path.join(global, 'npm', 'pnpm-global', '1')
+    : path.join(global, 'pnpm-global', '1')
   t.equal(result.stdout.toString(), stripIndent`
-    pnpm-global-pkg@1.0.0 ${path.join(global, 'pnpm-global', '1')}
+    pnpm-global-pkg@1.0.0 ${globalPrefix}
     └── is-positive@3.1.0
   ` + '\n\n')
 })
@@ -36,6 +41,7 @@ test('listing global packages installed with independent-leaves = true', async (
 
   const global = path.resolve('global')
 
+  if (process.env.APPDATA) process.env.APPDATA = global
   process.env.NPM_CONFIG_PREFIX = global
 
   await execPnpm('install', '-g', '--independent-leaves', 'is-positive@3.1.0')
@@ -44,8 +50,11 @@ test('listing global packages installed with independent-leaves = true', async (
 
   t.equal(result.status, 0)
 
+  const globalPrefix = isWindows()
+    ? path.join(global, 'npm', 'pnpm-global', '1_independent_leaves')
+    : path.join(global, 'pnpm-global', '1_independent_leaves')
   t.equal(result.stdout.toString(), stripIndent`
-    pnpm-global-pkg@1.0.0 ${path.join(global, 'pnpm-global', '1_independent_leaves')}
+    pnpm-global-pkg@1.0.0 ${globalPrefix}
     └── is-positive@3.1.0
   ` + '\n\n')
 })

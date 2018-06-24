@@ -1,7 +1,7 @@
+import {fromDir as readPkgFromDir} from '@pnpm/read-package-json'
 import tape = require('tape')
 import promisifyTape from 'tape-promise'
 const test = promisifyTape(tape)
-import readPkg = require('read-pkg')
 import {
   prepare,
   testDefaults,
@@ -27,7 +27,7 @@ test('uninstall package and remove from appropriate property', async function (t
 
   await project.hasNot('is-positive')
 
-  const pkgJson = await readPkg()
+  const pkgJson = await readPkgFromDir(process.cwd())
   t.equal(pkgJson.optionalDependencies, undefined, 'is-negative has been removed from optionalDependencies')
 })
 
@@ -36,8 +36,9 @@ test('uninstall global package with its bin files', async (t: tape.Test) => {
   process.chdir('..')
 
   const global = path.resolve('global')
-  const globalBin = isWindows() ? global : path.join(global, 'bin')
+  const globalBin = isWindows() ? path.join(global, 'npm') : path.join(global, 'bin')
 
+  if (process.env.APPDATA) process.env.APPDATA = global
   process.env.NPM_CONFIG_PREFIX = global
 
   await execPnpm('install', '-g', 'sh-hello-world@1.0.1')

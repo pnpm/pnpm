@@ -22,6 +22,7 @@ dependencies:
   cross-spawn: 6.0.5
   delay: 3.0.0
   diable: 4.0.1
+  execa: 0.10.0
   find-packages: 2.2.0
   get-port: 3.2.0
   graceful-fs: 4.1.11
@@ -57,6 +58,7 @@ dependencies:
   util.promisify: 1.0.0
 devDependencies:
   '@pnpm/assert-project': 1.1.2
+  '@pnpm/read-package-json': 1.0.0
   '@types/byline': 4.2.31
   '@types/common-tags': 1.4.0
   '@types/delay': 2.0.1
@@ -75,7 +77,6 @@ devDependencies:
   byline: 5.0.0
   caw: 2.0.1
   deep-require-cwd: 1.0.0
-  execa: 0.10.0
   exists-link: 2.0.0
   mkdirp: 0.5.1
   normalize-newline: 3.0.0
@@ -84,7 +85,6 @@ devDependencies:
   package-preview: 1.0.6
   path-exists: 3.0.0
   pnpm-registry-mock: 2.1.0
-  read-pkg: 3.0.0
   retry: 0.12.0
   rimraf: 2.6.2
   rimraf-then: 1.0.1
@@ -360,7 +360,6 @@ packages:
       '@pnpm/types': 1.7.0
       read-package-json: 2.0.13
       util.promisify: 1.0.0
-    dev: false
     engines:
       node: '>=6'
     resolution:
@@ -453,7 +452,6 @@ packages:
     resolution:
       integrity: sha512-AM/vdcnhu0nGJz+QR0FBR4vGsT+zo//l9kxC85ork9lqOOcFw0NA8fAes1mGxQE6lYRF+qthR3OmfX2yvFRW2g==
   /@pnpm/types/1.7.0:
-    dev: false
     resolution:
       integrity: sha512-pn7g4uxcofWTNG/cxmKvkMK2lxr4OUIhrQDrEVYEdVhW0WkWztsHkFrYjFgfNzPbYu3ITlB3T6aSVjCoJQTOlw==
   /@sindresorhus/is/0.7.0:
@@ -2129,6 +2127,7 @@ packages:
       p-finally: 1.0.0
       signal-exit: 3.0.2
       strip-eof: 1.0.0
+    dev: false
     engines:
       node: '>=4'
     resolution:
@@ -2549,6 +2548,7 @@ packages:
     resolution:
       integrity: sha1-Xzj5PzRgCWZu4BUKBUFn+Rvdld4=
   /get-stream/3.0.0:
+    dev: false
     engines:
       node: '>=4'
     resolution:
@@ -3247,6 +3247,7 @@ packages:
     resolution:
       integrity: sha1-6+oRaaJhTaOSpjdANmw84EnY3/Y=
   /is-stream/1.1.0:
+    dev: false
     engines:
       node: '>=0.10.0'
     resolution:
@@ -4154,6 +4155,7 @@ packages:
   /npm-run-path/2.0.2:
     dependencies:
       path-key: 2.0.1
+    dev: false
     engines:
       node: '>=4'
     resolution:
@@ -4336,6 +4338,7 @@ packages:
     resolution:
       integrity: sha1-Yp0xcVAgnI/VCLoTdxPvS7kg6ds=
   /p-finally/1.0.0:
+    dev: false
     engines:
       node: '>=4'
     resolution:
@@ -4938,7 +4941,6 @@ packages:
       json-parse-better-errors: 1.0.2
       normalize-package-data: 2.4.0
       slash: 1.0.0
-    dev: false
     optionalDependencies:
       graceful-fs: 4.1.11
     resolution:
@@ -5423,7 +5425,6 @@ packages:
     resolution:
       integrity: sha1-tf3AjxKH6hF4Yo5BXiUTK3NkbG0=
   /slash/1.0.0:
-    dev: false
     engines:
       node: '>=0.10.0'
     resolution:
@@ -5744,6 +5745,7 @@ packages:
     resolution:
       integrity: sha1-EG9l09PmotlAHKwOsM6LinArT3s=
   /strip-eof/1.0.0:
+    dev: false
     engines:
       node: '>=0.10.0'
     resolution:
@@ -6516,6 +6518,7 @@ specifiers:
   '@pnpm/lifecycle': ^2.2.1
   '@pnpm/logger': ^1.0.0
   '@pnpm/outdated': ^0.3.3
+  '@pnpm/read-package-json': ^1.0.0
   '@pnpm/server': ^0.13.2
   '@pnpm/store-path': ^1.0.3
   '@pnpm/types': ^1.5.0
@@ -6585,7 +6588,6 @@ specifiers:
   process-exists: ^3.0.0
   ramda: ^0.25.0
   read-ini-file: ^1.0.0
-  read-pkg: ^3.0.0
   retry: ^0.12.0
   rimraf: ^2.5.4
   rimraf-then: ^1.0.1

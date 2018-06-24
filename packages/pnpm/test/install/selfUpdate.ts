@@ -24,6 +24,7 @@ test('self-update stops the store server', async (t: tape.Test) => {
 
   const global = path.resolve('global')
 
+  if (process.env.APPDATA) process.env.APPDATA = global
   process.env.NPM_CONFIG_PREFIX = global
 
   await execPnpm('install', '-g', 'pnpm', '--store', path.resolve('..', 'store'))

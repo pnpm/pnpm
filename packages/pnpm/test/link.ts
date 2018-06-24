@@ -40,6 +40,7 @@ test('link global bin', async function (t: tape.Test) {
   process.chdir('..')
 
   const global = path.resolve('global')
+  if (process.env.APPDATA) process.env.APPDATA = global
   process.env.NPM_CONFIG_PREFIX = global
 
   await writePkg('package-with-bin', {name: 'package-with-bin', version: '1.0.0', bin: 'bin.js'})
@@ -49,6 +50,6 @@ test('link global bin', async function (t: tape.Test) {
 
   await execPnpm('link')
 
-  const globalBin = isWindows() ? global : path.join(global, 'bin')
+  const globalBin = isWindows() ? path.join(global, 'npm') : path.join(global, 'bin')
   await isExecutable(t, path.join(globalBin, 'package-with-bin'))
 })

@@ -86,7 +86,7 @@ devDependencies:
   read-pkg: 3.0.0
   rimraf: 2.6.2
   sepia: 2.0.2
-  sinon: 6.0.0
+  sinon: 6.0.1
   tape: 4.9.1
   tape-promise: 3.0.0
   ts-node: 7.0.0
@@ -4177,7 +4177,7 @@ packages:
   /signal-exit/3.0.2:
     resolution:
       integrity: sha1-tf3AjxKH6hF4Yo5BXiUTK3NkbG0=
-  /sinon/6.0.0:
+  /sinon/6.0.1:
     dependencies:
       '@sinonjs/formatio': 2.0.0
       diff: 3.5.0
@@ -4188,7 +4188,7 @@ packages:
       type-detect: 4.0.8
     dev: true
     resolution:
-      integrity: sha512-MatciKXyM5pXMSoqd593MqTsItJNCkSSl53HJYeKR5wfsDdp2yljjUQJLfVwAWLoBNfx1HThteqygGQ0ZEpXpQ==
+      integrity: sha512-rfszhNcfamK2+ofIPi9XqeH89pH7KGDcAtM+F9CsjHXOK3jzWG99vyhyD2V+r7s4IipmWcWUFYq4ftZ9/Eu2Wg==
   /slash/1.0.0:
     engines:
       node: '>=0.10.0'

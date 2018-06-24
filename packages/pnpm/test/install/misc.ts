@@ -10,7 +10,6 @@ import crossSpawn = require('cross-spawn')
 const spawnSync = crossSpawn.sync
 import isCI = require('is-ci')
 import rimraf = require('rimraf-then')
-import readPkg = require('read-pkg')
 import {
   prepare,
   addDistTag,
