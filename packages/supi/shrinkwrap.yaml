@@ -83,7 +83,7 @@ devDependencies:
   package-preview: 1.0.6
   path-name: 1.0.0
   pnpm-registry-mock: 2.1.0
-  read-pkg: 3.0.0
+  read-pkg: 4.0.0
   rimraf: 2.6.2
   sepia: 2.0.2
   sinon: 6.0.1
@@ -3804,6 +3804,16 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha1-nLxoaXj+5l0WwA4rGcI3/Pbjg4k=
+  /read-pkg/4.0.0:
+    dependencies:
+      normalize-package-data: 2.4.0
+      parse-json: 4.0.0
+      util.promisify: 1.0.0
+    dev: true
+    engines:
+      node: '>=6'
+    resolution:
+      integrity: sha512-2avHM2nMA5tFOMEDkB+VgMHzfRlv9d5GNc3RMTxFoOyoRN50RnLz6oN6QPiTZRYbqrufJBa/9GzWEYas0uvZZw==
   /readable-stream/2.3.6:
     dependencies:
       core-util-is: 1.0.2
@@ -5069,7 +5079,7 @@ specifiers:
   pnpm-registry-mock: ^2.1.0
   pnpm-shrinkwrap: ^6.5.0
   ramda: ^0.25.0
-  read-pkg: ^3.0.0
+  read-pkg: ^4.0.0
   remove-all-except-outer-links: ^1.0.0
   replace-string: ^1.1.0
   resolve-link-target: ^1.0.1
