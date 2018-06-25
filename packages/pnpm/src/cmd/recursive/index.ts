@@ -80,6 +80,7 @@ export default async (
     ],
     patterns: packagesManifest && packagesManifest.packages || undefined,
   })
+  pkgs.sort((pkg1: {path: string}, pkg2: {path: string}) => pkg1.path.localeCompare(pkg2.path))
 
   const pkgGraphResult = createPkgGraph(pkgs)
   if (opts.scope) {
