@@ -1,5 +1,4 @@
 import {stripIndent, stripIndents} from 'common-tags'
-import delay = require('delay')
 import fs = require('mz/fs')
 import isCI = require('is-ci')
 import isWindows = require('is-windows')
@@ -12,18 +11,17 @@ import writeYamlFile = require('write-yaml-file')
 import {
   execPnpm,
   execPnpmSync,
-  prepare,
+  preparePackages,
   retryLoadJsonFile,
   spawn,
 } from './utils'
 import mkdirp = require('mkdirp-promise')
 import normalizeNewline = require('normalize-newline')
-import loadYamlFile = require('load-yaml-file')
 
 const test = promisifyTape(tape)
 
 test('recursive installation', async (t: tape.Test) => {
-  const projects = prepare(t, [
+  const projects = preparePackages(t, [
     {
       name: 'project-1',
       version: '1.0.0',
@@ -52,7 +50,7 @@ test('recursive installation', async (t: tape.Test) => {
 })
 
 test('recursive update', async (t: tape.Test) => {
-  const projects = prepare(t, [
+  const projects = preparePackages(t, [
     {
       name: 'project-1',
       version: '1.0.0',
@@ -78,7 +76,7 @@ test('recursive update', async (t: tape.Test) => {
 })
 
 test('recursive installation with package-specific .npmrc', async t => {
-  const projects = prepare(t, [
+  const projects = preparePackages(t, [
     {
       name: 'project-1',
       version: '1.0.0',
@@ -103,14 +101,14 @@ test('recursive installation with package-specific .npmrc', async t => {
   t.ok(projects['project-2'].requireModule('is-negative'))
 
   const modulesYaml1 = await projects['project-1'].loadModules()
-  t.ok(modulesYaml1.shamefullyFlatten)
+  t.ok(modulesYaml1 && modulesYaml1.shamefullyFlatten)
 
   const modulesYaml2 = await projects['project-2'].loadModules()
-  t.notOk(modulesYaml2.shamefullyFlatten)
+  t.notOk(modulesYaml2 && modulesYaml2.shamefullyFlatten)
 })
 
 test('recursive installation using server', async (t: tape.Test) => {
-  const projects = prepare(t, [
+  const projects = preparePackages(t, [
     {
       name: 'project-1',
       version: '1.0.0',
@@ -146,7 +144,7 @@ test('recursive installation using server', async (t: tape.Test) => {
 test('recursive installation of packages with hooks', async t => {
   // This test hangs on Appveyor for some reason
   if (isCI && isWindows()) return
-  const projects = prepare(t, [
+  const projects = preparePackages(t, [
     {
       name: 'project-1',
       version: '1.0.0',
@@ -191,7 +189,7 @@ test('recursive installation of packages with hooks', async t => {
 test('ignores pnpmfile.js during recursive installation when --ignore-pnpmfile is used', async t => {
   // This test hangs on Appveyor for some reason
   if (isCI && isWindows()) return
-  const projects = prepare(t, [
+  const projects = preparePackages(t, [
     {
       name: 'project-1',
       version: '1.0.0',
@@ -234,7 +232,7 @@ test('ignores pnpmfile.js during recursive installation when --ignore-pnpmfile i
 })
 
 test('recursive linking/unlinking', async (t: tape.Test) => {
-  const projects = prepare(t, [
+  const projects = preparePackages(t, [
     {
       name: 'project-1',
       version: '1.0.0',
@@ -278,7 +276,7 @@ test('recursive linking/unlinking', async (t: tape.Test) => {
 })
 
 test('running `pnpm recursive` on a subset of packages', async t => {
-  const projects = prepare(t, [
+  const projects = preparePackages(t, [
     {
       name: 'project-1',
       version: '1.0.0',
@@ -304,7 +302,7 @@ test('running `pnpm recursive` on a subset of packages', async t => {
 })
 
 test('running `pnpm recursive` only for packages in subdirectories of cwd', async t => {
-  const projects = prepare(t, [
+  const projects = preparePackages(t, [
     {
       location: 'packages/project-1',
       package: {
@@ -348,7 +346,7 @@ test('running `pnpm recursive` only for packages in subdirectories of cwd', asyn
 })
 
 test('recursive installation fails when installation in one of the packages fails', async t => {
-  const projects = prepare(t, [
+  const projects = preparePackages(t, [
     {
       name: 'project-1',
       version: '1.0.0',
@@ -374,7 +372,7 @@ test('recursive installation fails when installation in one of the packages fail
 })
 
 test('second run of `recursive link` after package.json has been edited manually', async t => {
-  const projects = prepare(t, [
+  const projects = preparePackages(t, [
     {
       name: 'is-negative',
       version: '1.0.0',
@@ -404,7 +402,7 @@ test('second run of `recursive link` after package.json has been edited manually
 })
 
 test('recursive list', async (t: tape.Test) => {
-  const projects = prepare(t, [
+  const projects = preparePackages(t, [
     {
       name: 'project-1',
       version: '1.0.0',
@@ -441,7 +439,7 @@ test('recursive list', async (t: tape.Test) => {
 })
 
 test('recursive list --scope', async (t: tape.Test) => {
-  const projects = prepare(t, [
+  const projects = preparePackages(t, [
     {
       name: 'project-1',
       version: '1.0.0',
@@ -484,7 +482,7 @@ test('recursive list --scope', async (t: tape.Test) => {
 })
 
 test('pnpm recursive outdated', async (t: tape.Test) => {
-  const projects = prepare(t, [
+  const projects = preparePackages(t, [
     {
       name: 'project-1',
       version: '1.0.0',
@@ -528,7 +526,7 @@ test('pnpm recursive outdated', async (t: tape.Test) => {
 })
 
 test('pnpm recursive run', async (t: tape.Test) => {
-  const projects = prepare(t, [
+  const projects = preparePackages(t, [
     {
       name: 'project-1',
       version: '1.0.0',
@@ -587,7 +585,7 @@ test('pnpm recursive run', async (t: tape.Test) => {
 })
 
 test('`pnpm recursive run` fails if none of the packaegs has the desired command', async (t: tape.Test) => {
-  const projects = prepare(t, [
+  const projects = preparePackages(t, [
     {
       name: 'project-1',
       version: '1.0.0',
@@ -639,7 +637,7 @@ test('`pnpm recursive run` fails if none of the packaegs has the desired command
 })
 
 test('pnpm recursive test', async (t: tape.Test) => {
-  const projects = prepare(t, [
+  const projects = preparePackages(t, [
     {
       name: 'project-1',
       version: '1.0.0',
@@ -693,7 +691,7 @@ test('pnpm recursive test', async (t: tape.Test) => {
 })
 
 test('`pnpm recursive test` does not fail if none of the packaegs has a test command', async (t: tape.Test) => {
-  const projects = prepare(t, [
+  const projects = preparePackages(t, [
     {
       name: 'project-1',
       version: '1.0.0',
@@ -728,7 +726,7 @@ test('`pnpm recursive test` does not fail if none of the packaegs has a test com
 })
 
 test('pnpm recursive rebuild', async (t: tape.Test) => {
-  const projects = prepare(t, [
+  const projects = preparePackages(t, [
     {
       name: 'project-1',
       version: '1.0.0',
@@ -761,7 +759,7 @@ test('pnpm recursive rebuild', async (t: tape.Test) => {
 })
 
 test('`pnpm recursive rebuild` specific dependencies', async (t: tape.Test) => {
-  const projects = prepare(t, [
+  const projects = preparePackages(t, [
     {
       name: 'project-1',
       version: '1.0.0',
@@ -816,7 +814,7 @@ test('`pnpm recursive rebuild` specific dependencies', async (t: tape.Test) => {
 })
 
 test('recursive --scope', async (t: tape.Test) => {
-  const projects = prepare(t, [
+  const projects = preparePackages(t, [
     {
       name: 'project-1',
       version: '1.0.0',
@@ -849,7 +847,7 @@ test('recursive --scope', async (t: tape.Test) => {
 })
 
 test('recursive --scope ignore excluded packages', async (t: tape.Test) => {
-  const projects = prepare(t, [
+  const projects = preparePackages(t, [
     {
       name: 'project-1',
       version: '1.0.0',
@@ -889,7 +887,7 @@ test('recursive --scope ignore excluded packages', async (t: tape.Test) => {
 })
 
 test('pnpm recursive exec', async (t: tape.Test) => {
-  const projects = prepare(t, [
+  const projects = preparePackages(t, [
     {
       name: 'project-1',
       version: '1.0.0',

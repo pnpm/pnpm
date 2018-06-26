@@ -58,6 +58,7 @@ dependencies:
   util.promisify: 1.0.0
 devDependencies:
   '@pnpm/assert-project': 1.1.2
+  '@pnpm/modules-yaml': 1.0.0
   '@pnpm/read-package-json': 1.0.0
   '@types/byline': 4.2.31
   '@types/common-tags': 1.4.0
@@ -6517,6 +6518,7 @@ specifiers:
   '@pnpm/default-resolver': ^2.0.0
   '@pnpm/lifecycle': ^2.2.1
   '@pnpm/logger': ^1.0.0
+  '@pnpm/modules-yaml': ^1.0.0
   '@pnpm/outdated': ^0.3.3
   '@pnpm/read-package-json': ^1.0.0
   '@pnpm/server': ^0.13.2

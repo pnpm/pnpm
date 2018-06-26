@@ -1,4 +1,5 @@
 import assertProject from '@pnpm/assert-project'
+import {Modules} from '@pnpm/modules-yaml'
 import mkdirp = require('mkdirp')
 import path = require('path')
 import {Test} from 'tape'
@@ -23,22 +24,43 @@ export function tempDir (t: Test) {
   return tmpDir
 }
 
-export default function prepare (t: Test, pkg?: Object | Object[], pkgTmpPath?: string): any {
+export function preparePackages (
+  t: Test,
+  pkgs: | Object[], pkgTmpPath?: string,
+): {
+  [name: string]: {
+    requireModule(pkgName: string): any;
+    has(pkgName: string): Promise<void>;
+    hasNot(pkgName: string): Promise<void>;
+    getStorePath(): Promise<string>;
+    resolve(pkgName: string, version?: string | undefined, relativePath?: string | undefined): Promise<string>;
+    storeHas(pkgName: string, version?: string | undefined): Promise<void>;
+    storeHasNot(pkgName: string, version?: string | undefined): Promise<void>;
+    isExecutable(pathToExe: string): Promise<void>;
+    loadCurrentShrinkwrap(): Promise<any>;
+    loadModules: () => Promise<Modules | null>;
+    loadShrinkwrap(): Promise<any>;
+    writePackageJson(pkgJson: object): Promise<void>;
+  }
+} {
   pkgTmpPath = pkgTmpPath || path.join(tempDir(t), 'project')
 
-  if (Array.isArray(pkg)) {
-    const dirname = path.dirname(pkgTmpPath)
-    const result = {}
-    for (let aPkg of pkg) {
-      if (typeof aPkg['location'] === 'string') {
-        result[aPkg['package']['name']] = prepare(t, aPkg['package'], path.join(dirname, aPkg['location']))
-      } else {
-        result[aPkg['name']] = prepare(t, aPkg, path.join(dirname, aPkg['name']))
-      }
+  const dirname = path.dirname(pkgTmpPath)
+  const result = {}
+  for (let aPkg of pkgs) {
+    if (typeof aPkg['location'] === 'string') {
+      result[aPkg['package']['name']] = prepare(t, aPkg['package'], path.join(dirname, aPkg['location']))
+    } else {
+      result[aPkg['name']] = prepare(t, aPkg, path.join(dirname, aPkg['name']))
     }
-    process.chdir('..')
-    return result
   }
+  process.chdir('..')
+  return result
+}
+
+export default function prepare (t: Test, pkg?: Object, pkgTmpPath?: string) {
+  pkgTmpPath = pkgTmpPath || path.join(tempDir(t), 'project')
+
   mkdirp.sync(pkgTmpPath)
   writePkg.sync(pkgTmpPath, Object.assign({name: 'project', version: '0.0.0'}, pkg))
   process.chdir(pkgTmpPath)

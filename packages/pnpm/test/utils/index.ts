@@ -4,7 +4,7 @@ import execPnpm, {
   spawn,
   sync as execPnpmSync,
 } from './execPnpm'
-import prepare, { tempDir } from './prepare'
+import prepare, { tempDir, preparePackages } from './prepare'
 import retryLoadJsonFile from './retryLoadJsonFile'
 import testDefaults from './testDefaults'
 
@@ -12,6 +12,7 @@ export {
   createDeferred,
   Deferred,
   prepare,
+  preparePackages,
   tempDir,
   testDefaults,
   execPnpm,
