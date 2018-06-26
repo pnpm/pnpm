@@ -18,6 +18,7 @@ import {
   link,
   rebuild,
   rebuildPkgs,
+  uninstall,
   unlink,
   unlinkPkgs,
 } from 'supi'
@@ -33,6 +34,7 @@ import run from './run'
 
 const supportedRecursiveCommands = new Set([
   'install',
+  'uninstall',
   'update',
   'link',
   'unlink',
@@ -148,6 +150,9 @@ export default async (
       break
     case 'rebuild':
       action = (input.length === 0 ? rebuild : rebuildPkgs.bind(null, input))
+      break
+    case 'uninstall':
+      action = uninstall.bind(null, input)
       break
     default:
       action = (input.length === 0 ? install : installPkgs.bind(null, input))

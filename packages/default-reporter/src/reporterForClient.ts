@@ -58,6 +58,7 @@ export default function (
   },
   isRecursive: boolean,
   cmd: string,
+  subCmd?: string,
   widthArg?: number,
   appendOnly?: boolean,
   throttleProgress?: number,
@@ -336,17 +337,22 @@ export default function (
         })),
     )
   } else {
+    const stats$ = (
+      subCmd !== 'uninstall'
+        ? log$.stats
+            .loop((stats, log) => {
+              if (stats[log.prefix]) {
+                const value = {...stats[log.prefix], ...log}
+                delete stats[log.prefix]
+                return {seed: stats, value}
+              }
+              stats[log.prefix] = log
+              return {seed: stats, value: null}
+            }, {})
+        : log$.stats
+    )
     outputs.push(
-      log$.stats
-      .loop((stats, log) => {
-        if (stats[log.prefix]) {
-          const value = {...stats[log.prefix], ...log}
-          delete stats[log.prefix]
-          return {seed: stats, value}
-        }
-        stats[log.prefix] = log
-        return {seed: stats, value: null}
-      }, {})
+      stats$
       .filter((stats) => stats !== null && (stats['removed'] || stats['added']))
       .map((stats) => {
         const prefix = formatPrefix(cwd, stats['prefix'])

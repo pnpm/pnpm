@@ -979,6 +979,24 @@ test('recursive installation: prints at least one add sign when added !== 0', t 
   })
 })
 
+test('recursive uninstall: prints removed packages number', t => {
+  const output$ = toOutput$(createStreamParser(), {cmd: 'recursive', subCmd: 'uninstall', width: 62, cwd: '/home/jane/repo'})
+
+  statsLogger.debug({ removed: 1, prefix: '/home/jane/repo/pkg-1' })
+
+  t.plan(1)
+
+  output$.take(1).map(normalizeNewline).subscribe({
+    next: output => {
+      t.equal(output, stripIndents`
+        pkg-1                                    |   ${chalk.red('-1')} ${SUB}`
+      )
+    },
+    complete: () => t.end(),
+    error: t.end,
+  })
+})
+
 test('install: print hook message', t => {
   const output$ = toOutput$(createStreamParser(), {cmd: 'install', cwd: '/home/jane/repo'})
 

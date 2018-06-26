@@ -4,12 +4,13 @@ import silentReporter from './silentReporter'
 
 export type ReporterType = 'default' | 'ndjson' | 'silent' | 'append-only'
 
-export default (reporterType: ReporterType, cmd: string) => {
+export default (reporterType: ReporterType, cmd: string, subCmd: string) => {
   switch (reporterType) {
     case 'default':
       defaultReporter(streamParser, {
         appendOnly: false,
         cmd,
+        subCmd,
         throttleProgress: 200,
       })
       return
@@ -17,6 +18,7 @@ export default (reporterType: ReporterType, cmd: string) => {
       defaultReporter(streamParser, {
         appendOnly: true,
         cmd,
+        subCmd,
         throttleProgress: 1000,
       })
       return

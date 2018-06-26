@@ -20,7 +20,7 @@ import normalizeNewline = require('normalize-newline')
 
 const test = promisifyTape(tape)
 
-test('recursive installation', async (t: tape.Test) => {
+test('recursive install/uninstall', async (t: tape.Test) => {
   const projects = preparePackages(t, [
     {
       name: 'project-1',
@@ -42,11 +42,16 @@ test('recursive installation', async (t: tape.Test) => {
 
   t.ok(projects['project-1'].requireModule('is-positive'))
   t.ok(projects['project-2'].requireModule('is-negative'))
+  await projects['project-2'].has('is-negative')
 
   await execPnpm('recursive', 'install', 'noop')
 
   t.ok(projects['project-1'].requireModule('noop'))
   t.ok(projects['project-2'].requireModule('noop'))
+
+  await execPnpm('recursive', 'uninstall', 'is-negative')
+
+  await projects['project-2'].hasNot('is-negative')
 })
 
 test('recursive update', async (t: tape.Test) => {

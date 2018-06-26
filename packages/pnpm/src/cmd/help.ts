@@ -247,10 +247,11 @@ function getHelpText (command: string) {
 
           install
           update
+          uninstall [<@scope>/]<pkg>...    uninstall a dependency from each package
           link                             runs installation in each package. If a package is available locally, the local version is linked.
           unlink                           removes links to local packages and reinstalls them from the registry.
-          list [[<@scope>/]<pkg> ...]      list dependencies in each package.
-          outdated [[<@scope>/]<pkg> ...]  check for outdated dependencies in every package.
+          list [[<@scope>/]<pkg>...]      list dependencies in each package.
+          outdated [[<@scope>/]<pkg>...]  check for outdated dependencies in every package.
 
           run <command> [-- <args>...]     this runs an arbitrary command from each package's "scripts" object.
                                            If a package doesn't have the command, it is skipped.
@@ -293,6 +294,7 @@ function getHelpText (command: string) {
           - recursive unlink
           - recursive install
           - recursive update
+          - recursive uninstall
           - recursive list
           - recursive outdated
           - recursive run

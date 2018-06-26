@@ -13,6 +13,7 @@ export default function (
   streamParser: object,
   opts: {
     cmd: string,
+    subCmd?: string,
     cwd?: string,
     appendOnly?: boolean,
     throttleProgress?: number,
@@ -55,6 +56,7 @@ export function toOutput$ (
   streamParser: object,
   opts: {
     cmd: string,
+    subCmd?: string,
     cwd?: string,
     appendOnly?: boolean,
     throttleProgress?: number,
@@ -146,7 +148,9 @@ export function toOutput$ (
     stats: most.from<supi.StatsLog>(statsPushStream.observable),
     summary: most.from<supi.Log>(summaryPushStream.observable),
   }
-  const outputs: Array<most.Stream<most.Stream<{msg: string}>>> = reporterForClient(log$, isRecursive, opts.cmd, opts.width, opts.appendOnly, opts.throttleProgress, opts.cwd)
+  const outputs: Array<most.Stream<most.Stream<{msg: string}>>> = reporterForClient(
+    log$, isRecursive, opts.cmd, opts.subCmd, opts.width, opts.appendOnly, opts.throttleProgress, opts.cwd,
+  )
 
   if (opts.appendOnly) {
     return most.join(
