@@ -10,7 +10,6 @@ import path = require('path')
 import createPkgGraph, {PackageNode} from 'pkgs-graph'
 import R = require('ramda')
 import readIniFile = require('read-ini-file')
-import sortPkgs = require('sort-pkgs')
 import {
   install,
   InstallOptions,
