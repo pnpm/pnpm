@@ -1,6 +1,6 @@
 import logger from '@pnpm/logger'
 import chalk from 'chalk'
-import path = require('path')
+import fs = require('fs')
 
 export default (pnpmFilePath: string) => {
   try {
@@ -33,7 +33,22 @@ export default (pnpmFilePath: string) => {
       process.exit(1)
       return
     }
-    if (err.code !== 'MODULE_NOT_FOUND') throw err
+    if (err.code !== 'MODULE_NOT_FOUND' || pnpmFileExistsSync(pnpmFilePath)) {
+      const errWrapper = new Error(`Error during pnpmfile execution. pnpmfile: "${pnpmFilePath}". Error: "${err.message}".`)
+      // tslint:disable:no-string-literal
+      errWrapper['code'] = 'ERR_PNPM_PNPMFILE_FAIL'
+      err['pnpmfile'] = pnpmFilePath
+      errWrapper['originalError'] = err
+      // tslint:enable:no-string-literal
+      throw errWrapper
+    }
     return undefined
   }
+}
+
+function pnpmFileExistsSync (pnpmFilePath: string) {
+  const pnpmFileRealName = pnpmFilePath.endsWith('.js')
+    ? pnpmFilePath
+    : `${pnpmFilePath}.js`
+  return fs.existsSync(pnpmFileRealName)
 }

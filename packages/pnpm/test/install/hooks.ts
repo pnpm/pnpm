@@ -184,6 +184,17 @@ test('prints meaningful error when there is syntax error in pnpmfile.js', async 
   t.equal(proc.status, 1)
 })
 
+test('fails when pnpmfile.js requires a non-existend module', async (t: tape.Test) => {
+  const project = prepare(t)
+
+  await fs.writeFile('pnpmfile.js', 'module.exports = require("./this-does-node-exist")', 'utf8')
+
+  const proc = execPnpmSync('install', 'pkg-with-1-dep')
+
+  t.ok(proc.stdout.toString().indexOf('Error during pnpmfile execution') !== -1)
+  t.equal(proc.status, 1)
+})
+
 test('ignore pnpmfile.js when --ignore-pnpmfile is used', async (t: tape.Test) => {
   const project = prepare(t)
 
