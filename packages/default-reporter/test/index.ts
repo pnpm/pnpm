@@ -307,7 +307,7 @@ test('prints summary', t => {
 })
 
 test('groups lifecycle output', t => {
-  const output$ = toOutput$(createStreamParser(), {cmd: 'install'})
+  const output$ = toOutput$(createStreamParser(), {cmd: 'install', width: 79})
 
   const pkgId = 'registry.npmjs.org/foo/1.0.0'
 
@@ -318,7 +318,7 @@ test('groups lifecycle output', t => {
   })
   lifecycleLogger.debug({
     depPath: 'registry.npmjs.org/foo/1.0.0',
-    line: 'foo',
+    line: 'foo 0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20',
     stage: 'preinstall',
   })
   lifecycleLogger.debug({
@@ -373,7 +373,7 @@ test('groups lifecycle output', t => {
     next: output => {
       t.equal(output, EOL + stripIndents`
         registry.npmjs.org/foo/1.0.0             | ${PREINSTALL}$ node foo
-        registry.npmjs.org/foo/1.0.0             | ${PREINSTALL}: foo
+        registry.npmjs.org/foo/1.0.0             | ${PREINSTALL}: foo 0 1 2 3 4 5 6 7 8 9
 
         registry.npmjs.org/foo/1.0.0             | ${POSTINSTALL}$ node foo
         registry.npmjs.org/foo/1.0.0             | ${POSTINSTALL}: foo I

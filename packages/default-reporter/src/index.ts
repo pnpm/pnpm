@@ -1,7 +1,6 @@
 import createDiffer = require('ansi-diff')
 import cliCursor = require('cli-cursor')
 import most = require('most')
-import R = require('ramda')
 import * as supi from 'supi'
 import PushStream = require('zen-push')
 import {EOL} from './constants'

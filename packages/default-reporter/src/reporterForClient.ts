@@ -147,6 +147,7 @@ export default function (
     outputs.push(most.of(progress))
   }
 
+  const formatLifecycle = formatLifecycleHideOverflow.bind(null, width)
   if (!appendOnly) {
     const tarballsProgressOutput$ = log$.progress
       .filter((log) => log.status === 'fetching_started' &&
@@ -495,7 +496,13 @@ function printDiffs (pkgsDiff: PackageDiff[]) {
   return msg
 }
 
-function formatLifecycle (cwd: string, logObj: LifecycleLog) {
+const ANSI_ESCAPES_LENGTH_OF_PREFIX = hlValue(' ').length - 1
+
+function formatLifecycleHideOverflow (
+  maxWidth: number,
+  cwd: string,
+  logObj: LifecycleLog,
+) {
   const prefix = `${
     logObj.wd === logObj.depPath
       ? rightPad(formatPrefix(cwd, logObj.wd), PREFIX_MAX_LENGTH)
@@ -507,21 +514,24 @@ function formatLifecycle (cwd: string, logObj: LifecycleLog) {
   if (logObj['exitCode'] === 0) {
     return `${prefix}: done`
   }
-  const line = formatLine(logObj)
+  const maxLineWidth = maxWidth - prefix.length - 2 + ANSI_ESCAPES_LENGTH_OF_PREFIX
+  const line = formatLine(maxLineWidth, logObj)
   if (logObj.level === 'error') {
     return `${prefix}: ${line}`
   }
   return `${prefix}: ${line}`
 }
 
-function formatLine (logObj: LifecycleLog) {
+function formatLine (maxWidth: number, logObj: LifecycleLog) {
   if (typeof logObj['exitCode'] === 'number') return chalk.red(`Exited with ${logObj['exitCode']}`)
+
+  const line = stripAnsi(logObj['line']).substr(0, maxWidth)
 
   // TODO: strip only the non-color/style ansi escape codes
   if (logObj.level === 'error') {
-    return chalk.gray(stripAnsi(logObj['line']))
+    return chalk.gray(line)
   }
-  return stripAnsi(logObj['line'])
+  return line
 }
 
 function formatInstallCheck (logObj: InstallCheckLog) {
