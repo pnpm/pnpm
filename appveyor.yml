@@ -5,7 +5,7 @@ install:
   - ps: Install-Product node $env:nodejs_version
   - npm set verify-store-integrity false
   - npm set fetch-retry-maxtimeout 180000
-  - set PNPM_VERSION=1.33.2
+  - set PNPM_VERSION=2.9.0
   - curl -L https://unpkg.com/@pnpm/self-installer | node
   # Testing whether pnpm can upgrade itself
   - pnpm i -g pnpm@next
