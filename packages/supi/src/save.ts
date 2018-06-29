@@ -11,9 +11,9 @@ export default async function save (
   pkgJsonPath: string,
   packageSpecs: Array<{
     name: string,
-    pref: string,
+    pref?: string,
+    saveType?: DependenciesType,
   }>,
-  saveType?: DependenciesType,
 ): Promise<PackageJson> {
   // Read the latest version of package.json to avoid accidental overwriting
   let packageJson: object
@@ -23,27 +23,35 @@ export default async function save (
     if (err['code'] !== 'ENOENT') throw err // tslint:disable-line:no-string-literal
     packageJson = {}
   }
-  if (saveType) {
-    packageJson[saveType] = packageJson[saveType] || {}
-    packageSpecs.forEach((dependency) => {
-      packageJson[saveType][dependency.name] = dependency.pref
-      dependenciesTypes.filter((deptype) => deptype !== saveType).forEach((deptype) => {
-        if (packageJson[deptype]) {
-          delete packageJson[deptype][dependency.name]
-        }
+  packageSpecs.forEach((packageSpec) => {
+    if (packageSpec.saveType) {
+      const saveType = packageSpec.saveType
+      packageJson[packageSpec.saveType] = packageJson[packageSpec.saveType] || {}
+      packageSpecs.forEach((dependency) => {
+        packageJson[saveType][dependency.name] = dependency.pref || findSpec(dependency.name, packageJson as PackageJson)
+        dependenciesTypes.filter((deptype) => deptype !== packageSpec.saveType).forEach((deptype) => {
+          if (packageJson[deptype]) {
+            delete packageJson[deptype][dependency.name]
+          }
+        })
       })
-    })
-  } else {
-    packageSpecs.forEach((dependency) => {
-      const usedDepType = guessDependencyType(dependency.name, packageJson as PackageJson) || 'dependencies'
-      packageJson[usedDepType] = packageJson[usedDepType] || {}
-      packageJson[usedDepType][dependency.name] = dependency.pref
-    })
-  }
+    } else {
+      packageSpecs.forEach((dependency) => {
+        const usedDepType = guessDependencyType(dependency.name, packageJson as PackageJson) || 'dependencies'
+        packageJson[usedDepType] = packageJson[usedDepType] || {}
+        packageJson[usedDepType][dependency.name] = dependency.pref
+      })
+    }
+  })
 
   await writePkg(pkgJsonPath, packageJson)
   packageJsonLogger.debug({ updated: packageJson })
   return packageJson as PackageJson
+}
+
+function findSpec (depName: string, pkg: PackageJson): string | undefined {
+  const foundDepType = guessDependencyType(depName, pkg)
+  return foundDepType && pkg[foundDepType]![depName]
 }
 
 function guessDependencyType (depName: string, pkg: PackageJson): DependenciesType | undefined {

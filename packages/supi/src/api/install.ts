@@ -13,6 +13,7 @@ import {
   PackageJson,
 } from '@pnpm/types'
 import {
+  dependenciesTypes,
   getSaveType,
   packageJsonLogger,
   realNodeModulesDir,
@@ -504,19 +505,28 @@ async function installInContext (
     }
     const pkgJsonPath = path.join(ctx.root, 'package.json')
     const saveType = getSaveType(opts)
+    const specsToUsert = <any>pkgsToSave // tslint:disable-line
+      .map((dep) => {
+        return {
+          name: dep.alias,
+          pref: dep.normalizedPref || getPref(dep.alias, dep.name, dep.version, {
+            saveExact: opts.saveExact,
+            savePrefix: opts.savePrefix,
+          }),
+          saveType,
+        }
+      })
+    for (const pkgToInstall of packagesToInstall) {
+      if (pkgToInstall.alias && !specsToUsert.some((spec: any) => spec.name === pkgToInstall.alias)) { // tslint:disable-line
+        specsToUsert.push({
+          name: pkgToInstall.alias,
+          saveType,
+        })
+      }
+    }
     newPkg = await save(
       pkgJsonPath,
-      <any>pkgsToSave // tslint:disable-line
-        .map((dep) => {
-          return {
-            name: dep.alias,
-            pref: dep.normalizedPref || getPref(dep.alias, dep.name, dep.version, {
-              saveExact: opts.saveExact,
-              savePrefix: opts.savePrefix,
-            }),
-          }
-        }),
-      saveType,
+      specsToUsert,
     )
   } else {
     packageJsonLogger.debug({ updated: ctx.pkg })
@@ -562,6 +572,8 @@ async function installInContext (
       }
       ctx.wantedShrinkwrap.specifiers[dep.alias] = getSpecFromPackageJson(newPkg, dep.alias) as string
     }
+
+    alignDependencyTypes(newPkg, ctx.wantedShrinkwrap)
   }
 
   const topParents = ctx.pkg
@@ -758,6 +770,31 @@ function getSubgraphToBuild (
     }
   }
   return currentShouldBeBuilt
+}
+
+function alignDependencyTypes (pkg: PackageJson, shr: Shrinkwrap) {
+  const depTypesOfAliases = getAliasToDependencyTypeMap(pkg)
+
+  // Aligning the dependency types in shrinkwrap.yaml
+  for (const depType of dependenciesTypes) {
+    if (!shr[depType]) continue
+    for (const alias of Object.keys(shr[depType] || {})) {
+      if (depType === depTypesOfAliases[alias] || !depTypesOfAliases[alias]) continue
+      shr[depTypesOfAliases[alias]][alias] = shr[depType]![alias]
+      delete shr[depType]![alias]
+    }
+  }
+}
+
+function getAliasToDependencyTypeMap (pkg: PackageJson) {
+  const depTypesOfAliases = {}
+  for (const depType of dependenciesTypes) {
+    if (!pkg[depType]) continue
+    for (const alias of Object.keys(pkg[depType] || {})) {
+      depTypesOfAliases[alias] = depType
+    }
+  }
+  return depTypesOfAliases
 }
 
 function buildTree (

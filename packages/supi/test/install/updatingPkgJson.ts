@@ -1,7 +1,11 @@
 import readPkg = require('read-pkg')
-import {installPkgs} from 'supi'
+import {
+  install,
+  installPkgs,
+} from 'supi'
 import tape = require('tape')
 import promisifyTape from 'tape-promise'
+import writePkg = require('write-pkg')
 import {
   addDistTag,
   prepare,
@@ -138,20 +142,54 @@ test('dependency should be removed from the old field when installing it as a di
   await installPkgs(['bar'], await testDefaults({saveProd: true}))
   await installPkgs(['qar'], await testDefaults({saveDev: true}))
 
-  const pkgJson = await readPkg({normalize: false})
-  t.deepEqual(pkgJson, {
-    dependencies: {
-      bar: '^100.0.0',
-    },
-    devDependencies: {
-      qar: '^100.0.0',
-    },
-    name: 'project',
-    optionalDependencies: {
-      foo: '^100.0.0',
-    },
-    version: '0.0.0',
-  }, 'dependencies moved around correctly')
+  {
+    const pkgJson = await readPkg({normalize: false})
+    t.deepEqual(pkgJson, {
+      dependencies: {
+        bar: '^100.0.0',
+      },
+      devDependencies: {
+        qar: '^100.0.0',
+      },
+      name: 'project',
+      optionalDependencies: {
+        foo: '^100.0.0',
+      },
+      version: '0.0.0',
+    }, 'dependencies moved around correctly')
+  }
+
+  await installPkgs(['bar', 'foo', 'qar'], await testDefaults({saveProd: true}))
+
+  {
+    const pkgJson = await readPkg({normalize: false})
+    t.deepEqual(pkgJson, {
+      dependencies: {
+        bar: '^100.0.0',
+        foo: '^100.0.0',
+        qar: '^100.0.0',
+      },
+      name: 'project',
+      version: '0.0.0',
+    }, 'dependencies moved around correctly when installed with node_modules and shrinkwrap.yaml present')
+    const shr = await project.loadCurrentShrinkwrap()
+    t.deepEqual(Object.keys(shr.dependencies), ['bar', 'foo', 'qar'], 'shrinkwrap updated')
+  }
+
+  {
+    t.comment('manually editing package.json. Converting all prod deps to dev deps')
+
+    const pkgJson = await readPkg({normalize: false})
+    pkgJson.devDependencies = pkgJson.dependencies
+    delete pkgJson.dependencies
+    await writePkg(pkgJson)
+
+    await install(await testDefaults())
+
+    const shr = await project.loadCurrentShrinkwrap()
+    t.deepEqual(Object.keys(shr.devDependencies), ['bar', 'foo', 'qar'], 'shrinkwrap updated')
+    t.notOk(shr.dependencies)
+  }
 })
 
 test('multiple save to package.json with `exact` versions (@rstacruz/tap-spec & rimraf@2.5.1) (in sorted order)', async (t: tape.Test) => {
