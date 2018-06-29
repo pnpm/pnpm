@@ -41,7 +41,7 @@ test("don't override existing spec in package.json on named installation", async
   t.equal(project.requireModule('is-positive/package.json').version, '2.0.0')
   t.equal(project.requireModule('is-negative/package.json').version, '1.0.1')
 
-  const pkgJson = await readPkg()
+  const pkgJson = await readPkg({normalize: false})
   t.deepEqual(pkgJson.dependencies, {
       'is-negative': '^1.0.1',
       'is-positive': '^2.0.0',

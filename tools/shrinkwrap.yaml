@@ -635,12 +635,10 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha1-tdRU3CGZriJWmfNGfloH87lVuv0=
-  /hosted-git-info/2.6.0:
+  /hosted-git-info/2.6.1:
     dev: false
-    engines:
-      node: '>=4'
     resolution:
-      integrity: sha512-lIbgIIQA3lz5XaB6vxakj6sDHADJiZadYEJB+FgA+C4nubM1NwcuvUr9EJPmnH1skZqpqUzWborWo8EIUi0Sdw==
+      integrity: sha512-Ba4+0M4YvIDUUsprMjhVTU1yN9F2/LJSAl69ZpzaLT4l4j5mwTS6jqqW9Ojvj6lKz/veqPzpJBqGbXspOb533A==
   /husky/1.0.0-rc.9:
     dependencies:
       cosmiconfig: 5.0.5
@@ -984,7 +982,7 @@ packages:
       read-pkg-up: 3.0.0
       redent: 2.0.0
       trim-newlines: 2.0.0
-      yargs-parser: 10.0.0
+      yargs-parser: 10.1.0
     dev: false
     engines:
       node: '>=6'
@@ -1032,7 +1030,7 @@ packages:
       integrity: sha1-RaBgHGky395mRKIzYfG+Fzx1068=
   /normalize-package-data/2.4.0:
     dependencies:
-      hosted-git-info: 2.6.0
+      hosted-git-info: 2.6.1
       is-builtin-module: 1.0.0
       semver: 5.5.0
       validate-npm-package-license: 3.0.3
@@ -1612,12 +1610,12 @@ packages:
     dev: false
     resolution:
       integrity: sha1-HBH5IY8HYImkfdUS+TxmmaaoHVI=
-  /yargs-parser/10.0.0:
+  /yargs-parser/10.1.0:
     dependencies:
       camelcase: 4.1.0
     dev: false
     resolution:
-      integrity: sha512-+DHejWujTVYeMHLff8U96rLc4uE4Emncoftvn5AjhB1Jw1pWxLzgBUT/WYbPrHmy6YPEBTZQx5myHhVcuuu64g==
+      integrity: sha512-VCIyR1wJoEBZUqk5PA+oOBF6ypbwh5aNB3I50guxAL/quggdfs4TtNHQrSazFA3fYZ+tEqfs0zIGlv0c/rgjbQ==
 registry: 'https://registry.npmjs.org/'
 shrinkwrapMinorVersion: 8
 shrinkwrapVersion: 3
