@@ -4,6 +4,8 @@ import camelcase = require('camelcase')
 import path = require('path')
 import whichcb = require('which')
 
+const npmDefaults = loadNpmConf.defaults
+
 function which (cmd: string) {
   return new Promise<string>((resolve, reject) => {
     whichcb(cmd, (err: Error, resolvedPath: string) => err ? reject(err) : resolve(resolvedPath))
@@ -71,7 +73,9 @@ export default async (
     }
   } catch (err) {} // tslint:disable-line:no-empty
 
-  const npmConfig = loadNpmConf(null, types)
+  const npmConfig = loadNpmConf(null, types, {
+    prefix: npmDefaults.prefix,
+  })
 
   process.execPath = originalExecPath
 

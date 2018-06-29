@@ -3,7 +3,7 @@ dependencies:
   '@types/camelcase': 4.1.0
   '@types/node': 10.3.5
   '@types/which': 1.3.1
-  '@zkochan/npm-conf': 1.0.0
+  '@zkochan/npm-conf': 1.1.0
   camelcase: 5.0.0
   which: 1.3.1
 devDependencies:
@@ -85,7 +85,7 @@ packages:
     dev: true
     resolution:
       integrity: sha1-TPO97s9S8vasjzKw2IpoLrSEiXk=
-  /@zkochan/npm-conf/1.0.0:
+  /@zkochan/npm-conf/1.1.0:
     dependencies:
       config-chain: 1.1.11
       pify: 3.0.0
@@ -93,7 +93,7 @@ packages:
     engines:
       node: '>=6'
     resolution:
-      integrity: sha512-I7vEO4uHspd6qc+OPXXRRpggGQ8CqFSH6Dw3gAE2qagf25Wznt1a23cIBK9hwHf+VJmnrUqWgNd/DQ19hW/6kg==
+      integrity: sha512-mkr67K2ONHmEE2Tlf1ccl+f4/gJpYr7Sfh53xMa6bZc3iJmftseHGQCro7GXhzoGcYg6LpGEww2ElOyKrj+beQ==
   /acorn/3.0.4:
     dev: true
     engines:
@@ -3045,7 +3045,7 @@ specifiers:
   '@types/node': ^9.4.6 || 10
   '@types/tape': ^4.2.32
   '@types/which': ^1.3.1
-  '@zkochan/npm-conf': ^1.0.0
+  '@zkochan/npm-conf': ^1.1.0
   camelcase: ^5.0.0
   mos: ^2.0.0-alpha.3
   mos-plugin-readme: ^1.0.4

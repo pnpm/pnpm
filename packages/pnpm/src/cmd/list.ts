@@ -32,7 +32,7 @@ export default async function (
   const only = (opts.production && opts.development ? undefined : (opts.production ? 'prod' : 'dev')) as ('prod' | 'dev' | undefined)
   const listOpts = {
     alwaysPrintRootPackage: opts.alwaysPrintRootPackage,
-    depth: opts.depth,
+    depth: opts.depth || 0,
     long: opts.long,
     only,
     parseable: opts.parseable,
