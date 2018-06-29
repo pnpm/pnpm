@@ -43,9 +43,13 @@ export async function _unlinkPkgs (
   const packagesToInstall: string[] = []
 
   for (const pkgName of pkgNames) {
-    if (!await isExternalLink(opts.store, modules, pkgName)) {
-      logger.warn(`${pkgName} is not an external link`)
-      continue
+    try {
+      if (!await isExternalLink(opts.store, modules, pkgName)) {
+        logger.warn(`${pkgName} is not an external link`)
+        continue
+      }
+    } catch (err) {
+      if (err['code'] !== 'ENOENT') throw err // tslint:disable-line:no-string-literal
     }
     await rimraf(path.join(modules, pkgName))
     if (allDeps[pkgName]) {
