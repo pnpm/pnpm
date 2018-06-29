@@ -74,7 +74,9 @@ export default async (
   } catch (err) {} // tslint:disable-line:no-empty
 
   const npmConfig = loadNpmConf(null, types, {
-    prefix: npmDefaults.prefix,
+    'package-lock': npmDefaults['package-lock'],
+    'prefix': npmDefaults.prefix,
+    'shrinkwrap': npmDefaults.shrinkwrap,
   })
 
   process.execPath = originalExecPath
