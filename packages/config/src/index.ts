@@ -76,6 +76,7 @@ export default async (
   const npmConfig = loadNpmConf(null, types, {
     'package-lock': npmDefaults['package-lock'],
     'prefix': npmDefaults.prefix,
+    'registry': npmDefaults.registry,
     'shrinkwrap': npmDefaults.shrinkwrap,
   })
 
