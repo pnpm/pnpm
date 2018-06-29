@@ -21,7 +21,6 @@ dependencies:
   string-length: 2.0.0
   string.prototype.padstart: 3.0.0
   strip-ansi: 4.0.0
-  supi: 'link:../supi'
   zen-push: 0.2.1
 devDependencies:
   '@pnpm/logger': 1.0.2
@@ -35,6 +34,7 @@ devDependencies:
   normalize-newline: 3.0.0
   package-preview: 1.0.6
   rimraf: 2.6.2
+  supi: 'link:../supi'
   tape: 4.9.1
   ts-node: 7.0.0
   tslint: 5.10.0
