@@ -78,6 +78,7 @@ export default async (
     'prefix': npmDefaults.prefix,
     'registry': npmDefaults.registry,
     'shrinkwrap': npmDefaults.shrinkwrap,
+    'unsafe-perm': npmDefaults['unsafe-perm'],
   })
 
   process.execPath = originalExecPath
