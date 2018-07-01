@@ -14,7 +14,7 @@ dependencies:
   p-limit: 2.0.0
   package-store: 0.22.1
   path-exists: 3.0.0
-  pnpm-shrinkwrap: 6.5.0
+  pnpm-shrinkwrap: 6.5.1
   ramda: 0.25.0
   symlink-dir: 1.1.3
 devDependencies:
@@ -3403,7 +3403,7 @@ packages:
     hasBin: true
     resolution:
       integrity: sha512-CdVJPZNJDQagEUZBOYdG/nikpvu2ftAPNui6OzOSl8GtyMerfeD++OIQRS/S5K1xGRYoPQvL5reHlBbrLKa3Yg==
-  /pnpm-shrinkwrap/6.5.0:
+  /pnpm-shrinkwrap/6.5.1:
     dependencies:
       '@pnpm/resolver-base': 1.1.0
       '@types/js-yaml': 3.11.1
@@ -3424,7 +3424,7 @@ packages:
     peerDependencies:
       '@pnpm/logger': ^1.0.0
     resolution:
-      integrity: sha512-kRzXxONEdgglBIJj3bXtFSvLDktdw1iYygY6W8xN+VWihuu2fqR+ot1lLQNbzunWfuRFEpHdZKMR++i510X5Aw==
+      integrity: sha512-e6qBou3b7aKty5WghN4uNpj87Zi580PLofagEyUqgG9AZjSUSKPIlkzFixNz+yT/ofDq/r7zR83kf4hBJX1oMQ==
   /prepend-http/2.0.0:
     dev: true
     engines:
@@ -4814,7 +4814,7 @@ specifiers:
   package-store: ^0.22.0
   path-exists: ^3.0.0
   pnpm-registry-mock: ^2.0.0
-  pnpm-shrinkwrap: ^6.5.0
+  pnpm-shrinkwrap: ^6.5.1
   ramda: ^0.25.0
   rimraf: ^2.6.2
   rimraf-then: ^1.0.1

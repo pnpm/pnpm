@@ -309,7 +309,7 @@ packages:
       '@pnpm/store-path': 1.0.3
       '@types/node': 10.5.1
       dependency-path: 1.2.1
-      pnpm-shrinkwrap: 6.5.0
+      pnpm-shrinkwrap: 6.5.1
     dev: false
     engines:
       node: '>=6'
@@ -1878,7 +1878,7 @@ packages:
       '@types/node': 10.5.1
       '@types/semver': 5.5.0
       dependency-path: 1.2.1
-      pnpm-shrinkwrap: 6.5.0
+      pnpm-shrinkwrap: 6.5.1
       semver: 5.5.0
     dev: false
     engines:
@@ -4685,7 +4685,7 @@ packages:
     hasBin: true
     resolution:
       integrity: sha512-CdVJPZNJDQagEUZBOYdG/nikpvu2ftAPNui6OzOSl8GtyMerfeD++OIQRS/S5K1xGRYoPQvL5reHlBbrLKa3Yg==
-  /pnpm-shrinkwrap/6.5.0:
+  /pnpm-shrinkwrap/6.5.1:
     dependencies:
       '@pnpm/resolver-base': 1.1.0
       '@types/js-yaml': 3.11.1
@@ -4706,7 +4706,7 @@ packages:
     peerDependencies:
       '@pnpm/logger': ^1.0.0
     resolution:
-      integrity: sha512-kRzXxONEdgglBIJj3bXtFSvLDktdw1iYygY6W8xN+VWihuu2fqR+ot1lLQNbzunWfuRFEpHdZKMR++i510X5Aw==
+      integrity: sha512-e6qBou3b7aKty5WghN4uNpj87Zi580PLofagEyUqgG9AZjSUSKPIlkzFixNz+yT/ofDq/r7zR83kf4hBJX1oMQ==
   /posix-character-classes/0.1.1:
     dev: false
     engines:

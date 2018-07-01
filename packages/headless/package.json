@@ -96,7 +96,7 @@
     "p-limit": "^2.0.0",
     "package-store": "^0.22.0",
     "path-exists": "^3.0.0",
-    "pnpm-shrinkwrap": "^6.5.0",
+    "pnpm-shrinkwrap": "^6.5.1",
     "ramda": "^0.25.0",
     "symlink-dir": "^1.1.2"
   }
