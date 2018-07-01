@@ -74,11 +74,13 @@ export default async (
   } catch (err) {} // tslint:disable-line:no-empty
 
   const npmConfig = loadNpmConf(null, types, {
+    'globalconfig': npmDefaults.globalconfig,
     'package-lock': npmDefaults['package-lock'],
     'prefix': npmDefaults.prefix,
     'registry': npmDefaults.registry,
     'shrinkwrap': npmDefaults.shrinkwrap,
     'unsafe-perm': npmDefaults['unsafe-perm'],
+    'userconfig': npmDefaults.userconfig,
   })
 
   process.execPath = originalExecPath
