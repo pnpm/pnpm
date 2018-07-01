@@ -1,8 +1,6 @@
 import logger from '@pnpm/logger'
 import camelcaseKeys = require('camelcase-keys')
-import findPackages from 'find-packages'
 import graphSequencer = require('graph-sequencer')
-import loadYamlFile = require('load-yaml-file')
 import minimatch = require('minimatch')
 import pLimit = require('p-limit')
 import { StoreController } from 'package-store'
@@ -22,6 +20,7 @@ import {
   unlinkPkgs,
 } from 'supi'
 import createStoreController from '../../createStoreController'
+import findWorkspacePackages from '../../findWorkspacePackages'
 import getCommandFullName from '../../getCommandFullName'
 import requireHooks from '../../requireHooks'
 import {PnpmOptions} from '../../types'
@@ -73,15 +72,7 @@ export default async (
   logger.warn('The recursive command is an experimental feature. Breaking changes may happen in non-major versions.')
 
   const cwd = process.cwd()
-  const packagesManifest = await requirePackagesManifest(cwd)
-  let pkgs = await findPackages(cwd, {
-    ignore: [
-      '**/node_modules/**',
-      '**/bower_components/**',
-    ],
-    patterns: packagesManifest && packagesManifest.packages || undefined,
-  })
-  pkgs.sort((pkg1: {path: string}, pkg2: {path: string}) => pkg1.path.localeCompare(pkg2.path))
+  let pkgs = await findWorkspacePackages(cwd)
 
   const pkgGraphResult = createPkgGraph(pkgs)
   if (opts.scope) {
@@ -217,17 +208,6 @@ function linkPackages (
         ),
       ),
   )
-}
-
-async function requirePackagesManifest (dir: string): Promise<{packages: string[]} | null> {
-  try {
-    return await loadYamlFile(path.join(dir, 'pnpm-workspace.yaml')) as {packages: string[]}
-  } catch (err) {
-    if (err['code'] === 'ENOENT') { // tslint:disable-line
-      return null
-    }
-    throw err
-  }
 }
 
 interface PackageGraph {
