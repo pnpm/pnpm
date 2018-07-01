@@ -47,11 +47,13 @@ export default function prune (shr: Shrinkwrap, pkg?: Package): Shrinkwrap {
   }
 
   const devDepRelativePaths: string[] = R.keys(shrDevDependencies)
+    .filter((pkgName: string) => !shrDevDependencies[pkgName].startsWith('link:'))
     .map((pkgName: string) => refToRelative(shrDevDependencies[pkgName], pkgName))
 
   copyDependencySubTree(packages, devDepRelativePaths, shr, new Set(), {registry: shr.registry, nonOptional, notProdOnly, dev: true})
 
   const depRelativePaths: string[] = R.keys(shrDependencies)
+    .filter((pkgName: string) => !shrDependencies[pkgName].startsWith('link:'))
     .map((pkgName: string) => refToRelative(shrDependencies[pkgName], pkgName))
 
   copyDependencySubTree(packages, depRelativePaths, shr, new Set(), {
@@ -62,6 +64,7 @@ export default function prune (shr: Shrinkwrap, pkg?: Package): Shrinkwrap {
 
   if (shrOptionalDependencies) {
     const optionalDepRelativePaths: string[] = R.keys(shrOptionalDependencies)
+      .filter((pkgName: string) => !shrOptionalDependencies[pkgName].startsWith('link:'))
       .map((pkgName: string) => refToRelative(shrOptionalDependencies[pkgName], pkgName))
     copyDependencySubTree(packages, optionalDepRelativePaths, shr, new Set(), {registry: shr.registry, nonOptional, notProdOnly, optional: true})
   }
