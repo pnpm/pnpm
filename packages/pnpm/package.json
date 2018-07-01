@@ -1,7 +1,7 @@
 {
   "name": "pnpm",
   "description": "Fast, disk space efficient package manager",
-  "version": "2.10.1",
+  "version": "2.10.2",
   "author": {
     "name": "Zoltan Kochan",
     "email": "z@kochan.io",
@@ -20,7 +20,7 @@
     "lib/"
   ],
   "dependencies": {
-    "@pnpm/config": "^1.2.5",
+    "@pnpm/config": "^1.2.6",
     "@pnpm/default-fetcher": "^0.4.0 || 1",
     "@pnpm/default-resolver": "^2.0.0",
     "@pnpm/lifecycle": "^2.2.1",
