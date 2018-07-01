@@ -24,6 +24,7 @@ dependencies:
   diable: 4.0.1
   execa: 0.10.0
   find-packages: 2.2.0
+  find-up: 3.0.0
   get-port: 3.2.0
   graceful-fs: 4.1.11
   graph-sequencer: 2.0.0
@@ -2343,6 +2344,14 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha1-RdG35QbHF93UgndaK3eSCjwMV6c=
+  /find-up/3.0.0:
+    dependencies:
+      locate-path: 3.0.0
+    dev: false
+    engines:
+      node: '>=6'
+    resolution:
+      integrity: sha512-1yD6RmLI1XBfxugvORwlck6f75tYL+iR0jqwsOrOxMZyGYqUuDhJ0l4AXdO1iX/FTs9cBAMEk1gWSEx1kSbylg==
   /flat-colors/3.0.0:
     dev: false
     resolution:
@@ -3530,6 +3539,15 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha1-K1aLJl7slExtnA3pw9u7ygNUzY4=
+  /locate-path/3.0.0:
+    dependencies:
+      p-locate: 3.0.0
+      path-exists: 3.0.0
+    dev: false
+    engines:
+      node: '>=6'
+    resolution:
+      integrity: sha512-7AO748wWnIhNqAuaty2ZWHkQHRSNfPVIsPIfwEOWO22AmaoVrWavlOcMR5nzTLNYvp36X220/maaRsrec1G65A==
   /lockfile/1.0.3:
     dev: true
     resolution:
@@ -4355,6 +4373,14 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha1-IKAQOyIqcMj9OcwuWAaA893l7EM=
+  /p-locate/3.0.0:
+    dependencies:
+      p-limit: 2.0.0
+    dev: false
+    engines:
+      node: '>=6'
+    resolution:
+      integrity: sha512-x+12w/To+4GFfgJhBEpiDcLozRJGegY+Ei7/z0tSLkMmxGZNybVMSfWj9aJn8Z5Fc7dBUNJOOVgPv2H7IwulSQ==
   /p-map/1.2.0:
     dev: false
     engines:
@@ -6542,6 +6568,7 @@ specifiers:
   execa: ^0.10.0
   exists-link: ^2.0.0
   find-packages: ^2.2.0
+  find-up: ^3.0.0
   get-port: ^3.2.0
   graceful-fs: ^4.1.11
   graph-sequencer: ^2.0.0

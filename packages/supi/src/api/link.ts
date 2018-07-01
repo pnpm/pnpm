@@ -5,6 +5,8 @@ import {PackageJson} from '@pnpm/types'
 import {
   DependenciesType,
   dependenciesTypes,
+  getSaveType,
+  packageJsonLogger,
   removeOrphanPackages as removeOrphanPkgs,
   rootLogger,
   safeReadPackage,
@@ -25,10 +27,12 @@ import R = require('ramda')
 import symlinkDir = require('symlink-dir')
 import getSpecFromPackageJson from '../getSpecFromPackageJson'
 import readShrinkwrapFile from '../readShrinkwrapFiles'
+import save from '../save'
 import extendOptions, {
   InstallOptions,
 } from './extendInstallOptions'
 import {install} from './install'
+import getPref from './utils/getPref'
 
 const linkLogger = logger('link')
 const installLimit = pLimit(4)
@@ -45,6 +49,7 @@ export default async function link (
   if (reporter) {
     streamParser.on('data', reporter)
   }
+  maybeOpts.saveProd = maybeOpts.saveProd === true
   const opts = await extendOptions(maybeOpts)
 
   if (!maybeOpts || !maybeOpts.skipInstall) {
@@ -67,10 +72,23 @@ export default async function link (
   })
   const oldShrinkwrap = R.clone(shrFiles.currentShrinkwrap)
   const pkg = await safeReadPackage(path.join(opts.prefix, 'package.json')) || undefined
+  if (pkg) {
+    packageJsonLogger.debug({ initial: pkg })
+  }
   const linkedPkgs: Array<{path: string, pkg: PackageJson}> = []
+  const specsToUpsert = [] as Array<{name: string, pref: string, saveType: DependenciesType}>
+  const saveType = getSaveType(opts)
 
   for (const linkFrom of linkFromPkgs) {
     const linkedPkg = await loadJsonFile(path.join(linkFrom, 'package.json'))
+    specsToUpsert.push({
+      name: linkedPkg.name,
+      pref: getPref(linkedPkg.name, linkedPkg.name, linkedPkg.version, {
+        saveExact: opts.saveExact,
+        savePrefix: opts.savePrefix,
+      }),
+      saveType: saveType as DependenciesType,
+    })
 
     const packagePath = normalize(path.relative(opts.prefix, linkFrom))
     const addLinkOpts = {
@@ -106,6 +124,12 @@ export default async function link (
   const linkToBin = maybeOpts && maybeOpts.linkToBin || path.join(destModules, '.bin')
   await linkBinsOfPackages(linkedPkgs.map((p) => ({manifest: p.pkg, location: p.path})), linkToBin)
 
+  if (opts.saveDev || opts.saveProd || opts.saveOptional) {
+    const newPkg = await save(path.join(opts.prefix, 'package.json'), specsToUpsert)
+    for (const specToUpsert of specsToUpsert) {
+      updatedWantedShrinkwrap.specifiers[specToUpsert.name] = getSpecFromPackageJson(newPkg, specToUpsert.name) as string
+    }
+  }
   if (opts.shrinkwrap) {
     await saveShrinkwrap(opts.prefix, updatedWantedShrinkwrap, updatedCurrentShrinkwrap)
   } else {

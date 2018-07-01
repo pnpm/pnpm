@@ -1,11 +1,15 @@
+import findUp = require('find-up')
 import path = require('path')
+import pathAbsolute = require('path-absolute')
 import R = require('ramda')
 import {
   link,
   linkFromGlobal,
   linkToGlobal,
 } from 'supi'
+import {WORKSPACE_MANIFEST_FILENAME} from '../constants'
 import createStoreController from '../createStoreController'
+import findWorkspacePackages from '../findWorkspacePackages'
 import {PnpmOptions} from '../types'
 
 export default async (
@@ -26,11 +30,25 @@ export default async (
     return
   }
 
-  const result = R.partition((inp) => inp.startsWith('.'), input)
+  const [pkgPaths, pkgNames] = R.partition((inp) => inp.startsWith('.'), input)
 
-  const localLinkedPkgs = result[0]
-  const globalLinkedPkgs = result[1]
+  if (pkgNames.length) {
+    const workspaceManifestLocation = await findUp(WORKSPACE_MANIFEST_FILENAME)
+    let globalPkgNames!: string[]
+    if (workspaceManifestLocation) {
+      const workspaceRoot = path.dirname(workspaceManifestLocation)
+      const pkgs = await findWorkspacePackages(workspaceRoot)
 
-  await link(localLinkedPkgs, path.join(cwd, 'node_modules'), linkOpts)
-  await linkFromGlobal(globalLinkedPkgs, cwd, linkOpts)
+      const matchedPkgs = pkgs.filter((pkg) => pkgNames.indexOf(pkg.manifest.name) !== -1)
+      matchedPkgs.forEach((matchedPkg) => pkgPaths.push(matchedPkg.path))
+
+      globalPkgNames = pkgNames.filter((pkgName) => !matchedPkgs.some((matchedPkg) => matchedPkg.manifest.name === pkgName))
+    } else {
+      globalPkgNames = pkgNames
+    }
+    const globalPkgPath = pathAbsolute(opts.globalPrefix)
+    globalPkgNames.forEach((pkgName) => pkgPaths.push(path.join(globalPkgPath, 'node_modules', pkgName)))
+  }
+
+  await link(pkgPaths, path.join(cwd, 'node_modules'), linkOpts)
 }

@@ -69,6 +69,7 @@ import getContext, {PnpmContext} from './getContext'
 import externalLink from './link'
 import lock from './lock'
 import shrinkwrapsEqual from './shrinkwrapsEqual'
+import getPref from './utils/getPref'
 
 const ENGINE_NAME = `${process.platform}-${process.arch}-node-${process.version.split('.')[0]}`
 
@@ -514,6 +515,7 @@ async function installInContext (
         })
       }
     }
+    const pkgJsonPath = path.join(ctx.root, 'package.json')
     newPkg = await save(
       ctx.prefix,
       specsToUsert,
@@ -718,6 +720,9 @@ async function installInContext (
       const linkOpts = {
         ...opts,
         linkToBin: opts.bin,
+        saveDev: false,
+        saveOptional: false,
+        saveProd: false,
         skipInstall: true,
       }
       const externalPkgs = installCtx.localPackages.map((localPackage) => path.join(opts.prefix, localPackage.resolution.directory))
@@ -824,18 +829,4 @@ async function getTopParents (pkgNames: string[], modules: string) {
     name: pkg.name,
     version: pkg.version,
   }))
-}
-
-function getPref (
-  alias: string,
-  name: string,
-  version: string,
-  opts: {
-    saveExact: boolean,
-    savePrefix: string,
-  },
-) {
-  const prefix = alias !== name ? `npm:${name}@` : ''
-  if (opts.saveExact) return `${prefix}${version}`
-  return `${prefix}${opts.savePrefix}${version}`
 }
