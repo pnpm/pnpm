@@ -6566,7 +6566,7 @@ specifiers:
   path-exists: ^3.0.0
   path-name: ^1.0.0
   pkgs-graph: ^2.0.0
-  pnpm-default-reporter: ^0.17.6
+  pnpm-default-reporter: ^0.17.7
   pnpm-file-reporter: ^0.1.0
   pnpm-list: ^3.0.0
   pnpm-registry-mock: ^2.0.0
