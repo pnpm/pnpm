@@ -3,8 +3,7 @@ environment:
     - nodejs_version: 6
 install:
   - ps: Install-Product node $env:nodejs_version
-  # temporarily turning store verification back on. AppVeyor started to fail with pnpm v2.10.0
-  # - npm set verify-store-integrity false
+  - npm set verify-store-integrity false
   - npm set fetch-retry-maxtimeout 180000
   - set PNPM_VERSION=2.9.0
   - curl -L https://unpkg.com/@pnpm/self-installer | node
