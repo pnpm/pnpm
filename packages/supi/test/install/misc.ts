@@ -14,6 +14,7 @@ import readPkg = require('read-pkg')
 import rimraf = require('rimraf-then')
 import {
   addDistTag,
+  local,
   prepare,
   testDefaults,
 } from '../utils'
@@ -862,4 +863,14 @@ test('create a package.json if there is none', async (t: tape.Test) => {
       'dep-of-pkg-with-1-dep': '^100.1.0',
     },
   }, 'package.json created')
+})
+
+test('should throw error when trying to install a package without name', async (t: tape.Test) => {
+  try {
+    await installPkgs([local('missing-pkg-name.tgz')], await testDefaults())
+    t.fail('installation should have failed')
+  } catch (err) {
+    t.ok(err.message.match(/^Can't install .*: Missing package name$/), 'correct error message')
+    t.equal(err.code, 'ERR_PNPM_MISSING_PACKAGE_NAME', 'failed with correct error code')
+  }
 })

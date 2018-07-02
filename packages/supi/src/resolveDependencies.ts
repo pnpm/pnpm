@@ -380,6 +380,13 @@ async function install (
     }
     // tslint:enable:no-string-literal
   }
+  if (!pkg.name) { // TODO: don't fail on optional dependencies
+    const err = new Error(`Can't install ${wantedDependency.raw}: Missing package name`)
+    // tslint:disable:no-string-literal
+    err['code'] = 'ERR_PNPM_MISSING_PACKAGE_NAME'
+    // tslint:enable:no-string-literal
+    throw err
+  }
   if (options.currentDepth === 0 && pkgResponse.body.latest && pkgResponse.body.latest !== pkg.version) {
     ctx.outdatedPkgs[pkgResponse.body.id] = pkgResponse.body.latest
   }
