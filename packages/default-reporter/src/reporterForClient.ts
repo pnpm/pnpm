@@ -147,7 +147,9 @@ export default function (
     outputs.push(most.of(progress))
   }
 
-  const formatLifecycle = formatLifecycleHideOverflow.bind(null, width)
+  // When the reporter is not append-only, the length of output is limited
+  // in order to reduce flickering
+  const formatLifecycle = formatLifecycleHideOverflow.bind(null, appendOnly ? Infinity : width)
   if (!appendOnly) {
     const tarballsProgressOutput$ = log$.progress
       .filter((log) => log.status === 'fetching_started' &&
