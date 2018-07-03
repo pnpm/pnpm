@@ -376,6 +376,32 @@ function fetchToStore (
       })
     }
 
+    // when fetchingFiles resolves, the cached result has to set fromStore to true, without
+    // affecting previous invocations: so we need to replace the cache.
+    fetchingFiles.promise.then(({filenames, fromStore}) => {
+      // if it's already in the store, we don't need to update the cache
+      if (fromStore) {
+        return;
+      }
+
+      const tmp = ctx.fetchingLocker.get(opts.pkgId) as {
+        fetchingFiles: Promise<PackageFilesResponse>,
+        fetchingRawManifest?: Promise<PackageJson>,
+        finishing: Promise<void>,
+        inStoreLocation: string,
+      }
+
+      ctx.fetchingLocker.set(opts.pkgId, {
+        fetchingFiles: Promise.resolve({
+          filenames,
+          fromStore: true,
+        }),
+        fetchingRawManifest: tmp.fetchingRawManifest,
+        finishing: tmp.finishing,
+        inStoreLocation: tmp.inStoreLocation,
+      })
+    })
+
     fetchingFiles.promise.catch((err) => {
       ctx.fetchingLocker.delete(opts.pkgId)
       throw err

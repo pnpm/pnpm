@@ -226,6 +226,22 @@ test('refetch local tarball if its integrity has changed', async t => {
 
     t.ok(response.body.updated === false, 'resolution not updated')
     t.notOk((await response.fetchingFiles).fromStore, 'unpack tarball if it is not in store yet')
+
+    // the second time we request the package, fromStore should be true
+    const response2 = await requestPackage(wantedPackage, {
+      ...requestPackageOpts,
+      shrinkwrapResolution: {
+        integrity: 'sha1-BBBBBBBBBBBBBBBBBBBBBBBBBBB=',
+        tarball,
+      },
+    }) as PackageResponse & {
+      fetchingFiles: Promise<PackageFilesResponse>,
+      finishing: Promise<void>,
+    }
+    await response2.fetchingFiles
+    await response2.finishing
+
+    t.ok((await response2.fetchingFiles).fromStore, 'correctly update fromStore after we downloaded it')
   }
 
   {
