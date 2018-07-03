@@ -376,10 +376,14 @@ function fetchToStore (
       })
     }
 
-    // when fetchingFiles resolves, the cached result has to set fromStore to true, without
+    // When fetchingFiles resolves, the cached result has to set fromStore to true, without
     // affecting previous invocations: so we need to replace the cache.
+    //
+    // Changing the value of fromStore is needed for correct reporting of `pnpm server`.
+    // Otherwise, if a package was not in store when the server started, it will be always
+    // reported as "downloaded" instead of "reused".
     fetchingFiles.promise.then(({filenames, fromStore}) => {
-      // if it's already in the store, we don't need to update the cache
+      // If it's already in the store, we don't need to update the cache
       if (fromStore) {
         return;
       }
