@@ -54,6 +54,33 @@ test('recursive install/uninstall', async (t: tape.Test) => {
   await projects['project-2'].hasNot('is-negative')
 })
 
+// Created to cover the issue described in https://github.com/pnpm/pnpm/issues/1253
+test('recursive install with package that has link', async (t: tape.Test) => {
+  const projects = preparePackages(t, [
+    {
+      name: 'project-1',
+      version: '1.0.0',
+      dependencies: {
+        'is-positive': '1.0.0',
+        'project-2': 'link:../project-2',
+      },
+    },
+    {
+      name: 'project-2',
+      version: '1.0.0',
+      dependencies: {
+        'is-negative': '1.0.0',
+      },
+    },
+  ])
+
+  await execPnpm('recursive', 'install')
+
+  t.ok(projects['project-1'].requireModule('is-positive'))
+  t.ok(projects['project-1'].requireModule('project-2/package.json'))
+  t.ok(projects['project-2'].requireModule('is-negative'))
+})
+
 test('recursive update', async (t: tape.Test) => {
   const projects = preparePackages(t, [
     {
