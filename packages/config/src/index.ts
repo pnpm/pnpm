@@ -102,13 +102,13 @@ export default async (
   pnpmConfig.globalBin = process.platform === 'win32'
     ? npmGlobalPrefix
     : path.resolve(npmGlobalPrefix, 'bin')
-  pnpmConfig.bin = pnpmConfig.global
-    ? pnpmConfig.globalBin
-    : path.join(npmConfig.localPrefix, 'node_modules', '.bin')
   pnpmConfig.globalPrefix = path.join(npmGlobalPrefix, 'pnpm-global')
   pnpmConfig.prefix = pnpmConfig.global
     ? pnpmConfig.globalPrefix
     : (cliArgs['prefix'] ? path.resolve(cliArgs['prefix']) : npmConfig.localPrefix) // tslint:disable-line
+  pnpmConfig.bin = pnpmConfig.global
+    ? pnpmConfig.globalBin
+    : path.join(pnpmConfig.prefix, 'node_modules', '.bin')
   pnpmConfig.packageManager = packageManager
 
   if (pnpmConfig.only === 'prod' || pnpmConfig.only === 'production' || !pnpmConfig.only && pnpmConfig.production) {

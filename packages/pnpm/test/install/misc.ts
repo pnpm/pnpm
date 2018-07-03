@@ -89,10 +89,10 @@ test('install --no-package-lock', async (t: tape.Test) => {
   t.notOk(await project.loadShrinkwrap(), 'shrinkwrap.yaml not created')
 })
 
-test('install from any location via the --prefix flag', async (t) => {
+test('install from any location via the --prefix flag', async (t: tape.Test) => {
   const project = prepare(t, {
     dependencies: {
-      'is-positive': '1.0.0',
+      rimraf: '2.6.2',
     },
   })
 
@@ -100,5 +100,6 @@ test('install from any location via the --prefix flag', async (t) => {
 
   await execPnpm('install', '--prefix', 'project')
 
-  await project.has('is-positive')
+  await project.has('rimraf')
+  await project.isExecutable('.bin/rimraf')
 })
