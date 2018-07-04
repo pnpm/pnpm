@@ -39,10 +39,14 @@ export default async (
       const workspaceRoot = path.dirname(workspaceManifestLocation)
       const pkgs = await findWorkspacePackages(workspaceRoot)
 
-      const matchedPkgs = pkgs.filter((pkg) => pkgNames.indexOf(pkg.manifest.name) !== -1)
-      matchedPkgs.forEach((matchedPkg) => pkgPaths.push(matchedPkg.path))
+      const pkgsFoundInWorkspace = pkgs.filter((pkg) => pkgNames.indexOf(pkg.manifest.name) !== -1)
+      pkgsFoundInWorkspace.forEach((pkgFromWorkspace) => pkgPaths.push(pkgFromWorkspace.path))
 
-      globalPkgNames = pkgNames.filter((pkgName) => !matchedPkgs.some((matchedPkg) => matchedPkg.manifest.name === pkgName))
+      if (pkgsFoundInWorkspace.length && !linkOpts.saveDev && !linkOpts.saveProd && !linkOpts.saveOptional) {
+        linkOpts.saveProd = true
+      }
+
+      globalPkgNames = pkgNames.filter((pkgName) => !pkgsFoundInWorkspace.some((pkgFromWorkspace) => pkgFromWorkspace.manifest.name === pkgName))
     } else {
       globalPkgNames = pkgNames
     }
