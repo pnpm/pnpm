@@ -12,11 +12,8 @@ import stringLength = require('string-length')
 import padStart = require('string.prototype.padstart')
 import stripAnsi = require('strip-ansi')
 import {
-  DeprecationLog,
   InstallCheckLog,
   LifecycleLog,
-  Log,
-  ProgressLog,
   RegistryLog,
 } from 'supi'
 import * as supi from 'supi'
@@ -43,7 +40,7 @@ export default function (
     progress: most.Stream<supi.ProgressLog>,
     stage: most.Stream<supi.StageLog>,
     deprecation: most.Stream<supi.DeprecationLog>,
-    summary: most.Stream<supi.Log>,
+    summary: most.Stream<supi.SummaryLog>,
     lifecycle: most.Stream<supi.LifecycleLog>,
     stats: most.Stream<supi.StatsLog>,
     installCheck: most.Stream<supi.InstallCheckLog>,
@@ -63,7 +60,7 @@ export default function (
     width?: number,
     appendOnly?: boolean,
     throttleProgress?: number,
-    cwd?: string,
+    cwd: string,
   },
 ): Array<most.Stream<most.Stream<{msg: string}>>> {
   const width = opts.width || process.stdout.columns || 80
@@ -229,7 +226,7 @@ export default function (
   }
 
   if (!opts.isRecursive) {
-    const pkgsDiff$ = getPkgsDiff(log$)
+    const pkgsDiff$ = getPkgsDiff(log$, {prefix: opts.cwd})
 
     const summaryLog$ = log$.summary
       .take(1)

@@ -182,6 +182,8 @@ test('prints "Already up-to-date"', t => {
 test('prints summary', t => {
   const output$ = toOutput$(createStreamParser(), {cmd: 'install'})
 
+  const prefix = process.cwd()
+
   packageJsonLogger.debug({
     initial: {
       dependencies: {
@@ -191,6 +193,7 @@ test('prints summary', t => {
         'is-negative': '^1.0.0',
       },
     },
+    prefix,
   })
   deprecationLogger.warn({
     pkgName: 'bar',
@@ -198,6 +201,7 @@ test('prints summary', t => {
     pkgId: 'registry.npmjs.org/bar/2.0.0',
     deprecated: 'This package was deprecated because bla bla bla',
     depth: 0,
+    prefix,
   })
   rootLogger.info({
     added: {
@@ -207,6 +211,7 @@ test('prints summary', t => {
       latest: '2.0.0',
       id: 'registry.npmjs.org/foo/1.0.0',
     },
+    prefix,
   })
   rootLogger.info({
     added: {
@@ -216,6 +221,7 @@ test('prints summary', t => {
       latest: '1.0.0', // this won't be printed in summary because latest is less than current version
       id: 'registry.npmjs.org/bar/2.0.0',
     },
+    prefix,
   })
   rootLogger.info({
     removed: {
@@ -223,6 +229,7 @@ test('prints summary', t => {
       name: 'foo',
       version: '0.1.0',
     },
+    prefix,
   })
   rootLogger.info({
     added: {
@@ -231,6 +238,7 @@ test('prints summary', t => {
       version: '2.0.0',
       id: 'registry.npmjs.org/qar/2.0.0',
     },
+    prefix,
   })
   rootLogger.info({
     added: {
@@ -239,12 +247,14 @@ test('prints summary', t => {
       version: '1.1.0',
       id: 'registry.npmjs.org/lala/1.1.0',
     },
+    prefix,
   })
   rootLogger.info({
     removed: {
       dependencyType: 'optional',
       name: 'is-positive',
     },
+    prefix,
   })
   rootLogger.debug({
     linked: {
@@ -253,6 +263,7 @@ test('prints summary', t => {
       name: 'is-linked',
       to: '/src/project/node_modules'
     },
+    prefix,
   })
   rootLogger.info({
     added: {
@@ -263,6 +274,7 @@ test('prints summary', t => {
       latest: '1.0.0',
       id: 'registry.npmjs.org/winst0n/2.0.0',
     },
+    prefix,
   })
   packageJsonLogger.debug({
     updated: {
@@ -272,9 +284,10 @@ test('prints summary', t => {
       devDependencies: {
         'is-13': '^1.0.0',
       },
-    }
+    },
+    prefix,
   })
-  summaryLogger.info()
+  summaryLogger.info({prefix})
 
   t.plan(1)
 
