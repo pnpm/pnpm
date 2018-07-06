@@ -124,7 +124,7 @@ export async function rebuild (maybeOpts: RebuildOptions) {
 
   await _rebuild(new Set(idsToRebuild), modules, ctx.currentShrinkwrap, opts)
 
-  await writeModulesYaml(path.join(ctx.root, 'node_modules'), {
+  await writeModulesYaml(path.join(ctx.prefix, 'node_modules'), {
     hoistedAliases: ctx.hoistedAliases,
     independentLeaves: opts.independentLeaves,
     layoutVersion: LAYOUT_VERSION,

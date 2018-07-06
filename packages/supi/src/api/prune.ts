@@ -39,7 +39,7 @@ export async function prune (
     hoistedAliases: ctx.hoistedAliases,
     newShrinkwrap: prunedShr,
     oldShrinkwrap: ctx.currentShrinkwrap,
-    prefix: ctx.root,
+    prefix: ctx.prefix,
     pruneStore: true,
     shamefullyFlatten: opts.shamefullyFlatten,
     storeController: opts.storeController,

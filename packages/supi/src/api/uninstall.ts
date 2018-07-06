@@ -64,7 +64,7 @@ export async function uninstallInContext (
 ) {
   const makePartialCurrentShrinkwrap = !shrinkwrapsEqual(ctx.currentShrinkwrap, ctx.wantedShrinkwrap)
 
-  const pkgJsonPath = path.join(ctx.root, 'package.json')
+  const pkgJsonPath = path.join(ctx.prefix, 'package.json')
   const saveType = getSaveType(opts)
   const pkg = await removeDeps(pkgJsonPath, pkgsToUninstall, { prefix: opts.prefix, saveType })
   const newShr = pruneShrinkwrap(ctx.wantedShrinkwrap, pkg)
@@ -73,7 +73,7 @@ export async function uninstallInContext (
     hoistedAliases: ctx.hoistedAliases,
     newShrinkwrap: newShr,
     oldShrinkwrap: ctx.currentShrinkwrap,
-    prefix: ctx.root,
+    prefix: ctx.prefix,
     shamefullyFlatten: opts.shamefullyFlatten,
     storeController: opts.storeController,
   })
@@ -83,11 +83,11 @@ export async function uninstallInContext (
     ? pruneShrinkwrap(ctx.currentShrinkwrap, pkg)
     : newShr
   if (opts.shrinkwrap) {
-    await saveShrinkwrap(ctx.root, newShr, currentShrinkwrap)
+    await saveShrinkwrap(ctx.prefix, newShr, currentShrinkwrap)
   } else {
-    await saveCurrentShrinkwrapOnly(ctx.root, currentShrinkwrap)
+    await saveCurrentShrinkwrapOnly(ctx.prefix, currentShrinkwrap)
   }
-  await writeModulesYaml(path.join(ctx.root, 'node_modules'), {
+  await writeModulesYaml(path.join(ctx.prefix, 'node_modules'), {
     hoistedAliases: ctx.hoistedAliases,
     independentLeaves: opts.independentLeaves,
     layoutVersion: LAYOUT_VERSION,
@@ -97,7 +97,7 @@ export async function uninstallInContext (
     skipped: Array.from(ctx.skipped).filter((pkgId) => !removedPkgIds.has(pkgId)),
     store: ctx.storePath,
   })
-  await removeOuterLinks(pkgsToUninstall, path.join(ctx.root, 'node_modules'), {
+  await removeOuterLinks(pkgsToUninstall, path.join(ctx.prefix, 'node_modules'), {
     bin: opts.bin,
     prefix: opts.prefix,
     storePath: ctx.storePath,
