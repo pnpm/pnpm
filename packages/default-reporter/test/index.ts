@@ -163,8 +163,10 @@ test('moves fixed line to the end', async t => {
 test('prints "Already up-to-date"', t => {
   const output$ = toOutput$(createStreamParser(), {cmd: 'install'})
 
-  statsLogger.debug({ added: 0 })
-  statsLogger.debug({ removed: 0 })
+  const prefix = process.cwd()
+
+  statsLogger.debug({ added: 0, prefix })
+  statsLogger.debug({ removed: 0, prefix })
 
   t.plan(1)
 
@@ -706,9 +708,10 @@ test('prints progress of big files download', async t => {
 
 test('prints added/removed stats during installation', t => {
   const output$ = toOutput$(createStreamParser(), {cmd: 'install'})
+  const prefix = process.cwd()
 
-  statsLogger.debug({ added: 5 })
-  statsLogger.debug({ removed: 1 })
+  statsLogger.debug({ added: 5, prefix })
+  statsLogger.debug({ removed: 1, prefix })
 
   t.plan(1)
 
@@ -726,9 +729,10 @@ test('prints added/removed stats during installation', t => {
 
 test('prints added/removed stats during installation when 0 removed', t => {
   const output$ = toOutput$(createStreamParser(), {cmd: 'install'})
+  const prefix = process.cwd()
 
-  statsLogger.debug({ added: 2 })
-  statsLogger.debug({ removed: 0 })
+  statsLogger.debug({ added: 2, prefix })
+  statsLogger.debug({ removed: 0, prefix })
 
   t.plan(1)
 
@@ -746,9 +750,10 @@ test('prints added/removed stats during installation when 0 removed', t => {
 
 test('prints only the added stats if nothing was removed', t => {
   const output$ = toOutput$(createStreamParser(), {cmd: 'install'})
+  const prefix = process.cwd()
 
-  statsLogger.debug({ removed: 0 })
-  statsLogger.debug({ added: 1 })
+  statsLogger.debug({ removed: 0, prefix })
+  statsLogger.debug({ added: 1, prefix })
 
   t.plan(1)
 
@@ -766,9 +771,10 @@ test('prints only the added stats if nothing was removed', t => {
 
 test('prints only the removed stats if nothing was added', t => {
   const output$ = toOutput$(createStreamParser(), {cmd: 'install'})
+  const prefix = process.cwd()
 
-  statsLogger.debug({ removed: 1 })
-  statsLogger.debug({ added: 0 })
+  statsLogger.debug({ removed: 1, prefix })
+  statsLogger.debug({ added: 0, prefix })
 
   t.plan(1)
 
@@ -786,9 +792,10 @@ test('prints only the removed stats if nothing was added', t => {
 
 test('prints only the added stats if nothing was removed and a lot added', t => {
   const output$ = toOutput$(createStreamParser(), {cmd: 'install', width: 20})
+  const prefix = process.cwd()
 
-  statsLogger.debug({ removed: 0 })
-  statsLogger.debug({ added: 100 })
+  statsLogger.debug({ removed: 0, prefix })
+  statsLogger.debug({ added: 100, prefix })
 
   t.plan(1)
 
@@ -806,9 +813,10 @@ test('prints only the added stats if nothing was removed and a lot added', t => 
 
 test('prints only the removed stats if nothing was added and a lot removed', t => {
   const output$ = toOutput$(createStreamParser(), {cmd: 'install', width: 20})
+  const prefix = process.cwd()
 
-  statsLogger.debug({ removed: 100 })
-  statsLogger.debug({ added: 0 })
+  statsLogger.debug({ removed: 100, prefix })
+  statsLogger.debug({ added: 0, prefix })
 
   t.plan(1)
 
@@ -826,9 +834,10 @@ test('prints only the removed stats if nothing was added and a lot removed', t =
 
 test('prints at least one remove sign when removed !== 0', t => {
   const output$ = toOutput$(createStreamParser(), {cmd: 'install', width: 20})
+  const prefix = process.cwd()
 
-  statsLogger.debug({ removed: 1 })
-  statsLogger.debug({ added: 100 })
+  statsLogger.debug({ removed: 1, prefix })
+  statsLogger.debug({ added: 100, prefix })
 
   t.plan(1)
 
@@ -846,9 +855,10 @@ test('prints at least one remove sign when removed !== 0', t => {
 
 test('prints at least one add sign when added !== 0', t => {
   const output$ = toOutput$(createStreamParser(), {cmd: 'install', width: 20})
+  const prefix = process.cwd()
 
-  statsLogger.debug({ removed: 100 })
-  statsLogger.debug({ added: 1 })
+  statsLogger.debug({ removed: 100, prefix })
+  statsLogger.debug({ added: 1, prefix })
 
   t.plan(1)
 
@@ -866,8 +876,9 @@ test('prints at least one add sign when added !== 0', t => {
 
 test('prints just removed during uninstallation', t => {
   const output$ = toOutput$(createStreamParser(), {cmd: 'uninstall'})
+  const prefix = process.cwd()
 
-  statsLogger.debug({ removed: 4 })
+  statsLogger.debug({ removed: 4, prefix })
 
   t.plan(1)
 
