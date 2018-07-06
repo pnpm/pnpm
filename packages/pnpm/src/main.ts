@@ -182,7 +182,11 @@ export default async function run (argv: string[]) {
     if (isCI || !process.stdout.isTTY) return 'append-only'
     return 'default'
   })()
-  initReporter(reporterType, cmd, cliConf.argv.remain[1] && getCommandFullName(cliConf.argv.remain[1])) // tslint:disable-line
+  initReporter(reporterType, {
+    cmd,
+    subCmd: cliConf.argv.remain[1] && getCommandFullName(cliConf.argv.remain[1]),
+    prefix: opts.prefix,
+  })
   delete opts.reporter // This is a silly workaround because supi expects a function as opts.reporter
 
   if (selfUpdate) {

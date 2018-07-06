@@ -450,6 +450,7 @@ async function installInContext (
         name: wantedDependency.alias,
         to: nodeModulesPath,
       },
+      prefix: opts.prefix,
     })
     // This info-log might be better to be moved to the reporter
     logger.info(`${wantedDependency.alias} is linked to ${nodeModulesPath} from ${isInnerLink}`)
@@ -503,7 +504,6 @@ async function installInContext (
     if (!ctx.pkg) {
       throw new Error('Cannot save because no package.json found')
     }
-    const pkgJsonPath = path.join(ctx.root, 'package.json')
     const saveType = getSaveType(opts)
     const specsToUsert = <any>pkgsToSave // tslint:disable-line
       .map((dep) => {
@@ -525,11 +525,14 @@ async function installInContext (
       }
     }
     newPkg = await save(
-      pkgJsonPath,
+      ctx.root,
       specsToUsert,
     )
   } else {
-    packageJsonLogger.debug({ updated: ctx.pkg })
+    packageJsonLogger.debug({
+      prefix: opts.prefix,
+      updated: ctx.pkg,
+    })
   }
 
   if (newPkg) {
@@ -744,7 +747,7 @@ async function installInContext (
   // waiting till package requests are finished
   await Promise.all(R.values(installCtx.pkgByPkgId).map((installed) => installed.finishing))
 
-  summaryLogger.info(undefined)
+  summaryLogger.info({prefix: opts.prefix})
 
   await opts.storeController.close()
 }

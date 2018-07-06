@@ -29,18 +29,10 @@ export const propertyByDependencyType = {
 
 export default function (
   log$: {
-    progress: most.Stream<supi.ProgressLog>,
-    stage: most.Stream<supi.StageLog>,
     deprecation: most.Stream<supi.DeprecationLog>,
     summary: most.Stream<supi.Log>,
-    lifecycle: most.Stream<supi.LifecycleLog>,
-    stats: most.Stream<supi.StatsLog>,
-    installCheck: most.Stream<supi.InstallCheckLog>,
-    registry: most.Stream<supi.RegistryLog>,
     root: most.Stream<supi.RootLog>,
     packageJson: most.Stream<supi.PackageJsonLog>,
-    link: most.Stream<supi.Log>,
-    other: most.Stream<supi.Log>,
   },
 ) {
   const deprecationSet$ = log$.deprecation

@@ -130,6 +130,7 @@ export default async function linkPackages (
           realName: pkg.name,
           version: pkg.version,
         },
+        prefix: opts.root,
       })
     }
   }

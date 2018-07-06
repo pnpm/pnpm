@@ -132,6 +132,7 @@ test('no dependencies (lodash)', async (t: tape.Test) => {
     },
     level: 'info',
     name: 'pnpm:root',
+    prefix: process.cwd(),
   } as RootLog), 'added to root')
   t.ok(reporter.calledWithMatch({
     level: 'debug',

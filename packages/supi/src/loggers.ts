@@ -17,6 +17,7 @@ export interface DeprecationMessage {
   pkgName: string,
   pkgVersion: string,
   pkgId: string,
+  prefix: string,
   deprecated: string,
   depth: number,
 }

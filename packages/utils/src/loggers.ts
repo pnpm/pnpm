@@ -6,23 +6,27 @@ import {PackageJson} from '@pnpm/types'
 
 export const packageJsonLogger = baseLogger('package-json') as Logger<PackageJsonMessage>
 export const stageLogger = baseLogger('stage') as Logger<'resolution_started' | 'resolution_done' | 'importing_started' | 'importing_done'>
-export const summaryLogger = baseLogger('summary') as Logger<void>
+export const summaryLogger = baseLogger('summary') as Logger<SummaryMessage>
 export const rootLogger = baseLogger('root') as Logger<RootMessage>
 export const statsLogger = baseLogger('stats') as Logger<StatsMessage>
 export const skippedOptionalDependencyLogger = baseLogger('skipped-optional-dependency') as Logger<SkippedOptionalDependencyMessage>
 export const progressLogger = baseLogger('progress') as Logger<ProgressMessage>
 
 export type PackageJsonMessage = {
+  prefix: string,
+} & ({
   initial: PackageJson,
 } | {
   updated: object,
-}
+})
 
 export type PackageJsonLog = {name: 'pnpm:package-json'} & LogBase & PackageJsonMessage
 
 export type DependencyType = 'prod' | 'dev' | 'optional'
 
 export type RootMessage = {
+  prefix: string,
+} & ({
   added: {
     name: string,
     realName: string,
@@ -42,7 +46,7 @@ export type RootMessage = {
     to: string,
     dependencyType?: DependencyType,
   },
-}
+})
 
 export type RootLog = {name: 'pnpm:root'} & LogBase & RootMessage
 
@@ -81,7 +85,11 @@ export type SkippedOptionalDependencyLog = {name: 'pnpm:skipped-optional-depende
 
 export type StageLog = {name: 'pnpm:stage'} & LogBase & {message: 'resolution_started' | 'resolution_done' | 'importing_started' | 'importing_done'}
 
-export type SummaryLog = {name: 'pnpm:summary'} & LogBase
+export type SummaryMessage = {
+  prefix: string
+}
+
+export type SummaryLog = {name: 'pnpm:summary'} & LogBase & SummaryMessage
 
 export interface LoggedPkg {
   rawSpec: string,

@@ -66,7 +66,7 @@ export async function uninstallInContext (
 
   const pkgJsonPath = path.join(ctx.root, 'package.json')
   const saveType = getSaveType(opts)
-  const pkg = await removeDeps(pkgJsonPath, pkgsToUninstall, saveType)
+  const pkg = await removeDeps(pkgJsonPath, pkgsToUninstall, { prefix: opts.prefix, saveType })
   const newShr = pruneShrinkwrap(ctx.wantedShrinkwrap, pkg)
   const removedPkgIds = await removeOrphanPkgs({
     bin: opts.bin,
@@ -99,6 +99,7 @@ export async function uninstallInContext (
   })
   await removeOuterLinks(pkgsToUninstall, path.join(ctx.root, 'node_modules'), {
     bin: opts.bin,
+    prefix: opts.prefix,
     storePath: ctx.storePath,
   })
 
@@ -115,6 +116,7 @@ async function removeOuterLinks (
   opts: {
     bin: string,
     storePath: string,
+    prefix: string,
   },
 ) {
   // These packages are not in package.json, they were just linked in not installed
@@ -127,6 +129,7 @@ async function removeOuterLinks (
       }, {
         bin: opts.bin,
         modules,
+        prefix: opts.prefix,
       })
     }
   }

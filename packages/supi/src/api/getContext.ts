@@ -110,7 +110,10 @@ export default async function getContext (
     storePath,
     ...await readShrinkwrapFile(opts),
   }
-  packageJsonLogger.debug({ initial: ctx.pkg })
+  packageJsonLogger.debug({
+    initial: ctx.pkg,
+    prefix: opts.prefix,
+  })
 
   return ctx
 }

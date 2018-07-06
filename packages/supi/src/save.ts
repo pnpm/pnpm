@@ -5,10 +5,11 @@ import {
   packageJsonLogger,
 } from '@pnpm/utils'
 import loadJsonFile = require('load-json-file')
+import path = require('path')
 import writePkg = require('write-pkg')
 
 export default async function save (
-  pkgJsonPath: string,
+  prefix: string,
   packageSpecs: Array<{
     name: string,
     pref?: string,
@@ -17,6 +18,7 @@ export default async function save (
 ): Promise<PackageJson> {
   // Read the latest version of package.json to avoid accidental overwriting
   let packageJson: object
+  const pkgJsonPath = path.join(prefix, 'package.json')
   try {
     packageJson = await loadJsonFile(pkgJsonPath)
   } catch (err) {
@@ -45,7 +47,10 @@ export default async function save (
   })
 
   await writePkg(pkgJsonPath, packageJson)
-  packageJsonLogger.debug({ updated: packageJson })
+  packageJsonLogger.debug({
+    prefix,
+    updated: packageJson,
+  })
   return packageJson as PackageJson
 }
 

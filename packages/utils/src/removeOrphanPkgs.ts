@@ -39,6 +39,7 @@ export default async function removeOrphanPkgs (
       bin: opts.bin,
       dryRun: opts.dryRun,
       modules: rootModules,
+      prefix: opts.prefix,
     })
   }))
 
@@ -71,6 +72,7 @@ export default async function removeOrphanPkgs (
                 bin: opts.bin,
                 modules: rootModules,
                 muteLogs: true,
+                prefix: opts.prefix,
               })
             }))
           }
