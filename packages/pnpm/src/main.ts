@@ -184,8 +184,8 @@ export default async function run (argv: string[]) {
   })()
   initReporter(reporterType, {
     cmd,
-    subCmd: cliConf.argv.remain[1] && getCommandFullName(cliConf.argv.remain[1]),
     prefix: opts.prefix,
+    subCmd: cliConf.argv.remain[1] && getCommandFullName(cliConf.argv.remain[1]),
   })
   delete opts.reporter // This is a silly workaround because supi expects a function as opts.reporter
 

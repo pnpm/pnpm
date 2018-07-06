@@ -85,8 +85,8 @@ export type SkippedOptionalDependencyLog = {name: 'pnpm:skipped-optional-depende
 
 export type StageLog = {name: 'pnpm:stage'} & LogBase & {message: 'resolution_started' | 'resolution_done' | 'importing_started' | 'importing_done'}
 
-export type SummaryMessage = {
-  prefix: string
+export interface SummaryMessage {
+  prefix: string,
 }
 
 export type SummaryLog = {name: 'pnpm:summary'} & LogBase & SummaryMessage
