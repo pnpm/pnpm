@@ -63,7 +63,6 @@ export function toOutput$ (
   },
 ): most.Stream<string> {
   opts = opts || {}
-  const isRecursive = opts.cmd === 'recursive'
   const progressPushStream = new PushStream()
   const stagePushStream = new PushStream()
   const deprecationPushStream = new PushStream()
@@ -148,7 +147,16 @@ export function toOutput$ (
     summary: most.from<supi.Log>(summaryPushStream.observable),
   }
   const outputs: Array<most.Stream<most.Stream<{msg: string}>>> = reporterForClient(
-    log$, isRecursive, opts.cmd, opts.subCmd, opts.width, opts.appendOnly, opts.throttleProgress, opts.cwd,
+    log$,
+    {
+      appendOnly: opts.appendOnly,
+      cmd: opts.cmd,
+      cwd: opts.cwd,
+      isRecursive: opts.cmd === 'recursive',
+      subCmd: opts.subCmd,
+      throttleProgress: opts.throttleProgress,
+      width: opts.width,
+    },
   )
 
   if (opts.appendOnly) {

@@ -56,19 +56,21 @@ export default function (
     hook: most.Stream<supi.Log>,
     skippedOptionalDependency: most.Stream<supi.SkippedOptionalDependencyLog>,
   },
-  isRecursive: boolean,
-  cmd: string,
-  subCmd?: string,
-  widthArg?: number,
-  appendOnly?: boolean,
-  throttleProgress?: number,
-  cwdArg?: string,
+  opts: {
+    isRecursive: boolean,
+    cmd: string,
+    subCmd?: string,
+    width?: number,
+    appendOnly?: boolean,
+    throttleProgress?: number,
+    cwd?: string,
+  },
 ): Array<most.Stream<most.Stream<{msg: string}>>> {
-  const width = widthArg || process.stdout.columns || 80
+  const width = opts.width || process.stdout.columns || 80
   const outputs: Array<most.Stream<most.Stream<{msg: string}>>> = []
-  const cwd = cwdArg || process.cwd()
+  const cwd = opts.cwd || process.cwd()
 
-  const resolutionDone$ = isRecursive
+  const resolutionDone$ = opts.isRecursive
     ? most.never()
     : log$.stage
       .filter((log) => log.message === 'resolution_done')
@@ -102,7 +104,7 @@ export default function (
     }
   }
 
-  const importingDone$ = isRecursive
+  const importingDone$ = opts.isRecursive
     ? most.of(false)
     : log$.stage.filter((log) => log.message === 'importing_done')
       .constant(true)
@@ -110,17 +112,17 @@ export default function (
       .startWith(false)
       .multicast()
 
-  if (typeof throttleProgress === 'number' && throttleProgress > 0) {
+  if (typeof opts.throttleProgress === 'number' && opts.throttleProgress > 0) {
     const resolutionStarted$ = log$.stage
       .filter((log) => log.message === 'resolution_started' || log.message === 'importing_started').take(1)
     const commandDone$ = log$.cli.filter((log) => log['message'] === 'command_done')
 
     // Reporting is done every `throttleProgress` milliseconds
     // and once all packages are fetched.
-    const sampler = isRecursive
-      ? most.merge(most.periodic(throttleProgress).until(commandDone$), commandDone$)
+    const sampler = opts.isRecursive
+      ? most.merge(most.periodic(opts.throttleProgress).until(commandDone$), commandDone$)
       : most.merge(
-        most.periodic(throttleProgress).since(resolutionStarted$).until(most.merge<{}>(importingDone$.skip(1), commandDone$)),
+        most.periodic(opts.throttleProgress).since(resolutionStarted$).until(most.merge<{}>(importingDone$.skip(1), commandDone$)),
         importingDone$,
       )
     const progress = most.sample(
@@ -142,15 +144,15 @@ export default function (
       resolvingContentLog$,
       fedtchedLog$,
       foundInStoreLog$,
-      isRecursive ? most.of(false) : importingDone$,
+      opts.isRecursive ? most.of(false) : importingDone$,
     )
     outputs.push(most.of(progress))
   }
 
   // When the reporter is not append-only, the length of output is limited
   // in order to reduce flickering
-  const formatLifecycle = formatLifecycleHideOverflow.bind(null, appendOnly ? Infinity : width)
-  if (!appendOnly) {
+  const formatLifecycle = formatLifecycleHideOverflow.bind(null, opts.appendOnly ? Infinity : width)
+  if (!opts.appendOnly) {
     const tarballsProgressOutput$ = log$.progress
       .filter((log) => log.status === 'fetching_started' &&
         typeof log.size === 'number' && log.size >= BIG_TARBALL_SIZE &&
@@ -226,7 +228,7 @@ export default function (
     outputs.push(lifecycleOutput$)
   }
 
-  if (!isRecursive) {
+  if (!opts.isRecursive) {
     const pkgsDiff$ = getPkgsDiff(log$)
 
     const summaryLog$ = log$.summary
@@ -268,11 +270,11 @@ export default function (
     outputs.push(deprecationOutput$)
   }
 
-  if (!isRecursive) {
+  if (!opts.isRecursive) {
     outputs.push(
       most.fromPromise(
         log$.stats
-          .take((cmd === 'install' || cmd === 'update') ? 2 : 1)
+          .take((opts.cmd === 'install' || opts.cmd === 'update') ? 2 : 1)
           .reduce((acc, log) => {
             if (typeof log['added'] === 'number') {
               acc['added'] = log['added']
@@ -341,7 +343,7 @@ export default function (
     )
   } else {
     const stats$ = (
-      subCmd !== 'uninstall'
+      opts.subCmd !== 'uninstall'
         ? log$.stats
             .loop((stats, log) => {
               // As of pnpm v2.9.0, during `pnpm recursive link`, logging of removed stats happens twice
@@ -400,7 +402,7 @@ export default function (
     outputs.push(miscOutput$)
   }
 
-  if (!isRecursive) {
+  if (!opts.isRecursive) {
     const hookOutput$ = log$.hook
       .map((log) => ({msg: `${chalk.magentaBright(log['hook'])}: ${log['message']}`}))
       .map(most.of)
