@@ -5,6 +5,7 @@ import {PackageJson} from '@pnpm/types'
 import {
   DependenciesType,
   dependenciesTypes,
+  DependencyType,
   getSaveType,
   packageJsonLogger,
   removeOrphanPackages as removeOrphanPkgs,
@@ -121,7 +122,7 @@ export default async function link (
   // Linking should happen after removing orphans
   // Otherwise would've been removed
   for (const linkedPkg of linkedPkgs) {
-    await linkToModules(linkedPkg.pkg, linkedPkg.path, destModules, {prefix: opts.prefix})
+    await linkToModules(linkedPkg.pkg, linkedPkg.path, destModules, {saveType, prefix: opts.prefix})
   }
 
   const linkToBin = maybeOpts && maybeOpts.linkToBin || path.join(destModules, '.bin')
@@ -182,17 +183,25 @@ function addLinkToShrinkwrap (
   }
 }
 
+const DEP_TYPE_BY_DEPS_FIELD_NAME = {
+  dependencies: 'prod',
+  devDependencies: 'dev',
+  optionalDependencies: 'optional',
+}
+
 async function linkToModules (
   pkg: PackageJson,
   linkFrom: string,
   modules: string,
   opts: {
+    saveType?: DependenciesType,
     prefix: string,
   },
 ) {
   const dest = path.join(modules, pkg.name)
   rootLogger.debug({
     added: {
+      dependencyType: opts.saveType && DEP_TYPE_BY_DEPS_FIELD_NAME[opts.saveType] as DependencyType,
       linkedFrom: linkFrom,
       name: pkg.name,
       realName: pkg.name,
