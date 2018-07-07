@@ -101,7 +101,7 @@ export default function (
     }
   }
 
-  const importingDone$ = opts.isRecursive
+  const importingDone$ = opts.isRecursive || opts.cmd === 'link'
     ? most.of(false)
     : log$.stage.filter((log) => log.message === 'importing_done')
       .constant(true)
@@ -299,8 +299,8 @@ export default function (
     outputs.push(registryOutput$)
 
     const miscOutput$ = most.merge(log$.link, log$.other)
+      .filter((obj) => obj.level !== 'debug' && (!obj['prefix'] || obj['prefix'] === opts.cwd))
       .map((obj) => {
-        if (obj.level === 'debug') return
         if (obj.level === 'warn') {
           return formatWarn(obj['message'])
         }
@@ -380,6 +380,9 @@ function statsForCurrentPackage (
   )
   .map((stats) => {
     if (!stats['removed'] && !stats['added']) {
+      if (opts.cmd === 'link') {
+        return most.never()
+      }
       return most.of({msg: 'Already up-to-date'})
     }
 

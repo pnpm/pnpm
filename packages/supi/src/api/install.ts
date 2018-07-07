@@ -181,7 +181,7 @@ export async function install (maybeOpts: InstallOptions) {
           throw new Error('Headless installation requires a shrinkwrap.yaml file')
         }
       } else {
-        logger.info('Performing headless installation')
+        logger.info({message: 'Performing headless installation', prefix: ctx.prefix})
         await headless({
           ...opts,
           currentShrinkwrap: ctx.currentShrinkwrap,
