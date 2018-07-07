@@ -9,7 +9,6 @@ dependencies:
   cli-cursor: 2.1.0
   common-tags: 1.8.0
   most: 1.7.3
-  most-last: 1.0.1
   ndjson: 1.5.0
   normalize-path: 3.0.0
   pnpm-default-reporter: 'link:'
@@ -1038,12 +1037,6 @@ packages:
     hasBin: true
     resolution:
       integrity: sha1-NDOB0f2e1RljsLMVNbf9i64E/3A=
-  /most-last/1.0.1:
-    dev: false
-    peerDependencies:
-      most: ^1.0.3
-    resolution:
-      integrity: sha512-ycc+leSrXoGRjxhsZJW/l+Sk0CXj9e/z6EP5ebZ8A+zDWGRq1v/oeNkyQF4TG95LnT5Q0ysG+5piJYSR86k58A==
   /most/1.7.3:
     dependencies:
       '@most/multicast': 1.3.0
@@ -1870,7 +1863,6 @@ specifiers:
   load-json-file: ^5.0.0
   mos-tap-diff: ^1.0.0
   most: ^1.7.2
-  most-last: ^1.0.0
   ndjson: ^1.5.0
   normalize-newline: ^3.0.0
   normalize-path: ^3.0.0

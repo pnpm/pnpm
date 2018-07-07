@@ -9,7 +9,6 @@ import {
   safeReadPackageFromDir as safeReadPkgFromDir,
 } from '@pnpm/utils'
 import mkdirp = require('mkdirp-promise')
-import normalizePath = require('normalize-path')
 import path = require('path')
 import {Shrinkwrap} from 'pnpm-shrinkwrap'
 import removeAllExceptOuterLinks = require('remove-all-except-outer-links')
@@ -22,7 +21,7 @@ import checkCompatibility from './checkCompatibility'
 export interface PnpmContext {
   pkg: PackageJson,
   storePath: string,
-  root: string,
+  prefix: string,
   existsWantedShrinkwrap: boolean,
   existsCurrentShrinkwrap: boolean,
   currentShrinkwrap: Shrinkwrap,
@@ -48,10 +47,9 @@ export default async function getContext (
   },
   installType?: 'named' | 'general',
 ): Promise<PnpmContext> {
-  const root = normalizePath(opts.prefix)
   const storePath = opts.store
 
-  const modulesPath = path.join(root, 'node_modules')
+  const modulesPath = path.join(opts.prefix, 'node_modules')
   const modules = await readModulesYaml(modulesPath)
 
   if (modules) {
@@ -105,12 +103,15 @@ export default async function getContext (
     hoistedAliases: modules && modules.hoistedAliases || {},
     pendingBuilds: modules && modules.pendingBuilds || [],
     pkg: opts.hooks && opts.hooks.readPackage ? opts.hooks.readPackage(pkg) : pkg,
-    root,
+    prefix: opts.prefix,
     skipped: new Set(modules && modules.skipped || []),
     storePath,
     ...await readShrinkwrapFile(opts),
   }
-  packageJsonLogger.debug({ initial: ctx.pkg })
+  packageJsonLogger.debug({
+    initial: ctx.pkg,
+    prefix: opts.prefix,
+  })
 
   return ctx
 }

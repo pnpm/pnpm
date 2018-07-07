@@ -181,7 +181,7 @@ export async function install (maybeOpts: InstallOptions) {
           throw new Error('Headless installation requires a shrinkwrap.yaml file')
         }
       } else {
-        logger.info('Performing headless installation')
+        logger.info({message: 'Performing headless installation', prefix: ctx.prefix})
         await headless({
           ...opts,
           currentShrinkwrap: ctx.currentShrinkwrap,
@@ -367,7 +367,7 @@ async function installInContext (
     logger.warn('`node_modules` is present. Shrinkwrap only installation will make it out-of-date')
   }
 
-  const nodeModulesPath = await realNodeModulesDir(ctx.root)
+  const nodeModulesPath = await realNodeModulesDir(ctx.prefix)
 
   // Avoid requesting package meta info from registry only when the shrinkwrap version is at least the expected
   const hasManifestInShrinkwrap = typeof ctx.wantedShrinkwrap.shrinkwrapMinorVersion === 'number' &&
@@ -424,7 +424,6 @@ async function installInContext (
       ...ctx.wantedShrinkwrap.devDependencies,
       ...ctx.wantedShrinkwrap.optionalDependencies,
     },
-    root: ctx.root,
     shamefullyFlatten: opts.shamefullyFlatten,
     sideEffectsCache: opts.sideEffectsCache,
     update: opts.update,
@@ -450,6 +449,7 @@ async function installInContext (
         name: wantedDependency.alias,
         to: nodeModulesPath,
       },
+      prefix: opts.prefix,
     })
     // This info-log might be better to be moved to the reporter
     logger.info(`${wantedDependency.alias} is linked to ${nodeModulesPath} from ${isInnerLink}`)
@@ -503,7 +503,6 @@ async function installInContext (
     if (!ctx.pkg) {
       throw new Error('Cannot save because no package.json found')
     }
-    const pkgJsonPath = path.join(ctx.root, 'package.json')
     const saveType = getSaveType(opts)
     const specsToUsert = <any>pkgsToSave // tslint:disable-line
       .map((dep) => {
@@ -525,11 +524,14 @@ async function installInContext (
       }
     }
     newPkg = await save(
-      pkgJsonPath,
+      ctx.prefix,
       specsToUsert,
     )
   } else {
-    packageJsonLogger.debug({ updated: ctx.pkg })
+    packageJsonLogger.debug({
+      prefix: opts.prefix,
+      updated: ctx.pkg,
+    })
   }
 
   if (newPkg) {
@@ -601,9 +603,9 @@ async function installInContext (
     optional: opts.optional,
     outdatedPkgs: installCtx.outdatedPkgs,
     pkg: newPkg || ctx.pkg,
+    prefix: ctx.prefix,
     production: opts.production,
     reinstallForFlatten: Boolean(opts.reinstallForFlatten),
-    root: ctx.root,
     shamefullyFlatten: opts.shamefullyFlatten,
     sideEffectsCache: opts.sideEffectsCache,
     skipped: ctx.skipped,
@@ -628,15 +630,15 @@ async function installInContext (
   }
 
   if (opts.shrinkwrapOnly) {
-    await saveWantedShrinkwrapOnly(ctx.root, result.wantedShrinkwrap)
+    await saveWantedShrinkwrapOnly(ctx.prefix, result.wantedShrinkwrap)
   } else {
     await Promise.all([
       opts.shrinkwrap
-        ? saveShrinkwrap(ctx.root, result.wantedShrinkwrap, result.currentShrinkwrap)
-        : saveCurrentShrinkwrapOnly(ctx.root, result.currentShrinkwrap),
+        ? saveShrinkwrap(ctx.prefix, result.wantedShrinkwrap, result.currentShrinkwrap)
+        : saveCurrentShrinkwrapOnly(ctx.prefix, result.currentShrinkwrap),
       result.currentShrinkwrap.packages === undefined && result.removedDepPaths.size === 0
         ? Promise.resolve()
-        : writeModulesYaml(path.join(ctx.root, 'node_modules'), {
+        : writeModulesYaml(path.join(ctx.prefix, 'node_modules'), {
           hoistedAliases: ctx.hoistedAliases,
           independentLeaves: opts.independentLeaves,
           layoutVersion: LAYOUT_VERSION,
@@ -680,7 +682,7 @@ async function installInContext (
                 pkgRoot: pkg.peripheralLocation,
                 prepare: pkg.prepare,
                 rawNpmConfig: installCtx.rawNpmConfig,
-                rootNodeModulesDir: ctx.root,
+                rootNodeModulesDir: ctx.prefix,
                 unsafePerm: opts.unsafePerm || false,
               })
               if (hasSideEffects && opts.sideEffectsCache && !opts.sideEffectsCacheReadonly) {
@@ -744,7 +746,7 @@ async function installInContext (
   // waiting till package requests are finished
   await Promise.all(R.values(installCtx.pkgByPkgId).map((installed) => installed.finishing))
 
-  summaryLogger.info(undefined)
+  summaryLogger.info({prefix: opts.prefix})
 
   await opts.storeController.close()
 }

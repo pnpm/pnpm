@@ -29,21 +29,17 @@ export const propertyByDependencyType = {
 
 export default function (
   log$: {
-    progress: most.Stream<supi.ProgressLog>,
-    stage: most.Stream<supi.StageLog>,
     deprecation: most.Stream<supi.DeprecationLog>,
-    summary: most.Stream<supi.Log>,
-    lifecycle: most.Stream<supi.LifecycleLog>,
-    stats: most.Stream<supi.StatsLog>,
-    installCheck: most.Stream<supi.InstallCheckLog>,
-    registry: most.Stream<supi.RegistryLog>,
+    summary: most.Stream<supi.SummaryLog>,
     root: most.Stream<supi.RootLog>,
     packageJson: most.Stream<supi.PackageJsonLog>,
-    link: most.Stream<supi.Log>,
-    other: most.Stream<supi.Log>,
+  },
+  opts: {
+    prefix: string,
   },
 ) {
   const deprecationSet$ = log$.deprecation
+    .filter((log) => log.prefix === opts.prefix)
     .scan((acc, log) => {
       acc.add(log.pkgId)
       return acc
@@ -51,7 +47,7 @@ export default function (
 
   const pkgsDiff$ = most.combine(
     (rootLog, deprecationSet) => [rootLog, deprecationSet],
-    log$.root,
+    log$.root.filter((log) => log.prefix === opts.prefix),
     deprecationSet$,
   )
   .scan((pkgsDiff, args) => {
@@ -98,8 +94,8 @@ export default function (
 
   const packageJson$ = most.fromPromise(
     most.merge(
-      log$.packageJson,
-      log$.summary.constant({}),
+      log$.packageJson.filter((log) => log.prefix === opts.prefix),
+      log$.summary.filter((log) => log.prefix === opts.prefix).constant({}),
     )
     .take(2)
     .reduce(R.merge, {}),

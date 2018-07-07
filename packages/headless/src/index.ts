@@ -103,7 +103,7 @@ export default async (opts: HeadlessOptions) => {
     throw new Error('Cannot run headless installation because shrinkwrap.yaml is not up-to-date with package.json')
   }
 
-  packageJsonLogger.debug({ initial: pkg })
+  packageJsonLogger.debug({ initial: pkg, prefix: opts.prefix })
 
   const scripts = !opts.ignoreScripts && pkg.scripts || {}
 
@@ -168,7 +168,7 @@ export default async (opts: HeadlessOptions) => {
 
   await linkAllBins(depGraph, {optional: opts.optional})
 
-  await linkRootPackages(filteredShrinkwrap, depGraph, res.rootDependencies, nodeModulesDir)
+  await linkRootPackages(filteredShrinkwrap, opts.prefix, res.rootDependencies, nodeModulesDir)
   await linkBins(nodeModulesDir, bin)
 
   await writeCurrentShrinkwrapOnly(opts.prefix, filteredShrinkwrap)
@@ -199,7 +199,7 @@ export default async (opts: HeadlessOptions) => {
   // waiting till package requests are finished
   await Promise.all(R.values(depGraph).map((depNode) => depNode.finishing))
 
-  summaryLogger.info(undefined)
+  summaryLogger.info({prefix: opts.prefix})
 
   await opts.storeController.close()
 
@@ -223,7 +223,7 @@ export default async (opts: HeadlessOptions) => {
 
 async function linkRootPackages (
   shr: Shrinkwrap,
-  depGraph: DepGraphNodesByDepPath,
+  prefix: string,
   rootDependencies: {[alias: string]: string},
   baseNodeModules: string,
 ) {
@@ -257,6 +257,7 @@ async function linkRootPackages (
             realName: pkgInfo.name,
             version: pkgInfo.version,
           },
+          prefix,
         })
       }),
   )

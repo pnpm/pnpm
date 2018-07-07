@@ -163,8 +163,10 @@ test('moves fixed line to the end', async t => {
 test('prints "Already up-to-date"', t => {
   const output$ = toOutput$(createStreamParser(), {cmd: 'install'})
 
-  statsLogger.debug({ added: 0 })
-  statsLogger.debug({ removed: 0 })
+  const prefix = process.cwd()
+
+  statsLogger.debug({ added: 0, prefix })
+  statsLogger.debug({ removed: 0, prefix })
 
   t.plan(1)
 
@@ -179,9 +181,12 @@ test('prints "Already up-to-date"', t => {
   })
 })
 
-test('prints summary', t => {
-  const output$ = toOutput$(createStreamParser(), {cmd: 'install'})
+test('prints summary (of current package only)', t => {
+  const prefix = '/home/jane/project'
+  const output$ = toOutput$(createStreamParser(), {cmd: 'install', cwd: prefix})
 
+  statsLogger.debug({ added: 5, prefix: `${prefix}/packages/foo` })
+  statsLogger.debug({ removed: 1, prefix: `${prefix}/packages/foo` })
   packageJsonLogger.debug({
     initial: {
       dependencies: {
@@ -191,6 +196,7 @@ test('prints summary', t => {
         'is-negative': '^1.0.0',
       },
     },
+    prefix,
   })
   deprecationLogger.warn({
     pkgName: 'bar',
@@ -198,6 +204,7 @@ test('prints summary', t => {
     pkgId: 'registry.npmjs.org/bar/2.0.0',
     deprecated: 'This package was deprecated because bla bla bla',
     depth: 0,
+    prefix,
   })
   rootLogger.info({
     added: {
@@ -207,6 +214,7 @@ test('prints summary', t => {
       latest: '2.0.0',
       id: 'registry.npmjs.org/foo/1.0.0',
     },
+    prefix,
   })
   rootLogger.info({
     added: {
@@ -216,6 +224,7 @@ test('prints summary', t => {
       latest: '1.0.0', // this won't be printed in summary because latest is less than current version
       id: 'registry.npmjs.org/bar/2.0.0',
     },
+    prefix,
   })
   rootLogger.info({
     removed: {
@@ -223,6 +232,7 @@ test('prints summary', t => {
       name: 'foo',
       version: '0.1.0',
     },
+    prefix,
   })
   rootLogger.info({
     added: {
@@ -231,6 +241,17 @@ test('prints summary', t => {
       version: '2.0.0',
       id: 'registry.npmjs.org/qar/2.0.0',
     },
+    prefix,
+  })
+  // This log is going to be ignored because it is not in the current prefix
+  rootLogger.info({
+    added: {
+      dependencyType: 'optional',
+      name: 'lala',
+      version: '2.0.0',
+      id: 'registry.npmjs.org/lala/2.0.0',
+    },
+    prefix: `${prefix}/packages/foo`,
   })
   rootLogger.info({
     added: {
@@ -239,12 +260,14 @@ test('prints summary', t => {
       version: '1.1.0',
       id: 'registry.npmjs.org/lala/1.1.0',
     },
+    prefix,
   })
   rootLogger.info({
     removed: {
       dependencyType: 'optional',
       name: 'is-positive',
     },
+    prefix,
   })
   rootLogger.debug({
     linked: {
@@ -253,6 +276,7 @@ test('prints summary', t => {
       name: 'is-linked',
       to: '/src/project/node_modules'
     },
+    prefix,
   })
   rootLogger.info({
     added: {
@@ -263,6 +287,7 @@ test('prints summary', t => {
       latest: '1.0.0',
       id: 'registry.npmjs.org/winst0n/2.0.0',
     },
+    prefix,
   })
   packageJsonLogger.debug({
     updated: {
@@ -272,15 +297,18 @@ test('prints summary', t => {
       devDependencies: {
         'is-13': '^1.0.0',
       },
-    }
+    },
+    prefix,
   })
-  summaryLogger.info()
+  summaryLogger.info({prefix})
 
   t.plan(1)
 
-  output$.skip(1).take(1).map(normalizeNewline).subscribe({
+  output$.skip(2).take(1).map(normalizeNewline).subscribe({
     next: output => {
-      t.equal(output, `${WARN} ${DEPRECATED} bar@2.0.0: This package was deprecated because bla bla bla` + EOL + EOL +
+      t.equal(output,
+        `packages/foo                             |   ${chalk.green('+5')}   ${chalk.red('-1')} ${ADD + SUB}${EOL}` +
+        `${WARN} ${DEPRECATED} bar@2.0.0: This package was deprecated because bla bla bla${EOL}${EOL}` +
         stripIndents`
         ${h1('dependencies:')}
         ${ADD} bar ${versionColor('2.0.0')} ${DEPRECATED}
@@ -693,9 +721,10 @@ test('prints progress of big files download', async t => {
 
 test('prints added/removed stats during installation', t => {
   const output$ = toOutput$(createStreamParser(), {cmd: 'install'})
+  const prefix = process.cwd()
 
-  statsLogger.debug({ added: 5 })
-  statsLogger.debug({ removed: 1 })
+  statsLogger.debug({ added: 5, prefix })
+  statsLogger.debug({ removed: 1, prefix })
 
   t.plan(1)
 
@@ -713,9 +742,10 @@ test('prints added/removed stats during installation', t => {
 
 test('prints added/removed stats during installation when 0 removed', t => {
   const output$ = toOutput$(createStreamParser(), {cmd: 'install'})
+  const prefix = process.cwd()
 
-  statsLogger.debug({ added: 2 })
-  statsLogger.debug({ removed: 0 })
+  statsLogger.debug({ added: 2, prefix })
+  statsLogger.debug({ removed: 0, prefix })
 
   t.plan(1)
 
@@ -733,9 +763,10 @@ test('prints added/removed stats during installation when 0 removed', t => {
 
 test('prints only the added stats if nothing was removed', t => {
   const output$ = toOutput$(createStreamParser(), {cmd: 'install'})
+  const prefix = process.cwd()
 
-  statsLogger.debug({ removed: 0 })
-  statsLogger.debug({ added: 1 })
+  statsLogger.debug({ removed: 0, prefix })
+  statsLogger.debug({ added: 1, prefix })
 
   t.plan(1)
 
@@ -753,9 +784,10 @@ test('prints only the added stats if nothing was removed', t => {
 
 test('prints only the removed stats if nothing was added', t => {
   const output$ = toOutput$(createStreamParser(), {cmd: 'install'})
+  const prefix = process.cwd()
 
-  statsLogger.debug({ removed: 1 })
-  statsLogger.debug({ added: 0 })
+  statsLogger.debug({ removed: 1, prefix })
+  statsLogger.debug({ added: 0, prefix })
 
   t.plan(1)
 
@@ -773,9 +805,10 @@ test('prints only the removed stats if nothing was added', t => {
 
 test('prints only the added stats if nothing was removed and a lot added', t => {
   const output$ = toOutput$(createStreamParser(), {cmd: 'install', width: 20})
+  const prefix = process.cwd()
 
-  statsLogger.debug({ removed: 0 })
-  statsLogger.debug({ added: 100 })
+  statsLogger.debug({ removed: 0, prefix })
+  statsLogger.debug({ added: 100, prefix })
 
   t.plan(1)
 
@@ -793,9 +826,10 @@ test('prints only the added stats if nothing was removed and a lot added', t => 
 
 test('prints only the removed stats if nothing was added and a lot removed', t => {
   const output$ = toOutput$(createStreamParser(), {cmd: 'install', width: 20})
+  const prefix = process.cwd()
 
-  statsLogger.debug({ removed: 100 })
-  statsLogger.debug({ added: 0 })
+  statsLogger.debug({ removed: 100, prefix })
+  statsLogger.debug({ added: 0, prefix })
 
   t.plan(1)
 
@@ -813,9 +847,10 @@ test('prints only the removed stats if nothing was added and a lot removed', t =
 
 test('prints at least one remove sign when removed !== 0', t => {
   const output$ = toOutput$(createStreamParser(), {cmd: 'install', width: 20})
+  const prefix = process.cwd()
 
-  statsLogger.debug({ removed: 1 })
-  statsLogger.debug({ added: 100 })
+  statsLogger.debug({ removed: 1, prefix })
+  statsLogger.debug({ added: 100, prefix })
 
   t.plan(1)
 
@@ -833,9 +868,10 @@ test('prints at least one remove sign when removed !== 0', t => {
 
 test('prints at least one add sign when added !== 0', t => {
   const output$ = toOutput$(createStreamParser(), {cmd: 'install', width: 20})
+  const prefix = process.cwd()
 
-  statsLogger.debug({ removed: 100 })
-  statsLogger.debug({ added: 1 })
+  statsLogger.debug({ removed: 100, prefix })
+  statsLogger.debug({ added: 1, prefix })
 
   t.plan(1)
 
@@ -853,8 +889,9 @@ test('prints at least one add sign when added !== 0', t => {
 
 test('prints just removed during uninstallation', t => {
   const output$ = toOutput$(createStreamParser(), {cmd: 'uninstall'})
+  const prefix = process.cwd()
 
-  statsLogger.debug({ removed: 4 })
+  statsLogger.debug({ removed: 4, prefix })
 
   t.plan(1)
 

@@ -144,14 +144,14 @@ export function toOutput$ (
     skippedOptionalDependency: most.from<supi.SkippedOptionalDependencyLog>(skippedOptionalDependencyPushStream.observable),
     stage: most.from<supi.StageLog>(stagePushStream.observable),
     stats: most.from<supi.StatsLog>(statsPushStream.observable),
-    summary: most.from<supi.Log>(summaryPushStream.observable),
+    summary: most.from<supi.SummaryLog>(summaryPushStream.observable),
   }
   const outputs: Array<most.Stream<most.Stream<{msg: string}>>> = reporterForClient(
     log$,
     {
       appendOnly: opts.appendOnly,
       cmd: opts.cmd,
-      cwd: opts.cwd,
+      cwd: opts.cwd || process.cwd(),
       isRecursive: opts.cmd === 'recursive',
       subCmd: opts.subCmd,
       throttleProgress: opts.throttleProgress,

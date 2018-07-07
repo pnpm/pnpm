@@ -43,6 +43,7 @@ test('uninstall package with no dependencies', async (t: tape.Test) => {
     },
     level: 'debug',
     name: 'pnpm:package-json',
+    prefix: process.cwd(),
   } as PackageJsonLog), 'initial package.json logged')
   t.ok(reporter.calledWithMatch({
     level: 'debug',

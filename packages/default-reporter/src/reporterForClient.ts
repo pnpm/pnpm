@@ -1,6 +1,5 @@
 import chalk from 'chalk'
 import most = require('most')
-import {last as mostLast} from 'most-last'
 import normalize = require('normalize-path')
 import os = require('os')
 import path = require('path')
@@ -12,11 +11,8 @@ import stringLength = require('string-length')
 import padStart = require('string.prototype.padstart')
 import stripAnsi = require('strip-ansi')
 import {
-  DeprecationLog,
   InstallCheckLog,
   LifecycleLog,
-  Log,
-  ProgressLog,
   RegistryLog,
 } from 'supi'
 import * as supi from 'supi'
@@ -43,7 +39,7 @@ export default function (
     progress: most.Stream<supi.ProgressLog>,
     stage: most.Stream<supi.StageLog>,
     deprecation: most.Stream<supi.DeprecationLog>,
-    summary: most.Stream<supi.Log>,
+    summary: most.Stream<supi.SummaryLog>,
     lifecycle: most.Stream<supi.LifecycleLog>,
     stats: most.Stream<supi.StatsLog>,
     installCheck: most.Stream<supi.InstallCheckLog>,
@@ -63,7 +59,7 @@ export default function (
     width?: number,
     appendOnly?: boolean,
     throttleProgress?: number,
-    cwd?: string,
+    cwd: string,
   },
 ): Array<most.Stream<most.Stream<{msg: string}>>> {
   const width = opts.width || process.stdout.columns || 80
@@ -104,7 +100,7 @@ export default function (
     }
   }
 
-  const importingDone$ = opts.isRecursive
+  const importingDone$ = opts.isRecursive || opts.cmd === 'link'
     ? most.of(false)
     : log$.stage.filter((log) => log.message === 'importing_done')
       .constant(true)
@@ -229,7 +225,7 @@ export default function (
   }
 
   if (!opts.isRecursive) {
-    const pkgsDiff$ = getPkgsDiff(log$)
+    const pkgsDiff$ = getPkgsDiff(log$, {prefix: opts.cwd})
 
     const summaryLog$ = log$.summary
       .take(1)
@@ -270,36 +266,21 @@ export default function (
     outputs.push(deprecationOutput$)
   }
 
-  if (!opts.isRecursive) {
-    outputs.push(
-      most.fromPromise(
-        log$.stats
-          .take((opts.cmd === 'install' || opts.cmd === 'update') ? 2 : 1)
-          .reduce((acc, log) => {
-            if (typeof log['added'] === 'number') {
-              acc['added'] = log['added']
-            } else if (typeof log['removed'] === 'number') {
-              acc['removed'] = log['removed']
-            }
-            return acc
-          }, {}),
-      )
-      .map((stats) => {
-        if (!stats['removed'] && !stats['added']) {
-          return most.of({msg: 'Already up-to-date'})
-        }
+  const stats$ = opts.isRecursive
+    ? log$.stats
+    : log$.stats.filter((log) => log.prefix !== cwd)
+  outputs.push(statsForNotCurrentPackage(stats$, {
+    currentPrefix: opts.cwd,
+    subCmd: opts.subCmd,
+    width,
+  }))
 
-        let msg = 'Packages:'
-        if (stats['added']) {
-          msg += ' ' + chalk.green(`+${stats['added']}`)
-        }
-        if (stats['removed']) {
-          msg += ' ' + chalk.red(`-${stats['removed']}`)
-        }
-        msg += EOL + printPlusesAndMinuses(width, (stats['added'] || 0), (stats['removed'] || 0))
-        return most.of({msg})
-      }),
-    )
+  if (!opts.isRecursive) {
+    outputs.push(statsForCurrentPackage(log$.stats, {
+      cmd: opts.cmd,
+      currentPrefix: opts.cwd,
+      width,
+    }))
 
     const installCheckOutput$ = log$.installCheck
       .map(formatInstallCheck)
@@ -317,8 +298,8 @@ export default function (
     outputs.push(registryOutput$)
 
     const miscOutput$ = most.merge(log$.link, log$.other)
+      .filter((obj) => obj.level !== 'debug' && (!obj['prefix'] || obj['prefix'] === opts.cwd))
       .map((obj) => {
-        if (obj.level === 'debug') return
         if (obj.level === 'warn') {
           return formatWarn(obj['message'])
         }
@@ -342,52 +323,6 @@ export default function (
         })),
     )
   } else {
-    const stats$ = (
-      opts.subCmd !== 'uninstall'
-        ? log$.stats
-            .loop((stats, log) => {
-              // As of pnpm v2.9.0, during `pnpm recursive link`, logging of removed stats happens twice
-              //  1. during linking
-              //  2. during installing
-              // Hence, the stats are added before reported
-              if (!stats[log.prefix]) {
-                stats[log.prefix] = log
-                return {seed: stats, value: null}
-              } else if (typeof stats[log.prefix].added === 'number' && typeof log['added'] === 'number') {
-                stats[log.prefix].added += log['added']
-                return {seed: stats, value: null}
-              } else if (typeof stats[log.prefix].removed === 'number' && typeof log['removed'] === 'number') {
-                stats[log.prefix].removed += log['removed']
-                return {seed: stats, value: null}
-              } else {
-                const value = {...stats[log.prefix], ...log}
-                delete stats[log.prefix]
-                return {seed: stats, value}
-              }
-            }, {})
-        : log$.stats
-    )
-    outputs.push(
-      stats$
-      .filter((stats) => stats !== null && (stats['removed'] || stats['added']))
-      .map((stats) => {
-        const prefix = formatPrefix(cwd, stats['prefix'])
-
-        let msg = `${rightPad(prefix, PREFIX_MAX_LENGTH)} |`
-
-        if (stats['added']) {
-          msg += ` ${padStep(chalk.green(`+${stats['added']}`), 4)}`
-        }
-        if (stats['removed']) {
-          msg += ` ${padStep(chalk.red(`-${stats['removed']}`), 4)}`
-        }
-
-        const rest = Math.max(0, width - 1 - stringLength(msg))
-        msg += ' ' + printPlusesAndMinuses(rest, roundStats(stats['added'] || 0), roundStats(stats['removed'] || 0))
-        return most.of({msg})
-      }),
-    )
-
     const miscOutput$ = log$.other
       .filter((obj) => obj.level === 'error')
       .map((obj) => {
@@ -419,6 +354,100 @@ export default function (
   }
 
   return outputs
+}
+
+function statsForCurrentPackage (
+  stats$: most.Stream<supi.StatsLog>,
+  opts: {
+    cmd: string,
+    currentPrefix: string,
+    width: number,
+  },
+) {
+  return most.fromPromise(
+    stats$
+      .filter((log) => log.prefix === opts.currentPrefix)
+      .take((opts.cmd === 'install' || opts.cmd === 'update') ? 2 : 1)
+      .reduce((acc, log) => {
+        if (typeof log['added'] === 'number') {
+          acc['added'] = log['added']
+        } else if (typeof log['removed'] === 'number') {
+          acc['removed'] = log['removed']
+        }
+        return acc
+      }, {}),
+  )
+  .map((stats) => {
+    if (!stats['removed'] && !stats['added']) {
+      if (opts.cmd === 'link') {
+        return most.never()
+      }
+      return most.of({msg: 'Already up-to-date'})
+    }
+
+    let msg = 'Packages:'
+    if (stats['added']) {
+      msg += ' ' + chalk.green(`+${stats['added']}`)
+    }
+    if (stats['removed']) {
+      msg += ' ' + chalk.red(`-${stats['removed']}`)
+    }
+    msg += EOL + printPlusesAndMinuses(opts.width, (stats['added'] || 0), (stats['removed'] || 0))
+    return most.of({msg})
+  })
+}
+
+function statsForNotCurrentPackage (
+  stats$: most.Stream<supi.StatsLog>,
+  opts: {
+    currentPrefix: string,
+    subCmd?: string,
+    width: number,
+  },
+) {
+  const cookedStats$ = (
+    opts.subCmd !== 'uninstall'
+      ? stats$
+          .loop((stats, log) => {
+            // As of pnpm v2.9.0, during `pnpm recursive link`, logging of removed stats happens twice
+            //  1. during linking
+            //  2. during installing
+            // Hence, the stats are added before reported
+            if (!stats[log.prefix]) {
+              stats[log.prefix] = log
+              return {seed: stats, value: null}
+            } else if (typeof stats[log.prefix].added === 'number' && typeof log['added'] === 'number') {
+              stats[log.prefix].added += log['added']
+              return {seed: stats, value: null}
+            } else if (typeof stats[log.prefix].removed === 'number' && typeof log['removed'] === 'number') {
+              stats[log.prefix].removed += log['removed']
+              return {seed: stats, value: null}
+            } else {
+              const value = {...stats[log.prefix], ...log}
+              delete stats[log.prefix]
+              return {seed: stats, value}
+            }
+          }, {})
+      : stats$
+  )
+  return cookedStats$
+    .filter((stats) => stats !== null && (stats['removed'] || stats['added']))
+    .map((stats) => {
+      const prefix = formatPrefix(opts.currentPrefix, stats['prefix'])
+
+      let msg = `${rightPad(prefix, PREFIX_MAX_LENGTH)} |`
+
+      if (stats['added']) {
+        msg += ` ${padStep(chalk.green(`+${stats['added']}`), 4)}`
+      }
+      if (stats['removed']) {
+        msg += ` ${padStep(chalk.red(`-${stats['removed']}`), 4)}`
+      }
+
+      const rest = Math.max(0, opts.width - 1 - stringLength(msg))
+      msg += ' ' + printPlusesAndMinuses(rest, roundStats(stats['added'] || 0), roundStats(stats['removed'] || 0))
+      return most.of({msg})
+    })
 }
 
 function padStep (s: string, step: number) {

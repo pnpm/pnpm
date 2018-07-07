@@ -39,7 +39,7 @@ export default async function linkPackages (
     production: boolean,
     development: boolean,
     optional: boolean,
-    root: string,
+    prefix: string,
     storeController: StoreController,
     skipped: Set<string>,
     pkg: PackageJson,
@@ -77,7 +77,7 @@ export default async function linkPackages (
     hoistedAliases: opts.hoistedAliases,
     newShrinkwrap,
     oldShrinkwrap: opts.currentShrinkwrap,
-    prefix: opts.root,
+    prefix: opts.prefix,
     shamefullyFlatten: opts.shamefullyFlatten,
     storeController: opts.storeController,
   })
@@ -130,6 +130,7 @@ export default async function linkPackages (
           realName: pkg.name,
           version: pkg.version,
         },
+        prefix: opts.prefix,
       })
     }
   }
@@ -296,7 +297,7 @@ async function linkNewPackages (
     optional: boolean,
     sideEffectsCache: boolean,
     storeController: StoreController,
-    root: string,
+    prefix: string,
   },
 ): Promise<string[]> {
   const wantedRelDepPaths = R.keys(wantedShrinkwrap.packages)
@@ -316,7 +317,7 @@ async function linkNewPackages (
   )
   statsLogger.debug({
     added: newDepPathsSet.size,
-    prefix: opts.root,
+    prefix: opts.prefix,
   })
 
   const existingWithUpdatedDeps = []

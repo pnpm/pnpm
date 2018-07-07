@@ -397,6 +397,7 @@ async function install (
       pkgId: pkgResponse.body.id,
       pkgName: pkg.name,
       pkgVersion: pkg.version,
+      prefix: ctx.prefix,
     })
   }
 
