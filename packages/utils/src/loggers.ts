@@ -30,20 +30,14 @@ export type RootMessage = {
   added: {
     name: string,
     realName: string,
-    version: string,
-    dependencyType: DependencyType,
+    version?: string,
+    dependencyType?: DependencyType,
+    linkedFrom?: string,
   },
 } | {
   removed: {
     name: string,
     version?: string,
-    dependencyType: DependencyType,
-  },
-} | {
-  linked: {
-    name: string,
-    from: string,
-    to: string,
     dependencyType?: DependencyType,
   },
 })

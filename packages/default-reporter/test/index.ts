@@ -20,7 +20,6 @@ const DEPRECATED = chalk.red('deprecated')
 const versionColor = chalk.grey
 const ADD = chalk.green('+')
 const SUB = chalk.red('-')
-const LINKED = chalk.magentaBright('#')
 const h1 = chalk.cyanBright
 const hlValue = chalk.cyanBright
 const hlPkgId = chalk['whiteBright']
@@ -270,11 +269,11 @@ test('prints summary (of current package only)', t => {
     prefix,
   })
   rootLogger.debug({
-    linked: {
+    added: {
       dependencyType: 'optional',
-      from: '/src/is-linked',
+      linkedFrom: '/src/is-linked',
       name: 'is-linked',
-      to: '/src/project/node_modules'
+      realName: 'is-linked',
     },
     prefix,
   })
@@ -300,6 +299,14 @@ test('prints summary (of current package only)', t => {
     },
     prefix,
   })
+  rootLogger.debug({
+    added: {
+      linkedFrom: '/src/is-linked2',
+      name: 'is-linked2',
+      realName: 'is-linked2',
+    },
+    prefix,
+  })
   summaryLogger.info({prefix})
 
   t.plan(1)
@@ -319,7 +326,7 @@ test('prints summary (of current package only)', t => {
         ${ADD} winston <- winst0n ${versionColor('1.0.0')}
 
         ${h1('optionalDependencies:')}
-        ${LINKED} is-linked ${chalk.magentaBright('linked from')} ${chalk.grey('/src/is-linked')}
+        ${ADD} is-linked ${chalk.grey(`<- ${path.relative(prefix, '/src/is-linked')}`)}
         ${SUB} is-positive
         ${ADD} lala ${versionColor('1.1.0')}
 
@@ -327,6 +334,9 @@ test('prints summary (of current package only)', t => {
         ${ADD} is-13 ${versionColor('^1.0.0')}
         ${SUB} is-negative ${versionColor('^1.0.0')}
         ${ADD} qar ${versionColor('2.0.0')}
+
+        ${h1('node_modules:')}
+        ${ADD} is-linked2 ${chalk.grey(`<- ${path.relative(prefix, '/src/is-linked2')}`)}
         ` + '\n')
     },
     complete: () => t.end(),

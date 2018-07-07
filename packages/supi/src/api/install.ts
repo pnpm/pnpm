@@ -442,15 +442,6 @@ async function installInContext (
       nonLinkedPkgs.push(wantedDependency)
       continue
     }
-    rootLogger.debug({
-      linked: {
-        dependencyType: wantedDependency.dev && 'dev' || wantedDependency.optional && 'optional' || 'prod',
-        from: isInnerLink as string,
-        name: wantedDependency.alias,
-        to: nodeModulesPath,
-      },
-      prefix: opts.prefix,
-    })
     // This info-log might be better to be moved to the reporter
     logger.info(`${wantedDependency.alias} is linked to ${nodeModulesPath} from ${isInnerLink}`)
     linkedPkgs.push(wantedDependency as (WantedDependency & {alias: string}))

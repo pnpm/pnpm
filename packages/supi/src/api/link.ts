@@ -6,7 +6,9 @@ import {
   DependenciesType,
   dependenciesTypes,
   removeOrphanPackages as removeOrphanPkgs,
+  rootLogger,
   safeReadPackage,
+  summaryLogger,
 } from '@pnpm/utils'
 import loadJsonFile = require('load-json-file')
 import normalize = require('normalize-path')
@@ -98,7 +100,7 @@ export default async function link (
   // Linking should happen after removing orphans
   // Otherwise would've been removed
   for (const linkedPkg of linkedPkgs) {
-    await linkToModules(linkedPkg.pkg.name, linkedPkg.path, destModules)
+    await linkToModules(linkedPkg.pkg, linkedPkg.path, destModules, {prefix: opts.prefix})
   }
 
   const linkToBin = maybeOpts && maybeOpts.linkToBin || path.join(destModules, '.bin')
@@ -109,6 +111,8 @@ export default async function link (
   } else {
     await saveCurrentShrinkwrapOnly(opts.prefix, updatedCurrentShrinkwrap)
   }
+
+  summaryLogger.info({prefix: opts.prefix})
 
   if (reporter) {
     streamParser.removeListener('data', reporter)
@@ -151,9 +155,24 @@ function addLinkToShrinkwrap (
   }
 }
 
-async function linkToModules (pkgName: string, linkFrom: string, modules: string) {
-  const dest = path.join(modules, pkgName)
-  linkLogger.info(`${dest} -> ${linkFrom}`)
+async function linkToModules (
+  pkg: PackageJson,
+  linkFrom: string,
+  modules: string,
+  opts: {
+    prefix: string,
+  },
+) {
+  const dest = path.join(modules, pkg.name)
+  rootLogger.debug({
+    added: {
+      linkedFrom: linkFrom,
+      name: pkg.name,
+      realName: pkg.name,
+      version: pkg.version,
+    },
+    prefix: opts.prefix,
+  })
   await symlinkDir(linkFrom, dest)
 }
 

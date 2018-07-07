@@ -57,25 +57,27 @@ test('relative link is not rewritten by install', async (t: tape.Test) => {
   const linkedPkgName = 'hello-world-js-bin'
   const linkedPkgPath = path.resolve('..', linkedPkgName)
 
-  await ncp(pathToLocalPkg(linkedPkgName), linkedPkgPath)
-  await link([`../${linkedPkgName}`], path.join(process.cwd(), 'node_modules'), await testDefaults())
-
   const reporter = sinon.spy()
 
-  await installPkgs(['hello-world-js-bin'], await testDefaults({reporter}))
-
-  t.ok(project.requireModule('hello-world-js-bin/package.json').isLocal)
+  await ncp(pathToLocalPkg(linkedPkgName), linkedPkgPath)
+  await link([linkedPkgPath], path.join(process.cwd(), 'node_modules'), await testDefaults({reporter}))
 
   t.ok(reporter.calledWithMatch({
-    level: 'debug',
-    linked: {
-      from: linkedPkgPath,
+    added: {
+      dependencyType: undefined,
+      linkedFrom: linkedPkgPath,
       name: 'hello-world-js-bin',
-      to: path.resolve('node_modules'),
-      // TODO: the dependencyType should be `undefined` in this case
+      realName: 'hello-world-js-bin',
+      version: '1.0.0',
     },
+    level: 'debug',
     name: 'pnpm:root',
+    prefix: process.cwd(),
   } as RootLog), 'linked root dependency logged')
+
+  await installPkgs(['hello-world-js-bin'], await testDefaults())
+
+  t.ok(project.requireModule('hello-world-js-bin/package.json').isLocal)
 
   const wantedShrinkwrap = await project.loadShrinkwrap()
   t.equal(wantedShrinkwrap.dependencies['hello-world-js-bin'], 'link:../hello-world-js-bin', 'link still in wanted shrinkwrap')

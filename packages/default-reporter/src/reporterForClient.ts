@@ -28,7 +28,6 @@ const BIG_TARBALL_SIZE = 1024 * 1024 * 5 // 5 MB
 
 const ADDED_CHAR = chalk.green('+')
 const REMOVED_CHAR = chalk.red('-')
-const LINKED_CHAR = chalk.magentaBright('#')
 const PREFIX_MAX_LENGTH = 40
 
 const hlValue = chalk.cyanBright
@@ -233,13 +232,13 @@ export default function (
     const summaryOutput$ = most.combine(
       (pkgsDiff) => {
         let msg = ''
-        for (const depType of ['prod', 'optional', 'dev']) {
+        for (const depType of ['prod', 'optional', 'dev', 'nodeModulesOnly']) {
           const diffs = R.values(pkgsDiff[depType])
           if (diffs.length) {
             msg += EOL
             msg += chalk.cyanBright(`${propertyByDependencyType[depType]}:`)
             msg += EOL
-            msg += printDiffs(diffs)
+            msg += printDiffs(diffs, {prefix: opts.cwd})
             msg += EOL
           }
         }
@@ -506,7 +505,12 @@ function printPlusesAndMinuses (maxWidth: number, added: number, removed: number
   return `${R.repeat(ADDED_CHAR, addedChars).join('')}${R.repeat(REMOVED_CHAR, removedChars).join('')}`
 }
 
-function printDiffs (pkgsDiff: PackageDiff[]) {
+function printDiffs (
+  pkgsDiff: PackageDiff[],
+  opts: {
+    prefix: string,
+  },
+) {
   // Sorts by alphabet then by removed/added
   // + ava 0.10.0
   // - chalk 1.0.0
@@ -515,9 +519,7 @@ function printDiffs (pkgsDiff: PackageDiff[]) {
   const msg = pkgsDiff.map((pkg) => {
     let result = pkg.added
       ? ADDED_CHAR
-      : pkg.linked
-        ? LINKED_CHAR
-        : REMOVED_CHAR
+      : REMOVED_CHAR
     if (!pkg.realName || pkg.name === pkg.realName) {
       result += ` ${pkg.name}`
     } else {
@@ -532,8 +534,8 @@ function printDiffs (pkgsDiff: PackageDiff[]) {
     if (pkg.deprecated) {
       result += ` ${chalk.red('deprecated')}`
     }
-    if (pkg.linked) {
-      result += ` ${chalk.magentaBright('linked from')} ${chalk.grey(pkg.from || '???')}`
+    if (pkg.from) {
+      result += ` ${chalk.grey(`<- ${pkg.from && path.relative(opts.prefix, pkg.from) || '???'}`)}`
     }
     return result
   }).join(EOL)

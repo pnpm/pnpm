@@ -14,7 +14,6 @@ export interface PackageDiff {
   version?: string,
   deprecated?: boolean,
   latest?: string,
-  linked?: true,
 }
 
 export interface Map<T> {
@@ -23,6 +22,7 @@ export interface Map<T> {
 
 export const propertyByDependencyType = {
   dev: 'devDependencies',
+  nodeModulesOnly: 'node_modules',
   optional: 'optionalDependencies',
   prod: 'dependencies',
 }
@@ -54,9 +54,10 @@ export default function (
     const rootLog = args[0]
     const deprecationSet = args[1] as Set<string>
     if (rootLog['added']) {
-      pkgsDiff[rootLog['added'].dependencyType][`+${rootLog['added'].name}`] = {
+      pkgsDiff[rootLog['added'].dependencyType || 'nodeModulesOnly'][`+${rootLog['added'].name}`] = {
         added: true,
         deprecated: deprecationSet.has(rootLog['added'].id),
+        from: rootLog['added'].linkedFrom,
         latest: rootLog['added'].latest,
         name: rootLog['added'].name,
         realName: rootLog['added'].realName,
@@ -65,31 +66,24 @@ export default function (
       return pkgsDiff
     }
     if (rootLog['removed']) {
-      pkgsDiff[rootLog['removed'].dependencyType][`-${rootLog['removed'].name}`] = {
+      pkgsDiff[rootLog['removed'].dependencyType || 'nodeModulesOnly'][`-${rootLog['removed'].name}`] = {
         added: false,
         name: rootLog['removed'].name,
         version: rootLog['removed'].version,
       }
       return pkgsDiff
     }
-    if (rootLog['linked']) {
-      pkgsDiff[rootLog['linked'].dependencyType][`>${rootLog['linked'].name}`] = {
-        added: false,
-        from: rootLog['linked'].from,
-        linked: true,
-        name: rootLog['linked'].name,
-      }
-      return pkgsDiff
-    }
     return pkgsDiff
   }, {
     dev: {},
+    nodeModulesOnly: {},
     optional: {},
     prod: {},
   } as {
     dev: Map<PackageDiff>,
-    prod: Map<PackageDiff>,
+    nodeModulesOnly: Map<PackageDiff>,
     optional: Map<PackageDiff>,
+    prod: Map<PackageDiff>,
   })
 
   const packageJson$ = most.fromPromise(

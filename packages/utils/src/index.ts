@@ -1,5 +1,6 @@
 import getSaveType, {DependenciesType, dependenciesTypes} from './getSaveType'
 import {
+  DependencyType,
   PackageJsonLog,
   packageJsonLogger,
   ProgressLog,
@@ -23,6 +24,7 @@ import {fromDir as safeReadPackageFromDir} from './safeReadPkg'
 import readPackage from './safeReadPkg'
 
 export {
+  DependencyType,
   DependenciesType,
   dependenciesTypes,
   getSaveType,
