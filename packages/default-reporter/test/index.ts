@@ -181,11 +181,12 @@ test('prints "Already up-to-date"', t => {
   })
 })
 
-test('prints summary', t => {
-  const output$ = toOutput$(createStreamParser(), {cmd: 'install'})
+test('prints summary (of current package only)', t => {
+  const prefix = '/home/jane/project'
+  const output$ = toOutput$(createStreamParser(), {cmd: 'install', cwd: prefix})
 
-  const prefix = process.cwd()
-
+  statsLogger.debug({ added: 5, prefix: `${prefix}/packages/foo` })
+  statsLogger.debug({ removed: 1, prefix: `${prefix}/packages/foo` })
   packageJsonLogger.debug({
     initial: {
       dependencies: {
@@ -242,6 +243,16 @@ test('prints summary', t => {
     },
     prefix,
   })
+  // This log is going to be ignored because it is not in the current prefix
+  rootLogger.info({
+    added: {
+      dependencyType: 'optional',
+      name: 'lala',
+      version: '2.0.0',
+      id: 'registry.npmjs.org/lala/2.0.0',
+    },
+    prefix: `${prefix}/packages/foo`,
+  })
   rootLogger.info({
     added: {
       dependencyType: 'optional',
@@ -293,10 +304,11 @@ test('prints summary', t => {
 
   t.plan(1)
 
-  output$.skip(1).take(1).map(normalizeNewline).subscribe({
+  output$.skip(2).take(1).map(normalizeNewline).subscribe({
     next: output => {
-      t.equal(output, `${WARN} ${DEPRECATED} bar@2.0.0: This package was deprecated because bla bla bla` + EOL + EOL +
-        stripIndents`
+      t.equal(output, stripIndents`packages/foo                             |   ${chalk.green('+5')}   ${chalk.red('-1')} ${ADD + SUB}
+        ${WARN} ${DEPRECATED} bar@2.0.0: This package was deprecated because bla bla bla
+
         ${h1('dependencies:')}
         ${ADD} bar ${versionColor('2.0.0')} ${DEPRECATED}
         ${SUB} foo ${versionColor('0.1.0')}
