@@ -1,6 +1,5 @@
 import chalk from 'chalk'
 import most = require('most')
-import {last as mostLast} from 'most-last'
 import normalize = require('normalize-path')
 import os = require('os')
 import path = require('path')
