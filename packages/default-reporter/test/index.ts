@@ -306,9 +306,10 @@ test('prints summary (of current package only)', t => {
 
   output$.skip(2).take(1).map(normalizeNewline).subscribe({
     next: output => {
-      t.equal(output, stripIndents`packages/foo                             |   ${chalk.green('+5')}   ${chalk.red('-1')} ${ADD + SUB}
-        ${WARN} ${DEPRECATED} bar@2.0.0: This package was deprecated because bla bla bla
-
+      t.equal(output,
+        `packages/foo                             |   ${chalk.green('+5')}   ${chalk.red('-1')} ${ADD + SUB}${EOL}` +
+        `${WARN} ${DEPRECATED} bar@2.0.0: This package was deprecated because bla bla bla${EOL}${EOL}` +
+        stripIndents`
         ${h1('dependencies:')}
         ${ADD} bar ${versionColor('2.0.0')} ${DEPRECATED}
         ${SUB} foo ${versionColor('0.1.0')}
