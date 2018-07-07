@@ -515,7 +515,7 @@ async function installInContext (
         })
       }
     }
-    const pkgJsonPath = path.join(ctx.root, 'package.json')
+    const pkgJsonPath = path.join(ctx.prefix, 'package.json')
     newPkg = await save(
       ctx.prefix,
       specsToUsert,

@@ -73,7 +73,10 @@ export default async function link (
   const oldShrinkwrap = R.clone(shrFiles.currentShrinkwrap)
   const pkg = await safeReadPackage(path.join(opts.prefix, 'package.json')) || undefined
   if (pkg) {
-    packageJsonLogger.debug({ initial: pkg })
+    packageJsonLogger.debug({
+      initial: pkg,
+      prefix: opts.prefix,
+    })
   }
   const linkedPkgs: Array<{path: string, pkg: PackageJson}> = []
   const specsToUpsert = [] as Array<{name: string, pref: string, saveType: DependenciesType}>
@@ -125,7 +128,7 @@ export default async function link (
   await linkBinsOfPackages(linkedPkgs.map((p) => ({manifest: p.pkg, location: p.path})), linkToBin)
 
   if (opts.saveDev || opts.saveProd || opts.saveOptional) {
-    const newPkg = await save(path.join(opts.prefix, 'package.json'), specsToUpsert)
+    const newPkg = await save(opts.prefix, specsToUpsert)
     for (const specToUpsert of specsToUpsert) {
       updatedWantedShrinkwrap.specifiers[specToUpsert.name] = getSpecFromPackageJson(newPkg, specToUpsert.name) as string
     }
