@@ -36,14 +36,20 @@ interface PackageToRebuild {
 function findPackages (
   packages: ResolvedPackages,
   searched: PackageSelector[],
+  opts: {
+    prefix: string,
+  },
 ): string[] {
   return R.keys(packages)
     .filter((relativeDepPath) => {
       const pkgShr = packages[relativeDepPath]
       const pkgInfo = nameVerFromPkgSnapshot(relativeDepPath, pkgShr)
       if (!pkgInfo.name) {
-        logger.warn(`Skipping ${relativeDepPath} because cannot get the package name from shrinkwrap.yaml.
-          Try to run run \`pnpm update --depth 100\` to create a new shrinkwrap.yaml with all the necessary info.`)
+        logger.warn({
+          message: `Skipping ${relativeDepPath} because cannot get the package name from shrinkwrap.yaml.
+            Try to run run \`pnpm update --depth 100\` to create a new shrinkwrap.yaml with all the necessary info.`,
+          prefix: opts.prefix,
+        })
         return false
       }
       return matches(searched, pkgInfo)
@@ -98,7 +104,7 @@ export async function rebuildPkgs (
     }
   })
 
-  const pkgs = findPackages(packages, searched)
+  const pkgs = findPackages(packages, searched, {prefix: ctx.prefix})
 
   await _rebuild(new Set(pkgs), modules, ctx.currentShrinkwrap, opts)
 }

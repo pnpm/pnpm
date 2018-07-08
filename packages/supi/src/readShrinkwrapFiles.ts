@@ -35,7 +35,10 @@ export default async function getContext (
   const files = await Promise.all<Shrinkwrap | null | void>([
     opts.shrinkwrap && readWantedShrinkwrap(opts.prefix, shrOpts)
       || await existsWantedShrinkwrap(opts.prefix) &&
-        logger.warn('A shrinkwrap.yaml file exists. The current configuration prohibits to read or write a shrinkwrap file'),
+        logger.warn({
+          message: 'A shrinkwrap.yaml file exists. The current configuration prohibits to read or write a shrinkwrap file',
+          prefix: opts.prefix,
+        }),
     readCurrentShrinkwrap(opts.prefix, shrOpts),
   ])
   const currentShrinkwrap = files[1] || createShrinkwrap(opts.registry)

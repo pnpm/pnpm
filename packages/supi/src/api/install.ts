@@ -152,7 +152,11 @@ export async function install (maybeOpts: InstallOptions) {
   }
 
   if (opts.lock) {
-    await lock(opts.prefix, _install, {stale: opts.lockStaleDuration, locks: opts.locks})
+    await lock(opts.prefix, _install, {
+      locks: opts.locks,
+      prefix: opts.prefix,
+      stale: opts.lockStaleDuration,
+    })
   } else {
     await _install()
   }
@@ -175,7 +179,10 @@ export async function install (maybeOpts: InstallOptions) {
     ) {
       if (opts.shamefullyFlatten) {
         if (opts.frozenShrinkwrap) {
-          logger.warn('Headless installation does not support flat node_modules layout yet')
+          logger.warn({
+            message: 'Headless installation does not support flat node_modules layout yet',
+            prefix: opts.prefix,
+          })
         }
       } else if (!ctx.existsWantedShrinkwrap) {
         if (R.keys(ctx.pkg.dependencies).length || R.keys(ctx.pkg.devDependencies).length || R.keys(ctx.pkg.optionalDependencies).length) {
@@ -216,7 +223,10 @@ export async function install (maybeOpts: InstallOptions) {
     const scripts = !opts.ignoreScripts && ctx.pkg && ctx.pkg.scripts || {}
 
     if (scripts['prepublish']) { // tslint:disable-line:no-string-literal
-      logger.warn('`prepublish` scripts are deprecated. Use `prepare` for build steps and `prepublishOnly` for upload-only.')
+      logger.warn({
+        message: '`prepublish` scripts are deprecated. Use `prepare` for build steps and `prepublishOnly` for upload-only.',
+        prefix: opts.prefix,
+      })
     }
 
     const scriptsOpts = {
@@ -295,7 +305,11 @@ export async function installPkgs (
   }
 
   if (opts.lock) {
-    await lock(opts.prefix, _installPkgs, {stale: opts.lockStaleDuration, locks: opts.locks})
+    await lock(opts.prefix, _installPkgs, {
+      locks: opts.locks,
+      prefix: opts.prefix,
+      stale: opts.lockStaleDuration,
+    })
   } else {
     await _installPkgs()
   }
@@ -365,7 +379,10 @@ async function installInContext (
   )
 
   if (opts.shrinkwrapOnly && ctx.existsCurrentShrinkwrap) {
-    logger.warn('`node_modules` is present. Shrinkwrap only installation will make it out-of-date')
+    logger.warn({
+      message: '`node_modules` is present. Shrinkwrap only installation will make it out-of-date',
+      prefix: ctx.prefix,
+    })
   }
 
   const nodeModulesPath = await realNodeModulesDir(ctx.prefix)
@@ -437,6 +454,7 @@ async function installInContext (
       continue
     }
     const isInnerLink = await safeIsInnerLink(nodeModulesPath, wantedDependency.alias, {
+      prefix: ctx.prefix,
       storePath: ctx.storePath,
     })
     if (isInnerLink === true) {
@@ -444,7 +462,10 @@ async function installInContext (
       continue
     }
     // This info-log might be better to be moved to the reporter
-    logger.info(`${wantedDependency.alias} is linked to ${nodeModulesPath} from ${isInnerLink}`)
+    logger.info({
+      message: `${wantedDependency.alias} is linked to ${nodeModulesPath} from ${isInnerLink}`,
+      prefix: ctx.prefix,
+    })
     linkedPkgs.push(wantedDependency as (WantedDependency & {alias: string}))
   }
   stageLogger.debug('resolution_started')
@@ -686,11 +707,18 @@ async function installInContext (
                   })
                 } catch (err) {
                   if (err && err.statusCode === 403) {
-                    logger.warn(`The store server disabled upload requests, could not upload ${pkg.id}`)
+                    logger.warn({
+                      message: `The store server disabled upload requests, could not upload ${pkg.id}`,
+                      prefix: ctx.prefix,
+                    })
                   } else {
                     logger.warn({
                       err,
                       message: `An error occurred while uploading ${pkg.id}`,
+                      prefix: ctx.prefix,
+                    } as {
+                      prefix: string,
+                      message: string,
                     })
                   }
                 }

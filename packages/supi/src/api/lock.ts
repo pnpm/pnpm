@@ -7,13 +7,17 @@ export default async function withLock<T> (
   opts: {
     stale: number,
     locks: string,
+    prefix: string,
   },
 ): Promise<T> {
   const unlock = await lock(dir, {
     locks: opts.locks,
     stale: opts.stale,
     whenLocked () {
-      logger.warn('waiting for another installation to complete...')
+      logger.warn({
+        message: 'waiting for another installation to complete...',
+        prefix: opts.prefix,
+      })
     },
   })
   try {

@@ -64,7 +64,14 @@ export default async function linkPackages (
   // The `Creating dependency graph` is not good to report in all cases as
   // sometimes node_modules is alread up-to-date
   // logger.info(`Creating dependency graph`)
-  const resolvePeersResult = await resolvePeers(pkgGraph, rootNodeIdsByAlias, opts.topParents, opts.independentLeaves, opts.baseNodeModules)
+  const resolvePeersResult = await resolvePeers(
+    pkgGraph,
+    rootNodeIdsByAlias,
+    opts.topParents,
+    opts.independentLeaves,
+    opts.baseNodeModules,
+    opts.prefix,
+  )
   const depGraph = resolvePeersResult.depGraph
   let {newShrinkwrap, pendingRequiresBuilds} = updateShrinkwrap(depGraph, opts.wantedShrinkwrap, opts.pkg) // tslint:disable-line:prefer-const
   if (opts.afterAllResolvedHook) {

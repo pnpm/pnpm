@@ -98,7 +98,10 @@ export default async (
   const defaultOpts = await defaults(opts)
   const extendedOpts = {...defaultOpts, ...opts, store: defaultOpts.store}
   if (extendedOpts.force) {
-    logger.warn('using --force I sure hope you know what you are doing')
+    logger.warn({
+      message: 'using --force I sure hope you know what you are doing',
+      prefix: extendedOpts.prefix,
+    })
   }
   extendedOpts.registry = normalizeRegistryUrl(extendedOpts.registry)
   if (extendedOpts.global) {

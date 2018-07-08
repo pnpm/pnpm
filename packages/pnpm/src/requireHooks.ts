@@ -12,11 +12,11 @@ export default function requireHooks (
     pnpmfile?: string,
   },
 ) {
-  const globalPnpmfile = opts.globalPnpmfile && requirePnpmfile(pathAbsolute(opts.globalPnpmfile, prefix))
+  const globalPnpmfile = opts.globalPnpmfile && requirePnpmfile(pathAbsolute(opts.globalPnpmfile, prefix), prefix)
   let globalHooks = globalPnpmfile && globalPnpmfile.hooks
 
-  const pnpmFile = opts.pnpmfile && requirePnpmfile(pathAbsolute(opts.pnpmfile, prefix))
-    || requirePnpmfile(path.join(prefix, 'pnpmfile.js'))
+  const pnpmFile = opts.pnpmfile && requirePnpmfile(pathAbsolute(opts.pnpmfile, prefix), prefix)
+    || requirePnpmfile(path.join(prefix, 'pnpmfile.js'), prefix)
   let hooks = pnpmFile && pnpmFile.hooks
 
   if (!globalHooks && !hooks) return {}
@@ -24,7 +24,10 @@ export default function requireHooks (
   hooks = hooks || {}
   const cookedHooks = {}
   if (globalHooks.readPackage || hooks.readPackage) {
-    logger.info('readPackage hook is declared. Manifests of dependencies might get overridden')
+    logger.info({
+      message: 'readPackage hook is declared. Manifests of dependencies might get overridden',
+      prefix,
+    })
   }
   for (const hookName of ['readPackage', 'afterAllResolved']) {
     if (globalHooks[hookName] && hooks[hookName]) {

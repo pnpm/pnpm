@@ -70,6 +70,7 @@ export default function (
   topParents: Array<{name: string, version: string}>,
   independentLeaves: boolean,
   nodeModules: string,
+  prefix: string, // is only needed for logging
 ): {
   depGraph: DepGraphNodesByDepPath,
   rootAbsolutePathsByAlias: {[alias: string]: string},
@@ -95,6 +96,7 @@ export default function (
     independentLeaves,
     nodeModules,
     pkgGraph,
+    prefix,
     purePkgs: new Set(),
   })
 
@@ -123,6 +125,7 @@ function resolvePeersOfNode (
     independentLeaves: boolean,
     nodeModules: string,
     purePkgs: Set<string>, // pure packages are those that don't rely on externally resolved peers
+    prefix: string,
   },
 ): {[alias: string]: string} {
   const node = ctx.pkgGraph[nodeId]
@@ -142,7 +145,7 @@ function resolvePeersOfNode (
 
   const resolvedPeers = R.isEmpty(node.pkg.peerDependencies)
     ? {}
-    : resolvePeers(nodeId, node, parentPkgs, ctx.pkgGraph)
+    : resolvePeers(nodeId, node, parentPkgs, ctx.pkgGraph, ctx.prefix)
 
   const allResolvedPeers = Object.assign(unknownResolvedPeersOfChildren, resolvedPeers)
 
@@ -214,6 +217,7 @@ function resolvePeersOfChildren (
     purePkgs: Set<string>,
     depGraph: DepGraphNodesByDepPath,
     pkgGraph: PkgGraphNodeByNodeId,
+    prefix: string,
   },
 ): {[alias: string]: string} {
   const allResolvedPeers: {[alias: string]: string} = {}
@@ -237,6 +241,7 @@ function resolvePeers (
   node: PkgGraphNode,
   parentPkgs: ParentRefs,
   pkgGraph: PkgGraphNodeByNodeId,
+  prefix: string,
 ): {
   [alias: string]: string,
 } {
@@ -248,19 +253,23 @@ function resolvePeers (
 
     if (!resolved || resolved.nodeId && !pkgGraph[resolved.nodeId].installable) {
       const friendlyPath = nodeIdToFriendlyPath(nodeId, pkgGraph)
-      logger.warn(oneLine`
-        ${friendlyPath ? `${friendlyPath}: ` : ''}${packageFriendlyId(node.pkg)}
-        requires a peer of ${peerName}@${peerVersionRange} but none was installed.`,
-      )
+      logger.warn({
+        message: oneLine`
+          ${friendlyPath ? `${friendlyPath}: ` : ''}${packageFriendlyId(node.pkg)}
+          requires a peer of ${peerName}@${peerVersionRange} but none was installed.`,
+        prefix,
+      })
       continue
     }
 
     if (!semver.satisfies(resolved.version, peerVersionRange)) {
       const friendlyPath = nodeIdToFriendlyPath(nodeId, pkgGraph)
-      logger.warn(oneLine`
-        ${friendlyPath ? `${friendlyPath}: ` : ''}${packageFriendlyId(node.pkg)}
-        requires a peer of ${peerName}@${peerVersionRange} but version ${resolved.version} was installed.`,
-      )
+      logger.warn({
+        message: oneLine`
+          ${friendlyPath ? `${friendlyPath}: ` : ''}${packageFriendlyId(node.pkg)}
+          requires a peer of ${peerName}@${peerVersionRange} but version ${resolved.version} was installed.`,
+        prefix,
+      })
     }
 
     if (resolved.depth === 0 || resolved.depth === node.depth + 1) {

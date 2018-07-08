@@ -25,17 +25,29 @@ export default async (
     shouldRetryOnNoent: false,
   })
   if (serverJson === null) {
-    logger.info(`Nothing to stop. No server is running for the store at ${store}`)
+    logger.info({
+      message: `Nothing to stop. No server is running for the store at ${store}`,
+      prefix: opts.prefix,
+    })
     return
   }
   const storeController = await connectStoreController(serverJson.connectionOptions)
   await storeController.stop()
 
   if (!await processExists(serverJson.pid) || await delay(5000) && !await processExists(serverJson.pid)) {
-    logger.info('Server gracefully stopped')
+    logger.info({
+      message: 'Server gracefully stopped',
+      prefix: opts.prefix,
+    })
     return
   }
-  logger.warn('Graceful shutdown failed')
+  logger.warn({
+    message: 'Graceful shutdown failed',
+    prefix: opts.prefix,
+  })
   await kill(serverJson.pid, 'SIGINT')
-  logger.info('Server process terminated')
+  logger.info({
+    message: 'Server process terminated',
+    prefix: opts.prefix,
+  })
 }

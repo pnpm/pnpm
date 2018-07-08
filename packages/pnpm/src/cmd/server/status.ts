@@ -16,7 +16,10 @@ export default async (
     shouldRetryOnNoent: false,
   })
   if (serverJson === null) {
-    logger.info(`No server is running for the store at ${store}`)
+    logger.info({
+      message: `No server is running for the store at ${store}`,
+      prefix: opts.prefix,
+    })
     return
   }
   console.log(stripIndents`

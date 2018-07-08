@@ -37,7 +37,11 @@ export default async function uninstall (
   const opts = await extendOptions(maybeOpts)
 
   if (opts.lock) {
-    await lock(opts.prefix, _uninstall, {stale: opts.lockStaleDuration, locks: opts.locks})
+    await lock(opts.prefix, _uninstall, {
+      locks: opts.locks,
+      prefix: opts.prefix,
+      stale: opts.lockStaleDuration,
+    })
   } else {
     await _uninstall()
   }

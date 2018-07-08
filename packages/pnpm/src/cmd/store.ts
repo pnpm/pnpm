@@ -55,7 +55,10 @@ async function statusCmd (opts: PnpmOptions) {
     store: await storePath(opts.prefix, opts.store),
   }))
   if (!modifiedPkgs || !modifiedPkgs.length) {
-    logger.info('Packages in the store are untouched')
+    logger.info({
+      message: 'Packages in the store are untouched',
+      prefix: opts.prefix,
+    })
     return
   }
 

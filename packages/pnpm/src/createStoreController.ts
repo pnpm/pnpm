@@ -48,9 +48,15 @@ export default async function (
   let serverJson = await tryLoadServerJson({ serverJsonPath, shouldRetryOnNoent: false })
   if (serverJson !== null) {
     if (serverJson.pnpmVersion !== packageManager.version) {
-      logger.warn(`The store server runs on pnpm v${serverJson.pnpmVersion}. It is recommended to connect with the same version (current is v${packageManager.version})`)
+      logger.warn({
+        message: `The store server runs on pnpm v${serverJson.pnpmVersion}. It is recommended to connect with the same version (current is v${packageManager.version})`,
+        prefix: opts.prefix,
+      })
     }
-    logger.info('A store server is running. All store manipulations are delegated to it.')
+    logger.info({
+      message: 'A store server is running. All store manipulations are delegated to it.',
+      prefix: opts.prefix,
+    })
     return {
       ctrl: await connectStoreController(serverJson.connectionOptions), // tslint:disable-line
       path: store,
@@ -64,7 +70,10 @@ export default async function (
   if (opts.useStoreServer) {
     runServerInBackground(store)
     serverJson = await tryLoadServerJson({ serverJsonPath, shouldRetryOnNoent: true })
-    logger.info('A store server has been started. To stop it, use \`pnpm server stop\`')
+    logger.info({
+      message: 'A store server has been started. To stop it, use \`pnpm server stop\`',
+      prefix: opts.prefix,
+    })
     return {
       ctrl: await connectStoreController(serverJson!.connectionOptions), // tslint:disable-line
       path: store,
