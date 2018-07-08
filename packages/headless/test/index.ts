@@ -146,7 +146,7 @@ test('installing non-prod deps then all deps', async (t) => {
       name: 'once',
       realName: 'once',
     },
-    level: 'info',
+    level: 'debug',
     name: 'pnpm:root',
   } as RootLog), 'added to root')
   t.notOk(reporter.calledWithMatch({
@@ -155,7 +155,7 @@ test('installing non-prod deps then all deps', async (t) => {
       name: 'inflight',
       realName: 'inflight',
     },
-    level: 'info',
+    level: 'debug',
     name: 'pnpm:root',
   } as RootLog), 'not added to root')
 

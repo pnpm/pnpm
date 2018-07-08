@@ -128,7 +128,7 @@ export default async function linkPackages (
     if (opts.dryRun || !(await symlinkDependencyTo(rootAlias, pkg, opts.baseNodeModules)).reused) {
       const isDev = opts.pkg.devDependencies && opts.pkg.devDependencies[pkg.name]
       const isOptional = opts.pkg.optionalDependencies && opts.pkg.optionalDependencies[pkg.name]
-      rootLogger.info({
+      rootLogger.debug({
         added: {
           dependencyType: isDev && 'dev' || isOptional && 'optional' || 'prod',
           id: pkg.id,

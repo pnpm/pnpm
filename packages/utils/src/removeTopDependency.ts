@@ -25,7 +25,7 @@ export default async function removeTopDependency (
 
   const uninstalledPkg = results[0]
   if (!opts.muteLogs) {
-    rootLogger.info({
+    rootLogger.debug({
       prefix: opts.prefix,
       removed: {
         dependencyType: dependency.dev && 'dev' || dependency.optional && 'optional' || 'prod',

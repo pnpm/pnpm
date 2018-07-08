@@ -45,7 +45,7 @@ test('from a github repo with different name via named installation', async (t: 
       realName: 'hi',
       version: '1.0.0',
     },
-    level: 'info',
+    level: 'debug',
     name: 'pnpm:root',
   } as RootLog), 'adding to root logged with real name and alias name')
 
@@ -84,7 +84,7 @@ test('from a github repo with different name', async (t: tape.Test) => {
       realName: 'hi',
       version: '1.0.0',
     },
-    level: 'info',
+    level: 'debug',
     name: 'pnpm:root',
   } as RootLog), 'adding to root logged with real name and alias name')
 

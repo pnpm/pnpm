@@ -408,7 +408,7 @@ async function install (
     ctx.outdatedPkgs[pkgResponse.body.id] = pkgResponse.body.latest
   }
   if (pkg.deprecated) {
-    deprecationLogger.warn({
+    deprecationLogger.debug({
       deprecated: pkg.deprecated,
       depth: options.currentDepth,
       pkgId: pkgResponse.body.id,

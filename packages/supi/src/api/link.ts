@@ -140,7 +140,7 @@ export default async function link (
     await saveCurrentShrinkwrapOnly(opts.prefix, updatedCurrentShrinkwrap)
   }
 
-  summaryLogger.info({prefix: opts.prefix})
+  summaryLogger.debug({prefix: opts.prefix})
 
   if (reporter) {
     streamParser.removeListener('data', reporter)

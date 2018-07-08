@@ -130,7 +130,7 @@ test('no dependencies (lodash)', async (t: tape.Test) => {
       realName: 'lodash',
       version: '4.0.0',
     },
-    level: 'info',
+    level: 'debug',
     name: 'pnpm:root',
     prefix: process.cwd(),
   } as RootLog), 'added to root')
@@ -211,7 +211,7 @@ test('update a package when installing with a dist-tag', async (t: tape.Test) =>
   await installPkgs(['dep-of-pkg-with-1-dep@beta'], await testDefaults({saveDev: true, reporter}))
 
   t.ok(reporter.calledWithMatch({
-    level: 'info',
+    level: 'debug',
     name: 'pnpm:root',
     removed: {
       dependencyType: 'dev',
@@ -226,7 +226,7 @@ test('update a package when installing with a dist-tag', async (t: tape.Test) =>
       name: 'dep-of-pkg-with-1-dep',
       version: '100.1.0',
     },
-    level: 'info',
+    level: 'debug',
     name: 'pnpm:root',
   } as RootLog), 'reported new version added to the root')
 
@@ -282,7 +282,7 @@ test('idempotency (rimraf)', async (t: tape.Test) => {
       name: 'rimraf',
       version: '2.5.1',
     },
-    level: 'info',
+    level: 'debug',
     name: 'pnpm:root',
   } as RootLog), 'reported that rimraf added to the root')
 
@@ -296,7 +296,7 @@ test('idempotency (rimraf)', async (t: tape.Test) => {
       name: 'rimraf',
       version: '2.5.1',
     },
-    level: 'info',
+    level: 'debug',
     name: 'pnpm:root',
   } as RootLog), 'did not reported that rimraf was added because it was already there')
 
@@ -320,7 +320,7 @@ test('reporting adding root package', async (t: tape.Test) => {
       name: 'flatten',
       version: '1.0.2',
     },
-    level: 'info',
+    level: 'debug',
     name: 'pnpm:root',
   } as RootLog), 'reported that flatten added to the root')
 })

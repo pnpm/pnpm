@@ -199,7 +199,7 @@ export default async (opts: HeadlessOptions) => {
   // waiting till package requests are finished
   await Promise.all(R.values(depGraph).map((depNode) => depNode.finishing))
 
-  summaryLogger.info({prefix: opts.prefix})
+  summaryLogger.debug({prefix: opts.prefix})
 
   await opts.storeController.close()
 
@@ -248,7 +248,7 @@ async function linkRootPackages (
         if (!pkgSnapshot) return // this won't ever happen. Just making typescript happy
         const pkgId = pkgSnapshot.id || depPath
         const pkgInfo = nameVerFromPkgSnapshot(relDepPath, pkgSnapshot)
-        rootLogger.info({
+        rootLogger.debug({
           added: {
             dependencyType: isDev && 'dev' || isOptional && 'optional' || 'prod',
             id: pkgId,

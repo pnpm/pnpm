@@ -713,12 +713,9 @@ async function installInContext (
                     })
                   } else {
                     logger.warn({
-                      err,
+                      error: err,
                       message: `An error occurred while uploading ${pkg.id}`,
                       prefix: ctx.prefix,
-                    } as {
-                      prefix: string,
-                      message: string,
                     })
                   }
                 }
@@ -770,7 +767,7 @@ async function installInContext (
   // waiting till package requests are finished
   await Promise.all(R.values(installCtx.pkgByPkgId).map((installed) => installed.finishing))
 
-  summaryLogger.info({prefix: opts.prefix})
+  summaryLogger.debug({prefix: opts.prefix})
 
   await opts.storeController.close()
 }

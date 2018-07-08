@@ -73,12 +73,9 @@ export default async (
                   })
                 } else {
                   logger.warn({
-                    err,
+                    error: err,
                     message: `An error occurred while uploading ${depNode.pkgId}`,
                     prefix: opts.prefix,
-                  } as {
-                    message: string,
-                    prefix: string,
                   })
                 }
               }
