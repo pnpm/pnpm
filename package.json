@@ -33,7 +33,7 @@
   },
   "homepage": "https://github.com/pnpm/npm-resolver#readme",
   "peerDependencies": {
-    "@pnpm/logger": "^1.0.0"
+    "@pnpm/logger": "^1.0.0 || ^2.0.0"
   },
   "dependencies": {
     "@pnpm/resolver-base": "^1.1.0",
@@ -55,7 +55,7 @@
     "write-json-file": "^2.3.0"
   },
   "devDependencies": {
-    "@pnpm/logger": "^1.0.0",
+    "@pnpm/logger": "^2.0.1",
     "@types/nock": "^9.1.1",
     "@types/path-exists": "^3.0.0",
     "@types/tape": "^4.2.31",

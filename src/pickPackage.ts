@@ -130,7 +130,7 @@ export default async (
     const meta = await loadMeta(pkgMirror, ctx.metaFileName) // TODO: add test for this usecase
     if (!meta) throw err
     logger.error(err)
-    logger.info(`Using cached meta from ${pkgMirror}`)
+    logger.debug({message: `Using cached meta from ${pkgMirror}`})
     return {
       meta,
       pickedPackage: pickPackageFromMeta(spec, opts.preferredVersionSelector, meta),

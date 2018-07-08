@@ -2,8 +2,6 @@ import {ResolveResult} from '@pnpm/resolver-base'
 import getCredentialsByURI = require('credentials-by-uri')
 import createRegFetcher from 'fetch-from-npm-registry'
 import mem = require('mem')
-import path = require('path')
-import semver = require('semver')
 import ssri = require('ssri')
 import createPkgId from './createNpmPkgId'
 import parsePref, {

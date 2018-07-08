@@ -1,4 +1,3 @@
-import semver = require('semver')
 import getVersionSelectorType = require('version-selector-type')
 
 export interface RegistryPackageSpec {
