@@ -45,7 +45,7 @@ devDependencies:
   tape: 4.9.1
   tape-promise: 3.0.0
   tempy: 0.2.1
-  ts-node: 7.0.0
+  ts-node: 6.2.0
   tslint: 5.10.0
   typescript: 2.9.2
 packages:
@@ -4374,7 +4374,7 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha1-tAPQuRvlDDMd/EuC7s6yLD3hbSA=
-  /ts-node/7.0.0:
+  /ts-node/6.2.0:
     dependencies:
       arrify: 1.0.1
       buffer-from: 1.1.0
@@ -4389,7 +4389,7 @@ packages:
       node: '>=4.2.0'
     hasBin: true
     resolution:
-      integrity: sha512-klJsfswHP0FuOLsvBZ/zzCfUvakOSSxds78mVeK7I+qP76YWtxf16hEZsp3U+b0kIo82R5UatGFeblYMqabb2Q==
+      integrity: sha512-ZNT+OEGfUNVMGkpIaDJJ44Zq3Yr0bkU/ugN1PHbU+/01Z7UV1fsELRiTx1KuQNvQ1A3pGh3y25iYF6jXgxV21A==
   /tslib/1.9.3:
     dev: true
     resolution:
@@ -4823,6 +4823,6 @@ specifiers:
   tape: ^4.8.0
   tape-promise: ^2.0.1 || 3
   tempy: ^0.2.1
-  ts-node: ^7.0.0
+  ts-node: ^6.2.0
   tslint: ^5.4.2
   typescript: ^2.9.1
