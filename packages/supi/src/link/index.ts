@@ -134,10 +134,6 @@ export default async function linkPackages (
     }
   }
 
-  if (!opts.dryRun) {
-    await linkBins(opts.baseNodeModules, opts.bin)
-  }
-
   if (opts.updateShrinkwrapMinorVersion) {
     // Setting `shrinkwrapMinorVersion` is a temporary solution to
     // have new backward-compatible versions of `shrinkwrap.yaml`
@@ -184,9 +180,13 @@ export default async function linkPackages (
     currentShrinkwrap = newCurrentShrinkwrap
   }
 
-  // Important: shamefullyFlattenGraph changes depGraph, so keep this at the end
+  // Important: shamefullyFlattenGraph changes depGraph, so keep this at the end, right before linkBins
   if (opts.shamefullyFlatten && (opts.reinstallForFlatten || newDepPaths.length > 0 || removedDepPaths.size > 0)) {
     opts.hoistedAliases = await shamefullyFlattenGraph(depNodes, currentShrinkwrap, opts)
+  }
+
+  if (!opts.dryRun) {
+    await linkBins(opts.baseNodeModules, opts.bin)
   }
 
   return {
