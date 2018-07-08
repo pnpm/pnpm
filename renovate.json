@@ -5,6 +5,7 @@
   "pinVersions": false,
   "ignorePaths": ["test/"],
   "ignoreDeps": [
+    "ts-node",
     "@pnpm/config",
     "@pnpm/default-fetcher",
     "@pnpm/default-resolver",
