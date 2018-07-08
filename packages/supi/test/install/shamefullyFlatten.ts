@@ -16,6 +16,9 @@ test('should flatten dependencies', async (t) => {
   await project.has('express')
   await project.has('debug')
   await project.has('cookie')
+
+  // should also flatten bins
+  await project.isExecutable('.bin/mime')
 })
 
 test('should remove flattened dependencies', async (t) => {
