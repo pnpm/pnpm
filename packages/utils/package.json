@@ -19,7 +19,7 @@
     "@pnpm/logger": "^1.0.0"
   },
   "devDependencies": {
-    "@pnpm/logger": "^1.0.1",
+    "@pnpm/logger": "^2.0.1",
     "rimraf": "^2.6.2",
     "tslint": "^5.4.2",
     "typescript": "^2.9.1"

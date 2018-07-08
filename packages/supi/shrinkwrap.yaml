@@ -62,7 +62,7 @@ devDependencies:
   '@pnpm/assert-project': 1.1.2
   '@pnpm/default-fetcher': 1.0.0
   '@pnpm/default-resolver': 2.0.0
-  '@pnpm/logger': 1.0.2
+  '@pnpm/logger': 2.0.1
   '@pnpm/store-path': 1.0.3
   '@types/is-windows': 0.2.0
   '@types/mkdirp': 0.5.2
@@ -257,16 +257,16 @@ packages:
       node: '>=6'
     resolution:
       integrity: sha512-rCVZc//o1Db18pD6zPoCP/gz/EeZU/wHvCWJjeoq+NHgiTT4bGbXnj6mdQ6za/J3IgGEEHw0DHd3i5/NBDAArQ==
-  /@pnpm/logger/1.0.2:
+  /@pnpm/logger/2.0.1:
     dependencies:
       '@types/node': 10.5.2
       bole: 3.0.2
       ndjson: 1.5.0
     dev: true
     engines:
-      node: '>=4'
+      node: '>=6'
     resolution:
-      integrity: sha512-A8XbJKvdueazvJGPn1qQ9LL6uopV88ebIT+dJKNQ68gT7yfCbtfT8j5ZzdVczmGbkiuBeZ1VckZerkO0tjOXZA==
+      integrity: sha512-dST450D6Nj9iu0L16wqBv6dEXpbSQ6tyG1G9zSIzzjHqcDdKgdtpNR/0DvxpDEzBPfwGFQ868+o7AFaCuQsyig==
   /@pnpm/modules-yaml/1.0.0:
     dependencies:
       load-yaml-file: 0.1.0
@@ -5016,7 +5016,7 @@ specifiers:
   '@pnpm/headless': ^0.5.4
   '@pnpm/lifecycle': ^2.2.1
   '@pnpm/link-bins': ^2.0.0
-  '@pnpm/logger': ^1.0.0
+  '@pnpm/logger': ^2.0.1
   '@pnpm/modules-yaml': ^1.0.0
   '@pnpm/package-requester': ^3.0.1
   '@pnpm/pkgid-to-filename': ^1.0.0

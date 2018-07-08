@@ -22,7 +22,7 @@ dependencies:
   strip-ansi: 4.0.0
   zen-push: 0.2.1
 devDependencies:
-  '@pnpm/logger': 1.0.2
+  '@pnpm/logger': 2.0.1
   '@types/delay': 2.0.1
   '@types/load-json-file': 2.0.7
   '@types/tape': 4.2.32
@@ -63,16 +63,16 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha512-1zLmh6tRftQXfZ1IFHq1IexP0KaJhN6pSCA/IzK+Vixn4hPvxwcIbGjKW0KH9hsHSmrPpmSit2EWj7jGNgfa6Q==
-  /@pnpm/logger/1.0.2:
+  /@pnpm/logger/2.0.1:
     dependencies:
       '@types/node': 10.5.2
       bole: 3.0.2
       ndjson: 1.5.0
     dev: true
     engines:
-      node: '>=4'
+      node: '>=6'
     resolution:
-      integrity: sha512-A8XbJKvdueazvJGPn1qQ9LL6uopV88ebIT+dJKNQ68gT7yfCbtfT8j5ZzdVczmGbkiuBeZ1VckZerkO0tjOXZA==
+      integrity: sha512-dST450D6Nj9iu0L16wqBv6dEXpbSQ6tyG1G9zSIzzjHqcDdKgdtpNR/0DvxpDEzBPfwGFQ868+o7AFaCuQsyig==
   /@pnpm/self-installer/2.0.5:
     dev: true
     engines:
@@ -1845,7 +1845,7 @@ registry: 'https://registry.npmjs.org/'
 shrinkwrapMinorVersion: 8
 shrinkwrapVersion: 3
 specifiers:
-  '@pnpm/logger': ^1.0.0
+  '@pnpm/logger': ^2.0.1
   '@types/common-tags': ^1.2.5
   '@types/delay': ^2.0.1
   '@types/load-json-file': ^2.0.7

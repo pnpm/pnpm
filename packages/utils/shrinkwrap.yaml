@@ -14,7 +14,7 @@ dependencies:
   rimraf-then: 1.0.1
   util.promisify: 1.0.0
 devDependencies:
-  '@pnpm/logger': 1.0.2
+  '@pnpm/logger': 2.0.1
   rimraf: 2.6.2
   tslint: 5.10.0
   typescript: 2.9.2
@@ -47,16 +47,16 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha512-ASULw2KzrapsjQVSMYdDc3f6+wYOs9cPt0M5Ip9VUkTfYfPrfxd0UYXcOPoUHkk7L12HUj0vwUYK0DE1da2gww==
-  /@pnpm/logger/1.0.2:
+  /@pnpm/logger/2.0.1:
     dependencies:
       '@types/node': 10.5.2
       bole: 3.0.2
       ndjson: 1.5.0
     dev: true
     engines:
-      node: '>=4'
+      node: '>=6'
     resolution:
-      integrity: sha512-A8XbJKvdueazvJGPn1qQ9LL6uopV88ebIT+dJKNQ68gT7yfCbtfT8j5ZzdVczmGbkiuBeZ1VckZerkO0tjOXZA==
+      integrity: sha512-dST450D6Nj9iu0L16wqBv6dEXpbSQ6tyG1G9zSIzzjHqcDdKgdtpNR/0DvxpDEzBPfwGFQ868+o7AFaCuQsyig==
   /@pnpm/package-bins/1.0.0:
     dependencies:
       '@pnpm/types': 1.7.0
@@ -1152,7 +1152,7 @@ registry: 'https://registry.npmjs.org/'
 shrinkwrapMinorVersion: 8
 shrinkwrapVersion: 3
 specifiers:
-  '@pnpm/logger': ^1.0.1
+  '@pnpm/logger': ^2.0.1
   '@pnpm/package-bins': ^1.0.0
   '@pnpm/read-package-json': ^1.0.0
   '@pnpm/types': ^1.7.0

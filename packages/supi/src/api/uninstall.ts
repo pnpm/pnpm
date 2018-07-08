@@ -4,6 +4,7 @@ import {
   getSaveType,
   removeOrphanPackages as removeOrphanPkgs,
   removeTopDependency,
+  summaryLogger,
 } from '@pnpm/utils'
 import * as dp from 'dependency-path'
 import path = require('path')
@@ -111,7 +112,7 @@ export async function uninstallInContext (
     await installPkgs(currentShrinkwrap.specifiers, {...opts, lock: false, reinstallForFlatten: true, update: false})
   }
 
-  logger('summary').info()
+  summaryLogger.debug({prefix: opts.prefix})
 }
 
 async function removeOuterLinks (

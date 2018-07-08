@@ -22,7 +22,7 @@
     "@pnpm/assert-project": "^1.1.1",
     "@pnpm/default-fetcher": "^0.4.0 || 1",
     "@pnpm/default-resolver": "^2.0.0",
-    "@pnpm/logger": "^1.0.1",
+    "@pnpm/logger": "^2.0.1",
     "@pnpm/store-path": "^1.0.3",
     "@types/fs-extra": "^5.0.1",
     "@types/mz": "^0.0.32",
