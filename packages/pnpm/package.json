@@ -45,6 +45,7 @@
     "diable": "^4.0.1",
     "execa": "^0.10.0",
     "find-packages": "^2.2.0",
+    "find-up": "^3.0.0",
     "get-port": "^3.2.0",
     "graceful-fs": "^4.1.11",
     "graph-sequencer": "^2.0.0",
