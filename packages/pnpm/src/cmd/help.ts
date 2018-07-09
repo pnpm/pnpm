@@ -162,6 +162,10 @@ function getHelpText (command: string) {
         Returns a 0 exit code if packages in the store are not modified, i.e. the content of the package is the
         same as it was at the time of unpacking.
 
+        pnpm store add
+
+        Adds new packages to the store. E.g.: pnpm store add express@4 typescript@2
+
         pnpm store prune
 
         Removes unreferenced (extraneous, orphan) packages from the store. Unreferenced packages are packages that are not used by
@@ -285,6 +289,7 @@ function getHelpText (command: string) {
           - outdated
           - prune
           - install-test
+          - store add
           - store status
           - store prune
           - root

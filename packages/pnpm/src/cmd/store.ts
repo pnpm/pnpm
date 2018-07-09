@@ -1,6 +1,7 @@
 import logger from '@pnpm/logger'
 import storePath from '@pnpm/store-path'
 import {
+  storeAdd,
   storePrune,
   storeStatus,
 } from 'supi'
@@ -18,16 +19,26 @@ class StoreStatusError extends PnpmError {
 }
 
 export default async function (input: string[], opts: PnpmOptions) {
+  let store;
   switch (input[0]) {
     case 'status':
       return statusCmd(opts)
     case 'prune':
-      const store = await createStoreController(opts)
+      store = await createStoreController(opts)
       const storePruneOptions = Object.assign(opts, {
         store: store.path,
         storeController: store.ctrl,
       })
       return storePrune(storePruneOptions)
+    case 'add':
+      store = await createStoreController(opts);
+      return storeAdd(input.slice(1), {
+        prefix: opts.prefix,
+        registry: opts.registry,
+        reporter: opts.reporter,
+        storeController: store.ctrl,
+        verifyStoreIntegrity: opts.verifyStoreIntegrity || true,
+      });
     default:
       help(['store'])
       if (input[0]) {
