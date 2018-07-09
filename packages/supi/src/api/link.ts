@@ -19,7 +19,7 @@ import pLimit = require('p-limit')
 import path = require('path')
 import pathAbsolute = require('path-absolute')
 import {
-  prune as pruneShrinkwrap,
+  pruneWithoutPackageJson as pruneShrinkwrap,
   Shrinkwrap,
   write as saveShrinkwrap,
   writeCurrentOnly as saveCurrentShrinkwrapOnly,
@@ -106,8 +106,9 @@ export default async function link (
     linkedPkgs.push({path: linkFrom, pkg: linkedPkg})
   }
 
-  const updatedCurrentShrinkwrap = pruneShrinkwrap(shrFiles.currentShrinkwrap)
-  const updatedWantedShrinkwrap = pruneShrinkwrap(shrFiles.wantedShrinkwrap)
+  const warn = (message: string) => logger.warn({message, prefix: opts.prefix})
+  const updatedCurrentShrinkwrap = pruneShrinkwrap(shrFiles.currentShrinkwrap, warn)
+  const updatedWantedShrinkwrap = pruneShrinkwrap(shrFiles.wantedShrinkwrap, warn)
   const modulesInfo = await readModulesYaml(destModules)
   await removeOrphanPkgs({
     bin: opts.bin,

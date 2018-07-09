@@ -73,7 +73,7 @@ export default async function linkPackages (
     opts.prefix,
   )
   const depGraph = resolvePeersResult.depGraph
-  let {newShrinkwrap, pendingRequiresBuilds} = updateShrinkwrap(depGraph, opts.wantedShrinkwrap, opts.pkg) // tslint:disable-line:prefer-const
+  let {newShrinkwrap, pendingRequiresBuilds} = updateShrinkwrap(depGraph, opts.wantedShrinkwrap, opts.pkg, opts.prefix) // tslint:disable-line:prefer-const
   if (opts.afterAllResolvedHook) {
     newShrinkwrap = opts.afterAllResolvedHook(newShrinkwrap)
   }

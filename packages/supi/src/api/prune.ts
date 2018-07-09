@@ -1,4 +1,4 @@
-import {streamParser} from '@pnpm/logger'
+import logger, {streamParser} from '@pnpm/logger'
 import {PackageJson} from '@pnpm/types'
 import {removeOrphanPackages as removeOrphanPkgs} from '@pnpm/utils'
 import {
@@ -32,7 +32,8 @@ export async function prune (
     optionalDependencies: opts.optional ? ctx.pkg.optionalDependencies : {},
   } as PackageJson
 
-  const prunedShr = pruneShrinkwrap(ctx.wantedShrinkwrap, pkg)
+  const warn = (message: string) => logger.warn({message, prefix: opts.prefix})
+  const prunedShr = pruneShrinkwrap(ctx.wantedShrinkwrap, pkg, warn)
 
   await removeOrphanPkgs({
     bin: opts.bin,
