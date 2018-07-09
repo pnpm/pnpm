@@ -51,9 +51,13 @@ without touching `node_modules`.
 
 Writes the current shrinkwrap file only. Fails if there is no `node_modules` directory in the `pkgPath`.
 
-### `prune(shrinkwrap, [package]) => Promise<Shrinkwrap>`
+### `prune(shrinkwrap, package, warn: (msg: string) => void) => Promise<Shrinkwrap>`
 
 Prunes a shrinkwrap file. Prunning means removing packages that are not referenced.
+
+### `pruneWithoutPackageJson(shrinkwrap, warn: (msg: string) => void) => Promise<Shrinkwrap>`
+
+Prunes a shrinkwrap file using only the shrinkwrap object.
 
 ### `nameVerFromPkgSnapshot(relDepPath, pkgSnapshot): {name: string, version: string}`
 

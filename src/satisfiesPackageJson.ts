@@ -1,10 +1,10 @@
+import {PackageJson} from '@pnpm/types'
 import R = require('ramda')
 import {
-  Package,
   Shrinkwrap,
 } from './types'
 
-export default (shr: Shrinkwrap, pkg: Package) => {
+export default (shr: Shrinkwrap, pkg: PackageJson) => {
   if (!R.equals({...pkg.devDependencies, ...pkg.dependencies, ...pkg.optionalDependencies}, shr.specifiers)) {
     return false
   }

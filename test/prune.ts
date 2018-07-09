@@ -1,6 +1,9 @@
+///<reference path="../typings/local.d.ts"/>
 import test = require('tape')
-import {prune} from 'pnpm-shrinkwrap'
+import {prune, pruneWithoutPackageJson} from 'pnpm-shrinkwrap'
 import yaml = require('yaml-tag')
+
+function warn (msg: string) {}
 
 test('remove one redundant package', t => {
   t.deepEqual(prune({
@@ -32,7 +35,7 @@ test('remove one redundant package', t => {
     dependencies: {
       'is-positive': '^1.0.0'
     }
-  }), {
+  }, warn), {
     shrinkwrapVersion: 3,
     registry: 'https://registry.npmjs.org',
     dependencies: {
@@ -96,7 +99,7 @@ test('keep all', t => {
       'is-positive': '^1.0.0',
       'is-negative': '^1.0.0',
     }
-  }), {
+  }, warn), {
     shrinkwrapVersion: 3,
     registry: 'https://registry.npmjs.org',
     dependencies: {
@@ -203,7 +206,7 @@ test('optional dependency should have optional = true', t => {
       'pkg-with-good-optional': '^1.0.0',
       'parent-of-foo': '1.0.0',
     },
-  }), {
+  }, warn), {
     shrinkwrapVersion: 3,
     registry: 'https://registry.npmjs.org',
     dependencies: {
@@ -302,7 +305,7 @@ test('optional dependency should not have optional = true if used not only as op
       'pkg-with-good-optional': '^1.0.0',
       'is-positive': '^1.0.0',
     },
-  }), {
+  }, warn), {
     shrinkwrapVersion: 3,
     registry: 'https://registry.npmjs.org',
     dependencies: {
@@ -371,7 +374,7 @@ test('dev dependency should have dev = true', t => {
     dependencies: {
       'pkg-with-good-optional': '^1.0.0',
     },
-  }), {
+  }, warn), {
     shrinkwrapVersion: 3,
     registry: 'https://registry.npmjs.org',
     dependencies: {
@@ -442,7 +445,7 @@ test('dev dependency should not have dev = true if it is used not only as dev', 
     dependencies: {
       'some-pkg': '^1.0.0',
     },
-  }), {
+  }, warn), {
     shrinkwrapVersion: 3,
     registry: 'https://registry.npmjs.org',
     dependencies: {
@@ -499,7 +502,7 @@ test('the dev field should be updated to dev = false if it is not a dev dependen
     dependencies: {
       a: '^1.0.0',
     },
-  }), {
+  }, warn), {
     shrinkwrapVersion: 3,
     registry: 'https://registry.npmjs.org',
     dependencies: {
@@ -560,7 +563,7 @@ test('subdependency is both optional and dev', t => {
     devDependencies: {
       parent: '^1.0.0',
     },
-  }), yaml`
+  }, warn), yaml`
     dependencies:
       prod-parent: 1.0.0
     devDependencies:
@@ -637,7 +640,7 @@ test('dev = true is removed if dependency is used both as dev and prod dependenc
     devDependencies: {
       inflight: '^1.0.6',
     },
-  }), yaml`
+  }, warn), yaml`
     dependencies:
       foo: /inflight/1.0.6
     devDependencies:
@@ -707,7 +710,7 @@ test('optional = true is removed if dependency is used both as optional and prod
     optionalDependencies: {
       inflight: '^1.0.6',
     },
-  }), yaml`
+  }, warn), yaml`
     dependencies:
       foo: /inflight/1.0.6
     optionalDependencies:
@@ -779,7 +782,7 @@ test('remove dependencies that are not in the package', t => {
   }, {
     name: 'foo',
     version: '1.0.0',
-  }), {
+  }, warn), {
     shrinkwrapVersion: 3,
     registry: 'https://registry.npmjs.org',
     specifiers: {},
@@ -813,7 +816,7 @@ test('ignore dependencies that are in package.json but are not in shrinkwrap.yam
       'is-positive': '^1.0.0',
       'is-negative': '^1.0.0',
     }
-  }), {
+  }, warn), {
     shrinkwrapVersion: 3,
     registry: 'https://registry.npmjs.org',
     dependencies: {
@@ -860,7 +863,7 @@ test('keep shrinkwrapMinorVersion, if present', t => {
     dependencies: {
       'is-positive': '^1.0.0',
     }
-  }), {
+  }, warn), {
     shrinkwrapVersion: 3,
     shrinkwrapMinorVersion: 2,
     registry: 'https://registry.npmjs.org',
@@ -884,7 +887,7 @@ test('keep shrinkwrapMinorVersion, if present', t => {
 })
 
 test('remove one redundant package when no package.json passed', t => {
-  t.deepEqual(prune({
+  t.deepEqual(pruneWithoutPackageJson({
     shrinkwrapVersion: 3,
     registry: 'https://registry.npmjs.org',
     dependencies: {
@@ -907,7 +910,7 @@ test('remove one redundant package when no package.json passed', t => {
         }
       }
     }
-  }), {
+  }, warn), {
     shrinkwrapVersion: 3,
     registry: 'https://registry.npmjs.org',
     dependencies: {
@@ -954,7 +957,7 @@ test('keep linked package even if it is not in package.json', t => {
     dependencies: {
       'is-negative': '^1.0.0'
     }
-  }), {
+  }, warn), {
     shrinkwrapVersion: 3,
     registry: 'https://registry.npmjs.org',
     dependencies: {

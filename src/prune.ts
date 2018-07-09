@@ -1,15 +1,27 @@
 import logger from '@pnpm/logger'
+import {PackageJson} from '@pnpm/types'
 import {refToRelative} from 'dependency-path'
 import R = require('ramda')
 import {SHRINKWRAP_VERSION} from './constants'
 import {
-  Package,
   ResolvedDependencies,
   ResolvedPackages,
   Shrinkwrap,
 } from './types'
 
-export default function prune (shr: Shrinkwrap, pkg?: Package): Shrinkwrap {
+export function pruneWithoutPackageJson (shr: Shrinkwrap, warn: (msg: string) => void) {
+  return _prune(shr, undefined, warn)
+}
+
+export function prune (shr: Shrinkwrap, pkg: PackageJson, warn: (msg: string) => void) {
+  return _prune(shr, pkg, warn)
+}
+
+function _prune (
+  shr: Shrinkwrap,
+  pkg: PackageJson | undefined,
+  warn: (msg: string) => void,
+): Shrinkwrap {
   const packages: ResolvedPackages = {}
   let allDeps!: string[]
   if (pkg) {
@@ -50,13 +62,13 @@ export default function prune (shr: Shrinkwrap, pkg?: Package): Shrinkwrap {
     .filter((pkgName: string) => !shrDevDependencies[pkgName].startsWith('link:'))
     .map((pkgName: string) => refToRelative(shrDevDependencies[pkgName], pkgName))
 
-  copyDependencySubTree(packages, devDepRelativePaths, shr, new Set(), {registry: shr.registry, nonOptional, notProdOnly, dev: true})
+  copyDependencySubTree(packages, devDepRelativePaths, shr, new Set(), warn, {registry: shr.registry, nonOptional, notProdOnly, dev: true})
 
   const depRelativePaths: string[] = R.keys(shrDependencies)
     .filter((pkgName: string) => !shrDependencies[pkgName].startsWith('link:'))
     .map((pkgName: string) => refToRelative(shrDependencies[pkgName], pkgName))
 
-  copyDependencySubTree(packages, depRelativePaths, shr, new Set(), {
+  copyDependencySubTree(packages, depRelativePaths, shr, new Set(), warn, {
     nonOptional,
     notProdOnly,
     registry: shr.registry,
@@ -66,10 +78,10 @@ export default function prune (shr: Shrinkwrap, pkg?: Package): Shrinkwrap {
     const optionalDepRelativePaths: string[] = R.keys(shrOptionalDependencies)
       .filter((pkgName: string) => !shrOptionalDependencies[pkgName].startsWith('link:'))
       .map((pkgName: string) => refToRelative(shrOptionalDependencies[pkgName], pkgName))
-    copyDependencySubTree(packages, optionalDepRelativePaths, shr, new Set(), {registry: shr.registry, nonOptional, notProdOnly, optional: true})
+    copyDependencySubTree(packages, optionalDepRelativePaths, shr, new Set(), warn, {registry: shr.registry, nonOptional, notProdOnly, optional: true})
   }
 
-  copyDependencySubTree(packages, devDepRelativePaths, shr, new Set(), {
+  copyDependencySubTree(packages, devDepRelativePaths, shr, new Set(), warn, {
     dev: true,
     nonOptional,
     notProdOnly,
@@ -77,7 +89,7 @@ export default function prune (shr: Shrinkwrap, pkg?: Package): Shrinkwrap {
     walkOptionals: true,
   })
 
-  copyDependencySubTree(packages, depRelativePaths, shr, new Set(), {
+  copyDependencySubTree(packages, depRelativePaths, shr, new Set(), warn, {
     nonOptional,
     notProdOnly,
     registry: shr.registry,
@@ -112,6 +124,7 @@ function copyDependencySubTree (
   depRelativePaths: string[],
   shr: Shrinkwrap,
   walked: Set<string>,
+  warn: (msg: string) => void,
   opts: {
     registry: string,
     dev?: boolean,
@@ -129,7 +142,7 @@ function copyDependencySubTree (
       // except local tarball dependencies
       if (depRalativePath.startsWith('link:') || depRalativePath.startsWith('file:') && !depRalativePath.endsWith('.tar.gz')) continue
 
-      logger.warn(`Cannot find resolution of ${depRalativePath} in shrinkwrap file`)
+      warn(`Cannot find resolution of ${depRalativePath} in shrinkwrap file`)
       continue
     }
     const depShr = shr.packages[depRalativePath]
@@ -150,10 +163,10 @@ function copyDependencySubTree (
     }
     const newDependencies = R.keys(depShr.dependencies)
       .map((pkgName: string) => refToRelative((depShr.dependencies && depShr.dependencies[pkgName]) as string, pkgName))
-    copyDependencySubTree(resolvedPackages, newDependencies, shr, walked, opts)
+    copyDependencySubTree(resolvedPackages, newDependencies, shr, walked, warn, opts)
     if (!opts.walkOptionals) continue
     const newOptionalDependencies = R.keys(depShr.optionalDependencies)
       .map((pkgName: string) => refToRelative((depShr.optionalDependencies && depShr.optionalDependencies[pkgName]) as string, pkgName))
-    copyDependencySubTree(resolvedPackages, newOptionalDependencies, shr, walked, {...opts, optional: true})
+    copyDependencySubTree(resolvedPackages, newOptionalDependencies, shr, walked, warn, {...opts, optional: true})
   }
 }

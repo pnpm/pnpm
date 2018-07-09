@@ -5,7 +5,6 @@ export * from './types'
 import existsWanted from './existsWanted'
 import nameVerFromPkgSnapshot from './nameVerFromPkgSnapshot'
 import pkgSnapshotToResolution from './pkgSnapshotToResolution'
-import prune from './prune'
 import satisfiesPackageJson from './satisfiesPackageJson'
 import write, {
   writeCurrentOnly,
@@ -16,7 +15,6 @@ export {
   existsWanted,
   nameVerFromPkgSnapshot,
   pkgSnapshotToResolution,
-  prune,
   satisfiesPackageJson,
   write,
   writeWantedOnly,

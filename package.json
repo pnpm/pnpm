@@ -5,7 +5,7 @@
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
   "engines": {
-    "node": ">=4"
+    "node": ">=6"
   },
   "files": [
     "lib/"
@@ -35,10 +35,10 @@
   },
   "homepage": "https://github.com/pnpm/pnpm-shrinkwrap#readme",
   "peerDependencies": {
-    "@pnpm/logger": "^1.0.0"
+    "@pnpm/logger": "^2.0.0"
   },
   "devDependencies": {
-    "@pnpm/logger": "^1.0.0",
+    "@pnpm/logger": "^2.0.1",
     "@types/tape": "^4.2.30",
     "@types/tempy": "^0.1.0",
     "package-preview": "^1.0.0",
@@ -52,6 +52,7 @@
   },
   "dependencies": {
     "@pnpm/resolver-base": "^1.0.0",
+    "@pnpm/types": "^1.7.0",
     "@types/js-yaml": "^3.10.1",
     "@types/node": "^10.0.6",
     "@types/ramda": "^0.25.12",

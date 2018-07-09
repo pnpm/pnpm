@@ -80,9 +80,12 @@ export default function write (
     ])
   }
 
-  logger.warn('`shrinkwrap.yaml` differs from `node_modules/.shrinkwrap.yaml`. ' +
-    'To fix this, run `pnpm install`. From pnpm version 2, named installations and uninstallations will fail ' +
-    'when the content of `node_modules` won\'t match what the `shrinkwrap.yaml` expects.')
+  logger.warn({
+    message: '`shrinkwrap.yaml` differs from `node_modules/.shrinkwrap.yaml`. ' +
+      'To fix this, run `pnpm install`. From pnpm version 2, named installations and uninstallations will fail ' +
+      'when the content of `node_modules` won\'t match what the `shrinkwrap.yaml` expects.',
+    prefix: pkgPath,
+  })
 
   const currentYamlDoc = yaml.safeDump(currentShrinkwrap, SHRINKWRAP_YAML_FORMAT)
 
