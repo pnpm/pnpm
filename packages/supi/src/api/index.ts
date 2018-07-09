@@ -5,9 +5,9 @@ export * from './unlink'
 export * from './rebuild'
 
 import link from './link'
+import storeAdd from './storeAdd'
 import storePrune from './storePrune'
 import storeStatus from './storeStatus'
-import storeAdd from './storeAdd'
 import uninstall from './uninstall'
 export {
   link,

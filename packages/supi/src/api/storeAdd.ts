@@ -1,8 +1,10 @@
 import normalizeRegistryUrl = require('normalize-registry-url')
+
 import {streamParser} from '@pnpm/logger'
 import {StoreController} from 'package-store'
-import {ReporterFunction} from '../types'
+
 import parseWantedDependencies from '../parseWantedDependencies';
+import {ReporterFunction} from '../types'
 
 export default async function (
   fuzzyDeps: string[],
@@ -22,7 +24,7 @@ export default async function (
   const deps = await parseWantedDependencies(fuzzyDeps, {
     allowNew: true,
     currentPrefs: {},
-    defaultTag: "",
+    defaultTag: '',
     dev: false,
     devDependencies: {},
     optional: false,
@@ -30,15 +32,15 @@ export default async function (
   })
 
   const pkgIds = []
-  for (let dep of deps) {
+  for (const dep of deps) {
     const ret = await opts.storeController.requestPackage(dep, {
       downloadPriority: 1,
-      prefix: opts.prefix,
       loggedPkg: {
         rawSpec: dep.raw,
       },
-      registry: normalizeRegistryUrl(opts.registry || 'https://registry.npmjs.org/'),
       preferredVersions: {},
+      prefix: opts.prefix,
+      registry: normalizeRegistryUrl(opts.registry || 'https://registry.npmjs.org/'),
       verifyStoreIntegrity: opts.verifyStoreIntegrity,
     })
     pkgIds.push(ret.body.id)
@@ -46,8 +48,8 @@ export default async function (
 
   await opts.storeController.updateConnections(opts.prefix, {
     addDependencies: pkgIds,
-    removeDependencies: [],
     prune: false,
+    removeDependencies: [],
   })
   await opts.storeController.saveState()
 
