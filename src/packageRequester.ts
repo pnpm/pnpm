@@ -550,6 +550,7 @@ function fetchToStore (
       await renameOverwrite(tempLocation, unpacked)
       await symlinkDir(unpacked, linkToUnpacked)
 
+      ctx.storeIndex[targetRelative] = ctx.storeIndex[targetRelative] || []
       fetchingFiles.resolve({
         filenames: Object.keys(filesIndex).filter((f) => !filesIndex[f].isDir), // Filtering can be removed for store v3
         fromStore: false,

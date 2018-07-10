@@ -27,10 +27,11 @@ const fetch = createFetcher({
 })
 
 test('request package', async t => {
+  const storeIndex = {}
   const requestPackage = createPackageRequester(resolve, fetch, {
     networkConcurrency: 1,
     storePath: '.store',
-    storeIndex: {},
+    storeIndex,
   })
   t.equal(typeof requestPackage, 'function')
 
@@ -72,6 +73,8 @@ test('request package', async t => {
   }, 'returned info about files after fetch completed')
 
   t.ok(pkgResponse.finishing)
+
+  t.deepEqual(storeIndex, { 'registry.npmjs.org/is-positive/1.0.0': [] })
 
   t.end()
 })
