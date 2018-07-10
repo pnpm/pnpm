@@ -1,6 +1,6 @@
 import normalizeRegistryUrl = require('normalize-registry-url')
 
-import {streamParser} from '@pnpm/logger'
+import logger, {streamParser} from '@pnpm/logger'
 import {StoreController} from 'package-store'
 
 import parseWantedDependencies from '../parseWantedDependencies';
@@ -24,13 +24,14 @@ export default async function (
   const deps = await parseWantedDependencies(fuzzyDeps, {
     allowNew: true,
     currentPrefs: {},
-    defaultTag: opts.tag || 'default',
+    defaultTag: opts.tag || 'latest',
     dev: false,
     devDependencies: {},
     optional: false,
     optionalDependencies: {},
   })
 
+  let hasFailures = false;
   await Promise.all(deps.map(async (dep) => {
     const pkgResponse = await opts.storeController.requestPackage(dep, {
       downloadPriority: 1,
@@ -42,12 +43,22 @@ export default async function (
       registry: normalizeRegistryUrl(opts.registry || 'https://registry.npmjs.org/'),
       verifyStoreIntegrity: opts.verifyStoreIntegrity || true,
     })
-    await pkgResponse['fetchingFiles'].catch((err: Error) => {}) // tslint:disable-line
+    try {
+      await pkgResponse['fetchingFiles'] // tslint:disable-line
+      logger.info(`+ ${pkgResponse.body.id}`)
+    } catch (e) {
+      hasFailures = true;
+      logger.error(e);
+    }
   }))
 
   await opts.storeController.saveState()
 
   if (reporter) {
     streamParser.removeListener('data', reporter)
+  }
+  
+  if (hasFailures) {
+    throw new Error("Some packages have not been added correctly")
   }
 }
