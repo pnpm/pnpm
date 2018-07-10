@@ -33,17 +33,17 @@ export default async function (
 
   let hasFailures = false;
   await Promise.all(deps.map(async (dep) => {
-    const pkgResponse = await opts.storeController.requestPackage(dep, {
-      downloadPriority: 1,
-      loggedPkg: {
-        rawSpec: dep.raw,
-      },
-      preferredVersions: {},
-      prefix: '',
-      registry: normalizeRegistryUrl(opts.registry || 'https://registry.npmjs.org/'),
-      verifyStoreIntegrity: opts.verifyStoreIntegrity || true,
-    })
     try {
+      const pkgResponse = await opts.storeController.requestPackage(dep, {
+        downloadPriority: 1,
+        loggedPkg: {
+          rawSpec: dep.raw,
+        },
+        preferredVersions: {},
+        prefix: '',
+        registry: normalizeRegistryUrl(opts.registry || 'https://registry.npmjs.org/'),
+        verifyStoreIntegrity: opts.verifyStoreIntegrity || true,
+      })
       await pkgResponse['fetchingFiles'] // tslint:disable-line
       logger.info(`+ ${pkgResponse.body.id}`)
     } catch (e) {

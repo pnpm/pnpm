@@ -22,5 +22,22 @@ test('add packages to the store', async (t: tape.Test) => {
   await project.storeHas('express', '4.16.3')
 
   const storeIndex = await loadJsonFile(path.join(opts.store, 'store.json'))
-  t.deepEqual(storeIndex['localhost+4873/express/4.16.3'], [])
+  t.deepEqual(storeIndex['localhost+4873/express/4.16.3'], [], 'package has been added to the store index')
+})
+
+test('should fail if some packages can not be added', async (t: tape.Test) => {
+  const project = prepare(t)
+
+  const opts = await testDefaults()
+  // this is needed to initialize the store
+  await installPkgs(['is-negative@2.1.0'], opts)
+
+  let thrown = false;
+  try {
+    await storeAdd(['@pnpm/this-does-not-exist'], opts)
+  } catch (e) {
+    thrown = true;
+    t.equal(e.message, 'Some packages have not been added correctly', 'has thrown the correct error')
+  }
+  t.ok(thrown, 'has thrown')
 })
