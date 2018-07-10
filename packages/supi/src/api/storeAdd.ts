@@ -9,11 +9,12 @@ import {ReporterFunction} from '../types'
 export default async function (
   fuzzyDeps: string[],
   opts: {
+    prefix?: string,
     registry?: string,
-    verifyStoreIntegrity?: boolean,
     reporter?: ReporterFunction,
     storeController: StoreController,
     tag?: string,
+    verifyStoreIntegrity?: boolean,
   },
 ) {
   const reporter = opts && opts.reporter
@@ -40,7 +41,7 @@ export default async function (
           rawSpec: dep.raw,
         },
         preferredVersions: {},
-        prefix: '',
+        prefix: opts.prefix || process.cwd(),
         registry: normalizeRegistryUrl(opts.registry || 'https://registry.npmjs.org/'),
         verifyStoreIntegrity: opts.verifyStoreIntegrity || true,
       })
