@@ -57,8 +57,8 @@ export default async function (
   if (reporter) {
     streamParser.removeListener('data', reporter)
   }
-  
+
   if (hasFailures) {
-    throw new Error("Some packages have not been added correctly")
+    throw new Error('Some packages have not been added correctly')
   }
 }
