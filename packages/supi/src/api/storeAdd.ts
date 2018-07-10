@@ -45,7 +45,7 @@ export default async function (
         registry: normalizeRegistryUrl(opts.registry || 'https://registry.npmjs.org/'),
         verifyStoreIntegrity: opts.verifyStoreIntegrity || true,
       })
-      await pkgResponse['fetchingFiles'] // tslint:disable-line
+      await pkgResponse['fetchingFiles'] // tslint:disable-line:no-string-literal
       logger.info(`+ ${pkgResponse.body.id}`)
     } catch (e) {
       hasFailures = true;
@@ -60,6 +60,8 @@ export default async function (
   }
 
   if (hasFailures) {
-    throw new Error('Some packages have not been added correctly')
+    const err = new Error('Some packages have not been added correctly')
+    err['code'] = 'ERR_PNPM_STORE_ADD_FAILURE' // tslint:disable-line:no-string-literal
+    throw err
   }
 }
