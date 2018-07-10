@@ -1,3 +1,6 @@
+import loadJsonFile = require('load-json-file')
+import path = require('path')
+
 import {
   installPkgs,
   storeAdd,
@@ -17,4 +20,7 @@ test('add packages to the store', async (t: tape.Test) => {
 
   await storeAdd(['express@4.16.3'], opts)
   await project.storeHas('express', '4.16.3')
+
+  const storeIndex = await loadJsonFile(path.join(opts.store, 'store.json'))
+  t.deepEqual(storeIndex['localhost+4873/express/4.16.3'], [])
 })

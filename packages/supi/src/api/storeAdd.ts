@@ -31,8 +31,8 @@ export default async function (
     optionalDependencies: {},
   })
 
-  const pkgIds = await Promise.all(deps.map(async (dep) => {
-    const ret = await opts.storeController.requestPackage(dep, {
+  await Promise.all(deps.map(async (dep) => {
+    const pkgResponse = await opts.storeController.requestPackage(dep, {
       downloadPriority: 1,
       loggedPkg: {
         rawSpec: dep.raw,
@@ -42,7 +42,7 @@ export default async function (
       registry: normalizeRegistryUrl(opts.registry || 'https://registry.npmjs.org/'),
       verifyStoreIntegrity: opts.verifyStoreIntegrity || true,
     })
-    return ret.body.id
+    await pkgResponse['fetchingFiles'].catch((err: Error) => {}) // tslint:disable-line
   }))
 
   await opts.storeController.saveState()
