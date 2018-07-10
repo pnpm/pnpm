@@ -9,11 +9,11 @@ import {ReporterFunction} from '../types'
 export default async function (
   fuzzyDeps: string[],
   opts: {
-    prefix: string,
     registry?: string,
-    verifyStoreIntegrity: boolean,
+    verifyStoreIntegrity?: boolean,
     reporter?: ReporterFunction,
     storeController: StoreController,
+    tag?: string,
   },
 ) {
   const reporter = opts && opts.reporter
@@ -24,33 +24,27 @@ export default async function (
   const deps = await parseWantedDependencies(fuzzyDeps, {
     allowNew: true,
     currentPrefs: {},
-    defaultTag: '',
+    defaultTag: opts.tag || 'default',
     dev: false,
     devDependencies: {},
     optional: false,
     optionalDependencies: {},
   })
 
-  const pkgIds = []
-  for (const dep of deps) {
+  const pkgIds = await Promise.all(deps.map(async (dep) => {
     const ret = await opts.storeController.requestPackage(dep, {
       downloadPriority: 1,
       loggedPkg: {
         rawSpec: dep.raw,
       },
       preferredVersions: {},
-      prefix: opts.prefix,
+      prefix: '',
       registry: normalizeRegistryUrl(opts.registry || 'https://registry.npmjs.org/'),
-      verifyStoreIntegrity: opts.verifyStoreIntegrity,
+      verifyStoreIntegrity: opts.verifyStoreIntegrity || true,
     })
-    pkgIds.push(ret.body.id)
-  }
+    return ret.body.id
+  }))
 
-  await opts.storeController.updateConnections(opts.prefix, {
-    addDependencies: pkgIds,
-    prune: false,
-    removeDependencies: [],
-  })
   await opts.storeController.saveState()
 
   if (reporter) {
