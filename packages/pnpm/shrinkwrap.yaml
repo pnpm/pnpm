@@ -1392,7 +1392,7 @@ packages:
       integrity: sha1-EgYBU3qRbSmUD5NNo7SNWFo5IT0=
   /clone-response/1.0.2:
     dependencies:
-      mimic-response: 1.0.0
+      mimic-response: 1.0.1
     dev: false
     resolution:
       integrity: sha1-0dyXOSAxTfZ/vrlCI7TuNQI56Ws=
@@ -1763,7 +1763,7 @@ packages:
       integrity: sha1-rf54xmzAaeZOgkvRQFuF515tHLs=
   /decompress-response/3.3.0:
     dependencies:
-      mimic-response: 1.0.0
+      mimic-response: 1.0.1
     dev: false
     engines:
       node: '>=4'
@@ -2520,10 +2520,10 @@ packages:
     dev: false
     resolution:
       integrity: sha1-nA4cQDCM6AT0eDYYuTf6iPmdUNA=
-  /get-caller-file/1.0.2:
+  /get-caller-file/1.0.3:
     dev: false
     resolution:
-      integrity: sha1-9wLmMSfn4jHBYKgMFVSstw1QR+U=
+      integrity: sha512-3t6rVToeoZfYSGd8YoLFR2DJkiQrIiUrGcjvFX2mDw3bn6k2OtwHN0TNCLbBO+w8qTvimhDkv+LSscbJY1vE6w==
   /get-npm-tarball-url/2.0.1:
     dependencies:
       normalize-registry-url: 1.0.0
@@ -2648,7 +2648,7 @@ packages:
       is-retry-allowed: 1.1.0
       isurl: 1.0.0
       lowercase-keys: 1.0.1
-      mimic-response: 1.0.0
+      mimic-response: 1.0.1
       p-cancelable: 0.4.1
       p-timeout: 2.0.1
       pify: 3.0.0
@@ -3799,12 +3799,12 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha512-jf84uxzwiuiIVKiOLpfYk7N46TSy8ubTonmneY9vrpHNAnp0QBt2BxWV9dO3/j+BoVAb+a5G6YDPW3M5HOdMWQ==
-  /mimic-response/1.0.0:
+  /mimic-response/1.0.1:
     dev: false
     engines:
       node: '>=4'
     resolution:
-      integrity: sha1-3z02Uqc/3ta5sLJBRub9BSNTRY4=
+      integrity: sha512-j5EctnkH7amfV/q5Hgmoal1g2QHFJRraOtmx0JpIqkxhBhI/lJSl1nMpQ45hVarwNETOoWEimndZ4QK0RHxuxQ==
   /min-document/2.19.0:
     dependencies:
       dom-walk: 0.1.1
@@ -6496,7 +6496,7 @@ packages:
       camelcase: 4.1.0
       cliui: 3.2.0
       decamelize: 1.2.0
-      get-caller-file: 1.0.2
+      get-caller-file: 1.0.3
       os-locale: 2.1.0
       read-pkg-up: 2.0.0
       require-directory: 2.1.1
