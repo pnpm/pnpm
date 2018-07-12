@@ -385,7 +385,7 @@ function fetchToStore (
     fetchingFiles.promise.then(({filenames, fromStore}) => {
       // If it's already in the store, we don't need to update the cache
       if (fromStore) {
-        return;
+        return
       }
 
       const tmp = ctx.fetchingLocker.get(opts.pkgId) as {
@@ -394,6 +394,10 @@ function fetchToStore (
         finishing: Promise<void>,
         inStoreLocation: string,
       }
+
+      // If fetching failed then it was removed from the cache.
+      // It is OK. In that case there is no need to update it.
+      if (!tmp) return
 
       ctx.fetchingLocker.set(opts.pkgId, {
         fetchingFiles: Promise.resolve({
