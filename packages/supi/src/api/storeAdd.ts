@@ -33,6 +33,7 @@ export default async function (
   })
 
   let hasFailures = false;
+  const prefix = opts.prefix || process.cwd()
   await Promise.all(deps.map(async (dep) => {
     try {
       const pkgResponse = await opts.storeController.requestPackage(dep, {
@@ -41,12 +42,15 @@ export default async function (
           rawSpec: dep.raw,
         },
         preferredVersions: {},
-        prefix: opts.prefix || process.cwd(),
+        prefix,
         registry: normalizeRegistryUrl(opts.registry || 'https://registry.npmjs.org/'),
         verifyStoreIntegrity: opts.verifyStoreIntegrity || true,
       })
       await pkgResponse['fetchingFiles'] // tslint:disable-line:no-string-literal
-      logger.info(`+ ${pkgResponse.body.id}`)
+      logger.info({
+        message: `+ ${pkgResponse.body.id}`,
+        prefix,
+      })
     } catch (e) {
       hasFailures = true;
       logger.error(e);

@@ -83,7 +83,7 @@
   },
   "dependencies": {
     "@pnpm/lifecycle": "^2.2.0",
-    "@pnpm/link-bins": "^2.0.0",
+    "@pnpm/link-bins": "^3.0.0",
     "@pnpm/modules-yaml": "^1.0.0",
     "@pnpm/package-requester": "^3.0.1",
     "@pnpm/pkgid-to-filename": "^1.0.0",

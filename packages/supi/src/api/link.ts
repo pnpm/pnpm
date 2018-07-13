@@ -127,7 +127,9 @@ export default async function link (
   }
 
   const linkToBin = maybeOpts && maybeOpts.linkToBin || path.join(destModules, '.bin')
-  await linkBinsOfPackages(linkedPkgs.map((p) => ({manifest: p.pkg, location: p.path})), linkToBin)
+  await linkBinsOfPackages(linkedPkgs.map((p) => ({manifest: p.pkg, location: p.path})), linkToBin, {
+    warn: (message: string) => logger.warn({message, prefix: opts.prefix}),
+  })
 
   if (opts.saveDev || opts.saveProd || opts.saveOptional) {
     const newPkg = await save(opts.prefix, specsToUpsert)

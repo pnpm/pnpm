@@ -1,6 +1,6 @@
 import runLifecycleHooks from '@pnpm/lifecycle'
 import linkBins, {linkBinsOfPackages} from '@pnpm/link-bins'
-import {
+import logger, {
   LogBase,
   streamParser,
 } from '@pnpm/logger'
@@ -166,10 +166,17 @@ export default async (opts: HeadlessOptions) => {
   ])
   stageLogger.debug('importing_done')
 
-  await linkAllBins(depGraph, {optional: opts.optional})
+  function warn (message: string) {
+    logger.warn({
+      message,
+      prefix: opts.prefix,
+    })
+  }
+
+  await linkAllBins(depGraph, {optional: opts.optional, warn})
 
   await linkRootPackages(filteredShrinkwrap, opts.prefix, res.rootDependencies, nodeModulesDir)
-  await linkBins(nodeModulesDir, bin)
+  await linkBins(nodeModulesDir, bin, {warn})
 
   await writeCurrentShrinkwrapOnly(opts.prefix, filteredShrinkwrap)
   if (opts.ignoreScripts) {
@@ -466,6 +473,7 @@ async function linkAllBins (
   depGraph: DepGraphNodesByDepPath,
   opts: {
     optional: boolean,
+    warn: (message: string) => void,
   },
 ) {
   return Promise.all(
@@ -485,7 +493,7 @@ async function linkAllBins (
         const pkgSnapshots = R.props<string, DepGraphNode>(R.values(childrenToLink), depGraph)
 
         if (pkgSnapshots.indexOf(undefined as any) !== -1) { // tslint:disable-line
-          await linkBins(depNode.modules, binPath)
+          await linkBins(depNode.modules, binPath, {warn: opts.warn})
         } else {
           const pkgs = await Promise.all(
             pkgSnapshots
@@ -496,13 +504,13 @@ async function linkAllBins (
               })),
           )
 
-          await linkBinsOfPackages(pkgs, binPath)
+          await linkBinsOfPackages(pkgs, binPath, {warn: opts.warn})
         }
 
         // link also the bundled dependencies` bins
         if (depNode.hasBundledDependencies) {
           const bundledModules = path.join(depNode.peripheralLocation, 'node_modules')
-          await linkBins(bundledModules, binPath)
+          await linkBins(bundledModules, binPath, {warn: opts.warn})
         }
       })),
   )

@@ -3,7 +3,7 @@ dependencies:
   '@pnpm/fs-locker': 1.0.2
   '@pnpm/headless': 'link:../headless'
   '@pnpm/lifecycle': 2.2.1
-  '@pnpm/link-bins': 2.0.1
+  '@pnpm/link-bins': 3.0.0
   '@pnpm/modules-yaml': 1.0.0
   '@pnpm/package-requester': 3.0.2
   '@pnpm/pkgid-to-filename': 1.0.1
@@ -217,7 +217,7 @@ packages:
       '@pnpm/logger': ^1.0.0
     resolution:
       integrity: sha512-jB8OzeApGS5zHi79p4O3m6WVH4X8zDYv5CTT3GAScxr5yA1RqFam5MAOhrMhYZa5CY+kXcL6T0D25IclQzmTUQ==
-  /@pnpm/link-bins/2.0.1:
+  /@pnpm/link-bins/3.0.0:
     dependencies:
       '@pnpm/package-bins': 1.0.0
       '@pnpm/read-package-json': 1.0.0
@@ -236,10 +236,8 @@ packages:
     dev: false
     engines:
       node: '>=6'
-    peerDependencies:
-      '@pnpm/logger': ^1.0.0
     resolution:
-      integrity: sha512-xXD/8JrWOx68goDtYVROKV9DC/SnCyhtVMkpQcMpPly7dVjwRjUHy5nhnJh+4Aop9ho8/luXGpUQD9lQBcoUew==
+      integrity: sha512-I41fRWhioCzdAwiyKjhnY9Fb6CL6Gxff3oIfkJIBOZv9KzbZkvMOXzzC5UsBOJm0mVwk6tmmHZxOlFQoDilaBw==
   /@pnpm/local-resolver/1.0.0:
     dependencies:
       '@pnpm/resolver-base': 1.1.0
@@ -5016,7 +5014,7 @@ specifiers:
   '@pnpm/fs-locker': ^1.0.0
   '@pnpm/headless': ^0.5.4
   '@pnpm/lifecycle': ^2.2.1
-  '@pnpm/link-bins': ^2.0.0
+  '@pnpm/link-bins': ^3.0.0
   '@pnpm/logger': ^2.0.1
   '@pnpm/modules-yaml': ^1.0.0
   '@pnpm/package-requester': ^3.0.1
