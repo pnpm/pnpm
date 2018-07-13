@@ -1,9 +1,9 @@
 dependencies:
   '@pnpm/headless': 'link:'
   '@pnpm/lifecycle': 2.2.1
-  '@pnpm/link-bins': 2.0.0
+  '@pnpm/link-bins': 2.0.1
   '@pnpm/modules-yaml': 1.0.0
-  '@pnpm/package-requester': 3.0.1
+  '@pnpm/package-requester': 3.0.3
   '@pnpm/pkgid-to-filename': 1.0.1
   '@pnpm/read-package-json': 1.0.0
   '@pnpm/types': 1.7.0
@@ -92,9 +92,9 @@ packages:
       integrity: sha1-cr3Cab6AEDhQsAIFPr/Vn8MF/0Y=
   /@pnpm/default-resolver/2.0.0:
     dependencies:
-      '@pnpm/git-resolver': 0.3.5
+      '@pnpm/git-resolver': 0.3.6
       '@pnpm/local-resolver': 1.0.0
-      '@pnpm/npm-resolver': 2.1.3
+      '@pnpm/npm-resolver': 2.1.4
       '@pnpm/tarball-resolver': 0.1.1
     dev: true
     engines:
@@ -142,7 +142,7 @@ packages:
       node: '>=6'
     resolution:
       integrity: sha512-I/IzfoY21VBjAMNzWQ58H+8uBgwX34JSI7amTfWEwzG6E3stezPSnkJo4sOGluT7xtyIdNSKNIGq2gQXY4NTxw==
-  /@pnpm/git-resolver/0.3.5:
+  /@pnpm/git-resolver/0.3.6:
     dependencies:
       '@pnpm/resolver-base': 1.1.0
       '@types/node': 10.5.2
@@ -155,10 +155,8 @@ packages:
     dev: true
     engines:
       node: '>=4'
-    peerDependencies:
-      '@pnpm/logger': ^1.0.0
     resolution:
-      integrity: sha512-sp11JvoUbz5/TKjrqlbfBD8wThISEBYFsVLi0FeQ96pPCiTCYSuphi9uTsMPfdj8P3boj3YvUJtJMFwVkrwKPA==
+      integrity: sha512-+ItZiusgQeggTsW3ezrIdjaxWqhHTLgEWnvgQpc7XyukCPX2m29y6PJXrwjLgNr0bf5IGd2NvUM3wWhaWLhS2w==
   /@pnpm/lifecycle/2.2.1:
     dependencies:
       '@pnpm/types': 1.7.0
@@ -173,14 +171,15 @@ packages:
       '@pnpm/logger': ^1.0.0
     resolution:
       integrity: sha512-jB8OzeApGS5zHi79p4O3m6WVH4X8zDYv5CTT3GAScxr5yA1RqFam5MAOhrMhYZa5CY+kXcL6T0D25IclQzmTUQ==
-  /@pnpm/link-bins/2.0.0:
+  /@pnpm/link-bins/2.0.1:
     dependencies:
       '@pnpm/package-bins': 1.0.0
+      '@pnpm/read-package-json': 1.0.0
       '@pnpm/types': 1.7.0
       '@types/mz': 0.0.32
       '@types/node': 10.5.2
       '@types/ramda': 0.25.34
-      '@zkochan/cmd-shim': 2.2.4
+      '@zkochan/cmd-shim': 3.0.0
       arr-flatten: 1.1.0
       is-windows: 1.0.2
       mkdirp-promise: 5.0.1
@@ -188,14 +187,13 @@ packages:
       normalize-path: 3.0.0
       p-filter: 1.0.0
       ramda: 0.25.0
-      read-package-json: 2.0.13
     dev: false
     engines:
       node: '>=6'
     peerDependencies:
       '@pnpm/logger': ^1.0.0
     resolution:
-      integrity: sha512-eSByhkA2DPLgeFKKTJrlOc106hRkfFdJks6QUBsN7Ty6eRChUOHD/PYdgMoNa9BOghfhT4JwMD3p6CP6278new==
+      integrity: sha512-xXD/8JrWOx68goDtYVROKV9DC/SnCyhtVMkpQcMpPly7dVjwRjUHy5nhnJh+4Aop9ho8/luXGpUQD9lQBcoUew==
   /@pnpm/local-resolver/1.0.0:
     dependencies:
       '@pnpm/resolver-base': 1.1.0
@@ -231,7 +229,7 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha512-bl9TPt2UObSEpGPQHZ2soXSSwz+/0XZqK+afBRJ4L78NKV41oZTUnrLjeNbeNEVwIG9icrQ3ZeSslIvQy4L+Dw==
-  /@pnpm/npm-resolver/2.1.3:
+  /@pnpm/npm-resolver/2.1.4:
     dependencies:
       '@pnpm/resolver-base': 1.1.0
       '@pnpm/types': 1.7.0
@@ -254,9 +252,9 @@ packages:
     engines:
       node: '>=6'
     peerDependencies:
-      '@pnpm/logger': ^1.0.0
+      '@pnpm/logger': ^1.0.0 || ^2.0.0
     resolution:
-      integrity: sha512-cZRzysG58KAP+hLRL3pOCDDH+2YBuLVmpd0bQ7noazXfDiTKPqcwH2alkT0rM+OBG9NymoqRJIPBg5DwIjyRDQ==
+      integrity: sha512-KAS+ti+yMv9T2ks0QMVYp3uUTC1+gAuOYBOArSvOqfHqQ//kbM3PTbNspNEDshA2UVwdgIE6xY7+GzOl0Ti/eA==
   /@pnpm/package-bins/1.0.0:
     dependencies:
       '@pnpm/types': 1.7.0
@@ -268,7 +266,7 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha512-ZqVfIXK3r5AsP5VAhPHrhf3isF+T4yEuUpJTF9T03oFTJ9LBnkKvx8F7P7biKEManxSGOkSpNoIBdsura9pY5Q==
-  /@pnpm/package-requester/3.0.1:
+  /@pnpm/package-requester/3.0.3:
     dependencies:
       '@pnpm/check-package': 1.0.0
       '@pnpm/fetcher-base': 1.0.0
@@ -298,7 +296,7 @@ packages:
     peerDependencies:
       '@pnpm/logger': ^1.0.0
     resolution:
-      integrity: sha512-jHONd15f/iMC3dgP2coyfJHpwYatIWWR2DhMeHANzqR3dI2VHd3pjI8af68Kg4whjQmayx2Osn47KFxQqJeQhg==
+      integrity: sha512-A9FAJvNUOPJ6mfjKHKldhGnkbDKbgTLiV4ch1XpZHhutcqDp2OibCPlW5AB67twzw4RJCHg30YM+wFkj033ApA==
   /@pnpm/pkgid-to-filename/1.0.1:
     dependencies:
       normalize-path: 3.0.0
@@ -542,16 +540,16 @@ packages:
       npm: '>=3'
     resolution:
       integrity: sha512-AjEo5LXk4Yf0SaXSc3y4i1t+wxY552O7WrVJPtnC6H7nUsSrygg/ODCG1RSKelskOq6b5p/LyXnsTkmCFXyjDQ==
-  /@zkochan/cmd-shim/2.2.4:
+  /@zkochan/cmd-shim/3.0.0:
     dependencies:
       is-windows: 1.0.2
       mkdirp-promise: 5.0.1
       mz: 2.7.0
     dev: false
     engines:
-      node: '>=4'
+      node: '>=6'
     resolution:
-      integrity: sha512-BDy1oz6aFYyY73618IkXzJzFghnXwVZDc3SVa6MVKTrrk4RgubahAF5yKK+Mx4a78tfO0OHeZnJKPs0pNy5uNA==
+      integrity: sha512-mEdlYzulXT678cm6/ud4uQI3e6qrsgKuYZymqkDrHNcD22XFPJMpOGLjof3h+486ENzYhCB6msjKAUQ0/froDg==
   /@zkochan/husky/0.0.0:
     dependencies:
       is-ci: 1.1.0
@@ -1096,7 +1094,7 @@ packages:
       integrity: sha1-S0dXYP+AJkx2LDoXGQMukcf+oNE=
   /clone-response/1.0.2:
     dependencies:
-      mimic-response: 1.0.0
+      mimic-response: 1.0.1
     dev: true
     resolution:
       integrity: sha1-0dyXOSAxTfZ/vrlCI7TuNQI56Ws=
@@ -1349,7 +1347,7 @@ packages:
       integrity: sha1-rf54xmzAaeZOgkvRQFuF515tHLs=
   /decompress-response/3.3.0:
     dependencies:
-      mimic-response: 1.0.0
+      mimic-response: 1.0.1
     dev: true
     engines:
       node: '>=4'
@@ -1906,7 +1904,7 @@ packages:
       is-retry-allowed: 1.1.0
       isurl: 1.0.0
       lowercase-keys: 1.0.1
-      mimic-response: 1.0.0
+      mimic-response: 1.0.1
       p-cancelable: 0.4.1
       p-timeout: 2.0.1
       pify: 3.0.0
@@ -2738,12 +2736,12 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha512-jf84uxzwiuiIVKiOLpfYk7N46TSy8ubTonmneY9vrpHNAnp0QBt2BxWV9dO3/j+BoVAb+a5G6YDPW3M5HOdMWQ==
-  /mimic-response/1.0.0:
+  /mimic-response/1.0.1:
     dev: true
     engines:
       node: '>=4'
     resolution:
-      integrity: sha1-3z02Uqc/3ta5sLJBRub9BSNTRY4=
+      integrity: sha512-j5EctnkH7amfV/q5Hgmoal1g2QHFJRraOtmx0JpIqkxhBhI/lJSl1nMpQ45hVarwNETOoWEimndZ4QK0RHxuxQ==
   /min-document/2.19.0:
     dependencies:
       dom-walk: 0.1.1
@@ -3236,7 +3234,7 @@ packages:
     dependencies:
       '@pnpm/fetcher-base': 1.0.0
       '@pnpm/fs-locker': 1.0.2
-      '@pnpm/package-requester': 3.0.1
+      '@pnpm/package-requester': 3.0.3
       '@pnpm/resolver-base': 1.1.0
       '@pnpm/types': 1.7.0
       '@types/load-json-file': 2.0.7

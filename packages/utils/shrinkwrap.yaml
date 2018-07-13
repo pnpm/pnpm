@@ -68,7 +68,7 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha512-ZqVfIXK3r5AsP5VAhPHrhf3isF+T4yEuUpJTF9T03oFTJ9LBnkKvx8F7P7biKEManxSGOkSpNoIBdsura9pY5Q==
-  /@pnpm/package-requester/3.0.1:
+  /@pnpm/package-requester/3.0.3:
     dependencies:
       '@pnpm/check-package': 1.0.0
       '@pnpm/fetcher-base': 1.0.0
@@ -98,7 +98,7 @@ packages:
     peerDependencies:
       '@pnpm/logger': ^1.0.0
     resolution:
-      integrity: sha512-jHONd15f/iMC3dgP2coyfJHpwYatIWWR2DhMeHANzqR3dI2VHd3pjI8af68Kg4whjQmayx2Osn47KFxQqJeQhg==
+      integrity: sha512-A9FAJvNUOPJ6mfjKHKldhGnkbDKbgTLiV4ch1XpZHhutcqDp2OibCPlW5AB67twzw4RJCHg30YM+wFkj033ApA==
   /@pnpm/pkgid-to-filename/1.0.1:
     dependencies:
       normalize-path: 3.0.0
@@ -749,7 +749,7 @@ packages:
     dependencies:
       '@pnpm/fetcher-base': 1.0.0
       '@pnpm/fs-locker': 1.0.2
-      '@pnpm/package-requester': 3.0.1
+      '@pnpm/package-requester': 3.0.3
       '@pnpm/resolver-base': 1.1.0
       '@pnpm/types': 1.7.0
       '@types/load-json-file': 2.0.7

@@ -2,7 +2,7 @@ dependencies:
   '@commitlint/cli': 7.0.0
   '@commitlint/config-conventional': 7.0.1
   '@commitlint/prompt-cli': 7.0.0
-  husky: 1.0.0-rc.12
+  husky: 1.0.0-rc.13
 packages:
   /@commitlint/cli/7.0.0:
     dependencies:
@@ -647,7 +647,7 @@ packages:
     dev: false
     resolution:
       integrity: sha512-7T/BxH19zbcCTa8XkMlbK5lTo1WtgkFi3GvdWEyNuc4Vex7/9Dqbnpsf4JMydcfj9HCg4zUWFTL3Za6lapg5/w==
-  /husky/1.0.0-rc.12:
+  /husky/1.0.0-rc.13:
     dependencies:
       cosmiconfig: 5.0.5
       execa: 0.9.0
@@ -665,7 +665,7 @@ packages:
     hasBin: true
     requiresBuild: true
     resolution:
-      integrity: sha512-Jo9m4vfsxK8suGSaz2gvKOpkViEWVek3xMmUnC6dkiJzhG6uMxqpF/99v9UL0h5dk2WANCUmx818+mPOcTQ83Q==
+      integrity: sha512-ZNNoaBgfOHRA05UHS/etBoWFDu65mjPoohPYQwOqb5155KOovBp8LMkMoNK0kn3VYdsm+HWdtuHbD4XjfzlfpQ==
   /in-publish/2.0.0:
     dev: false
     hasBin: true
