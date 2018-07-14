@@ -110,7 +110,7 @@ test('redownload incomplete cached tarballs', async t => {
 
   t.plan(2)
   function reporter (log: LogBase & {level: string, name: string, message: string}) {
-    if (log.level === 'warn' && log.name === 'pnpm' && log.message.startsWith(`Redownloading corrupted cached tarball: ${cachedTarballLocation}`)) {
+    if (log.level === 'warn' && log.name === 'pnpm:store' && log.message.startsWith(`Redownloading corrupted cached tarball: ${cachedTarballLocation}`)) {
       t.pass('warning logged')
     }
   }

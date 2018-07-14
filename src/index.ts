@@ -1,4 +1,4 @@
-import logger from '@pnpm/logger'
+import {storeLogger} from '@pnpm/logger'
 import {
   FetchFunction,
   FetchOptions,
@@ -127,7 +127,7 @@ async function fetchFromRemoteTarball (
     // ignore errors for missing files or broken/partial archives
     switch (err.code) {
       case 'Z_BUF_ERROR':
-        logger.warn(`Redownloading corrupted cached tarball: ${opts.cachedTarballLocation}`);
+        storeLogger.warn(`Redownloading corrupted cached tarball: ${opts.cachedTarballLocation}`);
         break
       case 'ENOENT':
         break

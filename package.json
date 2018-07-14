@@ -31,7 +31,7 @@
   },
   "homepage": "https://github.com/pnpm/tarball-fetcher#readme",
   "peerDependencies": {
-    "@pnpm/logger": "^1.0.0"
+    "@pnpm/logger": "^2.1.0"
   },
   "dependencies": {
     "@pnpm/fetcher-base": "^1.0.0",
@@ -54,7 +54,7 @@
     "unpack-stream": "^3.0.0 || 4"
   },
   "devDependencies": {
-    "@pnpm/logger": "^1.0.0",
+    "@pnpm/logger": "^2.1.0",
     "@types/nock": "^9.1.0",
     "@types/tape": "^4.2.31",
     "@types/tempy": "^0.1.0",
