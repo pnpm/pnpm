@@ -4,13 +4,12 @@ import {
   FetchOptions,
   FetchResult,
 } from '@pnpm/fetcher-base'
-import logger from '@pnpm/logger'
+import {storeLogger} from '@pnpm/logger'
 import pkgIdToFilename from '@pnpm/pkgid-to-filename'
 import {
   DirectoryResolution,
   Resolution,
   ResolveFunction,
-  ResolveOptions,
   ResolveResult,
   WantedDependency,
 } from '@pnpm/resolver-base'
@@ -19,7 +18,6 @@ import {
   PackageManifest,
   StoreIndex,
 } from '@pnpm/types'
-import {Stats} from 'fs'
 import loadJsonFile = require('load-json-file')
 import mkdirp = require('mkdirp-promise')
 import fs = require('mz/fs')
@@ -31,7 +29,6 @@ import rimraf = require('rimraf-then')
 import symlinkDir = require('symlink-dir')
 import writeJsonFile = require('write-json-file')
 import {fromDir as readPkgFromDir} from './fs/readPkg'
-import {fromDir as safeReadPkgFromDir} from './fs/safeReadPkg'
 import {LoggedPkg, progressLogger} from './loggers'
 
 export interface PackageFilesResponse {
@@ -469,7 +466,7 @@ function fetchToStore (
           finishing.resolve(undefined)
           return
         }
-        logger.warn(`Refetching ${target} to store, as it was modified`)
+        storeLogger.warn(`Refetching ${target} to store, as it was modified`)
       }
 
       // We fetch into targetStage directory first and then fs.rename() it to the
@@ -604,7 +601,7 @@ async function fetcher (
   try {
     return await fetch(resolution, target, opts)
   } catch (err) {
-    logger.error(`Fetching ${opts.pkgId} failed!`)
+    storeLogger.warn(`Fetching ${opts.pkgId} failed!`)
     throw err
   }
 }

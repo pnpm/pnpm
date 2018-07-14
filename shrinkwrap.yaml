@@ -23,7 +23,7 @@ dependencies:
   util.promisify: 1.0.0
   write-json-file: 2.3.0
 devDependencies:
-  '@pnpm/logger': 1.0.2
+  '@pnpm/logger': 2.1.0
   '@pnpm/npm-resolver': 2.1.4
   '@pnpm/tarball-fetcher': 1.0.0
   '@types/nock': 9.3.0
@@ -69,16 +69,16 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha512-kp5ooq4wC84gelVjkQuV8GzDHe/m99+yvlx3HTHOP25SdfkshIG5k/q784cmw8axjBke/LXdgE9sR5JRNs8TTw==
-  /@pnpm/logger/1.0.2:
+  /@pnpm/logger/2.1.0:
     dependencies:
       '@types/node': 10.5.2
       bole: 3.0.2
       ndjson: 1.5.0
     dev: true
     engines:
-      node: '>=4'
+      node: '>=6'
     resolution:
-      integrity: sha512-A8XbJKvdueazvJGPn1qQ9LL6uopV88ebIT+dJKNQ68gT7yfCbtfT8j5ZzdVczmGbkiuBeZ1VckZerkO0tjOXZA==
+      integrity: sha512-BL4Laf6b50LjdcpOUWPukx2XJtb3mo2OpJjHdRNSDJu9YS2tRBeP14H2bNqGjCjfeml8z3KufI3Km6VQemVXNw==
   /@pnpm/npm-resolver/2.1.4:
     dependencies:
       '@pnpm/resolver-base': 1.1.0
@@ -3752,7 +3752,7 @@ shrinkwrapVersion: 3
 specifiers:
   '@pnpm/check-package': ^1.0.0
   '@pnpm/fetcher-base': ^1.0.0
-  '@pnpm/logger': ^1.0.0
+  '@pnpm/logger': ^2.1.0
   '@pnpm/npm-resolver': ^2.0.0
   '@pnpm/pkgid-to-filename': ^1.0.0
   '@pnpm/resolver-base': ^1.1.0
