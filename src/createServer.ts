@@ -1,4 +1,4 @@
-import logger from '@pnpm/logger'
+import {storeLogger} from '@pnpm/logger'
 import {
   RequestPackageOptions,
   WantedDependency,
@@ -139,10 +139,10 @@ export default function (
             res.end()
             break
           }
-          logger.info('Got request to stop the server')
+          storeLogger.info('Got request to stop the server')
           await close()
           res.end(JSON.stringify('OK'))
-          logger.info('Server stopped')
+          storeLogger.info('Server stopped')
           break
         default:
           res.statusCode = 404
