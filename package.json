@@ -37,11 +37,10 @@
     "@pnpm/logger": "^1.0.0 || ^2.0.0"
   },
   "dependencies": {
+    "@pnpm/read-package-json": "^1.0.0",
     "@pnpm/types": "^1.7.0",
     "npm-lifecycle": "^2.0.1",
-    "path-exists": "^3.0.0",
-    "read-package-json": "^2.0.13",
-    "util.promisify": "^1.0.0"
+    "path-exists": "^3.0.0"
   },
   "devDependencies": {
     "@pnpm/logger": "^2.0.1",

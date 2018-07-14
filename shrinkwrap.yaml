@@ -1,10 +1,9 @@
 dependencies:
   '@pnpm/lifecycle': 'link:../__package_previews__/lifecycle/@pnpm/lifecycle'
+  '@pnpm/read-package-json': 1.0.0
   '@pnpm/types': 1.7.0
   npm-lifecycle: 2.0.3
   path-exists: 3.0.0
-  read-package-json: 2.0.13
-  util.promisify: 1.0.0
 devDependencies:
   '@pnpm/logger': 2.0.1
   '@types/load-json-file': 2.0.7
@@ -44,6 +43,16 @@ packages:
       node: '>=6'
     resolution:
       integrity: sha512-dST450D6Nj9iu0L16wqBv6dEXpbSQ6tyG1G9zSIzzjHqcDdKgdtpNR/0DvxpDEzBPfwGFQ868+o7AFaCuQsyig==
+  /@pnpm/read-package-json/1.0.0:
+    dependencies:
+      '@pnpm/types': 1.7.0
+      read-package-json: 2.0.13
+      util.promisify: 1.0.0
+    dev: false
+    engines:
+      node: '>=6'
+    resolution:
+      integrity: sha512-G2bs2KRL84eJggkUYxDpI8RA0xFKR4tNqvHy6bGF8fDIzNtkp17nOgEMIcA2ShSwUX80gQ8BpBh6ix5KKF46tw==
   /@pnpm/self-installer/2.0.5:
     dev: true
     engines:
@@ -3615,6 +3624,7 @@ shrinkwrapMinorVersion: 8
 shrinkwrapVersion: 3
 specifiers:
   '@pnpm/logger': ^2.0.1
+  '@pnpm/read-package-json': ^1.0.0
   '@pnpm/types': ^1.7.0
   '@types/load-json-file': ^2.0.7
   '@types/node': ^10.0.4
@@ -3627,10 +3637,8 @@ specifiers:
   npm-lifecycle: ^2.0.1
   package-preview: ^1.0.1
   path-exists: ^3.0.0
-  read-package-json: ^2.0.13
   rimraf: ^2.6.2
   tape: ^4.8.0
   ts-node: ^7.0.0
   tslint: ^5.8.0
   typescript: ^2.6.1
-  util.promisify: ^1.0.0

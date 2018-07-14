@@ -1,12 +1,9 @@
+import {fromDir as readPackageJsonFromDir} from '@pnpm/read-package-json'
 import {PackageJson} from '@pnpm/types'
 import lifecycle = require('npm-lifecycle')
 import path = require('path')
 import exists = require('path-exists')
-import readPackageJsonCB = require('read-package-json')
-import promisify = require('util.promisify')
 import {LifecycleLog, lifecycleLogger} from './logger'
-
-const readPackageJson = promisify(readPackageJsonCB)
 
 function noop () {} // tslint:disable-line:no-empty
 
@@ -22,7 +19,7 @@ export async function runPostinstallHooks (
     unsafePerm: boolean,
   },
 ): Promise<boolean> {
-  const pkg = await readPackageJson(path.join(opts.pkgRoot, 'package.json'))
+  const pkg = await readPackageJsonFromDir(opts.pkgRoot)
   const scripts = pkg && pkg.scripts || {}
 
   if (!scripts.install) {
