@@ -10,6 +10,7 @@ export default async function safeIsInnerLink (
   depName: string,
   opts: {
     storePath: string,
+    prefix: string,
   },
 ): Promise<true | string> {
   try {
@@ -23,7 +24,10 @@ export default async function safeIsInnerLink (
   } catch (err) {
     if (err.code === 'ENOENT') return true
 
-    logger.warn(`Moving ${depName} that was installed by a different package manager to "node_modules/.ignored`)
+    logger.warn({
+      message: `Moving ${depName} that was installed by a different package manager to "node_modules/.ignored`,
+      prefix: opts.prefix,
+    })
     const ignoredDir = path.join(modules, '.ignored', depName)
     await mkdirp(path.dirname(ignoredDir))
     await fs.rename(

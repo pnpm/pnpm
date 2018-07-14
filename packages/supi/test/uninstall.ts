@@ -51,7 +51,7 @@ test('uninstall package with no dependencies', async (t: tape.Test) => {
     removed: 1,
   } as StatsLog), 'reported info message about removing orphans')
   t.ok(reporter.calledWithMatch({
-    level: 'info',
+    level: 'debug',
     name: 'pnpm:root',
     removed: {
       dependencyType: 'prod',

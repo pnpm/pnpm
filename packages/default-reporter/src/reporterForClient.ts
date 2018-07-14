@@ -562,9 +562,6 @@ function formatLifecycleHideOverflow (
   }
   const maxLineWidth = maxWidth - prefix.length - 2 + ANSI_ESCAPES_LENGTH_OF_PREFIX
   const line = formatLine(maxLineWidth, logObj)
-  if (logObj.level === 'error') {
-    return `${prefix}: ${line}`
-  }
   return `${prefix}: ${line}`
 }
 
@@ -574,7 +571,7 @@ function formatLine (maxWidth: number, logObj: LifecycleLog) {
   const line = stripAnsi(logObj['line']).substr(0, maxWidth)
 
   // TODO: strip only the non-color/style ansi escape codes
-  if (logObj.level === 'error') {
+  if (logObj['stdio'] === 'stderr') {
     return chalk.gray(line)
   }
   return line

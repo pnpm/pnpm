@@ -1,3 +1,4 @@
+import logger from '@pnpm/logger'
 import {Resolution} from '@pnpm/resolver-base'
 import {Dependencies, PackageJson} from '@pnpm/types'
 import * as dp from 'dependency-path'
@@ -18,6 +19,7 @@ export default function (
   depGraph: DepGraphNodesByDepPath,
   shrinkwrap: Shrinkwrap,
   pkg: PackageJson,
+  prefix: string,
 ): {
   newShrinkwrap: Shrinkwrap,
   pendingRequiresBuilds: PendingRequiresBuild[],
@@ -40,8 +42,9 @@ export default function (
       updatedOptionalDeps: result[0],
     })
   }
+  const warn = (message: string) => logger.warn({message, prefix})
   return {
-    newShrinkwrap: pruneShrinkwrap(shrinkwrap, pkg),
+    newShrinkwrap: pruneShrinkwrap(shrinkwrap, pkg, warn),
     pendingRequiresBuilds,
   }
 }

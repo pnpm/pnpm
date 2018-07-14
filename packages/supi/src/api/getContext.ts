@@ -88,7 +88,10 @@ export default async function getContext (
       if (installType !== 'general') {
         throw new Error('Named installation cannot be used to regenerate the node_modules structure. Run pnpm install --force')
       }
-      logger.info(`Recreating ${modulesPath}`)
+      logger.info({
+        message: `Recreating ${modulesPath}`,
+        prefix: opts.prefix,
+      })
       await removeAllExceptOuterLinks(modulesPath)
       return getContext(opts)
     }

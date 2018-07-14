@@ -125,7 +125,15 @@ export default async function resolveDependencies (
           // then bar@1.0.0 can be reused for foo@1.1.0
           if (!reference && wantedDependency.alias && semver.validRange(wantedDependency.pref) !== null &&
             preferedDependencies[wantedDependency.alias] &&
-            preferedSatisfiesWanted(preferedDependencies[wantedDependency.alias], wantedDependency as {alias: string, pref: string}, ctx.wantedShrinkwrap)) {
+            preferedSatisfiesWanted(
+              preferedDependencies[wantedDependency.alias],
+              wantedDependency as {alias: string, pref: string},
+              ctx.wantedShrinkwrap,
+              {
+                prefix: ctx.prefix,
+              },
+            )
+          ) {
             proceed = true
             reference = preferedDependencies[wantedDependency.alias]
           }
@@ -156,11 +164,17 @@ function preferedSatisfiesWanted (
   preferredRef: string,
   wantedDep: {alias: string, pref: string},
   shr: Shrinkwrap,
+  opts: {
+    prefix: string,
+  },
 ) {
   const relDepPath = dp.refToRelative(preferredRef, wantedDep.alias)
   const pkgSnapshot = shr.packages && shr.packages[relDepPath]
   if (!pkgSnapshot) {
-    logger.warn(`Could not find prefered package ${relDepPath} in shrinkwrap`)
+    logger.warn({
+      message: `Could not find prefered package ${relDepPath} in shrinkwrap`,
+      prefix: opts.prefix,
+    })
     return false
   }
   const nameVer = nameVerFromPkgSnapshot(relDepPath, pkgSnapshot)
@@ -306,7 +320,10 @@ async function install (
   if (pkgResponse.body.isLocal) {
     const manifest = pkgResponse.body.manifest || await pkgResponse['fetchingRawManifest'] // tslint:disable-line:no-string-literal
     if (options.currentDepth > 0) {
-      logger.warn(`Ignoring file dependency because it is not a root dependency ${wantedDependency}`)
+      logger.warn({
+        message: `Ignoring file dependency because it is not a root dependency ${wantedDependency}`,
+        prefix: ctx.prefix,
+      })
     } else {
       ctx.localPackages.push({
         alias: wantedDependency.alias || manifest.name,
@@ -391,7 +408,7 @@ async function install (
     ctx.outdatedPkgs[pkgResponse.body.id] = pkgResponse.body.latest
   }
   if (pkg.deprecated) {
-    deprecationLogger.warn({
+    deprecationLogger.debug({
       deprecated: pkg.deprecated,
       depth: options.currentDepth,
       pkgId: pkgResponse.body.id,

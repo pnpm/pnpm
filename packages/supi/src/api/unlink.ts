@@ -45,7 +45,10 @@ export async function _unlinkPkgs (
   for (const pkgName of pkgNames) {
     try {
       if (!await isExternalLink(opts.store, modules, pkgName)) {
-        logger.warn(`${pkgName} is not an external link`)
+        logger.warn({
+          message: `${pkgName} is not an external link`,
+          prefix: opts.prefix,
+        })
         continue
       }
     } catch (err) {

@@ -19,7 +19,7 @@ import pLimit = require('p-limit')
 import path = require('path')
 import pathAbsolute = require('path-absolute')
 import {
-  prune as pruneShrinkwrap,
+  pruneWithoutPackageJson as pruneShrinkwrap,
   Shrinkwrap,
   write as saveShrinkwrap,
   writeCurrentOnly as saveCurrentShrinkwrapOnly,
@@ -106,8 +106,9 @@ export default async function link (
     linkedPkgs.push({path: linkFrom, pkg: linkedPkg})
   }
 
-  const updatedCurrentShrinkwrap = pruneShrinkwrap(shrFiles.currentShrinkwrap)
-  const updatedWantedShrinkwrap = pruneShrinkwrap(shrFiles.wantedShrinkwrap)
+  const warn = (message: string) => logger.warn({message, prefix: opts.prefix})
+  const updatedCurrentShrinkwrap = pruneShrinkwrap(shrFiles.currentShrinkwrap, warn)
+  const updatedWantedShrinkwrap = pruneShrinkwrap(shrFiles.wantedShrinkwrap, warn)
   const modulesInfo = await readModulesYaml(destModules)
   await removeOrphanPkgs({
     bin: opts.bin,
@@ -126,7 +127,9 @@ export default async function link (
   }
 
   const linkToBin = maybeOpts && maybeOpts.linkToBin || path.join(destModules, '.bin')
-  await linkBinsOfPackages(linkedPkgs.map((p) => ({manifest: p.pkg, location: p.path})), linkToBin)
+  await linkBinsOfPackages(linkedPkgs.map((p) => ({manifest: p.pkg, location: p.path})), linkToBin, {
+    warn: (message: string) => logger.warn({message, prefix: opts.prefix}),
+  })
 
   if (opts.saveDev || opts.saveProd || opts.saveOptional) {
     const newPkg = await save(opts.prefix, specsToUpsert)
@@ -140,7 +143,7 @@ export default async function link (
     await saveCurrentShrinkwrapOnly(opts.prefix, updatedCurrentShrinkwrap)
   }
 
-  summaryLogger.info({prefix: opts.prefix})
+  summaryLogger.debug({prefix: opts.prefix})
 
   if (reporter) {
     streamParser.removeListener('data', reporter)

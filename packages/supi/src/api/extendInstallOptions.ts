@@ -179,10 +179,16 @@ export default async (
   const extendedOpts = {...defaultOpts, ...opts, store: defaultOpts.store}
   if (!extendedOpts.reinstallForFlatten) {
     if (extendedOpts.force) {
-      logger.warn('using --force I sure hope you know what you are doing')
+      logger.warn({
+        message: 'using --force I sure hope you know what you are doing',
+        prefix: extendedOpts.prefix,
+      })
     }
     if (extendedOpts.shamefullyFlatten) {
-      logger.warn('using --shamefully-flatten is discouraged, you should declare all of your dependencies in package.json')
+      logger.warn({
+        message: 'using --shamefully-flatten is discouraged, you should declare all of your dependencies in package.json',
+        prefix: extendedOpts.prefix,
+      })
     }
     if (!extendedOpts.shrinkwrap && extendedOpts.shrinkwrapOnly) {
       throw new Error('Cannot generate a shrinkwrap.yaml because shrinkwrap is set to false')
@@ -200,7 +206,10 @@ export default async (
     extendedOpts.rawNpmConfig['registry'] = extendedOpts.registry // tslint:disable-line:no-string-literal
     // if sideEffectsCacheReadonly is true, sideEffectsCache is necessarily true too
     if (extendedOpts.sideEffectsCache && extendedOpts.sideEffectsCacheReadonly) {
-      logger.warn("--side-effects-cache-readonly turns on side effects cache too, you don't need to specify both")
+      logger.warn({
+        message: "--side-effects-cache-readonly turns on side effects cache too, you don't need to specify both",
+        prefix: extendedOpts.prefix,
+      })
     }
     extendedOpts.sideEffectsCache = extendedOpts.sideEffectsCache || extendedOpts.sideEffectsCacheReadonly
   }

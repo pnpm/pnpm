@@ -20,7 +20,7 @@ packages:
   /@pnpm/exec/1.1.5:
     dependencies:
       '@pnpm/self-installer': 2.0.5
-      '@types/got': 8.3.2
+      '@types/got': 8.3.3
       '@types/node': 10.5.2
       command-exists: 1.2.7
       cross-spawn: 6.0.5
@@ -45,12 +45,12 @@ packages:
     dev: true
     resolution:
       integrity: sha512-DsknoBvD8s+RFfSGjmERJ7ZOP1HI0UZRA3FSI+Zakhrc/Gy26YQsLI+m5V5DHxroHRJqCDLKJp7Hixn8zyaF7g==
-  /@types/got/8.3.2:
+  /@types/got/8.3.3:
     dependencies:
       '@types/node': 10.5.2
     dev: true
     resolution:
-      integrity: sha512-279dKa5CgaJ1sYxLyKULh+rtGSmSGiY/9FScEIxbUQZgCKieApw1v6UmKkKigzRBcypC7LbvSfSR/0SYbsewvQ==
+      integrity: sha512-OXZz0iG3oX9RHTZAeVGJQCjCOGx0r7MnSWebgUoX5CiFq0aVcRJrUPLQo/dBdKOaosbp4K9NTZTSec2zWk9YIg==
   /@types/load-json-file/2.0.7:
     dev: true
     resolution:
@@ -848,13 +848,13 @@ packages:
       node: '>=0.8.0'
     resolution:
       integrity: sha1-G2HAViGQqN/2rjuyzwIAyhMLhtQ=
-  /esprima/4.0.0:
+  /esprima/4.0.1:
     dev: true
     engines:
       node: '>=4'
     hasBin: true
     resolution:
-      integrity: sha512-oftTcaMu/EGrEIu904mWteKIv8vMuOgGYo7EhVJJN00R/EED9DCua/xxHRdYnKtcECzVg7xOWhflvJMnqcFZjw==
+      integrity: sha512-eGuFFw7Upda+g4p+QHvnW0RyTX/SVeJBDM/gCtMARO0cLuT2HcEKnTPvhjV6aGeqrCB/sbNop0Kszm0jsaWU4A==
   /estree-walker/0.2.1:
     dev: true
     resolution:
@@ -1305,7 +1305,7 @@ packages:
   /js-yaml/3.12.0:
     dependencies:
       argparse: 1.0.10
-      esprima: 4.0.0
+      esprima: 4.0.1
     dev: true
     hasBin: true
     resolution:

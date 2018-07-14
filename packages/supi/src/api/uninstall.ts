@@ -4,6 +4,7 @@ import {
   getSaveType,
   removeOrphanPackages as removeOrphanPkgs,
   removeTopDependency,
+  summaryLogger,
 } from '@pnpm/utils'
 import * as dp from 'dependency-path'
 import path = require('path')
@@ -37,7 +38,11 @@ export default async function uninstall (
   const opts = await extendOptions(maybeOpts)
 
   if (opts.lock) {
-    await lock(opts.prefix, _uninstall, {stale: opts.lockStaleDuration, locks: opts.locks})
+    await lock(opts.prefix, _uninstall, {
+      locks: opts.locks,
+      prefix: opts.prefix,
+      stale: opts.lockStaleDuration,
+    })
   } else {
     await _uninstall()
   }
@@ -67,7 +72,7 @@ export async function uninstallInContext (
   const pkgJsonPath = path.join(ctx.prefix, 'package.json')
   const saveType = getSaveType(opts)
   const pkg = await removeDeps(pkgJsonPath, pkgsToUninstall, { prefix: opts.prefix, saveType })
-  const newShr = pruneShrinkwrap(ctx.wantedShrinkwrap, pkg)
+  const newShr = pruneShrinkwrap(ctx.wantedShrinkwrap, pkg, (message) => logger.warn({message, prefix: ctx.prefix}))
   const removedPkgIds = await removeOrphanPkgs({
     bin: opts.bin,
     hoistedAliases: ctx.hoistedAliases,
@@ -80,7 +85,7 @@ export async function uninstallInContext (
   ctx.pendingBuilds = ctx.pendingBuilds.filter((pkgId) => !removedPkgIds.has(dp.resolve(newShr.registry, pkgId)))
   await opts.storeController.close()
   const currentShrinkwrap = makePartialCurrentShrinkwrap
-    ? pruneShrinkwrap(ctx.currentShrinkwrap, pkg)
+    ? pruneShrinkwrap(ctx.currentShrinkwrap, pkg, (message) => logger.warn({message, prefix: ctx.prefix}))
     : newShr
   if (opts.shrinkwrap) {
     await saveShrinkwrap(ctx.prefix, newShr, currentShrinkwrap)
@@ -107,7 +112,7 @@ export async function uninstallInContext (
     await installPkgs(currentShrinkwrap.specifiers, {...opts, lock: false, reinstallForFlatten: true, update: false})
   }
 
-  logger('summary').info()
+  summaryLogger.debug({prefix: opts.prefix})
 }
 
 async function removeOuterLinks (

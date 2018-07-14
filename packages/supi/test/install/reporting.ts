@@ -19,7 +19,7 @@ test('reports warning when installing deprecated packages', async (t: tape.Test)
 
   t.ok(reporter.calledWithMatch({
     deprecated: 'Jade has been renamed to pug, please install the latest version of pug instead of jade',
-    level: 'warn',
+    level: 'debug',
     name: 'pnpm:deprecation',
     pkgId: 'localhost+4873/jade/1.11.0',
   } as DeprecationLog), 'deprecation warning reported')

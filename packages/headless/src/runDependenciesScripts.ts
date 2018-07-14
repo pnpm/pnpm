@@ -67,11 +67,15 @@ export default async (
                 })
               } catch (err) {
                 if (err && err.statusCode === 403) {
-                  logger.warn(`The store server disabled upload requests, could not upload ${depNode.pkgId}`)
+                  logger.warn({
+                    message: `The store server disabled upload requests, could not upload ${depNode.pkgId}`,
+                    prefix: opts.prefix,
+                  })
                 } else {
                   logger.warn({
-                    err,
+                    error: err,
                     message: `An error occurred while uploading ${depNode.pkgId}`,
+                    prefix: opts.prefix,
                   })
                 }
               }

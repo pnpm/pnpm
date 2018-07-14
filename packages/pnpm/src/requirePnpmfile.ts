@@ -2,10 +2,13 @@ import logger from '@pnpm/logger'
 import chalk from 'chalk'
 import fs = require('fs')
 
-export default (pnpmFilePath: string) => {
+export default (pnpmFilePath: string, prefix: string) => {
   try {
     const pnpmfile = require(pnpmFilePath)
-    logger.info(`Using hooks from: ${pnpmFilePath}`)
+    logger.info({
+      message: `Using hooks from: ${pnpmFilePath}`,
+      prefix,
+    })
     if (pnpmfile && pnpmfile.hooks && pnpmfile.hooks.readPackage && typeof pnpmfile.hooks.readPackage !== 'function') {
       throw new TypeError('hooks.readPackage should be a function')
     }

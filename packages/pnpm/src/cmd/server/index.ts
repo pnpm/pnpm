@@ -1,4 +1,3 @@
-import logger from '@pnpm/logger'
 import { PnpmOptions } from '../../types'
 import help from '../help'
 import start from './start'

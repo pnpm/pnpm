@@ -1,4 +1,5 @@
 import linkBins, {linkBinsOfPackages} from '@pnpm/link-bins'
+import logger from '@pnpm/logger'
 import {fromDir as readPackageFromDir} from '@pnpm/read-package-json'
 import {PackageJson} from '@pnpm/types'
 import {
@@ -64,9 +65,16 @@ export default async function linkPackages (
   // The `Creating dependency graph` is not good to report in all cases as
   // sometimes node_modules is alread up-to-date
   // logger.info(`Creating dependency graph`)
-  const resolvePeersResult = await resolvePeers(pkgGraph, rootNodeIdsByAlias, opts.topParents, opts.independentLeaves, opts.baseNodeModules)
+  const resolvePeersResult = await resolvePeers(
+    pkgGraph,
+    rootNodeIdsByAlias,
+    opts.topParents,
+    opts.independentLeaves,
+    opts.baseNodeModules,
+    opts.prefix,
+  )
   const depGraph = resolvePeersResult.depGraph
-  let {newShrinkwrap, pendingRequiresBuilds} = updateShrinkwrap(depGraph, opts.wantedShrinkwrap, opts.pkg) // tslint:disable-line:prefer-const
+  let {newShrinkwrap, pendingRequiresBuilds} = updateShrinkwrap(depGraph, opts.wantedShrinkwrap, opts.pkg, opts.prefix) // tslint:disable-line:prefer-const
   if (opts.afterAllResolvedHook) {
     newShrinkwrap = opts.afterAllResolvedHook(newShrinkwrap)
   }
@@ -121,7 +129,7 @@ export default async function linkPackages (
     if (opts.dryRun || !(await symlinkDependencyTo(rootAlias, pkg, opts.baseNodeModules)).reused) {
       const isDev = opts.pkg.devDependencies && opts.pkg.devDependencies[pkg.name]
       const isOptional = opts.pkg.optionalDependencies && opts.pkg.optionalDependencies[pkg.name]
-      rootLogger.info({
+      rootLogger.debug({
         added: {
           dependencyType: isDev && 'dev' || isOptional && 'optional' || 'prod',
           id: pkg.id,
@@ -187,7 +195,9 @@ export default async function linkPackages (
   }
 
   if (!opts.dryRun) {
-    await linkBins(opts.baseNodeModules, opts.bin)
+    await linkBins(opts.baseNodeModules, opts.bin, {
+      warn: (message: string) => logger.warn({message, prefix: opts.prefix}),
+    })
   }
 
   return {
@@ -353,7 +363,10 @@ async function linkNewPackages (
     linkAllPkgs(opts.storeController, newPkgs, opts),
   ])
 
-  await linkAllBins(newPkgs, depGraph, {optional: opts.optional})
+  await linkAllBins(newPkgs, depGraph, {
+    optional: opts.optional,
+    warn: (message: string) => logger.warn({message, prefix: opts.prefix}),
+  })
 
   return newDepPaths
 }
@@ -386,6 +399,7 @@ async function linkAllBins (
   depGraph: DepGraphNodesByDepPath,
   opts: {
     optional: boolean,
+    warn: (message: string) => void,
   },
 ) {
   return Promise.all(
@@ -413,12 +427,12 @@ async function linkAllBins (
       )
 
       const binPath = path.join(depNode.peripheralLocation, 'node_modules', '.bin')
-      await linkBinsOfPackages(pkgs, binPath)
+      await linkBinsOfPackages(pkgs, binPath, {warn: opts.warn})
 
       // link also the bundled dependencies` bins
       if (depNode.hasBundledDependencies) {
         const bundledModules = path.join(depNode.peripheralLocation, 'node_modules')
-        await linkBins(bundledModules, binPath)
+        await linkBins(bundledModules, binPath, {warn: opts.warn})
       }
     })),
   )

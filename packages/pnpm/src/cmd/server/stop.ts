@@ -1,8 +1,7 @@
-import logger from '@pnpm/logger'
+import {storeLogger} from '@pnpm/logger'
 import {connectStoreController} from '@pnpm/server'
 import storePath from '@pnpm/store-path'
 import delay = require('delay')
-import loadJsonFile = require('load-json-file')
 import path = require('path')
 import processExists = require('process-exists')
 import killcb = require('tree-kill')
@@ -25,17 +24,17 @@ export default async (
     shouldRetryOnNoent: false,
   })
   if (serverJson === null) {
-    logger.info(`Nothing to stop. No server is running for the store at ${store}`)
+    storeLogger.info(`Nothing to stop. No server is running for the store at ${store}`)
     return
   }
   const storeController = await connectStoreController(serverJson.connectionOptions)
   await storeController.stop()
 
   if (!await processExists(serverJson.pid) || await delay(5000) && !await processExists(serverJson.pid)) {
-    logger.info('Server gracefully stopped')
+    storeLogger.info('Server gracefully stopped')
     return
   }
-  logger.warn('Graceful shutdown failed')
+  storeLogger.warn('Graceful shutdown failed')
   await kill(serverJson.pid, 'SIGINT')
-  logger.info('Server process terminated')
+  storeLogger.info('Server process terminated')
 }

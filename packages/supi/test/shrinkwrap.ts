@@ -599,7 +599,7 @@ test('packages are placed in devDependencies even if they are present as non-dev
       name: 'dep-of-pkg-with-1-dep',
       version: '100.1.0',
     },
-    level: 'info',
+    level: 'debug',
     name: 'pnpm:root',
   } as RootLog), 'dep-of-pkg-with-1-dep added to root')
   t.ok(reporter.calledWithMatch({
@@ -608,7 +608,7 @@ test('packages are placed in devDependencies even if they are present as non-dev
       name: 'pkg-with-1-dep',
       version: '100.0.0',
     },
-    level: 'info',
+    level: 'debug',
     name: 'pnpm:root',
   } as RootLog), 'pkg-with-1-dep added to root')
 })

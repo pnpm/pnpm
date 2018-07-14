@@ -189,6 +189,7 @@ test("reports child's output", async (t: tape.Test) => {
     line: '1',
     name: 'pnpm:lifecycle',
     stage: 'postinstall',
+    stdio: 'stdout',
   } as LifecycleLog))
   t.ok(reporter.calledWithMatch({
     depPath: 'localhost+4873/count-to-10/1.0.0',
@@ -196,13 +197,15 @@ test("reports child's output", async (t: tape.Test) => {
     line: '2',
     name: 'pnpm:lifecycle',
     stage: 'postinstall',
+    stdio: 'stdout',
   } as LifecycleLog))
   t.ok(reporter.calledWithMatch({
     depPath: 'localhost+4873/count-to-10/1.0.0',
-    level: 'error',
+    level: 'debug',
     line: '6',
     name: 'pnpm:lifecycle',
     stage: 'postinstall',
+    stdio: 'stderr',
   } as LifecycleLog))
   t.ok(reporter.calledWithMatch({
     depPath: 'localhost+4873/count-to-10/1.0.0',
@@ -225,7 +228,7 @@ test("reports child's close event", async (t: tape.Test) => {
     t.ok(reporter.calledWithMatch({
       depPath: 'localhost+4873/failing-postinstall/1.0.0',
       exitCode: 1,
-      level: 'error',
+      level: 'debug',
       name: 'pnpm:lifecycle',
       stage: 'postinstall',
     } as LifecycleLog))
