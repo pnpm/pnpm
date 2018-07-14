@@ -1,6 +1,9 @@
+import {
+  storeLogger,
+  streamParser,
+} from '@pnpm/logger'
 import normalizeRegistryUrl = require('normalize-registry-url')
 
-import logger, {streamParser} from '@pnpm/logger'
 import {StoreController} from 'package-store'
 
 import parseWantedDependencies from '../parseWantedDependencies';
@@ -47,13 +50,10 @@ export default async function (
         verifyStoreIntegrity: opts.verifyStoreIntegrity || true,
       })
       await pkgResponse['fetchingFiles'] // tslint:disable-line:no-string-literal
-      logger.info({
-        message: `+ ${pkgResponse.body.id}`,
-        prefix,
-      })
+      storeLogger.info(`+ ${pkgResponse.body.id}`)
     } catch (e) {
       hasFailures = true;
-      logger.error(e);
+      storeLogger.error(e);
     }
   }))
 
