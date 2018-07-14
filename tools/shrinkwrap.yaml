@@ -504,13 +504,13 @@ packages:
       node: '>=0.8.0'
     resolution:
       integrity: sha1-G2HAViGQqN/2rjuyzwIAyhMLhtQ=
-  /esprima/4.0.0:
+  /esprima/4.0.1:
     dev: false
     engines:
       node: '>=4'
     hasBin: true
     resolution:
-      integrity: sha512-oftTcaMu/EGrEIu904mWteKIv8vMuOgGYo7EhVJJN00R/EED9DCua/xxHRdYnKtcECzVg7xOWhflvJMnqcFZjw==
+      integrity: sha512-eGuFFw7Upda+g4p+QHvnW0RyTX/SVeJBDM/gCtMARO0cLuT2HcEKnTPvhjV6aGeqrCB/sbNop0Kszm0jsaWU4A==
   /execa/0.9.0:
     dependencies:
       cross-spawn: 5.1.0
@@ -799,7 +799,7 @@ packages:
   /js-yaml/3.12.0:
     dependencies:
       argparse: 1.0.10
-      esprima: 4.0.0
+      esprima: 4.0.1
     dev: false
     hasBin: true
     resolution:

@@ -88,7 +88,6 @@
     "@types/mkdirp": "^0.5.1",
     "@types/sinon": "^5.0.0",
     "@types/tape": "^4.2.30",
-    "@zkochan/husky": "^0.0.0",
     "anonymous-npm-registry-client": "^0.1.2",
     "caw": "^2.0.0",
     "cross-spawn": "^6.0.5",

@@ -74,7 +74,6 @@ devDependencies:
   '@types/tape': 4.2.32
   '@types/update-notifier': 2.2.0
   '@types/write-json-file': 2.2.1
-  '@zkochan/husky': 0.0.0
   anonymous-npm-registry-client: 0.1.2
   byline: 5.0.0
   caw: 2.0.1
@@ -159,7 +158,7 @@ packages:
       integrity: sha1-cr3Cab6AEDhQsAIFPr/Vn8MF/0Y=
   /@pnpm/default-resolver/2.0.0:
     dependencies:
-      '@pnpm/git-resolver': 0.3.7
+      '@pnpm/git-resolver': 0.3.6
       '@pnpm/local-resolver': 1.0.0
       '@pnpm/npm-resolver': 2.1.4
       '@pnpm/tarball-resolver': 0.1.1
@@ -171,7 +170,7 @@ packages:
   /@pnpm/exec/1.1.5:
     dependencies:
       '@pnpm/self-installer': 2.0.5
-      '@types/got': 8.3.2
+      '@types/got': 8.3.3
       '@types/node': 10.5.2
       command-exists: 1.2.7
       cross-spawn: 6.0.5
@@ -210,7 +209,7 @@ packages:
       node: '>=6'
     resolution:
       integrity: sha512-I/IzfoY21VBjAMNzWQ58H+8uBgwX34JSI7amTfWEwzG6E3stezPSnkJo4sOGluT7xtyIdNSKNIGq2gQXY4NTxw==
-  /@pnpm/git-resolver/0.3.7:
+  /@pnpm/git-resolver/0.3.6:
     dependencies:
       '@pnpm/resolver-base': 1.1.0
       '@types/node': 10.5.2
@@ -224,7 +223,7 @@ packages:
     engines:
       node: '>=4'
     resolution:
-      integrity: sha512-7heX6FF6X9cD2glIw9dQ+hGz/egn9oTFy9ea9Bi3KIHtsp7CDmMxrhLt7+XATGWK377PlF75IOzayzX2U9TMyA==
+      integrity: sha512-+ItZiusgQeggTsW3ezrIdjaxWqhHTLgEWnvgQpc7XyukCPX2m29y6PJXrwjLgNr0bf5IGd2NvUM3wWhaWLhS2w==
   /@pnpm/lifecycle/2.2.1:
     dependencies:
       '@pnpm/types': 1.7.0
@@ -316,7 +315,7 @@ packages:
       '@pnpm/logger': '>=2.0.1 <3.0.0'
     resolution:
       integrity: sha512-IdkUjFP7gZKKjEiwYBXia/d9edRUAMfTFcwsQ2lP7v9+e/XtwmzatqmDi9u3ruOg/3OAVDlhb53MO6Pf/tJZXA==
-  /@pnpm/package-requester/3.0.2:
+  /@pnpm/package-requester/3.0.3:
     dependencies:
       '@pnpm/check-package': 1.0.0
       '@pnpm/fetcher-base': 1.0.0
@@ -346,7 +345,7 @@ packages:
     peerDependencies:
       '@pnpm/logger': ^1.0.0
     resolution:
-      integrity: sha512-qB/EBboIDVHH7DPWqLjQkbWPXjREhW1TGug3en35MhhSGl6QhpPl4o74tfEsG88biR5ZxX25hi52bA51wmzsNA==
+      integrity: sha512-A9FAJvNUOPJ6mfjKHKldhGnkbDKbgTLiV4ch1XpZHhutcqDp2OibCPlW5AB67twzw4RJCHg30YM+wFkj033ApA==
   /@pnpm/pkgid-to-filename/1.0.1:
     dependencies:
       normalize-path: 3.0.0
@@ -380,10 +379,10 @@ packages:
       integrity: sha512-NnkmxKFQJMkHL2TcLAl2sof7mVu8dgode4zGzwtvEaZ/xjOHm3CfUJomincmZcpWoXrjHkvbPxjczEPP41Wmqg==
   /@pnpm/server/0.13.3:
     dependencies:
-      '@pnpm/package-requester': 3.0.2
+      '@pnpm/package-requester': 3.0.3
       '@pnpm/resolver-base': 1.1.0
       '@pnpm/types': 1.7.0
-      '@types/got': 8.3.2
+      '@types/got': 8.3.3
       '@types/node': 10.5.2
       '@types/p-limit': 1.1.2
       '@types/uuid': 3.4.3
@@ -504,11 +503,11 @@ packages:
     dev: false
     resolution:
       integrity: sha512-wc+VveszMLyMWFvXLkloixT4n0harUIVZjnpzztaZ0nKLuul7Z32iMt2fUFGAaZ4y1XWjFRMtCI5ewvyh4aIeg==
-  /@types/got/8.3.2:
+  /@types/got/8.3.3:
     dependencies:
       '@types/node': 10.5.2
     resolution:
-      integrity: sha512-279dKa5CgaJ1sYxLyKULh+rtGSmSGiY/9FScEIxbUQZgCKieApw1v6UmKkKigzRBcypC7LbvSfSR/0SYbsewvQ==
+      integrity: sha512-OXZz0iG3oX9RHTZAeVGJQCjCOGx0r7MnSWebgUoX5CiFq0aVcRJrUPLQo/dBdKOaosbp4K9NTZTSec2zWk9YIg==
   /@types/graceful-fs/4.1.2:
     dependencies:
       '@types/node': 10.5.2
@@ -643,17 +642,6 @@ packages:
       npm: '>=3'
     resolution:
       integrity: sha512-AjEo5LXk4Yf0SaXSc3y4i1t+wxY552O7WrVJPtnC6H7nUsSrygg/ODCG1RSKelskOq6b5p/LyXnsTkmCFXyjDQ==
-  /@zkochan/husky/0.0.0:
-    dependencies:
-      is-ci: 1.1.0
-      normalize-path: 1.0.0
-      strip-indent: 2.0.0
-    dev: true
-    engines:
-      node: '>=4'
-    requiresBuild: true
-    resolution:
-      integrity: sha512-onS0BpZl/Zj903N60DM58rENRH9qZPWUALc4M808CG7Kv2M6BHz1W4XREg1vivAYaD3z2Hd9O2iEy3SJlALnbg==
   /@zkochan/libnpx/9.6.1:
     dependencies:
       dotenv: 4.0.0
@@ -1339,6 +1327,7 @@ packages:
     resolution:
       integrity: sha1-4qdQQqlVGQi+vSW4Uj1fl2nXkYE=
   /ci-info/1.1.3:
+    dev: false
     resolution:
       integrity: sha512-SK/846h/Rcy8q9Z9CAwGBLfCJ6EkjJWdpelWDufQpqVDYq2Wnnv8zlSO6AMQap02jvhVruKKpEtQOufo3pFhLg==
   /class-methods/1.0.10:
@@ -2083,12 +2072,12 @@ packages:
       node: '>=0.8.0'
     resolution:
       integrity: sha1-G2HAViGQqN/2rjuyzwIAyhMLhtQ=
-  /esprima/4.0.0:
+  /esprima/4.0.1:
     engines:
       node: '>=4'
     hasBin: true
     resolution:
-      integrity: sha512-oftTcaMu/EGrEIu904mWteKIv8vMuOgGYo7EhVJJN00R/EED9DCua/xxHRdYnKtcECzVg7xOWhflvJMnqcFZjw==
+      integrity: sha512-eGuFFw7Upda+g4p+QHvnW0RyTX/SVeJBDM/gCtMARO0cLuT2HcEKnTPvhjV6aGeqrCB/sbNop0Kszm0jsaWU4A==
   /esutils/2.0.2:
     dev: true
     engines:
@@ -3052,6 +3041,7 @@ packages:
   /is-ci/1.1.0:
     dependencies:
       ci-info: 1.1.3
+    dev: false
     hasBin: true
     resolution:
       integrity: sha512-c7TnwxLePuqIlxHgr7xtxzycJPegNHFuIrBkwbf8hc58//+Op1CqFkyS+xnIMkwn9UsJIwc174BIjkyBmSpjKg==
@@ -3305,7 +3295,7 @@ packages:
   /js-yaml/3.11.0:
     dependencies:
       argparse: 1.0.10
-      esprima: 4.0.0
+      esprima: 4.0.1
     dev: true
     hasBin: true
     resolution:
@@ -3313,7 +3303,7 @@ packages:
   /js-yaml/3.12.0:
     dependencies:
       argparse: 1.0.10
-      esprima: 4.0.0
+      esprima: 4.0.1
     hasBin: true
     resolution:
       integrity: sha512-PIt2cnwmPfL4hKNwqeiuz4bKfnzHTBv6HyVgjahA6mPLwPDzjDWrplJBMjHUFxku/N3FlmrbyPclad+I+4mJ3A==
@@ -4055,12 +4045,6 @@ packages:
       validate-npm-package-license: 3.0.3
     resolution:
       integrity: sha512-9jjUFbTPfEy3R/ad/2oNbKtW9Hgovl5O1FvFWKkKblNXoN/Oou6+9+KKohPK13Yc3/TyunyWhJp6gvRNR/PPAw==
-  /normalize-path/1.0.0:
-    dev: true
-    engines:
-      node: '>=0.10.0'
-    resolution:
-      integrity: sha1-MtDkcvkf80VwHBWoMRAY07CpA3k=
   /normalize-path/3.0.0:
     dev: false
     engines:
@@ -4450,7 +4434,7 @@ packages:
     dependencies:
       '@pnpm/fetcher-base': 1.0.0
       '@pnpm/fs-locker': 1.0.2
-      '@pnpm/package-requester': 3.0.2
+      '@pnpm/package-requester': 3.0.3
       '@pnpm/resolver-base': 1.1.0
       '@pnpm/types': 1.7.0
       '@types/load-json-file': 2.0.7
@@ -6571,7 +6555,6 @@ specifiers:
   '@types/tape': ^4.2.30
   '@types/update-notifier': ^2.0.0
   '@types/write-json-file': ^2.2.1
-  '@zkochan/husky': ^0.0.0
   '@zkochan/libnpx': ^9.6.1
   anonymous-npm-registry-client: ^0.1.2
   byline: ^5.0.0

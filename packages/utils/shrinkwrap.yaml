@@ -68,7 +68,7 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha512-ZqVfIXK3r5AsP5VAhPHrhf3isF+T4yEuUpJTF9T03oFTJ9LBnkKvx8F7P7biKEManxSGOkSpNoIBdsura9pY5Q==
-  /@pnpm/package-requester/3.0.2:
+  /@pnpm/package-requester/3.0.3:
     dependencies:
       '@pnpm/check-package': 1.0.0
       '@pnpm/fetcher-base': 1.0.0
@@ -98,7 +98,7 @@ packages:
     peerDependencies:
       '@pnpm/logger': ^1.0.0
     resolution:
-      integrity: sha512-qB/EBboIDVHH7DPWqLjQkbWPXjREhW1TGug3en35MhhSGl6QhpPl4o74tfEsG88biR5ZxX25hi52bA51wmzsNA==
+      integrity: sha512-A9FAJvNUOPJ6mfjKHKldhGnkbDKbgTLiV4ch1XpZHhutcqDp2OibCPlW5AB67twzw4RJCHg30YM+wFkj033ApA==
   /@pnpm/pkgid-to-filename/1.0.1:
     dependencies:
       normalize-path: 3.0.0
@@ -354,12 +354,12 @@ packages:
       node: '>=0.8.0'
     resolution:
       integrity: sha1-G2HAViGQqN/2rjuyzwIAyhMLhtQ=
-  /esprima/4.0.0:
+  /esprima/4.0.1:
     engines:
       node: '>=4'
     hasBin: true
     resolution:
-      integrity: sha512-oftTcaMu/EGrEIu904mWteKIv8vMuOgGYo7EhVJJN00R/EED9DCua/xxHRdYnKtcECzVg7xOWhflvJMnqcFZjw==
+      integrity: sha512-eGuFFw7Upda+g4p+QHvnW0RyTX/SVeJBDM/gCtMARO0cLuT2HcEKnTPvhjV6aGeqrCB/sbNop0Kszm0jsaWU4A==
   /esutils/2.0.2:
     dev: true
     engines:
@@ -519,7 +519,7 @@ packages:
   /js-yaml/3.12.0:
     dependencies:
       argparse: 1.0.10
-      esprima: 4.0.0
+      esprima: 4.0.1
     hasBin: true
     resolution:
       integrity: sha512-PIt2cnwmPfL4hKNwqeiuz4bKfnzHTBv6HyVgjahA6mPLwPDzjDWrplJBMjHUFxku/N3FlmrbyPclad+I+4mJ3A==
@@ -749,7 +749,7 @@ packages:
     dependencies:
       '@pnpm/fetcher-base': 1.0.0
       '@pnpm/fs-locker': 1.0.2
-      '@pnpm/package-requester': 3.0.2
+      '@pnpm/package-requester': 3.0.3
       '@pnpm/resolver-base': 1.1.0
       '@pnpm/types': 1.7.0
       '@types/load-json-file': 2.0.7

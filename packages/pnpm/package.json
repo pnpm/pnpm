@@ -95,7 +95,6 @@
     "@types/tape": "^4.2.30",
     "@types/update-notifier": "^2.0.0",
     "@types/write-json-file": "^2.2.1",
-    "@zkochan/husky": "^0.0.0",
     "anonymous-npm-registry-client": "^0.1.2",
     "byline": "^5.0.0",
     "caw": "^2.0.0",
