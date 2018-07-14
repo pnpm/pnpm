@@ -8,13 +8,13 @@ dependencies:
   dependency-path: 1.2.1
   fs-vacuum: 1.2.10
   mz: 2.7.0
-  package-store: 0.22.1
+  package-store: 0.23.0
   pnpm-shrinkwrap: 7.0.0
   ramda: 0.25.0
   rimraf-then: 1.0.1
   util.promisify: 1.0.0
 devDependencies:
-  '@pnpm/logger': 2.0.1
+  '@pnpm/logger': 2.1.0
   rimraf: 2.6.2
   tslint: 5.10.0
   typescript: 2.9.2
@@ -47,7 +47,7 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha512-ASULw2KzrapsjQVSMYdDc3f6+wYOs9cPt0M5Ip9VUkTfYfPrfxd0UYXcOPoUHkk7L12HUj0vwUYK0DE1da2gww==
-  /@pnpm/logger/2.0.1:
+  /@pnpm/logger/2.1.0:
     dependencies:
       '@types/node': 10.5.2
       bole: 3.0.2
@@ -56,7 +56,7 @@ packages:
     engines:
       node: '>=6'
     resolution:
-      integrity: sha512-dST450D6Nj9iu0L16wqBv6dEXpbSQ6tyG1G9zSIzzjHqcDdKgdtpNR/0DvxpDEzBPfwGFQ868+o7AFaCuQsyig==
+      integrity: sha512-BL4Laf6b50LjdcpOUWPukx2XJtb3mo2OpJjHdRNSDJu9YS2tRBeP14H2bNqGjCjfeml8z3KufI3Km6VQemVXNw==
   /@pnpm/package-bins/1.0.0:
     dependencies:
       '@pnpm/types': 1.7.0
@@ -68,7 +68,7 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha512-ZqVfIXK3r5AsP5VAhPHrhf3isF+T4yEuUpJTF9T03oFTJ9LBnkKvx8F7P7biKEManxSGOkSpNoIBdsura9pY5Q==
-  /@pnpm/package-requester/3.0.3:
+  /@pnpm/package-requester/4.0.0:
     dependencies:
       '@pnpm/check-package': 1.0.0
       '@pnpm/fetcher-base': 1.0.0
@@ -96,9 +96,9 @@ packages:
     engines:
       node: '>=6'
     peerDependencies:
-      '@pnpm/logger': ^1.0.0
+      '@pnpm/logger': ^2.1.0
     resolution:
-      integrity: sha512-A9FAJvNUOPJ6mfjKHKldhGnkbDKbgTLiV4ch1XpZHhutcqDp2OibCPlW5AB67twzw4RJCHg30YM+wFkj033ApA==
+      integrity: sha512-zd4A0PkojX3zgTPV8UCrOURqTepQt7KGlAbgOwJVzAxfC1fhN7JfFgn3Z0jyYScsHKcKlcEiHxRc5A1vDg1uZQ==
   /@pnpm/pkgid-to-filename/1.0.1:
     dependencies:
       normalize-path: 3.0.0
@@ -745,11 +745,11 @@ packages:
       node: '>=6'
     resolution:
       integrity: sha512-hMp0onDKIajHfIkdRk3P4CdCmErkYAxxDtP3Wx/4nZ3aGlau2VKh3mZpcuFkH27WQkL/3WBCPOktzA9ZOAnMQQ==
-  /package-store/0.22.1:
+  /package-store/0.23.0:
     dependencies:
       '@pnpm/fetcher-base': 1.0.0
       '@pnpm/fs-locker': 1.0.2
-      '@pnpm/package-requester': 3.0.3
+      '@pnpm/package-requester': 4.0.0
       '@pnpm/resolver-base': 1.1.0
       '@pnpm/types': 1.7.0
       '@types/load-json-file': 2.0.7
@@ -774,9 +774,9 @@ packages:
     engines:
       node: '>=6'
     peerDependencies:
-      '@pnpm/logger': ^1.0.0
+      '@pnpm/logger': ^2.1.0
     resolution:
-      integrity: sha512-Br7Ps06hCsUzDyj5PII6dp4CVQ/Twra/wIHP4u8e4ImUYtHJeohr5WE/mROADoDKOxAwjnCIqo/chV2FvIRT7Q==
+      integrity: sha512-up8AtzXWTJRpQRxe6o6qjSmaEZbCTOS0oHymivYlk/kpqEMYkJ/4REP+oZnHfTmyxZGjC7BYOgfrnvFfhOmo9w==
   /parse-json/4.0.0:
     dependencies:
       error-ex: 1.3.2
@@ -1153,7 +1153,7 @@ registry: 'https://registry.npmjs.org/'
 shrinkwrapMinorVersion: 8
 shrinkwrapVersion: 3
 specifiers:
-  '@pnpm/logger': ^2.0.1
+  '@pnpm/logger': ^2.1.0
   '@pnpm/package-bins': ^1.0.0
   '@pnpm/read-package-json': ^1.0.0
   '@pnpm/types': ^1.7.0
@@ -1163,7 +1163,7 @@ specifiers:
   dependency-path: ^1.2.1
   fs-vacuum: ^1.2.10
   mz: ^2.7.0
-  package-store: ^0.22.0
+  package-store: ^0.23.0
   pnpm-shrinkwrap: ^7.0.0
   ramda: ^0.25.0
   rimraf: ^2.6.2

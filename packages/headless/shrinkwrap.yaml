@@ -3,7 +3,7 @@ dependencies:
   '@pnpm/lifecycle': 3.0.0
   '@pnpm/link-bins': 3.0.0
   '@pnpm/modules-yaml': 1.0.0
-  '@pnpm/package-requester': 3.0.3
+  '@pnpm/package-requester': 4.0.0
   '@pnpm/pkgid-to-filename': 1.0.1
   '@pnpm/read-package-json': 1.0.0
   '@pnpm/types': 1.7.0
@@ -12,7 +12,7 @@ dependencies:
   dependency-path: 1.2.1
   graph-sequencer: 2.0.0
   p-limit: 2.0.0
-  package-store: 0.22.1
+  package-store: 0.23.0
   path-exists: 3.0.0
   pnpm-shrinkwrap: 7.0.0
   ramda: 0.25.0
@@ -21,7 +21,7 @@ devDependencies:
   '@pnpm/assert-project': 1.1.2
   '@pnpm/default-fetcher': 1.0.0
   '@pnpm/default-resolver': 2.0.0
-  '@pnpm/logger': 2.0.1
+  '@pnpm/logger': 2.1.0
   '@pnpm/store-path': 1.0.3
   '@types/fs-extra': 5.0.4
   '@types/mz': 0.0.32
@@ -207,7 +207,7 @@ packages:
       node: '>=6'
     resolution:
       integrity: sha512-rCVZc//o1Db18pD6zPoCP/gz/EeZU/wHvCWJjeoq+NHgiTT4bGbXnj6mdQ6za/J3IgGEEHw0DHd3i5/NBDAArQ==
-  /@pnpm/logger/2.0.1:
+  /@pnpm/logger/2.1.0:
     dependencies:
       '@types/node': 10.5.2
       bole: 3.0.2
@@ -216,7 +216,7 @@ packages:
     engines:
       node: '>=6'
     resolution:
-      integrity: sha512-dST450D6Nj9iu0L16wqBv6dEXpbSQ6tyG1G9zSIzzjHqcDdKgdtpNR/0DvxpDEzBPfwGFQ868+o7AFaCuQsyig==
+      integrity: sha512-BL4Laf6b50LjdcpOUWPukx2XJtb3mo2OpJjHdRNSDJu9YS2tRBeP14H2bNqGjCjfeml8z3KufI3Km6VQemVXNw==
   /@pnpm/modules-yaml/1.0.0:
     dependencies:
       load-yaml-file: 0.1.0
@@ -262,7 +262,7 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha512-ZqVfIXK3r5AsP5VAhPHrhf3isF+T4yEuUpJTF9T03oFTJ9LBnkKvx8F7P7biKEManxSGOkSpNoIBdsura9pY5Q==
-  /@pnpm/package-requester/3.0.3:
+  /@pnpm/package-requester/4.0.0:
     dependencies:
       '@pnpm/check-package': 1.0.0
       '@pnpm/fetcher-base': 1.0.0
@@ -290,9 +290,9 @@ packages:
     engines:
       node: '>=6'
     peerDependencies:
-      '@pnpm/logger': ^1.0.0
+      '@pnpm/logger': ^2.1.0
     resolution:
-      integrity: sha512-A9FAJvNUOPJ6mfjKHKldhGnkbDKbgTLiV4ch1XpZHhutcqDp2OibCPlW5AB67twzw4RJCHg30YM+wFkj033ApA==
+      integrity: sha512-zd4A0PkojX3zgTPV8UCrOURqTepQt7KGlAbgOwJVzAxfC1fhN7JfFgn3Z0jyYScsHKcKlcEiHxRc5A1vDg1uZQ==
   /@pnpm/pkgid-to-filename/1.0.1:
     dependencies:
       normalize-path: 3.0.0
@@ -3198,11 +3198,11 @@ packages:
     hasBin: true
     resolution:
       integrity: sha512-GQ4w5vrDXoy8UVJM+0W7oWd5MYF21/IXkdzcupGNXdfqQuMzgQT+LXde109uHaH7xyqvCzPPBSxYM/HqQOi3+w==
-  /package-store/0.22.1:
+  /package-store/0.23.0:
     dependencies:
       '@pnpm/fetcher-base': 1.0.0
       '@pnpm/fs-locker': 1.0.2
-      '@pnpm/package-requester': 3.0.3
+      '@pnpm/package-requester': 4.0.0
       '@pnpm/resolver-base': 1.1.0
       '@pnpm/types': 1.7.0
       '@types/load-json-file': 2.0.7
@@ -3227,9 +3227,9 @@ packages:
     engines:
       node: '>=6'
     peerDependencies:
-      '@pnpm/logger': ^1.0.0
+      '@pnpm/logger': ^2.1.0
     resolution:
-      integrity: sha512-Br7Ps06hCsUzDyj5PII6dp4CVQ/Twra/wIHP4u8e4ImUYtHJeohr5WE/mROADoDKOxAwjnCIqo/chV2FvIRT7Q==
+      integrity: sha512-up8AtzXWTJRpQRxe6o6qjSmaEZbCTOS0oHymivYlk/kpqEMYkJ/4REP+oZnHfTmyxZGjC7BYOgfrnvFfhOmo9w==
   /pako/0.2.9:
     dev: true
     resolution:
@@ -4756,9 +4756,9 @@ specifiers:
   '@pnpm/default-resolver': ^2.0.0
   '@pnpm/lifecycle': ^3.0.0
   '@pnpm/link-bins': ^3.0.0
-  '@pnpm/logger': ^2.0.1
+  '@pnpm/logger': ^2.1.0
   '@pnpm/modules-yaml': ^1.0.0
-  '@pnpm/package-requester': ^3.0.1
+  '@pnpm/package-requester': ^4.0.0
   '@pnpm/pkgid-to-filename': ^1.0.0
   '@pnpm/read-package-json': ^1.0.0
   '@pnpm/store-path': ^1.0.3
@@ -4782,7 +4782,7 @@ specifiers:
   npm-run-all: ^4.0.1
   p-limit: ^2.0.0
   package-preview: ^1.0.0
-  package-store: ^0.22.0
+  package-store: ^0.23.0
   path-exists: ^3.0.0
   pnpm-registry-mock: ^2.0.0
   pnpm-shrinkwrap: ^7.0.0
