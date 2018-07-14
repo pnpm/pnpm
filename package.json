@@ -34,7 +34,7 @@
   },
   "homepage": "https://github.com/pnpm/lifecycle#readme",
   "peerDependencies": {
-    "@pnpm/logger": "^1.0.0"
+    "@pnpm/logger": "^1.0.0 || ^2.0.0"
   },
   "dependencies": {
     "@pnpm/types": "^1.7.0",
@@ -44,7 +44,7 @@
     "util.promisify": "^1.0.0"
   },
   "devDependencies": {
-    "@pnpm/logger": "^1.0.1",
+    "@pnpm/logger": "^2.0.1",
     "@types/load-json-file": "^2.0.7",
     "@types/node": "^10.0.4",
     "@types/rimraf": "^2.0.2",

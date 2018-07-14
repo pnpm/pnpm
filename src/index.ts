@@ -88,18 +88,12 @@ export default async function runLifecycleHook (
   function npmLog (prefix: string, logid: string, stdtype: string, line: string) {
     switch (stdtype) {
       case 'stdout':
+      case 'stderr':
         lifecycleLogger.debug({
           depPath: opts.depPath,
           line: line.toString(),
           stage,
-          wd: opts.pkgRoot,
-        })
-        return
-      case 'stderr':
-        lifecycleLogger.error({
-          depPath: opts.depPath,
-          line: line.toString(),
-          stage,
+          stdio: stdtype,
           wd: opts.pkgRoot,
         })
         return
@@ -109,7 +103,7 @@ export default async function runLifecycleHook (
           return
         }
         const code = arguments[3]
-        lifecycleLogger[code === 0 ? 'debug' : 'error']({
+        lifecycleLogger.debug({
           depPath: opts.depPath,
           exitCode: code,
           stage,

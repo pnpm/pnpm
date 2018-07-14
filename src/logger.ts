@@ -12,6 +12,7 @@ export type LifecycleMessage = {
   wd: string,
 } & ({
   line: string,
+  stdio: 'stdout' | 'stderr',
 } | {
   exitCode: number,
 } | {
