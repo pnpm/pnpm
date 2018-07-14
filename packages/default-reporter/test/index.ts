@@ -128,6 +128,7 @@ test('prints progress on first download', t => {
 })
 
 test('moves fixed line to the end', async t => {
+  const prefix = process.cwd()
   const output$ = toOutput$(createStreamParser(), {cmd: 'install', throttleProgress: 0})
 
   output$.skip(3).take(1).map(normalizeNewline).subscribe({
@@ -149,7 +150,7 @@ test('moves fixed line to the end', async t => {
     status: 'fetched',
     pkgId,
   })
-  logger.warn('foo')
+  logger.warn({message: 'foo', prefix})
 
   await delay(0) // w/o delay warning goes below for some reason. Started to happen after switch to most
 
@@ -197,7 +198,7 @@ test('prints summary (of current package only)', t => {
     },
     prefix,
   })
-  deprecationLogger.warn({
+  deprecationLogger.debug({
     pkgName: 'bar',
     pkgVersion: '2.0.0',
     pkgId: 'registry.npmjs.org/bar/2.0.0',
@@ -205,7 +206,7 @@ test('prints summary (of current package only)', t => {
     depth: 0,
     prefix,
   })
-  rootLogger.info({
+  rootLogger.debug({
     added: {
       dependencyType: 'prod',
       name: 'foo',
@@ -215,7 +216,7 @@ test('prints summary (of current package only)', t => {
     },
     prefix,
   })
-  rootLogger.info({
+  rootLogger.debug({
     added: {
       dependencyType: 'prod',
       name: 'bar',
@@ -225,7 +226,7 @@ test('prints summary (of current package only)', t => {
     },
     prefix,
   })
-  rootLogger.info({
+  rootLogger.debug({
     removed: {
       dependencyType: 'prod',
       name: 'foo',
@@ -233,7 +234,7 @@ test('prints summary (of current package only)', t => {
     },
     prefix,
   })
-  rootLogger.info({
+  rootLogger.debug({
     added: {
       dependencyType: 'dev',
       name: 'qar',
@@ -243,7 +244,7 @@ test('prints summary (of current package only)', t => {
     prefix,
   })
   // This log is going to be ignored because it is not in the current prefix
-  rootLogger.info({
+  rootLogger.debug({
     added: {
       dependencyType: 'optional',
       name: 'lala',
@@ -252,7 +253,7 @@ test('prints summary (of current package only)', t => {
     },
     prefix: `${prefix}/packages/foo`,
   })
-  rootLogger.info({
+  rootLogger.debug({
     added: {
       dependencyType: 'optional',
       name: 'lala',
@@ -261,7 +262,7 @@ test('prints summary (of current package only)', t => {
     },
     prefix,
   })
-  rootLogger.info({
+  rootLogger.debug({
     removed: {
       dependencyType: 'optional',
       name: 'is-positive',
@@ -277,7 +278,7 @@ test('prints summary (of current package only)', t => {
     },
     prefix,
   })
-  rootLogger.info({
+  rootLogger.debug({
     added: {
       dependencyType: 'prod',
       name: 'winston',
@@ -307,7 +308,7 @@ test('prints summary (of current package only)', t => {
     },
     prefix,
   })
-  summaryLogger.info({prefix})
+  summaryLogger.debug({prefix})
 
   t.plan(1)
 
@@ -353,46 +354,55 @@ test('groups lifecycle output', t => {
     depPath: 'registry.npmjs.org/foo/1.0.0',
     script: 'node foo',
     stage: 'preinstall',
+    stdio: 'stdout',
   })
   lifecycleLogger.debug({
     depPath: 'registry.npmjs.org/foo/1.0.0',
     line: 'foo 0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20',
     stage: 'preinstall',
+    stdio: 'stdout',
   })
   lifecycleLogger.debug({
     depPath: 'registry.npmjs.org/foo/1.0.0',
     script: 'node foo',
     stage: 'postinstall',
+    stdio: 'stdout',
   })
   lifecycleLogger.debug({
     depPath: 'registry.npmjs.org/foo/1.0.0',
     line: 'foo I',
     stage: 'postinstall',
+    stdio: 'stdout',
   })
   lifecycleLogger.debug({
     depPath: 'registry.npmjs.org/bar/1.0.0',
     script: 'node bar',
     stage: 'postinstall',
+    stdio: 'stdout',
   })
   lifecycleLogger.debug({
     depPath: 'registry.npmjs.org/bar/1.0.0',
     line: 'bar I',
     stage: 'postinstall',
+    stdio: 'stdout',
   })
   lifecycleLogger.debug({
     depPath: 'registry.npmjs.org/foo/1.0.0',
     line: 'foo II',
     stage: 'postinstall',
+    stdio: 'stdout',
   })
   lifecycleLogger.debug({
     depPath: 'registry.npmjs.org/foo/1.0.0',
     line: 'foo III',
     stage: 'postinstall',
+    stdio: 'stdout',
   })
   lifecycleLogger.debug({
     depPath: 'registry.npmjs.org/qar/1.0.0',
     script: 'node qar',
     stage: 'install',
+    stdio: 'stdout',
   })
   lifecycleLogger.debug({
     depPath: 'registry.npmjs.org/qar/1.0.0',
@@ -446,10 +456,11 @@ test['skip']('prints lifecycle progress', t => {
     line: 'bar I',
     script: 'postinstall',
   })
-  lifecycleLogger.error({
+  lifecycleLogger.debug({
     pkgId: 'registry.npmjs.org/foo/1.0.0',
     line: 'foo II',
     script: 'postinstall',
+    stdio: 'stderr',
   })
   lifecycleLogger.debug({
     pkgId: 'registry.npmjs.org/foo/1.0.0',
@@ -576,7 +587,7 @@ test('prints no matching version error when only the latest dist-tag exists', as
 test('prints info', t => {
   const output$ = toOutput$(createStreamParser(), {cmd: 'install'})
 
-  logger.info('info message')
+  logger.info({message: 'info message', prefix: process.cwd()})
 
   t.plan(1)
 

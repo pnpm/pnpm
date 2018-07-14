@@ -1,6 +1,6 @@
 dependencies:
   '@pnpm/headless': 'link:'
-  '@pnpm/lifecycle': 2.2.1
+  '@pnpm/lifecycle': 3.0.0
   '@pnpm/link-bins': 3.0.0
   '@pnpm/modules-yaml': 1.0.0
   '@pnpm/package-requester': 3.0.3
@@ -156,20 +156,19 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha512-+ItZiusgQeggTsW3ezrIdjaxWqhHTLgEWnvgQpc7XyukCPX2m29y6PJXrwjLgNr0bf5IGd2NvUM3wWhaWLhS2w==
-  /@pnpm/lifecycle/2.2.1:
+  /@pnpm/lifecycle/3.0.0:
     dependencies:
+      '@pnpm/read-package-json': 1.0.0
       '@pnpm/types': 1.7.0
       npm-lifecycle: 2.0.3
       path-exists: 3.0.0
-      read-package-json: 2.0.13
-      util.promisify: 1.0.0
     dev: false
     engines:
-      node: '>=4'
+      node: '>=6'
     peerDependencies:
-      '@pnpm/logger': ^1.0.0
+      '@pnpm/logger': ^1.0.0 || ^2.0.0
     resolution:
-      integrity: sha512-jB8OzeApGS5zHi79p4O3m6WVH4X8zDYv5CTT3GAScxr5yA1RqFam5MAOhrMhYZa5CY+kXcL6T0D25IclQzmTUQ==
+      integrity: sha512-1vpgqaVqeBV42jhPPXIi5F86Nwv5p6x1jzMwNZluMLCBkVBGlNiyuXQsyFnRMbEybScJ+ZJOZ6sTjUB1lS6m+Q==
   /@pnpm/link-bins/3.0.0:
     dependencies:
       '@pnpm/package-bins': 1.0.0
@@ -4755,7 +4754,7 @@ specifiers:
   '@pnpm/assert-project': ^1.1.1
   '@pnpm/default-fetcher': ^0.4.0 || 1
   '@pnpm/default-resolver': ^2.0.0
-  '@pnpm/lifecycle': ^2.2.0
+  '@pnpm/lifecycle': ^3.0.0
   '@pnpm/link-bins': ^3.0.0
   '@pnpm/logger': ^2.0.1
   '@pnpm/modules-yaml': ^1.0.0
