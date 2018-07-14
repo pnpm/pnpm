@@ -8,7 +8,7 @@
     "lib"
   ],
   "engines": {
-    "node": ">=4"
+    "node": ">=6"
   },
   "scripts": {
     "lint": "tslint -c tslint.json --project .",
