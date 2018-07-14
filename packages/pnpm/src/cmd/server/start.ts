@@ -1,4 +1,4 @@
-import logger from '@pnpm/logger'
+import {storeLogger} from '@pnpm/logger'
 import {createServer} from '@pnpm/server'
 import storePath from '@pnpm/store-path'
 import Diable = require('diable')
@@ -58,14 +58,14 @@ export default async (
       try {
         fs.closeSync(fd)
       } catch (error) {
-        logger.error(error, `Got error while closing file descriptor of server.json, but the process is already exiting`)
+        storeLogger.error(error, `Got error while closing file descriptor of server.json, but the process is already exiting`)
       }
     }
     try {
       fs.unlinkSync(serverJsonPath)
     } catch (error) {
       if (error.code !== 'ENOENT') {
-        logger.error(error, `Got error unlinking server.json, but the process is already exiting`)
+        storeLogger.error(error, `Got error unlinking server.json, but the process is already exiting`)
       }
     }
   })

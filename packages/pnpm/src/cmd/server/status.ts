@@ -1,4 +1,4 @@
-import logger from '@pnpm/logger'
+import {storeLogger} from '@pnpm/logger'
 import storePath from '@pnpm/store-path'
 import {stripIndents} from 'common-tags'
 import path = require('path')
@@ -16,10 +16,7 @@ export default async (
     shouldRetryOnNoent: false,
   })
   if (serverJson === null) {
-    logger.info({
-      message: `No server is running for the store at ${store}`,
-      prefix: opts.prefix,
-    })
+    storeLogger.info(`No server is running for the store at ${store}`)
     return
   }
   console.log(stripIndents`
