@@ -21,7 +21,7 @@
   ],
   "dependencies": {
     "@pnpm/config": "^1.2.7",
-    "@pnpm/default-fetcher": "^0.4.0 || 1",
+    "@pnpm/default-fetcher": "^2.0.0",
     "@pnpm/default-resolver": "^2.0.0",
     "@pnpm/lifecycle": "^3.0.0",
     "@pnpm/logger": "^2.1.0",

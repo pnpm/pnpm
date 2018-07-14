@@ -1,6 +1,6 @@
 dependencies:
   '@pnpm/config': 'link:../config'
-  '@pnpm/default-fetcher': 1.0.0
+  '@pnpm/default-fetcher': 2.0.0
   '@pnpm/default-resolver': 2.0.0
   '@pnpm/lifecycle': 3.0.0
   '@pnpm/logger': 2.1.0
@@ -145,17 +145,17 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha512-rN+hiOjGtxwwus7c/E0xkCs9prBeXzZCSCW/Q3k2WdHGSRNLAepr777iv+i2eqTfz9vXlTF0rLZOGi62ujzwYA==
-  /@pnpm/default-fetcher/1.0.0:
+  /@pnpm/default-fetcher/2.0.0:
     dependencies:
       '@pnpm/fetcher-base': 1.0.0
       '@pnpm/git-fetcher': 1.0.0
       '@pnpm/resolver-base': 1.1.0
-      '@pnpm/tarball-fetcher': 1.0.0
+      '@pnpm/tarball-fetcher': 2.0.0
     dev: false
     engines:
       node: '>=6'
     resolution:
-      integrity: sha1-cr3Cab6AEDhQsAIFPr/Vn8MF/0Y=
+      integrity: sha512-1qEymu3h/Fl9sgCxAdduuws72003XeMgiZHlfnM7+qXdGBTxjQ4dRGW92vezYik3bTTz6r7R5xva/6M4O6BIgA==
   /@pnpm/default-resolver/2.0.0:
     dependencies:
       '@pnpm/git-resolver': 0.3.6
@@ -413,7 +413,7 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha512-kYhalp/SFn3m2yq8d2VBdyRFiaKHBapk1U/WiJc7vR1brePS06rkKQeG/Z9CN4GVAdNXj+XOyBCMz8XAUGCGuQ==
-  /@pnpm/tarball-fetcher/1.0.0:
+  /@pnpm/tarball-fetcher/2.0.0:
     dependencies:
       '@pnpm/fetcher-base': 1.0.0
       '@types/mem': 1.1.2
@@ -437,9 +437,9 @@ packages:
     engines:
       node: '>=6'
     peerDependencies:
-      '@pnpm/logger': ^1.0.0
+      '@pnpm/logger': ^2.1.0
     resolution:
-      integrity: sha512-0H16l/W8b6231fMMh1Ze99l7GpX8fvFAQnTyvfu5Poz9Sr6vJDzpIOmPxvdYTNvUZlU4EiTLL2b1nGTuhtP5qw==
+      integrity: sha512-JQd9dgZ9TBRBWmCgLZWZ1fS4BV/YUbQAeInNJa3JCSD6NtcxlytmUyrkAoJtm6daAZbfaZXvjdBm57Ihf+Galg==
   /@pnpm/tarball-resolver/0.1.1:
     dependencies:
       '@pnpm/resolver-base': 1.1.0
@@ -6525,7 +6525,7 @@ shrinkwrapVersion: 3
 specifiers:
   '@pnpm/assert-project': ^1.1.1
   '@pnpm/config': ^1.2.7
-  '@pnpm/default-fetcher': ^0.4.0 || 1
+  '@pnpm/default-fetcher': ^2.0.0
   '@pnpm/default-resolver': ^2.0.0
   '@pnpm/lifecycle': ^3.0.0
   '@pnpm/logger': ^2.1.0
