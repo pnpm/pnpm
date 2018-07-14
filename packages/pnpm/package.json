@@ -1,7 +1,7 @@
 {
   "name": "pnpm",
   "description": "Fast, disk space efficient package manager",
-  "version": "2.11.1",
+  "version": "2.11.2",
   "author": {
     "name": "Zoltan Kochan",
     "email": "z@kochan.io",
