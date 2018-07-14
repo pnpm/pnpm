@@ -1,4 +1,4 @@
-import logger from '@pnpm/logger'
+import {storeLogger} from '@pnpm/logger'
 import {
   PackageFilesResponse,
 } from '@pnpm/package-requester'
@@ -62,8 +62,8 @@ function createImportPackage (packageImportMethod?: 'auto' | 'hardlink' | 'copy'
             await hardlinkPkg(from, to, opts)
           } catch (err) {
             if (!err.message.startsWith('EXDEV: cross-device link not permitted')) throw err
-            logger.warn(err.message)
-            logger.info('Falling back to copying packages from store')
+            storeLogger.warn(err.message)
+            storeLogger.info('Falling back to copying packages from store')
             fallbackToCopying = true
             await importPackage(from, to, opts)
           }
@@ -117,7 +117,7 @@ async function pkgLinkedToStore (
 ) {
   const pkgJsonPathInStore = path.join(from, 'package.json')
   if (await isSameFile(pkgJsonPath, pkgJsonPathInStore)) return true
-  logger.info(`Relinking ${to} from the store`)
+  storeLogger.info(`Relinking ${to} from the store`)
   return false
 }
 

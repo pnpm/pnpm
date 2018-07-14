@@ -1,6 +1,6 @@
 import {FetchFunction} from '@pnpm/fetcher-base'
 import lock from '@pnpm/fs-locker'
-import logger from '@pnpm/logger'
+import {storeLogger} from '@pnpm/logger'
 import createPackageRequester, {
   FetchPackageToStoreFunction,
   RequestPackageFunction,
@@ -104,7 +104,7 @@ export default async function (
         if (!storeIndex[pkgId].length) {
           delete storeIndex[pkgId]
           await rimraf(path.join(store, pkgId))
-          logger.info(`- ${pkgId}`)
+          storeLogger.info(`- ${pkgId}`)
         }
       }
     }
