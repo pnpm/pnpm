@@ -3155,7 +3155,7 @@ specifiers:
   mos: ^2.0.0-alpha.3
   mos-plugin-readme: ^1.0.4
   package-preview: ^1.0.0
-  pnpm-shrinkwrap: 6 || 7
+  pnpm-shrinkwrap: ^7.0.0
   semver: ^5.3.0
   tape: ^4.7.0
   ts-node: ^7.0.0
