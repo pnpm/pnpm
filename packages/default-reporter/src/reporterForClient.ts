@@ -251,19 +251,27 @@ export default function (
     .map(most.of)
 
     outputs.push(summaryOutput$)
+  }
 
-    const deprecationOutput$ = log$.deprecation
-      // print warnings only about deprecated packages from the root
-      .filter((log) => log.depth === 0)
-      .map((log) => {
+  const deprecationOutput$ = log$.deprecation
+    // print warnings only about deprecated packages from the root
+    .filter((log) => log.depth === 0)
+    .map((log) => {
+      if (log.prefix === opts.cwd) {
         return {
           msg: formatWarn(`${chalk.red('deprecated')} ${log.pkgName}@${log.pkgVersion}: ${log.deprecated}`),
         }
-      })
-      .map(most.of)
+      }
+      return {
+        msg: `${rightPad(formatPrefix(opts.cwd, log.prefix), PREFIX_MAX_LENGTH)} | ` +
+          formatWarn(`${chalk.red('deprecated')} ${log.pkgName}@${log.pkgVersion}`),
+      }
+    })
+    .map(most.of)
 
-    outputs.push(deprecationOutput$)
-  }
+  outputs.push(deprecationOutput$)
+
+  outputs.push(miscOutput(most.merge(log$.link, log$.registry, log$.other), {cwd: opts.cwd}))
 
   const stats$ = opts.isRecursive
     ? log$.stats
@@ -289,29 +297,6 @@ export default function (
 
     outputs.push(installCheckOutput$)
 
-    const registryOutput$ = log$.registry
-      .filter((log) => log.level === 'warn')
-      .map((log: RegistryLog) => ({msg: formatWarn(log.message)}))
-      .map(most.of)
-
-    outputs.push(registryOutput$)
-
-    const miscOutput$ = most.merge(log$.link, log$.other)
-      .filter((obj) => obj.level !== 'debug' && (!obj['prefix'] || obj['prefix'] === opts.cwd))
-      .map((obj) => {
-        if (obj.level === 'warn') {
-          return formatWarn(obj['message'])
-        }
-        if (obj.level === 'error') {
-          return reportError(obj)
-        }
-        return obj['message']
-      })
-      .map((msg) => ({msg}))
-      .map(most.of)
-
-    outputs.push(miscOutput$)
-
     outputs.push(
       log$.skippedOptionalDependency
         .filter((log) => Boolean(log.parents && log.parents.length === 0))
@@ -321,19 +306,6 @@ export default function (
           } is an optional dependency and failed compatibility check. Excluding it from installation.`,
         })),
     )
-  } else {
-    const miscOutput$ = log$.other
-      .filter((obj) => obj.level === 'error')
-      .map((obj) => {
-        if (obj['message']['prefix']) {
-          return obj['message']['prefix'] + ':' + os.EOL + reportError(obj)
-        }
-        return reportError(obj)
-      })
-      .map((msg) => ({msg}))
-      .map(most.of)
-
-    outputs.push(miscOutput$)
   }
 
   if (!opts.isRecursive) {
@@ -353,6 +325,33 @@ export default function (
   }
 
   return outputs
+}
+
+function miscOutput (
+  log$: most.Stream<supi.Log>,
+  opts: {
+    cwd: string,
+  },
+) {
+  return log$
+    .filter((obj) => obj.level !== 'debug' && (obj.level !== 'info' || !obj['prefix'] || obj['prefix'] === opts.cwd))
+    .map((obj) => {
+      switch (obj.level) {
+        case 'warn':
+          if (!obj.prefix || obj.prefix === opts.cwd)
+            return formatWarn(obj.message)
+          return `${rightPad(formatPrefix(opts.cwd, obj.prefix), PREFIX_MAX_LENGTH)} | ${formatWarn(obj.message)}`
+        case 'error':
+          if (obj['message'] && obj['message']['prefix'] && obj['message']['prefix'] !== opts.cwd) {
+            return `${obj['message']['prefix']}:` + os.EOL + reportError(obj)
+          }
+          return reportError(obj)
+        default:
+          return obj['message']
+      }
+    })
+    .map((msg) => ({msg}))
+    .map(most.of)
 }
 
 function statsForCurrentPackage (
