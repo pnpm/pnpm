@@ -1,11 +1,10 @@
 dependencies:
-  '@pnpm/default-fetcher': 'link:../__package_previews__/default-fetcher/@pnpm/default-fetcher'
   '@pnpm/fetcher-base': 1.0.0
   '@pnpm/git-fetcher': 1.0.0
   '@pnpm/resolver-base': 1.1.0
   '@pnpm/tarball-fetcher': 2.0.0
 devDependencies:
-  '@pnpm/logger': 1.0.2
+  '@pnpm/logger': 2.1.0
   '@types/tape': 4.2.32
   mos: 2.0.0-alpha.3
   mos-plugin-readme: 1.0.4
@@ -48,16 +47,16 @@ packages:
       node: '>=6'
     resolution:
       integrity: sha512-I/IzfoY21VBjAMNzWQ58H+8uBgwX34JSI7amTfWEwzG6E3stezPSnkJo4sOGluT7xtyIdNSKNIGq2gQXY4NTxw==
-  /@pnpm/logger/1.0.2:
+  /@pnpm/logger/2.1.0:
     dependencies:
       '@types/node': 10.5.2
       bole: 3.0.2
       ndjson: 1.5.0
     dev: true
     engines:
-      node: '>=4'
+      node: '>=6'
     resolution:
-      integrity: sha512-A8XbJKvdueazvJGPn1qQ9LL6uopV88ebIT+dJKNQ68gT7yfCbtfT8j5ZzdVczmGbkiuBeZ1VckZerkO0tjOXZA==
+      integrity: sha512-BL4Laf6b50LjdcpOUWPukx2XJtb3mo2OpJjHdRNSDJu9YS2tRBeP14H2bNqGjCjfeml8z3KufI3Km6VQemVXNw==
   /@pnpm/resolver-base/1.1.0:
     dependencies:
       '@pnpm/types': 1.7.0
@@ -3553,7 +3552,7 @@ shrinkwrapVersion: 3
 specifiers:
   '@pnpm/fetcher-base': ^1.0.0
   '@pnpm/git-fetcher': ^1.0.0
-  '@pnpm/logger': ^1.0.0
+  '@pnpm/logger': ^2.0.0
   '@pnpm/resolver-base': ^1.1.0
   '@pnpm/tarball-fetcher': ^2.0.0
   '@types/tape': ^4.2.31

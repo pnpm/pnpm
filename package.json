@@ -39,7 +39,7 @@
     "@pnpm/tarball-fetcher": "^2.0.0"
   },
   "devDependencies": {
-    "@pnpm/logger": "^1.0.0",
+    "@pnpm/logger": "^2.0.0",
     "@types/tape": "^4.2.31",
     "mos": "^2.0.0-alpha.3",
     "mos-plugin-readme": "^1.0.4",
