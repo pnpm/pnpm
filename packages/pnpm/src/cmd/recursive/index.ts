@@ -69,10 +69,6 @@ export default async (
     err['code'] = 'ERR_PNPM_INVALID_RECURSIVE_COMMAND' // tslint:disable-line:no-string-literal
     throw err
   }
-  logger.warn({
-    message: 'The recursive command is an experimental feature. Breaking changes may happen in non-major versions.',
-    prefix: opts.prefix,
-  })
 
   const cwd = process.cwd()
   let pkgs = await findWorkspacePackages(cwd)
