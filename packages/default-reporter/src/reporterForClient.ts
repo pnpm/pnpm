@@ -263,8 +263,7 @@ export default function (
         }
       }
       return {
-        msg: `${rightPad(formatPrefix(opts.cwd, log.prefix), PREFIX_MAX_LENGTH)} | ` +
-          formatWarn(`${chalk.red('deprecated')} ${log.pkgName}@${log.pkgVersion}`),
+        msg: zoomOut(opts.cwd, log.prefix, formatWarn(`${chalk.red('deprecated')} ${log.pkgName}@${log.pkgVersion}`)),
       }
     })
     .map(most.of)
@@ -309,14 +308,9 @@ export default function (
   )
 
   const hookOutput$ = log$.hook
-    .map((log) => {
-      if (log['prefix'] === opts.cwd) {
-        return {msg: `${chalk.magentaBright(log['hook'])}: ${log['message']}`}
-      }
-      return {
-        msg: `${rightPad(formatPrefix(cwd, log['prefix']), PREFIX_MAX_LENGTH)} | ${chalk.magentaBright(log['hook'])}: ${log['message']}`,
-      }
-    })
+    .map((log) => ({
+      msg: autozoom(opts.cwd, log['prefix'], `${chalk.magentaBright(log['hook'])}: ${log['message']}`),
+    }))
     .map(most.of)
 
   outputs.push(hookOutput$)
@@ -335,9 +329,7 @@ function miscOutput (
     .map((obj) => {
       switch (obj.level) {
         case 'warn':
-          if (!obj.prefix || obj.prefix === opts.cwd)
-            return formatWarn(obj.message)
-          return `${rightPad(formatPrefix(opts.cwd, obj.prefix), PREFIX_MAX_LENGTH)} | ${formatWarn(obj.message)}`
+          return autozoom(opts.cwd, obj.prefix, formatWarn(obj.message))
         case 'error':
           if (obj['message'] && obj['message']['prefix'] && obj['message']['prefix'] !== opts.cwd) {
             return `${obj['message']['prefix']}:` + os.EOL + reportError(obj)
@@ -428,17 +420,16 @@ function statsForNotCurrentPackage (
   return cookedStats$
     .filter((stats) => stats !== null && (stats['removed'] || stats['added']))
     .map((stats) => {
-      const prefix = formatPrefix(opts.currentPrefix, stats['prefix'])
-
-      let msg = `${rightPad(prefix, PREFIX_MAX_LENGTH)} |`
+      const parts = [] as string[]
 
       if (stats['added']) {
-        msg += ` ${padStep(chalk.green(`+${stats['added']}`), 4)}`
+        parts.push(padStep(chalk.green(`+${stats['added']}`), 4))
       }
       if (stats['removed']) {
-        msg += ` ${padStep(chalk.red(`-${stats['removed']}`), 4)}`
+        parts.push(padStep(chalk.red(`-${stats['removed']}`), 4))
       }
 
+      let msg = zoomOut(opts.currentPrefix, stats['prefix'], parts.join(' '))
       const rest = Math.max(0, opts.width - 1 - stringLength(msg))
       msg += ' ' + printPlusesAndMinuses(rest, roundStats(stats['added'] || 0), roundStats(stats['removed'] || 0))
       return most.of({msg})
@@ -574,17 +565,25 @@ function formatLine (maxWidth: number, logObj: LifecycleLog) {
 }
 
 function formatInstallCheck (currentPrefix: string, logObj: InstallCheckLog) {
-  const msg = currentPrefix === logObj['prefix']
-    ? ''
-    : `${rightPad(formatPrefix(currentPrefix, logObj['prefix']), PREFIX_MAX_LENGTH)} | `
   switch (logObj.code) {
     case 'EBADPLATFORM':
-      return msg + formatWarn(`Unsupported system. Skipping dependency ${logObj.pkgId}`)
+      return autozoom(currentPrefix, logObj['prefix'], formatWarn(`Unsupported system. Skipping dependency ${logObj.pkgId}`))
     case 'ENOTSUP':
-      return msg + logObj.toString()
+      return autozoom(currentPrefix, logObj['prefix'], logObj.toString())
     default:
       return
   }
+}
+
+function autozoom (currentPrefix: string, logPrefix: string | undefined, line: string) {
+  if (!logPrefix || currentPrefix === logPrefix) {
+    return line
+  }
+  return zoomOut(currentPrefix, logPrefix, line)
+}
+
+function zoomOut (currentPrefix: string, logPrefix: string, line: string) {
+  return `${rightPad(formatPrefix(currentPrefix, logPrefix), PREFIX_MAX_LENGTH)} | ${line}`
 }
 
 function formatWarn (message: string) {
