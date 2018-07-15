@@ -46,7 +46,7 @@ dependencies:
   pnpm: 'link:'
   pnpm-default-reporter: 'link:../default-reporter'
   pnpm-file-reporter: 0.1.0
-  pnpm-list: 3.0.0
+  pnpm-list: 4.0.0
   process-exists: 3.1.0
   ramda: 0.25.0
   read-ini-file: 1.0.0
@@ -1860,18 +1860,18 @@ packages:
       node: '>= 0.6'
     resolution:
       integrity: sha1-m81S4UwJd2PnSbJ0xDRu0uVgtak=
-  /dependencies-hierarchy/2.0.4:
+  /dependencies-hierarchy/3.0.0:
     dependencies:
       '@types/node': 10.5.2
       '@types/semver': 5.5.0
       dependency-path: 1.2.1
-      pnpm-shrinkwrap: 6.5.1
+      pnpm-shrinkwrap: 7.0.0
       semver: 5.5.0
     dev: false
     engines:
-      node: '>=4'
+      node: '>=6'
     resolution:
-      integrity: sha512-rsCynm9JWqT+9F0cBNHhE7PSf3PJr9EuuHAsA03a00iJbFhQbh9FzWP1HTpXuMn0hpuCWBj+6VYkExAiPIpwXw==
+      integrity: sha512-JV9xKW/C2okJcxQbtWh797nzNmDQW31zleL0dNWSt4/wXuz15g5MYjgHxMRc0UJtnqNk7W7kEsz4T1W/FQ18DQ==
   /dependency-path/1.2.1:
     dependencies:
       '@types/semver': 5.5.0
@@ -4662,14 +4662,14 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha512-ZvCSe4hTJHWfAXZUgydkbRre3h1svqtlb3Wq70fkbdZF4Wbvr0LEQRG5kCsiEnkt27PpdzlZ2b3XmV2dvUpHwg==
-  /pnpm-list/3.0.0:
+  /pnpm-list/4.0.0:
     dependencies:
       '@types/archy': 0.0.31
       '@types/node': 10.5.2
       '@types/ramda': 0.25.34
       archy: 1.0.0
       chalk: 2.4.1
-      dependencies-hierarchy: 2.0.4
+      dependencies-hierarchy: 3.0.0
       npm-package-arg: 6.1.0
       p-limit: 2.0.0
       ramda: 0.25.0
@@ -4679,7 +4679,7 @@ packages:
     engines:
       node: '>=6'
     resolution:
-      integrity: sha512-hYygM1q/EhMbnUb/RI5XzbcnIA1ohqlbyPtN6zRl2Aosb2eCa0CKkXKufFLBBosz6m6+J6JSfe9b9F38mGS23Q==
+      integrity: sha512-CFCdu3sJjEPNta/d9CN2psO4R5oVHiS8ToGK9ULW8EIYMTnAmOQXlMl2CliCEoUpgCxWghc/h7RPUjmvIZxSlw==
   /pnpm-registry-mock/2.1.0:
     dependencies:
       anonymous-npm-registry-client: 0.1.2
@@ -4692,28 +4692,6 @@ packages:
     hasBin: true
     resolution:
       integrity: sha512-CdVJPZNJDQagEUZBOYdG/nikpvu2ftAPNui6OzOSl8GtyMerfeD++OIQRS/S5K1xGRYoPQvL5reHlBbrLKa3Yg==
-  /pnpm-shrinkwrap/6.5.1:
-    dependencies:
-      '@pnpm/resolver-base': 1.1.0
-      '@types/js-yaml': 3.11.2
-      '@types/node': 10.5.2
-      '@types/ramda': 0.25.34
-      dependency-path: 1.2.1
-      get-npm-tarball-url: 2.0.1
-      js-yaml: 3.12.0
-      load-yaml-file: 0.1.0
-      mkdirp-promise: 5.0.1
-      ramda: 0.25.0
-      rimraf-then: 1.0.1
-      util.promisify: 1.0.0
-      write-file-atomic: 2.3.0
-    dev: false
-    engines:
-      node: '>=4'
-    peerDependencies:
-      '@pnpm/logger': ^1.0.0
-    resolution:
-      integrity: sha512-e6qBou3b7aKty5WghN4uNpj87Zi580PLofagEyUqgG9AZjSUSKPIlkzFixNz+yT/ofDq/r7zR83kf4hBJX1oMQ==
   /pnpm-shrinkwrap/7.0.0:
     dependencies:
       '@pnpm/resolver-base': 1.1.0
@@ -6596,7 +6574,7 @@ specifiers:
   pkgs-graph: ^2.0.0
   pnpm-default-reporter: ^0.19.0
   pnpm-file-reporter: ^0.1.0
-  pnpm-list: ^3.0.0
+  pnpm-list: ^4.0.0
   pnpm-registry-mock: ^2.0.0
   process-exists: ^3.0.0
   ramda: ^0.25.0

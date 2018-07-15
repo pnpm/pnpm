@@ -66,7 +66,7 @@
     "pkgs-graph": "^2.0.0",
     "pnpm-default-reporter": "^0.19.0",
     "pnpm-file-reporter": "^0.1.0",
-    "pnpm-list": "^3.0.0",
+    "pnpm-list": "^4.0.0",
     "process-exists": "^3.0.0",
     "ramda": "^0.25.0",
     "read-ini-file": "^1.0.0",

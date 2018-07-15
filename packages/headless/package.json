@@ -16,7 +16,7 @@
     "lib/"
   ],
   "peerDependencies": {
-    "@pnpm/logger": "^1.0.0"
+    "@pnpm/logger": "^2.1.0"
   },
   "devDependencies": {
     "@pnpm/assert-project": "^1.1.1",

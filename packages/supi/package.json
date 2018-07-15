@@ -16,7 +16,7 @@
     "lib/"
   ],
   "peerDependencies": {
-    "@pnpm/logger": "^1.0.0"
+    "@pnpm/logger": "^2.1.0"
   },
   "dependencies": {
     "@pnpm/check-package": "^1.0.0",
