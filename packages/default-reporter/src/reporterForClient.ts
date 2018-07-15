@@ -257,7 +257,7 @@ export default function (
     // print warnings only about deprecated packages from the root
     .filter((log) => log.depth === 0)
     .map((log) => {
-      if (log.prefix === opts.cwd) {
+      if (!opts.isRecursive && log.prefix === opts.cwd) {
         return {
           msg: formatWarn(`${chalk.red('deprecated')} ${log.pkgName}@${log.pkgVersion}: ${log.deprecated}`),
         }
@@ -270,7 +270,15 @@ export default function (
 
   outputs.push(deprecationOutput$)
 
-  outputs.push(miscOutput(most.merge(log$.link, log$.registry, log$.other), {cwd: opts.cwd}))
+  outputs.push(
+    miscOutput(
+      most.merge(log$.link, log$.registry, log$.other),
+      {
+        cwd: opts.cwd,
+        zoomOutCurrent: opts.isRecursive,
+      },
+    ),
+  )
 
   const stats$ = opts.isRecursive
     ? log$.stats
@@ -309,7 +317,14 @@ export default function (
 
   const hookOutput$ = log$.hook
     .map((log) => ({
-      msg: autozoom(opts.cwd, log['prefix'], `${chalk.magentaBright(log['hook'])}: ${log['message']}`),
+      msg: autozoom(
+        opts.cwd,
+        log['prefix'],
+        `${chalk.magentaBright(log['hook'])}: ${log['message']}`,
+        {
+          zoomOutCurrent: opts.isRecursive,
+        },
+      ),
     }))
     .map(most.of)
 
@@ -322,6 +337,7 @@ function miscOutput (
   log$: most.Stream<supi.Log>,
   opts: {
     cwd: string,
+    zoomOutCurrent: boolean,
   },
 ) {
   return log$
@@ -329,7 +345,7 @@ function miscOutput (
     .map((obj) => {
       switch (obj.level) {
         case 'warn':
-          return autozoom(opts.cwd, obj.prefix, formatWarn(obj.message))
+          return autozoom(opts.cwd, obj.prefix, formatWarn(obj.message), opts)
         case 'error':
           if (obj['message'] && obj['message']['prefix'] && obj['message']['prefix'] !== opts.cwd) {
             return `${obj['message']['prefix']}:` + os.EOL + reportError(obj)
@@ -564,19 +580,37 @@ function formatLine (maxWidth: number, logObj: LifecycleLog) {
   return line
 }
 
-function formatInstallCheck (currentPrefix: string, logObj: InstallCheckLog) {
+function formatInstallCheck (
+  currentPrefix: string,
+  logObj: InstallCheckLog,
+  opts: {
+    zoomOutCurrent: boolean,
+  },
+) {
   switch (logObj.code) {
     case 'EBADPLATFORM':
-      return autozoom(currentPrefix, logObj['prefix'], formatWarn(`Unsupported system. Skipping dependency ${logObj.pkgId}`))
+      return autozoom(
+        currentPrefix,
+        logObj['prefix'],
+        formatWarn(`Unsupported system. Skipping dependency ${logObj.pkgId}`),
+        opts,
+      )
     case 'ENOTSUP':
-      return autozoom(currentPrefix, logObj['prefix'], logObj.toString())
+      return autozoom(currentPrefix, logObj['prefix'], logObj.toString(), opts)
     default:
       return
   }
 }
 
-function autozoom (currentPrefix: string, logPrefix: string | undefined, line: string) {
-  if (!logPrefix || currentPrefix === logPrefix) {
+function autozoom (
+  currentPrefix: string,
+  logPrefix: string | undefined,
+  line: string,
+  opts: {
+    zoomOutCurrent: boolean,
+  },
+) {
+  if (!logPrefix || !opts.zoomOutCurrent && currentPrefix === logPrefix) {
     return line
   }
   return zoomOut(currentPrefix, logPrefix, line)

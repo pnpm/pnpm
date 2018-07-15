@@ -929,9 +929,11 @@ test('prints just removed during uninstallation', t => {
 })
 
 test('prints added/removed stats and warnings during recursive installation', t => {
-  const output$ = toOutput$(createStreamParser(), {cmd: 'recursive', cwd: '/home/jane/repo'})
+  const rootPrefix = '/home/jane/repo'
+  const output$ = toOutput$(createStreamParser(), {cmd: 'recursive', cwd: rootPrefix})
 
   logger.warn({ message: 'Some issue', prefix: '/home/jane/repo/pkg-5' })
+  logger.warn({ message: 'Some other issue', prefix: rootPrefix })
   statsLogger.debug({ removed: 1, prefix: '/home/jane/repo' })
   statsLogger.debug({ added: 0, prefix: '/home/jane/repo' })
   statsLogger.debug({ removed: 0, prefix: '/home/jane/repo/pkg-5' })
@@ -952,19 +954,29 @@ test('prints added/removed stats and warnings during recursive installation', t 
   statsLogger.debug({ added: 1, prefix: '/home/jane/repo/loooooooooooooooooooooooooooooooooong/pkg-3' })
   statsLogger.debug({ removed: 1, prefix: '/home/jane/repo/loooooooooooooooooooooooooooooooooong-pkg-4' })
   statsLogger.debug({ added: 0, prefix: '/home/jane/repo/loooooooooooooooooooooooooooooooooong-pkg-4' })
+  deprecationLogger.debug({
+    pkgName: 'foo',
+    pkgVersion: '1.0.0',
+    pkgId: 'registry.npmjs.org/foo/1.0.0',
+    deprecated: 'This package was deprecated because bla bla bla',
+    depth: 0,
+    prefix: rootPrefix,
+  })
 
   t.plan(1)
 
-  output$.skip(6).take(1).map(normalizeNewline).subscribe({
+  output$.skip(8).take(1).map(normalizeNewline).subscribe({
     next: output => {
       t.equal(output, stripIndents`
         pkg-5                                    | ${WARN} Some issue
+        .                                        | ${WARN} Some other issue
         .                                        |   ${chalk.red('-1')} ${SUB}
         pkg-1                                    |   ${chalk.green('+5')}   ${chalk.red('-1')} ${ADD + SUB}
         dir/pkg-2                                | ${WARN} ${DEPRECATED} bar@2.0.0
         dir/pkg-2                                |   ${chalk.green('+2')} ${ADD}
         .../pkg-3                                |   ${chalk.green('+1')} ${ADD}
-        ...ooooooooooooooooooooooooooooong-pkg-4 |   ${chalk.red('-1')} ${SUB}`
+        ...ooooooooooooooooooooooooooooong-pkg-4 |   ${chalk.red('-1')} ${SUB}
+        .                                        | ${WARN} ${DEPRECATED} foo@1.0.0`
       )
     },
     complete: () => t.end(),
