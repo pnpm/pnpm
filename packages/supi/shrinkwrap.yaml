@@ -223,7 +223,7 @@ packages:
       '@types/mz': 0.0.32
       '@types/node': 10.5.2
       '@types/ramda': 0.25.34
-      '@zkochan/cmd-shim': 3.0.0
+      '@zkochan/cmd-shim': 3.0.1
       arr-flatten: 1.1.0
       is-windows: 1.0.2
       mkdirp-promise: 5.0.1
@@ -616,7 +616,7 @@ packages:
       npm: '>=3'
     resolution:
       integrity: sha512-AjEo5LXk4Yf0SaXSc3y4i1t+wxY552O7WrVJPtnC6H7nUsSrygg/ODCG1RSKelskOq6b5p/LyXnsTkmCFXyjDQ==
-  /@zkochan/cmd-shim/3.0.0:
+  /@zkochan/cmd-shim/3.0.1:
     dependencies:
       is-windows: 1.0.2
       mkdirp-promise: 5.0.1
@@ -625,7 +625,7 @@ packages:
     engines:
       node: '>=6'
     resolution:
-      integrity: sha512-mEdlYzulXT678cm6/ud4uQI3e6qrsgKuYZymqkDrHNcD22XFPJMpOGLjof3h+486ENzYhCB6msjKAUQ0/froDg==
+      integrity: sha512-bwKWp1qPnbUuZJDc81AeSLWguW8rY3uiCSDb+bev4ODm6zBfL77vV0bNvCAB3+Tovq5o2hMZEAhzFAmHg8sARA==
   /@zkochan/npm-package-arg/1.0.0:
     dependencies:
       hosted-git-info: 2.7.1
@@ -4995,7 +4995,7 @@ specifiers:
   '@pnpm/default-fetcher': ^2.0.0
   '@pnpm/default-resolver': ^2.0.0
   '@pnpm/fs-locker': ^1.0.0
-  '@pnpm/headless': ^0.5.4
+  '@pnpm/headless': ^0.6.0
   '@pnpm/lifecycle': ^3.0.0
   '@pnpm/link-bins': ^3.0.0
   '@pnpm/logger': ^2.1.0
@@ -5006,7 +5006,7 @@ specifiers:
   '@pnpm/resolver-base': ^1.1.0
   '@pnpm/store-path': ^1.0.0
   '@pnpm/types': ^1.7.0
-  '@pnpm/utils': ^0.4.0
+  '@pnpm/utils': ^0.5.0
   '@types/byline': ^4.2.31
   '@types/common-tags': ^1.2.5
   '@types/is-windows': ^0.2.0
