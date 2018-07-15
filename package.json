@@ -42,7 +42,7 @@
     "@types/node": "^9.3.0 || 10",
     "@types/semver": "^5.3.32",
     "dependency-path": "^1.0.0",
-    "pnpm-shrinkwrap": "^6.0.0",
+    "pnpm-shrinkwrap": "6 || 7",
     "semver": "^5.3.0"
   },
   "devDependencies": {
