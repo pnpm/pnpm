@@ -43,7 +43,7 @@
     "@types/ramda": "^0.25.0",
     "archy": "^1.0.0",
     "chalk": "^2.3.0",
-    "dependencies-hierarchy": "^2.0.0",
+    "dependencies-hierarchy": "^3.0.0",
     "npm-package-arg": "^6.0.0",
     "p-limit": "^2.0.0",
     "ramda": "^0.25.0",
@@ -51,7 +51,7 @@
     "thenify": "^3.3.0"
   },
   "devDependencies": {
-    "@pnpm/logger": "^1.0.0",
+    "@pnpm/logger": "^2.1.0",
     "@types/common-tags": "^1.2.5",
     "@types/tape": "^4.2.30",
     "common-tags": "^1.4.0",
