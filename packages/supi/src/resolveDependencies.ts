@@ -303,6 +303,7 @@ async function install (
           version: wantedDependency.alias ? wantedDependency.pref : undefined,
         },
         parents: nodeIdToParents(createNodeId(options.parentNodeId, 'fake-id'), ctx.pkgByPkgId),
+        prefix: ctx.prefix,
         reason: 'resolution_failure',
       })
       return null
@@ -436,6 +437,7 @@ async function install (
         optional: wantedDependency.optional,
         pkgByPkgId: ctx.pkgByPkgId,
         pnpmVersion: ctx.pnpmVersion,
+        prefix: ctx.prefix,
       })
     )
   const installable = parentIsInstallable && currentIsInstallable

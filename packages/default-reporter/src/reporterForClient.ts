@@ -251,19 +251,26 @@ export default function (
     .map(most.of)
 
     outputs.push(summaryOutput$)
+  }
 
-    const deprecationOutput$ = log$.deprecation
-      // print warnings only about deprecated packages from the root
-      .filter((log) => log.depth === 0)
-      .map((log) => {
+  const deprecationOutput$ = log$.deprecation
+    // print warnings only about deprecated packages from the root
+    .filter((log) => log.depth === 0)
+    .map((log) => {
+      if (log.prefix === opts.cwd) {
         return {
           msg: formatWarn(`${chalk.red('deprecated')} ${log.pkgName}@${log.pkgVersion}: ${log.deprecated}`),
         }
-      })
-      .map(most.of)
+      }
+      return {
+        msg: zoomOut(opts.cwd, log.prefix, formatWarn(`${chalk.red('deprecated')} ${log.pkgName}@${log.pkgVersion}`)),
+      }
+    })
+    .map(most.of)
 
-    outputs.push(deprecationOutput$)
-  }
+  outputs.push(deprecationOutput$)
+
+  outputs.push(miscOutput(most.merge(log$.link, log$.registry, log$.other), {cwd: opts.cwd}))
 
   const stats$ = opts.isRecursive
     ? log$.stats
@@ -280,79 +287,60 @@ export default function (
       currentPrefix: opts.cwd,
       width,
     }))
-
-    const installCheckOutput$ = log$.installCheck
-      .map(formatInstallCheck)
-      .filter(Boolean)
-      .map((msg) => ({msg}))
-      .map(most.of) as most.Stream<most.Stream<{msg: string}>>
-
-    outputs.push(installCheckOutput$)
-
-    const registryOutput$ = log$.registry
-      .filter((log) => log.level === 'warn')
-      .map((log: RegistryLog) => ({msg: formatWarn(log.message)}))
-      .map(most.of)
-
-    outputs.push(registryOutput$)
-
-    const miscOutput$ = most.merge(log$.link, log$.other)
-      .filter((obj) => obj.level !== 'debug' && (!obj['prefix'] || obj['prefix'] === opts.cwd))
-      .map((obj) => {
-        if (obj.level === 'warn') {
-          return formatWarn(obj['message'])
-        }
-        if (obj.level === 'error') {
-          return reportError(obj)
-        }
-        return obj['message']
-      })
-      .map((msg) => ({msg}))
-      .map(most.of)
-
-    outputs.push(miscOutput$)
-
-    outputs.push(
-      log$.skippedOptionalDependency
-        .filter((log) => Boolean(log.parents && log.parents.length === 0))
-        .map((log) => most.of({
-          msg: `info: ${
-            log.package['id'] || log.package.name && (`${log.package.name}@${log.package.version}`) || log.package['pref']
-          } is an optional dependency and failed compatibility check. Excluding it from installation.`,
-        })),
-    )
-  } else {
-    const miscOutput$ = log$.other
-      .filter((obj) => obj.level === 'error')
-      .map((obj) => {
-        if (obj['message']['prefix']) {
-          return obj['message']['prefix'] + ':' + os.EOL + reportError(obj)
-        }
-        return reportError(obj)
-      })
-      .map((msg) => ({msg}))
-      .map(most.of)
-
-    outputs.push(miscOutput$)
   }
 
-  if (!opts.isRecursive) {
-    const hookOutput$ = log$.hook
-      .map((log) => ({msg: `${chalk.magentaBright(log['hook'])}: ${log['message']}`}))
-      .map(most.of)
+  const installCheckOutput$ = log$.installCheck
+    .map(formatInstallCheck.bind(null, opts.cwd))
+    .filter(Boolean)
+    .map((msg) => ({msg}))
+    .map(most.of) as most.Stream<most.Stream<{msg: string}>>
 
-    outputs.push(hookOutput$)
-  } else {
-    const hookOutput$ = log$.hook
-      .map((log) => ({
-        msg: `${rightPad(formatPrefix(cwd, log['prefix']), PREFIX_MAX_LENGTH)} | ${chalk.magentaBright(log['hook'])}: ${log['message']}`,
-      }))
-      .map(most.of)
+  outputs.push(installCheckOutput$)
 
-    outputs.push(hookOutput$)
-  }
+  outputs.push(
+    log$.skippedOptionalDependency
+      .filter((log) => Boolean(log['prefix'] === opts.cwd && log.parents && log.parents.length === 0))
+      .map((log) => most.of({
+        msg: `info: ${
+          log.package['id'] || log.package.name && (`${log.package.name}@${log.package.version}`) || log.package['pref']
+        } is an optional dependency and failed compatibility check. Excluding it from installation.`,
+      })),
+  )
+
+  const hookOutput$ = log$.hook
+    .map((log) => ({
+      msg: autozoom(opts.cwd, log['prefix'], `${chalk.magentaBright(log['hook'])}: ${log['message']}`),
+    }))
+    .map(most.of)
+
+  outputs.push(hookOutput$)
 
   return outputs
+}
+
+function miscOutput (
+  log$: most.Stream<supi.Log>,
+  opts: {
+    cwd: string,
+  },
+) {
+  return log$
+    .filter((obj) => obj.level !== 'debug' && (obj.level !== 'info' || !obj['prefix'] || obj['prefix'] === opts.cwd))
+    .map((obj) => {
+      switch (obj.level) {
+        case 'warn':
+          return autozoom(opts.cwd, obj.prefix, formatWarn(obj.message))
+        case 'error':
+          if (obj['message'] && obj['message']['prefix'] && obj['message']['prefix'] !== opts.cwd) {
+            return `${obj['message']['prefix']}:` + os.EOL + reportError(obj)
+          }
+          return reportError(obj)
+        default:
+          return obj['message']
+      }
+    })
+    .map((msg) => ({msg}))
+    .map(most.of)
 }
 
 function statsForCurrentPackage (
@@ -432,17 +420,16 @@ function statsForNotCurrentPackage (
   return cookedStats$
     .filter((stats) => stats !== null && (stats['removed'] || stats['added']))
     .map((stats) => {
-      const prefix = formatPrefix(opts.currentPrefix, stats['prefix'])
-
-      let msg = `${rightPad(prefix, PREFIX_MAX_LENGTH)} |`
+      const parts = [] as string[]
 
       if (stats['added']) {
-        msg += ` ${padStep(chalk.green(`+${stats['added']}`), 4)}`
+        parts.push(padStep(chalk.green(`+${stats['added']}`), 4))
       }
       if (stats['removed']) {
-        msg += ` ${padStep(chalk.red(`-${stats['removed']}`), 4)}`
+        parts.push(padStep(chalk.red(`-${stats['removed']}`), 4))
       }
 
+      let msg = zoomOut(opts.currentPrefix, stats['prefix'], parts.join(' '))
       const rest = Math.max(0, opts.width - 1 - stringLength(msg))
       msg += ' ' + printPlusesAndMinuses(rest, roundStats(stats['added'] || 0), roundStats(stats['removed'] || 0))
       return most.of({msg})
@@ -577,15 +564,26 @@ function formatLine (maxWidth: number, logObj: LifecycleLog) {
   return line
 }
 
-function formatInstallCheck (logObj: InstallCheckLog) {
+function formatInstallCheck (currentPrefix: string, logObj: InstallCheckLog) {
   switch (logObj.code) {
     case 'EBADPLATFORM':
-      return formatWarn(`Unsupported system. Skipping dependency ${logObj.pkgId}`)
+      return autozoom(currentPrefix, logObj['prefix'], formatWarn(`Unsupported system. Skipping dependency ${logObj.pkgId}`))
     case 'ENOTSUP':
-      return logObj.toString()
+      return autozoom(currentPrefix, logObj['prefix'], logObj.toString())
     default:
       return
   }
+}
+
+function autozoom (currentPrefix: string, logPrefix: string | undefined, line: string) {
+  if (!logPrefix || currentPrefix === logPrefix) {
+    return line
+  }
+  return zoomOut(currentPrefix, logPrefix, line)
+}
+
+function zoomOut (currentPrefix: string, logPrefix: string, line: string) {
+  return `${rightPad(formatPrefix(currentPrefix, logPrefix), PREFIX_MAX_LENGTH)} | ${line}`
 }
 
 function formatWarn (message: string) {

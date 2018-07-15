@@ -235,6 +235,7 @@ async function _rebuild (
                   name: pkgInfo.name,
                   version: pkgInfo.version,
                 },
+                prefix: opts.prefix,
                 reason: 'build_failure',
               })
               return
