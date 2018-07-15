@@ -182,9 +182,23 @@ export default async function run (argv: string[]) {
     if (isCI || !process.stdout.isTTY) return 'append-only'
     return 'default'
   })()
+
+  // TODO: rewrite the value of prefix in opts.prefix.
+  // It will allow to avoid similar manipulations in supi extendInstallOptions.ts
+  // fixes #1218
+  let prefix!: string
+  if (opts.global) {
+    const independentLeavesSuffix = opts.independentLeaves ? '_independent_leaves' : ''
+    const shamefullyFlattenSuffix = opts.shamefullyFlatten ? '_shamefully_flatten' : ''
+    const subfolder = '1' + independentLeavesSuffix + shamefullyFlattenSuffix
+    prefix = path.join(opts.prefix, subfolder)
+  } else {
+    prefix = opts.prefix
+  }
+
   initReporter(reporterType, {
     cmd,
-    prefix: opts.prefix,
+    prefix,
     subCmd: cliConf.argv.remain[1] && getCommandFullName(cliConf.argv.remain[1]),
   })
   delete opts.reporter // This is a silly workaround because supi expects a function as opts.reporter

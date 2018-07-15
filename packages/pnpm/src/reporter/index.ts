@@ -26,6 +26,7 @@ export default (
       defaultReporter(streamParser, {
         appendOnly: true,
         cmd: opts.cmd,
+        cwd: opts.prefix,
         subCmd: opts.subCmd,
         throttleProgress: 1000,
       })
