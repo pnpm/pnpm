@@ -46,7 +46,7 @@
     "semver": "^5.3.0"
   },
   "devDependencies": {
-    "@pnpm/logger": "^1.0.0",
+    "@pnpm/logger": "^2.1.0",
     "@types/tape": "^4.2.30",
     "mos": "^2.0.0-alpha.3",
     "mos-plugin-readme": "^1.0.4",
