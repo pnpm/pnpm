@@ -222,7 +222,7 @@ async function _rebuild (
               pkgRoot: path.join(modules, `.${depAbsolutePath}`, 'node_modules', pkgInfo.name),
               prepare: pkgSnapshot.prepare,
               rawNpmConfig: opts.rawNpmConfig,
-              rootNodeModulesDir: opts.prefix,
+              rootNodeModulesDir: modules,
               unsafePerm: opts.unsafePerm || false,
             })
           } catch (err) {

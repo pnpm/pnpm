@@ -200,7 +200,17 @@ export default async (opts: HeadlessOptions) => {
   })
 
   if (!opts.ignoreScripts) {
-    await runDependenciesScripts(depGraph, R.values(res.rootDependencies).filter((loc) => depGraph[loc]), opts)
+    await runDependenciesScripts(depGraph, R.values(res.rootDependencies).filter((loc) => depGraph[loc]), {
+      childConcurrency: opts.childConcurrency,
+      nodeModulesDir,
+      prefix: opts.prefix,
+      rawNpmConfig: opts.rawNpmConfig,
+      sideEffectsCache: opts.sideEffectsCache,
+      sideEffectsCacheReadonly: opts.sideEffectsCacheReadonly,
+      storeController: opts.storeController,
+      unsafePerm: opts.unsafePerm,
+      userAgent: opts.userAgent,
+    })
   }
 
   // waiting till package requests are finished

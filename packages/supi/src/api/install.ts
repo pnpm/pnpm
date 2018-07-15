@@ -696,7 +696,7 @@ async function installInContext (
                 pkgRoot: pkg.peripheralLocation,
                 prepare: pkg.prepare,
                 rawNpmConfig: installCtx.rawNpmConfig,
-                rootNodeModulesDir: ctx.prefix,
+                rootNodeModulesDir: nodeModulesPath,
                 unsafePerm: opts.unsafePerm || false,
               })
               if (hasSideEffects && opts.sideEffectsCache && !opts.sideEffectsCacheReadonly) {
