@@ -19,6 +19,7 @@ export default async function getIsInstallable (
     nodeVersion: string,
     optional: boolean,
     pnpmVersion: string,
+    prefix: string,
   },
 ): Promise<boolean> {
   const warn = await installChecks.checkPlatform({
@@ -47,6 +48,7 @@ export default async function getIsInstallable (
         version: pkg.version,
       },
       parents: nodeIdToParents(options.nodeId, options.pkgByPkgId),
+      prefix: options.prefix,
       reason: warn.code === 'ENOTSUP' ? 'unsupported_engine' : 'unsupported_platform',
     })
 

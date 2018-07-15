@@ -288,41 +288,38 @@ export default function (
       currentPrefix: opts.cwd,
       width,
     }))
-
-    const installCheckOutput$ = log$.installCheck
-      .map(formatInstallCheck)
-      .filter(Boolean)
-      .map((msg) => ({msg}))
-      .map(most.of) as most.Stream<most.Stream<{msg: string}>>
-
-    outputs.push(installCheckOutput$)
-
-    outputs.push(
-      log$.skippedOptionalDependency
-        .filter((log) => Boolean(log.parents && log.parents.length === 0))
-        .map((log) => most.of({
-          msg: `info: ${
-            log.package['id'] || log.package.name && (`${log.package.name}@${log.package.version}`) || log.package['pref']
-          } is an optional dependency and failed compatibility check. Excluding it from installation.`,
-        })),
-    )
   }
 
-  if (!opts.isRecursive) {
-    const hookOutput$ = log$.hook
-      .map((log) => ({msg: `${chalk.magentaBright(log['hook'])}: ${log['message']}`}))
-      .map(most.of)
+  const installCheckOutput$ = log$.installCheck
+    .map(formatInstallCheck.bind(null, opts.cwd))
+    .filter(Boolean)
+    .map((msg) => ({msg}))
+    .map(most.of) as most.Stream<most.Stream<{msg: string}>>
 
-    outputs.push(hookOutput$)
-  } else {
-    const hookOutput$ = log$.hook
-      .map((log) => ({
+  outputs.push(installCheckOutput$)
+
+  outputs.push(
+    log$.skippedOptionalDependency
+      .filter((log) => Boolean(log['prefix'] === opts.cwd && log.parents && log.parents.length === 0))
+      .map((log) => most.of({
+        msg: `info: ${
+          log.package['id'] || log.package.name && (`${log.package.name}@${log.package.version}`) || log.package['pref']
+        } is an optional dependency and failed compatibility check. Excluding it from installation.`,
+      })),
+  )
+
+  const hookOutput$ = log$.hook
+    .map((log) => {
+      if (log['prefix'] === opts.cwd) {
+        return {msg: `${chalk.magentaBright(log['hook'])}: ${log['message']}`}
+      }
+      return {
         msg: `${rightPad(formatPrefix(cwd, log['prefix']), PREFIX_MAX_LENGTH)} | ${chalk.magentaBright(log['hook'])}: ${log['message']}`,
-      }))
-      .map(most.of)
+      }
+    })
+    .map(most.of)
 
-    outputs.push(hookOutput$)
-  }
+  outputs.push(hookOutput$)
 
   return outputs
 }
@@ -576,12 +573,15 @@ function formatLine (maxWidth: number, logObj: LifecycleLog) {
   return line
 }
 
-function formatInstallCheck (logObj: InstallCheckLog) {
+function formatInstallCheck (currentPrefix: string, logObj: InstallCheckLog) {
+  const msg = currentPrefix === logObj['prefix']
+    ? ''
+    : `${rightPad(formatPrefix(currentPrefix, logObj['prefix']), PREFIX_MAX_LENGTH)} | `
   switch (logObj.code) {
     case 'EBADPLATFORM':
-      return formatWarn(`Unsupported system. Skipping dependency ${logObj.pkgId}`)
+      return msg + formatWarn(`Unsupported system. Skipping dependency ${logObj.pkgId}`)
     case 'ENOTSUP':
-      return logObj.toString()
+      return msg + logObj.toString()
     default:
       return
   }

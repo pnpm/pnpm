@@ -1113,7 +1113,8 @@ test('recursive: print hook message', t => {
 })
 
 test('prints skipped optional dependency info message', t => {
-  const output$ = toOutput$(createStreamParser(), {cmd: 'install'})
+  const prefix = process.cwd()
+  const output$ = toOutput$(createStreamParser(), {cmd: 'install', cwd: prefix})
 
   const pkgId = 'registry.npmjs.org/foo/1.0.0'
 
@@ -1124,6 +1125,7 @@ test('prints skipped optional dependency info message', t => {
       version: '1.0.0',
     },
     parents: [],
+    prefix,
     reason: 'unsupported_platform',
   })
 

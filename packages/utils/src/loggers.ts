@@ -55,6 +55,7 @@ export type StatsMessage = {
 export type SkippedOptionalDependencyMessage = {
   details?: string,
   parents?: Array<{id: string, name: string, version: string}>,
+  prefix: string,
 } & ({
   package: {
     id: string,

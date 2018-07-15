@@ -91,6 +91,7 @@ export default async (
                   name: pkg.name,
                   version: pkg.version,
                 },
+                prefix: opts.prefix,
                 reason: 'build_failure',
               })
               return
