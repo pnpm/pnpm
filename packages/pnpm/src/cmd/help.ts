@@ -271,7 +271,8 @@ function getHelpText (command: string) {
 
         Options:
 
-          --scope  restricts the scope to package names matching the given glob.
+          --scope    restricts the scope to package names matching the given glob.
+          --no-bail  continues executing other tasks even if a task threw an error.
       `
 
     default:

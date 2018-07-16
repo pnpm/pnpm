@@ -14,6 +14,7 @@ function which (cmd: string) {
 
 export const types = Object.assign({
   'background': Boolean,
+  'bail': Boolean,
   'child-concurrency': Number,
   'dev': [null, true],
   'fetching-concurrency': Number,
@@ -74,6 +75,7 @@ export default async (
   } catch (err) {} // tslint:disable-line:no-empty
 
   const npmConfig = loadNpmConf(null, types, {
+    'bail': true,
     'globalconfig': npmDefaults.globalconfig,
     'package-lock': npmDefaults['package-lock'],
     'prefix': npmDefaults.prefix,

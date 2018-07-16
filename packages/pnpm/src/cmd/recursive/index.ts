@@ -148,6 +148,8 @@ export default async (
       break
   }
 
+  let failed = false
+
   for (const chunk of chunks) {
     await Promise.all(chunk.map((prefix: string) =>
       limitInstallation(async () => {
@@ -168,6 +170,12 @@ export default async (
           })
         } catch (err) {
           logger.info(err)
+
+          if (!opts.bail) {
+            failed = true
+            return
+          }
+
           err['prefix'] = prefix // tslint:disable-line:no-string-literal
           throw err
         }
@@ -176,6 +184,12 @@ export default async (
   }
 
   await saveState()
+
+  if (failed) {
+    const err = new Error(`"pnpm recursive ${cmdFullName}" failed`)
+    err['code'] = 'ERR_PNPM_RECURSIVE_FAIL' // tslint:disable-line:no-string-literal
+    throw err
+  }
 }
 
 async function readLocalConfigs (prefix: string) {
