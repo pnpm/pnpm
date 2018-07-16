@@ -10,6 +10,7 @@ export default async (
   args: string[],
   cmd: string,
   opts: {
+    bail: boolean,
     concurrency: number,
     unsafePerm: boolean,
     rawNpmConfig: object,
@@ -18,6 +19,7 @@ export default async (
   const scriptName = args[0]
   const {chunks, graph} = dividePackagesToChunks(pkgs)
   let hasCommand = 0
+  let failed = false
 
   const limitRun = pLimit(opts.concurrency)
 
@@ -46,13 +48,27 @@ export default async (
           }
         } catch (err) {
           logger.info(err)
-          err['prefix'] = prefix // tslint:disable-line:no-string-literal
+
+          if (!opts.bail) {
+            failed = true
+            return
+          }
+
+          // tslint:disable:no-string-literal
+          err['code'] = 'ERR_PNPM_RECURSIVE_RUN_FIRST_FAIL'
+          err['prefix'] = prefix
+          // tslint:enable:no-string-literal
           throw err
         }
       },
     )))
   }
 
+  if (failed) {
+    const err = new Error('Recursive run failed')
+    err['code'] = 'ERR_PNPM_RECURSIVE_RUN_FAIL' // tslint:disable-line:no-string-literal
+    throw err
+  }
   if (scriptName !== 'test' && !hasCommand) {
     const err = new Error(`None of the packages has a "${scriptName}" script`)
     err['code'] = 'RECURSIVE_RUN_NO_SCRIPT' // tslint:disable-line:no-string-literal

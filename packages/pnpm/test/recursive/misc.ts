@@ -457,3 +457,34 @@ test('recursive --scope ignore excluded packages', async (t: tape.Test) => {
   projects['project-2'].hasNot('is-negative')
   projects['project-3'].hasNot('minimatch')
 })
+
+test('recursive install --no-bail', async (t: tape.Test) => {
+  const projects = preparePackages(t, [
+    {
+      name: 'project-1',
+      version: '1.0.0',
+      dependencies: {
+        '@pnpm/this-does-not-exist': '1.0.0',
+      },
+    },
+    {
+      name: 'project-2',
+      version: '1.0.0',
+      dependencies: {
+        'is-negative': '1.0.0',
+      },
+    },
+  ])
+
+  let failed = false
+
+  try {
+    await execPnpm('recursive', 'install', '--no-bail')
+  } catch (err) {
+    failed = true
+  }
+
+  t.ok(failed, 'command failed')
+
+  t.ok(projects['project-2'].requireModule('is-negative'))
+})

@@ -6,6 +6,7 @@ import {
 export type ReadPackageHook = (pkg: PackageManifest) => PackageManifest
 
 export interface PnpmOptions {
+  bail: boolean,
   rawNpmConfig: object,
   globalPrefix: string,
   globalBin: string,
