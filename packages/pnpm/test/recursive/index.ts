@@ -14,7 +14,7 @@ import {
   preparePackages,
   retryLoadJsonFile,
   spawn,
-} from './utils'
+} from '../utils'
 import mkdirp = require('mkdirp-promise')
 import normalizeNewline = require('normalize-newline')
 
