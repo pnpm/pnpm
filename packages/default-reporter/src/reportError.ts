@@ -28,6 +28,8 @@ export default function reportError (logObj: Log) {
         return formatErrorSummary(err.message)
       case 'ERR_PNPM_NO_MATCHING_VERSION':
         return formatNoMatchingVersion(err, logObj['message'])
+      case 'ERR_PNPM_RECURSIVE_FAIL':
+        return formatRecursiveCommandSummary(err, logObj['message'])
       default:
         // Errors with known error codes are printed w/o stack trace
         if (err.code && err.code.startsWith && err.code.startsWith('ERR_PNPM_')) {
@@ -161,4 +163,12 @@ function reportShrinkwrapBreakingChange (err: Error, msg: object) {
 
     Run with the ${highlight('--force')} parameter to recreate the shrinkwrap file.
   `
+}
+
+function formatRecursiveCommandSummary (err: Error, msg: {fails: Error[], passes: number}) {
+  const output = EOL + `Summary: ${chalk.red(`${msg.fails.length} fails`)}, ${msg.passes} passes` + EOL + EOL +
+    msg.fails.map((fail: Error & {prefix: string}) => {
+      return fail.prefix + ':' + EOL + formatErrorSummary(fail.message)
+    }).join(EOL + EOL)
+  return output
 }

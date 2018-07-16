@@ -584,6 +584,71 @@ test('prints no matching version error when only the latest dist-tag exists', as
   logger.error(err, err)
 })
 
+test('prints summary when some packages fail', async (t) => {
+  const output$ = toOutput$(createStreamParser(), {cmd: 'recursive'})
+
+  t.plan(1)
+
+  output$.take(1).map(normalizeNewline).subscribe({
+    next: output => {
+      t.equal(output, EOL + stripIndent`
+        Summary: ${chalk.red('6 fails')}, 7 passes
+
+        /a:
+        ${ERROR} ${chalk.red('a failed')}
+
+        /b:
+        ${ERROR} ${chalk.red('b failed')}
+
+        /c:
+        ${ERROR} ${chalk.red('c failed')}
+
+        /d:
+        ${ERROR} ${chalk.red('d failed')}
+
+        /e:
+        ${ERROR} ${chalk.red('e failed')}
+
+        /f:
+        ${ERROR} ${chalk.red('f failed')}
+      `)
+    },
+    complete: () => t.end(),
+    error: t.end,
+  })
+
+  const err = new Error('...')
+  err['code'] = 'ERR_PNPM_RECURSIVE_FAIL'
+  err['fails'] = [
+    {
+      prefix: '/a',
+      message: 'a failed',
+    },
+    {
+      prefix: '/b',
+      message: 'b failed',
+    },
+    {
+      prefix: '/c',
+      message: 'c failed',
+    },
+    {
+      prefix: '/d',
+      message: 'd failed',
+    },
+    {
+      prefix: '/e',
+      message: 'e failed',
+    },
+    {
+      prefix: '/f',
+      message: 'f failed',
+    },
+  ]
+  err['passes'] = 7
+  logger.error(err, err)
+})
+
 test('prints info', t => {
   const output$ = toOutput$(createStreamParser(), {cmd: 'install'})
 

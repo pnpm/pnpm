@@ -4,12 +4,14 @@ import {PackageJson} from '@pnpm/types'
 import {realNodeModulesDir} from '@pnpm/utils'
 import pLimit = require('p-limit')
 import dividePackagesToChunks from './dividePackagesToChunks'
+import RecursiveSummary from './recursiveSummary'
 
 export default async (
   pkgs: Array<{path: string, manifest: PackageJson}>,
   args: string[],
   cmd: string,
   opts: {
+    bail: boolean,
     concurrency: number,
     unsafePerm: boolean,
     rawNpmConfig: object,
@@ -18,6 +20,11 @@ export default async (
   const scriptName = args[0]
   const {chunks, graph} = dividePackagesToChunks(pkgs)
   let hasCommand = 0
+
+  const result = {
+    fails: [],
+    passes: 0,
+  } as RecursiveSummary
 
   const limitRun = pLimit(opts.concurrency)
 
@@ -44,9 +51,23 @@ export default async (
           if (pkg.manifest.scripts[`post${scriptName}`]) {
             await runLifecycleHooks(`post${scriptName}`, pkg.manifest, lifecycleOpts)
           }
+          result.passes++
         } catch (err) {
           logger.info(err)
-          err['prefix'] = prefix // tslint:disable-line:no-string-literal
+
+          if (!opts.bail) {
+            result.fails.push({
+              error: err,
+              message: err.message,
+              prefix,
+            })
+            return
+          }
+
+          // tslint:disable:no-string-literal
+          err['code'] = 'ERR_PNPM_RECURSIVE_RUN_FIRST_FAIL'
+          err['prefix'] = prefix
+          // tslint:enable:no-string-literal
           throw err
         }
       },
@@ -58,4 +79,6 @@ export default async (
     err['code'] = 'RECURSIVE_RUN_NO_SCRIPT' // tslint:disable-line:no-string-literal
     throw err
   }
+
+  return result
 }
