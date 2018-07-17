@@ -4,6 +4,7 @@ import {PackageJson} from '@pnpm/types'
 import {realNodeModulesDir} from '@pnpm/utils'
 import pLimit = require('p-limit')
 import dividePackagesToChunks from './dividePackagesToChunks'
+import RecursiveSummary from './recursiveSummary'
 
 export default async (
   pkgs: Array<{path: string, manifest: PackageJson}>,
@@ -19,7 +20,11 @@ export default async (
   const scriptName = args[0]
   const {chunks, graph} = dividePackagesToChunks(pkgs)
   let hasCommand = 0
-  let failed = false
+
+  const result = {
+    fails: [],
+    passes: 0,
+  } as RecursiveSummary
 
   const limitRun = pLimit(opts.concurrency)
 
@@ -46,11 +51,16 @@ export default async (
           if (pkg.manifest.scripts[`post${scriptName}`]) {
             await runLifecycleHooks(`post${scriptName}`, pkg.manifest, lifecycleOpts)
           }
+          result.passes++
         } catch (err) {
           logger.info(err)
 
           if (!opts.bail) {
-            failed = true
+            result.fails.push({
+              error: err,
+              message: err.message,
+              prefix,
+            })
             return
           }
 
@@ -64,14 +74,11 @@ export default async (
     )))
   }
 
-  if (failed) {
-    const err = new Error('Recursive run failed')
-    err['code'] = 'ERR_PNPM_RECURSIVE_RUN_FAIL' // tslint:disable-line:no-string-literal
-    throw err
-  }
   if (scriptName !== 'test' && !hasCommand) {
     const err = new Error(`None of the packages has a "${scriptName}" script`)
     err['code'] = 'RECURSIVE_RUN_NO_SCRIPT' // tslint:disable-line:no-string-literal
     throw err
   }
+
+  return result
 }
