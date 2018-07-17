@@ -3,6 +3,7 @@ import {PackageJson} from '@pnpm/types'
 import execa = require('execa')
 import pLimit = require('p-limit')
 import dividePackagesToChunks from './dividePackagesToChunks'
+import RecursiveSummary from './recursiveSummary'
 
 export default async (
   pkgs: Array<{path: string, manifest: PackageJson}>,
@@ -14,22 +15,31 @@ export default async (
     unsafePerm: boolean,
     rawNpmConfig: object,
   },
-) => {
+): Promise<RecursiveSummary> => {
   const {chunks} = dividePackagesToChunks(pkgs)
 
   const limitRun = pLimit(opts.concurrency)
-  let failed = false
+
+  const result = {
+    fails: [],
+    passes: 0,
+  } as RecursiveSummary
 
   for (const chunk of chunks) {
     await Promise.all(chunk.map((prefix: string) =>
       limitRun(async () => {
         try {
           await execa(args[0], args.slice(1), {cwd: prefix, stdio: 'inherit'})
+          result.passes++
         } catch (err) {
           logger.info(err)
 
           if (!opts.bail) {
-            failed = true
+            result.fails.push({
+              error: err,
+              message: err.message,
+              prefix,
+            })
             return
           }
 
@@ -43,9 +53,5 @@ export default async (
     )))
   }
 
-  if (failed) {
-    const err = new Error('exec failed')
-    err['code'] = 'ERR_PNPM_RECURSIVE_EXEC_FAIL' // tslint:disable-line:no-string-literal
-    throw err
-  }
+  return result
 }

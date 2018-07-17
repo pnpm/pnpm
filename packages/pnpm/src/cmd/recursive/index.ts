@@ -28,6 +28,7 @@ import help from '../help'
 import exec from './exec'
 import list from './list'
 import outdated from './outdated'
+import RecursiveSummary, {throwOnCommandFail} from './recursiveSummary'
 import run from './run'
 
 const supportedRecursiveCommands = new Set([
@@ -79,6 +80,8 @@ export default async (
     pkgs = pkgs.filter((pkg: {path: string}) => pkgGraphResult.graph[pkg.path])
   }
 
+  const throwOnFail = throwOnCommandFail.bind(null, `pnpm recursive ${cmd}`)
+
   switch (cmdFullName) {
     case 'list':
       await list(pkgs, input, cmd, opts as any) // tslint:disable-line:no-any
@@ -87,14 +90,17 @@ export default async (
       await outdated(pkgs, input, cmd, opts as any) // tslint:disable-line:no-any
       return
     case 'test':
-      return run(pkgs, ['test', ...input], cmd, {...opts, concurrency} as any) // tslint:disable-line:no-any
+      throwOnFail(await run(pkgs, ['test', ...input], cmd, {...opts, concurrency} as any)) // tslint:disable-line:no-any
+      return
     case 'run':
-      return run(pkgs, input, cmd, {...opts, concurrency} as any) // tslint:disable-line:no-any
+      throwOnFail(await run(pkgs, input, cmd, {...opts, concurrency} as any)) // tslint:disable-line:no-any
+      return
     case 'update':
       opts = {...opts, update: true, allowNew: false, concurrency} as any // tslint:disable-line:no-any
       break
     case 'exec':
-      return exec(pkgs, input, cmd, {...opts, concurrency} as any) // tslint:disable-line:no-any
+      throwOnFail(await exec(pkgs, input, cmd, {...opts, concurrency} as any)) // tslint:disable-line:no-any
+      return
   }
 
   const store = await createStoreController(opts)
@@ -148,7 +154,10 @@ export default async (
       break
   }
 
-  let failed = false
+  const result = {
+    fails: [],
+    passes: 0,
+  } as RecursiveSummary
 
   for (const chunk of chunks) {
     await Promise.all(chunk.map((prefix: string) =>
@@ -156,7 +165,7 @@ export default async (
         const hooks = opts.ignorePnpmfile ? {} : requireHooks(prefix, opts)
         try {
           const localConfigs = await readLocalConfigs(prefix)
-          return await action({
+          await action({
             ...installOpts,
             ...localConfigs,
             bin: path.join(prefix, 'node_modules', '.bin'),
@@ -168,11 +177,16 @@ export default async (
             },
             storeController,
           })
+          result.passes++
         } catch (err) {
           logger.info(err)
 
           if (!opts.bail) {
-            failed = true
+            result.fails.push({
+              error: err,
+              message: err.message,
+              prefix,
+            })
             return
           }
 
@@ -185,11 +199,7 @@ export default async (
 
   await saveState()
 
-  if (failed) {
-    const err = new Error(`"pnpm recursive ${cmdFullName}" failed`)
-    err['code'] = 'ERR_PNPM_RECURSIVE_FAIL' // tslint:disable-line:no-string-literal
-    throw err
-  }
+  throwOnFail(result)
 }
 
 async function readLocalConfigs (prefix: string) {
