@@ -422,7 +422,7 @@ function fetchToStore (
 
   if (opts.fetchRawManifest && !result.fetchingRawManifest) {
     result.fetchingRawManifest = removeKeyOnFail(
-      readPkgFromDir(path.join(result.inStoreLocation, 'package')),
+      result.fetchingFiles.then(() => readPkgFromDir(path.join(result.inStoreLocation, 'package'))),
     )
   }
 

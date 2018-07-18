@@ -11,6 +11,7 @@ import tempy = require('tempy')
 import nock = require('nock')
 
 const registry = 'https://registry.npmjs.org/'
+const IS_POSTIVE_TARBALL = path.join(__dirname, 'is-positive-1.0.0.tgz')
 
 const rawNpmConfig = { registry }
 
@@ -434,15 +435,13 @@ test('fetchPackageToStore() concurrency check', async (t) => {
 })
 
 test('fetchPackageToStore() does not cache errors', async (t) => {
-  const tarballPath = path.join(__dirname, 'is-positive-1.0.0.tgz')
-
   nock(registry)
     .get('/is-positive/-/is-positive-1.0.0.tgz')
     .reply(404)
 
   nock(registry)
     .get('/is-positive/-/is-positive-1.0.0.tgz')
-    .replyWithFile(200, tarballPath)
+    .replyWithFile(200, IS_POSTIVE_TARBALL)
 
   const noRetryFetch = createFetcher({
     alwaysAuth: false,
@@ -549,5 +548,45 @@ test('always return a package manifest in the response', async t => {
     t.ok((await pkgResponse.fetchingRawManifest).name, 'response has manifest')
   }
 
+  t.end()
+})
+
+// Covers https://github.com/pnpm/pnpm/issues/1293
+test('fetchPackageToStore() fetch raw manifest of cached package', async (t) => {
+  nock(registry)
+    .get('/is-positive/-/is-positive-1.0.0.tgz')
+    .replyWithFile(200, IS_POSTIVE_TARBALL)
+
+  const packageRequester = createPackageRequester(resolve, fetch, {
+    networkConcurrency: 1,
+    storePath: tempy.directory(),
+    storeIndex: {},
+  })
+
+  const pkgId = 'registry.npmjs.org/is-positive/1.0.0'
+  const resolution = {
+    registry: 'https://registry.npmjs.org/',
+    tarball: 'https://registry.npmjs.org/is-positive/-/is-positive-1.0.0.tgz',
+  }
+  const fetchResults = await Promise.all([
+    packageRequester.fetchPackageToStore({
+      fetchRawManifest: false,
+      force: false,
+      pkgId,
+      prefix: tempy.directory(),
+      verifyStoreIntegrity: true,
+      resolution,
+    }),
+    packageRequester.fetchPackageToStore({
+      fetchRawManifest: true,
+      force: false,
+      pkgId,
+      prefix: tempy.directory(),
+      verifyStoreIntegrity: true,
+      resolution,
+    })
+  ])
+
+  t.ok(await fetchResults[1].fetchingRawManifest)
   t.end()
 })
