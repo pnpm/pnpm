@@ -14,7 +14,7 @@
     "start": "npm run tsc -- --watch",
     "lint": "tslint -c tslint.json --project .",
     "tsc": "rimraf lib && tsc --pretty",
-    "test": "npm run lint && preview && ts-node test --type-check && mos t",
+    "test": "npm run lint && preview && rimraf .store && ts-node test --type-check && mos t",
     "md": "mos",
     "prepare": "npm run tsc"
   },
