@@ -1,5 +1,6 @@
 import deepRequireCwd = require('deep-require-cwd')
 import loadJsonFile = require('load-json-file')
+import mkdir = require('mkdirp-promise')
 import path = require('path')
 import exists = require('path-exists')
 import {addDistTag} from 'pnpm-registry-mock'
@@ -95,6 +96,27 @@ test('warning is reported when cannot resolve peer dependency for top-level depe
   const reportedTimes = reporter.withArgs(logMatcher).callCount
 
   t.equal(reportedTimes, 1, 'warning is logged (once) about unresolved peer dep')
+})
+
+test('warning is not reported if the peer dependency can be required from a node_modules of a parent directory', async (t: tape.Test) => {
+  const project = prepare(t)
+
+  await installPkgs(['ajv@4.10.0'], await testDefaults())
+
+  await mkdir('pkg')
+
+  process.chdir('pkg')
+
+  const reporter = sinon.spy()
+
+  await installPkgs(['ajv-keywords@1.5.0'], await testDefaults({reporter}))
+
+  const logMatcher = sinon.match({
+    message: 'ajv-keywords@1.5.0 requires a peer of ajv@>=4.10.0 but none was installed.',
+  })
+  const reportedTimes = reporter.withArgs(logMatcher).callCount
+
+  t.equal(reportedTimes, 0, 'warning is not logged')
 })
 
 test('warning is reported when cannot resolve peer dependency for non-top-level dependency', async (t: tape.Test) => {
