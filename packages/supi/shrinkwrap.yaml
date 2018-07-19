@@ -30,6 +30,7 @@ dependencies:
   get-npm-tarball-url: 2.0.1
   graceful-fs: 4.1.11
   graph-sequencer: 2.0.0
+  import-from: 2.1.0
   is-ci: 1.1.0
   is-inner-link: 2.0.2
   is-subdir: 1.0.2
@@ -2292,6 +2293,14 @@ packages:
     dev: true
     resolution:
       integrity: sha1-xg7taebY/bazEEofy8ocGS3FtQE=
+  /import-from/2.1.0:
+    dependencies:
+      resolve-from: 3.0.0
+    dev: false
+    engines:
+      node: '>=4'
+    resolution:
+      integrity: sha1-M1238qev/VOqpHHUuAId7ja387E=
   /imurmurhash/0.1.4:
     engines:
       node: '>=0.8.19'
@@ -3961,7 +3970,6 @@ packages:
     resolution:
       integrity: sha512-fcogkm7Az5bsS6Sl0sibkbhcKsnyon/jV1kF3ajGmF0c8HrttdKTPRT9hieOaQHA5HEq6r8OyWOo/o781C1tNw==
   /resolve-from/3.0.0:
-    dev: true
     engines:
       node: '>=4'
     resolution:
@@ -5033,6 +5041,7 @@ specifiers:
   get-npm-tarball-url: ^2.0.0
   graceful-fs: ^4.1.11
   graph-sequencer: ^2.0.0
+  import-from: ^2.1.0
   is-ci: ^1.0.10
   is-inner-link: ^2.0.0
   is-subdir: ^1.0.1

@@ -6,6 +6,7 @@ import {PackageJson, PackageScripts} from '@pnpm/types'
 import {Dependencies} from '@pnpm/types'
 import {oneLine} from 'common-tags'
 import crypto = require('crypto')
+import importFrom = require('import-from')
 import path = require('path')
 import R = require('ramda')
 import semver = require('semver')
@@ -15,7 +16,6 @@ import {
   ROOT_NODE_ID,
   splitNodeId,
 } from '../nodeIdUtils'
-import {Pkg} from '../resolveDependencies'
 
 export interface DepGraphNode {
   name: string,
@@ -249,17 +249,25 @@ function resolvePeers (
   for (const peerName in node.pkg.peerDependencies) { // tslint:disable-line:forin
     const peerVersionRange = node.pkg.peerDependencies[peerName]
 
-    const resolved = parentPkgs[peerName]
+    let resolved = parentPkgs[peerName]
 
     if (!resolved || resolved.nodeId && !pkgGraph[resolved.nodeId].installable) {
-      const friendlyPath = nodeIdToFriendlyPath(nodeId, pkgGraph)
-      logger.warn({
-        message: oneLine`
-          ${friendlyPath ? `${friendlyPath}: ` : ''}${packageFriendlyId(node.pkg)}
-          requires a peer of ${peerName}@${peerVersionRange} but none was installed.`,
-        prefix,
-      })
-      continue
+      try {
+        const {version} = importFrom(prefix, `${peerName}/package.json`)
+        resolved = {
+          depth: -1,
+          version,
+        }
+      } catch (err) {
+        const friendlyPath = nodeIdToFriendlyPath(nodeId, pkgGraph)
+        logger.warn({
+          message: oneLine`
+            ${friendlyPath ? `${friendlyPath}: ` : ''}${packageFriendlyId(node.pkg)}
+            requires a peer of ${peerName}@${peerVersionRange} but none was installed.`,
+          prefix,
+        })
+        continue
+      }
     }
 
     if (!semver.satisfies(resolved.version, peerVersionRange)) {
@@ -272,7 +280,7 @@ function resolvePeers (
       })
     }
 
-    if (resolved.depth === 0 || resolved.depth === node.depth + 1) {
+    if (resolved.depth <= 0 || resolved.depth === node.depth + 1) {
       // if the resolved package is a top dependency
       // or the peer dependency is resolved from a regular dependency of the package
       // then there is no need to link it in
