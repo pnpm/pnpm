@@ -71,6 +71,7 @@ export interface PnpmOptions {
   shamefullyFlatten?: boolean,
   shrinkwrapOnly?: boolean, // like npm's --package-lock-only
   useStoreServer?: boolean,
+  workspaceConcurrency: number,
 
   // cannot be specified via configs
   update?: boolean,

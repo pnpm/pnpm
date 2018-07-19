@@ -47,6 +47,7 @@ export const types = Object.assign({
   'use-running-store-server': Boolean,
   'use-store-server': Boolean,
   'verify-store-integrity': Boolean,
+  'workspace-concurrency': Number,
 }, npmTypes.types)
 
 export default async (
@@ -83,6 +84,7 @@ export default async (
     'shrinkwrap': npmDefaults.shrinkwrap,
     'unsafe-perm': npmDefaults['unsafe-perm'],
     'userconfig': npmDefaults.userconfig,
+    'workspace-concurrency': 4,
   })
 
   process.execPath = originalExecPath

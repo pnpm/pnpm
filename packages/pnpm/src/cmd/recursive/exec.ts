@@ -11,14 +11,14 @@ export default async (
   cmd: string,
   opts: {
     bail: boolean,
-    concurrency: number,
+    workspaceConcurrency: number,
     unsafePerm: boolean,
     rawNpmConfig: object,
   },
 ): Promise<RecursiveSummary> => {
   const {chunks} = dividePackagesToChunks(pkgs)
 
-  const limitRun = pLimit(opts.concurrency)
+  const limitRun = pLimit(opts.workspaceConcurrency)
 
   const result = {
     fails: [],
