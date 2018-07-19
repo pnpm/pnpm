@@ -12,7 +12,7 @@ export default async (
   cmd: string,
   opts: {
     bail: boolean,
-    concurrency: number,
+    workspaceConcurrency: number,
     unsafePerm: boolean,
     rawNpmConfig: object,
   },
@@ -26,7 +26,7 @@ export default async (
     passes: 0,
   } as RecursiveSummary
 
-  const limitRun = pLimit(opts.concurrency)
+  const limitRun = pLimit(opts.workspaceConcurrency)
 
   for (const chunk of chunks) {
     await Promise.all(chunk.map((prefix: string) =>

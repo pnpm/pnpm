@@ -49,13 +49,10 @@ export default async (
   input: string[],
   opts: PnpmOptions,
 ) => {
-  let concurrency = 4
-  if (!isNaN(parseInt(input[0], 10))) {
-    concurrency = parseInt(input.shift() as string, 10)
-  }
-
-  if (concurrency < 1) {
-    throw new Error('Concurrency should be at least 1')
+  if (opts.workspaceConcurrency < 1) {
+    const err = new Error('Workspace concurrency should be at least 1')
+    err['code'] = 'ERR_PNPM_INVALID_WORKSPACE_CONCURRENCY' // tslint:disable-line:no-string-literal
+    throw err
   }
 
   const cmd = input.shift()
@@ -90,16 +87,16 @@ export default async (
       await outdated(pkgs, input, cmd, opts as any) // tslint:disable-line:no-any
       return
     case 'test':
-      throwOnFail(await run(pkgs, ['test', ...input], cmd, {...opts, concurrency} as any)) // tslint:disable-line:no-any
+      throwOnFail(await run(pkgs, ['test', ...input], cmd, opts as any)) // tslint:disable-line:no-any
       return
     case 'run':
-      throwOnFail(await run(pkgs, input, cmd, {...opts, concurrency} as any)) // tslint:disable-line:no-any
+      throwOnFail(await run(pkgs, input, cmd, opts as any)) // tslint:disable-line:no-any
       return
     case 'update':
-      opts = {...opts, update: true, allowNew: false, concurrency} as any // tslint:disable-line:no-any
+      opts = {...opts, update: true, allowNew: false} as any // tslint:disable-line:no-any
       break
     case 'exec':
-      throwOnFail(await exec(pkgs, input, cmd, {...opts, concurrency} as any)) // tslint:disable-line:no-any
+      throwOnFail(await exec(pkgs, input, cmd, opts as any)) // tslint:disable-line:no-any
       return
   }
 
@@ -137,7 +134,7 @@ export default async (
     storeController,
   }) as InstallOptions
 
-  const limitInstallation = pLimit(concurrency)
+  const limitInstallation = pLimit(opts.workspaceConcurrency)
   let action!: any // tslint:disable-line:no-any
   switch (cmdFullName) {
     case 'unlink':
