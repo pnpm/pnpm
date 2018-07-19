@@ -867,11 +867,16 @@ test('create a package.json if there is none', async (t: tape.Test) => {
 })
 
 test('should throw error when trying to install a package without name', async (t: tape.Test) => {
+  prepare(t)
   try {
     await installPkgs([local('missing-pkg-name.tgz')], await testDefaults())
     t.fail('installation should have failed')
   } catch (err) {
-    t.ok(err.message.match(/^Can't install .*: Missing package name$/), 'correct error message')
+    if (err.message.match(/^Can't install .*: Missing package name$/)) {
+      t.pass('correct error message')
+    } else {
+      t.fail(`incorrect error message "${err.message}"`)
+    }
     t.equal(err.code, 'ERR_PNPM_MISSING_PACKAGE_NAME', 'failed with correct error code')
   }
 })
