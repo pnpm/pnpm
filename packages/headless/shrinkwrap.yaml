@@ -176,7 +176,7 @@ packages:
       '@pnpm/types': 1.7.0
       '@types/mz': 0.0.32
       '@types/node': 10.5.2
-      '@types/ramda': 0.25.35
+      '@types/ramda': 0.25.34
       '@zkochan/cmd-shim': 3.0.1
       arr-flatten: 1.1.0
       is-windows: 1.0.2
@@ -465,10 +465,6 @@ packages:
     dev: false
     resolution:
       integrity: sha512-KWyRl3qPe2NILs0s5sNHaHVB8zzSvw57JMKF1AzWTMuPZ7MM7MdVNr10UBCRzFWf7wvq7H9tygmjdSzymaq1jA==
-  /@types/ramda/0.25.35:
-    dev: false
-    resolution:
-      integrity: sha512-C7qXWhVEuFlH+X4n1BI1cowAhc1dUoHiRPl+dEUwNAcTwrQDE0N53FIVcnHhNwt7/lZxTHFoHOyLcwjHJuCByg==
   /@types/retry/0.10.2:
     dev: true
     resolution:
@@ -1626,9 +1622,9 @@ packages:
       node: '>= 0.10.0'
     resolution:
       integrity: sha1-avilAjUNsyRuzEvs9rWjTSL37VM=
-  /extend/3.0.1:
+  /extend/3.0.2:
     resolution:
-      integrity: sha1-p1Xqe8Gt/MWjHOfnYtuq3F5jZEQ=
+      integrity: sha512-fjquC59cD7CyW6urNXK0FBufkZcoiGG80wTuPujX590cB5Ttln20E2UB4S/WARVqhXffZl2LNgS+gQdPIIim/g==
   /extsprintf/1.3.0:
     engines:
       '0': node >=0.6.0
@@ -3208,7 +3204,7 @@ packages:
       '@types/load-json-file': 2.0.7
       '@types/mz': 0.0.32
       '@types/node': 10.5.2
-      '@types/ramda': 0.25.35
+      '@types/ramda': 0.25.34
       encode-registry: 1.1.0
       load-json-file: 5.0.0
       mkdirp-promise: 5.0.1
@@ -3379,7 +3375,7 @@ packages:
       '@pnpm/types': 1.7.0
       '@types/js-yaml': 3.11.2
       '@types/node': 10.5.2
-      '@types/ramda': 0.25.35
+      '@types/ramda': 0.25.34
       dependency-path: 1.2.1
       get-npm-tarball-url: 2.0.1
       js-yaml: 3.12.0
@@ -3628,7 +3624,7 @@ packages:
       aws4: 1.7.0
       caseless: 0.12.0
       combined-stream: 1.0.6
-      extend: 3.0.1
+      extend: 3.0.2
       forever-agent: 0.6.1
       form-data: 2.1.4
       har-validator: 4.2.1
@@ -3657,7 +3653,7 @@ packages:
       aws4: 1.7.0
       caseless: 0.12.0
       combined-stream: 1.0.6
-      extend: 3.0.1
+      extend: 3.0.2
       forever-agent: 0.6.1
       form-data: 2.3.2
       har-validator: 5.0.3
@@ -3686,7 +3682,7 @@ packages:
       aws4: 1.7.0
       caseless: 0.12.0
       combined-stream: 1.0.6
-      extend: 3.0.1
+      extend: 3.0.2
       forever-agent: 0.6.1
       form-data: 2.3.2
       har-validator: 5.0.3
@@ -3714,7 +3710,7 @@ packages:
       aws4: 1.7.0
       caseless: 0.12.0
       combined-stream: 1.0.6
-      extend: 3.0.1
+      extend: 3.0.2
       forever-agent: 0.6.1
       form-data: 2.3.2
       har-validator: 5.0.3
