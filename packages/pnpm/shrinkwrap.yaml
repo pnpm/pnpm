@@ -6580,7 +6580,7 @@ specifiers:
   sepia: ^2.0.2
   signal-exit: ^3.0.2
   strip-color: ^0.1.0
-  supi: ^0.22.1
+  supi: ^0.22.2
   tape: ^4.6.3
   tape-promise: ^3.0.0
   text-table: ^0.2.0
