@@ -1,5 +1,4 @@
 dependencies:
-  '@pnpm/headless': 'link:'
   '@pnpm/lifecycle': 3.0.0
   '@pnpm/link-bins': 3.0.0
   '@pnpm/modules-yaml': 1.0.0
@@ -46,7 +45,7 @@ devDependencies:
   tempy: 0.2.1
   ts-node: 6.2.0
   tslint: 5.11.0
-  typescript: 2.9.2
+  typescript: 3.0.1
 packages:
   /@pnpm/assert-project/1.1.2:
     dependencies:
@@ -1135,7 +1134,6 @@ packages:
       node: '>= 0.8.0'
     resolution:
       integrity: sha1-qv+81qr4VLROuygDU9WtFlH1mmk=
-      tarball: 'http://registry.npmjs.org/compression/-/compression-1.7.2.tgz'
   /concat-map/0.0.1:
     resolution:
       integrity: sha1-2Klr13/Wjfd5OnMDajug1UBdR3s=
@@ -4338,13 +4336,13 @@ packages:
     dev: true
     resolution:
       integrity: sha1-hnrHTjhkGHsdPUfZlqeOxciDB3c=
-  /typescript/2.9.2:
+  /typescript/3.0.1:
     dev: true
     engines:
       node: '>=4.2.0'
     hasBin: true
     resolution:
-      integrity: sha512-Gr4p6nFNaoufRIY4NMdpQRNmgxVIGMs4Fcu/ujdYk3nAZqk7supzBE9idmvfZIlH/Cuj//dvi+019qEue9lV0w==
+      integrity: sha512-zQIMOmC+372pC/CCVLqnQ0zSBiY7HHodU7mpQdjiZddek4GMj31I3dUJ7gAs9o65X7mnRma6OokOkc6f9jjfBg==
   /uglify-js/2.8.29:
     dependencies:
       source-map: 0.5.7
@@ -4718,4 +4716,4 @@ specifiers:
   tempy: ^0.2.1
   ts-node: ^6.2.0
   tslint: ^5.4.2
-  typescript: ^2.9.1
+  typescript: ^3.0.0
