@@ -64,6 +64,6 @@
     "tempy": "^0.2.1",
     "ts-node": "^7.0.0",
     "tslint": "^5.8.0",
-    "typescript": "^2.6.2"
+    "typescript": "^3.0.0"
   }
 }
