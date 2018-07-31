@@ -73,7 +73,10 @@ export default async (
 
   const pkgGraphResult = createPkgGraph(pkgs)
   if (opts.scope) {
-    pkgGraphResult.graph = filterGraph(pkgGraphResult.graph, opts.scope)
+    pkgGraphResult.graph = filterGraphByScope(pkgGraphResult.graph, opts.scope)
+    pkgs = pkgs.filter((pkg: {path: string}) => pkgGraphResult.graph[pkg.path])
+  } else if (opts.filter) {
+    pkgGraphResult.graph = filterGraph(pkgGraphResult.graph, opts.filter)
     pkgs = pkgs.filter((pkg: {path: string}) => pkgGraphResult.graph[pkg.path])
   }
 
@@ -236,9 +239,35 @@ interface PackageGraph {
 
 function filterGraph (
   graph: PackageGraph,
+  filters: string[],
+): PackageGraph {
+  const cherryPickedPackages = [] as string[]
+  const walked = new Set<string>()
+  for (const filter of filters) {
+    if (filter.endsWith('...')) {
+      const rootPackagesFilter = filter.substring(0, filter.length - 3)
+      const rootPackages = matchPackages(graph, rootPackagesFilter)
+      pickSubgraph(graph, rootPackages, walked)
+    } else {
+      Array.prototype.push.apply(cherryPickedPackages, matchPackages(graph, filter))
+    }
+  }
+  cherryPickedPackages.forEach((cherryPickedPackage) => walked.add(cherryPickedPackage))
+  return R.pick(Array.from(walked), graph)
+}
+
+function matchPackages (
+  graph: PackageGraph,
+  pattern: string,
+) {
+  return R.keys(graph).filter((id) => graph[id].manifest.name && minimatch(graph[id].manifest.name, pattern))
+}
+
+function filterGraphByScope (
+  graph: PackageGraph,
   scope: string,
 ): PackageGraph {
-  const root = R.keys(graph).filter((id) => graph[id].manifest.name && minimatch(graph[id].manifest.name, scope))
+  const root = matchPackages(graph, scope)
   if (!root.length) return {}
 
   const subgraphNodeIds = new Set()

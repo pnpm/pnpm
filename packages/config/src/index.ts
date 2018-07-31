@@ -18,6 +18,7 @@ export const types = Object.assign({
   'child-concurrency': Number,
   'dev': [null, true],
   'fetching-concurrency': Number,
+  'filter': [String, Array],
   'frozen-shrinkwrap': Boolean,
   'global-path': path,
   'global-pnpmfile': String,

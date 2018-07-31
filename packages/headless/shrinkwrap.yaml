@@ -1,4 +1,5 @@
 dependencies:
+  '@pnpm/headless': 'link:'
   '@pnpm/lifecycle': 3.0.0
   '@pnpm/link-bins': 3.0.0
   '@pnpm/modules-yaml': 1.0.0
