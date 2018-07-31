@@ -23,6 +23,7 @@ function _prune (
   warn: (msg: string) => void,
 ): Shrinkwrap {
   const packages: ResolvedPackages = {}
+  const shrSpecs: ResolvedDependencies = shr.specifiers || {}
   let allDeps!: string[]
   if (pkg) {
     const optionalDependencies = R.keys(pkg.optionalDependencies)
@@ -30,7 +31,7 @@ function _prune (
     const devDependencies = R.difference(R.difference(R.keys(pkg.devDependencies), optionalDependencies), dependencies)
     allDeps = R.reduce(R.union, [], [optionalDependencies, devDependencies, dependencies]) as string[]
   } else {
-    allDeps = R.keys(shr.specifiers)
+    allDeps = Object.keys(shrSpecs)
   }
   const specifiers: ResolvedDependencies = {}
   const shrDependencies: ResolvedDependencies = {}
@@ -39,9 +40,9 @@ function _prune (
   const nonOptional = new Set()
   const notProdOnly = new Set()
 
-  R.keys(shr.specifiers).forEach((depName) => {
+  Object.keys(shrSpecs).forEach((depName) => {
     if (allDeps.indexOf(depName) === -1) return
-    specifiers[depName] = shr.specifiers[depName]
+    specifiers[depName] = shrSpecs[depName]
     if (shr.dependencies && shr.dependencies[depName]) {
       shrDependencies[depName] = shr.dependencies[depName]
     } else if (shr.optionalDependencies && shr.optionalDependencies[depName]) {

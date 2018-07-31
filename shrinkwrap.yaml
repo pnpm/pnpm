@@ -9,6 +9,7 @@ dependencies:
   js-yaml: 3.12.0
   load-yaml-file: 0.1.0
   mkdirp-promise: 5.0.1
+  pnpm-shrinkwrap: 'link:../__package_previews__/pnpm-shrinkwrap/pnpm-shrinkwrap'
   ramda: 0.25.0
   rimraf-then: 1.0.1
   util.promisify: 1.0.0
