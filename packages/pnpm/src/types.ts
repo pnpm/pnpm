@@ -7,6 +7,7 @@ export type ReadPackageHook = (pkg: PackageManifest) => PackageManifest
 
 export interface PnpmOptions {
   bail: boolean,
+  filter: string[],
   rawNpmConfig: object,
   globalPrefix: string,
   globalBin: string,
@@ -19,7 +20,7 @@ export interface PnpmOptions {
   saveProd?: boolean,
   saveDev?: boolean,
   saveOptional?: boolean,
-  scope: string,
+  scope: string, // TODO: deprecate this flag
   production?: boolean,
   development?: boolean,
   fetchRetries?: number,
