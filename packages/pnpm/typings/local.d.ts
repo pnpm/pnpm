@@ -93,11 +93,6 @@ declare module 'arr-flatten' {
   export = anything;
 }
 
-declare module 'find-up' {
-  const anything: any;
-  export = anything;
-}
-
 declare module 'path-exists' {
   const anything: any;
   export = anything;
