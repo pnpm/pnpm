@@ -1,6 +1,7 @@
 import loadNpmConf = require('@zkochan/npm-conf')
 import npmTypes = require('@zkochan/npm-conf/lib/types')
 import camelcase = require('camelcase')
+import findUp = require('find-up')
 import path = require('path')
 import whichcb = require('which')
 
@@ -49,7 +50,10 @@ export const types = Object.assign({
   'use-store-server': Boolean,
   'verify-store-integrity': Boolean,
   'workspace-concurrency': Number,
+  'workspace-prefix': String,
 }, npmTypes.types)
+
+const WORKSPACE_MANIFEST_FILENAME = 'pnpm-workspace.yaml'
 
 export default async (
   opts: {
@@ -76,6 +80,9 @@ export default async (
     }
   } catch (err) {} // tslint:disable-line:no-empty
 
+  const workspaceManifestLocation = await findUp(WORKSPACE_MANIFEST_FILENAME, {
+    cwd: cliArgs['prefix'] || process.cwd(), // tslint:disable-line
+  })
   const npmConfig = loadNpmConf(null, types, {
     'bail': true,
     'globalconfig': npmDefaults.globalconfig,
@@ -86,6 +93,7 @@ export default async (
     'unsafe-perm': npmDefaults['unsafe-perm'],
     'userconfig': npmDefaults.userconfig,
     'workspace-concurrency': 4,
+    'workspace-prefix': workspaceManifestLocation && path.dirname(workspaceManifestLocation),
   })
 
   process.execPath = originalExecPath

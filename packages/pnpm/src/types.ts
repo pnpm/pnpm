@@ -73,6 +73,7 @@ export interface PnpmOptions {
   shrinkwrapOnly?: boolean, // like npm's --package-lock-only
   useStoreServer?: boolean,
   workspaceConcurrency: number,
+  workspacePrefix?: string,
 
   // cannot be specified via configs
   update?: boolean,

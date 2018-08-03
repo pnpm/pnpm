@@ -135,6 +135,47 @@ test('recursive installation with package-specific .npmrc', async t => {
   t.notOk(modulesYaml2 && modulesYaml2.shamefullyFlatten)
 })
 
+test('workspace .npmrc is always read', async (t: tape.Test) => {
+  const projects = preparePackages(t, [
+    {
+      name: 'project-1',
+      version: '1.0.0',
+      dependencies: {
+        'is-positive': '1.0.0',
+      },
+    },
+    {
+      name: 'project-2',
+      version: '1.0.0',
+      dependencies: {
+        'is-negative': '1.0.0',
+      },
+    },
+  ])
+
+  await fs.writeFile('pnpm-workspace.yaml', '', 'utf8')
+  await fs.writeFile('.npmrc', 'shamefully-flatten = true', 'utf8')
+  await fs.writeFile('project-2/.npmrc', 'shamefully-flatten = false', 'utf8')
+
+  process.chdir('project-1')
+  await execPnpm('install')
+
+  t.ok(projects['project-1'].requireModule('is-positive'))
+
+  const modulesYaml1 = await projects['project-1'].loadModules()
+  t.ok(modulesYaml1 && modulesYaml1.shamefullyFlatten)
+
+  process.chdir('..')
+  process.chdir('project-2')
+
+  await execPnpm('install')
+
+  t.ok(projects['project-2'].requireModule('is-negative'))
+
+  const modulesYaml2 = await projects['project-2'].loadModules()
+  t.ok(modulesYaml2 && modulesYaml2.shamefullyFlatten === false)
+})
+
 test('recursive installation using server', async (t: tape.Test) => {
   const projects = preparePackages(t, [
     {

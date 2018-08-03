@@ -1,13 +1,10 @@
-import findUp = require('find-up')
 import path = require('path')
 import pathAbsolute = require('path-absolute')
 import R = require('ramda')
 import {
   link,
-  linkFromGlobal,
   linkToGlobal,
 } from 'supi'
-import {WORKSPACE_MANIFEST_FILENAME} from '../constants'
 import createStoreController from '../createStoreController'
 import findWorkspacePackages from '../findWorkspacePackages'
 import {PnpmOptions} from '../types'
@@ -33,11 +30,9 @@ export default async (
   const [pkgPaths, pkgNames] = R.partition((inp) => inp.startsWith('.'), input)
 
   if (pkgNames.length) {
-    const workspaceManifestLocation = await findUp(WORKSPACE_MANIFEST_FILENAME)
     let globalPkgNames!: string[]
-    if (workspaceManifestLocation) {
-      const workspaceRoot = path.dirname(workspaceManifestLocation)
-      const pkgs = await findWorkspacePackages(workspaceRoot)
+    if (opts.workspacePrefix) {
+      const pkgs = await findWorkspacePackages(opts.workspacePrefix)
 
       const pkgsFoundInWorkspace = pkgs.filter((pkg) => pkgNames.indexOf(pkg.manifest.name) !== -1)
       pkgsFoundInWorkspace.forEach((pkgFromWorkspace) => pkgPaths.push(pkgFromWorkspace.path))

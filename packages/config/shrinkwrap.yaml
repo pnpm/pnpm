@@ -3,8 +3,9 @@ dependencies:
   '@types/camelcase': 4.1.0
   '@types/node': 10.5.4
   '@types/which': 1.3.1
-  '@zkochan/npm-conf': 1.1.0
+  '@zkochan/npm-conf': 1.2.0
   camelcase: 5.0.0
+  find-up: 3.0.0
   which: 1.3.1
 devDependencies:
   '@types/tape': 4.2.32
@@ -85,7 +86,7 @@ packages:
     dev: true
     resolution:
       integrity: sha1-TPO97s9S8vasjzKw2IpoLrSEiXk=
-  /@zkochan/npm-conf/1.1.0:
+  /@zkochan/npm-conf/1.2.0:
     dependencies:
       config-chain: 1.1.11
       pify: 3.0.0
@@ -93,7 +94,7 @@ packages:
     engines:
       node: '>=6'
     resolution:
-      integrity: sha512-mkr67K2ONHmEE2Tlf1ccl+f4/gJpYr7Sfh53xMa6bZc3iJmftseHGQCro7GXhzoGcYg6LpGEww2ElOyKrj+beQ==
+      integrity: sha512-FHTKDRhT4FzdEw80L5k1NEI0OgDJgIUhMGlC4HlUXD7NQzNItSqnJLlW+vGKjDcFmVLHPIEoYKx5GCQWeLOGMg==
   /acorn/3.0.4:
     dev: true
     engines:
@@ -918,6 +919,14 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha1-RdG35QbHF93UgndaK3eSCjwMV6c=
+  /find-up/3.0.0:
+    dependencies:
+      locate-path: 3.0.0
+    dev: false
+    engines:
+      node: '>=6'
+    resolution:
+      integrity: sha512-1yD6RmLI1XBfxugvORwlck6f75tYL+iR0jqwsOrOxMZyGYqUuDhJ0l4AXdO1iX/FTs9cBAMEk1gWSEx1kSbylg==
   /flatten/1.0.2:
     dev: true
     resolution:
@@ -1378,6 +1387,15 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha1-K1aLJl7slExtnA3pw9u7ygNUzY4=
+  /locate-path/3.0.0:
+    dependencies:
+      p-locate: 3.0.0
+      path-exists: 3.0.0
+    dev: false
+    engines:
+      node: '>=6'
+    resolution:
+      integrity: sha512-7AO748wWnIhNqAuaty2ZWHkQHRSNfPVIsPIfwEOWO22AmaoVrWavlOcMR5nzTLNYvp36X220/maaRsrec1G65A==
   /lodash.partition/4.6.0:
     dev: true
     resolution:
@@ -1893,6 +1911,14 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha512-vvcXsLAJ9Dr5rQOPk7toZQZJApBl2K4J6dANSsEuh6QI41JYcsS/qhTGa9ErIUUgK3WNQoJYvylxvjqmiqEA9Q==
+  /p-limit/2.0.0:
+    dependencies:
+      p-try: 2.0.0
+    dev: false
+    engines:
+      node: '>=6'
+    resolution:
+      integrity: sha512-fl5s52lI5ahKCernzzIyAP0QAZbGIovtVHGwpcu1Jr/EpzLVDI2myISHwGqK7m8uQFugVWSrbxH7XnhGtvEc+A==
   /p-locate/2.0.0:
     dependencies:
       p-limit: 1.3.0
@@ -1901,12 +1927,26 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha1-IKAQOyIqcMj9OcwuWAaA893l7EM=
+  /p-locate/3.0.0:
+    dependencies:
+      p-limit: 2.0.0
+    dev: false
+    engines:
+      node: '>=6'
+    resolution:
+      integrity: sha512-x+12w/To+4GFfgJhBEpiDcLozRJGegY+Ei7/z0tSLkMmxGZNybVMSfWj9aJn8Z5Fc7dBUNJOOVgPv2H7IwulSQ==
   /p-try/1.0.0:
     dev: true
     engines:
       node: '>=4'
     resolution:
       integrity: sha1-y8ec26+P1CKOE/Yh8rGiN8GyB7M=
+  /p-try/2.0.0:
+    dev: false
+    engines:
+      node: '>=6'
+    resolution:
+      integrity: sha512-hMp0onDKIajHfIkdRk3P4CdCmErkYAxxDtP3Wx/4nZ3aGlau2VKh3mZpcuFkH27WQkL/3WBCPOktzA9ZOAnMQQ==
   /package-json/2.4.0:
     dependencies:
       got: 5.7.1
@@ -1990,7 +2030,6 @@ packages:
     resolution:
       integrity: sha1-D+tsZPD8UY2adU3V77YscCJ2H0s=
   /path-exists/3.0.0:
-    dev: true
     engines:
       node: '>=4'
     resolution:
@@ -3053,8 +3092,9 @@ specifiers:
   '@types/node': ^9.4.6 || 10
   '@types/tape': ^4.2.32
   '@types/which': ^1.3.1
-  '@zkochan/npm-conf': ^1.1.0
+  '@zkochan/npm-conf': ^1.2.0
   camelcase: ^5.0.0
+  find-up: ^3.0.0
   mos: ^2.0.0-alpha.3
   mos-plugin-readme: ^1.0.4
   package-preview: ^1.0.1

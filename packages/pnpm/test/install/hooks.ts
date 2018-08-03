@@ -358,6 +358,7 @@ test('pnpmfile: run afterAllResolved hook', async (t: tape.Test) => {
       hooks: {
         afterAllResolved (shr, context) {
           context.log('All resolved')
+          return shr
         }
       }
     }
