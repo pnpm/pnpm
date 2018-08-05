@@ -86,6 +86,7 @@ export default async (
   const npmConfig = loadNpmConf(cliArgs, types, {
     'bail': true,
     'globalconfig': npmDefaults.globalconfig,
+    'lock': true,
     'package-lock': npmDefaults['package-lock'],
     'prefix': npmDefaults.prefix,
     'registry': npmDefaults.registry,

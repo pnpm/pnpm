@@ -1,4 +1,9 @@
-import {install, installPkgs} from 'supi'
+import {StoreController} from 'package-store'
+import {
+  install,
+  InstallOptions,
+  installPkgs,
+} from 'supi'
 import createStoreController from '../createStoreController'
 import requireHooks from '../requireHooks'
 import {PnpmOptions} from '../types'
@@ -10,7 +15,10 @@ import {PnpmOptions} from '../types'
  */
 export default async function installCmd (
   input: string[],
-  opts: PnpmOptions,
+  opts: PnpmOptions & {
+    store?: string,
+    storeController?: StoreController,
+  },
 ) {
   // `pnpm install ""` is going to be just `pnpm install`
   input = input.filter(Boolean)
@@ -20,11 +28,17 @@ export default async function installCmd (
     opts.hooks = requireHooks(prefix, opts)
   }
 
-  const store = await createStoreController(opts)
-  const installOpts = Object.assign(opts, {
-    store: store.path,
-    storeController: store.ctrl,
-  })
+  const installOpts = (
+    opts.storeController && opts.store
+      ? opts
+      : await (async () => {
+          const store = await createStoreController(opts)
+          return Object.assign(opts, {
+            store: store.path,
+            storeController: store.ctrl,
+          })
+        })()
+  ) as InstallOptions
 
   if (!input || !input.length) {
     return install(installOpts)

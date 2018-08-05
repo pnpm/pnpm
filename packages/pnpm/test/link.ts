@@ -9,7 +9,6 @@ import writePkg = require('write-pkg')
 import {
   pathToLocalPkg,
   prepare,
-  testDefaults,
   execPnpm,
  } from './utils'
 import fs = require('mz/fs')

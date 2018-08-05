@@ -1,6 +1,5 @@
 import createFetcher from '@pnpm/default-fetcher'
 import createResolver from '@pnpm/default-resolver'
-import { StrictPnpmOptions } from '@pnpm/types'
 import LRU = require('lru-cache')
 import createStore from 'package-store'
 import path = require('path')
@@ -9,7 +8,7 @@ export default async (
   opts: {
     registry?: string,
     rawNpmConfig: object,
-    lock?: boolean,
+    lock: boolean,
     store: string,
     alwaysAuth?: boolean,
     strictSsl?: boolean,
@@ -31,6 +30,7 @@ export default async (
     packageImportMethod?: 'auto' | 'hardlink' | 'copy' | 'reflink',
   },
 ) => {
+  // TODO: either print a warning or just log if --no-lock is used
   const sopts = Object.assign(opts, {
     locks: opts.lock ? path.join(opts.store, '_locks') : undefined,
     registry: opts.registry || 'https://registry.npmjs.org/',

@@ -2,7 +2,6 @@ import logger from '@pnpm/logger'
 import {connectStoreController} from '@pnpm/server'
 import storePath from '@pnpm/store-path'
 import delay = require('delay')
-import loadJsonFile = require('load-json-file')
 import fs = require('mz/fs')
 import {StoreController} from 'package-store'
 import path = require('path')
@@ -30,7 +29,7 @@ export default async function (
     userAgent?: string,
     ignoreFile?: (filename: string) => boolean,
     offline?: boolean,
-    lock?: boolean,
+    lock: boolean,
     lockStaleDuration?: number,
     networkConcurrency?: number,
     store?: string,

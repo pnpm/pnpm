@@ -54,10 +54,17 @@ export default async (
     globalPkgNames.forEach((pkgName) => pkgPaths.push(path.join(globalPkgPath, 'node_modules', pkgName)))
   }
 
+  // TODO: allow the linked packages to use different stores
   await Promise.all(
     pkgPaths.map((prefix) => installLimit(async () =>
-      await install([], await getConfigs({...opts.cliArgs, prefix}, {excludeReporter: true})),
+      await install([], {
+        ...await getConfigs({...opts.cliArgs, prefix}, {excludeReporter: true}),
+        store: linkOpts.store,
+        storeController: linkOpts.storeController,
+      }),
     )),
   )
   await link(pkgPaths, path.join(cwd, 'node_modules'), linkOpts)
+
+  await linkOpts.storeController.close()
 }

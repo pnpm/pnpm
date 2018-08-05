@@ -63,7 +63,7 @@ export interface PnpmOptions {
   networkConcurrency?: number,
   fetchingConcurrency?: number,
   lockStaleDuration?: number,
-  lock?: boolean,
+  lock: boolean,
   childConcurrency?: number,
   repeatInstallDepth?: number,
   ignorePnpmfile?: boolean,
