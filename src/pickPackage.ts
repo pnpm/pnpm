@@ -27,7 +27,7 @@ export interface PackageMeta {
 }
 
 export interface PackageMetaCache {
-  get (key: string): PackageMeta
+  get (key: string): PackageMeta | undefined
   set (key: string, meta: PackageMeta): void
   has (key: string): boolean
 }
@@ -66,11 +66,11 @@ export default async (
 ): Promise<{meta: PackageMeta, pickedPackage: PackageInRegistry | null}> => {
   opts = opts || {}
 
-  if (ctx.metaCache.has(spec.name)) {
-    const meta = ctx.metaCache.get(spec.name)
+  const cachedMeta = ctx.metaCache.get(spec.name)
+  if (cachedMeta) {
     return {
-      meta,
-      pickedPackage: pickPackageFromMeta(spec, opts.preferredVersionSelector, meta),
+      meta: cachedMeta,
+      pickedPackage: pickPackageFromMeta(spec, opts.preferredVersionSelector, cachedMeta),
     }
   }
 

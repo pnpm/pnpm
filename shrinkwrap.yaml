@@ -1,4 +1,5 @@
 dependencies:
+  '@pnpm/npm-resolver': 'link:../__package_previews__/npm-resolver/@pnpm/npm-resolver'
   '@pnpm/resolver-base': 1.1.0
   '@pnpm/types': 1.7.0
   '@types/load-json-file': 2.0.7
