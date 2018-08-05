@@ -88,7 +88,7 @@
     "@types/mkdirp": "^0.5.0",
     "@types/node": "^10.0.6",
     "@types/nopt": "^3.0.29",
-    "@types/ramda": "0.25.34",
+    "@types/ramda": "0.25.36",
     "@types/retry": "^0.10.2",
     "@types/semver": "^5.3.32",
     "@types/tape": "^4.2.30",

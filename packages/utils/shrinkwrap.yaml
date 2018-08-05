@@ -4,7 +4,7 @@ dependencies:
   '@pnpm/types': 1.7.0
   '@types/mz': 0.0.32
   '@types/node': 10.5.6
-  '@types/ramda': 0.25.34
+  '@types/ramda': 0.25.36
   dependency-path: 1.2.1
   fs-vacuum: 1.2.10
   mz: 2.7.0
@@ -150,10 +150,10 @@ packages:
     dev: false
     resolution:
       integrity: sha512-JyO7uMAtkcMMULmsTQ4t/lCC8nxirTtweGG1xAFNNIAoC1RemmeIxq8PiKghuEy99XdbS6Lwx4zpbXUjfeSSAA==
-  /@types/ramda/0.25.34:
+  /@types/ramda/0.25.36:
     dev: false
     resolution:
-      integrity: sha512-KWyRl3qPe2NILs0s5sNHaHVB8zzSvw57JMKF1AzWTMuPZ7MM7MdVNr10UBCRzFWf7wvq7H9tygmjdSzymaq1jA==
+      integrity: sha512-LAeBECPU9IG+K0pRdGl2L9lxanb0CKgue0IGpdn9nmpmKefDrCglrYwkxFYoQxCtY0w/mTxpJaQ4VAChcSIN+A==
   /@types/semver/5.5.0:
     dev: false
     resolution:
@@ -755,7 +755,7 @@ packages:
       '@types/load-json-file': 2.0.7
       '@types/mz': 0.0.32
       '@types/node': 10.5.6
-      '@types/ramda': 0.25.34
+      '@types/ramda': 0.25.36
       encode-registry: 1.1.0
       load-json-file: 5.0.0
       mkdirp-promise: 5.0.1
@@ -831,7 +831,7 @@ packages:
       '@pnpm/types': 1.7.0
       '@types/js-yaml': 3.11.2
       '@types/node': 10.5.6
-      '@types/ramda': 0.25.34
+      '@types/ramda': 0.25.36
       dependency-path: 1.2.1
       get-npm-tarball-url: 2.0.1
       js-yaml: 3.12.0
@@ -1159,7 +1159,7 @@ specifiers:
   '@pnpm/types': ^1.7.0
   '@types/mz': ^0.0.32
   '@types/node': ^10.0.8
-  '@types/ramda': 0.25.34
+  '@types/ramda': 0.25.36
   dependency-path: ^1.2.1
   fs-vacuum: ^1.2.10
   mz: ^2.7.0

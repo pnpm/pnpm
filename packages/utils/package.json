@@ -46,7 +46,7 @@
     "@pnpm/types": "^1.7.0",
     "@types/mz": "^0.0.32",
     "@types/node": "^10.0.8",
-    "@types/ramda": "0.25.34",
+    "@types/ramda": "0.25.36",
     "dependency-path": "^1.2.1",
     "fs-vacuum": "^1.2.10",
     "mz": "^2.7.0",

@@ -89,7 +89,7 @@
     "@pnpm/read-package-json": "^1.0.0",
     "@pnpm/types": "^1.7.0",
     "@pnpm/utils": "^0.5.0",
-    "@types/ramda": "0.25.34",
+    "@types/ramda": "0.25.36",
     "dependency-path": "^1.2.1",
     "graph-sequencer": "^2.0.0",
     "p-limit": "^2.0.0",
