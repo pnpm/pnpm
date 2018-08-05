@@ -45,6 +45,7 @@ export default async function (
     ? await lock(initOpts.store, {
         locks: initOpts.locks,
         stale: initOpts.lockStaleDuration || 60 * 1000, // 1 minute,
+        whenLocked: () => storeLogger.warn(`waiting for the store at "${initOpts.store}" to be unlocked...`),
       })
     : () => Promise.resolve(undefined)
 
