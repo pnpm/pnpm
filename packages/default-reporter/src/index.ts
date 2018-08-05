@@ -124,6 +124,7 @@ export function toOutput$ (
           skippedOptionalDependencyPushStream.next(log as supi.SkippedOptionalDependencyLog)
           break
         case 'pnpm' as any: // tslint:disable-line
+        case 'pnpm:store' as any: // tslint:disable-line
           otherPushStream.next(log)
           break
       }
