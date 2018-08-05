@@ -2,6 +2,12 @@
   "extends": [
     "config:base"
   ],
+  "packageRules": [
+    {
+      "packageNames": ["@types/ramda"],
+      "allowedVersions": "0.25.34"
+    }
+  ],
   "pinVersions": false,
   "ignorePaths": ["test/"],
   "ignoreDeps": [
