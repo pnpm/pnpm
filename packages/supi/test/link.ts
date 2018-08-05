@@ -38,11 +38,6 @@ test('relative link', async (t: tape.Test) => {
 
   await project.isExecutable('.bin/hello-world-js-bin')
 
-  // The linked package has been installed successfully as well with bins linked
-  // to node_modules/.bin
-  const linkedProject = assertProject(t, linkedPkgPath)
-  await linkedProject.isExecutable('.bin/cowsay')
-
   const wantedShrinkwrap = await project.loadShrinkwrap()
   t.equal(wantedShrinkwrap.dependencies['hello-world-js-bin'], 'link:../hello-world-js-bin', 'link added to wanted shrinkwrap')
   t.equal(wantedShrinkwrap.specifiers['hello-world-js-bin'], '*', 'specifier of linked dependency added to shrinkwrap.yaml')
@@ -58,9 +53,10 @@ test('relative link is not rewritten by install', async (t: tape.Test) => {
   const linkedPkgPath = path.resolve('..', linkedPkgName)
 
   const reporter = sinon.spy()
+  const opts = await testDefaults()
 
   await ncp(pathToLocalPkg(linkedPkgName), linkedPkgPath)
-  await link([linkedPkgPath], path.join(process.cwd(), 'node_modules'), await testDefaults({reporter}))
+  await link([linkedPkgPath], path.join(process.cwd(), 'node_modules'), {...opts, reporter} as any) // tslint:disable-line:no-any
 
   t.ok(reporter.calledWithMatch({
     added: {
@@ -75,7 +71,7 @@ test('relative link is not rewritten by install', async (t: tape.Test) => {
     prefix: process.cwd(),
   } as RootLog), 'linked root dependency logged')
 
-  await installPkgs(['hello-world-js-bin'], await testDefaults())
+  await installPkgs(['hello-world-js-bin'], opts)
 
   t.ok(project.requireModule('hello-world-js-bin/package.json').isLocal)
 
@@ -95,10 +91,12 @@ test('global link', async (t: tape.Test) => {
 
   await ncp(pathToLocalPkg(linkedPkgName), linkedPkgPath)
 
+  const opts = await testDefaults()
+
   process.chdir(linkedPkgPath)
   const globalPrefix = path.resolve('..', 'global')
   const globalBin = path.resolve('..', 'global', 'bin')
-  await linkToGlobal(process.cwd(), await testDefaults({globalPrefix, globalBin}))
+  await linkToGlobal(process.cwd(), {...opts, globalPrefix, globalBin} as any) // tslint:disable-line:no-any
 
   await isExecutable(t, path.join(globalBin, 'hello-world-js-bin'))
 
@@ -108,7 +106,7 @@ test('global link', async (t: tape.Test) => {
 
   process.chdir(projectPath)
 
-  await linkFromGlobal([linkedPkgName], process.cwd(), await testDefaults({globalPrefix}))
+  await linkFromGlobal([linkedPkgName], process.cwd(), {...opts, globalPrefix} as any) // tslint:disable-line:no-any
 
   await project.isExecutable('.bin/hello-world-js-bin')
 })

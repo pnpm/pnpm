@@ -15,7 +15,6 @@ import {
 } from '@pnpm/utils'
 import loadJsonFile = require('load-json-file')
 import normalize = require('normalize-path')
-import pLimit = require('p-limit')
 import path = require('path')
 import pathAbsolute = require('path-absolute')
 import {
@@ -35,14 +34,10 @@ import extendOptions, {
 import {install} from './install'
 import getPref from './utils/getPref'
 
-const linkLogger = logger('link')
-const installLimit = pLimit(4)
-
 export default async function link (
   linkFromPkgs: string[],
   destModules: string,
   maybeOpts: InstallOptions & {
-    skipInstall?: boolean,
     linkToBin?: string,
   },
 ) {
@@ -53,18 +48,6 @@ export default async function link (
   maybeOpts.saveProd = maybeOpts.saveProd === true
   const opts = await extendOptions(maybeOpts)
 
-  if (!maybeOpts || !maybeOpts.skipInstall) {
-    await Promise.all(
-      linkFromPkgs.map((prefix) => installLimit(() =>
-        install({
-          ...opts,
-          bin: path.join(prefix, 'node_modules', '.bin'),
-          global: false,
-          prefix,
-        }),
-      )),
-    )
-  }
   const shrFiles = await readShrinkwrapFile({
     force: opts.force,
     prefix: opts.prefix,

@@ -1,3 +1,4 @@
+import pLimit = require('p-limit')
 import path = require('path')
 import pathAbsolute = require('path-absolute')
 import R = require('ramda')
@@ -7,7 +8,11 @@ import {
 } from 'supi'
 import createStoreController from '../createStoreController'
 import findWorkspacePackages from '../findWorkspacePackages'
+import getConfigs from '../getConfigs'
 import {PnpmOptions} from '../types'
+import install from './install'
+
+const installLimit = pLimit(4)
 
 export default async (
   input: string[],
@@ -49,5 +54,10 @@ export default async (
     globalPkgNames.forEach((pkgName) => pkgPaths.push(path.join(globalPkgPath, 'node_modules', pkgName)))
   }
 
+  await Promise.all(
+    pkgPaths.map((prefix) => installLimit(async () =>
+      await install([], await getConfigs({...opts.cliArgs, prefix}, {excludeReporter: true})),
+    )),
+  )
   await link(pkgPaths, path.join(cwd, 'node_modules'), linkOpts)
 }

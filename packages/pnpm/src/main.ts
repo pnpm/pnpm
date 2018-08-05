@@ -12,7 +12,7 @@ gfs.gracefulify(fs)
 
 import loudRejection = require('loud-rejection')
 loudRejection()
-import getConfigs, {types} from '@pnpm/config'
+import {types} from '@pnpm/config'
 import logger from '@pnpm/logger'
 import camelcase = require('camelcase')
 import {stripIndent} from 'common-tags'
@@ -23,6 +23,7 @@ import checkForUpdates from './checkForUpdates'
 import * as pnpmCmds from './cmd'
 import runNpm from './cmd/runNpm'
 import getCommandFullName from './getCommandFullName'
+import getConfigs from './getConfigs'
 import './logging/fileLogger'
 import packageManager from './pnpmPkgJson'
 import initReporter, { ReporterType } from './reporter'
@@ -162,10 +163,7 @@ export default async function run (argv: string[]) {
 
   cliConf.save = cliConf.save || !cliConf['save-dev'] && !cliConf['save-optional']
 
-  const opts = await getConfigs({
-    cliArgs: cliConf,
-    packageManager,
-  })
+  const opts = await getConfigs(cliConf, {excludeReporter: false})
 
   const selfUpdate = opts.global && (cmd === 'install' || cmd === 'update') && cliConf.argv.remain.indexOf(packageManager.name) !== -1
 

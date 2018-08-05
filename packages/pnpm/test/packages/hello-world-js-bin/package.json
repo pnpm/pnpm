@@ -12,5 +12,8 @@
   "repository": {
     "type": "git",
     "url": "https://github.com/pnpm/pnpm/tree/master/test/packages/hello-world-js-bin"
+  },
+  "dependencies": {
+    "cowsay": "1.2.1"
   }
 }

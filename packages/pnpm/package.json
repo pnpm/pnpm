@@ -100,6 +100,7 @@
     "deep-require-cwd": "^1.0.0",
     "exists-link": "^2.0.0",
     "mkdirp": "^0.5.1",
+    "ncp": "^2.0.0",
     "normalize-newline": "^3.0.0",
     "npm-run-all": "^4.0.1",
     "npm-scripts-info": "^0.3.6",

@@ -93,8 +93,9 @@ test('uninstall scoped package', async (t) => {
 
 test('uninstall tarball dependency', async (t: tape.Test) => {
   const project = prepare(t)
-  await installPkgs(['http://registry.npmjs.org/is-array/-/is-array-1.0.1.tgz'], await testDefaults({ save: true }))
-  await uninstall(['is-array'], await testDefaults({ save: true }))
+  const opts = await testDefaults({ save: true })
+  await installPkgs(['http://registry.npmjs.org/is-array/-/is-array-1.0.1.tgz'], opts)
+  await uninstall(['is-array'], opts)
 
   t.ok(await exists(path.join(await project.getStorePath(), 'registry.npmjs.org', 'is-array', '1.0.1')))
 
@@ -150,13 +151,14 @@ test('uninstall package with its bin files', async (t) => {
 
 test('relative link is uninstalled', async (t: tape.Test) => {
   const project = prepare(t)
+  const opts = await testDefaults()
 
   const linkedPkgName = 'hello-world-js-bin'
   const linkedPkgPath = path.resolve('..', linkedPkgName)
 
   await ncp(pathToLocalPkg(linkedPkgName), linkedPkgPath)
-  await link([`../${linkedPkgName}`], path.join(process.cwd(), 'node_modules'), await testDefaults())
-  await uninstall([linkedPkgName], await testDefaults())
+  await link([`../${linkedPkgName}`], path.join(process.cwd(), 'node_modules'), opts)
+  await uninstall([linkedPkgName], opts)
 
   await project.hasNot(linkedPkgName)
 })

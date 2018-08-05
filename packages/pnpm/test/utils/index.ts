@@ -7,10 +7,12 @@ import execPnpm, {
 import prepare, { tempDir, preparePackages } from './prepare'
 import retryLoadJsonFile from './retryLoadJsonFile'
 import testDefaults from './testDefaults'
+import {pathToLocalPkg} from './localPkg'
 
 export {
   createDeferred,
   Deferred,
+  pathToLocalPkg,
   prepare,
   preparePackages,
   tempDir,

@@ -7,6 +7,7 @@ export type ReadPackageHook = (pkg: PackageManifest) => PackageManifest
 
 export interface PnpmOptions {
   bail: boolean,
+  cliArgs: object,
   filter: string[],
   rawNpmConfig: object,
   globalPrefix: string,

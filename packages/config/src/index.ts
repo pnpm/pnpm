@@ -83,7 +83,7 @@ export default async (
   const workspaceManifestLocation = await findUp(WORKSPACE_MANIFEST_FILENAME, {
     cwd: cliArgs['prefix'] || process.cwd(), // tslint:disable-line
   })
-  const npmConfig = loadNpmConf(null, types, {
+  const npmConfig = loadNpmConf(cliArgs, types, {
     'bail': true,
     'globalconfig': npmDefaults.globalconfig,
     'package-lock': npmDefaults['package-lock'],

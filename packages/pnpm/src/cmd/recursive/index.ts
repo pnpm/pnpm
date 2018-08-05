@@ -221,13 +221,12 @@ function linkPackages (
   },
 ) {
   const limitLinking = pLimit(12)
-  const linkOpts = {...opts, skipInstall: true}
   return Promise.all(
     Object.keys(graph)
       .filter((pkgPath) => graph[pkgPath].dependencies && graph[pkgPath].dependencies.length)
       .map((pkgPath) =>
         limitLinking(() =>
-          link(graph[pkgPath].dependencies, path.join(pkgPath, 'node_modules'), {...linkOpts, prefix: pkgPath}),
+          link(graph[pkgPath].dependencies, path.join(pkgPath, 'node_modules'), {...opts, prefix: pkgPath}),
         ),
       ),
   )
