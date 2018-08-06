@@ -219,15 +219,15 @@ function getHelpText (command: string) {
 
         Options:
 
-          --background                   runs the server in the background
-          --protocol <auto|tcp|ipc>      the communication protocol used by the server
-          --port <number>                the port number to use, when TCP is used for communication
-          --store                        the location where all the packages are saved on the disk.
-          --network-concurrency <number> maximum number of concurrent network requests
-          --[no-]verify-store-integrity  if false, doesn't check whether packages in the store were mutated
+          --background                    runs the server in the background
+          --protocol <auto|tcp|ipc>       the communication protocol used by the server
+          --port <number>                 the port number to use, when TCP is used for communication
+          --store                         the location where all the packages are saved on the disk.
+          --network-concurrency <number>  maximum number of concurrent network requests
+          --[no-]verify-store-integrity   if false, doesn't check whether packages in the store were mutated
           --[no-]lock
-          --ignore-stop-requests         disallows stopping the server using \`pnpm server stop\`
-          --ignore-upload-requests       disallows creating new side effect cache during install
+          --ignore-stop-requests          disallows stopping the server using \`pnpm server stop\`
+          --ignore-upload-requests        disallows creating new side effect cache during install
 
         pnpm server stop
 
@@ -254,8 +254,8 @@ function getHelpText (command: string) {
           uninstall [<@scope>/]<pkg>...    uninstall a dependency from each package
           link                             runs installation in each package. If a package is available locally, the local version is linked.
           unlink                           removes links to local packages and reinstalls them from the registry.
-          list [[<@scope>/]<pkg>...]      list dependencies in each package.
-          outdated [[<@scope>/]<pkg>...]  check for outdated dependencies in every package.
+          list [[<@scope>/]<pkg>...]       list dependencies in each package.
+          outdated [[<@scope>/]<pkg>...]   check for outdated dependencies in every package.
 
           run <command> [-- <args>...]     this runs an arbitrary command from each package's "scripts" object.
                                            If a package doesn't have the command, it is skipped.
@@ -271,10 +271,10 @@ function getHelpText (command: string) {
 
         Options:
 
-          --filter <name>     restricts the scope to package names matching the given glob.
-          --filter <name>...  restricts the scope to package names matching the given glob.
-                              Includes all direct and indirect dependencies of the matched packages.
-          --no-bail           continues executing other tasks even if a task threw an error.
+          --filter <name>          restricts the scope to package names matching the given glob.
+          --filter <name>...       restricts the scope to package names matching the given glob.
+                                   Includes all direct and indirect dependencies of the matched packages.
+          --no-bail                continues executing other tasks even if a task threw an error.
           --workspace-concurrency  set the maximum number of concurrency. Default is 4. For unlimited concurrency use Infinity.
       `
 
