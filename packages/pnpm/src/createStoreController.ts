@@ -10,7 +10,43 @@ import packageManager from './pnpmPkgJson'
 import runServerInBackground from './runServerInBackground'
 import serverConnectionInfoDir from './serverConnectionInfoDir'
 
-export default async function (
+export async function cached (
+  storeControllerCache: Map<string, Promise<{ctrl: StoreController, path: string}>>,
+  opts: {
+    alwaysAuth?: boolean,
+    registry?: string,
+    rawNpmConfig: object,
+    strictSsl?: boolean,
+    proxy?: string,
+    httpsProxy?: string,
+    localAddress?: string,
+    cert?: string,
+    key?: string,
+    ca?: string,
+    fetchRetries?: number,
+    fetchRetryFactor?: number,
+    fetchRetryMintimeout?: number,
+    fetchRetryMaxtimeout?: number,
+    userAgent?: string,
+    ignoreFile?: (filename: string) => boolean,
+    offline?: boolean,
+    lock: boolean,
+    lockStaleDuration?: number,
+    networkConcurrency?: number,
+    store?: string,
+    prefix: string,
+    useRunningStoreServer?: boolean,
+    useStoreServer?: boolean,
+  },
+) {
+  const sp = await storePath(opts.prefix, opts.store)
+  if (!storeControllerCache.has(sp)) {
+    storeControllerCache.set(sp, createStoreController(opts))
+  }
+  return await storeControllerCache.get(sp) as {ctrl: StoreController, path: string}
+}
+
+export default async function createStoreController (
   opts: {
     alwaysAuth?: boolean,
     registry?: string,
