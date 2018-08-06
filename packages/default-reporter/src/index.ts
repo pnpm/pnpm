@@ -125,6 +125,7 @@ export function toOutput$ (
           break
         case 'pnpm' as any: // tslint:disable-line
         case 'pnpm:store' as any: // tslint:disable-line
+        case 'pnpm:shrinkwrap' as any: // tslint:disable-line
           otherPushStream.next(log)
           break
       }
