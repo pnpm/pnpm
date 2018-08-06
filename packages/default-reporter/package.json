@@ -1,6 +1,6 @@
 {
   "name": "pnpm-default-reporter",
-  "version": "0.19.1",
+  "version": "0.19.2",
   "description": "The default reporter of pnpm",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
@@ -36,7 +36,7 @@
     "url": "https://github.com/pnpm/pnpm/issues"
   },
   "peerDependencies": {
-    "supi": ">=0.22.0 <0.23.0"
+    "supi": ">=0.22.0 <0.24.0"
   },
   "dependencies": {
     "@types/common-tags": "^1.2.5",
@@ -73,7 +73,7 @@
     "normalize-newline": "^3.0.0",
     "package-preview": "^1.0.0",
     "rimraf": "^2.5.4",
-    "supi": "^0.22.0",
+    "supi": "^0.23.0",
     "tape": "^4.8.0",
     "ts-node": "^6.2.0",
     "tslint": "^5.7.0",
