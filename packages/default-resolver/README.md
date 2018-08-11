@@ -2,8 +2,8 @@
 
 > pnpm's default package resolver
 
-<!--@shields('npm', 'travis')-->
-[![npm version](https://img.shields.io/npm/v/@pnpm/default-resolver.svg)](https://www.npmjs.com/package/@pnpm/default-resolver) [![Build Status](https://img.shields.io/travis/pnpm/default-resolver/master.svg)](https://travis-ci.org/pnpm/default-resolver)
+<!--@shields('npm')-->
+[![npm version](https://img.shields.io/npm/v/@pnpm/default-resolver.svg)](https://www.npmjs.com/package/@pnpm/default-resolver)
 <!--/@-->
 
 ## Installation

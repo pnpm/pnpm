@@ -1,4 +1,5 @@
 dependencies:
+  '@pnpm/default-fetcher': 'link:../../../__package_previews__/default-fetcher/@pnpm/default-fetcher'
   '@pnpm/fetcher-base': 1.0.0
   '@pnpm/git-fetcher': 1.0.0
   '@pnpm/resolver-base': 1.1.0

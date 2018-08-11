@@ -1,5 +1,5 @@
 dependencies:
-  '@pnpm/default-resolver': 'link:../__package_previews__/default-resolver/@pnpm/default-resolver'
+  '@pnpm/default-resolver': 'link:../../../__package_previews__/default-resolver/@pnpm/default-resolver'
   '@pnpm/git-resolver': 0.3.8
   '@pnpm/local-resolver': 1.0.0
   '@pnpm/npm-resolver': 2.1.5
