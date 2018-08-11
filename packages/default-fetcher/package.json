@@ -17,10 +17,7 @@
     "md": "mos",
     "prepublishOnly": "npm run tsc"
   },
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/pnpm/default-fetcher.git"
-  },
+  "repository": "https://github.com/pnpm/pnpm/blob/master/packages/default-fetcher",
   "keywords": [
     "pnpm",
     "resolver",
@@ -29,9 +26,9 @@
   "author": "Zoltan Kochan <z@kochan.io> (https://www.kochan.io/)",
   "license": "MIT",
   "bugs": {
-    "url": "https://github.com/pnpm/default-fetcher/issues"
+    "url": "https://github.com/pnpm/pnpm/issues"
   },
-  "homepage": "https://github.com/pnpm/default-fetcher#readme",
+  "homepage": "https://pnpm.js.org",
   "dependencies": {
     "@pnpm/fetcher-base": "^1.0.0",
     "@pnpm/git-fetcher": "^1.0.0",
