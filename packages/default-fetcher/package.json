@@ -1,0 +1,61 @@
+{
+  "name": "@pnpm/default-fetcher",
+  "version": "2.0.0",
+  "description": "pnpm's default package fetcher",
+  "main": "lib/index.js",
+  "typings": "lib/index.d.ts",
+  "files": [
+    "lib"
+  ],
+  "engines": {
+    "node": ">=6"
+  },
+  "scripts": {
+    "lint": "tslint -c tslint.json --project .",
+    "tsc": "rimraf lib && tsc",
+    "test": "npm run lint && preview && ts-node test --type-check && mos t",
+    "md": "mos",
+    "prepublishOnly": "npm run tsc"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/pnpm/default-fetcher.git"
+  },
+  "keywords": [
+    "pnpm",
+    "resolver",
+    "npm"
+  ],
+  "author": "Zoltan Kochan <z@kochan.io> (https://www.kochan.io/)",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/pnpm/default-fetcher/issues"
+  },
+  "homepage": "https://github.com/pnpm/default-fetcher#readme",
+  "dependencies": {
+    "@pnpm/fetcher-base": "^1.0.0",
+    "@pnpm/git-fetcher": "^1.0.0",
+    "@pnpm/resolver-base": "^1.1.0",
+    "@pnpm/tarball-fetcher": "^2.0.0"
+  },
+  "devDependencies": {
+    "@pnpm/logger": "^2.0.0",
+    "@types/tape": "^4.2.31",
+    "mos": "^2.0.0-alpha.3",
+    "mos-plugin-readme": "^1.0.4",
+    "package-preview": "^1.0.1",
+    "rimraf": "^2.6.2",
+    "tape": "^4.8.0",
+    "ts-node": "^7.0.0",
+    "tslint": "^5.8.0",
+    "typescript": "^3.0.0"
+  },
+  "mos": {
+    "plugins": [
+      "readme"
+    ],
+    "installation": {
+      "useShortAlias": true
+    }
+  }
+}
