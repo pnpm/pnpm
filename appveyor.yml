@@ -20,6 +20,7 @@ test_script:
   - npm --version
   - npm t --prefix packages/config
   - npm t --prefix packages/utils
+  - npm t --prefix packages/default-resolver
   - npm t --prefix packages/headless
   - npm t --prefix packages/supi
   - npm t --prefix packages/default-reporter
