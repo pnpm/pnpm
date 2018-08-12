@@ -435,7 +435,7 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha512-6e5vDdrXZD+t5v0L8CrurPeybg4Fmf+FCSYxXKYVAqLUtyCSbuyqE059d0kDthTNRzKVjL7QMgNpEUlsoYH3iQ==
-  /cosmiconfig/5.0.5:
+  /cosmiconfig/5.0.6:
     dependencies:
       is-directory: 0.3.1
       js-yaml: 3.12.0
@@ -444,7 +444,7 @@ packages:
     engines:
       node: '>=4'
     resolution:
-      integrity: sha512-94j37OtvxS5w7qr7Ta6dt67tWdnOxigBVN4VnSxNXFez9o18PGQ0D33SchKP17r9LAcWVTYV72G6vDayAUBFIg==
+      integrity: sha512-6DWfizHriCrFWURP1/qyhsiFvYdlJzbCzmtFWh744+KyWsJo5+kPzUZZaMRSSItoYc0pxFX7gEO7ZC1/gN/7AQ==
   /cross-spawn/5.1.0:
     dependencies:
       lru-cache: 4.1.3
@@ -649,7 +649,7 @@ packages:
       integrity: sha512-7T/BxH19zbcCTa8XkMlbK5lTo1WtgkFi3GvdWEyNuc4Vex7/9Dqbnpsf4JMydcfj9HCg4zUWFTL3Za6lapg5/w==
   /husky/1.0.0-rc.13:
     dependencies:
-      cosmiconfig: 5.0.5
+      cosmiconfig: 5.0.6
       execa: 0.9.0
       find-up: 3.0.0
       get-stdin: 6.0.0

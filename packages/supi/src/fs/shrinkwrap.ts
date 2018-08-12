@@ -13,7 +13,7 @@ export function absolutePathToRef (
   if (opts.resolution.type) return absolutePath
 
   const registryName = encodeRegistry(opts.standardRegistry)
-  if (absolutePath.startsWith(`${registryName}/`)) {
+  if (absolutePath.startsWith(`${registryName}/`) && absolutePath.indexOf('/-/') === -1) {
     if (opts.alias === opts.realName) {
       const ref = absolutePath.replace(`${registryName}/${opts.realName}/`, '')
       if (ref.indexOf('/') === -1) return ref

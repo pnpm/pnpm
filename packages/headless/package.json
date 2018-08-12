@@ -90,7 +90,7 @@
     "@pnpm/types": "^1.7.0",
     "@pnpm/utils": "^0.5.0",
     "@types/ramda": "0.25.34",
-    "dependency-path": "^1.2.1",
+    "dependency-path": "^1.2.3",
     "graph-sequencer": "^2.0.0",
     "p-limit": "^2.0.0",
     "package-store": "^0.23.0",
