@@ -13,6 +13,7 @@ dependencies:
   load-json-file: 5.0.0
   mem: 3.0.1
   p-limit: 2.0.0
+  parse-npm-tarball-url: 1.0.3
   semver: 5.5.0
   ssri: 6.0.0
   version-selector-type: 2.0.0
@@ -109,6 +110,10 @@ packages:
   /@types/node/10.5.4:
     resolution:
       integrity: sha512-8TqvB0ReZWwtcd3LXq3YSrBoLyXFgBX/sBZfGye9+YS8zH7/g+i6QRIuiDmwBoTzcQ/pk89nZYTYU4c5akKkzw==
+  /@types/node/9.6.27:
+    dev: false
+    resolution:
+      integrity: sha512-fGWGG9Wypv6JZLIrnq9jXFX/FhQzgNccTlojez9hBbQ9UiBdxtc0ONMMe4/vnB2nDgOMDpPR/7HhenUB+Bw5yQ==
   /@types/path-exists/3.0.0:
     dev: true
     resolution:
@@ -2373,6 +2378,15 @@ packages:
       node: '>=0.10.0'
     resolution:
       integrity: sha1-VjRtR0nXjyNDDKDHE4UK75GqNh0=
+  /parse-npm-tarball-url/1.0.3:
+    dependencies:
+      '@types/node': 9.6.27
+      semver-regex: 1.0.0
+    dev: false
+    engines:
+      node: '>=4'
+    resolution:
+      integrity: sha512-LNiNoG41t4SeUu3p8aEpQatMVbfLxc600UD0urKMz09vHzz2+w0nWLs6k8rnk5eZ1tpCNkMzaMAzFTsNWMrIWg==
   /path-exists/2.1.0:
     dependencies:
       pinkie-promise: 2.0.1
@@ -2835,6 +2849,12 @@ packages:
       node: '>=0.10.0'
     resolution:
       integrity: sha1-S7uEN8jTfksM8aaP1ybsbWRdbTY=
+  /semver-regex/1.0.0:
+    dev: false
+    engines:
+      node: '>=0.10.0'
+    resolution:
+      integrity: sha1-kqSWkGX5xwxpR1PVUkj8aPj2Usk=
   /semver/5.5.0:
     hasBin: true
     resolution:
@@ -3589,6 +3609,7 @@ specifiers:
   nock: ^9.1.6
   p-limit: ^2.0.0
   package-preview: ^1.0.1
+  parse-npm-tarball-url: ^1.0.3
   path-exists: ^3.0.0
   rimraf: ^2.6.2
   semver: ^5.4.1

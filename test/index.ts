@@ -37,8 +37,8 @@ test('resolveFromNpm()', async t => {
     tarball: 'https://registry.npmjs.org/is-positive/-/is-positive-1.0.0.tgz',
   })
   t.ok(resolveResult!.package)
-  t.ok(resolveResult!.package!.name, 'is-positive')
-  t.ok(resolveResult!.package!.version, '1.0.0')
+  t.equal(resolveResult!.package!.name, 'is-positive')
+  t.equal(resolveResult!.package!.version, '1.0.0')
 
   // The resolve function does not wait for the package meta cache file to be saved
   // so we must delay for a bit in order to read it
@@ -75,8 +75,8 @@ test('dry run', async t => {
     tarball: 'https://registry.npmjs.org/is-positive/-/is-positive-1.0.0.tgz',
   })
   t.ok(resolveResult!.package)
-  t.ok(resolveResult!.package!.name, 'is-positive')
-  t.ok(resolveResult!.package!.version, '1.0.0')
+  t.equal(resolveResult!.package!.name, 'is-positive')
+  t.equal(resolveResult!.package!.version, '1.0.0')
 
   // The resolve function does not wait for the package meta cache file to be saved
   // so we must delay for a bit in order to read it
@@ -804,4 +804,82 @@ test('resolveFromNpm() loads full metadata even if non-full metadata is alread c
   }
 
   t.end()
+})
+
+test('resolve when tarball URL is requested from the registry', async t => {
+  nock(registry)
+    .get('/is-positive')
+    .reply(200, isPositiveMeta)
+
+  const store = tempy.directory()
+  const resolve = createResolveFromNpm({
+    metaCache: new Map(),
+    store,
+    rawNpmConfig: { registry },
+  })
+  const resolveResult = await resolve({alias: 'is-positive', pref: `${registry}is-positive/-/is-positive-1.0.0.tgz`}, {
+    registry,
+  })
+
+  t.equal(resolveResult!.resolvedVia, 'npm-registry')
+  t.equal(resolveResult!.id, 'registry.npmjs.org/is-positive/1.0.0')
+  t.equal(resolveResult!.latest!.split('.').length, 3)
+  t.deepEqual(resolveResult!.resolution, {
+    integrity: 'sha512-9cI+DmhNhA8ioT/3EJFnt0s1yehnAECyIOXdT+2uQGzcEEBaj8oNmVWj33+ZjPndMIFRQh8JeJlEu1uv5/J7pQ==',
+    registry,
+    tarball: 'https://registry.npmjs.org/is-positive/-/is-positive-1.0.0.tgz',
+  })
+  t.ok(resolveResult!.package)
+  t.equal(resolveResult!.package!.name, 'is-positive')
+  t.equal(resolveResult!.package!.version, '1.0.0')
+  t.equal(resolveResult!.normalizedPref, `${registry}is-positive/-/is-positive-1.0.0.tgz`, 'URL spec is kept')
+
+  // The resolve function does not wait for the package meta cache file to be saved
+  // so we must delay for a bit in order to read it
+  setTimeout(async () => {
+    const meta = await loadJsonFile(path.join(store, resolveResult!.id, '..', 'index.json'))
+    t.ok(meta.name)
+    t.ok(meta.versions)
+    t.ok(meta['dist-tags'])
+    t.end()
+  }, 500)
+})
+
+test('resolve when tarball URL is requested from the registry and alias is not specified', async t => {
+  nock(registry)
+    .get('/is-positive')
+    .reply(200, isPositiveMeta)
+
+  const store = tempy.directory()
+  const resolve = createResolveFromNpm({
+    metaCache: new Map(),
+    store,
+    rawNpmConfig: { registry },
+  })
+  const resolveResult = await resolve({pref: `${registry}is-positive/-/is-positive-1.0.0.tgz`}, {
+    registry,
+  })
+
+  t.equal(resolveResult!.resolvedVia, 'npm-registry')
+  t.equal(resolveResult!.id, 'registry.npmjs.org/is-positive/1.0.0')
+  t.equal(resolveResult!.latest!.split('.').length, 3)
+  t.deepEqual(resolveResult!.resolution, {
+    integrity: 'sha512-9cI+DmhNhA8ioT/3EJFnt0s1yehnAECyIOXdT+2uQGzcEEBaj8oNmVWj33+ZjPndMIFRQh8JeJlEu1uv5/J7pQ==',
+    registry,
+    tarball: 'https://registry.npmjs.org/is-positive/-/is-positive-1.0.0.tgz',
+  })
+  t.ok(resolveResult!.package)
+  t.equal(resolveResult!.package!.name, 'is-positive')
+  t.equal(resolveResult!.package!.version, '1.0.0')
+  t.equal(resolveResult!.normalizedPref, `${registry}is-positive/-/is-positive-1.0.0.tgz`, 'URL spec is kept')
+
+  // The resolve function does not wait for the package meta cache file to be saved
+  // so we must delay for a bit in order to read it
+  setTimeout(async () => {
+    const meta = await loadJsonFile(path.join(store, resolveResult!.id, '..', 'index.json'))
+    t.ok(meta.name)
+    t.ok(meta.versions)
+    t.ok(meta['dist-tags'])
+    t.end()
+  }, 500)
 })

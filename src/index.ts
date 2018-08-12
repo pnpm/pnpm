@@ -110,7 +110,7 @@ async function resolveNpm (
   },
 ): Promise<ResolveResult | null> {
   const spec = wantedDependency.pref
-    ? parsePref(wantedDependency.pref, wantedDependency.alias, opts.defaultTag || 'latest')
+    ? parsePref(wantedDependency.pref, wantedDependency.alias, opts.defaultTag || 'latest', opts.registry)
     : defaultTagForAlias(wantedDependency.alias as string, opts.defaultTag || 'latest')
   if (!spec) return null
   const auth = ctx.getCredentialsByURI(opts.registry)
@@ -141,6 +141,7 @@ async function resolveNpm (
   return {
     id,
     latest: meta['dist-tags'].latest,
+    normalizedPref: spec.normalizedPref,
     package: pickedPackage,
     resolution,
     resolvedVia: 'npm-registry',
