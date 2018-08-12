@@ -7,6 +7,7 @@ dependencies:
   dependencies-hierarchy: 3.0.0
   npm-package-arg: 6.1.0
   p-limit: 2.0.0
+  pnpm-list: 'link:../__package_previews__/pnpm-list/pnpm-list'
   ramda: 0.25.0
   read-package-json: 2.0.13
   thenify: 3.3.0
@@ -3209,7 +3210,7 @@ packages:
     resolution:
       integrity: sha1-5a2ryKz0CPY4X8dklWhMiOavaJo=
 registry: 'https://registry.npmjs.org/'
-shrinkwrapMinorVersion: 8
+shrinkwrapMinorVersion: 9
 shrinkwrapVersion: 3
 specifiers:
   '@pnpm/logger': ^2.1.0

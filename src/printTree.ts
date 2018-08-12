@@ -18,8 +18,18 @@ export default async function(
   const pkg = await readPkg(path.resolve(projectPath, 'package.json'))
 
   if (!opts.alwaysPrintRootPackage && !tree.length) return ''
+
+  let label = ''
+  if (pkg.name) {
+    label += pkg.name
+    if (pkg.version) {
+      label += `@${pkg.version}`
+    }
+    label += ' '
+  }
+  label += projectPath
   const s = archy({
-    label: `${pkg.name}@${pkg.version} ${projectPath}`,
+    label,
     nodes: await toArchyTree(tree, {
       long: opts.long,
       modules: path.join(projectPath, 'node_modules'),

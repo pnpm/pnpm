@@ -18,7 +18,14 @@ export default async function(
   if (!opts.alwaysPrintRootPackage && !pkgs.length) return ''
   if (opts.long) {
     const entryPkg = await readPkg(path.resolve(projectPath, 'package.json'))
-    return `${projectPath}:${entryPkg.name}@${entryPkg.version}\n` +
+    let firstLine = projectPath
+    if (entryPkg.name) {
+      firstLine += `:${entryPkg.name}`
+      if (entryPkg.version) {
+        firstLine += `@${entryPkg.version}`
+      }
+    }
+    return `${firstLine}\n` +
       pkgs.map((pkg) => `${prefix}/.${pkg.path}:${pkg.name}@${pkg.version}`).join('\n') + '\n'
   }
   return projectPath + '\n' + pkgs.map((pkg) => `${prefix}/.${pkg.path}`).join('\n') + '\n'

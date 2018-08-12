@@ -7,11 +7,35 @@ import chalk from 'chalk'
 const highlighted = chalk.yellow.bgBlack
 
 const fixture = path.join(__dirname, 'fixture')
+const fixtureWithNoPkgNameAndNoVersion = path.join(__dirname, 'fixture-with-no-pkg-name-and-no-version')
+const fixtureWithNoPkgVersion = path.join(__dirname, 'fixture-with-no-pkg-version')
 const emptyFixture = path.join(__dirname, 'empty')
 
 test('list with default parameters', async t => {
   t.equal(await list(fixture), stripIndent`
     fixture@1.0.0 ${fixture}
+    ├── is-negative@2.1.0
+    ├── is-positive@3.1.0
+    └── write-json-file@2.2.0
+  ` + '\n')
+
+  t.end()
+})
+
+test('list with default parameters in pkg that has no name and version', async t => {
+  t.equal(await list(fixtureWithNoPkgNameAndNoVersion), stripIndent`
+    ${fixtureWithNoPkgNameAndNoVersion}
+    ├── is-negative@2.1.0
+    ├── is-positive@3.1.0
+    └── write-json-file@2.2.0
+  ` + '\n')
+
+  t.end()
+})
+
+test('list with default parameters in pkg that has no version', async t => {
+  t.equal(await list(fixtureWithNoPkgVersion), stripIndent`
+    fixture ${fixtureWithNoPkgVersion}
     ├── is-negative@2.1.0
     ├── is-positive@3.1.0
     └── write-json-file@2.2.0
@@ -145,6 +169,40 @@ test('long parseable list with depth 1', async t => {
     ${fixture}/node_modules/.registry.npmjs.org/sort-keys/1.1.2:sort-keys@1.1.2
     ${fixture}/node_modules/.registry.npmjs.org/write-file-atomic/2.1.0:write-file-atomic@2.1.0
     ${fixture}/node_modules/.registry.npmjs.org/write-json-file/2.2.0:write-json-file@2.2.0
+  ` + '\n')
+
+  t.end()
+})
+
+test('long parseable list with depth 1 when package has no version', async t => {
+  t.equal(await list(fixtureWithNoPkgVersion, {parseable: true, depth: 1, long: true}), stripIndent`
+    ${fixtureWithNoPkgVersion}:fixture
+    ${fixtureWithNoPkgVersion}/node_modules/.registry.npmjs.org/detect-indent/5.0.0:detect-indent@5.0.0
+    ${fixtureWithNoPkgVersion}/node_modules/.registry.npmjs.org/graceful-fs/4.1.11:graceful-fs@4.1.11
+    ${fixtureWithNoPkgVersion}/node_modules/.registry.npmjs.org/is-negative/2.1.0:is-negative@2.1.0
+    ${fixtureWithNoPkgVersion}/node_modules/.registry.npmjs.org/is-positive/3.1.0:is-positive@3.1.0
+    ${fixtureWithNoPkgVersion}/node_modules/.registry.npmjs.org/make-dir/1.0.0:make-dir@1.0.0
+    ${fixtureWithNoPkgVersion}/node_modules/.registry.npmjs.org/pify/2.3.0:pify@2.3.0
+    ${fixtureWithNoPkgVersion}/node_modules/.registry.npmjs.org/sort-keys/1.1.2:sort-keys@1.1.2
+    ${fixtureWithNoPkgVersion}/node_modules/.registry.npmjs.org/write-file-atomic/2.1.0:write-file-atomic@2.1.0
+    ${fixtureWithNoPkgVersion}/node_modules/.registry.npmjs.org/write-json-file/2.2.0:write-json-file@2.2.0
+  ` + '\n')
+
+  t.end()
+})
+
+test('long parseable list with depth 1 when package has no name and no version', async t => {
+  t.equal(await list(fixtureWithNoPkgNameAndNoVersion, {parseable: true, depth: 1, long: true}), stripIndent`
+    ${fixtureWithNoPkgNameAndNoVersion}
+    ${fixtureWithNoPkgNameAndNoVersion}/node_modules/.registry.npmjs.org/detect-indent/5.0.0:detect-indent@5.0.0
+    ${fixtureWithNoPkgNameAndNoVersion}/node_modules/.registry.npmjs.org/graceful-fs/4.1.11:graceful-fs@4.1.11
+    ${fixtureWithNoPkgNameAndNoVersion}/node_modules/.registry.npmjs.org/is-negative/2.1.0:is-negative@2.1.0
+    ${fixtureWithNoPkgNameAndNoVersion}/node_modules/.registry.npmjs.org/is-positive/3.1.0:is-positive@3.1.0
+    ${fixtureWithNoPkgNameAndNoVersion}/node_modules/.registry.npmjs.org/make-dir/1.0.0:make-dir@1.0.0
+    ${fixtureWithNoPkgNameAndNoVersion}/node_modules/.registry.npmjs.org/pify/2.3.0:pify@2.3.0
+    ${fixtureWithNoPkgNameAndNoVersion}/node_modules/.registry.npmjs.org/sort-keys/1.1.2:sort-keys@1.1.2
+    ${fixtureWithNoPkgNameAndNoVersion}/node_modules/.registry.npmjs.org/write-file-atomic/2.1.0:write-file-atomic@2.1.0
+    ${fixtureWithNoPkgNameAndNoVersion}/node_modules/.registry.npmjs.org/write-json-file/2.2.0:write-json-file@2.2.0
   ` + '\n')
 
   t.end()
