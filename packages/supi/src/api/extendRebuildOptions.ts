@@ -12,7 +12,6 @@ export interface RebuildOptions {
   store: string, // TODO: remove this property
   independentLeaves?: boolean,
   force?: boolean,
-  global?: boolean,
   registry?: string,
   shrinkwrap?: boolean,
 
@@ -38,7 +37,6 @@ export type StrictRebuildOptions = RebuildOptions & {
   store: string,
   independentLeaves: boolean,
   force: boolean,
-  global: boolean,
   registry: string,
   bin: string,
   rawNpmConfig: object,
@@ -64,7 +62,6 @@ const defaults = async (opts: RebuildOptions) => {
     childConcurrency: 5,
     development: true,
     force: false,
-    global: false,
     independentLeaves: false,
     optional: true,
     packageManager,
@@ -104,9 +101,5 @@ export default async (
     })
   }
   extendedOpts.registry = normalizeRegistryUrl(extendedOpts.registry)
-  if (extendedOpts.global) {
-    const subfolder = LAYOUT_VERSION.toString() + (extendedOpts.independentLeaves ? '_independent_leaves' : '')
-    extendedOpts.prefix = path.join(extendedOpts.prefix, subfolder)
-  }
   return extendedOpts
 }

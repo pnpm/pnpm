@@ -31,7 +31,7 @@ test('listing global packages', async (t: tape.Test) => {
     ? path.join(global, 'npm', 'pnpm-global', '1')
     : path.join(global, 'pnpm-global', '1')
   t.equal(result.stdout.toString(), stripIndent`
-    pnpm-global-pkg@1.0.0 ${globalPrefix}
+    ${globalPrefix}
     └── is-positive@3.1.0
   ` + '\n\n')
 })
@@ -54,7 +54,7 @@ test('listing global packages installed with independent-leaves = true', async (
     ? path.join(global, 'npm', 'pnpm-global', '1_independent_leaves')
     : path.join(global, 'pnpm-global', '1_independent_leaves')
   t.equal(result.stdout.toString(), stripIndent`
-    pnpm-global-pkg@1.0.0 ${globalPrefix}
+    ${globalPrefix}
     └── is-positive@3.1.0
   ` + '\n\n')
 })

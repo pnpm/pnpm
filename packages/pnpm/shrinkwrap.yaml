@@ -45,7 +45,7 @@ dependencies:
   pnpm: 'link:'
   pnpm-default-reporter: 'link:../default-reporter'
   pnpm-file-reporter: 0.1.0
-  pnpm-list: 4.0.0
+  pnpm-list: 4.0.1
   process-exists: 3.1.0
   ramda: 0.25.0
   read-ini-file: 1.0.0
@@ -4381,7 +4381,7 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha512-ZvCSe4hTJHWfAXZUgydkbRre3h1svqtlb3Wq70fkbdZF4Wbvr0LEQRG5kCsiEnkt27PpdzlZ2b3XmV2dvUpHwg==
-  /pnpm-list/4.0.0:
+  /pnpm-list/4.0.1:
     dependencies:
       '@types/archy': 0.0.31
       '@types/node': 10.5.8
@@ -4398,7 +4398,7 @@ packages:
     engines:
       node: '>=6'
     resolution:
-      integrity: sha512-CFCdu3sJjEPNta/d9CN2psO4R5oVHiS8ToGK9ULW8EIYMTnAmOQXlMl2CliCEoUpgCxWghc/h7RPUjmvIZxSlw==
+      integrity: sha512-ZMDp2CBQpKed7JCeZpCp/V3XcMPML1jNlvguN/c/6MFY5fZGO3W7HCis1f7021NqWWY5NuXJZF3fsYXAsfEJoQ==
   /pnpm-registry-mock/2.2.0:
     dependencies:
       anonymous-npm-registry-client: 0.1.2
@@ -6219,7 +6219,7 @@ specifiers:
   pkgs-graph: ^2.0.0
   pnpm-default-reporter: ^0.19.2
   pnpm-file-reporter: ^0.1.0
-  pnpm-list: ^4.0.0
+  pnpm-list: ^4.0.1
   pnpm-registry-mock: ^2.2.0
   process-exists: ^3.0.0
   ramda: ^0.25.0

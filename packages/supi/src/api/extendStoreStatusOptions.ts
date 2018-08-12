@@ -12,7 +12,6 @@ export interface StoreStatusOptions {
   store: string,
   independentLeaves?: boolean,
   force?: boolean,
-  global?: boolean,
   registry?: string,
   shrinkwrap?: boolean,
 
@@ -29,7 +28,6 @@ export type StrictStoreStatusOptions = StoreStatusOptions & {
   store: string,
   independentLeaves: boolean,
   force: boolean,
-  global: boolean,
   registry: string,
   bin: string,
   shrinkwrap: boolean,
@@ -41,7 +39,6 @@ const defaults = async (opts: StoreStatusOptions) => {
   return {
     bin: path.join(prefix, 'node_modules', '.bin'),
     force: false,
-    global: false,
     independentLeaves: false,
     prefix,
     registry: 'https://registry.npmjs.org/',
@@ -70,9 +67,5 @@ export default async (
     })
   }
   extendedOpts.registry = normalizeRegistryUrl(extendedOpts.registry)
-  if (extendedOpts.global) {
-    const subfolder = LAYOUT_VERSION.toString() + (extendedOpts.independentLeaves ? '_independent_leaves' : '')
-    extendedOpts.prefix = path.join(extendedOpts.prefix, subfolder)
-  }
   return extendedOpts
 }

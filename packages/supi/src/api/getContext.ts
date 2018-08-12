@@ -34,7 +34,6 @@ export interface PnpmContext {
 export default async function getContext (
   opts: {
     force: boolean,
-    global: boolean,
     hooks?: {
       readPackage?: ReadPackageHook,
     },
@@ -98,7 +97,7 @@ export default async function getContext (
   }
 
   const files = await Promise.all([
-    (opts.global ? readGlobalPkgJson(opts.prefix) : safeReadPkgFromDir(opts.prefix)),
+    safeReadPkgFromDir(opts.prefix),
     mkdirp(storePath),
   ])
   const pkg = files[0] || {} as PackageJson
@@ -117,17 +116,4 @@ export default async function getContext (
   })
 
   return ctx
-}
-
-const DefaultGlobalPkg: PackageJson = {
-  name: 'pnpm-global-pkg',
-  private: true,
-  version: '1.0.0',
-}
-
-async function readGlobalPkgJson (globalPkgPath: string) {
-  const globalPkgJson = await safeReadPkgFromDir(globalPkgPath)
-  if (globalPkgJson) return globalPkgJson
-  await writePkg(globalPkgPath, DefaultGlobalPkg)
-  return DefaultGlobalPkg
 }

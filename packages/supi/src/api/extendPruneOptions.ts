@@ -13,7 +13,6 @@ export interface PruneOptions {
   force?: boolean,
   shamefullyFlatten?: boolean,
   storeController: StoreController,
-  global?: boolean,
   registry?: string,
   shrinkwrap?: boolean,
 
@@ -31,7 +30,6 @@ export type StrictPruneOptions = PruneOptions & {
   force: boolean,
   shamefullyFlatten: boolean,
   storeController: StoreController,
-  global: boolean,
   registry: string,
   bin: string,
   production: boolean,
@@ -46,7 +44,6 @@ const defaults = async (opts: PruneOptions) => {
     bin: path.join(prefix, 'node_modules', '.bin'),
     development: true,
     force: false,
-    global: false,
     independentLeaves: false,
     optional: true,
     prefix,
@@ -78,9 +75,5 @@ export default async (
     })
   }
   extendedOpts.registry = normalizeRegistryUrl(extendedOpts.registry)
-  if (extendedOpts.global) {
-    const subfolder = LAYOUT_VERSION.toString() + (extendedOpts.independentLeaves ? '_independent_leaves' : '')
-    extendedOpts.prefix = path.join(extendedOpts.prefix, subfolder)
-  }
   return extendedOpts
 }

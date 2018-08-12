@@ -42,12 +42,12 @@ export interface InstallOptions {
   shamefullyFlatten?: boolean,
   sideEffectsCache?: boolean,
   sideEffectsCacheReadonly?: boolean,
-  global?: boolean,
   bin?: string,
   production?: boolean,
   development?: boolean,
   optional?: boolean,
   independentLeaves?: boolean,
+  ignoreCurrentPrefs?: boolean,
   ignoreScripts?: boolean,
   childConcurrency?: number,
   userAgent?: string,
@@ -91,12 +91,12 @@ export type StrictInstallOptions = InstallOptions & {
   shamefullyFlatten: boolean,
   sideEffectsCache: boolean,
   sideEffectsCacheReadonly: boolean,
-  global: boolean,
   bin: string,
   production: boolean,
   development: boolean,
   optional: boolean,
   independentLeaves: boolean,
+  ignoreCurrentPrefs: boolean,
   ignoreScripts: boolean,
   childConcurrency: number,
   userAgent: string,
@@ -124,8 +124,8 @@ const defaults = async (opts: InstallOptions) => {
     engineStrict: false,
     force: false,
     frozenShrinkwrap: false,
-    global: false,
     hooks: {},
+    ignoreCurrentPrefs: false,
     ignoreScripts: false,
     independentLeaves: false,
     lock: true,
@@ -197,12 +197,6 @@ export default async (
       extendedOpts.userAgent = `${extendedOpts.packageManager.name}/${extendedOpts.packageManager.version} ${extendedOpts.userAgent}`
     }
     extendedOpts.registry = normalizeRegistryUrl(extendedOpts.registry)
-    if (extendedOpts.global) {
-      const independentLeavesSuffix = extendedOpts.independentLeaves ? '_independent_leaves' : ''
-      const shamefullyFlattenSuffix = extendedOpts.shamefullyFlatten ? '_shamefully_flatten' : ''
-      const subfolder = LAYOUT_VERSION.toString() + independentLeavesSuffix + shamefullyFlattenSuffix
-      extendedOpts.prefix = path.join(extendedOpts.prefix, subfolder)
-    }
     extendedOpts.rawNpmConfig['registry'] = extendedOpts.registry // tslint:disable-line:no-string-literal
     // if sideEffectsCacheReadonly is true, sideEffectsCache is necessarily true too
     if (extendedOpts.sideEffectsCache && extendedOpts.sideEffectsCacheReadonly) {

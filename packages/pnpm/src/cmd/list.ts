@@ -12,22 +12,10 @@ export default async function (
     parseable?: boolean,
     production: boolean,
     development: boolean,
-    global: boolean,
-    independentLeaves: boolean,
     alwaysPrintRootPackage?: boolean,
   },
   command: string,
 ) {
-  let prefix: string
-  if (opts.global) {
-    prefix = path.join(opts.prefix, LAYOUT_VERSION)
-    if (opts.independentLeaves) {
-      prefix += '_independent_leaves'
-    }
-  } else {
-    prefix = opts.prefix
-  }
-
   opts.long = opts.long || command === 'll' || command === 'la'
   const only = (opts.production && opts.development ? undefined : (opts.production ? 'prod' : 'dev')) as ('prod' | 'dev' | undefined)
   const listOpts = {
@@ -38,8 +26,8 @@ export default async function (
     parseable: opts.parseable,
   }
   const output = args.length
-    ? await listForPackages(args, prefix, listOpts)
-    : await list(prefix, listOpts)
+    ? await listForPackages(args, opts.prefix, listOpts)
+    : await list(opts.prefix, listOpts)
 
   if (output) console.log(output)
 }

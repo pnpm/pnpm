@@ -321,8 +321,7 @@ export async function installPkgs (
   async function _installPkgs () {
     const installType = 'named'
     const ctx = await getContext(opts, installType)
-    const currentPrefs = opts.global ? {} : depsFromPackage(ctx.pkg)
-    opts.allowNew = opts.allowNew || opts.global // TODO: global install should also know about globally installed packages
+    const currentPrefs = opts.ignoreCurrentPrefs ? {} : depsFromPackage(ctx.pkg)
     const saveType = getSaveType(opts)
     const optionalDependencies = saveType ? {} : ctx.pkg.optionalDependencies || {}
     const devDependencies = saveType ? {} : ctx.pkg.devDependencies || {}
@@ -610,7 +609,6 @@ async function installInContext (
     development: opts.development,
     dryRun: opts.shrinkwrapOnly,
     force: opts.force,
-    global: opts.global,
     hoistedAliases: ctx.hoistedAliases,
     independentLeaves: opts.independentLeaves,
     makePartialCurrentShrinkwrap,

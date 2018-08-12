@@ -1,3 +1,4 @@
+import './global'
 import './misc'
 import './only'
 import './lifecycleScripts'

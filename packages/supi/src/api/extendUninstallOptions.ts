@@ -12,7 +12,6 @@ export interface UninstallOptions {
   independentLeaves?: boolean,
   force?: boolean,
   storeController: StoreController,
-  global?: boolean,
   registry?: string,
   shrinkwrap?: boolean,
   shamefullyFlatten?: boolean,
@@ -35,7 +34,6 @@ export type StrictUninstallOptions = UninstallOptions & {
   force: boolean,
   shamefullyFlatten: boolean,
   storeController: StoreController,
-  global: boolean,
   registry: string,
   shrinkwrap: boolean,
 
@@ -58,7 +56,6 @@ const defaults = async (opts: UninstallOptions) => {
   return {
     bin: path.join(prefix, 'node_modules', '.bin'),
     force: false,
-    global: false,
     independentLeaves: false,
     lock: true,
     lockStaleDuration: 5 * 60 * 1000, // 5 minutes
@@ -92,9 +89,5 @@ export default async (
     })
   }
   extendedOpts.registry = normalizeRegistryUrl(extendedOpts.registry)
-  if (extendedOpts.global) {
-    const subfolder = LAYOUT_VERSION.toString() + (extendedOpts.independentLeaves ? '_independent_leaves' : '')
-    extendedOpts.prefix = path.join(extendedOpts.prefix, subfolder)
-  }
   return extendedOpts
 }

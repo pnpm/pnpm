@@ -12,8 +12,6 @@ export default async (
     development: boolean,
     long?: boolean,
     parseable?: boolean,
-    global: boolean,
-    independentLeaves: boolean,
   },
 ) => {
   for (const pkg of pkgs) {

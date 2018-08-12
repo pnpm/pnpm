@@ -117,12 +117,20 @@ export default async (
     ? npmGlobalPrefix
     : path.resolve(npmGlobalPrefix, 'bin')
   pnpmConfig.globalPrefix = path.join(npmGlobalPrefix, 'pnpm-global')
-  pnpmConfig.prefix = pnpmConfig.global
-    ? pnpmConfig.globalPrefix
-    : (cliArgs['prefix'] ? path.resolve(cliArgs['prefix']) : npmConfig.localPrefix) // tslint:disable-line
-  pnpmConfig.bin = pnpmConfig.global
-    ? pnpmConfig.globalBin
-    : path.join(pnpmConfig.prefix, 'node_modules', '.bin')
+
+  if (pnpmConfig.global) {
+    const independentLeavesSuffix = pnpmConfig.independentLeaves ? '_independent_leaves' : ''
+    const shamefullyFlattenSuffix = pnpmConfig.shamefullyFlatten ? '_shamefully_flatten' : ''
+    const subfolder = '1' + independentLeavesSuffix + shamefullyFlattenSuffix
+    pnpmConfig.prefix = path.join(pnpmConfig.globalPrefix, subfolder)
+    pnpmConfig.bin = pnpmConfig.globalBin
+    pnpmConfig.allowNew = true
+    pnpmConfig.ignoreCurrentPrefs = true
+  } else {
+    pnpmConfig.prefix = (cliArgs['prefix'] ? path.resolve(cliArgs['prefix']) : npmConfig.localPrefix) // tslint:disable-line
+    pnpmConfig.bin = path.join(pnpmConfig.prefix, 'node_modules', '.bin')
+  }
+
   pnpmConfig.packageManager = packageManager
 
   if (pnpmConfig.only === 'prod' || pnpmConfig.only === 'production' || !pnpmConfig.only && pnpmConfig.production) {
