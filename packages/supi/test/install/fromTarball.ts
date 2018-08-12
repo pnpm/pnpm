@@ -9,18 +9,18 @@ import {
 
 const test = promisifyTape(tape)
 
-test('tarball from npm registry', async (t) => {
+test('tarball from npm registry', async (t: tape.Test) => {
   const project = prepare(t)
-  await installPkgs(['http://registry.npmjs.org/is-array/-/is-array-1.0.1.tgz'], await testDefaults())
+  await installPkgs(['http://localhost:4873/is-array/-/is-array-1.0.1.tgz'], await testDefaults())
 
   const m = project.requireModule('is-array')
 
   t.ok(m, 'isArray() is available')
 
-  await project.storeHas('registry.npmjs.org/is-array/1.0.1')
+  await project.storeHas('localhost+4873/is-array/1.0.1')
 
   const pkgJson = await readPkg()
-  t.deepEqual(pkgJson.dependencies, {'is-array': 'http://registry.npmjs.org/is-array/-/is-array-1.0.1.tgz'}, 'has been added to dependencies in package.json')
+  t.deepEqual(pkgJson.dependencies, {'is-array': 'http://localhost:4873/is-array/-/is-array-1.0.1.tgz'}, 'has been added to dependencies in package.json')
 })
 
 test('tarball not from npm registry', async (t) => {

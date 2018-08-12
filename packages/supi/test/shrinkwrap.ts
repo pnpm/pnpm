@@ -509,7 +509,7 @@ test('scoped module from different registry', async (t: tape.Test) => {
       },
     },
     registry: 'http://localhost:4873/',
-    shrinkwrapMinorVersion: 8,
+    shrinkwrapMinorVersion: 9,
     shrinkwrapVersion: 3,
     specifiers: {
       '@zkochan/foo': '^1.0.0',
@@ -560,7 +560,7 @@ test['skip']('installing from shrinkwrap when using npm enterprise', async (t: t
       },
     },
     registry: 'https://npm-registry.compass.com/',
-    shrinkwrapMinorVersion: 8,
+    shrinkwrapMinorVersion: 9,
     shrinkwrapVersion: 3,
     specifiers: {
       'is-positive': '^3.1.0',
@@ -691,7 +691,7 @@ test('updating shrinkwrap version 3 to 3.5', async (t: tape.Test) => {
 
   const shr = await project.loadShrinkwrap()
 
-  t.equal(shr.shrinkwrapMinorVersion, 8)
+  t.equal(shr.shrinkwrapMinorVersion, 9)
   t.ok(shr.packages['/abc/1.0.0/165e1e08a3f7e7f77ddb572ad0e55660'].peerDependencies)
 })
 
@@ -864,4 +864,55 @@ test('when package registry differs from default one, save it to resolution fiel
   const shr = await project.loadShrinkwrap()
 
   t.equal(shr.packages['/@zkochan/git-config/0.1.0'].resolution.registry, 'https://registry.node-modules.io/')
+})
+
+test('packages installed via tarball URL from the default registry are normalized', async (t: tape.Test) => {
+  const project = prepare(t)
+
+  await installPkgs([
+    'http://localhost:4873/pkg-with-tarball-dep-from-registry/-/pkg-with-tarball-dep-from-registry-1.0.0.tgz',
+    'https://registry.npmjs.org/is-positive/-/is-positive-1.0.0.tgz',
+  ], await testDefaults())
+
+  const shr = await project.loadShrinkwrap()
+
+  t.deepEqual(shr, {
+    dependencies: {
+      'is-positive': 'registry.npmjs.org/is-positive/-/is-positive-1.0.0',
+      'pkg-with-tarball-dep-from-registry': '1.0.0',
+    },
+    packages: {
+      '/dep-of-pkg-with-1-dep/100.0.0': {
+        dev: false,
+        resolution: {
+          integrity: getIntegrity('dep-of-pkg-with-1-dep', '100.0.0'),
+        },
+      },
+      '/pkg-with-tarball-dep-from-registry/1.0.0': {
+        dependencies: {
+          'dep-of-pkg-with-1-dep': '100.0.0',
+        },
+        dev: false,
+        resolution: {
+          integrity: getIntegrity('pkg-with-tarball-dep-from-registry', '1.0.0'),
+        },
+      },
+      'registry.npmjs.org/is-positive/-/is-positive-1.0.0': {
+        dev: false,
+        engines: { node: '>=0.10.0' },
+        name: 'is-positive',
+        resolution: {
+          tarball: 'https://registry.npmjs.org/is-positive/-/is-positive-1.0.0.tgz',
+        },
+        version: '1.0.0',
+      },
+    },
+    registry: 'http://localhost:4873/',
+    shrinkwrapMinorVersion: 9,
+    shrinkwrapVersion: 3,
+    specifiers: {
+      'is-positive': 'https://registry.npmjs.org/is-positive/-/is-positive-1.0.0.tgz',
+      'pkg-with-tarball-dep-from-registry': 'http://localhost:4873/pkg-with-tarball-dep-from-registry/-/pkg-with-tarball-dep-from-registry-1.0.0.tgz',
+    },
+  })
 })

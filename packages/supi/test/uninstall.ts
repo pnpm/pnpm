@@ -94,10 +94,10 @@ test('uninstall scoped package', async (t) => {
 test('uninstall tarball dependency', async (t: tape.Test) => {
   const project = prepare(t)
   const opts = await testDefaults({ save: true })
-  await installPkgs(['http://registry.npmjs.org/is-array/-/is-array-1.0.1.tgz'], opts)
+  await installPkgs(['http://localhost:4873/is-array/-/is-array-1.0.1.tgz'], opts)
   await uninstall(['is-array'], opts)
 
-  t.ok(await exists(path.join(await project.getStorePath(), 'registry.npmjs.org', 'is-array', '1.0.1')))
+  t.ok(await exists(path.join(await project.getStorePath(), 'localhost+4873', 'is-array', '1.0.1')))
 
   await project.hasNot('is-array')
 

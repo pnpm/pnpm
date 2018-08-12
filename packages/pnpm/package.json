@@ -106,7 +106,7 @@
     "npm-scripts-info": "^0.3.6",
     "package-preview": "^1.0.0",
     "path-exists": "^3.0.0",
-    "pnpm-registry-mock": "^2.0.0",
+    "pnpm-registry-mock": "^2.2.0",
     "retry": "^0.12.0",
     "rimraf": "^2.5.4",
     "rimraf-then": "^1.0.1",

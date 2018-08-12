@@ -2,8 +2,8 @@ dependencies:
   '@pnpm/default-resolver': 'link:../../../__package_previews__/default-resolver/@pnpm/default-resolver'
   '@pnpm/git-resolver': 0.3.8
   '@pnpm/local-resolver': 1.0.0
-  '@pnpm/npm-resolver': 2.1.5
-  '@pnpm/tarball-resolver': 0.1.1
+  '@pnpm/npm-resolver': 2.1.6
+  '@pnpm/tarball-resolver': 1.0.0
 devDependencies:
   '@pnpm/logger': 2.1.0
   '@types/tape': 4.2.32
@@ -70,7 +70,7 @@ packages:
       node: '>=6'
     resolution:
       integrity: sha512-BL4Laf6b50LjdcpOUWPukx2XJtb3mo2OpJjHdRNSDJu9YS2tRBeP14H2bNqGjCjfeml8z3KufI3Km6VQemVXNw==
-  /@pnpm/npm-resolver/2.1.5:
+  /@pnpm/npm-resolver/2.1.6:
     dependencies:
       '@pnpm/resolver-base': 1.1.0
       '@pnpm/types': 1.7.0
@@ -85,6 +85,7 @@ packages:
       load-json-file: 5.0.0
       mem: 3.0.1
       p-limit: 2.0.0
+      parse-npm-tarball-url: 1.0.3
       semver: 5.5.0
       ssri: 6.0.0
       version-selector-type: 2.0.0
@@ -95,7 +96,7 @@ packages:
     peerDependencies:
       '@pnpm/logger': ^1.0.0 || ^2.0.0
     resolution:
-      integrity: sha512-z0zWtn0xq9TTEUCcnYu9mDSYQMqX7BA2kjhUu/8KvBIXozgxJjbt58qXfPUWrBCr1/SD+Ifm7pC4XprQogC6Pw==
+      integrity: sha512-AwCbZBNHUOW0TRyjvzfKNEeKWSSiwIkUnLqe4u6DeFpJeTeIiH0PkbWZp4NMVowG7zY/ssenXV42S7RQQVuPoA==
   /@pnpm/resolver-base/1.1.0:
     dependencies:
       '@pnpm/types': 1.7.0
@@ -110,15 +111,14 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha512-NnkmxKFQJMkHL2TcLAl2sof7mVu8dgode4zGzwtvEaZ/xjOHm3CfUJomincmZcpWoXrjHkvbPxjczEPP41Wmqg==
-  /@pnpm/tarball-resolver/0.1.1:
+  /@pnpm/tarball-resolver/1.0.0:
     dependencies:
       '@pnpm/resolver-base': 1.1.0
-      parse-npm-tarball-url: 1.0.3
     dev: false
     engines:
-      node: '>=4'
+      node: '>=6'
     resolution:
-      integrity: sha512-AM/vdcnhu0nGJz+QR0FBR4vGsT+zo//l9kxC85ork9lqOOcFw0NA8fAes1mGxQE6lYRF+qthR3OmfX2yvFRW2g==
+      integrity: sha512-IjhyZ3jJE0Wwe8H7pcKmsqQOApKYGrn3kgSnMTRCBKQTPMZTMMcut2CqnavI9c3EeKo4NvMqztLLgJOrxBPfZg==
   /@pnpm/types/1.7.0:
     dev: false
     resolution:
@@ -3799,8 +3799,8 @@ specifiers:
   '@pnpm/git-resolver': ^0.3.4
   '@pnpm/local-resolver': ^1.0.0
   '@pnpm/logger': ^2.0.0
-  '@pnpm/npm-resolver': ^2.0.0
-  '@pnpm/tarball-resolver': ^0.1.1
+  '@pnpm/npm-resolver': ^2.1.6
+  '@pnpm/tarball-resolver': ^1.0.0
   '@types/tape': ^4.2.31
   mos: ^2.0.0-alpha.3
   mos-plugin-readme: ^1.0.4

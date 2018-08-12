@@ -82,7 +82,7 @@ devDependencies:
   npm-scripts-info: 0.3.9
   package-preview: 1.0.6
   path-name: 1.0.0
-  pnpm-registry-mock: 2.1.0
+  pnpm-registry-mock: 2.2.0
   read-pkg: 4.0.1
   rimraf: 2.6.2
   sepia: 2.0.2
@@ -2904,7 +2904,7 @@ packages:
     dev: false
     resolution:
       integrity: sha1-dB2ZeXYv362T8+Rp3rSoFNNDAAg=
-  /pnpm-registry-mock/2.1.0:
+  /pnpm-registry-mock/2.2.0:
     dependencies:
       anonymous-npm-registry-client: 0.1.2
       cpr: 3.0.1
@@ -2915,7 +2915,7 @@ packages:
       node: '>=6'
     hasBin: true
     resolution:
-      integrity: sha512-CdVJPZNJDQagEUZBOYdG/nikpvu2ftAPNui6OzOSl8GtyMerfeD++OIQRS/S5K1xGRYoPQvL5reHlBbrLKa3Yg==
+      integrity: sha512-P+0pikpHEIaEW76sfRN7zfGwQ6evnSyAKSkmaKPuvqMX0/KyH8Mt/ulZmS9jNVmV9tLzZ1pZB4LOS9TN8znpAA==
   /pnpm-shrinkwrap/7.0.1:
     dependencies:
       '@pnpm/resolver-base': 1.1.0
@@ -4187,7 +4187,7 @@ specifiers:
   path-exists: ^3.0.0
   path-name: ^1.0.0
   pnpm-install-checks: ^1.1.0
-  pnpm-registry-mock: ^2.1.0
+  pnpm-registry-mock: ^2.2.0
   pnpm-shrinkwrap: ^7.0.1
   ramda: ^0.25.0
   read-pkg: ^4.0.0
