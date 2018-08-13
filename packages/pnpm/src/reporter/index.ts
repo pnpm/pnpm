@@ -1,3 +1,4 @@
+import {PnpmConfigs} from '@pnpm/config'
 import {streamParser, writeToConsole} from '@pnpm/logger'
 import defaultReporter from 'pnpm-default-reporter'
 import silentReporter from './silentReporter'
@@ -9,26 +10,34 @@ export default (
   opts: {
     cmd: string,
     subCmd: string,
-    prefix: string,
+    pnpmConfigs: PnpmConfigs,
   },
 ) => {
   switch (reporterType) {
     case 'default':
-      defaultReporter(streamParser, {
-        appendOnly: false,
-        cmd: opts.cmd,
-        cwd: opts.prefix,
-        subCmd: opts.subCmd,
-        throttleProgress: 200,
+      defaultReporter({
+        context: {
+          argv: [opts.cmd, opts.subCmd],
+          configs: opts.pnpmConfigs,
+        },
+        reportingOptions: {
+          appendOnly: false,
+          throttleProgress: 200,
+        },
+        streamParser,
       })
       return
     case 'append-only':
-      defaultReporter(streamParser, {
-        appendOnly: true,
-        cmd: opts.cmd,
-        cwd: opts.prefix,
-        subCmd: opts.subCmd,
-        throttleProgress: 1000,
+      defaultReporter({
+        context: {
+          argv: [opts.cmd, opts.subCmd],
+          configs: opts.pnpmConfigs,
+        },
+        reportingOptions: {
+          appendOnly: true,
+          throttleProgress: 1000,
+        },
+        streamParser,
       })
       return
     case 'ndjson':

@@ -183,13 +183,13 @@ export default async function run (argv: string[]) {
 
   initReporter(reporterType, {
     cmd,
-    prefix: opts.prefix,
+    pnpmConfigs: opts,
     subCmd: cliConf.argv.remain[1] && getCommandFullName(cliConf.argv.remain[1]),
   })
   delete opts.reporter // This is a silly workaround because supi expects a function as opts.reporter
 
   if (selfUpdate) {
-    await pnpmCmds.server(['stop'], opts)
+    await pnpmCmds.server(['stop'], opts as any) // tslint:disable-line:no-any
   }
 
   // NOTE: we defer the next stage, otherwise reporter might not catch all the logs

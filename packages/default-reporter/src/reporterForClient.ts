@@ -1,3 +1,4 @@
+import {PnpmConfigs} from '@pnpm/config'
 import chalk from 'chalk'
 import most = require('most')
 import normalize = require('normalize-path')
@@ -58,12 +59,12 @@ export default function (
     width?: number,
     appendOnly?: boolean,
     throttleProgress?: number,
-    cwd: string,
+    pnpmConfigs?: PnpmConfigs,
   },
 ): Array<most.Stream<most.Stream<{msg: string}>>> {
   const width = opts.width || process.stdout.columns || 80
   const outputs: Array<most.Stream<most.Stream<{msg: string}>>> = []
-  const cwd = opts.cwd || process.cwd()
+  const cwd = opts.pnpmConfigs && opts.pnpmConfigs.prefix || process.cwd()
 
   const resolutionDone$ = opts.isRecursive
     ? most.never()
@@ -224,7 +225,7 @@ export default function (
   }
 
   if (!opts.isRecursive) {
-    const pkgsDiff$ = getPkgsDiff(log$, {prefix: opts.cwd})
+    const pkgsDiff$ = getPkgsDiff(log$, {prefix: cwd})
 
     const summaryLog$ = log$.summary
       .take(1)
@@ -238,7 +239,7 @@ export default function (
             msg += EOL
             msg += chalk.cyanBright(`${propertyByDependencyType[depType]}:`)
             msg += EOL
-            msg += printDiffs(diffs, {prefix: opts.cwd})
+            msg += printDiffs(diffs, {prefix: cwd})
             msg += EOL
           }
         }
@@ -257,13 +258,13 @@ export default function (
     // print warnings only about deprecated packages from the root
     .filter((log) => log.depth === 0)
     .map((log) => {
-      if (!opts.isRecursive && log.prefix === opts.cwd) {
+      if (!opts.isRecursive && log.prefix === cwd) {
         return {
           msg: formatWarn(`${chalk.red('deprecated')} ${log.pkgName}@${log.pkgVersion}: ${log.deprecated}`),
         }
       }
       return {
-        msg: zoomOut(opts.cwd, log.prefix, formatWarn(`${chalk.red('deprecated')} ${log.pkgName}@${log.pkgVersion}`)),
+        msg: zoomOut(cwd, log.prefix, formatWarn(`${chalk.red('deprecated')} ${log.pkgName}@${log.pkgVersion}`)),
       }
     })
     .map(most.of)
@@ -274,7 +275,7 @@ export default function (
     miscOutput(
       most.merge(log$.link, log$.registry, log$.other),
       {
-        cwd: opts.cwd,
+        cwd,
         zoomOutCurrent: opts.isRecursive,
       },
     ),
@@ -284,7 +285,7 @@ export default function (
     ? log$.stats
     : log$.stats.filter((log) => log.prefix !== cwd)
   outputs.push(statsForNotCurrentPackage(stats$, {
-    currentPrefix: opts.cwd,
+    currentPrefix: cwd,
     subCmd: opts.subCmd,
     width,
   }))
@@ -292,13 +293,13 @@ export default function (
   if (!opts.isRecursive) {
     outputs.push(statsForCurrentPackage(log$.stats, {
       cmd: opts.cmd,
-      currentPrefix: opts.cwd,
+      currentPrefix: cwd,
       width,
     }))
   }
 
   const installCheckOutput$ = log$.installCheck
-    .map(formatInstallCheck.bind(null, opts.cwd))
+    .map(formatInstallCheck.bind(null, cwd))
     .filter(Boolean)
     .map((msg) => ({msg}))
     .map(most.of) as most.Stream<most.Stream<{msg: string}>>
@@ -307,7 +308,7 @@ export default function (
 
   outputs.push(
     log$.skippedOptionalDependency
-      .filter((log) => Boolean(log['prefix'] === opts.cwd && log.parents && log.parents.length === 0))
+      .filter((log) => Boolean(log['prefix'] === cwd && log.parents && log.parents.length === 0))
       .map((log) => most.of({
         msg: `info: ${
           log.package['id'] || log.package.name && (`${log.package.name}@${log.package.version}`) || log.package['pref']
@@ -318,7 +319,7 @@ export default function (
   const hookOutput$ = log$.hook
     .map((log) => ({
       msg: autozoom(
-        opts.cwd,
+        cwd,
         log['prefix'],
         `${chalk.magentaBright(log['hook'])}: ${log['message']}`,
         {

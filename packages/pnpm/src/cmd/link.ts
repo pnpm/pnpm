@@ -5,6 +5,7 @@ import pathAbsolute = require('path-absolute')
 import R = require('ramda')
 import {
   install,
+  InstallOptions,
   link,
   linkToGlobal,
 } from 'supi'
@@ -64,7 +65,7 @@ export default async (
         ...await getConfigs({...opts.cliArgs, prefix}, {excludeReporter: true}),
         store: s.path,
         storeController: s.ctrl,
-      })
+      } as InstallOptions)
     })),
   )
   await link(pkgPaths, path.join(cwd, 'node_modules'), linkOpts)

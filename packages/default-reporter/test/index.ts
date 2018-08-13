@@ -1,4 +1,5 @@
 ///<reference path="../typings/index.d.ts"/>
+import {PnpmConfigs} from '@pnpm/config'
 import logger, {
   createStreamParser,
 } from '@pnpm/logger'
@@ -40,7 +41,12 @@ const skippedOptionalDependencyLogger = logger<object>('skipped-optional-depende
 const EOL = '\n'
 
 test('prints progress beginning', t => {
-  const output$ = toOutput$(createStreamParser(), {cmd: 'install'})
+  const output$ = toOutput$({
+    streamParser: createStreamParser(),
+    context: {
+      argv: ['install'],
+    },
+  })
 
   const pkgId = 'registry.npmjs.org/foo/1.0.0'
 
@@ -61,7 +67,13 @@ test('prints progress beginning', t => {
 })
 
 test('prints progress beginning when appendOnly is true', t => {
-  const output$ = toOutput$(createStreamParser(), {cmd: 'install', appendOnly: true})
+  const output$ = toOutput$({
+    streamParser: createStreamParser(),
+    reportingOptions: {
+      appendOnly: true,
+    },
+    context: {argv: ['install']},
+  })
 
   const pkgId = 'registry.npmjs.org/foo/1.0.0'
 
@@ -82,7 +94,10 @@ test('prints progress beginning when appendOnly is true', t => {
 })
 
 test('prints progress beginning during recursive install', t => {
-  const output$ = toOutput$(createStreamParser(), {cmd: 'recursive'})
+  const output$ = toOutput$({
+    streamParser: createStreamParser(),
+    context: {argv: ['recursive']},
+  })
 
   const pkgId = 'registry.npmjs.org/foo/1.0.0'
 
@@ -103,7 +118,11 @@ test('prints progress beginning during recursive install', t => {
 })
 
 test('prints progress on first download', t => {
-  const output$ = toOutput$(createStreamParser(), {cmd: 'install', throttleProgress: 0})
+  const output$ = toOutput$({
+    streamParser: createStreamParser(),
+    context: {argv: ['install']},
+    reportingOptions: {throttleProgress: 0},
+  })
 
   const pkgId = 'registry.npmjs.org/foo/1.0.0'
 
@@ -129,7 +148,11 @@ test('prints progress on first download', t => {
 
 test('moves fixed line to the end', async t => {
   const prefix = process.cwd()
-  const output$ = toOutput$(createStreamParser(), {cmd: 'install', throttleProgress: 0})
+  const output$ = toOutput$({
+    streamParser: createStreamParser(),
+    context: {argv: ['install']},
+    reportingOptions: {throttleProgress: 0},
+  })
 
   output$.skip(3).take(1).map(normalizeNewline).subscribe({
     next: output => {
@@ -161,7 +184,10 @@ test('moves fixed line to the end', async t => {
 })
 
 test('prints "Already up-to-date"', t => {
-  const output$ = toOutput$(createStreamParser(), {cmd: 'install'})
+  const output$ = toOutput$({
+    streamParser: createStreamParser(),
+    context: {argv: ['install']},
+  })
 
   const prefix = process.cwd()
 
@@ -183,7 +209,13 @@ test('prints "Already up-to-date"', t => {
 
 test('prints summary (of current package only)', t => {
   const prefix = '/home/jane/project'
-  const output$ = toOutput$(createStreamParser(), {cmd: 'install', cwd: prefix})
+  const output$ = toOutput$({
+    streamParser: createStreamParser(),
+    context: {
+      argv: ['install'],
+      configs: {prefix} as PnpmConfigs,
+    },
+  })
 
   statsLogger.debug({ added: 5, prefix: `${prefix}/packages/foo` })
   statsLogger.debug({ removed: 1, prefix: `${prefix}/packages/foo` })
@@ -346,7 +378,11 @@ test('prints summary (of current package only)', t => {
 })
 
 test('groups lifecycle output', t => {
-  const output$ = toOutput$(createStreamParser(), {cmd: 'install', width: 79})
+  const output$ = toOutput$({
+    streamParser: createStreamParser(),
+    context: {argv: ['install']},
+    reportingOptions: {outputMaxWidth: 79},
+  })
 
   const pkgId = 'registry.npmjs.org/foo/1.0.0'
 
@@ -442,7 +478,10 @@ test('groups lifecycle output', t => {
 
 // Many libs use stderr for logging, so showing all stderr adds not much value
 test['skip']('prints lifecycle progress', t => {
-  const output$ = toOutput$(createStreamParser(), {cmd: 'install'})
+  const output$ = toOutput$({
+    streamParser: createStreamParser(),
+    context: {argv: ['install']},
+  })
 
   const pkgId = 'registry.npmjs.org/foo/1.0.0'
 
@@ -488,7 +527,10 @@ test['skip']('prints lifecycle progress', t => {
 })
 
 test('prints generic error', t => {
-  const output$ = toOutput$(createStreamParser(), {cmd: 'install'})
+  const output$ = toOutput$({
+    streamParser: createStreamParser(),
+    context: {argv: ['install']},
+  })
 
   const err = new Error('some error')
   logger.error(err)
@@ -508,7 +550,10 @@ test('prints generic error', t => {
 })
 
 test('prints generic error when recursive install fails', t => {
-  const output$ = toOutput$(createStreamParser(), {cmd: 'recursive'})
+  const output$ = toOutput$({
+    streamParser: createStreamParser(),
+    context: {argv: ['recursive']},
+  })
 
   const err = new Error('some error')
   err['prefix'] = '/home/src/'
@@ -530,7 +575,10 @@ test('prints generic error when recursive install fails', t => {
 })
 
 test('prints no matching version error when many dist-tags exist', async (t) => {
-  const output$ = toOutput$(createStreamParser(), {cmd: 'install'})
+  const output$ = toOutput$({
+    streamParser: createStreamParser(),
+    context: {argv: ['install']},
+  })
 
   t.plan(1)
 
@@ -560,7 +608,10 @@ test('prints no matching version error when many dist-tags exist', async (t) => 
 })
 
 test('prints no matching version error when only the latest dist-tag exists', async (t) => {
-  const output$ = toOutput$(createStreamParser(), {cmd: 'install'})
+  const output$ = toOutput$({
+    streamParser: createStreamParser(),
+    context: {argv: ['install']},
+  })
 
   t.plan(1)
 
@@ -585,7 +636,10 @@ test('prints no matching version error when only the latest dist-tag exists', as
 })
 
 test('prints summary when some packages fail', async (t) => {
-  const output$ = toOutput$(createStreamParser(), {cmd: 'recursive'})
+  const output$ = toOutput$({
+    streamParser: createStreamParser(),
+    context: {argv: ['recursive']},
+  })
 
   t.plan(1)
 
@@ -650,7 +704,10 @@ test('prints summary when some packages fail', async (t) => {
 })
 
 test('prints info', t => {
-  const output$ = toOutput$(createStreamParser(), {cmd: 'install'})
+  const output$ = toOutput$({
+    streamParser: createStreamParser(),
+    context: {argv: ['install']},
+  })
 
   logger.info({message: 'info message', prefix: process.cwd()})
 
@@ -668,7 +725,11 @@ test('prints info', t => {
 test('prints progress of big files download', async t => {
   t.plan(6)
 
-  let output$ = toOutput$(createStreamParser(), {cmd: 'install', throttleProgress: 0})
+  let output$ = toOutput$({
+    streamParser: createStreamParser(),
+    context: {argv: ['install']},
+    reportingOptions: {throttleProgress: 0},
+  })
     .map(normalizeNewline) as most.Stream<string>
   const stream$: most.Stream<string>[] = []
 
@@ -806,7 +867,10 @@ test('prints progress of big files download', async t => {
 })
 
 test('prints added/removed stats during installation', t => {
-  const output$ = toOutput$(createStreamParser(), {cmd: 'install'})
+  const output$ = toOutput$({
+    streamParser: createStreamParser(),
+    context: {argv: ['install']},
+  })
   const prefix = process.cwd()
 
   statsLogger.debug({ added: 5, prefix })
@@ -827,7 +891,10 @@ test('prints added/removed stats during installation', t => {
 })
 
 test('prints added/removed stats during installation when 0 removed', t => {
-  const output$ = toOutput$(createStreamParser(), {cmd: 'install'})
+  const output$ = toOutput$({
+    streamParser: createStreamParser(),
+    context: {argv: ['install']},
+  })
   const prefix = process.cwd()
 
   statsLogger.debug({ added: 2, prefix })
@@ -848,7 +915,10 @@ test('prints added/removed stats during installation when 0 removed', t => {
 })
 
 test('prints only the added stats if nothing was removed', t => {
-  const output$ = toOutput$(createStreamParser(), {cmd: 'install'})
+  const output$ = toOutput$({
+    streamParser: createStreamParser(),
+    context: {argv: ['install']},
+  })
   const prefix = process.cwd()
 
   statsLogger.debug({ removed: 0, prefix })
@@ -869,7 +939,10 @@ test('prints only the added stats if nothing was removed', t => {
 })
 
 test('prints only the removed stats if nothing was added', t => {
-  const output$ = toOutput$(createStreamParser(), {cmd: 'install'})
+  const output$ = toOutput$({
+    streamParser: createStreamParser(),
+    context: {argv: ['install']},
+  })
   const prefix = process.cwd()
 
   statsLogger.debug({ removed: 1, prefix })
@@ -890,7 +963,11 @@ test('prints only the removed stats if nothing was added', t => {
 })
 
 test('prints only the added stats if nothing was removed and a lot added', t => {
-  const output$ = toOutput$(createStreamParser(), {cmd: 'install', width: 20})
+  const output$ = toOutput$({
+    streamParser: createStreamParser(),
+    context: {argv: ['install']},
+    reportingOptions: {outputMaxWidth: 20},
+  })
   const prefix = process.cwd()
 
   statsLogger.debug({ removed: 0, prefix })
@@ -911,7 +988,11 @@ test('prints only the added stats if nothing was removed and a lot added', t => 
 })
 
 test('prints only the removed stats if nothing was added and a lot removed', t => {
-  const output$ = toOutput$(createStreamParser(), {cmd: 'install', width: 20})
+  const output$ = toOutput$({
+    streamParser: createStreamParser(),
+    context: {argv: ['install']},
+    reportingOptions: {outputMaxWidth: 20},
+  })
   const prefix = process.cwd()
 
   statsLogger.debug({ removed: 100, prefix })
@@ -932,7 +1013,11 @@ test('prints only the removed stats if nothing was added and a lot removed', t =
 })
 
 test('prints at least one remove sign when removed !== 0', t => {
-  const output$ = toOutput$(createStreamParser(), {cmd: 'install', width: 20})
+  const output$ = toOutput$({
+    streamParser: createStreamParser(),
+    context: {argv: ['install']},
+    reportingOptions: {outputMaxWidth: 20},
+  })
   const prefix = process.cwd()
 
   statsLogger.debug({ removed: 1, prefix })
@@ -953,7 +1038,11 @@ test('prints at least one remove sign when removed !== 0', t => {
 })
 
 test('prints at least one add sign when added !== 0', t => {
-  const output$ = toOutput$(createStreamParser(), {cmd: 'install', width: 20})
+  const output$ = toOutput$({
+    streamParser: createStreamParser(),
+    context: {argv: ['install']},
+    reportingOptions: {outputMaxWidth: 20},
+  })
   const prefix = process.cwd()
 
   statsLogger.debug({ removed: 100, prefix })
@@ -974,7 +1063,10 @@ test('prints at least one add sign when added !== 0', t => {
 })
 
 test('prints just removed during uninstallation', t => {
-  const output$ = toOutput$(createStreamParser(), {cmd: 'uninstall'})
+  const output$ = toOutput$({
+    streamParser: createStreamParser(),
+    context: {argv: ['uninstall']},
+  })
   const prefix = process.cwd()
 
   statsLogger.debug({ removed: 4, prefix })
@@ -995,7 +1087,13 @@ test('prints just removed during uninstallation', t => {
 
 test('prints added/removed stats and warnings during recursive installation', t => {
   const rootPrefix = '/home/jane/repo'
-  const output$ = toOutput$(createStreamParser(), {cmd: 'recursive', cwd: rootPrefix})
+  const output$ = toOutput$({
+    streamParser: createStreamParser(),
+    context: {
+      argv: ['recursive'],
+      configs: {prefix: rootPrefix} as PnpmConfigs,
+    },
+  })
 
   logger.warn({ message: 'Some issue', prefix: '/home/jane/repo/pkg-5' })
   logger.warn({ message: 'Some other issue', prefix: rootPrefix })
@@ -1050,7 +1148,14 @@ test('prints added/removed stats and warnings during recursive installation', t 
 })
 
 test('recursive installation: prints only the added stats if nothing was removed and a lot added', t => {
-  const output$ = toOutput$(createStreamParser(), {cmd: 'recursive', width: 60, cwd: '/home/jane/repo'})
+  const output$ = toOutput$({
+    streamParser: createStreamParser(),
+    context: {
+      argv: ['recursive'],
+      configs: {prefix: '/home/jane/repo'} as PnpmConfigs,
+    },
+    reportingOptions: {outputMaxWidth: 60},
+  })
 
   statsLogger.debug({ removed: 0, prefix: '/home/jane/repo/pkg-1' })
   statsLogger.debug({ added: 190, prefix: '/home/jane/repo/pkg-1' })
@@ -1069,7 +1174,14 @@ test('recursive installation: prints only the added stats if nothing was removed
 })
 
 test('recursive installation: prints only the removed stats if nothing was added and a lot removed', t => {
-  const output$ = toOutput$(createStreamParser(), {cmd: 'recursive', width: 60, cwd: '/home/jane/repo'})
+  const output$ = toOutput$({
+    streamParser: createStreamParser(),
+    context: {
+      argv: ['recursive'],
+      configs: {prefix: '/home/jane/repo'} as PnpmConfigs,
+    },
+    reportingOptions: {outputMaxWidth: 60},
+  })
 
   statsLogger.debug({ removed: 190, prefix: '/home/jane/repo/pkg-1' })
   statsLogger.debug({ added: 0, prefix: '/home/jane/repo/pkg-1' })
@@ -1088,7 +1200,14 @@ test('recursive installation: prints only the removed stats if nothing was added
 })
 
 test('recursive installation: prints at least one remove sign when removed !== 0', t => {
-  const output$ = toOutput$(createStreamParser(), {cmd: 'recursive', width: 62, cwd: '/home/jane/repo'})
+  const output$ = toOutput$({
+    streamParser: createStreamParser(),
+    context: {
+      argv: ['recursive'],
+      configs: {prefix: '/home/jane/repo'} as PnpmConfigs,
+    },
+    reportingOptions: {outputMaxWidth: 62},
+  })
 
   statsLogger.debug({ removed: 1, prefix: '/home/jane/repo/pkg-1' })
   statsLogger.debug({ added: 100, prefix: '/home/jane/repo/pkg-1' })
@@ -1107,7 +1226,14 @@ test('recursive installation: prints at least one remove sign when removed !== 0
 })
 
 test('recursive installation: prints at least one add sign when added !== 0', t => {
-  const output$ = toOutput$(createStreamParser(), {cmd: 'recursive', width: 62, cwd: '/home/jane/repo'})
+  const output$ = toOutput$({
+    streamParser: createStreamParser(),
+    context: {
+      argv: ['recursive'],
+      configs: {prefix: '/home/jane/repo'} as PnpmConfigs,
+    },
+    reportingOptions: {outputMaxWidth: 62},
+  })
 
   statsLogger.debug({ removed: 100, prefix: '/home/jane/repo/pkg-1' })
   statsLogger.debug({ added: 1, prefix: '/home/jane/repo/pkg-1' })
@@ -1126,7 +1252,14 @@ test('recursive installation: prints at least one add sign when added !== 0', t 
 })
 
 test('recursive uninstall: prints removed packages number', t => {
-  const output$ = toOutput$(createStreamParser(), {cmd: 'recursive', subCmd: 'uninstall', width: 62, cwd: '/home/jane/repo'})
+  const output$ = toOutput$({
+    streamParser: createStreamParser(),
+    context: {
+      argv: ['recursive', 'uninstall'],
+      configs: {prefix: '/home/jane/repo'} as PnpmConfigs,
+    },
+    reportingOptions: {outputMaxWidth: 62},
+  })
 
   statsLogger.debug({ removed: 1, prefix: '/home/jane/repo/pkg-1' })
 
@@ -1144,7 +1277,13 @@ test('recursive uninstall: prints removed packages number', t => {
 })
 
 test('install: print hook message', t => {
-  const output$ = toOutput$(createStreamParser(), {cmd: 'install', cwd: '/home/jane/repo'})
+  const output$ = toOutput$({
+    streamParser: createStreamParser(),
+    context: {
+      argv: ['install'],
+      configs: {prefix: '/home/jane/repo'} as PnpmConfigs,
+    },
+  })
 
   hookLogger.debug({
     from: '/home/jane/repo/pnpmfile.js',
@@ -1167,7 +1306,13 @@ test('install: print hook message', t => {
 })
 
 test('recursive: print hook message', t => {
-  const output$ = toOutput$(createStreamParser(), {cmd: 'recursive', cwd: '/home/jane/repo'})
+  const output$ = toOutput$({
+    streamParser: createStreamParser(),
+    context: {
+      argv: ['recursive'],
+      configs: {prefix: '/home/jane/repo'} as PnpmConfigs,
+    },
+  })
 
   hookLogger.debug({
     from: '/home/jane/repo/pnpmfile.js',
@@ -1191,7 +1336,13 @@ test('recursive: print hook message', t => {
 
 test('prints skipped optional dependency info message', t => {
   const prefix = process.cwd()
-  const output$ = toOutput$(createStreamParser(), {cmd: 'install', cwd: prefix})
+  const output$ = toOutput$({
+    streamParser: createStreamParser(),
+    context: {
+      argv: ['install'],
+      configs: {prefix} as PnpmConfigs,
+    },
+  })
 
   const pkgId = 'registry.npmjs.org/foo/1.0.0'
 

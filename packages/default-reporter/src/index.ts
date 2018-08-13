@@ -1,3 +1,4 @@
+import {PnpmConfigs} from '@pnpm/config'
 import createDiffer = require('ansi-diff')
 import cliCursor = require('cli-cursor')
 import most = require('most')
@@ -9,24 +10,27 @@ import reporterForClient from './reporterForClient'
 import reporterForServer from './reporterForServer'
 
 export default function (
-  streamParser: object,
   opts: {
-    cmd: string,
-    subCmd?: string,
-    cwd?: string,
-    appendOnly?: boolean,
-    throttleProgress?: number,
-    width?: number,
+    streamParser: object,
+    reportingOptions?: {
+      appendOnly?: boolean,
+      throttleProgress?: number,
+      outputMaxWidth?: number,
+    },
+    context: {
+      argv: string[],
+      configs?: PnpmConfigs,
+    },
   },
 ) {
-  if (opts.cmd === 'server') {
-    const log$ = most.fromEvent<supi.Log>('data', streamParser)
+  if (opts.context.argv[0] === 'server') {
+    const log$ = most.fromEvent<supi.Log>('data', opts.streamParser)
     reporterForServer(log$)
     return
   }
-  const width = opts.width || process.stdout.columns && process.stdout.columns - 2 || 80
-  const output$ = toOutput$(streamParser, {...opts, width})
-  if (opts.appendOnly) {
+  const outputMaxWidth = opts.reportingOptions && opts.reportingOptions.outputMaxWidth || process.stdout.columns && process.stdout.columns - 2 || 80
+  const output$ = toOutput$({...opts, reportingOptions: {...opts.reportingOptions, outputMaxWidth}})
+  if (opts.reportingOptions && opts.reportingOptions.appendOnly) {
     output$
       .subscribe({
         complete () {}, // tslint:disable-line:no-empty
@@ -38,7 +42,7 @@ export default function (
   cliCursor.hide()
   const diff = createDiffer({
     height: process.stdout.rows,
-    width,
+    outputMaxWidth,
   })
   output$
     .subscribe({
@@ -52,14 +56,17 @@ export default function (
 }
 
 export function toOutput$ (
-  streamParser: object,
   opts: {
-    cmd: string,
-    subCmd?: string,
-    cwd?: string,
-    appendOnly?: boolean,
-    throttleProgress?: number,
-    width?: number,
+    streamParser: object,
+    reportingOptions?: {
+      appendOnly?: boolean,
+      throttleProgress?: number,
+      outputMaxWidth?: number,
+    },
+    context: {
+      argv: string[],
+      configs?: PnpmConfigs,
+    },
   },
 ): most.Stream<string> {
   opts = opts || {}
@@ -79,7 +86,7 @@ export function toOutput$ (
   const hookPushStream = new PushStream()
   const skippedOptionalDependencyPushStream = new PushStream()
   setTimeout(() => { // setTimeout is a workaround for a strange bug in most https://github.com/cujojs/most/issues/491
-    streamParser['on']('data', (log: supi.Log) => {
+    opts.streamParser['on']('data', (log: supi.Log) => {
       switch (log.name) {
         case 'pnpm:progress':
           progressPushStream.next(log as supi.ProgressLog)
@@ -151,17 +158,17 @@ export function toOutput$ (
   const outputs: Array<most.Stream<most.Stream<{msg: string}>>> = reporterForClient(
     log$,
     {
-      appendOnly: opts.appendOnly,
-      cmd: opts.cmd,
-      cwd: opts.cwd || process.cwd(),
-      isRecursive: opts.cmd === 'recursive',
-      subCmd: opts.subCmd,
-      throttleProgress: opts.throttleProgress,
-      width: opts.width,
+      appendOnly: opts.reportingOptions && opts.reportingOptions.appendOnly,
+      cmd: opts.context.argv[0],
+      isRecursive: opts.context.argv[0] === 'recursive',
+      pnpmConfigs: opts.context.configs,
+      subCmd: opts.context.argv[1],
+      throttleProgress: opts.reportingOptions && opts.reportingOptions.throttleProgress,
+      width: opts.reportingOptions && opts.reportingOptions.outputMaxWidth,
     },
   )
 
-  if (opts.appendOnly) {
+  if (opts.reportingOptions && opts.reportingOptions.appendOnly) {
     return most.join(
       most.mergeArray(outputs)
       .map((log: most.Stream<{msg: string}>) => log.map((msg) => msg.msg)),
