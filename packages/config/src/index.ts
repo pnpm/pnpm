@@ -88,6 +88,10 @@ export default async (
   })
   const npmConfig = loadNpmConf(cliArgs, types, {
     'bail': true,
+    'fetch-retries': 2,
+    'fetch-retry-factor': 10,
+    'fetch-retry-maxtimeout': 60000,
+    'fetch-retry-mintimeout': 10000,
     'globalconfig': npmDefaults.globalconfig,
     'lock': true,
     'package-lock': npmDefaults['package-lock'],
