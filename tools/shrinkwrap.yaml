@@ -188,14 +188,14 @@ packages:
     dev: false
     resolution:
       integrity: sha1-GViWWHTyS8Ub5Ih1/rUNZC/EH3s=
-  /JSONStream/1.3.3:
+  /JSONStream/1.3.4:
     dependencies:
       jsonparse: 1.3.1
       through: 2.3.8
     dev: false
     hasBin: true
     resolution:
-      integrity: sha512-3Sp6WZZ/lXl+nTDoGpGWHEpTnnC6X5fnkolYZR6nwIfzbxxvA8utPWe1gCt7i0m9uVGsSz2IS8K8mJ7HmlduMg==
+      integrity: sha512-Y7vfi3I5oMOYIr+WxV8NZxDSwcbNgzdKYsTNInmycOq9bUYwGg9ryu57Wg5NLmCjqdFPNUmpMBo3kSJN9tCbXg==
   /ansi-escapes/1.4.0:
     dev: false
     engines:
@@ -353,10 +353,10 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha512-ObN6h1v2fTJSmUXoS3nMQ92LbDK9be4TV+6G+omQlGJFdcUX5heKi1LZ1YnRMIgwTLEj3E24bT6tYni50rlCfQ==
-  /ci-info/1.1.3:
+  /ci-info/1.3.0:
     dev: false
     resolution:
-      integrity: sha512-SK/846h/Rcy8q9Z9CAwGBLfCJ6EkjJWdpelWDufQpqVDYq2Wnnv8zlSO6AMQap02jvhVruKKpEtQOufo3pFhLg==
+      integrity: sha512-mPdvoljUhH3Feai3dakD3bwYl/8I0tSo16Ge2W+tY88yfYDKGVnXV2vFxZC8VGME01CYp+DaAZnE93VHYVapnA==
   /cli-cursor/1.0.2:
     dependencies:
       restore-cursor: 1.0.1
@@ -405,7 +405,7 @@ packages:
       integrity: sha512-suQnFSqCxRwyBxY68pYTsFkG0taIdinHLNEAX5ivtw8bCRnIgnpvcHmlR/yjUyZIrNPYAoXlY1WiEKWgSE4BNg==
   /conventional-commits-parser/2.1.7:
     dependencies:
-      JSONStream: 1.3.3
+      JSONStream: 1.3.4
       is-text-path: 1.0.1
       lodash: 4.17.10
       meow: 4.0.1
@@ -731,7 +731,7 @@ packages:
       integrity: sha1-VAVy0096wxGfj3bDDLwbHgN6/74=
   /is-ci/1.1.0:
     dependencies:
-      ci-info: 1.1.3
+      ci-info: 1.3.0
     dev: false
     hasBin: true
     resolution:
