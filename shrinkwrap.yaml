@@ -27,6 +27,7 @@ devDependencies:
   '@pnpm/npm-resolver': 2.1.5
   '@pnpm/tarball-fetcher': 1.0.0
   '@types/nock': 9.3.0
+  '@types/sinon': 5.0.1
   '@types/tape': 4.2.32
   '@types/tempy': 0.1.0
   mos: 2.0.0-alpha.3
@@ -34,6 +35,7 @@ devDependencies:
   nock: 9.4.4
   package-preview: 1.0.6
   rimraf: 2.6.2
+  sinon: 6.1.5
   tape: 4.9.1
   tempy: 0.2.1
   ts-node: 7.0.0
@@ -156,6 +158,22 @@ packages:
   /@pnpm/types/1.7.0:
     resolution:
       integrity: sha512-pn7g4uxcofWTNG/cxmKvkMK2lxr4OUIhrQDrEVYEdVhW0WkWztsHkFrYjFgfNzPbYu3ITlB3T6aSVjCoJQTOlw==
+  /@sinonjs/commons/1.0.2:
+    dependencies:
+      type-detect: 4.0.8
+    dev: true
+    resolution:
+      integrity: sha512-WR3dlgqJP4QNrLC4iXN/5/2WaLQQ0VijOOkmflqFGVJ6wLEpbSjo7c0ZeGIdtY8Crk7xBBp87sM6+Mkerz7alw==
+  /@sinonjs/formatio/2.0.0:
+    dependencies:
+      samsam: 1.3.0
+    dev: true
+    resolution:
+      integrity: sha512-ls6CAMA6/5gG+O/IdsBcblvnd8qcO/l1TYoNeAzp3wcISOxlPXQEus0mLcdwazEkWjaBdaJ3TaxmNgCLWwvWzg==
+  /@sinonjs/samsam/2.0.0:
+    dev: true
+    resolution:
+      integrity: sha512-D7VxhADdZbDJ0HjUTMnSQ5xIGb4H2yWpg8k9Sf1T08zfFiQYlaxM8LZydpR4FQ2E6LZJX8IlabNZ5io4vdChwg==
   /@types/events/1.2.0:
     dev: true
     resolution:
@@ -224,6 +242,10 @@ packages:
     dev: true
     resolution:
       integrity: sha512-41qEJgBH/TWgo5NFSvBCJ1qkoi3Q6ONSF2avrHq1LVEZfYpdHmj0y9SuTK+u9ZhG1sYQKBL1AWXKyLWP4RaUoQ==
+  /@types/sinon/5.0.1:
+    dev: true
+    resolution:
+      integrity: sha512-yxzBCIjE3lp9lYjfBbIK/LRCoXgCLLbIIBIje7eNCcUIIR2CZZtyX5uto2hVoMSMqLrsRrT6mwwUEd0yFgOwpA==
   /@types/tape/4.2.32:
     dependencies:
       '@types/node': 10.5.6
@@ -1644,6 +1666,10 @@ packages:
       node: '>=0.10.0'
     resolution:
       integrity: sha512-eXK1UInq2bPmjyX6e3VHIzMLobc4J94i4AWn+Hpq3OU5KkrRC96OAcR3PRJ/pGu6m8TRnBHP9dkXQVsT/COVIA==
+  /isarray/0.0.1:
+    dev: true
+    resolution:
+      integrity: sha1-ihis/Kmo9Bd+Cav8YDiTmwXR7t8=
   /isarray/1.0.0:
     dev: true
     resolution:
@@ -1707,6 +1733,10 @@ packages:
       graceful-fs: 4.1.11
     resolution:
       integrity: sha1-h3Gq4HmbZAdrdmQPygWPnBDjPss=
+  /just-extend/1.1.27:
+    dev: true
+    resolution:
+      integrity: sha512-mJVp13Ix6gFo3SBAy9U/kL+oeZqzlYYYLQBwXVBlVzIsZwBqGREnOro24oC/8s8aox+rJhtZ2DiQof++IrkA+g==
   /latest-version/2.0.0:
     dependencies:
       package-json: 2.4.0
@@ -1756,6 +1786,10 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha1-K1aLJl7slExtnA3pw9u7ygNUzY4=
+  /lodash.get/4.4.2:
+    dev: true
+    resolution:
+      integrity: sha1-LRd/ZS+jHpObRDjVNBSZ36OCXpk=
   /lodash.partition/4.6.0:
     dev: true
     resolution:
@@ -1764,6 +1798,10 @@ packages:
     dev: true
     resolution:
       integrity: sha512-UejweD1pDoXu+AD825lWwp4ZGtSwgnpZxb3JDViD7StjQz+Nb/6l093lx4OQ0foGWNRoc19mWy7BzL+UAK2iVg==
+  /lolex/2.7.1:
+    dev: true
+    resolution:
+      integrity: sha512-Oo2Si3RMKV3+lV5MsSWplDQFoTClz/24S0MMHYcgGWWmFXr6TMlqcqk/l1GtH+d5wLBwNRiqGnwDRMirtFalJw==
   /longest-streak/1.0.0:
     dev: true
     resolution:
@@ -2248,6 +2286,16 @@ packages:
     dev: true
     resolution:
       integrity: sha512-2NpiFHqC87y/zFke0fC0spBXL3bBsoh/p5H1EFhshxjCR5+0g2d6BiXbUFz9v1sAcxsk2htp2eQnNIci2dIYcA==
+  /nise/1.4.3:
+    dependencies:
+      '@sinonjs/formatio': 2.0.0
+      just-extend: 1.1.27
+      lolex: 2.7.1
+      path-to-regexp: 1.7.0
+      text-encoding: 0.6.4
+    dev: true
+    resolution:
+      integrity: sha512-cg44dkGHutAY+VmftgB1gHvLWxFl2vwYdF8WpbceYicQwylESRJiAAKgCRJntdoEbMiUzywkZEUzjoDWH0JwKA==
   /nock/9.4.4:
     dependencies:
       chai: 4.1.2
@@ -2546,6 +2594,12 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha512-TeQgoH67RYUT3xt6WaRASbWyJmvrUnpeToQQT7RW+uighCh/gfs4VCO2/P8mIpjt6JsyJ6DxE6Q1FOJXVc3ANg==
+  /path-to-regexp/1.7.0:
+    dependencies:
+      isarray: 0.0.1
+    dev: true
+    resolution:
+      integrity: sha1-Wf3g9DW62suhA6hOnTvGTpa5k30=
   /path-type/1.1.0:
     dependencies:
       graceful-fs: 4.1.11
@@ -3002,6 +3056,10 @@ packages:
     dev: true
     resolution:
       integrity: sha512-YZo3K82SD7Riyi0E1EQPojLz7kpepnSQI9IyPbHHg1XXXevb5dJI7tpyN2ADxGcQbHG7vcyRHk0cbwqcQriUtg==
+  /samsam/1.3.0:
+    dev: true
+    resolution:
+      integrity: sha512-1HwIYD/8UlOtFS3QO3w7ey+SdSDFE4HRNLZoZRYVQefrOY3l17epswImeB1ijgJFQJodIaHcwkp3r/myBjFVbg==
   /semver-diff/2.1.0:
     dependencies:
       semver: 5.5.0
@@ -3037,6 +3095,20 @@ packages:
   /signal-exit/3.0.2:
     resolution:
       integrity: sha1-tf3AjxKH6hF4Yo5BXiUTK3NkbG0=
+  /sinon/6.1.5:
+    dependencies:
+      '@sinonjs/commons': 1.0.2
+      '@sinonjs/formatio': 2.0.0
+      '@sinonjs/samsam': 2.0.0
+      diff: 3.5.0
+      lodash.get: 4.4.2
+      lolex: 2.7.1
+      nise: 1.4.3
+      supports-color: 5.4.0
+      type-detect: 4.0.8
+    dev: true
+    resolution:
+      integrity: sha512-TcbRoWs1SdY6NOqfj0c9OEQquBoZH+qEf8799m1jjcbfWrrpyCQ3B/BpX7+NKa7Vn33Jl+Z50H4Oys3bzygK2Q==
   /slash/1.0.0:
     engines:
       node: '>=0.10.0'
@@ -3386,6 +3458,10 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha512-LB83o9bfZGrntdqPuRdanIVCPReam9SOZKW0fOy5I9X3A854GGWi0tjCqoXEk84XIEYBc/x9Hq3EFop/H5wJaw==
+  /text-encoding/0.6.4:
+    dev: true
+    resolution:
+      integrity: sha1-45mpgiV6J22uQou5KEXLcb3CbRk=
   /the-argv/1.0.0:
     dev: true
     resolution:
@@ -3753,7 +3829,7 @@ packages:
     resolution:
       integrity: sha1-5a2ryKz0CPY4X8dklWhMiOavaJo=
 registry: 'https://registry.npmjs.org/'
-shrinkwrapMinorVersion: 8
+shrinkwrapMinorVersion: 9
 shrinkwrapVersion: 3
 specifiers:
   '@pnpm/check-package': ^1.0.0
@@ -3769,6 +3845,7 @@ specifiers:
   '@types/nock': ^9.1.3
   '@types/node': ^10.0.6
   '@types/p-queue': ^2.3.1
+  '@types/sinon': ^5.0.1
   '@types/tape': ^4.2.31
   '@types/tempy': ^0.1.0
   '@types/write-json-file': ^2.2.1
@@ -3786,6 +3863,7 @@ specifiers:
   rename-overwrite: ^1.0.0
   rimraf: ^2.6.2
   rimraf-then: ^1.0.1
+  sinon: ^6.1.5
   symlink-dir: ^1.1.0
   tape: ^4.8.0
   tempy: ^0.2.1

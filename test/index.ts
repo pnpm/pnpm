@@ -1,14 +1,17 @@
+///<reference path="../typings/index.d.ts" />
+import {streamParser} from '@pnpm/logger'
 import test = require('tape')
-import {FetchFunction} from '@pnpm/fetcher-base'
 import createPackageRequester, { PackageResponse, PackageFilesResponse } from '@pnpm/package-requester'
 import createResolver from '@pnpm/npm-resolver'
 import createFetcher from '@pnpm/tarball-fetcher'
 import {PackageJson} from '@pnpm/types'
 import pkgIdToFilename from '@pnpm/pkgid-to-filename'
-import fs = require('fs')
+import fs = require('mz/fs')
 import path = require('path')
 import tempy = require('tempy')
 import nock = require('nock')
+import rimraf = require('rimraf-then')
+import sinon = require('sinon')
 
 const registry = 'https://registry.npmjs.org/'
 const IS_POSTIVE_TARBALL = path.join(__dirname, 'is-positive-1.0.0.tgz')
@@ -588,5 +591,79 @@ test('fetchPackageToStore() fetch raw manifest of cached package', async (t) => 
   ])
 
   t.ok(await fetchResults[1].fetchingRawManifest)
+  t.end()
+})
+
+test('refetch package to store if it has been modified', async (t) => {
+  nock.cleanAll()
+  const storePath = tempy.directory()
+  const storeIndex = {}
+  t.comment(`store location: ${storePath}`)
+
+  const pkgId = 'registry.npmjs.org/magic-hook/2.0.0'
+  const resolution = {
+    registry: 'https://registry.npmjs.org/',
+    tarball: 'https://registry.npmjs.org/magic-hook/-/magic-hook-2.0.0.tgz',
+  }
+
+  {
+    const packageRequester = createPackageRequester(resolve, fetch, {
+      networkConcurrency: 1,
+      storePath,
+      storeIndex,
+    })
+
+    const fetchResult = await packageRequester.fetchPackageToStore({
+      fetchRawManifest: false,
+      force: false,
+      pkgId,
+      prefix: tempy.directory(),
+      verifyStoreIntegrity: true,
+      resolution,
+    })
+
+    await fetchResult.fetchingFiles
+  }
+
+  const distPathInStore = await path.join(storePath, pkgId, 'node_modules', 'magic-hook', 'dist')
+
+  t.ok(await fs.exists(distPathInStore), `${distPathInStore} exists`)
+
+  await rimraf(distPathInStore)
+
+  t.notOk(await fs.exists(distPathInStore), `${distPathInStore} not exists`)
+
+  const reporter = sinon.spy()
+  streamParser.on('data', reporter)
+
+  {
+    const packageRequester = createPackageRequester(resolve, fetch, {
+      networkConcurrency: 1,
+      storePath,
+      storeIndex,
+    })
+
+    const fetchResult = await packageRequester.fetchPackageToStore({
+      fetchRawManifest: false,
+      force: false,
+      pkgId,
+      prefix: tempy.directory(),
+      verifyStoreIntegrity: true,
+      resolution,
+    })
+
+    await fetchResult.fetchingFiles
+  }
+
+  streamParser.removeListener('data', reporter)
+
+  t.ok(await fs.exists(distPathInStore), `${distPathInStore} exists`)
+
+  t.ok(reporter.calledWithMatch({
+    level: 'warn',
+    name: 'pnpm:store',
+    message: `Refetching ${path.join(storePath, pkgId)} to store, as it was modified`,
+  }), 'refetch logged')
+
   t.end()
 })
