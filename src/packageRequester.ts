@@ -466,7 +466,7 @@ function fetchToStore (
           finishing.resolve(undefined)
           return
         }
-        storeLogger.warn(`Refetching ${target} to store, as it was modified`)
+        storeLogger.warn(`Refetching ${target} to store. It was either modified or had no integrity checksums`)
       }
 
       // We fetch into targetStage directory first and then fs.rename() it to the

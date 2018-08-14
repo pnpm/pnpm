@@ -662,7 +662,7 @@ test('refetch package to store if it has been modified', async (t) => {
   t.ok(reporter.calledWithMatch({
     level: 'warn',
     name: 'pnpm:store',
-    message: `Refetching ${path.join(storePath, pkgId)} to store, as it was modified`,
+    message: `Refetching ${path.join(storePath, pkgId)} to store. It was either modified or had no integrity checksums`,
   }), 'refetch logged')
 
   t.end()
@@ -726,7 +726,7 @@ test('refetch package to store if it has no integrity checksums and verification
   t.ok(reporter.calledWithMatch({
     level: 'warn',
     name: 'pnpm:store',
-    message: `Refetching ${path.join(storePath, pkgId)} to store, as it was modified`,
+    message: `Refetching ${path.join(storePath, pkgId)} to store. It was either modified or had no integrity checksums`,
   }), 'refetch logged')
 
   t.end()
