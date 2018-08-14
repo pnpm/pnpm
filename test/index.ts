@@ -667,3 +667,67 @@ test('refetch package to store if it has been modified', async (t) => {
 
   t.end()
 })
+
+test('refetch package to store if it has no integrity checksums and verification is needed', async (t) => {
+  nock.cleanAll()
+  const storePath = tempy.directory()
+  const storeIndex = {}
+  t.comment(`store location: ${storePath}`)
+
+  const pkgId = 'registry.npmjs.org/magic-hook/2.0.0'
+  const resolution = {
+    registry: 'https://registry.npmjs.org/',
+    tarball: 'https://registry.npmjs.org/magic-hook/-/magic-hook-2.0.0.tgz',
+  }
+
+  {
+    const packageRequester = createPackageRequester(resolve, fetch, {
+      networkConcurrency: 1,
+      storePath,
+      storeIndex,
+    })
+
+    const fetchResult = await packageRequester.fetchPackageToStore({
+      fetchRawManifest: false,
+      force: false,
+      pkgId,
+      prefix: tempy.directory(),
+      verifyStoreIntegrity: false,
+      resolution,
+    })
+
+    await fetchResult.fetchingFiles
+  }
+
+  const reporter = sinon.spy()
+  streamParser.on('data', reporter)
+
+  {
+    const packageRequester = createPackageRequester(resolve, fetch, {
+      networkConcurrency: 1,
+      storePath,
+      storeIndex,
+    })
+
+    const fetchResult = await packageRequester.fetchPackageToStore({
+      fetchRawManifest: false,
+      force: false,
+      pkgId,
+      prefix: tempy.directory(),
+      verifyStoreIntegrity: true,
+      resolution,
+    })
+
+    await fetchResult.fetchingFiles
+  }
+
+  streamParser.removeListener('data', reporter)
+
+  t.ok(reporter.calledWithMatch({
+    level: 'warn',
+    name: 'pnpm:store',
+    message: `Refetching ${path.join(storePath, pkgId)} to store, as it was modified`,
+  }), 'refetch logged')
+
+  t.end()
+})
