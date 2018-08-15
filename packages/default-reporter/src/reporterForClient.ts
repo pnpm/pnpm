@@ -237,7 +237,11 @@ export default function (
           const diffs = R.values(pkgsDiff[depType])
           if (diffs.length) {
             msg += EOL
-            msg += chalk.cyanBright(`${propertyByDependencyType[depType]}:`)
+            if (opts.pnpmConfigs && opts.pnpmConfigs.global) {
+              msg += chalk.cyanBright(`${cwd}:`)
+            } else {
+              msg += chalk.cyanBright(`${propertyByDependencyType[depType]}:`)
+            }
             msg += EOL
             msg += printDiffs(diffs, {prefix: cwd})
             msg += EOL

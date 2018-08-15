@@ -133,6 +133,9 @@ export default async (
     pnpmConfig.bin = pnpmConfig.globalBin
     pnpmConfig.allowNew = true
     pnpmConfig.ignoreCurrentPrefs = true
+    pnpmConfig.saveProd = true
+    pnpmConfig.saveDev = false
+    pnpmConfig.saveOptional = false
   } else {
     pnpmConfig.prefix = (cliArgs['prefix'] ? path.resolve(cliArgs['prefix']) : npmConfig.localPrefix) // tslint:disable-line
     pnpmConfig.bin = path.join(pnpmConfig.prefix, 'node_modules', '.bin')

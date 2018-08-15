@@ -377,6 +377,67 @@ test('prints summary (of current package only)', t => {
   })
 })
 
+test('prints summary for global installation', t => {
+  const prefix = '/home/jane/.nvs/node/10.0.0/x64/pnpm-global/1'
+  const output$ = toOutput$({
+    streamParser: createStreamParser(),
+    context: {
+      argv: ['install'],
+      configs: {
+        global: true,
+        prefix,
+      } as PnpmConfigs,
+    },
+  })
+
+  rootLogger.debug({
+    added: {
+      dependencyType: 'prod',
+      name: 'foo',
+      version: '1.0.0',
+      latest: '2.0.0',
+      id: 'registry.npmjs.org/foo/1.0.0',
+    },
+    prefix,
+  })
+  rootLogger.debug({
+    added: {
+      dependencyType: 'prod',
+      name: 'bar',
+      version: '2.0.0',
+      latest: '1.0.0', // this won't be printed in summary because latest is less than current version
+      id: 'registry.npmjs.org/bar/2.0.0',
+    },
+    prefix,
+  })
+  packageJsonLogger.debug({
+    updated: {
+      dependencies: {
+        'is-negative': '^1.0.0',
+      },
+      devDependencies: {
+        'is-13': '^1.0.0',
+      },
+    },
+    prefix,
+  })
+  summaryLogger.debug({prefix})
+
+  t.plan(1)
+
+  output$.take(1).map(normalizeNewline).subscribe({
+    next: output => {
+      t.equal(output, EOL + stripIndents`
+        ${h1(`${prefix}:`)}
+        ${ADD} bar ${versionColor('2.0.0')}
+        ${ADD} foo ${versionColor('1.0.0')} ${versionColor('(2.0.0 is available)')}
+        ` + '\n')
+    },
+    complete: () => t.end(),
+    error: t.end,
+  })
+})
+
 test('groups lifecycle output', t => {
   const output$ = toOutput$({
     streamParser: createStreamParser(),
