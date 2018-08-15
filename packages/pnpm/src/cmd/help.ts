@@ -272,8 +272,8 @@ function getHelpText (command: string) {
         Options:
 
           --filter <name>          restricts the scope to package names matching the given glob.
-          --filter <name>...       restricts the scope to package names matching the given glob.
-                                   Includes all direct and indirect dependencies of the matched packages.
+          --filter <name>...       includes all direct and indirect dependencies of the matched packages.
+          --filter ...<name>       includes all direct and indirect dependents of the matched packages.
           --no-bail                continues executing other tasks even if a task threw an error.
           --workspace-concurrency  set the maximum number of concurrency. Default is 4. For unlimited concurrency use Infinity.
       `
