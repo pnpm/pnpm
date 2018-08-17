@@ -1,0 +1,12 @@
+{
+  "extends": [
+    "config:base"
+  ],
+  "packageRules": [
+    {
+      "packageNames": ["got"],
+      "allowedVersions": "<=8"
+    }
+  ],
+  "pinVersions": false
+}

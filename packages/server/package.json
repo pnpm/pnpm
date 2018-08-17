@@ -1,0 +1,76 @@
+{
+  "name": "@pnpm/server",
+  "version": "0.14.0",
+  "description": "A pnpm installer server",
+  "main": "lib/index.js",
+  "typings": "lib/index.d.ts",
+  "files": [
+    "lib"
+  ],
+  "engines": {
+    "node": ">=6"
+  },
+  "scripts": {
+    "lint": "tslint -c tslint.json --project .",
+    "tsc": "rimraf lib && tsc",
+    "test": "rimraf .store && npm run lint && preview && ts-node test --type-check && mos t",
+    "md": "mos",
+    "prepublishOnly": "npm run tsc"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/pnpm/server.git"
+  },
+  "keywords": [
+    "pnpm",
+    "server"
+  ],
+  "author": "Zoltan Kochan <z@kochan.io> (https://www.kochan.io/)",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/pnpm/server/issues"
+  },
+  "homepage": "https://github.com/pnpm/server#readme",
+  "peerDependencies": {
+    "@pnpm/logger": "^2.1.0"
+  },
+  "devDependencies": {
+    "@pnpm/logger": "^2.1.0",
+    "@pnpm/npm-resolver": "^1.0.0",
+    "@pnpm/tarball-fetcher": "^1.0.0",
+    "@types/mz": "^0.0.32",
+    "@types/tape": "^4.2.31",
+    "is-port-reachable": "^2.0.0",
+    "mos": "^2.0.0-alpha.3",
+    "mos-plugin-readme": "^1.0.4",
+    "mz": "^2.7.0",
+    "package-preview": "^1.0.1",
+    "rimraf": "^2.6.2",
+    "rimraf-then": "^1.0.1",
+    "tape": "^4.8.0",
+    "ts-node": "^7.0.0",
+    "tslint": "^5.8.0",
+    "typescript": "^3.0.0"
+  },
+  "mos": {
+    "plugins": [
+      "readme"
+    ],
+    "installation": {
+      "useShortAlias": true
+    }
+  },
+  "dependencies": {
+    "@pnpm/package-requester": "^4.0.0",
+    "@pnpm/resolver-base": "^1.1.0",
+    "@pnpm/types": "^1.7.0",
+    "@types/got": "^8.3.0",
+    "@types/node": "^10.0.6",
+    "@types/p-limit": "^2.0.0",
+    "@types/uuid": "^3.4.3",
+    "got": "^8.0.1",
+    "p-limit": "^2.0.0",
+    "package-store": "^0.23.0",
+    "uuid": "^3.1.0"
+  }
+}
