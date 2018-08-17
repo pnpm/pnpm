@@ -248,6 +248,7 @@ function filterGraph (
   const walkedDependencies = new Set<string>()
   const walkedDependents = new Set<string>()
   const graph = pkgGraphToGraph(pkgGraph)
+  let reversedGraph: Graph | undefined
   for (const filter of filters) {
     if (filter.endsWith('...')) {
       const rootPackagesFilter = filter.substring(0, filter.length - 3)
@@ -256,7 +257,9 @@ function filterGraph (
     } else if (filter.startsWith('...')) {
       const leafPackagesFilter = filter.substring(3)
       const leafPackages = matchPackages(pkgGraph, leafPackagesFilter)
-      const reversedGraph = reverseGraph(graph)
+      if (!reversedGraph) {
+        reversedGraph = reverseGraph(graph)
+      }
       pickSubgraph(reversedGraph, leafPackages, walkedDependents)
     } else {
       Array.prototype.push.apply(cherryPickedPackages, matchPackages(pkgGraph, filter))
