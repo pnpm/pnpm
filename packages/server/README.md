@@ -2,8 +2,8 @@
 
 > A pnpm installer server
 
-<!--@shields('npm', 'travis')-->
-[![npm version](https://img.shields.io/npm/v/@pnpm/server.svg)](https://www.npmjs.com/package/@pnpm/server) [![Build Status](https://img.shields.io/travis/pnpm/server/master.svg)](https://travis-ci.org/pnpm/server)
+<!--@shields('npm')-->
+[![npm version](https://img.shields.io/npm/v/@pnpm/server.svg)](https://www.npmjs.com/package/@pnpm/server)
 <!--/@-->
 
 ## Installation
