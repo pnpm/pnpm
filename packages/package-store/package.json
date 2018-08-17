@@ -92,7 +92,8 @@
     "pretest": "rimraf .tmp",
     "test": "npm run lint && pnpm link . && ts-node test --type-check",
     "tsc": "rimraf lib && tsc",
-    "prepublishOnly": "npm run tsc"
+    "prepublishOnly": "npm run tsc",
+    "prepare": "npm run tsc"
   },
   "config": {
     "commitizen": {
