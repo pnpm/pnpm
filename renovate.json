@@ -6,6 +6,10 @@
     {
       "packageNames": ["@types/ramda"],
       "allowedVersions": "0.25.34"
+    },
+    {
+      "packageNames": ["got"],
+      "allowedVersions": "<=8"
     }
   ],
   "pinVersions": false,

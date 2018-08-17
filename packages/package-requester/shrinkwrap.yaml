@@ -1,7 +1,7 @@
 dependencies:
   '@pnpm/check-package': 2.0.0
   '@pnpm/fetcher-base': 1.0.0
-  '@pnpm/package-requester': 'link:../__package_previews__/package-requester/@pnpm/package-requester'
+  '@pnpm/package-requester': 'link:'
   '@pnpm/pkgid-to-filename': 1.0.1
   '@pnpm/resolver-base': 1.1.0
   '@pnpm/types': 1.7.0

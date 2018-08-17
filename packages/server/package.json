@@ -13,14 +13,11 @@
   "scripts": {
     "lint": "tslint -c tslint.json --project .",
     "tsc": "rimraf lib && tsc",
-    "test": "rimraf .store && npm run lint && preview && ts-node test --type-check && mos t",
+    "test": "rimraf .store && npm run lint && pnpm link . && ts-node test --type-check && mos t",
     "md": "mos",
     "prepublishOnly": "npm run tsc"
   },
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/pnpm/server.git"
-  },
+  "repository": "https://github.com/pnpm/pnpm/blob/master/packages/server",
   "keywords": [
     "pnpm",
     "server"
@@ -28,9 +25,9 @@
   "author": "Zoltan Kochan <z@kochan.io> (https://www.kochan.io/)",
   "license": "MIT",
   "bugs": {
-    "url": "https://github.com/pnpm/server/issues"
+    "url": "https://github.com/pnpm/pnpm/issues"
   },
-  "homepage": "https://github.com/pnpm/server#readme",
+  "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/server#readme",
   "peerDependencies": {
     "@pnpm/logger": "^2.1.0"
   },

@@ -28,3 +28,4 @@ lib
 package-lock.json
 
 __package_previews__
+.store

@@ -8,7 +8,7 @@
     "url": "https://www.kochan.io/"
   },
   "bugs": {
-    "url": "https://github.com/pnpm/package-store/issues"
+    "url": "https://github.com/pnpm/pnpm/issues"
   },
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
@@ -66,7 +66,7 @@
   "directories": {
     "test": "test"
   },
-  "homepage": "https://pnpm.js.org",
+  "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/package-store#readme",
   "keywords": [
     "store",
     "storage",
@@ -80,10 +80,7 @@
   "engines": {
     "node": ">=6"
   },
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/pnpm/package-store.git"
-  },
+  "repository": "https://github.com/pnpm/pnpm/blob/master/packages/package-store",
   "scripts": {
     "info": "npm-scripts-info",
     "start": "npm run tsc -- --watch",
@@ -93,7 +90,7 @@
     "fix": "tslint -c tslint.json --project . --fix",
     "lint": "tslint -c tslint.json --project .",
     "pretest": "rimraf .tmp",
-    "test": "npm run lint && preview && ts-node test --type-check",
+    "test": "npm run lint && pnpm link . && ts-node test --type-check",
     "tsc": "rimraf lib && tsc",
     "prepublishOnly": "npm run tsc"
   },

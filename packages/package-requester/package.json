@@ -14,14 +14,11 @@
     "start": "npm run tsc -- --watch",
     "lint": "tslint -c tslint.json --project .",
     "tsc": "rimraf lib && tsc --pretty",
-    "test": "npm run lint && preview && rimraf .store && ts-node test --type-check && mos t",
+    "test": "npm run lint && pnpm link . && rimraf .store && ts-node test --type-check && mos t",
     "md": "mos",
     "prepare": "npm run tsc"
   },
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/pnpm/package-requester.git"
-  },
+  "repository": "https://github.com/pnpm/pnpm/blob/master/packages/package-requester",
   "keywords": [
     "pnpm",
     "resolver",
@@ -30,9 +27,9 @@
   "author": "Zoltan Kochan <z@kochan.io> (https://www.kochan.io/)",
   "license": "MIT",
   "bugs": {
-    "url": "https://github.com/pnpm/package-requester/issues"
+    "url": "https://github.com/pnpm/pnpm/issues"
   },
-  "homepage": "https://github.com/pnpm/package-requester#readme",
+  "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/package-requester#readme",
   "peerDependencies": {
     "@pnpm/logger": "^2.1.0"
   },
