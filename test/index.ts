@@ -883,3 +883,143 @@ test('resolve when tarball URL is requested from the registry and alias is not s
     t.end()
   }, 500)
 })
+
+test('resolve from local directory when it matches the latest version of the package', async t => {
+  nock(registry)
+    .get('/is-positive')
+    .reply(200, isPositiveMeta)
+
+  const store = tempy.directory()
+  const resolve = createResolveFromNpm({
+    metaCache: new Map(),
+    store,
+    rawNpmConfig: { registry },
+  })
+  const resolveResult = await resolve({alias: 'is-positive', pref: '1.0.0'}, {
+    registry,
+    localPackages: {
+      'is-positive': {
+        '1.0.0': {
+          directory: '/home/istvan/src/is-positive',
+          package: {
+            name: 'is-positive',
+            version: '1.0.0',
+          },
+        },
+      },
+    },
+  })
+
+  t.equal(resolveResult!.resolvedVia, 'local-filesystem')
+  t.equal(resolveResult!.id, 'link:/home/istvan/src/is-positive')
+  t.equal(resolveResult!.latest!.split('.').length, 3)
+  t.deepEqual(resolveResult!.resolution, {
+    directory: '/home/istvan/src/is-positive',
+    type: 'directory',
+  })
+  t.ok(resolveResult!.package)
+  t.equal(resolveResult!.package!.name, 'is-positive')
+  t.equal(resolveResult!.package!.version, '1.0.0')
+
+  t.end()
+})
+
+test('use version from the registry if it is newer than the local one', async t => {
+  nock(registry)
+    .get('/is-positive')
+    .reply(200, {
+      ...isPositiveMeta,
+      'dist-tags': { latest: '3.1.0' },
+    })
+
+  const resolveFromNpm = createResolveFromNpm({
+    metaCache: new Map(),
+    store: tempy.directory(),
+    rawNpmConfig: { registry },
+  })
+  const resolveResult = await resolveFromNpm({
+    alias: 'is-positive',
+    pref: '^3.0.0',
+  }, {
+    registry,
+    localPackages: {
+      'is-positive': {
+        '3.0.0': {
+          directory: '/home/istvan/src/is-positive',
+          package: {
+            name: 'is-positive',
+            version: '3.0.0',
+          },
+        },
+      },
+    },
+  })
+
+  t.equal(resolveResult!.resolvedVia, 'npm-registry')
+  t.equal(resolveResult!.id, 'registry.npmjs.org/is-positive/3.1.0')
+  t.equal(resolveResult!.latest!.split('.').length, 3)
+  t.deepEqual(resolveResult!.resolution, {
+    integrity: 'sha512-9Qa5b+9n69IEuxk4FiNcavXqkixb9lD03BLtdTeu2bbORnLZQrw+pR/exiSg7SoODeu08yxS47mdZa9ddodNwQ==',
+    registry,
+    tarball: 'https://registry.npmjs.org/is-positive/-/is-positive-3.1.0.tgz',
+  })
+  t.ok(resolveResult!.package)
+  t.equal(resolveResult!.package!.name, 'is-positive')
+  t.equal(resolveResult!.package!.version, '3.1.0')
+
+  t.end()
+})
+
+test('resolve from local directory when package is not found in the registry', async t => {
+  nock(registry)
+    .get('/is-positive')
+    .reply(404, {})
+
+  const store = tempy.directory()
+  const resolve = createResolveFromNpm({
+    metaCache: new Map(),
+    store,
+    rawNpmConfig: { registry },
+  })
+  const resolveResult = await resolve({alias: 'is-positive', pref: '1'}, {
+    registry,
+    localPackages: {
+      'is-positive': {
+        '1.0.0': {
+          directory: '/home/istvan/src/is-positive-1.0.0',
+          package: {
+            name: 'is-positive',
+            version: '1.0.0',
+          },
+        },
+        '1.1.0': {
+          directory: '/home/istvan/src/is-positive',
+          package: {
+            name: 'is-positive',
+            version: '1.1.0',
+          },
+        },
+        '2.0.0': {
+          directory: '/home/istvan/src/is-positive-2.0.0',
+          package: {
+            name: 'is-positive',
+            version: '2.0.0',
+          },
+        },
+      },
+    },
+  })
+
+  t.equal(resolveResult!.resolvedVia, 'local-filesystem')
+  t.equal(resolveResult!.id, 'link:/home/istvan/src/is-positive')
+  t.notOk(resolveResult!.latest)
+  t.deepEqual(resolveResult!.resolution, {
+    directory: '/home/istvan/src/is-positive',
+    type: 'directory',
+  })
+  t.ok(resolveResult!.package)
+  t.equal(resolveResult!.package!.name, 'is-positive')
+  t.equal(resolveResult!.package!.version, '1.1.0')
+
+  t.end()
+})

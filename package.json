@@ -36,7 +36,7 @@
     "@pnpm/logger": "^1.0.0 || ^2.0.0"
   },
   "dependencies": {
-    "@pnpm/resolver-base": "^1.1.0",
+    "@pnpm/resolver-base": "^1.2.0",
     "@pnpm/types": "^1.2.0",
     "@types/load-json-file": "^2.0.7",
     "@types/mem": "^1.1.2",

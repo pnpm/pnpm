@@ -1,6 +1,6 @@
 dependencies:
   '@pnpm/npm-resolver': 'link:../__package_previews__/npm-resolver/@pnpm/npm-resolver'
-  '@pnpm/resolver-base': 1.1.0
+  '@pnpm/resolver-base': 1.2.0
   '@pnpm/types': 1.7.0
   '@types/load-json-file': 2.0.7
   '@types/mem': 1.1.2
@@ -58,14 +58,14 @@ packages:
       node: '>=6'
     resolution:
       integrity: sha512-BL4Laf6b50LjdcpOUWPukx2XJtb3mo2OpJjHdRNSDJu9YS2tRBeP14H2bNqGjCjfeml8z3KufI3Km6VQemVXNw==
-  /@pnpm/resolver-base/1.1.0:
+  /@pnpm/resolver-base/1.2.0:
     dependencies:
       '@pnpm/types': 1.7.0
     dev: false
     engines:
       node: '>=4'
     resolution:
-      integrity: sha512-YRUmjy2mR7Qk0r3xCUs0UkWLwRM2Mu2Fjyl2513PNlzsjDFG1xw4lbHRuz/bCMeN+ZKynJbIbfSW0ddMitfbgA==
+      integrity: sha512-1Ks5ORqDSN9Q3G4FiHLSjcY5mrZZTQq7AxWyK76SnAS9ug5WTUmQ6wN3Ab9Q93aYhpAlXsdZ4bTW075iUG/mfw==
   /@pnpm/self-installer/2.0.5:
     dev: true
     engines:
@@ -3584,11 +3584,11 @@ packages:
     resolution:
       integrity: sha1-5a2ryKz0CPY4X8dklWhMiOavaJo=
 registry: 'https://registry.npmjs.org/'
-shrinkwrapMinorVersion: 8
+shrinkwrapMinorVersion: 9
 shrinkwrapVersion: 3
 specifiers:
   '@pnpm/logger': ^2.0.1
-  '@pnpm/resolver-base': ^1.1.0
+  '@pnpm/resolver-base': ^1.2.0
   '@pnpm/types': ^1.2.0
   '@types/load-json-file': ^2.0.7
   '@types/mem': ^1.1.2

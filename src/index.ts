@@ -1,7 +1,12 @@
-import {ResolveResult} from '@pnpm/resolver-base'
+import {
+  LocalPackages,
+  ResolveResult,
+} from '@pnpm/resolver-base'
+import {PackageJson} from '@pnpm/types'
 import getCredentialsByURI = require('credentials-by-uri')
 import createRegFetcher from 'fetch-from-npm-registry'
 import mem = require('mem')
+import semver = require('semver')
 import ssri = require('ssri')
 import createPkgId from './createNpmPkgId'
 import parsePref, {
@@ -107,6 +112,7 @@ async function resolveNpm (
         type: 'version' | 'range' | 'tag',
       },
     },
+    localPackages?: LocalPackages,
   },
 ): Promise<ResolveResult | null> {
   const spec = wantedDependency.pref
@@ -114,16 +120,27 @@ async function resolveNpm (
     : defaultTagForAlias(wantedDependency.alias as string, opts.defaultTag || 'latest')
   if (!spec) return null
   const auth = ctx.getCredentialsByURI(opts.registry)
-  const pickResult = await ctx.pickPackage(spec, {
-    auth,
-    dryRun: opts.dryRun === true,
-    preferredVersionSelector: opts.preferredVersions && opts.preferredVersions[spec.name],
-    registry: opts.registry,
-  })
+  let pickResult!: {meta: PackageMeta, pickedPackage: PackageInRegistry | null}
+  try {
+    pickResult = await ctx.pickPackage(spec, {
+      auth,
+      dryRun: opts.dryRun === true,
+      preferredVersionSelector: opts.preferredVersions && opts.preferredVersions[spec.name],
+      registry: opts.registry,
+    })
+  } catch (err) {
+    if (opts.localPackages && opts.localPackages[spec.name]) {
+      const localVersions = Object.keys(opts.localPackages[spec.name])
+      const localVersion = semver.maxSatisfying(localVersions, spec.fetchSpec, true)
+      if (localVersion) {
+        return resolveFromLocalPackage(opts.localPackages[spec.name][localVersion], spec.normalizedPref)
+      }
+    }
+    throw err
+  }
   const pickedPackage = pickResult.pickedPackage
   const meta = pickResult.meta
   if (!pickedPackage) {
-    const versions = Object.keys(meta.versions)
     const err = new Error(`No matching version found for ${toRaw(spec)}`)
     // tslint:disable:no-string-literal
     err['code'] = 'ERR_PNPM_NO_MATCHING_VERSION'
@@ -131,8 +148,15 @@ async function resolveNpm (
     // tslint:enable:no-string-literal
     throw err
   }
-  const id = createPkgId(pickedPackage.dist.tarball, pickedPackage.name, pickedPackage.version)
 
+  if (opts.localPackages && opts.localPackages[pickedPackage.name] && opts.localPackages[pickedPackage.name][pickedPackage.version]) {
+    return {
+      ...resolveFromLocalPackage(opts.localPackages[pickedPackage.name][pickedPackage.version], spec.normalizedPref),
+      latest: meta['dist-tags'].latest,
+    }
+  }
+
+  const id = createPkgId(pickedPackage.dist.tarball, pickedPackage.name, pickedPackage.version)
   const resolution = {
     integrity: getIntegrity(pickedPackage.dist),
     registry: opts.registry,
@@ -145,6 +169,25 @@ async function resolveNpm (
     package: pickedPackage,
     resolution,
     resolvedVia: 'npm-registry',
+  }
+}
+
+function resolveFromLocalPackage (
+  localPackage: {
+    directory: string,
+    package: PackageJson,
+  },
+  normalizedPref?: string,
+) {
+  return {
+    id: `link:${localPackage.directory}`,
+    normalizedPref,
+    package: localPackage.package,
+    resolution: {
+      directory: localPackage.directory,
+      type: 'directory',
+    },
+    resolvedVia: 'local-filesystem',
   }
 }
 
