@@ -3,7 +3,10 @@ import {
   PackageFilesResponse,
   PackageResponse,
 } from '@pnpm/package-requester'
-import {Resolution} from '@pnpm/resolver-base'
+import {
+  LocalPackages,
+  Resolution,
+} from '@pnpm/resolver-base'
 import {
   Dependencies,
   PackageJson,
@@ -15,7 +18,6 @@ import {
   skippedOptionalDependencyLogger,
 } from '@pnpm/utils'
 import * as dp from 'dependency-path'
-import fs = require('mz/fs')
 import path = require('path')
 import exists = require('path-exists')
 import {
@@ -27,7 +29,6 @@ import {
 } from 'pnpm-shrinkwrap'
 import R = require('ramda')
 import semver = require('semver')
-import url = require('url')
 import {InstallContext, PkgByPkgId} from './api/install'
 import depsToSpecs from './depsToSpecs'
 import encodePkgId from './encodePkgId'
@@ -105,6 +106,7 @@ export default async function resolveDependencies (
     sideEffectsCache: boolean,
     reinstallForFlatten?: boolean,
     shamefullyFlatten?: boolean,
+    localPackages?: LocalPackages,
   },
 ): Promise<PkgAddress[]> {
   const resolvedDependencies = options.resolvedDependencies || {}
@@ -142,6 +144,7 @@ export default async function resolveDependencies (
             currentDepth: options.currentDepth,
             hasManifestInShrinkwrap: options.hasManifestInShrinkwrap,
             keypath: options.keypath,
+            localPackages: options.localPackages,
             parentIsInstallable: options.parentIsInstallable,
             parentNodeId: options.parentNodeId,
             proceed,
@@ -243,6 +246,7 @@ async function install (
     sideEffectsCache: boolean,
     reinstallForFlatten?: boolean,
     shamefullyFlatten?: boolean,
+    localPackages?: LocalPackages,
   },
 ): Promise<PkgAddress | null> {
   const keypath = options.keypath || []
@@ -281,6 +285,7 @@ async function install (
       currentPkgId: options.pkgId,
       defaultTag: ctx.defaultTag,
       downloadPriority: -options.currentDepth,
+      localPackages: options.localPackages,
       loggedPkg,
       preferredVersions: ctx.preferredVersions,
       prefix: ctx.prefix,

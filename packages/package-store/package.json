@@ -45,7 +45,7 @@
   },
   "devDependencies": {
     "@pnpm/logger": "^2.1.0",
-    "@pnpm/npm-resolver": "^2.1.4",
+    "@pnpm/npm-resolver": "^2.2.0",
     "@pnpm/tarball-fetcher": "^2.0.0",
     "@types/tape": "^4.2.30",
     "@types/tempy": "^0.1.0",

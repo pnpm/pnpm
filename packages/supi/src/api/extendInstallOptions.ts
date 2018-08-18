@@ -1,10 +1,10 @@
 import logger from '@pnpm/logger'
-import { ReadPackageHook } from '@pnpm/types'
+import {LocalPackages} from '@pnpm/resolver-base'
+import {ReadPackageHook} from '@pnpm/types'
 import normalizeRegistryUrl = require('normalize-registry-url')
 import {StoreController} from 'package-store'
 import path = require('path')
 import {Shrinkwrap} from 'pnpm-shrinkwrap'
-import {LAYOUT_VERSION} from '../constants'
 import pnpmPkgJson from '../pnpmPkgJson'
 import { ReporterFunction } from '../types'
 
@@ -59,6 +59,7 @@ export interface InstallOptions {
   tag?: string,
   locks?: string,
   ownLifecycleHooksStdio?: 'inherit' | 'pipe',
+  localPackages?: LocalPackages,
 }
 
 export type StrictInstallOptions = InstallOptions & {
@@ -107,6 +108,7 @@ export type StrictInstallOptions = InstallOptions & {
   locks: string,
   unsafePerm: boolean,
   ownLifecycleHooksStdio: 'inherit' | 'pipe',
+  localPackages: LocalPackages,
 }
 
 const defaults = async (opts: InstallOptions) => {
@@ -128,6 +130,7 @@ const defaults = async (opts: InstallOptions) => {
     ignoreCurrentPrefs: false,
     ignoreScripts: false,
     independentLeaves: false,
+    localPackages: {},
     lock: true,
     lockStaleDuration: 5 * 60 * 1000, // 5 minutes
     locks: path.join(opts.store, '_locks'),

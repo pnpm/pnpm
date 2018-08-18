@@ -8,6 +8,7 @@ import {storeLogger} from '@pnpm/logger'
 import pkgIdToFilename from '@pnpm/pkgid-to-filename'
 import {
   DirectoryResolution,
+  LocalPackages,
   Resolution,
   ResolveFunction,
   ResolveResult,
@@ -98,6 +99,7 @@ export interface RequestPackageOptions {
       type: 'version' | 'range' | 'tag',
     },
   },
+  localPackages?: LocalPackages,
   sideEffectsCache?: boolean,
 }
 
@@ -194,6 +196,7 @@ async function resolveAndFetch (
         type: 'version' | 'range' | 'tag',
       },
     },
+    localPackages?: LocalPackages,
     skipFetch: boolean,
     sideEffectsCache: boolean,
   },
@@ -217,6 +220,7 @@ async function resolveAndFetch (
     if (!skipResolution || options.skipFetch || pkgId && pkgId.startsWith('file:')) {
       const resolveResult = await ctx.requestsQueue.add<ResolveResult>(() => ctx.resolve(wantedDependency, {
         defaultTag: options.defaultTag,
+        localPackages: options.localPackages,
         preferredVersions: options.preferredVersions,
         prefix: options.prefix,
         registry: options.registry,

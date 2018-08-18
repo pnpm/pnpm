@@ -1,4 +1,5 @@
 import logger from '@pnpm/logger'
+import {PackageJson} from '@pnpm/types'
 import camelcaseKeys = require('camelcase-keys')
 import graphSequencer = require('graph-sequencer')
 import minimatch = require('minimatch')
@@ -12,7 +13,6 @@ import {
   install,
   InstallOptions,
   installPkgs,
-  link,
   rebuild,
   rebuildPkgs,
   uninstall,
@@ -69,15 +69,18 @@ export default async (
   }
 
   const cwd = process.cwd()
-  let pkgs = await findWorkspacePackages(cwd)
+  const allPkgs = await findWorkspacePackages(cwd)
+  let pkgs: Array<{path: string, manifest: PackageJson}>
 
-  const pkgGraphResult = createPkgGraph(pkgs)
+  const pkgGraphResult = createPkgGraph(allPkgs)
   if (opts.scope) {
     pkgGraphResult.graph = filterGraphByScope(pkgGraphResult.graph, opts.scope)
-    pkgs = pkgs.filter((pkg: {path: string}) => pkgGraphResult.graph[pkg.path])
+    pkgs = allPkgs.filter((pkg: {path: string}) => pkgGraphResult.graph[pkg.path])
   } else if (opts.filter) {
     pkgGraphResult.graph = filterGraph(pkgGraphResult.graph, opts.filter)
-    pkgs = pkgs.filter((pkg: {path: string}) => pkgGraphResult.graph[pkg.path])
+    pkgs = allPkgs.filter((pkg: {path: string}) => pkgGraphResult.graph[pkg.path])
+  } else {
+    pkgs = allPkgs
   }
 
   const throwOnFail = throwOnCommandFail.bind(null, `pnpm recursive ${cmd}`)
@@ -115,13 +118,6 @@ export default async (
     saveState: async () => undefined,
   }
 
-  if (cmdFullName === 'link') {
-    await linkPackages(pkgGraphResult.graph, {
-      registry: opts.registry,
-      store: store.path,
-      storeController,
-    })
-  }
   const graph = new Map(
     Object.keys(pkgGraphResult.graph).map((pkgPath) => [pkgPath, pkgGraphResult.graph[pkgPath].dependencies]) as Array<[string, string[]]>,
   )
@@ -131,7 +127,20 @@ export default async (
   })
   const chunks = graphSequencerResult.chunks
 
+  const localPackages = cmdFullName === 'link'
+    ? allPkgs.reduce((acc, pkg) => {
+      if (!acc[pkg.manifest.name]) {
+        acc[pkg.manifest.name] = {}
+      }
+      acc[pkg.manifest.name][pkg.manifest.version] = {
+        directory: pkg.path,
+        package: pkg.manifest,
+      }
+      return acc
+    }, {})
+    : {}
   const installOpts = Object.assign(opts, {
+    localPackages,
     ownLifecycleHooksStdio: 'pipe',
     store: store.path,
     storeController,
@@ -210,26 +219,6 @@ async function readLocalConfigs (prefix: string) {
     if (err.code !== 'ENOENT') throw err
     return {}
   }
-}
-
-function linkPackages (
-  graph: {[pkgPath: string]: {dependencies: string[]}},
-  opts: {
-    registry?: string,
-    store: string,
-    storeController: StoreController,
-  },
-) {
-  const limitLinking = pLimit(12)
-  return Promise.all(
-    Object.keys(graph)
-      .filter((pkgPath) => graph[pkgPath].dependencies && graph[pkgPath].dependencies.length)
-      .map((pkgPath) =>
-        limitLinking(() =>
-          link(graph[pkgPath].dependencies, path.join(pkgPath, 'node_modules'), {...opts, prefix: pkgPath}),
-        ),
-      ),
-  )
 }
 
 interface PackageGraph {

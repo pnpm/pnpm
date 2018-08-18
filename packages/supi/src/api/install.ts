@@ -433,6 +433,7 @@ async function installInContext (
     currentDepth: 0,
     hasManifestInShrinkwrap,
     keypath: [],
+    localPackages: opts.localPackages,
     parentNodeId: ROOT_NODE_ID,
     readPackageHook: opts.hooks.readPackage,
     reinstallForFlatten: opts.reinstallForFlatten,
@@ -749,7 +750,7 @@ async function installInContext (
         saveProd: false,
         skipInstall: true,
       }
-      const externalPkgs = installCtx.localPackages.map((localPackage) => path.join(opts.prefix, localPackage.resolution.directory))
+      const externalPkgs = installCtx.localPackages.map((localPackage) => resolvePath(opts.prefix, localPackage.resolution.directory))
       await externalLink(externalPkgs, installCtx.nodeModules, linkOpts)
     }
   }
@@ -769,6 +770,14 @@ async function installInContext (
   summaryLogger.debug({prefix: opts.prefix})
 
   await opts.storeController.close()
+}
+
+const isAbsolutePath = /^[/]|^[A-Za-z]:/
+
+// This function is copied from @pnpm/local-resolver
+function resolvePath (where: string, spec: string) {
+  if (isAbsolutePath.test(spec)) return spec
+  return path.resolve(where, spec)
 }
 
 function getSubgraphToBuild (
