@@ -129,12 +129,9 @@ async function resolveNpm (
       registry: opts.registry,
     })
   } catch (err) {
-    if (opts.localPackages && opts.localPackages[spec.name]) {
-      const localVersions = Object.keys(opts.localPackages[spec.name])
-      const localVersion = semver.maxSatisfying(localVersions, spec.fetchSpec, true)
-      if (localVersion) {
-        return resolveFromLocalPackage(opts.localPackages[spec.name][localVersion], spec.normalizedPref)
-      }
+    if (opts.localPackages) {
+      const resolvedFromLocal = tryResolveFromLocalPackages(opts.localPackages, spec)
+      if (resolvedFromLocal) return resolvedFromLocal
     }
     throw err
   }
@@ -170,6 +167,30 @@ async function resolveNpm (
     resolution,
     resolvedVia: 'npm-registry',
   }
+}
+
+function tryResolveFromLocalPackages (
+  localPackages: LocalPackages,
+  spec: RegistryPackageSpec,
+) {
+  if (!localPackages[spec.name]) return null
+  const localVersions = Object.keys(localPackages[spec.name])
+  let localVersion: string | null
+  switch (spec.type) {
+    case 'tag':
+      localVersion = semver.maxSatisfying(localVersions, '*')
+      break
+    case 'version':
+      localVersion = localPackages[spec.name][spec.fetchSpec] ? spec.fetchSpec : null
+      break
+    case 'range':
+      localVersion = semver.maxSatisfying(localVersions, spec.fetchSpec, true)
+      break
+    default:
+      return null
+  }
+  if (!localVersion) return null
+  return resolveFromLocalPackage(localPackages[spec.name][localVersion], spec.normalizedPref)
 }
 
 function resolveFromLocalPackage (

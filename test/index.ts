@@ -1023,3 +1023,111 @@ test('resolve from local directory when package is not found in the registry', a
 
   t.end()
 })
+
+test('resolve from local directory when package is not found in the registry and latest installed', async t => {
+  nock(registry)
+    .get('/is-positive')
+    .reply(404, {})
+
+  const store = tempy.directory()
+  const resolve = createResolveFromNpm({
+    metaCache: new Map(),
+    store,
+    rawNpmConfig: { registry },
+  })
+  const resolveResult = await resolve({alias: 'is-positive', pref: 'latest'}, {
+    registry,
+    localPackages: {
+      'is-positive': {
+        '1.0.0': {
+          directory: '/home/istvan/src/is-positive-1.0.0',
+          package: {
+            name: 'is-positive',
+            version: '1.0.0',
+          },
+        },
+        '1.1.0': {
+          directory: '/home/istvan/src/is-positive',
+          package: {
+            name: 'is-positive',
+            version: '1.1.0',
+          },
+        },
+        '2.0.0': {
+          directory: '/home/istvan/src/is-positive-2.0.0',
+          package: {
+            name: 'is-positive',
+            version: '2.0.0',
+          },
+        },
+      },
+    },
+  })
+
+  t.equal(resolveResult!.resolvedVia, 'local-filesystem')
+  t.equal(resolveResult!.id, 'link:/home/istvan/src/is-positive-2.0.0')
+  t.notOk(resolveResult!.latest)
+  t.deepEqual(resolveResult!.resolution, {
+    directory: '/home/istvan/src/is-positive-2.0.0',
+    type: 'directory',
+  })
+  t.ok(resolveResult!.package)
+  t.equal(resolveResult!.package!.name, 'is-positive')
+  t.equal(resolveResult!.package!.version, '2.0.0')
+
+  t.end()
+})
+
+test('resolve from local directory when package is not found in the registry and specific version is requested', async t => {
+  nock(registry)
+    .get('/is-positive')
+    .reply(404, {})
+
+  const store = tempy.directory()
+  const resolve = createResolveFromNpm({
+    metaCache: new Map(),
+    store,
+    rawNpmConfig: { registry },
+  })
+  const resolveResult = await resolve({alias: 'is-positive', pref: '1.1.0'}, {
+    registry,
+    localPackages: {
+      'is-positive': {
+        '1.0.0': {
+          directory: '/home/istvan/src/is-positive-1.0.0',
+          package: {
+            name: 'is-positive',
+            version: '1.0.0',
+          },
+        },
+        '1.1.0': {
+          directory: '/home/istvan/src/is-positive',
+          package: {
+            name: 'is-positive',
+            version: '1.1.0',
+          },
+        },
+        '2.0.0': {
+          directory: '/home/istvan/src/is-positive-2.0.0',
+          package: {
+            name: 'is-positive',
+            version: '2.0.0',
+          },
+        },
+      },
+    },
+  })
+
+  t.equal(resolveResult!.resolvedVia, 'local-filesystem')
+  t.equal(resolveResult!.id, 'link:/home/istvan/src/is-positive')
+  t.notOk(resolveResult!.latest)
+  t.deepEqual(resolveResult!.resolution, {
+    directory: '/home/istvan/src/is-positive',
+    type: 'directory',
+  })
+  t.ok(resolveResult!.package)
+  t.equal(resolveResult!.package!.name, 'is-positive')
+  t.equal(resolveResult!.package!.version, '1.1.0')
+
+  t.end()
+})
