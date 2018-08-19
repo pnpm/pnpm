@@ -6,6 +6,8 @@ import {PackageJson} from '@pnpm/types'
 import getCredentialsByURI = require('credentials-by-uri')
 import createRegFetcher from 'fetch-from-npm-registry'
 import mem = require('mem')
+import normalize = require('normalize-path')
+import path = require('path')
 import semver = require('semver')
 import ssri = require('ssri')
 import createPkgId from './createNpmPkgId'
@@ -112,6 +114,7 @@ async function resolveNpm (
         type: 'version' | 'range' | 'tag',
       },
     },
+    prefix: string,
     localPackages?: LocalPackages,
   },
 ): Promise<ResolveResult | null> {
@@ -130,7 +133,7 @@ async function resolveNpm (
     })
   } catch (err) {
     if (opts.localPackages) {
-      const resolvedFromLocal = tryResolveFromLocalPackages(opts.localPackages, spec)
+      const resolvedFromLocal = tryResolveFromLocalPackages(opts.localPackages, spec, opts.prefix)
       if (resolvedFromLocal) return resolvedFromLocal
     }
     throw err
@@ -148,7 +151,7 @@ async function resolveNpm (
 
   if (opts.localPackages && opts.localPackages[pickedPackage.name] && opts.localPackages[pickedPackage.name][pickedPackage.version]) {
     return {
-      ...resolveFromLocalPackage(opts.localPackages[pickedPackage.name][pickedPackage.version], spec.normalizedPref),
+      ...resolveFromLocalPackage(opts.localPackages[pickedPackage.name][pickedPackage.version], spec.normalizedPref, opts.prefix),
       latest: meta['dist-tags'].latest,
     }
   }
@@ -172,6 +175,7 @@ async function resolveNpm (
 function tryResolveFromLocalPackages (
   localPackages: LocalPackages,
   spec: RegistryPackageSpec,
+  prefix: string,
 ) {
   if (!localPackages[spec.name]) return null
   const localVersions = Object.keys(localPackages[spec.name])
@@ -190,7 +194,7 @@ function tryResolveFromLocalPackages (
       return null
   }
   if (!localVersion) return null
-  return resolveFromLocalPackage(localPackages[spec.name][localVersion], spec.normalizedPref)
+  return resolveFromLocalPackage(localPackages[spec.name][localVersion], spec.normalizedPref, prefix)
 }
 
 function resolveFromLocalPackage (
@@ -198,10 +202,11 @@ function resolveFromLocalPackage (
     directory: string,
     package: PackageJson,
   },
-  normalizedPref?: string,
+  normalizedPref: string | undefined,
+  prefix: string,
 ) {
   return {
-    id: `link:${localPackage.directory}`,
+    id: `link:${normalize(path.relative(prefix, localPackage.directory))}`,
     normalizedPref,
     package: localPackage.package,
     resolution: {

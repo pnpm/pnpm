@@ -12,6 +12,7 @@ dependencies:
   fetch-from-npm-registry: 1.0.0
   load-json-file: 5.0.0
   mem: 3.0.1
+  normalize-path: 3.0.0
   p-limit: 2.0.0
   parse-npm-tarball-url: 1.0.3
   semver: 5.5.0
@@ -2205,6 +2206,12 @@ packages:
       node: '>=0.10.0'
     resolution:
       integrity: sha1-GrKLVW4Zg2Oowab35vogE3/mrtk=
+  /normalize-path/3.0.0:
+    dev: false
+    engines:
+      node: '>=0.10.0'
+    resolution:
+      integrity: sha512-6eZs5Ls3WtCisHWp9S2GUy8dqkpGi4BVSz3GaqiE6ezub0512ESztXUwUB6C6IKbQkY2Pnb/mD4WYojCRwcwLA==
   /number-is-nan/1.0.1:
     dev: true
     engines:
@@ -3607,6 +3614,7 @@ specifiers:
   mos: ^2.0.0-alpha.3
   mos-plugin-readme: ^1.0.4
   nock: ^9.1.6
+  normalize-path: ^3.0.0
   p-limit: ^2.0.0
   package-preview: ^1.0.1
   parse-npm-tarball-url: ^1.0.3

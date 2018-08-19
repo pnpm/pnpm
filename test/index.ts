@@ -908,10 +908,11 @@ test('resolve from local directory when it matches the latest version of the pac
         },
       },
     },
+    prefix: '/home/istvan/src',
   })
 
   t.equal(resolveResult!.resolvedVia, 'local-filesystem')
-  t.equal(resolveResult!.id, 'link:/home/istvan/src/is-positive')
+  t.equal(resolveResult!.id, 'link:is-positive')
   t.equal(resolveResult!.latest!.split('.').length, 3)
   t.deepEqual(resolveResult!.resolution, {
     directory: '/home/istvan/src/is-positive',
@@ -953,6 +954,7 @@ test('use version from the registry if it is newer than the local one', async t 
         },
       },
     },
+    prefix: '/home/istvan/src',
   })
 
   t.equal(resolveResult!.resolvedVia, 'npm-registry')
@@ -1008,10 +1010,11 @@ test('resolve from local directory when package is not found in the registry', a
         },
       },
     },
+    prefix: '/home/istvan/src/foo',
   })
 
   t.equal(resolveResult!.resolvedVia, 'local-filesystem')
-  t.equal(resolveResult!.id, 'link:/home/istvan/src/is-positive')
+  t.equal(resolveResult!.id, 'link:../is-positive')
   t.notOk(resolveResult!.latest)
   t.deepEqual(resolveResult!.resolution, {
     directory: '/home/istvan/src/is-positive',
@@ -1062,10 +1065,11 @@ test('resolve from local directory when package is not found in the registry and
         },
       },
     },
+    prefix: '/home/istvan/src',
   })
 
   t.equal(resolveResult!.resolvedVia, 'local-filesystem')
-  t.equal(resolveResult!.id, 'link:/home/istvan/src/is-positive-2.0.0')
+  t.equal(resolveResult!.id, 'link:is-positive-2.0.0')
   t.notOk(resolveResult!.latest)
   t.deepEqual(resolveResult!.resolution, {
     directory: '/home/istvan/src/is-positive-2.0.0',
@@ -1116,10 +1120,11 @@ test('resolve from local directory when package is not found in the registry and
         },
       },
     },
+    prefix: '/home/istvan/src/foo',
   })
 
   t.equal(resolveResult!.resolvedVia, 'local-filesystem')
-  t.equal(resolveResult!.id, 'link:/home/istvan/src/is-positive')
+  t.equal(resolveResult!.id, 'link:../is-positive')
   t.notOk(resolveResult!.latest)
   t.deepEqual(resolveResult!.resolution, {
     directory: '/home/istvan/src/is-positive',
