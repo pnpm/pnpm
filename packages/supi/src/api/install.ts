@@ -749,6 +749,7 @@ async function installInContext (
       }
     }
 
+    // TODO: link inside resolveDependencies.ts
     if (installCtx.localPackages.length) {
       const linkOpts = {
         ...opts,

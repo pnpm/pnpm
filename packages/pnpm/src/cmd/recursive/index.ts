@@ -26,6 +26,7 @@ import help from '../help'
 import exec from './exec'
 import {
   filterGraph,
+  filterGraphByEntryDirectory,
   filterGraphByScope,
 } from './filter'
 import list from './list'
@@ -78,7 +79,10 @@ export default async (
 export async function recursive (
   allPkgs: Array<{path: string, manifest: PackageJson}>,
   input: string[],
-  opts: PnpmOptions,
+  opts: PnpmOptions & {
+    filterByEntryDirectory?: string,
+    inputForEntryDirectory?: string[],
+  },
   cmdFullName: string,
   cmd: string,
 ) {
@@ -89,6 +93,9 @@ export async function recursive (
     pkgs = allPkgs.filter((pkg: {path: string}) => pkgGraphResult.graph[pkg.path])
   } else if (opts.filter) {
     pkgGraphResult.graph = filterGraph(pkgGraphResult.graph, opts.filter)
+    pkgs = allPkgs.filter((pkg: {path: string}) => pkgGraphResult.graph[pkg.path])
+  } else if (opts.filterByEntryDirectory) {
+    pkgGraphResult.graph = filterGraphByEntryDirectory(pkgGraphResult.graph, opts.filterByEntryDirectory)
     pkgs = allPkgs.filter((pkg: {path: string}) => pkgGraphResult.graph[pkg.path])
   } else {
     pkgs = allPkgs
@@ -138,7 +145,12 @@ export async function recursive (
   })
   const chunks = graphSequencerResult.chunks
 
-  const localPackages = cmdFullName === 'link'
+  if (cmdFullName === 'link' && opts.linkWorkspacePackages) {
+    const err = new Error('"pnpm recursive link" is deprecated with link-workspace-packages = true. Please use "pnpm recursive install" instead')
+    err['code'] = 'ERR_PNPM_RECURSIVE_LINK_DEPRECATED' // tslint:disable-line:no-string-literal
+    throw err
+  }
+  const localPackages = cmdFullName === 'link' || opts.linkWorkspacePackages
     ? arrayOfLocalPackagesToMap(allPkgs)
     : {}
   const installOpts = Object.assign(opts, {
@@ -176,6 +188,9 @@ export async function recursive (
         const hooks = opts.ignorePnpmfile ? {} : requireHooks(prefix, opts)
         try {
           const localConfigs = await readLocalConfigs(prefix)
+          if (opts.filterByEntryDirectory === prefix) {
+            return
+          }
           await action({
             ...installOpts,
             ...localConfigs,

@@ -10,6 +10,19 @@ interface Graph {
   [nodeId: string]: string[],
 }
 
+export function filterGraphByEntryDirectory (
+  pkgGraph: PackageGraph,
+  entryDirectory: string,
+): PackageGraph {
+  if (!pkgGraph[entryDirectory]) return {}
+
+  const walkedDependencies = new Set<string>()
+  const graph = pkgGraphToGraph(pkgGraph)
+  pickSubgraph(graph, [entryDirectory], walkedDependencies)
+
+  return R.pick(Array.from(walkedDependencies), pkgGraph)
+}
+
 export function filterGraph (
   pkgGraph: PackageGraph,
   filters: string[],

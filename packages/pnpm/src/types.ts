@@ -75,6 +75,7 @@ export interface PnpmOptions {
   useStoreServer?: boolean,
   workspaceConcurrency: number,
   workspacePrefix?: string,
+  linkWorkspacePackages: boolean,
 
   // cannot be specified via configs
   update?: boolean,

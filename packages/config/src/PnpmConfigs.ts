@@ -68,4 +68,5 @@ export interface PnpmConfigs {
   workspaceConcurrency: number,
   workspacePrefix?: string,
   reporter?: string,
+  linkWorkspacePackages: boolean,
 }
