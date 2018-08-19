@@ -252,7 +252,8 @@ function getHelpText (command: string) {
           install
           update
           uninstall [<@scope>/]<pkg>...    uninstall a dependency from each package
-          link                             runs installation in each package. If a package is available locally, the local version is linked.
+          link                             Deprecated. Use the install command with the link-workspace-packages config.
+                                           runs installation in each package. If a package is available locally, the local version is linked.
           unlink                           removes links to local packages and reinstalls them from the registry.
           list [[<@scope>/]<pkg>...]       list dependencies in each package.
           outdated [[<@scope>/]<pkg>...]   check for outdated dependencies in every package.
@@ -271,11 +272,13 @@ function getHelpText (command: string) {
 
         Options:
 
-          --filter <name>          restricts the scope to package names matching the given glob.
-          --filter <name>...       includes all direct and indirect dependencies of the matched packages.
-          --filter ...<name>       includes all direct and indirect dependents of the matched packages.
-          --no-bail                continues executing other tasks even if a task threw an error.
-          --workspace-concurrency  set the maximum number of concurrency. Default is 4. For unlimited concurrency use Infinity.
+          --filter <name>            restricts the scope to package names matching the given glob.
+          --filter <name>...         includes all direct and indirect dependencies of the matched packages.
+          --filter ...<name>         includes all direct and indirect dependents of the matched packages.
+          --no-bail                  continues executing other tasks even if a task threw an error.
+          --workspace-concurrency    set the maximum number of concurrency. Default is 4. For unlimited concurrency use Infinity.
+          --link-workspace-packages  locally available packages are linked to node_modules instead of being downloaded from the registry.
+                                     Convenient to use in a multi-package repository.
       `
 
     default:
