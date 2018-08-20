@@ -2,7 +2,7 @@ dependencies:
   '@pnpm/default-resolver': 'link:../../../__package_previews__/default-resolver/@pnpm/default-resolver'
   '@pnpm/git-resolver': 0.3.8
   '@pnpm/local-resolver': 1.0.0
-  '@pnpm/npm-resolver': 2.2.0
+  '@pnpm/npm-resolver': 2.2.2
   '@pnpm/tarball-resolver': 1.0.0
 devDependencies:
   '@pnpm/logger': 2.1.0
@@ -70,7 +70,7 @@ packages:
       node: '>=6'
     resolution:
       integrity: sha512-BL4Laf6b50LjdcpOUWPukx2XJtb3mo2OpJjHdRNSDJu9YS2tRBeP14H2bNqGjCjfeml8z3KufI3Km6VQemVXNw==
-  /@pnpm/npm-resolver/2.2.0:
+  /@pnpm/npm-resolver/2.2.2:
     dependencies:
       '@pnpm/resolver-base': 1.2.0
       '@pnpm/types': 1.7.0
@@ -84,6 +84,7 @@ packages:
       fetch-from-npm-registry: 1.0.0
       load-json-file: 5.0.0
       mem: 3.0.1
+      normalize-path: 3.0.0
       p-limit: 2.0.0
       parse-npm-tarball-url: 1.0.3
       semver: 5.5.1
@@ -96,7 +97,7 @@ packages:
     peerDependencies:
       '@pnpm/logger': ^1.0.0 || ^2.0.0
     resolution:
-      integrity: sha512-FLxolpe15sXVZX5fOQAxLhKrFYOiO4y1p7riRJnUadogB8hNIWklEO106yFlGNkSUeTlpyWej7HeZdru0pia/A==
+      integrity: sha512-3G1WA6hLug1ylkSUnaINhNYpFBDdS0xfVn/vdD21/hQLc20EsYJCaaBcudO4l9PHHLis2MPMOoS/taUptyZUBA==
   /@pnpm/resolver-base/1.2.0:
     dependencies:
       '@pnpm/types': 1.7.0
@@ -3795,7 +3796,7 @@ specifiers:
   '@pnpm/git-resolver': ^0.3.4
   '@pnpm/local-resolver': ^1.0.0
   '@pnpm/logger': ^2.0.0
-  '@pnpm/npm-resolver': ^2.2.0
+  '@pnpm/npm-resolver': ^2.2.2
   '@pnpm/tarball-resolver': ^1.0.0
   '@types/tape': ^4.2.31
   mos: ^2.0.0-alpha.3

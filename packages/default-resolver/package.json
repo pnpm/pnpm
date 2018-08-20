@@ -32,7 +32,7 @@
   "dependencies": {
     "@pnpm/git-resolver": "^0.3.4",
     "@pnpm/local-resolver": "^1.0.0",
-    "@pnpm/npm-resolver": "^2.2.0",
+    "@pnpm/npm-resolver": "^2.2.2",
     "@pnpm/tarball-resolver": "^1.0.0"
   },
   "devDependencies": {
