@@ -1,4 +1,4 @@
-import {runPostinstallHooks} from '@pnpm/lifecycle'
+import runLifecycleHooks, {runPostinstallHooks} from '@pnpm/lifecycle'
 import logger, {streamParser} from '@pnpm/logger'
 import {write as writeModulesYaml} from '@pnpm/modules-yaml'
 import {
@@ -129,6 +129,32 @@ export async function rebuild (maybeOpts: RebuildOptions) {
   }
 
   await _rebuild(new Set(idsToRebuild), modules, ctx.currentShrinkwrap, opts)
+
+  // TODO: cover with tests the case when the project has to be rebuilt as well
+  if (ctx.pkg && ctx.pkg.scripts && (!opts.pending || ctx.pendingBuilds.indexOf('.') !== -1)) {
+    const scriptsOpts = {
+      depPath: opts.prefix,
+      pkgRoot: opts.prefix,
+      rawNpmConfig: opts.rawNpmConfig,
+      rootNodeModulesDir: await realNodeModulesDir(opts.prefix),
+      unsafePerm: opts.unsafePerm || false,
+    }
+    if (ctx.pkg.scripts.preinstall) {
+      await runLifecycleHooks('preinstall', ctx.pkg, scriptsOpts)
+    }
+    if (ctx.pkg.scripts.install) {
+      await runLifecycleHooks('install', ctx.pkg, scriptsOpts)
+    }
+    if (ctx.pkg.scripts.postinstall) {
+      await runLifecycleHooks('postinstall', ctx.pkg, scriptsOpts)
+    }
+    if (ctx.pkg.scripts.prepublish) {
+      await runLifecycleHooks('prepublish', ctx.pkg, scriptsOpts)
+    }
+    if (ctx.pkg.scripts.prepare) {
+      await runLifecycleHooks('prepare', ctx.pkg, scriptsOpts)
+    }
+  }
 
   await writeModulesYaml(path.join(ctx.prefix, 'node_modules'), {
     hoistedAliases: ctx.hoistedAliases,

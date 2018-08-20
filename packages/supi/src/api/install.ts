@@ -221,6 +221,14 @@ export async function install (maybeOpts: InstallOptions) {
     }
 
     const scripts = !opts.ignoreScripts && ctx.pkg && ctx.pkg.scripts || {}
+    if (opts.ignoreScripts && ctx.pkg && ctx.pkg.scripts &&
+      (ctx.pkg.scripts.preinstall || ctx.pkg.scripts.prepublish ||
+        ctx.pkg.scripts.install ||
+        ctx.pkg.scripts.postinstall ||
+        ctx.pkg.scripts.prepublishOnly ||
+        ctx.pkg.scripts.prepare)) {
+          ctx.pendingBuilds.push('.')
+        }
 
     if (scripts['prepublish']) { // tslint:disable-line:no-string-literal
       logger.warn({
