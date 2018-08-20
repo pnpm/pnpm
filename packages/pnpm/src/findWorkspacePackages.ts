@@ -28,3 +28,18 @@ async function requirePackagesManifest (dir: string): Promise<{packages: string[
     throw err
   }
 }
+
+export function arrayOfLocalPackagesToMap (
+  pkgs: Array<{path: string, manifest: PackageJson}>,
+) {
+  return pkgs.reduce((acc, pkg) => {
+    if (!acc[pkg.manifest.name]) {
+      acc[pkg.manifest.name] = {}
+    }
+    acc[pkg.manifest.name][pkg.manifest.version] = {
+      directory: pkg.path,
+      package: pkg.manifest,
+    }
+    return acc
+  }, {})
+}
