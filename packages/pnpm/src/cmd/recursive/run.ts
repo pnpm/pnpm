@@ -27,6 +27,7 @@ export default async (
   } as RecursiveSummary
 
   const limitRun = pLimit(opts.workspaceConcurrency)
+  const stdio = opts.workspaceConcurrency === 1 ? 'inherit' : 'pipe'
 
   for (const chunk of chunks) {
     await Promise.all(chunk.map((prefix: string) =>
@@ -42,6 +43,7 @@ export default async (
             pkgRoot: prefix,
             rawNpmConfig: opts.rawNpmConfig,
             rootNodeModulesDir: await realNodeModulesDir(prefix),
+            stdio,
             unsafePerm: opts.unsafePerm || false,
           }
           if (pkg.manifest.scripts[`pre${scriptName}`]) {
