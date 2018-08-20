@@ -20,11 +20,11 @@ test_script:
   - node --version
   - npm --version
   - npm t --prefix packages/config
-  - npm t --prefix packages/utils
   - npm t --prefix packages/default-resolver
   - npm t --prefix packages/default-fetcher
   - npm t --prefix packages/package-requester
   - npm t --prefix packages/package-store
+  - npm t --prefix packages/utils
   - npm t --prefix packages/server
   - npm t --prefix packages/headless
   - npm t --prefix packages/supi
