@@ -59,7 +59,7 @@ function findSpec (depName: string, pkg: PackageJson): string | undefined {
   return foundDepType && pkg[foundDepType]![depName]
 }
 
-function guessDependencyType (depName: string, pkg: PackageJson): DependenciesType | undefined {
+export function guessDependencyType (depName: string, pkg: PackageJson): DependenciesType | undefined {
   return dependenciesTypes
     .find((deptype) => Boolean(pkg[deptype] && pkg[deptype]![depName]))
 }

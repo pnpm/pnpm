@@ -27,11 +27,10 @@ import R = require('ramda')
 import symlinkDir = require('symlink-dir')
 import getSpecFromPackageJson from '../getSpecFromPackageJson'
 import readShrinkwrapFile from '../readShrinkwrapFiles'
-import save from '../save'
+import save, { guessDependencyType } from '../save'
 import extendOptions, {
   InstallOptions,
 } from './extendInstallOptions'
-import {install} from './install'
 import getPref from './utils/getPref'
 
 export default async function link (
@@ -74,7 +73,7 @@ export default async function link (
         saveExact: opts.saveExact,
         savePrefix: opts.savePrefix,
       }),
-      saveType: saveType as DependenciesType,
+      saveType: (saveType || pkg && guessDependencyType(linkedPkg.name, pkg)) as DependenciesType,
     })
 
     const packagePath = normalize(path.relative(opts.prefix, linkFrom))
@@ -106,7 +105,12 @@ export default async function link (
   // Linking should happen after removing orphans
   // Otherwise would've been removed
   for (const linkedPkg of linkedPkgs) {
-    await linkToModules(linkedPkg.pkg, linkedPkg.path, destModules, {saveType, prefix: opts.prefix})
+    // TODO: cover with test that linking reports with correct dependency types
+    const stu = specsToUpsert.find((s) => s.name === linkedPkg.pkg.name)
+    await linkToModules(linkedPkg.pkg, linkedPkg.path, destModules, {
+      prefix: opts.prefix,
+      saveType: stu && stu.saveType || saveType,
+    })
   }
 
   const linkToBin = maybeOpts && maybeOpts.linkToBin || path.join(destModules, '.bin')
@@ -144,7 +148,7 @@ function addLinkToShrinkwrap (
   const id = `link:${opts.packagePath}`
   let addedTo: DependenciesType | undefined
   for (const depType of dependenciesTypes) {
-    if (opts.pkg && opts.pkg[depType]) {
+    if (!addedTo && opts.pkg && opts.pkg[depType] && opts.pkg[depType]![opts.linkedPkgName]) {
       addedTo = depType
       shr[depType] = shr[depType] || {}
       shr[depType]![opts.linkedPkgName] = id

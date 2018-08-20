@@ -830,7 +830,9 @@ function getAliasToDependencyTypeMap (pkg: PackageJson) {
   for (const depType of dependenciesTypes) {
     if (!pkg[depType]) continue
     for (const alias of Object.keys(pkg[depType] || {})) {
-      depTypesOfAliases[alias] = depType
+      if (!depTypesOfAliases[alias]) {
+        depTypesOfAliases[alias] = depType
+      }
     }
   }
   return depTypesOfAliases
