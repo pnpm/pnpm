@@ -10,7 +10,7 @@ dependencies:
   '@pnpm/types': 1.7.0
   '@pnpm/utils': 'link:../utils'
   '@types/camelcase-keys': 4.0.0
-  '@types/get-port': 3.2.0
+  '@types/get-port': 4.0.0
   '@types/lru-cache': 4.1.1
   '@types/minimatch': 3.0.3
   '@types/mz': 0.0.32
@@ -292,10 +292,10 @@ packages:
     dev: true
     resolution:
       integrity: sha512-DsknoBvD8s+RFfSGjmERJ7ZOP1HI0UZRA3FSI+Zakhrc/Gy26YQsLI+m5V5DHxroHRJqCDLKJp7Hixn8zyaF7g==
-  /@types/get-port/3.2.0:
+  /@types/get-port/4.0.0:
     dev: false
     resolution:
-      integrity: sha512-TiNg8R1kjDde5Pub9F9vCwZA/BNW9HeXP5b9j7Qucqncy/McfPZ6xze/EyBdXS5FhMIGN6Fx3vg75l5KHy3V1Q==
+      integrity: sha512-Zp1GxOt3GNbIQqz2hSHSH7LALpTPvPHMA/aYut3VeitDgGwqcXEVvDQWWP3kPABsh3CGSHPSt67DN6jnc7oJMA==
   /@types/got/8.3.3:
     dependencies:
       '@types/node': 10.7.1
@@ -5850,7 +5850,7 @@ specifiers:
   '@types/camelcase-keys': ^4.0.0
   '@types/common-tags': ^1.2.5
   '@types/delay': ^2.0.1
-  '@types/get-port': ^3.2.0
+  '@types/get-port': ^4.0.0
   '@types/load-json-file': ^2.0.6
   '@types/lru-cache': ^4.1.1
   '@types/minimatch': ^3.0.3
