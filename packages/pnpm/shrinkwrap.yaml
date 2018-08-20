@@ -22,7 +22,7 @@ dependencies:
   cross-spawn: 6.0.5
   delay: 3.0.0
   diable: 4.0.1
-  execa: 0.10.0
+  execa: 0.11.0
   find-packages: 2.2.0
   get-port: 4.0.0
   graceful-fs: 4.1.11
@@ -1797,10 +1797,10 @@ packages:
     dev: false
     resolution:
       integrity: sha512-56pdiJngqQg7Rc4RR0ypVoOlm3GpJUkDNr0p8MKLWo4eavZEhYZDQmCM8QftvIuNjem4yoPf5xwQ9NKVq56VZA==
-  /execa/0.10.0:
+  /execa/0.11.0:
     dependencies:
       cross-spawn: 6.0.5
-      get-stream: 3.0.0
+      get-stream: 4.0.0
       is-stream: 1.1.0
       npm-run-path: 2.0.2
       p-finally: 1.0.0
@@ -1808,9 +1808,9 @@ packages:
       strip-eof: 1.0.0
     dev: false
     engines:
-      node: '>=4'
+      node: '>=6'
     resolution:
-      integrity: sha512-7XOMnz8Ynx1gGo/3hyV9loYNPWM94jG3+3T3Y8tsfSstFmETmENCMU/A/zj8Lyaj1lkgEepKepvd6240tBRvlw==
+      integrity: sha512-k5AR22vCt1DcfeiRixW46U5tMLtBg44ssdJM9PiXw3D8Bn5qyxFCSnKY/eR22y+ctFDGPqafpaXg2G4Emyua4A==
   /execa/0.7.0:
     dependencies:
       cross-spawn: 5.1.0
@@ -2217,6 +2217,14 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha1-jpQ9E1jcN1VQVOy+LtsFqhdO3hQ=
+  /get-stream/4.0.0:
+    dependencies:
+      pump: 3.0.0
+    dev: false
+    engines:
+      node: '>=6'
+    resolution:
+      integrity: sha512-FneLKMENeOR7wOK0/ZXCh+lwqtnPwkeunJjRN28LPqzGvNAhYvrTAhXv6xDm4vsJ0M7lcRbIYHQudKsSy2RtSQ==
   /get-value/2.0.6:
     dev: false
     engines:
@@ -5868,7 +5876,7 @@ specifiers:
   deep-require-cwd: ^1.0.0
   delay: ^3.0.0
   diable: ^4.0.1
-  execa: ^0.10.0
+  execa: ^0.11.0
   exists-link: ^2.0.0
   find-packages: ^2.2.0
   get-port: ^4.0.0

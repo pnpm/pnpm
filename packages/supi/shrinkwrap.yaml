@@ -26,7 +26,7 @@ dependencies:
   common-tags: 1.8.0
   dependency-path: 1.2.3
   encode-registry: 1.1.0
-  execa: 0.10.0
+  execa: 0.11.0
   get-npm-tarball-url: 2.0.1
   graceful-fs: 4.1.11
   graph-sequencer: 2.0.0
@@ -1266,7 +1266,6 @@ packages:
   /end-of-stream/1.4.1:
     dependencies:
       once: 1.4.0
-    dev: true
     resolution:
       integrity: sha512-1MkrZNvWTKCaigbn+W15elq2BB/L22nqrSY5DKlo3X6+vclJm8Bb5djXJBmEX6fS3+zCh/F4VBK5Z2KxJt4s2Q==
   /error-ex/1.3.2:
@@ -1335,10 +1334,10 @@ packages:
     resolution:
       integrity: sha1-SrTJoPWlTbkzi0w02Gv86PSzVXE=
       tarball: 'http://registry.npmjs.org/event-stream/-/event-stream-3.3.4.tgz'
-  /execa/0.10.0:
+  /execa/0.11.0:
     dependencies:
       cross-spawn: 6.0.5
-      get-stream: 3.0.0
+      get-stream: 4.0.0
       is-stream: 1.1.0
       npm-run-path: 2.0.2
       p-finally: 1.0.0
@@ -1346,9 +1345,9 @@ packages:
       strip-eof: 1.0.0
     dev: false
     engines:
-      node: '>=4'
+      node: '>=6'
     resolution:
-      integrity: sha512-7XOMnz8Ynx1gGo/3hyV9loYNPWM94jG3+3T3Y8tsfSstFmETmENCMU/A/zj8Lyaj1lkgEepKepvd6240tBRvlw==
+      integrity: sha512-k5AR22vCt1DcfeiRixW46U5tMLtBg44ssdJM9PiXw3D8Bn5qyxFCSnKY/eR22y+ctFDGPqafpaXg2G4Emyua4A==
   /exists-link/2.0.0:
     dev: true
     engines:
@@ -1553,12 +1552,14 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha512-zmZIaQTWnNQb4R4fJUEp/FC51eZsc6EkErspy3xtIYStaq8EB/hDIWipxsal+E8rz0qD7f2sL/NA9Xee4RInJw==
-  /get-stream/3.0.0:
+  /get-stream/4.0.0:
+    dependencies:
+      pump: 3.0.0
     dev: false
     engines:
-      node: '>=4'
+      node: '>=6'
     resolution:
-      integrity: sha1-jpQ9E1jcN1VQVOy+LtsFqhdO3hQ=
+      integrity: sha512-FneLKMENeOR7wOK0/ZXCh+lwqtnPwkeunJjRN28LPqzGvNAhYvrTAhXv6xDm4vsJ0M7lcRbIYHQudKsSy2RtSQ==
   /getpass/0.1.7:
     dependencies:
       assert-plus: 1.0.0
@@ -2917,6 +2918,13 @@ packages:
     dev: true
     resolution:
       integrity: sha512-ruPMNRkN3MHP1cWJc9OWr+T/xDP0jhXYCLfJcBuX54hhfIBnaQmAUMfDcG4DM5UMWByBbJY69QSphm3jtDKIkA==
+  /pump/3.0.0:
+    dependencies:
+      end-of-stream: 1.4.1
+      once: 1.4.0
+    dev: false
+    resolution:
+      integrity: sha512-LwZy+p3SFs1Pytd/jYct4wpv49HiYCqd9Rlc5ZVdk0V+8Yzv6jR5Blk3TRmPL1ft69TxP0IMZGJ+WPFU2BFhww==
   /pumpify/1.5.1:
     dependencies:
       duplexify: 3.6.0
@@ -4081,7 +4089,7 @@ specifiers:
   deep-require-cwd: ^1.0.0
   dependency-path: ^1.2.3
   encode-registry: ^1.0.0
-  execa: ^0.10.0
+  execa: ^0.11.0
   exists-link: ^2.0.0
   get-npm-tarball-url: ^2.0.0
   graceful-fs: ^4.1.11
