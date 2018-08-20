@@ -49,19 +49,13 @@
     "@pnpm/tarball-fetcher": "^2.0.0",
     "@types/tape": "^4.2.30",
     "@types/tempy": "^0.1.0",
-    "commitizen": "^2.8.6",
-    "cz-conventional-changelog": "^2.0.0",
-    "husky": "^0.14.3",
-    "in-publish": "^2.0.0",
     "npm-scripts-info": "^0.3.6",
-    "package-preview": "^1.0.0",
     "rimraf": "^2.6.1",
     "tape": "^4.7.0",
     "tempy": "^0.2.1",
     "ts-node": "^7.0.0",
     "tslint": "^5.4.2",
-    "typescript": "^3.0.0",
-    "validate-commit-msg": "^2.7.0"
+    "typescript": "^3.0.0"
   },
   "directories": {
     "test": "test"
@@ -84,31 +78,11 @@
   "scripts": {
     "info": "npm-scripts-info",
     "start": "npm run tsc -- --watch",
-    "?cz": "echo 'Run Git commit wizard'",
-    "cz": "git-cz",
-    "commitmsg": "validate-commit-msg",
     "fix": "tslint -c tslint.json --project . --fix",
     "lint": "tslint -c tslint.json --project .",
     "pretest": "rimraf .tmp",
-    "test": "npm run lint && pnpm link . && ts-node test --type-check",
+    "test": "npm run lint && npm run tsc && pnpm link . && ts-node test --type-check",
     "tsc": "rimraf lib && tsc",
-    "prepublishOnly": "npm run tsc",
-    "prepare": "npm run tsc"
-  },
-  "config": {
-    "commitizen": {
-      "path": "./node_modules/cz-conventional-changelog"
-    }
-  },
-  "greenkeeper": {
-    "ignore": [
-      "pnpm-default-reporter",
-      "pnpm-file-reporter",
-      "pnpm-install-checks",
-      "pnpm-logger",
-      "pnpm-registry-mock",
-      "remove-all-except-outer-links",
-      "pnpm-shrinkwrap"
-    ]
+    "prepublishOnly": "npm run tsc"
   }
 }

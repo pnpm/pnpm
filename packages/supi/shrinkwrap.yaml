@@ -868,7 +868,7 @@ packages:
     dependencies:
       ansi-styles: 3.2.1
       escape-string-regexp: 1.0.5
-      supports-color: 5.4.0
+      supports-color: 5.5.0
     dev: true
     engines:
       node: '>=4'
@@ -878,10 +878,10 @@ packages:
     dev: true
     resolution:
       integrity: sha1-4qdQQqlVGQi+vSW4Uj1fl2nXkYE=
-  /ci-info/1.3.1:
+  /ci-info/1.4.0:
     dev: false
     resolution:
-      integrity: sha512-l4wK/SFEN8VVTQ9RO1I5yzIL2vw1w6My29qA6Gwaec80QeHxfXbruuUWqn1knyMoJn/X5kav3zVY1TlRHSKeIA==
+      integrity: sha512-Oqmw2pVfCl8sCL+1QgMywPfdxPJPkC51y4usw0iiE2S9qnEOAqXy8bwl1CpMpnoU39g4iKJTz6QZj+28FvOnjQ==
   /cliui/2.1.0:
     dependencies:
       center-align: 0.1.3
@@ -939,7 +939,7 @@ packages:
       integrity: sha512-6P6g0uetGpW/sdyUy/iQQCbFF0kWVMSIVSyYz7Zgjcgh8mgw8PQzDNZeyZ5DQ2gM7LBoZPHmnjz8rUthkBG5tw==
   /compressible/2.0.14:
     dependencies:
-      mime-db: 1.35.0
+      mime-db: 1.36.0
     dev: true
     engines:
       node: '>= 0.6'
@@ -1815,7 +1815,7 @@ packages:
       integrity: sha512-r5p9sxJjYnArLjObpjA4xu5EKI3CuKHkJXMhT7kwbpUyIFD1n5PMAsoPvWnvtZiNz7LjkYDRZhd7FlI0eMijEA==
   /is-ci/1.2.0:
     dependencies:
-      ci-info: 1.3.1
+      ci-info: 1.4.0
     dev: false
     hasBin: true
     resolution:
@@ -2248,6 +2248,12 @@ packages:
       node: '>= 0.6'
     resolution:
       integrity: sha512-JWT/IcCTsB0Io3AhWUMjRqucrHSPsSf2xKLaRldJVULioggvkJvggZ3VXNNSRkCddE6D+BUI4HEIZIA2OjwIvg==
+  /mime-db/1.36.0:
+    dev: true
+    engines:
+      node: '>= 0.6'
+    resolution:
+      integrity: sha512-L+xvyD9MkoYMXb1jAmzI/lWYAxAMCPvIBSWur0PZ5nOf5euahRLVqH//FKW9mWp2lkqUgYiXPgkzfMUFi4zVDw==
   /mime-types/2.1.19:
     dependencies:
       mime-db: 1.35.0
@@ -3317,7 +3323,7 @@ packages:
       lodash.get: 4.4.2
       lolex: 2.7.1
       nise: 1.4.3
-      supports-color: 5.4.0
+      supports-color: 5.5.0
       type-detect: 4.0.8
     dev: true
     resolution:
@@ -3338,13 +3344,13 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha1-ZYU1WEhh7JfXMNbPQYIuH1ZoQSg=
-  /source-map-support/0.5.8:
+  /source-map-support/0.5.9:
     dependencies:
       buffer-from: 1.1.1
       source-map: 0.6.1
     dev: true
     resolution:
-      integrity: sha512-WqAEWPdb78u25RfKzOF0swBpY0dKrNdjc4GvLwm7ScX/o9bj8Eh/YL8mcMhBHYDGl87UkkSXDOFnW4G7GhWhGg==
+      integrity: sha512-gR6Rw4MvUlYy83vP0vxoVNzM6t8MUXqNuRsuBmBHQDu1Fh6X015FrLdgoDKcNdkwGubozq0P4N0Q37UyFVr1EA==
   /source-map/0.4.4:
     dependencies:
       amdefine: 1.0.1
@@ -3527,14 +3533,14 @@ packages:
       node: '>=0.8.0'
     resolution:
       integrity: sha1-U10EXOa2Nj+kARcIRimZXp3zJMc=
-  /supports-color/5.4.0:
+  /supports-color/5.5.0:
     dependencies:
       has-flag: 3.0.0
     dev: true
     engines:
       node: '>=4'
     resolution:
-      integrity: sha512-zjaXglF5nnWpsq470jSv6P9DwPvgLkuapYmfDm3JWOm0vkNTVF2tI4UrN2r6jH1qM/uc/WtxYY1hYoA2dOKj5w==
+      integrity: sha512-QjVjwdXIt408MIiAqCX4oUKsgU2EqAGzs2Ppkm4aQYbjm+ZEWEcW4SfFNTr4uMNZma0ey4f5lgLrkB0aX0QMow==
   /symlink-dir/1.1.3:
     dependencies:
       '@types/mz': 0.0.32
@@ -3673,7 +3679,7 @@ packages:
       make-error: 1.3.4
       minimist: 1.2.0
       mkdirp: 0.5.1
-      source-map-support: 0.5.8
+      source-map-support: 0.5.9
       yn: 2.0.0
     dev: true
     engines:
