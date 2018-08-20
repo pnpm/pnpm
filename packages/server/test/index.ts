@@ -13,7 +13,7 @@ import {
 } from '@pnpm/package-requester'
 import got = require('got')
 import isPortReachable = require('is-port-reachable')
-import createResolver from '@pnpm/npm-resolver'
+import createResolver, {PackageMetaCache} from '@pnpm/npm-resolver'
 import createFetcher from '@pnpm/tarball-fetcher'
 import createStore from 'package-store'
 
@@ -25,7 +25,7 @@ async function createStoreController () {
   const resolve = createResolver({
     rawNpmConfig,
     store,
-    metaCache: new Map<string, object>(),
+    metaCache: new Map<string, object>() as PackageMetaCache,
   })
   const fetchers = createFetcher({
     alwaysAuth: true,
@@ -147,8 +147,8 @@ test('server errors should arrive to the client', async t => {
     )
   } catch (e) {
     caught = true
-    t.equal(e.message, '404 Not Found: not-an-existing-package', 'error message delivered correctly')
-    t.equal(e.code, 'E404', 'error code delivered correctly')
+    t.equal(e.message, '404 Not Found: not-an-existing-package (via https://registry.npmjs.org/not-an-existing-package)', 'error message delivered correctly')
+    t.equal(e.code, 'ERR_PNPM_REGISTRY_META_RESPONSE_404', 'error code delivered correctly')
     t.ok(e.uri, 'error uri field delivered')
     t.ok(e.response, 'error response field delivered')
     t.ok(e.package, 'error package field delivered')
