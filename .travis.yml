@@ -14,7 +14,7 @@ before_install:
   - pnpm i -g pnpm@next
   - pnpm -v
 install:
-  - pnpm recursive install --no-lock
+  - pnpm recursive link --no-lock
 script:
   - set -e # Fail on first error
   - /bin/bash lint-commits.sh
