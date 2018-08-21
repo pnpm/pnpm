@@ -88,7 +88,7 @@
     "@pnpm/pkgid-to-filename": "^1.0.0",
     "@pnpm/read-package-json": "^1.0.0",
     "@pnpm/types": "^1.7.0",
-    "@pnpm/utils": "^0.5.0",
+    "@pnpm/utils": "^0.6.0",
     "@types/ramda": "0.25.34",
     "dependency-path": "^1.2.3",
     "graph-sequencer": "^2.0.0",

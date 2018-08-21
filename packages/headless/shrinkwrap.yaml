@@ -3694,7 +3694,7 @@ specifiers:
   '@pnpm/read-package-json': ^1.0.0
   '@pnpm/store-path': ^1.0.3
   '@pnpm/types': ^1.7.0
-  '@pnpm/utils': ^0.5.0
+  '@pnpm/utils': ^0.6.0
   '@types/fs-extra': ^5.0.1
   '@types/mz': ^0.0.32
   '@types/node': ^10.0.6

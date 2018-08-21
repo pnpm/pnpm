@@ -29,7 +29,7 @@
     "@pnpm/server": "^0.14.0",
     "@pnpm/store-path": "^1.0.3",
     "@pnpm/types": "^1.5.0",
-    "@pnpm/utils": "^0.5.1",
+    "@pnpm/utils": "^0.6.0",
     "@types/camelcase-keys": "^4.0.0",
     "@types/get-port": "^4.0.0",
     "@types/lru-cache": "^4.1.1",
