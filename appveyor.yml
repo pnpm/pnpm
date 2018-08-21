@@ -11,7 +11,7 @@ install:
   # Testing whether pnpm can upgrade itself
   - pnpm i -g pnpm@next
   - pnpm -v
-  - pnpm recursive link --no-lock
+  - pnpm recursive install --no-lock
 matrix:
   fast_finish: true
 build: off
