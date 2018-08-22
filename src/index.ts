@@ -76,23 +76,27 @@ async function dependenciesHierarchy(
   }, shrinkwrap.packages)
   const result: PackageNode[] = []
   Object.keys(topDeps).forEach((depName) => {
-    const relativeId = refToRelative(topDeps[depName], depName)
     const pkgPath = refToAbsolute(topDeps[depName], depName, shrinkwrap.registry)
     const pkg = {
       name: depName,
-      path: pkgPath,
+      path: pkgPath || topDeps[depName],
       version: topDeps[depName],
     }
-    const dependencies = getChildrenTree([relativeId], relativeId)
     let newEntry: PackageNode | null = null
     const matchedSearched = searched.length && matches(searched, pkg)
-    if (dependencies.length) {
-      newEntry = {
-        dependencies,
-        pkg,
-      }
-    } else if (!searched.length || matches(searched, pkg)) {
+    if (pkgPath === null) {
       newEntry = {pkg}
+    } else {
+      const relativeId = refToRelative(topDeps[depName], depName)
+      const dependencies = getChildrenTree([relativeId], relativeId)
+      if (dependencies.length) {
+        newEntry = {
+          dependencies,
+          pkg,
+        }
+      } else if (!searched.length || matches(searched, pkg)) {
+        newEntry = {pkg}
+      }
     }
     if (newEntry) {
       if (matchedSearched) {
@@ -154,23 +158,30 @@ function getTree(
   const result: PackageNode[] = []
   Object.keys(deps).forEach((depName) => {
     const pkgPath = refToAbsolute(deps[depName], depName, opts.registry)
-    const relativeId = refToRelative(deps[depName], depName)
     const pkg = {
       name: depName,
-      path: pkgPath,
+      path: pkgPath || deps[depName],
       version: deps[depName],
     }
-    const circular = keypath.indexOf(relativeId) !== -1
-    const dependencies = circular ? [] : getChildrenTree(keypath.concat([relativeId]), relativeId)
-    let newEntry: PackageNode | null = null
+    let circular: boolean
     const matchedSearched = opts.searched.length && matches(opts.searched, pkg)
-    if (dependencies.length) {
-      newEntry = {
-        dependencies,
-        pkg,
-      }
-    } else if (!opts.searched.length || matchedSearched) {
+    let newEntry: PackageNode | null = null
+    if (pkgPath === null) {
+      circular = false
       newEntry = {pkg}
+    } else {
+      const relativeId = refToRelative(deps[depName], depName) as string // we know for sure that relative is not null if pkgPath is not null
+      circular = keypath.indexOf(relativeId) !== -1
+      const dependencies = circular ? [] : getChildrenTree(keypath.concat([relativeId]), relativeId)
+
+      if (dependencies.length) {
+        newEntry = {
+          dependencies,
+          pkg,
+        }
+      } else if (!opts.searched.length || matchedSearched) {
+        newEntry = {pkg}
+      }
     }
     if (newEntry) {
       if (circular) {
