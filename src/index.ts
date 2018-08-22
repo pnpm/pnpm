@@ -131,12 +131,16 @@ async function _outdated (
         pkgs.map(async (packageName) => {
           const ref = wantedShrinkwrap[depType][packageName]
 
-          // ignoring linked packages
-          if (ref.startsWith('file:') || ref.startsWith('link:')) {
+          // ignoring linked packages. (For backward compatibility)
+          if (ref.startsWith('file:')) {
             return
           }
 
           const relativeDepPath = dp.refToRelative(ref, packageName)
+
+          // ignoring linked packages
+          if (relativeDepPath === null) return
+
           const pkgSnapshot = wantedShrinkwrap.packages && wantedShrinkwrap.packages[relativeDepPath]
 
           if (!pkgSnapshot) {

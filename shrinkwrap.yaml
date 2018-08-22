@@ -1,9 +1,10 @@
 dependencies:
   '@pnpm/npm-resolver': 2.1.4
+  '@pnpm/outdated': 'link:../__package_previews__/outdated/@pnpm/outdated'
   '@pnpm/read-package-json': 1.0.0
   '@pnpm/store-path': 1.0.3
   '@types/node': 10.5.4
-  dependency-path: 1.2.1
+  dependency-path: 2.0.0
   pnpm-shrinkwrap: 7.0.0
 devDependencies:
   '@pnpm/logger': 2.1.0
@@ -925,6 +926,16 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha512-VcFlKHsD8EoTuVeRY/cKXHhbUDOVLboIaleqEh9qbzpRW9eAhMdbhT7yID274qtq6UvTdpxMxNocfG8Mtg+i0Q==
+  /dependency-path/2.0.0:
+    dependencies:
+      '@types/semver': 5.5.0
+      encode-registry: 1.1.0
+      semver: 5.5.0
+    dev: false
+    engines:
+      node: '>=6'
+    resolution:
+      integrity: sha512-Al6qJe6ip6vgm+BfCEZlN1prHDtE4SvyfEYKm+1JcWThc2W2STQP0KCa8VOf50Wo+L6oe5Yu3hRjSN+MEYlIxA==
   /detect-indent/4.0.0:
     dependencies:
       repeating: 2.0.1
@@ -3620,7 +3631,7 @@ packages:
     resolution:
       integrity: sha1-5a2ryKz0CPY4X8dklWhMiOavaJo=
 registry: 'https://registry.npmjs.org/'
-shrinkwrapMinorVersion: 8
+shrinkwrapMinorVersion: 9
 shrinkwrapVersion: 3
 specifiers:
   '@pnpm/logger': ^2.0.1
@@ -3629,7 +3640,7 @@ specifiers:
   '@pnpm/store-path': ^1.0.0
   '@types/node': ^9.3.0 || 10
   '@types/tape': ^4.2.31
-  dependency-path: ^1.2.0
+  dependency-path: ^2.0.0
   mos: ^2.0.0-alpha.3
   mos-plugin-readme: ^1.0.4
   package-preview: ^1.0.0

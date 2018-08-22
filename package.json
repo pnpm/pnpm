@@ -43,7 +43,7 @@
     "@pnpm/read-package-json": "^1.0.0",
     "@pnpm/store-path": "^1.0.0",
     "@types/node": "^9.3.0 || 10",
-    "dependency-path": "^1.2.0",
+    "dependency-path": "^2.0.0",
     "pnpm-shrinkwrap": "^7.0.0"
   },
   "devDependencies": {
