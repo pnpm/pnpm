@@ -17,7 +17,6 @@ import {
   getSaveType,
   packageJsonLogger,
   realNodeModulesDir,
-  rootLogger,
   safeReadPackageFromDir as safeReadPkgFromDir,
   skippedOptionalDependencyLogger,
   stageLogger,
@@ -25,7 +24,6 @@ import {
 } from '@pnpm/utils'
 import * as dp from 'dependency-path'
 import graphSequencer = require('graph-sequencer')
-import pFilter = require('p-filter')
 import pLimit = require('p-limit')
 import {
   StoreController,
@@ -48,7 +46,6 @@ import depsToSpecs, {similarDepsToSpecs} from '../depsToSpecs'
 import {absolutePathToRef} from '../fs/shrinkwrap'
 import getSpecFromPackageJson from '../getSpecFromPackageJson'
 import linkPackages, {DepGraphNodesByDepPath} from '../link'
-import {DepGraphNode} from '../link/resolvePeers'
 import {
   createNodeId,
   nodeIdContainsSequence,
