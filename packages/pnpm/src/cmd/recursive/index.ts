@@ -80,6 +80,7 @@ export async function recursive (
   allPkgs: Array<{path: string, manifest: PackageJson}>,
   input: string[],
   opts: PnpmOptions & {
+    allowNew?: boolean,
     filterByEntryDirectory?: string,
     inputForEntryDirectory?: string[],
   },

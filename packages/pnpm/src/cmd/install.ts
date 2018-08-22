@@ -9,6 +9,11 @@ import requireHooks from '../requireHooks'
 import {PnpmOptions} from '../types'
 import {recursive} from './recursive'
 
+const OVERWRITE_UPDATE_OPTIONS = {
+  allowNew: true,
+  update: false,
+}
+
 /**
  * Perform installation.
  * @example
@@ -16,7 +21,9 @@ import {recursive} from './recursive'
  */
 export default async function installCmd (
   input: string[],
-  opts: PnpmOptions,
+  opts: PnpmOptions & {
+    allowNew?: boolean,
+  },
 ) {
   // `pnpm install ""` is going to be just `pnpm install`
   input = input.filter(Boolean)
@@ -53,6 +60,7 @@ export default async function installCmd (
     const allWorkspacePkgs = await findWorkspacePackages(opts.workspacePrefix)
     await recursive(allWorkspacePkgs, [], {
       ...opts,
+      ...OVERWRITE_UPDATE_OPTIONS,
       filterByEntryDirectory: prefix,
       inputForEntryDirectory: input,
     }, 'install', 'install')

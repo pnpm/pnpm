@@ -164,4 +164,11 @@ test('linking a package inside a monorepo with --link-workspace-packages', async
     const shr = await projects['project-1'].loadShrinkwrap()
     t.equal(shr.optionalDependencies['is-positive'], '1.0.0')
   }
+
+  await execPnpm('update', 'is-negative@2.0.0')
+
+  {
+    const shr = await projects['project-1'].loadShrinkwrap()
+    t.equal(shr.devDependencies['is-negative'], '2.0.0')
+  }
 })
