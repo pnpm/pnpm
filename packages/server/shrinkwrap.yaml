@@ -13,7 +13,7 @@ dependencies:
   uuid: 3.3.2
 devDependencies:
   '@pnpm/logger': 2.1.0
-  '@pnpm/npm-resolver': 2.2.2
+  '@pnpm/npm-resolver': 2.2.3
   '@pnpm/tarball-fetcher': 1.0.0
   '@types/mz': 0.0.32
   '@types/tape': 4.2.32
@@ -46,7 +46,7 @@ packages:
       node: '>=6'
     resolution:
       integrity: sha512-BL4Laf6b50LjdcpOUWPukx2XJtb3mo2OpJjHdRNSDJu9YS2tRBeP14H2bNqGjCjfeml8z3KufI3Km6VQemVXNw==
-  /@pnpm/npm-resolver/2.2.2:
+  /@pnpm/npm-resolver/2.2.3:
     dependencies:
       '@pnpm/resolver-base': 1.2.0
       '@pnpm/types': 1.7.0
@@ -73,7 +73,7 @@ packages:
     peerDependencies:
       '@pnpm/logger': ^1.0.0 || ^2.0.0
     resolution:
-      integrity: sha512-3G1WA6hLug1ylkSUnaINhNYpFBDdS0xfVn/vdD21/hQLc20EsYJCaaBcudO4l9PHHLis2MPMOoS/taUptyZUBA==
+      integrity: sha512-/57JkQq0SKZEBRcgcXD9j9AyMm0LL6ljTkHZDNAs//NjbkTMsvhdLY9v7rbFMq3Wx+vwMtYvdvc/T0ZvpbXqqQ==
   /@pnpm/resolver-base/1.2.0:
     dependencies:
       '@pnpm/types': 1.7.0
@@ -3520,7 +3520,7 @@ shrinkwrapMinorVersion: 9
 shrinkwrapVersion: 3
 specifiers:
   '@pnpm/logger': ^2.1.0
-  '@pnpm/npm-resolver': ^2.2.2
+  '@pnpm/npm-resolver': ^2.2.3
   '@pnpm/package-requester': ^4.0.0
   '@pnpm/resolver-base': ^1.1.0
   '@pnpm/tarball-fetcher': ^1.0.0

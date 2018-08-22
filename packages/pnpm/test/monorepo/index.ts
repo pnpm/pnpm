@@ -103,7 +103,7 @@ test('linking a package inside a monorepo with --link-workspace-packages', async
         'project-2': '2.0.0',
       },
       devDependencies: {
-        'project-3': '3.0.0',
+        'is-negative': '100.0.0',
       },
       optionalDependencies: {
         'is-positive': '1.0.0',
@@ -123,8 +123,8 @@ test('linking a package inside a monorepo with --link-workspace-packages', async
       },
     },
     {
-      name: 'project-3',
-      version: '3.0.0',
+      name: 'is-negative',
+      version: '100.0.0',
     },
     {
       name: 'is-positive',
@@ -143,13 +143,13 @@ test('linking a package inside a monorepo with --link-workspace-packages', async
   t.deepEqual(outputs, ['project-2', 'project-1'])
 
   await projects['project-1'].has('project-2')
-  await projects['project-1'].has('project-3')
+  await projects['project-1'].has('is-negative')
   await projects['project-1'].has('is-positive')
 
   {
     const shr = await projects['project-1'].loadShrinkwrap()
     t.equal(shr.dependencies['project-2'], 'link:../project-2')
-    t.equal(shr.devDependencies['project-3'], 'link:../project-3')
+    t.equal(shr.devDependencies['is-negative'], 'link:../is-negative')
     t.equal(shr.optionalDependencies['is-positive'], 'link:../is-positive')
   }
 

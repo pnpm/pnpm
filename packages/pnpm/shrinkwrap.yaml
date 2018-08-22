@@ -180,7 +180,7 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha512-bl9TPt2UObSEpGPQHZ2soXSSwz+/0XZqK+afBRJ4L78NKV41oZTUnrLjeNbeNEVwIG9icrQ3ZeSslIvQy4L+Dw==
-  /@pnpm/npm-resolver/2.2.2:
+  /@pnpm/npm-resolver/2.2.3:
     dependencies:
       '@pnpm/resolver-base': 1.2.0
       '@pnpm/types': 1.7.0
@@ -207,10 +207,10 @@ packages:
     peerDependencies:
       '@pnpm/logger': ^1.0.0 || ^2.0.0
     resolution:
-      integrity: sha512-3G1WA6hLug1ylkSUnaINhNYpFBDdS0xfVn/vdD21/hQLc20EsYJCaaBcudO4l9PHHLis2MPMOoS/taUptyZUBA==
+      integrity: sha512-/57JkQq0SKZEBRcgcXD9j9AyMm0LL6ljTkHZDNAs//NjbkTMsvhdLY9v7rbFMq3Wx+vwMtYvdvc/T0ZvpbXqqQ==
   /@pnpm/outdated/0.4.1:
     dependencies:
-      '@pnpm/npm-resolver': 2.2.2
+      '@pnpm/npm-resolver': 2.2.3
       '@pnpm/read-package-json': 1.0.0
       '@pnpm/store-path': 1.0.3
       '@types/node': 10.7.1
