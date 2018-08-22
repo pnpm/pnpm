@@ -62,11 +62,11 @@ devDependencies:
   '@pnpm/read-package-json': 1.0.0
   '@types/byline': 4.2.31
   '@types/common-tags': 1.4.0
-  '@types/delay': 2.0.1
   '@types/load-json-file': 2.0.7
   '@types/mkdirp': 0.5.2
   '@types/node': 10.7.1
   '@types/nopt': 3.0.29
+  '@types/p-any': 1.1.2
   '@types/ramda': 0.25.34
   '@types/retry': 0.10.2
   '@types/semver': 5.5.0
@@ -83,6 +83,7 @@ devDependencies:
   normalize-newline: 3.0.0
   npm-run-all: 4.1.3
   npm-scripts-info: 0.3.9
+  p-any: 1.1.0
   package-preview: 1.0.6
   path-exists: 3.0.0
   pnpm-registry-mock: 2.2.0
@@ -265,6 +266,10 @@ packages:
   /@pnpm/types/1.7.0:
     resolution:
       integrity: sha512-pn7g4uxcofWTNG/cxmKvkMK2lxr4OUIhrQDrEVYEdVhW0WkWztsHkFrYjFgfNzPbYu3ITlB3T6aSVjCoJQTOlw==
+  /@types/aggregate-error/1.0.0:
+    dev: true
+    resolution:
+      integrity: sha512-IcFSztsIxbL8XWGqsT6l4XbzvrOWS+b44MNtzAYTvxGPITTtioKNgUO3vKABLGcJciViaNOxBZl4MlpZEG1pJg==
   /@types/archy/0.0.31:
     dev: false
     resolution:
@@ -283,10 +288,6 @@ packages:
     dev: true
     resolution:
       integrity: sha512-HI1tSO87vmd1sPS3DOVSK4gvVKROvCBFvAnXlLiQtAus/+1xXMQcNyu9TX2ChwRXFeQZeB9+f+nMo99xLd5DdA==
-  /@types/delay/2.0.1:
-    dev: true
-    resolution:
-      integrity: sha512-D1/YuYOcdOIdaQnaiUJ77VcilVvESkynw79CtGqpjkXyv4OUezEVZtdXnSOwXL8Zcelu66QbyC8QQcVQ/ZPdig==
   /@types/fs-extra/5.0.4:
     dependencies:
       '@types/node': 10.7.1
@@ -350,6 +351,12 @@ packages:
     dev: true
     resolution:
       integrity: sha1-8Z3z20yX7hRZonQAKDIKcdcJZM4=
+  /@types/p-any/1.1.2:
+    dependencies:
+      '@types/aggregate-error': 1.0.0
+    dev: true
+    resolution:
+      integrity: sha512-Lm/tV8QgjMtiooDoO9qNsPgWiZowtO4hZ18q9p0PQ/jSsQbwGASW1s1I/sx0yXClfY24d+ONlViFuq6kiCghqw==
   /@types/path-exists/3.0.0:
     dev: true
     resolution:
@@ -471,6 +478,15 @@ packages:
       node: '>= 4.0.0'
     resolution:
       integrity: sha512-Cte/sTY9/XcygXjJ0q58v//SnEQ7ViWExKyJpLJlLqomDbQyMLh6Is4KuWJ/wmxzhiwkGRple7Gqv1zf6Syz5w==
+  /aggregate-error/1.0.0:
+    dependencies:
+      clean-stack: 1.3.0
+      indent-string: 3.2.0
+    dev: true
+    engines:
+      node: '>=4'
+    resolution:
+      integrity: sha1-iINE2tAiCnLjr1CQYRf0h3GSX6w=
   /ajv/5.5.2:
     dependencies:
       co: 4.6.0
@@ -1080,6 +1096,12 @@ packages:
       node: '>=0.10.0'
     resolution:
       integrity: sha512-qOhPa/Fj7s6TY8H8esGu5QNpMMQxz79h+urzrNYN6mn+9BnxlDGf5QZ+XeCDsxSjPqsSR56XOZOJmpeurnLMeg==
+  /clean-stack/1.3.0:
+    dev: true
+    engines:
+      node: '>=4'
+    resolution:
+      integrity: sha1-noIVAa6XmYbEax1m0tQy2y/UrjE=
   /cli-box/5.0.0:
     dependencies:
       ansi-parser: 3.0.0
@@ -3842,6 +3864,14 @@ packages:
     dev: false
     resolution:
       integrity: sha1-sptrsq11acTmb67yjLXXQ2EXnLQ=
+  /p-any/1.1.0:
+    dependencies:
+      p-some: 2.0.1
+    dev: true
+    engines:
+      node: '>=4'
+    resolution:
+      integrity: sha512-Ef0tVa4CZ5pTAmKn+Cg3w8ABBXh+hHO1aV8281dKOoUHfX+3tjG2EaFcC+aZyagg9b4EYGsHEjz21DnEE8Og2g==
   /p-filter/1.0.0:
     dependencies:
       p-map: 1.2.0
@@ -3890,6 +3920,14 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha512-r6zKACMNhjPJMTl8KcFH4li//gkrXWfbD6feV8l6doRHlzljFWGJ2AP6iKaCJXyZmAUMOPtvbW7EXkbWO/pLEA==
+  /p-some/2.0.1:
+    dependencies:
+      aggregate-error: 1.0.0
+    dev: true
+    engines:
+      node: '>=4'
+    resolution:
+      integrity: sha1-Zdh8ixVO289SIdFnd4ttLhUPbwY=
   /p-try/1.0.0:
     engines:
       node: '>=4'
@@ -5862,7 +5900,6 @@ specifiers:
   '@types/byline': ^4.2.31
   '@types/camelcase-keys': ^4.0.0
   '@types/common-tags': ^1.2.5
-  '@types/delay': ^2.0.1
   '@types/get-port': ^4.0.0
   '@types/load-json-file': ^2.0.6
   '@types/lru-cache': ^4.1.1
@@ -5871,6 +5908,7 @@ specifiers:
   '@types/mz': ^0.0.32
   '@types/node': ^10.0.6
   '@types/nopt': ^3.0.29
+  '@types/p-any': ^1.1.2
   '@types/ramda': 0.25.34
   '@types/retry': ^0.10.2
   '@types/semver': ^5.3.32
@@ -5910,6 +5948,7 @@ specifiers:
   normalize-newline: ^3.0.0
   npm-run-all: ^4.0.1
   npm-scripts-info: ^0.3.6
+  p-any: ^1.1.0
   p-limit: ^2.0.0
   package-preview: ^1.0.0
   package-store: ^0.23.0

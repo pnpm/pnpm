@@ -1,12 +1,10 @@
 import byline = require('byline')
 import { ChildProcess } from 'child_process'
 import delay = require('delay')
-import { CancelError, PDelayedPassThroughThunk } from 'delay'
 import isWindows = require('is-windows')
-import fs = require('mz/fs')
+import pAny = require('p-any')
 import path = require('path')
 import pathExists = require('path-exists')
-import { Readable } from 'stream';
 import tape = require('tape')
 import promisifyTape from 'tape-promise'
 import killcb = require('tree-kill')
@@ -18,13 +16,16 @@ import {
   execPnpm,
   execPnpmSync,
   prepare,
-  ResolveFunction,
   retryLoadJsonFile,
   spawn,
 } from './utils'
 
 // Third element is true if and only if we attempted to kill the process via a signal.
-type ServerProcess = [ChildProcess, Deferred<void>, boolean]
+interface ServerProcess {
+  childProcess: ChildProcess,
+  running: Deferred<void>,
+  attemptedToKill: boolean,
+}
 const IS_WINDOWS = isWindows()
 const test = promisifyTape(tape)
 test['only'] = promisifyTape(tape.only)
@@ -208,76 +209,81 @@ test('store server started in the background should use store location wanted by
   t.notOk(await pathExists(serverJsonPath), 'server.json removed')
 })
 
-async function testParallelServerStart (options: {
-  test: tape.Test,
-  timeoutMillis?: number,
-  onProcessClosed?: (serverProcess: ChildProcess, weAttemptedKill: boolean) => void,
-  n?: number,
-  }) {
-  const pnpmBin = 'pnpm'
+async function testParallelServerStart (
+  options: {
+    test: tape.Test,
+    timeoutMillis?: number,
+    onProcessClosed: (serverProcess: ChildProcess, weAttemptedKill: boolean) => void,
+    n: number,
+  },
+) {
+  let stopped = false
   const serverProcessList: ServerProcess[] = []
-  // Variable that allows us to cancel the timeout.
-  let timeoutPromise: PDelayedPassThroughThunk<void>|null = delay(!options.timeoutMillis && options.timeoutMillis !== 0 ? 10000 : options.timeoutMillis)
+
   // Promise that completes when all server processes have terminated.
   let completedPromise: Promise<void> = Promise.resolve()
-  const n = !options.n && options.n !== 0 ? 10 : options.n
-  for (let i = 0; i < n; i++) {
-    const item: ServerProcess = [
-      spawn(['server', 'start']),
-      createDeferred<void>(),
+  for (let i = 0; i < options.n; i++) {
+    const item: ServerProcess = {
+      childProcess: spawn(['server', 'start']),
+      running: createDeferred<void>(),
       // This is true if and only if we attempted to kill the process via a signal.
-      false]
+      attemptedToKill: false,
+    }
     serverProcessList.push(item)
-    byline(item[0].stderr).on('data', (line: Buffer) => options.test.comment(`${item[0].pid}: ${line}`))
-    byline(item[0].stdout).on('data', (line: Buffer) => options.test.comment(`${item[0].pid}: ${line}`))
-    item[0].on('exit', (code: number|null, signal: string|null) => {
-      if (options.onProcessClosed) {
-        (options.onProcessClosed)(item[0], item[2])
-      }
+
+    byline(item.childProcess.stderr).on('data', (line: Buffer) => options.test.comment(`${item.childProcess.pid}: ${line}`))
+    byline(item.childProcess.stdout).on('data', (line: Buffer) => options.test.comment(`${item.childProcess.pid}: ${line}`))
+
+    item.childProcess.on('exit', async (code: number | null, signal: string | null) => {
+      options.onProcessClosed(item.childProcess, item.attemptedToKill)
       for (let j = 0; j < serverProcessList.length; j++) {
-        if (serverProcessList[j][0] === item[0]) {
+        if (serverProcessList[j].childProcess === item.childProcess) {
           serverProcessList.splice(j, 1)
           break
         }
       }
-      item[1].resolve()
-    });
-    completedPromise = completedPromise.then(() => item[1].promise)
+      item.running.resolve()
+      if (serverProcessList.length === 1 && timeoutPromise !== null) {
+        serverProcessList[0].attemptedToKill = true
+        await stopRemainingServers()
+      }
+    })
+    completedPromise = completedPromise.then(() => item.running.promise)
   }
-  await Promise.all([
+
+  const timeoutMillis = options.timeoutMillis || 10000
+  let timeoutPromise = delay(timeoutMillis)
+  await pAny([
     (async () => {
       await completedPromise
       // Don't fire timeout if all server processes completed for some reason.
       if (timeoutPromise !== null) {
-        timeoutPromise.cancel()
+        timeoutPromise.clear()
       }
     })(),
     (async () => {
-      try {
-        await timeoutPromise
-      } catch (error) {
-        if (error instanceof CancelError) {
-          // All child processes completed, don't fire timeout or try to kill processes.
-          return
-        }
-        // This should never happen so it's OK if we don't kill remaining server processes in this path.
-        throw error
-      }
+      await timeoutPromise
       timeoutPromise = null
       for (const item of serverProcessList) {
-        item[2] = true
+        item.attemptedToKill = true
       }
-      await execPnpm('server', 'stop')
-      await Promise.all(serverProcessList.map(async (item) => {
-        // Use SIGINT so that the process can delete server.json for the next test.
-        // Windows does not support signals: the server process will be killed without
-        // it having a chance to perform cleanup, but the 'server stop' will make sure
-        // server.json etc. are removed.
-        await kill(item[0].pid, 'SIGINT')
-        await item[1].promise
-      }))
+      stopRemainingServers()
     })(),
   ])
+
+  async function stopRemainingServers () {
+    if (stopped) return
+    stopped = true
+    await execPnpm('server', 'stop')
+    await Promise.all(serverProcessList.map(async (item) => {
+      // Use SIGINT so that the process can delete server.json for the next test.
+      // Windows does not support signals: the server process will be killed without
+      // it having a chance to perform cleanup, but the 'server stop' will make sure
+      // server.json etc. are removed.
+      await kill(item.childProcess.pid, 'SIGINT')
+      await item.running.promise
+    }))
+  }
 }
 
 test('parallel server starts against the same store should result in only one server process existing after 10 seconds', async (t: tape.Test) => {
@@ -289,7 +295,7 @@ test('parallel server starts against the same store should result in only one se
   // n + 1 total
   t.plan(n + 1)
 
-  const project = prepare(t)
+  prepare(t)
   await testParallelServerStart({
     n,
     onProcessClosed: (serverProcess: ChildProcess, weAttemptedKill: boolean) => {
@@ -298,7 +304,7 @@ test('parallel server starts against the same store should result in only one se
       }
     },
     test: t,
-    timeoutMillis: 10000,
+    timeoutMillis: 60000,
   })
   const serverJsonPath = path.resolve('..', 'store', '2', 'server', 'server.json')
   t.notOk(await pathExists(serverJsonPath), 'server.json removed')
