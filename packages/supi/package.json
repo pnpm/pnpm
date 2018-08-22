@@ -44,7 +44,7 @@
     "@types/semver": "^5.3.30",
     "@zkochan/npm-package-arg": "^1.0.0",
     "common-tags": "^1.4.0",
-    "dependency-path": "^1.2.3",
+    "dependency-path": "^2.0.0",
     "encode-registry": "^1.0.0",
     "execa": "^0.11.0",
     "get-npm-tarball-url": "^2.0.0",

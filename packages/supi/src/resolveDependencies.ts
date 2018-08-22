@@ -172,6 +172,7 @@ function preferedSatisfiesWanted (
   },
 ) {
   const relDepPath = dp.refToRelative(preferredRef, wantedDep.alias)
+  if (relDepPath === null) return false
   const pkgSnapshot = shr.packages && shr.packages[relDepPath]
   if (!pkgSnapshot) {
     logger.warn({

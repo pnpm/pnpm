@@ -24,7 +24,7 @@ dependencies:
   '@types/semver': 5.5.0
   '@zkochan/npm-package-arg': 1.0.0
   common-tags: 1.8.0
-  dependency-path: 1.2.3
+  dependency-path: 2.0.0
   encode-registry: 1.1.0
   execa: 0.11.0
   get-npm-tarball-url: 2.0.1
@@ -46,7 +46,7 @@ dependencies:
   path-absolute: 1.0.0
   path-exists: 3.0.0
   pnpm-install-checks: 1.1.0
-  pnpm-shrinkwrap: 7.0.1
+  pnpm-shrinkwrap: 7.0.2
   ramda: 0.25.0
   remove-all-except-outer-links: 1.0.3
   replace-string: 1.1.0
@@ -1168,16 +1168,16 @@ packages:
       node: '>= 0.6'
     resolution:
       integrity: sha1-m81S4UwJd2PnSbJ0xDRu0uVgtak=
-  /dependency-path/1.2.3:
+  /dependency-path/2.0.0:
     dependencies:
       '@types/semver': 5.5.0
       encode-registry: 1.1.0
       semver: 5.5.1
     dev: false
     engines:
-      node: '>=4'
+      node: '>=6'
     resolution:
-      integrity: sha512-0ar5eYv/LzXnqjKXGQQoaSlEitPpIKpEIMvvmr5SUrqaSSp3Q20UlQDHPSRvKAPf8KDofyqRzrJhfvrhdUwLSg==
+      integrity: sha512-Al6qJe6ip6vgm+BfCEZlN1prHDtE4SvyfEYKm+1JcWThc2W2STQP0KCa8VOf50Wo+L6oe5Yu3hRjSN+MEYlIxA==
   /destroy/1.0.4:
     dev: true
     resolution:
@@ -2845,14 +2845,14 @@ packages:
     hasBin: true
     resolution:
       integrity: sha512-P+0pikpHEIaEW76sfRN7zfGwQ6evnSyAKSkmaKPuvqMX0/KyH8Mt/ulZmS9jNVmV9tLzZ1pZB4LOS9TN8znpAA==
-  /pnpm-shrinkwrap/7.0.1:
+  /pnpm-shrinkwrap/7.0.2:
     dependencies:
       '@pnpm/resolver-base': 1.2.0
       '@pnpm/types': 1.7.0
       '@types/js-yaml': 3.11.2
       '@types/node': 10.7.1
       '@types/ramda': 0.25.34
-      dependency-path: 1.2.3
+      dependency-path: 2.0.0
       get-npm-tarball-url: 2.0.1
       js-yaml: 3.12.0
       load-yaml-file: 0.1.0
@@ -2867,7 +2867,7 @@ packages:
     peerDependencies:
       '@pnpm/logger': '>=2.0.1 <3.0.0'
     resolution:
-      integrity: sha512-PkIxFv+S0l9j99EYln9oM8rYcgCEsMJnGvHN8Ck5ja8Fg50pMKM8lK+C2MVRIxutMg50hrCYRaOh84zRZZUQDQ==
+      integrity: sha512-3ERaQHBTUVAlhoinTWd+iZlPs7n+O3gKKv5H3BJ86WhLM/HYVO6JG5B8DqpiDzTqrR245YYK3GoKDn9lcvdJyQ==
   /process-nextick-args/2.0.0:
     resolution:
       integrity: sha512-MtEC1TqN0EU5nephaJ4rAtThHtC86dNN9qCuEhtshvpVBkAW5ZO7BASN9REnF9eoXGcRub+pFuKEpOHE+HbEMw==
@@ -4093,7 +4093,7 @@ specifiers:
   common-tags: ^1.4.0
   cross-spawn: ^6.0.5
   deep-require-cwd: ^1.0.0
-  dependency-path: ^1.2.3
+  dependency-path: ^2.0.0
   encode-registry: ^1.0.0
   execa: ^0.11.0
   exists-link: ^2.0.0

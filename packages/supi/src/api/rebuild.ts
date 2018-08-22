@@ -11,7 +11,6 @@ import graphSequencer = require('graph-sequencer')
 import pLimit = require('p-limit')
 import path = require('path')
 import {
-  DependencyShrinkwrap,
   nameVerFromPkgSnapshot,
   PackageSnapshots,
   ResolvedPackages,
@@ -25,13 +24,6 @@ import extendOptions, {
   StrictRebuildOptions,
 } from './extendRebuildOptions'
 import getContext from './getContext'
-
-interface PackageToRebuild {
-  relativeDepPath: string,
-  name: string,
-  version?: string,
-  pkgShr: DependencyShrinkwrap
-}
 
 function findPackages (
   packages: ResolvedPackages,
@@ -186,11 +178,19 @@ function getSubgraphToBuild (
     if (walked.has(depPath)) continue
     walked.add(depPath)
     const pkgSnapshot = pkgSnapshots[depPath]
-    if (!pkgSnapshot && depPath.startsWith('link:')) continue
+    if (!pkgSnapshot) {
+      if (depPath.startsWith('link:')) continue
+      const err = new Error(`No entry for "${depPath}" in shrinkwrap.yaml`)
+      err['code'] = 'ERR_PNPM_NO_ENTRY_IN_SHRINKWRAP' // tslint:disable-line:no-string-literal
+      throw err
+    }
     const nextEntryNodes = R.toPairs({
       ...pkgSnapshot.dependencies,
       ...(opts.optional && pkgSnapshot.optionalDependencies || {}),
-    }).map((pair) => dp.refToRelative(pair[1], pair[0]))
+    })
+    .map((pair) => dp.refToRelative(pair[1], pair[0]))
+    .filter((nodeId) => nodeId !== null) as string[]
+
     const childShouldBeBuilt = getSubgraphToBuild(pkgSnapshots, nextEntryNodes, nodesToBuildAndTransitive, walked, opts)
       || opts.pkgsToRebuild.has(depPath)
     if (childShouldBeBuilt) {
@@ -210,13 +210,14 @@ async function _rebuild (
   const limitChild = pLimit(opts.childConcurrency)
   const graph = new Map()
   const pkgSnapshots: PackageSnapshots = shr.packages || {}
-  const relDepPaths = R.keys(pkgSnapshots)
 
   const entryNodes = R.toPairs({
     ...(opts.development && shr.devDependencies || {}),
     ...(opts.production && shr.dependencies || {}),
     ...(opts.optional && shr.optionalDependencies || {}),
-  }).map((pair) => dp.refToRelative(pair[1], pair[0]))
+  })
+  .map((pair) => dp.refToRelative(pair[1], pair[0]))
+  .filter((nodeId) => nodeId !== null) as string[]
 
   const nodesToBuildAndTransitive = new Set()
   getSubgraphToBuild(pkgSnapshots, entryNodes, nodesToBuildAndTransitive, new Set(), {optional: opts.optional === true, pkgsToRebuild})

@@ -261,6 +261,7 @@ async function linkRootPackages (
         const isOptional = shr.optionalDependencies && shr.optionalDependencies[alias]
 
         const relDepPath = dp.refToRelative(allDeps[alias], alias)
+        if (relDepPath === null) return
         const pkgSnapshot = shr.packages && shr.packages[relDepPath]
         if (!pkgSnapshot) return // this won't ever happen. Just making typescript happy
         const pkgId = pkgSnapshot.id || depPath
@@ -400,6 +401,10 @@ async function getChildrenPaths (
   const children: {[alias: string]: string} = {}
   for (const alias of R.keys(allDeps)) {
     const childDepPath = dp.refToAbsolute(allDeps[alias], alias, ctx.registry)
+    if (childDepPath === null) {
+      children[alias] = path.resolve(ctx.prefix, allDeps[alias].substr(5))
+      continue
+    }
     const childRelDepPath = dp.relative(ctx.registry, childDepPath)
     const childPkgSnapshot = ctx.pkgSnapshotsByRelDepPaths[childRelDepPath]
     if (ctx.graph[childDepPath]) {
@@ -414,7 +419,7 @@ async function getChildrenPaths (
       const relDepPath = dp.relative(ctx.registry, childDepPath)
       const pkgName = nameVerFromPkgSnapshot(relDepPath, childPkgSnapshot).name
       children[alias] = path.join(ctx.nodeModules, `.${pkgIdToFilename(childDepPath)}`, 'node_modules', pkgName)
-    } else if (allDeps[alias].indexOf('link:') === 0 || allDeps[alias].indexOf('file:') === 0) {
+    } else if (allDeps[alias].indexOf('file:') === 0) {
       children[alias] = path.resolve(ctx.prefix, allDeps[alias].substr(5))
     } else {
       throw new Error(`${childRelDepPath} not found in shrinkwrap.yaml`)
