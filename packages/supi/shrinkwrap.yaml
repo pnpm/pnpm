@@ -4060,7 +4060,7 @@ specifiers:
   '@pnpm/default-fetcher': ^2.0.0
   '@pnpm/default-resolver': ^2.0.0
   '@pnpm/fs-locker': ^1.0.0
-  '@pnpm/headless': ^0.6.0
+  '@pnpm/headless': ^0.6.2
   '@pnpm/lifecycle': ^3.0.0
   '@pnpm/link-bins': ^3.0.0
   '@pnpm/logger': ^2.1.0
