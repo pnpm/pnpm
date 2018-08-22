@@ -46,5 +46,6 @@ function createEnv (opts?: {storeDir?: string}) {
     // on CI servers we set it to `false`. That is why we set it back to true for the tests
     npm_config_verify_store_integrity: 'true',
   })
+  delete _.npm_config_link_workspace_packages
   return _
 }
