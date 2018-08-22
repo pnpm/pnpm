@@ -56,7 +56,7 @@
     "@types/js-yaml": "^3.10.1",
     "@types/node": "^10.0.6",
     "@types/ramda": "^0.25.12",
-    "dependency-path": "^1.2.1",
+    "dependency-path": "^2.0.0",
     "get-npm-tarball-url": "^2.0.1",
     "js-yaml": "^3.8.4",
     "load-yaml-file": "^0.1.0",

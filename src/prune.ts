@@ -59,15 +59,15 @@ function _prune (
     }
   }
 
-  const devDepRelativePaths: string[] = R.keys(shrDevDependencies)
-    .filter((pkgName: string) => !shrDevDependencies[pkgName].startsWith('link:'))
+  const devDepRelativePaths = R.keys(shrDevDependencies)
     .map((pkgName: string) => refToRelative(shrDevDependencies[pkgName], pkgName))
+    .filter((relPath) => relPath !== null) as string[]
 
   copyDependencySubTree(packages, devDepRelativePaths, shr, new Set(), warn, {registry: shr.registry, nonOptional, notProdOnly, dev: true})
 
-  const depRelativePaths: string[] = R.keys(shrDependencies)
-    .filter((pkgName: string) => !shrDependencies[pkgName].startsWith('link:'))
+  const depRelativePaths = R.keys(shrDependencies)
     .map((pkgName: string) => refToRelative(shrDependencies[pkgName], pkgName))
+    .filter((relPath) => relPath !== null) as string[]
 
   copyDependencySubTree(packages, depRelativePaths, shr, new Set(), warn, {
     nonOptional,
@@ -76,9 +76,9 @@ function _prune (
   })
 
   if (shrOptionalDependencies) {
-    const optionalDepRelativePaths: string[] = R.keys(shrOptionalDependencies)
-      .filter((pkgName: string) => !shrOptionalDependencies[pkgName].startsWith('link:'))
+    const optionalDepRelativePaths = R.keys(shrOptionalDependencies)
       .map((pkgName: string) => refToRelative(shrOptionalDependencies[pkgName], pkgName))
+      .filter((relPath) => relPath !== null) as string[]
     copyDependencySubTree(packages, optionalDepRelativePaths, shr, new Set(), warn, {registry: shr.registry, nonOptional, notProdOnly, optional: true})
   }
 
@@ -164,10 +164,12 @@ function copyDependencySubTree (
     }
     const newDependencies = R.keys(depShr.dependencies)
       .map((pkgName: string) => refToRelative((depShr.dependencies && depShr.dependencies[pkgName]) as string, pkgName))
+      .filter((relPath) => relPath !== null) as string[]
     copyDependencySubTree(resolvedPackages, newDependencies, shr, walked, warn, opts)
     if (!opts.walkOptionals) continue
     const newOptionalDependencies = R.keys(depShr.optionalDependencies)
       .map((pkgName: string) => refToRelative((depShr.optionalDependencies && depShr.optionalDependencies[pkgName]) as string, pkgName))
+      .filter((relPath) => relPath !== null) as string[]
     copyDependencySubTree(resolvedPackages, newOptionalDependencies, shr, walked, warn, {...opts, optional: true})
   }
 }
