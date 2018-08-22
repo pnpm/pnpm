@@ -106,7 +106,7 @@ test('linking a package inside a monorepo with --link-workspace-packages', async
         'project-3': '3.0.0',
       },
       optionalDependencies: {
-        'project-4': '4.0.0',
+        'is-positive': '1.0.0',
       },
       scripts: {
         install: `node -e "process.stdout.write('project-1')" | json-append ../output.json`,
@@ -127,8 +127,8 @@ test('linking a package inside a monorepo with --link-workspace-packages', async
       version: '3.0.0',
     },
     {
-      name: 'project-4',
-      version: '4.0.0',
+      name: 'is-positive',
+      version: '1.0.0',
     },
   ])
 
@@ -144,10 +144,24 @@ test('linking a package inside a monorepo with --link-workspace-packages', async
 
   await projects['project-1'].has('project-2')
   await projects['project-1'].has('project-3')
-  await projects['project-1'].has('project-4')
+  await projects['project-1'].has('is-positive')
 
-  const shr = await projects['project-1'].loadShrinkwrap()
-  t.equal(shr.dependencies['project-2'], 'link:../project-2')
-  t.equal(shr.devDependencies['project-3'], 'link:../project-3')
-  t.equal(shr.optionalDependencies['project-4'], 'link:../project-4')
+  {
+    const shr = await projects['project-1'].loadShrinkwrap()
+    t.equal(shr.dependencies['project-2'], 'link:../project-2')
+    t.equal(shr.devDependencies['project-3'], 'link:../project-3')
+    t.equal(shr.optionalDependencies['is-positive'], 'link:../is-positive')
+  }
+
+  projects['is-positive'].writePackageJson({
+    name: 'is-positive',
+    version: '2.0.0',
+  })
+
+  await execPnpm('install')
+
+  {
+    const shr = await projects['project-1'].loadShrinkwrap()
+    t.equal(shr.optionalDependencies['is-positive'], '1.0.0')
+  }
 })

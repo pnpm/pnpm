@@ -6,6 +6,7 @@ import logger, {
 import {write as writeModulesYaml} from '@pnpm/modules-yaml'
 import {
   DirectoryResolution,
+  LocalPackages,
   Resolution,
 } from '@pnpm/resolver-base'
 import {
@@ -37,6 +38,7 @@ import {
   writeWantedOnly as saveWantedShrinkwrapOnly,
 } from 'pnpm-shrinkwrap'
 import R = require('ramda')
+import semver = require('semver')
 import {
   LAYOUT_VERSION,
   SHRINKWRAP_MINOR_VERSION,
@@ -172,7 +174,8 @@ export async function install (maybeOpts: InstallOptions) {
       opts.frozenShrinkwrap ||
       opts.preferFrozenShrinkwrap && ctx.existsWantedShrinkwrap && ctx.wantedShrinkwrap.shrinkwrapMinorVersion === SHRINKWRAP_MINOR_VERSION &&
       !hasLocalTarballDepsInRoot(ctx.wantedShrinkwrap) &&
-      satisfiesPackageJson(ctx.wantedShrinkwrap, ctx.pkg))
+      satisfiesPackageJson(ctx.wantedShrinkwrap, ctx.pkg) &&
+      await linkedPackagesSatisfyPackageJson(ctx.pkg, ctx.wantedShrinkwrap, opts.prefix, opts.localPackages))
     ) {
       if (opts.shamefullyFlatten) {
         if (opts.frozenShrinkwrap) {
@@ -262,6 +265,36 @@ export async function install (maybeOpts: InstallOptions) {
       await runLifecycleHooks('prepare', ctx.pkg, scriptsOpts)
     }
   }
+}
+
+async function linkedPackagesSatisfyPackageJson (
+  pkg: PackageJson,
+  shr: Shrinkwrap,
+  prefix: string,
+  localPackages?: LocalPackages,
+) {
+  const localPackagesByDirectory = localPackages ? getLocalPackagesByDirectory(localPackages) : {}
+  for (const depType of ['optionalDependencies', 'dependencies', 'devDependencies']) {
+    if (!shr[depType] || !pkg[depType]) continue
+    const depNames = Object.keys(shr[depType])
+    for (const depName of depNames) {
+      if (!shr[depType][depName].startsWith('link:') || !pkg[depType][depName]) continue
+      const dir = path.join(prefix, shr[depType][depName].substr(5))
+      const linkedPkg = localPackagesByDirectory[dir] || await safeReadPkgFromDir(dir)
+      if (!linkedPkg || !semver.satisfies(linkedPkg.version, pkg[depType][depName])) return false
+    }
+  }
+  return true
+}
+
+function getLocalPackagesByDirectory (localPackages: LocalPackages) {
+  const localPackagesByDirectory = {}
+  Object.keys(localPackages || {}).forEach((pkgName) => {
+    Object.keys(localPackages[pkgName] || {}).forEach((pkgVersion) => {
+      localPackagesByDirectory[localPackages[pkgName][pkgVersion].directory] = localPackages[pkgName][pkgVersion].package
+    })
+  })
+  return localPackagesByDirectory
 }
 
 function hasLocalTarballDepsInRoot (shr: Shrinkwrap) {
@@ -454,7 +487,7 @@ async function installInContext (
   const nonLinkedPkgs: WantedDependency[] = []
   const linkedPkgs: Array<WantedDependency & {alias: string}> = []
   for (const wantedDependency of packagesToInstall) {
-    if (!wantedDependency.alias) {
+    if (!wantedDependency.alias || opts.localPackages && opts.localPackages[wantedDependency.alias]) {
       nonLinkedPkgs.push(wantedDependency)
       continue
     }
