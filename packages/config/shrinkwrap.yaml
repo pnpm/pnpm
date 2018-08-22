@@ -8,12 +8,16 @@ dependencies:
   find-up: 3.0.0
   which: 1.3.1
 devDependencies:
+  '@types/mz': 0.0.32
   '@types/tape': 4.2.32
+  '@types/tempy': 0.1.0
   mos: 2.0.0-alpha.3
   mos-plugin-readme: 1.0.4
+  mz: 2.7.0
   package-preview: 1.0.6
   rimraf: 2.6.2
   tape: 4.9.1
+  tempy: 0.2.1
   ts-node: 6.2.0
   tslint: 5.11.0
   typescript: 3.0.1
@@ -71,6 +75,10 @@ packages:
     dev: true
     resolution:
       integrity: sha512-xil0KO5wkPoixdBWGIGolPv9dekf6dVkjjJLAFYchfKcd4DICou67rgGCIO7wAh3i5Ff/6j9IDgZz+GU9cMaqQ==
+  /@types/tempy/0.1.0:
+    dev: true
+    resolution:
+      integrity: sha512-2qeSxI2bMucW58Jsj8jrBXZxobtcKkvO44AvJzKGaD8+m/3KRuBqeKitJ5U6sqy3a9tFsqhzsxMkqR4Wcl6AmQ==
   /@types/which/1.3.1:
     dev: false
     resolution:
@@ -692,6 +700,12 @@ packages:
       node: '>=4.8'
     resolution:
       integrity: sha512-eTVLrBSt7fjbDygz805pMnstIs2VTBNkRm0qxZd+M7A5XDdxVRWO5MxGBXZhjY4cqLYLdtrGqRf8mBPmzwSpWQ==
+  /crypto-random-string/1.0.0:
+    dev: true
+    engines:
+      node: '>=4'
+    resolution:
+      integrity: sha1-ojD2T1aDEOFJgAmUB5DsmVRbyn4=
   /currently-unhandled/0.4.1:
     dependencies:
       array-find-index: 1.0.2
@@ -2768,6 +2782,21 @@ packages:
       node: '>= 0.8.0'
     resolution:
       integrity: sha512-IFLM5wp3QrJODQFPm6/to3LJZrONdBY/otxcvDIQzu217zKye6yVR3hhi9lAjrC2Z+m/j5oDxMPb1qcd8cIvpA==
+  /temp-dir/1.0.0:
+    dev: true
+    engines:
+      node: '>=4'
+    resolution:
+      integrity: sha1-CnwOom06Oa+n4OvqnB/AvE2qAR0=
+  /tempy/0.2.1:
+    dependencies:
+      temp-dir: 1.0.0
+      unique-string: 1.0.0
+    dev: true
+    engines:
+      node: '>=4'
+    resolution:
+      integrity: sha512-LB83o9bfZGrntdqPuRdanIVCPReam9SOZKW0fOy5I9X3A854GGWi0tjCqoXEk84XIEYBc/x9Hq3EFop/H5wJaw==
   /the-argv/1.0.0:
     dev: true
     resolution:
@@ -2903,6 +2932,14 @@ packages:
     dev: true
     resolution:
       integrity: sha512-izD3jxT8xkzwtXRUZjtmRwKnZoeECrfZ8ra/ketwOcusbZEp4mjULMnJOCfTDZBgGQAAY1AJ/IgxcwkavcX9Og==
+  /unique-string/1.0.0:
+    dependencies:
+      crypto-random-string: 1.0.0
+    dev: true
+    engines:
+      node: '>=4'
+    resolution:
+      integrity: sha1-nhBXzKhRq7kzmPizOuGHuZyuwRo=
   /unist-util-is/2.1.2:
     dev: true
     resolution:
@@ -3084,17 +3121,21 @@ shrinkwrapMinorVersion: 9
 shrinkwrapVersion: 3
 specifiers:
   '@types/camelcase': ^4.1.0
+  '@types/mz': ^0.0.32
   '@types/node': ^9.4.6 || 10
   '@types/tape': ^4.2.32
+  '@types/tempy': ^0.1.0
   '@types/which': ^1.3.1
   '@zkochan/npm-conf': ^1.2.0
   camelcase: ^5.0.0
   find-up: ^3.0.0
   mos: ^2.0.0-alpha.3
   mos-plugin-readme: ^1.0.4
+  mz: ^2.7.0
   package-preview: ^1.0.1
   rimraf: ^2.6.2
   tape: ^4.8.0
+  tempy: ^0.2.1
   ts-node: ^6.2.0
   tslint: ^5.8.0
   typescript: ^3.0.0

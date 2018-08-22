@@ -38,12 +38,16 @@
     "which": "^1.3.0"
   },
   "devDependencies": {
+    "@types/mz": "^0.0.32",
     "@types/tape": "^4.2.32",
+    "@types/tempy": "^0.1.0",
     "mos": "^2.0.0-alpha.3",
     "mos-plugin-readme": "^1.0.4",
+    "mz": "^2.7.0",
     "package-preview": "^1.0.1",
     "rimraf": "^2.6.2",
     "tape": "^4.8.0",
+    "tempy": "^0.2.1",
     "ts-node": "^6.2.0",
     "tslint": "^5.8.0",
     "typescript": "^3.0.0"

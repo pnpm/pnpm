@@ -138,6 +138,14 @@ export default async (
     pnpmConfig.saveProd = true
     pnpmConfig.saveDev = false
     pnpmConfig.saveOptional = false
+    if (pnpmConfig.linkWorkspacePackages) {
+      if (opts.cliArgs['link-workspace-packages']) {
+        const err = new Error('Configuration conflict. "link-workspace-packages" may not be used with "global"')
+        err['code'] = 'ERR_PNPM_CONFIG_CONFLICT_LINK_WORKSPACE_PACKAGES_WITH_GLOBAL' // tslint:disable-line:no-string-literal
+        throw err
+      }
+      pnpmConfig.linkWorkspacePackages = false
+    }
   } else {
     pnpmConfig.prefix = (cliArgs['prefix'] ? path.resolve(cliArgs['prefix']) : npmConfig.localPrefix) // tslint:disable-line
     pnpmConfig.bin = path.join(pnpmConfig.prefix, 'node_modules', '.bin')

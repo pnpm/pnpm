@@ -12,13 +12,13 @@ gfs.gracefulify(fs)
 
 import loudRejection = require('loud-rejection')
 loudRejection()
-import {types} from '@pnpm/config'
+import {
+  PnpmConfigs,
+  types,
+} from '@pnpm/config'
 import logger from '@pnpm/logger'
-import camelcase = require('camelcase')
-import {stripIndent} from 'common-tags'
 import isCI = require('is-ci')
 import nopt = require('nopt')
-import path = require('path')
 import checkForUpdates from './checkForUpdates'
 import * as pnpmCmds from './cmd'
 import runNpm from './cmd/runNpm'
@@ -163,7 +163,15 @@ export default async function run (argv: string[]) {
 
   cliConf.save = cliConf.save || !cliConf['save-dev'] && !cliConf['save-optional']
 
-  const opts = await getConfigs(cliConf, {excludeReporter: false})
+  let opts!: PnpmConfigs
+  try {
+    opts = await getConfigs(cliConf, {excludeReporter: false})
+  } catch (err) {
+    // Reporting is not initialized at this point, so just printing the error
+    console.error(err.message)
+    process.exit(1)
+    return
+  }
 
   const selfUpdate = opts.global && (cmd === 'install' || cmd === 'update') && cliConf.argv.remain.indexOf(packageManager.name) !== -1
 
