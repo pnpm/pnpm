@@ -141,6 +141,10 @@ async function resolveNpm (
   const pickedPackage = pickResult.pickedPackage
   const meta = pickResult.meta
   if (!pickedPackage) {
+    if (opts.localPackages) {
+      const resolvedFromLocal = tryResolveFromLocalPackages(opts.localPackages, spec, opts.prefix)
+      if (resolvedFromLocal) return resolvedFromLocal
+    }
     const err = new Error(`No matching version found for ${toRaw(spec)}`)
     // tslint:disable:no-string-literal
     err['code'] = 'ERR_PNPM_NO_MATCHING_VERSION'
