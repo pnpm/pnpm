@@ -111,15 +111,15 @@ export default async (
   if (!cliArgs['user-agent']) {
     cliArgs['user-agent'] = `${packageManager.name}/${packageManager.version} npm/? node/${process.version} ${process.platform} ${process.arch}`
   }
-  const pnpmConfig: any = Object.keys(types) // tslint:disable-line
+  const pnpmConfig: PnpmConfigs = Object.keys(types) // tslint:disable-line
     .reduce((acc, configKey) => {
       acc[camelcase(configKey)] = typeof cliArgs[configKey] !== 'undefined'
         ? cliArgs[configKey]
         : npmConfig.get(configKey)
       return acc
-    }, {})
+    }, {} as PnpmConfigs)
   pnpmConfig.rawNpmConfig = Object.assign.apply(Object, npmConfig.list.reverse().concat([cliArgs]))
-  const npmGlobalPrefix = process.env.APPDATA
+  const npmGlobalPrefix: string = process.env.APPDATA && pnpmConfig.rawNpmConfig['use-appdata']
     ? path.join(process.env.APPDATA, 'npm')
     : npmConfig.globalPrefix
   pnpmConfig.globalBin = process.platform === 'win32'

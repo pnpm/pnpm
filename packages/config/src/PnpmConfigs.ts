@@ -1,8 +1,8 @@
-export interface PnpmConfigs {
+export interface PnpmConfigs extends Record<string, any> { // tslint:disable-line
   bail: boolean,
-  cliArgs: object,
+  cliArgs: Record<string, any>, // tslint:disable-line
   filter: string[],
-  rawNpmConfig: object,
+  rawNpmConfig: Record<string, any>, // tslint:disable-line
   globalPrefix: string,
   globalBin: string,
   dryRun?: boolean, // This option might be not supported ever
