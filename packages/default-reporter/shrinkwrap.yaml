@@ -1,5 +1,6 @@
 dependencies:
   '@pnpm/config': 'link:../config'
+  '@pnpm/types': 1.7.0
   '@types/common-tags': 1.4.0
   '@types/node': 10.7.1
   '@types/ramda': 0.25.34
@@ -79,6 +80,10 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha512-NnkmxKFQJMkHL2TcLAl2sof7mVu8dgode4zGzwtvEaZ/xjOHm3CfUJomincmZcpWoXrjHkvbPxjczEPP41Wmqg==
+  /@pnpm/types/1.7.0:
+    dev: false
+    resolution:
+      integrity: sha512-pn7g4uxcofWTNG/cxmKvkMK2lxr4OUIhrQDrEVYEdVhW0WkWztsHkFrYjFgfNzPbYu3ITlB3T6aSVjCoJQTOlw==
   /@types/common-tags/1.4.0:
     dev: false
     resolution:
@@ -1857,6 +1862,7 @@ shrinkwrapVersion: 3
 specifiers:
   '@pnpm/config': ^2.0.1
   '@pnpm/logger': ^2.1.0
+  '@pnpm/types': ^1.7.0
   '@types/common-tags': ^1.2.5
   '@types/delay': ^2.0.1
   '@types/load-json-file': ^2.0.7

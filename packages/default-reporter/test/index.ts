@@ -438,6 +438,66 @@ test('prints summary for global installation', t => {
   })
 })
 
+test('prints summary correctly when the same package is specified both in optional and prod dependencies', t => {
+  const prefix = '/home/jane/.nvs/node/10.0.0/x64/pnpm-global/1'
+  const output$ = toOutput$({
+    streamParser: createStreamParser(),
+    context: {
+      argv: ['install'],
+      configs: {
+        prefix,
+      } as PnpmConfigs,
+    },
+  })
+
+  packageJsonLogger.debug({
+    initial: {
+      dependencies: {
+        bar: '^2.0.0',
+        foo: '^1.0.0',
+      },
+      optionalDependencies: {
+        foo: '^1.0.0',
+      },
+    },
+    prefix,
+  })
+  rootLogger.debug({
+    added: {
+      dependencyType: 'prod',
+      name: 'bar',
+      version: '2.0.0',
+      id: 'registry.npmjs.org/bar/2.0.0',
+    },
+    prefix,
+  })
+  packageJsonLogger.debug({
+    updated: {
+      dependencies: {
+        bar: '^2.0.0',
+      },
+      optionalDependencies: {
+        foo: '^1.0.0',
+      },
+    },
+    prefix,
+  })
+  summaryLogger.debug({prefix})
+
+  t.plan(1)
+
+  output$.take(1).map(normalizeNewline).subscribe({
+    next: output => {
+      t.equal(output, EOL + stripIndents`
+        ${h1('dependencies:')}
+        ${ADD} bar ${versionColor('2.0.0')}
+        ` + '\n')
+    },
+    complete: () => t.end(),
+    error: t.end,
+  })
+})
+
 test('groups lifecycle output', t => {
   const output$ = toOutput$({
     streamParser: createStreamParser(),

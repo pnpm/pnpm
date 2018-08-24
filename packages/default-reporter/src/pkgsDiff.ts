@@ -1,3 +1,4 @@
+import {PackageJson} from '@pnpm/types'
 import most = require('most')
 import R = require('ramda')
 import {
@@ -97,10 +98,10 @@ export default function (
 
   return most.combine(
     (pkgsDiff, packageJsons) => {
-      const initialPackageJson = packageJsons['initial']
-      const updatedPackageJson = packageJsons['updated']
+      if (!packageJsons['initial'] || !packageJsons['updated']) return pkgsDiff
 
-      if (!initialPackageJson || !updatedPackageJson) return pkgsDiff
+      const initialPackageJson = removeOptionalFromProdDeps(packageJsons['initial'])
+      const updatedPackageJson = removeOptionalFromProdDeps(packageJsons['updated'])
 
       for (const depType of ['prod', 'optional', 'dev']) {
         const prop = propertyByDependencyType[depType]
@@ -135,4 +136,14 @@ export default function (
     pkgsDiff$,
     packageJson$,
   )
+}
+
+function removeOptionalFromProdDeps (pkg: PackageJson): PackageJson {
+  if (!pkg.dependencies || !pkg.optionalDependencies) return pkg
+  for (const depName of Object.keys(pkg.dependencies)) {
+    if (pkg.optionalDependencies[depName]) {
+      delete pkg.dependencies[depName]
+    }
+  }
+  return pkg
 }
