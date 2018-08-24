@@ -1,12 +1,10 @@
 import logger from '@pnpm/logger'
-import {PackageJson} from '@pnpm/types'
 import execa = require('execa')
 import pLimit = require('p-limit')
-import dividePackagesToChunks from './dividePackagesToChunks'
 import RecursiveSummary from './recursiveSummary'
 
 export default async (
-  pkgs: Array<{path: string, manifest: PackageJson}>,
+  packageChunks: string[][],
   args: string[],
   cmd: string,
   opts: {
@@ -16,8 +14,6 @@ export default async (
     rawNpmConfig: object,
   },
 ): Promise<RecursiveSummary> => {
-  const {chunks} = dividePackagesToChunks(pkgs)
-
   const limitRun = pLimit(opts.workspaceConcurrency)
 
   const result = {
@@ -25,7 +21,7 @@ export default async (
     passes: 0,
   } as RecursiveSummary
 
-  for (const chunk of chunks) {
+  for (const chunk of packageChunks) {
     await Promise.all(chunk.map((prefix: string) =>
       limitRun(async () => {
         try {

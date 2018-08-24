@@ -122,3 +122,36 @@ test('testing the bail config with "pnpm recursive exec"', async (t: tape.Test) 
 
   t.ok(failed, 'recursive exec failed with --bail')
 })
+
+test('pnpm recursive exec --no-sort', async (t: tape.Test) => {
+  const projects = preparePackages(t, [
+    {
+      name: 'a-dependent',
+      version: '1.0.0',
+      dependencies: {
+        'b-dependency': '1.0.0',
+        'json-append': '1',
+      },
+      scripts: {
+        build: `node -e "process.stdout.write('a-dependent')" | json-append ../output.json`,
+      },
+    },
+    {
+      name: 'b-dependency',
+      version: '1.0.0',
+      dependencies: {
+        'json-append': '1',
+      },
+      scripts: {
+        build: `node -e "process.stdout.write('b-dependency')" | json-append ../output.json`,
+      },
+    },
+  ])
+
+  await execPnpm('recursive', 'install', '--link-workspace-packages')
+  await execPnpm('recursive', 'exec', 'npm', 'run', 'build', '--no-sort', '--workspace-concurrency', '1')
+
+  const outputs = await import(path.resolve('output.json')) as string[]
+
+  t.deepEqual(outputs, ['a-dependent', 'b-dependency'])
+})

@@ -3,11 +3,12 @@ import logger from '@pnpm/logger'
 import {PackageJson} from '@pnpm/types'
 import {realNodeModulesDir} from '@pnpm/utils'
 import pLimit = require('p-limit')
-import dividePackagesToChunks from './dividePackagesToChunks'
+import {PackageNode} from 'pkgs-graph'
 import RecursiveSummary from './recursiveSummary'
 
 export default async (
-  pkgs: Array<{path: string, manifest: PackageJson}>,
+  packageChunks: string[][],
+  graph: {[id: string]: PackageNode},
   args: string[],
   cmd: string,
   opts: {
@@ -18,7 +19,6 @@ export default async (
   },
 ) => {
   const scriptName = args[0]
-  const {chunks, graph} = dividePackagesToChunks(pkgs)
   let hasCommand = 0
 
   const result = {
@@ -29,7 +29,7 @@ export default async (
   const limitRun = pLimit(opts.workspaceConcurrency)
   const stdio = opts.workspaceConcurrency === 1 ? 'inherit' : 'pipe'
 
-  for (const chunk of chunks) {
+  for (const chunk of packageChunks) {
     await Promise.all(chunk.map((prefix: string) =>
       limitRun(async () => {
         const pkg = graph[prefix] as {manifest: PackageJson, path: string}

@@ -76,6 +76,7 @@ export interface PnpmOptions {
   workspaceConcurrency: number,
   workspacePrefix?: string,
   linkWorkspacePackages: boolean,
+  sort: boolean,
 
   // cannot be specified via configs
   update?: boolean,

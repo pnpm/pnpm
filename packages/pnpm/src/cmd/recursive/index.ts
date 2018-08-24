@@ -3,9 +3,8 @@ import {PackageJson} from '@pnpm/types'
 import camelcaseKeys = require('camelcase-keys')
 import graphSequencer = require('graph-sequencer')
 import pLimit = require('p-limit')
-import { StoreController } from 'package-store'
 import path = require('path')
-import createPkgGraph from 'pkgs-graph'
+import createPkgGraph, {PackageNode} from 'pkgs-graph'
 import readIniFile = require('read-ini-file')
 import {
   install,
@@ -111,17 +110,24 @@ export async function recursive (
     case 'outdated':
       await outdated(pkgs, input, cmd, opts as any) // tslint:disable-line:no-any
       return
+  }
+
+  const chunks = opts.sort
+    ? sortPackages(pkgGraphResult.graph)
+    : [Object.keys(pkgGraphResult.graph).sort()]
+
+  switch (cmdFullName) {
     case 'test':
-      throwOnFail(await run(pkgs, ['test', ...input], cmd, opts as any)) // tslint:disable-line:no-any
+      throwOnFail(await run(chunks, pkgGraphResult.graph, ['test', ...input], cmd, opts as any)) // tslint:disable-line:no-any
       return
     case 'run':
-      throwOnFail(await run(pkgs, input, cmd, opts as any)) // tslint:disable-line:no-any
+      throwOnFail(await run(chunks, pkgGraphResult.graph, input, cmd, opts as any)) // tslint:disable-line:no-any
       return
     case 'update':
       opts = {...opts, update: true, allowNew: false} as any // tslint:disable-line:no-any
       break
     case 'exec':
-      throwOnFail(await exec(pkgs, input, cmd, opts as any)) // tslint:disable-line:no-any
+      throwOnFail(await exec(chunks, input, cmd, opts as any)) // tslint:disable-line:no-any
       return
   }
 
@@ -136,15 +142,6 @@ export async function recursive (
     ...store.ctrl,
     saveState: async () => undefined,
   }
-
-  const graph = new Map(
-    Object.keys(pkgGraphResult.graph).map((pkgPath) => [pkgPath, pkgGraphResult.graph[pkgPath].dependencies]) as Array<[string, string[]]>,
-  )
-  const graphSequencerResult = graphSequencer({
-    graph,
-    groups: [Object.keys(pkgGraphResult.graph)],
-  })
-  const chunks = graphSequencerResult.chunks
 
   if (cmdFullName === 'link' && opts.linkWorkspacePackages) {
     const err = new Error('"pnpm recursive link" is deprecated with link-workspace-packages = true. Please use "pnpm recursive install" instead')
@@ -227,6 +224,18 @@ export async function recursive (
   await saveState()
 
   throwOnFail(result)
+}
+
+function sortPackages (pkgGraph: {[nodeId: string]: PackageNode}): string[][] {
+  const keys = Object.keys(pkgGraph)
+  const graph = new Map(
+    keys.map((pkgPath) => [pkgPath, pkgGraph[pkgPath].dependencies]) as Array<[string, string[]]>,
+  )
+  const graphSequencerResult = graphSequencer({
+    graph,
+    groups: [keys],
+  })
+  return graphSequencerResult.chunks
 }
 
 async function readLocalConfigs (prefix: string) {

@@ -69,4 +69,5 @@ export interface PnpmConfigs extends Record<string, any> { // tslint:disable-lin
   workspacePrefix?: string,
   reporter?: string,
   linkWorkspacePackages: boolean,
+  sort: boolean,
 }

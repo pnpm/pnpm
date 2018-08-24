@@ -279,6 +279,7 @@ function getHelpText (command: string) {
           --workspace-concurrency    set the maximum number of concurrency. Default is 4. For unlimited concurrency use Infinity.
           --link-workspace-packages  locally available packages are linked to node_modules instead of being downloaded from the registry.
                                      Convenient to use in a multi-package repository.
+          --sort                     sort packages topologically (dependencies before dependents). Pass --no-sort to disable.
       `
 
     default:
