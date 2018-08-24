@@ -119,9 +119,10 @@ export default async (
       return acc
     }, {} as PnpmConfigs)
   pnpmConfig.rawNpmConfig = Object.assign.apply(Object, npmConfig.list.reverse().concat([cliArgs]))
-  const npmGlobalPrefix: string = process.env.APPDATA && pnpmConfig.rawNpmConfig['use-appdata']
-    ? path.join(process.env.APPDATA, 'npm')
-    : npmConfig.globalPrefix
+  const npmGlobalPrefix: string = pnpmConfig.rawNpmConfig['pnpm-prefix'] ||
+    (process.env.APPDATA
+      ? path.join(process.env.APPDATA, 'npm')
+      : npmConfig.globalPrefix)
   pnpmConfig.globalBin = process.platform === 'win32'
     ? npmGlobalPrefix
     : path.resolve(npmGlobalPrefix, 'bin')
