@@ -189,6 +189,8 @@ async function linkToModules (
   },
 ) {
   const dest = path.join(modules, pkg.name)
+  const {reused} = await symlinkDir(linkFrom, dest)
+  if (reused) return // if the link was already present, don't log
   rootLogger.debug({
     added: {
       dependencyType: opts.saveType && DEP_TYPE_BY_DEPS_FIELD_NAME[opts.saveType] as DependencyType,
@@ -199,7 +201,6 @@ async function linkToModules (
     },
     prefix: opts.prefix,
   })
-  await symlinkDir(linkFrom, dest)
 }
 
 export async function linkFromGlobal (
