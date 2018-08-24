@@ -3,7 +3,7 @@ dependencies:
   '@pnpm/read-package-json': 1.0.0
   '@pnpm/types': 1.7.0
   '@types/mz': 0.0.32
-  '@types/node': 10.7.1
+  '@types/node': 10.9.1
   '@types/ramda': 0.25.34
   dependency-path: 2.0.0
   fs-vacuum: 1.2.10
@@ -21,7 +21,7 @@ devDependencies:
 packages:
   /@pnpm/logger/2.1.0:
     dependencies:
-      '@types/node': 10.7.1
+      '@types/node': 10.9.1
       bole: 3.0.2
       ndjson: 1.5.0
     dev: true
@@ -68,13 +68,13 @@ packages:
       integrity: sha512-JRDtMPEqXrzfuYAdqbxLot1GvAr/QvicIZAnOAigZaj8xVMhuSJTg/xsv9E1TvyL+wujYhRLx9ZsQ0oFOSmwyA==
   /@types/mz/0.0.32:
     dependencies:
-      '@types/node': 10.7.1
+      '@types/node': 10.9.1
     dev: false
     resolution:
       integrity: sha512-cy3yebKhrHuOcrJGkfwNHhpTXQLgmXSv1BX+4p32j+VUQ6aP2eJ5cL7OvGcAQx75fCTFaAIIAKewvqL+iwSd4g==
-  /@types/node/10.7.1:
+  /@types/node/10.9.1:
     resolution:
-      integrity: sha512-EGoI4ylB/lPOaqXqtzAyL8HcgOuCtH2hkEaLmkueOYufsTFWBn4VCvlCDC2HW8Q+9iF+QVC3sxjDKQYjHQeZ9w==
+      integrity: sha512-f+qQR5lLCB8UPhtk8Xm8RQvbR4ycD7MOsdiuAEQCYpz44bBx2g7JL0+iYBcjl9J7d0KT1sX2g0VGNeHfw+GXpg==
   /@types/ramda/0.25.34:
     dev: false
     resolution:
@@ -556,7 +556,7 @@ packages:
       '@pnpm/resolver-base': 1.2.0
       '@pnpm/types': 1.7.0
       '@types/js-yaml': 3.11.2
-      '@types/node': 10.7.1
+      '@types/node': 10.9.1
       '@types/ramda': 0.25.34
       dependency-path: 2.0.0
       get-npm-tarball-url: 2.0.1

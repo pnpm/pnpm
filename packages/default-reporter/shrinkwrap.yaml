@@ -2,7 +2,7 @@ dependencies:
   '@pnpm/config': 'link:../config'
   '@pnpm/types': 1.7.0
   '@types/common-tags': 1.4.0
-  '@types/node': 10.7.1
+  '@types/node': 10.9.1
   '@types/ramda': 0.25.34
   '@types/semver': 5.5.0
   '@types/strip-ansi': 3.0.0
@@ -56,7 +56,7 @@ packages:
     dependencies:
       '@pnpm/self-installer': 2.0.5
       '@types/got': 8.3.3
-      '@types/node': 10.7.1
+      '@types/node': 10.9.1
       command-exists: 1.2.7
       cross-spawn: 6.0.5
     dev: true
@@ -66,7 +66,7 @@ packages:
       integrity: sha512-1zLmh6tRftQXfZ1IFHq1IexP0KaJhN6pSCA/IzK+Vixn4hPvxwcIbGjKW0KH9hsHSmrPpmSit2EWj7jGNgfa6Q==
   /@pnpm/logger/2.1.0:
     dependencies:
-      '@types/node': 10.7.1
+      '@types/node': 10.9.1
       bole: 3.0.2
       ndjson: 1.5.0
     dev: true
@@ -94,13 +94,13 @@ packages:
       integrity: sha512-D1/YuYOcdOIdaQnaiUJ77VcilVvESkynw79CtGqpjkXyv4OUezEVZtdXnSOwXL8Zcelu66QbyC8QQcVQ/ZPdig==
   /@types/fs-extra/5.0.4:
     dependencies:
-      '@types/node': 10.7.1
+      '@types/node': 10.9.1
     dev: true
     resolution:
       integrity: sha512-DsknoBvD8s+RFfSGjmERJ7ZOP1HI0UZRA3FSI+Zakhrc/Gy26YQsLI+m5V5DHxroHRJqCDLKJp7Hixn8zyaF7g==
   /@types/got/8.3.3:
     dependencies:
-      '@types/node': 10.7.1
+      '@types/node': 10.9.1
     dev: true
     resolution:
       integrity: sha512-OXZz0iG3oX9RHTZAeVGJQCjCOGx0r7MnSWebgUoX5CiFq0aVcRJrUPLQo/dBdKOaosbp4K9NTZTSec2zWk9YIg==
@@ -110,17 +110,17 @@ packages:
       integrity: sha512-NrH6jPlV77QCVPhAHofWeiOr77TgpKt82c2RVxSBChWBJqyY/u4ngl3CA4mcsAg/w7rNLrkR7dkObMV0ihLLXw==
   /@types/mz/0.0.32:
     dependencies:
-      '@types/node': 10.7.1
+      '@types/node': 10.9.1
     dev: true
     resolution:
       integrity: sha512-cy3yebKhrHuOcrJGkfwNHhpTXQLgmXSv1BX+4p32j+VUQ6aP2eJ5cL7OvGcAQx75fCTFaAIIAKewvqL+iwSd4g==
-  /@types/node/10.7.1:
+  /@types/node/10.9.1:
     resolution:
-      integrity: sha512-EGoI4ylB/lPOaqXqtzAyL8HcgOuCtH2hkEaLmkueOYufsTFWBn4VCvlCDC2HW8Q+9iF+QVC3sxjDKQYjHQeZ9w==
-  /@types/node/8.10.26:
+      integrity: sha512-f+qQR5lLCB8UPhtk8Xm8RQvbR4ycD7MOsdiuAEQCYpz44bBx2g7JL0+iYBcjl9J7d0KT1sX2g0VGNeHfw+GXpg==
+  /@types/node/8.10.27:
     dev: false
     resolution:
-      integrity: sha512-opk6bLLErLSwyVVJeSH5Ek7ZWOBSsN0JrvXTNVGLXLAXKB9xlTYajrplR44xVyMrmbut94H6uJ9jqzM/12jxkA==
+      integrity: sha512-MNRS6EyHl3XbqoJfog2atvSq6nYBFbyQYcw3v6H9AURtA0NYr28Zo/pB2NQ48zev4/KqLkyYTpY8AZZhOg/X7g==
   /@types/ramda/0.25.34:
     dev: false
     resolution:
@@ -135,7 +135,7 @@ packages:
       integrity: sha1-m2PUU6a1SqhJGCIHcRoIvo7qSK4=
   /@types/tape/4.2.32:
     dependencies:
-      '@types/node': 10.7.1
+      '@types/node': 10.9.1
     dev: true
     resolution:
       integrity: sha512-xil0KO5wkPoixdBWGIGolPv9dekf6dVkjjJLAFYchfKcd4DICou67rgGCIO7wAh3i5Ff/6j9IDgZz+GU9cMaqQ==
@@ -459,7 +459,7 @@ packages:
       integrity: sha1-mI3zP+qxke95mmE2nddsF635V+o=
   /data-uri-to-buffer/2.0.0:
     dependencies:
-      '@types/node': 8.10.26
+      '@types/node': 8.10.27
     dev: false
     resolution:
       integrity: sha512-YbKCNLPPP4inc0E5If4OaalBc7gpaM2MRv77Pv2VThVComLKfbGYtJcdDCViDyp1Wd4SebhHLz94vp91zbK6bw==
@@ -1173,7 +1173,7 @@ packages:
       '@types/fs-extra': 5.0.4
       '@types/load-json-file': 2.0.7
       '@types/mz': 0.0.32
-      '@types/node': 10.7.1
+      '@types/node': 10.9.1
       '@types/write-json-file': 2.2.1
       cross-spawn: 6.0.5
       find-down: 0.1.4
@@ -1611,7 +1611,7 @@ packages:
   /symlink-dir/1.1.3:
     dependencies:
       '@types/mz': 0.0.32
-      '@types/node': 10.7.1
+      '@types/node': 10.9.1
       graceful-fs: 4.1.11
       is-windows: 1.0.2
       mkdirp-promise: 5.0.1
@@ -1782,7 +1782,7 @@ packages:
       integrity: sha512-rBJeI5CXAlmy1pV+617WB9J63U6XcazHHF2f2dbJix4XzpUF0RS3Zbj0FGIOCAva5P/d/GBOYaACQ1w+0azUkg==
   /unpack-stream/3.0.3:
     dependencies:
-      '@types/node': 10.7.1
+      '@types/node': 10.9.1
       decompress-maybe: 1.0.0
       ssri: 5.3.0
       tar-fs: 1.16.3
@@ -1860,7 +1860,7 @@ registry: 'https://registry.npmjs.org/'
 shrinkwrapMinorVersion: 9
 shrinkwrapVersion: 3
 specifiers:
-  '@pnpm/config': ^2.0.1
+  '@pnpm/config': ^2.1.0
   '@pnpm/logger': ^2.1.0
   '@pnpm/types': ^1.7.0
   '@types/common-tags': ^1.2.5
@@ -1892,7 +1892,7 @@ specifiers:
   string-length: ^2.0.0
   string.prototype.padstart: ^3.0.0
   strip-ansi: ^4.0.0
-  supi: ^0.24.1
+  supi: ^0.24.2
   tape: ^4.8.0
   ts-node: ^6.2.0
   tslint: ^5.7.0
