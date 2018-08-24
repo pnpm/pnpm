@@ -153,10 +153,19 @@ async function resolveNpm (
     throw err
   }
 
-  if (opts.localPackages && opts.localPackages[pickedPackage.name] && opts.localPackages[pickedPackage.name][pickedPackage.version]) {
-    return {
-      ...resolveFromLocalPackage(opts.localPackages[pickedPackage.name][pickedPackage.version], spec.normalizedPref, opts.prefix),
-      latest: meta['dist-tags'].latest,
+  if (opts.localPackages && opts.localPackages[pickedPackage.name]) {
+    if (opts.localPackages[pickedPackage.name][pickedPackage.version]) {
+      return {
+        ...resolveFromLocalPackage(opts.localPackages[pickedPackage.name][pickedPackage.version], spec.normalizedPref, opts.prefix),
+        latest: meta['dist-tags'].latest,
+      }
+    }
+    const localVersion = pickMatchingLocalVersionOrNull(opts.localPackages[pickedPackage.name], spec)
+    if (localVersion && semver.gt(localVersion, pickedPackage.version)) {
+      return {
+        ...resolveFromLocalPackage(opts.localPackages[pickedPackage.name][localVersion], spec.normalizedPref, opts.prefix),
+        latest: meta['dist-tags'].latest,
+      }
     }
   }
 
@@ -182,23 +191,31 @@ function tryResolveFromLocalPackages (
   prefix: string,
 ) {
   if (!localPackages[spec.name]) return null
-  const localVersions = Object.keys(localPackages[spec.name])
-  let localVersion: string | null
+  const localVersion = pickMatchingLocalVersionOrNull(localPackages[spec.name], spec)
+  if (!localVersion) return null
+  return resolveFromLocalPackage(localPackages[spec.name][localVersion], spec.normalizedPref, prefix)
+}
+
+function pickMatchingLocalVersionOrNull (
+  versions: {
+    [version: string]: {
+      directory: string;
+      package: PackageJson;
+    },
+  },
+  spec: RegistryPackageSpec,
+) {
+  const localVersions = Object.keys(versions)
   switch (spec.type) {
     case 'tag':
-      localVersion = semver.maxSatisfying(localVersions, '*')
-      break
+      return semver.maxSatisfying(localVersions, '*')
     case 'version':
-      localVersion = localPackages[spec.name][spec.fetchSpec] ? spec.fetchSpec : null
-      break
+      return versions[spec.fetchSpec] ? spec.fetchSpec : null
     case 'range':
-      localVersion = semver.maxSatisfying(localVersions, spec.fetchSpec, true)
-      break
+      return semver.maxSatisfying(localVersions, spec.fetchSpec, true)
     default:
       return null
   }
-  if (!localVersion) return null
-  return resolveFromLocalPackage(localPackages[spec.name][localVersion], spec.normalizedPref, prefix)
 }
 
 function resolveFromLocalPackage (

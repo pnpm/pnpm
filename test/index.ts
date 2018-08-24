@@ -972,6 +972,52 @@ test('use version from the registry if it is newer than the local one', async t 
   t.end()
 })
 
+test('use local version if it is newer than the latest in the registry', async t => {
+  nock(registry)
+    .get('/is-positive')
+    .reply(200, {
+      ...isPositiveMeta,
+      'dist-tags': { latest: '3.1.0' },
+    })
+
+  const resolveFromNpm = createResolveFromNpm({
+    metaCache: new Map(),
+    store: tempy.directory(),
+    rawNpmConfig: { registry },
+  })
+  const resolveResult = await resolveFromNpm({
+    alias: 'is-positive',
+    pref: '^3.0.0',
+  }, {
+    registry,
+    localPackages: {
+      'is-positive': {
+        '3.2.0': {
+          directory: '/home/istvan/src/is-positive',
+          package: {
+            name: 'is-positive',
+            version: '3.2.0',
+          },
+        },
+      },
+    },
+    prefix: '/home/istvan/src',
+  })
+
+  t.equal(resolveResult!.resolvedVia, 'local-filesystem')
+  t.equal(resolveResult!.id, 'link:is-positive')
+  t.equal(resolveResult!.latest!.split('.').length, 3)
+  t.deepEqual(resolveResult!.resolution, {
+    directory: '/home/istvan/src/is-positive',
+    type: 'directory',
+  })
+  t.ok(resolveResult!.package)
+  t.equal(resolveResult!.package!.name, 'is-positive')
+  t.equal(resolveResult!.package!.version, '3.2.0')
+
+  t.end()
+})
+
 test('resolve from local directory when package is not found in the registry', async t => {
   nock(registry)
     .get('/is-positive')
