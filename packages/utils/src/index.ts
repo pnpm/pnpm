@@ -1,6 +1,9 @@
 import getSaveType, {DependenciesType, dependenciesTypes} from './getSaveType'
 import {
   DependencyType,
+  LinkLog,
+  linkLogger,
+  LinkMessage,
   PackageJsonLog,
   packageJsonLogger,
   ProgressLog,
@@ -48,4 +51,7 @@ export {
   statsLogger,
   SummaryLog,
   summaryLogger,
+  LinkLog,
+  linkLogger,
+  LinkMessage,
 }

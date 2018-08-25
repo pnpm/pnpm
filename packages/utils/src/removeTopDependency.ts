@@ -1,7 +1,10 @@
 import binify from '@pnpm/package-bins'
 import path = require('path')
 import rimraf = require('rimraf-then')
-import {rootLogger} from './loggers'
+import {
+  removalLogger,
+  rootLogger,
+} from './loggers'
 import {fromDir as safeReadPkgFromDir} from './safeReadPkg'
 
 export default async function removeTopDependency (
@@ -20,7 +23,7 @@ export default async function removeTopDependency (
 ) {
   const results = await Promise.all([
     removeBins(dependency.name, opts),
-    !opts.dryRun && rimraf(path.join(opts.modules, dependency.name)),
+    !opts.dryRun && remove(path.join(opts.modules, dependency.name)),
   ])
 
   const uninstalledPkg = results[0]
@@ -51,10 +54,18 @@ async function removeBins (
   const cmds = await binify(uninstalledPkgJson, uninstalledPkgPath)
 
   if (!opts.dryRun) {
+    // TODO: what about the .cmd bin files on Windows?
     await Promise.all(
-      cmds.map((cmd) => path.join(opts.bin, cmd.name)).map(rimraf),
+      cmds
+        .map((cmd) => path.join(opts.bin, cmd.name))
+        .map(remove),
     )
   }
 
   return uninstalledPkgJson
+}
+
+function remove (p: string) {
+  removalLogger.debug(p)
+  return rimraf(p)
 }

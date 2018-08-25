@@ -3,13 +3,13 @@ import logger from '@pnpm/logger'
 import {fromDir as readPackageFromDir} from '@pnpm/read-package-json'
 import {PackageJson} from '@pnpm/types'
 import {
+  linkLogger,
   removeOrphanPackages as removeOrphanPkgs,
   rootLogger,
   stageLogger,
   statsLogger,
 } from '@pnpm/utils'
 import * as dp from 'dependency-path'
-import pFilter = require('p-filter')
 import pLimit = require('p-limit')
 import {StoreController} from 'package-store'
 import path = require('path')
@@ -121,11 +121,11 @@ export default async function linkPackages (
     .reduce((acc, depNode) => {
       acc[depNode.absolutePath] = depNode
       return acc
-    }, {})
+    }, {}) as {[absolutePath: string]: DepGraphNode}
   for (const rootAlias of R.keys(resolvePeersResult.rootAbsolutePathsByAlias)) {
     const pkg = rootDepsByDepPath[resolvePeersResult.rootAbsolutePathsByAlias[rootAlias]]
     if (!pkg) continue
-    if (opts.dryRun || !(await symlinkDependencyTo(rootAlias, pkg, opts.baseNodeModules)).reused) {
+    if (opts.dryRun || !(await symlinkDependencyTo(rootAlias, pkg.peripheralLocation, opts.baseNodeModules)).reused) {
       const isDev = opts.pkg.devDependencies && opts.pkg.devDependencies[pkg.name]
       const isOptional = opts.pkg.optionalDependencies && opts.pkg.optionalDependencies[pkg.name]
       rootLogger.debug({
@@ -255,7 +255,7 @@ async function shamefullyFlattenGraph (
       // TODO look how it is done in linkPackages
       if (!opts.dryRun) {
         await Promise.all(pkgAliases.map(async (pkgAlias) => {
-          await symlinkDependencyTo(pkgAlias, depNode, opts.baseNodeModules)
+          await symlinkDependencyTo(pkgAlias, depNode.peripheralLocation, opts.baseNodeModules)
         }))
       }
     }))
@@ -462,14 +462,15 @@ async function linkAllModules (
             .map(async (alias) => {
               const pkg = depGraph[childrenToLink[alias]]
               if (!pkg.installable) return
-              await symlinkDependencyTo(alias, pkg, depNode.modules)
+              await symlinkDependencyTo(alias, pkg.peripheralLocation, depNode.modules)
             }),
         )
       })),
   )
 }
 
-function symlinkDependencyTo (alias: string, depNode: DepGraphNode, dest: string) {
-  dest = path.join(dest, alias)
-  return symlinkDir(depNode.peripheralLocation, dest)
+function symlinkDependencyTo (alias: string, peripheralLocation: string, dest: string) {
+  const linkPath = path.join(dest, alias)
+  linkLogger.debug({target: peripheralLocation, link: linkPath})
+  return symlinkDir(peripheralLocation, linkPath)
 }

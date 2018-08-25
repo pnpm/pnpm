@@ -6,7 +6,10 @@ import {ResolvedPackages, Shrinkwrap} from 'pnpm-shrinkwrap'
 import R = require('ramda')
 import promisify = require('util.promisify')
 import {dependenciesTypes} from './getSaveType'
-import {statsLogger} from './loggers'
+import {
+  removalLogger,
+  statsLogger,
+} from './loggers'
 import removeTopDependency from './removeTopDependency'
 
 const vacuum = promisify(vacuumCB)
@@ -81,7 +84,9 @@ export default async function removeOrphanPkgs (
       }
 
       await Promise.all(orphanDepPaths.map(async (orphanDepPath) => {
-        await vacuum(path.join(rootModules, `.${orphanDepPath}`, 'node_modules'), {
+        const pathToRemove = path.join(rootModules, `.${orphanDepPath}`, 'node_modules')
+        removalLogger.debug(pathToRemove)
+        await vacuum(pathToRemove, {
            base: rootModules,
            purge: true,
         })

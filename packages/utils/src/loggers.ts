@@ -12,6 +12,17 @@ export const statsLogger = baseLogger('stats') as Logger<StatsMessage>
 export const skippedOptionalDependencyLogger = baseLogger('skipped-optional-dependency') as Logger<SkippedOptionalDependencyMessage>
 export const progressLogger = baseLogger('progress') as Logger<ProgressMessage>
 
+export const removalLogger = baseLogger('removal') as Logger<string>
+
+export const linkLogger = baseLogger('link') as Logger<LinkMessage>
+
+export interface LinkMessage {
+  target: string,
+  link: string,
+}
+
+export type LinkLog = {name: 'pnpm:linking'} & LogBase & LinkMessage
+
 export type PackageJsonMessage = {
   prefix: string,
 } & ({
@@ -113,3 +124,4 @@ export type Log = StageLog
   | PackageJsonLog
   | SummaryLog
   | ProgressLog
+  | LinkLog

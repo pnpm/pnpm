@@ -16,6 +16,7 @@ import pkgIdToFilename from '@pnpm/pkgid-to-filename'
 import {fromDir as readPackageFromDir} from '@pnpm/read-package-json'
 import {PackageJson} from '@pnpm/types'
 import {
+  linkLogger,
   packageJsonLogger,
   progressLogger,
   realNodeModulesDir,
@@ -563,8 +564,9 @@ async function linkAllModules (
 }
 
 function symlinkDependencyTo (alias: string, peripheralLocation: string, dest: string) {
-  dest = path.join(dest, alias)
-  return symlinkDir(peripheralLocation, dest)
+  const linkPath = path.join(dest, alias)
+  linkLogger.debug({target: peripheralLocation, link: linkPath})
+  return symlinkDir(peripheralLocation, linkPath)
 }
 
 // TODO: move this to separate package
