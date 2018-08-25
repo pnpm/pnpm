@@ -1,11 +1,9 @@
 import path = require('path')
-import fs = require('mz/fs')
 import tape = require('tape')
 import loadJsonFile = require('load-json-file')
 import promisifyTape from 'tape-promise'
 import {
   prepare,
-  testDefaults,
   execPnpm,
 } from '../utils'
 
@@ -18,7 +16,7 @@ test('production install (with --production flag)', async (t: tape.Test) => {
 
   await execPnpm('install', '--production')
 
-  await project.hasNot('@rstacruze/tap-spect')
+  await project.hasNot(Object.keys(basicPackageJson.devDependencies)[0])
   await project.has('rimraf')
   await project.has('is-positive')
 })
@@ -33,7 +31,7 @@ test('production install (with production NODE_ENV)', async (t: tape.Test) => {
   // reset NODE_ENV
   process.env.NODE_ENV = originalNodeEnv
 
-  await project.hasNot('@rstacruze/tap-spect')
+  await project.hasNot(Object.keys(basicPackageJson.devDependencies)[0])
   await project.has('rimraf')
   await project.has('is-positive')
 })
