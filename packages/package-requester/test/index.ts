@@ -12,6 +12,7 @@ import tempy = require('tempy')
 import nock = require('nock')
 import rimraf = require('rimraf-then')
 import sinon = require('sinon')
+import loadJsonFile = require('load-json-file')
 
 const registry = 'https://registry.npmjs.org/'
 const IS_POSTIVE_TARBALL = path.join(__dirname, 'is-positive-1.0.0.tgz')
@@ -697,6 +698,9 @@ test('refetch package to store if it has no integrity checksums and verification
     })
 
     await fetchResult.fetchingFiles
+
+    const integrityJson = await loadJsonFile(path.join(storePath, pkgId, 'integrity.json'))
+    t.notOk(integrityJson['package.json'].integrity, 'no integrity hash generated')
   }
 
   const reporter = sinon.spy()
@@ -719,6 +723,9 @@ test('refetch package to store if it has no integrity checksums and verification
     })
 
     await fetchResult.fetchingFiles
+
+    const integrityJson = await loadJsonFile(path.join(storePath, pkgId, 'integrity.json'))
+    t.ok(integrityJson['package.json'].integrity, 'integrity hash generated')
   }
 
   streamParser.removeListener('data', reporter)

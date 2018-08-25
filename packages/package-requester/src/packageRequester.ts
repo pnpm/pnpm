@@ -509,34 +509,30 @@ function fetchToStore (
       // Ideally, fetchingFiles wouldn't care about when integrity is calculated.
       // However, we can only rename the temp folder once we know the package name.
       // And we cannot rename the temp folder till we're calculating integrities.
-      if (!targetExists) {
-        if (opts.verifyStoreIntegrity) {
-          const fileIntegrities = await Promise.all(
-            Object.keys(filesIndex)
-              .map((filename) =>
-              filesIndex[filename].generatingIntegrity
-                  .then((fileIntegrity: object) => ({
-                    [filename]: {
-                      integrity: fileIntegrity,
-                      size: filesIndex[filename].size,
-                    },
-                  })),
-              ),
-          )
-          const integrity = fileIntegrities
-            .reduce((acc, info) => {
-              Object.assign(acc, info)
-              return acc
-            }, {})
-          await writeJsonFile(path.join(target, 'integrity.json'), integrity, {indent: null})
-        } else {
-          // TODO: save only filename: {size}
-          await writeJsonFile(path.join(target, 'integrity.json'), filesIndex, {indent: null})
-        }
-        finishing.resolve(undefined)
+      if (opts.verifyStoreIntegrity) {
+        const fileIntegrities = await Promise.all(
+          Object.keys(filesIndex)
+            .map((filename) =>
+            filesIndex[filename].generatingIntegrity
+                .then((fileIntegrity: object) => ({
+                  [filename]: {
+                    integrity: fileIntegrity,
+                    size: filesIndex[filename].size,
+                  },
+                })),
+            ),
+        )
+        const integrity = fileIntegrities
+          .reduce((acc, info) => {
+            Object.assign(acc, info)
+            return acc
+          }, {})
+        await writeJsonFile(path.join(target, 'integrity.json'), integrity, {indent: null})
       } else {
-        finishing.resolve(undefined)
+        // TODO: save only filename: {size}
+        await writeJsonFile(path.join(target, 'integrity.json'), filesIndex, {indent: null})
       }
+      finishing.resolve(undefined)
 
       let pkgName: string | undefined = opts.pkgName
       if (!pkgName || opts.fetchRawManifest) {
