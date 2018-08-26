@@ -72,7 +72,18 @@ export default async (
 
   const cwd = process.cwd()
   const allWorkspacePkgs = await findWorkspacePackages(cwd)
-  return recursive(allWorkspacePkgs, input, opts, cmdFullName, cmd)
+
+  if (!allWorkspacePkgs.length) {
+    logger.info({message: `No packages found in "${opts.prefix}"`, prefix: opts.prefix})
+    return
+  }
+
+  const atLeastOnePackageMatched = await recursive(allWorkspacePkgs, input, opts, cmdFullName, cmd)
+
+  if (!atLeastOnePackageMatched) {
+    logger.info({message: `No packages matched the filters in "${opts.prefix}"`, prefix: opts.prefix})
+    return
+  }
 }
 
 export async function recursive (
@@ -85,7 +96,12 @@ export async function recursive (
   },
   cmdFullName: string,
   cmd: string,
-) {
+): Promise<boolean> {
+  if (allPkgs.length === 0) {
+    // It might make sense to throw an exception in this case
+    return false
+  }
+
   const pkgGraphResult = createPkgGraph(allPkgs)
   let pkgs: Array<{path: string, manifest: PackageJson}>
   if (opts.scope) {
@@ -101,15 +117,19 @@ export async function recursive (
     pkgs = allPkgs
   }
 
+  if (pkgs.length === 0) {
+    return false
+  }
+
   const throwOnFail = throwOnCommandFail.bind(null, `pnpm recursive ${cmd}`)
 
   switch (cmdFullName) {
     case 'list':
       await list(pkgs, input, cmd, opts as any) // tslint:disable-line:no-any
-      return
+      return true
     case 'outdated':
       await outdated(pkgs, input, cmd, opts as any) // tslint:disable-line:no-any
-      return
+      return true
   }
 
   const chunks = opts.sort
@@ -119,16 +139,16 @@ export async function recursive (
   switch (cmdFullName) {
     case 'test':
       throwOnFail(await run(chunks, pkgGraphResult.graph, ['test', ...input], cmd, opts as any)) // tslint:disable-line:no-any
-      return
+      return true
     case 'run':
       throwOnFail(await run(chunks, pkgGraphResult.graph, input, cmd, opts as any)) // tslint:disable-line:no-any
-      return
+      return true
     case 'update':
       opts = {...opts, update: true, allowNew: false} as any // tslint:disable-line:no-any
       break
     case 'exec':
       throwOnFail(await exec(chunks, input, cmd, opts as any)) // tslint:disable-line:no-any
-      return
+      return true
   }
 
   const store = await createStoreController(opts)
@@ -224,6 +244,8 @@ export async function recursive (
   await saveState()
 
   throwOnFail(result)
+
+  return true
 }
 
 function sortPackages (pkgGraph: {[nodeId: string]: PackageNode}): string[][] {
