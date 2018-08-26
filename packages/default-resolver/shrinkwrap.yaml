@@ -1,6 +1,6 @@
 dependencies:
   '@pnpm/default-resolver': 'link:../../../__package_previews__/default-resolver/@pnpm/default-resolver'
-  '@pnpm/git-resolver': 0.3.8
+  '@pnpm/git-resolver': 1.0.0
   '@pnpm/local-resolver': 1.0.0
   '@pnpm/npm-resolver': 2.2.4
   '@pnpm/tarball-resolver': 1.0.0
@@ -28,21 +28,21 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha512-1zLmh6tRftQXfZ1IFHq1IexP0KaJhN6pSCA/IzK+Vixn4hPvxwcIbGjKW0KH9hsHSmrPpmSit2EWj7jGNgfa6Q==
-  /@pnpm/git-resolver/0.3.8:
+  /@pnpm/git-resolver/1.0.0:
     dependencies:
       '@pnpm/resolver-base': 1.2.0
       '@types/node': 10.9.2
       '@types/semver': 5.5.0
       got: 8.3.2
-      graceful-git: 1.0.3
+      graceful-git: 2.0.0
       hosted-git-info: 2.7.1
       normalize-ssh: 1.0.0
       semver: 5.5.1
     dev: false
     engines:
-      node: '>=4'
+      node: '>=6'
     resolution:
-      integrity: sha512-+Sc2RRWEDlkbOq38k7J649KREdcuZJif3tJmss0RXrskbx2SvjnFUBSpxoKiNf+H4qqtfSgNT4olVEcEXuFIjg==
+      integrity: sha512-RvDA2VAAt/PCT+X86urGBoxSnTSia+A0QJWtExF+Bzl7JkbK5eljDTz3tna0y8RVolmGRoglRARMaA9p1c0wXw==
   /@pnpm/local-resolver/1.0.0:
     dependencies:
       '@pnpm/resolver-base': 1.2.0
@@ -1086,10 +1086,10 @@ packages:
     dev: true
     resolution:
       integrity: sha1-LUH1Y+H+QA7Uli/hpNXGp1Od9/Y=
-  /execa/0.10.0:
+  /execa/1.0.0:
     dependencies:
       cross-spawn: 6.0.5
-      get-stream: 3.0.0
+      get-stream: 4.0.0
       is-stream: 1.1.0
       npm-run-path: 2.0.2
       p-finally: 1.0.0
@@ -1097,9 +1097,9 @@ packages:
       strip-eof: 1.0.0
     dev: false
     engines:
-      node: '>=4'
+      node: '>=6'
     resolution:
-      integrity: sha512-7XOMnz8Ynx1gGo/3hyV9loYNPWM94jG3+3T3Y8tsfSstFmETmENCMU/A/zj8Lyaj1lkgEepKepvd6240tBRvlw==
+      integrity: sha512-adbxcyWV46qiHyvSp50TKt05tB4tK3HcmF7/nxfAdhnox83seTDbwnaqKO4sXRy7roHAIFqJP/Rw/AuEbX61LA==
   /fast-safe-stringify/1.1.13:
     dev: true
     resolution:
@@ -1229,6 +1229,14 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha1-jpQ9E1jcN1VQVOy+LtsFqhdO3hQ=
+  /get-stream/4.0.0:
+    dependencies:
+      pump: 3.0.0
+    dev: false
+    engines:
+      node: '>=6'
+    resolution:
+      integrity: sha512-FneLKMENeOR7wOK0/ZXCh+lwqtnPwkeunJjRN28LPqzGvNAhYvrTAhXv6xDm4vsJ0M7lcRbIYHQudKsSy2RtSQ==
   /github-slugger/1.2.0:
     dependencies:
       emoji-regex: 6.1.1
@@ -1319,15 +1327,15 @@ packages:
       node: '>=0.4.0'
     resolution:
       integrity: sha1-Dovf5NHduIVNZOBOp8AOKgJuVlg=
-  /graceful-git/1.0.3:
+  /graceful-git/2.0.0:
     dependencies:
-      execa: 0.10.0
+      execa: 1.0.0
       retry: 0.12.0
     dev: false
     engines:
-      node: '>=4'
+      node: '>=6'
     resolution:
-      integrity: sha512-Dj9XJ9oBXFhz4hKzfuRoPyjGBW6iuFZxTe96VCzNvLVI4eBg3ZXzvVd/6L/QTXZmzoLZKI0JtLii2d0+dycMbA==
+      integrity: sha512-nxsQiad5AcC7US0jJJCg7OcL0ISiPz+1f14oYhjEy2Y80FxRyH4vIH1S96/j+BIhkiFdvsEFC7D6Js/rSof03w==
   /gunzip-maybe/1.4.1:
     dependencies:
       browserify-zlib: 0.1.4
@@ -3793,7 +3801,7 @@ registry: 'https://registry.npmjs.org/'
 shrinkwrapMinorVersion: 9
 shrinkwrapVersion: 3
 specifiers:
-  '@pnpm/git-resolver': ^0.3.4
+  '@pnpm/git-resolver': ^1.0.0
   '@pnpm/local-resolver': ^1.0.0
   '@pnpm/logger': ^2.0.0
   '@pnpm/npm-resolver': ^2.2.4
