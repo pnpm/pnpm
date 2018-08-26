@@ -8,7 +8,6 @@ import prune from './prune'
 import rebuild from './rebuild'
 import recursive from './recursive'
 import root from './root'
-import run from './run'
 import server from './server'
 import store from './store'
 import uninstall from './uninstall'
@@ -20,7 +19,6 @@ export {
   installTest,
   link,
   prune,
-  run,
   server,
   store,
   uninstall,

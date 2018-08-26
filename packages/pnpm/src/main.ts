@@ -21,7 +21,6 @@ import isCI = require('is-ci')
 import nopt = require('nopt')
 import checkForUpdates from './checkForUpdates'
 import * as pnpmCmds from './cmd'
-import runNpm from './cmd/runNpm'
 import getCommandFullName from './getCommandFullName'
 import getConfigs from './getConfigs'
 import './logging/fileLogger'
@@ -38,7 +37,6 @@ const supportedCmds = new Set([
   'link',
   'prune',
   'install-test',
-  'run',
   'server',
   'store',
   'list',
@@ -56,52 +54,6 @@ const supportedCmds = new Set([
   // 'doctor',
   // 'shrinkwrap',
   // 'help-search',
-])
-
-const passedThroughCmds = new Set([
-  'access',
-  'adduser',
-  'bin',
-  'bugs',
-  'c',
-  'config',
-  'deprecate',
-  'dist-tag',
-  'docs',
-  'edit',
-  'get',
-  'info',
-  'init',
-  'login',
-  'logout',
-  'owner',
-  'pack',
-  'ping',
-  'prefix',
-  'profile',
-  'publish',
-  'repo',
-  'restart',
-  's',
-  'se',
-  'search',
-  'set',
-  'star',
-  'stars',
-  'start',
-  'stop',
-  'team',
-  't',
-  'tst',
-  'test',
-  'token',
-  'unpublish',
-  'unstar',
-  'v',
-  'version',
-  'view',
-  'whoami',
-  'xmas',
 ])
 
 export default async function run (argv: string[]) {
@@ -149,10 +101,6 @@ export default async function run (argv: string[]) {
 
   let cmd = getCommandFullName(cliConf.argv.remain[0]) || 'help'
   if (!supportedCmds.has(cmd)) {
-    if (passedThroughCmds.has(cmd)) {
-      runNpm(argv)
-      return Promise.resolve()
-    }
     cmd = 'help'
   }
 
