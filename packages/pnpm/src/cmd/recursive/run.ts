@@ -27,7 +27,10 @@ export default async (
   } as RecursiveSummary
 
   const limitRun = pLimit(opts.workspaceConcurrency)
-  const stdio = opts.workspaceConcurrency === 1 ? 'inherit' : 'pipe'
+  const stdio = (
+    opts.workspaceConcurrency === 1 ||
+    packageChunks.length === 1 && packageChunks[0].length === 1
+  ) ? 'inherit' : 'pipe'
 
   for (const chunk of packageChunks) {
     await Promise.all(chunk.map((prefix: string) =>
