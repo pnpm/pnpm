@@ -5,7 +5,6 @@ dependencies:
   '@types/mem': 1.1.2
   '@types/node': 10.9.2
   '@types/semver': 5.5.0
-  '@types/write-json-file': 2.2.1
   credentials-by-uri: 1.0.0
   encode-registry: 1.1.0
   fetch-from-npm-registry: 1.0.0
@@ -17,7 +16,7 @@ dependencies:
   semver: 5.5.1
   ssri: 6.0.0
   version-selector-type: 2.0.0
-  write-json-file: 2.3.0
+  write-json-file: 3.0.0
 devDependencies:
   '@pnpm/logger': 2.1.0
   '@types/nock': 9.3.0
@@ -133,6 +132,7 @@ packages:
     resolution:
       integrity: sha512-2qeSxI2bMucW58Jsj8jrBXZxobtcKkvO44AvJzKGaD8+m/3KRuBqeKitJ5U6sqy3a9tFsqhzsxMkqR4Wcl6AmQ==
   /@types/write-json-file/2.2.1:
+    dev: true
     resolution:
       integrity: sha512-JdO/UpPm9RrtQBNVcZdt3M7j3mHO/kXaea9LBGx3UgWJd1f9BkIWP7jObLBG6ZtRyqp7KzLFEsaPhWcidVittA==
   /@zkochan/async-replace/0.4.1:
@@ -2482,6 +2482,12 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha1-5aSs0sEB/fPZpNB/DbxNtJ3SgXY=
+  /pify/4.0.0:
+    dev: false
+    engines:
+      node: '>=6'
+    resolution:
+      integrity: sha512-zrSP/KDf9DH3K3VePONoCstgPiYJy9z0SCatZuTpOc7YdnWIqwkWdXOuwlr4uDc7em8QZRsFWsT/685x5InjYg==
   /pinkie-promise/2.0.1:
     dependencies:
       pinkie: 2.0.4
@@ -3570,10 +3576,24 @@ packages:
       pify: 3.0.0
       sort-keys: 2.0.0
       write-file-atomic: 2.3.0
+    dev: true
     engines:
       node: '>=4'
     resolution:
       integrity: sha1-K2TIozAE1UuGmMdtWFp3zrYdoy8=
+  /write-json-file/3.0.0:
+    dependencies:
+      detect-indent: 5.0.0
+      graceful-fs: 4.1.11
+      make-dir: 1.3.0
+      pify: 4.0.0
+      sort-keys: 2.0.0
+      write-file-atomic: 2.3.0
+    dev: false
+    engines:
+      node: '>=6'
+    resolution:
+      integrity: sha512-hBVT4C9AShevAza7D8L6A/PoET4fabMHTbMEyP+ZFSeSDD81J60y0m1GKJUaCwNRBfMoUwWNA3Kdv5I60s6WPA==
   /write-pkg/1.0.0:
     dependencies:
       write-json-file: 1.2.0
@@ -3623,7 +3643,6 @@ specifiers:
   '@types/semver': ^5.4.0
   '@types/tape': ^4.2.31
   '@types/tempy': ^0.1.0
-  '@types/write-json-file': ^2.2.1
   credentials-by-uri: ^1.0.0
   encode-registry: ^1.1.0
   fetch-from-npm-registry: ^1.0.0
@@ -3646,4 +3665,4 @@ specifiers:
   tslint: ^5.8.0
   typescript: ^3.0.0
   version-selector-type: ^2.0.0
-  write-json-file: ^2.3.0
+  write-json-file: ^3.0.0
