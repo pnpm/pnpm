@@ -21,7 +21,7 @@ import {
   linkToGlobal,
   RootLog,
 } from 'supi'
-import writeJsonFile = require('write-json-file')
+import writeJsonFile from 'write-json-file'
 
 test('relative link', async (t: tape.Test) => {
   const project = prepare(t, {

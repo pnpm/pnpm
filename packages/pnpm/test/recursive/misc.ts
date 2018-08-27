@@ -4,7 +4,7 @@ import isWindows = require('is-windows')
 import tape = require('tape')
 import promisifyTape from 'tape-promise'
 import path = require('path')
-import writeJsonFile = require('write-json-file')
+import writeJsonFile from 'write-json-file'
 import writeYamlFile = require('write-yaml-file')
 import {
   execPnpm,

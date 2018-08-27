@@ -2,7 +2,7 @@ import sinon = require('sinon')
 import {install, installPkgs, uninstall} from 'supi'
 import tape = require('tape')
 import promisifyTape from 'tape-promise'
-import writeJsonFile = require('write-json-file')
+import writeJsonFile from 'write-json-file'
 import {
   prepare,
   testDefaults,

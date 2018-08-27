@@ -112,7 +112,7 @@
     "ts-node": "^6.2.0",
     "tslint": "^5.4.2",
     "typescript": "^3.0.0",
-    "write-json-file": "^2.2.0",
+    "write-json-file": "^3.0.0",
     "write-yaml-file": "^1.0.1"
   },
   "directories": {

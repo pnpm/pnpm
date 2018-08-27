@@ -43,7 +43,6 @@
     "@types/mz": "^0.0.32",
     "@types/node": "^10.0.6",
     "@types/p-queue": "^2.3.1",
-    "@types/write-json-file": "^2.2.1",
     "load-json-file": "^5.0.0",
     "mkdirp-promise": "^5.0.1",
     "mz": "^2.7.0",
@@ -55,7 +54,7 @@
     "rimraf-then": "^1.0.1",
     "symlink-dir": "^1.1.0",
     "util.promisify": "^1.0.0",
-    "write-json-file": "^2.3.0"
+    "write-json-file": "^3.0.0"
   },
   "devDependencies": {
     "@pnpm/logger": "^2.1.0",
