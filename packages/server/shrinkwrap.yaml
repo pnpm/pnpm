@@ -14,7 +14,7 @@ dependencies:
 devDependencies:
   '@pnpm/logger': 2.1.0
   '@pnpm/npm-resolver': 2.2.5
-  '@pnpm/tarball-fetcher': 1.0.0
+  '@pnpm/tarball-fetcher': 2.0.1
   '@types/mz': 0.0.32
   '@types/tape': 4.2.32
   is-port-reachable: 2.0.0
@@ -80,7 +80,7 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha512-1Ks5ORqDSN9Q3G4FiHLSjcY5mrZZTQq7AxWyK76SnAS9ug5WTUmQ6wN3Ab9Q93aYhpAlXsdZ4bTW075iUG/mfw==
-  /@pnpm/tarball-fetcher/1.0.0:
+  /@pnpm/tarball-fetcher/2.0.1:
     dependencies:
       '@pnpm/fetcher-base': 1.0.0
       '@types/mem': 1.1.2
@@ -92,7 +92,7 @@ packages:
       fetch-from-npm-registry: 1.0.0
       fs-write-stream-atomic: 1.0.10
       graceful-fs: 4.1.11
-      mem: 3.0.1
+      mem: 4.0.0
       mkdirp-promise: 5.0.1
       mz: 2.7.0
       path-temp: 1.0.0
@@ -104,9 +104,9 @@ packages:
     engines:
       node: '>=6'
     peerDependencies:
-      '@pnpm/logger': ^1.0.0
+      '@pnpm/logger': ^2.1.0
     resolution:
-      integrity: sha512-0H16l/W8b6231fMMh1Ze99l7GpX8fvFAQnTyvfu5Poz9Sr6vJDzpIOmPxvdYTNvUZlU4EiTLL2b1nGTuhtP5qw==
+      integrity: sha512-8pbnbfd75BXswYxej3mytI0r2ginDKcUalrT4UeUcDTEFsIUno+BGvMQBss7VR86mGwvSPxluUuyWANEiw6sSA==
   /@pnpm/types/1.7.0:
     resolution:
       integrity: sha512-pn7g4uxcofWTNG/cxmKvkMK2lxr4OUIhrQDrEVYEdVhW0WkWztsHkFrYjFgfNzPbYu3ITlB3T6aSVjCoJQTOlw==
@@ -3550,7 +3550,7 @@ specifiers:
   '@pnpm/npm-resolver': ^2.2.4
   '@pnpm/package-requester': ^4.0.0
   '@pnpm/resolver-base': ^1.1.0
-  '@pnpm/tarball-fetcher': ^1.0.0
+  '@pnpm/tarball-fetcher': ^2.0.1
   '@pnpm/types': ^1.7.0
   '@types/got': ^8.3.0
   '@types/mz': ^0.0.32
