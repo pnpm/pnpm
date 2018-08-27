@@ -13,21 +13,35 @@ const test = promisifyTape(tape)
 test('reports warning when installing deprecated packages', async (t: tape.Test) => {
   const project = prepare(t)
 
-  const reporter = sinon.spy()
+  {
+    const reporter = sinon.spy()
 
-  await installPkgs(['jade@1.11.0'], await testDefaults({reporter}))
+    await installPkgs(['express@0.14.1'], await testDefaults({reporter}))
 
-  t.ok(reporter.calledWithMatch({
-    deprecated: 'Jade has been renamed to pug, please install the latest version of pug instead of jade',
-    level: 'debug',
-    name: 'pnpm:deprecation',
-    pkgId: 'localhost+4873/jade/1.11.0',
-  } as DeprecationLog), 'deprecation warning reported')
+    t.ok(reporter.calledWithMatch({
+      deprecated: 'express 0.x series is deprecated',
+      level: 'debug',
+      name: 'pnpm:deprecation',
+      pkgId: 'localhost+4873/express/0.14.1',
+    } as DeprecationLog), 'deprecation warning reported')
+  }
 
   const shr = await project.loadShrinkwrap()
   t.equal(
-    shr.packages['/jade/1.11.0'].deprecated,
-    'Jade has been renamed to pug, please install the latest version of pug instead of jade',
+    shr.packages['/express/0.14.1'].deprecated,
+    'express 0.x series is deprecated',
     'deprecated field added to shrinkwrap.yaml',
   )
+
+  {
+    const reporter = sinon.spy()
+
+    await installPkgs(['express@4.16.3'], await testDefaults({reporter}))
+
+    t.notOk(reporter.calledWithMatch({
+      level: 'debug',
+      name: 'pnpm:deprecation',
+      pkgId: 'localhost+4873/express/4.16.3',
+    } as DeprecationLog), 'deprecation warning reported')
+  }
 })

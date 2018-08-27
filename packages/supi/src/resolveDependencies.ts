@@ -390,7 +390,7 @@ async function install (
         : pkgResponse.body['manifest'] || await pkgResponse['fetchingRawManifest']
 
       prepare = Boolean(pkgResponse.body['resolvedVia'] === 'git-repository' && pkg['scripts'] && typeof pkg['scripts']['prepare'] === 'string')
-      if (options.dependencyShrinkwrap && options.dependencyShrinkwrap.deprecated && !pkg.deprecated) {
+      if (options.dependencyShrinkwrap && options.dependencyShrinkwrap.deprecated && !pkgResponse.body.updated && !pkg.deprecated) {
         pkg.deprecated = options.dependencyShrinkwrap.deprecated
       }
       hasBin = Boolean(pkg.bin && !R.isEmpty(pkg.bin) || pkg.directories && pkg.directories.bin)
