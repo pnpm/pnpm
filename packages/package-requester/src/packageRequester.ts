@@ -28,7 +28,7 @@ import exists = require('path-exists')
 import renameOverwrite = require('rename-overwrite')
 import rimraf = require('rimraf-then')
 import symlinkDir = require('symlink-dir')
-import writeJsonFile = require('write-json-file')
+import writeJsonFile from 'write-json-file'
 import {fromDir as readPkgFromDir} from './fs/readPkg'
 import {LoggedPkg, progressLogger} from './loggers'
 

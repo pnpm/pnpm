@@ -360,7 +360,7 @@ packages:
       integrity: sha512-nne9/IiQ/hzIhY6pdDnbBtz7DjPTKrY00P/zvPSm5pOFkl6xuGrGnXn/VtTNNfNtAfZ9/1RtehkszU9qcTii0Q==
   /accepts/1.3.5:
     dependencies:
-      mime-types: 2.1.19
+      mime-types: 2.1.20
       negotiator: 0.6.1
     dev: true
     engines:
@@ -1212,6 +1212,7 @@ packages:
       type-is: 1.6.16
       utils-merge: 1.0.1
       vary: 1.1.2
+    deprecated: express 0.x series is deprecated
     dev: true
     engines:
       node: '>= 0.10.0'
@@ -1284,7 +1285,7 @@ packages:
     dependencies:
       asynckit: 0.4.0
       combined-stream: 1.0.6
-      mime-types: 2.1.19
+      mime-types: 2.1.20
     engines:
       node: '>= 0.12'
     resolution:
@@ -1396,7 +1397,7 @@ packages:
     optional: true
     resolution:
       integrity: sha1-DwiGD2oVUSey+t1PnOJLGqtuTSI=
-  /glob/7.1.2:
+  /glob/7.1.3:
     dependencies:
       fs.realpath: 1.0.0
       inflight: 1.0.6
@@ -1405,7 +1406,7 @@ packages:
       once: 1.4.0
       path-is-absolute: 1.0.1
     resolution:
-      integrity: sha512-MJTUg1kjuLeQCJ+ccE4Vpa6kKVXkPYJ2mOCQyUuKLcLQsdrMCpBPUi8qVE6+YuaJkozeA9NusTAw3hLr8Xe5EQ==
+      integrity: sha512-vcfuiIxogLV4DlGBHIUOwI0IbrJ8HWPc4MU7HzviGeNho/UJDfi6B5p3sHeWIQ0KGIU0Jpxi5ZHxemQfLkkAwQ==
   /global/4.3.2:
     dependencies:
       min-document: 2.19.0
@@ -1763,10 +1764,10 @@ packages:
       '0': node >=0.6.0
     resolution:
       integrity: sha1-MT5mvB5cwG5Di8G3SZwuXFastqI=
-  /just-extend/1.1.27:
+  /just-extend/3.0.0:
     dev: true
     resolution:
-      integrity: sha512-mJVp13Ix6gFo3SBAy9U/kL+oeZqzlYYYLQBwXVBlVzIsZwBqGREnOro24oC/8s8aox+rJhtZ2DiQof++IrkA+g==
+      integrity: sha512-Fu3T6pKBuxjWT/p4DkqGHFRsysc8OauWr4ZRTY9dIx07Y9O0RkoR5jcv28aeD1vuAwhm3nLkDurwLXoALp4DpQ==
   /jwa/1.1.6:
     dependencies:
       buffer-equal-constant-time: 1.0.1
@@ -1986,24 +1987,18 @@ packages:
       node: '>= 0.6'
     resolution:
       integrity: sha1-VSmk1nZUE07cxSZmVoNbD4Ua/O4=
-  /mime-db/1.35.0:
-    engines:
-      node: '>= 0.6'
-    resolution:
-      integrity: sha512-JWT/IcCTsB0Io3AhWUMjRqucrHSPsSf2xKLaRldJVULioggvkJvggZ3VXNNSRkCddE6D+BUI4HEIZIA2OjwIvg==
   /mime-db/1.36.0:
-    dev: true
     engines:
       node: '>= 0.6'
     resolution:
       integrity: sha512-L+xvyD9MkoYMXb1jAmzI/lWYAxAMCPvIBSWur0PZ5nOf5euahRLVqH//FKW9mWp2lkqUgYiXPgkzfMUFi4zVDw==
-  /mime-types/2.1.19:
+  /mime-types/2.1.20:
     dependencies:
-      mime-db: 1.35.0
+      mime-db: 1.36.0
     engines:
       node: '>= 0.6'
     resolution:
-      integrity: sha512-P1tKYHVSZ6uFo26mtnve4HQFE3koh1UWVkp8YUC+ESBHe945xWSoXuHHiGarDqcEZ+whpCDnlNw5LON0kLo+sw==
+      integrity: sha512-HrkrPaP9vGuWbLK1B1FfgAkbqNjIuy4eHlIYnFi7kamZyLLrGlo2mpcx0bBmNpKqBtYtAfGbodDddIgddSJC2A==
   /mime/1.4.1:
     dev: true
     hasBin: true
@@ -2133,20 +2128,20 @@ packages:
     dev: true
     resolution:
       integrity: sha512-1nh45deeb5olNY7eX82BkPO7SSxR5SSYJiPTrTdFUVYwAl8CKMA5N9PjTYkHiRjisVcxcQ1HXdLhx2qxxJzLNQ==
-  /nise/1.4.3:
+  /nise/1.4.4:
     dependencies:
       '@sinonjs/formatio': 2.0.0
-      just-extend: 1.1.27
+      just-extend: 3.0.0
       lolex: 2.7.1
       path-to-regexp: 1.7.0
       text-encoding: 0.6.4
     dev: true
     resolution:
-      integrity: sha512-cg44dkGHutAY+VmftgB1gHvLWxFl2vwYdF8WpbceYicQwylESRJiAAKgCRJntdoEbMiUzywkZEUzjoDWH0JwKA==
+      integrity: sha512-pxE0c9PzgrUTyhfv5p+5eMIdfU2bLEsq8VQEuE0kxM4zP7SujSar7rk9wpI2F7RyyCEvLyj5O7Is3RER5F36Fg==
   /node-gyp/3.8.0:
     dependencies:
       fstream: 1.0.11
-      glob: 7.1.2
+      glob: 7.1.3
       graceful-fs: 4.1.11
       mkdirp: 0.5.1
       nopt: 3.0.6
@@ -2662,7 +2657,7 @@ packages:
       integrity: sha512-9esiElv1BrZoI3rCDuOuKCBRbuApGGaDPQfjSflGxdy4oyzqghxu6klEkkVIvBje+FF0BX9coEv8KqW6X/7njw==
   /read-package-json/2.0.13:
     dependencies:
-      glob: 7.1.2
+      glob: 7.1.3
       json-parse-better-errors: 1.0.2
       normalize-package-data: 2.4.0
       slash: 1.0.0
@@ -2731,7 +2726,7 @@ packages:
       is-typedarray: 1.0.0
       isstream: 0.1.2
       json-stringify-safe: 5.0.1
-      mime-types: 2.1.19
+      mime-types: 2.1.20
       oauth-sign: 0.8.2
       performance-now: 2.1.0
       qs: 6.5.2
@@ -2758,7 +2753,7 @@ packages:
       is-typedarray: 1.0.0
       isstream: 0.1.2
       json-stringify-safe: 5.0.1
-      mime-types: 2.1.19
+      mime-types: 2.1.20
       oauth-sign: 0.9.0
       performance-now: 2.1.0
       qs: 6.5.2
@@ -2823,7 +2818,7 @@ packages:
       integrity: sha1-7nEM5dk6j9uFb7Xqj/Di11k0sto=
   /rimraf/2.6.2:
     dependencies:
-      glob: 7.1.2
+      glob: 7.1.3
     hasBin: true
     resolution:
       integrity: sha512-lreewLK/BlghmxtfH36YYVg1i8IAce4TI7oao75I1g245+6BctqTVQiBP3YUJ9C6DQOXJmkYR9X9fCLtCOJc5w==
@@ -2947,7 +2942,7 @@ packages:
       diff: 3.5.0
       lodash.get: 4.4.2
       lolex: 2.7.1
-      nise: 1.4.3
+      nise: 1.4.4
       supports-color: 5.5.0
       type-detect: 4.0.8
     dev: true
@@ -3183,7 +3178,7 @@ packages:
       defined: 1.0.0
       for-each: 0.3.3
       function-bind: 1.1.1
-      glob: 7.1.2
+      glob: 7.1.3
       has: 1.0.3
       inherits: 2.0.3
       minimist: 1.2.0
@@ -3329,7 +3324,7 @@ packages:
       chalk: 2.4.1
       commander: 2.17.1
       diff: 3.5.0
-      glob: 7.1.2
+      glob: 7.1.3
       js-yaml: 3.12.0
       minimatch: 3.0.4
       resolve: 1.8.1
@@ -3370,7 +3365,7 @@ packages:
   /type-is/1.6.16:
     dependencies:
       media-typer: 0.3.0
-      mime-types: 2.1.19
+      mime-types: 2.1.20
     dev: true
     engines:
       node: '>= 0.6'

@@ -128,11 +128,6 @@ declare module 'write-pkg' {
   export = anything;
 }
 
-declare module 'write-json-file' {
-  const anything: any;
-  export = anything;
-}
-
 declare module 'pnpm-install-checks' {
   const anything: any;
   export = anything;

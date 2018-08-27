@@ -31,7 +31,7 @@ import {
   StageLog,
   StatsLog,
 } from 'supi'
-import writeJsonFile = require('write-json-file')
+import writeJsonFile from 'write-json-file'
 
 const IS_WINDOWS = isWindows()
 
