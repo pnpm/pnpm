@@ -44,7 +44,7 @@
     "fetch-from-npm-registry": "^0.1.0 || 1",
     "fs-write-stream-atomic": "^1.0.10",
     "graceful-fs": "^4.1.11",
-    "mem": "^3.0.0",
+    "mem": "^4.0.0",
     "mkdirp-promise": "^5.0.1",
     "mz": "^2.7.0",
     "path-temp": "^1.0.0",
