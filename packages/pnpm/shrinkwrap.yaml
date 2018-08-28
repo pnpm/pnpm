@@ -563,7 +563,7 @@ packages:
       integrity: sha1-tDLdM1i2NM914eRmQ2gkBTPB3b4=
   /ansi-styles/3.2.1:
     dependencies:
-      color-convert: 1.9.2
+      color-convert: 1.9.3
     engines:
       node: '>=4'
     resolution:
@@ -1149,14 +1149,14 @@ packages:
       node: '>=0.10.0'
     resolution:
       integrity: sha1-S8A3PBZLwykbTTaMgpzxqApZ3KA=
-  /color-convert/1.9.2:
+  /color-convert/1.9.3:
     dependencies:
-      color-name: 1.1.1
+      color-name: 1.1.3
     resolution:
-      integrity: sha512-3NUJZdhMhcdPn8vJ9v2UQJoH0qqoGUkYTgFEPZaPjEtwmmKUfNV46zZmgB2M5M4DCEQHMaCfWHCxiBflLm04Tg==
-  /color-name/1.1.1:
+      integrity: sha512-QfAUtd+vFdAtFQcC8CCyYt1fYWxSqAiK2cSD6zDB8N3cpsEBAvRxp9zOGg6G/SHHJYAT88/az/IuDGALsNVbGg==
+  /color-name/1.1.3:
     resolution:
-      integrity: sha1-SxQVMEz1ACjqgWQ2Q72C6gWANok=
+      integrity: sha1-p9BVi9icQveV3UIyj3QIMcpTvCU=
   /combined-stream/1.0.6:
     dependencies:
       delayed-stream: 1.0.0
@@ -1329,7 +1329,7 @@ packages:
   /couleurs/6.0.9:
     dependencies:
       ansy: 1.0.13
-      color-convert: 1.9.2
+      color-convert: 1.9.3
       iterate-object: 1.3.2
       typpy: 2.3.10
     dev: false
@@ -4203,7 +4203,7 @@ packages:
       anonymous-npm-registry-client: 0.1.2
       cpr: 3.0.1
       rimraf: 2.6.2
-      verdaccio: 3.7.0
+      verdaccio: 3.7.1
     dev: true
     engines:
       node: '>=6'
@@ -5666,7 +5666,7 @@ packages:
       node: '>=6.12.0'
     resolution:
       integrity: sha512-60R1AEAjKmIGms7gSfotWmUhw0JOPdeyx6DOATtCuOJNfgameiDm2gPlAGJ/XKHoXn96EaVfuhg2ruDmq1AQug==
-  /verdaccio/3.7.0:
+  /verdaccio/3.7.1:
     dependencies:
       '@verdaccio/file-locking': 0.0.7
       '@verdaccio/local-storage': 1.1.3
@@ -5707,7 +5707,7 @@ packages:
       npm: '>=3'
     hasBin: true
     resolution:
-      integrity: sha512-+6TGd0p5g4edeT+aF6+Lk9E+A0tXuGL+fn0mhfvpRlvsy1hEsV2ZuR2RhSus+eD45m3002ocr+DXF7hKcbizrQ==
+      integrity: sha512-ylhKoI1YGQ6Xm3zQkfJLz1r2l3UZKCgVcStr9mgwLOVG7JsjHJur4w3NgFFqCk0Wb79EteMiw6RoSsv580+q0A==
   /verror/1.10.0:
     dependencies:
       assert-plus: 1.0.0
@@ -5907,18 +5907,18 @@ shrinkwrapMinorVersion: 9
 shrinkwrapVersion: 3
 specifiers:
   '@pnpm/assert-project': ^1.1.1
-  '@pnpm/config': ^2.1.0
-  '@pnpm/default-fetcher': ^2.0.0
-  '@pnpm/default-resolver': ^2.0.1
-  '@pnpm/lifecycle': ^3.0.0
-  '@pnpm/logger': ^2.1.0
+  '@pnpm/config': 2.1.0
+  '@pnpm/default-fetcher': 2.0.0
+  '@pnpm/default-resolver': 2.0.2
+  '@pnpm/lifecycle': 3.0.0
+  '@pnpm/logger': 2.1.0
   '@pnpm/modules-yaml': ^1.0.0
-  '@pnpm/outdated': ^0.4.0
+  '@pnpm/outdated': 0.4.1
   '@pnpm/read-package-json': ^1.0.0
-  '@pnpm/server': ^0.14.0
-  '@pnpm/store-path': ^1.0.3
-  '@pnpm/types': ^1.5.0
-  '@pnpm/utils': ^0.6.2
+  '@pnpm/server': 0.14.0
+  '@pnpm/store-path': 1.0.3
+  '@pnpm/types': 1.7.0
+  '@pnpm/utils': 0.6.2
   '@types/byline': ^4.2.31
   '@types/camelcase-keys': ^4.0.0
   '@types/common-tags': ^1.2.5
@@ -5977,9 +5977,9 @@ specifiers:
   path-exists: ^3.0.0
   path-name: ^1.0.0
   pkgs-graph: ^2.0.0
-  pnpm-default-reporter: ^0.20.2
-  pnpm-file-reporter: ^0.1.0
-  pnpm-list: ^4.0.1
+  pnpm-default-reporter: 0.20.2
+  pnpm-file-reporter: 0.1.0
+  pnpm-list: 4.0.1
   pnpm-registry-mock: ^2.2.0
   process-exists: ^3.0.0
   ramda: ^0.25.0
@@ -5991,7 +5991,7 @@ specifiers:
   sepia: ^2.0.2
   signal-exit: ^3.0.2
   strip-color: ^0.1.0
-  supi: ^0.24.3
+  supi: 0.24.4
   tape: ^4.6.3
   tape-promise: ^3.0.0
   text-table: ^0.2.0
