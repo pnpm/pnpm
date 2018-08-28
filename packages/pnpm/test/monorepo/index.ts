@@ -172,3 +172,34 @@ test('linking a package inside a monorepo with --link-workspace-packages', async
     t.equal(shr.devDependencies['is-negative'], '2.0.0')
   }
 })
+
+// TODO: make it pass
+test['skip']('installation with --link-workspace-packages links packages even if they were previously installed from registry', async (t: tape.Test) => {
+  const projects = preparePackages(t, [
+    {
+      name: 'project',
+      version: '1.0.0',
+      dependencies: {
+        'is-positive': '2.0.0',
+      },
+    },
+    {
+      name: 'is-positive',
+      version: '2.0.0',
+    },
+  ])
+
+  await execPnpm('recursive', 'install', '--no-link-workspace-packages')
+
+  {
+    const shr = await projects['project'].loadShrinkwrap()
+    t.equal(shr.dependencies['is-positive'], '2.0.0')
+  }
+
+  await execPnpm('recursive', 'install', '--link-workspace-packages')
+
+  {
+    const shr = await projects['project'].loadShrinkwrap()
+    t.equal(shr.dependencies['is-positive'], 'link:../is-positive')
+  }
+})
