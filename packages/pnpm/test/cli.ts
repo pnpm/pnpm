@@ -1,9 +1,8 @@
-import path = require('path')
+import {fromDir as readPackage} from '@pnpm/read-package-json'
 import tape = require('tape')
 import promisifyTape from 'tape-promise'
 const test = promisifyTape(tape)
 import execa = require('execa')
-import exists = require('path-exists')
 import mkdirp = require('mkdirp-promise')
 import {
   prepare,
@@ -56,7 +55,27 @@ test('rewrites node_modules created by npm', async function (t) {
   await project.isExecutable('.bin/rimraf')
 })
 
-test('update', async function (t) {
+test('update', async function (t: tape.Test) {
+  const project = prepare(t)
+
+  await addDistTag('dep-of-pkg-with-1-dep', '101.0.0', 'latest')
+
+  await execPnpm('install', 'dep-of-pkg-with-1-dep@100.0.0')
+
+  await project.storeHas('dep-of-pkg-with-1-dep', '100.0.0')
+
+  await execPnpm('update', 'dep-of-pkg-with-1-dep@latest')
+
+  await project.storeHas('dep-of-pkg-with-1-dep', '101.0.0')
+
+  const shr = await project.loadShrinkwrap()
+  t.equal(shr.dependencies['dep-of-pkg-with-1-dep'], '101.0.0')
+
+  const pkg = await readPackage(process.cwd())
+  t.equal(pkg.dependencies && pkg.dependencies['dep-of-pkg-with-1-dep'], '^101.0.0')
+})
+
+test('deep update', async function (t: tape.Test) {
   const project = prepare(t)
 
   await addDistTag('dep-of-pkg-with-1-dep', '100.0.0', 'latest')
