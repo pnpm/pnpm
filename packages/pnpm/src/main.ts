@@ -151,6 +151,13 @@ export default async function run (argv: string[]) {
   // NOTE: we defer the next stage, otherwise reporter might not catch all the logs
   await new Promise((resolve, reject) => {
     setTimeout(() => {
+      if (opts.force === true) {
+        logger.warn({
+          message: 'using --force I sure hope you know what you are doing',
+          prefix: opts.prefix,
+        })
+      }
+
       // `pnpm install ""` is going to be just `pnpm install`
       const cliArgs = cliConf.argv.remain.slice(1).filter(Boolean)
       try {

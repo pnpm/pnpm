@@ -181,12 +181,6 @@ export default async (
   const defaultOpts = await defaults(opts)
   const extendedOpts = {...defaultOpts, ...opts, store: defaultOpts.store}
   if (!extendedOpts.reinstallForFlatten) {
-    if (extendedOpts.force) {
-      logger.warn({
-        message: 'using --force I sure hope you know what you are doing',
-        prefix: extendedOpts.prefix,
-      })
-    }
     if (extendedOpts.shamefullyFlatten) {
       logger.warn({
         message: 'using --shamefully-flatten is discouraged, you should declare all of your dependencies in package.json',
