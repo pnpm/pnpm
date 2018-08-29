@@ -188,8 +188,8 @@ export default async (
       })
     }
     if (extendedOpts.shamefullyFlatten) {
-      logger.warn({
-        message: 'using --shamefully-flatten is discouraged, you should declare all of your dependencies in package.json',
+      logger.info({
+        message: 'Installing a flat node_modules. Use flat node_modules only if you rely on buggy dependencies that you cannot fix.',
         prefix: extendedOpts.prefix,
       })
     }
