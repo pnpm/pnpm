@@ -30,10 +30,10 @@
   },
   "homepage": "https://pnpm.js.org",
   "dependencies": {
-    "@pnpm/git-resolver": "^1.0.0",
-    "@pnpm/local-resolver": "^1.0.0",
-    "@pnpm/npm-resolver": "^2.2.4",
-    "@pnpm/tarball-resolver": "^1.0.0"
+    "@pnpm/git-resolver": "1.0.0",
+    "@pnpm/local-resolver": "1.0.0",
+    "@pnpm/npm-resolver": "2.2.5",
+    "@pnpm/tarball-resolver": "1.0.0"
   },
   "devDependencies": {
     "@pnpm/logger": "^2.0.0",
