@@ -1,6 +1,7 @@
 import minimatch = require('minimatch')
 import {PackageNode} from 'pkgs-graph'
 import R = require('ramda')
+import {PackageSelector} from '../../parsePackageSelectors'
 
 interface PackageGraph {
   [id: string]: PackageNode,
@@ -25,27 +26,31 @@ export function filterGraphByEntryDirectory (
 
 export function filterGraph (
   pkgGraph: PackageGraph,
-  filters: string[],
+  packageSelectors: PackageSelector[],
 ): PackageGraph {
   const cherryPickedPackages = [] as string[]
   const walkedDependencies = new Set<string>()
   const walkedDependents = new Set<string>()
   const graph = pkgGraphToGraph(pkgGraph)
   let reversedGraph: Graph | undefined
-  for (const filter of filters) {
-    if (filter.endsWith('...')) {
-      const rootPackagesFilter = filter.substring(0, filter.length - 3)
-      const rootPackages = matchPackages(pkgGraph, rootPackagesFilter)
-      pickSubgraph(graph, rootPackages, walkedDependencies)
-    } else if (filter.startsWith('...')) {
-      const leafPackagesFilter = filter.substring(3)
-      const leafPackages = matchPackages(pkgGraph, leafPackagesFilter)
-      if (!reversedGraph) {
-        reversedGraph = reverseGraph(graph)
-      }
-      pickSubgraph(reversedGraph, leafPackages, walkedDependents)
-    } else {
-      Array.prototype.push.apply(cherryPickedPackages, matchPackages(pkgGraph, filter))
+  for (const selector of packageSelectors) {
+    switch (selector.type) {
+      case 'dependencies':
+        const rootPackagesFilter = selector.matcher.substring(0, selector.matcher.length - 3)
+        const rootPackages = matchPackages(pkgGraph, rootPackagesFilter)
+        pickSubgraph(graph, rootPackages, walkedDependencies)
+        continue
+      case 'dependents':
+        const leafPackagesFilter = selector.matcher.substring(3)
+        const leafPackages = matchPackages(pkgGraph, leafPackagesFilter)
+        if (!reversedGraph) {
+          reversedGraph = reverseGraph(graph)
+        }
+        pickSubgraph(reversedGraph, leafPackages, walkedDependents)
+        continue
+      case 'exact':
+        Array.prototype.push.apply(cherryPickedPackages, matchPackages(pkgGraph, selector.matcher))
+        continue
     }
   }
   const walked = new Set([...walkedDependencies, ...walkedDependents])

@@ -19,6 +19,7 @@ import {
 import createStoreController from '../../createStoreController'
 import findWorkspacePackages, {arrayOfLocalPackagesToMap} from '../../findWorkspacePackages'
 import getCommandFullName from '../../getCommandFullName'
+import parsePackageSelector, {PackageSelector} from '../../parsePackageSelectors'
 import requireHooks from '../../requireHooks'
 import {PnpmOptions} from '../../types'
 import help from '../help'
@@ -78,6 +79,11 @@ export default async (
     return
   }
 
+  if (opts.filter) {
+    // TODO: maybe @pnpm/config should return this in a parsed form already?
+    opts['packageSelectors'] = opts.filter.map(parsePackageSelector) // tslint:disable-line
+  }
+
   const atLeastOnePackageMatched = await recursive(allWorkspacePkgs, input, opts, cmdFullName, cmd)
 
   if (!atLeastOnePackageMatched) {
@@ -93,6 +99,7 @@ export async function recursive (
     allowNew?: boolean,
     filterByEntryDirectory?: string,
     inputForEntryDirectory?: string[],
+    packageSelectors?: PackageSelector[],
   },
   cmdFullName: string,
   cmd: string,
@@ -107,8 +114,8 @@ export async function recursive (
   if (opts.scope) {
     pkgGraphResult.graph = filterGraphByScope(pkgGraphResult.graph, opts.scope)
     pkgs = allPkgs.filter((pkg: {path: string}) => pkgGraphResult.graph[pkg.path])
-  } else if (opts.filter) {
-    pkgGraphResult.graph = filterGraph(pkgGraphResult.graph, opts.filter)
+  } else if (opts.packageSelectors && opts.packageSelectors.length) {
+    pkgGraphResult.graph = filterGraph(pkgGraphResult.graph, opts.packageSelectors)
     pkgs = allPkgs.filter((pkg: {path: string}) => pkgGraphResult.graph[pkg.path])
   } else if (opts.filterByEntryDirectory) {
     pkgGraphResult.graph = filterGraphByEntryDirectory(pkgGraphResult.graph, opts.filterByEntryDirectory)
