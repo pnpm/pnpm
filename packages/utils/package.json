@@ -50,7 +50,7 @@
     "dependency-path": "2.0.0",
     "fs-vacuum": "1.2.10",
     "mz": "2.7.0",
-    "package-store": "0.23.1",
+    "package-store": "0.23.2",
     "pnpm-shrinkwrap": "7.0.2",
     "ramda": "0.25.0",
     "rimraf-then": "1.0.1",
