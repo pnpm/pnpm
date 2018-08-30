@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/server",
-  "version": "0.14.0",
+  "version": "0.14.1",
   "description": "A pnpm installer server",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
@@ -57,7 +57,7 @@
     }
   },
   "dependencies": {
-    "@pnpm/package-requester": "4.1.1",
+    "@pnpm/package-requester": "4.1.2",
     "@pnpm/resolver-base": "1.2.0",
     "@pnpm/types": "^1.7.0",
     "@types/got": "^8.3.0",
@@ -66,7 +66,7 @@
     "@types/uuid": "^3.4.3",
     "got": "8.3.2",
     "p-limit": "2.0.0",
-    "package-store": "0.23.1",
+    "package-store": "0.23.2",
     "uuid": "3.3.2"
   }
 }

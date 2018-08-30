@@ -3660,12 +3660,12 @@ specifiers:
   '@pnpm/link-bins': 3.0.0
   '@pnpm/logger': ^2.1.0
   '@pnpm/modules-yaml': 1.0.0
-  '@pnpm/package-requester': 4.1.1
+  '@pnpm/package-requester': 4.1.2
   '@pnpm/pkgid-to-filename': 1.0.1
   '@pnpm/read-package-json': 1.0.0
   '@pnpm/store-path': ^1.0.3
   '@pnpm/types': ^1.7.0
-  '@pnpm/utils': 0.6.2
+  '@pnpm/utils': 0.6.3
   '@types/fs-extra': ^5.0.1
   '@types/mz': ^0.0.32
   '@types/node': ^10.0.6
@@ -3684,7 +3684,7 @@ specifiers:
   npm-run-all: ^4.0.1
   p-limit: 2.0.0
   package-preview: ^1.0.0
-  package-store: 0.23.1
+  package-store: 0.23.2
   path-exists: 3.0.0
   pnpm-registry-mock: ^2.2.0
   pnpm-shrinkwrap: 7.0.2

@@ -1897,6 +1897,7 @@ packages:
     hasBin: true
     resolution:
       integrity: sha1-MAV0OOrGz3+MR2fzhkjWaX11yQM=
+      tarball: 'http://registry.npmjs.org/mkdirp/-/mkdirp-0.5.1.tgz'
   /mos-core/1.0.2:
     dependencies:
       babel-run-async: 1.0.0
@@ -3548,7 +3549,7 @@ shrinkwrapVersion: 3
 specifiers:
   '@pnpm/logger': ^2.1.0
   '@pnpm/npm-resolver': ^2.2.4
-  '@pnpm/package-requester': 4.1.1
+  '@pnpm/package-requester': 4.1.2
   '@pnpm/resolver-base': 1.2.0
   '@pnpm/tarball-fetcher': ^2.0.1
   '@pnpm/types': ^1.7.0
@@ -3564,7 +3565,7 @@ specifiers:
   mos-plugin-readme: ^1.0.4
   mz: ^2.7.0
   p-limit: 2.0.0
-  package-store: 0.23.1
+  package-store: 0.23.2
   rimraf: ^2.6.2
   rimraf-then: ^1.0.1
   tape: ^4.8.0

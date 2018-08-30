@@ -1860,7 +1860,7 @@ registry: 'https://registry.npmjs.org/'
 shrinkwrapMinorVersion: 9
 shrinkwrapVersion: 3
 specifiers:
-  '@pnpm/config': 2.1.0
+  '@pnpm/config': 2.1.1
   '@pnpm/logger': ^2.1.0
   '@pnpm/types': ^1.7.0
   '@types/common-tags': ^1.2.5
