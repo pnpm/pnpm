@@ -57,28 +57,28 @@ export default async function getContext (
         if (modules.independentLeaves) {
           throw new PnpmError(
             'ERR_PNPM_INDEPENDENT_LEAVES_WANTED',
-            `This node_modules was installed with --independent-leaves option.
-            Use this option or run same command with --force to recreated node_modules`,
+            'This "node_modules" folder was created using the --independent-leaves option.'
+            + ' You must add that option, or else add the --force option to recreate the "node_modules" folder.',
           )
         }
         throw new PnpmError(
           'ERR_PNPM_INDEPENDENT_LEAVES_NOT_WANTED',
-          `This node_modules was not installed with the --independent-leaves option.
-          Don't use --independent-leaves run same command with --force to recreated node_modules`,
+          'This "node_modules" folder was created without the --independent-leaves option.'
+          + ' You must remove that option, or else add the --force option to recreate the "node_modules" folder.',
         )
       }
       if (Boolean(modules.shamefullyFlatten) !== opts.shamefullyFlatten) {
         if (modules.shamefullyFlatten) {
           throw new PnpmError(
             'ERR_PNPM_SHAMEFULLY_FLATTEN_WANTED',
-            `This node_modules was installed with --shamefully-flatten option.
-            Use this option or run same command with --force to recreated node_modules`,
+            'This "node_modules" folder was created using the --shamefully-flatten option.'
+            + ' You must add this option, or else add the --force option to recreate the "node_modules" folder.',
           )
         }
         throw new PnpmError(
           'ERR_PNPM_SHAMEFULLY_FLATTEN_NOT_WANTED',
-          `This node_modules was not installed with the --shamefully-flatten option.
-          Don't use --shamefully-flatten or run same command with --force to recreated node_modules`,
+          'This "node_modules" folder was created without the --shamefully-flatten option.'
+          + ' You must remove that option, or else add the --force option to recreate the "node_modules" folder.',
         )
       }
       checkCompatibility(modules, {storePath, modulesPath})

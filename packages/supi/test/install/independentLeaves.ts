@@ -27,7 +27,7 @@ test('--independent-leaves throws exception when executed on node_modules instal
     t.fail('installation should have failed')
   } catch (err) {
     t.equal(err['code'], 'ERR_PNPM_INDEPENDENT_LEAVES_NOT_WANTED') // tslint:disable-line:no-string-literal
-    t.ok(err.message.indexOf('This node_modules was not installed with the --independent-leaves option.') === 0)
+    t.ok(err.message.indexOf('This "node_modules" folder was created without the --independent-leaves option.') === 0)
   }
 })
 
@@ -40,6 +40,6 @@ test('--no-independent-leaves throws exception when executed on node_modules ins
     t.fail('installation should have failed')
   } catch (err) {
     t.equal(err['code'], 'ERR_PNPM_INDEPENDENT_LEAVES_WANTED') // tslint:disable-line:no-string-literal
-    t.ok(err.message.indexOf('This node_modules was installed with --independent-leaves option.') === 0)
+    t.ok(err.message.indexOf('This "node_modules" folder was created using the --independent-leaves option.') === 0)
   }
 })
