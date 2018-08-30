@@ -19,22 +19,24 @@
   "pinVersions": false,
   "ignorePaths": ["test/"],
   "ignoreDeps": [
-    "ts-node",
     "@pnpm/config",
     "@pnpm/default-fetcher",
     "@pnpm/default-resolver",
     "@pnpm/headless",
     "@pnpm/logger",
     "@pnpm/outdated",
+    "@pnpm/package-requester",
     "@pnpm/server",
     "@pnpm/types",
     "@pnpm/utils",
+    "package-store",
     "pnpm-default-reporter",
     "pnpm-file-reporter",
     "pnpm-install-checks",
     "pnpm-registry-mock",
     "pnpm-shrinkwrap",
     "remove-all-except-outer-links",
-    "supi"
+    "supi",
+    "ts-node"
   ]
 }
