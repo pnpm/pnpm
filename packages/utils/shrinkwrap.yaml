@@ -3,7 +3,7 @@ dependencies:
   '@pnpm/read-package-json': 1.0.0
   '@pnpm/types': 1.7.0
   '@types/mz': 0.0.32
-  '@types/node': 10.9.3
+  '@types/node': 10.9.4
   '@types/ramda': 0.25.34
   dependency-path: 2.0.0
   fs-vacuum: 1.2.10
@@ -17,11 +17,11 @@ devDependencies:
   '@pnpm/logger': 2.1.0
   rimraf: 2.6.2
   tslint: 5.11.0
-  typescript: 3.0.1
+  typescript: 3.0.3
 packages:
   /@pnpm/logger/2.1.0:
     dependencies:
-      '@types/node': 10.9.3
+      '@types/node': 10.9.4
       bole: 3.0.2
       ndjson: 1.5.0
     dev: true
@@ -68,13 +68,13 @@ packages:
       integrity: sha512-JRDtMPEqXrzfuYAdqbxLot1GvAr/QvicIZAnOAigZaj8xVMhuSJTg/xsv9E1TvyL+wujYhRLx9ZsQ0oFOSmwyA==
   /@types/mz/0.0.32:
     dependencies:
-      '@types/node': 10.9.3
+      '@types/node': 10.9.4
     dev: false
     resolution:
       integrity: sha512-cy3yebKhrHuOcrJGkfwNHhpTXQLgmXSv1BX+4p32j+VUQ6aP2eJ5cL7OvGcAQx75fCTFaAIIAKewvqL+iwSd4g==
-  /@types/node/10.9.3:
+  /@types/node/10.9.4:
     resolution:
-      integrity: sha512-DOzWZKUnmFYG0KUOs+9HEBju2QhBU6oM2zeluunQNt0vnJvnkHvtDNlQPZDkTrkC5pZrNx1TPqeL137zciXZMQ==
+      integrity: sha512-fCHV45gS+m3hH17zgkgADUSi2RR1Vht6wOZ0jyHP8rjiQra9f+mIcgwPQHllmDocYOstIEbKlxbFDYlgrTPYqw==
   /@types/ramda/0.25.34:
     dev: false
     resolution:
@@ -557,7 +557,7 @@ packages:
       '@pnpm/resolver-base': 1.2.0
       '@pnpm/types': 1.7.0
       '@types/js-yaml': 3.11.2
-      '@types/node': 10.9.3
+      '@types/node': 10.9.4
       '@types/ramda': 0.25.34
       dependency-path: 2.0.0
       get-npm-tarball-url: 2.0.1
@@ -763,13 +763,13 @@ packages:
       typescript: '>=2.1.0 || >=2.1.0-dev || >=2.2.0-dev || >=2.3.0-dev || >=2.4.0-dev || >=2.5.0-dev || >=2.6.0-dev || >=2.7.0-dev || >=2.8.0-dev || >=2.9.0-dev || >= 3.0.0-dev || >= 3.1.0-dev'
     resolution:
       integrity: sha512-g5JVHCIJwzfISaXpXE1qvNalca5Jwob6FjI4AoPlqMusJ6ftFE7IkkFoMhVLRgK+4Kx3gkzb8UZK5t5yTTvEmA==
-  /typescript/3.0.1:
+  /typescript/3.0.3:
     dev: true
     engines:
       node: '>=4.2.0'
     hasBin: true
     resolution:
-      integrity: sha512-zQIMOmC+372pC/CCVLqnQ0zSBiY7HHodU7mpQdjiZddek4GMj31I3dUJ7gAs9o65X7mnRma6OokOkc6f9jjfBg==
+      integrity: sha512-kk80vLW9iGtjMnIv11qyxLqZm20UklzuR2tL0QAnDIygIUIemcZMxlMWudl9OOt76H3ntVzcTiddQ1/pAAJMYg==
   /util-deprecate/1.0.2:
     dev: true
     resolution:
