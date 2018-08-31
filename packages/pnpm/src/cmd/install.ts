@@ -61,8 +61,14 @@ export default async function installCmd (
     await recursive(allWorkspacePkgs, [], {
       ...opts,
       ...OVERWRITE_UPDATE_OPTIONS,
-      filterByEntryDirectory: prefix,
-      inputForEntryDirectory: input,
+      ignoredPackages: new Set([prefix]),
+      packageSelectors: [
+        {
+          matcher: prefix,
+          scope: 'dependencies',
+          selectBy: 'location',
+        },
+      ],
     }, 'install', 'install')
 
     if (opts.ignoreScripts) return

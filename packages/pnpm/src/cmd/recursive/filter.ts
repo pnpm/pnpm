@@ -1,3 +1,4 @@
+import isSubdir = require('is-subdir')
 import minimatch = require('minimatch')
 import {PackageNode} from 'pkgs-graph'
 import R = require('ramda')
@@ -11,19 +12,6 @@ interface Graph {
   [nodeId: string]: string[],
 }
 
-export function filterGraphByEntryDirectory (
-  pkgGraph: PackageGraph,
-  entryDirectory: string,
-): PackageGraph {
-  if (!pkgGraph[entryDirectory]) return {}
-
-  const walkedDependencies = new Set<string>()
-  const graph = pkgGraphToGraph(pkgGraph)
-  pickSubgraph(graph, [entryDirectory], walkedDependencies)
-
-  return R.pick(Array.from(walkedDependencies), pkgGraph)
-}
-
 export function filterGraph (
   pkgGraph: PackageGraph,
   packageSelectors: PackageSelector[],
@@ -34,22 +22,22 @@ export function filterGraph (
   const graph = pkgGraphToGraph(pkgGraph)
   let reversedGraph: Graph | undefined
   for (const selector of packageSelectors) {
-    switch (selector.type) {
+    const entryPackages = selector.selectBy === 'name'
+      ? matchPackages(pkgGraph, selector.matcher)
+      : matchPackagesByPath(pkgGraph, selector.matcher)
+
+    switch (selector.scope) {
       case 'dependencies':
-        const rootPackagesFilter = selector.matcher.substring(0, selector.matcher.length - 3)
-        const rootPackages = matchPackages(pkgGraph, rootPackagesFilter)
-        pickSubgraph(graph, rootPackages, walkedDependencies)
+        pickSubgraph(graph, entryPackages, walkedDependencies)
         continue
       case 'dependents':
-        const leafPackagesFilter = selector.matcher.substring(3)
-        const leafPackages = matchPackages(pkgGraph, leafPackagesFilter)
         if (!reversedGraph) {
           reversedGraph = reverseGraph(graph)
         }
-        pickSubgraph(reversedGraph, leafPackages, walkedDependents)
+        pickSubgraph(reversedGraph, entryPackages, walkedDependents)
         continue
       case 'exact':
-        Array.prototype.push.apply(cherryPickedPackages, matchPackages(pkgGraph, selector.matcher))
+        Array.prototype.push.apply(cherryPickedPackages, entryPackages)
         continue
     }
   }
@@ -85,6 +73,13 @@ function matchPackages (
   pattern: string,
 ) {
   return R.keys(graph).filter((id) => graph[id].manifest.name && minimatch(graph[id].manifest.name, pattern))
+}
+
+function matchPackagesByPath (
+  graph: PackageGraph,
+  pathStartsWith: string,
+) {
+  return R.keys(graph).filter((location) => isSubdir(pathStartsWith, location))
 }
 
 export function filterGraphByScope (

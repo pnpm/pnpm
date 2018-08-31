@@ -28,6 +28,7 @@ dependencies:
   graceful-fs: 4.1.11
   graph-sequencer: 2.0.0
   is-ci: 1.2.0
+  is-subdir: 1.0.2
   is-windows: 1.0.2
   load-json-file: 5.0.0
   load-yaml-file: 0.1.0
@@ -2837,6 +2838,14 @@ packages:
       node: '>=0.10.0'
     resolution:
       integrity: sha1-EtSj3U5o4Lec6428hBc66A2RykQ=
+  /is-subdir/1.0.2:
+    dependencies:
+      is-windows: 1.0.2
+    dev: false
+    engines:
+      node: '>=4'
+    resolution:
+      integrity: sha512-2H3vM92ez7TjW6T2e4G7AQVm/1/UA/qikNO0/aIi2SkouUU2wXW2CQ5Owiz8oaaFQpjNl74B5LIjTcM1htr2mQ==
   /is-symbol/1.0.1:
     engines:
       node: '>= 0.4'
@@ -5956,6 +5965,7 @@ specifiers:
   graceful-fs: 4.1.11
   graph-sequencer: 2.0.0
   is-ci: 1.2.0
+  is-subdir: ^1.0.2
   is-windows: 1.0.2
   load-json-file: 5.0.0
   load-yaml-file: 0.1.0

@@ -691,6 +691,45 @@ test('recursive filter package without dependencies', async (t: tape.Test) => {
   projects['project-3'].hasNot('minimatch')
 })
 
+test('recursive filter by location', async (t: tape.Test) => {
+  const projects = preparePackages(t, [
+    {
+      location: 'packages/project-1',
+      package: {
+        name: 'project-1',
+        version: '1.0.0',
+        dependencies: {
+          'is-positive': '1.0.0',
+          'project-2': '1.0.0',
+        },
+      },
+    },
+    {
+      location: 'packages/project-2',
+      package: {
+        name: 'project-2',
+        version: '1.0.0',
+        dependencies: {
+          'is-negative': '1.0.0',
+        },
+      },
+    },
+    {
+      name: 'project-3',
+      version: '1.0.0',
+      dependencies: {
+        minimatch: '*',
+      },
+    },
+  ])
+
+  await execPnpm('recursive', 'link', '--filter', './packages')
+
+  projects['project-1'].has('is-positive')
+  projects['project-2'].has('is-negative')
+  projects['project-3'].hasNot('minimatch')
+})
+
 test('recursive install --no-bail', async (t: tape.Test) => {
   const projects = preparePackages(t, [
     {

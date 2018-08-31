@@ -26,7 +26,6 @@ import help from '../help'
 import exec from './exec'
 import {
   filterGraph,
-  filterGraphByEntryDirectory,
   filterGraphByScope,
 } from './filter'
 import list from './list'
@@ -81,7 +80,7 @@ export default async (
 
   if (opts.filter) {
     // TODO: maybe @pnpm/config should return this in a parsed form already?
-    opts['packageSelectors'] = opts.filter.map(parsePackageSelector) // tslint:disable-line
+    opts['packageSelectors'] = opts.filter.map((f) => parsePackageSelector(f, opts.prefix)) // tslint:disable-line
   }
 
   const atLeastOnePackageMatched = await recursive(allWorkspacePkgs, input, opts, cmdFullName, cmd)
@@ -97,9 +96,8 @@ export async function recursive (
   input: string[],
   opts: PnpmOptions & {
     allowNew?: boolean,
-    filterByEntryDirectory?: string,
-    inputForEntryDirectory?: string[],
     packageSelectors?: PackageSelector[],
+    ignoredPackages?: Set<string>,
   },
   cmdFullName: string,
   cmd: string,
@@ -116,9 +114,6 @@ export async function recursive (
     pkgs = allPkgs.filter((pkg: {path: string}) => pkgGraphResult.graph[pkg.path])
   } else if (opts.packageSelectors && opts.packageSelectors.length) {
     pkgGraphResult.graph = filterGraph(pkgGraphResult.graph, opts.packageSelectors)
-    pkgs = allPkgs.filter((pkg: {path: string}) => pkgGraphResult.graph[pkg.path])
-  } else if (opts.filterByEntryDirectory) {
-    pkgGraphResult.graph = filterGraphByEntryDirectory(pkgGraphResult.graph, opts.filterByEntryDirectory)
     pkgs = allPkgs.filter((pkg: {path: string}) => pkgGraphResult.graph[pkg.path])
   } else {
     pkgs = allPkgs
@@ -213,7 +208,7 @@ export async function recursive (
         const hooks = opts.ignorePnpmfile ? {} : requireHooks(prefix, opts)
         try {
           const localConfigs = await readLocalConfigs(prefix)
-          if (opts.filterByEntryDirectory === prefix) {
+          if (opts.ignoredPackages && opts.ignoredPackages.has(prefix)) {
             return
           }
           await action({
