@@ -47,5 +47,6 @@ function createEnv (opts?: {storeDir?: string}) {
     npm_config_verify_store_integrity: 'true',
   })
   delete _.npm_config_link_workspace_packages
+  delete _.npm_config_save_exact
   return _
 }
