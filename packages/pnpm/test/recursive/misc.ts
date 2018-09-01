@@ -50,6 +50,34 @@ test('recursive install/uninstall', async (t: tape.Test) => {
   await projects['project-2'].hasNot('is-negative')
 })
 
+test('recursive install should install in whole workspace even when executed in a subdirectory', async (t: tape.Test) => {
+  const projects = preparePackages(t, [
+    {
+      name: 'project-1',
+      version: '1.0.0',
+      dependencies: {
+        'is-positive': '1.0.0',
+      },
+    },
+    {
+      name: 'project-2',
+      version: '1.0.0',
+      dependencies: {
+        'is-negative': '1.0.0',
+      },
+    },
+  ])
+
+  await fs.writeFile('pnpm-workspace.yaml', '', 'utf8')
+
+  process.chdir('project-1')
+
+  await execPnpm('recursive', 'install')
+
+  t.ok(projects['project-1'].requireModule('is-positive'))
+  t.ok(projects['project-2'].requireModule('is-negative'))
+})
+
 // Created to cover the issue described in https://github.com/pnpm/pnpm/issues/1253
 test('recursive install with package that has link', async (t: tape.Test) => {
   const projects = preparePackages(t, [
@@ -728,6 +756,34 @@ test('recursive filter by location', async (t: tape.Test) => {
   projects['project-1'].has('is-positive')
   projects['project-2'].has('is-negative')
   projects['project-3'].hasNot('minimatch')
+})
+
+test('recursive filter by location is relative to current working directory', async (t: tape.Test) => {
+  const projects = preparePackages(t, [
+    {
+      name: 'project-1',
+      version: '1.0.0',
+      dependencies: {
+        'is-positive': '1.0.0',
+      },
+    },
+    {
+      name: 'project-2',
+      version: '1.0.0',
+      dependencies: {
+        'is-negative': '1.0.0',
+      },
+    },
+  ])
+
+  await fs.writeFile('pnpm-workspace.yaml', '', 'utf8')
+
+  process.chdir('project-1')
+
+  await execPnpm('recursive', 'install', '--filter', '.')
+
+  t.ok(projects['project-1'].requireModule('is-positive'))
+  await projects['project-2'].hasNot('is-negative')
 })
 
 test('recursive install --no-bail', async (t: tape.Test) => {

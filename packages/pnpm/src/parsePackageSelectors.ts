@@ -39,8 +39,16 @@ export default (rawSelector: string, prefix: string): PackageSelector => {
 
 function isSelectorByLocation (rawSelector: string) {
   if (rawSelector[0] !== '.') return false
+
   // . or ./ or .\
   if (rawSelector.length === 1 || rawSelector[1] === '/' || rawSelector[1] === '\\') return true
-  // ../ or ..\
-  return (rawSelector[1] === '.' && (rawSelector[2] === '/' || rawSelector[2] === '\\'))
+
+  if (rawSelector[1] !== '.') return false
+
+  // .. or ../ or ..\
+  return (
+    rawSelector.length === 2 ||
+    rawSelector[2] === '/' ||
+    rawSelector[2] === '\\'
+  )
 }

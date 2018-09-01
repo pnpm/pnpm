@@ -70,23 +70,25 @@ export default async (
     throw err
   }
 
-  const cwd = process.cwd()
-  const allWorkspacePkgs = await findWorkspacePackages(cwd)
+  const workspacePrefix = opts.workspacePrefix || process.cwd()
+  const allWorkspacePkgs = await findWorkspacePackages(workspacePrefix)
 
   if (!allWorkspacePkgs.length) {
-    logger.info({message: `No packages found in "${opts.prefix}"`, prefix: opts.prefix})
+    logger.info({message: `No packages found in "${workspacePrefix}"`, prefix: workspacePrefix})
     return
   }
 
   if (opts.filter) {
     // TODO: maybe @pnpm/config should return this in a parsed form already?
-    opts['packageSelectors'] = opts.filter.map((f) => parsePackageSelector(f, opts.prefix)) // tslint:disable-line
+    // We don't use opts.prefix in this case because opts.prefix searches for a package.json in parent directories and
+    // selects the directory where it finds one
+    opts['packageSelectors'] = opts.filter.map((f) => parsePackageSelector(f, process.cwd())) // tslint:disable-line
   }
 
   const atLeastOnePackageMatched = await recursive(allWorkspacePkgs, input, opts, cmdFullName, cmd)
 
   if (!atLeastOnePackageMatched) {
-    logger.info({message: `No packages matched the filters in "${opts.prefix}"`, prefix: opts.prefix})
+    logger.info({message: `No packages matched the filters in "${workspacePrefix}"`, prefix: workspacePrefix})
     return
   }
 }
