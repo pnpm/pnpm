@@ -54,7 +54,7 @@
     "ramda": "0.25.0",
     "right-pad": "1.0.1",
     "semver": "5.5.1",
-    "stacktracey": "1.2.105",
+    "stacktracey": "1.2.106",
     "string-length": "2.0.0",
     "string.prototype.padstart": "3.0.0",
     "strip-ansi": "4.0.0",
