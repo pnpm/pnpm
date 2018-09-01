@@ -5,6 +5,12 @@ import StackTracey = require('stacktracey')
 import {Log} from 'supi'
 import {EOL} from './constants'
 
+StackTracey.maxColumnWidths = {
+  callee: 25,
+  file: 350,
+  sourceLine: 25,
+}
+
 const stripIndent = commonTags.stripIndent
 const stripIndents = commonTags.stripIndents
 const highlight = chalk.yellow
