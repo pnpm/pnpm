@@ -41,6 +41,7 @@ function getHelpText (command: string) {
           --production, --only prod[uction]  packages in \`devDependencies\` won't be installed
           --only dev[elopment]               only \`devDependencies\` are installed regardless of the \`NODE_ENV\`.
           --[no-]lock
+          --strict-peer-dependencies         fail on missing or invalid peer dependencies.
 
           --no-shrinkwrap                    don't read or generate a \`shrinkwrap.yaml\` file
           --shrinkwrap-only                  dependencies are not downloaded only \`shrinkwrap.yaml\` is updated

@@ -42,6 +42,7 @@ export interface InstallOptions {
   shamefullyFlatten?: boolean,
   sideEffectsCache?: boolean,
   sideEffectsCacheReadonly?: boolean,
+  strictPeerDependencies?: boolean,
   bin?: string,
   production?: boolean,
   development?: boolean,
@@ -92,6 +93,7 @@ export type StrictInstallOptions = InstallOptions & {
   shamefullyFlatten: boolean,
   sideEffectsCache: boolean,
   sideEffectsCacheReadonly: boolean,
+  strictPeerDependencies: boolean,
   bin: string,
   production: boolean,
   development: boolean,
@@ -156,6 +158,7 @@ const defaults = async (opts: InstallOptions) => {
     sideEffectsCacheReadonly: false,
     store: opts.store,
     storeController: opts.storeController,
+    strictPeerDependencies: false,
     tag: 'latest',
     unsafePerm: process.platform === 'win32' ||
       process.platform === 'cygwin' ||

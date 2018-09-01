@@ -70,4 +70,5 @@ export interface PnpmConfigs extends Record<string, any> { // tslint:disable-lin
   reporter?: string,
   linkWorkspacePackages: boolean,
   sort: boolean,
+  strictPeerDependencies: boolean,
 }

@@ -98,6 +98,24 @@ test('warning is reported when cannot resolve peer dependency for top-level depe
   t.equal(reportedTimes, 1, 'warning is logged (once) about unresolved peer dep')
 })
 
+test('strict-peer-dependencies: error is thrown when cannot resolve peer dependency for top-level dependency', async (t: tape.Test) => {
+  prepare(t)
+
+  const reporter = sinon.spy()
+
+  let err!: Error & {code: string}
+
+  try {
+    await installPkgs(['ajv-keywords@1.5.0'], await testDefaults({reporter, strictPeerDependencies: true}))
+  } catch (_) {
+    err = _
+  }
+
+  t.ok(err, 'error is thrown')
+  t.equal(err.code, 'ERR_PNPM_MISSING_PEER_DEPENDENCY')
+  t.equal(err.message, 'ajv-keywords@1.5.0 requires a peer of ajv@>=4.10.0 but none was installed.')
+})
+
 test('warning is not reported if the peer dependency can be required from a node_modules of a parent directory', async (t: tape.Test) => {
   const project = prepare(t)
 
@@ -147,6 +165,24 @@ test('warning is reported when bad version of resolved peer dependency for non-t
   const reportedTimes = reporter.withArgs(logMatcher).callCount
 
   t.equal(reportedTimes, 1, 'warning is logged (once) about unresolved peer dep')
+})
+
+test('strict-peer-dependencies: error is thrown when bad version of resolved peer dependency for non-top-level dependency', async (t: tape.Test) => {
+  prepare(t)
+
+  const reporter = sinon.spy()
+
+  let err!: Error & {code: string}
+
+  try {
+    await installPkgs(['abc-grand-parent-without-c', 'peer-c@2'], await testDefaults({reporter, strictPeerDependencies: true}))
+  } catch (_) {
+    err = _
+  }
+
+  t.ok(err, 'error is thrown')
+  t.equal(err.code, 'ERR_PNPM_INVALID_PEER_DEPENDENCY')
+  t.equal(err.message, 'abc-grand-parent-without-c > abc-parent-with-ab: abc@1.0.0 requires a peer of peer-c@^1.0.0 but version 2.0.0 was installed.')
 })
 
 test('top peer dependency is not linked on subsequent install', async (t: tape.Test) => {
