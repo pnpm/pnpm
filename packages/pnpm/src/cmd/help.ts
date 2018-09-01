@@ -240,9 +240,9 @@ function getHelpText (command: string) {
 
     case 'recursive':
       return stripIndent`
-        pnpm recursive [command] [flags]
-        pnpm multi [command] [flags]
-        pnpm m [command] [flags]
+        pnpm recursive [command] [flags] [-- <package selector>...]
+        pnpm multi [command] [flags] [-- <package selector>...]
+        pnpm m [command] [flags] [-- <package selector>...]
 
         Concurrently performs some actions in all subdirectories with a \`package.json\` (excluding node_modules).
         A \`pnpm-workspace.yaml\` file may be used to control what directories are searched for packages.
@@ -250,38 +250,76 @@ function getHelpText (command: string) {
         Commands:
 
           install
+
           update
-          uninstall [<@scope>/]<pkg>...    uninstall a dependency from each package
-          link                             Deprecated. Use the install command with the link-workspace-packages config.
-                                           runs installation in each package. If a package is available locally, the local version is linked.
-          unlink                           removes links to local packages and reinstalls them from the registry.
-          list [[<@scope>/]<pkg>...]       list dependencies in each package.
-          outdated [[<@scope>/]<pkg>...]   check for outdated dependencies in every package.
 
-          run <command> [-- <args>...]     this runs an arbitrary command from each package's "scripts" object.
-                                           If a package doesn't have the command, it is skipped.
-                                           If none of the packages have the command, the command fails.
+          uninstall [<@scope>/]<pkg>...
+            Uninstall a dependency from each package
 
-          test [-- <args>...]              this runs each package's "test" script, if one was provided.
+          link
+            Deprecated. Use the install command with the link-workspace-packages config.
+            runs installation in each package. If a package is available locally, the local version is linked.
 
-          rebuild [[<@scope>/<name>]...]   this command runs the "npm build" command on each package.
-                                           This is useful when you install a new version of node,
-                                           and must recompile all your C++ addons with the new binary.
+          unlink
+            Removes links to local packages and reinstalls them from the registry.
+
+          list [[<@scope>/]<pkg>...]
+            List dependencies in each package.
+
+          outdated [[<@scope>/]<pkg>...]
+            Check for outdated dependencies in every package.
+
+          run <command> [-- <args>...]
+            This runs an arbitrary command from each package's "scripts" object.
+            If a package doesn't have the command, it is skipped.
+            If none of the packages have the command, the command fails.
+
+          test [-- <args>...]
+            This runs each package's "test" script, if one was provided.
+
+          rebuild [[<@scope>/<name>]...]
+            This command runs the "npm build" command on each package.
+            This is useful when you install a new version of node,
+            and must recompile all your C++ addons with the new binary.
 
           exec -- <command> [args...]      run a command in each package.
 
         Options:
 
-          --filter <name>            restricts the scope to package names matching the given glob.
-          --filter <name>...         includes all direct and indirect dependencies of the matched packages.
-          --filter ...<name>         includes all direct and indirect dependents of the matched packages.
-          --filter ./<directory>     includes all packages that are inside a given subdirectory.
-          --filter .                 includes all packages that are under the current working directory.
-          --no-bail                  continues executing other tasks even if a task threw an error.
-          --workspace-concurrency    set the maximum number of concurrency. Default is 4. For unlimited concurrency use Infinity.
-          --link-workspace-packages  locally available packages are linked to node_modules instead of being downloaded from the registry.
-                                     Convenient to use in a multi-package repository.
-          --sort                     sort packages topologically (dependencies before dependents). Pass --no-sort to disable.
+          -- <package selector>..., --filter <package selector>
+            Run the command only on packages that satisfy at least one of the selectors.
+
+            Example: pnpm recursive install -- foo... ...@bar/* qar ./components
+
+            These selectors may be used:
+
+            <pattern>
+              Restricts the scope to package names matching the given pattern. E.g.: foo, @bar/*
+
+            <pattern>...
+              Includes all direct and indirect dependencies of the matched packages. E.g.: foo...
+
+            ...<pattern>
+              Includes all direct and indirect dependents of the matched packages. E.g.: ...foo, ...@bar/*
+
+            ./<directory>
+              Includes all packages that are inside a given subdirectory. E.g.: ./components
+
+            .
+              Includes all packages that are under the current working directory.
+
+          --no-bail
+            Continues executing other tasks even if a task threw an error.
+
+          --workspace-concurrency <number>
+            Set the maximum number of concurrency. Default is 4. For unlimited concurrency use Infinity.
+
+          --link-workspace-packages
+            Locally available packages are linked to node_modules instead of being downloaded from the registry.
+            Convenient to use in a multi-package repository.
+
+          --sort
+            Sort packages topologically (dependencies before dependents). Pass --no-sort to disable.
       `
 
     default:

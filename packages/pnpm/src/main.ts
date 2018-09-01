@@ -137,10 +137,12 @@ export default async function run (argv: string[]) {
     return 'default'
   })()
 
+  const subCmd = cliConf.argv.remain[1] && getCommandFullName(cliConf.argv.remain[1])
+
   initReporter(reporterType, {
     cmd,
     pnpmConfigs: opts,
-    subCmd: cliConf.argv.remain[1] && getCommandFullName(cliConf.argv.remain[1]),
+    subCmd,
   })
   delete opts.reporter // This is a silly workaround because supi expects a function as opts.reporter
 
@@ -156,6 +158,12 @@ export default async function run (argv: string[]) {
           message: 'using --force I sure hope you know what you are doing',
           prefix: opts.prefix,
         })
+      }
+
+      if (cmd === 'recursive' && ['run', 'exec', 'test'].indexOf(subCmd) === -1 && cliConf.argv.cooked.indexOf('--') !== -1) {
+        opts.filter = opts.filter || []
+        Array.prototype.push.apply(opts.filter, cliConf.argv.cooked.slice(cliConf.argv.cooked.indexOf('--') + 1))
+        cliConf.argv.remain = cliConf.argv.remain.slice(0, cliConf.argv.cooked.indexOf('--'))
       }
 
       // `pnpm install ""` is going to be just `pnpm install`

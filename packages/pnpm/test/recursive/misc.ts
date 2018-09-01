@@ -653,6 +653,57 @@ test('recursive filter package with dependents and filter with dependencies', as
   projects['project-4'].hasNot('minimatch')
 })
 
+test('recursive filter package with dependents and filter with dependencies, using dash-dash', async (t: tape.Test) => {
+  const projects = preparePackages(t, [
+    {
+      name: 'project-0',
+      version: '1.0.0',
+      dependencies: {
+        'is-positive': '1.0.0',
+        'project-1': '1.0.0',
+      },
+    },
+    {
+      name: 'project-1',
+      version: '1.0.0',
+      dependencies: {
+        'is-positive': '1.0.0',
+        'project-2': '1.0.0',
+        'project-3': '1.0.0',
+      },
+    },
+    {
+      name: 'project-2',
+      version: '1.0.0',
+      dependencies: {
+        'is-negative': '1.0.0',
+      },
+    },
+    {
+      name: 'project-3',
+      version: '1.0.0',
+      dependencies: {
+        minimatch: '*',
+      },
+    },
+    {
+      name: 'project-4',
+      version: '1.0.0',
+      dependencies: {
+        minimatch: '*',
+      },
+    },
+  ])
+
+  await execPnpm('recursive', 'link', '--', '...project-2', 'project-1...')
+
+  projects['project-0'].has('is-positive')
+  projects['project-1'].has('is-positive')
+  projects['project-2'].has('is-negative')
+  projects['project-3'].has('minimatch')
+  projects['project-4'].hasNot('minimatch')
+})
+
 test('recursive filter multiple times', async (t: tape.Test) => {
   const projects = preparePackages(t, [
     {
