@@ -661,6 +661,7 @@ async function installInContext (
     sideEffectsCache: opts.sideEffectsCache,
     skipped: ctx.skipped,
     storeController: opts.storeController,
+    strictPeerDependencies: opts.strictPeerDependencies,
     topParents,
     updateShrinkwrapMinorVersion: installType === 'general' || R.isEmpty(ctx.currentShrinkwrap.packages),
     wantedShrinkwrap: ctx.wantedShrinkwrap,

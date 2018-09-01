@@ -51,6 +51,7 @@ export default async function linkPackages (
     shamefullyFlatten: boolean,
     reinstallForFlatten: boolean,
     hoistedAliases: {[depPath: string]: string[]},
+    strictPeerDependencies: boolean,
   },
 ): Promise<{
   currentShrinkwrap: Shrinkwrap,
@@ -64,14 +65,15 @@ export default async function linkPackages (
   // The `Creating dependency graph` is not good to report in all cases as
   // sometimes node_modules is alread up-to-date
   // logger.info(`Creating dependency graph`)
-  const resolvePeersResult = await resolvePeers(
+  const resolvePeersResult = await resolvePeers({
+    independentLeaves: opts.independentLeaves,
+    nodeModules: opts.baseNodeModules,
     pkgGraph,
+    prefix: opts.prefix,
     rootNodeIdsByAlias,
-    opts.topParents,
-    opts.independentLeaves,
-    opts.baseNodeModules,
-    opts.prefix,
-  )
+    strictPeerDependencies: opts.strictPeerDependencies,
+    topParents: opts.topParents,
+  })
   const depGraph = resolvePeersResult.depGraph
   let {newShrinkwrap, pendingRequiresBuilds} = updateShrinkwrap(depGraph, opts.wantedShrinkwrap, opts.pkg, opts.prefix) // tslint:disable-line:prefer-const
   if (opts.afterAllResolvedHook) {

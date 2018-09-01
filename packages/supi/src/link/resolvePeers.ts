@@ -1,16 +1,20 @@
 import logger from '@pnpm/logger'
-import {PackageFilesResponse} from '@pnpm/package-requester'
+import { PackageFilesResponse } from '@pnpm/package-requester'
 import pkgIdToFilename from '@pnpm/pkgid-to-filename'
-import {Resolution} from '@pnpm/resolver-base'
-import {PackageJson, PackageScripts} from '@pnpm/types'
-import {Dependencies} from '@pnpm/types'
-import {oneLine} from 'common-tags'
+import { Resolution } from '@pnpm/resolver-base'
+import { PackageJson } from '@pnpm/types'
+import { Dependencies } from '@pnpm/types'
+import { oneLine } from 'common-tags'
 import crypto = require('crypto')
 import importFrom = require('import-from')
 import path = require('path')
 import R = require('ramda')
 import semver = require('semver')
-import {PkgGraphNode, PkgGraphNodeByNodeId} from '../api/install'
+import {
+  PkgGraphNode,
+  PkgGraphNodeByNodeId,
+} from '../api/install'
+import { PnpmError } from '../errorTypes'
 import {
   createNodeId,
   ROOT_NODE_ID,
@@ -63,21 +67,24 @@ export interface DepGraphNodesByDepPath {
 }
 
 export default function (
-  pkgGraph: PkgGraphNodeByNodeId,
-  rootNodeIdsByAlias: {[alias: string]: string},
-  // only the top dependencies that were already installed
-  // to avoid warnings about unresolved peer dependencies
-  topParents: Array<{name: string, version: string}>,
-  independentLeaves: boolean,
-  nodeModules: string,
-  prefix: string, // is only needed for logging
+  opts: {
+    pkgGraph: PkgGraphNodeByNodeId,
+    rootNodeIdsByAlias: {[alias: string]: string},
+    // only the top dependencies that were already installed
+    // to avoid warnings about unresolved peer dependencies
+    topParents: Array<{name: string, version: string}>,
+    independentLeaves: boolean,
+    nodeModules: string,
+    prefix: string, // is only needed for logging
+    strictPeerDependencies: boolean,
+  },
 ): {
   depGraph: DepGraphNodesByDepPath,
   rootAbsolutePathsByAlias: {[alias: string]: string},
 } {
   const pkgsByName = Object.assign(
     R.fromPairs(
-      topParents.map((parent: {name: string, version: string}): R.KeyValuePair<string, ParentRef> => [
+      opts.topParents.map((parent: {name: string, version: string}): R.KeyValuePair<string, ParentRef> => [
         parent.name,
         {
           depth: 0,
@@ -85,19 +92,28 @@ export default function (
         },
       ]),
     ),
-    toPkgByName(R.keys(rootNodeIdsByAlias).map((alias) => ({alias, nodeId: rootNodeIdsByAlias[alias], node: pkgGraph[rootNodeIdsByAlias[alias]]}))),
+    toPkgByName(
+      R
+        .keys(opts.rootNodeIdsByAlias)
+        .map((alias) => ({
+          alias,
+          node: opts.pkgGraph[opts.rootNodeIdsByAlias[alias]],
+          nodeId: opts.rootNodeIdsByAlias[alias],
+        })),
+    ),
   )
 
   const absolutePathsByNodeId = {}
   const depGraph: DepGraphNodesByDepPath = {}
-  resolvePeersOfChildren(rootNodeIdsByAlias, pkgsByName, {
+  resolvePeersOfChildren(opts.rootNodeIdsByAlias, pkgsByName, {
     absolutePathsByNodeId,
     depGraph,
-    independentLeaves,
-    nodeModules,
-    pkgGraph,
-    prefix,
+    independentLeaves: opts.independentLeaves,
+    nodeModules: opts.nodeModules,
+    pkgGraph: opts.pkgGraph,
+    prefix: opts.prefix,
     purePkgs: new Set(),
+    strictPeerDependencies: opts.strictPeerDependencies,
   })
 
   R.values(depGraph).forEach((node) => {
@@ -108,8 +124,8 @@ export default function (
   })
   return {
     depGraph,
-    rootAbsolutePathsByAlias: R.keys(rootNodeIdsByAlias).reduce((rootAbsolutePathsByAlias, alias) => {
-      rootAbsolutePathsByAlias[alias] = absolutePathsByNodeId[rootNodeIdsByAlias[alias]]
+    rootAbsolutePathsByAlias: R.keys(opts.rootNodeIdsByAlias).reduce((rootAbsolutePathsByAlias, alias) => {
+      rootAbsolutePathsByAlias[alias] = absolutePathsByNodeId[opts.rootNodeIdsByAlias[alias]]
       return rootAbsolutePathsByAlias
     }, {}),
   }
@@ -126,6 +142,7 @@ function resolvePeersOfNode (
     nodeModules: string,
     purePkgs: Set<string>, // pure packages are those that don't rely on externally resolved peers
     prefix: string,
+    strictPeerDependencies: boolean,
   },
 ): {[alias: string]: string} {
   const node = ctx.pkgGraph[nodeId]
@@ -145,7 +162,7 @@ function resolvePeersOfNode (
 
   const resolvedPeers = R.isEmpty(node.pkg.peerDependencies)
     ? {}
-    : resolvePeers(nodeId, node, parentPkgs, ctx.pkgGraph, ctx.prefix)
+    : resolvePeers(nodeId, node, parentPkgs, ctx.pkgGraph, ctx.prefix, ctx.strictPeerDependencies)
 
   const allResolvedPeers = Object.assign(unknownResolvedPeersOfChildren, resolvedPeers)
 
@@ -218,6 +235,7 @@ function resolvePeersOfChildren (
     depGraph: DepGraphNodesByDepPath,
     pkgGraph: PkgGraphNodeByNodeId,
     prefix: string,
+    strictPeerDependencies: boolean,
   },
 ): {[alias: string]: string} {
   const allResolvedPeers: {[alias: string]: string} = {}
@@ -242,6 +260,7 @@ function resolvePeers (
   parentPkgs: ParentRefs,
   pkgGraph: PkgGraphNodeByNodeId,
   prefix: string,
+  strictPeerDependencies: boolean,
 ): {
   [alias: string]: string,
 } {
@@ -260,10 +279,14 @@ function resolvePeers (
         }
       } catch (err) {
         const friendlyPath = nodeIdToFriendlyPath(nodeId, pkgGraph)
+        const message = oneLine`
+          ${friendlyPath ? `${friendlyPath}: ` : ''}${packageFriendlyId(node.pkg)}
+          requires a peer of ${peerName}@${peerVersionRange} but none was installed.`
+        if (strictPeerDependencies) {
+          throw new PnpmError('ERR_PNPM_MISSING_PEER_DEPENDENCY', message)
+        }
         logger.warn({
-          message: oneLine`
-            ${friendlyPath ? `${friendlyPath}: ` : ''}${packageFriendlyId(node.pkg)}
-            requires a peer of ${peerName}@${peerVersionRange} but none was installed.`,
+          message,
           prefix,
         })
         continue
@@ -272,10 +295,14 @@ function resolvePeers (
 
     if (!semver.satisfies(resolved.version, peerVersionRange)) {
       const friendlyPath = nodeIdToFriendlyPath(nodeId, pkgGraph)
+      const message = oneLine`
+        ${friendlyPath ? `${friendlyPath}: ` : ''}${packageFriendlyId(node.pkg)}
+        requires a peer of ${peerName}@${peerVersionRange} but version ${resolved.version} was installed.`
+      if (strictPeerDependencies) {
+        throw new PnpmError('ERR_PNPM_INVALID_PEER_DEPENDENCY', message)
+      }
       logger.warn({
-        message: oneLine`
-          ${friendlyPath ? `${friendlyPath}: ` : ''}${packageFriendlyId(node.pkg)}
-          requires a peer of ${peerName}@${peerVersionRange} but version ${resolved.version} was installed.`,
+        message,
         prefix,
       })
     }
