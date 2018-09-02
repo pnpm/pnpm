@@ -74,6 +74,13 @@ function getHelpText (command: string) {
           --shamefully-flatten               Attempt to flatten the dependency tree, similar to what npm does
       `
 
+    case 'import':
+      return stripIndent`
+        pnpm import
+
+        Generates shrinkwrap.yaml from an npm package-lock.json (or npm-shrinkwrap.json) file.
+      `
+
     case 'uninstall':
       return stripIndent`
         pnpm uninstall [<@scope>/]<pkg>[@<version>]...
@@ -343,6 +350,7 @@ function getHelpText (command: string) {
           - store prune
           - root
           - rebuild
+          - import
 
           - recursive link
           - recursive unlink

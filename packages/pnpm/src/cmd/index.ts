@@ -1,4 +1,5 @@
 import help from './help'
+import importCmd from './import'
 import install from './install'
 import installTest from './installTest'
 import link from './link'
@@ -14,20 +15,21 @@ import uninstall from './uninstall'
 import unlink from './unlink'
 import update from './update'
 
-export {
+export default {
+  help,
+  import: importCmd,
   install,
   installTest,
   link,
+  list,
+  outdated,
   prune,
+  rebuild,
+  recursive,
+  root,
   server,
   store,
   uninstall,
   unlink,
   update,
-  list,
-  help,
-  root,
-  outdated,
-  rebuild,
-  recursive,
 }
