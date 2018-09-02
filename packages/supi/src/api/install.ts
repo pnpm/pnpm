@@ -138,7 +138,14 @@ export interface InstallContext {
   },
 }
 
-export async function install (maybeOpts: InstallOptions) {
+export async function install (maybeOpts: InstallOptions & {
+  preferredVersions?: {
+    [packageName: string]: {
+      selector: string,
+      type: 'version' | 'range' | 'tag',
+    },
+  },
+}) {
   const reporter = maybeOpts && maybeOpts.reporter
   if (reporter) {
     streamParser.on('data', reporter)
@@ -200,7 +207,7 @@ export async function install (maybeOpts: InstallOptions) {
       }
     }
 
-    const preferredVersions = getPreferredVersionsFromPackage(ctx.pkg)
+    const preferredVersions = maybeOpts.preferredVersions || getPreferredVersionsFromPackage(ctx.pkg)
     const specs = specsToInstallFromPackage(ctx.pkg, {
       prefix: opts.prefix,
     })

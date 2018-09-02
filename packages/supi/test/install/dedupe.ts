@@ -112,3 +112,27 @@ test('prefer dist-tag specified for top dependency', async (t: tape.Test) => {
   t.ok(shr.packages['/dep-of-pkg-with-1-dep/100.0.0'])
   t.notOk(shr.packages['/dep-of-pkg-with-1-dep/100.1.0'])
 })
+
+test('prefer version ranges passed in via opts.preferredVersions', async (t: tape.Test) => {
+  await addDistTag({ package: 'dep-of-pkg-with-1-dep', version: '100.1.0', distTag: 'latest' })
+
+  const project = prepare(t, {
+    dependencies: {
+      'dep-of-pkg-with-1-dep': '^100.0.0',
+      'pkg-with-1-dep': '*',
+    },
+  })
+
+  await install(await testDefaults({
+    preferredVersions: {
+      'dep-of-pkg-with-1-dep': {
+        selector: '100.0.0',
+        type: 'version',
+      },
+    },
+  }))
+
+  const shr = await project.loadShrinkwrap()
+  t.ok(shr.packages['/dep-of-pkg-with-1-dep/100.0.0'])
+  t.notOk(shr.packages['/dep-of-pkg-with-1-dep/100.1.0'])
+})

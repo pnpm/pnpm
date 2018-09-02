@@ -20,7 +20,7 @@ import logger from '@pnpm/logger'
 import isCI = require('is-ci')
 import nopt = require('nopt')
 import checkForUpdates from './checkForUpdates'
-import * as pnpmCmds from './cmd'
+import pnpmCmds from './cmd'
 import getCommandFullName from './getCommandFullName'
 import getConfigs from './getConfigs'
 import './logging/fileLogger'
@@ -46,6 +46,7 @@ const supportedCmds = new Set([
   'outdated',
   'rebuild',
   'recursive',
+  'import',
   // These might have to be implemented:
   // 'cache',
   // 'completion',

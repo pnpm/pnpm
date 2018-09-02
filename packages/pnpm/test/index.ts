@@ -1,6 +1,7 @@
 ///<reference path="../typings/index.d.ts" />
 import './cli'
 import './install'
+import './import'
 import './uninstall'
 import './link'
 import './storeAdd'
