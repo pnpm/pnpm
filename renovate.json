@@ -8,10 +8,6 @@
       "allowedVersions": "0.25.34"
     },
     {
-      "packageNames": ["delay"],
-      "allowedVersions": "3.0.0"
-    },
-    {
       "packageNames": ["got"],
       "allowedVersions": "<=8"
     }

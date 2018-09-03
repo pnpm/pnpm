@@ -1,6 +1,6 @@
 import byline = require('byline')
 import { ChildProcess } from 'child_process'
-import delay = require('delay')
+import delay from 'delay'
 import isWindows = require('is-windows')
 import pAny = require('p-any')
 import path = require('path')
@@ -252,7 +252,7 @@ async function testParallelServerStart (
   }
 
   const timeoutMillis = options.timeoutMillis || 10000
-  let timeoutPromise = delay(timeoutMillis)
+  let timeoutPromise: { clear: Function } | null = delay(timeoutMillis)
   await pAny([
     (async () => {
       await completedPromise

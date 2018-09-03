@@ -24,10 +24,9 @@ dependencies:
   zen-push: 0.2.1
 devDependencies:
   '@pnpm/logger': 2.1.0
-  '@types/delay': 2.0.1
   '@types/load-json-file': 2.0.7
   '@types/tape': 4.2.32
-  delay: 3.0.0
+  delay: 4.0.0
   ghooks: 2.0.4
   load-json-file: 5.0.0
   mos-tap-diff: 1.0.0
@@ -88,10 +87,6 @@ packages:
     dev: false
     resolution:
       integrity: sha512-HI1tSO87vmd1sPS3DOVSK4gvVKROvCBFvAnXlLiQtAus/+1xXMQcNyu9TX2ChwRXFeQZeB9+f+nMo99xLd5DdA==
-  /@types/delay/2.0.1:
-    dev: true
-    resolution:
-      integrity: sha512-D1/YuYOcdOIdaQnaiUJ77VcilVvESkynw79CtGqpjkXyv4OUezEVZtdXnSOwXL8Zcelu66QbyC8QQcVQ/ZPdig==
   /@types/fs-extra/5.0.4:
     dependencies:
       '@types/node': 10.9.4
@@ -504,12 +499,12 @@ packages:
     dev: true
     resolution:
       integrity: sha1-yY2bzvdWdBiOEQlpFRGZ45sfppM=
-  /delay/3.0.0:
+  /delay/4.0.0:
     dev: true
     engines:
       node: '>=6'
     resolution:
-      integrity: sha512-6d9nF+lHG/HOZTmX/8/FgWm5UZQUF5O2SnnUvBZail1ESK1QixrmFn7vaW9hycz0/uwcmkqLyHDER+/AgCxbsQ==
+      integrity: sha512-M5om7qDqgWbLauRFlGgcfVEmQpHJMs24NL0I/dqahsESNdJrRiLuAodrsC1vV1YL5+yC2kh6k8vANWNKvYMd6A==
   /detect-indent/5.0.0:
     dev: true
     engines:
@@ -1870,7 +1865,6 @@ specifiers:
   '@pnpm/logger': ^2.1.0
   '@pnpm/types': ^1.7.0
   '@types/common-tags': ^1.2.5
-  '@types/delay': ^2.0.1
   '@types/load-json-file': ^2.0.7
   '@types/node': ^9.3.0 || 10
   '@types/ramda': 0.25.34
@@ -1881,7 +1875,7 @@ specifiers:
   chalk: 2.4.1
   cli-cursor: 2.1.0
   common-tags: 1.8.0
-  delay: 3.0.0
+  delay: 4.0.0
   ghooks: ^2.0.0
   load-json-file: ^5.0.0
   mos-tap-diff: ^1.0.0

@@ -20,7 +20,7 @@ dependencies:
   chalk: 2.4.1
   common-tags: 1.8.0
   cross-spawn: 6.0.5
-  delay: 3.0.0
+  delay: 4.0.0
   diable: 4.0.1
   execa: 1.0.0
   find-packages: 2.2.0
@@ -1561,12 +1561,12 @@ packages:
     dev: true
     resolution:
       integrity: sha1-yY2bzvdWdBiOEQlpFRGZ45sfppM=
-  /delay/3.0.0:
+  /delay/4.0.0:
     dev: false
     engines:
       node: '>=6'
     resolution:
-      integrity: sha512-6d9nF+lHG/HOZTmX/8/FgWm5UZQUF5O2SnnUvBZail1ESK1QixrmFn7vaW9hycz0/uwcmkqLyHDER+/AgCxbsQ==
+      integrity: sha512-M5om7qDqgWbLauRFlGgcfVEmQpHJMs24NL0I/dqahsESNdJrRiLuAodrsC1vV1YL5+yC2kh6k8vANWNKvYMd6A==
   /delayed-stream/1.0.0:
     engines:
       node: '>=0.4.0'
@@ -5956,7 +5956,7 @@ specifiers:
   common-tags: 1.8.0
   cross-spawn: 6.0.5
   deep-require-cwd: ^1.0.0
-  delay: 3.0.0
+  delay: 4.0.0
   diable: 4.0.1
   execa: 1.0.0
   exists-link: ^2.0.0

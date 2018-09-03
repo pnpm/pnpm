@@ -1,8 +1,3 @@
-declare module 'delay' {
-  const anything: any;
-  export = anything;
-}
-
 declare module 'proper-lockfile' {
   const anything: any;
   export = anything;

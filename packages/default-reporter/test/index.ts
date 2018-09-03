@@ -3,7 +3,7 @@ import {PnpmConfigs} from '@pnpm/config'
 import logger, {
   createStreamParser,
 } from '@pnpm/logger'
-import delay = require('delay')
+import delay from 'delay'
 import test = require('tape')
 import normalizeNewline = require('normalize-newline')
 import {toOutput$} from 'pnpm-default-reporter'
