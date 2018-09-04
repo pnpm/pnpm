@@ -146,7 +146,10 @@
     "hardlinks",
     "modules",
     "npm",
-    "package manager"
+    "package manager",
+    "monorepo",
+    "multi-package",
+    "workspace"
   ],
   "license": "MIT",
   "preferGlobal": true,
