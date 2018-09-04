@@ -2,18 +2,6 @@
   "extends": [
     "config:base"
   ],
-  "packageRules": [
-    {
-      "packageNames": ["@types/ramda"],
-      "allowedVersions": "0.25.34"
-    },
-    {
-      "packageNames": ["got"],
-      "allowedVersions": "<=8"
-    }
-  ],
-  "pinVersions": false,
-  "ignorePaths": ["test/"],
   "ignoreDeps": [
     "@pnpm/config",
     "@pnpm/default-fetcher",
@@ -34,5 +22,21 @@
     "remove-all-except-outer-links",
     "supi",
     "ts-node"
+  ],
+  "ignorePaths": ["test/"],
+  "packageRules": [
+    {
+      "packageNames": ["@types/ramda"],
+      "allowedVersions": "0.25.34"
+    },
+    {
+      "packageNames": ["got"],
+      "allowedVersions": "<=8"
+    }
+  ],
+  "pinVersions": false,
+  "schedule": [
+    "on Friday",
+    "every weekend"
   ]
 }
