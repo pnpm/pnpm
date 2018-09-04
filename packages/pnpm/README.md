@@ -14,8 +14,9 @@ Features:
 
 * **Fast.** As fast as npm and Yarn.
 * **Efficient.** One version of a package is saved only ever once on a disk.
-* **Deterministic.** Has a lockfile called `shrinkwrap.yaml`.
+* **Great for multi-package repositories (a.k.a. monorepos).** See the [recursive](https://pnpm.js.org/docs/en/pnpm-recursive.html) commands.
 * **Strict.** A package can access only dependencies that are specified in its `package.json`.
+* **Deterministic.** Has a lockfile called `shrinkwrap.yaml`.
 * **Works everywhere.** Works on Windows, Linux and OS X.
 * **Aliases.** Install different versions of the same package or import it using a different name.
 
