@@ -39,7 +39,7 @@
   "dependencies": {
     "@pnpm/read-package-json": "^1.0.0",
     "@pnpm/types": "^1.7.0",
-    "npm-lifecycle": "^2.0.1",
+    "@zkochan/npm-lifecycle": "2.1.1",
     "path-exists": "^3.0.0"
   },
   "devDependencies": {

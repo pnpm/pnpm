@@ -1,4 +1,4 @@
-declare module 'npm-lifecycle' {
+declare module '@zkochan/npm-lifecycle' {
   const anything: any;
   export = anything;
 }

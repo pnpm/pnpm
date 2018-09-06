@@ -1,6 +1,6 @@
 import {fromDir as readPackageJsonFromDir} from '@pnpm/read-package-json'
 import {PackageJson} from '@pnpm/types'
-import lifecycle = require('npm-lifecycle')
+import lifecycle = require('@zkochan/npm-lifecycle')
 import path = require('path')
 import exists = require('path-exists')
 import {LifecycleLog, lifecycleLogger} from './logger'
