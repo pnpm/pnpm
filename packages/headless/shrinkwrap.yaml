@@ -1,6 +1,6 @@
 dependencies:
   '@pnpm/headless': 'link:'
-  '@pnpm/lifecycle': 3.0.0
+  '@pnpm/lifecycle': 3.0.1
   '@pnpm/link-bins': 3.0.0
   '@pnpm/modules-yaml': 1.0.0
   '@pnpm/package-requester': 'link:../package-requester'
@@ -80,11 +80,11 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha512-1zLmh6tRftQXfZ1IFHq1IexP0KaJhN6pSCA/IzK+Vixn4hPvxwcIbGjKW0KH9hsHSmrPpmSit2EWj7jGNgfa6Q==
-  /@pnpm/lifecycle/3.0.0:
+  /@pnpm/lifecycle/3.0.1:
     dependencies:
       '@pnpm/read-package-json': 1.0.0
       '@pnpm/types': 1.7.0
-      npm-lifecycle: 2.1.0
+      '@zkochan/npm-lifecycle': 2.1.1
       path-exists: 3.0.0
     dev: false
     engines:
@@ -92,7 +92,7 @@ packages:
     peerDependencies:
       '@pnpm/logger': ^1.0.0 || ^2.0.0
     resolution:
-      integrity: sha512-1vpgqaVqeBV42jhPPXIi5F86Nwv5p6x1jzMwNZluMLCBkVBGlNiyuXQsyFnRMbEybScJ+ZJOZ6sTjUB1lS6m+Q==
+      integrity: sha512-t+uB4UfOIExnnQCFUpuWSavS24QYXm7BlpDnXDojpclxt8fFoRvA4kpPrUXBK27urvSoPaQbFK6z1fsQNapV8A==
   /@pnpm/link-bins/3.0.0:
     dependencies:
       '@pnpm/package-bins': 1.0.0
@@ -347,6 +347,19 @@ packages:
       node: '>=6'
     resolution:
       integrity: sha512-o8l0+x7C7sMZU3v9GuJIAU10qQLtwR1dtRQIOmlNMtyaqhmpXOzx1HWiYoWfmmf9HHZoAkXpc9TM9PQYF9d4Jg==
+  /@zkochan/npm-lifecycle/2.1.1:
+    dependencies:
+      byline: 5.0.0
+      graceful-fs: 4.1.11
+      node-gyp: 3.8.0
+      resolve-from: 4.0.0
+      slide: 1.1.6
+      uid-number: 0.0.6
+      umask: 1.1.0
+      which: 1.3.1
+    dev: false
+    resolution:
+      integrity: sha512-Ngx98s/fDZU6CZwDor2WHcZ8HrGkrO9kt6xluqCtz1+7viWfJc1/XcFg3t7ifs+EBEqwwdEDgwRdniP9wOQS3w==
   /JSONStream/1.3.3:
     dependencies:
       jsonparse: 1.3.1
@@ -2043,6 +2056,7 @@ packages:
   /minimist/0.0.8:
     resolution:
       integrity: sha1-hX/Kv8M5fSYluCKCYuhqp6ARsF0=
+      tarball: 'http://registry.npmjs.org/minimist/-/minimist-0.0.8.tgz'
   /minimist/1.2.0:
     dev: true
     resolution:
@@ -2191,19 +2205,6 @@ packages:
     dev: false
     resolution:
       integrity: sha512-0v6T4851b72ykk5zEtFoN4QX/Fqyk7pouIj9xZyAvAe9jlDhAwT4z6FlwsoQCHjeuK2EGUoAwy/F4y4B1uZq9A==
-  /npm-lifecycle/2.1.0:
-    dependencies:
-      byline: 5.0.0
-      graceful-fs: 4.1.11
-      node-gyp: 3.8.0
-      resolve-from: 4.0.0
-      slide: 1.1.6
-      uid-number: 0.0.6
-      umask: 1.1.0
-      which: 1.3.1
-    dev: false
-    resolution:
-      integrity: sha512-QbBfLlGBKsktwBZLj6AviHC6Q9Y3R/AY4a2PYSIRhSKSS0/CxRyD/PfxEX6tPeOCXQgMSNdwGeECacstgptc+g==
   /npm-package-arg/4.2.1:
     dependencies:
       hosted-git-info: 2.7.1
@@ -3656,7 +3657,7 @@ specifiers:
   '@pnpm/assert-project': ^1.1.1
   '@pnpm/default-fetcher': ^2.0.0
   '@pnpm/default-resolver': ^2.0.0
-  '@pnpm/lifecycle': 3.0.0
+  '@pnpm/lifecycle': 3.0.1
   '@pnpm/link-bins': 3.0.0
   '@pnpm/logger': ^2.1.0
   '@pnpm/modules-yaml': 1.0.0

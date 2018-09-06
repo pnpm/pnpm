@@ -23,7 +23,7 @@
     "@pnpm/config": "2.2.0",
     "@pnpm/default-fetcher": "2.0.1",
     "@pnpm/default-resolver": "2.0.3",
-    "@pnpm/lifecycle": "3.0.0",
+    "@pnpm/lifecycle": "3.0.1",
     "@pnpm/logger": "2.1.0",
     "@pnpm/outdated": "0.4.1",
     "@pnpm/server": "0.14.1",
