@@ -43,21 +43,21 @@
     "path-exists": "^3.0.0"
   },
   "devDependencies": {
-    "@pnpm/logger": "^2.0.1",
-    "@types/load-json-file": "^2.0.7",
-    "@types/node": "^10.0.4",
-    "@types/rimraf": "^2.0.2",
-    "@types/tape": "^4.2.31",
-    "json-append": "^1.1.1",
-    "load-json-file": "^5.0.0",
-    "mos": "^2.0.0-alpha.3",
-    "mos-plugin-readme": "^1.0.4",
-    "package-preview": "^1.0.1",
-    "rimraf": "^2.6.2",
-    "tape": "^4.8.0",
-    "ts-node": "^7.0.0",
-    "tslint": "^5.8.0",
-    "typescript": "^3.0.0"
+    "@pnpm/logger": "2.1.0",
+    "@types/load-json-file": "2.0.7",
+    "@types/node": "10.9.4",
+    "@types/rimraf": "2.0.2",
+    "@types/tape": "4.2.32",
+    "json-append": "1.1.1",
+    "load-json-file": "5.0.0",
+    "mos": "2.0.0-alpha.3",
+    "mos-plugin-readme": "1.0.4",
+    "package-preview": "1.0.6",
+    "rimraf": "2.6.2",
+    "tape": "4.9.1",
+    "ts-node": "7.0.1",
+    "tslint": "5.11.0",
+    "typescript": "3.0.3"
   },
   "mos": {
     "plugins": [
