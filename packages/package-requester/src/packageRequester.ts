@@ -32,6 +32,8 @@ import writeJsonFile from 'write-json-file'
 import {fromDir as readPkgFromDir} from './fs/readPkg'
 import {LoggedPkg, progressLogger} from './loggers'
 
+const TARBALL_INTEGRITY_FILENAME = 'tarball_integrity'
+
 export interface PackageFilesResponse {
   fromStore: boolean,
   filenames: string[],
@@ -445,6 +447,7 @@ function fetchToStore (
     finishing: PromiseContainer<void>,
   ) {
     try {
+      const isLocalTarballDep = opts.pkgId.startsWith('file:')
       const linkToUnpacked = path.join(target, 'package')
 
       // We can safely assume that if there is no data about the package in `store.json` then
@@ -452,7 +455,13 @@ function fetchToStore (
       // In case there is record about the package in `store.json`, we check it in the file system just in case
       const targetExists = ctx.storeIndex[targetRelative] && await exists(path.join(linkToUnpacked, 'package.json'))
 
-      if (!opts.force && targetExists) {
+      if (
+        !opts.force && targetExists &&
+        (
+          isLocalTarballDep === false ||
+          opts.resolution['integrity'] && await tarballSatisfiesIntegrity(opts.resolution['integrity'], target) // tslint:disable-line:no-string-literal
+        )
+      ) {
         // if target exists and it wasn't modified, then no need to refetch it
         const satisfiedIntegrity = opts.verifyStoreIntegrity
           ? await checkPackage(linkToUnpacked)
@@ -551,6 +560,10 @@ function fetchToStore (
       await renameOverwrite(tempLocation, unpacked)
       await symlinkDir(unpacked, linkToUnpacked)
 
+      if (isLocalTarballDep && opts.resolution['integrity']) { // tslint:disable-line:no-string-literal
+        await fs.writeFile(path.join(target, TARBALL_INTEGRITY_FILENAME), opts.resolution['integrity'], 'utf8') // tslint:disable-line:no-string-literal
+      }
+
       ctx.storeIndex[targetRelative] = ctx.storeIndex[targetRelative] || []
       fetchingFiles.resolve({
         filenames: Object.keys(filesIndex).filter((f) => !filesIndex[f].isDir), // Filtering can be removed for store v3
@@ -562,6 +575,14 @@ function fetchToStore (
         fetchingRawManifest.reject(err)
       }
     }
+  }
+}
+
+async function tarballSatisfiesIntegrity (wantedIntegrity: string, pkgInStoreLocation: string) {
+  try {
+    return (await fs.readFile(path.join(pkgInStoreLocation, TARBALL_INTEGRITY_FILENAME), 'utf8')) === wantedIntegrity
+  } catch (err) {
+    return false
   }
 }
 

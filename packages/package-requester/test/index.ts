@@ -375,7 +375,24 @@ test('refetch local tarball if its integrity has changed. The requester does not
     await response.finishing
 
     t.ok(response.body.updated === true, 'resolution updated')
-    t.notOk((await response.fetchingFiles).fromStore, 'unpack tarball if it is not in store yet')
+    t.notOk((await response.fetchingFiles).fromStore, 'reunpack tarball if its integrity is not up-to-date')
+    t.equal((await response['fetchingRawManifest']).version, '4.1.2')
+  }
+
+  {
+    const requestPackage = createPackageRequester(localResolver as any, fetch, {
+      storePath,
+      storeIndex,
+    })
+
+    const response = await requestPackage(wantedPackage, requestPackageOpts) as PackageResponse & {
+      fetchingFiles: Promise<PackageFilesResponse>,
+      finishing: Promise<void>,
+    }
+    await response.fetchingFiles
+    await response.finishing
+
+    t.ok((await response.fetchingFiles).fromStore, 'do not reunpack tarball if its integrity is up-to-date')
     t.equal((await response['fetchingRawManifest']).version, '4.1.2')
   }
 
