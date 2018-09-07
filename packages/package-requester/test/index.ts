@@ -6,16 +6,21 @@ import createResolver from '@pnpm/npm-resolver'
 import createFetcher from '@pnpm/tarball-fetcher'
 import {PackageJson} from '@pnpm/types'
 import pkgIdToFilename from '@pnpm/pkgid-to-filename'
+import localResolver from '@pnpm/local-resolver'
 import fs = require('mz/fs')
 import path = require('path')
 import tempy = require('tempy')
+import ncpCB = require('ncp')
 import nock = require('nock')
 import rimraf = require('rimraf-then')
 import sinon = require('sinon')
 import loadJsonFile = require('load-json-file')
+import promisify = require('util.promisify')
+import delay from 'delay'
 
 const registry = 'https://registry.npmjs.org/'
 const IS_POSTIVE_TARBALL = path.join(__dirname, 'is-positive-1.0.0.tgz')
+const ncp = promisify(ncpCB)
 
 const rawNpmConfig = { registry }
 
@@ -310,6 +315,68 @@ test('refetch local tarball if its integrity has changed', async t => {
 
     t.ok(response.body.updated === false)
     t.ok((await response.fetchingFiles).fromStore, 'use existing package from store if integrities matched')
+  }
+
+  t.end()
+})
+
+test('refetch local tarball if its integrity has changed. The requester does not know the correct integrity', async t => {
+  const prefix = tempy.directory()
+  const tarballPath = path.join(prefix, 'tarball.tgz')
+  await ncp(path.join(__dirname, 'pnpm-package-requester-0.8.1.tgz'), tarballPath)
+  const tarball = `file:${tarballPath}`
+  const wantedPackage = {pref: tarball}
+  const storePath = path.join(__dirname, '..', '.store')
+  const requestPackageOpts = {
+    downloadPriority: 0,
+    verifyStoreIntegrity: true,
+    preferredVersions: {},
+    update: false,
+    loggedPkg: {
+      rawSpec: tarball,
+    },
+    prefix,
+    registry,
+  }
+  const storeIndex = {}
+
+  {
+    const requestPackage = createPackageRequester(localResolver as any, fetch, {
+      storePath,
+      storeIndex,
+    })
+
+    const response = await requestPackage(wantedPackage, requestPackageOpts) as PackageResponse & {
+      fetchingFiles: Promise<PackageFilesResponse>,
+      finishing: Promise<void>,
+    }
+    await response.fetchingFiles
+    await response.finishing
+
+    t.ok(response.body.updated === true, 'resolution updated')
+    t.notOk((await response.fetchingFiles).fromStore, 'unpack tarball if it is not in store yet')
+    t.equal((await response['fetchingRawManifest']).version, '0.8.1')
+  }
+
+  await ncp(path.join(__dirname, 'pnpm-package-requester-4.1.2.tgz'), tarballPath)
+  await delay(50)
+
+  {
+    const requestPackage = createPackageRequester(localResolver as any, fetch, {
+      storePath,
+      storeIndex,
+    })
+
+    const response = await requestPackage(wantedPackage, requestPackageOpts) as PackageResponse & {
+      fetchingFiles: Promise<PackageFilesResponse>,
+      finishing: Promise<void>,
+    }
+    await response.fetchingFiles
+    await response.finishing
+
+    t.ok(response.body.updated === true, 'resolution updated')
+    t.notOk((await response.fetchingFiles).fromStore, 'unpack tarball if it is not in store yet')
+    t.equal((await response['fetchingRawManifest']).version, '4.1.2')
   }
 
   t.end()
