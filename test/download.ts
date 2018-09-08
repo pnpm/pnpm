@@ -1,10 +1,12 @@
+///<reference path="../typings/index.d.ts" />
 import fs = require('mz/fs')
 import test = require('tape')
 import nock = require('nock')
 import createFetcher from '@pnpm/tarball-fetcher'
 import path = require('path')
 import tempy = require('tempy')
-import {streamParser, LogBase} from '@pnpm/logger'
+import { streamParser, LogBase } from '@pnpm/logger'
+import ssri = require('ssri')
 
 const tarballPath = path.join(__dirname, 'tars', 'babel-helper-hoist-variables-6.24.1.tgz')
 const tarballSize = 1279
@@ -240,6 +242,31 @@ test('fail when integrity check of local file fails', async (t) => {
   t.end()
 })
 
+test("don't fail when integrity check of local file succeeds", async (t) => {
+  process.chdir(tempy.directory())
+  t.comment(`testing in ${process.cwd()}`)
+
+  const unpackTo = path.resolve('unpacked')
+  const cachedTarballLocation = path.resolve('cached')
+  const tarballAbsoluteLocation = path.join(__dirname, 'tars', 'babel-helper-hoist-variables-7.0.0-alpha.10.tgz')
+  const tarball = path.relative(process.cwd(), tarballAbsoluteLocation)
+  const resolution = {
+    tarball: `file:${tarball}`,
+    integrity: await getFileIntegrity(tarballAbsoluteLocation),
+  }
+
+  const { filesIndex, tempLocation } = await fetch.tarball(resolution, unpackTo, {
+    cachedTarballLocation,
+    prefix: process.cwd(),
+    pkgId: `file:${tarball}`,
+  })
+
+  t.equal(typeof filesIndex['package.json'], 'object', 'files index returned')
+  t.equal(typeof tempLocation, 'string', 'temp location returned')
+
+  t.end()
+})
+
 test('retry on server error', async t => {
   const scope = nock(registry)
     .get('/foo.tgz')
@@ -351,3 +378,7 @@ test('accessing private packages', async t => {
   t.ok(scope.isDone())
   t.end()
 })
+
+async function getFileIntegrity (filename: string) {
+  return (await ssri.fromStream(fs.createReadStream(filename))).toString()
+}

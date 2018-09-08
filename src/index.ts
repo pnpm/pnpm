@@ -169,7 +169,6 @@ async function fetchFromLocalTarball (
   const tarballStream = fs.createReadStream(tarball)
   try {
     const filesIndex = (await Promise.all([
-      opts.integrity && ssri.checkStream(tarballStream, opts.integrity),
       unpackStream.local(
         tarballStream,
         tempLocation,
@@ -177,6 +176,7 @@ async function fetchFromLocalTarball (
           ignore: opts.ignore,
         },
       ),
+      opts.integrity && ssri.checkStream(tarballStream, opts.integrity),
     ]))[0]
     return {filesIndex, tempLocation}
   } catch (err) {

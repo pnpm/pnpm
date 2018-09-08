@@ -1,5 +1,6 @@
 dependencies:
   '@pnpm/fetcher-base': 1.0.0
+  '@pnpm/tarball-fetcher': 'link:../__package_previews__/tarball-fetcher/@pnpm/tarball-fetcher'
   '@types/mem': 1.1.2
   '@types/mz': 0.0.32
   '@types/node': 10.9.4
