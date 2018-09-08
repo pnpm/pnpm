@@ -32,7 +32,7 @@ import writeJsonFile from 'write-json-file'
 import {fromDir as readPkgFromDir} from './fs/readPkg'
 import {LoggedPkg, progressLogger} from './loggers'
 
-const TARBALL_INTEGRITY_FILENAME = 'tarball_integrity'
+const TARBALL_INTEGRITY_FILENAME = 'tarball-integrity'
 
 export interface PackageFilesResponse {
   fromStore: boolean,
