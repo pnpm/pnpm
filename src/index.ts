@@ -1,18 +1,18 @@
-import {storeLogger} from '@pnpm/logger'
+import { storeLogger } from '@pnpm/logger'
 import {
   FetchFunction,
   FetchOptions,
   FetchResult,
 } from '@pnpm/fetcher-base'
 import getCredentialsByURI = require('credentials-by-uri')
-import {IncomingMessage} from 'http'
 import mem = require('mem')
 import fs = require('mz/fs')
 import path = require('path')
 import * as unpackStream from 'unpack-stream'
-import createDownloader, {DownloadFunction} from './createDownloader'
+import createDownloader, { DownloadFunction } from './createDownloader'
 import pathTemp = require('path-temp')
-import {PnpmError} from './errorTypes'
+import { PnpmError } from './errorTypes'
+import ssri = require('ssri')
 
 export type IgnoreFunction = (filename: string) => boolean
 
@@ -93,7 +93,11 @@ function fetchFromTarball (
   opts: FetchOptions,
 ) {
   if (resolution.tarball.startsWith('file:')) {
-    return fetchFromLocalTarball(target, path.join(opts.prefix, resolution.tarball.slice(5)), ctx.ignore)
+    const tarball = path.join(opts.prefix, resolution.tarball.slice(5))
+    return fetchFromLocalTarball(tarball, target, {
+      ignore: ctx.ignore,
+      integrity: resolution.integrity,
+    })
   }
   return ctx.fetchFromRemoteTarball(target, resolution, opts)
 }
@@ -122,7 +126,9 @@ async function fetchFromRemoteTarball (
   opts: FetchOptions,
 ) {
   try {
-    return await fetchFromLocalTarball(unpackTo, opts.cachedTarballLocation)
+    return await fetchFromLocalTarball(opts.cachedTarballLocation, unpackTo, {
+      integrity: dist.integrity,
+    })
   } catch (err) {
     // ignore errors for missing files or broken/partial archives
     switch (err.code) {
@@ -152,17 +158,30 @@ async function fetchFromRemoteTarball (
 }
 
 async function fetchFromLocalTarball (
-  dir: string,
   tarball: string,
-  ignore?: IgnoreFunction,
+  dir: string,
+  opts: {
+    ignore?: IgnoreFunction,
+    integrity?: string,
+  }
 ): Promise<FetchResult> {
   const tempLocation = pathTemp(dir)
-  const filesIndex = await unpackStream.local(
-    fs.createReadStream(tarball),
-    tempLocation,
-    {
-      ignore,
-    },
-  )
-  return {filesIndex, tempLocation}
+  const tarballStream = fs.createReadStream(tarball)
+  try {
+    const filesIndex = (await Promise.all([
+      opts.integrity && ssri.checkStream(tarballStream, opts.integrity),
+      unpackStream.local(
+        tarballStream,
+        tempLocation,
+        {
+          ignore: opts.ignore,
+        },
+      ),
+    ]))[0]
+    return {filesIndex, tempLocation}
+  } catch (err) {
+    err.attempts = 1
+    err.resource = tarball
+    throw err
+  }
 }

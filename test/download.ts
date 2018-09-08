@@ -206,6 +206,40 @@ test('retry when integrity check fails', async t => {
   t.end()
 })
 
+test('fail when integrity check of local file fails', async (t) => {
+  process.chdir(tempy.directory())
+  t.comment(`testing in ${process.cwd()}`)
+
+  const unpackTo = path.resolve('unpacked')
+  const cachedTarballLocation = path.resolve('cached')
+  const tarballAbsoluteLocation = path.join(__dirname, 'tars', 'babel-helper-hoist-variables-7.0.0-alpha.10.tgz')
+  const tarball = path.relative(process.cwd(), tarballAbsoluteLocation)
+  const resolution = {
+    tarball: `file:${tarball}`,
+    integrity: tarballIntegrity,
+  }
+
+  let err: Error | null = null
+  try {
+    await fetch.tarball(resolution, unpackTo, {
+      cachedTarballLocation,
+      prefix: process.cwd(),
+      pkgId: `file:${tarball}`,
+    })
+  } catch (_err) {
+    err = _err
+  }
+
+  t.ok(err, 'error thrown')
+  t.equal(err && err.message, 'sha1-HssnaJydJVE+rbyZFKc/VAi+enY= integrity checksum failed when using sha1: ' +
+    'wanted sha1-HssnaJydJVE+rbyZFKc/VAi+enY= but got sha512-VuFL1iPaIxJK/k3gTxStIkc6+wSiDwlLdnCWNZyapsVLobu/0onvGOZolASZpfBFiDJYrOIGiDzgLIULTW61Vg== sha1-ACjKMFA7S6uRFXSDFfH4aT+4B4Y=. (1194 bytes)')
+  t.equal(err && err['code'], 'EINTEGRITY')
+  t.equal(err && err['resource'], tarballAbsoluteLocation)
+  t.equal(err && err['attempts'], 1)
+
+  t.end()
+})
+
 test('retry on server error', async t => {
   const scope = nock(registry)
     .get('/foo.tgz')
