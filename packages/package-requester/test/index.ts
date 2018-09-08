@@ -5,17 +5,22 @@ import createPackageRequester, { PackageResponse, PackageFilesResponse } from '@
 import createResolver from '@pnpm/npm-resolver'
 import createFetcher from '@pnpm/tarball-fetcher'
 import {PackageJson} from '@pnpm/types'
-import pkgIdToFilename from '@pnpm/pkgid-to-filename'
+import localResolver from '@pnpm/local-resolver'
 import fs = require('mz/fs')
 import path = require('path')
 import tempy = require('tempy')
+import ncpCB = require('ncp')
 import nock = require('nock')
 import rimraf = require('rimraf-then')
 import sinon = require('sinon')
 import loadJsonFile = require('load-json-file')
+import promisify = require('util.promisify')
+import delay from 'delay'
+import normalize = require('normalize-path')
 
 const registry = 'https://registry.npmjs.org/'
 const IS_POSTIVE_TARBALL = path.join(__dirname, 'is-positive-1.0.0.tgz')
+const ncp = promisify(ncpCB)
 
 const rawNpmConfig = { registry }
 
@@ -187,11 +192,13 @@ test('request package but skip fetching, when resolution is already available', 
 
 test('refetch local tarball if its integrity has changed', async t => {
   const prefix = tempy.directory()
-  const tarballPath = path.relative(prefix, path.join(__dirname, 'pnpm-package-requester-0.8.1.tgz'))
-  const tarball = `file:${tarballPath}`
-  const pkgId = `file:${encodeURIComponent(tarball)}`
-  const wantedPackage = {alias: 'is-positive', pref: '1.0.0'}
-  const storePath = '.store'
+  const tarballPath = path.join(prefix, 'tarball.tgz')
+  const tarballRelativePath = path.relative(prefix, tarballPath)
+  await ncp(path.join(__dirname, 'pnpm-package-requester-0.8.1.tgz'), tarballPath)
+  const tarball = `file:${tarballRelativePath}`
+  const wantedPackage = {pref: tarball}
+  const storePath = path.join(__dirname, '..', '.store')
+  const pkgId = `file:${normalize(tarballRelativePath)}`
   const requestPackageOpts = {
     currentPkgId: pkgId,
     downloadPriority: 0,
@@ -203,26 +210,20 @@ test('refetch local tarball if its integrity has changed', async t => {
     },
     prefix,
     registry,
+    skipFetch: true,
   }
+  const storeIndex = {}
 
   {
-    const fakeResolve = () => Promise.resolve({
-      id: pkgId,
-      resolution: {
-        integrity: 'sha1-BBBBBBBBBBBBBBBBBBBBBBBBBBB=',
-        tarball,
-      },
-      resolvedVia: 'npm-registry',
-    })
-    const requestPackage = createPackageRequester(fakeResolve, fetch, {
+    const requestPackage = createPackageRequester(localResolver as any, fetch, {
       storePath,
-      storeIndex: {},
+      storeIndex,
     })
 
     const response = await requestPackage(wantedPackage, {
       ...requestPackageOpts,
       shrinkwrapResolution: {
-        integrity: 'sha1-BBBBBBBBBBBBBBBBBBBBBBBBBBB=',
+        integrity: 'sha512-lqODmYcc/FKOGROEUByd5Sbugqhzgkv+Hij9PXH0sZVQsU2npTQ0x3L81GCtHilFKme8lhBtD31Vxg/AKYrAvg==',
         tarball,
       },
     }) as PackageResponse & {
@@ -234,82 +235,137 @@ test('refetch local tarball if its integrity has changed', async t => {
 
     t.ok(response.body.updated === false, 'resolution not updated')
     t.notOk((await response.fetchingFiles).fromStore, 'unpack tarball if it is not in store yet')
+    t.equal((await response['fetchingRawManifest']).version, '0.8.1')
+  }
 
-    // the second time we request the package, fromStore should be true
-    const response2 = await requestPackage(wantedPackage, {
+  await ncp(path.join(__dirname, 'pnpm-package-requester-4.1.2.tgz'), tarballPath)
+  await delay(50)
+
+  {
+    const requestPackage = createPackageRequester(localResolver as any, fetch, {
+      storePath,
+      storeIndex,
+    })
+
+    const response = await requestPackage(wantedPackage, {
       ...requestPackageOpts,
       shrinkwrapResolution: {
-        integrity: 'sha1-BBBBBBBBBBBBBBBBBBBBBBBBBBB=',
+        integrity: 'sha512-lqODmYcc/FKOGROEUByd5Sbugqhzgkv+Hij9PXH0sZVQsU2npTQ0x3L81GCtHilFKme8lhBtD31Vxg/AKYrAvg==',
         tarball,
       },
     }) as PackageResponse & {
       fetchingFiles: Promise<PackageFilesResponse>,
       finishing: Promise<void>,
     }
-    await response2.fetchingFiles
-    await response2.finishing
+    await response.fetchingFiles
+    await response.finishing
 
-    t.ok((await response2.fetchingFiles).fromStore, 'correctly update fromStore after we downloaded it')
+    t.ok(response.body.updated === true, 'resolution updated')
+    t.notOk((await response.fetchingFiles).fromStore, 'reunpack tarball if its integrity is not up-to-date')
+    t.equal((await response['fetchingRawManifest']).version, '4.1.2')
   }
 
   {
-    const fakeResolve = () => Promise.resolve({
-      id: pkgId,
-      resolution: {
-        integrity: 'sha1-AAAAAAAAAAAAAAAAAAAAAAAAAAA=',
-        tarball,
-      },
-      resolvedVia: 'npm-registry',
-    })
-    const requestPackage = createPackageRequester(fakeResolve, fetch, {
+    const requestPackage = createPackageRequester(localResolver as any, fetch, {
       storePath,
-      storeIndex: {
-        [pkgIdToFilename(pkgId)]: [] as string[],
-      },
+      storeIndex,
     })
 
     const response = await requestPackage(wantedPackage, {
       ...requestPackageOpts,
       shrinkwrapResolution: {
-        integrity: 'sha1-BBBBBBBBBBBBBBBBBBBBBBBBBBB=',
+        integrity: 'sha512-v3uhYkN+Eh3Nus4EZmegjQhrfpdPIH+2FjrkeBc6ueqZJWWRaLnSYIkD0An6m16D3v+6HCE18ox6t95eGxj5Pw==',
         tarball,
       },
-    }) as PackageResponse & {fetchingFiles: Promise<PackageFilesResponse>, finishing: Promise<void>}
+    }) as PackageResponse & {
+      fetchingFiles: Promise<PackageFilesResponse>,
+      finishing: Promise<void>,
+    }
     await response.fetchingFiles
     await response.finishing
 
-    t.ok(response.body.updated === true)
-    t.notOk((await response.fetchingFiles).fromStore, 're-unpack tarball if its integrity has changed')
+    t.ok(response.body.updated === false, 'resolution not updated')
+    t.ok((await response.fetchingFiles).fromStore, 'do not reunpack tarball if its integrity is up-to-date')
+    t.equal((await response['fetchingRawManifest']).version, '4.1.2')
+  }
+
+  t.end()
+})
+
+test('refetch local tarball if its integrity has changed. The requester does not know the correct integrity', async t => {
+  const prefix = tempy.directory()
+  const tarballPath = path.join(prefix, 'tarball.tgz')
+  await ncp(path.join(__dirname, 'pnpm-package-requester-0.8.1.tgz'), tarballPath)
+  const tarball = `file:${tarballPath}`
+  const wantedPackage = {pref: tarball}
+  const storePath = path.join(__dirname, '..', '.store')
+  const requestPackageOpts = {
+    downloadPriority: 0,
+    verifyStoreIntegrity: true,
+    preferredVersions: {},
+    update: false,
+    loggedPkg: {
+      rawSpec: tarball,
+    },
+    prefix,
+    registry,
+  }
+  const storeIndex = {}
+
+  {
+    const requestPackage = createPackageRequester(localResolver as any, fetch, {
+      storePath,
+      storeIndex,
+    })
+
+    const response = await requestPackage(wantedPackage, requestPackageOpts) as PackageResponse & {
+      fetchingFiles: Promise<PackageFilesResponse>,
+      finishing: Promise<void>,
+    }
+    await response.fetchingFiles
+    await response.finishing
+
+    t.ok(response.body.updated === true, 'resolution updated')
+    t.notOk((await response.fetchingFiles).fromStore, 'unpack tarball if it is not in store yet')
+    t.equal((await response['fetchingRawManifest']).version, '0.8.1')
+  }
+
+  await ncp(path.join(__dirname, 'pnpm-package-requester-4.1.2.tgz'), tarballPath)
+  await delay(50)
+
+  {
+    const requestPackage = createPackageRequester(localResolver as any, fetch, {
+      storePath,
+      storeIndex,
+    })
+
+    const response = await requestPackage(wantedPackage, requestPackageOpts) as PackageResponse & {
+      fetchingFiles: Promise<PackageFilesResponse>,
+      finishing: Promise<void>,
+    }
+    await response.fetchingFiles
+    await response.finishing
+
+    t.ok(response.body.updated === true, 'resolution updated')
+    t.notOk((await response.fetchingFiles).fromStore, 'reunpack tarball if its integrity is not up-to-date')
+    t.equal((await response['fetchingRawManifest']).version, '4.1.2')
   }
 
   {
-    const fakeResolve = () => Promise.resolve({
-      id: pkgId,
-      resolution: {
-        integrity: 'sha1-AAAAAAAAAAAAAAAAAAAAAAAAAAA=',
-        tarball,
-      },
-      resolvedVia: 'npm-registry',
-    })
-    const requestPackage = createPackageRequester(fakeResolve, fetch, {
+    const requestPackage = createPackageRequester(localResolver as any, fetch, {
       storePath,
-      storeIndex: {
-        [pkgIdToFilename(pkgId)]: [] as string[],
-      },
+      storeIndex,
     })
 
-    const response = await requestPackage(wantedPackage, {
-      ...requestPackageOpts,
-      shrinkwrapResolution: {
-        integrity: 'sha1-AAAAAAAAAAAAAAAAAAAAAAAAAAA=',
-        tarball,
-      },
-    }) as PackageResponse & {fetchingFiles: Promise<PackageFilesResponse>, finishing: Promise<void>}
+    const response = await requestPackage(wantedPackage, requestPackageOpts) as PackageResponse & {
+      fetchingFiles: Promise<PackageFilesResponse>,
+      finishing: Promise<void>,
+    }
     await response.fetchingFiles
     await response.finishing
 
-    t.ok(response.body.updated === false)
-    t.ok((await response.fetchingFiles).fromStore, 'use existing package from store if integrities matched')
+    t.ok((await response.fetchingFiles).fromStore, 'do not reunpack tarball if its integrity is up-to-date')
+    t.equal((await response['fetchingRawManifest']).version, '4.1.2')
   }
 
   t.end()

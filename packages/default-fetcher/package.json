@@ -33,7 +33,7 @@
     "@pnpm/fetcher-base": "1.0.0",
     "@pnpm/git-fetcher": "1.0.1",
     "@pnpm/resolver-base": "1.2.0",
-    "@pnpm/tarball-fetcher": "2.0.1"
+    "@pnpm/tarball-fetcher": "2.0.3"
   },
   "devDependencies": {
     "@pnpm/logger": "^2.0.0",
