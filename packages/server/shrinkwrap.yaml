@@ -3553,7 +3553,7 @@ specifiers:
   '@pnpm/npm-resolver': ^2.2.4
   '@pnpm/package-requester': 4.1.2
   '@pnpm/resolver-base': 1.2.0
-  '@pnpm/tarball-fetcher': ^2.0.1
+  '@pnpm/tarball-fetcher': 2.0.3
   '@pnpm/types': ^1.7.0
   '@types/got': ^8.3.0
   '@types/mz': ^0.0.32
