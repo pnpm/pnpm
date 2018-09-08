@@ -281,7 +281,7 @@ async function resolveAndFetch (
         body: {
           cacheByEngine: options.sideEffectsCache ? await getCacheByEngine(ctx.storePath, id) : new Map(),
           id,
-          inStoreLocation: path.join(ctx.storePath, pkgIdToFilename(id)),
+          inStoreLocation: path.join(ctx.storePath, pkgIdToFilename(id, options.prefix)),
           isLocal: false as false,
           latest,
           manifest: pkg,
@@ -354,7 +354,7 @@ function fetchToStore (
   finishing: Promise<void>,
   inStoreLocation: string,
 } {
-  const targetRelative = pkgIdToFilename(opts.pkgId)
+  const targetRelative = pkgIdToFilename(opts.pkgId, opts.prefix)
   const target = path.join(ctx.storePath, targetRelative)
 
   if (!ctx.fetchingLocker.has(opts.pkgId)) {
@@ -580,7 +580,8 @@ function fetchToStore (
 
 async function tarballSatisfiesIntegrity (wantedIntegrity: string, pkgInStoreLocation: string) {
   try {
-    return (await fs.readFile(path.join(pkgInStoreLocation, TARBALL_INTEGRITY_FILENAME), 'utf8')) === wantedIntegrity
+    const currentIntegrity = (await fs.readFile(path.join(pkgInStoreLocation, TARBALL_INTEGRITY_FILENAME), 'utf8'))
+    return currentIntegrity === wantedIntegrity
   } catch (err) {
     return false
   }

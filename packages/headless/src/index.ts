@@ -340,7 +340,7 @@ async function shrinkwrapToDepGraph (
       // NOTE: This code will not convert the depPath with peer deps correctly
       // Unfortunately, there is currently no way to tell if the last dir in the path is originally there or added to separate
       // the diferent peer dependency sets
-      const modules = path.join(opts.nodeModulesDir, `.${pkgIdToFilename(depPath)}`, 'node_modules')
+      const modules = path.join(opts.nodeModulesDir, `.${pkgIdToFilename(depPath, opts.prefix)}`, 'node_modules')
       const peripheralLocation = !independent
         ? path.join(modules, pkgName)
         : centralLocation
@@ -414,12 +414,12 @@ async function getChildrenPaths (
       const pkgId = childPkgSnapshot.id || childDepPath
       const cache = !ctx.force && await getCache(ctx.store, pkgId)
       const pkgName = nameVerFromPkgSnapshot(childRelDepPath, childPkgSnapshot).name
-      const inStoreLocation = pkgIdToFilename(pkgId)
+      const inStoreLocation = pkgIdToFilename(pkgId, ctx.prefix)
       children[alias] = cache || path.join(inStoreLocation, 'node_modules', pkgName)
     } else if (childPkgSnapshot) {
       const relDepPath = dp.relative(ctx.registry, childDepPath)
       const pkgName = nameVerFromPkgSnapshot(relDepPath, childPkgSnapshot).name
-      children[alias] = path.join(ctx.nodeModules, `.${pkgIdToFilename(childDepPath)}`, 'node_modules', pkgName)
+      children[alias] = path.join(ctx.nodeModules, `.${pkgIdToFilename(childDepPath, ctx.prefix)}`, 'node_modules', pkgName)
     } else if (allDeps[alias].indexOf('file:') === 0) {
       children[alias] = path.resolve(ctx.prefix, allDeps[alias].substr(5))
     } else {

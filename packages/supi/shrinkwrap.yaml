@@ -6,7 +6,7 @@ dependencies:
   '@pnpm/link-bins': 3.0.0
   '@pnpm/modules-yaml': 1.0.0
   '@pnpm/package-requester': 'link:../package-requester'
-  '@pnpm/pkgid-to-filename': 1.0.1
+  '@pnpm/pkgid-to-filename': 2.0.0
   '@pnpm/read-package-json': 1.0.0
   '@pnpm/resolver-base': 1.2.0
   '@pnpm/types': 1.7.0
@@ -210,14 +210,14 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha512-ZqVfIXK3r5AsP5VAhPHrhf3isF+T4yEuUpJTF9T03oFTJ9LBnkKvx8F7P7biKEManxSGOkSpNoIBdsura9pY5Q==
-  /@pnpm/pkgid-to-filename/1.0.1:
+  /@pnpm/pkgid-to-filename/2.0.0:
     dependencies:
       normalize-path: 3.0.0
     dev: false
     engines:
-      node: '>=4'
+      node: '>=6'
     resolution:
-      integrity: sha512-PxAHIeraDV9YE0mBriqWewN4iOGL3UMzS7XTaYhu1OvoTqEuJ3cFCHGUW2GR0sYiMf0krj2WIASgoXi4XpAGuA==
+      integrity: sha512-5cf9ik7ntSpPYLXFPs8eoCNgXuDVqa58/9P0Hrb6KmsVpchKi72Xh5TRd6dctqH4mJtfK0eVRaSt4+VDyGxDkQ==
   /@pnpm/read-package-json/1.0.0:
     dependencies:
       '@pnpm/types': 1.7.0
@@ -4062,7 +4062,7 @@ specifiers:
   '@pnpm/logger': ^2.1.0
   '@pnpm/modules-yaml': 1.0.0
   '@pnpm/package-requester': 4.1.2
-  '@pnpm/pkgid-to-filename': 1.0.1
+  '@pnpm/pkgid-to-filename': ^2.0.0
   '@pnpm/read-package-json': 1.0.0
   '@pnpm/resolver-base': 1.2.0
   '@pnpm/store-path': ^1.0.0

@@ -168,7 +168,7 @@ function resolvePeersOfNode (
 
   let modules: string
   let absolutePath: string
-  const localLocation = path.join(ctx.nodeModules, `.${pkgIdToFilename(node.pkg.id)}`)
+  const localLocation = path.join(ctx.nodeModules, `.${pkgIdToFilename(node.pkg.id, ctx.prefix)}`)
   if (R.isEmpty(allResolvedPeers)) {
     modules = path.join(localLocation, 'node_modules')
     absolutePath = node.pkg.id
