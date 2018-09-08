@@ -2,5 +2,5 @@
   "extends": [
     "config:base"
   ],
-  "pinVersions": false
+  "rangeStrategy": "auto"
 }
