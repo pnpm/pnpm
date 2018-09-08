@@ -491,27 +491,34 @@ async function installInContext (
     sideEffectsCache: opts.sideEffectsCache,
     update: opts.update,
   }
-  const nonLinkedPkgs: WantedDependency[] = []
-  const linkedPkgs: Array<WantedDependency & {alias: string}> = []
-  for (const wantedDependency of packagesToInstall) {
-    if (!wantedDependency.alias || opts.localPackages && opts.localPackages[wantedDependency.alias]) {
-      nonLinkedPkgs.push(wantedDependency)
-      continue
+  let nonLinkedPkgs: WantedDependency[]
+  let linkedPkgs: Array<WantedDependency & {alias: string}>
+  if (installType === 'named') {
+    nonLinkedPkgs = packagesToInstall
+    linkedPkgs = []
+  } else {
+    nonLinkedPkgs = []
+    linkedPkgs = []
+    for (const wantedDependency of packagesToInstall) {
+      if (!wantedDependency.alias || opts.localPackages && opts.localPackages[wantedDependency.alias]) {
+        nonLinkedPkgs.push(wantedDependency)
+        continue
+      }
+      const isInnerLink = await safeIsInnerLink(nodeModulesPath, wantedDependency.alias, {
+        prefix: ctx.prefix,
+        storePath: ctx.storePath,
+      })
+      if (isInnerLink === true) {
+        nonLinkedPkgs.push(wantedDependency)
+        continue
+      }
+      // This info-log might be better to be moved to the reporter
+      logger.info({
+        message: `${wantedDependency.alias} is linked to ${nodeModulesPath} from ${isInnerLink}`,
+        prefix: ctx.prefix,
+      })
+      linkedPkgs.push(wantedDependency as (WantedDependency & {alias: string}))
     }
-    const isInnerLink = await safeIsInnerLink(nodeModulesPath, wantedDependency.alias, {
-      prefix: ctx.prefix,
-      storePath: ctx.storePath,
-    })
-    if (isInnerLink === true) {
-      nonLinkedPkgs.push(wantedDependency)
-      continue
-    }
-    // This info-log might be better to be moved to the reporter
-    logger.info({
-      message: `${wantedDependency.alias} is linked to ${nodeModulesPath} from ${isInnerLink}`,
-      prefix: ctx.prefix,
-    })
-    linkedPkgs.push(wantedDependency as (WantedDependency & {alias: string}))
   }
   stageLogger.debug('resolution_started')
   const rootPkgs = await resolveDependencies(

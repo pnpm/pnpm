@@ -1,27 +1,29 @@
-import assertProject, {isExecutable} from '@pnpm/assert-project'
-import sinon = require('sinon')
-import tape = require('tape')
-import promisifyTape from 'tape-promise'
-const test = promisifyTape(tape)
-const testOnly = promisifyTape(tape.only)
+import { isExecutable } from '@pnpm/assert-project'
 import ncpCB = require('ncp')
 import path = require('path')
-import promisify = require('util.promisify')
-import {
-  pathToLocalPkg,
-  prepare,
-  testDefaults,
- } from './utils'
-const ncp = promisify(ncpCB.ncp)
 import exists = require('path-exists')
+import readPkg = require('read-pkg')
+import sinon = require('sinon')
 import {
+  install,
   installPkgs,
   link,
   linkFromGlobal,
   linkToGlobal,
   RootLog,
 } from 'supi'
+import tape = require('tape')
+import promisifyTape from 'tape-promise'
+import promisify = require('util.promisify')
 import writeJsonFile from 'write-json-file'
+import {
+  pathToLocalPkg,
+  prepare,
+  testDefaults,
+} from './utils'
+
+const test = promisifyTape(tape)
+const ncp = promisify(ncpCB.ncp)
 
 test('relative link', async (t: tape.Test) => {
   const project = prepare(t, {
@@ -46,7 +48,43 @@ test('relative link', async (t: tape.Test) => {
   t.equal(currentShrinkwrap.dependencies['hello-world-js-bin'], 'link:../hello-world-js-bin', 'link added to wanted shrinkwrap')
 })
 
-test('relative link is not rewritten by install', async (t: tape.Test) => {
+test('relative link is not rewritten by argumentless install', async (t: tape.Test) => {
+  const project = prepare(t)
+
+  const linkedPkgName = 'hello-world-js-bin'
+  const linkedPkgPath = path.resolve('..', linkedPkgName)
+
+  const reporter = sinon.spy()
+  const opts = await testDefaults()
+
+  await ncp(pathToLocalPkg(linkedPkgName), linkedPkgPath)
+  await link([linkedPkgPath], path.join(process.cwd(), 'node_modules'), {...opts, reporter} as any) // tslint:disable-line:no-any
+
+  t.ok(reporter.calledWithMatch({
+    added: {
+      dependencyType: undefined,
+      linkedFrom: linkedPkgPath,
+      name: 'hello-world-js-bin',
+      realName: 'hello-world-js-bin',
+      version: '1.0.0',
+    },
+    level: 'debug',
+    name: 'pnpm:root',
+    prefix: process.cwd(),
+  } as RootLog), 'linked root dependency logged')
+
+  await install(opts)
+
+  t.ok(project.requireModule('hello-world-js-bin/package.json').isLocal)
+
+  const wantedShrinkwrap = await project.loadShrinkwrap()
+  t.equal(wantedShrinkwrap.dependencies['hello-world-js-bin'], 'link:../hello-world-js-bin', 'link still in wanted shrinkwrap')
+
+  const currentShrinkwrap = await project.loadCurrentShrinkwrap()
+  t.equal(currentShrinkwrap.dependencies['hello-world-js-bin'], 'link:../hello-world-js-bin', 'link still in current shrinkwrap')
+})
+
+test('relative link is rewritten by named installation to regular dependency', async (t: tape.Test) => {
   const project = prepare(t)
 
   const linkedPkgName = 'hello-world-js-bin'
@@ -73,13 +111,17 @@ test('relative link is not rewritten by install', async (t: tape.Test) => {
 
   await installPkgs(['hello-world-js-bin'], opts)
 
-  t.ok(project.requireModule('hello-world-js-bin/package.json').isLocal)
+  const pkg = await readPkg()
+
+  t.deepEqual(pkg.dependencies, { 'hello-world-js-bin': '^1.0.0' })
+
+  t.notOk(project.requireModule('hello-world-js-bin/package.json').isLocal)
 
   const wantedShrinkwrap = await project.loadShrinkwrap()
-  t.equal(wantedShrinkwrap.dependencies['hello-world-js-bin'], 'link:../hello-world-js-bin', 'link still in wanted shrinkwrap')
+  t.equal(wantedShrinkwrap.dependencies['hello-world-js-bin'], '1.0.0', 'link is not in wanted shrinkwrap anymore')
 
   const currentShrinkwrap = await project.loadCurrentShrinkwrap()
-  t.equal(currentShrinkwrap.dependencies['hello-world-js-bin'], 'link:../hello-world-js-bin', 'link still in wanted shrinkwrap')
+  t.equal(currentShrinkwrap.dependencies['hello-world-js-bin'], '1.0.0', 'link is not in current shrinkwrap anymore')
 })
 
 test('global link', async (t: tape.Test) => {
