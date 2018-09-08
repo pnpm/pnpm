@@ -40,7 +40,7 @@ devDependencies:
   pnpm-registry-mock: 2.2.0
   rimraf: 2.6.2
   rimraf-then: 1.0.1
-  sinon: 6.1.5
+  sinon: 6.2.0
   tape: 4.9.1
   tape-promise: 3.0.0
   tempy: 0.2.1
@@ -825,10 +825,10 @@ packages:
     dev: true
     resolution:
       integrity: sha512-sVXqklSaotK9at437sFlFpyOcJonxe0yST/AG9DkQKUdIE6IqGIMv4SfAQSKaJbSdVEJYItASCrBiVQHq1HQew==
-  /commander/2.17.1:
+  /commander/2.18.0:
     dev: true
     resolution:
-      integrity: sha512-wPMUt6FnH2yzG95SA6mzjQOEKUU3aLaDEmzs1ti+1E9h+CsrZghRlqEM/EJ4KscsQVG8uNN4uVreUeT8+drlgg==
+      integrity: sha512-6CYPa+JP2ftfRU2qkDK+UTVeQYosOg/2GbcjIcKPHfinyOLPVGXu/ovN86RP49Re5ndJK1N0kuiidFFuepc4ZQ==
   /compressible/2.0.14:
     dependencies:
       mime-db: 1.36.0
@@ -1180,19 +1180,18 @@ packages:
       node: '>= 0.6'
     resolution:
       integrity: sha1-Qa4u62XvpiJorr/qg6x9eSmbCIc=
-  /event-stream/3.3.4:
+  /event-stream/3.3.5:
     dependencies:
       duplexer: 0.1.1
       from: 0.1.7
-      map-stream: 0.1.0
+      map-stream: 0.0.7
       pause-stream: 0.0.11
-      split: 0.3.3
-      stream-combiner: 0.0.4
+      split: 1.0.1
+      stream-combiner: 0.2.2
       through: 2.3.8
     dev: true
     resolution:
-      integrity: sha1-SrTJoPWlTbkzi0w02Gv86PSzVXE=
-      tarball: 'http://registry.npmjs.org/event-stream/-/event-stream-3.3.4.tgz'
+      integrity: sha512-vyibDcu5JL20Me1fP734QBH/kenBGLZap2n0+XXM7mvuUPzJ20Ydqj1aKcIeMdri1p+PU+4yAKugjN8KCVst+g==
   /express/4.16.3:
     dependencies:
       accepts: 1.3.5
@@ -1407,7 +1406,6 @@ packages:
       once: 1.4.0
       path-is-absolute: 1.0.1
     dev: true
-    optional: true
     resolution:
       integrity: sha1-DwiGD2oVUSey+t1PnOJLGqtuTSI=
   /glob/7.1.3:
@@ -1894,10 +1892,10 @@ packages:
     dev: true
     resolution:
       integrity: sha512-UejweD1pDoXu+AD825lWwp4ZGtSwgnpZxb3JDViD7StjQz+Nb/6l093lx4OQ0foGWNRoc19mWy7BzL+UAK2iVg==
-  /lolex/2.7.1:
+  /lolex/2.7.4:
     dev: true
     resolution:
-      integrity: sha512-Oo2Si3RMKV3+lV5MsSWplDQFoTClz/24S0MMHYcgGWWmFXr6TMlqcqk/l1GtH+d5wLBwNRiqGnwDRMirtFalJw==
+      integrity: sha512-Gh6Vffq/piTeHwunLNFR1jFVaqlwK9GMNUxFcsO1cwHyvbRKHwX8UDkxmrDnbcPdHNmpv7z2kxtkkSx5xkNpMw==
   /longest/1.0.1:
     dev: true
     engines:
@@ -1942,10 +1940,10 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha1-plzSkIepJZi4eRJXpSPgISIqwfk=
-  /map-stream/0.1.0:
+  /map-stream/0.0.7:
     dev: true
     resolution:
-      integrity: sha1-5WqpTEyAVaFkBKBnS3jyFffI4ZQ=
+      integrity: sha1-ih8HiW2CsQkmvTdEokIACfiJdKg=
   /marked/0.4.0:
     dev: true
     engines:
@@ -2096,7 +2094,6 @@ packages:
     dev: true
     engines:
       node: '>=0.8.0'
-    optional: true
     resolution:
       integrity: sha1-rmzg1vbV4KT32JN5jQPB6pVZtqI=
   /mz/2.7.0:
@@ -2114,7 +2111,6 @@ packages:
   /ncp/2.0.0:
     dev: true
     hasBin: true
-    optional: true
     resolution:
       integrity: sha1-GVoh1sRuNh0vsSgbo4uR6d9727M=
   /ndjson/1.5.0:
@@ -2147,7 +2143,7 @@ packages:
     dependencies:
       '@sinonjs/formatio': 2.0.0
       just-extend: 3.0.0
-      lolex: 2.7.1
+      lolex: 2.7.4
       path-to-regexp: 1.7.0
       text-encoding: 0.6.4
     dev: true
@@ -2524,7 +2520,7 @@ packages:
       anonymous-npm-registry-client: 0.1.2
       cpr: 3.0.1
       rimraf: 2.6.2
-      verdaccio: 3.7.1
+      verdaccio: 3.8.0
     dev: true
     engines:
       node: '>=6'
@@ -2574,7 +2570,7 @@ packages:
       integrity: sha512-5erio2h9jp5CHGwcybmxmVqHmnCBZeewlfJ0pex+UW7Qny7OOZXTtH56TGNyBizkgiOwhJtMKrVzDTeKcySZwA==
   /ps-tree/1.1.0:
     dependencies:
-      event-stream: 3.3.4
+      event-stream: 3.3.5
     dev: true
     engines:
       node: '>= 0.10'
@@ -2815,9 +2811,9 @@ packages:
       glob: 6.0.4
     dev: true
     hasBin: true
-    optional: true
     resolution:
       integrity: sha1-7nEM5dk6j9uFb7Xqj/Di11k0sto=
+      tarball: 'http://registry.npmjs.org/rimraf/-/rimraf-2.4.5.tgz'
   /rimraf/2.6.2:
     dependencies:
       glob: 7.1.3
@@ -2936,20 +2932,20 @@ packages:
   /signal-exit/3.0.2:
     resolution:
       integrity: sha1-tf3AjxKH6hF4Yo5BXiUTK3NkbG0=
-  /sinon/6.1.5:
+  /sinon/6.2.0:
     dependencies:
       '@sinonjs/commons': 1.0.2
       '@sinonjs/formatio': 2.0.0
       '@sinonjs/samsam': 2.0.0
       diff: 3.5.0
       lodash.get: 4.4.2
-      lolex: 2.7.1
+      lolex: 2.7.4
       nise: 1.4.4
       supports-color: 5.5.0
       type-detect: 4.0.8
     dev: true
     resolution:
-      integrity: sha512-TcbRoWs1SdY6NOqfj0c9OEQquBoZH+qEf8799m1jjcbfWrrpyCQ3B/BpX7+NKa7Vn33Jl+Z50H4Oys3bzygK2Q==
+      integrity: sha512-gLFZz5UYvOhYzQ+DBzw/OCkmWaLAHlAyQiE2wxUOmAGVdasP9Yw93E+OwZ0UuhW3ReMu1FKniuNsL6VukvC77w==
   /slash/1.0.0:
     dev: false
     engines:
@@ -2998,7 +2994,7 @@ packages:
   /spdx-correct/3.0.0:
     dependencies:
       spdx-expression-parse: 3.0.0
-      spdx-license-ids: 3.0.0
+      spdx-license-ids: 3.0.1
     resolution:
       integrity: sha512-N19o9z5cEyc8yQQPukRCZ9EUmb4HUpnrmaL/fxS2pBo2jbfcFRVuFZ/oFC+vZz0MNNk0h80iMn5/S6qGZOL5+g==
   /spdx-exceptions/2.1.0:
@@ -3007,18 +3003,18 @@ packages:
   /spdx-expression-parse/3.0.0:
     dependencies:
       spdx-exceptions: 2.1.0
-      spdx-license-ids: 3.0.0
+      spdx-license-ids: 3.0.1
     resolution:
       integrity: sha512-Yg6D3XpRD4kkOmTpdgbUiEJFKghJH03fiC1OPll5h/0sO6neh2jqRDVHOQ4o/LMea0tgCkbMgea5ip/e+MkWyg==
-  /spdx-license-ids/3.0.0:
+  /spdx-license-ids/3.0.1:
     resolution:
-      integrity: sha512-2+EPwgbnmOIl8HjGBXXMd9NAu02vLjOO1nWw4kmeRDFyHn+M/ETfHxQUK0oXg8ctgVnl9t3rosNVsZ1jG61nDA==
-  /split/0.3.3:
+      integrity: sha512-TfOfPcYGBB5sDuPn3deByxPhmfegAhpDYKSOXZQN81Oyrrif8ZCodOLzK3AesELnCx03kikhyDwh0pfvvQvF8w==
+  /split/1.0.1:
     dependencies:
       through: 2.3.8
     dev: true
     resolution:
-      integrity: sha1-zQ7qXmOiEd//frDwkcQTPi0N0o8=
+      integrity: sha512-mTyOoPbrivtXnwnIxZRFYRrPNtEFKlpB2fvjSnCQUiAA6qAZzqwna5envK4uk6OIeP17CsdF3rSBGYVBsU0Tkg==
   /split2/2.2.0:
     dependencies:
       through2: 2.0.3
@@ -3063,12 +3059,13 @@ packages:
       node: '>= 0.6'
     resolution:
       integrity: sha1-Fhx9rBd2Wf2YEfQ3cfqZOBR4Yow=
-  /stream-combiner/0.0.4:
+  /stream-combiner/0.2.2:
     dependencies:
       duplexer: 0.1.1
+      through: 2.3.8
     dev: true
     resolution:
-      integrity: sha1-TV5DPBhSYd3mI8o/RMWGvPXErRQ=
+      integrity: sha1-rsjLrBd7Vrb0+kec7YwZEs7lKFg=
   /stream-shift/1.0.0:
     dev: true
     resolution:
@@ -3324,7 +3321,7 @@ packages:
       babel-code-frame: 6.26.0
       builtin-modules: 1.1.1
       chalk: 2.4.1
-      commander: 2.17.1
+      commander: 2.18.0
       diff: 3.5.0
       glob: 7.1.3
       js-yaml: 3.12.0
@@ -3503,7 +3500,7 @@ packages:
       node: '>=6.12.0'
     resolution:
       integrity: sha512-60R1AEAjKmIGms7gSfotWmUhw0JOPdeyx6DOATtCuOJNfgameiDm2gPlAGJ/XKHoXn96EaVfuhg2ruDmq1AQug==
-  /verdaccio/3.7.1:
+  /verdaccio/3.8.0:
     dependencies:
       '@verdaccio/file-locking': 0.0.7
       '@verdaccio/local-storage': 1.1.3
@@ -3533,6 +3530,7 @@ packages:
       mime: 2.3.1
       minimatch: 3.0.4
       mkdirp: 0.5.1
+      mv: 2.1.1
       pkginfo: 0.4.1
       request: 2.87.0
       semver: 5.5.0
@@ -3544,7 +3542,7 @@ packages:
       npm: '>=3'
     hasBin: true
     resolution:
-      integrity: sha512-ylhKoI1YGQ6Xm3zQkfJLz1r2l3UZKCgVcStr9mgwLOVG7JsjHJur4w3NgFFqCk0Wb79EteMiw6RoSsv580+q0A==
+      integrity: sha512-fiZR9mw56lJjESIiZk1hk/u4XTX2Yh1hNniDGsJVX2W7op+kKl9Q7K0BUNGCqImylAc03Pz4+WdYHkhpfD3wIA==
   /verror/1.10.0:
     dependencies:
       assert-plus: 1.0.0
