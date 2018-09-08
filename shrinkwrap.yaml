@@ -1,6 +1,5 @@
 dependencies:
   '@pnpm/fetcher-base': 1.0.0
-  '@pnpm/tarball-fetcher': 'link:../__package_previews__/tarball-fetcher/@pnpm/tarball-fetcher'
   '@types/mem': 1.1.2
   '@types/mz': 0.0.32
   '@types/node': 10.9.4
@@ -1932,15 +1931,15 @@ shrinkwrapMinorVersion: 9
 shrinkwrapVersion: 3
 specifiers:
   '@pnpm/fetcher-base': ^1.0.0
-  '@pnpm/logger': ^2.1.0
+  '@pnpm/logger': 2.1.0
   '@types/mem': ^1.1.2
   '@types/mz': ^0.0.32
-  '@types/nock': ^9.1.0
+  '@types/nock': 9.3.0
   '@types/node': ^9.3.0 || 10
   '@types/retry': ^0.10.2
   '@types/rimraf': ^2.0.2
-  '@types/tape': ^4.2.31
-  '@types/tempy': ^0.1.0
+  '@types/tape': 4.2.32
+  '@types/tempy': 0.1.0
   credentials-by-uri: 1.0.0
   fetch-from-npm-registry: 1.0.0
   fs-write-stream-atomic: 1.0.10
@@ -1948,15 +1947,15 @@ specifiers:
   mem: 4.0.0
   mkdirp-promise: 5.0.1
   mz: 2.7.0
-  nock: ^9.1.4
-  package-preview: ^1.0.1
+  nock: 9.6.1
+  package-preview: 1.0.6
   path-temp: 1.0.0
   retry: 0.12.0
   rimraf: 2.6.2
   ssri: 6.0.1
-  tape: ^4.8.0
-  tempy: ^0.2.1
-  ts-node: ^7.0.0
-  tslint: ^5.8.0
-  typescript: ^3.0.0
+  tape: 4.9.1
+  tempy: 0.2.1
+  ts-node: 7.0.1
+  tslint: 5.11.0
+  typescript: 3.0.3
   unpack-stream: 4.0.0
