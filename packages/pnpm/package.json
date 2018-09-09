@@ -48,7 +48,7 @@
     "get-port": "4.0.0",
     "graceful-fs": "4.1.11",
     "graph-sequencer": "2.0.0",
-    "is-ci": "1.2.0",
+    "is-ci": "1.2.1",
     "is-subdir": "^1.0.2",
     "is-windows": "1.0.2",
     "load-json-file": "5.0.0",

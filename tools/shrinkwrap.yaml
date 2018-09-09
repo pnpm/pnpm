@@ -354,10 +354,10 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha512-ObN6h1v2fTJSmUXoS3nMQ92LbDK9be4TV+6G+omQlGJFdcUX5heKi1LZ1YnRMIgwTLEj3E24bT6tYni50rlCfQ==
-  /ci-info/1.4.0:
+  /ci-info/1.5.1:
     dev: false
     resolution:
-      integrity: sha512-Oqmw2pVfCl8sCL+1QgMywPfdxPJPkC51y4usw0iiE2S9qnEOAqXy8bwl1CpMpnoU39g4iKJTz6QZj+28FvOnjQ==
+      integrity: sha512-fKFIKXaYiL1exImwJ0AhR/6jxFPSKQBk2ayV5NiNoruUs2+rxC2kNw0EG+1Z9dugZRdCrppskQ8DN2cyaUM1Hw==
   /cli-cursor/1.0.2:
     dependencies:
       restore-cursor: 1.0.1
@@ -654,7 +654,7 @@ packages:
       execa: 0.9.0
       find-up: 3.0.0
       get-stdin: 6.0.0
-      is-ci: 1.2.0
+      is-ci: 1.2.1
       pkg-dir: 3.0.0
       please-upgrade-node: 3.1.1
       read-pkg: 4.0.1
@@ -730,13 +730,13 @@ packages:
       node: '>=0.10.0'
     resolution:
       integrity: sha1-VAVy0096wxGfj3bDDLwbHgN6/74=
-  /is-ci/1.2.0:
+  /is-ci/1.2.1:
     dependencies:
-      ci-info: 1.4.0
+      ci-info: 1.5.1
     dev: false
     hasBin: true
     resolution:
-      integrity: sha512-plgvKjQtalH2P3Gytb7L61Lmz95g2DlpzFiQyRSFew8WoJKxtKRzrZMeyRN2supblm3Psc8OQGy7Xjb6XG11jw==
+      integrity: sha512-s6tfsaQaQi3JNciBH6shVqEDvhGut0SUXr31ag8Pd8BBbVVlcGfWhpPmEOoM6RJ5TFhbypvf5yyRw/VXW1IiWg==
   /is-directory/0.3.1:
     dev: false
     engines:

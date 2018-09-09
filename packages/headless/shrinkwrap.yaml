@@ -1180,9 +1180,10 @@ packages:
       node: '>= 0.6'
     resolution:
       integrity: sha1-Qa4u62XvpiJorr/qg6x9eSmbCIc=
-  /event-stream/3.3.5:
+  /event-stream/3.3.6:
     dependencies:
       duplexer: 0.1.1
+      flatmap-stream: 0.1.0
       from: 0.1.7
       map-stream: 0.0.7
       pause-stream: 0.0.11
@@ -1191,7 +1192,7 @@ packages:
       through: 2.3.8
     dev: true
     resolution:
-      integrity: sha512-vyibDcu5JL20Me1fP734QBH/kenBGLZap2n0+XXM7mvuUPzJ20Ydqj1aKcIeMdri1p+PU+4yAKugjN8KCVst+g==
+      integrity: sha512-dGXNg4F/FgVzlApjzItL+7naHutA3fDqbV/zAZqDDlXTjiMnQmZKu+prImWKszeBM5UQeGvAl3u1wBiKeDh61g==
   /express/4.16.3:
     dependencies:
       accepts: 1.3.5
@@ -1284,6 +1285,10 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha1-RdG35QbHF93UgndaK3eSCjwMV6c=
+  /flatmap-stream/0.1.0:
+    dev: true
+    resolution:
+      integrity: sha512-Nlic4ZRYxikqnK5rj3YoxDVKGGtUjcNDUtvQ7XsdGLZmMwdUYnXf10o1zcXtzEZTBgc6GxeRpQxV/Wu3WPIIHA==
   /for-each/0.3.3:
     dependencies:
       is-callable: 1.1.4
@@ -2570,7 +2575,7 @@ packages:
       integrity: sha512-5erio2h9jp5CHGwcybmxmVqHmnCBZeewlfJ0pex+UW7Qny7OOZXTtH56TGNyBizkgiOwhJtMKrVzDTeKcySZwA==
   /ps-tree/1.1.0:
     dependencies:
-      event-stream: 3.3.5
+      event-stream: 3.3.6
     dev: true
     engines:
       node: '>= 0.10'
