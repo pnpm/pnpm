@@ -34,7 +34,7 @@ import extendOptions, {
 import getPref from './utils/getPref'
 
 export default async function link (
-  linkFromPkgs: string[],
+  linkFromPkgs: Array<{alias: string, path: string} | string>,
   destModules: string,
   maybeOpts: InstallOptions & {
     linkToBin?: string,
@@ -61,12 +61,20 @@ export default async function link (
       prefix: opts.prefix,
     })
   }
-  const linkedPkgs: Array<{path: string, pkg: PackageJson}> = []
+  const linkedPkgs: Array<{path: string, pkg: PackageJson, alias: string}> = []
   const specsToUpsert = [] as Array<{name: string, pref: string, saveType: DependenciesType}>
   const saveType = getSaveType(opts)
 
   for (const linkFrom of linkFromPkgs) {
-    const linkedPkg = await loadJsonFile(path.join(linkFrom, 'package.json'))
+    let linkFromPath: string
+    let linkFromAlias: string | undefined
+    if (typeof linkFrom === 'string') {
+      linkFromPath = linkFrom
+    } else {
+      linkFromPath = linkFrom.path
+      linkFromAlias = linkFrom.alias
+    }
+    const linkedPkg = await loadJsonFile(path.join(linkFromPath, 'package.json'))
     specsToUpsert.push({
       name: linkedPkg.name,
       pref: getPref(linkedPkg.name, linkedPkg.name, linkedPkg.version, {
@@ -76,16 +84,20 @@ export default async function link (
       saveType: (saveType || pkg && guessDependencyType(linkedPkg.name, pkg)) as DependenciesType,
     })
 
-    const packagePath = normalize(path.relative(opts.prefix, linkFrom))
+    const packagePath = normalize(path.relative(opts.prefix, linkFromPath))
     const addLinkOpts = {
-      linkedPkgName: linkedPkg.name,
+      linkedPkgName: linkFromAlias || linkedPkg.name,
       packagePath,
       pkg,
     }
     addLinkToShrinkwrap(shrFiles.currentShrinkwrap, addLinkOpts)
     addLinkToShrinkwrap(shrFiles.wantedShrinkwrap, addLinkOpts)
 
-    linkedPkgs.push({path: linkFrom, pkg: linkedPkg})
+    linkedPkgs.push({
+      alias: linkFromAlias || linkedPkg.name,
+      path: linkFromPath,
+      pkg: linkedPkg,
+    })
   }
 
   const warn = (message: string) => logger.warn({message, prefix: opts.prefix})
@@ -107,7 +119,11 @@ export default async function link (
   for (const linkedPkg of linkedPkgs) {
     // TODO: cover with test that linking reports with correct dependency types
     const stu = specsToUpsert.find((s) => s.name === linkedPkg.pkg.name)
-    await linkToModules(linkedPkg.pkg, linkedPkg.path, destModules, {
+    await linkToModules({
+      alias: linkedPkg.alias,
+      destModulesDir: destModules,
+      packageDir: linkedPkg.path,
+      pkg: linkedPkg.pkg,
       prefix: opts.prefix,
       saveType: stu && stu.saveType || saveType,
     })
@@ -180,24 +196,25 @@ const DEP_TYPE_BY_DEPS_FIELD_NAME = {
 }
 
 async function linkToModules (
-  pkg: PackageJson,
-  linkFrom: string,
-  modules: string,
   opts: {
+    alias: string,
+    packageDir: string,
+    pkg: PackageJson,
+    destModulesDir: string,
     saveType?: DependenciesType,
     prefix: string,
   },
 ) {
-  const dest = path.join(modules, pkg.name)
-  const {reused} = await symlinkDir(linkFrom, dest)
+  const dest = path.join(opts.destModulesDir, opts.alias)
+  const {reused} = await symlinkDir(opts.packageDir, dest)
   if (reused) return // if the link was already present, don't log
   rootLogger.debug({
     added: {
       dependencyType: opts.saveType && DEP_TYPE_BY_DEPS_FIELD_NAME[opts.saveType] as DependencyType,
-      linkedFrom: linkFrom,
-      name: pkg.name,
-      realName: pkg.name,
-      version: pkg.version,
+      linkedFrom: opts.packageDir,
+      name: opts.alias,
+      realName: opts.pkg.name,
+      version: opts.pkg.version,
     },
     prefix: opts.prefix,
   })

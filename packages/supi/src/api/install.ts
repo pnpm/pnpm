@@ -804,7 +804,10 @@ async function installInContext (
         saveProd: false,
         skipInstall: true,
       }
-      const externalPkgs = installCtx.localPackages.map((localPackage) => resolvePath(opts.prefix, localPackage.resolution.directory))
+      const externalPkgs = installCtx.localPackages.map((localPackage) => ({
+        alias: localPackage.alias,
+        path: resolvePath(opts.prefix, localPackage.resolution.directory),
+      }))
       await externalLink(externalPkgs, installCtx.nodeModules, linkOpts)
     }
   }

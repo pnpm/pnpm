@@ -48,6 +48,30 @@ test('relative link', async (t: tape.Test) => {
   t.equal(currentShrinkwrap.dependencies['hello-world-js-bin'], 'link:../hello-world-js-bin', 'link added to wanted shrinkwrap')
 })
 
+test('relative link is linked by the name of the alias', async (t: tape.Test) => {
+  const linkedPkgName = 'hello-world-js-bin'
+
+  const project = prepare(t, {
+    dependencies: {
+      hello: `link:../${linkedPkgName}`,
+    },
+  })
+
+  const linkedPkgPath = path.resolve('..', linkedPkgName)
+
+  await ncp(pathToLocalPkg(linkedPkgName), linkedPkgPath)
+  await install(await testDefaults())
+
+  await project.isExecutable('.bin/hello-world-js-bin')
+
+  await project.has('hello')
+
+  const wantedShrinkwrap = await project.loadShrinkwrap()
+  t.deepEqual(wantedShrinkwrap.dependencies, {
+    hello: 'link:../hello-world-js-bin',
+  }, 'link added to wanted shrinkwrap with correct alias')
+})
+
 test('relative link is not rewritten by argumentless install', async (t: tape.Test) => {
   const project = prepare(t)
 
