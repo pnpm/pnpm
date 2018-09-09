@@ -51,7 +51,7 @@
     "graceful-fs": "4.1.11",
     "graph-sequencer": "2.0.0",
     "import-from": "2.1.0",
-    "is-ci": "1.2.0",
+    "is-ci": "1.2.1",
     "is-inner-link": "2.0.2",
     "is-subdir": "1.0.2",
     "load-json-file": "5.0.0",

@@ -27,7 +27,7 @@ dependencies:
   get-port: 4.0.0
   graceful-fs: 4.1.11
   graph-sequencer: 2.0.0
-  is-ci: 1.2.0
+  is-ci: 1.2.1
   is-subdir: 1.0.2
   is-windows: 1.0.2
   load-json-file: 5.0.0
@@ -43,7 +43,6 @@ dependencies:
   path-absolute: 1.0.0
   path-name: 1.0.0
   pkgs-graph: 2.0.0
-  pnpm: 'link:'
   pnpm-default-reporter: 'link:../default-reporter'
   pnpm-file-reporter: 0.1.0
   pnpm-list: 4.0.1
@@ -895,6 +894,7 @@ packages:
     dev: true
     resolution:
       integrity: sha1-pyyTb3e5a/UvX357RnGAYoVR3vs=
+      tarball: 'http://registry.npmjs.org/buffer/-/buffer-3.6.0.tgz'
   /bug-killer/4.4.4:
     dependencies:
       ansi-parser: 3.2.8
@@ -1064,6 +1064,7 @@ packages:
       node: '>=0.10.0'
     resolution:
       integrity: sha1-qBFcVeSnAv5NFQq9OHKCKn4J/Jg=
+      tarball: 'http://registry.npmjs.org/chalk/-/chalk-1.1.3.tgz'
   /chalk/2.4.1:
     dependencies:
       ansi-styles: 3.2.1
@@ -1076,10 +1077,10 @@ packages:
   /chownr/1.0.1:
     resolution:
       integrity: sha1-4qdQQqlVGQi+vSW4Uj1fl2nXkYE=
-  /ci-info/1.4.0:
+  /ci-info/1.5.1:
     dev: false
     resolution:
-      integrity: sha512-Oqmw2pVfCl8sCL+1QgMywPfdxPJPkC51y4usw0iiE2S9qnEOAqXy8bwl1CpMpnoU39g4iKJTz6QZj+28FvOnjQ==
+      integrity: sha512-fKFIKXaYiL1exImwJ0AhR/6jxFPSKQBk2ayV5NiNoruUs2+rxC2kNw0EG+1Z9dugZRdCrppskQ8DN2cyaUM1Hw==
   /class-methods/1.0.10:
     dependencies:
       exclude-arr: 1.0.9
@@ -1411,6 +1412,7 @@ packages:
     hasBin: true
     resolution:
       integrity: sha512-r45M92nLnGP246ot0Yo5RvbiiMF5Bw/OTIdWJ3OQ4Vbv4hpOeoXVIPxdSmUw+fPJlQOseY+iigJyLSfPMIrddQ==
+      tarball: 'http://registry.npmjs.org/csv-parser/-/csv-parser-1.12.1.tgz'
   /currently-unhandled/0.4.1:
     dependencies:
       array-find-index: 1.0.2
@@ -1806,9 +1808,10 @@ packages:
       node: '>= 0.6'
     resolution:
       integrity: sha1-Qa4u62XvpiJorr/qg6x9eSmbCIc=
-  /event-stream/3.3.5:
+  /event-stream/3.3.6:
     dependencies:
       duplexer: 0.1.1
+      flatmap-stream: 0.1.0
       from: 0.1.7
       map-stream: 0.0.7
       pause-stream: 0.0.11
@@ -1817,7 +1820,7 @@ packages:
       through: 2.3.8
     dev: true
     resolution:
-      integrity: sha512-vyibDcu5JL20Me1fP734QBH/kenBGLZap2n0+XXM7mvuUPzJ20Ydqj1aKcIeMdri1p+PU+4yAKugjN8KCVst+g==
+      integrity: sha512-dGXNg4F/FgVzlApjzItL+7naHutA3fDqbV/zAZqDDlXTjiMnQmZKu+prImWKszeBM5UQeGvAl3u1wBiKeDh61g==
   /exclude-arr/1.0.9:
     dev: false
     resolution:
@@ -1902,12 +1905,12 @@ packages:
       type-is: 1.6.16
       utils-merge: 1.0.1
       vary: 1.1.2
-    deprecated: express 0.x series is deprecated
     dev: true
     engines:
       node: '>= 0.10.0'
     resolution:
       integrity: sha1-avilAjUNsyRuzEvs9rWjTSL37VM=
+      tarball: 'http://registry.npmjs.org/express/-/express-4.16.3.tgz'
   /extend-shallow/2.0.1:
     dependencies:
       is-extendable: 0.1.1
@@ -2049,6 +2052,10 @@ packages:
     dev: false
     resolution:
       integrity: sha1-JTqxojmJwyHxOwrNS/c//0By7Lc=
+  /flatmap-stream/0.1.0:
+    dev: true
+    resolution:
+      integrity: sha512-Nlic4ZRYxikqnK5rj3YoxDVKGGtUjcNDUtvQ7XsdGLZmMwdUYnXf10o1zcXtzEZTBgc6GxeRpQxV/Wu3WPIIHA==
   /flush-write-stream/1.0.3:
     dependencies:
       inherits: 2.0.3
@@ -2196,6 +2203,7 @@ packages:
     dev: false
     resolution:
       integrity: sha1-VMIbCAGSsW2Yd3ecW7gWZudyNl8=
+      tarball: 'http://registry.npmjs.org/generate-function/-/generate-function-1.1.0.tgz'
   /generate-object-property/1.2.0:
     dependencies:
       is-property: 1.0.2
@@ -2326,6 +2334,7 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha1-JAzQV4WpoY5WHcG0S0HHY+8ejbA=
+      tarball: 'http://registry.npmjs.org/got/-/got-6.7.1.tgz'
   /graceful-fs/4.1.11:
     engines:
       node: '>=0.4.0'
@@ -2495,6 +2504,7 @@ packages:
       node: '>= 0.6'
     resolution:
       integrity: sha1-i1VoC7S+KDoLW/TqLjhYC+HZMg0=
+      tarball: 'http://registry.npmjs.org/http-errors/-/http-errors-1.6.3.tgz'
   /http-proxy-agent/2.1.0:
     dependencies:
       agent-base: 4.2.1
@@ -2656,13 +2666,13 @@ packages:
       node: '>= 0.4'
     resolution:
       integrity: sha512-r5p9sxJjYnArLjObpjA4xu5EKI3CuKHkJXMhT7kwbpUyIFD1n5PMAsoPvWnvtZiNz7LjkYDRZhd7FlI0eMijEA==
-  /is-ci/1.2.0:
+  /is-ci/1.2.1:
     dependencies:
-      ci-info: 1.4.0
+      ci-info: 1.5.1
     dev: false
     hasBin: true
     resolution:
-      integrity: sha512-plgvKjQtalH2P3Gytb7L61Lmz95g2DlpzFiQyRSFew8WoJKxtKRzrZMeyRN2supblm3Psc8OQGy7Xjb6XG11jw==
+      integrity: sha512-s6tfsaQaQi3JNciBH6shVqEDvhGut0SUXr31ag8Pd8BBbVVlcGfWhpPmEOoM6RJ5TFhbypvf5yyRw/VXW1IiWg==
   /is-data-descriptor/0.1.4:
     dependencies:
       kind-of: 3.2.2
@@ -3204,6 +3214,7 @@ packages:
     dev: true
     resolution:
       integrity: sha1-59J5onPEq0L/WEthzjKjUTotOFk=
+      tarball: 'http://registry.npmjs.org/lunr/-/lunr-0.7.0.tgz'
   /make-dir/1.3.0:
     dependencies:
       pify: 3.0.0
@@ -3419,6 +3430,7 @@ packages:
     dev: true
     resolution:
       integrity: sha1-3j+YVD2/lggr5IrRoMfNqDYwHc8=
+      tarball: 'http://registry.npmjs.org/minimist/-/minimist-0.0.10.tgz'
   /minimist/0.0.8:
     resolution:
       integrity: sha1-hX/Kv8M5fSYluCKCYuhqp6ARsF0=
@@ -3426,6 +3438,7 @@ packages:
   /minimist/1.2.0:
     resolution:
       integrity: sha1-o1AIsg9BOD7sH7kU9M1d95omQoQ=
+      tarball: 'http://registry.npmjs.org/minimist/-/minimist-1.2.0.tgz'
   /mississippi/3.0.0:
     dependencies:
       concat-stream: 1.6.2
@@ -4311,7 +4324,7 @@ packages:
       integrity: sha512-DSpMj8PI5W7v2G4+rE+BymTKZPjlu6t/M1N6rPAa6Hwn+/e8jDmFJaq8/kpoGCvwd75g2h5DbjF2MduOMNyrsQ==
   /ps-tree/1.1.0:
     dependencies:
-      event-stream: 3.3.5
+      event-stream: 3.3.6
     dev: true
     engines:
       node: '>= 0.10'
@@ -5583,7 +5596,7 @@ packages:
       chalk: 2.4.1
       configstore: 3.1.2
       import-lazy: 2.1.0
-      is-ci: 1.2.0
+      is-ci: 1.2.1
       is-installed-globally: 0.1.0
       is-npm: 1.0.0
       latest-version: 3.1.0
@@ -5787,6 +5800,7 @@ packages:
       node: '>=0.10.0'
     resolution:
       integrity: sha1-2Pw9KE3QV5T+hJc8rs3Rz4JP3YU=
+      tarball: 'http://registry.npmjs.org/wrap-ansi/-/wrap-ansi-2.1.0.tgz'
   /wrappy/1.0.2:
     resolution:
       integrity: sha1-tSQ9jz7BqjXxNkYFvA0QNuMKtp8=
@@ -5888,6 +5902,7 @@ packages:
     optional: true
     resolution:
       integrity: sha1-9+572FfdfB0tOMDnTvvWgdFDH9E=
+      tarball: 'http://registry.npmjs.org/yargs/-/yargs-3.10.0.tgz'
   /yargs/8.0.2:
     dependencies:
       camelcase: 4.1.0
@@ -5964,7 +5979,7 @@ specifiers:
   get-port: 4.0.0
   graceful-fs: 4.1.11
   graph-sequencer: 2.0.0
-  is-ci: 1.2.0
+  is-ci: 1.2.1
   is-subdir: ^1.0.2
   is-windows: 1.0.2
   load-json-file: 5.0.0
