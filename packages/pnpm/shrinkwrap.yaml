@@ -5934,7 +5934,7 @@ specifiers:
   '@pnpm/assert-project': ^1.1.1
   '@pnpm/config': 2.2.0
   '@pnpm/default-fetcher': 2.0.2
-  '@pnpm/default-resolver': 2.0.3
+  '@pnpm/default-resolver': 2.0.4
   '@pnpm/lifecycle': 3.0.1
   '@pnpm/logger': 2.1.0
   '@pnpm/modules-yaml': ^1.0.0
@@ -6017,7 +6017,7 @@ specifiers:
   sepia: ^2.0.2
   signal-exit: 3.0.2
   strip-color: 0.1.0
-  supi: 0.24.7
+  supi: 0.24.8
   tape: ^4.6.3
   tape-promise: ^3.0.0
   text-table: 0.2.0
