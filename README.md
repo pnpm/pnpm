@@ -55,7 +55,7 @@ be installed.
 
 As a result, you save gigabytes of space on your disk and you have a lot faster installations!
 If you'd like more details about the unique `node_modules` structure that pnpm creates and
-why it works fine with the Node.js ecosystem, read this small article: [Why should we use pnpm?](https://www.kochan.io/nodejs/why-should-we-use-pnpm.html)
+why it works fine with the Node.js ecosystem, read this small article: [Flat node_modules is not the only way](https://medium.com/pnpm/flat-node-modules-is-not-the-only-way-d2e40f7296a3).
 
 ## Install
 
