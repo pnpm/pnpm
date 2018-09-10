@@ -1,5 +1,6 @@
 import logger from '@pnpm/logger'
 import {PackageJson} from '@pnpm/types'
+import { stageLogger } from '@pnpm/utils'
 import camelcaseKeys = require('camelcase-keys')
 import graphSequencer = require('graph-sequencer')
 import mem = require('mem')
@@ -248,6 +249,8 @@ export async function recursive (
         }
       }),
     ))
+
+    stageLogger.debug('recursive_importing_done')
 
     await saveState()
   }

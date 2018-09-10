@@ -100,13 +100,18 @@ export default function (
     }
   }
 
-  const importingDone$ = opts.isRecursive || opts.cmd === 'link'
-    ? most.of(false)
-    : log$.stage.filter((log) => log.message === 'importing_done')
+  const importingDone$ = (() => {
+    if (opts.cmd === 'link') {
+      return most.of(false)
+    }
+    const stageToWaitFor = opts.isRecursive ? 'recursive_importing_done' : 'importing_done'
+    return log$.stage
+      .filter((log) => log.message === stageToWaitFor)
       .constant(true)
       .take(1)
       .startWith(false)
       .multicast()
+  })()
 
   if (typeof opts.throttleProgress === 'number' && opts.throttleProgress > 0) {
     const resolutionStarted$ = log$.stage
