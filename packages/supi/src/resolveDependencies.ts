@@ -29,10 +29,10 @@ import {
 } from 'pnpm-shrinkwrap'
 import R = require('ramda')
 import semver = require('semver')
-import {InstallContext, PkgByPkgId} from './api/install'
+import { InstallContext } from './api/install'
 import depsToSpecs from './depsToSpecs'
 import encodePkgId from './encodePkgId'
-import getIsInstallable, {nodeIdToParents} from './install/getIsInstallable'
+import getIsInstallable, { nodeIdToParents } from './install/getIsInstallable'
 import {
   deprecationLogger,
 } from './loggers'
@@ -360,13 +360,11 @@ async function install (
 
   let pkg: PackageManifest
   let useManifestInfoFromShrinkwrap = false
-  let requiresBuild!: boolean
   let prepare!: boolean
   let hasBin!: boolean
   if (options.hasManifestInShrinkwrap && !options.update && options.dependencyShrinkwrap && options.relDepPath
     && !pkgResponse.body.updated) {
     useManifestInfoFromShrinkwrap = true
-    requiresBuild = options.dependencyShrinkwrap.requiresBuild === true
     prepare = options.dependencyShrinkwrap.prepare === true
     hasBin = options.dependencyShrinkwrap.hasBin === true
     pkg = Object.assign(
