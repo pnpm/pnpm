@@ -55,6 +55,7 @@
     "load-yaml-file": "0.1.0",
     "loud-rejection": "1.6.0",
     "lru-cache": "4.1.3",
+    "mem": "4.0.0",
     "minimatch": "3.0.4",
     "mkdirp-promise": "5.0.1",
     "mz": "2.7.0",

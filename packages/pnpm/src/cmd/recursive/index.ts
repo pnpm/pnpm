@@ -2,6 +2,7 @@ import logger from '@pnpm/logger'
 import {PackageJson} from '@pnpm/types'
 import camelcaseKeys = require('camelcase-keys')
 import graphSequencer = require('graph-sequencer')
+import mem = require('mem')
 import pLimit = require('p-limit')
 import path = require('path')
 import createPkgGraph, {PackageNode} from 'pkgs-graph'
@@ -183,41 +184,45 @@ export async function recursive (
   }) as InstallOptions
 
   const limitInstallation = pLimit(opts.workspaceConcurrency)
-  let action!: any // tslint:disable-line:no-any
-  switch (cmdFullName) {
-    case 'unlink':
-      action = (input.length === 0 ? unlink : unlinkPkgs.bind(null, input))
-      break
-    case 'rebuild':
-      action = (input.length === 0 ? rebuild : rebuildPkgs.bind(null, input))
-      break
-    case 'uninstall':
-      action = uninstall.bind(null, input)
-      break
-    default:
-      action = (input.length === 0 ? install : installPkgs.bind(null, input))
-      break
-  }
 
   const result = {
     fails: [],
     passes: 0,
   } as RecursiveSummary
 
-  for (const chunk of chunks) {
-    await Promise.all(chunk.map((prefix: string) =>
+  const memReadLocalConfigs = mem(readLocalConfigs)
+
+  if (cmdFullName !== 'rebuild') {
+    let action!: any // tslint:disable-line:no-any
+    switch (cmdFullName) {
+      case 'unlink':
+        action = (input.length === 0 ? unlink : unlinkPkgs.bind(null, input))
+        break
+      case 'uninstall':
+        action = uninstall.bind(null, input)
+        break
+      default:
+        action = (input.length === 0 ? install : installPkgs.bind(null, input))
+        break
+    }
+
+    const pkgPaths = chunks.length === 0
+      ? chunks[0]
+      : Object.keys(pkgGraphResult.graph).sort()
+    await Promise.all(pkgPaths.map((prefix: string) =>
       limitInstallation(async () => {
         const hooks = opts.ignorePnpmfile ? {} : requireHooks(prefix, opts)
         try {
-          const localConfigs = await readLocalConfigs(prefix)
           if (opts.ignoredPackages && opts.ignoredPackages.has(prefix)) {
             return
           }
+          const localConfigs = await memReadLocalConfigs(prefix)
           await action({
             ...installOpts,
             ...localConfigs,
             bin: path.join(prefix, 'node_modules', '.bin'),
             hooks,
+            ignoreScripts: true,
             prefix,
             rawNpmConfig: {
               ...installOpts.rawNpmConfig,
@@ -243,9 +248,50 @@ export async function recursive (
         }
       }),
     ))
+
+    await saveState()
   }
 
-  await saveState()
+  if (cmdFullName === 'rebuild' || !opts.ignoreScripts && (cmdFullName === 'install' || cmdFullName === 'update' || cmdFullName === 'unlink')) {
+    const action = (cmdFullName !== 'rebuild' || input.length === 0 ? rebuild : rebuildPkgs.bind(null, input))
+    for (const chunk of chunks) {
+      await Promise.all(chunk.map((prefix: string) =>
+        limitInstallation(async () => {
+          try {
+            if (opts.ignoredPackages && opts.ignoredPackages.has(prefix)) {
+              return
+            }
+            const localConfigs = await memReadLocalConfigs(prefix)
+            await action({
+              ...installOpts,
+              ...localConfigs,
+              bin: path.join(prefix, 'node_modules', '.bin'),
+              prefix,
+              rawNpmConfig: {
+                ...installOpts.rawNpmConfig,
+                ...localConfigs.rawNpmConfig,
+              },
+            })
+            result.passes++
+          } catch (err) {
+            logger.info(err)
+
+            if (!opts.bail) {
+              result.fails.push({
+                error: err,
+                message: err.message,
+                prefix,
+              })
+              return
+            }
+
+            err['prefix'] = prefix // tslint:disable-line:no-string-literal
+            throw err
+          }
+        }),
+      ))
+    }
+  }
 
   throwOnFail(result)
 
