@@ -1,13 +1,11 @@
-import logger from '@pnpm/logger'
-import {PackageManifest} from '@pnpm/types'
-import {skippedOptionalDependencyLogger} from '@pnpm/utils'
+import { skippedOptionalDependencyLogger } from '@pnpm/core-loggers'
+import { PackageManifest } from '@pnpm/types'
 import installChecks = require('pnpm-install-checks')
-import R = require('ramda')
-import {PkgByPkgId} from '../api/install'
+import { PkgByPkgId } from '../api/install'
 import {
   installCheckLogger,
 } from '../loggers'
-import {splitNodeId} from '../nodeIdUtils'
+import { splitNodeId } from '../nodeIdUtils'
 
 export default async function getIsInstallable (
   pkgId: string,

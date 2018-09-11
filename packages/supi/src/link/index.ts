@@ -1,27 +1,29 @@
-import linkBins, {linkBinsOfPackages} from '@pnpm/link-bins'
-import logger from '@pnpm/logger'
-import {fromDir as readPackageFromDir} from '@pnpm/read-package-json'
-import {PackageJson} from '@pnpm/types'
 import {
   linkLogger,
-  removeOrphanPackages as removeOrphanPkgs,
   rootLogger,
   stageLogger,
   statsLogger,
+} from '@pnpm/core-loggers'
+import linkBins, { linkBinsOfPackages } from '@pnpm/link-bins'
+import logger from '@pnpm/logger'
+import { fromDir as readPackageFromDir } from '@pnpm/read-package-json'
+import { PackageJson } from '@pnpm/types'
+import {
+  removeOrphanPackages as removeOrphanPkgs,
 } from '@pnpm/utils'
 import * as dp from 'dependency-path'
 import pLimit = require('p-limit')
-import {StoreController} from 'package-store'
+import { StoreController } from 'package-store'
 import path = require('path')
-import {PackageSnapshot, Shrinkwrap} from 'pnpm-shrinkwrap'
+import { PackageSnapshot, Shrinkwrap } from 'pnpm-shrinkwrap'
 import R = require('ramda')
 import symlinkDir = require('symlink-dir')
-import {PkgGraphNodeByNodeId} from '../api/install'
-import {SHRINKWRAP_MINOR_VERSION} from '../constants'
-import resolvePeers, {DepGraphNode, DepGraphNodesByDepPath} from './resolvePeers'
+import { PkgGraphNodeByNodeId } from '../api/install'
+import { SHRINKWRAP_MINOR_VERSION } from '../constants'
+import resolvePeers, { DepGraphNode, DepGraphNodesByDepPath } from './resolvePeers'
 import updateShrinkwrap from './updateShrinkwrap'
 
-export {DepGraphNodesByDepPath}
+export { DepGraphNodesByDepPath }
 
 export default async function linkPackages (
   rootNodeIdsByAlias: {[alias: string]: string},

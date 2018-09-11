@@ -1,3 +1,7 @@
+import {
+  progressLogger,
+  skippedOptionalDependencyLogger,
+} from '@pnpm/core-loggers'
 import logger from '@pnpm/logger'
 import {
   PackageFilesResponse,
@@ -13,10 +17,6 @@ import {
   PackageManifest,
   ReadPackageHook,
 } from '@pnpm/types'
-import {
-  progressLogger,
-  skippedOptionalDependencyLogger,
-} from '@pnpm/utils'
 import * as dp from 'dependency-path'
 import path = require('path')
 import exists = require('path-exists')

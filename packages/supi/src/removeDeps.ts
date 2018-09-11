@@ -1,8 +1,8 @@
-import {PackageJson} from '@pnpm/types'
+import { packageJsonLogger } from '@pnpm/core-loggers'
+import { PackageJson } from '@pnpm/types'
 import {
   DependenciesType,
   dependenciesTypes,
-  packageJsonLogger,
 } from '@pnpm/utils'
 import loadJsonFile = require('load-json-file')
 import writePkg = require('write-pkg')

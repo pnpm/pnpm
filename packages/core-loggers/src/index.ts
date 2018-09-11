@@ -2,7 +2,7 @@ import baseLogger, {
   LogBase,
   Logger,
 } from '@pnpm/logger'
-import {PackageJson} from '@pnpm/types'
+import { PackageJson } from '@pnpm/types'
 
 export const packageJsonLogger = baseLogger('package-json') as Logger<PackageJsonMessage>
 export const stageLogger = baseLogger('stage') as Logger<'resolution_started' | 'resolution_done' | 'importing_started' | 'importing_done' | 'recursive_importing_done'>

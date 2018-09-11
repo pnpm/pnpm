@@ -1,3 +1,9 @@
+import {
+  packageJsonLogger,
+  skippedOptionalDependencyLogger,
+  stageLogger,
+  summaryLogger,
+} from '@pnpm/core-loggers'
 import headless, {HeadlessOptions} from '@pnpm/headless'
 import runLifecycleHooks, {runPostinstallHooks} from '@pnpm/lifecycle'
 import logger, {
@@ -16,12 +22,8 @@ import {
 import {
   dependenciesTypes,
   getSaveType,
-  packageJsonLogger,
   realNodeModulesDir,
   safeReadPackageFromDir as safeReadPkgFromDir,
-  skippedOptionalDependencyLogger,
-  stageLogger,
-  summaryLogger,
 } from '@pnpm/utils'
 import * as dp from 'dependency-path'
 import graphSequencer = require('graph-sequencer')

@@ -1,3 +1,12 @@
+import {
+  linkLogger,
+  packageJsonLogger,
+  progressLogger,
+  rootLogger,
+  stageLogger,
+  statsLogger,
+  summaryLogger,
+} from '@pnpm/core-loggers'
 import runLifecycleHooks from '@pnpm/lifecycle'
 import linkBins, {linkBinsOfPackages} from '@pnpm/link-bins'
 import logger, {
@@ -16,15 +25,8 @@ import pkgIdToFilename from '@pnpm/pkgid-to-filename'
 import {fromDir as readPackageFromDir} from '@pnpm/read-package-json'
 import {PackageJson} from '@pnpm/types'
 import {
-  linkLogger,
-  packageJsonLogger,
-  progressLogger,
   realNodeModulesDir,
   removeOrphanPackages as removeOrphanPkgs,
-  rootLogger,
-  stageLogger,
-  statsLogger,
-  summaryLogger,
 } from '@pnpm/utils'
 import dp = require('dependency-path')
 import pLimit = require('p-limit')

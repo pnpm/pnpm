@@ -1,5 +1,11 @@
 ///<reference path="../typings/index.d.ts" />
 import assertProject from '@pnpm/assert-project'
+import {
+  StageLog,
+  StatsLog,
+  PackageJsonLog,
+  RootLog,
+} from '@pnpm/core-loggers'
 import headless from '@pnpm/headless'
 import fse = require('fs-extra')
 import test = require('tape')
@@ -10,12 +16,6 @@ import {readWanted} from 'pnpm-shrinkwrap'
 import {read as readModulesYaml} from '@pnpm/modules-yaml'
 import rimraf = require('rimraf-then')
 import sinon = require('sinon')
-import {
-  StageLog,
-  StatsLog,
-  PackageJsonLog,
-  RootLog,
-} from '@pnpm/utils'
 import testDefaults from './utils/testDefaults'
 
 const fixtures = path.join(__dirname, 'fixtures')

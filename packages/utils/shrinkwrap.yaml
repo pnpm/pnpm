@@ -1,4 +1,5 @@
 dependencies:
+  '@pnpm/core-loggers': 'link:../core-loggers'
   '@pnpm/package-bins': 1.0.0
   '@pnpm/read-package-json': 1.0.0
   '@pnpm/types': 1.7.0
@@ -810,6 +811,7 @@ registry: 'https://registry.npmjs.org/'
 shrinkwrapMinorVersion: 9
 shrinkwrapVersion: 3
 specifiers:
+  '@pnpm/core-loggers': 0.0.0
   '@pnpm/logger': ^2.1.0
   '@pnpm/package-bins': 1.0.0
   '@pnpm/read-package-json': 1.0.0

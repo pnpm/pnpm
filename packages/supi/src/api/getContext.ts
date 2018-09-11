@@ -1,21 +1,19 @@
+import { packageJsonLogger } from '@pnpm/core-loggers'
 import logger from '@pnpm/logger'
-import {read as readModulesYaml} from '@pnpm/modules-yaml'
+import { read as readModulesYaml } from '@pnpm/modules-yaml'
 import {
   PackageJson,
   ReadPackageHook,
 } from '@pnpm/types'
 import {
-  packageJsonLogger,
   safeReadPackageFromDir as safeReadPkgFromDir,
 } from '@pnpm/utils'
 import mkdirp = require('mkdirp-promise')
 import path = require('path')
-import {Shrinkwrap} from 'pnpm-shrinkwrap'
+import { Shrinkwrap } from 'pnpm-shrinkwrap'
 import removeAllExceptOuterLinks = require('remove-all-except-outer-links')
-import writePkg = require('write-pkg')
-import {PnpmError} from '../errorTypes'
+import { PnpmError } from '../errorTypes'
 import readShrinkwrapFile from '../readShrinkwrapFiles'
-import {StrictSupiOptions} from '../types'
 import checkCompatibility from './checkCompatibility'
 
 export interface PnpmContext {

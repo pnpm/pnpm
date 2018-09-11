@@ -1,5 +1,6 @@
 dependencies:
   '@pnpm/check-package': 2.0.0
+  '@pnpm/core-loggers': 'link:../core-loggers'
   '@pnpm/fs-locker': 1.0.2
   '@pnpm/headless': 'link:../headless'
   '@pnpm/lifecycle': 3.0.1
@@ -4065,6 +4066,7 @@ shrinkwrapVersion: 3
 specifiers:
   '@pnpm/assert-project': ^1.1.2
   '@pnpm/check-package': 2.0.0
+  '@pnpm/core-loggers': 0.0.0
   '@pnpm/default-fetcher': ^2.0.0
   '@pnpm/default-resolver': ^2.0.0
   '@pnpm/fs-locker': 1.0.2

@@ -1,17 +1,19 @@
-import {linkBinsOfPackages} from '@pnpm/link-bins'
-import logger, {streamParser} from '@pnpm/logger'
-import {read as readModulesYaml} from '@pnpm/modules-yaml'
-import {PackageJson} from '@pnpm/types'
+import {
+  DependencyType,
+  packageJsonLogger,
+  rootLogger,
+  summaryLogger,
+} from '@pnpm/core-loggers'
+import { linkBinsOfPackages } from '@pnpm/link-bins'
+import logger, { streamParser } from '@pnpm/logger'
+import { read as readModulesYaml } from '@pnpm/modules-yaml'
+import { PackageJson } from '@pnpm/types'
 import {
   DependenciesType,
   dependenciesTypes,
-  DependencyType,
   getSaveType,
-  packageJsonLogger,
   removeOrphanPackages as removeOrphanPkgs,
-  rootLogger,
   safeReadPackage,
-  summaryLogger,
 } from '@pnpm/utils'
 import loadJsonFile = require('load-json-file')
 import normalize = require('normalize-path')

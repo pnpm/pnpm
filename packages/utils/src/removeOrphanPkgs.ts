@@ -1,3 +1,7 @@
+import {
+  removalLogger,
+  statsLogger,
+} from '@pnpm/core-loggers'
 import * as dp from 'dependency-path'
 import vacuumCB = require('fs-vacuum')
 import {StoreController} from 'package-store'
@@ -6,10 +10,6 @@ import {ResolvedPackages, Shrinkwrap} from 'pnpm-shrinkwrap'
 import R = require('ramda')
 import promisify = require('util.promisify')
 import {dependenciesTypes} from './getSaveType'
-import {
-  removalLogger,
-  statsLogger,
-} from './loggers'
 import removeTopDependency from './removeTopDependency'
 
 const vacuum = promisify(vacuumCB)

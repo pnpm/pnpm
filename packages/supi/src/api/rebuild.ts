@@ -1,9 +1,9 @@
-import runLifecycleHooks, {runPostinstallHooks} from '@pnpm/lifecycle'
-import logger, {streamParser} from '@pnpm/logger'
-import {write as writeModulesYaml} from '@pnpm/modules-yaml'
+import { skippedOptionalDependencyLogger } from '@pnpm/core-loggers'
+import runLifecycleHooks, { runPostinstallHooks } from '@pnpm/lifecycle'
+import logger, { streamParser } from '@pnpm/logger'
+import { write as writeModulesYaml } from '@pnpm/modules-yaml'
 import {
   realNodeModulesDir,
-  skippedOptionalDependencyLogger,
 } from '@pnpm/utils'
 import npa = require('@zkochan/npm-package-arg')
 import * as dp from 'dependency-path'
@@ -18,7 +18,7 @@ import {
 } from 'pnpm-shrinkwrap'
 import R = require('ramda')
 import semver = require('semver')
-import {LAYOUT_VERSION} from '../constants'
+import { LAYOUT_VERSION } from '../constants'
 import extendOptions, {
   RebuildOptions,
   StrictRebuildOptions,

@@ -1,12 +1,12 @@
+import { stageLogger } from '@pnpm/core-loggers'
 import logger from '@pnpm/logger'
-import {PackageJson} from '@pnpm/types'
-import { stageLogger } from '@pnpm/utils'
+import { PackageJson } from '@pnpm/types'
 import camelcaseKeys = require('camelcase-keys')
 import graphSequencer = require('graph-sequencer')
 import mem = require('mem')
 import pLimit = require('p-limit')
 import path = require('path')
-import createPkgGraph, {PackageNode} from 'pkgs-graph'
+import createPkgGraph, { PackageNode } from 'pkgs-graph'
 import readIniFile = require('read-ini-file')
 import {
   install,
@@ -19,11 +19,11 @@ import {
   unlinkPkgs,
 } from 'supi'
 import createStoreController from '../../createStoreController'
-import findWorkspacePackages, {arrayOfLocalPackagesToMap} from '../../findWorkspacePackages'
+import findWorkspacePackages, { arrayOfLocalPackagesToMap } from '../../findWorkspacePackages'
 import getCommandFullName from '../../getCommandFullName'
-import parsePackageSelector, {PackageSelector} from '../../parsePackageSelectors'
+import parsePackageSelector, { PackageSelector } from '../../parsePackageSelectors'
 import requireHooks from '../../requireHooks'
-import {PnpmOptions} from '../../types'
+import { PnpmOptions } from '../../types'
 import help from '../help'
 import exec from './exec'
 import {
@@ -32,7 +32,7 @@ import {
 } from './filter'
 import list from './list'
 import outdated from './outdated'
-import RecursiveSummary, {throwOnCommandFail} from './recursiveSummary'
+import RecursiveSummary, { throwOnCommandFail } from './recursiveSummary'
 import run from './run'
 
 const supportedRecursiveCommands = new Set([

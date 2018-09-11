@@ -1,9 +1,9 @@
 // TODO: move to separate package. It is used in supi/lib/install.ts as well
 
+import { skippedOptionalDependencyLogger } from '@pnpm/core-loggers'
 import {runPostinstallHooks} from '@pnpm/lifecycle'
 import logger from '@pnpm/logger'
 import {fromDir as readPackageFromDir} from '@pnpm/read-package-json'
-import {skippedOptionalDependencyLogger} from '@pnpm/utils'
 import graphSequencer = require('graph-sequencer')
 import pLimit = require('p-limit')
 import {StoreController} from 'package-store'

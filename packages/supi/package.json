@@ -20,6 +20,7 @@
   },
   "dependencies": {
     "@pnpm/check-package": "2.0.0",
+    "@pnpm/core-loggers": "0.0.0",
     "@pnpm/fs-locker": "1.0.2",
     "@pnpm/headless": "0.6.5",
     "@pnpm/lifecycle": "3.0.1",

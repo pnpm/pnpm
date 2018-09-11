@@ -1,10 +1,10 @@
-import logger, {streamParser} from '@pnpm/logger'
-import {write as writeModulesYaml} from '@pnpm/modules-yaml'
+import { summaryLogger } from '@pnpm/core-loggers'
+import logger, { streamParser } from '@pnpm/logger'
+import { write as writeModulesYaml } from '@pnpm/modules-yaml'
 import {
   getSaveType,
   removeOrphanPackages as removeOrphanPkgs,
   removeTopDependency,
-  summaryLogger,
 } from '@pnpm/utils'
 import * as dp from 'dependency-path'
 import path = require('path')
@@ -13,16 +13,15 @@ import {
   write as saveShrinkwrap,
   writeCurrentOnly as saveCurrentShrinkwrapOnly,
 } from 'pnpm-shrinkwrap'
-import R = require('ramda')
-import {LAYOUT_VERSION} from '../constants'
+import { LAYOUT_VERSION } from '../constants'
 import removeDeps from '../removeDeps'
 import safeIsInnerLink from '../safeIsInnerLink'
 import extendOptions, {
   StrictUninstallOptions,
   UninstallOptions,
 } from './extendUninstallOptions'
-import getContext, {PnpmContext} from './getContext'
-import {installPkgs} from './install'
+import getContext, { PnpmContext } from './getContext'
+import { installPkgs } from './install'
 import lock from './lock'
 import shrinkwrapsEqual from './shrinkwrapsEqual'
 
