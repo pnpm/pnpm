@@ -99,6 +99,7 @@ export default async (
     'link-workspace-packages': false,
     'lock': true,
     'package-lock': npmDefaults['package-lock'],
+    'pending': false,
     'prefix': npmDefaults.prefix,
     'registry': npmDefaults.registry,
     'shrinkwrap': npmDefaults.shrinkwrap,

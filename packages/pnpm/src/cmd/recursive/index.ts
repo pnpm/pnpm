@@ -269,6 +269,7 @@ export async function recursive (
               ...installOpts,
               ...localConfigs,
               bin: path.join(prefix, 'node_modules', '.bin'),
+              pending: cmdFullName !== 'rebuild' || opts.pending === true,
               prefix,
               rawNpmConfig: {
                 ...installOpts.rawNpmConfig,

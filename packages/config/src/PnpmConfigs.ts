@@ -71,4 +71,5 @@ export interface PnpmConfigs extends Record<string, any> { // tslint:disable-lin
   linkWorkspacePackages: boolean,
   sort: boolean,
   strictPeerDependencies: boolean,
+  pending: boolean,
 }

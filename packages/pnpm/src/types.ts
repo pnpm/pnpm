@@ -77,6 +77,7 @@ export interface PnpmOptions {
   workspacePrefix?: string,
   linkWorkspacePackages: boolean,
   sort: boolean,
+  pending: boolean,
 
   // cannot be specified via configs
   update?: boolean,
