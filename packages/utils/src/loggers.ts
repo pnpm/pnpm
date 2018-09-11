@@ -5,7 +5,7 @@ import baseLogger, {
 import {PackageJson} from '@pnpm/types'
 
 export const packageJsonLogger = baseLogger('package-json') as Logger<PackageJsonMessage>
-export const stageLogger = baseLogger('stage') as Logger<'resolution_started' | 'resolution_done' | 'importing_started' | 'importing_done'>
+export const stageLogger = baseLogger('stage') as Logger<'resolution_started' | 'resolution_done' | 'importing_started' | 'importing_done' | 'recursive_importing_done'>
 export const summaryLogger = baseLogger('summary') as Logger<SummaryMessage>
 export const rootLogger = baseLogger('root') as Logger<RootMessage>
 export const statsLogger = baseLogger('stats') as Logger<StatsMessage>
