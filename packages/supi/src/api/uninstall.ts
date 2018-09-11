@@ -123,9 +123,14 @@ async function removeOuterLinks (
     prefix: string,
   },
 ) {
+  const safeIsInnerLinkOpts = {
+    hideAlienModules: true,
+    prefix: opts.prefix,
+    storePath: opts.storePath,
+  }
   // These packages are not in package.json, they were just linked in not installed
   for (const pkgToUninstall of pkgsToUninstall) {
-    if (await safeIsInnerLink(modules, pkgToUninstall, opts) !== true) {
+    if (await safeIsInnerLink(modules, pkgToUninstall, safeIsInnerLinkOpts) !== true) {
       await removeTopDependency({
         dev: false,
         name: pkgToUninstall,

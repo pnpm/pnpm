@@ -9,6 +9,7 @@ export default async function safeIsInnerLink (
   modules: string,
   depName: string,
   opts: {
+    hideAlienModules: boolean,
     storePath: string,
     prefix: string,
   },
@@ -24,15 +25,18 @@ export default async function safeIsInnerLink (
   } catch (err) {
     if (err.code === 'ENOENT') return true
 
-    logger.warn({
-      message: `Moving ${depName} that was installed by a different package manager to "node_modules/.ignored`,
-      prefix: opts.prefix,
-    })
-    const ignoredDir = path.join(modules, '.ignored', depName)
-    await mkdirp(path.dirname(ignoredDir))
-    await fs.rename(
-      path.join(modules, depName),
-      ignoredDir)
+    if (opts.hideAlienModules) {
+      logger.warn({
+        message: `Moving ${depName} that was installed by a different package manager to "node_modules/.ignored`,
+        prefix: opts.prefix,
+      })
+      const ignoredDir = path.join(modules, '.ignored', depName)
+      await mkdirp(path.dirname(ignoredDir))
+      await fs.rename(
+        path.join(modules, depName),
+        ignoredDir,
+      )
+    }
     return true
   }
 }

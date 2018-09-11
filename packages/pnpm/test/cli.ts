@@ -1,4 +1,4 @@
-import {fromDir as readPackage} from '@pnpm/read-package-json'
+import { fromDir as readPackage } from '@pnpm/read-package-json'
 import tape = require('tape')
 import promisifyTape from 'tape-promise'
 const test = promisifyTape(tape)
@@ -11,6 +11,7 @@ import {
   execPnpmSync,
 } from './utils'
 import rimraf = require('rimraf-then')
+import fs = require('mz/fs')
 
 test('returns help when not available command is used', t => {
   const result = execPnpmSync('foobarqar')
@@ -53,6 +54,21 @@ test('rewrites node_modules created by npm', async function (t) {
   const m = project.requireModule('rimraf')
   t.ok(typeof m === 'function', 'rimraf() is available')
   await project.isExecutable('.bin/rimraf')
+})
+
+test('pnpm import does not move modules created by npm', async (t: tape.Test) => {
+  const project = prepare(t)
+
+  await execa('npm', ['install', 'is-positive@1.0.0', '--save'])
+  await execa('npm', ['shrinkwrap'])
+
+  const packageJsonInodeBefore = (await fs.stat('node_modules/is-positive/package.json')).ino
+
+  await execPnpm('import')
+
+  const packageJsonInodeAfter = (await fs.stat('node_modules/is-positive/package.json')).ino
+
+  t.equal(packageJsonInodeBefore, packageJsonInodeAfter)
 })
 
 test('update', async function (t: tape.Test) {

@@ -507,6 +507,7 @@ async function installInContext (
         continue
       }
       const isInnerLink = await safeIsInnerLink(nodeModulesPath, wantedDependency.alias, {
+        hideAlienModules: opts.shrinkwrapOnly === false,
         prefix: ctx.prefix,
         storePath: ctx.storePath,
       })
