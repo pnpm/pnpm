@@ -1,7 +1,7 @@
 {
   "name": "pnpm",
   "description": "Fast, disk space efficient package manager",
-  "version": "2.15.2",
+  "version": "2.16.0",
   "author": {
     "name": "Zoltan Kochan",
     "email": "z@kochan.io",
@@ -30,7 +30,7 @@
     "@pnpm/server": "0.14.2",
     "@pnpm/store-path": "1.0.3",
     "@pnpm/types": "1.7.0",
-    "@pnpm/utils": "0.6.4",
+    "@pnpm/utils": "0.7.0",
     "@types/camelcase-keys": "^4.0.0",
     "@types/get-port": "^4.0.0",
     "@types/lru-cache": "^4.1.1",
@@ -74,7 +74,7 @@
     "read-ini-file": "1.0.0",
     "signal-exit": "3.0.2",
     "strip-color": "0.1.0",
-    "supi": "0.24.8",
+    "supi": "0.24.9",
     "text-table": "0.2.0",
     "tree-kill": "1.2.0",
     "update-notifier": "2.5.0",

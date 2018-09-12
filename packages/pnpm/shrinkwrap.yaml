@@ -5947,7 +5947,7 @@ specifiers:
   '@pnpm/server': 0.14.2
   '@pnpm/store-path': 1.0.3
   '@pnpm/types': 1.7.0
-  '@pnpm/utils': 0.6.4
+  '@pnpm/utils': 0.7.0
   '@types/byline': ^4.2.31
   '@types/camelcase-keys': ^4.0.0
   '@types/common-tags': ^1.2.5
@@ -6022,7 +6022,7 @@ specifiers:
   sepia: ^2.0.2
   signal-exit: 3.0.2
   strip-color: 0.1.0
-  supi: 0.24.8
+  supi: 0.24.9
   tape: ^4.6.3
   tape-promise: ^3.0.0
   text-table: 0.2.0
