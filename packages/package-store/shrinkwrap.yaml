@@ -7,7 +7,7 @@ dependencies:
   '@types/load-json-file': 2.0.7
   '@types/mz': 0.0.32
   '@types/node': 10.9.4
-  '@types/ramda': 0.25.37
+  '@types/ramda': 0.25.38
   encode-registry: 1.1.0
   load-json-file: 5.0.0
   mkdirp-promise: 5.0.1
@@ -163,10 +163,10 @@ packages:
     dev: true
     resolution:
       integrity: sha512-kIVlvUBizL51ALNMPbmcZoM7quHyB7J6fLRwQe22JsMp39nrVSHdBeVVS3fnQCK1orxI3O8LScmb8cuiihkAfA==
-  /@types/ramda/0.25.37:
+  /@types/ramda/0.25.38:
     dev: false
     resolution:
-      integrity: sha512-Xq7XGb8m5/C4MdNWY2ozi07o8Y8022vo9pTgGfKRksyHzIdsv9JZ27O9wFE80nLDbJZykiKExFIjOfzpPXsQgA==
+      integrity: sha512-6vkbUF1cg9CIaeZiSvbk6e25rOBbXBXixiZiV4Eai4WgwrmI3wBaH/TKE0tp9JEfzQFrv3eOoI0EjdBJaUfnIQ==
   /@types/retry/0.10.2:
     dev: true
     resolution:
@@ -479,6 +479,12 @@ packages:
     dev: true
     resolution:
       integrity: sha512-OX8XqP7/1a9cqkxYw2yXss15f26NKWBpDXQd0/uK/KPqdQhxbPa994hnzjcE2VqQpDslf55723cKPUOGSmMY3g==
+  /debug/3.2.5:
+    dependencies:
+      ms: 2.1.1
+    dev: true
+    resolution:
+      integrity: sha512-D61LaDQPQkxJ5AUM2mbSJRbPkNs/TmdmOeLAi1hgDkpDfIfetSrjmWhccwtuResSwMbACjx/xXQofvM9CE/aeg==
   /decamelize-keys/1.1.0:
     dependencies:
       decamelize: 1.2.0
@@ -585,13 +591,13 @@ packages:
       node: '>= 0.4'
     resolution:
       integrity: sha1-RTVSSKiJeQNLZ5Lhm7gfK3l13Q0=
-  /es6-promise/4.2.4:
+  /es6-promise/4.2.5:
     dev: true
     resolution:
-      integrity: sha512-/NdNZVJg+uZgtm9eS3O6lrOLYmQag2DjdEXuPaHlZ6RuVqgqaVZfgYCepEIKsLqwdQArOPtC3XzRLqGGfT8KQQ==
+      integrity: sha512-n6wvpdE43VFtJq+lUDYDBFUwV8TZbuGXLV4D6wKafg13ldznKsyEvatubnmUe31zcvelSzOHF+XbaT+Bl9ObDg==
   /es6-promisify/5.0.0:
     dependencies:
-      es6-promise: 4.2.4
+      es6-promise: 4.2.5
     dev: true
     resolution:
       integrity: sha1-UQnWLz5W6pZ8S2NQWu8IKRyKUgM=
@@ -746,7 +752,7 @@ packages:
   /https-proxy-agent/2.2.1:
     dependencies:
       agent-base: 4.2.1
-      debug: 3.1.0
+      debug: 3.2.5
     dev: true
     engines:
       node: '>= 4.5.0'

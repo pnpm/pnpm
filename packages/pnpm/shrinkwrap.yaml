@@ -99,7 +99,7 @@ devDependencies:
   ts-node: 6.2.0
   tslint: 5.11.0
   typescript: 3.0.3
-  write-json-file: 3.0.1
+  write-json-file: 3.0.2
   write-pkg: 3.2.0
   write-yaml-file: 1.0.1
 packages:
@@ -201,7 +201,7 @@ packages:
       semver: 5.5.1
       ssri: 6.0.1
       version-selector-type: 2.0.0
-      write-json-file: 3.0.1
+      write-json-file: 3.0.2
     dev: false
     engines:
       node: '>=6'
@@ -706,7 +706,7 @@ packages:
       integrity: sha1-7GphrlZIDAw8skHJVhjiCJL5Zyo=
   /async/2.6.1:
     dependencies:
-      lodash: 4.17.10
+      lodash: 4.17.11
     dev: true
     resolution:
       integrity: sha512-fNEiL2+AZt6AlAw/29Cr0UDe4sRAHCpEHh54WMz+Bb7QfNcFw4h3loofyJpLeQs4Yx7yuqu/2dLgM5hKOs6HlQ==
@@ -1253,13 +1253,13 @@ packages:
       '0': node >= 0.8
     resolution:
       integrity: sha512-27HBghJxjiZtIk3Ycvn/4kbJk/1uZuJFfuPEns6LaEvpvG1f0hTea8lilrouyo9mVc2GWdcEZ8OLoGmSADlrCw==
-  /config-chain/1.1.11:
+  /config-chain/1.1.12:
     dependencies:
       ini: 1.3.5
       proto-list: 1.2.4
     dev: true
     resolution:
-      integrity: sha1-q6CXR9++TD5w52am5BWG4YWfxvI=
+      integrity: sha512-a1eOIcu8+7lUInge4Rpf/n4Krkf3Dd9lqhljRzII1/Zno/kRtUWnznPO3jOKBmTEktkt3fkxisUcivoj0ebzoA==
   /configstore/3.1.2:
     dependencies:
       dot-prop: 4.2.0
@@ -1475,6 +1475,12 @@ packages:
     dev: false
     resolution:
       integrity: sha512-OX8XqP7/1a9cqkxYw2yXss15f26NKWBpDXQd0/uK/KPqdQhxbPa994hnzjcE2VqQpDslf55723cKPUOGSmMY3g==
+  /debug/3.2.5:
+    dependencies:
+      ms: 2.1.1
+    dev: false
+    resolution:
+      integrity: sha512-D61LaDQPQkxJ5AUM2mbSJRbPkNs/TmdmOeLAi1hgDkpDfIfetSrjmWhccwtuResSwMbACjx/xXQofvM9CE/aeg==
   /decamelize-keys/1.1.0:
     dependencies:
       decamelize: 1.2.0
@@ -1774,13 +1780,13 @@ packages:
       node: '>= 0.4'
     resolution:
       integrity: sha1-RTVSSKiJeQNLZ5Lhm7gfK3l13Q0=
-  /es6-promise/4.2.4:
+  /es6-promise/4.2.5:
     dev: false
     resolution:
-      integrity: sha512-/NdNZVJg+uZgtm9eS3O6lrOLYmQag2DjdEXuPaHlZ6RuVqgqaVZfgYCepEIKsLqwdQArOPtC3XzRLqGGfT8KQQ==
+      integrity: sha512-n6wvpdE43VFtJq+lUDYDBFUwV8TZbuGXLV4D6wKafg13ldznKsyEvatubnmUe31zcvelSzOHF+XbaT+Bl9ObDg==
   /es6-promisify/5.0.0:
     dependencies:
-      es6-promise: 4.2.4
+      es6-promise: 4.2.5
     dev: false
     resolution:
       integrity: sha1-UQnWLz5W6pZ8S2NQWu8IKRyKUgM=
@@ -2530,7 +2536,7 @@ packages:
   /https-proxy-agent/2.2.1:
     dependencies:
       agent-base: 4.2.1
-      debug: 3.1.0
+      debug: 3.2.5
     dev: false
     engines:
       node: '>= 4.5.0'
@@ -3185,6 +3191,10 @@ packages:
     dev: true
     resolution:
       integrity: sha512-UejweD1pDoXu+AD825lWwp4ZGtSwgnpZxb3JDViD7StjQz+Nb/6l093lx4OQ0foGWNRoc19mWy7BzL+UAK2iVg==
+  /lodash/4.17.11:
+    dev: true
+    resolution:
+      integrity: sha512-cQKh8igo5QUhZ7lg38DYWAxMvjSAKG0A8wGSVimP07SIUEK2UO+arSRKbRZWtelMtN5V0Hkwh5ryOto/SshYIg==
   /longest/1.0.1:
     dev: true
     engines:
@@ -3675,7 +3685,7 @@ packages:
       integrity: sha512-0v6T4851b72ykk5zEtFoN4QX/Fqyk7pouIj9xZyAvAe9jlDhAwT4z6FlwsoQCHjeuK2EGUoAwy/F4y4B1uZq9A==
   /npm-conf/1.1.3:
     dependencies:
-      config-chain: 1.1.11
+      config-chain: 1.1.12
       pify: 3.0.0
     dev: true
     engines:
@@ -4227,7 +4237,7 @@ packages:
       anonymous-npm-registry-client: 0.1.2
       cpr: 3.0.1
       rimraf: 2.6.2
-      verdaccio: 3.8.0
+      verdaccio: 3.8.1
     dev: true
     engines:
       node: '>=6'
@@ -5691,7 +5701,7 @@ packages:
       node: '>=6.12.0'
     resolution:
       integrity: sha512-60R1AEAjKmIGms7gSfotWmUhw0JOPdeyx6DOATtCuOJNfgameiDm2gPlAGJ/XKHoXn96EaVfuhg2ruDmq1AQug==
-  /verdaccio/3.8.0:
+  /verdaccio/3.8.1:
     dependencies:
       '@verdaccio/file-locking': 0.0.7
       '@verdaccio/local-storage': 1.1.3
@@ -5733,7 +5743,7 @@ packages:
       npm: '>=3'
     hasBin: true
     resolution:
-      integrity: sha512-fiZR9mw56lJjESIiZk1hk/u4XTX2Yh1hNniDGsJVX2W7op+kKl9Q7K0BUNGCqImylAc03Pz4+WdYHkhpfD3wIA==
+      integrity: sha512-fvYBoatochulO7U1RSyg8Sc39XjdcsNn2aOCvJDWKVbuH7kOsaP7sR0Q5cd2YY6ygowC8IcHxG+QY1a/FOVShg==
   /verror/1.10.0:
     dependencies:
       assert-plus: 1.0.0
@@ -5827,7 +5837,7 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha1-K2TIozAE1UuGmMdtWFp3zrYdoy8=
-  /write-json-file/3.0.1:
+  /write-json-file/3.0.2:
     dependencies:
       detect-indent: 5.0.0
       graceful-fs: 4.1.11
@@ -5838,7 +5848,7 @@ packages:
     engines:
       node: '>=6'
     resolution:
-      integrity: sha512-EuyKbUhp2iomuj3GaoLFZugM0QKAe0R82Aze9rOLY5jKuCvvt70MeI8fOsGgyQZduTWzTZL3g4gH3/ziINVFFA==
+      integrity: sha512-VE2pKv0vNAi2xzAYE187/a6Zfe5Y1Pblmeu3gS0sKmdyZgtEqDGUWWjwu5MJ4XzdHTiy4/VBQqoIco3dlJ/diQ==
   /write-pkg/3.2.0:
     dependencies:
       sort-keys: 2.0.0
