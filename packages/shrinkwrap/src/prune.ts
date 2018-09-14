@@ -1,4 +1,3 @@
-import logger from '@pnpm/logger'
 import {PackageJson} from '@pnpm/types'
 import {refToRelative} from 'dependency-path'
 import R = require('ramda')
@@ -37,8 +36,6 @@ function _prune (
   const shrDependencies: ResolvedDependencies = {}
   const shrOptionalDependencies: ResolvedDependencies = {}
   const shrDevDependencies: ResolvedDependencies = {}
-  const nonOptional = new Set()
-  const notProdOnly = new Set()
 
   Object.keys(shrSpecs).forEach((depName) => {
     if (allDeps.indexOf(depName) === -1) return
@@ -59,42 +56,14 @@ function _prune (
     }
   }
 
-  const devDepRelativePaths = R.keys(shrDevDependencies)
-    .map((pkgName: string) => refToRelative(shrDevDependencies[pkgName], pkgName))
-    .filter((relPath) => relPath !== null) as string[]
-
-  copyDependencySubTree(packages, devDepRelativePaths, shr, new Set(), warn, {registry: shr.registry, nonOptional, notProdOnly, dev: true})
-
-  const depRelativePaths = R.keys(shrDependencies)
-    .map((pkgName: string) => refToRelative(shrDependencies[pkgName], pkgName))
-    .filter((relPath) => relPath !== null) as string[]
-
-  copyDependencySubTree(packages, depRelativePaths, shr, new Set(), warn, {
-    nonOptional,
-    notProdOnly,
+  copyShrinkwrap({
+    devRelPaths: resolvedDepsToRelDepPaths(shrDevDependencies),
+    oldResolutions: shr.packages || {},
+    optionalRelPaths: resolvedDepsToRelDepPaths(shrOptionalDependencies),
+    packages,
+    prodRelPaths: resolvedDepsToRelDepPaths(shrDependencies),
     registry: shr.registry,
-  })
-
-  if (shrOptionalDependencies) {
-    const optionalDepRelativePaths = R.keys(shrOptionalDependencies)
-      .map((pkgName: string) => refToRelative(shrOptionalDependencies[pkgName], pkgName))
-      .filter((relPath) => relPath !== null) as string[]
-    copyDependencySubTree(packages, optionalDepRelativePaths, shr, new Set(), warn, {registry: shr.registry, nonOptional, notProdOnly, optional: true})
-  }
-
-  copyDependencySubTree(packages, devDepRelativePaths, shr, new Set(), warn, {
-    dev: true,
-    nonOptional,
-    notProdOnly,
-    registry: shr.registry,
-    walkOptionals: true,
-  })
-
-  copyDependencySubTree(packages, depRelativePaths, shr, new Set(), warn, {
-    nonOptional,
-    notProdOnly,
-    registry: shr.registry,
-    walkOptionals: true,
+    warn,
   })
 
   const result: Shrinkwrap = {
@@ -120,10 +89,66 @@ function _prune (
   return result
 }
 
+function copyShrinkwrap (
+  opts: {
+    devRelPaths: string[],
+    oldResolutions: ResolvedPackages,
+    optionalRelPaths: string[],
+    packages: ResolvedPackages,
+    prodRelPaths: string[],
+    registry: string,
+    warn: (msg: string) => void,
+  },
+) {
+  const nonOptional = new Set()
+  const notProdOnly = new Set()
+
+  copyDependencySubTree(opts.packages, opts.devRelPaths, opts.oldResolutions, new Set(), opts.warn, {
+    dev: true,
+    nonOptional,
+    notProdOnly,
+    registry: opts.registry,
+  })
+
+  copyDependencySubTree(opts.packages, opts.prodRelPaths, opts.oldResolutions, new Set(), opts.warn, {
+    nonOptional,
+    notProdOnly,
+    registry: opts.registry,
+  })
+
+  copyDependencySubTree(opts.packages, opts.optionalRelPaths, opts.oldResolutions, new Set(), opts.warn, {
+    nonOptional,
+    notProdOnly,
+    optional: true,
+    registry: opts.registry,
+  })
+
+  copyDependencySubTree(opts.packages, opts.devRelPaths, opts.oldResolutions, new Set(), opts.warn, {
+    dev: true,
+    nonOptional,
+    notProdOnly,
+    registry: opts.registry,
+    walkOptionals: true,
+  })
+
+  copyDependencySubTree(opts.packages, opts.prodRelPaths, opts.oldResolutions, new Set(), opts.warn, {
+    nonOptional,
+    notProdOnly,
+    registry: opts.registry,
+    walkOptionals: true,
+  })
+}
+
+function resolvedDepsToRelDepPaths (deps: ResolvedDependencies) {
+  return R.keys(deps)
+    .map((pkgName: string) => refToRelative(deps[pkgName], pkgName))
+    .filter((relPath) => relPath !== null) as string[]
+}
+
 function copyDependencySubTree (
-  resolvedPackages: ResolvedPackages,
+  newResolutions: ResolvedPackages,
   depRelativePaths: string[],
-  shr: Shrinkwrap,
+  oldResolutions: ResolvedPackages,
   walked: Set<string>,
   warn: (msg: string) => void,
   opts: {
@@ -138,7 +163,7 @@ function copyDependencySubTree (
   for (const depRalativePath of depRelativePaths) {
     if (walked.has(depRalativePath)) continue
     walked.add(depRalativePath)
-    if (!shr.packages || !shr.packages[depRalativePath]) {
+    if (!oldResolutions[depRalativePath]) {
       // local dependencies don't need to be resolved in shrinkwrap.yaml
       // except local tarball dependencies
       if (depRalativePath.startsWith('link:') || depRalativePath.startsWith('file:') && !depRalativePath.endsWith('.tar.gz')) continue
@@ -146,8 +171,8 @@ function copyDependencySubTree (
       warn(`Cannot find resolution of ${depRalativePath} in shrinkwrap file`)
       continue
     }
-    const depShr = shr.packages[depRalativePath]
-    resolvedPackages[depRalativePath] = depShr
+    const depShr = oldResolutions[depRalativePath]
+    newResolutions[depRalativePath] = depShr
     if (opts.optional && !opts.nonOptional.has(depRalativePath)) {
       depShr.optional = true
     } else {
@@ -165,11 +190,11 @@ function copyDependencySubTree (
     const newDependencies = R.keys(depShr.dependencies)
       .map((pkgName: string) => refToRelative((depShr.dependencies && depShr.dependencies[pkgName]) as string, pkgName))
       .filter((relPath) => relPath !== null) as string[]
-    copyDependencySubTree(resolvedPackages, newDependencies, shr, walked, warn, opts)
+    copyDependencySubTree(newResolutions, newDependencies, oldResolutions, walked, warn, opts)
     if (!opts.walkOptionals) continue
     const newOptionalDependencies = R.keys(depShr.optionalDependencies)
       .map((pkgName: string) => refToRelative((depShr.optionalDependencies && depShr.optionalDependencies[pkgName]) as string, pkgName))
       .filter((relPath) => relPath !== null) as string[]
-    copyDependencySubTree(resolvedPackages, newOptionalDependencies, shr, walked, warn, {...opts, optional: true})
+    copyDependencySubTree(newResolutions, newOptionalDependencies, oldResolutions, walked, warn, {...opts, optional: true})
   }
 }
