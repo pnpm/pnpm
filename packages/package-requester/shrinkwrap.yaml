@@ -1,7 +1,6 @@
 dependencies:
   '@pnpm/check-package': 2.0.0
   '@pnpm/fetcher-base': 1.0.0
-  '@pnpm/package-requester': 'link:'
   '@pnpm/pkgid-to-filename': 2.0.0
   '@pnpm/resolver-base': 1.2.0
   '@pnpm/types': 1.7.0
@@ -35,7 +34,7 @@ devDependencies:
   mos: 2.0.0-alpha.3
   mos-plugin-readme: 1.0.4
   ncp: 2.0.0
-  nock: 9.6.1
+  nock: 10.0.0
   normalize-path: 3.0.0
   package-preview: 1.0.6
   rimraf: 2.6.2
@@ -2391,7 +2390,7 @@ packages:
     dev: true
     resolution:
       integrity: sha512-OHRVvdxKgwZELf2DTgsJEIA4MOq8XWvpSUzoOXyxJ2mY0mMENWC66+70AShLR2z05B1dzrzWlUQJmJERlOUpZw==
-  /nock/9.6.1:
+  /nock/10.0.0:
     dependencies:
       chai: 4.1.2
       debug: 3.2.5
@@ -2406,7 +2405,7 @@ packages:
     engines:
       '0': node >= 4.0
     resolution:
-      integrity: sha512-EDgl/WgNQ0C1BZZlASOQkQdE6tAWXJi8QQlugqzN64JJkvZ7ILijZuG24r4vCC7yOfnm6HKpne5AGExLGCeBWg==
+      integrity: sha512-hE0O9Uhrg7uOpAqnA6ZfnvCS/TZy0HJgMslJ829E7ZuRytcS86/LllupHDD6Tl8fFKQ24kWe1ikX3MCrKkwaaQ==
   /node-fetch-npm/2.0.2:
     dependencies:
       encoding: 0.1.12
@@ -3139,6 +3138,7 @@ packages:
     dev: true
     resolution:
       integrity: sha1-gqfhZPopFCq9B7UmucfALV6jO70=
+      tarball: 'http://registry.npmjs.org/rollup-plugin-babel/-/rollup-plugin-babel-2.4.0.tgz'
   /rollup-plugin-includepaths/0.1.2:
     dev: true
     resolution:
@@ -3159,6 +3159,7 @@ packages:
     hasBin: true
     resolution:
       integrity: sha1-v2zoO4dRDRY0Ru6qV37WpvxYNeA=
+      tarball: 'http://registry.npmjs.org/rollup/-/rollup-0.25.8.tgz'
   /run-queue/1.0.3:
     dependencies:
       aproba: 1.2.0
@@ -3992,7 +3993,7 @@ specifiers:
   mos-plugin-readme: ^1.0.4
   mz: 2.7.0
   ncp: ^2.0.0
-  nock: ^9.2.5
+  nock: ^10.0.0
   normalize-path: 3.0.0
   p-limit: 2.0.0
   p-queue: 3.0.0
