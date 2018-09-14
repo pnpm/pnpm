@@ -41,7 +41,7 @@
     "rename-overwrite": "1.0.3",
     "rimraf-then": "1.0.1",
     "util.promisify": "1.0.0",
-    "write-json-file": "3.0.1"
+    "write-json-file": "3.0.2"
   },
   "devDependencies": {
     "@pnpm/logger": "^2.1.0",
