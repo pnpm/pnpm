@@ -1,6 +1,5 @@
 dependencies:
   '@pnpm/fetcher-base': 1.0.0
-  '@pnpm/tarball-fetcher': 'link:../__package_previews__/tarball-fetcher/@pnpm/tarball-fetcher'
   '@types/mem': 1.1.2
   '@types/mz': 0.0.32
   '@types/node': 10.9.4
@@ -23,7 +22,7 @@ devDependencies:
   '@types/nock': 9.3.0
   '@types/tape': 4.2.32
   '@types/tempy': 0.1.0
-  nock: 9.6.1
+  nock: 10.0.0
   package-preview: 1.0.6
   tape: 4.9.1
   tempy: 0.2.1
@@ -464,8 +463,14 @@ packages:
   /debug/3.1.0:
     dependencies:
       ms: 2.0.0
+    dev: false
     resolution:
       integrity: sha512-OX8XqP7/1a9cqkxYw2yXss15f26NKWBpDXQd0/uK/KPqdQhxbPa994hnzjcE2VqQpDslf55723cKPUOGSmMY3g==
+  /debug/3.2.5:
+    dependencies:
+      ms: 2.1.1
+    resolution:
+      integrity: sha512-D61LaDQPQkxJ5AUM2mbSJRbPkNs/TmdmOeLAi1hgDkpDfIfetSrjmWhccwtuResSwMbACjx/xXQofvM9CE/aeg==
   /decamelize-keys/1.1.0:
     dependencies:
       decamelize: 1.2.0
@@ -575,13 +580,13 @@ packages:
       node: '>= 0.4'
     resolution:
       integrity: sha1-RTVSSKiJeQNLZ5Lhm7gfK3l13Q0=
-  /es6-promise/4.2.4:
+  /es6-promise/4.2.5:
     dev: false
     resolution:
-      integrity: sha512-/NdNZVJg+uZgtm9eS3O6lrOLYmQag2DjdEXuPaHlZ6RuVqgqaVZfgYCepEIKsLqwdQArOPtC3XzRLqGGfT8KQQ==
+      integrity: sha512-n6wvpdE43VFtJq+lUDYDBFUwV8TZbuGXLV4D6wKafg13ldznKsyEvatubnmUe31zcvelSzOHF+XbaT+Bl9ObDg==
   /es6-promisify/5.0.0:
     dependencies:
-      es6-promise: 4.2.4
+      es6-promise: 4.2.5
     dev: false
     resolution:
       integrity: sha1-UQnWLz5W6pZ8S2NQWu8IKRyKUgM=
@@ -757,7 +762,7 @@ packages:
   /https-proxy-agent/2.2.1:
     dependencies:
       agent-base: 4.2.1
-      debug: 3.1.0
+      debug: 3.2.5
     dev: false
     engines:
       node: '>= 4.5.0'
@@ -927,10 +932,10 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha1-K1aLJl7slExtnA3pw9u7ygNUzY4=
-  /lodash/4.17.10:
+  /lodash/4.17.11:
     dev: true
     resolution:
-      integrity: sha512-UejweD1pDoXu+AD825lWwp4ZGtSwgnpZxb3JDViD7StjQz+Nb/6l093lx4OQ0foGWNRoc19mWy7BzL+UAK2iVg==
+      integrity: sha512-cQKh8igo5QUhZ7lg38DYWAxMvjSAKG0A8wGSVimP07SIUEK2UO+arSRKbRZWtelMtN5V0Hkwh5ryOto/SshYIg==
   /loud-rejection/1.6.0:
     dependencies:
       currently-unhandled: 0.4.1
@@ -1093,10 +1098,10 @@ packages:
     resolution:
       integrity: sha1-viwAX9oy4LKa8fBdfEszIUxwH5I=
   /ms/2.0.0:
+    dev: false
     resolution:
       integrity: sha1-VgiurfwAvmwpAd9fmGF4jeDVl8g=
   /ms/2.1.1:
-    dev: false
     resolution:
       integrity: sha512-tgp+dl5cGk28utYktBsrFqA7HKgrhgPsg6Z/EfhWI4gl1Hwq8B/GmY/0oXZ6nF8hDVesS/FpnYaD/kOWhYQvyg==
   /mz/2.7.0:
@@ -1130,13 +1135,13 @@ packages:
     dev: true
     resolution:
       integrity: sha512-1nh45deeb5olNY7eX82BkPO7SSxR5SSYJiPTrTdFUVYwAl8CKMA5N9PjTYkHiRjisVcxcQ1HXdLhx2qxxJzLNQ==
-  /nock/9.6.1:
+  /nock/10.0.0:
     dependencies:
       chai: 4.1.2
-      debug: 3.1.0
+      debug: 3.2.5
       deep-equal: 1.0.1
       json-stringify-safe: 5.0.1
-      lodash: 4.17.10
+      lodash: 4.17.11
       mkdirp: 0.5.1
       propagate: 1.0.0
       qs: 6.5.2
@@ -1145,7 +1150,7 @@ packages:
     engines:
       '0': node >= 4.0
     resolution:
-      integrity: sha512-EDgl/WgNQ0C1BZZlASOQkQdE6tAWXJi8QQlugqzN64JJkvZ7ILijZuG24r4vCC7yOfnm6HKpne5AGExLGCeBWg==
+      integrity: sha512-hE0O9Uhrg7uOpAqnA6ZfnvCS/TZy0HJgMslJ829E7ZuRytcS86/LllupHDD6Tl8fFKQ24kWe1ikX3MCrKkwaaQ==
   /node-fetch-npm/2.0.2:
     dependencies:
       encoding: 0.1.12
@@ -1412,6 +1417,7 @@ packages:
       util-deprecate: 1.0.2
     resolution:
       integrity: sha512-tQtKA9WIAhBF3+VLAseyMqZeBjW0AHJoxOtYqSUZNJxauErmLbVm2FW1y+J/YA9dUrAC39ITejlZWhVIwawkKw==
+      tarball: 'http://registry.npmjs.org/readable-stream/-/readable-stream-2.3.6.tgz'
   /redent/2.0.0:
     dependencies:
       indent-string: 3.2.0
@@ -1732,6 +1738,7 @@ packages:
   /through/2.3.8:
     resolution:
       integrity: sha1-DdTJ/6q8NXlgsbckEV1+Doai4fU=
+      tarball: 'http://registry.npmjs.org/through/-/through-2.3.8.tgz'
   /through2/2.0.3:
     dependencies:
       readable-stream: 2.3.6
@@ -1948,7 +1955,7 @@ specifiers:
   mem: 4.0.0
   mkdirp-promise: 5.0.1
   mz: 2.7.0
-  nock: 9.6.1
+  nock: 10.0.0
   package-preview: 1.0.6
   path-temp: 1.0.0
   retry: 0.12.0
