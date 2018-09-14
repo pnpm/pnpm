@@ -22,7 +22,7 @@ dependencies:
   rename-overwrite: 1.0.3
   rimraf-then: 1.0.1
   util.promisify: 1.0.0
-  write-json-file: 3.0.1
+  write-json-file: 3.0.2
 devDependencies:
   '@pnpm/logger': 2.1.0
   '@pnpm/npm-resolver': 2.2.5
@@ -83,7 +83,7 @@ packages:
       semver: 5.5.1
       ssri: 6.0.1
       version-selector-type: 2.0.0
-      write-json-file: 3.0.1
+      write-json-file: 3.0.2
     dev: true
     engines:
       node: '>=6'
@@ -1413,6 +1413,7 @@ packages:
     dev: true
     resolution:
       integrity: sha512-tQtKA9WIAhBF3+VLAseyMqZeBjW0AHJoxOtYqSUZNJxauErmLbVm2FW1y+J/YA9dUrAC39ITejlZWhVIwawkKw==
+      tarball: 'http://registry.npmjs.org/readable-stream/-/readable-stream-2.3.6.tgz'
   /redent/2.0.0:
     dependencies:
       indent-string: 3.2.0
@@ -1717,6 +1718,7 @@ packages:
     dev: true
     resolution:
       integrity: sha1-DdTJ/6q8NXlgsbckEV1+Doai4fU=
+      tarball: 'http://registry.npmjs.org/through/-/through-2.3.8.tgz'
   /through2/2.0.3:
     dependencies:
       readable-stream: 2.3.6
@@ -1872,7 +1874,7 @@ packages:
       signal-exit: 3.0.2
     resolution:
       integrity: sha512-xuPeK4OdjWqtfi59ylvVL0Yn35SF3zgcAcv7rBPFHVaEapaDr4GdGgm3j7ckTwH9wHL7fGmgfAnb0+THrHb8tA==
-  /write-json-file/3.0.1:
+  /write-json-file/3.0.2:
     dependencies:
       detect-indent: 5.0.0
       graceful-fs: 4.1.11
@@ -1883,7 +1885,7 @@ packages:
     engines:
       node: '>=6'
     resolution:
-      integrity: sha512-EuyKbUhp2iomuj3GaoLFZugM0QKAe0R82Aze9rOLY5jKuCvvt70MeI8fOsGgyQZduTWzTZL3g4gH3/ziINVFFA==
+      integrity: sha512-VE2pKv0vNAi2xzAYE187/a6Zfe5Y1Pblmeu3gS0sKmdyZgtEqDGUWWjwu5MJ4XzdHTiy4/VBQqoIco3dlJ/diQ==
   /xtend/4.0.1:
     dev: true
     engines:
@@ -1942,4 +1944,4 @@ specifiers:
   tslint: ^5.4.2
   typescript: ^3.0.0
   util.promisify: 1.0.0
-  write-json-file: 3.0.1
+  write-json-file: 3.0.2
