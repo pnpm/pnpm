@@ -12,7 +12,6 @@ dependencies:
   common-tags: 1.8.0
   most: 1.7.3
   normalize-path: 3.0.0
-  pnpm-default-reporter: 'link:'
   pretty-bytes: 5.1.0
   ramda: 0.25.0
   right-pad: 1.0.1
@@ -26,7 +25,7 @@ devDependencies:
   '@pnpm/logger': 2.1.0
   '@types/load-json-file': 2.0.7
   '@types/tape': 4.2.32
-  delay: 4.0.0
+  delay: 4.0.1
   ghooks: 2.0.4
   load-json-file: 5.0.0
   mos-tap-diff: 1.0.0
@@ -405,6 +404,7 @@ packages:
       node: '>= 0.6.x'
     resolution:
       integrity: sha1-0SG7roYNmZKj1Re6lvVliOR8Z4E=
+      tarball: 'http://registry.npmjs.org/commander/-/commander-2.1.0.tgz'
   /commander/2.18.0:
     dev: true
     resolution:
@@ -417,6 +417,7 @@ packages:
       node: '>= 0.6.x'
     resolution:
       integrity: sha1-nJkJQXbhIkDLItbFFGCYQA/g99Q=
+      tarball: 'http://registry.npmjs.org/commander/-/commander-2.9.0.tgz'
   /common-tags/1.8.0:
     dev: false
     engines:
@@ -499,12 +500,12 @@ packages:
     dev: true
     resolution:
       integrity: sha1-yY2bzvdWdBiOEQlpFRGZ45sfppM=
-  /delay/4.0.0:
+  /delay/4.0.1:
     dev: true
     engines:
       node: '>=6'
     resolution:
-      integrity: sha512-M5om7qDqgWbLauRFlGgcfVEmQpHJMs24NL0I/dqahsESNdJrRiLuAodrsC1vV1YL5+yC2kh6k8vANWNKvYMd6A==
+      integrity: sha512-wOsrzqdl8Lphi0v3g4FPz7zf0sT4o/u+z+LB+s1q0qzB9xw6QzZbdY9D6IoCojRHIxbaHvpUkLt6//1KB6VNug==
   /detect-indent/5.0.0:
     dev: true
     engines:
@@ -527,6 +528,7 @@ packages:
     dev: true
     resolution:
       integrity: sha1-rOb/gIwc5mtX0ev5eXessCM0z8E=
+      tarball: 'http://registry.npmjs.org/duplexer/-/duplexer-0.1.1.tgz'
   /duplexify/3.6.0:
     dependencies:
       end-of-stream: 1.4.1
@@ -1349,6 +1351,7 @@ packages:
     dev: true
     resolution:
       integrity: sha512-tQtKA9WIAhBF3+VLAseyMqZeBjW0AHJoxOtYqSUZNJxauErmLbVm2FW1y+J/YA9dUrAC39ITejlZWhVIwawkKw==
+      tarball: 'http://registry.npmjs.org/readable-stream/-/readable-stream-2.3.6.tgz'
   /redent/2.0.0:
     dependencies:
       indent-string: 3.2.0
@@ -1694,6 +1697,7 @@ packages:
     dev: true
     resolution:
       integrity: sha1-DdTJ/6q8NXlgsbckEV1+Doai4fU=
+      tarball: 'http://registry.npmjs.org/through/-/through-2.3.8.tgz'
   /through2/2.0.3:
     dependencies:
       readable-stream: 2.3.6
@@ -1875,7 +1879,7 @@ specifiers:
   chalk: 2.4.1
   cli-cursor: 2.1.0
   common-tags: 1.8.0
-  delay: 4.0.0
+  delay: 4.0.1
   ghooks: ^2.0.0
   load-json-file: ^5.0.0
   mos-tap-diff: ^1.0.0

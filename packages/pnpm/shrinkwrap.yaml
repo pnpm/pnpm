@@ -21,7 +21,7 @@ dependencies:
   chalk: 2.4.1
   common-tags: 1.8.0
   cross-spawn: 6.0.5
-  delay: 4.0.0
+  delay: 4.0.1
   diable: 4.0.1
   execa: 1.0.0
   find-packages: 2.2.0
@@ -45,7 +45,6 @@ dependencies:
   path-absolute: 1.0.0
   path-name: 1.0.0
   pkgs-graph: 2.0.0
-  pnpm: 'link:'
   pnpm-default-reporter: 'link:../default-reporter'
   pnpm-file-reporter: 0.1.0
   pnpm-list: 4.0.1
@@ -1301,7 +1300,7 @@ packages:
   /cookies/0.7.1:
     dependencies:
       depd: 1.1.2
-      keygrip: 1.0.2
+      keygrip: 1.0.3
     dev: true
     engines:
       node: '>= 0.8'
@@ -1585,12 +1584,12 @@ packages:
     dev: true
     resolution:
       integrity: sha1-yY2bzvdWdBiOEQlpFRGZ45sfppM=
-  /delay/4.0.0:
+  /delay/4.0.1:
     dev: false
     engines:
       node: '>=6'
     resolution:
-      integrity: sha512-M5om7qDqgWbLauRFlGgcfVEmQpHJMs24NL0I/dqahsESNdJrRiLuAodrsC1vV1YL5+yC2kh6k8vANWNKvYMd6A==
+      integrity: sha512-wOsrzqdl8Lphi0v3g4FPz7zf0sT4o/u+z+LB+s1q0qzB9xw6QzZbdY9D6IoCojRHIxbaHvpUkLt6//1KB6VNug==
   /delayed-stream/1.0.0:
     engines:
       node: '>=0.4.0'
@@ -1697,6 +1696,7 @@ packages:
     dev: true
     resolution:
       integrity: sha1-rOb/gIwc5mtX0ev5eXessCM0z8E=
+      tarball: 'http://registry.npmjs.org/duplexer/-/duplexer-0.1.1.tgz'
   /duplexer3/0.1.4:
     dev: false
     resolution:
@@ -2810,6 +2810,7 @@ packages:
       node: '>=0.10.0'
     resolution:
       integrity: sha1-PkcprB9f3gJc19g6iW2rn09n2w8=
+      tarball: 'http://registry.npmjs.org/is-obj/-/is-obj-1.0.1.tgz'
   /is-object/1.0.1:
     dev: true
     resolution:
@@ -3029,12 +3030,12 @@ packages:
     dev: true
     resolution:
       integrity: sha512-GsCSexFADNQUr8T5HPJvayTjvPIfoyJPtLQBwn5a4WZQchcrPMPMAWcC1AzJVRDKyD6ZPROPAxgv6rfHViO4uQ==
-  /keygrip/1.0.2:
+  /keygrip/1.0.3:
     dev: true
     engines:
       node: '>= 0.6'
     resolution:
-      integrity: sha1-rTKXxVcGneqLz+ek+kkbdcXd65E=
+      integrity: sha512-/PpesirAIfaklxUzp4Yb7xBper9MwP6hNRA6BGGUFCgbJ+BM5CKBtsoxinNXkLHAr+GXS1/lSlF2rP7cv5Fl+g==
   /kind-of/3.2.2:
     dependencies:
       is-buffer: 1.1.6
@@ -4143,6 +4144,7 @@ packages:
     dev: true
     resolution:
       integrity: sha1-/lo0sMvOErWqaitAPuLnO2AvFEU=
+      tarball: 'http://registry.npmjs.org/pause-stream/-/pause-stream-0.0.11.tgz'
   /peek-stream/1.1.3:
     dependencies:
       buffer-from: 1.1.1
@@ -4505,6 +4507,7 @@ packages:
       util-deprecate: 1.0.2
     resolution:
       integrity: sha512-tQtKA9WIAhBF3+VLAseyMqZeBjW0AHJoxOtYqSUZNJxauErmLbVm2FW1y+J/YA9dUrAC39ITejlZWhVIwawkKw==
+      tarball: 'http://registry.npmjs.org/readable-stream/-/readable-stream-2.3.6.tgz'
   /redent/2.0.0:
     dependencies:
       indent-string: 3.2.0
@@ -5088,6 +5091,7 @@ packages:
     dev: true
     resolution:
       integrity: sha1-rsjLrBd7Vrb0+kec7YwZEs7lKFg=
+      tarball: 'http://registry.npmjs.org/stream-combiner/-/stream-combiner-0.2.2.tgz'
   /stream-each/1.2.3:
     dependencies:
       end-of-stream: 1.4.1
@@ -5313,6 +5317,7 @@ packages:
     dev: true
     resolution:
       integrity: sha1-DdTJ/6q8NXlgsbckEV1+Doai4fU=
+      tarball: 'http://registry.npmjs.org/through/-/through-2.3.8.tgz'
   /through2/2.0.3:
     dependencies:
       readable-stream: 2.3.6
@@ -5985,7 +5990,7 @@ specifiers:
   common-tags: 1.8.0
   cross-spawn: 6.0.5
   deep-require-cwd: ^1.0.0
-  delay: 4.0.0
+  delay: 4.0.1
   diable: 4.0.1
   execa: 1.0.0
   exists-link: ^2.0.0

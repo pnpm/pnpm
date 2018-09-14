@@ -42,7 +42,7 @@
     "chalk": "2.4.1",
     "common-tags": "1.8.0",
     "cross-spawn": "6.0.5",
-    "delay": "4.0.0",
+    "delay": "4.0.1",
     "diable": "4.0.1",
     "execa": "1.0.0",
     "find-packages": "2.2.0",

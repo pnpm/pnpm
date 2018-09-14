@@ -1,7 +1,6 @@
 dependencies:
   '@pnpm/check-package': 2.0.0
   '@pnpm/fetcher-base': 1.0.0
-  '@pnpm/package-requester': 'link:'
   '@pnpm/pkgid-to-filename': 2.0.0
   '@pnpm/resolver-base': 1.2.0
   '@pnpm/types': 1.7.0
@@ -31,7 +30,7 @@ devDependencies:
   '@types/sinon': 5.0.2
   '@types/tape': 4.2.32
   '@types/tempy': 0.1.0
-  delay: 4.0.0
+  delay: 4.0.1
   mos: 2.0.0-alpha.3
   mos-plugin-readme: 1.0.4
   ncp: 2.0.0
@@ -39,7 +38,7 @@ devDependencies:
   normalize-path: 3.0.0
   package-preview: 1.0.6
   rimraf: 2.6.2
-  sinon: 6.2.0
+  sinon: 6.3.3
   tape: 4.9.1
   tempy: 0.2.1
   ts-node: 7.0.1
@@ -186,16 +185,24 @@ packages:
     dev: true
     resolution:
       integrity: sha512-WR3dlgqJP4QNrLC4iXN/5/2WaLQQ0VijOOkmflqFGVJ6wLEpbSjo7c0ZeGIdtY8Crk7xBBp87sM6+Mkerz7alw==
-  /@sinonjs/formatio/2.0.0:
+  /@sinonjs/formatio/3.0.0:
     dependencies:
-      samsam: 1.3.0
+      '@sinonjs/samsam': 2.1.0
     dev: true
     resolution:
-      integrity: sha512-ls6CAMA6/5gG+O/IdsBcblvnd8qcO/l1TYoNeAzp3wcISOxlPXQEus0mLcdwazEkWjaBdaJ3TaxmNgCLWwvWzg==
-  /@sinonjs/samsam/2.0.0:
+      integrity: sha512-vdjoYLDptCgvtJs57ULshak3iJe4NW3sJ3g36xVDGff5AE8P30S6A093EIEPjdi2noGhfuNOEkbxt3J3awFW1w==
+  /@sinonjs/samsam/2.1.0:
+    dependencies:
+      array-from: 2.1.1
     dev: true
     resolution:
-      integrity: sha512-D7VxhADdZbDJ0HjUTMnSQ5xIGb4H2yWpg8k9Sf1T08zfFiQYlaxM8LZydpR4FQ2E6LZJX8IlabNZ5io4vdChwg==
+      integrity: sha512-5x2kFgJYupaF1ns/RmharQ90lQkd2ELS8A9X0ymkAAdemYHGtI2KiUHG8nX2WU0T1qgnOU5YMqnBM2V7NUanNw==
+  /@sinonjs/samsam/2.1.1:
+    dependencies:
+      array-from: 2.1.1
+    dev: true
+    resolution:
+      integrity: sha512-7oX6PXMulvdN37h88dvlvRyu61GYZau40fL4wEZvPEHvrjpJc3lDv6xDM5n4Z0StufUVB5nDvVZUM+jZHdMOOQ==
   /@types/events/1.2.0:
     dev: true
     resolution:
@@ -312,6 +319,7 @@ packages:
     hasBin: true
     resolution:
       integrity: sha1-BPJElQ/bj6+FUHrUgcLt7nrs3uw=
+      tarball: 'http://registry.npmjs.org/acorn/-/acorn-3.0.4.tgz'
   /agent-base/4.2.1:
     dependencies:
       es6-promisify: 5.0.0
@@ -397,6 +405,10 @@ packages:
       node: '>=0.10.0'
     resolution:
       integrity: sha1-3wEKoSh+Fku9pvlyOwqWoexBh6E=
+  /array-from/2.1.1:
+    dev: true
+    resolution:
+      integrity: sha1-z+nYwmYoudxa7MYqn12PHzUsEZU=
   /arrify/1.0.1:
     dev: true
     engines:
@@ -629,6 +641,7 @@ packages:
       node: '>=0.10.0'
     resolution:
       integrity: sha1-W3PYhA6388ihVcv2ntPtaNRyABQ=
+      tarball: 'http://registry.npmjs.org/boxen/-/boxen-0.5.1.tgz'
   /brace-expansion/1.1.11:
     dependencies:
       balanced-match: 1.0.0
@@ -1076,12 +1089,12 @@ packages:
     dev: true
     resolution:
       integrity: sha1-yY2bzvdWdBiOEQlpFRGZ45sfppM=
-  /delay/4.0.0:
+  /delay/4.0.1:
     dev: true
     engines:
       node: '>=6'
     resolution:
-      integrity: sha512-M5om7qDqgWbLauRFlGgcfVEmQpHJMs24NL0I/dqahsESNdJrRiLuAodrsC1vV1YL5+yC2kh6k8vANWNKvYMd6A==
+      integrity: sha512-wOsrzqdl8Lphi0v3g4FPz7zf0sT4o/u+z+LB+s1q0qzB9xw6QzZbdY9D6IoCojRHIxbaHvpUkLt6//1KB6VNug==
   /detect-indent/4.0.0:
     dependencies:
       repeating: 2.0.1
@@ -1131,6 +1144,7 @@ packages:
     dev: true
     resolution:
       integrity: sha1-rOb/gIwc5mtX0ev5eXessCM0z8E=
+      tarball: 'http://registry.npmjs.org/duplexer/-/duplexer-0.1.1.tgz'
   /duplexer2/0.1.4:
     dependencies:
       readable-stream: 2.3.6
@@ -1666,6 +1680,7 @@ packages:
       node: '>=0.10.0'
     resolution:
       integrity: sha1-PkcprB9f3gJc19g6iW2rn09n2w8=
+      tarball: 'http://registry.npmjs.org/is-obj/-/is-obj-1.0.1.tgz'
   /is-plain-obj/1.1.0:
     engines:
       node: '>=0.10.0'
@@ -2365,16 +2380,16 @@ packages:
     dev: true
     resolution:
       integrity: sha512-1nh45deeb5olNY7eX82BkPO7SSxR5SSYJiPTrTdFUVYwAl8CKMA5N9PjTYkHiRjisVcxcQ1HXdLhx2qxxJzLNQ==
-  /nise/1.4.4:
+  /nise/1.4.5:
     dependencies:
-      '@sinonjs/formatio': 2.0.0
+      '@sinonjs/formatio': 3.0.0
       just-extend: 3.0.0
       lolex: 2.7.4
       path-to-regexp: 1.7.0
       text-encoding: 0.6.4
     dev: true
     resolution:
-      integrity: sha512-pxE0c9PzgrUTyhfv5p+5eMIdfU2bLEsq8VQEuE0kxM4zP7SujSar7rk9wpI2F7RyyCEvLyj5O7Is3RER5F36Fg==
+      integrity: sha512-OHRVvdxKgwZELf2DTgsJEIA4MOq8XWvpSUzoOXyxJ2mY0mMENWC66+70AShLR2z05B1dzrzWlUQJmJERlOUpZw==
   /nock/9.6.1:
     dependencies:
       chai: 4.1.2
@@ -2573,6 +2588,7 @@ packages:
       node: '>=0.10.0'
     resolution:
       integrity: sha1-DRW9Z9HLvduyyiIv8u24a8sxqLs=
+      tarball: 'http://registry.npmjs.org/package-json/-/package-json-2.4.0.tgz'
   /package-preview/1.0.6:
     dependencies:
       '@pnpm/exec': 1.1.5
@@ -2948,6 +2964,7 @@ packages:
     dev: true
     resolution:
       integrity: sha512-tQtKA9WIAhBF3+VLAseyMqZeBjW0AHJoxOtYqSUZNJxauErmLbVm2FW1y+J/YA9dUrAC39ITejlZWhVIwawkKw==
+      tarball: 'http://registry.npmjs.org/readable-stream/-/readable-stream-2.3.6.tgz'
   /redent/1.0.0:
     dependencies:
       indent-string: 2.1.0
@@ -3155,10 +3172,6 @@ packages:
     dev: true
     resolution:
       integrity: sha512-YZo3K82SD7Riyi0E1EQPojLz7kpepnSQI9IyPbHHg1XXXevb5dJI7tpyN2ADxGcQbHG7vcyRHk0cbwqcQriUtg==
-  /samsam/1.3.0:
-    dev: true
-    resolution:
-      integrity: sha512-1HwIYD/8UlOtFS3QO3w7ey+SdSDFE4HRNLZoZRYVQefrOY3l17epswImeB1ijgJFQJodIaHcwkp3r/myBjFVbg==
   /semver-diff/2.1.0:
     dependencies:
       semver: 5.5.1
@@ -3200,20 +3213,20 @@ packages:
   /signal-exit/3.0.2:
     resolution:
       integrity: sha1-tf3AjxKH6hF4Yo5BXiUTK3NkbG0=
-  /sinon/6.2.0:
+  /sinon/6.3.3:
     dependencies:
       '@sinonjs/commons': 1.0.2
-      '@sinonjs/formatio': 2.0.0
-      '@sinonjs/samsam': 2.0.0
+      '@sinonjs/formatio': 3.0.0
+      '@sinonjs/samsam': 2.1.1
       diff: 3.5.0
       lodash.get: 4.4.2
       lolex: 2.7.4
-      nise: 1.4.4
+      nise: 1.4.5
       supports-color: 5.5.0
       type-detect: 4.0.8
     dev: true
     resolution:
-      integrity: sha512-gLFZz5UYvOhYzQ+DBzw/OCkmWaLAHlAyQiE2wxUOmAGVdasP9Yw93E+OwZ0UuhW3ReMu1FKniuNsL6VukvC77w==
+      integrity: sha512-LTZ3vnkscWQHyRI5mN7NrCVC9V01wgl3XWCspFqLKJ8yKhrkj8iOfvQLjdrYqcGoo+Q+sCMOMSBMlcUwua4pbQ==
   /slash/1.0.0:
     engines:
       node: '>=0.10.0'
@@ -3589,6 +3602,7 @@ packages:
     dev: true
     resolution:
       integrity: sha1-DdTJ/6q8NXlgsbckEV1+Doai4fU=
+      tarball: 'http://registry.npmjs.org/through/-/through-2.3.8.tgz'
   /through2/2.0.3:
     dependencies:
       readable-stream: 2.3.6
@@ -3970,7 +3984,7 @@ specifiers:
   '@types/sinon': ^5.0.1
   '@types/tape': ^4.2.31
   '@types/tempy': ^0.1.0
-  delay: 4.0.0
+  delay: 4.0.1
   load-json-file: 5.0.0
   mkdirp-promise: 5.0.1
   mos: ^2.0.0-alpha.3
