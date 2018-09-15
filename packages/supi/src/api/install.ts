@@ -214,20 +214,7 @@ export async function install (maybeOpts: InstallOptions & {
       prefix: opts.prefix,
     })
 
-    if (ctx.wantedShrinkwrap.specifiers) {
-      ctx.wantedShrinkwrap.dependencies = ctx.wantedShrinkwrap.dependencies || {}
-      ctx.wantedShrinkwrap.devDependencies = ctx.wantedShrinkwrap.devDependencies || {}
-      ctx.wantedShrinkwrap.optionalDependencies = ctx.wantedShrinkwrap.optionalDependencies || {}
-      for (const spec of specs) {
-        if (spec.alias && ctx.wantedShrinkwrap.specifiers[spec.alias] !== spec.pref) {
-          if (ctx.wantedShrinkwrap.dependencies[spec.alias] && !ctx.wantedShrinkwrap.dependencies[spec.alias].startsWith('link:')) {
-            delete ctx.wantedShrinkwrap.dependencies[spec.alias]
-          }
-          delete ctx.wantedShrinkwrap.devDependencies[spec.alias]
-          delete ctx.wantedShrinkwrap.optionalDependencies[spec.alias]
-        }
-      }
-    }
+    forgetResolutionsOfOldSpecs(ctx.wantedShrinkwrap, specs)
 
     const scripts = !opts.ignoreScripts && ctx.pkg && ctx.pkg.scripts || {}
     if (opts.ignoreScripts && ctx.pkg && ctx.pkg.scripts &&
@@ -272,6 +259,24 @@ export async function install (maybeOpts: InstallOptions & {
     }
     if (scripts.prepare) {
       await runLifecycleHooks('prepare', ctx.pkg, scriptsOpts)
+    }
+  }
+}
+
+// If the specifier is new, the old resolution probably does not satisfy it anymore.
+// By removing these resolutions we ensure that they are resolved again using the new specs.
+function forgetResolutionsOfOldSpecs (wantedShrinkwrap: Shrinkwrap, specs: WantedDependency[]) {
+  if (!wantedShrinkwrap.specifiers) return
+  wantedShrinkwrap.dependencies = wantedShrinkwrap.dependencies || {}
+  wantedShrinkwrap.devDependencies = wantedShrinkwrap.devDependencies || {}
+  wantedShrinkwrap.optionalDependencies = wantedShrinkwrap.optionalDependencies || {}
+  for (const spec of specs) {
+    if (spec.alias && wantedShrinkwrap.specifiers[spec.alias] !== spec.pref) {
+      if (wantedShrinkwrap.dependencies[spec.alias] && !wantedShrinkwrap.dependencies[spec.alias].startsWith('link:')) {
+        delete wantedShrinkwrap.dependencies[spec.alias]
+      }
+      delete wantedShrinkwrap.devDependencies[spec.alias]
+      delete wantedShrinkwrap.optionalDependencies[spec.alias]
     }
   }
 }
@@ -591,7 +596,6 @@ async function installInContext (
         })
       }
     }
-    const pkgJsonPath = path.join(ctx.prefix, 'package.json')
     newPkg = await save(
       ctx.prefix,
       specsToUsert,
@@ -604,47 +608,7 @@ async function installInContext (
   }
 
   if (newPkg) {
-    ctx.wantedShrinkwrap.dependencies = ctx.wantedShrinkwrap.dependencies || {}
-    ctx.wantedShrinkwrap.specifiers = ctx.wantedShrinkwrap.specifiers || {}
-    ctx.wantedShrinkwrap.optionalDependencies = ctx.wantedShrinkwrap.optionalDependencies || {}
-    ctx.wantedShrinkwrap.devDependencies = ctx.wantedShrinkwrap.devDependencies || {}
-
-    const devDeps = newPkg.devDependencies || {}
-    const optionalDeps = newPkg.optionalDependencies || {}
-
-    linkedPkgs.forEach((linkedPkg) => {
-      ctx.wantedShrinkwrap.specifiers[linkedPkg.alias] = getSpecFromPackageJson(newPkg as PackageJson, linkedPkg.alias) as string
-    })
-
-    for (const dep of pkgsToSave) {
-      const ref = absolutePathToRef(dep.id, {
-        alias: dep.alias,
-        realName: dep.name,
-        resolution: dep.resolution,
-        standardRegistry: ctx.wantedShrinkwrap.registry,
-      })
-      const isDev = !!devDeps[dep.alias]
-      const isOptional = !!optionalDeps[dep.alias]
-      if (isDev) {
-        ctx.wantedShrinkwrap.devDependencies[dep.alias] = ref
-      } else if (isOptional) {
-        ctx.wantedShrinkwrap.optionalDependencies[dep.alias] = ref
-      } else {
-        ctx.wantedShrinkwrap.dependencies[dep.alias] = ref
-      }
-      if (!isDev) {
-        delete ctx.wantedShrinkwrap.devDependencies[dep.alias]
-      }
-      if (!isOptional) {
-        delete ctx.wantedShrinkwrap.optionalDependencies[dep.alias]
-      }
-      if (isDev || isOptional) {
-        delete ctx.wantedShrinkwrap.dependencies[dep.alias]
-      }
-      ctx.wantedShrinkwrap.specifiers[dep.alias] = getSpecFromPackageJson(newPkg, dep.alias) as string
-    }
-
-    alignDependencyTypes(newPkg, ctx.wantedShrinkwrap)
+    addDirectDependenciesToShrinkwrap(newPkg, ctx.wantedShrinkwrap, linkedPkgs, pkgsToSave)
   }
 
   const topParents = ctx.pkg
@@ -861,6 +825,60 @@ function getSubgraphToBuild (
     }
   }
   return currentShouldBeBuilt
+}
+
+function addDirectDependenciesToShrinkwrap (
+  newPkg: PackageJson,
+  wantedShrinkwrap: Shrinkwrap,
+  linkedPkgs: Array<WantedDependency & {alias: string}>,
+  pkgsToSave: Array<{
+    alias: string,
+    optional: boolean,
+    dev: boolean,
+    resolution: Resolution,
+    id: string,
+    version: string,
+    name: string,
+    specRaw: string,
+    normalizedPref?: string,
+  }>,
+) {
+  wantedShrinkwrap.dependencies = wantedShrinkwrap.dependencies || {}
+  wantedShrinkwrap.specifiers = wantedShrinkwrap.specifiers || {}
+  wantedShrinkwrap.optionalDependencies = wantedShrinkwrap.optionalDependencies || {}
+  wantedShrinkwrap.devDependencies = wantedShrinkwrap.devDependencies || {}
+
+  linkedPkgs.forEach((linkedPkg) => {
+    wantedShrinkwrap.specifiers[linkedPkg.alias] = getSpecFromPackageJson(newPkg as PackageJson, linkedPkg.alias) as string
+  })
+
+  for (const dep of pkgsToSave) {
+    const ref = absolutePathToRef(dep.id, {
+      alias: dep.alias,
+      realName: dep.name,
+      resolution: dep.resolution,
+      standardRegistry: wantedShrinkwrap.registry,
+    })
+    if (dep.dev) {
+      wantedShrinkwrap.devDependencies[dep.alias] = ref
+    } else if (dep.optional) {
+      wantedShrinkwrap.optionalDependencies[dep.alias] = ref
+    } else {
+      wantedShrinkwrap.dependencies[dep.alias] = ref
+    }
+    if (!dep.dev) {
+      delete wantedShrinkwrap.devDependencies[dep.alias]
+    }
+    if (!dep.optional) {
+      delete wantedShrinkwrap.optionalDependencies[dep.alias]
+    }
+    if (dep.dev || dep.optional) {
+      delete wantedShrinkwrap.dependencies[dep.alias]
+    }
+    wantedShrinkwrap.specifiers[dep.alias] = getSpecFromPackageJson(newPkg, dep.alias) as string
+  }
+
+  alignDependencyTypes(newPkg, wantedShrinkwrap)
 }
 
 function alignDependencyTypes (pkg: PackageJson, shr: Shrinkwrap) {
