@@ -1,8 +1,5 @@
-import logger from '@pnpm/logger'
 import normalizeRegistryUrl = require('normalize-registry-url')
-import {StoreController} from 'package-store'
 import path = require('path')
-import {LAYOUT_VERSION} from '../constants'
 import pnpmPkgJson from '../pnpmPkgJson'
 import { ReporterFunction } from '../types'
 
