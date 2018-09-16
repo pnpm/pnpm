@@ -1,0 +1,57 @@
+{
+  "name": "@pnpm/modules-yaml",
+  "version": "1.0.0",
+  "description": "Reads/writes `node_modules/.modules.yaml`",
+  "main": "lib/index.js",
+  "typings": "lib/index.d.ts",
+  "files": [
+    "lib"
+  ],
+  "engines": {
+    "node": ">=4"
+  },
+  "scripts": {
+    "lint": "tslint -c tslint.json --project .",
+    "tsc": "rimraf lib && tsc",
+    "test": "npm run lint && preview && ts-node test --type-check && mos t",
+    "md": "mos",
+    "prepublishOnly": "npm run tsc",
+    "fix": "tslint -c tslint.json --project . --fix"
+  },
+  "repository": "https://github.com/pnpm/pnpm/blob/master/packages/modules-yaml",
+  "keywords": [
+    "pnpm",
+    "modules.yaml"
+  ],
+  "author": "Zoltan Kochan <z@kochan.io> (https://www.kochan.io/)",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/pnpm/pnpm/issues"
+  },
+  "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/modules-yaml#readme",
+  "dependencies": {
+    "load-yaml-file": "^0.1.0",
+    "write-yaml-file": "^1.0.1"
+  },
+  "devDependencies": {
+    "@types/tape": "^4.2.31",
+    "@types/tempy": "^0.1.0",
+    "mos": "^2.0.0-alpha.3",
+    "mos-plugin-readme": "^1.0.4",
+    "package-preview": "^1.0.1",
+    "rimraf": "^2.6.2",
+    "tape": "^4.8.0",
+    "tempy": "^0.2.1",
+    "ts-node": "^7.0.0",
+    "tslint": "^5.8.0",
+    "typescript": "^3.0.0"
+  },
+  "mos": {
+    "plugins": [
+      "readme"
+    ],
+    "installation": {
+      "useShortAlias": true
+    }
+  }
+}
