@@ -1,9 +1,12 @@
-import {stripIndent} from 'common-tags'
+import { stripIndent } from 'common-tags'
 import loadJsonFile = require('load-json-file')
+import loadYamlFile = require('load-yaml-file')
+import mkdir = require('mkdirp-promise')
 import fs = require('mz/fs')
 import path = require('path')
 import exists = require('path-exists')
-import {getIntegrity} from 'pnpm-registry-mock'
+import { getIntegrity } from 'pnpm-registry-mock'
+import { Shrinkwrap } from 'pnpm-shrinkwrap'
 import R = require('ramda')
 import rimraf = require('rimraf-then')
 import sinon = require('sinon')
@@ -87,7 +90,7 @@ test('shrinkwrap file has dev deps even when installing for prod only', async (t
   t.ok(shr.packages[id], `has resolution for ${id}`)
 })
 
-test('shrinkwrap with scoped package', async (t) => {
+test('shrinkwrap with scoped package', async (t: tape.Test) => {
   const project = prepare(t, {
     dependencies: {
       '@types/semver': '^5.3.31',
@@ -106,10 +109,13 @@ test('shrinkwrap with scoped package', async (t) => {
       },
     },
     registry: 'http://localhost:4873',
-    version: 3,
+    shrinkwrapVersion: 3,
+    specifiers: {
+      '@types/semver': '^5.3.31',
+    },
   })
 
-  await install(await testDefaults())
+  await install(await testDefaults({ frozenShrinkwrap: true }))
 })
 
 test('fail when shasum from shrinkwrap does not match with the actual one', async (t: tape.Test) => {
@@ -132,7 +138,10 @@ test('fail when shasum from shrinkwrap does not match with the actual one', asyn
       },
     },
     registry: 'http://localhost:4873',
-    version: 3,
+    shrinkwrapVersion: 3,
+    specifiers: {
+      'is-negative': '2.1.0',
+    },
   })
 
   try {
@@ -171,7 +180,7 @@ test('shrinkwrap not created when no deps in package.json', async (t: tape.Test)
   t.notOk(await exists('node_modules'), 'empty node_modules not created')
 })
 
-test('shrinkwrap removed when no deps in package.json', async (t) => {
+test('shrinkwrap removed when no deps in package.json', async (t: tape.Test) => {
   const project = prepare(t)
 
   await writeYamlFile('shrinkwrap.yaml', {
@@ -186,7 +195,10 @@ test('shrinkwrap removed when no deps in package.json', async (t) => {
       },
     },
     registry: 'http://localhost:4873',
-    version: 3,
+    shrinkwrapVersion: 3,
+    specifiers: {
+      'is-negative': '2.1.0',
+    },
   })
 
   await install(await testDefaults())
@@ -228,12 +240,12 @@ test('shrinkwrap is fixed when it does not match package.json', async (t: tape.T
       },
     },
     registry: 'http://localhost:4873',
+    shrinkwrapVersion: 3,
     specifiers: {
       '@types/semver': '5.3.31',
       'is-negative': '^2.1.0',
       'is-positive': '^3.1.0',
     },
-    version: 3,
   })
 
   const reporter = sinon.spy()
@@ -286,12 +298,12 @@ test('doing named installation when shrinkwrap.yaml exists already', async (t: t
       },
     },
     registry: 'http://localhost:4873',
+    shrinkwrapVersion: 3,
     specifiers: {
       '@types/semver': '5.3.31',
       'is-negative': '^2.1.0',
       'is-positive': '^3.1.0',
     },
-    version: 3,
   })
 
   const reporter = sinon.spy()
@@ -781,7 +793,10 @@ test('shrinkwrap is ignored when shrinkwrap = false', async (t: tape.Test) => {
       },
     },
     registry: 'http://localhost:4873',
-    version: 3,
+    shrinkwrapVersion: 3,
+    specifiers: {
+      'is-negative': '2.1.0',
+    },
   })
 
   const reporter = sinon.spy()

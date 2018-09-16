@@ -210,9 +210,7 @@ export async function install (maybeOpts: InstallOptions & {
     }
 
     const preferredVersions = maybeOpts.preferredVersions || getPreferredVersionsFromPackage(ctx.pkg)
-    const specs = specsToInstallFromPackage(ctx.pkg, {
-      prefix: opts.prefix,
-    })
+    const specs = specsToInstallFromPackage(ctx.pkg)
 
     forgetResolutionsOfOldSpecs(ctx.wantedShrinkwrap, specs)
 
@@ -323,9 +321,6 @@ function refIsLocalTarball (ref: string) {
 
 function specsToInstallFromPackage (
   pkg: PackageJson,
-  opts: {
-    prefix: string,
-  },
 ): WantedDependency[] {
   const depsToInstall = depsFromPackage(pkg)
   return depsToSpecs(depsToInstall, {
@@ -546,9 +541,6 @@ async function installInContext (
   })
   const rootNodeIdsByAlias = rootPkgs
     .reduce((acc, rootPkg) => {
-      const pkg = installCtx.pkgGraph[rootPkg.nodeId].pkg
-      const specRaw = pkg.specRaw
-      const spec = R.find((sp) => sp.raw === specRaw, packagesToInstall)
       acc[rootPkg.alias] = rootPkg.nodeId
       return acc
     }, {})

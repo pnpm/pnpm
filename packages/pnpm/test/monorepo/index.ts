@@ -162,7 +162,7 @@ test('linking a package inside a monorepo with --link-workspace-packages', async
 
   {
     const shr = await projects['project-1'].loadShrinkwrap()
-    t.equal(shr.optionalDependencies['is-positive'], '1.0.0')
+    t.equal(shr.optionalDependencies['is-positive'], '1.0.0', 'is-positive is unlinked and installed from registry')
   }
 
   await execPnpm('update', 'is-negative@2.0.0')

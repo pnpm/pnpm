@@ -8,5 +8,5 @@ export const CURRENT_SHRINKWRAP_FILENAME = path.join('node_modules', '.shrinkwra
 // From version 4.0 everything should be fine.
 export const SHRINKWRAP_VERSION = 3
 
-// The minor version as a perate field should be deprecated from v4
+// The minor version as a separate field should be deprecated from v4
 export const SHRINKWRAP_MINOR_VERSION = 1

@@ -54,6 +54,10 @@ test('skip non-existing optional dependency', async (t: tape.Test) => {
 
   const m = project.requireModule('is-positive')
   t.ok(m, 'installation succeded')
+
+  const shr = await project.loadShrinkwrap()
+
+  t.deepEqual(shr.specifiers, {'is-positive': '*'}, 'skipped optional dep not added to shrinkwrap.yaml')
 })
 
 test('skip optional dependency that does not support the current OS', async (t: tape.Test) => {
