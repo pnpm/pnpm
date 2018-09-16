@@ -1,4 +1,5 @@
 dependencies:
+  '@pnpm/modules-yaml': 'link:../../../__package_previews__/modules-yaml/@pnpm/modules-yaml'
   load-yaml-file: 0.1.0
   write-yaml-file: 1.0.1
 devDependencies:

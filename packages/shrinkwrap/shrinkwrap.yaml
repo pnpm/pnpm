@@ -283,10 +283,10 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha512-ObN6h1v2fTJSmUXoS3nMQ92LbDK9be4TV+6G+omQlGJFdcUX5heKi1LZ1YnRMIgwTLEj3E24bT6tYni50rlCfQ==
-  /chownr/1.0.1:
+  /chownr/1.1.1:
     dev: true
     resolution:
-      integrity: sha1-4qdQQqlVGQi+vSW4Uj1fl2nXkYE=
+      integrity: sha512-j38EvO5+LHX84jlo6h4UzmOwi0UgW61WRyPtJz4qaadK5eY3BTS5TY/S1Stc3Uk2lIM6TPevAlULiEJwie860g==
   /color-convert/1.9.3:
     dependencies:
       color-name: 1.1.3
@@ -1284,7 +1284,7 @@ packages:
       integrity: sha512-6fKIXknLpoe/Jp4rzHKFPpJUHDHDqn8jus99IfPnHIjyz78HYlefTGD3b5EkbQzuLfaEvmfPK3IolLgq2xT3kw==
   /tar-fs/1.16.3:
     dependencies:
-      chownr: 1.0.1
+      chownr: 1.1.1
       mkdirp: 0.5.1
       pump: 1.0.3
       tar-stream: 1.6.1
