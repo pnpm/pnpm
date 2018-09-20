@@ -2,6 +2,7 @@ import {
   removalLogger,
   statsLogger,
 } from '@pnpm/core-loggers'
+import logger from '@pnpm/logger'
 import * as dp from 'dependency-path'
 import vacuumCB = require('fs-vacuum')
 import {StoreController} from 'package-store'
@@ -86,10 +87,18 @@ export default async function removeOrphanPkgs (
       await Promise.all(orphanDepPaths.map(async (orphanDepPath) => {
         const pathToRemove = path.join(rootModules, `.${orphanDepPath}`, 'node_modules')
         removalLogger.debug(pathToRemove)
-        await vacuum(pathToRemove, {
-           base: rootModules,
-           purge: true,
-        })
+        try {
+          await vacuum(pathToRemove, {
+            base: rootModules,
+            purge: true,
+          })
+        } catch (err) {
+          logger.warn({
+            error: err,
+            message: `Failed to remove "${pathToRemove}"`,
+            prefix: opts.prefix,
+          })
+        }
       }))
     }
 
