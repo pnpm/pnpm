@@ -1,5 +1,5 @@
 dependencies:
-  '@pnpm/types': 1.7.0
+  '@pnpm/types': 1.8.0
 devDependencies:
   '@pnpm/logger': 2.1.0
   rimraf: 2.6.2
@@ -8,7 +8,7 @@ devDependencies:
 packages:
   /@pnpm/logger/2.1.0:
     dependencies:
-      '@types/node': 10.9.4
+      '@types/node': 10.10.1
       bole: 3.0.2
       ndjson: 1.5.0
     dev: true
@@ -16,14 +16,14 @@ packages:
       node: '>=6'
     resolution:
       integrity: sha512-BL4Laf6b50LjdcpOUWPukx2XJtb3mo2OpJjHdRNSDJu9YS2tRBeP14H2bNqGjCjfeml8z3KufI3Km6VQemVXNw==
-  /@pnpm/types/1.7.0:
+  /@pnpm/types/1.8.0:
     dev: false
     resolution:
-      integrity: sha512-pn7g4uxcofWTNG/cxmKvkMK2lxr4OUIhrQDrEVYEdVhW0WkWztsHkFrYjFgfNzPbYu3ITlB3T6aSVjCoJQTOlw==
-  /@types/node/10.9.4:
+      integrity: sha512-NsEzBVa5aMgn/n79piyJtpUQFzJ97tB2R2r8PSJlLnMA6LJmchKuv7ATN+/nZH/3QRd/+uFXEq07/i/ajsqVGQ==
+  /@types/node/10.10.1:
     dev: true
     resolution:
-      integrity: sha512-fCHV45gS+m3hH17zgkgADUSi2RR1Vht6wOZ0jyHP8rjiQra9f+mIcgwPQHllmDocYOstIEbKlxbFDYlgrTPYqw==
+      integrity: sha512-nzsx28VwfaIykfzMAG9TB3jxF5Nn+1/WMKnmVZc8TsB+LMIVvwUscVn7PAq+LFaY5ng5u4jp5mRROSswo76PPA==
   /ansi-regex/2.1.1:
     dev: true
     engines:
@@ -401,7 +401,7 @@ shrinkwrapMinorVersion: 9
 shrinkwrapVersion: 3
 specifiers:
   '@pnpm/logger': ^2.1.0
-  '@pnpm/types': ^1.7.0
+  '@pnpm/types': ^1.8.0
   rimraf: ^2.6.2
   tslint: ^5.4.2
   typescript: ^3.0.0

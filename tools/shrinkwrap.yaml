@@ -354,10 +354,10 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha512-ObN6h1v2fTJSmUXoS3nMQ92LbDK9be4TV+6G+omQlGJFdcUX5heKi1LZ1YnRMIgwTLEj3E24bT6tYni50rlCfQ==
-  /ci-info/1.5.1:
+  /ci-info/1.6.0:
     dev: false
     resolution:
-      integrity: sha512-fKFIKXaYiL1exImwJ0AhR/6jxFPSKQBk2ayV5NiNoruUs2+rxC2kNw0EG+1Z9dugZRdCrppskQ8DN2cyaUM1Hw==
+      integrity: sha512-vsGdkwSCDpWmP80ncATX7iea5DWQemg1UgCW5J8tqjU3lYw4FBYuj89J0CTVomA7BEfvSZd84GmHko+MxFQU2A==
   /cli-cursor/1.0.2:
     dependencies:
       restore-cursor: 1.0.1
@@ -732,7 +732,7 @@ packages:
       integrity: sha1-VAVy0096wxGfj3bDDLwbHgN6/74=
   /is-ci/1.2.1:
     dependencies:
-      ci-info: 1.5.1
+      ci-info: 1.6.0
     dev: false
     hasBin: true
     resolution:

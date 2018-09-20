@@ -2,9 +2,9 @@ dependencies:
   '@pnpm/core-loggers': 'link:../core-loggers'
   '@pnpm/package-bins': 1.0.0
   '@pnpm/read-package-json': 1.0.0
-  '@pnpm/types': 1.7.0
+  '@pnpm/types': 1.8.0
   '@types/mz': 0.0.32
-  '@types/node': 10.9.4
+  '@types/node': 10.10.1
   '@types/ramda': 0.25.34
   dependency-path: 2.0.0
   fs-vacuum: 1.2.10
@@ -22,7 +22,7 @@ devDependencies:
 packages:
   /@pnpm/logger/2.1.0:
     dependencies:
-      '@types/node': 10.9.4
+      '@types/node': 10.10.1
       bole: 3.0.2
       ndjson: 1.5.0
     dev: true
@@ -32,7 +32,7 @@ packages:
       integrity: sha512-BL4Laf6b50LjdcpOUWPukx2XJtb3mo2OpJjHdRNSDJu9YS2tRBeP14H2bNqGjCjfeml8z3KufI3Km6VQemVXNw==
   /@pnpm/package-bins/1.0.0:
     dependencies:
-      '@pnpm/types': 1.7.0
+      '@pnpm/types': 1.8.0
       '@types/mz': 0.0.32
       mz: 2.7.0
       p-filter: 1.0.0
@@ -43,7 +43,7 @@ packages:
       integrity: sha512-ZqVfIXK3r5AsP5VAhPHrhf3isF+T4yEuUpJTF9T03oFTJ9LBnkKvx8F7P7biKEManxSGOkSpNoIBdsura9pY5Q==
   /@pnpm/read-package-json/1.0.0:
     dependencies:
-      '@pnpm/types': 1.7.0
+      '@pnpm/types': 1.8.0
       read-package-json: 2.0.13
       util.promisify: 1.0.0
     dev: false
@@ -51,19 +51,19 @@ packages:
       node: '>=6'
     resolution:
       integrity: sha512-G2bs2KRL84eJggkUYxDpI8RA0xFKR4tNqvHy6bGF8fDIzNtkp17nOgEMIcA2ShSwUX80gQ8BpBh6ix5KKF46tw==
-  /@pnpm/types/1.7.0:
+  /@pnpm/types/1.8.0:
     dev: false
     resolution:
-      integrity: sha512-pn7g4uxcofWTNG/cxmKvkMK2lxr4OUIhrQDrEVYEdVhW0WkWztsHkFrYjFgfNzPbYu3ITlB3T6aSVjCoJQTOlw==
+      integrity: sha512-NsEzBVa5aMgn/n79piyJtpUQFzJ97tB2R2r8PSJlLnMA6LJmchKuv7ATN+/nZH/3QRd/+uFXEq07/i/ajsqVGQ==
   /@types/mz/0.0.32:
     dependencies:
-      '@types/node': 10.9.4
+      '@types/node': 10.10.1
     dev: false
     resolution:
       integrity: sha512-cy3yebKhrHuOcrJGkfwNHhpTXQLgmXSv1BX+4p32j+VUQ6aP2eJ5cL7OvGcAQx75fCTFaAIIAKewvqL+iwSd4g==
-  /@types/node/10.9.4:
+  /@types/node/10.10.1:
     resolution:
-      integrity: sha512-fCHV45gS+m3hH17zgkgADUSi2RR1Vht6wOZ0jyHP8rjiQra9f+mIcgwPQHllmDocYOstIEbKlxbFDYlgrTPYqw==
+      integrity: sha512-nzsx28VwfaIykfzMAG9TB3jxF5Nn+1/WMKnmVZc8TsB+LMIVvwUscVn7PAq+LFaY5ng5u4jp5mRROSswo76PPA==
   /@types/ramda/0.25.34:
     dev: false
     resolution:
@@ -710,7 +710,7 @@ specifiers:
   '@pnpm/logger': ^2.1.0
   '@pnpm/package-bins': 1.0.0
   '@pnpm/read-package-json': 1.0.0
-  '@pnpm/types': ^1.7.0
+  '@pnpm/types': ^1.8.0
   '@types/mz': ^0.0.32
   '@types/node': ^10.0.8
   '@types/ramda': 0.25.34

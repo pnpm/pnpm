@@ -12,7 +12,7 @@ import chalk from 'chalk'
 import most = require('most')
 import StackTracey = require('stacktracey')
 import R = require('ramda')
-import loadJsonFile = require('load-json-file')
+import loadJsonFile from 'load-json-file'
 import path = require('path')
 
 const WARN = chalk.bgYellow.black('\u2009WARN\u2009')
