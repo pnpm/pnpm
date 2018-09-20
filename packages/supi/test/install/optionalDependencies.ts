@@ -2,14 +2,12 @@ import deepRequireCwd = require('deep-require-cwd')
 import loadYamlFile = require('load-yaml-file')
 import path = require('path')
 import exists = require('path-exists')
+import R = require('ramda')
 import sinon = require('sinon')
-import {install, installPkgs} from 'supi'
+import { install, installPkgs } from 'supi'
 import tape = require('tape')
 import promisifyTape from 'tape-promise'
 import {
-  addDistTag,
-  local,
-  pathToLocalPkg,
   prepare,
   testDefaults,
 } from '../utils'
@@ -78,6 +76,10 @@ test('skip optional dependency that does not support the current OS', async (t: 
   t.ok(shr.packages['/not-compatible-with-any-os/1.0.0'], 'shrinkwrap contains optional dependency')
   t.ok(shr.packages['/dep-of-optional-pkg/1.0.0'], 'shrinkwrap contains dependency of optional dependency')
 
+  const currentShr = await project.loadCurrentShrinkwrap()
+
+  t.ok(R.isEmpty(currentShr.packages || {}), 'current shrinkwrap does not contain skipped packages')
+
   const modulesInfo = await loadYamlFile<{skipped: string[]}>(path.join('node_modules', '.modules.yaml'))
   t.deepEquals(modulesInfo.skipped, [
     'localhost+4873/dep-of-optional-pkg/1.0.0',
@@ -95,6 +97,12 @@ test('skip optional dependency that does not support the current OS', async (t: 
   })
   const reportedTimes = reporter.withArgs(logMatcher).callCount
   t.equal(reportedTimes, 1, 'skipping optional dependency is logged')
+
+  t.comment('a previously skipped package is successfully installed')
+
+  await installPkgs(['dep-of-optional-pkg'], await testDefaults())
+
+  await project.has('dep-of-optional-pkg')
 })
 
 test('skip optional dependency that does not support the current Node version', async (t: tape.Test) => {

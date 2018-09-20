@@ -186,7 +186,7 @@ export default async function linkPackages (
       }
     }
     currentShrinkwrap = {...newShrinkwrap, packages}
-  } else if (opts.production && opts.development && opts.optional) {
+  } else if (opts.production && opts.development && opts.optional && opts.skipped.size === 0) {
     currentShrinkwrap = newShrinkwrap
   } else {
     currentShrinkwrap = newCurrentShrinkwrap
