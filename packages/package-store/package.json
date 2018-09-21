@@ -29,7 +29,7 @@
     "@types/node": "^10.0.6",
     "@types/ramda": "^0.25.0",
     "encode-registry": "1.1.0",
-    "load-json-file": "5.0.0",
+    "load-json-file": "5.1.0",
     "mkdirp-promise": "5.0.1",
     "mz": "2.7.0",
     "ncp": "2.0.0",
