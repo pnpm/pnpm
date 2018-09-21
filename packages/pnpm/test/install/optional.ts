@@ -1,16 +1,11 @@
-import path = require('path')
-import fs = require('mz/fs')
 import tape = require('tape')
-import loadJsonFile = require('load-json-file')
 import promisifyTape from 'tape-promise'
 import deepRequireCwd = require('deep-require-cwd')
 import {
   prepare,
-  testDefaults,
   execPnpm,
 } from '../utils'
 
-const basicPackageJson = loadJsonFile.sync(path.join(__dirname, '../utils/simple-package.json'))
 const test = promisifyTape(tape)
 test['only'] = promisifyTape(tape.only)
 

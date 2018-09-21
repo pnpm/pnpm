@@ -1,4 +1,4 @@
-import loadJsonFile = require('load-json-file')
+import { fromDir as readPackageJsonFromDir } from '@pnpm/read-package-json'
 import exists = require('path-exists')
 import R = require('ramda')
 import rimraf = require('rimraf-then')
@@ -77,7 +77,7 @@ test('keep dependencies used by others', async (t: tape.Test) => {
   await project.storeHas('map-obj', '1.0.1')
   await project.hasNot('map-obj')
 
-  const pkgJson = await loadJsonFile('package.json')
+  const pkgJson = await readPackageJsonFromDir(process.cwd())
   t.notOk(pkgJson.dependencies, 'camelcase-keys has been removed from dependencies')
 
   // all dependencies are marked as dev

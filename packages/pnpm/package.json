@@ -52,7 +52,7 @@
     "is-ci": "1.2.1",
     "is-subdir": "^1.0.2",
     "is-windows": "1.0.2",
-    "load-json-file": "5.0.0",
+    "load-json-file": "5.1.0",
     "load-yaml-file": "0.1.0",
     "loud-rejection": "1.6.0",
     "lru-cache": "4.1.3",

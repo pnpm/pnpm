@@ -1,37 +1,38 @@
-import 'sepia'
-import tape = require('tape')
-import promisifyTape from 'tape-promise'
-const test = promisifyTape(tape)
 import caw = require('caw')
 import crossSpawn = require('cross-spawn')
+import deepRequireCwd = require('deep-require-cwd')
+import isCI = require('is-ci')
+import isWindows = require('is-windows')
 import fs = require('mz/fs')
 import path = require('path')
-import semver = require('semver')
-const spawnSync = crossSpawn.sync
-import isCI = require('is-ci')
-import loadJsonFile = require('load-json-file')
+import exists = require('path-exists')
 import readPkg = require('read-pkg')
 import rimraf = require('rimraf-then')
+import semver = require('semver')
+import 'sepia'
+import sinon = require('sinon')
+import {
+  install,
+  installPkgs,
+  PackageJsonLog,
+  ProgressLog,
+  RootLog,
+  StageLog,
+  StatsLog,
+  uninstall,
+} from 'supi'
+import tape = require('tape')
+import promisifyTape from 'tape-promise'
+import writeJsonFile from 'write-json-file'
 import {
   addDistTag,
   local,
   prepare,
   testDefaults,
 } from '../utils'
-const basicPackageJson = loadJsonFile.sync(path.join(__dirname, '../utils/simple-package.json'))
-import deepRequireCwd = require('deep-require-cwd')
-import isWindows = require('is-windows')
-import exists = require('path-exists')
-import sinon = require('sinon')
-import {install, installPkgs, uninstall} from 'supi'
-import {
-  PackageJsonLog,
-  ProgressLog,
-  RootLog,
-  StageLog,
-  StatsLog,
-} from 'supi'
-import writeJsonFile from 'write-json-file'
+
+const spawnSync = crossSpawn.sync
+const test = promisifyTape(tape)
 
 const IS_WINDOWS = isWindows()
 

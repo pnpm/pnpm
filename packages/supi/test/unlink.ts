@@ -1,5 +1,5 @@
+import { fromDir as readPackageJsonFromDir } from '@pnpm/read-package-json'
 import isInnerLink = require('is-inner-link')
-import loadJsonFile = require('load-json-file')
 import path = require('path')
 import exists = require('path-exists')
 import sinon = require('sinon')
@@ -101,7 +101,7 @@ test("don't update package when unlinking. Initial link is done on a package w/o
   await unlinkPkgs(['foo'], opts)
 
   t.equal(project.requireModule('foo/package.json').version, '100.1.0', 'latest foo is installed')
-  t.deepEqual((await loadJsonFile('./package.json')).dependencies, {foo: '^100.0.0'}, 'package.json not updated')
+  t.deepEqual((await readPackageJsonFromDir(process.cwd())).dependencies, {foo: '^100.0.0'}, 'package.json not updated')
 })
 
 test('unlink 2 packages. One of them exists in package.json', async (t: tape.Test) => {

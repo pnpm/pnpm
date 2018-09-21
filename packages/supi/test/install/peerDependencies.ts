@@ -1,9 +1,9 @@
 import deepRequireCwd = require('deep-require-cwd')
-import loadJsonFile = require('load-json-file')
+import loadJsonFile from 'load-json-file'
 import mkdir = require('mkdirp-promise')
 import path = require('path')
 import exists = require('path-exists')
-import {addDistTag} from 'pnpm-registry-mock'
+import { addDistTag } from 'pnpm-registry-mock'
 import rimraf = require('rimraf-then')
 import sinon = require('sinon')
 import {
@@ -34,7 +34,7 @@ test('peer dependency is grouped with dependency when peer is resolved not from 
   t.ok(await exists(path.join(NM, '.localhost+4873', 'ajv-keywords', '1.5.0', 'ajv@4.10.4', NM, 'ajv')), 'peer dependency is linked')
   t.equal(deepRequireCwd(['using-ajv', 'ajv-keywords', 'ajv', './package.json']).version, '4.10.4')
 
-  const storeIndex = await loadJsonFile(path.join(opts.store, 'store.json'))
+  const storeIndex = await loadJsonFile<object>(path.join(opts.store, 'store.json'))
   t.ok(storeIndex['localhost+4873/ajv-keywords/1.5.0'], 'localhost+4873/ajv-keywords/1.5.0 added to store index')
   t.ok(storeIndex['localhost+4873/using-ajv/1.0.0'], 'localhost+4873/using-ajv/1.0.0 added to store index')
 

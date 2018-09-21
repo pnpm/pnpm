@@ -1,4 +1,4 @@
-import loadJsonFile = require('load-json-file')
+import { fromDir as readPackageJsonFromDir } from '@pnpm/read-package-json'
 import {Shrinkwrap} from 'pnpm-shrinkwrap'
 import sinon = require('sinon')
 import {
@@ -71,6 +71,6 @@ test('readPackage hook overrides project package', async (t: tape.Test) => {
 
   await project.has('is-positive')
 
-  const packageJson = await loadJsonFile('package.json')
+  const packageJson = await readPackageJsonFromDir(process.cwd())
   t.notOk(packageJson.dependencies, 'dependencies added by the hooks not saved in package.json')
 })

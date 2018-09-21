@@ -4,7 +4,7 @@ import {
   DependenciesField,
   PackageJson,
 } from '@pnpm/types'
-import loadJsonFile = require('load-json-file')
+import loadJsonFile from 'load-json-file'
 import writePkg = require('write-pkg')
 
 export default async function (
@@ -15,7 +15,7 @@ export default async function (
     prefix: string,
   },
 ): Promise<PackageJson> {
-  const packageJson = await loadJsonFile(pkgJsonPath)
+  const packageJson = await loadJsonFile<PackageJson>(pkgJsonPath)
 
   if (opts.saveType) {
     packageJson[opts.saveType] = packageJson[opts.saveType]
@@ -23,14 +23,14 @@ export default async function (
     if (!packageJson[opts.saveType]) return packageJson
 
     removedPackages.forEach((dependency) => {
-      delete packageJson[opts.saveType as DependenciesField][dependency]
+      delete packageJson[opts.saveType as DependenciesField]![dependency]
     })
   } else {
     DEPENDENCIES_FIELDS
       .filter((depField) => packageJson[depField])
       .forEach((depField) => {
         removedPackages.forEach((dependency) => {
-          delete packageJson[depField][dependency]
+          delete packageJson[depField]![dependency]
         })
       })
   }

@@ -17,7 +17,7 @@ import {
   removeOrphanPackages as removeOrphanPkgs,
   safeReadPackage,
 } from '@pnpm/utils'
-import loadJsonFile = require('load-json-file')
+import loadJsonFile from 'load-json-file'
 import normalize = require('normalize-path')
 import path = require('path')
 import pathAbsolute = require('path-absolute')
@@ -78,7 +78,7 @@ export default async function link (
       linkFromPath = linkFrom.path
       linkFromAlias = linkFrom.alias
     }
-    const linkedPkg = await loadJsonFile(path.join(linkFromPath, 'package.json'))
+    const linkedPkg = await loadJsonFile<PackageJson>(path.join(linkFromPath, 'package.json'))
     specsToUpsert.push({
       name: linkedPkg.name,
       pref: getPref(linkedPkg.name, linkedPkg.name, linkedPkg.version, {

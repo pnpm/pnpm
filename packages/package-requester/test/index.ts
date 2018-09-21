@@ -13,7 +13,7 @@ import ncpCB = require('ncp')
 import nock = require('nock')
 import rimraf = require('rimraf-then')
 import sinon = require('sinon')
-import loadJsonFile = require('load-json-file')
+import loadJsonFile from 'load-json-file'
 import promisify = require('util.promisify')
 import delay from 'delay'
 import normalize = require('normalize-path')
@@ -755,7 +755,7 @@ test('refetch package to store if it has no integrity checksums and verification
 
     await fetchResult.fetchingFiles
 
-    const integrityJson = await loadJsonFile(path.join(storePath, pkgId, 'integrity.json'))
+    const integrityJson = await loadJsonFile<object>(path.join(storePath, pkgId, 'integrity.json'))
     t.notOk(integrityJson['package.json'].integrity, 'no integrity hash generated')
   }
 
@@ -780,7 +780,7 @@ test('refetch package to store if it has no integrity checksums and verification
 
     await fetchResult.fetchingFiles
 
-    const integrityJson = await loadJsonFile(path.join(storePath, pkgId, 'integrity.json'))
+    const integrityJson = await loadJsonFile<object>(path.join(storePath, pkgId, 'integrity.json'))
     t.ok(integrityJson['package.json'].integrity, 'integrity hash generated')
   }
 

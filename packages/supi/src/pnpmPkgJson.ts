@@ -1,5 +1,5 @@
-import loadJsonFile = require('load-json-file')
-import {PackageJson} from '@pnpm/types' // tslint:disable-line
+import { PackageJson } from '@pnpm/types'
+import { sync as loadJsonFileSync } from 'load-json-file'
 import path = require('path')
 
-export default loadJsonFile.sync(path.resolve(__dirname, '../package.json'))
+export default loadJsonFileSync<PackageJson>(path.resolve(__dirname, '../package.json'))

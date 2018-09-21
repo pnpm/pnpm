@@ -4,7 +4,7 @@ import {
   DependenciesField,
   PackageJson,
 } from '@pnpm/types'
-import loadJsonFile = require('load-json-file')
+import loadJsonFile from 'load-json-file'
 import path = require('path')
 import writePkg = require('write-pkg')
 
@@ -20,7 +20,7 @@ export default async function save (
   let packageJson: object
   const pkgJsonPath = path.join(prefix, 'package.json')
   try {
-    packageJson = await loadJsonFile(pkgJsonPath)
+    packageJson = await loadJsonFile<PackageJson>(pkgJsonPath)
   } catch (err) {
     if (err['code'] !== 'ENOENT') throw err // tslint:disable-line:no-string-literal
     packageJson = {}

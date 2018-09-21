@@ -1,12 +1,9 @@
+import { fromDir as readPackageJsonFromDir } from '@pnpm/read-package-json'
 import { stripIndent } from 'common-tags'
-import loadJsonFile = require('load-json-file')
-import loadYamlFile = require('load-yaml-file')
-import mkdir = require('mkdirp-promise')
 import fs = require('mz/fs')
 import path = require('path')
 import exists = require('path-exists')
 import { getIntegrity } from 'pnpm-registry-mock'
-import { Shrinkwrap } from 'pnpm-shrinkwrap'
 import R = require('ramda')
 import rimraf = require('rimraf-then')
 import sinon = require('sinon')
@@ -336,11 +333,11 @@ test('respects shrinkwrap.yaml for top dependencies', async (t: tape.Test) => {
   await installPkgs(['qar'], await testDefaults({saveDev: true}))
   await installPkgs(['foobar'], await testDefaults({save: true}))
 
-  t.equal((await loadJsonFile(path.resolve('node_modules', 'foo', 'package.json'))).version, '100.0.0')
-  t.equal((await loadJsonFile(path.resolve('node_modules', 'bar', 'package.json'))).version, '100.0.0')
-  t.equal((await loadJsonFile(path.resolve('node_modules', 'qar', 'package.json'))).version, '100.0.0')
-  t.equal((await loadJsonFile(path.resolve('node_modules', '.localhost+4873', 'foobar', '100.0.0', 'node_modules', 'foo', 'package.json'))).version, '100.0.0')
-  t.equal((await loadJsonFile(path.resolve('node_modules', '.localhost+4873', 'foobar', '100.0.0', 'node_modules', 'bar', 'package.json'))).version, '100.0.0')
+  t.equal((await readPackageJsonFromDir(path.resolve('node_modules', 'foo'))).version, '100.0.0')
+  t.equal((await readPackageJsonFromDir(path.resolve('node_modules', 'bar'))).version, '100.0.0')
+  t.equal((await readPackageJsonFromDir(path.resolve('node_modules', 'qar'))).version, '100.0.0')
+  t.equal((await readPackageJsonFromDir(path.resolve('node_modules', '.localhost+4873', 'foobar', '100.0.0', 'node_modules', 'foo'))).version, '100.0.0')
+  t.equal((await readPackageJsonFromDir(path.resolve('node_modules', '.localhost+4873', 'foobar', '100.0.0', 'node_modules', 'bar'))).version, '100.0.0')
 
   await Promise.all(pkgs.map((pkgName) => addDistTag(pkgName, '100.1.0', 'latest')))
 
@@ -362,11 +359,11 @@ test('respects shrinkwrap.yaml for top dependencies', async (t: tape.Test) => {
   // t.equal(reporter.withArgs(fooProgress).callCount, 0, 'not reported foo')
 
   await project.storeHasNot('foo', '100.1.0')
-  t.equal((await loadJsonFile(path.resolve('node_modules', 'foo', 'package.json'))).version, '100.0.0')
-  t.equal((await loadJsonFile(path.resolve('node_modules', 'bar', 'package.json'))).version, '100.0.0')
-  t.equal((await loadJsonFile(path.resolve('node_modules', 'qar', 'package.json'))).version, '100.0.0')
-  t.equal((await loadJsonFile(path.resolve('node_modules', '.localhost+4873', 'foobar', '100.0.0', 'node_modules', 'foo', 'package.json'))).version, '100.0.0')
-  t.equal((await loadJsonFile(path.resolve('node_modules', '.localhost+4873', 'foobar', '100.0.0', 'node_modules', 'bar', 'package.json'))).version, '100.0.0')
+  t.equal((await readPackageJsonFromDir(path.resolve('node_modules', 'foo'))).version, '100.0.0')
+  t.equal((await readPackageJsonFromDir(path.resolve('node_modules', 'bar'))).version, '100.0.0')
+  t.equal((await readPackageJsonFromDir(path.resolve('node_modules', 'qar'))).version, '100.0.0')
+  t.equal((await readPackageJsonFromDir(path.resolve('node_modules', '.localhost+4873', 'foobar', '100.0.0', 'node_modules', 'foo'))).version, '100.0.0')
+  t.equal((await readPackageJsonFromDir(path.resolve('node_modules', '.localhost+4873', 'foobar', '100.0.0', 'node_modules', 'bar'))).version, '100.0.0')
 })
 
 test('subdeps are updated on repeat install if outer shrinkwrap.yaml does not match the inner one', async (t: tape.Test) => {
@@ -410,11 +407,11 @@ test("recreates shrinkwrap file if it doesn't match the dependencies in package.
   t.equal(shr1.dependencies['is-negative'], '1.0.0')
   t.equal(shr1.specifiers['is-negative'], '1.0.0')
 
-  const pkg = await loadJsonFile('package.json')
+  const pkg = await readPackageJsonFromDir(process.cwd())
 
-  pkg.dependencies['is-negative'] = '^2.1.0'
-  pkg.devDependencies['is-positive'] = '^2.0.0'
-  pkg.optionalDependencies['map-obj'] = '1.0.1'
+  pkg.dependencies!['is-negative'] = '^2.1.0'
+  pkg.devDependencies!['is-positive'] = '^2.0.0'
+  pkg.optionalDependencies!['map-obj'] = '1.0.1'
 
   await writePkg(pkg)
 

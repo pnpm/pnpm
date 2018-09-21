@@ -1,4 +1,4 @@
-import loadJsonFile = require('load-json-file')
+import loadJsonFile from 'load-json-file'
 import path = require('path')
 import rimraf = require('rimraf-then')
 import { install } from 'supi'
@@ -29,12 +29,12 @@ export default async function installCmd (
 
 async function readNpmLockfile (prefix: string) {
   try {
-    return await loadJsonFile(path.join(prefix, 'package-lock.json'))
+    return await loadJsonFile<LockedPackage>(path.join(prefix, 'package-lock.json'))
   } catch (err) {
     if (err['code'] !== 'ENOENT') throw err // tslint:disable-line:no-string-literal
   }
   try {
-    return await loadJsonFile(path.join(prefix, 'npm-shrinkwrap.json'))
+    return await loadJsonFile<LockedPackage>(path.join(prefix, 'npm-shrinkwrap.json'))
   } catch (err) {
     if (err['code'] !== 'ENOENT') throw err // tslint:disable-line:no-string-literal
   }

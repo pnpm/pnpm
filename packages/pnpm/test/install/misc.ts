@@ -2,23 +2,12 @@ import 'sepia'
 import tape = require('tape')
 import promisifyTape from 'tape-promise'
 const test = promisifyTape(tape)
-import path = require('path')
-import fs = require('mz/fs')
 import caw = require('caw')
-import semver = require('semver')
-import crossSpawn = require('cross-spawn')
-const spawnSync = crossSpawn.sync
-import isCI = require('is-ci')
-import rimraf = require('rimraf-then')
 import {
   prepare,
-  addDistTag,
-  testDefaults,
   execPnpm,
   execPnpmSync,
 } from '../utils'
-import loadJsonFile = require('load-json-file')
-const basicPackageJson = loadJsonFile.sync(path.join(__dirname, '../utils/simple-package.json'))
 import exists = require('path-exists')
 import isWindows = require('is-windows')
 

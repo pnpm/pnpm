@@ -19,7 +19,7 @@ import {
   PackageManifest,
   StoreIndex,
 } from '@pnpm/types'
-import loadJsonFile = require('load-json-file')
+import loadJsonFile from 'load-json-file'
 import mkdirp = require('mkdirp-promise')
 import fs = require('mz/fs')
 import PQueue = require('p-queue')
@@ -465,7 +465,7 @@ function fetchToStore (
         // if target exists and it wasn't modified, then no need to refetch it
         const satisfiedIntegrity = opts.verifyStoreIntegrity
           ? await checkPackage(linkToUnpacked)
-          : await loadJsonFile(path.join(path.dirname(linkToUnpacked), 'integrity.json'))
+          : await loadJsonFile<object>(path.join(path.dirname(linkToUnpacked), 'integrity.json'))
         if (satisfiedIntegrity) {
           fetchingFiles.resolve({
             filenames: Object.keys(satisfiedIntegrity).filter((f) => !satisfiedIntegrity[f].isDir), // Filtering can be removed for store v3

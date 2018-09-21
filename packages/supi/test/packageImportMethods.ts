@@ -1,21 +1,9 @@
-import {stripIndent} from 'common-tags'
-import loadJsonFile = require('load-json-file')
-import fs = require('mz/fs')
-import path = require('path')
-import exists = require('path-exists')
-import rimraf = require('rimraf-then')
-import sinon = require('sinon')
 import {
-  install,
   installPkgs,
-  RootLog,
 } from 'supi'
 import tape = require('tape')
 import promisifyTape from 'tape-promise'
-import writePkg = require('write-pkg')
-import writeYamlFile = require('write-yaml-file')
 import {
-  addDistTag,
   prepare,
   testDefaults,
 } from './utils'

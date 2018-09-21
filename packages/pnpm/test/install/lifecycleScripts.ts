@@ -1,17 +1,15 @@
+import { PackageJson } from '@pnpm/types'
 import tape = require('tape')
 import promisifyTape from 'tape-promise'
-import {install} from 'supi'
 import {
   prepare,
-  testDefaults,
   execPnpmSync,
 } from '../utils'
 import path = require('path')
-import loadJsonFile = require('load-json-file')
-import rimraf = require('rimraf-then')
+import loadJsonFile, { sync as loadJsonFileSync } from 'load-json-file'
 
 const pkgRoot = path.join(__dirname, '..', '..')
-const pnpmPkg = loadJsonFile.sync(path.join(pkgRoot, 'package.json'))
+const pnpmPkg = loadJsonFileSync<PackageJson>(path.join(pkgRoot, 'package.json'))
 
 const test = promisifyTape(tape)
 
@@ -132,7 +130,7 @@ test('lifecycle events have proper npm_config_argv', async (t: tape.Test) => {
 
   execPnpmSync('install')
 
-  const lifecycleEnv = await loadJsonFile('env.json')
+  const lifecycleEnv = await loadJsonFile<object>('env.json')
 
   t.deepEqual(JSON.parse(lifecycleEnv['npm_config_argv']), {
     remain: ['install'],

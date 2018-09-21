@@ -1,11 +1,10 @@
-import loadJsonFile = require('load-json-file')
+import { fromDir as readPackageJsonFromDir } from '@pnpm/read-package-json'
 import fs = require('mz/fs')
 import path = require('path')
 import sinon = require('sinon')
 import {
   install,
   installPkgs,
-  uninstall,
 } from 'supi'
 import tape = require('tape')
 import promisifyTape from 'tape-promise'
@@ -26,8 +25,8 @@ test('install with shrinkwrapOnly = true', async (t: tape.Test) => {
   t.deepEqual(await fs.readdir(path.join(opts.store, 'localhost+4873', 'dep-of-pkg-with-1-dep')), ['100.1.0', 'index.json'])
   await project.hasNot('pkg-with-1-dep')
 
-  const pkg = await loadJsonFile('package.json')
-  t.ok(pkg.dependencies['pkg-with-1-dep'], 'the new dependency added to package.json')
+  const pkg = await readPackageJsonFromDir(process.cwd())
+  t.ok(pkg.dependencies!['pkg-with-1-dep'], 'the new dependency added to package.json')
 
   const shr = await project.loadShrinkwrap()
   t.ok(shr.dependencies['pkg-with-1-dep'])
@@ -66,8 +65,8 @@ test('warn when installing with shrinkwrapOnly = true and node_modules exists', 
   await project.storeHas('rimraf', '2.5.1')
   await project.hasNot('rimraf')
 
-  const pkg = await loadJsonFile('package.json')
-  t.ok(pkg.dependencies.rimraf, 'the new dependency added to package.json')
+  const pkg = await readPackageJsonFromDir(process.cwd())
+  t.ok(pkg.dependencies!.rimraf, 'the new dependency added to package.json')
 
   const shr = await project.loadShrinkwrap()
   t.ok(shr.dependencies.rimraf)

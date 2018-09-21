@@ -1,4 +1,4 @@
-import loadJsonFile = require('load-json-file')
+import loadJsonFile from 'load-json-file'
 import path = require('path')
 import exists = require('path-exists')
 import PATH = require('path-name')
@@ -17,7 +17,6 @@ import {
 } from '../utils'
 
 const pkgRoot = path.join(__dirname, '..', '..')
-const pnpmPkg = loadJsonFile.sync(path.join(pkgRoot, 'package.json'))
 
 const test = promisifyTape(tape)
 
@@ -87,7 +86,7 @@ test('run install scripts in the current project', async (t: tape.Test) => {
   await installPkgs(['json-append@1.1.1'], await testDefaults())
   await install(await testDefaults())
 
-  const output = await loadJsonFile('output.json')
+  const output = await loadJsonFile<string[]>('output.json')
 
   t.deepEqual(output, ['preinstall', 'install', 'postinstall'])
 })
@@ -163,7 +162,7 @@ test('INIT_CWD is set correctly', async (t: tape.Test) => {
   const project = prepare(t)
   await installPkgs(['write-lifecycle-env'], await testDefaults())
 
-  const childEnv = await loadJsonFile(path.resolve('node_modules', 'write-lifecycle-env', 'env.json'))
+  const childEnv = await loadJsonFile<{ INIT_CWD: string }>(path.resolve('node_modules', 'write-lifecycle-env', 'env.json'))
 
   t.equal(childEnv.INIT_CWD, process.cwd())
 })

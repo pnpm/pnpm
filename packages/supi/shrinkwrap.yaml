@@ -14,7 +14,6 @@ dependencies:
   '@pnpm/utils': 'link:../utils'
   '@types/byline': 4.2.31
   '@types/common-tags': 1.4.0
-  '@types/load-json-file': 2.0.7
   '@types/mz': 0.0.32
   '@types/node': 10.10.1
   '@types/nopt': 3.0.29
@@ -35,7 +34,7 @@ dependencies:
   is-ci: 1.2.1
   is-inner-link: 2.0.2
   is-subdir: 1.0.2
-  load-json-file: 5.0.0
+  load-json-file: 5.1.0
   mkdirp-promise: 5.0.1
   mz: 2.7.0
   normalize-path: 3.0.0
@@ -2108,6 +2107,17 @@ packages:
       node: '>=6'
     resolution:
       integrity: sha512-wWRJeA/YQ2s53fBSrPrr6gnSKmNcnk4TV4c40ITRGQ4uxpgPddBL9xNh3WxPjJHewwzo2rFkEJWt87OR/35MEw==
+  /load-json-file/5.1.0:
+    dependencies:
+      graceful-fs: 4.1.11
+      parse-json: 4.0.0
+      pify: 3.0.0
+      strip-bom: 3.0.0
+    dev: false
+    engines:
+      node: '>=6'
+    resolution:
+      integrity: sha512-+ggO8OpTviHQ/zoyFxLJglsu1CylXUt1vpGa+mIUeesCkTC0G+JO6rdTS1/WcGBZDC7Nejo1aZ9MxbqflpmO6Q==
   /load-yaml-file/0.1.0:
     dependencies:
       graceful-fs: 4.1.11
@@ -4085,7 +4095,6 @@ specifiers:
   '@types/byline': ^4.2.31
   '@types/common-tags': ^1.2.5
   '@types/is-windows': ^0.2.0
-  '@types/load-json-file': ^2.0.5
   '@types/mkdirp': ^0.5.1
   '@types/mz': ^0.0.32
   '@types/node': ^10.0.6
@@ -4115,7 +4124,7 @@ specifiers:
   is-inner-link: 2.0.2
   is-subdir: 1.0.2
   is-windows: ^1.0.2
-  load-json-file: 5.0.0
+  load-json-file: 5.1.0
   load-yaml-file: ^0.1.0
   mkdirp: ^0.5.1
   mkdirp-promise: 5.0.1

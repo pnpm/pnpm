@@ -1880,7 +1880,7 @@ specifiers:
   common-tags: 1.8.0
   delay: 4.0.1
   ghooks: ^2.0.0
-  load-json-file: ^5.1.0
+  load-json-file: 5.1.0
   mos-tap-diff: ^1.0.0
   most: 1.7.3
   normalize-newline: ^3.0.0

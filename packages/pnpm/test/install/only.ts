@@ -1,13 +1,14 @@
+import { PackageJson } from '@pnpm/types'
 import path = require('path')
 import tape = require('tape')
-import loadJsonFile = require('load-json-file')
+import { sync as loadJsonFileSync } from 'load-json-file'
 import promisifyTape from 'tape-promise'
 import {
   prepare,
   execPnpm,
 } from '../utils'
 
-const basicPackageJson = loadJsonFile.sync(path.join(__dirname, '../utils/simple-package.json'))
+const basicPackageJson = loadJsonFileSync<PackageJson>(path.join(__dirname, '../utils/simple-package.json'))
 const test = promisifyTape(tape)
 test['only'] = promisifyTape(tape.only)
 
@@ -16,7 +17,7 @@ test('production install (with --production flag)', async (t: tape.Test) => {
 
   await execPnpm('install', '--production')
 
-  await project.hasNot(Object.keys(basicPackageJson.devDependencies)[0])
+  await project.hasNot(Object.keys(basicPackageJson.devDependencies!)[0])
   await project.has('rimraf')
   await project.has('is-positive')
 })
@@ -31,7 +32,7 @@ test('production install (with production NODE_ENV)', async (t: tape.Test) => {
   // reset NODE_ENV
   process.env.NODE_ENV = originalNodeEnv
 
-  await project.hasNot(Object.keys(basicPackageJson.devDependencies)[0])
+  await project.hasNot(Object.keys(basicPackageJson.devDependencies!)[0])
   await project.has('rimraf')
   await project.has('is-positive')
 })
