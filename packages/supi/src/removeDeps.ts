@@ -1,9 +1,9 @@
 import { packageJsonLogger } from '@pnpm/core-loggers'
-import { PackageJson } from '@pnpm/types'
 import {
-  DependenciesType,
-  dependenciesTypes,
-} from '@pnpm/utils'
+  DEPENDENCIES_FIELDS,
+  DependenciesField,
+  PackageJson,
+} from '@pnpm/types'
 import loadJsonFile = require('load-json-file')
 import writePkg = require('write-pkg')
 
@@ -11,7 +11,7 @@ export default async function (
   pkgJsonPath: string,
   removedPackages: string[],
   opts: {
-    saveType?: DependenciesType,
+    saveType?: DependenciesField,
     prefix: string,
   },
 ): Promise<PackageJson> {
@@ -23,14 +23,14 @@ export default async function (
     if (!packageJson[opts.saveType]) return packageJson
 
     removedPackages.forEach((dependency) => {
-      delete packageJson[opts.saveType as DependenciesType][dependency]
+      delete packageJson[opts.saveType as DependenciesField][dependency]
     })
   } else {
-    dependenciesTypes
-      .filter((deptype) => packageJson[deptype])
-      .forEach((deptype) => {
+    DEPENDENCIES_FIELDS
+      .filter((depField) => packageJson[depField])
+      .forEach((depField) => {
         removedPackages.forEach((dependency) => {
-          delete packageJson[deptype][dependency]
+          delete packageJson[depField][dependency]
         })
       })
   }

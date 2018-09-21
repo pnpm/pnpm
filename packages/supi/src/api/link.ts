@@ -7,10 +7,12 @@ import {
 import { linkBinsOfPackages } from '@pnpm/link-bins'
 import logger, { streamParser } from '@pnpm/logger'
 import { read as readModulesYaml } from '@pnpm/modules-yaml'
-import { PackageJson } from '@pnpm/types'
 import {
-  DependenciesType,
-  dependenciesTypes,
+  DEPENDENCIES_FIELDS,
+  DependenciesField,
+  PackageJson,
+} from '@pnpm/types'
+import {
   getSaveType,
   removeOrphanPackages as removeOrphanPkgs,
   safeReadPackage,
@@ -64,7 +66,7 @@ export default async function link (
     })
   }
   const linkedPkgs: Array<{path: string, pkg: PackageJson, alias: string}> = []
-  const specsToUpsert = [] as Array<{name: string, pref: string, saveType: DependenciesType}>
+  const specsToUpsert = [] as Array<{name: string, pref: string, saveType: DependenciesField}>
   const saveType = getSaveType(opts)
 
   for (const linkFrom of linkFromPkgs) {
@@ -83,7 +85,7 @@ export default async function link (
         saveExact: opts.saveExact,
         savePrefix: opts.savePrefix,
       }),
-      saveType: (saveType || pkg && guessDependencyType(linkedPkg.name, pkg)) as DependenciesType,
+      saveType: (saveType || pkg && guessDependencyType(linkedPkg.name, pkg)) as DependenciesField,
     })
 
     const packagePath = normalize(path.relative(opts.prefix, linkFromPath))
@@ -164,8 +166,8 @@ function addLinkToShrinkwrap (
   },
 ) {
   const id = `link:${opts.packagePath}`
-  let addedTo: DependenciesType | undefined
-  for (const depType of dependenciesTypes) {
+  let addedTo: DependenciesField | undefined
+  for (const depType of DEPENDENCIES_FIELDS) {
     if (!addedTo && opts.pkg && opts.pkg[depType] && opts.pkg[depType]![opts.linkedPkgName]) {
       addedTo = depType
       shr[depType] = shr[depType] || {}
@@ -203,7 +205,7 @@ async function linkToModules (
     packageDir: string,
     pkg: PackageJson,
     destModulesDir: string,
-    saveType?: DependenciesType,
+    saveType?: DependenciesField,
     prefix: string,
   },
 ) {

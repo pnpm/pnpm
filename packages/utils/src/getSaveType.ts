@@ -1,9 +1,6 @@
-import {PnpmOptions} from '@pnpm/types'
-export type DependenciesType = 'dependencies' | 'devDependencies' | 'optionalDependencies'
+import { DependenciesField, PnpmOptions } from '@pnpm/types'
 
-export const dependenciesTypes: DependenciesType[] = ['optionalDependencies', 'dependencies', 'devDependencies']
-
-export default function getSaveType (opts: PnpmOptions): DependenciesType | undefined {
+export default function getSaveType (opts: PnpmOptions): DependenciesField | undefined {
   if (opts.saveDev) return 'devDependencies'
   if (opts.saveOptional) return 'optionalDependencies'
   if (opts.saveProd) return 'dependencies'

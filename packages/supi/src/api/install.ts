@@ -17,10 +17,10 @@ import {
 } from '@pnpm/resolver-base'
 import {
   Dependencies,
+  DEPENDENCIES_FIELDS,
   PackageJson,
 } from '@pnpm/types'
 import {
-  dependenciesTypes,
   getSaveType,
   realNodeModulesDir,
   safeReadPackageFromDir as safeReadPkgFromDir,
@@ -286,14 +286,16 @@ async function linkedPackagesSatisfyPackageJson (
   localPackages?: LocalPackages,
 ) {
   const localPackagesByDirectory = localPackages ? getLocalPackagesByDirectory(localPackages) : {}
-  for (const depType of ['optionalDependencies', 'dependencies', 'devDependencies']) {
-    if (!shr[depType] || !pkg[depType]) continue
-    const depNames = Object.keys(shr[depType])
+  for (const depField of DEPENDENCIES_FIELDS) {
+    const shrDeps = shr[depField]
+    const pkgDeps = pkg[depField]
+    if (!shrDeps || !pkgDeps) continue
+    const depNames = Object.keys(shrDeps)
     for (const depName of depNames) {
-      if (!shr[depType][depName].startsWith('link:') || !pkg[depType][depName]) continue
-      const dir = path.join(prefix, shr[depType][depName].substr(5))
+      if (!shrDeps[depName].startsWith('link:') || !pkgDeps[depName]) continue
+      const dir = path.join(prefix, shrDeps[depName].substr(5))
       const linkedPkg = localPackagesByDirectory[dir] || await safeReadPkgFromDir(dir)
-      if (!linkedPkg || !semver.satisfies(linkedPkg.version, pkg[depType][depName])) return false
+      if (!linkedPkg || !semver.satisfies(linkedPkg.version, pkgDeps[depName])) return false
     }
   }
   return true
@@ -877,7 +879,7 @@ function alignDependencyTypes (pkg: PackageJson, shr: Shrinkwrap) {
   const depTypesOfAliases = getAliasToDependencyTypeMap(pkg)
 
   // Aligning the dependency types in shrinkwrap.yaml
-  for (const depType of dependenciesTypes) {
+  for (const depType of DEPENDENCIES_FIELDS) {
     if (!shr[depType]) continue
     for (const alias of Object.keys(shr[depType] || {})) {
       if (depType === depTypesOfAliases[alias] || !depTypesOfAliases[alias]) continue
@@ -889,7 +891,7 @@ function alignDependencyTypes (pkg: PackageJson, shr: Shrinkwrap) {
 
 function getAliasToDependencyTypeMap (pkg: PackageJson) {
   const depTypesOfAliases = {}
-  for (const depType of dependenciesTypes) {
+  for (const depType of DEPENDENCIES_FIELDS) {
     if (!pkg[depType]) continue
     for (const alias of Object.keys(pkg[depType] || {})) {
       if (!depTypesOfAliases[alias]) {

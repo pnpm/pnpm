@@ -3,14 +3,14 @@ import {
   statsLogger,
 } from '@pnpm/core-loggers'
 import logger from '@pnpm/logger'
+import { DEPENDENCIES_FIELDS } from '@pnpm/types'
 import * as dp from 'dependency-path'
 import vacuumCB = require('fs-vacuum')
-import {StoreController} from 'package-store'
+import { StoreController } from 'package-store'
 import path = require('path')
-import {ResolvedPackages, Shrinkwrap} from 'pnpm-shrinkwrap'
+import { ResolvedPackages, Shrinkwrap } from 'pnpm-shrinkwrap'
 import R = require('ramda')
 import promisify = require('util.promisify')
-import {dependenciesTypes} from './getSaveType'
 import removeTopDependency from './removeTopDependency'
 
 const vacuum = promisify(vacuumCB)
@@ -28,8 +28,8 @@ export default async function removeOrphanPkgs (
     storeController: StoreController,
   },
 ): Promise<Set<string>> {
-  const oldPkgs = R.toPairs(R.mergeAll(R.map((depType) => opts.oldShrinkwrap[depType], dependenciesTypes)))
-  const newPkgs = R.toPairs(R.mergeAll(R.map((depType) => opts.newShrinkwrap[depType], dependenciesTypes)))
+  const oldPkgs = R.toPairs(R.mergeAll(R.map((depType) => opts.oldShrinkwrap[depType], DEPENDENCIES_FIELDS)))
+  const newPkgs = R.toPairs(R.mergeAll(R.map((depType) => opts.newShrinkwrap[depType], DEPENDENCIES_FIELDS)))
 
   const removedTopDeps: Array<[string, string]> = R.difference(oldPkgs, newPkgs) as Array<[string, string]>
 

@@ -1,9 +1,9 @@
 import { packageJsonLogger } from '@pnpm/core-loggers'
-import { PackageJson } from '@pnpm/types'
 import {
-  DependenciesType,
-  dependenciesTypes,
-} from '@pnpm/utils'
+  DEPENDENCIES_FIELDS,
+  DependenciesField,
+  PackageJson,
+} from '@pnpm/types'
 import loadJsonFile = require('load-json-file')
 import path = require('path')
 import writePkg = require('write-pkg')
@@ -13,7 +13,7 @@ export default async function save (
   packageSpecs: Array<{
     name: string,
     pref?: string,
-    saveType?: DependenciesType,
+    saveType?: DependenciesField,
   }>,
 ): Promise<PackageJson> {
   // Read the latest version of package.json to avoid accidental overwriting
@@ -31,7 +31,7 @@ export default async function save (
       packageJson[packageSpec.saveType] = packageJson[packageSpec.saveType] || {}
       packageSpecs.forEach((dependency) => {
         packageJson[saveType][dependency.name] = dependency.pref || findSpec(dependency.name, packageJson as PackageJson)
-        dependenciesTypes.filter((deptype) => deptype !== packageSpec.saveType).forEach((deptype) => {
+        DEPENDENCIES_FIELDS.filter((depField) => depField !== packageSpec.saveType).forEach((deptype) => {
           if (packageJson[deptype]) {
             delete packageJson[deptype][dependency.name]
           }
@@ -59,7 +59,7 @@ function findSpec (depName: string, pkg: PackageJson): string | undefined {
   return foundDepType && pkg[foundDepType]![depName]
 }
 
-export function guessDependencyType (depName: string, pkg: PackageJson): DependenciesType | undefined {
-  return dependenciesTypes
-    .find((deptype) => Boolean(pkg[deptype] && pkg[deptype]![depName]))
+export function guessDependencyType (depName: string, pkg: PackageJson): DependenciesField | undefined {
+  return DEPENDENCIES_FIELDS
+    .find((depField) => Boolean(pkg[depField] && pkg[depField]![depName]))
 }
