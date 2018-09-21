@@ -86,7 +86,7 @@ export async function uninstallInContext (
   ctx.pendingBuilds = ctx.pendingBuilds.filter((pkgId) => !removedPkgIds.has(dp.resolve(newShr.registry, pkgId)))
   await opts.storeController.close()
   const currentShrinkwrap = makePartialCurrentShrinkwrap
-    ? pruneShrinkwrap(ctx.currentShrinkwrap, pkg, ctx.importerPath, (message) => logger.warn({message, prefix: ctx.prefix}))
+    ? pruneShrinkwrap(ctx.currentShrinkwrap, pkg, ctx.importerPath)
     : newShr
   if (opts.shrinkwrap) {
     await saveShrinkwrap(opts.shrinkwrapDirectory, newShr, currentShrinkwrap)

@@ -11,7 +11,7 @@ import {
 
 export function pruneSharedShrinkwrap (
   shr: Shrinkwrap,
-  warn: (msg: string) => void,
+  warn?: (msg: string) => void,
 ) {
   const packages: ResolvedPackages = {}
 
@@ -22,7 +22,7 @@ export function pruneSharedShrinkwrap (
     packages,
     prodRelPaths: R.unnest(R.values(shr.importers).map((deps) => resolvedDepsToRelDepPaths(deps.dependencies || {}))),
     registry: shr.registry,
-    warn,
+    warn: warn || ((msg: string) => undefined),
   })
 
   const prunnedShr = {
@@ -39,7 +39,7 @@ export function prune (
   shr: Shrinkwrap,
   pkg: PackageJson,
   importerPath: string,
-  warn: (msg: string) => void,
+  warn?: (msg: string) => void,
 ): Shrinkwrap {
   const packages: ResolvedPackages = {}
   const importer = shr.importers[importerPath]
@@ -181,6 +181,8 @@ function copyDependencySubTree (
       // except local tarball dependencies
       if (depRalativePath.startsWith('link:') || depRalativePath.startsWith('file:') && !depRalativePath.endsWith('.tar.gz')) continue
 
+      // NOTE: Warnings should not be printed for the current shrinkwrap file (node_modules/.shrinkwrap.yaml).
+      // The current shrinkwrap file does not contain the skipped packages, so it may have missing resolutions
       warn(`Cannot find resolution of ${depRalativePath} in shrinkwrap file`)
       continue
     }

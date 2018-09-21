@@ -107,9 +107,11 @@ export default async function link (
     })
   }
 
+  const updatedCurrentShrinkwrap = pruneSharedShrinkwrap(shrFiles.currentShrinkwrap)
+
   const warn = (message: string) => logger.warn({message, prefix: opts.prefix})
-  const updatedCurrentShrinkwrap = pruneSharedShrinkwrap(shrFiles.currentShrinkwrap, warn)
   const updatedWantedShrinkwrap = pruneSharedShrinkwrap(shrFiles.wantedShrinkwrap, warn)
+
   const modulesInfo = await readModulesYaml(path.join(opts.shrinkwrapDirectory, 'node_modules'), destModules) // TODO: the proxy .modules.yaml is enough here
   await removeOrphanPkgs({
     bin: opts.bin,
