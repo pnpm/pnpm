@@ -46,6 +46,8 @@ export const types = Object.assign({
   'reporter': String,
   'scope': String,
   'shamefully-flatten': Boolean,
+  'shared-workspace-shrinkwrap': Boolean,
+  'shrinkwrap-directory': path,
   'shrinkwrap-only': Boolean,
   'side-effects-cache': Boolean,
   'side-effects-cache-readonly': Boolean,
@@ -102,6 +104,7 @@ export default async (
     'pending': false,
     'prefix': npmDefaults.prefix,
     'registry': npmDefaults.registry,
+    'shared-workspace-shrinkwrap': false, // TODO: make it true by default in pnpm v3
     'shrinkwrap': npmDefaults.shrinkwrap,
     'sort': true,
     'strict-peer-dependencies': false,
@@ -155,6 +158,9 @@ export default async (
   } else {
     pnpmConfig.prefix = (cliArgs['prefix'] ? path.resolve(cliArgs['prefix']) : npmConfig.localPrefix) // tslint:disable-line
     pnpmConfig.bin = path.join(pnpmConfig.prefix, 'node_modules', '.bin')
+  }
+  if (pnpmConfig.sharedWorkspaceShrinkwrap && !pnpmConfig.shrinkwrapDirectory) {
+    pnpmConfig.shrinkwrapDirectory = pnpmConfig.workspacePrefix
   }
 
   pnpmConfig.packageManager = packageManager

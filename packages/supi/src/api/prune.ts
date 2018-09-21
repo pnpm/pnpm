@@ -33,11 +33,12 @@ export async function prune (
   } as PackageJson
 
   const warn = (message: string) => logger.warn({message, prefix: opts.prefix})
-  const prunedShr = pruneShrinkwrap(ctx.wantedShrinkwrap, pkg, warn)
+  const prunedShr = pruneShrinkwrap(ctx.wantedShrinkwrap, pkg, ctx.importerPath, warn)
 
   await removeOrphanPkgs({
     bin: opts.bin,
     hoistedAliases: ctx.hoistedAliases,
+    importerPath: ctx.importerPath,
     newShrinkwrap: prunedShr,
     oldShrinkwrap: ctx.currentShrinkwrap,
     prefix: ctx.prefix,
@@ -47,7 +48,7 @@ export async function prune (
   })
 
   if (opts.shamefullyFlatten) {
-    await installPkgs(prunedShr.specifiers, {...opts, lock: false, reinstallForFlatten: true, update: false})
+    await installPkgs(prunedShr.importers[ctx.importerPath].specifiers, {...opts, lock: false, reinstallForFlatten: true, update: false})
   }
 
   if (reporter) {

@@ -10,7 +10,10 @@ import {
 } from '@pnpm/utils'
 import mkdirp = require('mkdirp-promise')
 import path = require('path')
-import { Shrinkwrap } from 'pnpm-shrinkwrap'
+import {
+  getImporterPath,
+  Shrinkwrap,
+} from 'pnpm-shrinkwrap'
 import removeAllExceptOuterLinks = require('remove-all-except-outer-links')
 import { PnpmError } from '../errorTypes'
 import readShrinkwrapFile from '../readShrinkwrapFiles'
@@ -22,6 +25,7 @@ export interface PnpmContext {
   prefix: string,
   existsWantedShrinkwrap: boolean,
   existsCurrentShrinkwrap: boolean,
+  importerPath: string,
   currentShrinkwrap: Shrinkwrap,
   wantedShrinkwrap: Shrinkwrap,
   skipped: Set<string>,
@@ -32,6 +36,7 @@ export interface PnpmContext {
 export default async function getContext (
   opts: {
     force: boolean,
+    shrinkwrapDirectory: string,
     hooks?: {
       readPackage?: ReadPackageHook,
     },
@@ -47,7 +52,7 @@ export default async function getContext (
   const storePath = opts.store
 
   const modulesPath = path.join(opts.prefix, 'node_modules')
-  const modules = await readModulesYaml(modulesPath)
+  const modules = await readModulesYaml(path.join(opts.shrinkwrapDirectory, 'node_modules'), modulesPath)
 
   if (modules) {
     try {
@@ -99,14 +104,22 @@ export default async function getContext (
     mkdirp(storePath),
   ])
   const pkg = files[0] || {} as PackageJson
+  const importerPath = getImporterPath(opts.shrinkwrapDirectory, opts.prefix)
   const ctx: PnpmContext = {
     hoistedAliases: modules && modules.hoistedAliases || {},
+    importerPath,
     pendingBuilds: modules && modules.pendingBuilds || [],
     pkg: opts.hooks && opts.hooks.readPackage ? opts.hooks.readPackage(pkg) : pkg,
     prefix: opts.prefix,
     skipped: new Set(modules && modules.skipped || []),
     storePath,
-    ...await readShrinkwrapFile(opts),
+    ...await readShrinkwrapFile({
+      force: opts.force,
+      importerPath,
+      registry: opts.registry,
+      shrinkwrap: opts.shrinkwrap,
+      shrinkwrapDirectory: opts.shrinkwrapDirectory,
+    }),
   }
   packageJsonLogger.debug({
     initial: ctx.pkg,

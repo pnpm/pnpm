@@ -1,3 +1,4 @@
+import { DEPENDENCIES_FIELDS } from '@pnpm/types'
 import yaml = require('js-yaml')
 import mkdirp = require('mkdirp-promise')
 import path = require('path')
@@ -43,13 +44,57 @@ function writeShrinkwrap (
   const shrinkwrapPath = path.join(pkgPath, shrinkwrapFilename)
 
   // empty shrinkwrap is not saved
-  if (R.isEmpty(wantedShrinkwrap.specifiers || {}) && R.isEmpty(wantedShrinkwrap.dependencies || {})) {
+  if (isEmptyShrinkwrap(wantedShrinkwrap)) {
     return rimraf(shrinkwrapPath)
   }
 
-  const yamlDoc = yaml.safeDump(wantedShrinkwrap, SHRINKWRAP_YAML_FORMAT)
+  const yamlDoc = yaml.safeDump(normalizeShrinkwrap(wantedShrinkwrap), SHRINKWRAP_YAML_FORMAT)
 
   return writeFileAtomic(shrinkwrapPath, yamlDoc)
+}
+
+function isEmptyShrinkwrap (shr: Shrinkwrap) {
+  return R.values(shr.importers).every((importer) => R.isEmpty(importer.specifiers || {}) && R.isEmpty(importer.dependencies || {}))
+}
+
+function normalizeShrinkwrap (shr: Shrinkwrap) {
+  if (R.equals(R.keys(shr.importers), ['.'])) {
+    const shrToSave = {
+      ...shr,
+      ...shr.importers['.'],
+    }
+    delete shrToSave.importers
+    for (const depType of DEPENDENCIES_FIELDS) {
+      if (R.isEmpty(shrToSave[depType])) {
+        delete shrToSave[depType]
+      }
+    }
+    if (R.isEmpty(shrToSave.packages)) {
+      delete shrToSave.packages
+    }
+    return shrToSave
+  } else {
+    const shrToSave = {
+      ...shr,
+      importers: R.keys(shr.importers).reduce((acc, alias) => {
+        const importer = shr.importers[alias]
+        const normalizedImporter = {
+          specifiers: importer.specifiers,
+        }
+        for (const depType of DEPENDENCIES_FIELDS) {
+          if (!R.isEmpty(importer[depType] || {})) {
+            normalizedImporter[depType] = importer[depType]
+          }
+        }
+        acc[alias] = normalizedImporter
+        return acc
+      }, {}),
+    }
+    if (R.isEmpty(shrToSave.packages)) {
+      delete shrToSave.packages
+    }
+    return shrToSave
+  }
 }
 
 export default function write (
@@ -61,14 +106,14 @@ export default function write (
   const currentShrinkwrapPath = path.join(pkgPath, CURRENT_SHRINKWRAP_FILENAME)
 
   // empty shrinkwrap is not saved
-  if (R.isEmpty(wantedShrinkwrap.specifiers || {}) && R.isEmpty(wantedShrinkwrap.dependencies || {})) {
+  if (isEmptyShrinkwrap(wantedShrinkwrap)) {
     return Promise.all([
       rimraf(wantedShrinkwrapPath),
       rimraf(currentShrinkwrapPath),
     ])
   }
 
-  const yamlDoc = yaml.safeDump(wantedShrinkwrap, SHRINKWRAP_YAML_FORMAT)
+  const yamlDoc = yaml.safeDump(normalizeShrinkwrap(wantedShrinkwrap), SHRINKWRAP_YAML_FORMAT)
 
   // in most cases the `shrinkwrap.yaml` and `node_modules/.shrinkwrap.yaml` are equal
   // in those cases the YAML document can be stringified only once for both files
@@ -85,7 +130,7 @@ export default function write (
     prefix: pkgPath,
   })
 
-  const currentYamlDoc = yaml.safeDump(currentShrinkwrap, SHRINKWRAP_YAML_FORMAT)
+  const currentYamlDoc = yaml.safeDump(normalizeShrinkwrap(currentShrinkwrap), SHRINKWRAP_YAML_FORMAT)
 
   return Promise.all([
     writeFileAtomic(wantedShrinkwrapPath, yamlDoc),

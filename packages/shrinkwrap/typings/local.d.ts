@@ -33,3 +33,8 @@ declare module 'yaml-tag' {
   const anything: any;
   export = anything;
 }
+
+declare module 'normalize-path' {
+  const anything: any;
+  export = anything;
+}

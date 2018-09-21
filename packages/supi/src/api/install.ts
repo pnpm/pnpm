@@ -35,6 +35,7 @@ import path = require('path')
 import {
   satisfiesPackageJson,
   Shrinkwrap,
+  ShrinkwrapImporter,
   write as saveShrinkwrap,
   writeCurrentOnly as saveCurrentShrinkwrapOnly,
   writeWantedOnly as saveWantedShrinkwrapOnly,
@@ -182,9 +183,9 @@ export async function install (maybeOpts: InstallOptions & {
     if (!opts.update && (
       opts.frozenShrinkwrap ||
       opts.preferFrozenShrinkwrap && ctx.existsWantedShrinkwrap && ctx.wantedShrinkwrap.shrinkwrapMinorVersion === SHRINKWRAP_MINOR_VERSION &&
-      !hasLocalTarballDepsInRoot(ctx.wantedShrinkwrap) &&
-      satisfiesPackageJson(ctx.wantedShrinkwrap, ctx.pkg) &&
-      await linkedPackagesSatisfyPackageJson(ctx.pkg, ctx.wantedShrinkwrap, opts.prefix, opts.localPackages))
+      !hasLocalTarballDepsInRoot(ctx.wantedShrinkwrap, ctx.importerPath) &&
+      satisfiesPackageJson(ctx.wantedShrinkwrap, ctx.pkg, ctx.importerPath) &&
+      await linkedPackagesSatisfyPackageJson(ctx.pkg, ctx.wantedShrinkwrap.importers[ctx.importerPath], opts.prefix, opts.localPackages))
     ) {
       if (opts.shamefullyFlatten) {
         if (opts.frozenShrinkwrap) {
@@ -202,7 +203,9 @@ export async function install (maybeOpts: InstallOptions & {
         await headless({
           ...opts,
           currentShrinkwrap: ctx.currentShrinkwrap,
+          importerPath: ctx.importerPath,
           packageJson: ctx.pkg,
+          shrinkwrapDirectory: opts.shrinkwrapDirectory,
           wantedShrinkwrap: ctx.wantedShrinkwrap,
         } as HeadlessOptions)
         return
@@ -212,16 +215,17 @@ export async function install (maybeOpts: InstallOptions & {
     const preferredVersions = maybeOpts.preferredVersions || getPreferredVersionsFromPackage(ctx.pkg)
     const specs = specsToInstallFromPackage(ctx.pkg)
 
-    forgetResolutionsOfOldSpecs(ctx.wantedShrinkwrap, specs)
+    if (ctx.wantedShrinkwrap && ctx.wantedShrinkwrap.importers) {
+      forgetResolutionsOfOldSpecs(ctx.wantedShrinkwrap.importers[ctx.importerPath], specs)
+    }
 
     const scripts = !opts.ignoreScripts && ctx.pkg && ctx.pkg.scripts || {}
     if (opts.ignoreScripts && ctx.pkg && ctx.pkg.scripts &&
       (ctx.pkg.scripts.preinstall || ctx.pkg.scripts.prepublish ||
         ctx.pkg.scripts.install ||
         ctx.pkg.scripts.postinstall ||
-        ctx.pkg.scripts.prepublishOnly ||
         ctx.pkg.scripts.prepare)) {
-          ctx.pendingBuilds.push('.')
+          ctx.pendingBuilds.push(ctx.importerPath)
         }
 
     if (scripts['prepublish']) { // tslint:disable-line:no-string-literal
@@ -263,37 +267,37 @@ export async function install (maybeOpts: InstallOptions & {
 
 // If the specifier is new, the old resolution probably does not satisfy it anymore.
 // By removing these resolutions we ensure that they are resolved again using the new specs.
-function forgetResolutionsOfOldSpecs (wantedShrinkwrap: Shrinkwrap, specs: WantedDependency[]) {
-  if (!wantedShrinkwrap.specifiers) return
-  wantedShrinkwrap.dependencies = wantedShrinkwrap.dependencies || {}
-  wantedShrinkwrap.devDependencies = wantedShrinkwrap.devDependencies || {}
-  wantedShrinkwrap.optionalDependencies = wantedShrinkwrap.optionalDependencies || {}
+function forgetResolutionsOfOldSpecs (importer: ShrinkwrapImporter, specs: WantedDependency[]) {
+  if (!importer.specifiers) return
+  importer.dependencies = importer.dependencies || {}
+  importer.devDependencies = importer.devDependencies || {}
+  importer.optionalDependencies = importer.optionalDependencies || {}
   for (const spec of specs) {
-    if (spec.alias && wantedShrinkwrap.specifiers[spec.alias] !== spec.pref) {
-      if (wantedShrinkwrap.dependencies[spec.alias] && !wantedShrinkwrap.dependencies[spec.alias].startsWith('link:')) {
-        delete wantedShrinkwrap.dependencies[spec.alias]
+    if (spec.alias && importer.specifiers[spec.alias] !== spec.pref) {
+      if (importer.dependencies[spec.alias] && !importer.dependencies[spec.alias].startsWith('link:')) {
+        delete importer.dependencies[spec.alias]
       }
-      delete wantedShrinkwrap.devDependencies[spec.alias]
-      delete wantedShrinkwrap.optionalDependencies[spec.alias]
+      delete importer.devDependencies[spec.alias]
+      delete importer.optionalDependencies[spec.alias]
     }
   }
 }
 
 async function linkedPackagesSatisfyPackageJson (
   pkg: PackageJson,
-  shr: Shrinkwrap,
+  shrImporter: ShrinkwrapImporter,
   prefix: string,
   localPackages?: LocalPackages,
 ) {
   const localPackagesByDirectory = localPackages ? getLocalPackagesByDirectory(localPackages) : {}
   for (const depField of DEPENDENCIES_FIELDS) {
-    const shrDeps = shr[depField]
+    const importerDeps = shrImporter[depField]
     const pkgDeps = pkg[depField]
-    if (!shrDeps || !pkgDeps) continue
-    const depNames = Object.keys(shrDeps)
+    if (!importerDeps || !pkgDeps) continue
+    const depNames = Object.keys(importerDeps)
     for (const depName of depNames) {
-      if (!shrDeps[depName].startsWith('link:') || !pkgDeps[depName]) continue
-      const dir = path.join(prefix, shrDeps[depName].substr(5))
+      if (!importerDeps[depName].startsWith('link:') || !pkgDeps[depName]) continue
+      const dir = path.join(prefix, importerDeps[depName].substr(5))
       const linkedPkg = localPackagesByDirectory[dir] || await safeReadPkgFromDir(dir)
       if (!linkedPkg || !semver.satisfies(linkedPkg.version, pkgDeps[depName])) return false
     }
@@ -311,10 +315,12 @@ function getLocalPackagesByDirectory (localPackages: LocalPackages) {
   return localPackagesByDirectory
 }
 
-function hasLocalTarballDepsInRoot (shr: Shrinkwrap) {
-  return R.any(refIsLocalTarball, R.values(shr.dependencies || {}))
-    || R.any(refIsLocalTarball, R.values(shr.devDependencies || {}))
-    || R.any(refIsLocalTarball, R.values(shr.optionalDependencies || {}))
+function hasLocalTarballDepsInRoot (shr: Shrinkwrap, importerPath: string) {
+  const importer = shr.importers && shr.importers[importerPath]
+  if (!importer) return false
+  return R.any(refIsLocalTarball, R.values(importer.dependencies || {}))
+    || R.any(refIsLocalTarball, R.values(importer.devDependencies || {}))
+    || R.any(refIsLocalTarball, R.values(importer.optionalDependencies || {}))
 }
 
 function refIsLocalTarball (ref: string) {
@@ -434,6 +440,8 @@ async function installInContext (
   }
 
   const nodeModulesPath = await realNodeModulesDir(ctx.prefix)
+  const shrinkwrapNodeModulesPath = opts.shrinkwrapDirectory === ctx.prefix
+    ? nodeModulesPath : await realNodeModulesDir(opts.shrinkwrapDirectory)
 
   // Avoid requesting package meta info from registry only when the shrinkwrap version is at least the expected
   const hasManifestInShrinkwrap = typeof ctx.wantedShrinkwrap.shrinkwrapMinorVersion === 'number' &&
@@ -462,7 +470,7 @@ async function installInContext (
     engineStrict: opts.engineStrict,
     force: opts.force,
     localPackages: [],
-    nodeModules: nodeModulesPath,
+    nodeModules: shrinkwrapNodeModulesPath,
     nodeVersion: opts.nodeVersion,
     nodesToBuild: [],
     outdatedPkgs: {},
@@ -478,6 +486,11 @@ async function installInContext (
     verifyStoreInegrity: opts.verifyStoreIntegrity,
     wantedShrinkwrap: ctx.wantedShrinkwrap,
   }
+  if (!ctx.wantedShrinkwrap.importers || !ctx.wantedShrinkwrap.importers[ctx.importerPath]) {
+    ctx.wantedShrinkwrap.importers = ctx.wantedShrinkwrap.importers || {}
+    ctx.wantedShrinkwrap.importers[ctx.importerPath] = {specifiers: {}}
+  }
+  const shrImporter = ctx.wantedShrinkwrap.importers[ctx.importerPath]
   const installOpts = {
     currentDepth: 0,
     hasManifestInShrinkwrap,
@@ -487,9 +500,9 @@ async function installInContext (
     readPackageHook: opts.hooks.readPackage,
     reinstallForFlatten: opts.reinstallForFlatten,
     resolvedDependencies: {
-      ...ctx.wantedShrinkwrap.dependencies,
-      ...ctx.wantedShrinkwrap.devDependencies,
-      ...ctx.wantedShrinkwrap.optionalDependencies,
+      ...shrImporter.dependencies,
+      ...shrImporter.devDependencies,
+      ...shrImporter.optionalDependencies,
     },
     shamefullyFlatten: opts.shamefullyFlatten,
     sideEffectsCache: opts.sideEffectsCache,
@@ -508,7 +521,7 @@ async function installInContext (
         nonLinkedPkgs.push(wantedDependency)
         continue
       }
-      const isInnerLink = await safeIsInnerLink(nodeModulesPath, wantedDependency.alias, {
+      const isInnerLink = await safeIsInnerLink(shrinkwrapNodeModulesPath, wantedDependency.alias, {
         hideAlienModules: opts.shrinkwrapOnly === false,
         prefix: ctx.prefix,
         storePath: ctx.storePath,
@@ -602,7 +615,7 @@ async function installInContext (
   }
 
   if (newPkg) {
-    addDirectDependenciesToShrinkwrap(newPkg, ctx.wantedShrinkwrap, linkedPkgs, pkgsToSave)
+    ctx.wantedShrinkwrap.importers[ctx.importerPath] = addDirectDependenciesToShrinkwrap(newPkg, shrImporter, linkedPkgs, pkgsToSave, ctx.wantedShrinkwrap.registry)
   }
 
   const topParents = ctx.pkg
@@ -615,6 +628,7 @@ async function installInContext (
       )
     : []
 
+  const externalShrinkwrap = opts.shrinkwrapDirectory !== opts.prefix
   const result = await linkPackages(rootNodeIdsByAlias, installCtx.pkgGraph, {
     afterAllResolvedHook: opts.hooks && opts.hooks.afterAllResolved,
     baseNodeModules: nodeModulesPath,
@@ -622,8 +636,10 @@ async function installInContext (
     currentShrinkwrap: ctx.currentShrinkwrap,
     development: opts.development,
     dryRun: opts.shrinkwrapOnly,
+    externalShrinkwrap,
     force: opts.force,
     hoistedAliases: ctx.hoistedAliases,
+    importerPath: ctx.importerPath,
     independentLeaves: opts.independentLeaves,
     makePartialCurrentShrinkwrap,
     optional: opts.optional,
@@ -633,6 +649,7 @@ async function installInContext (
     production: opts.production,
     reinstallForFlatten: Boolean(opts.reinstallForFlatten),
     shamefullyFlatten: opts.shamefullyFlatten,
+    shrinkwrapDirectoryNodeModules: installCtx.nodeModules,
     sideEffectsCache: opts.sideEffectsCache,
     skipped: ctx.skipped,
     storeController: opts.storeController,
@@ -657,15 +674,17 @@ async function installInContext (
   }
 
   if (opts.shrinkwrapOnly) {
-    await saveWantedShrinkwrapOnly(ctx.prefix, result.wantedShrinkwrap)
+    await saveWantedShrinkwrapOnly(opts.shrinkwrapDirectory, result.wantedShrinkwrap)
   } else {
     await Promise.all([
       opts.shrinkwrap
-        ? saveShrinkwrap(ctx.prefix, result.wantedShrinkwrap, result.currentShrinkwrap)
-        : saveCurrentShrinkwrapOnly(ctx.prefix, result.currentShrinkwrap),
-      result.currentShrinkwrap.packages === undefined && result.removedDepPaths.size === 0
-        ? Promise.resolve()
-        : writeModulesYaml(path.join(ctx.prefix, 'node_modules'), {
+        ? saveShrinkwrap(opts.shrinkwrapDirectory, result.wantedShrinkwrap, result.currentShrinkwrap)
+        : saveCurrentShrinkwrapOnly(opts.shrinkwrapDirectory, result.currentShrinkwrap),
+      (() => {
+        if (result.currentShrinkwrap.packages === undefined && result.removedDepPaths.size === 0) {
+          return Promise.resolve()
+        }
+        return writeModulesYaml(installCtx.nodeModules, nodeModulesPath, {
           hoistedAliases: ctx.hoistedAliases,
           independentLeaves: opts.independentLeaves,
           layoutVersion: LAYOUT_VERSION,
@@ -674,7 +693,8 @@ async function installInContext (
           shamefullyFlatten: opts.shamefullyFlatten,
           skipped: Array.from(installCtx.skipped),
           store: ctx.storePath,
-        }),
+        })
+      })(),
     ])
 
     // postinstall hooks
@@ -769,7 +789,7 @@ async function installInContext (
         alias: localPackage.alias,
         path: resolvePath(opts.prefix, localPackage.resolution.directory),
       }))
-      await externalLink(externalPkgs, installCtx.nodeModules, linkOpts)
+      await externalLink(externalPkgs, nodeModulesPath, linkOpts)
     }
   }
 
@@ -823,7 +843,7 @@ function getSubgraphToBuild (
 
 function addDirectDependenciesToShrinkwrap (
   newPkg: PackageJson,
-  wantedShrinkwrap: Shrinkwrap,
+  shrinkwrapImporter: ShrinkwrapImporter,
   linkedPkgs: Array<WantedDependency & {alias: string}>,
   pkgsToSave: Array<{
     alias: string,
@@ -836,55 +856,80 @@ function addDirectDependenciesToShrinkwrap (
     specRaw: string,
     normalizedPref?: string,
   }>,
-) {
-  wantedShrinkwrap.dependencies = wantedShrinkwrap.dependencies || {}
-  wantedShrinkwrap.specifiers = wantedShrinkwrap.specifiers || {}
-  wantedShrinkwrap.optionalDependencies = wantedShrinkwrap.optionalDependencies || {}
-  wantedShrinkwrap.devDependencies = wantedShrinkwrap.devDependencies || {}
-
-  linkedPkgs.forEach((linkedPkg) => {
-    wantedShrinkwrap.specifiers[linkedPkg.alias] = getSpecFromPackageJson(newPkg as PackageJson, linkedPkg.alias) as string
-  })
-
-  for (const dep of pkgsToSave) {
-    const ref = absolutePathToRef(dep.id, {
-      alias: dep.alias,
-      realName: dep.name,
-      resolution: dep.resolution,
-      standardRegistry: wantedShrinkwrap.registry,
-    })
-    if (dep.dev) {
-      wantedShrinkwrap.devDependencies[dep.alias] = ref
-    } else if (dep.optional) {
-      wantedShrinkwrap.optionalDependencies[dep.alias] = ref
-    } else {
-      wantedShrinkwrap.dependencies[dep.alias] = ref
-    }
-    if (!dep.dev) {
-      delete wantedShrinkwrap.devDependencies[dep.alias]
-    }
-    if (!dep.optional) {
-      delete wantedShrinkwrap.optionalDependencies[dep.alias]
-    }
-    if (dep.dev || dep.optional) {
-      delete wantedShrinkwrap.dependencies[dep.alias]
-    }
-    wantedShrinkwrap.specifiers[dep.alias] = getSpecFromPackageJson(newPkg, dep.alias) as string
+  standardRegistry: string,
+): ShrinkwrapImporter {
+  const newShrImporter = {
+    dependencies: {},
+    devDependencies: {},
+    optionalDependencies: {},
+    specifiers: {},
   }
 
-  alignDependencyTypes(newPkg, wantedShrinkwrap)
+  linkedPkgs.forEach((linkedPkg) => {
+    newShrImporter.specifiers[linkedPkg.alias] = getSpecFromPackageJson(newPkg as PackageJson, linkedPkg.alias) as string
+  })
+  if (shrinkwrapImporter.dependencies) {
+    for (const alias of R.keys(shrinkwrapImporter.dependencies)) {
+      if (shrinkwrapImporter.dependencies[alias].startsWith('link:')) {
+        newShrImporter.dependencies[alias] = shrinkwrapImporter.dependencies[alias]
+      }
+    }
+  }
+
+  const pkgsToSaveByAlias = pkgsToSave.reduce((acc, pkgToSave) => {
+    acc[pkgToSave.alias] = pkgToSave
+    return acc
+  }, {})
+
+  const optionalDependencies = R.keys(newPkg.optionalDependencies)
+  const dependencies = R.difference(R.keys(newPkg.dependencies), optionalDependencies)
+  const devDependencies = R.difference(R.difference(R.keys(newPkg.devDependencies), optionalDependencies), dependencies)
+  const allDeps = R.reduce(R.union, [], [optionalDependencies, devDependencies, dependencies]) as string[]
+
+  for (const alias of allDeps) {
+    if (pkgsToSaveByAlias[alias]) {
+      const dep = pkgsToSaveByAlias[alias]
+      const ref = absolutePathToRef(dep.id, {
+        alias: dep.alias,
+        realName: dep.name,
+        resolution: dep.resolution,
+        standardRegistry,
+      })
+      if (dep.dev) {
+        newShrImporter.devDependencies[dep.alias] = ref
+      } else if (dep.optional) {
+        newShrImporter.optionalDependencies[dep.alias] = ref
+      } else {
+        newShrImporter.dependencies[dep.alias] = ref
+      }
+      newShrImporter.specifiers[dep.alias] = getSpecFromPackageJson(newPkg, dep.alias) as string
+    } else if (typeof shrinkwrapImporter.specifiers[alias] !== 'undefined') {
+      newShrImporter.specifiers[alias] = shrinkwrapImporter.specifiers[alias]
+      if (shrinkwrapImporter.dependencies && shrinkwrapImporter.dependencies[alias]) {
+        newShrImporter.dependencies[alias] = shrinkwrapImporter.dependencies[alias]
+      } else if (shrinkwrapImporter.optionalDependencies && shrinkwrapImporter.optionalDependencies[alias]) {
+        newShrImporter.optionalDependencies[alias] = shrinkwrapImporter.optionalDependencies[alias]
+      } else if (shrinkwrapImporter.devDependencies && shrinkwrapImporter.devDependencies[alias]) {
+        newShrImporter.devDependencies[alias] = shrinkwrapImporter.devDependencies[alias]
+      }
+    }
+  }
+
+  alignDependencyTypes(newPkg, newShrImporter)
+
+  return newShrImporter
 }
 
-function alignDependencyTypes (pkg: PackageJson, shr: Shrinkwrap) {
+function alignDependencyTypes (pkg: PackageJson, shrImporter: ShrinkwrapImporter) {
   const depTypesOfAliases = getAliasToDependencyTypeMap(pkg)
 
   // Aligning the dependency types in shrinkwrap.yaml
   for (const depType of DEPENDENCIES_FIELDS) {
-    if (!shr[depType]) continue
-    for (const alias of Object.keys(shr[depType] || {})) {
+    if (!shrImporter[depType]) continue
+    for (const alias of Object.keys(shrImporter[depType] || {})) {
       if (depType === depTypesOfAliases[alias] || !depTypesOfAliases[alias]) continue
-      shr[depTypesOfAliases[alias]][alias] = shr[depType]![alias]
-      delete shr[depType]![alias]
+      shrImporter[depTypesOfAliases[alias]][alias] = shrImporter[depType]![alias]
+      delete shrImporter[depType]![alias]
     }
   }
 }

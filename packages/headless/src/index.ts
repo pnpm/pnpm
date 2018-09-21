@@ -33,6 +33,7 @@ import pLimit = require('p-limit')
 import {StoreController} from 'package-store'
 import path = require('path')
 import {
+  getImporterPath,
   nameVerFromPkgSnapshot,
   PackageSnapshot,
   pkgSnapshotToResolution,
@@ -61,6 +62,8 @@ export interface HeadlessOptions {
   production: boolean,
   ignoreScripts: boolean,
   independentLeaves: boolean,
+  importerPath?: string,
+  shrinkwrapDirectory?: string,
   storeController: StoreController,
   verifyStoreIntegrity: boolean,
   sideEffectsCache: boolean,
@@ -90,19 +93,22 @@ export default async (opts: HeadlessOptions) => {
     throw new TypeError('opts.prefix should be a string')
   }
 
-  const wantedShrinkwrap = opts.wantedShrinkwrap || await readWanted(opts.prefix, {ignoreIncompatible: false})
+  const shrinkwrapDirectory = opts.shrinkwrapDirectory || opts.prefix
+  const wantedShrinkwrap = opts.wantedShrinkwrap || await readWanted(shrinkwrapDirectory, {ignoreIncompatible: false})
 
   if (!wantedShrinkwrap) {
     throw new Error('Headless installation requires a shrinkwrap.yaml file')
   }
 
-  const currentShrinkwrap = opts.currentShrinkwrap || await readCurrent(opts.prefix, {ignoreIncompatible: false})
-  const nodeModulesDir = await realNodeModulesDir(opts.prefix)
-  const modules = await readModulesYaml(nodeModulesDir) || {pendingBuilds: [] as string[], hoistedAliases: {}}
+  const currentShrinkwrap = opts.currentShrinkwrap || await readCurrent(shrinkwrapDirectory, {ignoreIncompatible: false})
+  const importerPath = getImporterPath(shrinkwrapDirectory, opts.prefix)
+  const shrinkwrappedNodeModulesDir = await realNodeModulesDir(shrinkwrapDirectory)
+  const importerNodeModulesDir = await realNodeModulesDir(opts.prefix)
+  const modules = await readModulesYaml(shrinkwrappedNodeModulesDir, importerNodeModulesDir) || {pendingBuilds: [] as string[], hoistedAliases: {}}
 
   const pkg = opts.packageJson || await readPackageFromDir(opts.prefix)
 
-  if (!satisfiesPackageJson(wantedShrinkwrap, pkg)) {
+  if (!satisfiesPackageJson(wantedShrinkwrap, pkg, importerPath)) {
     throw new Error('Cannot run headless installation because shrinkwrap.yaml is not up-to-date with package.json')
   }
 
@@ -110,13 +116,13 @@ export default async (opts: HeadlessOptions) => {
 
   const scripts = !opts.ignoreScripts && pkg.scripts || {}
 
-  const bin = path.join(nodeModulesDir, '.bin')
+  const bin = path.join(importerNodeModulesDir, '.bin')
 
   const scriptsOpts = {
     depPath: opts.prefix,
     pkgRoot: opts.prefix,
     rawNpmConfig: opts.rawNpmConfig,
-    rootNodeModulesDir: nodeModulesDir,
+    rootNodeModulesDir: importerNodeModulesDir,
     stdio: opts.ownLifecycleHooksStdio || 'inherit',
     unsafePerm: opts.unsafePerm || false,
   }
@@ -130,6 +136,7 @@ export default async (opts: HeadlessOptions) => {
       bin,
       dryRun: false,
       hoistedAliases: modules && modules.hoistedAliases || {},
+      importerPath,
       newShrinkwrap: wantedShrinkwrap,
       oldShrinkwrap: currentShrinkwrap,
       prefix: opts.prefix,
@@ -144,6 +151,7 @@ export default async (opts: HeadlessOptions) => {
   }
 
   const filterOpts = {
+    importerPath,
     noDev: !opts.development,
     noOptional: !opts.optional,
     noProd: !opts.production,
@@ -154,7 +162,11 @@ export default async (opts: HeadlessOptions) => {
   const res = await shrinkwrapToDepGraph(
     filteredShrinkwrap,
     opts.force ? null : currentShrinkwrap,
-    {...opts, nodeModulesDir} as ShrinkwrapToDepGraphOptions,
+    {
+      ...opts,
+      importerPath,
+      nodeModulesDir: shrinkwrappedNodeModulesDir,
+    } as ShrinkwrapToDepGraphOptions,
   )
   const depGraph = res.graph
 
@@ -178,10 +190,10 @@ export default async (opts: HeadlessOptions) => {
 
   await linkAllBins(depGraph, {optional: opts.optional, warn})
 
-  await linkRootPackages(filteredShrinkwrap, opts.prefix, res.rootDependencies, nodeModulesDir)
-  await linkBins(nodeModulesDir, bin, {warn})
+  await linkRootPackages(filteredShrinkwrap, opts.prefix, res.rootDependencies, importerNodeModulesDir, importerPath)
+  await linkBins(importerNodeModulesDir, bin, {warn})
 
-  await writeCurrentShrinkwrapOnly(opts.prefix, filteredShrinkwrap)
+  await writeCurrentShrinkwrapOnly(shrinkwrapDirectory, filteredShrinkwrap)
   if (opts.ignoreScripts) {
     // we can use concat here because we always only append new packages, which are guaranteed to not be there by definition
     modules.pendingBuilds = modules.pendingBuilds
@@ -191,7 +203,7 @@ export default async (opts: HeadlessOptions) => {
           .map((node) => node.relDepPath),
       )
   }
-  await writeModulesYaml(nodeModulesDir, {
+  await writeModulesYaml(shrinkwrappedNodeModulesDir, importerNodeModulesDir, {
     hoistedAliases: {},
     independentLeaves: !!opts.independentLeaves,
     layoutVersion: LAYOUT_VERSION,
@@ -205,7 +217,7 @@ export default async (opts: HeadlessOptions) => {
   if (!opts.ignoreScripts) {
     await runDependenciesScripts(depGraph, R.values(res.rootDependencies).filter((loc) => depGraph[loc]), {
       childConcurrency: opts.childConcurrency,
-      nodeModulesDir,
+      nodeModulesDir: shrinkwrappedNodeModulesDir,
       prefix: opts.prefix,
       rawNpmConfig: opts.rawNpmConfig,
       sideEffectsCache: opts.sideEffectsCache,
@@ -246,8 +258,14 @@ async function linkRootPackages (
   prefix: string,
   rootDependencies: {[alias: string]: string},
   baseNodeModules: string,
+  importerPath: string,
 ) {
-  const allDeps = Object.assign({}, shr.devDependencies, shr.dependencies, shr.optionalDependencies)
+  const shrImporter = shr.importers[importerPath]
+  const allDeps = {
+    ...shrImporter.devDependencies,
+    ...shrImporter.dependencies,
+    ...shrImporter.optionalDependencies,
+  }
   return Promise.all(
     R.keys(allDeps)
       .map(async (alias) => {
@@ -260,8 +278,8 @@ async function linkRootPackages (
         if ((await symlinkDependencyTo(alias, peripheralLocation, baseNodeModules)).reused) {
           return
         }
-        const isDev = shr.devDependencies && shr.devDependencies[alias]
-        const isOptional = shr.optionalDependencies && shr.optionalDependencies[alias]
+        const isDev = shrImporter.devDependencies && shrImporter.devDependencies[alias]
+        const isOptional = shrImporter.optionalDependencies && shrImporter.optionalDependencies[alias]
 
         const relDepPath = dp.refToRelative(allDeps[alias], alias)
         if (relDepPath === null) return
@@ -287,6 +305,7 @@ async function linkRootPackages (
 interface ShrinkwrapToDepGraphOptions {
   force: boolean,
   independentLeaves: boolean,
+  importerPath: string,
   storeController: StoreController,
   store: string,
   prefix: string,
@@ -382,7 +401,8 @@ async function shrinkwrapToDepGraph (
 
       graph[peripheralLocation].children = await getChildrenPaths(ctx, allDeps)
     }
-    const rootDeps = {...shr.devDependencies, ...shr.dependencies, ...shr.optionalDependencies}
+    const shrImporter = shr.importers[opts.importerPath]
+    const rootDeps = {...shrImporter.devDependencies, ...shrImporter.dependencies, ...shrImporter.optionalDependencies}
     rootDependencies = await getChildrenPaths(ctx, rootDeps)
   }
   return {graph, rootDependencies}
@@ -580,6 +600,7 @@ function filterShrinkwrap (
     noDev: boolean,
     noOptional: boolean,
     noProd: boolean,
+    importerPath: string,
   },
 ): Shrinkwrap {
   let pairs = R.toPairs(shr.packages || {}) as Array<[string, PackageSnapshot]>
@@ -592,13 +613,19 @@ function filterShrinkwrap (
   if (opts.noOptional) {
     pairs = pairs.filter((pair) => !pair[1].optional)
   }
+  const shrImporter = shr.importers[opts.importerPath]
   return {
-    dependencies: opts.noProd ? {} : shr.dependencies || {},
-    devDependencies: opts.noDev ? {} : shr.devDependencies || {},
-    optionalDependencies: opts.noOptional ? {} : shr.optionalDependencies || {},
+    importers: {
+      ...shr.importers,
+      [opts.importerPath]: {
+        dependencies: opts.noProd ? {} : shrImporter.dependencies || {},
+        devDependencies: opts.noDev ? {} : shrImporter.devDependencies || {},
+        optionalDependencies: opts.noOptional ? {} : shrImporter.optionalDependencies || {},
+        specifiers: shrImporter.specifiers,
+      },
+    },
     packages: R.fromPairs(pairs),
     registry: shr.registry,
     shrinkwrapVersion: shr.shrinkwrapVersion,
-    specifiers: shr.specifiers,
   } as Shrinkwrap
 }

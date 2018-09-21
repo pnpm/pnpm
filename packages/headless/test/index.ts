@@ -212,7 +212,8 @@ test('run pre/postinstall scripts', async (t) => {
 
   t.notOk(await exists(outputJsonPath))
 
-  const modulesYaml = await readModulesYaml(path.join(prefix, 'node_modules'))
+  const nmPath = path.join(prefix, 'node_modules')
+  const modulesYaml = await readModulesYaml(nmPath, nmPath)
   t.ok(modulesYaml)
   t.deepEqual(modulesYaml!.pendingBuilds, ['localhost+4873/pre-and-postinstall-scripts-example/1.0.0'])
 

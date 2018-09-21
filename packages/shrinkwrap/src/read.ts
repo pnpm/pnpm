@@ -1,3 +1,4 @@
+import { DEPENDENCIES_FIELDS } from '@pnpm/types'
 import loadYamlFile = require('load-yaml-file')
 import path = require('path')
 import {
@@ -8,9 +9,9 @@ import {
   SHRINKWRAP_MINOR_VERSION,
   SHRINKWRAP_VERSION,
 } from './constants'
-import {ShrinkwrapBreakingChangeError} from './errors'
+import { ShrinkwrapBreakingChangeError } from './errors'
 import logger from './logger'
-import {Shrinkwrap} from './types'
+import { Shrinkwrap } from './types'
 
 export const readPrivate = readCurrent
 
@@ -52,8 +53,22 @@ async function _read (
     }
     return null
   }
-  // for backward compatibility
   // tslint:disable:no-string-literal
+  if (shrinkwrap && typeof shrinkwrap['specifiers'] !== 'undefined') {
+    shrinkwrap.importers = {
+      '.': {
+        specifiers: shrinkwrap['specifiers'],
+      },
+    }
+    delete shrinkwrap['specifiers']
+    for (const depType of DEPENDENCIES_FIELDS) {
+      if (shrinkwrap[depType]) {
+        shrinkwrap.importers['.'][depType] = shrinkwrap[depType]
+        delete shrinkwrap[depType]
+      }
+    }
+  }
+  // for backward compatibility
   if (shrinkwrap && shrinkwrap['version'] && !shrinkwrap.shrinkwrapVersion) {
     shrinkwrap.shrinkwrapVersion = shrinkwrap['version']
     delete shrinkwrap['version']
@@ -79,13 +94,22 @@ async function _read (
   throw new ShrinkwrapBreakingChangeError(shrinkwrapPath)
 }
 
-export function create (registry: string) {
+export function create (
+  registry: string,
+  importerPath: string,
+  opts: {
+    shrinkwrapMinorVersion: number,
+  },
+) {
   return {
-    dependencies: {},
-    packages: {},
+    importers: {
+      [importerPath]: {
+        dependencies: {},
+        specifiers: {},
+      },
+    },
     registry,
-    shrinkwrapMinorVersion: SHRINKWRAP_MINOR_VERSION,
+    shrinkwrapMinorVersion: opts.shrinkwrapMinorVersion || SHRINKWRAP_MINOR_VERSION,
     shrinkwrapVersion: SHRINKWRAP_VERSION,
-    specifiers: {},
   }
 }

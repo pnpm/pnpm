@@ -42,7 +42,7 @@
     "rimraf": "^2.6.1",
     "tape": "^4.6.3",
     "tempy": "^0.2.1",
-    "ts-node": "^7.0.0",
+    "ts-node": "6.2.0",
     "tslint": "^5.8.0",
     "typescript": "^3.0.0",
     "yaml-tag": "github:zkochan/yaml-tag"
@@ -58,6 +58,7 @@
     "js-yaml": "^3.8.4",
     "load-yaml-file": "^0.1.0",
     "mkdirp-promise": "^5.0.1",
+    "normalize-path": "3.0.0",
     "ramda": "^0.25.0",
     "rimraf-then": "^1.0.1",
     "util.promisify": "^1.0.0",

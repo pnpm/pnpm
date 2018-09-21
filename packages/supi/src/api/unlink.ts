@@ -23,7 +23,7 @@ export async function unlinkPkgs (
     streamParser.on('data', reporter)
   }
   const opts = await _extendOptions(maybeOpts)
-  const modulesYaml = await readModulesYaml(opts.prefix)
+  const modulesYaml = await readModulesYaml(path.join(opts.shrinkwrapDirectory, 'node_modules'), path.join(opts.prefix, 'node_modules'))
   opts.store = modulesYaml && modulesYaml.store || opts.store
 
   await _unlinkPkgs(pkgNames, opts)
@@ -73,7 +73,7 @@ export async function unlink (maybeOpts: InstallOptions) {
     streamParser.on('data', reporter)
   }
   const opts = await _extendOptions(maybeOpts)
-  const modulesYaml = await readModulesYaml(opts.prefix)
+  const modulesYaml = await readModulesYaml(path.join(opts.shrinkwrapDirectory, 'node_modules'), path.join(opts.prefix, 'node_modules'))
   opts.store = modulesYaml && modulesYaml.store || opts.store
 
   const modules = await realNodeModulesDir(opts.prefix)

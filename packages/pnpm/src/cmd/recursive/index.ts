@@ -184,8 +184,6 @@ export async function recursive (
     storeController,
   }) as InstallOptions
 
-  const limitInstallation = pLimit(opts.workspaceConcurrency)
-
   const result = {
     fails: [],
     passes: 0,
@@ -207,6 +205,9 @@ export async function recursive (
         break
     }
 
+    const actionConcurrency = opts.shrinkwrapDirectory && ['install', 'update', 'link'].indexOf(cmdFullName) !== -1
+      ? 1 : opts.workspaceConcurrency
+    const limitInstallation = pLimit(actionConcurrency)
     const pkgPaths = chunks.length === 0
       ? chunks[0]
       : Object.keys(pkgGraphResult.graph).sort()
@@ -256,10 +257,14 @@ export async function recursive (
   }
 
   if (cmdFullName === 'rebuild' || !opts.ignoreScripts && (cmdFullName === 'install' || cmdFullName === 'update' || cmdFullName === 'unlink')) {
+    // With a shared node_modules only concurrency 1 is allowed currently.
+    // Otherwise, rebuild would override the value of pendingBuilds in node_modules/.modules.yaml
+    const actionConcurrency = opts.shrinkwrapDirectory ? 1 : opts.workspaceConcurrency
+    const limitRebuild = pLimit(actionConcurrency)
     const action = (cmdFullName !== 'rebuild' || input.length === 0 ? rebuild : rebuildPkgs.bind(null, input))
     for (const chunk of chunks) {
       await Promise.all(chunk.map((prefix: string) =>
-        limitInstallation(async () => {
+        limitRebuild(async () => {
           try {
             if (opts.ignoredPackages && opts.ignoredPackages.has(prefix)) {
               return

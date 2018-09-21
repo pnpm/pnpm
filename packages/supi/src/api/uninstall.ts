@@ -3,6 +3,7 @@ import logger, { streamParser } from '@pnpm/logger'
 import { write as writeModulesYaml } from '@pnpm/modules-yaml'
 import {
   getSaveType,
+  realNodeModulesDir,
   removeOrphanPackages as removeOrphanPkgs,
   removeTopDependency,
 } from '@pnpm/utils'
@@ -71,10 +72,11 @@ export async function uninstallInContext (
   const pkgJsonPath = path.join(ctx.prefix, 'package.json')
   const saveType = getSaveType(opts)
   const pkg = await removeDeps(pkgJsonPath, pkgsToUninstall, { prefix: opts.prefix, saveType })
-  const newShr = pruneShrinkwrap(ctx.wantedShrinkwrap, pkg, (message) => logger.warn({message, prefix: ctx.prefix}))
+  const newShr = pruneShrinkwrap(ctx.wantedShrinkwrap, pkg, ctx.importerPath, (message) => logger.warn({message, prefix: ctx.prefix}))
   const removedPkgIds = await removeOrphanPkgs({
     bin: opts.bin,
     hoistedAliases: ctx.hoistedAliases,
+    importerPath: ctx.importerPath,
     newShrinkwrap: newShr,
     oldShrinkwrap: ctx.currentShrinkwrap,
     prefix: ctx.prefix,
@@ -84,14 +86,14 @@ export async function uninstallInContext (
   ctx.pendingBuilds = ctx.pendingBuilds.filter((pkgId) => !removedPkgIds.has(dp.resolve(newShr.registry, pkgId)))
   await opts.storeController.close()
   const currentShrinkwrap = makePartialCurrentShrinkwrap
-    ? pruneShrinkwrap(ctx.currentShrinkwrap, pkg, (message) => logger.warn({message, prefix: ctx.prefix}))
+    ? pruneShrinkwrap(ctx.currentShrinkwrap, pkg, ctx.importerPath, (message) => logger.warn({message, prefix: ctx.prefix}))
     : newShr
   if (opts.shrinkwrap) {
-    await saveShrinkwrap(ctx.prefix, newShr, currentShrinkwrap)
+    await saveShrinkwrap(opts.shrinkwrapDirectory, newShr, currentShrinkwrap)
   } else {
-    await saveCurrentShrinkwrapOnly(ctx.prefix, currentShrinkwrap)
+    await saveCurrentShrinkwrapOnly(opts.shrinkwrapDirectory, currentShrinkwrap)
   }
-  await writeModulesYaml(path.join(ctx.prefix, 'node_modules'), {
+  await writeModulesYaml(await realNodeModulesDir(opts.shrinkwrapDirectory), await realNodeModulesDir(ctx.prefix), {
     hoistedAliases: ctx.hoistedAliases,
     independentLeaves: opts.independentLeaves,
     layoutVersion: LAYOUT_VERSION,
@@ -108,7 +110,7 @@ export async function uninstallInContext (
   })
 
   if (opts.shamefullyFlatten) {
-    await installPkgs(currentShrinkwrap.specifiers, {...opts, lock: false, reinstallForFlatten: true, update: false})
+    await installPkgs(currentShrinkwrap.importers[ctx.importerPath].specifiers, {...opts, lock: false, reinstallForFlatten: true, update: false})
   }
 
   summaryLogger.debug({prefix: opts.prefix})

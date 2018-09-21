@@ -33,6 +33,7 @@ export default async function linkPackages (
     force: boolean,
     dryRun: boolean,
     baseNodeModules: string,
+    shrinkwrapDirectoryNodeModules: string,
     bin: string,
     topParents: Array<{name: string, version: string}>,
     wantedShrinkwrap: Shrinkwrap,
@@ -54,6 +55,8 @@ export default async function linkPackages (
     reinstallForFlatten: boolean,
     hoistedAliases: {[depPath: string]: string[]},
     strictPeerDependencies: boolean,
+    importerPath: string,
+    externalShrinkwrap: boolean,
   },
 ): Promise<{
   currentShrinkwrap: Shrinkwrap,
@@ -68,8 +71,9 @@ export default async function linkPackages (
   // sometimes node_modules is alread up-to-date
   // logger.info(`Creating dependency graph`)
   const resolvePeersResult = await resolvePeers({
+    externalShrinkwrap: opts.externalShrinkwrap,
     independentLeaves: opts.independentLeaves,
-    nodeModules: opts.baseNodeModules,
+    nodeModules: opts.shrinkwrapDirectoryNodeModules,
     pkgGraph,
     prefix: opts.prefix,
     rootNodeIdsByAlias,
@@ -77,7 +81,24 @@ export default async function linkPackages (
     topParents: opts.topParents,
   })
   const depGraph = resolvePeersResult.depGraph
-  let {newShrinkwrap, pendingRequiresBuilds} = updateShrinkwrap(depGraph, opts.wantedShrinkwrap, opts.pkg, opts.prefix) // tslint:disable-line:prefer-const
+  if (opts.externalShrinkwrap) {
+    for (const alias of R.keys(resolvePeersResult.rootAbsolutePathsByAlias)) {
+      const depPath = resolvePeersResult.rootAbsolutePathsByAlias[alias]
+
+      if (depGraph[depPath].isPure) continue
+
+      const importer = opts.wantedShrinkwrap.importers[opts.importerPath]
+      const ref = dp.relative(opts.wantedShrinkwrap.registry, depPath)
+      if (importer.dependencies && importer.dependencies[alias]) {
+        importer.dependencies[alias] = ref
+      } else if (importer.devDependencies && importer.devDependencies[alias]) {
+        importer.devDependencies[alias] = ref
+      } else if (importer.optionalDependencies && importer.optionalDependencies[alias]) {
+        importer.optionalDependencies[alias] = ref
+      }
+    }
+  }
+  let {newShrinkwrap, pendingRequiresBuilds} = updateShrinkwrap(depGraph, opts.wantedShrinkwrap, opts.prefix) // tslint:disable-line:prefer-const
   if (opts.afterAllResolvedHook) {
     newShrinkwrap = opts.afterAllResolvedHook(newShrinkwrap)
   }
@@ -86,6 +107,7 @@ export default async function linkPackages (
     bin: opts.bin,
     dryRun: opts.dryRun,
     hoistedAliases: opts.hoistedAliases,
+    importerPath: opts.importerPath,
     newShrinkwrap,
     oldShrinkwrap: opts.currentShrinkwrap,
     prefix: opts.prefix,
@@ -112,6 +134,7 @@ export default async function linkPackages (
   }
 
   const filterOpts = {
+    importerPath: opts.importerPath,
     noDev: !opts.development,
     noOptional: !opts.optional,
     noProd: !opts.production,
@@ -201,7 +224,7 @@ export default async function linkPackages (
 
   // Important: shamefullyFlattenGraph changes depGraph, so keep this at the end, right before linkBins
   if (opts.shamefullyFlatten && (opts.reinstallForFlatten || newDepPaths.length > 0 || removedDepPaths.size > 0)) {
-    opts.hoistedAliases = await shamefullyFlattenGraph(depNodes, currentShrinkwrap, opts)
+    opts.hoistedAliases = await shamefullyFlattenGraph(depNodes, currentShrinkwrap.importers[opts.importerPath].specifiers, opts)
   }
 
   if (!opts.dryRun) {
@@ -222,7 +245,7 @@ export default async function linkPackages (
 
 async function shamefullyFlattenGraph (
   depNodes: DepGraphNode[],
-  currentShrinkwrap: Shrinkwrap,
+  currentSpecifiers: {[alias: string]: string},
   opts: {
     baseNodeModules: string,
     dryRun: boolean,
@@ -241,7 +264,7 @@ async function shamefullyFlattenGraph (
     .map((depNode) => {
       for (const childAlias of R.keys(depNode.children)) {
         // if this alias is in the root dependencies, skip it
-        if (currentShrinkwrap.specifiers[childAlias]) {
+        if (currentSpecifiers[childAlias]) {
           continue
         }
         // if this alias has already been taken, skip it
@@ -274,6 +297,8 @@ async function shamefullyFlattenGraph (
   return aliasesByDependencyPath
 }
 
+// TODO: Maybe it should be prohibited to install with --production in one project
+// and without --production in another one, when they use a shared shrinkwrap.yaml?!
 function filterShrinkwrap (
   shr: Shrinkwrap,
   opts: {
@@ -281,6 +306,7 @@ function filterShrinkwrap (
     noOptional: boolean,
     noProd: boolean,
     skipped: Set<string>,
+    importerPath: string,
   },
 ): Shrinkwrap {
   let pairs = (R.toPairs(shr.packages || {}) as Array<[string, PackageSnapshot]>)
@@ -294,14 +320,20 @@ function filterShrinkwrap (
   if (opts.noOptional) {
     pairs = pairs.filter((pair) => !pair[1].optional)
   }
+  const shrImporter = shr.importers[opts.importerPath]
   return {
-    dependencies: opts.noProd ? {} : shr.dependencies || {},
-    devDependencies: opts.noDev ? {} : shr.devDependencies || {},
-    optionalDependencies: opts.noOptional ? {} : shr.optionalDependencies || {},
+    importers: {
+      ...shr.importers,
+      [opts.importerPath]: {
+        dependencies: opts.noProd ? {} : shrImporter.dependencies || {},
+        devDependencies: opts.noDev ? {} : shrImporter.devDependencies || {},
+        optionalDependencies: opts.noOptional ? {} : shrImporter.optionalDependencies || {},
+        specifiers: shrImporter.specifiers,
+      },
+    },
     packages: R.fromPairs(pairs),
     registry: shr.registry,
     shrinkwrapVersion: shr.shrinkwrapVersion,
-    specifiers: shr.specifiers,
   } as Shrinkwrap
 }
 

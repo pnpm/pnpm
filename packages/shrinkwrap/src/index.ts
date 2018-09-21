@@ -3,6 +3,7 @@ export * from './read'
 export * from './types'
 
 import existsWanted from './existsWanted'
+import getImporterPath from './getImporterPath'
 import nameVerFromPkgSnapshot from './nameVerFromPkgSnapshot'
 import pkgSnapshotToResolution from './pkgSnapshotToResolution'
 import satisfiesPackageJson from './satisfiesPackageJson'
@@ -13,6 +14,7 @@ import write, {
 
 export {
   existsWanted,
+  getImporterPath,
   nameVerFromPkgSnapshot,
   pkgSnapshotToResolution,
   satisfiesPackageJson,

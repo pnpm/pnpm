@@ -12,6 +12,7 @@ export interface PruneOptions {
   storeController: StoreController,
   registry?: string,
   shrinkwrap?: boolean,
+  shrinkwrapDirectory?: string,
 
   reporter?: ReporterFunction,
   production?: boolean,
@@ -33,6 +34,7 @@ export type StrictPruneOptions = PruneOptions & {
   development: boolean,
   optional: boolean,
   shrinkwrap: boolean,
+  shrinkwrapDirectory: string,
 }
 
 const defaults = async (opts: PruneOptions) => {
@@ -48,6 +50,7 @@ const defaults = async (opts: PruneOptions) => {
     registry: 'https://registry.npmjs.org/',
     shamefullyFlatten: false,
     shrinkwrap: true,
+    shrinkwrapDirectory: prefix,
     store: opts.store,
     storeController: opts.storeController,
   } as StrictPruneOptions

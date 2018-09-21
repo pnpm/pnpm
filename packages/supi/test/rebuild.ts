@@ -21,7 +21,9 @@ const test = promisifyTape(tape)
 
 test('rebuilds dependencies', async (t: tape.Test) => {
   const project = prepare(t)
-  await installPkgs(['pre-and-postinstall-scripts-example', 'zkochan/install-scripts-example#prepare'], await testDefaults({saveDev: true, ignoreScripts: true}))
+
+  const pkgs = ['pre-and-postinstall-scripts-example', 'zkochan/install-scripts-example#prepare']
+  await installPkgs(pkgs, await testDefaults({saveDev: true, ignoreScripts: true}))
 
   let modules = await project.loadModules()
   t.deepEqual(modules!.pendingBuilds, [

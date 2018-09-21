@@ -6,19 +6,18 @@ import getNpmTarballUrl from 'get-npm-tarball-url'
 import {
   DependencyShrinkwrap,
   PackageSnapshot,
-  prune as pruneShrinkwrap,
+  pruneSharedShrinkwrap,
   ResolvedDependencies,
   Shrinkwrap,
   ShrinkwrapResolution,
 } from 'pnpm-shrinkwrap'
 import R = require('ramda')
 import {absolutePathToRef} from '../fs/shrinkwrap'
-import {DepGraphNode, DepGraphNodesByDepPath} from './resolvePeers'
+import {DepGraphNodesByDepPath} from './resolvePeers'
 
 export default function (
   depGraph: DepGraphNodesByDepPath,
   shrinkwrap: Shrinkwrap,
-  pkg: PackageJson,
   prefix: string,
 ): {
   newShrinkwrap: Shrinkwrap,
@@ -44,7 +43,7 @@ export default function (
   }
   const warn = (message: string) => logger.warn({message, prefix})
   return {
-    newShrinkwrap: pruneShrinkwrap(shrinkwrap, pkg, warn),
+    newShrinkwrap: pruneSharedShrinkwrap(shrinkwrap, warn),
     pendingRequiresBuilds,
   }
 }
