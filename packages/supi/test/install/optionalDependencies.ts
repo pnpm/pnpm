@@ -241,14 +241,14 @@ test('only skip optional dependencies', async (t: tape.Test) => {
     duplexify depends on stream-shift. As duplexify is a dependency of an optional dependency
     and @google-cloud/functions-emulator won't be installed, duplexify and stream-shift
     are marked as skipped.
-    got@3.3.1 also depends on duplexify.
+    firebase-tools also depends on duplexify and stream-shift, through got@3.3.1.
     Make sure that duplexify and stream-shift are installed because they are needed
-    by got, even if they were marked as skipped earlier by @google-cloud/functions-emulator
+    by firebase-tools, even if they were marked as skipped earlier.
   */
 
  const project = prepare(t, {
     dependencies: {
-      got: '3.3.1',
+      'firebase-tools': '4.2.1',
     },
     optionalDependencies: {
       '@google-cloud/functions-emulator': '1.0.0-beta.5',
