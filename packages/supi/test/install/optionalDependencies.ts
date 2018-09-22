@@ -235,9 +235,11 @@ test('optional dependency has bigger priority than regular dependency', async (t
   t.ok(deepRequireCwd(['is-positive', './package.json']).version, '3.1.0')
 })
 
+// Covers https://github.com/pnpm/pnpm/issues/1386
+// TODO: use smaller packages to cover the test case
 test('only skip optional dependencies', async (t: tape.Test) => {
   /*
-    @google-cloud/functions-emulator as various dependencies, one of them is duplexify.
+    @google-cloud/functions-emulator has various dependencies, one of them is duplexify.
     duplexify depends on stream-shift. As duplexify is a dependency of an optional dependency
     and @google-cloud/functions-emulator won't be installed, duplexify and stream-shift
     are marked as skipped.
