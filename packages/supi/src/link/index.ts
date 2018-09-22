@@ -93,7 +93,13 @@ export default async function linkPackages (
     storeController: opts.storeController,
   })
 
-  let depNodes =  R.values(depGraph).filter((depNode) => !opts.skipped.has(depNode.id))
+  let depNodes = R.values(depGraph).filter((depNode) => {
+    if (!depNode.optional) {
+      opts.skipped.delete(depNode.id)
+      return true
+    }
+    return !opts.skipped.has(depNode.id)
+  })
   if (!opts.production) {
     depNodes = depNodes.filter((depNode) => depNode.dev !== false || depNode.optional)
   }
