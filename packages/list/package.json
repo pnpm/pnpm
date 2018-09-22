@@ -1,0 +1,79 @@
+{
+  "name": "pnpm-list",
+  "version": "4.0.1",
+  "description": "List installed packages in a symlinked `node_modules`",
+  "main": "lib/index.js",
+  "typings": "lib/index.d.ts",
+  "files": [
+    "lib"
+  ],
+  "scripts": {
+    "fix": "tslint -c tslint.json --project . --fix",
+    "lint": "tslint -c tslint.json --project .",
+    "test": "npm run lint && preview && ts-node test --type-check",
+    "prepublishOnly": "tsc",
+    "tsc": "tsc",
+    "md": "tsc && mos"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/pnpm/pnpm-list.git"
+  },
+  "keywords": [
+    "pnpm",
+    "list",
+    "ls"
+  ],
+  "author": {
+    "name": "Zoltan Kochan",
+    "email": "z@kochan.io",
+    "url": "https://www.kochan.io/"
+  },
+  "engines": {
+    "node": ">=6"
+  },
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/pnpm/pnpm-list/issues"
+  },
+  "homepage": "https://github.com/pnpm/pnpm-list#readme",
+  "dependencies": {
+    "@types/archy": "^0.0.31",
+    "@types/node": "^9.3.0 || 10",
+    "@types/ramda": "^0.25.0",
+    "archy": "^1.0.0",
+    "chalk": "^2.3.0",
+    "dependencies-hierarchy": "^3.0.0",
+    "npm-package-arg": "^6.0.0",
+    "p-limit": "^2.0.0",
+    "ramda": "^0.25.0",
+    "read-package-json": "^2.0.12",
+    "thenify": "^3.3.0"
+  },
+  "devDependencies": {
+    "@pnpm/logger": "^2.1.0",
+    "@types/common-tags": "^1.2.5",
+    "@types/tape": "^4.2.30",
+    "common-tags": "^1.4.0",
+    "mos": "^2.0.0-alpha.3",
+    "mos-plugin-readme": "^1.0.4",
+    "package-preview": "^1.0.0",
+    "tape": "^4.7.0",
+    "ts-node": "^7.0.0",
+    "tslint": "^5.8.0",
+    "typescript": "^3.0.0"
+  },
+  "mos": {
+    "plugins": [
+      "readme"
+    ],
+    "installation": {
+      "useShortAlias": true
+    }
+  },
+  "greenkeeper": {
+    "ignore": [
+      "dependencies-hierarchy"
+    ]
+  }
+}

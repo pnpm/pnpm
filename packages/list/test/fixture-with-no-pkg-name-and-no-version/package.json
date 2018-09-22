@@ -1,0 +1,11 @@
+{
+  "devDependencies": {
+    "is-positive": "^3.1.0"
+  },
+  "optionalDependencies": {
+    "is-negative": "^2.1.0"
+  },
+  "dependencies": {
+    "write-json-file": "^2.2.0"
+  }
+}
