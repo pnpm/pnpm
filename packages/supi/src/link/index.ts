@@ -94,7 +94,8 @@ export default async function linkPackages (
   })
 
   let depNodes = R.values(depGraph).filter((depNode) => {
-    if (!depNode.optional) {
+    const relId = dp.relative(newShrinkwrap.registry, depNode.absolutePath)
+    if (newShrinkwrap.packages && newShrinkwrap.packages[relId] && !newShrinkwrap.packages[relId].optional) {
       opts.skipped.delete(depNode.id)
       return true
     }
