@@ -234,3 +234,29 @@ test('optional dependency has bigger priority than regular dependency', async (t
 
   t.ok(deepRequireCwd(['is-positive', './package.json']).version, '3.1.0')
 })
+
+test('only skip optional dependencies', async (t: tape.Test) => {
+  /*
+    @google-cloud/functions-emulator as various dependencies, one of them is duplexify.
+    duplexify depends on stream-shift. As duplexify is a dependency of an optional dependency
+    and @google-cloud/functions-emulator won't be installed, duplexify and stream-shift
+    are marked as skipped.
+    got@3.3.1 also depends on duplexify.
+    Make sure that duplexify and stream-shift are installed because they are needed
+    by got, even if they were marked as skipped earlier by @google-cloud/functions-emulator
+  */
+
+ const project = prepare(t, {
+    dependencies: {
+      got: '3.3.1',
+    },
+    optionalDependencies: {
+      '@google-cloud/functions-emulator': '1.0.0-beta.5',
+    },
+  })
+
+ await install(await testDefaults())
+
+ t.ok(await exists(path.resolve('node_modules', '.localhost+4873', 'duplexify', '3.6.0')), 'duplexify is linked into node_modules')
+ t.ok(await exists(path.resolve('node_modules', '.localhost+4873', 'stream-shift', '1.0.0')), 'stream-shift is linked into node_modules')
+})
