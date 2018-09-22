@@ -1,5 +1,6 @@
 dependencies:
   '@pnpm/modules-yaml': 'link:../../../__package_previews__/modules-yaml/@pnpm/modules-yaml'
+  '@pnpm/types': 1.8.0
   load-yaml-file: 0.1.0
   write-yaml-file: 1.0.1
 devDependencies:
@@ -33,6 +34,10 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha512-NnkmxKFQJMkHL2TcLAl2sof7mVu8dgode4zGzwtvEaZ/xjOHm3CfUJomincmZcpWoXrjHkvbPxjczEPP41Wmqg==
+  /@pnpm/types/1.8.0:
+    dev: false
+    resolution:
+      integrity: sha512-NsEzBVa5aMgn/n79piyJtpUQFzJ97tB2R2r8PSJlLnMA6LJmchKuv7ATN+/nZH/3QRd/+uFXEq07/i/ajsqVGQ==
   /@types/fs-extra/5.0.4:
     dependencies:
       '@types/node': 10.10.3
@@ -3081,6 +3086,7 @@ registry: 'https://registry.npmjs.org/'
 shrinkwrapMinorVersion: 9
 shrinkwrapVersion: 3
 specifiers:
+  '@pnpm/types': 1.8.0
   '@types/tape': ^4.2.31
   '@types/tempy': ^0.1.0
   load-yaml-file: ^0.1.0

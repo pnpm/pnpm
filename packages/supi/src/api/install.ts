@@ -4,12 +4,12 @@ import {
   stageLogger,
   summaryLogger,
 } from '@pnpm/core-loggers'
-import headless, {HeadlessOptions} from '@pnpm/headless'
-import runLifecycleHooks, {runPostinstallHooks} from '@pnpm/lifecycle'
+import headless, { HeadlessOptions } from '@pnpm/headless'
+import runLifecycleHooks, { runPostinstallHooks } from '@pnpm/lifecycle'
 import logger, {
   streamParser,
 } from '@pnpm/logger'
-import {write as writeModulesYaml} from '@pnpm/modules-yaml'
+import { write as writeModulesYaml } from '@pnpm/modules-yaml'
 import {
   DirectoryResolution,
   LocalPackages,
@@ -46,18 +46,19 @@ import {
   LAYOUT_VERSION,
   SHRINKWRAP_MINOR_VERSION,
 } from '../constants'
-import depsFromPackage, {getPreferredVersionsFromPackage} from '../depsFromPackage'
-import depsToSpecs, {similarDepsToSpecs} from '../depsToSpecs'
-import {absolutePathToRef} from '../fs/shrinkwrap'
+import depsFromPackage, { getPreferredVersionsFromPackage } from '../depsFromPackage'
+import depsToSpecs, { similarDepsToSpecs } from '../depsToSpecs'
+import { PnpmError } from '../errorTypes'
+import { absolutePathToRef } from '../fs/shrinkwrap'
 import getSpecFromPackageJson from '../getSpecFromPackageJson'
-import linkPackages, {DepGraphNodesByDepPath} from '../link'
+import linkPackages, { DepGraphNodesByDepPath } from '../link'
 import {
   createNodeId,
   nodeIdContainsSequence,
   ROOT_NODE_ID,
 } from '../nodeIdUtils'
 import parseWantedDependencies from '../parseWantedDependencies'
-import resolveDependencies, {Pkg} from '../resolveDependencies'
+import resolveDependencies, { Pkg } from '../resolveDependencies'
 import safeIsInnerLink from '../safeIsInnerLink'
 import save from '../save'
 import {
@@ -67,7 +68,7 @@ import extendOptions, {
   InstallOptions,
   StrictInstallOptions,
 } from './extendInstallOptions'
-import getContext, {PnpmContext} from './getContext'
+import getContext, { PnpmContext } from './getContext'
 import externalLink from './link'
 import lock from './lock'
 import shrinkwrapsEqual from './shrinkwrapsEqual'
@@ -156,8 +157,8 @@ export async function install (maybeOpts: InstallOptions & {
 
   const opts = await extendOptions(maybeOpts)
 
-  if (!opts.production && opts.optional) {
-    throw new Error('Optional dependencies cannot be installed without production dependencies')
+  if (!opts.include.dependencies && opts.include.optionalDependencies) {
+    throw new PnpmError('ERR_PNPM_OPTIONAL_DEPS_REQUIRE_PROD_DEPS', 'Optional dependencies cannot be installed without production dependencies')
   }
 
   if (opts.lock) {
@@ -634,19 +635,17 @@ async function installInContext (
     baseNodeModules: nodeModulesPath,
     bin: opts.bin,
     currentShrinkwrap: ctx.currentShrinkwrap,
-    development: opts.development,
     dryRun: opts.shrinkwrapOnly,
     externalShrinkwrap,
     force: opts.force,
     hoistedAliases: ctx.hoistedAliases,
     importerPath: ctx.importerPath,
+    include: opts.include,
     independentLeaves: opts.independentLeaves,
     makePartialCurrentShrinkwrap,
-    optional: opts.optional,
     outdatedPkgs: installCtx.outdatedPkgs,
     pkg: newPkg || ctx.pkg,
     prefix: ctx.prefix,
-    production: opts.production,
     reinstallForFlatten: Boolean(opts.reinstallForFlatten),
     shamefullyFlatten: opts.shamefullyFlatten,
     shrinkwrapDirectoryNodeModules: installCtx.nodeModules,
@@ -686,6 +685,7 @@ async function installInContext (
         }
         return writeModulesYaml(installCtx.nodeModules, nodeModulesPath, {
           hoistedAliases: ctx.hoistedAliases,
+          included: ctx.include,
           independentLeaves: opts.independentLeaves,
           layoutVersion: LAYOUT_VERSION,
           packageManager: `${opts.packageManager.name}@${opts.packageManager.version}`,

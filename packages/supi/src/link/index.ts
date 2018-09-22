@@ -6,6 +6,7 @@ import {
 } from '@pnpm/core-loggers'
 import linkBins, { linkBinsOfPackages } from '@pnpm/link-bins'
 import logger from '@pnpm/logger'
+import { IncludedDependencies } from '@pnpm/modules-yaml'
 import { fromDir as readPackageFromDir } from '@pnpm/read-package-json'
 import { PackageJson } from '@pnpm/types'
 import {
@@ -39,13 +40,11 @@ export default async function linkPackages (
     wantedShrinkwrap: Shrinkwrap,
     currentShrinkwrap: Shrinkwrap,
     makePartialCurrentShrinkwrap: boolean,
-    production: boolean,
-    development: boolean,
-    optional: boolean,
     prefix: string,
     storeController: StoreController,
     skipped: Set<string>,
     pkg: PackageJson,
+    include: IncludedDependencies,
     independentLeaves: boolean,
     // This is only needed till shrinkwrap v4
     updateShrinkwrapMinorVersion: boolean,
@@ -123,21 +122,19 @@ export default async function linkPackages (
     }
     return !opts.skipped.has(depNode.id)
   })
-  if (!opts.production) {
+  if (!opts.include.dependencies) {
     depNodes = depNodes.filter((depNode) => depNode.dev !== false || depNode.optional)
   }
-  if (!opts.development) {
+  if (!opts.include.devDependencies) {
     depNodes = depNodes.filter((depNode) => depNode.dev !== true)
   }
-  if (!opts.optional) {
+  if (!opts.include.optionalDependencies) {
     depNodes = depNodes.filter((depNode) => !depNode.optional)
   }
 
   const filterOpts = {
     importerPath: opts.importerPath,
-    noDev: !opts.development,
-    noOptional: !opts.optional,
-    noProd: !opts.production,
+    include: opts.include,
     skipped: opts.skipped,
   }
   const newCurrentShrinkwrap = filterShrinkwrap(newShrinkwrap, filterOpts)
@@ -146,7 +143,15 @@ export default async function linkPackages (
     filterShrinkwrap(opts.currentShrinkwrap, filterOpts),
     newCurrentShrinkwrap,
     depGraph,
-    opts,
+    {
+      baseNodeModules: opts.baseNodeModules,
+      dryRun: opts.dryRun,
+      force: opts.force,
+      optional: opts.include.optionalDependencies,
+      prefix: opts.prefix,
+      sideEffectsCache: opts.sideEffectsCache,
+      storeController: opts.storeController,
+    },
   )
   stageLogger.debug('importing_done')
 
@@ -216,7 +221,7 @@ export default async function linkPackages (
       }
     }
     currentShrinkwrap = {...newShrinkwrap, packages}
-  } else if (opts.production && opts.development && opts.optional && opts.skipped.size === 0) {
+  } else if (opts.include.dependencies && opts.include.devDependencies && opts.include.optionalDependencies && opts.skipped.size === 0) {
     currentShrinkwrap = newShrinkwrap
   } else {
     currentShrinkwrap = newCurrentShrinkwrap
@@ -297,27 +302,23 @@ async function shamefullyFlattenGraph (
   return aliasesByDependencyPath
 }
 
-// TODO: Maybe it should be prohibited to install with --production in one project
-// and without --production in another one, when they use a shared shrinkwrap.yaml?!
 function filterShrinkwrap (
   shr: Shrinkwrap,
   opts: {
-    noDev: boolean,
-    noOptional: boolean,
-    noProd: boolean,
+    include: IncludedDependencies,
     skipped: Set<string>,
     importerPath: string,
   },
 ): Shrinkwrap {
   let pairs = (R.toPairs(shr.packages || {}) as Array<[string, PackageSnapshot]>)
     .filter((pair) => !opts.skipped.has(pair[1].id || dp.resolve(shr.registry, pair[0])))
-  if (opts.noProd) {
+  if (!opts.include.dependencies) {
     pairs = pairs.filter((pair) => pair[1].dev !== false || pair[1].optional)
   }
-  if (opts.noDev) {
+  if (!opts.include.devDependencies) {
     pairs = pairs.filter((pair) => pair[1].dev !== true)
   }
-  if (opts.noOptional) {
+  if (!opts.include.optionalDependencies) {
     pairs = pairs.filter((pair) => !pair[1].optional)
   }
   const shrImporter = shr.importers[opts.importerPath]
@@ -325,9 +326,9 @@ function filterShrinkwrap (
     importers: {
       ...shr.importers,
       [opts.importerPath]: {
-        dependencies: opts.noProd ? {} : shrImporter.dependencies || {},
-        devDependencies: opts.noDev ? {} : shrImporter.devDependencies || {},
-        optionalDependencies: opts.noOptional ? {} : shrImporter.optionalDependencies || {},
+        dependencies: !opts.include.dependencies ? {} : shrImporter.dependencies || {},
+        devDependencies: !opts.include.devDependencies ? {} : shrImporter.devDependencies || {},
+        optionalDependencies: !opts.include.optionalDependencies ? {} : shrImporter.optionalDependencies || {},
         specifiers: shrImporter.specifiers,
       },
     },

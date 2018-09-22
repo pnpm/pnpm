@@ -211,7 +211,15 @@ test('not installing optional dependencies when optional is false', async (t: ta
     },
   })
 
-  await install(await testDefaults({optional: false}))
+  await install(
+    await testDefaults({
+      include: {
+        dependencies: true,
+        devDependencies: true,
+        optionalDependencies: false,
+      },
+    }),
+  )
 
   await project.hasNot('is-positive')
   await project.has('pkg-with-good-optional')

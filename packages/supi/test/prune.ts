@@ -49,8 +49,11 @@ test('prune removes dev dependencies in production', async (t: tape.Test) => {
   await installPkgs(['is-negative@2.1.0'], await testDefaults({save: true}))
   await installPkgs(['fnumber@0.1.0'], await testDefaults({saveOptional: true}))
   await prune(await testDefaults({
-    development: false,
-    production: true,
+    include: {
+      dependencies: true,
+      devDependencies: false,
+      optionalDependencies: true,
+    },
   }))
 
   await project.storeHasNot('is-positive', '2.0.0')

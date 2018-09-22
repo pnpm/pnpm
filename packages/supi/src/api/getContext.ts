@@ -1,7 +1,11 @@
 import { packageJsonLogger } from '@pnpm/core-loggers'
 import logger from '@pnpm/logger'
-import { read as readModulesYaml } from '@pnpm/modules-yaml'
 import {
+  IncludedDependencies,
+  read as readModulesYaml,
+} from '@pnpm/modules-yaml'
+import {
+  DEPENDENCIES_FIELDS,
   PackageJson,
   ReadPackageHook,
 } from '@pnpm/types'
@@ -26,6 +30,7 @@ export interface PnpmContext {
   existsWantedShrinkwrap: boolean,
   existsCurrentShrinkwrap: boolean,
   importerPath: string,
+  include: IncludedDependencies,
   currentShrinkwrap: Shrinkwrap,
   wantedShrinkwrap: Shrinkwrap,
   skipped: Set<string>,
@@ -40,6 +45,7 @@ export default async function getContext (
     hooks?: {
       readPackage?: ReadPackageHook,
     },
+    include?: IncludedDependencies,
     independentLeaves: boolean,
     prefix: string,
     registry: string,
@@ -52,7 +58,8 @@ export default async function getContext (
   const storePath = opts.store
 
   const modulesPath = path.join(opts.prefix, 'node_modules')
-  const modules = await readModulesYaml(path.join(opts.shrinkwrapDirectory, 'node_modules'), modulesPath)
+  const shrinkwrapNodeModules = path.join(opts.shrinkwrapDirectory, 'node_modules')
+  const modules = await readModulesYaml(shrinkwrapNodeModules, modulesPath)
 
   if (modules) {
     try {
@@ -85,6 +92,16 @@ export default async function getContext (
         )
       }
       checkCompatibility(modules, {storePath, modulesPath})
+      if (opts.shrinkwrapDirectory !== opts.prefix && opts.include && modules.included) {
+        for (const depsField of DEPENDENCIES_FIELDS) {
+          if (opts.include[depsField] !== modules.included[depsField]) {
+            throw new PnpmError('ERR_PNPM_INCLUDED_DEPS_CONFLICT',
+              `node_modules (at "${shrinkwrapNodeModules}") was installed with ${stringifyIncludedDeps(modules.included)}. ` +
+              `Current install wants ${stringifyIncludedDeps(opts.include)}.`,
+            )
+          }
+        }
+      }
     } catch (err) {
       if (!opts.force) throw err
       if (installType !== 'general') {
@@ -108,6 +125,7 @@ export default async function getContext (
   const ctx: PnpmContext = {
     hoistedAliases: modules && modules.hoistedAliases || {},
     importerPath,
+    include: opts.include || modules && modules.included || { dependencies: true, devDependencies: true, optionalDependencies: true },
     pendingBuilds: modules && modules.pendingBuilds || [],
     pkg: opts.hooks && opts.hooks.readPackage ? opts.hooks.readPackage(pkg) : pkg,
     prefix: opts.prefix,
@@ -127,4 +145,8 @@ export default async function getContext (
   })
 
   return ctx
+}
+
+function stringifyIncludedDeps (included: IncludedDependencies) {
+  return DEPENDENCIES_FIELDS.filter((depsField) => included[depsField]).join(', ')
 }

@@ -136,6 +136,7 @@ export async function rebuild (maybeOpts: RebuildOptions) {
 
   await writeModulesYaml(await realNodeModulesDir(opts.shrinkwrapDirectory), modules, {
     hoistedAliases: ctx.hoistedAliases,
+    included: ctx.include,
     independentLeaves: opts.independentLeaves,
     layoutVersion: LAYOUT_VERSION,
     packageManager: `${opts.packageManager.name}@${opts.packageManager.version}`,

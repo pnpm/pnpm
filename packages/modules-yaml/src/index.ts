@@ -1,3 +1,4 @@
+import { DependenciesField } from '@pnpm/types'
 import loadYamlFile = require('load-yaml-file')
 import path = require('path')
 import writeYamlFile = require('write-yaml-file')
@@ -6,8 +7,13 @@ import writeYamlFile = require('write-yaml-file')
 // thinks that it is an extraneous package.
 const modulesFileName = '.modules.yaml'
 
+export type IncludedDependencies = {
+  [dependenciesField in DependenciesField]: boolean
+}
+
 export interface Modules {
   hoistedAliases: {[depPath: string]: string[]}
+  included: IncludedDependencies,
   independentLeaves: boolean,
   layoutVersion: number,
   packageManager: string,
@@ -19,6 +25,7 @@ export interface Modules {
 
 type ModulesContent = {
   nodeModulesType: 'shared',
+  included: IncludedDependencies,
   independentLeaves: boolean,
   layoutVersion: number,
   packageManager: string,
@@ -28,6 +35,7 @@ type ModulesContent = {
 } | {
   nodeModulesType: 'dedicated',
   hoistedAliases: {[depPath: string]: string[]}
+  included: IncludedDependencies,
   independentLeaves: boolean,
   layoutVersion: number,
   packageManager: string,
@@ -105,6 +113,7 @@ export function write (
   }
   const sharedModulesYamlPath = path.join(sharedNodeModulesPath, modulesFileName)
   const sharedModules = {
+    included: modules.included,
     independentLeaves: modules.independentLeaves,
     layoutVersion: modules.layoutVersion,
     nodeModulesType: 'shared',

@@ -95,6 +95,7 @@ export async function uninstallInContext (
   }
   await writeModulesYaml(await realNodeModulesDir(opts.shrinkwrapDirectory), await realNodeModulesDir(ctx.prefix), {
     hoistedAliases: ctx.hoistedAliases,
+    included: ctx.include,
     independentLeaves: opts.independentLeaves,
     layoutVersion: LAYOUT_VERSION,
     packageManager: `${opts.packageManager.name}@${opts.packageManager.version}`,

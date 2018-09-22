@@ -47,9 +47,11 @@ export default async function testDefaults (
     },
   )
   return {
-    development: true,
-    optional: true,
-    production: true,
+    include: {
+      dependencies: true,
+      devDependencies: true,
+      optionalDependencies: true,
+    },
     independentLeaves: false,
     verifyStoreIntegrity: true,
     sideEffectsCache: true,

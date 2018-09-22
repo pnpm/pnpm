@@ -14,6 +14,7 @@ import logger, {
   streamParser,
 } from '@pnpm/logger'
 import {
+  IncludedDependencies,
   read as readModulesYaml,
   write as writeModulesYaml,
 } from '@pnpm/modules-yaml'
@@ -56,11 +57,9 @@ export type ReporterFunction = (logObj: LogBase) => void
 export interface HeadlessOptions {
   childConcurrency?: number,
   currentShrinkwrap?: Shrinkwrap,
-  development: boolean,
-  optional: boolean,
   prefix: string,
-  production: boolean,
   ignoreScripts: boolean,
+  include: IncludedDependencies,
   independentLeaves: boolean,
   importerPath?: string,
   shrinkwrapDirectory?: string,
@@ -152,9 +151,7 @@ export default async (opts: HeadlessOptions) => {
 
   const filterOpts = {
     importerPath,
-    noDev: !opts.development,
-    noOptional: !opts.optional,
-    noProd: !opts.production,
+    include: opts.include,
   }
   const filteredShrinkwrap = filterShrinkwrap(wantedShrinkwrap, filterOpts)
 
@@ -176,7 +173,7 @@ export default async (opts: HeadlessOptions) => {
   })
 
   await Promise.all([
-    linkAllModules(depGraph, {optional: opts.optional}),
+    linkAllModules(depGraph, {optional: opts.include.optionalDependencies}),
     linkAllPkgs(opts.storeController, R.values(depGraph), opts),
   ])
   stageLogger.debug('importing_done')
@@ -188,7 +185,7 @@ export default async (opts: HeadlessOptions) => {
     })
   }
 
-  await linkAllBins(depGraph, {optional: opts.optional, warn})
+  await linkAllBins(depGraph, {optional: opts.include.optionalDependencies, warn})
 
   await linkRootPackages(filteredShrinkwrap, opts.prefix, res.rootDependencies, importerNodeModulesDir, importerPath)
   await linkBins(importerNodeModulesDir, bin, {warn})
@@ -205,6 +202,7 @@ export default async (opts: HeadlessOptions) => {
   }
   await writeModulesYaml(shrinkwrappedNodeModulesDir, importerNodeModulesDir, {
     hoistedAliases: {},
+    included: opts.include,
     independentLeaves: !!opts.independentLeaves,
     layoutVersion: LAYOUT_VERSION,
     packageManager: `${opts.packageManager.name}@${opts.packageManager.version}`,
@@ -597,20 +595,18 @@ function symlinkDependencyTo (alias: string, peripheralLocation: string, dest: s
 function filterShrinkwrap (
   shr: Shrinkwrap,
   opts: {
-    noDev: boolean,
-    noOptional: boolean,
-    noProd: boolean,
     importerPath: string,
+    include: IncludedDependencies,
   },
 ): Shrinkwrap {
   let pairs = R.toPairs(shr.packages || {}) as Array<[string, PackageSnapshot]>
-  if (opts.noProd) {
+  if (!opts.include.dependencies) {
     pairs = pairs.filter((pair) => pair[1].dev !== false || pair[1].optional)
   }
-  if (opts.noDev) {
+  if (!opts.include.devDependencies) {
     pairs = pairs.filter((pair) => pair[1].dev !== true)
   }
-  if (opts.noOptional) {
+  if (!opts.include.optionalDependencies) {
     pairs = pairs.filter((pair) => !pair[1].optional)
   }
   const shrImporter = shr.importers[opts.importerPath]
@@ -618,9 +614,9 @@ function filterShrinkwrap (
     importers: {
       ...shr.importers,
       [opts.importerPath]: {
-        dependencies: opts.noProd ? {} : shrImporter.dependencies || {},
-        devDependencies: opts.noDev ? {} : shrImporter.devDependencies || {},
-        optionalDependencies: opts.noOptional ? {} : shrImporter.optionalDependencies || {},
+        dependencies: !opts.include.dependencies ? {} : shrImporter.dependencies || {},
+        devDependencies: !opts.include.devDependencies ? {} : shrImporter.devDependencies || {},
+        optionalDependencies: !opts.include.optionalDependencies ? {} : shrImporter.optionalDependencies || {},
         specifiers: shrImporter.specifiers,
       },
     },

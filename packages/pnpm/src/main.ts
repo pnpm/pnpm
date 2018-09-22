@@ -115,6 +115,11 @@ export default async function run (argv: string[]) {
   let opts!: PnpmConfigs
   try {
     opts = await getConfigs(cliConf, {excludeReporter: false})
+    opts.include = {
+      dependencies: opts.production !== false,
+      devDependencies: opts.development !== false,
+      optionalDependencies: opts.optional !== false,
+    }
   } catch (err) {
     // Reporting is not initialized at this point, so just printing the error
     console.error(err.message)

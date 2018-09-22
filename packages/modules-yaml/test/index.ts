@@ -5,6 +5,11 @@ import tempy = require('tempy')
 test('write() and read()', async (t) => {
   const modulesYaml = {
     hoistedAliases: {},
+    included: {
+      devDependencies: true,
+      dependencies: true,
+      optionalDependencies: true,
+    },
     independentLeaves: false,
     layoutVersion: 1,
     packageManager: 'pnpm@2',
