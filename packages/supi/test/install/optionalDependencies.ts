@@ -234,3 +234,31 @@ test('optional dependency has bigger priority than regular dependency', async (t
 
   t.ok(deepRequireCwd(['is-positive', './package.json']).version, '3.1.0')
 })
+
+// Covers https://github.com/pnpm/pnpm/issues/1386
+// TODO: use smaller packages to cover the test case
+test('only skip optional dependencies', async (t: tape.Test) => {
+  /*
+    @google-cloud/functions-emulator has various dependencies, one of them is duplexify.
+    duplexify depends on stream-shift. As duplexify is a dependency of an optional dependency
+    and @google-cloud/functions-emulator won't be installed, duplexify and stream-shift
+    are marked as skipped.
+    firebase-tools also depends on duplexify and stream-shift, through got@3.3.1.
+    Make sure that duplexify and stream-shift are installed because they are needed
+    by firebase-tools, even if they were marked as skipped earlier.
+  */
+
+ const project = prepare(t, {
+    dependencies: {
+      'firebase-tools': '4.2.1',
+    },
+    optionalDependencies: {
+      '@google-cloud/functions-emulator': '1.0.0-beta.5',
+    },
+  })
+
+ await install(await testDefaults())
+
+ t.ok(await exists(path.resolve('node_modules', '.localhost+4873', 'duplexify', '3.6.0')), 'duplexify is linked into node_modules')
+ t.ok(await exists(path.resolve('node_modules', '.localhost+4873', 'stream-shift', '1.0.0')), 'stream-shift is linked into node_modules')
+})

@@ -93,7 +93,14 @@ export default async function linkPackages (
     storeController: opts.storeController,
   })
 
-  let depNodes =  R.values(depGraph).filter((depNode) => !opts.skipped.has(depNode.id))
+  let depNodes = R.values(depGraph).filter((depNode) => {
+    const relDepPath = dp.relative(newShrinkwrap.registry, depNode.absolutePath)
+    if (newShrinkwrap.packages && newShrinkwrap.packages[relDepPath] && !newShrinkwrap.packages[relDepPath].optional) {
+      opts.skipped.delete(depNode.id)
+      return true
+    }
+    return !opts.skipped.has(depNode.id)
+  })
   if (!opts.production) {
     depNodes = depNodes.filter((depNode) => depNode.dev !== false || depNode.optional)
   }
