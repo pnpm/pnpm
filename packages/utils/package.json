@@ -1,7 +1,7 @@
 {
   "name": "@pnpm/utils",
   "description": "Utils for pnpm",
-  "version": "0.7.0",
+  "version": "0.8.0",
   "author": {
     "name": "Zoltan Kochan",
     "email": "z@kochan.io",
@@ -51,7 +51,7 @@
     "dependency-path": "2.0.0",
     "fs-vacuum": "1.2.10",
     "mz": "2.7.0",
-    "package-store": "0.23.3",
+    "package-store": "0.23.4",
     "pnpm-shrinkwrap": "7.0.2",
     "ramda": "0.25.0",
     "rimraf-then": "1.0.1",

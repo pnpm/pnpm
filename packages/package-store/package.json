@@ -1,7 +1,7 @@
 {
   "name": "package-store",
   "description": "A storage for npm packages. Used by pnpm",
-  "version": "0.23.3",
+  "version": "0.23.4",
   "author": {
     "name": "Zoltan Kochan",
     "email": "z@kochan.io",
@@ -21,7 +21,7 @@
   "dependencies": {
     "@pnpm/fetcher-base": "1.0.0",
     "@pnpm/fs-locker": "1.0.2",
-    "@pnpm/package-requester": "4.1.3",
+    "@pnpm/package-requester": "4.1.4",
     "@pnpm/resolver-base": "1.2.0",
     "@pnpm/types": "^1.8.0",
     "@types/mz": "^0.0.32",
