@@ -10,7 +10,7 @@
   "scripts": {
     "fix": "tslint -c tslint.json --project . --fix",
     "lint": "tslint -c tslint.json --project .",
-    "test": "npm run lint && preview && ts-node test --type-check",
+    "test": "npm run lint && pnpm link . && ts-node test --type-check",
     "prepublishOnly": "tsc",
     "tsc": "tsc",
     "md": "tsc && mos"
@@ -54,7 +54,6 @@
     "common-tags": "^1.4.0",
     "mos": "^2.0.0-alpha.3",
     "mos-plugin-readme": "^1.0.4",
-    "package-preview": "^1.0.0",
     "tape": "^4.7.0",
     "ts-node": "^7.0.0",
     "tslint": "^5.8.0",
