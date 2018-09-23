@@ -1,13 +1,13 @@
 import archy = require('archy')
 import chalk from 'chalk'
-import {PackageNode} from 'dependencies-hierarchy'
+import { PackageNode } from 'dependencies-hierarchy'
 import path = require('path')
 import R = require('ramda')
 import readPkg from './readPkg'
 
 const sortPackages = R.sortBy(R.path(['pkg', 'name']) as (pkg: object) => R.Ord)
 
-export default async function(
+export default async function (
   projectPath: string,
   tree: PackageNode[],
   opts: {
@@ -39,7 +39,7 @@ export default async function(
   return s
 }
 
-async function toArchyTree(
+async function toArchyTree (
   entryNodes: PackageNode[],
   opts: {
     long: boolean,
@@ -74,7 +74,7 @@ async function toArchyTree(
   )
 }
 
-function printLabel(node: PackageNode) {
+function printLabel (node: PackageNode) {
   const txt = `${node.pkg.name}@${node.pkg.version}`
   if (node.searched) {
     return chalk.yellow.bgBlack(txt)

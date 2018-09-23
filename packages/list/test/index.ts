@@ -134,15 +134,15 @@ test('list in long format', async t => {
 test('parseable list with depth 1', async t => {
   t.equal(await list(fixture, {parseable: true, depth: 1}), stripIndent`
     ${fixture}
-    ${fixture}/node_modules/.registry.npmjs.org/detect-indent/5.0.0
-    ${fixture}/node_modules/.registry.npmjs.org/graceful-fs/4.1.11
-    ${fixture}/node_modules/.registry.npmjs.org/is-negative/2.1.0
-    ${fixture}/node_modules/.registry.npmjs.org/is-positive/3.1.0
-    ${fixture}/node_modules/.registry.npmjs.org/make-dir/1.0.0
-    ${fixture}/node_modules/.registry.npmjs.org/pify/2.3.0
-    ${fixture}/node_modules/.registry.npmjs.org/sort-keys/1.1.2
-    ${fixture}/node_modules/.registry.npmjs.org/write-file-atomic/2.1.0
-    ${fixture}/node_modules/.registry.npmjs.org/write-json-file/2.2.0
+    ${path.join(fixture, 'node_modules/.registry.npmjs.org/detect-indent/5.0.0')}
+    ${path.join(fixture, 'node_modules/.registry.npmjs.org/graceful-fs/4.1.11')}
+    ${path.join(fixture, 'node_modules/.registry.npmjs.org/is-negative/2.1.0')}
+    ${path.join(fixture, 'node_modules/.registry.npmjs.org/is-positive/3.1.0')}
+    ${path.join(fixture, 'node_modules/.registry.npmjs.org/make-dir/1.0.0')}
+    ${path.join(fixture, 'node_modules/.registry.npmjs.org/pify/2.3.0')}
+    ${path.join(fixture, 'node_modules/.registry.npmjs.org/sort-keys/1.1.2')}
+    ${path.join(fixture, 'node_modules/.registry.npmjs.org/write-file-atomic/2.1.0')}
+    ${path.join(fixture, 'node_modules/.registry.npmjs.org/write-json-file/2.2.0')}
     ` + '\n')
 
   t.end()
@@ -151,7 +151,7 @@ test('parseable list with depth 1', async t => {
 test('parseable list with depth 1 and dev only', async t => {
   t.equal(await list(fixture, {parseable: true, depth: 1, only: 'dev'}), stripIndent`
     ${fixture}
-    ${fixture}/node_modules/.registry.npmjs.org/is-positive/3.1.0
+    ${path.join(fixture, 'node_modules/.registry.npmjs.org/is-positive/3.1.0')}
   ` + '\n')
 
   t.end()
@@ -160,15 +160,15 @@ test('parseable list with depth 1 and dev only', async t => {
 test('long parseable list with depth 1', async t => {
   t.equal(await list(fixture, {parseable: true, depth: 1, long: true}), stripIndent`
     ${fixture}:fixture@1.0.0
-    ${fixture}/node_modules/.registry.npmjs.org/detect-indent/5.0.0:detect-indent@5.0.0
-    ${fixture}/node_modules/.registry.npmjs.org/graceful-fs/4.1.11:graceful-fs@4.1.11
-    ${fixture}/node_modules/.registry.npmjs.org/is-negative/2.1.0:is-negative@2.1.0
-    ${fixture}/node_modules/.registry.npmjs.org/is-positive/3.1.0:is-positive@3.1.0
-    ${fixture}/node_modules/.registry.npmjs.org/make-dir/1.0.0:make-dir@1.0.0
-    ${fixture}/node_modules/.registry.npmjs.org/pify/2.3.0:pify@2.3.0
-    ${fixture}/node_modules/.registry.npmjs.org/sort-keys/1.1.2:sort-keys@1.1.2
-    ${fixture}/node_modules/.registry.npmjs.org/write-file-atomic/2.1.0:write-file-atomic@2.1.0
-    ${fixture}/node_modules/.registry.npmjs.org/write-json-file/2.2.0:write-json-file@2.2.0
+    ${path.join(fixture, 'node_modules/.registry.npmjs.org/detect-indent/5.0.0')}:detect-indent@5.0.0
+    ${path.join(fixture, 'node_modules/.registry.npmjs.org/graceful-fs/4.1.11')}:graceful-fs@4.1.11
+    ${path.join(fixture, 'node_modules/.registry.npmjs.org/is-negative/2.1.0')}:is-negative@2.1.0
+    ${path.join(fixture, 'node_modules/.registry.npmjs.org/is-positive/3.1.0')}:is-positive@3.1.0
+    ${path.join(fixture, 'node_modules/.registry.npmjs.org/make-dir/1.0.0')}:make-dir@1.0.0
+    ${path.join(fixture, 'node_modules/.registry.npmjs.org/pify/2.3.0')}:pify@2.3.0
+    ${path.join(fixture, 'node_modules/.registry.npmjs.org/sort-keys/1.1.2')}:sort-keys@1.1.2
+    ${path.join(fixture, 'node_modules/.registry.npmjs.org/write-file-atomic/2.1.0')}:write-file-atomic@2.1.0
+    ${path.join(fixture, 'node_modules/.registry.npmjs.org/write-json-file/2.2.0')}:write-json-file@2.2.0
   ` + '\n')
 
   t.end()
@@ -177,15 +177,15 @@ test('long parseable list with depth 1', async t => {
 test('long parseable list with depth 1 when package has no version', async t => {
   t.equal(await list(fixtureWithNoPkgVersion, {parseable: true, depth: 1, long: true}), stripIndent`
     ${fixtureWithNoPkgVersion}:fixture
-    ${fixtureWithNoPkgVersion}/node_modules/.registry.npmjs.org/detect-indent/5.0.0:detect-indent@5.0.0
-    ${fixtureWithNoPkgVersion}/node_modules/.registry.npmjs.org/graceful-fs/4.1.11:graceful-fs@4.1.11
-    ${fixtureWithNoPkgVersion}/node_modules/.registry.npmjs.org/is-negative/2.1.0:is-negative@2.1.0
-    ${fixtureWithNoPkgVersion}/node_modules/.registry.npmjs.org/is-positive/3.1.0:is-positive@3.1.0
-    ${fixtureWithNoPkgVersion}/node_modules/.registry.npmjs.org/make-dir/1.0.0:make-dir@1.0.0
-    ${fixtureWithNoPkgVersion}/node_modules/.registry.npmjs.org/pify/2.3.0:pify@2.3.0
-    ${fixtureWithNoPkgVersion}/node_modules/.registry.npmjs.org/sort-keys/1.1.2:sort-keys@1.1.2
-    ${fixtureWithNoPkgVersion}/node_modules/.registry.npmjs.org/write-file-atomic/2.1.0:write-file-atomic@2.1.0
-    ${fixtureWithNoPkgVersion}/node_modules/.registry.npmjs.org/write-json-file/2.2.0:write-json-file@2.2.0
+    ${path.join(fixtureWithNoPkgVersion, 'node_modules/.registry.npmjs.org/detect-indent/5.0.0')}:detect-indent@5.0.0
+    ${path.join(fixtureWithNoPkgVersion, 'node_modules/.registry.npmjs.org/graceful-fs/4.1.11')}:graceful-fs@4.1.11
+    ${path.join(fixtureWithNoPkgVersion, 'node_modules/.registry.npmjs.org/is-negative/2.1.0')}:is-negative@2.1.0
+    ${path.join(fixtureWithNoPkgVersion, 'node_modules/.registry.npmjs.org/is-positive/3.1.0')}:is-positive@3.1.0
+    ${path.join(fixtureWithNoPkgVersion, 'node_modules/.registry.npmjs.org/make-dir/1.0.0')}:make-dir@1.0.0
+    ${path.join(fixtureWithNoPkgVersion, 'node_modules/.registry.npmjs.org/pify/2.3.0')}:pify@2.3.0
+    ${path.join(fixtureWithNoPkgVersion, 'node_modules/.registry.npmjs.org/sort-keys/1.1.2')}:sort-keys@1.1.2
+    ${path.join(fixtureWithNoPkgVersion, 'node_modules/.registry.npmjs.org/write-file-atomic/2.1.0')}:write-file-atomic@2.1.0
+    ${path.join(fixtureWithNoPkgVersion, 'node_modules/.registry.npmjs.org/write-json-file/2.2.0')}:write-json-file@2.2.0
   ` + '\n')
 
   t.end()
@@ -194,15 +194,15 @@ test('long parseable list with depth 1 when package has no version', async t => 
 test('long parseable list with depth 1 when package has no name and no version', async t => {
   t.equal(await list(fixtureWithNoPkgNameAndNoVersion, {parseable: true, depth: 1, long: true}), stripIndent`
     ${fixtureWithNoPkgNameAndNoVersion}
-    ${fixtureWithNoPkgNameAndNoVersion}/node_modules/.registry.npmjs.org/detect-indent/5.0.0:detect-indent@5.0.0
-    ${fixtureWithNoPkgNameAndNoVersion}/node_modules/.registry.npmjs.org/graceful-fs/4.1.11:graceful-fs@4.1.11
-    ${fixtureWithNoPkgNameAndNoVersion}/node_modules/.registry.npmjs.org/is-negative/2.1.0:is-negative@2.1.0
-    ${fixtureWithNoPkgNameAndNoVersion}/node_modules/.registry.npmjs.org/is-positive/3.1.0:is-positive@3.1.0
-    ${fixtureWithNoPkgNameAndNoVersion}/node_modules/.registry.npmjs.org/make-dir/1.0.0:make-dir@1.0.0
-    ${fixtureWithNoPkgNameAndNoVersion}/node_modules/.registry.npmjs.org/pify/2.3.0:pify@2.3.0
-    ${fixtureWithNoPkgNameAndNoVersion}/node_modules/.registry.npmjs.org/sort-keys/1.1.2:sort-keys@1.1.2
-    ${fixtureWithNoPkgNameAndNoVersion}/node_modules/.registry.npmjs.org/write-file-atomic/2.1.0:write-file-atomic@2.1.0
-    ${fixtureWithNoPkgNameAndNoVersion}/node_modules/.registry.npmjs.org/write-json-file/2.2.0:write-json-file@2.2.0
+    ${path.join(fixtureWithNoPkgNameAndNoVersion, 'node_modules/.registry.npmjs.org/detect-indent/5.0.0')}:detect-indent@5.0.0
+    ${path.join(fixtureWithNoPkgNameAndNoVersion, 'node_modules/.registry.npmjs.org/graceful-fs/4.1.11')}:graceful-fs@4.1.11
+    ${path.join(fixtureWithNoPkgNameAndNoVersion, 'node_modules/.registry.npmjs.org/is-negative/2.1.0')}:is-negative@2.1.0
+    ${path.join(fixtureWithNoPkgNameAndNoVersion, 'node_modules/.registry.npmjs.org/is-positive/3.1.0')}:is-positive@3.1.0
+    ${path.join(fixtureWithNoPkgNameAndNoVersion, 'node_modules/.registry.npmjs.org/make-dir/1.0.0')}:make-dir@1.0.0
+    ${path.join(fixtureWithNoPkgNameAndNoVersion, 'node_modules/.registry.npmjs.org/pify/2.3.0')}:pify@2.3.0
+    ${path.join(fixtureWithNoPkgNameAndNoVersion, 'node_modules/.registry.npmjs.org/sort-keys/1.1.2')}:sort-keys@1.1.2
+    ${path.join(fixtureWithNoPkgNameAndNoVersion, 'node_modules/.registry.npmjs.org/write-file-atomic/2.1.0')}:write-file-atomic@2.1.0
+    ${path.join(fixtureWithNoPkgNameAndNoVersion, 'node_modules/.registry.npmjs.org/write-json-file/2.2.0')}:write-json-file@2.2.0
   ` + '\n')
 
   t.end()

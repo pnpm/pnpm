@@ -14,7 +14,7 @@ const DEFAULTS = {
   parseable: false,
 }
 
-export async function forPackages(
+export async function forPackages (
   packages: string[],
   projectPath: string,
   maybeOpts?: {
@@ -53,7 +53,7 @@ export async function forPackages(
   })
 }
 
-export default async function(
+export default async function (
   projectPath: string,
   maybeOpts?: {
     alwaysPrintRootPackage?: boolean,
@@ -77,7 +77,7 @@ export default async function(
   })
 }
 
-function getPrinter(parseable: boolean) {
+function getPrinter (parseable: boolean) {
   if (parseable) return printParseable
   return printTree
 }

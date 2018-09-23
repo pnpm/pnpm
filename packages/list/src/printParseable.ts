@@ -1,11 +1,11 @@
-import {PackageNode} from 'dependencies-hierarchy'
+import { PackageNode } from 'dependencies-hierarchy'
 import path = require('path')
 import R = require('ramda')
 import readPkg from './readPkg'
 
 const sortPackages = R.sortBy(R.prop('name'))
 
-export default async function(
+export default async function (
   projectPath: string,
   tree: PackageNode[],
   opts: {
@@ -25,15 +25,22 @@ export default async function(
         firstLine += `@${entryPkg.version}`
       }
     }
-    return `${firstLine}\n` +
-      pkgs.map((pkg) => `${prefix}/.${pkg.path}:${pkg.name}@${pkg.version}`).join('\n') + '\n'
+    return [
+      firstLine,
+      ...pkgs.map((pkg) => `${path.join(prefix, `.${pkg.path}`)}:${pkg.name}@${pkg.version}`),
+      '',
+    ].join('\n')
   }
-  return projectPath + '\n' + pkgs.map((pkg) => `${prefix}/.${pkg.path}`).join('\n') + '\n'
+  return [
+    projectPath,
+    ...pkgs.map((pkg) => path.join(prefix, `.${pkg.path}`)),
+    '',
+  ].join('\n')
 }
 
 interface PackageInfo {name: string, version: string, path: string}
 
-function flatten(
+function flatten (
   nodes: PackageNode[],
 ): PackageInfo[] {
   let packages: PackageInfo[] = []
