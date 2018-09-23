@@ -32,6 +32,8 @@
   ],
   "ignorePaths": [
     "test/",
+    "packages/dependencies-hierarchy/test",
+    "packages/dependencies-hierarchy/example",
     "packages/list/test/",
     "packages/list/example/"
   ],

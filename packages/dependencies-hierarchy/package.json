@@ -18,10 +18,7 @@
   "engines": {
     "node": ">=6"
   },
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/pnpm/dependencies-hierarchy.git"
-  },
+  "repository": "https://github.com/pnpm/pnpm/blob/master/packages/dependencies-hierarchy",
   "keywords": [
     "hierarchy",
     "pnpm",
@@ -35,9 +32,9 @@
   },
   "license": "MIT",
   "bugs": {
-    "url": "https://github.com/pnpm/dependencies-hierarchy/issues"
+    "url": "https://github.com/pnpm/pnpm/issues"
   },
-  "homepage": "https://github.com/pnpm/dependencies-hierarchy#readme",
+  "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/dependencies-hierarchy#readme",
   "dependencies": {
     "@types/node": "^9.3.0 || 10",
     "@types/semver": "^5.3.32",

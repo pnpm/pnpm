@@ -1,7 +1,0 @@
-{
-  "extends": [
-    "config:base"
-  ],
-  "pinVersions": false,
-  "ignorePaths": ["test/", "example/"]
-}

@@ -3,4 +3,5 @@ packages:
   - packages/**
   - "!**/test/**"
   - "!**/__package_previews__/**"
+  - "!packages/dependencies-hierarchy/example/**"
   - "!packages/list/example/**"
