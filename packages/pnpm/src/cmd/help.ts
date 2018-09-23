@@ -48,6 +48,8 @@ function getHelpText (command: string) {
           --frozen-shrinkwrap                don't generate a shrinkwrap file and fail if an update is needed
           --prefer-frozen-shrinkwrap         if the available \`shrinkwrap.yaml\` satisfies the \`package.json\`
                                              then perform a headless installation.
+          --shrinkwrap-directory <path>      the directory in which the shrinkwrap.yaml of the package will be created.
+                                             Several projects may share a single shrinkwrap file.
 
           --use-store-server                 starts a store server in the background.
                                              The store server will keep running after installation is done.
@@ -328,6 +330,10 @@ function getHelpText (command: string) {
 
           --sort
             Sort packages topologically (dependencies before dependents). Pass --no-sort to disable.
+
+          --shared-workspace-shrinkwrap
+            Creates a single shrinkwrap.yaml file in the root of the workspace.
+            A shared shrinkwrap also means that all dependencies of all workspace packages will be in a single node_modules.
       `
 
     default:

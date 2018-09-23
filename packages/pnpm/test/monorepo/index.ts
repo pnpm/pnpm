@@ -2,6 +2,7 @@ import fs = require('mz/fs')
 import tape = require('tape')
 import promisifyTape from 'tape-promise'
 import path = require('path')
+import loadYamlFile = require('load-yaml-file')
 import writeYamlFile = require('write-yaml-file')
 import {
   preparePackages,
@@ -202,4 +203,33 @@ test['skip']('installation with --link-workspace-packages links packages even if
     const shr = await projects['project'].loadShrinkwrap()
     t.equal(shr.dependencies['is-positive'], 'link:../is-positive')
   }
+})
+
+test('recursive install with link-workspace-packages and shared-workspace-shrinkwrap', async (t: tape.Test) => {
+  const projects = preparePackages(t, [
+    {
+      name: 'project-1',
+      version: '1.0.0',
+      devDependencies: {
+        'is-positive': '1.0.0',
+      },
+    },
+    {
+      name: 'is-positive',
+      version: '1.0.0',
+      dependencies: {
+        'is-negative': '1.0.0',
+      },
+    },
+  ])
+
+  await writeYamlFile('pnpm-workspace.yaml', {packages: ['**', '!store/**']})
+
+  await execPnpm('recursive', 'install', '--link-workspace-packages', '--shared-workspace-shrinkwrap=true')
+
+  t.ok(projects['is-positive'].requireModule('is-negative'))
+  t.notOk(projects['project-1'].requireModule('is-positive/package.json').author, 'local package is linked')
+
+  const sharedShr = await loadYamlFile('shrinkwrap.yaml')
+  t.equal(sharedShr['importers']['project-1']['devDependencies']['is-positive'], 'link:is-positive')
 })

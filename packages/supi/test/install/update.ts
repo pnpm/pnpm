@@ -1,4 +1,6 @@
-import {install, installPkgs} from 'supi'
+import loadYamlFile = require('load-yaml-file')
+import path = require('path')
+import { install, installPkgs } from 'supi'
 import tape = require('tape')
 import promisifyTape from 'tape-promise'
 import {
@@ -63,4 +65,21 @@ test('update does not install the package if it is not present in package.json',
   }))
 
   project.hasNot('is-positive')
+})
+
+test('update dependency when external shrinkwrap directory is used', async (t: tape.Test) => {
+  const project = prepare(t)
+
+  await addDistTag('foo', '100.0.0', 'latest')
+
+  const shrinkwrapDirectory = path.resolve('..')
+  await installPkgs(['foo'], await testDefaults({shrinkwrapDirectory}))
+
+  await addDistTag('foo', '100.1.0', 'latest')
+
+  await install(await testDefaults({update: true, depth: 0, shrinkwrapDirectory}))
+
+  const shr = await loadYamlFile(path.join('..', 'shrinkwrap.yaml'))
+
+  t.ok(shr['packages']['/foo/100.1.0']) // tslint:disable-line:no-string-literal
 })

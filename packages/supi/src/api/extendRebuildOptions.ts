@@ -6,6 +6,7 @@ import { ReporterFunction } from '../types'
 export interface RebuildOptions {
   childConcurrency?: number,
   prefix?: string,
+  shrinkwrapDirectory?: string,
   store: string, // TODO: remove this property
   independentLeaves?: boolean,
   force?: boolean,

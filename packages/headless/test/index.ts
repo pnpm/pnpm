@@ -12,8 +12,8 @@ import test = require('tape')
 import tempy = require('tempy')
 import path = require('path')
 import exists = require('path-exists')
-import {readWanted} from 'pnpm-shrinkwrap'
-import {read as readModulesYaml} from '@pnpm/modules-yaml'
+import { readWanted } from 'pnpm-shrinkwrap'
+import { read as readModulesYaml } from '@pnpm/modules-yaml'
 import rimraf = require('rimraf-then')
 import sinon = require('sinon')
 import testDefaults from './utils/testDefaults'
@@ -75,9 +75,11 @@ test('installing only prod deps', async (t) => {
 
   await headless(await testDefaults({
     prefix,
-    production: true,
-    development: false,
-    optional: false,
+    include: {
+      dependencies: true,
+      devDependencies: false,
+      optionalDependencies: false,
+    },
   }))
 
   const project = assertProject(t, prefix)
@@ -97,9 +99,11 @@ test('installing only dev deps', async (t) => {
 
   await headless(await testDefaults({
     prefix,
-    production: false,
-    development: true,
-    optional: false,
+    include: {
+      dependencies: false,
+      devDependencies: true,
+      optionalDependencies: false,
+    },
   }))
 
   const project = assertProject(t, prefix)
@@ -116,7 +120,11 @@ test('installing non-prod deps then all deps', async (t) => {
 
   await headless(await testDefaults({
     prefix,
-    production: false,
+    include: {
+      dependencies: false,
+      devDependencies: true,
+      optionalDependencies: true,
+    },
   }))
 
   const project = assertProject(t, prefix)
@@ -175,6 +183,12 @@ test('installing only optional deps', async (t) => {
 
   await headless(await testDefaults({
     prefix,
+
+    include: {
+      dependencies: false,
+      devDependencies: false,
+      optionalDependencies: true,
+    },
     production: false,
     development: false,
     optional: true,
@@ -212,7 +226,8 @@ test('run pre/postinstall scripts', async (t) => {
 
   t.notOk(await exists(outputJsonPath))
 
-  const modulesYaml = await readModulesYaml(path.join(prefix, 'node_modules'))
+  const nmPath = path.join(prefix, 'node_modules')
+  const modulesYaml = await readModulesYaml(nmPath)
   t.ok(modulesYaml)
   t.deepEqual(modulesYaml!.pendingBuilds, ['localhost+4873/pre-and-postinstall-scripts-example/1.0.0'])
 

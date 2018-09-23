@@ -4,6 +4,7 @@ import { ReporterFunction } from '../types'
 
 export interface StoreStatusOptions {
   prefix?: string,
+  shrinkwrapDirectory?: string,
   store: string,
   independentLeaves?: boolean,
   force?: boolean,

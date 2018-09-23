@@ -69,13 +69,17 @@ test('writeWantedOnly()', async t => {
   const wantedShrinkwrap = {
     shrinkwrapVersion: 3,
     registry: 'https://registry.npmjs.org',
-    dependencies: {
-      'is-positive': '1.0.0',
-      'is-negative': '1.0.0',
-    },
-    specifiers: {
-      'is-positive': '^1.0.0',
-      'is-negative': '^1.0.0',
+    importers: {
+      '.': {
+        dependencies: {
+          'is-positive': '1.0.0',
+          'is-negative': '1.0.0',
+        },
+        specifiers: {
+          'is-positive': '^1.0.0',
+          'is-negative': '^1.0.0',
+        },
+      },
     },
     packages: {
       '/is-positive/1.0.0': {
@@ -109,13 +113,17 @@ test('writeCurrentOnly()', async t => {
   const wantedShrinkwrap = {
     shrinkwrapVersion: 3,
     registry: 'https://registry.npmjs.org',
-    dependencies: {
-      'is-positive': '1.0.0',
-      'is-negative': '1.0.0',
-    },
-    specifiers: {
-      'is-positive': '^1.0.0',
-      'is-negative': '^1.0.0',
+    importers: {
+      '.': {
+        dependencies: {
+          'is-positive': '1.0.0',
+          'is-negative': '1.0.0',
+        },
+        specifiers: {
+          'is-positive': '^1.0.0',
+          'is-negative': '^1.0.0',
+        },
+      },
     },
     packages: {
       '/is-positive/1.0.0': {
@@ -151,13 +159,17 @@ test('existsWanted()', async t => {
   await writeWantedOnly(projectPath, {
     shrinkwrapVersion: 3,
     registry: 'https://registry.npmjs.org',
-    dependencies: {
-      'is-positive': '1.0.0',
-      'is-negative': '1.0.0',
-    },
-    specifiers: {
-      'is-positive': '^1.0.0',
-      'is-negative': '^1.0.0',
+    importers: {
+      '.': {
+        dependencies: {
+          'is-positive': '1.0.0',
+          'is-negative': '1.0.0',
+        },
+        specifiers: {
+          'is-positive': '^1.0.0',
+          'is-negative': '^1.0.0',
+        },
+      },
     },
     packages: {
       '/is-positive/1.0.0': {
@@ -189,13 +201,17 @@ test('write()', async t => {
   const wantedShrinkwrap = {
     shrinkwrapVersion: 3,
     registry: 'https://registry.npmjs.org',
-    dependencies: {
-      'is-positive': '1.0.0',
-      'is-negative': '1.0.0',
-    },
-    specifiers: {
-      'is-positive': '^1.0.0',
-      'is-negative': '^1.0.0',
+    importers: {
+      '.': {
+        dependencies: {
+          'is-positive': '1.0.0',
+          'is-negative': '1.0.0',
+        },
+        specifiers: {
+          'is-positive': '^1.0.0',
+          'is-negative': '^1.0.0',
+        },
+      },
     },
     packages: {
       '/is-positive/1.0.0': {
@@ -229,10 +245,14 @@ test('write() when no specifiers but dependencies present', async t => {
   const wantedShrinkwrap = {
     shrinkwrapVersion: 3,
     registry: 'https://registry.npmjs.org',
-    dependencies: {
-      'is-positive': 'link:../is-positive',
+    importers: {
+      '.': {
+        dependencies: {
+          'is-positive': 'link:../is-positive',
+        },
+        specifiers: {},
+      },
     },
-    specifiers: {},
   }
   await write(projectPath, wantedShrinkwrap, wantedShrinkwrap)
   t.deepEqual(await readCurrent(projectPath, {ignoreIncompatible: false}), wantedShrinkwrap)
@@ -245,9 +265,17 @@ test("write does not use yaml anchors/aliases", async t => {
   const wantedShrinkwrap = {
     shrinkwrapVersion: 3,
     registry: 'https://registry.npmjs.org',
-    dependencies: {
-      'is-positive': '1.0.0',
-      'is-negative': '1.0.0',
+    importers: {
+      '.': {
+        dependencies: {
+          'is-positive': '1.0.0',
+          'is-negative': '1.0.0',
+        },
+        specifiers: {
+          'is-positive': '1.0.0',
+          'is-negative': '1.0.0',
+        },
+      },
     },
     packages: yaml`
       /react-dnd/2.5.4/react@15.6.1:
@@ -280,10 +308,6 @@ test("write does not use yaml anchors/aliases", async t => {
         resolution:
           integrity: sha512-y9YmnusURc+3KPgvhYKvZ9oCucj51MSZWODyaeV0KFU0cquzA7dCD1g/OIYUKtNoZ+MXtacDngkdud2TklMSjw==
     `,
-    specifiers: {
-      'is-positive': '1.0.0',
-      'is-negative': '1.0.0',
-    },
   }
   await write(projectPath, wantedShrinkwrap, wantedShrinkwrap)
 

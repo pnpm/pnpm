@@ -1,13 +1,19 @@
 export interface Shrinkwrap {
+  importers: {
+    [path: string]: ShrinkwrapImporter,
+  },
   shrinkwrapVersion: number,
   // Should be deprecated from shrinkwrap version 4
   shrinkwrapMinorVersion?: number,
+  packages?: ResolvedPackages,
+  registry: string, // TODO: remove this field in v4
+}
+
+export interface ShrinkwrapImporter {
   specifiers: ResolvedDependencies,
   dependencies?: ResolvedDependencies,
   optionalDependencies?: ResolvedDependencies,
   devDependencies?: ResolvedDependencies,
-  packages?: ResolvedPackages,
-  registry: string,
 }
 
 // For backward compatibility

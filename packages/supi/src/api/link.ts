@@ -22,19 +22,20 @@ import normalize = require('normalize-path')
 import path = require('path')
 import pathAbsolute = require('path-absolute')
 import {
-  pruneWithoutPackageJson as pruneShrinkwrap,
-  Shrinkwrap,
+  getImporterPath,
+  pruneSharedShrinkwrap,
+  ShrinkwrapImporter,
   write as saveShrinkwrap,
   writeCurrentOnly as saveCurrentShrinkwrapOnly,
 } from 'pnpm-shrinkwrap'
 import R = require('ramda')
 import symlinkDir = require('symlink-dir')
 import getSpecFromPackageJson from '../getSpecFromPackageJson'
-import readShrinkwrapFile from '../readShrinkwrapFiles'
 import save, { guessDependencyType } from '../save'
 import extendOptions, {
   InstallOptions,
 } from './extendInstallOptions'
+import getContext from './getContext'
 import getPref from './utils/getPref'
 
 export default async function link (
@@ -50,14 +51,10 @@ export default async function link (
   }
   maybeOpts.saveProd = maybeOpts.saveProd === true
   const opts = await extendOptions(maybeOpts)
+  const ctx = await getContext(opts)
 
-  const shrFiles = await readShrinkwrapFile({
-    force: opts.force,
-    prefix: opts.prefix,
-    registry: opts.registry,
-    shrinkwrap: opts.shrinkwrap,
-  })
-  const oldShrinkwrap = R.clone(shrFiles.currentShrinkwrap)
+  const importerPath = getImporterPath(ctx.shrinkwrapDirectory, opts.prefix)
+  const oldShrinkwrap = R.clone(ctx.currentShrinkwrap)
   const pkg = await safeReadPackage(path.join(opts.prefix, 'package.json')) || undefined
   if (pkg) {
     packageJsonLogger.debug({
@@ -88,14 +85,14 @@ export default async function link (
       saveType: (saveType || pkg && guessDependencyType(linkedPkg.name, pkg)) as DependenciesField,
     })
 
-    const packagePath = normalize(path.relative(opts.prefix, linkFromPath))
+    const packagePath = normalize(path.relative(ctx.shrinkwrapDirectory, linkFromPath))
     const addLinkOpts = {
       linkedPkgName: linkFromAlias || linkedPkg.name,
       packagePath,
       pkg,
     }
-    addLinkToShrinkwrap(shrFiles.currentShrinkwrap, addLinkOpts)
-    addLinkToShrinkwrap(shrFiles.wantedShrinkwrap, addLinkOpts)
+    addLinkToShrinkwrap(ctx.currentShrinkwrap.importers[importerPath], addLinkOpts)
+    addLinkToShrinkwrap(ctx.wantedShrinkwrap.importers[importerPath], addLinkOpts)
 
     linkedPkgs.push({
       alias: linkFromAlias || linkedPkg.name,
@@ -104,13 +101,15 @@ export default async function link (
     })
   }
 
+  const updatedCurrentShrinkwrap = pruneSharedShrinkwrap(ctx.currentShrinkwrap)
+
   const warn = (message: string) => logger.warn({message, prefix: opts.prefix})
-  const updatedCurrentShrinkwrap = pruneShrinkwrap(shrFiles.currentShrinkwrap, warn)
-  const updatedWantedShrinkwrap = pruneShrinkwrap(shrFiles.wantedShrinkwrap, warn)
-  const modulesInfo = await readModulesYaml(destModules)
+  const updatedWantedShrinkwrap = pruneSharedShrinkwrap(ctx.wantedShrinkwrap, warn)
+
   await removeOrphanPkgs({
     bin: opts.bin,
-    hoistedAliases: modulesInfo && modulesInfo.hoistedAliases || {},
+    hoistedAliases: ctx.hoistedAliases,
+    importerPath,
     newShrinkwrap: updatedCurrentShrinkwrap,
     oldShrinkwrap,
     prefix: opts.prefix,
@@ -141,13 +140,13 @@ export default async function link (
   if (opts.saveDev || opts.saveProd || opts.saveOptional) {
     const newPkg = await save(opts.prefix, specsToUpsert)
     for (const specToUpsert of specsToUpsert) {
-      updatedWantedShrinkwrap.specifiers[specToUpsert.name] = getSpecFromPackageJson(newPkg, specToUpsert.name) as string
+      updatedWantedShrinkwrap.importers[importerPath].specifiers[specToUpsert.name] = getSpecFromPackageJson(newPkg, specToUpsert.name) as string
     }
   }
   if (opts.shrinkwrap) {
-    await saveShrinkwrap(opts.prefix, updatedWantedShrinkwrap, updatedCurrentShrinkwrap)
+    await saveShrinkwrap(ctx.shrinkwrapDirectory, updatedWantedShrinkwrap, updatedCurrentShrinkwrap)
   } else {
-    await saveCurrentShrinkwrapOnly(opts.prefix, updatedCurrentShrinkwrap)
+    await saveCurrentShrinkwrapOnly(ctx.shrinkwrapDirectory, updatedCurrentShrinkwrap)
   }
 
   summaryLogger.debug({prefix: opts.prefix})
@@ -158,7 +157,7 @@ export default async function link (
 }
 
 function addLinkToShrinkwrap (
-  shr: Shrinkwrap,
+  shrImporter: ShrinkwrapImporter,
   opts: {
     linkedPkgName: string,
     packagePath: string,
@@ -170,16 +169,16 @@ function addLinkToShrinkwrap (
   for (const depType of DEPENDENCIES_FIELDS) {
     if (!addedTo && opts.pkg && opts.pkg[depType] && opts.pkg[depType]![opts.linkedPkgName]) {
       addedTo = depType
-      shr[depType] = shr[depType] || {}
-      shr[depType]![opts.linkedPkgName] = id
-    } else if (shr[depType]) {
-      delete shr[depType]![opts.linkedPkgName]
+      shrImporter[depType] = shrImporter[depType] || {}
+      shrImporter[depType]![opts.linkedPkgName] = id
+    } else if (shrImporter[depType]) {
+      delete shrImporter[depType]![opts.linkedPkgName]
     }
   }
 
   if (!addedTo) {
-    shr.dependencies = shr.dependencies || {}
-    shr.dependencies[opts.linkedPkgName] = id
+    shrImporter.dependencies = shrImporter.dependencies || {}
+    shrImporter.dependencies[opts.linkedPkgName] = id
   }
 
   // package.json might not be available when linking to global
@@ -187,9 +186,9 @@ function addLinkToShrinkwrap (
 
   const availableSpec = getSpecFromPackageJson(opts.pkg, opts.linkedPkgName)
   if (availableSpec) {
-    shr.specifiers[opts.linkedPkgName] = availableSpec
+    shrImporter.specifiers[opts.linkedPkgName] = availableSpec
   } else {
-    delete shr.specifiers[opts.linkedPkgName]
+    delete shrImporter.specifiers[opts.linkedPkgName]
   }
 }
 

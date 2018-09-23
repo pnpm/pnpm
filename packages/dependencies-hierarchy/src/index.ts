@@ -1,7 +1,7 @@
 import assert = require('assert')
-import {refToAbsolute, refToRelative} from 'dependency-path'
+import { refToAbsolute, refToRelative } from 'dependency-path'
 import {
-  readPrivate,
+  readCurrent,
   ResolvedPackages,
   Shrinkwrap,
 } from 'pnpm-shrinkwrap'
@@ -55,14 +55,15 @@ async function dependenciesHierarchy (
     only?: 'dev' | 'prod',
   },
 ): Promise<PackageNode[]> {
-  const opts = Object.assign({}, {
-    depth: 0,
-    only: undefined,
-  }, maybeOpts)
-  const shrinkwrap = await readPrivate(projectPath, {ignoreIncompatible: false})
+  const shrinkwrap = await readCurrent(projectPath, {ignoreIncompatible: false})
 
   if (!shrinkwrap) return []
 
+  const opts = {
+    depth: 0,
+    only: undefined,
+    ...maybeOpts,
+  }
   const topDeps = getTopDependencies(shrinkwrap, opts)
 
   if (!topDeps) return []
@@ -116,15 +117,15 @@ function getTopDependencies (
 ) {
   switch (opts.only) {
     case 'prod':
-      return shrinkwrap.dependencies
+      return shrinkwrap.importers['.'].dependencies
     case 'dev':
-      return shrinkwrap.devDependencies
+      return shrinkwrap.importers['.'].devDependencies
     default:
-      return Object.assign({},
-        shrinkwrap.dependencies,
-        shrinkwrap.devDependencies,
-        shrinkwrap.optionalDependencies,
-      )
+      return {
+        ...shrinkwrap.importers['.'].dependencies,
+        ...shrinkwrap.importers['.'].devDependencies,
+        ...shrinkwrap.importers['.'].optionalDependencies,
+      }
   }
 }
 

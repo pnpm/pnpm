@@ -1,7 +1,11 @@
 import { packageJsonLogger } from '@pnpm/core-loggers'
 import logger from '@pnpm/logger'
-import { read as readModulesYaml } from '@pnpm/modules-yaml'
 import {
+  IncludedDependencies,
+  read as readModulesYaml,
+} from '@pnpm/modules-yaml'
+import {
+  DEPENDENCIES_FIELDS,
   PackageJson,
   ReadPackageHook,
 } from '@pnpm/types'
@@ -10,31 +14,39 @@ import {
 } from '@pnpm/utils'
 import mkdirp = require('mkdirp-promise')
 import path = require('path')
-import { Shrinkwrap } from 'pnpm-shrinkwrap'
+import {
+  getImporterPath,
+  Shrinkwrap,
+} from 'pnpm-shrinkwrap'
 import removeAllExceptOuterLinks = require('remove-all-except-outer-links')
 import { PnpmError } from '../errorTypes'
 import readShrinkwrapFile from '../readShrinkwrapFiles'
 import checkCompatibility from './checkCompatibility'
 
 export interface PnpmContext {
-  pkg: PackageJson,
-  storePath: string,
-  prefix: string,
-  existsWantedShrinkwrap: boolean,
-  existsCurrentShrinkwrap: boolean,
   currentShrinkwrap: Shrinkwrap,
-  wantedShrinkwrap: Shrinkwrap,
-  skipped: Set<string>,
-  pendingBuilds: string[],
+  existsCurrentShrinkwrap: boolean,
+  existsWantedShrinkwrap: boolean,
   hoistedAliases: {[depPath: string]: string[]}
+  importerPath: string,
+  include: IncludedDependencies,
+  pendingBuilds: string[],
+  pkg: PackageJson,
+  prefix: string,
+  shrinkwrapDirectory: string,
+  skipped: Set<string>,
+  storePath: string,
+  wantedShrinkwrap: Shrinkwrap,
 }
 
 export default async function getContext (
   opts: {
     force: boolean,
+    shrinkwrapDirectory?: string,
     hooks?: {
       readPackage?: ReadPackageHook,
     },
+    include?: IncludedDependencies,
     independentLeaves: boolean,
     prefix: string,
     registry: string,
@@ -48,6 +60,15 @@ export default async function getContext (
 
   const modulesPath = path.join(opts.prefix, 'node_modules')
   const modules = await readModulesYaml(modulesPath)
+
+  if (opts.shrinkwrapDirectory && modules && modules.shrinkwrapDirectory && modules.shrinkwrapDirectory !== opts.shrinkwrapDirectory) {
+    throw new PnpmError(
+      'ERR_PNPM_SHRINKWRAP_DIRECTORY_MISMATCH',
+      `Cannot use shrinkwrap direcory "${opts.shrinkwrapDirectory}". Next directory is already used for the current node_modules: "${modules.shrinkwrapDirectory}".`,
+    )
+  }
+
+  const shrinkwrapDirectory = modules && modules.shrinkwrapDirectory || opts.shrinkwrapDirectory || opts.prefix
 
   if (modules) {
     try {
@@ -80,6 +101,16 @@ export default async function getContext (
         )
       }
       checkCompatibility(modules, {storePath, modulesPath})
+      if (shrinkwrapDirectory !== opts.prefix && opts.include && modules.included) {
+        for (const depsField of DEPENDENCIES_FIELDS) {
+          if (opts.include[depsField] !== modules.included[depsField]) {
+            throw new PnpmError('ERR_PNPM_INCLUDED_DEPS_CONFLICT',
+              `node_modules (at "${shrinkwrapDirectory}") was installed with ${stringifyIncludedDeps(modules.included)}. ` +
+              `Current install wants ${stringifyIncludedDeps(opts.include)}.`,
+            )
+          }
+        }
+      }
     } catch (err) {
       if (!opts.force) throw err
       if (installType !== 'general') {
@@ -99,14 +130,24 @@ export default async function getContext (
     mkdirp(storePath),
   ])
   const pkg = files[0] || {} as PackageJson
+  const importerPath = getImporterPath(shrinkwrapDirectory, opts.prefix)
   const ctx: PnpmContext = {
     hoistedAliases: modules && modules.hoistedAliases || {},
+    importerPath,
+    include: opts.include || modules && modules.included || { dependencies: true, devDependencies: true, optionalDependencies: true },
     pendingBuilds: modules && modules.pendingBuilds || [],
     pkg: opts.hooks && opts.hooks.readPackage ? opts.hooks.readPackage(pkg) : pkg,
     prefix: opts.prefix,
+    shrinkwrapDirectory,
     skipped: new Set(modules && modules.skipped || []),
     storePath,
-    ...await readShrinkwrapFile(opts),
+    ...await readShrinkwrapFile({
+      force: opts.force,
+      importerPath,
+      registry: opts.registry,
+      shrinkwrap: opts.shrinkwrap,
+      shrinkwrapDirectory,
+    }),
   }
   packageJsonLogger.debug({
     initial: ctx.pkg,
@@ -114,4 +155,8 @@ export default async function getContext (
   })
 
   return ctx
+}
+
+function stringifyIncludedDeps (included: IncludedDependencies) {
+  return DEPENDENCIES_FIELDS.filter((depsField) => included[depsField]).join(', ')
 }

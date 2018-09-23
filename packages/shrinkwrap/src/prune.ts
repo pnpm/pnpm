@@ -6,32 +6,48 @@ import {
   ResolvedDependencies,
   ResolvedPackages,
   Shrinkwrap,
+  ShrinkwrapImporter,
 } from './types'
 
-export function pruneWithoutPackageJson (shr: Shrinkwrap, warn: (msg: string) => void) {
-  return _prune(shr, undefined, warn)
-}
-
-export function prune (shr: Shrinkwrap, pkg: PackageJson, warn: (msg: string) => void) {
-  return _prune(shr, pkg, warn)
-}
-
-function _prune (
+export function pruneSharedShrinkwrap (
   shr: Shrinkwrap,
-  pkg: PackageJson | undefined,
-  warn: (msg: string) => void,
+  warn?: (msg: string) => void,
+) {
+  const packages: ResolvedPackages = {}
+
+  copyShrinkwrap({
+    devRelPaths: R.unnest(R.values(shr.importers).map((deps) => resolvedDepsToRelDepPaths(deps.devDependencies || {}))),
+    oldResolutions: shr.packages || {},
+    optionalRelPaths: R.unnest(R.values(shr.importers).map((deps) => resolvedDepsToRelDepPaths(deps.optionalDependencies || {}))),
+    packages,
+    prodRelPaths: R.unnest(R.values(shr.importers).map((deps) => resolvedDepsToRelDepPaths(deps.dependencies || {}))),
+    registry: shr.registry,
+    warn: warn || ((msg: string) => undefined),
+  })
+
+  const prunnedShr = {
+    ...shr,
+    packages,
+  }
+  if (R.isEmpty(prunnedShr.packages)) {
+    delete prunnedShr.packages
+  }
+  return prunnedShr
+}
+
+export function prune (
+  shr: Shrinkwrap,
+  pkg: PackageJson,
+  importerPath: string,
+  warn?: (msg: string) => void,
 ): Shrinkwrap {
   const packages: ResolvedPackages = {}
-  const shrSpecs: ResolvedDependencies = shr.specifiers || {}
-  let allDeps!: string[]
-  if (pkg) {
-    const optionalDependencies = R.keys(pkg.optionalDependencies)
-    const dependencies = R.difference(R.keys(pkg.dependencies), optionalDependencies)
-    const devDependencies = R.difference(R.difference(R.keys(pkg.devDependencies), optionalDependencies), dependencies)
-    allDeps = R.reduce(R.union, [], [optionalDependencies, devDependencies, dependencies]) as string[]
-  } else {
-    allDeps = Object.keys(shrSpecs)
-  }
+  const importer = shr.importers[importerPath]
+  const shrSpecs: ResolvedDependencies = importer.specifiers || {}
+  const optionalDependencies = R.keys(pkg.optionalDependencies)
+  const dependencies = R.difference(R.keys(pkg.dependencies), optionalDependencies)
+  const devDependencies = R.difference(R.difference(R.keys(pkg.devDependencies), optionalDependencies), dependencies)
+  const allDeps = R.reduce(R.union, [], [optionalDependencies, devDependencies, dependencies]) as string[]
   const specifiers: ResolvedDependencies = {}
   const shrDependencies: ResolvedDependencies = {}
   const shrOptionalDependencies: ResolvedDependencies = {}
@@ -40,53 +56,50 @@ function _prune (
   Object.keys(shrSpecs).forEach((depName) => {
     if (allDeps.indexOf(depName) === -1) return
     specifiers[depName] = shrSpecs[depName]
-    if (shr.dependencies && shr.dependencies[depName]) {
-      shrDependencies[depName] = shr.dependencies[depName]
-    } else if (shr.optionalDependencies && shr.optionalDependencies[depName]) {
-      shrOptionalDependencies[depName] = shr.optionalDependencies[depName]
-    } else if (shr.devDependencies && shr.devDependencies[depName]) {
-      shrDevDependencies[depName] = shr.devDependencies[depName]
+    if (importer.dependencies && importer.dependencies[depName]) {
+      shrDependencies[depName] = importer.dependencies[depName]
+    } else if (importer.optionalDependencies && importer.optionalDependencies[depName]) {
+      shrOptionalDependencies[depName] = importer.optionalDependencies[depName]
+    } else if (importer.devDependencies && importer.devDependencies[depName]) {
+      shrDevDependencies[depName] = importer.devDependencies[depName]
     }
   })
-  if (shr.dependencies) {
-    for (const dep of R.keys(shr.dependencies)) {
-      if (!shrDependencies[dep] && shr.dependencies[dep].startsWith('link:')) {
-        shrDependencies[dep] = shr.dependencies[dep]
+  if (importer.dependencies) {
+    for (const dep of R.keys(importer.dependencies)) {
+      if (!shrDependencies[dep] && importer.dependencies[dep].startsWith('link:')) {
+        shrDependencies[dep] = importer.dependencies[dep]
       }
     }
   }
 
-  copyShrinkwrap({
-    devRelPaths: resolvedDepsToRelDepPaths(shrDevDependencies),
-    oldResolutions: shr.packages || {},
-    optionalRelPaths: resolvedDepsToRelDepPaths(shrOptionalDependencies),
-    packages,
-    prodRelPaths: resolvedDepsToRelDepPaths(shrDependencies),
-    registry: shr.registry,
-    warn,
-  })
-
-  const result: Shrinkwrap = {
-    registry: shr.registry,
-    shrinkwrapVersion: SHRINKWRAP_VERSION,
+  const updatedImporter: ShrinkwrapImporter = {
     specifiers,
   }
+  const prunnedShrinkwrap: Shrinkwrap = {
+    importers: {
+      ...shr.importers,
+      [importerPath]: updatedImporter,
+    },
+    packages: shr.packages,
+    registry: shr.registry,
+    shrinkwrapVersion: SHRINKWRAP_VERSION,
+  }
   if (typeof shr.shrinkwrapMinorVersion === 'number') {
-    result.shrinkwrapMinorVersion = shr.shrinkwrapMinorVersion
+    prunnedShrinkwrap.shrinkwrapMinorVersion = shr.shrinkwrapMinorVersion
   }
   if (!R.isEmpty(packages)) {
-    result.packages = packages
+    prunnedShrinkwrap.packages = packages
   }
   if (!R.isEmpty(shrDependencies)) {
-    result.dependencies = shrDependencies
+    updatedImporter.dependencies = shrDependencies
   }
   if (!R.isEmpty(shrOptionalDependencies)) {
-    result.optionalDependencies = shrOptionalDependencies
+    updatedImporter.optionalDependencies = shrOptionalDependencies
   }
   if (!R.isEmpty(shrDevDependencies)) {
-    result.devDependencies = shrDevDependencies
+    updatedImporter.devDependencies = shrDevDependencies
   }
-  return result
+  return pruneSharedShrinkwrap(prunnedShrinkwrap, warn)
 }
 
 function copyShrinkwrap (
@@ -168,6 +181,8 @@ function copyDependencySubTree (
       // except local tarball dependencies
       if (depRalativePath.startsWith('link:') || depRalativePath.startsWith('file:') && !depRalativePath.endsWith('.tar.gz')) continue
 
+      // NOTE: Warnings should not be printed for the current shrinkwrap file (node_modules/.shrinkwrap.yaml).
+      // The current shrinkwrap file does not contain the skipped packages, so it may have missing resolutions
       warn(`Cannot find resolution of ${depRalativePath} in shrinkwrap file`)
       continue
     }

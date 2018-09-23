@@ -1,10 +1,11 @@
 import logger from '@pnpm/logger'
-import {LocalPackages} from '@pnpm/resolver-base'
-import {ReadPackageHook} from '@pnpm/types'
+import { IncludedDependencies } from '@pnpm/modules-yaml'
+import { LocalPackages } from '@pnpm/resolver-base'
+import { ReadPackageHook } from '@pnpm/types'
 import normalizeRegistryUrl = require('normalize-registry-url')
-import {StoreController} from 'package-store'
+import { StoreController } from 'package-store'
 import path = require('path')
-import {Shrinkwrap} from 'pnpm-shrinkwrap'
+import { Shrinkwrap } from 'pnpm-shrinkwrap'
 import pnpmPkgJson from '../pnpmPkgJson'
 import { ReporterFunction } from '../types'
 
@@ -22,6 +23,7 @@ export interface InstallOptions {
   depth?: number,
   repeatInstallDepth?: number,
   prefix?: string,
+  shrinkwrapDirectory?: string,
   rawNpmConfig?: object,
   verifyStoreIntegrity?: boolean,
   engineStrict?: boolean,
@@ -44,9 +46,7 @@ export interface InstallOptions {
   sideEffectsCacheReadonly?: boolean,
   strictPeerDependencies?: boolean,
   bin?: string,
-  production?: boolean,
-  development?: boolean,
-  optional?: boolean,
+  include?: IncludedDependencies,
   independentLeaves?: boolean,
   ignoreCurrentPrefs?: boolean,
   ignoreScripts?: boolean,
@@ -95,9 +95,7 @@ export type StrictInstallOptions = InstallOptions & {
   sideEffectsCacheReadonly: boolean,
   strictPeerDependencies: boolean,
   bin: string,
-  production: boolean,
-  development: boolean,
-  optional: boolean,
+  include: IncludedDependencies,
   independentLeaves: boolean,
   ignoreCurrentPrefs: boolean,
   ignoreScripts: boolean,
@@ -124,25 +122,27 @@ const defaults = async (opts: InstallOptions) => {
     bin: path.join(prefix, 'node_modules', '.bin'),
     childConcurrency: 5,
     depth: 0,
-    development: true,
     engineStrict: false,
     force: false,
     frozenShrinkwrap: false,
     hooks: {},
     ignoreCurrentPrefs: false,
     ignoreScripts: false,
+    include: {
+      dependencies: true,
+      devDependencies: true,
+      optionalDependencies: true,
+    },
     independentLeaves: false,
     localPackages: {},
     lock: true,
     lockStaleDuration: 5 * 60 * 1000, // 5 minutes
     locks: path.join(opts.store, '_locks'),
     nodeVersion: process.version,
-    optional: typeof opts.production === 'boolean' ? opts.production : true,
     ownLifecycleHooksStdio: 'inherit',
     packageManager,
     preferFrozenShrinkwrap: true,
     prefix,
-    production: true,
     rawNpmConfig: {},
     registry: 'https://registry.npmjs.org/',
     repeatInstallDepth: -1,

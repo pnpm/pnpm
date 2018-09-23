@@ -8,6 +8,7 @@ import {
   Shrinkwrap,
 } from 'pnpm-shrinkwrap'
 import R = require('ramda')
+import { SHRINKWRAP_MINOR_VERSION } from './constants'
 
 export interface PnpmContext {
   currentShrinkwrap: Shrinkwrap,
@@ -16,12 +17,13 @@ export interface PnpmContext {
   wantedShrinkwrap: Shrinkwrap,
 }
 
-export default async function getContext (
+export default async function (
   opts: {
     force: boolean,
-    prefix: string,
+    shrinkwrapDirectory: string,
     registry: string,
     shrinkwrap: boolean,
+    importerPath: string,
   },
 ): Promise<{
   currentShrinkwrap: Shrinkwrap,
@@ -33,19 +35,33 @@ export default async function getContext (
   // a latest pnpm should not break all the builds
   const shrOpts = {ignoreIncompatible: opts.force || isCI}
   const files = await Promise.all<Shrinkwrap | null | void>([
-    opts.shrinkwrap && readWantedShrinkwrap(opts.prefix, shrOpts)
-      || await existsWantedShrinkwrap(opts.prefix) &&
+    opts.shrinkwrap && readWantedShrinkwrap(opts.shrinkwrapDirectory, shrOpts)
+      || await existsWantedShrinkwrap(opts.shrinkwrapDirectory) &&
         logger.warn({
           message: 'A shrinkwrap.yaml file exists. The current configuration prohibits to read or write a shrinkwrap file',
-          prefix: opts.prefix,
+          prefix: opts.shrinkwrapDirectory,
         }),
-    readCurrentShrinkwrap(opts.prefix, shrOpts),
+    readCurrentShrinkwrap(opts.shrinkwrapDirectory, shrOpts),
   ])
-  const currentShrinkwrap = files[1] || createShrinkwrap(opts.registry)
+  const sopts = { shrinkwrapMinorVersion: SHRINKWRAP_MINOR_VERSION }
+  const currentShrinkwrap = files[1] || createShrinkwrap(opts.registry, opts.importerPath, sopts)
+  if (!currentShrinkwrap.importers[opts.importerPath]) {
+    currentShrinkwrap.importers[opts.importerPath] = {
+      specifiers: {},
+    }
+  }
+  const wantedShrinkwrap = files[0] ||
+    !opts.shrinkwrap && currentShrinkwrap && R.clone(currentShrinkwrap) ||
+    createShrinkwrap(opts.registry, opts.importerPath, sopts)
+  if (!wantedShrinkwrap.importers[opts.importerPath]) {
+    wantedShrinkwrap.importers[opts.importerPath] = {
+      specifiers: {},
+    }
+  }
   return {
     currentShrinkwrap,
     existsCurrentShrinkwrap: !!files[1],
     existsWantedShrinkwrap: !!files[0],
-    wantedShrinkwrap: files[0] || !opts.shrinkwrap && currentShrinkwrap && R.clone(currentShrinkwrap) || createShrinkwrap(opts.registry),
+    wantedShrinkwrap,
   }
 }

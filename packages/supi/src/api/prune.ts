@@ -1,6 +1,6 @@
-import logger, {streamParser} from '@pnpm/logger'
-import {PackageJson} from '@pnpm/types'
-import {removeOrphanPackages as removeOrphanPkgs} from '@pnpm/utils'
+import logger, { streamParser } from '@pnpm/logger'
+import { PackageJson } from '@pnpm/types'
+import { removeOrphanPackages as removeOrphanPkgs } from '@pnpm/utils'
 import {
   prune as pruneShrinkwrap,
 } from 'pnpm-shrinkwrap'
@@ -8,7 +8,7 @@ import extendOptions, {
   PruneOptions,
 } from './extendPruneOptions'
 import getContext from './getContext'
-import {installPkgs} from './install'
+import { installPkgs } from './install'
 
 export async function prune (
   maybeOpts: PruneOptions,
@@ -27,17 +27,18 @@ export async function prune (
   }
 
   const pkg = {
-    dependencies: opts.production ? ctx.pkg.dependencies : {},
-    devDependencies: opts.development ? ctx.pkg.devDependencies : {},
-    optionalDependencies: opts.optional ? ctx.pkg.optionalDependencies : {},
+    dependencies: opts.include.dependencies ? ctx.pkg.dependencies : {},
+    devDependencies: opts.include.devDependencies ? ctx.pkg.devDependencies : {},
+    optionalDependencies: opts.include.optionalDependencies ? ctx.pkg.optionalDependencies : {},
   } as PackageJson
 
   const warn = (message: string) => logger.warn({message, prefix: opts.prefix})
-  const prunedShr = pruneShrinkwrap(ctx.wantedShrinkwrap, pkg, warn)
+  const prunedShr = pruneShrinkwrap(ctx.wantedShrinkwrap, pkg, ctx.importerPath, warn)
 
   await removeOrphanPkgs({
     bin: opts.bin,
     hoistedAliases: ctx.hoistedAliases,
+    importerPath: ctx.importerPath,
     newShrinkwrap: prunedShr,
     oldShrinkwrap: ctx.currentShrinkwrap,
     prefix: ctx.prefix,
@@ -47,7 +48,7 @@ export async function prune (
   })
 
   if (opts.shamefullyFlatten) {
-    await installPkgs(prunedShr.specifiers, {...opts, lock: false, reinstallForFlatten: true, update: false})
+    await installPkgs(prunedShr.importers[ctx.importerPath].specifiers, {...opts, lock: false, reinstallForFlatten: true, update: false})
   }
 
   if (reporter) {

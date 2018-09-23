@@ -1,5 +1,6 @@
 import deepRequireCwd = require('deep-require-cwd')
 import loadJsonFile from 'load-json-file'
+import loadYamlFile = require('load-yaml-file')
 import mkdir = require('mkdirp-promise')
 import path = require('path')
 import exists = require('path-exists')
@@ -49,6 +50,12 @@ test('peer dependency is grouped with dependency when peer is resolved not from 
   await installPkgs(['using-ajv'], await testDefaults({update: true}))
 
   const shr = await project.loadShrinkwrap()
+
+  t.equal(
+    shr.packages['/using-ajv/1.0.0'].dependencies['ajv-keywords'],
+    '/ajv-keywords/1.5.0/ajv@4.10.4',
+    'shrinkwrap.yaml: correct reference is created to ajv-keywords from using-ajv',
+  )
   // covers https://github.com/pnpm/pnpm/issues/1150
   t.ok(shr.packages['/ajv-keywords/1.5.0/ajv@4.10.4'])
 })
@@ -361,4 +368,31 @@ test('own peer installed in root as well is linked to root', async (t: tape.Test
   await installPkgs(['is-negative@kevva/is-negative#2.1.0', 'peer-deps-in-child-pkg'], await testDefaults())
 
   t.ok(deepRequireCwd.silent(['is-negative', './package.json']), 'is-negative is linked to root')
+})
+
+test('peer dependency is grouped with dependent when the peer is a top dependency but an external shrinkwrap is used', async (t: tape.Test) => {
+  const project = prepare(t)
+
+  const reporter = sinon.spy()
+
+  await installPkgs(['ajv@4.10.4', 'ajv-keywords@1.5.0'], await testDefaults({reporter, shrinkwrapDirectory: path.resolve('..')}))
+
+  t.notOk(reporter.calledWithMatch({
+    message: 'localhost+4873/ajv-keywords/1.5.0 requires a peer of ajv@>=4.10.0 but none was installed.',
+  }), 'no warning is logged about unresolved peer dep')
+
+  t.ok(await exists(path.join('..', NM, '.localhost+4873', 'ajv-keywords', '1.5.0', 'ajv@4.10.4', NM, 'ajv-keywords')))
+
+  const shr = await loadYamlFile(path.join('..', 'shrinkwrap.yaml'))
+
+  t.deepEqual(shr['importers']['project'], { // tslint:disable-line
+    dependencies: {
+      'ajv': '4.10.4',
+      'ajv-keywords': '/ajv-keywords/1.5.0/ajv@4.10.4',
+    },
+    specifiers: {
+      'ajv': '^4.10.4',
+      'ajv-keywords': '^1.5.0',
+    },
+  }, 'correct shrinkwrap.yaml created')
 })

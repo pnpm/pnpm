@@ -1,7 +1,6 @@
-import logger, {streamParser} from '@pnpm/logger'
-import {read as readModulesYaml} from '@pnpm/modules-yaml'
-import {fromDir as readPkgFromDir} from '@pnpm/read-package-json'
-import {realNodeModulesDir} from '@pnpm/utils'
+import logger, { streamParser } from '@pnpm/logger'
+import { fromDir as readPkgFromDir } from '@pnpm/read-package-json'
+import { realNodeModulesDir } from '@pnpm/utils'
 import isInnerLink = require('is-inner-link')
 import isSubdir = require('is-subdir')
 import fs = require('mz/fs')
@@ -12,7 +11,8 @@ import extendOptions, {
   InstallOptions,
   StrictInstallOptions,
 } from './extendInstallOptions'
-import {install} from './install'
+import getContext from './getContext'
+import { install } from './install'
 
 export async function unlinkPkgs (
   pkgNames: string[],
@@ -23,8 +23,8 @@ export async function unlinkPkgs (
     streamParser.on('data', reporter)
   }
   const opts = await _extendOptions(maybeOpts)
-  const modulesYaml = await readModulesYaml(opts.prefix)
-  opts.store = modulesYaml && modulesYaml.store || opts.store
+  const ctx = await getContext(opts)
+  opts.store = ctx.storePath
 
   await _unlinkPkgs(pkgNames, opts)
 
@@ -73,8 +73,8 @@ export async function unlink (maybeOpts: InstallOptions) {
     streamParser.on('data', reporter)
   }
   const opts = await _extendOptions(maybeOpts)
-  const modulesYaml = await readModulesYaml(opts.prefix)
-  opts.store = modulesYaml && modulesYaml.store || opts.store
+  const ctx = await getContext(opts)
+  opts.store = ctx.storePath
 
   const modules = await realNodeModulesDir(opts.prefix)
 

@@ -20,6 +20,7 @@ export default async function removeOrphanPkgs (
     bin: string,
     dryRun?: boolean,
     hoistedAliases: {[depPath: string]: string[]},
+    importerPath: string,
     newShrinkwrap: Shrinkwrap,
     oldShrinkwrap: Shrinkwrap,
     prefix: string,
@@ -28,17 +29,18 @@ export default async function removeOrphanPkgs (
     storeController: StoreController,
   },
 ): Promise<Set<string>> {
-  const oldPkgs = R.toPairs(R.mergeAll(R.map((depType) => opts.oldShrinkwrap[depType], DEPENDENCIES_FIELDS)))
-  const newPkgs = R.toPairs(R.mergeAll(R.map((depType) => opts.newShrinkwrap[depType], DEPENDENCIES_FIELDS)))
+  const oldImporterShr = opts.oldShrinkwrap.importers[opts.importerPath] || {}
+  const oldPkgs = R.toPairs(R.mergeAll(R.map((depType) => oldImporterShr[depType], DEPENDENCIES_FIELDS)))
+  const newPkgs = R.toPairs(R.mergeAll(R.map((depType) => opts.newShrinkwrap.importers[opts.importerPath][depType], DEPENDENCIES_FIELDS)))
 
   const removedTopDeps: Array<[string, string]> = R.difference(oldPkgs, newPkgs) as Array<[string, string]>
 
   const rootModules = path.join(opts.prefix, 'node_modules')
   await Promise.all(removedTopDeps.map((depName) => {
     return removeTopDependency({
-      dev: Boolean(opts.oldShrinkwrap.devDependencies && opts.oldShrinkwrap.devDependencies[depName[0]]),
+      dev: Boolean(oldImporterShr.devDependencies && oldImporterShr.devDependencies[depName[0]]),
       name: depName[0],
-      optional: Boolean(opts.oldShrinkwrap.optionalDependencies && opts.oldShrinkwrap.optionalDependencies[depName[0]]),
+      optional: Boolean(oldImporterShr.optionalDependencies && oldImporterShr.optionalDependencies[depName[0]]),
     }, {
       bin: opts.bin,
       dryRun: opts.dryRun,

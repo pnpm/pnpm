@@ -1,9 +1,12 @@
 import { fromDir as readPackageJsonFromDir } from '@pnpm/read-package-json'
 import { stripIndent } from 'common-tags'
+import loadYamlFile = require('load-yaml-file')
+import mkdir = require('mkdirp-promise')
 import fs = require('mz/fs')
 import path = require('path')
 import exists = require('path-exists')
 import { getIntegrity } from 'pnpm-registry-mock'
+import { Shrinkwrap } from 'pnpm-shrinkwrap'
 import R = require('ramda')
 import rimraf = require('rimraf-then')
 import sinon = require('sinon')
@@ -927,4 +930,86 @@ test('packages installed via tarball URL from the default registry are normalize
       'pkg-with-tarball-dep-from-registry': 'http://localhost:4873/pkg-with-tarball-dep-from-registry/-/pkg-with-tarball-dep-from-registry-1.0.0.tgz',
     },
   })
+})
+
+test('shrinkwrap file has correct format when shrinkwrap directory does not equal the prefix directory', async (t: tape.Test) => {
+  const project = prepare(t)
+
+  await installPkgs(['pkg-with-1-dep', '@rstacruz/tap-spec@4.1.1', 'kevva/is-negative#1d7e288222b53a0cab90a331f1865220ec29560c'],
+    await testDefaults({save: true, shrinkwrapDirectory: path.resolve('..')}))
+
+  const proxyModules = await project.loadModules()
+  t.ok(proxyModules, '.modules.yaml for proxy node_modules created')
+  t.equal(proxyModules!.shamefullyFlatten, false)
+
+  process.chdir('..')
+
+  const sharedModules = await loadYamlFile(path.resolve('node_modules', '.modules.yaml'))
+  t.ok(sharedModules, '.modules.yaml for shared node_modules created')
+  t.equal(sharedModules!['pendingBuilds'].length, 0) // tslint:disable-line:no-string-literal
+
+  {
+    const shr = await loadYamlFile('shrinkwrap.yaml') as Shrinkwrap
+    const id = '/pkg-with-1-dep/100.0.0'
+
+    t.equal(shr.shrinkwrapVersion, 3, 'correct shrinkwrap version')
+
+    t.ok(shr.registry, 'has registry field')
+
+    t.ok(shr.importers)
+    t.ok(shr.importers.project)
+    t.ok(shr.importers.project.specifiers, 'has specifiers field')
+    t.ok(shr.importers.project.dependencies, 'has dependencies field')
+    t.equal(shr.importers.project.dependencies!['pkg-with-1-dep'], '100.0.0', 'has dependency resolved')
+    t.ok(shr.importers.project.dependencies!['@rstacruz/tap-spec'], 'has scoped dependency resolved')
+    t.ok(shr.importers.project.dependencies!['is-negative'].indexOf('/') !== -1, 'has not shortened tarball from the non-standard registry')
+
+    t.ok(shr.packages, 'has packages field')
+    t.ok(shr.packages![id], `has resolution for ${id}`)
+    t.ok(shr.packages![id].dependencies, `has dependency resolutions for ${id}`)
+    t.ok(shr.packages![id].dependencies!['dep-of-pkg-with-1-dep'], `has dependency resolved for ${id}`)
+    t.ok(shr.packages![id].resolution, `has resolution for ${id}`)
+    t.ok(shr.packages![id].resolution['integrity'], `has integrity for package in the default registry`) // tslint:disable-line
+    t.notOk(shr.packages![id].resolution['tarball'], `has no tarball for package in the default registry`) // tslint:disable-line
+
+    const absDepPath = 'github.com/kevva/is-negative/1d7e288222b53a0cab90a331f1865220ec29560c'
+    t.ok(shr.packages![absDepPath])
+    t.ok(shr.packages![absDepPath].name, 'github-hosted package has name specified')
+  }
+
+  await mkdir('project-2')
+
+  process.chdir('project-2')
+
+  await installPkgs(['is-positive'], await testDefaults({save: true, shrinkwrapDirectory: path.resolve('..')}))
+
+  {
+    const shr = await loadYamlFile(path.join('..', 'shrinkwrap.yaml')) as Shrinkwrap
+
+    t.ok(shr.importers)
+    t.ok(shr.importers['project-2'])
+
+    // previous entries are not removed
+    const id = '/pkg-with-1-dep/100.0.0'
+
+    t.ok(shr.importers)
+    t.ok(shr.importers.project)
+    t.ok(shr.importers.project.specifiers, 'has specifiers field')
+    t.ok(shr.importers.project.dependencies, 'has dependencies field')
+    t.equal(shr.importers.project.dependencies!['pkg-with-1-dep'], '100.0.0', 'has dependency resolved')
+    t.ok(shr.importers.project.dependencies!['@rstacruz/tap-spec'], 'has scoped dependency resolved')
+    t.ok(shr.importers.project.dependencies!['is-negative'].indexOf('/') !== -1, 'has not shortened tarball from the non-standard registry')
+
+    t.ok(shr.packages, 'has packages field')
+    t.ok(shr.packages![id], `has resolution for ${id}`)
+    t.ok(shr.packages![id].dependencies, `has dependency resolutions for ${id}`)
+    t.ok(shr.packages![id].dependencies!['dep-of-pkg-with-1-dep'], `has dependency resolved for ${id}`)
+    t.ok(shr.packages![id].resolution, `has resolution for ${id}`)
+    t.ok(shr.packages![id].resolution['integrity'], `has integrity for package in the default registry`) // tslint:disable-line
+    t.notOk(shr.packages![id].resolution['tarball'], `has no tarball for package in the default registry`) // tslint:disable-line
+
+    const absDepPath = 'github.com/kevva/is-negative/1d7e288222b53a0cab90a331f1865220ec29560c'
+    t.ok(shr.packages![absDepPath])
+    t.ok(shr.packages![absDepPath].name, 'github-hosted package has name specified')
+  }
 })

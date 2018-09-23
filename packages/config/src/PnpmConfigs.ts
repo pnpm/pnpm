@@ -72,4 +72,6 @@ export interface PnpmConfigs extends Record<string, any> { // tslint:disable-lin
   sort: boolean,
   strictPeerDependencies: boolean,
   pending: boolean,
+  shrinkwrapDirectory?: string,
+  sharedWorkspaceShrinkwrap: boolean,
 }

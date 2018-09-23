@@ -6,6 +6,7 @@ import { ReporterFunction } from '../types'
 
 export interface UninstallOptions {
   prefix?: string,
+  shrinkwrapDirectory?: string,
   store: string,
   independentLeaves?: boolean,
   force?: boolean,

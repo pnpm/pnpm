@@ -8,8 +8,10 @@ import {
   execPnpm,
   execPnpmSync,
 } from '../utils'
+import path = require('path')
 import exists = require('path-exists')
 import isWindows = require('is-windows')
+import loadYamlFile = require('load-yaml-file')
 
 const IS_WINDOWS = isWindows()
 
@@ -91,4 +93,16 @@ test('install from any location via the --prefix flag', async (t: tape.Test) => 
 
   await project.has('rimraf')
   await project.isExecutable('.bin/rimraf')
+})
+
+test('install with external shrinkwrap directory', async (t: tape.Test) => {
+  const project = prepare(t)
+
+  await execPnpm('install', 'is-positive', '--shrinkwrap-directory', path.resolve('..'))
+
+  await project.has('is-positive')
+
+  const shr = await loadYamlFile(path.resolve('..', 'shrinkwrap.yaml'))
+
+  t.deepEqual(Object.keys(shr['importers']), ['project'], 'shrinkwrap created in correct location')
 })

@@ -60,6 +60,7 @@ export interface DepGraphNode {
   isBuilt?: boolean,
   requiresBuild?: boolean,
   prepare: boolean,
+  isPure: boolean,
 }
 
 export interface DepGraphNodesByDepPath {
@@ -77,6 +78,7 @@ export default function (
     nodeModules: string,
     prefix: string, // is only needed for logging
     strictPeerDependencies: boolean,
+    externalShrinkwrap: boolean,
   },
 ): {
   depGraph: DepGraphNodesByDepPath,
@@ -108,6 +110,7 @@ export default function (
   resolvePeersOfChildren(opts.rootNodeIdsByAlias, pkgsByName, {
     absolutePathsByNodeId,
     depGraph,
+    externalShrinkwrap: opts.externalShrinkwrap,
     independentLeaves: opts.independentLeaves,
     nodeModules: opts.nodeModules,
     pkgGraph: opts.pkgGraph,
@@ -143,6 +146,7 @@ function resolvePeersOfNode (
     purePkgs: Set<string>, // pure packages are those that don't rely on externally resolved peers
     prefix: string,
     strictPeerDependencies: boolean,
+    externalShrinkwrap: boolean,
   },
 ): {[alias: string]: string} {
   const node = ctx.pkgGraph[nodeId]
@@ -162,14 +166,23 @@ function resolvePeersOfNode (
 
   const resolvedPeers = R.isEmpty(node.pkg.peerDependencies)
     ? {}
-    : resolvePeers(nodeId, node, parentPkgs, ctx.pkgGraph, ctx.prefix, ctx.strictPeerDependencies)
+    : resolvePeers({
+        externalShrinkwrap: ctx.externalShrinkwrap,
+        node,
+        nodeId,
+        parentPkgs,
+        pkgGraph: ctx.pkgGraph,
+        prefix: ctx.prefix,
+        strictPeerDependencies: ctx.strictPeerDependencies,
+      })
 
   const allResolvedPeers = Object.assign(unknownResolvedPeersOfChildren, resolvedPeers)
 
   let modules: string
   let absolutePath: string
   const localLocation = path.join(ctx.nodeModules, `.${pkgIdToFilename(node.pkg.id, ctx.prefix)}`)
-  if (R.isEmpty(allResolvedPeers)) {
+  const isPure = R.isEmpty(allResolvedPeers)
+  if (isPure) {
     modules = path.join(localLocation, 'node_modules')
     absolutePath = node.pkg.id
     if (R.isEmpty(node.pkg.peerDependencies)) {
@@ -207,6 +220,7 @@ function resolvePeersOfNode (
       independent,
       installable: node.installable,
       isBuilt: !!node.pkg.engineCache,
+      isPure,
       modules,
       name: node.pkg.name,
       optional: node.pkg.optional,
@@ -236,6 +250,7 @@ function resolvePeersOfChildren (
     pkgGraph: PkgGraphNodeByNodeId,
     prefix: string,
     strictPeerDependencies: boolean,
+    externalShrinkwrap: boolean,
   },
 ): {[alias: string]: string} {
   const allResolvedPeers: {[alias: string]: string} = {}
@@ -255,59 +270,62 @@ function resolvePeersOfChildren (
 }
 
 function resolvePeers (
-  nodeId: string,
-  node: PkgGraphNode,
-  parentPkgs: ParentRefs,
-  pkgGraph: PkgGraphNodeByNodeId,
-  prefix: string,
-  strictPeerDependencies: boolean,
+  ctx: {
+    nodeId: string,
+    node: PkgGraphNode,
+    parentPkgs: ParentRefs,
+    pkgGraph: PkgGraphNodeByNodeId,
+    prefix: string,
+    strictPeerDependencies: boolean,
+    externalShrinkwrap: boolean,
+  },
 ): {
   [alias: string]: string,
 } {
   const resolvedPeers: {[alias: string]: string} = {}
-  for (const peerName in node.pkg.peerDependencies) { // tslint:disable-line:forin
-    const peerVersionRange = node.pkg.peerDependencies[peerName]
+  for (const peerName in ctx.node.pkg.peerDependencies) { // tslint:disable-line:forin
+    const peerVersionRange = ctx.node.pkg.peerDependencies[peerName]
 
-    let resolved = parentPkgs[peerName]
+    let resolved = ctx.parentPkgs[peerName]
 
-    if (!resolved || resolved.nodeId && !pkgGraph[resolved.nodeId].installable) {
+    if (!resolved || resolved.nodeId && !ctx.pkgGraph[resolved.nodeId].installable) {
       try {
-        const {version} = importFrom(prefix, `${peerName}/package.json`)
+        const {version} = importFrom(ctx.prefix, `${peerName}/package.json`)
         resolved = {
           depth: -1,
           version,
         }
       } catch (err) {
-        const friendlyPath = nodeIdToFriendlyPath(nodeId, pkgGraph)
+        const friendlyPath = nodeIdToFriendlyPath(ctx.nodeId, ctx.pkgGraph)
         const message = oneLine`
-          ${friendlyPath ? `${friendlyPath}: ` : ''}${packageFriendlyId(node.pkg)}
+          ${friendlyPath ? `${friendlyPath}: ` : ''}${packageFriendlyId(ctx.node.pkg)}
           requires a peer of ${peerName}@${peerVersionRange} but none was installed.`
-        if (strictPeerDependencies) {
+        if (ctx.strictPeerDependencies) {
           throw new PnpmError('ERR_PNPM_MISSING_PEER_DEPENDENCY', message)
         }
         logger.warn({
           message,
-          prefix,
+          prefix: ctx.prefix,
         })
         continue
       }
     }
 
     if (!semver.satisfies(resolved.version, peerVersionRange)) {
-      const friendlyPath = nodeIdToFriendlyPath(nodeId, pkgGraph)
+      const friendlyPath = nodeIdToFriendlyPath(ctx.nodeId, ctx.pkgGraph)
       const message = oneLine`
-        ${friendlyPath ? `${friendlyPath}: ` : ''}${packageFriendlyId(node.pkg)}
+        ${friendlyPath ? `${friendlyPath}: ` : ''}${packageFriendlyId(ctx.node.pkg)}
         requires a peer of ${peerName}@${peerVersionRange} but version ${resolved.version} was installed.`
-      if (strictPeerDependencies) {
+      if (ctx.strictPeerDependencies) {
         throw new PnpmError('ERR_PNPM_INVALID_PEER_DEPENDENCY', message)
       }
       logger.warn({
         message,
-        prefix,
+        prefix: ctx.prefix,
       })
     }
 
-    if (resolved.depth <= 0 || resolved.depth === node.depth + 1) {
+    if (!ctx.externalShrinkwrap && resolved.depth <= 0 || resolved.depth === ctx.node.depth + 1) {
       // if the resolved package is a top dependency
       // or the peer dependency is resolved from a regular dependency of the package
       // then there is no need to link it in

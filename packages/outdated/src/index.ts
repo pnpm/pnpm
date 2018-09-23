@@ -1,7 +1,7 @@
-import logger from '@pnpm/logger'
 import createResolver from '@pnpm/npm-resolver'
-import {fromDir as readPackageFromDir} from '@pnpm/read-package-json'
+import { fromDir as readPackageFromDir } from '@pnpm/read-package-json'
 import resolveStore from '@pnpm/store-path'
+import { DEPENDENCIES_FIELDS } from '@pnpm/types'
 import * as dp from 'dependency-path'
 import {
   readCurrent as readCurrentShrinkwrap,
@@ -14,8 +14,6 @@ export interface OutdatedPackage {
   wanted: string,
   latest?: string,
 }
-
-const depTypes = ['dependencies', 'devDependencies', 'optionalDependencies']
 
 export default async function (
   pkgPath: string,
@@ -102,7 +100,7 @@ async function _outdated (
     throw new Error('No shrinkwrapfile in this directory. Run `pnpm install` to generate one.')
   }
   const storePath = await resolveStore(pkgPath, opts.store)
-  const currentShrinkwrap = await readCurrentShrinkwrap(pkgPath, {ignoreIncompatible: false}) || {}
+  const currentShrinkwrap = await readCurrentShrinkwrap(pkgPath, {ignoreIncompatible: false}) || { importers: {'.': {}} }
 
   const resolve = createResolver({
     fetchRetries: opts.fetchRetries,
@@ -118,10 +116,10 @@ async function _outdated (
   const outdated: OutdatedPackage[] = []
 
   await Promise.all(
-    depTypes.map(async (depType) => {
-      if (!wantedShrinkwrap[depType]) return
+    DEPENDENCIES_FIELDS.map(async (depType) => {
+      if (!wantedShrinkwrap.importers['.'][depType]) return
 
-      let pkgs = Object.keys(wantedShrinkwrap[depType])
+      let pkgs = Object.keys(wantedShrinkwrap.importers['.'][depType]!)
 
       if (forPkgs.length) {
         pkgs = pkgs.filter((pkgName) => forPkgs.indexOf(pkgName) !== -1)
@@ -129,7 +127,7 @@ async function _outdated (
 
       await Promise.all(
         pkgs.map(async (packageName) => {
-          const ref = wantedShrinkwrap[depType][packageName]
+          const ref = wantedShrinkwrap.importers['.'][depType]![packageName]
 
           // ignoring linked packages. (For backward compatibility)
           if (ref.startsWith('file:')) {
@@ -150,12 +148,12 @@ async function _outdated (
           // It might be not the best solution to check for pkgSnapshot.name
           // TODO: add some other field to distinct packages not from the registry
           if (pkgSnapshot.resolution && (pkgSnapshot.resolution['type'] || pkgSnapshot.name)) { // tslint:disable-line:no-string-literal
-            if (currentShrinkwrap[depType][packageName] !== wantedShrinkwrap[depType][packageName]) {
+            if (currentShrinkwrap.importers['.']![depType][packageName] !== wantedShrinkwrap.importers['.'][depType]![packageName]) {
               outdated.push({
-                current: currentShrinkwrap[depType][packageName],
+                current: currentShrinkwrap.importers['.'][depType]![packageName],
                 latest: undefined,
                 packageName,
-                wanted: wantedShrinkwrap[depType][packageName],
+                wanted: wantedShrinkwrap.importers['.'][depType]![packageName],
               })
             }
             return
@@ -170,22 +168,22 @@ async function _outdated (
 
           const latest = resolution.latest
 
-          if (!currentShrinkwrap[depType][packageName]) {
+          if (!currentShrinkwrap.importers['.'][depType][packageName]) {
             outdated.push({
               latest,
               packageName,
-              wanted: wantedShrinkwrap[depType][packageName],
+              wanted: wantedShrinkwrap.importers['.'][depType]![packageName],
             })
             return
           }
 
-          if (currentShrinkwrap[depType][packageName] !== wantedShrinkwrap[depType][packageName] ||
-            latest !== currentShrinkwrap[depType][packageName]) {
+          if (currentShrinkwrap.importers['.'][depType][packageName] !== wantedShrinkwrap.importers['.'][depType]![packageName] ||
+            latest !== currentShrinkwrap.importers['.'][depType][packageName]) {
             outdated.push({
-              current: currentShrinkwrap[depType][packageName],
+              current: currentShrinkwrap.importers['.'][depType][packageName],
               latest,
               packageName,
-              wanted: wantedShrinkwrap[depType][packageName],
+              wanted: wantedShrinkwrap.importers['.'][depType]![packageName],
             })
           }
         }),
@@ -205,49 +203,4 @@ function packageHasNoDeps (pkg: any) {
 
 function isEmpty (obj: object) {
   return Object.keys(obj).length === 0
-}
-
-function adaptConfig (
-  opts: {
-    proxy?: string,
-    httpsProxy?: string,
-    localAddress?: string,
-    cert?: string,
-    key?: string,
-    ca?: string,
-    strictSsl: boolean,
-    fetchRetries: number,
-    fetchRetryFactor: number,
-    fetchRetryMintimeout: number,
-    fetchRetryMaxtimeout: number,
-    userAgent: string,
-    tag: string,
-  },
-) {
-  const registryLog = logger('registry')
-  return {
-    defaultTag: opts.tag,
-    log: Object.assign({}, registryLog, {
-      http: registryLog.debug.bind(null, 'http'),
-      verbose: registryLog.debug.bind(null, 'http'),
-    }),
-    proxy: {
-      http: opts.proxy,
-      https: opts.httpsProxy,
-      localAddress: opts.localAddress,
-    },
-    retry: {
-      count: opts.fetchRetries,
-      factor: opts.fetchRetryFactor,
-      maxTimeout: opts.fetchRetryMaxtimeout,
-      minTimeout: opts.fetchRetryMintimeout,
-    },
-    ssl: {
-      ca: opts.ca,
-      certificate: opts.cert,
-      key: opts.key,
-      strict: opts.strictSsl,
-    },
-    userAgent: opts.userAgent,
-  }
 }

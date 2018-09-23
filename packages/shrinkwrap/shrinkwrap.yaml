@@ -9,6 +9,7 @@ dependencies:
   js-yaml: 3.12.0
   load-yaml-file: 0.1.0
   mkdirp-promise: 5.0.1
+  normalize-path: 3.0.0
   pnpm-shrinkwrap: 'link:../../../__package_previews__/shrinkwrap/pnpm-shrinkwrap'
   ramda: 0.25.0
   rimraf-then: 1.0.1
@@ -22,7 +23,7 @@ devDependencies:
   rimraf: 2.6.2
   tape: 4.9.1
   tempy: 0.2.1
-  ts-node: 7.0.1
+  ts-node: 6.2.0
   tslint: 5.11.0
   typescript: 3.0.3
   yaml-tag: github.com/zkochan/yaml-tag/5dc60b313a917434585d02031c4fd4c326a751c1
@@ -866,6 +867,12 @@ packages:
     dev: true
     resolution:
       integrity: sha512-9jjUFbTPfEy3R/ad/2oNbKtW9Hgovl5O1FvFWKkKblNXoN/Oou6+9+KKohPK13Yc3/TyunyWhJp6gvRNR/PPAw==
+  /normalize-path/3.0.0:
+    dev: false
+    engines:
+      node: '>=0.10.0'
+    resolution:
+      integrity: sha512-6eZs5Ls3WtCisHWp9S2GUy8dqkpGi4BVSz3GaqiE6ezub0512ESztXUwUB6C6IKbQkY2Pnb/mD4WYojCRwcwLA==
   /normalize-registry-url/1.0.0:
     dev: false
     resolution:
@@ -1362,7 +1369,7 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha1-tAPQuRvlDDMd/EuC7s6yLD3hbSA=
-  /ts-node/7.0.1:
+  /ts-node/6.2.0:
     dependencies:
       arrify: 1.0.1
       buffer-from: 1.1.1
@@ -1377,7 +1384,7 @@ packages:
       node: '>=4.2.0'
     hasBin: true
     resolution:
-      integrity: sha512-BVwVbPJRspzNh2yfslyT1PSbl5uIk03EZlb493RKHN4qej/D06n1cEhjlOJG69oFsE7OT8XjpTUcYf6pKTLMhw==
+      integrity: sha512-ZNT+OEGfUNVMGkpIaDJJ44Zq3Yr0bkU/ugN1PHbU+/01Z7UV1fsELRiTx1KuQNvQ1A3pGh3y25iYF6jXgxV21A==
   /tslib/1.9.3:
     dev: true
     resolution:
@@ -1537,13 +1544,14 @@ specifiers:
   js-yaml: ^3.8.4
   load-yaml-file: ^0.1.0
   mkdirp-promise: ^5.0.1
+  normalize-path: 3.0.0
   package-preview: ^1.0.0
   ramda: ^0.25.0
   rimraf: ^2.6.1
   rimraf-then: ^1.0.1
   tape: ^4.6.3
   tempy: ^0.2.1
-  ts-node: ^7.0.0
+  ts-node: 6.2.0
   tslint: ^5.8.0
   typescript: ^3.0.0
   util.promisify: ^1.0.0

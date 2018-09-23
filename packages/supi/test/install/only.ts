@@ -21,7 +21,13 @@ test('production install (with --production flag)', async (t: tape.Test) => {
     },
   })
 
-  await install(await testDefaults({ development: false }))
+  await install(await testDefaults({
+    include: {
+      dependencies: true,
+      devDependencies: false,
+      optionalDependencies: true,
+    },
+  }))
 
   const rimraf = project.requireModule('rimraf')
 
@@ -47,7 +53,13 @@ test('install dev dependencies only', async (t: tape.Test) => {
     },
   })
 
-  await install(await testDefaults({ production: false }))
+  await install(await testDefaults({
+    include: {
+      dependencies: false,
+      devDependencies: true,
+      optionalDependencies: false,
+    },
+  }))
 
   const inflight = project.requireModule('inflight')
   t.equal(typeof inflight, 'function', 'dev dependency is available')
@@ -73,4 +85,51 @@ test('install dev dependencies only', async (t: tape.Test) => {
     const currentShrinkwrap = await project.loadCurrentShrinkwrap()
     t.ok(currentShrinkwrap.packages['/is-positive/1.0.0'], 'prod dep added to current shrinkwrap.yaml')
   }
+})
+
+test('fail if installing different types of dependencies in a project that uses an external shrinkwrap', async (t: tape.Test) => {
+  const project = prepare(t, {
+    dependencies: {
+      'is-positive': '1.0.0',
+      'once': '^1.4.0',
+    },
+    devDependencies: {
+      inflight: '1.0.6',
+    },
+  })
+
+  const shrinkwrapDirectory = path.resolve('..')
+
+  await install(await testDefaults({
+    include: {
+      dependencies: false,
+      devDependencies: true,
+      optionalDependencies: false,
+    },
+    shrinkwrapDirectory,
+  }))
+
+  const inflight = project.requireModule('inflight')
+  t.equal(typeof inflight, 'function', 'dev dependency is available')
+
+  await project.hasNot('once')
+
+  let err!: Error & { code: string }
+
+  try {
+    await install(await testDefaults({
+      include: {
+        dependencies: true,
+        devDependencies: true,
+        optionalDependencies: true,
+      },
+      shrinkwrapDirectory,
+    }))
+  } catch (_) {
+    err = _
+  }
+
+  t.ok(err, 'installation failed')
+  t.equal(err.code, 'ERR_PNPM_INCLUDED_DEPS_CONFLICT', 'error has correct error code')
+  t.ok(err.message.indexOf('was installed with devDependencies. Current install wants optionalDependencies, dependencies, devDependencies.') !== -1, 'correct error message')
 })
