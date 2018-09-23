@@ -23,6 +23,7 @@
     "pnpm-default-reporter",
     "pnpm-file-reporter",
     "pnpm-install-checks",
+    "pnpm-list",
     "pnpm-registry-mock",
     "pnpm-shrinkwrap",
     "remove-all-except-outer-links",

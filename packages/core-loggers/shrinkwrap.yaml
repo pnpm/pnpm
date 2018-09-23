@@ -8,7 +8,7 @@ devDependencies:
 packages:
   /@pnpm/logger/2.1.0:
     dependencies:
-      '@types/node': 10.10.1
+      '@types/node': 10.10.3
       bole: 3.0.2
       ndjson: 1.5.0
     dev: true
@@ -20,10 +20,10 @@ packages:
     dev: false
     resolution:
       integrity: sha512-NsEzBVa5aMgn/n79piyJtpUQFzJ97tB2R2r8PSJlLnMA6LJmchKuv7ATN+/nZH/3QRd/+uFXEq07/i/ajsqVGQ==
-  /@types/node/10.10.1:
+  /@types/node/10.10.3:
     dev: true
     resolution:
-      integrity: sha512-nzsx28VwfaIykfzMAG9TB3jxF5Nn+1/WMKnmVZc8TsB+LMIVvwUscVn7PAq+LFaY5ng5u4jp5mRROSswo76PPA==
+      integrity: sha512-dWk7F3b0m6uDLHero7tsnpAi9r2RGPQHGbb0/VCv7DPJRMFtk3RonY1/29vfJKnheRMBa7+uF+vunlg/mBGlxg==
   /ansi-regex/2.1.1:
     dev: true
     engines:

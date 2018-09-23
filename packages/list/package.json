@@ -15,10 +15,7 @@
     "tsc": "tsc",
     "md": "tsc && mos"
   },
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/pnpm/pnpm-list.git"
-  },
+  "repository": "https://github.com/pnpm/pnpm/blob/master/packages/list",
   "keywords": [
     "pnpm",
     "list",
@@ -34,9 +31,9 @@
   },
   "license": "MIT",
   "bugs": {
-    "url": "https://github.com/pnpm/pnpm-list/issues"
+    "url": "https://github.com/pnpm/pnpm/issues"
   },
-  "homepage": "https://github.com/pnpm/pnpm-list#readme",
+  "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/list#readme",
   "dependencies": {
     "@types/archy": "^0.0.31",
     "@types/node": "^9.3.0 || 10",

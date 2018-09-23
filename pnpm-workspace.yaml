@@ -3,3 +3,4 @@ packages:
   - packages/**
   - "!**/test/**"
   - "!**/__package_previews__/**"
+  - "!packages/list/example/**"
