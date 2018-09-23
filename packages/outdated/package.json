@@ -1,0 +1,68 @@
+{
+  "name": "@pnpm/outdated",
+  "version": "0.4.1",
+  "description": "Check for outdated packages",
+  "main": "lib/index.js",
+  "typings": "lib/index.d.ts",
+  "engines": {
+    "node": ">=6"
+  },
+  "files": [
+    "lib"
+  ],
+  "scripts": {
+    "test": "tslint --config tslint.json --project . && preview && ts-node test --type-check",
+    "prepublishOnly": "tsc",
+    "tsc": "tsc",
+    "md": "mos"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/pnpm/outdated.git"
+  },
+  "keywords": [
+    "pnpm",
+    "outdated"
+  ],
+  "author": {
+    "name": "Zoltan Kochan",
+    "email": "z@kochan.io",
+    "url": "https://www.kochan.io/",
+    "twitter": "ZoltanKochan"
+  },
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/pnpm/outdated/issues"
+  },
+  "homepage": "https://github.com/pnpm/outdated#readme",
+  "peerDependencies": {
+    "@pnpm/logger": ">=2.0.1 <3.0.0"
+  },
+  "dependencies": {
+    "@pnpm/npm-resolver": "^2.0.0",
+    "@pnpm/read-package-json": "^1.0.0",
+    "@pnpm/store-path": "^1.0.0",
+    "@types/node": "^9.3.0 || 10",
+    "dependency-path": "^2.0.0",
+    "pnpm-shrinkwrap": "^7.0.0"
+  },
+  "devDependencies": {
+    "@pnpm/logger": "^2.0.1",
+    "@types/tape": "^4.2.31",
+    "mos": "^2.0.0-alpha.3",
+    "mos-plugin-readme": "^1.0.4",
+    "package-preview": "^1.0.0",
+    "tape": "^4.8.0",
+    "ts-node": "^7.0.0",
+    "tslint": "^5.8.0",
+    "typescript": "^3.0.0"
+  },
+  "mos": {
+    "plugins": [
+      "readme"
+    ],
+    "installation": {
+      "useShortAlias": true
+    }
+  }
+}
