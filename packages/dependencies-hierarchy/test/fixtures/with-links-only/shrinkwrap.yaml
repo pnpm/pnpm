@@ -1,0 +1,7 @@
+dependencies:
+  general: 'link:../general'
+registry: 'https://registry.npmjs.org/'
+shrinkwrapMinorVersion: 1
+shrinkwrapVersion: 3
+specifiers:
+  general: ^1.0.0

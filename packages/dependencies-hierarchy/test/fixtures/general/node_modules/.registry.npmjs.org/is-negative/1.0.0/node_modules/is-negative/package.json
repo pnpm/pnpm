@@ -1,0 +1,29 @@
+{
+  "name": "is-negative",
+  "version": "1.0.0",
+  "description": "Test if a number is negative",
+  "license": "MIT",
+  "repository": "kevva/is-negative",
+  "author": {
+    "name": "Kevin Martensson",
+    "email": "kevinmartensson@gmail.com",
+    "url": "github.com/kevva"
+  },
+  "engines": {
+    "node": ">=0.10.0"
+  },
+  "scripts": {
+    "test": "node test.js"
+  },
+  "files": [
+    "index.js"
+  ],
+  "keywords": [
+    "negative",
+    "number",
+    "test"
+  ],
+  "devDependencies": {
+    "ava": "^0.0.4"
+  }
+}
