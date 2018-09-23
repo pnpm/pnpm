@@ -10,7 +10,7 @@
   "scripts": {
     "fix": "tslint -c tslint.json --project . --fix",
     "lint": "tslint -c tslint.json --project .",
-    "test": "npm run lint && pnpm link . && ts-node test --type-check && mos t",
+    "test": "npm run tsc && npm run lint && pnpm link . && ts-node test --type-check && mos t",
     "prepublishOnly": "tsc",
     "tsc": "tsc",
     "md": "pnpm link . && tsc && mos"

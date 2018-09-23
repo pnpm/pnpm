@@ -23,7 +23,7 @@ export interface PackageNode {
   circular?: true,
 }
 
-export function forPackages(
+export function forPackages (
   packages: PackageSelector[],
   projectPath: string,
   opts?: {
@@ -37,7 +37,7 @@ export function forPackages(
   return dependenciesHierarchy(projectPath, packages, opts)
 }
 
-export default function(
+export default function (
   projectPath: string,
   opts?: {
     depth: number,
@@ -47,7 +47,7 @@ export default function(
   return dependenciesHierarchy(projectPath, [], opts)
 }
 
-async function dependenciesHierarchy(
+async function dependenciesHierarchy (
   projectPath: string,
   searched: PackageSelector[],
   maybeOpts?: {
@@ -108,7 +108,7 @@ async function dependenciesHierarchy(
   return result
 }
 
-function getTopDependencies(
+function getTopDependencies (
   shrinkwrap: Shrinkwrap,
   opts: {
     only?: 'dev' | 'prod',
@@ -128,7 +128,7 @@ function getTopDependencies(
   }
 }
 
-function getTree(
+function getTree (
   opts: {
     currentDepth: number,
     maxDepth: number,
@@ -196,7 +196,7 @@ function getTree(
   return result
 }
 
-function matches(
+function matches (
   searched: PackageSelector[],
   pkg: {name: string, version: string},
 ) {
