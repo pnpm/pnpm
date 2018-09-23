@@ -24,24 +24,25 @@ import readShrinkwrapFile from '../readShrinkwrapFiles'
 import checkCompatibility from './checkCompatibility'
 
 export interface PnpmContext {
-  pkg: PackageJson,
-  storePath: string,
-  prefix: string,
-  existsWantedShrinkwrap: boolean,
+  currentShrinkwrap: Shrinkwrap,
   existsCurrentShrinkwrap: boolean,
+  existsWantedShrinkwrap: boolean,
+  hoistedAliases: {[depPath: string]: string[]}
   importerPath: string,
   include: IncludedDependencies,
-  currentShrinkwrap: Shrinkwrap,
-  wantedShrinkwrap: Shrinkwrap,
-  skipped: Set<string>,
   pendingBuilds: string[],
-  hoistedAliases: {[depPath: string]: string[]}
+  pkg: PackageJson,
+  prefix: string,
+  shrinkwrapDirectory: string,
+  skipped: Set<string>,
+  storePath: string,
+  wantedShrinkwrap: Shrinkwrap,
 }
 
 export default async function getContext (
   opts: {
     force: boolean,
-    shrinkwrapDirectory: string,
+    shrinkwrapDirectory?: string,
     hooks?: {
       readPackage?: ReadPackageHook,
     },
@@ -58,8 +59,16 @@ export default async function getContext (
   const storePath = opts.store
 
   const modulesPath = path.join(opts.prefix, 'node_modules')
-  const shrinkwrapNodeModules = path.join(opts.shrinkwrapDirectory, 'node_modules')
-  const modules = await readModulesYaml(shrinkwrapNodeModules, modulesPath)
+  const modules = await readModulesYaml(modulesPath)
+
+  if (opts.shrinkwrapDirectory && modules && modules.shrinkwrapDirectory && modules.shrinkwrapDirectory !== opts.shrinkwrapDirectory) {
+    throw new PnpmError(
+      'ERR_PNPM_SHRINKWRAP_DIRECTORY_MISMATCH',
+      `Cannot use shrinkwrap direcory "${opts.shrinkwrapDirectory}". Next directory is already used for the current node_modules: "${modules.shrinkwrapDirectory}".`,
+    )
+  }
+
+  const shrinkwrapDirectory = modules && modules.shrinkwrapDirectory || opts.shrinkwrapDirectory || opts.prefix
 
   if (modules) {
     try {
@@ -92,11 +101,11 @@ export default async function getContext (
         )
       }
       checkCompatibility(modules, {storePath, modulesPath})
-      if (opts.shrinkwrapDirectory !== opts.prefix && opts.include && modules.included) {
+      if (shrinkwrapDirectory !== opts.prefix && opts.include && modules.included) {
         for (const depsField of DEPENDENCIES_FIELDS) {
           if (opts.include[depsField] !== modules.included[depsField]) {
             throw new PnpmError('ERR_PNPM_INCLUDED_DEPS_CONFLICT',
-              `node_modules (at "${shrinkwrapNodeModules}") was installed with ${stringifyIncludedDeps(modules.included)}. ` +
+              `node_modules (at "${shrinkwrapDirectory}") was installed with ${stringifyIncludedDeps(modules.included)}. ` +
               `Current install wants ${stringifyIncludedDeps(opts.include)}.`,
             )
           }
@@ -121,7 +130,7 @@ export default async function getContext (
     mkdirp(storePath),
   ])
   const pkg = files[0] || {} as PackageJson
-  const importerPath = getImporterPath(opts.shrinkwrapDirectory, opts.prefix)
+  const importerPath = getImporterPath(shrinkwrapDirectory, opts.prefix)
   const ctx: PnpmContext = {
     hoistedAliases: modules && modules.hoistedAliases || {},
     importerPath,
@@ -129,6 +138,7 @@ export default async function getContext (
     pendingBuilds: modules && modules.pendingBuilds || [],
     pkg: opts.hooks && opts.hooks.readPackage ? opts.hooks.readPackage(pkg) : pkg,
     prefix: opts.prefix,
+    shrinkwrapDirectory,
     skipped: new Set(modules && modules.skipped || []),
     storePath,
     ...await readShrinkwrapFile({
@@ -136,7 +146,7 @@ export default async function getContext (
       importerPath,
       registry: opts.registry,
       shrinkwrap: opts.shrinkwrap,
-      shrinkwrapDirectory: opts.shrinkwrapDirectory,
+      shrinkwrapDirectory,
     }),
   }
   packageJsonLogger.debug({

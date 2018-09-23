@@ -5,7 +5,7 @@ import writeYamlFile = require('write-yaml-file')
 
 // The dot prefix is needed because otherwise `npm shrinkwrap`
 // thinks that it is an extraneous package.
-const modulesFileName = '.modules.yaml'
+const MODULES_FILENAME = '.modules.yaml'
 
 export type IncludedDependencies = {
   [dependenciesField in DependenciesField]: boolean
@@ -19,6 +19,7 @@ export interface Modules {
   packageManager: string,
   pendingBuilds: string[],
   shamefullyFlatten: boolean,
+  shrinkwrapDirectory?: string,
   skipped: string[],
   store: string,
 }
@@ -50,50 +51,37 @@ type ModulesContent = {
   shrinkwrapDirectory: string,
 }
 
-export async function read (
-  sharedNodeModulesPath: string,
-  proxyNodeModulesPath: string,
-): Promise<Modules | null> {
-  const proxyModulesYamlPath = path.join(proxyNodeModulesPath, modulesFileName)
+export async function read (nodeModulesPath: string): Promise<Modules | null> {
+  const proxyModulesYamlPath = path.join(nodeModulesPath, MODULES_FILENAME)
   let m!: ModulesContent
   try {
     m = await loadYamlFile<ModulesContent>(proxyModulesYamlPath)
 
-    if (m.nodeModulesType === 'proxy') {
-      const sharedModulesYamlPath = path.join(m.shrinkwrapDirectory, 'node_modules', modulesFileName)
-      return {
-        hoistedAliases: m.hoistedAliases,
-        shamefullyFlatten: m.shamefullyFlatten,
-        ...await loadYamlFile(sharedModulesYamlPath),
-      } as Modules
+    switch (m.nodeModulesType) {
+      case 'proxy':
+        const sharedModulesYamlPath = path.join(m.shrinkwrapDirectory, 'node_modules', MODULES_FILENAME)
+        return {
+          hoistedAliases: m.hoistedAliases,
+          shamefullyFlatten: m.shamefullyFlatten,
+          shrinkwrapDirectory: m.shrinkwrapDirectory,
+          ...await loadYamlFile<object>(sharedModulesYamlPath),
+        } as Modules
+      case 'shared':
+        return {
+          hoistedAliases: {},
+          shamefullyFlatten: false,
+          ...m,
+        } as Modules
+      case 'dedicated':
+      default:
+        return m
     }
   } catch (err) {
     if ((err as NodeJS.ErrnoException).code !== 'ENOENT') {
       throw err
     }
-    if (sharedNodeModulesPath === proxyNodeModulesPath) {
-      return null
-    }
-
-    try {
-      const sharedModulesYamlPath = path.join(sharedNodeModulesPath, modulesFileName)
-      m = await loadYamlFile<ModulesContent>(sharedModulesYamlPath)
-    } catch (err) {
-      if ((err as NodeJS.ErrnoException).code !== 'ENOENT') {
-        throw err
-      }
-      return null
-    }
+    return null
   }
-
-  // for backward compatibility
-  // tslint:disable:no-string-literal
-  if (m['storePath']) {
-    m['store'] = m['storePath']
-    delete m['storePath']
-  }
-  // tslint:enable:no-string-literal
-  return m as Modules
 }
 
 const YAML_OPTS = {sortKeys: true}
@@ -105,13 +93,13 @@ export function write (
 ) {
   if (modules['skipped']) modules['skipped'].sort() // tslint:disable-line:no-string-literal
   if (sharedNodeModulesPath === proxyNodeModulesPath) {
-    const modulesYamlPath = path.join(proxyNodeModulesPath, modulesFileName)
+    const modulesYamlPath = path.join(proxyNodeModulesPath, MODULES_FILENAME)
     return writeYamlFile(modulesYamlPath, {
       ...modules,
       nodeModulesType: 'dedicated',
     }, YAML_OPTS)
   }
-  const sharedModulesYamlPath = path.join(sharedNodeModulesPath, modulesFileName)
+  const sharedModulesYamlPath = path.join(sharedNodeModulesPath, MODULES_FILENAME)
   const sharedModules = {
     included: modules.included,
     independentLeaves: modules.independentLeaves,
@@ -123,12 +111,12 @@ export function write (
     store: modules.store,
   }
 
-  const proxyModulesYamlPath = path.join(proxyNodeModulesPath, modulesFileName)
+  const proxyModulesYamlPath = path.join(proxyNodeModulesPath, MODULES_FILENAME)
   const proxyModules = {
     hoistedAliases: modules.hoistedAliases,
     nodeModulesType: 'proxy',
     shamefullyFlatten: modules.shamefullyFlatten,
-    shrinkwrapDirectory: sharedNodeModulesPath,
+    shrinkwrapDirectory: path.dirname(sharedNodeModulesPath),
   }
 
   return Promise.all([

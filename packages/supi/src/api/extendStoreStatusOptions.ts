@@ -21,7 +21,6 @@ export interface StoreStatusOptions {
 
 export type StrictStoreStatusOptions = StoreStatusOptions & {
   prefix: string,
-  shrinkwrapDirectory: string,
   store: string,
   independentLeaves: boolean,
   force: boolean,
@@ -41,7 +40,6 @@ const defaults = async (opts: StoreStatusOptions) => {
     registry: 'https://registry.npmjs.org/',
     shamefullyFlatten: false,
     shrinkwrap: true,
-    shrinkwrapDirectory: prefix,
     store: opts.store,
   } as StrictStoreStatusOptions
 }

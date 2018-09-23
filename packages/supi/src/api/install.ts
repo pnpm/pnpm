@@ -206,7 +206,7 @@ export async function install (maybeOpts: InstallOptions & {
           currentShrinkwrap: ctx.currentShrinkwrap,
           importerPath: ctx.importerPath,
           packageJson: ctx.pkg,
-          shrinkwrapDirectory: opts.shrinkwrapDirectory,
+          shrinkwrapDirectory: ctx.shrinkwrapDirectory,
           wantedShrinkwrap: ctx.wantedShrinkwrap,
         } as HeadlessOptions)
         return
@@ -441,8 +441,8 @@ async function installInContext (
   }
 
   const nodeModulesPath = await realNodeModulesDir(ctx.prefix)
-  const shrinkwrapNodeModulesPath = opts.shrinkwrapDirectory === ctx.prefix
-    ? nodeModulesPath : await realNodeModulesDir(opts.shrinkwrapDirectory)
+  const shrinkwrapNodeModulesPath = ctx.shrinkwrapDirectory === ctx.prefix
+    ? nodeModulesPath : await realNodeModulesDir(ctx.shrinkwrapDirectory)
 
   // Avoid requesting package meta info from registry only when the shrinkwrap version is at least the expected
   const hasManifestInShrinkwrap = typeof ctx.wantedShrinkwrap.shrinkwrapMinorVersion === 'number' &&
@@ -629,7 +629,7 @@ async function installInContext (
       )
     : []
 
-  const externalShrinkwrap = opts.shrinkwrapDirectory !== opts.prefix
+  const externalShrinkwrap = ctx.shrinkwrapDirectory !== opts.prefix
   const result = await linkPackages(rootNodeIdsByAlias, installCtx.pkgGraph, {
     afterAllResolvedHook: opts.hooks && opts.hooks.afterAllResolved,
     baseNodeModules: nodeModulesPath,
@@ -673,12 +673,12 @@ async function installInContext (
   }
 
   if (opts.shrinkwrapOnly) {
-    await saveWantedShrinkwrapOnly(opts.shrinkwrapDirectory, result.wantedShrinkwrap)
+    await saveWantedShrinkwrapOnly(ctx.shrinkwrapDirectory, result.wantedShrinkwrap)
   } else {
     await Promise.all([
       opts.shrinkwrap
-        ? saveShrinkwrap(opts.shrinkwrapDirectory, result.wantedShrinkwrap, result.currentShrinkwrap)
-        : saveCurrentShrinkwrapOnly(opts.shrinkwrapDirectory, result.currentShrinkwrap),
+        ? saveShrinkwrap(ctx.shrinkwrapDirectory, result.wantedShrinkwrap, result.currentShrinkwrap)
+        : saveCurrentShrinkwrapOnly(ctx.shrinkwrapDirectory, result.currentShrinkwrap),
       (() => {
         if (result.currentShrinkwrap.packages === undefined && result.removedDepPaths.size === 0) {
           return Promise.resolve()

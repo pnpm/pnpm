@@ -109,7 +109,7 @@ export async function rebuild (maybeOpts: RebuildOptions) {
   }
   const opts = await extendOptions(maybeOpts)
   const ctx = await getContext(opts)
-  const modules = await realNodeModulesDir(opts.shrinkwrapDirectory)
+  const modules = await realNodeModulesDir(ctx.shrinkwrapDirectory)
 
   let idsToRebuild: string[] = []
 
@@ -134,7 +134,7 @@ export async function rebuild (maybeOpts: RebuildOptions) {
     ctx.pendingBuilds.splice(ctx.pendingBuilds.indexOf(ctx.importerPath), 1)
   }
 
-  await writeModulesYaml(await realNodeModulesDir(opts.shrinkwrapDirectory), modules, {
+  await writeModulesYaml(await realNodeModulesDir(ctx.shrinkwrapDirectory), modules, {
     hoistedAliases: ctx.hoistedAliases,
     included: ctx.include,
     independentLeaves: opts.independentLeaves,

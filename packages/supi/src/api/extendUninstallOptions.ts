@@ -28,7 +28,6 @@ export interface UninstallOptions {
 
 export type StrictUninstallOptions = UninstallOptions & {
   prefix: string,
-  shrinkwrapDirectory: string,
   store: string,
   independentLeaves: boolean,
   force: boolean,
@@ -65,7 +64,6 @@ const defaults = async (opts: UninstallOptions) => {
     registry: 'https://registry.npmjs.org/',
     shamefullyFlatten: false,
     shrinkwrap: true,
-    shrinkwrapDirectory: prefix,
     store: opts.store,
     storeController: opts.storeController,
   } as StrictUninstallOptions

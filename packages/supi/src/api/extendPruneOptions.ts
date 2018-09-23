@@ -31,7 +31,6 @@ export type StrictPruneOptions = PruneOptions & {
   registry: string,
   bin: string,
   shrinkwrap: boolean,
-  shrinkwrapDirectory: string,
 }
 
 const defaults = async (opts: PruneOptions) => {
@@ -49,7 +48,6 @@ const defaults = async (opts: PruneOptions) => {
     registry: 'https://registry.npmjs.org/',
     shamefullyFlatten: false,
     shrinkwrap: true,
-    shrinkwrapDirectory: prefix,
     store: opts.store,
     storeController: opts.storeController,
   } as StrictPruneOptions

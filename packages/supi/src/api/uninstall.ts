@@ -89,11 +89,11 @@ export async function uninstallInContext (
     ? pruneShrinkwrap(ctx.currentShrinkwrap, pkg, ctx.importerPath)
     : newShr
   if (opts.shrinkwrap) {
-    await saveShrinkwrap(opts.shrinkwrapDirectory, newShr, currentShrinkwrap)
+    await saveShrinkwrap(ctx.shrinkwrapDirectory, newShr, currentShrinkwrap)
   } else {
-    await saveCurrentShrinkwrapOnly(opts.shrinkwrapDirectory, currentShrinkwrap)
+    await saveCurrentShrinkwrapOnly(ctx.shrinkwrapDirectory, currentShrinkwrap)
   }
-  await writeModulesYaml(await realNodeModulesDir(opts.shrinkwrapDirectory), await realNodeModulesDir(ctx.prefix), {
+  await writeModulesYaml(await realNodeModulesDir(ctx.shrinkwrapDirectory), await realNodeModulesDir(ctx.prefix), {
     hoistedAliases: ctx.hoistedAliases,
     included: ctx.include,
     independentLeaves: opts.independentLeaves,
