@@ -16,10 +16,7 @@
     "tsc": "tsc",
     "md": "mos"
   },
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/pnpm/outdated.git"
-  },
+  "repository": "https://github.com/pnpm/pnpm/blob/master/packages/outdated",
   "keywords": [
     "pnpm",
     "outdated"
@@ -32,9 +29,9 @@
   },
   "license": "MIT",
   "bugs": {
-    "url": "https://github.com/pnpm/outdated/issues"
+    "url": "https://github.com/pnpm/pnpm/issues"
   },
-  "homepage": "https://github.com/pnpm/outdated#readme",
+  "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/outdated#readme",
   "peerDependencies": {
     "@pnpm/logger": ">=2.0.1 <3.0.0"
   },

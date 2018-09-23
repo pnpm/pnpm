@@ -2,8 +2,8 @@
 
 > Check for outdated packages
 
-<!--@shields('npm', 'travis')-->
-[![npm version](https://img.shields.io/npm/v/@pnpm/outdated.svg)](https://www.npmjs.com/package/@pnpm/outdated) [![Build Status](https://img.shields.io/travis/pnpm/outdated/master.svg)](https://travis-ci.org/pnpm/outdated)
+<!--@shields('npm')-->
+[![npm version](https://img.shields.io/npm/v/@pnpm/outdated.svg)](https://www.npmjs.com/package/@pnpm/outdated)
 <!--/@-->
 
 ## Installation

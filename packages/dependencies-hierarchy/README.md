@@ -2,7 +2,7 @@
 
 > Creates a dependencies hierarchy for a symlinked \`node_modules\`
 
-<!--@shields('npm', 'travis')-->
+<!--@shields('npm')-->
 [![npm version](https://img.shields.io/npm/v/dependencies-hierarchy.svg)](https://www.npmjs.com/package/dependencies-hierarchy)
 <!--/@-->
 
