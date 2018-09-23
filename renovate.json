@@ -30,7 +30,11 @@
     "supi",
     "ts-node"
   ],
-  "ignorePaths": ["test/"],
+  "ignorePaths": [
+    "test/",
+    "packages/list/test/",
+    "packages/list/example/"
+  ],
   "packageRules": [
     {
       "packageNames": ["@types/ramda"],
