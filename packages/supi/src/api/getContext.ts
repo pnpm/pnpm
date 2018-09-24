@@ -60,6 +60,7 @@ export default async function getContext (
 
   const modulesPath = path.join(opts.prefix, 'node_modules')
   const modules = await readModulesYaml(modulesPath)
+    || opts.shrinkwrapDirectory && await readModulesYaml(path.join(opts.shrinkwrapDirectory, 'node_modules'))
 
   if (opts.shrinkwrapDirectory && modules && modules.shrinkwrapDirectory && modules.shrinkwrapDirectory !== opts.shrinkwrapDirectory) {
     throw new PnpmError(

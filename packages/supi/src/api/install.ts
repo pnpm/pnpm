@@ -225,9 +225,10 @@ export async function install (maybeOpts: InstallOptions & {
       (ctx.pkg.scripts.preinstall || ctx.pkg.scripts.prepublish ||
         ctx.pkg.scripts.install ||
         ctx.pkg.scripts.postinstall ||
-        ctx.pkg.scripts.prepare)) {
-          ctx.pendingBuilds.push(ctx.importerPath)
-        }
+        ctx.pkg.scripts.prepare)
+    ) {
+      ctx.pendingBuilds.push(ctx.importerPath)
+    }
 
     if (scripts['prepublish']) { // tslint:disable-line:no-string-literal
       logger.warn({

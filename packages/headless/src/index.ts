@@ -103,7 +103,9 @@ export default async (opts: HeadlessOptions) => {
   const importerPath = getImporterPath(shrinkwrapDirectory, opts.prefix)
   const shrinkwrappedNodeModulesDir = await realNodeModulesDir(shrinkwrapDirectory)
   const importerNodeModulesDir = await realNodeModulesDir(opts.prefix)
-  const modules = await readModulesYaml(importerNodeModulesDir) || {pendingBuilds: [] as string[], hoistedAliases: {}}
+  const modules = await readModulesYaml(importerNodeModulesDir) ||
+    shrinkwrappedNodeModulesDir !== importerNodeModulesDir && await readModulesYaml(shrinkwrappedNodeModulesDir) ||
+    {pendingBuilds: [] as string[], hoistedAliases: {}}
 
   const pkg = opts.packageJson || await readPackageFromDir(opts.prefix)
 

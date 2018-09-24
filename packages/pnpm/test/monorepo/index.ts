@@ -10,6 +10,7 @@ import {
  } from '../utils'
 
 const test = promisifyTape(tape)
+const testOnly = promisifyTape(tape.only)
 
 test('linking a package inside a monorepo', async (t: tape.Test) => {
   const projects = preparePackages(t, [
@@ -208,17 +209,31 @@ test['skip']('installation with --link-workspace-packages links packages even if
 test('recursive install with link-workspace-packages and shared-workspace-shrinkwrap', async (t: tape.Test) => {
   const projects = preparePackages(t, [
     {
-      name: 'project-1',
-      version: '1.0.0',
-      devDependencies: {
-        'is-positive': '1.0.0',
-      },
-    },
-    {
       name: 'is-positive',
       version: '1.0.0',
       dependencies: {
+        'json-append': '1',
         'is-negative': '1.0.0',
+      },
+      scripts: {
+        install: `node -e "process.stdout.write('is-positive')" | json-append ../output.json`,
+      },
+    },
+    // This empty package is added to the workspace only to verify
+    // that empty package does not remove .pendingBuild from .modules.yaml
+    {
+      name: 'is-positive2',
+      version: '1.0.0',
+    },
+    {
+      name: 'project-1',
+      version: '1.0.0',
+      devDependencies: {
+        'json-append': '1',
+        'is-positive': '1.0.0',
+      },
+      scripts: {
+        install: `node -e "process.stdout.write('project-1')" | json-append ../output.json`,
       },
     },
   ])
@@ -232,4 +247,7 @@ test('recursive install with link-workspace-packages and shared-workspace-shrink
 
   const sharedShr = await loadYamlFile('shrinkwrap.yaml')
   t.equal(sharedShr['importers']['project-1']['devDependencies']['is-positive'], 'link:is-positive')
+
+  const outputs = await import(path.resolve('output.json')) as string[]
+  t.deepEqual(outputs, ['is-positive', 'project-1'])
 })
