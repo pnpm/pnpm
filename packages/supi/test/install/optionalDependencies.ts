@@ -4,7 +4,7 @@ import path = require('path')
 import exists = require('path-exists')
 import R = require('ramda')
 import sinon = require('sinon')
-import { install, installPkgs } from 'supi'
+import { install, installPkgs, rebuild } from 'supi'
 import tape = require('tape')
 import promisifyTape from 'tape-promise'
 import {
@@ -13,6 +13,7 @@ import {
 } from '../utils'
 
 const test = promisifyTape(tape)
+const testOnly = promisifyTape(tape.only)
 
 test('successfully install optional dependency with subdependencies', async (t) => {
   const project = prepare(t)
@@ -269,4 +270,27 @@ test('only skip optional dependencies', async (t: tape.Test) => {
 
  t.ok(await exists(path.resolve('node_modules', '.localhost+4873', 'duplexify', '3.6.0')), 'duplexify is linked into node_modules')
  t.ok(await exists(path.resolve('node_modules', '.localhost+4873', 'stream-shift', '1.0.0')), 'stream-shift is linked into node_modules')
+})
+
+test('rebuild should not fail on incomplete shrinkwrap.yaml', async (t: tape.Test) => {
+  const project = prepare(t, {
+    dependencies: {
+      'pre-and-postinstall-scripts-example': '1.0.0',
+    },
+    optionalDependencies: {
+      'not-compatible-with-any-os': '1.0.0',
+    },
+  })
+
+  await install(await testDefaults({ignoreScripts: true}))
+
+  const reporter = sinon.spy()
+
+  await rebuild(await testDefaults({pending: true, reporter}))
+
+  t.ok(reporter.calledWithMatch({
+    level: 'debug',
+    message: 'No entry for "/not-compatible-with-any-os/1.0.0" in shrinkwrap.yaml',
+    name: 'pnpm',
+  }), 'missing package reported')
 })
