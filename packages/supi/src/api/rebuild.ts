@@ -119,6 +119,7 @@ export async function rebuild (maybeOpts: RebuildOptions) {
   } else {
     return
   }
+  if (idsToRebuild.length === 0) return
 
   await _rebuild(new Set(idsToRebuild), modules, ctx.currentShrinkwrap, opts)
 
@@ -180,9 +181,11 @@ function getSubgraphToBuild (
     const pkgSnapshot = pkgSnapshots[depPath]
     if (!pkgSnapshot) {
       if (depPath.startsWith('link:')) continue
-      const err = new Error(`No entry for "${depPath}" in shrinkwrap.yaml`)
-      err['code'] = 'ERR_PNPM_NO_ENTRY_IN_SHRINKWRAP' // tslint:disable-line:no-string-literal
-      throw err
+
+      // It might make sense to fail if the depPath is not in the skipped list from .modules.yaml
+      // However, the skipped list currently contains package IDs, not dep paths.
+      logger.debug({message: `No entry for "${depPath}" in shrinkwrap.yaml`})
+      continue
     }
     const nextEntryNodes = R.toPairs({
       ...pkgSnapshot.dependencies,
