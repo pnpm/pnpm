@@ -1599,6 +1599,7 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha1-nJRWmJ6fZYgBewQ01WCXZ1w9oF4=
+      tarball: 'http://registry.npmjs.org/p-is-promise/-/p-is-promise-1.1.0.tgz'
   /package-json/2.4.0:
     dependencies:
       got: 5.7.1
@@ -2456,11 +2457,11 @@ specifiers:
   '@types/node': ^9.3.0 || 10
   '@types/semver': ^5.3.32
   '@types/tape': ^4.2.30
-  dependency-path: ^2.0.0
+  dependency-path: 2.0.0
   mos: ^2.0.0-alpha.3
   mos-plugin-readme: ^1.0.4
-  pnpm-shrinkwrap: ^7.0.0
-  semver: ^5.3.0
+  pnpm-shrinkwrap: 7.0.2
+  semver: 5.5.1
   tape: ^4.7.0
   ts-node: ^7.0.0
   tslint: ^5.8.0

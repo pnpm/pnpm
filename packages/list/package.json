@@ -38,14 +38,14 @@
     "@types/archy": "^0.0.31",
     "@types/node": "^9.3.0 || 10",
     "@types/ramda": "^0.25.0",
-    "archy": "^1.0.0",
-    "chalk": "^2.3.0",
-    "dependencies-hierarchy": "^3.0.0",
-    "npm-package-arg": "^6.0.0",
-    "p-limit": "^2.0.0",
-    "ramda": "^0.25.0",
-    "read-package-json": "^2.0.12",
-    "thenify": "^3.3.0"
+    "archy": "1.0.0",
+    "chalk": "2.4.1",
+    "dependencies-hierarchy": "3.0.1",
+    "npm-package-arg": "6.1.0",
+    "p-limit": "2.0.0",
+    "ramda": "0.25.0",
+    "read-package-json": "2.0.13",
+    "thenify": "3.3.0"
   },
   "devDependencies": {
     "@pnpm/logger": "^2.1.0",

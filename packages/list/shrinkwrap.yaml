@@ -951,6 +951,7 @@ packages:
       node: '>=0.10.0'
     resolution:
       integrity: sha1-VAVy0096wxGfj3bDDLwbHgN6/74=
+      tarball: 'http://registry.npmjs.org/is-builtin-module/-/is-builtin-module-1.0.0.tgz'
   /is-callable/1.1.4:
     dev: true
     engines:
@@ -2475,18 +2476,18 @@ specifiers:
   '@types/node': ^9.3.0 || 10
   '@types/ramda': ^0.25.0
   '@types/tape': ^4.2.30
-  archy: ^1.0.0
-  chalk: ^2.3.0
+  archy: 1.0.0
+  chalk: 2.4.1
   common-tags: ^1.4.0
-  dependencies-hierarchy: ^3.0.0
+  dependencies-hierarchy: 3.0.1
   mos: ^2.0.0-alpha.3
   mos-plugin-readme: ^1.0.4
-  npm-package-arg: ^6.0.0
-  p-limit: ^2.0.0
-  ramda: ^0.25.0
-  read-package-json: ^2.0.12
+  npm-package-arg: 6.1.0
+  p-limit: 2.0.0
+  ramda: 0.25.0
+  read-package-json: 2.0.13
   tape: ^4.7.0
-  thenify: ^3.3.0
+  thenify: 3.3.0
   ts-node: ^7.0.0
   tslint: ^5.8.0
   typescript: ^3.0.0

@@ -33,7 +33,7 @@ packages:
       '@pnpm/types': 1.8.0
       '@types/load-json-file': 2.0.7
       '@types/mem': 1.1.2
-      '@types/node': 10.10.3
+      '@types/node': 10.11.0
       '@types/semver': 5.5.0
       credentials-by-uri: 1.0.0
       encode-registry: 1.1.0
@@ -104,6 +104,10 @@ packages:
   /@types/node/10.10.3:
     resolution:
       integrity: sha512-dWk7F3b0m6uDLHero7tsnpAi9r2RGPQHGbb0/VCv7DPJRMFtk3RonY1/29vfJKnheRMBa7+uF+vunlg/mBGlxg==
+  /@types/node/10.11.0:
+    dev: false
+    resolution:
+      integrity: sha512-R4Dvw6KjSYn/SpvjRchBOwXr14vVVcFXCtnM3f0aLvlJS8a599rrcEoihcP2/+Z/f75E5GNPd4aWM7j1yei9og==
   /@types/node/9.6.32:
     dev: false
     resolution:
@@ -120,7 +124,7 @@ packages:
       integrity: sha512-xil0KO5wkPoixdBWGIGolPv9dekf6dVkjjJLAFYchfKcd4DICou67rgGCIO7wAh3i5Ff/6j9IDgZz+GU9cMaqQ==
   /@types/touch/3.1.0:
     dependencies:
-      '@types/node': 10.10.3
+      '@types/node': 10.11.0
     dev: false
     resolution:
       integrity: sha512-Bskfd5wztYbQ/mvU4rgHUB3fKcjW2hA6o/F0JN8O+jRPJQDN/2pPV6SmdIiFm2vLyyN/XQzoCULTE05ZOpnNbQ==
@@ -938,7 +942,7 @@ packages:
       integrity: sha1-oB6c2cnkkXFcmKdaQtXwu9EH/3Y=
   /fetch-from-npm-registry/1.0.0:
     dependencies:
-      '@types/node': 10.10.3
+      '@types/node': 10.11.0
       make-fetch-happen: 4.0.1
     dev: false
     engines:
@@ -1250,6 +1254,7 @@ packages:
       node: '>=0.10.0'
     resolution:
       integrity: sha1-VAVy0096wxGfj3bDDLwbHgN6/74=
+      tarball: 'http://registry.npmjs.org/is-builtin-module/-/is-builtin-module-1.0.0.tgz'
   /is-callable/1.1.4:
     engines:
       node: '>= 0.4'
@@ -1587,6 +1592,7 @@ packages:
   /minimist/0.0.8:
     resolution:
       integrity: sha1-hX/Kv8M5fSYluCKCYuhqp6ARsF0=
+      tarball: 'http://registry.npmjs.org/minimist/-/minimist-0.0.8.tgz'
   /minimist/1.2.0:
     dev: true
     resolution:
@@ -1622,6 +1628,7 @@ packages:
     hasBin: true
     resolution:
       integrity: sha1-MAV0OOrGz3+MR2fzhkjWaX11yQM=
+      tarball: 'http://registry.npmjs.org/mkdirp/-/mkdirp-0.5.1.tgz'
   /mos-core/1.0.2:
     dependencies:
       babel-run-async: 1.0.0
@@ -2034,6 +2041,7 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha1-nJRWmJ6fZYgBewQ01WCXZ1w9oF4=
+      tarball: 'http://registry.npmjs.org/p-is-promise/-/p-is-promise-1.1.0.tgz'
   /p-limit/2.0.0:
     dependencies:
       p-try: 2.0.0
@@ -2331,6 +2339,7 @@ packages:
       util-deprecate: 1.0.2
     resolution:
       integrity: sha512-tQtKA9WIAhBF3+VLAseyMqZeBjW0AHJoxOtYqSUZNJxauErmLbVm2FW1y+J/YA9dUrAC39ITejlZWhVIwawkKw==
+      tarball: 'http://registry.npmjs.org/readable-stream/-/readable-stream-2.3.6.tgz'
   /redent/1.0.0:
     dependencies:
       indent-string: 2.1.0
@@ -3162,16 +3171,16 @@ shrinkwrapMinorVersion: 9
 shrinkwrapVersion: 3
 specifiers:
   '@pnpm/logger': ^2.0.1
-  '@pnpm/npm-resolver': ^2.0.0
-  '@pnpm/read-package-json': ^1.0.0
-  '@pnpm/store-path': ^1.0.0
+  '@pnpm/npm-resolver': 2.2.5
+  '@pnpm/read-package-json': 1.0.0
+  '@pnpm/store-path': 1.0.3
   '@pnpm/types': 1.8.0
   '@types/node': ^9.3.0 || 10
   '@types/tape': ^4.2.31
-  dependency-path: ^2.0.0
+  dependency-path: 2.0.0
   mos: ^2.0.0-alpha.3
   mos-plugin-readme: ^1.0.4
-  pnpm-shrinkwrap: ^7.0.0
+  pnpm-shrinkwrap: 7.0.2
   tape: ^4.8.0
   ts-node: ^7.0.0
   tslint: ^5.8.0
