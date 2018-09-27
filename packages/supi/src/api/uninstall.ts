@@ -76,14 +76,14 @@ export async function uninstallInContext (
   const removedPkgIds = await removeOrphanPkgs({
     bin: opts.bin,
     hoistedAliases: ctx.hoistedAliases,
-    importerNModulesDir: ctx.importerNModulesDir,
+    importerModulesDir: ctx.importerModulesDir,
     importerPath: ctx.importerPath,
     newShrinkwrap: newShr,
     oldShrinkwrap: ctx.currentShrinkwrap,
     prefix: ctx.prefix,
     shamefullyFlatten: opts.shamefullyFlatten,
-    shrNModulesDir: ctx.shrNModulesDir,
     storeController: opts.storeController,
+    virtualStoreDir: ctx.virtualStoreDir,
   })
   ctx.pendingBuilds = ctx.pendingBuilds.filter((pkgId) => !removedPkgIds.has(dp.resolve(newShr.registry, pkgId)))
   await opts.storeController.close()
@@ -95,7 +95,7 @@ export async function uninstallInContext (
   } else {
     await saveCurrentShrinkwrapOnly(ctx.shrinkwrapDirectory, currentShrinkwrap)
   }
-  await removeOuterLinks(pkgsToUninstall, ctx.importerNModulesDir, {
+  await removeOuterLinks(pkgsToUninstall, ctx.importerModulesDir, {
     bin: opts.bin,
     prefix: opts.prefix,
     storePath: ctx.storePath,
@@ -103,12 +103,12 @@ export async function uninstallInContext (
 
   if (opts.shamefullyFlatten) {
     ctx.hoistedAliases = await shamefullyFlattenGraphByShrinkwrap(currentShrinkwrap, ctx.importerPath, {
-      importerNModulesDir: ctx.importerNModulesDir,
+      importerModulesDir: ctx.importerModulesDir,
       prefix: opts.prefix,
-      shrNModulesDir: ctx.shrNModulesDir,
+      virtualStoreDir: ctx.virtualStoreDir,
     }) || {}
   }
-  await writeModulesYaml(ctx.shrNModulesDir, ctx.importerNModulesDir, {
+  await writeModulesYaml(ctx.virtualStoreDir, ctx.importerModulesDir, {
     hoistedAliases: ctx.hoistedAliases,
     included: ctx.include,
     independentLeaves: opts.independentLeaves,
@@ -125,7 +125,7 @@ export async function uninstallInContext (
 
 async function removeOuterLinks (
   pkgsToUninstall: string[],
-  importerNModulesDir: string,
+  importerModulesDir: string,
   opts: {
     bin: string,
     storePath: string,
@@ -139,14 +139,14 @@ async function removeOuterLinks (
   }
   // These packages are not in package.json, they were just linked in not installed
   for (const pkgToUninstall of pkgsToUninstall) {
-    if (await safeIsInnerLink(importerNModulesDir, pkgToUninstall, safeIsInnerLinkOpts) !== true) {
+    if (await safeIsInnerLink(importerModulesDir, pkgToUninstall, safeIsInnerLinkOpts) !== true) {
       await removeTopDependency({
         dev: false,
         name: pkgToUninstall,
         optional: false,
       }, {
         bin: opts.bin,
-        importerNModulesDir,
+        importerModulesDir,
         prefix: opts.prefix,
       })
     }

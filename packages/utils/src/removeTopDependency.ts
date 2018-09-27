@@ -16,14 +16,14 @@ export default async function removeTopDependency (
   opts: {
     bin: string,
     dryRun?: boolean,
-    importerNModulesDir: string,
+    importerModulesDir: string,
     muteLogs?: boolean,
     prefix: string,
   },
 ) {
   const results = await Promise.all([
     removeBins(dependency.name, opts),
-    !opts.dryRun && remove(path.join(opts.importerNModulesDir, dependency.name)),
+    !opts.dryRun && remove(path.join(opts.importerModulesDir, dependency.name)),
   ])
 
   const uninstalledPkg = results[0]
@@ -43,11 +43,11 @@ async function removeBins (
   uninstalledPkg: string,
   opts: {
     dryRun?: boolean,
-    importerNModulesDir: string,
+    importerModulesDir: string,
     bin: string,
   },
 ) {
-  const uninstalledPkgPath = path.join(opts.importerNModulesDir, uninstalledPkg)
+  const uninstalledPkgPath = path.join(opts.importerModulesDir, uninstalledPkg)
   const uninstalledPkgJson = await safeReadPkgFromDir(uninstalledPkgPath)
 
   if (!uninstalledPkgJson) return

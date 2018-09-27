@@ -109,14 +109,14 @@ export default async function link (
   await removeOrphanPkgs({
     bin: opts.bin,
     hoistedAliases: ctx.hoistedAliases,
-    importerNModulesDir: ctx.importerNModulesDir,
+    importerModulesDir: ctx.importerModulesDir,
     importerPath,
     newShrinkwrap: updatedCurrentShrinkwrap,
     oldShrinkwrap,
     prefix: opts.prefix,
     shamefullyFlatten: opts.shamefullyFlatten,
-    shrNModulesDir: ctx.shrNModulesDir,
     storeController: opts.storeController,
+    virtualStoreDir: ctx.virtualStoreDir,
   })
 
   // Linking should happen after removing orphans

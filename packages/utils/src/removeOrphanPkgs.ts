@@ -20,14 +20,14 @@ export default async function removeOrphanPkgs (
     bin: string,
     dryRun?: boolean,
     hoistedAliases: {[depPath: string]: string[]},
-    importerNModulesDir: string,
+    importerModulesDir: string,
     importerPath: string,
     newShrinkwrap: Shrinkwrap,
     oldShrinkwrap: Shrinkwrap,
     prefix: string,
     pruneStore?: boolean,
     shamefullyFlatten: boolean,
-    shrNModulesDir: string,
+    virtualStoreDir: string,
     storeController: StoreController,
   },
 ): Promise<Set<string>> {
@@ -45,7 +45,7 @@ export default async function removeOrphanPkgs (
     }, {
       bin: opts.bin,
       dryRun: opts.dryRun,
-      importerNModulesDir: opts.importerNModulesDir,
+      importerModulesDir: opts.importerModulesDir,
       prefix: opts.prefix,
     })
   }))
@@ -77,7 +77,7 @@ export default async function removeOrphanPkgs (
                 optional: false,
               }, {
                 bin: opts.bin,
-                importerNModulesDir: opts.importerNModulesDir,
+                importerModulesDir: opts.importerModulesDir,
                 muteLogs: true,
                 prefix: opts.prefix,
               })
@@ -88,11 +88,11 @@ export default async function removeOrphanPkgs (
       }
 
       await Promise.all(orphanDepPaths.map(async (orphanDepPath) => {
-        const pathToRemove = path.join(opts.shrNModulesDir, `.${orphanDepPath}`, 'node_modules')
+        const pathToRemove = path.join(opts.virtualStoreDir, `.${orphanDepPath}`, 'node_modules')
         removalLogger.debug(pathToRemove)
         try {
           await vacuum(pathToRemove, {
-            base: opts.shrNModulesDir,
+            base: opts.virtualStoreDir,
             purge: true,
           })
         } catch (err) {

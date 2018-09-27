@@ -102,10 +102,10 @@ export default async (opts: HeadlessOptions) => {
 
   const currentShrinkwrap = opts.currentShrinkwrap || await readCurrent(shrinkwrapDirectory, {ignoreIncompatible: false})
   const importerPath = getImporterPath(shrinkwrapDirectory, opts.prefix)
-  const shrNModulesDir = await realNodeModulesDir(shrinkwrapDirectory)
-  const importerNModulesDir = await realNodeModulesDir(opts.prefix)
-  const modules = await readModulesYaml(importerNModulesDir) ||
-    shrNModulesDir !== importerNModulesDir && await readModulesYaml(shrNModulesDir) ||
+  const virtualStoreDir = await realNodeModulesDir(shrinkwrapDirectory)
+  const importerModulesDir = await realNodeModulesDir(opts.prefix)
+  const modules = await readModulesYaml(importerModulesDir) ||
+    virtualStoreDir !== importerModulesDir && await readModulesYaml(virtualStoreDir) ||
     {pendingBuilds: [] as string[], hoistedAliases: {}}
 
   const pkg = opts.packageJson || await readPackageFromDir(opts.prefix)
@@ -118,13 +118,13 @@ export default async (opts: HeadlessOptions) => {
 
   const scripts = !opts.ignoreScripts && pkg.scripts || {}
 
-  const bin = path.join(importerNModulesDir, '.bin')
+  const bin = path.join(importerModulesDir, '.bin')
 
   const scriptsOpts = {
     depPath: opts.prefix,
     pkgRoot: opts.prefix,
     rawNpmConfig: opts.rawNpmConfig,
-    rootNodeModulesDir: importerNModulesDir,
+    rootNodeModulesDir: importerModulesDir,
     stdio: opts.ownLifecycleHooksStdio || 'inherit',
     unsafePerm: opts.unsafePerm || false,
   }
@@ -144,15 +144,15 @@ export default async (opts: HeadlessOptions) => {
       bin,
       dryRun: false,
       hoistedAliases: modules && modules.hoistedAliases || {},
-      importerNModulesDir,
+      importerModulesDir,
       importerPath,
       newShrinkwrap: filteredShrinkwrap,
       oldShrinkwrap: currentShrinkwrap,
       prefix: opts.prefix,
       pruneStore: opts.pruneStore,
       shamefullyFlatten: false,
-      shrNModulesDir,
       storeController: opts.storeController,
+      virtualStoreDir,
     })
   } else {
     statsLogger.debug({
@@ -168,7 +168,7 @@ export default async (opts: HeadlessOptions) => {
     {
       ...opts,
       importerPath,
-      shrNModulesDir,
+      virtualStoreDir,
     } as ShrinkwrapToDepGraphOptions,
   )
   const depGraph = res.graph
@@ -193,8 +193,8 @@ export default async (opts: HeadlessOptions) => {
 
   await linkAllBins(depGraph, {optional: opts.include.optionalDependencies, warn})
 
-  await linkRootPackages(filteredShrinkwrap, opts.prefix, res.rootDependencies, importerNModulesDir, importerPath)
-  await linkBins(importerNModulesDir, bin, {warn})
+  await linkRootPackages(filteredShrinkwrap, opts.prefix, res.rootDependencies, importerModulesDir, importerPath)
+  await linkBins(importerModulesDir, bin, {warn})
 
   await writeCurrentShrinkwrapOnly(shrinkwrapDirectory, filteredShrinkwrap)
   if (opts.ignoreScripts) {
@@ -206,7 +206,7 @@ export default async (opts: HeadlessOptions) => {
           .map((node) => node.relDepPath),
       )
   }
-  await writeModulesYaml(shrNModulesDir, importerNModulesDir, {
+  await writeModulesYaml(virtualStoreDir, importerModulesDir, {
     hoistedAliases: {},
     included: opts.include,
     independentLeaves: !!opts.independentLeaves,
@@ -223,7 +223,7 @@ export default async (opts: HeadlessOptions) => {
       childConcurrency: opts.childConcurrency,
       prefix: opts.prefix,
       rawNpmConfig: opts.rawNpmConfig,
-      rootNodeModulesDir: importerNModulesDir,
+      rootNodeModulesDir: importerModulesDir,
       sideEffectsCache: opts.sideEffectsCache,
       sideEffectsCacheReadonly: opts.sideEffectsCacheReadonly,
       storeController: opts.storeController,
@@ -261,7 +261,7 @@ async function linkRootPackages (
   shr: Shrinkwrap,
   prefix: string,
   rootDependencies: {[alias: string]: string},
-  importerNModulesDir: string,
+  importerModulesDir: string,
   importerPath: string,
 ) {
   const shrImporter = shr.importers[importerPath]
@@ -279,7 +279,7 @@ async function linkRootPackages (
         if (!peripheralLocation) {
           return
         }
-        if ((await symlinkDependencyTo(alias, peripheralLocation, importerNModulesDir)).reused) {
+        if ((await symlinkDependencyTo(alias, peripheralLocation, importerModulesDir)).reused) {
           return
         }
         const isDev = shrImporter.devDependencies && shrImporter.devDependencies[alias]
@@ -314,7 +314,7 @@ interface ShrinkwrapToDepGraphOptions {
   store: string,
   prefix: string,
   verifyStoreIntegrity: boolean,
-  shrNModulesDir: string,
+  virtualStoreDir: string,
 }
 
 async function shrinkwrapToDepGraph (
@@ -365,7 +365,7 @@ async function shrinkwrapToDepGraph (
       // NOTE: This code will not convert the depPath with peer deps correctly
       // Unfortunately, there is currently no way to tell if the last dir in the path is originally there or added to separate
       // the diferent peer dependency sets
-      const modules = path.join(opts.shrNModulesDir, `.${pkgIdToFilename(depPath, opts.prefix)}`, 'node_modules')
+      const modules = path.join(opts.virtualStoreDir, `.${pkgIdToFilename(depPath, opts.prefix)}`, 'node_modules')
       const peripheralLocation = !independent
         ? path.join(modules, pkgName)
         : centralLocation
@@ -396,8 +396,8 @@ async function shrinkwrapToDepGraph (
       pkgSnapshotsByRelDepPaths: shr.packages,
       prefix: opts.prefix,
       registry: shr.registry,
-      shrNModulesDir: opts.shrNModulesDir,
       store: opts.store,
+      virtualStoreDir: opts.virtualStoreDir,
     }
     for (const peripheralLocation of R.keys(graph)) {
       const pkgSnapshot = pkgSnapshotByLocation[peripheralLocation]
@@ -417,7 +417,7 @@ async function getChildrenPaths (
     graph: DepGraphNodesByDepPath,
     force: boolean,
     registry: string,
-    shrNModulesDir: string,
+    virtualStoreDir: string,
     independentLeaves: boolean,
     store: string,
     pkgSnapshotsByRelDepPaths: {[relDepPath: string]: PackageSnapshot},
@@ -445,7 +445,7 @@ async function getChildrenPaths (
     } else if (childPkgSnapshot) {
       const relDepPath = dp.relative(ctx.registry, childDepPath)
       const pkgName = nameVerFromPkgSnapshot(relDepPath, childPkgSnapshot).name
-      children[alias] = path.join(ctx.shrNModulesDir, `.${pkgIdToFilename(childDepPath, ctx.prefix)}`, 'node_modules', pkgName)
+      children[alias] = path.join(ctx.virtualStoreDir, `.${pkgIdToFilename(childDepPath, ctx.prefix)}`, 'node_modules', pkgName)
     } else if (allDeps[alias].indexOf('file:') === 0) {
       children[alias] = path.resolve(ctx.prefix, allDeps[alias].substr(5))
     } else {

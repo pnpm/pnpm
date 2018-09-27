@@ -33,8 +33,8 @@ export default async function linkPackages (
     afterAllResolvedHook?: (shr: Shrinkwrap) => Shrinkwrap,
     force: boolean,
     dryRun: boolean,
-    importerNModulesDir: string,
-    shrNModulesDir: string,
+    importerModulesDir: string,
+    virtualStoreDir: string,
     bin: string,
     topParents: Array<{name: string, version: string}>,
     wantedShrinkwrap: Shrinkwrap,
@@ -76,9 +76,9 @@ export default async function linkPackages (
     pkgGraph,
     prefix: opts.prefix,
     rootNodeIdsByAlias,
-    shrNModulesDir: opts.shrNModulesDir,
     strictPeerDependencies: opts.strictPeerDependencies,
     topParents: opts.topParents,
+    virtualStoreDir: opts.virtualStoreDir,
   })
   const depGraph = resolvePeersResult.depGraph
   if (opts.externalShrinkwrap) {
@@ -130,15 +130,15 @@ export default async function linkPackages (
     bin: opts.bin,
     dryRun: opts.dryRun,
     hoistedAliases: opts.hoistedAliases,
-    importerNModulesDir: opts.importerNModulesDir,
+    importerModulesDir: opts.importerModulesDir,
     importerPath: opts.importerPath,
     newShrinkwrap: newCurrentShrinkwrap,
     oldShrinkwrap: opts.currentShrinkwrap,
     prefix: opts.prefix,
     pruneStore: opts.pruneStore,
     shamefullyFlatten: opts.shamefullyFlatten,
-    shrNModulesDir: opts.shrNModulesDir,
     storeController: opts.storeController,
+    virtualStoreDir: opts.virtualStoreDir,
   })
 
   stageLogger.debug('importing_started')
@@ -149,7 +149,7 @@ export default async function linkPackages (
     {
       dryRun: opts.dryRun,
       force: opts.force,
-      importerNModulesDir: opts.importerNModulesDir,
+      importerModulesDir: opts.importerModulesDir,
       optional: opts.include.optionalDependencies,
       prefix: opts.prefix,
       sideEffectsCache: opts.sideEffectsCache,
@@ -167,7 +167,7 @@ export default async function linkPackages (
   for (const rootAlias of R.keys(resolvePeersResult.rootAbsolutePathsByAlias)) {
     const pkg = rootDepsByDepPath[resolvePeersResult.rootAbsolutePathsByAlias[rootAlias]]
     if (!pkg) continue
-    if (opts.dryRun || !(await symlinkDependencyTo(rootAlias, pkg.peripheralLocation, opts.importerNModulesDir)).reused) {
+    if (opts.dryRun || !(await symlinkDependencyTo(rootAlias, pkg.peripheralLocation, opts.importerModulesDir)).reused) {
       const isDev = opts.pkg.devDependencies && opts.pkg.devDependencies[pkg.name]
       const isOptional = opts.pkg.optionalDependencies && opts.pkg.optionalDependencies[pkg.name]
       rootLogger.debug({
@@ -236,7 +236,7 @@ export default async function linkPackages (
   }
 
   if (!opts.dryRun) {
-    await linkBins(opts.importerNModulesDir, opts.bin, {
+    await linkBins(opts.importerModulesDir, opts.bin, {
       warn: (message: string) => logger.warn({message, prefix: opts.prefix}),
     })
   }
@@ -292,7 +292,7 @@ async function linkNewPackages (
   wantedShrinkwrap: Shrinkwrap,
   depGraph: DepGraphNodesByDepPath,
   opts: {
-    importerNModulesDir: string,
+    importerModulesDir: string,
     dryRun: boolean,
     force: boolean,
     optional: boolean,

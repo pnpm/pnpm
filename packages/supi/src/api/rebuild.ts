@@ -95,7 +95,7 @@ export async function rebuildPkgs (
 
   const pkgs = findPackages(packages, searched, {prefix: ctx.prefix})
 
-  await _rebuild(new Set(pkgs), ctx.shrNModulesDir, ctx.currentShrinkwrap, ctx.importerPath, opts)
+  await _rebuild(new Set(pkgs), ctx.virtualStoreDir, ctx.currentShrinkwrap, ctx.importerPath, opts)
 }
 
 export async function rebuild (maybeOpts: RebuildOptions) {
@@ -117,21 +117,21 @@ export async function rebuild (maybeOpts: RebuildOptions) {
   }
   if (idsToRebuild.length === 0) return
 
-  const pkgsThatWereRebuilt = await _rebuild(new Set(idsToRebuild), ctx.shrNModulesDir, ctx.currentShrinkwrap, ctx.importerPath, opts)
+  const pkgsThatWereRebuilt = await _rebuild(new Set(idsToRebuild), ctx.virtualStoreDir, ctx.currentShrinkwrap, ctx.importerPath, opts)
 
   ctx.pendingBuilds = ctx.pendingBuilds.filter((relDepPath) => !pkgsThatWereRebuilt.has(relDepPath))
 
   if (ctx.pkg && ctx.pkg.scripts && (!opts.pending || ctx.pendingBuilds.indexOf(ctx.importerPath) !== -1)) {
     await runLifecycleHooksInDir(opts.prefix, ctx.pkg, {
       rawNpmConfig: opts.rawNpmConfig,
-      rootNodeModulesDir: ctx.importerNModulesDir,
+      rootNodeModulesDir: ctx.importerModulesDir,
       unsafePerm: opts.unsafePerm,
     })
 
     ctx.pendingBuilds.splice(ctx.pendingBuilds.indexOf(ctx.importerPath), 1)
   }
 
-  await writeModulesYaml(ctx.shrNModulesDir, ctx.importerNModulesDir, {
+  await writeModulesYaml(ctx.virtualStoreDir, ctx.importerModulesDir, {
     hoistedAliases: ctx.hoistedAliases,
     included: ctx.include,
     independentLeaves: opts.independentLeaves,

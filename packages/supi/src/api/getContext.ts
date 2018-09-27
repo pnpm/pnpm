@@ -29,14 +29,14 @@ export interface PnpmContext {
   existsCurrentShrinkwrap: boolean,
   existsWantedShrinkwrap: boolean,
   hoistedAliases: {[depPath: string]: string[]}
-  importerNModulesDir: string,
+  importerModulesDir: string,
   importerPath: string,
   include: IncludedDependencies,
   pendingBuilds: string[],
   pkg: PackageJson,
   prefix: string,
   shrinkwrapDirectory: string,
-  shrNModulesDir: string,
+  virtualStoreDir: string,
   skipped: Set<string>,
   storePath: string,
   wantedShrinkwrap: Shrinkwrap,
@@ -61,9 +61,9 @@ export default async function getContext (
 ): Promise<PnpmContext> {
   const storePath = opts.store
 
-  const importerNModulesDir = await realNodeModulesDir(opts.prefix)
+  const importerModulesDir = await realNodeModulesDir(opts.prefix)
 
-  const modules = await readModulesYaml(importerNModulesDir)
+  const modules = await readModulesYaml(importerModulesDir)
     || opts.shrinkwrapDirectory && await readModulesYaml(path.join(opts.shrinkwrapDirectory, 'node_modules'))
 
   if (opts.shrinkwrapDirectory && modules && modules.shrinkwrapDirectory && modules.shrinkwrapDirectory !== opts.shrinkwrapDirectory) {
@@ -74,7 +74,7 @@ export default async function getContext (
   }
 
   const shrinkwrapDirectory = modules && modules.shrinkwrapDirectory || opts.shrinkwrapDirectory || opts.prefix
-  const shrNModulesDir = await realNodeModulesDir(shrinkwrapDirectory)
+  const virtualStoreDir = await realNodeModulesDir(shrinkwrapDirectory)
 
   if (modules) {
     try {
@@ -106,7 +106,7 @@ export default async function getContext (
           + ' You must remove that option, or else add the --force option to recreate the "node_modules" folder.',
         )
       }
-      checkCompatibility(modules, {storePath, modulesPath: importerNModulesDir})
+      checkCompatibility(modules, {storePath, modulesPath: importerModulesDir})
       if (shrinkwrapDirectory !== opts.prefix && opts.include && modules.included) {
         for (const depsField of DEPENDENCIES_FIELDS) {
           if (opts.include[depsField] !== modules.included[depsField]) {
@@ -123,10 +123,10 @@ export default async function getContext (
         throw new Error('Named installation cannot be used to regenerate the node_modules structure. Run pnpm install --force')
       }
       logger.info({
-        message: `Recreating ${importerNModulesDir}`,
+        message: `Recreating ${importerModulesDir}`,
         prefix: opts.prefix,
       })
-      await removeAllExceptOuterLinks(importerNModulesDir)
+      await removeAllExceptOuterLinks(importerModulesDir)
       return getContext(opts)
     }
   }
@@ -139,16 +139,16 @@ export default async function getContext (
   const importerPath = getImporterPath(shrinkwrapDirectory, opts.prefix)
   const ctx: PnpmContext = {
     hoistedAliases: modules && modules.hoistedAliases || {},
-    importerNModulesDir,
+    importerModulesDir,
     importerPath,
     include: opts.include || modules && modules.included || { dependencies: true, devDependencies: true, optionalDependencies: true },
     pendingBuilds: modules && modules.pendingBuilds || [],
     pkg: opts.hooks && opts.hooks.readPackage ? opts.hooks.readPackage(pkg) : pkg,
     prefix: opts.prefix,
-    shrNModulesDir,
     shrinkwrapDirectory,
     skipped: new Set(modules && modules.skipped || []),
     storePath,
+    virtualStoreDir,
     ...await readShrinkwrapFile({
       force: opts.force,
       importerPath,
