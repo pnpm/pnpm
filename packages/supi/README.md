@@ -139,16 +139,6 @@ it is installed after unlinking.
 * `options.prefix` - *String* - by default `process.cwd()`. Path to the project.
 * `options.reporter` - *Function* - A function that listens for logs.
 
-### `supi.prune([options])`
-
-Remove extraneous packages. Extraneous packages are packages that are not listed on the parent package's dependencies list.
-
-**Arguments:**
-
-* `options.production` - *Boolean* - by default `false`. If this property is `true`, prune will remove the packages specified in `devDependencies`.
-* `options.prefix` - *String* - by default `process.cwd()`.
-* `options.reporter` - *Function* - A function that listens for logs.
-
 ### `supi.storeStatus([options])`
 
 Return the list of modified dependencies.

@@ -104,7 +104,6 @@ export default async function resolveDependencies (
     readPackageHook?: ReadPackageHook,
     hasManifestInShrinkwrap: boolean,
     sideEffectsCache: boolean,
-    reinstallForFlatten?: boolean,
     shamefullyFlatten?: boolean,
     localPackages?: LocalPackages,
   },
@@ -149,7 +148,6 @@ export default async function resolveDependencies (
             parentNodeId: options.parentNodeId,
             proceed,
             readPackageHook: options.readPackageHook,
-            reinstallForFlatten: options.reinstallForFlatten,
             shamefullyFlatten: options.shamefullyFlatten,
             sideEffectsCache: options.sideEffectsCache,
             update,
@@ -245,7 +243,6 @@ async function install (
     readPackageHook?: ReadPackageHook,
     hasManifestInShrinkwrap: boolean,
     sideEffectsCache: boolean,
-    reinstallForFlatten?: boolean,
     shamefullyFlatten?: boolean,
     localPackages?: LocalPackages,
   },
@@ -255,7 +252,7 @@ async function install (
     || options.dependencyShrinkwrap && options.dependencyShrinkwrap.peerDependencies
   const parentIsInstallable = options.parentIsInstallable === undefined || options.parentIsInstallable
 
-  if (!options.shamefullyFlatten && !options.reinstallForFlatten && !proceed && options.depPath &&
+  if (!options.shamefullyFlatten && !proceed && options.depPath &&
     // if package is not in `node_modules/.shrinkwrap.yaml`
     // we can safely assume that it doesn't exist in `node_modules`
     options.relDepPath && ctx.currentShrinkwrap.packages && ctx.currentShrinkwrap.packages[options.relDepPath] &&
@@ -519,7 +516,6 @@ async function install (
           ? options.resolvedDependencies
           : undefined,
         readPackageHook: options.readPackageHook,
-        reinstallForFlatten: options.reinstallForFlatten,
         resolvedDependencies: pkgResponse.body.updated
           ? undefined
           : options.resolvedDependencies,
@@ -610,7 +606,6 @@ async function resolveDependenciesOfPackage (
     hasManifestInShrinkwrap: boolean,
     useManifestInfoFromShrinkwrap: boolean,
     sideEffectsCache: boolean,
-    reinstallForFlatten?: boolean,
     shamefullyFlatten?: boolean,
   },
 ): Promise<PkgAddress[]> {

@@ -1,6 +1,6 @@
-import {prune} from 'supi'
+import { install, InstallOptions } from 'supi'
 import createStoreController from '../createStoreController'
-import {PnpmOptions} from '../types'
+import { PnpmOptions } from '../types'
 
 export default async (input: string[], opts: PnpmOptions) => {
   const store = await createStoreController(opts)
@@ -8,5 +8,5 @@ export default async (input: string[], opts: PnpmOptions) => {
     store: store.path,
     storeController: store.ctrl,
   })
-  return prune(pruneOpts)
+  return install({...pruneOpts, pruneStore: true} as InstallOptions)
 }
