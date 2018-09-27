@@ -31,7 +31,6 @@ export {
 }
 
 export { InstallOptions } from './api/extendInstallOptions'
-export { PruneOptions } from './api/extendPruneOptions'
 export { RebuildOptions } from './api/extendRebuildOptions'
 export { UninstallOptions } from './api/extendUninstallOptions'
 

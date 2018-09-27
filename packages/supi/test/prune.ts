@@ -1,13 +1,12 @@
+import readPkg = require('read-pkg')
+import { install, installPkgs } from 'supi'
 import tape = require('tape')
 import promisifyTape from 'tape-promise'
-const test = promisifyTape(tape)
-import existsSymlink = require('exists-link')
-import path = require('path')
-import exists = require('path-exists')
-import readPkg = require('read-pkg')
-import {installPkgs, prune} from 'supi'
 import writePkg = require('write-pkg')
-import {prepare, testDefaults} from './utils'
+import { prepare, testDefaults } from './utils'
+
+const test = promisifyTape(tape)
+const testOnly = promisifyTape(tape.only)
 
 test('prune removes extraneous packages', async (t: tape.Test) => {
   const project = prepare(t)
@@ -24,7 +23,7 @@ test('prune removes extraneous packages', async (t: tape.Test) => {
 
   await writePkg(pkg)
 
-  await prune(await testDefaults())
+  await install(await testDefaults({pruneStore: true}))
 
   await project.storeHasNot('is-positive', '2.0.0')
   await project.hasNot('is-positive')
@@ -48,12 +47,13 @@ test('prune removes dev dependencies in production', async (t: tape.Test) => {
   await installPkgs(['is-positive@2.0.0'], await testDefaults({saveDev: true}))
   await installPkgs(['is-negative@2.1.0'], await testDefaults({save: true}))
   await installPkgs(['fnumber@0.1.0'], await testDefaults({saveOptional: true}))
-  await prune(await testDefaults({
+  await install(await testDefaults({
     include: {
       dependencies: true,
       devDependencies: false,
       optionalDependencies: true,
     },
+    pruneStore: true,
   }))
 
   await project.storeHasNot('is-positive', '2.0.0')

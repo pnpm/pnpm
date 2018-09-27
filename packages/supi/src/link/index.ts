@@ -1,5 +1,4 @@
 import {
-  linkLogger,
   rootLogger,
   stageLogger,
   statsLogger,
@@ -18,9 +17,10 @@ import { StoreController } from 'package-store'
 import path = require('path')
 import { PackageSnapshot, Shrinkwrap } from 'pnpm-shrinkwrap'
 import R = require('ramda')
-import symlinkDir = require('symlink-dir')
 import { PkgGraphNodeByNodeId } from '../api/install'
 import { SHRINKWRAP_MINOR_VERSION } from '../constants'
+import shamefullyFlattenGraph from '../shamefullyFlattenGraph'
+import symlinkDependencyTo from '../symlinkDependencyTo'
 import resolvePeers, { DepGraphNode, DepGraphNodesByDepPath } from './resolvePeers'
 import updateShrinkwrap from './updateShrinkwrap'
 
@@ -41,6 +41,7 @@ export default async function linkPackages (
     currentShrinkwrap: Shrinkwrap,
     makePartialCurrentShrinkwrap: boolean,
     prefix: string,
+    pruneStore: boolean,
     storeController: StoreController,
     skipped: Set<string>,
     pkg: PackageJson,
@@ -102,18 +103,6 @@ export default async function linkPackages (
     newShrinkwrap = opts.afterAllResolvedHook(newShrinkwrap)
   }
 
-  const removedDepPaths = await removeOrphanPkgs({
-    bin: opts.bin,
-    dryRun: opts.dryRun,
-    hoistedAliases: opts.hoistedAliases,
-    importerPath: opts.importerPath,
-    newShrinkwrap,
-    oldShrinkwrap: opts.currentShrinkwrap,
-    prefix: opts.prefix,
-    shamefullyFlatten: opts.shamefullyFlatten,
-    storeController: opts.storeController,
-  })
-
   let depNodes = R.values(depGraph).filter((depNode) => {
     const relDepPath = dp.relative(newShrinkwrap.registry, depNode.absolutePath)
     if (newShrinkwrap.packages && newShrinkwrap.packages[relDepPath] && !newShrinkwrap.packages[relDepPath].optional) {
@@ -131,13 +120,25 @@ export default async function linkPackages (
   if (!opts.include.optionalDependencies) {
     depNodes = depNodes.filter((depNode) => !depNode.optional)
   }
-
   const filterOpts = {
     importerPath: opts.importerPath,
     include: opts.include,
     skipped: opts.skipped,
   }
   const newCurrentShrinkwrap = filterShrinkwrap(newShrinkwrap, filterOpts)
+  const removedDepPaths = await removeOrphanPkgs({
+    bin: opts.bin,
+    dryRun: opts.dryRun,
+    hoistedAliases: opts.hoistedAliases,
+    importerPath: opts.importerPath,
+    newShrinkwrap: newCurrentShrinkwrap,
+    oldShrinkwrap: opts.currentShrinkwrap,
+    prefix: opts.prefix,
+    pruneStore: opts.pruneStore,
+    shamefullyFlatten: opts.shamefullyFlatten,
+    storeController: opts.storeController,
+  })
+
   stageLogger.debug('importing_started')
   const newDepPaths = await linkNewPackages(
     filterShrinkwrap(opts.currentShrinkwrap, filterOpts),
@@ -246,60 +247,6 @@ export default async function linkPackages (
     removedDepPaths,
     wantedShrinkwrap: newShrinkwrap,
   }
-}
-
-async function shamefullyFlattenGraph (
-  depNodes: DepGraphNode[],
-  currentSpecifiers: {[alias: string]: string},
-  opts: {
-    baseNodeModules: string,
-    dryRun: boolean,
-  },
-): Promise<{[alias: string]: string[]}> {
-  const dependencyPathByAlias = {}
-  const aliasesByDependencyPath: {[depPath: string]: string[]} = {}
-
-  await Promise.all(depNodes
-    // sort by depth and then alphabetically
-    .sort((a, b) => {
-      const depthDiff = a.depth - b.depth
-      return depthDiff === 0 ? a.name.localeCompare(b.name) : depthDiff
-    })
-    // build the alias map and the id map
-    .map((depNode) => {
-      for (const childAlias of R.keys(depNode.children)) {
-        // if this alias is in the root dependencies, skip it
-        if (currentSpecifiers[childAlias]) {
-          continue
-        }
-        // if this alias has already been taken, skip it
-        if (dependencyPathByAlias[childAlias]) {
-          continue
-        }
-        const childPath = depNode.children[childAlias]
-        dependencyPathByAlias[childAlias] = childPath
-        if (!aliasesByDependencyPath[childPath]) {
-          aliasesByDependencyPath[childPath] = []
-        }
-        aliasesByDependencyPath[childPath].push(childAlias)
-      }
-      return depNode
-    })
-    .map(async (depNode) => {
-      const pkgAliases = aliasesByDependencyPath[depNode.absolutePath]
-      if (!pkgAliases) {
-        return
-      }
-      // TODO when putting logs back in for hoisted packages, you've to put back the condition inside the map,
-      // TODO look how it is done in linkPackages
-      if (!opts.dryRun) {
-        await Promise.all(pkgAliases.map(async (pkgAlias) => {
-          await symlinkDependencyTo(pkgAlias, depNode.peripheralLocation, opts.baseNodeModules)
-        }))
-      }
-    }))
-
-  return aliasesByDependencyPath
 }
 
 function filterShrinkwrap (
@@ -511,10 +458,4 @@ async function linkAllModules (
         )
       })),
   )
-}
-
-function symlinkDependencyTo (alias: string, peripheralLocation: string, dest: string) {
-  const linkPath = path.join(dest, alias)
-  linkLogger.debug({target: peripheralLocation, link: linkPath})
-  return symlinkDir(peripheralLocation, linkPath)
 }

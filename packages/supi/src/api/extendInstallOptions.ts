@@ -61,6 +61,7 @@ export interface InstallOptions {
   locks?: string,
   ownLifecycleHooksStdio?: 'inherit' | 'pipe',
   localPackages?: LocalPackages,
+  pruneStore?: boolean,
 }
 
 export type StrictInstallOptions = InstallOptions & {
@@ -109,6 +110,7 @@ export type StrictInstallOptions = InstallOptions & {
   unsafePerm: boolean,
   ownLifecycleHooksStdio: 'inherit' | 'pipe',
   localPackages: LocalPackages,
+  pruneStore: boolean,
 }
 
 const defaults = async (opts: InstallOptions) => {
@@ -143,6 +145,7 @@ const defaults = async (opts: InstallOptions) => {
     packageManager,
     preferFrozenShrinkwrap: true,
     prefix,
+    pruneStore: false,
     rawNpmConfig: {},
     registry: 'https://registry.npmjs.org/',
     repeatInstallDepth: -1,

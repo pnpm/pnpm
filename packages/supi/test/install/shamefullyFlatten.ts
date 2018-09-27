@@ -1,9 +1,9 @@
 import fs = require('fs')
 import resolveLinkTarget = require('resolve-link-target')
-import {install, installPkgs, prune, uninstall} from 'supi'
+import { install, installPkgs, uninstall } from 'supi'
 import tape = require('tape')
 import promisifyTape from 'tape-promise'
-import {prepare, testDefaults} from '../utils'
+import { prepare, testDefaults } from '../utils'
 
 const test = promisifyTape(tape)
 const testOnly = promisifyTape(tape.only)
@@ -53,6 +53,10 @@ test('should reflatten when uninstalling a package', async (t) => {
 
   t.equal(project.requireModule('debug/package.json').version, '2.6.9', 'debug was flattened after uninstall')
   t.equal(project.requireModule('express/package.json').version, '4.16.0', 'express did not get updated by flattening')
+
+  const modules = await project.loadModules()
+  t.ok(modules)
+  t.deepEqual(modules!.hoistedAliases['localhost+4873/debug/2.6.9'], ['debug'], 'new hoisted debug added to .modules.yaml')
 })
 
 test('should reflatten after running a general install', async (t) => {
@@ -167,7 +171,7 @@ test('should update .modules.yaml when pruning if we are flattening', async (t) 
 
   await project.rewriteDependencies({})
 
-  await prune(await testDefaults({shamefullyFlatten: true}))
+  await install(await testDefaults({shamefullyFlatten: true, pruneStore: true}))
 
   const modules = await project.loadModules()
   t.ok(modules)
@@ -198,14 +202,12 @@ test('should reflatten after pruning', async (t) => {
     'is-positive': '1.0.0',
   })
 
-  await prune(await testDefaults({shamefullyFlatten: true}))
+  await install(await testDefaults({shamefullyFlatten: true, pruneStore: true}))
 
   const currDebugModulePath = await resolveLinkTarget('./node_modules/debug')
   const currExpressModulePath = await resolveLinkTarget('./node_modules/express')
   t.notEqual(prevDebugModulePath, currDebugModulePath, 'debug flattened correctly')
   t.equal(prevExpressModulePath, currExpressModulePath, 'express not updated')
-
-  await project.hasNot('is-positive')
 })
 
 test('should flatten correctly peer dependencies', async (t) => {

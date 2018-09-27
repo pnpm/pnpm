@@ -17,12 +17,13 @@ import {
 import { LAYOUT_VERSION } from '../constants'
 import removeDeps from '../removeDeps'
 import safeIsInnerLink from '../safeIsInnerLink'
+import { shamefullyFlattenGraphByShrinkwrap } from '../shamefullyFlattenGraph'
 import extendOptions, {
   StrictUninstallOptions,
   UninstallOptions,
 } from './extendUninstallOptions'
 import getContext, { PnpmContext } from './getContext'
-import { installPkgs } from './install'
+import { install } from './install'
 import lock from './lock'
 import shrinkwrapsEqual from './shrinkwrapsEqual'
 
@@ -93,6 +94,18 @@ export async function uninstallInContext (
   } else {
     await saveCurrentShrinkwrapOnly(ctx.shrinkwrapDirectory, currentShrinkwrap)
   }
+  await removeOuterLinks(pkgsToUninstall, path.join(ctx.prefix, 'node_modules'), {
+    bin: opts.bin,
+    prefix: opts.prefix,
+    storePath: ctx.storePath,
+  })
+
+  if (opts.shamefullyFlatten) {
+    ctx.hoistedAliases = await shamefullyFlattenGraphByShrinkwrap(currentShrinkwrap, ctx.importerPath, {
+      nodeModulesDir: await realNodeModulesDir(opts.prefix),
+      prefix: opts.prefix,
+    }) || {}
+  }
   await writeModulesYaml(await realNodeModulesDir(ctx.shrinkwrapDirectory), await realNodeModulesDir(ctx.prefix), {
     hoistedAliases: ctx.hoistedAliases,
     included: ctx.include,
@@ -104,15 +117,6 @@ export async function uninstallInContext (
     skipped: Array.from(ctx.skipped).filter((pkgId) => !removedPkgIds.has(pkgId)),
     store: ctx.storePath,
   })
-  await removeOuterLinks(pkgsToUninstall, path.join(ctx.prefix, 'node_modules'), {
-    bin: opts.bin,
-    prefix: opts.prefix,
-    storePath: ctx.storePath,
-  })
-
-  if (opts.shamefullyFlatten) {
-    await installPkgs(currentShrinkwrap.importers[ctx.importerPath].specifiers, {...opts, lock: false, reinstallForFlatten: true, update: false})
-  }
 
   summaryLogger.debug({prefix: opts.prefix})
 }

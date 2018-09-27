@@ -47,7 +47,7 @@ import {
   SHRINKWRAP_MINOR_VERSION,
 } from '../constants'
 import depsFromPackage, { getPreferredVersionsFromPackage } from '../depsFromPackage'
-import depsToSpecs, { similarDepsToSpecs } from '../depsToSpecs'
+import depsToSpecs from '../depsToSpecs'
 import { PnpmError } from '../errorTypes'
 import { absolutePathToRef } from '../fs/shrinkwrap'
 import getSpecFromPackageJson from '../getSpecFromPackageJson'
@@ -339,14 +339,8 @@ function specsToInstallFromPackage (
   })
 }
 
-/**
- * Perform installation.
- *
- * @example
- *     install({'lodash': '1.0.0', 'foo': '^2.1.0' }, { silent: true })
- */
 export async function installPkgs (
-  fuzzyDeps: string[] | Dependencies,
+  rawWantedDependencies: string[],
   maybeOpts: InstallOptions,
 ) {
   const reporter = maybeOpts && maybeOpts.reporter
@@ -357,7 +351,7 @@ export async function installPkgs (
   if (maybeOpts.update === undefined) maybeOpts.update = true
   const opts = await extendOptions(maybeOpts)
 
-  if (R.isEmpty(fuzzyDeps) && !opts.reinstallForFlatten) {
+  if (R.isEmpty(rawWantedDependencies)) {
     throw new Error('At least one package has to be installed')
   }
 
@@ -382,24 +376,15 @@ export async function installPkgs (
     const saveType = getSaveType(opts)
     const optionalDependencies = saveType ? {} : ctx.pkg.optionalDependencies || {}
     const devDependencies = saveType ? {} : ctx.pkg.devDependencies || {}
-    const packagesToInstall = Array.isArray(fuzzyDeps)
-      ? parseWantedDependencies(fuzzyDeps, {
-        allowNew: opts.allowNew,
-        currentPrefs,
-        defaultTag: opts.tag,
-        dev: opts.saveDev,
-        devDependencies,
-        optional: opts.saveOptional,
-        optionalDependencies,
-      })
-      : similarDepsToSpecs(fuzzyDeps, {
-        allowNew: opts.allowNew,
-        currentPrefs,
-        dev: opts.saveDev,
-        devDependencies,
-        optional: opts.saveOptional,
-        optionalDependencies,
-      })
+    const packagesToInstall = parseWantedDependencies(rawWantedDependencies, {
+      allowNew: opts.allowNew,
+      currentPrefs,
+      defaultTag: opts.tag,
+      dev: opts.saveDev,
+      devDependencies,
+      optional: opts.saveOptional,
+      optionalDependencies,
+    })
 
     const preferredVersions = getPreferredVersionsFromPackage(ctx.pkg)
     return installInContext(
@@ -500,7 +485,6 @@ async function installInContext (
     localPackages: opts.localPackages,
     parentNodeId: ROOT_NODE_ID,
     readPackageHook: opts.hooks.readPackage,
-    reinstallForFlatten: opts.reinstallForFlatten,
     resolvedDependencies: {
       ...shrImporter.dependencies,
       ...shrImporter.devDependencies,
@@ -581,7 +565,7 @@ async function installInContext (
   .concat(installCtx.localPackages)
 
   let newPkg: PackageJson | undefined = ctx.pkg
-  if (installType === 'named' && !opts.reinstallForFlatten) {
+  if (installType === 'named') {
     if (!ctx.pkg) {
       throw new Error('Cannot save because no package.json found')
     }
@@ -647,6 +631,7 @@ async function installInContext (
     outdatedPkgs: installCtx.outdatedPkgs,
     pkg: newPkg || ctx.pkg,
     prefix: ctx.prefix,
+    pruneStore: opts.pruneStore,
     reinstallForFlatten: Boolean(opts.reinstallForFlatten),
     shamefullyFlatten: opts.shamefullyFlatten,
     shrinkwrapDirectoryNodeModules: installCtx.nodeModules,

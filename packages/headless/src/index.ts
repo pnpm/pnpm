@@ -78,6 +78,7 @@ export interface HeadlessOptions {
     name: string,
     version: string,
   },
+  pruneStore: boolean,
   wantedShrinkwrap?: Shrinkwrap,
   ownLifecycleHooksStdio?: 'inherit' | 'pipe',
 }
@@ -132,15 +133,22 @@ export default async (opts: HeadlessOptions) => {
     await runLifecycleHooks('preinstall', pkg, scriptsOpts)
   }
 
+  const filterOpts = {
+    importerPath,
+    include: opts.include,
+  }
+  const filteredShrinkwrap = filterShrinkwrap(wantedShrinkwrap, filterOpts)
+
   if (currentShrinkwrap) {
     await removeOrphanPkgs({
       bin,
       dryRun: false,
       hoistedAliases: modules && modules.hoistedAliases || {},
       importerPath,
-      newShrinkwrap: wantedShrinkwrap,
+      newShrinkwrap: filteredShrinkwrap,
       oldShrinkwrap: currentShrinkwrap,
       prefix: opts.prefix,
+      pruneStore: opts.pruneStore,
       shamefullyFlatten: false,
       storeController: opts.storeController,
     })
@@ -150,12 +158,6 @@ export default async (opts: HeadlessOptions) => {
       removed: 0,
     })
   }
-
-  const filterOpts = {
-    importerPath,
-    include: opts.include,
-  }
-  const filteredShrinkwrap = filterShrinkwrap(wantedShrinkwrap, filterOpts)
 
   stageLogger.debug('importing_started')
   const res = await shrinkwrapToDepGraph(
