@@ -20,12 +20,14 @@ export default async function removeOrphanPkgs (
     bin: string,
     dryRun?: boolean,
     hoistedAliases: {[depPath: string]: string[]},
+    importerNModulesDir: string,
     importerPath: string,
     newShrinkwrap: Shrinkwrap,
     oldShrinkwrap: Shrinkwrap,
     prefix: string,
     pruneStore?: boolean,
     shamefullyFlatten: boolean,
+    shrNModulesDir: string,
     storeController: StoreController,
   },
 ): Promise<Set<string>> {
@@ -35,7 +37,6 @@ export default async function removeOrphanPkgs (
 
   const removedTopDeps: Array<[string, string]> = R.difference(oldPkgs, newPkgs) as Array<[string, string]>
 
-  const rootModules = path.join(opts.prefix, 'node_modules')
   await Promise.all(removedTopDeps.map((depName) => {
     return removeTopDependency({
       dev: Boolean(oldImporterShr.devDependencies && oldImporterShr.devDependencies[depName[0]]),
@@ -44,7 +45,7 @@ export default async function removeOrphanPkgs (
     }, {
       bin: opts.bin,
       dryRun: opts.dryRun,
-      modules: rootModules,
+      importerNModulesDir: opts.importerNModulesDir,
       prefix: opts.prefix,
     })
   }))
@@ -76,7 +77,7 @@ export default async function removeOrphanPkgs (
                 optional: false,
               }, {
                 bin: opts.bin,
-                modules: rootModules,
+                importerNModulesDir: opts.importerNModulesDir,
                 muteLogs: true,
                 prefix: opts.prefix,
               })
@@ -87,11 +88,11 @@ export default async function removeOrphanPkgs (
       }
 
       await Promise.all(orphanDepPaths.map(async (orphanDepPath) => {
-        const pathToRemove = path.join(rootModules, `.${orphanDepPath}`, 'node_modules')
+        const pathToRemove = path.join(opts.shrNModulesDir, `.${orphanDepPath}`, 'node_modules')
         removalLogger.debug(pathToRemove)
         try {
           await vacuum(pathToRemove, {
-            base: rootModules,
+            base: opts.shrNModulesDir,
             purge: true,
           })
         } catch (err) {

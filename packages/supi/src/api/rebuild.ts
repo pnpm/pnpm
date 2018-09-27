@@ -3,9 +3,6 @@ import runLifecycleHooks, { runPostinstallHooks } from '@pnpm/lifecycle'
 import logger, { streamParser } from '@pnpm/logger'
 import { write as writeModulesYaml } from '@pnpm/modules-yaml'
 import { PackageJson } from '@pnpm/types'
-import {
-  realNodeModulesDir,
-} from '@pnpm/utils'
 import npa = require('@zkochan/npm-package-arg')
 import * as dp from 'dependency-path'
 import graphSequencer = require('graph-sequencer')
@@ -78,7 +75,6 @@ export async function rebuildPkgs (
   }
   const opts = await extendOptions(maybeOpts)
   const ctx = await getContext(opts)
-  const modules = await realNodeModulesDir(opts.prefix)
 
   if (!ctx.currentShrinkwrap || !ctx.currentShrinkwrap.packages) return
   const packages = ctx.currentShrinkwrap.packages
@@ -99,7 +95,7 @@ export async function rebuildPkgs (
 
   const pkgs = findPackages(packages, searched, {prefix: ctx.prefix})
 
-  await _rebuild(new Set(pkgs), modules, ctx.currentShrinkwrap, ctx.importerPath, opts)
+  await _rebuild(new Set(pkgs), ctx.shrNModulesDir, ctx.currentShrinkwrap, ctx.importerPath, opts)
 }
 
 export async function rebuild (maybeOpts: RebuildOptions) {
@@ -109,7 +105,6 @@ export async function rebuild (maybeOpts: RebuildOptions) {
   }
   const opts = await extendOptions(maybeOpts)
   const ctx = await getContext(opts)
-  const modules = await realNodeModulesDir(ctx.shrinkwrapDirectory)
 
   let idsToRebuild: string[] = []
 
@@ -122,20 +117,21 @@ export async function rebuild (maybeOpts: RebuildOptions) {
   }
   if (idsToRebuild.length === 0) return
 
-  const pkgsThatWereRebuilt = await _rebuild(new Set(idsToRebuild), modules, ctx.currentShrinkwrap, ctx.importerPath, opts)
+  const pkgsThatWereRebuilt = await _rebuild(new Set(idsToRebuild), ctx.shrNModulesDir, ctx.currentShrinkwrap, ctx.importerPath, opts)
 
   ctx.pendingBuilds = ctx.pendingBuilds.filter((relDepPath) => !pkgsThatWereRebuilt.has(relDepPath))
 
   if (ctx.pkg && ctx.pkg.scripts && (!opts.pending || ctx.pendingBuilds.indexOf(ctx.importerPath) !== -1)) {
     await runLifecycleHooksInDir(opts.prefix, ctx.pkg, {
       rawNpmConfig: opts.rawNpmConfig,
+      rootNodeModulesDir: ctx.importerNModulesDir,
       unsafePerm: opts.unsafePerm,
     })
 
     ctx.pendingBuilds.splice(ctx.pendingBuilds.indexOf(ctx.importerPath), 1)
   }
 
-  await writeModulesYaml(await realNodeModulesDir(ctx.shrinkwrapDirectory), modules, {
+  await writeModulesYaml(ctx.shrNModulesDir, ctx.importerNModulesDir, {
     hoistedAliases: ctx.hoistedAliases,
     included: ctx.include,
     independentLeaves: opts.independentLeaves,
@@ -153,6 +149,7 @@ async function runLifecycleHooksInDir (
   pkg: PackageJson,
   opts: {
     rawNpmConfig: object,
+    rootNodeModulesDir: string,
     unsafePerm: boolean,
   },
 ) {
@@ -160,7 +157,7 @@ async function runLifecycleHooksInDir (
     depPath: prefix,
     pkgRoot: prefix,
     rawNpmConfig: opts.rawNpmConfig,
-    rootNodeModulesDir: await realNodeModulesDir(prefix),
+    rootNodeModulesDir: opts.rootNodeModulesDir,
     unsafePerm: opts.unsafePerm || false,
   }
   if (pkg.scripts!.preinstall) {

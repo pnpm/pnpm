@@ -5,7 +5,7 @@ import {
 import binify from '@pnpm/package-bins'
 import path = require('path')
 import rimraf = require('rimraf-then')
-import {fromDir as safeReadPkgFromDir} from './safeReadPkg'
+import { fromDir as safeReadPkgFromDir } from './safeReadPkg'
 
 export default async function removeTopDependency (
   dependency: {
@@ -16,14 +16,14 @@ export default async function removeTopDependency (
   opts: {
     bin: string,
     dryRun?: boolean,
-    modules: string,
+    importerNModulesDir: string,
     muteLogs?: boolean,
     prefix: string,
   },
 ) {
   const results = await Promise.all([
     removeBins(dependency.name, opts),
-    !opts.dryRun && remove(path.join(opts.modules, dependency.name)),
+    !opts.dryRun && remove(path.join(opts.importerNModulesDir, dependency.name)),
   ])
 
   const uninstalledPkg = results[0]
@@ -43,11 +43,11 @@ async function removeBins (
   uninstalledPkg: string,
   opts: {
     dryRun?: boolean,
-    modules: string,
+    importerNModulesDir: string,
     bin: string,
   },
 ) {
-  const uninstalledPkgPath = path.join(opts.modules, uninstalledPkg)
+  const uninstalledPkgPath = path.join(opts.importerNModulesDir, uninstalledPkg)
   const uninstalledPkgJson = await safeReadPkgFromDir(uninstalledPkgPath)
 
   if (!uninstalledPkgJson) return

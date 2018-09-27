@@ -16,13 +16,11 @@ import {
   Resolution,
 } from '@pnpm/resolver-base'
 import {
-  Dependencies,
   DEPENDENCIES_FIELDS,
   PackageJson,
 } from '@pnpm/types'
 import {
   getSaveType,
-  realNodeModulesDir,
   safeReadPackageFromDir as safeReadPkgFromDir,
 } from '@pnpm/utils'
 import * as dp from 'dependency-path'
@@ -132,7 +130,7 @@ export interface InstallContext {
   nodeVersion: string,
   pnpmVersion: string,
   rawNpmConfig: object,
-  nodeModules: string,
+  shrNModulesDir: string,
   verifyStoreInegrity: boolean,
   preferredVersions: {
     [packageName: string]: {
@@ -214,10 +212,10 @@ export async function install (maybeOpts: InstallOptions & {
     }
 
     const preferredVersions = maybeOpts.preferredVersions || getPreferredVersionsFromPackage(ctx.pkg)
-    const specs = specsToInstallFromPackage(ctx.pkg)
+    const wantedDeps = getWantedDepsFromPackageJson(ctx.pkg)
 
     if (ctx.wantedShrinkwrap && ctx.wantedShrinkwrap.importers) {
-      forgetResolutionsOfOldSpecs(ctx.wantedShrinkwrap.importers[ctx.importerPath], specs)
+      forgetResolutionsOfPrevWantedDeps(ctx.wantedShrinkwrap.importers[ctx.importerPath], wantedDeps)
     }
 
     const scripts = !opts.ignoreScripts && ctx.pkg && ctx.pkg.scripts || {}
@@ -241,7 +239,7 @@ export async function install (maybeOpts: InstallOptions & {
       depPath: opts.prefix,
       pkgRoot: opts.prefix,
       rawNpmConfig: opts.rawNpmConfig,
-      rootNodeModulesDir: await realNodeModulesDir(opts.prefix),
+      rootNodeModulesDir: ctx.importerNModulesDir,
       stdio: opts.ownLifecycleHooksStdio,
       unsafePerm: opts.unsafePerm || false,
     }
@@ -250,7 +248,22 @@ export async function install (maybeOpts: InstallOptions & {
       await runLifecycleHooks('preinstall', ctx.pkg, scriptsOpts)
     }
 
-    await installInContext(installType, specs, [], ctx, preferredVersions, opts)
+    const {nonLinkedPackages, linkedPackages} = await partitionLinkedPackages(wantedDeps, {
+      importerNModulesDir: ctx.importerNModulesDir,
+      localPackages: opts.localPackages,
+      prefix: opts.prefix,
+      shrNModulesDir: ctx.shrNModulesDir,
+      shrinkwrapOnly: opts.shrinkwrapOnly,
+      storePath: ctx.storePath,
+    })
+    await installInContext(installType, ctx, {
+      ...opts,
+      linkedPkgs: linkedPackages,
+      newPkgRawSpecs: [],
+      nonLinkedPkgs: nonLinkedPackages,
+      preferredVersions,
+      wantedDeps,
+    })
 
     if (scripts.install) {
       await runLifecycleHooks('install', ctx.pkg, scriptsOpts)
@@ -267,20 +280,60 @@ export async function install (maybeOpts: InstallOptions & {
   }
 }
 
+async function partitionLinkedPackages (
+  wantedDeps: WantedDependency[],
+  opts: {
+    localPackages?: LocalPackages,
+    importerNModulesDir: string,
+    shrNModulesDir: string,
+    shrinkwrapOnly: boolean,
+    prefix: string,
+    storePath: string,
+  },
+) {
+  const nonLinkedPackages: WantedDependency[] = []
+  const linkedPackages: Array<WantedDependency & {alias: string}> = []
+  for (const wantedDependency of wantedDeps) {
+    if (!wantedDependency.alias || opts.localPackages && opts.localPackages[wantedDependency.alias]) {
+      nonLinkedPackages.push(wantedDependency)
+      continue
+    }
+    const isInnerLink = await safeIsInnerLink(opts.shrNModulesDir, wantedDependency.alias, {
+      hideAlienModules: opts.shrinkwrapOnly === false,
+      prefix: opts.prefix,
+      storePath: opts.storePath,
+    })
+    if (isInnerLink === true) {
+      nonLinkedPackages.push(wantedDependency)
+      continue
+    }
+    // This info-log might be better to be moved to the reporter
+    logger.info({
+      message: `${wantedDependency.alias} is linked to ${opts.importerNModulesDir} from ${isInnerLink}`,
+      prefix: opts.prefix,
+    })
+    linkedPackages.push(wantedDependency as (WantedDependency & {alias: string}))
+  }
+  return {
+    linkedPackages,
+    nonLinkedPackages,
+  }
+}
+
 // If the specifier is new, the old resolution probably does not satisfy it anymore.
 // By removing these resolutions we ensure that they are resolved again using the new specs.
-function forgetResolutionsOfOldSpecs (importer: ShrinkwrapImporter, specs: WantedDependency[]) {
+function forgetResolutionsOfPrevWantedDeps (importer: ShrinkwrapImporter, wantedDeps: WantedDependency[]) {
   if (!importer.specifiers) return
   importer.dependencies = importer.dependencies || {}
   importer.devDependencies = importer.devDependencies || {}
   importer.optionalDependencies = importer.optionalDependencies || {}
-  for (const spec of specs) {
-    if (spec.alias && importer.specifiers[spec.alias] !== spec.pref) {
-      if (importer.dependencies[spec.alias] && !importer.dependencies[spec.alias].startsWith('link:')) {
-        delete importer.dependencies[spec.alias]
+  for (const wantedDep of wantedDeps) {
+    if (wantedDep.alias && importer.specifiers[wantedDep.alias] !== wantedDep.pref) {
+      if (importer.dependencies[wantedDep.alias] && !importer.dependencies[wantedDep.alias].startsWith('link:')) {
+        delete importer.dependencies[wantedDep.alias]
       }
-      delete importer.devDependencies[spec.alias]
-      delete importer.optionalDependencies[spec.alias]
+      delete importer.devDependencies[wantedDep.alias]
+      delete importer.optionalDependencies[wantedDep.alias]
     }
   }
 }
@@ -329,7 +382,7 @@ function refIsLocalTarball (ref: string) {
   return ref.startsWith('file:') && (ref.endsWith('.tgz') || ref.endsWith('.tar.gz') || ref.endsWith('.tar'))
 }
 
-function specsToInstallFromPackage (
+function getWantedDepsFromPackageJson (
   pkg: PackageJson,
 ): WantedDependency[] {
   const depsToInstall = depsFromPackage(pkg)
@@ -376,7 +429,7 @@ export async function installPkgs (
     const saveType = getSaveType(opts)
     const optionalDependencies = saveType ? {} : ctx.pkg.optionalDependencies || {}
     const devDependencies = saveType ? {} : ctx.pkg.devDependencies || {}
-    const packagesToInstall = parseWantedDependencies(rawWantedDependencies, {
+    const wantedDeps = parseWantedDependencies(rawWantedDependencies, {
       allowNew: opts.allowNew,
       currentPrefs,
       defaultTag: opts.tag,
@@ -389,26 +442,34 @@ export async function installPkgs (
     const preferredVersions = getPreferredVersionsFromPackage(ctx.pkg)
     return installInContext(
       installType,
-      packagesToInstall,
-      packagesToInstall.map((wantedDependency) => wantedDependency.raw),
       ctx,
-      preferredVersions,
-      opts)
+      {
+        ...opts,
+        linkedPkgs: [],
+        newPkgRawSpecs: wantedDeps.map((wantedDependency) => wantedDependency.raw),
+        nonLinkedPkgs: wantedDeps,
+        preferredVersions,
+        wantedDeps,
+      },
+    )
   }
 }
 
 async function installInContext (
   installType: string,
-  packagesToInstall: WantedDependency[],
-  newPkgRawSpecs: string[],
   ctx: PnpmContext,
-  preferredVersions: {
-    [packageName: string]: {
-      type: 'version' | 'range' | 'tag',
-      selector: string,
+  opts: StrictInstallOptions & {
+    preferredVersions: {
+      [packageName: string]: {
+        type: 'version' | 'range' | 'tag',
+        selector: string,
+      },
     },
+    nonLinkedPkgs: WantedDependency[],
+    linkedPkgs: Array<WantedDependency & {alias: string}>,
+    wantedDeps: WantedDependency[],
+    newPkgRawSpecs: string[],
   },
-  opts: StrictInstallOptions,
 ) {
   // Unfortunately, the private shrinkwrap file may differ from the public one.
   // A user might run named installations on a project that has a shrinkwrap.yaml file before running a noop install
@@ -425,10 +486,6 @@ async function installInContext (
       prefix: ctx.prefix,
     })
   }
-
-  const nodeModulesPath = await realNodeModulesDir(ctx.prefix)
-  const shrinkwrapNodeModulesPath = ctx.shrinkwrapDirectory === ctx.prefix
-    ? nodeModulesPath : await realNodeModulesDir(ctx.shrinkwrapDirectory)
 
   // Avoid requesting package meta info from registry only when the shrinkwrap version is at least the expected
   const hasManifestInShrinkwrap = typeof ctx.wantedShrinkwrap.shrinkwrapMinorVersion === 'number' &&
@@ -457,17 +514,17 @@ async function installInContext (
     engineStrict: opts.engineStrict,
     force: opts.force,
     localPackages: [],
-    nodeModules: shrinkwrapNodeModulesPath,
     nodeVersion: opts.nodeVersion,
     nodesToBuild: [],
     outdatedPkgs: {},
     pkgByPkgId: {},
     pkgGraph: {},
     pnpmVersion: opts.packageManager.name === 'pnpm' ? opts.packageManager.version : '',
-    preferredVersions,
+    preferredVersions: opts.preferredVersions,
     prefix: opts.prefix,
     rawNpmConfig: opts.rawNpmConfig,
     registry: ctx.wantedShrinkwrap.registry,
+    shrNModulesDir: ctx.shrNModulesDir,
     skipped: ctx.skipped,
     storeController: opts.storeController,
     verifyStoreInegrity: opts.verifyStoreIntegrity,
@@ -477,58 +534,27 @@ async function installInContext (
     ctx.wantedShrinkwrap.importers = ctx.wantedShrinkwrap.importers || {}
     ctx.wantedShrinkwrap.importers[ctx.importerPath] = {specifiers: {}}
   }
-  const shrImporter = ctx.wantedShrinkwrap.importers[ctx.importerPath]
-  const installOpts = {
-    currentDepth: 0,
-    hasManifestInShrinkwrap,
-    keypath: [],
-    localPackages: opts.localPackages,
-    parentNodeId: ROOT_NODE_ID,
-    readPackageHook: opts.hooks.readPackage,
-    resolvedDependencies: {
-      ...shrImporter.dependencies,
-      ...shrImporter.devDependencies,
-      ...shrImporter.optionalDependencies,
-    },
-    shamefullyFlatten: opts.shamefullyFlatten,
-    sideEffectsCache: opts.sideEffectsCache,
-    update: opts.update,
-  }
-  let nonLinkedPkgs: WantedDependency[]
-  let linkedPkgs: Array<WantedDependency & {alias: string}>
-  if (installType === 'named') {
-    nonLinkedPkgs = packagesToInstall
-    linkedPkgs = []
-  } else {
-    nonLinkedPkgs = []
-    linkedPkgs = []
-    for (const wantedDependency of packagesToInstall) {
-      if (!wantedDependency.alias || opts.localPackages && opts.localPackages[wantedDependency.alias]) {
-        nonLinkedPkgs.push(wantedDependency)
-        continue
-      }
-      const isInnerLink = await safeIsInnerLink(shrinkwrapNodeModulesPath, wantedDependency.alias, {
-        hideAlienModules: opts.shrinkwrapOnly === false,
-        prefix: ctx.prefix,
-        storePath: ctx.storePath,
-      })
-      if (isInnerLink === true) {
-        nonLinkedPkgs.push(wantedDependency)
-        continue
-      }
-      // This info-log might be better to be moved to the reporter
-      logger.info({
-        message: `${wantedDependency.alias} is linked to ${nodeModulesPath} from ${isInnerLink}`,
-        prefix: ctx.prefix,
-      })
-      linkedPkgs.push(wantedDependency as (WantedDependency & {alias: string}))
-    }
-  }
   stageLogger.debug('resolution_started')
+  const shrImporter = ctx.wantedShrinkwrap.importers[ctx.importerPath]
   const rootPkgs = await resolveDependencies(
     installCtx,
-    nonLinkedPkgs,
-    installOpts,
+    opts.nonLinkedPkgs,
+    {
+      currentDepth: 0,
+      hasManifestInShrinkwrap,
+      keypath: [],
+      localPackages: opts.localPackages,
+      parentNodeId: ROOT_NODE_ID,
+      readPackageHook: opts.hooks.readPackage,
+      resolvedDependencies: {
+        ...shrImporter.dependencies,
+        ...shrImporter.devDependencies,
+        ...shrImporter.optionalDependencies,
+      },
+      shamefullyFlatten: opts.shamefullyFlatten,
+      sideEffectsCache: opts.sideEffectsCache,
+      update: opts.update,
+    },
   )
   stageLogger.debug('resolution_done')
   installCtx.nodesToBuild.forEach((nodeToBuild) => {
@@ -581,7 +607,7 @@ async function installInContext (
           saveType,
         }
       })
-    for (const pkgToInstall of packagesToInstall) {
+    for (const pkgToInstall of opts.wantedDeps) {
       if (pkgToInstall.alias && !specsToUsert.some((spec: any) => spec.name === pkgToInstall.alias)) { // tslint:disable-line
         specsToUsert.push({
           name: pkgToInstall.alias,
@@ -601,29 +627,29 @@ async function installInContext (
   }
 
   if (newPkg) {
-    ctx.wantedShrinkwrap.importers[ctx.importerPath] = addDirectDependenciesToShrinkwrap(newPkg, shrImporter, linkedPkgs, pkgsToSave, ctx.wantedShrinkwrap.registry)
+    ctx.wantedShrinkwrap.importers[ctx.importerPath] = addDirectDependenciesToShrinkwrap(newPkg, shrImporter, opts.linkedPkgs, pkgsToSave, ctx.wantedShrinkwrap.registry)
   }
 
   const topParents = ctx.pkg
     ? await getTopParents(
         R.difference(
           R.keys(depsFromPackage(ctx.pkg)),
-          newPkgRawSpecs && pkgsToSave.filter((pkgToSave) => newPkgRawSpecs.indexOf(pkgToSave.specRaw) !== -1).map((pkg) => pkg.alias) || [],
+          opts.newPkgRawSpecs && pkgsToSave.filter((pkgToSave) => opts.newPkgRawSpecs.indexOf(pkgToSave.specRaw) !== -1).map((pkg) => pkg.alias) || [],
         ),
-        nodeModulesPath,
+        ctx.importerNModulesDir,
       )
     : []
 
   const externalShrinkwrap = ctx.shrinkwrapDirectory !== opts.prefix
   const result = await linkPackages(rootNodeIdsByAlias, installCtx.pkgGraph, {
     afterAllResolvedHook: opts.hooks && opts.hooks.afterAllResolved,
-    baseNodeModules: nodeModulesPath,
     bin: opts.bin,
     currentShrinkwrap: ctx.currentShrinkwrap,
     dryRun: opts.shrinkwrapOnly,
     externalShrinkwrap,
     force: opts.force,
     hoistedAliases: ctx.hoistedAliases,
+    importerNModulesDir: ctx.importerNModulesDir,
     importerPath: ctx.importerPath,
     include: opts.include,
     independentLeaves: opts.independentLeaves,
@@ -634,7 +660,7 @@ async function installInContext (
     pruneStore: opts.pruneStore,
     reinstallForFlatten: Boolean(opts.reinstallForFlatten),
     shamefullyFlatten: opts.shamefullyFlatten,
-    shrinkwrapDirectoryNodeModules: installCtx.nodeModules,
+    shrNModulesDir: installCtx.shrNModulesDir,
     sideEffectsCache: opts.sideEffectsCache,
     skipped: ctx.skipped,
     storeController: opts.storeController,
@@ -669,7 +695,7 @@ async function installInContext (
         if (result.currentShrinkwrap.packages === undefined && result.removedDepPaths.size === 0) {
           return Promise.resolve()
         }
-        return writeModulesYaml(installCtx.nodeModules, nodeModulesPath, {
+        return writeModulesYaml(installCtx.shrNModulesDir, ctx.importerNModulesDir, {
           hoistedAliases: ctx.hoistedAliases,
           included: ctx.include,
           independentLeaves: opts.independentLeaves,
@@ -715,7 +741,7 @@ async function installInContext (
                 pkgRoot: pkg.peripheralLocation,
                 prepare: pkg.prepare,
                 rawNpmConfig: installCtx.rawNpmConfig,
-                rootNodeModulesDir: nodeModulesPath,
+                rootNodeModulesDir: ctx.importerNModulesDir,
                 unsafePerm: opts.unsafePerm || false,
               })
               if (hasSideEffects && opts.sideEffectsCache && !opts.sideEffectsCacheReadonly) {
@@ -775,7 +801,7 @@ async function installInContext (
         alias: localPackage.alias,
         path: resolvePath(opts.prefix, localPackage.resolution.directory),
       }))
-      await externalLink(externalPkgs, nodeModulesPath, linkOpts)
+      await externalLink(externalPkgs, ctx.importerNModulesDir, linkOpts)
     }
   }
 
