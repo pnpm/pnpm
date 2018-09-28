@@ -695,14 +695,20 @@ async function installInContext (
         if (result.currentShrinkwrap.packages === undefined && result.removedDepPaths.size === 0) {
           return Promise.resolve()
         }
-        return writeModulesYaml(installCtx.virtualStoreDir, ctx.importerModulesDir, {
-          hoistedAliases: ctx.hoistedAliases,
+        return writeModulesYaml(installCtx.virtualStoreDir, {
+          ...ctx.modulesFile,
+          importers: {
+            ...ctx.modulesFile && ctx.modulesFile.importers,
+            [ctx.importerPath]: {
+              hoistedAliases: ctx.hoistedAliases,
+              shamefullyFlatten: opts.shamefullyFlatten,
+            },
+          },
           included: ctx.include,
           independentLeaves: opts.independentLeaves,
           layoutVersion: LAYOUT_VERSION,
           packageManager: `${opts.packageManager.name}@${opts.packageManager.version}`,
           pendingBuilds: ctx.pendingBuilds,
-          shamefullyFlatten: opts.shamefullyFlatten,
           skipped: Array.from(installCtx.skipped),
           store: ctx.storePath,
         })

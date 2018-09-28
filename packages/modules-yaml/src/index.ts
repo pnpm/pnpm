@@ -12,70 +12,43 @@ export type IncludedDependencies = {
 }
 
 export interface Modules {
-  hoistedAliases: {[depPath: string]: string[]}
+  importers: {
+    [importerPath: string]: {
+      hoistedAliases: {[depPath: string]: string[]}
+      shamefullyFlatten: boolean,
+    },
+  },
   included: IncludedDependencies,
   independentLeaves: boolean,
   layoutVersion: number,
   packageManager: string,
   pendingBuilds: string[],
-  shamefullyFlatten: boolean,
-  shrinkwrapDirectory?: string,
   skipped: string[],
   store: string,
 }
 
-type ModulesContent = {
-  nodeModulesType: 'shared',
-  included: IncludedDependencies,
-  independentLeaves: boolean,
-  layoutVersion: number,
-  packageManager: string,
-  pendingBuilds: string[],
-  skipped: string[],
-  store: string,
-} | {
-  nodeModulesType: 'dedicated',
-  hoistedAliases: {[depPath: string]: string[]}
-  included: IncludedDependencies,
-  independentLeaves: boolean,
-  layoutVersion: number,
-  packageManager: string,
-  pendingBuilds: string[],
-  shamefullyFlatten: boolean,
-  skipped: string[],
-  store: string,
-} | {
-  nodeModulesType: 'proxy',
-  hoistedAliases: {[depPath: string]: string[]}
-  shamefullyFlatten: boolean,
-  shrinkwrapDirectory: string,
-}
-
-export async function read (nodeModulesPath: string): Promise<Modules | null> {
-  const proxyModulesYamlPath = path.join(nodeModulesPath, MODULES_FILENAME)
-  let m!: ModulesContent
+export async function read (virtualStoreDir: string): Promise<Modules | null> {
+  const modulesYamlPath = path.join(virtualStoreDir, MODULES_FILENAME)
   try {
-    m = await loadYamlFile<ModulesContent>(proxyModulesYamlPath)
-
-    switch (m.nodeModulesType) {
-      case 'proxy':
-        const sharedModulesYamlPath = path.join(m.shrinkwrapDirectory, 'node_modules', MODULES_FILENAME)
-        return {
-          hoistedAliases: m.hoistedAliases,
-          shamefullyFlatten: m.shamefullyFlatten,
-          shrinkwrapDirectory: m.shrinkwrapDirectory,
-          ...await loadYamlFile<object>(sharedModulesYamlPath),
-        } as Modules
-      case 'shared':
-        return {
-          hoistedAliases: {},
-          shamefullyFlatten: false,
-          ...m,
-        } as Modules
-      case 'dedicated':
-      default:
-        return m
+    const m = await loadYamlFile<Modules>(modulesYamlPath)
+    // for backward compatibility
+    // tslint:disable:no-string-literal
+    if (m['storePath']) {
+      m.store = m['storePath']
+      delete m['storePath']
     }
+    if (!m.importers) {
+      m.importers = {
+        '.': {
+          hoistedAliases: m['hoistedAliases'],
+          shamefullyFlatten: m['shamefullyFlatten'],
+        },
+      }
+      delete m['hoistedAliases']
+      delete m['shamefullyFlatten']
+    }
+    // tslint:enable:no-string-literal
+    return m
   } catch (err) {
     if ((err as NodeJS.ErrnoException).code !== 'ENOENT') {
       throw err
@@ -87,40 +60,20 @@ export async function read (nodeModulesPath: string): Promise<Modules | null> {
 const YAML_OPTS = {sortKeys: true}
 
 export function write (
-  sharedNodeModulesPath: string,
-  proxyNodeModulesPath: string,
+  virtualStoreDir: string,
   modules: Modules,
 ) {
+  const modulesYamlPath = path.join(virtualStoreDir, MODULES_FILENAME)
   if (modules['skipped']) modules['skipped'].sort() // tslint:disable-line:no-string-literal
-  if (sharedNodeModulesPath === proxyNodeModulesPath) {
-    const modulesYamlPath = path.join(proxyNodeModulesPath, MODULES_FILENAME)
-    return writeYamlFile(modulesYamlPath, {
-      ...modules,
-      nodeModulesType: 'dedicated',
-    }, YAML_OPTS)
-  }
-  const sharedModulesYamlPath = path.join(sharedNodeModulesPath, MODULES_FILENAME)
-  const sharedModules = {
-    included: modules.included,
-    independentLeaves: modules.independentLeaves,
-    layoutVersion: modules.layoutVersion,
-    nodeModulesType: 'shared',
-    packageManager: modules.packageManager,
-    pendingBuilds: modules.pendingBuilds,
-    skipped: modules.skipped,
-    store: modules.store,
-  }
 
-  const proxyModulesYamlPath = path.join(proxyNodeModulesPath, MODULES_FILENAME)
-  const proxyModules = {
-    hoistedAliases: modules.hoistedAliases,
-    nodeModulesType: 'proxy',
-    shamefullyFlatten: modules.shamefullyFlatten,
-    shrinkwrapDirectory: path.dirname(sharedNodeModulesPath),
-  }
+  return writeYamlFile(modulesYamlPath, normalizeModules(modules), YAML_OPTS)
+}
 
-  return Promise.all([
-    writeYamlFile(sharedModulesYamlPath, sharedModules, YAML_OPTS),
-    writeYamlFile(proxyModulesYamlPath, proxyModules, YAML_OPTS),
-  ])
+function normalizeModules (m: Modules) {
+  const normalized = {...m}
+  if (Object.keys(m.importers).length === 1 && m.importers['.']) {
+    Object.assign(normalized, m.importers['.'])
+    delete normalized.importers
+  }
+  return normalized
 }

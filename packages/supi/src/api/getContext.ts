@@ -2,6 +2,7 @@ import { packageJsonLogger } from '@pnpm/core-loggers'
 import logger from '@pnpm/logger'
 import {
   IncludedDependencies,
+  Modules,
   read as readModulesYaml,
 } from '@pnpm/modules-yaml'
 import {
@@ -14,7 +15,6 @@ import {
   safeReadPackageFromDir as safeReadPkgFromDir,
 } from '@pnpm/utils'
 import mkdirp = require('mkdirp-promise')
-import path = require('path')
 import {
   getImporterPath,
   Shrinkwrap,
@@ -32,6 +32,7 @@ export interface PnpmContext {
   importerModulesDir: string,
   importerPath: string,
   include: IncludedDependencies,
+  modulesFile: Modules | null,
   pendingBuilds: string[],
   pkg: PackageJson,
   prefix: string,
@@ -61,20 +62,12 @@ export default async function getContext (
 ): Promise<PnpmContext> {
   const storePath = opts.store
 
-  const importerModulesDir = await realNodeModulesDir(opts.prefix)
-
-  const modules = await readModulesYaml(importerModulesDir)
-    || opts.shrinkwrapDirectory && await readModulesYaml(path.join(opts.shrinkwrapDirectory, 'node_modules'))
-
-  if (opts.shrinkwrapDirectory && modules && modules.shrinkwrapDirectory && modules.shrinkwrapDirectory !== opts.shrinkwrapDirectory) {
-    throw new PnpmError(
-      'ERR_PNPM_SHRINKWRAP_DIRECTORY_MISMATCH',
-      `Cannot use shrinkwrap direcory "${opts.shrinkwrapDirectory}". Next directory is already used for the current node_modules: "${modules.shrinkwrapDirectory}".`,
-    )
-  }
-
-  const shrinkwrapDirectory = modules && modules.shrinkwrapDirectory || opts.shrinkwrapDirectory || opts.prefix
+  const shrinkwrapDirectory = opts.shrinkwrapDirectory || opts.prefix
   const virtualStoreDir = await realNodeModulesDir(shrinkwrapDirectory)
+  const modules = await readModulesYaml(virtualStoreDir)
+
+  const importerModulesDir = await realNodeModulesDir(opts.prefix)
+  const importerPath = getImporterPath(shrinkwrapDirectory, opts.prefix)
 
   if (modules) {
     try {
@@ -92,8 +85,8 @@ export default async function getContext (
           + ' You must remove that option, or else add the --force option to recreate the "node_modules" folder.',
         )
       }
-      if (Boolean(modules.shamefullyFlatten) !== opts.shamefullyFlatten) {
-        if (modules.shamefullyFlatten) {
+      if (modules.importers && modules.importers[importerPath] && Boolean(modules.importers[importerPath].shamefullyFlatten) !== opts.shamefullyFlatten) {
+        if (modules.importers[importerPath].shamefullyFlatten) {
           throw new PnpmError(
             'ERR_PNPM_SHAMEFULLY_FLATTEN_WANTED',
             'This "node_modules" folder was created using the --shamefully-flatten option.'
@@ -136,12 +129,12 @@ export default async function getContext (
     mkdirp(storePath),
   ])
   const pkg = files[0] || {} as PackageJson
-  const importerPath = getImporterPath(shrinkwrapDirectory, opts.prefix)
   const ctx: PnpmContext = {
-    hoistedAliases: modules && modules.hoistedAliases || {},
+    hoistedAliases: modules && modules.importers[importerPath] && modules.importers[importerPath].hoistedAliases || {},
     importerModulesDir,
     importerPath,
     include: opts.include || modules && modules.included || { dependencies: true, devDependencies: true, optionalDependencies: true },
+    modulesFile: modules,
     pendingBuilds: modules && modules.pendingBuilds || [],
     pkg: opts.hooks && opts.hooks.readPackage ? opts.hooks.readPackage(pkg) : pkg,
     prefix: opts.prefix,

@@ -4,7 +4,12 @@ import tempy = require('tempy')
 
 test('write() and read()', async (t) => {
   const modulesYaml = {
-    hoistedAliases: {},
+    importers: {
+      '.': {
+        hoistedAliases: {},
+        shamefullyFlatten: false,
+      },
+    },
     included: {
       devDependencies: true,
       dependencies: true,
@@ -14,12 +19,11 @@ test('write() and read()', async (t) => {
     layoutVersion: 1,
     packageManager: 'pnpm@2',
     pendingBuilds: [],
-    shamefullyFlatten: false,
     skipped: [],
     store: '/.pnpm-store',
   }
   const tempDir = tempy.directory()
-  await write(tempDir, tempDir, modulesYaml)
-  t.deepEqual(await read(tempDir), {...modulesYaml, nodeModulesType: 'dedicated'})
+  await write(tempDir, modulesYaml)
+  t.deepEqual(await read(tempDir), modulesYaml)
   t.end()
 })
