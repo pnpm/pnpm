@@ -36,6 +36,7 @@ import extendOptions, {
 } from './install/extendInstallOptions'
 import save, { guessDependencyType } from './save'
 import getPref from './utils/getPref'
+import fs from 'fs'
 
 export default async function link (
   linkFromPkgs: Array<{alias: string, path: string} | string>,
@@ -209,13 +210,17 @@ async function linkToModules (
     prefix: string,
   },
 ) {
-  const dest = path.join(opts.destModulesDir, opts.alias)
-  const {reused} = await symlinkDir(opts.packageDir, dest)
+
+  const destModulesDirReal = fs.realpathSync(opts.destModulesDir)
+  const packageDirReal = fs.realpathSync(opts.packageDir)
+
+  const dest = path.join(destModulesDirReal, opts.alias)
+  const {reused} = await symlinkDir(packageDirReal, dest)
   if (reused) return // if the link was already present, don't log
   rootLogger.debug({
     added: {
       dependencyType: opts.saveType && DEP_TYPE_BY_DEPS_FIELD_NAME[opts.saveType] as DependencyType,
-      linkedFrom: opts.packageDir,
+      linkedFrom: packageDirReal,
       name: opts.alias,
       realName: opts.pkg.name,
       version: opts.pkg.version,
