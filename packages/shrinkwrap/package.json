@@ -45,7 +45,7 @@
     "ts-node": "6.2.0",
     "tslint": "^5.8.0",
     "typescript": "^3.0.0",
-    "yaml-tag": "github:zkochan/yaml-tag"
+    "yaml-tag": "1.1.0"
   },
   "dependencies": {
     "@pnpm/resolver-base": "^1.0.0",
