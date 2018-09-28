@@ -14,8 +14,9 @@ export async function shamefullyFlattenGraphByShrinkwrap (
   shr: Shrinkwrap,
   importerPath: string,
   opts: {
+    importerModulesDir: string,
     prefix: string,
-    nodeModulesDir: string,
+    virtualStoreDir: string,
   },
 ) {
   if (!shr.packages) return
@@ -31,13 +32,14 @@ export async function shamefullyFlattenGraphByShrinkwrap (
   .filter((nodeId) => nodeId !== null) as string[]
 
    const deps = getDependencies(shr.packages, entryNodes, new Set(), 0, {
-    ...opts,
+    prefix: opts.prefix,
     registry: shr.registry,
+    virtualStoreDir: opts.virtualStoreDir,
   })
 
   return await shamefullyFlattenGraph(deps, shrImporter.specifiers, {
-    baseNodeModules: opts.nodeModulesDir,
     dryRun: false,
+    importerModulesDir: opts.importerModulesDir,
   })
 }
 
@@ -49,7 +51,7 @@ function getDependencies (
   opts: {
     registry: string,
     prefix: string,
-    nodeModulesDir: string,
+    virtualStoreDir: string,
   },
 ): Dependency[] {
   if (depRelPaths.length === 0) return []
@@ -72,7 +74,7 @@ function getDependencies (
 
     const absolutePath = dp.resolve(opts.registry, depRelPath)
     const pkgName = nameVerFromPkgSnapshot(depRelPath, pkgSnapshot).name
-    const modules = path.join(opts.nodeModulesDir, `.${pkgIdToFilename(absolutePath, opts.prefix)}`, 'node_modules')
+    const modules = path.join(opts.virtualStoreDir, `.${pkgIdToFilename(absolutePath, opts.prefix)}`, 'node_modules')
     const peripheralLocation = path.join(modules, pkgName)
     const allDeps = {
       ...pkgSnapshot.dependencies,
@@ -122,7 +124,7 @@ export default async function shamefullyFlattenGraph (
   depNodes: Dependency[],
   currentSpecifiers: {[alias: string]: string},
   opts: {
-    baseNodeModules: string,
+    importerModulesDir: string,
     dryRun: boolean,
   },
 ): Promise<{[alias: string]: string[]}> {
@@ -160,7 +162,7 @@ export default async function shamefullyFlattenGraph (
       // TODO look how it is done in linkPackages
       if (!opts.dryRun) {
         await Promise.all(pkgAliases.map(async (pkgAlias) => {
-          await symlinkDependencyTo(pkgAlias, depNode.peripheralLocation, opts.baseNodeModules)
+          await symlinkDependencyTo(pkgAlias, depNode.peripheralLocation, opts.importerModulesDir)
         }))
       }
     }))

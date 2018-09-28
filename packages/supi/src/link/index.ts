@@ -33,8 +33,8 @@ export default async function linkPackages (
     afterAllResolvedHook?: (shr: Shrinkwrap) => Shrinkwrap,
     force: boolean,
     dryRun: boolean,
-    baseNodeModules: string,
-    shrinkwrapDirectoryNodeModules: string,
+    importerModulesDir: string,
+    virtualStoreDir: string,
     bin: string,
     topParents: Array<{name: string, version: string}>,
     wantedShrinkwrap: Shrinkwrap,
@@ -73,12 +73,12 @@ export default async function linkPackages (
   const resolvePeersResult = await resolvePeers({
     externalShrinkwrap: opts.externalShrinkwrap,
     independentLeaves: opts.independentLeaves,
-    nodeModules: opts.shrinkwrapDirectoryNodeModules,
     pkgGraph,
     prefix: opts.prefix,
     rootNodeIdsByAlias,
     strictPeerDependencies: opts.strictPeerDependencies,
     topParents: opts.topParents,
+    virtualStoreDir: opts.virtualStoreDir,
   })
   const depGraph = resolvePeersResult.depGraph
   if (opts.externalShrinkwrap) {
@@ -130,6 +130,7 @@ export default async function linkPackages (
     bin: opts.bin,
     dryRun: opts.dryRun,
     hoistedAliases: opts.hoistedAliases,
+    importerModulesDir: opts.importerModulesDir,
     importerPath: opts.importerPath,
     newShrinkwrap: newCurrentShrinkwrap,
     oldShrinkwrap: opts.currentShrinkwrap,
@@ -137,6 +138,7 @@ export default async function linkPackages (
     pruneStore: opts.pruneStore,
     shamefullyFlatten: opts.shamefullyFlatten,
     storeController: opts.storeController,
+    virtualStoreDir: opts.virtualStoreDir,
   })
 
   stageLogger.debug('importing_started')
@@ -145,9 +147,9 @@ export default async function linkPackages (
     newCurrentShrinkwrap,
     depGraph,
     {
-      baseNodeModules: opts.baseNodeModules,
       dryRun: opts.dryRun,
       force: opts.force,
+      importerModulesDir: opts.importerModulesDir,
       optional: opts.include.optionalDependencies,
       prefix: opts.prefix,
       sideEffectsCache: opts.sideEffectsCache,
@@ -165,7 +167,7 @@ export default async function linkPackages (
   for (const rootAlias of R.keys(resolvePeersResult.rootAbsolutePathsByAlias)) {
     const pkg = rootDepsByDepPath[resolvePeersResult.rootAbsolutePathsByAlias[rootAlias]]
     if (!pkg) continue
-    if (opts.dryRun || !(await symlinkDependencyTo(rootAlias, pkg.peripheralLocation, opts.baseNodeModules)).reused) {
+    if (opts.dryRun || !(await symlinkDependencyTo(rootAlias, pkg.peripheralLocation, opts.importerModulesDir)).reused) {
       const isDev = opts.pkg.devDependencies && opts.pkg.devDependencies[pkg.name]
       const isOptional = opts.pkg.optionalDependencies && opts.pkg.optionalDependencies[pkg.name]
       rootLogger.debug({
@@ -234,7 +236,7 @@ export default async function linkPackages (
   }
 
   if (!opts.dryRun) {
-    await linkBins(opts.baseNodeModules, opts.bin, {
+    await linkBins(opts.importerModulesDir, opts.bin, {
       warn: (message: string) => logger.warn({message, prefix: opts.prefix}),
     })
   }
@@ -290,7 +292,7 @@ async function linkNewPackages (
   wantedShrinkwrap: Shrinkwrap,
   depGraph: DepGraphNodesByDepPath,
   opts: {
-    baseNodeModules: string,
+    importerModulesDir: string,
     dryRun: boolean,
     force: boolean,
     optional: boolean,

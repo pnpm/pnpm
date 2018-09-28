@@ -24,7 +24,7 @@ export default async (
     sideEffectsCache: boolean,
     sideEffectsCacheReadonly: boolean,
     storeController: StoreController,
-    nodeModulesDir: string,
+    rootNodeModulesDir: string,
   },
 ) => {
   // postinstall hooks
@@ -57,7 +57,7 @@ export default async (
               pkgRoot: depNode.peripheralLocation,
               prepare: depNode.prepare,
               rawNpmConfig: opts.rawNpmConfig,
-              rootNodeModulesDir: opts.nodeModulesDir,
+              rootNodeModulesDir: opts.rootNodeModulesDir,
               unsafePerm: opts.unsafePerm || false,
             })
             if (hasSideEffects && opts.sideEffectsCache && !opts.sideEffectsCacheReadonly) {

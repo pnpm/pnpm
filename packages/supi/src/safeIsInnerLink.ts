@@ -6,7 +6,7 @@ import fs = require('mz/fs')
 import path = require('path')
 
 export default async function safeIsInnerLink (
-  modules: string,
+  importerModulesDir: string,
   depName: string,
   opts: {
     hideAlienModules: boolean,
@@ -15,7 +15,7 @@ export default async function safeIsInnerLink (
   },
 ): Promise<true | string> {
   try {
-    const link = await isInnerLink(modules, depName)
+    const link = await isInnerLink(importerModulesDir, depName)
 
     if (link.isInner) return true
 
@@ -30,10 +30,10 @@ export default async function safeIsInnerLink (
         message: `Moving ${depName} that was installed by a different package manager to "node_modules/.ignored`,
         prefix: opts.prefix,
       })
-      const ignoredDir = path.join(modules, '.ignored', depName)
+      const ignoredDir = path.join(importerModulesDir, '.ignored', depName)
       await mkdirp(path.dirname(ignoredDir))
       await fs.rename(
-        path.join(modules, depName),
+        path.join(importerModulesDir, depName),
         ignoredDir,
       )
     }

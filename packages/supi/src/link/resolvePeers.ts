@@ -75,7 +75,7 @@ export default function (
     // to avoid warnings about unresolved peer dependencies
     topParents: Array<{name: string, version: string}>,
     independentLeaves: boolean,
-    nodeModules: string,
+    virtualStoreDir: string,
     prefix: string, // is only needed for logging
     strictPeerDependencies: boolean,
     externalShrinkwrap: boolean,
@@ -112,11 +112,11 @@ export default function (
     depGraph,
     externalShrinkwrap: opts.externalShrinkwrap,
     independentLeaves: opts.independentLeaves,
-    nodeModules: opts.nodeModules,
     pkgGraph: opts.pkgGraph,
     prefix: opts.prefix,
     purePkgs: new Set(),
     strictPeerDependencies: opts.strictPeerDependencies,
+    virtualStoreDir: opts.virtualStoreDir,
   })
 
   R.values(depGraph).forEach((node) => {
@@ -142,7 +142,7 @@ function resolvePeersOfNode (
     absolutePathsByNodeId: {[nodeId: string]: string},
     depGraph: DepGraphNodesByDepPath,
     independentLeaves: boolean,
-    nodeModules: string,
+    virtualStoreDir: string,
     purePkgs: Set<string>, // pure packages are those that don't rely on externally resolved peers
     prefix: string,
     strictPeerDependencies: boolean,
@@ -180,7 +180,7 @@ function resolvePeersOfNode (
 
   let modules: string
   let absolutePath: string
-  const localLocation = path.join(ctx.nodeModules, `.${pkgIdToFilename(node.pkg.id, ctx.prefix)}`)
+  const localLocation = path.join(ctx.virtualStoreDir, `.${pkgIdToFilename(node.pkg.id, ctx.prefix)}`)
   const isPure = R.isEmpty(allResolvedPeers)
   if (isPure) {
     modules = path.join(localLocation, 'node_modules')
@@ -244,7 +244,7 @@ function resolvePeersOfChildren (
   ctx: {
     absolutePathsByNodeId: {[nodeId: string]: string},
     independentLeaves: boolean,
-    nodeModules: string,
+    virtualStoreDir: string,
     purePkgs: Set<string>,
     depGraph: DepGraphNodesByDepPath,
     pkgGraph: PkgGraphNodeByNodeId,
