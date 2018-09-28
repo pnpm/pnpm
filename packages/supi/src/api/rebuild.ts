@@ -131,14 +131,20 @@ export async function rebuild (maybeOpts: RebuildOptions) {
     ctx.pendingBuilds.splice(ctx.pendingBuilds.indexOf(ctx.importerPath), 1)
   }
 
-  await writeModulesYaml(ctx.virtualStoreDir, ctx.importerModulesDir, {
-    hoistedAliases: ctx.hoistedAliases,
+  await writeModulesYaml(ctx.virtualStoreDir, {
+    ...ctx.modulesFile,
+    importers: {
+      ...ctx.modulesFile && ctx.modulesFile.importers,
+      [ctx.importerPath]: {
+        hoistedAliases: ctx.hoistedAliases,
+        shamefullyFlatten: opts.shamefullyFlatten,
+      },
+    },
     included: ctx.include,
     independentLeaves: opts.independentLeaves,
     layoutVersion: LAYOUT_VERSION,
     packageManager: `${opts.packageManager.name}@${opts.packageManager.version}`,
     pendingBuilds: ctx.pendingBuilds,
-    shamefullyFlatten: opts.shamefullyFlatten,
     skipped: Array.from(ctx.skipped),
     store: ctx.storePath,
   })

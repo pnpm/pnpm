@@ -56,7 +56,7 @@ test('should reflatten when uninstalling a package', async (t) => {
 
   const modules = await project.loadModules()
   t.ok(modules)
-  t.deepEqual(modules!.hoistedAliases['localhost+4873/debug/2.6.9'], ['debug'], 'new hoisted debug added to .modules.yaml')
+  t.deepEqual(modules!.importers['.'].hoistedAliases['localhost+4873/debug/2.6.9'], ['debug'], 'new hoisted debug added to .modules.yaml')
 })
 
 test('should reflatten after running a general install', async (t) => {
@@ -136,7 +136,7 @@ test('flatten by alias', async (t: tape.Test) => {
 
   const modules = await project.loadModules()
   t.ok(modules)
-  t.deepEqual(modules!.hoistedAliases, {'localhost+4873/dep-of-pkg-with-1-dep/100.1.0': [ 'dep' ]}, '.modules.yaml updated correctly')
+  t.deepEqual(modules!.importers['.'].hoistedAliases, {'localhost+4873/dep-of-pkg-with-1-dep/100.1.0': [ 'dep' ]}, '.modules.yaml updated correctly')
 })
 
 test('should remove aliased flattened dependencies', async (t) => {
@@ -157,7 +157,7 @@ test('should remove aliased flattened dependencies', async (t) => {
 
   const modules = await project.loadModules()
   t.ok(modules)
-  t.deepEqual(modules!.hoistedAliases, {}, '.modules.yaml updated correctly')
+  t.deepEqual(modules!.importers['.'].hoistedAliases, {}, '.modules.yaml updated correctly')
 })
 
 test('should update .modules.yaml when pruning if we are flattening', async (t) => {
@@ -175,7 +175,7 @@ test('should update .modules.yaml when pruning if we are flattening', async (t) 
 
   const modules = await project.loadModules()
   t.ok(modules)
-  t.deepEqual(modules!.hoistedAliases, {}, '.modules.yaml updated correctly')
+  t.deepEqual(modules!.importers['.'].hoistedAliases, {}, '.modules.yaml updated correctly')
 })
 
 test('should reflatten after pruning', async (t) => {

@@ -106,7 +106,15 @@ export default async (opts: HeadlessOptions) => {
   const importerModulesDir = await realNodeModulesDir(opts.prefix)
   const modules = await readModulesYaml(importerModulesDir) ||
     virtualStoreDir !== importerModulesDir && await readModulesYaml(virtualStoreDir) ||
-    {pendingBuilds: [] as string[], hoistedAliases: {}}
+    {
+      importers: {
+        [importerPath]: {
+          hoistedAliases: {},
+          shamefullyFlatten: false, // shamefully flatten is not supported yet by headless install
+        },
+      },
+      pendingBuilds: [] as string[],
+    }
 
   const pkg = opts.packageJson || await readPackageFromDir(opts.prefix)
 
@@ -143,7 +151,7 @@ export default async (opts: HeadlessOptions) => {
     await removeOrphanPkgs({
       bin,
       dryRun: false,
-      hoistedAliases: modules && modules.hoistedAliases || {},
+      hoistedAliases: modules && modules.importers[importerPath] && modules.importers[importerPath].hoistedAliases || {},
       importerModulesDir,
       importerPath,
       newShrinkwrap: filteredShrinkwrap,
@@ -206,14 +214,13 @@ export default async (opts: HeadlessOptions) => {
           .map((node) => node.relDepPath),
       )
   }
-  await writeModulesYaml(virtualStoreDir, importerModulesDir, {
-    hoistedAliases: {},
+  await writeModulesYaml(virtualStoreDir, {
+    ...modules,
     included: opts.include,
     independentLeaves: !!opts.independentLeaves,
     layoutVersion: LAYOUT_VERSION,
     packageManager: `${opts.packageManager.name}@${opts.packageManager.version}`,
     pendingBuilds: modules.pendingBuilds,
-    shamefullyFlatten: false,
     skipped: [],
     store: opts.store,
   })

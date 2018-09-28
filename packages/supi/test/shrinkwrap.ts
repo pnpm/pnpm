@@ -27,7 +27,7 @@ import {
 } from './utils'
 
 const test = promisifyTape(tape)
-test['only'] = promisifyTape(tape.only) // tslint:disable-line:no-string-literal
+const testOnly = promisifyTape(tape.only)
 test['skip'] = promisifyTape(tape.skip) // tslint:disable-line:no-string-literal
 
 const SHRINKWRAP_WARN_LOG = {
@@ -938,15 +938,13 @@ test('shrinkwrap file has correct format when shrinkwrap directory does not equa
   await installPkgs(['pkg-with-1-dep', '@rstacruz/tap-spec@4.1.1', 'kevva/is-negative#1d7e288222b53a0cab90a331f1865220ec29560c'],
     await testDefaults({save: true, shrinkwrapDirectory: path.resolve('..')}))
 
-  const proxyModules = await project.loadModules()
-  t.ok(proxyModules, '.modules.yaml for proxy node_modules created')
-  t.equal(proxyModules!.shamefullyFlatten, false)
+  t.ok(!await exists('node_modules/.modules.yaml'), ".modules.yaml in importer's node_modules not created")
 
   process.chdir('..')
 
-  const sharedModules = await loadYamlFile(path.resolve('node_modules', '.modules.yaml'))
-  t.ok(sharedModules, '.modules.yaml for shared node_modules created')
-  t.equal(sharedModules!['pendingBuilds'].length, 0) // tslint:disable-line:no-string-literal
+  const modules = await loadYamlFile(path.resolve('node_modules', '.modules.yaml'))
+  t.ok(modules, '.modules.yaml in virtual store directory created')
+  t.equal(modules!['pendingBuilds'].length, 0) // tslint:disable-line:no-string-literal
 
   {
     const shr = await loadYamlFile('shrinkwrap.yaml') as Shrinkwrap

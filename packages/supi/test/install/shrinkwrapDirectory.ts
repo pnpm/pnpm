@@ -7,8 +7,9 @@ import { prepare, testDefaults } from '../utils'
 
 const test = promisifyTape(tape)
 const testOnly = promisifyTape(tape.only)
+const testSkip = promisifyTape(tape.skip)
 
-test('subsequent installation uses same shrinkwrap directory by default', async (t: tape.Test) => {
+testSkip('subsequent installation uses same shrinkwrap directory by default', async (t: tape.Test) => {
   const project = prepare(t)
 
   await installPkgs(['is-positive@1.0.0'], await testDefaults({shrinkwrapDirectory: path.resolve('..')}))
@@ -20,7 +21,7 @@ test('subsequent installation uses same shrinkwrap directory by default', async 
   t.deepEqual(Object.keys(shr['packages']), ['/is-negative/1.0.0', '/is-positive/1.0.0']) // tslint:disable-line:no-string-literal
 })
 
-test('subsequent installation fails if a different shrinkwrap directory is specified', async (t: tape.Test) => {
+testSkip('subsequent installation fails if a different shrinkwrap directory is specified', async (t: tape.Test) => {
   const project = prepare(t)
 
   await installPkgs(['is-positive@1.0.0'], await testDefaults({shrinkwrapDirectory: path.resolve('..')}))

@@ -1,6 +1,7 @@
 import fs = require('mz/fs')
 import isCI = require('is-ci')
 import isWindows = require('is-windows')
+import loadYamlFile = require('load-yaml-file')
 import tape = require('tape')
 import promisifyTape from 'tape-promise'
 import path = require('path')
@@ -15,6 +16,7 @@ import {
 import mkdirp = require('mkdirp-promise')
 
 const test = promisifyTape(tape)
+const testOnly = promisifyTape(tape.only)
 
 test('recursive install/uninstall', async (t: tape.Test) => {
   const projects = preparePackages(t, [
@@ -156,10 +158,10 @@ test('recursive installation with package-specific .npmrc', async t => {
   t.ok(projects['project-1'].requireModule('is-positive'))
   t.ok(projects['project-2'].requireModule('is-negative'))
 
-  const modulesYaml1 = await projects['project-1'].loadModules()
+  const modulesYaml1 = await loadYamlFile<any>(path.resolve('project-1', 'node_modules', '.modules.yaml'))
   t.ok(modulesYaml1 && modulesYaml1.shamefullyFlatten)
 
-  const modulesYaml2 = await projects['project-2'].loadModules()
+  const modulesYaml2 = await loadYamlFile<any>(path.resolve('project-2', 'node_modules', '.modules.yaml'))
   t.notOk(modulesYaml2 && modulesYaml2.shamefullyFlatten)
 })
 
@@ -190,7 +192,7 @@ test('workspace .npmrc is always read', async (t: tape.Test) => {
 
   t.ok(projects['project-1'].requireModule('is-positive'))
 
-  const modulesYaml1 = await projects['project-1'].loadModules()
+  const modulesYaml1 = await loadYamlFile<any>(path.resolve('node_modules', '.modules.yaml'))
   t.ok(modulesYaml1 && modulesYaml1.shamefullyFlatten)
 
   process.chdir('..')
@@ -200,7 +202,7 @@ test('workspace .npmrc is always read', async (t: tape.Test) => {
 
   t.ok(projects['project-2'].requireModule('is-negative'))
 
-  const modulesYaml2 = await projects['project-2'].loadModules()
+  const modulesYaml2 = await loadYamlFile<any>(path.resolve('node_modules', '.modules.yaml'))
   t.ok(modulesYaml2 && modulesYaml2.shamefullyFlatten === false)
 })
 
