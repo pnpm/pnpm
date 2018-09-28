@@ -30,11 +30,19 @@ export default async (
   const storeController = await connectStoreController(serverJson.connectionOptions)
   await storeController.stop()
 
-  if (!await processExists(serverJson.pid) || await delay(5000) && !await processExists(serverJson.pid)) {
+  if (await serverGracefullyStops(serverJson.pid)) {
     storeLogger.info('Server gracefully stopped')
     return
   }
   storeLogger.warn('Graceful shutdown failed')
   await kill(serverJson.pid, 'SIGINT')
   storeLogger.info('Server process terminated')
+}
+
+async function serverGracefullyStops (pid: number) {
+  if (!await processExists(pid)) return true
+
+  await delay(5000)
+
+  return !await processExists(pid)
 }

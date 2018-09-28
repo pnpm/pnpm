@@ -43,7 +43,7 @@
     "rimraf-then": "^1.0.1",
     "sinon": "^6.0.0",
     "tape": "^4.8.0",
-    "tape-promise": "^2.0.1 || 3",
+    "tape-promise": "4",
     "tempy": "^0.2.1",
     "ts-node": "^6.2.0",
     "tslint": "^5.4.2",

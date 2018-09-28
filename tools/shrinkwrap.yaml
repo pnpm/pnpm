@@ -2,7 +2,7 @@ dependencies:
   '@commitlint/cli': 7.1.2
   '@commitlint/config-conventional': 7.1.2
   '@commitlint/prompt-cli': 7.1.2
-  husky: 1.0.0-rc.15
+  husky: 1.0.1
 packages:
   /@commitlint/cli/7.1.2:
     dependencies:
@@ -344,6 +344,7 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha512-QUU4ofkDoMIVO7hcx1iPTISs88wsO8jA92RQIm4JAwZvFGGAV2hSAA1NX7oVj2Ej2Q6NDTcRDjPTFrMCRZoJ6g==
+      tarball: 'http://registry.npmjs.org/chalk/-/chalk-2.3.1.tgz'
   /chalk/2.4.1:
     dependencies:
       ansi-styles: 3.2.1
@@ -648,7 +649,7 @@ packages:
     dev: false
     resolution:
       integrity: sha512-7T/BxH19zbcCTa8XkMlbK5lTo1WtgkFi3GvdWEyNuc4Vex7/9Dqbnpsf4JMydcfj9HCg4zUWFTL3Za6lapg5/w==
-  /husky/1.0.0-rc.15:
+  /husky/1.0.1:
     dependencies:
       cosmiconfig: 5.0.6
       execa: 0.9.0
@@ -666,7 +667,7 @@ packages:
     hasBin: true
     requiresBuild: true
     resolution:
-      integrity: sha512-JTZhkESlc4r1YFilvGgpbEC6wkFZdi1Sm/Haa1TiMFPHOErMUBlpScrIlgN0ttXO9EBYJyanL5WF+lwCtorrZw==
+      integrity: sha512-MxwLwwwgY7mqV4auSpGWKPTCkZ9RmsdGojQQBvRtr6vxnjSOyI5l/M58QdUz0vRKb0igTpbzBeoUsScx4XJwQg==
   /in-publish/2.0.0:
     dev: false
     hasBin: true
@@ -730,6 +731,7 @@ packages:
       node: '>=0.10.0'
     resolution:
       integrity: sha1-VAVy0096wxGfj3bDDLwbHgN6/74=
+      tarball: 'http://registry.npmjs.org/is-builtin-module/-/is-builtin-module-1.0.0.tgz'
   /is-ci/1.2.1:
     dependencies:
       ci-info: 1.6.0
@@ -765,6 +767,7 @@ packages:
       node: '>=0.10.0'
     resolution:
       integrity: sha1-PkcprB9f3gJc19g6iW2rn09n2w8=
+      tarball: 'http://registry.npmjs.org/is-obj/-/is-obj-1.0.1.tgz'
   /is-plain-obj/1.1.0:
     dev: false
     engines:
@@ -827,6 +830,7 @@ packages:
       node: '>=0.10.0'
     resolution:
       integrity: sha1-lWkFcI1YtLq0wiYbBPWfMcmTdMA=
+      tarball: 'http://registry.npmjs.org/load-json-file/-/load-json-file-1.1.0.tgz'
   /load-json-file/4.0.0:
     dependencies:
       graceful-fs: 4.1.11
@@ -1032,6 +1036,7 @@ packages:
     dev: false
     resolution:
       integrity: sha1-o1AIsg9BOD7sH7kU9M1d95omQoQ=
+      tarball: 'http://registry.npmjs.org/minimist/-/minimist-1.2.0.tgz'
   /mkdirp/0.5.1:
     dependencies:
       minimist: 0.0.8
@@ -1325,6 +1330,7 @@ packages:
     dev: false
     resolution:
       integrity: sha512-tQtKA9WIAhBF3+VLAseyMqZeBjW0AHJoxOtYqSUZNJxauErmLbVm2FW1y+J/YA9dUrAC39ITejlZWhVIwawkKw==
+      tarball: 'http://registry.npmjs.org/readable-stream/-/readable-stream-2.3.6.tgz'
   /readline2/1.0.1:
     dependencies:
       code-point-at: 1.1.0
@@ -1477,13 +1483,13 @@ packages:
       node: '>=6'
     resolution:
       integrity: sha512-ZYKh3Wh2z1PpEXWr0MpSBZ0V6mZHAQfYevttO11c51CaWjGTaadiKZ+wVt1PbMlDV5qhMFslpZCemhwOK7C89A==
-  /spdx-correct/3.0.0:
+  /spdx-correct/3.0.1:
     dependencies:
       spdx-expression-parse: 3.0.0
       spdx-license-ids: 3.0.1
     dev: false
     resolution:
-      integrity: sha512-N19o9z5cEyc8yQQPukRCZ9EUmb4HUpnrmaL/fxS2pBo2jbfcFRVuFZ/oFC+vZz0MNNk0h80iMn5/S6qGZOL5+g==
+      integrity: sha512-hxSPZbRZvSDuOvADntOElzJpenIR7wXJkuoUcUtS0erbgt2fgeaoPIYretfKpslMhfFDY4k0MZ2F5CUzhBsSvQ==
   /spdx-exceptions/2.1.0:
     dev: false
     resolution:
@@ -1596,6 +1602,7 @@ packages:
     dev: false
     resolution:
       integrity: sha1-DdTJ/6q8NXlgsbckEV1+Doai4fU=
+      tarball: 'http://registry.npmjs.org/through/-/through-2.3.8.tgz'
   /through2/2.0.3:
     dependencies:
       readable-stream: 2.3.6
@@ -1627,7 +1634,7 @@ packages:
       integrity: sha1-RQ1Nyfpw3nMnYvvS1KKJgUGaDM8=
   /validate-npm-package-license/3.0.4:
     dependencies:
-      spdx-correct: 3.0.0
+      spdx-correct: 3.0.1
       spdx-expression-parse: 3.0.0
     dev: false
     resolution:
