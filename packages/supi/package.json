@@ -108,7 +108,7 @@
     "sepia": "^2.0.2",
     "sinon": "^6.0.0",
     "tape": "^4.8.0",
-    "tape-promise": "^3.0.0",
+    "tape-promise": "^4.0.0",
     "ts-node": "^6.2.0",
     "tslint": "^5.4.2",
     "typescript": "^3.0.0",
