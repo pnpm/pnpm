@@ -2131,6 +2131,7 @@ packages:
     hasBin: true
     resolution:
       integrity: sha1-JfSOoiynkYfzF0pNuHWTR7sSYiA=
+      tarball: 'http://registry.npmjs.org/strip-ansi/-/strip-ansi-0.3.0.tgz'
   /strip-ansi/3.0.1:
     dependencies:
       ansi-regex: 2.1.1
@@ -2139,6 +2140,7 @@ packages:
       node: '>=0.10.0'
     resolution:
       integrity: sha1-ajhfuIU9lS1f8F0Oiq+UJ43GPc8=
+      tarball: 'http://registry.npmjs.org/strip-ansi/-/strip-ansi-3.0.1.tgz'
   /strip-bom/2.0.0:
     dependencies:
       is-utf8: 0.2.1
@@ -2401,6 +2403,7 @@ packages:
     dev: true
     resolution:
       integrity: sha1-Z+LoY3lyFVMN/zGOW/nc6/1Hsho=
+      tarball: 'http://registry.npmjs.org/uuid/-/uuid-2.0.3.tgz'
   /validate-npm-package-license/3.0.4:
     dependencies:
       spdx-correct: 3.0.1

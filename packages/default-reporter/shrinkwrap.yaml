@@ -12,7 +12,6 @@ dependencies:
   common-tags: 1.8.0
   most: 1.7.3
   normalize-path: 3.0.0
-  pnpm-default-reporter: 'link:'
   pretty-bytes: 5.1.0
   ramda: 0.25.0
   right-pad: 1.0.1
@@ -20,7 +19,7 @@ dependencies:
   stacktracey: 1.2.106
   string-length: 2.0.0
   string.prototype.padstart: 3.0.0
-  strip-ansi: 4.0.0
+  strip-ansi: 5.0.0
   zen-push: 0.2.1
 devDependencies:
   '@pnpm/logger': 2.1.0
@@ -162,6 +161,12 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha1-7QMXwyIGT3lGbAKWa922Bas32Zg=
+  /ansi-regex/4.0.0:
+    dev: false
+    engines:
+      node: '>=6'
+    resolution:
+      integrity: sha512-iB5Dda8t/UqpPI/IjsejXu5jOGDrzn41wJyljwPH65VCIbk6+1BzFIMJGFwTNrYXT1CrD+B4l19U7awiQ8rk7w==
   /ansi-split/1.0.1:
     dependencies:
       ansi-regex: 3.0.0
@@ -1568,6 +1573,7 @@ packages:
     hasBin: true
     resolution:
       integrity: sha1-JfSOoiynkYfzF0pNuHWTR7sSYiA=
+      tarball: 'http://registry.npmjs.org/strip-ansi/-/strip-ansi-0.3.0.tgz'
   /strip-ansi/3.0.1:
     dependencies:
       ansi-regex: 2.1.1
@@ -1576,6 +1582,7 @@ packages:
       node: '>=0.10.0'
     resolution:
       integrity: sha1-ajhfuIU9lS1f8F0Oiq+UJ43GPc8=
+      tarball: 'http://registry.npmjs.org/strip-ansi/-/strip-ansi-3.0.1.tgz'
   /strip-ansi/4.0.0:
     dependencies:
       ansi-regex: 3.0.0
@@ -1584,6 +1591,14 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha1-qEeQIusaw2iocTibY1JixQXuNo8=
+  /strip-ansi/5.0.0:
+    dependencies:
+      ansi-regex: 4.0.0
+    dev: false
+    engines:
+      node: '>=6'
+    resolution:
+      integrity: sha512-Uu7gQyZI7J7gn5qLn1Np3G9vcYGTVqB+lFTytnDJv83dd8T22aGH451P3jueT2/QemInJDfxHB5Tde5OzgG1Ow==
   /strip-bom/3.0.0:
     dev: true
     engines:
@@ -1904,7 +1919,7 @@ specifiers:
   stacktracey: 1.2.106
   string-length: 2.0.0
   string.prototype.padstart: 3.0.0
-  strip-ansi: 4.0.0
+  strip-ansi: 5.0.0
   supi: 0.24.10
   tape: ^4.8.0
   ts-node: ^6.2.0
