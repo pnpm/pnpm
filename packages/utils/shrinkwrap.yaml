@@ -4,7 +4,7 @@ dependencies:
   '@pnpm/read-package-json': 1.0.0
   '@pnpm/types': 1.8.0
   '@types/mz': 0.0.32
-  '@types/node': 10.11.2
+  '@types/node': 10.11.3
   '@types/ramda': 0.25.34
   dependency-path: 2.0.0
   fs-vacuum: 1.2.10
@@ -22,7 +22,7 @@ devDependencies:
 packages:
   /@pnpm/logger/2.1.0:
     dependencies:
-      '@types/node': 10.11.2
+      '@types/node': 10.11.3
       bole: 3.0.2
       ndjson: 1.5.0
     dev: true
@@ -57,13 +57,13 @@ packages:
       integrity: sha512-NsEzBVa5aMgn/n79piyJtpUQFzJ97tB2R2r8PSJlLnMA6LJmchKuv7ATN+/nZH/3QRd/+uFXEq07/i/ajsqVGQ==
   /@types/mz/0.0.32:
     dependencies:
-      '@types/node': 10.11.2
+      '@types/node': 10.11.3
     dev: false
     resolution:
       integrity: sha512-cy3yebKhrHuOcrJGkfwNHhpTXQLgmXSv1BX+4p32j+VUQ6aP2eJ5cL7OvGcAQx75fCTFaAIIAKewvqL+iwSd4g==
-  /@types/node/10.11.2:
+  /@types/node/10.11.3:
     resolution:
-      integrity: sha512-XubfQDIg88PGJ7netQPf3QOKHF7Xht4WXGtg5W7cGBeQs9ETbYKwfchR9o+tRRA9iLTQ7nAre85M205JbYsjJA==
+      integrity: sha512-3AvcEJAh9EMatxs+OxAlvAEs7OTy6AG94mcH1iqyVDwVVndekLxzwkWQ/Z4SDbY6GO2oyUXyWW8tQ4rENSSQVQ==
   /@types/ramda/0.25.34:
     dev: false
     resolution:

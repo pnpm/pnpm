@@ -81,7 +81,7 @@
     "util.promisify": "1.0.0"
   },
   "devDependencies": {
-    "@pnpm/assert-project": "^1.1.1",
+    "@pnpm/assert-project": "link:../../privatePackages/assert-project",
     "@pnpm/modules-yaml": "^1.0.0",
     "@pnpm/read-package-json": "^1.0.0",
     "@types/byline": "^4.2.31",

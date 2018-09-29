@@ -1,0 +1,62 @@
+{
+  "name": "@pnpm/assert-project",
+  "description": "Utils for testing projects that use pnpm",
+  "version": "2.0.0",
+  "author": {
+    "name": "Zoltan Kochan",
+    "email": "z@kochan.io",
+    "url": "https://www.kochan.io/"
+  },
+  "bugs": {
+    "url": "https://github.com/pnpm/pnpm/issues"
+  },
+  "private": true,
+  "main": "lib/index.js",
+  "typings": "lib/index.d.ts",
+  "files": [
+    "lib/"
+  ],
+  "devDependencies": {
+    "package-preview": "^1.0.0",
+    "rimraf": "^2.6.2",
+    "ts-node": "^7.0.1",
+    "tslint": "^5.4.2",
+    "typescript": "^3.1.1"
+  },
+  "directories": {
+    "test": "test"
+  },
+  "homepage": "https://github.com/pnpm/pnpm/blob/master/privatePackages/assert-project#readme",
+  "keywords": [],
+  "license": "MIT",
+  "engines": {
+    "node": ">=6"
+  },
+  "repository": "https://github.com/pnpm/pnpm/blob/master/privatePackages/assert-project",
+  "scripts": {
+    "commit": "commit",
+    "commitmsg": "commitlint -e",
+    "lint": "tslint -c tslint.json --project .",
+    "lint-test": "tslint -c tslint.json --project test",
+    "tsc": "rimraf lib && tsc",
+    "prepublishOnly": "npm run tsc",
+    "pretest": "pnpm i --prefix test/fixture/project --force",
+    "test": "npm run lint && npm run lint-test && preview && ts-node test"
+  },
+  "dependencies": {
+    "@pnpm/modules-yaml": "^1.0.0",
+    "@types/mz": "^0.0.32",
+    "@types/node": "^10.11.3",
+    "@types/path-exists": "^3.0.0",
+    "@types/tape": "^4.2.32",
+    "@types/write-pkg": "^3.1.0",
+    "is-windows": "^1.0.2",
+    "isexe": "^2.0.0",
+    "load-yaml-file": "^0.1.0",
+    "mz": "^2.7.0",
+    "path-exists": "^3.0.0",
+    "tape": "^4.9.0",
+    "util.promisify": "^1.0.0",
+    "write-pkg": "^3.1.0"
+  }
+}

@@ -1,6 +1,8 @@
 packages:
   - tools/**
   - packages/**
+  - privatePackages/**
+  - "!**/store/**"
   - "!**/test/**"
   - "!**/__package_previews__/**"
   - "!packages/dependencies-hierarchy/example/**"

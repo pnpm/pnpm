@@ -1,6 +1,6 @@
 dependencies:
   '@types/archy': 0.0.31
-  '@types/node': 10.11.2
+  '@types/node': 10.11.3
   '@types/ramda': 0.25.38
   archy: 1.0.0
   chalk: 2.4.1
@@ -25,7 +25,7 @@ devDependencies:
 packages:
   /@pnpm/logger/2.1.0:
     dependencies:
-      '@types/node': 10.11.2
+      '@types/node': 10.11.3
       bole: 3.0.2
       ndjson: 1.5.0
     dev: true
@@ -41,16 +41,16 @@ packages:
     dev: true
     resolution:
       integrity: sha512-HI1tSO87vmd1sPS3DOVSK4gvVKROvCBFvAnXlLiQtAus/+1xXMQcNyu9TX2ChwRXFeQZeB9+f+nMo99xLd5DdA==
-  /@types/node/10.11.2:
+  /@types/node/10.11.3:
     resolution:
-      integrity: sha512-XubfQDIg88PGJ7netQPf3QOKHF7Xht4WXGtg5W7cGBeQs9ETbYKwfchR9o+tRRA9iLTQ7nAre85M205JbYsjJA==
+      integrity: sha512-3AvcEJAh9EMatxs+OxAlvAEs7OTy6AG94mcH1iqyVDwVVndekLxzwkWQ/Z4SDbY6GO2oyUXyWW8tQ4rENSSQVQ==
   /@types/ramda/0.25.38:
     dev: false
     resolution:
       integrity: sha512-6vkbUF1cg9CIaeZiSvbk6e25rOBbXBXixiZiV4Eai4WgwrmI3wBaH/TKE0tp9JEfzQFrv3eOoI0EjdBJaUfnIQ==
   /@types/tape/4.2.32:
     dependencies:
-      '@types/node': 10.11.2
+      '@types/node': 10.11.3
     dev: true
     resolution:
       integrity: sha512-xil0KO5wkPoixdBWGIGolPv9dekf6dVkjjJLAFYchfKcd4DICou67rgGCIO7wAh3i5Ff/6j9IDgZz+GU9cMaqQ==

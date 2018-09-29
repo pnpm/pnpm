@@ -19,7 +19,7 @@
     "@pnpm/logger": "^2.1.0"
   },
   "devDependencies": {
-    "@pnpm/assert-project": "^1.1.1",
+    "@pnpm/assert-project": "link:../../privatePackages/assert-project",
     "@pnpm/default-fetcher": "^2.0.0",
     "@pnpm/default-resolver": "^2.0.0",
     "@pnpm/logger": "^2.1.0",
