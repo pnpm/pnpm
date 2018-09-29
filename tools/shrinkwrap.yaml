@@ -719,6 +719,7 @@ packages:
     dev: false
     resolution:
       integrity: sha1-dEi/qSQJKvMR1HFzu6uZDK4rsCc=
+      tarball: 'http://registry.npmjs.org/inquirer/-/inquirer-0.11.0.tgz'
   /is-arrayish/0.2.1:
     dev: false
     resolution:
@@ -1539,6 +1540,7 @@ packages:
       node: '>=0.10.0'
     resolution:
       integrity: sha1-ajhfuIU9lS1f8F0Oiq+UJ43GPc8=
+      tarball: 'http://registry.npmjs.org/strip-ansi/-/strip-ansi-3.0.1.tgz'
   /strip-bom/2.0.0:
     dependencies:
       is-utf8: 0.2.1
