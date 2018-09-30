@@ -35,9 +35,9 @@ import {
 import {
   WantedDependency,
 } from '../types'
-import depsToSpecs from './depsToSpecs'
 import encodePkgId from './encodePkgId'
 import getIsInstallable, { nodeIdToParents } from './getIsInstallable'
+import { getNonDevWantedDependencies } from './getWantedDependencies'
 import { InstallContext } from './index'
 import {
   createNodeId,
@@ -610,16 +610,7 @@ async function resolveDependenciesOfPackage (
   },
 ): Promise<PkgAddress[]> {
 
-  const bundledDeps = new Set(pkg.bundleDependencies || pkg.bundledDependencies || [])
-  bundledDeps.add(pkg.name)
-  const filterDeps = getNotBundledDeps.bind(null, bundledDeps)
-  let deps = depsToSpecs(
-    filterDeps({...pkg.optionalDependencies, ...pkg.dependencies}),
-    {
-      devDependencies: {},
-      optionalDependencies: pkg.optionalDependencies || {},
-    },
-  )
+  let deps = getNonDevWantedDependencies(pkg)
   if (opts.hasManifestInShrinkwrap && !deps.length && opts.resolvedDependencies && opts.useManifestInfoFromShrinkwrap) {
     const optionalDependencyNames = opts.optionalDependencyNames || []
     deps = R.keys(opts.resolvedDependencies)
@@ -630,13 +621,4 @@ async function resolveDependenciesOfPackage (
   }
 
   return await resolveDependencies(ctx, deps, opts)
-}
-
-function getNotBundledDeps (bundledDeps: Set<string>, deps: Dependencies) {
-  return Object.keys(deps)
-    .filter((depName) => !bundledDeps.has(depName))
-    .reduce((notBundledDeps, depName) => {
-      notBundledDeps[depName] = deps[depName]
-      return notBundledDeps
-    }, {})
 }

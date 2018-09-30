@@ -59,11 +59,11 @@ import {
   WantedDependency,
 } from '../types'
 import getPref from '../utils/getPref'
-import depsToSpecs from './depsToSpecs'
 import extendOptions, {
   InstallOptions,
   StrictInstallOptions,
 } from './extendInstallOptions'
+import getWantedDependencies from './getWantedDependencies'
 import linkPackages, { DepGraphNodesByDepPath } from './link'
 import {
   createNodeId,
@@ -212,7 +212,7 @@ export async function install (maybeOpts: InstallOptions & {
     }
 
     const preferredVersions = maybeOpts.preferredVersions || getPreferredVersionsFromPackage(ctx.pkg)
-    const wantedDeps = getWantedDepsFromPackageJson(ctx.pkg)
+    const wantedDeps = getWantedDependencies(ctx.pkg)
 
     if (ctx.wantedShrinkwrap && ctx.wantedShrinkwrap.importers) {
       forgetResolutionsOfPrevWantedDeps(ctx.wantedShrinkwrap.importers[ctx.importerPath], wantedDeps)
@@ -380,16 +380,6 @@ function hasLocalTarballDepsInRoot (shr: Shrinkwrap, importerPath: string) {
 
 function refIsLocalTarball (ref: string) {
   return ref.startsWith('file:') && (ref.endsWith('.tgz') || ref.endsWith('.tar.gz') || ref.endsWith('.tar'))
-}
-
-function getWantedDepsFromPackageJson (
-  pkg: PackageJson,
-): WantedDependency[] {
-  const depsToInstall = depsFromPackage(pkg)
-  return depsToSpecs(depsToInstall, {
-    devDependencies: pkg.devDependencies || {},
-    optionalDependencies: pkg.optionalDependencies || {},
-  })
 }
 
 export async function installPkgs (
