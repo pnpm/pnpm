@@ -5,14 +5,14 @@ import installChecks = require('pnpm-install-checks')
 import {
   installCheckLogger,
 } from './loggers'
-import { PkgByPkgId } from './resolveDependencies'
+import { ResolvedPackagesByPackageId } from './resolveDependencies'
 
 export default async function getIsInstallable (
   pkgId: string,
   pkg: PackageManifest,
   options: {
     engineStrict: boolean,
-    pkgByPkgId: PkgByPkgId,
+    resolvedPackagesByPackageId: ResolvedPackagesByPackageId,
     nodeId: string,
     nodeVersion: string,
     optional: boolean,
@@ -45,7 +45,7 @@ export default async function getIsInstallable (
         name: pkg.name,
         version: pkg.version,
       },
-      parents: nodeIdToParents(options.nodeId, options.pkgByPkgId),
+      parents: nodeIdToParents(options.nodeId, options.resolvedPackagesByPackageId),
       prefix: options.prefix,
       reason: warn.code === 'ENOTSUP' ? 'unsupported_engine' : 'unsupported_platform',
     })
@@ -60,12 +60,12 @@ export default async function getIsInstallable (
 
 export function nodeIdToParents (
   nodeId: string,
-  pkgByPkgId: PkgByPkgId,
+  resolvedPackagesByPackageId: ResolvedPackagesByPackageId,
 ) {
   const pkgIds = splitNodeId(nodeId).slice(2, -2)
   return pkgIds
     .map((pkgId) => {
-      const pkg = pkgByPkgId[pkgId]
+      const pkg = resolvedPackagesByPackageId[pkgId]
       return {
         id: pkg.id,
         name: pkg.name,

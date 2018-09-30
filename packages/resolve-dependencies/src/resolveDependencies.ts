@@ -45,29 +45,29 @@ import {
   deprecationLogger,
 } from './loggers'
 
-export interface PkgGraphNode {
+export interface DependenciesGraphNode {
   children: (() => {[alias: string]: string}) | {[alias: string]: string}, // child nodeId by child alias name
-  pkg: Pkg,
+  resolvedPackage: ResolvedPackage,
   depth: number,
   installable: boolean,
 }
 
-export interface PkgGraphNodeByNodeId {
+export interface DependenciesGraph {
   // a node ID is the join of the package's keypath with a colon
   // E.g., a subdeps node ID which parent is `foo` will be
   // registry.npmjs.org/foo/1.0.0:registry.npmjs.org/bar/1.0.0
-  [nodeId: string]: PkgGraphNode,
+  [nodeId: string]: DependenciesGraphNode,
 }
 
-export interface PkgByPkgId {
-  [pkgId: string]: Pkg
+export interface ResolvedPackagesByPackageId {
+  [packageId: string]: ResolvedPackage,
 }
 
 export interface ResolutionContext {
   defaultTag: string,
   dryRun: boolean,
-  pkgByPkgId: PkgByPkgId,
-  outdatedPkgs: {[pkgId: string]: string},
+  resolvedPackagesByPackageId: ResolvedPackagesByPackageId,
+  outdatedDependencies: {[pkgId: string]: string},
   resolvedFromLocalPackages: Array<{
     optional: boolean,
     dev: boolean,
@@ -80,10 +80,10 @@ export interface ResolutionContext {
     alias: string,
   }>,
   childrenByParentId: {[parentId: string]: Array<{alias: string, pkgId: string}>},
-  nodesToBuild: Array<{
+  pendingNodes: Array<{
     alias: string,
     nodeId: string,
-    pkg: Pkg,
+    resolvedPackage: ResolvedPackage,
     depth: number,
     installable: boolean,
   }>,
@@ -92,7 +92,7 @@ export interface ResolutionContext {
   storeController: StoreController,
   // the IDs of packages that are not installable
   skipped: Set<string>,
-  pkgGraph: PkgGraphNodeByNodeId,
+  dependenciesGraph: DependenciesGraph,
   force: boolean,
   prefix: string,
   registry: string,
@@ -120,7 +120,7 @@ export interface PkgAddress {
   normalizedPref?: string, // is returned only for root dependencies
 }
 
-export interface Pkg {
+export interface ResolvedPackage {
   id: string,
   resolution: Resolution,
   prod: boolean,
@@ -372,7 +372,7 @@ async function install (
           pref: wantedDependency.pref,
           version: wantedDependency.alias ? wantedDependency.pref : undefined,
         },
-        parents: nodeIdToParents(createNodeId(options.parentNodeId, 'fake-id'), ctx.pkgByPkgId),
+        parents: nodeIdToParents(createNodeId(options.parentNodeId, 'fake-id'), ctx.resolvedPackagesByPackageId),
         prefix: ctx.prefix,
         reason: 'resolution_failure',
       })
@@ -474,7 +474,7 @@ async function install (
     throw err
   }
   if (options.currentDepth === 0 && pkgResponse.body.latest && pkgResponse.body.latest !== pkg.version) {
-    ctx.outdatedPkgs[pkgResponse.body.id] = pkgResponse.body.latest
+    ctx.outdatedDependencies[pkgResponse.body.id] = pkgResponse.body.latest
   }
   if (pkg.deprecated) {
     deprecationLogger.debug({
@@ -503,9 +503,9 @@ async function install (
         nodeId,
         nodeVersion: ctx.nodeVersion,
         optional: wantedDependency.optional,
-        pkgByPkgId: ctx.pkgByPkgId,
         pnpmVersion: ctx.pnpmVersion,
         prefix: ctx.prefix,
+        resolvedPackagesByPackageId: ctx.resolvedPackagesByPackageId,
       })
     )
   const installable = parentIsInstallable && currentIsInstallable
@@ -513,7 +513,7 @@ async function install (
   if (installable) {
     ctx.skipped.delete(pkgResponse.body.id)
   }
-  if (!ctx.pkgByPkgId[pkgResponse.body.id]) {
+  if (!ctx.resolvedPackagesByPackageId[pkgResponse.body.id]) {
     progressLogger.debug({
       pkgId: pkgResponse.body.id,
       status: 'resolving_content',
@@ -539,7 +539,7 @@ async function install (
 
     const peerDependencies = peerDependenciesWithoutOwn(pkg)
 
-    ctx.pkgByPkgId[pkgResponse.body.id] = {
+    ctx.resolvedPackagesByPackageId[pkgResponse.body.id] = {
       additionalInfo: {
         bundleDependencies: pkg.bundleDependencies,
         bundledDependencies: pkg.bundledDependencies,
@@ -596,31 +596,31 @@ async function install (
       alias: child.alias,
       pkgId: child.pkgId,
     }))
-    ctx.pkgGraph[nodeId] = {
+    ctx.dependenciesGraph[nodeId] = {
       children: children.reduce((chn, child) => {
         chn[child.alias] = child.nodeId
         return chn
       }, {}),
       depth: options.currentDepth,
       installable,
-      pkg: ctx.pkgByPkgId[pkgResponse.body.id],
+      resolvedPackage: ctx.resolvedPackagesByPackageId[pkgResponse.body.id],
     }
   } else {
-    ctx.pkgByPkgId[pkgResponse.body.id].prod = ctx.pkgByPkgId[pkgResponse.body.id].prod || !wantedDependency.dev && !wantedDependency.optional
-    ctx.pkgByPkgId[pkgResponse.body.id].dev = ctx.pkgByPkgId[pkgResponse.body.id].dev || wantedDependency.dev
-    ctx.pkgByPkgId[pkgResponse.body.id].optional = ctx.pkgByPkgId[pkgResponse.body.id].optional && wantedDependency.optional
+    ctx.resolvedPackagesByPackageId[pkgResponse.body.id].prod = ctx.resolvedPackagesByPackageId[pkgResponse.body.id].prod || !wantedDependency.dev && !wantedDependency.optional
+    ctx.resolvedPackagesByPackageId[pkgResponse.body.id].dev = ctx.resolvedPackagesByPackageId[pkgResponse.body.id].dev || wantedDependency.dev
+    ctx.resolvedPackagesByPackageId[pkgResponse.body.id].optional = ctx.resolvedPackagesByPackageId[pkgResponse.body.id].optional && wantedDependency.optional
 
-    ctx.nodesToBuild.push({
+    ctx.pendingNodes.push({
       alias: wantedDependency.alias || pkg.name,
       depth: options.currentDepth,
       installable,
       nodeId,
-      pkg: ctx.pkgByPkgId[pkgResponse.body.id],
+      resolvedPackage: ctx.resolvedPackagesByPackageId[pkgResponse.body.id],
     })
   }
   // we need this for saving to package.json
   if (options.currentDepth === 0) {
-    ctx.pkgByPkgId[pkgResponse.body.id].specRaw = wantedDependency.raw
+    ctx.resolvedPackagesByPackageId[pkgResponse.body.id].specRaw = wantedDependency.raw
   }
 
   return {

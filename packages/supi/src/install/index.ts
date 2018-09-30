@@ -10,7 +10,7 @@ import logger, {
   streamParser,
 } from '@pnpm/logger'
 import { write as writeModulesYaml } from '@pnpm/modules-yaml'
-import resolveDependencies, { Pkg } from '@pnpm/resolve-dependencies'
+import resolveDependencies, { ResolvedPackage } from '@pnpm/resolve-dependencies'
 import {
   LocalPackages,
   Resolution,
@@ -408,8 +408,7 @@ async function installInContext (
     ctx.wantedShrinkwrap.importers[ctx.importerPath] = {specifiers: {}}
   }
   stageLogger.debug('resolution_started')
-  const shrImporter = ctx.wantedShrinkwrap.importers[ctx.importerPath]
-  const { pkgGraph, rootPkgs, resolvedFromLocalPackages, outdatedPkgs, pkgByPkgId } = await resolveDependencies({
+  const { dependenciesGraph, rootPkgs, resolvedFromLocalPackages, outdatedDependencies, resolvedPackagesByPackageId } = await resolveDependencies({
     currentShrinkwrap: ctx.currentShrinkwrap,
     depth: (() => {
       // This can be remove from shrinkwrap v4
@@ -459,7 +458,7 @@ async function installInContext (
   const pkgsToSave = (
     rootPkgs
       .map((rootPkg) => ({
-        ...pkgGraph[rootPkg.nodeId].pkg,
+        ...dependenciesGraph[rootPkg.nodeId].resolvedPackage,
         alias: rootPkg.alias,
         normalizedPref: rootPkg.normalizedPref,
       })) as Array<{
@@ -512,6 +511,7 @@ async function installInContext (
   }
 
   if (newPkg) {
+    const shrImporter = ctx.wantedShrinkwrap.importers[ctx.importerPath]
     ctx.wantedShrinkwrap.importers[ctx.importerPath] = addDirectDependenciesToShrinkwrap(newPkg, shrImporter, opts.linkedPkgs, pkgsToSave, ctx.wantedShrinkwrap.registry)
   }
 
@@ -526,7 +526,7 @@ async function installInContext (
     : []
 
   const externalShrinkwrap = ctx.shrinkwrapDirectory !== opts.prefix
-  const result = await linkPackages(rootNodeIdsByAlias, pkgGraph, {
+  const result = await linkPackages(rootNodeIdsByAlias, dependenciesGraph, {
     afterAllResolvedHook: opts.hooks && opts.hooks.afterAllResolved,
     bin: opts.bin,
     currentShrinkwrap: ctx.currentShrinkwrap,
@@ -539,7 +539,7 @@ async function installInContext (
     include: opts.include,
     independentLeaves: opts.independentLeaves,
     makePartialCurrentShrinkwrap,
-    outdatedPkgs,
+    outdatedDependencies,
     pkg: newPkg || ctx.pkg,
     prefix: ctx.prefix,
     pruneStore: opts.pruneStore,
@@ -657,7 +657,7 @@ async function installInContext (
                 }
               }
             } catch (err) {
-              if (pkgByPkgId[pkg.id].optional) {
+              if (resolvedPackagesByPackageId[pkg.id].optional) {
                 // TODO: add parents field to the log
                 skippedOptionalDependencyLogger.debug({
                   details: err.toString(),
@@ -698,7 +698,7 @@ async function installInContext (
 
   // waiting till the skipped packages are downloaded to the store
   await Promise.all(
-    R.props<string, Pkg>(Array.from(ctx.skipped), pkgByPkgId)
+    R.props<string, ResolvedPackage>(Array.from(ctx.skipped), resolvedPackagesByPackageId)
       // skipped packages might have not been reanalized on a repeat install
       // so lets just ignore those by excluding nulls
       .filter(Boolean)
@@ -706,7 +706,7 @@ async function installInContext (
   )
 
   // waiting till package requests are finished
-  await Promise.all(R.values(pkgByPkgId).map((installed) => installed.finishing))
+  await Promise.all(R.values(resolvedPackagesByPackageId).map((installed) => installed.finishing))
 
   summaryLogger.debug({prefix: opts.prefix})
 

@@ -6,7 +6,7 @@ import { Shrinkwrap } from 'pnpm-shrinkwrap'
 import getPreferredVersionsFromPackage from './getPreferredVersions'
 import resolveDependencies, { ResolutionContext } from './resolveDependencies'
 
-export { Pkg, PkgGraphNode, PkgGraphNodeByNodeId } from './resolveDependencies'
+export { ResolvedPackage, DependenciesGraph, DependenciesGraphNode } from './resolveDependencies'
 export { InstallCheckLog, DeprecationLog } from './loggers'
 
 export default async function (
@@ -47,25 +47,25 @@ export default async function (
 ) {
   const preferredVersions = opts.preferredVersions || opts.pkg && getPreferredVersionsFromPackage(opts.pkg) || {}
 
-  const installCtx: ResolutionContext = {
+  const ctx: ResolutionContext = {
     childrenByParentId: {},
     currentShrinkwrap: opts.currentShrinkwrap,
     defaultTag: opts.tag,
+    dependenciesGraph: {},
     depth: opts.depth,
     dryRun: opts.dryRun,
     engineStrict: opts.engineStrict,
     force: opts.force,
     nodeVersion: opts.nodeVersion,
-    nodesToBuild: [],
-    outdatedPkgs: {},
-    pkgByPkgId: {},
-    pkgGraph: {},
+    outdatedDependencies: {},
+    pendingNodes: [],
     pnpmVersion: opts.pnpmVersion,
     preferredVersions,
     prefix: opts.prefix,
     rawNpmConfig: opts.rawNpmConfig,
     registry: opts.wantedShrinkwrap.registry,
     resolvedFromLocalPackages: [],
+    resolvedPackagesByPackageId: {},
     skipped: opts.skipped,
     storeController: opts.storeController,
     verifyStoreIntegrity: opts.verifyStoreIntegrity,
@@ -75,7 +75,7 @@ export default async function (
 
   const shrImporter = opts.wantedShrinkwrap.importers[opts.importerPath]
   const rootPkgs = await resolveDependencies(
-    installCtx,
+    ctx,
     opts.nonLinkedPackages,
     {
       currentDepth: 0,
@@ -95,21 +95,21 @@ export default async function (
     },
   )
 
-  installCtx.nodesToBuild.forEach((nodeToBuild) => {
-    installCtx.pkgGraph[nodeToBuild.nodeId] = {
-      children: () => buildTree(installCtx, nodeToBuild.nodeId, nodeToBuild.pkg.id,
-        installCtx.childrenByParentId[nodeToBuild.pkg.id], nodeToBuild.depth + 1, nodeToBuild.installable),
-      depth: nodeToBuild.depth,
-      installable: nodeToBuild.installable,
-      pkg: nodeToBuild.pkg,
+  ctx.pendingNodes.forEach((pendingNode) => {
+    ctx.dependenciesGraph[pendingNode.nodeId] = {
+      children: () => buildTree(ctx, pendingNode.nodeId, pendingNode.resolvedPackage.id,
+        ctx.childrenByParentId[pendingNode.resolvedPackage.id], pendingNode.depth + 1, pendingNode.installable),
+      depth: pendingNode.depth,
+      installable: pendingNode.installable,
+      resolvedPackage: pendingNode.resolvedPackage,
     }
   })
 
   return {
-    outdatedPkgs: installCtx.outdatedPkgs,
-    pkgByPkgId: installCtx.pkgByPkgId,
-    pkgGraph: installCtx.pkgGraph,
-    resolvedFromLocalPackages: installCtx.resolvedFromLocalPackages,
+    dependenciesGraph: ctx.dependenciesGraph,
+    outdatedDependencies: ctx.outdatedDependencies,
+    resolvedFromLocalPackages: ctx.resolvedFromLocalPackages,
+    resolvedPackagesByPackageId: ctx.resolvedPackagesByPackageId,
     rootPkgs,
   }
 }
@@ -130,11 +130,11 @@ function buildTree (
     const childNodeId = createNodeId(parentNodeId, child.pkgId)
     childrenNodeIds[child.alias] = childNodeId
     installable = installable && !ctx.skipped.has(child.pkgId)
-    ctx.pkgGraph[childNodeId] = {
+    ctx.dependenciesGraph[childNodeId] = {
       children: () => buildTree(ctx, childNodeId, child.pkgId, ctx.childrenByParentId[child.pkgId], depth + 1, installable),
       depth,
       installable,
-      pkg: ctx.pkgByPkgId[child.pkgId],
+      resolvedPackage: ctx.resolvedPackagesByPackageId[child.pkgId],
     }
   }
   return childrenNodeIds

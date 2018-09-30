@@ -8,7 +8,7 @@ import logger from '@pnpm/logger'
 import { prune } from '@pnpm/modules-cleaner'
 import { IncludedDependencies } from '@pnpm/modules-yaml'
 import { fromDir as readPackageFromDir } from '@pnpm/read-package-json'
-import { PkgGraphNodeByNodeId } from '@pnpm/resolve-dependencies'
+import { DependenciesGraph } from '@pnpm/resolve-dependencies'
 import { PackageJson } from '@pnpm/types'
 import * as dp from 'dependency-path'
 import pLimit = require('p-limit')
@@ -26,7 +26,7 @@ export { DepGraphNodesByDepPath }
 
 export default async function linkPackages (
   rootNodeIdsByAlias: {[alias: string]: string},
-  pkgGraph: PkgGraphNodeByNodeId,
+  dependenciesGraph: DependenciesGraph,
   opts: {
     afterAllResolvedHook?: (shr: Shrinkwrap) => Shrinkwrap,
     force: boolean,
@@ -47,7 +47,7 @@ export default async function linkPackages (
     independentLeaves: boolean,
     // This is only needed till shrinkwrap v4
     updateShrinkwrapMinorVersion: boolean,
-    outdatedPkgs: {[pkgId: string]: string},
+    outdatedDependencies: {[pkgId: string]: string},
     sideEffectsCache: boolean,
     shamefullyFlatten: boolean,
     reinstallForFlatten: boolean,
@@ -69,9 +69,9 @@ export default async function linkPackages (
   // sometimes node_modules is alread up-to-date
   // logger.info(`Creating dependency graph`)
   const resolvePeersResult = await resolvePeers({
+    dependenciesGraph,
     externalShrinkwrap: opts.externalShrinkwrap,
     independentLeaves: opts.independentLeaves,
-    pkgGraph,
     prefix: opts.prefix,
     rootNodeIdsByAlias,
     strictPeerDependencies: opts.strictPeerDependencies,
@@ -172,7 +172,7 @@ export default async function linkPackages (
         added: {
           dependencyType: isDev && 'dev' || isOptional && 'optional' || 'prod',
           id: pkg.id,
-          latest: opts.outdatedPkgs[pkg.id],
+          latest: opts.outdatedDependencies[pkg.id],
           name: rootAlias,
           realName: pkg.name,
           version: pkg.version,
