@@ -1,21 +1,14 @@
-import {Dependencies, PackageJson} from '@pnpm/types'
+import { Dependencies, PackageJson } from '@pnpm/types'
+import { getAllDependenciesFromPackage } from '@pnpm/utils'
 import getVerSelType = require('version-selector-type')
 
-export default function depsFromPackage (pkg: PackageJson): Dependencies {
-  return {
-    ...pkg.devDependencies,
-    ...pkg.dependencies,
-    ...pkg.optionalDependencies,
-  } as Dependencies
-}
-
-export function getPreferredVersionsFromPackage (pkg: PackageJson): {
+export default function getPreferredVersionsFromPackage (pkg: PackageJson): {
   [packageName: string]: {
     selector: string,
     type: 'version' | 'range' | 'tag',
   },
 } {
-  return getVersionSpecsByRealNames(depsFromPackage(pkg))
+  return getVersionSpecsByRealNames(getAllDependenciesFromPackage(pkg))
 }
 
 function getVersionSpecsByRealNames (deps: Dependencies) {

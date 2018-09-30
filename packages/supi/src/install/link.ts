@@ -8,6 +8,7 @@ import logger from '@pnpm/logger'
 import { prune } from '@pnpm/modules-cleaner'
 import { IncludedDependencies } from '@pnpm/modules-yaml'
 import { fromDir as readPackageFromDir } from '@pnpm/read-package-json'
+import { PkgGraphNodeByNodeId } from '@pnpm/resolve-dependencies'
 import { PackageJson } from '@pnpm/types'
 import * as dp from 'dependency-path'
 import pLimit = require('p-limit')
@@ -18,7 +19,6 @@ import R = require('ramda')
 import { SHRINKWRAP_MINOR_VERSION } from '../constants'
 import shamefullyFlattenGraph from '../shamefullyFlattenGraph'
 import symlinkDependencyTo from '../symlinkDependencyTo'
-import { PkgGraphNodeByNodeId } from './index'
 import resolvePeers, { DepGraphNode, DepGraphNodesByDepPath } from './resolvePeers'
 import updateShrinkwrap from './updateShrinkwrap'
 

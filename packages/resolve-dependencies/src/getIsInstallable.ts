@@ -1,11 +1,11 @@
 import { skippedOptionalDependencyLogger } from '@pnpm/core-loggers'
 import { PackageManifest } from '@pnpm/types'
+import { splitNodeId } from '@pnpm/utils'
 import installChecks = require('pnpm-install-checks')
 import {
   installCheckLogger,
-} from '../loggers'
-import { PkgByPkgId } from './index'
-import { splitNodeId } from './nodeIdUtils'
+} from './loggers'
+import { PkgByPkgId } from './resolveDependencies'
 
 export default async function getIsInstallable (
   pkgId: string,

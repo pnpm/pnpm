@@ -8,6 +8,7 @@ import {
   PackageResponse,
 } from '@pnpm/package-requester'
 import {
+  DirectoryResolution,
   LocalPackages,
   Resolution,
 } from '@pnpm/resolver-base'
@@ -17,7 +18,16 @@ import {
   PackageManifest,
   ReadPackageHook,
 } from '@pnpm/types'
+import {
+  createNodeId,
+  getNonDevWantedDependencies,
+  nodeIdContainsSequence,
+  WantedDependency,
+} from '@pnpm/utils'
 import * as dp from 'dependency-path'
+import {
+  StoreController,
+} from 'package-store'
 import path = require('path')
 import exists = require('path-exists')
 import {
@@ -29,20 +39,77 @@ import {
 } from 'pnpm-shrinkwrap'
 import R = require('ramda')
 import semver = require('semver')
-import {
-  deprecationLogger,
-} from '../loggers'
-import {
-  WantedDependency,
-} from '../types'
 import encodePkgId from './encodePkgId'
 import getIsInstallable, { nodeIdToParents } from './getIsInstallable'
-import { getNonDevWantedDependencies } from './getWantedDependencies'
-import { InstallContext } from './index'
 import {
-  createNodeId,
-  nodeIdContainsSequence,
-} from './nodeIdUtils'
+  deprecationLogger,
+} from './loggers'
+
+export interface PkgGraphNode {
+  children: (() => {[alias: string]: string}) | {[alias: string]: string}, // child nodeId by child alias name
+  pkg: Pkg,
+  depth: number,
+  installable: boolean,
+}
+
+export interface PkgGraphNodeByNodeId {
+  // a node ID is the join of the package's keypath with a colon
+  // E.g., a subdeps node ID which parent is `foo` will be
+  // registry.npmjs.org/foo/1.0.0:registry.npmjs.org/bar/1.0.0
+  [nodeId: string]: PkgGraphNode,
+}
+
+export interface PkgByPkgId {
+  [pkgId: string]: Pkg
+}
+
+export interface ResolutionContext {
+  defaultTag: string,
+  dryRun: boolean,
+  pkgByPkgId: PkgByPkgId,
+  outdatedPkgs: {[pkgId: string]: string},
+  resolvedFromLocalPackages: Array<{
+    optional: boolean,
+    dev: boolean,
+    resolution: DirectoryResolution,
+    id: string,
+    version: string,
+    name: string,
+    specRaw: string,
+    normalizedPref?: string,
+    alias: string,
+  }>,
+  childrenByParentId: {[parentId: string]: Array<{alias: string, pkgId: string}>},
+  nodesToBuild: Array<{
+    alias: string,
+    nodeId: string,
+    pkg: Pkg,
+    depth: number,
+    installable: boolean,
+  }>,
+  wantedShrinkwrap: Shrinkwrap,
+  currentShrinkwrap: Shrinkwrap,
+  storeController: StoreController,
+  // the IDs of packages that are not installable
+  skipped: Set<string>,
+  pkgGraph: PkgGraphNodeByNodeId,
+  force: boolean,
+  prefix: string,
+  registry: string,
+  depth: number,
+  engineStrict: boolean,
+  nodeVersion: string,
+  pnpmVersion: string,
+  rawNpmConfig: object,
+  virtualStoreDir: string,
+  verifyStoreIntegrity: boolean,
+  preferredVersions: {
+    [packageName: string]: {
+      type: 'version' | 'range' | 'tag',
+      selector: string,
+    },
+  },
+}
 
 const ENGINE_NAME = `${process.platform}-${process.arch}-node-${process.version.split('.')[0]}`
 
@@ -88,7 +155,7 @@ export interface Pkg {
 }
 
 export default async function resolveDependencies (
-  ctx: InstallContext,
+  ctx: ResolutionContext,
   wantedDependencies: WantedDependency[],
   options: {
     keypath: string[],
@@ -225,7 +292,7 @@ function getInfoFromShrinkwrap (
 
 async function install (
   wantedDependency: WantedDependency,
-  ctx: InstallContext,
+  ctx: ResolutionContext,
   options: {
     keypath: string[], // TODO: remove. Currently used only for logging
     pkgId?: string,
@@ -294,7 +361,7 @@ async function install (
       // so fetching of the tarball cannot be ever avoided. Related issue: https://github.com/pnpm/pnpm/issues/1176
       skipFetch: false,
       update: options.update,
-      verifyStoreIntegrity: ctx.verifyStoreInegrity,
+      verifyStoreIntegrity: ctx.verifyStoreIntegrity,
     })
   } catch (err) {
     if (wantedDependency.optional) {
@@ -329,7 +396,7 @@ async function install (
         prefix: ctx.prefix,
       })
     } else {
-      ctx.localPackages.push({
+      ctx.resolvedFromLocalPackages.push({
         alias: wantedDependency.alias || manifest.name,
         dev: wantedDependency.dev,
         id: pkgResponse.body.id,
@@ -577,7 +644,7 @@ function peerDependenciesWithoutOwn (pkg: PackageManifest) {
     R.keys(pkg.dependencies).concat(R.keys(pkg.optionalDependencies)),
   )
   const result = {}
-  for (const peer of R.keys(pkg.peerDependencies)) {
+  for (const peer of Object.keys(pkg.peerDependencies)) {
     if (ownDeps.has(peer)) continue
     result[peer] = pkg.peerDependencies[peer]
   }
@@ -592,7 +659,7 @@ function normalizeRegistry (registry: string) {
 
 async function resolveDependenciesOfPackage (
   pkg: PackageManifest,
-  ctx: InstallContext,
+  ctx: ResolutionContext,
   opts: {
     keypath: string[],
     parentNodeId: string,
@@ -613,7 +680,7 @@ async function resolveDependenciesOfPackage (
   let deps = getNonDevWantedDependencies(pkg)
   if (opts.hasManifestInShrinkwrap && !deps.length && opts.resolvedDependencies && opts.useManifestInfoFromShrinkwrap) {
     const optionalDependencyNames = opts.optionalDependencyNames || []
-    deps = R.keys(opts.resolvedDependencies)
+    deps = Object.keys(opts.resolvedDependencies)
       .map((depName) => ({
         alias: depName,
         optional: optionalDependencyNames.indexOf(depName) !== -1,

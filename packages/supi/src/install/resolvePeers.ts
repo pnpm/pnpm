@@ -1,9 +1,18 @@
 import logger from '@pnpm/logger'
 import { PackageFilesResponse } from '@pnpm/package-requester'
 import pkgIdToFilename from '@pnpm/pkgid-to-filename'
+import {
+  PkgGraphNode,
+  PkgGraphNodeByNodeId,
+} from '@pnpm/resolve-dependencies'
 import { Resolution } from '@pnpm/resolver-base'
 import { PackageJson } from '@pnpm/types'
 import { Dependencies } from '@pnpm/types'
+import {
+  createNodeId,
+  ROOT_NODE_ID,
+  splitNodeId,
+} from '@pnpm/utils'
 import { oneLine } from 'common-tags'
 import crypto = require('crypto')
 import importFrom = require('import-from')
@@ -11,15 +20,6 @@ import path = require('path')
 import R = require('ramda')
 import semver = require('semver')
 import { PnpmError } from '../errorTypes'
-import {
-  PkgGraphNode,
-  PkgGraphNodeByNodeId,
-} from './index'
-import {
-  createNodeId,
-  ROOT_NODE_ID,
-  splitNodeId,
-} from './nodeIdUtils'
 
 export interface DepGraphNode {
   name: string,

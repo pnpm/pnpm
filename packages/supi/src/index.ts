@@ -11,11 +11,13 @@ import {
   SummaryLog,
 } from '@pnpm/core-loggers'
 export { PackageManifest, PnpmOptions } from '@pnpm/types'
+import {
+  DeprecationLog,
+  InstallCheckLog,
+} from '@pnpm/resolve-dependencies'
 export * from './api'
 export { PnpmError, PnpmErrorCode } from './errorTypes'
 export {
-  InstallCheckLog,
-  DeprecationLog,
   RegistryLog,
 } from './loggers'
 import { LifecycleLog } from '@pnpm/lifecycle'
@@ -28,6 +30,8 @@ export {
   StageLog,
   PackageJsonLog,
   SummaryLog,
+  InstallCheckLog,
+  DeprecationLog,
 }
 
 export { InstallOptions } from './install/extendInstallOptions'
@@ -48,3 +52,5 @@ export type Log = supiLogs.Log
   | StageLog
   | SummaryLog
   | ProgressLog
+  | InstallCheckLog
+  | DeprecationLog
