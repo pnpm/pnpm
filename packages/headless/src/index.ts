@@ -8,11 +8,12 @@ import {
   summaryLogger,
 } from '@pnpm/core-loggers'
 import runLifecycleHooks from '@pnpm/lifecycle'
-import linkBins, {linkBinsOfPackages} from '@pnpm/link-bins'
+import linkBins, { linkBinsOfPackages } from '@pnpm/link-bins'
 import logger, {
   LogBase,
   streamParser,
 } from '@pnpm/logger'
+import { prune } from '@pnpm/modules-cleaner'
 import {
   IncludedDependencies,
   read as readModulesYaml,
@@ -23,15 +24,12 @@ import {
   PackageFilesResponse,
 } from '@pnpm/package-requester'
 import pkgIdToFilename from '@pnpm/pkgid-to-filename'
-import {fromDir as readPackageFromDir} from '@pnpm/read-package-json'
-import {PackageJson} from '@pnpm/types'
-import {
-  realNodeModulesDir,
-  removeOrphanPackages as removeOrphanPkgs,
-} from '@pnpm/utils'
+import { fromDir as readPackageFromDir } from '@pnpm/read-package-json'
+import { PackageJson } from '@pnpm/types'
+import { realNodeModulesDir } from '@pnpm/utils'
 import dp = require('dependency-path')
 import pLimit = require('p-limit')
-import {StoreController} from 'package-store'
+import { StoreController } from 'package-store'
 import path = require('path')
 import {
   getImporterPath,
@@ -148,7 +146,7 @@ export default async (opts: HeadlessOptions) => {
   const filteredShrinkwrap = filterShrinkwrap(wantedShrinkwrap, filterOpts)
 
   if (currentShrinkwrap) {
-    await removeOrphanPkgs({
+    await prune({
       bin,
       dryRun: false,
       hoistedAliases: modules && modules.importers[importerPath] && modules.importers[importerPath].hoistedAliases || {},

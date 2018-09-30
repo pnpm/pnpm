@@ -25,6 +25,7 @@
     "@pnpm/headless": "0.6.7",
     "@pnpm/lifecycle": "3.0.1",
     "@pnpm/link-bins": "3.0.0",
+    "@pnpm/modules-cleaner": "0.0.0",
     "@pnpm/modules-yaml": "1.0.0",
     "@pnpm/package-requester": "4.1.4",
     "@pnpm/pkgid-to-filename": "2.0.0",

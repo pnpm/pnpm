@@ -11,7 +11,7 @@ import path = require('path')
 import { ResolvedPackages, Shrinkwrap } from 'pnpm-shrinkwrap'
 import R = require('ramda')
 import promisify = require('util.promisify')
-import removeTopDependency from './removeTopDependency'
+import removeDirectDependency from './removeDirectDependency'
 
 const vacuum = promisify(vacuumCB)
 
@@ -38,7 +38,7 @@ export default async function removeOrphanPkgs (
   const removedTopDeps: Array<[string, string]> = R.difference(oldPkgs, newPkgs) as Array<[string, string]>
 
   await Promise.all(removedTopDeps.map((depName) => {
-    return removeTopDependency({
+    return removeDirectDependency({
       dev: Boolean(oldImporterShr.devDependencies && oldImporterShr.devDependencies[depName[0]]),
       name: depName[0],
       optional: Boolean(oldImporterShr.optionalDependencies && oldImporterShr.optionalDependencies[depName[0]]),
@@ -71,7 +71,7 @@ export default async function removeOrphanPkgs (
         await Promise.all(orphanDepPaths.map(async (orphanDepPath) => {
           if (opts.hoistedAliases[orphanDepPath]) {
             await Promise.all(opts.hoistedAliases[orphanDepPath].map(async (alias) => {
-              await removeTopDependency({
+              await removeDirectDependency({
                 dev: false,
                 name: alias,
                 optional: false,

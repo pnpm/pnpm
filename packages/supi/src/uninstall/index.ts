@@ -1,11 +1,8 @@
 import { summaryLogger } from '@pnpm/core-loggers'
 import logger, { streamParser } from '@pnpm/logger'
+import { prune, removeDirectDependency } from '@pnpm/modules-cleaner'
 import { write as writeModulesYaml } from '@pnpm/modules-yaml'
-import {
-  getSaveType,
-  removeOrphanPackages as removeOrphanPkgs,
-  removeTopDependency,
-} from '@pnpm/utils'
+import { getSaveType } from '@pnpm/utils'
 import * as dp from 'dependency-path'
 import path = require('path')
 import {
@@ -72,7 +69,7 @@ export async function uninstallInContext (
   const saveType = getSaveType(opts)
   const pkg = await removeDeps(pkgJsonPath, pkgsToUninstall, { prefix: opts.prefix, saveType })
   const newShr = pruneShrinkwrap(ctx.wantedShrinkwrap, pkg, ctx.importerPath, (message) => logger.warn({message, prefix: ctx.prefix}))
-  const removedPkgIds = await removeOrphanPkgs({
+  const removedPkgIds = await prune({
     bin: opts.bin,
     hoistedAliases: ctx.hoistedAliases,
     importerModulesDir: ctx.importerModulesDir,
@@ -145,7 +142,7 @@ async function removeOuterLinks (
   // These packages are not in package.json, they were just linked in not installed
   for (const pkgToUninstall of pkgsToUninstall) {
     if (await safeIsInnerLink(importerModulesDir, pkgToUninstall, safeIsInnerLinkOpts) !== true) {
-      await removeTopDependency({
+      await removeDirectDependency({
         dev: false,
         name: pkgToUninstall,
         optional: false,

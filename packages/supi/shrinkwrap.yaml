@@ -5,6 +5,7 @@ dependencies:
   '@pnpm/headless': 'link:../headless'
   '@pnpm/lifecycle': 3.0.1
   '@pnpm/link-bins': 3.0.0
+  '@pnpm/modules-cleaner': 'link:../modules-cleaner'
   '@pnpm/modules-yaml': 'link:../modules-yaml'
   '@pnpm/package-requester': 'link:../package-requester'
   '@pnpm/pkgid-to-filename': 2.0.0
@@ -4058,6 +4059,7 @@ specifiers:
   '@pnpm/lifecycle': 3.0.1
   '@pnpm/link-bins': 3.0.0
   '@pnpm/logger': ^2.1.0
+  '@pnpm/modules-cleaner': 0.0.0
   '@pnpm/modules-yaml': 1.0.0
   '@pnpm/package-requester': 4.1.4
   '@pnpm/pkgid-to-filename': 2.0.0

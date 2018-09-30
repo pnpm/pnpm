@@ -3,11 +3,11 @@ import {
   rootLogger,
 } from '@pnpm/core-loggers'
 import binify from '@pnpm/package-bins'
+import { safeReadPackageFromDir } from '@pnpm/utils'
 import path = require('path')
 import rimraf = require('rimraf-then')
-import { fromDir as safeReadPkgFromDir } from './safeReadPkg'
 
-export default async function removeTopDependency (
+export default async function removeDirectDependency (
   dependency: {
     dev: boolean,
     name: string,
@@ -48,7 +48,7 @@ async function removeBins (
   },
 ) {
   const uninstalledPkgPath = path.join(opts.importerModulesDir, uninstalledPkg)
-  const uninstalledPkgJson = await safeReadPkgFromDir(uninstalledPkgPath)
+  const uninstalledPkgJson = await safeReadPackageFromDir(uninstalledPkgPath)
 
   if (!uninstalledPkgJson) return
   const cmds = await binify(uninstalledPkgJson, uninstalledPkgPath)

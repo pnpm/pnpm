@@ -6,6 +6,7 @@ import {
 } from '@pnpm/core-loggers'
 import { linkBinsOfPackages } from '@pnpm/link-bins'
 import logger, { streamParser } from '@pnpm/logger'
+import { prune } from '@pnpm/modules-cleaner'
 import {
   DEPENDENCIES_FIELDS,
   DependenciesField,
@@ -13,7 +14,6 @@ import {
 } from '@pnpm/types'
 import {
   getSaveType,
-  removeOrphanPackages as removeOrphanPkgs,
   safeReadPackage,
 } from '@pnpm/utils'
 import loadJsonFile from 'load-json-file'
@@ -105,7 +105,7 @@ export default async function link (
   const warn = (message: string) => logger.warn({message, prefix: opts.prefix})
   const updatedWantedShrinkwrap = pruneSharedShrinkwrap(ctx.wantedShrinkwrap, warn)
 
-  await removeOrphanPkgs({
+  await prune({
     bin: opts.bin,
     hoistedAliases: ctx.hoistedAliases,
     importerModulesDir: ctx.importerModulesDir,

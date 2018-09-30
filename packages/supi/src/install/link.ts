@@ -5,12 +5,10 @@ import {
 } from '@pnpm/core-loggers'
 import linkBins, { linkBinsOfPackages } from '@pnpm/link-bins'
 import logger from '@pnpm/logger'
+import { prune } from '@pnpm/modules-cleaner'
 import { IncludedDependencies } from '@pnpm/modules-yaml'
 import { fromDir as readPackageFromDir } from '@pnpm/read-package-json'
 import { PackageJson } from '@pnpm/types'
-import {
-  removeOrphanPackages as removeOrphanPkgs,
-} from '@pnpm/utils'
 import * as dp from 'dependency-path'
 import pLimit = require('p-limit')
 import { StoreController } from 'package-store'
@@ -126,7 +124,7 @@ export default async function linkPackages (
     skipped: opts.skipped,
   }
   const newCurrentShrinkwrap = filterShrinkwrap(newShrinkwrap, filterOpts)
-  const removedDepPaths = await removeOrphanPkgs({
+  const removedDepPaths = await prune({
     bin: opts.bin,
     dryRun: opts.dryRun,
     hoistedAliases: opts.hoistedAliases,
