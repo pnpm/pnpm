@@ -6,7 +6,6 @@ import {
 } from '@pnpm/core-loggers'
 import { linkBinsOfPackages } from '@pnpm/link-bins'
 import logger, { streamParser } from '@pnpm/logger'
-import { read as readModulesYaml } from '@pnpm/modules-yaml'
 import {
   DEPENDENCIES_FIELDS,
   DependenciesField,
@@ -30,12 +29,12 @@ import {
 } from 'pnpm-shrinkwrap'
 import R = require('ramda')
 import symlinkDir = require('symlink-dir')
-import getSpecFromPackageJson from '../getSpecFromPackageJson'
-import save, { guessDependencyType } from '../save'
+import getContext from './getContext'
+import getSpecFromPackageJson from './getSpecFromPackageJson'
 import extendOptions, {
   InstallOptions,
-} from './extendInstallOptions'
-import getContext from './getContext'
+} from './install/extendInstallOptions'
+import save, { guessDependencyType } from './save'
 import getPref from './utils/getPref'
 
 export default async function link (

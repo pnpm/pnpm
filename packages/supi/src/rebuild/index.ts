@@ -17,11 +17,11 @@ import {
 import R = require('ramda')
 import semver = require('semver')
 import { LAYOUT_VERSION } from '../constants'
+import getContext from '../getContext'
 import extendOptions, {
   RebuildOptions,
   StrictRebuildOptions,
 } from './extendRebuildOptions'
-import getContext from './getContext'
 
 function findPackages (
   packages: ResolvedPackages,

@@ -1,12 +1,9 @@
-import {LogBase} from '@pnpm/logger'
+import { LogBase } from '@pnpm/logger'
 import {
-  Dependencies,
-  PackageBin,
-  PackageManifest,
   PnpmOptions,
   StrictPnpmOptions,
 } from '@pnpm/types'
-import {StoreController} from 'package-store'
+import { StoreController } from 'package-store'
 
 export interface WantedDependency {
   alias?: string,

@@ -10,16 +10,16 @@ import importFrom = require('import-from')
 import path = require('path')
 import R = require('ramda')
 import semver = require('semver')
+import { PnpmError } from '../errorTypes'
 import {
   PkgGraphNode,
   PkgGraphNodeByNodeId,
-} from '../api/install'
-import { PnpmError } from '../errorTypes'
+} from './index'
 import {
   createNodeId,
   ROOT_NODE_ID,
   splitNodeId,
-} from '../nodeIdUtils'
+} from './nodeIdUtils'
 
 export interface DepGraphNode {
   name: string,

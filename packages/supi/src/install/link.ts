@@ -17,10 +17,10 @@ import { StoreController } from 'package-store'
 import path = require('path')
 import { PackageSnapshot, Shrinkwrap } from 'pnpm-shrinkwrap'
 import R = require('ramda')
-import { PkgGraphNodeByNodeId } from '../api/install'
 import { SHRINKWRAP_MINOR_VERSION } from '../constants'
 import shamefullyFlattenGraph from '../shamefullyFlattenGraph'
 import symlinkDependencyTo from '../symlinkDependencyTo'
+import { PkgGraphNodeByNodeId } from './index'
 import resolvePeers, { DepGraphNode, DepGraphNodesByDepPath } from './resolvePeers'
 import updateShrinkwrap from './updateShrinkwrap'
 

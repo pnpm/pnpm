@@ -3,10 +3,10 @@ import {streamParser} from '@pnpm/logger'
 import * as dp from 'dependency-path'
 import pFilter = require('p-filter')
 import path = require('path')
+import getContext from '../getContext'
 import extendOptions, {
   StoreStatusOptions,
 } from './extendStoreStatusOptions'
-import getContext from './getContext'
 
 export default async function (maybeOpts: StoreStatusOptions) {
   const reporter = maybeOpts && maybeOpts.reporter

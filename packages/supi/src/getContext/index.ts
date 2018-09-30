@@ -21,8 +21,8 @@ import {
 } from 'pnpm-shrinkwrap'
 import removeAllExceptOuterLinks = require('remove-all-except-outer-links')
 import { PnpmError } from '../errorTypes'
-import readShrinkwrapFile from '../readShrinkwrapFiles'
 import checkCompatibility from './checkCompatibility'
+import readShrinkwrapFile from './readShrinkwrapFiles'
 
 export interface PnpmContext {
   currentShrinkwrap: Shrinkwrap,

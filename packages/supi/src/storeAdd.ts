@@ -6,8 +6,8 @@ import normalizeRegistryUrl = require('normalize-registry-url')
 
 import {StoreController} from 'package-store'
 
-import parseWantedDependencies from '../parseWantedDependencies';
-import {ReporterFunction} from '../types'
+import parseWantedDependencies from './parseWantedDependencies';
+import {ReporterFunction} from './types'
 
 export default async function (
   fuzzyDeps: string[],

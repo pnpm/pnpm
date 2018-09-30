@@ -8,7 +8,7 @@ import {
   Shrinkwrap,
 } from 'pnpm-shrinkwrap'
 import R = require('ramda')
-import { SHRINKWRAP_MINOR_VERSION } from './constants'
+import { SHRINKWRAP_MINOR_VERSION } from '../constants'
 
 export interface PnpmContext {
   currentShrinkwrap: Shrinkwrap,

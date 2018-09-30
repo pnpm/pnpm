@@ -30,9 +30,9 @@ export {
   SummaryLog,
 }
 
-export { InstallOptions } from './api/extendInstallOptions'
-export { RebuildOptions } from './api/extendRebuildOptions'
-export { UninstallOptions } from './api/extendUninstallOptions'
+export { InstallOptions } from './install/extendInstallOptions'
+export { RebuildOptions } from './rebuild/extendRebuildOptions'
+export { UninstallOptions } from './uninstall/extendUninstallOptions'
 
 import * as packageRequesterLogs from '@pnpm/package-requester'
 import * as supiLogs from './loggers'

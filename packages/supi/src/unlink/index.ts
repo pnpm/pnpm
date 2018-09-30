@@ -7,12 +7,12 @@ import fs = require('mz/fs')
 import path = require('path')
 import rimraf = require('rimraf-then')
 import depsFromPackage from '../depsFromPackage'
+import getContext from '../getContext'
+import { install } from '../install'
 import extendOptions, {
   InstallOptions,
   StrictInstallOptions,
-} from './extendInstallOptions'
-import getContext from './getContext'
-import { install } from './install'
+} from '../install/extendInstallOptions'
 
 export async function unlinkPkgs (
   pkgNames: string[],

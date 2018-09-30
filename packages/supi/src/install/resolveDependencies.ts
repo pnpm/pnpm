@@ -29,20 +29,20 @@ import {
 } from 'pnpm-shrinkwrap'
 import R = require('ramda')
 import semver = require('semver')
-import { InstallContext } from './api/install'
-import depsToSpecs from './depsToSpecs'
-import encodePkgId from './encodePkgId'
-import getIsInstallable, { nodeIdToParents } from './install/getIsInstallable'
 import {
   deprecationLogger,
-} from './loggers'
+} from '../loggers'
+import {
+  WantedDependency,
+} from '../types'
+import depsToSpecs from './depsToSpecs'
+import encodePkgId from './encodePkgId'
+import getIsInstallable, { nodeIdToParents } from './getIsInstallable'
+import { InstallContext } from './index'
 import {
   createNodeId,
   nodeIdContainsSequence,
 } from './nodeIdUtils'
-import {
-  WantedDependency,
-} from './types'
 
 const ENGINE_NAME = `${process.platform}-${process.arch}-node-${process.version.split('.')[0]}`
 

@@ -1,5 +1,5 @@
 import {Dependencies} from '@pnpm/types'
-import {WantedDependency} from './types'
+import {WantedDependency} from '../types'
 
 export default function (
   deps: Dependencies,

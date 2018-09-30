@@ -45,32 +45,32 @@ import {
   SHRINKWRAP_MINOR_VERSION,
 } from '../constants'
 import depsFromPackage, { getPreferredVersionsFromPackage } from '../depsFromPackage'
-import depsToSpecs from '../depsToSpecs'
 import { PnpmError } from '../errorTypes'
 import { absolutePathToRef } from '../fs/shrinkwrap'
+import getContext, { PnpmContext } from '../getContext'
 import getSpecFromPackageJson from '../getSpecFromPackageJson'
-import linkPackages, { DepGraphNodesByDepPath } from '../link'
-import {
-  createNodeId,
-  nodeIdContainsSequence,
-  ROOT_NODE_ID,
-} from '../nodeIdUtils'
+import externalLink from '../link'
+import lock from '../lock'
 import parseWantedDependencies from '../parseWantedDependencies'
-import resolveDependencies, { Pkg } from '../resolveDependencies'
 import safeIsInnerLink from '../safeIsInnerLink'
 import save from '../save'
+import shrinkwrapsEqual from '../shrinkwrapsEqual'
 import {
   WantedDependency,
 } from '../types'
+import getPref from '../utils/getPref'
+import depsToSpecs from './depsToSpecs'
 import extendOptions, {
   InstallOptions,
   StrictInstallOptions,
 } from './extendInstallOptions'
-import getContext, { PnpmContext } from './getContext'
-import externalLink from './link'
-import lock from './lock'
-import shrinkwrapsEqual from './shrinkwrapsEqual'
-import getPref from './utils/getPref'
+import linkPackages, { DepGraphNodesByDepPath } from './link'
+import {
+  createNodeId,
+  nodeIdContainsSequence,
+  ROOT_NODE_ID,
+} from './nodeIdUtils'
+import resolveDependencies, { Pkg } from './resolveDependencies'
 
 const ENGINE_NAME = `${process.platform}-${process.arch}-node-${process.version.split('.')[0]}`
 

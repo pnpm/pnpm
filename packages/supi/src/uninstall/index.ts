@@ -14,17 +14,16 @@ import {
   writeCurrentOnly as saveCurrentShrinkwrapOnly,
 } from 'pnpm-shrinkwrap'
 import { LAYOUT_VERSION } from '../constants'
-import removeDeps from '../removeDeps'
+import getContext, { PnpmContext } from '../getContext'
+import lock from '../lock'
 import safeIsInnerLink from '../safeIsInnerLink'
 import { shamefullyFlattenGraphByShrinkwrap } from '../shamefullyFlattenGraph'
+import shrinkwrapsEqual from '../shrinkwrapsEqual'
 import extendOptions, {
   StrictUninstallOptions,
   UninstallOptions,
 } from './extendUninstallOptions'
-import getContext, { PnpmContext } from './getContext'
-import { install } from './install'
-import lock from './lock'
-import shrinkwrapsEqual from './shrinkwrapsEqual'
+import removeDeps from './removeDeps'
 
 export default async function uninstall (
   pkgsToUninstall: string[],
