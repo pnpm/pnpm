@@ -5,14 +5,6 @@ import {
 } from '@pnpm/types'
 import { StoreController } from 'package-store'
 
-export interface WantedDependency {
-  alias?: string,
-  pref: string, // package reference
-  dev: boolean,
-  optional: boolean,
-  raw: string, // might be not needed
-}
-
 export type SupiOptions = PnpmOptions & {
   storeController: StoreController,
 }

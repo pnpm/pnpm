@@ -1,10 +1,8 @@
 import {
   Dependencies,
 } from '@pnpm/types'
+import { WantedDependency } from '@pnpm/utils'
 import validateNpmPackageName = require('validate-npm-package-name')
-import {
-  WantedDependency,
-} from './types'
 
 export default function parseWantedDependencies (
   rawWantedDependencies: string[],
