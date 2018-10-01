@@ -1,4 +1,4 @@
-import { LocalPackages } from '@pnpm/resolver-base'
+import { LocalPackages, Resolution } from '@pnpm/resolver-base'
 import { PackageJson, ReadPackageHook } from '@pnpm/types'
 import { createNodeId, nodeIdContainsSequence, ROOT_NODE_ID, WantedDependency } from '@pnpm/utils'
 import { StoreController } from 'package-store'
@@ -105,12 +105,38 @@ export default async function (
     }
   })
 
+  const directNodeIdsByAlias = rootPkgs
+    .reduce((acc, rootPkg) => {
+      acc[rootPkg.alias] = rootPkg.nodeId
+      return acc
+    }, {})
+  const directDependencies = [
+    ...rootPkgs
+      .map((rootPkg) => ({
+        ...ctx.dependenciesTree[rootPkg.nodeId].resolvedPackage,
+        alias: rootPkg.alias,
+        normalizedPref: rootPkg.normalizedPref,
+      })) as Array<{
+        alias: string,
+        optional: boolean,
+        dev: boolean,
+        resolution: Resolution,
+        id: string,
+        version: string,
+        name: string,
+        specRaw: string,
+        normalizedPref?: string,
+      }>,
+    ...ctx.resolvedFromLocalPackages,
+  ]
+
   return {
     dependenciesTree: ctx.dependenciesTree,
+    directDependencies,
+    directNodeIdsByAlias,
     outdatedDependencies: ctx.outdatedDependencies,
     resolvedFromLocalPackages: ctx.resolvedFromLocalPackages,
     resolvedPackagesByPackageId: ctx.resolvedPackagesByPackageId,
-    rootPkgs,
   }
 }
 

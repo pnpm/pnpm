@@ -408,7 +408,14 @@ async function installInContext (
     ctx.wantedShrinkwrap.importers[ctx.importerPath] = {specifiers: {}}
   }
   stageLogger.debug('resolution_started')
-  const { dependenciesTree, rootPkgs, resolvedFromLocalPackages, outdatedDependencies, resolvedPackagesByPackageId } = await resolveDependencies({
+  const {
+    dependenciesTree,
+    directDependencies,
+    directNodeIdsByAlias,
+    outdatedDependencies,
+    resolvedFromLocalPackages,
+    resolvedPackagesByPackageId,
+  } = await resolveDependencies({
     currentShrinkwrap: ctx.currentShrinkwrap,
     depth: (() => {
       // This can be remove from shrinkwrap v4
@@ -450,29 +457,6 @@ async function installInContext (
     wantedShrinkwrap: ctx.wantedShrinkwrap,
   })
   stageLogger.debug('resolution_done')
-  const rootNodeIdsByAlias = rootPkgs
-    .reduce((acc, rootPkg) => {
-      acc[rootPkg.alias] = rootPkg.nodeId
-      return acc
-    }, {})
-  const pkgsToSave = (
-    rootPkgs
-      .map((rootPkg) => ({
-        ...dependenciesTree[rootPkg.nodeId].resolvedPackage,
-        alias: rootPkg.alias,
-        normalizedPref: rootPkg.normalizedPref,
-      })) as Array<{
-        alias: string,
-        optional: boolean,
-        dev: boolean,
-        resolution: Resolution,
-        id: string,
-        version: string,
-        name: string,
-        specRaw: string,
-        normalizedPref?: string,
-      }>)
-  .concat(resolvedFromLocalPackages)
 
   let newPkg: PackageJson | undefined = ctx.pkg
   if (installType === 'named') {
@@ -480,7 +464,7 @@ async function installInContext (
       throw new Error('Cannot save because no package.json found')
     }
     const saveType = getSaveType(opts)
-    const specsToUsert = <any>pkgsToSave // tslint:disable-line
+    const specsToUsert = <any>directDependencies // tslint:disable-line
       .map((dep) => {
         return {
           name: dep.alias,
@@ -512,21 +496,29 @@ async function installInContext (
 
   if (newPkg) {
     const shrImporter = ctx.wantedShrinkwrap.importers[ctx.importerPath]
-    ctx.wantedShrinkwrap.importers[ctx.importerPath] = addDirectDependenciesToShrinkwrap(newPkg, shrImporter, opts.linkedPkgs, pkgsToSave, ctx.wantedShrinkwrap.registry)
+    ctx.wantedShrinkwrap.importers[ctx.importerPath] = addDirectDependenciesToShrinkwrap(
+      newPkg,
+      shrImporter,
+      opts.linkedPkgs,
+      directDependencies,
+      ctx.wantedShrinkwrap.registry,
+    )
   }
 
   const topParents = ctx.pkg
     ? await getTopParents(
         R.difference(
           R.keys(getAllDependenciesFromPackage(ctx.pkg)),
-          opts.newPkgRawSpecs && pkgsToSave.filter((pkgToSave) => opts.newPkgRawSpecs.indexOf(pkgToSave.specRaw) !== -1).map((pkg) => pkg.alias) || [],
+          opts.newPkgRawSpecs && directDependencies
+            .filter((directDep) => opts.newPkgRawSpecs.indexOf(directDep.specRaw) !== -1)
+            .map((directDep) => directDep.alias) || [],
         ),
         ctx.importerModulesDir,
       )
     : []
 
   const externalShrinkwrap = ctx.shrinkwrapDirectory !== opts.prefix
-  const result = await linkPackages(rootNodeIdsByAlias, dependenciesTree, {
+  const result = await linkPackages(directNodeIdsByAlias, dependenciesTree, {
     afterAllResolvedHook: opts.hooks && opts.hooks.afterAllResolved,
     bin: opts.bin,
     currentShrinkwrap: ctx.currentShrinkwrap,
@@ -748,7 +740,7 @@ function addDirectDependenciesToShrinkwrap (
   newPkg: PackageJson,
   shrinkwrapImporter: ShrinkwrapImporter,
   linkedPkgs: Array<WantedDependency & {alias: string}>,
-  pkgsToSave: Array<{
+  directDependencies: Array<{
     alias: string,
     optional: boolean,
     dev: boolean,
@@ -779,8 +771,8 @@ function addDirectDependenciesToShrinkwrap (
     }
   }
 
-  const pkgsToSaveByAlias = pkgsToSave.reduce((acc, pkgToSave) => {
-    acc[pkgToSave.alias] = pkgToSave
+  const directDependenciesByAlias = directDependencies.reduce((acc, directDependency) => {
+    acc[directDependency.alias] = directDependency
     return acc
   }, {})
 
@@ -790,8 +782,8 @@ function addDirectDependenciesToShrinkwrap (
   const allDeps = R.reduce(R.union, [], [optionalDependencies, devDependencies, dependencies]) as string[]
 
   for (const alias of allDeps) {
-    if (pkgsToSaveByAlias[alias]) {
-      const dep = pkgsToSaveByAlias[alias]
+    if (directDependenciesByAlias[alias]) {
+      const dep = directDependenciesByAlias[alias]
       const ref = absolutePathToRef(dep.id, {
         alias: dep.alias,
         realName: dep.name,
