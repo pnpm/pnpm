@@ -6,7 +6,7 @@ import { Shrinkwrap } from 'pnpm-shrinkwrap'
 import getPreferredVersionsFromPackage from './getPreferredVersions'
 import resolveDependencies, { ResolutionContext } from './resolveDependencies'
 
-export { ResolvedPackage, DependenciesGraph, DependenciesGraphNode } from './resolveDependencies'
+export { ResolvedPackage, DependenciesTree, DependenciesTreeNode } from './resolveDependencies'
 export { InstallCheckLog, DeprecationLog } from './loggers'
 
 export default async function (
@@ -51,7 +51,7 @@ export default async function (
     childrenByParentId: {},
     currentShrinkwrap: opts.currentShrinkwrap,
     defaultTag: opts.tag,
-    dependenciesGraph: {},
+    dependenciesTree: {},
     depth: opts.depth,
     dryRun: opts.dryRun,
     engineStrict: opts.engineStrict,
@@ -96,7 +96,7 @@ export default async function (
   )
 
   ctx.pendingNodes.forEach((pendingNode) => {
-    ctx.dependenciesGraph[pendingNode.nodeId] = {
+    ctx.dependenciesTree[pendingNode.nodeId] = {
       children: () => buildTree(ctx, pendingNode.nodeId, pendingNode.resolvedPackage.id,
         ctx.childrenByParentId[pendingNode.resolvedPackage.id], pendingNode.depth + 1, pendingNode.installable),
       depth: pendingNode.depth,
@@ -106,7 +106,7 @@ export default async function (
   })
 
   return {
-    dependenciesGraph: ctx.dependenciesGraph,
+    dependenciesTree: ctx.dependenciesTree,
     outdatedDependencies: ctx.outdatedDependencies,
     resolvedFromLocalPackages: ctx.resolvedFromLocalPackages,
     resolvedPackagesByPackageId: ctx.resolvedPackagesByPackageId,
@@ -130,7 +130,7 @@ function buildTree (
     const childNodeId = createNodeId(parentNodeId, child.pkgId)
     childrenNodeIds[child.alias] = childNodeId
     installable = installable && !ctx.skipped.has(child.pkgId)
-    ctx.dependenciesGraph[childNodeId] = {
+    ctx.dependenciesTree[childNodeId] = {
       children: () => buildTree(ctx, childNodeId, child.pkgId, ctx.childrenByParentId[child.pkgId], depth + 1, installable),
       depth,
       installable,

@@ -328,7 +328,7 @@ async function shrinkwrapToDepGraph (
   opts: ShrinkwrapToDepGraphOptions,
 ) {
   const currentPackages = currentShrinkwrap && currentShrinkwrap.packages || {}
-  const graph: DepGraphNodesByDepPath = {}
+  const graph: DependenciesGraph = {}
   let rootDependencies: {[alias: string]: string} = {}
   if (shr.packages) {
     const pkgSnapshotByLocation = {}
@@ -419,7 +419,7 @@ async function shrinkwrapToDepGraph (
 
 async function getChildrenPaths (
   ctx: {
-    graph: DepGraphNodesByDepPath,
+    graph: DependenciesGraph,
     force: boolean,
     registry: string,
     virtualStoreDir: string,
@@ -468,7 +468,7 @@ function pkgIsIndependent (pkgSnapshot: PackageSnapshot) {
   return pkgSnapshot.dependencies === undefined && pkgSnapshot.optionalDependencies === undefined
 }
 
-export interface DepGraphNode {
+export interface DependenciesGraphNode {
   hasBundledDependencies: boolean,
   centralLocation: string,
   modules: string,
@@ -489,15 +489,15 @@ export interface DepGraphNode {
   hasBin: boolean,
 }
 
-export interface DepGraphNodesByDepPath {
-  [depPath: string]: DepGraphNode
+export interface DependenciesGraph {
+  [depPath: string]: DependenciesGraphNode
 }
 
 const limitLinking = pLimit(16)
 
 async function linkAllPkgs (
   storeController: StoreController,
-  depNodes: DepGraphNode[],
+  depNodes: DependenciesGraphNode[],
   opts: {
     force: boolean,
     sideEffectsCache: boolean,
@@ -517,7 +517,7 @@ async function linkAllPkgs (
 }
 
 async function linkAllBins (
-  depGraph: DepGraphNodesByDepPath,
+  depGraph: DependenciesGraph,
   opts: {
     optional: boolean,
     warn: (message: string) => void,
@@ -537,7 +537,7 @@ async function linkAllBins (
             }, {})
 
         const binPath = path.join(depNode.peripheralLocation, 'node_modules', '.bin')
-        const pkgSnapshots = R.props<string, DepGraphNode>(R.values(childrenToLink), depGraph)
+        const pkgSnapshots = R.props<string, DependenciesGraphNode>(R.values(childrenToLink), depGraph)
 
         if (pkgSnapshots.indexOf(undefined as any) !== -1) { // tslint:disable-line
           await linkBins(depNode.modules, binPath, {warn: opts.warn})
@@ -564,7 +564,7 @@ async function linkAllBins (
 }
 
 async function linkAllModules (
-  depGraph: DepGraphNodesByDepPath,
+  depGraph: DependenciesGraph,
   opts: {
     optional: boolean,
   },

@@ -1,19 +1,19 @@
 // TODO: move to separate package. It is used in supi/lib/install.ts as well
 
 import { skippedOptionalDependencyLogger } from '@pnpm/core-loggers'
-import {runPostinstallHooks} from '@pnpm/lifecycle'
+import { runPostinstallHooks } from '@pnpm/lifecycle'
 import logger from '@pnpm/logger'
-import {fromDir as readPackageFromDir} from '@pnpm/read-package-json'
+import { fromDir as readPackageFromDir } from '@pnpm/read-package-json'
 import graphSequencer = require('graph-sequencer')
 import pLimit = require('p-limit')
-import {StoreController} from 'package-store'
+import { StoreController } from 'package-store'
 import path = require('path')
 import R = require('ramda')
-import {DepGraphNodesByDepPath} from '.'
-import {ENGINE_NAME} from './constants'
+import { DependenciesGraph } from '.'
+import { ENGINE_NAME } from './constants'
 
 export default async (
-  depGraph: DepGraphNodesByDepPath,
+  depGraph: DependenciesGraph,
   rootDepPaths: string[],
   opts: {
     childConcurrency?: number,
@@ -104,7 +104,7 @@ export default async (
 }
 
 function getSubgraphToBuild (
-  graph: DepGraphNodesByDepPath,
+  graph: DependenciesGraph,
   entryNodes: string[],
   nodesToBuild: Set<string>,
   walked: Set<string>,

@@ -1,6 +1,6 @@
 import logger from '@pnpm/logger'
-import {Resolution} from '@pnpm/resolver-base'
-import {Dependencies, PackageJson} from '@pnpm/types'
+import { Resolution } from '@pnpm/resolver-base'
+import { Dependencies } from '@pnpm/types'
 import * as dp from 'dependency-path'
 import getNpmTarballUrl from 'get-npm-tarball-url'
 import {
@@ -12,11 +12,11 @@ import {
   ShrinkwrapResolution,
 } from 'pnpm-shrinkwrap'
 import R = require('ramda')
-import {absolutePathToRef} from '../fs/shrinkwrap'
-import {DepGraphNodesByDepPath} from './resolvePeers'
+import { absolutePathToRef } from '../fs/shrinkwrap'
+import { DependenciesGraph } from './resolvePeers'
 
 export default function (
-  depGraph: DepGraphNodesByDepPath,
+  depGraph: DependenciesGraph,
   shrinkwrap: Shrinkwrap,
   prefix: string,
 ): {
@@ -73,7 +73,7 @@ function toShrDependency (
     registry: string,
     updatedDeps: Array<{alias: string, depPath: string}>,
     updatedOptionalDeps: Array<{alias: string, depPath: string}>,
-    depGraph: DepGraphNodesByDepPath,
+    depGraph: DependenciesGraph,
     prevSnapshot?: PackageSnapshot,
   },
 ): DependencyShrinkwrap {
@@ -183,7 +183,7 @@ function updateResolvedDeps (
   prevResolvedDeps: ResolvedDependencies,
   updatedDeps: Array<{alias: string, depPath: string}>,
   registry: string,
-  depGraph: DepGraphNodesByDepPath,
+  depGraph: DependenciesGraph,
 ) {
   const newResolvedDeps = R.fromPairs<string>(
     updatedDeps

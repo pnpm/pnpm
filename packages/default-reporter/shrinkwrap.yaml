@@ -12,6 +12,7 @@ dependencies:
   common-tags: 1.8.0
   most: 1.7.3
   normalize-path: 3.0.0
+  pnpm-default-reporter: 'link:'
   pretty-bytes: 5.1.0
   ramda: 0.25.0
   right-pad: 1.0.1

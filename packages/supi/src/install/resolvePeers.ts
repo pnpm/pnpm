@@ -2,8 +2,8 @@ import logger from '@pnpm/logger'
 import { PackageFilesResponse } from '@pnpm/package-requester'
 import pkgIdToFilename from '@pnpm/pkgid-to-filename'
 import {
-  DependenciesGraph,
-  DependenciesGraphNode,
+  DependenciesTree,
+  DependenciesTreeNode,
 } from '@pnpm/resolve-dependencies'
 import { Resolution } from '@pnpm/resolver-base'
 import { PackageJson } from '@pnpm/types'
@@ -21,7 +21,7 @@ import R = require('ramda')
 import semver = require('semver')
 import { PnpmError } from '../errorTypes'
 
-export interface DepGraphNode {
+export interface DependenciesGraphNode {
   name: string,
   // at this point the version is really needed only for logging
   version: string,
@@ -63,13 +63,13 @@ export interface DepGraphNode {
   isPure: boolean,
 }
 
-export interface DepGraphNodesByDepPath {
-  [depPath: string]: DepGraphNode
+export interface DependenciesGraph {
+  [depPath: string]: DependenciesGraphNode
 }
 
 export default function (
   opts: {
-    dependenciesGraph: DependenciesGraph,
+    dependenciesTree: DependenciesTree,
     rootNodeIdsByAlias: {[alias: string]: string},
     // only the top dependencies that were already installed
     // to avoid warnings about unresolved peer dependencies
@@ -81,7 +81,7 @@ export default function (
     externalShrinkwrap: boolean,
   },
 ): {
-  depGraph: DepGraphNodesByDepPath,
+  depGraph: DependenciesGraph,
   rootAbsolutePathsByAlias: {[alias: string]: string},
 } {
   const pkgsByName = Object.assign(
@@ -99,18 +99,18 @@ export default function (
         .keys(opts.rootNodeIdsByAlias)
         .map((alias) => ({
           alias,
-          node: opts.dependenciesGraph[opts.rootNodeIdsByAlias[alias]],
+          node: opts.dependenciesTree[opts.rootNodeIdsByAlias[alias]],
           nodeId: opts.rootNodeIdsByAlias[alias],
         })),
     ),
   )
 
   const absolutePathsByNodeId = {}
-  const depGraph: DepGraphNodesByDepPath = {}
+  const depGraph: DependenciesGraph = {}
   resolvePeersOfChildren(opts.rootNodeIdsByAlias, pkgsByName, {
     absolutePathsByNodeId,
     depGraph,
-    dependenciesGraph: opts.dependenciesGraph,
+    dependenciesTree: opts.dependenciesTree,
     externalShrinkwrap: opts.externalShrinkwrap,
     independentLeaves: opts.independentLeaves,
     prefix: opts.prefix,
@@ -138,9 +138,9 @@ function resolvePeersOfNode (
   nodeId: string,
   parentParentPkgs: ParentRefs,
   ctx: {
-    dependenciesGraph: DependenciesGraph,
+    dependenciesTree: DependenciesTree,
     absolutePathsByNodeId: {[nodeId: string]: string},
-    depGraph: DepGraphNodesByDepPath,
+    depGraph: DependenciesGraph,
     independentLeaves: boolean,
     virtualStoreDir: string,
     purePkgs: Set<string>, // pure packages are those that don't rely on externally resolved peers
@@ -149,7 +149,7 @@ function resolvePeersOfNode (
     externalShrinkwrap: boolean,
   },
 ): {[alias: string]: string} {
-  const node = ctx.dependenciesGraph[nodeId]
+  const node = ctx.dependenciesTree[nodeId]
   if (ctx.purePkgs.has(node.resolvedPackage.id) && ctx.depGraph[node.resolvedPackage.id].depth <= node.depth) {
     ctx.absolutePathsByNodeId[nodeId] = node.resolvedPackage.id
     return {}
@@ -160,14 +160,14 @@ function resolvePeersOfNode (
     ? parentParentPkgs
     : {
         ...parentParentPkgs,
-        ...toPkgByName(R.keys(children).map((alias) => ({alias, nodeId: children[alias], node: ctx.dependenciesGraph[children[alias]]}))),
+        ...toPkgByName(R.keys(children).map((alias) => ({alias, nodeId: children[alias], node: ctx.dependenciesTree[children[alias]]}))),
       }
   const unknownResolvedPeersOfChildren = resolvePeersOfChildren(children, parentPkgs, ctx)
 
   const resolvedPeers = R.isEmpty(node.resolvedPackage.peerDependencies)
     ? {}
     : resolvePeers({
-        dependenciesGraph: ctx.dependenciesGraph,
+        dependenciesTree: ctx.dependenciesTree,
         externalShrinkwrap: ctx.externalShrinkwrap,
         node,
         nodeId,
@@ -192,7 +192,7 @@ function resolvePeersOfNode (
     const peersFolder = createPeersFolderName(
       R.keys(allResolvedPeers).map((alias) => ({
         name: alias,
-        version: ctx.dependenciesGraph[allResolvedPeers[alias]].resolvedPackage.version,
+        version: ctx.dependenciesTree[allResolvedPeers[alias]].resolvedPackage.version,
       })))
     modules = path.join(localLocation, peersFolder, 'node_modules')
     absolutePath = `${node.resolvedPackage.id}/${peersFolder}`
@@ -246,8 +246,8 @@ function resolvePeersOfChildren (
     independentLeaves: boolean,
     virtualStoreDir: string,
     purePkgs: Set<string>,
-    depGraph: DepGraphNodesByDepPath,
-    dependenciesGraph: DependenciesGraph,
+    depGraph: DependenciesGraph,
+    dependenciesTree: DependenciesTree,
     prefix: string,
     strictPeerDependencies: boolean,
     externalShrinkwrap: boolean,
@@ -272,9 +272,9 @@ function resolvePeersOfChildren (
 function resolvePeers (
   ctx: {
     nodeId: string,
-    node: DependenciesGraphNode,
+    node: DependenciesTreeNode,
     parentPkgs: ParentRefs,
-    dependenciesGraph: DependenciesGraph,
+    dependenciesTree: DependenciesTree,
     prefix: string,
     strictPeerDependencies: boolean,
     externalShrinkwrap: boolean,
@@ -288,7 +288,7 @@ function resolvePeers (
 
     let resolved = ctx.parentPkgs[peerName]
 
-    if (!resolved || resolved.nodeId && !ctx.dependenciesGraph[resolved.nodeId].installable) {
+    if (!resolved || resolved.nodeId && !ctx.dependenciesTree[resolved.nodeId].installable) {
       try {
         const {version} = importFrom(ctx.prefix, `${peerName}/package.json`)
         resolved = {
@@ -296,7 +296,7 @@ function resolvePeers (
           version,
         }
       } catch (err) {
-        const friendlyPath = nodeIdToFriendlyPath(ctx.nodeId, ctx.dependenciesGraph)
+        const friendlyPath = nodeIdToFriendlyPath(ctx.nodeId, ctx.dependenciesTree)
         const message = oneLine`
           ${friendlyPath ? `${friendlyPath}: ` : ''}${packageFriendlyId(ctx.node.resolvedPackage)}
           requires a peer of ${peerName}@${peerVersionRange} but none was installed.`
@@ -312,7 +312,7 @@ function resolvePeers (
     }
 
     if (!semver.satisfies(resolved.version, peerVersionRange)) {
-      const friendlyPath = nodeIdToFriendlyPath(ctx.nodeId, ctx.dependenciesGraph)
+      const friendlyPath = nodeIdToFriendlyPath(ctx.nodeId, ctx.dependenciesTree)
       const message = oneLine`
         ${friendlyPath ? `${friendlyPath}: ` : ''}${packageFriendlyId(ctx.node.resolvedPackage)}
         requires a peer of ${peerName}@${peerVersionRange} but version ${resolved.version} was installed.`
@@ -341,10 +341,10 @@ function packageFriendlyId (pkg: {name: string, version: string}) {
   return `${pkg.name}@${pkg.version}`
 }
 
-function nodeIdToFriendlyPath (nodeId: string, dependenciesGraph: DependenciesGraph) {
+function nodeIdToFriendlyPath (nodeId: string, dependenciesTree: DependenciesTree) {
   const parts = splitNodeId(nodeId).slice(2, -2)
   return R.tail(R.scan((prevNodeId, pkgId) => createNodeId(prevNodeId, pkgId), ROOT_NODE_ID, parts))
-    .map((nid) => dependenciesGraph[nid].resolvedPackage.name)
+    .map((nid) => dependenciesTree[nid].resolvedPackage.name)
     .join(' > ')
 }
 
@@ -359,7 +359,7 @@ interface ParentRef {
   nodeId?: string,
 }
 
-function toPkgByName (nodes: Array<{alias: string, nodeId: string, node: DependenciesGraphNode}>): ParentRefs {
+function toPkgByName (nodes: Array<{alias: string, nodeId: string, node: DependenciesTreeNode}>): ParentRefs {
   const pkgsByName: ParentRefs = {}
   for (const node of nodes) {
     pkgsByName[node.alias] = {

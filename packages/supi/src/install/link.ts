@@ -8,7 +8,7 @@ import logger from '@pnpm/logger'
 import { prune } from '@pnpm/modules-cleaner'
 import { IncludedDependencies } from '@pnpm/modules-yaml'
 import { fromDir as readPackageFromDir } from '@pnpm/read-package-json'
-import { DependenciesGraph } from '@pnpm/resolve-dependencies'
+import { DependenciesTree } from '@pnpm/resolve-dependencies'
 import { PackageJson } from '@pnpm/types'
 import * as dp from 'dependency-path'
 import pLimit = require('p-limit')
@@ -19,14 +19,17 @@ import R = require('ramda')
 import { SHRINKWRAP_MINOR_VERSION } from '../constants'
 import shamefullyFlattenGraph from '../shamefullyFlattenGraph'
 import symlinkDependencyTo from '../symlinkDependencyTo'
-import resolvePeers, { DepGraphNode, DepGraphNodesByDepPath } from './resolvePeers'
+import resolvePeers, {
+  DependenciesGraph,
+  DependenciesGraphNode,
+} from './resolvePeers'
 import updateShrinkwrap from './updateShrinkwrap'
 
-export { DepGraphNodesByDepPath }
+export { DependenciesGraph }
 
 export default async function linkPackages (
   rootNodeIdsByAlias: {[alias: string]: string},
-  dependenciesGraph: DependenciesGraph,
+  dependenciesTree: DependenciesTree,
   opts: {
     afterAllResolvedHook?: (shr: Shrinkwrap) => Shrinkwrap,
     force: boolean,
@@ -58,7 +61,7 @@ export default async function linkPackages (
   },
 ): Promise<{
   currentShrinkwrap: Shrinkwrap,
-  depGraph: DepGraphNodesByDepPath,
+  depGraph: DependenciesGraph,
   hoistedAliases: {[depPath: string]: string[]},
   newDepPaths: string[],
   removedDepPaths: Set<string>,
@@ -69,7 +72,7 @@ export default async function linkPackages (
   // sometimes node_modules is alread up-to-date
   // logger.info(`Creating dependency graph`)
   const resolvePeersResult = await resolvePeers({
-    dependenciesGraph,
+    dependenciesTree,
     externalShrinkwrap: opts.externalShrinkwrap,
     independentLeaves: opts.independentLeaves,
     prefix: opts.prefix,
@@ -161,7 +164,7 @@ export default async function linkPackages (
     .reduce((acc, depNode) => {
       acc[depNode.absolutePath] = depNode
       return acc
-    }, {}) as {[absolutePath: string]: DepGraphNode}
+    }, {}) as {[absolutePath: string]: DependenciesGraphNode}
   for (const rootAlias of R.keys(resolvePeersResult.rootAbsolutePathsByAlias)) {
     const pkg = rootDepsByDepPath[resolvePeersResult.rootAbsolutePathsByAlias[rootAlias]]
     if (!pkg) continue
@@ -288,7 +291,7 @@ function filterShrinkwrap (
 async function linkNewPackages (
   currentShrinkwrap: Shrinkwrap,
   wantedShrinkwrap: Shrinkwrap,
-  depGraph: DepGraphNodesByDepPath,
+  depGraph: DependenciesGraph,
   opts: {
     importerModulesDir: string,
     dryRun: boolean,
@@ -344,7 +347,7 @@ async function linkNewPackages (
 
   if (opts.dryRun) return newDepPaths
 
-  const newPkgs = R.props<string, DepGraphNode>(newDepPaths, depGraph)
+  const newPkgs = R.props<string, DependenciesGraphNode>(newDepPaths, depGraph)
 
   await Promise.all([
     linkAllModules(newPkgs, depGraph, {optional: opts.optional}),
@@ -364,7 +367,7 @@ const limitLinking = pLimit(16)
 
 async function linkAllPkgs (
   storeController: StoreController,
-  depNodes: DepGraphNode[],
+  depNodes: DependenciesGraphNode[],
   opts: {
     force: boolean,
     sideEffectsCache: boolean,
@@ -384,8 +387,8 @@ async function linkAllPkgs (
 }
 
 async function linkAllBins (
-  depNodes: DepGraphNode[],
-  depGraph: DepGraphNodesByDepPath,
+  depNodes: DependenciesGraphNode[],
+  depGraph: DependenciesGraph,
   opts: {
     optional: boolean,
     warn: (message: string) => void,
@@ -428,8 +431,8 @@ async function linkAllBins (
 }
 
 async function linkAllModules (
-  depNodes: DepGraphNode[],
-  depGraph: DepGraphNodesByDepPath,
+  depNodes: DependenciesGraphNode[],
+  depGraph: DependenciesGraph,
   opts: {
     optional: boolean,
   },

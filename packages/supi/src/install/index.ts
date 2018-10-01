@@ -62,7 +62,7 @@ import extendOptions, {
   InstallOptions,
   StrictInstallOptions,
 } from './extendInstallOptions'
-import linkPackages, { DepGraphNodesByDepPath } from './link'
+import linkPackages, { DependenciesGraph } from './link'
 
 const ENGINE_NAME = `${process.platform}-${process.arch}-node-${process.version.split('.')[0]}`
 
@@ -408,7 +408,7 @@ async function installInContext (
     ctx.wantedShrinkwrap.importers[ctx.importerPath] = {specifiers: {}}
   }
   stageLogger.debug('resolution_started')
-  const { dependenciesGraph, rootPkgs, resolvedFromLocalPackages, outdatedDependencies, resolvedPackagesByPackageId } = await resolveDependencies({
+  const { dependenciesTree, rootPkgs, resolvedFromLocalPackages, outdatedDependencies, resolvedPackagesByPackageId } = await resolveDependencies({
     currentShrinkwrap: ctx.currentShrinkwrap,
     depth: (() => {
       // This can be remove from shrinkwrap v4
@@ -458,7 +458,7 @@ async function installInContext (
   const pkgsToSave = (
     rootPkgs
       .map((rootPkg) => ({
-        ...dependenciesGraph[rootPkg.nodeId].resolvedPackage,
+        ...dependenciesTree[rootPkg.nodeId].resolvedPackage,
         alias: rootPkg.alias,
         normalizedPref: rootPkg.normalizedPref,
       })) as Array<{
@@ -526,7 +526,7 @@ async function installInContext (
     : []
 
   const externalShrinkwrap = ctx.shrinkwrapDirectory !== opts.prefix
-  const result = await linkPackages(rootNodeIdsByAlias, dependenciesGraph, {
+  const result = await linkPackages(rootNodeIdsByAlias, dependenciesTree, {
     afterAllResolvedHook: opts.hooks && opts.hooks.afterAllResolved,
     bin: opts.bin,
     currentShrinkwrap: ctx.currentShrinkwrap,
@@ -722,7 +722,7 @@ function resolvePath (where: string, spec: string) {
 }
 
 function getSubgraphToBuild (
-  graph: DepGraphNodesByDepPath,
+  graph: DependenciesGraph,
   entryNodes: string[],
   nodesToBuild: Set<string>,
   walked: Set<string>,

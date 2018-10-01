@@ -45,18 +45,18 @@ import {
   deprecationLogger,
 } from './loggers'
 
-export interface DependenciesGraphNode {
+export interface DependenciesTreeNode {
   children: (() => {[alias: string]: string}) | {[alias: string]: string}, // child nodeId by child alias name
   resolvedPackage: ResolvedPackage,
   depth: number,
   installable: boolean,
 }
 
-export interface DependenciesGraph {
+export interface DependenciesTree {
   // a node ID is the join of the package's keypath with a colon
   // E.g., a subdeps node ID which parent is `foo` will be
   // registry.npmjs.org/foo/1.0.0:registry.npmjs.org/bar/1.0.0
-  [nodeId: string]: DependenciesGraphNode,
+  [nodeId: string]: DependenciesTreeNode,
 }
 
 export interface ResolvedPackagesByPackageId {
@@ -92,7 +92,7 @@ export interface ResolutionContext {
   storeController: StoreController,
   // the IDs of packages that are not installable
   skipped: Set<string>,
-  dependenciesGraph: DependenciesGraph,
+  dependenciesTree: DependenciesTree,
   force: boolean,
   prefix: string,
   registry: string,
@@ -596,7 +596,7 @@ async function install (
       alias: child.alias,
       pkgId: child.pkgId,
     }))
-    ctx.dependenciesGraph[nodeId] = {
+    ctx.dependenciesTree[nodeId] = {
       children: children.reduce((chn, child) => {
         chn[child.alias] = child.nodeId
         return chn
