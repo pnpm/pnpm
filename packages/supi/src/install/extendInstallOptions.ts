@@ -55,7 +55,6 @@ export interface InstallOptions {
   unsafePerm?: boolean,
   registry?: string,
   lock?: boolean,
-  reinstallForFlatten?: boolean,
   lockStaleDuration?: number,
   tag?: string,
   locks?: string,
@@ -186,29 +185,27 @@ export default async (
   }
   const defaultOpts = await defaults(opts)
   const extendedOpts = {...defaultOpts, ...opts, store: defaultOpts.store}
-  if (!extendedOpts.reinstallForFlatten) {
-    if (extendedOpts.shamefullyFlatten) {
-      logger.info({
-        message: 'Installing a flat node_modules. Use flat node_modules only if you rely on buggy dependencies that you cannot fix.',
-        prefix: extendedOpts.prefix,
-      })
-    }
-    if (!extendedOpts.shrinkwrap && extendedOpts.shrinkwrapOnly) {
-      throw new Error('Cannot generate a shrinkwrap.yaml because shrinkwrap is set to false')
-    }
-    if (extendedOpts.userAgent.startsWith('npm/')) {
-      extendedOpts.userAgent = `${extendedOpts.packageManager.name}/${extendedOpts.packageManager.version} ${extendedOpts.userAgent}`
-    }
-    extendedOpts.registry = normalizeRegistryUrl(extendedOpts.registry)
-    extendedOpts.rawNpmConfig['registry'] = extendedOpts.registry // tslint:disable-line:no-string-literal
-    // if sideEffectsCacheReadonly is true, sideEffectsCache is necessarily true too
-    if (extendedOpts.sideEffectsCache && extendedOpts.sideEffectsCacheReadonly) {
-      logger.warn({
-        message: "--side-effects-cache-readonly turns on side effects cache too, you don't need to specify both",
-        prefix: extendedOpts.prefix,
-      })
-    }
-    extendedOpts.sideEffectsCache = extendedOpts.sideEffectsCache || extendedOpts.sideEffectsCacheReadonly
+  if (extendedOpts.shamefullyFlatten) {
+    logger.info({
+      message: 'Installing a flat node_modules. Use flat node_modules only if you rely on buggy dependencies that you cannot fix.',
+      prefix: extendedOpts.prefix,
+    })
   }
+  if (!extendedOpts.shrinkwrap && extendedOpts.shrinkwrapOnly) {
+    throw new Error('Cannot generate a shrinkwrap.yaml because shrinkwrap is set to false')
+  }
+  if (extendedOpts.userAgent.startsWith('npm/')) {
+    extendedOpts.userAgent = `${extendedOpts.packageManager.name}/${extendedOpts.packageManager.version} ${extendedOpts.userAgent}`
+  }
+  extendedOpts.registry = normalizeRegistryUrl(extendedOpts.registry)
+  extendedOpts.rawNpmConfig['registry'] = extendedOpts.registry // tslint:disable-line:no-string-literal
+  // if sideEffectsCacheReadonly is true, sideEffectsCache is necessarily true too
+  if (extendedOpts.sideEffectsCache && extendedOpts.sideEffectsCacheReadonly) {
+    logger.warn({
+      message: "--side-effects-cache-readonly turns on side effects cache too, you don't need to specify both",
+      prefix: extendedOpts.prefix,
+    })
+  }
+  extendedOpts.sideEffectsCache = extendedOpts.sideEffectsCache || extendedOpts.sideEffectsCacheReadonly
   return extendedOpts
 }

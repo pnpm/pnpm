@@ -542,7 +542,6 @@ async function installInContext (
     pkg: newPkg || ctx.pkg,
     prefix: ctx.prefix,
     pruneStore: opts.pruneStore,
-    reinstallForFlatten: Boolean(opts.reinstallForFlatten),
     shamefullyFlatten: opts.shamefullyFlatten,
     sideEffectsCache: opts.sideEffectsCache,
     skipped: ctx.skipped,

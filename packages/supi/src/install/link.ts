@@ -53,7 +53,6 @@ export default async function linkPackages (
     outdatedDependencies: {[pkgId: string]: string},
     sideEffectsCache: boolean,
     shamefullyFlatten: boolean,
-    reinstallForFlatten: boolean,
     hoistedAliases: {[depPath: string]: string[]},
     strictPeerDependencies: boolean,
     importerPath: string,
@@ -232,7 +231,7 @@ export default async function linkPackages (
   }
 
   // Important: shamefullyFlattenGraph changes depGraph, so keep this at the end, right before linkBins
-  if (opts.shamefullyFlatten && (opts.reinstallForFlatten || newDepPaths.length > 0 || removedDepPaths.size > 0)) {
+  if (opts.shamefullyFlatten && (newDepPaths.length > 0 || removedDepPaths.size > 0)) {
     opts.hoistedAliases = await shamefullyFlattenGraph(depNodes, currentShrinkwrap.importers[opts.importerPath].specifiers, opts)
   }
 
