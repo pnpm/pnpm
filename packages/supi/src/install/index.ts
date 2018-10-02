@@ -181,11 +181,14 @@ export async function install (maybeOpts: InstallOptions & {
       storePath: ctx.storePath,
       virtualStoreDir: ctx.virtualStoreDir,
     })
-    await installInContext(installType, ctx, {
+    await installInContext(ctx, {
       ...opts,
       linkedPkgs: linkedPackages,
+      makePartialCurrentShrinkwrap: false,
       newPkgRawSpecs: [],
       nonLinkedPkgs: nonLinkedPackages,
+      updatePackageJson: false,
+      updateShrinkwrapMinorVersion: true,
       wantedDeps,
     })
 
@@ -353,14 +356,25 @@ export async function installPkgs (
       optionalDependencies,
     })
 
+    // Unfortunately, the private shrinkwrap file may differ from the public one.
+    // A user might run named installations on a project that has a shrinkwrap.yaml file before running a noop install
+    const makePartialCurrentShrinkwrap = (
+      ctx.existsWantedShrinkwrap && !ctx.existsCurrentShrinkwrap ||
+      // TODO: this operation is quite expensive. We'll have to find a better solution to do this.
+      // maybe in pnpm v2 it won't be needed. See: https://github.com/pnpm/pnpm/issues/841
+      !shrinkwrapsEqual(ctx.currentShrinkwrap, ctx.wantedShrinkwrap)
+    )
+
     return installInContext(
-      installType,
       ctx,
       {
         ...opts,
         linkedPkgs: [],
+        makePartialCurrentShrinkwrap,
         newPkgRawSpecs: wantedDeps.map((wantedDependency) => wantedDependency.raw),
         nonLinkedPkgs: wantedDeps,
+        updatePackageJson: true,
+        updateShrinkwrapMinorVersion: R.isEmpty(ctx.currentShrinkwrap.packages),
         wantedDeps,
       },
     )
@@ -368,13 +382,15 @@ export async function installPkgs (
 }
 
 async function installInContext (
-  installType: string,
   ctx: PnpmContext,
   opts: StrictInstallOptions & {
-    nonLinkedPkgs: WantedDependency[],
     linkedPkgs: Array<WantedDependency & {alias: string}>,
-    wantedDeps: WantedDependency[],
+    makePartialCurrentShrinkwrap: boolean,
     newPkgRawSpecs: string[],
+    nonLinkedPkgs: WantedDependency[],
+    updatePackageJson: boolean,
+    updateShrinkwrapMinorVersion: boolean,
+    wantedDeps: WantedDependency[],
     preferredVersions?: {
       [packageName: string]: {
         selector: string,
@@ -383,15 +399,6 @@ async function installInContext (
     },
   },
 ) {
-  // Unfortunately, the private shrinkwrap file may differ from the public one.
-  // A user might run named installations on a project that has a shrinkwrap.yaml file before running a noop install
-  const makePartialCurrentShrinkwrap = installType === 'named' && (
-    ctx.existsWantedShrinkwrap && !ctx.existsCurrentShrinkwrap ||
-    // TODO: this operation is quite expensive. We'll have to find a better solution to do this.
-    // maybe in pnpm v2 it won't be needed. See: https://github.com/pnpm/pnpm/issues/841
-    !shrinkwrapsEqual(ctx.currentShrinkwrap, ctx.wantedShrinkwrap)
-  )
-
   if (opts.shrinkwrapOnly && ctx.existsCurrentShrinkwrap) {
     logger.warn({
       message: '`node_modules` is present. Shrinkwrap only installation will make it out-of-date',
@@ -459,7 +466,7 @@ async function installInContext (
   stageLogger.debug('resolution_done')
 
   let newPkg: PackageJson | undefined = ctx.pkg
-  if (installType === 'named') {
+  if (opts.updatePackageJson) {
     if (!ctx.pkg) {
       throw new Error('Cannot save because no package.json found')
     }
@@ -530,7 +537,7 @@ async function installInContext (
     importerPath: ctx.importerPath,
     include: opts.include,
     independentLeaves: opts.independentLeaves,
-    makePartialCurrentShrinkwrap,
+    makePartialCurrentShrinkwrap: opts.makePartialCurrentShrinkwrap,
     outdatedDependencies,
     pkg: newPkg || ctx.pkg,
     prefix: ctx.prefix,
@@ -542,7 +549,7 @@ async function installInContext (
     storeController: opts.storeController,
     strictPeerDependencies: opts.strictPeerDependencies,
     topParents,
-    updateShrinkwrapMinorVersion: installType === 'general' || R.isEmpty(ctx.currentShrinkwrap.packages),
+    updateShrinkwrapMinorVersion: opts.updateShrinkwrapMinorVersion,
     virtualStoreDir: ctx.virtualStoreDir,
     wantedShrinkwrap: ctx.wantedShrinkwrap,
   })
