@@ -1,10 +1,10 @@
-import { LocalPackages, Resolution } from '@pnpm/resolver-base'
+import { DirectoryResolution, LocalPackages, Resolution } from '@pnpm/resolver-base'
 import { PackageJson, ReadPackageHook } from '@pnpm/types'
 import { createNodeId, nodeIdContainsSequence, ROOT_NODE_ID, WantedDependency } from '@pnpm/utils'
 import { StoreController } from 'package-store'
 import { Shrinkwrap } from 'pnpm-shrinkwrap'
 import getPreferredVersionsFromPackage from './getPreferredVersions'
-import resolveDependencies, { ResolutionContext } from './resolveDependencies'
+import resolveDependencies, { PkgAddress, ResolutionContext } from './resolveDependencies'
 
 export { ResolvedPackage, DependenciesTree, DependenciesTreeNode } from './resolveDependencies'
 export { InstallCheckLog, DeprecationLog } from './loggers'
@@ -16,7 +16,12 @@ export default async function (
     dryRun: boolean,
     engineStrict: boolean,
     force: boolean,
-    importerPath: string,
+    importers: Array<{
+      packageJson: PackageJson,
+      prefix: string,
+      relativePath: string,
+      shamefullyFlatten: boolean,
+    }>,
     hooks: {
       readPackage?: ReadPackageHook,
     },
@@ -26,7 +31,6 @@ export default async function (
     pkg?: PackageJson,
     pnpmVersion: string,
     sideEffectsCache: boolean,
-    shamefullyFlatten: boolean,
     preferredVersions?: {
       [packageName: string]: {
         selector: string,
@@ -46,6 +50,8 @@ export default async function (
   },
 ) {
   const preferredVersions = opts.preferredVersions || opts.pkg && getPreferredVersionsFromPackage(opts.pkg) || {}
+  const rootPkgsByImporterPath = {} as {[importerPath: string]: PkgAddress[]}
+  const resolvedFromLocalPackagesByImporterPath = {}
 
   const ctx: ResolutionContext = {
     childrenByParentId: {},
@@ -73,27 +79,32 @@ export default async function (
     wantedShrinkwrap: opts.wantedShrinkwrap,
   }
 
-  const shrImporter = opts.wantedShrinkwrap.importers[opts.importerPath]
-  const rootPkgs = await resolveDependencies(
-    ctx,
-    opts.nonLinkedPackages,
-    {
-      currentDepth: 0,
-      hasManifestInShrinkwrap: opts.hasManifestInShrinkwrap,
-      keypath: [],
-      localPackages: opts.localPackages,
-      parentNodeId: ROOT_NODE_ID,
-      readPackageHook: opts.hooks.readPackage,
-      resolvedDependencies: {
-        ...shrImporter.dependencies,
-        ...shrImporter.devDependencies,
-        ...shrImporter.optionalDependencies,
+  // TODO: try to make it concurrent
+  for (const importer of opts.importers) {
+    const shrImporter = opts.wantedShrinkwrap.importers[importer.relativePath]
+    ctx.resolvedFromLocalPackages = []
+    rootPkgsByImporterPath[importer.relativePath] = await resolveDependencies(
+      ctx,
+      opts.nonLinkedPackages,
+      {
+        currentDepth: 0,
+        hasManifestInShrinkwrap: opts.hasManifestInShrinkwrap,
+        keypath: [],
+        localPackages: opts.localPackages,
+        parentNodeId: ROOT_NODE_ID,
+        readPackageHook: opts.hooks.readPackage,
+        resolvedDependencies: {
+          ...shrImporter.dependencies,
+          ...shrImporter.devDependencies,
+          ...shrImporter.optionalDependencies,
+        },
+        shamefullyFlatten: importer.shamefullyFlatten,
+        sideEffectsCache: opts.sideEffectsCache,
+        update: opts.update,
       },
-      shamefullyFlatten: opts.shamefullyFlatten,
-      sideEffectsCache: opts.sideEffectsCache,
-      update: opts.update,
-    },
-  )
+    )
+    resolvedFromLocalPackagesByImporterPath[importer.relativePath] = ctx.resolvedFromLocalPackages
+  }
 
   ctx.pendingNodes.forEach((pendingNode) => {
     ctx.dependenciesTree[pendingNode.nodeId] = {
@@ -105,18 +116,9 @@ export default async function (
     }
   })
 
-  const directNodeIdsByAlias = rootPkgs
-    .reduce((acc, rootPkg) => {
-      acc[rootPkg.alias] = rootPkg.nodeId
-      return acc
-    }, {})
-  const directDependencies = [
-    ...rootPkgs
-      .map((rootPkg) => ({
-        ...ctx.dependenciesTree[rootPkg.nodeId].resolvedPackage,
-        alias: rootPkg.alias,
-        normalizedPref: rootPkg.normalizedPref,
-      })) as Array<{
+  const resolvedImporters = {} as {
+    [importerPath: string]: {
+      directDependencies: Array<{
         alias: string,
         optional: boolean,
         dev: boolean,
@@ -127,15 +129,60 @@ export default async function (
         specRaw: string,
         normalizedPref?: string,
       }>,
-    ...ctx.resolvedFromLocalPackages,
-  ]
+      directNodeIdsByAlias: {
+        [alias: string]: string,
+      },
+      resolvedFromLocalPackages: Array<{
+        optional: boolean,
+        dev: boolean,
+        resolution: DirectoryResolution,
+        id: string,
+        version: string,
+        name: string,
+        specRaw: string,
+        normalizedPref?: string,
+        alias: string,
+      }>,
+    },
+  }
+
+  for (const importer of opts.importers) {
+    const rootPkgs = rootPkgsByImporterPath[importer.relativePath]
+    const resolvedFromLocalPackages = resolvedFromLocalPackagesByImporterPath[importer.relativePath]
+
+    resolvedImporters[importer.relativePath] = {
+      directDependencies: [
+        ...rootPkgs
+          .map((rootPkg) => ({
+            ...ctx.dependenciesTree[rootPkg.nodeId].resolvedPackage,
+            alias: rootPkg.alias,
+            normalizedPref: rootPkg.normalizedPref,
+          })) as Array<{
+            alias: string,
+            optional: boolean,
+            dev: boolean,
+            resolution: Resolution,
+            id: string,
+            version: string,
+            name: string,
+            specRaw: string,
+            normalizedPref?: string,
+          }>,
+        ...resolvedFromLocalPackages,
+      ],
+      directNodeIdsByAlias: rootPkgs
+        .reduce((acc, rootPkg) => {
+          acc[rootPkg.alias] = rootPkg.nodeId
+          return acc
+        }, {}),
+      resolvedFromLocalPackages,
+    }
+  }
 
   return {
     dependenciesTree: ctx.dependenciesTree,
-    directDependencies,
-    directNodeIdsByAlias,
     outdatedDependencies: ctx.outdatedDependencies,
-    resolvedFromLocalPackages: ctx.resolvedFromLocalPackages,
+    resolvedImporters,
     resolvedPackagesByPackageId: ctx.resolvedPackagesByPackageId,
   }
 }

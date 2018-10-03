@@ -417,10 +417,8 @@ async function installInContext (
   stageLogger.debug('resolution_started')
   const {
     dependenciesTree,
-    directDependencies,
-    directNodeIdsByAlias,
     outdatedDependencies,
-    resolvedFromLocalPackages,
+    resolvedImporters,
     resolvedPackagesByPackageId,
   } = await resolveDependencies({
     currentShrinkwrap: ctx.currentShrinkwrap,
@@ -444,7 +442,14 @@ async function installInContext (
     force: opts.force,
     hasManifestInShrinkwrap,
     hooks: opts.hooks,
-    importerPath: ctx.importerPath,
+    importers: [
+      {
+        packageJson: ctx.pkg,
+        prefix: ctx.prefix,
+        relativePath: ctx.importerPath,
+        shamefullyFlatten: opts.shamefullyFlatten,
+      },
+    ],
     localPackages: opts.localPackages,
     nodeVersion: opts.nodeVersion,
     nonLinkedPackages: opts.nonLinkedPkgs,
@@ -453,7 +458,6 @@ async function installInContext (
     preferredVersions: opts.preferredVersions,
     prefix: opts.prefix,
     rawNpmConfig: opts.rawNpmConfig,
-    shamefullyFlatten: opts.shamefullyFlatten,
     sideEffectsCache: opts.sideEffectsCache,
     skipped: ctx.skipped,
     storeController: opts.storeController,
@@ -463,6 +467,7 @@ async function installInContext (
     virtualStoreDir: ctx.virtualStoreDir,
     wantedShrinkwrap: ctx.wantedShrinkwrap,
   })
+  const { directDependencies, directNodeIdsByAlias, resolvedFromLocalPackages } = resolvedImporters[ctx.importerPath]
   stageLogger.debug('resolution_done')
 
   let newPkg: PackageJson | undefined = ctx.pkg
