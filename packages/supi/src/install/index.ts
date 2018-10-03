@@ -530,34 +530,41 @@ async function installInContext (
     : []
 
   const externalShrinkwrap = ctx.shrinkwrapDirectory !== opts.prefix
-  const result = await linkPackages(directNodeIdsByAlias, dependenciesTree, {
-    afterAllResolvedHook: opts.hooks && opts.hooks.afterAllResolved,
-    bin: opts.bin,
-    currentShrinkwrap: ctx.currentShrinkwrap,
-    dryRun: opts.shrinkwrapOnly,
-    externalShrinkwrap,
-    force: opts.force,
-    hoistedAliases: ctx.hoistedAliases,
-    importerModulesDir: ctx.importerModulesDir,
-    importerPath: ctx.importerPath,
-    include: opts.include,
-    independentLeaves: opts.independentLeaves,
-    makePartialCurrentShrinkwrap: opts.makePartialCurrentShrinkwrap,
-    outdatedDependencies,
-    pkg: newPkg || ctx.pkg,
-    prefix: ctx.prefix,
-    pruneStore: opts.pruneStore,
-    shamefullyFlatten: opts.shamefullyFlatten,
-    sideEffectsCache: opts.sideEffectsCache,
-    skipped: ctx.skipped,
-    storeController: opts.storeController,
-    strictPeerDependencies: opts.strictPeerDependencies,
-    topParents,
-    updateShrinkwrapMinorVersion: opts.updateShrinkwrapMinorVersion,
-    virtualStoreDir: ctx.virtualStoreDir,
-    wantedShrinkwrap: ctx.wantedShrinkwrap,
-  })
-  ctx.hoistedAliases = result.hoistedAliases
+  const importers = {
+    [ctx.importerPath]: {
+      bin: opts.bin,
+      directNodeIdsByAlias,
+      externalShrinkwrap,
+      hoistedAliases: ctx.hoistedAliases,
+      importerModulesDir: ctx.importerModulesDir,
+      pkg: newPkg || ctx.pkg,
+      prefix: ctx.prefix,
+      shamefullyFlatten: opts.shamefullyFlatten,
+      topParents,
+    },
+  }
+  const result = await linkPackages(
+    importers,
+    dependenciesTree,
+    {
+      afterAllResolvedHook: opts.hooks && opts.hooks.afterAllResolved,
+      currentShrinkwrap: ctx.currentShrinkwrap,
+      dryRun: opts.shrinkwrapOnly,
+      force: opts.force,
+      include: opts.include,
+      independentLeaves: opts.independentLeaves,
+      makePartialCurrentShrinkwrap: opts.makePartialCurrentShrinkwrap,
+      outdatedDependencies,
+      pruneStore: opts.pruneStore,
+      sideEffectsCache: opts.sideEffectsCache,
+      skipped: ctx.skipped,
+      storeController: opts.storeController,
+      strictPeerDependencies: opts.strictPeerDependencies,
+      updateShrinkwrapMinorVersion: opts.updateShrinkwrapMinorVersion,
+      virtualStoreDir: ctx.virtualStoreDir,
+      wantedShrinkwrap: ctx.wantedShrinkwrap,
+    },
+  )
 
   ctx.pendingBuilds = ctx.pendingBuilds
     .filter((relDepPath) => !result.removedDepPaths.has(dp.resolve(ctx.wantedShrinkwrap.registry, relDepPath)))
@@ -588,7 +595,7 @@ async function installInContext (
           importers: {
             ...ctx.modulesFile && ctx.modulesFile.importers,
             [ctx.importerPath]: {
-              hoistedAliases: ctx.hoistedAliases,
+              hoistedAliases: importers[ctx.importerPath].hoistedAliases,
               shamefullyFlatten: opts.shamefullyFlatten,
             },
           },

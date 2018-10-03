@@ -70,14 +70,17 @@ export async function uninstallInContext (
   const pkg = await removeDeps(pkgJsonPath, pkgsToUninstall, { prefix: opts.prefix, saveType })
   const newShr = pruneShrinkwrap(ctx.wantedShrinkwrap, pkg, ctx.importerPath, (message) => logger.warn({message, prefix: ctx.prefix}))
   const removedPkgIds = await prune({
-    bin: opts.bin,
-    hoistedAliases: ctx.hoistedAliases,
-    importerModulesDir: ctx.importerModulesDir,
-    importerPath: ctx.importerPath,
+    importers: {
+      [ctx.importerPath]: {
+        bin: opts.bin,
+        hoistedAliases: ctx.hoistedAliases,
+        importerModulesDir: ctx.importerModulesDir,
+        prefix: ctx.prefix,
+        shamefullyFlatten: opts.shamefullyFlatten,
+      },
+    },
     newShrinkwrap: newShr,
     oldShrinkwrap: ctx.currentShrinkwrap,
-    prefix: ctx.prefix,
-    shamefullyFlatten: opts.shamefullyFlatten,
     storeController: opts.storeController,
     virtualStoreDir: ctx.virtualStoreDir,
   })

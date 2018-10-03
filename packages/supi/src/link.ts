@@ -108,14 +108,17 @@ export default async function link (
   const updatedWantedShrinkwrap = pruneSharedShrinkwrap(ctx.wantedShrinkwrap, warn)
 
   await prune({
-    bin: opts.bin,
-    hoistedAliases: ctx.hoistedAliases,
-    importerModulesDir: ctx.importerModulesDir,
-    importerPath,
+    importers: {
+      [importerPath]: {
+        bin: opts.bin,
+        hoistedAliases: ctx.hoistedAliases,
+        importerModulesDir: ctx.importerModulesDir,
+        prefix: opts.prefix,
+        shamefullyFlatten: opts.shamefullyFlatten,
+      },
+    },
     newShrinkwrap: updatedCurrentShrinkwrap,
     oldShrinkwrap,
-    prefix: opts.prefix,
-    shamefullyFlatten: opts.shamefullyFlatten,
     storeController: opts.storeController,
     virtualStoreDir: ctx.virtualStoreDir,
   })

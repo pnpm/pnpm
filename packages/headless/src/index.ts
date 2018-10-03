@@ -147,16 +147,19 @@ export default async (opts: HeadlessOptions) => {
 
   if (currentShrinkwrap) {
     await prune({
-      bin,
       dryRun: false,
-      hoistedAliases: modules && modules.importers[importerPath] && modules.importers[importerPath].hoistedAliases || {},
-      importerModulesDir,
-      importerPath,
+      importers: {
+        [importerPath]: {
+          bin,
+          hoistedAliases: modules && modules.importers[importerPath] && modules.importers[importerPath].hoistedAliases || {},
+          importerModulesDir,
+          prefix: opts.prefix,
+          shamefullyFlatten: false,
+        },
+      },
       newShrinkwrap: filteredShrinkwrap,
       oldShrinkwrap: currentShrinkwrap,
-      prefix: opts.prefix,
       pruneStore: opts.pruneStore,
-      shamefullyFlatten: false,
       storeController: opts.storeController,
       virtualStoreDir,
     })
