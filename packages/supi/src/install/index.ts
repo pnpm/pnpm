@@ -453,7 +453,6 @@ async function installInContext (
     localPackages: opts.localPackages,
     nodeVersion: opts.nodeVersion,
     nonLinkedPackages: opts.nonLinkedPkgs,
-    pkg: ctx.pkg,
     pnpmVersion: opts.packageManager.name === 'pnpm' ? opts.packageManager.version : '',
     preferredVersions: opts.preferredVersions,
     prefix: opts.prefix,

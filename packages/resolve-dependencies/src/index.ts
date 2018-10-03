@@ -4,7 +4,14 @@ import { createNodeId, nodeIdContainsSequence, ROOT_NODE_ID, WantedDependency } 
 import { StoreController } from 'package-store'
 import { Shrinkwrap } from 'pnpm-shrinkwrap'
 import getPreferredVersionsFromPackage from './getPreferredVersions'
-import resolveDependencies, { PkgAddress, ResolutionContext } from './resolveDependencies'
+import resolveDependencies, {
+  ChildrenByParentId,
+  DependenciesTree,
+  PendingNode,
+  PkgAddress,
+  ResolvedFromLocalPackage,
+  ResolvedPackagesByPackageId,
+} from './resolveDependencies'
 
 export { ResolvedPackage, DependenciesTree, DependenciesTreeNode } from './resolveDependencies'
 export { InstallCheckLog, DeprecationLog } from './loggers'
@@ -17,7 +24,7 @@ export default async function (
     engineStrict: boolean,
     force: boolean,
     importers: Array<{
-      packageJson: PackageJson,
+      packageJson?: PackageJson,
       prefix: string,
       relativePath: string,
       shamefullyFlatten: boolean,
@@ -28,7 +35,6 @@ export default async function (
     nodeVersion: string,
     nonLinkedPackages: WantedDependency[],
     rawNpmConfig: object,
-    pkg?: PackageJson,
     pnpmVersion: string,
     sideEffectsCache: boolean,
     preferredVersions?: {
@@ -49,29 +55,26 @@ export default async function (
     localPackages: LocalPackages,
   },
 ) {
-  const preferredVersions = opts.preferredVersions || opts.pkg && getPreferredVersionsFromPackage(opts.pkg) || {}
   const rootPkgsByImporterPath = {} as {[importerPath: string]: PkgAddress[]}
   const resolvedFromLocalPackagesByImporterPath = {}
 
-  const ctx: ResolutionContext = {
-    childrenByParentId: {},
+  const ctx = {
+    childrenByParentId: {} as ChildrenByParentId,
     currentShrinkwrap: opts.currentShrinkwrap,
     defaultTag: opts.tag,
-    dependenciesTree: {},
+    dependenciesTree: {} as DependenciesTree,
     depth: opts.depth,
     dryRun: opts.dryRun,
     engineStrict: opts.engineStrict,
     force: opts.force,
     nodeVersion: opts.nodeVersion,
-    outdatedDependencies: {},
-    pendingNodes: [],
+    outdatedDependencies: {} as {[pkgId: string]: string},
+    pendingNodes: [] as PendingNode[],
     pnpmVersion: opts.pnpmVersion,
-    preferredVersions,
     prefix: opts.prefix,
     rawNpmConfig: opts.rawNpmConfig,
     registry: opts.wantedShrinkwrap.registry,
-    resolvedFromLocalPackages: [],
-    resolvedPackagesByPackageId: {},
+    resolvedPackagesByPackageId: {} as ResolvedPackagesByPackageId,
     skipped: opts.skipped,
     storeController: opts.storeController,
     verifyStoreIntegrity: opts.verifyStoreIntegrity,
@@ -82,9 +85,13 @@ export default async function (
   // TODO: try to make it concurrent
   for (const importer of opts.importers) {
     const shrImporter = opts.wantedShrinkwrap.importers[importer.relativePath]
-    ctx.resolvedFromLocalPackages = []
+    const resolvedFromLocalPackages = [] as ResolvedFromLocalPackage[]
     rootPkgsByImporterPath[importer.relativePath] = await resolveDependencies(
-      ctx,
+      {
+        ...ctx,
+        preferredVersions: opts.preferredVersions || importer.packageJson && getPreferredVersionsFromPackage(importer.packageJson) || {},
+        resolvedFromLocalPackages,
+      },
       opts.nonLinkedPackages,
       {
         currentDepth: 0,
@@ -103,7 +110,7 @@ export default async function (
         update: opts.update,
       },
     )
-    resolvedFromLocalPackagesByImporterPath[importer.relativePath] = ctx.resolvedFromLocalPackages
+    resolvedFromLocalPackagesByImporterPath[importer.relativePath] = resolvedFromLocalPackages
   }
 
   ctx.pendingNodes.forEach((pendingNode) => {
@@ -188,7 +195,12 @@ export default async function (
 }
 
 function buildTree (
-  ctx: ResolutionContext,
+  ctx: {
+    childrenByParentId: ChildrenByParentId,
+    dependenciesTree: DependenciesTree,
+    resolvedPackagesByPackageId: ResolvedPackagesByPackageId,
+    skipped: Set<string>,
+  },
   parentNodeId: string,
   parentId: string,
   children: Array<{alias: string, pkgId: string}>,
