@@ -415,6 +415,16 @@ async function installInContext (
     ctx.wantedShrinkwrap.importers[ctx.importerPath] = {specifiers: {}}
   }
   stageLogger.debug('resolution_started')
+  const importers = [
+    {
+      hoistedAliases: ctx.hoistedAliases,
+      importerModulesDir: ctx.importerModulesDir,
+      packageJson: ctx.pkg,
+      prefix: ctx.prefix,
+      relativePath: ctx.importerPath,
+      shamefullyFlatten: opts.shamefullyFlatten,
+    },
+  ]
   const {
     dependenciesTree,
     outdatedDependencies,
@@ -442,14 +452,7 @@ async function installInContext (
     force: opts.force,
     hasManifestInShrinkwrap,
     hooks: opts.hooks,
-    importers: [
-      {
-        packageJson: ctx.pkg,
-        prefix: ctx.prefix,
-        relativePath: ctx.importerPath,
-        shamefullyFlatten: opts.shamefullyFlatten,
-      },
-    ],
+    importers,
     localPackages: opts.localPackages,
     nodeVersion: opts.nodeVersion,
     nonLinkedPackages: opts.nonLinkedPkgs,
@@ -466,84 +469,86 @@ async function installInContext (
     virtualStoreDir: ctx.virtualStoreDir,
     wantedShrinkwrap: ctx.wantedShrinkwrap,
   })
-  const { directDependencies, directNodeIdsByAlias, resolvedFromLocalPackages } = resolvedImporters[ctx.importerPath]
   stageLogger.debug('resolution_done')
 
-  let newPkg: PackageJson | undefined = ctx.pkg
-  if (opts.updatePackageJson) {
-    if (!ctx.pkg) {
-      throw new Error('Cannot save because no package.json found')
-    }
-    const saveType = getSaveType(opts)
-    const specsToUsert = <any>directDependencies // tslint:disable-line
-      .map((dep) => {
-        return {
-          name: dep.alias,
-          pref: dep.normalizedPref || getPref(dep.alias, dep.name, dep.version, {
-            saveExact: opts.saveExact,
-            savePrefix: opts.savePrefix,
-          }),
-          saveType,
-        }
-      })
-    for (const pkgToInstall of opts.wantedDeps) {
-      if (pkgToInstall.alias && !specsToUsert.some((spec: any) => spec.name === pkgToInstall.alias)) { // tslint:disable-line
-        specsToUsert.push({
-          name: pkgToInstall.alias,
-          saveType,
-        })
+  const importersToLink = []
+  for (const importer of importers) {
+    const resolvedImporter = resolvedImporters[importer.relativePath]
+    let newPkg: PackageJson | undefined = importer.packageJson
+    if (opts.updatePackageJson) {
+      if (!importer.packageJson) {
+        throw new Error('Cannot save because no package.json found')
       }
+      const saveType = getSaveType(opts)
+      const specsToUsert = <any>resolvedImporter.directDependencies // tslint:disable-line
+        .map((dep) => {
+          return {
+            name: dep.alias,
+            pref: dep.normalizedPref || getPref(dep.alias, dep.name, dep.version, {
+              saveExact: opts.saveExact,
+              savePrefix: opts.savePrefix,
+            }),
+            saveType,
+          }
+        })
+      for (const pkgToInstall of opts.wantedDeps) {
+        if (pkgToInstall.alias && !specsToUsert.some((spec: any) => spec.name === pkgToInstall.alias)) { // tslint:disable-line
+          specsToUsert.push({
+            name: pkgToInstall.alias,
+            saveType,
+          })
+        }
+      }
+      newPkg = await save(
+        importer.prefix,
+        specsToUsert,
+      )
+    } else {
+      packageJsonLogger.debug({
+        prefix: importer.prefix,
+        updated: importer.packageJson,
+      })
     }
-    newPkg = await save(
-      ctx.prefix,
-      specsToUsert,
-    )
-  } else {
-    packageJsonLogger.debug({
-      prefix: opts.prefix,
-      updated: ctx.pkg,
+
+    if (newPkg) {
+      const shrImporter = ctx.wantedShrinkwrap.importers[importer.relativePath]
+      ctx.wantedShrinkwrap.importers[importer.relativePath] = addDirectDependenciesToShrinkwrap(
+        newPkg,
+        shrImporter,
+        opts.linkedPkgs,
+        resolvedImporter.directDependencies,
+        ctx.wantedShrinkwrap.registry,
+      )
+    }
+
+    const topParents = importer.packageJson
+      ? await getTopParents(
+          R.difference(
+            R.keys(getAllDependenciesFromPackage(importer.packageJson)),
+            opts.newPkgRawSpecs && resolvedImporter.directDependencies
+              .filter((directDep) => opts.newPkgRawSpecs.indexOf(directDep.specRaw) !== -1)
+              .map((directDep) => directDep.alias) || [],
+          ),
+          importer.importerModulesDir,
+        )
+      : []
+
+    importersToLink.push({
+      bin: opts.bin,
+      directNodeIdsByAlias: resolvedImporter.directNodeIdsByAlias,
+      externalShrinkwrap: ctx.shrinkwrapDirectory !== importer.prefix,
+      hoistedAliases: importer.hoistedAliases,
+      importerModulesDir: importer.importerModulesDir,
+      importerPath: importer.relativePath,
+      pkg: newPkg || importer.packageJson,
+      prefix: importer.prefix,
+      shamefullyFlatten: importer.shamefullyFlatten,
+      topParents,
     })
   }
 
-  if (newPkg) {
-    const shrImporter = ctx.wantedShrinkwrap.importers[ctx.importerPath]
-    ctx.wantedShrinkwrap.importers[ctx.importerPath] = addDirectDependenciesToShrinkwrap(
-      newPkg,
-      shrImporter,
-      opts.linkedPkgs,
-      directDependencies,
-      ctx.wantedShrinkwrap.registry,
-    )
-  }
-
-  const topParents = ctx.pkg
-    ? await getTopParents(
-        R.difference(
-          R.keys(getAllDependenciesFromPackage(ctx.pkg)),
-          opts.newPkgRawSpecs && directDependencies
-            .filter((directDep) => opts.newPkgRawSpecs.indexOf(directDep.specRaw) !== -1)
-            .map((directDep) => directDep.alias) || [],
-        ),
-        ctx.importerModulesDir,
-      )
-    : []
-
-  const externalShrinkwrap = ctx.shrinkwrapDirectory !== opts.prefix
-  const importers = {
-    [ctx.importerPath]: {
-      bin: opts.bin,
-      directNodeIdsByAlias,
-      externalShrinkwrap,
-      hoistedAliases: ctx.hoistedAliases,
-      importerModulesDir: ctx.importerModulesDir,
-      pkg: newPkg || ctx.pkg,
-      prefix: ctx.prefix,
-      shamefullyFlatten: opts.shamefullyFlatten,
-      topParents,
-    },
-  }
   const result = await linkPackages(
-    importers,
+    importersToLink,
     dependenciesTree,
     {
       afterAllResolvedHook: opts.hooks && opts.hooks.afterAllResolved,
@@ -594,7 +599,7 @@ async function installInContext (
           importers: {
             ...ctx.modulesFile && ctx.modulesFile.importers,
             [ctx.importerPath]: {
-              hoistedAliases: importers[ctx.importerPath].hoistedAliases,
+              hoistedAliases: importersToLink.find((importer) => importer.importerPath === ctx.importerPath)!.hoistedAliases,
               shamefullyFlatten: opts.shamefullyFlatten,
             },
           },
@@ -687,21 +692,24 @@ async function installInContext (
       }
     }
 
-    // TODO: link inside resolveDependencies.ts
-    if (resolvedFromLocalPackages.length) {
-      const linkOpts = {
-        ...opts,
-        linkToBin: opts.bin,
-        saveDev: false,
-        saveOptional: false,
-        saveProd: false,
-        skipInstall: true,
+    for (const importer of importers) {
+      const { resolvedFromLocalPackages } = resolvedImporters[importer.relativePath]
+      // TODO: link inside resolveDependencies.ts
+      if (resolvedFromLocalPackages.length) {
+        const linkOpts = {
+          ...opts,
+          linkToBin: opts.bin,
+          saveDev: false,
+          saveOptional: false,
+          saveProd: false,
+          skipInstall: true,
+        }
+        const externalPkgs = resolvedFromLocalPackages.map((localPackage) => ({
+          alias: localPackage.alias,
+          path: resolvePath(opts.prefix, localPackage.resolution.directory),
+        }))
+        await externalLink(externalPkgs, ctx.importerModulesDir, linkOpts)
       }
-      const externalPkgs = resolvedFromLocalPackages.map((localPackage) => ({
-        alias: localPackage.alias,
-        path: resolvePath(opts.prefix, localPackage.resolution.directory),
-      }))
-      await externalLink(externalPkgs, ctx.importerModulesDir, linkOpts)
     }
   }
 

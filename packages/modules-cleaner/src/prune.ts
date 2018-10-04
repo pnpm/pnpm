@@ -18,15 +18,14 @@ const vacuum = promisify(vacuumCB)
 export default async function removeOrphanPkgs (
   opts: {
     dryRun?: boolean,
-    importers: {
-      [importerPath: string]: {
-        bin: string,
-        hoistedAliases: {[depPath: string]: string[]},
-        importerModulesDir: string,
-        shamefullyFlatten: boolean,
-        prefix: string,
-      },
-    },
+    importers: Array<{
+      bin: string,
+      hoistedAliases: {[depPath: string]: string[]},
+      importerModulesDir: string,
+      importerPath: string,
+      shamefullyFlatten: boolean,
+      prefix: string,
+    }>,
     newShrinkwrap: Shrinkwrap,
     oldShrinkwrap: Shrinkwrap,
     pruneStore?: boolean,
@@ -34,14 +33,14 @@ export default async function removeOrphanPkgs (
     storeController: StoreController,
   },
 ): Promise<Set<string>> {
-  for (const importerPath of Object.keys(opts.importers)) {
-    const oldImporterShr = opts.oldShrinkwrap.importers[importerPath] || {}
+  for (const importer of opts.importers) {
+    const oldImporterShr = opts.oldShrinkwrap.importers[importer.importerPath] || {}
     const oldPkgs = R.toPairs(R.mergeAll(R.map((depType) => oldImporterShr[depType], DEPENDENCIES_FIELDS)))
-    const newPkgs = R.toPairs(R.mergeAll(R.map((depType) => opts.newShrinkwrap.importers[importerPath][depType], DEPENDENCIES_FIELDS)))
+    const newPkgs = R.toPairs(R.mergeAll(R.map((depType) => opts.newShrinkwrap.importers[importer.importerPath][depType], DEPENDENCIES_FIELDS)))
 
     const removedTopDeps: Array<[string, string]> = R.difference(oldPkgs, newPkgs) as Array<[string, string]>
 
-    const {bin, importerModulesDir, prefix} = opts.importers[importerPath]
+    const {bin, importerModulesDir, prefix} = importer
 
     await Promise.all(removedTopDeps.map((depName) => {
       return removeDirectDependency({
@@ -74,10 +73,10 @@ export default async function removeOrphanPkgs (
   if (!opts.dryRun) {
     if (orphanDepPaths.length) {
       if (opts.oldShrinkwrap.packages) {
-        for (const importerPath of Object.keys(opts.importers)) {
-          if (!opts.importers[importerPath].shamefullyFlatten) continue
+        for (const importer of opts.importers) {
+          if (!importer.shamefullyFlatten) continue
 
-          const { bin, hoistedAliases, importerModulesDir, prefix } = opts.importers[importerPath]
+          const { bin, hoistedAliases, importerModulesDir, prefix } = importer
           await Promise.all(orphanDepPaths.map(async (orphanDepPath) => {
             if (hoistedAliases[orphanDepPath]) {
               await Promise.all(hoistedAliases[orphanDepPath].map(async (alias) => {

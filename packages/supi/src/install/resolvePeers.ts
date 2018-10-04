@@ -69,16 +69,15 @@ export interface DependenciesGraph {
 
 export default function (
   opts: {
-    importers: {
-      [importerPath: string]: {
-        directNodeIdsByAlias: {[alias: string]: string},
-        externalShrinkwrap: boolean,
-        // only the top dependencies that were already installed
-        // to avoid warnings about unresolved peer dependencies
-        topParents: Array<{name: string, version: string}>,
-        prefix: string, // is only needed for logging
-      },
-    },
+    importers: Array<{
+      directNodeIdsByAlias: {[alias: string]: string},
+      externalShrinkwrap: boolean,
+      // only the top dependencies that were already installed
+      // to avoid warnings about unresolved peer dependencies
+      topParents: Array<{name: string, version: string}>,
+      prefix: string, // is only needed for logging
+      importerPath: string,
+    }>,
     dependenciesTree: DependenciesTree,
     independentLeaves: boolean,
     virtualStoreDir: string,
@@ -91,8 +90,8 @@ export default function (
   const depGraph: DependenciesGraph = {}
   const absolutePathsByNodeId = {}
 
-  for (const importerPath of Object.keys(opts.importers)) {
-    const { directNodeIdsByAlias, externalShrinkwrap, topParents, prefix } = opts.importers[importerPath]
+  for (const importer of opts.importers) {
+    const { directNodeIdsByAlias, externalShrinkwrap, topParents, prefix } = importer
     const pkgsByName = Object.assign(
       R.fromPairs(
         topParents.map((parent: {name: string, version: string}): R.KeyValuePair<string, ParentRef> => [
@@ -135,9 +134,9 @@ export default function (
   })
 
   const importersDirectAbsolutePathsByAlias: {[importerPath: string]: {[alias: string]: string}} = {}
-  for (const importerPath of Object.keys(opts.importers)) {
-    const { directNodeIdsByAlias } = opts.importers[importerPath]
-    importersDirectAbsolutePathsByAlias[importerPath] = R.keys(directNodeIdsByAlias).reduce((rootAbsolutePathsByAlias, alias) => {
+  for (const importer of opts.importers) {
+    const { directNodeIdsByAlias } = importer
+    importersDirectAbsolutePathsByAlias[importer.importerPath] = R.keys(directNodeIdsByAlias).reduce((rootAbsolutePathsByAlias, alias) => {
       rootAbsolutePathsByAlias[alias] = absolutePathsByNodeId[directNodeIdsByAlias[alias]]
       return rootAbsolutePathsByAlias
     }, {})

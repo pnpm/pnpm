@@ -28,19 +28,18 @@ import updateShrinkwrap from './updateShrinkwrap'
 export { DependenciesGraph }
 
 export default async function linkPackages (
-  importers: {
-    [importerPath: string]: {
-      bin: string,
-      directNodeIdsByAlias: {[alias: string]: string},
-      externalShrinkwrap: boolean,
-      hoistedAliases: {[depPath: string]: string[]},
-      importerModulesDir: string,
-      pkg: PackageJson,
-      prefix: string,
-      shamefullyFlatten: boolean,
-      topParents: Array<{name: string, version: string}>,
-    },
-  },
+  importers: Array<{
+    bin: string,
+    directNodeIdsByAlias: {[alias: string]: string},
+    externalShrinkwrap: boolean,
+    hoistedAliases: {[depPath: string]: string[]},
+    importerModulesDir: string,
+    importerPath: string,
+    pkg: PackageJson,
+    prefix: string,
+    shamefullyFlatten: boolean,
+    topParents: Array<{name: string, version: string}>,
+  }>,
   dependenciesTree: DependenciesTree,
   opts: {
     afterAllResolvedHook?: (shr: Shrinkwrap) => Shrinkwrap,
@@ -79,23 +78,23 @@ export default async function linkPackages (
     strictPeerDependencies: opts.strictPeerDependencies,
     virtualStoreDir: opts.virtualStoreDir,
   })
-  for (const importerPath of Object.keys(importers)) {
-    if (!importers[importerPath].externalShrinkwrap) continue
+  for (const importer of importers) {
+    if (!importer.externalShrinkwrap) continue
 
-    const directAbsolutePathsByAlias = importersDirectAbsolutePathsByAlias[importerPath]
+    const directAbsolutePathsByAlias = importersDirectAbsolutePathsByAlias[importer.importerPath]
     for (const alias of R.keys(directAbsolutePathsByAlias)) {
       const depPath = directAbsolutePathsByAlias[alias]
 
       if (depGraph[depPath].isPure) continue
 
-      const importer = opts.wantedShrinkwrap.importers[importerPath]
+      const shrImporter = opts.wantedShrinkwrap.importers[importer.importerPath]
       const ref = dp.relative(opts.wantedShrinkwrap.registry, depPath)
-      if (importer.dependencies && importer.dependencies[alias]) {
-        importer.dependencies[alias] = ref
-      } else if (importer.devDependencies && importer.devDependencies[alias]) {
-        importer.devDependencies[alias] = ref
-      } else if (importer.optionalDependencies && importer.optionalDependencies[alias]) {
-        importer.optionalDependencies[alias] = ref
+      if (shrImporter.dependencies && shrImporter.dependencies[alias]) {
+        shrImporter.dependencies[alias] = ref
+      } else if (shrImporter.devDependencies && shrImporter.devDependencies[alias]) {
+        shrImporter.devDependencies[alias] = ref
+      } else if (shrImporter.optionalDependencies && shrImporter.optionalDependencies[alias]) {
+        shrImporter.optionalDependencies[alias] = ref
       }
     }
   }
@@ -122,7 +121,7 @@ export default async function linkPackages (
     depNodes = depNodes.filter((depNode) => !depNode.optional)
   }
   const filterOpts = {
-    importerPaths: Object.keys(importers),
+    importerPaths: importers.map((importer) => importer.importerPath),
     include: opts.include,
     skipped: opts.skipped,
   }
@@ -158,9 +157,9 @@ export default async function linkPackages (
       acc[depNode.absolutePath] = depNode
       return acc
     }, {}) as {[absolutePath: string]: DependenciesGraphNode}
-  for (const importerPath of Object.keys(importers)) {
-    const directAbsolutePathsByAlias = importersDirectAbsolutePathsByAlias[importerPath]
-    const {importerModulesDir, pkg, prefix} = importers[importerPath]
+  for (const importer of importers) {
+    const directAbsolutePathsByAlias = importersDirectAbsolutePathsByAlias[importer.importerPath]
+    const {importerModulesDir, pkg, prefix} = importer
     for (const rootAlias of R.keys(directAbsolutePathsByAlias)) {
       const depGraphNode = rootDepsByDepPath[directAbsolutePathsByAlias[rootAlias]]
       if (!depGraphNode) continue
@@ -230,11 +229,11 @@ export default async function linkPackages (
 
   // Important: shamefullyFlattenGraph changes depGraph, so keep this at the end, right before linkBins
   if (newDepPaths.length > 0 || removedDepPaths.size > 0) {
-    for (const importerPath of Object.keys(importers)) {
-      if (!importers[importerPath].shamefullyFlatten) continue
-      importers[importerPath].hoistedAliases = await shamefullyFlattenGraph(depNodes, currentShrinkwrap.importers[importerPath].specifiers, {
+    for (const importer of importers) {
+      if (!importer.shamefullyFlatten) continue
+      importer.hoistedAliases = await shamefullyFlattenGraph(depNodes, currentShrinkwrap.importers[importer.importerPath].specifiers, {
         dryRun: opts.dryRun,
-        importerModulesDir: importers[importerPath].importerModulesDir,
+        importerModulesDir: importer.importerModulesDir,
       })
     }
   }
@@ -242,8 +241,8 @@ export default async function linkPackages (
   if (!opts.dryRun) {
     // TODO: make it concurrently
     // MAYBE TODO: unite it with the shrinkwrap flatten array
-    for (const importerPath of Object.keys(importers)) {
-      const {importerModulesDir, bin, prefix} = importers[importerPath]
+    for (const importer of importers) {
+      const {importerModulesDir, bin, prefix} = importer
       await linkBins(importerModulesDir, bin, {
         warn: (message: string) => logger.warn({message, prefix}),
       })
