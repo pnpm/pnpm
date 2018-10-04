@@ -36,7 +36,7 @@ import extendOptions, {
 } from './install/extendInstallOptions'
 import save, { guessDependencyType } from './save'
 import getPref from './utils/getPref'
-import fs from 'fs'
+import fs = require('mz/fs')
 
 export default async function link (
   linkFromPkgs: Array<{alias: string, path: string} | string>,
@@ -211,8 +211,8 @@ async function linkToModules (
   },
 ) {
 
-  const destModulesDirReal = fs.realpathSync(opts.destModulesDir)
-  const packageDirReal = fs.realpathSync(opts.packageDir)
+  const destModulesDirReal = await fs.realpath(opts.destModulesDir)
+  const packageDirReal = await fs.realpath(opts.packageDir)
 
   const dest = path.join(destModulesDirReal, opts.alias)
   const {reused} = await symlinkDir(packageDirReal, dest)
