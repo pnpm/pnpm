@@ -17,6 +17,7 @@ import {
   safeReadPackage,
 } from '@pnpm/utils'
 import loadJsonFile from 'load-json-file'
+import fs = require('mz/fs')
 import normalize = require('normalize-path')
 import path = require('path')
 import pathAbsolute = require('path-absolute')
@@ -36,7 +37,6 @@ import extendOptions, {
 } from './install/extendInstallOptions'
 import save, { guessDependencyType } from './save'
 import getPref from './utils/getPref'
-import fs = require('mz/fs')
 
 export default async function link (
   linkFromPkgs: Array<{alias: string, path: string} | string>,
