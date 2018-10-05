@@ -11,7 +11,7 @@ export default class ModulesBreakingChangeError extends BreakingChangeError {
     super({
       additionalInformation: opts.additionalInformation,
       code: 'MODULES_BREAKING_CHANGE',
-      message: `The node_modules structure at ${opts.modulesPath} was changed. Try running the same command with the --force parameter.`,
+      message: `The node_modules structure at "${opts.modulesPath}" is not compatible with the current pnpm version. Run "pnpm install --force" to recreate node_modules.`,
       relatedIssue: opts.relatedIssue,
       relatedPR: opts.relatedPR,
     })

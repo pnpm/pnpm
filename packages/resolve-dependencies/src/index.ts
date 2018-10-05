@@ -16,6 +16,14 @@ import resolveDependencies, {
 export { ResolvedPackage, DependenciesTree, DependenciesTreeNode } from './resolveDependencies'
 export { InstallCheckLog, DeprecationLog } from './loggers'
 
+export interface ImporterToResolve {
+  importerPath: string,
+  nonLinkedPkgs: WantedDependency[],
+  pkg?: PackageJson,
+  prefix: string,
+  shamefullyFlatten: boolean,
+}
+
 export default async function (
   opts: {
     currentShrinkwrap: Shrinkwrap,
@@ -23,17 +31,11 @@ export default async function (
     dryRun: boolean,
     engineStrict: boolean,
     force: boolean,
-    importers: Array<{
-      packageJson?: PackageJson,
-      prefix: string,
-      relativePath: string,
-      shamefullyFlatten: boolean,
-    }>,
+    importers: ImporterToResolve[],
     hooks: {
       readPackage?: ReadPackageHook,
     },
     nodeVersion: string,
-    nonLinkedPackages: WantedDependency[],
     rawNpmConfig: object,
     pnpmVersion: string,
     sideEffectsCache: boolean,
@@ -43,7 +45,6 @@ export default async function (
         type: 'version' | 'range' | 'tag',
       },
     },
-    prefix: string,
     skipped: Set<string>,
     storeController: StoreController,
     tag: string,
@@ -71,7 +72,6 @@ export default async function (
     outdatedDependencies: {} as {[pkgId: string]: string},
     pendingNodes: [] as PendingNode[],
     pnpmVersion: opts.pnpmVersion,
-    prefix: opts.prefix,
     rawNpmConfig: opts.rawNpmConfig,
     registry: opts.wantedShrinkwrap.registry,
     resolvedPackagesByPackageId: {} as ResolvedPackagesByPackageId,
@@ -84,15 +84,16 @@ export default async function (
 
   // TODO: try to make it concurrent
   for (const importer of opts.importers) {
-    const shrImporter = opts.wantedShrinkwrap.importers[importer.relativePath]
+    const shrImporter = opts.wantedShrinkwrap.importers[importer.importerPath]
     const resolvedFromLocalPackages = [] as ResolvedFromLocalPackage[]
-    rootPkgsByImporterPath[importer.relativePath] = await resolveDependencies(
+    rootPkgsByImporterPath[importer.importerPath] = await resolveDependencies(
       {
         ...ctx,
-        preferredVersions: opts.preferredVersions || importer.packageJson && getPreferredVersionsFromPackage(importer.packageJson) || {},
+        preferredVersions: opts.preferredVersions || importer.pkg && getPreferredVersionsFromPackage(importer.pkg) || {},
+        prefix: importer.prefix,
         resolvedFromLocalPackages,
       },
-      opts.nonLinkedPackages,
+      importer.nonLinkedPkgs,
       {
         currentDepth: 0,
         hasManifestInShrinkwrap: opts.hasManifestInShrinkwrap,
@@ -110,7 +111,7 @@ export default async function (
         update: opts.update,
       },
     )
-    resolvedFromLocalPackagesByImporterPath[importer.relativePath] = resolvedFromLocalPackages
+    resolvedFromLocalPackagesByImporterPath[importer.importerPath] = resolvedFromLocalPackages
   }
 
   ctx.pendingNodes.forEach((pendingNode) => {
@@ -154,10 +155,10 @@ export default async function (
   }
 
   for (const importer of opts.importers) {
-    const rootPkgs = rootPkgsByImporterPath[importer.relativePath]
-    const resolvedFromLocalPackages = resolvedFromLocalPackagesByImporterPath[importer.relativePath]
+    const rootPkgs = rootPkgsByImporterPath[importer.importerPath]
+    const resolvedFromLocalPackages = resolvedFromLocalPackagesByImporterPath[importer.importerPath]
 
-    resolvedImporters[importer.relativePath] = {
+    resolvedImporters[importer.importerPath] = {
       directDependencies: [
         ...rootPkgs
           .map((rootPkg) => ({

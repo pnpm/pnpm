@@ -11,7 +11,7 @@ import {
   writeCurrentOnly as saveCurrentShrinkwrapOnly,
 } from 'pnpm-shrinkwrap'
 import { LAYOUT_VERSION } from '../constants'
-import getContext, { PnpmContext } from '../getContext'
+import { getContextForSingleImporter, PnpmSingleContext } from '../getContext'
 import lock from '../lock'
 import safeIsInnerLink from '../safeIsInnerLink'
 import { shamefullyFlattenGraphByShrinkwrap } from '../shamefullyFlattenGraph'
@@ -48,7 +48,7 @@ export default async function uninstall (
   }
 
   async function _uninstall () {
-    const ctx = await getContext(opts)
+    const ctx = await getContextForSingleImporter(opts)
 
     if (!ctx.pkg) {
       throw new Error('No package.json found - cannot uninstall')
@@ -60,7 +60,7 @@ export default async function uninstall (
 
 export async function uninstallInContext (
   pkgsToUninstall: string[],
-  ctx: PnpmContext,
+  ctx: PnpmSingleContext,
   opts: StrictUninstallOptions,
 ) {
   const makePartialCurrentShrinkwrap = !shrinkwrapsEqual(ctx.currentShrinkwrap, ctx.wantedShrinkwrap)

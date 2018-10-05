@@ -23,7 +23,7 @@ export default async function (
     shrinkwrapDirectory: string,
     registry: string,
     shrinkwrap: boolean,
-    importerPath: string,
+    importerPaths: string[],
   },
 ): Promise<{
   currentShrinkwrap: Shrinkwrap,
@@ -44,18 +44,22 @@ export default async function (
     readCurrentShrinkwrap(opts.shrinkwrapDirectory, shrOpts),
   ])
   const sopts = { shrinkwrapMinorVersion: SHRINKWRAP_MINOR_VERSION }
-  const currentShrinkwrap = files[1] || createShrinkwrap(opts.registry, opts.importerPath, sopts)
-  if (!currentShrinkwrap.importers[opts.importerPath]) {
-    currentShrinkwrap.importers[opts.importerPath] = {
-      specifiers: {},
+  const currentShrinkwrap = files[1] || createShrinkwrap(opts.registry, opts.importerPaths, sopts)
+  for (const importerPath of opts.importerPaths) {
+    if (!currentShrinkwrap.importers[importerPath]) {
+      currentShrinkwrap.importers[importerPath] = {
+        specifiers: {},
+      }
     }
   }
   const wantedShrinkwrap = files[0] ||
     !opts.shrinkwrap && currentShrinkwrap && R.clone(currentShrinkwrap) ||
-    createShrinkwrap(opts.registry, opts.importerPath, sopts)
-  if (!wantedShrinkwrap.importers[opts.importerPath]) {
-    wantedShrinkwrap.importers[opts.importerPath] = {
-      specifiers: {},
+    createShrinkwrap(opts.registry, opts.importerPaths, sopts)
+  for (const importerPath of opts.importerPaths) {
+    if (!wantedShrinkwrap.importers[importerPath]) {
+      wantedShrinkwrap.importers[importerPath] = {
+        specifiers: {},
+      }
     }
   }
   return {

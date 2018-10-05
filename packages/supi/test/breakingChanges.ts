@@ -7,6 +7,7 @@ import promisifyTape from 'tape-promise'
 import {prepare, testDefaults} from './utils'
 
 const test = promisifyTape(tape)
+const testOnly = promisifyTape(tape.only)
 
 test('fail on non-compatible node_modules', async (t: tape.Test) => {
   const project = prepare(t)
@@ -43,7 +44,7 @@ test('fail on non-compatible node_modules when forced with a named installation'
     await installPkgs(['is-negative'], opts)
     t.fail('should have failed')
   } catch (err) {
-    t.ok(err.message.indexOf('Named installation cannot be used to regenerate the node_modules structure') !== -1)
+    t.equal(err['code'], 'MODULES_BREAKING_CHANGE', 'failed with correct error code') // tslint:disable-line:no-string-literal
   }
 })
 
@@ -68,7 +69,7 @@ test('fail on non-compatible store when forced during named installation', async
     await installPkgs(['is-negative'], opts)
     t.fail('should have failed')
   } catch (err) {
-    t.ok(err.message.indexOf('Named installation cannot be used to regenerate the node_modules structure') !== -1)
+    t.equal(err['code'], 'MODULES_BREAKING_CHANGE', 'failed with correct error code') // tslint:disable-line:no-string-literal
   }
 })
 

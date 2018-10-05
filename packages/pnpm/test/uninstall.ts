@@ -1,15 +1,16 @@
 import {fromDir as readPkgFromDir} from '@pnpm/read-package-json'
 import tape = require('tape')
 import promisifyTape from 'tape-promise'
-const test = promisifyTape(tape)
 import {
   prepare,
-  testDefaults,
   execPnpm,
 } from './utils'
 import path = require('path')
 import isWindows = require('is-windows')
 import exists = require('path-exists')
+
+const test = promisifyTape(tape)
+const testOnly = promisifyTape(tape.only)
 
 test('uninstall package and remove from appropriate property', async function (t: tape.Test) {
   const project = prepare(t)

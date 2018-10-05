@@ -33,6 +33,7 @@ export type StrictRebuildOptions = RebuildOptions & {
   childConcurrency?: number,
   prefix: string,
   store: string,
+  shrinkwrapDirectory: string,
   independentLeaves: boolean,
   force: boolean,
   registry: string,
@@ -55,6 +56,7 @@ const defaults = async (opts: RebuildOptions) => {
     version: pnpmPkgJson.version,
   }
   const prefix = opts.prefix || process.cwd()
+  const shrinkwrapDirectory = opts.shrinkwrapDirectory || prefix
   return {
     bin: path.join(prefix, 'node_modules', '.bin'),
     childConcurrency: 5,
@@ -70,6 +72,7 @@ const defaults = async (opts: RebuildOptions) => {
     registry: 'https://registry.npmjs.org/',
     shamefullyFlatten: false,
     shrinkwrap: true,
+    shrinkwrapDirectory,
     store: opts.store,
     unsafePerm: process.platform === 'win32' ||
       process.platform === 'cygwin' ||

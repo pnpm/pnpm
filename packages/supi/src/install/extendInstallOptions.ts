@@ -2,10 +2,12 @@ import logger from '@pnpm/logger'
 import { IncludedDependencies } from '@pnpm/modules-yaml'
 import { LocalPackages } from '@pnpm/resolver-base'
 import { ReadPackageHook } from '@pnpm/types'
+import { realNodeModulesDir } from '@pnpm/utils'
 import normalizeRegistryUrl = require('normalize-registry-url')
 import { StoreController } from 'package-store'
 import path = require('path')
-import { Shrinkwrap } from 'pnpm-shrinkwrap'
+import { getImporterPath, Shrinkwrap } from 'pnpm-shrinkwrap'
+import { ImportersOptions, StrictImportersOptions } from '../getContext'
 import pnpmPkgJson from '../pnpmPkgJson'
 import { ReporterFunction } from '../types'
 
@@ -13,6 +15,7 @@ export interface InstallOptions {
   allowNew?: boolean,
   frozenShrinkwrap?: boolean,
   preferFrozenShrinkwrap?: boolean,
+  shamefullyFlatten?: boolean,
   storeController: StoreController,
   store: string,
   reporter?: ReporterFunction,
@@ -22,7 +25,6 @@ export interface InstallOptions {
   update?: boolean,
   depth?: number,
   repeatInstallDepth?: number,
-  prefix?: string,
   shrinkwrapDirectory?: string,
   rawNpmConfig?: object,
   verifyStoreIntegrity?: boolean,
@@ -41,11 +43,10 @@ export interface InstallOptions {
   saveProd?: boolean,
   saveDev?: boolean,
   saveOptional?: boolean,
-  shamefullyFlatten?: boolean,
   sideEffectsCache?: boolean,
   sideEffectsCacheReadonly?: boolean,
   strictPeerDependencies?: boolean,
-  bin?: string,
+  importers?: ImportersOptions[],
   include?: IncludedDependencies,
   independentLeaves?: boolean,
   ignoreCurrentPrefs?: boolean,
@@ -67,11 +68,12 @@ export type StrictInstallOptions = InstallOptions & {
   allowNew: boolean,
   frozenShrinkwrap: boolean,
   preferFrozenShrinkwrap: boolean,
+  shamefullyFlatten: boolean,
   shrinkwrap: boolean,
+  shrinkwrapDirectory: string,
   shrinkwrapOnly: boolean,
   force: boolean,
   update: boolean,
-  prefix: string,
   depth: number,
   repeatInstallDepth: number,
   engineStrict: boolean,
@@ -90,11 +92,10 @@ export type StrictInstallOptions = InstallOptions & {
   saveProd: boolean,
   saveDev: boolean,
   saveOptional: boolean,
-  shamefullyFlatten: boolean,
   sideEffectsCache: boolean,
   sideEffectsCacheReadonly: boolean,
   strictPeerDependencies: boolean,
-  bin: string,
+  importers: StrictImportersOptions[],
   include: IncludedDependencies,
   independentLeaves: boolean,
   ignoreCurrentPrefs: boolean,
@@ -112,15 +113,30 @@ export type StrictInstallOptions = InstallOptions & {
   pruneStore: boolean,
 }
 
+async function toStrictImporter (
+  shamefullyFlatten: boolean,
+  shrinkwrapDirectory: string,
+  importerOptions: ImportersOptions,
+): Promise<StrictImportersOptions> {
+  const importerModulesDir = await realNodeModulesDir(importerOptions.prefix)
+  const importerPath = getImporterPath(shrinkwrapDirectory, importerOptions.prefix)
+  return {
+    bin: importerOptions.bin || path.join(importerOptions.prefix, 'node_modules', '.bin'),
+    importerModulesDir,
+    importerPath,
+    prefix: importerOptions.prefix,
+    shamefullyFlatten: typeof importerOptions.shamefullyFlatten === 'boolean' ? importerOptions.shamefullyFlatten : shamefullyFlatten,
+  }
+}
+
 const defaults = async (opts: InstallOptions) => {
   const packageManager = opts.packageManager || {
     name: pnpmPkgJson.name,
     version: pnpmPkgJson.version,
   }
-  const prefix = opts.prefix || process.cwd()
+  const shrinkwrapDirectory = opts.shrinkwrapDirectory || opts['prefix'] || process.cwd() // tslint:disable-line
   return {
     allowNew: true,
-    bin: path.join(prefix, 'node_modules', '.bin'),
     childConcurrency: 5,
     depth: 0,
     engineStrict: false,
@@ -129,6 +145,10 @@ const defaults = async (opts: InstallOptions) => {
     hooks: {},
     ignoreCurrentPrefs: false,
     ignoreScripts: false,
+    importers: [{
+      bin: opts['bin'], // tslint:disable-line
+      prefix: opts['prefix'] || process.cwd(), // tslint:disable-line
+    }],
     include: {
       dependencies: true,
       devDependencies: true,
@@ -143,7 +163,6 @@ const defaults = async (opts: InstallOptions) => {
     ownLifecycleHooksStdio: 'inherit',
     packageManager,
     preferFrozenShrinkwrap: true,
-    prefix,
     pruneStore: false,
     rawNpmConfig: {},
     registry: 'https://registry.npmjs.org/',
@@ -153,8 +172,8 @@ const defaults = async (opts: InstallOptions) => {
     saveOptional: false,
     savePrefix: '^',
     saveProd: false,
-    shamefullyFlatten: false,
     shrinkwrap: true,
+    shrinkwrapDirectory,
     shrinkwrapOnly: false,
     sideEffectsCache: false,
     sideEffectsCacheReadonly: false,
@@ -184,13 +203,22 @@ export default async (
     }
   }
   const defaultOpts = await defaults(opts)
-  const extendedOpts = {...defaultOpts, ...opts, store: defaultOpts.store}
-  if (extendedOpts.shamefullyFlatten) {
-    logger.info({
-      message: 'Installing a flat node_modules. Use flat node_modules only if you rely on buggy dependencies that you cannot fix.',
-      prefix: extendedOpts.prefix,
-    })
+  const extendedOpts = {
+    ...defaultOpts,
+    ...opts,
+    importers: await Promise.all<StrictImportersOptions>(
+      (opts.importers || defaultOpts.importers)
+        .map(toStrictImporter.bind(null, opts.shamefullyFlatten || false, opts.shrinkwrapDirectory || defaultOpts.shrinkwrapDirectory)),
+    ),
+    store: defaultOpts.store,
   }
+  // TODO: log this in pnpm
+  // if (extendedOpts.shamefullyFlatten) {
+  //   logger.info({
+  //     message: 'Installing a flat node_modules. Use flat node_modules only if you rely on buggy dependencies that you cannot fix.',
+  //     prefix: extendedOpts.prefix,
+  //   })
+  // }
   if (!extendedOpts.shrinkwrap && extendedOpts.shrinkwrapOnly) {
     throw new Error('Cannot generate a shrinkwrap.yaml because shrinkwrap is set to false')
   }
@@ -203,7 +231,7 @@ export default async (
   if (extendedOpts.sideEffectsCache && extendedOpts.sideEffectsCacheReadonly) {
     logger.warn({
       message: "--side-effects-cache-readonly turns on side effects cache too, you don't need to specify both",
-      prefix: extendedOpts.prefix,
+      prefix: extendedOpts.shrinkwrapDirectory || process.cwd(),
     })
   }
   extendedOpts.sideEffectsCache = extendedOpts.sideEffectsCache || extendedOpts.sideEffectsCacheReadonly

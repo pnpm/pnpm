@@ -3,7 +3,7 @@ import {streamParser} from '@pnpm/logger'
 import * as dp from 'dependency-path'
 import pFilter = require('p-filter')
 import path = require('path')
-import getContext from '../getContext'
+import { getContextForSingleImporter } from '../getContext'
 import extendOptions, {
   StoreStatusOptions,
 } from './extendStoreStatusOptions'
@@ -14,7 +14,7 @@ export default async function (maybeOpts: StoreStatusOptions) {
     streamParser.on('data', reporter)
   }
   const opts = await extendOptions(maybeOpts)
-  const ctx = await getContext(opts)
+  const ctx = await getContextForSingleImporter(opts)
   if (!ctx.wantedShrinkwrap) return []
 
   const pkgPaths = Object.keys(ctx.wantedShrinkwrap.packages || {})

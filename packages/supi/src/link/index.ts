@@ -31,18 +31,19 @@ import {
 } from 'pnpm-shrinkwrap'
 import R = require('ramda')
 import symlinkDir = require('symlink-dir')
-import getContext from './getContext'
-import getSpecFromPackageJson from './getSpecFromPackageJson'
-import extendOptions, {
-  InstallOptions,
-} from './install/extendInstallOptions'
-import save, { guessDependencyType } from './save'
-import getPref from './utils/getPref'
+import { getContextForSingleImporter } from '../getContext'
+import getSpecFromPackageJson from '../getSpecFromPackageJson'
+import save, { guessDependencyType } from '../save'
+import getPref from '../utils/getPref'
+import {
+  extendOptions,
+  LinkOptions,
+} from './options'
 
 export default async function link (
   linkFromPkgs: Array<{alias: string, path: string} | string>,
   destModules: string,
-  maybeOpts: InstallOptions & {
+  maybeOpts: LinkOptions & {
     linkToBin?: string,
   },
 ) {
@@ -52,7 +53,7 @@ export default async function link (
   }
   maybeOpts.saveProd = maybeOpts.saveProd === true
   const opts = await extendOptions(maybeOpts)
-  const ctx = await getContext(opts)
+  const ctx = await getContextForSingleImporter(opts)
 
   const importerPath = getImporterPath(ctx.shrinkwrapDirectory, opts.prefix)
   const oldShrinkwrap = R.clone(ctx.currentShrinkwrap)
@@ -253,7 +254,7 @@ async function linkToModules (
 export async function linkFromGlobal (
   pkgNames: string[],
   linkTo: string,
-  maybeOpts: InstallOptions & {globalPrefix: string},
+  maybeOpts: LinkOptions & {globalPrefix: string},
 ) {
   const reporter = maybeOpts && maybeOpts.reporter
   if (reporter) {
@@ -271,7 +272,7 @@ export async function linkFromGlobal (
 
 export async function linkToGlobal (
   linkFrom: string,
-  maybeOpts: InstallOptions & {
+  maybeOpts: LinkOptions & {
     globalBin: string,
     globalPrefix: string,
   },

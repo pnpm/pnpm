@@ -17,7 +17,7 @@ import {
 import R = require('ramda')
 import semver = require('semver')
 import { LAYOUT_VERSION } from '../constants'
-import getContext from '../getContext'
+import { getContextForSingleImporter } from '../getContext'
 import extendOptions, {
   RebuildOptions,
   StrictRebuildOptions,
@@ -74,7 +74,7 @@ export async function rebuildPkgs (
     streamParser.on('data', reporter)
   }
   const opts = await extendOptions(maybeOpts)
-  const ctx = await getContext(opts)
+  const ctx = await getContextForSingleImporter(opts)
 
   if (!ctx.currentShrinkwrap || !ctx.currentShrinkwrap.packages) return
   const packages = ctx.currentShrinkwrap.packages
@@ -104,7 +104,7 @@ export async function rebuild (maybeOpts: RebuildOptions) {
     streamParser.on('data', reporter)
   }
   const opts = await extendOptions(maybeOpts)
-  const ctx = await getContext(opts)
+  const ctx = await getContextForSingleImporter(opts)
 
   let idsToRebuild: string[] = []
 

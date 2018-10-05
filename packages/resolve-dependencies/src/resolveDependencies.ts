@@ -249,7 +249,7 @@ function preferedSatisfiesWanted (
   const pkgSnapshot = shr.packages && shr.packages[relDepPath]
   if (!pkgSnapshot) {
     logger.warn({
-      message: `Could not find prefered package ${relDepPath} in shrinkwrap`,
+      message: `Could not find preferred package ${relDepPath} in shrinkwrap`,
       prefix: opts.prefix,
     })
     return false
