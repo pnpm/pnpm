@@ -1,4 +1,5 @@
 import { isExecutable } from '@pnpm/assert-project'
+import fs = require('mz/fs')
 import ncpCB = require('ncp')
 import path = require('path')
 import exists = require('path-exists')
@@ -21,6 +22,7 @@ import {
   prepare,
   testDefaults,
 } from './utils'
+import loadYamlFile = require("load-yaml-file");
 
 const test = promisifyTape(tape)
 const ncp = promisify(ncpCB.ncp)
@@ -202,4 +204,32 @@ test('node_modules is pruned after linking', async (t: tape.Test) => {
   await link(['../is-positive'], path.resolve('node_modules'), await testDefaults())
 
   t.notOk(await exists('node_modules/.localhost+4873/is-positive/1.0.0/node_modules/is-positive/package.json'), 'pruned')
+})
+
+test('relative link uses realpath when contained in a symlinked dir', async (t: tape.Test) => {
+  const project = prepare(t)
+
+  // `process.cwd()` is now `.tmp/X/project`.
+
+  await ncp(pathToLocalPkg('symlink-workspace'), path.resolve('../symlink-workspace'))
+
+  const app1 = path.resolve('../symlink-workspace/app1')
+  const app2 = path.resolve('../symlink-workspace/app2')
+
+  process.chdir(path.join(app2, `/packages/public/foo`))
+
+  // `process.cwd()` is now `.tmp/X/symlink-workspace/app2/packages/public/foo`.
+
+  const linkFrom = path.join(app1, `/packages/public/bar`)
+  const linkTo = path.join(app2, `/packages/public/foo`, 'node_modules')
+
+  await link([linkFrom], linkTo, await testDefaults())
+
+  const linkToRelLink = await fs.readlink(path.join(linkTo, 'bar'))
+
+  t.equal(linkToRelLink, '../../bar')
+
+  // If we don't use real paths we get a link like this.
+  t.notEqual(linkToRelLink, '../../../../../app1/packages/public/bar')
+
 })
