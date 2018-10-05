@@ -22,7 +22,6 @@ import {
   prepare,
   testDefaults,
 } from './utils'
-import loadYamlFile = require("load-yaml-file");
 
 const test = promisifyTape(tape)
 const ncp = promisify(ncpCB.ncp)
