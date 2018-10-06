@@ -13,6 +13,7 @@ import {
   linkToGlobal,
   RootLog,
 } from 'supi'
+import symlink from 'symlink-dir'
 import tape = require('tape')
 import promisifyTape from 'tape-promise'
 import promisify = require('util.promisify')
@@ -24,6 +25,7 @@ import {
 } from './utils'
 
 const test = promisifyTape(tape)
+const testOnly = promisifyTape(tape.only)
 const ncp = promisify(ncpCB.ncp)
 
 test('relative link', async (t: tape.Test) => {
@@ -218,8 +220,13 @@ test('relative link uses realpath when contained in a symlinked dir', async (t: 
   const app1 = path.resolve(app1RelPath)
   const app2 = path.resolve(app2RelPath)
 
+  const dest = path.join(app2, 'packages/public')
+  const src = path.resolve(app1, 'packages/public')
+
+  t.comment(`${dest}->${src}`)
+
   // We must manually create the symlink so it works in Windows too.
-  await fs.symlink(path.join('../..', 'app1/packages/public'), path.join(app2, 'packages/public'))
+  await symlink(src, dest)
 
   process.chdir(path.join(app2, `/packages/public/foo`))
 
@@ -232,37 +239,12 @@ test('relative link uses realpath when contained in a symlinked dir', async (t: 
 
   const linkToRelLink = await fs.readlink(path.join(linkTo, 'bar'))
 
-  if (process.platform !== 'win32') {
-
+  if (process.platform === 'win32') {
+    t.equal(path.relative(linkToRelLink, path.join(src, 'bar')), '', 'link points to real location')
+  } else {
     t.equal(linkToRelLink, '../../bar')
 
     // If we don't use real paths we get a link like this.
     t.notEqual(linkToRelLink, '../../../../../app1/packages/public/bar')
-
-  } else {
-
-    /*
-
-    Windows AppVeyor tests fail. `readlink` seems to print the absolute path of a symlink.
-
-    Causes could be:
-
-    - Our usage of `fs.symlink` in the tests.
-    - Our usage of `fs.readlink` in the tests.
-    - Our usage of `fs.realpath` in the `link` method code.
-
-    ```
-    expected: |-
-          '../../bar'
-        actual: |-
-          'C:\\projects\\.tmp\\193\\symlink-workspace\\app1\\packages\\public\\bar\\'
-        at: Object.<anonymous> (C:\projects\pnpm-17nv8\packages\supi\test\link.ts:235:5)
-        stack: |-
-    ```
-
-    */
-    t.ok(true, 'skip windows test')
-
   }
-
 })
