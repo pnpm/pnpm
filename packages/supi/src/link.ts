@@ -17,6 +17,8 @@ import {
   safeReadPackage,
 } from '@pnpm/utils'
 import loadJsonFile from 'load-json-file'
+import mkdirp = require('mkdirp-promise')
+import fs = require('mz/fs')
 import normalize = require('normalize-path')
 import path = require('path')
 import pathAbsolute = require('path-absolute')
@@ -209,13 +211,33 @@ async function linkToModules (
     prefix: string,
   },
 ) {
-  const dest = path.join(opts.destModulesDir, opts.alias)
-  const {reused} = await symlinkDir(opts.packageDir, dest)
+
+  // `opts.destModulesDir` may be a non-existent `node_modules` dir
+  // so `fs.realpath` would throw.
+  // Even though `symlinkDir` creates the dir if it doesn't exist,
+  // our dir may include an ancestor dir which is symlinked,
+  // so we create it if it doesn't exist, and then find its realpath.
+  let destModulesDirReal
+  try {
+    destModulesDirReal = await fs.realpath(opts.destModulesDir)
+  } catch (err) {
+    if (err.code === 'ENOENT') {
+      await mkdirp(opts.destModulesDir)
+      destModulesDirReal = await fs.realpath(opts.destModulesDir)
+    } else {
+      throw err
+    }
+  }
+
+  const packageDirReal = await fs.realpath(opts.packageDir)
+
+  const dest = path.join(destModulesDirReal, opts.alias)
+  const {reused} = await symlinkDir(packageDirReal, dest)
   if (reused) return // if the link was already present, don't log
   rootLogger.debug({
     added: {
       dependencyType: opts.saveType && DEP_TYPE_BY_DEPS_FIELD_NAME[opts.saveType] as DependencyType,
-      linkedFrom: opts.packageDir,
+      linkedFrom: packageDirReal,
       name: opts.alias,
       realName: opts.pkg.name,
       version: opts.pkg.version,

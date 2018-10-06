@@ -1,0 +1,9 @@
+{
+  "name": "foo",
+  "version": "1.0.0",
+  "description": "A package with a hello world js bin",
+  "bin": "./index.js",
+  "dependencies": {
+    "bar": "1.0.0"
+  }
+}
