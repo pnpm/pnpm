@@ -28,7 +28,7 @@ import updateShrinkwrap from './updateShrinkwrap'
 
 export { DependenciesGraph }
 
-export interface ImportersToLink {
+export interface ImporterToLink {
   bin: string,
   directNodeIdsByAlias: {[alias: string]: string},
   externalShrinkwrap: boolean,
@@ -43,7 +43,7 @@ export interface ImportersToLink {
 }
 
 export default async function linkPackages (
-  importers: ImportersToLink[],
+  importers: ImporterToLink[],
   dependenciesTree: DependenciesTree,
   opts: {
     afterAllResolvedHook?: (shr: Shrinkwrap) => Shrinkwrap,
@@ -161,29 +161,36 @@ export default async function linkPackages (
       acc[depNode.absolutePath] = depNode
       return acc
     }, {}) as {[absolutePath: string]: DependenciesGraphNode}
-  for (const importer of importers) {
+
+  await Promise.all(importers.map((importer) => {
     const directAbsolutePathsByAlias = importersDirectAbsolutePathsByAlias[importer.id]
     const {modulesDir, pkg, prefix} = importer
-    for (const rootAlias of R.keys(directAbsolutePathsByAlias)) {
-      const depGraphNode = rootDepsByDepPath[directAbsolutePathsByAlias[rootAlias]]
-      if (!depGraphNode) continue
-      if (opts.dryRun || !(await symlinkDependencyTo(rootAlias, depGraphNode.peripheralLocation, modulesDir)).reused) {
-        const isDev = pkg.devDependencies && pkg.devDependencies[depGraphNode.name]
-        const isOptional = pkg.optionalDependencies && pkg.optionalDependencies[depGraphNode.name]
-        rootLogger.debug({
-          added: {
-            dependencyType: isDev && 'dev' || isOptional && 'optional' || 'prod',
-            id: depGraphNode.id,
-            latest: opts.outdatedDependencies[depGraphNode.id],
-            name: rootAlias,
-            realName: depGraphNode.name,
-            version: depGraphNode.version,
-          },
-          prefix,
-        })
-      }
-    }
-  }
+    return Promise.all(
+      R.keys(directAbsolutePathsByAlias)
+        .map((rootAlias) => ({ rootAlias, depGraphNode: rootDepsByDepPath[directAbsolutePathsByAlias[rootAlias]] }))
+        .filter(({ depGraphNode }) => depGraphNode)
+        .map(async ({ rootAlias, depGraphNode }) => {
+          if (
+            !opts.dryRun &&
+            (await symlinkDependencyTo(rootAlias, depGraphNode.peripheralLocation, modulesDir)).reused
+          ) return
+
+          const isDev = pkg.devDependencies && pkg.devDependencies[depGraphNode.name]
+          const isOptional = pkg.optionalDependencies && pkg.optionalDependencies[depGraphNode.name]
+          rootLogger.debug({
+            added: {
+              dependencyType: isDev && 'dev' || isOptional && 'optional' || 'prod',
+              id: depGraphNode.id,
+              latest: opts.outdatedDependencies[depGraphNode.id],
+              name: rootAlias,
+              realName: depGraphNode.name,
+              version: depGraphNode.version,
+            },
+            prefix,
+          })
+        }),
+    )
+  }))
 
   if (opts.updateShrinkwrapMinorVersion) {
     // Setting `shrinkwrapMinorVersion` is a temporary solution to
@@ -233,42 +240,39 @@ export default async function linkPackages (
 
   // Important: shamefullyFlattenGraph changes depGraph, so keep this at the end, right before linkBins
   if (newDepPaths.length > 0 || removedDepPaths.size > 0) {
-    for (const importer of importers) {
-      if (!importer.shamefullyFlatten) continue
-      importer.hoistedAliases = await shamefullyFlattenGraph(depNodes, currentShrinkwrap.importers[importer.id].specifiers, {
-        dryRun: opts.dryRun,
-        modulesDir: importer.modulesDir,
-      })
-    }
-  }
-
-  for (const importer of importers) {
-    // TODO: link inside resolveDependencies.ts
-    if (importer.resolvedFromLocalPackages.length) {
-      // TODO: link concurrently
-      for (const localPackage of importer.resolvedFromLocalPackages) {
-        await linkToModules({
-          alias: localPackage.alias,
-          destModulesDir: importer.modulesDir,
-          name: localPackage.name,
-          packageDir: resolvePath(importer.prefix, localPackage.resolution.directory),
-          prefix: importer.prefix,
-          saveType: localPackage.dev && 'devDependencies' || localPackage.optional && 'optionalDependencies' || 'dependencies',
-          version: localPackage.version,
-        })
-      }
-    }
+    await Promise.all(
+      importers.filter((importer) => importer.shamefullyFlatten)
+        .map(async (importer) => {
+          importer.hoistedAliases = await shamefullyFlattenGraph(
+            depNodes,
+            currentShrinkwrap.importers[importer.id].specifiers,
+            {
+              dryRun: opts.dryRun,
+              modulesDir: importer.modulesDir,
+            },
+          )
+        }),
+    )
   }
 
   if (!opts.dryRun) {
-    // TODO: make it concurrently
-    // MAYBE TODO: unite it with the shrinkwrap flatten array
-    for (const importer of importers) {
-      const {modulesDir, bin, prefix} = importer
-      await linkBins(modulesDir, bin, {
-        warn: (message: string) => logger.warn({message, prefix}),
-      })
-    }
+    await Promise.all(
+      importers.map((importer) =>
+        Promise.all(importer.resolvedFromLocalPackages.map((localPackage) =>
+          linkToModules({
+            alias: localPackage.alias,
+            destModulesDir: importer.modulesDir,
+            name: localPackage.name,
+            packageDir: resolvePath(importer.prefix, localPackage.resolution.directory),
+            prefix: importer.prefix,
+            saveType: localPackage.dev && 'devDependencies' || localPackage.optional && 'optionalDependencies' || 'dependencies',
+            version: localPackage.version,
+          }),
+        )),
+      ),
+    )
+
+    await Promise.all(importers.map(linkBinsOfImporter))
   }
 
   return {
@@ -278,6 +282,11 @@ export default async function linkPackages (
     removedDepPaths,
     wantedShrinkwrap: newShrinkwrap,
   }
+}
+
+function linkBinsOfImporter ({modulesDir, bin, prefix}: ImporterToLink) {
+  const warn = (message: string) => logger.warn({message, prefix})
+  return linkBins(modulesDir, bin, { warn })
 }
 
 const isAbsolutePath = /^[/]|^[A-Za-z]:/

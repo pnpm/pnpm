@@ -212,7 +212,6 @@ export async function recursive (
       if (opts.ignoredPackages) {
         pkgPaths = pkgPaths.filter((prefix) => !opts.ignoredPackages!.has(prefix))
       }
-      // TODO: pass config separately for every importer
       await action({
         ...installOpts,
         importers: await Promise.all(pkgPaths.map(async (prefix) => {

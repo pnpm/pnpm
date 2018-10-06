@@ -212,13 +212,6 @@ export default async (
     ),
     store: defaultOpts.store,
   }
-  // TODO: log this in pnpm
-  // if (extendedOpts.shamefullyFlatten) {
-  //   logger.info({
-  //     message: 'Installing a flat node_modules. Use flat node_modules only if you rely on buggy dependencies that you cannot fix.',
-  //     prefix: extendedOpts.prefix,
-  //   })
-  // }
   if (!extendedOpts.shrinkwrap && extendedOpts.shrinkwrapOnly) {
     throw new Error('Cannot generate a shrinkwrap.yaml because shrinkwrap is set to false')
   }

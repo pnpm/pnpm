@@ -33,7 +33,7 @@ export default async function removeOrphanPkgs (
     storeController: StoreController,
   },
 ): Promise<Set<string>> {
-  for (const importer of opts.importers) {
+  await Promise.all(opts.importers.map((importer) => {
     const oldImporterShr = opts.oldShrinkwrap.importers[importer.id] || {}
     const oldPkgs = R.toPairs(R.mergeAll(R.map((depType) => oldImporterShr[depType], DEPENDENCIES_FIELDS)))
     const newPkgs = R.toPairs(R.mergeAll(R.map((depType) => opts.newShrinkwrap.importers[importer.id][depType], DEPENDENCIES_FIELDS)))
@@ -42,7 +42,7 @@ export default async function removeOrphanPkgs (
 
     const {bin, modulesDir, prefix} = importer
 
-    await Promise.all(removedTopDeps.map((depName) => {
+    return Promise.all(removedTopDeps.map((depName) => {
       return removeDirectDependency({
         dev: Boolean(oldImporterShr.devDependencies && oldImporterShr.devDependencies[depName[0]]),
         name: depName[0],
@@ -54,7 +54,7 @@ export default async function removeOrphanPkgs (
         prefix,
       })
     }))
-  }
+  }))
 
   const oldPkgIdsByDepPaths = getPkgsDepPaths(opts.oldShrinkwrap.registry, opts.oldShrinkwrap.packages || {})
   const newPkgIdsByDepPaths = getPkgsDepPaths(opts.newShrinkwrap.registry, opts.newShrinkwrap.packages || {})
@@ -73,14 +73,12 @@ export default async function removeOrphanPkgs (
   if (!opts.dryRun) {
     if (orphanDepPaths.length) {
       if (opts.oldShrinkwrap.packages) {
-        for (const importer of opts.importers) {
-          if (!importer.shamefullyFlatten) continue
-
+        await Promise.all(opts.importers.filter((importer) => importer.shamefullyFlatten).map((importer) => {
           const { bin, hoistedAliases, modulesDir, prefix } = importer
-          await Promise.all(orphanDepPaths.map(async (orphanDepPath) => {
+          return Promise.all(orphanDepPaths.map(async (orphanDepPath) => {
             if (hoistedAliases[orphanDepPath]) {
-              await Promise.all(hoistedAliases[orphanDepPath].map(async (alias) => {
-                await removeDirectDependency({
+              await Promise.all(hoistedAliases[orphanDepPath].map((alias) => {
+                return removeDirectDependency({
                   dev: false,
                   name: alias,
                   optional: false,
@@ -94,7 +92,7 @@ export default async function removeOrphanPkgs (
             }
             delete hoistedAliases[orphanDepPath]
           }))
-        }
+        }))
       }
 
       await Promise.all(orphanDepPaths.map(async (orphanDepPath) => {

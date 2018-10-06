@@ -82,8 +82,7 @@ export default async function (
     wantedShrinkwrap: opts.wantedShrinkwrap,
   }
 
-  // TODO: try to make it concurrent
-  for (const importer of opts.importers) {
+  await Promise.all(opts.importers.map(async (importer) => {
     const shrImporter = opts.wantedShrinkwrap.importers[importer.id]
     const resolvedFromLocalPackages = [] as ResolvedFromLocalPackage[]
     rootPkgsByImporterId[importer.id] = await resolveDependencies(
@@ -112,7 +111,7 @@ export default async function (
       },
     )
     resolvedFromLocalPackagesByImporterId[importer.id] = resolvedFromLocalPackages
-  }
+  }))
 
   ctx.pendingNodes.forEach((pendingNode) => {
     ctx.dependenciesTree[pendingNode.nodeId] = {

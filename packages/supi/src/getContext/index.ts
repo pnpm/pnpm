@@ -173,8 +173,7 @@ async function validateNodeModules (
       + ' You must remove that option, or else "pnpm install --force" to recreate the "node_modules" folder.',
     )
   }
-  // TODO: run it concurrently
-  for (const importer of importers) {
+  await Promise.all(importers.map(async (importer) => {
     try {
       if (modules.importers && modules.importers[importer.id] && Boolean(modules.importers[importer.id].shamefullyFlatten) !== importer.shamefullyFlatten) {
         if (modules.importers[importer.id].shamefullyFlatten) {
@@ -209,7 +208,7 @@ async function validateNodeModules (
       })
       await removeAllExceptOuterLinks(importer.modulesDir)
     }
-  }
+  }))
 }
 
 function stringifyIncludedDeps (included: IncludedDependencies) {

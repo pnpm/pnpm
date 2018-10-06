@@ -61,7 +61,7 @@ import extendOptions, {
   InstallOptions,
   StrictInstallOptions,
 } from './extendInstallOptions'
-import linkPackages, { DependenciesGraph, ImportersToLink } from './link'
+import linkPackages, { DependenciesGraph, ImporterToLink } from './link'
 
 const ENGINE_NAME = `${process.platform}-${process.arch}-node-${process.version.split('.')[0]}`
 
@@ -504,8 +504,7 @@ async function installInContext (
   })
   stageLogger.debug('resolution_done')
 
-  const importersToLink = [] as ImportersToLink[]
-  for (const importer of importers) {
+  const importersToLink = await Promise.all<ImporterToLink>(importers.map(async (importer) => {
     const resolvedImporter = resolvedImporters[importer.id]
     let newPkg: PackageJson | undefined = importer.pkg
     if (opts.updatePackageJson) {
@@ -566,7 +565,7 @@ async function installInContext (
         )
       : []
 
-    importersToLink.push({
+    return {
       bin: importer.bin,
       directNodeIdsByAlias: resolvedImporter.directNodeIdsByAlias,
       externalShrinkwrap: ctx.shrinkwrapDirectory !== importer.prefix,
@@ -578,8 +577,8 @@ async function installInContext (
       resolvedFromLocalPackages: resolvedImporter.resolvedFromLocalPackages,
       shamefullyFlatten: importer.shamefullyFlatten,
       topParents,
-    })
-  }
+    }
+  }))
 
   const result = await linkPackages(
     importersToLink,
