@@ -13,7 +13,7 @@ import resolveDependencies, {
   ResolvedPackagesByPackageId,
 } from './resolveDependencies'
 
-export { ResolvedPackage, DependenciesTree, DependenciesTreeNode } from './resolveDependencies'
+export { ResolvedFromLocalPackage, ResolvedPackage, DependenciesTree, DependenciesTreeNode } from './resolveDependencies'
 export { InstallCheckLog, DeprecationLog } from './loggers'
 
 export interface ImporterToResolve {
@@ -140,17 +140,7 @@ export default async function (
       directNodeIdsByAlias: {
         [alias: string]: string,
       },
-      resolvedFromLocalPackages: Array<{
-        optional: boolean,
-        dev: boolean,
-        resolution: DirectoryResolution,
-        id: string,
-        version: string,
-        name: string,
-        specRaw: string,
-        normalizedPref?: string,
-        alias: string,
-      }>,
+      resolvedFromLocalPackages: ResolvedFromLocalPackage[],
     },
   }
 

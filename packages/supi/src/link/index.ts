@@ -1,7 +1,5 @@
 import {
-  DependencyType,
   packageJsonLogger,
-  rootLogger,
   summaryLogger,
 } from '@pnpm/core-loggers'
 import { linkBinsOfPackages } from '@pnpm/link-bins'
@@ -17,8 +15,6 @@ import {
   safeReadPackage,
 } from '@pnpm/utils'
 import loadJsonFile from 'load-json-file'
-import mkdirp = require('mkdirp-promise')
-import fs = require('mz/fs')
 import normalize = require('normalize-path')
 import path = require('path')
 import pathAbsolute = require('path-absolute')
@@ -30,9 +26,9 @@ import {
   writeCurrentOnly as saveCurrentShrinkwrapOnly,
 } from 'pnpm-shrinkwrap'
 import R = require('ramda')
-import symlinkDir = require('symlink-dir')
 import { getContextForSingleImporter } from '../getContext'
 import getSpecFromPackageJson from '../getSpecFromPackageJson'
+import linkToModules from '../linkToModules'
 import save, { guessDependencyType } from '../save'
 import getPref from '../utils/getPref'
 import {
@@ -133,10 +129,11 @@ export default async function link (
     await linkToModules({
       alias: linkedPkg.alias,
       destModulesDir: destModules,
+      name: linkedPkg.pkg.name,
       packageDir: linkedPkg.path,
-      pkg: linkedPkg.pkg,
       prefix: opts.prefix,
       saveType: stu && stu.saveType || saveType,
+      version: linkedPkg.pkg.version,
     })
   }
 
@@ -198,57 +195,6 @@ function addLinkToShrinkwrap (
   } else {
     delete shrImporter.specifiers[opts.linkedPkgName]
   }
-}
-
-const DEP_TYPE_BY_DEPS_FIELD_NAME = {
-  dependencies: 'prod',
-  devDependencies: 'dev',
-  optionalDependencies: 'optional',
-}
-
-async function linkToModules (
-  opts: {
-    alias: string,
-    packageDir: string,
-    pkg: PackageJson,
-    destModulesDir: string,
-    saveType?: DependenciesField,
-    prefix: string,
-  },
-) {
-
-  // `opts.destModulesDir` may be a non-existent `node_modules` dir
-  // so `fs.realpath` would throw.
-  // Even though `symlinkDir` creates the dir if it doesn't exist,
-  // our dir may include an ancestor dir which is symlinked,
-  // so we create it if it doesn't exist, and then find its realpath.
-  let destModulesDirReal
-  try {
-    destModulesDirReal = await fs.realpath(opts.destModulesDir)
-  } catch (err) {
-    if (err.code === 'ENOENT') {
-      await mkdirp(opts.destModulesDir)
-      destModulesDirReal = await fs.realpath(opts.destModulesDir)
-    } else {
-      throw err
-    }
-  }
-
-  const packageDirReal = await fs.realpath(opts.packageDir)
-
-  const dest = path.join(destModulesDirReal, opts.alias)
-  const {reused} = await symlinkDir(packageDirReal, dest)
-  if (reused) return // if the link was already present, don't log
-  rootLogger.debug({
-    added: {
-      dependencyType: opts.saveType && DEP_TYPE_BY_DEPS_FIELD_NAME[opts.saveType] as DependencyType,
-      linkedFrom: packageDirReal,
-      name: opts.alias,
-      realName: opts.pkg.name,
-      version: opts.pkg.version,
-    },
-    prefix: opts.prefix,
-  })
 }
 
 export async function linkFromGlobal (

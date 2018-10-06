@@ -51,7 +51,6 @@ import { PnpmError } from '../errorTypes'
 import { absolutePathToRef } from '../fs/shrinkwrap'
 import getContext, { PnpmContext } from '../getContext'
 import getSpecFromPackageJson from '../getSpecFromPackageJson'
-import externalLink from '../link'
 import lock from '../lock'
 import parseWantedDependencies from '../parseWantedDependencies'
 import safeIsInnerLink from '../safeIsInnerLink'
@@ -62,7 +61,7 @@ import extendOptions, {
   InstallOptions,
   StrictInstallOptions,
 } from './extendInstallOptions'
-import linkPackages, { DependenciesGraph } from './link'
+import linkPackages, { DependenciesGraph, ImportersToLink } from './link'
 
 const ENGINE_NAME = `${process.platform}-${process.arch}-node-${process.version.split('.')[0]}`
 
@@ -505,7 +504,7 @@ async function installInContext (
   })
   stageLogger.debug('resolution_done')
 
-  const importersToLink = []
+  const importersToLink = [] as ImportersToLink[]
   for (const importer of importers) {
     const resolvedImporter = resolvedImporters[importer.importerPath]
     let newPkg: PackageJson | undefined = importer.pkg
@@ -576,6 +575,7 @@ async function installInContext (
       importerPath: importer.importerPath,
       pkg: newPkg || importer.pkg,
       prefix: importer.prefix,
+      resolvedFromLocalPackages: resolvedImporter.resolvedFromLocalPackages,
       shamefullyFlatten: importer.shamefullyFlatten,
       topParents,
     })
@@ -728,26 +728,6 @@ async function installInContext (
         )))
       }
     }
-
-    for (const importer of importers) {
-      const { resolvedFromLocalPackages } = resolvedImporters[importer.importerPath]
-      // TODO: link inside resolveDependencies.ts
-      if (resolvedFromLocalPackages.length) {
-        const linkOpts = {
-          ...opts,
-          linkToBin: importer.bin,
-          saveDev: false,
-          saveOptional: false,
-          saveProd: false,
-          skipInstall: true,
-        }
-        const externalPkgs = resolvedFromLocalPackages.map((localPackage) => ({
-          alias: localPackage.alias,
-          path: resolvePath(importer.prefix, localPackage.resolution.directory),
-        }))
-        await externalLink(externalPkgs, importer.importerModulesDir, linkOpts)
-      }
-    }
   }
 
   // waiting till the skipped packages are downloaded to the store
@@ -765,14 +745,6 @@ async function installInContext (
   summaryLogger.debug({prefix: opts.shrinkwrapDirectory})
 
   await opts.storeController.close()
-}
-
-const isAbsolutePath = /^[/]|^[A-Za-z]:/
-
-// This function is copied from @pnpm/local-resolver
-function resolvePath (where: string, spec: string) {
-  if (isAbsolutePath.test(spec)) return spec
-  return path.resolve(where, spec)
 }
 
 function getSubgraphToBuild (

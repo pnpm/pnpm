@@ -8,7 +8,7 @@ import logger from '@pnpm/logger'
 import { prune } from '@pnpm/modules-cleaner'
 import { IncludedDependencies } from '@pnpm/modules-yaml'
 import { fromDir as readPackageFromDir } from '@pnpm/read-package-json'
-import { DependenciesTree } from '@pnpm/resolve-dependencies'
+import { DependenciesTree, ResolvedFromLocalPackage } from '@pnpm/resolve-dependencies'
 import { PackageJson } from '@pnpm/types'
 import * as dp from 'dependency-path'
 import pLimit = require('p-limit')
@@ -17,6 +17,7 @@ import path = require('path')
 import { PackageSnapshot, Shrinkwrap } from 'pnpm-shrinkwrap'
 import R = require('ramda')
 import { SHRINKWRAP_MINOR_VERSION } from '../constants'
+import linkToModules from '../linkToModules'
 import shamefullyFlattenGraph from '../shamefullyFlattenGraph'
 import symlinkDependencyTo from '../symlinkDependencyTo'
 import resolvePeers, {
@@ -27,19 +28,22 @@ import updateShrinkwrap from './updateShrinkwrap'
 
 export { DependenciesGraph }
 
+export interface ImportersToLink {
+  bin: string,
+  directNodeIdsByAlias: {[alias: string]: string},
+  externalShrinkwrap: boolean,
+  hoistedAliases: {[depPath: string]: string[]},
+  importerModulesDir: string,
+  importerPath: string,
+  pkg: PackageJson,
+  prefix: string,
+  resolvedFromLocalPackages: ResolvedFromLocalPackage[],
+  shamefullyFlatten: boolean,
+  topParents: Array<{name: string, version: string}>,
+}
+
 export default async function linkPackages (
-  importers: Array<{
-    bin: string,
-    directNodeIdsByAlias: {[alias: string]: string},
-    externalShrinkwrap: boolean,
-    hoistedAliases: {[depPath: string]: string[]},
-    importerModulesDir: string,
-    importerPath: string,
-    pkg: PackageJson,
-    prefix: string,
-    shamefullyFlatten: boolean,
-    topParents: Array<{name: string, version: string}>,
-  }>,
+  importers: ImportersToLink[],
   dependenciesTree: DependenciesTree,
   opts: {
     afterAllResolvedHook?: (shr: Shrinkwrap) => Shrinkwrap,
@@ -238,6 +242,24 @@ export default async function linkPackages (
     }
   }
 
+  for (const importer of importers) {
+    // TODO: link inside resolveDependencies.ts
+    if (importer.resolvedFromLocalPackages.length) {
+      // TODO: link concurrently
+      for (const localPackage of importer.resolvedFromLocalPackages) {
+        await linkToModules({
+          alias: localPackage.alias,
+          destModulesDir: importer.importerModulesDir,
+          name: localPackage.name,
+          packageDir: resolvePath(importer.prefix, localPackage.resolution.directory),
+          prefix: importer.prefix,
+          saveType: localPackage.dev && 'devDependencies' || localPackage.optional && 'optionalDependencies' || 'dependencies',
+          version: localPackage.version,
+        })
+      }
+    }
+  }
+
   if (!opts.dryRun) {
     // TODO: make it concurrently
     // MAYBE TODO: unite it with the shrinkwrap flatten array
@@ -256,6 +278,14 @@ export default async function linkPackages (
     removedDepPaths,
     wantedShrinkwrap: newShrinkwrap,
   }
+}
+
+const isAbsolutePath = /^[/]|^[A-Za-z]:/
+
+// This function is copied from @pnpm/local-resolver
+function resolvePath (where: string, spec: string) {
+  if (isAbsolutePath.test(spec)) return spec
+  return path.resolve(where, spec)
 }
 
 function filterShrinkwrap (
