@@ -68,14 +68,14 @@ export async function uninstallInContext (
   const pkgJsonPath = path.join(ctx.prefix, 'package.json')
   const saveType = getSaveType(opts)
   const pkg = await removeDeps(pkgJsonPath, pkgsToUninstall, { prefix: opts.prefix, saveType })
-  const newShr = pruneShrinkwrap(ctx.wantedShrinkwrap, pkg, ctx.importerPath, (message) => logger.warn({message, prefix: ctx.prefix}))
+  const newShr = pruneShrinkwrap(ctx.wantedShrinkwrap, pkg, ctx.importerId, (message) => logger.warn({message, prefix: ctx.prefix}))
   const removedPkgIds = await prune({
     importers: [
       {
         bin: opts.bin,
         hoistedAliases: ctx.hoistedAliases,
+        id: ctx.importerId,
         modulesDir: ctx.modulesDir,
-        importerPath: ctx.importerPath,
         prefix: ctx.prefix,
         shamefullyFlatten: opts.shamefullyFlatten,
       },
@@ -88,7 +88,7 @@ export async function uninstallInContext (
   ctx.pendingBuilds = ctx.pendingBuilds.filter((pkgId) => !removedPkgIds.has(dp.resolve(newShr.registry, pkgId)))
   await opts.storeController.close()
   const currentShrinkwrap = makePartialCurrentShrinkwrap
-    ? pruneShrinkwrap(ctx.currentShrinkwrap, pkg, ctx.importerPath)
+    ? pruneShrinkwrap(ctx.currentShrinkwrap, pkg, ctx.importerId)
     : newShr
   if (opts.shrinkwrap) {
     await saveShrinkwrap(ctx.shrinkwrapDirectory, newShr, currentShrinkwrap)
@@ -102,7 +102,7 @@ export async function uninstallInContext (
   })
 
   if (opts.shamefullyFlatten) {
-    ctx.hoistedAliases = await shamefullyFlattenGraphByShrinkwrap(currentShrinkwrap, ctx.importerPath, {
+    ctx.hoistedAliases = await shamefullyFlattenGraphByShrinkwrap(currentShrinkwrap, ctx.importerId, {
       modulesDir: ctx.modulesDir,
       prefix: opts.prefix,
       virtualStoreDir: ctx.virtualStoreDir,
@@ -112,7 +112,7 @@ export async function uninstallInContext (
     ...ctx.modulesFile,
     importers: {
       ...ctx.modulesFile && ctx.modulesFile.importers,
-      [ctx.importerPath]: {
+      [ctx.importerId]: {
         hoistedAliases: ctx.hoistedAliases,
         shamefullyFlatten: opts.shamefullyFlatten,
       },

@@ -12,7 +12,7 @@ import symlinkDependencyTo from './symlinkDependencyTo'
 
 export async function shamefullyFlattenGraphByShrinkwrap (
   shr: Shrinkwrap,
-  importerPath: string,
+  importerId: string,
   opts: {
     modulesDir: string,
     prefix: string,
@@ -21,7 +21,7 @@ export async function shamefullyFlattenGraphByShrinkwrap (
 ) {
   if (!shr.packages) return
 
-  const shrImporter = shr.importers[importerPath]
+  const shrImporter = shr.importers[importerId]
 
   const entryNodes = R.toPairs({
     ...shrImporter.devDependencies,

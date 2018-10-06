@@ -96,13 +96,13 @@ async function _read (
 
 export function create (
   registry: string,
-  importerPaths: string[],
+  importerIds: string[],
   opts: {
     shrinkwrapMinorVersion: number,
   },
 ) {
-  const importers = importerPaths.reduce((acc, importerPath) => {
-    acc[importerPath] = {
+  const importers = importerIds.reduce((acc, importerId) => {
+    acc[importerId] = {
       dependencies: {},
       specifiers: {},
     }

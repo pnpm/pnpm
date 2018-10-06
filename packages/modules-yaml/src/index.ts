@@ -13,7 +13,7 @@ export type IncludedDependencies = {
 
 export interface Modules {
   importers: {
-    [importerPath: string]: {
+    [id: string]: {
       hoistedAliases: {[depPath: string]: string[]}
       shamefullyFlatten: boolean,
     },

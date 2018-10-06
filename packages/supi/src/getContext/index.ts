@@ -16,7 +16,7 @@ import {
 } from '@pnpm/utils'
 import mkdirp = require('mkdirp-promise')
 import {
-  getImporterPath,
+  getImporterId,
   Shrinkwrap,
 } from 'pnpm-shrinkwrap'
 import removeAllExceptOuterLinks = require('remove-all-except-outer-links')
@@ -32,7 +32,7 @@ export interface PnpmContext {
     bin: string,
     hoistedAliases: {[depPath: string]: string[]}
     modulesDir: string,
-    importerPath: string,
+    id: string,
     pkg: PackageJson,
     prefix: string,
     shamefullyFlatten: boolean,
@@ -58,7 +58,7 @@ export type StrictImportersOptions = ImportersOptions & {
   prefix: string,
   shamefullyFlatten: boolean,
   modulesDir: string,
-  importerPath: string,
+  id: string,
 }
 
 export default async function getContext (
@@ -105,12 +105,12 @@ export default async function getContext (
         })
         return {
           bin: importer.bin,
-          hoistedAliases: modules && modules.importers[importer.importerPath] && modules.importers[importer.importerPath].hoistedAliases || {},
+          hoistedAliases: modules && modules.importers[importer.id] && modules.importers[importer.id].hoistedAliases || {},
+          id: importer.id,
           modulesDir: await realNodeModulesDir(importer.prefix),
-          importerPath: importer.importerPath,
           pkg,
           prefix: importer.prefix,
-          shamefullyFlatten: Boolean(importer.shamefullyFlatten || modules && modules.importers[importer.importerPath] && modules.importers[importer.importerPath].shamefullyFlatten),
+          shamefullyFlatten: Boolean(importer.shamefullyFlatten || modules && modules.importers[importer.id] && modules.importers[importer.id].shamefullyFlatten),
         }
       }),
     ),
@@ -123,7 +123,7 @@ export default async function getContext (
     virtualStoreDir,
     ...await readShrinkwrapFile({
       force: opts.force,
-      importerPaths: opts.importers.map((importer) => importer.importerPath),
+      importerIds: opts.importers.map((importer) => importer.id),
       registry: opts.registry,
       shrinkwrap: opts.shrinkwrap,
       shrinkwrapDirectory: opts.shrinkwrapDirectory,
@@ -137,7 +137,7 @@ async function validateNodeModules (
   modules: Modules,
   importers: Array<{
     modulesDir: string,
-    importerPath: string,
+    id: string,
     prefix: string,
     shamefullyFlatten: boolean,
   }>,
@@ -176,8 +176,8 @@ async function validateNodeModules (
   // TODO: run it concurrently
   for (const importer of importers) {
     try {
-      if (modules.importers && modules.importers[importer.importerPath] && Boolean(modules.importers[importer.importerPath].shamefullyFlatten) !== importer.shamefullyFlatten) {
-        if (modules.importers[importer.importerPath].shamefullyFlatten) {
+      if (modules.importers && modules.importers[importer.id] && Boolean(modules.importers[importer.id].shamefullyFlatten) !== importer.shamefullyFlatten) {
+        if (modules.importers[importer.id].shamefullyFlatten) {
           throw new PnpmError(
             'ERR_PNPM_SHAMEFULLY_FLATTEN_WANTED',
             'This "node_modules" folder was created using the --shamefully-flatten option.'
@@ -222,7 +222,7 @@ export interface PnpmSingleContext {
   existsWantedShrinkwrap: boolean,
   hoistedAliases: {[depPath: string]: string[]}
   modulesDir: string,
-  importerPath: string,
+  importerId: string,
   pkg: PackageJson,
   prefix: string,
   include: IncludedDependencies,
@@ -258,13 +258,13 @@ export async function getContextForSingleImporter (
   const modules = await readModulesYaml(virtualStoreDir)
 
   const modulesDir = await realNodeModulesDir(opts.prefix)
-  const importerPath = getImporterPath(shrinkwrapDirectory, opts.prefix)
+  const importerId = getImporterId(shrinkwrapDirectory, opts.prefix)
 
   if (modules) {
     const importers = [
       {
+        id: importerId,
         modulesDir,
-        importerPath,
         prefix: opts.prefix,
         shamefullyFlatten: opts.shamefullyFlatten,
       },
@@ -284,10 +284,10 @@ export async function getContextForSingleImporter (
   ])
   const pkg = files[0] || {} as PackageJson
   const ctx: PnpmSingleContext = {
-    hoistedAliases: modules && modules.importers[importerPath] && modules.importers[importerPath].hoistedAliases || {},
-    modulesDir,
-    importerPath,
+    hoistedAliases: modules && modules.importers[importerId] && modules.importers[importerId].hoistedAliases || {},
+    importerId,
     include: opts.include || modules && modules.included || { dependencies: true, devDependencies: true, optionalDependencies: true },
+    modulesDir,
     modulesFile: modules,
     pendingBuilds: modules && modules.pendingBuilds || [],
     pkg: opts.hooks && opts.hooks.readPackage ? opts.hooks.readPackage(pkg) : pkg,
@@ -298,7 +298,7 @@ export async function getContextForSingleImporter (
     virtualStoreDir,
     ...await readShrinkwrapFile({
       force: opts.force,
-      importerPaths: [importerPath],
+      importerIds: [importerId],
       registry: opts.registry,
       shrinkwrap: opts.shrinkwrap,
       shrinkwrapDirectory,

@@ -113,9 +113,9 @@ export async function install (maybeOpts: InstallOptions & {
       if (!opts.update && (
         opts.frozenShrinkwrap ||
         opts.preferFrozenShrinkwrap && ctx.existsWantedShrinkwrap && ctx.wantedShrinkwrap.shrinkwrapMinorVersion === SHRINKWRAP_MINOR_VERSION &&
-        !hasLocalTarballDepsInRoot(ctx.wantedShrinkwrap, importer.importerPath) &&
-        satisfiesPackageJson(ctx.wantedShrinkwrap, importer.pkg, importer.importerPath) &&
-        await linkedPackagesSatisfyPackageJson(importer.pkg, ctx.wantedShrinkwrap.importers[importer.importerPath], importer.prefix, opts.localPackages))
+        !hasLocalTarballDepsInRoot(ctx.wantedShrinkwrap, importer.id) &&
+        satisfiesPackageJson(ctx.wantedShrinkwrap, importer.pkg, importer.id) &&
+        await linkedPackagesSatisfyPackageJson(importer.pkg, ctx.wantedShrinkwrap.importers[importer.id], importer.prefix, opts.localPackages))
       ) {
         if (importer.shamefullyFlatten) {
           if (opts.frozenShrinkwrap) {
@@ -133,7 +133,7 @@ export async function install (maybeOpts: InstallOptions & {
           await headless({
             ...opts,
             currentShrinkwrap: ctx.currentShrinkwrap,
-            importerPath: importer.importerPath,
+            importerId: importer.id,
             packageJson: importer.pkg,
             prefix: importer.prefix,
             shrinkwrapDirectory: ctx.shrinkwrapDirectory,
@@ -150,7 +150,7 @@ export async function install (maybeOpts: InstallOptions & {
       const wantedDeps = getWantedDependencies(importer.pkg)
 
       if (ctx.wantedShrinkwrap && ctx.wantedShrinkwrap.importers) {
-        forgetResolutionsOfPrevWantedDeps(ctx.wantedShrinkwrap.importers[importer.importerPath], wantedDeps)
+        forgetResolutionsOfPrevWantedDeps(ctx.wantedShrinkwrap.importers[importer.id], wantedDeps)
       }
 
       const scripts = !opts.ignoreScripts && importer.pkg && importer.pkg.scripts || {}
@@ -160,7 +160,7 @@ export async function install (maybeOpts: InstallOptions & {
           importer.pkg.scripts.postinstall ||
           importer.pkg.scripts.prepare)
       ) {
-        ctx.pendingBuilds.push(importer.importerPath)
+        ctx.pendingBuilds.push(importer.id)
       }
 
       if (scripts['prepublish']) { // tslint:disable-line:no-string-literal
@@ -186,8 +186,8 @@ export async function install (maybeOpts: InstallOptions & {
       importersToInstall.push({
         ...importer,
         ...await partitionLinkedPackages(wantedDeps, {
-          modulesDir: importer.modulesDir,
           localPackages: opts.localPackages,
+          modulesDir: importer.modulesDir,
           prefix: importer.prefix,
           shrinkwrapOnly: opts.shrinkwrapOnly,
           storePath: ctx.storePath,
@@ -322,8 +322,8 @@ function getLocalPackagesByDirectory (localPackages: LocalPackages) {
   return localPackagesByDirectory
 }
 
-function hasLocalTarballDepsInRoot (shr: Shrinkwrap, importerPath: string) {
-  const importer = shr.importers && shr.importers[importerPath]
+function hasLocalTarballDepsInRoot (shr: Shrinkwrap, importerId: string) {
+  const importer = shr.importers && shr.importers[importerId]
   if (!importer) return false
   return R.any(refIsLocalTarball, R.values(importer.dependencies || {}))
     || R.any(refIsLocalTarball, R.values(importer.devDependencies || {}))
@@ -417,7 +417,7 @@ interface ImporterToInstall {
   bin: string,
   hoistedAliases: {[depPath: string]: string[]}
   modulesDir: string,
-  importerPath: string,
+  id: string,
   linkedPkgs: Array<WantedDependency & {alias: string}>,
   newPkgRawSpecs: string[],
   nonLinkedPkgs: WantedDependency[],
@@ -455,8 +455,8 @@ async function installInContext (
 
   ctx.wantedShrinkwrap.importers = ctx.wantedShrinkwrap.importers || {}
   for (const importer of importers) {
-    if (!ctx.wantedShrinkwrap.importers[importer.importerPath]) {
-      ctx.wantedShrinkwrap.importers[importer.importerPath] = {specifiers: {}}
+    if (!ctx.wantedShrinkwrap.importers[importer.id]) {
+      ctx.wantedShrinkwrap.importers[importer.id] = {specifiers: {}}
     }
   }
   stageLogger.debug('resolution_started')
@@ -506,7 +506,7 @@ async function installInContext (
 
   const importersToLink = [] as ImportersToLink[]
   for (const importer of importers) {
-    const resolvedImporter = resolvedImporters[importer.importerPath]
+    const resolvedImporter = resolvedImporters[importer.id]
     let newPkg: PackageJson | undefined = importer.pkg
     if (opts.updatePackageJson) {
       if (!importer.pkg) {
@@ -544,8 +544,8 @@ async function installInContext (
     }
 
     if (newPkg) {
-      const shrImporter = ctx.wantedShrinkwrap.importers[importer.importerPath]
-      ctx.wantedShrinkwrap.importers[importer.importerPath] = addDirectDependenciesToShrinkwrap(
+      const shrImporter = ctx.wantedShrinkwrap.importers[importer.id]
+      ctx.wantedShrinkwrap.importers[importer.id] = addDirectDependenciesToShrinkwrap(
         newPkg,
         shrImporter,
         importer.linkedPkgs,
@@ -571,8 +571,8 @@ async function installInContext (
       directNodeIdsByAlias: resolvedImporter.directNodeIdsByAlias,
       externalShrinkwrap: ctx.shrinkwrapDirectory !== importer.prefix,
       hoistedAliases: importer.hoistedAliases,
+      id: importer.id,
       modulesDir: importer.modulesDir,
-      importerPath: importer.importerPath,
       pkg: newPkg || importer.pkg,
       prefix: importer.prefix,
       resolvedFromLocalPackages: resolvedImporter.resolvedFromLocalPackages,
@@ -633,7 +633,7 @@ async function installInContext (
           importers: {
             ...ctx.modulesFile && ctx.modulesFile.importers,
             ...importersToLink.reduce((acc, importer) => {
-              acc[importer.importerPath] = {
+              acc[importer.id] = {
                 hoistedAliases: importer.hoistedAliases,
                 shamefullyFlatten: importer.shamefullyFlatten,
               }

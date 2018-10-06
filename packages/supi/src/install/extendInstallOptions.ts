@@ -6,7 +6,7 @@ import { realNodeModulesDir } from '@pnpm/utils'
 import normalizeRegistryUrl = require('normalize-registry-url')
 import { StoreController } from 'package-store'
 import path = require('path')
-import { getImporterPath, Shrinkwrap } from 'pnpm-shrinkwrap'
+import { getImporterId, Shrinkwrap } from 'pnpm-shrinkwrap'
 import { ImportersOptions, StrictImportersOptions } from '../getContext'
 import pnpmPkgJson from '../pnpmPkgJson'
 import { ReporterFunction } from '../types'
@@ -119,11 +119,11 @@ async function toStrictImporter (
   importerOptions: ImportersOptions,
 ): Promise<StrictImportersOptions> {
   const modulesDir = await realNodeModulesDir(importerOptions.prefix)
-  const importerPath = getImporterPath(shrinkwrapDirectory, importerOptions.prefix)
+  const importerId = getImporterId(shrinkwrapDirectory, importerOptions.prefix)
   return {
     bin: importerOptions.bin || path.join(importerOptions.prefix, 'node_modules', '.bin'),
+    id: importerId,
     modulesDir,
-    importerPath,
     prefix: importerOptions.prefix,
     shamefullyFlatten: typeof importerOptions.shamefullyFlatten === 'boolean' ? importerOptions.shamefullyFlatten : shamefullyFlatten,
   }

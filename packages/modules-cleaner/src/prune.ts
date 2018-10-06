@@ -22,7 +22,7 @@ export default async function removeOrphanPkgs (
       bin: string,
       hoistedAliases: {[depPath: string]: string[]},
       modulesDir: string,
-      importerPath: string,
+      id: string,
       shamefullyFlatten: boolean,
       prefix: string,
     }>,
@@ -34,9 +34,9 @@ export default async function removeOrphanPkgs (
   },
 ): Promise<Set<string>> {
   for (const importer of opts.importers) {
-    const oldImporterShr = opts.oldShrinkwrap.importers[importer.importerPath] || {}
+    const oldImporterShr = opts.oldShrinkwrap.importers[importer.id] || {}
     const oldPkgs = R.toPairs(R.mergeAll(R.map((depType) => oldImporterShr[depType], DEPENDENCIES_FIELDS)))
-    const newPkgs = R.toPairs(R.mergeAll(R.map((depType) => opts.newShrinkwrap.importers[importer.importerPath][depType], DEPENDENCIES_FIELDS)))
+    const newPkgs = R.toPairs(R.mergeAll(R.map((depType) => opts.newShrinkwrap.importers[importer.id][depType], DEPENDENCIES_FIELDS)))
 
     const removedTopDeps: Array<[string, string]> = R.difference(oldPkgs, newPkgs) as Array<[string, string]>
 

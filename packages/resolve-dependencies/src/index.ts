@@ -17,7 +17,7 @@ export { ResolvedFromLocalPackage, ResolvedPackage, DependenciesTree, Dependenci
 export { InstallCheckLog, DeprecationLog } from './loggers'
 
 export interface ImporterToResolve {
-  importerPath: string,
+  id: string,
   nonLinkedPkgs: WantedDependency[],
   pkg?: PackageJson,
   prefix: string,
@@ -56,8 +56,8 @@ export default async function (
     localPackages: LocalPackages,
   },
 ) {
-  const rootPkgsByImporterPath = {} as {[importerPath: string]: PkgAddress[]}
-  const resolvedFromLocalPackagesByImporterPath = {}
+  const rootPkgsByImporterId = {} as {[id: string]: PkgAddress[]}
+  const resolvedFromLocalPackagesByImporterId = {}
 
   const ctx = {
     childrenByParentId: {} as ChildrenByParentId,
@@ -84,9 +84,9 @@ export default async function (
 
   // TODO: try to make it concurrent
   for (const importer of opts.importers) {
-    const shrImporter = opts.wantedShrinkwrap.importers[importer.importerPath]
+    const shrImporter = opts.wantedShrinkwrap.importers[importer.id]
     const resolvedFromLocalPackages = [] as ResolvedFromLocalPackage[]
-    rootPkgsByImporterPath[importer.importerPath] = await resolveDependencies(
+    rootPkgsByImporterId[importer.id] = await resolveDependencies(
       {
         ...ctx,
         preferredVersions: opts.preferredVersions || importer.pkg && getPreferredVersionsFromPackage(importer.pkg) || {},
@@ -111,7 +111,7 @@ export default async function (
         update: opts.update,
       },
     )
-    resolvedFromLocalPackagesByImporterPath[importer.importerPath] = resolvedFromLocalPackages
+    resolvedFromLocalPackagesByImporterId[importer.id] = resolvedFromLocalPackages
   }
 
   ctx.pendingNodes.forEach((pendingNode) => {
@@ -125,7 +125,7 @@ export default async function (
   })
 
   const resolvedImporters = {} as {
-    [importerPath: string]: {
+    [id: string]: {
       directDependencies: Array<{
         alias: string,
         optional: boolean,
@@ -145,10 +145,10 @@ export default async function (
   }
 
   for (const importer of opts.importers) {
-    const rootPkgs = rootPkgsByImporterPath[importer.importerPath]
-    const resolvedFromLocalPackages = resolvedFromLocalPackagesByImporterPath[importer.importerPath]
+    const rootPkgs = rootPkgsByImporterId[importer.id]
+    const resolvedFromLocalPackages = resolvedFromLocalPackagesByImporterId[importer.id]
 
-    resolvedImporters[importer.importerPath] = {
+    resolvedImporters[importer.id] = {
       directDependencies: [
         ...rootPkgs
           .map((rootPkg) => ({

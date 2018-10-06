@@ -19,7 +19,7 @@ import normalize = require('normalize-path')
 import path = require('path')
 import pathAbsolute = require('path-absolute')
 import {
-  getImporterPath,
+  getImporterId,
   pruneSharedShrinkwrap,
   ShrinkwrapImporter,
   write as saveShrinkwrap,
@@ -51,7 +51,7 @@ export default async function link (
   const opts = await extendOptions(maybeOpts)
   const ctx = await getContextForSingleImporter(opts)
 
-  const importerPath = getImporterPath(ctx.shrinkwrapDirectory, opts.prefix)
+  const importerId = getImporterId(ctx.shrinkwrapDirectory, opts.prefix)
   const oldShrinkwrap = R.clone(ctx.currentShrinkwrap)
   const pkg = await safeReadPackage(path.join(opts.prefix, 'package.json')) || undefined
   if (pkg) {
@@ -89,8 +89,8 @@ export default async function link (
       packagePath,
       pkg,
     }
-    addLinkToShrinkwrap(ctx.currentShrinkwrap.importers[importerPath], addLinkOpts)
-    addLinkToShrinkwrap(ctx.wantedShrinkwrap.importers[importerPath], addLinkOpts)
+    addLinkToShrinkwrap(ctx.currentShrinkwrap.importers[importerId], addLinkOpts)
+    addLinkToShrinkwrap(ctx.wantedShrinkwrap.importers[importerId], addLinkOpts)
 
     linkedPkgs.push({
       alias: linkFromAlias || linkedPkg.name,
@@ -109,8 +109,8 @@ export default async function link (
       {
         bin: opts.bin,
         hoistedAliases: ctx.hoistedAliases,
+        id: importerId,
         modulesDir: ctx.modulesDir,
-        importerPath,
         prefix: opts.prefix,
         shamefullyFlatten: opts.shamefullyFlatten,
       },
@@ -145,7 +145,7 @@ export default async function link (
   if (opts.saveDev || opts.saveProd || opts.saveOptional) {
     const newPkg = await save(opts.prefix, specsToUpsert)
     for (const specToUpsert of specsToUpsert) {
-      updatedWantedShrinkwrap.importers[importerPath].specifiers[specToUpsert.name] = getSpecFromPackageJson(newPkg, specToUpsert.name) as string
+      updatedWantedShrinkwrap.importers[importerId].specifiers[specToUpsert.name] = getSpecFromPackageJson(newPkg, specToUpsert.name) as string
     }
   }
   if (opts.shrinkwrap) {

@@ -76,7 +76,7 @@ export default function (
       // to avoid warnings about unresolved peer dependencies
       topParents: Array<{name: string, version: string}>,
       prefix: string, // is only needed for logging
-      importerPath: string,
+      id: string,
     }>,
     dependenciesTree: DependenciesTree,
     independentLeaves: boolean,
@@ -85,7 +85,7 @@ export default function (
   },
 ): {
   depGraph: DependenciesGraph,
-  importersDirectAbsolutePathsByAlias: {[importerPath: string]: {[alias: string]: string}},
+  importersDirectAbsolutePathsByAlias: {[id: string]: {[alias: string]: string}},
 } {
   const depGraph: DependenciesGraph = {}
   const absolutePathsByNodeId = {}
@@ -133,10 +133,10 @@ export default function (
     }, {})
   })
 
-  const importersDirectAbsolutePathsByAlias: {[importerPath: string]: {[alias: string]: string}} = {}
+  const importersDirectAbsolutePathsByAlias: {[id: string]: {[alias: string]: string}} = {}
   for (const importer of opts.importers) {
     const { directNodeIdsByAlias } = importer
-    importersDirectAbsolutePathsByAlias[importer.importerPath] = R.keys(directNodeIdsByAlias).reduce((rootAbsolutePathsByAlias, alias) => {
+    importersDirectAbsolutePathsByAlias[importer.id] = R.keys(directNodeIdsByAlias).reduce((rootAbsolutePathsByAlias, alias) => {
       rootAbsolutePathsByAlias[alias] = absolutePathsByNodeId[directNodeIdsByAlias[alias]]
       return rootAbsolutePathsByAlias
     }, {})

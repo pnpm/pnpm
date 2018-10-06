@@ -34,7 +34,7 @@ export interface ImportersToLink {
   externalShrinkwrap: boolean,
   hoistedAliases: {[depPath: string]: string[]},
   modulesDir: string,
-  importerPath: string,
+  id: string,
   pkg: PackageJson,
   prefix: string,
   resolvedFromLocalPackages: ResolvedFromLocalPackage[],
@@ -85,13 +85,13 @@ export default async function linkPackages (
   for (const importer of importers) {
     if (!importer.externalShrinkwrap) continue
 
-    const directAbsolutePathsByAlias = importersDirectAbsolutePathsByAlias[importer.importerPath]
+    const directAbsolutePathsByAlias = importersDirectAbsolutePathsByAlias[importer.id]
     for (const alias of R.keys(directAbsolutePathsByAlias)) {
       const depPath = directAbsolutePathsByAlias[alias]
 
       if (depGraph[depPath].isPure) continue
 
-      const shrImporter = opts.wantedShrinkwrap.importers[importer.importerPath]
+      const shrImporter = opts.wantedShrinkwrap.importers[importer.id]
       const ref = dp.relative(opts.wantedShrinkwrap.registry, depPath)
       if (shrImporter.dependencies && shrImporter.dependencies[alias]) {
         shrImporter.dependencies[alias] = ref
@@ -125,7 +125,7 @@ export default async function linkPackages (
     depNodes = depNodes.filter((depNode) => !depNode.optional)
   }
   const filterOpts = {
-    importerPaths: importers.map((importer) => importer.importerPath),
+    importerIds: importers.map((importer) => importer.id),
     include: opts.include,
     skipped: opts.skipped,
   }
@@ -162,7 +162,7 @@ export default async function linkPackages (
       return acc
     }, {}) as {[absolutePath: string]: DependenciesGraphNode}
   for (const importer of importers) {
-    const directAbsolutePathsByAlias = importersDirectAbsolutePathsByAlias[importer.importerPath]
+    const directAbsolutePathsByAlias = importersDirectAbsolutePathsByAlias[importer.id]
     const {modulesDir, pkg, prefix} = importer
     for (const rootAlias of R.keys(directAbsolutePathsByAlias)) {
       const depGraphNode = rootDepsByDepPath[directAbsolutePathsByAlias[rootAlias]]
@@ -235,7 +235,7 @@ export default async function linkPackages (
   if (newDepPaths.length > 0 || removedDepPaths.size > 0) {
     for (const importer of importers) {
       if (!importer.shamefullyFlatten) continue
-      importer.hoistedAliases = await shamefullyFlattenGraph(depNodes, currentShrinkwrap.importers[importer.importerPath].specifiers, {
+      importer.hoistedAliases = await shamefullyFlattenGraph(depNodes, currentShrinkwrap.importers[importer.id].specifiers, {
         dryRun: opts.dryRun,
         modulesDir: importer.modulesDir,
       })
@@ -293,7 +293,7 @@ function filterShrinkwrap (
   opts: {
     include: IncludedDependencies,
     skipped: Set<string>,
-    importerPaths: string[],
+    importerIds: string[],
   },
 ): Shrinkwrap {
   let pairs = (R.toPairs(shr.packages || {}) as Array<[string, PackageSnapshot]>)
@@ -308,9 +308,9 @@ function filterShrinkwrap (
     pairs = pairs.filter((pair) => !pair[1].optional)
   }
   return {
-    importers: opts.importerPaths.reduce((acc, importerPath) => {
-      const shrImporter = shr.importers[importerPath]
-      acc[importerPath] = {
+    importers: opts.importerIds.reduce((acc, importerId) => {
+      const shrImporter = shr.importers[importerId]
+      acc[importerId] = {
         dependencies: !opts.include.dependencies ? {} : shrImporter.dependencies || {},
         devDependencies: !opts.include.devDependencies ? {} : shrImporter.devDependencies || {},
         optionalDependencies: !opts.include.optionalDependencies ? {} : shrImporter.optionalDependencies || {},

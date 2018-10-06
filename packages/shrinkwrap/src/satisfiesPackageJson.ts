@@ -7,8 +7,8 @@ import {
   Shrinkwrap,
 } from './types'
 
-export default (shr: Shrinkwrap, pkg: PackageJson, importerPath: string) => {
-  const importer = shr.importers[importerPath]
+export default (shr: Shrinkwrap, pkg: PackageJson, importerId: string) => {
+  const importer = shr.importers[importerId]
   if (!importer) return false
   if (!R.equals({...pkg.devDependencies, ...pkg.dependencies, ...pkg.optionalDependencies}, importer.specifiers)) {
     return false
