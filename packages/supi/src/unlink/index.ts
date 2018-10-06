@@ -45,7 +45,7 @@ export async function _unlinkPkgs (
 
   for (const pkgName of pkgNames) {
     try {
-      if (!await isExternalLink(opts.store, importer.importerModulesDir, pkgName)) {
+      if (!await isExternalLink(opts.store, importer.modulesDir, pkgName)) {
         logger.warn({
           message: `${pkgName} is not an external link`,
           prefix: importer.prefix,
@@ -55,7 +55,7 @@ export async function _unlinkPkgs (
     } catch (err) {
       if (err['code'] !== 'ENOENT') throw err // tslint:disable-line:no-string-literal
     }
-    await rimraf(path.join(importer.importerModulesDir, pkgName))
+    await rimraf(path.join(importer.modulesDir, pkgName))
     if (allDeps[pkgName]) {
       packagesToInstall.push(pkgName)
     }
@@ -81,7 +81,7 @@ export async function unlink (maybeOpts: InstallOptions) {
   if (opts.importers.length > 1) throw new Error('Unlink not implemented for multiple importers yet')
   const importer = opts.importers[0]
 
-  const externalPackages = await getExternalPackages(importer.importerModulesDir, opts.store)
+  const externalPackages = await getExternalPackages(importer.modulesDir, opts.store)
 
   await _unlinkPkgs(externalPackages, opts)
 

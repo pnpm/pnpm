@@ -14,7 +14,7 @@ export async function shamefullyFlattenGraphByShrinkwrap (
   shr: Shrinkwrap,
   importerPath: string,
   opts: {
-    importerModulesDir: string,
+    modulesDir: string,
     prefix: string,
     virtualStoreDir: string,
   },
@@ -39,7 +39,7 @@ export async function shamefullyFlattenGraphByShrinkwrap (
 
   return await shamefullyFlattenGraph(deps, shrImporter.specifiers, {
     dryRun: false,
-    importerModulesDir: opts.importerModulesDir,
+    modulesDir: opts.modulesDir,
   })
 }
 
@@ -124,7 +124,7 @@ export default async function shamefullyFlattenGraph (
   depNodes: Dependency[],
   currentSpecifiers: {[alias: string]: string},
   opts: {
-    importerModulesDir: string,
+    modulesDir: string,
     dryRun: boolean,
   },
 ): Promise<{[alias: string]: string[]}> {
@@ -162,7 +162,7 @@ export default async function shamefullyFlattenGraph (
       // TODO look how it is done in linkPackages
       if (!opts.dryRun) {
         await Promise.all(pkgAliases.map(async (pkgAlias) => {
-          await symlinkDependencyTo(pkgAlias, depNode.peripheralLocation, opts.importerModulesDir)
+          await symlinkDependencyTo(pkgAlias, depNode.peripheralLocation, opts.modulesDir)
         }))
       }
     }))

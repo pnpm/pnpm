@@ -109,7 +109,7 @@ export default async function link (
       {
         bin: opts.bin,
         hoistedAliases: ctx.hoistedAliases,
-        importerModulesDir: ctx.importerModulesDir,
+        modulesDir: ctx.modulesDir,
         importerPath,
         prefix: opts.prefix,
         shamefullyFlatten: opts.shamefullyFlatten,

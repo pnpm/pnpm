@@ -118,11 +118,11 @@ async function toStrictImporter (
   shrinkwrapDirectory: string,
   importerOptions: ImportersOptions,
 ): Promise<StrictImportersOptions> {
-  const importerModulesDir = await realNodeModulesDir(importerOptions.prefix)
+  const modulesDir = await realNodeModulesDir(importerOptions.prefix)
   const importerPath = getImporterPath(shrinkwrapDirectory, importerOptions.prefix)
   return {
     bin: importerOptions.bin || path.join(importerOptions.prefix, 'node_modules', '.bin'),
-    importerModulesDir,
+    modulesDir,
     importerPath,
     prefix: importerOptions.prefix,
     shamefullyFlatten: typeof importerOptions.shamefullyFlatten === 'boolean' ? importerOptions.shamefullyFlatten : shamefullyFlatten,

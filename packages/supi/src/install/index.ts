@@ -174,7 +174,7 @@ export async function install (maybeOpts: InstallOptions & {
         depPath: importer.prefix,
         pkgRoot: importer.prefix,
         rawNpmConfig: opts.rawNpmConfig,
-        rootNodeModulesDir: importer.importerModulesDir,
+        rootNodeModulesDir: importer.modulesDir,
         stdio: opts.ownLifecycleHooksStdio,
         unsafePerm: opts.unsafePerm || false,
       }
@@ -186,7 +186,7 @@ export async function install (maybeOpts: InstallOptions & {
       importersToInstall.push({
         ...importer,
         ...await partitionLinkedPackages(wantedDeps, {
-          importerModulesDir: importer.importerModulesDir,
+          modulesDir: importer.modulesDir,
           localPackages: opts.localPackages,
           prefix: importer.prefix,
           shrinkwrapOnly: opts.shrinkwrapOnly,
@@ -211,7 +211,7 @@ export async function install (maybeOpts: InstallOptions & {
         depPath: importer.prefix,
         pkgRoot: importer.prefix,
         rawNpmConfig: opts.rawNpmConfig,
-        rootNodeModulesDir: importer.importerModulesDir,
+        rootNodeModulesDir: importer.modulesDir,
         stdio: opts.ownLifecycleHooksStdio,
         unsafePerm: opts.unsafePerm || false,
       }
@@ -235,7 +235,7 @@ export async function install (maybeOpts: InstallOptions & {
 async function partitionLinkedPackages (
   wantedDeps: WantedDependency[],
   opts: {
-    importerModulesDir: string,
+    modulesDir: string,
     localPackages?: LocalPackages,
     prefix: string,
     shrinkwrapOnly: boolean,
@@ -261,7 +261,7 @@ async function partitionLinkedPackages (
     }
     // This info-log might be better to be moved to the reporter
     logger.info({
-      message: `${wantedDependency.alias} is linked to ${opts.importerModulesDir} from ${isInnerLink}`,
+      message: `${wantedDependency.alias} is linked to ${opts.modulesDir} from ${isInnerLink}`,
       prefix: opts.prefix,
     })
     linkedPkgs.push(wantedDependency as (WantedDependency & {alias: string}))
@@ -416,7 +416,7 @@ export async function installPkgs (
 interface ImporterToInstall {
   bin: string,
   hoistedAliases: {[depPath: string]: string[]}
-  importerModulesDir: string,
+  modulesDir: string,
   importerPath: string,
   linkedPkgs: Array<WantedDependency & {alias: string}>,
   newPkgRawSpecs: string[],
@@ -562,7 +562,7 @@ async function installInContext (
               .filter((directDep) => importer.newPkgRawSpecs.indexOf(directDep.specRaw) !== -1)
               .map((directDep) => directDep.alias) || [],
           ),
-          importer.importerModulesDir,
+          importer.modulesDir,
         )
       : []
 
@@ -571,7 +571,7 @@ async function installInContext (
       directNodeIdsByAlias: resolvedImporter.directNodeIdsByAlias,
       externalShrinkwrap: ctx.shrinkwrapDirectory !== importer.prefix,
       hoistedAliases: importer.hoistedAliases,
-      importerModulesDir: importer.importerModulesDir,
+      modulesDir: importer.modulesDir,
       importerPath: importer.importerPath,
       pkg: newPkg || importer.pkg,
       prefix: importer.prefix,

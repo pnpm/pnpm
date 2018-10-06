@@ -31,7 +31,7 @@ export interface PnpmContext {
   importers: Array<{
     bin: string,
     hoistedAliases: {[depPath: string]: string[]}
-    importerModulesDir: string,
+    modulesDir: string,
     importerPath: string,
     pkg: PackageJson,
     prefix: string,
@@ -57,7 +57,7 @@ export type StrictImportersOptions = ImportersOptions & {
   bin: string,
   prefix: string,
   shamefullyFlatten: boolean,
-  importerModulesDir: string,
+  modulesDir: string,
   importerPath: string,
 }
 
@@ -106,7 +106,7 @@ export default async function getContext (
         return {
           bin: importer.bin,
           hoistedAliases: modules && modules.importers[importer.importerPath] && modules.importers[importer.importerPath].hoistedAliases || {},
-          importerModulesDir: await realNodeModulesDir(importer.prefix),
+          modulesDir: await realNodeModulesDir(importer.prefix),
           importerPath: importer.importerPath,
           pkg,
           prefix: importer.prefix,
@@ -136,7 +136,7 @@ export default async function getContext (
 async function validateNodeModules (
   modules: Modules,
   importers: Array<{
-    importerModulesDir: string,
+    modulesDir: string,
     importerPath: string,
     prefix: string,
     shamefullyFlatten: boolean,
@@ -153,10 +153,10 @@ async function validateNodeModules (
     if (opts.force) {
       await Promise.all(importers.map(async (importer) => {
         logger.info({
-          message: `Recreating ${importer.importerModulesDir}`,
+          message: `Recreating ${importer.modulesDir}`,
           prefix: importer.prefix,
         })
-        await removeAllExceptOuterLinks(importer.importerModulesDir)
+        await removeAllExceptOuterLinks(importer.modulesDir)
       }))
       return
     }
@@ -190,7 +190,7 @@ async function validateNodeModules (
           + ' You must remove that option, or else add the --force option to recreate the "node_modules" folder.',
         )
       }
-      checkCompatibility(modules, {storePath: opts.store, modulesPath: importer.importerModulesDir})
+      checkCompatibility(modules, {storePath: opts.store, modulesPath: importer.modulesDir})
       if (opts.shrinkwrapDirectory !== importer.prefix && opts.include && modules.included) {
         for (const depsField of DEPENDENCIES_FIELDS) {
           if (opts.include[depsField] !== modules.included[depsField]) {
@@ -204,10 +204,10 @@ async function validateNodeModules (
     } catch (err) {
       if (!opts.force) throw err
       logger.info({
-        message: `Recreating ${importer.importerModulesDir}`,
+        message: `Recreating ${importer.modulesDir}`,
         prefix: importer.prefix,
       })
-      await removeAllExceptOuterLinks(importer.importerModulesDir)
+      await removeAllExceptOuterLinks(importer.modulesDir)
     }
   }
 }
@@ -221,7 +221,7 @@ export interface PnpmSingleContext {
   existsCurrentShrinkwrap: boolean,
   existsWantedShrinkwrap: boolean,
   hoistedAliases: {[depPath: string]: string[]}
-  importerModulesDir: string,
+  modulesDir: string,
   importerPath: string,
   pkg: PackageJson,
   prefix: string,
@@ -257,13 +257,13 @@ export async function getContextForSingleImporter (
   const virtualStoreDir = await realNodeModulesDir(shrinkwrapDirectory)
   const modules = await readModulesYaml(virtualStoreDir)
 
-  const importerModulesDir = await realNodeModulesDir(opts.prefix)
+  const modulesDir = await realNodeModulesDir(opts.prefix)
   const importerPath = getImporterPath(shrinkwrapDirectory, opts.prefix)
 
   if (modules) {
     const importers = [
       {
-        importerModulesDir,
+        modulesDir,
         importerPath,
         prefix: opts.prefix,
         shamefullyFlatten: opts.shamefullyFlatten,
@@ -285,7 +285,7 @@ export async function getContextForSingleImporter (
   const pkg = files[0] || {} as PackageJson
   const ctx: PnpmSingleContext = {
     hoistedAliases: modules && modules.importers[importerPath] && modules.importers[importerPath].hoistedAliases || {},
-    importerModulesDir,
+    modulesDir,
     importerPath,
     include: opts.include || modules && modules.included || { dependencies: true, devDependencies: true, optionalDependencies: true },
     modulesFile: modules,

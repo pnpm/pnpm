@@ -16,14 +16,14 @@ export default async function removeDirectDependency (
   opts: {
     bin: string,
     dryRun?: boolean,
-    importerModulesDir: string,
+    modulesDir: string,
     muteLogs?: boolean,
     prefix: string,
   },
 ) {
   const results = await Promise.all([
     removeBins(dependency.name, opts),
-    !opts.dryRun && remove(path.join(opts.importerModulesDir, dependency.name)),
+    !opts.dryRun && remove(path.join(opts.modulesDir, dependency.name)),
   ])
 
   const uninstalledPkg = results[0]
@@ -43,11 +43,11 @@ async function removeBins (
   uninstalledPkg: string,
   opts: {
     dryRun?: boolean,
-    importerModulesDir: string,
+    modulesDir: string,
     bin: string,
   },
 ) {
-  const uninstalledPkgPath = path.join(opts.importerModulesDir, uninstalledPkg)
+  const uninstalledPkgPath = path.join(opts.modulesDir, uninstalledPkg)
   const uninstalledPkgJson = await safeReadPackageFromDir(uninstalledPkgPath)
 
   if (!uninstalledPkgJson) return

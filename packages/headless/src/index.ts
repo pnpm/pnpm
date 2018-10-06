@@ -101,9 +101,9 @@ export default async (opts: HeadlessOptions) => {
   const currentShrinkwrap = opts.currentShrinkwrap || await readCurrent(shrinkwrapDirectory, {ignoreIncompatible: false})
   const importerPath = getImporterPath(shrinkwrapDirectory, opts.prefix)
   const virtualStoreDir = await realNodeModulesDir(shrinkwrapDirectory)
-  const importerModulesDir = await realNodeModulesDir(opts.prefix)
-  const modules = await readModulesYaml(importerModulesDir) ||
-    virtualStoreDir !== importerModulesDir && await readModulesYaml(virtualStoreDir) ||
+  const modulesDir = await realNodeModulesDir(opts.prefix)
+  const modules = await readModulesYaml(modulesDir) ||
+    virtualStoreDir !== modulesDir && await readModulesYaml(virtualStoreDir) ||
     {
       importers: {
         [importerPath]: {
@@ -124,13 +124,13 @@ export default async (opts: HeadlessOptions) => {
 
   const scripts = !opts.ignoreScripts && pkg.scripts || {}
 
-  const bin = path.join(importerModulesDir, '.bin')
+  const bin = path.join(modulesDir, '.bin')
 
   const scriptsOpts = {
     depPath: opts.prefix,
     pkgRoot: opts.prefix,
     rawNpmConfig: opts.rawNpmConfig,
-    rootNodeModulesDir: importerModulesDir,
+    rootNodeModulesDir: modulesDir,
     stdio: opts.ownLifecycleHooksStdio || 'inherit',
     unsafePerm: opts.unsafePerm || false,
   }
@@ -152,7 +152,7 @@ export default async (opts: HeadlessOptions) => {
         {
           bin,
           hoistedAliases: modules && modules.importers[importerPath] && modules.importers[importerPath].hoistedAliases || {},
-          importerModulesDir,
+          modulesDir,
           importerPath,
           prefix: opts.prefix,
           shamefullyFlatten: false,
@@ -203,8 +203,8 @@ export default async (opts: HeadlessOptions) => {
 
   await linkAllBins(depGraph, {optional: opts.include.optionalDependencies, warn})
 
-  await linkRootPackages(filteredShrinkwrap, opts.prefix, res.rootDependencies, importerModulesDir, importerPath)
-  await linkBins(importerModulesDir, bin, {warn})
+  await linkRootPackages(filteredShrinkwrap, opts.prefix, res.rootDependencies, modulesDir, importerPath)
+  await linkBins(modulesDir, bin, {warn})
 
   await writeCurrentShrinkwrapOnly(shrinkwrapDirectory, filteredShrinkwrap)
   if (opts.ignoreScripts) {
@@ -232,7 +232,7 @@ export default async (opts: HeadlessOptions) => {
       childConcurrency: opts.childConcurrency,
       prefix: opts.prefix,
       rawNpmConfig: opts.rawNpmConfig,
-      rootNodeModulesDir: importerModulesDir,
+      rootNodeModulesDir: modulesDir,
       sideEffectsCache: opts.sideEffectsCache,
       sideEffectsCacheReadonly: opts.sideEffectsCacheReadonly,
       storeController: opts.storeController,

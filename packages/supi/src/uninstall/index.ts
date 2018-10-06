@@ -74,7 +74,7 @@ export async function uninstallInContext (
       {
         bin: opts.bin,
         hoistedAliases: ctx.hoistedAliases,
-        importerModulesDir: ctx.importerModulesDir,
+        modulesDir: ctx.modulesDir,
         importerPath: ctx.importerPath,
         prefix: ctx.prefix,
         shamefullyFlatten: opts.shamefullyFlatten,
@@ -95,7 +95,7 @@ export async function uninstallInContext (
   } else {
     await saveCurrentShrinkwrapOnly(ctx.shrinkwrapDirectory, currentShrinkwrap)
   }
-  await removeOuterLinks(pkgsToUninstall, ctx.importerModulesDir, {
+  await removeOuterLinks(pkgsToUninstall, ctx.modulesDir, {
     bin: opts.bin,
     prefix: opts.prefix,
     storePath: ctx.storePath,
@@ -103,7 +103,7 @@ export async function uninstallInContext (
 
   if (opts.shamefullyFlatten) {
     ctx.hoistedAliases = await shamefullyFlattenGraphByShrinkwrap(currentShrinkwrap, ctx.importerPath, {
-      importerModulesDir: ctx.importerModulesDir,
+      modulesDir: ctx.modulesDir,
       prefix: opts.prefix,
       virtualStoreDir: ctx.virtualStoreDir,
     }) || {}
@@ -131,7 +131,7 @@ export async function uninstallInContext (
 
 async function removeOuterLinks (
   pkgsToUninstall: string[],
-  importerModulesDir: string,
+  modulesDir: string,
   opts: {
     bin: string,
     storePath: string,
@@ -145,14 +145,14 @@ async function removeOuterLinks (
   }
   // These packages are not in package.json, they were just linked in not installed
   for (const pkgToUninstall of pkgsToUninstall) {
-    if (await safeIsInnerLink(importerModulesDir, pkgToUninstall, safeIsInnerLinkOpts) !== true) {
+    if (await safeIsInnerLink(modulesDir, pkgToUninstall, safeIsInnerLinkOpts) !== true) {
       await removeDirectDependency({
         dev: false,
         name: pkgToUninstall,
         optional: false,
       }, {
         bin: opts.bin,
-        importerModulesDir,
+        modulesDir,
         prefix: opts.prefix,
       })
     }

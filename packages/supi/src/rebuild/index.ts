@@ -124,7 +124,7 @@ export async function rebuild (maybeOpts: RebuildOptions) {
   if (ctx.pkg && ctx.pkg.scripts && (!opts.pending || ctx.pendingBuilds.indexOf(ctx.importerPath) !== -1)) {
     await runLifecycleHooksInDir(opts.prefix, ctx.pkg, {
       rawNpmConfig: opts.rawNpmConfig,
-      rootNodeModulesDir: ctx.importerModulesDir,
+      rootNodeModulesDir: ctx.modulesDir,
       unsafePerm: opts.unsafePerm,
     })
 

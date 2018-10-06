@@ -21,7 +21,7 @@ export default async function removeOrphanPkgs (
     importers: Array<{
       bin: string,
       hoistedAliases: {[depPath: string]: string[]},
-      importerModulesDir: string,
+      modulesDir: string,
       importerPath: string,
       shamefullyFlatten: boolean,
       prefix: string,
@@ -40,7 +40,7 @@ export default async function removeOrphanPkgs (
 
     const removedTopDeps: Array<[string, string]> = R.difference(oldPkgs, newPkgs) as Array<[string, string]>
 
-    const {bin, importerModulesDir, prefix} = importer
+    const {bin, modulesDir, prefix} = importer
 
     await Promise.all(removedTopDeps.map((depName) => {
       return removeDirectDependency({
@@ -50,7 +50,7 @@ export default async function removeOrphanPkgs (
       }, {
         bin,
         dryRun: opts.dryRun,
-        importerModulesDir,
+        modulesDir,
         prefix,
       })
     }))
@@ -76,7 +76,7 @@ export default async function removeOrphanPkgs (
         for (const importer of opts.importers) {
           if (!importer.shamefullyFlatten) continue
 
-          const { bin, hoistedAliases, importerModulesDir, prefix } = importer
+          const { bin, hoistedAliases, modulesDir, prefix } = importer
           await Promise.all(orphanDepPaths.map(async (orphanDepPath) => {
             if (hoistedAliases[orphanDepPath]) {
               await Promise.all(hoistedAliases[orphanDepPath].map(async (alias) => {
@@ -86,7 +86,7 @@ export default async function removeOrphanPkgs (
                   optional: false,
                 }, {
                   bin,
-                  importerModulesDir,
+                  modulesDir,
                   muteLogs: true,
                   prefix,
                 })

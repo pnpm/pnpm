@@ -33,7 +33,7 @@ export interface ImportersToLink {
   directNodeIdsByAlias: {[alias: string]: string},
   externalShrinkwrap: boolean,
   hoistedAliases: {[depPath: string]: string[]},
-  importerModulesDir: string,
+  modulesDir: string,
   importerPath: string,
   pkg: PackageJson,
   prefix: string,
@@ -163,11 +163,11 @@ export default async function linkPackages (
     }, {}) as {[absolutePath: string]: DependenciesGraphNode}
   for (const importer of importers) {
     const directAbsolutePathsByAlias = importersDirectAbsolutePathsByAlias[importer.importerPath]
-    const {importerModulesDir, pkg, prefix} = importer
+    const {modulesDir, pkg, prefix} = importer
     for (const rootAlias of R.keys(directAbsolutePathsByAlias)) {
       const depGraphNode = rootDepsByDepPath[directAbsolutePathsByAlias[rootAlias]]
       if (!depGraphNode) continue
-      if (opts.dryRun || !(await symlinkDependencyTo(rootAlias, depGraphNode.peripheralLocation, importerModulesDir)).reused) {
+      if (opts.dryRun || !(await symlinkDependencyTo(rootAlias, depGraphNode.peripheralLocation, modulesDir)).reused) {
         const isDev = pkg.devDependencies && pkg.devDependencies[depGraphNode.name]
         const isOptional = pkg.optionalDependencies && pkg.optionalDependencies[depGraphNode.name]
         rootLogger.debug({
@@ -237,7 +237,7 @@ export default async function linkPackages (
       if (!importer.shamefullyFlatten) continue
       importer.hoistedAliases = await shamefullyFlattenGraph(depNodes, currentShrinkwrap.importers[importer.importerPath].specifiers, {
         dryRun: opts.dryRun,
-        importerModulesDir: importer.importerModulesDir,
+        modulesDir: importer.modulesDir,
       })
     }
   }
@@ -249,7 +249,7 @@ export default async function linkPackages (
       for (const localPackage of importer.resolvedFromLocalPackages) {
         await linkToModules({
           alias: localPackage.alias,
-          destModulesDir: importer.importerModulesDir,
+          destModulesDir: importer.modulesDir,
           name: localPackage.name,
           packageDir: resolvePath(importer.prefix, localPackage.resolution.directory),
           prefix: importer.prefix,
@@ -264,8 +264,8 @@ export default async function linkPackages (
     // TODO: make it concurrently
     // MAYBE TODO: unite it with the shrinkwrap flatten array
     for (const importer of importers) {
-      const {importerModulesDir, bin, prefix} = importer
-      await linkBins(importerModulesDir, bin, {
+      const {modulesDir, bin, prefix} = importer
+      await linkBins(modulesDir, bin, {
         warn: (message: string) => logger.warn({message, prefix}),
       })
     }
