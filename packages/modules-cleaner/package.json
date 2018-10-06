@@ -34,7 +34,7 @@
     "@pnpm/package-bins": "1.0.0",
     "@pnpm/types": "1.8.0",
     "@pnpm/utils": "0.8.0",
-    "@types/node": "10.11.3",
+    "@types/node": "10.11.4",
     "@types/ramda": "0.25.38",
     "dependency-path": "2.0.0",
     "fs-vacuum": "1.2.10",
