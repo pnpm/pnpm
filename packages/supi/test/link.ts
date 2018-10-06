@@ -212,8 +212,14 @@ test('relative link uses realpath when contained in a symlinked dir', async (t: 
 
   await ncp(pathToLocalPkg('symlink-workspace'), path.resolve('../symlink-workspace'))
 
-  const app1 = path.resolve('../symlink-workspace/app1')
-  const app2 = path.resolve('../symlink-workspace/app2')
+  const app1RelPath = '../symlink-workspace/app1'
+  const app2RelPath = '../symlink-workspace/app2'
+
+  const app1 = path.resolve(app1RelPath)
+  const app2 = path.resolve(app2RelPath)
+
+  // We must manually create the symlink so it works in Windows too.
+  await fs.symlink(path.join('../..', 'app1/packages/public'), path.join(app2, 'packages/public'))
 
   process.chdir(path.join(app2, `/packages/public/foo`))
 
