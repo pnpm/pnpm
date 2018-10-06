@@ -13,6 +13,7 @@ import {
   linkToGlobal,
   RootLog,
 } from 'supi'
+import symlink from 'symlink-dir'
 import tape = require('tape')
 import promisifyTape from 'tape-promise'
 import promisify = require('util.promisify')
@@ -24,6 +25,7 @@ import {
 } from './utils'
 
 const test = promisifyTape(tape)
+const testOnly = promisifyTape(tape.only)
 const ncp = promisify(ncpCB.ncp)
 
 test('relative link', async (t: tape.Test) => {
@@ -212,8 +214,19 @@ test('relative link uses realpath when contained in a symlinked dir', async (t: 
 
   await ncp(pathToLocalPkg('symlink-workspace'), path.resolve('../symlink-workspace'))
 
-  const app1 = path.resolve('../symlink-workspace/app1')
-  const app2 = path.resolve('../symlink-workspace/app2')
+  const app1RelPath = '../symlink-workspace/app1'
+  const app2RelPath = '../symlink-workspace/app2'
+
+  const app1 = path.resolve(app1RelPath)
+  const app2 = path.resolve(app2RelPath)
+
+  const dest = path.join(app2, 'packages/public')
+  const src = path.resolve(app1, 'packages/public')
+
+  t.comment(`${dest}->${src}`)
+
+  // We must manually create the symlink so it works in Windows too.
+  await symlink(src, dest)
 
   process.chdir(path.join(app2, `/packages/public/foo`))
 
@@ -226,9 +239,12 @@ test('relative link uses realpath when contained in a symlinked dir', async (t: 
 
   const linkToRelLink = await fs.readlink(path.join(linkTo, 'bar'))
 
-  t.equal(linkToRelLink, '../../bar')
+  if (process.platform === 'win32') {
+    t.equal(path.relative(linkToRelLink, path.join(src, 'bar')), '', 'link points to real location')
+  } else {
+    t.equal(linkToRelLink, '../../bar')
 
-  // If we don't use real paths we get a link like this.
-  t.notEqual(linkToRelLink, '../../../../../app1/packages/public/bar')
-
+    // If we don't use real paths we get a link like this.
+    t.notEqual(linkToRelLink, '../../../../../app1/packages/public/bar')
+  }
 })
