@@ -35,7 +35,7 @@
     "@pnpm/resolver-base": "1.2.0",
     "@pnpm/types": "1.8.0",
     "@pnpm/utils": "0.8.0",
-    "@types/node": "10.11.3",
+    "@types/node": "10.11.4",
     "@types/ramda": "0.25.38",
     "@types/semver": "5.5.0",
     "dependency-path": "2.0.0",

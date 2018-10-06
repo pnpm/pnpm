@@ -1,5 +1,5 @@
 dependencies:
-  '@types/node': 10.11.3
+  '@types/node': 10.11.4
   '@types/semver': 5.5.0
   dependencies-hierarchy: 'link:'
   dependency-path: 2.0.0
@@ -17,7 +17,7 @@ devDependencies:
 packages:
   /@pnpm/logger/2.1.0:
     dependencies:
-      '@types/node': 10.11.3
+      '@types/node': 10.11.4
       bole: 3.0.2
       ndjson: 1.5.0
     dev: true
@@ -25,16 +25,16 @@ packages:
       node: '>=6'
     resolution:
       integrity: sha512-BL4Laf6b50LjdcpOUWPukx2XJtb3mo2OpJjHdRNSDJu9YS2tRBeP14H2bNqGjCjfeml8z3KufI3Km6VQemVXNw==
-  /@types/node/10.11.3:
+  /@types/node/10.11.4:
     resolution:
-      integrity: sha512-3AvcEJAh9EMatxs+OxAlvAEs7OTy6AG94mcH1iqyVDwVVndekLxzwkWQ/Z4SDbY6GO2oyUXyWW8tQ4rENSSQVQ==
+      integrity: sha512-ojnbBiKkZFYRfQpmtnnWTMw+rzGp/JiystjluW9jgN3VzRwilXddJ6aGQ9V/7iuDG06SBgn7ozW9k3zcAnYjYQ==
   /@types/semver/5.5.0:
     dev: false
     resolution:
       integrity: sha512-41qEJgBH/TWgo5NFSvBCJ1qkoi3Q6ONSF2avrHq1LVEZfYpdHmj0y9SuTK+u9ZhG1sYQKBL1AWXKyLWP4RaUoQ==
   /@types/tape/4.2.32:
     dependencies:
-      '@types/node': 10.11.3
+      '@types/node': 10.11.4
     dev: true
     resolution:
       integrity: sha512-xil0KO5wkPoixdBWGIGolPv9dekf6dVkjjJLAFYchfKcd4DICou67rgGCIO7wAh3i5Ff/6j9IDgZz+GU9cMaqQ==
@@ -2048,20 +2048,20 @@ packages:
       node: '>=0.10.0'
     resolution:
       integrity: sha512-UjgapumWlbMhkBgzT7Ykc5YXUT46F0iKu8SGXq0bcwP5dz/h0Plj6enJqjz1Zbq2l5WaqYnrVbwWOWMyF3F47g==
-  /spdx-correct/3.0.1:
+  /spdx-correct/3.0.2:
     dependencies:
       spdx-expression-parse: 3.0.0
       spdx-license-ids: 3.0.1
     dev: true
     resolution:
-      integrity: sha512-hxSPZbRZvSDuOvADntOElzJpenIR7wXJkuoUcUtS0erbgt2fgeaoPIYretfKpslMhfFDY4k0MZ2F5CUzhBsSvQ==
-  /spdx-exceptions/2.1.0:
+      integrity: sha512-q9hedtzyXHr5S0A1vEPoK/7l8NpfkFYTq6iCY+Pno2ZbdZR6WexZFtqeVGkGxW3TEJMN914Z55EnAGMmenlIQQ==
+  /spdx-exceptions/2.2.0:
     dev: true
     resolution:
-      integrity: sha512-4K1NsmrlCU1JJgUrtgEeTVyfx8VaYea9J9LvARxhbHtVtohPs/gFGG5yy49beySjlIMhhXZ4QqujIZEfS4l6Cg==
+      integrity: sha512-2XQACfElKi9SlVb1CYadKDXvoajPgBVPn/gOQLrTvHdElaVhr7ZEbqJaRnJLVNeaI4cMEAgVCeBMKF6MWRDCRA==
   /spdx-expression-parse/3.0.0:
     dependencies:
-      spdx-exceptions: 2.1.0
+      spdx-exceptions: 2.2.0
       spdx-license-ids: 3.0.1
     dev: true
     resolution:
@@ -2394,7 +2394,7 @@ packages:
       tarball: 'http://registry.npmjs.org/uuid/-/uuid-2.0.3.tgz'
   /validate-npm-package-license/3.0.4:
     dependencies:
-      spdx-correct: 3.0.1
+      spdx-correct: 3.0.2
       spdx-expression-parse: 3.0.0
     dev: true
     resolution:
