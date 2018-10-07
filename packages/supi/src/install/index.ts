@@ -596,6 +596,7 @@ async function installInContext (
       makePartialCurrentShrinkwrap: opts.makePartialCurrentShrinkwrap,
       outdatedDependencies,
       pruneStore: opts.pruneStore,
+      shrinkwrapDirectory: opts.shrinkwrapDirectory,
       sideEffectsCache: opts.sideEffectsCache,
       skipped: ctx.skipped,
       storeController: opts.storeController,

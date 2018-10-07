@@ -48,6 +48,7 @@ test('uninstall package with no dependencies', async (t: tape.Test) => {
   t.ok(reporter.calledWithMatch({
     level: 'debug',
     name: 'pnpm:stats',
+    prefix: process.cwd(),
     removed: 1,
   } as StatsLog), 'reported info message about removing orphans')
   t.ok(reporter.calledWithMatch({

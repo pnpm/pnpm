@@ -117,6 +117,7 @@ export default async function link (
     ],
     newShrinkwrap: updatedCurrentShrinkwrap,
     oldShrinkwrap,
+    shrinkwrapDirectory: opts.shrinkwrapDirectory,
     storeController: opts.storeController,
     virtualStoreDir: ctx.virtualStoreDir,
   })

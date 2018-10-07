@@ -82,6 +82,7 @@ export async function uninstallInContext (
     ],
     newShrinkwrap: newShr,
     oldShrinkwrap: ctx.currentShrinkwrap,
+    shrinkwrapDirectory: opts.shrinkwrapDirectory,
     storeController: opts.storeController,
     virtualStoreDir: ctx.virtualStoreDir,
   })

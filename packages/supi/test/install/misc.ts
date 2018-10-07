@@ -33,6 +33,7 @@ import {
 
 const spawnSync = crossSpawn.sync
 const test = promisifyTape(tape)
+const testOnly = promisifyTape(tape.only)
 
 const IS_WINDOWS = isWindows()
 
@@ -117,10 +118,12 @@ test('no dependencies (lodash)', async (t: tape.Test) => {
     added: 1,
     level: 'debug',
     name: 'pnpm:stats',
+    prefix: process.cwd(),
   } as StatsLog), 'added stat')
   t.ok(reporter.calledWithMatch({
     level: 'debug',
     name: 'pnpm:stats',
+    prefix: process.cwd(),
     removed: 0,
   } as StatsLog), 'removed stat')
   t.ok(reporter.calledWithMatch({
@@ -679,6 +682,7 @@ test('should update subdep on second install', async (t: tape.Test) => {
     added: 1,
     level: 'debug',
     name: 'pnpm:stats',
+    prefix: process.cwd(),
   } as StatsLog), 'added stat')
 
   await project.storeHas('dep-of-pkg-with-1-dep', '100.1.0')

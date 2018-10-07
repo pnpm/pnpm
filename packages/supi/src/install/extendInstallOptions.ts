@@ -139,7 +139,6 @@ const defaults = async (opts: InstallOptions) => {
     name: pnpmPkgJson.name,
     version: pnpmPkgJson.version,
   }
-  const shrinkwrapDirectory = opts.shrinkwrapDirectory || opts['prefix'] || process.cwd() // tslint:disable-line
   return {
     allowNew: true,
     childConcurrency: 5,
@@ -178,7 +177,7 @@ const defaults = async (opts: InstallOptions) => {
     savePrefix: '^',
     saveProd: false,
     shrinkwrap: true,
-    shrinkwrapDirectory,
+    shrinkwrapDirectory: opts.shrinkwrapDirectory || opts.prefix || process.cwd(),
     shrinkwrapOnly: false,
     sideEffectsCache: false,
     sideEffectsCacheReadonly: false,

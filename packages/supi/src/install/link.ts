@@ -54,6 +54,7 @@ export default async function linkPackages (
     currentShrinkwrap: Shrinkwrap,
     makePartialCurrentShrinkwrap: boolean,
     pruneStore: boolean,
+    shrinkwrapDirectory: string,
     storeController: StoreController,
     skipped: Set<string>,
     include: IncludedDependencies,
@@ -136,6 +137,7 @@ export default async function linkPackages (
     newShrinkwrap: newCurrentShrinkwrap,
     oldShrinkwrap: opts.currentShrinkwrap,
     pruneStore: opts.pruneStore,
+    shrinkwrapDirectory: opts.shrinkwrapDirectory,
     storeController: opts.storeController,
     virtualStoreDir: opts.virtualStoreDir,
   })
@@ -149,6 +151,7 @@ export default async function linkPackages (
       dryRun: opts.dryRun,
       force: opts.force,
       optional: opts.include.optionalDependencies,
+      shrinkwrapDirectory: opts.shrinkwrapDirectory,
       storeController: opts.storeController,
       virtualStoreDir: opts.virtualStoreDir,
     },
@@ -341,6 +344,7 @@ async function linkNewPackages (
     dryRun: boolean,
     force: boolean,
     optional: boolean,
+    shrinkwrapDirectory: string,
     storeController: StoreController,
     virtualStoreDir: string,
   },
@@ -362,7 +366,7 @@ async function linkNewPackages (
   )
   statsLogger.debug({
     added: newDepPathsSet.size,
-    prefix: opts.virtualStoreDir,
+    prefix: opts.shrinkwrapDirectory,
   })
 
   const existingWithUpdatedDeps = []
@@ -400,7 +404,7 @@ async function linkNewPackages (
 
   await linkAllBins(newPkgs, depGraph, {
     optional: opts.optional,
-    warn: (message: string) => logger.warn({ message, prefix: opts.virtualStoreDir }),
+    warn: (message: string) => logger.warn({ message, prefix: opts.shrinkwrapDirectory }),
   })
 
   return newDepPaths

@@ -62,6 +62,7 @@ async function defaults (opts: LinkOptions) {
     prefix,
     registry: 'https://registry.npmjs.org/',
     shamefullyFlatten: false,
+    shrinkwrapDirectory: opts.shrinkwrapDirectory || prefix,
     shrinkwrap: true,
     store: opts.store,
     storeController: opts.storeController,

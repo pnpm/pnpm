@@ -30,6 +30,7 @@ export default async function removeOrphanPkgs (
     oldShrinkwrap: Shrinkwrap,
     pruneStore?: boolean,
     virtualStoreDir: string,
+    shrinkwrapDirectory: string,
     storeController: StoreController,
   },
 ): Promise<Set<string>> {
@@ -66,7 +67,7 @@ export default async function removeOrphanPkgs (
   const orphanPkgIds = new Set(R.props<string, string>(orphanDepPaths, oldPkgIdsByDepPaths))
 
   statsLogger.debug({
-    prefix: opts.virtualStoreDir,
+    prefix: opts.shrinkwrapDirectory,
     removed: orphanPkgIds.size,
   })
 
@@ -107,7 +108,7 @@ export default async function removeOrphanPkgs (
           logger.warn({
             error: err,
             message: `Failed to remove "${pathToRemove}"`,
-            prefix: opts.virtualStoreDir,
+            prefix: opts.shrinkwrapDirectory,
           })
         }
       }))

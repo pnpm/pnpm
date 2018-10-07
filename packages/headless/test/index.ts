@@ -49,11 +49,13 @@ test('installing a simple project', async (t) => {
     added: 15,
     level: 'debug',
     name: 'pnpm:stats',
+    prefix,
   } as StatsLog), 'added stat')
   t.ok(reporter.calledWithMatch({
-    removed: 0,
     level: 'debug',
     name: 'pnpm:stats',
+    prefix,
+    removed: 0,
   } as StatsLog), 'removed stat')
   t.ok(reporter.calledWithMatch({
     level: 'debug',
@@ -260,9 +262,10 @@ test('orphan packages are removed', async (t) => {
   }))
 
   t.ok(reporter.calledWithMatch({
-    removed: 1,
     level: 'debug',
     name: 'pnpm:stats',
+    prefix: projectDir,
+    removed: 1,
   } as StatsLog), 'removed stat')
 
   const project = assertProject(t, projectDir)
@@ -454,11 +457,13 @@ test('independent-leaves: installing a simple project', async (t) => {
     added: 15,
     level: 'debug',
     name: 'pnpm:stats',
+    prefix,
   } as StatsLog), 'added stat')
   t.ok(reporter.calledWithMatch({
-    removed: 0,
     level: 'debug',
     name: 'pnpm:stats',
+    prefix,
+    removed: 0,
   } as StatsLog), 'removed stat')
   t.ok(reporter.calledWithMatch({
     level: 'debug',

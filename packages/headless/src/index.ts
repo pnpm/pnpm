@@ -161,12 +161,13 @@ export default async (opts: HeadlessOptions) => {
       newShrinkwrap: filteredShrinkwrap,
       oldShrinkwrap: currentShrinkwrap,
       pruneStore: opts.pruneStore,
+      shrinkwrapDirectory,
       storeController: opts.storeController,
       virtualStoreDir,
     })
   } else {
     statsLogger.debug({
-      prefix: opts.prefix,
+      prefix: shrinkwrapDirectory,
       removed: 0,
     })
   }
@@ -185,7 +186,7 @@ export default async (opts: HeadlessOptions) => {
 
   statsLogger.debug({
     added: Object.keys(depGraph).length,
-    prefix: opts.prefix,
+    prefix: shrinkwrapDirectory,
   })
 
   await Promise.all([
