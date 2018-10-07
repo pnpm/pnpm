@@ -1378,7 +1378,7 @@ registry: 'https://registry.npmjs.org/'
 shrinkwrapMinorVersion: 9
 shrinkwrapVersion: 3
 specifiers:
-  '@pnpm/modules-yaml': ^1.0.0
+  '@pnpm/modules-yaml': 2.0.0-0
   '@types/mz': ^0.0.32
   '@types/node': ^10.11.3
   '@types/path-exists': ^3.0.0
