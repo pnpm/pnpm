@@ -6,8 +6,7 @@ import {
   DependenciesTreeNode,
 } from '@pnpm/resolve-dependencies'
 import { Resolution } from '@pnpm/resolver-base'
-import { PackageJson } from '@pnpm/types'
-import { Dependencies } from '@pnpm/types'
+import { Dependencies, PackageJson } from '@pnpm/types'
 import {
   createNodeId,
   ROOT_NODE_ID,
@@ -172,22 +171,22 @@ function resolvePeersOfNode (
   const parentPkgs = R.isEmpty(children)
     ? parentParentPkgs
     : {
-        ...parentParentPkgs,
-        ...toPkgByName(R.keys(children).map((alias) => ({alias, nodeId: children[alias], node: ctx.dependenciesTree[children[alias]]}))),
-      }
+      ...parentParentPkgs,
+      ...toPkgByName(R.keys(children).map((alias) => ({ alias, nodeId: children[alias], node: ctx.dependenciesTree[children[alias]] }))),
+    }
   const unknownResolvedPeersOfChildren = resolvePeersOfChildren(children, parentPkgs, ctx)
 
   const resolvedPeers = R.isEmpty(node.resolvedPackage.peerDependencies)
     ? {}
     : resolvePeers({
-        dependenciesTree: ctx.dependenciesTree,
-        externalShrinkwrap: ctx.externalShrinkwrap,
-        node,
-        nodeId,
-        parentPkgs,
-        prefix: ctx.prefix,
-        strictPeerDependencies: ctx.strictPeerDependencies,
-      })
+      dependenciesTree: ctx.dependenciesTree,
+      externalShrinkwrap: ctx.externalShrinkwrap,
+      node,
+      nodeId,
+      parentPkgs,
+      prefix: ctx.prefix,
+      strictPeerDependencies: ctx.strictPeerDependencies,
+    })
 
   const allResolvedPeers = Object.assign(unknownResolvedPeersOfChildren, resolvedPeers)
 
@@ -303,7 +302,7 @@ function resolvePeers (
 
     if (!resolved || resolved.nodeId && !ctx.dependenciesTree[resolved.nodeId].installable) {
       try {
-        const {version} = importFrom(ctx.prefix, `${peerName}/package.json`)
+        const { version } = importFrom(ctx.prefix, `${peerName}/package.json`)
         resolved = {
           depth: -1,
           version,

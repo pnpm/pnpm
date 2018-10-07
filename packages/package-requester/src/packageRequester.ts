@@ -4,7 +4,7 @@ import {
   FetchOptions,
   FetchResult,
 } from '@pnpm/fetcher-base'
-import {storeLogger} from '@pnpm/logger'
+import { storeLogger } from '@pnpm/logger'
 import pkgIdToFilename from '@pnpm/pkgid-to-filename'
 import {
   DirectoryResolution,
@@ -29,8 +29,8 @@ import renameOverwrite = require('rename-overwrite')
 import rimraf = require('rimraf-then')
 import symlinkDir = require('symlink-dir')
 import writeJsonFile from 'write-json-file'
-import {fromDir as readPkgFromDir} from './fs/readPkg'
-import {LoggedPkg, progressLogger} from './loggers'
+import { fromDir as readPkgFromDir } from './fs/readPkg'
+import { LoggedPkg, progressLogger } from './loggers'
 
 const TARBALL_INTEGRITY_FILENAME = 'tarball-integrity'
 
@@ -226,7 +226,7 @@ async function resolveAndFetch (
         preferredVersions: options.preferredVersions,
         prefix: options.prefix,
         registry: options.registry,
-      }), {priority: options.downloadPriority})
+      }), { priority: options.downloadPriority })
 
       pkg = resolveResult.package
       latest = resolveResult.latest
@@ -254,7 +254,7 @@ async function resolveAndFetch (
 
     const id = pkgId as string
 
-    progressLogger.debug({status: 'resolved', pkgId: id, pkg: options.loggedPkg})
+    progressLogger.debug({ status: 'resolved', pkgId: id, pkg: options.loggedPkg })
 
     if (resolution.type === 'directory') {
       if (!pkg) {
@@ -299,7 +299,7 @@ async function resolveAndFetch (
       pkgId: id,
       pkgName: pkg && pkg.name,
       prefix: options.prefix,
-      resolution: resolution as Resolution,
+      resolution: resolution,
       verifyStoreIntegrity: options.verifyStoreIntegrity,
     })
 
@@ -321,7 +321,7 @@ async function resolveAndFetch (
       finishing: fetchResult.finishing,
     } as PackageResponse
   } catch (err) {
-    progressLogger.debug({status: 'error', pkg: options.loggedPkg})
+    progressLogger.debug({ status: 'error', pkg: options.loggedPkg })
     throw err
   }
 }
@@ -362,7 +362,7 @@ function fetchToStore (
     const fetchingFiles = differed<PackageFilesResponse>()
     const finishing = differed<void>()
 
-    doFetchToStore(fetchingRawManifest, fetchingFiles, finishing)
+    doFetchToStore(fetchingRawManifest, fetchingFiles, finishing) // tslint:disable-line
 
     if (opts.fetchRawManifest) {
       ctx.fetchingLocker.set(opts.pkgId, {
@@ -385,7 +385,7 @@ function fetchToStore (
     // Changing the value of fromStore is needed for correct reporting of `pnpm server`.
     // Otherwise, if a package was not in store when the server started, it will be always
     // reported as "downloaded" instead of "reused".
-    fetchingFiles.promise.then(({filenames, fromStore}) => {
+    fetchingFiles.promise.then(({ filenames, fromStore }) => { // tslint:disable-line
       // If it's already in the store, we don't need to update the cache
       if (fromStore) {
         return
@@ -498,14 +498,14 @@ function fetchToStore (
           const fetchedPackage = await ctx.requestsQueue.add(() => ctx.fetch(opts.resolution, target, {
             cachedTarballLocation: path.join(ctx.storePath, opts.pkgId, 'packed.tgz'),
             onProgress: (downloaded) => {
-              progressLogger.debug({status: 'fetching_progress', pkgId: opts.pkgId, downloaded})
+              progressLogger.debug({ status: 'fetching_progress', pkgId: opts.pkgId, downloaded })
             },
             onStart: (size, attempt) => {
-              progressLogger.debug({status: 'fetching_started', pkgId: opts.pkgId, size, attempt})
+              progressLogger.debug({ status: 'fetching_started', pkgId: opts.pkgId, size, attempt })
             },
             pkgId: opts.pkgId,
             prefix: opts.prefix,
-          }), {priority})
+          }), { priority })
 
           filesIndex = fetchedPackage.filesIndex
           tempLocation = fetchedPackage.tempLocation
@@ -536,10 +536,10 @@ function fetchToStore (
             Object.assign(acc, info)
             return acc
           }, {})
-        await writeJsonFile(path.join(target, 'integrity.json'), integrity, {indent: null})
+        await writeJsonFile(path.join(target, 'integrity.json'), integrity, { indent: null })
       } else {
         // TODO: save only filename: {size}
-        await writeJsonFile(path.join(target, 'integrity.json'), filesIndex, {indent: null})
+        await writeJsonFile(path.join(target, 'integrity.json'), filesIndex, { indent: null })
       }
       finishing.resolve(undefined)
 

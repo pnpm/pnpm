@@ -1,8 +1,8 @@
-import {storeLogger} from '@pnpm/logger'
+import { storeLogger } from '@pnpm/logger'
 import storePath from '@pnpm/store-path'
-import {stripIndents} from 'common-tags'
+import { stripIndents } from 'common-tags'
 import path = require('path')
-import {tryLoadServerJson} from '../../createStoreController'
+import { tryLoadServerJson } from '../../createStoreController'
 import serverConnectionInfoDir from '../../serverConnectionInfoDir'
 import { PnpmOptions } from '../../types'
 

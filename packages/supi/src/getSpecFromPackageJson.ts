@@ -1,4 +1,4 @@
-import {PackageJson} from '@pnpm/types'
+import { PackageJson } from '@pnpm/types'
 
 export default (pkg: PackageJson, depName: string) => {
   return pkg.dependencies && pkg.dependencies[depName]

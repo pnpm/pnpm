@@ -1,4 +1,4 @@
-import {PackageJson} from '@pnpm/types'
+import { PackageJson } from '@pnpm/types'
 import path = require('path')
 import readPkg from './readPkg'
 

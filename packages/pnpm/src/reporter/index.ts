@@ -1,5 +1,5 @@
-import {PnpmConfigs} from '@pnpm/config'
-import {streamParser, writeToConsole} from '@pnpm/logger'
+import { PnpmConfigs } from '@pnpm/config'
+import { streamParser, writeToConsole } from '@pnpm/logger'
 import defaultReporter from 'pnpm-default-reporter'
 import silentReporter from './silentReporter'
 

@@ -22,7 +22,7 @@ const test = promisifyTape(tape)
 
 test('run pre/postinstall scripts', async (t: tape.Test) => {
   const project = prepare(t)
-  await installPkgs(['pre-and-postinstall-scripts-example'], await testDefaults({saveDev: true}))
+  await installPkgs(['pre-and-postinstall-scripts-example'], await testDefaults({ saveDev: true }))
 
   {
     t.notOk(await exists('node_modules/pre-and-postinstall-scripts-example/generated-by-prepare.js'))
@@ -40,7 +40,7 @@ test('run pre/postinstall scripts', async (t: tape.Test) => {
   // testing that the packages are not installed even though they are in shrinkwrap
   // and that their scripts are not tried to be executed
 
-  await install(await testDefaults({production: true}))
+  await install(await testDefaults({ production: true }))
 
   {
     const generatedByPreinstall = project.requireModule('pre-and-postinstall-scripts-example/generated-by-preinstall')
@@ -58,7 +58,7 @@ test('testing that the bins are linked when the package with the bins was alread
   const project = prepare(t)
 
   await installPkgs(['hello-world-js-bin'], await testDefaults())
-  await installPkgs(['pre-and-postinstall-scripts-example'], await testDefaults({saveDev: true}))
+  await installPkgs(['pre-and-postinstall-scripts-example'], await testDefaults({ saveDev: true }))
 
   const generatedByPreinstall = project.requireModule('pre-and-postinstall-scripts-example/generated-by-preinstall')
   t.ok(typeof generatedByPreinstall === 'function', 'generatedByPreinstall() is available')
@@ -173,7 +173,7 @@ test("reports child's output", async (t: tape.Test) => {
 
   const reporter = sinon.spy()
 
-  await installPkgs(['count-to-10'], await testDefaults({reporter}))
+  await installPkgs(['count-to-10'], await testDefaults({ reporter }))
 
   t.ok(reporter.calledWithMatch({
     depPath: 'localhost+4873/count-to-10/1.0.0',
@@ -221,7 +221,7 @@ test("reports child's close event", async (t: tape.Test) => {
   const reporter = sinon.spy()
 
   try {
-    await installPkgs(['failing-postinstall'], await testDefaults({reporter}))
+    await installPkgs(['failing-postinstall'], await testDefaults({ reporter }))
     t.fail()
   } catch (err) {
     t.ok(reporter.calledWithMatch({

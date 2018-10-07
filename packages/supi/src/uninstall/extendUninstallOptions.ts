@@ -1,5 +1,5 @@
 import normalizeRegistryUrl = require('normalize-registry-url')
-import {StoreController} from 'package-store'
+import { StoreController } from 'package-store'
 import path = require('path')
 import pnpmPkgJson from '../pnpmPkgJson'
 import { ReporterFunction } from '../types'
@@ -83,7 +83,7 @@ export default async (
     }
   }
   const defaultOpts = await defaults(opts)
-  const extendedOpts = {...defaultOpts, ...opts, store: defaultOpts.store}
+  const extendedOpts = { ...defaultOpts, ...opts, store: defaultOpts.store }
   extendedOpts.registry = normalizeRegistryUrl(extendedOpts.registry)
   return extendedOpts
 }

@@ -2,8 +2,8 @@ import chalk from 'chalk'
 import commonTags = require('common-tags')
 import R = require('ramda')
 import StackTracey = require('stacktracey')
-import {Log} from 'supi'
-import {EOL} from './constants'
+import { Log } from 'supi'
+import { EOL } from './constants'
 
 StackTracey.maxColumnWidths = {
   callee: 25,
@@ -23,11 +23,11 @@ export default function reportError (logObj: Log) {
       case 'UNEXPECTED_STORE':
         return reportUnexpectedStore(err, logObj['message'])
       case 'STORE_BREAKING_CHANGE':
-        return reportStoreBreakingChange(err, logObj['message'])
+        return reportStoreBreakingChange(logObj['message'])
       case 'MODULES_BREAKING_CHANGE':
-        return reportModulesBreakingChange(err, logObj['message'])
+        return reportModulesBreakingChange(logObj['message'])
       case 'MODIFIED_DEPENDENCY':
-        return reportModifiedDependency(err, logObj['message'])
+        return reportModifiedDependency(logObj['message'])
       case 'SHRINKWRAP_BREAKING_CHANGE':
         return reportShrinkwrapBreakingChange(err, logObj['message'])
       case 'RECURSIVE_RUN_NO_SCRIPT':
@@ -35,7 +35,7 @@ export default function reportError (logObj: Log) {
       case 'ERR_PNPM_NO_MATCHING_VERSION':
         return formatNoMatchingVersion(err, logObj['message'])
       case 'ERR_PNPM_RECURSIVE_FAIL':
-        return formatRecursiveCommandSummary(err, logObj['message'])
+        return formatRecursiveCommandSummary(logObj['message'])
       default:
         // Errors with known error codes are printed w/o stack trace
         if (err.code && err.code.startsWith && err.code.startsWith('ERR_PNPM_')) {
@@ -80,7 +80,7 @@ function reportUnexpectedStore (err: Error, msg: object) {
   `
 }
 
-function reportStoreBreakingChange (err: Error, msg: object) {
+function reportStoreBreakingChange (msg: object) {
   let output = stripIndent`
     ${formatErrorSummary(`The store used for the current node_modules is incomatible with the current version of pnpm`)}
     Store path: ${colorPath(msg['storePath'])}
@@ -96,7 +96,7 @@ function reportStoreBreakingChange (err: Error, msg: object) {
   return output
 }
 
-function reportModulesBreakingChange (err: Error, msg: object) {
+function reportModulesBreakingChange (msg: object) {
   let output = stripIndent`
     ${formatErrorSummary(`The current version of pnpm is not compatible with the available node_modules structure`)}
     node_modules path: ${colorPath(msg['modulesPath'])}
@@ -152,7 +152,7 @@ function formatErrorSummary (message: string) {
   return `${chalk.bgRed.black('\u2009ERROR\u2009')} ${chalk.red(message)}`
 }
 
-function reportModifiedDependency (err: Error, msg: object) {
+function reportModifiedDependency (msg: object) {
   return stripIndent`
     ${formatErrorSummary('Packages in the store have been mutated')}
 
@@ -171,7 +171,7 @@ function reportShrinkwrapBreakingChange (err: Error, msg: object) {
   `
 }
 
-function formatRecursiveCommandSummary (err: Error, msg: {fails: Error[], passes: number}) {
+function formatRecursiveCommandSummary (msg: {fails: Error[], passes: number}) {
   const output = EOL + `Summary: ${chalk.red(`${msg.fails.length} fails`)}, ${msg.passes} passes` + EOL + EOL +
     msg.fails.map((fail: Error & {prefix: string}) => {
       return fail.prefix + ':' + EOL + formatErrorSummary(fail.message)

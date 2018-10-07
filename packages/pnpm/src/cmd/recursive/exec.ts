@@ -25,7 +25,7 @@ export default async (
     await Promise.all(chunk.map((prefix: string) =>
       limitRun(async () => {
         try {
-          await execa(args[0], args.slice(1), {cwd: prefix, stdio: 'inherit'})
+          await execa(args[0], args.slice(1), { cwd: prefix, stdio: 'inherit' })
           result.passes++
         } catch (err) {
           logger.info(err)

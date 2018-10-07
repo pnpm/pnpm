@@ -1,4 +1,4 @@
-import {PnpmConfigs} from '@pnpm/config'
+import { PnpmConfigs } from '@pnpm/config'
 import chalk from 'chalk'
 import most = require('most')
 import normalize = require('normalize-path')
@@ -11,14 +11,9 @@ import semver = require('semver')
 import stringLength = require('string-length')
 import padStart = require('string.prototype.padstart')
 import stripAnsi = require('strip-ansi')
-import {
-  InstallCheckLog,
-  LifecycleLog,
-  RegistryLog,
-} from 'supi'
 import * as supi from 'supi'
 import PushStream = require('zen-push')
-import {EOL} from './constants'
+import { EOL } from './constants'
 import getPkgsDiff, {
   PackageDiff,
   propertyByDependencyType,
@@ -194,10 +189,11 @@ export default function (
     const lifecyclePushStream = new PushStream()
     outputs.push(most.from(lifecyclePushStream.observable))
 
-    log$.lifecycle
-      .forEach((log: LifecycleLog) => {
+    // TODO: handle promise of .forEach?!
+    log$.lifecycle // tslint:disable-line
+      .forEach((log: supi.LifecycleLog) => {
         const key = `${log.stage}:${log.depPath}`
-        lifecycleMessages[key] = lifecycleMessages[key] || {output: []}
+        lifecycleMessages[key] = lifecycleMessages[key] || { output: [] }
         if (log['script']) {
           lifecycleMessages[key].script = formatLifecycle(cwd, log)
         } else {
@@ -223,14 +219,14 @@ export default function (
     const lifecycleMessages: {[pkgId: string]: string} = {}
     const lifecycleOutput$ = most.of(
       log$.lifecycle
-        .map((log: LifecycleLog) => ({ msg: formatLifecycle(cwd, log) })),
+        .map((log: supi.LifecycleLog) => ({ msg: formatLifecycle(cwd, log) })),
     )
 
     outputs.push(lifecycleOutput$)
   }
 
   if (!opts.isRecursive) {
-    const pkgsDiff$ = getPkgsDiff(log$, {prefix: cwd})
+    const pkgsDiff$ = getPkgsDiff(log$, { prefix: cwd })
 
     const summaryLog$ = log$.summary
       .take(1)
@@ -248,11 +244,11 @@ export default function (
               msg += chalk.cyanBright(`${propertyByDependencyType[depType]}:`)
             }
             msg += EOL
-            msg += printDiffs(diffs, {prefix: cwd})
+            msg += printDiffs(diffs, { prefix: cwd })
             msg += EOL
           }
         }
-        return {msg}
+        return { msg }
       },
       pkgsDiff$,
       summaryLog$,
@@ -310,7 +306,7 @@ export default function (
   const installCheckOutput$ = log$.installCheck
     .map(formatInstallCheck.bind(null, cwd))
     .filter(Boolean)
-    .map((msg) => ({msg}))
+    .map((msg) => ({ msg }))
     .map(most.of) as most.Stream<most.Stream<{msg: string}>>
 
   outputs.push(installCheckOutput$)
@@ -365,7 +361,7 @@ function miscOutput (
           return obj['message']
       }
     })
-    .map((msg) => ({msg}))
+    .map((msg) => ({ msg }))
     .map(most.of)
 }
 
@@ -395,7 +391,7 @@ function statsForCurrentPackage (
       if (opts.cmd === 'link') {
         return most.never()
       }
-      return most.of({msg: 'Already up-to-date'})
+      return most.of({ msg: 'Already up-to-date' })
     }
 
     let msg = 'Packages:'
@@ -406,7 +402,7 @@ function statsForCurrentPackage (
       msg += ' ' + chalk.red(`-${stats['removed']}`)
     }
     msg += EOL + printPlusesAndMinuses(opts.width, (stats['added'] || 0), (stats['removed'] || 0))
-    return most.of({msg})
+    return most.of({ msg })
   })
 }
 
@@ -428,17 +424,17 @@ function statsForNotCurrentPackage (
             // Hence, the stats are added before reported
             if (!stats[log.prefix]) {
               stats[log.prefix] = log
-              return {seed: stats, value: null}
+              return { seed: stats, value: null }
             } else if (typeof stats[log.prefix].added === 'number' && typeof log['added'] === 'number') {
               stats[log.prefix].added += log['added']
-              return {seed: stats, value: null}
+              return { seed: stats, value: null }
             } else if (typeof stats[log.prefix].removed === 'number' && typeof log['removed'] === 'number') {
               stats[log.prefix].removed += log['removed']
-              return {seed: stats, value: null}
+              return { seed: stats, value: null }
             } else {
-              const value = {...stats[log.prefix], ...log}
+              const value = { ...stats[log.prefix], ...log }
               delete stats[log.prefix]
-              return {seed: stats, value}
+              return { seed: stats, value }
             }
           }, {})
       : stats$
@@ -458,7 +454,7 @@ function statsForNotCurrentPackage (
       let msg = zoomOut(opts.currentPrefix, stats['prefix'], parts.join(' '))
       const rest = Math.max(0, opts.width - 1 - stringLength(msg))
       msg += ' ' + printPlusesAndMinuses(rest, roundStats(stats['added'] || 0), roundStats(stats['removed'] || 0))
-      return most.of({msg})
+      return most.of({ msg })
     })
 }
 
@@ -560,7 +556,7 @@ const ANSI_ESCAPES_LENGTH_OF_PREFIX = hlValue(' ').length - 1
 function formatLifecycleHideOverflow (
   maxWidth: number,
   cwd: string,
-  logObj: LifecycleLog,
+  logObj: supi.LifecycleLog,
 ) {
   const prefix = `${
     logObj.wd === logObj.depPath
@@ -578,7 +574,7 @@ function formatLifecycleHideOverflow (
   return `${prefix}: ${line}`
 }
 
-function formatLine (maxWidth: number, logObj: LifecycleLog) {
+function formatLine (maxWidth: number, logObj: supi.LifecycleLog) {
   if (typeof logObj['exitCode'] === 'number') return chalk.red(`Exited with ${logObj['exitCode']}`)
 
   const line = stripAnsi(logObj['line']).substr(0, maxWidth)
@@ -592,7 +588,7 @@ function formatLine (maxWidth: number, logObj: LifecycleLog) {
 
 function formatInstallCheck (
   currentPrefix: string,
-  logObj: InstallCheckLog,
+  logObj: supi.InstallCheckLog,
   opts: {
     zoomOutCurrent: boolean,
   },

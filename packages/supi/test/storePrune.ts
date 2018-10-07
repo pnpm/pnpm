@@ -10,7 +10,7 @@ import {
 } from 'supi'
 import tape = require('tape')
 import promisifyTape from 'tape-promise'
-import {prepare, testDefaults} from './utils'
+import { prepare, testDefaults } from './utils'
 
 const test = promisifyTape(tape)
 
@@ -23,7 +23,7 @@ test('remove unreferenced packages', async (t: tape.Test) => {
   await project.storeHas('is-negative', '2.1.0')
 
   const reporter = sinon.spy()
-  await storePrune(await testDefaults({reporter}))
+  await storePrune(await testDefaults({ reporter }))
 
   t.ok(reporter.calledWithMatch({
     level: 'info',
@@ -33,7 +33,7 @@ test('remove unreferenced packages', async (t: tape.Test) => {
   await project.storeHasNot('is-negative', '2.1.0')
 
   reporter.resetHistory()
-  await storePrune(await testDefaults({reporter}))
+  await storePrune(await testDefaults({ reporter }))
 
   t.notOk(reporter.calledWithMatch({
     level: 'info',
@@ -53,7 +53,7 @@ test('remove packages that are used by project that no longer exist', async (t: 
   t.ok(await exists(pkgInStore))
 
   const reporter = sinon.spy()
-  await storePrune(await testDefaults({reporter}))
+  await storePrune(await testDefaults({ reporter }))
 
   t.ok(reporter.calledWithMatch({
     level: 'info',

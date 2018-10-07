@@ -33,7 +33,7 @@ export default async function (
 }> {
   // ignore `shrinkwrap.yaml` on CI servers
   // a latest pnpm should not break all the builds
-  const shrOpts = {ignoreIncompatible: opts.force || isCI}
+  const shrOpts = { ignoreIncompatible: opts.force || isCI }
   const files = await Promise.all<Shrinkwrap | null | void>([
     opts.shrinkwrap && readWantedShrinkwrap(opts.shrinkwrapDirectory, shrOpts)
       || await existsWantedShrinkwrap(opts.shrinkwrapDirectory) &&

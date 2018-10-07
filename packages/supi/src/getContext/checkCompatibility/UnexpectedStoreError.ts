@@ -1,4 +1,4 @@
-import {PnpmError, PnpmErrorCode} from '../../errorTypes'
+import { PnpmError } from '../../errorTypes'
 
 export default class UnexpectedStoreError extends PnpmError {
   public expectedStorePath: string

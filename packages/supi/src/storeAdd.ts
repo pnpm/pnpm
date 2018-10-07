@@ -4,10 +4,10 @@ import {
 } from '@pnpm/logger'
 import normalizeRegistryUrl = require('normalize-registry-url')
 
-import {StoreController} from 'package-store'
+import { StoreController } from 'package-store'
 
 import parseWantedDependencies from './parseWantedDependencies';
-import {ReporterFunction} from './types'
+import { ReporterFunction } from './types'
 
 export default async function (
   fuzzyDeps: string[],
@@ -25,7 +25,7 @@ export default async function (
     streamParser.on('data', reporter)
   }
 
-  const deps = await parseWantedDependencies(fuzzyDeps, {
+  const deps = parseWantedDependencies(fuzzyDeps, {
     allowNew: true,
     currentPrefs: {},
     defaultTag: opts.tag || 'latest',

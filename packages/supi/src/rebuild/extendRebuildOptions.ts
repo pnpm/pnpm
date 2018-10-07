@@ -94,7 +94,7 @@ export default async (
     }
   }
   const defaultOpts = await defaults(opts)
-  const extendedOpts = {...defaultOpts, ...opts, store: defaultOpts.store}
+  const extendedOpts = { ...defaultOpts, ...opts, store: defaultOpts.store }
   extendedOpts.registry = normalizeRegistryUrl(extendedOpts.registry)
   return extendedOpts
 }

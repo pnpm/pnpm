@@ -1,4 +1,4 @@
-import {sync as runScriptSync} from '../runScript'
+import { sync as runScriptSync } from '../runScript'
 
 export default function runNpm (args: string[]) {
   const result = runScriptSync('npm', args, {

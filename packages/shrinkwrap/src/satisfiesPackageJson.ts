@@ -10,7 +10,7 @@ import {
 export default (shr: Shrinkwrap, pkg: PackageJson, importerId: string) => {
   const importer = shr.importers[importerId]
   if (!importer) return false
-  if (!R.equals({...pkg.devDependencies, ...pkg.dependencies, ...pkg.optionalDependencies}, importer.specifiers)) {
+  if (!R.equals({ ...pkg.devDependencies, ...pkg.dependencies, ...pkg.optionalDependencies }, importer.specifiers)) {
     return false
   }
   for (const depField of DEPENDENCIES_FIELDS) {
@@ -25,8 +25,8 @@ export default (shr: Shrinkwrap, pkg: PackageJson, importerId: string) => {
       : Object.keys(pkgDeps).filter((depName) => !pkg.optionalDependencies || !pkg.optionalDependencies[depName])
     if (pkgDepNames.length !== Object.keys(importerDeps).length &&
       pkgDepNames.length !== countOfNonLinkedDeps(importerDeps)) {
-        return false
-      }
+      return false
+    }
     for (const depName of pkgDepNames) {
       if (!importerDeps[depName] || importer.specifiers[depName] !== pkgDeps[depName]) return false
     }

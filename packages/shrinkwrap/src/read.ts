@@ -3,11 +3,9 @@ import loadYamlFile = require('load-yaml-file')
 import path = require('path')
 import {
   CURRENT_SHRINKWRAP_FILENAME,
-  WANTED_SHRINKWRAP_FILENAME,
-} from './constants'
-import {
   SHRINKWRAP_MINOR_VERSION,
   SHRINKWRAP_VERSION,
+  WANTED_SHRINKWRAP_FILENAME,
 } from './constants'
 import { ShrinkwrapBreakingChangeError } from './errors'
 import logger from './logger'
@@ -22,7 +20,7 @@ export async function readCurrent (
   },
 ): Promise<Shrinkwrap | null> {
   const shrinkwrapPath = path.join(pkgPath, CURRENT_SHRINKWRAP_FILENAME)
-  return await _read(shrinkwrapPath, pkgPath, opts)
+  return _read(shrinkwrapPath, pkgPath, opts)
 }
 
 export const read = readWanted
@@ -34,7 +32,7 @@ export async function readWanted (
   },
 ): Promise<Shrinkwrap | null> {
   const shrinkwrapPath = path.join(pkgPath, WANTED_SHRINKWRAP_FILENAME)
-  return await _read(shrinkwrapPath, pkgPath, opts)
+  return _read(shrinkwrapPath, pkgPath, opts)
 }
 
 async function _read (

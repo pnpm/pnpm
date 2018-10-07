@@ -2,7 +2,7 @@ import logger from '@pnpm/logger'
 import outdated, {
   forPackages as outdatedForPackages,
 } from '@pnpm/outdated'
-import {PackageJson} from '@pnpm/types'
+import { PackageJson } from '@pnpm/types'
 import chalk from 'chalk'
 import path = require('path')
 import stripColor = require('strip-color')
@@ -54,7 +54,7 @@ export default async (
       throw err
     }
     const prefix = path.relative(opts.prefix, pkg.path)
-    outdatedPackagesOfProject.forEach((outdatedPkg: any) => outdatedPkgs.push({...outdatedPkg, prefix})) // tslint:disable-line:no-any
+    outdatedPackagesOfProject.forEach((outdatedPkg: any) => outdatedPkgs.push({ ...outdatedPkg, prefix })) // tslint:disable-line:no-any
   }
 
   const columnNames = ['', 'Package', 'Current', 'Wanted', 'Latest'].map((txt) => chalk.underline(txt))

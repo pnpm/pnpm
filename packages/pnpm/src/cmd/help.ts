@@ -1,4 +1,4 @@
-import {stripIndent} from 'common-tags'
+import { stripIndent } from 'common-tags'
 import getCommandFullName from '../getCommandFullName'
 
 export default function (input: string[]) {

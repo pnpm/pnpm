@@ -23,7 +23,7 @@ test('rebuilds dependencies', async (t: tape.Test) => {
   const project = prepare(t)
 
   const pkgs = ['pre-and-postinstall-scripts-example', 'zkochan/install-scripts-example#prepare']
-  await installPkgs(pkgs, await testDefaults({saveDev: true, ignoreScripts: true}))
+  await installPkgs(pkgs, await testDefaults({ saveDev: true, ignoreScripts: true }))
 
   let modules = await project.loadModules()
   t.deepEqual(modules!.pendingBuilds, [
@@ -71,7 +71,7 @@ test('rebuild does not fail when a linked package is present', async (t: tape.Te
 
 test('rebuilds specific dependencies', async (t: tape.Test) => {
   const project = prepare(t)
-  await installPkgs(['pre-and-postinstall-scripts-example', 'zkochan/install-scripts-example'], await testDefaults({saveDev: true, ignoreScripts: true}))
+  await installPkgs(['pre-and-postinstall-scripts-example', 'zkochan/install-scripts-example'], await testDefaults({ saveDev: true, ignoreScripts: true }))
 
   await rebuildPkgs(['install-scripts-example-for-pnpm'], await testDefaults())
 
@@ -87,8 +87,8 @@ test('rebuilds specific dependencies', async (t: tape.Test) => {
 
 test('rebuild with pending option', async (t: tape.Test) => {
   const project = prepare(t)
-  await installPkgs(['pre-and-postinstall-scripts-example'], await testDefaults({ignoreScripts: true}))
-  await installPkgs(['zkochan/install-scripts-example'], await testDefaults({ignoreScripts: true}))
+  await installPkgs(['pre-and-postinstall-scripts-example'], await testDefaults({ ignoreScripts: true }))
+  await installPkgs(['zkochan/install-scripts-example'], await testDefaults({ ignoreScripts: true }))
 
   let modules = await project.loadModules()
   t.deepEqual(modules!.pendingBuilds, [
@@ -102,7 +102,7 @@ test('rebuild with pending option', async (t: tape.Test) => {
   await project.hasNot('install-scripts-example-for-pnpm/generated-by-preinstall')
   await project.hasNot('install-scripts-example-for-pnpm/generated-by-postinstall')
 
-  await rebuild(await testDefaults({rawNpmConfig: {pending: true}}))
+  await rebuild(await testDefaults({ rawNpmConfig: { pending: true } }))
 
   modules = await project.loadModules()
   t.ok(modules)
@@ -128,7 +128,7 @@ test('rebuild with pending option', async (t: tape.Test) => {
 test('rebuild dependencies in correct order', async (t: tape.Test) => {
   const project = prepare(t)
 
-  await installPkgs(['with-postinstall-a'], await testDefaults({ignoreScripts: true}))
+  await installPkgs(['with-postinstall-a'], await testDefaults({ ignoreScripts: true }))
 
   let modules = await project.loadModules()
   t.ok(modules)
@@ -137,7 +137,7 @@ test('rebuild dependencies in correct order', async (t: tape.Test) => {
   await project.hasNot('.localhost+4873/with-postinstall-b/1.0.0/node_modules/with-postinstall-b/output.json')
   await project.hasNot('with-postinstall-a/output.json')
 
-  await rebuild(await testDefaults({rawNpmConfig: {pending: true}}))
+  await rebuild(await testDefaults({ rawNpmConfig: { pending: true } }))
 
   modules = await project.loadModules()
   t.ok(modules)

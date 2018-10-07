@@ -1,5 +1,5 @@
 import pLimit = require('p-limit')
-import {StoreController} from 'package-store'
+import { StoreController } from 'package-store'
 import path = require('path')
 import pathAbsolute = require('path-absolute')
 import R = require('ramda')
@@ -9,10 +9,10 @@ import {
   link,
   linkToGlobal,
 } from 'supi'
-import {cached as createStoreController} from '../createStoreController'
+import { cached as createStoreController } from '../createStoreController'
 import findWorkspacePackages from '../findWorkspacePackages'
 import getConfigs from '../getConfigs'
-import {PnpmOptions} from '../types'
+import { PnpmOptions } from '../types'
 
 const installLimit = pLimit(4)
 
@@ -62,7 +62,7 @@ export default async (
     pkgPaths.map((prefix) => installLimit(async () => {
       const s = await createStoreController(storeControllerCache, opts)
       await install({
-        ...await getConfigs({...opts.cliArgs, prefix}, {excludeReporter: true}),
+        ...await getConfigs({ ...opts.cliArgs, prefix }, { excludeReporter: true }),
         store: s.path,
         storeController: s.ctrl,
       } as InstallOptions)

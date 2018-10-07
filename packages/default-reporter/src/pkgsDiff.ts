@@ -1,10 +1,6 @@
-import {PackageJson} from '@pnpm/types'
+import { PackageJson } from '@pnpm/types'
 import most = require('most')
 import R = require('ramda')
-import {
-  DeprecationLog,
-  Log,
-} from 'supi'
 import * as supi from 'supi'
 
 export interface PackageDiff {

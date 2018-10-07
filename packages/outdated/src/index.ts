@@ -94,13 +94,13 @@ async function _outdated (
 ): Promise<OutdatedPackage[]> {
   const pkg = await readPackageFromDir(pkgPath)
   if (packageHasNoDeps(pkg)) return []
-  const wantedShrinkwrap = await readWantedShrinkwrap(pkgPath, {ignoreIncompatible: false})
-    || await readCurrentShrinkwrap(pkgPath, {ignoreIncompatible: false})
+  const wantedShrinkwrap = await readWantedShrinkwrap(pkgPath, { ignoreIncompatible: false })
+    || await readCurrentShrinkwrap(pkgPath, { ignoreIncompatible: false })
   if (!wantedShrinkwrap) {
     throw new Error('No shrinkwrapfile in this directory. Run `pnpm install` to generate one.')
   }
   const storePath = await resolveStore(pkgPath, opts.store)
-  const currentShrinkwrap = await readCurrentShrinkwrap(pkgPath, {ignoreIncompatible: false}) || { importers: {'.': {}} }
+  const currentShrinkwrap = await readCurrentShrinkwrap(pkgPath, { ignoreIncompatible: false }) || { importers: { '.': {} } }
 
   const resolve = createResolver({
     fetchRetries: opts.fetchRetries,
@@ -148,7 +148,7 @@ async function _outdated (
           // It might be not the best solution to check for pkgSnapshot.name
           // TODO: add some other field to distinct packages not from the registry
           if (pkgSnapshot.resolution && (pkgSnapshot.resolution['type'] || pkgSnapshot.name)) { // tslint:disable-line:no-string-literal
-            if (currentShrinkwrap.importers['.']![depType][packageName] !== wantedShrinkwrap.importers['.'][depType]![packageName]) {
+            if (currentShrinkwrap.importers['.'][depType][packageName] !== wantedShrinkwrap.importers['.'][depType]![packageName]) {
               outdated.push({
                 current: currentShrinkwrap.importers['.'][depType]![packageName],
                 latest: undefined,
@@ -160,7 +160,7 @@ async function _outdated (
           }
 
           // TODO: what about aliased dependencies?
-          const resolution = await resolve({alias: packageName, pref: 'latest'}, {
+          const resolution = await resolve({ alias: packageName, pref: 'latest' }, {
             registry: wantedShrinkwrap.registry,
           })
 

@@ -1,5 +1,5 @@
 import * as dp from 'dependency-path'
-import {PackageSnapshot} from './types'
+import { PackageSnapshot } from './types'
 
 export default (
   relDepPath: string,

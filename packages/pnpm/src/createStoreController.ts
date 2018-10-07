@@ -1,9 +1,9 @@
 import logger from '@pnpm/logger'
-import {connectStoreController} from '@pnpm/server'
+import { connectStoreController } from '@pnpm/server'
 import storePath from '@pnpm/store-path'
 import delay from 'delay'
 import fs = require('mz/fs')
-import {StoreController} from 'package-store'
+import { StoreController } from 'package-store'
 import path = require('path')
 import createStore from './createStore'
 import packageManager from './pnpmPkgJson'
@@ -114,7 +114,7 @@ export default async function createStoreController (
       path: store,
     }
   }
-  return await createStore(Object.assign(opts, {
+  return createStore(Object.assign(opts, {
     store,
   }))
 }

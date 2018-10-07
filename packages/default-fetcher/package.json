@@ -30,7 +30,6 @@
   },
   "homepage": "https://pnpm.js.org",
   "dependencies": {
-    "@pnpm/fetcher-base": "1.0.0",
     "@pnpm/git-fetcher": "1.0.1",
     "@pnpm/resolver-base": "1.2.0",
     "@pnpm/tarball-fetcher": "2.0.3"
@@ -45,6 +44,8 @@
     "tape": "^4.8.0",
     "ts-node": "^7.0.0",
     "tslint": "^5.8.0",
+    "tslint-config-standard": "8.0.1",
+    "tslint-eslint-rules": "5.4.0",
     "typescript": "^3.0.0"
   },
   "mos": {

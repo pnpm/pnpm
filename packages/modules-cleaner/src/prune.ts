@@ -40,7 +40,7 @@ export default async function removeOrphanPkgs (
 
     const removedTopDeps: Array<[string, string]> = R.difference(oldPkgs, newPkgs) as Array<[string, string]>
 
-    const {bin, modulesDir, prefix} = importer
+    const { bin, modulesDir, prefix } = importer
 
     return Promise.all(removedTopDeps.map((depName) => {
       return removeDirectDependency({

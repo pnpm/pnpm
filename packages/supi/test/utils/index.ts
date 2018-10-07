@@ -1,5 +1,5 @@
-import {add as addDistTag} from './distTags'
-import prepare, {createTempFolder} from './prepare'
+import { add as addDistTag } from './distTags'
+import prepare, { createTempFolder } from './prepare'
 import testDefaults from './testDefaults'
 
 export {

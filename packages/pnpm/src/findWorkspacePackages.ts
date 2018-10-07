@@ -1,8 +1,8 @@
-import {PackageJson} from '@pnpm/types'
+import { PackageJson } from '@pnpm/types'
 import findPackages from 'find-packages'
 import loadYamlFile = require('load-yaml-file')
 import path = require('path')
-import {WORKSPACE_MANIFEST_FILENAME} from './constants'
+import { WORKSPACE_MANIFEST_FILENAME } from './constants'
 
 export default async (workspaceRoot: string): Promise<Array<{path: string, manifest: PackageJson}>> => {
   const packagesManifest = await requirePackagesManifest(workspaceRoot)

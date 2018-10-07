@@ -3,7 +3,7 @@ import {
   unlinkPkgs,
 } from 'supi'
 import createStoreController from '../createStoreController'
-import {PnpmOptions} from '../types'
+import { PnpmOptions } from '../types'
 
 export default async function (input: string[], opts: PnpmOptions) {
   const store = await createStoreController(opts)

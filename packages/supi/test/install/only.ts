@@ -1,6 +1,6 @@
 import fs = require('mz/fs')
 import path = require('path')
-import {install} from 'supi'
+import { install } from 'supi'
 import tape = require('tape')
 import promisifyTape from 'tape-promise'
 import {

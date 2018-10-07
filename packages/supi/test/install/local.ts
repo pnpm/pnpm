@@ -3,7 +3,7 @@ import ncpCB = require('ncp')
 import normalizePath = require('normalize-path')
 import path = require('path')
 import readPkg = require('read-pkg')
-import {install, installPkgs} from 'supi'
+import { install, installPkgs } from 'supi'
 import symlinkDir = require('symlink-dir')
 import tape = require('tape')
 import promisifyTape from 'tape-promise'
@@ -35,7 +35,7 @@ test('local file', async (t: tape.Test) => {
   await installPkgs(['file:../local-pkg'], await testDefaults())
 
   const pkgJson = await readPkg()
-  const expectedSpecs = {'local-pkg': `link:..${path.sep}local-pkg`}
+  const expectedSpecs = { 'local-pkg': `link:..${path.sep}local-pkg` }
   t.deepEqual(pkgJson.dependencies, expectedSpecs, 'local-pkg has been added to dependencies')
 
   const m = project.requireModule('local-pkg')
@@ -62,7 +62,7 @@ test('local file via link:', async (t: tape.Test) => {
   await installPkgs(['link:../local-pkg'], await testDefaults())
 
   const pkgJson = await readPkg()
-  const expectedSpecs = {'local-pkg': `link:..${path.sep}local-pkg`}
+  const expectedSpecs = { 'local-pkg': `link:..${path.sep}local-pkg` }
   t.deepEqual(pkgJson.dependencies, expectedSpecs, 'local-pkg has been added to dependencies')
 
   const m = project.requireModule('local-pkg')
@@ -91,7 +91,7 @@ test('local file with symlinked node_modules', async (t: tape.Test) => {
   await installPkgs(['file:../local-pkg'], await testDefaults())
 
   const pkgJson = await readPkg()
-  const expectedSpecs = {'local-pkg': `link:..${path.sep}local-pkg`}
+  const expectedSpecs = { 'local-pkg': `link:..${path.sep}local-pkg` }
   t.deepEqual(pkgJson.dependencies, expectedSpecs, 'local-pkg has been added to dependencies')
 
   const m = project.requireModule('local-pkg')
@@ -130,7 +130,7 @@ test('tarball local package', async (t: tape.Test) => {
 
   const pkgJson = await readPkg()
   const pkgSpec = `file:${normalizePath(pathToLocalPkg('tar-pkg/tar-pkg-1.0.0.tgz'))}`
-  t.deepEqual(pkgJson.dependencies, {'tar-pkg': pkgSpec}, 'has been added to dependencies in package.json')
+  t.deepEqual(pkgJson.dependencies, { 'tar-pkg': pkgSpec }, 'has been added to dependencies in package.json')
 
   const shr = await project.loadShrinkwrap()
   t.deepEqual(shr.packages[shr.dependencies['tar-pkg']], {

@@ -1,5 +1,5 @@
 import sinon = require('sinon')
-import {install, installPkgs, uninstall} from 'supi'
+import { install, installPkgs, uninstall } from 'supi'
 import tape = require('tape')
 import promisifyTape from 'tape-promise'
 import writeJsonFile from 'write-json-file'
@@ -26,7 +26,7 @@ test("frozen-shrinkwrap: installation fails if specs in package.json don't match
   })
 
   try {
-    await install(await testDefaults({frozenShrinkwrap: true}))
+    await install(await testDefaults({ frozenShrinkwrap: true }))
     t.fail()
   } catch (err) {
     t.equal(err.message, 'Cannot run headless installation because shrinkwrap.yaml is not up-to-date with package.json')
@@ -40,13 +40,13 @@ test('frozen-shrinkwrap: should successfully install when shrinkwrap.yaml is ava
     },
   })
 
-  await install(await testDefaults({shrinkwrapOnly: true}))
+  await install(await testDefaults({ shrinkwrapOnly: true }))
 
-  project.hasNot('is-positive')
+  await project.hasNot('is-positive')
 
-  await install(await testDefaults({frozenShrinkwrap: true}))
+  await install(await testDefaults({ frozenShrinkwrap: true }))
 
-  project.has('is-positive')
+  await project.has('is-positive')
 })
 
 test('frozen-shrinkwrap: should fail if no shrinkwrap.yaml is present', async (t) => {
@@ -57,7 +57,7 @@ test('frozen-shrinkwrap: should fail if no shrinkwrap.yaml is present', async (t
   })
 
   try {
-    await install(await testDefaults({frozenShrinkwrap: true}))
+    await install(await testDefaults({ frozenShrinkwrap: true }))
     t.fail()
   } catch (err) {
     t.equals(err.message, 'Headless installation requires a shrinkwrap.yaml file')
@@ -71,12 +71,12 @@ test('prefer-frozen-shrinkwrap: should prefer headless installation when shrinkw
     },
   })
 
-  await install(await testDefaults({shrinkwrapOnly: true}))
+  await install(await testDefaults({ shrinkwrapOnly: true }))
 
-  project.hasNot('is-positive')
+  await project.hasNot('is-positive')
 
   const reporter = sinon.spy()
-  await install(await testDefaults({reporter, preferFrozenShrinkwrap: true}))
+  await install(await testDefaults({ reporter, preferFrozenShrinkwrap: true }))
 
   t.ok(reporter.calledWithMatch({
     level: 'info',
@@ -84,7 +84,7 @@ test('prefer-frozen-shrinkwrap: should prefer headless installation when shrinkw
     name: 'pnpm',
   }), 'start of headless installation logged')
 
-  project.has('is-positive')
+  await project.has('is-positive')
 })
 
 test('prefer-frozen-shrinkwrap: should not prefer headless installation when shrinkwrap.yaml does not satisfy package.json', async (t) => {
@@ -94,7 +94,7 @@ test('prefer-frozen-shrinkwrap: should not prefer headless installation when shr
     },
   })
 
-  await install(await testDefaults({shrinkwrapOnly: true}))
+  await install(await testDefaults({ shrinkwrapOnly: true }))
 
   await project.writePackageJson({
     dependencies: {
@@ -102,10 +102,10 @@ test('prefer-frozen-shrinkwrap: should not prefer headless installation when shr
     },
   })
 
-  project.hasNot('is-positive')
+  await project.hasNot('is-positive')
 
   const reporter = sinon.spy()
-  await install(await testDefaults({reporter, preferFrozenShrinkwrap: true}))
+  await install(await testDefaults({ reporter, preferFrozenShrinkwrap: true }))
 
   t.notOk(reporter.calledWithMatch({
     level: 'info',
@@ -113,17 +113,17 @@ test('prefer-frozen-shrinkwrap: should not prefer headless installation when shr
     name: 'pnpm',
   }), 'start of headless installation not logged')
 
-  project.has('is-negative')
+  await project.has('is-negative')
 })
 
 test('prefer-frozen-shrinkwrap: should not fail if no shrinkwrap.yaml is present and project has no deps', async (t) => {
   const project = prepare(t)
 
-  await install(await testDefaults({preferFrozenShrinkwrap: true}))
+  await install(await testDefaults({ preferFrozenShrinkwrap: true }))
 })
 
 test('frozen-shrinkwrap: should not fail if no shrinkwrap.yaml is present and project has no deps', async (t) => {
   const project = prepare(t)
 
-  await install(await testDefaults({frozenShrinkwrap: true}))
+  await install(await testDefaults({ frozenShrinkwrap: true }))
 })

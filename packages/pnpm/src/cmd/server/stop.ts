@@ -1,12 +1,12 @@
-import {storeLogger} from '@pnpm/logger'
-import {connectStoreController} from '@pnpm/server'
+import { storeLogger } from '@pnpm/logger'
+import { connectStoreController } from '@pnpm/server'
 import storePath from '@pnpm/store-path'
 import delay from 'delay'
 import path = require('path')
 import processExists = require('process-exists')
 import killcb = require('tree-kill')
 import promisify = require('util.promisify')
-import {tryLoadServerJson} from '../../createStoreController'
+import { tryLoadServerJson } from '../../createStoreController'
 import serverConnectionInfoDir from '../../serverConnectionInfoDir'
 
 const kill = promisify(killcb)

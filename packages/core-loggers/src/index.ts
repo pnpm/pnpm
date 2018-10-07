@@ -4,6 +4,7 @@ import baseLogger, {
 } from '@pnpm/logger'
 import { PackageJson } from '@pnpm/types'
 
+// tslint:disable
 export const packageJsonLogger = baseLogger('package-json') as Logger<PackageJsonMessage>
 export const stageLogger = baseLogger('stage') as Logger<'resolution_started' | 'resolution_done' | 'importing_started' | 'importing_done' | 'recursive_importing_done'>
 export const summaryLogger = baseLogger('summary') as Logger<SummaryMessage>
@@ -15,6 +16,7 @@ export const progressLogger = baseLogger('progress') as Logger<ProgressMessage>
 export const removalLogger = baseLogger('removal') as Logger<string>
 
 export const linkLogger = baseLogger('link') as Logger<LinkMessage>
+// tslint:enable
 
 export interface LinkMessage {
   target: string,
@@ -107,12 +109,12 @@ export type ProgressMessage = {
   pkg: LoggedPkg,
   status: 'installing',
 } | {
- status: 'downloaded_manifest',
- pkgId: string,
- pkgVersion: string,
+  status: 'downloaded_manifest',
+  pkgId: string,
+  pkgVersion: string,
 } | {
- pkgId: string,
- status: 'fetched' | 'found_in_store' | 'resolving_content',
+  pkgId: string,
+  status: 'fetched' | 'found_in_store' | 'resolving_content',
 }
 
 export type ProgressLog = {name: 'pnpm:progress'} & LogBase & ProgressMessage

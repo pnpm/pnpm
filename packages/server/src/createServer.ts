@@ -1,12 +1,12 @@
-import {storeLogger} from '@pnpm/logger'
+import { storeLogger } from '@pnpm/logger'
 import {
   RequestPackageOptions,
   WantedDependency,
 } from '@pnpm/package-requester'
-import {Resolution} from '@pnpm/resolver-base'
+import { Resolution } from '@pnpm/resolver-base'
 import http = require('http')
-import {IncomingMessage, Server, ServerResponse} from 'http'
-import {StoreController} from 'package-store'
+import { IncomingMessage, Server, ServerResponse } from 'http'
+import { StoreController } from 'package-store'
 
 import locking from './lock'
 
@@ -81,14 +81,14 @@ export default function (
         }
         case '/fetchPackage': {
           body = await bodyPromise
-          const pkgResponse = await store.fetchPackage(body.options as RequestPackageOptions & {force: boolean, pkgId: string, resolution: Resolution})
+          const pkgResponse = store.fetchPackage(body.options as RequestPackageOptions & {force: boolean, pkgId: string, resolution: Resolution})
           if (pkgResponse['fetchingRawManifest']) { // tslint:disable-line
             rawManifestPromises[body.msgId] = pkgResponse['fetchingRawManifest'] // tslint:disable-line
           }
           if (pkgResponse['fetchingFiles']) { // tslint:disable-line
             filesPromises[body.msgId] = pkgResponse['fetchingFiles'] // tslint:disable-line
           }
-          res.end(JSON.stringify({inStoreLocation: pkgResponse.inStoreLocation}))
+          res.end(JSON.stringify({ inStoreLocation: pkgResponse.inStoreLocation }))
           break
         }
         case '/packageFilesResponse':

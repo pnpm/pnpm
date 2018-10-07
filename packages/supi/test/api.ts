@@ -1,6 +1,6 @@
 import * as pnpm from 'supi'
 import test = require('tape')
-import {testDefaults} from './utils'
+import { testDefaults } from './utils'
 
 test('API', (t) => {
   t.equal(typeof pnpm.install, 'function', 'exports install()')
@@ -19,7 +19,7 @@ test('API', (t) => {
 // tslint:disable-next-line:no-string-literal
 test['skip']('install fails when all saving types are false', async (t: test.Test) => {
   try {
-    await pnpm.install(await testDefaults({save: false, saveDev: false, saveOptional: false}))
+    await pnpm.install(await testDefaults({ save: false, saveDev: false, saveOptional: false }))
     t.fail('installation should have failed')
   } catch (err) {
     t.equal(err.message, 'Cannot install with save/saveDev/saveOptional all being equal false')

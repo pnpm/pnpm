@@ -1,5 +1,5 @@
 import path = require('path')
-import list, {forPackages as listForPackages} from 'pnpm-list'
+import list, { forPackages as listForPackages } from 'pnpm-list'
 
 const LAYOUT_VERSION = '1'
 
@@ -17,7 +17,7 @@ export default async function (
   command: string,
 ) {
   opts.long = opts.long || command === 'll' || command === 'la'
-  const only = (opts.production && opts.development ? undefined : (opts.production ? 'prod' : 'dev')) as ('prod' | 'dev' | undefined)
+  const only = (opts.production && opts.development ? undefined : (opts.production ? 'prod' : 'dev')) as ('prod' | 'dev' | undefined) // tslint:disable-line:no-unnecessary-type-assertion
   const listOpts = {
     alwaysPrintRootPackage: opts.alwaysPrintRootPackage,
     depth: opts.depth || 0,

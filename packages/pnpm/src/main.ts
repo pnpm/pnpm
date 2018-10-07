@@ -114,7 +114,7 @@ export default async function run (argv: string[]) {
 
   let opts!: PnpmConfigs
   try {
-    opts = await getConfigs(cliConf, {excludeReporter: false})
+    opts = await getConfigs(cliConf, { excludeReporter: false })
     opts.include = {
       dependencies: opts.production !== false,
       devDependencies: opts.development !== false,

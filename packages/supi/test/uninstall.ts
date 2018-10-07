@@ -125,7 +125,7 @@ test('uninstall package with dependencies and do not touch other deps', async (t
   await project.has('is-negative')
 
   const pkgJson = await readPkg()
-  t.deepEqual(pkgJson.dependencies, {'is-negative': '^2.1.0'}, 'camelcase-keys has been removed from dependencies')
+  t.deepEqual(pkgJson.dependencies, { 'is-negative': '^2.1.0' }, 'camelcase-keys has been removed from dependencies')
 
   const shr = await project.loadShrinkwrap()
   t.deepEqual(shr.dependencies, {
@@ -166,13 +166,13 @@ test('relative link is uninstalled', async (t: tape.Test) => {
 test('pendingBuilds gets updated after uninstall', async (t: tape.Test) => {
   const project = prepare(t)
 
-  await installPkgs(['pre-and-postinstall-scripts-example', 'with-postinstall-b'], await testDefaults({save: true, ignoreScripts: true}))
+  await installPkgs(['pre-and-postinstall-scripts-example', 'with-postinstall-b'], await testDefaults({ save: true, ignoreScripts: true }))
 
   const modules1 = await project.loadModules()
   t.ok(modules1)
   t.equal(modules1!.pendingBuilds.length, 2, 'installPkgs should update pendingBuilds')
 
-  await uninstall(['with-postinstall-b'], await testDefaults({save: true}))
+  await uninstall(['with-postinstall-b'], await testDefaults({ save: true }))
 
   const modules2 = await project.loadModules()
   t.ok(modules2)

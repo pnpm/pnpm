@@ -47,7 +47,7 @@ test('peer dependency is grouped with dependency when peer is resolved not from 
   t.ok(await exists(path.join(NM, '.localhost+4873', 'ajv-keywords', '1.5.0', 'ajv@4.10.4', NM, 'ajv')), 'peer dependency is linked')
   t.equal(deepRequireCwd(['using-ajv', 'ajv-keywords', 'ajv', './package.json']).version, '4.10.4')
 
-  await installPkgs(['using-ajv'], await testDefaults({update: true}))
+  await installPkgs(['using-ajv'], await testDefaults({ update: true }))
 
   const shr = await project.loadShrinkwrap()
 
@@ -81,7 +81,7 @@ test('peer dependency is not grouped with dependent when the peer is a top depen
 
   const reporter = sinon.spy()
 
-  await installPkgs(['ajv@4.10.4', 'ajv-keywords@1.5.0'], await testDefaults({reporter}))
+  await installPkgs(['ajv@4.10.4', 'ajv-keywords@1.5.0'], await testDefaults({ reporter }))
 
   t.notOk(reporter.calledWithMatch({
     message: 'localhost+4873/ajv-keywords/1.5.0 requires a peer of ajv@>=4.10.0 but none was installed.',
@@ -95,7 +95,7 @@ test('warning is reported when cannot resolve peer dependency for top-level depe
 
   const reporter = sinon.spy()
 
-  await installPkgs(['ajv-keywords@1.5.0'], await testDefaults({reporter}))
+  await installPkgs(['ajv-keywords@1.5.0'], await testDefaults({ reporter }))
 
   const logMatcher = sinon.match({
     message: 'ajv-keywords@1.5.0 requires a peer of ajv@>=4.10.0 but none was installed.',
@@ -113,7 +113,7 @@ test('strict-peer-dependencies: error is thrown when cannot resolve peer depende
   let err!: Error & {code: string}
 
   try {
-    await installPkgs(['ajv-keywords@1.5.0'], await testDefaults({reporter, strictPeerDependencies: true}))
+    await installPkgs(['ajv-keywords@1.5.0'], await testDefaults({ reporter, strictPeerDependencies: true }))
   } catch (_) {
     err = _
   }
@@ -134,7 +134,7 @@ test('warning is not reported if the peer dependency can be required from a node
 
   const reporter = sinon.spy()
 
-  await installPkgs(['ajv-keywords@1.5.0'], await testDefaults({reporter}))
+  await installPkgs(['ajv-keywords@1.5.0'], await testDefaults({ reporter }))
 
   const logMatcher = sinon.match({
     message: 'ajv-keywords@1.5.0 requires a peer of ajv@>=4.10.0 but none was installed.',
@@ -149,7 +149,7 @@ test('warning is reported when cannot resolve peer dependency for non-top-level 
 
   const reporter = sinon.spy()
 
-  await installPkgs(['abc-grand-parent-without-c'], await testDefaults({reporter}))
+  await installPkgs(['abc-grand-parent-without-c'], await testDefaults({ reporter }))
 
   const logMatcher = sinon.match({
     message: 'abc-grand-parent-without-c > abc-parent-with-ab: abc@1.0.0 requires a peer of peer-c@^1.0.0 but none was installed.',
@@ -164,7 +164,7 @@ test('warning is reported when bad version of resolved peer dependency for non-t
 
   const reporter = sinon.spy()
 
-  await installPkgs(['abc-grand-parent-without-c', 'peer-c@2'], await testDefaults({reporter}))
+  await installPkgs(['abc-grand-parent-without-c', 'peer-c@2'], await testDefaults({ reporter }))
 
   const logMatcher = sinon.match({
     message: 'abc-grand-parent-without-c > abc-parent-with-ab: abc@1.0.0 requires a peer of peer-c@^1.0.0 but version 2.0.0 was installed.',
@@ -182,7 +182,7 @@ test('strict-peer-dependencies: error is thrown when bad version of resolved pee
   let err!: Error & {code: string}
 
   try {
-    await installPkgs(['abc-grand-parent-without-c', 'peer-c@2'], await testDefaults({reporter, strictPeerDependencies: true}))
+    await installPkgs(['abc-grand-parent-without-c', 'peer-c@2'], await testDefaults({ reporter, strictPeerDependencies: true }))
   } catch (_) {
     err = _
   }
@@ -209,7 +209,7 @@ async function okFile (t: tape.Test, filename: string) {
 
 // This usecase was failing. See https://github.com/pnpm/supi/issues/15
 test('peer dependencies are linked when running one named installation', async (t: tape.Test) => {
-  await addDistTag({package: 'peer-a', version: '1.0.0', distTag: 'latest'})
+  await addDistTag({ package: 'peer-a', version: '1.0.0', distTag: 'latest' })
 
   const project = prepare(t)
 
@@ -234,12 +234,12 @@ test('peer dependencies are linked when running one named installation', async (
   t.equal(deepRequireCwd(['abc-grand-parent-with-c', 'abc-parent-with-ab', 'abc', 'peer-c', './package.json']).version, '1.0.0')
 
   // this part was failing. See issue: https://github.com/pnpm/pnpm/issues/1201
-  await addDistTag({package: 'peer-a', version: '1.0.1', distTag: 'latest'})
-  await install(await testDefaults({update: true, depth: 100}))
+  await addDistTag({ package: 'peer-a', version: '1.0.1', distTag: 'latest' })
+  await install(await testDefaults({ update: true, depth: 100 }))
 })
 
 test('peer dependencies are linked when running two separate named installations', async (t: tape.Test) => {
-  await addDistTag({package: 'peer-a', version: '1.0.0', distTag: 'latest'})
+  await addDistTag({ package: 'peer-a', version: '1.0.0', distTag: 'latest' })
   const project = prepare(t)
 
   await installPkgs(['abc-grand-parent-with-c', 'peer-c@2.0.0'], await testDefaults())
@@ -375,7 +375,7 @@ test('peer dependency is grouped with dependent when the peer is a top dependenc
 
   const reporter = sinon.spy()
 
-  await installPkgs(['ajv@4.10.4', 'ajv-keywords@1.5.0'], await testDefaults({reporter, shrinkwrapDirectory: path.resolve('..')}))
+  await installPkgs(['ajv@4.10.4', 'ajv-keywords@1.5.0'], await testDefaults({ reporter, shrinkwrapDirectory: path.resolve('..') }))
 
   t.notOk(reporter.calledWithMatch({
     message: 'localhost+4873/ajv-keywords/1.5.0 requires a peer of ajv@>=4.10.0 but none was installed.',

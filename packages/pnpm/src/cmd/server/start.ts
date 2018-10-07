@@ -1,5 +1,5 @@
-import {storeLogger} from '@pnpm/logger'
-import {createServer} from '@pnpm/server'
+import { storeLogger } from '@pnpm/logger'
+import { createServer } from '@pnpm/server'
 import storePath from '@pnpm/store-path'
 import Diable = require('diable')
 import getPort = require('get-port')
@@ -52,7 +52,7 @@ export default async (
     if (server !== null) {
       // Note that server.close returns a Promise, but we cannot wait for it because we may be
       // inside the 'exit' even of process.
-      server.close()
+      server.close() // tslint:disable-line:no-floating-promises
     }
     if (fd !== null) {
       try {
@@ -73,7 +73,7 @@ export default async (
     store: pathOfStore,
   }))
   const protocol = opts.protocol || opts.port && 'tcp' || 'auto'
-  const serverOptions = await getServerOptions(connectionInfoDir, {protocol, port: opts.port})
+  const serverOptions = await getServerOptions(connectionInfoDir, { protocol, port: opts.port })
   const connectionOptions = {
     remotePrefix: serverOptions.path
       ? `http://unix:${serverOptions.path}:`
@@ -112,7 +112,7 @@ async function getServerOptions (
 ): Promise<{hostname?: string, port?: number, path?: string}> {
   switch (opts.protocol) {
     case 'tcp':
-      return await getTcpOptions()
+      return getTcpOptions()
     case 'ipc':
       if (isWindows()) {
         throw new Error('IPC protocol is not supported on Windows currently')
@@ -120,7 +120,7 @@ async function getServerOptions (
       return getIpcOptions()
     case 'auto':
       if (isWindows()) {
-        return await getTcpOptions()
+        return getTcpOptions()
       }
       return getIpcOptions()
     default:
@@ -130,7 +130,7 @@ async function getServerOptions (
   async function getTcpOptions () {
     return {
       hostname: 'localhost',
-      port: opts.port || await getPort({port: 5813}),
+      port: opts.port || await getPort({ port: 5813 }), // tslint:disable-line
     }
   }
 

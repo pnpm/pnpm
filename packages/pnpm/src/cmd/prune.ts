@@ -8,5 +8,5 @@ export default async (input: string[], opts: PnpmOptions) => {
     store: store.path,
     storeController: store.ctrl,
   })
-  return install({...pruneOpts, pruneStore: true} as InstallOptions)
+  return install({ ...pruneOpts, pruneStore: true } as InstallOptions)
 }

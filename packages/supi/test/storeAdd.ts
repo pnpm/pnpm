@@ -1,10 +1,10 @@
 import loadJsonFile from 'load-json-file'
 import path = require('path')
 import exists = require('path-exists')
-import {storeAdd} from 'supi'
+import { storeAdd } from 'supi'
 import tape = require('tape')
 import promisifyTape from 'tape-promise'
-import {createTempFolder, testDefaults} from './utils'
+import { createTempFolder, testDefaults } from './utils'
 
 const test = promisifyTape(tape)
 

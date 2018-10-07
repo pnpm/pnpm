@@ -55,7 +55,7 @@ async function dependenciesHierarchy (
     only?: 'dev' | 'prod',
   },
 ): Promise<PackageNode[]> {
-  const shrinkwrap = await readCurrent(projectPath, {ignoreIncompatible: false})
+  const shrinkwrap = await readCurrent(projectPath, { ignoreIncompatible: false })
 
   if (!shrinkwrap) return []
 
@@ -86,7 +86,7 @@ async function dependenciesHierarchy (
     let newEntry: PackageNode | null = null
     const matchedSearched = searched.length && matches(searched, pkg)
     if (pkgPath === null) {
-      newEntry = {pkg}
+      newEntry = { pkg }
     } else {
       const relativeId = refToRelative(topDeps[depName], depName)
       const dependencies = getChildrenTree([relativeId], relativeId)
@@ -96,7 +96,7 @@ async function dependenciesHierarchy (
           pkg,
         }
       } else if (!searched.length || matches(searched, pkg)) {
-        newEntry = {pkg}
+        newEntry = { pkg }
       }
     }
     if (newEntry) {
@@ -169,7 +169,7 @@ function getTree (
     let newEntry: PackageNode | null = null
     if (pkgPath === null) {
       circular = false
-      newEntry = {pkg}
+      newEntry = { pkg }
     } else {
       const relativeId = refToRelative(deps[depName], depName) as string // we know for sure that relative is not null if pkgPath is not null
       circular = keypath.indexOf(relativeId) !== -1
@@ -181,7 +181,7 @@ function getTree (
           pkg,
         }
       } else if (!opts.searched.length || matchedSearched) {
-        newEntry = {pkg}
+        newEntry = { pkg }
       }
     }
     if (newEntry) {

@@ -74,6 +74,8 @@
     "tape": "^4.8.0",
     "ts-node": "^6.2.0",
     "tslint": "^5.7.0",
+    "tslint-config-standard": "8.0.1",
+    "tslint-eslint-rules": "5.4.0",
     "typescript": "^3.0.0"
   }
 }

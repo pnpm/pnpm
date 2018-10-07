@@ -1,4 +1,4 @@
-import {getIntegrity} from 'pnpm-registry-mock'
+import { getIntegrity } from 'pnpm-registry-mock'
 import {
   install,
   installPkgs,
@@ -66,7 +66,7 @@ test('aliased dependency w/o version spec, with custom tag config', async (t) =>
   await addDistTag('dep-of-pkg-with-1-dep', '100.1.0', 'latest')
   await addDistTag('dep-of-pkg-with-1-dep', '100.0.0', tag)
 
-  await installPkgs(['foo@npm:dep-of-pkg-with-1-dep'], await testDefaults({tag}))
+  await installPkgs(['foo@npm:dep-of-pkg-with-1-dep'], await testDefaults({ tag }))
 
   await project.storeHas('dep-of-pkg-with-1-dep', '100.0.0')
 })

@@ -6,7 +6,7 @@ if (argv.indexOf('--help') !== -1 || argv.indexOf('-h') !== -1 || argv.indexOf('
   argv = ['help'].concat(argv)
 }
 
-(async () => {
+(async () => { // tslint:disable-line:no-floating-promises
   switch (argv[0]) {
     case '-v':
     case '--version':

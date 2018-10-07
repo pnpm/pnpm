@@ -1,7 +1,7 @@
-import {PackageJson} from '@pnpm/types'
-import {refToRelative} from 'dependency-path'
+import { PackageJson } from '@pnpm/types'
+import { refToRelative } from 'dependency-path'
 import R = require('ramda')
-import {SHRINKWRAP_VERSION} from './constants'
+import { SHRINKWRAP_VERSION } from './constants'
 import {
   ResolvedDependencies,
   ResolvedPackages,
@@ -210,6 +210,6 @@ function copyDependencySubTree (
     const newOptionalDependencies = R.keys(depShr.optionalDependencies)
       .map((pkgName: string) => refToRelative((depShr.optionalDependencies && depShr.optionalDependencies[pkgName]) as string, pkgName))
       .filter((relPath) => relPath !== null) as string[]
-    copyDependencySubTree(newResolutions, newOptionalDependencies, oldResolutions, walked, warn, {...opts, optional: true})
+    copyDependencySubTree(newResolutions, newOptionalDependencies, oldResolutions, walked, warn, { ...opts, optional: true })
   }
 }

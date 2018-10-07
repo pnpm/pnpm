@@ -5,11 +5,11 @@ import {
   RequestPackageOptions,
   WantedDependency,
 } from '@pnpm/package-requester'
-import {PackageManifest} from '@pnpm/types'
+import { PackageManifest } from '@pnpm/types'
 
 import got = require('got')
 import pLimit = require('p-limit')
-import {StoreController} from 'package-store'
+import { StoreController } from 'package-store'
 import uuid = require('uuid')
 
 export type StoreServerController = StoreController & {
@@ -68,7 +68,7 @@ function fetch(limit: (fn: () => PromiseLike<object>) => Promise<object>, url: s
     try {
       const response = await got(url, {
         body: JSON.stringify(body),
-        headers: {'Content-Type': 'application/json'},
+        headers: { 'Content-Type': 'application/json' },
         method: 'POST',
         retries: () => {
           return 100
@@ -101,8 +101,8 @@ function requestPackage (
     const fetchingRawManifest = !packageResponseBody['fetchingRawManifestInProgress'] // tslint:disable-line
       ? undefined
       : limitedFetch(`${remotePrefix}/rawManifestResponse`, {
-          msgId,
-        })
+        msgId,
+      })
     delete packageResponseBody['fetchingRawManifestInProgress'] // tslint:disable-line
 
     if (options.skipFetch) {
@@ -142,7 +142,7 @@ function fetchPackage (
   })
   .then((fetchResponseBody: object & {inStoreLocation: string}) => {
     const fetchingRawManifest = options.fetchRawManifest
-      ? limitedFetch(`${remotePrefix}/rawManifestResponse`, {msgId})
+      ? limitedFetch(`${remotePrefix}/rawManifestResponse`, { msgId })
       : undefined
 
     const fetchingFiles = limitedFetch(`${remotePrefix}/packageFilesResponse`, {

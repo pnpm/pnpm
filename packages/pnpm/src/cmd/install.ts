@@ -4,10 +4,10 @@ import {
   rebuild,
 } from 'supi'
 import createStoreController from '../createStoreController'
-import findWorkspacePackages, {arrayOfLocalPackagesToMap} from '../findWorkspacePackages'
+import findWorkspacePackages, { arrayOfLocalPackagesToMap } from '../findWorkspacePackages'
 import requireHooks from '../requireHooks'
-import {PnpmOptions} from '../types'
-import {recursive} from './recursive'
+import { PnpmOptions } from '../types'
+import { recursive } from './recursive'
 
 const OVERWRITE_UPDATE_OPTIONS = {
   allowNew: true,
@@ -73,6 +73,6 @@ export default async function installCmd (
 
     if (opts.ignoreScripts) return
 
-    await rebuild({...opts, pending: true} as any) // tslint:disable-line:no-any
+    await rebuild({ ...opts, pending: true } as any) // tslint:disable-line:no-any
   }
 }

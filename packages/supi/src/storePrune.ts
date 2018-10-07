@@ -1,6 +1,6 @@
-import {streamParser} from '@pnpm/logger'
-import {StoreController} from 'package-store'
-import {ReporterFunction} from './types'
+import { streamParser } from '@pnpm/logger'
+import { StoreController } from 'package-store'
+import { ReporterFunction } from './types'
 
 export default async function (
   opts: {

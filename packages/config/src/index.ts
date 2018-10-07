@@ -4,9 +4,9 @@ import camelcase = require('camelcase')
 import findUp = require('find-up')
 import path = require('path')
 import whichcb = require('which')
-import {PnpmConfigs} from './PnpmConfigs'
+import { PnpmConfigs } from './PnpmConfigs'
 
-export {PnpmConfigs}
+export { PnpmConfigs }
 
 const npmDefaults = loadNpmConf.defaults
 
@@ -72,7 +72,7 @@ export default async (
     },
   },
 ): Promise<PnpmConfigs> => {
-  const packageManager = opts && opts.packageManager || {name: 'pnpm', version: 'undefined'}
+  const packageManager = opts && opts.packageManager || { name: 'pnpm', version: 'undefined' }
   const cliArgs = opts && opts.cliArgs || {}
 
   // This is what npm does as well, overriding process.execPath with the resolved location of Node.

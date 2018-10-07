@@ -93,7 +93,7 @@ export async function rebuildPkgs (
     }
   })
 
-  const pkgs = findPackages(packages, searched, {prefix: ctx.prefix})
+  const pkgs = findPackages(packages, searched, { prefix: ctx.prefix })
 
   await _rebuild(new Set(pkgs), ctx.virtualStoreDir, ctx.currentShrinkwrap, ctx.importerId, opts)
 }
@@ -206,7 +206,7 @@ function getSubgraphToBuild (
 
       // It might make sense to fail if the depPath is not in the skipped list from .modules.yaml
       // However, the skipped list currently contains package IDs, not dep paths.
-      logger.debug({message: `No entry for "${depPath}" in shrinkwrap.yaml`})
+      logger.debug({ message: `No entry for "${depPath}" in shrinkwrap.yaml` })
       continue
     }
     const nextEntryNodes = R.toPairs({
@@ -248,12 +248,12 @@ async function _rebuild (
   .filter((nodeId) => nodeId !== null) as string[]
 
   const nodesToBuildAndTransitive = new Set()
-  getSubgraphToBuild(pkgSnapshots, entryNodes, nodesToBuildAndTransitive, new Set(), {optional: opts.optional === true, pkgsToRebuild})
+  getSubgraphToBuild(pkgSnapshots, entryNodes, nodesToBuildAndTransitive, new Set(), { optional: opts.optional === true, pkgsToRebuild })
   const nodesToBuildAndTransitiveArray = Array.from(nodesToBuildAndTransitive)
 
   for (const relDepPath of nodesToBuildAndTransitiveArray) {
     const pkgSnapshot = pkgSnapshots[relDepPath]
-    graph.set(relDepPath, R.toPairs({...pkgSnapshot.dependencies, ...pkgSnapshot.optionalDependencies})
+    graph.set(relDepPath, R.toPairs({ ...pkgSnapshot.dependencies, ...pkgSnapshot.optionalDependencies })
       .map((pair) => dp.refToRelative(pair[1], pair[0]))
       .filter((childRelDepPath) => nodesToBuildAndTransitive.has(childRelDepPath)))
   }

@@ -3,8 +3,8 @@ import baseLogger, {
   Logger,
 } from '@pnpm/logger'
 
-export const installCheckLogger = baseLogger('install-check') as Logger<InstallCheckMessage>
-export const deprecationLogger = baseLogger('deprecation') as Logger<DeprecationMessage>
+export const installCheckLogger = baseLogger('install-check') as Logger<InstallCheckMessage> // tslint:disable-line
+export const deprecationLogger = baseLogger('deprecation') as Logger<DeprecationMessage> // tslint:disable-line
 
 export interface InstallCheckMessage {
   code: string,

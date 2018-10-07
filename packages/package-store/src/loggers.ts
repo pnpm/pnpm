@@ -3,7 +3,7 @@ import baseLogger, {
   Logger,
 } from '@pnpm/logger'
 
-export const importingLogger = baseLogger('importing') as Logger<ImportingMessage>
+export const importingLogger = baseLogger('importing')
 
 export interface ImportingMessage {
   from: string,

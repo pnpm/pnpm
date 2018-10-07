@@ -57,7 +57,7 @@ export async function read (virtualStoreDir: string): Promise<Modules | null> {
   }
 }
 
-const YAML_OPTS = {sortKeys: true}
+const YAML_OPTS = { sortKeys: true }
 
 export function write (
   virtualStoreDir: string,
@@ -70,7 +70,7 @@ export function write (
 }
 
 function normalizeModules (m: Modules) {
-  const normalized = {...m}
+  const normalized = { ...m }
   if (Object.keys(m.importers).length === 1 && m.importers['.']) {
     Object.assign(normalized, m.importers['.'])
     delete normalized.importers

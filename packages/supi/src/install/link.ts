@@ -75,7 +75,7 @@ export default async function linkPackages (
   // The `Creating dependency graph` is not good to report in all cases as
   // sometimes node_modules is alread up-to-date
   // logger.info(`Creating dependency graph`)
-  const { depGraph, importersDirectAbsolutePathsByAlias } = await resolvePeers({
+  const { depGraph, importersDirectAbsolutePathsByAlias } = resolvePeers({
     dependenciesTree,
     importers,
     independentLeaves: opts.independentLeaves,
@@ -102,7 +102,7 @@ export default async function linkPackages (
       }
     }
   }
-  let {newShrinkwrap, pendingRequiresBuilds} = updateShrinkwrap(depGraph, opts.wantedShrinkwrap, opts.virtualStoreDir) // tslint:disable-line:prefer-const
+  let { newShrinkwrap, pendingRequiresBuilds } = updateShrinkwrap(depGraph, opts.wantedShrinkwrap, opts.virtualStoreDir) // tslint:disable-line:prefer-const
   if (opts.afterAllResolvedHook) {
     newShrinkwrap = opts.afterAllResolvedHook(newShrinkwrap)
   }
@@ -164,7 +164,7 @@ export default async function linkPackages (
 
   await Promise.all(importers.map((importer) => {
     const directAbsolutePathsByAlias = importersDirectAbsolutePathsByAlias[importer.id]
-    const {modulesDir, pkg, prefix} = importer
+    const { modulesDir, pkg, prefix } = importer
     return Promise.all(
       R.keys(directAbsolutePathsByAlias)
         .map((rootAlias) => ({ rootAlias, depGraphNode: rootDepsByDepPath[directAbsolutePathsByAlias[rootAlias]] }))
@@ -216,7 +216,7 @@ export default async function linkPackages (
     )
 
     if (depNode.requiresBuild) {
-      newShrinkwrap!.packages![pendingRequiresBuild.relativeDepPath].requiresBuild = true
+      newShrinkwrap.packages![pendingRequiresBuild.relativeDepPath].requiresBuild = true
     }
   }))
 
@@ -231,7 +231,7 @@ export default async function linkPackages (
         }
       }
     }
-    currentShrinkwrap = {...newShrinkwrap, packages}
+    currentShrinkwrap = { ...newShrinkwrap, packages }
   } else if (opts.include.dependencies && opts.include.devDependencies && opts.include.optionalDependencies && opts.skipped.size === 0) {
     currentShrinkwrap = newShrinkwrap
   } else {
@@ -284,8 +284,8 @@ export default async function linkPackages (
   }
 }
 
-function linkBinsOfImporter ({modulesDir, bin, prefix}: Importer) {
-  const warn = (message: string) => logger.warn({message, prefix})
+function linkBinsOfImporter ({ modulesDir, bin, prefix }: Importer) {
+  const warn = (message: string) => logger.warn({ message, prefix })
   return linkBins(modulesDir, bin, { warn })
 }
 
@@ -305,7 +305,7 @@ function filterShrinkwrap (
     importerIds: string[],
   },
 ): Shrinkwrap {
-  let pairs = (R.toPairs(shr.packages || {}) as Array<[string, PackageSnapshot]>)
+  let pairs = R.toPairs(shr.packages || {})
     .filter((pair) => !opts.skipped.has(pair[1].id || dp.resolve(shr.registry, pair[0])))
   if (!opts.include.dependencies) {
     pairs = pairs.filter((pair) => pair[1].dev !== false || pair[1].optional)
@@ -326,7 +326,7 @@ function filterShrinkwrap (
         specifiers: shrImporter.specifiers,
       }
       return acc
-    }, {...shr.importers}),
+    }, { ...shr.importers }),
     packages: R.fromPairs(pairs),
     registry: shr.registry,
     shrinkwrapVersion: shr.shrinkwrapVersion,
@@ -393,14 +393,14 @@ async function linkNewPackages (
   const newPkgs = R.props<string, DependenciesGraphNode>(newDepPaths, depGraph)
 
   await Promise.all([
-    linkAllModules(newPkgs, depGraph, {optional: opts.optional}),
-    linkAllModules(existingWithUpdatedDeps, depGraph, {optional: opts.optional}),
+    linkAllModules(newPkgs, depGraph, { optional: opts.optional }),
+    linkAllModules(existingWithUpdatedDeps, depGraph, { optional: opts.optional }),
     linkAllPkgs(opts.storeController, newPkgs, opts),
   ])
 
   await linkAllBins(newPkgs, depGraph, {
     optional: opts.optional,
-    warn: (message: string) => logger.warn({message, prefix: opts.virtualStoreDir}),
+    warn: (message: string) => logger.warn({ message, prefix: opts.virtualStoreDir }),
   })
 
   return newDepPaths
@@ -461,12 +461,12 @@ async function linkAllBins (
       )
 
       const binPath = path.join(depNode.peripheralLocation, 'node_modules', '.bin')
-      await linkBinsOfPackages(pkgs, binPath, {warn: opts.warn})
+      await linkBinsOfPackages(pkgs, binPath, { warn: opts.warn })
 
       // link also the bundled dependencies` bins
       if (depNode.hasBundledDependencies) {
         const bundledModules = path.join(depNode.peripheralLocation, 'node_modules')
-        await linkBins(bundledModules, binPath, {warn: opts.warn})
+        await linkBins(bundledModules, binPath, { warn: opts.warn })
       }
     })),
   )

@@ -51,54 +51,54 @@ export default async (
       .filter((depPath) => depGraph[depPath].requiresBuild && !depGraph[depPath].isBuilt)
       .map((depPath: string) => limitChild(async () => {
         const depNode = depGraph[depPath]
-          try {
-            const hasSideEffects = await runPostinstallHooks({
-              depPath,
-              pkgRoot: depNode.peripheralLocation,
-              prepare: depNode.prepare,
-              rawNpmConfig: opts.rawNpmConfig,
-              rootNodeModulesDir: opts.rootNodeModulesDir,
-              unsafePerm: opts.unsafePerm || false,
-            })
-            if (hasSideEffects && opts.sideEffectsCache && !opts.sideEffectsCacheReadonly) {
-              try {
-                await opts.storeController.upload(depNode.peripheralLocation, {
-                  engine: ENGINE_NAME,
-                  pkgId: depNode.pkgId,
+        try {
+          const hasSideEffects = await runPostinstallHooks({
+            depPath,
+            pkgRoot: depNode.peripheralLocation,
+            prepare: depNode.prepare,
+            rawNpmConfig: opts.rawNpmConfig,
+            rootNodeModulesDir: opts.rootNodeModulesDir,
+            unsafePerm: opts.unsafePerm || false,
+          })
+          if (hasSideEffects && opts.sideEffectsCache && !opts.sideEffectsCacheReadonly) {
+            try {
+              await opts.storeController.upload(depNode.peripheralLocation, {
+                engine: ENGINE_NAME,
+                pkgId: depNode.pkgId,
+              })
+            } catch (err) {
+              if (err && err.statusCode === 403) {
+                logger.warn({
+                  message: `The store server disabled upload requests, could not upload ${depNode.pkgId}`,
+                  prefix: opts.prefix,
                 })
-              } catch (err) {
-                if (err && err.statusCode === 403) {
-                  logger.warn({
-                    message: `The store server disabled upload requests, could not upload ${depNode.pkgId}`,
-                    prefix: opts.prefix,
-                  })
-                } else {
-                  logger.warn({
-                    error: err,
-                    message: `An error occurred while uploading ${depNode.pkgId}`,
-                    prefix: opts.prefix,
-                  })
-                }
+              } else {
+                logger.warn({
+                  error: err,
+                  message: `An error occurred while uploading ${depNode.pkgId}`,
+                  prefix: opts.prefix,
+                })
               }
             }
-          } catch (err) {
-            if (depNode.optional) {
-              // TODO: add parents field to the log
-              const pkg = await readPackageFromDir(path.join(depNode.peripheralLocation))
-              skippedOptionalDependencyLogger.debug({
-                details: err.toString(),
-                package: {
-                  id: depNode.pkgId,
-                  name: pkg.name,
-                  version: pkg.version,
-                },
-                prefix: opts.prefix,
-                reason: 'build_failure',
-              })
-              return
-            }
-            throw err
           }
+        } catch (err) {
+          if (depNode.optional) {
+            // TODO: add parents field to the log
+            const pkg = await readPackageFromDir(path.join(depNode.peripheralLocation))
+            skippedOptionalDependencyLogger.debug({
+              details: err.toString(),
+              package: {
+                id: depNode.pkgId,
+                name: pkg.name,
+                version: pkg.version,
+              },
+              prefix: opts.prefix,
+              reason: 'build_failure',
+            })
+            return
+          }
+          throw err
+        }
       })))
   }
 }

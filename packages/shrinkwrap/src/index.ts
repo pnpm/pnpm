@@ -24,5 +24,5 @@ export {
 }
 
 // for backward compatibility
-import {refToRelative} from 'dependency-path'
+import { refToRelative } from 'dependency-path'
 export const getPkgShortId = refToRelative

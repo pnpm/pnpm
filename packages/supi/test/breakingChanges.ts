@@ -1,10 +1,10 @@
 import isCI = require('is-ci')
 import mkdirp = require('mkdirp-promise')
 import fs = require('mz/fs')
-import {install, installPkgs} from 'supi'
+import { install, installPkgs } from 'supi'
 import tape = require('tape')
 import promisifyTape from 'tape-promise'
-import {prepare, testDefaults} from './utils'
+import { prepare, testDefaults } from './utils'
 
 const test = promisifyTape(tape)
 const testOnly = promisifyTape(tape.only)
@@ -25,7 +25,7 @@ test('fail on non-compatible node_modules', async (t: tape.Test) => {
 
 test("don't fail on non-compatible node_modules when forced", async (t: tape.Test) => {
   const project = prepare(t)
-  const opts = await testDefaults({force: true})
+  const opts = await testDefaults({ force: true })
 
   await saveModulesYaml('0.50.0', opts.store)
 
@@ -36,7 +36,7 @@ test("don't fail on non-compatible node_modules when forced", async (t: tape.Tes
 
 test('fail on non-compatible node_modules when forced with a named installation', async (t: tape.Test) => {
   const project = prepare(t)
-  const opts = await testDefaults({force: true})
+  const opts = await testDefaults({ force: true })
 
   await saveModulesYaml('0.50.0', opts.store)
 
@@ -50,7 +50,7 @@ test('fail on non-compatible node_modules when forced with a named installation'
 
 test("don't fail on non-compatible store when forced", async (t: tape.Test) => {
   const project = prepare(t)
-  const opts = await testDefaults({force: true})
+  const opts = await testDefaults({ force: true })
 
   await saveModulesYaml('0.32.0', opts.store)
 
@@ -61,7 +61,7 @@ test("don't fail on non-compatible store when forced", async (t: tape.Test) => {
 
 test('fail on non-compatible store when forced during named installation', async (t: tape.Test) => {
   const project = prepare(t)
-  const opts = await testDefaults({force: true})
+  const opts = await testDefaults({ force: true })
 
   await saveModulesYaml('0.32.0', opts.store)
 
@@ -99,7 +99,7 @@ test("don't fail on non-compatible shrinkwrap.yaml when forced", async (t: tape.
   const project = prepare(t)
   await fs.writeFile('shrinkwrap.yaml', '')
 
-  await installPkgs(['is-negative'], await testDefaults({force: true}))
+  await installPkgs(['is-negative'], await testDefaults({ force: true }))
 
   t.pass('install did not fail')
 })

@@ -1,8 +1,8 @@
-import {Resolution} from '@pnpm/resolver-base'
+import { Resolution } from '@pnpm/resolver-base'
 import * as dp from 'dependency-path'
 import getNpmTarballUrl from 'get-npm-tarball-url'
 import url = require('url')
-import {PackageSnapshot} from './types'
+import { PackageSnapshot } from './types'
 
 export default (
   relDepPath: string,
@@ -34,7 +34,7 @@ export default (
     if (!parsed.name || !parsed.version) {
       throw new Error(`Couldn't get tarball URL from dependency path ${relDepPath}`)
     }
-    return getNpmTarballUrl(parsed.name, parsed.version, {registry})
+    return getNpmTarballUrl(parsed.name, parsed.version, { registry })
   }
   // tslint:enable:no-string-literal
 }

@@ -1,9 +1,6 @@
-import {Modules} from '@pnpm/modules-yaml'
-import {oneLine, stripIndent} from 'common-tags'
+import { Modules } from '@pnpm/modules-yaml'
 import path = require('path')
-import semver = require('semver')
-import {LAYOUT_VERSION} from '../../constants'
-import {PnpmError, PnpmErrorCode} from '../../errorTypes'
+import { LAYOUT_VERSION } from '../../constants'
 import ModulesBreakingChangeError from './ModulesBreakingChangeError'
 import UnexpectedStoreError from './UnexpectedStoreError'
 

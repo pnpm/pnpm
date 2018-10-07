@@ -199,7 +199,7 @@ export default async function resolveDependencies (
           // So for example, if foo@1.0.0 had bar@1.0.0 as a dependency
           // and foo was updated to 1.1.0 which depends on bar ^1.0.0
           // then bar@1.0.0 can be reused for foo@1.1.0
-          if (!reference && wantedDependency.alias && semver.validRange(wantedDependency.pref) !== null &&
+          if (!reference && wantedDependency.alias && semver.validRange(wantedDependency.pref) !== null && // tslint:disable-line
             preferedDependencies[wantedDependency.alias] &&
             preferedSatisfiesWanted(
               preferedDependencies[wantedDependency.alias],
@@ -214,7 +214,7 @@ export default async function resolveDependencies (
             reference = preferedDependencies[wantedDependency.alias]
           }
 
-          return await install(wantedDependency, ctx, {
+          return install(wantedDependency, ctx, {
             currentDepth: options.currentDepth,
             hasManifestInShrinkwrap: options.hasManifestInShrinkwrap,
             keypath: options.keypath,
@@ -467,8 +467,8 @@ async function install (
     } catch (err) {
       // tslint:disable:no-empty
       // avoiding unhandled promise rejections
-      if (pkgResponse['finishing']) pkgResponse['finishing'].catch((err: Error) => {})
-      if (pkgResponse['fetchingFiles']) pkgResponse['fetchingFiles'].catch((err: Error) => {})
+      if (pkgResponse['finishing']) pkgResponse['finishing'].catch(() => {})
+      if (pkgResponse['fetchingFiles']) pkgResponse['fetchingFiles'].catch(() => {})
       // tslint:enable:no-empty
       throw err
     }
@@ -695,5 +695,5 @@ async function resolveDependenciesOfPackage (
       } as WantedDependency))
   }
 
-  return await resolveDependencies(ctx, deps, opts)
+  return resolveDependencies(ctx, deps, opts)
 }

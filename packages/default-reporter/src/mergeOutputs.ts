@@ -1,5 +1,5 @@
 import most = require('most')
-import {EOL} from './constants'
+import { EOL } from './constants'
 
 export default function mergeOutputs (outputs: Array<most.Stream<most.Stream<{msg: string}>>>): most.Stream<string> {
   let blockNo = 0
@@ -28,7 +28,7 @@ export default function mergeOutputs (outputs: Array<most.Stream<most.Stream<{ms
           return {
             blockNo: currentBlockNo,
             fixed: false,
-            msg: typeof msg === 'string' ? msg : msg.msg,
+            msg: typeof msg === 'string' ? msg : msg.msg, // tslint:disable-line
             prevFixedBlockNo: currentFixedBlockNo,
           }
         })
@@ -42,7 +42,7 @@ export default function mergeOutputs (outputs: Array<most.Stream<most.Stream<{ms
       acc.blocks[log.blockNo] = log.msg
     }
     return acc
-  }, {fixedBlocks: [], blocks: []} as {fixedBlocks: string[], blocks: string[]})
+  }, { fixedBlocks: [], blocks: [] } as {fixedBlocks: string[], blocks: string[]})
   .map((sections) => {
     const fixedBlocks = sections.fixedBlocks.filter(Boolean)
     const nonFixedPart = sections.blocks.filter(Boolean).join(EOL)

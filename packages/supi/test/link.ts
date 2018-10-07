@@ -85,7 +85,7 @@ test('relative link is not rewritten by argumentless install', async (t: tape.Te
   const opts = await testDefaults()
 
   await ncp(pathToLocalPkg(linkedPkgName), linkedPkgPath)
-  await link([linkedPkgPath], path.join(process.cwd(), 'node_modules'), {...opts, reporter} as any) // tslint:disable-line:no-any
+  await link([linkedPkgPath], path.join(process.cwd(), 'node_modules'), { ...opts, reporter }) // tslint:disable-line:no-any
 
   t.ok(reporter.calledWithMatch({
     added: {
@@ -121,7 +121,7 @@ test('relative link is rewritten by named installation to regular dependency', a
   const opts = await testDefaults()
 
   await ncp(pathToLocalPkg(linkedPkgName), linkedPkgPath)
-  await link([linkedPkgPath], path.join(process.cwd(), 'node_modules'), {...opts, reporter} as any) // tslint:disable-line:no-any
+  await link([linkedPkgPath], path.join(process.cwd(), 'node_modules'), { ...opts, reporter }) // tslint:disable-line:no-any
 
   t.ok(reporter.calledWithMatch({
     added: {
@@ -165,7 +165,7 @@ test('global link', async (t: tape.Test) => {
   process.chdir(linkedPkgPath)
   const globalPrefix = path.resolve('..', 'global')
   const globalBin = path.resolve('..', 'global', 'bin')
-  await linkToGlobal(process.cwd(), {...opts, globalPrefix, globalBin} as any) // tslint:disable-line:no-any
+  await linkToGlobal(process.cwd(), { ...opts, globalPrefix, globalBin }) // tslint:disable-line:no-any
 
   await isExecutable(t, path.join(globalBin, 'hello-world-js-bin'))
 
@@ -175,7 +175,7 @@ test('global link', async (t: tape.Test) => {
 
   process.chdir(projectPath)
 
-  await linkFromGlobal([linkedPkgName], process.cwd(), {...opts, globalPrefix} as any) // tslint:disable-line:no-any
+  await linkFromGlobal([linkedPkgName], process.cwd(), { ...opts, globalPrefix }) // tslint:disable-line:no-any
 
   await project.isExecutable('.bin/hello-world-js-bin')
 })
@@ -186,7 +186,7 @@ test('failed linking should not create empty folder', async (t: tape.Test) => {
   const globalPrefix = path.resolve('..', 'global')
 
   try {
-    await linkFromGlobal(['does-not-exist'], process.cwd(), await testDefaults({globalPrefix}))
+    await linkFromGlobal(['does-not-exist'], process.cwd(), await testDefaults({ globalPrefix }))
     t.fail('should have failed')
   } catch (err) {
     t.notOk(await exists(path.join(globalPrefix, 'node_modules', 'does-not-exist')))
@@ -196,7 +196,7 @@ test('failed linking should not create empty folder', async (t: tape.Test) => {
 test('node_modules is pruned after linking', async (t: tape.Test) => {
   const project = prepare(t)
 
-  await writeJsonFile('../is-positive/package.json', {name: 'is-positive', version: '1.0.0'})
+  await writeJsonFile('../is-positive/package.json', { name: 'is-positive', version: '1.0.0' })
 
   await installPkgs(['is-positive@1.0.0'], await testDefaults())
 

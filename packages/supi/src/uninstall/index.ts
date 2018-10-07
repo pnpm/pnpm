@@ -68,7 +68,7 @@ export async function uninstallInContext (
   const pkgJsonPath = path.join(ctx.prefix, 'package.json')
   const saveType = getSaveType(opts)
   const pkg = await removeDeps(pkgJsonPath, pkgsToUninstall, { prefix: opts.prefix, saveType })
-  const newShr = pruneShrinkwrap(ctx.wantedShrinkwrap, pkg, ctx.importerId, (message) => logger.warn({message, prefix: ctx.prefix}))
+  const newShr = pruneShrinkwrap(ctx.wantedShrinkwrap, pkg, ctx.importerId, (message) => logger.warn({ message, prefix: ctx.prefix }))
   const removedPkgIds = await prune({
     importers: [
       {
@@ -126,7 +126,7 @@ export async function uninstallInContext (
     store: ctx.storePath,
   })
 
-  summaryLogger.debug({prefix: opts.prefix})
+  summaryLogger.debug({ prefix: opts.prefix })
 }
 
 async function removeOuterLinks (

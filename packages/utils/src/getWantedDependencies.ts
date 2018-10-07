@@ -22,7 +22,7 @@ export function getNonDevWantedDependencies (pkg: PackageJson) {
   bundledDeps.add(pkg.name)
   const filterDeps = getNotBundledDeps.bind(null, bundledDeps)
   return getWantedDependenciesFromGivenSet(
-    filterDeps({...pkg.optionalDependencies, ...pkg.dependencies}),
+    filterDeps({ ...pkg.optionalDependencies, ...pkg.dependencies }),
     {
       devDependencies: {},
       optionalDependencies: pkg.optionalDependencies || {},

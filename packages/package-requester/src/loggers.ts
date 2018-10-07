@@ -3,7 +3,7 @@ import baseLogger, {
   Logger,
 } from '@pnpm/logger'
 
-export const progressLogger = baseLogger('progress') as Logger<ProgressMessage>
+export const progressLogger = baseLogger('progress') as Logger<ProgressMessage> // tslint:disable-line
 
 export interface LoggedPkg {
   rawSpec: string,

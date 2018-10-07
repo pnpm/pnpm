@@ -1,5 +1,5 @@
 import readPkg = require('read-pkg')
-import {installPkgs} from 'supi'
+import { installPkgs } from 'supi'
 import tape = require('tape')
 import promisifyTape from 'tape-promise'
 import {
@@ -20,7 +20,7 @@ test('tarball from npm registry', async (t: tape.Test) => {
   await project.storeHas('localhost+4873/is-array/1.0.1')
 
   const pkgJson = await readPkg()
-  t.deepEqual(pkgJson.dependencies, {'is-array': 'http://localhost:4873/is-array/-/is-array-1.0.1.tgz'}, 'has been added to dependencies in package.json')
+  t.deepEqual(pkgJson.dependencies, { 'is-array': 'http://localhost:4873/is-array/-/is-array-1.0.1.tgz' }, 'has been added to dependencies in package.json')
 })
 
 test('tarball not from npm registry', async (t) => {

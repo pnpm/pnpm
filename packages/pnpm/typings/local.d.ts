@@ -305,6 +305,6 @@ declare module 'npm-conf/lib/types' {
 }
 
 declare module 'read-ini-file' {
-  function readIniFile (filename: string): Object;
+  function readIniFile (filename: string): Promise<Object>;
   export = readIniFile;
 }

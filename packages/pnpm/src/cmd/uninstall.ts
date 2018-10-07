@@ -1,9 +1,8 @@
-import logger from '@pnpm/logger'
 import {
   uninstall,
 } from 'supi'
 import createStoreController from '../createStoreController'
-import {PnpmOptions} from '../types'
+import { PnpmOptions } from '../types'
 
 export default async function uninstallCmd (
   input: string[],

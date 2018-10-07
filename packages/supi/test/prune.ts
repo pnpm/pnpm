@@ -11,9 +11,9 @@ const testOnly = promisifyTape(tape.only)
 test('prune removes extraneous packages', async (t: tape.Test) => {
   const project = prepare(t)
 
-  await installPkgs(['is-negative@2.1.0'], await testDefaults({save: true}))
-  await installPkgs(['applyq@0.2.1'], await testDefaults({saveDev: true}))
-  await installPkgs(['fnumber@0.1.0'], await testDefaults({saveOptional: true}))
+  await installPkgs(['is-negative@2.1.0'], await testDefaults({ save: true }))
+  await installPkgs(['applyq@0.2.1'], await testDefaults({ saveDev: true }))
+  await installPkgs(['fnumber@0.1.0'], await testDefaults({ saveOptional: true }))
   await installPkgs(['is-positive@2.0.0', '@zkochan/logger@0.1.0'], await testDefaults())
 
   const pkg = await readPkg()
@@ -23,7 +23,7 @@ test('prune removes extraneous packages', async (t: tape.Test) => {
 
   await writePkg(pkg)
 
-  await install(await testDefaults({pruneStore: true}))
+  await install(await testDefaults({ pruneStore: true }))
 
   await project.storeHasNot('is-positive', '2.0.0')
   await project.hasNot('is-positive')
@@ -44,9 +44,9 @@ test('prune removes extraneous packages', async (t: tape.Test) => {
 test('prune removes dev dependencies in production', async (t: tape.Test) => {
   const project = prepare(t)
 
-  await installPkgs(['is-positive@2.0.0'], await testDefaults({saveDev: true}))
-  await installPkgs(['is-negative@2.1.0'], await testDefaults({save: true}))
-  await installPkgs(['fnumber@0.1.0'], await testDefaults({saveOptional: true}))
+  await installPkgs(['is-positive@2.0.0'], await testDefaults({ saveDev: true }))
+  await installPkgs(['is-negative@2.1.0'], await testDefaults({ save: true }))
+  await installPkgs(['fnumber@0.1.0'], await testDefaults({ saveOptional: true }))
   await install(await testDefaults({
     include: {
       dependencies: true,

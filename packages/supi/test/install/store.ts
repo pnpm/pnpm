@@ -1,10 +1,10 @@
 import path = require('path')
 import rimraf = require('rimraf-then')
-import {install, installPkgs} from 'supi'
+import { install, installPkgs } from 'supi'
 import tape = require('tape')
 import promisifyTape from 'tape-promise'
 import writeJsonFile from 'write-json-file'
-import {prepare, testDefaults} from '../utils'
+import { prepare, testDefaults } from '../utils'
 
 const test = promisifyTape(tape)
 

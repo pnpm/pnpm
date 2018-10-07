@@ -1,7 +1,7 @@
 import assertProject from '@pnpm/assert-project'
 import mkdirp = require('mkdirp')
 import path = require('path')
-import {Test} from 'tape'
+import { Test } from 'tape'
 import writePkg = require('write-pkg')
 
 // the testing folder should be outside of the project to avoid lookup in the project's node_modules
@@ -13,7 +13,7 @@ let dirNumber = 0
 export default function prepare (t: Test, pkg?: object) {
   const pkgTmpPath = createTempFolder(t)
 
-  let pkgJson = {name: 'project', version: '0.0.0', ...pkg}
+  let pkgJson = { name: 'project', version: '0.0.0', ...pkg }
   writePkg.sync(pkgTmpPath, pkgJson)
 
   return {

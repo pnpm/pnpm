@@ -1,4 +1,3 @@
-import {FetchOptions, FetchResult} from '@pnpm/fetcher-base'
 import fetchFromGit from '@pnpm/git-fetcher'
 import {
   DirectoryResolution,

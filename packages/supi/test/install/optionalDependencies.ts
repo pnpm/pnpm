@@ -18,7 +18,7 @@ const testOnly = promisifyTape(tape.only)
 test('successfully install optional dependency with subdependencies', async (t) => {
   const project = prepare(t)
 
-  await installPkgs(['fsevents@1.0.14'], await testDefaults({saveOptional: true}))
+  await installPkgs(['fsevents@1.0.14'], await testDefaults({ saveOptional: true }))
 })
 
 test('skip failing optional dependencies', async (t: tape.Test) => {
@@ -40,7 +40,7 @@ test('skip non-existing optional dependency', async (t: tape.Test) => {
   })
 
   const reporter = sinon.spy()
-  await install(await testDefaults({reporter}))
+  await install(await testDefaults({ reporter }))
 
   t.ok(reporter.calledWithMatch({
     package: {
@@ -56,7 +56,7 @@ test('skip non-existing optional dependency', async (t: tape.Test) => {
 
   const shr = await project.loadShrinkwrap()
 
-  t.deepEqual(shr.specifiers, {'is-positive': '*'}, 'skipped optional dep not added to shrinkwrap.yaml')
+  t.deepEqual(shr.specifiers, { 'is-positive': '*' }, 'skipped optional dep not added to shrinkwrap.yaml')
 })
 
 test('skip optional dependency that does not support the current OS', async (t: tape.Test) => {
@@ -67,7 +67,7 @@ test('skip optional dependency that does not support the current OS', async (t: 
   })
   const reporter = sinon.spy()
 
-  await install(await testDefaults({reporter}))
+  await install(await testDefaults({ reporter }))
 
   await project.hasNot('not-compatible-with-any-os')
   await project.storeHas('not-compatible-with-any-os', '1.0.0')
@@ -114,7 +114,7 @@ test('skip optional dependency that does not support the current Node version', 
   })
   const reporter = sinon.spy()
 
-  await install(await testDefaults({reporter}))
+  await install(await testDefaults({ reporter }))
 
   await project.hasNot('for-legacy-node')
   await project.storeHas('for-legacy-node', '1.0.0')
@@ -140,7 +140,7 @@ test('skip optional dependency that does not support the current pnpm version', 
   })
   const reporter = sinon.spy()
 
-  await install(await testDefaults({reporter}))
+  await install(await testDefaults({ reporter }))
 
   await project.hasNot('for-legacy-pnpm')
   await project.storeHas('for-legacy-pnpm', '1.0.0')
@@ -177,7 +177,7 @@ test('optional subdependency is skipped', async (t: tape.Test) => {
   const project = prepare(t)
   const reporter = sinon.spy()
 
-  await installPkgs(['pkg-with-optional', 'dep-of-optional-pkg'], await testDefaults({reporter}))
+  await installPkgs(['pkg-with-optional', 'dep-of-optional-pkg'], await testDefaults({ reporter }))
 
   const modulesInfo = await loadYamlFile<{skipped: string[]}>(path.join('node_modules', '.modules.yaml'))
 
@@ -257,7 +257,7 @@ test('only skip optional dependencies', async (t: tape.Test) => {
     by firebase-tools, even if they were marked as skipped earlier.
   */
 
- const project = prepare(t, {
+  const project = prepare(t, {
     dependencies: {
       'firebase-tools': '4.2.1',
     },
@@ -266,10 +266,10 @@ test('only skip optional dependencies', async (t: tape.Test) => {
     },
   })
 
- await install(await testDefaults())
+  await install(await testDefaults())
 
- t.ok(await exists(path.resolve('node_modules', '.localhost+4873', 'duplexify', '3.6.0')), 'duplexify is linked into node_modules')
- t.ok(await exists(path.resolve('node_modules', '.localhost+4873', 'stream-shift', '1.0.0')), 'stream-shift is linked into node_modules')
+  t.ok(await exists(path.resolve('node_modules', '.localhost+4873', 'duplexify', '3.6.0')), 'duplexify is linked into node_modules')
+  t.ok(await exists(path.resolve('node_modules', '.localhost+4873', 'stream-shift', '1.0.0')), 'stream-shift is linked into node_modules')
 })
 
 test('rebuild should not fail on incomplete shrinkwrap.yaml', async (t: tape.Test) => {
@@ -282,11 +282,11 @@ test('rebuild should not fail on incomplete shrinkwrap.yaml', async (t: tape.Tes
     },
   })
 
-  await install(await testDefaults({ignoreScripts: true}))
+  await install(await testDefaults({ ignoreScripts: true }))
 
   const reporter = sinon.spy()
 
-  await rebuild(await testDefaults({pending: true, reporter}))
+  await rebuild(await testDefaults({ pending: true, reporter }))
 
   t.ok(reporter.calledWithMatch({
     level: 'debug',

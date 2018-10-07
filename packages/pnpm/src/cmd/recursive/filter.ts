@@ -1,8 +1,8 @@
 import isSubdir = require('is-subdir')
 import minimatch = require('minimatch')
-import {PackageNode} from 'pkgs-graph'
+import { PackageNode } from 'pkgs-graph'
 import R = require('ramda')
-import {PackageSelector} from '../../parsePackageSelectors'
+import { PackageSelector } from '../../parsePackageSelectors'
 
 interface PackageGraph {
   [id: string]: PackageNode,

@@ -1,5 +1,5 @@
 {
-  "extends": "tslint:recommended",
+  "extends": "tslint-config-standard",
   "rules": {
     "curly": false,
     "eofline": false,
@@ -19,6 +19,7 @@
     "no-console": false,
     "no-reference": false,
     "space-before-function-paren": [true, "always"],
+    "trailing-comma": [true, "always"],
     "interface-name": [true, "never-prefix"],
     "one-line": [true,
       "check-else",

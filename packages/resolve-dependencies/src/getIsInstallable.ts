@@ -21,10 +21,10 @@ export default async function getIsInstallable (
   },
 ): Promise<boolean> {
   const warn = await installChecks.checkPlatform({
-      _id: pkgId,
-      cpu: pkg.cpu,
-      os: pkg.os,
-    }) ||
+    _id: pkgId,
+    cpu: pkg.cpu,
+    os: pkg.os,
+  }) ||
     await installChecks.checkEngine({
       _id: pkgId,
       engines: pkg.engines,

@@ -22,7 +22,7 @@ test('save to package.json (rimraf@2.5.1)', async (t) => {
   t.ok(typeof m === 'function', 'rimraf() is available')
 
   const pkgJson = await readPkg()
-  t.deepEqual(pkgJson.dependencies, {rimraf: '^2.5.1'}, 'rimraf has been added to dependencies')
+  t.deepEqual(pkgJson.dependencies, { rimraf: '^2.5.1' }, 'rimraf has been added to dependencies')
 })
 
 // NOTE: this works differently for global installations. See similar tests in global.ts
@@ -41,12 +41,12 @@ test("don't override existing spec in package.json on named installation", async
   t.equal(project.requireModule('is-positive/package.json').version, '2.0.0')
   t.equal(project.requireModule('is-negative/package.json').version, '1.0.1')
 
-  const pkgJson = await readPkg({normalize: false})
+  const pkgJson = await readPkg({ normalize: false })
   t.deepEqual(pkgJson.dependencies, {
-      'is-negative': '^1.0.1',
-      'is-positive': '^2.0.0',
-      'sec': 'github:sindresorhus/sec',
-    })
+    'is-negative': '^1.0.1',
+    'is-positive': '^2.0.0',
+    'sec': 'github:sindresorhus/sec',
+  })
 })
 
 test('saveDev scoped module to package.json (@rstacruz/tap-spec)', async (t) => {
@@ -74,7 +74,7 @@ test('dependency should not be added to package.json if it is already there', as
   })
   await installPkgs(['foo', 'bar'], await testDefaults())
 
-  const pkgJson = await readPkg({normalize: false})
+  const pkgJson = await readPkg({ normalize: false })
   t.deepEqual(pkgJson, {
     devDependencies: {
       foo: '^100.0.0',
@@ -109,7 +109,7 @@ test('dependencies should be updated in the fields where they already are', asyn
   })
   await installPkgs(['foo@latest', 'bar@latest'], await testDefaults())
 
-  const pkgJson = await readPkg({normalize: false})
+  const pkgJson = await readPkg({ normalize: false })
   t.deepEqual(pkgJson, {
     devDependencies: {
       foo: '^100.1.0',
@@ -138,12 +138,12 @@ test('dependency should be removed from the old field when installing it as a di
       qar: '^100.0.0',
     },
   })
-  await installPkgs(['foo'], await testDefaults({saveOptional: true}))
-  await installPkgs(['bar'], await testDefaults({saveProd: true}))
-  await installPkgs(['qar'], await testDefaults({saveDev: true}))
+  await installPkgs(['foo'], await testDefaults({ saveOptional: true }))
+  await installPkgs(['bar'], await testDefaults({ saveProd: true }))
+  await installPkgs(['qar'], await testDefaults({ saveDev: true }))
 
   {
-    const pkgJson = await readPkg({normalize: false})
+    const pkgJson = await readPkg({ normalize: false })
     t.deepEqual(pkgJson, {
       dependencies: {
         bar: '^100.0.0',
@@ -159,10 +159,10 @@ test('dependency should be removed from the old field when installing it as a di
     }, 'dependencies moved around correctly')
   }
 
-  await installPkgs(['bar', 'foo', 'qar'], await testDefaults({saveProd: true}))
+  await installPkgs(['bar', 'foo', 'qar'], await testDefaults({ saveProd: true }))
 
   {
-    const pkgJson = await readPkg({normalize: false})
+    const pkgJson = await readPkg({ normalize: false })
     t.deepEqual(pkgJson, {
       dependencies: {
         bar: '^100.0.0',
@@ -179,7 +179,7 @@ test('dependency should be removed from the old field when installing it as a di
   {
     t.comment('manually editing package.json. Converting all prod deps to dev deps')
 
-    const pkgJson = await readPkg({normalize: false})
+    const pkgJson = await readPkg({ normalize: false })
     pkgJson.devDependencies = pkgJson.dependencies
     delete pkgJson.dependencies
     await writePkg(pkgJson)
@@ -216,5 +216,5 @@ test('save to package.json with save-prefix=~', async (t: tape.Test) => {
   await installPkgs(['rimraf@2.5.1'], await testDefaults({ savePrefix: '~' }))
 
   const pkgJson = await readPkg()
-  t.deepEqual(pkgJson.dependencies, {rimraf: '~2.5.1'}, 'rimraf have been added to dependencies')
+  t.deepEqual(pkgJson.dependencies, { rimraf: '~2.5.1' }, 'rimraf have been added to dependencies')
 })

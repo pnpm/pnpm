@@ -1,5 +1,4 @@
 import logger from '@pnpm/logger'
-import {PackageManifest} from '@pnpm/types'
 import path = require('path')
 import pathAbsolute = require('path-absolute')
 import R = require('ramda')

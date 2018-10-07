@@ -1,12 +1,12 @@
-import {FetchFunction} from '@pnpm/fetcher-base'
+import { FetchFunction } from '@pnpm/fetcher-base'
 import lock from '@pnpm/fs-locker'
-import {storeLogger} from '@pnpm/logger'
+import { storeLogger } from '@pnpm/logger'
 import createPackageRequester, {
   FetchPackageToStoreFunction,
   RequestPackageFunction,
 } from '@pnpm/package-requester'
-import {ResolveFunction} from '@pnpm/resolver-base'
-import {StoreIndex} from '@pnpm/types'
+import { ResolveFunction } from '@pnpm/resolver-base'
+import { StoreIndex } from '@pnpm/types'
 import pFilter = require('p-filter')
 import pLimit = require('p-limit')
 import path = require('path')
@@ -17,7 +17,7 @@ import {
   read as readStore,
   save as saveStore,
 } from '../fs/storeIndex'
-import createImportPackage, {copyPkg, ImportPackageFunction} from './createImportPackage'
+import createImportPackage, { copyPkg, ImportPackageFunction } from './createImportPackage'
 
 export interface StoreController {
   requestPackage: RequestPackageFunction,
@@ -43,10 +43,10 @@ export default async function (
 ): Promise<StoreController> {
   const unlock = initOpts.locks
     ? await lock(initOpts.store, {
-        locks: initOpts.locks,
-        stale: initOpts.lockStaleDuration || 60 * 1000, // 1 minute,
-        whenLocked: () => storeLogger.warn(`waiting for the store at "${initOpts.store}" to be unlocked...`),
-      })
+      locks: initOpts.locks,
+      stale: initOpts.lockStaleDuration || 60 * 1000, // 1 minute,
+      whenLocked: () => storeLogger.warn(`waiting for the store at "${initOpts.store}" to be unlocked...`),
+    })
     : () => Promise.resolve(undefined)
 
   const store = initOpts.store
@@ -65,7 +65,7 @@ export default async function (
     requestPackage: packageRequester.requestPackage,
     saveState,
     updateConnections: async (prefix: string, opts: {addDependencies: string[], removeDependencies: string[], prune: boolean}) => {
-      await removeDependencies(prefix, opts.removeDependencies, {prune: opts.prune})
+      await removeDependencies(prefix, opts.removeDependencies, { prune: opts.prune })
       await addDependencies(prefix, opts.addDependencies)
     },
     upload,
@@ -115,7 +115,7 @@ export default async function (
     const cachePath = path.join(store, opts.pkgId, 'side_effects', opts.engine, 'package')
     // TODO calculate integrity.json here
     const filenames: string[] = []
-    await copyPkg(builtPkgLocation, cachePath, {filesResponse: { fromStore: true, filenames }, force: true})
+    await copyPkg(builtPkgLocation, cachePath, { filesResponse: { fromStore: true, filenames }, force: true })
   }
 }
 
@@ -124,7 +124,7 @@ const limitExistsCheck = pLimit(10)
 async function getRemovedProject (storeIndex: StoreIndex) {
   const allProjects = R.uniq(R.unnest<string>(R.values(storeIndex)))
 
-  return await pFilter(allProjects,
+  return pFilter(allProjects,
     (projectPath: string) => limitExistsCheck(async () => {
       const modulesDir = path.join(projectPath, 'node_modules')
       return !await exists(modulesDir)

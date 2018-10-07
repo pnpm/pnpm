@@ -29,7 +29,7 @@ export default function (
     const relDepPath = dp.relative(shrinkwrap.registry, depPath)
     const result = R.partition(
       (child) => depGraph[depPath].optionalDependencies.has(depGraph[child.depPath].name),
-      R.keys(depGraph[depPath].children).map((alias) => ({alias, depPath: depGraph[depPath].children[alias]})),
+      R.keys(depGraph[depPath].children).map((alias) => ({ alias, depPath: depGraph[depPath].children[alias] })),
     )
     shrinkwrap.packages[relDepPath] = toShrDependency(pendingRequiresBuilds, depGraph[depPath].additionalInfo, {
       depGraph,
@@ -41,7 +41,7 @@ export default function (
       updatedOptionalDeps: result[0],
     })
   }
-  const warn = (message: string) => logger.warn({message, prefix})
+  const warn = (message: string) => logger.warn({ message, prefix })
   return {
     newShrinkwrap: pruneSharedShrinkwrap(shrinkwrap, warn),
     pendingRequiresBuilds,
@@ -79,7 +79,7 @@ function toShrDependency (
 ): DependencyShrinkwrap {
   const depNode = opts.depGraph[opts.depPath]
   const shrResolution = toShrResolution(
-    {name: depNode.name, version: depNode.version},
+    { name: depNode.name, version: depNode.version },
     opts.relDepPath,
     depNode.resolution,
     opts.registry,
@@ -219,11 +219,11 @@ function toShrResolution (
   if (dp.isAbsolute(relDepPath) || resolution.type !== undefined || !resolution['integrity']) {
     return resolution as ShrinkwrapResolution
   }
-  const base = registry !== resolution['registry'] ? {registry: resolution['registry']} : {}
+  const base = registry !== resolution['registry'] ? { registry: resolution['registry'] } : {}
   // Sometimes packages are hosted under non-standard tarball URLs.
   // For instance, when they are hosted on npm Enterprise. See https://github.com/pnpm/pnpm/issues/867
   // Or in othere weird cases, like https://github.com/pnpm/pnpm/issues/1072
-  if (getNpmTarballUrl(pkg.name, pkg.version, {registry}) !== resolution['tarball']) {
+  if (getNpmTarballUrl(pkg.name, pkg.version, { registry }) !== resolution['tarball']) {
     return {
       ...base,
       integrity: resolution['integrity'],

@@ -1,10 +1,10 @@
-import {PnpmConfigs} from '@pnpm/config'
+import { PnpmConfigs } from '@pnpm/config'
 import createDiffer = require('ansi-diff')
 import cliCursor = require('cli-cursor')
 import most = require('most')
 import * as supi from 'supi'
 import PushStream = require('zen-push')
-import {EOL} from './constants'
+import { EOL } from './constants'
 import mergeOutputs from './mergeOutputs'
 import reporterForClient from './reporterForClient'
 import reporterForServer from './reporterForServer'
@@ -29,7 +29,7 @@ export default function (
     return
   }
   const outputMaxWidth = opts.reportingOptions && opts.reportingOptions.outputMaxWidth || process.stdout.columns && process.stdout.columns - 2 || 80
-  const output$ = toOutput$({...opts, reportingOptions: {...opts.reportingOptions, outputMaxWidth}})
+  const output$ = toOutput$({ ...opts, reportingOptions: { ...opts.reportingOptions, outputMaxWidth } })
   if (opts.reportingOptions && opts.reportingOptions.appendOnly) {
     output$
       .subscribe({
@@ -89,34 +89,34 @@ export function toOutput$ (
     opts.streamParser['on']('data', (log: supi.Log) => {
       switch (log.name) {
         case 'pnpm:progress':
-          progressPushStream.next(log as supi.ProgressLog)
+          progressPushStream.next(log)
           break
         case 'pnpm:stage':
-          stagePushStream.next(log as supi.StageLog)
+          stagePushStream.next(log)
           break
         case 'pnpm:deprecation':
-          deprecationPushStream.next(log as supi.DeprecationLog)
+          deprecationPushStream.next(log)
           break
         case 'pnpm:summary':
           summaryPushStream.next(log)
           break
         case 'pnpm:lifecycle':
-          lifecyclePushStream.next(log as supi.LifecycleLog)
+          lifecyclePushStream.next(log)
           break
         case 'pnpm:stats':
-          statsPushStream.next(log as supi.StatsLog)
+          statsPushStream.next(log)
           break
         case 'pnpm:install-check':
-          installCheckPushStream.next(log as supi.InstallCheckLog)
+          installCheckPushStream.next(log)
           break
         case 'pnpm:registry':
-          registryPushStream.next(log as supi.RegistryLog)
+          registryPushStream.next(log)
           break
         case 'pnpm:root':
-          rootPushStream.next(log as supi.RootLog)
+          rootPushStream.next(log)
           break
         case 'pnpm:package-json':
-          packageJsonPushStream.next(log as supi.PackageJsonLog)
+          packageJsonPushStream.next(log)
           break
         case 'pnpm:link' as any: // tslint:disable-line
           linkPushStream.next(log)
@@ -128,7 +128,7 @@ export function toOutput$ (
           hookPushStream.next(log)
           break
         case 'pnpm:skipped-optional-dependency':
-          skippedOptionalDependencyPushStream.next(log as supi.SkippedOptionalDependencyLog)
+          skippedOptionalDependencyPushStream.next(log)
           break
         case 'pnpm' as any: // tslint:disable-line
         case 'pnpm:store' as any: // tslint:disable-line

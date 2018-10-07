@@ -10,7 +10,7 @@ import {
 import R = require('ramda')
 import symlinkDependencyTo from './symlinkDependencyTo'
 
-export async function shamefullyFlattenGraphByShrinkwrap (
+export function shamefullyFlattenGraphByShrinkwrap (
   shr: Shrinkwrap,
   importerId: string,
   opts: {
@@ -31,13 +31,13 @@ export async function shamefullyFlattenGraphByShrinkwrap (
   .map((pair) => dp.refToRelative(pair[1], pair[0]))
   .filter((nodeId) => nodeId !== null) as string[]
 
-   const deps = getDependencies(shr.packages, entryNodes, new Set(), 0, {
+  const deps = getDependencies(shr.packages, entryNodes, new Set(), 0, {
     prefix: opts.prefix,
     registry: shr.registry,
     virtualStoreDir: opts.virtualStoreDir,
   })
 
-  return await shamefullyFlattenGraph(deps, shrImporter.specifiers, {
+  return shamefullyFlattenGraph(deps, shrImporter.specifiers, {
     dryRun: false,
     modulesDir: opts.modulesDir,
   })
@@ -68,7 +68,7 @@ function getDependencies (
 
       // It might make sense to fail if the depPath is not in the skipped list from .modules.yaml
       // However, the skipped list currently contains package IDs, not dep paths.
-      logger.debug({message: `No entry for "${depRelPath}" in shrinkwrap.yaml`})
+      logger.debug({ message: `No entry for "${depRelPath}" in shrinkwrap.yaml` })
       continue
     }
 

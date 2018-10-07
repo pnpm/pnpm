@@ -101,7 +101,7 @@ export default async function link (
 
   const updatedCurrentShrinkwrap = pruneSharedShrinkwrap(ctx.currentShrinkwrap)
 
-  const warn = (message: string) => logger.warn({message, prefix: opts.prefix})
+  const warn = (message: string) => logger.warn({ message, prefix: opts.prefix })
   const updatedWantedShrinkwrap = pruneSharedShrinkwrap(ctx.wantedShrinkwrap, warn)
 
   await prune({
@@ -138,14 +138,14 @@ export default async function link (
   }
 
   const linkToBin = maybeOpts && maybeOpts.linkToBin || path.join(destModules, '.bin')
-  await linkBinsOfPackages(linkedPkgs.map((p) => ({manifest: p.pkg, location: p.path})), linkToBin, {
-    warn: (message: string) => logger.warn({message, prefix: opts.prefix}),
+  await linkBinsOfPackages(linkedPkgs.map((p) => ({ manifest: p.pkg, location: p.path })), linkToBin, {
+    warn: (message: string) => logger.warn({ message, prefix: opts.prefix }),
   })
 
   if (opts.saveDev || opts.saveProd || opts.saveOptional) {
     const newPkg = await save(opts.prefix, specsToUpsert)
     for (const specToUpsert of specsToUpsert) {
-      updatedWantedShrinkwrap.importers[importerId].specifiers[specToUpsert.name] = getSpecFromPackageJson(newPkg, specToUpsert.name) as string
+      updatedWantedShrinkwrap.importers[importerId].specifiers[specToUpsert.name] = getSpecFromPackageJson(newPkg, specToUpsert.name)
     }
   }
   if (opts.shrinkwrap) {
@@ -154,7 +154,7 @@ export default async function link (
     await saveCurrentShrinkwrapOnly(ctx.shrinkwrapDirectory, updatedCurrentShrinkwrap)
   }
 
-  summaryLogger.debug({prefix: opts.prefix})
+  summaryLogger.debug({ prefix: opts.prefix })
 
   if (reporter) {
     streamParser.removeListener('data', reporter)

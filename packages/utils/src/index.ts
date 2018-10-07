@@ -1,14 +1,13 @@
 import getAllDependenciesFromPackage from './getAllDependenciesFromPackage'
 import getSaveType from './getSaveType'
 import realNodeModulesDir from './realNodeModulesDir'
-import safeReadPackage from './safeReadPkg'
-import { fromDir as safeReadPackageFromDir } from './safeReadPkg'
-import readPackage from './safeReadPkg'
+import safeReadPackage, { fromDir as safeReadPackageFromDir } from './safeReadPkg'
+
+export const readPackage = safeReadPackage
 
 export {
   getAllDependenciesFromPackage,
   getSaveType,
-  readPackage,
   realNodeModulesDir,
   safeReadPackage,
   safeReadPackageFromDir,

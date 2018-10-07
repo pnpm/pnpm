@@ -111,6 +111,8 @@
     "tape-promise": "^4.0.0",
     "ts-node": "^6.2.0",
     "tslint": "^5.4.2",
+    "tslint-config-standard": "8.0.1",
+    "tslint-eslint-rules": "5.4.0",
     "typescript": "^3.0.0",
     "write-json-file": "^3.0.0",
     "write-yaml-file": "^1.0.1"

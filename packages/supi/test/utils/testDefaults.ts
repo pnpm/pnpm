@@ -3,7 +3,7 @@ import createResolver from '@pnpm/default-resolver'
 import storePath from '@pnpm/store-path'
 import createStore from 'package-store'
 import path = require('path')
-import {InstallOptions} from 'supi'
+import { InstallOptions } from 'supi'
 
 const registry = 'http://localhost:4873/'
 
@@ -22,7 +22,7 @@ export default async function testDefaults (
 ): Promise<InstallOptions & {globalPrefix: string, globalBin: string}> {
   let store = opts && opts.store || path.resolve('..', '.store')
   store = await storePath(opts && opts.prefix || process.cwd(), store)
-  const rawNpmConfig = {registry}
+  const rawNpmConfig = { registry }
   const storeController = await createStore(
     createResolver({
       fullMetadata: false,

@@ -32,7 +32,7 @@ test('preserve subdeps on update', async (t: tape.Test) => {
     addDistTag('abc-parent-with-ab', '1.0.1', 'latest'),
   ])
 
-  await install(await testDefaults({update: true, depth: 0}))
+  await install(await testDefaults({ update: true, depth: 0 }))
 
   const shr = await project.loadShrinkwrap()
 
@@ -51,7 +51,7 @@ test('update does not fail when package has only peer dependencies', async (t: t
 
   await installPkgs(['has-pkg-with-peer-only'], await testDefaults())
 
-  await install(await testDefaults({update: true, depth: Infinity}))
+  await install(await testDefaults({ update: true, depth: Infinity }))
 
   t.pass('did not fail')
 })
@@ -64,7 +64,7 @@ test('update does not install the package if it is not present in package.json',
     update: true,
   }))
 
-  project.hasNot('is-positive')
+  await project.hasNot('is-positive')
 })
 
 test('update dependency when external shrinkwrap directory is used', async (t: tape.Test) => {
@@ -73,11 +73,11 @@ test('update dependency when external shrinkwrap directory is used', async (t: t
   await addDistTag('foo', '100.0.0', 'latest')
 
   const shrinkwrapDirectory = path.resolve('..')
-  await installPkgs(['foo'], await testDefaults({shrinkwrapDirectory}))
+  await installPkgs(['foo'], await testDefaults({ shrinkwrapDirectory }))
 
   await addDistTag('foo', '100.1.0', 'latest')
 
-  await install(await testDefaults({update: true, depth: 0, shrinkwrapDirectory}))
+  await install(await testDefaults({ update: true, depth: 0, shrinkwrapDirectory }))
 
   const shr = await loadYamlFile(path.join('..', 'shrinkwrap.yaml'))
 

@@ -6,8 +6,8 @@ import {
   storeStatus,
 } from 'supi'
 import createStoreController from '../createStoreController'
-import {PnpmError} from '../errorTypes'
-import {PnpmOptions} from '../types'
+import { PnpmError } from '../errorTypes'
+import { PnpmOptions } from '../types'
 import help from './help'
 
 class StoreStatusError extends PnpmError {

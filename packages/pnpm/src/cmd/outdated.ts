@@ -4,7 +4,6 @@ import outdated, {
 import chalk from 'chalk'
 import path = require('path')
 import stripColor = require('strip-color')
-import {PnpmOptions} from 'supi'
 import table = require('text-table')
 
 const LAYOUT_VERSION = '1'

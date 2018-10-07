@@ -76,7 +76,7 @@ export default async (
   const allWorkspacePkgs = await findWorkspacePackages(workspacePrefix)
 
   if (!allWorkspacePkgs.length) {
-    logger.info({message: `No packages found in "${workspacePrefix}"`, prefix: workspacePrefix})
+    logger.info({ message: `No packages found in "${workspacePrefix}"`, prefix: workspacePrefix })
     return
   }
 
@@ -90,7 +90,7 @@ export default async (
   const atLeastOnePackageMatched = await recursive(allWorkspacePkgs, input, opts, cmdFullName, cmd)
 
   if (!atLeastOnePackageMatched) {
-    logger.info({message: `No packages matched the filters in "${workspacePrefix}"`, prefix: workspacePrefix})
+    logger.info({ message: `No packages matched the filters in "${workspacePrefix}"`, prefix: workspacePrefix })
     return
   }
 }
@@ -150,7 +150,7 @@ export async function recursive (
       throwOnFail(await run(chunks, pkgGraphResult.graph, input, cmd, opts as any)) // tslint:disable-line:no-any
       return true
     case 'update':
-      opts = {...opts, update: true, allowNew: false} as any // tslint:disable-line:no-any
+      opts = { ...opts, update: true, allowNew: false } as any // tslint:disable-line:no-any
       break
     case 'exec':
       throwOnFail(await exec(chunks, input, cmd, opts as any)) // tslint:disable-line:no-any

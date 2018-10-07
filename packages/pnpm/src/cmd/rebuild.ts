@@ -4,7 +4,7 @@ import {
   rebuild,
   rebuildPkgs,
 } from 'supi'
-import {PnpmOptions} from '../types'
+import { PnpmOptions } from '../types'
 
 export default async function (
   args: string[],

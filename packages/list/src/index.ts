@@ -25,7 +25,7 @@ export async function forPackages (
     parseable?: boolean,
   },
 ) {
-  const opts = {...DEFAULTS, ...maybeOpts}
+  const opts = { ...DEFAULTS, ...maybeOpts }
 
   const searched: PackageSelector[] = packages.map((arg) => {
     const parsed = npa(arg)
@@ -63,7 +63,7 @@ export default async function (
     parseable?: boolean,
   },
 ) {
-  const opts = {...DEFAULTS, ...maybeOpts}
+  const opts = { ...DEFAULTS, ...maybeOpts }
 
   const tree = await dh(projectPath, {
     depth: opts.depth,

@@ -1,5 +1,5 @@
 import { fromDir as readPackageJsonFromDir } from '@pnpm/read-package-json'
-import {Shrinkwrap} from 'pnpm-shrinkwrap'
+import { Shrinkwrap } from 'pnpm-shrinkwrap'
 import sinon = require('sinon')
 import {
   install,
@@ -25,7 +25,10 @@ test('readPackage, afterAllResolved hooks', async (t: tape.Test) => {
   function readPackageHook (pkg: PackageManifest) {
     switch (pkg.name) {
       case 'pkg-with-1-dep':
-        pkg!.dependencies!['dep-of-pkg-with-1-dep'] = '100.0.0'
+        if (!pkg.dependencies) {
+          throw new Error('pkg-with-1-dep expected to have a dependencies field')
+        }
+        pkg.dependencies['dep-of-pkg-with-1-dep'] = '100.0.0'
         break
     }
     return pkg
@@ -59,14 +62,14 @@ test('readPackage hook overrides project package', async (t: tape.Test) => {
   function readPackageHook (pkg: PackageManifest) {
     switch (pkg.name) {
       case 'test-read-package-hook':
-        pkg.dependencies = {'is-positive': '1.0.0'}
+        pkg.dependencies = { 'is-positive': '1.0.0' }
         break
     }
     return pkg
   }
 
   await install(await testDefaults({
-    hooks: {readPackage: readPackageHook},
+    hooks: { readPackage: readPackageHook },
   }))
 
   await project.has('is-positive')

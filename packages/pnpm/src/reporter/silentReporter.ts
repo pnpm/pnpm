@@ -1,4 +1,4 @@
-import {LogBase} from '@pnpm/logger'
+import { LogBase } from '@pnpm/logger'
 
 export default (
   streamParser: {

@@ -87,18 +87,18 @@ export default async (opts: HeadlessOptions) => {
     streamParser.on('data', reporter)
   }
 
-  if (typeof opts.prefix !== 'string') {
+  if (typeof opts.prefix !== 'string') { // tslint:disable-line
     throw new TypeError('opts.prefix should be a string')
   }
 
   const shrinkwrapDirectory = opts.shrinkwrapDirectory || opts.prefix
-  const wantedShrinkwrap = opts.wantedShrinkwrap || await readWanted(shrinkwrapDirectory, {ignoreIncompatible: false})
+  const wantedShrinkwrap = opts.wantedShrinkwrap || await readWanted(shrinkwrapDirectory, { ignoreIncompatible: false })
 
   if (!wantedShrinkwrap) {
     throw new Error('Headless installation requires a shrinkwrap.yaml file')
   }
 
-  const currentShrinkwrap = opts.currentShrinkwrap || await readCurrent(shrinkwrapDirectory, {ignoreIncompatible: false})
+  const currentShrinkwrap = opts.currentShrinkwrap || await readCurrent(shrinkwrapDirectory, { ignoreIncompatible: false })
   const importerId = getImporterId(shrinkwrapDirectory, opts.prefix)
   const virtualStoreDir = await realNodeModulesDir(shrinkwrapDirectory)
   const modulesDir = await realNodeModulesDir(opts.prefix)
@@ -189,7 +189,7 @@ export default async (opts: HeadlessOptions) => {
   })
 
   await Promise.all([
-    linkAllModules(depGraph, {optional: opts.include.optionalDependencies}),
+    linkAllModules(depGraph, { optional: opts.include.optionalDependencies }),
     linkAllPkgs(opts.storeController, R.values(depGraph), opts),
   ])
   stageLogger.debug('importing_done')
@@ -201,10 +201,10 @@ export default async (opts: HeadlessOptions) => {
     })
   }
 
-  await linkAllBins(depGraph, {optional: opts.include.optionalDependencies, warn})
+  await linkAllBins(depGraph, { optional: opts.include.optionalDependencies, warn })
 
   await linkRootPackages(filteredShrinkwrap, opts.prefix, res.rootDependencies, modulesDir, importerId)
-  await linkBins(modulesDir, bin, {warn})
+  await linkBins(modulesDir, bin, { warn })
 
   await writeCurrentShrinkwrapOnly(shrinkwrapDirectory, filteredShrinkwrap)
   if (opts.ignoreScripts) {
@@ -244,7 +244,7 @@ export default async (opts: HeadlessOptions) => {
   // waiting till package requests are finished
   await Promise.all(R.values(depGraph).map((depNode) => depNode.finishing))
 
-  summaryLogger.debug({prefix: opts.prefix})
+  summaryLogger.debug({ prefix: opts.prefix })
 
   await opts.storeController.close()
 
@@ -339,8 +339,8 @@ async function shrinkwrapToDepGraph (
     for (const relDepPath of R.keys(shr.packages)) {
       if (currentPackages[relDepPath] && R.equals(currentPackages[relDepPath].dependencies, shr.packages[relDepPath].dependencies) &&
         R.equals(currentPackages[relDepPath].optionalDependencies, shr.packages[relDepPath].optionalDependencies)) {
-          continue
-        }
+        continue
+      }
       const depPath = dp.resolve(shr.registry, relDepPath)
       const pkgSnapshot = shr.packages[relDepPath]
       const independent = opts.independentLeaves && pkgIsIndependent(pkgSnapshot)
@@ -360,7 +360,7 @@ async function shrinkwrapToDepGraph (
         verifyStoreIntegrity: opts.verifyStoreIntegrity,
       })
       if (fetchResponse instanceof Promise) fetchResponse = await fetchResponse
-      fetchResponse.fetchingFiles
+      fetchResponse.fetchingFiles // tslint:disable-line
         .then((fetchResult) => {
           progressLogger.debug({
             pkgId,
@@ -410,15 +410,15 @@ async function shrinkwrapToDepGraph (
     }
     for (const peripheralLocation of R.keys(graph)) {
       const pkgSnapshot = pkgSnapshotByLocation[peripheralLocation]
-      const allDeps = {...pkgSnapshot.dependencies, ...pkgSnapshot.optionalDependencies}
+      const allDeps = { ...pkgSnapshot.dependencies, ...pkgSnapshot.optionalDependencies }
 
       graph[peripheralLocation].children = await getChildrenPaths(ctx, allDeps)
     }
     const shrImporter = shr.importers[opts.importerId]
-    const rootDeps = {...shrImporter.devDependencies, ...shrImporter.dependencies, ...shrImporter.optionalDependencies}
+    const rootDeps = { ...shrImporter.devDependencies, ...shrImporter.dependencies, ...shrImporter.optionalDependencies }
     rootDependencies = await getChildrenPaths(ctx, rootDeps)
   }
-  return {graph, rootDependencies}
+  return { graph, rootDependencies }
 }
 
 async function getChildrenPaths (
@@ -544,24 +544,24 @@ async function linkAllBins (
         const pkgSnapshots = R.props<string, DependenciesGraphNode>(R.values(childrenToLink), depGraph)
 
         if (pkgSnapshots.indexOf(undefined as any) !== -1) { // tslint:disable-line
-          await linkBins(depNode.modules, binPath, {warn: opts.warn})
+          await linkBins(depNode.modules, binPath, { warn: opts.warn })
         } else {
           const pkgs = await Promise.all(
             pkgSnapshots
               .filter((dep) => dep.hasBin)
               .map(async (dep) => ({
-                  location: dep.peripheralLocation,
-                  manifest: await readPackageFromDir(dep.peripheralLocation),
+                location: dep.peripheralLocation,
+                manifest: await readPackageFromDir(dep.peripheralLocation),
               })),
           )
 
-          await linkBinsOfPackages(pkgs, binPath, {warn: opts.warn})
+          await linkBinsOfPackages(pkgs, binPath, { warn: opts.warn })
         }
 
         // link also the bundled dependencies` bins
         if (depNode.hasBundledDependencies) {
           const bundledModules = path.join(depNode.peripheralLocation, 'node_modules')
-          await linkBins(bundledModules, binPath, {warn: opts.warn})
+          await linkBins(bundledModules, binPath, { warn: opts.warn })
         }
       })),
   )
@@ -600,7 +600,7 @@ async function linkAllModules (
 
 function symlinkDependencyTo (alias: string, peripheralLocation: string, dest: string) {
   const linkPath = path.join(dest, alias)
-  linkLogger.debug({target: peripheralLocation, link: linkPath})
+  linkLogger.debug({ target: peripheralLocation, link: linkPath })
   return symlinkDir(peripheralLocation, linkPath)
 }
 
@@ -614,7 +614,7 @@ function filterShrinkwrap (
     include: IncludedDependencies,
   },
 ): Shrinkwrap {
-  let pairs = R.toPairs(shr.packages || {}) as Array<[string, PackageSnapshot]>
+  let pairs = R.toPairs(shr.packages || {})
   if (!opts.include.dependencies) {
     pairs = pairs.filter((pair) => pair[1].dev !== false || pair[1].optional)
   }

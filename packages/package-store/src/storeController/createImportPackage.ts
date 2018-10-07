@@ -1,4 +1,4 @@
-import {storeLogger} from '@pnpm/logger'
+import { storeLogger } from '@pnpm/logger'
 import {
   PackageFilesResponse,
 } from '@pnpm/package-requester'
@@ -13,7 +13,7 @@ import pathTemp = require('path-temp')
 import renameOverwrite = require('rename-overwrite')
 import promisify = require('util.promisify')
 import linkIndexedDir from '../fs/linkIndexedDir'
-import {importingLogger} from '../loggers'
+import { importingLogger } from '../loggers'
 
 const execFilePromise = promisify(child_process.execFile)
 const ncp = promisify(ncpCB)
@@ -54,20 +54,20 @@ function createImportPackage (packageImportMethod?: 'auto' | 'hardlink' | 'copy'
           filesResponse: PackageFilesResponse,
           force: boolean,
         }) {
-          if (fallbackToCopying) {
-            await copyPkg(from, to, opts)
-            return
-          }
-          try {
-            await hardlinkPkg(from, to, opts)
-          } catch (err) {
-            if (!err.message.startsWith('EXDEV: cross-device link not permitted')) throw err
-            storeLogger.warn(err.message)
-            storeLogger.info('Falling back to copying packages from store')
-            fallbackToCopying = true
-            await importPackage(from, to, opts)
-          }
+        if (fallbackToCopying) {
+          await copyPkg(from, to, opts)
+          return
         }
+        try {
+          await hardlinkPkg(from, to, opts)
+        } catch (err) {
+          if (!err.message.startsWith('EXDEV: cross-device link not permitted')) throw err
+          storeLogger.warn(err.message)
+          storeLogger.info('Falling back to copying packages from store')
+          fallbackToCopying = true
+          await importPackage(from, to, opts)
+        }
+      }
     case 'copy':
       return copyPkg
     default:
@@ -86,7 +86,7 @@ async function reflinkPkg (
   const pkgJsonPath = path.join(to, 'package.json')
 
   if (!opts.filesResponse.fromStore || opts.force || !await exists(pkgJsonPath)) {
-    importingLogger.debug({from, to, method: 'reflink'})
+    importingLogger.debug({ from, to, method: 'reflink' })
     const staging = pathTemp(path.dirname(to))
     await mkdirp(staging)
     await execFilePromise('cp', ['-r', '--reflink', from + '/.', staging])
@@ -105,7 +105,7 @@ async function hardlinkPkg (
   const pkgJsonPath = path.join(to, 'package.json')
 
   if (!opts.filesResponse.fromStore || opts.force || !await exists(pkgJsonPath) || !await pkgLinkedToStore(pkgJsonPath, from, to)) {
-    importingLogger.debug({from, to, method: 'hardlink'})
+    importingLogger.debug({ from, to, method: 'hardlink' })
     await linkIndexedDir(from, to, opts.filesResponse.filenames)
   }
 }
@@ -136,7 +136,7 @@ export async function copyPkg (
 ) {
   const pkgJsonPath = path.join(to, 'package.json')
   if (!opts.filesResponse.fromStore || opts.force || !await exists(pkgJsonPath)) {
-    importingLogger.debug({from, to, method: 'copy'})
+    importingLogger.debug({ from, to, method: 'copy' })
     const staging = pathTemp(path.dirname(to))
     await mkdirp(staging)
     await ncp(from + '/.', staging)

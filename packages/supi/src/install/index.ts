@@ -132,7 +132,7 @@ export async function install (maybeOpts: InstallOptions & {
             throw new Error('Headless installation requires a shrinkwrap.yaml file')
           }
         } else {
-          logger.info({message: 'Performing headless installation', prefix: importer.prefix})
+          logger.info({ message: 'Performing headless installation', prefix: importer.prefix })
           await headless({
             ...opts,
             currentShrinkwrap: ctx.currentShrinkwrap,
@@ -459,7 +459,7 @@ async function installInContext (
   ctx.wantedShrinkwrap.importers = ctx.wantedShrinkwrap.importers || {}
   for (const importer of importers) {
     if (!ctx.wantedShrinkwrap.importers[importer.id]) {
-      ctx.wantedShrinkwrap.importers[importer.id] = {specifiers: {}}
+      ctx.wantedShrinkwrap.importers[importer.id] = { specifiers: {} }
     }
   }
   stageLogger.debug('resolution_started')
@@ -744,7 +744,7 @@ async function installInContext (
   // waiting till package requests are finished
   await Promise.all(R.values(resolvedPackagesByPackageId).map((installed) => installed.finishing))
 
-  summaryLogger.debug({prefix: opts.shrinkwrapDirectory})
+  summaryLogger.debug({ prefix: opts.shrinkwrapDirectory })
 
   await opts.storeController.close()
 }
@@ -797,7 +797,7 @@ function addDirectDependenciesToShrinkwrap (
   }
 
   linkedPackages.forEach((linkedPkg) => {
-    newShrImporter.specifiers[linkedPkg.alias] = getSpecFromPackageJson(newPkg as PackageJson, linkedPkg.alias) as string
+    newShrImporter.specifiers[linkedPkg.alias] = getSpecFromPackageJson(newPkg, linkedPkg.alias)
   })
   if (shrinkwrapImporter.dependencies) {
     for (const alias of R.keys(shrinkwrapImporter.dependencies)) {
@@ -833,8 +833,8 @@ function addDirectDependenciesToShrinkwrap (
       } else {
         newShrImporter.dependencies[dep.alias] = ref
       }
-      newShrImporter.specifiers[dep.alias] = getSpecFromPackageJson(newPkg, dep.alias) as string
-    } else if (typeof shrinkwrapImporter.specifiers[alias] !== 'undefined') {
+      newShrImporter.specifiers[dep.alias] = getSpecFromPackageJson(newPkg, dep.alias)
+    } else if (shrinkwrapImporter.specifiers[alias]) {
       newShrImporter.specifiers[alias] = shrinkwrapImporter.specifiers[alias]
       if (shrinkwrapImporter.dependencies && shrinkwrapImporter.dependencies[alias]) {
         newShrImporter.dependencies[alias] = shrinkwrapImporter.dependencies[alias]

@@ -65,7 +65,7 @@ export async function _unlinkPkgs (
 
   // TODO: install only those that were unlinked
   // but don't update their version specs in package.json
-  await install({...opts, preferFrozenShrinkwrap: false})
+  await install({ ...opts, preferFrozenShrinkwrap: false })
 }
 
 export async function unlink (maybeOpts: InstallOptions) {
@@ -122,8 +122,8 @@ async function isExternalLink (store: string, modules: string, pkgName: string) 
   return !link.isInner && !isSubdir(store, link.target)
 }
 
-async function _extendOptions (maybeOpts: InstallOptions): Promise<StrictInstallOptions> {
+function _extendOptions (maybeOpts: InstallOptions): Promise<StrictInstallOptions> {
   maybeOpts = maybeOpts || {}
   if (maybeOpts.depth === undefined) maybeOpts.depth = -1
-  return await extendOptions(maybeOpts)
+  return extendOptions(maybeOpts)
 }

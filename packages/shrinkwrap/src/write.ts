@@ -11,7 +11,7 @@ import {
   WANTED_SHRINKWRAP_FILENAME,
 } from './constants'
 import logger from './logger'
-import {Shrinkwrap} from './types'
+import { Shrinkwrap } from './types'
 
 const writeFileAtomic = promisify(writeFileAtomicCB)
 
