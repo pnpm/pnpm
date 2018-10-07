@@ -243,11 +243,11 @@ async function partitionLinkedPackages (
     virtualStoreDir: string,
   },
 ) {
-  const nonLinkedPkgs: WantedDependency[] = []
-  const linkedPkgs: Array<WantedDependency & {alias: string}> = []
+  const nonLinkedPackages: WantedDependency[] = []
+  const linkedPackages: Array<WantedDependency & {alias: string}> = []
   for (const wantedDependency of wantedDeps) {
     if (!wantedDependency.alias || opts.localPackages && opts.localPackages[wantedDependency.alias]) {
-      nonLinkedPkgs.push(wantedDependency)
+      nonLinkedPackages.push(wantedDependency)
       continue
     }
     const isInnerLink = await safeIsInnerLink(opts.virtualStoreDir, wantedDependency.alias, {
@@ -256,7 +256,7 @@ async function partitionLinkedPackages (
       storePath: opts.storePath,
     })
     if (isInnerLink === true) {
-      nonLinkedPkgs.push(wantedDependency)
+      nonLinkedPackages.push(wantedDependency)
       continue
     }
     // This info-log might be better to be moved to the reporter
@@ -264,11 +264,11 @@ async function partitionLinkedPackages (
       message: `${wantedDependency.alias} is linked to ${opts.modulesDir} from ${isInnerLink}`,
       prefix: opts.prefix,
     })
-    linkedPkgs.push(wantedDependency as (WantedDependency & {alias: string}))
+    linkedPackages.push(wantedDependency as (WantedDependency & {alias: string}))
   }
   return {
-    linkedPkgs,
-    nonLinkedPkgs,
+    linkedPackages,
+    nonLinkedPackages,
   }
 }
 
@@ -384,9 +384,9 @@ export async function installPkgs (
       })
       importersToInstall.push({
         ...importer,
-        linkedPkgs: [],
+        linkedPackages: [],
         newPkgRawSpecs: wantedDeps.map((wantedDependency) => wantedDependency.raw),
-        nonLinkedPkgs: wantedDeps,
+        nonLinkedPackages: wantedDeps,
         wantedDeps,
       })
     }
@@ -418,9 +418,9 @@ interface ImporterToInstall {
   hoistedAliases: {[depPath: string]: string[]}
   modulesDir: string,
   id: string,
-  linkedPkgs: Array<WantedDependency & {alias: string}>,
+  linkedPackages: Array<WantedDependency & {alias: string}>,
   newPkgRawSpecs: string[],
-  nonLinkedPkgs: WantedDependency[],
+  nonLinkedPackages: WantedDependency[],
   pkg: PackageJson,
   prefix: string,
   shamefullyFlatten: boolean,
@@ -547,7 +547,7 @@ async function installInContext (
       ctx.wantedShrinkwrap.importers[importer.id] = addDirectDependenciesToShrinkwrap(
         newPkg,
         shrImporter,
-        importer.linkedPkgs,
+        importer.linkedPackages,
         resolvedImporter.directDependencies,
         ctx.wantedShrinkwrap.registry,
       )
@@ -772,7 +772,7 @@ function getSubgraphToBuild (
 function addDirectDependenciesToShrinkwrap (
   newPkg: PackageJson,
   shrinkwrapImporter: ShrinkwrapImporter,
-  linkedPkgs: Array<WantedDependency & {alias: string}>,
+  linkedPackages: Array<WantedDependency & {alias: string}>,
   directDependencies: Array<{
     alias: string,
     optional: boolean,
@@ -793,7 +793,7 @@ function addDirectDependenciesToShrinkwrap (
     specifiers: {},
   }
 
-  linkedPkgs.forEach((linkedPkg) => {
+  linkedPackages.forEach((linkedPkg) => {
     newShrImporter.specifiers[linkedPkg.alias] = getSpecFromPackageJson(newPkg as PackageJson, linkedPkg.alias) as string
   })
   if (shrinkwrapImporter.dependencies) {

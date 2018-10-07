@@ -1,4 +1,4 @@
-import { DirectoryResolution, LocalPackages, Resolution } from '@pnpm/resolver-base'
+import { LocalPackages, Resolution } from '@pnpm/resolver-base'
 import { PackageJson, ReadPackageHook } from '@pnpm/types'
 import { createNodeId, nodeIdContainsSequence, ROOT_NODE_ID, WantedDependency } from '@pnpm/utils'
 import { StoreController } from 'package-store'
@@ -18,7 +18,7 @@ export { InstallCheckLog, DeprecationLog } from './loggers'
 
 export interface ImporterToResolve {
   id: string,
-  nonLinkedPkgs: WantedDependency[],
+  nonLinkedPackages: WantedDependency[],
   pkg?: PackageJson,
   prefix: string,
   shamefullyFlatten: boolean,
@@ -92,7 +92,7 @@ export default async function (
         prefix: importer.prefix,
         resolvedFromLocalPackages,
       },
-      importer.nonLinkedPkgs,
+      importer.nonLinkedPackages,
       {
         currentDepth: 0,
         hasManifestInShrinkwrap: opts.hasManifestInShrinkwrap,
