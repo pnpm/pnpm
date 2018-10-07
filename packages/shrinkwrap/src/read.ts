@@ -96,18 +96,20 @@ async function _read (
 
 export function create (
   registry: string,
-  importerPath: string,
+  importerIds: string[],
   opts: {
     shrinkwrapMinorVersion: number,
   },
 ) {
+  const importers = importerIds.reduce((acc, importerId) => {
+    acc[importerId] = {
+      dependencies: {},
+      specifiers: {},
+    }
+    return acc
+  }, {})
   return {
-    importers: {
-      [importerPath]: {
-        dependencies: {},
-        specifiers: {},
-      },
-    },
+    importers,
     registry,
     shrinkwrapMinorVersion: opts.shrinkwrapMinorVersion || SHRINKWRAP_MINOR_VERSION,
     shrinkwrapVersion: SHRINKWRAP_VERSION,

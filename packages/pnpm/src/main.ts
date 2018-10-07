@@ -159,6 +159,12 @@ export default async function run (argv: string[]) {
   // NOTE: we defer the next stage, otherwise reporter might not catch all the logs
   await new Promise((resolve, reject) => {
     setTimeout(() => {
+      if (cliConf['shamefully-flatten'] === true) {
+        logger.info({
+          message: 'Installing a flat node_modules. Use flat node_modules only if you rely on buggy dependencies that you cannot fix.',
+          prefix: opts.prefix,
+        })
+      }
       if (opts.force === true) {
         logger.warn({
           message: 'using --force I sure hope you know what you are doing',

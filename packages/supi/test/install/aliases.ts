@@ -13,7 +13,7 @@ import {
 } from '../utils'
 
 const test = promisifyTape(tape)
-test['only'] = promisifyTape(tape.only) // tslint:disable-line:no-string-literal
+const testOnly = promisifyTape(tape.only)
 
 test('installing aliased dependency', async (t: tape.Test) => {
   const project = prepare(t)

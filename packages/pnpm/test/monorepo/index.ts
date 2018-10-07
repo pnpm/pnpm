@@ -2,6 +2,7 @@ import fs = require('mz/fs')
 import tape = require('tape')
 import promisifyTape from 'tape-promise'
 import path = require('path')
+import loadJsonFile from 'load-json-file'
 import loadYamlFile = require('load-yaml-file')
 import writeYamlFile = require('write-yaml-file')
 import {
@@ -239,15 +240,20 @@ test('recursive install with link-workspace-packages and shared-workspace-shrink
   ])
 
   await writeYamlFile('pnpm-workspace.yaml', {packages: ['**', '!store/**']})
+  await fs.writeFile('is-positive/.npmrc', 'shamefully-flatten = true', 'utf8') // package-specific configs
 
-  await execPnpm('recursive', 'install', '--link-workspace-packages', '--shared-workspace-shrinkwrap=true')
+  await execPnpm('recursive', 'install', '--link-workspace-packages', '--shared-workspace-shrinkwrap=true', '--store', 'store')
 
   t.ok(projects['is-positive'].requireModule('is-negative'))
+  t.ok(projects['is-positive'].requireModule('concat-stream'), 'dependencies flattened in is-positive')
   t.notOk(projects['project-1'].requireModule('is-positive/package.json').author, 'local package is linked')
 
   const sharedShr = await loadYamlFile('shrinkwrap.yaml')
-  t.equal(sharedShr['importers']['project-1']['devDependencies']['is-positive'], 'link:is-positive')
+  t.equal(sharedShr['importers']['project-1']['devDependencies']['is-positive'], 'link:../is-positive')
 
   const outputs = await import(path.resolve('output.json')) as string[]
   t.deepEqual(outputs, ['is-positive', 'project-1'])
+
+  const storeJson = await loadJsonFile<object>(path.resolve('store', '2', 'store.json'))
+  t.deepEqual(storeJson['localhost+4873/is-negative/1.0.0'].length, 1, 'new connections saved in store.json')
 })

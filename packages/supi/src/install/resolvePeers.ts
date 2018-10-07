@@ -69,55 +69,62 @@ export interface DependenciesGraph {
 
 export default function (
   opts: {
+    importers: Array<{
+      directNodeIdsByAlias: {[alias: string]: string},
+      externalShrinkwrap: boolean,
+      // only the top dependencies that were already installed
+      // to avoid warnings about unresolved peer dependencies
+      topParents: Array<{name: string, version: string}>,
+      prefix: string, // is only needed for logging
+      id: string,
+    }>,
     dependenciesTree: DependenciesTree,
-    rootNodeIdsByAlias: {[alias: string]: string},
-    // only the top dependencies that were already installed
-    // to avoid warnings about unresolved peer dependencies
-    topParents: Array<{name: string, version: string}>,
     independentLeaves: boolean,
     virtualStoreDir: string,
-    prefix: string, // is only needed for logging
     strictPeerDependencies: boolean,
-    externalShrinkwrap: boolean,
   },
 ): {
   depGraph: DependenciesGraph,
-  rootAbsolutePathsByAlias: {[alias: string]: string},
+  importersDirectAbsolutePathsByAlias: {[id: string]: {[alias: string]: string}},
 } {
-  const pkgsByName = Object.assign(
-    R.fromPairs(
-      opts.topParents.map((parent: {name: string, version: string}): R.KeyValuePair<string, ParentRef> => [
-        parent.name,
-        {
-          depth: 0,
-          version: parent.version,
-        },
-      ]),
-    ),
-    toPkgByName(
-      R
-        .keys(opts.rootNodeIdsByAlias)
-        .map((alias) => ({
-          alias,
-          node: opts.dependenciesTree[opts.rootNodeIdsByAlias[alias]],
-          nodeId: opts.rootNodeIdsByAlias[alias],
-        })),
-    ),
-  )
-
-  const absolutePathsByNodeId = {}
   const depGraph: DependenciesGraph = {}
-  resolvePeersOfChildren(opts.rootNodeIdsByAlias, pkgsByName, {
-    absolutePathsByNodeId,
-    depGraph,
-    dependenciesTree: opts.dependenciesTree,
-    externalShrinkwrap: opts.externalShrinkwrap,
-    independentLeaves: opts.independentLeaves,
-    prefix: opts.prefix,
-    purePkgs: new Set(),
-    strictPeerDependencies: opts.strictPeerDependencies,
-    virtualStoreDir: opts.virtualStoreDir,
-  })
+  const absolutePathsByNodeId = {}
+
+  for (const importer of opts.importers) {
+    const { directNodeIdsByAlias, externalShrinkwrap, topParents, prefix } = importer
+    const pkgsByName = Object.assign(
+      R.fromPairs(
+        topParents.map((parent: {name: string, version: string}): R.KeyValuePair<string, ParentRef> => [
+          parent.name,
+          {
+            depth: 0,
+            version: parent.version,
+          },
+        ]),
+      ),
+      toPkgByName(
+        R
+          .keys(directNodeIdsByAlias)
+          .map((alias) => ({
+            alias,
+            node: opts.dependenciesTree[directNodeIdsByAlias[alias]],
+            nodeId: directNodeIdsByAlias[alias],
+          })),
+      ),
+    )
+
+    resolvePeersOfChildren(directNodeIdsByAlias, pkgsByName, {
+      absolutePathsByNodeId,
+      depGraph,
+      dependenciesTree: opts.dependenciesTree,
+      externalShrinkwrap,
+      independentLeaves: opts.independentLeaves,
+      prefix,
+      purePkgs: new Set(),
+      strictPeerDependencies: opts.strictPeerDependencies,
+      virtualStoreDir: opts.virtualStoreDir,
+    })
+  }
 
   R.values(depGraph).forEach((node) => {
     node.children = R.keys(node.children).reduce((acc, alias) => {
@@ -125,12 +132,18 @@ export default function (
       return acc
     }, {})
   })
+
+  const importersDirectAbsolutePathsByAlias: {[id: string]: {[alias: string]: string}} = {}
+  for (const importer of opts.importers) {
+    const { directNodeIdsByAlias } = importer
+    importersDirectAbsolutePathsByAlias[importer.id] = R.keys(directNodeIdsByAlias).reduce((rootAbsolutePathsByAlias, alias) => {
+      rootAbsolutePathsByAlias[alias] = absolutePathsByNodeId[directNodeIdsByAlias[alias]]
+      return rootAbsolutePathsByAlias
+    }, {})
+  }
   return {
     depGraph,
-    rootAbsolutePathsByAlias: R.keys(opts.rootNodeIdsByAlias).reduce((rootAbsolutePathsByAlias, alias) => {
-      rootAbsolutePathsByAlias[alias] = absolutePathsByNodeId[opts.rootNodeIdsByAlias[alias]]
-      return rootAbsolutePathsByAlias
-    }, {}),
+    importersDirectAbsolutePathsByAlias,
   }
 }
 

@@ -32,6 +32,7 @@ export type StrictUninstallOptions = UninstallOptions & {
   independentLeaves: boolean,
   force: boolean,
   shamefullyFlatten: boolean,
+  shrinkwrapDirectory: string,
   storeController: StoreController,
   registry: string,
   shrinkwrap: boolean,
@@ -52,6 +53,7 @@ const defaults = async (opts: UninstallOptions) => {
     version: pnpmPkgJson.version,
   }
   const prefix = opts.prefix || process.cwd()
+  const shrinkwrapDirectory = opts.shrinkwrapDirectory || prefix
   return {
     bin: path.join(prefix, 'node_modules', '.bin'),
     force: false,
@@ -64,6 +66,7 @@ const defaults = async (opts: UninstallOptions) => {
     registry: 'https://registry.npmjs.org/',
     shamefullyFlatten: false,
     shrinkwrap: true,
+    shrinkwrapDirectory,
     store: opts.store,
     storeController: opts.storeController,
   } as StrictUninstallOptions

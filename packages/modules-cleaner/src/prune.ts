@@ -17,37 +17,43 @@ const vacuum = promisify(vacuumCB)
 
 export default async function removeOrphanPkgs (
   opts: {
-    bin: string,
     dryRun?: boolean,
-    hoistedAliases: {[depPath: string]: string[]},
-    importerModulesDir: string,
-    importerPath: string,
+    importers: Array<{
+      bin: string,
+      hoistedAliases: {[depPath: string]: string[]},
+      modulesDir: string,
+      id: string,
+      shamefullyFlatten: boolean,
+      prefix: string,
+    }>,
     newShrinkwrap: Shrinkwrap,
     oldShrinkwrap: Shrinkwrap,
-    prefix: string,
     pruneStore?: boolean,
-    shamefullyFlatten: boolean,
     virtualStoreDir: string,
     storeController: StoreController,
   },
 ): Promise<Set<string>> {
-  const oldImporterShr = opts.oldShrinkwrap.importers[opts.importerPath] || {}
-  const oldPkgs = R.toPairs(R.mergeAll(R.map((depType) => oldImporterShr[depType], DEPENDENCIES_FIELDS)))
-  const newPkgs = R.toPairs(R.mergeAll(R.map((depType) => opts.newShrinkwrap.importers[opts.importerPath][depType], DEPENDENCIES_FIELDS)))
+  await Promise.all(opts.importers.map((importer) => {
+    const oldImporterShr = opts.oldShrinkwrap.importers[importer.id] || {}
+    const oldPkgs = R.toPairs(R.mergeAll(R.map((depType) => oldImporterShr[depType], DEPENDENCIES_FIELDS)))
+    const newPkgs = R.toPairs(R.mergeAll(R.map((depType) => opts.newShrinkwrap.importers[importer.id][depType], DEPENDENCIES_FIELDS)))
 
-  const removedTopDeps: Array<[string, string]> = R.difference(oldPkgs, newPkgs) as Array<[string, string]>
+    const removedTopDeps: Array<[string, string]> = R.difference(oldPkgs, newPkgs) as Array<[string, string]>
 
-  await Promise.all(removedTopDeps.map((depName) => {
-    return removeDirectDependency({
-      dev: Boolean(oldImporterShr.devDependencies && oldImporterShr.devDependencies[depName[0]]),
-      name: depName[0],
-      optional: Boolean(oldImporterShr.optionalDependencies && oldImporterShr.optionalDependencies[depName[0]]),
-    }, {
-      bin: opts.bin,
-      dryRun: opts.dryRun,
-      importerModulesDir: opts.importerModulesDir,
-      prefix: opts.prefix,
-    })
+    const {bin, modulesDir, prefix} = importer
+
+    return Promise.all(removedTopDeps.map((depName) => {
+      return removeDirectDependency({
+        dev: Boolean(oldImporterShr.devDependencies && oldImporterShr.devDependencies[depName[0]]),
+        name: depName[0],
+        optional: Boolean(oldImporterShr.optionalDependencies && oldImporterShr.optionalDependencies[depName[0]]),
+      }, {
+        bin,
+        dryRun: opts.dryRun,
+        modulesDir,
+        prefix,
+      })
+    }))
   }))
 
   const oldPkgIdsByDepPaths = getPkgsDepPaths(opts.oldShrinkwrap.registry, opts.oldShrinkwrap.packages || {})
@@ -60,30 +66,32 @@ export default async function removeOrphanPkgs (
   const orphanPkgIds = new Set(R.props<string, string>(orphanDepPaths, oldPkgIdsByDepPaths))
 
   statsLogger.debug({
-    prefix: opts.prefix,
+    prefix: opts.virtualStoreDir,
     removed: orphanPkgIds.size,
   })
 
   if (!opts.dryRun) {
     if (orphanDepPaths.length) {
-
-      if (opts.shamefullyFlatten && opts.oldShrinkwrap.packages) {
-        await Promise.all(orphanDepPaths.map(async (orphanDepPath) => {
-          if (opts.hoistedAliases[orphanDepPath]) {
-            await Promise.all(opts.hoistedAliases[orphanDepPath].map(async (alias) => {
-              await removeDirectDependency({
-                dev: false,
-                name: alias,
-                optional: false,
-              }, {
-                bin: opts.bin,
-                importerModulesDir: opts.importerModulesDir,
-                muteLogs: true,
-                prefix: opts.prefix,
-              })
-            }))
-          }
-          delete opts.hoistedAliases[orphanDepPath]
+      if (opts.oldShrinkwrap.packages) {
+        await Promise.all(opts.importers.filter((importer) => importer.shamefullyFlatten).map((importer) => {
+          const { bin, hoistedAliases, modulesDir, prefix } = importer
+          return Promise.all(orphanDepPaths.map(async (orphanDepPath) => {
+            if (hoistedAliases[orphanDepPath]) {
+              await Promise.all(hoistedAliases[orphanDepPath].map((alias) => {
+                return removeDirectDependency({
+                  dev: false,
+                  name: alias,
+                  optional: false,
+                }, {
+                  bin,
+                  modulesDir,
+                  muteLogs: true,
+                  prefix,
+                })
+              }))
+            }
+            delete hoistedAliases[orphanDepPath]
+          }))
         }))
       }
 
@@ -99,7 +107,7 @@ export default async function removeOrphanPkgs (
           logger.warn({
             error: err,
             message: `Failed to remove "${pathToRemove}"`,
-            prefix: opts.prefix,
+            prefix: opts.virtualStoreDir,
           })
         }
       }))
@@ -108,7 +116,7 @@ export default async function removeOrphanPkgs (
     const addedDepPaths = R.difference(newDepPaths, oldDepPaths)
     const addedPkgIds = new Set(R.props<string, string>(addedDepPaths, newPkgIdsByDepPaths))
 
-    await opts.storeController.updateConnections(opts.prefix, {
+    await opts.storeController.updateConnections(path.dirname(opts.virtualStoreDir), {
       addDependencies: Array.from(addedPkgIds),
       prune: opts.pruneStore || false,
       removeDependencies: Array.from(orphanPkgIds),

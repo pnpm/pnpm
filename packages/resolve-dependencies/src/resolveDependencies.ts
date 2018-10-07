@@ -63,30 +63,38 @@ export interface ResolvedPackagesByPackageId {
   [packageId: string]: ResolvedPackage,
 }
 
+export interface LinkedDependency {
+  optional: boolean,
+  dev: boolean,
+  resolution: DirectoryResolution,
+  id: string,
+  version: string,
+  name: string,
+  specRaw: string,
+  normalizedPref?: string,
+  alias: string,
+}
+
+export interface PendingNode {
+  alias: string,
+  nodeId: string,
+  resolvedPackage: ResolvedPackage,
+  depth: number,
+  installable: boolean,
+}
+
+export interface ChildrenByParentId {
+  [parentId: string]: Array<{alias: string, pkgId: string}>,
+}
+
 export interface ResolutionContext {
   defaultTag: string,
   dryRun: boolean,
   resolvedPackagesByPackageId: ResolvedPackagesByPackageId,
   outdatedDependencies: {[pkgId: string]: string},
-  resolvedFromLocalPackages: Array<{
-    optional: boolean,
-    dev: boolean,
-    resolution: DirectoryResolution,
-    id: string,
-    version: string,
-    name: string,
-    specRaw: string,
-    normalizedPref?: string,
-    alias: string,
-  }>,
-  childrenByParentId: {[parentId: string]: Array<{alias: string, pkgId: string}>},
-  pendingNodes: Array<{
-    alias: string,
-    nodeId: string,
-    resolvedPackage: ResolvedPackage,
-    depth: number,
-    installable: boolean,
-  }>,
+  linkedDependencies: LinkedDependency[],
+  childrenByParentId: ChildrenByParentId,
+  pendingNodes: PendingNode[],
   wantedShrinkwrap: Shrinkwrap,
   currentShrinkwrap: Shrinkwrap,
   storeController: StoreController,
@@ -241,7 +249,7 @@ function preferedSatisfiesWanted (
   const pkgSnapshot = shr.packages && shr.packages[relDepPath]
   if (!pkgSnapshot) {
     logger.warn({
-      message: `Could not find prefered package ${relDepPath} in shrinkwrap`,
+      message: `Could not find preferred package ${relDepPath} in shrinkwrap`,
       prefix: opts.prefix,
     })
     return false
@@ -396,7 +404,7 @@ async function install (
         prefix: ctx.prefix,
       })
     } else {
-      ctx.resolvedFromLocalPackages.push({
+      ctx.linkedDependencies.push({
         alias: wantedDependency.alias || manifest.name,
         dev: wantedDependency.dev,
         id: pkgResponse.body.id,

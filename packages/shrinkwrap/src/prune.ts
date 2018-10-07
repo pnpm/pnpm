@@ -38,11 +38,11 @@ export function pruneSharedShrinkwrap (
 export function prune (
   shr: Shrinkwrap,
   pkg: PackageJson,
-  importerPath: string,
+  importerId: string,
   warn?: (msg: string) => void,
 ): Shrinkwrap {
   const packages: ResolvedPackages = {}
-  const importer = shr.importers[importerPath]
+  const importer = shr.importers[importerId]
   const shrSpecs: ResolvedDependencies = importer.specifiers || {}
   const optionalDependencies = R.keys(pkg.optionalDependencies)
   const dependencies = R.difference(R.keys(pkg.dependencies), optionalDependencies)
@@ -78,7 +78,7 @@ export function prune (
   const prunnedShrinkwrap: Shrinkwrap = {
     importers: {
       ...shr.importers,
-      [importerPath]: updatedImporter,
+      [importerId]: updatedImporter,
     },
     packages: shr.packages,
     registry: shr.registry,

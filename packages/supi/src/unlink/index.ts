@@ -1,6 +1,6 @@
 import logger, { streamParser } from '@pnpm/logger'
 import { fromDir as readPkgFromDir } from '@pnpm/read-package-json'
-import { getAllDependenciesFromPackage, realNodeModulesDir } from '@pnpm/utils'
+import { getAllDependenciesFromPackage } from '@pnpm/utils'
 import isInnerLink = require('is-inner-link')
 import isSubdir = require('is-subdir')
 import fs = require('mz/fs')
@@ -24,6 +24,7 @@ export async function unlinkPkgs (
   const opts = await _extendOptions(maybeOpts)
   const ctx = await getContext(opts)
   opts.store = ctx.storePath
+  opts.importers = ctx.importers
 
   await _unlinkPkgs(pkgNames, opts)
 
@@ -36,24 +37,25 @@ export async function _unlinkPkgs (
   pkgNames: string[],
   opts: StrictInstallOptions,
 ) {
-  const modules = await realNodeModulesDir(opts.prefix)
-  const pkg = await readPkgFromDir(opts.prefix)
+  if (opts.importers.length > 1) throw new Error('Unlink not implemented for multiple importers yet')
+  const importer = opts.importers[0]
+  const pkg = await readPkgFromDir(importer.prefix)
   const allDeps = getAllDependenciesFromPackage(pkg)
   const packagesToInstall: string[] = []
 
   for (const pkgName of pkgNames) {
     try {
-      if (!await isExternalLink(opts.store, modules, pkgName)) {
+      if (!await isExternalLink(opts.store, importer.modulesDir, pkgName)) {
         logger.warn({
           message: `${pkgName} is not an external link`,
-          prefix: opts.prefix,
+          prefix: importer.prefix,
         })
         continue
       }
     } catch (err) {
       if (err['code'] !== 'ENOENT') throw err // tslint:disable-line:no-string-literal
     }
-    await rimraf(path.join(modules, pkgName))
+    await rimraf(path.join(importer.modulesDir, pkgName))
     if (allDeps[pkgName]) {
       packagesToInstall.push(pkgName)
     }
@@ -74,10 +76,12 @@ export async function unlink (maybeOpts: InstallOptions) {
   const opts = await _extendOptions(maybeOpts)
   const ctx = await getContext(opts)
   opts.store = ctx.storePath
+  opts.importers = ctx.importers
 
-  const modules = await realNodeModulesDir(opts.prefix)
+  if (opts.importers.length > 1) throw new Error('Unlink not implemented for multiple importers yet')
+  const importer = opts.importers[0]
 
-  const externalPackages = await getExternalPackages(modules, opts.store)
+  const externalPackages = await getExternalPackages(importer.modulesDir, opts.store)
 
   await _unlinkPkgs(externalPackages, opts)
 

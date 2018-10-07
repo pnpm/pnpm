@@ -22,6 +22,7 @@ export interface StoreStatusOptions {
 export type StrictStoreStatusOptions = StoreStatusOptions & {
   prefix: string,
   store: string,
+  shrinkwrapDirectory: string,
   independentLeaves: boolean,
   force: boolean,
   registry: string,
@@ -32,6 +33,7 @@ export type StrictStoreStatusOptions = StoreStatusOptions & {
 
 const defaults = async (opts: StoreStatusOptions) => {
   const prefix = opts.prefix || process.cwd()
+  const shrinkwrapDirectory = opts.shrinkwrapDirectory || prefix
   return {
     bin: path.join(prefix, 'node_modules', '.bin'),
     force: false,
@@ -40,6 +42,7 @@ const defaults = async (opts: StoreStatusOptions) => {
     registry: 'https://registry.npmjs.org/',
     shamefullyFlatten: false,
     shrinkwrap: true,
+    shrinkwrapDirectory,
     store: opts.store,
   } as StrictStoreStatusOptions
 }

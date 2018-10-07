@@ -1,7 +1,5 @@
 import {
-  DependencyType,
   packageJsonLogger,
-  rootLogger,
   summaryLogger,
 } from '@pnpm/core-loggers'
 import { linkBinsOfPackages } from '@pnpm/link-bins'
@@ -17,32 +15,31 @@ import {
   safeReadPackage,
 } from '@pnpm/utils'
 import loadJsonFile from 'load-json-file'
-import mkdirp = require('mkdirp-promise')
-import fs = require('mz/fs')
 import normalize = require('normalize-path')
 import path = require('path')
 import pathAbsolute = require('path-absolute')
 import {
-  getImporterPath,
+  getImporterId,
   pruneSharedShrinkwrap,
   ShrinkwrapImporter,
   write as saveShrinkwrap,
   writeCurrentOnly as saveCurrentShrinkwrapOnly,
 } from 'pnpm-shrinkwrap'
 import R = require('ramda')
-import symlinkDir = require('symlink-dir')
-import getContext from './getContext'
-import getSpecFromPackageJson from './getSpecFromPackageJson'
-import extendOptions, {
-  InstallOptions,
-} from './install/extendInstallOptions'
-import save, { guessDependencyType } from './save'
-import getPref from './utils/getPref'
+import { getContextForSingleImporter } from '../getContext'
+import getSpecFromPackageJson from '../getSpecFromPackageJson'
+import linkToModules from '../linkToModules'
+import save, { guessDependencyType } from '../save'
+import getPref from '../utils/getPref'
+import {
+  extendOptions,
+  LinkOptions,
+} from './options'
 
 export default async function link (
   linkFromPkgs: Array<{alias: string, path: string} | string>,
   destModules: string,
-  maybeOpts: InstallOptions & {
+  maybeOpts: LinkOptions & {
     linkToBin?: string,
   },
 ) {
@@ -52,9 +49,9 @@ export default async function link (
   }
   maybeOpts.saveProd = maybeOpts.saveProd === true
   const opts = await extendOptions(maybeOpts)
-  const ctx = await getContext(opts)
+  const ctx = await getContextForSingleImporter(opts)
 
-  const importerPath = getImporterPath(ctx.shrinkwrapDirectory, opts.prefix)
+  const importerId = getImporterId(ctx.shrinkwrapDirectory, opts.prefix)
   const oldShrinkwrap = R.clone(ctx.currentShrinkwrap)
   const pkg = await safeReadPackage(path.join(opts.prefix, 'package.json')) || undefined
   if (pkg) {
@@ -92,8 +89,8 @@ export default async function link (
       packagePath,
       pkg,
     }
-    addLinkToShrinkwrap(ctx.currentShrinkwrap.importers[importerPath], addLinkOpts)
-    addLinkToShrinkwrap(ctx.wantedShrinkwrap.importers[importerPath], addLinkOpts)
+    addLinkToShrinkwrap(ctx.currentShrinkwrap.importers[importerId], addLinkOpts)
+    addLinkToShrinkwrap(ctx.wantedShrinkwrap.importers[importerId], addLinkOpts)
 
     linkedPkgs.push({
       alias: linkFromAlias || linkedPkg.name,
@@ -108,14 +105,18 @@ export default async function link (
   const updatedWantedShrinkwrap = pruneSharedShrinkwrap(ctx.wantedShrinkwrap, warn)
 
   await prune({
-    bin: opts.bin,
-    hoistedAliases: ctx.hoistedAliases,
-    importerModulesDir: ctx.importerModulesDir,
-    importerPath,
+    importers: [
+      {
+        bin: opts.bin,
+        hoistedAliases: ctx.hoistedAliases,
+        id: importerId,
+        modulesDir: ctx.modulesDir,
+        prefix: opts.prefix,
+        shamefullyFlatten: opts.shamefullyFlatten,
+      },
+    ],
     newShrinkwrap: updatedCurrentShrinkwrap,
     oldShrinkwrap,
-    prefix: opts.prefix,
-    shamefullyFlatten: opts.shamefullyFlatten,
     storeController: opts.storeController,
     virtualStoreDir: ctx.virtualStoreDir,
   })
@@ -128,10 +129,11 @@ export default async function link (
     await linkToModules({
       alias: linkedPkg.alias,
       destModulesDir: destModules,
+      name: linkedPkg.pkg.name,
       packageDir: linkedPkg.path,
-      pkg: linkedPkg.pkg,
       prefix: opts.prefix,
       saveType: stu && stu.saveType || saveType,
+      version: linkedPkg.pkg.version,
     })
   }
 
@@ -143,7 +145,7 @@ export default async function link (
   if (opts.saveDev || opts.saveProd || opts.saveOptional) {
     const newPkg = await save(opts.prefix, specsToUpsert)
     for (const specToUpsert of specsToUpsert) {
-      updatedWantedShrinkwrap.importers[importerPath].specifiers[specToUpsert.name] = getSpecFromPackageJson(newPkg, specToUpsert.name) as string
+      updatedWantedShrinkwrap.importers[importerId].specifiers[specToUpsert.name] = getSpecFromPackageJson(newPkg, specToUpsert.name) as string
     }
   }
   if (opts.shrinkwrap) {
@@ -195,61 +197,10 @@ function addLinkToShrinkwrap (
   }
 }
 
-const DEP_TYPE_BY_DEPS_FIELD_NAME = {
-  dependencies: 'prod',
-  devDependencies: 'dev',
-  optionalDependencies: 'optional',
-}
-
-async function linkToModules (
-  opts: {
-    alias: string,
-    packageDir: string,
-    pkg: PackageJson,
-    destModulesDir: string,
-    saveType?: DependenciesField,
-    prefix: string,
-  },
-) {
-
-  // `opts.destModulesDir` may be a non-existent `node_modules` dir
-  // so `fs.realpath` would throw.
-  // Even though `symlinkDir` creates the dir if it doesn't exist,
-  // our dir may include an ancestor dir which is symlinked,
-  // so we create it if it doesn't exist, and then find its realpath.
-  let destModulesDirReal
-  try {
-    destModulesDirReal = await fs.realpath(opts.destModulesDir)
-  } catch (err) {
-    if (err.code === 'ENOENT') {
-      await mkdirp(opts.destModulesDir)
-      destModulesDirReal = await fs.realpath(opts.destModulesDir)
-    } else {
-      throw err
-    }
-  }
-
-  const packageDirReal = await fs.realpath(opts.packageDir)
-
-  const dest = path.join(destModulesDirReal, opts.alias)
-  const {reused} = await symlinkDir(packageDirReal, dest)
-  if (reused) return // if the link was already present, don't log
-  rootLogger.debug({
-    added: {
-      dependencyType: opts.saveType && DEP_TYPE_BY_DEPS_FIELD_NAME[opts.saveType] as DependencyType,
-      linkedFrom: packageDirReal,
-      name: opts.alias,
-      realName: opts.pkg.name,
-      version: opts.pkg.version,
-    },
-    prefix: opts.prefix,
-  })
-}
-
 export async function linkFromGlobal (
   pkgNames: string[],
   linkTo: string,
-  maybeOpts: InstallOptions & {globalPrefix: string},
+  maybeOpts: LinkOptions & {globalPrefix: string},
 ) {
   const reporter = maybeOpts && maybeOpts.reporter
   if (reporter) {
@@ -267,7 +218,7 @@ export async function linkFromGlobal (
 
 export async function linkToGlobal (
   linkFrom: string,
-  maybeOpts: InstallOptions & {
+  maybeOpts: LinkOptions & {
     globalBin: string,
     globalPrefix: string,
   },

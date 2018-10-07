@@ -205,12 +205,27 @@ export async function recursive (
         break
     }
 
-    const actionConcurrency = opts.shrinkwrapDirectory && ['install', 'update', 'link'].indexOf(cmdFullName) !== -1
-      ? 1 : opts.workspaceConcurrency
-    const limitInstallation = pLimit(actionConcurrency)
-    const pkgPaths = chunks.length === 0
+    let pkgPaths = chunks.length === 0
       ? chunks[0]
       : Object.keys(pkgGraphResult.graph).sort()
+    if (opts.shrinkwrapDirectory && ['install', 'update', 'link'].indexOf(cmdFullName) !== -1) {
+      if (opts.ignoredPackages) {
+        pkgPaths = pkgPaths.filter((prefix) => !opts.ignoredPackages!.has(prefix))
+      }
+      await action({
+        ...installOpts,
+        importers: await Promise.all(pkgPaths.map(async (prefix) => {
+          const localConfigs = await memReadLocalConfigs(prefix)
+          return {
+            prefix,
+            shamefullyFlatten: localConfigs.shamefullyFlatten,
+          }
+        })),
+        storeController: store.ctrl,
+      })
+      return true
+    }
+    const limitInstallation = pLimit(opts.workspaceConcurrency)
     await Promise.all(pkgPaths.map((prefix: string) =>
       limitInstallation(async () => {
         const hooks = opts.ignorePnpmfile ? {} : requireHooks(prefix, opts)
@@ -257,10 +272,7 @@ export async function recursive (
   }
 
   if (cmdFullName === 'rebuild' || !opts.ignoreScripts && (cmdFullName === 'install' || cmdFullName === 'update' || cmdFullName === 'unlink')) {
-    // With a shared node_modules only concurrency 1 is allowed currently.
-    // Otherwise, rebuild would override the value of pendingBuilds in node_modules/.modules.yaml
-    const actionConcurrency = opts.shrinkwrapDirectory ? 1 : opts.workspaceConcurrency
-    const limitRebuild = pLimit(actionConcurrency)
+    const limitRebuild = pLimit(opts.workspaceConcurrency)
     const action = (cmdFullName !== 'rebuild' || input.length === 0 ? rebuild : rebuildPkgs.bind(null, input))
     for (const chunk of chunks) {
       await Promise.all(chunk.map((prefix: string) =>

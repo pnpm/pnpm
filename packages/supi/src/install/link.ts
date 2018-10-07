@@ -8,7 +8,7 @@ import logger from '@pnpm/logger'
 import { prune } from '@pnpm/modules-cleaner'
 import { IncludedDependencies } from '@pnpm/modules-yaml'
 import { fromDir as readPackageFromDir } from '@pnpm/read-package-json'
-import { DependenciesTree } from '@pnpm/resolve-dependencies'
+import { DependenciesTree, LinkedDependency } from '@pnpm/resolve-dependencies'
 import { PackageJson } from '@pnpm/types'
 import * as dp from 'dependency-path'
 import pLimit = require('p-limit')
@@ -17,6 +17,7 @@ import path = require('path')
 import { PackageSnapshot, Shrinkwrap } from 'pnpm-shrinkwrap'
 import R = require('ramda')
 import { SHRINKWRAP_MINOR_VERSION } from '../constants'
+import linkToModules from '../linkToModules'
 import shamefullyFlattenGraph from '../shamefullyFlattenGraph'
 import symlinkDependencyTo from '../symlinkDependencyTo'
 import resolvePeers, {
@@ -27,41 +28,45 @@ import updateShrinkwrap from './updateShrinkwrap'
 
 export { DependenciesGraph }
 
+export interface Importer {
+  bin: string,
+  directNodeIdsByAlias: {[alias: string]: string},
+  externalShrinkwrap: boolean,
+  hoistedAliases: {[depPath: string]: string[]},
+  modulesDir: string,
+  id: string,
+  pkg: PackageJson,
+  prefix: string,
+  linkedDependencies: LinkedDependency[],
+  shamefullyFlatten: boolean,
+  topParents: Array<{name: string, version: string}>,
+}
+
 export default async function linkPackages (
-  rootNodeIdsByAlias: {[alias: string]: string},
+  importers: Importer[],
   dependenciesTree: DependenciesTree,
   opts: {
     afterAllResolvedHook?: (shr: Shrinkwrap) => Shrinkwrap,
     force: boolean,
     dryRun: boolean,
-    importerModulesDir: string,
     virtualStoreDir: string,
-    bin: string,
-    topParents: Array<{name: string, version: string}>,
     wantedShrinkwrap: Shrinkwrap,
     currentShrinkwrap: Shrinkwrap,
     makePartialCurrentShrinkwrap: boolean,
-    prefix: string,
     pruneStore: boolean,
     storeController: StoreController,
     skipped: Set<string>,
-    pkg: PackageJson,
     include: IncludedDependencies,
     independentLeaves: boolean,
     // This is only needed till shrinkwrap v4
     updateShrinkwrapMinorVersion: boolean,
     outdatedDependencies: {[pkgId: string]: string},
     sideEffectsCache: boolean,
-    shamefullyFlatten: boolean,
-    hoistedAliases: {[depPath: string]: string[]},
     strictPeerDependencies: boolean,
-    importerPath: string,
-    externalShrinkwrap: boolean,
   },
 ): Promise<{
   currentShrinkwrap: Shrinkwrap,
   depGraph: DependenciesGraph,
-  hoistedAliases: {[depPath: string]: string[]},
   newDepPaths: string[],
   removedDepPaths: Set<string>,
   wantedShrinkwrap: Shrinkwrap,
@@ -70,35 +75,34 @@ export default async function linkPackages (
   // The `Creating dependency graph` is not good to report in all cases as
   // sometimes node_modules is alread up-to-date
   // logger.info(`Creating dependency graph`)
-  const resolvePeersResult = await resolvePeers({
+  const { depGraph, importersDirectAbsolutePathsByAlias } = await resolvePeers({
     dependenciesTree,
-    externalShrinkwrap: opts.externalShrinkwrap,
+    importers,
     independentLeaves: opts.independentLeaves,
-    prefix: opts.prefix,
-    rootNodeIdsByAlias,
     strictPeerDependencies: opts.strictPeerDependencies,
-    topParents: opts.topParents,
     virtualStoreDir: opts.virtualStoreDir,
   })
-  const depGraph = resolvePeersResult.depGraph
-  if (opts.externalShrinkwrap) {
-    for (const alias of R.keys(resolvePeersResult.rootAbsolutePathsByAlias)) {
-      const depPath = resolvePeersResult.rootAbsolutePathsByAlias[alias]
+  for (const importer of importers) {
+    if (!importer.externalShrinkwrap) continue
+
+    const directAbsolutePathsByAlias = importersDirectAbsolutePathsByAlias[importer.id]
+    for (const alias of R.keys(directAbsolutePathsByAlias)) {
+      const depPath = directAbsolutePathsByAlias[alias]
 
       if (depGraph[depPath].isPure) continue
 
-      const importer = opts.wantedShrinkwrap.importers[opts.importerPath]
+      const shrImporter = opts.wantedShrinkwrap.importers[importer.id]
       const ref = dp.relative(opts.wantedShrinkwrap.registry, depPath)
-      if (importer.dependencies && importer.dependencies[alias]) {
-        importer.dependencies[alias] = ref
-      } else if (importer.devDependencies && importer.devDependencies[alias]) {
-        importer.devDependencies[alias] = ref
-      } else if (importer.optionalDependencies && importer.optionalDependencies[alias]) {
-        importer.optionalDependencies[alias] = ref
+      if (shrImporter.dependencies && shrImporter.dependencies[alias]) {
+        shrImporter.dependencies[alias] = ref
+      } else if (shrImporter.devDependencies && shrImporter.devDependencies[alias]) {
+        shrImporter.devDependencies[alias] = ref
+      } else if (shrImporter.optionalDependencies && shrImporter.optionalDependencies[alias]) {
+        shrImporter.optionalDependencies[alias] = ref
       }
     }
   }
-  let {newShrinkwrap, pendingRequiresBuilds} = updateShrinkwrap(depGraph, opts.wantedShrinkwrap, opts.prefix) // tslint:disable-line:prefer-const
+  let {newShrinkwrap, pendingRequiresBuilds} = updateShrinkwrap(depGraph, opts.wantedShrinkwrap, opts.virtualStoreDir) // tslint:disable-line:prefer-const
   if (opts.afterAllResolvedHook) {
     newShrinkwrap = opts.afterAllResolvedHook(newShrinkwrap)
   }
@@ -121,22 +125,17 @@ export default async function linkPackages (
     depNodes = depNodes.filter((depNode) => !depNode.optional)
   }
   const filterOpts = {
-    importerPath: opts.importerPath,
+    importerIds: importers.map((importer) => importer.id),
     include: opts.include,
     skipped: opts.skipped,
   }
   const newCurrentShrinkwrap = filterShrinkwrap(newShrinkwrap, filterOpts)
   const removedDepPaths = await prune({
-    bin: opts.bin,
     dryRun: opts.dryRun,
-    hoistedAliases: opts.hoistedAliases,
-    importerModulesDir: opts.importerModulesDir,
-    importerPath: opts.importerPath,
+    importers,
     newShrinkwrap: newCurrentShrinkwrap,
     oldShrinkwrap: opts.currentShrinkwrap,
-    prefix: opts.prefix,
     pruneStore: opts.pruneStore,
-    shamefullyFlatten: opts.shamefullyFlatten,
     storeController: opts.storeController,
     virtualStoreDir: opts.virtualStoreDir,
   })
@@ -149,11 +148,9 @@ export default async function linkPackages (
     {
       dryRun: opts.dryRun,
       force: opts.force,
-      importerModulesDir: opts.importerModulesDir,
       optional: opts.include.optionalDependencies,
-      prefix: opts.prefix,
-      sideEffectsCache: opts.sideEffectsCache,
       storeController: opts.storeController,
+      virtualStoreDir: opts.virtualStoreDir,
     },
   )
   stageLogger.debug('importing_done')
@@ -164,25 +161,36 @@ export default async function linkPackages (
       acc[depNode.absolutePath] = depNode
       return acc
     }, {}) as {[absolutePath: string]: DependenciesGraphNode}
-  for (const rootAlias of R.keys(resolvePeersResult.rootAbsolutePathsByAlias)) {
-    const pkg = rootDepsByDepPath[resolvePeersResult.rootAbsolutePathsByAlias[rootAlias]]
-    if (!pkg) continue
-    if (opts.dryRun || !(await symlinkDependencyTo(rootAlias, pkg.peripheralLocation, opts.importerModulesDir)).reused) {
-      const isDev = opts.pkg.devDependencies && opts.pkg.devDependencies[pkg.name]
-      const isOptional = opts.pkg.optionalDependencies && opts.pkg.optionalDependencies[pkg.name]
-      rootLogger.debug({
-        added: {
-          dependencyType: isDev && 'dev' || isOptional && 'optional' || 'prod',
-          id: pkg.id,
-          latest: opts.outdatedDependencies[pkg.id],
-          name: rootAlias,
-          realName: pkg.name,
-          version: pkg.version,
-        },
-        prefix: opts.prefix,
-      })
-    }
-  }
+
+  await Promise.all(importers.map((importer) => {
+    const directAbsolutePathsByAlias = importersDirectAbsolutePathsByAlias[importer.id]
+    const {modulesDir, pkg, prefix} = importer
+    return Promise.all(
+      R.keys(directAbsolutePathsByAlias)
+        .map((rootAlias) => ({ rootAlias, depGraphNode: rootDepsByDepPath[directAbsolutePathsByAlias[rootAlias]] }))
+        .filter(({ depGraphNode }) => depGraphNode)
+        .map(async ({ rootAlias, depGraphNode }) => {
+          if (
+            !opts.dryRun &&
+            (await symlinkDependencyTo(rootAlias, depGraphNode.peripheralLocation, modulesDir)).reused
+          ) return
+
+          const isDev = pkg.devDependencies && pkg.devDependencies[depGraphNode.name]
+          const isOptional = pkg.optionalDependencies && pkg.optionalDependencies[depGraphNode.name]
+          rootLogger.debug({
+            added: {
+              dependencyType: isDev && 'dev' || isOptional && 'optional' || 'prod',
+              id: depGraphNode.id,
+              latest: opts.outdatedDependencies[depGraphNode.id],
+              name: rootAlias,
+              realName: depGraphNode.name,
+              version: depGraphNode.version,
+            },
+            prefix,
+          })
+        }),
+    )
+  }))
 
   if (opts.updateShrinkwrapMinorVersion) {
     // Setting `shrinkwrapMinorVersion` is a temporary solution to
@@ -231,24 +239,62 @@ export default async function linkPackages (
   }
 
   // Important: shamefullyFlattenGraph changes depGraph, so keep this at the end, right before linkBins
-  if (opts.shamefullyFlatten && (newDepPaths.length > 0 || removedDepPaths.size > 0)) {
-    opts.hoistedAliases = await shamefullyFlattenGraph(depNodes, currentShrinkwrap.importers[opts.importerPath].specifiers, opts)
+  if (newDepPaths.length > 0 || removedDepPaths.size > 0) {
+    await Promise.all(
+      importers.filter((importer) => importer.shamefullyFlatten)
+        .map(async (importer) => {
+          importer.hoistedAliases = await shamefullyFlattenGraph(
+            depNodes,
+            currentShrinkwrap.importers[importer.id].specifiers,
+            {
+              dryRun: opts.dryRun,
+              modulesDir: importer.modulesDir,
+            },
+          )
+        }),
+    )
   }
 
   if (!opts.dryRun) {
-    await linkBins(opts.importerModulesDir, opts.bin, {
-      warn: (message: string) => logger.warn({message, prefix: opts.prefix}),
-    })
+    await Promise.all(
+      importers.map((importer) =>
+        Promise.all(importer.linkedDependencies.map((linkedDependency) =>
+          linkToModules({
+            alias: linkedDependency.alias,
+            destModulesDir: importer.modulesDir,
+            name: linkedDependency.name,
+            packageDir: resolvePath(importer.prefix, linkedDependency.resolution.directory),
+            prefix: importer.prefix,
+            saveType: linkedDependency.dev && 'devDependencies' || linkedDependency.optional && 'optionalDependencies' || 'dependencies',
+            version: linkedDependency.version,
+          }),
+        )),
+      ),
+    )
+
+    await Promise.all(importers.map(linkBinsOfImporter))
   }
 
   return {
     currentShrinkwrap,
     depGraph,
-    hoistedAliases: opts.hoistedAliases,
     newDepPaths,
     removedDepPaths,
     wantedShrinkwrap: newShrinkwrap,
   }
+}
+
+function linkBinsOfImporter ({modulesDir, bin, prefix}: Importer) {
+  const warn = (message: string) => logger.warn({message, prefix})
+  return linkBins(modulesDir, bin, { warn })
+}
+
+const isAbsolutePath = /^[/]|^[A-Za-z]:/
+
+// This function is copied from @pnpm/local-resolver
+function resolvePath (where: string, spec: string) {
+  if (isAbsolutePath.test(spec)) return spec
+  return path.resolve(where, spec)
 }
 
 function filterShrinkwrap (
@@ -256,7 +302,7 @@ function filterShrinkwrap (
   opts: {
     include: IncludedDependencies,
     skipped: Set<string>,
-    importerPath: string,
+    importerIds: string[],
   },
 ): Shrinkwrap {
   let pairs = (R.toPairs(shr.packages || {}) as Array<[string, PackageSnapshot]>)
@@ -270,17 +316,17 @@ function filterShrinkwrap (
   if (!opts.include.optionalDependencies) {
     pairs = pairs.filter((pair) => !pair[1].optional)
   }
-  const shrImporter = shr.importers[opts.importerPath]
   return {
-    importers: {
-      ...shr.importers,
-      [opts.importerPath]: {
+    importers: opts.importerIds.reduce((acc, importerId) => {
+      const shrImporter = shr.importers[importerId]
+      acc[importerId] = {
         dependencies: !opts.include.dependencies ? {} : shrImporter.dependencies || {},
         devDependencies: !opts.include.devDependencies ? {} : shrImporter.devDependencies || {},
         optionalDependencies: !opts.include.optionalDependencies ? {} : shrImporter.optionalDependencies || {},
         specifiers: shrImporter.specifiers,
-      },
-    },
+      }
+      return acc
+    }, {...shr.importers}),
     packages: R.fromPairs(pairs),
     registry: shr.registry,
     shrinkwrapVersion: shr.shrinkwrapVersion,
@@ -292,13 +338,11 @@ async function linkNewPackages (
   wantedShrinkwrap: Shrinkwrap,
   depGraph: DependenciesGraph,
   opts: {
-    importerModulesDir: string,
     dryRun: boolean,
     force: boolean,
     optional: boolean,
-    sideEffectsCache: boolean,
     storeController: StoreController,
-    prefix: string,
+    virtualStoreDir: string,
   },
 ): Promise<string[]> {
   const wantedRelDepPaths = R.keys(wantedShrinkwrap.packages)
@@ -318,7 +362,7 @@ async function linkNewPackages (
   )
   statsLogger.debug({
     added: newDepPathsSet.size,
-    prefix: opts.prefix,
+    prefix: opts.virtualStoreDir,
   })
 
   const existingWithUpdatedDeps = []
@@ -356,7 +400,7 @@ async function linkNewPackages (
 
   await linkAllBins(newPkgs, depGraph, {
     optional: opts.optional,
-    warn: (message: string) => logger.warn({message, prefix: opts.prefix}),
+    warn: (message: string) => logger.warn({message, prefix: opts.virtualStoreDir}),
   })
 
   return newDepPaths
@@ -369,7 +413,6 @@ async function linkAllPkgs (
   depNodes: DependenciesGraphNode[],
   opts: {
     force: boolean,
-    sideEffectsCache: boolean,
   },
 ) {
   return Promise.all(

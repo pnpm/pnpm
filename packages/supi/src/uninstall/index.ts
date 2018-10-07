@@ -11,7 +11,7 @@ import {
   writeCurrentOnly as saveCurrentShrinkwrapOnly,
 } from 'pnpm-shrinkwrap'
 import { LAYOUT_VERSION } from '../constants'
-import getContext, { PnpmContext } from '../getContext'
+import { getContextForSingleImporter, PnpmSingleContext } from '../getContext'
 import lock from '../lock'
 import safeIsInnerLink from '../safeIsInnerLink'
 import { shamefullyFlattenGraphByShrinkwrap } from '../shamefullyFlattenGraph'
@@ -48,7 +48,7 @@ export default async function uninstall (
   }
 
   async function _uninstall () {
-    const ctx = await getContext(opts)
+    const ctx = await getContextForSingleImporter(opts)
 
     if (!ctx.pkg) {
       throw new Error('No package.json found - cannot uninstall')
@@ -60,7 +60,7 @@ export default async function uninstall (
 
 export async function uninstallInContext (
   pkgsToUninstall: string[],
-  ctx: PnpmContext,
+  ctx: PnpmSingleContext,
   opts: StrictUninstallOptions,
 ) {
   const makePartialCurrentShrinkwrap = !shrinkwrapsEqual(ctx.currentShrinkwrap, ctx.wantedShrinkwrap)
@@ -68,38 +68,42 @@ export async function uninstallInContext (
   const pkgJsonPath = path.join(ctx.prefix, 'package.json')
   const saveType = getSaveType(opts)
   const pkg = await removeDeps(pkgJsonPath, pkgsToUninstall, { prefix: opts.prefix, saveType })
-  const newShr = pruneShrinkwrap(ctx.wantedShrinkwrap, pkg, ctx.importerPath, (message) => logger.warn({message, prefix: ctx.prefix}))
+  const newShr = pruneShrinkwrap(ctx.wantedShrinkwrap, pkg, ctx.importerId, (message) => logger.warn({message, prefix: ctx.prefix}))
   const removedPkgIds = await prune({
-    bin: opts.bin,
-    hoistedAliases: ctx.hoistedAliases,
-    importerModulesDir: ctx.importerModulesDir,
-    importerPath: ctx.importerPath,
+    importers: [
+      {
+        bin: opts.bin,
+        hoistedAliases: ctx.hoistedAliases,
+        id: ctx.importerId,
+        modulesDir: ctx.modulesDir,
+        prefix: ctx.prefix,
+        shamefullyFlatten: opts.shamefullyFlatten,
+      },
+    ],
     newShrinkwrap: newShr,
     oldShrinkwrap: ctx.currentShrinkwrap,
-    prefix: ctx.prefix,
-    shamefullyFlatten: opts.shamefullyFlatten,
     storeController: opts.storeController,
     virtualStoreDir: ctx.virtualStoreDir,
   })
   ctx.pendingBuilds = ctx.pendingBuilds.filter((pkgId) => !removedPkgIds.has(dp.resolve(newShr.registry, pkgId)))
   await opts.storeController.close()
   const currentShrinkwrap = makePartialCurrentShrinkwrap
-    ? pruneShrinkwrap(ctx.currentShrinkwrap, pkg, ctx.importerPath)
+    ? pruneShrinkwrap(ctx.currentShrinkwrap, pkg, ctx.importerId)
     : newShr
   if (opts.shrinkwrap) {
     await saveShrinkwrap(ctx.shrinkwrapDirectory, newShr, currentShrinkwrap)
   } else {
     await saveCurrentShrinkwrapOnly(ctx.shrinkwrapDirectory, currentShrinkwrap)
   }
-  await removeOuterLinks(pkgsToUninstall, ctx.importerModulesDir, {
+  await removeOuterLinks(pkgsToUninstall, ctx.modulesDir, {
     bin: opts.bin,
     prefix: opts.prefix,
     storePath: ctx.storePath,
   })
 
   if (opts.shamefullyFlatten) {
-    ctx.hoistedAliases = await shamefullyFlattenGraphByShrinkwrap(currentShrinkwrap, ctx.importerPath, {
-      importerModulesDir: ctx.importerModulesDir,
+    ctx.hoistedAliases = await shamefullyFlattenGraphByShrinkwrap(currentShrinkwrap, ctx.importerId, {
+      modulesDir: ctx.modulesDir,
       prefix: opts.prefix,
       virtualStoreDir: ctx.virtualStoreDir,
     }) || {}
@@ -108,7 +112,7 @@ export async function uninstallInContext (
     ...ctx.modulesFile,
     importers: {
       ...ctx.modulesFile && ctx.modulesFile.importers,
-      [ctx.importerPath]: {
+      [ctx.importerId]: {
         hoistedAliases: ctx.hoistedAliases,
         shamefullyFlatten: opts.shamefullyFlatten,
       },
@@ -127,7 +131,7 @@ export async function uninstallInContext (
 
 async function removeOuterLinks (
   pkgsToUninstall: string[],
-  importerModulesDir: string,
+  modulesDir: string,
   opts: {
     bin: string,
     storePath: string,
@@ -141,14 +145,14 @@ async function removeOuterLinks (
   }
   // These packages are not in package.json, they were just linked in not installed
   for (const pkgToUninstall of pkgsToUninstall) {
-    if (await safeIsInnerLink(importerModulesDir, pkgToUninstall, safeIsInnerLinkOpts) !== true) {
+    if (await safeIsInnerLink(modulesDir, pkgToUninstall, safeIsInnerLinkOpts) !== true) {
       await removeDirectDependency({
         dev: false,
         name: pkgToUninstall,
         optional: false,
       }, {
         bin: opts.bin,
-        importerModulesDir,
+        modulesDir,
         prefix: opts.prefix,
       })
     }

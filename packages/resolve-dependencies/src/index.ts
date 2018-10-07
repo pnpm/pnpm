@@ -4,10 +4,25 @@ import { createNodeId, nodeIdContainsSequence, ROOT_NODE_ID, WantedDependency } 
 import { StoreController } from 'package-store'
 import { Shrinkwrap } from 'pnpm-shrinkwrap'
 import getPreferredVersionsFromPackage from './getPreferredVersions'
-import resolveDependencies, { ResolutionContext } from './resolveDependencies'
+import resolveDependencies, {
+  ChildrenByParentId,
+  DependenciesTree,
+  LinkedDependency,
+  PendingNode,
+  PkgAddress,
+  ResolvedPackagesByPackageId,
+} from './resolveDependencies'
 
-export { ResolvedPackage, DependenciesTree, DependenciesTreeNode } from './resolveDependencies'
+export { LinkedDependency, ResolvedPackage, DependenciesTree, DependenciesTreeNode } from './resolveDependencies'
 export { InstallCheckLog, DeprecationLog } from './loggers'
+
+export interface Importer {
+  id: string,
+  nonLinkedPackages: WantedDependency[],
+  pkg?: PackageJson,
+  prefix: string,
+  shamefullyFlatten: boolean,
+}
 
 export default async function (
   opts: {
@@ -16,24 +31,20 @@ export default async function (
     dryRun: boolean,
     engineStrict: boolean,
     force: boolean,
-    importerPath: string,
+    importers: Importer[],
     hooks: {
       readPackage?: ReadPackageHook,
     },
     nodeVersion: string,
-    nonLinkedPackages: WantedDependency[],
     rawNpmConfig: object,
-    pkg?: PackageJson,
     pnpmVersion: string,
     sideEffectsCache: boolean,
-    shamefullyFlatten: boolean,
     preferredVersions?: {
       [packageName: string]: {
         selector: string,
         type: 'version' | 'range' | 'tag',
       },
     },
-    prefix: string,
     skipped: Set<string>,
     storeController: StoreController,
     tag: string,
@@ -45,27 +56,25 @@ export default async function (
     localPackages: LocalPackages,
   },
 ) {
-  const preferredVersions = opts.preferredVersions || opts.pkg && getPreferredVersionsFromPackage(opts.pkg) || {}
+  const directNonLinkedDepsByImporterId = {} as {[id: string]: PkgAddress[]}
+  const linkedDependenciesByImporterId = {}
 
-  const ctx: ResolutionContext = {
-    childrenByParentId: {},
+  const ctx = {
+    childrenByParentId: {} as ChildrenByParentId,
     currentShrinkwrap: opts.currentShrinkwrap,
     defaultTag: opts.tag,
-    dependenciesTree: {},
+    dependenciesTree: {} as DependenciesTree,
     depth: opts.depth,
     dryRun: opts.dryRun,
     engineStrict: opts.engineStrict,
     force: opts.force,
     nodeVersion: opts.nodeVersion,
-    outdatedDependencies: {},
-    pendingNodes: [],
+    outdatedDependencies: {} as {[pkgId: string]: string},
+    pendingNodes: [] as PendingNode[],
     pnpmVersion: opts.pnpmVersion,
-    preferredVersions,
-    prefix: opts.prefix,
     rawNpmConfig: opts.rawNpmConfig,
     registry: opts.wantedShrinkwrap.registry,
-    resolvedFromLocalPackages: [],
-    resolvedPackagesByPackageId: {},
+    resolvedPackagesByPackageId: {} as ResolvedPackagesByPackageId,
     skipped: opts.skipped,
     storeController: opts.storeController,
     verifyStoreIntegrity: opts.verifyStoreIntegrity,
@@ -73,27 +82,36 @@ export default async function (
     wantedShrinkwrap: opts.wantedShrinkwrap,
   }
 
-  const shrImporter = opts.wantedShrinkwrap.importers[opts.importerPath]
-  const rootPkgs = await resolveDependencies(
-    ctx,
-    opts.nonLinkedPackages,
-    {
-      currentDepth: 0,
-      hasManifestInShrinkwrap: opts.hasManifestInShrinkwrap,
-      keypath: [],
-      localPackages: opts.localPackages,
-      parentNodeId: ROOT_NODE_ID,
-      readPackageHook: opts.hooks.readPackage,
-      resolvedDependencies: {
-        ...shrImporter.dependencies,
-        ...shrImporter.devDependencies,
-        ...shrImporter.optionalDependencies,
+  await Promise.all(opts.importers.map(async (importer) => {
+    const shrImporter = opts.wantedShrinkwrap.importers[importer.id]
+    const linkedDependencies = [] as LinkedDependency[]
+    directNonLinkedDepsByImporterId[importer.id] = await resolveDependencies(
+      {
+        ...ctx,
+        linkedDependencies,
+        preferredVersions: opts.preferredVersions || importer.pkg && getPreferredVersionsFromPackage(importer.pkg) || {},
+        prefix: importer.prefix,
       },
-      shamefullyFlatten: opts.shamefullyFlatten,
-      sideEffectsCache: opts.sideEffectsCache,
-      update: opts.update,
-    },
-  )
+      importer.nonLinkedPackages,
+      {
+        currentDepth: 0,
+        hasManifestInShrinkwrap: opts.hasManifestInShrinkwrap,
+        keypath: [],
+        localPackages: opts.localPackages,
+        parentNodeId: ROOT_NODE_ID,
+        readPackageHook: opts.hooks.readPackage,
+        resolvedDependencies: {
+          ...shrImporter.dependencies,
+          ...shrImporter.devDependencies,
+          ...shrImporter.optionalDependencies,
+        },
+        shamefullyFlatten: importer.shamefullyFlatten,
+        sideEffectsCache: opts.sideEffectsCache,
+        update: opts.update,
+      },
+    )
+    linkedDependenciesByImporterId[importer.id] = linkedDependencies
+  }))
 
   ctx.pendingNodes.forEach((pendingNode) => {
     ctx.dependenciesTree[pendingNode.nodeId] = {
@@ -105,18 +123,9 @@ export default async function (
     }
   })
 
-  const directNodeIdsByAlias = rootPkgs
-    .reduce((acc, rootPkg) => {
-      acc[rootPkg.alias] = rootPkg.nodeId
-      return acc
-    }, {})
-  const directDependencies = [
-    ...rootPkgs
-      .map((rootPkg) => ({
-        ...ctx.dependenciesTree[rootPkg.nodeId].resolvedPackage,
-        alias: rootPkg.alias,
-        normalizedPref: rootPkg.normalizedPref,
-      })) as Array<{
+  const resolvedImporters = {} as {
+    [id: string]: {
+      directDependencies: Array<{
         alias: string,
         optional: boolean,
         dev: boolean,
@@ -127,21 +136,61 @@ export default async function (
         specRaw: string,
         normalizedPref?: string,
       }>,
-    ...ctx.resolvedFromLocalPackages,
-  ]
+      directNodeIdsByAlias: {
+        [alias: string]: string,
+      },
+      linkedDependencies: LinkedDependency[],
+    },
+  }
+
+  for (const importer of opts.importers) {
+    const directNonLinkedDeps = directNonLinkedDepsByImporterId[importer.id]
+    const linkedDependencies = linkedDependenciesByImporterId[importer.id]
+
+    resolvedImporters[importer.id] = {
+      directDependencies: [
+        ...directNonLinkedDeps
+          .map((dependency) => ({
+            ...ctx.dependenciesTree[dependency.nodeId].resolvedPackage,
+            alias: dependency.alias,
+            normalizedPref: dependency.normalizedPref,
+          })) as Array<{
+            alias: string,
+            optional: boolean,
+            dev: boolean,
+            resolution: Resolution,
+            id: string,
+            version: string,
+            name: string,
+            specRaw: string,
+            normalizedPref?: string,
+          }>,
+        ...linkedDependencies,
+      ],
+      directNodeIdsByAlias: directNonLinkedDeps
+        .reduce((acc, dependency) => {
+          acc[dependency.alias] = dependency.nodeId
+          return acc
+        }, {}),
+      linkedDependencies,
+    }
+  }
 
   return {
     dependenciesTree: ctx.dependenciesTree,
-    directDependencies,
-    directNodeIdsByAlias,
     outdatedDependencies: ctx.outdatedDependencies,
-    resolvedFromLocalPackages: ctx.resolvedFromLocalPackages,
+    resolvedImporters,
     resolvedPackagesByPackageId: ctx.resolvedPackagesByPackageId,
   }
 }
 
 function buildTree (
-  ctx: ResolutionContext,
+  ctx: {
+    childrenByParentId: ChildrenByParentId,
+    dependenciesTree: DependenciesTree,
+    resolvedPackagesByPackageId: ResolvedPackagesByPackageId,
+    skipped: Set<string>,
+  },
   parentNodeId: string,
   parentId: string,
   children: Array<{alias: string, pkgId: string}>,

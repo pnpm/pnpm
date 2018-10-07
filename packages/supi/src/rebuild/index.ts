@@ -17,7 +17,7 @@ import {
 import R = require('ramda')
 import semver = require('semver')
 import { LAYOUT_VERSION } from '../constants'
-import getContext from '../getContext'
+import { getContextForSingleImporter } from '../getContext'
 import extendOptions, {
   RebuildOptions,
   StrictRebuildOptions,
@@ -74,7 +74,7 @@ export async function rebuildPkgs (
     streamParser.on('data', reporter)
   }
   const opts = await extendOptions(maybeOpts)
-  const ctx = await getContext(opts)
+  const ctx = await getContextForSingleImporter(opts)
 
   if (!ctx.currentShrinkwrap || !ctx.currentShrinkwrap.packages) return
   const packages = ctx.currentShrinkwrap.packages
@@ -95,7 +95,7 @@ export async function rebuildPkgs (
 
   const pkgs = findPackages(packages, searched, {prefix: ctx.prefix})
 
-  await _rebuild(new Set(pkgs), ctx.virtualStoreDir, ctx.currentShrinkwrap, ctx.importerPath, opts)
+  await _rebuild(new Set(pkgs), ctx.virtualStoreDir, ctx.currentShrinkwrap, ctx.importerId, opts)
 }
 
 export async function rebuild (maybeOpts: RebuildOptions) {
@@ -104,7 +104,7 @@ export async function rebuild (maybeOpts: RebuildOptions) {
     streamParser.on('data', reporter)
   }
   const opts = await extendOptions(maybeOpts)
-  const ctx = await getContext(opts)
+  const ctx = await getContextForSingleImporter(opts)
 
   let idsToRebuild: string[] = []
 
@@ -117,25 +117,25 @@ export async function rebuild (maybeOpts: RebuildOptions) {
   }
   if (idsToRebuild.length === 0) return
 
-  const pkgsThatWereRebuilt = await _rebuild(new Set(idsToRebuild), ctx.virtualStoreDir, ctx.currentShrinkwrap, ctx.importerPath, opts)
+  const pkgsThatWereRebuilt = await _rebuild(new Set(idsToRebuild), ctx.virtualStoreDir, ctx.currentShrinkwrap, ctx.importerId, opts)
 
   ctx.pendingBuilds = ctx.pendingBuilds.filter((relDepPath) => !pkgsThatWereRebuilt.has(relDepPath))
 
-  if (ctx.pkg && ctx.pkg.scripts && (!opts.pending || ctx.pendingBuilds.indexOf(ctx.importerPath) !== -1)) {
+  if (ctx.pkg && ctx.pkg.scripts && (!opts.pending || ctx.pendingBuilds.indexOf(ctx.importerId) !== -1)) {
     await runLifecycleHooksInDir(opts.prefix, ctx.pkg, {
       rawNpmConfig: opts.rawNpmConfig,
-      rootNodeModulesDir: ctx.importerModulesDir,
+      rootNodeModulesDir: ctx.modulesDir,
       unsafePerm: opts.unsafePerm,
     })
 
-    ctx.pendingBuilds.splice(ctx.pendingBuilds.indexOf(ctx.importerPath), 1)
+    ctx.pendingBuilds.splice(ctx.pendingBuilds.indexOf(ctx.importerId), 1)
   }
 
   await writeModulesYaml(ctx.virtualStoreDir, {
     ...ctx.modulesFile,
     importers: {
       ...ctx.modulesFile && ctx.modulesFile.importers,
-      [ctx.importerPath]: {
+      [ctx.importerId]: {
         hoistedAliases: ctx.hoistedAliases,
         shamefullyFlatten: opts.shamefullyFlatten,
       },
@@ -230,14 +230,14 @@ async function _rebuild (
   pkgsToRebuild: Set<string>,
   modules: string,
   shr: Shrinkwrap,
-  importerPath: string,
+  importerId: string,
   opts: StrictRebuildOptions,
 ) {
   const pkgsThatWereRebuilt = new Set()
   const limitChild = pLimit(opts.childConcurrency)
   const graph = new Map()
   const pkgSnapshots: PackageSnapshots = shr.packages || {}
-  const shrImporter = shr.importers[importerPath]
+  const shrImporter = shr.importers[importerId]
 
   const entryNodes = R.toPairs({
     ...(opts.development && shrImporter.devDependencies || {}),
