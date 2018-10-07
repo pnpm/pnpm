@@ -7,16 +7,16 @@ import getPreferredVersionsFromPackage from './getPreferredVersions'
 import resolveDependencies, {
   ChildrenByParentId,
   DependenciesTree,
+  LinkedDependency,
   PendingNode,
   PkgAddress,
-  ResolvedFromLocalPackage,
   ResolvedPackagesByPackageId,
 } from './resolveDependencies'
 
-export { ResolvedFromLocalPackage, ResolvedPackage, DependenciesTree, DependenciesTreeNode } from './resolveDependencies'
+export { LinkedDependency, ResolvedPackage, DependenciesTree, DependenciesTreeNode } from './resolveDependencies'
 export { InstallCheckLog, DeprecationLog } from './loggers'
 
-export interface ImporterToResolve {
+export interface Importer {
   id: string,
   nonLinkedPackages: WantedDependency[],
   pkg?: PackageJson,
@@ -31,7 +31,7 @@ export default async function (
     dryRun: boolean,
     engineStrict: boolean,
     force: boolean,
-    importers: ImporterToResolve[],
+    importers: Importer[],
     hooks: {
       readPackage?: ReadPackageHook,
     },
@@ -56,8 +56,8 @@ export default async function (
     localPackages: LocalPackages,
   },
 ) {
-  const rootPkgsByImporterId = {} as {[id: string]: PkgAddress[]}
-  const resolvedFromLocalPackagesByImporterId = {}
+  const directNonLinkedDepsByImporterId = {} as {[id: string]: PkgAddress[]}
+  const linkedDependenciesByImporterId = {}
 
   const ctx = {
     childrenByParentId: {} as ChildrenByParentId,
@@ -84,13 +84,13 @@ export default async function (
 
   await Promise.all(opts.importers.map(async (importer) => {
     const shrImporter = opts.wantedShrinkwrap.importers[importer.id]
-    const resolvedFromLocalPackages = [] as ResolvedFromLocalPackage[]
-    rootPkgsByImporterId[importer.id] = await resolveDependencies(
+    const linkedDependencies = [] as LinkedDependency[]
+    directNonLinkedDepsByImporterId[importer.id] = await resolveDependencies(
       {
         ...ctx,
+        linkedDependencies,
         preferredVersions: opts.preferredVersions || importer.pkg && getPreferredVersionsFromPackage(importer.pkg) || {},
         prefix: importer.prefix,
-        resolvedFromLocalPackages,
       },
       importer.nonLinkedPackages,
       {
@@ -110,7 +110,7 @@ export default async function (
         update: opts.update,
       },
     )
-    resolvedFromLocalPackagesByImporterId[importer.id] = resolvedFromLocalPackages
+    linkedDependenciesByImporterId[importer.id] = linkedDependencies
   }))
 
   ctx.pendingNodes.forEach((pendingNode) => {
@@ -139,21 +139,21 @@ export default async function (
       directNodeIdsByAlias: {
         [alias: string]: string,
       },
-      resolvedFromLocalPackages: ResolvedFromLocalPackage[],
+      linkedDependencies: LinkedDependency[],
     },
   }
 
   for (const importer of opts.importers) {
-    const rootPkgs = rootPkgsByImporterId[importer.id]
-    const resolvedFromLocalPackages = resolvedFromLocalPackagesByImporterId[importer.id]
+    const directNonLinkedDeps = directNonLinkedDepsByImporterId[importer.id]
+    const linkedDependencies = linkedDependenciesByImporterId[importer.id]
 
     resolvedImporters[importer.id] = {
       directDependencies: [
-        ...rootPkgs
-          .map((rootPkg) => ({
-            ...ctx.dependenciesTree[rootPkg.nodeId].resolvedPackage,
-            alias: rootPkg.alias,
-            normalizedPref: rootPkg.normalizedPref,
+        ...directNonLinkedDeps
+          .map((dependency) => ({
+            ...ctx.dependenciesTree[dependency.nodeId].resolvedPackage,
+            alias: dependency.alias,
+            normalizedPref: dependency.normalizedPref,
           })) as Array<{
             alias: string,
             optional: boolean,
@@ -165,14 +165,14 @@ export default async function (
             specRaw: string,
             normalizedPref?: string,
           }>,
-        ...resolvedFromLocalPackages,
+        ...linkedDependencies,
       ],
-      directNodeIdsByAlias: rootPkgs
-        .reduce((acc, rootPkg) => {
-          acc[rootPkg.alias] = rootPkg.nodeId
+      directNodeIdsByAlias: directNonLinkedDeps
+        .reduce((acc, dependency) => {
+          acc[dependency.alias] = dependency.nodeId
           return acc
         }, {}),
-      resolvedFromLocalPackages,
+      linkedDependencies,
     }
   }
 

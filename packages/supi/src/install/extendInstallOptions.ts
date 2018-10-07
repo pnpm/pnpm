@@ -11,7 +11,7 @@ import { ImportersOptions, StrictImportersOptions } from '../getContext'
 import pnpmPkgJson from '../pnpmPkgJson'
 import { ReporterFunction } from '../types'
 
-export interface InstallOptions {
+export interface BaseInstallOptions {
   allowNew?: boolean,
   frozenShrinkwrap?: boolean,
   preferFrozenShrinkwrap?: boolean,
@@ -64,7 +64,12 @@ export interface InstallOptions {
   pruneStore?: boolean,
 }
 
-export type StrictInstallOptions = InstallOptions & {
+export type InstallOptions = BaseInstallOptions & {
+  bin?: string,
+  prefix?: string,
+}
+
+export type StrictInstallOptions = BaseInstallOptions & {
   allowNew: boolean,
   frozenShrinkwrap: boolean,
   preferFrozenShrinkwrap: boolean,
@@ -146,8 +151,8 @@ const defaults = async (opts: InstallOptions) => {
     ignoreCurrentPrefs: false,
     ignoreScripts: false,
     importers: [{
-      bin: opts['bin'], // tslint:disable-line
-      prefix: opts['prefix'] || process.cwd(), // tslint:disable-line
+      bin: opts.bin,
+      prefix: opts.prefix || process.cwd(),
     }],
     include: {
       dependencies: true,

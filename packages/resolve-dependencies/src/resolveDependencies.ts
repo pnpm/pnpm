@@ -63,7 +63,7 @@ export interface ResolvedPackagesByPackageId {
   [packageId: string]: ResolvedPackage,
 }
 
-export interface ResolvedFromLocalPackage {
+export interface LinkedDependency {
   optional: boolean,
   dev: boolean,
   resolution: DirectoryResolution,
@@ -92,7 +92,7 @@ export interface ResolutionContext {
   dryRun: boolean,
   resolvedPackagesByPackageId: ResolvedPackagesByPackageId,
   outdatedDependencies: {[pkgId: string]: string},
-  resolvedFromLocalPackages: ResolvedFromLocalPackage[],
+  linkedDependencies: LinkedDependency[],
   childrenByParentId: ChildrenByParentId,
   pendingNodes: PendingNode[],
   wantedShrinkwrap: Shrinkwrap,
@@ -404,7 +404,7 @@ async function install (
         prefix: ctx.prefix,
       })
     } else {
-      ctx.resolvedFromLocalPackages.push({
+      ctx.linkedDependencies.push({
         alias: wantedDependency.alias || manifest.name,
         dev: wantedDependency.dev,
         id: pkgResponse.body.id,

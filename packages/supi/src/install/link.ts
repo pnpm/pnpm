@@ -8,7 +8,7 @@ import logger from '@pnpm/logger'
 import { prune } from '@pnpm/modules-cleaner'
 import { IncludedDependencies } from '@pnpm/modules-yaml'
 import { fromDir as readPackageFromDir } from '@pnpm/read-package-json'
-import { DependenciesTree, ResolvedFromLocalPackage } from '@pnpm/resolve-dependencies'
+import { DependenciesTree, LinkedDependency } from '@pnpm/resolve-dependencies'
 import { PackageJson } from '@pnpm/types'
 import * as dp from 'dependency-path'
 import pLimit = require('p-limit')
@@ -28,7 +28,7 @@ import updateShrinkwrap from './updateShrinkwrap'
 
 export { DependenciesGraph }
 
-export interface ImporterToLink {
+export interface Importer {
   bin: string,
   directNodeIdsByAlias: {[alias: string]: string},
   externalShrinkwrap: boolean,
@@ -37,13 +37,13 @@ export interface ImporterToLink {
   id: string,
   pkg: PackageJson,
   prefix: string,
-  resolvedFromLocalPackages: ResolvedFromLocalPackage[],
+  linkedDependencies: LinkedDependency[],
   shamefullyFlatten: boolean,
   topParents: Array<{name: string, version: string}>,
 }
 
 export default async function linkPackages (
-  importers: ImporterToLink[],
+  importers: Importer[],
   dependenciesTree: DependenciesTree,
   opts: {
     afterAllResolvedHook?: (shr: Shrinkwrap) => Shrinkwrap,
@@ -258,15 +258,15 @@ export default async function linkPackages (
   if (!opts.dryRun) {
     await Promise.all(
       importers.map((importer) =>
-        Promise.all(importer.resolvedFromLocalPackages.map((localPackage) =>
+        Promise.all(importer.linkedDependencies.map((linkedDependency) =>
           linkToModules({
-            alias: localPackage.alias,
+            alias: linkedDependency.alias,
             destModulesDir: importer.modulesDir,
-            name: localPackage.name,
-            packageDir: resolvePath(importer.prefix, localPackage.resolution.directory),
+            name: linkedDependency.name,
+            packageDir: resolvePath(importer.prefix, linkedDependency.resolution.directory),
             prefix: importer.prefix,
-            saveType: localPackage.dev && 'devDependencies' || localPackage.optional && 'optionalDependencies' || 'dependencies',
-            version: localPackage.version,
+            saveType: linkedDependency.dev && 'devDependencies' || linkedDependency.optional && 'optionalDependencies' || 'dependencies',
+            version: linkedDependency.version,
           }),
         )),
       ),
@@ -284,7 +284,7 @@ export default async function linkPackages (
   }
 }
 
-function linkBinsOfImporter ({modulesDir, bin, prefix}: ImporterToLink) {
+function linkBinsOfImporter ({modulesDir, bin, prefix}: Importer) {
   const warn = (message: string) => logger.warn({message, prefix})
   return linkBins(modulesDir, bin, { warn })
 }

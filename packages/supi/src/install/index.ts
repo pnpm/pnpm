@@ -10,7 +10,7 @@ import logger, {
   streamParser,
 } from '@pnpm/logger'
 import { write as writeModulesYaml } from '@pnpm/modules-yaml'
-import resolveDependencies, { ImporterToResolve, ResolvedPackage } from '@pnpm/resolve-dependencies'
+import resolveDependencies, { ResolvedPackage } from '@pnpm/resolve-dependencies'
 import {
   LocalPackages,
   Resolution,
@@ -61,7 +61,10 @@ import extendOptions, {
   InstallOptions,
   StrictInstallOptions,
 } from './extendInstallOptions'
-import linkPackages, { DependenciesGraph, ImporterToLink } from './link'
+import linkPackages, {
+  DependenciesGraph,
+  Importer as ImporterToLink,
+} from './link'
 
 const ENGINE_NAME = `${process.platform}-${process.arch}-node-${process.version.split('.')[0]}`
 
@@ -571,10 +574,10 @@ async function installInContext (
       externalShrinkwrap: ctx.shrinkwrapDirectory !== importer.prefix,
       hoistedAliases: importer.hoistedAliases,
       id: importer.id,
+      linkedDependencies: resolvedImporter.linkedDependencies,
       modulesDir: importer.modulesDir,
       pkg: newPkg || importer.pkg,
       prefix: importer.prefix,
-      resolvedFromLocalPackages: resolvedImporter.resolvedFromLocalPackages,
       shamefullyFlatten: importer.shamefullyFlatten,
       topParents,
     }
