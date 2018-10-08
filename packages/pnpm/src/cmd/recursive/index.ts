@@ -322,7 +322,41 @@ export async function recursive (
 function sortPackages (pkgGraph: {[nodeId: string]: PackageNode}): string[][] {
   const keys = Object.keys(pkgGraph)
   const graph = new Map(
-    keys.map((pkgPath) => [pkgPath, pkgGraph[pkgPath].dependencies]) as Array<[string, string[]]>,
+    keys.map((pkgPath) => [
+      pkgPath,
+      /* remove cycles of length 1 (ie., package 'a' depends on 'a').  They
+      confuse the graph-sequencer, but can be ignored when ordering packages
+      topologically.
+
+      See the following example where 'b' and 'c' depend on themselves:
+
+        graphSequencer({graph: new Map([
+          ['a', ['b', 'c']],
+          ['b', ['b']],
+          ['c', ['b', 'c']]]
+        ),
+        groups: [['a', 'b', 'c']]})
+
+      returns chunks:
+
+          [['b'],['a'],['c']]
+
+      But both 'b' and 'c' should be executed _before_ 'a', because 'a' depends on
+      them.  It works (and is considered 'safe' if we run:)
+
+        graphSequencer({graph: new Map([
+          ['a', ['b', 'c']],
+          ['b', []],
+          ['c', ['b']]]
+        ), groups: [['a', 'b', 'c']]})
+
+      returning:
+
+          [['b'], ['c'], ['a']]
+
+      */
+      pkgGraph[pkgPath].dependencies.filter(d => d !== pkgPath)]
+    ) as Array<[string, string[]]>,
   )
   const graphSequencerResult = graphSequencer({
     graph,
