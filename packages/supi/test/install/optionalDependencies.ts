@@ -260,8 +260,10 @@ test('only skip optional dependencies', async (t: tape.Test) => {
 
  await install(await testDefaults())
 
- t.ok(await exists(path.resolve('node_modules', '.localhost+4873', 'duplexify', '3.6.0')), 'duplexify is linked into node_modules')
- t.ok(await exists(path.resolve('node_modules', '.localhost+4873', 'stream-shift', '1.0.0')), 'stream-shift is linked into node_modules')
+  t.ok(await exists(path.resolve('node_modules', '.localhost+4873', 'duplexify', '3.6.0')), 'duplexify is linked into node_modules')
+  t.ok(await exists(path.resolve('node_modules', '.localhost+4873', 'stream-shift', '1.0.0')), 'stream-shift is linked into node_modules')
+
+  t.ok(await exists(path.resolve('node_modules', '.localhost+4873', 'got', '3.3.1', 'node_modules', 'duplexify')), 'duplexify is linked into node_modules of got')
 })
 
 test('rebuild should not fail on incomplete shrinkwrap.yaml', async (t: tape.Test) => {

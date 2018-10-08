@@ -472,7 +472,7 @@ async function linkAllModules (
           R.keys(childrenToLink)
             .map(async (alias) => {
               const pkg = depGraph[childrenToLink[alias]]
-              if (!pkg.installable) return
+              if (!pkg.installable && pkg.optional) return
               await symlinkDependencyTo(alias, pkg.peripheralLocation, depNode.modules)
             }),
         )
