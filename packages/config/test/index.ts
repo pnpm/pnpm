@@ -1,4 +1,5 @@
 import getConfigs from '@pnpm/config'
+import path = require('path')
 import test = require('tape')
 import tempy = require('tempy')
 import fs = require('mz/fs')
@@ -43,7 +44,7 @@ test('when using --global, link-workspace-packages is false even if it is set to
   t.comment(`temp dir created: ${tmp}`)
 
   process.chdir(tmp)
-  fs.writeFile('.npmrc', 'link-workspace-packages=true', 'utf8')
+  await fs.writeFile('.npmrc', 'link-workspace-packages=true', 'utf8')
 
   {
     const opts = await getConfigs({
@@ -71,5 +72,28 @@ test('when using --global, link-workspace-packages is false even if it is set to
     t.notOk(opts.linkWorkspacePackages)
   }
 
+  t.end()
+})
+
+test('workspace manifest is searched from specified prefix', async (t) => {
+  const tmp = tempy.directory()
+  t.comment(`temp dir created: ${tmp}`)
+
+  process.chdir(tmp)
+
+  await fs.mkdir('workspace')
+  await fs.writeFile('workspace/pnpm-workspace.yaml', '', 'utf8')
+
+  const opts = await getConfigs({
+    cliArgs: {
+      prefix: 'workspace',
+    },
+    packageManager: {
+      name: 'pnpm',
+      version: '1.0.0',
+    },
+  })
+
+  t.equal(opts.workspacePrefix, path.join(tmp, 'workspace'))
   t.end()
 })
