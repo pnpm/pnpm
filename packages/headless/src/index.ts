@@ -591,7 +591,7 @@ async function linkAllModules (
         await Promise.all(
           R.keys(childrenToLink)
             .map(async (alias) => {
-              // if (!pkg.installable) return
+              // if (!pkg.installable && pkg.optional) return
               await symlinkDependencyTo(alias, childrenToLink[alias], depNode.modules)
             }),
         )
