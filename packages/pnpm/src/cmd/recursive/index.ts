@@ -212,8 +212,10 @@ export async function recursive (
       if (opts.ignoredPackages) {
         pkgPaths = pkgPaths.filter((prefix) => !opts.ignoredPackages!.has(prefix))
       }
+      const hooks = opts.ignorePnpmfile ? {} : requireHooks(opts.shrinkwrapDirectory, opts)
       await action({
         ...installOpts,
+        hooks,
         importers: await Promise.all(pkgPaths.map(async (prefix) => {
           const localConfigs = await memReadLocalConfigs(prefix)
           return {

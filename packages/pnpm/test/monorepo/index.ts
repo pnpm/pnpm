@@ -289,7 +289,7 @@ test('recursive install with link-workspace-packages and shared-workspace-shrink
     },
   ])
 
-  await writeYamlFile('pnpm-workspace.yaml', {packages: ['**', '!store/**']})
+  await writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
   await fs.writeFile('is-positive/.npmrc', 'shamefully-flatten = true', 'utf8') // package-specific configs
 
   await execPnpm('recursive', 'install', '--link-workspace-packages', '--shared-workspace-shrinkwrap=true', '--store', 'store')
@@ -306,4 +306,39 @@ test('recursive install with link-workspace-packages and shared-workspace-shrink
 
   const storeJson = await loadJsonFile<object>(path.resolve('store', '2', 'store.json'))
   t.deepEqual(storeJson['localhost+4873/is-negative/1.0.0'].length, 1, 'new connections saved in store.json')
+})
+
+test('recursive installation with shared-workspace-shrinkwrap and a readPackage hook', async (t) => {
+  const projects = preparePackages(t, [
+    {
+      name: 'project-1',
+      version: '1.0.0',
+      dependencies: {
+        'is-positive': '1.0.0',
+      },
+    },
+    {
+      name: 'project-2',
+      version: '1.0.0',
+      dependencies: {
+        'is-negative': '1.0.0',
+      },
+    },
+  ])
+
+  const pnpmfile = `
+    module.exports = { hooks: { readPackage } }
+    function readPackage (pkg) {
+      pkg.dependencies = pkg.dependencies || {}
+      pkg.dependencies['dep-of-pkg-with-1-dep'] = '100.1.0'
+      return pkg
+    }
+  `
+  await fs.writeFile('pnpmfile.js', pnpmfile, 'utf8')
+  await writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
+
+  await execPnpm('recursive', 'install', '--shared-workspace-shrinkwrap', '--store', 'store')
+
+  const shr = await loadYamlFile('./shrinkwrap.yaml') as any // tslint:disable-line:no-any
+  t.ok(shr.packages['/dep-of-pkg-with-1-dep/100.1.0'], 'new dependency added by hook')
 })
