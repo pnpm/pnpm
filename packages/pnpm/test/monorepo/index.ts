@@ -176,6 +176,56 @@ test('linking a package inside a monorepo with --link-workspace-packages', async
   }
 })
 
+test('Regression: topological order of packages with self-dependencies in monorepo is correct', async (t: tape.Test) => {
+  preparePackages(t, [
+    {
+      name: 'project-1',
+      version: '1.0.0',
+      dependencies: { 'project-2': '1.0.0', 'project-3': '1.0.0' },
+      devDependencies: { 'json-append': '1' },
+      scripts: {
+        install: `node -e "process.stdout.write('project-1')" | json-append ../output.json`,
+        test: `node -e "process.stdout.write('project-1')" | json-append ../output2.json`,
+      },
+    },
+    {
+      name: 'project-2',
+      version: '1.0.0',
+      dependencies: { 'project-2': '1.0.0' },
+      devDependencies: { 'json-append': '1' },
+      scripts: {
+        install: `node -e "process.stdout.write('project-2')" | json-append ../output.json`,
+        test: `node -e "process.stdout.write('project-2')" | json-append ../output2.json`,
+      },
+    },
+    {
+      name: 'project-3',
+      version: '1.0.0',
+      dependencies: { 'project-2': '1.0.0', 'project-3': '1.0.0' },
+      devDependencies: { 'json-append': '1' },
+      scripts: {
+        install: `node -e "process.stdout.write('project-3')" | json-append ../output.json`,
+        test: `node -e "process.stdout.write('project-3')" | json-append ../output2.json`,
+      },
+    },
+  ]);
+  await fs.writeFile('.npmrc', 'link-workspace-packages = true', 'utf8')
+  await writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
+
+  process.chdir('project-1')
+
+  await execPnpm('install')
+
+  const outputs = await import(path.resolve('..', 'output.json')) as string[]
+  t.deepEqual(outputs, ['project-2', 'project-3', 'project-1'])
+
+  await execPnpm('recursive', 'test')
+
+  const outputs2 = await import(path.resolve('..', 'output2.json')) as string[]
+  t.deepEqual(outputs2, ['project-2', 'project-3', 'project-1'])
+
+})
+
 // TODO: make it pass
 test['skip']('installation with --link-workspace-packages links packages even if they were previously installed from registry', async (t: tape.Test) => {
   const projects = preparePackages(t, [
