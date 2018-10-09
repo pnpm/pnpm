@@ -176,7 +176,7 @@ test('linking a package inside a monorepo with --link-workspace-packages', async
   }
 })
 
-test('Regression: topological order of packages with self-dependencies in monorepo is correct', async (t: tape.Test) => {
+test('topological order of packages with self-dependencies in monorepo is correct', async (t: tape.Test) => {
   preparePackages(t, [
     {
       name: 'project-1',
@@ -226,7 +226,7 @@ test('Regression: topological order of packages with self-dependencies in monore
 
 })
 
-test('Regression: Do not get confused by filtered dependencies when searching for dependents in monorepo', async (t: tape.Test) => {
+test('do not get confused by filtered dependencies when searching for dependents in monorepo', async (t: tape.Test) => {
   /*
    In this test case, we are filtering for 'project-2' and its dependents with
    two projects in the dependency hierarchy, that can be ignored for this query,
