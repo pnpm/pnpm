@@ -380,12 +380,10 @@ function sortPackages (pkgGraph: {[nodeId: string]: PackageNode}): string[][] {
         setOfKeys.has(d))]
     ) as Array<[string, string[]]>,
   )
-  console.log(graph, 'keys', keys)
   const graphSequencerResult = graphSequencer({
     graph,
     groups: [[keys[0]], keys.slice(1)],
   })
-  console.log(graphSequencerResult)
   return graphSequencerResult.chunks
 }
 
