@@ -382,7 +382,7 @@ function sortPackages (pkgGraph: {[nodeId: string]: PackageNode}): string[][] {
   )
   const graphSequencerResult = graphSequencer({
     graph,
-    groups: [[keys[0]], keys.slice(1)],
+    groups: [keys],
   })
   return graphSequencerResult.chunks
 }
