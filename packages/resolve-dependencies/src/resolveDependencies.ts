@@ -332,7 +332,7 @@ async function install (
     // we can safely assume that it doesn't exist in `node_modules`
     options.relDepPath && ctx.currentShrinkwrap.packages && ctx.currentShrinkwrap.packages[options.relDepPath] &&
     await exists(path.join(ctx.virtualStoreDir, `.${options.depPath}`)) && (
-      options.currentDepth > 0 || wantedDependency.alias && await exists(path.join(ctx.virtualStoreDir, wantedDependency.alias))
+      options.currentDepth > 0 || wantedDependency.alias && await exists(path.join(ctx.prefix, wantedDependency.alias))
     )) {
 
     return null

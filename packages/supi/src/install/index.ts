@@ -480,7 +480,13 @@ async function installInContext (
       if (opts.update) {
         return opts.depth
       }
-      if (R.equals(ctx.wantedShrinkwrap.packages, ctx.currentShrinkwrap.packages)) {
+      if (
+        modulesIsUpToDate({
+          currentShrinkwrap: ctx.currentShrinkwrap,
+          wantedShrinkwrap: ctx.wantedShrinkwrap,
+          skippedPkgIds: Array.from(ctx.skipped),
+        })
+      ) {
         return opts.repeatInstallDepth
       }
       return Infinity
@@ -748,6 +754,21 @@ async function installInContext (
   summaryLogger.debug({ prefix: opts.shrinkwrapDirectory })
 
   await opts.storeController.close()
+}
+
+function modulesIsUpToDate (
+  opts: {
+    currentShrinkwrap: Shrinkwrap,
+    wantedShrinkwrap: Shrinkwrap,
+    skippedPkgIds: string[],
+  }
+) {
+  const currentWithSkipped = [
+    ...R.keys(opts.currentShrinkwrap.packages),
+    ...opts.skippedPkgIds.map((skippedPkgId) => dp.relative(opts.currentShrinkwrap.registry, skippedPkgId))
+  ]
+  currentWithSkipped.sort()
+  return R.equals(R.keys(opts.wantedShrinkwrap.packages), currentWithSkipped)
 }
 
 function getSubgraphToBuild (
