@@ -18,6 +18,7 @@ export { InstallCheckLog, DeprecationLog } from './loggers'
 
 export interface Importer {
   id: string,
+  modulesDir: string,
   nonLinkedPackages: WantedDependency[],
   pkg?: PackageJson,
   prefix: string,
@@ -89,6 +90,7 @@ export default async function (
       {
         ...ctx,
         linkedDependencies,
+        modulesDir: importer.modulesDir,
         preferredVersions: opts.preferredVersions || importer.pkg && getPreferredVersionsFromPackage(importer.pkg) || {},
         prefix: importer.prefix,
       },
