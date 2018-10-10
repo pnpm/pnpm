@@ -176,7 +176,7 @@ test('linking a package inside a monorepo with --link-workspace-packages', async
   }
 })
 
-test('Regression: topological order of packages with self-dependencies in monorepo is correct', async (t: tape.Test) => {
+test('topological order of packages with self-dependencies in monorepo is correct', async (t: tape.Test) => {
   preparePackages(t, [
     {
       name: 'project-1',
@@ -226,6 +226,64 @@ test('Regression: topological order of packages with self-dependencies in monore
 
 })
 
+test('do not get confused by filtered dependencies when searching for dependents in monorepo', async (t: tape.Test) => {
+  /*
+   In this test case, we are filtering for 'project-2' and its dependents with
+   two projects in the dependency hierarchy, that can be ignored for this query,
+   as they do not depend on 'project-2'.
+  */
+  preparePackages(t, [
+    {
+      name: 'unused-project-1',
+      version: '1.0.0',
+    },
+    {
+      name: 'unused-project-2',
+      version: '1.0.0',
+    },
+    {
+      name: 'project-2',
+      version: '1.0.0',
+      dependencies: { 'unused-project-1': '1.0.0', 'unused-project-2': '1.0.0' },
+      devDependencies: { 'json-append': '1' },
+      scripts: {
+        test: `node -e "process.stdout.write('project-2')" | json-append ../output.json`,
+      },
+    },
+    {
+      name: 'project-3',
+      version: '1.0.0',
+      dependencies: { 'project-2': '1.0.0' },
+      devDependencies: { 'json-append': '1' },
+      scripts: {
+        test: `node -e "process.stdout.write('project-3')" | json-append ../output.json`,
+      },
+    },
+    {
+      name: 'project-4',
+      version: '1.0.0',
+      dependencies: { 'project-2': '1.0.0', 'unused-project-1': '1.0.0', 'unused-project-2': '1.0.0' },
+      devDependencies: { 'json-append': '1' },
+      scripts: {
+        test: `node -e "process.stdout.write('project-4')" | json-append ../output.json`,
+      },
+    },
+  ]);
+  await fs.writeFile('.npmrc', 'link-workspace-packages = true', 'utf8')
+  await writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
+
+  await execPnpm('install')
+
+  process.chdir('project-2')
+
+  await execPnpm('recursive', '--filter=...project-2', 'run', 'test')
+
+  const outputs = await import(path.resolve('..', 'output.json')) as string[]
+  // project-2 should be executed first, we cannot say anything about the order
+  // of the last two packages.
+  t.equal(outputs[0], 'project-2')
+
+})
 // TODO: make it pass
 test['skip']('installation with --link-workspace-packages links packages even if they were previously installed from registry', async (t: tape.Test) => {
   const projects = preparePackages(t, [
