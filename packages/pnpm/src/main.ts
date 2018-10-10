@@ -174,8 +174,10 @@ export default async function run (argv: string[]) {
 
       if (cmd === 'recursive' && ['run', 'exec', 'test'].indexOf(subCmd) === -1 && cliConf.argv.cooked.indexOf('--') !== -1) {
         opts.filter = opts.filter || []
-        Array.prototype.push.apply(opts.filter, cliConf.argv.cooked.slice(cliConf.argv.cooked.indexOf('--') + 1))
-        cliConf.argv.remain = cliConf.argv.remain.slice(0, cliConf.argv.cooked.indexOf('--'))
+        const dashDashIndex = cliConf.argv.cooked.indexOf('--')
+        Array.prototype.push.apply(opts.filter, cliConf.argv.cooked.slice(dashDashIndex + 1))
+        const afterDashDash = cliConf.argv.cooked.length - dashDashIndex - 1
+        cliConf.argv.remain = cliConf.argv.remain.slice(0, cliConf.argv.remain.length - afterDashDash)
       }
 
       // `pnpm install ""` is going to be just `pnpm install`

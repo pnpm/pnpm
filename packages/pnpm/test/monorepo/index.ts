@@ -399,4 +399,8 @@ test('recursive installation with shared-workspace-shrinkwrap and a readPackage 
 
   const shr = await loadYamlFile('./shrinkwrap.yaml') as any // tslint:disable-line:no-any
   t.ok(shr.packages['/dep-of-pkg-with-1-dep/100.1.0'], 'new dependency added by hook')
+
+  await execPnpm('recursive', 'install', '--shared-workspace-shrinkwrap', '--store', 'store', '--', 'project-1')
+
+  await projects['project-1'].hasNot('project-1')
 })
