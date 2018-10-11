@@ -44,6 +44,7 @@ import getIsInstallable, { nodeIdToParents } from './getIsInstallable'
 import {
   deprecationLogger,
 } from './loggers'
+import wantedDepIsLocallyAvailable from './wantedDepIsLocallyAvailable'
 
 export interface DependenciesTreeNode {
   children: (() => {[alias: string]: string}) | {[alias: string]: string}, // child nodeId by child alias name
@@ -324,7 +325,8 @@ async function install (
   },
 ): Promise<PkgAddress | null> {
   const keypath = options.keypath || []
-  const proceed = options.proceed || !options.shrinkwrapResolution || ctx.force || keypath.length <= ctx.depth
+  const update = Boolean(options.update || options.localPackages && wantedDepIsLocallyAvailable(options.localPackages, wantedDependency, { defaultTag: ctx.defaultTag, registry: ctx.registry }))
+  const proceed = update || options.proceed || !options.shrinkwrapResolution || ctx.force || keypath.length <= ctx.depth
     || options.dependencyShrinkwrap && options.dependencyShrinkwrap.peerDependencies
   const parentIsInstallable = options.parentIsInstallable === undefined || options.parentIsInstallable
 
@@ -369,7 +371,7 @@ async function install (
       // Unfortunately, even when run with --shrinkwrap-only, we need the *real* package.json
       // so fetching of the tarball cannot be ever avoided. Related issue: https://github.com/pnpm/pnpm/issues/1176
       skipFetch: false,
-      update: options.update,
+      update,
       verifyStoreIntegrity: ctx.verifyStoreIntegrity,
     })
   } catch (err) {

@@ -284,19 +284,24 @@ test('do not get confused by filtered dependencies when searching for dependents
   t.equal(outputs[0], 'project-2')
 
 })
-// TODO: make it pass
-test['skip']('installation with --link-workspace-packages links packages even if they were previously installed from registry', async (t: tape.Test) => {
+
+test('installation with --link-workspace-packages links packages even if they were previously installed from registry', async (t: tape.Test) => {
   const projects = preparePackages(t, [
     {
       name: 'project',
       version: '1.0.0',
       dependencies: {
         'is-positive': '2.0.0',
+        'negative': 'npm:is-negative@1.0.0',
       },
     },
     {
       name: 'is-positive',
       version: '2.0.0',
+    },
+    {
+      name: 'is-negative',
+      version: '1.0.0',
     },
   ])
 
@@ -305,6 +310,7 @@ test['skip']('installation with --link-workspace-packages links packages even if
   {
     const shr = await projects['project'].loadShrinkwrap()
     t.equal(shr.dependencies['is-positive'], '2.0.0')
+    t.equal(shr.dependencies['negative'], '/is-negative/1.0.0')
   }
 
   await execPnpm('recursive', 'install', '--link-workspace-packages')
@@ -312,6 +318,57 @@ test['skip']('installation with --link-workspace-packages links packages even if
   {
     const shr = await projects['project'].loadShrinkwrap()
     t.equal(shr.dependencies['is-positive'], 'link:../is-positive')
+    t.equal(shr.dependencies['negative'], 'link:../is-negative')
+  }
+})
+
+test('shared-workspace-shrinkwrap: installation with --link-workspace-packages links packages even if they were previously installed from registry', async (t: tape.Test) => {
+  const projects = preparePackages(t, [
+    {
+      name: 'project',
+      version: '1.0.0',
+      dependencies: {
+        'is-positive': '2.0.0',
+        'negative': 'npm:is-negative@1.0.0',
+      },
+    },
+    {
+      name: 'is-positive',
+      version: '3.0.0',
+    },
+    {
+      name: 'is-negative',
+      version: '3.0.0',
+    },
+  ])
+
+  await writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
+  await fs.writeFile('.npmrc', 'shared-workspace-shrinkwrap = true\nlink-workspace-packages = true', 'utf8')
+
+  await execPnpm('recursive', 'install')
+
+  {
+    const shr = await loadYamlFile<any>('shrinkwrap.yaml') // tslint:disable:no-any
+    t.equal(shr.importers.project.dependencies['is-positive'], '2.0.0')
+    t.equal(shr.importers.project.dependencies['negative'], '/is-negative/1.0.0')
+  }
+
+  await projects['is-positive'].writePackageJson({
+    name: 'is-positive',
+    version: '2.0.0',
+  })
+
+  await projects['is-negative'].writePackageJson({
+    name: 'is-negative',
+    version: '1.0.0',
+  })
+
+  await execPnpm('recursive', 'install')
+
+  {
+    const shr = await loadYamlFile<any>('shrinkwrap.yaml') // tslint:disable:no-any
+    t.equal(shr.importers.project.dependencies['is-positive'], 'link:../is-positive')
+    t.equal(shr.importers.project.dependencies['negative'], 'link:../is-negative')
   }
 })
 

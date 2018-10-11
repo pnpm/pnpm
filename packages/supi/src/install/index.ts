@@ -29,9 +29,6 @@ import {
 import * as dp from 'dependency-path'
 import graphSequencer = require('graph-sequencer')
 import pLimit = require('p-limit')
-import {
-  StoreController,
-} from 'package-store'
 import path = require('path')
 import {
   satisfiesPackageJson,
@@ -118,7 +115,7 @@ export async function install (maybeOpts: InstallOptions & {
         opts.preferFrozenShrinkwrap && ctx.existsWantedShrinkwrap && ctx.wantedShrinkwrap.shrinkwrapMinorVersion === SHRINKWRAP_MINOR_VERSION &&
         !hasLocalTarballDepsInRoot(ctx.wantedShrinkwrap, importer.id) &&
         satisfiesPackageJson(ctx.wantedShrinkwrap, importer.pkg, importer.id) &&
-        await linkedPackagesSatisfyPackageJson(importer.pkg, ctx.wantedShrinkwrap.importers[importer.id], importer.prefix, opts.localPackages))
+        await linkedPackagesAreUpToDate(importer.pkg, ctx.wantedShrinkwrap.importers[importer.id], importer.prefix, opts.localPackages))
       ) {
         if (importer.shamefullyFlatten) {
           if (opts.frozenShrinkwrap) {
@@ -293,7 +290,7 @@ function forgetResolutionsOfPrevWantedDeps (importer: ShrinkwrapImporter, wanted
   }
 }
 
-async function linkedPackagesSatisfyPackageJson (
+async function linkedPackagesAreUpToDate (
   pkg: PackageJson,
   shrImporter: ShrinkwrapImporter,
   prefix: string,
@@ -306,10 +303,15 @@ async function linkedPackagesSatisfyPackageJson (
     if (!importerDeps || !pkgDeps) continue
     const depNames = Object.keys(importerDeps)
     for (const depName of depNames) {
-      if (!importerDeps[depName].startsWith('link:') || !pkgDeps[depName]) continue
-      const dir = path.join(prefix, importerDeps[depName].substr(5))
+      if (!pkgDeps[depName]) continue
+      const isLinked = importerDeps[depName].startsWith('link:')
+      const dir = isLinked
+        ? path.join(prefix, importerDeps[depName].substr(5))
+        : (localPackages && localPackages[depName] && localPackages[depName] && localPackages[depName][importerDeps[depName]] && localPackages[depName][importerDeps[depName]].directory)
+      if (!dir) continue
       const linkedPkg = localPackagesByDirectory[dir] || await safeReadPkgFromDir(dir)
-      if (!linkedPkg || !semver.satisfies(linkedPkg.version, pkgDeps[depName])) return false
+      const localPackageSatisfiesRange = linkedPkg && semver.satisfies(linkedPkg.version, pkgDeps[depName])
+      if (isLinked !== localPackageSatisfiesRange) return false
     }
   }
   return true
