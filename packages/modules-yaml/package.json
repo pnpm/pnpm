@@ -36,7 +36,7 @@
   },
   "devDependencies": {
     "@types/tape": "^4.2.31",
-    "@types/tempy": "^0.1.0",
+    "@types/tempy": "^0.2.0",
     "mos": "^2.0.0-alpha.3",
     "mos-plugin-readme": "^1.0.4",
     "package-preview": "^1.0.1",

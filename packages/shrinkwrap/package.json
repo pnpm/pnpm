@@ -37,7 +37,7 @@
   "devDependencies": {
     "@pnpm/logger": "^2.0.1",
     "@types/tape": "^4.2.30",
-    "@types/tempy": "^0.1.0",
+    "@types/tempy": "^0.2.0",
     "package-preview": "^1.0.0",
     "rimraf": "^2.6.1",
     "tape": "^4.6.3",
