@@ -45,7 +45,7 @@
     "pnpm-shrinkwrap": "8.0.0-0",
     "ramda": "0.25.0",
     "replace-string": "1.1.0",
-    "semver": "5.5.1",
+    "semver": "5.6.0",
     "version-selector-type": "2.0.0"
   },
   "devDependencies": {
