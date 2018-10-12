@@ -47,7 +47,7 @@
     "@pnpm/npm-resolver": "^2.2.4",
     "@pnpm/tarball-fetcher": "2.0.3",
     "@types/tape": "^4.2.30",
-    "@types/tempy": "^0.1.0",
+    "@types/tempy": "^0.2.0",
     "npm-scripts-info": "^0.3.6",
     "rimraf": "^2.6.1",
     "tape": "^4.7.0",
