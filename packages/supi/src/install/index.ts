@@ -45,7 +45,6 @@ import {
   SHRINKWRAP_MINOR_VERSION,
 } from '../constants'
 import { PnpmError } from '../errorTypes'
-import { absolutePathToRef } from '../fs/shrinkwrap'
 import getContext, { PnpmContext } from '../getContext'
 import getSpecFromPackageJson from '../getSpecFromPackageJson'
 import lock from '../lock'
@@ -62,6 +61,7 @@ import linkPackages, {
   DependenciesGraph,
   Importer as ImporterToLink,
 } from './link'
+import { absolutePathToRef } from './shrinkwrap'
 
 const ENGINE_NAME = `${process.platform}-${process.arch}-node-${process.version.split('.')[0]}`
 
