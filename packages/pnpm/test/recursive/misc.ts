@@ -1,3 +1,4 @@
+import { preparePackages } from '@pnpm/prepare'
 import fs = require('mz/fs')
 import isCI = require('is-ci')
 import isWindows = require('is-windows')
@@ -9,7 +10,6 @@ import writeJsonFile from 'write-json-file'
 import writeYamlFile = require('write-yaml-file')
 import {
   execPnpm,
-  preparePackages,
   retryLoadJsonFile,
   spawn,
 } from '../utils'

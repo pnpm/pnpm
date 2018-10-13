@@ -63,6 +63,7 @@ devDependencies:
   '@pnpm/default-fetcher': 'link:../default-fetcher'
   '@pnpm/default-resolver': 'link:../default-resolver'
   '@pnpm/logger': 2.1.0
+  '@pnpm/prepare': 'link:../../privatePackages/prepare'
   '@pnpm/store-path': 1.0.3
   '@types/is-windows': 0.2.0
   '@types/mkdirp': 0.5.2
@@ -4097,6 +4098,7 @@ specifiers:
   '@pnpm/modules-yaml': 2.0.0-0
   '@pnpm/package-requester': 4.1.4
   '@pnpm/pkgid-to-filename': 2.0.0
+  '@pnpm/prepare': 0.0.0
   '@pnpm/read-package-json': 1.0.0
   '@pnpm/resolve-dependencies': 1.0.0-0
   '@pnpm/resolver-base': 1.2.0

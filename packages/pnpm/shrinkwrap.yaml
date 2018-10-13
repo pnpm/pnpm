@@ -62,6 +62,7 @@ dependencies:
 devDependencies:
   '@pnpm/assert-project': 'link:../../privatePackages/assert-project'
   '@pnpm/modules-yaml': 'link:../modules-yaml'
+  '@pnpm/prepare': 'link:../../privatePackages/prepare'
   '@pnpm/read-package-json': 1.0.0
   '@types/byline': 4.2.31
   '@types/common-tags': 1.4.0
@@ -5527,6 +5528,7 @@ specifiers:
   '@pnpm/logger': 2.1.0
   '@pnpm/modules-yaml': 2.0.0-0
   '@pnpm/outdated': 0.4.2-0
+  '@pnpm/prepare': 0.0.0
   '@pnpm/read-package-json': ^1.0.0
   '@pnpm/server': 0.14.3
   '@pnpm/store-path': 1.0.3

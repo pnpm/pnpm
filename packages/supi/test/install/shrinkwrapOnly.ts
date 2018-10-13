@@ -1,3 +1,4 @@
+import prepare from '@pnpm/prepare'
 import { fromDir as readPackageJsonFromDir } from '@pnpm/read-package-json'
 import fs = require('mz/fs')
 import path = require('path')
@@ -8,10 +9,7 @@ import {
 } from 'supi'
 import tape = require('tape')
 import promisifyTape from 'tape-promise'
-import {
-  prepare,
-  testDefaults,
-} from '../utils'
+import { testDefaults } from '../utils'
 
 const test = promisifyTape(tape)
 

@@ -1,17 +1,18 @@
+import prepare from '@pnpm/prepare'
 import { fromDir as readPackage } from '@pnpm/read-package-json'
 import tape = require('tape')
 import promisifyTape from 'tape-promise'
-const test = promisifyTape(tape)
 import execa = require('execa')
 import mkdirp = require('mkdirp-promise')
+import rimraf = require('rimraf-then')
+import fs = require('mz/fs')
 import {
-  prepare,
   addDistTag,
   execPnpm,
   execPnpmSync,
 } from './utils'
-import rimraf = require('rimraf-then')
-import fs = require('mz/fs')
+
+const test = promisifyTape(tape)
 
 test('returns help when not available command is used', t => {
   const result = execPnpmSync('foobarqar')

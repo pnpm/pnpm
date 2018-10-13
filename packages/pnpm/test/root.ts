@@ -1,12 +1,9 @@
+import { tempDir } from '@pnpm/prepare'
 import tape = require('tape')
 import promisifyTape from 'tape-promise'
 import path = require('path')
 import isWindows = require('is-windows')
-import {
-  execPnpm,
-  execPnpmSync,
-  tempDir,
-} from './utils'
+import { execPnpmSync } from './utils'
 
 const test = promisifyTape(tape)
 

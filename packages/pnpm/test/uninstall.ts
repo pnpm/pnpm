@@ -1,13 +1,11 @@
-import {fromDir as readPkgFromDir} from '@pnpm/read-package-json'
+import prepare from '@pnpm/prepare'
+import { fromDir as readPkgFromDir } from '@pnpm/read-package-json'
 import tape = require('tape')
 import promisifyTape from 'tape-promise'
-import {
-  prepare,
-  execPnpm,
-} from './utils'
 import path = require('path')
 import isWindows = require('is-windows')
 import exists = require('path-exists')
+import { execPnpm } from './utils'
 
 const test = promisifyTape(tape)
 const testOnly = promisifyTape(tape.only)

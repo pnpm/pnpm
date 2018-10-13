@@ -1,3 +1,4 @@
+import prepare from '@pnpm/prepare'
 import loadJsonFile from 'load-json-file'
 import path = require('path')
 import exists = require('path-exists')
@@ -11,10 +12,7 @@ import {
 } from 'supi'
 import tape = require('tape')
 import promisifyTape from 'tape-promise'
-import {
-  prepare,
-  testDefaults,
-} from '../utils'
+import { testDefaults } from '../utils'
 
 const pkgRoot = path.join(__dirname, '..', '..')
 

@@ -1,13 +1,10 @@
+import prepare from '@pnpm/prepare'
 import fs = require('mz/fs')
-
 import tape = require('tape')
 import promisifyTape from 'tape-promise'
-import {
-  prepare,
-  execPnpm,
-} from '../utils'
 import path = require('path')
 import rimraf = require('rimraf-then')
+import { execPnpm } from '../utils'
 
 const test = promisifyTape(tape)
 

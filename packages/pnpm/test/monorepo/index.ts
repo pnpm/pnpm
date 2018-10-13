@@ -1,3 +1,4 @@
+import { preparePackages } from '@pnpm/prepare'
 import fs = require('mz/fs')
 import tape = require('tape')
 import promisifyTape from 'tape-promise'
@@ -5,10 +6,7 @@ import path = require('path')
 import loadJsonFile from 'load-json-file'
 import loadYamlFile = require('load-yaml-file')
 import writeYamlFile = require('write-yaml-file')
-import {
-  preparePackages,
-  execPnpm,
- } from '../utils'
+import { execPnpm } from '../utils'
 
 const test = promisifyTape(tape)
 const testOnly = promisifyTape(tape.only)

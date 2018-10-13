@@ -1,3 +1,4 @@
+import prepare from '@pnpm/prepare'
 import fs = require('mz/fs')
 import ncpCB = require('ncp')
 import normalizePath = require('normalize-path')
@@ -11,7 +12,6 @@ import promisify = require('util.promisify')
 import {
   local,
   pathToLocalPkg,
-  prepare,
   testDefaults,
 } from '../utils'
 

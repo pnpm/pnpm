@@ -1,3 +1,4 @@
+import prepare from '@pnpm/prepare'
 import byline = require('byline')
 import { ChildProcess } from 'child_process'
 import delay from 'delay'
@@ -15,7 +16,6 @@ import {
   Deferred,
   execPnpm,
   execPnpmSync,
-  prepare,
   retryLoadJsonFile,
   spawn,
 } from './utils'

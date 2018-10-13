@@ -1,10 +1,10 @@
-import {stripIndents} from 'common-tags'
+import { preparePackages } from '@pnpm/prepare'
+import { stripIndents } from 'common-tags'
 import tape = require('tape')
 import promisifyTape from 'tape-promise'
 import {
   execPnpm,
   execPnpmSync,
-  preparePackages,
 } from '../utils'
 import normalizeNewline = require('normalize-newline')
 

@@ -1,12 +1,7 @@
+import prepare from '@pnpm/prepare'
 import tape = require('tape')
 import promisifyTape from 'tape-promise'
-import path = require('path')
-import {stripIndent} from 'common-tags'
-import {
-  execPnpm,
-  execPnpmSync,
-  prepare,
-} from './utils'
+import { execPnpm } from './utils'
 
 const test = promisifyTape(tape)
 

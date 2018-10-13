@@ -1,11 +1,9 @@
+import prepare from '@pnpm/prepare'
 import rimraf = require('rimraf-then')
 import { install, installPkgs } from 'supi'
 import tape = require('tape')
 import promisifyTape from 'tape-promise'
-import {
-  prepare,
-  testDefaults,
-} from './utils'
+import { testDefaults } from './utils'
 
 const test = promisifyTape(tape)
 

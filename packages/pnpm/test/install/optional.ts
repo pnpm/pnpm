@@ -1,13 +1,11 @@
+import prepare from '@pnpm/prepare'
 import tape = require('tape')
 import promisifyTape from 'tape-promise'
 import deepRequireCwd = require('deep-require-cwd')
-import {
-  prepare,
-  execPnpm,
-} from '../utils'
+import { execPnpm } from '../utils'
 
 const test = promisifyTape(tape)
-test['only'] = promisifyTape(tape.only)
+const testOnly = promisifyTape(tape.only)
 
 test('installing optional dependencies when --no-optional is not used', async (t: tape.Test) => {
   const project = prepare(t, {

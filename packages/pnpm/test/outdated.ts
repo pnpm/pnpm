@@ -1,12 +1,9 @@
+import prepare, { tempDir } from '@pnpm/prepare'
 import tape = require('tape')
 import promisifyTape from 'tape-promise'
 import path = require('path')
-import {stripIndents} from 'common-tags'
-import {
-  execPnpm,
-  execPnpmSync,
-  tempDir,
-} from './utils'
+import { stripIndents } from 'common-tags'
+import { execPnpmSync } from './utils'
 import normalizeNewline = require('normalize-newline')
 
 const hasOutdatedDepsFixture = path.join(__dirname, 'packages', 'has-outdated-deps')

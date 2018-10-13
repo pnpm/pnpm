@@ -1,3 +1,4 @@
+import prepare from '@pnpm/prepare'
 import deepRequireCwd = require('deep-require-cwd')
 import loadJsonFile from 'load-json-file'
 import loadYamlFile = require('load-yaml-file')
@@ -14,10 +15,7 @@ import {
 } from 'supi'
 import tape = require('tape')
 import promisifyTape from 'tape-promise'
-import {
-  prepare,
-  testDefaults,
-} from '../utils'
+import { testDefaults } from '../utils'
 
 const test = promisifyTape(tape)
 const NM = 'node_modules'

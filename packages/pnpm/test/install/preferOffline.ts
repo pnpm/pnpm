@@ -1,8 +1,8 @@
+import prepare from '@pnpm/prepare'
 import tape = require('tape')
 import promisifyTape from 'tape-promise'
 import {
   addDistTag,
-  prepare,
   execPnpm,
 } from '../utils'
 import rimraf = require('rimraf-then')

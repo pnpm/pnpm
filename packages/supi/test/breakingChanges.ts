@@ -1,10 +1,11 @@
+import prepare from '@pnpm/prepare'
 import isCI = require('is-ci')
 import mkdirp = require('mkdirp-promise')
 import fs = require('mz/fs')
 import { install, installPkgs } from 'supi'
 import tape = require('tape')
 import promisifyTape from 'tape-promise'
-import { prepare, testDefaults } from './utils'
+import { testDefaults } from './utils'
 
 const test = promisifyTape(tape)
 const testOnly = promisifyTape(tape.only)

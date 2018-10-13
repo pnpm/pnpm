@@ -1,11 +1,11 @@
-import {stripIndent} from 'common-tags'
+import { preparePackages } from '@pnpm/prepare'
+import { stripIndent } from 'common-tags'
 import tape = require('tape')
 import promisifyTape from 'tape-promise'
 import path = require('path')
 import {
   execPnpm,
   execPnpmSync,
-  preparePackages,
 } from '../utils'
 
 const test = promisifyTape(tape)

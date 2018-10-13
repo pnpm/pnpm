@@ -83,6 +83,7 @@
   "devDependencies": {
     "@pnpm/assert-project": "link:../../privatePackages/assert-project",
     "@pnpm/modules-yaml": "2.0.0-0",
+    "@pnpm/prepare": "0.0.0",
     "@pnpm/read-package-json": "^1.0.0",
     "@types/byline": "^4.2.31",
     "@types/common-tags": "^1.2.5",

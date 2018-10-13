@@ -1,3 +1,4 @@
+import prepare from '@pnpm/prepare'
 import loadYamlFile = require('load-yaml-file')
 import path = require('path')
 import { install, installPkgs } from 'supi'
@@ -5,7 +6,6 @@ import tape = require('tape')
 import promisifyTape from 'tape-promise'
 import {
   addDistTag,
-  prepare,
   testDefaults,
 } from '../utils'
 

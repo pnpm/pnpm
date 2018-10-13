@@ -1,3 +1,4 @@
+import prepare from '@pnpm/prepare'
 import { isExecutable } from '@pnpm/assert-project'
 import fs = require('mz/fs')
 import ncpCB = require('ncp')
@@ -20,7 +21,6 @@ import promisify = require('util.promisify')
 import writeJsonFile from 'write-json-file'
 import {
   pathToLocalPkg,
-  prepare,
   testDefaults,
 } from './utils'
 

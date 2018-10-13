@@ -83,6 +83,7 @@
     "@pnpm/default-fetcher": "^2.0.0",
     "@pnpm/default-resolver": "^2.0.0",
     "@pnpm/logger": "^2.1.0",
+    "@pnpm/prepare": "0.0.0",
     "@pnpm/store-path": "^1.0.0",
     "@types/is-windows": "^0.2.0",
     "@types/mkdirp": "^0.5.1",

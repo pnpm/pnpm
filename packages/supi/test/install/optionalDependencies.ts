@@ -1,3 +1,4 @@
+import prepare from '@pnpm/prepare'
 import deepRequireCwd = require('deep-require-cwd')
 import loadYamlFile = require('load-yaml-file')
 import path = require('path')
@@ -7,10 +8,7 @@ import sinon = require('sinon')
 import { install, installPkgs, rebuild } from 'supi'
 import tape = require('tape')
 import promisifyTape from 'tape-promise'
-import {
-  prepare,
-  testDefaults,
-} from '../utils'
+import { testDefaults } from '../utils'
 
 const test = promisifyTape(tape)
 const testOnly = promisifyTape(tape.only)

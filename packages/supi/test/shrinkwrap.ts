@@ -1,3 +1,4 @@
+import prepare from '@pnpm/prepare'
 import { fromDir as readPackageJsonFromDir } from '@pnpm/read-package-json'
 import { stripIndent } from 'common-tags'
 import loadYamlFile = require('load-yaml-file')
@@ -22,7 +23,6 @@ import writePkg = require('write-pkg')
 import writeYamlFile = require('write-yaml-file')
 import {
   addDistTag,
-  prepare,
   testDefaults,
 } from './utils'
 
@@ -718,8 +718,10 @@ test('pendingBuilds gets updated if install removes packages', async (t: tape.Te
   await install(await testDefaults({ ignoreScripts: true }))
   const modules1 = await project.loadModules()
 
-  await project.rewriteDependencies({
-    'pre-and-postinstall-scripts-example': '*',
+  await project.writePackageJson({
+    dependencies: {
+      'pre-and-postinstall-scripts-example': '*',
+    },
   })
 
   await install(await testDefaults({ ignoreScripts: true }))

@@ -1,3 +1,4 @@
+import prepare from '@pnpm/prepare'
 import tape = require('tape')
 import promisifyTape from 'tape-promise'
 const test = promisifyTape(tape)
@@ -19,7 +20,6 @@ import {
 import promisify = require('util.promisify')
 import {
   pathToLocalPkg,
-  prepare,
   testDefaults,
 } from './utils'
 

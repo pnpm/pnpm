@@ -1,7 +1,7 @@
+import prepare from '@pnpm/prepare'
 import ncpCB = require('ncp')
 import path = require('path')
 import exists = require('path-exists')
-import readPkg = require('read-pkg')
 import {
   installPkgs,
   rebuild,
@@ -12,7 +12,6 @@ import promisifyTape from 'tape-promise'
 import promisify = require('util.promisify')
 import {
   pathToLocalPkg,
-  prepare,
   testDefaults,
  } from './utils'
 

@@ -1,3 +1,4 @@
+import prepare from '@pnpm/prepare'
 import { fromDir as readPackageJsonFromDir } from '@pnpm/read-package-json'
 import isInnerLink = require('is-inner-link')
 import path = require('path')
@@ -15,7 +16,6 @@ import promisifyTape from 'tape-promise'
 import writeJsonFile from 'write-json-file'
 import {
   addDistTag,
-  prepare,
   testDefaults,
 } from './utils'
 

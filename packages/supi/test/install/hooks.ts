@@ -1,3 +1,4 @@
+import prepare from '@pnpm/prepare'
 import { fromDir as readPackageJsonFromDir } from '@pnpm/read-package-json'
 import { Shrinkwrap } from 'pnpm-shrinkwrap'
 import sinon = require('sinon')
@@ -10,7 +11,6 @@ import tape = require('tape')
 import promisifyTape from 'tape-promise'
 import {
   addDistTag,
-  prepare,
   testDefaults,
 } from '../utils'
 

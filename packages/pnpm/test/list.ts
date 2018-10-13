@@ -1,14 +1,12 @@
+import prepare, { tempDir } from '@pnpm/prepare'
 import tape = require('tape')
 import promisifyTape from 'tape-promise'
 import path = require('path')
-import {stripIndent} from 'common-tags'
+import { stripIndent } from 'common-tags'
 import isWindows = require('is-windows')
 import {
   execPnpm,
   execPnpmSync,
-  tempDir,
-  prepare,
-  testDefaults,
 } from './utils'
 
 const test = promisifyTape(tape)

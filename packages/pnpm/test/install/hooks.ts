@@ -1,7 +1,7 @@
+import prepare from '@pnpm/prepare'
 import tape = require('tape')
 import promisifyTape from 'tape-promise'
 import {
-  prepare,
   addDistTag,
   execPnpm,
   execPnpmSync,

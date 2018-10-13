@@ -1,4 +1,5 @@
-import assertProject, {isExecutable} from '@pnpm/assert-project'
+import assertProject, { isExecutable } from '@pnpm/assert-project'
+import prepare from '@pnpm/prepare'
 import tape = require('tape')
 import promisifyTape from 'tape-promise'
 import loadYamlFile = require('load-yaml-file')
@@ -8,7 +9,6 @@ import promisify = require('util.promisify')
 import writePkg = require('write-pkg')
 import {
   pathToLocalPkg,
-  prepare,
   execPnpm,
  } from './utils'
 import fs = require('mz/fs')

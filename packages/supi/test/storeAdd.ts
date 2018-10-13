@@ -1,15 +1,20 @@
+import { tempDir } from '@pnpm/prepare'
+import fs = require('fs')
 import loadJsonFile from 'load-json-file'
 import path = require('path')
 import exists = require('path-exists')
 import { storeAdd } from 'supi'
 import tape = require('tape')
 import promisifyTape from 'tape-promise'
-import { createTempFolder, testDefaults } from './utils'
+import { testDefaults } from './utils'
 
 const test = promisifyTape(tape)
+const testOnly = promisifyTape(tape.only)
 
 test('add packages to the store', async (t: tape.Test) => {
-  createTempFolder(t)
+  tempDir(t)
+  fs.mkdirSync('_')
+  process.chdir('_')
 
   const opts = await testDefaults()
   await storeAdd(['express@4.16.3'], opts)
@@ -28,7 +33,9 @@ test('add packages to the store', async (t: tape.Test) => {
 })
 
 test('should fail if some packages can not be added', async (t: tape.Test) => {
-  createTempFolder(t)
+  tempDir(t)
+  fs.mkdirSync('_')
+  process.chdir('_')
 
   let thrown = false;
   try {

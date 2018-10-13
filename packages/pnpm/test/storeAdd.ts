@@ -1,9 +1,10 @@
+import { tempDir } from '@pnpm/prepare'
 import loadJsonFile from 'load-json-file'
 import path = require('path')
 import exists = require('path-exists')
 import tape = require('tape')
 import promisifyTape from 'tape-promise'
-import {tempDir, execPnpm} from './utils'
+import { execPnpm } from './utils'
 
 const test = promisifyTape(tape)
 

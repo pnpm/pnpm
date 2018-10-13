@@ -1,8 +1,8 @@
+import prepare from '@pnpm/prepare'
 import tape = require('tape')
 import promisifyTape from 'tape-promise'
 import path = require('path')
 import {
-  prepare,
   addDistTag,
   execPnpm,
 } from '../utils'

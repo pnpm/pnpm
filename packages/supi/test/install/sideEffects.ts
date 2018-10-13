@@ -1,15 +1,12 @@
+import prepare from '@pnpm/prepare'
 import fs = require('mz/fs')
 import rimraf = require('rimraf-then')
-
 import path = require('path')
 import exists = require('path-exists')
 import { installPkgs } from 'supi'
 import tape = require('tape')
 import promisifyTape from 'tape-promise'
-import {
-  prepare,
-  testDefaults,
-} from '../utils'
+import { testDefaults } from '../utils'
 
 const test = promisifyTape(tape)
 test['only'] = promisifyTape(tape.only) // tslint:disable-line:no-string-literal

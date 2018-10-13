@@ -1,10 +1,10 @@
+import prepare from '@pnpm/prepare'
 import 'sepia'
 import tape = require('tape')
 import promisifyTape from 'tape-promise'
 const test = promisifyTape(tape)
 import caw = require('caw')
 import {
-  prepare,
   execPnpm,
   execPnpmSync,
 } from '../utils'

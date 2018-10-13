@@ -1,9 +1,10 @@
+import prepare from '@pnpm/prepare'
 import fs = require('fs')
 import resolveLinkTarget = require('resolve-link-target')
 import { install, installPkgs, uninstall } from 'supi'
 import tape = require('tape')
 import promisifyTape from 'tape-promise'
-import { prepare, testDefaults } from '../utils'
+import { testDefaults } from '../utils'
 
 const test = promisifyTape(tape)
 const testOnly = promisifyTape(tape.only)
@@ -78,8 +79,10 @@ test('should reflatten after running a general install', async (t) => {
 
   // now remove debug@3.1.0 from package.json, run install again, check that debug@2.6.9 has been flattened
   // and that express stays at the same version
-  await project.rewriteDependencies({
-    express: '4.16.0',
+  await project.writePackageJson({
+    dependencies: {
+      express: '4.16.0',
+    },
   })
 
   await install(await testDefaults({ shamefullyFlatten: true }))
@@ -169,7 +172,7 @@ test('should update .modules.yaml when pruning if we are flattening', async (t) 
 
   await install(await testDefaults({ shamefullyFlatten: true }))
 
-  await project.rewriteDependencies({})
+  await project.writePackageJson({})
 
   await install(await testDefaults({ shamefullyFlatten: true, pruneStore: true }))
 
@@ -197,9 +200,11 @@ test('should reflatten after pruning', async (t) => {
 
   // now remove debug@3.1.0 from package.json, run install again, check that debug@2.6.9 has been flattened
   // and that ms is still there, and that is-positive is not installed
-  await project.rewriteDependencies({
-    'express': '4.16.0',
-    'is-positive': '1.0.0',
+  await project.writePackageJson({
+    dependencies: {
+      'express': '4.16.0',
+      'is-positive': '1.0.0',
+    },
   })
 
   await install(await testDefaults({ shamefullyFlatten: true, pruneStore: true }))

@@ -1,3 +1,4 @@
+import prepare from '@pnpm/prepare'
 import readPkg = require('read-pkg')
 import {
   install,
@@ -8,7 +9,6 @@ import promisifyTape from 'tape-promise'
 import writePkg = require('write-pkg')
 import {
   addDistTag,
-  prepare,
   testDefaults,
 } from '../utils'
 

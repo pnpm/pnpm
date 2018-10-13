@@ -1,3 +1,4 @@
+import prepare from '@pnpm/prepare'
 import caw = require('caw')
 import crossSpawn = require('cross-spawn')
 import deepRequireCwd = require('deep-require-cwd')
@@ -27,7 +28,6 @@ import writeJsonFile from 'write-json-file'
 import {
   addDistTag,
   local,
-  prepare,
   testDefaults,
 } from '../utils'
 

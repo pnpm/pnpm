@@ -1,11 +1,9 @@
-import path = require('path')
-import exists = require('path-exists')
+import prepare from '@pnpm/prepare'
 import { install, installPkgs } from 'supi'
 import tape = require('tape')
 import promisifyTape from 'tape-promise'
 import {
   addDistTag,
-  prepare,
   testDefaults,
 } from './utils'
 
