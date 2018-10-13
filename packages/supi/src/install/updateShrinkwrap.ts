@@ -223,7 +223,9 @@ function toShrResolution (
   // Sometimes packages are hosted under non-standard tarball URLs.
   // For instance, when they are hosted on npm Enterprise. See https://github.com/pnpm/pnpm/issues/867
   // Or in othere weird cases, like https://github.com/pnpm/pnpm/issues/1072
-  if (getNpmTarballUrl(pkg.name, pkg.version, { registry }) !== resolution['tarball']) {
+  const expectedTarball = getNpmTarballUrl(pkg.name, pkg.version, { registry })
+  const actualTarball = resolution['tarball'].replace('%2f', '/')
+  if (removeProtocol(expectedTarball) !== removeProtocol(actualTarball)) {
     return {
       ...base,
       integrity: resolution['integrity'],
@@ -235,6 +237,10 @@ function toShrResolution (
     integrity: resolution['integrity'],
   }
   // tslint:enable:no-string-literal
+}
+
+function removeProtocol (url: string) {
+  return url.split('://')[1]
 }
 
 function relativeTarball (tarball: string, registry: string) {
