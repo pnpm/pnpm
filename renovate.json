@@ -3,6 +3,7 @@
     "config:base"
   ],
   "ignoreDeps": [
+    "@pnpm/assert-project",
     "@pnpm/config",
     "@pnpm/default-fetcher",
     "@pnpm/default-resolver",
