@@ -32,6 +32,8 @@ import pLimit = require('p-limit')
 import { StoreController } from 'package-store'
 import path = require('path')
 import {
+  filter as filterShrinkwrap,
+  filterByImporters as filterShrinkwrapByImporters,
   getImporterId,
   nameVerFromPkgSnapshot,
   PackageSnapshot,
@@ -140,11 +142,9 @@ export default async (opts: HeadlessOptions) => {
   }
 
   const filterOpts = {
-    importerId,
     include: opts.include,
+    skipped: new Set<string>(),
   }
-  const filteredShrinkwrap = filterShrinkwrap(wantedShrinkwrap, filterOpts)
-
   if (currentShrinkwrap) {
     await prune({
       dryRun: false,
@@ -158,7 +158,7 @@ export default async (opts: HeadlessOptions) => {
           shamefullyFlatten: false,
         },
       ],
-      newShrinkwrap: filteredShrinkwrap,
+      newShrinkwrap: filterShrinkwrap(wantedShrinkwrap, filterOpts),
       oldShrinkwrap: currentShrinkwrap,
       pruneStore: opts.pruneStore,
       shrinkwrapDirectory,
@@ -173,6 +173,7 @@ export default async (opts: HeadlessOptions) => {
   }
 
   stageLogger.debug('importing_started')
+  const filteredShrinkwrap = filterShrinkwrapByImporters(wantedShrinkwrap, [importerId], filterOpts)
   const res = await shrinkwrapToDepGraph(
     filteredShrinkwrap,
     opts.force ? null : currentShrinkwrap,
@@ -603,41 +604,4 @@ function symlinkDependencyTo (alias: string, peripheralLocation: string, dest: s
   const linkPath = path.join(dest, alias)
   linkLogger.debug({ target: peripheralLocation, link: linkPath })
   return symlinkDir(peripheralLocation, linkPath)
-}
-
-// TODO: move this to separate package
-// the version of the function which is in supi also accepts `opts.skip`
-// headless will never skip anything
-function filterShrinkwrap (
-  shr: Shrinkwrap,
-  opts: {
-    importerId: string,
-    include: IncludedDependencies,
-  },
-): Shrinkwrap {
-  let pairs = R.toPairs(shr.packages || {})
-  if (!opts.include.dependencies) {
-    pairs = pairs.filter((pair) => pair[1].dev !== false || pair[1].optional)
-  }
-  if (!opts.include.devDependencies) {
-    pairs = pairs.filter((pair) => pair[1].dev !== true)
-  }
-  if (!opts.include.optionalDependencies) {
-    pairs = pairs.filter((pair) => !pair[1].optional)
-  }
-  const shrImporter = shr.importers[opts.importerId]
-  return {
-    importers: {
-      ...shr.importers,
-      [opts.importerId]: {
-        dependencies: !opts.include.dependencies ? {} : shrImporter.dependencies || {},
-        devDependencies: !opts.include.devDependencies ? {} : shrImporter.devDependencies || {},
-        optionalDependencies: !opts.include.optionalDependencies ? {} : shrImporter.optionalDependencies || {},
-        specifiers: shrImporter.specifiers,
-      },
-    },
-    packages: R.fromPairs(pairs),
-    registry: shr.registry,
-    shrinkwrapVersion: shr.shrinkwrapVersion,
-  } as Shrinkwrap
 }

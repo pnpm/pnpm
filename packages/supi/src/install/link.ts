@@ -14,7 +14,11 @@ import * as dp from 'dependency-path'
 import pLimit = require('p-limit')
 import { StoreController } from 'package-store'
 import path = require('path')
-import { PackageSnapshot, Shrinkwrap } from 'pnpm-shrinkwrap'
+import {
+  filter as filterShrinkwrap,
+  filterByImporters as filterShrinkwrapByImporters,
+  Shrinkwrap,
+} from 'pnpm-shrinkwrap'
 import R = require('ramda')
 import { SHRINKWRAP_MINOR_VERSION } from '../constants'
 import linkToModules from '../linkToModules'
@@ -126,15 +130,13 @@ export default async function linkPackages (
     depNodes = depNodes.filter((depNode) => !depNode.optional)
   }
   const filterOpts = {
-    importerIds: importers.map((importer) => importer.id),
     include: opts.include,
     skipped: opts.skipped,
   }
-  const newCurrentShrinkwrap = filterShrinkwrap(newShrinkwrap, filterOpts)
   const removedDepPaths = await prune({
     dryRun: opts.dryRun,
     importers,
-    newShrinkwrap: newCurrentShrinkwrap,
+    newShrinkwrap: filterShrinkwrap(newShrinkwrap, filterOpts),
     oldShrinkwrap: opts.currentShrinkwrap,
     pruneStore: opts.pruneStore,
     shrinkwrapDirectory: opts.shrinkwrapDirectory,
@@ -143,8 +145,10 @@ export default async function linkPackages (
   })
 
   stageLogger.debug('importing_started')
+  const importerIds = importers.map((importer) => importer.id)
+  const newCurrentShrinkwrap = filterShrinkwrapByImporters(newShrinkwrap, importerIds, filterOpts)
   const newDepPaths = await linkNewPackages(
-    filterShrinkwrap(opts.currentShrinkwrap, filterOpts),
+    filterShrinkwrapByImporters(opts.currentShrinkwrap, importerIds, filterOpts),
     newCurrentShrinkwrap,
     depGraph,
     {
@@ -298,42 +302,6 @@ const isAbsolutePath = /^[/]|^[A-Za-z]:/
 function resolvePath (where: string, spec: string) {
   if (isAbsolutePath.test(spec)) return spec
   return path.resolve(where, spec)
-}
-
-function filterShrinkwrap (
-  shr: Shrinkwrap,
-  opts: {
-    include: IncludedDependencies,
-    skipped: Set<string>,
-    importerIds: string[],
-  },
-): Shrinkwrap {
-  let pairs = R.toPairs(shr.packages || {})
-    .filter((pair) => !opts.skipped.has(pair[1].id || dp.resolve(shr.registry, pair[0])))
-  if (!opts.include.dependencies) {
-    pairs = pairs.filter((pair) => pair[1].dev !== false || pair[1].optional)
-  }
-  if (!opts.include.devDependencies) {
-    pairs = pairs.filter((pair) => pair[1].dev !== true)
-  }
-  if (!opts.include.optionalDependencies) {
-    pairs = pairs.filter((pair) => !pair[1].optional)
-  }
-  return {
-    importers: opts.importerIds.reduce((acc, importerId) => {
-      const shrImporter = shr.importers[importerId]
-      acc[importerId] = {
-        dependencies: !opts.include.dependencies ? {} : shrImporter.dependencies || {},
-        devDependencies: !opts.include.devDependencies ? {} : shrImporter.devDependencies || {},
-        optionalDependencies: !opts.include.optionalDependencies ? {} : shrImporter.optionalDependencies || {},
-        specifiers: shrImporter.specifiers,
-      }
-      return acc
-    }, { ...shr.importers }),
-    packages: R.fromPairs(pairs),
-    registry: shr.registry,
-    shrinkwrapVersion: shr.shrinkwrapVersion,
-  } as Shrinkwrap
 }
 
 async function linkNewPackages (

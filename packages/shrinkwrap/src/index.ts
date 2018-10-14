@@ -3,6 +3,7 @@ export * from './read'
 export * from './types'
 
 import existsWanted from './existsWanted'
+import filter, { filterByImporters } from './filter'
 import getImporterId from './getImporterId'
 import nameVerFromPkgSnapshot from './nameVerFromPkgSnapshot'
 import pkgSnapshotToResolution from './pkgSnapshotToResolution'
@@ -14,6 +15,8 @@ import write, {
 
 export {
   existsWanted,
+  filter,
+  filterByImporters,
   getImporterId,
   nameVerFromPkgSnapshot,
   pkgSnapshotToResolution,
