@@ -264,7 +264,13 @@ test('only skip optional dependencies', async (t: tape.Test) => {
     },
   })
 
-  await install(await testDefaults())
+  const preferVersion = (selector: string) => ({ selector, type: 'version' })
+  const preferredVersions = {
+    'duplexify': preferVersion('3.6.0'),
+    'got': preferVersion('3.3.1'),
+    'stream-shift': preferVersion('1.0.0'),
+  }
+  await install(await testDefaults({ preferredVersions }))
 
   t.ok(await exists(path.resolve('node_modules', '.localhost+4873', 'duplexify', '3.6.0')), 'duplexify is linked into node_modules')
   t.ok(await exists(path.resolve('node_modules', '.localhost+4873', 'stream-shift', '1.0.0')), 'stream-shift is linked into node_modules')
