@@ -42,7 +42,7 @@ import R = require('ramda')
 import semver = require('semver')
 import {
   LAYOUT_VERSION,
-  SHRINKWRAP_MINOR_VERSION,
+  SHRINKWRAP_VERSION,
 } from '../constants'
 import { PnpmError } from '../errorTypes'
 import getContext, { PnpmContext } from '../getContext'
@@ -112,7 +112,7 @@ export async function install (maybeOpts: InstallOptions & {
       const importer = ctx.importers[0]
       if (!opts.update && (
         opts.frozenShrinkwrap ||
-        opts.preferFrozenShrinkwrap && ctx.existsWantedShrinkwrap && ctx.wantedShrinkwrap.shrinkwrapMinorVersion === SHRINKWRAP_MINOR_VERSION &&
+        opts.preferFrozenShrinkwrap && ctx.existsWantedShrinkwrap && ctx.wantedShrinkwrap.shrinkwrapVersion === SHRINKWRAP_VERSION &&
         !hasLocalTarballDepsInRoot(ctx.wantedShrinkwrap, importer.id) &&
         satisfiesPackageJson(ctx.wantedShrinkwrap, importer.pkg, importer.id) &&
         await linkedPackagesAreUpToDate(importer.pkg, ctx.wantedShrinkwrap.importers[importer.id], importer.prefix, opts.localPackages))
@@ -455,8 +455,7 @@ async function installInContext (
   }
 
   // Avoid requesting package meta info from registry only when the shrinkwrap version is at least the expected
-  const hasManifestInShrinkwrap = typeof ctx.wantedShrinkwrap.shrinkwrapMinorVersion === 'number' &&
-    ctx.wantedShrinkwrap.shrinkwrapMinorVersion >= SHRINKWRAP_MINOR_VERSION
+  const hasManifestInShrinkwrap = ctx.wantedShrinkwrap.shrinkwrapVersion >= SHRINKWRAP_VERSION
 
   ctx.wantedShrinkwrap.importers = ctx.wantedShrinkwrap.importers || {}
   for (const importer of importers) {

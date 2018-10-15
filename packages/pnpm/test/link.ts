@@ -1,21 +1,22 @@
 import assertProject, { isExecutable } from '@pnpm/assert-project'
-import prepare from '@pnpm/prepare'
-import tape = require('tape')
-import promisifyTape from 'tape-promise'
+import fs = require('mz/fs')
+import isWindows = require('is-windows')
 import loadYamlFile = require('load-yaml-file')
-const test = promisifyTape(tape)
+import ncpCB = require('ncp')
 import path = require('path')
+import prepare from '@pnpm/prepare'
 import promisify = require('util.promisify')
+import promisifyTape from 'tape-promise'
+import tape = require('tape')
 import writePkg = require('write-pkg')
 import {
   pathToLocalPkg,
   execPnpm,
- } from './utils'
-import fs = require('mz/fs')
-import isWindows = require('is-windows')
-import ncpCB = require('ncp')
+} from './utils'
 
 const ncp = promisify(ncpCB.ncp)
+const test = promisifyTape(tape)
+const testOnly = promisifyTape(tape.only)
 
 test('linking multiple packages', async (t: tape.Test) => {
   const project = prepare(t)

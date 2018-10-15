@@ -3,8 +3,6 @@ export interface Shrinkwrap {
     [path: string]: ShrinkwrapImporter,
   },
   shrinkwrapVersion: number,
-  // Should be deprecated from shrinkwrap version 4
-  shrinkwrapMinorVersion?: number,
   packages?: ResolvedPackages,
   registry: string, // TODO: remove this field in v4
 }

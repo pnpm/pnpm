@@ -613,7 +613,6 @@ test('subdependency is both optional and dev', t => {
         resolution:
           integrity: sha1-Sb1jMdfQLQwJvJEKEHW6gWW1bfk=
     registry: 'http://localhost:4873/'
-    shrinkwrapMinorVersion: 4
     shrinkwrapVersion: 3
   `, {
     name: 'foo',
@@ -657,7 +656,6 @@ test('subdependency is both optional and dev', t => {
         resolution:
           integrity: sha1-Sb1jMdfQLQwJvJEKEHW6gWW1bfk=
     registry: 'http://localhost:4873/'
-    shrinkwrapMinorVersion: 4
     shrinkwrapVersion: 3
   `)
 
@@ -694,7 +692,6 @@ test('dev = true is removed if dependency is used both as dev and prod dependenc
         resolution:
           integrity: sha1-tSQ9jz7BqjXxNkYFvA0QNuMKtp8=
     registry: 'http://localhost:4873/'
-    shrinkwrapMinorVersion: 4
     shrinkwrapVersion: 3
   `, {
     name: 'foo',
@@ -731,7 +728,6 @@ test('dev = true is removed if dependency is used both as dev and prod dependenc
         resolution:
           integrity: sha1-tSQ9jz7BqjXxNkYFvA0QNuMKtp8=
     registry: 'http://localhost:4873/'
-    shrinkwrapMinorVersion: 4
     shrinkwrapVersion: 3
   `)
 
@@ -768,7 +764,6 @@ test('optional = true is removed if dependency is used both as optional and prod
         resolution:
           integrity: sha1-tSQ9jz7BqjXxNkYFvA0QNuMKtp8=
     registry: 'http://localhost:4873/'
-    shrinkwrapMinorVersion: 4
     shrinkwrapVersion: 3
   `, {
     name: 'foo',
@@ -808,7 +803,6 @@ test('optional = true is removed if dependency is used both as optional and prod
         resolution:
           integrity: sha1-tSQ9jz7BqjXxNkYFvA0QNuMKtp8=
     registry: 'http://localhost:4873/'
-    shrinkwrapMinorVersion: 4
     shrinkwrapVersion: 3
   `)
 
@@ -925,10 +919,10 @@ test('ignore dependencies that are in package.json but are not in shrinkwrap.yam
   t.end()
 })
 
+// this test may be redundant
 test('keep shrinkwrapMinorVersion, if present', t => {
   t.deepEqual(prune({
-    shrinkwrapVersion: 3,
-    shrinkwrapMinorVersion: 2,
+    shrinkwrapVersion: 3.2,
     registry: 'https://registry.npmjs.org',
     importers: {
       '.': {
@@ -955,8 +949,7 @@ test('keep shrinkwrapMinorVersion, if present', t => {
       'is-positive': '^1.0.0',
     }
   }, '.', warn), {
-    shrinkwrapVersion: 3,
-    shrinkwrapMinorVersion: 2,
+    shrinkwrapVersion: 3.2,
     registry: 'https://registry.npmjs.org',
     importers: {
       '.': {

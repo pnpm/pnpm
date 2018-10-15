@@ -47,6 +47,7 @@
     "tslint-config-standard": "8.0.1",
     "tslint-eslint-rules": "5.4.0",
     "typescript": "^3.0.0",
+    "write-yaml-file": "1.0.1",
     "yaml-tag": "1.1.0"
   },
   "dependencies": {

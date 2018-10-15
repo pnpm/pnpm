@@ -72,7 +72,7 @@ function normalizeShrinkwrap (shr: Shrinkwrap) {
     if (R.isEmpty(shrToSave.packages)) {
       delete shrToSave.packages
     }
-    return shrToSave
+    return normalizeShrinkwrapVersion(shrToSave)
   } else {
     const shrToSave = {
       ...shr,
@@ -93,8 +93,19 @@ function normalizeShrinkwrap (shr: Shrinkwrap) {
     if (R.isEmpty(shrToSave.packages)) {
       delete shrToSave.packages
     }
-    return shrToSave
+    return normalizeShrinkwrapVersion(shrToSave)
   }
+}
+
+function normalizeShrinkwrapVersion (shr: Shrinkwrap) {
+  if (shr.shrinkwrapVersion < 4 && shr.shrinkwrapVersion.toString().indexOf('.') !== -1) {
+    const [majorVersion, minorVersion] = shr.shrinkwrapVersion.toString().split('.').map((v) => parseInt(v, 10))
+    if (minorVersion > 0) {
+      shr['shrinkwrapMinorVersion'] = minorVersion
+    }
+    shr.shrinkwrapVersion = majorVersion
+  }
+  return shr
 }
 
 export default function write (

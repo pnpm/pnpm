@@ -123,7 +123,7 @@ export default async function getContext (
     virtualStoreDir,
     ...await readShrinkwrapFile({
       force: opts.force,
-      importerIds: opts.importers.map((importer) => importer.id),
+      importers: opts.importers,
       registry: opts.registry,
       shrinkwrap: opts.shrinkwrap,
       shrinkwrapDirectory: opts.shrinkwrapDirectory,
@@ -297,7 +297,7 @@ export async function getContextForSingleImporter (
     virtualStoreDir,
     ...await readShrinkwrapFile({
       force: opts.force,
-      importerIds: [importerId],
+      importers: [{ id: importerId, prefix: opts.prefix }],
       registry: opts.registry,
       shrinkwrap: opts.shrinkwrap,
       shrinkwrapDirectory,

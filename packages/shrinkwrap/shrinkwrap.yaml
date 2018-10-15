@@ -28,6 +28,7 @@ devDependencies:
   tslint-config-standard: 8.0.1
   tslint-eslint-rules: 5.4.0
   typescript: 3.1.3
+  write-yaml-file: 1.0.1
   yaml-tag: 1.1.0
 packages:
   /@pnpm/exec/1.1.5:
@@ -1570,6 +1571,18 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha1-K2TIozAE1UuGmMdtWFp3zrYdoy8=
+  /write-yaml-file/1.0.1:
+    dependencies:
+      graceful-fs: 4.1.11
+      js-yaml: 3.12.0
+      mkdirp: 0.5.1
+      pify: 3.0.0
+      write-file-atomic: 2.3.0
+    dev: true
+    engines:
+      node: '>=4'
+    resolution:
+      integrity: sha1-oesea6vricAQNNSrA1wn1Pt34qE=
   /xtend/4.0.1:
     dev: true
     engines:
@@ -1619,4 +1632,5 @@ specifiers:
   typescript: ^3.0.0
   util.promisify: ^1.0.0
   write-file-atomic: ^2.1.0
+  write-yaml-file: 1.0.1
   yaml-tag: 1.1.0

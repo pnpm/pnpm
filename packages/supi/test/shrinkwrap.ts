@@ -952,7 +952,7 @@ test('shrinkwrap file has correct format when shrinkwrap directory does not equa
     const shr = await loadYamlFile('shrinkwrap.yaml') as Shrinkwrap
     const id = '/pkg-with-1-dep/100.0.0'
 
-    t.equal(shr.shrinkwrapVersion, 3, 'correct shrinkwrap version')
+    t.equal(shr.shrinkwrapVersion, 4, 'correct shrinkwrap version')
 
     t.ok(shr.registry, 'has registry field')
 

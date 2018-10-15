@@ -8,7 +8,10 @@ import {
   Shrinkwrap,
 } from 'pnpm-shrinkwrap'
 import R = require('ramda')
-import { SHRINKWRAP_MINOR_VERSION } from '../constants'
+import {
+  SHRINKWRAP_NEXT_VERSION,
+  SHRINKWRAP_VERSION,
+} from '../constants'
 
 export interface PnpmContext {
   currentShrinkwrap: Shrinkwrap,
@@ -23,7 +26,10 @@ export default async function (
     shrinkwrapDirectory: string,
     registry: string,
     shrinkwrap: boolean,
-    importerIds: string[],
+    importers: Array<{
+      id: string,
+      prefix: string,
+    }>,
   },
 ): Promise<{
   currentShrinkwrap: Shrinkwrap,
@@ -31,9 +37,18 @@ export default async function (
   existsWantedShrinkwrap: boolean,
   wantedShrinkwrap: Shrinkwrap,
 }> {
+  let shrinkwrapVersion
+  if (opts.importers.length > 1 || opts.importers[0].prefix !== opts.shrinkwrapDirectory) {
+    shrinkwrapVersion = SHRINKWRAP_NEXT_VERSION
+  } else {
+    shrinkwrapVersion = SHRINKWRAP_VERSION
+  }
   // ignore `shrinkwrap.yaml` on CI servers
   // a latest pnpm should not break all the builds
-  const shrOpts = { ignoreIncompatible: opts.force || isCI }
+  const shrOpts = {
+    ignoreIncompatible: opts.force || isCI,
+    wantedVersion: shrinkwrapVersion,
+  }
   const files = await Promise.all<Shrinkwrap | null | void>([
     opts.shrinkwrap && readWantedShrinkwrap(opts.shrinkwrapDirectory, shrOpts)
       || await existsWantedShrinkwrap(opts.shrinkwrapDirectory) &&
@@ -43,9 +58,10 @@ export default async function (
         }),
     readCurrentShrinkwrap(opts.shrinkwrapDirectory, shrOpts),
   ])
-  const sopts = { shrinkwrapMinorVersion: SHRINKWRAP_MINOR_VERSION }
-  const currentShrinkwrap = files[1] || createShrinkwrap(opts.registry, opts.importerIds, sopts)
-  for (const importerId of opts.importerIds) {
+  const sopts = { shrinkwrapVersion }
+  const importerIds = opts.importers.map((importer) => importer.id)
+  const currentShrinkwrap = files[1] || createShrinkwrap(opts.registry, importerIds, sopts)
+  for (const importerId of importerIds) {
     if (!currentShrinkwrap.importers[importerId]) {
       currentShrinkwrap.importers[importerId] = {
         specifiers: {},
@@ -54,8 +70,8 @@ export default async function (
   }
   const wantedShrinkwrap = files[0] ||
     !opts.shrinkwrap && currentShrinkwrap && R.clone(currentShrinkwrap) ||
-    createShrinkwrap(opts.registry, opts.importerIds, sopts)
-  for (const importerId of opts.importerIds) {
+    createShrinkwrap(opts.registry, importerIds, sopts)
+  for (const importerId of importerIds) {
     if (!wantedShrinkwrap.importers[importerId]) {
       wantedShrinkwrap.importers[importerId] = {
         specifiers: {},

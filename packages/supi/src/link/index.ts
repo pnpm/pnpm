@@ -228,6 +228,7 @@ export async function linkToGlobal (
   if (reporter) {
     streamParser.on('data', reporter)
   }
+  maybeOpts.shrinkwrapDirectory = maybeOpts.shrinkwrapDirectory || maybeOpts.globalPrefix
   const opts = await extendOptions(maybeOpts)
   const globalPkgPath = pathAbsolute(maybeOpts.globalPrefix)
   await link([linkFrom], path.join(globalPkgPath, 'node_modules'), {

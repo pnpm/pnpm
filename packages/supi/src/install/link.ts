@@ -20,7 +20,10 @@ import {
   Shrinkwrap,
 } from 'pnpm-shrinkwrap'
 import R = require('ramda')
-import { SHRINKWRAP_MINOR_VERSION } from '../constants'
+import {
+  SHRINKWRAP_VERSION,
+  SHRINKWRAP_NEXT_VERSION,
+} from '../constants'
 import linkToModules from '../linkToModules'
 import shamefullyFlattenGraph from '../shamefullyFlattenGraph'
 import symlinkDependencyTo from '../symlinkDependencyTo'
@@ -204,7 +207,9 @@ export default async function linkPackages (
     // have new backward-compatible versions of `shrinkwrap.yaml`
     // w/o changing `shrinkwrapVersion`. From version 4, the
     // `shrinkwrapVersion` field allows numbers like 4.1
-    newShrinkwrap.shrinkwrapMinorVersion = SHRINKWRAP_MINOR_VERSION
+    newShrinkwrap.shrinkwrapVersion = Math.floor(newShrinkwrap.shrinkwrapVersion) === Math.floor(SHRINKWRAP_VERSION)
+      ? SHRINKWRAP_VERSION
+      : SHRINKWRAP_NEXT_VERSION
   }
 
   await Promise.all(pendingRequiresBuilds.map(async (pendingRequiresBuild) => {

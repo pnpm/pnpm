@@ -11,9 +11,11 @@ import {
 import test = require('tape')
 import path = require('path')
 import tempy = require('tempy')
+import loadYamlFile = require('load-yaml-file')
 import mkdirp = require('mkdirp-promise')
 import yaml = require('yaml-tag')
 import fs = require('fs')
+import writeYamlFile = require('write-yaml-file')
 
 process.chdir(__dirname)
 
@@ -40,6 +42,7 @@ test('readWanted()', async t => {
   try {
     const shr = await readWanted(path.join('fixtures', '3'), {
       ignoreIncompatible: false,
+      wantedVersion: 3,
     })
     t.fail()
   } catch (err) {
@@ -103,8 +106,8 @@ test('writeWantedOnly()', async t => {
     }
   }
   await writeWantedOnly(projectPath, wantedShrinkwrap)
-  t.equal(await readCurrent(projectPath, {ignoreIncompatible: false}), null)
-  t.deepEqual(await readWanted(projectPath, {ignoreIncompatible: false}), wantedShrinkwrap)
+  t.equal(await readCurrent(projectPath, { ignoreIncompatible: false }), null, 'current shrinkwrap read')
+  t.deepEqual(await readWanted(projectPath, { ignoreIncompatible: false }), wantedShrinkwrap, 'wanted shrinkwrap read')
   t.end()
 })
 
@@ -315,5 +318,49 @@ test("write does not use yaml anchors/aliases", async t => {
   t.ok(shrContent.indexOf('&') === -1, 'shrinkwrap contains no anchors')
   t.ok(shrContent.indexOf('*') === -1, 'shrinkwrap contains no aliases')
 
+  t.end()
+})
+
+test('read merges minor and major shrinkwrap versions', async t => {
+  const projectPath = tempy.directory()
+  const wantedShrinkwrap = {
+    shrinkwrapVersion: 3,
+    shrinkwrapMinorVersion: 11,
+    registry: 'https://registry.npmjs.org',
+  }
+  await writeYamlFile(path.join(projectPath, 'shrinkwrap.yaml'), wantedShrinkwrap)
+
+  const shr = await readWanted(projectPath, { ignoreIncompatible: true })
+  t.equals(shr && shr.shrinkwrapVersion, 3.11)
+
+  t.end()
+})
+
+test('write saves shrinkwrap version in correct fields', async t => {
+  const projectPath = tempy.directory()
+  await writeWantedOnly(projectPath, {
+    shrinkwrapVersion: 3.11,
+    importers: {
+      '.': {
+        dependencies: {
+          foo: '1.0.0',
+        },
+        specifiers: {
+          foo: '1.0.0',
+        },
+      },
+    },
+    packages: {
+      '/foo/1.0.0': {
+        resolution: {
+          integrity: 'aaa',
+        },
+      },
+    },
+    registry: 'https://registry.npmjs.org/',
+  })
+  const shr = await loadYamlFile(path.join(projectPath, 'shrinkwrap.yaml'))
+  t.equal(shr['shrinkwrapVersion'], 3)
+  t.equal(shr['shrinkwrapMinorVersion'], 11)
   t.end()
 })
