@@ -551,7 +551,6 @@ packages:
     dev: true
     resolution:
       integrity: sha512-e8tQYnZodmebYDWGH7KMRvtzKXaJHx3BbilrgZCfvyLUYdKpK1t5PSPmpkny/SgiTSCnjfLW7v5rlONXVFkQEA==
-      tarball: 'http://registry.npmjs.org/bl/-/bl-1.2.2.tgz'
   /block-stream/0.0.9:
     dependencies:
       inherits: 2.0.3
@@ -644,7 +643,6 @@ packages:
     dev: true
     resolution:
       integrity: sha1-pyyTb3e5a/UvX357RnGAYoVR3vs=
-      tarball: 'http://registry.npmjs.org/buffer/-/buffer-3.6.0.tgz'
   /builtin-modules/1.1.1:
     engines:
       node: '>=0.10.0'
@@ -1618,7 +1616,6 @@ packages:
       node: '>=0.10.0'
     resolution:
       integrity: sha1-VAVy0096wxGfj3bDDLwbHgN6/74=
-      tarball: 'http://registry.npmjs.org/is-builtin-module/-/is-builtin-module-1.0.0.tgz'
   /is-bzip2/1.0.0:
     dev: true
     engines:
@@ -2057,12 +2054,10 @@ packages:
   /minimist/0.0.8:
     resolution:
       integrity: sha1-hX/Kv8M5fSYluCKCYuhqp6ARsF0=
-      tarball: 'http://registry.npmjs.org/minimist/-/minimist-0.0.8.tgz'
   /minimist/1.2.0:
     dev: true
     resolution:
       integrity: sha1-o1AIsg9BOD7sH7kU9M1d95omQoQ=
-      tarball: 'http://registry.npmjs.org/minimist/-/minimist-1.2.0.tgz'
   /mkdirp-promise/5.0.1:
     dependencies:
       mkdirp: 0.5.1
@@ -2076,7 +2071,6 @@ packages:
     hasBin: true
     resolution:
       integrity: sha1-MAV0OOrGz3+MR2fzhkjWaX11yQM=
-      tarball: 'http://registry.npmjs.org/mkdirp/-/mkdirp-0.5.1.tgz'
   /moment/2.22.2:
     dev: true
     optional: true
@@ -2671,7 +2665,6 @@ packages:
       util-deprecate: 1.0.2
     resolution:
       integrity: sha512-tQtKA9WIAhBF3+VLAseyMqZeBjW0AHJoxOtYqSUZNJxauErmLbVm2FW1y+J/YA9dUrAC39ITejlZWhVIwawkKw==
-      tarball: 'http://registry.npmjs.org/readable-stream/-/readable-stream-2.3.6.tgz'
   /redent/2.0.0:
     dependencies:
       indent-string: 3.2.0
@@ -3237,7 +3230,6 @@ packages:
     dev: true
     resolution:
       integrity: sha1-DdTJ/6q8NXlgsbckEV1+Doai4fU=
-      tarball: 'http://registry.npmjs.org/through/-/through-2.3.8.tgz'
   /through2/2.0.3:
     dependencies:
       readable-stream: 2.3.6
