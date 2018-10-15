@@ -4090,17 +4090,17 @@ specifiers:
   '@pnpm/default-fetcher': ^2.0.0
   '@pnpm/default-resolver': ^2.0.0
   '@pnpm/fs-locker': 1.0.2
-  '@pnpm/headless': 0.6.8-0
+  '@pnpm/headless': 0.6.8-1
   '@pnpm/lifecycle': 3.0.1
   '@pnpm/link-bins': 3.0.0
   '@pnpm/logger': ^2.1.0
-  '@pnpm/modules-cleaner': 1.0.0-0
+  '@pnpm/modules-cleaner': 1.0.0-1
   '@pnpm/modules-yaml': 2.0.0-0
   '@pnpm/package-requester': 4.1.4
   '@pnpm/pkgid-to-filename': 2.0.0
   '@pnpm/prepare': 0.0.0
   '@pnpm/read-package-json': 1.0.0
-  '@pnpm/resolve-dependencies': 1.0.0-0
+  '@pnpm/resolve-dependencies': 1.0.0-1
   '@pnpm/resolver-base': 1.2.0
   '@pnpm/store-path': ^1.0.0
   '@pnpm/types': ^1.8.0
@@ -4156,7 +4156,7 @@ specifiers:
   path-exists: 3.0.0
   path-name: ^1.0.0
   pnpm-registry-mock: ^2.2.0
-  pnpm-shrinkwrap: 8.0.0-0
+  pnpm-shrinkwrap: 8.0.0-1
   ramda: 0.25.0
   read-pkg: 4.0.1
   remove-all-except-outer-links: 1.0.3

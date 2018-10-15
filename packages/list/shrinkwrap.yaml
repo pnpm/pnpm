@@ -2555,7 +2555,7 @@ specifiers:
   archy: 1.0.0
   chalk: 2.4.1
   common-tags: ^1.4.0
-  dependencies-hierarchy: 3.1.0-0
+  dependencies-hierarchy: 3.1.0-1
   mos: ^2.0.0-alpha.3
   mos-plugin-readme: ^1.0.4
   npm-package-arg: 6.1.0

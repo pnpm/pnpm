@@ -3654,7 +3654,7 @@ specifiers:
   '@pnpm/lifecycle': 3.0.1
   '@pnpm/link-bins': 3.0.0
   '@pnpm/logger': ^2.1.0
-  '@pnpm/modules-cleaner': 1.0.0-0
+  '@pnpm/modules-cleaner': 1.0.0-1
   '@pnpm/modules-yaml': 2.0.0-0
   '@pnpm/package-requester': 4.1.4
   '@pnpm/pkgid-to-filename': 2.0.0
@@ -3683,7 +3683,7 @@ specifiers:
   package-store: 0.23.4
   path-exists: 3.0.0
   pnpm-registry-mock: ^2.2.0
-  pnpm-shrinkwrap: 8.0.0-0
+  pnpm-shrinkwrap: 8.0.0-1
   ramda: 0.25.0
   rimraf: ^2.6.2
   rimraf-then: ^1.0.1
