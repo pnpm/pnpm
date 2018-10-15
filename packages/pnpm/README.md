@@ -27,23 +27,9 @@ Like this project? Let people know with a [tweet](https://bit.ly/tweet-pnpm).
 * [Background](#background)
 * [Install](#install)
 * [Usage](#usage)
-  * [pnpm CLI](#pnpm-cli)
-  * [pnpx CLI](#pnpx-cli)
-  * [Configuring](https://pnpm.js.org/docs/en/configuring.html)
-  * [Hooks](https://pnpm.js.org/docs/en/hooks.html)
-  * [Aliases](https://pnpm.js.org/docs/en/aliases.html)
 * [Benchmark](#benchmark)
-* [Limitations](https://pnpm.js.org/docs/en/limitations.html)
-* [Frequently Asked Questions](https://pnpm.js.org/docs/en/faq.html)
 * [Support](#support)
-* [Awesome list](https://github.com/pnpm/awesome-pnpm)
-* Recipes
-  * [Continuous Integration](https://pnpm.js.org/docs/en/continuous-integration.html)
-* Advanced
-  * [About the package store](https://pnpm.js.org/docs/en/about-package-store.html)
-  * [Symlinked `node_modules` structure](https://pnpm.js.org/docs/en/symlinked-node-modules-structure.html)
-  * [How peers are resolved](https://pnpm.js.org/docs/en/how-peers-are-resolved.html)
-* [Contributing](CONTRIBUTING.md)
+* [Contributors](#contributors)
 
 ## Background
 
@@ -91,7 +77,7 @@ pnpm install lodash
 
 For more advanced usage, read [pnpm CLI](https://pnpm.js.org/docs/en/pnpm-cli.html) on our website.
 
-For using the programmatic API, use pnpm's engine: [supi](https://github.com/pnpm/supi).
+For using the programmatic API, use pnpm's engine: [supi](packages/supi).
 
 ### pnpx CLI
 
@@ -115,9 +101,37 @@ Benchmarks on a React app:
 
 ## Support
 
+- [Frequently Asked Questions](https://pnpm.js.org/docs/en/faq.html)
 - [Stack Overflow](https://stackoverflow.com/questions/tagged/pnpm)
 - [Gitter chat](https://gitter.im/pnpm/pnpm)
 - [Twitter](https://twitter.com/pnpmjs)
+- [Awesome list](https://github.com/pnpm/awesome-pnpm)
+
+## Contributors
+
+This project exists thanks to all the people who contribute. [[Contribute](CONTRIBUTING.md)].
+<a href="../../graphs/contributors"><img src="https://opencollective.com/pnpm/contributors.svg?width=890&button=false" /></a>
+
+### Backers
+
+Thank you to all our backers! 🙏 [[Become a backer](https://opencollective.com/pnpm#backer)]
+
+<a href="https://opencollective.com/pnpm#backers" target="_blank"><img src="https://opencollective.com/pnpm/backers.svg?width=890"></a>
+
+### Sponsors
+
+Support this project by becoming a sponsor. Your logo will show up here with a link to your website. [[Become a sponsor](https://opencollective.com/pnpm#sponsor)]
+
+<a href="https://opencollective.com/pnpm/sponsor/0/website" target="_blank"><img src="https://opencollective.com/pnpm/sponsor/0/avatar.svg"></a>
+<a href="https://opencollective.com/pnpm/sponsor/1/website" target="_blank"><img src="https://opencollective.com/pnpm/sponsor/1/avatar.svg"></a>
+<a href="https://opencollective.com/pnpm/sponsor/2/website" target="_blank"><img src="https://opencollective.com/pnpm/sponsor/2/avatar.svg"></a>
+<a href="https://opencollective.com/pnpm/sponsor/3/website" target="_blank"><img src="https://opencollective.com/pnpm/sponsor/3/avatar.svg"></a>
+<a href="https://opencollective.com/pnpm/sponsor/4/website" target="_blank"><img src="https://opencollective.com/pnpm/sponsor/4/avatar.svg"></a>
+<a href="https://opencollective.com/pnpm/sponsor/5/website" target="_blank"><img src="https://opencollective.com/pnpm/sponsor/5/avatar.svg"></a>
+<a href="https://opencollective.com/pnpm/sponsor/6/website" target="_blank"><img src="https://opencollective.com/pnpm/sponsor/6/avatar.svg"></a>
+<a href="https://opencollective.com/pnpm/sponsor/7/website" target="_blank"><img src="https://opencollective.com/pnpm/sponsor/7/avatar.svg"></a>
+<a href="https://opencollective.com/pnpm/sponsor/8/website" target="_blank"><img src="https://opencollective.com/pnpm/sponsor/8/avatar.svg"></a>
+<a href="https://opencollective.com/pnpm/sponsor/9/website" target="_blank"><img src="https://opencollective.com/pnpm/sponsor/9/avatar.svg"></a>
 
 ## License
 
