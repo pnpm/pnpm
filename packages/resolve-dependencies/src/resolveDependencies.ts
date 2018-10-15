@@ -188,47 +188,62 @@ export default async function resolveDependencies (
   const resolvedDependencies = options.resolvedDependencies || {}
   const preferedDependencies = options.preferedDependencies || {}
   const update = options.update && options.currentDepth <= ctx.depth
+  const extendedWantedDeps = []
+  const allPeerDependencies = new Set<string>()
+  for (const wantedDependency of wantedDependencies) {
+    let reference = wantedDependency.alias && resolvedDependencies[wantedDependency.alias]
+    let proceed = false
+
+    // If dependencies that were used by the previous version of the package
+    // satisfy the newer version's requirements, then pnpm tries to keep
+    // the previous dependency.
+    // So for example, if foo@1.0.0 had bar@1.0.0 as a dependency
+    // and foo was updated to 1.1.0 which depends on bar ^1.0.0
+    // then bar@1.0.0 can be reused for foo@1.1.0
+    if (!reference && wantedDependency.alias && semver.validRange(wantedDependency.pref) !== null && // tslint:disable-line
+      preferedDependencies[wantedDependency.alias] &&
+      preferedSatisfiesWanted(
+        preferedDependencies[wantedDependency.alias],
+        wantedDependency as {alias: string, pref: string},
+        ctx.wantedShrinkwrap,
+        {
+          prefix: ctx.prefix,
+        },
+      )
+    ) {
+      proceed = true
+      reference = preferedDependencies[wantedDependency.alias]
+    }
+    const infoFromShrinkwrap = getInfoFromShrinkwrap(ctx.wantedShrinkwrap, reference, wantedDependency.alias)
+    if (infoFromShrinkwrap && infoFromShrinkwrap.dependencyShrinkwrap) {
+      for (const peer of Object.keys(infoFromShrinkwrap.dependencyShrinkwrap.peerDependencies || {})) {
+        allPeerDependencies.add(peer)
+      }
+    }
+    extendedWantedDeps.push({
+      infoFromShrinkwrap,
+      proceed,
+      reference,
+      wantedDependency,
+    })
+  }
   const pkgAddresses = (
     await Promise.all(
-      wantedDependencies
-        .map(async (wantedDependency: WantedDependency) => {
-          let reference = wantedDependency.alias && resolvedDependencies[wantedDependency.alias]
-          let proceed = false
-
-          // If dependencies that were used by the previous version of the package
-          // satisfy the newer version's requirements, then pnpm tries to keep
-          // the previous dependency.
-          // So for example, if foo@1.0.0 had bar@1.0.0 as a dependency
-          // and foo was updated to 1.1.0 which depends on bar ^1.0.0
-          // then bar@1.0.0 can be reused for foo@1.1.0
-          if (!reference && wantedDependency.alias && semver.validRange(wantedDependency.pref) !== null && // tslint:disable-line
-            preferedDependencies[wantedDependency.alias] &&
-            preferedSatisfiesWanted(
-              preferedDependencies[wantedDependency.alias],
-              wantedDependency as {alias: string, pref: string},
-              ctx.wantedShrinkwrap,
-              {
-                prefix: ctx.prefix,
-              },
-            )
-          ) {
-            proceed = true
-            reference = preferedDependencies[wantedDependency.alias]
-          }
-
-          return install(wantedDependency, ctx, {
+      extendedWantedDeps
+        .map(async (extendedWantedDeps) => {
+          return install(extendedWantedDeps.wantedDependency, ctx, {
             currentDepth: options.currentDepth,
             hasManifestInShrinkwrap: options.hasManifestInShrinkwrap,
             keypath: options.keypath,
             localPackages: options.localPackages,
             parentIsInstallable: options.parentIsInstallable,
             parentNodeId: options.parentNodeId,
-            proceed,
+            proceed: extendedWantedDeps.proceed || Boolean(extendedWantedDeps.wantedDependency.alias && allPeerDependencies.has(extendedWantedDeps.wantedDependency.alias)),
             readPackageHook: options.readPackageHook,
             shamefullyFlatten: options.shamefullyFlatten,
             sideEffectsCache: options.sideEffectsCache,
             update,
-            ...getInfoFromShrinkwrap(ctx.wantedShrinkwrap, reference, wantedDependency.alias, ctx.registry),
+            ...extendedWantedDeps.infoFromShrinkwrap,
           })
         }),
     )
@@ -264,7 +279,6 @@ function getInfoFromShrinkwrap (
   shrinkwrap: Shrinkwrap,
   reference: string | undefined,
   pkgName: string | undefined,
-  registry: string,
 ) {
   if (!reference || !pkgName) {
     return null
