@@ -1,5 +1,6 @@
 import prepare from '@pnpm/prepare'
 import { isExecutable } from '@pnpm/assert-project'
+import loadYamlFile = require('load-yaml-file')
 import fs = require('mz/fs')
 import ncpCB = require('ncp')
 import path = require('path')
@@ -247,4 +248,28 @@ test('relative link uses realpath when contained in a symlinked dir', async (t: 
     // If we don't use real paths we get a link like this.
     t.notEqual(linkToRelLink, '../../../../../app1/packages/public/bar')
   }
+})
+
+test('relative link when an external shrinkwrap is used', async (t) => {
+  const projects = prepare(t, [
+    {
+      name: 'project',
+      version: '1.0.0',
+      dependencies: {},
+    },
+  ])
+
+  const opts = await testDefaults({ shrinkwrapDirectory: path.join('..') })
+  await link([process.cwd()], path.resolve(process.cwd(), 'node_modules'), opts)
+
+  const shr = await loadYamlFile(path.resolve('..', 'shrinkwrap.yaml'))
+
+  t.deepEqual(shr && shr['importers'], {
+    project: {
+      dependencies: {
+        project: 'link:',
+      },
+      specifiers: {},
+    },
+  })
 })

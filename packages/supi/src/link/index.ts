@@ -83,7 +83,7 @@ export default async function link (
       saveType: (saveType || pkg && guessDependencyType(linkedPkg.name, pkg)) as DependenciesField,
     })
 
-    const packagePath = normalize(path.relative(ctx.shrinkwrapDirectory, linkFromPath))
+    const packagePath = normalize(path.relative(opts.prefix, linkFromPath))
     const addLinkOpts = {
       linkedPkgName: linkFromAlias || linkedPkg.name,
       packagePath,
