@@ -41,6 +41,8 @@ export { UninstallOptions } from './uninstall/extendUninstallOptions'
 import * as packageRequesterLogs from '@pnpm/package-requester'
 import * as supiLogs from './loggers'
 
+export { LocalPackages } from '@pnpm/resolver-base'
+
 export type ProgressLog = ProgressLog | packageRequesterLogs.ProgressLog
 export type Log = supiLogs.Log
   | packageRequesterLogs.Log

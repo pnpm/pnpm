@@ -8,9 +8,10 @@ import {
   InstallOptions,
   link,
   linkToGlobal,
+  LocalPackages,
 } from 'supi'
 import { cached as createStoreController } from '../createStoreController'
-import findWorkspacePackages from '../findWorkspacePackages'
+import findWorkspacePackages, { arrayOfLocalPackagesToMap } from '../findWorkspacePackages'
 import getConfigs from '../getConfigs'
 import { PnpmOptions } from '../types'
 
@@ -23,9 +24,18 @@ export default async (
   const cwd = opts && opts.prefix || process.cwd()
 
   const storeControllerCache = new Map<string, Promise<{path: string, ctrl: StoreController}>>()
+  let workspacePackages
+  let localPackages!: LocalPackages
+  if (opts.linkWorkspacePackages && opts.workspacePrefix) {
+    workspacePackages = await findWorkspacePackages(opts.workspacePrefix)
+    localPackages = arrayOfLocalPackagesToMap(workspacePackages)
+  } else {
+    localPackages = {}
+  }
 
   const store = await createStoreController(storeControllerCache, opts)
   const linkOpts = Object.assign(opts, {
+    localPackages,
     store: store.path,
     storeController: store.ctrl,
   })
@@ -41,9 +51,9 @@ export default async (
   if (pkgNames.length) {
     let globalPkgNames!: string[]
     if (opts.workspacePrefix) {
-      const pkgs = await findWorkspacePackages(opts.workspacePrefix)
+      workspacePackages = await findWorkspacePackages(opts.workspacePrefix)
 
-      const pkgsFoundInWorkspace = pkgs.filter((pkg) => pkgNames.indexOf(pkg.manifest.name) !== -1)
+      const pkgsFoundInWorkspace = workspacePackages.filter((pkg) => pkgNames.indexOf(pkg.manifest.name) !== -1)
       pkgsFoundInWorkspace.forEach((pkgFromWorkspace) => pkgPaths.push(pkgFromWorkspace.path))
 
       if (pkgsFoundInWorkspace.length && !linkOpts.saveDev && !linkOpts.saveProd && !linkOpts.saveOptional) {
@@ -63,6 +73,7 @@ export default async (
       const s = await createStoreController(storeControllerCache, opts)
       await install({
         ...await getConfigs({ ...opts.cliArgs, prefix }, { excludeReporter: true }),
+        localPackages,
         store: s.path,
         storeController: s.ctrl,
       } as InstallOptions)

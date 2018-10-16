@@ -459,3 +459,30 @@ test('recursive installation with shared-workspace-shrinkwrap and a readPackage 
 
   await projects['project-1'].hasNot('project-1')
 })
+
+test('local packages should be preferred when running "pnpm link" inside a workspace', async (t) => {
+  const projects = preparePackages(t, [
+    {
+      name: 'project-1',
+      version: '1.0.0',
+      dependencies: {
+        'is-positive': '1.0.0',
+      },
+    },
+    {
+      name: 'is-positive',
+      version: '1.0.0',
+    },
+  ])
+
+  await writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
+  await fs.writeFile('.npmrc', 'link-workspace-packages = true', 'utf8')
+
+  process.chdir('project-1')
+
+  await execPnpm('link', '.')
+
+  const shr = await projects['project-1'].loadShrinkwrap()
+
+  t.equal(shr && shr.dependencies && shr.dependencies['is-positive'], 'link:../is-positive')
+})
