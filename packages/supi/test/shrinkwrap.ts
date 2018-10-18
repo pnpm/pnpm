@@ -1,4 +1,4 @@
-import prepare from '@pnpm/prepare'
+import prepare, { preparePackages } from '@pnpm/prepare'
 import { fromDir as readPackageJsonFromDir } from '@pnpm/read-package-json'
 import { stripIndent } from 'common-tags'
 import loadYamlFile = require('load-yaml-file')
@@ -1012,4 +1012,69 @@ test('shrinkwrap file has correct format when shrinkwrap directory does not equa
     t.ok(shr.packages![absDepPath])
     t.ok(shr.packages![absDepPath].name, 'github-hosted package has name specified')
   }
+})
+
+test('doing named installation when shared shrinkwrap.yaml exists already', async (t: tape.Test) => {
+  const projects = preparePackages(t, [
+    {
+      name: 'pkg1',
+      version: '1.0.0',
+      dependencies: {
+        'is-negative': '^2.1.0',
+      },
+    },
+    {
+      name: 'pkg2',
+      version: '1.0.0',
+      dependencies: {
+        'is-positive': '^3.1.0',
+      },
+    },
+  ])
+
+  await writeYamlFile('shrinkwrap.yaml', {
+    importers: {
+      pkg1: {
+        dependencies: {
+          'is-negative': '2.1.0',
+        },
+        specifiers: {
+          'is-negative': '^2.1.0',
+        },
+      },
+      pkg2: {
+        dependencies: {
+          'is-positive': '3.1.0',
+        },
+        specifiers: {
+          'is-positive': '^3.1.0',
+        },
+      },
+    },
+    packages: {
+      '/is-negative/2.1.0': {
+        resolution: {
+          tarball: 'http://localhost:4873/is-negative/-/is-negative-2.1.0.tgz',
+        },
+      },
+      '/is-positive/3.1.0': {
+        resolution: {
+          integrity: 'sha1-hX21hKG6XRyymAUn/DtsQ103sP0=',
+        },
+      },
+    },
+    registry: 'http://localhost:4873',
+    shrinkwrapVersion: 4,
+  })
+
+  await installPkgs(['is-positive'], await testDefaults({ importers: [{ prefix: path.resolve('pkg2') }] }))
+
+  const currentShr = await loadYamlFile(path.resolve('node_modules', '.shrinkwrap.yaml'))
+
+  t.deepEqual(R.keys(currentShr['importers']), ['pkg2'], 'only pkg2 added to importers of current shrinkwrap')
+
+  await install(await testDefaults({ importers: [{ prefix: path.resolve('pkg1') }, { prefix: path.resolve('pkg2') }] }))
+
+  await projects['pkg1'].has('is-negative')
+  await projects['pkg2'].has('is-positive')
 })

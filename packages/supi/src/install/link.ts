@@ -243,7 +243,11 @@ export default async function linkPackages (
         }
       }
     }
-    currentShrinkwrap = { ...newShrinkwrap, packages }
+    const importers = importerIds.reduce((acc, importerId) => {
+      acc[importerId] = newShrinkwrap.importers[importerId]
+      return acc
+    }, {})
+    currentShrinkwrap = { ...newShrinkwrap, packages, importers }
   } else if (opts.include.dependencies && opts.include.devDependencies && opts.include.optionalDependencies && opts.skipped.size === 0) {
     currentShrinkwrap = newShrinkwrap
   } else {
