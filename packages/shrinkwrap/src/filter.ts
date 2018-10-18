@@ -6,6 +6,7 @@ import {
   Shrinkwrap,
   ShrinkwrapImporter,
 } from './types'
+import logger from './logger';
 
 export function filterByImporters (
   shr: Shrinkwrap,
@@ -13,6 +14,7 @@ export function filterByImporters (
   opts: {
     include: { [dependenciesField in DependenciesField]: boolean },
     skipped: Set<string>,
+    failOnMissingDependencies: boolean,
   },
 ): Shrinkwrap {
   if (R.equals(importerIds.sort(), R.keys(shr.importers).sort())) {
@@ -29,7 +31,11 @@ export function filterByImporters (
   const directDepPaths = R.unnest(importerDeps)
     .map(([pkgName, ref]) => dp.refToRelative(ref, pkgName))
     .filter((nodeId) => nodeId !== null) as string[]
-  const packages = shr.packages && pickPkgsWithAllDeps(shr.packages, directDepPaths, { include: opts.include }) || {}
+  const packages = shr.packages &&
+    pickPkgsWithAllDeps(shr.packages, directDepPaths, {
+      failOnMissingDependencies: opts.failOnMissingDependencies,
+      include: opts.include,
+    }) || {}
   return {
     importers: importerIds.reduce((acc, importerId) => {
       acc[importerId] = filterImporter(shr.importers[importerId], opts.include)
@@ -74,6 +80,7 @@ function pickPkgsWithAllDeps (
   pkgSnapshots: PackageSnapshots,
   relDepPaths: string[],
   opts: {
+    failOnMissingDependencies: boolean,
     include: { [dependenciesField in DependenciesField]: boolean },
   },
 ) {
@@ -87,6 +94,7 @@ function pkgAllDeps (
   pickedPackages: PackageSnapshots,
   relDepPaths: string[],
   opts: {
+    failOnMissingDependencies: boolean,
     include: { [dependenciesField in DependenciesField]: boolean },
   },
 ) {
@@ -94,7 +102,14 @@ function pkgAllDeps (
     if (pickedPackages[relDepPath]) continue
     const pkgSnapshot = pkgSnapshots[relDepPath]
     if (!pkgSnapshot && !relDepPath.startsWith('link:')) {
-      throw new Error(`No entry for "${relDepPath}" in shrinkwrap.yaml`)
+      const message = `No entry for "${relDepPath}" in shrinkwrap.yaml`
+      if (opts.failOnMissingDependencies) {
+        const err = new Error(message)
+        err['code'] = 'ERR_PNPM_SHRINKWRAP_MISSING_DEPENDENCY' // tslint:disable-line:no-string-literal
+        throw err
+      }
+      logger.debug(message)
+      continue
     }
     pickedPackages[relDepPath] = pkgSnapshot
     const nextRelDepPaths = R.toPairs(

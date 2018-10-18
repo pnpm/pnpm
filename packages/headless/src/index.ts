@@ -173,7 +173,10 @@ export default async (opts: HeadlessOptions) => {
   }
 
   stageLogger.debug('importing_started')
-  const filteredShrinkwrap = filterShrinkwrapByImporters(wantedShrinkwrap, [importerId], filterOpts)
+  const filteredShrinkwrap = filterShrinkwrapByImporters(wantedShrinkwrap, [importerId], {
+    ...filterOpts,
+    failOnMissingDependencies: true,
+  })
   const res = await shrinkwrapToDepGraph(
     filteredShrinkwrap,
     opts.force ? null : currentShrinkwrap,

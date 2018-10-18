@@ -66,6 +66,7 @@ test('filter: only prod dependencies of one importer', (t) => {
         optionalDependencies: false,
       },
       skipped: new Set<string>(),
+      failOnMissingDependencies: true,
     },
   )
 
@@ -109,5 +110,128 @@ test('filter: only prod dependencies of one importer', (t) => {
     registry: 'https://registry.npmjs.org/',
     shrinkwrapVersion: 3,
   })
+  t.end()
+})
+
+// TODO: also fail when filterShrinkwrap() is used
+test('filter: fail on missing packages when failOnMissingDependencies is true', (t) => {
+  let err!: Error
+  try {
+    filterByImporters(
+      {
+        importers: {
+          'project-1': {
+            dependencies: {
+              'prod-dep': '1.0.0',
+            },
+            specifiers: {
+              'prod-dep': '^1.0.0',
+            },
+          },
+          'project-2': {
+            specifiers: {},
+          },
+        },
+        packages: {
+          '/prod-dep/1.0.0': {
+            dependencies: {
+              'prod-dep-dep': '1.0.0',
+            },
+            resolution: {
+              integrity: '',
+            },
+          },
+        },
+        registry: 'https://registry.npmjs.org/',
+        shrinkwrapVersion: 3,
+      },
+      ['project-1'],
+      {
+        failOnMissingDependencies: true,
+        include: {
+          dependencies: true,
+          devDependencies: false,
+          optionalDependencies: false,
+        },
+        skipped: new Set<string>(),
+      },
+    )
+  } catch (_) {
+    err = _
+  }
+  t.ok(err)
+  t.equal(err.message, 'No entry for "/prod-dep-dep/1.0.0" in shrinkwrap.yaml')
+  t.end()
+})
+
+test('filter: do not fail on missing packages when failOnMissingDependencies is false', (t) => {
+  const filteredShr = filterByImporters(
+    {
+      importers: {
+        'project-1': {
+          dependencies: {
+            'prod-dep': '1.0.0',
+          },
+          specifiers: {
+            'prod-dep': '^1.0.0',
+          },
+        },
+        'project-2': {
+          specifiers: {},
+        },
+      },
+      packages: {
+        '/prod-dep/1.0.0': {
+          dependencies: {
+            'prod-dep-dep': '1.0.0',
+          },
+          resolution: {
+            integrity: '',
+          },
+        },
+      },
+      registry: 'https://registry.npmjs.org/',
+      shrinkwrapVersion: 3,
+    },
+    ['project-1'],
+    {
+      failOnMissingDependencies: false,
+      include: {
+        dependencies: true,
+        devDependencies: false,
+        optionalDependencies: false,
+      },
+      skipped: new Set<string>(),
+    },
+  )
+
+  t.deepEqual(filteredShr, {
+    importers: {
+      'project-1': {
+        dependencies: {
+          'prod-dep': '1.0.0',
+        },
+        devDependencies: {},
+        optionalDependencies: {},
+        specifiers: {
+          'prod-dep': '^1.0.0',
+        },
+      },
+      'project-2': {
+        specifiers: {},
+      },
+    },
+    packages: {
+      '/prod-dep/1.0.0': {
+        dependencies: {
+          'prod-dep-dep': '1.0.0',
+        },
+        resolution: { integrity: '' },
+      },
+    },
+    registry: 'https://registry.npmjs.org/',
+    shrinkwrapVersion: 3,
+  })
+
   t.end()
 })

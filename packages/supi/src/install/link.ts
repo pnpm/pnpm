@@ -149,9 +149,15 @@ export default async function linkPackages (
 
   stageLogger.debug('importing_started')
   const importerIds = importers.map((importer) => importer.id)
-  const newCurrentShrinkwrap = filterShrinkwrapByImporters(newShrinkwrap, importerIds, filterOpts)
+  const newCurrentShrinkwrap = filterShrinkwrapByImporters(newShrinkwrap, importerIds, {
+    ...filterOpts,
+    failOnMissingDependencies: true,
+  })
   const newDepPaths = await linkNewPackages(
-    filterShrinkwrapByImporters(opts.currentShrinkwrap, importerIds, filterOpts),
+    filterShrinkwrapByImporters(opts.currentShrinkwrap, importerIds, {
+      ...filterOpts,
+      failOnMissingDependencies: false,
+    }),
     newCurrentShrinkwrap,
     depGraph,
     {
