@@ -155,6 +155,22 @@ export default async (
       }
       pnpmConfig.linkWorkspacePackages = false
     }
+    if (pnpmConfig.sharedWorkspaceShrinkwrap) {
+      if (opts.cliArgs['shared-workspace-shrinkwrap']) {
+        const err = new Error('Configuration conflict. "shared-workspace-shrinkwrap" may not be used with "global"')
+        err['code'] = 'ERR_PNPM_CONFIG_CONFLICT_SHARED_WORKSPACE_SHRINKWRAP_WITH_GLOBAL' // tslint:disable-line:no-string-literal
+        throw err
+      }
+      pnpmConfig.sharedWorkspaceShrinkwrap = false
+    }
+    if (pnpmConfig.shrinkwrapDirectory) {
+      if (opts.cliArgs['shrinkwrap-directory']) {
+        const err = new Error('Configuration conflict. "shrinkwrap-directory" may not be used with "global"')
+        err['code'] = 'ERR_PNPM_CONFIG_CONFLICT_SHRINKWRAP_DIRECTORY_WITH_GLOBAL' // tslint:disable-line:no-string-literal
+        throw err
+      }
+      delete pnpmConfig.shrinkwrapDirectory
+    }
   } else {
     pnpmConfig.prefix = (cliArgs['prefix'] ? path.resolve(cliArgs['prefix']) : npmConfig.localPrefix) // tslint:disable-line
     pnpmConfig.bin = path.join(pnpmConfig.prefix, 'node_modules', '.bin')

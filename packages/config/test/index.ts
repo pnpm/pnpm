@@ -39,12 +39,56 @@ test('throw error if --link-workspace-packages is used with --global', async (t)
   }
 })
 
-test('when using --global, link-workspace-packages is false even if it is set to true in a .npmrc file', async (t) => {
+test('throw error if --shared-workspace-shrinkwrap is used with --global', async (t) => {
+  try {
+    await getConfigs({
+      cliArgs: {
+        'global': true,
+        'shared-workspace-shrinkwrap': true,
+      },
+      packageManager: {
+        name: 'pnpm',
+        version: '1.0.0',
+      },
+    })
+  } catch (err) {
+    t.equal(err.message, 'Configuration conflict. "shared-workspace-shrinkwrap" may not be used with "global"')
+    t.equal(err['code'], 'ERR_PNPM_CONFIG_CONFLICT_SHARED_WORKSPACE_SHRINKWRAP_WITH_GLOBAL')
+    t.end()
+  }
+})
+
+test('throw error if --shrinkwrap-directory is used with --global', async (t) => {
+  try {
+    await getConfigs({
+      cliArgs: {
+        'global': true,
+        'shrinkwrap-directory': '/home/src',
+      },
+      packageManager: {
+        name: 'pnpm',
+        version: '1.0.0',
+      },
+    })
+  } catch (err) {
+    t.equal(err.message, 'Configuration conflict. "shrinkwrap-directory" may not be used with "global"')
+    t.equal(err['code'], 'ERR_PNPM_CONFIG_CONFLICT_SHRINKWRAP_DIRECTORY_WITH_GLOBAL')
+    t.end()
+  }
+})
+
+test('when using --global, link-workspace-packages, shared-workspace-shrinwrap and shrinkwrap-directory are false even if it is set to true in a .npmrc file', async (t) => {
   const tmp = tempy.directory()
   t.comment(`temp dir created: ${tmp}`)
 
   process.chdir(tmp)
-  await fs.writeFile('.npmrc', 'link-workspace-packages=true', 'utf8')
+  const npmrc = [
+    'link-workspace-packages=true',
+    'shared-workspace-shrinkwrap=true',
+    'shrinkwrap-directory=/home/src',
+  ].join('\n')
+  await fs.writeFile('.npmrc', npmrc, 'utf8')
+  await fs.writeFile('pnpm-workspace.yaml', '', 'utf8')
 
   {
     const opts = await getConfigs({
@@ -57,6 +101,8 @@ test('when using --global, link-workspace-packages is false even if it is set to
       },
     })
     t.ok(opts.linkWorkspacePackages)
+    t.ok(opts.sharedWorkspaceShrinkwrap)
+    t.ok(opts.shrinkwrapDirectory)
   }
 
   {
@@ -69,7 +115,9 @@ test('when using --global, link-workspace-packages is false even if it is set to
         version: '1.0.0',
       },
     })
-    t.notOk(opts.linkWorkspacePackages)
+    t.notOk(opts.linkWorkspacePackages, 'link-workspace-packages is false')
+    t.notOk(opts.sharedWorkspaceShrinkwrap, 'shared-workspace-shrinkwrap is false')
+    t.notOk(opts.shrinkwrapDirectory, 'shrinkwrap-directory is null')
   }
 
   t.end()
