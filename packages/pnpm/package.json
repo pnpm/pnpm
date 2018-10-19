@@ -38,7 +38,7 @@
     "@types/mz": "^0.0.32",
     "@zkochan/libnpx": "9.6.1",
     "camelcase": "5.0.0",
-    "camelcase-keys": "4.2.0",
+    "camelcase-keys": "5.0.0",
     "chalk": "2.4.1",
     "common-tags": "1.8.0",
     "cross-spawn": "6.0.5",
