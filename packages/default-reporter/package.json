@@ -63,7 +63,7 @@
   "devDependencies": {
     "@pnpm/logger": "^2.1.0",
     "@types/tape": "^4.2.30",
-    "delay": "4.0.1",
+    "delay": "4.1.0",
     "ghooks": "^2.0.0",
     "load-json-file": "5.1.0",
     "mos-tap-diff": "^1.0.0",
