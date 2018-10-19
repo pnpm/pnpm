@@ -694,7 +694,7 @@ specifiers:
   dependency-path: 2.0.0
   fs-vacuum: 1.2.10
   package-store: 0.23.4
-  pnpm-shrinkwrap: 8.0.0-1
+  pnpm-shrinkwrap: 8.0.0-2
   ramda: 0.25.0
   rimraf: 2.6.2
   rimraf-then: 1.0.1

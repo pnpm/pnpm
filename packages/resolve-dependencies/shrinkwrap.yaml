@@ -1179,7 +1179,7 @@ specifiers:
   package-store: 0.23.4
   path-exists: 3.0.0
   pnpm-install-checks: 1.1.0
-  pnpm-shrinkwrap: 8.0.0-1
+  pnpm-shrinkwrap: 8.0.0-2
   ramda: 0.25.0
   replace-string: 2.0.0
   rimraf: 2.6.2

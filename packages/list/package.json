@@ -1,6 +1,6 @@
 {
   "name": "pnpm-list",
-  "version": "4.1.0-1",
+  "version": "4.1.0-2",
   "description": "List installed packages in a symlinked `node_modules`",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
@@ -40,7 +40,7 @@
     "@types/ramda": "^0.25.0",
     "archy": "1.0.0",
     "chalk": "2.4.1",
-    "dependencies-hierarchy": "3.1.0-1",
+    "dependencies-hierarchy": "3.1.0-2",
     "npm-package-arg": "6.1.0",
     "p-limit": "2.0.0",
     "ramda": "0.25.0",

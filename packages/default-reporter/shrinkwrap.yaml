@@ -1931,7 +1931,7 @@ registry: 'https://registry.npmjs.org/'
 shrinkwrapMinorVersion: 9
 shrinkwrapVersion: 3
 specifiers:
-  '@pnpm/config': 2.3.0-0
+  '@pnpm/config': 2.3.0-1
   '@pnpm/logger': ^2.1.0
   '@pnpm/types': ^1.8.0
   '@types/common-tags': ^1.2.5
@@ -1961,7 +1961,7 @@ specifiers:
   string-length: 2.0.0
   string.prototype.padstart: 3.0.0
   strip-ansi: 5.0.0
-  supi: 0.24.13-2
+  supi: 0.24.13-3
   tape: ^4.8.0
   ts-node: ^6.2.0
   tslint: ^5.7.0

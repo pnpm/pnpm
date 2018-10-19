@@ -2516,7 +2516,7 @@ specifiers:
   dependency-path: 2.0.0
   mos: ^2.0.0-alpha.3
   mos-plugin-readme: ^1.0.4
-  pnpm-shrinkwrap: 8.0.0-1
+  pnpm-shrinkwrap: 8.0.0-2
   semver: 5.6.0
   tape: ^4.7.0
   ts-node: ^7.0.0
