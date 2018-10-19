@@ -9,9 +9,9 @@
   ],
   "scripts": {
     "lint": "tslint -c tslint.json --project .",
-    "pretty-test": "preview && ts-node test | tap-diff",
+    "pretty-test": "pnpm link . && ts-node test | tap-diff",
     "test": "npm run lint && npm run just-test",
-    "just-test-preview": "preview && ts-node test --type-check",
+    "just-test-preview": "pnpm link . && ts-node test --type-check",
     "just-test": "npm run tsc && pnpm link . && ts-node test --type-check",
     "tsc": "rimraf lib && tsc",
     "prepublishOnly": "npm run tsc"
@@ -68,7 +68,6 @@
     "load-json-file": "5.1.0",
     "mos-tap-diff": "^1.0.0",
     "normalize-newline": "^3.0.0",
-    "package-preview": "^1.0.0",
     "rimraf": "^2.5.4",
     "supi": "0.24.13-3",
     "tape": "^4.8.0",

@@ -13,7 +13,7 @@
   "scripts": {
     "lint": "tslint -c tslint.json --project .",
     "tsc": "rimraf lib && tsc",
-    "test": "npm run lint && preview && ts-node test && mos t",
+    "test": "npm run tsc && npm run lint && pnpm link . && ts-node test && mos t",
     "md": "mos",
     "prepublishOnly": "npm run tsc"
   },
@@ -40,7 +40,6 @@
     "@types/tape": "^4.2.31",
     "mos": "^2.0.0-alpha.3",
     "mos-plugin-readme": "^1.0.4",
-    "package-preview": "^1.0.1",
     "rimraf": "^2.6.2",
     "tape": "^4.8.0",
     "ts-node": "^7.0.0",

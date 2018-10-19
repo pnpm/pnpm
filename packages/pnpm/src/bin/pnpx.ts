@@ -1,4 +1,3 @@
-#!/usr/bin/env node
 import npx = require('@zkochan/libnpx/index')
 import path = require('path')
 

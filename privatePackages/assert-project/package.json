@@ -17,7 +17,6 @@
     "lib/"
   ],
   "devDependencies": {
-    "package-preview": "^1.0.0",
     "rimraf": "^2.6.2",
     "ts-node": "^7.0.1",
     "tslint": "^5.4.2",
@@ -40,8 +39,8 @@
     "lint-test": "tslint -c tslint.json --project test",
     "tsc": "rimraf lib && tsc",
     "prepublishOnly": "npm run tsc",
-    "pretest": "pnpm i --prefix test/fixture/project --force",
-    "test": "npm run lint && npm run lint-test && preview && ts-node test"
+    "pretest": "cd test/fixture/project && pnpm i --force --no-shared-workspace-shrinkwrap && cd ../../..",
+    "test": "npm run lint && npm run lint-test && npm run tsc && pnpm link . && ts-node test"
   },
   "dependencies": {
     "@pnpm/modules-yaml": "2.0.0-0",

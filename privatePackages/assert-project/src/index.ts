@@ -1,16 +1,12 @@
-import {
-  Modules,
-  read as readModules,
-} from '@pnpm/modules-yaml'
-import fs = require('fs')
+import { read as readModules } from '@pnpm/modules-yaml'
 import loadYamlFile = require('load-yaml-file')
 import path = require('path')
 import exists = require('path-exists')
-import {Test} from 'tape'
+import { Test } from 'tape'
 import writePkg = require('write-pkg')
 import isExecutable from './isExecutable'
 
-export {isExecutable}
+export { isExecutable }
 
 export default (t: Test, projectPath: string, encodedRegistryName?: string) => {
   const ern = encodedRegistryName || 'localhost+4873'
@@ -30,7 +26,7 @@ export default (t: Test, projectPath: string, encodedRegistryName?: string) => {
       if (!cachedStorePath) {
         const modulesYaml = await readModules(modules)
         if (!modulesYaml) {
-          throw new Error('Cannot find module store')
+          throw new Error(`Cannot find module store. No .modules.yaml found at "${modules}"`)
         }
         cachedStorePath = modulesYaml.store
       }
@@ -52,7 +48,7 @@ export default (t: Test, projectPath: string, encodedRegistryName?: string) => {
         const pathToCheck = await project.resolve(pkgName, version)
         t.notOk(await exists(pathToCheck), `${pkgName}@${version} is not in store (at ${pathToCheck})`)
       } catch (err) {
-        if (err.message === 'Cannot find module store') {
+        if (err.message.startsWith('Cannot find module store')) {
           t.pass(`${pkgName}@${version} is not in store`)
           return
         }

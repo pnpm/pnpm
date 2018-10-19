@@ -1,9 +1,9 @@
 {
   "dependencies": {
-    "@commitlint/cli": "^7.0.0",
-    "@commitlint/config-conventional": "^7.0.0",
-    "@commitlint/prompt-cli": "^7.0.0",
-    "husky": "^1.0.0-rc.6"
+    "@commitlint/cli": "7.1.2",
+    "@commitlint/config-conventional": "7.1.2",
+    "@commitlint/prompt-cli": "7.1.2",
+    "husky": "1.0.1"
   },
   "husky": {
     "hooks": {

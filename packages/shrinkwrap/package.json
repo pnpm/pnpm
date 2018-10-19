@@ -11,7 +11,7 @@
     "lib/"
   ],
   "scripts": {
-    "test": "tslint -c tslint.json -p . && preview && ts-node test --type-check",
+    "test": "npm run tsc && tslint -c tslint.json -p . && pnpm link . && ts-node test --type-check",
     "tsc": "rimraf lib && tsc",
     "prepublishOnly": "npm run tsc"
   },
@@ -38,7 +38,6 @@
     "@pnpm/logger": "^2.0.1",
     "@types/tape": "^4.2.30",
     "@types/tempy": "^0.2.0",
-    "package-preview": "^1.0.0",
     "rimraf": "^2.6.1",
     "tape": "^4.6.3",
     "tempy": "^0.2.1",

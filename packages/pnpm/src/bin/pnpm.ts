@@ -1,4 +1,3 @@
-#!/usr/bin/env node
 'use strict'
 let argv = process.argv.slice(2)
 

@@ -11,7 +11,7 @@
     "prepublishOnly": "npm run tsc",
     "tsc": "rimraf lib && tsc",
     "lint": "tslint -c tslint.json --project .",
-    "test-with-preview": "npm run lint && preview && ts-node test && mos t",
+    "test-with-preview": "npm run lint && pnpm link . && ts-node test && mos t",
     "pretest": "npm config rm fetch-retry-maxtimeout",
     "test": "npm run lint && npm run tsc && pnpm link . && ts-node test && mos t"
   },
@@ -45,7 +45,6 @@
     "mos": "^2.0.0-alpha.3",
     "mos-plugin-readme": "^1.0.4",
     "mz": "^2.7.0",
-    "package-preview": "^1.0.1",
     "rimraf": "^2.6.2",
     "tape": "^4.8.0",
     "tempy": "^0.2.1",
