@@ -5,7 +5,7 @@ dependencies:
   '@pnpm/resolver-base': 1.2.0
   '@pnpm/types': 1.8.0
   '@types/mz': 0.0.32
-  '@types/node': 10.11.7
+  '@types/node': 10.12.0
   '@types/ramda': 0.25.39
   encode-registry: 1.1.0
   load-json-file: 5.1.0
@@ -161,6 +161,10 @@ packages:
   /@types/node/10.11.7:
     resolution:
       integrity: sha512-yOxFfkN9xUFLyvWaeYj90mlqTJ41CsQzWKS3gXdOMOyPVacUsymejKxJ4/pMW7exouubuEeZLJawGgcNGYlTeg==
+  /@types/node/10.12.0:
+    dev: false
+    resolution:
+      integrity: sha512-3TUHC3jsBAB7qVRGxT6lWyYo2v96BMmD2PTcl47H25Lu7UXtFH/2qqmKiVrnel6Ne//0TFYf6uvNX+HW2FRkLQ==
   /@types/node/9.6.35:
     dev: true
     resolution:
@@ -1971,7 +1975,7 @@ specifiers:
   '@pnpm/tarball-fetcher': 2.0.3
   '@pnpm/types': ^1.8.0
   '@types/mz': ^0.0.32
-  '@types/node': ^10.0.6
+  '@types/node': 10.12.0
   '@types/ramda': ^0.25.0
   '@types/tape': ^4.2.30
   '@types/tempy': ^0.2.0

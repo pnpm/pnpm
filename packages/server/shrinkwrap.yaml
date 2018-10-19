@@ -4,7 +4,7 @@ dependencies:
   '@pnpm/server': 'link:'
   '@pnpm/types': 1.8.0
   '@types/got': 8.3.4
-  '@types/node': 10.11.7
+  '@types/node': 10.12.0
   '@types/p-limit': 2.0.0
   '@types/uuid': 3.4.4
   got: 8.3.2
@@ -157,6 +157,10 @@ packages:
   /@types/node/10.11.7:
     resolution:
       integrity: sha512-yOxFfkN9xUFLyvWaeYj90mlqTJ41CsQzWKS3gXdOMOyPVacUsymejKxJ4/pMW7exouubuEeZLJawGgcNGYlTeg==
+  /@types/node/10.12.0:
+    dev: false
+    resolution:
+      integrity: sha512-3TUHC3jsBAB7qVRGxT6lWyYo2v96BMmD2PTcl47H25Lu7UXtFH/2qqmKiVrnel6Ne//0TFYf6uvNX+HW2FRkLQ==
   /@types/node/9.6.35:
     dev: true
     resolution:
@@ -3622,7 +3626,7 @@ specifiers:
   '@pnpm/types': ^1.8.0
   '@types/got': ^8.3.0
   '@types/mz': ^0.0.32
-  '@types/node': ^10.0.6
+  '@types/node': 10.12.0
   '@types/p-limit': ^2.0.0
   '@types/tape': ^4.2.31
   '@types/uuid': ^3.4.3

@@ -1,5 +1,5 @@
 dependencies:
-  '@types/node': 10.11.7
+  '@types/node': 10.12.0
   '@types/semver': 5.5.0
   dependencies-hierarchy: 'link:'
   dependency-path: 2.0.0
@@ -28,8 +28,13 @@ packages:
     resolution:
       integrity: sha512-BL4Laf6b50LjdcpOUWPukx2XJtb3mo2OpJjHdRNSDJu9YS2tRBeP14H2bNqGjCjfeml8z3KufI3Km6VQemVXNw==
   /@types/node/10.11.7:
+    dev: true
     resolution:
       integrity: sha512-yOxFfkN9xUFLyvWaeYj90mlqTJ41CsQzWKS3gXdOMOyPVacUsymejKxJ4/pMW7exouubuEeZLJawGgcNGYlTeg==
+  /@types/node/10.12.0:
+    dev: false
+    resolution:
+      integrity: sha512-3TUHC3jsBAB7qVRGxT6lWyYo2v96BMmD2PTcl47H25Lu7UXtFH/2qqmKiVrnel6Ne//0TFYf6uvNX+HW2FRkLQ==
   /@types/semver/5.5.0:
     dev: false
     resolution:
@@ -2505,7 +2510,7 @@ shrinkwrapMinorVersion: 9
 shrinkwrapVersion: 3
 specifiers:
   '@pnpm/logger': ^2.1.0
-  '@types/node': ^9.3.0 || 10
+  '@types/node': 10.12.0
   '@types/semver': ^5.3.32
   '@types/tape': ^4.2.30
   dependency-path: 2.0.0

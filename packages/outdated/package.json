@@ -40,7 +40,7 @@
     "@pnpm/read-package-json": "1.0.0",
     "@pnpm/store-path": "1.0.3",
     "@pnpm/types": "1.8.0",
-    "@types/node": "^9.3.0 || 10",
+    "@types/node": "10.12.0",
     "dependency-path": "2.0.0",
     "pnpm-shrinkwrap": "8.0.0-1"
   },

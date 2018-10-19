@@ -1,6 +1,6 @@
 dependencies:
   '@types/archy': 0.0.31
-  '@types/node': 10.11.7
+  '@types/node': 10.12.0
   '@types/ramda': 0.25.39
   archy: 1.0.0
   chalk: 2.4.1
@@ -44,8 +44,13 @@ packages:
     resolution:
       integrity: sha512-HI1tSO87vmd1sPS3DOVSK4gvVKROvCBFvAnXlLiQtAus/+1xXMQcNyu9TX2ChwRXFeQZeB9+f+nMo99xLd5DdA==
   /@types/node/10.11.7:
+    dev: true
     resolution:
       integrity: sha512-yOxFfkN9xUFLyvWaeYj90mlqTJ41CsQzWKS3gXdOMOyPVacUsymejKxJ4/pMW7exouubuEeZLJawGgcNGYlTeg==
+  /@types/node/10.12.0:
+    dev: false
+    resolution:
+      integrity: sha512-3TUHC3jsBAB7qVRGxT6lWyYo2v96BMmD2PTcl47H25Lu7UXtFH/2qqmKiVrnel6Ne//0TFYf6uvNX+HW2FRkLQ==
   /@types/ramda/0.25.39:
     dev: false
     resolution:
@@ -2524,7 +2529,7 @@ specifiers:
   '@pnpm/logger': ^2.1.0
   '@types/archy': ^0.0.31
   '@types/common-tags': ^1.2.5
-  '@types/node': ^9.3.0 || 10
+  '@types/node': 10.12.0
   '@types/ramda': ^0.25.0
   '@types/tape': ^4.2.30
   archy: 1.0.0

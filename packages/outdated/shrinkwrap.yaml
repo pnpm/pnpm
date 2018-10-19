@@ -4,7 +4,7 @@ dependencies:
   '@pnpm/read-package-json': 1.0.0
   '@pnpm/store-path': 1.0.3
   '@pnpm/types': 1.8.0
-  '@types/node': 10.11.7
+  '@types/node': 10.12.0
   dependency-path: 2.0.0
   pnpm-shrinkwrap: 'link:../shrinkwrap'
 devDependencies:
@@ -106,6 +106,10 @@ packages:
   /@types/node/10.11.7:
     resolution:
       integrity: sha512-yOxFfkN9xUFLyvWaeYj90mlqTJ41CsQzWKS3gXdOMOyPVacUsymejKxJ4/pMW7exouubuEeZLJawGgcNGYlTeg==
+  /@types/node/10.12.0:
+    dev: false
+    resolution:
+      integrity: sha512-3TUHC3jsBAB7qVRGxT6lWyYo2v96BMmD2PTcl47H25Lu7UXtFH/2qqmKiVrnel6Ne//0TFYf6uvNX+HW2FRkLQ==
   /@types/node/9.6.35:
     dev: false
     resolution:
@@ -3218,7 +3222,7 @@ specifiers:
   '@pnpm/read-package-json': 1.0.0
   '@pnpm/store-path': 1.0.3
   '@pnpm/types': 1.8.0
-  '@types/node': ^9.3.0 || 10
+  '@types/node': 10.12.0
   '@types/tape': ^4.2.31
   dependency-path: 2.0.0
   mos: ^2.0.0-alpha.3
