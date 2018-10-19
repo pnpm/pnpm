@@ -49,6 +49,7 @@
     "@types/tape": "^4.2.30",
     "@types/tempy": "^0.2.0",
     "npm-scripts-info": "^0.3.6",
+    "package-store": "link:.",
     "rimraf": "^2.6.1",
     "tape": "^4.7.0",
     "tempy": "^0.2.1",
@@ -82,7 +83,7 @@
     "fix": "tslint -c tslint.json --project . --fix",
     "lint": "tslint -c tslint.json --project .",
     "pretest": "rimraf .tmp",
-    "test": "npm run lint && npm run tsc && pnpm link . && ts-node test --type-check",
+    "test": "npm run lint && npm run tsc && ts-node test --type-check",
     "tsc": "rimraf lib && tsc",
     "prepublishOnly": "npm run tsc"
   }

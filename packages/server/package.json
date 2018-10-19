@@ -13,7 +13,7 @@
   "scripts": {
     "lint": "tslint -c tslint.json --project .",
     "tsc": "rimraf lib && tsc",
-    "test": "rimraf .store && npm run tsc && npm run lint && pnpm link . && ts-node test --type-check && mos t",
+    "test": "rimraf .store && npm run tsc && npm run lint && ts-node test --type-check && mos t",
     "md": "mos",
     "prepublishOnly": "npm run tsc"
   },
@@ -35,6 +35,7 @@
     "@pnpm/logger": "^2.1.0",
     "@pnpm/npm-resolver": "^2.2.4",
     "@pnpm/tarball-fetcher": "2.0.3",
+    "@pnpm/server": "link:.",
     "@types/mz": "^0.0.32",
     "@types/tape": "^4.2.31",
     "is-port-reachable": "^2.0.0",

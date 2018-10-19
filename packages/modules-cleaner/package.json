@@ -46,6 +46,7 @@
   },
   "devDependencies": {
     "@pnpm/logger": "2.1.0",
+    "@pnpm/modules-cleaner": "link:.",
     "rimraf": "2.6.2",
     "tslint": "5.11.0",
     "tslint-config-standard": "8.0.1",

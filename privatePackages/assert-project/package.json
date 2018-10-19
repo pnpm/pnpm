@@ -17,6 +17,7 @@
     "lib/"
   ],
   "devDependencies": {
+    "@pnpm/assert-project": "link:.",
     "rimraf": "^2.6.2",
     "ts-node": "^7.0.1",
     "tslint": "^5.4.2",
@@ -40,7 +41,7 @@
     "tsc": "rimraf lib && tsc",
     "prepublishOnly": "npm run tsc",
     "pretest": "cd test/fixture/project && pnpm i --force --no-shared-workspace-shrinkwrap && cd ../../..",
-    "test": "npm run lint && npm run lint-test && npm run tsc && pnpm link . && ts-node test"
+    "test": "npm run lint && npm run lint-test && npm run tsc && ts-node test"
   },
   "dependencies": {
     "@pnpm/modules-yaml": "2.0.0-0",

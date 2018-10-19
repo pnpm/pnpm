@@ -13,7 +13,7 @@
   "scripts": {
     "lint": "tslint -c tslint.json --project .",
     "tsc": "rimraf lib && tsc",
-    "test": "npm run tsc && npm run lint && pnpm link . && ts-node test --type-check && mos t",
+    "test": "npm run tsc && npm run lint && ts-node test --type-check && mos t",
     "md": "mos",
     "prepublishOnly": "npm run tsc"
   },
@@ -35,6 +35,7 @@
     "@pnpm/tarball-fetcher": "2.0.3"
   },
   "devDependencies": {
+    "@pnpm/default-fetcher": "link:.",
     "@pnpm/logger": "^2.0.0",
     "@types/tape": "^4.2.31",
     "mos": "^2.0.0-alpha.3",

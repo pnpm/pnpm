@@ -14,7 +14,7 @@
     "start": "npm run tsc -- --watch",
     "lint": "tslint -c tslint.json --project .",
     "tsc": "rimraf lib && tsc --pretty",
-    "test": "npm run lint && npm run tsc && pnpm link . && rimraf .store && ts-node test --type-check && mos t",
+    "test": "npm run lint && npm run tsc && rimraf .store && ts-node test --type-check && mos t",
     "md": "mos",
     "prepublishOnly": "npm run tsc"
   },
@@ -59,6 +59,7 @@
     "@pnpm/local-resolver": "1.0.1",
     "@pnpm/logger": "^2.1.0",
     "@pnpm/npm-resolver": "^2.2.4",
+    "@pnpm/package-requester": "link:.",
     "@pnpm/tarball-fetcher": "2.0.3",
     "@types/ncp": "2.0.1",
     "@types/nock": "^9.1.3",

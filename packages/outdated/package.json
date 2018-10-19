@@ -11,7 +11,7 @@
     "lib"
   ],
   "scripts": {
-    "test": "npm run tsc && tslint --config tslint.json --project . && pnpm link . && ts-node test --type-check",
+    "test": "npm run tsc && tslint --config tslint.json --project . && ts-node test --type-check",
     "prepublishOnly": "tsc",
     "tsc": "tsc",
     "md": "mos"
@@ -46,6 +46,7 @@
   },
   "devDependencies": {
     "@pnpm/logger": "^2.0.1",
+    "@pnpm/outdated": "link:.",
     "@types/tape": "^4.2.31",
     "mos": "^2.0.0-alpha.3",
     "mos-plugin-readme": "^1.0.4",
