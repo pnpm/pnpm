@@ -3,7 +3,7 @@
     "@commitlint/cli": "7.1.2",
     "@commitlint/config-conventional": "7.1.2",
     "@commitlint/prompt-cli": "7.1.2",
-    "husky": "1.0.1"
+    "husky": "1.1.2"
   },
   "husky": {
     "hooks": {
