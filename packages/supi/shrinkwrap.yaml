@@ -17,7 +17,7 @@ dependencies:
   '@types/byline': 4.2.31
   '@types/common-tags': 1.4.0
   '@types/mz': 0.0.32
-  '@types/node': 10.11.7
+  '@types/node': 10.12.0
   '@types/nopt': 3.0.29
   '@types/npm': 2.0.29
   '@types/p-series': 1.0.1
@@ -49,7 +49,7 @@ dependencies:
   pnpm-shrinkwrap: 'link:../shrinkwrap'
   ramda: 0.25.0
   remove-all-except-outer-links: 1.0.3
-  replace-string: 1.1.0
+  replace-string: 2.0.0
   resolve-link-target: 1.0.1
   rimraf-then: 1.0.1
   semver: 5.6.0
@@ -87,7 +87,7 @@ devDependencies:
   read-pkg: 4.0.1
   rimraf: 2.6.2
   sepia: 2.0.2
-  sinon: 6.3.5
+  sinon: 7.0.0
   tape: 4.9.1
   tape-promise: 4.0.0
   ts-node: 6.2.0
@@ -303,6 +303,10 @@ packages:
   /@types/node/10.11.7:
     resolution:
       integrity: sha512-yOxFfkN9xUFLyvWaeYj90mlqTJ41CsQzWKS3gXdOMOyPVacUsymejKxJ4/pMW7exouubuEeZLJawGgcNGYlTeg==
+  /@types/node/10.12.0:
+    dev: false
+    resolution:
+      integrity: sha512-3TUHC3jsBAB7qVRGxT6lWyYo2v96BMmD2PTcl47H25Lu7UXtFH/2qqmKiVrnel6Ne//0TFYf6uvNX+HW2FRkLQ==
   /@types/node/9.6.35:
     dev: true
     resolution:
@@ -2160,6 +2164,10 @@ packages:
     dev: true
     resolution:
       integrity: sha512-l9x0+1offnKKIzYVjyXU2SiwhXDLekRzKyhnbyldPHvC7BvLPVpdNUNR2KeMAiCN2D/kLNttZgQD5WjSxuBx3Q==
+  /lolex/3.0.0:
+    dev: true
+    resolution:
+      integrity: sha512-hcnW80h3j2lbUfFdMArd5UPA/vxZJ+G8vobd+wg3nVEQA0EigStbYcrG030FJxL6xiDDPEkoMatV9xIh5OecQQ==
   /longest/1.0.1:
     dev: true
     engines:
@@ -2399,7 +2407,7 @@ packages:
   /nice-try/1.0.5:
     resolution:
       integrity: sha512-1nh45deeb5olNY7eX82BkPO7SSxR5SSYJiPTrTdFUVYwAl8CKMA5N9PjTYkHiRjisVcxcQ1HXdLhx2qxxJzLNQ==
-  /nise/1.4.5:
+  /nise/1.4.6:
     dependencies:
       '@sinonjs/formatio': 3.0.0
       just-extend: 3.0.0
@@ -2408,7 +2416,7 @@ packages:
       text-encoding: 0.6.4
     dev: true
     resolution:
-      integrity: sha512-OHRVvdxKgwZELf2DTgsJEIA4MOq8XWvpSUzoOXyxJ2mY0mMENWC66+70AShLR2z05B1dzrzWlUQJmJERlOUpZw==
+      integrity: sha512-1GedetLKzmqmgwabuMSqPsT7oumdR77SBpDfNNJhADRIeA3LN/2RVqR4fFqwvzhAqcTef6PPCzQwITE/YQ8S8A==
   /node-gyp/3.8.0:
     dependencies:
       fstream: 1.0.11
@@ -3036,12 +3044,12 @@ packages:
     optional: true
     resolution:
       integrity: sha1-jcrkcOHIirwtYA//Sndihtp15jc=
-  /replace-string/1.1.0:
+  /replace-string/2.0.0:
     dev: false
     engines:
-      node: '>=4'
+      node: '>=6'
     resolution:
-      integrity: sha1-hwYhF/gj/lgAwwa6yyz6NZuTX+o=
+      integrity: sha512-e6cHLIPJeIReWRcKFXdGC2bVR9dC4Bdwf2LIhzefHNPNR5ob90LtopHVGisQmaYEVfEtB945lmTA8B+e2lMJvQ==
   /request/2.87.0:
     dependencies:
       aws-sign2: 0.7.0
@@ -3277,20 +3285,20 @@ packages:
   /signal-exit/3.0.2:
     resolution:
       integrity: sha1-tf3AjxKH6hF4Yo5BXiUTK3NkbG0=
-  /sinon/6.3.5:
+  /sinon/7.0.0:
     dependencies:
       '@sinonjs/commons': 1.0.2
       '@sinonjs/formatio': 3.0.0
       '@sinonjs/samsam': 2.1.2
       diff: 3.5.0
       lodash.get: 4.4.2
-      lolex: 2.7.5
-      nise: 1.4.5
+      lolex: 3.0.0
+      nise: 1.4.6
       supports-color: 5.5.0
       type-detect: 4.0.8
     dev: true
     resolution:
-      integrity: sha512-xgoZ2gKjyVRcF08RrIQc+srnSyY1JDJtxu3Nsz07j1ffjgXoY6uPLf/qja6nDBZgzYYEovVkFryw2+KiZz11xQ==
+      integrity: sha512-8OrSYFPZ9xaECfi1ayVMd0ihYCW2OZYgX3rBczrB990gHZMM+aftvhNTJazGz/luS0Us9NWgD5P3KGQ7kYZvGg==
   /slash/1.0.0:
     dev: false
     engines:
@@ -4080,7 +4088,7 @@ specifiers:
   '@types/is-windows': ^0.2.0
   '@types/mkdirp': ^0.5.1
   '@types/mz': ^0.0.32
-  '@types/node': ^10.0.6
+  '@types/node': 10.12.0
   '@types/nopt': ^3.0.29
   '@types/npm': ^2.0.28
   '@types/p-series': ^1.0.0
@@ -4130,13 +4138,13 @@ specifiers:
   ramda: 0.25.0
   read-pkg: 4.0.1
   remove-all-except-outer-links: 1.0.3
-  replace-string: 1.1.0
+  replace-string: 2.0.0
   resolve-link-target: 1.0.1
   rimraf: ^2.6.2
   rimraf-then: 1.0.1
   semver: 5.6.0
   sepia: ^2.0.2
-  sinon: ^6.0.0
+  sinon: 7.0.0
   symlink-dir: 1.1.3
   tape: ^4.8.0
   tape-promise: ^4.0.0
