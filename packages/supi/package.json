@@ -69,7 +69,7 @@
     "pnpm-shrinkwrap": "8.0.0-1",
     "ramda": "0.25.0",
     "remove-all-except-outer-links": "1.0.3",
-    "replace-string": "1.1.0",
+    "replace-string": "2.0.0",
     "resolve-link-target": "1.0.1",
     "rimraf-then": "1.0.1",
     "semver": "5.6.0",
