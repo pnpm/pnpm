@@ -73,7 +73,7 @@
     "normalize-path": "3.0.0",
     "package-preview": "^1.0.1",
     "rimraf": "^2.6.2",
-    "sinon": "^6.1.5",
+    "sinon": "^7.0.0",
     "tape": "^4.8.0",
     "tempy": "^0.2.1",
     "ts-node": "^7.0.0",
