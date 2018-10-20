@@ -43,6 +43,6 @@
     "prepublishOnly": "npm run tsc"
   },
   "dependencies": {
-    "@pnpm/types": "^1.8.0"
+    "@pnpm/types": "2.0.0"
   }
 }

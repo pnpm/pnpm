@@ -30,7 +30,7 @@
     "@pnpm/outdated": "0.4.2-2",
     "@pnpm/server": "0.14.3",
     "@pnpm/store-path": "1.0.3",
-    "@pnpm/types": "^1.8.0",
+    "@pnpm/types": "2.0.0",
     "@pnpm/utils": "0.9.0-0",
     "@types/camelcase-keys": "^4.0.0",
     "@types/get-port": "^4.0.0",

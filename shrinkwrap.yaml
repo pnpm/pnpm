@@ -27,7 +27,7 @@ importers:
       typescript: 3.1.3
     specifiers:
       '@pnpm/config': 'link:.'
-      '@pnpm/types': 1.8.0
+      '@pnpm/types': 2.0.0
       '@types/camelcase': ^4.1.0
       '@types/mz': ^0.0.32
       '@types/node': 10.12.0
@@ -61,7 +61,7 @@ importers:
       typescript: 3.1.3
     specifiers:
       '@pnpm/logger': ^2.1.0
-      '@pnpm/types': ^1.8.0
+      '@pnpm/types': 2.0.0
       rimraf: ^2.6.2
       tslint: ^5.4.2
       tslint-config-standard: 8.0.1
@@ -145,7 +145,7 @@ importers:
     specifiers:
       '@pnpm/config': 2.3.0-1
       '@pnpm/logger': ^2.1.0
-      '@pnpm/types': ^1.8.0
+      '@pnpm/types': 2.0.0
       '@types/common-tags': ^1.2.5
       '@types/node': 10.12.0
       '@types/ramda': 0.25.34
@@ -242,7 +242,7 @@ importers:
     specifiers:
       '@pnpm/logger': ^2.1.0
       '@pnpm/modules-yaml': 2.0.0-0
-      '@pnpm/types': 1.8.0
+      '@pnpm/types': 2.0.0
       '@pnpm/utils': 0.9.0-0
       '@types/node': 10.12.0
       '@types/semver': ^5.3.32
@@ -327,7 +327,7 @@ importers:
       '@pnpm/pkgid-to-filename': 2.0.0
       '@pnpm/read-package-json': 1.0.0
       '@pnpm/store-path': ^1.0.3
-      '@pnpm/types': ^1.8.0
+      '@pnpm/types': 2.0.0
       '@pnpm/utils': 0.9.0-0
       '@types/fs-extra': ^5.0.1
       '@types/mz': ^0.0.32
@@ -393,7 +393,7 @@ importers:
       typescript: 3.1.3
     specifiers:
       '@pnpm/logger': ^2.1.0
-      '@pnpm/types': 1.8.0
+      '@pnpm/types': 2.0.0
       '@types/archy': ^0.0.31
       '@types/common-tags': ^1.2.5
       '@types/node': 10.12.0
@@ -445,7 +445,7 @@ importers:
       '@pnpm/logger': 2.1.0
       '@pnpm/modules-cleaner': 'link:.'
       '@pnpm/package-bins': 1.0.0
-      '@pnpm/types': 1.8.0
+      '@pnpm/types': 2.0.0
       '@pnpm/utils': 0.9.0-0
       '@types/node': 10.12.0
       '@types/ramda': 0.25.38
@@ -482,7 +482,7 @@ importers:
       typescript: 3.1.3
     specifiers:
       '@pnpm/modules-yaml': 'link:.'
-      '@pnpm/types': 1.8.0
+      '@pnpm/types': 2.0.0
       '@types/tape': ^4.2.31
       '@types/tempy': ^0.2.0
       load-yaml-file: ^0.1.0
@@ -503,6 +503,7 @@ importers:
       '@pnpm/read-package-json': 1.0.0
       '@pnpm/store-path': 1.0.3
       '@pnpm/types': 'link:../types'
+      '@pnpm/utils': 'link:../utils'
       '@types/node': 10.12.0
       dependency-path: 2.0.0
       pnpm-shrinkwrap: 'link:../shrinkwrap'
@@ -524,7 +525,8 @@ importers:
       '@pnpm/outdated': 'link:.'
       '@pnpm/read-package-json': 1.0.0
       '@pnpm/store-path': 1.0.3
-      '@pnpm/types': 1.8.0
+      '@pnpm/types': 2.0.0
+      '@pnpm/utils': 0.9.0-0
       '@types/node': 10.12.0
       '@types/tape': ^4.2.31
       dependency-path: 2.0.0
@@ -595,7 +597,7 @@ importers:
       '@pnpm/pkgid-to-filename': 2.0.0
       '@pnpm/resolver-base': 1.2.0
       '@pnpm/tarball-fetcher': 2.0.3
-      '@pnpm/types': ^1.8.0
+      '@pnpm/types': 2.0.0
       '@types/mz': ^0.0.32
       '@types/ncp': 2.0.1
       '@types/nock': ^9.1.3
@@ -679,7 +681,7 @@ importers:
       '@pnpm/package-requester': 4.1.4
       '@pnpm/resolver-base': 1.2.0
       '@pnpm/tarball-fetcher': 2.0.3
-      '@pnpm/types': ^1.8.0
+      '@pnpm/types': 2.0.0
       '@types/mz': ^0.0.32
       '@types/node': 10.12.0
       '@types/ramda': ^0.25.0
@@ -831,7 +833,7 @@ importers:
       '@pnpm/read-package-json': ^1.0.0
       '@pnpm/server': 0.14.3
       '@pnpm/store-path': 1.0.3
-      '@pnpm/types': ^1.8.0
+      '@pnpm/types': 2.0.0
       '@pnpm/utils': 0.9.0-0
       '@types/byline': ^4.2.31
       '@types/camelcase-keys': ^4.0.0
@@ -958,7 +960,7 @@ importers:
       '@pnpm/package-requester': 4.1.4
       '@pnpm/resolve-dependencies': 'link:.'
       '@pnpm/resolver-base': 1.2.0
-      '@pnpm/types': 1.8.0
+      '@pnpm/types': 2.0.0
       '@pnpm/utils': 0.9.0-0
       '@types/node': 10.12.0
       '@types/ramda': 0.25.38
@@ -1016,7 +1018,7 @@ importers:
       '@pnpm/resolver-base': 1.2.0
       '@pnpm/server': 'link:.'
       '@pnpm/tarball-fetcher': 2.0.3
-      '@pnpm/types': ^1.8.0
+      '@pnpm/types': 2.0.0
       '@types/got': ^8.3.0
       '@types/mz': ^0.0.32
       '@types/node': 10.12.0
@@ -1074,7 +1076,7 @@ importers:
     specifiers:
       '@pnpm/logger': ^2.0.1
       '@pnpm/resolver-base': ^1.0.0
-      '@pnpm/types': ^1.8.0
+      '@pnpm/types': 2.0.0
       '@types/js-yaml': ^3.10.1
       '@types/node': 10.12.0
       '@types/ramda': ^0.25.12
@@ -1221,7 +1223,7 @@ importers:
       '@pnpm/resolve-dependencies': 1.0.0-3
       '@pnpm/resolver-base': 1.2.0
       '@pnpm/store-path': ^1.0.0
-      '@pnpm/types': ^1.8.0
+      '@pnpm/types': 2.0.0
       '@pnpm/utils': 0.9.0-0
       '@types/byline': ^4.2.31
       '@types/common-tags': ^1.2.5
@@ -1331,7 +1333,7 @@ importers:
     specifiers:
       '@pnpm/logger': ^2.1.0
       '@pnpm/read-package-json': 1.0.0
-      '@pnpm/types': ^1.8.0
+      '@pnpm/types': 2.0.0
       '@pnpm/utils': 'link:.'
       '@types/mz': ^0.0.32
       '@types/node': 10.12.0

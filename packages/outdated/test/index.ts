@@ -93,3 +93,37 @@ test('outdated() when only current shrinkwrap is present', async (t) => {
   ])
   t.end()
 })
+
+test('outdated() on package with external shrinkwrap', async (t) => {
+  const outdatedPkgs = await outdated('../external-wanted-shrinkwrap/pkg', {
+    ...outdatedOpts,
+    shrinkwrapDirectory: path.resolve('../external-wanted-shrinkwrap'),
+  })
+  t.deepEqual(outdatedPkgs, [
+    {
+      current: 'github.com/blabla/from-github/d5f8d5500f7faf593d32e134c1b0043ff69151b4',
+      latest: undefined,
+      packageName: 'from-github',
+      wanted: 'github.com/blabla/from-github/d5f8d5500f7faf593d32e134c1b0043ff69151b3',
+    },
+    {
+      current: undefined,
+      latest: undefined,
+      packageName: 'from-github-2',
+      wanted: 'github.com/blabla/from-github-2/d5f8d5500f7faf593d32e134c1b0043ff69151b3',
+    },
+    {
+      current: '1.0.0',
+      latest: '2.1.0',
+      packageName: 'is-negative',
+      wanted: '1.1.0',
+    },
+    {
+      current: '1.0.0',
+      latest: '3.1.0',
+      packageName: 'is-positive',
+      wanted: '3.1.0',
+    },
+  ])
+  t.end()
+})

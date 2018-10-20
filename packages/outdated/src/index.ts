@@ -1,41 +1,45 @@
 import createResolver from '@pnpm/npm-resolver'
 import { fromDir as readPackageFromDir } from '@pnpm/read-package-json'
 import resolveStore from '@pnpm/store-path'
-import { DEPENDENCIES_FIELDS } from '@pnpm/types'
+import { DEPENDENCIES_FIELDS, Registries } from '@pnpm/types'
+import { normalizeRegistries } from '@pnpm/utils'
 import * as dp from 'dependency-path'
 import {
+  getImporterId,
   readCurrent as readCurrentShrinkwrap,
   readWanted as readWantedShrinkwrap,
 } from 'pnpm-shrinkwrap'
 
 export interface OutdatedPackage {
-  packageName: string,
   current?: string, // not defined means the package is not installed
-  wanted: string,
   latest?: string,
+  packageName: string,
+  wanted: string,
 }
 
 export default async function (
   pkgPath: string,
   opts: {
-    offline: boolean,
-    store: string,
-    proxy?: string,
-    httpsProxy?: string,
-    localAddress?: string,
-    cert?: string,
-    key?: string,
+    alwaysAuth: boolean,
     ca?: string,
-    strictSsl: boolean,
+    cert?: string,
     fetchRetries: number,
     fetchRetryFactor: number,
-    fetchRetryMintimeout: number,
     fetchRetryMaxtimeout: number,
-    userAgent: string,
-    tag: string,
+    fetchRetryMintimeout: number,
+    httpsProxy?: string,
+    key?: string,
+    localAddress?: string,
     networkConcurrency: number,
+    offline: boolean,
+    proxy?: string,
     rawNpmConfig: object,
-    alwaysAuth: boolean,
+    registries?: Registries,
+    shrinkwrapDirectory?: string,
+    store: string,
+    strictSsl: boolean,
+    tag: string,
+    userAgent: string,
   },
 ) {
   return _outdated([], pkgPath, opts)
@@ -45,24 +49,26 @@ export async function forPackages (
   packages: string[],
   pkgPath: string,
   opts: {
-    offline: boolean,
-    store: string,
-    proxy?: string,
-    httpsProxy?: string,
-    localAddress?: string,
-    cert?: string,
-    key?: string,
+    alwaysAuth: boolean,
     ca?: string,
-    strictSsl: boolean,
+    cert?: string,
     fetchRetries: number,
     fetchRetryFactor: number,
-    fetchRetryMintimeout: number,
     fetchRetryMaxtimeout: number,
-    userAgent: string,
-    tag: string,
+    fetchRetryMintimeout: number,
+    httpsProxy?: string,
+    key?: string,
+    localAddress?: string,
     networkConcurrency: number,
+    offline: boolean,
+    proxy?: string,
     rawNpmConfig: object,
-    alwaysAuth: boolean,
+    registries?: Registries,
+    shrinkwrapDirectory?: string,
+    store: string,
+    strictSsl: boolean,
+    tag: string,
+    userAgent: string,
   },
 ) {
   return _outdated(packages, pkgPath, opts)
@@ -72,35 +78,40 @@ async function _outdated (
   forPkgs: string[],
   pkgPath: string,
   opts: {
-    offline: boolean,
-    store: string,
-    proxy?: string,
-    httpsProxy?: string,
-    localAddress?: string,
-    cert?: string,
-    key?: string,
+    alwaysAuth: boolean,
     ca?: string,
-    strictSsl: boolean,
+    cert?: string,
     fetchRetries: number,
     fetchRetryFactor: number,
-    fetchRetryMintimeout: number,
     fetchRetryMaxtimeout: number,
-    userAgent: string,
-    tag: string,
+    fetchRetryMintimeout: number,
+    httpsProxy?: string,
+    key?: string,
+    localAddress?: string,
     networkConcurrency: number,
+    offline: boolean,
+    proxy?: string,
     rawNpmConfig: object,
-    alwaysAuth: boolean,
+    registries?: Registries,
+    shrinkwrapDirectory?: string,
+    store: string,
+    strictSsl: boolean,
+    tag: string,
+    userAgent: string,
   },
 ): Promise<OutdatedPackage[]> {
+  const registries = normalizeRegistries(opts.registries)
+  const shrinkwrapDirectory = opts.shrinkwrapDirectory || pkgPath
   const pkg = await readPackageFromDir(pkgPath)
   if (packageHasNoDeps(pkg)) return []
-  const wantedShrinkwrap = await readWantedShrinkwrap(pkgPath, { ignoreIncompatible: false })
-    || await readCurrentShrinkwrap(pkgPath, { ignoreIncompatible: false })
+  const wantedShrinkwrap = await readWantedShrinkwrap(shrinkwrapDirectory, { ignoreIncompatible: false })
+    || await readCurrentShrinkwrap(shrinkwrapDirectory, { ignoreIncompatible: false })
   if (!wantedShrinkwrap) {
     throw new Error('No shrinkwrapfile in this directory. Run `pnpm install` to generate one.')
   }
   const storePath = await resolveStore(pkgPath, opts.store)
-  const currentShrinkwrap = await readCurrentShrinkwrap(pkgPath, { ignoreIncompatible: false }) || { importers: { '.': {} } }
+  const importerId = getImporterId(shrinkwrapDirectory, pkgPath)
+  const currentShrinkwrap = await readCurrentShrinkwrap(shrinkwrapDirectory, { ignoreIncompatible: false }) || { importers: { [importerId]: {} } }
 
   const resolve = createResolver({
     fetchRetries: opts.fetchRetries,
@@ -117,9 +128,9 @@ async function _outdated (
 
   await Promise.all(
     DEPENDENCIES_FIELDS.map(async (depType) => {
-      if (!wantedShrinkwrap.importers['.'][depType]) return
+      if (!wantedShrinkwrap.importers[importerId][depType]) return
 
-      let pkgs = Object.keys(wantedShrinkwrap.importers['.'][depType]!)
+      let pkgs = Object.keys(wantedShrinkwrap.importers[importerId][depType]!)
 
       if (forPkgs.length) {
         pkgs = pkgs.filter((pkgName) => forPkgs.indexOf(pkgName) !== -1)
@@ -127,7 +138,7 @@ async function _outdated (
 
       await Promise.all(
         pkgs.map(async (packageName) => {
-          const ref = wantedShrinkwrap.importers['.'][depType]![packageName]
+          const ref = wantedShrinkwrap.importers[importerId][depType]![packageName]
 
           // ignoring linked packages. (For backward compatibility)
           if (ref.startsWith('file:')) {
@@ -148,42 +159,43 @@ async function _outdated (
           // It might be not the best solution to check for pkgSnapshot.name
           // TODO: add some other field to distinct packages not from the registry
           if (pkgSnapshot.resolution && (pkgSnapshot.resolution['type'] || pkgSnapshot.name)) { // tslint:disable-line:no-string-literal
-            if (currentShrinkwrap.importers['.'][depType][packageName] !== wantedShrinkwrap.importers['.'][depType]![packageName]) {
+            if (currentShrinkwrap.importers[importerId][depType][packageName] !== wantedShrinkwrap.importers[importerId][depType]![packageName]) {
               outdated.push({
-                current: currentShrinkwrap.importers['.'][depType]![packageName],
+                current: currentShrinkwrap.importers[importerId][depType]![packageName],
                 latest: undefined,
                 packageName,
-                wanted: wantedShrinkwrap.importers['.'][depType]![packageName],
+                wanted: wantedShrinkwrap.importers[importerId][depType]![packageName],
               })
             }
             return
           }
 
           // TODO: what about aliased dependencies?
+          // TODO: what about scoped dependencies?
           const resolution = await resolve({ alias: packageName, pref: 'latest' }, {
-            registry: wantedShrinkwrap.registry,
+            registry: registries.default,
           })
 
           if (!resolution || !resolution.latest) return
 
           const latest = resolution.latest
 
-          if (!currentShrinkwrap.importers['.'][depType][packageName]) {
+          if (!currentShrinkwrap.importers[importerId][depType][packageName]) {
             outdated.push({
               latest,
               packageName,
-              wanted: wantedShrinkwrap.importers['.'][depType]![packageName],
+              wanted: wantedShrinkwrap.importers[importerId][depType]![packageName],
             })
             return
           }
 
-          if (currentShrinkwrap.importers['.'][depType][packageName] !== wantedShrinkwrap.importers['.'][depType]![packageName] ||
-            latest !== currentShrinkwrap.importers['.'][depType][packageName]) {
+          if (currentShrinkwrap.importers[importerId][depType][packageName] !== wantedShrinkwrap.importers[importerId][depType]![packageName] ||
+            latest !== currentShrinkwrap.importers[importerId][depType][packageName]) {
             outdated.push({
-              current: currentShrinkwrap.importers['.'][depType][packageName],
+              current: currentShrinkwrap.importers[importerId][depType][packageName],
               latest,
               packageName,
-              wanted: wantedShrinkwrap.importers['.'][depType]![packageName],
+              wanted: wantedShrinkwrap.importers[importerId][depType]![packageName],
             })
           }
         }),

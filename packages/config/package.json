@@ -30,7 +30,7 @@
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/config#readme",
   "dependencies": {
-    "@pnpm/types": "1.8.0",
+    "@pnpm/types": "2.0.0",
     "@types/camelcase": "^4.1.0",
     "@types/node": "10.12.0",
     "@types/which": "^1.3.1",

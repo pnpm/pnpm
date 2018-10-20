@@ -91,7 +91,7 @@
     "@pnpm/package-requester": "4.1.4",
     "@pnpm/pkgid-to-filename": "2.0.0",
     "@pnpm/read-package-json": "1.0.0",
-    "@pnpm/types": "^1.8.0",
+    "@pnpm/types": "2.0.0",
     "@pnpm/utils": "0.9.0-0",
     "@types/ramda": "0.25.34",
     "dependency-path": "2.0.0",

@@ -32,7 +32,7 @@
   "dependencies": {
     "@pnpm/core-loggers": "0.0.0",
     "@pnpm/package-bins": "1.0.0",
-    "@pnpm/types": "1.8.0",
+    "@pnpm/types": "2.0.0",
     "@pnpm/utils": "0.9.0-0",
     "@types/node": "10.12.0",
     "@types/ramda": "0.25.38",

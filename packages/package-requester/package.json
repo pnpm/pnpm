@@ -38,7 +38,7 @@
     "@pnpm/fetcher-base": "1.0.0",
     "@pnpm/pkgid-to-filename": "2.0.0",
     "@pnpm/resolver-base": "1.2.0",
-    "@pnpm/types": "^1.8.0",
+    "@pnpm/types": "2.0.0",
     "@types/mz": "^0.0.32",
     "@types/node": "10.12.0",
     "@types/p-queue": "^2.3.1",
