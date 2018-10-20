@@ -4,9 +4,10 @@ import { normalizeRegistries } from '@pnpm/utils'
 import assert = require('assert')
 import { refToAbsolute, refToRelative } from 'dependency-path'
 import {
+  getImporterId,
   readCurrent,
   ResolvedPackages,
-  Shrinkwrap,
+  ShrinkwrapImporter,
 } from 'pnpm-shrinkwrap'
 import semver = require('semver')
 
@@ -31,8 +32,9 @@ export function forPackages (
   projectPath: string,
   opts?: {
     depth: number,
-    registries?: Registries,
     only?: 'dev' | 'prod',
+    registries?: Registries,
+    shrinkwrapDirectory?: string,
   },
 ) {
   assert(packages, 'packages should be defined')
@@ -45,8 +47,9 @@ export default function (
   projectPath: string,
   opts?: {
     depth: number,
-    registries?: Registries,
     only?: 'dev' | 'prod',
+    registries?: Registries,
+    shrinkwrapDirectory?: string,
   },
 ) {
   return dependenciesHierarchy(projectPath, [], opts)
@@ -57,8 +60,9 @@ async function dependenciesHierarchy (
   searched: PackageSelector[],
   maybeOpts?: {
     depth: number,
-    registries?: Registries,
     only?: 'dev' | 'prod',
+    registries?: Registries,
+    shrinkwrapDirectory?: string,
   },
 ): Promise<PackageNode[]> {
   const modules = await readModulesYaml(projectPath)
@@ -66,7 +70,8 @@ async function dependenciesHierarchy (
     ...maybeOpts && maybeOpts.registries,
     ...modules && modules.registries,
   })
-  const shrinkwrap = await readCurrent(projectPath, { ignoreIncompatible: false })
+  const shrinkwrapDirectory = maybeOpts && maybeOpts.shrinkwrapDirectory || projectPath
+  const shrinkwrap = await readCurrent(shrinkwrapDirectory, { ignoreIncompatible: false })
 
   if (!shrinkwrap) return []
 
@@ -75,7 +80,8 @@ async function dependenciesHierarchy (
     only: undefined,
     ...maybeOpts,
   }
-  const topDeps = getTopDependencies(shrinkwrap, opts)
+  const importerId = getImporterId(shrinkwrapDirectory, projectPath)
+  const topDeps = getTopDependencies(shrinkwrap.importers[importerId], opts)
 
   if (!topDeps) return []
 
@@ -121,21 +127,21 @@ async function dependenciesHierarchy (
 }
 
 function getTopDependencies (
-  shrinkwrap: Shrinkwrap,
+  shrinkwrapImporter: ShrinkwrapImporter,
   opts: {
     only?: 'dev' | 'prod',
   },
 ) {
   switch (opts.only) {
     case 'prod':
-      return shrinkwrap.importers['.'].dependencies
+      return shrinkwrapImporter.dependencies
     case 'dev':
-      return shrinkwrap.importers['.'].devDependencies
+      return shrinkwrapImporter.devDependencies
     default:
       return {
-        ...shrinkwrap.importers['.'].dependencies,
-        ...shrinkwrap.importers['.'].devDependencies,
-        ...shrinkwrap.importers['.'].optionalDependencies,
+        ...shrinkwrapImporter.dependencies,
+        ...shrinkwrapImporter.devDependencies,
+        ...shrinkwrapImporter.optionalDependencies,
       }
   }
 }

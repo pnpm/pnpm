@@ -1,18 +1,16 @@
-import path = require('path')
 import list, { forPackages as listForPackages } from 'pnpm-list'
-
-const LAYOUT_VERSION = '1'
 
 export default async function (
   args: string[],
   opts: {
-    prefix: string,
+    alwaysPrintRootPackage?: boolean,
     depth?: number,
+    development: boolean,
     long?: boolean,
     parseable?: boolean,
+    prefix: string,
     production: boolean,
-    development: boolean,
-    alwaysPrintRootPackage?: boolean,
+    shrinkwrapDirectory?: string,
   },
   command: string,
 ) {
@@ -24,6 +22,7 @@ export default async function (
     long: opts.long,
     only,
     parseable: opts.parseable,
+    shrinkwrapDirectory: opts.shrinkwrapDirectory,
   }
   const output = args.length
     ? await listForPackages(args, opts.prefix, listOpts)

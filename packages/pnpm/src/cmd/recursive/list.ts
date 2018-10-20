@@ -8,10 +8,11 @@ export default async (
   cmd: string,
   opts: {
     depth?: number,
-    production: boolean,
     development: boolean,
     long?: boolean,
     parseable?: boolean,
+    production: boolean,
+    shrinkwrapDirectory?: string,
   },
 ) => {
   for (const pkg of pkgs) {

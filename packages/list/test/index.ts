@@ -9,7 +9,19 @@ const highlighted = chalk.yellow.bgBlack
 const fixture = path.join(__dirname, 'fixture')
 const fixtureWithNoPkgNameAndNoVersion = path.join(__dirname, 'fixture-with-no-pkg-name-and-no-version')
 const fixtureWithNoPkgVersion = path.join(__dirname, 'fixture-with-no-pkg-version')
+const fixtureWithExternalShrinkwrap = path.join(__dirname, 'fixture-with-external-shrinkwrap', 'pkg')
 const emptyFixture = path.join(__dirname, 'empty')
+
+test('list all deps of a package that has an external shrinkwrap.yaml', async (t) => {
+  t.equal(await list(fixtureWithExternalShrinkwrap, {
+    shrinkwrapDirectory: path.join(fixtureWithExternalShrinkwrap, '..'),
+  }), stripIndent`
+    pkg@1.0.0 ${fixtureWithExternalShrinkwrap}
+    └── is-positive@1.0.0
+  ` + '\n')
+
+  t.end()
+})
 
 test('list with default parameters', async t => {
   t.equal(await list(fixture), stripIndent`

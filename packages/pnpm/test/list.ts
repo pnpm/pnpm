@@ -1,15 +1,18 @@
-import prepare, { tempDir } from '@pnpm/prepare'
+import prepare, { preparePackages, tempDir } from '@pnpm/prepare'
+import fs = require('mz/fs')
 import tape = require('tape')
 import promisifyTape from 'tape-promise'
 import path = require('path')
 import { stripIndent } from 'common-tags'
 import isWindows = require('is-windows')
+import writeYamlFile = require('write-yaml-file')
 import {
   execPnpm,
   execPnpmSync,
 } from './utils'
 
 const test = promisifyTape(tape)
+const testOnly = promisifyTape(tape.only)
 
 test('listing global packages', async (t: tape.Test) => {
   tempDir(t)
@@ -124,4 +127,32 @@ test('listing packages', async (t: tape.Test) => {
       └── is-positive@1.0.0
     ` + '\n\n', 'prints all deps')
   }
+})
+
+test('listing packages of a project that has an external shrinkwrap.yaml', async (t: tape.Test) => {
+  preparePackages(t, [
+    {
+      name: 'pkg',
+      version: '1.0.0',
+      dependencies: {
+        'is-positive': '1.0.0',
+      },
+    },
+  ])
+
+  await writeYamlFile('pnpm-workspace.yaml', {packages: ['**', '!store/**']})
+  await fs.writeFile('.npmrc', 'shared-workspace-shrinkwrap = true', 'utf8')
+
+  await execPnpm('recursive', 'install')
+
+  process.chdir('pkg')
+
+  const result = execPnpmSync('list')
+
+  t.equal(result.status, 0)
+
+  t.equal(result.stdout.toString(), stripIndent`
+    pkg@1.0.0 ${process.cwd()}
+    └── is-positive@1.0.0
+  ` + '\n\n', 'prints all deps')
 })

@@ -22,10 +22,11 @@ export async function forPackages (
   maybeOpts?: {
     alwaysPrintRootPackage?: boolean,
     depth?: number,
-    only?: 'dev' | 'prod',
     long?: boolean,
+    only?: 'dev' | 'prod',
     parseable?: boolean,
     registries?: Registries,
+    shrinkwrapDirectory?: string,
   },
 ) {
   const opts = { ...DEFAULTS, ...maybeOpts }
@@ -48,6 +49,7 @@ export async function forPackages (
     depth: opts.depth,
     only: opts.only,
     registries: opts.registries,
+    shrinkwrapDirectory: maybeOpts && maybeOpts.shrinkwrapDirectory,
   })
 
   const print = getPrinter(opts.parseable)
@@ -62,10 +64,11 @@ export default async function (
   maybeOpts?: {
     alwaysPrintRootPackage?: boolean,
     depth?: number,
-    only?: 'dev' | 'prod',
     long?: boolean,
+    only?: 'dev' | 'prod',
     parseable?: boolean,
     registries?: Registries,
+    shrinkwrapDirectory?: string,
   },
 ) {
   const opts = { ...DEFAULTS, ...maybeOpts }
@@ -74,6 +77,7 @@ export default async function (
     depth: opts.depth,
     only: opts.only,
     registries: opts.registries,
+    shrinkwrapDirectory: maybeOpts && maybeOpts.shrinkwrapDirectory,
   })
 
   const print = getPrinter(opts.parseable)
