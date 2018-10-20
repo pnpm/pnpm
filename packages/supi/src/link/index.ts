@@ -99,10 +99,13 @@ export default async function link (
     })
   }
 
-  const updatedCurrentShrinkwrap = pruneSharedShrinkwrap(ctx.currentShrinkwrap)
+  const updatedCurrentShrinkwrap = pruneSharedShrinkwrap(ctx.currentShrinkwrap, { defaultRegistry: opts.registries.default })
 
   const warn = (message: string) => logger.warn({ message, prefix: opts.prefix })
-  const updatedWantedShrinkwrap = pruneSharedShrinkwrap(ctx.wantedShrinkwrap, warn)
+  const updatedWantedShrinkwrap = pruneSharedShrinkwrap(ctx.wantedShrinkwrap, {
+    defaultRegistry: opts.registries.default,
+    warn,
+  })
 
   await prune({
     importers: [
@@ -117,6 +120,7 @@ export default async function link (
     ],
     newShrinkwrap: updatedCurrentShrinkwrap,
     oldShrinkwrap,
+    registries: ctx.registries,
     shrinkwrapDirectory: opts.shrinkwrapDirectory,
     storeController: opts.storeController,
     virtualStoreDir: ctx.virtualStoreDir,

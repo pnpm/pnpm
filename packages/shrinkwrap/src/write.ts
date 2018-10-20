@@ -93,6 +93,9 @@ function normalizeShrinkwrap (shr: Shrinkwrap) {
     if (R.isEmpty(shrToSave.packages)) {
       delete shrToSave.packages
     }
+    if (shrToSave.registry) {
+      delete shrToSave.registry
+    }
     return normalizeShrinkwrapVersion(shrToSave)
   }
 }

@@ -9,8 +9,10 @@ import {
   DEPENDENCIES_FIELDS,
   PackageJson,
   ReadPackageHook,
+  Registries,
 } from '@pnpm/types'
 import {
+  normalizeRegistries,
   realNodeModulesDir,
   safeReadPackageFromDir as safeReadPkgFromDir,
 } from '@pnpm/utils'
@@ -45,6 +47,7 @@ export interface PnpmContext {
   skipped: Set<string>,
   storePath: string,
   wantedShrinkwrap: Shrinkwrap,
+  registries: Registries,
 }
 
 export interface ImportersOptions {
@@ -71,7 +74,7 @@ export default async function getContext (
     include?: IncludedDependencies,
     independentLeaves: boolean,
     importers: StrictImportersOptions[],
-    registry: string,
+    registries: Registries,
     shrinkwrap: boolean,
     store: string,
   },
@@ -117,6 +120,10 @@ export default async function getContext (
     include: opts.include || modules && modules.included || { dependencies: true, devDependencies: true, optionalDependencies: true },
     modulesFile: modules,
     pendingBuilds: modules && modules.pendingBuilds || [],
+    registries: {
+      ...opts.registries,
+      ...modules && modules.registries && normalizeRegistries(modules.registries),
+    },
     shrinkwrapDirectory: opts.shrinkwrapDirectory,
     skipped: new Set(modules && modules.skipped || []),
     storePath,
@@ -124,7 +131,7 @@ export default async function getContext (
     ...await readShrinkwrapFile({
       force: opts.force,
       importers: opts.importers,
-      registry: opts.registry,
+      registry: opts.registries.default,
       shrinkwrap: opts.shrinkwrap,
       shrinkwrapDirectory: opts.shrinkwrapDirectory,
     }),
@@ -227,6 +234,7 @@ export interface PnpmSingleContext {
   include: IncludedDependencies,
   modulesFile: Modules | null,
   pendingBuilds: string[],
+  registries: Registries,
   shrinkwrapDirectory: string,
   virtualStoreDir: string,
   skipped: Set<string>,
@@ -244,7 +252,7 @@ export async function getContextForSingleImporter (
     include?: IncludedDependencies,
     independentLeaves: boolean,
     prefix: string,
-    registry: string,
+    registries: Registries,
     shamefullyFlatten: boolean,
     shrinkwrap: boolean,
     store: string,
@@ -291,6 +299,10 @@ export async function getContextForSingleImporter (
     pendingBuilds: modules && modules.pendingBuilds || [],
     pkg: opts.hooks && opts.hooks.readPackage ? opts.hooks.readPackage(pkg) : pkg,
     prefix: opts.prefix,
+    registries: {
+      ...opts.registries,
+      ...modules && modules.registries && normalizeRegistries(modules.registries),
+    },
     shrinkwrapDirectory,
     skipped: new Set(modules && modules.skipped || []),
     storePath,
@@ -298,7 +310,7 @@ export async function getContextForSingleImporter (
     ...await readShrinkwrapFile({
       force: opts.force,
       importers: [{ id: importerId, prefix: opts.prefix }],
-      registry: opts.registry,
+      registry: opts.registries.default,
       shrinkwrap: opts.shrinkwrap,
       shrinkwrapDirectory,
     }),

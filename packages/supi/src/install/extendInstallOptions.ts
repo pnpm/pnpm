@@ -1,9 +1,8 @@
 import logger from '@pnpm/logger'
 import { IncludedDependencies } from '@pnpm/modules-yaml'
 import { LocalPackages } from '@pnpm/resolver-base'
-import { ReadPackageHook } from '@pnpm/types'
-import { realNodeModulesDir } from '@pnpm/utils'
-import normalizeRegistryUrl = require('normalize-registry-url')
+import { ReadPackageHook, Registries } from '@pnpm/types'
+import { DEFAULT_REGISTRIES, normalizeRegistries, realNodeModulesDir } from '@pnpm/utils'
 import { StoreController } from 'package-store'
 import path = require('path')
 import { getImporterId, Shrinkwrap } from 'pnpm-shrinkwrap'
@@ -54,7 +53,7 @@ export interface BaseInstallOptions {
   childConcurrency?: number,
   userAgent?: string,
   unsafePerm?: boolean,
-  registry?: string,
+  registries?: Registries,
   lock?: boolean,
   lockStaleDuration?: number,
   tag?: string,
@@ -108,7 +107,7 @@ export type StrictInstallOptions = BaseInstallOptions & {
   childConcurrency: number,
   userAgent: string,
   lock: boolean,
-  registry: string,
+  registries: Registries,
   lockStaleDuration: number,
   tag: string,
   locks: string,
@@ -169,7 +168,7 @@ const defaults = async (opts: InstallOptions) => {
     preferFrozenShrinkwrap: true,
     pruneStore: false,
     rawNpmConfig: {},
-    registry: 'https://registry.npmjs.org/',
+    registries: DEFAULT_REGISTRIES,
     repeatInstallDepth: -1,
     saveDev: false,
     saveExact: false,
@@ -222,8 +221,8 @@ export default async (
   if (extendedOpts.userAgent.startsWith('npm/')) {
     extendedOpts.userAgent = `${extendedOpts.packageManager.name}/${extendedOpts.packageManager.version} ${extendedOpts.userAgent}`
   }
-  extendedOpts.registry = normalizeRegistryUrl(extendedOpts.registry)
-  extendedOpts.rawNpmConfig['registry'] = extendedOpts.registry // tslint:disable-line:no-string-literal
+  extendedOpts.registries = normalizeRegistries(extendedOpts.registries)
+  extendedOpts.rawNpmConfig['registry'] = extendedOpts.registries.default // tslint:disable-line:no-string-literal
   // if sideEffectsCacheReadonly is true, sideEffectsCache is necessarily true too
   if (extendedOpts.sideEffectsCache && extendedOpts.sideEffectsCacheReadonly) {
     logger.warn({

@@ -1,4 +1,5 @@
-import normalizeRegistryUrl = require('normalize-registry-url')
+import { Registries } from '@pnpm/types'
+import { DEFAULT_REGISTRIES, normalizeRegistries } from '@pnpm/utils'
 import { StoreController } from 'package-store'
 import path = require('path')
 import pnpmPkgJson from '../pnpmPkgJson'
@@ -11,7 +12,7 @@ export interface UninstallOptions {
   independentLeaves?: boolean,
   force?: boolean,
   storeController: StoreController,
-  registry?: string,
+  registries?: Registries,
   shrinkwrap?: boolean,
   shamefullyFlatten?: boolean,
 
@@ -34,7 +35,7 @@ export type StrictUninstallOptions = UninstallOptions & {
   shamefullyFlatten: boolean,
   shrinkwrapDirectory: string,
   storeController: StoreController,
-  registry: string,
+  registries: Registries,
   shrinkwrap: boolean,
 
   lock: boolean,
@@ -63,7 +64,7 @@ const defaults = async (opts: UninstallOptions) => {
     locks: path.join(opts.store, '_locks'),
     packageManager,
     prefix,
-    registry: 'https://registry.npmjs.org/',
+    registries: DEFAULT_REGISTRIES,
     shamefullyFlatten: false,
     shrinkwrap: true,
     shrinkwrapDirectory,
@@ -84,6 +85,6 @@ export default async (
   }
   const defaultOpts = await defaults(opts)
   const extendedOpts = { ...defaultOpts, ...opts, store: defaultOpts.store }
-  extendedOpts.registry = normalizeRegistryUrl(extendedOpts.registry)
+  extendedOpts.registries = normalizeRegistries(extendedOpts.registries)
   return extendedOpts
 }

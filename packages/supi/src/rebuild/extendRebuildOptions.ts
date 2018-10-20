@@ -1,4 +1,5 @@
-import normalizeRegistryUrl = require('normalize-registry-url')
+import { Registries } from '@pnpm/types'
+import { DEFAULT_REGISTRIES, normalizeRegistries } from '@pnpm/utils'
 import path = require('path')
 import pnpmPkgJson from '../pnpmPkgJson'
 import { ReporterFunction } from '../types'
@@ -10,7 +11,7 @@ export interface RebuildOptions {
   store: string, // TODO: remove this property
   independentLeaves?: boolean,
   force?: boolean,
-  registry?: string,
+  registries?: Registries,
   shrinkwrap?: boolean,
 
   reporter?: ReporterFunction,
@@ -36,7 +37,7 @@ export type StrictRebuildOptions = RebuildOptions & {
   shrinkwrapDirectory: string,
   independentLeaves: boolean,
   force: boolean,
-  registry: string,
+  registries: Registries,
   bin: string,
   rawNpmConfig: object,
   userAgent: string,
@@ -69,7 +70,7 @@ const defaults = async (opts: RebuildOptions) => {
     prefix,
     production: true,
     rawNpmConfig: {},
-    registry: 'https://registry.npmjs.org/',
+    registries: DEFAULT_REGISTRIES,
     shamefullyFlatten: false,
     shrinkwrap: true,
     shrinkwrapDirectory,
@@ -95,6 +96,6 @@ export default async (
   }
   const defaultOpts = await defaults(opts)
   const extendedOpts = { ...defaultOpts, ...opts, store: defaultOpts.store }
-  extendedOpts.registry = normalizeRegistryUrl(extendedOpts.registry)
+  extendedOpts.registries = normalizeRegistries(extendedOpts.registries)
   return extendedOpts
 }

@@ -1,4 +1,5 @@
-import normalizeRegistryUrl = require('normalize-registry-url')
+import { Registries } from '@pnpm/types'
+import { DEFAULT_REGISTRIES, normalizeRegistries } from '@pnpm/utils'
 import { StoreController } from 'package-store'
 import path = require('path')
 import { ReporterFunction } from '../types'
@@ -18,7 +19,7 @@ export interface LinkOptions {
   shamefullyFlatten?: boolean,
   shrinkwrapDirectory?: string,
   independentLeaves?: boolean,
-  registry?: string,
+  registries?: Registries,
   store?: string,
 }
 
@@ -35,7 +36,7 @@ export type StrictLinkOptions = LinkOptions & {
   shamefullyFlatten: boolean,
   shrinkwrapDirectory: string,
   independentLeaves: boolean,
-  registry: string,
+  registries: Registries,
   store: string,
 }
 
@@ -49,7 +50,7 @@ export async function extendOptions (opts: LinkOptions): Promise<StrictLinkOptio
   }
   const defaultOpts = await defaults(opts)
   const extendedOpts = { ...defaultOpts, ...opts, store: defaultOpts.store }
-  extendedOpts.registry = normalizeRegistryUrl(extendedOpts.registry)
+  extendedOpts.registries = normalizeRegistries(extendedOpts.registries)
   return extendedOpts
 }
 
@@ -60,7 +61,7 @@ async function defaults (opts: LinkOptions) {
     force: false,
     independentLeaves: false,
     prefix,
-    registry: 'https://registry.npmjs.org/',
+    registries: DEFAULT_REGISTRIES,
     shamefullyFlatten: false,
     shrinkwrapDirectory: opts.shrinkwrapDirectory || prefix,
     shrinkwrap: true,

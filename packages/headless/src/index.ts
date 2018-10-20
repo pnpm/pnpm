@@ -25,8 +25,8 @@ import {
 } from '@pnpm/package-requester'
 import pkgIdToFilename from '@pnpm/pkgid-to-filename'
 import { fromDir as readPackageFromDir } from '@pnpm/read-package-json'
-import { PackageJson } from '@pnpm/types'
-import { realNodeModulesDir } from '@pnpm/utils'
+import { PackageJson, Registries } from '@pnpm/types'
+import { normalizeRegistries, realNodeModulesDir } from '@pnpm/utils'
 import dp = require('dependency-path')
 import pLimit = require('p-limit')
 import { StoreController } from 'package-store'
@@ -72,6 +72,7 @@ export interface HeadlessOptions {
   rawNpmConfig: object,
   unsafePerm: boolean,
   userAgent: string,
+  registries?: Registries,
   reporter?: ReporterFunction,
   packageJson?: PackageJson,
   packageManager: {
@@ -114,7 +115,12 @@ export default async (opts: HeadlessOptions) => {
         },
       },
       pendingBuilds: [] as string[],
+      registries: {},
     }
+  const registries = normalizeRegistries({
+    ...opts.registries,
+    ...modules && modules.registries,
+  })
 
   const pkg = opts.packageJson || await readPackageFromDir(opts.prefix)
 
@@ -142,6 +148,7 @@ export default async (opts: HeadlessOptions) => {
   }
 
   const filterOpts = {
+    defaultRegistry: registries.default,
     include: opts.include,
     skipped: new Set<string>(),
   }
@@ -161,6 +168,7 @@ export default async (opts: HeadlessOptions) => {
       newShrinkwrap: filterShrinkwrap(wantedShrinkwrap, filterOpts),
       oldShrinkwrap: currentShrinkwrap,
       pruneStore: opts.pruneStore,
+      registries,
       shrinkwrapDirectory,
       storeController: opts.storeController,
       virtualStoreDir,
@@ -182,6 +190,7 @@ export default async (opts: HeadlessOptions) => {
     opts.force ? null : currentShrinkwrap,
     {
       ...opts,
+      defaultRegistry: registries.default,
       importerId,
       virtualStoreDir,
     } as ShrinkwrapToDepGraphOptions,
@@ -208,7 +217,13 @@ export default async (opts: HeadlessOptions) => {
 
   await linkAllBins(depGraph, { optional: opts.include.optionalDependencies, warn })
 
-  await linkRootPackages(filteredShrinkwrap, opts.prefix, res.rootDependencies, modulesDir, importerId)
+  await linkRootPackages(filteredShrinkwrap, {
+    defaultRegistry: registries.default,
+    importerId,
+    importerModulesDir: modulesDir,
+    prefix: opts.prefix,
+    rootDependencies: res.rootDependencies,
+  })
   await linkBins(modulesDir, bin, { warn })
 
   await writeCurrentShrinkwrapOnly(shrinkwrapDirectory, filteredShrinkwrap)
@@ -228,6 +243,7 @@ export default async (opts: HeadlessOptions) => {
     layoutVersion: LAYOUT_VERSION,
     packageManager: `${opts.packageManager.name}@${opts.packageManager.version}`,
     pendingBuilds: modules.pendingBuilds,
+    registries,
     skipped: [],
     store: opts.store,
   })
@@ -273,12 +289,15 @@ export default async (opts: HeadlessOptions) => {
 
 async function linkRootPackages (
   shr: Shrinkwrap,
-  prefix: string,
-  rootDependencies: {[alias: string]: string},
-  importerModulesDir: string,
-  importerId: string,
+  opts: {
+    defaultRegistry: string,
+    importerId: string,
+    importerModulesDir: string,
+    prefix: string,
+    rootDependencies: {[alias: string]: string},
+  },
 ) {
-  const shrImporter = shr.importers[importerId]
+  const shrImporter = shr.importers[opts.importerId]
   const allDeps = {
     ...shrImporter.devDependencies,
     ...shrImporter.dependencies,
@@ -287,13 +306,13 @@ async function linkRootPackages (
   return Promise.all(
     R.keys(allDeps)
       .map(async (alias) => {
-        const depPath = dp.refToAbsolute(allDeps[alias], alias, shr.registry)
-        const peripheralLocation = rootDependencies[alias]
+        const depPath = dp.refToAbsolute(allDeps[alias], alias, opts.defaultRegistry)
+        const peripheralLocation = opts.rootDependencies[alias]
         // Skipping linked packages
         if (!peripheralLocation) {
           return
         }
-        if ((await symlinkDependencyTo(alias, peripheralLocation, importerModulesDir)).reused) {
+        if ((await symlinkDependencyTo(alias, peripheralLocation, opts.importerModulesDir)).reused) {
           return
         }
         const isDev = shrImporter.devDependencies && shrImporter.devDependencies[alias]
@@ -314,13 +333,14 @@ async function linkRootPackages (
             realName: pkgInfo.name,
             version: pkgInfo.version,
           },
-          prefix,
+          prefix: opts.prefix,
         })
       }),
   )
 }
 
 interface ShrinkwrapToDepGraphOptions {
+  defaultRegistry: string,
   force: boolean,
   independentLeaves: boolean,
   importerId: string,
@@ -346,10 +366,10 @@ async function shrinkwrapToDepGraph (
         R.equals(currentPackages[relDepPath].optionalDependencies, shr.packages[relDepPath].optionalDependencies)) {
         continue
       }
-      const depPath = dp.resolve(shr.registry, relDepPath)
+      const depPath = dp.resolve(opts.defaultRegistry, relDepPath)
       const pkgSnapshot = shr.packages[relDepPath]
       const independent = opts.independentLeaves && pkgIsIndependent(pkgSnapshot)
-      const resolution = pkgSnapshotToResolution(relDepPath, pkgSnapshot, shr.registry)
+      const resolution = pkgSnapshotToResolution(relDepPath, pkgSnapshot, opts.defaultRegistry)
       // TODO: optimize. This info can be already returned by pkgSnapshotToResolution()
       const pkgName = nameVerFromPkgSnapshot(relDepPath, pkgSnapshot).name
       const pkgId = pkgSnapshot.id || depPath
@@ -409,7 +429,7 @@ async function shrinkwrapToDepGraph (
       independentLeaves: opts.independentLeaves,
       pkgSnapshotsByRelDepPaths: shr.packages,
       prefix: opts.prefix,
-      registry: shr.registry,
+      registry: opts.defaultRegistry,
       store: opts.store,
       virtualStoreDir: opts.virtualStoreDir,
     }

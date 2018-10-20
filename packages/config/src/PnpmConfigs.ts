@@ -1,3 +1,5 @@
+import { Registries } from '@pnpm/types'
+
 export interface PnpmConfigs extends Record<string, any> { // tslint:disable-line
   bail: boolean,
   cliArgs: Record<string, any>, // tslint:disable-line
@@ -74,4 +76,6 @@ export interface PnpmConfigs extends Record<string, any> { // tslint:disable-lin
   pending: boolean,
   shrinkwrapDirectory?: string,
   sharedWorkspaceShrinkwrap: boolean,
+
+  registries: Registries,
 }

@@ -47,7 +47,9 @@ export default async function testDefaults (
     },
   )
   return {
-    registry,
+    registries: {
+      default: registry,
+    },
     store,
     storeController,
     ...opts,

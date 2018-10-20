@@ -20,7 +20,7 @@ export default async function (maybeOpts: StoreStatusOptions) {
   const pkgPaths = Object.keys(ctx.wantedShrinkwrap.packages || {})
     .map((id) => {
       if (id === '/') return null
-      return dp.resolve(ctx.wantedShrinkwrap.registry, id)
+      return dp.resolve(ctx.registries.default, id)
     })
     .filter((pkgId) => pkgId && !ctx.skipped.has(pkgId))
     .map((pkgPath: string) => path.join(ctx.storePath, pkgPath))

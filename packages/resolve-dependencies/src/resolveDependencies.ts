@@ -17,6 +17,7 @@ import {
   PackageJson,
   PackageManifest,
   ReadPackageHook,
+  Registries,
 } from '@pnpm/types'
 import {
   createNodeId,
@@ -104,13 +105,12 @@ export interface ResolutionContext {
   dependenciesTree: DependenciesTree,
   force: boolean,
   prefix: string,
-  registry: string,
   depth: number,
   engineStrict: boolean,
   modulesDir: string,
   nodeVersion: string,
   pnpmVersion: string,
-  rawNpmConfig: object,
+  registries: Registries,
   virtualStoreDir: string,
   verifyStoreIntegrity: boolean,
   preferredVersions: {
@@ -214,7 +214,7 @@ export default async function resolveDependencies (
       proceed = true
       reference = preferedDependencies[wantedDependency.alias]
     }
-    const infoFromShrinkwrap = getInfoFromShrinkwrap(ctx.wantedShrinkwrap, reference, wantedDependency.alias)
+    const infoFromShrinkwrap = getInfoFromShrinkwrap(ctx.wantedShrinkwrap, ctx.registries.default, reference, wantedDependency.alias)
     if (infoFromShrinkwrap && infoFromShrinkwrap.dependencyShrinkwrap) {
       for (const peer of Object.keys(infoFromShrinkwrap.dependencyShrinkwrap.peerDependencies || {})) {
         allPeerDependencies.add(peer)
@@ -277,6 +277,7 @@ function preferedSatisfiesWanted (
 
 function getInfoFromShrinkwrap (
   shrinkwrap: Shrinkwrap,
+  defaultRegistry: string,
   reference: string | undefined,
   pkgName: string | undefined,
 ) {
@@ -293,7 +294,7 @@ function getInfoFromShrinkwrap (
   const dependencyShrinkwrap = shrinkwrap.packages && shrinkwrap.packages[relDepPath]
 
   if (dependencyShrinkwrap) {
-    const depPath = dp.resolve(shrinkwrap.registry, relDepPath)
+    const depPath = dp.resolve(defaultRegistry, relDepPath)
     return {
       depPath,
       dependencyShrinkwrap,
@@ -304,11 +305,11 @@ function getInfoFromShrinkwrap (
         ...dependencyShrinkwrap.dependencies,
         ...dependencyShrinkwrap.optionalDependencies,
       },
-      shrinkwrapResolution: pkgSnapshotToResolution(relDepPath, dependencyShrinkwrap, shrinkwrap.registry),
+      shrinkwrapResolution: pkgSnapshotToResolution(relDepPath, dependencyShrinkwrap, defaultRegistry),
     }
   } else {
     return {
-      pkgId: dp.resolve(shrinkwrap.registry, relDepPath),
+      pkgId: dp.resolve(defaultRegistry, relDepPath),
       relDepPath,
     }
   }
@@ -339,7 +340,10 @@ async function install (
   },
 ): Promise<PkgAddress | null> {
   const keypath = options.keypath || []
-  const update = Boolean(options.update || options.localPackages && wantedDepIsLocallyAvailable(options.localPackages, wantedDependency, { defaultTag: ctx.defaultTag, registry: ctx.registry }))
+  const update = Boolean(
+    options.update ||
+    options.localPackages &&
+    wantedDepIsLocallyAvailable(options.localPackages, wantedDependency, { defaultTag: ctx.defaultTag, registry: ctx.registries.default }))
   const proceed = update || options.proceed || !options.shrinkwrapResolution || ctx.force || keypath.length <= ctx.depth
     || options.dependencyShrinkwrap && options.dependencyShrinkwrap.peerDependencies
   const parentIsInstallable = options.parentIsInstallable === undefined || options.parentIsInstallable
@@ -356,7 +360,7 @@ async function install (
   }
 
   const scope = wantedDependency.alias && getScope(wantedDependency.alias)
-  const registry = normalizeRegistry(scope && ctx.rawNpmConfig[`${scope}:registry`] || ctx.registry)
+  const registry = normalizeRegistry(scope && ctx.registries[scope] || ctx.registries.default)
 
   const dependentId = keypath[keypath.length - 1]
   const loggedPkg = {

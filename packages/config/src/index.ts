@@ -4,6 +4,7 @@ import camelcase = require('camelcase')
 import findUp = require('find-up')
 import path = require('path')
 import whichcb = require('which')
+import getScopeRegistries from './getScopeRegistries'
 import { PnpmConfigs } from './PnpmConfigs'
 
 export { PnpmConfigs }
@@ -127,6 +128,10 @@ export default async (
       return acc
     }, {} as PnpmConfigs)
   pnpmConfig.rawNpmConfig = Object.assign.apply(Object, npmConfig.list.reverse().concat([cliArgs]))
+  pnpmConfig.registries = {
+    default: pnpmConfig.registry || 'https://registry.npmjs.org/',
+    ...getScopeRegistries(pnpmConfig.rawNpmConfig),
+  }
   const npmGlobalPrefix: string = pnpmConfig.rawNpmConfig['pnpm-prefix'] ||
     (process.platform === 'win32' && process.env.APPDATA
       ? path.join(process.env.APPDATA, 'npm')

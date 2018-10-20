@@ -11,7 +11,10 @@ import {
 
 export function pruneSharedShrinkwrap (
   shr: Shrinkwrap,
-  warn?: (msg: string) => void,
+  opts: {
+    defaultRegistry: string,
+    warn?: (msg: string) => void,
+  },
 ) {
   const packages: ResolvedPackages = {}
 
@@ -21,8 +24,8 @@ export function pruneSharedShrinkwrap (
     optionalRelPaths: R.unnest(R.values(shr.importers).map((deps) => resolvedDepsToRelDepPaths(deps.optionalDependencies || {}))),
     packages,
     prodRelPaths: R.unnest(R.values(shr.importers).map((deps) => resolvedDepsToRelDepPaths(deps.dependencies || {}))),
-    registry: shr.registry,
-    warn: warn || ((msg: string) => undefined),
+    registry: opts.defaultRegistry,
+    warn: opts.warn || ((msg: string) => undefined),
   })
 
   const prunnedShr = {
@@ -39,7 +42,10 @@ export function prune (
   shr: Shrinkwrap,
   pkg: PackageJson,
   importerId: string,
-  warn?: (msg: string) => void,
+  opts: {
+    defaultRegistry: string,
+    warn?: (msg: string) => void,
+  },
 ): Shrinkwrap {
   const packages: ResolvedPackages = {}
   const importer = shr.importers[importerId]
@@ -101,7 +107,7 @@ export function prune (
   if (!R.isEmpty(shrDevDependencies)) {
     updatedImporter.devDependencies = shrDevDependencies
   }
-  return pruneSharedShrinkwrap(prunnedShrinkwrap, warn)
+  return pruneSharedShrinkwrap(prunnedShrinkwrap, opts)
 }
 
 function copyShrinkwrap (

@@ -19,6 +19,9 @@ test('write() and read()', async (t) => {
     layoutVersion: 1,
     packageManager: 'pnpm@2',
     pendingBuilds: [],
+    registries: {
+      default: 'https://registry.npmjs.org/',
+    },
     skipped: [],
     store: '/.pnpm-store',
   }
