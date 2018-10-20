@@ -483,6 +483,7 @@ async function installInContext (
       }
       if (
         modulesIsUpToDate({
+          defaultRegistry: ctx.registries.default,
           currentShrinkwrap: ctx.currentShrinkwrap,
           wantedShrinkwrap: ctx.wantedShrinkwrap,
           skippedPkgIds: Array.from(ctx.skipped),
@@ -502,7 +503,7 @@ async function installInContext (
     nodeVersion: opts.nodeVersion,
     pnpmVersion: opts.packageManager.name === 'pnpm' ? opts.packageManager.version : '',
     preferredVersions: opts.preferredVersions,
-    rawNpmConfig: opts.rawNpmConfig,
+    registries: opts.registries,
     sideEffectsCache: opts.sideEffectsCache,
     skipped: ctx.skipped,
     storeController: opts.storeController,
@@ -559,7 +560,7 @@ async function installInContext (
         shrImporter,
         importer.linkedPackages,
         resolvedImporter.directDependencies,
-        ctx.wantedShrinkwrap.registry,
+        ctx.registries.default,
       )
     }
 
@@ -603,6 +604,7 @@ async function installInContext (
       makePartialCurrentShrinkwrap: opts.makePartialCurrentShrinkwrap,
       outdatedDependencies,
       pruneStore: opts.pruneStore,
+      registries: ctx.registries,
       shrinkwrapDirectory: opts.shrinkwrapDirectory,
       sideEffectsCache: opts.sideEffectsCache,
       skipped: ctx.skipped,
@@ -615,7 +617,7 @@ async function installInContext (
   )
 
   ctx.pendingBuilds = ctx.pendingBuilds
-    .filter((relDepPath) => !result.removedDepPaths.has(dp.resolve(ctx.wantedShrinkwrap.registry, relDepPath)))
+    .filter((relDepPath) => !result.removedDepPaths.has(dp.resolve(ctx.registries.default, relDepPath)))
 
   if (opts.ignoreScripts) {
     // we can use concat here because we always only append new packages, which are guaranteed to not be there by definition
@@ -623,7 +625,7 @@ async function installInContext (
       .concat(
         result.newDepPaths
           .filter((depPath) => result.depGraph[depPath].requiresBuild)
-          .map((depPath) => dp.relative(ctx.wantedShrinkwrap.registry, depPath)),
+          .map((depPath) => dp.relative(ctx.registries.default, depPath)),
       )
   }
 
@@ -655,6 +657,7 @@ async function installInContext (
           layoutVersion: LAYOUT_VERSION,
           packageManager: `${opts.packageManager.name}@${opts.packageManager.version}`,
           pendingBuilds: ctx.pendingBuilds,
+          registries: ctx.registries,
           skipped: Array.from(ctx.skipped),
           store: ctx.storePath,
         })
@@ -759,6 +762,7 @@ async function installInContext (
 
 function modulesIsUpToDate (
   opts: {
+    defaultRegistry: string,
     currentShrinkwrap: Shrinkwrap,
     wantedShrinkwrap: Shrinkwrap,
     skippedPkgIds: string[],
@@ -766,7 +770,7 @@ function modulesIsUpToDate (
 ) {
   const currentWithSkipped = [
     ...R.keys(opts.currentShrinkwrap.packages),
-    ...opts.skippedPkgIds.map((skippedPkgId) => dp.relative(opts.currentShrinkwrap.registry, skippedPkgId))
+    ...opts.skippedPkgIds.map((skippedPkgId) => dp.relative(opts.defaultRegistry, skippedPkgId))
   ]
   currentWithSkipped.sort()
   return R.equals(R.keys(opts.wantedShrinkwrap.packages), currentWithSkipped)

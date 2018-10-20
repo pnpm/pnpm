@@ -1,3 +1,4 @@
+import { Registries } from '@pnpm/types'
 import dh, {
   forPackages as dhForPackages,
   PackageSelector,
@@ -12,6 +13,7 @@ const DEFAULTS = {
   long: false,
   only: undefined,
   parseable: false,
+  registries: undefined,
 }
 
 export async function forPackages (
@@ -23,6 +25,7 @@ export async function forPackages (
     only?: 'dev' | 'prod',
     long?: boolean,
     parseable?: boolean,
+    registries?: Registries,
   },
 ) {
   const opts = { ...DEFAULTS, ...maybeOpts }
@@ -44,6 +47,7 @@ export async function forPackages (
   const tree = await dhForPackages(searched, projectPath, {
     depth: opts.depth,
     only: opts.only,
+    registries: opts.registries,
   })
 
   const print = getPrinter(opts.parseable)
@@ -61,6 +65,7 @@ export default async function (
     only?: 'dev' | 'prod',
     long?: boolean,
     parseable?: boolean,
+    registries?: Registries,
   },
 ) {
   const opts = { ...DEFAULTS, ...maybeOpts }
@@ -68,6 +73,7 @@ export default async function (
   const tree = await dh(projectPath, {
     depth: opts.depth,
     only: opts.only,
+    registries: opts.registries,
   })
 
   const print = getPrinter(opts.parseable)

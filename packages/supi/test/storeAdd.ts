@@ -17,6 +17,7 @@ test('add packages to the store', async (t: tape.Test) => {
   process.chdir('_')
 
   const opts = await testDefaults()
+  opts['registry'] = opts.registries!.default // tslint:disable-line
   await storeAdd(['express@4.16.3'], opts)
 
   const pathToCheck = path.join(opts.store, 'localhost+4873', 'express', '4.16.3')

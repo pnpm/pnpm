@@ -6,7 +6,10 @@ import {
 } from 'pnpm-shrinkwrap'
 import yaml = require('yaml-tag')
 
-function warn (msg: string) {}
+const DEFAULT_OPTS = {
+  defaultRegistry: 'https://registry.npmjs.org',
+  warn (msg: string) {},
+}
 
 test('remove one redundant package', t => {
   t.deepEqual(prune({
@@ -42,7 +45,7 @@ test('remove one redundant package', t => {
     dependencies: {
       'is-positive': '^1.0.0'
     }
-  }, '.', warn), {
+  }, '.', DEFAULT_OPTS), {
     shrinkwrapVersion: 3,
     registry: 'https://registry.npmjs.org',
     importers: {
@@ -114,7 +117,7 @@ test('keep all', t => {
       'is-positive': '^1.0.0',
       'is-negative': '^1.0.0',
     }
-  }, '.', warn), {
+  }, '.', DEFAULT_OPTS), {
     shrinkwrapVersion: 3,
     registry: 'https://registry.npmjs.org',
     importers: {
@@ -229,7 +232,7 @@ test('optional dependency should have optional = true', t => {
       'pkg-with-good-optional': '^1.0.0',
       'parent-of-foo': '1.0.0',
     },
-  }, '.', warn), {
+  }, '.', DEFAULT_OPTS), {
     shrinkwrapVersion: 3,
     registry: 'https://registry.npmjs.org',
     importers: {
@@ -336,7 +339,7 @@ test('optional dependency should not have optional = true if used not only as op
       'pkg-with-good-optional': '^1.0.0',
       'is-positive': '^1.0.0',
     },
-  }, '.', warn), {
+  }, '.', DEFAULT_OPTS), {
     shrinkwrapVersion: 3,
     registry: 'https://registry.npmjs.org',
     importers: {
@@ -413,7 +416,7 @@ test('dev dependency should have dev = true', t => {
     dependencies: {
       'pkg-with-good-optional': '^1.0.0',
     },
-  }, '.', warn), {
+  }, '.', DEFAULT_OPTS), {
     shrinkwrapVersion: 3,
     registry: 'https://registry.npmjs.org',
     importers: {
@@ -492,7 +495,7 @@ test('dev dependency should not have dev = true if it is used not only as dev', 
     dependencies: {
       'some-pkg': '^1.0.0',
     },
-  }, '.', warn), {
+  }, '.', DEFAULT_OPTS), {
     shrinkwrapVersion: 3,
     registry: 'https://registry.npmjs.org',
     importers: {
@@ -557,7 +560,7 @@ test('the dev field should be updated to dev = false if it is not a dev dependen
     dependencies: {
       a: '^1.0.0',
     },
-  }, '.', warn), {
+  }, '.', DEFAULT_OPTS), {
     shrinkwrapVersion: 3,
     registry: 'https://registry.npmjs.org',
     importers: {
@@ -623,7 +626,7 @@ test('subdependency is both optional and dev', t => {
     devDependencies: {
       parent: '^1.0.0',
     },
-  }, '.', warn), yaml`
+  }, '.', DEFAULT_OPTS), yaml`
     importers:
       .:
         dependencies:
@@ -702,7 +705,7 @@ test('dev = true is removed if dependency is used both as dev and prod dependenc
     devDependencies: {
       inflight: '^1.0.6',
     },
-  }, '.', warn), yaml`
+  }, '.', DEFAULT_OPTS), yaml`
     importers:
       .:
         dependencies:
@@ -774,7 +777,7 @@ test('optional = true is removed if dependency is used both as optional and prod
     optionalDependencies: {
       inflight: '^1.0.6',
     },
-  }, '.', warn), yaml`
+  }, '.', DEFAULT_OPTS), yaml`
     importers:
       .:
         dependencies:
@@ -851,7 +854,7 @@ test('remove dependencies that are not in the package', t => {
   }, {
     name: 'foo',
     version: '1.0.0',
-  }, '.', warn), {
+  }, '.', DEFAULT_OPTS), {
     shrinkwrapVersion: 3,
     registry: 'https://registry.npmjs.org',
     importers: {
@@ -893,7 +896,7 @@ test('ignore dependencies that are in package.json but are not in shrinkwrap.yam
       'is-positive': '^1.0.0',
       'is-negative': '^1.0.0',
     }
-  }, '.', warn), {
+  }, '.', DEFAULT_OPTS), {
     shrinkwrapVersion: 3,
     registry: 'https://registry.npmjs.org',
     importers: {
@@ -948,7 +951,7 @@ test('keep shrinkwrapMinorVersion, if present', t => {
     dependencies: {
       'is-positive': '^1.0.0',
     }
-  }, '.', warn), {
+  }, '.', DEFAULT_OPTS), {
     shrinkwrapVersion: 3.2,
     registry: 'https://registry.npmjs.org',
     importers: {
@@ -1003,7 +1006,7 @@ test('keep linked package even if it is not in package.json', t => {
     dependencies: {
       'is-negative': '^1.0.0'
     }
-  }, '.', warn), {
+  }, '.', DEFAULT_OPTS), {
     shrinkwrapVersion: 3,
     registry: 'https://registry.npmjs.org',
     importers: {
@@ -1076,7 +1079,7 @@ test("prune: don't remove package used by another importer", t => {
     name: 'project-2',
     version: '1.0.0',
     dependencies: {'is-negative': '^1.0.0'},
-  }, 'packages/package-2', warn), {
+  }, 'packages/package-2', DEFAULT_OPTS), {
     shrinkwrapVersion: 3,
     registry: 'https://registry.npmjs.org',
     importers: {
@@ -1144,7 +1147,7 @@ test('pruneSharedShrinkwrap: remove one redundant package', t => {
         }
       }
     }
-  }, warn), {
+  }, DEFAULT_OPTS), {
     shrinkwrapVersion: 3,
     registry: 'https://registry.npmjs.org',
     importers: {

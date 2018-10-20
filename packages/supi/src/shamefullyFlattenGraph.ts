@@ -14,6 +14,7 @@ export function shamefullyFlattenGraphByShrinkwrap (
   shr: Shrinkwrap,
   importerId: string,
   opts: {
+    defaultRegistry: string,
     modulesDir: string,
     prefix: string,
     virtualStoreDir: string,
@@ -33,7 +34,7 @@ export function shamefullyFlattenGraphByShrinkwrap (
 
   const deps = getDependencies(shr.packages, entryNodes, new Set(), 0, {
     prefix: opts.prefix,
-    registry: shr.registry,
+    registry: opts.defaultRegistry,
     virtualStoreDir: opts.virtualStoreDir,
   })
 

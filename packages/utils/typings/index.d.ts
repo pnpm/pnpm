@@ -17,3 +17,8 @@ declare module 'read-package-json' {
   const anything: any;
   export = anything;
 }
+
+declare module 'normalize-registry-url' {
+  function normalizeRegistryUrl (registry: string): string
+  export = normalizeRegistryUrl;
+}

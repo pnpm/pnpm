@@ -155,7 +155,9 @@ test('a package that need authentication reuses authorization tokens for tarball
     'registry': 'http://127.0.0.1:4873',
   }
   await installPkgs(['needs-auth'], await testDefaults({
-    registry: 'http://127.0.0.1:4873',
+    registries: {
+      default: 'http://127.0.0.1:4873',
+    },
   }, {
     rawNpmConfig,
     registry: 'http://127.0.0.1:4873',
@@ -189,7 +191,9 @@ test('a package that need authentication reuses authorization tokens for tarball
     'registry': 'http://127.0.0.1:4873',
   }
   let opts = await testDefaults({
-    registry: 'http://127.0.0.1:4873',
+    registries: {
+      default: 'http://127.0.0.1:4873',
+    },
   }, {
     rawNpmConfig,
     registry: 'http://127.0.0.1:4873',
@@ -205,7 +209,9 @@ test('a package that need authentication reuses authorization tokens for tarball
 
   // Recreating options to clean store cache
   opts = await testDefaults({
-    registry: 'http://127.0.0.1:4873',
+    registries: {
+      default: 'http://127.0.0.1:4873',
+    },
   }, {
     rawNpmConfig,
     registry: 'http://127.0.0.1:4873',

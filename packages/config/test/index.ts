@@ -145,3 +145,24 @@ test('workspace manifest is searched from specified prefix', async (t) => {
   t.equal(opts.workspacePrefix, path.join(tmp, 'workspace'))
   t.end()
 })
+
+test('registries of scoped packages are read', async (t) => {
+  const opts = await getConfigs({
+    cliArgs: {
+      prefix: 'workspace',
+      userconfig: path.join(__dirname, 'scoped-registries.ini'),
+    },
+    packageManager: {
+      name: 'pnpm',
+      version: '1.0.0',
+    },
+  })
+
+  t.deepEqual(opts.registries, {
+    'default': 'https://registry.npmjs.org/',
+     '@foo': 'https://foo.com',
+     '@bar': 'https://bar.com'
+  })
+
+  t.end()
+})

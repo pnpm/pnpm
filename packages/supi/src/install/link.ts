@@ -9,7 +9,7 @@ import { prune } from '@pnpm/modules-cleaner'
 import { IncludedDependencies } from '@pnpm/modules-yaml'
 import { fromDir as readPackageFromDir } from '@pnpm/read-package-json'
 import { DependenciesTree, LinkedDependency } from '@pnpm/resolve-dependencies'
-import { PackageJson } from '@pnpm/types'
+import { PackageJson, Registries } from '@pnpm/types'
 import * as dp from 'dependency-path'
 import pLimit = require('p-limit')
 import { StoreController } from 'package-store'
@@ -61,6 +61,7 @@ export default async function linkPackages (
     currentShrinkwrap: Shrinkwrap,
     makePartialCurrentShrinkwrap: boolean,
     pruneStore: boolean,
+    registries: Registries,
     shrinkwrapDirectory: string,
     storeController: StoreController,
     skipped: Set<string>,
@@ -100,7 +101,7 @@ export default async function linkPackages (
       if (depGraph[depPath].isPure) continue
 
       const shrImporter = opts.wantedShrinkwrap.importers[importer.id]
-      const ref = dp.relative(opts.wantedShrinkwrap.registry, depPath)
+      const ref = dp.relative(opts.registries.default, depPath)
       if (shrImporter.dependencies && shrImporter.dependencies[alias]) {
         shrImporter.dependencies[alias] = ref
       } else if (shrImporter.devDependencies && shrImporter.devDependencies[alias]) {
@@ -110,13 +111,13 @@ export default async function linkPackages (
       }
     }
   }
-  let { newShrinkwrap, pendingRequiresBuilds } = updateShrinkwrap(depGraph, opts.wantedShrinkwrap, opts.virtualStoreDir) // tslint:disable-line:prefer-const
+  let { newShrinkwrap, pendingRequiresBuilds } = updateShrinkwrap(depGraph, opts.wantedShrinkwrap, opts.virtualStoreDir, opts.registries.default) // tslint:disable-line:prefer-const
   if (opts.afterAllResolvedHook) {
     newShrinkwrap = opts.afterAllResolvedHook(newShrinkwrap)
   }
 
   let depNodes = R.values(depGraph).filter((depNode) => {
-    const relDepPath = dp.relative(newShrinkwrap.registry, depNode.absolutePath)
+    const relDepPath = dp.relative(opts.registries.default, depNode.absolutePath)
     if (newShrinkwrap.packages && newShrinkwrap.packages[relDepPath] && !newShrinkwrap.packages[relDepPath].optional) {
       opts.skipped.delete(depNode.id)
       return true
@@ -133,6 +134,7 @@ export default async function linkPackages (
     depNodes = depNodes.filter((depNode) => !depNode.optional)
   }
   const filterOpts = {
+    defaultRegistry: opts.registries.default,
     include: opts.include,
     skipped: opts.skipped,
   }
@@ -142,6 +144,7 @@ export default async function linkPackages (
     newShrinkwrap: filterShrinkwrap(newShrinkwrap, filterOpts),
     oldShrinkwrap: opts.currentShrinkwrap,
     pruneStore: opts.pruneStore,
+    registries: opts.registries,
     shrinkwrapDirectory: opts.shrinkwrapDirectory,
     storeController: opts.storeController,
     virtualStoreDir: opts.virtualStoreDir,
@@ -164,6 +167,7 @@ export default async function linkPackages (
       dryRun: opts.dryRun,
       force: opts.force,
       optional: opts.include.optionalDependencies,
+      registries: opts.registries,
       shrinkwrapDirectory: opts.shrinkwrapDirectory,
       storeController: opts.storeController,
       virtualStoreDir: opts.virtualStoreDir,
@@ -243,7 +247,7 @@ export default async function linkPackages (
     const packages = opts.currentShrinkwrap.packages || {}
     if (newShrinkwrap.packages) {
       for (const relDepPath in newShrinkwrap.packages) { // tslint:disable-line:forin
-        const depPath = dp.resolve(newShrinkwrap.registry, relDepPath)
+        const depPath = dp.resolve(opts.registries.default, relDepPath)
         if (depGraph[depPath]) {
           packages[relDepPath] = newShrinkwrap.packages[relDepPath]
         }
@@ -327,6 +331,7 @@ async function linkNewPackages (
     dryRun: boolean,
     force: boolean,
     optional: boolean,
+    registries: Registries,
     shrinkwrapDirectory: string,
     storeController: StoreController,
     virtualStoreDir: string,
@@ -342,7 +347,7 @@ async function linkNewPackages (
         ? wantedRelDepPaths
         : R.difference(wantedRelDepPaths, prevRelDepPaths)
     )
-    .map((relDepPath) => dp.resolve(wantedShrinkwrap.registry, relDepPath))
+    .map((relDepPath) => dp.resolve(opts.registries.default, relDepPath))
     // when installing a new package, not all the nodes are analyzed
     // just skip the ones that are in the lockfile but were not analyzed
     .filter((depPath) => depGraph[depPath]),
@@ -360,7 +365,7 @@ async function linkNewPackages (
       if (currentShrinkwrap.packages[relDepPath] &&
         (!R.equals(currentShrinkwrap.packages[relDepPath].dependencies, wantedShrinkwrap.packages[relDepPath].dependencies) ||
         !R.equals(currentShrinkwrap.packages[relDepPath].optionalDependencies, wantedShrinkwrap.packages[relDepPath].optionalDependencies))) {
-        const depPath = dp.resolve(wantedShrinkwrap.registry, relDepPath)
+        const depPath = dp.resolve(opts.registries.default, relDepPath)
 
         // TODO: come up with a test that triggers the usecase of depGraph[depPath] undefined
         // see related issue: https://github.com/pnpm/pnpm/issues/870

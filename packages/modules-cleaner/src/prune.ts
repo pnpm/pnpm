@@ -3,7 +3,7 @@ import {
   statsLogger,
 } from '@pnpm/core-loggers'
 import logger from '@pnpm/logger'
-import { DEPENDENCIES_FIELDS } from '@pnpm/types'
+import { DEPENDENCIES_FIELDS, Registries } from '@pnpm/types'
 import * as dp from 'dependency-path'
 import vacuumCB = require('fs-vacuum')
 import { StoreController } from 'package-store'
@@ -29,6 +29,7 @@ export default async function removeOrphanPkgs (
     newShrinkwrap: Shrinkwrap,
     oldShrinkwrap: Shrinkwrap,
     pruneStore?: boolean,
+    registries: Registries,
     virtualStoreDir: string,
     shrinkwrapDirectory: string,
     storeController: StoreController,
@@ -57,8 +58,8 @@ export default async function removeOrphanPkgs (
     }))
   }))
 
-  const oldPkgIdsByDepPaths = getPkgsDepPaths(opts.oldShrinkwrap.registry, opts.oldShrinkwrap.packages || {})
-  const newPkgIdsByDepPaths = getPkgsDepPaths(opts.newShrinkwrap.registry, opts.newShrinkwrap.packages || {})
+  const oldPkgIdsByDepPaths = getPkgsDepPaths(opts.registries.default, opts.oldShrinkwrap.packages || {})
+  const newPkgIdsByDepPaths = getPkgsDepPaths(opts.registries.default, opts.newShrinkwrap.packages || {})
 
   const oldDepPaths = Object.keys(oldPkgIdsByDepPaths)
   const newDepPaths = Object.keys(newPkgIdsByDepPaths)

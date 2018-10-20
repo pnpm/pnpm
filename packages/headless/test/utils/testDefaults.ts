@@ -56,7 +56,9 @@ export default async function testDefaults (
     verifyStoreIntegrity: true,
     sideEffectsCache: true,
     force: false,
-    registry,
+    registries: {
+      default: registry,
+    },
     store,
     storeController,
     rawNpmConfig: {},

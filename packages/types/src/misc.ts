@@ -6,3 +6,8 @@ export const DEPENDENCIES_FIELDS: DependenciesField[] = [
   'dependencies',
   'devDependencies',
 ]
+
+export interface Registries {
+  default: string,
+  [scope: string]: string,
+}

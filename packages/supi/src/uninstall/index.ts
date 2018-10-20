@@ -68,7 +68,10 @@ export async function uninstallInContext (
   const pkgJsonPath = path.join(ctx.prefix, 'package.json')
   const saveType = getSaveType(opts)
   const pkg = await removeDeps(pkgJsonPath, pkgsToUninstall, { prefix: opts.prefix, saveType })
-  const newShr = pruneShrinkwrap(ctx.wantedShrinkwrap, pkg, ctx.importerId, (message) => logger.warn({ message, prefix: ctx.prefix }))
+  const newShr = pruneShrinkwrap(ctx.wantedShrinkwrap, pkg, ctx.importerId, {
+    defaultRegistry: ctx.registries.default,
+    warn: (message) => logger.warn({ message, prefix: ctx.prefix }),
+  })
   const removedPkgIds = await prune({
     importers: [
       {
@@ -82,14 +85,15 @@ export async function uninstallInContext (
     ],
     newShrinkwrap: newShr,
     oldShrinkwrap: ctx.currentShrinkwrap,
+    registries: ctx.registries,
     shrinkwrapDirectory: opts.shrinkwrapDirectory,
     storeController: opts.storeController,
     virtualStoreDir: ctx.virtualStoreDir,
   })
-  ctx.pendingBuilds = ctx.pendingBuilds.filter((pkgId) => !removedPkgIds.has(dp.resolve(newShr.registry, pkgId)))
+  ctx.pendingBuilds = ctx.pendingBuilds.filter((pkgId) => !removedPkgIds.has(dp.resolve(ctx.registries.default, pkgId)))
   await opts.storeController.close()
   const currentShrinkwrap = makePartialCurrentShrinkwrap
-    ? pruneShrinkwrap(ctx.currentShrinkwrap, pkg, ctx.importerId)
+    ? pruneShrinkwrap(ctx.currentShrinkwrap, pkg, ctx.importerId, { defaultRegistry: ctx.registries.default })
     : newShr
   if (opts.shrinkwrap) {
     await saveShrinkwrap(ctx.shrinkwrapDirectory, newShr, currentShrinkwrap)
@@ -104,6 +108,7 @@ export async function uninstallInContext (
 
   if (opts.shamefullyFlatten) {
     ctx.hoistedAliases = await shamefullyFlattenGraphByShrinkwrap(currentShrinkwrap, ctx.importerId, {
+      defaultRegistry: ctx.registries.default,
       modulesDir: ctx.modulesDir,
       prefix: opts.prefix,
       virtualStoreDir: ctx.virtualStoreDir,
@@ -123,6 +128,7 @@ export async function uninstallInContext (
     layoutVersion: LAYOUT_VERSION,
     packageManager: `${opts.packageManager.name}@${opts.packageManager.version}`,
     pendingBuilds: ctx.pendingBuilds,
+    registries: ctx.registries,
     skipped: Array.from(ctx.skipped).filter((pkgId) => !removedPkgIds.has(pkgId)),
     store: ctx.storePath,
   })

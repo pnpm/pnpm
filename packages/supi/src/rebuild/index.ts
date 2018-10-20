@@ -145,6 +145,7 @@ export async function rebuild (maybeOpts: RebuildOptions) {
     layoutVersion: LAYOUT_VERSION,
     packageManager: `${opts.packageManager.name}@${opts.packageManager.version}`,
     pendingBuilds: ctx.pendingBuilds,
+    registries: ctx.registries,
     skipped: Array.from(ctx.skipped),
     store: ctx.storePath,
   })
@@ -269,7 +270,7 @@ async function _rebuild (
       .map((relDepPath) => {
         const pkgSnapshot = pkgSnapshots[relDepPath]
         return limitChild(async () => {
-          const depAbsolutePath = dp.resolve(shr.registry, relDepPath)
+          const depAbsolutePath = dp.resolve(opts.registries.default, relDepPath)
           const pkgInfo = nameVerFromPkgSnapshot(relDepPath, pkgSnapshot)
           try {
             await runPostinstallHooks({

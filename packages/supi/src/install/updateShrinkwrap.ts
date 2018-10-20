@@ -19,6 +19,7 @@ export default function (
   depGraph: DependenciesGraph,
   shrinkwrap: Shrinkwrap,
   prefix: string,
+  defaultRegistry: string,
 ): {
   newShrinkwrap: Shrinkwrap,
   pendingRequiresBuilds: PendingRequiresBuild[],
@@ -26,7 +27,7 @@ export default function (
   shrinkwrap.packages = shrinkwrap.packages || {}
   const pendingRequiresBuilds = [] as PendingRequiresBuild[]
   for (const depPath of R.keys(depGraph)) {
-    const relDepPath = dp.relative(shrinkwrap.registry, depPath)
+    const relDepPath = dp.relative(defaultRegistry, depPath)
     const result = R.partition(
       (child) => depGraph[depPath].optionalDependencies.has(depGraph[child.depPath].name),
       R.keys(depGraph[depPath].children).map((alias) => ({ alias, depPath: depGraph[depPath].children[alias] })),
@@ -35,7 +36,7 @@ export default function (
       depGraph,
       depPath,
       prevSnapshot: shrinkwrap.packages[relDepPath],
-      registry: shrinkwrap.registry,
+      registry: defaultRegistry,
       relDepPath,
       updatedDeps: result[1],
       updatedOptionalDeps: result[0],
@@ -43,7 +44,7 @@ export default function (
   }
   const warn = (message: string) => logger.warn({ message, prefix })
   return {
-    newShrinkwrap: pruneSharedShrinkwrap(shrinkwrap, warn),
+    newShrinkwrap: pruneSharedShrinkwrap(shrinkwrap, { defaultRegistry, warn }),
     pendingRequiresBuilds,
   }
 }

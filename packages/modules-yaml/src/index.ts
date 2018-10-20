@@ -1,4 +1,4 @@
-import { DependenciesField } from '@pnpm/types'
+import { DependenciesField, Registries } from '@pnpm/types'
 import loadYamlFile = require('load-yaml-file')
 import path = require('path')
 import writeYamlFile = require('write-yaml-file')
@@ -23,6 +23,7 @@ export interface Modules {
   layoutVersion: number,
   packageManager: string,
   pendingBuilds: string[],
+  registries?: Registries, // nullable for backward compatibility
   skipped: string[],
   store: string,
 }
@@ -61,7 +62,7 @@ const YAML_OPTS = { sortKeys: true }
 
 export function write (
   virtualStoreDir: string,
-  modules: Modules,
+  modules: Modules & { registries: Registries },
 ) {
   const modulesYamlPath = path.join(virtualStoreDir, MODULES_FILENAME)
   if (modules['skipped']) modules['skipped'].sort() // tslint:disable-line:no-string-literal

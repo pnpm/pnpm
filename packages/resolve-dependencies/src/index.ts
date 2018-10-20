@@ -1,5 +1,9 @@
 import { LocalPackages, Resolution } from '@pnpm/resolver-base'
-import { PackageJson, ReadPackageHook } from '@pnpm/types'
+import {
+  PackageJson,
+  ReadPackageHook,
+  Registries,
+} from '@pnpm/types'
 import { createNodeId, nodeIdContainsSequence, ROOT_NODE_ID, WantedDependency } from '@pnpm/utils'
 import { StoreController } from 'package-store'
 import { Shrinkwrap } from 'pnpm-shrinkwrap'
@@ -37,7 +41,7 @@ export default async function (
       readPackage?: ReadPackageHook,
     },
     nodeVersion: string,
-    rawNpmConfig: object,
+    registries: Registries,
     pnpmVersion: string,
     sideEffectsCache: boolean,
     preferredVersions?: {
@@ -73,8 +77,7 @@ export default async function (
     outdatedDependencies: {} as {[pkgId: string]: string},
     pendingNodes: [] as PendingNode[],
     pnpmVersion: opts.pnpmVersion,
-    rawNpmConfig: opts.rawNpmConfig,
-    registry: opts.wantedShrinkwrap.registry,
+    registries: opts.registries,
     resolvedPackagesByPackageId: {} as ResolvedPackagesByPackageId,
     skipped: opts.skipped,
     storeController: opts.storeController,

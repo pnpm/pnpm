@@ -483,11 +483,10 @@ test('package is not marked optional if it is also a subdep of a regular depende
 
 test('scoped module from different registry', async (t: tape.Test) => {
   const project = prepare(t)
-  await installPkgs(['@zkochan/foo', 'is-positive'], await testDefaults({
-    rawNpmConfig: {
-      '@zkochan:registry': 'https://registry.npmjs.org/',
-    },
-  }))
+
+  const opts = await testDefaults()
+  opts.registries!['@zkochan'] = 'https://registry.npmjs.org/' // tslint:disable-line
+  await installPkgs(['@zkochan/foo', 'is-positive'], opts)
 
   const m = project.requireModule('@zkochan/foo')
   t.ok(m, 'foo is available')
@@ -875,7 +874,10 @@ test('when package registry differs from default one, save it to resolution fiel
       '@zkochan:registry': 'https://registry.node-modules.io/',
       'registry': 'https://registry.npmjs.org/',
     },
-    registry: 'https://registry.npmjs.org/',
+    registries: {
+      '@zkochan': 'https://registry.node-modules.io/',
+      'default': 'https://registry.npmjs.org/',
+    },
   }))
 
   const shr = await project.loadShrinkwrap()
@@ -954,7 +956,7 @@ test('shrinkwrap file has correct format when shrinkwrap directory does not equa
 
     t.equal(shr.shrinkwrapVersion, 4, 'correct shrinkwrap version')
 
-    t.ok(shr.registry, 'has registry field')
+    t.notOk(shr.registry, 'has no registry field')
 
     t.ok(shr.importers)
     t.ok(shr.importers.project)
@@ -1063,7 +1065,6 @@ test('doing named installation when shared shrinkwrap.yaml exists already', asyn
         },
       },
     },
-    registry: 'http://localhost:4873',
     shrinkwrapVersion: 4,
   })
 

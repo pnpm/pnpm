@@ -55,11 +55,11 @@ test('filter: only prod dependencies of one importer', (t) => {
           resolution: { integrity: '' },
         },
       },
-      registry: 'https://registry.npmjs.org/',
-      shrinkwrapVersion: 3,
+      shrinkwrapVersion: 4,
     },
     ['project-1'],
     {
+      defaultRegistry: 'https://registry.npmjs.org/',
       include: {
         dependencies: true,
         devDependencies: false,
@@ -107,8 +107,7 @@ test('filter: only prod dependencies of one importer', (t) => {
         resolution: { integrity: '' },
       },
     },
-    registry: 'https://registry.npmjs.org/',
-    shrinkwrapVersion: 3,
+    shrinkwrapVersion: 4,
   })
   t.end()
 })
@@ -142,11 +141,11 @@ test('filter: fail on missing packages when failOnMissingDependencies is true', 
             },
           },
         },
-        registry: 'https://registry.npmjs.org/',
-        shrinkwrapVersion: 3,
+        shrinkwrapVersion: 4,
       },
       ['project-1'],
       {
+        defaultRegistry: 'https://registry.npmjs.org/',
         failOnMissingDependencies: true,
         include: {
           dependencies: true,
@@ -190,11 +189,11 @@ test('filter: do not fail on missing packages when failOnMissingDependencies is 
           },
         },
       },
-      registry: 'https://registry.npmjs.org/',
-      shrinkwrapVersion: 3,
+      shrinkwrapVersion: 4,
     },
     ['project-1'],
     {
+      defaultRegistry: 'https://registry.npmjs.org/',
       failOnMissingDependencies: false,
       include: {
         dependencies: true,
@@ -229,8 +228,7 @@ test('filter: do not fail on missing packages when failOnMissingDependencies is 
         resolution: { integrity: '' },
       },
     },
-    registry: 'https://registry.npmjs.org/',
-    shrinkwrapVersion: 3,
+    shrinkwrapVersion: 4,
   })
 
   t.end()

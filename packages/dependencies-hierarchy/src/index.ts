@@ -1,3 +1,6 @@
+import { read as readModulesYaml } from '@pnpm/modules-yaml'
+import { Registries } from '@pnpm/types'
+import { normalizeRegistries } from '@pnpm/utils'
 import assert = require('assert')
 import { refToAbsolute, refToRelative } from 'dependency-path'
 import {
@@ -28,6 +31,7 @@ export function forPackages (
   projectPath: string,
   opts?: {
     depth: number,
+    registries?: Registries,
     only?: 'dev' | 'prod',
   },
 ) {
@@ -41,6 +45,7 @@ export default function (
   projectPath: string,
   opts?: {
     depth: number,
+    registries?: Registries,
     only?: 'dev' | 'prod',
   },
 ) {
@@ -52,9 +57,15 @@ async function dependenciesHierarchy (
   searched: PackageSelector[],
   maybeOpts?: {
     depth: number,
+    registries?: Registries,
     only?: 'dev' | 'prod',
   },
 ): Promise<PackageNode[]> {
+  const modules = await readModulesYaml(projectPath)
+  const registries = normalizeRegistries({
+    ...maybeOpts && maybeOpts.registries,
+    ...modules && modules.registries,
+  })
   const shrinkwrap = await readCurrent(projectPath, { ignoreIncompatible: false })
 
   if (!shrinkwrap) return []
@@ -77,7 +88,7 @@ async function dependenciesHierarchy (
   }, shrinkwrap.packages)
   const result: PackageNode[] = []
   Object.keys(topDeps).forEach((depName) => {
-    const pkgPath = refToAbsolute(topDeps[depName], depName, shrinkwrap.registry)
+    const pkgPath = refToAbsolute(topDeps[depName], depName, registries.default)
     const pkg = {
       name: depName,
       path: pkgPath || topDeps[depName],
