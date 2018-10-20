@@ -1,0 +1,44 @@
+{
+  "name": "@pnpm/types",
+  "version": "1.8.0",
+  "description": "Basic types used by pnpm",
+  "main": "lib/index.js",
+  "typings": "lib/index.d.ts",
+  "engines": {
+    "node": ">=6"
+  },
+  "files": [
+    "lib"
+  ],
+  "scripts": {
+    "test": "npm run tsc && mos test && tslint -c tslint.json -p .",
+    "tsc": "rimraf lib && tsc",
+    "prepublishOnly": "npm run tsc"
+  },
+  "repository": "https://github.com/pnpm/pnpm/blob/master/packages/types",
+  "keywords": [
+    "pnpm",
+    "types"
+  ],
+  "author": "Zoltan Kochan <z@kochan.io> (https://www.kochan.io/)",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/pnpm/pnpm/issues"
+  },
+  "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/types#readme",
+  "devDependencies": {
+    "mos": "^2.0.0-alpha.3",
+    "mos-plugin-readme": "^1.0.4",
+    "rimraf": "^2.6.2",
+    "tslint": "^5.8.0",
+    "typescript": "^3.0.3"
+  },
+  "mos": {
+    "plugins": [
+      "readme"
+    ],
+    "installation": {
+      "useShortAlias": true
+    }
+  }
+}

@@ -49,7 +49,7 @@ importers:
       which: 1.3.1
   packages/core-loggers:
     dependencies:
-      '@pnpm/types': 1.8.0
+      '@pnpm/types': 'link:../types'
     devDependencies:
       '@pnpm/logger': 2.1.0
       rimraf: 2.6.2
@@ -102,7 +102,7 @@ importers:
   packages/default-reporter:
     dependencies:
       '@pnpm/config': 'link:../config'
-      '@pnpm/types': 1.8.0
+      '@pnpm/types': 'link:../types'
       '@types/common-tags': 1.4.0
       '@types/node': 10.12.0
       '@types/ramda': 0.25.34
@@ -261,7 +261,7 @@ importers:
       '@pnpm/package-requester': 'link:../package-requester'
       '@pnpm/pkgid-to-filename': 2.0.0
       '@pnpm/read-package-json': 1.0.0
-      '@pnpm/types': 1.8.0
+      '@pnpm/types': 'link:../types'
       '@pnpm/utils': 'link:../utils'
       '@types/ramda': 0.25.34
       dependency-path: 2.0.0
@@ -411,7 +411,7 @@ importers:
     dependencies:
       '@pnpm/core-loggers': 'link:../core-loggers'
       '@pnpm/package-bins': 1.0.0
-      '@pnpm/types': 1.8.0
+      '@pnpm/types': 'link:../types'
       '@pnpm/utils': 'link:../utils'
       '@types/node': 10.12.0
       '@types/ramda': 0.25.38
@@ -453,7 +453,7 @@ importers:
       util.promisify: 1.0.0
   packages/modules-yaml:
     dependencies:
-      '@pnpm/types': 1.8.0
+      '@pnpm/types': 'link:../types'
       load-yaml-file: 0.1.0
       write-yaml-file: 1.0.1
     devDependencies:
@@ -492,7 +492,7 @@ importers:
       '@pnpm/npm-resolver': /@pnpm/npm-resolver/2.2.5/@pnpm!logger@2.1.0
       '@pnpm/read-package-json': 1.0.0
       '@pnpm/store-path': 1.0.3
-      '@pnpm/types': 1.8.0
+      '@pnpm/types': 'link:../types'
       '@types/node': 10.12.0
       dependency-path: 2.0.0
       pnpm-shrinkwrap: 'link:../shrinkwrap'
@@ -533,7 +533,7 @@ importers:
       '@pnpm/fetcher-base': 1.0.0
       '@pnpm/pkgid-to-filename': 2.0.0
       '@pnpm/resolver-base': 1.2.0
-      '@pnpm/types': 1.8.0
+      '@pnpm/types': 'link:../types'
       '@types/mz': 0.0.32
       '@types/node': 10.12.0
       '@types/p-queue': 2.3.1
@@ -627,7 +627,7 @@ importers:
       '@pnpm/fs-locker': 1.0.2
       '@pnpm/package-requester': 'link:../package-requester'
       '@pnpm/resolver-base': 1.2.0
-      '@pnpm/types': 1.8.0
+      '@pnpm/types': 'link:../types'
       '@types/mz': 0.0.32
       '@types/node': 10.12.0
       '@types/ramda': 0.25.39
@@ -710,7 +710,7 @@ importers:
       '@pnpm/outdated': 'link:../outdated'
       '@pnpm/server': 'link:../server'
       '@pnpm/store-path': 1.0.3
-      '@pnpm/types': 1.8.0
+      '@pnpm/types': 'link:../types'
       '@pnpm/utils': 'link:../utils'
       '@types/camelcase-keys': 4.0.0
       '@types/get-port': 4.0.0
@@ -919,7 +919,7 @@ importers:
       '@pnpm/npm-resolver': /@pnpm/npm-resolver/2.2.5/@pnpm!logger@2.1.0
       '@pnpm/package-requester': 'link:../package-requester'
       '@pnpm/resolver-base': 1.2.0
-      '@pnpm/types': 1.8.0
+      '@pnpm/types': 'link:../types'
       '@pnpm/utils': 'link:../utils'
       '@types/node': 10.12.0
       '@types/ramda': 0.25.38
@@ -971,7 +971,7 @@ importers:
     dependencies:
       '@pnpm/package-requester': 'link:../package-requester'
       '@pnpm/resolver-base': 1.2.0
-      '@pnpm/types': 1.8.0
+      '@pnpm/types': 'link:../types'
       '@types/got': 8.3.4
       '@types/node': 10.12.0
       '@types/p-limit': 2.0.0
@@ -1032,7 +1032,7 @@ importers:
   packages/shrinkwrap:
     dependencies:
       '@pnpm/resolver-base': 1.2.0
-      '@pnpm/types': 1.8.0
+      '@pnpm/types': 'link:../types'
       '@types/js-yaml': 3.11.2
       '@types/node': 10.12.0
       '@types/ramda': 0.25.39
@@ -1106,7 +1106,7 @@ importers:
       '@pnpm/read-package-json': 1.0.0
       '@pnpm/resolve-dependencies': 'link:../resolve-dependencies'
       '@pnpm/resolver-base': 1.2.0
-      '@pnpm/types': 1.8.0
+      '@pnpm/types': 'link:../types'
       '@pnpm/utils': 'link:../utils'
       '@types/byline': 4.2.31
       '@types/common-tags': 1.4.0
@@ -1289,10 +1289,23 @@ importers:
       write-json-file: ^3.0.0
       write-pkg: 3.2.0
       write-yaml-file: ^1.0.1
+  packages/types:
+    devDependencies:
+      mos: 2.0.0-alpha.3
+      mos-plugin-readme: 1.0.4
+      rimraf: 2.6.2
+      tslint: /tslint/5.11.0/typescript@3.1.3
+      typescript: 3.1.3
+    specifiers:
+      mos: ^2.0.0-alpha.3
+      mos-plugin-readme: ^1.0.4
+      rimraf: ^2.6.2
+      tslint: ^5.8.0
+      typescript: ^3.0.3
   packages/utils:
     dependencies:
       '@pnpm/read-package-json': 1.0.0
-      '@pnpm/types': 1.8.0
+      '@pnpm/types': 'link:../types'
       '@types/mz': 0.0.32
       '@types/node': 10.12.0
       mz: 2.7.0
