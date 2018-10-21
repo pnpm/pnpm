@@ -1,4 +1,5 @@
 dependencies:
+  '@pnpm/lifecycle': 'link:../__package_previews__/lifecycle/@pnpm/lifecycle'
   '@pnpm/read-package-json': 1.0.0
   '@pnpm/types': 2.0.0
   '@zkochan/npm-lifecycle': 2.1.1
@@ -6,7 +7,7 @@ dependencies:
 devDependencies:
   '@pnpm/logger': 2.1.0
   '@types/load-json-file': 2.0.7
-  '@types/node': 10.10.1
+  '@types/node': 10.12.0
   '@types/rimraf': 2.0.2
   '@types/tape': 4.2.32
   json-append: 1.1.1
@@ -18,7 +19,7 @@ devDependencies:
   tape: 4.9.1
   ts-node: 7.0.1
   tslint: 5.11.0
-  typescript: 3.0.3
+  typescript: 3.1.3
 packages:
   /@pnpm/exec/1.1.5:
     dependencies:
@@ -111,6 +112,10 @@ packages:
     dev: true
     resolution:
       integrity: sha512-nzsx28VwfaIykfzMAG9TB3jxF5Nn+1/WMKnmVZc8TsB+LMIVvwUscVn7PAq+LFaY5ng5u4jp5mRROSswo76PPA==
+  /@types/node/10.12.0:
+    dev: true
+    resolution:
+      integrity: sha512-3TUHC3jsBAB7qVRGxT6lWyYo2v96BMmD2PTcl47H25Lu7UXtFH/2qqmKiVrnel6Ne//0TFYf6uvNX+HW2FRkLQ==
   /@types/rimraf/2.0.2:
     dependencies:
       '@types/glob': 7.1.1
@@ -3396,13 +3401,13 @@ packages:
     dev: true
     resolution:
       integrity: sha1-hnrHTjhkGHsdPUfZlqeOxciDB3c=
-  /typescript/3.0.3:
+  /typescript/3.1.3:
     dev: true
     engines:
       node: '>=4.2.0'
     hasBin: true
     resolution:
-      integrity: sha512-kk80vLW9iGtjMnIv11qyxLqZm20UklzuR2tL0QAnDIygIUIemcZMxlMWudl9OOt76H3ntVzcTiddQ1/pAAJMYg==
+      integrity: sha512-+81MUSyX+BaSo+u2RbozuQk/UWx6hfG0a5gHu4ANEM4sU96XbuIyAB+rWBW1u70c6a5QuZfuYICn3s2UjuHUpA==
   /uid-number/0.0.6:
     dev: false
     resolution:
@@ -3631,7 +3636,7 @@ specifiers:
   '@pnpm/read-package-json': ^1.0.0
   '@pnpm/types': ^2.0.0
   '@types/load-json-file': 2.0.7
-  '@types/node': 10.10.1
+  '@types/node': ^10.12.0
   '@types/rimraf': 2.0.2
   '@types/tape': 4.2.32
   '@zkochan/npm-lifecycle': 2.1.1
@@ -3645,4 +3650,4 @@ specifiers:
   tape: 4.9.1
   ts-node: 7.0.1
   tslint: 5.11.0
-  typescript: 3.0.3
+  typescript: ^3.1.3
