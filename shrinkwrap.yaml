@@ -70,8 +70,8 @@ importers:
   packages/default-fetcher:
     dependencies:
       '@pnpm/git-fetcher': 1.0.1
-      '@pnpm/resolver-base': 1.2.0
-      '@pnpm/tarball-fetcher': /@pnpm/tarball-fetcher/2.0.3/@pnpm!logger@2.1.0
+      '@pnpm/resolver-base': 2.0.0
+      '@pnpm/tarball-fetcher': /@pnpm/tarball-fetcher/2.0.4/@pnpm!logger@2.1.0
     devDependencies:
       '@pnpm/default-fetcher': 'link:'
       '@pnpm/logger': 2.1.0
@@ -89,8 +89,8 @@ importers:
       '@pnpm/default-fetcher': 'link:.'
       '@pnpm/git-fetcher': 1.0.1
       '@pnpm/logger': ^2.0.0
-      '@pnpm/resolver-base': 1.2.0
-      '@pnpm/tarball-fetcher': 2.0.3
+      '@pnpm/resolver-base': 2.0.0
+      '@pnpm/tarball-fetcher': 2.0.4
       '@types/tape': ^4.2.31
       mos: ^2.0.0-alpha.3
       mos-plugin-readme: ^1.0.4
@@ -183,10 +183,10 @@ importers:
       zen-push: 0.2.1
   packages/default-resolver:
     dependencies:
-      '@pnpm/git-resolver': 1.0.0
-      '@pnpm/local-resolver': 1.0.1
-      '@pnpm/npm-resolver': /@pnpm/npm-resolver/2.2.5/@pnpm!logger@2.1.0
-      '@pnpm/tarball-resolver': 1.0.0
+      '@pnpm/git-resolver': 1.0.1
+      '@pnpm/local-resolver': 1.0.2
+      '@pnpm/npm-resolver': /@pnpm/npm-resolver/2.2.6/@pnpm!logger@2.1.0
+      '@pnpm/tarball-resolver': 1.0.1
     devDependencies:
       '@pnpm/default-resolver': 'link:'
       '@pnpm/logger': 2.1.0
@@ -202,11 +202,11 @@ importers:
       typescript: 3.1.3
     specifiers:
       '@pnpm/default-resolver': 'link:.'
-      '@pnpm/git-resolver': 1.0.0
-      '@pnpm/local-resolver': 1.0.1
+      '@pnpm/git-resolver': 1.0.1
+      '@pnpm/local-resolver': 1.0.2
       '@pnpm/logger': ^2.0.0
-      '@pnpm/npm-resolver': 2.2.5
-      '@pnpm/tarball-resolver': 1.0.0
+      '@pnpm/npm-resolver': 2.2.6
+      '@pnpm/tarball-resolver': 1.0.1
       '@types/tape': ^4.2.31
       mos: ^2.0.0-alpha.3
       mos-plugin-readme: ^1.0.4
@@ -262,13 +262,13 @@ importers:
   packages/headless:
     dependencies:
       '@pnpm/core-loggers': 'link:../core-loggers'
-      '@pnpm/lifecycle': /@pnpm/lifecycle/3.0.1/@pnpm!logger@2.1.0
-      '@pnpm/link-bins': 3.0.0
+      '@pnpm/lifecycle': /@pnpm/lifecycle/3.0.2/@pnpm!logger@2.1.0
+      '@pnpm/link-bins': 3.0.1
       '@pnpm/modules-cleaner': 'link:../modules-cleaner'
       '@pnpm/modules-yaml': 'link:../modules-yaml'
       '@pnpm/package-requester': 'link:../package-requester'
       '@pnpm/pkgid-to-filename': 2.0.0
-      '@pnpm/read-package-json': 1.0.0
+      '@pnpm/read-package-json': 1.0.1
       '@pnpm/types': 'link:../types'
       '@pnpm/utils': 'link:../utils'
       '@types/ramda': 0.25.34
@@ -318,14 +318,14 @@ importers:
       '@pnpm/default-fetcher': ^2.0.0
       '@pnpm/default-resolver': ^2.0.0
       '@pnpm/headless': 'link:.'
-      '@pnpm/lifecycle': 3.0.1
-      '@pnpm/link-bins': 3.0.0
+      '@pnpm/lifecycle': 3.0.2
+      '@pnpm/link-bins': 3.0.1
       '@pnpm/logger': ^2.1.0
       '@pnpm/modules-cleaner': 1.0.0-2
       '@pnpm/modules-yaml': 2.0.0-0
       '@pnpm/package-requester': 4.1.4
       '@pnpm/pkgid-to-filename': 2.0.0
-      '@pnpm/read-package-json': 1.0.0
+      '@pnpm/read-package-json': 1.0.1
       '@pnpm/store-path': ^1.0.3
       '@pnpm/types': 2.0.0
       '@pnpm/utils': 0.9.0-0
@@ -420,7 +420,7 @@ importers:
   packages/modules-cleaner:
     dependencies:
       '@pnpm/core-loggers': 'link:../core-loggers'
-      '@pnpm/package-bins': 1.0.0
+      '@pnpm/package-bins': 2.0.0
       '@pnpm/types': 'link:../types'
       '@pnpm/utils': 'link:../utils'
       '@types/node': 10.12.0
@@ -444,7 +444,7 @@ importers:
       '@pnpm/core-loggers': 0.0.0
       '@pnpm/logger': 2.1.0
       '@pnpm/modules-cleaner': 'link:.'
-      '@pnpm/package-bins': 1.0.0
+      '@pnpm/package-bins': 2.0.0
       '@pnpm/types': 2.0.0
       '@pnpm/utils': 0.9.0-0
       '@types/node': 10.12.0
@@ -499,8 +499,8 @@ importers:
       write-yaml-file: ^1.0.1
   packages/outdated:
     dependencies:
-      '@pnpm/npm-resolver': /@pnpm/npm-resolver/2.2.5/@pnpm!logger@2.1.0
-      '@pnpm/read-package-json': 1.0.0
+      '@pnpm/npm-resolver': /@pnpm/npm-resolver/2.2.6/@pnpm!logger@2.1.0
+      '@pnpm/read-package-json': 1.0.1
       '@pnpm/store-path': 1.0.3
       '@pnpm/types': 'link:../types'
       '@pnpm/utils': 'link:../utils'
@@ -521,9 +521,9 @@ importers:
       typescript: 3.1.3
     specifiers:
       '@pnpm/logger': ^2.0.1
-      '@pnpm/npm-resolver': 2.2.5
+      '@pnpm/npm-resolver': 2.2.6
       '@pnpm/outdated': 'link:.'
-      '@pnpm/read-package-json': 1.0.0
+      '@pnpm/read-package-json': 1.0.1
       '@pnpm/store-path': 1.0.3
       '@pnpm/types': 2.0.0
       '@pnpm/utils': 0.9.0-0
@@ -542,9 +542,9 @@ importers:
   packages/package-requester:
     dependencies:
       '@pnpm/check-package': 2.0.0
-      '@pnpm/fetcher-base': 1.0.0
+      '@pnpm/fetcher-base': 2.0.0
       '@pnpm/pkgid-to-filename': 2.0.0
-      '@pnpm/resolver-base': 1.2.0
+      '@pnpm/resolver-base': 2.0.0
       '@pnpm/types': 'link:../types'
       '@types/mz': 0.0.32
       '@types/node': 10.12.0
@@ -562,11 +562,11 @@ importers:
       util.promisify: 1.0.0
       write-json-file: 3.0.2
     devDependencies:
-      '@pnpm/local-resolver': 1.0.1
+      '@pnpm/local-resolver': 1.0.2
       '@pnpm/logger': 2.1.0
-      '@pnpm/npm-resolver': /@pnpm/npm-resolver/2.2.5/@pnpm!logger@2.1.0
+      '@pnpm/npm-resolver': /@pnpm/npm-resolver/2.2.6/@pnpm!logger@2.1.0
       '@pnpm/package-requester': 'link:'
-      '@pnpm/tarball-fetcher': /@pnpm/tarball-fetcher/2.0.3/@pnpm!logger@2.1.0
+      '@pnpm/tarball-fetcher': /@pnpm/tarball-fetcher/2.0.4/@pnpm!logger@2.1.0
       '@types/ncp': 2.0.1
       '@types/nock': 9.3.0
       '@types/sinon': 5.0.5
@@ -589,14 +589,14 @@ importers:
       typescript: 3.1.3
     specifiers:
       '@pnpm/check-package': 2.0.0
-      '@pnpm/fetcher-base': 1.0.0
-      '@pnpm/local-resolver': 1.0.1
+      '@pnpm/fetcher-base': 2.0.0
+      '@pnpm/local-resolver': 1.0.2
       '@pnpm/logger': ^2.1.0
-      '@pnpm/npm-resolver': ^2.2.4
+      '@pnpm/npm-resolver': 2.2.6
       '@pnpm/package-requester': 'link:.'
       '@pnpm/pkgid-to-filename': 2.0.0
-      '@pnpm/resolver-base': 1.2.0
-      '@pnpm/tarball-fetcher': 2.0.3
+      '@pnpm/resolver-base': 2.0.0
+      '@pnpm/tarball-fetcher': 2.0.4
       '@pnpm/types': 2.0.0
       '@types/mz': ^0.0.32
       '@types/ncp': 2.0.1
@@ -635,10 +635,10 @@ importers:
       write-json-file: 3.0.2
   packages/package-store:
     dependencies:
-      '@pnpm/fetcher-base': 1.0.0
+      '@pnpm/fetcher-base': 2.0.0
       '@pnpm/fs-locker': 1.0.2
       '@pnpm/package-requester': 'link:../package-requester'
-      '@pnpm/resolver-base': 1.2.0
+      '@pnpm/resolver-base': 2.0.0
       '@pnpm/types': 'link:../types'
       '@types/mz': 0.0.32
       '@types/node': 10.12.0
@@ -659,8 +659,8 @@ importers:
       write-json-file: 3.0.2
     devDependencies:
       '@pnpm/logger': 2.1.0
-      '@pnpm/npm-resolver': /@pnpm/npm-resolver/2.2.5/@pnpm!logger@2.1.0
-      '@pnpm/tarball-fetcher': /@pnpm/tarball-fetcher/2.0.3/@pnpm!logger@2.1.0
+      '@pnpm/npm-resolver': /@pnpm/npm-resolver/2.2.6/@pnpm!logger@2.1.0
+      '@pnpm/tarball-fetcher': /@pnpm/tarball-fetcher/2.0.4/@pnpm!logger@2.1.0
       '@types/tape': 4.2.32
       '@types/tempy': 0.2.0
       npm-scripts-info: 0.3.9
@@ -674,13 +674,13 @@ importers:
       tslint-eslint-rules: /tslint-eslint-rules/5.4.0/tslint@5.11.0+typescript@3.1.3
       typescript: 3.1.3
     specifiers:
-      '@pnpm/fetcher-base': 1.0.0
+      '@pnpm/fetcher-base': 2.0.0
       '@pnpm/fs-locker': 1.0.2
       '@pnpm/logger': ^2.1.0
-      '@pnpm/npm-resolver': ^2.2.4
+      '@pnpm/npm-resolver': 2.2.6
       '@pnpm/package-requester': 4.1.4
-      '@pnpm/resolver-base': 1.2.0
-      '@pnpm/tarball-fetcher': 2.0.3
+      '@pnpm/resolver-base': 2.0.0
+      '@pnpm/tarball-fetcher': 2.0.4
       '@pnpm/types': 2.0.0
       '@types/mz': ^0.0.32
       '@types/node': 10.12.0
@@ -717,7 +717,7 @@ importers:
       '@pnpm/core-loggers': 'link:../core-loggers'
       '@pnpm/default-fetcher': 'link:../default-fetcher'
       '@pnpm/default-resolver': 'link:../default-resolver'
-      '@pnpm/lifecycle': /@pnpm/lifecycle/3.0.1/@pnpm!logger@2.1.0
+      '@pnpm/lifecycle': /@pnpm/lifecycle/3.0.2/@pnpm!logger@2.1.0
       '@pnpm/logger': 2.1.0
       '@pnpm/outdated': 'link:../outdated'
       '@pnpm/server': 'link:../server'
@@ -776,7 +776,7 @@ importers:
       '@pnpm/assert-project': 'link:../../privatePackages/assert-project'
       '@pnpm/modules-yaml': 'link:../modules-yaml'
       '@pnpm/prepare': 'link:../../privatePackages/prepare'
-      '@pnpm/read-package-json': 1.0.0
+      '@pnpm/read-package-json': 1.0.1
       '@types/byline': 4.2.31
       '@types/common-tags': 1.4.0
       '@types/load-json-file': 2.0.7
@@ -825,12 +825,12 @@ importers:
       '@pnpm/core-loggers': 0.0.0
       '@pnpm/default-fetcher': 2.0.2
       '@pnpm/default-resolver': 2.0.4
-      '@pnpm/lifecycle': 3.0.1
+      '@pnpm/lifecycle': 3.0.2
       '@pnpm/logger': 2.1.0
       '@pnpm/modules-yaml': 2.0.0-0
       '@pnpm/outdated': 0.4.2-2
       '@pnpm/prepare': 0.0.0
-      '@pnpm/read-package-json': ^1.0.0
+      '@pnpm/read-package-json': 1.0.1
       '@pnpm/server': 0.14.3
       '@pnpm/store-path': 1.0.3
       '@pnpm/types': 2.0.0
@@ -928,9 +928,9 @@ importers:
   packages/resolve-dependencies:
     dependencies:
       '@pnpm/core-loggers': 'link:../core-loggers'
-      '@pnpm/npm-resolver': /@pnpm/npm-resolver/2.2.5/@pnpm!logger@2.1.0
+      '@pnpm/npm-resolver': /@pnpm/npm-resolver/2.2.6/@pnpm!logger@2.1.0
       '@pnpm/package-requester': 'link:../package-requester'
-      '@pnpm/resolver-base': 1.2.0
+      '@pnpm/resolver-base': 2.0.0
       '@pnpm/types': 'link:../types'
       '@pnpm/utils': 'link:../utils'
       '@types/node': 10.12.0
@@ -956,10 +956,10 @@ importers:
     specifiers:
       '@pnpm/core-loggers': 0.0.0
       '@pnpm/logger': 2.1.0
-      '@pnpm/npm-resolver': 2.2.5
+      '@pnpm/npm-resolver': 2.2.6
       '@pnpm/package-requester': 4.1.4
       '@pnpm/resolve-dependencies': 'link:.'
-      '@pnpm/resolver-base': 1.2.0
+      '@pnpm/resolver-base': 2.0.0
       '@pnpm/types': 2.0.0
       '@pnpm/utils': 0.9.0-0
       '@types/node': 10.12.0
@@ -982,7 +982,7 @@ importers:
   packages/server:
     dependencies:
       '@pnpm/package-requester': 'link:../package-requester'
-      '@pnpm/resolver-base': 1.2.0
+      '@pnpm/resolver-base': 2.0.0
       '@pnpm/types': 'link:../types'
       '@types/got': 8.3.4
       '@types/node': 10.12.0
@@ -994,9 +994,9 @@ importers:
       uuid: 3.3.2
     devDependencies:
       '@pnpm/logger': 2.1.0
-      '@pnpm/npm-resolver': /@pnpm/npm-resolver/2.2.5/@pnpm!logger@2.1.0
+      '@pnpm/npm-resolver': /@pnpm/npm-resolver/2.2.6/@pnpm!logger@2.1.0
       '@pnpm/server': 'link:'
-      '@pnpm/tarball-fetcher': /@pnpm/tarball-fetcher/2.0.3/@pnpm!logger@2.1.0
+      '@pnpm/tarball-fetcher': /@pnpm/tarball-fetcher/2.0.4/@pnpm!logger@2.1.0
       '@types/mz': 0.0.32
       '@types/tape': 4.2.32
       is-port-reachable: 2.0.0
@@ -1013,11 +1013,11 @@ importers:
       typescript: 3.1.3
     specifiers:
       '@pnpm/logger': ^2.1.0
-      '@pnpm/npm-resolver': ^2.2.4
+      '@pnpm/npm-resolver': 2.2.6
       '@pnpm/package-requester': 4.1.4
-      '@pnpm/resolver-base': 1.2.0
+      '@pnpm/resolver-base': 2.0.0
       '@pnpm/server': 'link:.'
-      '@pnpm/tarball-fetcher': 2.0.3
+      '@pnpm/tarball-fetcher': 2.0.4
       '@pnpm/types': 2.0.0
       '@types/got': ^8.3.0
       '@types/mz': ^0.0.32
@@ -1043,7 +1043,7 @@ importers:
       uuid: 3.3.2
   packages/shrinkwrap:
     dependencies:
-      '@pnpm/resolver-base': 1.2.0
+      '@pnpm/resolver-base': 2.0.0
       '@pnpm/types': 'link:../types'
       '@types/js-yaml': 3.11.2
       '@types/node': 10.12.0
@@ -1075,7 +1075,7 @@ importers:
       yaml-tag: 1.1.0
     specifiers:
       '@pnpm/logger': ^2.0.1
-      '@pnpm/resolver-base': ^1.0.0
+      '@pnpm/resolver-base': 2.0.0
       '@pnpm/types': 2.0.0
       '@types/js-yaml': ^3.10.1
       '@types/node': 10.12.0
@@ -1109,15 +1109,15 @@ importers:
       '@pnpm/core-loggers': 'link:../core-loggers'
       '@pnpm/fs-locker': 1.0.2
       '@pnpm/headless': 'link:../headless'
-      '@pnpm/lifecycle': /@pnpm/lifecycle/3.0.1/@pnpm!logger@2.1.0
-      '@pnpm/link-bins': 3.0.0
+      '@pnpm/lifecycle': /@pnpm/lifecycle/3.0.2/@pnpm!logger@2.1.0
+      '@pnpm/link-bins': 3.0.1
       '@pnpm/modules-cleaner': 'link:../modules-cleaner'
       '@pnpm/modules-yaml': 'link:../modules-yaml'
       '@pnpm/package-requester': 'link:../package-requester'
       '@pnpm/pkgid-to-filename': 2.0.0
-      '@pnpm/read-package-json': 1.0.0
+      '@pnpm/read-package-json': 1.0.1
       '@pnpm/resolve-dependencies': 'link:../resolve-dependencies'
-      '@pnpm/resolver-base': 1.2.0
+      '@pnpm/resolver-base': 2.0.0
       '@pnpm/types': 'link:../types'
       '@pnpm/utils': 'link:../utils'
       '@types/byline': 4.2.31
@@ -1211,17 +1211,17 @@ importers:
       '@pnpm/default-resolver': ^2.0.0
       '@pnpm/fs-locker': 1.0.2
       '@pnpm/headless': 0.6.8-2
-      '@pnpm/lifecycle': 3.0.1
-      '@pnpm/link-bins': 3.0.0
+      '@pnpm/lifecycle': 3.0.2
+      '@pnpm/link-bins': 3.0.1
       '@pnpm/logger': ^2.1.0
       '@pnpm/modules-cleaner': 1.0.0-2
       '@pnpm/modules-yaml': 2.0.0-0
       '@pnpm/package-requester': 4.1.4
       '@pnpm/pkgid-to-filename': 2.0.0
       '@pnpm/prepare': 0.0.0
-      '@pnpm/read-package-json': 1.0.0
+      '@pnpm/read-package-json': 1.0.1
       '@pnpm/resolve-dependencies': 1.0.0-3
-      '@pnpm/resolver-base': 1.2.0
+      '@pnpm/resolver-base': 2.0.0
       '@pnpm/store-path': ^1.0.0
       '@pnpm/types': 2.0.0
       '@pnpm/utils': 0.9.0-0
@@ -1316,7 +1316,7 @@ importers:
       typescript: ^3.0.3
   packages/utils:
     dependencies:
-      '@pnpm/read-package-json': 1.0.0
+      '@pnpm/read-package-json': 1.0.1
       '@pnpm/types': 'link:../types'
       '@types/mz': 0.0.32
       '@types/node': 10.12.0
@@ -1332,7 +1332,7 @@ importers:
       typescript: 3.1.3
     specifiers:
       '@pnpm/logger': ^2.1.0
-      '@pnpm/read-package-json': 1.0.0
+      '@pnpm/read-package-json': 1.0.1
       '@pnpm/types': 2.0.0
       '@pnpm/utils': 'link:.'
       '@types/mz': ^0.0.32
@@ -1667,13 +1667,13 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha512-1zLmh6tRftQXfZ1IFHq1IexP0KaJhN6pSCA/IzK+Vixn4hPvxwcIbGjKW0KH9hsHSmrPpmSit2EWj7jGNgfa6Q==
-  /@pnpm/fetcher-base/1.0.0:
+  /@pnpm/fetcher-base/2.0.0:
     dependencies:
-      '@pnpm/resolver-base': 1.2.0
+      '@pnpm/resolver-base': 2.0.0
     engines:
-      node: '>=4'
+      node: '>=6'
     resolution:
-      integrity: sha512-kp5ooq4wC84gelVjkQuV8GzDHe/m99+yvlx3HTHOP25SdfkshIG5k/q784cmw8axjBke/LXdgE9sR5JRNs8TTw==
+      integrity: sha512-4RMlHlihFTz31BX3MkGjVXUjO4jxquDzgE67O1jeu89mmcUa3Zac2AJxnI2tN6zvy/4hBHpTTov4BO9fHndu+Q==
   /@pnpm/fs-locker/1.0.2:
     dependencies:
       '@types/node': 10.12.0
@@ -1696,9 +1696,9 @@ packages:
       node: '>=6'
     resolution:
       integrity: sha512-qn14ZMCCxLLFX1MWQLANVwlUlvWVbN4V4lAguWTeI2ABj0sZVZ7aZiVbHFbAJnxe9sqqE4NzAGBVgsCiW4TZwg==
-  /@pnpm/git-resolver/1.0.0:
+  /@pnpm/git-resolver/1.0.1:
     dependencies:
-      '@pnpm/resolver-base': 1.2.0
+      '@pnpm/resolver-base': 2.0.0
       '@types/node': 10.12.0
       '@types/semver': 5.5.0
       got: 8.3.2
@@ -1710,27 +1710,27 @@ packages:
     engines:
       node: '>=6'
     resolution:
-      integrity: sha512-RvDA2VAAt/PCT+X86urGBoxSnTSia+A0QJWtExF+Bzl7JkbK5eljDTz3tna0y8RVolmGRoglRARMaA9p1c0wXw==
-  /@pnpm/lifecycle/3.0.1/@pnpm!logger@2.1.0:
+      integrity: sha512-bEdhn+Be2+2wYa50M3c7gU4qK5BcgfZ14x8sx9bduPjWwTEAqVDbLX9UBuUBE5jNPbrJkrpCC6ewJI78xWdlAQ==
+  /@pnpm/lifecycle/3.0.2/@pnpm!logger@2.1.0:
     dependencies:
       '@pnpm/logger': 2.1.0
-      '@pnpm/read-package-json': 1.0.0
-      '@pnpm/types': 1.8.0
+      '@pnpm/read-package-json': 1.0.1
+      '@pnpm/types': 2.0.0
       '@zkochan/npm-lifecycle': 2.1.1
       path-exists: 3.0.0
     dev: false
     engines:
       node: '>=6'
-    id: registry.npmjs.org/@pnpm/lifecycle/3.0.1
+    id: registry.npmjs.org/@pnpm/lifecycle/3.0.2
     peerDependencies:
       '@pnpm/logger': ^1.0.0 || ^2.0.0
     resolution:
-      integrity: sha512-t+uB4UfOIExnnQCFUpuWSavS24QYXm7BlpDnXDojpclxt8fFoRvA4kpPrUXBK27urvSoPaQbFK6z1fsQNapV8A==
-  /@pnpm/link-bins/3.0.0:
+      integrity: sha512-DiQZe/EwRUKQRqSllLn27qaSe0R3P5FtJwxMHy52BucpdP9rJJhhh7aDO7SUhrxvsX6CePuuZG+g4Byp2QV4VA==
+  /@pnpm/link-bins/3.0.1:
     dependencies:
-      '@pnpm/package-bins': 1.0.0
-      '@pnpm/read-package-json': 1.0.0
-      '@pnpm/types': 1.8.0
+      '@pnpm/package-bins': 2.0.0
+      '@pnpm/read-package-json': 1.0.1
+      '@pnpm/types': 2.0.0
       '@types/mz': 0.0.32
       '@types/node': 10.12.0
       '@types/ramda': 0.25.34
@@ -1746,11 +1746,11 @@ packages:
     engines:
       node: '>=6'
     resolution:
-      integrity: sha512-I41fRWhioCzdAwiyKjhnY9Fb6CL6Gxff3oIfkJIBOZv9KzbZkvMOXzzC5UsBOJm0mVwk6tmmHZxOlFQoDilaBw==
-  /@pnpm/local-resolver/1.0.1:
+      integrity: sha512-tfNe/G+dAPQDE8fHKJIUL7XeKOGwRVVgcN66eCI5GBsD0nDH2l6KfhLrr/EqnSheS5ZBisQrWxZ2fLhl2uDKyg==
+  /@pnpm/local-resolver/1.0.2:
     dependencies:
-      '@pnpm/resolver-base': 1.2.0
-      '@pnpm/types': 1.8.0
+      '@pnpm/resolver-base': 2.0.0
+      '@pnpm/types': 2.0.0
       '@types/graceful-fs': 4.1.2
       '@types/node': 10.12.0
       graceful-fs: 4.1.11
@@ -1762,7 +1762,7 @@ packages:
     engines:
       node: '>=6'
     resolution:
-      integrity: sha512-CtafLoMCv7itbMyQFFG9qY2UGJwRWOI8QTjyqV8TkoT81ajgG5Q1TV55AVpW/vZ2pjjv2KKse9wcBqH8iRNpiQ==
+      integrity: sha512-/6KP7OXtwlE1tgepR5vB1FyL64F4+RZP8IIdvkwkHWL1rnLPprRvZ1Lwd1vecIlwjY1MrXmY7awL2H7MQqBg5Q==
   /@pnpm/logger/2.1.0:
     dependencies:
       '@types/node': 10.12.0
@@ -1781,11 +1781,11 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha512-bl9TPt2UObSEpGPQHZ2soXSSwz+/0XZqK+afBRJ4L78NKV41oZTUnrLjeNbeNEVwIG9icrQ3ZeSslIvQy4L+Dw==
-  /@pnpm/npm-resolver/2.2.5/@pnpm!logger@2.1.0:
+  /@pnpm/npm-resolver/2.2.6/@pnpm!logger@2.1.0:
     dependencies:
       '@pnpm/logger': 2.1.0
-      '@pnpm/resolver-base': 1.2.0
-      '@pnpm/types': 1.8.0
+      '@pnpm/resolver-base': 2.0.0
+      '@pnpm/types': 2.0.0
       '@types/load-json-file': 2.0.7
       '@types/mem': 1.1.2
       '@types/node': 10.12.0
@@ -1804,22 +1804,22 @@ packages:
       write-json-file: 3.0.2
     engines:
       node: '>=6'
-    id: registry.npmjs.org/@pnpm/npm-resolver/2.2.5
+    id: registry.npmjs.org/@pnpm/npm-resolver/2.2.6
     peerDependencies:
       '@pnpm/logger': ^1.0.0 || ^2.0.0
     resolution:
-      integrity: sha512-nPjjcJMwVTj1gygnrD8cRhsmdppmIA86EfZZhaUryB0+AJoDgJkB2Av/hZisGDt2K6DIzNcKvQvUdpW4vGo+zA==
-  /@pnpm/package-bins/1.0.0:
+      integrity: sha512-huABgb0vh2kOrZA34TuiosqO1PnmYAtQQaYOxuBR7+j0wY1k/Rj8bkN6v64V01imHMu6hwLSOLu9DgT1X93QHg==
+  /@pnpm/package-bins/2.0.0:
     dependencies:
-      '@pnpm/types': 1.8.0
+      '@pnpm/types': 2.0.0
       '@types/mz': 0.0.32
       mz: 2.7.0
       p-filter: 1.0.0
     dev: false
     engines:
-      node: '>=4'
+      node: '>=6'
     resolution:
-      integrity: sha512-ZqVfIXK3r5AsP5VAhPHrhf3isF+T4yEuUpJTF9T03oFTJ9LBnkKvx8F7P7biKEManxSGOkSpNoIBdsura9pY5Q==
+      integrity: sha512-Zftgs0jJ3O4RXajViGe/JfVNpIB5I3I2np2YH5UOvVeMuxPVEB/MwHNOJpAtSQWj5p7KAXGj1OhVxtQFrDTdhQ==
   /@pnpm/pkgid-to-filename/2.0.0:
     dependencies:
       normalize-path: 3.0.0
@@ -1828,22 +1828,22 @@ packages:
       node: '>=6'
     resolution:
       integrity: sha512-5cf9ik7ntSpPYLXFPs8eoCNgXuDVqa58/9P0Hrb6KmsVpchKi72Xh5TRd6dctqH4mJtfK0eVRaSt4+VDyGxDkQ==
-  /@pnpm/read-package-json/1.0.0:
+  /@pnpm/read-package-json/1.0.1:
     dependencies:
-      '@pnpm/types': 1.8.0
+      '@pnpm/types': 2.0.0
       read-package-json: 2.0.13
       util.promisify: 1.0.0
     engines:
       node: '>=6'
     resolution:
-      integrity: sha512-G2bs2KRL84eJggkUYxDpI8RA0xFKR4tNqvHy6bGF8fDIzNtkp17nOgEMIcA2ShSwUX80gQ8BpBh6ix5KKF46tw==
-  /@pnpm/resolver-base/1.2.0:
+      integrity: sha512-2ZUZ9v6V88ZMliGCV+qP2/mhUCj5IWjfkocS594RbMQ50ThbfWsagU1GRIE1EsXvQI4MBCjiRivXDw9fCHKe1Q==
+  /@pnpm/resolver-base/2.0.0:
     dependencies:
-      '@pnpm/types': 1.8.0
+      '@pnpm/types': 2.0.0
     engines:
-      node: '>=4'
+      node: '>=6'
     resolution:
-      integrity: sha512-1Ks5ORqDSN9Q3G4FiHLSjcY5mrZZTQq7AxWyK76SnAS9ug5WTUmQ6wN3Ab9Q93aYhpAlXsdZ4bTW075iUG/mfw==
+      integrity: sha512-+pYMLgBlp242xn0qEK3JsU2fNgMSejTflzu1NLXV8J9QTIxTILmxz5ayFcudtimKP0o49dnMysoWihQ/ven7wA==
   /@pnpm/self-installer/2.0.5:
     dev: true
     engines:
@@ -1866,9 +1866,9 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha512-kYhalp/SFn3m2yq8d2VBdyRFiaKHBapk1U/WiJc7vR1brePS06rkKQeG/Z9CN4GVAdNXj+XOyBCMz8XAUGCGuQ==
-  /@pnpm/tarball-fetcher/2.0.3/@pnpm!logger@2.1.0:
+  /@pnpm/tarball-fetcher/2.0.4/@pnpm!logger@2.1.0:
     dependencies:
-      '@pnpm/fetcher-base': 1.0.0
+      '@pnpm/fetcher-base': 2.0.0
       '@pnpm/logger': 2.1.0
       '@types/mem': 1.1.2
       '@types/mz': 0.0.32
@@ -1889,22 +1889,24 @@ packages:
       unpack-stream: 4.0.0
     engines:
       node: '>=6'
-    id: registry.npmjs.org/@pnpm/tarball-fetcher/2.0.3
+    id: registry.npmjs.org/@pnpm/tarball-fetcher/2.0.4
     peerDependencies:
       '@pnpm/logger': ^2.1.0
     resolution:
-      integrity: sha512-y+wOtsSXkBe7tHms86im01NKyQt7T09DsMImizMMzy1KW+rqyaaZtkZ986A0TXJtYajY3JcxmxtniRSGX1ijMQ==
-  /@pnpm/tarball-resolver/1.0.0:
+      integrity: sha512-YxRFW0bQM+gU2Rk9++pRmf6ZnTJq+DdbRcWIbU3/4J1EnZ/D0TQEkRKwdUTqlcRT84VSTt1hG89A7X5tw+72oQ==
+  /@pnpm/tarball-resolver/1.0.1:
     dependencies:
-      '@pnpm/resolver-base': 1.2.0
+      '@pnpm/resolver-base': 2.0.0
     dev: false
     engines:
       node: '>=6'
     resolution:
-      integrity: sha512-IjhyZ3jJE0Wwe8H7pcKmsqQOApKYGrn3kgSnMTRCBKQTPMZTMMcut2CqnavI9c3EeKo4NvMqztLLgJOrxBPfZg==
-  /@pnpm/types/1.8.0:
+      integrity: sha512-OFe7/5RZ+/mEBpsH+gMMNIY73uEwCDdcCaSR2KzeNj+ydbthoIsSKzoXrfbCcMwEL8Nf4Ztk498VutR/qxp+yA==
+  /@pnpm/types/2.0.0:
+    engines:
+      node: '>=6'
     resolution:
-      integrity: sha512-NsEzBVa5aMgn/n79piyJtpUQFzJ97tB2R2r8PSJlLnMA6LJmchKuv7ATN+/nZH/3QRd/+uFXEq07/i/ajsqVGQ==
+      integrity: sha512-jBLjrZjafStD0DFjnsiiGVXclkLieRPjfg6fyHI1rGvvACMPOW/sNweFBCxKI7B2o7U5mdjVX3OgKPnhXx70zw==
   /@sindresorhus/is/0.7.0:
     dev: false
     engines:
@@ -2253,7 +2255,7 @@ packages:
       integrity: sha512-nne9/IiQ/hzIhY6pdDnbBtz7DjPTKrY00P/zvPSm5pOFkl6xuGrGnXn/VtTNNfNtAfZ9/1RtehkszU9qcTii0Q==
   /accepts/1.3.5:
     dependencies:
-      mime-types: 2.1.20
+      mime-types: 2.1.21
       negotiator: 0.6.1
     dev: true
     engines:
@@ -3432,7 +3434,7 @@ packages:
       integrity: sha1-E3kY1teCg/ffemt8WmPhQOaUJeY=
   /compressible/2.0.15:
     dependencies:
-      mime-db: 1.36.0
+      mime-db: 1.37.0
     dev: true
     engines:
       node: '>= 0.6'
@@ -4522,7 +4524,7 @@ packages:
     dependencies:
       asynckit: 0.4.0
       combined-stream: 1.0.7
-      mime-types: 2.1.20
+      mime-types: 2.1.21
     engines:
       node: '>= 0.12'
     resolution:
@@ -6358,18 +6360,18 @@ packages:
       node: '>=0.10.0'
     resolution:
       integrity: sha512-MWikgl9n9M3w+bpsY3He8L+w9eF9338xRl8IAO5viDizwSzziFEyUzo2xrrloB64ADbTf8uA8vRqqttDTOmccg==
-  /mime-db/1.36.0:
+  /mime-db/1.37.0:
     engines:
       node: '>= 0.6'
     resolution:
-      integrity: sha512-L+xvyD9MkoYMXb1jAmzI/lWYAxAMCPvIBSWur0PZ5nOf5euahRLVqH//FKW9mWp2lkqUgYiXPgkzfMUFi4zVDw==
-  /mime-types/2.1.20:
+      integrity: sha512-R3C4db6bgQhlIhPU48fUtdVmKnflq+hRdad7IyKhtFj06VPNVdk2RhiYL3UjQIlso8L+YxAtFkobT0VK+S/ybg==
+  /mime-types/2.1.21:
     dependencies:
-      mime-db: 1.36.0
+      mime-db: 1.37.0
     engines:
       node: '>= 0.6'
     resolution:
-      integrity: sha512-HrkrPaP9vGuWbLK1B1FfgAkbqNjIuy4eHlIYnFi7kamZyLLrGlo2mpcx0bBmNpKqBtYtAfGbodDddIgddSJC2A==
+      integrity: sha512-3iL6DbwpyLzjR3xHSFNFeb9Nz/M8WDkX33t1GFQnFOllWk8pOrh/LSrB5OXlnlW5P9LH73X6loW/eogc+F5lJg==
   /mime/1.4.1:
     dev: true
     hasBin: true
@@ -8143,7 +8145,7 @@ packages:
       is-typedarray: 1.0.0
       isstream: 0.1.2
       json-stringify-safe: 5.0.1
-      mime-types: 2.1.20
+      mime-types: 2.1.21
       oauth-sign: 0.8.2
       performance-now: 2.1.0
       qs: 6.5.2
@@ -8170,7 +8172,7 @@ packages:
       is-typedarray: 1.0.0
       isstream: 0.1.2
       json-stringify-safe: 5.0.1
-      mime-types: 2.1.20
+      mime-types: 2.1.21
       oauth-sign: 0.9.0
       performance-now: 2.1.0
       qs: 6.5.2
@@ -9455,7 +9457,7 @@ packages:
   /type-is/1.6.16:
     dependencies:
       media-typer: 0.3.0
-      mime-types: 2.1.20
+      mime-types: 2.1.21
     dev: true
     engines:
       node: '>= 0.6'

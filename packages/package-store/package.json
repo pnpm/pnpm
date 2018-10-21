@@ -19,10 +19,10 @@
     "@pnpm/logger": "^2.1.0"
   },
   "dependencies": {
-    "@pnpm/fetcher-base": "1.0.0",
+    "@pnpm/fetcher-base": "2.0.0",
     "@pnpm/fs-locker": "1.0.2",
     "@pnpm/package-requester": "4.1.4",
-    "@pnpm/resolver-base": "1.2.0",
+    "@pnpm/resolver-base": "2.0.0",
     "@pnpm/types": "2.0.0",
     "@types/mz": "^0.0.32",
     "@types/node": "10.12.0",
@@ -44,8 +44,8 @@
   },
   "devDependencies": {
     "@pnpm/logger": "^2.1.0",
-    "@pnpm/npm-resolver": "^2.2.4",
-    "@pnpm/tarball-fetcher": "2.0.3",
+    "@pnpm/npm-resolver": "2.2.6",
+    "@pnpm/tarball-fetcher": "2.0.4",
     "@types/tape": "^4.2.30",
     "@types/tempy": "^0.2.0",
     "npm-scripts-info": "^0.3.6",
