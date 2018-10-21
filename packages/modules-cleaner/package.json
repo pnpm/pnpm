@@ -30,7 +30,7 @@
     "prepublishOnly": "npm run tsc"
   },
   "dependencies": {
-    "@pnpm/core-loggers": "1.0.0",
+    "@pnpm/core-loggers": "0.0.0",
     "@pnpm/package-bins": "2.0.0",
     "@pnpm/types": "2.0.0",
     "@pnpm/utils": "0.9.0",

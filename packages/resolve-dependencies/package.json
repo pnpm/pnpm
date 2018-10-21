@@ -30,7 +30,7 @@
     "prepublishOnly": "npm run tsc"
   },
   "dependencies": {
-    "@pnpm/core-loggers": "1.0.0",
+    "@pnpm/core-loggers": "0.0.0",
     "@pnpm/npm-resolver": "2.2.6",
     "@pnpm/package-requester": "4.1.5",
     "@pnpm/resolver-base": "2.0.0",
