@@ -34,7 +34,7 @@
     "@pnpm/logger": "^2.1.0"
   },
   "dependencies": {
-    "@pnpm/fetcher-base": "^1.0.0",
+    "@pnpm/fetcher-base": "^2.0.0",
     "@types/mem": "^1.1.2",
     "@types/mz": "^0.0.32",
     "@types/node": "^9.3.0 || 10",
