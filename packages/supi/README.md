@@ -36,7 +36,10 @@ Install packages.
 * `options.saveOptional` - *Boolean* - package will appear in `optionalDependencies`.
 * `options.saveExact` - *Boolean* - saved dependencies will be configured with an exact version rather than using npm's default semver range operator.
 * `options.global` - *Boolean* - the packages will be installed globally rather than locally.
-* `options.prefix` - *String* - the directory in which the installation will be performed. By default the `process.cwd()` value is used.
+* `options.importers` - *Object[]* - the projects in which the installations will be performed. By default the `process.cwd()` value is used.
+  * `prefix` - *String* - the directory of the project.
+  * `bin` - *String* - the directory into which the binstubs of direct dependencies will be linked.
+  * `shamefullyFlatten` - *Boolean* - when true, a flat `node_modules` is created for the project.
 * `options.reporter` - *Function* - A function that listens for logs.
 * `options.packageManager` - *Object* - The `package.json` of the package manager.
 * `options.hooks` - *Object* - A property that contains installation hooks. Hooks are [documented separately](#hooks).
