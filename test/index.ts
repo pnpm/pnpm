@@ -4,12 +4,12 @@ import tempy = require('tempy')
 import nock = require('nock')
 import path = require('path')
 import exists = require('path-exists')
-import loadJsonFile = require('load-json-file')
+import loadJsonFile, { sync as loadJsonFileSync } from 'load-json-file'
 
-const isPositiveMeta = loadJsonFile.sync(path.join(__dirname, 'meta', 'is-positive.json'))
-const isPositiveMetaWithDeprecated = loadJsonFile.sync(path.join(__dirname, 'meta', 'is-positive-with-deprecated.json'))
-const isPositiveMetaFull = loadJsonFile.sync(path.join(__dirname, 'meta', 'is-positive-full.json'))
-const sindresorhusIsMeta = loadJsonFile.sync(path.join(__dirname, 'meta', 'sindresorhus-is.json'))
+const isPositiveMeta = loadJsonFileSync(path.join(__dirname, 'meta', 'is-positive.json'))
+const isPositiveMetaWithDeprecated = loadJsonFileSync(path.join(__dirname, 'meta', 'is-positive-with-deprecated.json'))
+const isPositiveMetaFull = loadJsonFileSync(path.join(__dirname, 'meta', 'is-positive-full.json'))
+const sindresorhusIsMeta = loadJsonFileSync(path.join(__dirname, 'meta', 'sindresorhus-is.json'))
 
 const registry = 'https://registry.npmjs.org/'
 
@@ -43,7 +43,7 @@ test('resolveFromNpm()', async t => {
   // The resolve function does not wait for the package meta cache file to be saved
   // so we must delay for a bit in order to read it
   setTimeout(async () => {
-    const meta = await loadJsonFile(path.join(store, resolveResult!.id, '..', 'index.json'))
+    const meta = await loadJsonFile<any>(path.join(store, resolveResult!.id, '..', 'index.json'))
     t.ok(meta.name)
     t.ok(meta.versions)
     t.ok(meta['dist-tags'])
@@ -837,7 +837,7 @@ test('resolve when tarball URL is requested from the registry', async t => {
   // The resolve function does not wait for the package meta cache file to be saved
   // so we must delay for a bit in order to read it
   setTimeout(async () => {
-    const meta = await loadJsonFile(path.join(store, resolveResult!.id, '..', 'index.json'))
+    const meta = await loadJsonFile<any>(path.join(store, resolveResult!.id, '..', 'index.json'))
     t.ok(meta.name)
     t.ok(meta.versions)
     t.ok(meta['dist-tags'])
@@ -876,7 +876,7 @@ test('resolve when tarball URL is requested from the registry and alias is not s
   // The resolve function does not wait for the package meta cache file to be saved
   // so we must delay for a bit in order to read it
   setTimeout(async () => {
-    const meta = await loadJsonFile(path.join(store, resolveResult!.id, '..', 'index.json'))
+    const meta = await loadJsonFile<any>(path.join(store, resolveResult!.id, '..', 'index.json'))
     t.ok(meta.name)
     t.ok(meta.versions)
     t.ok(meta['dist-tags'])

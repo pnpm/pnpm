@@ -1,7 +1,7 @@
 import logger from '@pnpm/logger'
 import {PackageManifest} from '@pnpm/types'
 import getRegistryName = require('encode-registry')
-import loadJsonFile = require('load-json-file')
+import loadJsonFile from 'load-json-file'
 import pLimit = require('p-limit')
 import path = require('path')
 import url = require('url')
@@ -165,7 +165,7 @@ async function fromRegistry (
 
 async function loadMeta (pkgMirror: string, metaFileName: string): Promise<PackageMeta | null> {
   try {
-    return await loadJsonFile(path.join(pkgMirror, metaFileName))
+    return await loadJsonFile<PackageMeta>(path.join(pkgMirror, metaFileName))
   } catch (err) {
     return null
   }
