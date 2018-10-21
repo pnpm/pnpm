@@ -70,7 +70,7 @@ export default function (
   opts: {
     importers: Array<{
       directNodeIdsByAlias: {[alias: string]: string},
-      externalShrinkwrap: boolean,
+      usesExternalShrinkwrap: boolean,
       // only the top dependencies that were already installed
       // to avoid warnings about unresolved peer dependencies
       topParents: Array<{name: string, version: string}>,
@@ -90,7 +90,7 @@ export default function (
   const absolutePathsByNodeId = {}
 
   for (const importer of opts.importers) {
-    const { directNodeIdsByAlias, externalShrinkwrap, topParents, prefix } = importer
+    const { directNodeIdsByAlias, usesExternalShrinkwrap, topParents, prefix } = importer
     const pkgsByName = Object.assign(
       R.fromPairs(
         topParents.map((parent: {name: string, version: string}): R.KeyValuePair<string, ParentRef> => [
@@ -116,7 +116,7 @@ export default function (
       absolutePathsByNodeId,
       depGraph,
       dependenciesTree: opts.dependenciesTree,
-      externalShrinkwrap,
+      usesExternalShrinkwrap,
       independentLeaves: opts.independentLeaves,
       prefix,
       purePkgs: new Set(),
@@ -158,7 +158,7 @@ function resolvePeersOfNode (
     purePkgs: Set<string>, // pure packages are those that don't rely on externally resolved peers
     prefix: string,
     strictPeerDependencies: boolean,
-    externalShrinkwrap: boolean,
+    usesExternalShrinkwrap: boolean,
   },
 ): {[alias: string]: string} {
   const node = ctx.dependenciesTree[nodeId]
@@ -180,7 +180,7 @@ function resolvePeersOfNode (
     ? {}
     : resolvePeers({
       dependenciesTree: ctx.dependenciesTree,
-      externalShrinkwrap: ctx.externalShrinkwrap,
+      usesExternalShrinkwrap: ctx.usesExternalShrinkwrap,
       node,
       nodeId,
       parentPkgs,
@@ -262,7 +262,7 @@ function resolvePeersOfChildren (
     dependenciesTree: DependenciesTree,
     prefix: string,
     strictPeerDependencies: boolean,
-    externalShrinkwrap: boolean,
+    usesExternalShrinkwrap: boolean,
   },
 ): {[alias: string]: string} {
   const allResolvedPeers: {[alias: string]: string} = {}
@@ -289,7 +289,7 @@ function resolvePeers (
     dependenciesTree: DependenciesTree,
     prefix: string,
     strictPeerDependencies: boolean,
-    externalShrinkwrap: boolean,
+    usesExternalShrinkwrap: boolean,
   },
 ): {
   [alias: string]: string,
@@ -337,7 +337,7 @@ function resolvePeers (
       })
     }
 
-    if (!ctx.externalShrinkwrap && resolved.depth <= 0 || resolved.depth === ctx.node.depth + 1) {
+    if (!ctx.usesExternalShrinkwrap && resolved.depth <= 0 || resolved.depth === ctx.node.depth + 1) {
       // if the resolved package is a top dependency
       // or the peer dependency is resolved from a regular dependency of the package
       // then there is no need to link it in

@@ -193,6 +193,7 @@ export async function install (maybeOpts: InstallOptions & {
           storePath: ctx.storePath,
           virtualStoreDir: ctx.virtualStoreDir,
         }),
+        usesExternalShrinkwrap: ctx.shrinkwrapDirectory !== importer.prefix,
         newPkgRawSpecs: [],
         wantedDeps,
       })
@@ -389,6 +390,7 @@ export async function installPkgs (
       })
       importersToInstall.push({
         ...importer,
+        usesExternalShrinkwrap: ctx.shrinkwrapDirectory !== importer.prefix,
         linkedPackages: [],
         newPkgRawSpecs: wantedDeps.map((wantedDependency) => wantedDependency.raw),
         nonLinkedPackages: wantedDeps,
@@ -420,6 +422,7 @@ export async function installPkgs (
 
 interface ImporterToInstall {
   bin: string,
+  usesExternalShrinkwrap: boolean,
   hoistedAliases: {[depPath: string]: string[]}
   modulesDir: string,
   id: string,
@@ -579,7 +582,7 @@ async function installInContext (
     return {
       bin: importer.bin,
       directNodeIdsByAlias: resolvedImporter.directNodeIdsByAlias,
-      externalShrinkwrap: ctx.shrinkwrapDirectory !== importer.prefix,
+      usesExternalShrinkwrap: importer.usesExternalShrinkwrap,
       hoistedAliases: importer.hoistedAliases,
       id: importer.id,
       linkedDependencies: resolvedImporter.linkedDependencies,

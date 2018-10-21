@@ -4,7 +4,7 @@ import {
   ReadPackageHook,
   Registries,
 } from '@pnpm/types'
-import { createNodeId, nodeIdContainsSequence, ROOT_NODE_ID, WantedDependency } from '@pnpm/utils'
+import { createNodeId, nodeIdContainsSequence, ROOT_NODE_ID, WantedDependency, getWantedDependencies } from '@pnpm/utils'
 import { StoreController } from 'package-store'
 import { Shrinkwrap } from 'pnpm-shrinkwrap'
 import getPreferredVersionsFromPackage from './getPreferredVersions'
@@ -21,6 +21,7 @@ export { LinkedDependency, ResolvedPackage, DependenciesTree, DependenciesTreeNo
 export { InstallCheckLog, DeprecationLog } from './loggers'
 
 export interface Importer {
+  usesExternalShrinkwrap: boolean,
   id: string,
   modulesDir: string,
   nonLinkedPackages: WantedDependency[],
@@ -89,32 +90,55 @@ export default async function (
   await Promise.all(opts.importers.map(async (importer) => {
     const shrImporter = opts.wantedShrinkwrap.importers[importer.id]
     const linkedDependencies = [] as LinkedDependency[]
-    directNonLinkedDepsByImporterId[importer.id] = await resolveDependencies(
-      {
-        ...ctx,
-        linkedDependencies,
-        modulesDir: importer.modulesDir,
-        preferredVersions: opts.preferredVersions || importer.pkg && getPreferredVersionsFromPackage(importer.pkg) || {},
-        prefix: importer.prefix,
+    const resolveCtx = {
+      ...ctx,
+      linkedDependencies,
+      modulesDir: importer.modulesDir,
+      preferredVersions: opts.preferredVersions || importer.pkg && getPreferredVersionsFromPackage(importer.pkg) || {},
+      prefix: importer.prefix,
+    }
+    const resolveOpts = {
+      currentDepth: 0,
+      hasManifestInShrinkwrap: opts.hasManifestInShrinkwrap,
+      keypath: [],
+      localPackages: opts.localPackages,
+      parentNodeId: ROOT_NODE_ID,
+      readPackageHook: opts.hooks.readPackage,
+      resolvedDependencies: {
+        ...shrImporter.dependencies,
+        ...shrImporter.devDependencies,
+        ...shrImporter.optionalDependencies,
       },
+      shamefullyFlatten: importer.shamefullyFlatten,
+      sideEffectsCache: opts.sideEffectsCache,
+      update: opts.update,
+    }
+    const newDirectDeps = await resolveDependencies(
+      resolveCtx,
       importer.nonLinkedPackages,
-      {
-        currentDepth: 0,
-        hasManifestInShrinkwrap: opts.hasManifestInShrinkwrap,
-        keypath: [],
-        localPackages: opts.localPackages,
-        parentNodeId: ROOT_NODE_ID,
-        readPackageHook: opts.hooks.readPackage,
-        resolvedDependencies: {
-          ...shrImporter.dependencies,
-          ...shrImporter.devDependencies,
-          ...shrImporter.optionalDependencies,
-        },
-        shamefullyFlatten: importer.shamefullyFlatten,
-        sideEffectsCache: opts.sideEffectsCache,
-        update: opts.update,
-      },
+      resolveOpts,
     )
+    // TODO: in a new major version of pnpm (maybe 3)
+    // all dependencies should be resolved for all projects
+    // even for those that don't use external shrinkwraps
+    if (!importer.usesExternalShrinkwrap || !importer.pkg) {
+      directNonLinkedDepsByImporterId[importer.id] = newDirectDeps
+    } else {
+      directNonLinkedDepsByImporterId[importer.id] = [
+        ...newDirectDeps,
+        ...await resolveDependencies(
+          {
+            ...resolveCtx,
+            depth: 0,
+          },
+          getWantedDependencies(importer.pkg).filter((wantedDep) => newDirectDeps.every((newDep) => newDep.alias !== wantedDep.alias)),
+          {
+            ...resolveOpts,
+            update: false,
+          },
+        ),
+      ]
+    }
     linkedDependenciesByImporterId[importer.id] = linkedDependencies
   }))
 

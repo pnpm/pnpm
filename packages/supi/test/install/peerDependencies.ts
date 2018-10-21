@@ -434,3 +434,42 @@ test('peer dependency is grouped with dependent when the peer is a top dependenc
     })
   }
 })
+
+test('external shrinkwrap: peer dependency is grouped with dependent even after a named update', async (t: tape.Test) => {
+  const project = prepare(t)
+  await mkdir('_')
+  process.chdir('_')
+  const shrinkwrapDirectory = path.resolve('..')
+
+  await installPkgs(['ajv@4.10.4', 'ajv-keywords@1.4.0'], await testDefaults({ shrinkwrapDirectory }))
+
+  {
+    const shr = await loadYamlFile(path.resolve('..', 'shrinkwrap.yaml'))
+    t.deepEqual(shr['importers']['_'], {
+      dependencies: {
+        'ajv': '4.10.4',
+        'ajv-keywords': '/ajv-keywords/1.4.0/ajv@4.10.4',
+      },
+      specifiers: {
+        'ajv': '^4.10.4',
+        'ajv-keywords': '^1.4.0',
+      },
+    })
+  }
+
+  await installPkgs(['ajv-keywords@1.5.0'], await testDefaults({ shrinkwrapDirectory }))
+
+  {
+    const shr = await loadYamlFile(path.resolve('..', 'shrinkwrap.yaml'))
+    t.deepEqual(shr['importers']['_'], {
+      dependencies: {
+        'ajv': '4.10.4',
+        'ajv-keywords': '/ajv-keywords/1.5.0/ajv@4.10.4',
+      },
+      specifiers: {
+        'ajv': '^4.10.4',
+        'ajv-keywords': '^1.5.0',
+      },
+    })
+  }
+})

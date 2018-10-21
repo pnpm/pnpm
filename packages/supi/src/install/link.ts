@@ -38,7 +38,7 @@ export { DependenciesGraph }
 export interface Importer {
   bin: string,
   directNodeIdsByAlias: {[alias: string]: string},
-  externalShrinkwrap: boolean,
+  usesExternalShrinkwrap: boolean,
   hoistedAliases: {[depPath: string]: string[]},
   modulesDir: string,
   id: string,
@@ -92,7 +92,7 @@ export default async function linkPackages (
     virtualStoreDir: opts.virtualStoreDir,
   })
   for (const importer of importers) {
-    if (!importer.externalShrinkwrap) continue
+    if (!importer.usesExternalShrinkwrap) continue
 
     const directAbsolutePathsByAlias = importersDirectAbsolutePathsByAlias[importer.id]
     for (const alias of R.keys(directAbsolutePathsByAlias)) {
