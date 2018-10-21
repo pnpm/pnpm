@@ -1,5 +1,5 @@
 dependencies:
-  '@pnpm/resolver-base': 1.2.0
+  '@pnpm/resolver-base': 2.0.0
   '@pnpm/types': 2.0.0
   '@types/load-json-file': 2.0.7
   '@types/mem': 1.1.2
@@ -57,24 +57,20 @@ packages:
       node: '>=6'
     resolution:
       integrity: sha512-BL4Laf6b50LjdcpOUWPukx2XJtb3mo2OpJjHdRNSDJu9YS2tRBeP14H2bNqGjCjfeml8z3KufI3Km6VQemVXNw==
-  /@pnpm/resolver-base/1.2.0:
+  /@pnpm/resolver-base/2.0.0:
     dependencies:
-      '@pnpm/types': 1.8.0
+      '@pnpm/types': 2.0.0
     dev: false
     engines:
-      node: '>=4'
+      node: '>=6'
     resolution:
-      integrity: sha512-1Ks5ORqDSN9Q3G4FiHLSjcY5mrZZTQq7AxWyK76SnAS9ug5WTUmQ6wN3Ab9Q93aYhpAlXsdZ4bTW075iUG/mfw==
+      integrity: sha512-+pYMLgBlp242xn0qEK3JsU2fNgMSejTflzu1NLXV8J9QTIxTILmxz5ayFcudtimKP0o49dnMysoWihQ/ven7wA==
   /@pnpm/self-installer/2.0.5:
     dev: true
     engines:
       node: '>=4'
     resolution:
       integrity: sha512-NnkmxKFQJMkHL2TcLAl2sof7mVu8dgode4zGzwtvEaZ/xjOHm3CfUJomincmZcpWoXrjHkvbPxjczEPP41Wmqg==
-  /@pnpm/types/1.8.0:
-    dev: false
-    resolution:
-      integrity: sha512-NsEzBVa5aMgn/n79piyJtpUQFzJ97tB2R2r8PSJlLnMA6LJmchKuv7ATN+/nZH/3QRd/+uFXEq07/i/ajsqVGQ==
   /@pnpm/types/2.0.0:
     dev: false
     engines:
@@ -3697,7 +3693,7 @@ shrinkwrapMinorVersion: 9
 shrinkwrapVersion: 3
 specifiers:
   '@pnpm/logger': ^2.0.1
-  '@pnpm/resolver-base': ^1.2.0
+  '@pnpm/resolver-base': ^2.0.0
   '@pnpm/types': ^2.0.0
   '@types/load-json-file': ^2.0.7
   '@types/mem': ^1.1.2
