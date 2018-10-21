@@ -60,7 +60,7 @@
     "@types/nock": "^9.1.1",
     "@types/path-exists": "^3.0.0",
     "@types/tape": "^4.2.31",
-    "@types/tempy": "^0.1.0",
+    "@types/tempy": "^0.2.0",
     "mos": "^2.0.0-alpha.3",
     "mos-plugin-readme": "^1.0.4",
     "nock": "^10.0.0",

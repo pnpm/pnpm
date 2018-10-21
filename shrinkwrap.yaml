@@ -22,7 +22,7 @@ devDependencies:
   '@types/nock': 9.3.0
   '@types/path-exists': 3.0.0
   '@types/tape': 4.2.32
-  '@types/tempy': 0.1.0
+  '@types/tempy': 0.2.0
   mos: 2.0.0-alpha.3
   mos-plugin-readme: 1.0.4
   nock: 10.0.1
@@ -130,10 +130,10 @@ packages:
     resolution:
       integrity: sha512-xil0KO5wkPoixdBWGIGolPv9dekf6dVkjjJLAFYchfKcd4DICou67rgGCIO7wAh3i5Ff/6j9IDgZz+GU9cMaqQ==
       tarball: 'http://registry.npmjs.org/@types/tape/-/tape-4.2.32.tgz'
-  /@types/tempy/0.1.0:
+  /@types/tempy/0.2.0:
     dev: true
     resolution:
-      integrity: sha512-2qeSxI2bMucW58Jsj8jrBXZxobtcKkvO44AvJzKGaD8+m/3KRuBqeKitJ5U6sqy3a9tFsqhzsxMkqR4Wcl6AmQ==
+      integrity: sha512-YaX74QljqR45Xu7dd22wMvzTS+ItUiSyDl9XJl6WTgYNE09r2TF+mV2FDjWRM5Sdzf9C9dXRTUdz9J5SoEYxXg==
   /@types/write-json-file/2.2.1:
     dev: true
     resolution:
@@ -3702,7 +3702,7 @@ specifiers:
   '@types/path-exists': ^3.0.0
   '@types/semver': ^5.4.0
   '@types/tape': ^4.2.31
-  '@types/tempy': ^0.1.0
+  '@types/tempy': ^0.2.0
   credentials-by-uri: ^1.0.0
   encode-registry: ^1.1.0
   fetch-from-npm-registry: ^1.0.0
