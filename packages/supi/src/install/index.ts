@@ -632,13 +632,14 @@ async function installInContext (
       )
   }
 
+  const shrinkwrapOpts = { forceSharedFormat: opts.forceSharedShrinkwrap }
   if (opts.shrinkwrapOnly) {
-    await saveWantedShrinkwrapOnly(ctx.shrinkwrapDirectory, result.wantedShrinkwrap)
+    await saveWantedShrinkwrapOnly(ctx.shrinkwrapDirectory, result.wantedShrinkwrap, shrinkwrapOpts)
   } else {
     await Promise.all([
       opts.shrinkwrap
-        ? saveShrinkwrap(ctx.shrinkwrapDirectory, result.wantedShrinkwrap, result.currentShrinkwrap)
-        : saveCurrentShrinkwrapOnly(ctx.shrinkwrapDirectory, result.currentShrinkwrap),
+        ? saveShrinkwrap(ctx.shrinkwrapDirectory, result.wantedShrinkwrap, result.currentShrinkwrap, shrinkwrapOpts)
+        : saveCurrentShrinkwrapOnly(ctx.shrinkwrapDirectory, result.currentShrinkwrap, shrinkwrapOpts),
       (() => {
         if (result.currentShrinkwrap.packages === undefined && result.removedDepPaths.size === 0) {
           return Promise.resolve()

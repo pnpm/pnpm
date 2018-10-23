@@ -12,6 +12,7 @@ import { ReporterFunction } from '../types'
 
 export interface BaseInstallOptions {
   allowNew?: boolean,
+  forceSharedShrinkwrap?: boolean,
   frozenShrinkwrap?: boolean,
   preferFrozenShrinkwrap?: boolean,
   shamefullyFlatten?: boolean,
@@ -70,6 +71,7 @@ export type InstallOptions = BaseInstallOptions & {
 
 export type StrictInstallOptions = BaseInstallOptions & {
   allowNew: boolean,
+  forceSharedShrinkwrap: boolean,
   frozenShrinkwrap: boolean,
   preferFrozenShrinkwrap: boolean,
   shamefullyFlatten: boolean,
@@ -144,6 +146,7 @@ const defaults = async (opts: InstallOptions) => {
     depth: 0,
     engineStrict: false,
     force: false,
+    forceSharedShrinkwrap: false,
     frozenShrinkwrap: false,
     hooks: {},
     ignoreCurrentPrefs: false,
