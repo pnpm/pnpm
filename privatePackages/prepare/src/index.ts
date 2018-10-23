@@ -26,7 +26,8 @@ export function tempDir (t: Test) {
 
 export function preparePackages (
   t: Test,
-  pkgs: | Object[], pkgTmpPath?: string,
+  pkgs: Array<{ location: string, package: Object } | Object>,
+  pkgTmpPath?: string,
 ): {
   [name: string]: {
     requireModule (pkgName: string): any // tslint:disable-line:no-any
