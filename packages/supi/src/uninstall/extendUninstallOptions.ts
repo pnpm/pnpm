@@ -11,6 +11,7 @@ export interface UninstallOptions {
   store: string,
   independentLeaves?: boolean,
   force?: boolean,
+  forceSharedShrinkwrap?: boolean,
   storeController: StoreController,
   registries?: Registries,
   shrinkwrap?: boolean,
@@ -32,6 +33,7 @@ export type StrictUninstallOptions = UninstallOptions & {
   store: string,
   independentLeaves: boolean,
   force: boolean,
+  forceSharedShrinkwrap: boolean,
   shamefullyFlatten: boolean,
   shrinkwrapDirectory: string,
   storeController: StoreController,
@@ -58,6 +60,7 @@ const defaults = async (opts: UninstallOptions) => {
   return {
     bin: path.join(prefix, 'node_modules', '.bin'),
     force: false,
+    forceSharedShrinkwrap: false,
     independentLeaves: false,
     lock: true,
     lockStaleDuration: 5 * 60 * 1000, // 5 minutes

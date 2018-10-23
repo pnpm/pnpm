@@ -153,10 +153,11 @@ export default async function link (
       updatedWantedShrinkwrap.importers[importerId].specifiers[specToUpsert.name] = getSpecFromPackageJson(newPkg, specToUpsert.name)
     }
   }
+  const shrinkwrapOpts = { forceSharedFormat: opts.forceSharedShrinkwrap }
   if (opts.shrinkwrap) {
-    await saveShrinkwrap(ctx.shrinkwrapDirectory, updatedWantedShrinkwrap, updatedCurrentShrinkwrap)
+    await saveShrinkwrap(ctx.shrinkwrapDirectory, updatedWantedShrinkwrap, updatedCurrentShrinkwrap, shrinkwrapOpts)
   } else {
-    await saveCurrentShrinkwrapOnly(ctx.shrinkwrapDirectory, updatedCurrentShrinkwrap)
+    await saveCurrentShrinkwrapOnly(ctx.shrinkwrapDirectory, updatedCurrentShrinkwrap, shrinkwrapOpts)
   }
 
   summaryLogger.debug({ prefix: opts.prefix })

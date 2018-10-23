@@ -7,6 +7,7 @@ import { ReporterFunction } from '../types'
 export interface LinkOptions {
   bin?: string,
   force?: boolean,
+  forceSharedShrinkwrap?: boolean,
   reporter?: ReporterFunction,
   saveExact?: boolean,
   savePrefix?: string,
@@ -26,6 +27,7 @@ export interface LinkOptions {
 export type StrictLinkOptions = LinkOptions & {
   bin: string,
   force: boolean,
+  forceSharedShrinkwrap: boolean,
   saveExact: boolean,
   saveDev: boolean,
   saveOptional: boolean,
@@ -59,6 +61,7 @@ async function defaults (opts: LinkOptions) {
   return {
     bin: path.join(prefix, 'node_modules', '.bin'),
     force: false,
+    forceSharedShrinkwrap: false,
     independentLeaves: false,
     prefix,
     registries: DEFAULT_REGISTRIES,

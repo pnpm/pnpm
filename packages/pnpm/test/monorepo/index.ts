@@ -1,4 +1,4 @@
-import { preparePackages } from '@pnpm/prepare'
+import prepare, { preparePackages } from '@pnpm/prepare'
 import fs = require('mz/fs')
 import tape = require('tape')
 import promisifyTape from 'tape-promise'
@@ -485,4 +485,22 @@ test('local packages should be preferred when running "pnpm link" inside a works
   const shr = await projects['project-1'].loadShrinkwrap()
 
   t.equal(shr && shr.dependencies && shr.dependencies['is-positive'], 'link:../is-positive')
+})
+
+// covers https://github.com/pnpm/pnpm/issues/1437
+test("shared-workspace-shrinkwrap: create shared shrinkwrap format when installation is inside workspace", async (t) => {
+  const projects = prepare(t, {
+    dependencies: {
+      'is-positive': '1.0.0',
+    },
+  })
+
+  await writeYamlFile('pnpm-workspace.yaml', { packages: ['**', 'project', '!store/**'] })
+  await fs.writeFile('.npmrc', 'shared-workspace-shrinkwrap = true', 'utf8')
+
+  await execPnpm('install', '--store', 'store')
+
+  const shr = await loadYamlFile('shrinkwrap.yaml')
+
+  t.ok(shr['importers'] && shr['importers']['.'], 'correct shrinkwrap.yaml format')
 })

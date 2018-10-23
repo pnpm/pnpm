@@ -25,21 +25,30 @@ const SHRINKWRAP_YAML_FORMAT = {
 export function writeWantedOnly (
   pkgPath: string,
   wantedShrinkwrap: Shrinkwrap,
+  opts?: {
+    forceSharedFormat?: boolean,
+  },
 ) {
-  return writeShrinkwrap(WANTED_SHRINKWRAP_FILENAME, pkgPath, wantedShrinkwrap)
+  return writeShrinkwrap(WANTED_SHRINKWRAP_FILENAME, pkgPath, wantedShrinkwrap, opts)
 }
 
 export function writeCurrentOnly (
   pkgPath: string,
   currentShrinkwrap: Shrinkwrap,
+  opts?: {
+    forceSharedFormat?: boolean,
+  },
 ) {
-  return writeShrinkwrap(CURRENT_SHRINKWRAP_FILENAME, pkgPath, currentShrinkwrap)
+  return writeShrinkwrap(CURRENT_SHRINKWRAP_FILENAME, pkgPath, currentShrinkwrap, opts)
 }
 
 function writeShrinkwrap (
   shrinkwrapFilename: string,
   pkgPath: string,
   wantedShrinkwrap: Shrinkwrap,
+  opts?: {
+    forceSharedFormat?: boolean,
+  },
 ) {
   const shrinkwrapPath = path.join(pkgPath, shrinkwrapFilename)
 
@@ -48,7 +57,7 @@ function writeShrinkwrap (
     return rimraf(shrinkwrapPath)
   }
 
-  const yamlDoc = yaml.safeDump(normalizeShrinkwrap(wantedShrinkwrap), SHRINKWRAP_YAML_FORMAT)
+  const yamlDoc = yaml.safeDump(normalizeShrinkwrap(wantedShrinkwrap, opts && opts.forceSharedFormat === true || false), SHRINKWRAP_YAML_FORMAT)
 
   return writeFileAtomic(shrinkwrapPath, yamlDoc)
 }
@@ -57,8 +66,8 @@ function isEmptyShrinkwrap (shr: Shrinkwrap) {
   return R.values(shr.importers).every((importer) => R.isEmpty(importer.specifiers || {}) && R.isEmpty(importer.dependencies || {}))
 }
 
-function normalizeShrinkwrap (shr: Shrinkwrap) {
-  if (R.equals(R.keys(shr.importers), ['.'])) {
+function normalizeShrinkwrap (shr: Shrinkwrap, forceSharedFormat: boolean) {
+  if (forceSharedFormat === false && R.equals(R.keys(shr.importers), ['.'])) {
     const shrToSave = {
       ...shr,
       ...shr.importers['.'],
@@ -115,6 +124,9 @@ export default function write (
   pkgPath: string,
   wantedShrinkwrap: Shrinkwrap,
   currentShrinkwrap: Shrinkwrap,
+  opts?: {
+    forceSharedFormat?: boolean,
+  },
 ) {
   const wantedShrinkwrapPath = path.join(pkgPath, WANTED_SHRINKWRAP_FILENAME)
   const currentShrinkwrapPath = path.join(pkgPath, CURRENT_SHRINKWRAP_FILENAME)
@@ -127,7 +139,8 @@ export default function write (
     ])
   }
 
-  const yamlDoc = yaml.safeDump(normalizeShrinkwrap(wantedShrinkwrap), SHRINKWRAP_YAML_FORMAT)
+  const forceSharedFormat = opts && opts.forceSharedFormat === true || false
+  const yamlDoc = yaml.safeDump(normalizeShrinkwrap(wantedShrinkwrap, forceSharedFormat), SHRINKWRAP_YAML_FORMAT)
 
   // in most cases the `shrinkwrap.yaml` and `node_modules/.shrinkwrap.yaml` are equal
   // in those cases the YAML document can be stringified only once for both files
@@ -144,7 +157,7 @@ export default function write (
     prefix: pkgPath,
   })
 
-  const currentYamlDoc = yaml.safeDump(normalizeShrinkwrap(currentShrinkwrap), SHRINKWRAP_YAML_FORMAT)
+  const currentYamlDoc = yaml.safeDump(normalizeShrinkwrap(currentShrinkwrap, forceSharedFormat), SHRINKWRAP_YAML_FORMAT)
 
   return Promise.all([
     writeFileAtomic(wantedShrinkwrapPath, yamlDoc),

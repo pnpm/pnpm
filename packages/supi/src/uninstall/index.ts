@@ -95,10 +95,11 @@ export async function uninstallInContext (
   const currentShrinkwrap = makePartialCurrentShrinkwrap
     ? pruneShrinkwrap(ctx.currentShrinkwrap, pkg, ctx.importerId, { defaultRegistry: ctx.registries.default })
     : newShr
+  const shrinkwrapOpts = { forceSharedFormat: opts.forceSharedShrinkwrap }
   if (opts.shrinkwrap) {
-    await saveShrinkwrap(ctx.shrinkwrapDirectory, newShr, currentShrinkwrap)
+    await saveShrinkwrap(ctx.shrinkwrapDirectory, newShr, currentShrinkwrap, shrinkwrapOpts)
   } else {
-    await saveCurrentShrinkwrapOnly(ctx.shrinkwrapDirectory, currentShrinkwrap)
+    await saveCurrentShrinkwrapOnly(ctx.shrinkwrapDirectory, currentShrinkwrap, shrinkwrapOpts)
   }
   await removeOuterLinks(pkgsToUninstall, ctx.modulesDir, {
     bin: opts.bin,
