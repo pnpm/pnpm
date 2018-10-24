@@ -89,7 +89,7 @@ async function dependenciesHierarchy (
     currentDepth: 1,
     maxDepth: opts.depth,
     prod: opts.only === 'prod',
-    registry: shrinkwrap.registry,
+    registry: registries.default,
     searched,
   }, shrinkwrap.packages)
   const result: PackageNode[] = []
