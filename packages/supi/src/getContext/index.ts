@@ -67,6 +67,7 @@ export type StrictImportersOptions = ImportersOptions & {
 export default async function getContext (
   opts: {
     force: boolean,
+    forceSharedShrinkwrap: boolean,
     shrinkwrapDirectory: string,
     hooks?: {
       readPackage?: ReadPackageHook,
@@ -130,6 +131,7 @@ export default async function getContext (
     virtualStoreDir,
     ...await readShrinkwrapFile({
       force: opts.force,
+      forceSharedShrinkwrap: opts.forceSharedShrinkwrap,
       importers: opts.importers,
       registry: opts.registries.default,
       shrinkwrap: opts.shrinkwrap,
@@ -245,6 +247,7 @@ export interface PnpmSingleContext {
 export async function getContextForSingleImporter (
   opts: {
     force: boolean,
+    forceSharedShrinkwrap: boolean,
     shrinkwrapDirectory: string,
     hooks?: {
       readPackage?: ReadPackageHook,
@@ -309,6 +312,7 @@ export async function getContextForSingleImporter (
     virtualStoreDir,
     ...await readShrinkwrapFile({
       force: opts.force,
+      forceSharedShrinkwrap: opts.forceSharedShrinkwrap,
       importers: [{ id: importerId, prefix: opts.prefix }],
       registry: opts.registries.default,
       shrinkwrap: opts.shrinkwrap,

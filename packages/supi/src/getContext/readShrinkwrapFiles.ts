@@ -23,6 +23,7 @@ export interface PnpmContext {
 export default async function (
   opts: {
     force: boolean,
+    forceSharedShrinkwrap: boolean,
     shrinkwrapDirectory: string,
     registry: string,
     shrinkwrap: boolean,
@@ -38,7 +39,7 @@ export default async function (
   wantedShrinkwrap: Shrinkwrap,
 }> {
   let shrinkwrapVersion
-  if (opts.importers.length > 1 || opts.importers[0] && opts.importers[0].prefix !== opts.shrinkwrapDirectory) {
+  if (opts.forceSharedShrinkwrap || opts.importers.length > 1 || opts.importers[0] && opts.importers[0].prefix !== opts.shrinkwrapDirectory) {
     shrinkwrapVersion = SHRINKWRAP_NEXT_VERSION
   } else {
     shrinkwrapVersion = SHRINKWRAP_VERSION

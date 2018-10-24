@@ -9,6 +9,7 @@ export interface StoreStatusOptions {
   store: string,
   independentLeaves?: boolean,
   force?: boolean,
+  forceSharedShrinkwrap?: boolean,
   registries?: Registries,
   shrinkwrap?: boolean,
 
@@ -26,6 +27,7 @@ export type StrictStoreStatusOptions = StoreStatusOptions & {
   shrinkwrapDirectory: string,
   independentLeaves: boolean,
   force: boolean,
+  forceSharedShrinkwrap: boolean,
   registries: Registries,
   bin: string,
   shrinkwrap: boolean,
@@ -38,6 +40,7 @@ const defaults = async (opts: StoreStatusOptions) => {
   return {
     bin: path.join(prefix, 'node_modules', '.bin'),
     force: false,
+    forceSharedShrinkwrap: false,
     independentLeaves: false,
     prefix,
     registries: DEFAULT_REGISTRIES,

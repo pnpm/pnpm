@@ -503,4 +503,5 @@ test("shared-workspace-shrinkwrap: create shared shrinkwrap format when installa
   const shr = await loadYamlFile('shrinkwrap.yaml')
 
   t.ok(shr['importers'] && shr['importers']['.'], 'correct shrinkwrap.yaml format')
+  t.equal(shr['shrinkwrapVersion'], 4, 'correct shrinkwrap.yaml version')
 })

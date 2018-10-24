@@ -11,6 +11,7 @@ export interface RebuildOptions {
   store: string, // TODO: remove this property
   independentLeaves?: boolean,
   force?: boolean,
+  forceSharedShrinkwrap?: boolean,
   registries?: Registries,
   shrinkwrap?: boolean,
 
@@ -37,6 +38,7 @@ export type StrictRebuildOptions = RebuildOptions & {
   shrinkwrapDirectory: string,
   independentLeaves: boolean,
   force: boolean,
+  forceSharedShrinkwrap: boolean,
   registries: Registries,
   bin: string,
   rawNpmConfig: object,
@@ -63,6 +65,7 @@ const defaults = async (opts: RebuildOptions) => {
     childConcurrency: 5,
     development: true,
     force: false,
+    forceSharedShrinkwrap: false,
     independentLeaves: false,
     optional: true,
     packageManager,
