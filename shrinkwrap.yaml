@@ -173,7 +173,7 @@ importers:
       string-length: 2.0.0
       string.prototype.padstart: 3.0.0
       strip-ansi: 5.0.0
-      supi: 0.25.1
+      supi: 0.25.2
       tape: ^4.8.0
       ts-node: ^6.2.0
       tslint: ^5.7.0
@@ -251,7 +251,7 @@ importers:
       dependency-path: 2.0.0
       mos: ^2.0.0-alpha.3
       mos-plugin-readme: ^1.0.4
-      pnpm-shrinkwrap: 8.1.0
+      pnpm-shrinkwrap: 8.1.1
       semver: 5.6.0
       tape: ^4.7.0
       ts-node: ^7.0.0
@@ -321,7 +321,7 @@ importers:
       '@pnpm/lifecycle': 3.0.2
       '@pnpm/link-bins': 3.0.1
       '@pnpm/logger': ^2.1.0
-      '@pnpm/modules-cleaner': 1.0.1
+      '@pnpm/modules-cleaner': 1.0.2
       '@pnpm/modules-yaml': 2.0.0
       '@pnpm/package-requester': 4.1.5
       '@pnpm/pkgid-to-filename': 2.0.0
@@ -349,7 +349,7 @@ importers:
       package-store: 0.23.5
       path-exists: 3.0.0
       pnpm-registry-mock: ^2.2.0
-      pnpm-shrinkwrap: 8.1.0
+      pnpm-shrinkwrap: 8.1.1
       ramda: 0.25.0
       rimraf: ^2.6.2
       rimraf-then: ^1.0.1
@@ -402,7 +402,7 @@ importers:
       archy: 1.0.0
       chalk: 2.4.1
       common-tags: ^1.4.0
-      dependencies-hierarchy: 3.1.1
+      dependencies-hierarchy: 3.1.2
       mos: ^2.0.0-alpha.3
       mos-plugin-readme: ^1.0.4
       npm-package-arg: 6.1.0
@@ -452,7 +452,7 @@ importers:
       dependency-path: 2.0.0
       fs-vacuum: 1.2.10
       package-store: 0.23.5
-      pnpm-shrinkwrap: 8.1.0
+      pnpm-shrinkwrap: 8.1.1
       ramda: 0.25.0
       rimraf: 2.6.2
       rimraf-then: 1.0.1
@@ -532,7 +532,7 @@ importers:
       dependency-path: 2.0.0
       mos: ^2.0.0-alpha.3
       mos-plugin-readme: ^1.0.4
-      pnpm-shrinkwrap: 8.1.0
+      pnpm-shrinkwrap: 8.1.1
       tape: ^4.8.0
       ts-node: ^7.0.0
       tslint: ^5.8.0
@@ -828,7 +828,7 @@ importers:
       '@pnpm/lifecycle': 3.0.2
       '@pnpm/logger': 2.1.0
       '@pnpm/modules-yaml': 2.0.0
-      '@pnpm/outdated': 1.0.1
+      '@pnpm/outdated': 1.0.2
       '@pnpm/prepare': 0.0.0
       '@pnpm/read-package-json': 1.0.1
       '@pnpm/server': 1.0.0
@@ -896,9 +896,9 @@ importers:
       path-name: 1.0.0
       pkgs-graph: 2.0.0
       pnpm: 'link:.'
-      pnpm-default-reporter: 0.20.10
+      pnpm-default-reporter: 0.20.11
       pnpm-file-reporter: 0.1.0
-      pnpm-list: 4.1.1
+      pnpm-list: 4.1.2
       pnpm-registry-mock: ^2.2.0
       process-exists: 3.1.0
       ramda: 0.25.0
@@ -910,7 +910,7 @@ importers:
       sepia: ^2.0.2
       signal-exit: 3.0.2
       strip-color: 0.1.0
-      supi: 0.25.1
+      supi: 0.25.2
       tape: ^4.6.3
       tape-promise: ^4.0.0
       text-table: 0.2.0
@@ -969,7 +969,7 @@ importers:
       package-store: 0.23.5
       path-exists: 3.0.0
       pnpm-install-checks: 1.1.0
-      pnpm-shrinkwrap: 8.1.0
+      pnpm-shrinkwrap: 8.1.1
       ramda: 0.25.0
       replace-string: 2.0.0
       rimraf: 2.6.2
@@ -1210,17 +1210,17 @@ importers:
       '@pnpm/default-fetcher': 2.0.3
       '@pnpm/default-resolver': 2.0.5
       '@pnpm/fs-locker': 1.0.2
-      '@pnpm/headless': 0.6.9
+      '@pnpm/headless': 0.6.10
       '@pnpm/lifecycle': 3.0.2
       '@pnpm/link-bins': 3.0.1
       '@pnpm/logger': ^2.1.0
-      '@pnpm/modules-cleaner': 1.0.1
+      '@pnpm/modules-cleaner': 1.0.2
       '@pnpm/modules-yaml': 2.0.0
       '@pnpm/package-requester': 4.1.5
       '@pnpm/pkgid-to-filename': 2.0.0
       '@pnpm/prepare': 0.0.0
       '@pnpm/read-package-json': 1.0.1
-      '@pnpm/resolve-dependencies': 1.0.1
+      '@pnpm/resolve-dependencies': 1.0.2
       '@pnpm/resolver-base': 2.0.0
       '@pnpm/store-path': ^1.0.0
       '@pnpm/types': 2.0.0
@@ -1276,7 +1276,7 @@ importers:
       path-exists: 3.0.0
       path-name: ^1.0.0
       pnpm-registry-mock: ^2.2.0
-      pnpm-shrinkwrap: 8.1.0
+      pnpm-shrinkwrap: 8.1.1
       ramda: 0.25.0
       read-pkg: 4.0.1
       remove-all-except-outer-links: 1.0.3
