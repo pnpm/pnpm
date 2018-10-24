@@ -402,7 +402,7 @@ importers:
       archy: 1.0.0
       chalk: 2.4.1
       common-tags: ^1.4.0
-      dependencies-hierarchy: 3.1.2
+      dependencies-hierarchy: 3.1.3
       mos: ^2.0.0-alpha.3
       mos-plugin-readme: ^1.0.4
       npm-package-arg: 6.1.0
@@ -898,7 +898,7 @@ importers:
       pnpm: 'link:.'
       pnpm-default-reporter: 0.20.11
       pnpm-file-reporter: 0.1.0
-      pnpm-list: 4.1.2
+      pnpm-list: 4.1.3
       pnpm-registry-mock: ^2.2.0
       process-exists: 3.1.0
       ramda: 0.25.0
