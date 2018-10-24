@@ -70,7 +70,7 @@
     "normalize-newline": "^3.0.0",
     "pnpm-default-reporter": "link:.",
     "rimraf": "^2.5.4",
-    "supi": "0.25.0",
+    "supi": "0.25.1",
     "tape": "^4.8.0",
     "ts-node": "^6.2.0",
     "tslint": "^5.7.0",

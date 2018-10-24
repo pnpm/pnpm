@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/resolve-dependencies",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "author": {
     "name": "Zoltan Kochan",
     "email": "z@kochan.io",
@@ -43,7 +43,7 @@
     "package-store": "0.23.5",
     "path-exists": "3.0.0",
     "pnpm-install-checks": "1.1.0",
-    "pnpm-shrinkwrap": "8.0.0",
+    "pnpm-shrinkwrap": "8.1.0",
     "ramda": "0.25.0",
     "replace-string": "2.0.0",
     "semver": "5.6.0",
