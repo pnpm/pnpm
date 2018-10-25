@@ -103,6 +103,7 @@ async function dependenciesHierarchy (
     let newEntry: PackageNode | null = null
     const matchedSearched = searched.length && matches(searched, pkg)
     if (pkgPath === null) {
+      if (searched.length && !matchedSearched) return
       newEntry = { pkg }
     } else {
       const relativeId = refToRelative(topDeps[depName], depName)
@@ -223,6 +224,7 @@ function matches (
       return pkg.name === searchedPkg
     }
     return searchedPkg.name === pkg.name &&
+      !pkg.version.startsWith('link:') &&
       semver.satisfies(pkg.version, searchedPkg.range)
   })
 }

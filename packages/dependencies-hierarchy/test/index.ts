@@ -286,3 +286,20 @@ test('on a package that has only links', async t => {
 
   t.end()
 })
+
+test('filter on a package that has only links', async t => {
+  t.deepEqual(await dhForPackages(['rimraf'], withLinksOnlyFixture, {depth: 1000}), [], 'not found')
+  t.deepEqual(await dhForPackages([{ name: 'general', range: '2' }], withLinksOnlyFixture, {depth: 1000}), [], 'not found')
+  t.deepEqual(await dhForPackages(['general'], withLinksOnlyFixture, {depth: 1000}), [
+    {
+      pkg: {
+        name: 'general',
+        path: 'link:../general',
+        version: 'link:../general',
+      },
+      searched: true,
+    },
+  ], 'found')
+
+  t.end()
+})
