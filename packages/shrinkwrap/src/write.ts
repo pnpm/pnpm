@@ -102,9 +102,7 @@ function normalizeShrinkwrap (shr: Shrinkwrap, forceSharedFormat: boolean) {
     if (R.isEmpty(shrToSave.packages)) {
       delete shrToSave.packages
     }
-    if (shrToSave.registry) {
-      delete shrToSave.registry
-    }
+    delete shrToSave.registry
     return normalizeShrinkwrapVersion(shrToSave)
   }
 }

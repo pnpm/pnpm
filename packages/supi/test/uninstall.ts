@@ -1,14 +1,14 @@
-import prepare from '@pnpm/prepare'
-import tape = require('tape')
-import promisifyTape from 'tape-promise'
-const test = promisifyTape(tape)
+import prepare, { preparePackages } from '@pnpm/prepare'
+import exists = require('path-exists')
 import existsSymlink = require('exists-link')
 import ncpCB = require('ncp')
+import loadYamlFile = require('load-yaml-file')
 import path = require('path')
-import exists = require('path-exists')
+import promisifyTape from 'tape-promise'
 import readPkg = require('read-pkg')
-import sinon = require('sinon')
+import tape = require('tape')
 import {
+  install,
   installPkgs,
   link,
   PackageJsonLog,
@@ -17,12 +17,15 @@ import {
   storePrune,
   uninstall,
 } from 'supi'
+import sinon = require('sinon')
 import promisify = require('util.promisify')
 import {
   pathToLocalPkg,
   testDefaults,
 } from './utils'
 
+const test = promisifyTape(tape)
+const testOnly = promisifyTape(tape.only)
 const ncp = promisify(ncpCB.ncp)
 
 test('uninstall package with no dependencies', async (t: tape.Test) => {
@@ -178,4 +181,75 @@ test('pendingBuilds gets updated after uninstall', async (t: tape.Test) => {
   const modules2 = await project.loadModules()
   t.ok(modules2)
   t.equal(modules2!.pendingBuilds.length, 1, 'uninstall should update pendingBuilds')
+})
+
+test('uninstalling a dependency from package that uses shared shrinkwrap', async (t) => {
+  const projects = preparePackages(t, [
+    {
+      name: 'project-1',
+      version: '1.0.0',
+      dependencies: {
+        'is-positive': '1.0.0',
+      },
+    },
+    {
+      name: 'project-2',
+      version: '1.0.0',
+      dependencies: {
+        'is-negative': '1.0.0',
+      },
+    },
+  ])
+
+  const importers = [
+    {
+      prefix: path.resolve('project-1'),
+    },
+    {
+      prefix: path.resolve('project-2'),
+    },
+  ]
+
+  await install(await testDefaults({ importers }))
+
+  await projects['project-1'].has('is-positive')
+  await projects['project-2'].has('is-negative')
+
+  await uninstall(['is-positive'], await testDefaults({
+    prefix: importers[0].prefix,
+    shrinkwrapDirectory: process.cwd(),
+  }))
+
+  await projects['project-1'].hasNot('is-positive')
+  await projects['project-2'].has('is-negative')
+
+  const shr = await loadYamlFile('shrinkwrap.yaml')
+
+  t.deepEqual(shr, {
+    importers: {
+      'project-1': {
+        specifiers: {},
+      },
+      'project-2': {
+        dependencies: {
+          'is-negative': '1.0.0',
+        },
+        specifiers: {
+          'is-negative': '1.0.0',
+        },
+      },
+    },
+    packages: {
+      '/is-negative/1.0.0': {
+        dev: false,
+        engines: {
+          node: '>=0.10.0',
+        },
+        resolution: {
+          integrity: 'sha1-clmHeoPIAKwxkd17nZ+80PdS1P4=',
+        },
+      },
+    },
+    shrinkwrapVersion: 4,
+  })
 })
