@@ -107,7 +107,7 @@
     "read-pkg": "4.0.1",
     "rimraf": "^2.6.2",
     "sepia": "^2.0.2",
-    "sinon": "7.0.0",
+    "sinon": "7.1.0",
     "supi": "link:.",
     "tape": "^4.8.0",
     "tape-promise": "^4.0.0",
