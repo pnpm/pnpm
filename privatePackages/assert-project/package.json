@@ -17,11 +17,11 @@
     "lib/"
   ],
   "devDependencies": {
-    "@pnpm/assert-project": "link:.",
-    "rimraf": "^2.6.2",
-    "ts-node": "^7.0.1",
-    "tslint": "^5.4.2",
-    "typescript": "^3.1.1"
+    "@pnpm/assert-project": "link:",
+    "rimraf": "2.6.2",
+    "ts-node": "7.0.1",
+    "tslint": "5.11.0",
+    "typescript": "3.1.3"
   },
   "directories": {
     "test": "test"
@@ -45,18 +45,18 @@
   },
   "dependencies": {
     "@pnpm/modules-yaml": "2.0.0",
-    "@types/mz": "^0.0.32",
+    "@types/mz": "0.0.32",
     "@types/node": "10.12.0",
-    "@types/path-exists": "^3.0.0",
-    "@types/tape": "^4.2.32",
-    "@types/write-pkg": "^3.1.0",
-    "is-windows": "^1.0.2",
-    "isexe": "^2.0.0",
-    "load-yaml-file": "^0.1.0",
-    "mz": "^2.7.0",
-    "path-exists": "^3.0.0",
-    "tape": "^4.9.0",
-    "util.promisify": "^1.0.0",
-    "write-pkg": "^3.1.0"
+    "@types/path-exists": "3.0.0",
+    "@types/tape": "4.2.32",
+    "@types/write-pkg": "3.1.0",
+    "is-windows": "1.0.2",
+    "isexe": "2.0.0",
+    "load-yaml-file": "0.1.0",
+    "mz": "2.7.0",
+    "path-exists": "3.0.0",
+    "tape": "4.9.1",
+    "util.promisify": "1.0.0",
+    "write-pkg": "3.2.0"
   }
 }
