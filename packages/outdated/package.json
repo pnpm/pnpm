@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/outdated",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "description": "Check for outdated packages",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
@@ -43,7 +43,7 @@
     "@pnpm/utils": "0.9.0",
     "@types/node": "10.12.0",
     "dependency-path": "2.0.0",
-    "pnpm-shrinkwrap": "8.1.1"
+    "pnpm-shrinkwrap": "8.1.2"
   },
   "devDependencies": {
     "@pnpm/logger": "2.1.0",
