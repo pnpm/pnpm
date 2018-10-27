@@ -128,7 +128,7 @@ importers:
     devDependencies:
       '@pnpm/logger': 2.1.0
       '@types/tape': 4.2.32
-      delay: 4.0.1
+      delay: 4.1.0
       ghooks: 2.0.4
       load-json-file: 5.1.0
       mos-tap-diff: 1.0.0
@@ -156,7 +156,7 @@ importers:
       chalk: 2.4.1
       cli-cursor: 2.1.0
       common-tags: 1.8.0
-      delay: 4.0.1
+      delay: 4.1.0
       ghooks: 2.0.4
       load-json-file: 5.1.0
       mos-tap-diff: 1.0.0
@@ -572,7 +572,7 @@ importers:
       '@types/sinon': 5.0.5
       '@types/tape': 4.2.32
       '@types/tempy': 0.2.0
-      delay: 4.0.1
+      delay: 4.1.0
       mos: 2.0.0-alpha.3
       mos-plugin-readme: 1.0.4
       ncp: 2.0.0
@@ -606,7 +606,7 @@ importers:
       '@types/sinon': 5.0.5
       '@types/tape': 4.2.32
       '@types/tempy': 0.2.0
-      delay: 4.0.1
+      delay: 4.1.0
       load-json-file: 5.1.0
       mkdirp-promise: 5.0.1
       mos: 2.0.0-alpha.3
@@ -735,7 +735,7 @@ importers:
       chalk: 2.4.1
       common-tags: 1.8.0
       cross-spawn: 6.0.5
-      delay: 4.0.1
+      delay: 4.1.0
       diable: 4.0.1
       execa: 1.0.0
       find-packages: 2.2.0
@@ -862,7 +862,7 @@ importers:
       common-tags: 1.8.0
       cross-spawn: 6.0.5
       deep-require-cwd: 1.0.0
-      delay: 4.0.1
+      delay: 4.1.0
       diable: 4.0.1
       execa: 1.0.0
       exists-link: 2.0.0
@@ -3894,11 +3894,11 @@ packages:
   /defined/1.0.0:
     resolution:
       integrity: sha1-yY2bzvdWdBiOEQlpFRGZ45sfppM=
-  /delay/4.0.1:
+  /delay/4.1.0:
     engines:
       node: '>=6'
     resolution:
-      integrity: sha512-wOsrzqdl8Lphi0v3g4FPz7zf0sT4o/u+z+LB+s1q0qzB9xw6QzZbdY9D6IoCojRHIxbaHvpUkLt6//1KB6VNug==
+      integrity: sha512-8Hea6/aOu3bPdDBQhSRUEUzF0QwuWmSPuIK+sxNdvcJtSfzb6HXrTd9DFJBCJcV9o83fFECqTgllqdnmUfq9+w==
   /delayed-stream/1.0.0:
     engines:
       node: '>=0.4.0'
