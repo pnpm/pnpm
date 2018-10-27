@@ -788,7 +788,7 @@ importers:
       '@types/retry': 0.10.2
       '@types/semver': 5.5.0
       '@types/tape': 4.2.32
-      '@types/update-notifier': 2.2.0
+      '@types/update-notifier': 2.5.0
       anonymous-npm-registry-client: 0.1.2
       byline: 5.0.0
       caw: 2.0.1
@@ -851,7 +851,7 @@ importers:
       '@types/retry': 0.10.2
       '@types/semver': 5.5.0
       '@types/tape': 4.2.32
-      '@types/update-notifier': 2.2.0
+      '@types/update-notifier': 2.5.0
       '@zkochan/libnpx': 9.6.1
       anonymous-npm-registry-client: 0.1.2
       byline: 5.0.0
@@ -2112,10 +2112,10 @@ packages:
       '@types/node': 10.12.0
     resolution:
       integrity: sha512-6qjr7Erk0b9FkZSu17wUJaWhmzUgGfQuec7eIwl9cP7V/YO/k9IcMnHSwAjxAeadC5guq9rwHcoij7PT1RkO1w==
-  /@types/update-notifier/2.2.0:
+  /@types/update-notifier/2.5.0:
     dev: true
     resolution:
-      integrity: sha512-QdVXvKa36soA86VI09WCAxLU44udSWFNPDpeXq9pNhZs0Yj2hQcuL4NDGrolD4NY4akjuXgBubjgplGucQ0FJQ==
+      integrity: sha512-YV+ZcSIiv30GhLM7WwxI+bsbcW34d3Yhl2JSFBNFL6qtfsoI9++hogxz+jTqeS86ynKcMUE0AsnLWQynfJnsfA==
   /@types/uuid/3.4.4:
     dependencies:
       '@types/node': 10.12.0
