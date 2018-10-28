@@ -53,13 +53,6 @@ export default async function link (
 
   const importerId = getImporterId(ctx.shrinkwrapDirectory, opts.prefix)
   const oldShrinkwrap = R.clone(ctx.currentShrinkwrap)
-  const pkg = await safeReadPackage(path.join(opts.prefix, 'package.json')) || undefined
-  if (pkg) {
-    packageJsonLogger.debug({
-      initial: pkg,
-      prefix: opts.prefix,
-    })
-  }
   const linkedPkgs: Array<{path: string, pkg: PackageJson, alias: string}> = []
   const specsToUpsert = [] as Array<{name: string, pref: string, saveType: DependenciesField}>
   const saveType = getSaveType(opts)
@@ -80,14 +73,14 @@ export default async function link (
         saveExact: opts.saveExact,
         savePrefix: opts.savePrefix,
       }),
-      saveType: (saveType || pkg && guessDependencyType(linkedPkg.name, pkg)) as DependenciesField,
+      saveType: (saveType || ctx.pkg && guessDependencyType(linkedPkg.name, ctx.pkg)) as DependenciesField,
     })
 
     const packagePath = normalize(path.relative(opts.prefix, linkFromPath))
     const addLinkOpts = {
       linkedPkgName: linkFromAlias || linkedPkg.name,
       packagePath,
-      pkg,
+      pkg: ctx.pkg,
     }
     addLinkToShrinkwrap(ctx.currentShrinkwrap.importers[importerId], addLinkOpts)
     addLinkToShrinkwrap(ctx.wantedShrinkwrap.importers[importerId], addLinkOpts)
