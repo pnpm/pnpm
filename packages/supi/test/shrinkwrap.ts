@@ -1079,3 +1079,17 @@ test('doing named installation when shared shrinkwrap.yaml exists already', asyn
   await projects['pkg1'].has('is-negative')
   await projects['pkg2'].has('is-positive')
 })
+
+// Covers https://github.com/pnpm/pnpm/issues/1200
+test('use current shrinkwrap.yaml as initial wanted one, when wanted was removed', async (t) => {
+  const project = prepare(t)
+
+  await installPkgs(['lodash@4.17.11', 'underscore@1.9.0'], await testDefaults())
+
+  await rimraf('shrinkwrap.yaml')
+
+  await installPkgs(['underscore@1.9.1'], await testDefaults())
+
+  await project.has('lodash')
+  await project.has('underscore')
+})

@@ -70,7 +70,7 @@ export default async function (
     }
   }
   const wantedShrinkwrap = files[0] ||
-    !opts.shrinkwrap && currentShrinkwrap && R.clone(currentShrinkwrap) ||
+    currentShrinkwrap && R.clone(currentShrinkwrap) ||
     createShrinkwrap(opts.registry, importerIds, sopts)
   for (const importerId of importerIds) {
     if (!wantedShrinkwrap.importers[importerId]) {
