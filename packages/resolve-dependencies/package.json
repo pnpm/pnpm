@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/resolve-dependencies",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "author": {
     "name": "Zoltan Kochan",
     "email": "z@kochan.io",
@@ -32,7 +32,7 @@
   "dependencies": {
     "@pnpm/core-loggers": "1.0.0",
     "@pnpm/npm-resolver": "2.2.6",
-    "@pnpm/package-requester": "4.1.5",
+    "@pnpm/package-requester": "4.1.6",
     "@pnpm/resolver-base": "2.0.0",
     "@pnpm/types": "2.0.0",
     "@pnpm/utils": "0.9.0",
@@ -40,7 +40,7 @@
     "@types/ramda": "0.25.38",
     "@types/semver": "5.5.0",
     "dependency-path": "2.0.0",
-    "package-store": "0.23.5",
+    "package-store": "0.23.6",
     "path-exists": "3.0.0",
     "pnpm-install-checks": "1.1.0",
     "pnpm-shrinkwrap": "8.1.2",
