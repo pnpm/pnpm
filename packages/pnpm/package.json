@@ -127,7 +127,7 @@
     "typescript": "3.1.3",
     "write-json-file": "3.0.2",
     "write-pkg": "3.2.0",
-    "write-yaml-file": "1.0.1"
+    "write-yaml-file": "2.0.0"
   },
   "directories": {
     "test": "test"
