@@ -2,6 +2,7 @@ import prepare from '@pnpm/prepare'
 import caw = require('caw')
 import crossSpawn = require('cross-spawn')
 import deepRequireCwd = require('deep-require-cwd')
+import execa = require('execa')
 import isCI = require('is-ci')
 import isWindows = require('is-windows')
 import fs = require('mz/fs')
@@ -884,4 +885,21 @@ test('should throw error when trying to install a package without name', async (
     }
     t.equal(err.code, 'ERR_PNPM_MISSING_PACKAGE_NAME', 'failed with correct error code')
   }
+})
+
+// Covers https://github.com/pnpm/pnpm/issues/1193
+test('rewrites node_modules created by npm', async (t) => {
+  const project = prepare(t)
+
+  await execa('npm', ['install', 'rimraf@2.5.1', '@types/node', '--save'])
+
+  await install(await testDefaults())
+
+  const m = project.requireModule('rimraf')
+  t.ok(typeof m === 'function', 'rimraf() is available')
+  await project.isExecutable('.bin/rimraf')
+
+  await execa('npm', ['install', '-f', 'rimraf@2.5.1', '@types/node', '--save'])
+
+  await install(await testDefaults())
 })

@@ -279,7 +279,7 @@ importers:
       path-exists: 3.0.0
       pnpm-shrinkwrap: 'link:../shrinkwrap'
       ramda: 0.25.0
-      symlink-dir: 1.1.3
+      symlink-dir: 2.0.0
     devDependencies:
       '@pnpm/assert-project': 'link:../../privatePackages/assert-project'
       '@pnpm/default-fetcher': 'link:../default-fetcher'
@@ -354,7 +354,7 @@ importers:
       rimraf: 2.6.2
       rimraf-then: 1.0.1
       sinon: 7.1.0
-      symlink-dir: 1.1.3
+      symlink-dir: 2.0.0
       tape: 4.9.1
       tape-promise: 4.0.0
       tempy: 0.2.1
@@ -558,7 +558,7 @@ importers:
       read-package-json: 2.0.13
       rename-overwrite: 1.0.3
       rimraf-then: 1.0.1
-      symlink-dir: 1.1.3
+      symlink-dir: 2.0.0
       util.promisify: 1.0.0
       write-json-file: 3.0.2
     devDependencies:
@@ -623,7 +623,7 @@ importers:
       rimraf: 2.6.2
       rimraf-then: 1.0.1
       sinon: 7.1.0
-      symlink-dir: 1.1.3
+      symlink-dir: 2.0.0
       tape: 4.9.1
       tempy: 0.2.1
       ts-node: 7.0.1
@@ -1159,7 +1159,7 @@ importers:
       resolve-link-target: 1.0.1
       rimraf-then: 1.0.1
       semver: 5.6.0
-      symlink-dir: 1.1.3
+      symlink-dir: 2.0.0
       util.promisify: 1.0.0
       validate-npm-package-name: 3.0.0
       write-pkg: 3.2.0
@@ -1288,7 +1288,7 @@ importers:
       sepia: 2.0.2
       sinon: 7.1.0
       supi: 'link:'
-      symlink-dir: 1.1.3
+      symlink-dir: 2.0.0
       tape: 4.9.1
       tape-promise: 4.0.0
       ts-node: 6.2.0
@@ -9051,11 +9051,27 @@ packages:
       is-windows: 1.0.2
       mkdirp-promise: 5.0.1
       mz: 2.7.0
+    dev: true
     engines:
       node: '>=4'
     hasBin: true
     resolution:
       integrity: sha512-klQgTYk7en8A69nAzZjJdaMXbGCmfh0DU+YLaZG/stHNp00VZSS3Pos238Ua7oCKVw57UszViod4D7RVRH6XHg==
+  /symlink-dir/2.0.0:
+    dependencies:
+      '@types/mz': 0.0.32
+      '@types/node': 10.12.0
+      graceful-fs: 4.1.11
+      is-windows: 1.0.2
+      mkdirp-promise: 5.0.1
+      mz: 2.7.0
+      rename-overwrite: 1.0.3
+    dev: false
+    engines:
+      node: '>=6'
+    hasBin: true
+    resolution:
+      integrity: sha512-M7ocki4GpAJKWl9KgZ8tcktP6xpV7uXqtyt/Z61NFd/XRmjyvuTWXk8+s2tjFLs2jS0MI8CKkWGYo8E0UM5nCg==
   /tap-parser/1.3.2:
     dependencies:
       events-to-array: 1.1.2

@@ -13,6 +13,7 @@ import {
 } from './utils'
 
 const test = promisifyTape(tape)
+const testOnly = promisifyTape(tape.only)
 
 test('returns help when not available command is used', t => {
   const result = execPnpmSync('foobarqar')
@@ -39,18 +40,6 @@ test('installs in the folder where the package.json file is', async function (t)
   process.chdir('subdir')
 
   await execPnpm('install', 'rimraf@2.5.1')
-
-  const m = project.requireModule('rimraf')
-  t.ok(typeof m === 'function', 'rimraf() is available')
-  await project.isExecutable('.bin/rimraf')
-})
-
-test('rewrites node_modules created by npm', async function (t) {
-  const project = prepare(t)
-
-  await execa('npm', ['install', 'rimraf@2.5.1', '@types/node', '--save'])
-
-  await execPnpm('install')
 
   const m = project.requireModule('rimraf')
   t.ok(typeof m === 'function', 'rimraf() is available')
