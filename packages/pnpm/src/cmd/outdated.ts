@@ -2,11 +2,8 @@ import outdated, {
   forPackages as outdatedForPackages,
 } from '@pnpm/outdated'
 import chalk from 'chalk'
-import path = require('path')
 import stripColor = require('strip-color')
 import table = require('text-table')
-
-const LAYOUT_VERSION = '1'
 
 export default async function (
   args: string[],
@@ -36,19 +33,9 @@ export default async function (
   },
   command: string,
 ) {
-  let prefix: string
-  if (opts.global) {
-    prefix = path.join(opts.prefix, LAYOUT_VERSION)
-    if (opts.independentLeaves) {
-      prefix += '_independent_leaves'
-    }
-  } else {
-    prefix = opts.prefix
-  }
-
   const outdatedPkgs = args.length
-    ? await outdatedForPackages(args, prefix, opts)
-    : await outdated(prefix, opts)
+    ? await outdatedForPackages(args, opts.prefix, opts)
+    : await outdated(opts.prefix, opts)
 
   if (!outdatedPkgs.length) return
 

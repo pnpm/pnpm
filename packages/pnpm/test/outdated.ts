@@ -3,7 +3,7 @@ import tape = require('tape')
 import promisifyTape from 'tape-promise'
 import path = require('path')
 import { stripIndents } from 'common-tags'
-import { execPnpmSync } from './utils'
+import { execPnpmSync, execPnpm } from './utils'
 import normalizeNewline = require('normalize-newline')
 
 const hasOutdatedDepsFixture = path.join(__dirname, 'packages', 'has-outdated-deps')
@@ -47,5 +47,25 @@ test('pnpm outdated with external shrinkwrap', async (t: tape.Test) => {
     Package      Current  Wanted  Latest
     is-negative  1.0.0    1.1.0   2.1.0
     is-positive  1.0.0    3.1.0   3.1.0
+  ` + '\n')
+})
+
+test('pnpm outdated on global packages', async (t: tape.Test) => {
+  prepare(t)
+  const global = path.resolve('..', 'global')
+
+  if (process.env.APPDATA) process.env.APPDATA = global
+  process.env.NPM_CONFIG_PREFIX = global
+
+  await execPnpm('install', '-g', 'is-negative@1.0.0', 'is-positive@1.0.0')
+
+  const result = execPnpmSync('outdated', '-g')
+
+  t.equal(result.status, 0)
+
+  t.equal(normalizeNewline(result.stdout.toString()), stripIndents`
+    Package      Current  Wanted  Latest
+    is-negative  1.0.0    1.0.0   2.1.0
+    is-positive  1.0.0    1.0.0   3.1.0
   ` + '\n')
 })
