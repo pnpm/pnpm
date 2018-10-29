@@ -18,7 +18,7 @@ devDependencies:
   tape: 4.9.1
   ts-node: 7.0.1
   tslint: 5.11.0
-  typescript: 3.1.3
+  typescript: 3.1.4
 packages:
   /@pnpm/exec/1.1.5:
     dependencies:
@@ -3362,13 +3362,13 @@ packages:
     dev: true
     resolution:
       integrity: sha1-hnrHTjhkGHsdPUfZlqeOxciDB3c=
-  /typescript/3.1.3:
+  /typescript/3.1.4:
     dev: true
     engines:
       node: '>=4.2.0'
     hasBin: true
     resolution:
-      integrity: sha512-+81MUSyX+BaSo+u2RbozuQk/UWx6hfG0a5gHu4ANEM4sU96XbuIyAB+rWBW1u70c6a5QuZfuYICn3s2UjuHUpA==
+      integrity: sha512-JZHJtA6ZL15+Q3Dqkbh8iCUmvxD3iJ7ujXS+fVkKnwIVAdHc5BJTDNM0aTrnr2luKulFjU7W+SRhDZvi66Ru7Q==
   /uid-number/0.0.6:
     dev: false
     resolution:
@@ -3607,4 +3607,4 @@ specifiers:
   tape: 4.9.1
   ts-node: 7.0.1
   tslint: 5.11.0
-  typescript: 3.1.3
+  typescript: 3.1.4
