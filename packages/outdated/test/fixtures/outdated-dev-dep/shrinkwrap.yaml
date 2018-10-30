@@ -1,0 +1,11 @@
+devDependencies:
+  is-negative: 1.0.0
+packages:
+  /is-negative/1.0.0:
+    dev: true
+    resolution:
+      integrity: sha1-clmHeoPIAKwxkd17nZ+80PdS1P4=
+registry: 'https://registry.npmjs.org/'
+shrinkwrapVersion: 3
+specifiers:
+  is-negative: 1.0.0

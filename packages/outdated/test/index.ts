@@ -127,3 +127,16 @@ test('outdated() on package with external shrinkwrap', async (t) => {
   ])
   t.end()
 })
+
+test('outdated() on package that has one outdated dev dependency', async (t) => {
+  const outdatedPkgs = await outdated('outdated-dev-dep', outdatedOpts)
+  t.deepEqual(outdatedPkgs, [
+    {
+      current: '1.0.0',
+      latest: '2.1.0',
+      packageName: 'is-negative',
+      wanted: '1.0.0',
+    },
+  ])
+  t.end()
+})

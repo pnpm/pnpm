@@ -208,9 +208,9 @@ async function _outdated (
 
 // tslint:disable-next-line:no-any
 function packageHasNoDeps (pkg: any) {
-  return (!pkg.dependencies || isEmpty(pkg.dependencies)
+  return (!pkg.dependencies || isEmpty(pkg.dependencies))
     && (!pkg.devDependencies || isEmpty(pkg.devDependencies))
-    && (!pkg.optionalDependencies || isEmpty(pkg.optionalDependencies)))
+    && (!pkg.optionalDependencies || isEmpty(pkg.optionalDependencies))
 }
 
 function isEmpty (obj: object) {
