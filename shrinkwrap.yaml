@@ -18,12 +18,12 @@ devDependencies:
   tape: 4.9.1
   ts-node: 7.0.1
   tslint: 5.11.0
-  typescript: 3.1.4
+  typescript: 3.1.5
 packages:
   /@pnpm/exec/1.1.5:
     dependencies:
       '@pnpm/self-installer': 2.0.7
-      '@types/got': 8.3.4
+      '@types/got': 8.3.5
       '@types/node': 10.12.1
       command-exists: 1.2.8
       cross-spawn: 6.0.5
@@ -82,12 +82,12 @@ packages:
     dev: true
     resolution:
       integrity: sha512-1Bh06cbWJUHMC97acuD6UMG29nMt0Aqz1vF3guLfG+kHHJhy3AyohZFFxYk2f7Q1SQIrNwvncxAE0N/9s70F2w==
-  /@types/got/8.3.4:
+  /@types/got/8.3.5:
     dependencies:
       '@types/node': 10.12.1
     dev: true
     resolution:
-      integrity: sha512-0AbIQzpqQafYPFg26nwg5PfNgPLYwHeTP6z5F1u+5oypLIdpx34o5r8wYTTj3X3YYF2yPHtZPO/KYwlI8Nu/hQ==
+      integrity: sha512-AaXSrIF99SjjtPVNmCmYb388HML+PKEJb/xmj4SbL2ZO0hHuETZZzyDIKfOqaEoAHZEuX4sC+FRFrHYJoIby6A==
   /@types/load-json-file/2.0.7:
     dev: true
     resolution:
@@ -814,7 +814,7 @@ packages:
     dependencies:
       lru-cache: 4.1.3
       which: 1.3.1
-    deprecated: 'cross-spawn no longer requires a build toolchain, use it instead!'
+    deprecated: 'cross-spawn no longer requires a build toolchain, use it instead'
     dev: true
     resolution:
       integrity: sha1-kN6ptpIPA7L3vHSZYVABrubyMX4=
@@ -1339,7 +1339,7 @@ packages:
     dependencies:
       assert-plus: 1.0.0
       jsprim: 1.4.1
-      sshpk: 1.15.1
+      sshpk: 1.15.2
     dev: false
     engines:
       node: '>=0.8'
@@ -2951,7 +2951,7 @@ packages:
   /spdx-correct/3.0.2:
     dependencies:
       spdx-expression-parse: 3.0.0
-      spdx-license-ids: 3.0.1
+      spdx-license-ids: 3.0.2
     resolution:
       integrity: sha512-q9hedtzyXHr5S0A1vEPoK/7l8NpfkFYTq6iCY+Pno2ZbdZR6WexZFtqeVGkGxW3TEJMN914Z55EnAGMmenlIQQ==
   /spdx-exceptions/2.2.0:
@@ -2960,12 +2960,12 @@ packages:
   /spdx-expression-parse/3.0.0:
     dependencies:
       spdx-exceptions: 2.2.0
-      spdx-license-ids: 3.0.1
+      spdx-license-ids: 3.0.2
     resolution:
       integrity: sha512-Yg6D3XpRD4kkOmTpdgbUiEJFKghJH03fiC1OPll5h/0sO6neh2jqRDVHOQ4o/LMea0tgCkbMgea5ip/e+MkWyg==
-  /spdx-license-ids/3.0.1:
+  /spdx-license-ids/3.0.2:
     resolution:
-      integrity: sha512-TfOfPcYGBB5sDuPn3deByxPhmfegAhpDYKSOXZQN81Oyrrif8ZCodOLzK3AesELnCx03kikhyDwh0pfvvQvF8w==
+      integrity: sha512-qky9CVt0lVIECkEsYbNILVnPvycuEBkXoMFLRWsREkomQLevYhtRKC+R91a5TOAQ3bCMjikRwhyaRqj1VYatYg==
   /split2/2.2.0:
     dependencies:
       through2: 2.0.3
@@ -2976,7 +2976,7 @@ packages:
     dev: true
     resolution:
       integrity: sha1-BOaSb2YolTVPPdAVIDYzuFcpfiw=
-  /sshpk/1.15.1:
+  /sshpk/1.15.2:
     dependencies:
       asn1: 0.2.4
       assert-plus: 1.0.0
@@ -2992,7 +2992,7 @@ packages:
       node: '>=0.10.0'
     hasBin: true
     resolution:
-      integrity: sha512-mSdgNUaidk+dRU5MhYtN9zebdzF2iG0cNPWy8HG+W8y+fT1JnSkh0fzzpjOa0L7P8i1Rscz38t0h4gPcKz43xA==
+      integrity: sha512-Ra/OXQtuh0/enyl4ETZAfTaeksa6BXks5ZcjpSUNrjBr0DvrJKX+1fsKDPpT9TBXgHAFsa4510aNVgI8g/+SzA==
   /ssri/5.3.0:
     dependencies:
       safe-buffer: 5.1.2
@@ -3362,13 +3362,13 @@ packages:
     dev: true
     resolution:
       integrity: sha1-hnrHTjhkGHsdPUfZlqeOxciDB3c=
-  /typescript/3.1.4:
+  /typescript/3.1.5:
     dev: true
     engines:
       node: '>=4.2.0'
     hasBin: true
     resolution:
-      integrity: sha512-JZHJtA6ZL15+Q3Dqkbh8iCUmvxD3iJ7ujXS+fVkKnwIVAdHc5BJTDNM0aTrnr2luKulFjU7W+SRhDZvi66Ru7Q==
+      integrity: sha512-muYNWV9j5+3mXoKD6oPONKuGUmYiFX14gfo9lWm9ZXRHOqVDQiB4q1CzFPbF4QLV2E9TZXH6oK55oQ94rn3PpA==
   /uid-number/0.0.6:
     dev: false
     resolution:
@@ -3607,4 +3607,4 @@ specifiers:
   tape: 4.9.1
   ts-node: 7.0.1
   tslint: 5.11.0
-  typescript: 3.1.4
+  typescript: 3.1.5
