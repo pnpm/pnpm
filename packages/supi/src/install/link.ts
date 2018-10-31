@@ -238,7 +238,9 @@ export default async function linkPackages (
     )
 
     if (depNode.requiresBuild) {
-      newShrinkwrap.packages![pendingRequiresBuild.relativeDepPath].requiresBuild = true
+      if (newShrinkwrap.packages![pendingRequiresBuild.relativeDepPath]) {
+        newShrinkwrap.packages![pendingRequiresBuild.relativeDepPath].requiresBuild = true
+      }
     }
   }))
 
