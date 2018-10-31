@@ -9,7 +9,7 @@ export default function symlinkDependencyTo (alias: string, peripheralLocation: 
   // TODO(vjpr): Is `process.cwd()` a reliable way to get the monorepo root?
   if (!linkPath.startsWith(process.cwd())) {
     // TODO(vjpr): Should print some kind of warning maybe?
-    return {reused: true} // TODO(vjpr): Not sure we should misuse reused like this.
+    return { reused: true } // TODO(vjpr): Not sure we should misuse reused like this.
   }
   linkLogger.debug({ target: peripheralLocation, link: linkPath })
   return symlinkDir(peripheralLocation, linkPath)
