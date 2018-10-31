@@ -156,15 +156,20 @@ async function _outdated (
             throw new Error(`Invalid shrinkwrap.yaml file. ${relativeDepPath} not found in packages field`)
           }
 
+          const currentRef = currentShrinkwrap.importers[importerId][depType][packageName]
+          const currentRelative = currentRef && dp.refToRelative(currentRef, packageName)
+          const current = currentRelative && dp.parse(currentRelative).version || currentRef
+          const wanted = dp.parse(relativeDepPath).version || ref
+
           // It might be not the best solution to check for pkgSnapshot.name
           // TODO: add some other field to distinct packages not from the registry
           if (pkgSnapshot.resolution && (pkgSnapshot.resolution['type'] || pkgSnapshot.name)) { // tslint:disable-line:no-string-literal
-            if (currentShrinkwrap.importers[importerId][depType][packageName] !== wantedShrinkwrap.importers[importerId][depType]![packageName]) {
+            if (current !== wanted) {
               outdated.push({
-                current: currentShrinkwrap.importers[importerId][depType]![packageName],
+                current,
                 latest: undefined,
                 packageName,
-                wanted: wantedShrinkwrap.importers[importerId][depType]![packageName],
+                wanted,
               })
             }
             return
@@ -180,22 +185,21 @@ async function _outdated (
 
           const latest = resolution.latest
 
-          if (!currentShrinkwrap.importers[importerId][depType][packageName]) {
+          if (!current) {
             outdated.push({
               latest,
               packageName,
-              wanted: wantedShrinkwrap.importers[importerId][depType]![packageName],
+              wanted,
             })
             return
           }
 
-          if (currentShrinkwrap.importers[importerId][depType][packageName] !== wantedShrinkwrap.importers[importerId][depType]![packageName] ||
-            latest !== currentShrinkwrap.importers[importerId][depType][packageName]) {
+          if (current !== wanted || latest !== current) {
             outdated.push({
-              current: currentShrinkwrap.importers[importerId][depType][packageName],
+              current,
               latest,
               packageName,
-              wanted: wantedShrinkwrap.importers[importerId][depType]![packageName],
+              wanted,
             })
           }
         }),

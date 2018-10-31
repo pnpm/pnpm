@@ -140,3 +140,13 @@ test('outdated() on package that has one outdated dev dependency', async (t) => 
   ])
   t.end()
 })
+
+// NOTE: this test is unstable. It will fail if a new version of ajv will be released!
+test('outdated() on a package that has external shrinkwrap file and direct dependencies with resolved peers', async (t) => {
+  const outdatedPkgs = await outdated('package-with-external-shrinkwrap/package', {
+    ...outdatedOpts,
+    shrinkwrapDirectory: path.resolve('package-with-external-shrinkwrap'),
+  })
+  t.deepEqual(outdatedPkgs, [])
+  t.end()
+})
