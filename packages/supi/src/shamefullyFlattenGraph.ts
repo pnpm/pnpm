@@ -18,6 +18,7 @@ export function shamefullyFlattenGraphByShrinkwrap (
     modulesDir: string,
     prefix: string,
     virtualStoreDir: string,
+    shrinkwrapDirectory: string,
   },
 ) {
   if (!shr.packages) return
@@ -41,6 +42,7 @@ export function shamefullyFlattenGraphByShrinkwrap (
   return shamefullyFlattenGraph(deps, shrImporter.specifiers, {
     dryRun: false,
     modulesDir: opts.modulesDir,
+    shrinkwrapDirectory: opts.shrinkwrapDirectory,
   })
 }
 
@@ -127,6 +129,7 @@ export default async function shamefullyFlattenGraph (
   opts: {
     modulesDir: string,
     dryRun: boolean,
+    shrinkwrapDirectory: string,
   },
 ): Promise<{[alias: string]: string[]}> {
   const hoistedAliases = new Set(R.keys(currentSpecifiers))
@@ -163,7 +166,7 @@ export default async function shamefullyFlattenGraph (
       // TODO look how it is done in linkPackages
       if (!opts.dryRun) {
         await Promise.all(pkgAliases.map(async (pkgAlias) => {
-          await symlinkDependencyTo(pkgAlias, depNode.peripheralLocation, opts.modulesDir)
+          await symlinkDependencyTo(pkgAlias, depNode.peripheralLocation, opts.modulesDir, opts.shrinkwrapDirectory)
         }))
       }
     }))

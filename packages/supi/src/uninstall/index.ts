@@ -113,6 +113,7 @@ export async function uninstallInContext (
       modulesDir: ctx.modulesDir,
       prefix: opts.prefix,
       virtualStoreDir: ctx.virtualStoreDir,
+      shrinkwrapDirectory: opts.shrinkwrapDirectory,
     }) || {}
   }
   await writeModulesYaml(ctx.virtualStoreDir, {

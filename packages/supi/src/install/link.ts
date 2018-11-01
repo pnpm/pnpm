@@ -192,7 +192,7 @@ export default async function linkPackages (
         .map(async ({ rootAlias, depGraphNode }) => {
           if (
             !opts.dryRun &&
-            (await symlinkDependencyTo(rootAlias, depGraphNode.peripheralLocation, modulesDir)).reused
+            (await symlinkDependencyTo(rootAlias, depGraphNode.peripheralLocation, modulesDir, opts.shrinkwrapDirectory)).reused
           ) return
 
           const isDev = pkg.devDependencies && pkg.devDependencies[depGraphNode.name]
@@ -275,6 +275,7 @@ export default async function linkPackages (
             {
               dryRun: opts.dryRun,
               modulesDir: importer.modulesDir,
+              shrinkwrapDirectory: opts.shrinkwrapDirectory,
             },
           )
         }),
@@ -385,8 +386,8 @@ async function linkNewPackages (
   const newPkgs = R.props<string, DependenciesGraphNode>(newDepPaths, depGraph)
 
   await Promise.all([
-    linkAllModules(newPkgs, depGraph, { optional: opts.optional }),
-    linkAllModules(existingWithUpdatedDeps, depGraph, { optional: opts.optional }),
+    linkAllModules(newPkgs, depGraph, { optional: opts.optional, shrinkwrapDirectory: opts.shrinkwrapDirectory }),
+    linkAllModules(existingWithUpdatedDeps, depGraph, { optional: opts.optional, shrinkwrapDirectory: opts.shrinkwrapDirectory }),
     linkAllPkgs(opts.storeController, newPkgs, opts),
   ])
 
@@ -469,6 +470,7 @@ async function linkAllModules (
   depGraph: DependenciesGraph,
   opts: {
     optional: boolean,
+    shrinkwrapDirectory: string,
   },
 ) {
   return Promise.all(
@@ -490,7 +492,7 @@ async function linkAllModules (
             .map(async (alias) => {
               const pkg = depGraph[childrenToLink[alias]]
               if (!pkg.installable && pkg.optional) return
-              await symlinkDependencyTo(alias, pkg.peripheralLocation, depNode.modules)
+              await symlinkDependencyTo(alias, pkg.peripheralLocation, depNode.modules, opts.shrinkwrapDirectory)
             }),
         )
       })),
