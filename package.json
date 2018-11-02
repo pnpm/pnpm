@@ -43,7 +43,7 @@
     "credentials-by-uri": "1.0.0",
     "fetch-from-npm-registry": "1.0.0",
     "fs-write-stream-atomic": "1.0.10",
-    "graceful-fs": "4.1.13",
+    "graceful-fs": "4.1.14",
     "mem": "4.0.0",
     "mkdirp-promise": "5.0.1",
     "mz": "2.7.0",

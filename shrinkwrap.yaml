@@ -1,6 +1,5 @@
 dependencies:
   '@pnpm/fetcher-base': 2.0.0
-  '@pnpm/tarball-fetcher': 'link:../__package_previews__/tarball-fetcher/@pnpm/tarball-fetcher'
   '@types/mem': 1.1.2
   '@types/mz': 0.0.32
   '@types/node': 10.12.2
@@ -9,7 +8,7 @@ dependencies:
   credentials-by-uri: 1.0.0
   fetch-from-npm-registry: 1.0.0
   fs-write-stream-atomic: 1.0.10
-  graceful-fs: 4.1.13
+  graceful-fs: 4.1.14
   mem: 4.0.0
   mkdirp-promise: 5.0.1
   mz: 2.7.0
@@ -309,7 +308,7 @@ packages:
       chownr: 1.1.1
       figgy-pudding: 3.5.1
       glob: 7.1.3
-      graceful-fs: 4.1.13
+      graceful-fs: 4.1.14
       lru-cache: 4.1.3
       mississippi: 3.0.0
       mkdirp: 0.5.1
@@ -676,7 +675,7 @@ packages:
       integrity: sha512-y6OAwoSIf7FyjMIv94u+b5rdheZEjzR63GTyZJm5qh4Bi+2YgwLCcI/fPFZkL5PSixOt6ZNKm+w+Hfp/Bciwow==
   /fs-extra/5.0.0:
     dependencies:
-      graceful-fs: 4.1.13
+      graceful-fs: 4.1.14
       jsonfile: 4.0.0
       universalify: 0.1.2
     dev: true
@@ -684,7 +683,7 @@ packages:
       integrity: sha512-66Pm4RYbjzdyeuqudYqhFiNBbCIuI9kgRqLPSHIlXHidW8NIQtVdkM1yeZ4lXwuhbTETv3EUGMNHAAw6hiundQ==
   /fs-write-stream-atomic/1.0.10:
     dependencies:
-      graceful-fs: 4.1.13
+      graceful-fs: 4.1.14
       iferr: 0.1.5
       imurmurhash: 0.1.4
       readable-stream: 2.3.6
@@ -712,11 +711,11 @@ packages:
       path-is-absolute: 1.0.1
     resolution:
       integrity: sha512-vcfuiIxogLV4DlGBHIUOwI0IbrJ8HWPc4MU7HzviGeNho/UJDfi6B5p3sHeWIQ0KGIU0Jpxi5ZHxemQfLkkAwQ==
-  /graceful-fs/4.1.13:
+  /graceful-fs/4.1.14:
     engines:
       node: '>=6'
     resolution:
-      integrity: sha512-a3u3Sck0c7/X622CIqiU0q/eRmhEOssVa3jkrfRRxxHPzaW1EcZgsQt87zKipdteGmFEKGGBvIBPr13pCB2HYw==
+      integrity: sha512-ns/IGcSmmGNPP085JCheg0Nombh1QPvSCnlx+2V+byQWRQEIL4ZB5jXJMNIHOFVS1roi85HIi5Ka0h43iWXfcQ==
   /gunzip-maybe/1.4.1:
     dependencies:
       browserify-zlib: 0.1.4
@@ -925,12 +924,12 @@ packages:
   /jsonfile/4.0.0:
     dev: true
     optionalDependencies:
-      graceful-fs: 4.1.13
+      graceful-fs: 4.1.14
     resolution:
       integrity: sha1-h3Gq4HmbZAdrdmQPygWPnBDjPss=
   /load-json-file/4.0.0:
     dependencies:
-      graceful-fs: 4.1.13
+      graceful-fs: 4.1.14
       parse-json: 4.0.0
       pify: 3.0.0
       strip-bom: 3.0.0
@@ -1248,7 +1247,7 @@ packages:
       cross-spawn: 6.0.5
       find-down: 0.1.4
       fs-extra: 5.0.0
-      graceful-fs: 4.1.13
+      graceful-fs: 4.1.14
       load-json-file: 4.0.0
       meow: 4.0.1
       mz: 2.7.0
@@ -1670,7 +1669,7 @@ packages:
     dependencies:
       '@types/mz': 0.0.32
       '@types/node': 10.12.2
-      graceful-fs: 4.1.13
+      graceful-fs: 4.1.14
       is-windows: 1.0.2
       mkdirp-promise: 5.0.1
       mz: 2.7.0
@@ -1907,7 +1906,7 @@ packages:
       integrity: sha1-tSQ9jz7BqjXxNkYFvA0QNuMKtp8=
   /write-file-atomic/2.3.0:
     dependencies:
-      graceful-fs: 4.1.13
+      graceful-fs: 4.1.14
       imurmurhash: 0.1.4
       signal-exit: 3.0.2
     dev: true
@@ -1916,7 +1915,7 @@ packages:
   /write-json-file/2.3.0:
     dependencies:
       detect-indent: 5.0.0
-      graceful-fs: 4.1.13
+      graceful-fs: 4.1.14
       make-dir: 1.3.0
       pify: 3.0.0
       sort-keys: 2.0.0
@@ -1962,7 +1961,7 @@ specifiers:
   credentials-by-uri: 1.0.0
   fetch-from-npm-registry: 1.0.0
   fs-write-stream-atomic: 1.0.10
-  graceful-fs: 4.1.13
+  graceful-fs: 4.1.14
   mem: 4.0.0
   mkdirp-promise: 5.0.1
   mz: 2.7.0
