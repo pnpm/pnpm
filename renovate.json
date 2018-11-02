@@ -43,6 +43,10 @@
   ],
   "packageRules": [
     {
+      "packageNames": ["@types/got"],
+      "allowedVersions": "<=8"
+    },
+    {
       "packageNames": ["@types/ramda"],
       "allowedVersions": "0.25.34"
     },
