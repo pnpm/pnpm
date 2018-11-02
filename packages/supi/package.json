@@ -50,7 +50,7 @@
     "encode-registry": "1.1.0",
     "execa": "1.0.0",
     "get-npm-tarball-url": "2.0.1",
-    "graceful-fs": "4.1.11",
+    "graceful-fs": "4.1.13",
     "graph-sequencer": "2.0.0",
     "import-from": "2.1.0",
     "is-ci": "1.2.1",
