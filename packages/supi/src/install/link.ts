@@ -237,10 +237,10 @@ export default async function linkPackages (
         filesResponse.filenames.some((filename) => !!filename.match(/^[.]hooks[\\/]/)), // TODO: optimize this
     )
 
-    if (depNode.requiresBuild) {
-      if (newShrinkwrap.packages![pendingRequiresBuild.relativeDepPath]) {
-        newShrinkwrap.packages![pendingRequiresBuild.relativeDepPath].requiresBuild = true
-      }
+    // TODO: try to cover with unit test the case when entry is no longer available in shrinkwrap
+    // It is an edge that probably happens if the entry is removed during shrinkwrap prune
+    if (depNode.requiresBuild && newShrinkwrap.packages![pendingRequiresBuild.relativeDepPath]) {
+      newShrinkwrap.packages![pendingRequiresBuild.relativeDepPath].requiresBuild = true
     }
   }))
 
