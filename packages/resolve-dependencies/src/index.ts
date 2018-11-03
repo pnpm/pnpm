@@ -102,6 +102,7 @@ export default async function (
       hasManifestInShrinkwrap: opts.hasManifestInShrinkwrap,
       keypath: [],
       localPackages: opts.localPackages,
+      parentDependsOnPeers: true,
       parentNodeId: ROOT_NODE_ID,
       readPackageHook: opts.hooks.readPackage,
       resolvedDependencies: {

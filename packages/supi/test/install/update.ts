@@ -10,26 +10,28 @@ import {
 } from '../utils'
 
 const test = promisifyTape(tape)
+const testOnly = promisifyTape(tape.only)
 
 test('preserve subdeps on update', async (t: tape.Test) => {
   const project = prepare(t)
 
   await Promise.all([
-    addDistTag('foobarqar', '1.0.0', 'latest'),
-    addDistTag('foo', '100.0.0', 'latest'),
-    addDistTag('bar', '100.0.0', 'latest'),
     addDistTag('abc-grand-parent-with-c', '1.0.0', 'latest'),
     addDistTag('abc-parent-with-ab', '1.0.0', 'latest'),
+    addDistTag('bar', '100.0.0', 'latest'),
+    addDistTag('foo', '100.0.0', 'latest'),
+    addDistTag('foobarqar', '1.0.0', 'latest'),
+    addDistTag('peer-c', '1.0.0', 'latest'),
   ])
 
   await installPkgs(['foobarqar', 'abc-grand-parent-with-c'], await testDefaults())
 
   await Promise.all([
-    addDistTag('foobarqar', '1.0.1', 'latest'),
-    addDistTag('foo', '100.1.0', 'latest'),
-    addDistTag('bar', '100.1.0', 'latest'),
     addDistTag('abc-grand-parent-with-c', '1.0.1', 'latest'),
     addDistTag('abc-parent-with-ab', '1.0.1', 'latest'),
+    addDistTag('bar', '100.1.0', 'latest'),
+    addDistTag('foo', '100.1.0', 'latest'),
+    addDistTag('foobarqar', '1.0.1', 'latest'),
   ])
 
   await install(await testDefaults({ update: true, depth: 0 }))

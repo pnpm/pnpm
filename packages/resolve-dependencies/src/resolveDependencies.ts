@@ -169,6 +169,7 @@ export default async function resolveDependencies (
   wantedDependencies: WantedDependency[],
   options: {
     keypath: string[],
+    parentDependsOnPeers: boolean,
     parentNodeId: string,
     currentDepth: number,
     resolvedDependencies?: ResolvedDependencies,
@@ -189,10 +190,10 @@ export default async function resolveDependencies (
   const preferedDependencies = options.preferedDependencies || {}
   const update = options.update && options.currentDepth <= ctx.depth
   const extendedWantedDeps = []
-  const allPeerDependencies = new Set<string>()
+  let proceedAll = false
   for (const wantedDependency of wantedDependencies) {
     let reference = wantedDependency.alias && resolvedDependencies[wantedDependency.alias]
-    let proceed = false
+    let proceed = options.parentDependsOnPeers
 
     // If dependencies that were used by the previous version of the package
     // satisfy the newer version's requirements, then pnpm tries to keep
@@ -215,10 +216,8 @@ export default async function resolveDependencies (
       reference = preferedDependencies[wantedDependency.alias]
     }
     const infoFromShrinkwrap = getInfoFromShrinkwrap(ctx.wantedShrinkwrap, ctx.registries.default, reference, wantedDependency.alias)
-    if (infoFromShrinkwrap && infoFromShrinkwrap.dependencyShrinkwrap) {
-      for (const peer of Object.keys(infoFromShrinkwrap.dependencyShrinkwrap.peerDependencies || {})) {
-        allPeerDependencies.add(peer)
-      }
+    if (infoFromShrinkwrap && infoFromShrinkwrap.dependencyShrinkwrap && infoFromShrinkwrap.dependencyShrinkwrap.id) {
+      proceedAll = true
     }
     extendedWantedDeps.push({
       infoFromShrinkwrap,
@@ -227,23 +226,27 @@ export default async function resolveDependencies (
       wantedDependency,
     })
   }
+  const resolveDepOpts = {
+    currentDepth: options.currentDepth,
+    hasManifestInShrinkwrap: options.hasManifestInShrinkwrap,
+    keypath: options.keypath,
+    localPackages: options.localPackages,
+    parentDependsOnPeer: options.parentDependsOnPeers,
+    parentIsInstallable: options.parentIsInstallable,
+    parentNodeId: options.parentNodeId,
+    readPackageHook: options.readPackageHook,
+    shamefullyFlatten: options.shamefullyFlatten,
+    sideEffectsCache: options.sideEffectsCache,
+    update,
+  }
   const pkgAddresses = (
     await Promise.all(
       extendedWantedDeps
-        .map(async (extendedWantedDeps) => {
-          return install(extendedWantedDeps.wantedDependency, ctx, {
-            currentDepth: options.currentDepth,
-            hasManifestInShrinkwrap: options.hasManifestInShrinkwrap,
-            keypath: options.keypath,
-            localPackages: options.localPackages,
-            parentIsInstallable: options.parentIsInstallable,
-            parentNodeId: options.parentNodeId,
-            proceed: extendedWantedDeps.proceed || Boolean(extendedWantedDeps.wantedDependency.alias && allPeerDependencies.has(extendedWantedDeps.wantedDependency.alias)),
-            readPackageHook: options.readPackageHook,
-            shamefullyFlatten: options.shamefullyFlatten,
-            sideEffectsCache: options.sideEffectsCache,
-            update,
-            ...extendedWantedDeps.infoFromShrinkwrap,
+        .map(async (extendedWantedDep) => {
+          return resolveDependency(extendedWantedDep.wantedDependency, ctx, {
+            ...resolveDepOpts,
+            ...extendedWantedDep.infoFromShrinkwrap,
+            proceed: extendedWantedDep.proceed || proceedAll,
           })
         }),
     )
@@ -315,7 +318,7 @@ function getInfoFromShrinkwrap (
   }
 }
 
-async function install (
+async function resolveDependency (
   wantedDependency: WantedDependency,
   ctx: ResolutionContext,
   options: {
@@ -323,6 +326,7 @@ async function install (
     pkgId?: string,
     depPath?: string,
     relDepPath?: string,
+    parentDependsOnPeer: boolean,
     parentNodeId: string,
     currentDepth: number,
     dependencyShrinkwrap?: DependencyShrinkwrap,
@@ -412,7 +416,7 @@ async function install (
 
   pkgResponse.body.id = encodePkgId(pkgResponse.body.id)
 
-  if (!pkgResponse.body.updated && options.update && options.currentDepth >= ctx.depth && options.relDepPath &&
+  if (!options.parentDependsOnPeer && !pkgResponse.body.updated && options.update && options.currentDepth >= ctx.depth && options.relDepPath &&
     ctx.currentShrinkwrap.packages && ctx.currentShrinkwrap.packages[options.relDepPath] && !ctx.force) {
     return null
   }
@@ -606,6 +610,7 @@ async function install (
         hasManifestInShrinkwrap: options.hasManifestInShrinkwrap,
         keypath: options.keypath.concat([ pkgResponse.body.id ]),
         optionalDependencyNames: options.optionalDependencyNames,
+        parentDependsOnPeers: Boolean(options.dependencyShrinkwrap && options.dependencyShrinkwrap.id),
         parentIsInstallable: installable,
         parentNodeId: nodeId,
         preferedDependencies: pkgResponse.body.updated
@@ -696,6 +701,7 @@ async function resolveDependenciesOfPackage (
     resolvedDependencies?: ResolvedDependencies,
     preferedDependencies?: ResolvedDependencies,
     optionalDependencyNames?: string[],
+    parentDependsOnPeers: boolean,
     parentIsInstallable: boolean,
     update: boolean,
     readPackageHook?: ReadPackageHook,

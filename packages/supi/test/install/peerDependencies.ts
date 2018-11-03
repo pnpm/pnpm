@@ -209,6 +209,7 @@ async function okFile (t: tape.Test, filename: string) {
 // This usecase was failing. See https://github.com/pnpm/supi/issues/15
 test('peer dependencies are linked when running one named installation', async (t: tape.Test) => {
   await addDistTag({ package: 'peer-a', version: '1.0.0', distTag: 'latest' })
+  await addDistTag({ package: 'peer-c', version: '1.0.0', distTag: 'latest' })
 
   const project = prepare(t)
 
@@ -239,6 +240,7 @@ test('peer dependencies are linked when running one named installation', async (
 
 test('peer dependencies are linked when running two separate named installations', async (t: tape.Test) => {
   await addDistTag({ package: 'peer-a', version: '1.0.0', distTag: 'latest' })
+  await addDistTag({ package: 'peer-c', version: '1.0.0', distTag: 'latest' })
   const project = prepare(t)
 
   await installPkgs(['abc-grand-parent-with-c', 'peer-c@2.0.0'], await testDefaults())
@@ -472,4 +474,60 @@ test('external shrinkwrap: peer dependency is grouped with dependent even after 
       },
     })
   }
+})
+
+test('external shrinkwrap: peer dependency is grouped with dependent even after a named update of the resolved package', async (t: tape.Test) => {
+  const project = prepare(t)
+  await mkdir('_')
+  process.chdir('_')
+  const shrinkwrapDirectory = path.resolve('..')
+
+  await installPkgs(['peer-c@1.0.0', 'abc-parent-with-ab@1.0.0'], await testDefaults({ shrinkwrapDirectory }))
+
+  {
+    const shr = await loadYamlFile(path.resolve('..', 'shrinkwrap.yaml'))
+    t.deepEqual(shr['importers']['_'], {
+      dependencies: {
+        'abc-parent-with-ab': '/abc-parent-with-ab/1.0.0/peer-c@1.0.0',
+        'peer-c': '1.0.0',
+      },
+      specifiers: {
+        'abc-parent-with-ab': '^1.0.0',
+        'peer-c': '^1.0.0',
+      },
+    })
+  }
+
+  await installPkgs(['peer-c@2.0.0'], await testDefaults({ shrinkwrapDirectory }))
+
+  {
+    const shr = await loadYamlFile(path.resolve('..', 'shrinkwrap.yaml'))
+    t.deepEqual(shr['importers']['_'], {
+      dependencies: {
+        'abc-parent-with-ab': '/abc-parent-with-ab/1.0.0/peer-c@2.0.0',
+        'peer-c': '2.0.0',
+      },
+      specifiers: {
+        'abc-parent-with-ab': '^1.0.0',
+        'peer-c': '^2.0.0',
+      },
+    })
+  }
+
+  t.ok(await exists(path.join('..', NM, '.localhost+4873', 'abc-parent-with-ab', '1.0.0', 'peer-c@2.0.0', NM, 'is-positive')))
+})
+
+test('regular dependencies are not removed on update from transitive packages that have children with peers resolved from above', async (t: tape.Test) => {
+  const project = prepare(t)
+  await mkdir('_')
+  process.chdir('_')
+  const shrinkwrapDirectory = path.resolve('..')
+  await addDistTag({ package: 'peer-c', version: '1.0.0', distTag: 'latest' })
+
+  await installPkgs(['abc-grand-parent-with-c@1.0.0'], await testDefaults({ shrinkwrapDirectory }))
+
+  await addDistTag({ package: 'peer-c', version: '1.0.1', distTag: 'latest' })
+  await install(await testDefaults({ shrinkwrapDirectory, update: true, depth: 2 }))
+
+  t.ok(await exists(path.join('..', NM, '.localhost+4873', 'abc-parent-with-ab', '1.0.1', 'peer-c@1.0.1', NM, 'is-positive')))
 })
