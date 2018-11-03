@@ -35,7 +35,7 @@
     "@pnpm/logger": "2.1.0",
     "@pnpm/npm-resolver": "2.2.6",
     "@pnpm/server": "link:",
-    "@pnpm/tarball-fetcher": "2.0.5",
+    "@pnpm/tarball-fetcher": "2.0.6",
     "@types/mz": "0.0.32",
     "@types/tape": "4.2.32",
     "is-port-reachable": "2.0.0",
