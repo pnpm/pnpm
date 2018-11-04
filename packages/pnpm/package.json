@@ -48,7 +48,7 @@
     "execa": "1.0.0",
     "find-packages": "2.2.0",
     "get-port": "4.0.0",
-    "graceful-fs": "4.1.14",
+    "graceful-fs": "4.1.15",
     "graph-sequencer": "2.0.0",
     "is-ci": "1.2.1",
     "is-subdir": "1.0.2",
