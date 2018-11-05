@@ -29,6 +29,8 @@ import initReporter, { ReporterType } from './reporter'
 
 pnpmCmds['install-test'] = pnpmCmds.installTest
 
+const COMMANDS_WITH_NO_DASHDASH_FILTER = new Set(['run', 'exec', 'test'])
+
 const supportedCmds = new Set([
   'add',
   'install',
@@ -144,7 +146,7 @@ export default async function run (argv: string[]) {
     return 'default'
   })()
 
-  const subCmd = cliConf.argv.remain[1] && getCommandFullName(cliConf.argv.remain[1])
+  let subCmd = cliConf.argv.remain[1] && getCommandFullName(cliConf.argv.remain[1])
 
   initReporter(reporterType, {
     cmd,
@@ -173,7 +175,13 @@ export default async function run (argv: string[]) {
         })
       }
 
-      if (cmd === 'recursive' && ['run', 'exec', 'test'].indexOf(subCmd) === -1 && cliConf.argv.cooked.indexOf('--') !== -1) {
+      if (
+        (
+          cmd === 'recursive' && !COMMANDS_WITH_NO_DASHDASH_FILTER.has(subCmd) ||
+          cmd !== 'recursive' && !COMMANDS_WITH_NO_DASHDASH_FILTER.has(cmd)
+        ) &&
+        cliConf.argv.cooked.indexOf('--') !== -1
+      ) {
         opts.filter = opts.filter || []
         const dashDashIndex = cliConf.argv.cooked.indexOf('--')
         Array.prototype.push.apply(opts.filter, cliConf.argv.cooked.slice(dashDashIndex + 1))
@@ -183,6 +191,13 @@ export default async function run (argv: string[]) {
 
       // `pnpm install ""` is going to be just `pnpm install`
       const cliArgs = cliConf.argv.remain.slice(1).filter(Boolean)
+
+      if (opts.filter && opts.filter.length && cmd !== 'recursive') {
+        subCmd = cmd
+        cmd = 'recursive'
+        cliArgs.unshift(subCmd)
+      }
+
       try {
         const result = pnpmCmds[cmd](cliArgs, opts, cliConf.argv.remain[0])
         if (result instanceof Promise) {
