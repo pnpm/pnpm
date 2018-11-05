@@ -23,6 +23,10 @@ function getHelpText (command: string) {
 
         Aliases: i, install, add
 
+        Installs all dependencies of the project in the current working directory.
+        To install dependencies in every project of a monorepo, run \`pnpm recursive install\`
+        or \`pnpm install\` with filtering. For instance, \`pnpm install -- .\`.
+
         Options:
 
           -P, --save-prod                    save package to your \`dependencies\`
@@ -74,6 +78,29 @@ function getHelpText (command: string) {
 
         Discouraged options:
           --shamefully-flatten               Attempt to flatten the dependency tree, similar to what npm does
+
+        Filtering options:
+          -- <package selector>..., --filter <package selector>
+            Run the command only on packages that satisfy at least one of the selectors.
+
+            Example: pnpm recursive install -- foo... ...@bar/* qar ./components
+
+            These selectors may be used:
+
+            <pattern>
+              Restricts the scope to package names matching the given pattern. E.g.: foo, @bar/*
+
+            <pattern>...
+              Includes all direct and indirect dependencies of the matched packages. E.g.: foo...
+
+            ...<pattern>
+              Includes all direct and indirect dependents of the matched packages. E.g.: ...foo, ...@bar/*
+
+            ./<directory>
+              Includes all packages that are inside a given subdirectory. E.g.: ./components
+
+            .
+              Includes all packages that are under the current working directory.
       `
 
     case 'import':
