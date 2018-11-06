@@ -7,6 +7,7 @@ import loadJsonFile from 'load-json-file'
 import loadYamlFile = require('load-yaml-file')
 import writeYamlFile = require('write-yaml-file')
 import { execPnpm } from '../utils'
+import symlink from 'symlink-dir'
 
 const test = promisifyTape(tape)
 const testOnly = promisifyTape(tape.only)
@@ -504,4 +505,71 @@ test("shared-workspace-shrinkwrap: create shared shrinkwrap format when installa
 
   t.ok(shr['importers'] && shr['importers']['.'], 'correct shrinkwrap.yaml format')
   t.equal(shr['shrinkwrapVersion'], 4, 'correct shrinkwrap.yaml version')
+})
+
+// covers https://github.com/pnpm/pnpm/issues/1451
+test("shared-workspace-shrinkwrap: don't install dependencies in projects that are outside of the current workspace", async (t) => {
+  const projects = preparePackages(t, [
+    {
+      location: 'workspace-1/package-1',
+      package: {
+        name: 'package-1',
+        version: '1.0.0',
+        dependencies: {
+          'is-positive': '1.0.0',
+          'package-2': '1.0.0',
+        },
+      },
+    },
+    {
+      location: 'workspace-2/package-2',
+      package: {
+        name:  'package-2',
+        version: '1.0.0',
+        dependencies: {
+          'is-negative': '1.0.0',
+        },
+      },
+    },
+  ])
+
+  process.chdir('..')
+
+  await symlink('workspace-2/package-2', 'workspace-1/package-2')
+
+  await writeYamlFile('workspace-1/pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
+  await writeYamlFile('workspace-2/pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
+
+  process.chdir('workspace-1')
+
+  await execPnpm('install', '--store', 'store', '--shared-workspace-shrinkwrap', '--link-workspace-packages')
+
+  const shr = await loadYamlFile('shrinkwrap.yaml')
+
+  t.deepEqual(shr, {
+    importers: {
+      'package-1': {
+        dependencies: {
+          'is-positive': '1.0.0',
+          'package-2': 'link:../package-2',
+        },
+        specifiers: {
+          'is-positive': '1.0.0',
+          'package-2': '1.0.0',
+        },
+      },
+    },
+    packages: {
+      '/is-positive/1.0.0': {
+        dev: false,
+        engines: {
+          node: '>=0.10.0',
+        },
+        resolution: {
+          integrity: 'sha1-iACYVrZKLx632LsBeUGEJK4EUss=',
+        },
+      },
+    },
+    shrinkwrapVersion: 4,
+  }, 'correct shrinkwrap.yaml created')
 })

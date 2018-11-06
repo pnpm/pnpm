@@ -3,7 +3,10 @@ import logger from '@pnpm/logger'
 import { PackageJson } from '@pnpm/types'
 import camelcaseKeys = require('camelcase-keys')
 import graphSequencer = require('graph-sequencer')
+import isSubdir = require('is-subdir')
 import mem = require('mem')
+import fs = require('mz/fs')
+import pFilter = require('p-filter')
 import pLimit = require('p-limit')
 import path = require('path')
 import createPkgGraph, { PackageNode } from 'pkgs-graph'
@@ -212,6 +215,8 @@ export async function recursive (
       if (opts.ignoredPackages) {
         pkgPaths = pkgPaths.filter((prefix) => !opts.ignoredPackages!.has(prefix))
       }
+      const isFromWorkspace = isSubdir.bind(null, opts.shrinkwrapDirectory)
+      pkgPaths = await pFilter(pkgPaths, async (pkgPath: string) => isFromWorkspace(await fs.realpath(pkgPath)))
       if (pkgPaths.length === 0) return true
       const hooks = opts.ignorePnpmfile ? {} : requireHooks(opts.shrinkwrapDirectory, opts)
       await action({
