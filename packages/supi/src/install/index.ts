@@ -527,6 +527,7 @@ async function installInContext (
       }
       const saveType = getSaveType(opts)
       const specsToUsert = <any>resolvedImporter.directDependencies // tslint:disable-line
+        .filter((dep) => importer.newPkgRawSpecs.indexOf(dep.specRaw) !== -1)
         .map((dep) => {
           return {
             name: dep.alias,

@@ -29,20 +29,16 @@ export default async function save (
     if (packageSpec.saveType) {
       const saveType = packageSpec.saveType
       packageJson[packageSpec.saveType] = packageJson[packageSpec.saveType] || {}
-      packageSpecs.forEach((dependency) => {
-        packageJson[saveType][dependency.name] = dependency.pref || findSpec(dependency.name, packageJson as PackageJson)
-        DEPENDENCIES_FIELDS.filter((depField) => depField !== packageSpec.saveType).forEach((deptype) => {
-          if (packageJson[deptype]) {
-            delete packageJson[deptype][dependency.name]
-          }
-        })
+      packageJson[saveType][packageSpec.name] = packageSpec.pref || findSpec(packageSpec.name, packageJson as PackageJson)
+      DEPENDENCIES_FIELDS.filter((depField) => depField !== packageSpec.saveType).forEach((deptype) => {
+        if (packageJson[deptype]) {
+          delete packageJson[deptype][packageSpec.name]
+        }
       })
     } else {
-      packageSpecs.forEach((dependency) => {
-        const usedDepType = guessDependencyType(dependency.name, packageJson as PackageJson) || 'dependencies'
-        packageJson[usedDepType] = packageJson[usedDepType] || {}
-        packageJson[usedDepType][dependency.name] = dependency.pref
-      })
+      const usedDepType = guessDependencyType(packageSpec.name, packageJson as PackageJson) || 'dependencies'
+      packageJson[usedDepType] = packageJson[usedDepType] || {}
+      packageJson[usedDepType][packageSpec.name] = packageSpec.pref
     }
   })
 

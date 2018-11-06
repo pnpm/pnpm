@@ -1,6 +1,7 @@
 import assertProject from '@pnpm/assert-project'
 import { preparePackages } from '@pnpm/prepare'
 import path = require('path')
+import readPkg = require('read-pkg')
 import tape = require('tape')
 import promisifyTape from 'tape-promise'
 import { install, installPkgs } from 'supi'
@@ -124,4 +125,29 @@ test('dependencies of other importers are not pruned when (headless) installing 
   await rootNodeModules.has('.localhost+4873/is-positive/2.0.0')
   await rootNodeModules.hasNot('.localhost+4873/is-positive/1.0.0')
   await rootNodeModules.has('.localhost+4873/is-negative/1.0.0')
+})
+
+test('adding a new dev dependency to project that uses a shared shrinkwrap', async (t) => {
+  const projects = preparePackages(t, [
+    {
+      name: 'project-1',
+      version: '1.0.0',
+      dependencies: {
+        'is-positive': '1.0.0',
+      },
+    },
+  ])
+
+  const importers = [
+    {
+      prefix: path.resolve('project-1'),
+    },
+  ]
+  await install(await testDefaults({ importers }))
+  await installPkgs(['is-negative@1.0.0'], await testDefaults({ importers, saveDev: true }))
+
+  const pkg = await readPkg({ cwd: 'project-1' })
+
+  t.deepEqual(pkg.dependencies, { 'is-positive': '1.0.0' }, 'prod deps unchanged in package.json')
+  t.deepEqual(pkg.devDependencies, { 'is-negative': '^1.0.0' }, 'dev deps have a new dependency in package.json')
 })
