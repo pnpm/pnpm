@@ -1,7 +1,7 @@
 {
   "name": "pnpm",
   "description": "Fast, disk space efficient package manager",
-  "version": "2.17.7",
+  "version": "2.17.8",
   "author": {
     "name": "Zoltan Kochan",
     "email": "z@kochan.io",
@@ -23,7 +23,7 @@
   "dependencies": {
     "@pnpm/config": "2.3.0",
     "@pnpm/core-loggers": "1.0.0",
-    "@pnpm/default-fetcher": "2.0.4",
+    "@pnpm/default-fetcher": "2.0.5",
     "@pnpm/default-resolver": "2.0.5",
     "@pnpm/lifecycle": "3.0.2",
     "@pnpm/logger": "2.1.0",
@@ -76,7 +76,7 @@
     "read-ini-file": "1.0.0",
     "signal-exit": "3.0.2",
     "strip-color": "0.1.0",
-    "supi": "0.25.5",
+    "supi": "0.25.6",
     "text-table": "0.2.0",
     "tree-kill": "1.2.0",
     "update-notifier": "2.5.0",

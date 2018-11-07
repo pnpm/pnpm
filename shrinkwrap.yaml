@@ -173,7 +173,7 @@ importers:
       string-length: 2.0.0
       string.prototype.padstart: 3.0.0
       strip-ansi: 5.0.0
-      supi: 0.25.5
+      supi: 0.25.6
       tape: 4.9.1
       ts-node: 6.2.0
       tslint: 5.11.0
@@ -315,7 +315,7 @@ importers:
     specifiers:
       '@pnpm/assert-project': 'link:../../privatePackages/assert-project'
       '@pnpm/core-loggers': 1.0.0
-      '@pnpm/default-fetcher': 2.0.4
+      '@pnpm/default-fetcher': 2.0.5
       '@pnpm/default-resolver': 2.0.5
       '@pnpm/headless': 'link:'
       '@pnpm/lifecycle': 3.0.2
@@ -825,7 +825,7 @@ importers:
       '@pnpm/assert-project': 'link:../../privatePackages/assert-project'
       '@pnpm/config': 2.3.0
       '@pnpm/core-loggers': 1.0.0
-      '@pnpm/default-fetcher': 2.0.4
+      '@pnpm/default-fetcher': 2.0.5
       '@pnpm/default-resolver': 2.0.5
       '@pnpm/lifecycle': 3.0.2
       '@pnpm/logger': 2.1.0
@@ -913,7 +913,7 @@ importers:
       sepia: 2.0.2
       signal-exit: 3.0.2
       strip-color: 0.1.0
-      supi: 0.25.5
+      supi: 0.25.6
       symlink-dir: 2.0.1
       tape: 4.9.1
       tape-promise: 4.0.0
@@ -1211,7 +1211,7 @@ importers:
       '@pnpm/assert-project': 'link:../../privatePackages/assert-project'
       '@pnpm/check-package': 2.0.0
       '@pnpm/core-loggers': 1.0.0
-      '@pnpm/default-fetcher': 2.0.4
+      '@pnpm/default-fetcher': 2.0.5
       '@pnpm/default-resolver': 2.0.5
       '@pnpm/fs-locker': 1.0.2
       '@pnpm/headless': 0.6.13

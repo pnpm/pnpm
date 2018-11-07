@@ -1,7 +1,7 @@
 {
   "name": "supi",
   "description": "Fast, disk space efficient installation engine",
-  "version": "0.25.5",
+  "version": "0.25.6",
   "author": {
     "name": "Zoltan Kochan",
     "email": "z@kochan.io",
@@ -80,7 +80,7 @@
   },
   "devDependencies": {
     "@pnpm/assert-project": "link:../../privatePackages/assert-project",
-    "@pnpm/default-fetcher": "2.0.4",
+    "@pnpm/default-fetcher": "2.0.5",
     "@pnpm/default-resolver": "2.0.5",
     "@pnpm/logger": "2.1.0",
     "@pnpm/prepare": "0.0.0",
