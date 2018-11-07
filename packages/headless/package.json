@@ -101,6 +101,6 @@
     "path-exists": "3.0.0",
     "pnpm-shrinkwrap": "8.1.2",
     "ramda": "0.25.0",
-    "symlink-dir": "2.0.1"
+    "symlink-dir": "2.0.2"
   }
 }
