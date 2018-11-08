@@ -125,7 +125,9 @@ export default async (opts: HeadlessOptions) => {
   const pkg = opts.packageJson || await readPackageFromDir(opts.prefix)
 
   if (!satisfiesPackageJson(wantedShrinkwrap, pkg, importerId)) {
-    throw new Error('Cannot run headless installation because shrinkwrap.yaml is not up-to-date with package.json')
+    const err = new Error('Cannot install with "frozen-shrinkwrap" because shrinkwrap.yaml is not up-to-date with package.json')
+    err['code'] = 'ERR_PNPM_OUTDATED_SHRINKWRAP' // tslint:disable-line
+    throw err
   }
 
   packageJsonLogger.debug({ initial: pkg, prefix: opts.prefix })

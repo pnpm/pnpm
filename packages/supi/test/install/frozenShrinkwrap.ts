@@ -1,4 +1,5 @@
-import prepare from '@pnpm/prepare'
+import prepare, { preparePackages } from '@pnpm/prepare'
+import path = require('path')
 import sinon = require('sinon')
 import { install } from 'supi'
 import tape = require('tape')
@@ -7,6 +8,7 @@ import writeJsonFile from 'write-json-file'
 import { testDefaults } from '../utils'
 
 const test = promisifyTape(tape)
+const testOnly = promisifyTape(tape.only)
 
 test("frozen-shrinkwrap: installation fails if specs in package.json don't match the ones in shrinkwrap.yaml", async (t) => {
   const project = prepare(t, {
@@ -27,7 +29,70 @@ test("frozen-shrinkwrap: installation fails if specs in package.json don't match
     await install(await testDefaults({ frozenShrinkwrap: true }))
     t.fail()
   } catch (err) {
-    t.equal(err.message, 'Cannot run headless installation because shrinkwrap.yaml is not up-to-date with package.json')
+    t.equal(err.message, 'Cannot install with "frozen-shrinkwrap" because shrinkwrap.yaml is not up-to-date with package.json')
+  }
+})
+
+test("frozen-shrinkwrap+shamefully-flatten: installation fails if specs in package.json don't match the ones in shrinkwrap.yaml", async (t) => {
+  const project = prepare(t, {
+    dependencies: {
+      'is-positive': '^3.0.0',
+    },
+  })
+
+  await install(await testDefaults({ shamefullyFlatten: true }))
+
+  await writeJsonFile('package.json', {
+    dependencies: {
+      'is-positive': '^3.1.0',
+    },
+  })
+
+  try {
+    await install(await testDefaults({ frozenShrinkwrap: true, shamefullyFlatten: true }))
+    t.fail()
+  } catch (err) {
+    t.equal(err.message, 'Cannot install with "frozen-shrinkwrap" because shrinkwrap.yaml is not up-to-date with package.json')
+  }
+})
+
+test('frozen-shrinkwrap: fail on a shared shrinkwrap.yaml that does not satisfy one of the package.json files', async (t) => {
+  const project = preparePackages(t, [
+    {
+      name: 'p1',
+      dependencies: {
+        'is-positive': '^3.0.0',
+      },
+    },
+    {
+      name: 'p2',
+      dependencies: {
+        'is-negative': '1.0.0',
+      },
+    },
+  ])
+
+  const importers = [
+    {
+      prefix: path.resolve('p1'),
+    },
+    {
+      prefix: path.resolve('p2'),
+    },
+  ]
+  await install(await testDefaults({ importers }))
+
+  await writeJsonFile('p1/package.json', {
+    dependencies: {
+      'is-positive': '^3.1.0',
+    },
+  })
+
+  try {
+    await install(await testDefaults({ frozenShrinkwrap: true, importers }))
+    t.fail()
+  } catch (err) {
+    t.equal(err.message, `Cannot install with "frozen-shrinkwrap" because shrinkwrap.yaml is not up-to-date with p1${path.sep}package.json`)
   }
 })
 

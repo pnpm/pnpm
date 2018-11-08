@@ -147,6 +147,13 @@ export async function install (maybeOpts: InstallOptions & {
     const importersToInstall = [] as ImporterToInstall[]
     // TODO: make it concurrent
     for (const importer of ctx.importers) {
+      if (opts.frozenShrinkwrap && !satisfiesPackageJson(ctx.wantedShrinkwrap, importer.pkg, importer.id)) {
+        const err = new Error('Cannot install with "frozen-shrinkwrap" because shrinkwrap.yaml is not up-to-date with ' +
+          path.relative(ctx.shrinkwrapDirectory, path.join(importer.prefix, 'package.json')))
+        err['code'] = 'ERR_PNPM_OUTDATED_SHRINKWRAP' // tslint:disable-line
+        throw err
+      }
+
       const wantedDeps = getWantedDependencies(importer.pkg)
 
       if (ctx.wantedShrinkwrap && ctx.wantedShrinkwrap.importers) {

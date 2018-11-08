@@ -367,7 +367,7 @@ test('fail when shrinkwrap.yaml is not up-to-date with package.json', async (t) 
     await headless(await testDefaults({prefix: projectDir}))
     t.fail()
   } catch (err) {
-    t.equal(err.message, 'Cannot run headless installation because shrinkwrap.yaml is not up-to-date with package.json')
+    t.equal(err.message, 'Cannot install with "frozen-shrinkwrap" because shrinkwrap.yaml is not up-to-date with package.json')
   }
 
   t.end()
