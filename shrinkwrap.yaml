@@ -71,7 +71,7 @@ importers:
     dependencies:
       '@pnpm/git-fetcher': 1.0.1
       '@pnpm/resolver-base': 2.0.0
-      '@pnpm/tarball-fetcher': /@pnpm/tarball-fetcher/2.0.7/@pnpm!logger@2.1.0
+      '@pnpm/tarball-fetcher': /@pnpm/tarball-fetcher/2.0.8/@pnpm!logger@2.1.0
     devDependencies:
       '@pnpm/default-fetcher': 'link:'
       '@pnpm/logger': 2.1.0
@@ -90,7 +90,7 @@ importers:
       '@pnpm/git-fetcher': 1.0.1
       '@pnpm/logger': 2.1.0
       '@pnpm/resolver-base': 2.0.0
-      '@pnpm/tarball-fetcher': 2.0.7
+      '@pnpm/tarball-fetcher': 2.0.8
       '@types/tape': 4.2.32
       mos: 2.0.0-alpha.3
       mos-plugin-readme: 1.0.4
@@ -566,7 +566,7 @@ importers:
       '@pnpm/logger': 2.1.0
       '@pnpm/npm-resolver': /@pnpm/npm-resolver/2.2.6/@pnpm!logger@2.1.0
       '@pnpm/package-requester': 'link:'
-      '@pnpm/tarball-fetcher': /@pnpm/tarball-fetcher/2.0.7/@pnpm!logger@2.1.0
+      '@pnpm/tarball-fetcher': /@pnpm/tarball-fetcher/2.0.8/@pnpm!logger@2.1.0
       '@types/ncp': 2.0.1
       '@types/nock': 9.3.0
       '@types/sinon': 5.0.5
@@ -596,7 +596,7 @@ importers:
       '@pnpm/package-requester': 'link:'
       '@pnpm/pkgid-to-filename': 2.0.0
       '@pnpm/resolver-base': 2.0.0
-      '@pnpm/tarball-fetcher': 2.0.7
+      '@pnpm/tarball-fetcher': 2.0.8
       '@pnpm/types': 2.0.0
       '@types/mz': 0.0.32
       '@types/ncp': 2.0.1
@@ -660,7 +660,7 @@ importers:
     devDependencies:
       '@pnpm/logger': 2.1.0
       '@pnpm/npm-resolver': /@pnpm/npm-resolver/2.2.6/@pnpm!logger@2.1.0
-      '@pnpm/tarball-fetcher': /@pnpm/tarball-fetcher/2.0.7/@pnpm!logger@2.1.0
+      '@pnpm/tarball-fetcher': /@pnpm/tarball-fetcher/2.0.8/@pnpm!logger@2.1.0
       '@types/tape': 4.2.32
       '@types/tempy': 0.2.0
       npm-scripts-info: 0.3.9
@@ -680,7 +680,7 @@ importers:
       '@pnpm/npm-resolver': 2.2.6
       '@pnpm/package-requester': 4.1.7
       '@pnpm/resolver-base': 2.0.0
-      '@pnpm/tarball-fetcher': 2.0.7
+      '@pnpm/tarball-fetcher': 2.0.8
       '@pnpm/types': 2.0.0
       '@types/mz': 0.0.32
       '@types/node': 10.12.2
@@ -1000,7 +1000,7 @@ importers:
       '@pnpm/logger': 2.1.0
       '@pnpm/npm-resolver': /@pnpm/npm-resolver/2.2.6/@pnpm!logger@2.1.0
       '@pnpm/server': 'link:'
-      '@pnpm/tarball-fetcher': /@pnpm/tarball-fetcher/2.0.7/@pnpm!logger@2.1.0
+      '@pnpm/tarball-fetcher': /@pnpm/tarball-fetcher/2.0.8/@pnpm!logger@2.1.0
       '@types/mz': 0.0.32
       '@types/tape': 4.2.32
       is-port-reachable: 2.0.0
@@ -1021,7 +1021,7 @@ importers:
       '@pnpm/package-requester': 4.1.7
       '@pnpm/resolver-base': 2.0.0
       '@pnpm/server': 'link:'
-      '@pnpm/tarball-fetcher': 2.0.7
+      '@pnpm/tarball-fetcher': 2.0.8
       '@pnpm/types': 2.0.0
       '@types/got': 8.3.4
       '@types/mz': 0.0.32
@@ -1861,18 +1861,18 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha512-kYhalp/SFn3m2yq8d2VBdyRFiaKHBapk1U/WiJc7vR1brePS06rkKQeG/Z9CN4GVAdNXj+XOyBCMz8XAUGCGuQ==
-  /@pnpm/tarball-fetcher/2.0.7/@pnpm!logger@2.1.0:
+  /@pnpm/tarball-fetcher/2.0.8/@pnpm!logger@2.1.0:
     dependencies:
       '@pnpm/fetcher-base': 2.0.0
       '@pnpm/logger': 2.1.0
+      '@types/graceful-fs': 4.1.2
       '@types/mem': 1.1.2
       '@types/mz': 0.0.32
-      '@types/node': 10.12.4
+      '@types/node': 10.12.2
       '@types/retry': 0.10.2
       '@types/rimraf': 2.0.2
       credentials-by-uri: 1.0.0
       fetch-from-npm-registry: 1.0.0
-      fs-write-stream-atomic: 1.0.10
       graceful-fs: 4.1.15
       mem: 4.0.0
       mkdirp-promise: 5.0.1
@@ -1884,11 +1884,11 @@ packages:
       unpack-stream: 4.0.0
     engines:
       node: '>=6'
-    id: registry.npmjs.org/@pnpm/tarball-fetcher/2.0.7
+    id: registry.npmjs.org/@pnpm/tarball-fetcher/2.0.8
     peerDependencies:
       '@pnpm/logger': ^2.1.0
     resolution:
-      integrity: sha512-818516VibOOXKuAkQr4Nl7df2V7oLutm5GQfnv3WfM6oux4SRwZeCzrmtK5X0nAVoLHCQh+mVDj0MUC7bWLVeQ==
+      integrity: sha512-mDKjsjNRM2clnGBRK/Oj+GZnPvEuEyVDlLLr5hYjIad7kRwQEKMHdn3wdzUh9D8wNdihnDVp6ODpcosmVh5DMg==
   /@pnpm/tarball-resolver/1.0.1:
     dependencies:
       '@pnpm/resolver-base': 2.0.0
@@ -1988,7 +1988,7 @@ packages:
       integrity: sha512-AaXSrIF99SjjtPVNmCmYb388HML+PKEJb/xmj4SbL2ZO0hHuETZZzyDIKfOqaEoAHZEuX4sC+FRFrHYJoIby6A==
   /@types/graceful-fs/4.1.2:
     dependencies:
-      '@types/node': 10.12.4
+      '@types/node': 10.12.2
     resolution:
       integrity: sha512-epDhsJAVxJsWfeqpzEDFhLnhHMbHie/VMFY+2Hvt5p7FemeW5ELM+6gcVYL/ZsUwdu3zrWpDE3VUTddXW+EMYg==
   /@types/is-windows/0.2.0:
@@ -9651,7 +9651,7 @@ packages:
       integrity: sha512-h3Ii7ThTL7P5LlX1RuMPsuW4V5EZnLyjPwStIMQ4V0F6rblgmXIS+IkpAOu9THHDZYUO/D8TTJddVc6HIY4S5g==
   /unpack-stream/4.0.0:
     dependencies:
-      '@types/node': 10.12.4
+      '@types/node': 10.12.2
       decompress-maybe: 1.0.0
       ssri: 6.0.1
       tar-fs: 1.16.3
