@@ -38,6 +38,7 @@ export default async function uninstall (
       locks: opts.locks,
       prefix: opts.prefix,
       stale: opts.lockStaleDuration,
+      storeController: opts.storeController,
     })
   } else {
     await _uninstall()

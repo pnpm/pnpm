@@ -97,6 +97,7 @@ export async function install (maybeOpts: InstallOptions & {
       locks: opts.locks,
       prefix: ctx.shrinkwrapDirectory,
       stale: opts.lockStaleDuration,
+      storeController: opts.storeController,
     })
   } else {
     await _install()
@@ -368,6 +369,7 @@ export async function installPkgs (
       locks: opts.locks,
       prefix: opts.shrinkwrapDirectory,
       stale: opts.lockStaleDuration,
+      storeController: opts.storeController,
     })
   } else {
     await _installPkgs()

@@ -1,11 +1,13 @@
 import lock from '@pnpm/fs-locker'
 import logger from '@pnpm/logger'
+import { StoreController } from 'package-store'
 
 export default async function withLock<T> (
   dir: string,
   fn: () => Promise<T>,
   opts: {
     stale: number,
+    storeController: StoreController,
     locks: string,
     prefix: string,
   },
@@ -26,6 +28,9 @@ export default async function withLock<T> (
     return result
   } catch (err) {
     await unlock()
+    // TODO: revise how store locking works
+    // maybe it needs to happen outside of supi
+    await opts.storeController.close()
     throw err;
   }
 }
