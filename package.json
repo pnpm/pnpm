@@ -35,6 +35,7 @@
   },
   "dependencies": {
     "@pnpm/fetcher-base": "^2.0.0",
+    "@types/graceful-fs": "^4.1.2",
     "@types/mem": "^1.1.2",
     "@types/mz": "^0.0.32",
     "@types/node": "^9.3.0 || 10",
@@ -42,7 +43,6 @@
     "@types/rimraf": "^2.0.2",
     "credentials-by-uri": "1.0.0",
     "fetch-from-npm-registry": "1.0.0",
-    "fs-write-stream-atomic": "1.0.10",
     "graceful-fs": "4.1.15",
     "mem": "4.0.0",
     "mkdirp-promise": "5.0.1",

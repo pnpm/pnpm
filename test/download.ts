@@ -1,4 +1,5 @@
 ///<reference path="../typings/index.d.ts" />
+import { existsSync } from 'fs'
 import fs = require('mz/fs')
 import test = require('tape')
 import nock = require('nock')
@@ -31,6 +32,8 @@ test('fail when tarball size does not match content-length', async t => {
     })
 
   process.chdir(tempy.directory())
+  t.comment(`temp dir ${process.cwd()}`)
+
   const unpackTo = path.resolve('unpacked')
   const cachedTarballLocation = path.resolve('cached')
   const resolution = { tarball: `${registry}foo.tgz` }
@@ -48,6 +51,8 @@ test('fail when tarball size does not match content-length', async t => {
     t.equal(err['expectedSize'], 1048576)
     t.equal(err['receivedSize'], tarballSize)
     t.equal(err['attempts'], 2)
+
+    t.notOk(existsSync(cachedTarballLocation), 'invalid tarball not saved')
 
     t.ok(scope.isDone())
     t.end()
@@ -81,6 +86,7 @@ test('retry when tarball size does not match content-length', async t => {
   })
 
   t.equal(typeof result.tempLocation, 'string')
+  t.ok(existsSync(cachedTarballLocation), 'tarball saved') // it is actually not a big issue if the tarball is not there
   t.ok(nock.isDone())
   t.end()
 })

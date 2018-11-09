@@ -1,6 +1,6 @@
 import {FetchResult} from '@pnpm/fetcher-base'
 import createFetcher from 'fetch-from-npm-registry'
-import createWriteStreamAtomic = require('fs-write-stream-atomic')
+import fs = require('graceful-fs')
 import {IncomingMessage} from 'http'
 import mkdirp = require('mkdirp-promise')
 import path = require('path')
@@ -91,7 +91,8 @@ export default (
     integrity?: string,
     generatePackageIntegrity?: boolean,
   }): Promise<FetchResult> {
-    await mkdirp(path.dirname(saveto))
+    const saveToDir = path.dirname(saveto)
+    await mkdirp(saveToDir)
 
     // If a tarball is hosted on a different place than the manifest, only send
     // credentials on `alwaysAuth`
@@ -148,7 +149,8 @@ export default (
           if (onProgress) onProgress(downloaded)
         })
 
-        const writeStream = createWriteStreamAtomic(saveto)
+        const tempTarballLocation = pathTemp(saveToDir)
+        const writeStream = fs.createWriteStream(tempTarballLocation)
 
         return await new Promise<FetchResult>((resolve, reject) => {
           const stream = res.body
@@ -165,8 +167,16 @@ export default (
               }),
               waitTillClosed({ stream, size, getDownloaded: () => downloaded, url }),
             ])
-            .then((vals) => resolve({ tempLocation, filesIndex: vals[1] }))
+            .then((vals) => {
+              fs.rename(tempTarballLocation, saveto, (err) => {
+                // ignore
+              })
+              resolve({ tempLocation, filesIndex: vals[1] })
+            })
             .catch((err) => {
+              rimraf(tempTarballLocation, (err) => {
+                // ignore
+              })
               rimraf(tempLocation, (err) => {
                 // Just ignoring this error
                 // A redundant stage folder won't break anything
