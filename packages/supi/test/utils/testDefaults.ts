@@ -1,7 +1,7 @@
 import createFetcher from '@pnpm/default-fetcher'
 import createResolver from '@pnpm/default-resolver'
+import createStore from '@pnpm/package-store'
 import storePath from '@pnpm/store-path'
-import createStore from 'package-store'
 import path = require('path')
 import { InstallOptions } from 'supi'
 

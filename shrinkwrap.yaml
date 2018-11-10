@@ -269,13 +269,13 @@ importers:
       '@pnpm/package-requester': 'link:../package-requester'
       '@pnpm/pkgid-to-filename': 2.0.0
       '@pnpm/read-package-json': 1.0.1
+      '@pnpm/store-controller-types': 'link:../store-controller-types'
       '@pnpm/types': 'link:../types'
       '@pnpm/utils': 'link:../utils'
       '@types/ramda': 0.25.34
       dependency-path: 2.0.0
       graph-sequencer: 2.0.0
       p-limit: 2.0.0
-      package-store: 'link:../package-store'
       path-exists: 3.0.0
       pnpm-shrinkwrap: 'link:../shrinkwrap'
       ramda: 0.25.0
@@ -286,6 +286,7 @@ importers:
       '@pnpm/default-resolver': 'link:../default-resolver'
       '@pnpm/headless': 'link:'
       '@pnpm/logger': 2.1.0
+      '@pnpm/package-store': 'link:../package-store'
       '@pnpm/store-path': 1.0.3
       '@types/fs-extra': 5.0.4
       '@types/mz': 0.0.32
@@ -324,8 +325,10 @@ importers:
       '@pnpm/modules-cleaner': 1.0.6
       '@pnpm/modules-yaml': 2.0.0
       '@pnpm/package-requester': 4.1.8
+      '@pnpm/package-store': 0.0.0
       '@pnpm/pkgid-to-filename': 2.0.0
       '@pnpm/read-package-json': 1.0.1
+      '@pnpm/store-controller-types': 0.0.0
       '@pnpm/store-path': 1.0.3
       '@pnpm/types': 2.0.0
       '@pnpm/utils': 0.9.0
@@ -346,7 +349,6 @@ importers:
       mz: 2.7.0
       npm-run-all: 4.1.3
       p-limit: 2.0.0
-      package-store: 0.23.8
       path-exists: 3.0.0
       pnpm-registry-mock: 2.4.0
       pnpm-shrinkwrap: 8.1.2
@@ -421,6 +423,7 @@ importers:
     dependencies:
       '@pnpm/core-loggers': 'link:../core-loggers'
       '@pnpm/package-bins': 2.0.0
+      '@pnpm/store-controller-types': 'link:../store-controller-types'
       '@pnpm/types': 'link:../types'
       '@pnpm/utils': 'link:../utils'
       '@types/node': 10.12.2
@@ -445,13 +448,13 @@ importers:
       '@pnpm/logger': 2.1.0
       '@pnpm/modules-cleaner': 'link:'
       '@pnpm/package-bins': 2.0.0
+      '@pnpm/store-controller-types': 0.0.0
       '@pnpm/types': 2.0.0
       '@pnpm/utils': 0.9.0
       '@types/node': 10.12.2
       '@types/ramda': 0.25.38
       dependency-path: 2.0.0
       fs-vacuum: 1.2.10
-      package-store: 0.23.8
       pnpm-shrinkwrap: 8.1.2
       ramda: 0.25.0
       rimraf: 2.6.2
@@ -544,7 +547,9 @@ importers:
       '@pnpm/check-package': 2.0.0
       '@pnpm/fetcher-base': 2.0.0
       '@pnpm/pkgid-to-filename': 2.0.0
+      '@pnpm/read-package-json': 1.0.1
       '@pnpm/resolver-base': 2.0.0
+      '@pnpm/store-controller-types': 'link:../store-controller-types'
       '@pnpm/types': 'link:../types'
       '@types/mz': 0.0.32
       '@types/node': 10.12.2
@@ -595,7 +600,9 @@ importers:
       '@pnpm/npm-resolver': 2.2.6
       '@pnpm/package-requester': 'link:'
       '@pnpm/pkgid-to-filename': 2.0.0
+      '@pnpm/read-package-json': 1.0.1
       '@pnpm/resolver-base': 2.0.0
+      '@pnpm/store-controller-types': 0.0.0
       '@pnpm/tarball-fetcher': 2.0.8
       '@pnpm/types': 2.0.0
       '@types/mz': 0.0.32
@@ -639,6 +646,7 @@ importers:
       '@pnpm/fs-locker': 1.0.2
       '@pnpm/package-requester': 'link:../package-requester'
       '@pnpm/resolver-base': 2.0.0
+      '@pnpm/store-controller-types': 'link:../store-controller-types'
       '@pnpm/types': 'link:../types'
       '@types/mz': 0.0.32
       '@types/node': 10.12.2
@@ -659,11 +667,11 @@ importers:
     devDependencies:
       '@pnpm/logger': 2.1.0
       '@pnpm/npm-resolver': /@pnpm/npm-resolver/2.2.6/@pnpm!logger@2.1.0
+      '@pnpm/package-store': 'link:'
       '@pnpm/tarball-fetcher': /@pnpm/tarball-fetcher/2.0.8/@pnpm!logger@2.1.0
       '@types/tape': 4.2.32
       '@types/tempy': 0.2.0
       npm-scripts-info: 0.3.9
-      package-store: 'link:'
       rimraf: 2.6.2
       tape: 4.9.1
       tempy: 0.2.1
@@ -678,7 +686,9 @@ importers:
       '@pnpm/logger': 2.1.0
       '@pnpm/npm-resolver': 2.2.6
       '@pnpm/package-requester': 4.1.8
+      '@pnpm/package-store': 'link:'
       '@pnpm/resolver-base': 2.0.0
+      '@pnpm/store-controller-types': 0.0.0
       '@pnpm/tarball-fetcher': 2.0.8
       '@pnpm/types': 2.0.0
       '@types/mz': 0.0.32
@@ -693,7 +703,6 @@ importers:
       npm-scripts-info: 0.3.9
       p-filter: 1.0.0
       p-limit: 2.0.0
-      package-store: 'link:'
       path-exists: 3.0.0
       path-temp: 1.0.0
       ramda: 0.25.0
@@ -718,6 +727,7 @@ importers:
       '@pnpm/lifecycle': /@pnpm/lifecycle/3.0.2/@pnpm!logger@2.1.0
       '@pnpm/logger': 2.1.0
       '@pnpm/outdated': 'link:../outdated'
+      '@pnpm/package-store': 'link:../package-store'
       '@pnpm/server': 'link:../server'
       '@pnpm/store-path': 1.0.3
       '@pnpm/types': 'link:../types'
@@ -754,7 +764,6 @@ importers:
       nopt: 4.0.1
       p-filter: 1.0.0
       p-limit: 2.0.0
-      package-store: 'link:../package-store'
       path-absolute: 1.0.0
       path-name: 1.0.0
       pkgs-graph: 2.0.0
@@ -829,6 +838,7 @@ importers:
       '@pnpm/logger': 2.1.0
       '@pnpm/modules-yaml': 2.0.0
       '@pnpm/outdated': 1.0.4
+      '@pnpm/package-store': 0.0.0
       '@pnpm/prepare': 0.0.0
       '@pnpm/read-package-json': 1.0.1
       '@pnpm/server': 1.0.3
@@ -891,7 +901,6 @@ importers:
       p-filter: 1.0.0
       p-limit: 2.0.0
       package-preview: 1.0.6
-      package-store: 0.23.8
       path-absolute: 1.0.0
       path-exists: 3.0.0
       path-name: 1.0.0
@@ -933,6 +942,7 @@ importers:
       '@pnpm/npm-resolver': /@pnpm/npm-resolver/2.2.6/@pnpm!logger@2.1.0
       '@pnpm/package-requester': 'link:../package-requester'
       '@pnpm/resolver-base': 2.0.0
+      '@pnpm/store-controller-types': 'link:../store-controller-types'
       '@pnpm/types': 'link:../types'
       '@pnpm/utils': 'link:../utils'
       '@types/node': 10.12.2
@@ -959,16 +969,15 @@ importers:
       '@pnpm/core-loggers': 1.0.0
       '@pnpm/logger': 2.1.0
       '@pnpm/npm-resolver': 2.2.6
-      '@pnpm/package-requester': 4.1.8
       '@pnpm/resolve-dependencies': 'link:'
       '@pnpm/resolver-base': 2.0.0
+      '@pnpm/store-controller-types': 0.0.0
       '@pnpm/types': 2.0.0
       '@pnpm/utils': 0.9.0
       '@types/node': 10.12.2
       '@types/ramda': 0.25.38
       '@types/semver': 5.5.0
       dependency-path: 2.0.0
-      package-store: 0.23.8
       path-exists: 3.0.0
       pnpm-install-checks: 1.1.0
       pnpm-shrinkwrap: 8.1.2
@@ -983,8 +992,7 @@ importers:
       version-selector-type: 2.0.0
   packages/server:
     dependencies:
-      '@pnpm/package-requester': 'link:../package-requester'
-      '@pnpm/resolver-base': 2.0.0
+      '@pnpm/store-controller-types': 'link:../store-controller-types'
       '@pnpm/types': 'link:../types'
       '@types/got': 8.3.4
       '@types/node': 10.12.2
@@ -992,11 +1000,12 @@ importers:
       '@types/uuid': 3.4.4
       got: 8.3.2
       p-limit: 2.0.0
-      package-store: 'link:../package-store'
       uuid: 3.3.2
     devDependencies:
       '@pnpm/logger': 2.1.0
       '@pnpm/npm-resolver': /@pnpm/npm-resolver/2.2.6/@pnpm!logger@2.1.0
+      '@pnpm/package-requester': 'link:../package-requester'
+      '@pnpm/package-store': 'link:../package-store'
       '@pnpm/server': 'link:'
       '@pnpm/tarball-fetcher': /@pnpm/tarball-fetcher/2.0.8/@pnpm!logger@2.1.0
       '@types/mz': 0.0.32
@@ -1017,8 +1026,9 @@ importers:
       '@pnpm/logger': 2.1.0
       '@pnpm/npm-resolver': 2.2.6
       '@pnpm/package-requester': 4.1.8
-      '@pnpm/resolver-base': 2.0.0
+      '@pnpm/package-store': 0.0.0
       '@pnpm/server': 'link:'
+      '@pnpm/store-controller-types': 0.0.0
       '@pnpm/tarball-fetcher': 2.0.8
       '@pnpm/types': 2.0.0
       '@types/got': 8.3.4
@@ -1033,7 +1043,6 @@ importers:
       mos-plugin-readme: 1.0.4
       mz: 2.7.0
       p-limit: 2.0.0
-      package-store: 0.23.8
       rimraf: 2.6.2
       rimraf-then: 1.0.1
       tape: 4.9.1
@@ -1105,6 +1114,24 @@ importers:
       write-file-atomic: 2.3.0
       write-yaml-file: 2.0.0
       yaml-tag: 1.1.0
+  packages/store-controller-types:
+    dependencies:
+      '@pnpm/resolver-base': 2.0.0
+      '@pnpm/types': 'link:../types'
+    devDependencies:
+      rimraf: 2.6.2
+      tslint: /tslint/5.11.0/typescript@3.1.6
+      tslint-config-standard: /tslint-config-standard/8.0.1/tslint@5.11.0+typescript@3.1.6
+      tslint-eslint-rules: /tslint-eslint-rules/5.4.0/tslint@5.11.0+typescript@3.1.6
+      typescript: 3.1.6
+    specifiers:
+      '@pnpm/resolver-base': 2.0.0
+      '@pnpm/types': 2.0.0
+      rimraf: 2.6.2
+      tslint: 5.11.0
+      tslint-config-standard: 8.0.1
+      tslint-eslint-rules: 5.4.0
+      typescript: 3.1.6
   packages/supi:
     dependencies:
       '@pnpm/check-package': 2.0.0
@@ -1120,6 +1147,7 @@ importers:
       '@pnpm/read-package-json': 1.0.1
       '@pnpm/resolve-dependencies': 'link:../resolve-dependencies'
       '@pnpm/resolver-base': 2.0.0
+      '@pnpm/store-controller-types': 'link:../store-controller-types'
       '@pnpm/types': 'link:../types'
       '@pnpm/utils': 'link:../utils'
       '@types/byline': 4.2.31
@@ -1152,7 +1180,6 @@ importers:
       os-homedir: 1.0.2
       p-filter: 1.0.0
       p-limit: 2.0.0
-      package-store: 'link:../package-store'
       path-absolute: 1.0.0
       pnpm-shrinkwrap: 'link:../shrinkwrap'
       ramda: 0.25.0
@@ -1170,6 +1197,7 @@ importers:
       '@pnpm/default-fetcher': 'link:../default-fetcher'
       '@pnpm/default-resolver': 'link:../default-resolver'
       '@pnpm/logger': 2.1.0
+      '@pnpm/package-store': 'link:../package-store'
       '@pnpm/prepare': 'link:../../privatePackages/prepare'
       '@pnpm/store-path': 1.0.3
       '@types/is-windows': 0.2.0
@@ -1219,11 +1247,13 @@ importers:
       '@pnpm/modules-cleaner': 1.0.6
       '@pnpm/modules-yaml': 2.0.0
       '@pnpm/package-requester': 4.1.8
+      '@pnpm/package-store': 0.0.0
       '@pnpm/pkgid-to-filename': 2.0.0
       '@pnpm/prepare': 0.0.0
       '@pnpm/read-package-json': 1.0.1
       '@pnpm/resolve-dependencies': 1.0.6
       '@pnpm/resolver-base': 2.0.0
+      '@pnpm/store-controller-types': 0.0.0
       '@pnpm/store-path': 1.0.3
       '@pnpm/types': 2.0.0
       '@pnpm/utils': 0.9.0
@@ -1273,7 +1303,6 @@ importers:
       p-filter: 1.0.0
       p-limit: 2.0.0
       package-preview: 1.0.6
-      package-store: 0.23.8
       path-absolute: 1.0.0
       path-exists: 3.0.0
       path-name: 1.0.0
@@ -1688,7 +1717,7 @@ packages:
       integrity: sha512-ASULw2KzrapsjQVSMYdDc3f6+wYOs9cPt0M5Ip9VUkTfYfPrfxd0UYXcOPoUHkk7L12HUj0vwUYK0DE1da2gww==
   /@pnpm/git-fetcher/1.0.1:
     dependencies:
-      '@types/node': 10.12.4
+      '@types/node': 10.12.5
       dint: 3.0.2
       execa: 1.0.0
       path-temp: 1.0.0
@@ -1701,7 +1730,7 @@ packages:
   /@pnpm/git-resolver/1.0.1:
     dependencies:
       '@pnpm/resolver-base': 2.0.0
-      '@types/node': 10.12.4
+      '@types/node': 10.12.5
       '@types/semver': 5.5.0
       got: 8.3.2
       graceful-git: 2.0.0
@@ -1754,7 +1783,7 @@ packages:
       '@pnpm/resolver-base': 2.0.0
       '@pnpm/types': 2.0.0
       '@types/graceful-fs': 4.1.2
-      '@types/node': 10.12.4
+      '@types/node': 10.12.5
       graceful-fs: 4.1.15
       normalize-path: 3.0.0
       osenv: 0.1.5
@@ -1767,7 +1796,7 @@ packages:
       integrity: sha512-/6KP7OXtwlE1tgepR5vB1FyL64F4+RZP8IIdvkwkHWL1rnLPprRvZ1Lwd1vecIlwjY1MrXmY7awL2H7MQqBg5Q==
   /@pnpm/logger/2.1.0:
     dependencies:
-      '@types/node': 10.12.4
+      '@types/node': 10.12.5
       bole: 3.0.2
       ndjson: 1.5.0
     engines:
@@ -1781,7 +1810,7 @@ packages:
       '@pnpm/types': 2.0.0
       '@types/load-json-file': 2.0.7
       '@types/mem': 1.1.2
-      '@types/node': 10.12.4
+      '@types/node': 10.12.5
       '@types/semver': 5.5.0
       credentials-by-uri: 1.0.0
       encode-registry: 1.1.0
@@ -1866,7 +1895,7 @@ packages:
       '@types/graceful-fs': 4.1.2
       '@types/mem': 1.1.2
       '@types/mz': 0.0.32
-      '@types/node': 10.12.2
+      '@types/node': 10.12.5
       '@types/retry': 0.10.2
       '@types/rimraf': 2.0.2
       credentials-by-uri: 1.0.0
@@ -1986,7 +2015,7 @@ packages:
       integrity: sha512-AaXSrIF99SjjtPVNmCmYb388HML+PKEJb/xmj4SbL2ZO0hHuETZZzyDIKfOqaEoAHZEuX4sC+FRFrHYJoIby6A==
   /@types/graceful-fs/4.1.2:
     dependencies:
-      '@types/node': 10.12.2
+      '@types/node': 10.12.5
     resolution:
       integrity: sha512-epDhsJAVxJsWfeqpzEDFhLnhHMbHie/VMFY+2Hvt5p7FemeW5ELM+6gcVYL/ZsUwdu3zrWpDE3VUTddXW+EMYg==
   /@types/is-windows/0.2.0:
@@ -2035,9 +2064,9 @@ packages:
   /@types/node/10.12.2:
     resolution:
       integrity: sha512-53ElVDSnZeFUUFIYzI8WLQ25IhWzb6vbddNp8UHlXQyU0ET2RhV5zg0NfubzU7iNMh5bBXb0htCzfvrSVNgzaQ==
-  /@types/node/10.12.4:
+  /@types/node/10.12.5:
     resolution:
-      integrity: sha512-0aFZiYCvoxyKP/Mg6PvqBb2UtWGIPf63r6rOAvRBrgyJOfanbL60yUH2U4FSpg+Yn6FW+JVYWtzn6hLTy745Fg==
+      integrity: sha512-GzdHjq3t3eGLMv92Al90Iq+EoLL+86mPfQhuglbBFO7HiLdC/rkt+zrzJJumAiBF6nsrBWhou22rPW663AAyFw==
   /@types/node/8.10.37:
     dev: false
     resolution:
@@ -4400,7 +4429,7 @@ packages:
       integrity: sha1-oB6c2cnkkXFcmKdaQtXwu9EH/3Y=
   /fetch-from-npm-registry/1.0.0:
     dependencies:
-      '@types/node': 10.12.4
+      '@types/node': 10.12.5
       make-fetch-happen: 4.0.1
     engines:
       node: '>=6'
@@ -9649,7 +9678,7 @@ packages:
       integrity: sha512-h3Ii7ThTL7P5LlX1RuMPsuW4V5EZnLyjPwStIMQ4V0F6rblgmXIS+IkpAOu9THHDZYUO/D8TTJddVc6HIY4S5g==
   /unpack-stream/4.0.0:
     dependencies:
-      '@types/node': 10.12.2
+      '@types/node': 10.12.5
       decompress-maybe: 1.0.0
       ssri: 6.0.1
       tar-fs: 1.16.3

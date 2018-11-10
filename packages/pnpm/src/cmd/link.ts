@@ -1,5 +1,5 @@
+import { StoreController } from '@pnpm/package-store'
 import pLimit = require('p-limit')
-import { StoreController } from 'package-store'
 import path = require('path')
 import pathAbsolute = require('path-absolute')
 import R = require('ramda')

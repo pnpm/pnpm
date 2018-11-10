@@ -2,14 +2,9 @@ import baseLogger, {
   LogBase,
   Logger,
 } from '@pnpm/logger'
+import { LoggedPkg } from '@pnpm/store-controller-types'
 
 export const progressLogger = baseLogger('progress') as Logger<ProgressMessage> // tslint:disable-line
-
-export interface LoggedPkg {
-  rawSpec: string,
-  name?: string,
-  dependentId?: string,
-}
 
 // Not all of this message types are used in this project
 // some of them can be removed

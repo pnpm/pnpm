@@ -1,10 +1,8 @@
 import { FetchFunction } from '@pnpm/fetcher-base'
 import lock from '@pnpm/fs-locker'
 import { storeLogger } from '@pnpm/logger'
-import createPackageRequester, {
-  FetchPackageToStoreFunction,
-  RequestPackageFunction,
-} from '@pnpm/package-requester'
+import createPackageRequester from '@pnpm/package-requester'
+import { StoreController } from '@pnpm/store-controller-types'
 import { ResolveFunction } from '@pnpm/resolver-base'
 import { StoreIndex } from '@pnpm/types'
 import pFilter = require('p-filter')
@@ -17,18 +15,7 @@ import {
   read as readStore,
   save as saveStore,
 } from '../fs/storeIndex'
-import createImportPackage, { copyPkg, ImportPackageFunction } from './createImportPackage'
-
-export interface StoreController {
-  requestPackage: RequestPackageFunction,
-  fetchPackage: FetchPackageToStoreFunction,
-  importPackage: ImportPackageFunction,
-  close (): Promise<void>,
-  updateConnections (prefix: string, opts: {addDependencies: string[], removeDependencies: string[], prune: boolean}): Promise<void>,
-  prune (): Promise<void>,
-  saveState (): Promise<void>,
-  upload (builtPkgLocation: string, opts: {pkgId: string, engine: string}): Promise<void>,
-}
+import createImportPackage, { copyPkg } from './createImportPackage'
 
 export default async function (
   resolve: ResolveFunction,

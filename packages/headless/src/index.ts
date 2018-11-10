@@ -21,15 +21,17 @@ import {
 } from '@pnpm/modules-yaml'
 import {
   getCacheByEngine,
-  PackageFilesResponse,
 } from '@pnpm/package-requester'
 import pkgIdToFilename from '@pnpm/pkgid-to-filename'
 import { fromDir as readPackageFromDir } from '@pnpm/read-package-json'
+import {
+  PackageFilesResponse,
+  StoreController,
+} from '@pnpm/store-controller-types'
 import { PackageJson, Registries } from '@pnpm/types'
 import { normalizeRegistries, realNodeModulesDir } from '@pnpm/utils'
 import dp = require('dependency-path')
 import pLimit = require('p-limit')
-import { StoreController } from 'package-store'
 import path = require('path')
 import {
   filter as filterShrinkwrap,

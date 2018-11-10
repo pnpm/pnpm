@@ -4,8 +4,8 @@ import {
   ReadPackageHook,
   Registries,
 } from '@pnpm/types'
+import { StoreController } from '@pnpm/store-controller-types'
 import { createNodeId, nodeIdContainsSequence, ROOT_NODE_ID, WantedDependency, getWantedDependencies } from '@pnpm/utils'
-import { StoreController } from 'package-store'
 import { Shrinkwrap } from 'pnpm-shrinkwrap'
 import getPreferredVersionsFromPackage from './getPreferredVersions'
 import resolveDependencies, {

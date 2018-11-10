@@ -1,7 +1,8 @@
 import { storeLogger } from '@pnpm/logger'
 import {
+  ImportPackageFunction,
   PackageFilesResponse,
-} from '@pnpm/package-requester'
+} from '@pnpm/store-controller-types'
 import child_process = require('child_process')
 import mkdirp = require('mkdirp-promise')
 import fs = require('mz/fs')
@@ -18,15 +19,6 @@ import { importingLogger } from '../loggers'
 const execFilePromise = promisify(child_process.execFile)
 const ncp = promisify(ncpCB)
 const limitLinking = pLimit(16)
-
-export type ImportPackageFunction = (
-  from: string,
-  to: string,
-  opts: {
-    filesResponse: PackageFilesResponse,
-    force: boolean,
-  },
-) => Promise<void>
 
 export default (packageImportMethod?: 'auto' | 'hardlink' | 'copy' | 'reflink'): ImportPackageFunction => {
   const importPackage = createImportPackage(packageImportMethod)

@@ -4,14 +4,15 @@ import {
 } from '@pnpm/core-loggers'
 import logger from '@pnpm/logger'
 import {
-  PackageFilesResponse,
-  PackageResponse,
-} from '@pnpm/package-requester'
-import {
   DirectoryResolution,
   LocalPackages,
   Resolution,
 } from '@pnpm/resolver-base'
+import {
+  PackageFilesResponse,
+  PackageResponse,
+  StoreController,
+} from '@pnpm/store-controller-types'
 import {
   Dependencies,
   PackageJson,
@@ -26,9 +27,6 @@ import {
   WantedDependency,
 } from '@pnpm/utils'
 import * as dp from 'dependency-path'
-import {
-  StoreController,
-} from 'package-store'
 import path = require('path')
 import exists = require('path-exists')
 import {

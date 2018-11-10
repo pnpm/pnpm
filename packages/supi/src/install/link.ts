@@ -9,10 +9,10 @@ import { prune } from '@pnpm/modules-cleaner'
 import { IncludedDependencies } from '@pnpm/modules-yaml'
 import { fromDir as readPackageFromDir } from '@pnpm/read-package-json'
 import { DependenciesTree, LinkedDependency } from '@pnpm/resolve-dependencies'
+import { StoreController } from '@pnpm/store-controller-types'
 import { PackageJson, Registries } from '@pnpm/types'
 import * as dp from 'dependency-path'
 import pLimit = require('p-limit')
-import { StoreController } from 'package-store'
 import path = require('path')
 import {
   filter as filterShrinkwrap,

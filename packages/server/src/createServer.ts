@@ -1,12 +1,12 @@
 import { storeLogger } from '@pnpm/logger'
 import {
+  Resolution,
   RequestPackageOptions,
+  StoreController,
   WantedDependency,
-} from '@pnpm/package-requester'
-import { Resolution } from '@pnpm/resolver-base'
+} from '@pnpm/store-controller-types'
 import http = require('http')
 import { IncomingMessage, Server, ServerResponse } from 'http'
-import { StoreController } from 'package-store'
 
 import locking from './lock'
 

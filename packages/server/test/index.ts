@@ -8,14 +8,12 @@ import {
   createServer,
   connectStoreController,
  } from '@pnpm/server'
-import {
-  PackageFilesResponse,
-} from '@pnpm/package-requester'
+import { PackageFilesResponse } from '@pnpm/store-controller-types'
 import got = require('got')
 import isPortReachable = require('is-port-reachable')
 import createResolver, {PackageMetaCache} from '@pnpm/npm-resolver'
+import createStore from '@pnpm/package-store'
 import createFetcher from '@pnpm/tarball-fetcher'
-import createStore from 'package-store'
 
 const registry = 'https://registry.npmjs.org/'
 

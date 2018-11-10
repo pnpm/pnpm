@@ -1,9 +1,9 @@
 import { LogBase } from '@pnpm/logger'
+import { StoreController } from '@pnpm/store-controller-types'
 import {
   PnpmOptions,
   StrictPnpmOptions,
 } from '@pnpm/types'
-import { StoreController } from 'package-store'
 
 export type SupiOptions = PnpmOptions & {
   storeController: StoreController,

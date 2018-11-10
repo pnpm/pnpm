@@ -1,9 +1,9 @@
 import logger from '@pnpm/logger'
 import { IncludedDependencies } from '@pnpm/modules-yaml'
 import { LocalPackages } from '@pnpm/resolver-base'
+import { StoreController } from '@pnpm/store-controller-types'
 import { ReadPackageHook, Registries } from '@pnpm/types'
 import { DEFAULT_REGISTRIES, normalizeRegistries, realNodeModulesDir } from '@pnpm/utils'
-import { StoreController } from 'package-store'
 import path = require('path')
 import { getImporterId, Shrinkwrap } from 'pnpm-shrinkwrap'
 import { ImportersOptions, StrictImportersOptions } from '../getContext'

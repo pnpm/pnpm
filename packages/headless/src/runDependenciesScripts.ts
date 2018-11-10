@@ -4,9 +4,9 @@ import { skippedOptionalDependencyLogger } from '@pnpm/core-loggers'
 import { runPostinstallHooks } from '@pnpm/lifecycle'
 import logger from '@pnpm/logger'
 import { fromDir as readPackageFromDir } from '@pnpm/read-package-json'
+import { StoreController } from '@pnpm/store-controller-types'
 import graphSequencer = require('graph-sequencer')
 import pLimit = require('p-limit')
-import { StoreController } from 'package-store'
 import path = require('path')
 import R = require('ramda')
 import { DependenciesGraph } from '.'

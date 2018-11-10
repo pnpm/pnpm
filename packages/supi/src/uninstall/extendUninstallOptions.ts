@@ -1,6 +1,6 @@
+import { StoreController } from '@pnpm/store-controller-types'
 import { Registries } from '@pnpm/types'
 import { DEFAULT_REGISTRIES, normalizeRegistries } from '@pnpm/utils'
-import { StoreController } from 'package-store'
 import path = require('path')
 import pnpmPkgJson from '../pnpmPkgJson'
 import { ReporterFunction } from '../types'

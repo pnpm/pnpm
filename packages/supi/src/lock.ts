@@ -1,6 +1,6 @@
 import lock from '@pnpm/fs-locker'
 import logger from '@pnpm/logger'
-import { StoreController } from 'package-store'
+import { StoreController } from '@pnpm/store-controller-types'
 
 export default async function withLock<T> (
   dir: string,

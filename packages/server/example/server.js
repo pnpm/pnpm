@@ -1,6 +1,6 @@
 'use strict'
+const createStore = require('@pnpm/package-store').default
 const createServer = require('@pnpm/server').createServer
-const createStore = require('package-store').default
 const createResolver = require('@pnpm/npm-resolver').default
 const createFetcher = require('@pnpm/tarball-fetcher').default
 

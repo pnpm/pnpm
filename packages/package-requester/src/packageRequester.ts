@@ -12,11 +12,16 @@ import {
   Resolution,
   ResolveFunction,
   ResolveResult,
-  WantedDependency,
 } from '@pnpm/resolver-base'
 import {
+  FetchPackageToStoreFunction,
+  LoggedPkg,
+  PackageFilesResponse,
+  PackageResponse,
+  RequestPackageFunction,
+} from '@pnpm/store-controller-types'
+import {
   PackageJson,
-  PackageManifest,
   StoreIndex,
 } from '@pnpm/types'
 import loadJsonFile from 'load-json-file'
@@ -29,105 +34,10 @@ import renameOverwrite = require('rename-overwrite')
 import rimraf = require('rimraf-then')
 import symlinkDir = require('symlink-dir')
 import writeJsonFile from 'write-json-file'
-import { fromDir as readPkgFromDir } from './fs/readPkg'
-import { LoggedPkg, progressLogger } from './loggers'
+import { fromDir as readPkgFromDir } from '@pnpm/read-package-json'
+import { progressLogger } from './loggers'
 
 const TARBALL_INTEGRITY_FILENAME = 'tarball-integrity'
-
-export interface PackageFilesResponse {
-  fromStore: boolean,
-  filenames: string[],
-}
-
-export type PackageResponse = {
-  body: {
-    isLocal: true,
-    resolution: DirectoryResolution,
-    manifest: PackageManifest
-    id: string,
-    normalizedPref?: string,
-    updated: boolean,
-    resolvedVia?: string,
-  },
-} | (
-  {
-    fetchingFiles?: Promise<PackageFilesResponse>,
-    finishing?: Promise<void>, // a package request is finished once its integrity is generated and saved
-    body: {
-      isLocal: false,
-      inStoreLocation: string,
-      cacheByEngine: Map<string, string>,
-      id: string,
-      resolution: Resolution,
-      // This is useful for recommending updates.
-      // If latest does not equal the version of the
-      // resolved package, it is out-of-date.
-      latest?: string,
-      normalizedPref?: string,
-      updated: boolean,
-      resolvedVia?: string,
-    },
-  } & (
-    {
-      fetchingRawManifest: Promise<PackageJson>,
-    } | {
-      body: {
-        manifest: PackageManifest,
-        updated: boolean,
-      },
-    }
-  )
-)
-
-export interface WantedDependency {
-  alias?: string,
-  pref: string,
-}
-
-export interface RequestPackageOptions {
-  defaultTag?: string,
-  skipFetch?: boolean,
-  downloadPriority: number,
-  loggedPkg: LoggedPkg,
-  currentPkgId?: string,
-  prefix: string,
-  registry: string,
-  shrinkwrapResolution?: Resolution,
-  update?: boolean,
-  verifyStoreIntegrity: boolean, // TODO: this should be a context field
-  preferredVersions: {
-    [packageName: string]: {
-      selector: string,
-      type: 'version' | 'range' | 'tag',
-    },
-  },
-  localPackages?: LocalPackages,
-  sideEffectsCache?: boolean,
-}
-
-export type RequestPackageFunction = (
-  wantedDependency: WantedDependency,
-  options: RequestPackageOptions,
-) => Promise<PackageResponse>
-
-export interface FetchPackageToStoreOptions {
-  fetchRawManifest?: boolean,
-  force: boolean,
-  pkgName?: string,
-  pkgId: string,
-  prefix: string,
-  resolution: Resolution,
-  verifyStoreIntegrity: boolean, // TODO: this should be a context field
-}
-
-export type FetchPackageToStoreFunction = (
-  opts: FetchPackageToStoreOptions,
-) => {
-  fetchingFiles: Promise<PackageFilesResponse>,
-  fetchingRawManifest?: Promise<PackageJson>,
-  finishing: Promise<void>,
-  inStoreLocation: string,
-}
 
 export default function (
   resolve: ResolveFunction,

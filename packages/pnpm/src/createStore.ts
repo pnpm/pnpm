@@ -1,7 +1,7 @@
 import createFetcher from '@pnpm/default-fetcher'
 import createResolver from '@pnpm/default-resolver'
+import createStore from '@pnpm/package-store'
 import LRU = require('lru-cache')
-import createStore from 'package-store'
 import path = require('path')
 
 export default async (

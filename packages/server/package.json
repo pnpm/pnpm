@@ -34,6 +34,8 @@
   "devDependencies": {
     "@pnpm/logger": "2.1.0",
     "@pnpm/npm-resolver": "2.2.6",
+    "@pnpm/package-requester": "4.1.8",
+    "@pnpm/package-store": "0.0.0",
     "@pnpm/server": "link:",
     "@pnpm/tarball-fetcher": "2.0.8",
     "@types/mz": "0.0.32",
@@ -60,8 +62,7 @@
     }
   },
   "dependencies": {
-    "@pnpm/package-requester": "4.1.8",
-    "@pnpm/resolver-base": "2.0.0",
+    "@pnpm/store-controller-types": "0.0.0",
     "@pnpm/types": "2.0.0",
     "@types/got": "8.3.4",
     "@types/node": "10.12.2",
@@ -69,7 +70,6 @@
     "@types/uuid": "3.4.4",
     "got": "8.3.2",
     "p-limit": "2.0.0",
-    "package-store": "0.23.8",
     "uuid": "3.3.2"
   }
 }

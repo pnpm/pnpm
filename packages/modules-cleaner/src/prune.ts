@@ -4,9 +4,9 @@ import {
 } from '@pnpm/core-loggers'
 import logger from '@pnpm/logger'
 import { DEPENDENCIES_FIELDS, Registries } from '@pnpm/types'
+import { StoreController } from '@pnpm/store-controller-types'
 import * as dp from 'dependency-path'
 import vacuumCB = require('fs-vacuum')
-import { StoreController } from 'package-store'
 import path = require('path')
 import { ResolvedPackages, Shrinkwrap } from 'pnpm-shrinkwrap'
 import R = require('ramda')

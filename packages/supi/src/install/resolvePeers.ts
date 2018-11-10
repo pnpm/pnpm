@@ -1,11 +1,11 @@
 import logger from '@pnpm/logger'
-import { PackageFilesResponse } from '@pnpm/package-requester'
 import pkgIdToFilename from '@pnpm/pkgid-to-filename'
 import {
   DependenciesTree,
   DependenciesTreeNode,
 } from '@pnpm/resolve-dependencies'
 import { Resolution } from '@pnpm/resolver-base'
+import { PackageFilesResponse } from '@pnpm/store-controller-types'
 import { Dependencies, PackageJson } from '@pnpm/types'
 import {
   createNodeId,

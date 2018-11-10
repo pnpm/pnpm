@@ -2,10 +2,8 @@ import {
   storeLogger,
   streamParser,
 } from '@pnpm/logger'
+import { StoreController } from '@pnpm/store-controller-types'
 import normalizeRegistryUrl = require('normalize-registry-url')
-
-import { StoreController } from 'package-store'
-
 import parseWantedDependencies from './parseWantedDependencies';
 import { ReporterFunction } from './types'
 

@@ -1,7 +1,7 @@
 import createResolver from '@pnpm/npm-resolver'
 import createFetcher from '@pnpm/tarball-fetcher'
-import createStore from 'package-store'
-import * as packageStore from 'package-store'
+import createStore from '@pnpm/package-store'
+import * as packageStore from '@pnpm/package-store'
 import path = require('path')
 import test = require('tape')
 import tempy = require('tempy')

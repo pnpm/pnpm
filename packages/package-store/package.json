@@ -1,7 +1,7 @@
 {
-  "name": "package-store",
+  "name": "@pnpm/package-store",
   "description": "A storage for packages",
-  "version": "0.23.8",
+  "version": "0.0.0",
   "author": {
     "name": "Zoltan Kochan",
     "email": "z@kochan.io",
@@ -23,6 +23,7 @@
     "@pnpm/fs-locker": "1.0.2",
     "@pnpm/package-requester": "4.1.8",
     "@pnpm/resolver-base": "2.0.0",
+    "@pnpm/store-controller-types": "0.0.0",
     "@pnpm/types": "2.0.0",
     "@types/mz": "0.0.32",
     "@types/node": "10.12.2",
@@ -44,18 +45,18 @@
   "devDependencies": {
     "@pnpm/logger": "2.1.0",
     "@pnpm/npm-resolver": "2.2.6",
+    "@pnpm/package-store": "link:",
     "@pnpm/tarball-fetcher": "2.0.8",
     "@types/tape": "4.2.32",
     "@types/tempy": "0.2.0",
     "npm-scripts-info": "0.3.9",
-    "package-store": "link:",
     "rimraf": "2.6.2",
     "tape": "4.9.1",
     "tempy": "0.2.1",
     "ts-node": "7.0.1",
-    "tslint": "5.11.0",
     "tslint-config-standard": "8.0.1",
     "tslint-eslint-rules": "5.4.0",
+    "tslint": "5.11.0",
     "typescript": "3.1.6"
   },
   "directories": {

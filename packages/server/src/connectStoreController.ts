@@ -3,13 +3,13 @@ import {
   PackageFilesResponse,
   PackageResponse,
   RequestPackageOptions,
+  StoreController,
   WantedDependency,
-} from '@pnpm/package-requester'
+} from '@pnpm/store-controller-types'
 import { PackageManifest } from '@pnpm/types'
 
 import got = require('got')
 import pLimit = require('p-limit')
-import { StoreController } from 'package-store'
 import uuid = require('uuid')
 
 export type StoreServerController = StoreController & {
