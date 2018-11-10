@@ -6,6 +6,7 @@ import rimraf = require('rimraf-then')
 import { execPnpm } from '../utils'
 
 const test = promisifyTape(tape)
+const testOnly = promisifyTape(tape.only)
 
 test('pnpm recursive run', async (t: tape.Test) => {
   const projects = preparePackages(t, [
@@ -177,4 +178,39 @@ test('testing the bail config with "pnpm recursive run"', async (t: tape.Test) =
   }
 
   t.ok(failed, 'recursive run failed with --bail')
+})
+
+test('pnpm recursive run with filtering', async (t: tape.Test) => {
+  const projects = preparePackages(t, [
+    {
+      name: 'project-1',
+      version: '1.0.0',
+      dependencies: {
+        'json-append': '1',
+      },
+      scripts: {
+        build: `node -e "process.stdout.write('project-1')" | json-append ../output.json`,
+      },
+    },
+    {
+      name: 'project-2',
+      version: '1.0.0',
+      dependencies: {
+        'json-append': '1',
+        'project-1': '1'
+      },
+      scripts: {
+        prebuild: `node -e "process.stdout.write('project-2-prebuild')" | json-append ../output.json`,
+        build: `node -e "process.stdout.write('project-2')" | json-append ../output.json`,
+        postbuild: `node -e "process.stdout.write('project-2-postbuild')" | json-append ../output.json`,
+      },
+    },
+  ])
+
+  await execPnpm('recursive', 'install')
+  await execPnpm('run', 'build', '--filter', 'project-1')
+
+  const outputs = await import(path.resolve('output.json')) as string[]
+
+  t.deepEqual(outputs, ['project-1'])
 })

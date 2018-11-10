@@ -49,9 +49,6 @@ if (argv.indexOf('--help') !== -1 || argv.indexOf('-h') !== -1 || argv.indexOf('
     case 'start':
     case 'stop':
     case 'team':
-    case 't':
-    case 'tst':
-    case 'test':
     case 'token':
     case 'unpublish':
     case 'unstar':
@@ -60,18 +57,36 @@ if (argv.indexOf('--help') !== -1 || argv.indexOf('-h') !== -1 || argv.indexOf('
     case 'view':
     case 'whoami':
     case 'xmas':
+      await passThruToNpm()
+      break
+    case 't':
+    case 'tst':
+    case 'test':
     case 'run':
     case 'run-script':
-      const runNpm = (await import('../cmd/runNpm')).default
-      runNpm(argv)
+      if (argv.indexOf('--filter') !== -1) {
+        await runPnpm()
+      } else {
+        await passThruToNpm()
+      }
       break
     default:
-      const errorHandler = (await import('../err')).default
-      try {
-        const main = (await import('../main')).default
-        await main(argv)
-      } catch (err) {
-        errorHandler(err)
-      }
+      await runPnpm()
+      break
   }
 })()
+
+async function runPnpm () {
+  const errorHandler = (await import('../err')).default
+  try {
+    const main = (await import('../main')).default
+    await main(argv)
+  } catch (err) {
+    errorHandler(err)
+  }
+}
+
+async function passThruToNpm () {
+  const runNpm = (await import('../cmd/runNpm')).default
+  runNpm(argv)
+}

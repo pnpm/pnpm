@@ -49,6 +49,8 @@ const supportedCmds = new Set([
   'rebuild',
   'recursive',
   'import',
+  'test',
+  'run',
   // These might have to be implemented:
   // 'cache',
   // 'completion',
