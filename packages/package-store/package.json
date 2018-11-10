@@ -1,6 +1,6 @@
 {
   "name": "package-store",
-  "description": "A storage for npm packages. Used by pnpm",
+  "description": "A storage for packages",
   "version": "0.23.8",
   "author": {
     "name": "Zoltan Kochan",
@@ -27,7 +27,6 @@
     "@types/mz": "0.0.32",
     "@types/node": "10.12.2",
     "@types/ramda": "0.25.39",
-    "encode-registry": "1.1.0",
     "load-json-file": "5.1.0",
     "mkdirp-promise": "5.0.1",
     "mz": "2.7.0",
