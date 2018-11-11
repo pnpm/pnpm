@@ -216,5 +216,27 @@ test('satisfiesPackageJson()', t => {
     dependencies: {foo: '^1.0.0'},
   }, '.'))
 
+  t.ok(satisfiesPackageJson({
+    ...DEFAULT_SHR_FIELDS,
+    importers: {
+      '.': {
+        dependencies: {
+          foo: '1.0.0',
+        },
+        specifiers: {
+          foo: '1.0.0',
+        },
+      },
+    },
+  }, {
+    ...DEFAULT_PKG_FIELDS,
+    dependencies: {
+      foo: '1.0.0',
+    },
+    devDependencies: {
+      foo: '1.0.0',
+    },
+  }, '.'))
+
   t.end()
 })

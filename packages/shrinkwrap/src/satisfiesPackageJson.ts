@@ -16,13 +16,26 @@ export default (shr: Shrinkwrap, pkg: PackageJson, importerId: string) => {
   for (const depField of DEPENDENCIES_FIELDS) {
     const importerDeps = importer[depField] || {}
     const pkgDeps = pkg[depField] || {}
-    const emptyDep = R.isEmpty(pkgDeps)
-    if (emptyDep !== R.isEmpty(importerDeps)) return false
-    if (emptyDep) continue
 
-    const pkgDepNames = depField === 'optionalDependencies'
-      ? Object.keys(pkgDeps)
-      : Object.keys(pkgDeps).filter((depName) => !pkg.optionalDependencies || !pkg.optionalDependencies[depName])
+    let pkgDepNames!: string[]
+    switch (depField) {
+      case 'optionalDependencies':
+        pkgDepNames = Object.keys(pkgDeps)
+        break
+      case 'devDependencies':
+        pkgDepNames = Object.keys(pkgDeps)
+          .filter((depName) =>
+            (!pkg.optionalDependencies || !pkg.optionalDependencies[depName]) &&
+            (!pkg.dependencies || !pkg.dependencies[depName])
+          )
+        break
+      case 'dependencies':
+        pkgDepNames = Object.keys(pkgDeps)
+          .filter((depName) => !pkg.optionalDependencies || !pkg.optionalDependencies[depName])
+        break
+      default:
+        throw new Error(`Unknown dependency type "${depField}"`)
+    }
     if (pkgDepNames.length !== Object.keys(importerDeps).length &&
       pkgDepNames.length !== countOfNonLinkedDeps(importerDeps)) {
       return false
