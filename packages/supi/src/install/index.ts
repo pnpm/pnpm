@@ -118,14 +118,7 @@ export async function install (maybeOpts: InstallOptions & {
         satisfiesPackageJson(ctx.wantedShrinkwrap, importer.pkg, importer.id) &&
         await linkedPackagesAreUpToDate(importer.pkg, ctx.wantedShrinkwrap.importers[importer.id], importer.prefix, opts.localPackages))
       ) {
-        if (importer.shamefullyFlatten) {
-          if (opts.frozenShrinkwrap) {
-            logger.warn({
-              message: 'Headless installation does not support flat node_modules layout yet',
-              prefix: importer.prefix,
-            })
-          }
-        } else if (!ctx.existsWantedShrinkwrap) {
+        if (!ctx.existsWantedShrinkwrap) {
           if (R.keys(importer.pkg.dependencies).length || R.keys(importer.pkg.devDependencies).length || R.keys(importer.pkg.optionalDependencies).length) {
             throw new Error('Headless installation requires a shrinkwrap.yaml file')
           }
@@ -137,6 +130,7 @@ export async function install (maybeOpts: InstallOptions & {
             importerId: importer.id,
             packageJson: importer.pkg,
             prefix: importer.prefix,
+            shamefullyFlatten: opts.shamefullyFlatten,
             shrinkwrapDirectory: ctx.shrinkwrapDirectory,
             wantedShrinkwrap: ctx.wantedShrinkwrap,
           } as HeadlessOptions)

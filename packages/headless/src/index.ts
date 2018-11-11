@@ -24,6 +24,7 @@ import {
 } from '@pnpm/package-requester'
 import pkgIdToFilename from '@pnpm/pkgid-to-filename'
 import { fromDir as readPackageFromDir } from '@pnpm/read-package-json'
+import { shamefullyFlattenByShrinkwrap } from '@pnpm/shamefully-flatten'
 import symlinkDependency from '@pnpm/symlink-dependency'
 import {
   PackageFilesResponse,
@@ -64,6 +65,7 @@ export interface HeadlessOptions {
   include: IncludedDependencies,
   independentLeaves: boolean,
   importerId?: string,
+  shamefullyFlatten: boolean,
   shrinkwrapDirectory?: string,
   storeController: StoreController,
   verifyStoreIntegrity: boolean,
@@ -103,6 +105,7 @@ export default async (opts: HeadlessOptions) => {
     throw new Error('Headless installation requires a shrinkwrap.yaml file')
   }
 
+  const shamefullyFlatten = opts.shamefullyFlatten === true
   const currentShrinkwrap = opts.currentShrinkwrap || await readCurrent(shrinkwrapDirectory, { ignoreIncompatible: false })
   const importerId = getImporterId(shrinkwrapDirectory, opts.prefix)
   const virtualStoreDir = await realNodeModulesDir(shrinkwrapDirectory)
@@ -113,7 +116,7 @@ export default async (opts: HeadlessOptions) => {
       importers: {
         [importerId]: {
           hoistedAliases: {},
-          shamefullyFlatten: false, // shamefully flatten is not supported yet by headless install
+          shamefullyFlatten,
         },
       },
       pendingBuilds: [] as string[],
@@ -166,7 +169,7 @@ export default async (opts: HeadlessOptions) => {
           id: importerId,
           modulesDir,
           prefix: opts.prefix,
-          shamefullyFlatten: false,
+          shamefullyFlatten,
         },
       ],
       newShrinkwrap: filterShrinkwrap(wantedShrinkwrap, filterOpts),
@@ -220,6 +223,15 @@ export default async (opts: HeadlessOptions) => {
   }
 
   await linkAllBins(depGraph, { optional: opts.include.optionalDependencies, warn })
+
+  if (shamefullyFlatten) {
+    modules.importers[importerId].hoistedAliases = await shamefullyFlattenByShrinkwrap(filteredShrinkwrap, importerId, {
+      defaultRegistry: registries.default,
+      modulesDir,
+      prefix: opts.prefix,
+      virtualStoreDir,
+    })
+  }
 
   await linkRootPackages(filteredShrinkwrap, {
     defaultRegistry: registries.default,

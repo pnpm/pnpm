@@ -473,3 +473,59 @@ test('independent-leaves: installing a simple project', async (t) => {
 
   t.end()
 })
+
+test('installing with shamefullyFlatten = true', async (t) => {
+  const prefix = path.join(fixtures, 'simple-shamefully-flatten')
+  const reporter = sinon.spy()
+
+  await headless(await testDefaults({ prefix, reporter, shamefullyFlatten: true }))
+
+  const project = assertProject(t, prefix)
+  t.ok(project.requireModule('is-positive'), 'prod dep installed')
+  t.ok(project.requireModule('rimraf'), 'prod dep installed')
+  t.ok(project.requireModule('glob'), 'prod subdep hoisted')
+  t.ok(project.requireModule('is-negative'), 'dev dep installed')
+  t.ok(project.requireModule('colors'), 'optional dep installed')
+
+  // test that independent leaves is false by default
+  t.ok(project.has('.localhost+4873/colors'), 'colors is not symlinked from the store')
+
+  await project.isExecutable('.bin/rimraf')
+
+  t.ok(await project.loadCurrentShrinkwrap())
+  t.ok(await project.loadModules())
+
+  t.ok(reporter.calledWithMatch({
+    initial: require(path.join(prefix, 'package.json')),
+    level: 'debug',
+    name: 'pnpm:package-json',
+  } as PackageJsonLog), 'initial package.json logged')
+  t.ok(reporter.calledWithMatch({
+    added: 15,
+    level: 'debug',
+    name: 'pnpm:stats',
+    prefix,
+  } as StatsLog), 'added stat')
+  t.ok(reporter.calledWithMatch({
+    level: 'debug',
+    name: 'pnpm:stats',
+    prefix,
+    removed: 0,
+  } as StatsLog), 'removed stat')
+  t.ok(reporter.calledWithMatch({
+    level: 'debug',
+    message: 'importing_done',
+    name: 'pnpm:stage',
+  } as StageLog), 'importing stage done logged')
+  t.ok(reporter.calledWithMatch({
+    level: 'debug',
+    pkgId: 'localhost+4873/is-negative/2.1.0',
+    status: 'resolving_content',
+  }), 'logs that package is being resolved')
+
+  const modules = await project.loadModules()
+
+  t.deepEqual(modules!.importers['.'].hoistedAliases['localhost+4873/balanced-match/1.0.0'], ['balanced-match'], 'hoisted field populated in .modules.yaml')
+
+  t.end()
+})

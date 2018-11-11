@@ -190,3 +190,31 @@ test('frozen-shrinkwrap: should not fail if no shrinkwrap.yaml is present and pr
 
   await install(await testDefaults({ frozenShrinkwrap: true }))
 })
+
+test('prefer-frozen-shrinkwrap+shamefully-flatten: should prefer headless installation when shrinkwrap.yaml satisfies package.json', async (t) => {
+  const project = prepare(t, {
+    dependencies: {
+      'pkg-with-1-dep': '100.0.0',
+    },
+  })
+
+  await install(await testDefaults({ shrinkwrapOnly: true }))
+
+  await project.hasNot('pkg-with-1-dep')
+
+  const reporter = sinon.spy()
+  await install(await testDefaults({
+    preferFrozenShrinkwrap: true,
+    reporter,
+    shamefullyFlatten: true,
+  }))
+
+  t.ok(reporter.calledWithMatch({
+    level: 'info',
+    message: 'Performing headless installation',
+    name: 'pnpm',
+  }), 'start of headless installation logged')
+
+  await project.has('pkg-with-1-dep')
+  await project.has('dep-of-pkg-with-1-dep')
+})

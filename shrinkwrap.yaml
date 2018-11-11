@@ -269,6 +269,7 @@ importers:
       '@pnpm/package-requester': 'link:../package-requester'
       '@pnpm/pkgid-to-filename': 2.0.0
       '@pnpm/read-package-json': 1.0.1
+      '@pnpm/shamefully-flatten': 'link:../shamefully-flatten'
       '@pnpm/store-controller-types': 'link:../store-controller-types'
       '@pnpm/symlink-dependency': 'link:../symlink-dependency'
       '@pnpm/types': 'link:../types'
@@ -328,6 +329,7 @@ importers:
       '@pnpm/package-store': 0.0.0
       '@pnpm/pkgid-to-filename': 2.0.0
       '@pnpm/read-package-json': 1.0.1
+      '@pnpm/shamefully-flatten': 0.0.0
       '@pnpm/store-controller-types': 0.0.0
       '@pnpm/store-path': 1.0.3
       '@pnpm/symlink-dependency': 0.0.0

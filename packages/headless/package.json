@@ -92,6 +92,7 @@
     "@pnpm/package-requester": "4.1.8",
     "@pnpm/pkgid-to-filename": "2.0.0",
     "@pnpm/read-package-json": "1.0.1",
+    "@pnpm/shamefully-flatten": "0.0.0",
     "@pnpm/store-controller-types": "0.0.0",
     "@pnpm/symlink-dependency": "0.0.0",
     "@pnpm/types": "2.0.0",
