@@ -93,6 +93,7 @@
     "@pnpm/pkgid-to-filename": "2.0.0",
     "@pnpm/read-package-json": "1.0.1",
     "@pnpm/store-controller-types": "0.0.0",
+    "@pnpm/symlink-dependency": "0.0.0",
     "@pnpm/types": "2.0.0",
     "@pnpm/utils": "0.9.0",
     "@types/ramda": "0.25.34",
@@ -101,7 +102,6 @@
     "p-limit": "2.0.0",
     "path-exists": "3.0.0",
     "pnpm-shrinkwrap": "8.1.2",
-    "ramda": "0.25.0",
-    "symlink-dir": "2.0.2"
+    "ramda": "0.25.0"
   }
 }

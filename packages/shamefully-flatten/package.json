@@ -1,0 +1,58 @@
+{
+  "name": "@pnpm/shamefully-flatten",
+  "description": "Flattening a node_modules created by pnpm",
+  "version": "0.0.0",
+  "author": {
+    "name": "Zoltan Kochan",
+    "email": "z@kochan.io",
+    "url": "https://www.kochan.io/"
+  },
+  "bugs": {
+    "url": "https://github.com/pnpm/pnpm/issues"
+  },
+  "main": "lib/index.js",
+  "typings": "lib/index.d.ts",
+  "files": [
+    "lib/"
+  ],
+  "peerDependencies": {
+    "@pnpm/logger": "^2.1.0"
+  },
+  "devDependencies": {
+    "@pnpm/logger": "2.1.0",
+    "rimraf": "2.6.2",
+    "ts-node": "6.2.0",
+    "tslint": "5.11.0",
+    "tslint-config-standard": "8.0.1",
+    "tslint-eslint-rules": "5.4.0",
+    "typescript": "3.1.6"
+  },
+  "directories": {
+    "test": "test"
+  },
+  "homepage": "https://github.com/pnpm/shamefully-flatten#readme",
+  "keywords": [
+    "pnpm"
+  ],
+  "license": "MIT",
+  "engines": {
+    "node": ">=6"
+  },
+  "repository": "https://github.com/pnpm/pnpm/blob/master/packages/shamefully-flatten",
+  "scripts": {
+    "start": "npm run tsc -- --watch",
+    "test": "npm run tsc && npm run lint",
+    "lint": "tslint -c tslint.json --project .",
+    "tsc": "rimraf lib && tsc",
+    "prepublishOnly": "npm run tsc"
+  },
+  "dependencies": {
+    "@pnpm/pkgid-to-filename": "2.0.0",
+    "@pnpm/symlink-dependency": "0.0.0",
+    "@types/node": "10.12.5",
+    "@types/ramda": "0.25.34",
+    "dependency-path": "2.0.0",
+    "pnpm-shrinkwrap": "8.1.2",
+    "ramda": "0.25.0"
+  }
+}

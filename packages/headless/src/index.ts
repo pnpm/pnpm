@@ -24,6 +24,7 @@ import {
 } from '@pnpm/package-requester'
 import pkgIdToFilename from '@pnpm/pkgid-to-filename'
 import { fromDir as readPackageFromDir } from '@pnpm/read-package-json'
+import symlinkDependency from '@pnpm/symlink-dependency'
 import {
   PackageFilesResponse,
   StoreController,
@@ -47,7 +48,6 @@ import {
   writeCurrentOnly as writeCurrentShrinkwrapOnly,
 } from 'pnpm-shrinkwrap'
 import R = require('ramda')
-import symlinkDir = require('symlink-dir')
 import {
   ENGINE_NAME,
   LAYOUT_VERSION,
@@ -316,7 +316,7 @@ async function linkRootPackages (
         if (!peripheralLocation) {
           return
         }
-        if ((await symlinkDependencyTo(alias, peripheralLocation, opts.importerModulesDir)).reused) {
+        if ((await symlinkDependency(peripheralLocation, opts.importerModulesDir, alias)).reused) {
           return
         }
         const isDev = shrImporter.devDependencies && shrImporter.devDependencies[alias]
@@ -620,15 +620,9 @@ async function linkAllModules (
           R.keys(childrenToLink)
             .map(async (alias) => {
               // if (!pkg.installable && pkg.optional) return
-              await symlinkDependencyTo(alias, childrenToLink[alias], depNode.modules)
+              await symlinkDependency(childrenToLink[alias], depNode.modules, alias)
             }),
         )
       })),
   )
-}
-
-function symlinkDependencyTo (alias: string, peripheralLocation: string, dest: string) {
-  const linkPath = path.join(dest, alias)
-  linkLogger.debug({ target: peripheralLocation, link: linkPath })
-  return symlinkDir(peripheralLocation, linkPath)
 }

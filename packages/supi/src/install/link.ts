@@ -9,6 +9,8 @@ import { prune } from '@pnpm/modules-cleaner'
 import { IncludedDependencies } from '@pnpm/modules-yaml'
 import { fromDir as readPackageFromDir } from '@pnpm/read-package-json'
 import { DependenciesTree, LinkedDependency } from '@pnpm/resolve-dependencies'
+import shamefullyFlattenGraph from '@pnpm/shamefully-flatten'
+import symlinkDependency from '@pnpm/symlink-dependency'
 import { StoreController } from '@pnpm/store-controller-types'
 import { PackageJson, Registries } from '@pnpm/types'
 import * as dp from 'dependency-path'
@@ -25,8 +27,6 @@ import {
   SHRINKWRAP_NEXT_VERSION,
 } from '../constants'
 import linkToModules from '../linkToModules'
-import shamefullyFlattenGraph from '../shamefullyFlattenGraph'
-import symlinkDependencyTo from '../symlinkDependencyTo'
 import resolvePeers, {
   DependenciesGraph,
   DependenciesGraphNode,
@@ -192,7 +192,7 @@ export default async function linkPackages (
         .map(async ({ rootAlias, depGraphNode }) => {
           if (
             !opts.dryRun &&
-            (await symlinkDependencyTo(rootAlias, depGraphNode.peripheralLocation, modulesDir)).reused
+            (await symlinkDependency(depGraphNode.peripheralLocation, modulesDir, rootAlias)).reused
           ) return
 
           const isDev = pkg.devDependencies && pkg.devDependencies[depGraphNode.name]
@@ -492,7 +492,7 @@ async function linkAllModules (
             .map(async (alias) => {
               const pkg = depGraph[childrenToLink[alias]]
               if (!pkg.installable && pkg.optional) return
-              await symlinkDependencyTo(alias, pkg.peripheralLocation, depNode.modules)
+              await symlinkDependency(pkg.peripheralLocation, depNode.modules, alias)
             }),
         )
       })),

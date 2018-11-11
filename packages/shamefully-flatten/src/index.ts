@@ -1,5 +1,6 @@
 import logger from '@pnpm/logger'
 import pkgIdToFilename from '@pnpm/pkgid-to-filename'
+import symlinkDependency from '@pnpm/symlink-dependency'
 import * as dp from 'dependency-path'
 import path = require('path')
 import {
@@ -8,9 +9,8 @@ import {
   Shrinkwrap,
 } from 'pnpm-shrinkwrap'
 import R = require('ramda')
-import symlinkDependencyTo from './symlinkDependencyTo'
 
-export function shamefullyFlattenGraphByShrinkwrap (
+export function shamefullyFlattenByShrinkwrap (
   shr: Shrinkwrap,
   importerId: string,
   opts: {
@@ -163,7 +163,7 @@ export default async function shamefullyFlattenGraph (
       // TODO look how it is done in linkPackages
       if (!opts.dryRun) {
         await Promise.all(pkgAliases.map(async (pkgAlias) => {
-          await symlinkDependencyTo(pkgAlias, depNode.peripheralLocation, opts.modulesDir)
+          await symlinkDependency(depNode.peripheralLocation, opts.modulesDir, pkgAlias)
         }))
       }
     }))

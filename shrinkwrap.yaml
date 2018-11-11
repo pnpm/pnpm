@@ -270,6 +270,7 @@ importers:
       '@pnpm/pkgid-to-filename': 2.0.0
       '@pnpm/read-package-json': 1.0.1
       '@pnpm/store-controller-types': 'link:../store-controller-types'
+      '@pnpm/symlink-dependency': 'link:../symlink-dependency'
       '@pnpm/types': 'link:../types'
       '@pnpm/utils': 'link:../utils'
       '@types/ramda': 0.25.34
@@ -279,7 +280,6 @@ importers:
       path-exists: 3.0.0
       pnpm-shrinkwrap: 'link:../shrinkwrap'
       ramda: 0.25.0
-      symlink-dir: 2.0.2
     devDependencies:
       '@pnpm/assert-project': 'link:../../privatePackages/assert-project'
       '@pnpm/default-fetcher': 'link:../default-fetcher'
@@ -330,6 +330,7 @@ importers:
       '@pnpm/read-package-json': 1.0.1
       '@pnpm/store-controller-types': 0.0.0
       '@pnpm/store-path': 1.0.3
+      '@pnpm/symlink-dependency': 0.0.0
       '@pnpm/types': 2.0.0
       '@pnpm/utils': 0.9.0
       '@types/fs-extra': 5.0.4
@@ -356,7 +357,6 @@ importers:
       rimraf: 2.6.2
       rimraf-then: 1.0.1
       sinon: 7.1.1
-      symlink-dir: 2.0.2
       tape: 4.9.1
       tape-promise: 4.0.0
       tempy: 0.2.1
@@ -1052,6 +1052,38 @@ importers:
       tslint-eslint-rules: 5.4.0
       typescript: 3.1.6
       uuid: 3.3.2
+  packages/shamefully-flatten:
+    dependencies:
+      '@pnpm/pkgid-to-filename': 2.0.0
+      '@pnpm/symlink-dependency': 'link:../symlink-dependency'
+      '@types/node': 10.12.5
+      '@types/ramda': 0.25.34
+      dependency-path: 2.0.0
+      pnpm-shrinkwrap: 'link:../shrinkwrap'
+      ramda: 0.25.0
+    devDependencies:
+      '@pnpm/logger': 2.1.0
+      rimraf: 2.6.2
+      ts-node: 6.2.0
+      tslint: /tslint/5.11.0/typescript@3.1.6
+      tslint-config-standard: /tslint-config-standard/8.0.1/tslint@5.11.0+typescript@3.1.6
+      tslint-eslint-rules: /tslint-eslint-rules/5.4.0/tslint@5.11.0+typescript@3.1.6
+      typescript: 3.1.6
+    specifiers:
+      '@pnpm/logger': 2.1.0
+      '@pnpm/pkgid-to-filename': 2.0.0
+      '@pnpm/symlink-dependency': 0.0.0
+      '@types/node': 10.12.5
+      '@types/ramda': 0.25.34
+      dependency-path: 2.0.0
+      pnpm-shrinkwrap: 8.1.2
+      ramda: 0.25.0
+      rimraf: 2.6.2
+      ts-node: 6.2.0
+      tslint: 5.11.0
+      tslint-config-standard: 8.0.1
+      tslint-eslint-rules: 5.4.0
+      typescript: 3.1.6
   packages/shrinkwrap:
     dependencies:
       '@pnpm/resolver-base': 2.0.0
@@ -1147,7 +1179,9 @@ importers:
       '@pnpm/read-package-json': 1.0.1
       '@pnpm/resolve-dependencies': 'link:../resolve-dependencies'
       '@pnpm/resolver-base': 2.0.0
+      '@pnpm/shamefully-flatten': 'link:../shamefully-flatten'
       '@pnpm/store-controller-types': 'link:../store-controller-types'
+      '@pnpm/symlink-dependency': 'link:../symlink-dependency'
       '@pnpm/types': 'link:../types'
       '@pnpm/utils': 'link:../utils'
       '@types/byline': 4.2.31
@@ -1253,8 +1287,10 @@ importers:
       '@pnpm/read-package-json': 1.0.1
       '@pnpm/resolve-dependencies': 1.0.6
       '@pnpm/resolver-base': 2.0.0
+      '@pnpm/shamefully-flatten': 0.0.0
       '@pnpm/store-controller-types': 0.0.0
       '@pnpm/store-path': 1.0.3
+      '@pnpm/symlink-dependency': 0.0.0
       '@pnpm/types': 2.0.0
       '@pnpm/utils': 0.9.0
       '@types/byline': 4.2.31
@@ -1332,6 +1368,31 @@ importers:
       write-json-file: 3.0.2
       write-pkg: 3.2.0
       write-yaml-file: 2.0.0
+  packages/symlink-dependency:
+    dependencies:
+      '@pnpm/core-loggers': 'link:../core-loggers'
+      '@pnpm/types': 'link:../types'
+      '@types/node': 10.12.5
+      symlink-dir: 2.0.2
+    devDependencies:
+      '@pnpm/logger': 2.1.0
+      rimraf: 2.6.2
+      ts-node: 6.2.0
+      tslint: /tslint/5.11.0/typescript@3.1.6
+      tslint-config-standard: /tslint-config-standard/8.0.1/tslint@5.11.0+typescript@3.1.6
+      tslint-eslint-rules: /tslint-eslint-rules/5.4.0/tslint@5.11.0+typescript@3.1.6
+      typescript: 3.1.6
+    specifiers:
+      '@pnpm/core-loggers': 1.0.0
+      '@pnpm/logger': 2.1.0
+      '@types/node': 10.12.5
+      rimraf: 2.6.2
+      symlink-dir: 2.0.2
+      ts-node: 6.2.0
+      tslint: 5.11.0
+      tslint-config-standard: 8.0.1
+      tslint-eslint-rules: 5.4.0
+      typescript: 3.1.6
   packages/types:
     devDependencies:
       mos: 2.0.0-alpha.3
@@ -2046,7 +2107,7 @@ packages:
       integrity: sha512-U5icWpv7YnZYGsN4/cmh3WD2onMY0aJIiTE6+51TwJCttdHvtCYmkBNOobHlXwrJRL0nkH9jH4kD+1FAdMN4Tg==
   /@types/mz/0.0.32:
     dependencies:
-      '@types/node': 10.12.2
+      '@types/node': 10.12.5
     resolution:
       integrity: sha512-cy3yebKhrHuOcrJGkfwNHhpTXQLgmXSv1BX+4p32j+VUQ6aP2eJ5cL7OvGcAQx75fCTFaAIIAKewvqL+iwSd4g==
   /@types/ncp/2.0.1:
@@ -9130,7 +9191,7 @@ packages:
   /symlink-dir/2.0.2:
     dependencies:
       '@types/mz': 0.0.32
-      '@types/node': 10.12.2
+      '@types/node': 10.12.5
       graceful-fs: 4.1.15
       is-windows: 1.0.2
       mkdirp-promise: 5.0.1

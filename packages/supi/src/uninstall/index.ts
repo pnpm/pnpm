@@ -2,6 +2,7 @@ import { summaryLogger } from '@pnpm/core-loggers'
 import logger, { streamParser } from '@pnpm/logger'
 import { prune, removeDirectDependency } from '@pnpm/modules-cleaner'
 import { write as writeModulesYaml } from '@pnpm/modules-yaml'
+import { shamefullyFlattenByShrinkwrap } from '@pnpm/shamefully-flatten'
 import { getSaveType } from '@pnpm/utils'
 import * as dp from 'dependency-path'
 import path = require('path')
@@ -14,7 +15,6 @@ import { LAYOUT_VERSION } from '../constants'
 import { getContextForSingleImporter, PnpmSingleContext } from '../getContext'
 import lock from '../lock'
 import safeIsInnerLink from '../safeIsInnerLink'
-import { shamefullyFlattenGraphByShrinkwrap } from '../shamefullyFlattenGraph'
 import shrinkwrapsEqual from '../shrinkwrapsEqual'
 import extendOptions, {
   StrictUninstallOptions,
@@ -109,7 +109,7 @@ export async function uninstallInContext (
   })
 
   if (opts.shamefullyFlatten) {
-    ctx.hoistedAliases = await shamefullyFlattenGraphByShrinkwrap(currentShrinkwrap, ctx.importerId, {
+    ctx.hoistedAliases = await shamefullyFlattenByShrinkwrap(currentShrinkwrap, ctx.importerId, {
       defaultRegistry: ctx.registries.default,
       modulesDir: ctx.modulesDir,
       prefix: opts.prefix,
