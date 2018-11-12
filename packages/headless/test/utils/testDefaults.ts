@@ -22,7 +22,8 @@ export default async function testDefaults (
   storeOpts?: any, // tslint:disable-line
 ): Promise<HeadlessOptions> {
   let store = opts && opts.store || tempy.directory()
-  store = await storePath(opts && opts.prefix || process.cwd(), store)
+  const shrinkwrapDirectory = opts && opts.shrinkwrapDirectory || process.cwd()
+  store = await storePath(shrinkwrapDirectory, store)
   const rawNpmConfig = {registry}
   const storeController = await createStore(
     createResolver({
@@ -55,6 +56,7 @@ export default async function testDefaults (
     independentLeaves: false,
     verifyStoreIntegrity: true,
     sideEffectsCache: true,
+    shrinkwrapDirectory,
     force: false,
     registries: {
       default: registry,

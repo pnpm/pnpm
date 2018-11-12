@@ -938,6 +938,56 @@ importers:
       write-json-file: 3.0.2
       write-pkg: 3.2.0
       write-yaml-file: 2.0.0
+  packages/read-importers:
+    dependencies:
+      '@pnpm/modules-yaml': 'link:../modules-yaml'
+      '@pnpm/types': 'link:../types'
+      '@pnpm/utils': 'link:../utils'
+      pnpm-shrinkwrap: 'link:../shrinkwrap'
+    devDependencies:
+      '@pnpm/logger': 2.1.0
+      rimraf: 2.6.2
+      tslint: /tslint/5.11.0/typescript@3.1.6
+      tslint-config-standard: /tslint-config-standard/8.0.1/tslint@5.11.0+typescript@3.1.6
+      tslint-eslint-rules: /tslint-eslint-rules/5.4.0/tslint@5.11.0+typescript@3.1.6
+      typescript: 3.1.6
+    specifiers:
+      '@pnpm/logger': 2.1.0
+      '@pnpm/modules-yaml': 2.0.0
+      '@pnpm/types': 2.0.0
+      '@pnpm/utils': 0.9.0
+      pnpm-shrinkwrap: 8.1.2
+      rimraf: 2.6.2
+      tslint: 5.11.0
+      tslint-config-standard: 8.0.1
+      tslint-eslint-rules: 5.4.0
+      typescript: 3.1.6
+  packages/read-manifests:
+    dependencies:
+      '@pnpm/modules-yaml': 'link:../modules-yaml'
+      '@pnpm/types': 'link:../types'
+      '@pnpm/utils': 'link:../utils'
+      '@types/node': 10.12.5
+      pnpm-shrinkwrap: 'link:../shrinkwrap'
+    devDependencies:
+      '@pnpm/logger': 2.1.0
+      rimraf: 2.6.2
+      tslint: /tslint/5.11.0/typescript@3.1.6
+      tslint-config-standard: /tslint-config-standard/8.0.1/tslint@5.11.0+typescript@3.1.6
+      tslint-eslint-rules: /tslint-eslint-rules/5.4.0/tslint@5.11.0+typescript@3.1.6
+      typescript: 3.1.6
+    specifiers:
+      '@pnpm/logger': 2.1.0
+      '@pnpm/modules-yaml': 2.0.0
+      '@pnpm/types': 2.0.0
+      '@pnpm/utils': 0.9.0
+      '@types/node': 10.12.5
+      pnpm-shrinkwrap: 8.1.2
+      rimraf: 2.6.2
+      tslint: 5.11.0
+      tslint-config-standard: 8.0.1
+      tslint-eslint-rules: 5.4.0
+      typescript: 3.1.6
   packages/resolve-dependencies:
     dependencies:
       '@pnpm/core-loggers': 'link:../core-loggers'
@@ -1178,6 +1228,7 @@ importers:
       '@pnpm/modules-yaml': 'link:../modules-yaml'
       '@pnpm/package-requester': 'link:../package-requester'
       '@pnpm/pkgid-to-filename': 2.0.0
+      '@pnpm/read-manifests': 'link:../read-manifests'
       '@pnpm/read-package-json': 1.0.1
       '@pnpm/resolve-dependencies': 'link:../resolve-dependencies'
       '@pnpm/resolver-base': 2.0.0
@@ -1288,6 +1339,7 @@ importers:
       '@pnpm/package-store': 0.0.0
       '@pnpm/pkgid-to-filename': 2.0.0
       '@pnpm/prepare': 0.0.0
+      '@pnpm/read-manifests': 0.0.0
       '@pnpm/read-package-json': 1.0.1
       '@pnpm/resolve-dependencies': 1.0.6
       '@pnpm/resolver-base': 2.0.0

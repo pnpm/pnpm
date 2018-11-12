@@ -20,11 +20,26 @@ import testDefaults from './utils/testDefaults'
 
 const fixtures = path.join(__dirname, 'fixtures')
 
-test('installing a simple project', async (t) => {
+test.only('installing a simple project', async (t) => {
   const prefix = path.join(fixtures, 'simple')
   const reporter = sinon.spy()
 
-  await headless(await testDefaults({prefix, reporter}))
+  await headless(await testDefaults({
+    importers: [
+      {
+        bin: path.join(prefix, 'node_modules', '.bin'),
+        hoistedAliases: {},
+        modulesDir: path.join(prefix, 'node_modules'),
+        id: '.',
+        pkg: await import(path.join(prefix, 'package.json')),
+        prefix,
+        shamefullyFlatten: false,
+      },
+    ],
+    shrinkwrapDirectory: prefix,
+    pendingBuilds: [],
+    reporter,
+  }))
 
   const project = assertProject(t, prefix)
   t.ok(project.requireModule('is-positive'), 'prod dep installed')

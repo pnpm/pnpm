@@ -24,9 +24,8 @@ export async function unlinkPkgs (
   const opts = await _extendOptions(maybeOpts)
   const ctx = await getContext(opts)
   opts.store = ctx.storePath
-  opts.importers = ctx.importers
 
-  await _unlinkPkgs(pkgNames, opts)
+  await _unlinkPkgs(pkgNames, opts, ctx.importers)
 
   if (reporter) {
     streamParser.removeListener('data', reporter)
@@ -36,9 +35,10 @@ export async function unlinkPkgs (
 export async function _unlinkPkgs (
   pkgNames: string[],
   opts: StrictInstallOptions,
+  importers: Array<{ modulesDir: string, prefix: string }>,
 ) {
-  if (opts.importers.length > 1) throw new Error('Unlink not implemented for multiple importers yet')
-  const importer = opts.importers[0]
+  if (importers.length > 1) throw new Error('Unlink not implemented for multiple importers yet')
+  const importer = importers[0]
   const pkg = await readPkgFromDir(importer.prefix)
   const allDeps = getAllDependenciesFromPackage(pkg)
   const packagesToInstall: string[] = []
@@ -76,14 +76,13 @@ export async function unlink (maybeOpts: InstallOptions) {
   const opts = await _extendOptions(maybeOpts)
   const ctx = await getContext(opts)
   opts.store = ctx.storePath
-  opts.importers = ctx.importers
 
-  if (opts.importers.length > 1) throw new Error('Unlink not implemented for multiple importers yet')
-  const importer = opts.importers[0]
+  if (ctx.importers.length > 1) throw new Error('Unlink not implemented for multiple importers yet')
+  const importer = ctx.importers[0]
 
   const externalPackages = await getExternalPackages(importer.modulesDir, opts.store)
 
-  await _unlinkPkgs(externalPackages, opts)
+  await _unlinkPkgs(externalPackages, opts, ctx.importers)
 
   if (reporter) {
     streamParser.removeListener('data', reporter)

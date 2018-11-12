@@ -3,10 +3,10 @@ import { IncludedDependencies } from '@pnpm/modules-yaml'
 import { LocalPackages } from '@pnpm/resolver-base'
 import { StoreController } from '@pnpm/store-controller-types'
 import { ReadPackageHook, Registries } from '@pnpm/types'
-import { DEFAULT_REGISTRIES, normalizeRegistries, realNodeModulesDir } from '@pnpm/utils'
+import { DEFAULT_REGISTRIES, normalizeRegistries } from '@pnpm/utils'
 import path = require('path')
-import { getImporterId, Shrinkwrap } from 'pnpm-shrinkwrap'
-import { ImportersOptions, StrictImportersOptions } from '../getContext'
+import { Shrinkwrap } from 'pnpm-shrinkwrap'
+import { ImportersOptions } from '../getContext'
 import pnpmPkgJson from '../pnpmPkgJson'
 import { ReporterFunction } from '../types'
 
@@ -101,7 +101,7 @@ export type StrictInstallOptions = BaseInstallOptions & {
   sideEffectsCache: boolean,
   sideEffectsCacheReadonly: boolean,
   strictPeerDependencies: boolean,
-  importers: StrictImportersOptions[],
+  importers: ImportersOptions[],
   include: IncludedDependencies,
   independentLeaves: boolean,
   ignoreCurrentPrefs: boolean,
@@ -117,22 +117,6 @@ export type StrictInstallOptions = BaseInstallOptions & {
   ownLifecycleHooksStdio: 'inherit' | 'pipe',
   localPackages: LocalPackages,
   pruneStore: boolean,
-}
-
-async function toStrictImporter (
-  shamefullyFlatten: boolean,
-  shrinkwrapDirectory: string,
-  importerOptions: ImportersOptions,
-): Promise<StrictImportersOptions> {
-  const modulesDir = await realNodeModulesDir(importerOptions.prefix)
-  const importerId = getImporterId(shrinkwrapDirectory, importerOptions.prefix)
-  return {
-    bin: importerOptions.bin || path.join(importerOptions.prefix, 'node_modules', '.bin'),
-    id: importerId,
-    modulesDir,
-    prefix: importerOptions.prefix,
-    shamefullyFlatten: typeof importerOptions.shamefullyFlatten === 'boolean' ? importerOptions.shamefullyFlatten : shamefullyFlatten,
-  }
 }
 
 const defaults = async (opts: InstallOptions) => {
@@ -178,6 +162,7 @@ const defaults = async (opts: InstallOptions) => {
     saveOptional: false,
     savePrefix: '^',
     saveProd: false,
+    shamefullyFlatten: false,
     shrinkwrap: true,
     shrinkwrapDirectory: opts.shrinkwrapDirectory || opts.prefix || process.cwd(),
     shrinkwrapOnly: false,
@@ -212,10 +197,6 @@ export default async (
   const extendedOpts = {
     ...defaultOpts,
     ...opts,
-    importers: await Promise.all<StrictImportersOptions>(
-      (opts.importers || defaultOpts.importers)
-        .map(toStrictImporter.bind(null, opts.shamefullyFlatten || false, opts.shrinkwrapDirectory || defaultOpts.shrinkwrapDirectory)),
-    ),
     store: defaultOpts.store,
   }
   if (!extendedOpts.shrinkwrap && extendedOpts.shrinkwrapOnly) {
