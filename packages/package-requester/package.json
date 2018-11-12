@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/package-requester",
-  "version": "4.1.8",
+  "version": "4.1.9",
   "description": "Concurrent downloader of npm-compatible packages",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
@@ -39,7 +39,7 @@
     "@pnpm/pkgid-to-filename": "2.0.0",
     "@pnpm/read-package-json": "1.0.1",
     "@pnpm/resolver-base": "2.0.0",
-    "@pnpm/store-controller-types": "0.0.0",
+    "@pnpm/store-controller-types": "1.0.0",
     "@pnpm/types": "2.0.0",
     "@types/mz": "0.0.32",
     "@types/node": "10.12.5",

@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/modules-cleaner",
-  "version": "1.0.6",
+  "version": "1.0.7",
   "description": "Exports util functions to clean up node_modules",
   "author": {
     "name": "Zoltan Kochan",
@@ -32,14 +32,14 @@
   "dependencies": {
     "@pnpm/core-loggers": "1.0.0",
     "@pnpm/package-bins": "2.0.0",
-    "@pnpm/store-controller-types": "0.0.0",
+    "@pnpm/store-controller-types": "1.0.0",
     "@pnpm/types": "2.0.0",
     "@pnpm/utils": "0.9.0",
     "@types/node": "10.12.5",
     "@types/ramda": "0.25.38",
     "dependency-path": "2.0.0",
     "fs-vacuum": "1.2.10",
-    "pnpm-shrinkwrap": "8.1.2",
+    "pnpm-shrinkwrap": "8.1.3",
     "ramda": "0.25.0",
     "rimraf-then": "1.0.1",
     "util.promisify": "1.0.0"
