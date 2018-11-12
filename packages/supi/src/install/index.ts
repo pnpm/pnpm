@@ -4,7 +4,7 @@ import {
   stageLogger,
   summaryLogger,
 } from '@pnpm/core-loggers'
-import headless, { HeadlessOptions } from '@pnpm/headless'
+import headless from '@pnpm/headless'
 import runLifecycleHooks, { runPostinstallHooks } from '@pnpm/lifecycle'
 import logger, {
   streamParser,
@@ -28,6 +28,7 @@ import {
 } from '@pnpm/utils'
 import * as dp from 'dependency-path'
 import graphSequencer = require('graph-sequencer')
+import pEvery = require('p-every')
 import pLimit = require('p-limit')
 import path = require('path')
 import {
@@ -43,6 +44,7 @@ import semver = require('semver')
 import {
   LAYOUT_VERSION,
   SHRINKWRAP_VERSION,
+  SHRINKWRAP_NEXT_VERSION,
 } from '../constants'
 import { PnpmError } from '../errorTypes'
 import getContext, { PnpmContext } from '../getContext'
@@ -108,34 +110,51 @@ export async function install (maybeOpts: InstallOptions & {
   }
 
   async function _install () {
-    // TODO: headless installation should work with several importers
-    if (ctx.importers.length === 1) {
-      const importer = ctx.importers[0]
-      if (!opts.update && (
+    if (
+      !opts.update && (
         opts.frozenShrinkwrap ||
-        opts.preferFrozenShrinkwrap && ctx.existsWantedShrinkwrap && ctx.wantedShrinkwrap.shrinkwrapVersion === SHRINKWRAP_VERSION &&
-        !hasLocalTarballDepsInRoot(ctx.wantedShrinkwrap, importer.id) &&
-        satisfiesPackageJson(ctx.wantedShrinkwrap, importer.pkg, importer.id) &&
-        await linkedPackagesAreUpToDate(importer.pkg, ctx.wantedShrinkwrap.importers[importer.id], importer.prefix, opts.localPackages))
-      ) {
-        if (!ctx.existsWantedShrinkwrap) {
-          if (R.keys(importer.pkg.dependencies).length || R.keys(importer.pkg.devDependencies).length || R.keys(importer.pkg.optionalDependencies).length) {
-            throw new Error('Headless installation requires a shrinkwrap.yaml file')
-          }
-        } else {
-          logger.info({ message: 'Performing headless installation', prefix: importer.prefix })
-          await headless({
-            ...opts,
-            currentShrinkwrap: ctx.currentShrinkwrap,
-            importerId: importer.id,
-            packageJson: importer.pkg,
-            prefix: importer.prefix,
-            shamefullyFlatten: opts.shamefullyFlatten,
-            shrinkwrapDirectory: ctx.shrinkwrapDirectory,
-            wantedShrinkwrap: ctx.wantedShrinkwrap,
-          } as HeadlessOptions)
-          return
+        opts.preferFrozenShrinkwrap &&
+        ctx.existsWantedShrinkwrap &&
+        (
+          ctx.wantedShrinkwrap.shrinkwrapVersion === SHRINKWRAP_VERSION ||
+          ctx.wantedShrinkwrap.shrinkwrapVersion === SHRINKWRAP_NEXT_VERSION
+        ) &&
+        await pEvery(ctx.importers, async (importer) =>
+          !hasLocalTarballDepsInRoot(ctx.wantedShrinkwrap, importer.id) &&
+          satisfiesPackageJson(ctx.wantedShrinkwrap, importer.pkg, importer.id) &&
+          linkedPackagesAreUpToDate(importer.pkg, ctx.wantedShrinkwrap.importers[importer.id], importer.prefix, opts.localPackages)
+        )
+      )
+    ) {
+      if (!ctx.existsWantedShrinkwrap) {
+        if (ctx.importers.some((importer) => pkgHasDependencies(importer.pkg))) {
+          throw new Error('Headless installation requires a shrinkwrap.yaml file')
         }
+      } else {
+        logger.info({ message: 'Performing headless installation', prefix: opts.shrinkwrapDirectory })
+        await headless({
+          currentShrinkwrap: ctx.currentShrinkwrap,
+          force: opts.force,
+          ignoreScripts: opts.ignoreScripts,
+          importers: ctx.importers,
+          include: opts.include,
+          independentLeaves: opts.independentLeaves,
+          packageManager:  opts.packageManager,
+          pendingBuilds: ctx.pendingBuilds,
+          pruneStore: opts.pruneStore,
+          rawNpmConfig: opts.rawNpmConfig,
+          registries: opts.registries,
+          shrinkwrapDirectory: ctx.shrinkwrapDirectory,
+          sideEffectsCache: opts.sideEffectsCache,
+          sideEffectsCacheReadonly: opts.sideEffectsCacheReadonly,
+          store: opts.store,
+          storeController: opts.storeController,
+          unsafePerm: opts.unsafePerm,
+          userAgent: opts.userAgent,
+          verifyStoreIntegrity: opts.verifyStoreIntegrity,
+          wantedShrinkwrap: ctx.wantedShrinkwrap,
+        })
+        return
       }
     }
 
@@ -233,6 +252,14 @@ export async function install (maybeOpts: InstallOptions & {
       }
     }
   }
+}
+
+function pkgHasDependencies (pkg: PackageJson) {
+  return Boolean(
+    R.keys(pkg.dependencies).length ||
+    R.keys(pkg.devDependencies).length ||
+    R.keys(pkg.optionalDependencies).length
+  )
 }
 
 async function partitionLinkedPackages (
@@ -369,6 +396,7 @@ export async function installPkgs (
     await _installPkgs()
   }
 
+  // TODO: Reporter should be removed in case of exception
   if (reporter) {
     streamParser.removeListener('data', reporter)
   }

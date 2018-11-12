@@ -1,6 +1,4 @@
 import {
-  linkLogger,
-  packageJsonLogger,
   progressLogger,
   rootLogger,
   stageLogger,
@@ -16,7 +14,6 @@ import logger, {
 import { prune } from '@pnpm/modules-cleaner'
 import {
   IncludedDependencies,
-  read as readModulesYaml,
   write as writeModulesYaml,
 } from '@pnpm/modules-yaml'
 import {
@@ -31,14 +28,13 @@ import {
   StoreController,
 } from '@pnpm/store-controller-types'
 import { PackageJson, Registries } from '@pnpm/types'
-import { normalizeRegistries, realNodeModulesDir } from '@pnpm/utils'
+import { realNodeModulesDir } from '@pnpm/utils'
 import dp = require('dependency-path')
 import pLimit = require('p-limit')
 import path = require('path')
 import {
   filter as filterShrinkwrap,
   filterByImporters as filterShrinkwrapByImporters,
-  getImporterId,
   nameVerFromPkgSnapshot,
   PackageSnapshot,
   pkgSnapshotToResolution,
@@ -60,13 +56,19 @@ export type ReporterFunction = (logObj: LogBase) => void
 export interface HeadlessOptions {
   childConcurrency?: number,
   currentShrinkwrap?: Shrinkwrap,
-  prefix: string,
   ignoreScripts: boolean,
   include: IncludedDependencies,
   independentLeaves: boolean,
-  importerId?: string,
-  shamefullyFlatten: boolean,
-  shrinkwrapDirectory?: string,
+  importers: Array<{
+    bin: string,
+    hoistedAliases: {[depPath: string]: string[]}
+    modulesDir: string,
+    id: string,
+    pkg: PackageJson,
+    prefix: string,
+    shamefullyFlatten: boolean,
+  }>,
+  shrinkwrapDirectory: string,
   storeController: StoreController,
   verifyStoreIntegrity: boolean,
   sideEffectsCache: boolean,
@@ -76,9 +78,8 @@ export interface HeadlessOptions {
   rawNpmConfig: object,
   unsafePerm: boolean,
   userAgent: string,
-  registries?: Registries,
+  registries: Registries,
   reporter?: ReporterFunction,
-  packageJson?: PackageJson,
   packageManager: {
     name: string,
     version: string,
@@ -86,6 +87,7 @@ export interface HeadlessOptions {
   pruneStore: boolean,
   wantedShrinkwrap?: Shrinkwrap,
   ownLifecycleHooksStdio?: 'inherit' | 'pipe',
+  pendingBuilds: string[],
 }
 
 export default async (opts: HeadlessOptions) => {
@@ -94,88 +96,57 @@ export default async (opts: HeadlessOptions) => {
     streamParser.on('data', reporter)
   }
 
-  if (typeof opts.prefix !== 'string') { // tslint:disable-line
-    throw new TypeError('opts.prefix should be a string')
-  }
-
-  const shrinkwrapDirectory = opts.shrinkwrapDirectory || opts.prefix
+  const shrinkwrapDirectory = opts.shrinkwrapDirectory
   const wantedShrinkwrap = opts.wantedShrinkwrap || await readWanted(shrinkwrapDirectory, { ignoreIncompatible: false })
 
   if (!wantedShrinkwrap) {
     throw new Error('Headless installation requires a shrinkwrap.yaml file')
   }
 
-  const shamefullyFlatten = opts.shamefullyFlatten === true
   const currentShrinkwrap = opts.currentShrinkwrap || await readCurrent(shrinkwrapDirectory, { ignoreIncompatible: false })
-  const importerId = getImporterId(shrinkwrapDirectory, opts.prefix)
   const virtualStoreDir = await realNodeModulesDir(shrinkwrapDirectory)
-  const modulesDir = await realNodeModulesDir(opts.prefix)
-  const modules = await readModulesYaml(modulesDir) ||
-    virtualStoreDir !== modulesDir && await readModulesYaml(virtualStoreDir) ||
-    {
-      importers: {
-        [importerId]: {
-          hoistedAliases: {},
-          shamefullyFlatten,
-        },
-      },
-      pendingBuilds: [] as string[],
-      registries: {},
+
+  for (const importer of opts.importers) {
+    if (!satisfiesPackageJson(wantedShrinkwrap, importer.pkg, importer.id)) {
+      const err = new Error('Cannot install with "frozen-shrinkwrap" because shrinkwrap.yaml is not up-to-date with ' +
+        path.relative(opts.shrinkwrapDirectory, path.join(importer.prefix, 'package.json')))
+      err['code'] = 'ERR_PNPM_OUTDATED_SHRINKWRAP' // tslint:disable-line
+      throw err
     }
-  const registries = normalizeRegistries({
-    ...opts.registries,
-    ...modules && modules.registries,
-  })
-
-  const pkg = opts.packageJson || await readPackageFromDir(opts.prefix)
-
-  if (!satisfiesPackageJson(wantedShrinkwrap, pkg, importerId)) {
-    const err = new Error('Cannot install with "frozen-shrinkwrap" because shrinkwrap.yaml is not up-to-date with package.json')
-    err['code'] = 'ERR_PNPM_OUTDATED_SHRINKWRAP' // tslint:disable-line
-    throw err
   }
 
-  packageJsonLogger.debug({ initial: pkg, prefix: opts.prefix })
+  if (!opts.ignoreScripts) {
+    for (const importer of opts.importers) {
+      const scripts = !opts.ignoreScripts && importer.pkg.scripts || {}
 
-  const scripts = !opts.ignoreScripts && pkg.scripts || {}
+      const scriptsOpts = {
+        depPath: importer.prefix,
+        pkgRoot: importer.prefix,
+        rawNpmConfig: opts.rawNpmConfig,
+        rootNodeModulesDir: importer.modulesDir,
+        stdio: opts.ownLifecycleHooksStdio || 'inherit',
+        unsafePerm: opts.unsafePerm || false,
+      }
 
-  const bin = path.join(modulesDir, '.bin')
-
-  const scriptsOpts = {
-    depPath: opts.prefix,
-    pkgRoot: opts.prefix,
-    rawNpmConfig: opts.rawNpmConfig,
-    rootNodeModulesDir: modulesDir,
-    stdio: opts.ownLifecycleHooksStdio || 'inherit',
-    unsafePerm: opts.unsafePerm || false,
-  }
-
-  if (scripts.preinstall) {
-    await runLifecycleHooks('preinstall', pkg, scriptsOpts)
+      if (scripts.preinstall) {
+        await runLifecycleHooks('preinstall', importer.pkg, scriptsOpts)
+      }
+    }
   }
 
   const filterOpts = {
-    defaultRegistry: registries.default,
+    defaultRegistry: opts.registries.default,
     include: opts.include,
     skipped: new Set<string>(),
   }
   if (currentShrinkwrap) {
     await prune({
       dryRun: false,
-      importers: [
-        {
-          bin,
-          hoistedAliases: modules && modules.importers[importerId] && modules.importers[importerId].hoistedAliases || {},
-          id: importerId,
-          modulesDir,
-          prefix: opts.prefix,
-          shamefullyFlatten,
-        },
-      ],
+      importers: opts.importers,
       newShrinkwrap: filterShrinkwrap(wantedShrinkwrap, filterOpts),
       oldShrinkwrap: currentShrinkwrap,
       pruneStore: opts.pruneStore,
-      registries,
+      registries: opts.registries,
       shrinkwrapDirectory,
       storeController: opts.storeController,
       virtualStoreDir,
@@ -188,7 +159,7 @@ export default async (opts: HeadlessOptions) => {
   }
 
   stageLogger.debug('importing_started')
-  const filteredShrinkwrap = filterShrinkwrapByImporters(wantedShrinkwrap, [importerId], {
+  const filteredShrinkwrap = filterShrinkwrapByImporters(wantedShrinkwrap, opts.importers.map((importer) => importer.id), {
     ...filterOpts,
     failOnMissingDependencies: true,
   })
@@ -197,8 +168,9 @@ export default async (opts: HeadlessOptions) => {
     opts.force ? null : currentShrinkwrap,
     {
       ...opts,
-      defaultRegistry: registries.default,
-      importerId,
+      defaultRegistry: opts.registries.default,
+      importerIds: opts.importers.map((importer) => importer.id),
+      prefix: shrinkwrapDirectory,
       virtualStoreDir,
     } as ShrinkwrapToDepGraphOptions,
   )
@@ -218,34 +190,51 @@ export default async (opts: HeadlessOptions) => {
   function warn (message: string) {
     logger.warn({
       message,
-      prefix: opts.prefix,
+      prefix: shrinkwrapDirectory,
     })
   }
 
   await linkAllBins(depGraph, { optional: opts.include.optionalDependencies, warn })
 
-  if (shamefullyFlatten) {
-    modules.importers[importerId].hoistedAliases = await shamefullyFlattenByShrinkwrap(filteredShrinkwrap, importerId, {
-      defaultRegistry: registries.default,
-      modulesDir,
-      prefix: opts.prefix,
-      virtualStoreDir,
-    })
-  }
+  await Promise.all(opts.importers.map(async (importer) => {
+    if (importer.shamefullyFlatten) {
+      importer.hoistedAliases = await shamefullyFlattenByShrinkwrap(filteredShrinkwrap, importer.id, {
+        defaultRegistry: opts.registries.default,
+        modulesDir: importer.modulesDir,
+        prefix: importer.prefix,
+        virtualStoreDir,
+      })
+    } else {
+      importer.hoistedAliases = {}
+    }
+  }))
 
-  await linkRootPackages(filteredShrinkwrap, {
-    defaultRegistry: registries.default,
-    importerId,
-    importerModulesDir: modulesDir,
-    prefix: opts.prefix,
-    rootDependencies: res.rootDependencies,
-  })
-  await linkBins(modulesDir, bin, { warn })
+  await Promise.all(opts.importers.map(async (importer) => {
+    await linkRootPackages(filteredShrinkwrap, {
+      defaultRegistry: opts.registries.default,
+      importerId: importer.id,
+      importerModulesDir: importer.modulesDir,
+      prefix: importer.prefix,
+      rootDependencies: res.directDependenciesByImporterId[importer.id],
+    })
+    const bin = path.join(importer.modulesDir, '.bin')
+    await linkBins(importer.modulesDir, bin, { warn })
+  }))
 
   await writeCurrentShrinkwrapOnly(shrinkwrapDirectory, filteredShrinkwrap)
   if (opts.ignoreScripts) {
+    for (const importer of opts.importers) {
+      if (opts.ignoreScripts && importer.pkg && importer.pkg.scripts &&
+        (importer.pkg.scripts.preinstall || importer.pkg.scripts.prepublish ||
+          importer.pkg.scripts.install ||
+          importer.pkg.scripts.postinstall ||
+          importer.pkg.scripts.prepare)
+      ) {
+        opts.pendingBuilds.push(importer.id)
+      }
+    }
     // we can use concat here because we always only append new packages, which are guaranteed to not be there by definition
-    modules.pendingBuilds = modules.pendingBuilds
+    opts.pendingBuilds = opts.pendingBuilds
       .concat(
         R.values(depGraph)
           .filter((node) => node.requiresBuild)
@@ -253,49 +242,72 @@ export default async (opts: HeadlessOptions) => {
       )
   }
   await writeModulesYaml(virtualStoreDir, {
-    ...modules,
     included: opts.include,
     independentLeaves: !!opts.independentLeaves,
+    importers: opts.importers.reduce((acc, importer) => {
+      acc[importer.id] = {
+        hoistedAliases: importer.hoistedAliases,
+        shamefullyFlatten: importer.shamefullyFlatten,
+      }
+      return acc
+    }, {}),
     layoutVersion: LAYOUT_VERSION,
     packageManager: `${opts.packageManager.name}@${opts.packageManager.version}`,
-    pendingBuilds: modules.pendingBuilds,
-    registries,
+    pendingBuilds: opts.pendingBuilds,
+    registries: opts.registries,
     skipped: [],
     store: opts.store,
   })
 
   if (!opts.ignoreScripts) {
-    await runDependenciesScripts(depGraph, R.values(res.rootDependencies).filter((loc) => depGraph[loc]), {
-      childConcurrency: opts.childConcurrency,
-      prefix: opts.prefix,
-      rawNpmConfig: opts.rawNpmConfig,
-      rootNodeModulesDir: modulesDir,
-      sideEffectsCache: opts.sideEffectsCache,
-      sideEffectsCacheReadonly: opts.sideEffectsCacheReadonly,
-      storeController: opts.storeController,
-      unsafePerm: opts.unsafePerm,
-      userAgent: opts.userAgent,
-    })
+    for (const importer of opts.importers) {
+      await runDependenciesScripts(depGraph, R.values(res.directDependenciesByImporterId[importer.id]).filter((loc) => depGraph[loc]), {
+        childConcurrency: opts.childConcurrency,
+        prefix: importer.prefix,
+        rawNpmConfig: opts.rawNpmConfig,
+        rootNodeModulesDir: importer.modulesDir,
+        sideEffectsCache: opts.sideEffectsCache,
+        sideEffectsCacheReadonly: opts.sideEffectsCacheReadonly,
+        storeController: opts.storeController,
+        unsafePerm: opts.unsafePerm,
+        userAgent: opts.userAgent,
+      })
+    }
   }
 
   // waiting till package requests are finished
   await Promise.all(R.values(depGraph).map((depNode) => depNode.finishing))
 
-  summaryLogger.debug({ prefix: opts.prefix })
+  summaryLogger.debug({ prefix: opts.shrinkwrapDirectory })
 
   await opts.storeController.close()
 
-  if (scripts.install) {
-    await runLifecycleHooks('install', pkg, scriptsOpts)
-  }
-  if (scripts.postinstall) {
-    await runLifecycleHooks('postinstall', pkg, scriptsOpts)
-  }
-  if (scripts.prepublish) {
-    await runLifecycleHooks('prepublish', pkg, scriptsOpts)
-  }
-  if (scripts.prepare) {
-    await runLifecycleHooks('prepare', pkg, scriptsOpts)
+  if (!opts.ignoreScripts) {
+    for (const importer of opts.importers) {
+      if (!importer.pkg.scripts) continue
+
+      const scriptsOpts = {
+        depPath: importer.prefix,
+        pkgRoot: importer.prefix,
+        rawNpmConfig: opts.rawNpmConfig,
+        rootNodeModulesDir: importer.modulesDir,
+        stdio: opts.ownLifecycleHooksStdio || 'inherit',
+        unsafePerm: opts.unsafePerm || false,
+      }
+
+      if (importer.pkg.scripts.install) {
+        await runLifecycleHooks('install', importer.pkg, scriptsOpts)
+      }
+      if (importer.pkg.scripts.postinstall) {
+        await runLifecycleHooks('postinstall', importer.pkg, scriptsOpts)
+      }
+      if (importer.pkg.scripts.prepublish) {
+        await runLifecycleHooks('prepublish', importer.pkg, scriptsOpts)
+      }
+      if (importer.pkg.scripts.prepare) {
+        await runLifecycleHooks('prepare', importer.pkg, scriptsOpts)
+      }
+    }
   }
 
   if (reporter) {
@@ -359,7 +371,7 @@ interface ShrinkwrapToDepGraphOptions {
   defaultRegistry: string,
   force: boolean,
   independentLeaves: boolean,
-  importerId: string,
+  importerIds: string[],
   storeController: StoreController,
   store: string,
   prefix: string,
@@ -374,7 +386,7 @@ async function shrinkwrapToDepGraph (
 ) {
   const currentPackages = currentShrinkwrap && currentShrinkwrap.packages || {}
   const graph: DependenciesGraph = {}
-  let rootDependencies: {[alias: string]: string} = {}
+  let directDependenciesByImporterId: { [importerId: string]: { [alias: string]: string } } = {}
   if (shr.packages) {
     const pkgSnapshotByLocation = {}
     for (const relDepPath of R.keys(shr.packages)) {
@@ -455,11 +467,13 @@ async function shrinkwrapToDepGraph (
 
       graph[peripheralLocation].children = await getChildrenPaths(ctx, allDeps)
     }
-    const shrImporter = shr.importers[opts.importerId]
-    const rootDeps = { ...shrImporter.devDependencies, ...shrImporter.dependencies, ...shrImporter.optionalDependencies }
-    rootDependencies = await getChildrenPaths(ctx, rootDeps)
+    for (const importerId of opts.importerIds) {
+      const shrImporter = shr.importers[importerId]
+      const rootDeps = { ...shrImporter.devDependencies, ...shrImporter.dependencies, ...shrImporter.optionalDependencies }
+      directDependenciesByImporterId[importerId] = await getChildrenPaths(ctx, rootDeps)
+    }
   }
-  return { graph, rootDependencies }
+  return { graph, directDependenciesByImporterId }
 }
 
 async function getChildrenPaths (

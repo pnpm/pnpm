@@ -288,6 +288,7 @@ importers:
       '@pnpm/headless': 'link:'
       '@pnpm/logger': 2.1.0
       '@pnpm/package-store': 'link:../package-store'
+      '@pnpm/read-manifests': 'link:../read-manifests'
       '@pnpm/store-path': 1.0.3
       '@types/fs-extra': 5.0.4
       '@types/mz': 0.0.32
@@ -328,6 +329,7 @@ importers:
       '@pnpm/package-requester': 4.1.8
       '@pnpm/package-store': 0.0.0
       '@pnpm/pkgid-to-filename': 2.0.0
+      '@pnpm/read-manifests': 0.0.0
       '@pnpm/read-package-json': 1.0.1
       '@pnpm/shamefully-flatten': 0.0.0
       '@pnpm/store-controller-types': 0.0.0
@@ -938,6 +940,56 @@ importers:
       write-json-file: 3.0.2
       write-pkg: 3.2.0
       write-yaml-file: 2.0.0
+  packages/read-importers:
+    dependencies:
+      '@pnpm/modules-yaml': 'link:../modules-yaml'
+      '@pnpm/types': 'link:../types'
+      '@pnpm/utils': 'link:../utils'
+      pnpm-shrinkwrap: 'link:../shrinkwrap'
+    devDependencies:
+      '@pnpm/logger': 2.1.0
+      rimraf: 2.6.2
+      tslint: /tslint/5.11.0/typescript@3.1.6
+      tslint-config-standard: /tslint-config-standard/8.0.1/tslint@5.11.0+typescript@3.1.6
+      tslint-eslint-rules: /tslint-eslint-rules/5.4.0/tslint@5.11.0+typescript@3.1.6
+      typescript: 3.1.6
+    specifiers:
+      '@pnpm/logger': 2.1.0
+      '@pnpm/modules-yaml': 2.0.0
+      '@pnpm/types': 2.0.0
+      '@pnpm/utils': 0.9.0
+      pnpm-shrinkwrap: 8.1.2
+      rimraf: 2.6.2
+      tslint: 5.11.0
+      tslint-config-standard: 8.0.1
+      tslint-eslint-rules: 5.4.0
+      typescript: 3.1.6
+  packages/read-manifests:
+    dependencies:
+      '@pnpm/modules-yaml': 'link:../modules-yaml'
+      '@pnpm/types': 'link:../types'
+      '@pnpm/utils': 'link:../utils'
+      '@types/node': 10.12.5
+      pnpm-shrinkwrap: 'link:../shrinkwrap'
+    devDependencies:
+      '@pnpm/logger': 2.1.0
+      rimraf: 2.6.2
+      tslint: /tslint/5.11.0/typescript@3.1.6
+      tslint-config-standard: /tslint-config-standard/8.0.1/tslint@5.11.0+typescript@3.1.6
+      tslint-eslint-rules: /tslint-eslint-rules/5.4.0/tslint@5.11.0+typescript@3.1.6
+      typescript: 3.1.6
+    specifiers:
+      '@pnpm/logger': 2.1.0
+      '@pnpm/modules-yaml': 2.0.0
+      '@pnpm/types': 2.0.0
+      '@pnpm/utils': 0.9.0
+      '@types/node': 10.12.5
+      pnpm-shrinkwrap: 8.1.2
+      rimraf: 2.6.2
+      tslint: 5.11.0
+      tslint-config-standard: 8.0.1
+      tslint-eslint-rules: 5.4.0
+      typescript: 3.1.6
   packages/resolve-dependencies:
     dependencies:
       '@pnpm/core-loggers': 'link:../core-loggers'
@@ -1178,6 +1230,7 @@ importers:
       '@pnpm/modules-yaml': 'link:../modules-yaml'
       '@pnpm/package-requester': 'link:../package-requester'
       '@pnpm/pkgid-to-filename': 2.0.0
+      '@pnpm/read-manifests': 'link:../read-manifests'
       '@pnpm/read-package-json': 1.0.1
       '@pnpm/resolve-dependencies': 'link:../resolve-dependencies'
       '@pnpm/resolver-base': 2.0.0
@@ -1192,6 +1245,7 @@ importers:
       '@types/node': 10.12.2
       '@types/nopt': 3.0.29
       '@types/npm': 2.0.29
+      '@types/p-every': 1.0.0
       '@types/p-series': 1.0.1
       '@types/ramda': 0.25.34
       '@types/rc': 0.0.1
@@ -1214,6 +1268,7 @@ importers:
       normalize-path: 3.0.0
       normalize-registry-url: 1.0.0
       os-homedir: 1.0.2
+      p-every: 1.0.2
       p-filter: 1.0.0
       p-limit: 2.0.0
       path-absolute: 1.0.0
@@ -1286,6 +1341,7 @@ importers:
       '@pnpm/package-store': 0.0.0
       '@pnpm/pkgid-to-filename': 2.0.0
       '@pnpm/prepare': 0.0.0
+      '@pnpm/read-manifests': 0.0.0
       '@pnpm/read-package-json': 1.0.1
       '@pnpm/resolve-dependencies': 1.0.6
       '@pnpm/resolver-base': 2.0.0
@@ -1303,6 +1359,7 @@ importers:
       '@types/node': 10.12.2
       '@types/nopt': 3.0.29
       '@types/npm': 2.0.29
+      '@types/p-every': 1.0.0
       '@types/p-series': 1.0.1
       '@types/ramda': 0.25.34
       '@types/rc': 0.0.1
@@ -1338,6 +1395,7 @@ importers:
       npm-run-all: 4.1.3
       npm-scripts-info: 0.3.9
       os-homedir: 1.0.2
+      p-every: 1.0.2
       p-filter: 1.0.0
       p-limit: 2.0.0
       package-preview: 1.0.6
@@ -2152,6 +2210,10 @@ packages:
     dev: true
     resolution:
       integrity: sha512-Lm/tV8QgjMtiooDoO9qNsPgWiZowtO4hZ18q9p0PQ/jSsQbwGASW1s1I/sx0yXClfY24d+ONlViFuq6kiCghqw==
+  /@types/p-every/1.0.0:
+    dev: false
+    resolution:
+      integrity: sha512-V1j75M2uuWhhDbSknWIe5uuS6vQd8DBU1bxmw2afQzvycrlLE39mpyaAzbx+jcoFl96bYSOyaAKU0tZlzHteNQ==
   /@types/p-limit/2.0.0:
     dev: false
     resolution:

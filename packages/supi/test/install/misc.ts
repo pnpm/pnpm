@@ -85,11 +85,11 @@ test('no dependencies (lodash)', async (t: tape.Test) => {
 
   await installPkgs(['lodash@4.0.0'], await testDefaults({ reporter }))
 
-  t.ok(reporter.calledWithMatch({
+  t.equal(reporter.withArgs(sinon.match({
     initial: { name: 'project', version: '0.0.0' },
     level: 'debug',
     name: 'pnpm:package-json',
-  } as PackageJsonLog), 'initial package.json logged')
+  } as PackageJsonLog)).callCount, 1, 'initial package.json logged')
   t.ok(reporter.calledWithMatch({
     level: 'debug',
     message: 'resolution_started',

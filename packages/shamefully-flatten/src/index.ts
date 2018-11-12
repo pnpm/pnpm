@@ -10,7 +10,7 @@ import {
 } from 'pnpm-shrinkwrap'
 import R = require('ramda')
 
-export function shamefullyFlattenByShrinkwrap (
+export async function shamefullyFlattenByShrinkwrap (
   shr: Shrinkwrap,
   importerId: string,
   opts: {
@@ -20,7 +20,7 @@ export function shamefullyFlattenByShrinkwrap (
     virtualStoreDir: string,
   },
 ) {
-  if (!shr.packages) return
+  if (!shr.packages) return {}
 
   const shrImporter = shr.importers[importerId]
 

@@ -3,7 +3,6 @@ import logger from '@pnpm/logger'
 import {
   IncludedDependencies,
   Modules,
-  read as readModulesYaml,
 } from '@pnpm/modules-yaml'
 import {
   DEPENDENCIES_FIELDS,
@@ -12,13 +11,11 @@ import {
   Registries,
 } from '@pnpm/types'
 import {
-  normalizeRegistries,
-  realNodeModulesDir,
   safeReadPackageFromDir as safeReadPkgFromDir,
 } from '@pnpm/utils'
+import readManifests from '@pnpm/read-manifests'
 import mkdirp = require('mkdirp-promise')
 import {
-  getImporterId,
   Shrinkwrap,
 } from 'pnpm-shrinkwrap'
 import removeAllExceptOuterLinks = require('remove-all-except-outer-links')
@@ -56,14 +53,6 @@ export interface ImportersOptions {
   shamefullyFlatten?: boolean,
 }
 
-export type StrictImportersOptions = ImportersOptions & {
-  bin: string,
-  prefix: string,
-  shamefullyFlatten: boolean,
-  modulesDir: string,
-  id: string,
-}
-
 export default async function getContext (
   opts: {
     force: boolean,
@@ -74,20 +63,20 @@ export default async function getContext (
     },
     include?: IncludedDependencies,
     independentLeaves: boolean,
-    importers: StrictImportersOptions[],
+    importers: ImportersOptions[],
     registries: Registries,
+    shamefullyFlatten: boolean,
     shrinkwrap: boolean,
     store: string,
   },
   installType?: 'named' | 'general',
 ): Promise<PnpmContext> {
-  const storePath = opts.store
+  const manifests = await readManifests(opts.importers, opts.shrinkwrapDirectory, {
+    shamefullyFlatten: opts.shamefullyFlatten,
+  })
 
-  const virtualStoreDir = await realNodeModulesDir(opts.shrinkwrapDirectory)
-  const modules = await readModulesYaml(virtualStoreDir)
-
-  if (modules) {
-    await validateNodeModules(modules, opts.importers, {
+  if (manifests.modules) {
+    await validateNodeModules(manifests.modules, manifests.importers, {
       force: opts.force && installType === 'general',
       include: opts.include,
       independentLeaves: opts.independentLeaves,
@@ -96,43 +85,38 @@ export default async function getContext (
     })
   }
 
-  await mkdirp(storePath)
+  await mkdirp(opts.store)
+
+  manifests.importers.forEach((importer) => {
+    packageJsonLogger.debug({
+      initial: importer.pkg,
+      prefix: importer.prefix,
+    })
+  })
+  if (opts.hooks && opts.hooks.readPackage) {
+    manifests.importers = manifests.importers.map((importer) => ({
+      ...importer,
+      pkg: opts.hooks!.readPackage!(importer.pkg),
+    }))
+  }
 
   const ctx: PnpmContext = {
-    importers: await Promise.all(
-      opts.importers.map(async (importer) => {
-        let pkg = await safeReadPkgFromDir(importer.prefix) || {} as PackageJson
-        pkg = opts.hooks && opts.hooks.readPackage ? opts.hooks.readPackage(pkg) : pkg
-        packageJsonLogger.debug({
-          initial: pkg,
-          prefix: importer.prefix,
-        })
-        return {
-          bin: importer.bin,
-          hoistedAliases: modules && modules.importers[importer.id] && modules.importers[importer.id].hoistedAliases || {},
-          id: importer.id,
-          modulesDir: await realNodeModulesDir(importer.prefix),
-          pkg,
-          prefix: importer.prefix,
-          shamefullyFlatten: Boolean(importer.shamefullyFlatten || modules && modules.importers[importer.id] && modules.importers[importer.id].shamefullyFlatten),
-        }
-      }),
-    ),
-    include: opts.include || modules && modules.included || { dependencies: true, devDependencies: true, optionalDependencies: true },
-    modulesFile: modules,
-    pendingBuilds: modules && modules.pendingBuilds || [],
+    importers: manifests.importers,
+    include: opts.include || manifests.include,
+    modulesFile: manifests.modules,
+    pendingBuilds: manifests.pendingBuilds,
     registries: {
       ...opts.registries,
-      ...modules && modules.registries && normalizeRegistries(modules.registries),
+      ...manifests.registries,
     },
     shrinkwrapDirectory: opts.shrinkwrapDirectory,
-    skipped: new Set(modules && modules.skipped || []),
-    storePath,
-    virtualStoreDir,
+    skipped: manifests.skipped,
+    storePath: opts.store,
+    virtualStoreDir: manifests.virtualStoreDir,
     ...await readShrinkwrapFile({
       force: opts.force,
       forceSharedShrinkwrap: opts.forceSharedShrinkwrap,
-      importers: opts.importers,
+      importers: manifests.importers,
       registry: opts.registries.default,
       shrinkwrap: opts.shrinkwrap,
       shrinkwrapDirectory: opts.shrinkwrapDirectory,
@@ -148,6 +132,7 @@ async function validateNodeModules (
     modulesDir: string,
     id: string,
     prefix: string,
+    currentShamefullyFlatten: boolean | null,
     shamefullyFlatten: boolean,
   }>,
   opts: {
@@ -167,6 +152,7 @@ async function validateNodeModules (
         })
         await removeAllExceptOuterLinks(importer.modulesDir)
       }))
+      // TODO: remove the node_modules in the shrinkwrap directory
       return
     }
     if (modules.independentLeaves) {
@@ -184,8 +170,8 @@ async function validateNodeModules (
   }
   await Promise.all(importers.map(async (importer) => {
     try {
-      if (modules.importers && modules.importers[importer.id] && Boolean(modules.importers[importer.id].shamefullyFlatten) !== importer.shamefullyFlatten) {
-        if (modules.importers[importer.id].shamefullyFlatten) {
+      if (typeof importer.currentShamefullyFlatten === 'boolean' && importer.currentShamefullyFlatten !== importer.shamefullyFlatten) {
+        if (importer.currentShamefullyFlatten) {
           throw new PnpmError(
             'ERR_PNPM_SHAMEFULLY_FLATTEN_WANTED',
             'This "node_modules" folder was created using the --shamefully-flatten option.'
@@ -261,25 +247,26 @@ export async function getContextForSingleImporter (
     store: string,
   },
 ): Promise<PnpmSingleContext> {
+  const manifests = await readManifests(
+    [
+      {
+        prefix: opts.prefix,
+      },
+    ],
+    opts.shrinkwrapDirectory,
+    {
+      shamefullyFlatten: opts.shamefullyFlatten,
+    },
+  )
+
   const storePath = opts.store
 
-  const shrinkwrapDirectory = opts.shrinkwrapDirectory || opts.prefix
-  const virtualStoreDir = await realNodeModulesDir(shrinkwrapDirectory)
-  const modules = await readModulesYaml(virtualStoreDir)
+  const importer = manifests.importers[0]
+  const modulesDir = importer.modulesDir
+  const importerId = importer.id
 
-  const modulesDir = await realNodeModulesDir(opts.prefix)
-  const importerId = getImporterId(shrinkwrapDirectory, opts.prefix)
-
-  if (modules) {
-    const importers = [
-      {
-        id: importerId,
-        modulesDir,
-        prefix: opts.prefix,
-        shamefullyFlatten: opts.shamefullyFlatten,
-      },
-    ]
-    await validateNodeModules(modules, importers, {
+  if (manifests.modules) {
+    await validateNodeModules(manifests.modules, manifests.importers, {
       force: opts.force,
       include: opts.include,
       independentLeaves: opts.independentLeaves,
@@ -294,29 +281,29 @@ export async function getContextForSingleImporter (
   ])
   const pkg = files[0] || {} as PackageJson
   const ctx: PnpmSingleContext = {
-    hoistedAliases: modules && modules.importers[importerId] && modules.importers[importerId].hoistedAliases || {},
+    hoistedAliases: importer.hoistedAliases,
     importerId,
-    include: opts.include || modules && modules.included || { dependencies: true, devDependencies: true, optionalDependencies: true },
+    include: opts.include || manifests.include,
     modulesDir,
-    modulesFile: modules,
-    pendingBuilds: modules && modules.pendingBuilds || [],
+    modulesFile: manifests.modules,
+    pendingBuilds: manifests.pendingBuilds,
     pkg: opts.hooks && opts.hooks.readPackage ? opts.hooks.readPackage(pkg) : pkg,
     prefix: opts.prefix,
     registries: {
       ...opts.registries,
-      ...modules && modules.registries && normalizeRegistries(modules.registries),
+      ...manifests.registries,
     },
-    shrinkwrapDirectory,
-    skipped: new Set(modules && modules.skipped || []),
+    shrinkwrapDirectory: opts.shrinkwrapDirectory,
+    skipped: manifests.skipped,
     storePath,
-    virtualStoreDir,
+    virtualStoreDir: manifests.virtualStoreDir,
     ...await readShrinkwrapFile({
       force: opts.force,
       forceSharedShrinkwrap: opts.forceSharedShrinkwrap,
       importers: [{ id: importerId, prefix: opts.prefix }],
       registry: opts.registries.default,
       shrinkwrap: opts.shrinkwrap,
-      shrinkwrapDirectory,
+      shrinkwrapDirectory: opts.shrinkwrapDirectory,
     }),
   }
   packageJsonLogger.debug({

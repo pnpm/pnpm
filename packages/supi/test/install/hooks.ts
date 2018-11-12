@@ -15,6 +15,7 @@ import {
 } from '../utils'
 
 const test = promisifyTape(tape)
+const testOnly = promisifyTape(tape.only)
 
 test('readPackage, afterAllResolved hooks', async (t: tape.Test) => {
   const project = prepare(t)

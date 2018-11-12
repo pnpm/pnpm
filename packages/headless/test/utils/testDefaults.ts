@@ -1,10 +1,11 @@
 import createFetcher from '@pnpm/default-fetcher'
 import createResolver from '@pnpm/default-resolver'
 import createStore from '@pnpm/package-store'
+import readManifests from '@pnpm/read-manifests'
 import storePath from '@pnpm/store-path'
 import path = require('path')
 import tempy = require('tempy')
-import {HeadlessOptions} from '@pnpm/headless'
+import { HeadlessOptions } from '@pnpm/headless'
 
 const registry = 'http://localhost:4873/'
 
@@ -22,8 +23,20 @@ export default async function testDefaults (
   storeOpts?: any, // tslint:disable-line
 ): Promise<HeadlessOptions> {
   let store = opts && opts.store || tempy.directory()
-  store = await storePath(opts && opts.prefix || process.cwd(), store)
-  const rawNpmConfig = {registry}
+  const shrinkwrapDirectory = opts && opts.shrinkwrapDirectory || process.cwd()
+  const manifests = await readManifests(
+    [
+      {
+        prefix: shrinkwrapDirectory,
+      },
+    ],
+    shrinkwrapDirectory,
+    {
+      shamefullyFlatten: opts.shamefullyFlatten,
+    },
+  )
+  store = await storePath(shrinkwrapDirectory, store)
+  const rawNpmConfig = { registry }
   const storeController = await createStore(
     createResolver({
       metaCache: new Map(),
@@ -47,16 +60,15 @@ export default async function testDefaults (
     },
   )
   return {
-    include: {
-      dependencies: true,
-      devDependencies: true,
-      optionalDependencies: true,
-    },
+    importers: manifests.importers,
+    pendingBuilds: manifests.pendingBuilds,
+    include: manifests.include,
     independentLeaves: false,
     verifyStoreIntegrity: true,
     sideEffectsCache: true,
+    shrinkwrapDirectory,
     force: false,
-    registries: {
+    registries: manifests.registries || {
       default: registry,
     },
     store,
