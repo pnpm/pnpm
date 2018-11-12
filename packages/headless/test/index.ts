@@ -20,24 +20,12 @@ import testDefaults from './utils/testDefaults'
 
 const fixtures = path.join(__dirname, 'fixtures')
 
-test.only('installing a simple project', async (t) => {
+test('installing a simple project', async (t) => {
   const prefix = path.join(fixtures, 'simple')
   const reporter = sinon.spy()
 
   await headless(await testDefaults({
-    importers: [
-      {
-        bin: path.join(prefix, 'node_modules', '.bin'),
-        hoistedAliases: {},
-        modulesDir: path.join(prefix, 'node_modules'),
-        id: '.',
-        pkg: await import(path.join(prefix, 'package.json')),
-        prefix,
-        shamefullyFlatten: false,
-      },
-    ],
     shrinkwrapDirectory: prefix,
-    pendingBuilds: [],
     reporter,
   }))
 
@@ -55,11 +43,6 @@ test.only('installing a simple project', async (t) => {
   t.ok(await project.loadCurrentShrinkwrap())
   t.ok(await project.loadModules())
 
-  t.ok(reporter.calledWithMatch({
-    initial: require(path.join(prefix, 'package.json')),
-    level: 'debug',
-    name: 'pnpm:package-json',
-  } as PackageJsonLog), 'initial package.json logged')
   t.ok(reporter.calledWithMatch({
     added: 15,
     level: 'debug',
@@ -91,7 +74,7 @@ test('installing only prod deps', async (t) => {
   await rimraf(path.join(prefix, 'node_modules'))
 
   await headless(await testDefaults({
-    prefix,
+    shrinkwrapDirectory: prefix,
     include: {
       dependencies: true,
       devDependencies: false,
@@ -115,7 +98,7 @@ test('installing only dev deps', async (t) => {
   await rimraf(path.join(prefix, 'node_modules'))
 
   await headless(await testDefaults({
-    prefix,
+    shrinkwrapDirectory: prefix,
     include: {
       dependencies: false,
       devDependencies: true,
@@ -136,7 +119,7 @@ test('installing non-prod deps then all deps', async (t) => {
   const prefix = path.join(fixtures, 'prod-dep-is-dev-subdep')
 
   await headless(await testDefaults({
-    prefix,
+    shrinkwrapDirectory: prefix,
     include: {
       dependencies: false,
       devDependencies: true,
@@ -163,7 +146,15 @@ test('installing non-prod deps then all deps', async (t) => {
   const reporter = sinon.spy()
 
   // Repeat normal installation adds missing deps to node_modules
-  await headless(await testDefaults({prefix, reporter}))
+  await headless(await testDefaults({
+    shrinkwrapDirectory: prefix,
+    reporter,
+    include: {
+      dependencies: true,
+      devDependencies: true,
+      optionalDependencies: true,
+    },
+  }))
 
   t.ok(reporter.calledWithMatch({
     added: {
@@ -199,8 +190,7 @@ test('installing only optional deps', async (t) => {
   await rimraf(path.join(prefix, 'node_modules'))
 
   await headless(await testDefaults({
-    prefix,
-
+    shrinkwrapDirectory: prefix,
     include: {
       dependencies: false,
       devDependencies: false,
@@ -225,7 +215,7 @@ test('run pre/postinstall scripts', async (t) => {
   const outputJsonPath = path.join(prefix, 'output.json')
   await rimraf(outputJsonPath)
 
-  await headless(await testDefaults({prefix}))
+  await headless(await testDefaults({ shrinkwrapDirectory: prefix }))
 
   const project = assertProject(t, prefix)
   const generatedByPreinstall = project.requireModule('pre-and-postinstall-scripts-example/generated-by-preinstall')
@@ -239,14 +229,17 @@ test('run pre/postinstall scripts', async (t) => {
   await rimraf(outputJsonPath)
   await rimraf(path.join(prefix, 'node_modules'))
 
-  await headless(await testDefaults({prefix, ignoreScripts: true}))
+  await headless(await testDefaults({ shrinkwrapDirectory: prefix, ignoreScripts: true }))
 
   t.notOk(await exists(outputJsonPath))
 
   const nmPath = path.join(prefix, 'node_modules')
   const modulesYaml = await readModulesYaml(nmPath)
   t.ok(modulesYaml)
-  t.deepEqual(modulesYaml!.pendingBuilds, ['localhost+4873/pre-and-postinstall-scripts-example/1.0.0'])
+  t.deepEqual(
+    modulesYaml!.pendingBuilds,
+    ['.', 'localhost+4873/pre-and-postinstall-scripts-example/1.0.0'],
+  )
 
   t.end()
 })
@@ -264,7 +257,7 @@ test('orphan packages are removed', async (t) => {
   fse.copySync(path.join(simpleWithMoreDepsDir, 'shrinkwrap.yaml'), destShrinkwrapYamlPath)
 
   await headless(await testDefaults({
-    prefix: projectDir,
+    shrinkwrapDirectory: projectDir,
   }))
 
   fse.copySync(path.join(simpleDir, 'package.json'), destPackageJsonPath)
@@ -272,7 +265,7 @@ test('orphan packages are removed', async (t) => {
 
   const reporter = sinon.spy()
   await headless(await testDefaults({
-    prefix: projectDir,
+    shrinkwrapDirectory: projectDir,
     reporter,
   }))
 
@@ -304,13 +297,13 @@ test('available packages are used when node_modules is not clean', async (t) => 
   fse.copySync(path.join(hasGlobDir, 'package.json'), destPackageJsonPath)
   fse.copySync(path.join(hasGlobDir, 'shrinkwrap.yaml'), destShrinkwrapYamlPath)
 
-  await headless(await testDefaults({prefix: projectDir}))
+  await headless(await testDefaults({ shrinkwrapDirectory: projectDir }))
 
   fse.copySync(path.join(hasGlobAndRimrafDir, 'package.json'), destPackageJsonPath)
   fse.copySync(path.join(hasGlobAndRimrafDir, 'shrinkwrap.yaml'), destShrinkwrapYamlPath)
 
   const reporter = sinon.spy()
-  await headless(await testDefaults({prefix: projectDir, reporter}))
+  await headless(await testDefaults({ shrinkwrapDirectory: projectDir, reporter }))
 
   const project = assertProject(t, projectDir)
   await project.has('rimraf')
@@ -342,13 +335,13 @@ test('available packages are relinked during forced install', async (t) => {
   fse.copySync(path.join(hasGlobDir, 'package.json'), destPackageJsonPath)
   fse.copySync(path.join(hasGlobDir, 'shrinkwrap.yaml'), destShrinkwrapYamlPath)
 
-  await headless(await testDefaults({prefix: projectDir}))
+  await headless(await testDefaults({ shrinkwrapDirectory: projectDir }))
 
   fse.copySync(path.join(hasGlobAndRimrafDir, 'package.json'), destPackageJsonPath)
   fse.copySync(path.join(hasGlobAndRimrafDir, 'shrinkwrap.yaml'), destShrinkwrapYamlPath)
 
   const reporter = sinon.spy()
-  await headless(await testDefaults({prefix: projectDir, reporter, force: true}))
+  await headless(await testDefaults({ shrinkwrapDirectory: projectDir, reporter, force: true }))
 
   const project = assertProject(t, projectDir)
   await project.has('rimraf')
@@ -379,7 +372,7 @@ test('fail when shrinkwrap.yaml is not up-to-date with package.json', async (t) 
   fse.copySync(path.join(simpleWithMoreDepsDir, 'shrinkwrap.yaml'), path.join(projectDir, 'shrinkwrap.yaml'))
 
   try {
-    await headless(await testDefaults({prefix: projectDir}))
+    await headless(await testDefaults({ shrinkwrapDirectory: projectDir }))
     t.fail()
   } catch (err) {
     t.equal(err.message, 'Cannot install with "frozen-shrinkwrap" because shrinkwrap.yaml is not up-to-date with package.json')
@@ -392,7 +385,7 @@ test('installing local dependency', async (t) => {
   const prefix = path.join(fixtures, 'has-local-dep')
   const reporter = sinon.spy()
 
-  await headless(await testDefaults({prefix, reporter}))
+  await headless(await testDefaults({ shrinkwrapDirectory: prefix, reporter }))
 
   const project = assertProject(t, prefix)
   t.ok(project.requireModule('tar-pkg'), 'prod dep installed')
@@ -404,7 +397,7 @@ test('installing local directory dependency', async (t) => {
   const prefix = path.join(fixtures, 'has-local-dir-dep')
   const reporter = sinon.spy()
 
-  await headless(await testDefaults({prefix, reporter}))
+  await headless(await testDefaults({ shrinkwrapDirectory: prefix, reporter }))
 
   const project = assertProject(t, prefix)
   t.ok(project.requireModule('example/package.json'), 'prod dep installed')
@@ -417,10 +410,15 @@ test('installing using passed in shrinkwrap files', async (t) => {
   t.comment(prefix)
 
   const simplePkgPath = path.join(fixtures, 'simple')
-  const wantedShr = await readWanted(simplePkgPath, {ignoreIncompatible: false})
-  const pkg = require(path.join(simplePkgPath, 'package.json'))
+  fse.copySync(path.join(simplePkgPath, 'package.json'), path.join(prefix, 'package.json'))
+  fse.copySync(path.join(simplePkgPath, 'shrinkwrap.yaml'), path.join(prefix, 'shrinkwrap.yaml'))
 
-  await headless(await testDefaults({prefix, wantedShrinkwrap: wantedShr, packageJson: pkg}))
+  const wantedShr = await readWanted(simplePkgPath, { ignoreIncompatible: false })
+
+  await headless(await testDefaults({
+    shrinkwrapDirectory: prefix,
+    wantedShrinkwrap: wantedShr,
+  }))
 
   const project = assertProject(t, prefix)
 
@@ -435,7 +433,7 @@ test('installing using passed in shrinkwrap files', async (t) => {
 test('installation of a dependency that has a resolved peer in subdeps', async (t) => {
   const prefix = path.join(fixtures, 'resolved-peer-deps-in-subdeps')
 
-  await headless(await testDefaults({prefix}))
+  await headless(await testDefaults({ shrinkwrapDirectory: prefix }))
 
   const project = assertProject(t, prefix)
   t.ok(project.requireModule('pnpm-default-reporter'), 'prod dep installed')
@@ -448,7 +446,7 @@ test('independent-leaves: installing a simple project', async (t) => {
   await rimraf(path.join(prefix, 'node_modules'))
   const reporter = sinon.spy()
 
-  await headless(await testDefaults({prefix, reporter, independentLeaves: true}))
+  await headless(await testDefaults({ shrinkwrapDirectory: prefix, reporter, independentLeaves: true }))
 
   const project = assertProject(t, prefix)
   t.ok(project.requireModule('is-positive'), 'prod dep installed')
@@ -463,11 +461,6 @@ test('independent-leaves: installing a simple project', async (t) => {
   t.ok(await project.loadCurrentShrinkwrap())
   t.ok(await project.loadModules())
 
-  t.ok(reporter.calledWithMatch({
-    initial: require(path.join(prefix, 'package.json')),
-    level: 'debug',
-    name: 'pnpm:package-json',
-  } as PackageJsonLog), 'initial package.json logged')
   t.ok(reporter.calledWithMatch({
     added: 15,
     level: 'debug',
@@ -493,7 +486,7 @@ test('installing with shamefullyFlatten = true', async (t) => {
   const prefix = path.join(fixtures, 'simple-shamefully-flatten')
   const reporter = sinon.spy()
 
-  await headless(await testDefaults({ prefix, reporter, shamefullyFlatten: true }))
+  await headless(await testDefaults({ shrinkwrapDirectory: prefix, reporter, shamefullyFlatten: true }))
 
   const project = assertProject(t, prefix)
   t.ok(project.requireModule('is-positive'), 'prod dep installed')
@@ -510,11 +503,6 @@ test('installing with shamefullyFlatten = true', async (t) => {
   t.ok(await project.loadCurrentShrinkwrap())
   t.ok(await project.loadModules())
 
-  t.ok(reporter.calledWithMatch({
-    initial: require(path.join(prefix, 'package.json')),
-    level: 'debug',
-    name: 'pnpm:package-json',
-  } as PackageJsonLog), 'initial package.json logged')
   t.ok(reporter.calledWithMatch({
     added: 15,
     level: 'debug',

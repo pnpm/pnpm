@@ -28,7 +28,7 @@ import {
   StoreController,
 } from '@pnpm/store-controller-types'
 import { PackageJson, Registries } from '@pnpm/types'
-import { normalizeRegistries, realNodeModulesDir } from '@pnpm/utils'
+import { realNodeModulesDir } from '@pnpm/utils'
 import dp = require('dependency-path')
 import pLimit = require('p-limit')
 import path = require('path')
@@ -103,31 +103,8 @@ export default async (opts: HeadlessOptions) => {
     throw new Error('Headless installation requires a shrinkwrap.yaml file')
   }
 
-  // const strictImporters = await Promise.all(
-  //   opts.importers.map((importer) => toStrictImporter(opts.shamefullyFlattenByDefault, opts.shrinkwrapDirectory, importer)))
-  // const shamefullyFlatten = opts.shamefullyFlatten === true
   const currentShrinkwrap = opts.currentShrinkwrap || await readCurrent(shrinkwrapDirectory, { ignoreIncompatible: false })
-  // const importerId = getImporterId(shrinkwrapDirectory, opts.prefix)
   const virtualStoreDir = await realNodeModulesDir(shrinkwrapDirectory)
-  // const modulesDir = await realNodeModulesDir(opts.prefix)
-  // const modules = opts.modules || readModulesYaml(virtualStoreDir)
-  //  ||
-  //   {
-  //     importers: {
-  //       [importerId]: {
-  //         hoistedAliases: {},
-  //         shamefullyFlatten,
-  //       },
-  //     },
-  //     pendingBuilds: [] as string[],
-  //     registries: {},
-  //   }
-  // const registries = normalizeRegistries({
-  //   ...opts.registries,
-  //   ...modules && modules.registries,
-  // })
-
-  // const pkg = opts.packageJson || await readPackageFromDir(opts.prefix)
 
   for (const importer of opts.importers) {
     if (!satisfiesPackageJson(wantedShrinkwrap, importer.pkg, importer.id)) {
@@ -141,8 +118,6 @@ export default async (opts: HeadlessOptions) => {
   if (!opts.ignoreScripts) {
     for (const importer of opts.importers) {
       const scripts = !opts.ignoreScripts && importer.pkg.scripts || {}
-
-      // const bin = path.join(importer.modulesDir, '.bin')
 
       const scriptsOpts = {
         depPath: importer.prefix,

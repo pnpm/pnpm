@@ -25,6 +25,7 @@
     "@pnpm/headless": "link:",
     "@pnpm/logger": "2.1.0",
     "@pnpm/package-store": "0.0.0",
+    "@pnpm/read-manifests": "0.0.0",
     "@pnpm/store-path": "1.0.3",
     "@types/fs-extra": "5.0.4",
     "@types/mz": "0.0.32",
