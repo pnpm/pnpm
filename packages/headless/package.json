@@ -29,7 +29,7 @@
     "@pnpm/store-path": "1.0.3",
     "@types/fs-extra": "5.0.4",
     "@types/mz": "0.0.32",
-    "@types/node": "10.12.2",
+    "@types/node": "10.12.5",
     "@types/path-exists": "3.0.0",
     "@types/rimraf": "2.0.2",
     "@types/sinon": "5.0.5",
