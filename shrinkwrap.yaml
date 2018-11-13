@@ -173,7 +173,7 @@ importers:
       string-length: 2.0.0
       string.prototype.padstart: 3.0.0
       strip-ansi: 5.0.0
-      supi: 0.25.8-0
+      supi: 0.25.8-1
       tape: 4.9.1
       ts-node: 6.2.0
       tslint: 5.11.0
@@ -331,10 +331,10 @@ importers:
       '@pnpm/pkgid-to-filename': 2.0.0
       '@pnpm/read-manifests': 1.0.0-0
       '@pnpm/read-package-json': 1.0.1
-      '@pnpm/shamefully-flatten': 1.0.0
+      '@pnpm/shamefully-flatten': 1.0.1
       '@pnpm/store-controller-types': 1.0.0
       '@pnpm/store-path': 1.0.3
-      '@pnpm/symlink-dependency': 1.0.0
+      '@pnpm/symlink-dependency': 1.1.0
       '@pnpm/types': 2.0.0
       '@pnpm/utils': 0.9.0
       '@types/fs-extra': 5.0.4
@@ -909,7 +909,7 @@ importers:
       path-name: 1.0.0
       pkgs-graph: 2.0.0
       pnpm: 'link:'
-      pnpm-default-reporter: 0.20.12
+      pnpm-default-reporter: 0.20.13
       pnpm-file-reporter: 0.1.0
       pnpm-list: 4.1.5
       pnpm-registry-mock: 2.4.0
@@ -923,7 +923,7 @@ importers:
       sepia: 2.0.2
       signal-exit: 3.0.2
       strip-color: 0.1.0
-      supi: 0.25.8-0
+      supi: 0.25.8-1
       symlink-dir: 2.0.2
       tape: 4.9.1
       tape-promise: 4.0.0
@@ -1099,7 +1099,7 @@ importers:
     specifiers:
       '@pnpm/logger': 2.1.0
       '@pnpm/pkgid-to-filename': 2.0.0
-      '@pnpm/symlink-dependency': 1.0.0
+      '@pnpm/symlink-dependency': 1.1.0
       '@types/node': 10.12.5
       '@types/ramda': 0.25.34
       dependency-path: 2.0.0
@@ -1304,7 +1304,7 @@ importers:
       '@pnpm/default-fetcher': 2.0.6
       '@pnpm/default-resolver': 2.0.5
       '@pnpm/fs-locker': 1.0.2
-      '@pnpm/headless': 1.0.0-0
+      '@pnpm/headless': 1.0.0-1
       '@pnpm/lifecycle': 3.0.2
       '@pnpm/link-bins': 3.0.1
       '@pnpm/logger': 2.1.0
@@ -1318,10 +1318,10 @@ importers:
       '@pnpm/read-package-json': 1.0.1
       '@pnpm/resolve-dependencies': 1.0.7
       '@pnpm/resolver-base': 2.0.0
-      '@pnpm/shamefully-flatten': 1.0.0
+      '@pnpm/shamefully-flatten': 1.0.1
       '@pnpm/store-controller-types': 1.0.0
       '@pnpm/store-path': 1.0.3
-      '@pnpm/symlink-dependency': 1.0.0
+      '@pnpm/symlink-dependency': 1.1.0
       '@pnpm/types': 2.0.0
       '@pnpm/utils': 0.9.0
       '@types/byline': 4.2.31
