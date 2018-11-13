@@ -218,3 +218,46 @@ test('prefer-frozen-shrinkwrap+shamefully-flatten: should prefer headless instal
   await project.has('pkg-with-1-dep')
   await project.has('dep-of-pkg-with-1-dep')
 })
+
+test('prefer-frozen-shrinkwrap: should prefer frozen-shrinkwrap when package has linked dependency', async (t) => {
+  const projects = preparePackages(t, [
+    {
+      name: 'p1',
+      dependencies: {
+        p2: 'link:../p2',
+      },
+    },
+    {
+      name: 'p2',
+      dependencies: {
+        'is-negative': '1.0.0',
+      },
+    },
+  ])
+
+  const importers = [
+    {
+      prefix: path.resolve('p1'),
+    },
+    {
+      prefix: path.resolve('p2'),
+    },
+  ]
+  await install(await testDefaults({ importers }))
+
+  const reporter = sinon.spy()
+  await install(await testDefaults({
+    importers,
+    preferFrozenShrinkwrap: true,
+    reporter,
+  }))
+
+  t.ok(reporter.calledWithMatch({
+    level: 'info',
+    message: 'Performing headless installation',
+    name: 'pnpm',
+  }), 'start of headless installation logged')
+
+  await projects['p1'].has('p2')
+  await projects['p2'].has('is-negative')
+})

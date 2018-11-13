@@ -3,7 +3,6 @@ import assertProject from '@pnpm/assert-project'
 import {
   StageLog,
   StatsLog,
-  PackageJsonLog,
   RootLog,
 } from '@pnpm/core-loggers'
 import headless from '@pnpm/headless'
@@ -14,6 +13,7 @@ import path = require('path')
 import exists = require('path-exists')
 import { readWanted } from 'pnpm-shrinkwrap'
 import { read as readModulesYaml } from '@pnpm/modules-yaml'
+import readManifests from '@pnpm/read-manifests'
 import rimraf = require('rimraf-then')
 import sinon = require('sinon')
 import testDefaults from './utils/testDefaults'
@@ -529,6 +529,36 @@ test('installing with shamefullyFlatten = true', async (t) => {
   const modules = await project.loadModules()
 
   t.deepEqual(modules!.importers['.'].hoistedAliases['localhost+4873/balanced-match/1.0.0'], ['balanced-match'], 'hoisted field populated in .modules.yaml')
+
+  t.end()
+})
+
+test('installing in a workspace', async (t) => {
+  const workspaceFixture = path.join(__dirname, 'workspace-fixture')
+
+  const manifests = await readManifests(
+    [
+      {
+        prefix: path.join(workspaceFixture, 'foo'),
+      },
+      {
+        prefix: path.join(workspaceFixture, 'bar'),
+      },
+    ],
+    workspaceFixture,
+    {
+      shamefullyFlatten: false,
+    },
+  )
+
+  await headless(await testDefaults({
+    importers: manifests.importers,
+    shrinkwrapDirectory: workspaceFixture,
+  }))
+
+  const projectBar = assertProject(t, path.join(workspaceFixture, 'bar'))
+
+  await projectBar.has('foo')
 
   t.end()
 })

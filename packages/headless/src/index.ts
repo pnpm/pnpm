@@ -22,7 +22,7 @@ import {
 import pkgIdToFilename from '@pnpm/pkgid-to-filename'
 import { fromDir as readPackageFromDir } from '@pnpm/read-package-json'
 import { shamefullyFlattenByShrinkwrap } from '@pnpm/shamefully-flatten'
-import symlinkDependency from '@pnpm/symlink-dependency'
+import symlinkDependency, { symlinkDirectRootDependency } from '@pnpm/symlink-dependency'
 import {
   PackageFilesResponse,
   StoreController,
@@ -334,6 +334,20 @@ async function linkRootPackages (
   return Promise.all(
     R.keys(allDeps)
       .map(async (alias) => {
+        if (allDeps[alias].startsWith('link:')) {
+          const isDev = shrImporter.devDependencies && shrImporter.devDependencies[alias]
+          const isOptional = shrImporter.optionalDependencies && shrImporter.optionalDependencies[alias]
+          const packageDir = path.join(opts.prefix, allDeps[alias].substr(5))
+          const linkedPackage = await readPackageFromDir(packageDir)
+          await symlinkDirectRootDependency(packageDir, opts.importerModulesDir, alias, {
+            linkedPackage,
+            prefix: opts.prefix,
+            fromDependenciesField: isDev && 'devDependencies' ||
+              isOptional && 'optionalDependencies' ||
+              'dependencies',
+          })
+          return
+        }
         const depPath = dp.refToAbsolute(allDeps[alias], alias, opts.defaultRegistry)
         const peripheralLocation = opts.rootDependencies[alias]
         // Skipping linked packages

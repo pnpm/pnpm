@@ -335,6 +335,7 @@ async function linkedPackagesAreUpToDate (
     for (const depName of depNames) {
       if (!pkgDeps[depName]) continue
       const isLinked = importerDeps[depName].startsWith('link:')
+      if (isLinked && pkgDeps[depName].startsWith('link:')) continue
       const dir = isLinked
         ? path.join(prefix, importerDeps[depName].substr(5))
         : (localPackages && localPackages[depName] && localPackages[depName] && localPackages[depName][importerDeps[depName]] && localPackages[depName][importerDeps[depName]].directory)

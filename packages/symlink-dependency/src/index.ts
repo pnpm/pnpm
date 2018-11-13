@@ -11,3 +11,7 @@ export default function symlinkDependency (
   linkLogger.debug({ target: dependencyRealLocation, link })
   return symlinkDir(dependencyRealLocation, link)
 }
+
+import symlinkDirectRootDependency from './symlinkDirectRootDependency'
+
+export { symlinkDirectRootDependency }

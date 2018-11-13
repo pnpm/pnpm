@@ -14,15 +14,17 @@ const DEP_TYPE_BY_DEPS_FIELD_NAME = {
   optionalDependencies: 'optional',
 }
 
-export default async function linkToModules (
+export default async function symlinkDirectRootDependency (
+  dependencyLocation: string,
+  destModulesDir: string,
+  importAs: string,
   opts: {
-    alias: string,
-    destModulesDir: string,
-    name: string,
-    packageDir: string,
+    fromDependenciesField?: DependenciesField,
+    linkedPackage: {
+      name: string,
+      version: string,
+    },
     prefix: string,
-    saveType?: DependenciesField,
-    version: string,
   },
 ) {
   // `opts.destModulesDir` may be a non-existent `node_modules` dir
@@ -32,28 +34,28 @@ export default async function linkToModules (
   // so we create it if it doesn't exist, and then find its realpath.
   let destModulesDirReal
   try {
-    destModulesDirReal = await fs.realpath(opts.destModulesDir)
+    destModulesDirReal = await fs.realpath(destModulesDir)
   } catch (err) {
     if (err.code === 'ENOENT') {
-      await mkdirp(opts.destModulesDir)
-      destModulesDirReal = await fs.realpath(opts.destModulesDir)
+      await mkdirp(destModulesDir)
+      destModulesDirReal = await fs.realpath(destModulesDir)
     } else {
       throw err
     }
   }
 
-  const packageDirReal = await fs.realpath(opts.packageDir)
+  const dependencyRealocation = await fs.realpath(dependencyLocation)
 
-  const dest = path.join(destModulesDirReal, opts.alias)
-  const { reused } = await symlinkDir(packageDirReal, dest)
+  const dest = path.join(destModulesDirReal, importAs)
+  const { reused } = await symlinkDir(dependencyRealocation, dest)
   if (reused) return // if the link was already present, don't log
   rootLogger.debug({
     added: {
-      dependencyType: opts.saveType && DEP_TYPE_BY_DEPS_FIELD_NAME[opts.saveType] as DependencyType,
-      linkedFrom: packageDirReal,
-      name: opts.alias,
-      realName: opts.name,
-      version: opts.version,
+      dependencyType: opts.fromDependenciesField && DEP_TYPE_BY_DEPS_FIELD_NAME[opts.fromDependenciesField] as DependencyType,
+      linkedFrom: dependencyRealocation,
+      name: importAs,
+      realName: opts.linkedPackage.name,
+      version: opts.linkedPackage.version,
     },
     prefix: opts.prefix,
   })

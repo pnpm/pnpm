@@ -48,7 +48,11 @@
   },
   "dependencies": {
     "@pnpm/core-loggers": "1.0.0",
+    "@pnpm/types": "2.0.0",
+    "@types/mz": "0.0.32",
     "@types/node": "10.12.5",
+    "mkdirp-promise": "5.0.1",
+    "mz": "2.7.0",
     "symlink-dir": "2.0.2"
   }
 }

@@ -1,10 +1,10 @@
 import {
-  packageJsonLogger,
   summaryLogger,
 } from '@pnpm/core-loggers'
 import { linkBinsOfPackages } from '@pnpm/link-bins'
 import logger, { streamParser } from '@pnpm/logger'
 import { prune } from '@pnpm/modules-cleaner'
+import { symlinkDirectRootDependency } from '@pnpm/symlink-dependency'
 import {
   DEPENDENCIES_FIELDS,
   DependenciesField,
@@ -12,7 +12,6 @@ import {
 } from '@pnpm/types'
 import {
   getSaveType,
-  safeReadPackage,
 } from '@pnpm/utils'
 import loadJsonFile from 'load-json-file'
 import normalize = require('normalize-path')
@@ -28,7 +27,6 @@ import {
 import R = require('ramda')
 import { getContextForSingleImporter } from '../getContext'
 import getSpecFromPackageJson from '../getSpecFromPackageJson'
-import linkToModules from '../linkToModules'
 import save, { guessDependencyType } from '../save'
 import getPref from '../utils/getPref'
 import {
@@ -124,14 +122,10 @@ export default async function link (
   for (const linkedPkg of linkedPkgs) {
     // TODO: cover with test that linking reports with correct dependency types
     const stu = specsToUpsert.find((s) => s.name === linkedPkg.pkg.name)
-    await linkToModules({
-      alias: linkedPkg.alias,
-      destModulesDir: destModules,
-      name: linkedPkg.pkg.name,
-      packageDir: linkedPkg.path,
+    await symlinkDirectRootDependency(linkedPkg.path, destModules, linkedPkg.alias, {
+      fromDependenciesField: stu && stu.saveType || saveType,
+      linkedPackage: linkedPkg.pkg,
       prefix: opts.prefix,
-      saveType: stu && stu.saveType || saveType,
-      version: linkedPkg.pkg.version,
     })
   }
 

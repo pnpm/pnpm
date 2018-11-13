@@ -10,7 +10,7 @@ import { IncludedDependencies } from '@pnpm/modules-yaml'
 import { fromDir as readPackageFromDir } from '@pnpm/read-package-json'
 import { DependenciesTree, LinkedDependency } from '@pnpm/resolve-dependencies'
 import shamefullyFlattenGraph from '@pnpm/shamefully-flatten'
-import symlinkDependency from '@pnpm/symlink-dependency'
+import symlinkDependency, { symlinkDirectRootDependency } from '@pnpm/symlink-dependency'
 import { StoreController } from '@pnpm/store-controller-types'
 import { PackageJson, Registries } from '@pnpm/types'
 import * as dp from 'dependency-path'
@@ -26,7 +26,6 @@ import {
   SHRINKWRAP_VERSION,
   SHRINKWRAP_NEXT_VERSION,
 } from '../constants'
-import linkToModules from '../linkToModules'
 import resolvePeers, {
   DependenciesGraph,
   DependenciesGraphNode,
@@ -286,17 +285,14 @@ export default async function linkPackages (
   if (!opts.dryRun) {
     await Promise.all(
       importers.map((importer) =>
-        Promise.all(importer.linkedDependencies.map((linkedDependency) =>
-          linkToModules({
-            alias: linkedDependency.alias,
-            destModulesDir: importer.modulesDir,
-            name: linkedDependency.name,
-            packageDir: resolvePath(importer.prefix, linkedDependency.resolution.directory),
+        Promise.all(importer.linkedDependencies.map((linkedDependency) => {
+          const depLocation = resolvePath(importer.prefix, linkedDependency.resolution.directory)
+          return symlinkDirectRootDependency(depLocation, importer.modulesDir, linkedDependency.alias, {
+            fromDependenciesField: linkedDependency.dev && 'devDependencies' || linkedDependency.optional && 'optionalDependencies' || 'dependencies',
+            linkedPackage: linkedDependency,
             prefix: importer.prefix,
-            saveType: linkedDependency.dev && 'devDependencies' || linkedDependency.optional && 'optionalDependencies' || 'dependencies',
-            version: linkedDependency.version,
-          }),
-        )),
+          })
+        })),
       ),
     )
 
