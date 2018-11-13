@@ -1,4 +1,5 @@
 import {
+  packageJsonLogger,
   progressLogger,
   rootLogger,
   stageLogger,
@@ -219,6 +220,13 @@ export default async (opts: HeadlessOptions) => {
     })
     const bin = path.join(importer.modulesDir, '.bin')
     await linkBins(importer.modulesDir, bin, { warn })
+
+    // Even though headless installation will never update the package.json
+    // this needs to be logged because otherwise install summary won't be printed
+    packageJsonLogger.debug({
+      prefix: importer.prefix,
+      updated: importer.pkg,
+    })
   }))
 
   await writeCurrentShrinkwrapOnly(shrinkwrapDirectory, filteredShrinkwrap)

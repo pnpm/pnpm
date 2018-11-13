@@ -1,6 +1,7 @@
 ///<reference path="../typings/index.d.ts" />
 import assertProject from '@pnpm/assert-project'
 import {
+  PackageJsonLog,
   StageLog,
   StatsLog,
   RootLog,
@@ -43,6 +44,11 @@ test('installing a simple project', async (t) => {
   t.ok(await project.loadCurrentShrinkwrap())
   t.ok(await project.loadModules())
 
+  t.ok(reporter.calledWithMatch({
+    updated: require(path.join(prefix, 'package.json')),
+    level: 'debug',
+    name: 'pnpm:package-json',
+  } as PackageJsonLog), 'updated package.json logged')
   t.ok(reporter.calledWithMatch({
     added: 15,
     level: 'debug',
@@ -462,6 +468,11 @@ test('independent-leaves: installing a simple project', async (t) => {
   t.ok(await project.loadModules())
 
   t.ok(reporter.calledWithMatch({
+    updated: require(path.join(prefix, 'package.json')),
+    level: 'debug',
+    name: 'pnpm:package-json',
+  } as PackageJsonLog), 'updated package.json logged')
+  t.ok(reporter.calledWithMatch({
     added: 15,
     level: 'debug',
     name: 'pnpm:stats',
@@ -503,6 +514,11 @@ test('installing with shamefullyFlatten = true', async (t) => {
   t.ok(await project.loadCurrentShrinkwrap())
   t.ok(await project.loadModules())
 
+  t.ok(reporter.calledWithMatch({
+    updated: require(path.join(prefix, 'package.json')),
+    level: 'debug',
+    name: 'pnpm:package-json',
+  } as PackageJsonLog), 'updated package.json logged')
   t.ok(reporter.calledWithMatch({
     added: 15,
     level: 'debug',
