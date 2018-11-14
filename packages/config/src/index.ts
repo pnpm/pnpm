@@ -181,7 +181,7 @@ export default async (
     pnpmConfig.bin = path.join(pnpmConfig.prefix, 'node_modules', '.bin')
   }
   if (pnpmConfig.sharedWorkspaceShrinkwrap && !pnpmConfig.shrinkwrapDirectory) {
-    pnpmConfig.shrinkwrapDirectory = pnpmConfig.workspacePrefix
+    pnpmConfig.shrinkwrapDirectory = pnpmConfig.workspacePrefix || undefined
   }
 
   pnpmConfig.packageManager = packageManager

@@ -611,3 +611,19 @@ test('shared-workspace-shrinkwrap: entries of removed projects should be removed
     t.deepEqual(Object.keys(shr.importers), ['package-1'])
   }
 })
+
+// Covers https://github.com/pnpm/pnpm/issues/1482
+test('shared-workspace-shrinkwrap config is ignored if no pnpm-workspace.yaml is found', async (t) => {
+  const project = prepare(t, {
+    dependencies: {
+      'is-positive': '1.0.0',
+    },
+  })
+
+  await fs.writeFile('.npmrc', 'shared-workspace-shrinkwrap=true', 'utf8')
+
+  await execPnpm('install')
+
+  t.pass('install did not fail')
+  await project.has('is-positive')
+})
