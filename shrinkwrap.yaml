@@ -790,6 +790,7 @@ importers:
       path-exists: 3.0.0
       pnpm: 'link:'
       pnpm-registry-mock: 2.4.0
+      pnpm-shrinkwrap: 'link:../shrinkwrap'
       retry: 0.12.0
       rimraf: 2.6.2
       rimraf-then: 1.0.1
@@ -887,6 +888,7 @@ importers:
       pnpm-file-reporter: 0.1.0
       pnpm-list: 4.1.5
       pnpm-registry-mock: 2.4.0
+      pnpm-shrinkwrap: 8.1.3
       process-exists: 3.1.0
       ramda: 0.25.0
       read-ini-file: 1.0.0

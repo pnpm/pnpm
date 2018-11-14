@@ -8,8 +8,8 @@
     "lib"
   ],
   "scripts": {
-    "fix": "tslint -c tslint.json --project . --fix",
-    "lint": "tslint -c tslint.json --project .",
+    "fix": "tslint -c tslint.json src/**/*.ts test/**/*.ts --fix",
+    "lint": "tslint -c tslint.json src/**/*.ts test/**/*.ts",
     "test": "npm run tsc && npm run lint && ts-node test --type-check && mos t",
     "prepublishOnly": "tsc",
     "tsc": "tsc",

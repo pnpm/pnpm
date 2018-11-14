@@ -1,4 +1,4 @@
-export type ResolveFunction<T> =  (value?: T | PromiseLike<T>) => void
+export type ResolveFunction<T> = (value?: T | PromiseLike<T>) => void
 
 export type RejectFunction = (reason?: Error) => void
 

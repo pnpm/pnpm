@@ -12,7 +12,7 @@
   },
   "scripts": {
     "start": "npm run tsc -- --watch",
-    "lint": "tslint -c tslint.json --project .",
+    "lint": "tslint -c tslint.json src/**/*.ts test/**/*.ts",
     "tsc": "rimraf lib && tsc --pretty",
     "test": "npm run lint && npm run tsc && rimraf .store && ts-node test --type-check && mos t",
     "md": "mos",

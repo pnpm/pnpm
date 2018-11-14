@@ -1,7 +1,6 @@
 import createResolver from '@pnpm/npm-resolver'
 import createFetcher from '@pnpm/tarball-fetcher'
-import createStore from '@pnpm/package-store'
-import * as packageStore from '@pnpm/package-store'
+import createStore, * as packageStore from '@pnpm/package-store'
 import path = require('path')
 import test = require('tape')
 import tempy = require('tempy')
@@ -14,7 +13,7 @@ test('public API', t => {
 test('store.importPackage()', async (t) => {
   const store = tempy.directory()
   const registry = 'https://registry.npmjs.org/'
-  const rawNpmConfig = {registry}
+  const rawNpmConfig = { registry }
   const resolver = createResolver({
     metaCache: new Map(),
     rawNpmConfig,
@@ -24,7 +23,7 @@ test('store.importPackage()', async (t) => {
     rawNpmConfig,
     registry,
   })
-  const storeController = await createStore(resolver, fetcher, {store})
+  const storeController = await createStore(resolver, fetcher, { store })
   const pkgId = 'registry.npmjs.org/is-positive/1.0.0'
   const fetchResult = await storeController.fetchPackage({
     force: false,
@@ -50,7 +49,7 @@ test('store.importPackage()', async (t) => {
 test('store.importPackage() by copying', async (t) => {
   const store = tempy.directory()
   const registry = 'https://registry.npmjs.org/'
-  const rawNpmConfig = {registry}
+  const rawNpmConfig = { registry }
   const resolver = createResolver({
     metaCache: new Map(),
     rawNpmConfig,

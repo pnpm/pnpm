@@ -11,7 +11,7 @@
     "lib/"
   ],
   "scripts": {
-    "test": "npm run tsc && tslint -c tslint.json -p . && ts-node test --type-check",
+    "test": "npm run tsc && tslint -c tslint.json src/**/*.ts test/**/*.ts && ts-node test --type-check",
     "tsc": "rimraf lib && tsc",
     "prepublishOnly": "npm run tsc"
   },

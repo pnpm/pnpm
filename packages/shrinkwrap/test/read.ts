@@ -151,8 +151,8 @@ test('writeCurrentOnly()', async t => {
   }
   await mkdirp(path.join(projectPath, 'node_modules'))
   await writeCurrentOnly(projectPath, wantedShrinkwrap)
-  t.equal(await readWanted(projectPath, {ignoreIncompatible: false}), null)
-  t.deepEqual(await readCurrent(projectPath, {ignoreIncompatible: false}), wantedShrinkwrap)
+  t.equal(await readWanted(projectPath, { ignoreIncompatible: false }), null)
+  t.deepEqual(await readCurrent(projectPath, { ignoreIncompatible: false }), wantedShrinkwrap)
   t.end()
 })
 
@@ -238,8 +238,8 @@ test('write()', async t => {
     }
   }
   await write(projectPath, wantedShrinkwrap, wantedShrinkwrap)
-  t.deepEqual(await readCurrent(projectPath, {ignoreIncompatible: false}), wantedShrinkwrap)
-  t.deepEqual(await readWanted(projectPath, {ignoreIncompatible: false}), wantedShrinkwrap)
+  t.deepEqual(await readCurrent(projectPath, { ignoreIncompatible: false }), wantedShrinkwrap)
+  t.deepEqual(await readWanted(projectPath, { ignoreIncompatible: false }), wantedShrinkwrap)
   t.end()
 })
 
@@ -258,12 +258,12 @@ test('write() when no specifiers but dependencies present', async t => {
     },
   }
   await write(projectPath, wantedShrinkwrap, wantedShrinkwrap)
-  t.deepEqual(await readCurrent(projectPath, {ignoreIncompatible: false}), wantedShrinkwrap)
-  t.deepEqual(await readWanted(projectPath, {ignoreIncompatible: false}), wantedShrinkwrap)
+  t.deepEqual(await readCurrent(projectPath, { ignoreIncompatible: false }), wantedShrinkwrap)
+  t.deepEqual(await readWanted(projectPath, { ignoreIncompatible: false }), wantedShrinkwrap)
   t.end()
 })
 
-test("write does not use yaml anchors/aliases", async t => {
+test('write does not use yaml anchors/aliases', async t => {
   const projectPath = tempy.directory()
   const wantedShrinkwrap = {
     shrinkwrapVersion: 3,

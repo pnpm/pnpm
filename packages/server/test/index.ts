@@ -11,7 +11,7 @@ import {
 import { PackageFilesResponse } from '@pnpm/store-controller-types'
 import got = require('got')
 import isPortReachable = require('is-port-reachable')
-import createResolver, {PackageMetaCache} from '@pnpm/npm-resolver'
+import createResolver, { PackageMetaCache } from '@pnpm/npm-resolver'
 import createStore from '@pnpm/package-store'
 import createFetcher from '@pnpm/tarball-fetcher'
 
@@ -31,7 +31,7 @@ async function createStoreController () {
     strictSsl: true,
     rawNpmConfig,
   })
-  return await createStore(resolve, fetchers, {
+  return createStore(resolve, fetchers, {
     networkConcurrency: 1,
     store: store,
     locks: undefined,
@@ -48,12 +48,12 @@ test('server', async t => {
     port,
     hostname,
   })
-  const storeCtrl = await connectStoreController({remotePrefix, concurrency: 100})
+  const storeCtrl = await connectStoreController({ remotePrefix, concurrency: 100 })
   const response = await storeCtrl.requestPackage(
-    {alias: 'is-positive', pref: '1.0.0'},
+    { alias: 'is-positive', pref: '1.0.0' },
     {
       downloadPriority: 0,
-      loggedPkg: {rawSpec: 'sfdf'},
+      loggedPkg: { rawSpec: 'sfdf' },
       prefix: process.cwd(),
       registry,
       verifyStoreIntegrity: false,
@@ -89,7 +89,7 @@ test('fetchPackage', async t => {
     port,
     hostname,
   })
-  const storeCtrl = await connectStoreController({remotePrefix, concurrency: 100})
+  const storeCtrl = await connectStoreController({ remotePrefix, concurrency: 100 })
   const response = await storeCtrl.fetchPackage({
     fetchRawManifest: true,
     force: false,
@@ -128,14 +128,14 @@ test('server errors should arrive to the client', async t => {
     port,
     hostname,
   })
-  const storeCtrl = await connectStoreController({remotePrefix, concurrency: 100})
+  const storeCtrl = await connectStoreController({ remotePrefix, concurrency: 100 })
   let caught = false
   try {
     await storeCtrl.requestPackage(
-      {alias: 'not-an-existing-package', pref: '1.0.0'},
+      { alias: 'not-an-existing-package', pref: '1.0.0' },
       {
         downloadPriority: 0,
-        loggedPkg: {rawSpec: 'sfdf'},
+        loggedPkg: { rawSpec: 'sfdf' },
         prefix: process.cwd(),
         registry,
         verifyStoreIntegrity: false,
@@ -167,7 +167,7 @@ test('server upload', async t => {
     hostname,
     port,
   })
-  const storeCtrl = await connectStoreController({remotePrefix, concurrency: 100})
+  const storeCtrl = await connectStoreController({ remotePrefix, concurrency: 100 })
 
   const fakeEngine = 'client-engine'
   const fakePkgId = 'test.example.com/fake-pkg/1.0.0'
@@ -198,7 +198,7 @@ test('disable server upload', async t => {
     ignoreUploadRequests: true,
     port,
   })
-  const storeCtrl = await connectStoreController({remotePrefix, concurrency: 100})
+  const storeCtrl = await connectStoreController({ remotePrefix, concurrency: 100 })
 
   const fakeEngine = 'client-engine'
   const fakePkgId = 'test.example.com/fake-pkg/1.0.0'
@@ -235,7 +235,7 @@ test('stop server with remote call', async t => {
 
   t.ok(await isPortReachable(port), 'server is running')
 
-  const response = await got(`${remotePrefix}/stop`, {method: 'POST'})
+  const response = await got(`${remotePrefix}/stop`, { method: 'POST' })
 
   t.equal(response.statusCode, 200, 'success returned by server stopping endpoint')
 
@@ -258,7 +258,7 @@ test('disallow stop server with remote call', async t => {
   t.ok(await isPortReachable(port), 'server is running')
 
   try {
-    const response = await got(`${remotePrefix}/stop`, {method: 'POST'})
+    const response = await got(`${remotePrefix}/stop`, { method: 'POST' })
     t.fail('request should have failed')
   } catch (err) {
     t.equal(err.statusCode, 403, 'server not stopped')
@@ -283,7 +283,7 @@ test('disallow store prune', async t => {
   t.ok(await isPortReachable(port), 'server is running')
 
   try {
-    const response = await got(`${remotePrefix}/prune`, {method: 'POST'})
+    const response = await got(`${remotePrefix}/prune`, { method: 'POST' })
     t.fail('request should have failed')
   } catch (err) {
     t.equal(err.statusCode, 403, 'store not pruned')

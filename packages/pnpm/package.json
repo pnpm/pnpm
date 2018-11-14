@@ -115,6 +115,7 @@
     "path-exists": "3.0.0",
     "pnpm": "link:",
     "pnpm-registry-mock": "2.4.0",
+    "pnpm-shrinkwrap": "8.1.3",
     "retry": "0.12.0",
     "rimraf": "2.6.2",
     "rimraf-then": "1.0.1",
@@ -174,7 +175,7 @@
     "?commit": "echo 'Run Git commit wizard'",
     "commit": "commit",
     "commitmsg": "commitlint -e",
-    "lint": "tslint -c tslint.json --project .",
+    "lint": "tslint -c tslint.json src/**/*.ts test/**/*.ts",
     "pnpm-registry-mock": "pnpm-registry-mock",
     "test:tap": "ts-node test --type-check",
     "pretest:e2e": "rimraf ../../../.tmp/ && rimraf node_modules/.bin/pnpm && pnpm-registry-mock prepare",
@@ -186,22 +187,5 @@
   },
   "publishconfig": {
     "tag": "next"
-  },
-  "greenkeeper": {
-    "ignore": [
-      "@pnpm/default-fetcher",
-      "@pnpm/default-resolver",
-      "@pnpm/logger",
-      "@pnpm/outdated",
-      "@pnpm/server",
-      "@pnpm/types",
-      "pnpm-default-reporter",
-      "pnpm-file-reporter",
-      "pnpm-install-checks",
-      "pnpm-registry-mock",
-      "remove-all-except-outer-links",
-      "pnpm-shrinkwrap",
-      "supi"
-    ]
   }
 }

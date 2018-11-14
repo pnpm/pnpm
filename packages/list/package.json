@@ -8,8 +8,8 @@
     "lib"
   ],
   "scripts": {
-    "fix": "tslint -c tslint.json --project . --fix",
-    "lint": "tslint -c tslint.json --project .",
+    "fix": "tslint -c tslint.json src/**/*.ts test/**/*.ts --fix",
+    "lint": "tslint -c tslint.json src/**/*.ts test/**/*.ts",
     "md": "tsc && mos",
     "prepareFixtures": "cd test && pnpm recursive install --no-link-workspace-packages && cd ..",
     "prepublishOnly": "tsc",

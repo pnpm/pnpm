@@ -8,7 +8,9 @@ import yaml = require('yaml-tag')
 
 const DEFAULT_OPTS = {
   defaultRegistry: 'https://registry.npmjs.org',
-  warn (msg: string) {},
+  warn (msg: string) {
+    // ignore
+  },
 }
 
 test('remove one redundant package', t => {
@@ -1110,7 +1112,7 @@ test("prune: don't remove package used by another importer", t => {
   }, {
     name: 'project-2',
     version: '1.0.0',
-    dependencies: {'is-negative': '^1.0.0'},
+    dependencies: { 'is-negative': '^1.0.0' },
   }, 'packages/package-2', DEFAULT_OPTS), {
     shrinkwrapVersion: 3,
     registry: 'https://registry.npmjs.org',

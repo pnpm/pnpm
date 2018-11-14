@@ -18,7 +18,7 @@ test('self-update stops the store server', async (t: tape.Test) => {
   const server = spawn(['server', 'start'])
 
   const serverJsonPath = path.resolve('..', 'store', '2', 'server', 'server.json')
-  const serverJson = await retryLoadJsonFile(serverJsonPath)
+  const serverJson = await retryLoadJsonFile<{ connectionOptions: object }>(serverJsonPath)
   t.ok(serverJson)
   t.ok(serverJson.connectionOptions)
 

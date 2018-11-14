@@ -10,7 +10,7 @@
   "scripts": {
     "prepublishOnly": "npm run tsc",
     "tsc": "rimraf lib && tsc",
-    "lint": "tslint -c tslint.json --project .",
+    "lint": "tslint -c tslint.json src/**/*.ts test/**/*.ts",
     "test-with-preview": "npm run lint && ts-node test && mos t",
     "pretest": "npm config rm fetch-retry-maxtimeout",
     "test": "npm run lint && npm run tsc && ts-node test && mos t"

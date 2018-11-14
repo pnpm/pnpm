@@ -1,5 +1,5 @@
 import test = require('tape')
-import {satisfiesPackageJson} from 'pnpm-shrinkwrap'
+import { satisfiesPackageJson } from 'pnpm-shrinkwrap'
 
 const DEFAULT_SHR_FIELDS = {
   shrinkwrapVersion: 3,
@@ -16,98 +16,98 @@ test('satisfiesPackageJson()', t => {
     ...DEFAULT_SHR_FIELDS,
     importers: {
       '.': {
-        dependencies: {foo: '1.0.0'},
-        specifiers: {foo: '^1.0.0'},
+        dependencies: { foo: '1.0.0' },
+        specifiers: { foo: '^1.0.0' },
       },
     },
   }, {
     ...DEFAULT_PKG_FIELDS,
-    dependencies: {foo: '^1.0.0'},
+    dependencies: { foo: '^1.0.0' },
   }, '.'))
   t.ok(satisfiesPackageJson({
     ...DEFAULT_SHR_FIELDS,
     importers: {
       '.': {
-        dependencies: {foo: '1.0.0'},
+        dependencies: { foo: '1.0.0' },
         devDependencies: {},
-        specifiers: {foo: '^1.0.0'},
+        specifiers: { foo: '^1.0.0' },
       },
     },
   }, {
     ...DEFAULT_PKG_FIELDS,
-    dependencies: {foo: '^1.0.0'}
+    dependencies: { foo: '^1.0.0' }
   }, '.'))
   t.ok(satisfiesPackageJson({
     ...DEFAULT_SHR_FIELDS,
     importers: {
       '.': {
-        devDependencies: {foo: '1.0.0'},
-        specifiers: {foo: '^1.0.0'},
+        devDependencies: { foo: '1.0.0' },
+        specifiers: { foo: '^1.0.0' },
       },
     },
   }, {
     ...DEFAULT_PKG_FIELDS,
-    devDependencies: {foo: '^1.0.0'},
+    devDependencies: { foo: '^1.0.0' },
   }, '.'))
   t.ok(satisfiesPackageJson({
     ...DEFAULT_SHR_FIELDS,
     importers: {
       '.': {
-        optionalDependencies: {foo: '1.0.0'},
-        specifiers: {foo: '^1.0.0'},
+        optionalDependencies: { foo: '1.0.0' },
+        specifiers: { foo: '^1.0.0' },
       },
     },
   }, {
     ...DEFAULT_PKG_FIELDS,
-    optionalDependencies: {foo: '^1.0.0'},
+    optionalDependencies: { foo: '^1.0.0' },
   }, '.'))
   t.notOk(satisfiesPackageJson({
     ...DEFAULT_SHR_FIELDS,
     importers: {
       '.': {
-        dependencies: {foo: '1.0.0'},
-        specifiers: {foo: '^1.0.0'},
+        dependencies: { foo: '1.0.0' },
+        specifiers: { foo: '^1.0.0' },
       },
     },
   }, {
     ...DEFAULT_PKG_FIELDS,
-    optionalDependencies: {foo: '^1.0.0'},
+    optionalDependencies: { foo: '^1.0.0' },
   }, '.'), 'dep type differs')
   t.notOk(satisfiesPackageJson({
     ...DEFAULT_SHR_FIELDS,
     importers: {
       '.': {
-        dependencies: {foo: '1.0.0'},
-        specifiers: {foo: '^1.0.0'},
+        dependencies: { foo: '1.0.0' },
+        specifiers: { foo: '^1.0.0' },
       },
     },
   }, {
     ...DEFAULT_PKG_FIELDS,
-    dependencies: {foo: '^1.1.0'},
-  }, '.'), 'spec does not match' )
+    dependencies: { foo: '^1.1.0' },
+  }, '.'), 'spec does not match')
   t.notOk(satisfiesPackageJson({
     ...DEFAULT_SHR_FIELDS,
     importers: {
       '.': {
-        dependencies: {foo: '1.0.0'},
-        specifiers: {foo: '^1.0.0'},
+        dependencies: { foo: '1.0.0' },
+        specifiers: { foo: '^1.0.0' },
       },
     },
   }, {
     ...DEFAULT_PKG_FIELDS,
-    dependencies: {foo: '^1.0.0', bar: '2.0.0'},
+    dependencies: { foo: '^1.0.0', bar: '2.0.0' },
   }, '.'), 'dep spec missing')
   t.notOk(satisfiesPackageJson({
     ...DEFAULT_SHR_FIELDS,
     importers: {
       '.': {
-        dependencies: {foo: '1.0.0'},
-        specifiers: {foo: '^1.0.0', bar: '2.0.0'},
+        dependencies: { foo: '1.0.0' },
+        specifiers: { foo: '^1.0.0', bar: '2.0.0' },
       },
     },
   }, {
     ...DEFAULT_PKG_FIELDS,
-    dependencies: {foo: '^1.0.0', bar: '2.0.0'},
+    dependencies: { foo: '^1.0.0', bar: '2.0.0' },
   }, '.'))
 
   {
@@ -194,26 +194,26 @@ test('satisfiesPackageJson()', t => {
     ...DEFAULT_SHR_FIELDS,
     importers: {
       '.': {
-        dependencies: {foo: '1.0.0', linked: 'link:../linked'},
-        specifiers: {foo: '^1.0.0'},
+        dependencies: { foo: '1.0.0', linked: 'link:../linked' },
+        specifiers: { foo: '^1.0.0' },
       },
     },
   }, {
     ...DEFAULT_PKG_FIELDS,
-    dependencies: {foo: '^1.0.0'},
+    dependencies: { foo: '^1.0.0' },
   }, '.'), 'linked packages that are not in package.json are ignored')
 
   t.notOk(satisfiesPackageJson({
     ...DEFAULT_SHR_FIELDS,
     importers: {
       'packages/foo': {
-        dependencies: {foo: '1.0.0'},
-        specifiers: {foo: '^1.0.0'},
+        dependencies: { foo: '1.0.0' },
+        specifiers: { foo: '^1.0.0' },
       },
     },
   }, {
     ...DEFAULT_PKG_FIELDS,
-    dependencies: {foo: '^1.0.0'},
+    dependencies: { foo: '^1.0.0' },
   }, '.'))
 
   t.ok(satisfiesPackageJson({

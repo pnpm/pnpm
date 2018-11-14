@@ -11,7 +11,7 @@
     "lib"
   ],
   "scripts": {
-    "test": "npm run tsc && tslint --config tslint.json --project . && ts-node test --type-check",
+    "test": "npm run tsc && tslint --config tslint.json src/**/*.ts test/**/*.ts && ts-node test --type-check",
     "prepublishOnly": "tsc",
     "tsc": "tsc",
     "md": "mos"

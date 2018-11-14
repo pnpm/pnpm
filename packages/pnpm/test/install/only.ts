@@ -38,10 +38,10 @@ test('production install (with production NODE_ENV)', async (t: tape.Test) => {
 test('install dev dependencies only', async (t: tape.Test) => {
   const project = prepare(t, {
     dependencies: {
-      'is-positive': "^1.0.0",
+      'is-positive': '^1.0.0',
     },
     devDependencies: {
-      'is-negative': "^1.0.0",
+      'is-negative': '^1.0.0',
     },
   })
 

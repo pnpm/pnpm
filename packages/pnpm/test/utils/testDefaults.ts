@@ -1,7 +1,7 @@
-import {PnpmOptions} from 'supi'
+import { PnpmOptions } from 'supi'
 import path = require('path')
 
-export default function testDefaults (opts?: PnpmOptions): PnpmOptions  & {store: string} {
+export default function testDefaults (opts?: PnpmOptions): PnpmOptions & { store: string } {
   return Object.assign({
     store: path.resolve('..', '.store'),
     registry: 'http://localhost:4873/',

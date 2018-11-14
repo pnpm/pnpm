@@ -1,13 +1,13 @@
 import loadJsonFile from 'load-json-file'
 import retry = require('retry')
 
-export default (filePath: string): Promise<any> => {
+export default <T>(filePath: string): Promise<T> => {
   const operation = retry.operation()
 
   return new Promise((resolve, reject) => {
     operation.attempt(async (currentAttempt) => {
       try {
-        resolve(await loadJsonFile(filePath))
+        resolve(await loadJsonFile<T>(filePath))
       } catch (err) {
         if (operation.retry(err)) {
           return

@@ -1,4 +1,4 @@
-import {pkgSnapshotToResolution} from 'pnpm-shrinkwrap'
+import { pkgSnapshotToResolution } from 'pnpm-shrinkwrap'
 import test = require('tape')
 
 test('pkgSnapshotToResolution()', (t) => {

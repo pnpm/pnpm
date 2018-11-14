@@ -1,4 +1,4 @@
-import outdated, {forPackages as outdatedForPackages} from '@pnpm/outdated'
+import outdated, { forPackages as outdatedForPackages } from '@pnpm/outdated'
 import path = require('path')
 import test = require('tape')
 

@@ -1,10 +1,11 @@
 ///<reference path="../typings/index.d.ts" />
-import {streamParser} from '@pnpm/logger'
+import { streamParser } from '@pnpm/logger'
 import test = require('tape')
 import createPackageRequester, { PackageResponse, PackageFilesResponse } from '@pnpm/package-requester'
 import createResolver from '@pnpm/npm-resolver'
+import { ResolveFunction } from '@pnpm/resolver-base'
 import createFetcher from '@pnpm/tarball-fetcher'
-import {PackageJson} from '@pnpm/types'
+import { PackageJson } from '@pnpm/types'
 import localResolver from '@pnpm/local-resolver'
 import fs = require('mz/fs')
 import path = require('path')
@@ -45,7 +46,7 @@ test('request package', async t => {
   })
   t.equal(typeof requestPackage, 'function')
 
-  const pkgResponse = await requestPackage({alias: 'is-positive', pref: '1.0.0'}, {
+  const pkgResponse = await requestPackage({ alias: 'is-positive', pref: '1.0.0' }, {
     downloadPriority: 0,
     loggedPkg: {
       rawSpec: 'is-positive@1.0.0',
@@ -97,7 +98,7 @@ test('request package but skip fetching', async t => {
   })
   t.equal(typeof requestPackage, 'function')
 
-  const pkgResponse = await requestPackage({alias: 'is-positive', pref: '1.0.0'}, {
+  const pkgResponse = await requestPackage({ alias: 'is-positive', pref: '1.0.0' }, {
     skipFetch: true,
     downloadPriority: 0,
     loggedPkg: {
@@ -142,7 +143,7 @@ test('request package but skip fetching, when resolution is already available', 
   })
   t.equal(typeof requestPackage, 'function')
 
-  const pkgResponse = await requestPackage({alias: 'is-positive', pref: '1.0.0'}, {
+  const pkgResponse = await requestPackage({ alias: 'is-positive', pref: '1.0.0' }, {
     currentPkgId: 'registry.npmjs.org/is-positive/1.0.0',
     update: false,
     skipFetch: true,
@@ -196,7 +197,7 @@ test('refetch local tarball if its integrity has changed', async t => {
   const tarballRelativePath = path.relative(prefix, tarballPath)
   await ncp(path.join(__dirname, 'pnpm-package-requester-0.8.1.tgz'), tarballPath)
   const tarball = `file:${tarballRelativePath}`
-  const wantedPackage = {pref: tarball}
+  const wantedPackage = { pref: tarball }
   const storePath = path.join(__dirname, '..', '.store')
   const pkgId = `file:${normalize(tarballRelativePath)}`
   const requestPackageOpts = {
@@ -215,7 +216,7 @@ test('refetch local tarball if its integrity has changed', async t => {
   const storeIndex = {}
 
   {
-    const requestPackage = createPackageRequester(localResolver as any, fetch, {
+    const requestPackage = createPackageRequester(localResolver as ResolveFunction, fetch, {
       storePath,
       storeIndex,
     })
@@ -242,7 +243,7 @@ test('refetch local tarball if its integrity has changed', async t => {
   await delay(50)
 
   {
-    const requestPackage = createPackageRequester(localResolver as any, fetch, {
+    const requestPackage = createPackageRequester(localResolver as ResolveFunction, fetch, {
       storePath,
       storeIndex,
     })
@@ -266,7 +267,7 @@ test('refetch local tarball if its integrity has changed', async t => {
   }
 
   {
-    const requestPackage = createPackageRequester(localResolver as any, fetch, {
+    const requestPackage = createPackageRequester(localResolver as ResolveFunction, fetch, {
       storePath,
       storeIndex,
     })
@@ -297,7 +298,7 @@ test('refetch local tarball if its integrity has changed. The requester does not
   const tarballPath = path.join(prefix, 'tarball.tgz')
   await ncp(path.join(__dirname, 'pnpm-package-requester-0.8.1.tgz'), tarballPath)
   const tarball = `file:${tarballPath}`
-  const wantedPackage = {pref: tarball}
+  const wantedPackage = { pref: tarball }
   const storePath = path.join(__dirname, '..', '.store')
   const requestPackageOpts = {
     downloadPriority: 0,
@@ -313,7 +314,7 @@ test('refetch local tarball if its integrity has changed. The requester does not
   const storeIndex = {}
 
   {
-    const requestPackage = createPackageRequester(localResolver as any, fetch, {
+    const requestPackage = createPackageRequester(localResolver as ResolveFunction, fetch, {
       storePath,
       storeIndex,
     })
@@ -334,7 +335,7 @@ test('refetch local tarball if its integrity has changed. The requester does not
   await delay(50)
 
   {
-    const requestPackage = createPackageRequester(localResolver as any, fetch, {
+    const requestPackage = createPackageRequester(localResolver as ResolveFunction, fetch, {
       storePath,
       storeIndex,
     })
@@ -352,7 +353,7 @@ test('refetch local tarball if its integrity has changed. The requester does not
   }
 
   {
-    const requestPackage = createPackageRequester(localResolver as any, fetch, {
+    const requestPackage = createPackageRequester(localResolver as ResolveFunction, fetch, {
       storePath,
       storeIndex,
     })
@@ -571,7 +572,7 @@ test('always return a package manifest in the response', async t => {
   const prefix = tempy.directory()
 
   {
-    const pkgResponse = await requestPackage({alias: 'is-positive', pref: '1.0.0'}, {
+    const pkgResponse = await requestPackage({ alias: 'is-positive', pref: '1.0.0' }, {
       downloadPriority: 0,
       loggedPkg: {
         rawSpec: 'is-positive@1.0.0',
@@ -587,7 +588,7 @@ test('always return a package manifest in the response', async t => {
   }
 
   {
-    const pkgResponse = await requestPackage({alias: 'is-positive', pref: '1.0.0'}, {
+    const pkgResponse = await requestPackage({ alias: 'is-positive', pref: '1.0.0' }, {
       currentPkgId: 'registry.npmjs.org/is-positive/1.0.0',
       downloadPriority: 0,
       loggedPkg: {

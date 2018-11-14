@@ -160,8 +160,8 @@ test('registries of scoped packages are read', async (t) => {
 
   t.deepEqual(opts.registries, {
     'default': 'https://registry.npmjs.org/',
-     '@foo': 'https://foo.com',
-     '@bar': 'https://bar.com'
+    '@foo': 'https://foo.com',
+    '@bar': 'https://bar.com'
   })
 
   t.end()

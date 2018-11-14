@@ -1,4 +1,4 @@
-import {nameVerFromPkgSnapshot} from 'pnpm-shrinkwrap'
+import { nameVerFromPkgSnapshot } from 'pnpm-shrinkwrap'
 import test = require('tape')
 
 test('nameVerFromPkgSnapshot()', (t) => {

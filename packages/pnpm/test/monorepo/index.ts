@@ -3,6 +3,7 @@ import fs = require('mz/fs')
 import tape = require('tape')
 import promisifyTape from 'tape-promise'
 import path = require('path')
+import { Shrinkwrap } from 'pnpm-shrinkwrap'
 import loadJsonFile from 'load-json-file'
 import loadYamlFile = require('load-yaml-file')
 import writeYamlFile = require('write-yaml-file')
@@ -33,7 +34,7 @@ test('linking a package inside a monorepo', async (t: tape.Test) => {
     },
   ])
 
-  await writeYamlFile('pnpm-workspace.yaml', {packages: ['**', '!store/**']})
+  await writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
 
   process.chdir('project-1')
 
@@ -45,9 +46,9 @@ test('linking a package inside a monorepo', async (t: tape.Test) => {
 
   const pkg = await import(path.resolve('package.json'))
 
-  t.deepEqual(pkg && pkg.dependencies, {'project-2': '^2.0.0'}, 'spec of linked package added to dependencies')
-  t.deepEqual(pkg && pkg.devDependencies, {'project-3': '^3.0.0'}, 'spec of linked package added to devDependencies')
-  t.deepEqual(pkg && pkg.optionalDependencies, {'project-4': '^4.0.0'}, 'spec of linked package added to optionalDependencies')
+  t.deepEqual(pkg && pkg.dependencies, { 'project-2': '^2.0.0' }, 'spec of linked package added to dependencies')
+  t.deepEqual(pkg && pkg.devDependencies, { 'project-3': '^3.0.0' }, 'spec of linked package added to devDependencies')
+  t.deepEqual(pkg && pkg.optionalDependencies, { 'project-4': '^4.0.0' }, 'spec of linked package added to optionalDependencies')
 
   await projects['project-1'].has('project-2')
   await projects['project-1'].has('project-3')
@@ -75,7 +76,7 @@ test('linking a package inside a monorepo with --link-workspace-packages when in
   ])
 
   await fs.writeFile('.npmrc', 'link-workspace-packages = true', 'utf8')
-  await writeYamlFile('pnpm-workspace.yaml', {packages: ['**', '!store/**']})
+  await writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
 
   process.chdir('project-1')
 
@@ -87,9 +88,9 @@ test('linking a package inside a monorepo with --link-workspace-packages when in
 
   const pkg = await import(path.resolve('package.json'))
 
-  t.deepEqual(pkg && pkg.dependencies, {'project-2': '^2.0.0'}, 'spec of linked package added to dependencies')
-  t.deepEqual(pkg && pkg.devDependencies, {'project-3': '^3.0.0'}, 'spec of linked package added to devDependencies')
-  t.deepEqual(pkg && pkg.optionalDependencies, {'project-4': '^4.0.0'}, 'spec of linked package added to optionalDependencies')
+  t.deepEqual(pkg && pkg.dependencies, { 'project-2': '^2.0.0' }, 'spec of linked package added to dependencies')
+  t.deepEqual(pkg && pkg.devDependencies, { 'project-3': '^3.0.0' }, 'spec of linked package added to devDependencies')
+  t.deepEqual(pkg && pkg.optionalDependencies, { 'project-4': '^4.0.0' }, 'spec of linked package added to optionalDependencies')
 
   await projects['project-1'].has('project-2')
   await projects['project-1'].has('project-3')
@@ -136,7 +137,7 @@ test('linking a package inside a monorepo with --link-workspace-packages', async
   ])
 
   await fs.writeFile('.npmrc', 'link-workspace-packages = true', 'utf8')
-  await writeYamlFile('pnpm-workspace.yaml', {packages: ['**', '!store/**']})
+  await writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
 
   process.chdir('project-1')
 
@@ -348,9 +349,9 @@ test('shared-workspace-shrinkwrap: installation with --link-workspace-packages l
   await execPnpm('recursive', 'install')
 
   {
-    const shr = await loadYamlFile<any>('shrinkwrap.yaml') // tslint:disable:no-any
-    t.equal(shr.importers.project.dependencies['is-positive'], '2.0.0')
-    t.equal(shr.importers.project.dependencies['negative'], '/is-negative/1.0.0')
+    const shr = await loadYamlFile<Shrinkwrap>('shrinkwrap.yaml') // tslint:disable:no-any
+    t.equal(shr!.importers!.project!.dependencies!['is-positive'], '2.0.0')
+    t.equal(shr!.importers!.project!.dependencies!['negative'], '/is-negative/1.0.0')
   }
 
   await projects['is-positive'].writePackageJson({
@@ -490,7 +491,7 @@ test('local packages should be preferred when running "pnpm link" inside a works
 })
 
 // covers https://github.com/pnpm/pnpm/issues/1437
-test("shared-workspace-shrinkwrap: create shared shrinkwrap format when installation is inside workspace", async (t) => {
+test('shared-workspace-shrinkwrap: create shared shrinkwrap format when installation is inside workspace', async (t) => {
   const projects = prepare(t, {
     dependencies: {
       'is-positive': '1.0.0',
