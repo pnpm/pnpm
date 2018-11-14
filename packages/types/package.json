@@ -27,6 +27,7 @@
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/types#readme",
   "devDependencies": {
+    "@pnpm/tslint-config": "0.0.0",
     "mos": "2.0.0-alpha.3",
     "mos-plugin-readme": "1.0.4",
     "rimraf": "2.6.2",

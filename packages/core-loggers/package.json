@@ -20,10 +20,9 @@
   },
   "devDependencies": {
     "@pnpm/logger": "2.1.0",
+    "@pnpm/tslint-config": "0.0.0",
     "rimraf": "2.6.2",
     "tslint": "5.11.0",
-    "tslint-config-standard": "8.0.1",
-    "tslint-eslint-rules": "5.4.0",
     "typescript": "3.1.6"
   },
   "directories": {

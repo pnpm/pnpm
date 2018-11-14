@@ -1,4 +1,4 @@
-import {PackageManifest} from './package'
+import { PackageManifest } from './package'
 
 export interface LogBase {
   level: 'debug' | 'info' | 'warn' | 'error',

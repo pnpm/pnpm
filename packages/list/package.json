@@ -51,6 +51,7 @@
   },
   "devDependencies": {
     "@pnpm/logger": "2.1.0",
+    "@pnpm/tslint-config": "0.0.0",
     "@types/common-tags": "1.4.0",
     "@types/tape": "4.2.32",
     "common-tags": "1.8.0",
@@ -60,8 +61,6 @@
     "tape": "4.9.1",
     "ts-node": "7.0.1",
     "tslint": "5.11.0",
-    "tslint-config-standard": "8.0.1",
-    "tslint-eslint-rules": "5.4.0",
     "typescript": "3.1.6"
   },
   "mos": {

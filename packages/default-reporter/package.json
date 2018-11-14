@@ -62,6 +62,7 @@
   },
   "devDependencies": {
     "@pnpm/logger": "2.1.0",
+    "@pnpm/tslint-config": "0.0.0",
     "@types/tape": "4.2.32",
     "delay": "4.1.0",
     "ghooks": "2.0.4",
@@ -74,8 +75,6 @@
     "tape": "4.9.1",
     "ts-node": "6.2.0",
     "tslint": "5.11.0",
-    "tslint-config-standard": "8.0.1",
-    "tslint-eslint-rules": "5.4.0",
     "typescript": "3.1.6"
   }
 }

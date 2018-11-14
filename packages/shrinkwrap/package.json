@@ -36,6 +36,7 @@
   },
   "devDependencies": {
     "@pnpm/logger": "2.1.0",
+    "@pnpm/tslint-config": "0.0.0",
     "@types/tape": "4.2.32",
     "@types/tempy": "0.2.0",
     "pnpm-shrinkwrap": "link:",
@@ -44,8 +45,6 @@
     "tempy": "0.2.1",
     "ts-node": "6.2.0",
     "tslint": "5.11.0",
-    "tslint-config-standard": "8.0.1",
-    "tslint-eslint-rules": "5.4.0",
     "typescript": "3.1.6",
     "write-yaml-file": "2.0.0",
     "yaml-tag": "1.1.0"

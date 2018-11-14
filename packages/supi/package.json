@@ -91,6 +91,7 @@
     "@pnpm/package-store": "1.0.0",
     "@pnpm/prepare": "0.0.0",
     "@pnpm/store-path": "1.0.3",
+    "@pnpm/tslint-config": "0.0.0",
     "@types/is-windows": "0.2.0",
     "@types/mkdirp": "0.5.2",
     "@types/sinon": "5.0.5",
@@ -119,8 +120,6 @@
     "tape-promise": "4.0.0",
     "ts-node": "6.2.0",
     "tslint": "5.11.0",
-    "tslint-config-standard": "8.0.1",
-    "tslint-eslint-rules": "5.4.0",
     "typescript": "3.1.6",
     "write-json-file": "3.0.2",
     "write-yaml-file": "2.0.0"
@@ -172,16 +171,5 @@
     "test": "npm run lint && npm run lint-test && npm run tsc && npm run test:e2e",
     "tsc": "rimraf lib && tsc",
     "prepublishOnly": "npm run tsc"
-  },
-  "greenkeeper": {
-    "ignore": [
-      "pnpm-default-reporter",
-      "pnpm-file-reporter",
-      "pnpm-install-checks",
-      "pnpm-logger",
-      "pnpm-registry-mock",
-      "remove-all-except-outer-links",
-      "pnpm-shrinkwrap"
-    ]
   }
 }
