@@ -8,6 +8,7 @@ import loadYamlFile = require('load-yaml-file')
 import writeYamlFile = require('write-yaml-file')
 import { execPnpm } from '../utils'
 import symlink from 'symlink-dir'
+import rimraf = require('rimraf-then')
 
 const test = promisifyTape(tape)
 const testOnly = promisifyTape(tape.only)
@@ -572,4 +573,41 @@ test("shared-workspace-shrinkwrap: don't install dependencies in projects that a
     },
     shrinkwrapVersion: 4,
   }, 'correct shrinkwrap.yaml created')
+})
+
+test('shared-workspace-shrinkwrap: entries of removed projects should be removed from shared shrinkwrap', async (t) => {
+  const projects = preparePackages(t, [
+    {
+      name: 'package-1',
+      version: '1.0.0',
+      dependencies: {
+        'is-positive': '1.0.0',
+      },
+    },
+    {
+      name:  'package-2',
+      version: '1.0.0',
+      dependencies: {
+        'is-negative': '1.0.0',
+      },
+    },
+  ])
+
+  await writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
+
+  await execPnpm('install', '--store', 'store', '--shared-workspace-shrinkwrap', '--link-workspace-packages')
+
+  {
+    const shr = await loadYamlFile<any>('shrinkwrap.yaml')
+    t.deepEqual(Object.keys(shr.importers), ['package-1', 'package-2'])
+  }
+
+  await rimraf('package-2')
+
+  await execPnpm('install', '--store', 'store', '--shared-workspace-shrinkwrap', '--link-workspace-packages')
+
+  {
+    const shr = await loadYamlFile<any>('shrinkwrap.yaml')
+    t.deepEqual(Object.keys(shr.importers), ['package-1'])
+  }
 })

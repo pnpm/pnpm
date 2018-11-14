@@ -34,6 +34,7 @@ export interface BaseInstallOptions {
     name: string,
     version: string,
   },
+  pruneShrinkwrapImporters?: boolean,
   hooks?: {
     readPackage?: ReadPackageHook,
     afterAllResolved?: (shr: Shrinkwrap) => Shrinkwrap,
@@ -90,6 +91,7 @@ export type StrictInstallOptions = BaseInstallOptions & {
     name: string,
     version: string,
   },
+  pruneShrinkwrapImporters: boolean,
   hooks: {
     readPackage?: ReadPackageHook,
   },
@@ -153,6 +155,7 @@ const defaults = async (opts: InstallOptions) => {
     ownLifecycleHooksStdio: 'inherit',
     packageManager,
     preferFrozenShrinkwrap: true,
+    pruneShrinkwrapImporters: false,
     pruneStore: false,
     rawNpmConfig: {},
     registries: DEFAULT_REGISTRIES,

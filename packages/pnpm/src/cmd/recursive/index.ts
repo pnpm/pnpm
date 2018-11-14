@@ -183,6 +183,7 @@ export async function recursive (
   const installOpts = Object.assign(opts, {
     localPackages,
     ownLifecycleHooksStdio: 'pipe',
+    pruneShrinkwrapImporters: pkgs.length === allPkgs.length,
     store: store.path,
     storeController,
   }) as InstallOptions

@@ -114,6 +114,7 @@ export async function install (maybeOpts: InstallOptions & {
       !opts.update && (
         opts.frozenShrinkwrap ||
         opts.preferFrozenShrinkwrap &&
+        (!opts.pruneShrinkwrapImporters || Object.keys(ctx.wantedShrinkwrap.importers).length === ctx.importers.length) &&
         ctx.existsWantedShrinkwrap &&
         (
           ctx.wantedShrinkwrap.shrinkwrapVersion === SHRINKWRAP_VERSION ||
@@ -496,6 +497,14 @@ async function installInContext (
   for (const importer of importers) {
     if (!ctx.wantedShrinkwrap.importers[importer.id]) {
       ctx.wantedShrinkwrap.importers[importer.id] = { specifiers: {} }
+    }
+  }
+  if (opts.pruneShrinkwrapImporters) {
+    const importerIds = new Set(importers.map((importer) => importer.id))
+    for (const wantedImporter of Object.keys(ctx.wantedShrinkwrap.importers)) {
+      if (!importerIds.has(wantedImporter)) {
+        delete ctx.wantedShrinkwrap.importers[wantedImporter]
+      }
     }
   }
   stageLogger.debug('resolution_started')
