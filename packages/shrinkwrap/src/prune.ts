@@ -72,7 +72,12 @@ export function prune (
   })
   if (importer.dependencies) {
     for (const dep of R.keys(importer.dependencies)) {
-      if (!shrDependencies[dep] && importer.dependencies[dep].startsWith('link:')) {
+      if (
+        !shrDependencies[dep] && importer.dependencies[dep].startsWith('link:') &&
+        // If the linked dependency was removed from package.json
+        // then it is removed from shrinkwrap.yaml as well
+        !(shrSpecs[dep] && !allDeps[dep])
+      ) {
         shrDependencies[dep] = importer.dependencies[dep]
       }
     }

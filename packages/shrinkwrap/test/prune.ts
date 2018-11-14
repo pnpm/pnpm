@@ -71,6 +71,38 @@ test('remove one redundant package', t => {
   t.end()
 })
 
+test('remove redundant linked package', t => {
+  t.deepEqual(prune({
+    shrinkwrapVersion: 3,
+    registry: 'https://registry.npmjs.org',
+    importers: {
+      '.': {
+        dependencies: {
+          'is-positive': 'link:../is-positive'
+        },
+        specifiers: {
+          'is-positive': '^1.0.0'
+        },
+      },
+    },
+    packages: {},
+  }, {
+    name: 'foo',
+    version: '1.0.0',
+    dependencies: {}
+  }, '.', DEFAULT_OPTS), {
+    shrinkwrapVersion: 3,
+    registry: 'https://registry.npmjs.org',
+    importers: {
+      '.': {
+        specifiers: {},
+      },
+    },
+  })
+
+  t.end()
+})
+
 test('keep all', t => {
   t.deepEqual(prune({
     shrinkwrapVersion: 3,

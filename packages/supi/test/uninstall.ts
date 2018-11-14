@@ -190,6 +190,7 @@ test('uninstalling a dependency from package that uses shared shrinkwrap', async
       version: '1.0.0',
       dependencies: {
         'is-positive': '1.0.0',
+        'project-2': '1.0.0',
       },
     },
     {
@@ -210,12 +211,28 @@ test('uninstalling a dependency from package that uses shared shrinkwrap', async
     },
   ]
 
-  await install(await testDefaults({ importers }))
+  await install(await testDefaults({
+    importers,
+    localPackages: {
+      'project-2': {
+        '1.0.0': {
+          directory: path.resolve('project-2'),
+          package: {
+            name: 'project-2',
+            version: '1.0.0',
+            dependencies: {
+              'is-negative': '1.0.0',
+            },
+          },
+        },
+      },
+    },
+  }))
 
   await projects['project-1'].has('is-positive')
   await projects['project-2'].has('is-negative')
 
-  await uninstall(['is-positive'], await testDefaults({
+  await uninstall(['is-positive', 'project-2'], await testDefaults({
     prefix: importers[0].prefix,
     shrinkwrapDirectory: process.cwd(),
   }))
