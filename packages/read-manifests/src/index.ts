@@ -1,13 +1,12 @@
 import { read as readModulesYaml } from '@pnpm/modules-yaml'
 import { PackageJson } from '@pnpm/types'
 import {
-  DEFAULT_REGISTRIES,
   normalizeRegistries,
   realNodeModulesDir,
   safeReadPackageFromDir as safeReadPkgFromDir,
 } from '@pnpm/utils'
 import path = require('path')
-import { getImporterId, Shrinkwrap } from 'pnpm-shrinkwrap'
+import { getImporterId } from 'pnpm-shrinkwrap'
 
 export interface ImporterOptions {
   bin?: string,
