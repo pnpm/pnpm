@@ -83,7 +83,7 @@ function getHelpText (command: string) {
           -- <package selector>..., --filter <package selector>
             Run the command only on packages that satisfy at least one of the selectors.
 
-            Example: pnpm recursive install -- foo... ...@bar/* qar ./components
+            Example: pnpm install -- foo... ...@bar/* qar ./components
 
             These selectors may be used:
 
