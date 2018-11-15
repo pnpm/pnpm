@@ -18,6 +18,8 @@ module.exports = {
     "no-require-imports": false,
     "no-reference": false,
     "space-before-function-paren": [true, "always"],
+    "object-literal-sort-keys": [true, "ignore-case"],
+    "ordered-imports": true,
     "trailing-comma": [true, "always"],
     "interface-name": [true, "never-prefix"],
     "one-line": [true,

@@ -43,8 +43,8 @@ import R = require('ramda')
 import semver = require('semver')
 import {
   LAYOUT_VERSION,
-  SHRINKWRAP_VERSION,
   SHRINKWRAP_NEXT_VERSION,
+  SHRINKWRAP_VERSION,
 } from '../constants'
 import { PnpmError } from '../errorTypes'
 import getContext, { PnpmContext } from '../getContext'
@@ -215,8 +215,8 @@ export async function install (maybeOpts: InstallOptions & {
           storePath: ctx.storePath,
           virtualStoreDir: ctx.virtualStoreDir,
         }),
-        usesExternalShrinkwrap: ctx.shrinkwrapDirectory !== importer.prefix,
         newPkgRawSpecs: [],
+        usesExternalShrinkwrap: ctx.shrinkwrapDirectory !== importer.prefix,
         wantedDeps,
       })
     }
@@ -423,10 +423,10 @@ export async function installPkgs (
       })
       importersToInstall.push({
         ...importer,
-        usesExternalShrinkwrap: ctx.shrinkwrapDirectory !== importer.prefix,
         linkedPackages: [],
         newPkgRawSpecs: wantedDeps.map((wantedDependency) => wantedDependency.raw),
         nonLinkedPackages: wantedDeps,
+        usesExternalShrinkwrap: ctx.shrinkwrapDirectory !== importer.prefix,
         wantedDeps,
       })
     }
@@ -527,10 +527,10 @@ async function installInContext (
       }
       if (
         modulesIsUpToDate({
-          defaultRegistry: ctx.registries.default,
           currentShrinkwrap: ctx.currentShrinkwrap,
-          wantedShrinkwrap: ctx.wantedShrinkwrap,
+          defaultRegistry: ctx.registries.default,
           skippedPkgIds: Array.from(ctx.skipped),
+          wantedShrinkwrap: ctx.wantedShrinkwrap,
         })
       ) {
         return opts.repeatInstallDepth
@@ -624,7 +624,6 @@ async function installInContext (
     return {
       bin: importer.bin,
       directNodeIdsByAlias: resolvedImporter.directNodeIdsByAlias,
-      usesExternalShrinkwrap: importer.usesExternalShrinkwrap,
       hoistedAliases: importer.hoistedAliases,
       id: importer.id,
       linkedDependencies: resolvedImporter.linkedDependencies,
@@ -633,6 +632,7 @@ async function installInContext (
       prefix: importer.prefix,
       shamefullyFlatten: importer.shamefullyFlatten,
       topParents,
+      usesExternalShrinkwrap: importer.usesExternalShrinkwrap,
     }
   }))
 

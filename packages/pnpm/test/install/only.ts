@@ -1,8 +1,8 @@
 import prepare from '@pnpm/prepare'
 import { PackageJson } from '@pnpm/types'
+import { sync as loadJsonFileSync } from 'load-json-file'
 import path = require('path')
 import tape = require('tape')
-import { sync as loadJsonFileSync } from 'load-json-file'
 import promisifyTape from 'tape-promise'
 import { execPnpm } from '../utils'
 

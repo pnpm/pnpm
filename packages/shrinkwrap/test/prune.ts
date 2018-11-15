@@ -1,9 +1,9 @@
 ///<reference path="../typings/local.d.ts"/>
-import test = require('tape')
 import {
   prune,
   pruneSharedShrinkwrap,
 } from 'pnpm-shrinkwrap'
+import test = require('tape')
 import yaml = require('yaml-tag')
 
 const DEFAULT_OPTS = {
@@ -15,8 +15,6 @@ const DEFAULT_OPTS = {
 
 test('remove one redundant package', t => {
   t.deepEqual(prune({
-    shrinkwrapVersion: 3,
-    registry: 'https://registry.npmjs.org',
     importers: {
       '.': {
         dependencies: {
@@ -38,18 +36,19 @@ test('remove one redundant package', t => {
         dev: false,
         resolution: {
           integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g='
-        }
-      }
-    }
+        },
+      },
+    },
+    registry: 'https://registry.npmjs.org',
+    shrinkwrapVersion: 3,
   }, {
     name: 'foo',
     version: '1.0.0',
+
     dependencies: {
       'is-positive': '^1.0.0'
     }
   }, '.', DEFAULT_OPTS), {
-    shrinkwrapVersion: 3,
-    registry: 'https://registry.npmjs.org',
     importers: {
       '.': {
         dependencies: {
@@ -65,9 +64,11 @@ test('remove one redundant package', t => {
         dev: false,
         resolution: {
           integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g='
-        }
-      }
-    }
+        },
+      },
+    },
+    registry: 'https://registry.npmjs.org',
+    shrinkwrapVersion: 3,
   })
 
   t.end()
@@ -75,8 +76,6 @@ test('remove one redundant package', t => {
 
 test('remove redundant linked package', t => {
   t.deepEqual(prune({
-    shrinkwrapVersion: 3,
-    registry: 'https://registry.npmjs.org',
     importers: {
       '.': {
         dependencies: {
@@ -88,18 +87,21 @@ test('remove redundant linked package', t => {
       },
     },
     packages: {},
+    registry: 'https://registry.npmjs.org',
+    shrinkwrapVersion: 3,
   }, {
     name: 'foo',
     version: '1.0.0',
+
     dependencies: {}
   }, '.', DEFAULT_OPTS), {
-    shrinkwrapVersion: 3,
-    registry: 'https://registry.npmjs.org',
     importers: {
       '.': {
         specifiers: {},
       },
     },
+    registry: 'https://registry.npmjs.org',
+    shrinkwrapVersion: 3,
   })
 
   t.end()
@@ -107,32 +109,30 @@ test('remove redundant linked package', t => {
 
 test('keep all', t => {
   t.deepEqual(prune({
-    shrinkwrapVersion: 3,
-    registry: 'https://registry.npmjs.org',
     importers: {
       '.': {
         dependencies: {
-          'is-positive': '1.0.0',
           'is-negative': '1.0.0',
+          'is-positive': '1.0.0',
         },
         specifiers: {
-          'is-positive': '^1.0.0',
           'is-negative': '^1.0.0',
+          'is-positive': '^1.0.0',
         },
       },
     },
     packages: {
-      '/is-positive/1.0.0': {
+      '/is-negative/1.0.0': {
+        dependencies: {
+          'is-positive': '2.0.0',
+        },
         dev: false,
         resolution: {
           integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g='
         }
       },
-      '/is-negative/1.0.0': {
+      '/is-positive/1.0.0': {
         dev: false,
-        dependencies: {
-          'is-positive': '2.0.0',
-        },
         resolution: {
           integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g='
         }
@@ -143,41 +143,42 @@ test('keep all', t => {
           integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g='
         }
       },
-    }
+    },
+    registry: 'https://registry.npmjs.org',
+    shrinkwrapVersion: 3,
   }, {
     name: 'foo',
     version: '1.0.0',
+
     dependencies: {
-      'is-positive': '^1.0.0',
       'is-negative': '^1.0.0',
+      'is-positive': '^1.0.0',
     }
   }, '.', DEFAULT_OPTS), {
-    shrinkwrapVersion: 3,
-    registry: 'https://registry.npmjs.org',
     importers: {
       '.': {
         dependencies: {
-          'is-positive': '1.0.0',
           'is-negative': '1.0.0',
+          'is-positive': '1.0.0',
         },
         specifiers: {
-          'is-positive': '^1.0.0',
           'is-negative': '^1.0.0',
+          'is-positive': '^1.0.0',
         },
       },
     },
     packages: {
-      '/is-positive/1.0.0': {
+      '/is-negative/1.0.0': {
+        dependencies: {
+          'is-positive': '2.0.0',
+        },
         dev: false,
         resolution: {
           integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g='
         }
       },
-      '/is-negative/1.0.0': {
+      '/is-positive/1.0.0': {
         dev: false,
-        dependencies: {
-          'is-positive': '2.0.0',
-        },
         resolution: {
           integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g='
         }
@@ -188,7 +189,9 @@ test('keep all', t => {
           integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g='
         }
       },
-    }
+    },
+    registry: 'https://registry.npmjs.org',
+    shrinkwrapVersion: 3,
   })
 
   t.end()
@@ -196,45 +199,34 @@ test('keep all', t => {
 
 test('optional dependency should have optional = true', t => {
   t.deepEqual(prune({
-    shrinkwrapVersion: 3,
-    registry: 'https://registry.npmjs.org',
     importers: {
       '.': {
         dependencies: {
-          'pkg-with-good-optional': '1.0.0',
           'parent-of-foo': '1.0.0',
+          'pkg-with-good-optional': '1.0.0',
         },
         optionalDependencies: {
           'is-positive': '1.0.0',
         },
         specifiers: {
           'is-positive': '^1.0.0',
-          'pkg-with-good-optional': '^1.0.0',
           'parent-of-foo': '1.0.0',
+          'pkg-with-good-optional': '^1.0.0',
         },
       },
     },
     packages: {
-      '/foo/1.0.0': {
-        optional: true,
-        dependencies: {
-          'foo-child': '1.0.0',
-        },
-        resolution: {
-          integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g=',
-        },
-      },
       '/foo-child/1.0.0': {
         optional: true,
         resolution: {
           integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g=',
         },
       },
-      '/parent-of-foo/1.0.0': {
-        dev: false,
+      '/foo/1.0.0': {
         dependencies: {
-          foo: '1.0.0',
+          'foo-child': '1.0.0',
         },
+        optional: true,
         resolution: {
           integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g=',
         },
@@ -244,6 +236,15 @@ test('optional dependency should have optional = true', t => {
         resolution: {
           integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g='
         }
+      },
+      '/parent-of-foo/1.0.0': {
+        dependencies: {
+          foo: '1.0.0',
+        },
+        dev: false,
+        resolution: {
+          integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g=',
+        },
       },
       '/pkg-with-good-optional/1.0.0': {
         dev: false,
@@ -255,57 +256,49 @@ test('optional dependency should have optional = true', t => {
           integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g='
         }
       },
-    }
+    },
+    registry: 'https://registry.npmjs.org',
+    shrinkwrapVersion: 3,
   }, {
     name: 'foo',
     version: '1.0.0',
+
+    dependencies: {
+      'parent-of-foo': '1.0.0',
+      'pkg-with-good-optional': '^1.0.0',
+    },
     optionalDependencies: {
       'is-positive': '^1.0.0',
     },
-    dependencies: {
-      'pkg-with-good-optional': '^1.0.0',
-      'parent-of-foo': '1.0.0',
-    },
   }, '.', DEFAULT_OPTS), {
-    shrinkwrapVersion: 3,
-    registry: 'https://registry.npmjs.org',
     importers: {
       '.': {
         dependencies: {
-          'pkg-with-good-optional': '1.0.0',
           'parent-of-foo': '1.0.0',
+          'pkg-with-good-optional': '1.0.0',
         },
         optionalDependencies: {
           'is-positive': '1.0.0',
         },
         specifiers: {
           'is-positive': '^1.0.0',
-          'pkg-with-good-optional': '^1.0.0',
           'parent-of-foo': '1.0.0',
+          'pkg-with-good-optional': '^1.0.0',
         },
       },
     },
     packages: {
-      '/foo/1.0.0': {
-        dev: false,
-        dependencies: {
-          'foo-child': '1.0.0',
-        },
-        resolution: {
-          integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g=',
-        },
-      },
       '/foo-child/1.0.0': {
         dev: false,
         resolution: {
           integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g=',
         },
       },
-      '/parent-of-foo/1.0.0': {
-        dev: false,
+      '/foo/1.0.0': {
         dependencies: {
-          foo: '1.0.0',
+          'foo-child': '1.0.0',
         },
+        dev: false,
         resolution: {
           integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g=',
         },
@@ -317,6 +310,15 @@ test('optional dependency should have optional = true', t => {
           integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g='
         }
       },
+      '/parent-of-foo/1.0.0': {
+        dependencies: {
+          foo: '1.0.0',
+        },
+        dev: false,
+        resolution: {
+          integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g=',
+        },
+      },
       '/pkg-with-good-optional/1.0.0': {
         dev: false,
         optionalDependencies: {
@@ -327,7 +329,9 @@ test('optional dependency should have optional = true', t => {
           integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g='
         }
       },
-    }
+    },
+    registry: 'https://registry.npmjs.org',
+    shrinkwrapVersion: 3,
   })
 
   t.end()
@@ -335,13 +339,11 @@ test('optional dependency should have optional = true', t => {
 
 test('optional dependency should not have optional = true if used not only as optional', t => {
   t.deepEqual(prune({
-    shrinkwrapVersion: 3,
-    registry: 'https://registry.npmjs.org',
     importers: {
       '.': {
         dependencies: {
-          'pkg-with-good-optional': '1.0.0',
           'is-positive': '1.0.0',
+          'pkg-with-good-optional': '1.0.0',
         },
         specifiers: {
           'is-positive': '^1.0.0',
@@ -365,22 +367,23 @@ test('optional dependency should not have optional = true if used not only as op
           integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g='
         }
       },
-    }
+    },
+    registry: 'https://registry.npmjs.org',
+    shrinkwrapVersion: 3,
   }, {
     name: 'foo',
     version: '1.0.0',
+
     dependencies: {
-      'pkg-with-good-optional': '^1.0.0',
       'is-positive': '^1.0.0',
+      'pkg-with-good-optional': '^1.0.0',
     },
   }, '.', DEFAULT_OPTS), {
-    shrinkwrapVersion: 3,
-    registry: 'https://registry.npmjs.org',
     importers: {
       '.': {
         dependencies: {
-          'pkg-with-good-optional': '1.0.0',
           'is-positive': '1.0.0',
+          'pkg-with-good-optional': '1.0.0',
         },
         specifiers: {
           'is-positive': '^1.0.0',
@@ -402,9 +405,11 @@ test('optional dependency should not have optional = true if used not only as op
         },
         resolution: {
           integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g='
-        }
+        },
       },
-    }
+    },
+    registry: 'https://registry.npmjs.org',
+    shrinkwrapVersion: 3,
   })
 
   t.end()
@@ -412,8 +417,6 @@ test('optional dependency should not have optional = true if used not only as op
 
 test('dev dependency should have dev = true', t => {
   t.deepEqual(prune({
-    shrinkwrapVersion: 3,
-    registry: 'https://registry.npmjs.org',
     importers: {
       '.': {
         dependencies: {
@@ -438,21 +441,22 @@ test('dev dependency should have dev = true', t => {
         dev: false,
         resolution: {
           integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g='
-        }
+        },
       },
-    }
+    },
+    registry: 'https://registry.npmjs.org',
+    shrinkwrapVersion: 3,
   }, {
     name: 'foo',
     version: '1.0.0',
-    devDependencies: {
-      'is-positive': '^1.0.0',
-    },
+
     dependencies: {
       'pkg-with-good-optional': '^1.0.0',
     },
+    devDependencies: {
+      'is-positive': '^1.0.0',
+    },
   }, '.', DEFAULT_OPTS), {
-    shrinkwrapVersion: 3,
-    registry: 'https://registry.npmjs.org',
     importers: {
       '.': {
         dependencies: {
@@ -478,9 +482,11 @@ test('dev dependency should have dev = true', t => {
         dev: false,
         resolution: {
           integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g='
-        }
+        },
       },
-    }
+    },
+    registry: 'https://registry.npmjs.org',
+    shrinkwrapVersion: 3,
   })
 
   t.end()
@@ -488,8 +494,6 @@ test('dev dependency should have dev = true', t => {
 
 test('dev dependency should not have dev = true if it is used not only as dev', t => {
   t.deepEqual(prune({
-    shrinkwrapVersion: 3,
-    registry: 'https://registry.npmjs.org',
     importers: {
       '.': {
         dependencies: {
@@ -511,27 +515,28 @@ test('dev dependency should not have dev = true if it is used not only as dev', 
         }
       },
       '/some-pkg/1.0.0': {
-        dev: false,
         dependencies: {
           'is-positive': '1.0.0',
         },
+        dev: false,
         resolution: {
           integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g='
-        }
+        },
       },
-    }
+    },
+    registry: 'https://registry.npmjs.org',
+    shrinkwrapVersion: 3,
   }, {
     name: 'foo',
     version: '1.0.0',
-    devDependencies: {
-      'is-positive': '^1.0.0',
-    },
+
     dependencies: {
       'some-pkg': '^1.0.0',
     },
+    devDependencies: {
+      'is-positive': '^1.0.0',
+    },
   }, '.', DEFAULT_OPTS), {
-    shrinkwrapVersion: 3,
-    registry: 'https://registry.npmjs.org',
     importers: {
       '.': {
         dependencies: {
@@ -553,15 +558,17 @@ test('dev dependency should not have dev = true if it is used not only as dev', 
         }
       },
       '/some-pkg/1.0.0': {
-        dev: false,
         dependencies: {
           'is-positive': '1.0.0',
         },
+        dev: false,
         resolution: {
           integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g='
-        }
+        },
       },
-    }
+    },
+    registry: 'https://registry.npmjs.org',
+    shrinkwrapVersion: 3,
   })
 
   t.end()
@@ -569,8 +576,6 @@ test('dev dependency should not have dev = true if it is used not only as dev', 
 
 test('the dev field should be updated to dev = false if it is not a dev dependency anymore', t => {
   t.deepEqual(prune({
-    shrinkwrapVersion: 3,
-    registry: 'https://registry.npmjs.org',
     importers: {
       '.': {
         dependencies: {
@@ -585,18 +590,19 @@ test('the dev field should be updated to dev = false if it is not a dev dependen
       '/a/1.0.0': {
         resolution: {
           integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g='
-        }
+        },
       },
-    }
+    },
+    registry: 'https://registry.npmjs.org',
+    shrinkwrapVersion: 3,
   }, {
     name: 'foo',
     version: '1.0.0',
+
     dependencies: {
       a: '^1.0.0',
     },
   }, '.', DEFAULT_OPTS), {
-    shrinkwrapVersion: 3,
-    registry: 'https://registry.npmjs.org',
     importers: {
       '.': {
         dependencies: {
@@ -612,9 +618,11 @@ test('the dev field should be updated to dev = false if it is not a dev dependen
         dev: false,
         resolution: {
           integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g='
-        }
+        },
       },
-    }
+    },
+    registry: 'https://registry.npmjs.org',
+    shrinkwrapVersion: 3,
   })
 
   t.end()
@@ -654,6 +662,7 @@ test('subdependency is both optional and dev', t => {
   `, {
     name: 'foo',
     version: '1.0.0',
+
     dependencies: {
       'prod-parent': '^1.0.0',
     },
@@ -733,6 +742,7 @@ test('dev = true is removed if dependency is used both as dev and prod dependenc
   `, {
     name: 'foo',
     version: '1.0.0',
+
     dependencies: {
       foo: 'npm:inflight@^1.0.6',
     },
@@ -805,6 +815,7 @@ test('optional = true is removed if dependency is used both as optional and prod
   `, {
     name: 'foo',
     version: '1.0.0',
+
     dependencies: {
       foo: 'npm:inflight@^1.0.6',
     },
@@ -848,8 +859,6 @@ test('optional = true is removed if dependency is used both as optional and prod
 
 test('remove dependencies that are not in the package', t => {
   t.deepEqual(prune({
-    shrinkwrapVersion: 3,
-    registry: 'https://registry.npmjs.org',
     importers: {
       '.': {
         dependencies: {
@@ -862,40 +871,42 @@ test('remove dependencies that are not in the package', t => {
           'fsevents': '1.0.0'
         },
         specifiers: {
-          'is-positive': '^1.0.0',
-          'is-negative': '^1.0.0',
           'fsevents': '^1.0.0',
+          'is-negative': '^1.0.0',
+          'is-positive': '^1.0.0',
         },
       },
     },
     packages: {
-      '/is-positive/1.0.0': {
+      '/fsevents/1.0.0': {
         resolution: {
           integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g='
-        }
+        },
       },
       '/is-negative/1.0.0': {
         resolution: {
           integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g='
         }
       },
-      '/fsevents/1.0.0': {
+      '/is-positive/1.0.0': {
         resolution: {
           integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g='
         }
       },
-    }
+    },
+    registry: 'https://registry.npmjs.org',
+    shrinkwrapVersion: 3,
   }, {
     name: 'foo',
     version: '1.0.0',
   }, '.', DEFAULT_OPTS), {
-    shrinkwrapVersion: 3,
-    registry: 'https://registry.npmjs.org',
     importers: {
       '.': {
         specifiers: {},
       },
     },
+    registry: 'https://registry.npmjs.org',
+    shrinkwrapVersion: 3,
   })
 
   t.end()
@@ -903,8 +914,6 @@ test('remove dependencies that are not in the package', t => {
 
 test('ignore dependencies that are in package.json but are not in shrinkwrap.yaml', t => {
   t.deepEqual(prune({
-    shrinkwrapVersion: 3,
-    registry: 'https://registry.npmjs.org',
     importers: {
       '.': {
         dependencies: {
@@ -920,19 +929,20 @@ test('ignore dependencies that are in package.json but are not in shrinkwrap.yam
         dev: false,
         resolution: {
           integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g='
-        }
+        },
       },
-    }
+    },
+    registry: 'https://registry.npmjs.org',
+    shrinkwrapVersion: 3,
   }, {
     name: 'foo',
     version: '1.0.0',
+
     dependencies: {
-      'is-positive': '^1.0.0',
       'is-negative': '^1.0.0',
+      'is-positive': '^1.0.0',
     }
   }, '.', DEFAULT_OPTS), {
-    shrinkwrapVersion: 3,
-    registry: 'https://registry.npmjs.org',
     importers: {
       '.': {
         dependencies: {
@@ -948,9 +958,11 @@ test('ignore dependencies that are in package.json but are not in shrinkwrap.yam
         dev: false,
         resolution: {
           integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g='
-        }
-      }
-    }
+        },
+      },
+    },
+    registry: 'https://registry.npmjs.org',
+    shrinkwrapVersion: 3,
   })
 
   t.end()
@@ -959,8 +971,6 @@ test('ignore dependencies that are in package.json but are not in shrinkwrap.yam
 // this test may be redundant
 test('keep shrinkwrapMinorVersion, if present', t => {
   t.deepEqual(prune({
-    shrinkwrapVersion: 3.2,
-    registry: 'https://registry.npmjs.org',
     importers: {
       '.': {
         dependencies: {
@@ -976,18 +986,19 @@ test('keep shrinkwrapMinorVersion, if present', t => {
         dev: false,
         resolution: {
           integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g='
-        }
+        },
       },
-    }
+    },
+    registry: 'https://registry.npmjs.org',
+    shrinkwrapVersion: 3.2,
   }, {
     name: 'foo',
     version: '1.0.0',
+
     dependencies: {
       'is-positive': '^1.0.0',
     }
   }, '.', DEFAULT_OPTS), {
-    shrinkwrapVersion: 3.2,
-    registry: 'https://registry.npmjs.org',
     importers: {
       '.': {
         dependencies: {
@@ -1003,9 +1014,11 @@ test('keep shrinkwrapMinorVersion, if present', t => {
         dev: false,
         resolution: {
           integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g='
-        }
-      }
-    }
+        },
+      },
+    },
+    registry: 'https://registry.npmjs.org',
+    shrinkwrapVersion: 3.2,
   })
 
   t.end()
@@ -1013,13 +1026,11 @@ test('keep shrinkwrapMinorVersion, if present', t => {
 
 test('keep linked package even if it is not in package.json', t => {
   t.deepEqual(prune({
-    shrinkwrapVersion: 3,
-    registry: 'https://registry.npmjs.org',
     importers: {
       '.': {
         dependencies: {
-          'is-positive': 'link:../is-positive',
           'is-negative': '1.0.0',
+          'is-positive': 'link:../is-positive',
         },
         specifiers: {
           'is-negative': '^1.0.0',
@@ -1034,20 +1045,21 @@ test('keep linked package even if it is not in package.json', t => {
         },
       },
     },
+    registry: 'https://registry.npmjs.org',
+    shrinkwrapVersion: 3,
   }, {
     name: 'foo',
     version: '1.0.0',
+
     dependencies: {
       'is-negative': '^1.0.0'
     }
   }, '.', DEFAULT_OPTS), {
-    shrinkwrapVersion: 3,
-    registry: 'https://registry.npmjs.org',
     importers: {
       '.': {
         dependencies: {
-          'is-positive': 'link:../is-positive',
           'is-negative': '1.0.0',
+          'is-positive': 'link:../is-positive',
         },
         specifiers: {
           'is-negative': '^1.0.0',
@@ -1062,6 +1074,8 @@ test('keep linked package even if it is not in package.json', t => {
         },
       },
     },
+    registry: 'https://registry.npmjs.org',
+    shrinkwrapVersion: 3,
   })
 
   t.end()
@@ -1069,8 +1083,6 @@ test('keep linked package even if it is not in package.json', t => {
 
 test("prune: don't remove package used by another importer", t => {
   t.deepEqual(prune({
-    shrinkwrapVersion: 3,
-    registry: 'https://registry.npmjs.org',
     importers: {
       'packages/package-1': {
         dependencies: {
@@ -1090,6 +1102,12 @@ test("prune: don't remove package used by another importer", t => {
       },
     },
     packages: {
+      '/is-negative/1.0.0': {
+        dev: false,
+        resolution: {
+          integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g='
+        },
+      },
       '/is-positive/1.0.0': {
         dev: false,
         resolution: {
@@ -1102,20 +1120,15 @@ test("prune: don't remove package used by another importer", t => {
           integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g='
         }
       },
-      '/is-negative/1.0.0': {
-        dev: false,
-        resolution: {
-          integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g='
-        }
-      },
-    }
+    },
+    registry: 'https://registry.npmjs.org',
+    shrinkwrapVersion: 3,
   }, {
     name: 'project-2',
     version: '1.0.0',
+
     dependencies: { 'is-negative': '^1.0.0' },
   }, 'packages/package-2', DEFAULT_OPTS), {
-    shrinkwrapVersion: 3,
-    registry: 'https://registry.npmjs.org',
     importers: {
       'packages/package-1': {
         dependencies: {
@@ -1135,19 +1148,21 @@ test("prune: don't remove package used by another importer", t => {
       },
     },
     packages: {
-      '/is-positive/1.0.0': {
-        dev: false,
-        resolution: {
-          integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g=',
-        },
-      },
       '/is-negative/1.0.0': {
         dev: false,
         resolution: {
           integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g=',
         },
       },
-    }
+      '/is-positive/1.0.0': {
+        dev: false,
+        resolution: {
+          integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g=',
+        },
+      },
+    },
+    registry: 'https://registry.npmjs.org',
+    shrinkwrapVersion: 3,
   })
 
   t.end()
@@ -1155,8 +1170,6 @@ test("prune: don't remove package used by another importer", t => {
 
 test('pruneSharedShrinkwrap: remove one redundant package', t => {
   t.deepEqual(pruneSharedShrinkwrap({
-    shrinkwrapVersion: 3,
-    registry: 'https://registry.npmjs.org',
     importers: {
       'packages/package-1': {
         dependencies: {
@@ -1178,12 +1191,12 @@ test('pruneSharedShrinkwrap: remove one redundant package', t => {
         dev: false,
         resolution: {
           integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g='
-        }
-      }
-    }
-  }, DEFAULT_OPTS), {
-    shrinkwrapVersion: 3,
+        },
+      },
+    },
     registry: 'https://registry.npmjs.org',
+    shrinkwrapVersion: 3,
+  }, DEFAULT_OPTS), {
     importers: {
       'packages/package-1': {
         dependencies: {
@@ -1199,9 +1212,11 @@ test('pruneSharedShrinkwrap: remove one redundant package', t => {
         dev: false,
         resolution: {
           integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g='
-        }
-      }
-    }
+        },
+      },
+    },
+    registry: 'https://registry.npmjs.org',
+    shrinkwrapVersion: 3,
   })
 
   t.end()

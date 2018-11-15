@@ -1,6 +1,6 @@
-import test = require('tape')
 import dh, { forPackages as dhForPackages } from 'dependencies-hierarchy'
 import path = require('path')
+import test = require('tape')
 
 const fixtures = path.join(__dirname, 'fixtures')
 const generalFixture = path.join(fixtures, 'general')
@@ -50,27 +50,22 @@ test('one package depth 1', async t => {
 
   t.deepEqual(tree, [
     {
-      pkg: {
-        name: 'minimatch',
-        path: 'registry.npmjs.org/minimatch/3.0.4',
-        version: '3.0.4',
-      },
       dependencies: [
         {
           pkg: {
             name: 'brace-expansion',
             path: 'registry.npmjs.org/brace-expansion/1.1.8',
             version: '1.1.8',
-          }
-        }
+          },
+        },
       ],
+      pkg: {
+        name: 'minimatch',
+        path: 'registry.npmjs.org/minimatch/3.0.4',
+        version: '3.0.4',
+      },
     },
     {
-      pkg: {
-        name: 'rimraf',
-        path: 'registry.npmjs.org/rimraf/2.5.1',
-        version: '2.5.1',
-      },
       dependencies: [
         {
           pkg: {
@@ -80,6 +75,11 @@ test('one package depth 1', async t => {
           },
         },
       ],
+      pkg: {
+        name: 'rimraf',
+        path: 'registry.npmjs.org/rimraf/2.5.1',
+        version: '2.5.1',
+      },
     },
     {
       pkg: {
@@ -181,25 +181,10 @@ test('filter 2 packages with depth 100', async t => {
       searched: true,
     },
     {
-      pkg: {
-        name: 'rimraf',
-        path: 'registry.npmjs.org/rimraf/2.5.1',
-        version: '2.5.1',
-      },
       dependencies: [
         {
-          pkg: {
-            name: 'glob',
-            path: 'registry.npmjs.org/glob/6.0.4',
-            version: '6.0.4',
-          },
           dependencies: [
             {
-              pkg: {
-                name: 'inflight',
-                path: 'registry.npmjs.org/inflight/1.0.6',
-                version: '1.0.6',
-              },
               dependencies: [
                 {
                   pkg: {
@@ -208,8 +193,13 @@ test('filter 2 packages with depth 100', async t => {
                     version: '1.4.0',
                   },
                   searched: true,
-                }
-              ]
+                },
+              ],
+              pkg: {
+                name: 'inflight',
+                path: 'registry.npmjs.org/inflight/1.0.6',
+                version: '1.0.6',
+              },
             },
             {
               pkg: {
@@ -226,10 +216,20 @@ test('filter 2 packages with depth 100', async t => {
                 version: '1.4.0',
               },
               searched: true,
-            }
-          ]
-        }
-      ]
+            },
+          ],
+          pkg: {
+            name: 'glob',
+            path: 'registry.npmjs.org/glob/6.0.4',
+            version: '6.0.4',
+          },
+        },
+      ],
+      pkg: {
+        name: 'rimraf',
+        path: 'registry.npmjs.org/rimraf/2.5.1',
+        version: '2.5.1',
+      },
     }
   ])
 

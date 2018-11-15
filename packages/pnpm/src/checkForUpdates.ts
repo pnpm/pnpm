@@ -1,5 +1,5 @@
-import chalk from 'chalk'
 import { stripIndents } from 'common-tags'
+import chalk from 'chalk'
 import updateNotifier = require('update-notifier')
 import pkg from './pnpmPkgJson'
 

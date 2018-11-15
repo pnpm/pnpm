@@ -1,4 +1,6 @@
 import prepare from '@pnpm/prepare'
+import fs = require('mz/fs')
+import path = require('path')
 import tape = require('tape')
 import promisifyTape from 'tape-promise'
 import {
@@ -6,8 +8,6 @@ import {
   execPnpm,
   execPnpmSync,
 } from '../utils'
-import path = require('path')
-import fs = require('mz/fs')
 
 const test = promisifyTape(tape)
 

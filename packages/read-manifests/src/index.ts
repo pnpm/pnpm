@@ -32,19 +32,19 @@ export default async (
 
         return {
           bin: importer.bin || path.join(importer.prefix, 'node_modules', '.bin'),
+          currentShamefullyFlatten: modules && modules.importers[importerId] && modules.importers[importerId].shamefullyFlatten,
           hoistedAliases: modules && modules.importers[importerId] && modules.importers[importerId].hoistedAliases || {},
           id: importerId,
           modulesDir,
           pkg,
           prefix: importer.prefix,
-          currentShamefullyFlatten: modules && modules.importers[importerId] && modules.importers[importerId].shamefullyFlatten,
           shamefullyFlatten: Boolean(
             typeof importer.shamefullyFlatten === 'boolean' ? importer.shamefullyFlatten : opts.shamefullyFlatten
           ),
         }
       })),
-    modules,
     include: modules && modules.included || { dependencies: true, devDependencies: true, optionalDependencies: true },
+    modules,
     pendingBuilds: modules && modules.pendingBuilds || [],
     registries: modules && modules.registries && normalizeRegistries(modules.registries),
     skipped: new Set(modules && modules.skipped || []),

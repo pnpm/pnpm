@@ -66,8 +66,8 @@ async function defaults (opts: LinkOptions) {
     prefix,
     registries: DEFAULT_REGISTRIES,
     shamefullyFlatten: false,
-    shrinkwrapDirectory: opts.shrinkwrapDirectory || prefix,
     shrinkwrap: true,
+    shrinkwrapDirectory: opts.shrinkwrapDirectory || prefix,
     store: opts.store,
     storeController: opts.storeController,
   } as StrictLinkOptions

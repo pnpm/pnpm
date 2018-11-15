@@ -10,6 +10,7 @@ test('pnpm recursive rebuild', async (t: tape.Test) => {
     {
       name: 'project-1',
       version: '1.0.0',
+
       dependencies: {
         'pre-and-postinstall-scripts-example': '*',
       },
@@ -17,6 +18,7 @@ test('pnpm recursive rebuild', async (t: tape.Test) => {
     {
       name: 'project-2',
       version: '1.0.0',
+
       dependencies: {
         'pre-and-postinstall-scripts-example': '*',
       },
@@ -43,17 +45,19 @@ test('`pnpm recursive rebuild` specific dependencies', async (t: tape.Test) => {
     {
       name: 'project-1',
       version: '1.0.0',
+
       dependencies: {
-        'pre-and-postinstall-scripts-example': '*',
         'install-scripts-example-for-pnpm': 'zkochan/install-scripts-example',
+        'pre-and-postinstall-scripts-example': '*',
       },
     },
     {
       name: 'project-2',
       version: '1.0.0',
+
       dependencies: {
-        'pre-and-postinstall-scripts-example': '*',
         'install-scripts-example-for-pnpm': 'zkochan/install-scripts-example',
+        'pre-and-postinstall-scripts-example': '*',
       },
     },
     {

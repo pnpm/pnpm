@@ -1,19 +1,19 @@
 import prepare from '@pnpm/prepare'
+import caw = require('caw')
+import isWindows = require('is-windows')
+import loadYamlFile = require('load-yaml-file')
+import path = require('path')
+import exists = require('path-exists')
 import 'sepia'
 import tape = require('tape')
 import promisifyTape from 'tape-promise'
-const test = promisifyTape(tape)
-import caw = require('caw')
 import {
   execPnpm,
   execPnpmSync,
 } from '../utils'
-import path = require('path')
-import exists = require('path-exists')
-import isWindows = require('is-windows')
-import loadYamlFile = require('load-yaml-file')
 
 const IS_WINDOWS = isWindows()
+const test = promisifyTape(tape)
 
 if (!caw() && !IS_WINDOWS) {
   process.env.VCR_MODE = 'cache'
@@ -21,12 +21,12 @@ if (!caw() && !IS_WINDOWS) {
 
 test('bin files are found by lifecycle scripts', t => {
   const project = prepare(t, {
+    dependencies: {
+      'hello-world-js-bin': '*'
+    },
     scripts: {
       postinstall: 'hello-world-js-bin'
     },
-    dependencies: {
-      'hello-world-js-bin': '*'
-    }
   })
 
   const result = execPnpmSync('install')

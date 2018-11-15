@@ -7,9 +7,9 @@ test('pkgSnapshotToResolution()', (t) => {
       integrity: 'AAAA',
     },
   }, 'https://registry.npmjs.org/'), {
-    tarball: 'https://registry.npmjs.org/foo/-/foo-1.0.0.tgz',
     integrity: 'AAAA',
     registry: 'https://registry.npmjs.org/',
+    tarball: 'https://registry.npmjs.org/foo/-/foo-1.0.0.tgz',
   })
 
   t.end()

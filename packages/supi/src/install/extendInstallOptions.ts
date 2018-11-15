@@ -149,8 +149,8 @@ const defaults = async (opts: InstallOptions) => {
     independentLeaves: false,
     localPackages: {},
     lock: true,
-    lockStaleDuration: 5 * 60 * 1000, // 5 minutes
     locks: path.join(opts.store, '_locks'),
+    lockStaleDuration: 5 * 60 * 1000, // 5 minutes
     nodeVersion: process.version,
     ownLifecycleHooksStdio: 'inherit',
     packageManager,

@@ -4,6 +4,7 @@ import {
   IncludedDependencies,
   Modules,
 } from '@pnpm/modules-yaml'
+import readManifests from '@pnpm/read-manifests'
 import {
   DEPENDENCIES_FIELDS,
   PackageJson,
@@ -13,7 +14,6 @@ import {
 import {
   safeReadPackageFromDir as safeReadPkgFromDir,
 } from '@pnpm/utils'
-import readManifests from '@pnpm/read-manifests'
 import mkdirp = require('mkdirp-promise')
 import {
   Shrinkwrap,

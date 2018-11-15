@@ -297,8 +297,8 @@ function getInfoFromShrinkwrap (
   if (dependencyShrinkwrap) {
     const depPath = dp.resolve(defaultRegistry, relDepPath)
     return {
-      depPath,
       dependencyShrinkwrap,
+      depPath,
       optionalDependencyNames: R.keys(dependencyShrinkwrap.optionalDependencies),
       pkgId: dependencyShrinkwrap.id || depPath,
       relDepPath,
@@ -572,8 +572,8 @@ async function resolveDependency (
 
     ctx.resolvedPackagesByPackageId[pkgResponse.body.id] = {
       additionalInfo: {
-        bundleDependencies: pkg.bundleDependencies,
         bundledDependencies: pkg.bundledDependencies,
+        bundleDependencies: pkg.bundleDependencies,
         cpu: pkg.cpu,
         deprecated: pkg.deprecated,
         engines: pkg.engines,

@@ -63,8 +63,8 @@ const defaults = async (opts: UninstallOptions) => {
     forceSharedShrinkwrap: false,
     independentLeaves: false,
     lock: true,
-    lockStaleDuration: 5 * 60 * 1000, // 5 minutes
     locks: path.join(opts.store, '_locks'),
+    lockStaleDuration: 5 * 60 * 1000, // 5 minutes
     packageManager,
     prefix,
     registries: DEFAULT_REGISTRIES,

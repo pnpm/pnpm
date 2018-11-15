@@ -1,9 +1,9 @@
-import test = require('tape')
 import { satisfiesPackageJson } from 'pnpm-shrinkwrap'
+import test = require('tape')
 
 const DEFAULT_SHR_FIELDS = {
-  shrinkwrapVersion: 3,
   registry: 'https://registry.npmjs.org/',
+  shrinkwrapVersion: 3,
 }
 
 const DEFAULT_PKG_FIELDS = {

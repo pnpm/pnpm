@@ -1,8 +1,8 @@
 import { preparePackages } from '@pnpm/prepare'
 import fs = require('mz/fs')
+import path = require('path')
 import tape = require('tape')
 import promisifyTape from 'tape-promise'
-import path = require('path')
 import { execPnpm } from '../utils'
 
 const test = promisifyTape(tape)
@@ -13,6 +13,7 @@ test('pnpm recursive test', async (t: tape.Test) => {
     {
       name: 'project-1',
       version: '1.0.0',
+
       dependencies: {
         'json-append': '1',
       },
@@ -23,6 +24,7 @@ test('pnpm recursive test', async (t: tape.Test) => {
     {
       name: 'project-2',
       version: '1.0.0',
+
       dependencies: {
         'json-append': '1',
         'project-1': '1'
@@ -34,6 +36,7 @@ test('pnpm recursive test', async (t: tape.Test) => {
     {
       name: 'project-3',
       version: '1.0.0',
+
       dependencies: {
         'json-append': '1',
         'project-1': '1'
@@ -45,8 +48,8 @@ test('pnpm recursive test', async (t: tape.Test) => {
     {
       name: 'project-0',
       version: '1.0.0',
-      dependencies: {
-      },
+
+      dependencies: {},
     },
   ])
 
@@ -71,6 +74,7 @@ test('`pnpm recursive test` does not fail if none of the packaegs has a test com
     {
       name: 'project-2',
       version: '1.0.0',
+
       dependencies: {
         'project-1': '1'
       },
@@ -78,6 +82,7 @@ test('`pnpm recursive test` does not fail if none of the packaegs has a test com
     {
       name: 'project-3',
       version: '1.0.0',
+
       dependencies: {
         'project-1': '1'
       },
@@ -85,8 +90,8 @@ test('`pnpm recursive test` does not fail if none of the packaegs has a test com
     {
       name: 'project-0',
       version: '1.0.0',
-      dependencies: {
-      },
+
+      dependencies: {},
     },
   ])
 
@@ -102,6 +107,7 @@ test('pnpm recursive test with filtering', async (t: tape.Test) => {
     {
       name: 'project-1',
       version: '1.0.0',
+
       dependencies: {
         'json-append': '1',
       },
@@ -112,6 +118,7 @@ test('pnpm recursive test with filtering', async (t: tape.Test) => {
     {
       name: 'project-2',
       version: '1.0.0',
+
       dependencies: {
         'json-append': '1',
         'project-1': '1'

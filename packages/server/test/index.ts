@@ -3,17 +3,17 @@ import fs = require('mz/fs')
 import path = require('path')
 import rimraf = require('rimraf-then')
 
-import test = require('tape')
-import {
-  createServer,
-  connectStoreController,
- } from '@pnpm/server'
-import { PackageFilesResponse } from '@pnpm/store-controller-types'
-import got = require('got')
-import isPortReachable = require('is-port-reachable')
 import createResolver, { PackageMetaCache } from '@pnpm/npm-resolver'
 import createStore from '@pnpm/package-store'
+import {
+  connectStoreController,
+  createServer,
+ } from '@pnpm/server'
+import { PackageFilesResponse } from '@pnpm/store-controller-types'
 import createFetcher from '@pnpm/tarball-fetcher'
+import got = require('got')
+import isPortReachable = require('is-port-reachable')
+import test = require('tape')
 
 const registry = 'https://registry.npmjs.org/'
 
@@ -21,21 +21,21 @@ async function createStoreController () {
   const rawNpmConfig = { registry }
   const store = '.store'
   const resolve = createResolver({
+    metaCache: new Map<string, object>() as PackageMetaCache,
     rawNpmConfig,
     store,
-    metaCache: new Map<string, object>() as PackageMetaCache,
   })
   const fetchers = createFetcher({
     alwaysAuth: true,
+    rawNpmConfig,
     registry,
     strictSsl: true,
-    rawNpmConfig,
   })
   return createStore(resolve, fetchers, {
-    networkConcurrency: 1,
-    store: store,
     locks: undefined,
     lockStaleDuration: 100,
+    networkConcurrency: 1,
+    store: store,
   })
 }
 
@@ -45,8 +45,8 @@ test('server', async t => {
   const remotePrefix = `http://${hostname}:${port}`
   const storeCtrlForServer = await createStoreController()
   const server = createServer(storeCtrlForServer, {
-    port,
     hostname,
+    port,
   })
   const storeCtrl = await connectStoreController({ remotePrefix, concurrency: 100 })
   const response = await storeCtrl.requestPackage(
@@ -54,11 +54,11 @@ test('server', async t => {
     {
       downloadPriority: 0,
       loggedPkg: { rawSpec: 'sfdf' },
+      preferredVersions: {},
       prefix: process.cwd(),
       registry,
-      verifyStoreIntegrity: false,
-      preferredVersions: {},
       sideEffectsCache: false,
+      verifyStoreIntegrity: false,
     }
   )
 
@@ -86,8 +86,8 @@ test('fetchPackage', async t => {
   const remotePrefix = `http://${hostname}:${port}`
   const storeCtrlForServer = await createStoreController()
   const server = createServer(storeCtrlForServer, {
-    port,
     hostname,
+    port,
   })
   const storeCtrl = await connectStoreController({ remotePrefix, concurrency: 100 })
   const response = await storeCtrl.fetchPackage({
@@ -95,12 +95,12 @@ test('fetchPackage', async t => {
     force: false,
     pkgId: 'registry.npmjs.org/is-positive/1.0.0',
     prefix: process.cwd(),
-    verifyStoreIntegrity: true,
     resolution: {
       integrity: 'sha1-iACYVrZKLx632LsBeUGEJK4EUss=',
       registry: 'https://registry.npmjs.org/',
       tarball: 'https://registry.npmjs.org/is-positive/-/is-positive-1.0.0.tgz',
     },
+    verifyStoreIntegrity: true,
   })
 
   t.equal(typeof response.inStoreLocation, 'string', 'location in store returned')
@@ -125,8 +125,8 @@ test('server errors should arrive to the client', async t => {
   const remotePrefix = `http://${hostname}:${port}`
   const storeCtrlForServer = await createStoreController()
   const server = createServer(storeCtrlForServer, {
-    port,
     hostname,
+    port,
   })
   const storeCtrl = await connectStoreController({ remotePrefix, concurrency: 100 })
   let caught = false
@@ -136,11 +136,11 @@ test('server errors should arrive to the client', async t => {
       {
         downloadPriority: 0,
         loggedPkg: { rawSpec: 'sfdf' },
+        preferredVersions: {},
         prefix: process.cwd(),
         registry,
-        verifyStoreIntegrity: false,
-        preferredVersions: {},
         sideEffectsCache: false,
+        verifyStoreIntegrity: false,
       }
     )
   } catch (e) {
@@ -228,9 +228,9 @@ test('stop server with remote call', async t => {
   const remotePrefix = `http://${hostname}:${port}`
   const storeCtrlForServer = await createStoreController()
   const server = createServer(storeCtrlForServer, {
-    port,
     hostname,
     ignoreStopRequests: false,
+    port,
   })
 
   t.ok(await isPortReachable(port), 'server is running')
@@ -250,9 +250,9 @@ test('disallow stop server with remote call', async t => {
   const remotePrefix = `http://${hostname}:${port}`
   const storeCtrlForServer = await createStoreController()
   const server = createServer(storeCtrlForServer, {
-    port,
     hostname,
     ignoreStopRequests: true,
+    port,
   })
 
   t.ok(await isPortReachable(port), 'server is running')
@@ -276,8 +276,8 @@ test('disallow store prune', async t => {
   const remotePrefix = `http://${hostname}:${port}`
   const storeCtrlForServer = await createStoreController()
   const server = createServer(storeCtrlForServer, {
-    port,
     hostname,
+    port,
   })
 
   t.ok(await isPortReachable(port), 'server is running')

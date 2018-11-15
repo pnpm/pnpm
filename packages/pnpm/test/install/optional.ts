@@ -1,7 +1,7 @@
 import prepare from '@pnpm/prepare'
+import deepRequireCwd = require('deep-require-cwd')
 import tape = require('tape')
 import promisifyTape from 'tape-promise'
-import deepRequireCwd = require('deep-require-cwd')
 import { execPnpm } from '../utils'
 
 const test = promisifyTape(tape)

@@ -1,11 +1,11 @@
 import prepare from '@pnpm/prepare'
+import rimraf = require('rimraf-then')
 import tape = require('tape')
 import promisifyTape from 'tape-promise'
 import {
   addDistTag,
   execPnpm,
 } from '../utils'
-import rimraf = require('rimraf-then')
 
 const test = promisifyTape(tape)
 

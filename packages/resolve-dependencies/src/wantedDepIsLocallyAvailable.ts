@@ -1,7 +1,7 @@
-import { LocalPackages } from '@pnpm/resolver-base'
-import { WantedDependency } from '@pnpm/utils'
-import { PackageJson } from '@pnpm/types'
 import parsePref, { RegistryPackageSpec } from '@pnpm/npm-resolver/lib/parsePref'
+import { LocalPackages } from '@pnpm/resolver-base'
+import { PackageJson } from '@pnpm/types'
+import { WantedDependency } from '@pnpm/utils'
 import semver = require('semver')
 
 export default function wantedDepIsLocallyAvailable (

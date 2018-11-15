@@ -6,6 +6,7 @@ import {
 } from '@pnpm/fetcher-base'
 import { storeLogger } from '@pnpm/logger'
 import pkgIdToFilename from '@pnpm/pkgid-to-filename'
+import { fromDir as readPkgFromDir } from '@pnpm/read-package-json'
 import {
   DirectoryResolution,
   LocalPackages,
@@ -34,7 +35,6 @@ import renameOverwrite = require('rename-overwrite')
 import rimraf = require('rimraf-then')
 import symlinkDir = require('symlink-dir')
 import writeJsonFile from 'write-json-file'
-import { fromDir as readPkgFromDir } from '@pnpm/read-package-json'
 import { progressLogger } from './loggers'
 
 const TARBALL_INTEGRITY_FILENAME = 'tarball-integrity'

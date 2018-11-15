@@ -1,7 +1,7 @@
 import { storeLogger } from '@pnpm/logger'
 import {
-  Resolution,
   RequestPackageOptions,
+  Resolution,
   StoreController,
   WantedDependency,
 } from '@pnpm/store-controller-types'

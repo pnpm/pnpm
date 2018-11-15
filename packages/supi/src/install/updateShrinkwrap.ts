@@ -12,8 +12,8 @@ import {
   ShrinkwrapResolution,
 } from 'pnpm-shrinkwrap'
 import R = require('ramda')
-import { absolutePathToRef } from './shrinkwrap'
 import { DependenciesGraph } from './resolvePeers'
+import { absolutePathToRef } from './shrinkwrap'
 
 export default function (
   depGraph: DependenciesGraph,

@@ -1,8 +1,8 @@
-import test = require('tape')
-import list, { forPackages as listForPackages } from 'pnpm-list'
-import path = require('path')
-import { stripIndent } from 'common-tags'
 import chalk from 'chalk'
+import { stripIndent } from 'common-tags'
+import path = require('path')
+import list, { forPackages as listForPackages } from 'pnpm-list'
+import test = require('tape')
 
 const highlighted = chalk.yellow.bgBlack
 

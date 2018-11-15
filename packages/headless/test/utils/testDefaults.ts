@@ -1,11 +1,11 @@
 import createFetcher from '@pnpm/default-fetcher'
 import createResolver from '@pnpm/default-resolver'
+import { HeadlessOptions } from '@pnpm/headless'
 import createStore from '@pnpm/package-store'
 import readManifests from '@pnpm/read-manifests'
 import storePath from '@pnpm/store-path'
 import path = require('path')
 import tempy = require('tempy')
-import { HeadlessOptions } from '@pnpm/headless'
 
 const registry = 'http://localhost:4873/'
 
@@ -60,25 +60,25 @@ export default async function testDefaults (
     },
   )
   return {
+    force: false,
     importers: manifests.importers,
-    pendingBuilds: manifests.pendingBuilds,
     include: manifests.include,
     independentLeaves: false,
-    verifyStoreIntegrity: true,
-    sideEffectsCache: true,
-    shrinkwrapDirectory,
-    force: false,
-    registries: manifests.registries || {
-      default: registry,
-    },
-    store,
-    storeController,
-    rawNpmConfig: {},
-    unsafePerm: true,
     packageManager: {
       name: 'pnpm',
       version: '1.0.0',
     },
+    pendingBuilds: manifests.pendingBuilds,
+    rawNpmConfig: {},
+    registries: manifests.registries || {
+      default: registry,
+    },
+    shrinkwrapDirectory,
+    sideEffectsCache: true,
+    store,
+    storeController,
+    unsafePerm: true,
+    verifyStoreIntegrity: true,
     ...opts,
   }
 }

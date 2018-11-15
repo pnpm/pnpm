@@ -23,11 +23,11 @@ import {
 import pkgIdToFilename from '@pnpm/pkgid-to-filename'
 import { fromDir as readPackageFromDir } from '@pnpm/read-package-json'
 import { shamefullyFlattenByShrinkwrap } from '@pnpm/shamefully-flatten'
-import symlinkDependency, { symlinkDirectRootDependency } from '@pnpm/symlink-dependency'
 import {
   PackageFilesResponse,
   StoreController,
 } from '@pnpm/store-controller-types'
+import symlinkDependency, { symlinkDirectRootDependency } from '@pnpm/symlink-dependency'
 import { PackageJson, Registries } from '@pnpm/types'
 import { realNodeModulesDir } from '@pnpm/utils'
 import dp = require('dependency-path')
@@ -250,8 +250,6 @@ export default async (opts: HeadlessOptions) => {
       )
   }
   await writeModulesYaml(virtualStoreDir, {
-    included: opts.include,
-    independentLeaves: !!opts.independentLeaves,
     importers: opts.importers.reduce((acc, importer) => {
       acc[importer.id] = {
         hoistedAliases: importer.hoistedAliases,
@@ -259,6 +257,8 @@ export default async (opts: HeadlessOptions) => {
       }
       return acc
     }, {}),
+    included: opts.include,
+    independentLeaves: !!opts.independentLeaves,
     layoutVersion: LAYOUT_VERSION,
     packageManager: `${opts.packageManager.name}@${opts.packageManager.version}`,
     pendingBuilds: opts.pendingBuilds,
@@ -348,11 +348,11 @@ async function linkRootPackages (
           const packageDir = path.join(opts.prefix, allDeps[alias].substr(5))
           const linkedPackage = await readPackageFromDir(packageDir)
           await symlinkDirectRootDependency(packageDir, opts.importerModulesDir, alias, {
-            linkedPackage,
-            prefix: opts.prefix,
             fromDependenciesField: isDev && 'devDependencies' ||
               isOptional && 'optionalDependencies' ||
               'dependencies',
+            linkedPackage,
+            prefix: opts.prefix,
           })
           return
         }

@@ -24,8 +24,8 @@ test('linking multiple packages', async (t: tape.Test) => {
   process.chdir('..')
   process.env.NPM_CONFIG_PREFIX = path.resolve('global')
 
-  await writePkg('linked-foo', {name: 'linked-foo', version: '1.0.0'})
-  await writePkg('linked-bar', {name: 'linked-bar', version: '1.0.0', dependencies: {'is-positive': '1.0.0'}})
+  await writePkg('linked-foo', { name: 'linked-foo', version: '1.0.0' })
+  await writePkg('linked-bar', { name: 'linked-bar', version: '1.0.0', dependencies: { 'is-positive': '1.0.0' } })
   await fs.writeFile('linked-bar/.npmrc', 'shamefully-flatten = true')
 
   process.chdir('linked-foo')
@@ -53,7 +53,7 @@ test('link global bin', async function (t: tape.Test) {
   if (process.env.APPDATA) process.env.APPDATA = global
   process.env.NPM_CONFIG_PREFIX = global
 
-  await writePkg('package-with-bin', {name: 'package-with-bin', version: '1.0.0', bin: 'bin.js'})
+  await writePkg('package-with-bin', { name: 'package-with-bin', version: '1.0.0', bin: 'bin.js' })
   await fs.writeFile('package-with-bin/bin.js', '#!/usr/bin/env node\nconsole.log(/hi/)\n', 'utf8')
 
   process.chdir('package-with-bin')

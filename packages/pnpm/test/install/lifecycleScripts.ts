@@ -1,10 +1,10 @@
 import prepare from '@pnpm/prepare'
 import { PackageJson } from '@pnpm/types'
+import loadJsonFile, { sync as loadJsonFileSync } from 'load-json-file'
+import path = require('path')
 import tape = require('tape')
 import promisifyTape from 'tape-promise'
 import { execPnpmSync } from '../utils'
-import path = require('path')
-import loadJsonFile, { sync as loadJsonFileSync } from 'load-json-file'
 
 const pkgRoot = path.join(__dirname, '..', '..')
 const pnpmPkg = loadJsonFileSync<PackageJson>(path.join(pkgRoot, 'package.json'))
@@ -118,11 +118,11 @@ test('prepare is executed after argumentless installation', t => {
 
 test('lifecycle events have proper npm_config_argv', async (t: tape.Test) => {
   const project = prepare(t, {
-    scripts: {
-      postinstall: 'write-lifecycle-env',
-    },
     dependencies: {
       'write-lifecycle-env': '^1.0.0',
+    },
+    scripts: {
+      postinstall: 'write-lifecycle-env',
     },
   })
 
@@ -131,8 +131,8 @@ test('lifecycle events have proper npm_config_argv', async (t: tape.Test) => {
   const lifecycleEnv = await loadJsonFile<object>('env.json')
 
   t.deepEqual(JSON.parse(lifecycleEnv['npm_config_argv']), {
-    remain: ['install'],
     cooked: ['install'],
     original: ['install'],
+    remain: ['install'],
   })
 })

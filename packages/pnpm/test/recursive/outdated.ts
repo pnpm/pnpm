@@ -1,12 +1,12 @@
 import { preparePackages } from '@pnpm/prepare'
 import { stripIndents } from 'common-tags'
+import normalizeNewline = require('normalize-newline')
 import tape = require('tape')
 import promisifyTape from 'tape-promise'
 import {
   execPnpm,
   execPnpmSync,
 } from '../utils'
-import normalizeNewline = require('normalize-newline')
 
 const test = promisifyTape(tape)
 
@@ -15,6 +15,7 @@ test('pnpm recursive outdated', async (t: tape.Test) => {
     {
       name: 'project-1',
       version: '1.0.0',
+
       dependencies: {
         'is-positive': '1.0.0',
       },
@@ -22,6 +23,7 @@ test('pnpm recursive outdated', async (t: tape.Test) => {
     {
       name: 'project-2',
       version: '1.0.0',
+
       dependencies: {
         'is-negative': '1.0.0',
       },

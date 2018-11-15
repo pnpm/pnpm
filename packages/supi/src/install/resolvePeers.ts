@@ -114,13 +114,13 @@ export default function (
 
     resolvePeersOfChildren(directNodeIdsByAlias, pkgsByName, {
       absolutePathsByNodeId,
-      depGraph,
       dependenciesTree: opts.dependenciesTree,
-      usesExternalShrinkwrap,
+      depGraph,
       independentLeaves: opts.independentLeaves,
       prefix,
       purePkgs: new Set(),
       strictPeerDependencies: opts.strictPeerDependencies,
+      usesExternalShrinkwrap,
       virtualStoreDir: opts.virtualStoreDir,
     })
   }
@@ -180,12 +180,12 @@ function resolvePeersOfNode (
     ? {}
     : resolvePeers({
       dependenciesTree: ctx.dependenciesTree,
-      usesExternalShrinkwrap: ctx.usesExternalShrinkwrap,
       node,
       nodeId,
       parentPkgs,
       prefix: ctx.prefix,
       strictPeerDependencies: ctx.strictPeerDependencies,
+      usesExternalShrinkwrap: ctx.usesExternalShrinkwrap,
     })
 
   const allResolvedPeers = Object.assign(unknownResolvedPeersOfChildren, resolvedPeers)

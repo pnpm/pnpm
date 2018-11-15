@@ -1,7 +1,7 @@
 import { preparePackages } from '@pnpm/prepare'
+import exists = require('path-exists')
 import tape = require('tape')
 import promisifyTape from 'tape-promise'
-import exists = require('path-exists')
 import { execPnpm } from '../utils'
 
 const test = promisifyTape(tape)
@@ -11,6 +11,7 @@ test('recursive linking/unlinking', async (t: tape.Test) => {
     {
       name: 'project-1',
       version: '1.0.0',
+
       devDependencies: {
         'is-positive': '1.0.0',
       },
@@ -18,6 +19,7 @@ test('recursive linking/unlinking', async (t: tape.Test) => {
     {
       name: 'is-positive',
       version: '1.0.0',
+
       dependencies: {
         'is-negative': '1.0.0',
       },
@@ -55,6 +57,7 @@ test('recursive unlink specific package', async (t: tape.Test) => {
     {
       name: 'project-1',
       version: '1.0.0',
+
       devDependencies: {
         'is-positive': '1.0.0',
       },
@@ -62,6 +65,7 @@ test('recursive unlink specific package', async (t: tape.Test) => {
     {
       name: 'is-positive',
       version: '1.0.0',
+
       dependencies: {
         'is-negative': '1.0.0',
       },

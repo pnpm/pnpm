@@ -1,15 +1,15 @@
 import prepare, { preparePackages } from '@pnpm/prepare'
-import fs = require('mz/fs')
-import tape = require('tape')
-import promisifyTape from 'tape-promise'
-import path = require('path')
-import { Shrinkwrap } from 'pnpm-shrinkwrap'
 import loadJsonFile from 'load-json-file'
 import loadYamlFile = require('load-yaml-file')
+import fs = require('mz/fs')
+import path = require('path')
+import { Shrinkwrap } from 'pnpm-shrinkwrap'
+import rimraf = require('rimraf-then')
+import symlink from 'symlink-dir'
+import tape = require('tape')
+import promisifyTape from 'tape-promise'
 import writeYamlFile = require('write-yaml-file')
 import { execPnpm } from '../utils'
-import symlink from 'symlink-dir'
-import rimraf = require('rimraf-then')
 
 const test = promisifyTape(tape)
 const testOnly = promisifyTape(tape.only)
@@ -102,6 +102,7 @@ test('linking a package inside a monorepo with --link-workspace-packages', async
     {
       name: 'project-1',
       version: '1.0.0',
+
       dependencies: {
         'json-append': '1',
         'project-2': '2.0.0',
@@ -119,6 +120,7 @@ test('linking a package inside a monorepo with --link-workspace-packages', async
     {
       name: 'project-2',
       version: '2.0.0',
+
       dependencies: {
         'json-append': '1',
       },
@@ -182,6 +184,7 @@ test('topological order of packages with self-dependencies in monorepo is correc
     {
       name: 'project-1',
       version: '1.0.0',
+
       dependencies: { 'project-2': '1.0.0', 'project-3': '1.0.0' },
       devDependencies: { 'json-append': '1' },
       scripts: {
@@ -192,6 +195,7 @@ test('topological order of packages with self-dependencies in monorepo is correc
     {
       name: 'project-2',
       version: '1.0.0',
+
       dependencies: { 'project-2': '1.0.0' },
       devDependencies: { 'json-append': '1' },
       scripts: {
@@ -202,6 +206,7 @@ test('topological order of packages with self-dependencies in monorepo is correc
     {
       name: 'project-3',
       version: '1.0.0',
+
       dependencies: { 'project-2': '1.0.0', 'project-3': '1.0.0' },
       devDependencies: { 'json-append': '1' },
       scripts: {
@@ -245,6 +250,7 @@ test('do not get confused by filtered dependencies when searching for dependents
     {
       name: 'project-2',
       version: '1.0.0',
+
       dependencies: { 'unused-project-1': '1.0.0', 'unused-project-2': '1.0.0' },
       devDependencies: { 'json-append': '1' },
       scripts: {
@@ -254,6 +260,7 @@ test('do not get confused by filtered dependencies when searching for dependents
     {
       name: 'project-3',
       version: '1.0.0',
+
       dependencies: { 'project-2': '1.0.0' },
       devDependencies: { 'json-append': '1' },
       scripts: {
@@ -263,6 +270,7 @@ test('do not get confused by filtered dependencies when searching for dependents
     {
       name: 'project-4',
       version: '1.0.0',
+
       dependencies: { 'project-2': '1.0.0', 'unused-project-1': '1.0.0', 'unused-project-2': '1.0.0' },
       devDependencies: { 'json-append': '1' },
       scripts: {
@@ -291,6 +299,7 @@ test('installation with --link-workspace-packages links packages even if they we
     {
       name: 'project',
       version: '1.0.0',
+
       dependencies: {
         'is-positive': '2.0.0',
         'negative': 'npm:is-negative@1.0.0',
@@ -328,6 +337,7 @@ test('shared-workspace-shrinkwrap: installation with --link-workspace-packages l
     {
       name: 'project',
       version: '1.0.0',
+
       dependencies: {
         'is-positive': '2.0.0',
         'negative': 'npm:is-negative@1.0.0',
@@ -378,9 +388,10 @@ test('recursive install with link-workspace-packages and shared-workspace-shrink
     {
       name: 'is-positive',
       version: '1.0.0',
+
       dependencies: {
-        'json-append': '1',
         'is-negative': '1.0.0',
+        'json-append': '1',
       },
       scripts: {
         install: `node -e "process.stdout.write('is-positive')" | json-append ../output.json`,
@@ -395,9 +406,10 @@ test('recursive install with link-workspace-packages and shared-workspace-shrink
     {
       name: 'project-1',
       version: '1.0.0',
+
       devDependencies: {
-        'json-append': '1',
         'is-positive': '1.0.0',
+        'json-append': '1',
       },
       scripts: {
         install: `node -e "process.stdout.write('project-1')" | json-append ../output.json`,
@@ -429,6 +441,7 @@ test('recursive installation with shared-workspace-shrinkwrap and a readPackage 
     {
       name: 'project-1',
       version: '1.0.0',
+
       dependencies: {
         'is-positive': '1.0.0',
       },
@@ -436,6 +449,7 @@ test('recursive installation with shared-workspace-shrinkwrap and a readPackage 
     {
       name: 'project-2',
       version: '1.0.0',
+
       dependencies: {
         'is-negative': '1.0.0',
       },
@@ -468,6 +482,7 @@ test('local packages should be preferred when running "pnpm link" inside a works
     {
       name: 'project-1',
       version: '1.0.0',
+
       dependencies: {
         'is-positive': '1.0.0',
       },
@@ -517,6 +532,7 @@ test("shared-workspace-shrinkwrap: don't install dependencies in projects that a
       package: {
         name: 'package-1',
         version: '1.0.0',
+
         dependencies: {
           'is-positive': '1.0.0',
           'package-2': '1.0.0',
@@ -528,6 +544,7 @@ test("shared-workspace-shrinkwrap: don't install dependencies in projects that a
       package: {
         name:  'package-2',
         version: '1.0.0',
+
         dependencies: {
           'is-negative': '1.0.0',
         },
@@ -581,6 +598,7 @@ test('shared-workspace-shrinkwrap: entries of removed projects should be removed
     {
       name: 'package-1',
       version: '1.0.0',
+
       dependencies: {
         'is-positive': '1.0.0',
       },
@@ -588,6 +606,7 @@ test('shared-workspace-shrinkwrap: entries of removed projects should be removed
     {
       name:  'package-2',
       version: '1.0.0',
+
       dependencies: {
         'is-negative': '1.0.0',
       },

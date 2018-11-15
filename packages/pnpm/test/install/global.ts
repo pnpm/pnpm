@@ -1,12 +1,12 @@
 import prepare from '@pnpm/prepare'
+import isWindows = require('is-windows')
+import path = require('path')
 import tape = require('tape')
 import promisifyTape from 'tape-promise'
-import path = require('path')
 import {
   addDistTag,
   execPnpm,
 } from '../utils'
-import isWindows = require('is-windows')
 
 const test = promisifyTape(tape)
 const LAYOUT_VERSION = '1'

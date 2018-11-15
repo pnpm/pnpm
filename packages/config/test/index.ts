@@ -1,8 +1,8 @@
 import getConfigs from '@pnpm/config'
+import fs = require('mz/fs')
 import path = require('path')
 import test = require('tape')
 import tempy = require('tempy')
-import fs = require('mz/fs')
 
 test('getConfigs()', async (t) => {
   const configs = await getConfigs({
@@ -159,9 +159,9 @@ test('registries of scoped packages are read', async (t) => {
   })
 
   t.deepEqual(opts.registries, {
-    'default': 'https://registry.npmjs.org/',
+    '@bar': 'https://bar.com',
     '@foo': 'https://foo.com',
-    '@bar': 'https://bar.com'
+    'default': 'https://registry.npmjs.org/',
   })
 
   t.end()

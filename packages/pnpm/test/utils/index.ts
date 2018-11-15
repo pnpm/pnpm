@@ -4,9 +4,9 @@ import execPnpm, {
   spawn,
   sync as execPnpmSync,
 } from './execPnpm'
+import { pathToLocalPkg } from './localPkg'
 import retryLoadJsonFile from './retryLoadJsonFile'
 import testDefaults from './testDefaults'
-import { pathToLocalPkg } from './localPkg'
 
 export {
   createDeferred,

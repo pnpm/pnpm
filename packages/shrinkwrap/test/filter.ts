@@ -1,5 +1,5 @@
-import test = require('tape')
 import { filterByImporters } from 'pnpm-shrinkwrap'
+import test = require('tape')
 
 test('filter: only prod dependencies of one importer', (t) => {
   const filteredShr = filterByImporters(
@@ -39,6 +39,9 @@ test('filter: only prod dependencies of one importer', (t) => {
           optional: true,
           resolution: { integrity: '' },
         },
+        '/prod-dep-dep/1.0.0': {
+          resolution: { integrity: '' },
+        },
         '/prod-dep/1.0.0': {
           dependencies: {
             'prod-dep-dep': '1.0.0',
@@ -46,9 +49,6 @@ test('filter: only prod dependencies of one importer', (t) => {
           optionalDependencies: {
             'optional-dep': '1.0.0',
           },
-          resolution: { integrity: '' },
-        },
-        '/prod-dep-dep/1.0.0': {
           resolution: { integrity: '' },
         },
         '/project-2-prod-dep/1.0.0': {
@@ -60,13 +60,13 @@ test('filter: only prod dependencies of one importer', (t) => {
     ['project-1'],
     {
       defaultRegistry: 'https://registry.npmjs.org/',
+      failOnMissingDependencies: true,
       include: {
         dependencies: true,
         devDependencies: false,
         optionalDependencies: false,
       },
       skipped: new Set<string>(),
-      failOnMissingDependencies: true,
     },
   )
 
@@ -94,6 +94,9 @@ test('filter: only prod dependencies of one importer', (t) => {
       }
     },
     packages: {
+      '/prod-dep-dep/1.0.0': {
+        resolution: { integrity: '' },
+      },
       '/prod-dep/1.0.0': {
         dependencies: {
           'prod-dep-dep': '1.0.0',
@@ -101,9 +104,6 @@ test('filter: only prod dependencies of one importer', (t) => {
         optionalDependencies: {
           'optional-dep': '1.0.0',
         },
-        resolution: { integrity: '' },
-      },
-      '/prod-dep-dep/1.0.0': {
         resolution: { integrity: '' },
       },
     },

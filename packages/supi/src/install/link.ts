@@ -10,8 +10,8 @@ import { IncludedDependencies } from '@pnpm/modules-yaml'
 import { fromDir as readPackageFromDir } from '@pnpm/read-package-json'
 import { DependenciesTree, LinkedDependency } from '@pnpm/resolve-dependencies'
 import shamefullyFlattenGraph from '@pnpm/shamefully-flatten'
-import symlinkDependency, { symlinkDirectRootDependency } from '@pnpm/symlink-dependency'
 import { StoreController } from '@pnpm/store-controller-types'
+import symlinkDependency, { symlinkDirectRootDependency } from '@pnpm/symlink-dependency'
 import { PackageJson, Registries } from '@pnpm/types'
 import * as dp from 'dependency-path'
 import pLimit = require('p-limit')
@@ -23,8 +23,8 @@ import {
 } from 'pnpm-shrinkwrap'
 import R = require('ramda')
 import {
-  SHRINKWRAP_VERSION,
   SHRINKWRAP_NEXT_VERSION,
+  SHRINKWRAP_VERSION,
 } from '../constants'
 import resolvePeers, {
   DependenciesGraph,

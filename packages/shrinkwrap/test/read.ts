@@ -1,21 +1,21 @@
-import {
-  existsWanted,
-  readWanted,
-  readCurrent,
-  readPrivate,
-  read,
-  write,
-  writeWantedOnly,
-  writeCurrentOnly,
-} from 'pnpm-shrinkwrap'
-import test = require('tape')
-import path = require('path')
-import tempy = require('tempy')
+import fs = require('fs')
 import loadYamlFile = require('load-yaml-file')
 import mkdirp = require('mkdirp-promise')
-import yaml = require('yaml-tag')
-import fs = require('fs')
+import path = require('path')
+import {
+  existsWanted,
+  read,
+  readCurrent,
+  readPrivate,
+  readWanted,
+  write,
+  writeCurrentOnly,
+  writeWantedOnly,
+} from 'pnpm-shrinkwrap'
+import test = require('tape')
+import tempy = require('tempy')
 import writeYamlFile = require('write-yaml-file')
+import yaml = require('yaml-tag')
 
 process.chdir(__dirname)
 
@@ -70,30 +70,28 @@ test('readCurrent()', async t => {
 test('writeWantedOnly()', async t => {
   const projectPath = tempy.directory()
   const wantedShrinkwrap = {
-    shrinkwrapVersion: 3,
-    registry: 'https://registry.npmjs.org',
     importers: {
       '.': {
         dependencies: {
-          'is-positive': '1.0.0',
           'is-negative': '1.0.0',
+          'is-positive': '1.0.0',
         },
         specifiers: {
-          'is-positive': '^1.0.0',
           'is-negative': '^1.0.0',
+          'is-positive': '^1.0.0',
         },
       },
     },
     packages: {
-      '/is-positive/1.0.0': {
-        resolution: {
-          integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g='
-        }
-      },
       '/is-negative/1.0.0': {
         dependencies: {
           'is-positive': '2.0.0',
         },
+        resolution: {
+          integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g='
+        },
+      },
+      '/is-positive/1.0.0': {
         resolution: {
           integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g='
         }
@@ -101,9 +99,11 @@ test('writeWantedOnly()', async t => {
       '/is-positive/2.0.0': {
         resolution: {
           integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g='
-        }
+        },
       },
-    }
+    },
+    registry: 'https://registry.npmjs.org',
+    shrinkwrapVersion: 3,
   }
   await writeWantedOnly(projectPath, wantedShrinkwrap)
   t.equal(await readCurrent(projectPath, { ignoreIncompatible: false }), null, 'current shrinkwrap read')
@@ -114,26 +114,19 @@ test('writeWantedOnly()', async t => {
 test('writeCurrentOnly()', async t => {
   const projectPath = tempy.directory()
   const wantedShrinkwrap = {
-    shrinkwrapVersion: 3,
-    registry: 'https://registry.npmjs.org',
     importers: {
       '.': {
         dependencies: {
-          'is-positive': '1.0.0',
           'is-negative': '1.0.0',
+          'is-positive': '1.0.0',
         },
         specifiers: {
-          'is-positive': '^1.0.0',
           'is-negative': '^1.0.0',
+          'is-positive': '^1.0.0',
         },
       },
     },
     packages: {
-      '/is-positive/1.0.0': {
-        resolution: {
-          integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g='
-        }
-      },
       '/is-negative/1.0.0': {
         dependencies: {
           'is-positive': '2.0.0',
@@ -142,12 +135,19 @@ test('writeCurrentOnly()', async t => {
           integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g='
         }
       },
-      '/is-positive/2.0.0': {
+      '/is-positive/1.0.0': {
         resolution: {
           integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g='
         }
       },
-    }
+      '/is-positive/2.0.0': {
+        resolution: {
+          integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g='
+        },
+      },
+    },
+    registry: 'https://registry.npmjs.org',
+    shrinkwrapVersion: 3,
   }
   await mkdirp(path.join(projectPath, 'node_modules'))
   await writeCurrentOnly(projectPath, wantedShrinkwrap)
@@ -160,26 +160,19 @@ test('existsWanted()', async t => {
   const projectPath = tempy.directory()
   t.notOk(await existsWanted(projectPath))
   await writeWantedOnly(projectPath, {
-    shrinkwrapVersion: 3,
-    registry: 'https://registry.npmjs.org',
     importers: {
       '.': {
         dependencies: {
-          'is-positive': '1.0.0',
           'is-negative': '1.0.0',
+          'is-positive': '1.0.0',
         },
         specifiers: {
-          'is-positive': '^1.0.0',
           'is-negative': '^1.0.0',
+          'is-positive': '^1.0.0',
         },
       },
     },
     packages: {
-      '/is-positive/1.0.0': {
-        resolution: {
-          integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g='
-        }
-      },
       '/is-negative/1.0.0': {
         dependencies: {
           'is-positive': '2.0.0',
@@ -188,12 +181,19 @@ test('existsWanted()', async t => {
           integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g='
         }
       },
-      '/is-positive/2.0.0': {
+      '/is-positive/1.0.0': {
         resolution: {
           integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g='
         }
       },
-    }
+      '/is-positive/2.0.0': {
+        resolution: {
+          integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g='
+        },
+      },
+    },
+    registry: 'https://registry.npmjs.org',
+    shrinkwrapVersion: 3,
   })
   t.ok(await existsWanted(projectPath))
   t.end()
@@ -202,26 +202,19 @@ test('existsWanted()', async t => {
 test('write()', async t => {
   const projectPath = tempy.directory()
   const wantedShrinkwrap = {
-    shrinkwrapVersion: 3,
-    registry: 'https://registry.npmjs.org',
     importers: {
       '.': {
         dependencies: {
-          'is-positive': '1.0.0',
           'is-negative': '1.0.0',
+          'is-positive': '1.0.0',
         },
         specifiers: {
-          'is-positive': '^1.0.0',
           'is-negative': '^1.0.0',
+          'is-positive': '^1.0.0',
         },
       },
     },
     packages: {
-      '/is-positive/1.0.0': {
-        resolution: {
-          integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g='
-        }
-      },
       '/is-negative/1.0.0': {
         dependencies: {
           'is-positive': '2.0.0',
@@ -230,12 +223,19 @@ test('write()', async t => {
           integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g='
         }
       },
-      '/is-positive/2.0.0': {
+      '/is-positive/1.0.0': {
         resolution: {
           integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g='
         }
       },
-    }
+      '/is-positive/2.0.0': {
+        resolution: {
+          integrity: 'sha1-ChbBDewTLAqLCzb793Fo5VDvg/g='
+        },
+      },
+    },
+    registry: 'https://registry.npmjs.org',
+    shrinkwrapVersion: 3,
   }
   await write(projectPath, wantedShrinkwrap, wantedShrinkwrap)
   t.deepEqual(await readCurrent(projectPath, { ignoreIncompatible: false }), wantedShrinkwrap)
@@ -246,8 +246,6 @@ test('write()', async t => {
 test('write() when no specifiers but dependencies present', async t => {
   const projectPath = tempy.directory()
   const wantedShrinkwrap = {
-    shrinkwrapVersion: 3,
-    registry: 'https://registry.npmjs.org',
     importers: {
       '.': {
         dependencies: {
@@ -256,6 +254,8 @@ test('write() when no specifiers but dependencies present', async t => {
         specifiers: {},
       },
     },
+    registry: 'https://registry.npmjs.org',
+    shrinkwrapVersion: 3,
   }
   await write(projectPath, wantedShrinkwrap, wantedShrinkwrap)
   t.deepEqual(await readCurrent(projectPath, { ignoreIncompatible: false }), wantedShrinkwrap)
@@ -266,17 +266,15 @@ test('write() when no specifiers but dependencies present', async t => {
 test('write does not use yaml anchors/aliases', async t => {
   const projectPath = tempy.directory()
   const wantedShrinkwrap = {
-    shrinkwrapVersion: 3,
-    registry: 'https://registry.npmjs.org',
     importers: {
       '.': {
         dependencies: {
-          'is-positive': '1.0.0',
           'is-negative': '1.0.0',
+          'is-positive': '1.0.0',
         },
         specifiers: {
-          'is-positive': '1.0.0',
           'is-negative': '1.0.0',
+          'is-positive': '1.0.0',
         },
       },
     },
@@ -311,6 +309,8 @@ test('write does not use yaml anchors/aliases', async t => {
         resolution:
           integrity: sha512-y9YmnusURc+3KPgvhYKvZ9oCucj51MSZWODyaeV0KFU0cquzA7dCD1g/OIYUKtNoZ+MXtacDngkdud2TklMSjw==
     `,
+    registry: 'https://registry.npmjs.org',
+    shrinkwrapVersion: 3,
   }
   await write(projectPath, wantedShrinkwrap, wantedShrinkwrap)
 
@@ -324,9 +324,9 @@ test('write does not use yaml anchors/aliases', async t => {
 test('read merges minor and major shrinkwrap versions', async t => {
   const projectPath = tempy.directory()
   const wantedShrinkwrap = {
-    shrinkwrapVersion: 3,
-    shrinkwrapMinorVersion: 11,
     registry: 'https://registry.npmjs.org',
+    shrinkwrapMinorVersion: 11,
+    shrinkwrapVersion: 3,
   }
   await writeYamlFile(path.join(projectPath, 'shrinkwrap.yaml'), wantedShrinkwrap)
 
@@ -339,7 +339,6 @@ test('read merges minor and major shrinkwrap versions', async t => {
 test('write saves shrinkwrap version in correct fields', async t => {
   const projectPath = tempy.directory()
   await writeWantedOnly(projectPath, {
-    shrinkwrapVersion: 3.11,
     importers: {
       '.': {
         dependencies: {
@@ -358,6 +357,7 @@ test('write saves shrinkwrap version in correct fields', async t => {
       },
     },
     registry: 'https://registry.npmjs.org/',
+    shrinkwrapVersion: 3.11,
   })
   const shr = await loadYamlFile(path.join(projectPath, 'shrinkwrap.yaml'))
   t.equal(shr['shrinkwrapVersion'], 3)

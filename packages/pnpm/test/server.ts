@@ -37,7 +37,7 @@ test('installation using pnpm server', async (t: tape.Test) => {
   const server = spawn(['server', 'start'])
 
   const serverJsonPath = path.resolve('..', 'store', '2', 'server', 'server.json')
-  const serverJson = await retryLoadJsonFile(serverJsonPath)
+  const serverJson = await retryLoadJsonFile<{ connectionOptions: object, pnpmVersion: string }>(serverJsonPath)
   t.ok(serverJson)
   t.ok(serverJson.connectionOptions)
   t.equal(typeof serverJson.pnpmVersion, 'string', 'pnpm version added added to server.json')
@@ -59,7 +59,7 @@ test('store server: headless installation', async (t: tape.Test) => {
   const server = spawn(['server', 'start'])
 
   const serverJsonPath = path.resolve('..', 'store', '2', 'server', 'server.json')
-  const serverJson = await retryLoadJsonFile(serverJsonPath)
+  const serverJson = await retryLoadJsonFile<{ connectionOptions: object }>(serverJsonPath)
   t.ok(serverJson)
   t.ok(serverJson.connectionOptions)
 
@@ -80,7 +80,7 @@ test('installation using pnpm server that runs in the background', async (t: tap
   await execPnpm('server', 'start', '--background')
 
   const serverJsonPath = path.resolve('..', 'store', '2', 'server', 'server.json')
-  const serverJson = await retryLoadJsonFile(serverJsonPath)
+  const serverJson = await retryLoadJsonFile<{ connectionOptions: object }>(serverJsonPath)
   t.ok(serverJson)
   t.ok(serverJson.connectionOptions)
 
@@ -101,7 +101,7 @@ test('installation using pnpm server via TCP', async (t: tape.Test) => {
   const server = spawn(['server', 'start', '--protocol', 'tcp'])
 
   const serverJsonPath = path.resolve('..', 'store', '2', 'server', 'server.json')
-  const serverJson = await retryLoadJsonFile(serverJsonPath)
+  const serverJson = await retryLoadJsonFile<{ connectionOptions: { remotePrefix: string } }>(serverJsonPath)
   t.ok(serverJson)
   t.ok(serverJson.connectionOptions.remotePrefix.indexOf('http://localhost:') === 0, 'TCP is used for communication')
 
@@ -122,7 +122,7 @@ test('pnpm server uses TCP when port specified', async (t: tape.Test) => {
   const server = spawn(['server', 'start', '--port', '7856'])
 
   const serverJsonPath = path.resolve('..', 'store', '2', 'server', 'server.json')
-  const serverJson = await retryLoadJsonFile(serverJsonPath)
+  const serverJson = await retryLoadJsonFile<{ connectionOptions: { remotePrefix: string } }>(serverJsonPath)
   t.ok(serverJson)
   t.equal(serverJson.connectionOptions.remotePrefix, 'http://localhost:7856', 'TCP with specified port is used for communication')
 
@@ -177,7 +177,7 @@ test('installation using store server started in the background', async (t: tape
   await execPnpm('install', 'is-positive@1.0.0', '--use-store-server')
 
   const serverJsonPath = path.resolve('..', 'store', '2', 'server', 'server.json')
-  const serverJson = await retryLoadJsonFile(serverJsonPath)
+  const serverJson = await retryLoadJsonFile<{ connectionOptions: object }>(serverJsonPath)
   t.ok(serverJson)
   t.ok(serverJson.connectionOptions)
 
@@ -196,7 +196,7 @@ test('store server started in the background should use store location wanted by
   await execPnpm('install', 'is-positive@1.0.0', '--use-store-server', '--store', '../store2')
 
   const serverJsonPath = path.resolve('..', 'store2', '2', 'server', 'server.json')
-  const serverJson = await retryLoadJsonFile(serverJsonPath)
+  const serverJson = await retryLoadJsonFile<{ connectionOptions: object }>(serverJsonPath)
   t.ok(serverJson)
   t.ok(serverJson.connectionOptions)
 
@@ -329,7 +329,7 @@ test['skip']('fail if the store server is run by a different version of pnpm', a
   const project = prepare(t)
 
   const serverJsonPath = path.resolve('..', 'store', '2', 'server', 'server.json')
-  await writeJsonFile(serverJsonPath, {pnpmVersion: '2.0.0'})
+  await writeJsonFile(serverJsonPath, { pnpmVersion: '2.0.0' })
 
   const result = execPnpmSync('install', 'is-positive@1.0.0')
 

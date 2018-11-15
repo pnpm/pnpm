@@ -1,9 +1,9 @@
 import { preparePackages } from '@pnpm/prepare'
 import { stripIndent } from 'common-tags'
 import fs = require('mz/fs')
+import path = require('path')
 import tape = require('tape')
 import promisifyTape from 'tape-promise'
-import path = require('path')
 import writeYamlFile = require('write-yaml-file')
 import {
   execPnpm,
@@ -18,6 +18,7 @@ test('recursive list', async (t: tape.Test) => {
     {
       name: 'project-1',
       version: '1.0.0',
+
       dependencies: {
         'is-positive': '1.0.0',
       },
@@ -25,6 +26,7 @@ test('recursive list', async (t: tape.Test) => {
     {
       name: 'project-2',
       version: '1.0.0',
+
       dependencies: {
         'is-negative': '1.0.0',
       },
@@ -55,6 +57,7 @@ test('recursive list with shared-workspace-shrinkwrap', async (t: tape.Test) => 
     {
       name: 'project-1',
       version: '1.0.0',
+
       dependencies: {
         'pkg-with-1-dep': '100.0.0',
       },
@@ -62,6 +65,7 @@ test('recursive list with shared-workspace-shrinkwrap', async (t: tape.Test) => 
     {
       name: 'project-2',
       version: '1.0.0',
+
       dependencies: {
         'is-negative': '1.0.0',
       },
@@ -96,6 +100,7 @@ test('recursive list --scope', async (t: tape.Test) => {
     {
       name: 'project-1',
       version: '1.0.0',
+
       dependencies: {
         'is-positive': '1.0.0',
         'project-2': '1.0.0',
@@ -104,6 +109,7 @@ test('recursive list --scope', async (t: tape.Test) => {
     {
       name: 'project-2',
       version: '1.0.0',
+
       dependencies: {
         'is-negative': '1.0.0',
       },
@@ -111,6 +117,7 @@ test('recursive list --scope', async (t: tape.Test) => {
     {
       name: 'project-3',
       version: '1.0.0',
+
       dependencies: {
         'is-negative': '1.0.0',
         'is-positive': '1.0.0',

@@ -42,8 +42,8 @@ export function sync (): ChildProcess {
 function createEnv (opts?: {storeDir?: string}) {
   const _ = Object.assign({}, process.env, {
     npm_config_registry: 'http://localhost:4873/',
-    npm_config_store: opts && opts.storeDir || '../store',
     npm_config_silent: 'true',
+    npm_config_store: opts && opts.storeDir || '../store',
     // Although this is the default value of verify-store-integrity (as of pnpm 1.38.0)
     // on CI servers we set it to `false`. That is why we set it back to true for the tests
     npm_config_verify_store_integrity: 'true',

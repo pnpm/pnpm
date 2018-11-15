@@ -1,11 +1,12 @@
 import { preparePackages } from '@pnpm/prepare'
-import fs = require('mz/fs')
 import isCI = require('is-ci')
 import isWindows = require('is-windows')
 import loadYamlFile = require('load-yaml-file')
+import mkdirp = require('mkdirp-promise')
+import fs = require('mz/fs')
+import path = require('path')
 import tape = require('tape')
 import promisifyTape from 'tape-promise'
-import path = require('path')
 import writeJsonFile from 'write-json-file'
 import writeYamlFile = require('write-yaml-file')
 import {
@@ -13,7 +14,6 @@ import {
   retryLoadJsonFile,
   spawn,
 } from '../utils'
-import mkdirp = require('mkdirp-promise')
 
 const test = promisifyTape(tape)
 const testOnly = promisifyTape(tape.only)
@@ -23,6 +23,7 @@ test('recursive install/uninstall', async (t: tape.Test) => {
     {
       name: 'project-1',
       version: '1.0.0',
+
       dependencies: {
         'is-positive': '1.0.0',
       },
@@ -30,6 +31,7 @@ test('recursive install/uninstall', async (t: tape.Test) => {
     {
       name: 'project-2',
       version: '1.0.0',
+
       dependencies: {
         'is-negative': '1.0.0',
       },
@@ -57,6 +59,7 @@ test('recursive install should install in whole workspace even when executed in 
     {
       name: 'project-1',
       version: '1.0.0',
+
       dependencies: {
         'is-positive': '1.0.0',
       },
@@ -64,6 +67,7 @@ test('recursive install should install in whole workspace even when executed in 
     {
       name: 'project-2',
       version: '1.0.0',
+
       dependencies: {
         'is-negative': '1.0.0',
       },
@@ -86,6 +90,7 @@ test('recursive install with package that has link', async (t: tape.Test) => {
     {
       name: 'project-1',
       version: '1.0.0',
+
       dependencies: {
         'is-positive': '1.0.0',
         'project-2': 'link:../project-2',
@@ -94,6 +99,7 @@ test('recursive install with package that has link', async (t: tape.Test) => {
     {
       name: 'project-2',
       version: '1.0.0',
+
       dependencies: {
         'is-negative': '1.0.0',
       },
@@ -112,6 +118,7 @@ test('recursive update', async (t: tape.Test) => {
     {
       name: 'project-1',
       version: '1.0.0',
+
       dependencies: {
         'is-positive': '1.0.0',
       },
@@ -119,6 +126,7 @@ test('recursive update', async (t: tape.Test) => {
     {
       name: 'project-2',
       version: '1.0.0',
+
       dependencies: {
         'is-negative': '1.0.0',
       },
@@ -138,6 +146,7 @@ test('recursive installation with package-specific .npmrc', async t => {
     {
       name: 'project-1',
       version: '1.0.0',
+
       dependencies: {
         'is-positive': '1.0.0',
       },
@@ -145,6 +154,7 @@ test('recursive installation with package-specific .npmrc', async t => {
     {
       name: 'project-2',
       version: '1.0.0',
+
       dependencies: {
         'is-negative': '1.0.0',
       },
@@ -170,6 +180,7 @@ test('workspace .npmrc is always read', async (t: tape.Test) => {
     {
       name: 'project-1',
       version: '1.0.0',
+
       dependencies: {
         'is-positive': '1.0.0',
       },
@@ -177,6 +188,7 @@ test('workspace .npmrc is always read', async (t: tape.Test) => {
     {
       name: 'project-2',
       version: '1.0.0',
+
       dependencies: {
         'is-negative': '1.0.0',
       },
@@ -211,6 +223,7 @@ test('recursive installation using server', async (t: tape.Test) => {
     {
       name: 'project-1',
       version: '1.0.0',
+
       dependencies: {
         'is-positive': '1.0.0',
       },
@@ -218,6 +231,7 @@ test('recursive installation using server', async (t: tape.Test) => {
     {
       name: 'project-2',
       version: '1.0.0',
+
       dependencies: {
         'is-negative': '1.0.0',
       },
@@ -247,6 +261,7 @@ test('recursive installation of packages with hooks', async t => {
     {
       name: 'project-1',
       version: '1.0.0',
+
       dependencies: {
         'is-positive': '1.0.0',
       },
@@ -254,6 +269,7 @@ test('recursive installation of packages with hooks', async t => {
     {
       name: 'project-2',
       version: '1.0.0',
+
       dependencies: {
         'is-negative': '1.0.0',
       },
@@ -292,6 +308,7 @@ test('ignores pnpmfile.js during recursive installation when --ignore-pnpmfile i
     {
       name: 'project-1',
       version: '1.0.0',
+
       dependencies: {
         'is-positive': '1.0.0',
       },
@@ -299,6 +316,7 @@ test('ignores pnpmfile.js during recursive installation when --ignore-pnpmfile i
     {
       name: 'project-2',
       version: '1.0.0',
+
       dependencies: {
         'is-negative': '1.0.0',
       },
@@ -335,6 +353,7 @@ test('running `pnpm recursive` on a subset of packages', async t => {
     {
       name: 'project-1',
       version: '1.0.0',
+
       dependencies: {
         'is-positive': '1.0.0',
       },
@@ -342,6 +361,7 @@ test('running `pnpm recursive` on a subset of packages', async t => {
     {
       name: 'project-2',
       version: '1.0.0',
+
       dependencies: {
         'is-negative': '1.0.0',
       },
@@ -363,6 +383,7 @@ test('running `pnpm recursive` only for packages in subdirectories of cwd', asyn
       package: {
         name: 'project-1',
         version: '1.0.0',
+
         dependencies: {
           'is-positive': '1.0.0',
         },
@@ -373,6 +394,7 @@ test('running `pnpm recursive` only for packages in subdirectories of cwd', asyn
       package: {
         name: 'project-2',
         version: '1.0.0',
+
         dependencies: {
           'is-negative': '1.0.0',
         },
@@ -383,6 +405,7 @@ test('running `pnpm recursive` only for packages in subdirectories of cwd', asyn
       package: {
         name: 'root-project',
         version: '1.0.0',
+
         dependencies: {
           'debug': '*',
         },
@@ -405,6 +428,7 @@ test('recursive installation fails when installation in one of the packages fail
     {
       name: 'project-1',
       version: '1.0.0',
+
       dependencies: {
         'this-pkg-does-not-exist': '100.100.100',
       },
@@ -412,6 +436,7 @@ test('recursive installation fails when installation in one of the packages fail
     {
       name: 'project-2',
       version: '1.0.0',
+
       dependencies: {
         'is-negative': '1.0.0',
       },
@@ -431,6 +456,7 @@ test('second run of `recursive link` after package.json has been edited manually
     {
       name: 'is-negative',
       version: '1.0.0',
+
       dependencies: {
         'is-positive': '2.0.0',
       },
@@ -446,6 +472,7 @@ test('second run of `recursive link` after package.json has been edited manually
   await writeJsonFile('is-negative/package.json', {
     name: 'is-negative',
     version: '1.0.0',
+
     dependencies: {
       'is-positive': '1.0.0',
     },
@@ -461,6 +488,7 @@ test('recursive --scope', async (t: tape.Test) => {
     {
       name: 'project-1',
       version: '1.0.0',
+
       dependencies: {
         'is-positive': '1.0.0',
         'project-2': '1.0.0',
@@ -469,6 +497,7 @@ test('recursive --scope', async (t: tape.Test) => {
     {
       name: 'project-2',
       version: '1.0.0',
+
       dependencies: {
         'is-negative': '1.0.0',
       },
@@ -476,6 +505,7 @@ test('recursive --scope', async (t: tape.Test) => {
     {
       name: 'project-3',
       version: '1.0.0',
+
       dependencies: {
         minimatch: '*',
       },
@@ -494,6 +524,7 @@ test('recursive --scope ignore excluded packages', async (t: tape.Test) => {
     {
       name: 'project-1',
       version: '1.0.0',
+
       dependencies: {
         'is-positive': '1.0.0',
         'project-2': '1.0.0',
@@ -502,6 +533,7 @@ test('recursive --scope ignore excluded packages', async (t: tape.Test) => {
     {
       name: 'project-2',
       version: '1.0.0',
+
       dependencies: {
         'is-negative': '1.0.0',
       },
@@ -509,6 +541,7 @@ test('recursive --scope ignore excluded packages', async (t: tape.Test) => {
     {
       name: 'project-3',
       version: '1.0.0',
+
       dependencies: {
         minimatch: '*',
       },
@@ -534,6 +567,7 @@ test('recursive filter package with dependencies', async (t: tape.Test) => {
     {
       name: 'project-1',
       version: '1.0.0',
+
       dependencies: {
         'is-positive': '1.0.0',
         'project-2': '1.0.0',
@@ -542,6 +576,7 @@ test('recursive filter package with dependencies', async (t: tape.Test) => {
     {
       name: 'project-2',
       version: '1.0.0',
+
       dependencies: {
         'is-negative': '1.0.0',
       },
@@ -549,6 +584,7 @@ test('recursive filter package with dependencies', async (t: tape.Test) => {
     {
       name: 'project-3',
       version: '1.0.0',
+
       dependencies: {
         minimatch: '*',
       },
@@ -567,6 +603,7 @@ test('recursive filter package with dependents', async (t: tape.Test) => {
     {
       name: 'project-0',
       version: '1.0.0',
+
       dependencies: {
         'is-positive': '1.0.0',
         'project-1': '1.0.0',
@@ -575,6 +612,7 @@ test('recursive filter package with dependents', async (t: tape.Test) => {
     {
       name: 'project-1',
       version: '1.0.0',
+
       dependencies: {
         'is-positive': '1.0.0',
         'project-2': '1.0.0',
@@ -583,6 +621,7 @@ test('recursive filter package with dependents', async (t: tape.Test) => {
     {
       name: 'project-2',
       version: '1.0.0',
+
       dependencies: {
         'is-negative': '1.0.0',
       },
@@ -590,6 +629,7 @@ test('recursive filter package with dependents', async (t: tape.Test) => {
     {
       name: 'project-3',
       version: '1.0.0',
+
       dependencies: {
         minimatch: '*',
       },
@@ -609,6 +649,7 @@ test('recursive filter package with dependents and filter with dependencies', as
     {
       name: 'project-0',
       version: '1.0.0',
+
       dependencies: {
         'is-positive': '1.0.0',
         'project-1': '1.0.0',
@@ -617,6 +658,7 @@ test('recursive filter package with dependents and filter with dependencies', as
     {
       name: 'project-1',
       version: '1.0.0',
+
       dependencies: {
         'is-positive': '1.0.0',
         'project-2': '1.0.0',
@@ -626,6 +668,7 @@ test('recursive filter package with dependents and filter with dependencies', as
     {
       name: 'project-2',
       version: '1.0.0',
+
       dependencies: {
         'is-negative': '1.0.0',
       },
@@ -633,6 +676,7 @@ test('recursive filter package with dependents and filter with dependencies', as
     {
       name: 'project-3',
       version: '1.0.0',
+
       dependencies: {
         minimatch: '*',
       },
@@ -640,6 +684,7 @@ test('recursive filter package with dependents and filter with dependencies', as
     {
       name: 'project-4',
       version: '1.0.0',
+
       dependencies: {
         minimatch: '*',
       },
@@ -660,6 +705,7 @@ test('recursive filter package with dependents and filter with dependencies, usi
     {
       name: 'project-0',
       version: '1.0.0',
+
       dependencies: {
         'is-positive': '1.0.0',
         'project-1': '1.0.0',
@@ -668,6 +714,7 @@ test('recursive filter package with dependents and filter with dependencies, usi
     {
       name: 'project-1',
       version: '1.0.0',
+
       dependencies: {
         'is-positive': '1.0.0',
         'project-2': '1.0.0',
@@ -677,6 +724,7 @@ test('recursive filter package with dependents and filter with dependencies, usi
     {
       name: 'project-2',
       version: '1.0.0',
+
       dependencies: {
         'is-negative': '1.0.0',
       },
@@ -684,6 +732,7 @@ test('recursive filter package with dependents and filter with dependencies, usi
     {
       name: 'project-3',
       version: '1.0.0',
+
       dependencies: {
         minimatch: '*',
       },
@@ -691,6 +740,7 @@ test('recursive filter package with dependents and filter with dependencies, usi
     {
       name: 'project-4',
       version: '1.0.0',
+
       dependencies: {
         minimatch: '*',
       },
@@ -711,6 +761,7 @@ test('recursive filter package with dependents and filter with dependencies, usi
     {
       name: 'project-0',
       version: '1.0.0',
+
       dependencies: {
         'is-positive': '1.0.0',
         'project-1': '1.0.0',
@@ -719,6 +770,7 @@ test('recursive filter package with dependents and filter with dependencies, usi
     {
       name: 'project-1',
       version: '1.0.0',
+
       dependencies: {
         'is-positive': '1.0.0',
         'project-2': '1.0.0',
@@ -728,6 +780,7 @@ test('recursive filter package with dependents and filter with dependencies, usi
     {
       name: 'project-2',
       version: '1.0.0',
+
       dependencies: {
         'is-negative': '1.0.0',
       },
@@ -735,6 +788,7 @@ test('recursive filter package with dependents and filter with dependencies, usi
     {
       name: 'project-3',
       version: '1.0.0',
+
       dependencies: {
         minimatch: '*',
       },
@@ -742,6 +796,7 @@ test('recursive filter package with dependents and filter with dependencies, usi
     {
       name: 'project-4',
       version: '1.0.0',
+
       dependencies: {
         minimatch: '*',
       },
@@ -762,6 +817,7 @@ test('recursive filter multiple times', async (t: tape.Test) => {
     {
       name: 'project-1',
       version: '1.0.0',
+
       dependencies: {
         'is-positive': '1.0.0',
         'project-2': '1.0.0',
@@ -770,6 +826,7 @@ test('recursive filter multiple times', async (t: tape.Test) => {
     {
       name: 'project-2',
       version: '1.0.0',
+
       dependencies: {
         'is-negative': '1.0.0',
       },
@@ -777,6 +834,7 @@ test('recursive filter multiple times', async (t: tape.Test) => {
     {
       name: 'project-3',
       version: '1.0.0',
+
       dependencies: {
         minimatch: '*',
       },
@@ -795,6 +853,7 @@ test('recursive filter package without dependencies', async (t: tape.Test) => {
     {
       name: 'project-1',
       version: '1.0.0',
+
       dependencies: {
         'is-positive': '1.0.0',
         'project-2': '1.0.0',
@@ -803,6 +862,7 @@ test('recursive filter package without dependencies', async (t: tape.Test) => {
     {
       name: 'project-2',
       version: '1.0.0',
+
       dependencies: {
         'is-negative': '1.0.0',
       },
@@ -810,6 +870,7 @@ test('recursive filter package without dependencies', async (t: tape.Test) => {
     {
       name: 'project-3',
       version: '1.0.0',
+
       dependencies: {
         minimatch: '*',
       },
@@ -830,6 +891,7 @@ test('recursive filter by location', async (t: tape.Test) => {
       package: {
         name: 'project-1',
         version: '1.0.0',
+
         dependencies: {
           'is-positive': '1.0.0',
           'project-2': '1.0.0',
@@ -841,6 +903,7 @@ test('recursive filter by location', async (t: tape.Test) => {
       package: {
         name: 'project-2',
         version: '1.0.0',
+
         dependencies: {
           'is-negative': '1.0.0',
         },
@@ -849,6 +912,7 @@ test('recursive filter by location', async (t: tape.Test) => {
     {
       name: 'project-3',
       version: '1.0.0',
+
       dependencies: {
         minimatch: '*',
       },
@@ -867,6 +931,7 @@ test('recursive filter by location is relative to current working directory', as
     {
       name: 'project-1',
       version: '1.0.0',
+
       dependencies: {
         'is-positive': '1.0.0',
       },
@@ -874,6 +939,7 @@ test('recursive filter by location is relative to current working directory', as
     {
       name: 'project-2',
       version: '1.0.0',
+
       dependencies: {
         'is-negative': '1.0.0',
       },
@@ -895,6 +961,7 @@ test('recursive install --no-bail', async (t: tape.Test) => {
     {
       name: 'project-1',
       version: '1.0.0',
+
       dependencies: {
         '@pnpm/this-does-not-exist': '1.0.0',
       },
@@ -902,6 +969,7 @@ test('recursive install --no-bail', async (t: tape.Test) => {
     {
       name: 'project-2',
       version: '1.0.0',
+
       dependencies: {
         'is-negative': '1.0.0',
       },
