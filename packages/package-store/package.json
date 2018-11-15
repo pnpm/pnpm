@@ -1,7 +1,7 @@
 {
   "name": "@pnpm/package-store",
   "description": "A storage for packages",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "author": {
     "name": "Zoltan Kochan",
     "email": "z@kochan.io",
@@ -21,9 +21,9 @@
   "dependencies": {
     "@pnpm/fetcher-base": "2.0.0",
     "@pnpm/fs-locker": "1.0.2",
-    "@pnpm/package-requester": "4.1.9",
+    "@pnpm/package-requester": "4.1.10",
     "@pnpm/resolver-base": "2.0.0",
-    "@pnpm/store-controller-types": "1.0.0",
+    "@pnpm/store-controller-types": "1.1.0",
     "@pnpm/types": "2.0.0",
     "@types/mz": "0.0.32",
     "@types/node": "10.12.5",
