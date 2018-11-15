@@ -1,12 +1,11 @@
 import prepare, { preparePackages } from '@pnpm/prepare'
-import exists = require('path-exists')
 import existsSymlink = require('exists-link')
-import ncpCB = require('ncp')
 import loadYamlFile = require('load-yaml-file')
+import ncpCB = require('ncp')
 import path = require('path')
-import promisifyTape from 'tape-promise'
+import exists = require('path-exists')
 import readPkg = require('read-pkg')
-import tape = require('tape')
+import sinon = require('sinon')
 import {
   install,
   installPkgs,
@@ -17,7 +16,8 @@ import {
   storePrune,
   uninstall,
 } from 'supi'
-import sinon = require('sinon')
+import tape = require('tape')
+import promisifyTape from 'tape-promise'
 import promisify = require('util.promisify')
 import {
   pathToLocalPkg,
@@ -188,6 +188,7 @@ test('uninstalling a dependency from package that uses shared shrinkwrap', async
     {
       name: 'project-1',
       version: '1.0.0',
+
       dependencies: {
         'is-positive': '1.0.0',
         'project-2': '1.0.0',
@@ -196,6 +197,7 @@ test('uninstalling a dependency from package that uses shared shrinkwrap', async
     {
       name: 'project-2',
       version: '1.0.0',
+
       dependencies: {
         'is-negative': '1.0.0',
       },
@@ -220,6 +222,7 @@ test('uninstalling a dependency from package that uses shared shrinkwrap', async
           package: {
             name: 'project-2',
             version: '1.0.0',
+
             dependencies: {
               'is-negative': '1.0.0',
             },

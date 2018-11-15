@@ -1,15 +1,15 @@
-import prepare, { tempDir } from '@pnpm/prepare'
 import assertProject from '@pnpm/assert-project'
+import prepare, { tempDir } from '@pnpm/prepare'
+import ncpCB = require('ncp')
 import pnpmRegistryMock = require('pnpm-registry-mock')
 import tape = require('tape')
 import promisifyTape from 'tape-promise'
 import promisify = require('util.promisify')
 import {
-  pathToLocalPkg,
   execPnpm,
   execPnpmSync,
+  pathToLocalPkg,
  } from './utils'
-import ncpCB = require('ncp')
 
 const test = promisifyTape(tape)
 const ncp = promisify(ncpCB.ncp)

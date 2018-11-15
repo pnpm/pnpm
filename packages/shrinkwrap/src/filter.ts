@@ -1,12 +1,12 @@
 import { DependenciesField } from '@pnpm/types'
 import * as dp from 'dependency-path'
 import R = require('ramda')
+import logger from './logger'
 import {
   PackageSnapshots,
   Shrinkwrap,
   ShrinkwrapImporter,
 } from './types'
-import logger from './logger';
 
 export function filterByImporters (
   shr: Shrinkwrap,

@@ -1,6 +1,6 @@
-import rimrafModule = require('rimraf')
 import fs = require('mz/fs')
 import path = require('path')
+import rimrafModule = require('rimraf')
 
 const fixtures = path.join(__dirname, 'fixtures')
 const workspaceFixture = path.join(__dirname, 'workspace-fixture')

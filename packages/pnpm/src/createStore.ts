@@ -45,8 +45,8 @@ export default async (
   const fetchers = createFetcher(sopts)
   return {
     ctrl: await createStore(resolve, fetchers as {}, {
-      lockStaleDuration: sopts.lockStaleDuration,
       locks: sopts.locks,
+      lockStaleDuration: sopts.lockStaleDuration,
       networkConcurrency: sopts.networkConcurrency,
       packageImportMethod: sopts.packageImportMethod,
       store: sopts.store,

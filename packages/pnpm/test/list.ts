@@ -1,10 +1,10 @@
 import prepare, { preparePackages, tempDir } from '@pnpm/prepare'
-import fs = require('mz/fs')
-import tape = require('tape')
-import promisifyTape from 'tape-promise'
-import path = require('path')
 import { stripIndent } from 'common-tags'
 import isWindows = require('is-windows')
+import fs = require('mz/fs')
+import path = require('path')
+import tape = require('tape')
+import promisifyTape from 'tape-promise'
 import writeYamlFile = require('write-yaml-file')
 import {
   execPnpm,
@@ -134,6 +134,7 @@ test('listing packages of a project that has an external shrinkwrap.yaml', async
     {
       name: 'pkg',
       version: '1.0.0',
+
       dependencies: {
         'is-positive': '1.0.0',
       },

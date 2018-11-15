@@ -1021,6 +1021,7 @@ test('doing named installation when shared shrinkwrap.yaml exists already', asyn
     {
       name: 'pkg1',
       version: '1.0.0',
+
       dependencies: {
         'is-negative': '^2.1.0',
       },
@@ -1028,6 +1029,7 @@ test('doing named installation when shared shrinkwrap.yaml exists already', asyn
     {
       name: 'pkg2',
       version: '1.0.0',
+
       dependencies: {
         'is-positive': '^3.1.0',
       },

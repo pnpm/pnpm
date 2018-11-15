@@ -1,5 +1,5 @@
-import prepare from '@pnpm/prepare'
 import { isExecutable } from '@pnpm/assert-project'
+import prepare from '@pnpm/prepare'
 import loadYamlFile = require('load-yaml-file')
 import fs = require('mz/fs')
 import ncpCB = require('ncp')
@@ -255,6 +255,7 @@ test('relative link when an external shrinkwrap is used', async (t) => {
     {
       name: 'project',
       version: '1.0.0',
+
       dependencies: {},
     },
   ])

@@ -1,11 +1,11 @@
 import prepare from '@pnpm/prepare'
 import { fromDir as readPackage } from '@pnpm/read-package-json'
-import tape = require('tape')
-import promisifyTape from 'tape-promise'
 import execa = require('execa')
 import mkdirp = require('mkdirp-promise')
-import rimraf = require('rimraf-then')
 import fs = require('mz/fs')
+import rimraf = require('rimraf-then')
+import tape = require('tape')
+import promisifyTape from 'tape-promise'
 import {
   addDistTag,
   execPnpm,

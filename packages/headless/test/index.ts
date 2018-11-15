@@ -2,21 +2,21 @@
 import assertProject from '@pnpm/assert-project'
 import {
   PackageJsonLog,
+  RootLog,
   StageLog,
   StatsLog,
-  RootLog,
 } from '@pnpm/core-loggers'
 import headless from '@pnpm/headless'
+import { read as readModulesYaml } from '@pnpm/modules-yaml'
+import readManifests from '@pnpm/read-manifests'
 import fse = require('fs-extra')
-import test = require('tape')
-import tempy = require('tempy')
 import path = require('path')
 import exists = require('path-exists')
 import { readWanted } from 'pnpm-shrinkwrap'
-import { read as readModulesYaml } from '@pnpm/modules-yaml'
-import readManifests from '@pnpm/read-manifests'
 import rimraf = require('rimraf-then')
 import sinon = require('sinon')
+import test = require('tape')
+import tempy = require('tempy')
 import testDefaults from './utils/testDefaults'
 
 const fixtures = path.join(__dirname, 'fixtures')
@@ -26,8 +26,8 @@ test('installing a simple project', async (t) => {
   const reporter = sinon.spy()
 
   await headless(await testDefaults({
-    shrinkwrapDirectory: prefix,
     reporter,
+    shrinkwrapDirectory: prefix,
   }))
 
   const project = assertProject(t, prefix)
@@ -45,9 +45,9 @@ test('installing a simple project', async (t) => {
   t.ok(await project.loadModules())
 
   t.ok(reporter.calledWithMatch({
-    updated: require(path.join(prefix, 'package.json')),
     level: 'debug',
     name: 'pnpm:package-json',
+    updated: require(path.join(prefix, 'package.json')),
   } as PackageJsonLog), 'updated package.json logged')
   t.ok(reporter.calledWithMatch({
     added: 15,
@@ -80,12 +80,12 @@ test('installing only prod deps', async (t) => {
   await rimraf(path.join(prefix, 'node_modules'))
 
   await headless(await testDefaults({
-    shrinkwrapDirectory: prefix,
     include: {
       dependencies: true,
       devDependencies: false,
       optionalDependencies: false,
     },
+    shrinkwrapDirectory: prefix,
   }))
 
   const project = assertProject(t, prefix)
@@ -104,12 +104,12 @@ test('installing only dev deps', async (t) => {
   await rimraf(path.join(prefix, 'node_modules'))
 
   await headless(await testDefaults({
-    shrinkwrapDirectory: prefix,
     include: {
       dependencies: false,
       devDependencies: true,
       optionalDependencies: false,
     },
+    shrinkwrapDirectory: prefix,
   }))
 
   const project = assertProject(t, prefix)
@@ -125,12 +125,12 @@ test('installing non-prod deps then all deps', async (t) => {
   const prefix = path.join(fixtures, 'prod-dep-is-dev-subdep')
 
   await headless(await testDefaults({
-    shrinkwrapDirectory: prefix,
     include: {
       dependencies: false,
       devDependencies: true,
       optionalDependencies: true,
     },
+    shrinkwrapDirectory: prefix,
   }))
 
   const project = assertProject(t, prefix)
@@ -153,13 +153,13 @@ test('installing non-prod deps then all deps', async (t) => {
 
   // Repeat normal installation adds missing deps to node_modules
   await headless(await testDefaults({
-    shrinkwrapDirectory: prefix,
-    reporter,
     include: {
       dependencies: true,
       devDependencies: true,
       optionalDependencies: true,
     },
+    reporter,
+    shrinkwrapDirectory: prefix,
   }))
 
   t.ok(reporter.calledWithMatch({
@@ -196,15 +196,15 @@ test('installing only optional deps', async (t) => {
   await rimraf(path.join(prefix, 'node_modules'))
 
   await headless(await testDefaults({
-    shrinkwrapDirectory: prefix,
+    development: false,
     include: {
       dependencies: false,
       devDependencies: false,
       optionalDependencies: true,
     },
-    production: false,
-    development: false,
     optional: true,
+    production: false,
+    shrinkwrapDirectory: prefix,
   }))
 
   const project = assertProject(t, prefix)
@@ -271,8 +271,8 @@ test('orphan packages are removed', async (t) => {
 
   const reporter = sinon.spy()
   await headless(await testDefaults({
-    shrinkwrapDirectory: projectDir,
     reporter,
+    shrinkwrapDirectory: projectDir,
   }))
 
   t.ok(reporter.calledWithMatch({
@@ -468,9 +468,9 @@ test('independent-leaves: installing a simple project', async (t) => {
   t.ok(await project.loadModules())
 
   t.ok(reporter.calledWithMatch({
-    updated: require(path.join(prefix, 'package.json')),
     level: 'debug',
     name: 'pnpm:package-json',
+    updated: require(path.join(prefix, 'package.json')),
   } as PackageJsonLog), 'updated package.json logged')
   t.ok(reporter.calledWithMatch({
     added: 15,
@@ -515,9 +515,9 @@ test('installing with shamefullyFlatten = true', async (t) => {
   t.ok(await project.loadModules())
 
   t.ok(reporter.calledWithMatch({
-    updated: require(path.join(prefix, 'package.json')),
     level: 'debug',
     name: 'pnpm:package-json',
+    updated: require(path.join(prefix, 'package.json')),
   } as PackageJsonLog), 'updated package.json logged')
   t.ok(reporter.calledWithMatch({
     added: 15,

@@ -1,17 +1,17 @@
 import assertProject, { isExecutable } from '@pnpm/assert-project'
-import fs = require('mz/fs')
+import prepare from '@pnpm/prepare'
 import isWindows = require('is-windows')
 import loadYamlFile = require('load-yaml-file')
+import fs = require('mz/fs')
 import ncpCB = require('ncp')
 import path = require('path')
-import prepare from '@pnpm/prepare'
-import promisify = require('util.promisify')
-import promisifyTape from 'tape-promise'
 import tape = require('tape')
+import promisifyTape from 'tape-promise'
+import promisify = require('util.promisify')
 import writePkg = require('write-pkg')
 import {
-  pathToLocalPkg,
   execPnpm,
+  pathToLocalPkg,
 } from './utils'
 
 const ncp = promisify(ncpCB.ncp)

@@ -224,10 +224,10 @@ async function testParallelServerStart (
   let completedPromise: Promise<void> = Promise.resolve()
   for (let i = 0; i < options.n; i++) {
     const item: ServerProcess = {
+      attemptedToKill: false,
       childProcess: spawn(['server', 'start']),
       running: createDeferred<void>(),
       // This is true if and only if we attempted to kill the process via a signal.
-      attemptedToKill: false,
     }
     serverProcessList.push(item)
 

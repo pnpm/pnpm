@@ -1,10 +1,10 @@
 import prepare from '@pnpm/prepare'
 import { fromDir as readPkgFromDir } from '@pnpm/read-package-json'
+import isWindows = require('is-windows')
+import path = require('path')
+import exists = require('path-exists')
 import tape = require('tape')
 import promisifyTape from 'tape-promise'
-import path = require('path')
-import isWindows = require('is-windows')
-import exists = require('path-exists')
 import { execPnpm } from './utils'
 
 const test = promisifyTape(tape)
