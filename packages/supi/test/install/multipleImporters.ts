@@ -2,9 +2,9 @@ import assertProject from '@pnpm/assert-project'
 import { preparePackages } from '@pnpm/prepare'
 import path = require('path')
 import readPkg = require('read-pkg')
+import { install, installPkgs } from 'supi'
 import tape = require('tape')
 import promisifyTape from 'tape-promise'
-import { install, installPkgs } from 'supi'
 import { testDefaults } from '../utils'
 
 const test = promisifyTape(tape)
@@ -15,6 +15,7 @@ test('install only the dependencies of the specified importer', async (t) => {
     {
       name: 'project-1',
       version: '1.0.0',
+
       dependencies: {
         'is-positive': '1.0.0',
       },
@@ -22,6 +23,7 @@ test('install only the dependencies of the specified importer', async (t) => {
     {
       name: 'project-2',
       version: '1.0.0',
+
       dependencies: {
         'is-negative': '1.0.0',
       },
@@ -53,6 +55,7 @@ test('dependencies of other importers are not pruned when installing for a subse
     {
       name: 'project-1',
       version: '1.0.0',
+
       dependencies: {
         'is-positive': '1.0.0',
       },
@@ -60,6 +63,7 @@ test('dependencies of other importers are not pruned when installing for a subse
     {
       name: 'project-2',
       version: '1.0.0',
+
       dependencies: {
         'is-negative': '1.0.0',
       },
@@ -92,6 +96,7 @@ test('dependencies of other importers are not pruned when (headless) installing 
     {
       name: 'project-1',
       version: '1.0.0',
+
       dependencies: {
         'is-positive': '1.0.0',
       },
@@ -99,6 +104,7 @@ test('dependencies of other importers are not pruned when (headless) installing 
     {
       name: 'project-2',
       version: '1.0.0',
+
       dependencies: {
         'is-negative': '1.0.0',
       },
@@ -132,6 +138,7 @@ test('adding a new dev dependency to project that uses a shared shrinkwrap', asy
     {
       name: 'project-1',
       version: '1.0.0',
+
       dependencies: {
         'is-positive': '1.0.0',
       },

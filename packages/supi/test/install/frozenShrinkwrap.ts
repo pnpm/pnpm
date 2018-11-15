@@ -60,12 +60,14 @@ test('frozen-shrinkwrap: fail on a shared shrinkwrap.yaml that does not satisfy 
   const project = preparePackages(t, [
     {
       name: 'p1',
+
       dependencies: {
         'is-positive': '^3.0.0',
       },
     },
     {
       name: 'p2',
+
       dependencies: {
         'is-negative': '1.0.0',
       },
@@ -223,12 +225,14 @@ test('prefer-frozen-shrinkwrap: should prefer frozen-shrinkwrap when package has
   const projects = preparePackages(t, [
     {
       name: 'p1',
+
       dependencies: {
         p2: 'link:../p2',
       },
     },
     {
       name: 'p2',
+
       dependencies: {
         'is-negative': '1.0.0',
       },

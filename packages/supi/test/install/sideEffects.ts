@@ -1,8 +1,8 @@
 import prepare from '@pnpm/prepare'
 import fs = require('mz/fs')
-import rimraf = require('rimraf-then')
 import path = require('path')
 import exists = require('path-exists')
+import rimraf = require('rimraf-then')
 import { installPkgs } from 'supi'
 import tape = require('tape')
 import promisifyTape from 'tape-promise'
