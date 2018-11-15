@@ -538,8 +538,6 @@ async function fetcher (
   }
 }
 
-// TODO: It might make sense to have this function as part of storeController.
-//  Ask @etamponi if it is fine for when pnpm is used as a server
 // TODO: cover with tests
 export async function getCacheByEngine (storePath: string, id: string): Promise<Map<string, string>> {
   const map = new Map()

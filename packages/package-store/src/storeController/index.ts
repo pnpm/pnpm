@@ -1,7 +1,7 @@
 import { FetchFunction } from '@pnpm/fetcher-base'
 import lock from '@pnpm/fs-locker'
 import { storeLogger } from '@pnpm/logger'
-import createPackageRequester from '@pnpm/package-requester'
+import createPackageRequester, { getCacheByEngine } from '@pnpm/package-requester'
 import { ResolveFunction } from '@pnpm/resolver-base'
 import { StoreController } from '@pnpm/store-controller-types'
 import { StoreIndex } from '@pnpm/types'
@@ -47,6 +47,7 @@ export default async function (
   return {
     close: async () => { await unlock() },
     fetchPackage: packageRequester.fetchPackageToStore,
+    getCacheByEngine,
     importPackage: createImportPackage(initOpts.packageImportMethod),
     prune,
     requestPackage: packageRequester.requestPackage,
