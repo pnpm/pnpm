@@ -29,6 +29,12 @@ export default function (
     resolve({
       close: async () => { return },
       fetchPackage: fetchPackage.bind(null, remotePrefix, limitedFetch),
+      getCacheByEngine: async (storePath: string, id: string): Promise<Map<string, string>> => {
+        return limitedFetch(`${remotePrefix}/getCacheByEngine`, {
+          id,
+          storePath,
+        });
+      },
       importPackage: async (from: string, to: string, opts: {
         filesResponse: PackageFilesResponse,
         force: boolean,

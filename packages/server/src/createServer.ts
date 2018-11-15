@@ -19,7 +19,9 @@ interface RequestBody {
     addDependencies: string[];
     removeDependencies: string[];
     prune: boolean;
-  }
+  },
+  storePath: string,
+  id: string,
 }
 
 export default function (
@@ -144,6 +146,10 @@ export default function (
           res.end(JSON.stringify('OK'))
           storeLogger.info('Server stopped')
           break
+        case '/getCacheByEngine':
+          body = await bodyPromise;
+          res.end(JSON.stringify(await store.getCacheByEngine(body.storePath, body.id)))
+          break;
         default:
           res.statusCode = 404
           res.end(`${req.url} does not match any route`)

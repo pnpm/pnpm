@@ -20,6 +20,7 @@ export interface StoreController {
   prune (): Promise<void>,
   saveState (): Promise<void>,
   upload (builtPkgLocation: string, opts: {pkgId: string, engine: string}): Promise<void>,
+  getCacheByEngine (storePath: string, id: string): Promise<Map<string, string>>,
 }
 
 export type FetchPackageToStoreFunction = (

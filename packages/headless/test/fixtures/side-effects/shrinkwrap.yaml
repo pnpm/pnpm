@@ -1,0 +1,19 @@
+dependencies:
+  runas: 3.1.1
+packages:
+  /nan/2.11.1:
+    dev: false
+    resolution:
+      integrity: sha512-iji6k87OSXa0CcrLl9z+ZiYSuR2o+c0bGuNmXdrhTQTakxytAFsC56SArGYoiHlJlFoHSnvmhpceZJaXkVuOtA==
+  /runas/3.1.1:
+    dependencies:
+      nan: 2.11.1
+    dev: false
+    requiresBuild: true
+    resolution:
+      integrity: sha1-Ut1TjbDkF0U5lTWjRwkbpFzA6rA=
+registry: 'https://registry.npmjs.org/'
+shrinkwrapMinorVersion: 9
+shrinkwrapVersion: 3
+specifiers:
+  runas: ^3.1.1

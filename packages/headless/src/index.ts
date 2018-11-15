@@ -17,9 +17,6 @@ import {
   IncludedDependencies,
   write as writeModulesYaml,
 } from '@pnpm/modules-yaml'
-import {
-  getCacheByEngine,
-} from '@pnpm/package-requester'
 import pkgIdToFilename from '@pnpm/pkgid-to-filename'
 import { fromDir as readPackageFromDir } from '@pnpm/read-package-json'
 import { shamefullyFlattenByShrinkwrap } from '@pnpm/shamefully-flatten'
@@ -443,7 +440,7 @@ async function shrinkwrapToDepGraph (
               ? 'found_in_store' : 'fetched',
           })
         })
-      const cache = !opts.force && await getCache(opts.store, pkgId)
+      const cache = !opts.force && await getCache(opts.storeController, opts.store, pkgId)
       const centralLocation = cache || path.join(fetchResponse.inStoreLocation, 'node_modules', pkgName)
 
       // NOTE: This code will not convert the depPath with peer deps correctly
@@ -481,6 +478,7 @@ async function shrinkwrapToDepGraph (
       prefix: opts.prefix,
       registry: opts.defaultRegistry,
       store: opts.store,
+      storeController: opts.storeController,
       virtualStoreDir: opts.virtualStoreDir,
     }
     for (const peripheralLocation of R.keys(graph)) {
@@ -508,6 +506,7 @@ async function getChildrenPaths (
     store: string,
     pkgSnapshotsByRelDepPaths: {[relDepPath: string]: PackageSnapshot},
     prefix: string,
+    storeController: StoreController,
   },
   allDeps: {[alias: string]: string},
 ) {
@@ -524,7 +523,7 @@ async function getChildrenPaths (
       children[alias] = ctx.graph[childDepPath].peripheralLocation
     } else if (ctx.independentLeaves && pkgIsIndependent(childPkgSnapshot)) {
       const pkgId = childPkgSnapshot.id || childDepPath
-      const cache = !ctx.force && await getCache(ctx.store, pkgId)
+      const cache = !ctx.force && await getCache(ctx.storeController, ctx.store, pkgId)
       const pkgName = nameVerFromPkgSnapshot(childRelDepPath, childPkgSnapshot).name
       const inStoreLocation = pkgIdToFilename(pkgId, ctx.prefix)
       children[alias] = cache || path.join(inStoreLocation, 'node_modules', pkgName)
@@ -541,8 +540,8 @@ async function getChildrenPaths (
   return children
 }
 
-async function getCache (storePath: string, pkgId: string) {
-  return (await getCacheByEngine(storePath, pkgId))[ENGINE_NAME] as string
+async function getCache (store: StoreController, storePath: string, pkgId: string) {
+  return (await store.getCacheByEngine(storePath, pkgId))[ENGINE_NAME] as string
 }
 
 function pkgIsIndependent (pkgSnapshot: PackageSnapshot) {
