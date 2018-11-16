@@ -38,7 +38,7 @@
   "dependencies": {
     "@pnpm/types": "2.0.0",
     "@types/archy": "0.0.31",
-    "@types/node": "10.12.5",
+    "@types/node": "10.12.9",
     "@types/ramda": "0.25.39",
     "archy": "1.0.0",
     "chalk": "2.4.1",

@@ -41,7 +41,7 @@
     "@types/byline": "4.2.31",
     "@types/common-tags": "1.4.0",
     "@types/mz": "0.0.32",
-    "@types/node": "10.12.5",
+    "@types/node": "10.12.9",
     "@types/nopt": "3.0.29",
     "@types/npm": "2.0.29",
     "@types/p-every": "1.0.0",
