@@ -3,19 +3,24 @@ import {
   statsLogger,
 } from '@pnpm/core-loggers'
 import logger from '@pnpm/logger'
+import readModulesDir from '@pnpm/read-modules-dir'
 import { StoreController } from '@pnpm/store-controller-types'
 import { DEPENDENCIES_FIELDS, Registries } from '@pnpm/types'
 import * as dp from 'dependency-path'
 import vacuumCB = require('fs-vacuum')
 import path = require('path')
-import { ResolvedPackages, Shrinkwrap } from 'pnpm-shrinkwrap'
+import {
+  ResolvedPackages,
+  Shrinkwrap,
+  ShrinkwrapImporter,
+} from 'pnpm-shrinkwrap'
 import R = require('ramda')
 import promisify = require('util.promisify')
 import removeDirectDependency from './removeDirectDependency'
 
 const vacuum = promisify(vacuumCB)
 
-export default async function removeOrphanPkgs (
+export default async function prune (
   opts: {
     dryRun?: boolean,
     importers: Array<{
@@ -28,27 +33,45 @@ export default async function removeOrphanPkgs (
     }>,
     newShrinkwrap: Shrinkwrap,
     oldShrinkwrap: Shrinkwrap,
+    pruneDirectDependencies?: boolean,
     pruneStore?: boolean,
     registries: Registries,
+    removePackages?: string[],
     virtualStoreDir: string,
     shrinkwrapDirectory: string,
     storeController: StoreController,
   },
 ): Promise<Set<string>> {
-  await Promise.all(opts.importers.map((importer) => {
-    const oldImporterShr = opts.oldShrinkwrap.importers[importer.id] || {}
-    const oldPkgs = R.toPairs(R.mergeAll(R.map((depType) => oldImporterShr[depType], DEPENDENCIES_FIELDS)))
-    const newPkgs = R.toPairs(R.mergeAll(R.map((depType) => opts.newShrinkwrap.importers[importer.id][depType], DEPENDENCIES_FIELDS)))
+  await Promise.all(opts.importers.map(async (importer) => {
+    const oldImporterShr = opts.oldShrinkwrap.importers[importer.id] || {} as ShrinkwrapImporter
+    const oldPkgs = R.toPairs(mergeDependencies(oldImporterShr))
+    const newPkgs = R.toPairs(mergeDependencies(opts.newShrinkwrap.importers[importer.id]))
 
-    const removedTopDeps: Array<[string, string]> = R.difference(oldPkgs, newPkgs) as Array<[string, string]>
+    const depsToRemove = new Set([
+      ...opts.removePackages || [],
+      ...R.difference(oldPkgs, newPkgs).map(([depName]) => depName),
+    ])
+    if (opts.pruneDirectDependencies) {
+      const allCurrentPackages = await readModulesDir(importer.modulesDir) || []
+      if (allCurrentPackages.length > 0) {
+        const newPkgsSet = new Set(newPkgs.map(([depName]) => depName))
+        for (const currentPackage of allCurrentPackages) {
+          if (!newPkgsSet.has(currentPackage)) {
+            depsToRemove.add(currentPackage)
+          }
+        }
+      }
+    }
 
     const { bin, modulesDir, prefix } = importer
 
-    return Promise.all(removedTopDeps.map((depName) => {
+    return Promise.all(Array.from(depsToRemove).map((depName) => {
       return removeDirectDependency({
-        dev: Boolean(oldImporterShr.devDependencies && oldImporterShr.devDependencies[depName[0]]),
-        name: depName[0],
-        optional: Boolean(oldImporterShr.optionalDependencies && oldImporterShr.optionalDependencies[depName[0]]),
+        dependenciesField: oldImporterShr.devDependencies && oldImporterShr.devDependencies[depName] && 'devDependencies' ||
+          oldImporterShr.optionalDependencies && oldImporterShr.optionalDependencies[depName] && 'optionalDependencies' ||
+          oldImporterShr.dependencies && oldImporterShr.dependencies[depName] && 'dependencies' ||
+          undefined,
+        name: depName,
       }, {
         bin,
         dryRun: opts.dryRun,
@@ -81,9 +104,7 @@ export default async function removeOrphanPkgs (
             if (hoistedAliases[orphanDepPath]) {
               await Promise.all(hoistedAliases[orphanDepPath].map((alias) => {
                 return removeDirectDependency({
-                  dev: false,
                   name: alias,
-                  optional: false,
                 }, {
                   bin,
                   modulesDir,
@@ -128,6 +149,12 @@ export default async function removeOrphanPkgs (
   }
 
   return new Set(orphanDepPaths)
+}
+
+function mergeDependencies (shrImporter: ShrinkwrapImporter): { [depName: string]: string } {
+  return R.mergeAll(
+    DEPENDENCIES_FIELDS.map((depType) => shrImporter[depType]),
+  )
 }
 
 function getPkgsDepPaths (

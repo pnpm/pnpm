@@ -3,15 +3,15 @@ import {
   rootLogger,
 } from '@pnpm/core-loggers'
 import binify from '@pnpm/package-bins'
+import { DependenciesField } from '@pnpm/types'
 import { safeReadPackageFromDir } from '@pnpm/utils'
 import path = require('path')
 import rimraf = require('rimraf-then')
 
 export default async function removeDirectDependency (
   dependency: {
-    dev: boolean,
+    dependenciesField?: DependenciesField | undefined,
     name: string,
-    optional: boolean,
   },
   opts: {
     bin: string,
@@ -31,7 +31,10 @@ export default async function removeDirectDependency (
     rootLogger.debug({
       prefix: opts.prefix,
       removed: {
-        dependencyType: dependency.dev && 'dev' || dependency.optional && 'optional' || 'prod',
+        dependencyType: dependency.dependenciesField === 'devDependencies' && 'dev' ||
+          dependency.dependenciesField === 'optionalDependencies' && 'optional' ||
+          dependency.dependenciesField === 'dependencies' && 'prod' ||
+          undefined,
         name: dependency.name,
         version: uninstalledPkg && uninstalledPkg.version,
       },

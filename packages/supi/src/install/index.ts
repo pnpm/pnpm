@@ -74,6 +74,7 @@ export async function install (maybeOpts: InstallOptions & {
       type: 'version' | 'range' | 'tag',
     },
   },
+  pruneDirectDependencies?: boolean,
 }) {
   const reporter = maybeOpts && maybeOpts.reporter
   if (reporter) {
@@ -221,6 +222,7 @@ export async function install (maybeOpts: InstallOptions & {
       })
     }
     await installInContext(importersToInstall, ctx, {
+      pruneDirectDependencies: false,
       ...opts,
       makePartialCurrentShrinkwrap: false,
       updatePackageJson: false,
@@ -446,6 +448,7 @@ export async function installPkgs (
       {
         ...opts,
         makePartialCurrentShrinkwrap,
+        pruneDirectDependencies: false,
         updatePackageJson: true,
         updateShrinkwrapMinorVersion: R.isEmpty(ctx.currentShrinkwrap.packages),
       },
@@ -481,6 +484,7 @@ async function installInContext (
         type: 'version' | 'range' | 'tag',
       },
     },
+    pruneDirectDependencies: boolean,
   },
 ) {
   if (opts.shrinkwrapOnly && ctx.existsCurrentShrinkwrap) {
@@ -648,6 +652,7 @@ async function installInContext (
       independentLeaves: opts.independentLeaves,
       makePartialCurrentShrinkwrap: opts.makePartialCurrentShrinkwrap,
       outdatedDependencies,
+      pruneDirectDependencies: opts.pruneDirectDependencies,
       pruneStore: opts.pruneStore,
       registries: ctx.registries,
       shrinkwrapDirectory: opts.shrinkwrapDirectory,

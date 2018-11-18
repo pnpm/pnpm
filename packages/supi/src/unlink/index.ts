@@ -1,9 +1,10 @@
 import logger, { streamParser } from '@pnpm/logger'
+import readModulesDirs from '@pnpm/read-modules-dir'
 import { fromDir as readPkgFromDir } from '@pnpm/read-package-json'
 import { getAllDependenciesFromPackage } from '@pnpm/utils'
 import isInnerLink = require('is-inner-link')
 import isSubdir = require('is-subdir')
-import fs = require('mz/fs')
+import pFilter = require('p-filter')
 import path = require('path')
 import rimraf = require('rimraf-then')
 import getContext from '../getContext'
@@ -80,37 +81,17 @@ export async function unlink (maybeOpts: InstallOptions) {
   if (ctx.importers.length > 1) throw new Error('Unlink not implemented for multiple importers yet')
   const importer = ctx.importers[0]
 
-  const externalPackages = await getExternalPackages(importer.modulesDir, opts.store)
+  const packageDirs = await readModulesDirs(importer.modulesDir)
+  const externalPackages = await pFilter(
+    packageDirs,
+    (packageDir: string) => isExternalLink(opts.store, importer.modulesDir, packageDir),
+  )
 
   await _unlinkPkgs(externalPackages, opts, ctx.importers)
 
   if (reporter) {
     streamParser.removeListener('data', reporter)
   }
-}
-
-async function getExternalPackages (
-  modules: string,
-  store: string,
-  scope?: string,
-): Promise<string[]> {
-  let externalLinks: string[] = []
-  const parentDir = scope ? path.join(modules, scope) : modules
-  for (const dir of await fs.readdir(parentDir)) {
-    if (dir[0] === '.') continue
-
-    if (!scope && dir[0] === '@') {
-      externalLinks = externalLinks.concat(await getExternalPackages(modules, store, dir))
-      continue
-    }
-
-    const pkgName = scope ? `${scope}/${dir}` : dir
-
-    if (await isExternalLink(store, modules, pkgName)) {
-      externalLinks.push(pkgName)
-    }
-  }
-  return externalLinks
 }
 
 async function isExternalLink (store: string, modules: string, pkgName: string) {
