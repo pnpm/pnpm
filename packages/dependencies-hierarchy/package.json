@@ -10,6 +10,7 @@
   "scripts": {
     "fix": "tslint -c tslint.json src/**/*.ts test/**/*.ts --fix",
     "lint": "tslint -c tslint.json src/**/*.ts test/**/*.ts",
+    "pretest": "cd fixtures && pnpm recursive install --frozen-shrinkwrap --no-shared-workspace-shrinkwrap --no-link-workspace-packages && cd ../fixtureWithLinks && pnpm recursive install --frozen-shrinkwrap --link-workspace-packages --no-shared-workspace-shrinkwrap && cd ..",
     "test": "npm run tsc && npm run lint && ts-node test --type-check && mos t",
     "prepublishOnly": "tsc",
     "tsc": "tsc",
@@ -37,12 +38,15 @@
   "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/dependencies-hierarchy#readme",
   "dependencies": {
     "@pnpm/modules-yaml": "2.0.0",
+    "@pnpm/read-modules-dir": "0.0.0",
     "@pnpm/types": "2.0.0",
     "@pnpm/utils": "0.9.0",
     "@types/node": "10.12.5",
     "@types/semver": "5.5.0",
     "dependency-path": "2.0.0",
+    "normalize-path": "3.0.0",
     "pnpm-shrinkwrap": "8.1.4",
+    "resolve-link-target": "1.0.1",
     "semver": "5.6.0"
   },
   "devDependencies": {
@@ -52,6 +56,7 @@
     "dependencies-hierarchy": "link:",
     "mos": "2.0.0-alpha.3",
     "mos-plugin-readme": "1.0.4",
+    "mos-tap-diff": "1.0.0",
     "tape": "4.9.1",
     "ts-node": "7.0.1",
     "tslint": "5.11.0",

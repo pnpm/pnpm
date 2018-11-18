@@ -36,6 +36,7 @@
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/list#readme",
   "dependencies": {
+    "@pnpm/read-package-json": "1.0.1",
     "@pnpm/types": "2.0.0",
     "@types/archy": "0.0.31",
     "@types/node": "10.12.5",
@@ -45,9 +46,7 @@
     "dependencies-hierarchy": "3.1.6",
     "npm-package-arg": "6.1.0",
     "p-limit": "2.0.0",
-    "ramda": "0.25.0",
-    "read-package-json": "2.0.13",
-    "thenify": "3.3.0"
+    "ramda": "0.25.0"
   },
   "devDependencies": {
     "@pnpm/logger": "2.1.0",

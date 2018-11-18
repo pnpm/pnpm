@@ -1,0 +1,8 @@
+{
+  "name": "with-file-dep",
+  "version": "1.0.0",
+  "dependencies": {
+    "general": "link:../general",
+    "is-positive": "^3.1.0"
+  }
+}

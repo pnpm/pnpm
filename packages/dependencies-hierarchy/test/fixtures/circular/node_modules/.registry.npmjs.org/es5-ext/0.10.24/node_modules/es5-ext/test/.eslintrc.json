@@ -1,9 +1,0 @@
-{
-	"rules": {
-		"consistent-this": "off",
-		"id-length": "off",
-		"no-new-wrappers": "off",
-		"no-prototype-builtins": "off",
-		"no-shadow": "off"
-	}
-}

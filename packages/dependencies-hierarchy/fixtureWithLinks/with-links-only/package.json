@@ -1,0 +1,7 @@
+{
+  "name": "with-links-only",
+  "version": "1.0.0",
+  "dependencies": {
+    "general": "0.0.0"
+  }
+}

@@ -1,0 +1,10 @@
+{
+  "name": "with-unsaved-deps",
+  "version": "1.0.0",
+  "dependencies": {
+    "symlink-dir": "2.0.2"
+  },
+  "scripts": {
+    "postinstall": "symlink-dir ../general node_modules/general"
+  }
+}

@@ -4,8 +4,10 @@ import dh, {
   PackageSelector,
 } from 'dependencies-hierarchy'
 import npa = require('npm-package-arg')
-import printParseable from './printParseable'
-import printTree from './printTree'
+import path = require('path')
+import readPkg from './readPkg'
+import renderParseable from './renderParseable'
+import renderTree from './renderTree'
 
 const DEFAULTS = {
   alwaysPrintRootPackage: true,
@@ -53,7 +55,12 @@ export async function forPackages (
   })
 
   const print = getPrinter(opts.parseable)
-  return print(projectPath, tree, {
+  const entryPkg = await readPkg(path.resolve(projectPath, 'package.json'))
+  return print({
+    name: entryPkg.name,
+    path: projectPath,
+    version: entryPkg.version,
+  }, tree, {
     alwaysPrintRootPackage: opts.alwaysPrintRootPackage,
     long: opts.long,
   })
@@ -81,13 +88,18 @@ export default async function (
   })
 
   const print = getPrinter(opts.parseable)
-  return print(projectPath, tree, {
+  const entryPkg = await readPkg(path.resolve(projectPath, 'package.json'))
+  return print({
+    name: entryPkg.name,
+    path: projectPath,
+    version: entryPkg.version,
+  }, tree, {
     alwaysPrintRootPackage: opts.alwaysPrintRootPackage,
     long: opts.long,
   })
 }
 
 function getPrinter (parseable: boolean) {
-  if (parseable) return printParseable
-  return printTree
+  if (parseable) return renderParseable
+  return renderTree
 }

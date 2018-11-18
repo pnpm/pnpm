@@ -2,6 +2,7 @@ import chalk from 'chalk'
 import { stripIndent } from 'common-tags'
 import path = require('path')
 import list, { forPackages as listForPackages } from 'pnpm-list'
+import renderTree from 'pnpm-list/lib/renderTree'
 import test = require('tape')
 
 const highlighted = chalk.yellow.bgBlack
@@ -227,5 +228,33 @@ test('print empty', async t => {
 
 test("don't print empty", async t => {
   t.equal(await list(emptyFixture, { alwaysPrintRootPackage: false }), '')
+  t.end()
+})
+
+test('unsaved dependencies are marked', async (t) => {
+  t.equal(await renderTree(
+    {
+      name: 'fixture',
+      path: fixture,
+      version: '1.0.0',
+    },
+    [
+      {
+        pkg: {
+          name: 'foo',
+          path: '',
+          version: '1.0.0',
+        },
+        saved: false,
+      },
+    ],
+    {
+      alwaysPrintRootPackage: false,
+      long: false,
+    },
+  ), stripIndent`
+    fixture@1.0.0 ${fixture}
+    └── foo@1.0.0 ${chalk.whiteBright.bgBlack('not saved')}
+  ` + '\n')
   t.end()
 })
