@@ -46,7 +46,7 @@
     "dependencies-hierarchy": "3.1.6",
     "npm-package-arg": "6.1.0",
     "p-limit": "2.0.0",
-    "ramda": "0.25.0"
+    "ramda": "0.26.0"
   },
   "devDependencies": {
     "@pnpm/logger": "2.1.0",

@@ -36,7 +36,7 @@
     "p-limit": "2.0.0",
     "path-exists": "3.0.0",
     "path-temp": "1.0.0",
-    "ramda": "0.25.0",
+    "ramda": "0.26.0",
     "rename-overwrite": "1.0.3",
     "rimraf-then": "1.0.1",
     "util.promisify": "1.0.0",

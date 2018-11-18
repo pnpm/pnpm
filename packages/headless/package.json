@@ -102,6 +102,6 @@
     "p-limit": "2.0.0",
     "path-exists": "3.0.0",
     "pnpm-shrinkwrap": "8.1.4",
-    "ramda": "0.25.0"
+    "ramda": "0.26.0"
   }
 }
