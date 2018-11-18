@@ -85,7 +85,7 @@
   "dependencies": {
     "@pnpm/core-loggers": "1.0.0",
     "@pnpm/lifecycle": "3.0.2",
-    "@pnpm/link-bins": "3.0.1",
+    "@pnpm/link-bins": "3.0.2",
     "@pnpm/modules-cleaner": "1.0.8",
     "@pnpm/modules-yaml": "2.0.0",
     "@pnpm/package-requester": "4.1.10",
