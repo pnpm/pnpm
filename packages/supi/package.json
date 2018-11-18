@@ -94,7 +94,7 @@
     "@pnpm/tslint-config": "0.0.0",
     "@types/is-windows": "0.2.0",
     "@types/mkdirp": "0.5.2",
-    "@types/sinon": "5.0.5",
+    "@types/sinon": "5.0.6",
     "@types/tape": "4.2.32",
     "anonymous-npm-registry-client": "0.1.2",
     "caw": "2.0.1",
