@@ -215,7 +215,7 @@ importers:
       '@pnpm/utils': 'link:../utils'
       '@types/node': 10.12.9
       '@types/semver': 5.5.0
-      dependency-path: 2.0.0
+      dependency-path: 'link:../dependency-path'
       normalize-path: 3.0.0
       pnpm-shrinkwrap: 'link:../shrinkwrap'
       resolve-link-target: 1.0.1
@@ -255,6 +255,32 @@ importers:
       ts-node: 7.0.1
       tslint: 5.11.0
       typescript: 3.1.6
+  packages/dependency-path:
+    dependencies:
+      '@types/semver': 5.5.0
+      encode-registry: 1.1.0
+      semver: 5.6.0
+    devDependencies:
+      '@pnpm/tslint-config': 'link:../../utils/tslint-config'
+      '@types/tape': 4.2.32
+      mos: 2.0.0-alpha.3
+      mos-plugin-readme: 1.0.4
+      tape: 4.9.1
+      ts-node: 7.0.1
+      tslint: /tslint/5.11.0/typescript@3.1.6
+      typescript: 3.1.6
+    specifiers:
+      '@pnpm/tslint-config': 0.0.0
+      '@types/semver': ^5.4.0
+      '@types/tape': ^4.2.30
+      encode-registry: ^1.0.0
+      mos: ^2.0.0-alpha.3
+      mos-plugin-readme: ^1.0.4
+      semver: ^5.4.1
+      tape: ^4.8.0
+      ts-node: ^7.0.0
+      tslint: 5.11.0
+      typescript: ^3.0.0
   packages/headless:
     dependencies:
       '@pnpm/core-loggers': 'link:../core-loggers'
@@ -271,7 +297,7 @@ importers:
       '@pnpm/types': 'link:../types'
       '@pnpm/utils': 'link:../utils'
       '@types/ramda': 0.25.34
-      dependency-path: 2.0.0
+      dependency-path: 'link:../dependency-path'
       graph-sequencer: 2.0.0
       p-limit: 2.0.0
       path-exists: 3.0.0
@@ -423,7 +449,7 @@ importers:
       '@pnpm/utils': 'link:../utils'
       '@types/node': 10.12.9
       '@types/ramda': 0.25.38
-      dependency-path: 2.0.0
+      dependency-path: 'link:../dependency-path'
       fs-vacuum: 1.2.10
       pnpm-shrinkwrap: 'link:../shrinkwrap'
       ramda: 0.26.0
@@ -499,7 +525,7 @@ importers:
       '@pnpm/types': 'link:../types'
       '@pnpm/utils': 'link:../utils'
       '@types/node': 10.12.9
-      dependency-path: 2.0.0
+      dependency-path: 'link:../dependency-path'
       pnpm-shrinkwrap: 'link:../shrinkwrap'
     devDependencies:
       '@pnpm/logger': 2.1.0
@@ -974,7 +1000,7 @@ importers:
       '@types/node': 10.12.9
       '@types/ramda': 0.25.38
       '@types/semver': 5.5.0
-      dependency-path: 2.0.0
+      dependency-path: 'link:../dependency-path'
       path-exists: 3.0.0
       pnpm-install-checks: 1.1.0
       pnpm-shrinkwrap: 'link:../shrinkwrap'
@@ -1079,7 +1105,7 @@ importers:
       '@pnpm/symlink-dependency': 'link:../symlink-dependency'
       '@types/node': 10.12.9
       '@types/ramda': 0.25.34
-      dependency-path: 2.0.0
+      dependency-path: 'link:../dependency-path'
       pnpm-shrinkwrap: 'link:../shrinkwrap'
       ramda: 0.26.0
     devDependencies:
@@ -1110,7 +1136,7 @@ importers:
       '@types/js-yaml': 3.11.2
       '@types/node': 10.12.9
       '@types/ramda': 0.25.39
-      dependency-path: 2.0.0
+      dependency-path: 'link:../dependency-path'
       get-npm-tarball-url: 2.0.1
       js-yaml: 3.12.0
       load-yaml-file: 0.1.0
@@ -1214,7 +1240,7 @@ importers:
       '@types/semver': 5.5.0
       '@zkochan/npm-package-arg': 1.0.0
       common-tags: 1.8.0
-      dependency-path: 2.0.0
+      dependency-path: 'link:../dependency-path'
       encode-registry: 1.1.0
       execa: 1.0.0
       get-npm-tarball-url: 2.0.1
@@ -4093,16 +4119,6 @@ packages:
       node: '>= 0.6'
     resolution:
       integrity: sha1-m81S4UwJd2PnSbJ0xDRu0uVgtak=
-  /dependency-path/2.0.0:
-    dependencies:
-      '@types/semver': 5.5.0
-      encode-registry: 1.1.0
-      semver: 5.6.0
-    dev: false
-    engines:
-      node: '>=6'
-    resolution:
-      integrity: sha512-Al6qJe6ip6vgm+BfCEZlN1prHDtE4SvyfEYKm+1JcWThc2W2STQP0KCa8VOf50Wo+L6oe5Yu3hRjSN+MEYlIxA==
   /destroy/1.0.4:
     dev: true
     resolution:
