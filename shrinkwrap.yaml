@@ -167,7 +167,7 @@ importers:
       string-length: 2.0.0
       string.prototype.padstart: 3.0.0
       strip-ansi: 5.0.0
-      supi: 0.25.8-2
+      supi: 0.25.8
       tape: 4.9.1
       ts-node: 6.2.0
       tslint: 5.11.0
@@ -235,7 +235,7 @@ importers:
     specifiers:
       '@pnpm/logger': 2.1.0
       '@pnpm/modules-yaml': 2.0.0
-      '@pnpm/read-modules-dir': 0.0.0
+      '@pnpm/read-modules-dir': 1.0.0
       '@pnpm/tslint-config': 0.0.0
       '@pnpm/types': 2.0.0
       '@pnpm/utils': 0.9.0
@@ -255,54 +255,6 @@ importers:
       ts-node: 7.0.1
       tslint: 5.11.0
       typescript: 3.1.6
-  packages/dependencies-hierarchy/fixtureWithLinks/general:
-    dependencies:
-      minimatch: 3.0.4
-      rimraf: 2.5.1
-    devDependencies:
-      is-positive: 1.0.0
-    optionalDependencies:
-      is-negative: 1.0.0
-    specifiers:
-      is-negative: 1.0.0
-      is-positive: 1.0.0
-      minimatch: ^3.0.4
-      rimraf: 2.5.1
-  packages/dependencies-hierarchy/fixtureWithLinks/with-links-only:
-    dependencies:
-      general: 'link:../general'
-    specifiers:
-      general: 0.0.0
-  packages/dependencies-hierarchy/fixtures/circular:
-    dependencies:
-      es6-iterator: 2.0.3
-    specifiers:
-      es6-iterator: ^2.0.1
-  packages/dependencies-hierarchy/fixtures/general:
-    dependencies:
-      minimatch: 3.0.4
-      rimraf: 2.5.1
-    devDependencies:
-      is-positive: 1.0.0
-    optionalDependencies:
-      is-negative: 1.0.0
-    specifiers:
-      is-negative: 1.0.0
-      is-positive: 1.0.0
-      minimatch: ^3.0.4
-      rimraf: 2.5.1
-  packages/dependencies-hierarchy/fixtures/with-file-dep:
-    dependencies:
-      general: 'link:../general'
-      is-positive: 3.1.0
-    specifiers:
-      general: 'link:../general'
-      is-positive: ^3.1.0
-  packages/dependencies-hierarchy/fixtures/with-unsaved-deps:
-    dependencies:
-      symlink-dir: 2.0.2
-    specifiers:
-      symlink-dir: 2.0.2
   packages/headless:
     dependencies:
       '@pnpm/core-loggers': 'link:../core-loggers'
@@ -367,12 +319,12 @@ importers:
       '@pnpm/lifecycle': 3.0.2
       '@pnpm/link-bins': 3.0.2
       '@pnpm/logger': 2.1.0
-      '@pnpm/modules-cleaner': 1.0.8
+      '@pnpm/modules-cleaner': 1.0.9
       '@pnpm/modules-yaml': 2.0.0
       '@pnpm/package-requester': 4.1.10
       '@pnpm/package-store': 1.1.0
       '@pnpm/pkgid-to-filename': 2.0.0
-      '@pnpm/read-manifests': 1.0.0-1
+      '@pnpm/read-manifests': 1.0.0
       '@pnpm/read-package-json': 1.0.1
       '@pnpm/shamefully-flatten': 1.0.2
       '@pnpm/store-controller-types': 1.1.0
@@ -450,7 +402,7 @@ importers:
       archy: 1.0.0
       chalk: 2.4.1
       common-tags: 1.8.0
-      dependencies-hierarchy: 3.1.6
+      dependencies-hierarchy: 4.0.0
       mos: 2.0.0-alpha.3
       mos-plugin-readme: 1.0.4
       npm-package-arg: 6.1.0
@@ -489,7 +441,7 @@ importers:
       '@pnpm/logger': 2.1.0
       '@pnpm/modules-cleaner': 'link:'
       '@pnpm/package-bins': 2.0.0
-      '@pnpm/read-modules-dir': 0.0.0
+      '@pnpm/read-modules-dir': 1.0.0
       '@pnpm/store-controller-types': 1.1.0
       '@pnpm/tslint-config': 0.0.0
       '@pnpm/types': 2.0.0
@@ -942,7 +894,7 @@ importers:
       pnpm: 'link:'
       pnpm-default-reporter: 0.20.14
       pnpm-file-reporter: 0.1.0
-      pnpm-list: 4.1.6
+      pnpm-list: 4.2.0
       pnpm-registry-mock: 2.4.0
       pnpm-shrinkwrap: 8.1.4
       process-exists: 3.1.0
@@ -955,7 +907,7 @@ importers:
       sepia: 2.0.2
       signal-exit: 3.0.2
       strip-color: 0.1.0
-      supi: 0.25.8-2
+      supi: 0.25.8
       symlink-dir: 2.0.2
       tape: 4.9.1
       tape-promise: 4.0.0
@@ -1340,18 +1292,18 @@ importers:
       '@pnpm/default-fetcher': 2.0.6
       '@pnpm/default-resolver': 2.0.5
       '@pnpm/fs-locker': 1.0.2
-      '@pnpm/headless': 1.0.0-2
+      '@pnpm/headless': 1.0.0
       '@pnpm/lifecycle': 3.0.2
       '@pnpm/link-bins': 3.0.2
       '@pnpm/logger': 2.1.0
-      '@pnpm/modules-cleaner': 1.0.8
+      '@pnpm/modules-cleaner': 1.0.9
       '@pnpm/modules-yaml': 2.0.0
       '@pnpm/package-requester': 4.1.10
       '@pnpm/package-store': 1.1.0
       '@pnpm/pkgid-to-filename': 2.0.0
       '@pnpm/prepare': 0.0.0
-      '@pnpm/read-manifests': 1.0.0-1
-      '@pnpm/read-modules-dir': 0.0.0
+      '@pnpm/read-manifests': 1.0.0
+      '@pnpm/read-modules-dir': 1.0.0
       '@pnpm/read-package-json': 1.0.1
       '@pnpm/resolve-dependencies': 1.0.8
       '@pnpm/resolver-base': 2.0.0
@@ -3934,12 +3886,6 @@ packages:
   /cyclist/0.2.2:
     resolution:
       integrity: sha1-GzN5LhHpFKL9bW7WRHRkRE5fpkA=
-  /d/1.0.0:
-    dependencies:
-      es5-ext: 0.10.46
-    dev: false
-    resolution:
-      integrity: sha1-dUu1v+VUUdpppYuU1F9MWwRi1Y8=
   /dargs/4.1.0:
     dependencies:
       number-is-nan: 1.0.1
@@ -4351,22 +4297,6 @@ packages:
       node: '>= 0.4'
     resolution:
       integrity: sha512-qZryBOJjV//LaxLTV6UC//WewneB3LcXOL9NP++ozKVXsIIIpm/2c13UDiD9Jp2eThsecw9m3jPqDwTyobcdbg==
-  /es5-ext/0.10.46:
-    dependencies:
-      es6-iterator: 2.0.3
-      es6-symbol: 3.1.1
-      next-tick: 1.0.0
-    dev: false
-    resolution:
-      integrity: sha512-24XxRvJXNFwEMpJb3nOkiRJKRoupmjYmOPVlI65Qy2SrtxwOTB+g6ODjBKOtwEHbYrhWRty9xxOWLNdClT2djw==
-  /es6-iterator/2.0.3:
-    dependencies:
-      d: 1.0.0
-      es5-ext: 0.10.46
-      es6-symbol: 3.1.1
-    dev: false
-    resolution:
-      integrity: sha1-p96IkUGgWpSwhUQDstCg+/qY87c=
   /es6-promise/4.2.5:
     resolution:
       integrity: sha512-n6wvpdE43VFtJq+lUDYDBFUwV8TZbuGXLV4D6wKafg13ldznKsyEvatubnmUe31zcvelSzOHF+XbaT+Bl9ObDg==
@@ -4375,13 +4305,6 @@ packages:
       es6-promise: 4.2.5
     resolution:
       integrity: sha1-UQnWLz5W6pZ8S2NQWu8IKRyKUgM=
-  /es6-symbol/3.1.1:
-    dependencies:
-      d: 1.0.0
-      es5-ext: 0.10.46
-    dev: false
-    resolution:
-      integrity: sha1-vwDvT9q2uhtG7Le2KbTH7VcVzHc=
   /escape-html/1.0.3:
     dev: true
     resolution:
@@ -5047,6 +4970,7 @@ packages:
       minimatch: 3.0.4
       once: 1.4.0
       path-is-absolute: 1.0.1
+    dev: true
     resolution:
       integrity: sha1-DwiGD2oVUSey+t1PnOJLGqtuTSI=
   /glob/7.0.6:
@@ -5748,13 +5672,6 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha1-Df2Y9akRFxbdU13aZJL2e/PSWoA=
-  /is-negative/1.0.0:
-    dev: false
-    engines:
-      node: '>=0.10.0'
-    optional: true
-    resolution:
-      integrity: sha1-clmHeoPIAKwxkd17nZ+80PdS1P4=
   /is-npm/1.0.0:
     engines:
       node: '>=0.10.0'
@@ -5803,18 +5720,6 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha1-VNE9ZUkX60M64+4ty8N3TyzUTrI=
-  /is-positive/1.0.0:
-    dev: true
-    engines:
-      node: '>=0.10.0'
-    resolution:
-      integrity: sha1-iACYVrZKLx632LsBeUGEJK4EUss=
-  /is-positive/3.1.0:
-    dev: false
-    engines:
-      node: '>=0.10.0'
-    resolution:
-      integrity: sha1-hX21hKG6XRyymAUn/DtsQ103sP0=
   /is-promise/2.1.0:
     dev: true
     resolution:
@@ -7087,10 +6992,6 @@ packages:
       node: '>=6'
     resolution:
       integrity: sha1-gixFgNer54PfGZZbeJYiyoAWA+Q=
-  /next-tick/1.0.0:
-    dev: false
-    resolution:
-      integrity: sha1-yobR/ogoFpsBICCOPchCS524NCw=
   /nice-try/1.0.5:
     resolution:
       integrity: sha512-1nh45deeb5olNY7eX82BkPO7SSxR5SSYJiPTrTdFUVYwAl8CKMA5N9PjTYkHiRjisVcxcQ1HXdLhx2qxxJzLNQ==
@@ -8622,13 +8523,6 @@ packages:
     hasBin: true
     resolution:
       integrity: sha1-7nEM5dk6j9uFb7Xqj/Di11k0sto=
-  /rimraf/2.5.1:
-    dependencies:
-      glob: 6.0.4
-    dev: false
-    hasBin: true
-    resolution:
-      integrity: sha1-UuHpRvP5ubDV2JiLoxkaryotvUM=
   /rimraf/2.6.2:
     dependencies:
       glob: 7.1.3

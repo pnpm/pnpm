@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/read-manifests",
-  "version": "1.0.0-1",
+  "version": "1.0.0",
   "author": {
     "name": "Zoltan Kochan",
     "email": "z@kochan.io",
