@@ -48,10 +48,10 @@
   "dependencies": {
     "@pnpm/pkgid-to-filename": "2.0.0",
     "@pnpm/symlink-dependency": "1.1.0",
-    "@types/node": "10.12.5",
+    "@types/node": "10.12.9",
     "@types/ramda": "0.25.34",
     "dependency-path": "2.0.0",
     "pnpm-shrinkwrap": "8.1.4",
-    "ramda": "0.25.0"
+    "ramda": "0.26.0"
   }
 }

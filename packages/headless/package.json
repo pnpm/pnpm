@@ -30,10 +30,10 @@
     "@pnpm/tslint-config": "0.0.0",
     "@types/fs-extra": "5.0.4",
     "@types/mz": "0.0.32",
-    "@types/node": "10.12.5",
+    "@types/node": "10.12.9",
     "@types/path-exists": "3.0.0",
     "@types/rimraf": "2.0.2",
-    "@types/sinon": "5.0.5",
+    "@types/sinon": "5.0.6",
     "@types/tape": "4.2.32",
     "@types/tempy": "0.2.0",
     "fs-extra": "7.0.1",
@@ -85,7 +85,7 @@
   "dependencies": {
     "@pnpm/core-loggers": "1.0.0",
     "@pnpm/lifecycle": "3.0.2",
-    "@pnpm/link-bins": "3.0.1",
+    "@pnpm/link-bins": "3.0.2",
     "@pnpm/modules-cleaner": "1.0.8",
     "@pnpm/modules-yaml": "2.0.0",
     "@pnpm/package-requester": "4.1.10",
@@ -102,6 +102,6 @@
     "p-limit": "2.0.0",
     "path-exists": "3.0.0",
     "pnpm-shrinkwrap": "8.1.4",
-    "ramda": "0.25.0"
+    "ramda": "0.26.0"
   }
 }

@@ -54,7 +54,7 @@
     "@pnpm/resolver-base": "2.0.0",
     "@pnpm/types": "2.0.0",
     "@types/js-yaml": "3.11.2",
-    "@types/node": "10.12.5",
+    "@types/node": "10.12.9",
     "@types/ramda": "0.25.39",
     "dependency-path": "2.0.0",
     "get-npm-tarball-url": "2.0.1",
@@ -62,7 +62,7 @@
     "load-yaml-file": "0.1.0",
     "mkdirp-promise": "5.0.1",
     "normalize-path": "3.0.0",
-    "ramda": "0.25.0",
+    "ramda": "0.26.0",
     "rimraf-then": "1.0.1",
     "util.promisify": "1.0.0",
     "write-file-atomic": "2.3.0"
