@@ -6,4 +6,6 @@ packages:
   - "!**/test/**"
   - "!**/__package_previews__/**"
   - "!packages/dependencies-hierarchy/example/**"
+  - "!packages/dependencies-hierarchy/fixtures/**"
+  - "!packages/dependencies-hierarchy/fixtureWithLinks/**"
   - "!packages/list/example/**"
