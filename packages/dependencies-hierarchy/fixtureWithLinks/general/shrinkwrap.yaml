@@ -4,7 +4,7 @@ dependencies:
 devDependencies:
   is-positive: 1.0.0
 optionalDependencies:
-  is-negative: 1.0.0
+  is-negative: 1.0.1
 packages:
   /balanced-match/1.0.0:
     dev: false
@@ -42,13 +42,13 @@ packages:
     dev: false
     resolution:
       integrity: sha1-Yzwsg+PaQqUC9SRmAiSA9CCCYd4=
-  /is-negative/1.0.0:
+  /is-negative/1.0.1:
     dev: false
     engines:
       node: '>=0.10.0'
     optional: true
     resolution:
-      integrity: sha1-clmHeoPIAKwxkd17nZ+80PdS1P4=
+      integrity: sha1-3GuHKO69A8db+HYIftzVDpy1aZQ=
   /is-positive/1.0.0:
     dev: true
     engines:
@@ -88,7 +88,7 @@ registry: 'https://registry.npmjs.org/'
 shrinkwrapMinorVersion: 9
 shrinkwrapVersion: 3
 specifiers:
-  is-negative: 1.0.0
+  is-negative: 1.0.1
   is-positive: 1.0.0
   minimatch: ^3.0.4
   rimraf: 2.5.1

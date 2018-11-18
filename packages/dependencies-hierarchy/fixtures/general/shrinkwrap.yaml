@@ -4,19 +4,19 @@ dependencies:
 devDependencies:
   is-positive: 1.0.0
 optionalDependencies:
-  is-negative: 1.0.0
+  is-negative: 1.0.1
 packages:
   /balanced-match/1.0.0:
     dev: false
     resolution:
       integrity: sha1-ibTRmasr7kneFk6gK4nORi1xt2c=
-  /brace-expansion/1.1.8:
+  /brace-expansion/1.1.11:
     dependencies:
       balanced-match: 1.0.0
       concat-map: 0.0.1
     dev: false
     resolution:
-      integrity: sha1-wHshHHyVLsH479Uad+8NHTmQopI=
+      integrity: sha512-iCuPHDFgrHX7H2vEI/5xpz07zSHB00TpugqhmYtVmMO6518mCuRMoOYFldEBl0g187ufozdaHgWKcYFb61qGiA==
   /concat-map/0.0.1:
     dev: false
     resolution:
@@ -42,13 +42,13 @@ packages:
     dev: false
     resolution:
       integrity: sha1-Yzwsg+PaQqUC9SRmAiSA9CCCYd4=
-  /is-negative/1.0.0:
+  /is-negative/1.0.1:
     dev: false
     engines:
       node: '>=0.10.0'
     optional: true
     resolution:
-      integrity: sha1-clmHeoPIAKwxkd17nZ+80PdS1P4=
+      integrity: sha1-3GuHKO69A8db+HYIftzVDpy1aZQ=
   /is-positive/1.0.0:
     dev: true
     engines:
@@ -57,7 +57,7 @@ packages:
       integrity: sha1-iACYVrZKLx632LsBeUGEJK4EUss=
   /minimatch/3.0.4:
     dependencies:
-      brace-expansion: 1.1.8
+      brace-expansion: 1.1.11
     dev: false
     resolution:
       integrity: sha512-yJHVQEhyqPLUTgt9B83PXu6W3rx4MvvHvSUvToogpwoGDOUQ+yDrR0HRot+yOCdCO7u4hX3pWft6kWBBcqh0UA==
@@ -88,7 +88,7 @@ registry: 'https://registry.npmjs.org/'
 shrinkwrapMinorVersion: 9
 shrinkwrapVersion: 3
 specifiers:
-  is-negative: 1.0.0
+  is-negative: 1.0.1
   is-positive: 1.0.0
   minimatch: ^3.0.4
   rimraf: 2.5.1

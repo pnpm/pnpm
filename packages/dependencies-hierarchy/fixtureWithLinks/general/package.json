@@ -9,6 +9,6 @@
 		"is-positive": "1.0.0"
 	},
 	"optionalDependencies": {
-		"is-negative": "1.0.0"
+		"is-negative": "1.0.1"
 	}
 }
