@@ -4,9 +4,11 @@ import { PnpmOptions } from '../types'
 
 export default async (input: string[], opts: PnpmOptions) => {
   const store = await createStoreController(opts)
-  const pruneOpts = Object.assign(opts, {
+  return install({
+    ...opts,
+    pruneDirectDependencies: true,
+    pruneStore: true,
     store: store.path,
     storeController: store.ctrl,
-  })
-  return install({ ...pruneOpts, pruneStore: true } as InstallOptions)
+  } as InstallOptions)
 }

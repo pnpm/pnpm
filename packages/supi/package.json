@@ -30,6 +30,7 @@
     "@pnpm/package-requester": "4.1.10",
     "@pnpm/pkgid-to-filename": "2.0.0",
     "@pnpm/read-manifests": "1.0.0-1",
+    "@pnpm/read-modules-dir": "0.0.0",
     "@pnpm/read-package-json": "1.0.1",
     "@pnpm/resolve-dependencies": "1.0.8",
     "@pnpm/resolver-base": "2.0.0",

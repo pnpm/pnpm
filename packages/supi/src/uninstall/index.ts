@@ -1,6 +1,6 @@
 import { summaryLogger } from '@pnpm/core-loggers'
 import logger, { streamParser } from '@pnpm/logger'
-import { prune, removeDirectDependency } from '@pnpm/modules-cleaner'
+import { prune } from '@pnpm/modules-cleaner'
 import { write as writeModulesYaml } from '@pnpm/modules-yaml'
 import { shamefullyFlattenByShrinkwrap } from '@pnpm/shamefully-flatten'
 import { getSaveType } from '@pnpm/utils'
@@ -14,7 +14,6 @@ import {
 import { LAYOUT_VERSION } from '../constants'
 import { getContextForSingleImporter, PnpmSingleContext } from '../getContext'
 import lock from '../lock'
-import safeIsInnerLink from '../safeIsInnerLink'
 import shrinkwrapsEqual from '../shrinkwrapsEqual'
 import extendOptions, {
   StrictUninstallOptions,
@@ -87,6 +86,7 @@ export async function uninstallInContext (
     newShrinkwrap: newShr,
     oldShrinkwrap: ctx.currentShrinkwrap,
     registries: ctx.registries,
+    removePackages: pkgsToUninstall,
     shrinkwrapDirectory: opts.shrinkwrapDirectory,
     storeController: opts.storeController,
     virtualStoreDir: ctx.virtualStoreDir,
@@ -102,11 +102,6 @@ export async function uninstallInContext (
   } else {
     await saveCurrentShrinkwrapOnly(ctx.shrinkwrapDirectory, currentShrinkwrap, shrinkwrapOpts)
   }
-  await removeOuterLinks(pkgsToUninstall, ctx.modulesDir, {
-    bin: opts.bin,
-    prefix: opts.prefix,
-    storePath: ctx.storePath,
-  })
 
   if (opts.shamefullyFlatten) {
     ctx.hoistedAliases = await shamefullyFlattenByShrinkwrap(currentShrinkwrap, ctx.importerId, {
@@ -136,34 +131,4 @@ export async function uninstallInContext (
   })
 
   summaryLogger.debug({ prefix: opts.prefix })
-}
-
-async function removeOuterLinks (
-  pkgsToUninstall: string[],
-  modulesDir: string,
-  opts: {
-    bin: string,
-    storePath: string,
-    prefix: string,
-  },
-) {
-  const safeIsInnerLinkOpts = {
-    hideAlienModules: true,
-    prefix: opts.prefix,
-    storePath: opts.storePath,
-  }
-  // These packages are not in package.json, they were just linked in not installed
-  for (const pkgToUninstall of pkgsToUninstall) {
-    if (await safeIsInnerLink(modulesDir, pkgToUninstall, safeIsInnerLinkOpts) !== true) {
-      await removeDirectDependency({
-        dev: false,
-        name: pkgToUninstall,
-        optional: false,
-      }, {
-        bin: opts.bin,
-        modulesDir,
-        prefix: opts.prefix,
-      })
-    }
-  }
 }

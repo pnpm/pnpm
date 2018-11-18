@@ -465,6 +465,7 @@ importers:
     dependencies:
       '@pnpm/core-loggers': 'link:../core-loggers'
       '@pnpm/package-bins': 2.0.0
+      '@pnpm/read-modules-dir': 'link:../read-modules-dir'
       '@pnpm/store-controller-types': 'link:../store-controller-types'
       '@pnpm/types': 'link:../types'
       '@pnpm/utils': 'link:../utils'
@@ -488,6 +489,7 @@ importers:
       '@pnpm/logger': 2.1.0
       '@pnpm/modules-cleaner': 'link:'
       '@pnpm/package-bins': 2.0.0
+      '@pnpm/read-modules-dir': 0.0.0
       '@pnpm/store-controller-types': 1.1.0
       '@pnpm/tslint-config': 0.0.0
       '@pnpm/types': 2.0.0
@@ -1238,6 +1240,7 @@ importers:
       '@pnpm/package-requester': 'link:../package-requester'
       '@pnpm/pkgid-to-filename': 2.0.0
       '@pnpm/read-manifests': 'link:../read-manifests'
+      '@pnpm/read-modules-dir': 'link:../read-modules-dir'
       '@pnpm/read-package-json': 1.0.1
       '@pnpm/resolve-dependencies': 'link:../resolve-dependencies'
       '@pnpm/resolver-base': 2.0.0
@@ -1348,6 +1351,7 @@ importers:
       '@pnpm/pkgid-to-filename': 2.0.0
       '@pnpm/prepare': 0.0.0
       '@pnpm/read-manifests': 1.0.0-1
+      '@pnpm/read-modules-dir': 0.0.0
       '@pnpm/read-package-json': 1.0.1
       '@pnpm/resolve-dependencies': 1.0.8
       '@pnpm/resolver-base': 2.0.0
@@ -2189,7 +2193,7 @@ packages:
       integrity: sha512-U5icWpv7YnZYGsN4/cmh3WD2onMY0aJIiTE6+51TwJCttdHvtCYmkBNOobHlXwrJRL0nkH9jH4kD+1FAdMN4Tg==
   /@types/mz/0.0.32:
     dependencies:
-      '@types/node': 10.12.5
+      '@types/node': 10.12.9
     resolution:
       integrity: sha512-cy3yebKhrHuOcrJGkfwNHhpTXQLgmXSv1BX+4p32j+VUQ6aP2eJ5cL7OvGcAQx75fCTFaAIIAKewvqL+iwSd4g==
   /@types/ncp/2.0.1:
@@ -2211,7 +2215,6 @@ packages:
     resolution:
       integrity: sha512-+ZWB5Ec1iki99xQFzBlivlKxSZQ+fuUKBott8StBOnLN4dWbRHlgdg1XknpW6g0tweniN5DcOqA64CJyOUPSAw==
   /@types/node/10.12.9:
-    dev: false
     resolution:
       integrity: sha512-eajkMXG812/w3w4a1OcBlaTwsFPO5F7fJ/amy+tieQxEMWBlbV1JGSjkFM+zkHNf81Cad+dfIRA+IBkvmvdAeA==
   /@types/node/8.10.37:

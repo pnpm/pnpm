@@ -174,11 +174,6 @@ function addLinkToShrinkwrap (
     }
   }
 
-  if (!addedTo) {
-    shrImporter.dependencies = shrImporter.dependencies || {}
-    shrImporter.dependencies[opts.linkedPkgName] = id
-  }
-
   // package.json might not be available when linking to global
   if (!opts.pkg) return
 
