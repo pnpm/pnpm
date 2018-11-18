@@ -67,7 +67,7 @@
     "p-limit": "2.0.0",
     "path-absolute": "1.0.0",
     "path-name": "1.0.0",
-    "pkgs-graph": "2.0.0",
+    "pkgs-graph": "2.0.1",
     "pnpm-default-reporter": "0.20.14",
     "pnpm-file-reporter": "0.1.0",
     "pnpm-list": "4.1.6",
