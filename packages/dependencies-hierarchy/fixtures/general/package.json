@@ -3,7 +3,7 @@
 	"version": "0.0.0",
 	"dependencies": {
 		"minimatch": "^3.0.4",
-		"rimraf": "2.5.1"
+		"rimraf": "2.6.2"
 	},
 	"devDependencies": {
 		"is-positive": "1.0.0"
