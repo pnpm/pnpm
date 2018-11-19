@@ -38,12 +38,12 @@
   "dependencies": {
     "@pnpm/npm-resolver": "2.2.7",
     "@pnpm/read-package-json": "1.0.1",
+    "@pnpm/shrinkwrap-file": "0.0.0",
     "@pnpm/store-path": "1.0.4",
     "@pnpm/types": "2.0.0",
     "@pnpm/utils": "0.9.0",
     "@types/node": "10.12.11",
-    "dependency-path": "2.0.1",
-    "pnpm-shrinkwrap": "8.1.6"
+    "dependency-path": "2.0.1"
   },
   "devDependencies": {
     "@pnpm/logger": "2.1.0",

@@ -47,11 +47,12 @@
   },
   "dependencies": {
     "@pnpm/pkgid-to-filename": "2.0.0",
+    "@pnpm/shrinkwrap-types": "0.0.0",
+    "@pnpm/shrinkwrap-utils": "0.0.0",
     "@pnpm/symlink-dependency": "1.1.0",
     "@types/node": "10.12.11",
     "@types/ramda": "0.25.34",
     "dependency-path": "2.0.1",
-    "pnpm-shrinkwrap": "8.1.6",
     "ramda": "0.26.1"
   }
 }

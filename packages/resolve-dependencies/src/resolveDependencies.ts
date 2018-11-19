@@ -9,6 +9,15 @@ import {
   Resolution,
 } from '@pnpm/resolver-base'
 import {
+  PackageSnapshot,
+  ResolvedDependencies,
+  Shrinkwrap,
+} from '@pnpm/shrinkwrap-types'
+import {
+  nameVerFromPkgSnapshot,
+  pkgSnapshotToResolution,
+} from '@pnpm/shrinkwrap-utils'
+import {
   PackageFilesResponse,
   PackageResponse,
   StoreController,
@@ -29,13 +38,6 @@ import {
 import * as dp from 'dependency-path'
 import path = require('path')
 import exists = require('path-exists')
-import {
-  DependencyShrinkwrap,
-  nameVerFromPkgSnapshot,
-  pkgSnapshotToResolution,
-  ResolvedDependencies,
-  Shrinkwrap,
-} from 'pnpm-shrinkwrap'
 import R = require('ramda')
 import semver = require('semver')
 import encodePkgId from './encodePkgId'
@@ -326,7 +328,7 @@ async function resolveDependency (
     parentDependsOnPeer: boolean,
     parentNodeId: string,
     currentDepth: number,
-    dependencyShrinkwrap?: DependencyShrinkwrap,
+    dependencyShrinkwrap?: PackageSnapshot,
     shrinkwrapResolution?: Resolution,
     resolvedDependencies?: ResolvedDependencies,
     optionalDependencyNames?: string[],

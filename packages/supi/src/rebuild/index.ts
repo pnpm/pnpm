@@ -2,18 +2,17 @@ import { skippedOptionalDependencyLogger } from '@pnpm/core-loggers'
 import runLifecycleHooks, { runPostinstallHooks } from '@pnpm/lifecycle'
 import logger, { streamParser } from '@pnpm/logger'
 import { write as writeModulesYaml } from '@pnpm/modules-yaml'
+import {
+  nameVerFromPkgSnapshot,
+  PackageSnapshots,
+  Shrinkwrap,
+} from '@pnpm/shrinkwrap-utils'
 import { PackageJson } from '@pnpm/types'
 import npa = require('@zkochan/npm-package-arg')
 import * as dp from 'dependency-path'
 import graphSequencer = require('graph-sequencer')
 import pLimit = require('p-limit')
 import path = require('path')
-import {
-  nameVerFromPkgSnapshot,
-  PackageSnapshots,
-  ResolvedPackages,
-  Shrinkwrap,
-} from 'pnpm-shrinkwrap'
 import R = require('ramda')
 import semver = require('semver')
 import { LAYOUT_VERSION } from '../constants'
@@ -24,7 +23,7 @@ import extendOptions, {
 } from './extendRebuildOptions'
 
 function findPackages (
-  packages: ResolvedPackages,
+  packages: PackageSnapshots,
   searched: PackageSelector[],
   opts: {
     prefix: string,

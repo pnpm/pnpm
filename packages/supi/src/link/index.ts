@@ -4,6 +4,13 @@ import {
 import { linkBinsOfPackages } from '@pnpm/link-bins'
 import logger, { streamParser } from '@pnpm/logger'
 import { prune } from '@pnpm/modules-cleaner'
+import { pruneSharedShrinkwrap } from '@pnpm/prune-shrinkwrap'
+import {
+  getImporterId,
+  ShrinkwrapImporter,
+  write as saveShrinkwrap,
+  writeCurrentOnly as saveCurrentShrinkwrapOnly,
+} from '@pnpm/shrinkwrap-file'
 import { symlinkDirectRootDependency } from '@pnpm/symlink-dependency'
 import {
   DEPENDENCIES_FIELDS,
@@ -17,13 +24,6 @@ import loadJsonFile from 'load-json-file'
 import normalize = require('normalize-path')
 import path = require('path')
 import pathAbsolute = require('path-absolute')
-import {
-  getImporterId,
-  pruneSharedShrinkwrap,
-  ShrinkwrapImporter,
-  write as saveShrinkwrap,
-  writeCurrentOnly as saveCurrentShrinkwrapOnly,
-} from 'pnpm-shrinkwrap'
 import R = require('ramda')
 import { getContextForSingleImporter } from '../getContext'
 import getSpecFromPackageJson from '../getSpecFromPackageJson'

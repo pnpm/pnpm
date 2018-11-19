@@ -2,15 +2,15 @@ import { summaryLogger } from '@pnpm/core-loggers'
 import logger, { streamParser } from '@pnpm/logger'
 import { prune } from '@pnpm/modules-cleaner'
 import { write as writeModulesYaml } from '@pnpm/modules-yaml'
+import { prune as pruneShrinkwrap } from '@pnpm/prune-shrinkwrap'
 import { shamefullyFlattenByShrinkwrap } from '@pnpm/shamefully-flatten'
+import {
+  write as saveShrinkwrap,
+  writeCurrentOnly as saveCurrentShrinkwrapOnly,
+} from '@pnpm/shrinkwrap-file'
 import { getSaveType } from '@pnpm/utils'
 import * as dp from 'dependency-path'
 import path = require('path')
-import {
-  prune as pruneShrinkwrap,
-  write as saveShrinkwrap,
-  writeCurrentOnly as saveCurrentShrinkwrapOnly,
-} from 'pnpm-shrinkwrap'
 import { LAYOUT_VERSION } from '../constants'
 import { getContextForSingleImporter, PnpmSingleContext } from '../getContext'
 import lock from '../lock'

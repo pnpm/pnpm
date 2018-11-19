@@ -1,4 +1,5 @@
 import { LocalPackages, Resolution } from '@pnpm/resolver-base'
+import { Shrinkwrap } from '@pnpm/shrinkwrap-types'
 import { StoreController } from '@pnpm/store-controller-types'
 import {
   PackageJson,
@@ -6,7 +7,6 @@ import {
   Registries,
 } from '@pnpm/types'
 import { createNodeId, getWantedDependencies, nodeIdContainsSequence, ROOT_NODE_ID, WantedDependency } from '@pnpm/utils'
-import { Shrinkwrap } from 'pnpm-shrinkwrap'
 import getPreferredVersionsFromPackage from './getPreferredVersions'
 import resolveDependencies, {
   ChildrenByParentId,

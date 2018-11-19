@@ -33,6 +33,7 @@
     "@pnpm/core-loggers": "1.0.0",
     "@pnpm/package-bins": "2.0.0",
     "@pnpm/read-modules-dir": "1.0.0",
+    "@pnpm/shrinkwrap-types": "0.0.0",
     "@pnpm/store-controller-types": "1.1.0",
     "@pnpm/types": "2.0.0",
     "@pnpm/utils": "0.9.0",
@@ -40,7 +41,6 @@
     "@types/ramda": "0.25.38",
     "dependency-path": "2.0.1",
     "fs-vacuum": "1.2.10",
-    "pnpm-shrinkwrap": "8.1.6",
     "ramda": "0.26.1",
     "rimraf-then": "1.0.1",
     "util.promisify": "1.0.0"

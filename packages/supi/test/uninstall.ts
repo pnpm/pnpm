@@ -1,9 +1,9 @@
 import prepare, { preparePackages } from '@pnpm/prepare'
+import { Shrinkwrap } from '@pnpm/shrinkwrap-file'
 import existsSymlink = require('exists-link')
 import ncpCB = require('ncp')
 import path = require('path')
 import exists = require('path-exists')
-import { Shrinkwrap } from 'pnpm-shrinkwrap'
 import readPkg = require('read-pkg')
 import readYamlFile from 'read-yaml-file'
 import sinon = require('sinon')

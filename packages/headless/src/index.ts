@@ -6,6 +6,9 @@ import {
   statsLogger,
   summaryLogger,
 } from '@pnpm/core-loggers'
+import filterShrinkwrap, {
+  filterByImporters as filterShrinkwrapByImporters,
+} from '@pnpm/filter-shrinkwrap'
 import runLifecycleHooks from '@pnpm/lifecycle'
 import linkBins, { linkBinsOfPackages } from '@pnpm/link-bins'
 import logger, {
@@ -21,6 +24,18 @@ import pkgIdToFilename from '@pnpm/pkgid-to-filename'
 import { fromDir as readPackageFromDir } from '@pnpm/read-package-json'
 import { shamefullyFlattenByShrinkwrap } from '@pnpm/shamefully-flatten'
 import {
+  PackageSnapshot,
+  readCurrent,
+  readWanted,
+  Shrinkwrap,
+  writeCurrentOnly as writeCurrentShrinkwrapOnly,
+} from '@pnpm/shrinkwrap-file'
+import {
+  nameVerFromPkgSnapshot,
+  pkgSnapshotToResolution,
+  satisfiesPackageJson,
+} from '@pnpm/shrinkwrap-utils'
+import {
   PackageFilesResponse,
   StoreController,
 } from '@pnpm/store-controller-types'
@@ -30,18 +45,6 @@ import { realNodeModulesDir } from '@pnpm/utils'
 import dp = require('dependency-path')
 import pLimit = require('p-limit')
 import path = require('path')
-import {
-  filter as filterShrinkwrap,
-  filterByImporters as filterShrinkwrapByImporters,
-  nameVerFromPkgSnapshot,
-  PackageSnapshot,
-  pkgSnapshotToResolution,
-  readCurrent,
-  readWanted,
-  satisfiesPackageJson,
-  Shrinkwrap,
-  writeCurrentOnly as writeCurrentShrinkwrapOnly,
-} from 'pnpm-shrinkwrap'
 import R = require('ramda')
 import {
   ENGINE_NAME,

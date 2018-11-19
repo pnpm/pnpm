@@ -5,6 +5,7 @@ import {
   Modules,
 } from '@pnpm/modules-yaml'
 import readManifests from '@pnpm/read-manifests'
+import { Shrinkwrap } from '@pnpm/shrinkwrap-file'
 import {
   DEPENDENCIES_FIELDS,
   PackageJson,
@@ -15,9 +16,6 @@ import {
   safeReadPackageFromDir as safeReadPkgFromDir,
 } from '@pnpm/utils'
 import mkdirp = require('mkdirp-promise')
-import {
-  Shrinkwrap,
-} from 'pnpm-shrinkwrap'
 import removeAllExceptOuterLinks = require('remove-all-except-outer-links')
 import { PnpmError } from '../errorTypes'
 import checkCompatibility from './checkCompatibility'

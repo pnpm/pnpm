@@ -1,14 +1,14 @@
 import createResolver from '@pnpm/npm-resolver'
 import { fromDir as readPackageFromDir } from '@pnpm/read-package-json'
-import resolveStore from '@pnpm/store-path'
-import { DEPENDENCIES_FIELDS, Registries } from '@pnpm/types'
-import { normalizeRegistries } from '@pnpm/utils'
-import * as dp from 'dependency-path'
 import {
   getImporterId,
   readCurrent as readCurrentShrinkwrap,
   readWanted as readWantedShrinkwrap,
-} from 'pnpm-shrinkwrap'
+} from '@pnpm/shrinkwrap-file'
+import resolveStore from '@pnpm/store-path'
+import { DEPENDENCIES_FIELDS, Registries } from '@pnpm/types'
+import { normalizeRegistries } from '@pnpm/utils'
+import * as dp from 'dependency-path'
 
 export interface OutdatedPackage {
   current?: string, // not defined means the package is not installed

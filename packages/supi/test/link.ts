@@ -1,10 +1,10 @@
 import { isExecutable } from '@pnpm/assert-project'
 import prepare from '@pnpm/prepare'
+import { Shrinkwrap } from '@pnpm/shrinkwrap-file'
 import fs = require('mz/fs')
 import ncpCB = require('ncp')
 import path = require('path')
 import exists = require('path-exists')
-import { Shrinkwrap } from 'pnpm-shrinkwrap'
 import readPkg = require('read-pkg')
 import readYamlFile from 'read-yaml-file'
 import sinon = require('sinon')

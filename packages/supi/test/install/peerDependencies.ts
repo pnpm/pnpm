@@ -1,11 +1,11 @@
 import prepare from '@pnpm/prepare'
+import { Shrinkwrap } from '@pnpm/shrinkwrap-file'
 import deepRequireCwd = require('deep-require-cwd')
 import loadJsonFile from 'load-json-file'
 import mkdir = require('mkdirp-promise')
 import path = require('path')
 import exists = require('path-exists')
 import { addDistTag } from 'pnpm-registry-mock'
-import { Shrinkwrap } from 'pnpm-shrinkwrap'
 import readYamlFile from 'read-yaml-file'
 import rimraf = require('rimraf-then')
 import sinon = require('sinon')
