@@ -47,15 +47,19 @@ export default async function prune (
     const oldPkgs = R.toPairs(mergeDependencies(oldImporterShr))
     const newPkgs = R.toPairs(mergeDependencies(opts.newShrinkwrap.importers[importer.id]))
 
+    const allCurrentPackages = new Set(
+      (opts.pruneDirectDependencies || opts.removePackages && opts.removePackages.length)
+        ? (await readModulesDir(importer.modulesDir) || [])
+        : [],
+    )
     const depsToRemove = new Set([
-      ...opts.removePackages || [],
+      ...(opts.removePackages || []).filter((removePackage) => allCurrentPackages.has(removePackage)),
       ...R.difference(oldPkgs, newPkgs).map(([depName]) => depName),
     ])
     if (opts.pruneDirectDependencies) {
-      const allCurrentPackages = await readModulesDir(importer.modulesDir) || []
-      if (allCurrentPackages.length > 0) {
+      if (allCurrentPackages.size > 0) {
         const newPkgsSet = new Set(newPkgs.map(([depName]) => depName))
-        for (const currentPackage of allCurrentPackages) {
+        for (const currentPackage of Array.from(allCurrentPackages)) {
           if (!newPkgsSet.has(currentPackage)) {
             depsToRemove.add(currentPackage)
           }

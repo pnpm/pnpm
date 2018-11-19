@@ -82,6 +82,21 @@ test('uninstall package with no dependencies', async (t: tape.Test) => {
   t.equal(pkgJson.dependencies, undefined, 'is-negative has been removed from dependencies')
 })
 
+test('uninstall a dependency that is not present in node_modules', async (t) => {
+  const project = prepare(t)
+
+  const reporter = sinon.spy()
+  await uninstall(['is-negative'], await testDefaults({ reporter }))
+
+  t.notOk(reporter.calledWithMatch({
+    level: 'debug',
+    name: 'pnpm:root',
+    removed: {
+      name: 'is-negative',
+    },
+  } as RootLog), 'removing root dependency reported')
+})
+
 test('uninstall scoped package', async (t) => {
   const project = prepare(t)
   await installPkgs(['@zkochan/logger@0.1.0'], await testDefaults({ save: true }))
