@@ -39,13 +39,13 @@
   "dependencies": {
     "@pnpm/modules-yaml": "2.0.1",
     "@pnpm/read-modules-dir": "1.0.0",
+    "@pnpm/shrinkwrap-file": "0.0.0",
     "@pnpm/types": "2.0.0",
     "@pnpm/utils": "0.9.0",
     "@types/node": "10.12.11",
     "@types/semver": "5.5.0",
     "dependency-path": "2.0.1",
     "normalize-path": "3.0.0",
-    "pnpm-shrinkwrap": "8.1.6",
     "resolve-link-target": "1.0.1",
     "semver": "5.6.0"
   },

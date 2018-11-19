@@ -1,17 +1,17 @@
 import { read as readModulesYaml } from '@pnpm/modules-yaml'
 import readModulesDir from '@pnpm/read-modules-dir'
+import {
+  getImporterId,
+  PackageSnapshots,
+  readCurrent,
+  ShrinkwrapImporter,
+} from '@pnpm/shrinkwrap-file'
 import { Registries } from '@pnpm/types'
 import { normalizeRegistries, safeReadPackageFromDir } from '@pnpm/utils'
 import assert = require('assert')
 import { refToAbsolute, refToRelative } from 'dependency-path'
 import normalizePath = require('normalize-path')
 import path = require('path')
-import {
-  getImporterId,
-  readCurrent,
-  ResolvedPackages,
-  ShrinkwrapImporter,
-} from 'pnpm-shrinkwrap'
 import resolveLinkTarget = require('resolve-link-target')
 import semver = require('semver')
 
@@ -202,7 +202,7 @@ function getTree (
     searched: PackageSelector[],
     registry: string,
   },
-  packages: ResolvedPackages,
+  packages: PackageSnapshots,
   keypath: string[],
   parentId: string,
 ): PackageNode[] {

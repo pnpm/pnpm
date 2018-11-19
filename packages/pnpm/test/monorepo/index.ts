@@ -1,9 +1,9 @@
 import prepare, { preparePackages } from '@pnpm/prepare'
 import { fromDir as readPackageJsonFromDir } from '@pnpm/read-package-json'
+import { Shrinkwrap } from '@pnpm/shrinkwrap-types'
 import loadJsonFile from 'load-json-file'
 import fs = require('mz/fs')
 import path = require('path')
-import { Shrinkwrap } from 'pnpm-shrinkwrap'
 import readYamlFile from 'read-yaml-file'
 import rimraf = require('rimraf-then')
 import symlink from 'symlink-dir'

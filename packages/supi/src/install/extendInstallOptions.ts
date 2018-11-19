@@ -1,6 +1,7 @@
 import logger from '@pnpm/logger'
 import { IncludedDependencies } from '@pnpm/modules-yaml'
 import { LocalPackages } from '@pnpm/resolver-base'
+import { Shrinkwrap } from '@pnpm/shrinkwrap-file'
 import { StoreController } from '@pnpm/store-controller-types'
 import {
   ReadPackageHook,
@@ -8,7 +9,6 @@ import {
 } from '@pnpm/types'
 import { DEFAULT_REGISTRIES, normalizeRegistries } from '@pnpm/utils'
 import path = require('path')
-import { Shrinkwrap } from 'pnpm-shrinkwrap'
 import pnpmPkgJson from '../pnpmPkgJson'
 import { ReporterFunction } from '../types'
 

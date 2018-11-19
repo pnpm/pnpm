@@ -1,16 +1,15 @@
 import logger from '@pnpm/logger'
-import { Resolution } from '@pnpm/resolver-base'
-import { Dependencies } from '@pnpm/types'
-import * as dp from 'dependency-path'
-import getNpmTarballUrl from 'get-npm-tarball-url'
 import {
-  DependencyShrinkwrap,
   PackageSnapshot,
   pruneSharedShrinkwrap,
   ResolvedDependencies,
   Shrinkwrap,
   ShrinkwrapResolution,
-} from 'pnpm-shrinkwrap'
+} from '@pnpm/prune-shrinkwrap'
+import { Resolution } from '@pnpm/resolver-base'
+import { Dependencies } from '@pnpm/types'
+import * as dp from 'dependency-path'
+import getNpmTarballUrl from 'get-npm-tarball-url'
 import R = require('ramda')
 import { DependenciesGraph } from './resolvePeers'
 import { absolutePathToRef } from './shrinkwrap'
@@ -77,7 +76,7 @@ function toShrDependency (
     depGraph: DependenciesGraph,
     prevSnapshot?: PackageSnapshot,
   },
-): DependencyShrinkwrap {
+): PackageSnapshot {
   const depNode = opts.depGraph[opts.depPath]
   const shrResolution = toShrResolution(
     { name: depNode.name, version: depNode.version },

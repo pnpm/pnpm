@@ -4,16 +4,16 @@ import {
 } from '@pnpm/core-loggers'
 import logger from '@pnpm/logger'
 import readModulesDir from '@pnpm/read-modules-dir'
+import {
+  PackageSnapshots,
+  Shrinkwrap,
+  ShrinkwrapImporter,
+} from '@pnpm/shrinkwrap-types'
 import { StoreController } from '@pnpm/store-controller-types'
 import { DEPENDENCIES_FIELDS, Registries } from '@pnpm/types'
 import * as dp from 'dependency-path'
 import vacuumCB = require('fs-vacuum')
 import path = require('path')
-import {
-  ResolvedPackages,
-  Shrinkwrap,
-  ShrinkwrapImporter,
-} from 'pnpm-shrinkwrap'
 import R = require('ramda')
 import promisify = require('util.promisify')
 import removeDirectDependency from './removeDirectDependency'
@@ -163,7 +163,7 @@ function mergeDependencies (shrImporter: ShrinkwrapImporter): { [depName: string
 
 function getPkgsDepPaths (
   registry: string,
-  packages: ResolvedPackages,
+  packages: PackageSnapshots,
 ): {[depPath: string]: string} {
   const pkgIdsByDepPath = {}
   for (const relDepPath of Object.keys(packages)) {

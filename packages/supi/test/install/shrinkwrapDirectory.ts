@@ -1,6 +1,6 @@
 import prepare from '@pnpm/prepare'
+import { Shrinkwrap } from '@pnpm/shrinkwrap-file'
 import path = require('path')
-import { Shrinkwrap } from 'pnpm-shrinkwrap'
 import readYamlFile from 'read-yaml-file'
 import { addDependenciesToPackage } from 'supi'
 import tape = require('tape')

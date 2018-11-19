@@ -1,6 +1,6 @@
 import prepare from '@pnpm/prepare'
 import { fromDir as readPackageJsonFromDir } from '@pnpm/read-package-json'
-import { Shrinkwrap } from 'pnpm-shrinkwrap'
+import { Shrinkwrap } from '@pnpm/shrinkwrap-file'
 import sinon = require('sinon')
 import {
   addDependenciesToPackage,

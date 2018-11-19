@@ -31,10 +31,10 @@
   },
   "dependencies": {
     "@pnpm/modules-yaml": "2.0.1",
+    "@pnpm/shrinkwrap-file": "0.0.0",
     "@pnpm/types": "2.0.0",
     "@pnpm/utils": "0.9.0",
-    "@types/node": "10.12.11",
-    "pnpm-shrinkwrap": "8.1.6"
+    "@types/node": "10.12.11"
   },
   "devDependencies": {
     "@pnpm/logger": "2.1.0",

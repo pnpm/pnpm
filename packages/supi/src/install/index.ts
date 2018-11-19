@@ -17,6 +17,14 @@ import {
   Resolution,
 } from '@pnpm/resolver-base'
 import {
+  Shrinkwrap,
+  ShrinkwrapImporter,
+  write as saveShrinkwrap,
+  writeCurrentOnly as saveCurrentShrinkwrapOnly,
+  writeWantedOnly as saveWantedShrinkwrapOnly,
+} from '@pnpm/shrinkwrap-file'
+import { satisfiesPackageJson } from '@pnpm/shrinkwrap-utils'
+import {
   DEPENDENCIES_FIELDS,
   DependenciesField,
   PackageJson,
@@ -35,14 +43,6 @@ import pEvery = require('p-every')
 import pFilter = require('p-filter')
 import pLimit = require('p-limit')
 import path = require('path')
-import {
-  satisfiesPackageJson,
-  Shrinkwrap,
-  ShrinkwrapImporter,
-  write as saveShrinkwrap,
-  writeCurrentOnly as saveCurrentShrinkwrapOnly,
-  writeWantedOnly as saveWantedShrinkwrapOnly,
-} from 'pnpm-shrinkwrap'
 import R = require('ramda')
 import rimraf = require('rimraf-then')
 import semver = require('semver')

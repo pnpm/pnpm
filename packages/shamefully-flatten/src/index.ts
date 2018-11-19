@@ -1,13 +1,13 @@
 import logger from '@pnpm/logger'
 import pkgIdToFilename from '@pnpm/pkgid-to-filename'
-import symlinkDependency from '@pnpm/symlink-dependency'
-import * as dp from 'dependency-path'
-import path = require('path')
 import {
   nameVerFromPkgSnapshot,
   PackageSnapshots,
   Shrinkwrap,
-} from 'pnpm-shrinkwrap'
+} from '@pnpm/shrinkwrap-utils'
+import symlinkDependency from '@pnpm/symlink-dependency'
+import * as dp from 'dependency-path'
+import path = require('path')
 import R = require('ramda')
 
 export async function shamefullyFlattenByShrinkwrap (

@@ -1,10 +1,10 @@
 import prepare from '@pnpm/prepare'
 import { fromDir as readPackageJsonFromDir } from '@pnpm/read-package-json'
+import { Shrinkwrap } from '@pnpm/shrinkwrap-types'
 import caw = require('caw')
 import isWindows = require('is-windows')
 import path = require('path')
 import exists = require('path-exists')
-import { Shrinkwrap } from 'pnpm-shrinkwrap'
 import readYamlFile from 'read-yaml-file'
 import 'sepia'
 import tape = require('tape')
