@@ -2,6 +2,7 @@ import assertProject from '@pnpm/assert-project'
 import { preparePackages } from '@pnpm/prepare'
 import path = require('path')
 import readPkg = require('read-pkg')
+import sinon = require('sinon')
 import { install, installPkgs } from 'supi'
 import tape = require('tape')
 import promisifyTape from 'tape-promise'
@@ -157,4 +158,49 @@ test('adding a new dev dependency to project that uses a shared shrinkwrap', asy
 
   t.deepEqual(pkg.dependencies, { 'is-positive': '1.0.0' }, 'prod deps unchanged in package.json')
   t.deepEqual(pkg.devDependencies, { 'is-negative': '^1.0.0' }, 'dev deps have a new dependency in package.json')
+})
+
+test('headless install is used when package link to another package in the workspace', async (t) => {
+  const projects = preparePackages(t, [
+    {
+      name: 'project-1',
+      version: '1.0.0',
+
+      dependencies: {
+        'is-positive': '1.0.0',
+        'project-2': 'file:../project-2',
+      },
+    },
+    {
+      name: 'project-2',
+      version: '1.0.0',
+
+      dependencies: {
+        'is-negative': '1.0.0',
+      },
+    },
+  ])
+
+  const importers = [
+    {
+      prefix: path.resolve('project-1'),
+    },
+    {
+      prefix: path.resolve('project-2'),
+    },
+  ]
+  await install(await testDefaults({ importers, shrinkwrapOnly: true }))
+
+  const reporter = sinon.spy()
+  await install(await testDefaults({ importers: importers.slice(0, 1), reporter }))
+
+  t.ok(reporter.calledWithMatch({
+    level: 'info',
+    message: 'Performing headless installation',
+    name: 'pnpm',
+  }), 'start of headless installation logged')
+
+  await projects['project-1'].has('is-positive')
+  await projects['project-1'].has('project-2')
+  await projects['project-2'].hasNot('is-negative')
 })
