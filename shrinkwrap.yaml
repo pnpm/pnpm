@@ -167,7 +167,7 @@ importers:
       string-length: 2.0.0
       string.prototype.padstart: 3.0.0
       strip-ansi: 5.0.0
-      supi: 0.25.8
+      supi: 0.25.9
       tape: 4.9.1
       ts-node: 6.2.0
       tslint: 5.11.0
@@ -345,7 +345,7 @@ importers:
       '@pnpm/lifecycle': 3.0.2
       '@pnpm/link-bins': 3.0.2
       '@pnpm/logger': 2.1.0
-      '@pnpm/modules-cleaner': 1.0.9
+      '@pnpm/modules-cleaner': 1.0.10
       '@pnpm/modules-yaml': 2.0.0
       '@pnpm/package-requester': 4.1.10
       '@pnpm/package-store': 1.1.0
@@ -933,7 +933,7 @@ importers:
       sepia: 2.0.2
       signal-exit: 3.0.2
       strip-color: 0.1.0
-      supi: 0.25.8
+      supi: 0.25.9
       symlink-dir: 2.0.2
       tape: 4.9.1
       tape-promise: 4.0.0
@@ -1318,11 +1318,11 @@ importers:
       '@pnpm/default-fetcher': 2.0.6
       '@pnpm/default-resolver': 2.0.5
       '@pnpm/fs-locker': 1.0.2
-      '@pnpm/headless': 1.0.0
+      '@pnpm/headless': 1.0.1
       '@pnpm/lifecycle': 3.0.2
       '@pnpm/link-bins': 3.0.2
       '@pnpm/logger': 2.1.0
-      '@pnpm/modules-cleaner': 1.0.9
+      '@pnpm/modules-cleaner': 1.0.10
       '@pnpm/modules-yaml': 2.0.0
       '@pnpm/package-requester': 4.1.10
       '@pnpm/package-store': 1.1.0
