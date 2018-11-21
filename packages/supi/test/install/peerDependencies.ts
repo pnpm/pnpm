@@ -398,6 +398,23 @@ test('peer dependency is grouped with dependent when the peer is a top dependenc
   }, 'correct shrinkwrap.yaml created')
 })
 
+// Covers https://github.com/pnpm/pnpm/issues/1483
+test('peer dependency is grouped correctly with peer installed via separate installation when external shrinkwrap is used', async (t: tape.Test) => {
+  const project = prepare(t, {
+    dependencies: {
+      'abc': '1.0.0',
+    },
+  })
+
+  const reporter = sinon.spy()
+  const shrinkwrapDirectory = path.resolve('..')
+
+  await install(await testDefaults({ reporter, shrinkwrapDirectory }))
+  await installPkgs(['peer-c@2.0.0'], await testDefaults({ reporter, shrinkwrapDirectory }))
+
+  t.ok(await exists(path.join('..', NM, '.localhost+4873', 'abc', '1.0.0', 'peer-c@2.0.0', NM, 'dep-of-pkg-with-1-dep')))
+})
+
 test('peer dependency is grouped with dependent when the peer is a top dependency and external node_modules is used', async (t: tape.Test) => {
   const project = prepare(t)
   await mkdir('_')

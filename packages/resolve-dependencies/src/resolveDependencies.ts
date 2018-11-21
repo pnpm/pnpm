@@ -188,7 +188,7 @@ export default async function resolveDependencies (
   const preferedDependencies = options.preferedDependencies || {}
   const update = options.update && options.currentDepth <= ctx.depth
   const extendedWantedDeps = []
-  let proceedAll = false
+  let proceedAll = options.parentDependsOnPeers
   for (const wantedDependency of wantedDependencies) {
     let reference = wantedDependency.alias && resolvedDependencies[wantedDependency.alias]
     let proceed = options.parentDependsOnPeers
@@ -608,7 +608,9 @@ async function resolveDependency (
         hasManifestInShrinkwrap: options.hasManifestInShrinkwrap,
         keypath: options.keypath.concat([ pkgResponse.body.id ]),
         optionalDependencyNames: options.optionalDependencyNames,
-        parentDependsOnPeers: Boolean(options.dependencyShrinkwrap && options.dependencyShrinkwrap.id),
+        parentDependsOnPeers: Boolean(
+          options.dependencyShrinkwrap && options.dependencyShrinkwrap.id ||
+          Object.keys(pkg.peerDependencies || {}).length),
         parentIsInstallable: installable,
         parentNodeId: nodeId,
         preferedDependencies: pkgResponse.body.updated
