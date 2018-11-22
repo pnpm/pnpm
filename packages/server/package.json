@@ -35,7 +35,7 @@
     "@pnpm/logger": "2.1.0",
     "@pnpm/npm-resolver": "2.2.6",
     "@pnpm/package-requester": "4.1.10",
-    "@pnpm/package-store": "1.1.0",
+    "@pnpm/package-store": "1.2.0",
     "@pnpm/server": "link:",
     "@pnpm/tarball-fetcher": "2.0.8",
     "@pnpm/tslint-config": "0.0.0",

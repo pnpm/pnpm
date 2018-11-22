@@ -348,7 +348,7 @@ importers:
       '@pnpm/modules-cleaner': 1.0.10
       '@pnpm/modules-yaml': 2.0.0
       '@pnpm/package-requester': 4.1.10
-      '@pnpm/package-store': 1.1.0
+      '@pnpm/package-store': 1.2.0
       '@pnpm/pkgid-to-filename': 2.0.0
       '@pnpm/read-manifests': 1.0.0
       '@pnpm/read-package-json': 1.0.1
@@ -849,7 +849,7 @@ importers:
       '@pnpm/logger': 2.1.0
       '@pnpm/modules-yaml': 2.0.0
       '@pnpm/outdated': 1.0.6
-      '@pnpm/package-store': 1.1.0
+      '@pnpm/package-store': 1.2.0
       '@pnpm/prepare': 0.0.0
       '@pnpm/read-package-json': 1.0.1
       '@pnpm/server': 1.1.0
@@ -1074,7 +1074,7 @@ importers:
       '@pnpm/logger': 2.1.0
       '@pnpm/npm-resolver': 2.2.6
       '@pnpm/package-requester': 4.1.10
-      '@pnpm/package-store': 1.1.0
+      '@pnpm/package-store': 1.2.0
       '@pnpm/server': 'link:'
       '@pnpm/store-controller-types': 1.1.0
       '@pnpm/tarball-fetcher': 2.0.8
@@ -1325,7 +1325,7 @@ importers:
       '@pnpm/modules-cleaner': 1.0.10
       '@pnpm/modules-yaml': 2.0.0
       '@pnpm/package-requester': 4.1.10
-      '@pnpm/package-store': 1.1.0
+      '@pnpm/package-store': 1.2.0
       '@pnpm/pkgid-to-filename': 2.0.0
       '@pnpm/prepare': 0.0.0
       '@pnpm/read-manifests': 1.0.0

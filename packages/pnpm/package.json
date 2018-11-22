@@ -28,7 +28,7 @@
     "@pnpm/lifecycle": "3.0.2",
     "@pnpm/logger": "2.1.0",
     "@pnpm/outdated": "1.0.6",
-    "@pnpm/package-store": "1.1.0",
+    "@pnpm/package-store": "1.2.0",
     "@pnpm/server": "1.1.0",
     "@pnpm/store-path": "1.0.3",
     "@pnpm/types": "2.0.0",

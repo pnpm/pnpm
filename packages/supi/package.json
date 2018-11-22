@@ -89,7 +89,7 @@
     "@pnpm/default-fetcher": "2.0.6",
     "@pnpm/default-resolver": "2.0.5",
     "@pnpm/logger": "2.1.0",
-    "@pnpm/package-store": "1.1.0",
+    "@pnpm/package-store": "1.2.0",
     "@pnpm/prepare": "0.0.0",
     "@pnpm/store-path": "1.0.3",
     "@pnpm/tslint-config": "0.0.0",
