@@ -20,7 +20,7 @@
   },
   "dependencies": {
     "@pnpm/fetcher-base": "2.0.0",
-    "@pnpm/fs-locker": "1.0.2",
+    "@pnpm/fs-locker": "1.0.3",
     "@pnpm/package-requester": "4.1.10",
     "@pnpm/resolver-base": "2.0.0",
     "@pnpm/store-controller-types": "1.1.0",

@@ -14,6 +14,7 @@ import rimraf = require('rimraf-then')
 import {
   read as readStore,
   save as saveStore,
+  saveSync as saveStoreSync,
 } from '../fs/storeIndex'
 import createImportPackage, { copyPkg } from './createImportPackage'
 
@@ -27,14 +28,14 @@ export default async function (
     networkConcurrency?: number,
     packageImportMethod?: 'auto' | 'hardlink' | 'copy' | 'reflink',
   },
-): Promise<StoreController> {
+): Promise<StoreController & { closeSync: () => void, saveStateSync: () => void }> {
   const unlock = initOpts.locks
     ? await lock(initOpts.store, {
       locks: initOpts.locks,
       stale: initOpts.lockStaleDuration || 60 * 1000, // 1 minute,
       whenLocked: () => storeLogger.warn(`waiting for the store at "${initOpts.store}" to be unlocked...`),
     })
-    : () => Promise.resolve(undefined)
+    : null
 
   const store = initOpts.store
   const storeIndex = await readStore(initOpts.store) || {}
@@ -45,22 +46,20 @@ export default async function (
   })
 
   return {
-    close: async () => { await unlock() },
+    close: unlock ? async () => { await unlock() } : () => Promise.resolve(undefined),
+    closeSync: unlock ? () => unlock.sync() : () => undefined,
     fetchPackage: packageRequester.fetchPackageToStore,
     getCacheByEngine,
     importPackage: createImportPackage(initOpts.packageImportMethod),
     prune,
     requestPackage: packageRequester.requestPackage,
-    saveState,
+    saveState: saveStore.bind(null, initOpts.store, storeIndex),
+    saveStateSync: saveStoreSync.bind(null, initOpts.store, storeIndex),
     updateConnections: async (prefix: string, opts: {addDependencies: string[], removeDependencies: string[], prune: boolean}) => {
       await removeDependencies(prefix, opts.removeDependencies, { prune: opts.prune })
       await addDependencies(prefix, opts.addDependencies)
     },
     upload,
-  }
-
-  function saveState () {
-    return saveStore(initOpts.store, storeIndex)
   }
 
   async function removeDependencies (prefix: string, dependencyPkgIds: string[], opts: {prune: boolean}) {

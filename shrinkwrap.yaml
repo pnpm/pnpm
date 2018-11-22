@@ -656,7 +656,7 @@ importers:
   packages/package-store:
     dependencies:
       '@pnpm/fetcher-base': 2.0.0
-      '@pnpm/fs-locker': 1.0.2
+      '@pnpm/fs-locker': 1.0.3
       '@pnpm/package-requester': 'link:../package-requester'
       '@pnpm/resolver-base': 2.0.0
       '@pnpm/store-controller-types': 'link:../store-controller-types'
@@ -694,7 +694,7 @@ importers:
       typescript: 3.1.6
     specifiers:
       '@pnpm/fetcher-base': 2.0.0
-      '@pnpm/fs-locker': 1.0.2
+      '@pnpm/fs-locker': 1.0.3
       '@pnpm/logger': 2.1.0
       '@pnpm/npm-resolver': 2.2.6
       '@pnpm/package-requester': 4.1.10
@@ -1209,7 +1209,7 @@ importers:
     dependencies:
       '@pnpm/check-package': 2.0.0
       '@pnpm/core-loggers': 'link:../core-loggers'
-      '@pnpm/fs-locker': 1.0.2
+      '@pnpm/fs-locker': 1.0.3
       '@pnpm/headless': 'link:../headless'
       '@pnpm/lifecycle': /@pnpm/lifecycle/3.0.2/@pnpm!logger@2.1.0
       '@pnpm/link-bins': 3.0.2
@@ -1317,7 +1317,7 @@ importers:
       '@pnpm/core-loggers': 1.0.0
       '@pnpm/default-fetcher': 2.0.6
       '@pnpm/default-resolver': 2.0.5
-      '@pnpm/fs-locker': 1.0.2
+      '@pnpm/fs-locker': 1.0.3
       '@pnpm/headless': 1.0.1
       '@pnpm/lifecycle': 3.0.2
       '@pnpm/link-bins': 3.0.2
@@ -1830,7 +1830,7 @@ packages:
       node: '>=6'
     resolution:
       integrity: sha512-4RMlHlihFTz31BX3MkGjVXUjO4jxquDzgE67O1jeu89mmcUa3Zac2AJxnI2tN6zvy/4hBHpTTov4BO9fHndu+Q==
-  /@pnpm/fs-locker/1.0.2:
+  /@pnpm/fs-locker/1.0.3:
     dependencies:
       '@types/node': 10.12.9
       mkdirp-promise: 5.0.1
@@ -1839,7 +1839,7 @@ packages:
     engines:
       node: '>=4'
     resolution:
-      integrity: sha512-ASULw2KzrapsjQVSMYdDc3f6+wYOs9cPt0M5Ip9VUkTfYfPrfxd0UYXcOPoUHkk7L12HUj0vwUYK0DE1da2gww==
+      integrity: sha512-ECFtJCNpqeyjSGwhv+IgnqDRLQclI/d6GRkq+UxyPW3jSvB7AK8qjxuMNFoNG78pwwi1zuJpMLgMvaYPHI/IMA==
   /@pnpm/git-fetcher/1.0.1:
     dependencies:
       '@types/node': 10.12.9
