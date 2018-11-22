@@ -452,6 +452,21 @@ test('peer dependency is grouped with dependent when the peer is a top dependenc
       },
     })
   }
+
+  // Covers https://github.com/pnpm/pnpm/issues/1506
+  await uninstall(['ajv'], await testDefaults({ shrinkwrapDirectory }))
+
+  {
+    const shr = await loadYamlFile(path.resolve('..', 'shrinkwrap.yaml'))
+    t.deepEqual(shr['importers']['_'], {
+      dependencies: {
+        'ajv-keywords': '1.5.0',
+      },
+      specifiers: {
+        'ajv-keywords': '^1.5.0',
+      },
+    })
+  }
 })
 
 test('external shrinkwrap: peer dependency is grouped with dependent even after a named update', async (t: tape.Test) => {
