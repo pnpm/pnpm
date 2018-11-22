@@ -2,7 +2,7 @@ import prepare from '@pnpm/prepare'
 import RegClient = require('anonymous-npm-registry-client')
 import path = require('path')
 import rimraf = require('rimraf-then')
-import { install, installPkgs } from 'supi'
+import { addDependenciesToPackage, install } from 'supi'
 import tape = require('tape')
 import promisifyTape from 'tape-promise'
 import { testDefaults } from '../utils'
@@ -28,7 +28,7 @@ test('a package that need authentication', async (t: tape.Test) => {
     '//localhost:4873/:_authToken': data.token,
     'registry': 'http://localhost:4873/',
   }
-  await installPkgs(['needs-auth'], await testDefaults({}, {
+  await addDependenciesToPackage(['needs-auth'], await testDefaults({}, {
     rawNpmConfig,
   }, {
     rawNpmConfig,
@@ -47,7 +47,7 @@ test('a package that need authentication', async (t: tape.Test) => {
     '//localhost:4873/:_authToken': data.token,
     'registry': 'https://registry.npmjs.org/',
   }
-  await installPkgs(['needs-auth'], await testDefaults({}, {
+  await addDependenciesToPackage(['needs-auth'], await testDefaults({}, {
     rawNpmConfig,
     registry: 'https://registry.npmjs.org/',
   }, {
@@ -77,7 +77,7 @@ test('a package that need authentication, legacy way', async (t: tape.Test) => {
     'always-auth': true,
     'registry': 'http://localhost:4873',
   }
-  await installPkgs(['needs-auth'], await testDefaults({}, {
+  await addDependenciesToPackage(['needs-auth'], await testDefaults({}, {
     rawNpmConfig,
   }, {
     rawNpmConfig,
@@ -114,7 +114,7 @@ test('a scoped package that need authentication specific to scope', async (t: ta
   }, {
     rawNpmConfig,
   })
-  await installPkgs(['@private/foo'], opts)
+  await addDependenciesToPackage(['@private/foo'], opts)
 
   await project.has('@private/foo')
 
@@ -129,7 +129,7 @@ test('a scoped package that need authentication specific to scope', async (t: ta
   }, {
     rawNpmConfig,
   })
-  await installPkgs(['@private/foo'], opts)
+  await addDependenciesToPackage(['@private/foo'], opts)
 
   await project.has('@private/foo')
 })
@@ -154,7 +154,7 @@ test('a package that need authentication reuses authorization tokens for tarball
     '//127.0.0.1:4873/:always-auth': true,
     'registry': 'http://127.0.0.1:4873',
   }
-  await installPkgs(['needs-auth'], await testDefaults({
+  await addDependenciesToPackage(['needs-auth'], await testDefaults({
     registries: {
       default: 'http://127.0.0.1:4873',
     },
@@ -201,7 +201,7 @@ test('a package that need authentication reuses authorization tokens for tarball
     rawNpmConfig,
   })
 
-  await installPkgs(['needs-auth'], opts)
+  await addDependenciesToPackage(['needs-auth'], opts)
 
   await rimraf('node_modules')
   await rimraf(path.join('..', '.registry'))

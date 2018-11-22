@@ -1,3 +1,4 @@
+import { getSaveType } from '@pnpm/utils'
 import {
   install,
   installPkgs,
@@ -51,7 +52,16 @@ export default async function installCmd (
   if (!input || !input.length) {
     await install(installOpts)
   } else {
-    await installPkgs(input, installOpts)
+    await installPkgs(Object.assign(installOpts, {
+      importers: [
+        {
+          bin: installOpts.bin,
+          prefix: installOpts.prefix,
+          targetDependencies: input,
+          targetDependenciesField: getSaveType(installOpts),
+        },
+      ],
+    }))
   }
 
   if (opts.linkWorkspacePackages && opts.workspacePrefix) {

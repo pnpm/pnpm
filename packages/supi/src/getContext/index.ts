@@ -23,7 +23,7 @@ import { PnpmError } from '../errorTypes'
 import checkCompatibility from './checkCompatibility'
 import readShrinkwrapFile from './readShrinkwrapFiles'
 
-export interface PnpmContext {
+export interface PnpmContext<T> {
   currentShrinkwrap: Shrinkwrap,
   existsCurrentShrinkwrap: boolean,
   existsWantedShrinkwrap: boolean,
@@ -35,7 +35,7 @@ export interface PnpmContext {
     pkg: PackageJson,
     prefix: string,
     shamefullyFlatten: boolean,
-  }>,
+  } & T>,
   include: IncludedDependencies,
   modulesFile: Modules | null,
   pendingBuilds: string[],
@@ -53,7 +53,7 @@ export interface ImportersOptions {
   shamefullyFlatten?: boolean,
 }
 
-export default async function getContext (
+export default async function getContext<T> (
   opts: {
     force: boolean,
     forceSharedShrinkwrap: boolean,
@@ -63,14 +63,14 @@ export default async function getContext (
     },
     include?: IncludedDependencies,
     independentLeaves: boolean,
-    importers: ImportersOptions[],
+    importers: (ImportersOptions & T)[],
     registries: Registries,
     shamefullyFlatten: boolean,
     shrinkwrap: boolean,
     store: string,
   },
   installType?: 'named' | 'general',
-): Promise<PnpmContext> {
+): Promise<PnpmContext<T>> {
   const manifests = await readManifests(opts.importers, opts.shrinkwrapDirectory, {
     shamefullyFlatten: opts.shamefullyFlatten,
   })
@@ -100,8 +100,15 @@ export default async function getContext (
     }))
   }
 
-  const ctx: PnpmContext = {
-    importers: manifests.importers,
+  const importerOptionsByPrefix = opts.importers.reduce((prev, curr) => {
+    prev[curr.prefix] = curr
+    return prev
+  }, {})
+  const ctx: PnpmContext<T> = {
+    importers: manifests.importers.map((importer) => ({
+      ...importerOptionsByPrefix[importer.prefix],
+      ...importer,
+    })),
     include: opts.include || manifests.include,
     modulesFile: manifests.modules,
     pendingBuilds: manifests.pendingBuilds,

@@ -3,7 +3,7 @@ import { preparePackages } from '@pnpm/prepare'
 import path = require('path')
 import readPkg = require('read-pkg')
 import sinon = require('sinon')
-import { install, installPkgs } from 'supi'
+import { addDependenciesToPackage, install, installPkgs } from 'supi'
 import tape = require('tape')
 import promisifyTape from 'tape-promise'
 import { testDefaults } from '../utils'
@@ -71,17 +71,21 @@ test('dependencies of other importers are not pruned when installing for a subse
     },
   ])
 
-  const importers = [
-    {
-      prefix: path.resolve('project-1'),
-    },
-    {
-      prefix: path.resolve('project-2'),
-    },
-  ]
-  await install(await testDefaults({ importers }))
+  await install(await testDefaults({
+    importers: [
+      {
+        prefix: path.resolve('project-1'),
+      },
+      {
+        prefix: path.resolve('project-2'),
+      },
+    ]
+  }))
 
-  await installPkgs(['is-positive@2'], await testDefaults({ importers: importers.slice(0, 1) }))
+  await addDependenciesToPackage(['is-positive@2'], await testDefaults({
+    prefix: path.resolve('project-1'),
+    shrinkwrapDirectory: process.cwd(),
+  }))
 
   await projects['project-1'].has('is-positive')
   await projects['project-2'].has('is-negative')
@@ -122,7 +126,11 @@ test('dependencies of other importers are not pruned when (headless) installing 
   ]
   await install(await testDefaults({ importers }))
 
-  await installPkgs(['is-positive@2'], await testDefaults({ importers: importers.slice(0, 1), shrinkwrapOnly: true }))
+  await addDependenciesToPackage(['is-positive@2'], await testDefaults({
+    prefix: path.resolve('project-1'),
+    shrinkwrapDirectory: process.cwd(),
+    shrinkwrapOnly: true,
+  }))
   await install(await testDefaults({ importers: importers.slice(0, 1), frozenShrinkwrap: true }))
 
   await projects['project-1'].has('is-positive')
@@ -152,7 +160,7 @@ test('adding a new dev dependency to project that uses a shared shrinkwrap', asy
     },
   ]
   await install(await testDefaults({ importers }))
-  await installPkgs(['is-negative@1.0.0'], await testDefaults({ importers, saveDev: true }))
+  await addDependenciesToPackage(['is-negative@1.0.0'], await testDefaults({ prefix: path.resolve('project-1'), targetDependenciesField: 'devDependencies' }))
 
   const pkg = await readPkg({ cwd: 'project-1' })
 

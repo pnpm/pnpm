@@ -1,6 +1,6 @@
 import prepare from '@pnpm/prepare'
 import readPkg = require('read-pkg')
-import { installPkgs } from 'supi'
+import { addDependenciesToPackage } from 'supi'
 import tape = require('tape')
 import promisifyTape from 'tape-promise'
 import { testDefaults } from '../utils'
@@ -9,7 +9,7 @@ const test = promisifyTape(tape)
 
 test('tarball from npm registry', async (t: tape.Test) => {
   const project = prepare(t)
-  await installPkgs(['http://localhost:4873/is-array/-/is-array-1.0.1.tgz'], await testDefaults())
+  await addDependenciesToPackage(['http://localhost:4873/is-array/-/is-array-1.0.1.tgz'], await testDefaults())
 
   const m = project.requireModule('is-array')
 
@@ -23,7 +23,7 @@ test('tarball from npm registry', async (t: tape.Test) => {
 
 test('tarball not from npm registry', async (t) => {
   const project = prepare(t)
-  await installPkgs(['https://github.com/hegemonic/taffydb/tarball/master'], await testDefaults())
+  await addDependenciesToPackage(['https://github.com/hegemonic/taffydb/tarball/master'], await testDefaults())
 
   const m = project.requireModule('taffydb')
 
@@ -34,7 +34,7 @@ test('tarball not from npm registry', async (t) => {
 
 test('tarballs from GitHub (is-negative)', async (t) => {
   const project = prepare(t)
-  await installPkgs(['is-negative@https://github.com/kevva/is-negative/archive/1d7e288222b53a0cab90a331f1865220ec29560c.tar.gz'], await testDefaults())
+  await addDependenciesToPackage(['is-negative@https://github.com/kevva/is-negative/archive/1d7e288222b53a0cab90a331f1865220ec29560c.tar.gz'], await testDefaults())
 
   const m = project.requireModule('is-negative')
 

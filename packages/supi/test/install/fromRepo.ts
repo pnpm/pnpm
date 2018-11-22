@@ -5,8 +5,8 @@ import exists = require('path-exists')
 import readPkg = require('read-pkg')
 import sinon = require('sinon')
 import {
+  addDependenciesToPackage,
   install,
-  installPkgs,
   RootLog,
 } from 'supi'
 import tape = require('tape')
@@ -18,7 +18,7 @@ const testOnly = promisifyTape(tape.only)
 
 test('from a github repo', async (t: tape.Test) => {
   const project = prepare(t)
-  await installPkgs(['kevva/is-negative'], await testDefaults())
+  await addDependenciesToPackage(['kevva/is-negative'], await testDefaults())
 
   const m = project.requireModule('is-negative')
 
@@ -33,7 +33,7 @@ test('from a github repo with different name via named installation', async (t: 
 
   const reporter = sinon.spy()
 
-  await installPkgs(['say-hi@github:zkochan/hi#4cdebec76b7b9d1f6e219e06c42d92a6b8ea60cd'], await testDefaults({ reporter }))
+  await addDependenciesToPackage(['say-hi@github:zkochan/hi#4cdebec76b7b9d1f6e219e06c42d92a6b8ea60cd'], await testDefaults({ reporter }))
 
   const m = project.requireModule('say-hi')
 
@@ -104,7 +104,7 @@ test('from a github repo with different name', async (t: tape.Test) => {
 test('a subdependency is from a github repo with different name', async (t: tape.Test) => {
   const project = prepare(t)
 
-  await installPkgs(['has-aliased-git-dependency'], await testDefaults())
+  await addDependenciesToPackage(['has-aliased-git-dependency'], await testDefaults())
 
   const m = project.requireModule('has-aliased-git-dependency')
 
@@ -129,7 +129,7 @@ test('from a git repo', async (t: tape.Test) => {
     return t.end()
   }
   const project = prepare(t)
-  await installPkgs(['git+ssh://git@github.com/kevva/is-negative.git'], await testDefaults())
+  await addDependenciesToPackage(['git+ssh://git@github.com/kevva/is-negative.git'], await testDefaults())
 
   const m = project.requireModule('is-negative')
 
@@ -143,7 +143,7 @@ if (!isTravis) {
   test('from a non-github git repo', async (t: tape.Test) => {
     const project = prepare(t)
 
-    await installPkgs(['git+http://ikt.pm2.io/ikt.git#3325a3e39a502418dc2e2e4bf21529cbbde96228'], await testDefaults())
+    await addDependenciesToPackage(['git+http://ikt.pm2.io/ikt.git#3325a3e39a502418dc2e2e4bf21529cbbde96228'], await testDefaults())
 
     const m = project.requireModule('ikt')
 

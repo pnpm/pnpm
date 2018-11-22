@@ -3,6 +3,7 @@ import ncpCB = require('ncp')
 import path = require('path')
 import exists = require('path-exists')
 import {
+  addDependenciesToPackage,
   installPkgs,
   rebuild,
   rebuildPkgs,
@@ -22,7 +23,7 @@ test('rebuilds dependencies', async (t: tape.Test) => {
   const project = prepare(t)
 
   const pkgs = ['pre-and-postinstall-scripts-example', 'zkochan/install-scripts-example#prepare']
-  await installPkgs(pkgs, await testDefaults({ saveDev: true, ignoreScripts: true }))
+  await addDependenciesToPackage(pkgs, await testDefaults({ targetDependenciesField: 'devDependencies', ignoreScripts: true }))
 
   let modules = await project.loadModules()
   t.deepEqual(modules!.pendingBuilds, [
@@ -60,7 +61,7 @@ test('rebuild does not fail when a linked package is present', async (t: tape.Te
   const project = prepare(t)
   await ncp(pathToLocalPkg('local-pkg'), path.resolve('..', 'local-pkg'))
 
-  await installPkgs(['link:../local-pkg', 'is-positive'], await testDefaults())
+  await addDependenciesToPackage(['link:../local-pkg', 'is-positive'], await testDefaults())
 
   await rebuild(await testDefaults())
 
@@ -70,7 +71,10 @@ test('rebuild does not fail when a linked package is present', async (t: tape.Te
 
 test('rebuilds specific dependencies', async (t: tape.Test) => {
   const project = prepare(t)
-  await installPkgs(['pre-and-postinstall-scripts-example', 'zkochan/install-scripts-example'], await testDefaults({ saveDev: true, ignoreScripts: true }))
+  await addDependenciesToPackage([
+    'pre-and-postinstall-scripts-example',
+    'zkochan/install-scripts-example'
+  ], await testDefaults({ targetDependenciesField: 'devDependencies', ignoreScripts: true }))
 
   await rebuildPkgs(['install-scripts-example-for-pnpm'], await testDefaults())
 
@@ -86,8 +90,8 @@ test('rebuilds specific dependencies', async (t: tape.Test) => {
 
 test('rebuild with pending option', async (t: tape.Test) => {
   const project = prepare(t)
-  await installPkgs(['pre-and-postinstall-scripts-example'], await testDefaults({ ignoreScripts: true }))
-  await installPkgs(['zkochan/install-scripts-example'], await testDefaults({ ignoreScripts: true }))
+  await addDependenciesToPackage(['pre-and-postinstall-scripts-example'], await testDefaults({ ignoreScripts: true }))
+  await addDependenciesToPackage(['zkochan/install-scripts-example'], await testDefaults({ ignoreScripts: true }))
 
   let modules = await project.loadModules()
   t.deepEqual(modules!.pendingBuilds, [
@@ -127,7 +131,7 @@ test('rebuild with pending option', async (t: tape.Test) => {
 test('rebuild dependencies in correct order', async (t: tape.Test) => {
   const project = prepare(t)
 
-  await installPkgs(['with-postinstall-a'], await testDefaults({ ignoreScripts: true }))
+  await addDependenciesToPackage(['with-postinstall-a'], await testDefaults({ ignoreScripts: true }))
 
   let modules = await project.loadModules()
   t.ok(modules)

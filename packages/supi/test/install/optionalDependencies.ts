@@ -5,7 +5,7 @@ import path = require('path')
 import exists = require('path-exists')
 import R = require('ramda')
 import sinon = require('sinon')
-import { install, installPkgs, rebuild } from 'supi'
+import { addDependenciesToPackage, install, rebuild } from 'supi'
 import tape = require('tape')
 import promisifyTape from 'tape-promise'
 import { testDefaults } from '../utils'
@@ -16,12 +16,12 @@ const testOnly = promisifyTape(tape.only)
 test('successfully install optional dependency with subdependencies', async (t) => {
   const project = prepare(t)
 
-  await installPkgs(['fsevents@1.0.14'], await testDefaults({ saveOptional: true }))
+  await addDependenciesToPackage(['fsevents@1.0.14'], await testDefaults({ targetDependenciesField: 'optionalDependencies' }))
 })
 
 test('skip failing optional dependencies', async (t: tape.Test) => {
   const project = prepare(t)
-  await installPkgs(['pkg-with-failing-optional-dependency@1.0.1'], await testDefaults())
+  await addDependenciesToPackage(['pkg-with-failing-optional-dependency@1.0.1'], await testDefaults())
 
   const m = project.requireModule('pkg-with-failing-optional-dependency')
   t.ok(m(-1), 'package with failed optional dependency has the dependencies installed correctly')
@@ -99,7 +99,7 @@ test('skip optional dependency that does not support the current OS', async (t: 
 
   t.comment('a previously skipped package is successfully installed')
 
-  await installPkgs(['dep-of-optional-pkg'], await testDefaults())
+  await addDependenciesToPackage(['dep-of-optional-pkg'], await testDefaults())
 
   await project.has('dep-of-optional-pkg')
 })
@@ -175,7 +175,7 @@ test('optional subdependency is skipped', async (t: tape.Test) => {
   const project = prepare(t)
   const reporter = sinon.spy()
 
-  await installPkgs(['pkg-with-optional', 'dep-of-optional-pkg'], await testDefaults({ reporter }))
+  await addDependenciesToPackage(['pkg-with-optional', 'dep-of-optional-pkg'], await testDefaults({ reporter }))
 
   const modulesInfo = await loadYamlFile<{skipped: string[]}>(path.join('node_modules', '.modules.yaml'))
 

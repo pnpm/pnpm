@@ -3,6 +3,7 @@ import path = require('path')
 import readPkg = require('read-pkg')
 import sinon = require('sinon')
 import {
+  addDependenciesToPackage,
   install,
   installPkgs,
   link,
@@ -20,10 +21,10 @@ test('prune removes extraneous packages', async (t: tape.Test) => {
   const project = prepare(t)
 
   const opts = await testDefaults()
-  await installPkgs(['is-negative@2.1.0'], { ...opts, saveProd: true })
-  await installPkgs(['applyq@0.2.1'], { ...opts, saveDev: true })
-  await installPkgs(['fnumber@0.1.0'], { ...opts, saveOptional: true })
-  await installPkgs(['is-positive@2.0.0', '@zkochan/logger@0.1.0'], opts)
+  await addDependenciesToPackage(['is-negative@2.1.0'], { ...opts, targetDependenciesField: 'dependencies' })
+  await addDependenciesToPackage(['applyq@0.2.1'], { ...opts, targetDependenciesField: 'devDependencies' })
+  await addDependenciesToPackage(['fnumber@0.1.0'], { ...opts, targetDependenciesField: 'optionalDependencies' })
+  await addDependenciesToPackage(['is-positive@2.0.0', '@zkochan/logger@0.1.0'], opts)
   await link([pathToLocalPkg('hello-world-js-bin')], path.resolve(process.cwd(), 'node_modules'), opts)
 
   await project.has('hello-world-js-bin') // external link added
@@ -70,9 +71,9 @@ test('prune removes extraneous packages', async (t: tape.Test) => {
 test('prune removes dev dependencies in production', async (t: tape.Test) => {
   const project = prepare(t)
 
-  await installPkgs(['is-positive@2.0.0'], await testDefaults({ saveDev: true }))
-  await installPkgs(['is-negative@2.1.0'], await testDefaults({ save: true }))
-  await installPkgs(['fnumber@0.1.0'], await testDefaults({ saveOptional: true }))
+  await addDependenciesToPackage(['is-positive@2.0.0'], await testDefaults({ targetDependenciesField: 'devDependencies' }))
+  await addDependenciesToPackage(['is-negative@2.1.0'], await testDefaults({ targetDependenciesField: 'dependencies' }))
+  await addDependenciesToPackage(['fnumber@0.1.0'], await testDefaults({ targetDependenciesField: 'optionalDependencies' }))
   await install(await testDefaults({
     include: {
       dependencies: true,

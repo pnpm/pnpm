@@ -2,7 +2,11 @@ import logger from '@pnpm/logger'
 import { IncludedDependencies } from '@pnpm/modules-yaml'
 import { LocalPackages } from '@pnpm/resolver-base'
 import { StoreController } from '@pnpm/store-controller-types'
-import { ReadPackageHook, Registries } from '@pnpm/types'
+import {
+  DependenciesField,
+  ReadPackageHook,
+  Registries,
+} from '@pnpm/types'
 import { DEFAULT_REGISTRIES, normalizeRegistries } from '@pnpm/utils'
 import path = require('path')
 import { Shrinkwrap } from 'pnpm-shrinkwrap'
@@ -10,8 +14,21 @@ import { ImportersOptions } from '../getContext'
 import pnpmPkgJson from '../pnpmPkgJson'
 import { ReporterFunction } from '../types'
 
+export type DependencyOperation = {
+  targetDependencies: string[],
+  targetDependenciesField?: DependenciesField,
+} & (
+  {
+    allowNew?: boolean,
+    operation: 'add',
+    saveExact?: boolean,
+    savePrefix?: string,
+  } | {
+    operation: 'remove',
+  }
+)
+
 export interface BaseInstallOptions {
-  allowNew?: boolean,
   forceSharedShrinkwrap?: boolean,
   frozenShrinkwrap?: boolean,
   preferFrozenShrinkwrap?: boolean,
@@ -39,15 +56,10 @@ export interface BaseInstallOptions {
     readPackage?: ReadPackageHook,
     afterAllResolved?: (shr: Shrinkwrap) => Shrinkwrap,
   },
-  saveExact?: boolean,
-  savePrefix?: string,
-  saveProd?: boolean,
-  saveDev?: boolean,
-  saveOptional?: boolean,
   sideEffectsCache?: boolean,
   sideEffectsCacheReadonly?: boolean,
   strictPeerDependencies?: boolean,
-  importers?: ImportersOptions[],
+  importers?: (ImportersOptions & DependencyOperation)[],
   include?: IncludedDependencies,
   independentLeaves?: boolean,
   ignoreCurrentPrefs?: boolean,
@@ -71,7 +83,6 @@ export type InstallOptions = BaseInstallOptions & {
 }
 
 export type StrictInstallOptions = BaseInstallOptions & {
-  allowNew: boolean,
   forceSharedShrinkwrap: boolean,
   frozenShrinkwrap: boolean,
   preferFrozenShrinkwrap: boolean,
@@ -95,15 +106,10 @@ export type StrictInstallOptions = BaseInstallOptions & {
   hooks: {
     readPackage?: ReadPackageHook,
   },
-  saveExact: boolean,
-  savePrefix: string,
-  saveProd: boolean,
-  saveDev: boolean,
-  saveOptional: boolean,
   sideEffectsCache: boolean,
   sideEffectsCacheReadonly: boolean,
   strictPeerDependencies: boolean,
-  importers: ImportersOptions[],
+  importers: (ImportersOptions & DependencyOperation)[],
   include: IncludedDependencies,
   independentLeaves: boolean,
   ignoreCurrentPrefs: boolean,
@@ -127,7 +133,6 @@ const defaults = async (opts: InstallOptions) => {
     version: pnpmPkgJson.version,
   }
   return {
-    allowNew: true,
     childConcurrency: 5,
     depth: 0,
     engineStrict: false,
@@ -160,11 +165,6 @@ const defaults = async (opts: InstallOptions) => {
     rawNpmConfig: {},
     registries: DEFAULT_REGISTRIES,
     repeatInstallDepth: -1,
-    saveDev: false,
-    saveExact: false,
-    saveOptional: false,
-    savePrefix: '^',
-    saveProd: false,
     shamefullyFlatten: false,
     shrinkwrap: true,
     shrinkwrapDirectory: opts.shrinkwrapDirectory || opts.prefix || process.cwd(),

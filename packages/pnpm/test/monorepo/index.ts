@@ -1,4 +1,5 @@
 import prepare, { preparePackages } from '@pnpm/prepare'
+import { fromDir as readPackageJsonFromDir } from '@pnpm/read-package-json'
 import loadJsonFile from 'load-json-file'
 import loadYamlFile = require('load-yaml-file')
 import fs = require('mz/fs')
@@ -418,7 +419,16 @@ test('recursive install with link-workspace-packages and shared-workspace-shrink
   ])
 
   await writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
-  await fs.writeFile('is-positive/.npmrc', 'shamefully-flatten = true', 'utf8') // package-specific configs
+  await fs.writeFile(
+    'is-positive/.npmrc',
+    'shamefully-flatten = true\nsave-exact = true',
+    'utf8',
+  )
+  await fs.writeFile(
+    'project-1/.npmrc',
+    'save-prefix = ~',
+    'utf8',
+  )
 
   await execPnpm('recursive', 'install', '--link-workspace-packages', '--shared-workspace-shrinkwrap=true', '--store', 'store')
 
@@ -434,6 +444,23 @@ test('recursive install with link-workspace-packages and shared-workspace-shrink
 
   const storeJson = await loadJsonFile<object>(path.resolve('store', '2', 'store.json'))
   t.deepEqual(storeJson['localhost+4873/is-negative/1.0.0'].length, 1, 'new connections saved in store.json')
+
+  await execPnpm('recursive', 'install', 'pkg-with-1-dep@100.0.0', '--link-workspace-packages', '--shared-workspace-shrinkwrap=true', '--store', 'store')
+
+  {
+    const pkg = await readPackageJsonFromDir(path.resolve('is-positive'))
+    t.equal(pkg.dependencies!['pkg-with-1-dep'], '100.0.0')
+  }
+
+  {
+    const pkg = await readPackageJsonFromDir(path.resolve('project-1'))
+    t.equal(pkg.dependencies!['pkg-with-1-dep'], '~100.0.0')
+  }
+
+  {
+    const pkg = await readPackageJsonFromDir(path.resolve('is-positive2'))
+    t.equal(pkg.dependencies!['pkg-with-1-dep'], '^100.0.0')
+  }
 })
 
 test('recursive installation with shared-workspace-shrinkwrap and a readPackage hook', async (t) => {

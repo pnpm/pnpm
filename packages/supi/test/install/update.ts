@@ -1,7 +1,7 @@
 import prepare from '@pnpm/prepare'
 import loadYamlFile = require('load-yaml-file')
 import path = require('path')
-import { install, installPkgs } from 'supi'
+import { addDependenciesToPackage, install } from 'supi'
 import tape = require('tape')
 import promisifyTape from 'tape-promise'
 import {
@@ -24,7 +24,7 @@ test('preserve subdeps on update', async (t: tape.Test) => {
     addDistTag('peer-c', '1.0.0', 'latest'),
   ])
 
-  await installPkgs(['foobarqar', 'abc-grand-parent-with-c'], await testDefaults())
+  await addDependenciesToPackage(['foobarqar', 'abc-grand-parent-with-c'], await testDefaults())
 
   await Promise.all([
     addDistTag('abc-grand-parent-with-c', '1.0.1', 'latest'),
@@ -51,7 +51,7 @@ test('preserve subdeps on update', async (t: tape.Test) => {
 test('update does not fail when package has only peer dependencies', async (t: tape.Test) => {
   prepare(t)
 
-  await installPkgs(['has-pkg-with-peer-only'], await testDefaults())
+  await addDependenciesToPackage(['has-pkg-with-peer-only'], await testDefaults())
 
   await install(await testDefaults({ update: true, depth: Infinity }))
 
@@ -61,7 +61,7 @@ test('update does not fail when package has only peer dependencies', async (t: t
 test('update does not install the package if it is not present in package.json', async (t: tape.Test) => {
   const project = prepare(t)
 
-  await installPkgs(['is-positive'], await testDefaults({
+  await addDependenciesToPackage(['is-positive'], await testDefaults({
     allowNew: false,
     update: true,
   }))
@@ -75,7 +75,7 @@ test('update dependency when external shrinkwrap directory is used', async (t: t
   await addDistTag('foo', '100.0.0', 'latest')
 
   const shrinkwrapDirectory = path.resolve('..')
-  await installPkgs(['foo'], await testDefaults({ shrinkwrapDirectory }))
+  await addDependenciesToPackage(['foo'], await testDefaults({ shrinkwrapDirectory }))
 
   await addDistTag('foo', '100.1.0', 'latest')
 
