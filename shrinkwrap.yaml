@@ -767,7 +767,7 @@ importers:
       load-json-file: 5.1.0
       load-yaml-file: 0.1.0
       loud-rejection: 1.6.0
-      lru-cache: 4.1.4
+      lru-cache: 5.1.1
       mem: 4.0.0
       minimatch: 3.0.4
       mkdirp-promise: 5.0.1
@@ -898,7 +898,7 @@ importers:
       load-json-file: 5.1.0
       load-yaml-file: 0.1.0
       loud-rejection: 1.6.0
-      lru-cache: 4.1.4
+      lru-cache: 5.1.1
       mem: 4.0.0
       minimatch: 3.0.4
       mkdirp: 0.5.1
@@ -6326,6 +6326,12 @@ packages:
       yallist: 3.0.2
     resolution:
       integrity: sha512-EPstzZ23znHUVLKj+lcXO1KvZkrlw+ZirdwvOmnAnA/1PB4ggyXJ77LRkCqkff+ShQ+cqoxCxLQOh4cKITO5iA==
+  /lru-cache/5.1.1:
+    dependencies:
+      yallist: 3.0.3
+    dev: false
+    resolution:
+      integrity: sha512-KpNARQA3Iwv+jTA0utUVVbrh+Jlrr1Fv0e56GGzAFOXN7dk/FviaDW8LHmK52DlcH4WP2n6gI8vN1aesBFgo9w==
   /lunr/0.7.0:
     dev: true
     resolution:
@@ -10219,6 +10225,10 @@ packages:
   /yallist/3.0.2:
     resolution:
       integrity: sha1-hFK0u36Dx8GI2AQcGoN8dz1ti7k=
+  /yallist/3.0.3:
+    dev: false
+    resolution:
+      integrity: sha512-S+Zk8DEWE6oKpV+vI3qWkaK+jSbIK86pCwe2IF/xwIpQ8jEuxpw9NyaGjmp9+BoJv5FV2piqCDcoCtStppiq2A==
   /yaml-tag/1.1.0:
     dependencies:
       js-yaml: 3.12.0
