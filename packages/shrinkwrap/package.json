@@ -54,7 +54,7 @@
     "@pnpm/resolver-base": "2.0.0",
     "@pnpm/types": "2.0.0",
     "@types/js-yaml": "3.11.2",
-    "@types/node": "10.12.9",
+    "@types/node": "10.12.10",
     "@types/ramda": "0.25.39",
     "dependency-path": "2.0.0",
     "get-npm-tarball-url": "2.0.1",
