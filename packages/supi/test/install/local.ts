@@ -1,4 +1,5 @@
 import prepare from '@pnpm/prepare'
+import { copy } from 'fs-extra'
 import fs = require('mz/fs')
 import ncpCB = require('ncp')
 import normalizePath = require('normalize-path')
@@ -139,6 +140,38 @@ test('tarball local package', async (t: tape.Test) => {
     resolution: {
       integrity: 'sha512-HP/5Rgt3pVFLzjmN9qJJ6vZMgCwoCIl/m2bPndYT283CUqnmFiMx0GeeIJ7SyK6TYoJM78SEvFEOQie++caHqw==',
       tarball: `file:${normalizePath(path.relative(process.cwd(), pathToLocalPkg('tar-pkg/tar-pkg-1.0.0.tgz')))}`,
+    },
+    version: '1.0.0',
+  }, 'a snapshot of the local dep tarball added to shrinkwrap.yaml')
+})
+
+test('tarball local package from project directory', async (t: tape.Test) => {
+  const project = prepare(t, {
+    dependencies: {
+      'tar-pkg': 'file:tar-pkg-1.0.0.tgz',
+    },
+  })
+
+  await copy(path.join(pathToLocalPkg('tar-pkg'), 'tar-pkg-1.0.0.tgz'), path.resolve('tar-pkg-1.0.0.tgz'))
+
+  await install(await testDefaults())
+
+  const m = project.requireModule('tar-pkg')
+
+  t.equal(m(), 'tar-pkg', 'tarPkg() is available')
+
+  const pkgJson = await readPkg()
+  const pkgSpec = `file:tar-pkg-1.0.0.tgz`
+  t.deepEqual(pkgJson.dependencies, { 'tar-pkg': pkgSpec }, 'has been added to dependencies in package.json')
+
+  const shr = await project.loadShrinkwrap()
+  t.equal(shr.dependencies['tar-pkg'], pkgSpec)
+  t.deepEqual(shr.packages[shr.dependencies['tar-pkg']], {
+    dev: false,
+    name: 'tar-pkg',
+    resolution: {
+      integrity: 'sha512-HP/5Rgt3pVFLzjmN9qJJ6vZMgCwoCIl/m2bPndYT283CUqnmFiMx0GeeIJ7SyK6TYoJM78SEvFEOQie++caHqw==',
+      tarball: pkgSpec,
     },
     version: '1.0.0',
   }, 'a snapshot of the local dep tarball added to shrinkwrap.yaml')

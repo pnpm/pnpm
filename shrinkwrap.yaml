@@ -1280,6 +1280,7 @@ importers:
       '@pnpm/prepare': 'link:../../privatePackages/prepare'
       '@pnpm/store-path': 1.0.3
       '@pnpm/tslint-config': 'link:../../utils/tslint-config'
+      '@types/fs-extra': 5.0.4
       '@types/is-windows': 0.2.0
       '@types/mkdirp': 0.5.2
       '@types/sinon': 5.0.7
@@ -1289,6 +1290,7 @@ importers:
       cross-spawn: 6.0.5
       deep-require-cwd: 1.0.0
       exists-link: 2.0.0
+      fs-extra: 7.0.1
       is-windows: 1.0.2
       load-yaml-file: 0.1.0
       mkdirp: 0.5.1
@@ -1342,6 +1344,7 @@ importers:
       '@pnpm/utils': 0.9.0
       '@types/byline': 4.2.31
       '@types/common-tags': 1.4.0
+      '@types/fs-extra': 5.0.4
       '@types/is-windows': 0.2.0
       '@types/mkdirp': 0.5.2
       '@types/mz': 0.0.32
@@ -1365,6 +1368,7 @@ importers:
       encode-registry: 1.1.0
       execa: 1.0.0
       exists-link: 2.0.0
+      fs-extra: 7.0.1
       get-npm-tarball-url: 2.0.1
       graceful-fs: 4.1.15
       graph-sequencer: 2.0.0

@@ -73,6 +73,7 @@ test('refToAbsolute()', t => {
 test('refToRelative()', t => {
   t.equal(refToRelative('/@most/multicast/1.3.0/most@1.7.3', '@most/multicast'), '/@most/multicast/1.3.0/most@1.7.3')
   t.equal(refToRelative('link:../foo', 'foo'), null, "linked dependencies don't have a relative path")
+  t.equal(refToRelative('file:../tarball.tgz', 'foo'), 'file:../tarball.tgz')
   t.end()
 })
 

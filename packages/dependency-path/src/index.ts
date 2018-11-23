@@ -52,6 +52,9 @@ export function refToRelative (
   if (reference.startsWith('link:')) {
     return null
   }
+  if (reference.startsWith('file:')) {
+    return reference
+  }
   if (reference.indexOf('/') === -1) {
     return `/${pkgName}/${reference}`
   }
