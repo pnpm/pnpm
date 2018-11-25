@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/resolve-dependencies",
-  "version": "1.0.9",
+  "version": "1.0.10",
   "author": {
     "name": "Zoltan Kochan",
     "email": "z@kochan.io",
@@ -39,10 +39,10 @@
     "@types/node": "10.12.10",
     "@types/ramda": "0.25.38",
     "@types/semver": "5.5.0",
-    "dependency-path": "2.0.0",
+    "dependency-path": "2.0.1",
     "path-exists": "3.0.0",
     "pnpm-install-checks": "1.1.0",
-    "pnpm-shrinkwrap": "8.1.4",
+    "pnpm-shrinkwrap": "8.1.5",
     "ramda": "0.26.0",
     "replace-string": "2.0.0",
     "semver": "5.6.0",

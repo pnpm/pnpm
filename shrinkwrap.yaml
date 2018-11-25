@@ -167,7 +167,7 @@ importers:
       string-length: 2.0.0
       string.prototype.padstart: 3.0.0
       strip-ansi: 5.0.0
-      supi: 0.25.10
+      supi: 0.25.11
       tape: 4.9.1
       ts-node: 6.2.0
       tslint: 5.11.0
@@ -243,12 +243,12 @@ importers:
       '@types/semver': 5.5.0
       '@types/tape': 4.2.32
       dependencies-hierarchy: 'link:'
-      dependency-path: 2.0.0
+      dependency-path: 2.0.1
       mos: 2.0.0-alpha.3
       mos-plugin-readme: 1.0.4
       mos-tap-diff: 1.0.0
       normalize-path: 3.0.0
-      pnpm-shrinkwrap: 8.1.4
+      pnpm-shrinkwrap: 8.1.5
       resolve-link-target: 1.0.1
       semver: 5.6.0
       tape: 4.9.1
@@ -345,14 +345,14 @@ importers:
       '@pnpm/lifecycle': 3.0.2
       '@pnpm/link-bins': 3.0.2
       '@pnpm/logger': 2.1.0
-      '@pnpm/modules-cleaner': 1.0.10
+      '@pnpm/modules-cleaner': 1.0.11
       '@pnpm/modules-yaml': 2.0.0
       '@pnpm/package-requester': 4.1.10
       '@pnpm/package-store': 1.2.0
       '@pnpm/pkgid-to-filename': 2.0.0
-      '@pnpm/read-manifests': 1.0.0
+      '@pnpm/read-manifests': 1.0.1
       '@pnpm/read-package-json': 1.0.1
-      '@pnpm/shamefully-flatten': 1.0.2
+      '@pnpm/shamefully-flatten': 1.0.3
       '@pnpm/store-controller-types': 1.1.0
       '@pnpm/store-path': 1.0.3
       '@pnpm/symlink-dependency': 1.1.0
@@ -368,7 +368,7 @@ importers:
       '@types/sinon': 5.0.7
       '@types/tape': 4.2.32
       '@types/tempy': 0.2.0
-      dependency-path: 2.0.0
+      dependency-path: 2.0.1
       fs-extra: 7.0.1
       graph-sequencer: 2.0.0
       is-windows: 1.0.2
@@ -378,7 +378,7 @@ importers:
       p-limit: 2.0.0
       path-exists: 3.0.0
       pnpm-registry-mock: 2.4.0
-      pnpm-shrinkwrap: 8.1.4
+      pnpm-shrinkwrap: 8.1.5
       ramda: 0.26.0
       rimraf: 2.6.2
       rimraf-then: 1.0.1
@@ -428,7 +428,7 @@ importers:
       archy: 1.0.0
       chalk: 2.4.1
       common-tags: 1.8.0
-      dependencies-hierarchy: 4.0.0
+      dependencies-hierarchy: 4.0.1
       mos: 2.0.0-alpha.3
       mos-plugin-readme: 1.0.4
       npm-package-arg: 6.1.0
@@ -474,9 +474,9 @@ importers:
       '@pnpm/utils': 0.9.0
       '@types/node': 10.12.10
       '@types/ramda': 0.25.38
-      dependency-path: 2.0.0
+      dependency-path: 2.0.1
       fs-vacuum: 1.2.10
-      pnpm-shrinkwrap: 8.1.4
+      pnpm-shrinkwrap: 8.1.5
       ramda: 0.26.0
       rimraf: 2.6.2
       rimraf-then: 1.0.1
@@ -549,10 +549,10 @@ importers:
       '@pnpm/utils': 0.9.0
       '@types/node': 10.12.10
       '@types/tape': 4.2.32
-      dependency-path: 2.0.0
+      dependency-path: 2.0.1
       mos: 2.0.0-alpha.3
       mos-plugin-readme: 1.0.4
-      pnpm-shrinkwrap: 8.1.4
+      pnpm-shrinkwrap: 8.1.5
       tape: 4.9.1
       ts-node: 7.0.1
       tslint: 5.11.0
@@ -848,11 +848,11 @@ importers:
       '@pnpm/lifecycle': 3.0.2
       '@pnpm/logger': 2.1.0
       '@pnpm/modules-yaml': 2.0.0
-      '@pnpm/outdated': 1.0.6
+      '@pnpm/outdated': 1.0.7
       '@pnpm/package-store': 1.2.0
       '@pnpm/prepare': 0.0.0
       '@pnpm/read-package-json': 1.0.1
-      '@pnpm/server': 1.1.0
+      '@pnpm/server': 1.1.1
       '@pnpm/store-path': 1.0.3
       '@pnpm/tslint-config': 0.0.0
       '@pnpm/types': 2.0.0
@@ -920,9 +920,9 @@ importers:
       pnpm: 'link:'
       pnpm-default-reporter: 0.20.14
       pnpm-file-reporter: 0.1.0
-      pnpm-list: 4.2.0
+      pnpm-list: 4.2.1
       pnpm-registry-mock: 2.4.0
-      pnpm-shrinkwrap: 8.1.4
+      pnpm-shrinkwrap: 8.1.5
       process-exists: 3.1.0
       ramda: 0.26.0
       read-ini-file: 1.0.0
@@ -933,7 +933,7 @@ importers:
       sepia: 2.0.2
       signal-exit: 3.0.2
       strip-color: 0.1.0
-      supi: 0.25.10
+      supi: 0.25.11
       symlink-dir: 2.0.2
       tape: 4.9.1
       tape-promise: 4.0.0
@@ -967,7 +967,7 @@ importers:
       '@pnpm/types': 2.0.0
       '@pnpm/utils': 0.9.0
       '@types/node': 10.12.10
-      pnpm-shrinkwrap: 8.1.4
+      pnpm-shrinkwrap: 8.1.5
       rimraf: 2.6.2
       tslint: 5.11.0
       typescript: 3.1.6
@@ -1028,10 +1028,10 @@ importers:
       '@types/node': 10.12.10
       '@types/ramda': 0.25.38
       '@types/semver': 5.5.0
-      dependency-path: 2.0.0
+      dependency-path: 2.0.1
       path-exists: 3.0.0
       pnpm-install-checks: 1.1.0
-      pnpm-shrinkwrap: 8.1.4
+      pnpm-shrinkwrap: 8.1.5
       ramda: 0.26.0
       replace-string: 2.0.0
       rimraf: 2.6.2
@@ -1122,8 +1122,8 @@ importers:
       '@pnpm/tslint-config': 0.0.0
       '@types/node': 10.12.10
       '@types/ramda': 0.25.34
-      dependency-path: 2.0.0
-      pnpm-shrinkwrap: 8.1.4
+      dependency-path: 2.0.1
+      pnpm-shrinkwrap: 8.1.5
       ramda: 0.26.0
       rimraf: 2.6.2
       ts-node: 6.2.0
@@ -1170,7 +1170,7 @@ importers:
       '@types/ramda': 0.25.39
       '@types/tape': 4.2.32
       '@types/tempy': 0.2.0
-      dependency-path: 2.0.0
+      dependency-path: 2.0.1
       get-npm-tarball-url: 2.0.1
       js-yaml: 3.12.0
       load-yaml-file: 0.1.0
@@ -1320,22 +1320,22 @@ importers:
       '@pnpm/default-fetcher': 2.0.6
       '@pnpm/default-resolver': 2.0.5
       '@pnpm/fs-locker': 1.0.3
-      '@pnpm/headless': 1.0.1
+      '@pnpm/headless': 1.0.2
       '@pnpm/lifecycle': 3.0.2
       '@pnpm/link-bins': 3.0.2
       '@pnpm/logger': 2.1.0
-      '@pnpm/modules-cleaner': 1.0.10
+      '@pnpm/modules-cleaner': 1.0.11
       '@pnpm/modules-yaml': 2.0.0
       '@pnpm/package-requester': 4.1.10
       '@pnpm/package-store': 1.2.0
       '@pnpm/pkgid-to-filename': 2.0.0
       '@pnpm/prepare': 0.0.0
-      '@pnpm/read-manifests': 1.0.0
+      '@pnpm/read-manifests': 1.0.1
       '@pnpm/read-modules-dir': 1.0.0
       '@pnpm/read-package-json': 1.0.1
-      '@pnpm/resolve-dependencies': 1.0.9
+      '@pnpm/resolve-dependencies': 1.0.10
       '@pnpm/resolver-base': 2.0.0
-      '@pnpm/shamefully-flatten': 1.0.2
+      '@pnpm/shamefully-flatten': 1.0.3
       '@pnpm/store-controller-types': 1.1.0
       '@pnpm/store-path': 1.0.3
       '@pnpm/symlink-dependency': 1.1.0
@@ -1364,7 +1364,7 @@ importers:
       common-tags: 1.8.0
       cross-spawn: 6.0.5
       deep-require-cwd: 1.0.0
-      dependency-path: 2.0.0
+      dependency-path: 2.0.1
       encode-registry: 1.1.0
       execa: 1.0.0
       exists-link: 2.0.0
@@ -1396,7 +1396,7 @@ importers:
       path-exists: 3.0.0
       path-name: 1.0.0
       pnpm-registry-mock: 2.4.0
-      pnpm-shrinkwrap: 8.1.4
+      pnpm-shrinkwrap: 8.1.5
       ramda: 0.26.0
       read-pkg: 4.0.1
       remove-all-except-outer-links: 1.0.3
