@@ -25,7 +25,7 @@
     "@pnpm/headless": "link:",
     "@pnpm/logger": "2.1.0",
     "@pnpm/package-store": "1.2.0",
-    "@pnpm/read-manifests": "1.0.0",
+    "@pnpm/read-manifests": "1.0.1",
     "@pnpm/store-path": "1.0.3",
     "@pnpm/tslint-config": "0.0.0",
     "@types/fs-extra": "5.0.4",
