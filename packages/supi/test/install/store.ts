@@ -1,7 +1,7 @@
 import prepare from '@pnpm/prepare'
 import path = require('path')
 import rimraf = require('rimraf-then')
-import { install, installPkgs } from 'supi'
+import { addDependenciesToSingleProject, install } from 'supi'
 import tape = require('tape')
 import promisifyTape from 'tape-promise'
 import writeJsonFile from 'write-json-file'
@@ -13,7 +13,7 @@ test('repeat install with corrupted `store.json` should work', async (t: tape.Te
   const project = prepare(t)
 
   const opts = await testDefaults()
-  await installPkgs(['is-negative@1.0.0'], opts)
+  await addDependenciesToSingleProject(['is-negative@1.0.0'], opts)
 
   await rimraf('node_modules')
 

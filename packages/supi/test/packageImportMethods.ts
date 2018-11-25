@@ -1,5 +1,6 @@
 import prepare from '@pnpm/prepare'
 import {
+  addDependenciesToSingleProject,
   installPkgs,
 } from 'supi'
 import tape = require('tape')
@@ -11,7 +12,7 @@ const test = promisifyTape(tape)
 test('packageImportMethod can be set to copy', async (t: tape.Test) => {
   const project = prepare(t)
 
-  await installPkgs(['is-negative'], await testDefaults({}, {}, {}, { packageImportMethod: 'copy' }))
+  await addDependenciesToSingleProject(['is-negative'], await testDefaults({}, {}, {}, { packageImportMethod: 'copy' }))
 
   const m = project.requireModule('is-negative')
   t.ok(m, 'is-negative is available with packageImportMethod = copy')
@@ -20,7 +21,7 @@ test('packageImportMethod can be set to copy', async (t: tape.Test) => {
 test('copy does not fail on package that self-requires itself', async (t: tape.Test) => {
   const project = prepare(t)
 
-  await installPkgs(['requires-itself'], await testDefaults({}, {}, {}, { packageImportMethod: 'copy' }))
+  await addDependenciesToSingleProject(['requires-itself'], await testDefaults({}, {}, {}, { packageImportMethod: 'copy' }))
 
   const m = project.requireModule('requires-itself/package.json')
   t.ok(m, 'requires-itself is available with packageImportMethod = copy')

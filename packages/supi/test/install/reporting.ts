@@ -1,8 +1,8 @@
 import prepare from '@pnpm/prepare'
 import sinon = require('sinon')
 import {
+  addDependenciesToSingleProject,
   DeprecationLog,
-  installPkgs,
 } from 'supi'
 import tape = require('tape')
 import promisifyTape from 'tape-promise'
@@ -17,7 +17,7 @@ test('reports warning when installing deprecated packages', async (t: tape.Test)
   {
     const reporter = sinon.spy()
 
-    await installPkgs(['express@0.14.1'], await testDefaults({ reporter }))
+    await addDependenciesToSingleProject(['express@0.14.1'], await testDefaults({ reporter }))
 
     t.ok(reporter.calledWithMatch({
       deprecated: 'express 0.x series is deprecated',
@@ -37,7 +37,7 @@ test('reports warning when installing deprecated packages', async (t: tape.Test)
   {
     const reporter = sinon.spy()
 
-    await installPkgs(['express@4.16.3'], await testDefaults({ reporter }))
+    await addDependenciesToSingleProject(['express@4.16.3'], await testDefaults({ reporter }))
 
     t.notOk(reporter.calledWithMatch({
       level: 'debug',

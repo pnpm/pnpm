@@ -17,11 +17,11 @@ import {
 } from '@pnpm/resolver-base'
 import {
   DEPENDENCIES_FIELDS,
+  DependenciesField,
   PackageJson,
 } from '@pnpm/types'
 import {
   getAllDependenciesFromPackage,
-  getSaveType,
   getWantedDependencies,
   safeReadPackageFromDir as safeReadPkgFromDir,
   WantedDependency,
@@ -54,8 +54,10 @@ import parseWantedDependencies from '../parseWantedDependencies'
 import safeIsInnerLink from '../safeIsInnerLink'
 import save from '../save'
 import shrinkwrapsEqual from '../shrinkwrapsEqual'
+import removeDeps from '../uninstall/removeDeps'
 import getPref from '../utils/getPref'
 import extendOptions, {
+  DependencyOperation,
   InstallOptions,
   StrictInstallOptions,
 } from './extendInstallOptions'
@@ -112,6 +114,7 @@ export async function install (maybeOpts: InstallOptions & {
 
   async function _install () {
     if (
+      !opts.shrinkwrapOnly &&
       !opts.update && (
         opts.frozenShrinkwrap ||
         opts.preferFrozenShrinkwrap &&
@@ -160,7 +163,7 @@ export async function install (maybeOpts: InstallOptions & {
       }
     }
 
-    const importersToInstall = [] as ImporterToInstall[]
+    const importersToInstall = [] as ImporterToUpdate[]
     // TODO: make it concurrent
     for (const importer of ctx.importers) {
       if (opts.frozenShrinkwrap && !satisfiesPackageJson(ctx.wantedShrinkwrap, importer.pkg, importer.id)) {
@@ -373,8 +376,34 @@ function refIsLocalTarball (ref: string) {
   return ref.startsWith('file:') && (ref.endsWith('.tgz') || ref.endsWith('.tar.gz') || ref.endsWith('.tar'))
 }
 
+export async function addDependenciesToSingleProject (
+  targetDependencies: string[],
+  opts: InstallOptions & {
+    allowNew?: boolean,
+    exactVersion?: boolean,
+    prefix?: string,
+    targetDependenciesField?: DependenciesField,
+    versionPrefix?: string,
+  },
+) {
+  return installPkgs({
+    ...opts,
+    importers: [
+      {
+        allowNew: opts.allowNew,
+        exactVersion: opts.exactVersion,
+        operation: 'add',
+        prefix: opts.prefix || process.cwd(),
+        targetDependencies,
+        targetDependenciesField: opts.targetDependenciesField,
+        versionPrefix: opts.versionPrefix,
+      },
+    ],
+    shrinkwrapDirectory: opts.shrinkwrapDirectory || opts.prefix,
+  })
+}
+
 export async function installPkgs (
-  rawWantedDependencies: string[],
   maybeOpts: InstallOptions,
 ) {
   const reporter = maybeOpts && maybeOpts.reporter
@@ -384,10 +413,6 @@ export async function installPkgs (
 
   if (maybeOpts.update === undefined) maybeOpts.update = true
   const opts = await extendOptions(maybeOpts)
-
-  if (R.isEmpty(rawWantedDependencies)) {
-    throw new Error('At least one package has to be installed')
-  }
 
   if (opts.lock) {
     await lock(opts.shrinkwrapDirectory, _installPkgs, {
@@ -408,22 +433,32 @@ export async function installPkgs (
   async function _installPkgs () {
     const ctx = await getContext(opts, 'named')
 
-    const importersToInstall = [] as ImporterToInstall[]
+    const importersToUpdate = [] as ImporterToUpdate[]
     for (const importer of ctx.importers) {
+      if (importer.operation === 'remove') {
+        importersToUpdate.push({
+          ...importer,
+          linkedPackages: [],
+          newPkgRawSpecs: [],
+          nonLinkedPackages: [],
+          usesExternalShrinkwrap: ctx.shrinkwrapDirectory !== importer.prefix,
+          wantedDeps: [],
+        })
+        continue
+      }
       const currentPrefs = opts.ignoreCurrentPrefs ? {} : getAllDependenciesFromPackage(importer.pkg)
-      const saveType = getSaveType(opts)
-      const optionalDependencies = saveType ? {} : importer.pkg.optionalDependencies || {}
-      const devDependencies = saveType ? {} : importer.pkg.devDependencies || {}
-      const wantedDeps = parseWantedDependencies(rawWantedDependencies, {
-        allowNew: opts.allowNew,
+      const optionalDependencies = importer.targetDependenciesField ? {} : importer.pkg.optionalDependencies || {}
+      const devDependencies = importer.targetDependenciesField ? {} : importer.pkg.devDependencies || {}
+      const wantedDeps = parseWantedDependencies(importer.targetDependencies, {
+        allowNew: importer.allowNew !== false,
         currentPrefs,
         defaultTag: opts.tag,
-        dev: opts.saveDev,
+        dev: importer.targetDependenciesField === 'devDependencies',
         devDependencies,
-        optional: opts.saveOptional,
+        optional: importer.targetDependenciesField === 'optionalDependencies',
         optionalDependencies,
       })
-      importersToInstall.push({
+      importersToUpdate.push({
         ...importer,
         linkedPackages: [],
         newPkgRawSpecs: wantedDeps.map((wantedDependency) => wantedDependency.raw),
@@ -443,7 +478,7 @@ export async function installPkgs (
     )
 
     return installInContext(
-      importersToInstall,
+      importersToUpdate,
       ctx,
       {
         ...opts,
@@ -456,24 +491,24 @@ export async function installPkgs (
   }
 }
 
-interface ImporterToInstall {
+type ImporterToUpdate = {
   bin: string,
-  usesExternalShrinkwrap: boolean,
-  hoistedAliases: {[depPath: string]: string[]}
-  modulesDir: string,
+  hoistedAliases: {[depPath: string]: string[]},
   id: string,
   linkedPackages: Array<WantedDependency & {alias: string}>,
+  modulesDir: string,
   newPkgRawSpecs: string[],
   nonLinkedPackages: WantedDependency[],
   pkg: PackageJson,
   prefix: string,
   shamefullyFlatten: boolean,
+  usesExternalShrinkwrap: boolean,
   wantedDeps: WantedDependency[],
-}
+} & DependencyOperation
 
 async function installInContext (
-  importers: ImporterToInstall[],
-  ctx: PnpmContext,
+  importers: ImporterToUpdate[],
+  ctx: PnpmContext<DependencyOperation>,
   opts: StrictInstallOptions & {
     makePartialCurrentShrinkwrap: boolean,
     updatePackageJson: boolean,
@@ -511,6 +546,19 @@ async function installInContext (
       }
     }
   }
+
+  await Promise.all(
+    importers
+      .filter((importer) => importer.operation === 'remove')
+      .map(async (importer) => {
+        const pkgJsonPath = path.join(importer.prefix, 'package.json')
+        importer.pkg = await removeDeps(pkgJsonPath, importer.targetDependencies, {
+          prefix: importer.prefix,
+          saveType: importer.targetDependenciesField,
+        })
+      }),
+  )
+
   stageLogger.debug('resolution_started')
   const {
     dependenciesTree,
@@ -566,28 +614,27 @@ async function installInContext (
   const importersToLink = await Promise.all<ImporterToLink>(importers.map(async (importer) => {
     const resolvedImporter = resolvedImporters[importer.id]
     let newPkg: PackageJson | undefined = importer.pkg
-    if (opts.updatePackageJson) {
+    if (opts.updatePackageJson && importer.operation !== 'remove') {
       if (!importer.pkg) {
         throw new Error('Cannot save because no package.json found')
       }
-      const saveType = getSaveType(opts)
       const specsToUsert = <any>resolvedImporter.directDependencies // tslint:disable-line
         .filter((dep) => importer.newPkgRawSpecs.indexOf(dep.specRaw) !== -1)
         .map((dep) => {
           return {
             name: dep.alias,
             pref: dep.normalizedPref || getPref(dep.alias, dep.name, dep.version, {
-              saveExact: opts.saveExact,
-              savePrefix: opts.savePrefix,
+              saveExact: importer.exactVersion === true,
+              savePrefix: importer.versionPrefix || '^',
             }),
-            saveType,
+            saveType: importer.targetDependenciesField,
           }
         })
       for (const pkgToInstall of importer.wantedDeps) {
         if (pkgToInstall.alias && !specsToUsert.some((spec: any) => spec.name === pkgToInstall.alias)) { // tslint:disable-line
           specsToUsert.push({
             name: pkgToInstall.alias,
-            saveType,
+            saveType: importer.targetDependenciesField,
           })
         }
       }
@@ -877,13 +924,6 @@ function addDirectDependenciesToShrinkwrap (
   linkedPackages.forEach((linkedPkg) => {
     newShrImporter.specifiers[linkedPkg.alias] = getSpecFromPackageJson(newPkg, linkedPkg.alias)
   })
-  if (shrinkwrapImporter.dependencies) {
-    for (const alias of R.keys(shrinkwrapImporter.dependencies)) {
-      if (shrinkwrapImporter.dependencies[alias].startsWith('link:')) {
-        newShrImporter.dependencies[alias] = shrinkwrapImporter.dependencies[alias]
-      }
-    }
-  }
 
   const directDependenciesByAlias = directDependencies.reduce((acc, directDependency) => {
     acc[directDependency.alias] = directDependency

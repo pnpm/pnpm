@@ -9,6 +9,7 @@ import { addDistTag } from 'pnpm-registry-mock'
 import rimraf = require('rimraf-then')
 import sinon = require('sinon')
 import {
+  addDependenciesToSingleProject,
   install,
   installPkgs,
   uninstall,
@@ -23,13 +24,13 @@ const NM = 'node_modules'
 
 test("don't fail when peer dependency is fetched from GitHub", async (t) => {
   const project = prepare(t)
-  await installPkgs(['test-pnpm-peer-deps'], await testDefaults())
+  await addDependenciesToSingleProject(['test-pnpm-peer-deps'], await testDefaults())
 })
 
 test('peer dependency is grouped with dependency when peer is resolved not from a top dependency', async (t: tape.Test) => {
   const project = prepare(t)
   const opts = await testDefaults()
-  await installPkgs(['using-ajv'], opts)
+  await addDependenciesToSingleProject(['using-ajv'], opts)
 
   t.ok(await exists(path.join(NM, '.localhost+4873', 'ajv-keywords', '1.5.0', 'ajv@4.10.4', NM, 'ajv')), 'peer dependency is linked')
   t.equal(deepRequireCwd(['using-ajv', 'ajv-keywords', 'ajv', './package.json']).version, '4.10.4')
@@ -46,7 +47,7 @@ test('peer dependency is grouped with dependency when peer is resolved not from 
   t.ok(await exists(path.join(NM, '.localhost+4873', 'ajv-keywords', '1.5.0', 'ajv@4.10.4', NM, 'ajv')), 'peer dependency is linked')
   t.equal(deepRequireCwd(['using-ajv', 'ajv-keywords', 'ajv', './package.json']).version, '4.10.4')
 
-  await installPkgs(['using-ajv'], await testDefaults({ update: true }))
+  await addDependenciesToSingleProject(['using-ajv'], await testDefaults({ update: true }))
 
   const shr = await project.loadShrinkwrap()
 
@@ -63,7 +64,7 @@ test('peer dependency is grouped with dependency when peer is resolved not from 
 test('nothing is needlessly removed from node_modules', async (t: tape.Test) => {
   const project = prepare(t)
   const opts = await testDefaults()
-  await installPkgs(['using-ajv', 'ajv-keywords@1.5.0'], opts)
+  await addDependenciesToSingleProject(['using-ajv', 'ajv-keywords@1.5.0'], opts)
 
   t.ok(await exists(path.join(NM, '.localhost+4873', 'ajv-keywords', '1.5.0', 'ajv@4.10.4', NM, 'ajv')), 'peer dependency is linked')
   t.ok(await exists(path.join(NM, '.localhost+4873', 'ajv-keywords', '1.5.0', NM, 'ajv-keywords')), 'root dependency resolution is present')
@@ -80,7 +81,7 @@ test('peer dependency is not grouped with dependent when the peer is a top depen
 
   const reporter = sinon.spy()
 
-  await installPkgs(['ajv@4.10.4', 'ajv-keywords@1.5.0'], await testDefaults({ reporter }))
+  await addDependenciesToSingleProject(['ajv@4.10.4', 'ajv-keywords@1.5.0'], await testDefaults({ reporter }))
 
   t.notOk(reporter.calledWithMatch({
     message: 'localhost+4873/ajv-keywords/1.5.0 requires a peer of ajv@>=4.10.0 but none was installed.',
@@ -94,7 +95,7 @@ test('warning is reported when cannot resolve peer dependency for top-level depe
 
   const reporter = sinon.spy()
 
-  await installPkgs(['ajv-keywords@1.5.0'], await testDefaults({ reporter }))
+  await addDependenciesToSingleProject(['ajv-keywords@1.5.0'], await testDefaults({ reporter }))
 
   const logMatcher = sinon.match({
     message: 'ajv-keywords@1.5.0 requires a peer of ajv@>=4.10.0 but none was installed.',
@@ -112,7 +113,7 @@ test('strict-peer-dependencies: error is thrown when cannot resolve peer depende
   let err!: Error & {code: string}
 
   try {
-    await installPkgs(['ajv-keywords@1.5.0'], await testDefaults({ reporter, strictPeerDependencies: true }))
+    await addDependenciesToSingleProject(['ajv-keywords@1.5.0'], await testDefaults({ reporter, strictPeerDependencies: true }))
   } catch (_) {
     err = _
   }
@@ -125,7 +126,7 @@ test('strict-peer-dependencies: error is thrown when cannot resolve peer depende
 test('warning is not reported if the peer dependency can be required from a node_modules of a parent directory', async (t: tape.Test) => {
   const project = prepare(t)
 
-  await installPkgs(['ajv@4.10.0'], await testDefaults())
+  await addDependenciesToSingleProject(['ajv@4.10.0'], await testDefaults())
 
   await mkdir('pkg')
 
@@ -133,7 +134,7 @@ test('warning is not reported if the peer dependency can be required from a node
 
   const reporter = sinon.spy()
 
-  await installPkgs(['ajv-keywords@1.5.0'], await testDefaults({ reporter }))
+  await addDependenciesToSingleProject(['ajv-keywords@1.5.0'], await testDefaults({ reporter }))
 
   const logMatcher = sinon.match({
     message: 'ajv-keywords@1.5.0 requires a peer of ajv@>=4.10.0 but none was installed.',
@@ -148,7 +149,7 @@ test('warning is reported when cannot resolve peer dependency for non-top-level 
 
   const reporter = sinon.spy()
 
-  await installPkgs(['abc-grand-parent-without-c'], await testDefaults({ reporter }))
+  await addDependenciesToSingleProject(['abc-grand-parent-without-c'], await testDefaults({ reporter }))
 
   const logMatcher = sinon.match({
     message: 'abc-grand-parent-without-c > abc-parent-with-ab: abc@1.0.0 requires a peer of peer-c@^1.0.0 but none was installed.',
@@ -163,7 +164,7 @@ test('warning is reported when bad version of resolved peer dependency for non-t
 
   const reporter = sinon.spy()
 
-  await installPkgs(['abc-grand-parent-without-c', 'peer-c@2'], await testDefaults({ reporter }))
+  await addDependenciesToSingleProject(['abc-grand-parent-without-c', 'peer-c@2'], await testDefaults({ reporter }))
 
   const logMatcher = sinon.match({
     message: 'abc-grand-parent-without-c > abc-parent-with-ab: abc@1.0.0 requires a peer of peer-c@^1.0.0 but version 2.0.0 was installed.',
@@ -181,7 +182,7 @@ test('strict-peer-dependencies: error is thrown when bad version of resolved pee
   let err!: Error & {code: string}
 
   try {
-    await installPkgs(['abc-grand-parent-without-c', 'peer-c@2'], await testDefaults({ reporter, strictPeerDependencies: true }))
+    await addDependenciesToSingleProject(['abc-grand-parent-without-c', 'peer-c@2'], await testDefaults({ reporter, strictPeerDependencies: true }))
   } catch (_) {
     err = _
   }
@@ -194,9 +195,9 @@ test('strict-peer-dependencies: error is thrown when bad version of resolved pee
 test('top peer dependency is not linked on subsequent install', async (t: tape.Test) => {
   const project = prepare(t)
 
-  await installPkgs(['ajv@4.10.4'], await testDefaults())
+  await addDependenciesToSingleProject(['ajv@4.10.4'], await testDefaults())
 
-  await installPkgs(['ajv-keywords@1.5.0'], await testDefaults())
+  await addDependenciesToSingleProject(['ajv-keywords@1.5.0'], await testDefaults())
 
   t.ok(await exists(path.join(NM, '.localhost+4873', 'ajv-keywords', '1.5.0', NM, 'ajv-keywords')), 'dependent is at the normal location')
   t.notOk(await exists(path.join(NM, '.localhost+4873', 'ajv-keywords', '1.5.0', 'ajv@4.10.4', NM, 'ajv')), 'peer dependency is not linked')
@@ -213,7 +214,7 @@ test('peer dependencies are linked when running one named installation', async (
 
   const project = prepare(t)
 
-  await installPkgs(['abc-grand-parent-with-c', 'abc-parent-with-ab', 'peer-c@2.0.0'], await testDefaults())
+  await addDependenciesToSingleProject(['abc-grand-parent-with-c', 'abc-parent-with-ab', 'peer-c@2.0.0'], await testDefaults())
 
   const pkgVariationsDir = path.join(NM, '.localhost+4873', 'abc', '1.0.0')
 
@@ -243,8 +244,8 @@ test('peer dependencies are linked when running two separate named installations
   await addDistTag({ package: 'peer-c', version: '1.0.0', distTag: 'latest' })
   const project = prepare(t)
 
-  await installPkgs(['abc-grand-parent-with-c', 'peer-c@2.0.0'], await testDefaults())
-  await installPkgs(['abc-parent-with-ab'], await testDefaults())
+  await addDependenciesToSingleProject(['abc-grand-parent-with-c', 'peer-c@2.0.0'], await testDefaults())
+  await addDependenciesToSingleProject(['abc-parent-with-ab'], await testDefaults())
 
   const pkgVariationsDir = path.join(NM, '.localhost+4873', 'abc', '1.0.0')
 
@@ -302,7 +303,7 @@ test['skip']('peer dependencies are linked', async (t: tape.Test) => {
 
 test('scoped peer dependency is linked', async (t: tape.Test) => {
   const project = prepare(t)
-  await installPkgs(['for-testing-scoped-peers'], await testDefaults())
+  await addDependenciesToSingleProject(['for-testing-scoped-peers'], await testDefaults())
 
   const pkgVariation = path.join(NM, '.localhost+4873', '@having', 'scoped-peer', '1.0.0', '@scoped!peer@1.0.0', NM)
   await okFile(t, path.join(pkgVariation, '@having', 'scoped-peer'))
@@ -312,7 +313,7 @@ test('scoped peer dependency is linked', async (t: tape.Test) => {
 test('peer bins are linked', async (t: tape.Test) => {
   const project = prepare(t)
 
-  await installPkgs(['for-testing-peers-having-bins'], await testDefaults())
+  await addDependenciesToSingleProject(['for-testing-peers-having-bins'], await testDefaults())
 
   const pkgVariation = path.join('.localhost+4873', 'pkg-with-peer-having-bin', '1.0.0', 'peer-with-bin@1.0.0', NM)
 
@@ -323,7 +324,7 @@ test('peer bins are linked', async (t: tape.Test) => {
 
 test('run pre/postinstall scripts of each variations of packages with peer dependencies', async (t: tape.Test) => {
   const project = prepare(t)
-  await installPkgs(['parent-of-pkg-with-events-and-peers', 'pkg-with-events-and-peers', 'peer-c@2.0.0'], await testDefaults())
+  await addDependenciesToSingleProject(['parent-of-pkg-with-events-and-peers', 'pkg-with-events-and-peers', 'peer-c@2.0.0'], await testDefaults())
 
   const pkgVariation1 = path.join(NM, '.localhost+4873', 'pkg-with-events-and-peers', '1.0.0', 'peer-c@1.0.0', NM)
   await okFile(t, path.join(pkgVariation1, 'pkg-with-events-and-peers', 'generated-by-preinstall.js'))
@@ -340,7 +341,7 @@ test('package that resolves its own peer dependency', async (t: tape.Test) => {
   // does it currently print a warning that peer dependency is not resolved?
 
   const project = prepare(t)
-  await installPkgs(['pkg-with-resolved-peer', 'peer-c@2.0.0'], await testDefaults())
+  await addDependenciesToSingleProject(['pkg-with-resolved-peer', 'peer-c@2.0.0'], await testDefaults())
 
   t.equal(deepRequireCwd(['pkg-with-resolved-peer', 'peer-c', './package.json']).version, '1.0.0')
 
@@ -355,7 +356,7 @@ test('package that resolves its own peer dependency', async (t: tape.Test) => {
 
 test('package that has parent as peer dependency', async (t: tape.Test) => {
   const project = prepare(t)
-  await installPkgs(['has-alpha', 'alpha'], await testDefaults())
+  await addDependenciesToSingleProject(['has-alpha', 'alpha'], await testDefaults())
 
   const shr = await project.loadShrinkwrap()
 
@@ -366,7 +367,7 @@ test('package that has parent as peer dependency', async (t: tape.Test) => {
 test('own peer installed in root as well is linked to root', async (t: tape.Test) => {
   const project = prepare(t)
 
-  await installPkgs(['is-negative@kevva/is-negative#2.1.0', 'peer-deps-in-child-pkg'], await testDefaults())
+  await addDependenciesToSingleProject(['is-negative@kevva/is-negative#2.1.0', 'peer-deps-in-child-pkg'], await testDefaults())
 
   t.ok(deepRequireCwd.silent(['is-negative', './package.json']), 'is-negative is linked to root')
 })
@@ -376,7 +377,7 @@ test('peer dependency is grouped with dependent when the peer is a top dependenc
 
   const reporter = sinon.spy()
 
-  await installPkgs(['ajv@4.10.4', 'ajv-keywords@1.5.0'], await testDefaults({ reporter, shrinkwrapDirectory: path.resolve('..') }))
+  await addDependenciesToSingleProject(['ajv@4.10.4', 'ajv-keywords@1.5.0'], await testDefaults({ reporter, shrinkwrapDirectory: path.resolve('..') }))
 
   t.notOk(reporter.calledWithMatch({
     message: 'localhost+4873/ajv-keywords/1.5.0 requires a peer of ajv@>=4.10.0 but none was installed.',
@@ -410,7 +411,7 @@ test('peer dependency is grouped correctly with peer installed via separate inst
   const shrinkwrapDirectory = path.resolve('..')
 
   await install(await testDefaults({ reporter, shrinkwrapDirectory }))
-  await installPkgs(['peer-c@2.0.0'], await testDefaults({ reporter, shrinkwrapDirectory }))
+  await addDependenciesToSingleProject(['peer-c@2.0.0'], await testDefaults({ reporter, shrinkwrapDirectory }))
 
   t.ok(await exists(path.join('..', NM, '.localhost+4873', 'abc', '1.0.0', 'peer-c@2.0.0', NM, 'dep-of-pkg-with-1-dep')))
 })
@@ -421,7 +422,7 @@ test('peer dependency is grouped with dependent when the peer is a top dependenc
   process.chdir('_')
   const shrinkwrapDirectory = path.resolve('..')
 
-  await installPkgs(['ajv@4.10.4', 'ajv-keywords@1.5.0'], await testDefaults({ shrinkwrapDirectory }))
+  await addDependenciesToSingleProject(['ajv@4.10.4', 'ajv-keywords@1.5.0'], await testDefaults({ shrinkwrapDirectory }))
 
   {
     const shr = await loadYamlFile(path.resolve('..', 'shrinkwrap.yaml'))
@@ -475,7 +476,7 @@ test('external shrinkwrap: peer dependency is grouped with dependent even after 
   process.chdir('_')
   const shrinkwrapDirectory = path.resolve('..')
 
-  await installPkgs(['ajv@4.10.4', 'ajv-keywords@1.4.0'], await testDefaults({ shrinkwrapDirectory }))
+  await addDependenciesToSingleProject(['ajv@4.10.4', 'ajv-keywords@1.4.0'], await testDefaults({ shrinkwrapDirectory }))
 
   {
     const shr = await loadYamlFile(path.resolve('..', 'shrinkwrap.yaml'))
@@ -491,7 +492,7 @@ test('external shrinkwrap: peer dependency is grouped with dependent even after 
     })
   }
 
-  await installPkgs(['ajv-keywords@1.5.0'], await testDefaults({ shrinkwrapDirectory }))
+  await addDependenciesToSingleProject(['ajv-keywords@1.5.0'], await testDefaults({ shrinkwrapDirectory }))
 
   {
     const shr = await loadYamlFile(path.resolve('..', 'shrinkwrap.yaml'))
@@ -514,7 +515,7 @@ test('external shrinkwrap: peer dependency is grouped with dependent even after 
   process.chdir('_')
   const shrinkwrapDirectory = path.resolve('..')
 
-  await installPkgs(['peer-c@1.0.0', 'abc-parent-with-ab@1.0.0'], await testDefaults({ shrinkwrapDirectory }))
+  await addDependenciesToSingleProject(['peer-c@1.0.0', 'abc-parent-with-ab@1.0.0'], await testDefaults({ shrinkwrapDirectory }))
 
   {
     const shr = await loadYamlFile(path.resolve('..', 'shrinkwrap.yaml'))
@@ -530,7 +531,7 @@ test('external shrinkwrap: peer dependency is grouped with dependent even after 
     })
   }
 
-  await installPkgs(['peer-c@2.0.0'], await testDefaults({ shrinkwrapDirectory }))
+  await addDependenciesToSingleProject(['peer-c@2.0.0'], await testDefaults({ shrinkwrapDirectory }))
 
   {
     const shr = await loadYamlFile(path.resolve('..', 'shrinkwrap.yaml'))
@@ -556,7 +557,7 @@ test('regular dependencies are not removed on update from transitive packages th
   const shrinkwrapDirectory = path.resolve('..')
   await addDistTag({ package: 'peer-c', version: '1.0.0', distTag: 'latest' })
 
-  await installPkgs(['abc-grand-parent-with-c@1.0.0'], await testDefaults({ shrinkwrapDirectory }))
+  await addDependenciesToSingleProject(['abc-grand-parent-with-c@1.0.0'], await testDefaults({ shrinkwrapDirectory }))
 
   await addDistTag({ package: 'peer-c', version: '1.0.1', distTag: 'latest' })
   await install(await testDefaults({ shrinkwrapDirectory, update: true, depth: 2 }))

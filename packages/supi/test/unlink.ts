@@ -5,8 +5,8 @@ import path = require('path')
 import exists = require('path-exists')
 import sinon = require('sinon')
 import {
+  addDependenciesToSingleProject,
   install,
-  installPkgs,
   link,
   unlink,
   unlinkPkgs,
@@ -62,7 +62,7 @@ test("don't update package when unlinking", async (t: tape.Test) => {
 
   await addDistTag('foo', '100.0.0', 'latest')
   const opts = await testDefaults({ prefix: process.cwd() })
-  await installPkgs(['foo'], opts)
+  await addDependenciesToSingleProject(['foo'], opts)
 
   process.chdir('..')
 
@@ -172,7 +172,7 @@ test('unlink all packages', async (t: tape.Test) => {
 test("don't warn about scoped packages when running unlink w/o params", async (t: tape.Test) => {
   const project = prepare(t)
 
-  await installPkgs(['@zkochan/logger'], await testDefaults())
+  await addDependenciesToSingleProject(['@zkochan/logger'], await testDefaults())
 
   const reporter = sinon.spy()
   await unlink(await testDefaults({ reporter }))
@@ -188,7 +188,7 @@ test("don't unlink package that is not a link", async (t: tape.Test) => {
 
   const reporter = sinon.spy()
 
-  await installPkgs(['is-positive'], await testDefaults())
+  await addDependenciesToSingleProject(['is-positive'], await testDefaults())
 
   await unlinkPkgs(['is-positive'], await testDefaults({ reporter }))
 
@@ -203,7 +203,7 @@ test("don't unlink package that is not a link when independent-leaves = true", a
 
   const reporter = sinon.spy()
 
-  await installPkgs(['is-positive'], await testDefaults({ independentLeaves: true }))
+  await addDependenciesToSingleProject(['is-positive'], await testDefaults({ independentLeaves: true }))
 
   await unlinkPkgs(['is-positive'], await testDefaults({ independentLeaves: true, reporter }))
 
