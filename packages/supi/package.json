@@ -52,7 +52,7 @@
     "@types/semver": "5.5.0",
     "@zkochan/npm-package-arg": "1.0.0",
     "common-tags": "1.8.0",
-    "dependency-path": "2.0.0",
+    "dependency-path": "2.0.1",
     "encode-registry": "1.1.0",
     "execa": "1.0.0",
     "get-npm-tarball-url": "2.0.1",

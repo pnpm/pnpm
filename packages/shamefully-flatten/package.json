@@ -50,7 +50,7 @@
     "@pnpm/symlink-dependency": "1.1.0",
     "@types/node": "10.12.10",
     "@types/ramda": "0.25.34",
-    "dependency-path": "2.0.0",
+    "dependency-path": "2.0.1",
     "pnpm-shrinkwrap": "8.1.4",
     "ramda": "0.26.0"
   }
