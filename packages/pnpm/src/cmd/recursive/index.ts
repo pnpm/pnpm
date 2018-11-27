@@ -230,6 +230,7 @@ export async function recursive (
           const localConfigs = await memReadLocalConfigs(prefix)
           return {
             allowNew: cmdFullName === 'install',
+            operation: 'add',
             prefix,
             saveExact: typeof localConfigs.saveExact === 'boolean'
               ? localConfigs.saveExact

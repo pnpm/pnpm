@@ -20,7 +20,7 @@ export type DependencyOperation = {
 } & (
   {
     allowNew?: boolean,
-    operation: 'add' | 'update',
+    operation: 'add',
     saveExact?: boolean,
     savePrefix?: string,
   } | {
