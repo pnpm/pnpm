@@ -231,7 +231,15 @@ export async function recursive (
           return {
             allowNew: cmdFullName === 'install',
             prefix,
-            shamefullyFlatten: localConfigs.shamefullyFlatten,
+            saveExact: typeof localConfigs.saveExact === 'boolean'
+              ? localConfigs.saveExact
+              : opts.saveExact,
+            savePrefix: typeof localConfigs.savePrefix === 'string'
+              ? localConfigs.savePrefix
+              : opts.savePrefix,
+            shamefullyFlatten: typeof localConfigs.shamefullyFlatten === 'boolean'
+              ? localConfigs.shamefullyFlatten
+              : opts.shamefullyFlatten,
             targetDependencies: input,
             targetDependenciesField: getSaveType(installOpts),
           }

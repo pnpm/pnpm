@@ -21,8 +21,8 @@ export type DependencyOperation = {
   {
     allowNew?: boolean,
     operation: 'add' | 'update',
-    exactVersion?: boolean,
-    versionPrefix?: string,
+    saveExact?: boolean,
+    savePrefix?: string,
   } | {
     operation: 'remove',
   }

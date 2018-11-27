@@ -407,9 +407,9 @@ test('subdeps are updated on repeat install if outer shrinkwrap.yaml does not ma
 test("recreates shrinkwrap file if it doesn't match the dependencies in package.json", async (t: tape.Test) => {
   const project = prepare(t)
 
-  await addDependenciesToSingleProject(['is-negative@1.0.0'], await testDefaults({ exactVersion: true, targetDependenciesField: 'dependencies' }))
-  await addDependenciesToSingleProject(['is-positive@1.0.0'], await testDefaults({ exactVersion: true, targetDependenciesField: 'devDependencies' }))
-  await addDependenciesToSingleProject(['map-obj@1.0.0'], await testDefaults({ exactVersion: true, targetDependenciesField: 'optionalDependencies' }))
+  await addDependenciesToSingleProject(['is-negative@1.0.0'], await testDefaults({ saveExact: true, targetDependenciesField: 'dependencies' }))
+  await addDependenciesToSingleProject(['is-positive@1.0.0'], await testDefaults({ saveExact: true, targetDependenciesField: 'devDependencies' }))
+  await addDependenciesToSingleProject(['map-obj@1.0.0'], await testDefaults({ saveExact: true, targetDependenciesField: 'optionalDependencies' }))
 
   const shr1 = await project.loadShrinkwrap()
   t.equal(shr1.dependencies['is-negative'], '1.0.0')

@@ -380,10 +380,10 @@ export async function addDependenciesToSingleProject (
   targetDependencies: string[],
   opts: InstallOptions & {
     allowNew?: boolean,
-    exactVersion?: boolean,
     prefix?: string,
+    saveExact?: boolean,
+    savePrefix?: string,
     targetDependenciesField?: DependenciesField,
-    versionPrefix?: string,
   },
 ) {
   return installPkgs({
@@ -391,12 +391,12 @@ export async function addDependenciesToSingleProject (
     importers: [
       {
         allowNew: opts.allowNew,
-        exactVersion: opts.exactVersion,
         operation: 'add',
         prefix: opts.prefix || process.cwd(),
+        saveExact: opts.saveExact,
+        savePrefix: opts.savePrefix,
         targetDependencies,
         targetDependenciesField: opts.targetDependenciesField,
-        versionPrefix: opts.versionPrefix,
       },
     ],
     shrinkwrapDirectory: opts.shrinkwrapDirectory || opts.prefix,
@@ -624,8 +624,8 @@ async function installInContext (
           return {
             name: dep.alias,
             pref: dep.normalizedPref || getPref(dep.alias, dep.name, dep.version, {
-              saveExact: importer.exactVersion === true,
-              savePrefix: importer.versionPrefix || '^',
+              saveExact: importer.saveExact === true,
+              savePrefix: importer.savePrefix || '^',
             }),
             saveType: importer.targetDependenciesField,
           }
