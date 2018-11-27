@@ -1,7 +1,7 @@
 import prepare from '@pnpm/prepare'
 import readPkg = require('read-pkg')
 import {
-  addDependenciesToSingleProject,
+  addDependenciesToPackage,
   install,
 } from 'supi'
 import tape = require('tape')
@@ -17,7 +17,7 @@ const testOnly = promisifyTape(tape.only)
 
 test('save to package.json (rimraf@2.5.1)', async (t) => {
   const project = prepare(t)
-  await addDependenciesToSingleProject(['rimraf@2.5.1'], await testDefaults({ save: true }))
+  await addDependenciesToPackage(['rimraf@2.5.1'], await testDefaults({ save: true }))
 
   const m = project.requireModule('rimraf')
   t.ok(typeof m === 'function', 'rimraf() is available')
@@ -35,9 +35,9 @@ test("don't override existing spec in package.json on named installation", async
       'sec': 'sindresorhus/sec',
     },
   })
-  await addDependenciesToSingleProject(['is-positive'], await testDefaults())
-  await addDependenciesToSingleProject(['is-negative'], await testDefaults())
-  await addDependenciesToSingleProject(['sec'], await testDefaults())
+  await addDependenciesToPackage(['is-positive'], await testDefaults())
+  await addDependenciesToPackage(['is-negative'], await testDefaults())
+  await addDependenciesToPackage(['sec'], await testDefaults())
 
   t.equal(project.requireModule('is-positive/package.json').version, '2.0.0')
   t.equal(project.requireModule('is-negative/package.json').version, '1.0.1')
@@ -52,7 +52,7 @@ test("don't override existing spec in package.json on named installation", async
 
 test('saveDev scoped module to package.json (@rstacruz/tap-spec)', async (t) => {
   const project = prepare(t)
-  await addDependenciesToSingleProject(['@rstacruz/tap-spec'], await testDefaults({ targetDependenciesField: 'devDependencies' }))
+  await addDependenciesToPackage(['@rstacruz/tap-spec'], await testDefaults({ targetDependenciesField: 'devDependencies' }))
 
   const m = project.requireModule('@rstacruz/tap-spec')
   t.ok(typeof m === 'function', 'tapSpec() is available')
@@ -73,7 +73,7 @@ test('dependency should not be added to package.json if it is already there', as
       bar: '^100.0.0',
     },
   })
-  await addDependenciesToSingleProject(['foo', 'bar'], await testDefaults())
+  await addDependenciesToPackage(['foo', 'bar'], await testDefaults())
 
   const pkgJson = await readPkg({ normalize: false })
   t.deepEqual(pkgJson, {
@@ -108,7 +108,7 @@ test('dependencies should be updated in the fields where they already are', asyn
       bar: '^100.0.0',
     },
   })
-  await addDependenciesToSingleProject(['foo@latest', 'bar@latest'], await testDefaults())
+  await addDependenciesToPackage(['foo@latest', 'bar@latest'], await testDefaults())
 
   const pkgJson = await readPkg({ normalize: false })
   t.deepEqual(pkgJson, {
@@ -139,9 +139,9 @@ test('dependency should be removed from the old field when installing it as a di
       qar: '^100.0.0',
     },
   })
-  await addDependenciesToSingleProject(['foo'], await testDefaults({ targetDependenciesField: 'optionalDependencies' }))
-  await addDependenciesToSingleProject(['bar'], await testDefaults({ targetDependenciesField: 'dependencies' }))
-  await addDependenciesToSingleProject(['qar'], await testDefaults({ targetDependenciesField: 'devDependencies' }))
+  await addDependenciesToPackage(['foo'], await testDefaults({ targetDependenciesField: 'optionalDependencies' }))
+  await addDependenciesToPackage(['bar'], await testDefaults({ targetDependenciesField: 'dependencies' }))
+  await addDependenciesToPackage(['qar'], await testDefaults({ targetDependenciesField: 'devDependencies' }))
 
   {
     const pkgJson = await readPkg({ normalize: false })
@@ -160,7 +160,7 @@ test('dependency should be removed from the old field when installing it as a di
     }, 'dependencies moved around correctly')
   }
 
-  await addDependenciesToSingleProject(['bar', 'foo', 'qar'], await testDefaults({ targetDependenciesField: 'dependencies' }))
+  await addDependenciesToPackage(['bar', 'foo', 'qar'], await testDefaults({ targetDependenciesField: 'dependencies' }))
 
   {
     const pkgJson = await readPkg({ normalize: false })
@@ -195,7 +195,7 @@ test('dependency should be removed from the old field when installing it as a di
 
 test('multiple save to package.json with `exact` versions (@rstacruz/tap-spec & rimraf@2.5.1) (in sorted order)', async (t: tape.Test) => {
   const project = prepare(t)
-  await addDependenciesToSingleProject(['rimraf@2.5.1', '@rstacruz/tap-spec@latest'], await testDefaults({ save: true, saveExact: true }))
+  await addDependenciesToPackage(['rimraf@2.5.1', '@rstacruz/tap-spec@latest'], await testDefaults({ save: true, saveExact: true }))
 
   const m1 = project.requireModule('@rstacruz/tap-spec')
   t.ok(typeof m1 === 'function', 'tapSpec() is available')
@@ -214,7 +214,7 @@ test('multiple save to package.json with `exact` versions (@rstacruz/tap-spec & 
 
 test('save to package.json with save-prefix=~', async (t: tape.Test) => {
   const project = prepare(t)
-  await addDependenciesToSingleProject(['rimraf@2.5.1'], await testDefaults({ savePrefix: '~' }))
+  await addDependenciesToPackage(['rimraf@2.5.1'], await testDefaults({ savePrefix: '~' }))
 
   const pkgJson = await readPkg()
   t.deepEqual(pkgJson.dependencies, { rimraf: '~2.5.1' }, 'rimraf have been added to dependencies')

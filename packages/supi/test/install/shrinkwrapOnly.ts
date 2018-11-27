@@ -4,7 +4,7 @@ import fs = require('mz/fs')
 import path = require('path')
 import sinon = require('sinon')
 import {
-  addDependenciesToSingleProject,
+  addDependenciesToPackage,
   install,
 } from 'supi'
 import tape = require('tape')
@@ -18,7 +18,7 @@ test('install with shrinkwrapOnly = true', async (t: tape.Test) => {
   const project = prepare(t)
 
   const opts = await testDefaults({ shrinkwrapOnly: true, saveExact: true })
-  await addDependenciesToSingleProject(['pkg-with-1-dep@100.0.0'], opts)
+  await addDependenciesToPackage(['pkg-with-1-dep@100.0.0'], opts)
 
   t.deepEqual(await fs.readdir(path.join(opts.store, 'localhost+4873', 'pkg-with-1-dep')), ['100.0.0', 'index.json'])
   t.deepEqual(await fs.readdir(path.join(opts.store, 'localhost+4873', 'dep-of-pkg-with-1-dep')), ['100.1.0', 'index.json'])
@@ -49,8 +49,8 @@ test('warn when installing with shrinkwrapOnly = true and node_modules exists', 
   const project = prepare(t)
   const reporter = sinon.spy()
 
-  await addDependenciesToSingleProject(['is-positive'], await testDefaults())
-  await addDependenciesToSingleProject(['rimraf@2.5.1'], await testDefaults({
+  await addDependenciesToPackage(['is-positive'], await testDefaults())
+  await addDependenciesToPackage(['rimraf@2.5.1'], await testDefaults({
     reporter,
     shrinkwrapOnly: true,
   }))

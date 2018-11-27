@@ -3,7 +3,7 @@ import { fromDir as readPackageJsonFromDir } from '@pnpm/read-package-json'
 import { Shrinkwrap } from 'pnpm-shrinkwrap'
 import sinon = require('sinon')
 import {
-  addDependenciesToSingleProject,
+  addDependenciesToPackage,
   install,
   PackageManifest,
 } from 'supi'
@@ -40,7 +40,7 @@ test('readPackage, afterAllResolved hooks', async (t: tape.Test) => {
     return shr
   })
 
-  await addDependenciesToSingleProject(['pkg-with-1-dep'], await testDefaults({
+  await addDependenciesToPackage(['pkg-with-1-dep'], await testDefaults({
     hooks: {
       afterAllResolved,
       readPackage: readPackageHook,

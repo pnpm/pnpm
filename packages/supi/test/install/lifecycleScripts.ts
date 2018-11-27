@@ -6,7 +6,7 @@ import PATH = require('path-name')
 import rimraf = require('rimraf-then')
 import sinon = require('sinon')
 import {
-  addDependenciesToSingleProject,
+  addDependenciesToPackage,
   install,
   LifecycleLog,
 } from 'supi'
@@ -20,7 +20,7 @@ const test = promisifyTape(tape)
 
 test('run pre/postinstall scripts', async (t: tape.Test) => {
   const project = prepare(t)
-  await addDependenciesToSingleProject(['pre-and-postinstall-scripts-example'], await testDefaults({ targetDependenciesField: 'devDependencies' }))
+  await addDependenciesToPackage(['pre-and-postinstall-scripts-example'], await testDefaults({ targetDependenciesField: 'devDependencies' }))
 
   {
     t.notOk(await exists('node_modules/pre-and-postinstall-scripts-example/generated-by-prepare.js'))
@@ -55,8 +55,8 @@ test('run pre/postinstall scripts', async (t: tape.Test) => {
 test('testing that the bins are linked when the package with the bins was already in node_modules', async (t: tape.Test) => {
   const project = prepare(t)
 
-  await addDependenciesToSingleProject(['hello-world-js-bin'], await testDefaults())
-  await addDependenciesToSingleProject(['pre-and-postinstall-scripts-example'], await testDefaults({ targetDependenciesField: 'devDependencies' }))
+  await addDependenciesToPackage(['hello-world-js-bin'], await testDefaults())
+  await addDependenciesToPackage(['pre-and-postinstall-scripts-example'], await testDefaults({ targetDependenciesField: 'devDependencies' }))
 
   const generatedByPreinstall = project.requireModule('pre-and-postinstall-scripts-example/generated-by-preinstall')
   t.ok(typeof generatedByPreinstall === 'function', 'generatedByPreinstall() is available')
@@ -67,7 +67,7 @@ test('testing that the bins are linked when the package with the bins was alread
 
 test('run install scripts', async (t: tape.Test) => {
   const project = prepare(t)
-  await addDependenciesToSingleProject(['install-script-example'], await testDefaults())
+  await addDependenciesToPackage(['install-script-example'], await testDefaults())
 
   const generatedByInstall = project.requireModule('install-script-example/generated-by-install')
   t.ok(typeof generatedByInstall === 'function', 'generatedByInstall() is available')
@@ -81,7 +81,7 @@ test('run install scripts in the current project', async (t: tape.Test) => {
       preinstall: `node -e "process.stdout.write('preinstall')" | json-append output.json`,
     },
   })
-  await addDependenciesToSingleProject(['json-append@1.1.1'], await testDefaults())
+  await addDependenciesToPackage(['json-append@1.1.1'], await testDefaults())
   await install(await testDefaults())
 
   const output = await loadJsonFile<string[]>('output.json')
@@ -98,7 +98,7 @@ test('run install scripts in the current project when its name is different than
       preinstall: `node -e "process.stdout.write('preinstall')" | json-append output.json`,
     },
   })
-  await addDependenciesToSingleProject(['json-append@1.1.1'], await testDefaults())
+  await addDependenciesToPackage(['json-append@1.1.1'], await testDefaults())
   await install(await testDefaults())
 
   const output = await loadJsonFile('output.json')
@@ -116,7 +116,7 @@ test('do not run install scripts if unsafePerm is false', async (t: tape.Test) =
     },
   })
   const opts = await testDefaults({ unsafePerm: false })
-  await addDependenciesToSingleProject(['json-append@1.1.1'], opts)
+  await addDependenciesToPackage(['json-append@1.1.1'], opts)
   await install(opts)
 
   const outputExists = await exists('output.json')
@@ -148,7 +148,7 @@ test['skip']('creates env for scripts', async (t: tape.Test) => {
       install: `node -e "process.stdout.write(process.env.INIT_CWD)" | json-append output.json`,
     },
   })
-  await addDependenciesToSingleProject(['json-append@1.1.1'], await testDefaults())
+  await addDependenciesToPackage(['json-append@1.1.1'], await testDefaults())
   await install(await testDefaults())
 
   const output = await loadJsonFile('output.json')
@@ -158,7 +158,7 @@ test['skip']('creates env for scripts', async (t: tape.Test) => {
 
 test('INIT_CWD is set correctly', async (t: tape.Test) => {
   const project = prepare(t)
-  await addDependenciesToSingleProject(['write-lifecycle-env'], await testDefaults())
+  await addDependenciesToPackage(['write-lifecycle-env'], await testDefaults())
 
   const childEnv = await loadJsonFile<{ INIT_CWD: string }>(path.resolve('node_modules', 'write-lifecycle-env', 'env.json'))
 
@@ -171,7 +171,7 @@ test("reports child's output", async (t: tape.Test) => {
 
   const reporter = sinon.spy()
 
-  await addDependenciesToSingleProject(['count-to-10'], await testDefaults({ reporter }))
+  await addDependenciesToPackage(['count-to-10'], await testDefaults({ reporter }))
 
   t.ok(reporter.calledWithMatch({
     depPath: 'localhost+4873/count-to-10/1.0.0',
@@ -219,7 +219,7 @@ test("reports child's close event", async (t: tape.Test) => {
   const reporter = sinon.spy()
 
   try {
-    await addDependenciesToSingleProject(['failing-postinstall'], await testDefaults({ reporter }))
+    await addDependenciesToPackage(['failing-postinstall'], await testDefaults({ reporter }))
     t.fail()
   } catch (err) {
     t.ok(reporter.calledWithMatch({
@@ -246,7 +246,7 @@ test('lifecycle scripts have access to node-gyp', async (t: tape.Test) => {
     .filter((p: string) => !p.includes('node-gyp-bin') && !p.includes('npm'))
     .join(path.delimiter)
 
-  await addDependenciesToSingleProject(['drivelist@5.1.8'], await testDefaults())
+  await addDependenciesToPackage(['drivelist@5.1.8'], await testDefaults())
 
   process.env[PATH] = initialPath
 
@@ -256,7 +256,7 @@ test('lifecycle scripts have access to node-gyp', async (t: tape.Test) => {
 test('run lifecycle scripts of dependent packages after running scripts of their deps', async (t: tape.Test) => {
   const project = prepare(t)
 
-  await addDependenciesToSingleProject(['with-postinstall-a'], await testDefaults())
+  await addDependenciesToPackage(['with-postinstall-a'], await testDefaults())
 
   t.ok(+project.requireModule('.localhost+4873/with-postinstall-b/1.0.0/node_modules/with-postinstall-b/output.json')[0] < +project.requireModule('with-postinstall-a/output.json')[0])
 })
@@ -264,7 +264,7 @@ test('run lifecycle scripts of dependent packages after running scripts of their
 test('run prepare script for git-hosted dependencies', async (t: tape.Test) => {
   const project = prepare(t)
 
-  await addDependenciesToSingleProject(['zkochan/install-scripts-example#prepare'], await testDefaults())
+  await addDependenciesToPackage(['zkochan/install-scripts-example#prepare'], await testDefaults())
 
   const scripts = project.requireModule('install-scripts-example-for-pnpm/output.json')
   t.equal(scripts[0], 'preinstall')

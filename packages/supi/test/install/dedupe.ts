@@ -1,6 +1,6 @@
 import prepare from '@pnpm/prepare'
 import pnpmRegistryMock = require('pnpm-registry-mock')
-import { addDependenciesToSingleProject, install } from 'supi'
+import { addDependenciesToPackage, install } from 'supi'
 import tape = require('tape')
 import promisifyTape from 'tape-promise'
 import { testDefaults } from '../utils'
@@ -35,7 +35,7 @@ test('prefer version ranges specified for top dependencies, when doing named ins
   await addDistTag({ package: 'dep-of-pkg-with-1-dep', version: '100.1.0', distTag: 'latest' })
 
   await install(await testDefaults())
-  await addDependenciesToSingleProject(['pkg-with-1-dep'], await testDefaults())
+  await addDependenciesToPackage(['pkg-with-1-dep'], await testDefaults())
 
   const shr = await project.loadShrinkwrap()
   t.ok(shr.packages['/dep-of-pkg-with-1-dep/100.0.0'])

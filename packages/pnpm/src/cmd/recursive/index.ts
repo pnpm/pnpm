@@ -13,7 +13,7 @@ import path = require('path')
 import createPkgGraph, { PackageNode } from 'pkgs-graph'
 import readIniFile = require('read-ini-file')
 import {
-  addDependenciesToSingleProject,
+  addDependenciesToPackage,
   install,
   InstallOptions,
   installPkgs,
@@ -208,7 +208,7 @@ export async function recursive (
         action = uninstall.bind(null, input)
         break
       default:
-        action = (input.length === 0 ? install : (opts.shrinkwrapDirectory ? installPkgs : addDependenciesToSingleProject.bind(null, input)))
+        action = (input.length === 0 ? install : (opts.shrinkwrapDirectory ? installPkgs : addDependenciesToPackage.bind(null, input)))
         break
     }
 

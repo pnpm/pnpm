@@ -6,7 +6,7 @@ import normalizePath = require('normalize-path')
 import path = require('path')
 import readPkg = require('read-pkg')
 import {
-  addDependenciesToSingleProject,
+  addDependenciesToPackage,
   install,
 } from 'supi'
 import symlinkDir = require('symlink-dir')
@@ -25,7 +25,7 @@ const testOnly = promisifyTape(tape.only)
 
 test('scoped modules from a directory', async (t: tape.Test) => {
   const project = prepare(t)
-  await addDependenciesToSingleProject([local('local-scoped-pkg')], await testDefaults())
+  await addDependenciesToPackage([local('local-scoped-pkg')], await testDefaults())
 
   const m = project.requireModule('@scope/local-scoped-pkg')
 
@@ -36,7 +36,7 @@ test('local file', async (t: tape.Test) => {
   const project = prepare(t)
   await ncp(pathToLocalPkg('local-pkg'), path.resolve('..', 'local-pkg'))
 
-  await addDependenciesToSingleProject(['file:../local-pkg'], await testDefaults())
+  await addDependenciesToPackage(['file:../local-pkg'], await testDefaults())
 
   const pkgJson = await readPkg()
   const expectedSpecs = { 'local-pkg': `link:..${path.sep}local-pkg` }
@@ -63,7 +63,7 @@ test('local file via link:', async (t: tape.Test) => {
   const project = prepare(t)
   await ncp(pathToLocalPkg('local-pkg'), path.resolve('..', 'local-pkg'))
 
-  await addDependenciesToSingleProject(['link:../local-pkg'], await testDefaults())
+  await addDependenciesToPackage(['link:../local-pkg'], await testDefaults())
 
   const pkgJson = await readPkg()
   const expectedSpecs = { 'local-pkg': `link:..${path.sep}local-pkg` }
@@ -92,7 +92,7 @@ test('local file with symlinked node_modules', async (t: tape.Test) => {
   await fs.mkdir(path.join('..', 'node_modules'))
   await symlinkDir(path.join('..', 'node_modules'), 'node_modules')
 
-  await addDependenciesToSingleProject(['file:../local-pkg'], await testDefaults())
+  await addDependenciesToPackage(['file:../local-pkg'], await testDefaults())
 
   const pkgJson = await readPkg()
   const expectedSpecs = { 'local-pkg': `link:..${path.sep}local-pkg` }
@@ -117,7 +117,7 @@ test('local file with symlinked node_modules', async (t: tape.Test) => {
 
 test('package with a broken symlink', async (t) => {
   const project = prepare(t)
-  await addDependenciesToSingleProject([pathToLocalPkg('has-broken-symlink/has-broken-symlink.tar.gz')], await testDefaults())
+  await addDependenciesToPackage([pathToLocalPkg('has-broken-symlink/has-broken-symlink.tar.gz')], await testDefaults())
 
   const m = project.requireModule('has-broken-symlink')
 
@@ -126,7 +126,7 @@ test('package with a broken symlink', async (t) => {
 
 test('tarball local package', async (t: tape.Test) => {
   const project = prepare(t)
-  await addDependenciesToSingleProject([pathToLocalPkg('tar-pkg/tar-pkg-1.0.0.tgz')], await testDefaults())
+  await addDependenciesToPackage([pathToLocalPkg('tar-pkg/tar-pkg-1.0.0.tgz')], await testDefaults())
 
   const m = project.requireModule('tar-pkg')
 
@@ -184,7 +184,7 @@ test('update tarball local package when its integrity changes', async (t) => {
   const project = prepare(t)
 
   await ncp(pathToLocalPkg('tar-pkg-with-dep-1/tar-pkg-with-dep-1.0.0.tgz'), path.resolve('..', 'tar.tgz'))
-  await addDependenciesToSingleProject(['../tar.tgz'], await testDefaults())
+  await addDependenciesToPackage(['../tar.tgz'], await testDefaults())
 
   const shr1 = await project.loadShrinkwrap()
   t.equal(shr1.packages['file:../tar.tgz'].dependencies['is-positive'], '1.0.0')

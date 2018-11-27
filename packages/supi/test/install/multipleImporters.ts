@@ -3,7 +3,7 @@ import { preparePackages } from '@pnpm/prepare'
 import path = require('path')
 import readPkg = require('read-pkg')
 import sinon = require('sinon')
-import { addDependenciesToSingleProject, install, installPkgs } from 'supi'
+import { addDependenciesToPackage, install, installPkgs } from 'supi'
 import tape = require('tape')
 import promisifyTape from 'tape-promise'
 import { testDefaults } from '../utils'
@@ -82,7 +82,7 @@ test('dependencies of other importers are not pruned when installing for a subse
     ]
   }))
 
-  await addDependenciesToSingleProject(['is-positive@2'], await testDefaults({
+  await addDependenciesToPackage(['is-positive@2'], await testDefaults({
     prefix: path.resolve('project-1'),
     shrinkwrapDirectory: process.cwd(),
   }))
@@ -126,7 +126,7 @@ test('dependencies of other importers are not pruned when (headless) installing 
   ]
   await install(await testDefaults({ importers }))
 
-  await addDependenciesToSingleProject(['is-positive@2'], await testDefaults({
+  await addDependenciesToPackage(['is-positive@2'], await testDefaults({
     prefix: path.resolve('project-1'),
     shrinkwrapDirectory: process.cwd(),
     shrinkwrapOnly: true,
@@ -160,7 +160,7 @@ test('adding a new dev dependency to project that uses a shared shrinkwrap', asy
     },
   ]
   await install(await testDefaults({ importers }))
-  await addDependenciesToSingleProject(['is-negative@1.0.0'], await testDefaults({ prefix: path.resolve('project-1'), targetDependenciesField: 'devDependencies' }))
+  await addDependenciesToPackage(['is-negative@1.0.0'], await testDefaults({ prefix: path.resolve('project-1'), targetDependenciesField: 'devDependencies' }))
 
   const pkg = await readPkg({ cwd: 'project-1' })
 

@@ -1,6 +1,6 @@
 import prepare from '@pnpm/prepare'
 import rimraf = require('rimraf-then')
-import { addDependenciesToSingleProject, installPkgs, storeStatus } from 'supi'
+import { addDependenciesToPackage, installPkgs, storeStatus } from 'supi'
 import tape = require('tape')
 import promisifyTape from 'tape-promise'
 import { testDefaults } from './utils'
@@ -11,7 +11,7 @@ test('store status returns empty array when store was not modified', async (t: t
   const project = prepare(t)
 
   const opts = await testDefaults()
-  await addDependenciesToSingleProject(['is-positive@3.1.0'], opts)
+  await addDependenciesToPackage(['is-positive@3.1.0'], opts)
 
   const mutatedPkgs = await storeStatus(opts)
 
@@ -22,7 +22,7 @@ test('store status does not fail on not installed optional dependencies', async 
   const project = prepare(t)
 
   const opts = await testDefaults({ targetDependenciesField: 'optionalDependencies' })
-  await addDependenciesToSingleProject(['not-compatible-with-any-os'], opts)
+  await addDependenciesToPackage(['not-compatible-with-any-os'], opts)
 
   const mutatedPkgs = await storeStatus(opts)
 
@@ -33,7 +33,7 @@ test('store status returns path to the modified package', async (t: tape.Test) =
   const project = prepare(t)
 
   const opts = await testDefaults()
-  await addDependenciesToSingleProject(['is-positive@3.1.0'], opts)
+  await addDependenciesToPackage(['is-positive@3.1.0'], opts)
 
   const isPositive = await project.resolve('is-positive', '3.1.0', 'index.js')
   await rimraf(isPositive)

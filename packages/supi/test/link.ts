@@ -8,7 +8,7 @@ import exists = require('path-exists')
 import readPkg = require('read-pkg')
 import sinon = require('sinon')
 import {
-  addDependenciesToSingleProject,
+  addDependenciesToPackage,
   install,
   installPkgs,
   link,
@@ -132,7 +132,7 @@ test('relative link is rewritten by named installation to regular dependency', a
     prefix: process.cwd(),
   } as RootLog), 'linked root dependency logged')
 
-  await addDependenciesToSingleProject(['hello-world-js-bin'], opts)
+  await addDependenciesToPackage(['hello-world-js-bin'], opts)
 
   const pkg = await readPkg()
 
@@ -194,7 +194,7 @@ test('node_modules is pruned after linking', async (t: tape.Test) => {
 
   await writeJsonFile('../is-positive/package.json', { name: 'is-positive', version: '1.0.0' })
 
-  await addDependenciesToSingleProject(['is-positive@1.0.0'], await testDefaults())
+  await addDependenciesToPackage(['is-positive@1.0.0'], await testDefaults())
 
   t.ok(await exists('node_modules/.localhost+4873/is-positive/1.0.0/node_modules/is-positive/package.json'))
 

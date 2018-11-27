@@ -2,7 +2,7 @@ import prepare from '@pnpm/prepare'
 import isCI = require('is-ci')
 import mkdirp = require('mkdirp-promise')
 import fs = require('mz/fs')
-import { addDependenciesToSingleProject, install } from 'supi'
+import { addDependenciesToPackage, install } from 'supi'
 import tape = require('tape')
 import promisifyTape from 'tape-promise'
 import { testDefaults } from './utils'
@@ -17,7 +17,7 @@ test('fail on non-compatible node_modules', async (t: tape.Test) => {
   await saveModulesYaml('0.50.0', opts.store)
 
   try {
-    await addDependenciesToSingleProject(['is-negative'], opts)
+    await addDependenciesToPackage(['is-negative'], opts)
     t.fail('should have failed')
   } catch (err) {
     t.equal(err.code, 'MODULES_BREAKING_CHANGE', 'modules breaking change error is thrown')
@@ -42,7 +42,7 @@ test('fail on non-compatible node_modules when forced with a named installation'
   await saveModulesYaml('0.50.0', opts.store)
 
   try {
-    await addDependenciesToSingleProject(['is-negative'], opts)
+    await addDependenciesToPackage(['is-negative'], opts)
     t.fail('should have failed')
   } catch (err) {
     t.equal(err['code'], 'MODULES_BREAKING_CHANGE', 'failed with correct error code') // tslint:disable-line:no-string-literal
@@ -67,7 +67,7 @@ test('fail on non-compatible store when forced during named installation', async
   await saveModulesYaml('0.32.0', opts.store)
 
   try {
-    await addDependenciesToSingleProject(['is-negative'], opts)
+    await addDependenciesToPackage(['is-negative'], opts)
     t.fail('should have failed')
   } catch (err) {
     t.equal(err['code'], 'MODULES_BREAKING_CHANGE', 'failed with correct error code') // tslint:disable-line:no-string-literal
@@ -89,7 +89,7 @@ test('fail on non-compatible shrinkwrap.yaml', async (t: tape.Test) => {
   await fs.writeFile('shrinkwrap.yaml', '')
 
   try {
-    await addDependenciesToSingleProject(['is-negative'], await testDefaults())
+    await addDependenciesToPackage(['is-negative'], await testDefaults())
     t.fail('should have failed')
   } catch (err) {
     t.equal(err.code, 'SHRINKWRAP_BREAKING_CHANGE', 'shrinkwrap breaking change error is thrown')
@@ -100,7 +100,7 @@ test("don't fail on non-compatible shrinkwrap.yaml when forced", async (t: tape.
   const project = prepare(t)
   await fs.writeFile('shrinkwrap.yaml', '')
 
-  await addDependenciesToSingleProject(['is-negative'], await testDefaults({ force: true }))
+  await addDependenciesToPackage(['is-negative'], await testDefaults({ force: true }))
 
   t.pass('install did not fail')
 })

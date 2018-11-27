@@ -1,7 +1,7 @@
 import prepare from '@pnpm/prepare'
 import fs = require('fs')
 import resolveLinkTarget = require('resolve-link-target')
-import { addDependenciesToSingleProject, install, uninstall } from 'supi'
+import { addDependenciesToPackage, install, uninstall } from 'supi'
 import tape = require('tape')
 import promisifyTape from 'tape-promise'
 import { testDefaults } from '../utils'
@@ -12,7 +12,7 @@ const testOnly = promisifyTape(tape.only)
 test('should flatten dependencies', async (t) => {
   const project = prepare(t)
 
-  await addDependenciesToSingleProject(['express'], await testDefaults({ shamefullyFlatten: true }))
+  await addDependenciesToPackage(['express'], await testDefaults({ shamefullyFlatten: true }))
 
   await project.has('express')
   await project.has('debug')
@@ -25,7 +25,7 @@ test('should flatten dependencies', async (t) => {
 test('should remove flattened dependencies', async (t) => {
   const project = prepare(t)
 
-  await addDependenciesToSingleProject(['express'], await testDefaults({ shamefullyFlatten: true }))
+  await addDependenciesToPackage(['express'], await testDefaults({ shamefullyFlatten: true }))
   await uninstall(['express'], await testDefaults({ shamefullyFlatten: true }))
 
   await project.hasNot('express')
@@ -37,9 +37,9 @@ test('should not override root packages with flattened dependencies', async (t) 
   const project = prepare(t)
 
   // this installs debug@3.1.0
-  await addDependenciesToSingleProject(['debug@3.1.0'], await testDefaults({ shamefullyFlatten: true }))
+  await addDependenciesToPackage(['debug@3.1.0'], await testDefaults({ shamefullyFlatten: true }))
   // this installs express@4.16.2, that depends on debug 2.6.9, but we don't want to flatten debug@2.6.9
-  await addDependenciesToSingleProject(['express@4.16.2'], await testDefaults({ shamefullyFlatten: true }))
+  await addDependenciesToPackage(['express@4.16.2'], await testDefaults({ shamefullyFlatten: true }))
 
   t.equal(project.requireModule('debug/package.json').version, '3.1.0', 'debug did not get overridden by flattening')
 })
@@ -48,7 +48,7 @@ test('should reflatten when uninstalling a package', async (t) => {
   const project = prepare(t)
 
   // this installs debug@3.1.0 and express@4.16.0
-  await addDependenciesToSingleProject(['debug@3.1.0', 'express@4.16.0'], await testDefaults({ shamefullyFlatten: true }))
+  await addDependenciesToPackage(['debug@3.1.0', 'express@4.16.0'], await testDefaults({ shamefullyFlatten: true }))
   // uninstall debug@3.1.0 to check if debug@2.6.9 gets reflattened
   await uninstall(['debug'], await testDefaults({ shamefullyFlatten: true }))
 
@@ -96,17 +96,17 @@ test('should reflatten after running a general install', async (t) => {
 test('should not override aliased dependencies', async (t: tape.Test) => {
   const project = prepare(t)
   // now I install is-negative, but aliased as "debug". I do not want the "debug" dependency of express to override my alias
-  await addDependenciesToSingleProject(['debug@npm:is-negative@1.0.0', 'express'], await testDefaults({ shamefullyFlatten: true }))
+  await addDependenciesToPackage(['debug@npm:is-negative@1.0.0', 'express'], await testDefaults({ shamefullyFlatten: true }))
 
   t.equal(project.requireModule('debug/package.json').version, '1.0.0', 'alias respected by flattening')
 })
 
 test('--shamefully-flatten throws exception when executed on node_modules installed w/o the option', async (t: tape.Test) => {
   const project = prepare(t)
-  await addDependenciesToSingleProject(['is-positive'], await testDefaults({ shamefullyFlatten: false }))
+  await addDependenciesToPackage(['is-positive'], await testDefaults({ shamefullyFlatten: false }))
 
   try {
-    await addDependenciesToSingleProject(['is-negative'], await testDefaults({ shamefullyFlatten: true }))
+    await addDependenciesToPackage(['is-negative'], await testDefaults({ shamefullyFlatten: true }))
     t.fail('installation should have failed')
   } catch (err) {
     t.ok(err['code'], 'ERR_PNPM_SHAMEFULLY_FLATTEN_NOT_WANTED') // tslint:disable-line:no-string-literal
@@ -116,10 +116,10 @@ test('--shamefully-flatten throws exception when executed on node_modules instal
 
 test('--no-shamefully-flatten throws exception when executed on node_modules installed with --shamefully-flatten', async (t: tape.Test) => {
   const project = prepare(t)
-  await addDependenciesToSingleProject(['is-positive'], await testDefaults({ shamefullyFlatten: true }))
+  await addDependenciesToPackage(['is-positive'], await testDefaults({ shamefullyFlatten: true }))
 
   try {
-    await addDependenciesToSingleProject(['is-negative'], await testDefaults({ shamefullyFlatten: false }))
+    await addDependenciesToPackage(['is-negative'], await testDefaults({ shamefullyFlatten: false }))
     t.fail('installation should have failed')
   } catch (err) {
     t.ok(err['code'], 'ERR_PNPM_SHAMEFULLY_FLATTEN_WANTED') // tslint:disable-line:no-string-literal
@@ -131,7 +131,7 @@ test('flatten by alias', async (t: tape.Test) => {
   const project = prepare(t)
 
   // pkg-with-1-aliased-dep aliases dep-of-pkg-with-1-dep as just "dep"
-  await addDependenciesToSingleProject(['pkg-with-1-aliased-dep'], await testDefaults({ shamefullyFlatten: true }))
+  await addDependenciesToPackage(['pkg-with-1-aliased-dep'], await testDefaults({ shamefullyFlatten: true }))
 
   await project.has('pkg-with-1-aliased-dep')
   await project.has('dep')
@@ -145,7 +145,7 @@ test('flatten by alias', async (t: tape.Test) => {
 test('should remove aliased flattened dependencies', async (t) => {
   const project = prepare(t)
 
-  await addDependenciesToSingleProject(['pkg-with-1-aliased-dep'], await testDefaults({ shamefullyFlatten: true }))
+  await addDependenciesToPackage(['pkg-with-1-aliased-dep'], await testDefaults({ shamefullyFlatten: true }))
   await uninstall(['pkg-with-1-aliased-dep'], await testDefaults({ shamefullyFlatten: true }))
 
   await project.hasNot('pkg-with-1-aliased-dep')
@@ -217,14 +217,14 @@ test('should reflatten after pruning', async (t) => {
 
 test('should flatten correctly peer dependencies', async (t) => {
   const project = prepare(t)
-  await addDependenciesToSingleProject(['using-ajv'], await testDefaults({ shamefullyFlatten: true }))
+  await addDependenciesToPackage(['using-ajv'], await testDefaults({ shamefullyFlatten: true }))
 
   await project.has('ajv-keywords')
 })
 
 test('should uninstall correctly peer dependencies', async (t) => {
   const project = prepare(t)
-  await addDependenciesToSingleProject(['using-ajv'], await testDefaults({ shamefullyFlatten: true }))
+  await addDependenciesToPackage(['using-ajv'], await testDefaults({ shamefullyFlatten: true }))
   await uninstall(['using-ajv'], await testDefaults({ shamefullyFlatten: true }))
 
   t.throws(() => fs.lstatSync('node_modules/ajv-keywords'), Error, 'symlink to peer dependency is deleted')

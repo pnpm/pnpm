@@ -376,7 +376,7 @@ function refIsLocalTarball (ref: string) {
   return ref.startsWith('file:') && (ref.endsWith('.tgz') || ref.endsWith('.tar.gz') || ref.endsWith('.tar'))
 }
 
-export async function addDependenciesToSingleProject (
+export async function addDependenciesToPackage (
   targetDependencies: string[],
   opts: InstallOptions & {
     allowNew?: boolean,

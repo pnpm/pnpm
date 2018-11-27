@@ -5,7 +5,7 @@ import R = require('ramda')
 import rimraf = require('rimraf-then')
 import sinon = require('sinon')
 import {
-  addDependenciesToSingleProject,
+  addDependenciesToPackage,
   storePrune,
   uninstall,
 } from 'supi'
@@ -19,7 +19,7 @@ const testOnly = promisifyTape(tape.only)
 test('remove unreferenced packages', async (t: tape.Test) => {
   const project = prepare(t)
 
-  await addDependenciesToSingleProject(['is-negative@2.1.0'], await testDefaults({ save: true }))
+  await addDependenciesToPackage(['is-negative@2.1.0'], await testDefaults({ save: true }))
   await uninstall(['is-negative'], await testDefaults({ save: true }))
 
   await project.storeHas('is-negative', '2.1.0')
@@ -46,7 +46,7 @@ test('remove unreferenced packages', async (t: tape.Test) => {
 test('remove packages that are used by project that no longer exist', async (t: tape.Test) => {
   const project = prepare(t)
 
-  await addDependenciesToSingleProject(['is-negative@2.1.0'], await testDefaults({ save: true }))
+  await addDependenciesToPackage(['is-negative@2.1.0'], await testDefaults({ save: true }))
 
   const pkgInStore = await project.resolve('is-negative', '2.1.0')
 
@@ -67,8 +67,8 @@ test('remove packages that are used by project that no longer exist', async (t: 
 
 test('keep dependencies used by others', async (t: tape.Test) => {
   const project = prepare(t)
-  await addDependenciesToSingleProject(['camelcase-keys@3.0.0'], await testDefaults({ save: true }))
-  await addDependenciesToSingleProject(['hastscript@3.0.0'], await testDefaults({ targetDependenciesField: 'devDependencies' }))
+  await addDependenciesToPackage(['camelcase-keys@3.0.0'], await testDefaults({ save: true }))
+  await addDependenciesToPackage(['hastscript@3.0.0'], await testDefaults({ targetDependenciesField: 'devDependencies' }))
   await uninstall(['camelcase-keys'], await testDefaults({ save: true }))
 
   await project.storeHas('camelcase-keys', '3.0.0')
@@ -98,7 +98,7 @@ test('keep dependencies used by others', async (t: tape.Test) => {
 
 test('keep dependency used by package', async (t: tape.Test) => {
   const project = prepare(t)
-  await addDependenciesToSingleProject(['is-not-positive@1.0.0', 'is-positive@3.1.0'], await testDefaults({ save: true }))
+  await addDependenciesToPackage(['is-not-positive@1.0.0', 'is-positive@3.1.0'], await testDefaults({ save: true }))
   await uninstall(['is-not-positive'], await testDefaults({ save: true }))
 
   await storePrune(await testDefaults())
