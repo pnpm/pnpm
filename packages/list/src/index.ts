@@ -1,9 +1,9 @@
 import { Registries } from '@pnpm/types'
+import npa = require('@zkochan/npm-package-arg')
 import dh, {
   forPackages as dhForPackages,
   PackageSelector,
 } from 'dependencies-hierarchy'
-import npa = require('npm-package-arg')
 import path = require('path')
 import readPkg from './readPkg'
 import renderParseable from './renderParseable'

@@ -3,7 +3,7 @@ declare module 'p-limit' {
   export = anything;
 }
 
-declare module 'npm-package-arg' {
+declare module '@zkochan/npm-package-arg' {
   const anything: any;
   export = anything;
 }

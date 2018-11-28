@@ -41,10 +41,10 @@
     "@types/archy": "0.0.31",
     "@types/node": "10.12.10",
     "@types/ramda": "0.25.39",
+    "@zkochan/npm-package-arg": "1.0.1",
     "archy": "1.0.0",
     "chalk": "2.4.1",
     "dependencies-hierarchy": "4.0.1",
-    "npm-package-arg": "6.1.0",
     "p-limit": "2.0.0",
     "ramda": "0.26.0"
   },
