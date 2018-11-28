@@ -19,7 +19,7 @@ test('list all deps of a package that has an external shrinkwrap.yaml', async (t
   }), stripIndent`
     pkg@1.0.0 ${fixtureWithExternalShrinkwrap}
     └── is-positive@1.0.0
-  ` + '\n')
+  `)
 
   t.end()
 })
@@ -30,7 +30,7 @@ test('list with default parameters', async t => {
     ├── is-negative@2.1.0
     ├── is-positive@3.1.0
     └── write-json-file@2.2.0
-  ` + '\n')
+  `)
 
   t.end()
 })
@@ -41,7 +41,7 @@ test('list with default parameters in pkg that has no name and version', async t
     ├── is-negative@2.1.0
     ├── is-positive@3.1.0
     └── write-json-file@2.2.0
-  ` + '\n')
+  `)
 
   t.end()
 })
@@ -52,7 +52,7 @@ test('list with default parameters in pkg that has no version', async t => {
     ├── is-negative@2.1.0
     ├── is-positive@3.1.0
     └── write-json-file@2.2.0
-  ` + '\n')
+  `)
 
   t.end()
 })
@@ -61,7 +61,7 @@ test('list dev only', async t => {
   t.equal(await list(fixture, { only: 'dev' }), stripIndent`
     fixture@1.0.0 ${fixture}
     └── is-positive@3.1.0
-  ` + '\n')
+  `)
 
   t.end()
 })
@@ -70,7 +70,7 @@ test('list prod only', async t => {
   t.equal(await list(fixture, { only: 'prod' }), stripIndent`
     fixture@1.0.0 ${fixture}
     └── write-json-file@2.2.0
-  ` + '\n')
+  `)
 
   t.end()
 })
@@ -90,7 +90,7 @@ test('list prod only with depth 2', async t => {
         ├── graceful-fs@4.1.11
         ├── imurmurhash@0.1.4
         └── slide@1.1.6
-  ` + '\n')
+  `)
 
   t.end()
 })
@@ -107,7 +107,13 @@ test('list with depth 1', async t => {
       ├── pify@2.3.0
       ├── sort-keys@1.1.2
       └── write-file-atomic@2.1.0
-  ` + '\n')
+  `)
+
+  t.end()
+})
+
+test('list with depth -1', async t => {
+  t.equal(await list(fixture, { depth: -1 }), `fixture@1.0.0 ${fixture}`)
 
   t.end()
 })
@@ -119,7 +125,7 @@ test('list with depth 1 and selected packages', async t => {
     └─┬ write-json-file@2.2.0
       ├── ${highlighted('make-dir@1.0.0')}
       └── ${highlighted('pify@2.3.0')}
-  ` + '\n')
+  `)
 
   t.end()
 })
@@ -139,7 +145,7 @@ test('list in long format', async t => {
         Stringify and write JSON to a file atomically
         git+https://github.com/sindresorhus/write-json-file.git
         https://github.com/sindresorhus/write-json-file#readme
-  ` + '\n')
+  `)
 
   t.end()
 })
@@ -156,7 +162,7 @@ test('parseable list with depth 1', async t => {
     ${path.join(fixture, 'node_modules/.registry.npmjs.org/sort-keys/1.1.2')}
     ${path.join(fixture, 'node_modules/.registry.npmjs.org/write-file-atomic/2.1.0')}
     ${path.join(fixture, 'node_modules/.registry.npmjs.org/write-json-file/2.2.0')}
-    ` + '\n')
+    `)
 
   t.end()
 })
@@ -165,7 +171,7 @@ test('parseable list with depth 1 and dev only', async t => {
   t.equal(await list(fixture, { parseable: true, depth: 1, only: 'dev' }), stripIndent`
     ${fixture}
     ${path.join(fixture, 'node_modules/.registry.npmjs.org/is-positive/3.1.0')}
-  ` + '\n')
+  `)
 
   t.end()
 })
@@ -182,7 +188,7 @@ test('long parseable list with depth 1', async t => {
     ${path.join(fixture, 'node_modules/.registry.npmjs.org/sort-keys/1.1.2')}:sort-keys@1.1.2
     ${path.join(fixture, 'node_modules/.registry.npmjs.org/write-file-atomic/2.1.0')}:write-file-atomic@2.1.0
     ${path.join(fixture, 'node_modules/.registry.npmjs.org/write-json-file/2.2.0')}:write-json-file@2.2.0
-  ` + '\n')
+  `)
 
   t.end()
 })
@@ -199,7 +205,7 @@ test('long parseable list with depth 1 when package has no version', async t => 
     ${path.join(fixtureWithNoPkgVersion, 'node_modules/.registry.npmjs.org/sort-keys/1.1.2')}:sort-keys@1.1.2
     ${path.join(fixtureWithNoPkgVersion, 'node_modules/.registry.npmjs.org/write-file-atomic/2.1.0')}:write-file-atomic@2.1.0
     ${path.join(fixtureWithNoPkgVersion, 'node_modules/.registry.npmjs.org/write-json-file/2.2.0')}:write-json-file@2.2.0
-  ` + '\n')
+  `)
 
   t.end()
 })
@@ -216,13 +222,13 @@ test('long parseable list with depth 1 when package has no name and no version',
     ${path.join(fixtureWithNoPkgNameAndNoVersion, 'node_modules/.registry.npmjs.org/sort-keys/1.1.2')}:sort-keys@1.1.2
     ${path.join(fixtureWithNoPkgNameAndNoVersion, 'node_modules/.registry.npmjs.org/write-file-atomic/2.1.0')}:write-file-atomic@2.1.0
     ${path.join(fixtureWithNoPkgNameAndNoVersion, 'node_modules/.registry.npmjs.org/write-json-file/2.2.0')}:write-json-file@2.2.0
-  ` + '\n')
+  `)
 
   t.end()
 })
 
 test('print empty', async t => {
-  t.equal(await list(emptyFixture), `empty@1.0.0 ${emptyFixture}\n`)
+  t.equal(await list(emptyFixture), `empty@1.0.0 ${emptyFixture}`)
   t.end()
 })
 
@@ -255,6 +261,6 @@ test('unsaved dependencies are marked', async (t) => {
   ), stripIndent`
     fixture@1.0.0 ${fixture}
     └── foo@1.0.0 ${chalk.whiteBright.bgBlack('not saved')}
-  ` + '\n')
+  `)
   t.end()
 })

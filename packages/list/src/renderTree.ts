@@ -38,7 +38,7 @@ export default async function (
     }),
   })
 
-  return s
+  return s.replace(/\n$/, '')
 }
 
 async function toArchyTree (

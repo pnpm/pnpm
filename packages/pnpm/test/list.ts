@@ -34,7 +34,7 @@ test('listing global packages', async (t: tape.Test) => {
   t.equal(result.stdout.toString(), stripIndent`
     ${globalPrefix}
     └── is-positive@3.1.0
-  ` + '\n\n')
+  ` + '\n')
 })
 
 test('listing global packages installed with independent-leaves = true', async (t: tape.Test) => {
@@ -57,7 +57,7 @@ test('listing global packages installed with independent-leaves = true', async (
   t.equal(result.stdout.toString(), stripIndent`
     ${globalPrefix}
     └── is-positive@3.1.0
-  ` + '\n\n')
+  ` + '\n')
 })
 
 test('listing packages', async (t: tape.Test) => {
@@ -80,7 +80,7 @@ test('listing packages', async (t: tape.Test) => {
     t.equal(result.stdout.toString(), stripIndent`
       project@0.0.0 ${process.cwd()}
       └── is-positive@1.0.0
-    ` + '\n\n', 'prints prod deps only')
+    ` + '\n', 'prints prod deps only')
   }
 
   {
@@ -91,7 +91,7 @@ test('listing packages', async (t: tape.Test) => {
     t.equal(result.stdout.toString(), stripIndent`
       project@0.0.0 ${process.cwd()}
       └── is-positive@1.0.0
-    ` + '\n\n', 'prints prod deps only using --only prod')
+    ` + '\n', 'prints prod deps only using --only prod')
   }
 
   {
@@ -102,7 +102,7 @@ test('listing packages', async (t: tape.Test) => {
     t.equal(result.stdout.toString(), stripIndent`
       project@0.0.0 ${process.cwd()}
       └── is-negative@1.0.0
-    ` + '\n\n', 'prints dev deps only')
+    ` + '\n', 'prints dev deps only')
   }
 
   {
@@ -113,7 +113,7 @@ test('listing packages', async (t: tape.Test) => {
     t.equal(result.stdout.toString(), stripIndent`
       project@0.0.0 ${process.cwd()}
       └── is-negative@1.0.0
-    ` + '\n\n', 'prints dev deps only using --only dev')
+    ` + '\n', 'prints dev deps only using --only dev')
   }
 
   {
@@ -125,7 +125,7 @@ test('listing packages', async (t: tape.Test) => {
       project@0.0.0 ${process.cwd()}
       ├── is-negative@1.0.0
       └── is-positive@1.0.0
-    ` + '\n\n', 'prints all deps')
+    ` + '\n', 'prints all deps')
   }
 })
 
@@ -155,5 +155,5 @@ test('listing packages of a project that has an external shrinkwrap.yaml', async
   t.equal(result.stdout.toString(), stripIndent`
     pkg@1.0.0 ${process.cwd()}
     └── is-positive@1.0.0
-  ` + '\n\n', 'prints all deps')
+  ` + '\n', 'prints all deps')
 })
