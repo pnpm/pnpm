@@ -53,11 +53,6 @@ declare module 'observatory' {
   export = anything;
 }
 
-declare module 'os-homedir' {
-  const anything: any;
-  export = anything;
-}
-
 declare module 'rimraf-then' {
   const anything: any;
   export = anything;

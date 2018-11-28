@@ -21,6 +21,7 @@
     "@pnpm/read-modules-dir",
     "@pnpm/resolve-dependencies",
     "@pnpm/server",
+    "@pnpm/store-path",
     "@pnpm/tarball-fetcher",
     "@pnpm/tarball-resolver",
     "@pnpm/types",
