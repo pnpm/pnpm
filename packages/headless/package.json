@@ -1,7 +1,7 @@
 {
   "name": "@pnpm/headless",
   "description": "Fast installation using only shrinkwrap.yaml",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "author": {
     "name": "Zoltan Kochan",
     "email": "z@kochan.io",
@@ -21,7 +21,7 @@
   "devDependencies": {
     "@pnpm/assert-project": "link:../../privatePackages/assert-project",
     "@pnpm/default-fetcher": "2.0.6",
-    "@pnpm/default-resolver": "2.0.5",
+    "@pnpm/default-resolver": "2.0.6",
     "@pnpm/headless": "link:",
     "@pnpm/logger": "2.1.0",
     "@pnpm/package-store": "1.2.0",

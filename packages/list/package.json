@@ -1,6 +1,6 @@
 {
   "name": "pnpm-list",
-  "version": "4.2.1",
+  "version": "4.2.2",
   "description": "List installed packages in a symlinked `node_modules`",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
