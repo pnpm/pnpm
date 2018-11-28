@@ -1,7 +1,5 @@
 import { PackageNode } from 'dependencies-hierarchy'
-import path = require('path')
 import R = require('ramda')
-import readPkg from './readPkg'
 
 const sortPackages = R.sortBy(R.prop('name'))
 
@@ -30,13 +28,11 @@ export default async function (
     return [
       firstLine,
       ...pkgs.map((pkg) => `${pkg.path}:${pkg.name}@${pkg.version}`),
-      '',
     ].join('\n')
   }
   return [
     project.path,
     ...pkgs.map((pkg) => pkg.path),
-    '',
   ].join('\n')
 }
 

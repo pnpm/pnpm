@@ -80,12 +80,14 @@ export default async function (
 ) {
   const opts = { ...DEFAULTS, ...maybeOpts }
 
-  const tree = await dh(projectPath, {
-    depth: opts.depth,
-    only: opts.only,
-    registries: opts.registries,
-    shrinkwrapDirectory: maybeOpts && maybeOpts.shrinkwrapDirectory,
-  })
+  const tree = opts.depth === -1
+    ? []
+    : await dh(projectPath, {
+      depth: opts.depth,
+      only: opts.only,
+      registries: opts.registries,
+      shrinkwrapDirectory: maybeOpts && maybeOpts.shrinkwrapDirectory,
+    })
 
   const print = getPrinter(opts.parseable)
   const entryPkg = await readPkg(path.resolve(projectPath, 'package.json'))
