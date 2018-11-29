@@ -1,22 +1,22 @@
 importers:
   package:
     dependencies:
-      ajv: 6.5.5
-      ajv-keywords: /ajv-keywords/3.2.0/ajv@6.5.5
+      ajv: 6.6.1
+      ajv-keywords: /ajv-keywords/3.2.0/ajv@6.6.1
     specifiers:
-      ajv: 6.5.5
+      ajv: 6.6.1
       ajv-keywords: 3.2.0
 packages:
-  /ajv-keywords/3.2.0/ajv@6.5.5:
+  /ajv-keywords/3.2.0/ajv@6.6.1:
     dependencies:
-      ajv: 6.5.5
+      ajv: 6.6.1
     dev: false
     id: registry.npmjs.org/ajv-keywords/3.2.0
     peerDependencies:
       ajv: ^6.0.0
     resolution:
       integrity: sha1-6GuBnGAs+IIa1jdBNpjx3sAhhHo=
-  /ajv/6.5.5:
+  /ajv/6.6.1:
     dependencies:
       fast-deep-equal: 2.0.1
       fast-json-stable-stringify: 2.0.0
@@ -24,7 +24,7 @@ packages:
       uri-js: 4.2.2
     dev: false
     resolution:
-      integrity: sha512-7q7gtRQDJSyuEHjuVgHoUa2VuemFiCMrfQc9Tc08XTAc4Zj/5U1buQJ0HU6i7fKjXU09SVgSmxa4sLvuvS8Iyg==
+      integrity: sha512-ZoJjft5B+EJBjUyu9C9Hc0OZyPZSSlOF+plzouTrg6UlA8f+e/n8NIgBFG/9tppJtpPWfthHakK7juJdNDODww==
   /fast-deep-equal/2.0.1:
     dev: false
     resolution:
