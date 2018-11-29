@@ -1,10 +1,10 @@
 import prepare, { preparePackages } from '@pnpm/prepare'
 import { fromDir as readPackageJsonFromDir } from '@pnpm/read-package-json'
 import loadJsonFile from 'load-json-file'
-import loadYamlFile = require('load-yaml-file')
 import fs = require('mz/fs')
 import path = require('path')
 import { Shrinkwrap } from 'pnpm-shrinkwrap'
+import readYamlFile from 'read-yaml-file'
 import rimraf = require('rimraf-then')
 import symlink from 'symlink-dir'
 import tape = require('tape')
@@ -360,7 +360,7 @@ test('shared-workspace-shrinkwrap: installation with --link-workspace-packages l
   await execPnpm('recursive', 'install')
 
   {
-    const shr = await loadYamlFile<Shrinkwrap>('shrinkwrap.yaml') // tslint:disable:no-any
+    const shr = await readYamlFile<Shrinkwrap>('shrinkwrap.yaml')
     t.equal(shr!.importers!.project!.dependencies!['is-positive'], '2.0.0')
     t.equal(shr!.importers!.project!.dependencies!['negative'], '/is-negative/1.0.0')
   }
@@ -378,9 +378,9 @@ test('shared-workspace-shrinkwrap: installation with --link-workspace-packages l
   await execPnpm('recursive', 'install')
 
   {
-    const shr = await loadYamlFile<any>('shrinkwrap.yaml') // tslint:disable:no-any
-    t.equal(shr.importers.project.dependencies['is-positive'], 'link:../is-positive')
-    t.equal(shr.importers.project.dependencies['negative'], 'link:../is-negative')
+    const shr = await readYamlFile<Shrinkwrap>('shrinkwrap.yaml')
+    t.equal(shr.importers!.project!.dependencies!['is-positive'], 'link:../is-positive')
+    t.equal(shr.importers!.project!.dependencies!['negative'], 'link:../is-negative')
   }
 })
 
@@ -436,8 +436,8 @@ test('recursive install with link-workspace-packages and shared-workspace-shrink
   t.ok(projects['is-positive'].requireModule('concat-stream'), 'dependencies flattened in is-positive')
   t.notOk(projects['project-1'].requireModule('is-positive/package.json').author, 'local package is linked')
 
-  const sharedShr = await loadYamlFile('shrinkwrap.yaml')
-  t.equal(sharedShr['importers']['project-1']['devDependencies']['is-positive'], 'link:../is-positive')
+  const sharedShr = await readYamlFile<Shrinkwrap>('shrinkwrap.yaml')
+  t.equal(sharedShr.importers['project-1']!.devDependencies!['is-positive'], 'link:../is-positive')
 
   const outputs = await import(path.resolve('output.json')) as string[]
   t.deepEqual(outputs, ['is-positive', 'project-1'])
@@ -496,8 +496,8 @@ test('recursive installation with shared-workspace-shrinkwrap and a readPackage 
 
   await execPnpm('recursive', 'install', '--shared-workspace-shrinkwrap', '--store', 'store')
 
-  const shr = await loadYamlFile('./shrinkwrap.yaml') as any // tslint:disable-line:no-any
-  t.ok(shr.packages['/dep-of-pkg-with-1-dep/100.1.0'], 'new dependency added by hook')
+  const shr = await readYamlFile<Shrinkwrap>('./shrinkwrap.yaml')
+  t.ok(shr.packages!['/dep-of-pkg-with-1-dep/100.1.0'], 'new dependency added by hook')
 
   await execPnpm('recursive', 'install', '--shared-workspace-shrinkwrap', '--store', 'store', '--', 'project-1')
 
@@ -545,7 +545,7 @@ test('shared-workspace-shrinkwrap: create shared shrinkwrap format when installa
 
   await execPnpm('install', '--store', 'store')
 
-  const shr = await loadYamlFile('shrinkwrap.yaml')
+  const shr = await readYamlFile<Shrinkwrap>('shrinkwrap.yaml')
 
   t.ok(shr['importers'] && shr['importers']['.'], 'correct shrinkwrap.yaml format')
   t.equal(shr['shrinkwrapVersion'], 4, 'correct shrinkwrap.yaml version')
@@ -590,7 +590,7 @@ test("shared-workspace-shrinkwrap: don't install dependencies in projects that a
 
   await execPnpm('install', '--store', 'store', '--shared-workspace-shrinkwrap', '--link-workspace-packages')
 
-  const shr = await loadYamlFile('shrinkwrap.yaml')
+  const shr = await readYamlFile<Shrinkwrap>('shrinkwrap.yaml')
 
   t.deepEqual(shr, {
     importers: {
@@ -645,7 +645,7 @@ test('shared-workspace-shrinkwrap: entries of removed projects should be removed
   await execPnpm('install', '--store', 'store', '--shared-workspace-shrinkwrap', '--link-workspace-packages')
 
   {
-    const shr = await loadYamlFile<any>('shrinkwrap.yaml')
+    const shr = await readYamlFile<Shrinkwrap>('shrinkwrap.yaml')
     t.deepEqual(Object.keys(shr.importers), ['package-1', 'package-2'])
   }
 
@@ -654,7 +654,7 @@ test('shared-workspace-shrinkwrap: entries of removed projects should be removed
   await execPnpm('install', '--store', 'store', '--shared-workspace-shrinkwrap', '--link-workspace-packages')
 
   {
-    const shr = await loadYamlFile<any>('shrinkwrap.yaml')
+    const shr = await readYamlFile<Shrinkwrap>('shrinkwrap.yaml')
     t.deepEqual(Object.keys(shr.importers), ['package-1'])
   }
 })

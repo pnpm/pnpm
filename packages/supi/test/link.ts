@@ -1,16 +1,16 @@
 import { isExecutable } from '@pnpm/assert-project'
 import prepare from '@pnpm/prepare'
-import loadYamlFile = require('load-yaml-file')
 import fs = require('mz/fs')
 import ncpCB = require('ncp')
 import path = require('path')
 import exists = require('path-exists')
+import { Shrinkwrap } from 'pnpm-shrinkwrap'
 import readPkg = require('read-pkg')
+import readYamlFile from 'read-yaml-file'
 import sinon = require('sinon')
 import {
   addDependenciesToPackage,
   install,
-  installPkgs,
   link,
   linkFromGlobal,
   linkToGlobal,
@@ -258,7 +258,7 @@ test['skip']('relative link when an external shrinkwrap is used', async (t: tape
   const opts = await testDefaults({ shrinkwrapDirectory: path.join('..') })
   await link([process.cwd()], path.resolve(process.cwd(), 'node_modules'), opts)
 
-  const shr = await loadYamlFile(path.resolve('..', 'shrinkwrap.yaml'))
+  const shr = await readYamlFile<Shrinkwrap>(path.resolve('..', 'shrinkwrap.yaml'))
 
   t.deepEqual(shr && shr['importers'], {
     project: {

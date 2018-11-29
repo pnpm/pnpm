@@ -1,15 +1,15 @@
 import prepare, { preparePackages } from '@pnpm/prepare'
 import existsSymlink = require('exists-link')
-import loadYamlFile = require('load-yaml-file')
 import ncpCB = require('ncp')
 import path = require('path')
 import exists = require('path-exists')
+import { Shrinkwrap } from 'pnpm-shrinkwrap'
 import readPkg = require('read-pkg')
+import readYamlFile from 'read-yaml-file'
 import sinon = require('sinon')
 import {
   addDependenciesToPackage,
   install,
-  installPkgs,
   link,
   PackageJsonLog,
   RootLog,
@@ -259,7 +259,7 @@ test('uninstalling a dependency from package that uses shared shrinkwrap', async
   await projects['project-1'].hasNot('is-positive')
   await projects['project-2'].has('is-negative')
 
-  const shr = await loadYamlFile('shrinkwrap.yaml')
+  const shr = await readYamlFile<Shrinkwrap>('shrinkwrap.yaml')
 
   t.deepEqual(shr, {
     importers: {

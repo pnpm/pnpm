@@ -1,7 +1,6 @@
 import prepare, { preparePackages } from '@pnpm/prepare'
 import { fromDir as readPackageJsonFromDir } from '@pnpm/read-package-json'
 import { stripIndent } from 'common-tags'
-import loadYamlFile = require('load-yaml-file')
 import mkdir = require('mkdirp-promise')
 import fs = require('mz/fs')
 import path = require('path')
@@ -9,6 +8,7 @@ import exists = require('path-exists')
 import { getIntegrity } from 'pnpm-registry-mock'
 import { Shrinkwrap } from 'pnpm-shrinkwrap'
 import R = require('ramda')
+import readYamlFile from 'read-yaml-file'
 import rimraf = require('rimraf-then')
 import sinon = require('sinon')
 import {
@@ -951,12 +951,12 @@ test('shrinkwrap file has correct format when shrinkwrap directory does not equa
 
   process.chdir('..')
 
-  const modules = await loadYamlFile(path.resolve('node_modules', '.modules.yaml'))
+  const modules = await readYamlFile<object>(path.resolve('node_modules', '.modules.yaml'))
   t.ok(modules, '.modules.yaml in virtual store directory created')
   t.equal(modules['pendingBuilds'].length, 0) // tslint:disable-line:no-string-literal
 
   {
-    const shr = await loadYamlFile('shrinkwrap.yaml') as Shrinkwrap
+    const shr = await readYamlFile('shrinkwrap.yaml') as Shrinkwrap
     const id = '/pkg-with-1-dep/100.0.0'
 
     t.equal(shr.shrinkwrapVersion, 4, 'correct shrinkwrap version')
@@ -991,7 +991,7 @@ test('shrinkwrap file has correct format when shrinkwrap directory does not equa
   await addDependenciesToPackage(['is-positive'], await testDefaults({ save: true, shrinkwrapDirectory: path.resolve('..') }))
 
   {
-    const shr = await loadYamlFile(path.join('..', 'shrinkwrap.yaml')) as Shrinkwrap
+    const shr = await readYamlFile<Shrinkwrap>(path.join('..', 'shrinkwrap.yaml'))
 
     t.ok(shr.importers)
     t.ok(shr.importers['project-2'])
@@ -1083,7 +1083,7 @@ test('doing named installation when shared shrinkwrap.yaml exists already', asyn
     }),
   )
 
-  const currentShr = await loadYamlFile(path.resolve('node_modules', '.shrinkwrap.yaml'))
+  const currentShr = await readYamlFile<Shrinkwrap>(path.resolve('node_modules', '.shrinkwrap.yaml'))
 
   t.deepEqual(R.keys(currentShr['importers']), ['pkg2'], 'only pkg2 added to importers of current shrinkwrap')
 

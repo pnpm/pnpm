@@ -1,6 +1,6 @@
 import { DependenciesField, Registries } from '@pnpm/types'
-import loadYamlFile = require('load-yaml-file')
 import path = require('path')
+import readYamlFile from 'read-yaml-file'
 import writeYamlFile = require('write-yaml-file')
 
 // The dot prefix is needed because otherwise `npm shrinkwrap`
@@ -31,7 +31,7 @@ export interface Modules {
 export async function read (virtualStoreDir: string): Promise<Modules | null> {
   const modulesYamlPath = path.join(virtualStoreDir, MODULES_FILENAME)
   try {
-    const m = await loadYamlFile<Modules>(modulesYamlPath)
+    const m = await readYamlFile<Modules>(modulesYamlPath)
     // for backward compatibility
     // tslint:disable:no-string-literal
     if (m['storePath']) {

@@ -1,6 +1,7 @@
 import prepare from '@pnpm/prepare'
-import loadYamlFile = require('load-yaml-file')
 import path = require('path')
+import { Shrinkwrap } from 'pnpm-shrinkwrap'
+import readYamlFile from 'read-yaml-file'
 import { addDependenciesToPackage } from 'supi'
 import tape = require('tape')
 import promisifyTape from 'tape-promise'
@@ -17,9 +18,9 @@ testSkip('subsequent installation uses same shrinkwrap directory by default', as
 
   await addDependenciesToPackage(['is-negative@1.0.0'], await testDefaults())
 
-  const shr = await loadYamlFile(path.resolve('..', 'shrinkwrap.yaml'))
+  const shr = await readYamlFile<Shrinkwrap>(path.resolve('..', 'shrinkwrap.yaml'))
 
-  t.deepEqual(Object.keys(shr['packages']), ['/is-negative/1.0.0', '/is-positive/1.0.0']) // tslint:disable-line:no-string-literal
+  t.deepEqual(Object.keys(shr['packages'] || {}), ['/is-negative/1.0.0', '/is-positive/1.0.0']) // tslint:disable-line:no-string-literal
 })
 
 testSkip('subsequent installation fails if a different shrinkwrap directory is specified', async (t: tape.Test) => {

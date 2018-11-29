@@ -1,6 +1,7 @@
 import prepare from '@pnpm/prepare'
-import loadYamlFile = require('load-yaml-file')
 import path = require('path')
+import { Shrinkwrap } from 'pnpm-shrinkwrap'
+import readYamlFile from 'read-yaml-file'
 import { addDependenciesToPackage, install } from 'supi'
 import tape = require('tape')
 import promisifyTape from 'tape-promise'
@@ -81,7 +82,7 @@ test('update dependency when external shrinkwrap directory is used', async (t: t
 
   await install(await testDefaults({ update: true, depth: 0, shrinkwrapDirectory }))
 
-  const shr = await loadYamlFile(path.join('..', 'shrinkwrap.yaml'))
+  const shr = await readYamlFile<Shrinkwrap>(path.join('..', 'shrinkwrap.yaml'))
 
-  t.ok(shr['packages']['/foo/100.1.0']) // tslint:disable-line:no-string-literal
+  t.ok(shr.packages && shr.packages['/foo/100.1.0']) // tslint:disable-line:no-string-literal
 })

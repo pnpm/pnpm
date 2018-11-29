@@ -1,7 +1,7 @@
 import { PackageJson } from '@pnpm/types'
 import findPackages from 'find-packages'
-import loadYamlFile = require('load-yaml-file')
 import path = require('path')
+import readYamlFile from 'read-yaml-file'
 import { WORKSPACE_MANIFEST_FILENAME } from './constants'
 
 export default async (workspaceRoot: string): Promise<Array<{path: string, manifest: PackageJson}>> => {
@@ -20,7 +20,7 @@ export default async (workspaceRoot: string): Promise<Array<{path: string, manif
 
 async function requirePackagesManifest (dir: string): Promise<{packages: string[]} | null> {
   try {
-    return await loadYamlFile(path.join(dir, WORKSPACE_MANIFEST_FILENAME)) as {packages: string[]}
+    return await readYamlFile<{ packages: string[] }>(path.join(dir, WORKSPACE_MANIFEST_FILENAME))
   } catch (err) {
     if (err['code'] === 'ENOENT') { // tslint:disable-line
       return null

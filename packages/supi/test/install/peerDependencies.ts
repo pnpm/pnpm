@@ -1,11 +1,12 @@
 import prepare from '@pnpm/prepare'
 import deepRequireCwd = require('deep-require-cwd')
 import loadJsonFile from 'load-json-file'
-import loadYamlFile = require('load-yaml-file')
 import mkdir = require('mkdirp-promise')
 import path = require('path')
 import exists = require('path-exists')
 import { addDistTag } from 'pnpm-registry-mock'
+import { Shrinkwrap } from 'pnpm-shrinkwrap'
+import readYamlFile from 'read-yaml-file'
 import rimraf = require('rimraf-then')
 import sinon = require('sinon')
 import {
@@ -385,7 +386,7 @@ test('peer dependency is grouped with dependent when the peer is a top dependenc
 
   t.ok(await exists(path.join('..', NM, '.localhost+4873', 'ajv-keywords', '1.5.0', 'ajv@4.10.4', NM, 'ajv-keywords')))
 
-  const shr = await loadYamlFile(path.join('..', 'shrinkwrap.yaml'))
+  const shr = await readYamlFile<Shrinkwrap>(path.join('..', 'shrinkwrap.yaml'))
 
   t.deepEqual(shr['importers']['project'], { // tslint:disable-line
     dependencies: {
@@ -425,7 +426,7 @@ test('peer dependency is grouped with dependent when the peer is a top dependenc
   await addDependenciesToPackage(['ajv@4.10.4', 'ajv-keywords@1.5.0'], await testDefaults({ shrinkwrapDirectory }))
 
   {
-    const shr = await loadYamlFile(path.resolve('..', 'shrinkwrap.yaml'))
+    const shr = await readYamlFile<Shrinkwrap>(path.resolve('..', 'shrinkwrap.yaml'))
     t.deepEqual(shr['importers']['_'], {
       dependencies: {
         'ajv': '4.10.4',
@@ -441,7 +442,7 @@ test('peer dependency is grouped with dependent when the peer is a top dependenc
   await install(await testDefaults({ shrinkwrapDirectory }))
 
   {
-    const shr = await loadYamlFile(path.resolve('..', 'shrinkwrap.yaml'))
+    const shr = await readYamlFile<Shrinkwrap>(path.resolve('..', 'shrinkwrap.yaml'))
     t.deepEqual(shr['importers']['_'], {
       dependencies: {
         'ajv': '4.10.4',
@@ -458,7 +459,7 @@ test('peer dependency is grouped with dependent when the peer is a top dependenc
   await uninstall(['ajv'], await testDefaults({ shrinkwrapDirectory }))
 
   {
-    const shr = await loadYamlFile(path.resolve('..', 'shrinkwrap.yaml'))
+    const shr = await readYamlFile<Shrinkwrap>(path.resolve('..', 'shrinkwrap.yaml'))
     t.deepEqual(shr['importers']['_'], {
       dependencies: {
         'ajv-keywords': '1.5.0',
@@ -479,7 +480,7 @@ test('external shrinkwrap: peer dependency is grouped with dependent even after 
   await addDependenciesToPackage(['ajv@4.10.4', 'ajv-keywords@1.4.0'], await testDefaults({ shrinkwrapDirectory }))
 
   {
-    const shr = await loadYamlFile(path.resolve('..', 'shrinkwrap.yaml'))
+    const shr = await readYamlFile<Shrinkwrap>(path.resolve('..', 'shrinkwrap.yaml'))
     t.deepEqual(shr['importers']['_'], {
       dependencies: {
         'ajv': '4.10.4',
@@ -495,7 +496,7 @@ test('external shrinkwrap: peer dependency is grouped with dependent even after 
   await addDependenciesToPackage(['ajv-keywords@1.5.0'], await testDefaults({ shrinkwrapDirectory }))
 
   {
-    const shr = await loadYamlFile(path.resolve('..', 'shrinkwrap.yaml'))
+    const shr = await readYamlFile<Shrinkwrap>(path.resolve('..', 'shrinkwrap.yaml'))
     t.deepEqual(shr['importers']['_'], {
       dependencies: {
         'ajv': '4.10.4',
@@ -518,7 +519,7 @@ test('external shrinkwrap: peer dependency is grouped with dependent even after 
   await addDependenciesToPackage(['peer-c@1.0.0', 'abc-parent-with-ab@1.0.0'], await testDefaults({ shrinkwrapDirectory }))
 
   {
-    const shr = await loadYamlFile(path.resolve('..', 'shrinkwrap.yaml'))
+    const shr = await readYamlFile<Shrinkwrap>(path.resolve('..', 'shrinkwrap.yaml'))
     t.deepEqual(shr['importers']['_'], {
       dependencies: {
         'abc-parent-with-ab': '/abc-parent-with-ab/1.0.0/peer-c@1.0.0',
@@ -534,7 +535,7 @@ test('external shrinkwrap: peer dependency is grouped with dependent even after 
   await addDependenciesToPackage(['peer-c@2.0.0'], await testDefaults({ shrinkwrapDirectory }))
 
   {
-    const shr = await loadYamlFile(path.resolve('..', 'shrinkwrap.yaml'))
+    const shr = await readYamlFile<Shrinkwrap>(path.resolve('..', 'shrinkwrap.yaml'))
     t.deepEqual(shr['importers']['_'], {
       dependencies: {
         'abc-parent-with-ab': '/abc-parent-with-ab/1.0.0/peer-c@2.0.0',

@@ -1,6 +1,6 @@
 import { DEPENDENCIES_FIELDS } from '@pnpm/types'
-import loadYamlFile = require('load-yaml-file')
 import path = require('path')
+import readYamlFile from 'read-yaml-file'
 import {
   CURRENT_SHRINKWRAP_FILENAME,
   SHRINKWRAP_VERSION,
@@ -46,7 +46,7 @@ async function _read (
 ): Promise<Shrinkwrap | null> {
   let shrinkwrap
   try {
-    shrinkwrap = await loadYamlFile<Shrinkwrap>(shrinkwrapPath)
+    shrinkwrap = await readYamlFile<Shrinkwrap>(shrinkwrapPath)
   } catch (err) {
     if ((err as NodeJS.ErrnoException).code !== 'ENOENT') {
       throw err

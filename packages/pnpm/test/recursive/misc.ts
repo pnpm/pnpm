@@ -1,10 +1,10 @@
 import { preparePackages } from '@pnpm/prepare'
 import isCI = require('is-ci')
 import isWindows = require('is-windows')
-import loadYamlFile = require('load-yaml-file')
 import mkdirp = require('mkdirp-promise')
 import fs = require('mz/fs')
 import path = require('path')
+import readYamlFile from 'read-yaml-file'
 import tape = require('tape')
 import promisifyTape from 'tape-promise'
 import writeJsonFile from 'write-json-file'
@@ -168,10 +168,10 @@ test('recursive installation with package-specific .npmrc', async t => {
   t.ok(projects['project-1'].requireModule('is-positive'))
   t.ok(projects['project-2'].requireModule('is-negative'))
 
-  const modulesYaml1 = await loadYamlFile<{ shamefullyFlatten: boolean }>(path.resolve('project-1', 'node_modules', '.modules.yaml'))
+  const modulesYaml1 = await readYamlFile<{ shamefullyFlatten: boolean }>(path.resolve('project-1', 'node_modules', '.modules.yaml'))
   t.ok(modulesYaml1 && modulesYaml1.shamefullyFlatten)
 
-  const modulesYaml2 = await loadYamlFile<{ shamefullyFlatten: boolean }>(path.resolve('project-2', 'node_modules', '.modules.yaml'))
+  const modulesYaml2 = await readYamlFile<{ shamefullyFlatten: boolean }>(path.resolve('project-2', 'node_modules', '.modules.yaml'))
   t.notOk(modulesYaml2 && modulesYaml2.shamefullyFlatten)
 })
 
@@ -204,7 +204,7 @@ test('workspace .npmrc is always read', async (t: tape.Test) => {
 
   t.ok(projects['project-1'].requireModule('is-positive'))
 
-  const modulesYaml1 = await loadYamlFile<{ shamefullyFlatten: boolean }>(path.resolve('node_modules', '.modules.yaml'))
+  const modulesYaml1 = await readYamlFile<{ shamefullyFlatten: boolean }>(path.resolve('node_modules', '.modules.yaml'))
   t.ok(modulesYaml1 && modulesYaml1.shamefullyFlatten)
 
   process.chdir('..')
@@ -214,7 +214,7 @@ test('workspace .npmrc is always read', async (t: tape.Test) => {
 
   t.ok(projects['project-2'].requireModule('is-negative'))
 
-  const modulesYaml2 = await loadYamlFile<{ shamefullyFlatten: boolean }>(path.resolve('node_modules', '.modules.yaml'))
+  const modulesYaml2 = await readYamlFile<{ shamefullyFlatten: boolean }>(path.resolve('node_modules', '.modules.yaml'))
   t.ok(modulesYaml2 && modulesYaml2.shamefullyFlatten === false)
 })
 

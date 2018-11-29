@@ -1,9 +1,9 @@
 import prepare from '@pnpm/prepare'
 import deepRequireCwd = require('deep-require-cwd')
-import loadYamlFile = require('load-yaml-file')
 import path = require('path')
 import exists = require('path-exists')
 import R = require('ramda')
+import readYamlFile from 'read-yaml-file'
 import sinon = require('sinon')
 import { addDependenciesToPackage, install, rebuild } from 'supi'
 import tape = require('tape')
@@ -79,7 +79,7 @@ test('skip optional dependency that does not support the current OS', async (t: 
 
   t.ok(R.isEmpty(currentShr.packages || {}), 'current shrinkwrap does not contain skipped packages')
 
-  const modulesInfo = await loadYamlFile<{skipped: string[]}>(path.join('node_modules', '.modules.yaml'))
+  const modulesInfo = await readYamlFile<{skipped: string[]}>(path.join('node_modules', '.modules.yaml'))
   t.deepEquals(modulesInfo.skipped, [
     'localhost+4873/dep-of-optional-pkg/1.0.0',
     'localhost+4873/not-compatible-with-any-os/1.0.0',
@@ -177,7 +177,7 @@ test('optional subdependency is skipped', async (t: tape.Test) => {
 
   await addDependenciesToPackage(['pkg-with-optional', 'dep-of-optional-pkg'], await testDefaults({ reporter }))
 
-  const modulesInfo = await loadYamlFile<{skipped: string[]}>(path.join('node_modules', '.modules.yaml'))
+  const modulesInfo = await readYamlFile<{ skipped: string[] }>(path.join('node_modules', '.modules.yaml'))
 
   t.deepEqual(modulesInfo.skipped, ['localhost+4873/not-compatible-with-any-os/1.0.0'], 'optional subdep skipped')
 

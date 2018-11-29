@@ -153,17 +153,6 @@ declare module 'mkdirp-promise' {
   export = anything;
 }
 
-declare module 'load-yaml-file' {
-  interface LoadYamlFile {
-    <T>(filepath: string): Promise<T>
-    sync<T>(filepath: string): T
-  }
-
-  const loadYamlFile: LoadYamlFile
-
-  export = loadYamlFile;
-}
-
 declare module 'normalize-ssh' {
   function normalizeSsh (url: string): string;
   export = normalizeSsh;

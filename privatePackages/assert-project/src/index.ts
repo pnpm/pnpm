@@ -1,7 +1,7 @@
 import { read as readModules } from '@pnpm/modules-yaml'
-import loadYamlFile = require('load-yaml-file')
 import path = require('path')
 import exists = require('path-exists')
+import readYamlFile from 'read-yaml-file'
 import { Test } from 'tape'
 import writePkg = require('write-pkg')
 import isExecutable from './isExecutable'
@@ -60,7 +60,7 @@ export default (t: Test, projectPath: string, encodedRegistryName?: string) => {
     },
     async loadCurrentShrinkwrap () {
       try {
-        return await loadYamlFile<any>(path.join(modules, '.shrinkwrap.yaml')) // tslint:disable-line
+        return await readYamlFile<any>(path.join(modules, '.shrinkwrap.yaml')) // tslint:disable-line
       } catch (err) {
         if (err.code === 'ENOENT') return null
         throw err
@@ -69,7 +69,7 @@ export default (t: Test, projectPath: string, encodedRegistryName?: string) => {
     loadModules: () => readModules(modules),
     async loadShrinkwrap () {
       try {
-        return await loadYamlFile<any>(path.join(projectPath, 'shrinkwrap.yaml')) // tslint:disable-line
+        return await readYamlFile<any>(path.join(projectPath, 'shrinkwrap.yaml')) // tslint:disable-line
       } catch (err) {
         if (err.code === 'ENOENT') return null
         throw err
