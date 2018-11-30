@@ -30,7 +30,7 @@
     "@pnpm/tslint-config": "0.0.0",
     "@types/fs-extra": "5.0.4",
     "@types/mz": "0.0.32",
-    "@types/node": "10.12.10",
+    "@types/node": "10.12.11",
     "@types/path-exists": "3.0.0",
     "@types/rimraf": "2.0.2",
     "@types/sinon": "5.0.7",
@@ -102,6 +102,6 @@
     "p-limit": "2.0.0",
     "path-exists": "3.0.0",
     "pnpm-shrinkwrap": "8.1.5",
-    "ramda": "0.26.0"
+    "ramda": "0.26.1"
   }
 }
