@@ -49,7 +49,7 @@
     "mem": "^4.0.0",
     "normalize-path": "^3.0.0",
     "p-limit": "^2.0.0",
-    "parse-npm-tarball-url": "^1.0.3",
+    "parse-npm-tarball-url": "^2.0.0",
     "semver": "^5.4.1",
     "ssri": "^6.0.0",
     "version-selector-type": "^2.0.0",
