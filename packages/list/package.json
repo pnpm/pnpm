@@ -46,7 +46,7 @@
     "chalk": "2.4.1",
     "dependencies-hierarchy": "4.0.1",
     "p-limit": "2.0.0",
-    "ramda": "0.26.0"
+    "ramda": "0.26.1"
   },
   "devDependencies": {
     "@pnpm/logger": "2.1.0",

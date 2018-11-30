@@ -41,7 +41,7 @@
     "dependency-path": "2.0.1",
     "fs-vacuum": "1.2.10",
     "pnpm-shrinkwrap": "8.1.5",
-    "ramda": "0.26.0",
+    "ramda": "0.26.1",
     "rimraf-then": "1.0.1",
     "util.promisify": "1.0.0"
   },

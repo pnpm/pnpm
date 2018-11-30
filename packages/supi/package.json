@@ -72,7 +72,7 @@
     "p-limit": "2.0.0",
     "path-absolute": "1.0.1",
     "pnpm-shrinkwrap": "8.1.5",
-    "ramda": "0.26.0",
+    "ramda": "0.26.1",
     "remove-all-except-outer-links": "1.0.3",
     "replace-string": "2.0.0",
     "resolve-link-target": "1.0.1",

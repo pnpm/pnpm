@@ -61,7 +61,7 @@
     "js-yaml": "3.12.0",
     "mkdirp-promise": "5.0.1",
     "normalize-path": "3.0.0",
-    "ramda": "0.26.0",
+    "ramda": "0.26.1",
     "read-yaml-file": "1.1.0",
     "rimraf-then": "1.0.1",
     "util.promisify": "1.0.0",
