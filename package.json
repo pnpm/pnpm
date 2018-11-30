@@ -64,7 +64,7 @@
     "mos": "^2.0.0-alpha.3",
     "mos-plugin-readme": "^1.0.4",
     "nock": "^10.0.0",
-    "package-preview": "^1.0.1",
+    "package-preview": "^2.0.0",
     "path-exists": "^3.0.0",
     "rimraf": "^2.6.2",
     "tape": "^4.8.0",
