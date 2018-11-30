@@ -177,7 +177,7 @@ importers:
     dependencies:
       '@pnpm/git-resolver': 1.0.1
       '@pnpm/local-resolver': 1.0.3
-      '@pnpm/npm-resolver': /@pnpm/npm-resolver/2.2.6/@pnpm!logger@2.1.0
+      '@pnpm/npm-resolver': /@pnpm/npm-resolver/2.2.7/@pnpm!logger@2.1.0
       '@pnpm/tarball-resolver': 1.0.1
     devDependencies:
       '@pnpm/default-resolver': 'link:'
@@ -196,7 +196,7 @@ importers:
       '@pnpm/git-resolver': 1.0.1
       '@pnpm/local-resolver': 1.0.3
       '@pnpm/logger': 2.1.0
-      '@pnpm/npm-resolver': 2.2.6
+      '@pnpm/npm-resolver': 2.2.7
       '@pnpm/tarball-resolver': 1.0.1
       '@pnpm/tslint-config': 0.0.0
       '@types/tape': 4.2.32
@@ -519,7 +519,7 @@ importers:
       write-yaml-file: 2.0.0
   packages/outdated:
     dependencies:
-      '@pnpm/npm-resolver': /@pnpm/npm-resolver/2.2.6/@pnpm!logger@2.1.0
+      '@pnpm/npm-resolver': /@pnpm/npm-resolver/2.2.7/@pnpm!logger@2.1.0
       '@pnpm/read-package-json': 1.0.1
       '@pnpm/store-path': 1.0.4
       '@pnpm/types': 'link:../types'
@@ -540,7 +540,7 @@ importers:
       typescript: 3.1.6
     specifiers:
       '@pnpm/logger': 2.1.0
-      '@pnpm/npm-resolver': 2.2.6
+      '@pnpm/npm-resolver': 2.2.7
       '@pnpm/outdated': 'link:'
       '@pnpm/read-package-json': 1.0.1
       '@pnpm/store-path': 1.0.4
@@ -584,7 +584,7 @@ importers:
     devDependencies:
       '@pnpm/local-resolver': 1.0.3
       '@pnpm/logger': 2.1.0
-      '@pnpm/npm-resolver': /@pnpm/npm-resolver/2.2.6/@pnpm!logger@2.1.0
+      '@pnpm/npm-resolver': /@pnpm/npm-resolver/2.2.7/@pnpm!logger@2.1.0
       '@pnpm/package-requester': 'link:'
       '@pnpm/tarball-fetcher': /@pnpm/tarball-fetcher/2.0.8/@pnpm!logger@2.1.0
       '@pnpm/tslint-config': 'link:../../utils/tslint-config'
@@ -611,7 +611,7 @@ importers:
       '@pnpm/fetcher-base': 2.0.0
       '@pnpm/local-resolver': 1.0.3
       '@pnpm/logger': 2.1.0
-      '@pnpm/npm-resolver': 2.2.6
+      '@pnpm/npm-resolver': 2.2.7
       '@pnpm/package-requester': 'link:'
       '@pnpm/pkgid-to-filename': 2.0.0
       '@pnpm/read-package-json': 1.0.1
@@ -679,7 +679,7 @@ importers:
       write-json-file: 3.0.2
     devDependencies:
       '@pnpm/logger': 2.1.0
-      '@pnpm/npm-resolver': /@pnpm/npm-resolver/2.2.6/@pnpm!logger@2.1.0
+      '@pnpm/npm-resolver': /@pnpm/npm-resolver/2.2.7/@pnpm!logger@2.1.0
       '@pnpm/package-store': 'link:'
       '@pnpm/tarball-fetcher': /@pnpm/tarball-fetcher/2.0.8/@pnpm!logger@2.1.0
       '@pnpm/tslint-config': 'link:../../utils/tslint-config'
@@ -696,7 +696,7 @@ importers:
       '@pnpm/fetcher-base': 2.0.0
       '@pnpm/fs-locker': 1.0.3
       '@pnpm/logger': 2.1.0
-      '@pnpm/npm-resolver': 2.2.6
+      '@pnpm/npm-resolver': 2.2.7
       '@pnpm/package-requester': 4.1.10
       '@pnpm/package-store': 'link:'
       '@pnpm/resolver-base': 2.0.0
@@ -990,7 +990,7 @@ importers:
   packages/resolve-dependencies:
     dependencies:
       '@pnpm/core-loggers': 'link:../core-loggers'
-      '@pnpm/npm-resolver': /@pnpm/npm-resolver/2.2.6/@pnpm!logger@2.1.0
+      '@pnpm/npm-resolver': /@pnpm/npm-resolver/2.2.7/@pnpm!logger@2.1.0
       '@pnpm/resolver-base': 2.0.0
       '@pnpm/store-controller-types': 'link:../store-controller-types'
       '@pnpm/types': 'link:../types'
@@ -1016,7 +1016,7 @@ importers:
     specifiers:
       '@pnpm/core-loggers': 1.0.0
       '@pnpm/logger': 2.1.0
-      '@pnpm/npm-resolver': 2.2.6
+      '@pnpm/npm-resolver': 2.2.7
       '@pnpm/resolve-dependencies': 'link:'
       '@pnpm/resolver-base': 2.0.0
       '@pnpm/store-controller-types': 1.1.0
@@ -1050,7 +1050,7 @@ importers:
       uuid: 3.3.2
     devDependencies:
       '@pnpm/logger': 2.1.0
-      '@pnpm/npm-resolver': /@pnpm/npm-resolver/2.2.6/@pnpm!logger@2.1.0
+      '@pnpm/npm-resolver': /@pnpm/npm-resolver/2.2.7/@pnpm!logger@2.1.0
       '@pnpm/package-requester': 'link:../package-requester'
       '@pnpm/package-store': 'link:../package-store'
       '@pnpm/server': 'link:'
@@ -1070,7 +1070,7 @@ importers:
       typescript: 3.1.6
     specifiers:
       '@pnpm/logger': 2.1.0
-      '@pnpm/npm-resolver': 2.2.6
+      '@pnpm/npm-resolver': 2.2.7
       '@pnpm/package-requester': 4.1.10
       '@pnpm/package-store': 1.2.0
       '@pnpm/server': 'link:'
@@ -1912,7 +1912,7 @@ packages:
       node: '>=6'
     resolution:
       integrity: sha512-BL4Laf6b50LjdcpOUWPukx2XJtb3mo2OpJjHdRNSDJu9YS2tRBeP14H2bNqGjCjfeml8z3KufI3Km6VQemVXNw==
-  /@pnpm/npm-resolver/2.2.6/@pnpm!logger@2.1.0:
+  /@pnpm/npm-resolver/2.2.7/@pnpm!logger@2.1.0:
     dependencies:
       '@pnpm/logger': 2.1.0
       '@pnpm/resolver-base': 2.0.0
@@ -1928,18 +1928,18 @@ packages:
       mem: 4.0.0
       normalize-path: 3.0.0
       p-limit: 2.0.0
-      parse-npm-tarball-url: 1.0.3
+      parse-npm-tarball-url: 2.0.0
       semver: 5.6.0
       ssri: 6.0.1
       version-selector-type: 2.0.0
       write-json-file: 3.0.2
     engines:
       node: '>=6'
-    id: registry.npmjs.org/@pnpm/npm-resolver/2.2.6
+    id: registry.npmjs.org/@pnpm/npm-resolver/2.2.7
     peerDependencies:
       '@pnpm/logger': ^1.0.0 || ^2.0.0
     resolution:
-      integrity: sha512-huABgb0vh2kOrZA34TuiosqO1PnmYAtQQaYOxuBR7+j0wY1k/Rj8bkN6v64V01imHMu6hwLSOLu9DgT1X93QHg==
+      integrity: sha512-GghdeFa5EmZSLITI5ZrNYPBFsRSYNJFpX2QmTl3aFMQovrtz+JAf9DkPHRJY2VJeWEVZKABot0wnCghwSEr0tw==
   /@pnpm/package-bins/2.0.0:
     dependencies:
       '@pnpm/types': 2.0.0
@@ -2160,11 +2160,15 @@ packages:
   /@types/node/10.12.10:
     resolution:
       integrity: sha512-8xZEYckCbUVgK8Eg7lf5Iy4COKJ5uXlnIOnePN0WUwSQggy9tolM+tDJf7wMOnT/JT/W9xDYIaYggt3mRV2O5w==
+  /@types/node/10.12.11:
+    resolution:
+      integrity: sha512-3iIOhNiPGTdcUNVCv9e5G7GotfvJJe2pc9w2UgDXlUwnxSZ3RgcUocIU+xYm+rTU54jIKih998QE4dMOyMN1NQ==
   /@types/node/8.10.38:
     dev: false
     resolution:
       integrity: sha512-EibsnbJerd0hBFaDjJStFrVbVBAtOy4dgL8zZFw0uOvPqzBAX59Ci8cgjg3+RgJIWhsB5A4c+pi+D4P9tQQh/A==
   /@types/node/9.6.39:
+    dev: false
     resolution:
       integrity: sha512-c3OkjgNpSMdHan56WhklP0FMOk5ocilKz2Mpa0NOGzu8jw5YERjCf9FG0epYB1+TxScv/oI4uJ204u2mUg7Hcw==
   /@types/nopt/3.0.29:
@@ -7495,14 +7499,14 @@ packages:
       node: '>=0.10.0'
     resolution:
       integrity: sha1-VjRtR0nXjyNDDKDHE4UK75GqNh0=
-  /parse-npm-tarball-url/1.0.3:
+  /parse-npm-tarball-url/2.0.0:
     dependencies:
-      '@types/node': 9.6.39
-      semver-regex: 1.0.0
+      '@types/node': 10.12.11
+      semver-regex: 2.0.0
     engines:
-      node: '>=4'
+      node: '>=6'
     resolution:
-      integrity: sha512-LNiNoG41t4SeUu3p8aEpQatMVbfLxc600UD0urKMz09vHzz2+w0nWLs6k8rnk5eZ1tpCNkMzaMAzFTsNWMrIWg==
+      integrity: sha512-ZUkuEjY1YqIcOnqZjoNcy9oniT07k1hfpHgbDqrYmR8Lx3xVnUv7MbvOfANa/ZNGSz1CkgI9lfqCHaf8SKyL0Q==
   /parse-url/1.3.11:
     dependencies:
       is-ssh: 1.3.0
@@ -8522,11 +8526,11 @@ packages:
       node: '>=0.10.0'
     resolution:
       integrity: sha1-S7uEN8jTfksM8aaP1ybsbWRdbTY=
-  /semver-regex/1.0.0:
+  /semver-regex/2.0.0:
     engines:
-      node: '>=0.10.0'
+      node: '>=6'
     resolution:
-      integrity: sha1-kqSWkGX5xwxpR1PVUkj8aPj2Usk=
+      integrity: sha512-mUdIBBvdn0PLOeP3TEkMH7HHeUP3GjsXCwKarjv/kGmUFOYg1VqEemKhoQpWMu6X2I8kHeuVdGibLGkVK+/5Qw==
   /semver/5.3.0:
     dev: false
     hasBin: true

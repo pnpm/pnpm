@@ -44,7 +44,7 @@
   },
   "devDependencies": {
     "@pnpm/logger": "2.1.0",
-    "@pnpm/npm-resolver": "2.2.6",
+    "@pnpm/npm-resolver": "2.2.7",
     "@pnpm/package-store": "link:",
     "@pnpm/tarball-fetcher": "2.0.8",
     "@pnpm/tslint-config": "0.0.0",

@@ -31,7 +31,7 @@
   },
   "dependencies": {
     "@pnpm/core-loggers": "1.0.0",
-    "@pnpm/npm-resolver": "2.2.6",
+    "@pnpm/npm-resolver": "2.2.7",
     "@pnpm/resolver-base": "2.0.0",
     "@pnpm/store-controller-types": "1.1.0",
     "@pnpm/types": "2.0.0",
