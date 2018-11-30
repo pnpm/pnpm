@@ -108,7 +108,6 @@
     "ncp": "2.0.0",
     "npm-run-all": "4.1.5",
     "npm-scripts-info": "0.3.9",
-    "package-preview": "1.0.6",
     "path-exists": "3.0.0",
     "path-name": "1.0.0",
     "pnpm-registry-mock": "2.4.0",

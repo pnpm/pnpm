@@ -111,7 +111,6 @@
     "npm-run-all": "4.1.5",
     "npm-scripts-info": "0.3.9",
     "p-any": "1.1.0",
-    "package-preview": "1.0.6",
     "path-exists": "3.0.0",
     "pnpm": "link:",
     "pnpm-registry-mock": "2.4.0",
@@ -180,7 +179,6 @@
     "test:tap": "ts-node test --type-check",
     "pretest:e2e": "rimraf ../../../.tmp/ && rimraf node_modules/.bin/pnpm && pnpm-registry-mock prepare",
     "test:e2e": "npm-run-all -p -r pnpm-registry-mock test:tap",
-    "test:e2e-with-preview": "preview --skip-prepublishOnly && npm-run-all -p -r pnpm-registry-mock test:tap",
     "test": "npm run lint && npm run tsc && npm run test:e2e",
     "tsc": "rimraf lib && tsc",
     "release": "sh .scripts/release.sh"
