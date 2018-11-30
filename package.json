@@ -59,7 +59,7 @@
     "@types/tape": "4.2.32",
     "@types/tempy": "0.2.0",
     "nock": "10.0.2",
-    "package-preview": "1.0.6",
+    "package-preview": "2.0.0",
     "tape": "4.9.1",
     "tempy": "0.2.1",
     "ts-node": "7.0.1",
