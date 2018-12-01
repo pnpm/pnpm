@@ -35,7 +35,7 @@ export {
 }
 
 export { ImportersOptions } from './getContext'
-export { DependencyOperation, InstallOptions } from './install/extendInstallOptions'
+export { InstallOptions } from './install/extendInstallOptions'
 export { RebuildOptions } from './rebuild/extendRebuildOptions'
 export { UninstallOptions } from './uninstall/extendUninstallOptions'
 

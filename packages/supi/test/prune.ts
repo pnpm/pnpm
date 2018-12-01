@@ -6,6 +6,7 @@ import {
   addDependenciesToPackage,
   install,
   link,
+  mutateModules,
   RootLog,
 } from 'supi'
 import tape = require('tape')
@@ -37,18 +38,20 @@ test('prune removes extraneous packages', async (t: tape.Test) => {
 
   const reporter = sinon.spy()
 
-  await install({
-    ...opts,
-    importers: [
+  await mutateModules(
+    [
       {
-        operation: 'install',
+        mutation: 'install',
         prefix: process.cwd(),
         pruneDirectDependencies: true,
       },
     ],
-    pruneStore: true,
-    reporter,
-  })
+    {
+      ...opts,
+      pruneStore: true,
+      reporter,
+    },
+  )
 
   t.ok(reporter.calledWithMatch({
     level: 'debug',

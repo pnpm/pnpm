@@ -14,10 +14,11 @@ import createPkgGraph, { PackageNode } from 'pkgs-graph'
 import readIniFile = require('read-ini-file')
 import {
   addDependenciesToPackage,
-  DependencyOperation,
   ImportersOptions,
   install,
   InstallOptions,
+  MutatedImporter,
+  mutateModules,
   rebuild,
   rebuildPkgs,
   uninstall,
@@ -211,47 +212,47 @@ export async function recursive (
       pkgPaths = await pFilter(pkgPaths, async (pkgPath: string) => isFromWorkspace(await fs.realpath(pkgPath)))
       if (pkgPaths.length === 0) return true
       const hooks = opts.ignorePnpmfile ? {} : requireHooks(opts.shrinkwrapDirectory, opts)
-      const operation = cmdFullName === 'uninstall' ? 'remove' : (input.length === 0 ? 'install' : 'add')
-      await install({
+      const mutation = cmdFullName === 'uninstall' ? 'remove' : (input.length === 0 ? 'install' : 'add')
+      const importers = await Promise.all<MutatedImporter>(pkgPaths.map(async (prefix) => {
+        const localConfigs = await memReadLocalConfigs(prefix)
+        const shamefullyFlatten = typeof localConfigs.shamefullyFlatten === 'boolean'
+          ? localConfigs.shamefullyFlatten
+          : opts.shamefullyFlatten
+        switch (mutation) {
+          case 'remove':
+            return {
+              mutation,
+              prefix,
+              shamefullyFlatten,
+              targetDependencies: input,
+              targetDependenciesField: getSaveType(installOpts),
+            } as MutatedImporter
+          case 'add':
+            return {
+              allowNew: cmdFullName === 'install',
+              mutation,
+              prefix,
+              saveExact: typeof localConfigs.saveExact === 'boolean'
+                ? localConfigs.saveExact
+                : opts.saveExact,
+              savePrefix: typeof localConfigs.savePrefix === 'string'
+                ? localConfigs.savePrefix
+                : opts.savePrefix,
+              shamefullyFlatten,
+              targetDependencies: input,
+              targetDependenciesField: getSaveType(installOpts),
+            } as MutatedImporter
+          case 'install':
+            return {
+              mutation,
+              prefix,
+              shamefullyFlatten,
+            } as MutatedImporter
+        }
+      }))
+      await mutateModules(importers, {
         ...installOpts,
         hooks,
-        importers: await Promise.all<(ImportersOptions & DependencyOperation)>(pkgPaths.map(async (prefix) => {
-          const localConfigs = await memReadLocalConfigs(prefix)
-          const shamefullyFlatten = typeof localConfigs.shamefullyFlatten === 'boolean'
-            ? localConfigs.shamefullyFlatten
-            : opts.shamefullyFlatten
-          switch (operation) {
-            case 'remove':
-              return {
-                operation,
-                prefix,
-                shamefullyFlatten,
-                targetDependencies: input,
-                targetDependenciesField: getSaveType(installOpts),
-              } as (ImportersOptions & DependencyOperation)
-            case 'add':
-              return {
-                allowNew: cmdFullName === 'install',
-                operation,
-                prefix,
-                saveExact: typeof localConfigs.saveExact === 'boolean'
-                  ? localConfigs.saveExact
-                  : opts.saveExact,
-                savePrefix: typeof localConfigs.savePrefix === 'string'
-                  ? localConfigs.savePrefix
-                  : opts.savePrefix,
-                shamefullyFlatten,
-                targetDependencies: input,
-                targetDependenciesField: getSaveType(installOpts),
-              } as (ImportersOptions & DependencyOperation)
-            case 'install':
-              return {
-                operation,
-                prefix,
-                shamefullyFlatten,
-              } as (ImportersOptions & DependencyOperation)
-          }
-        })),
         storeController: store.ctrl,
       })
       return true

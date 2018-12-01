@@ -3,33 +3,14 @@ import { IncludedDependencies } from '@pnpm/modules-yaml'
 import { LocalPackages } from '@pnpm/resolver-base'
 import { StoreController } from '@pnpm/store-controller-types'
 import {
-  DependenciesField,
   ReadPackageHook,
   Registries,
 } from '@pnpm/types'
 import { DEFAULT_REGISTRIES, normalizeRegistries } from '@pnpm/utils'
 import path = require('path')
 import { Shrinkwrap } from 'pnpm-shrinkwrap'
-import { ImportersOptions } from '../getContext'
 import pnpmPkgJson from '../pnpmPkgJson'
 import { ReporterFunction } from '../types'
-
-export type DependencyOperation = {
-  operation: 'install',
-  pruneDirectDependencies?: boolean,
-} | {
-  allowNew?: boolean,
-  operation: 'add',
-  pruneDirectDependencies?: boolean,
-  saveExact?: boolean,
-  savePrefix?: string,
-  targetDependencies: string[],
-  targetDependenciesField?: DependenciesField,
-} | {
-  operation: 'remove',
-  targetDependencies: string[],
-  targetDependenciesField?: DependenciesField,
-}
 
 export interface BaseInstallOptions {
   forceSharedShrinkwrap?: boolean,
@@ -62,7 +43,6 @@ export interface BaseInstallOptions {
   sideEffectsCache?: boolean,
   sideEffectsCacheReadonly?: boolean,
   strictPeerDependencies?: boolean,
-  importers?: (ImportersOptions & DependencyOperation)[],
   include?: IncludedDependencies,
   independentLeaves?: boolean,
   ignoreCurrentPrefs?: boolean,
@@ -112,7 +92,6 @@ export type StrictInstallOptions = BaseInstallOptions & {
   sideEffectsCache: boolean,
   sideEffectsCacheReadonly: boolean,
   strictPeerDependencies: boolean,
-  importers: (ImportersOptions & DependencyOperation)[],
   include: IncludedDependencies,
   independentLeaves: boolean,
   ignoreCurrentPrefs: boolean,
@@ -145,11 +124,6 @@ const defaults = async (opts: InstallOptions) => {
     hooks: {},
     ignoreCurrentPrefs: false,
     ignoreScripts: false,
-    importers: [{
-      bin: opts.bin,
-      operation: 'install',
-      prefix: opts.prefix || process.cwd(),
-    }],
     include: {
       dependencies: true,
       devDependencies: true,
@@ -205,11 +179,6 @@ export default async (
     ...defaultOpts,
     ...opts,
     store: defaultOpts.store,
-  }
-  for (const importer of extendedOpts.importers) {
-    if (!(importer.operation as string)) {
-      importer.operation = 'install'
-    }
   }
   if (!extendedOpts.shrinkwrap && extendedOpts.shrinkwrapOnly) {
     throw new Error('Cannot generate a shrinkwrap.yaml because shrinkwrap is set to false')

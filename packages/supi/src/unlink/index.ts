@@ -8,7 +8,7 @@ import pFilter = require('p-filter')
 import path = require('path')
 import rimraf = require('rimraf-then')
 import getContext from '../getContext'
-import { install } from '../install'
+import { mutateModules } from '../install'
 import extendOptions, {
   InstallOptions,
   StrictInstallOptions,
@@ -23,7 +23,9 @@ export async function unlinkPkgs (
     streamParser.on('data', reporter)
   }
   const opts = await _extendOptions(maybeOpts)
-  const ctx = await getContext(opts)
+  const ctx = await getContext([
+    { prefix: maybeOpts && maybeOpts.prefix || process.cwd(), mutation: 'install' as 'install' },
+  ], opts)
   opts.store = ctx.storePath
 
   await _unlinkPkgs(pkgNames, opts, ctx.importers)
@@ -36,7 +38,7 @@ export async function unlinkPkgs (
 export async function _unlinkPkgs (
   pkgNames: string[],
   opts: StrictInstallOptions,
-  importers: Array<{ modulesDir: string, prefix: string }>,
+  importers: Array<{ modulesDir: string, prefix: string, mutation: 'install' }>,
 ) {
   if (importers.length > 1) throw new Error('Unlink not implemented for multiple importers yet')
   const importer = importers[0]
@@ -66,7 +68,7 @@ export async function _unlinkPkgs (
 
   // TODO: install only those that were unlinked
   // but don't update their version specs in package.json
-  await install({ ...opts, preferFrozenShrinkwrap: false })
+  await mutateModules(importers, { ...opts, preferFrozenShrinkwrap: false })
 }
 
 export async function unlink (maybeOpts: InstallOptions) {
@@ -75,7 +77,7 @@ export async function unlink (maybeOpts: InstallOptions) {
     streamParser.on('data', reporter)
   }
   const opts = await _extendOptions(maybeOpts)
-  const ctx = await getContext(opts)
+  const ctx = await getContext([{ prefix: maybeOpts && maybeOpts.prefix || process.cwd(), mutation: 'install' as 'install' }], opts)
   opts.store = ctx.storePath
 
   if (ctx.importers.length > 1) throw new Error('Unlink not implemented for multiple importers yet')

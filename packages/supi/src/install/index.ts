@@ -47,7 +47,7 @@ import {
   SHRINKWRAP_VERSION,
 } from '../constants'
 import { PnpmError } from '../errorTypes'
-import getContext, { PnpmContext } from '../getContext'
+import getContext, { ImportersOptions, PnpmContext } from '../getContext'
 import getSpecFromPackageJson from '../getSpecFromPackageJson'
 import lock from '../lock'
 import parseWantedDependencies from '../parseWantedDependencies'
@@ -57,7 +57,6 @@ import shrinkwrapsEqual from '../shrinkwrapsEqual'
 import removeDeps from '../uninstall/removeDeps'
 import getPref from '../utils/getPref'
 import extendOptions, {
-  DependencyOperation,
   InstallOptions,
   StrictInstallOptions,
 } from './extendInstallOptions'
@@ -69,15 +68,49 @@ import { absolutePathToRef } from './shrinkwrap'
 
 const ENGINE_NAME = `${process.platform}-${process.arch}-node-${process.version.split('.')[0]}`
 
-export async function install (maybeOpts: InstallOptions & {
-  preferredVersions?: {
-    [packageName: string]: {
-      selector: string,
-      type: 'version' | 'range' | 'tag',
+export type DependenciesMutation = {
+  mutation: 'install',
+  pruneDirectDependencies?: boolean,
+} | {
+  allowNew?: boolean,
+  mutation: 'add',
+  pruneDirectDependencies?: boolean,
+  saveExact?: boolean,
+  savePrefix?: string,
+  targetDependencies: string[],
+  targetDependenciesField?: DependenciesField,
+} | {
+  mutation: 'remove',
+  targetDependencies: string[],
+  targetDependenciesField?: DependenciesField,
+}
+
+export function install (
+  opts: InstallOptions & {
+    preferredVersions?: {
+      [packageName: string]: {
+        selector: string,
+        type: 'version' | 'range' | 'tag',
+      },
     },
   },
-  pruneDirectDependencies?: boolean,
-}) {
+) {
+  return mutateModules([{ prefix: opts.prefix || process.cwd(), mutation: 'install' }], opts)
+}
+
+export type MutatedImporter = ImportersOptions & DependenciesMutation
+
+export async function mutateModules (
+  importers: MutatedImporter[],
+  maybeOpts: InstallOptions & {
+    preferredVersions?: {
+      [packageName: string]: {
+        selector: string,
+        type: 'version' | 'range' | 'tag',
+      },
+    },
+  },
+) {
   const reporter = maybeOpts && maybeOpts.reporter
   if (reporter) {
     streamParser.on('data', reporter)
@@ -89,7 +122,7 @@ export async function install (maybeOpts: InstallOptions & {
     throw new PnpmError('ERR_PNPM_OPTIONAL_DEPS_REQUIRE_PROD_DEPS', 'Optional dependencies cannot be installed without production dependencies')
   }
 
-  const ctx = await getContext(opts)
+  const ctx = await getContext(importers, opts)
 
   for (const importer of ctx.importers) {
     if (!importer.pkg) {
@@ -113,7 +146,7 @@ export async function install (maybeOpts: InstallOptions & {
   }
 
   async function _install () {
-    const installsOnly = opts.importers.every((importer) => importer.operation === 'install')
+    const installsOnly = importers.every((importer) => importer.mutation === 'install')
     if (
       !opts.shrinkwrapOnly &&
       !opts.update &&
@@ -169,7 +202,7 @@ export async function install (maybeOpts: InstallOptions & {
     const importersToInstall = [] as ImporterToUpdate[]
     // TODO: make it concurrent
     for (const importer of ctx.importers) {
-      switch (importer.operation) {
+      switch (importer.mutation) {
         case 'remove':
           importersToInstall.push({
             pruneDirectDependencies: false,
@@ -279,7 +312,7 @@ export async function install (maybeOpts: InstallOptions & {
     })
 
     for (const importer of ctx.importers) {
-      if (importer.operation !== 'install') continue
+      if (importer.mutation !== 'install') continue
 
       const scripts = !opts.ignoreScripts && importer.pkg && importer.pkg.scripts || {}
 
@@ -434,12 +467,11 @@ export async function addDependenciesToPackage (
     targetDependenciesField?: DependenciesField,
   },
 ) {
-  return install({
-    ...opts,
-    importers: [
+  return mutateModules(
+    [
       {
         allowNew: opts.allowNew,
-        operation: 'add',
+        mutation: 'add',
         prefix: opts.prefix || process.cwd(),
         saveExact: opts.saveExact,
         savePrefix: opts.savePrefix,
@@ -447,8 +479,10 @@ export async function addDependenciesToPackage (
         targetDependenciesField: opts.targetDependenciesField,
       },
     ],
-    shrinkwrapDirectory: opts.shrinkwrapDirectory || opts.prefix,
-  })
+    {
+      ...opts,
+      shrinkwrapDirectory: opts.shrinkwrapDirectory || opts.prefix,
+    })
 }
 
 type ImporterToUpdate = {
@@ -466,11 +500,11 @@ type ImporterToUpdate = {
   updatePackageJson: boolean,
   usesExternalShrinkwrap: boolean,
   wantedDeps: WantedDependency[],
-} & DependencyOperation
+} & DependenciesMutation
 
 async function installInContext (
   importers: ImporterToUpdate[],
-  ctx: PnpmContext<DependencyOperation>,
+  ctx: PnpmContext<DependenciesMutation>,
   opts: StrictInstallOptions & {
     makePartialCurrentShrinkwrap: boolean,
     updateShrinkwrapMinorVersion: boolean,
@@ -510,7 +544,7 @@ async function installInContext (
   await Promise.all(
     importers
       .map(async (importer) => {
-        if (importer.operation !== 'remove') return
+        if (importer.mutation !== 'remove') return
         const pkgJsonPath = path.join(importer.prefix, 'package.json')
         importer.pkg = await removeDeps(pkgJsonPath, importer.targetDependencies, {
           prefix: importer.prefix,
@@ -574,7 +608,7 @@ async function installInContext (
   const importersToLink = await Promise.all<ImporterToLink>(importers.map(async (importer) => {
     const resolvedImporter = resolvedImporters[importer.id]
     let newPkg: PackageJson | undefined = importer.pkg
-    if (importer.updatePackageJson && importer.operation === 'add') {
+    if (importer.updatePackageJson && importer.mutation === 'add') {
       if (!importer.pkg) {
         throw new Error('Cannot save because no package.json found')
       }

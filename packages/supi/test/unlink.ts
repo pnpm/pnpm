@@ -45,13 +45,19 @@ test('unlink 1 package that exists in package.json', async (t: tape.Test) => {
     }),
   ])
 
-  await link(['is-subdir', 'is-positive'], path.join('project', 'node_modules'), await testDefaults({ prefix: path.resolve('project') }))
+  const opts = await testDefaults({ store: path.resolve('.store') })
+
+  await link(
+    ['is-subdir', 'is-positive'],
+    path.join('project', 'node_modules'),
+    { ...opts, prefix: path.resolve('project') },
+  )
 
   process.chdir('project')
 
-  await install(await testDefaults())
+  await install(opts)
 
-  await unlinkPkgs(['is-subdir'], await testDefaults())
+  await unlinkPkgs(['is-subdir'], opts)
 
   t.equal(typeof project.requireModule('is-subdir'), 'function', 'is-subdir installed after unlinked')
   t.notOk((await isInnerLink('node_modules', 'is-positive')).isInner, 'is-positive left linked')

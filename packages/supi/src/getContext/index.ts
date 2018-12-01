@@ -54,6 +54,7 @@ export interface ImportersOptions {
 }
 
 export default async function getContext<T> (
+  importers: (ImportersOptions & T)[],
   opts: {
     force: boolean,
     forceSharedShrinkwrap: boolean,
@@ -63,14 +64,13 @@ export default async function getContext<T> (
     },
     include?: IncludedDependencies,
     independentLeaves: boolean,
-    importers: (ImportersOptions & T)[],
     registries: Registries,
     shamefullyFlatten: boolean,
     shrinkwrap: boolean,
     store: string,
   },
 ): Promise<PnpmContext<T>> {
-  const manifests = await readManifests(opts.importers, opts.shrinkwrapDirectory, {
+  const manifests = await readManifests(importers, opts.shrinkwrapDirectory, {
     shamefullyFlatten: opts.shamefullyFlatten,
   })
 
@@ -99,7 +99,7 @@ export default async function getContext<T> (
     }))
   }
 
-  const importerOptionsByPrefix = opts.importers.reduce((prev, curr) => {
+  const importerOptionsByPrefix = importers.reduce((prev, curr) => {
     prev[curr.prefix] = curr
     return prev
   }, {})

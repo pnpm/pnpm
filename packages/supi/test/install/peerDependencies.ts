@@ -12,6 +12,7 @@ import sinon = require('sinon')
 import {
   addDependenciesToPackage,
   install,
+  mutateModules,
   uninstall,
 } from 'supi'
 import tape = require('tape')
@@ -455,10 +456,18 @@ test('peer dependency is grouped with dependent when the peer is a top dependenc
   }
 
   // Covers https://github.com/pnpm/pnpm/issues/1506
-  await install(await testDefaults({
-    importers: [{ prefix: process.cwd(), operation: 'remove', targetDependencies: ['ajv'] }],
-    shrinkwrapDirectory,
-  }))
+  await mutateModules(
+    [
+      {
+        mutation: 'remove',
+        prefix: process.cwd(),
+        targetDependencies: ['ajv'],
+      },
+    ],
+    await testDefaults({
+      shrinkwrapDirectory,
+    }),
+  )
 
   {
     const shr = await readYamlFile<Shrinkwrap>(path.resolve('..', 'shrinkwrap.yaml'))

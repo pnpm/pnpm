@@ -14,6 +14,7 @@ import sinon = require('sinon')
 import {
   addDependenciesToPackage,
   install,
+  mutateModules,
   RootLog,
   uninstall,
 } from 'supi'
@@ -1087,7 +1088,19 @@ test('doing named installation when shared shrinkwrap.yaml exists already', asyn
 
   t.deepEqual(R.keys(currentShr['importers']), ['pkg2'], 'only pkg2 added to importers of current shrinkwrap')
 
-  await install(await testDefaults({ importers: [{ prefix: path.resolve('pkg1') }, { prefix: path.resolve('pkg2') }] }))
+  await mutateModules(
+    [
+      {
+        mutation: 'install',
+        prefix: path.resolve('pkg1'),
+      },
+      {
+        mutation: 'install',
+        prefix: path.resolve('pkg2'),
+      },
+    ],
+    await testDefaults(),
+  )
 
   await projects['pkg1'].has('is-negative')
   await projects['pkg2'].has('is-positive')
