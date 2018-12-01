@@ -14,6 +14,8 @@ import createPkgGraph, { PackageNode } from 'pkgs-graph'
 import readIniFile = require('read-ini-file')
 import {
   addDependenciesToPackage,
+  DependencyOperation,
+  ImportersOptions,
   install,
   InstallOptions,
   rebuild,
@@ -198,23 +200,10 @@ export async function recursive (
   const memReadLocalConfigs = mem(readLocalConfigs)
 
   if (cmdFullName !== 'rebuild') {
-    let action!: any // tslint:disable-line:no-any
-    switch (cmdFullName) {
-      case 'unlink':
-        action = (input.length === 0 ? unlink : unlinkPkgs.bind(null, input))
-        break
-      case 'uninstall':
-        action = opts.shrinkwrapDirectory ? install : uninstall.bind(null, input)
-        break
-      default:
-        action = (input.length === 0 || opts.shrinkwrapDirectory) ? install : addDependenciesToPackage.bind(null, input)
-        break
-    }
-
     let pkgPaths = chunks.length === 0
       ? chunks[0]
       : Object.keys(pkgGraphResult.graph).sort()
-    if (opts.shrinkwrapDirectory && ['install', 'uninstall', 'update', 'link'].indexOf(cmdFullName) !== -1) {
+    if (opts.shrinkwrapDirectory && ['install', 'uninstall', 'update'].indexOf(cmdFullName) !== -1) {
       if (opts.ignoredPackages) {
         pkgPaths = pkgPaths.filter((prefix) => !opts.ignoredPackages!.has(prefix))
       }
@@ -222,31 +211,63 @@ export async function recursive (
       pkgPaths = await pFilter(pkgPaths, async (pkgPath: string) => isFromWorkspace(await fs.realpath(pkgPath)))
       if (pkgPaths.length === 0) return true
       const hooks = opts.ignorePnpmfile ? {} : requireHooks(opts.shrinkwrapDirectory, opts)
-      await action({
+      const operation = cmdFullName === 'uninstall' ? 'remove' : (input.length === 0 ? 'install' : 'add')
+      await install({
         ...installOpts,
         hooks,
-        importers: await Promise.all(pkgPaths.map(async (prefix) => {
+        importers: await Promise.all<(ImportersOptions & DependencyOperation)>(pkgPaths.map(async (prefix) => {
           const localConfigs = await memReadLocalConfigs(prefix)
-          return {
-            allowNew: cmdFullName === 'install',
-            operation: cmdFullName === 'uninstall' ? 'remove' : (input.length === 0 ? 'install' : 'add'),
-            prefix,
-            saveExact: typeof localConfigs.saveExact === 'boolean'
-              ? localConfigs.saveExact
-              : opts.saveExact,
-            savePrefix: typeof localConfigs.savePrefix === 'string'
-              ? localConfigs.savePrefix
-              : opts.savePrefix,
-            shamefullyFlatten: typeof localConfigs.shamefullyFlatten === 'boolean'
-              ? localConfigs.shamefullyFlatten
-              : opts.shamefullyFlatten,
-            targetDependencies: input,
-            targetDependenciesField: getSaveType(installOpts),
+          const shamefullyFlatten = typeof localConfigs.shamefullyFlatten === 'boolean'
+            ? localConfigs.shamefullyFlatten
+            : opts.shamefullyFlatten
+          switch (operation) {
+            case 'remove':
+              return {
+                operation,
+                prefix,
+                shamefullyFlatten,
+                targetDependencies: input,
+                targetDependenciesField: getSaveType(installOpts),
+              } as (ImportersOptions & DependencyOperation)
+            case 'add':
+              return {
+                allowNew: cmdFullName === 'install',
+                operation,
+                prefix,
+                saveExact: typeof localConfigs.saveExact === 'boolean'
+                  ? localConfigs.saveExact
+                  : opts.saveExact,
+                savePrefix: typeof localConfigs.savePrefix === 'string'
+                  ? localConfigs.savePrefix
+                  : opts.savePrefix,
+                shamefullyFlatten,
+                targetDependencies: input,
+                targetDependenciesField: getSaveType(installOpts),
+              } as (ImportersOptions & DependencyOperation)
+            case 'install':
+              return {
+                operation,
+                prefix,
+                shamefullyFlatten,
+              } as (ImportersOptions & DependencyOperation)
           }
         })),
         storeController: store.ctrl,
       })
       return true
+    }
+
+    let action!: any // tslint:disable-line:no-any
+    switch (cmdFullName) {
+      case 'unlink':
+        action = (input.length === 0 ? unlink : unlinkPkgs.bind(null, input))
+        break
+      case 'uninstall':
+        action = uninstall.bind(null, input)
+        break
+      default:
+        action = input.length === 0 ? install : addDependenciesToPackage.bind(null, input)
+        break
     }
     const limitInstallation = pLimit(opts.workspaceConcurrency)
     await Promise.all(pkgPaths.map((prefix: string) =>
