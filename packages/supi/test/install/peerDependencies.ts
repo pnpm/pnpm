@@ -455,7 +455,10 @@ test('peer dependency is grouped with dependent when the peer is a top dependenc
   }
 
   // Covers https://github.com/pnpm/pnpm/issues/1506
-  await uninstall(['ajv'], await testDefaults({ shrinkwrapDirectory }))
+  await install(await testDefaults({
+    importers: [{ prefix: process.cwd(), operation: 'remove', targetDependencies: ['ajv'] }],
+    shrinkwrapDirectory,
+  }))
 
   {
     const shr = await readYamlFile<Shrinkwrap>(path.resolve('..', 'shrinkwrap.yaml'))
