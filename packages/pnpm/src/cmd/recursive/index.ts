@@ -204,7 +204,7 @@ export async function recursive (
         action = (input.length === 0 ? unlink : unlinkPkgs.bind(null, input))
         break
       case 'uninstall':
-        action = uninstall.bind(null, input)
+        action = opts.shrinkwrapDirectory ? install : uninstall.bind(null, input)
         break
       default:
         action = (input.length === 0 || opts.shrinkwrapDirectory) ? install : addDependenciesToPackage.bind(null, input)
@@ -214,7 +214,7 @@ export async function recursive (
     let pkgPaths = chunks.length === 0
       ? chunks[0]
       : Object.keys(pkgGraphResult.graph).sort()
-    if (opts.shrinkwrapDirectory && ['install', 'update', 'link'].indexOf(cmdFullName) !== -1) {
+    if (opts.shrinkwrapDirectory && ['install', 'uninstall', 'update', 'link'].indexOf(cmdFullName) !== -1) {
       if (opts.ignoredPackages) {
         pkgPaths = pkgPaths.filter((prefix) => !opts.ignoredPackages!.has(prefix))
       }
@@ -229,7 +229,7 @@ export async function recursive (
           const localConfigs = await memReadLocalConfigs(prefix)
           return {
             allowNew: cmdFullName === 'install',
-            operation: input.length === 0 ? 'install' : 'add',
+            operation: cmdFullName === 'uninstall' ? 'remove' : (input.length === 0 ? 'install' : 'add'),
             prefix,
             saveExact: typeof localConfigs.saveExact === 'boolean'
               ? localConfigs.saveExact
