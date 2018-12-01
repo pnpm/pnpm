@@ -16,7 +16,6 @@ import {
   addDependenciesToPackage,
   install,
   InstallOptions,
-  installPkgs,
   rebuild,
   rebuildPkgs,
   uninstall,
@@ -208,7 +207,7 @@ export async function recursive (
         action = uninstall.bind(null, input)
         break
       default:
-        action = (input.length === 0 ? install : (opts.shrinkwrapDirectory ? installPkgs : addDependenciesToPackage.bind(null, input)))
+        action = (input.length === 0 || opts.shrinkwrapDirectory) ? install : addDependenciesToPackage.bind(null, input)
         break
     }
 
@@ -230,7 +229,7 @@ export async function recursive (
           const localConfigs = await memReadLocalConfigs(prefix)
           return {
             allowNew: cmdFullName === 'install',
-            operation: 'add',
+            operation: input.length === 0 ? 'install' : 'add',
             prefix,
             saveExact: typeof localConfigs.saveExact === 'boolean'
               ? localConfigs.saveExact

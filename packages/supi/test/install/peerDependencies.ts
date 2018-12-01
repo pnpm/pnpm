@@ -12,7 +12,6 @@ import sinon = require('sinon')
 import {
   addDependenciesToPackage,
   install,
-  installPkgs,
   uninstall,
 } from 'supi'
 import tape = require('tape')

@@ -13,7 +13,7 @@ import {
 } from 'pnpm-shrinkwrap'
 import { LAYOUT_VERSION } from '../constants'
 import { getContextForSingleImporter, PnpmSingleContext } from '../getContext'
-import { installPkgs } from '../install'
+import { install } from '../install'
 import lock from '../lock'
 import shrinkwrapsEqual from '../shrinkwrapsEqual'
 import extendOptions, {
@@ -35,7 +35,7 @@ export default async function uninstall (
 
   // && opts.sharedWorkspaceShrin
   if (opts.shrinkwrapDirectory !== opts.prefix) {
-    return installPkgs({
+    return install({
       ...opts,
       importers: [
         {

@@ -1,6 +1,6 @@
 import prepare from '@pnpm/prepare'
 import rimraf = require('rimraf-then')
-import { addDependenciesToPackage, installPkgs, storeStatus } from 'supi'
+import { addDependenciesToPackage, storeStatus } from 'supi'
 import tape = require('tape')
 import promisifyTape from 'tape-promise'
 import { testDefaults } from './utils'

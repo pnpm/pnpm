@@ -6,7 +6,13 @@ export default async (input: string[], opts: PnpmOptions) => {
   const store = await createStoreController(opts)
   return install({
     ...opts,
-    pruneDirectDependencies: true,
+    importers: [
+      {
+        operation: 'install',
+        prefix: process.cwd(),
+        pruneDirectDependencies: true,
+      },
+    ],
     pruneStore: true,
     store: store.path,
     storeController: store.ctrl,

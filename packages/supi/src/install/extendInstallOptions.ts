@@ -15,18 +15,21 @@ import pnpmPkgJson from '../pnpmPkgJson'
 import { ReporterFunction } from '../types'
 
 export type DependencyOperation = {
+  operation: 'install',
+  pruneDirectDependencies?: boolean,
+} | {
+  allowNew?: boolean,
+  operation: 'add',
+  pruneDirectDependencies?: boolean,
+  saveExact?: boolean,
+  savePrefix?: string,
   targetDependencies: string[],
   targetDependenciesField?: DependenciesField,
-} & (
-  {
-    allowNew?: boolean,
-    operation: 'add',
-    saveExact?: boolean,
-    savePrefix?: string,
-  } | {
-    operation: 'remove',
-  }
-)
+} | {
+  operation: 'remove',
+  targetDependencies: string[],
+  targetDependenciesField?: DependenciesField,
+}
 
 export interface BaseInstallOptions {
   forceSharedShrinkwrap?: boolean,
@@ -144,6 +147,7 @@ const defaults = async (opts: InstallOptions) => {
     ignoreScripts: false,
     importers: [{
       bin: opts.bin,
+      operation: 'install',
       prefix: opts.prefix || process.cwd(),
     }],
     include: {
@@ -201,6 +205,11 @@ export default async (
     ...defaultOpts,
     ...opts,
     store: defaultOpts.store,
+  }
+  for (const importer of extendedOpts.importers) {
+    if (!(importer.operation as string)) {
+      importer.operation = 'install'
+    }
   }
   if (!extendedOpts.shrinkwrap && extendedOpts.shrinkwrapOnly) {
     throw new Error('Cannot generate a shrinkwrap.yaml because shrinkwrap is set to false')

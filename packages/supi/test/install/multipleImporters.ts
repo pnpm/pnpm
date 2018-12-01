@@ -3,7 +3,7 @@ import { preparePackages } from '@pnpm/prepare'
 import path = require('path')
 import readPkg = require('read-pkg')
 import sinon = require('sinon')
-import { addDependenciesToPackage, install, installPkgs } from 'supi'
+import { addDependenciesToPackage, install } from 'supi'
 import tape = require('tape')
 import promisifyTape from 'tape-promise'
 import { testDefaults } from '../utils'

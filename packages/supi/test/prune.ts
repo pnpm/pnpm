@@ -5,7 +5,6 @@ import sinon = require('sinon')
 import {
   addDependenciesToPackage,
   install,
-  installPkgs,
   link,
   RootLog,
 } from 'supi'
@@ -38,7 +37,18 @@ test('prune removes extraneous packages', async (t: tape.Test) => {
 
   const reporter = sinon.spy()
 
-  await install({ ...opts, pruneDirectDependencies: true, pruneStore: true, reporter })
+  await install({
+    ...opts,
+    importers: [
+      {
+        operation: 'install',
+        prefix: process.cwd(),
+        pruneDirectDependencies: true,
+      },
+    ],
+    pruneStore: true,
+    reporter,
+  })
 
   t.ok(reporter.calledWithMatch({
     level: 'debug',

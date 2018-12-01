@@ -1,7 +1,6 @@
 import { getSaveType } from '@pnpm/utils'
 import {
   install,
-  installPkgs,
   rebuild,
 } from 'supi'
 import createStoreController from '../createStoreController'
@@ -52,10 +51,11 @@ export default async function installCmd (
   if (!input || !input.length) {
     await install(installOpts)
   } else {
-    await installPkgs(Object.assign(installOpts, {
+    await install(Object.assign(installOpts, {
       importers: [
         {
           bin: installOpts.bin,
+          operation: 'add',
           prefix: installOpts.prefix,
           targetDependencies: input,
           targetDependenciesField: getSaveType(installOpts),

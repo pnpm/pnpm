@@ -69,7 +69,6 @@ export default async function getContext<T> (
     shrinkwrap: boolean,
     store: string,
   },
-  installType?: 'named' | 'general',
 ): Promise<PnpmContext<T>> {
   const manifests = await readManifests(opts.importers, opts.shrinkwrapDirectory, {
     shamefullyFlatten: opts.shamefullyFlatten,
@@ -77,7 +76,7 @@ export default async function getContext<T> (
 
   if (manifests.modules) {
     await validateNodeModules(manifests.modules, manifests.importers, {
-      force: opts.force && installType === 'general',
+      force: opts.force,
       include: opts.include,
       independentLeaves: opts.independentLeaves,
       shrinkwrapDirectory: opts.shrinkwrapDirectory,
