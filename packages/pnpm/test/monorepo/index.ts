@@ -723,3 +723,39 @@ test('shared-workspace-shrinkwrap: uninstalling a package recursively', async (t
 
   t.deepEqual(Object.keys(shr.packages || {}), ['/is-negative/1.0.0'], 'is-positive removed from shrinkwrap.yaml')
 })
+
+// Covers https://github.com/pnpm/pnpm/issues/1506
+test('peer dependency is grouped with dependent when the peer is a top dependency and external node_modules is used', async (t: tape.Test) => {
+  const project = prepare(t)
+  const shrinkwrapDirectory = path.resolve('..')
+
+  await execPnpm('install', 'ajv@4.10.4', 'ajv-keywords@1.5.0', '--shrinkwrap-directory', shrinkwrapDirectory)
+
+  {
+    const shr = await readYamlFile<Shrinkwrap>(path.resolve('..', 'shrinkwrap.yaml'))
+    t.deepEqual(shr.importers['project'], {
+      dependencies: {
+        'ajv': '4.10.4',
+        'ajv-keywords': '/ajv-keywords/1.5.0/ajv@4.10.4',
+      },
+      specifiers: {
+        'ajv': '^4.10.4',
+        'ajv-keywords': '^1.5.0',
+      },
+    })
+  }
+
+  await execPnpm('uninstall', '--shrinkwrap-directory', shrinkwrapDirectory, 'ajv')
+
+  {
+    const shr = await readYamlFile<Shrinkwrap>(path.resolve('..', 'shrinkwrap.yaml'))
+    t.deepEqual(shr.importers['project'], {
+      dependencies: {
+        'ajv-keywords': '1.5.0',
+      },
+      specifiers: {
+        'ajv-keywords': '^1.5.0',
+      },
+    })
+  }
+})

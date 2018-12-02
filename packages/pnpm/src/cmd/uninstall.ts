@@ -1,4 +1,5 @@
 import {
+  mutateModules,
   uninstall,
 } from 'supi'
 import createStoreController from '../createStoreController'
@@ -13,6 +14,15 @@ export default async function uninstallCmd (
     store: store.path,
     storeController: store.ctrl,
   })
-
+  if (opts.shrinkwrapDirectory !== opts.prefix) {
+    return mutateModules([
+      {
+        bin: opts.bin,
+        mutation: 'remove',
+        prefix: opts.prefix,
+        targetDependencies: input,
+      },
+    ], uninstallOpts)
+  }
   return uninstall(input, uninstallOpts)
 }
