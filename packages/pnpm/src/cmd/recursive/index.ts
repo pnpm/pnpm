@@ -221,15 +221,16 @@ export async function recursive (
         switch (mutation) {
           case 'uninstallSome':
             return {
+              dependencyNames: input,
               mutation,
               prefix,
               shamefullyFlatten,
-              targetDependencies: input,
               targetDependenciesField: getSaveType(installOpts),
             } as MutatedImporter
           case 'installSome':
             return {
               allowNew: cmdFullName === 'install',
+              dependencySelectors: input,
               mutation,
               pinnedVersion: getPinnedVersion({
                 saveExact: typeof localConfigs.saveExact === 'boolean' ? localConfigs.saveExact : opts.saveExact,
@@ -237,7 +238,6 @@ export async function recursive (
               }),
               prefix,
               shamefullyFlatten,
-              targetDependencies: input,
               targetDependenciesField: getSaveType(installOpts),
             } as MutatedImporter
           case 'install':

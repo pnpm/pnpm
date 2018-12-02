@@ -459,9 +459,9 @@ test('peer dependency is grouped with dependent when the peer is a top dependenc
   await mutateModules(
     [
       {
+        dependencyNames: ['ajv'],
         mutation: 'uninstallSome',
         prefix: process.cwd(),
-        targetDependencies: ['ajv'],
       },
     ],
     await testDefaults({

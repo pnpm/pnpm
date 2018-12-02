@@ -73,14 +73,14 @@ export type DependenciesMutation = {
   pruneDirectDependencies?: boolean,
 } | {
   allowNew?: boolean,
+  dependencySelectors: string[],
   mutation: 'installSome',
   pruneDirectDependencies?: boolean,
   pinnedVersion?: 'major' | 'minor' | 'patch',
-  targetDependencies: string[],
   targetDependenciesField?: DependenciesField,
 } | {
   mutation: 'uninstallSome',
-  targetDependencies: string[],
+  dependencyNames: string[],
   targetDependenciesField?: DependenciesField,
 }
 
@@ -272,7 +272,7 @@ export async function mutateModules (
           const currentPrefs = opts.ignoreCurrentPrefs ? {} : getAllDependenciesFromPackage(importer.pkg)
           const optionalDependencies = importer.targetDependenciesField ? {} : importer.pkg.optionalDependencies || {}
           const devDependencies = importer.targetDependenciesField ? {} : importer.pkg.devDependencies || {}
-          const wantedDeps = parseWantedDependencies(importer.targetDependencies, {
+          const wantedDeps = parseWantedDependencies(importer.dependencySelectors, {
             allowNew: importer.allowNew !== false,
             currentPrefs,
             defaultTag: opts.tag,
@@ -457,7 +457,7 @@ function refIsLocalTarball (ref: string) {
 }
 
 export async function addDependenciesToPackage (
-  targetDependencies: string[],
+  dependencySelectors: string[],
   opts: InstallOptions & {
     allowNew?: boolean,
     prefix?: string,
@@ -469,10 +469,10 @@ export async function addDependenciesToPackage (
     [
       {
         allowNew: opts.allowNew,
+        dependencySelectors,
         mutation: 'installSome',
         pinnedVersion: opts.pinnedVersion,
         prefix: opts.prefix || process.cwd(),
-        targetDependencies,
         targetDependenciesField: opts.targetDependenciesField,
       },
     ],
@@ -543,7 +543,7 @@ async function installInContext (
       .map(async (importer) => {
         if (importer.mutation !== 'uninstallSome') return
         const pkgJsonPath = path.join(importer.prefix, 'package.json')
-        importer.pkg = await removeDeps(pkgJsonPath, importer.targetDependencies, {
+        importer.pkg = await removeDeps(pkgJsonPath, importer.dependencyNames, {
           prefix: importer.prefix,
           saveType: importer.targetDependenciesField,
         })
