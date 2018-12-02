@@ -4,7 +4,6 @@ import path = require('path')
 import exists = require('path-exists')
 import {
   addDependenciesToPackage,
-  installPkgs,
   rebuild,
   rebuildPkgs,
 } from 'supi'

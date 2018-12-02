@@ -195,7 +195,7 @@ test('dependency should be removed from the old field when installing it as a di
 
 test('multiple save to package.json with `exact` versions (@rstacruz/tap-spec & rimraf@2.5.1) (in sorted order)', async (t: tape.Test) => {
   const project = prepare(t)
-  await addDependenciesToPackage(['rimraf@2.5.1', '@rstacruz/tap-spec@latest'], await testDefaults({ save: true, saveExact: true }))
+  await addDependenciesToPackage(['rimraf@2.5.1', '@rstacruz/tap-spec@latest'], await testDefaults({ save: true, pinnedVersion: 'patch' }))
 
   const m1 = project.requireModule('@rstacruz/tap-spec')
   t.ok(typeof m1 === 'function', 'tapSpec() is available')
@@ -212,9 +212,9 @@ test('multiple save to package.json with `exact` versions (@rstacruz/tap-spec & 
   t.deepEqual(Object.keys(pkgJson.dependencies), Object.keys(expectedDeps), 'tap-spec and rimraf have been added to dependencies in sorted order')
 })
 
-test('save to package.json with save-prefix=~', async (t: tape.Test) => {
+test('save to package.json with save prefix ~', async (t: tape.Test) => {
   const project = prepare(t)
-  await addDependenciesToPackage(['rimraf@2.5.1'], await testDefaults({ savePrefix: '~' }))
+  await addDependenciesToPackage(['rimraf@2.5.1'], await testDefaults({ pinnedVersion: 'minor' }))
 
   const pkgJson = await readPkg()
   t.deepEqual(pkgJson.dependencies, { rimraf: '~2.5.1' }, 'rimraf have been added to dependencies')

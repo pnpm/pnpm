@@ -1,7 +1,4 @@
-import {
-  unlink,
-  unlinkPkgs,
-} from 'supi'
+import { mutateModules } from 'supi'
 import createStoreController from '../createStoreController'
 import { PnpmOptions } from '../types'
 
@@ -13,7 +10,18 @@ export default async function (input: string[], opts: PnpmOptions) {
   })
 
   if (!input || !input.length) {
-    return unlink(unlinkOpts)
+    return mutateModules([
+      {
+        dependencyNames: input,
+        mutation: 'unlinkSome',
+        prefix: opts.prefix,
+      },
+    ], unlinkOpts)
   }
-  return unlinkPkgs(input, unlinkOpts)
+  return mutateModules([
+    {
+      mutation: 'unlink',
+      prefix: opts.prefix,
+    },
+  ], unlinkOpts)
 }

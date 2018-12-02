@@ -34,6 +34,7 @@ export {
   DeprecationLog,
 }
 
+export { ImportersOptions } from './getContext'
 export { InstallOptions } from './install/extendInstallOptions'
 export { RebuildOptions } from './rebuild/extendRebuildOptions'
 export { UninstallOptions } from './uninstall/extendUninstallOptions'

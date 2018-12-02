@@ -8,8 +8,7 @@ import {
   addDependenciesToPackage,
   install,
   link,
-  unlink,
-  unlinkPkgs,
+  mutateModules,
 } from 'supi'
 import tape = require('tape')
 import promisifyTape from 'tape-promise'
@@ -45,13 +44,28 @@ test('unlink 1 package that exists in package.json', async (t: tape.Test) => {
     }),
   ])
 
-  await link(['is-subdir', 'is-positive'], path.join('project', 'node_modules'), await testDefaults({ prefix: path.resolve('project') }))
+  const opts = await testDefaults({ store: path.resolve('.store') })
+
+  await link(
+    ['is-subdir', 'is-positive'],
+    path.join('project', 'node_modules'),
+    { ...opts, prefix: path.resolve('project') },
+  )
 
   process.chdir('project')
 
-  await install(await testDefaults())
+  await install(opts)
 
-  await unlinkPkgs(['is-subdir'], await testDefaults())
+  await mutateModules(
+    [
+      {
+        dependencyNames: ['is-subdir'],
+        mutation: 'unlinkSome',
+        prefix: process.cwd(),
+      }
+    ],
+    opts,
+  )
 
   t.equal(typeof project.requireModule('is-subdir'), 'function', 'is-subdir installed after unlinked')
   t.notOk((await isInnerLink('node_modules', 'is-positive')).isInner, 'is-positive left linked')
@@ -75,7 +89,16 @@ test("don't update package when unlinking", async (t: tape.Test) => {
   await addDistTag('foo', '100.1.0', 'latest')
 
   process.chdir('project')
-  await unlinkPkgs(['foo'], opts)
+  await mutateModules(
+    [
+      {
+        dependencyNames: ['foo'],
+        mutation: 'unlinkSome',
+        prefix: process.cwd(),
+      }
+    ],
+    opts,
+  )
 
   t.equal(project.requireModule('foo/package.json').version, '100.0.0', 'foo not updated after unlink')
 })
@@ -99,7 +122,16 @@ test("don't update package when unlinking. Initial link is done on a package w/o
   await addDistTag('foo', '100.1.0', 'latest')
 
   process.chdir('project')
-  await unlinkPkgs(['foo'], opts)
+  await mutateModules(
+    [
+      {
+        dependencyNames: ['foo'],
+        mutation: 'unlinkSome',
+        prefix: process.cwd(),
+      }
+    ],
+    opts,
+  )
 
   t.equal(project.requireModule('foo/package.json').version, '100.1.0', 'latest foo is installed')
   t.deepEqual((await readPackageJsonFromDir(process.cwd())).dependencies, { foo: '^100.0.0' }, 'package.json not updated')
@@ -131,7 +163,16 @@ test('unlink 2 packages. One of them exists in package.json', async (t: tape.Tes
   await link(['is-subdir', 'is-positive'], path.join('project', 'node_modules'), opts)
 
   process.chdir('project')
-  await unlinkPkgs(['is-subdir', 'is-positive'], opts)
+  await mutateModules(
+    [
+      {
+        dependencyNames: ['is-subdir', 'is-positive'],
+        mutation: 'unlinkSome',
+        prefix: process.cwd(),
+      }
+    ],
+    opts,
+  )
 
   t.equal(typeof project.requireModule('is-subdir'), 'function', 'is-subdir installed after unlinked')
   t.notOk(await exists(path.join('node_modules', 'is-positive')), 'is-positive removed as it is not in package.json')
@@ -163,7 +204,15 @@ test('unlink all packages', async (t: tape.Test) => {
 
   await link(['is-subdir', 'logger'], path.join('project', 'node_modules'), opts)
 
-  await unlink(opts)
+  await mutateModules(
+    [
+      {
+        mutation: 'unlink',
+        prefix: path.resolve('project'),
+      }
+    ],
+    opts,
+  )
 
   t.equal(typeof project.requireModule('is-subdir'), 'function', 'is-subdir installed after unlinked')
   t.equal(typeof project.requireModule('@zkochan/logger'), 'object', '@zkochan/logger installed after unlinked')
@@ -175,7 +224,15 @@ test("don't warn about scoped packages when running unlink w/o params", async (t
   await addDependenciesToPackage(['@zkochan/logger'], await testDefaults())
 
   const reporter = sinon.spy()
-  await unlink(await testDefaults({ reporter }))
+  await mutateModules(
+    [
+      {
+        mutation: 'unlink',
+        prefix: process.cwd(),
+      }
+    ],
+    await testDefaults({ reporter }),
+  )
 
   t.notOk(reporter.calledWithMatch({
     level: 'warn',
@@ -190,7 +247,16 @@ test("don't unlink package that is not a link", async (t: tape.Test) => {
 
   await addDependenciesToPackage(['is-positive'], await testDefaults())
 
-  await unlinkPkgs(['is-positive'], await testDefaults({ reporter }))
+  await mutateModules(
+    [
+      {
+        dependencyNames: ['is-positive'],
+        mutation: 'unlinkSome',
+        prefix: process.cwd(),
+      }
+    ],
+    await testDefaults({ reporter }),
+  )
 
   t.ok(reporter.calledWithMatch({
     level: 'warn',
@@ -205,7 +271,16 @@ test("don't unlink package that is not a link when independent-leaves = true", a
 
   await addDependenciesToPackage(['is-positive'], await testDefaults({ independentLeaves: true }))
 
-  await unlinkPkgs(['is-positive'], await testDefaults({ independentLeaves: true, reporter }))
+  await mutateModules(
+    [
+      {
+        dependencyNames: ['is-positive'],
+        mutation: 'unlinkSome',
+        prefix: process.cwd(),
+      }
+    ],
+    await testDefaults({ independentLeaves: true, reporter }),
+  )
 
   t.ok(reporter.calledWithMatch({
     level: 'warn',

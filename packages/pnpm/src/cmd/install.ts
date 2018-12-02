@@ -1,11 +1,12 @@
 import { getSaveType } from '@pnpm/utils'
 import {
   install,
-  installPkgs,
+  mutateModules,
   rebuild,
 } from 'supi'
 import createStoreController from '../createStoreController'
 import findWorkspacePackages, { arrayOfLocalPackagesToMap } from '../findWorkspacePackages'
+import getPinnedVersion from '../getPinnedVersion'
 import requireHooks from '../requireHooks'
 import { PnpmOptions } from '../types'
 import { recursive } from './recursive'
@@ -46,22 +47,22 @@ export default async function installCmd (
     // so ignoring scripts for now
     ignoreScripts: !!localPackages || opts.ignoreScripts,
     localPackages,
+    pinnedVersion: getPinnedVersion(opts),
     store: store.path,
     storeController: store.ctrl,
   }
   if (!input || !input.length) {
     await install(installOpts)
   } else {
-    await installPkgs(Object.assign(installOpts, {
-      importers: [
-        {
-          bin: installOpts.bin,
-          prefix: installOpts.prefix,
-          targetDependencies: input,
-          targetDependenciesField: getSaveType(installOpts),
-        },
-      ],
-    }))
+    await mutateModules([
+      {
+        bin: installOpts.bin,
+        dependencySelectors: input,
+        mutation: 'installSome',
+        prefix: installOpts.prefix,
+        targetDependenciesField: getSaveType(installOpts),
+      },
+    ], installOpts)
   }
 
   if (opts.linkWorkspacePackages && opts.workspacePrefix) {

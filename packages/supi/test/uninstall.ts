@@ -9,8 +9,8 @@ import readYamlFile from 'read-yaml-file'
 import sinon = require('sinon')
 import {
   addDependenciesToPackage,
-  install,
   link,
+  mutateModules,
   PackageJsonLog,
   RootLog,
   StatsLog,
@@ -190,7 +190,7 @@ test('pendingBuilds gets updated after uninstall', async (t: tape.Test) => {
 
   const modules1 = await project.loadModules()
   t.ok(modules1)
-  t.equal(modules1!.pendingBuilds.length, 2, 'installPkgs should update pendingBuilds')
+  t.equal(modules1!.pendingBuilds.length, 2, 'install should update pendingBuilds')
 
   await uninstall(['with-postinstall-b'], await testDefaults({ save: true }))
 
@@ -220,40 +220,46 @@ test('uninstalling a dependency from package that uses shared shrinkwrap', async
     },
   ])
 
-  const importers = [
-    {
-      prefix: path.resolve('project-1'),
-    },
-    {
-      prefix: path.resolve('project-2'),
-    },
-  ]
+  const store = path.resolve('.store')
 
-  await install(await testDefaults({
-    importers,
-    localPackages: {
-      'project-2': {
-        '1.0.0': {
-          directory: path.resolve('project-2'),
-          package: {
-            name: 'project-2',
-            version: '1.0.0',
+  await mutateModules(
+    [
+      {
+        mutation: 'install',
+        prefix: path.resolve('project-1'),
+      },
+      {
+        mutation: 'install',
+        prefix: path.resolve('project-2'),
+      },
+    ],
+    await testDefaults({
+      localPackages: {
+        'project-2': {
+          '1.0.0': {
+            directory: path.resolve('project-2'),
+            package: {
+              name: 'project-2',
+              version: '1.0.0',
 
-            dependencies: {
-              'is-negative': '1.0.0',
+              dependencies: {
+                'is-negative': '1.0.0',
+              },
             },
           },
         },
       },
-    },
-  }))
+      store,
+    }),
+  )
 
   await projects['project-1'].has('is-positive')
   await projects['project-2'].has('is-negative')
 
   await uninstall(['is-positive', 'project-2'], await testDefaults({
-    prefix: importers[0].prefix,
+    prefix: path.resolve('project-1'),
     shrinkwrapDirectory: process.cwd(),
+    store,
   }))
 
   await projects['project-1'].hasNot('is-positive')

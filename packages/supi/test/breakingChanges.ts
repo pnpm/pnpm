@@ -35,18 +35,13 @@ test("don't fail on non-compatible node_modules when forced", async (t: tape.Tes
   t.pass('install did not fail')
 })
 
-test('fail on non-compatible node_modules when forced with a named installation', async (t: tape.Test) => {
+test('do not fail on non-compatible node_modules when forced with a named installation', async (t: tape.Test) => {
   const project = prepare(t)
   const opts = await testDefaults({ force: true })
 
   await saveModulesYaml('0.50.0', opts.store)
 
-  try {
-    await addDependenciesToPackage(['is-negative'], opts)
-    t.fail('should have failed')
-  } catch (err) {
-    t.equal(err['code'], 'MODULES_BREAKING_CHANGE', 'failed with correct error code') // tslint:disable-line:no-string-literal
-  }
+  await addDependenciesToPackage(['is-negative'], opts)
 })
 
 test("don't fail on non-compatible store when forced", async (t: tape.Test) => {
@@ -60,18 +55,13 @@ test("don't fail on non-compatible store when forced", async (t: tape.Test) => {
   t.pass('install did not fail')
 })
 
-test('fail on non-compatible store when forced during named installation', async (t: tape.Test) => {
+test('do not fail on non-compatible store when forced during named installation', async (t: tape.Test) => {
   const project = prepare(t)
   const opts = await testDefaults({ force: true })
 
   await saveModulesYaml('0.32.0', opts.store)
 
-  try {
-    await addDependenciesToPackage(['is-negative'], opts)
-    t.fail('should have failed')
-  } catch (err) {
-    t.equal(err['code'], 'MODULES_BREAKING_CHANGE', 'failed with correct error code') // tslint:disable-line:no-string-literal
-  }
+  await addDependenciesToPackage(['is-negative'], opts)
 })
 
 async function saveModulesYaml (pnpmVersion: string, storePath: string) {

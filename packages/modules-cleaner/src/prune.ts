@@ -26,14 +26,14 @@ export default async function prune (
     importers: Array<{
       bin: string,
       hoistedAliases: {[depPath: string]: string[]},
-      modulesDir: string,
       id: string,
-      shamefullyFlatten: boolean,
+      modulesDir: string,
       prefix: string,
+      pruneDirectDependencies?: boolean,
+      shamefullyFlatten: boolean,
     }>,
     newShrinkwrap: Shrinkwrap,
     oldShrinkwrap: Shrinkwrap,
-    pruneDirectDependencies?: boolean,
     pruneStore?: boolean,
     registries: Registries,
     removePackages?: string[],
@@ -48,7 +48,7 @@ export default async function prune (
     const newPkgs = R.toPairs(mergeDependencies(opts.newShrinkwrap.importers[importer.id]))
 
     const allCurrentPackages = new Set(
-      (opts.pruneDirectDependencies || opts.removePackages && opts.removePackages.length)
+      (importer.pruneDirectDependencies || opts.removePackages && opts.removePackages.length)
         ? (await readModulesDir(importer.modulesDir) || [])
         : [],
     )
@@ -56,7 +56,7 @@ export default async function prune (
       ...(opts.removePackages || []).filter((removePackage) => allCurrentPackages.has(removePackage)),
       ...R.difference(oldPkgs, newPkgs).map(([depName]) => depName),
     ])
-    if (opts.pruneDirectDependencies) {
+    if (importer.pruneDirectDependencies) {
       if (allCurrentPackages.size > 0) {
         const newPkgsSet = new Set(newPkgs.map(([depName]) => depName))
         for (const currentPackage of Array.from(allCurrentPackages)) {

@@ -10,6 +10,7 @@ import logger, {
   streamParser,
 } from '@pnpm/logger'
 import { write as writeModulesYaml } from '@pnpm/modules-yaml'
+import readModulesDirs from '@pnpm/read-modules-dir'
 import resolveDependencies, { ResolvedPackage } from '@pnpm/resolve-dependencies'
 import {
   LocalPackages,
@@ -28,7 +29,10 @@ import {
 } from '@pnpm/utils'
 import * as dp from 'dependency-path'
 import graphSequencer = require('graph-sequencer')
+import isInnerLink = require('is-inner-link')
+import isSubdir = require('is-subdir')
 import pEvery = require('p-every')
+import pFilter = require('p-filter')
 import pLimit = require('p-limit')
 import path = require('path')
 import {
@@ -40,6 +44,7 @@ import {
   writeWantedOnly as saveWantedShrinkwrapOnly,
 } from 'pnpm-shrinkwrap'
 import R = require('ramda')
+import rimraf = require('rimraf-then')
 import semver = require('semver')
 import {
   LAYOUT_VERSION,
@@ -47,7 +52,7 @@ import {
   SHRINKWRAP_VERSION,
 } from '../constants'
 import { PnpmError } from '../errorTypes'
-import getContext, { PnpmContext } from '../getContext'
+import getContext, { ImportersOptions, PnpmContext } from '../getContext'
 import getSpecFromPackageJson from '../getSpecFromPackageJson'
 import lock from '../lock'
 import parseWantedDependencies from '../parseWantedDependencies'
@@ -57,7 +62,6 @@ import shrinkwrapsEqual from '../shrinkwrapsEqual'
 import removeDeps from '../uninstall/removeDeps'
 import getPref from '../utils/getPref'
 import extendOptions, {
-  DependencyOperation,
   InstallOptions,
   StrictInstallOptions,
 } from './extendInstallOptions'
@@ -69,15 +73,53 @@ import { absolutePathToRef } from './shrinkwrap'
 
 const ENGINE_NAME = `${process.platform}-${process.arch}-node-${process.version.split('.')[0]}`
 
-export async function install (maybeOpts: InstallOptions & {
-  preferredVersions?: {
-    [packageName: string]: {
-      selector: string,
-      type: 'version' | 'range' | 'tag',
+export type DependenciesMutation = {
+  mutation: 'install',
+  pruneDirectDependencies?: boolean,
+} | {
+  allowNew?: boolean,
+  dependencySelectors: string[],
+  mutation: 'installSome',
+  pruneDirectDependencies?: boolean,
+  pinnedVersion?: 'major' | 'minor' | 'patch',
+  targetDependenciesField?: DependenciesField,
+} | {
+  mutation: 'uninstallSome',
+  dependencyNames: string[],
+  targetDependenciesField?: DependenciesField,
+} | {
+  mutation: 'unlink',
+} | {
+  mutation: 'unlinkSome',
+  dependencyNames: string[],
+}
+
+export function install (
+  opts: InstallOptions & {
+    preferredVersions?: {
+      [packageName: string]: {
+        selector: string,
+        type: 'version' | 'range' | 'tag',
+      },
     },
   },
-  pruneDirectDependencies?: boolean,
-}) {
+) {
+  return mutateModules([{ prefix: opts.prefix || process.cwd(), mutation: 'install' }], opts)
+}
+
+export type MutatedImporter = ImportersOptions & DependenciesMutation
+
+export async function mutateModules (
+  importers: MutatedImporter[],
+  maybeOpts: InstallOptions & {
+    preferredVersions?: {
+      [packageName: string]: {
+        selector: string,
+        type: 'version' | 'range' | 'tag',
+      },
+    },
+  },
+) {
   const reporter = maybeOpts && maybeOpts.reporter
   if (reporter) {
     streamParser.on('data', reporter)
@@ -89,7 +131,7 @@ export async function install (maybeOpts: InstallOptions & {
     throw new PnpmError('ERR_PNPM_OPTIONAL_DEPS_REQUIRE_PROD_DEPS', 'Optional dependencies cannot be installed without production dependencies')
   }
 
-  const ctx = await getContext(opts, 'general')
+  const ctx = await getContext(importers, opts)
 
   for (const importer of ctx.importers) {
     if (!importer.pkg) {
@@ -113,9 +155,12 @@ export async function install (maybeOpts: InstallOptions & {
   }
 
   async function _install () {
+    const installsOnly = importers.every((importer) => importer.mutation === 'install')
     if (
       !opts.shrinkwrapOnly &&
-      !opts.update && (
+      !opts.update &&
+      installsOnly &&
+      (
         opts.frozenShrinkwrap ||
         opts.preferFrozenShrinkwrap &&
         (!opts.pruneShrinkwrapImporters || Object.keys(ctx.wantedShrinkwrap.importers).length === ctx.importers.length) &&
@@ -166,19 +211,105 @@ export async function install (maybeOpts: InstallOptions & {
     const importersToInstall = [] as ImporterToUpdate[]
     // TODO: make it concurrent
     for (const importer of ctx.importers) {
-      if (opts.frozenShrinkwrap && !satisfiesPackageJson(ctx.wantedShrinkwrap, importer.pkg, importer.id)) {
-        const err = new Error('Cannot install with "frozen-shrinkwrap" because shrinkwrap.yaml is not up-to-date with ' +
-          path.relative(ctx.shrinkwrapDirectory, path.join(importer.prefix, 'package.json')))
-        err['code'] = 'ERR_PNPM_OUTDATED_SHRINKWRAP' // tslint:disable-line
-        throw err
-      }
+      switch (importer.mutation) {
+        case 'uninstallSome':
+          importersToInstall.push({
+            pruneDirectDependencies: false,
+            ...importer,
+            linkedPackages: [],
+            newPkgRawSpecs: [],
+            nonLinkedPackages: [],
+            updatePackageJson: true,
+            usesExternalShrinkwrap: ctx.shrinkwrapDirectory !== importer.prefix,
+            wantedDeps: [],
+          })
+          break
+        case 'install': {
+          await installCase(importer)
+          break
+        }
+        case 'installSome': {
+          const currentPrefs = opts.ignoreCurrentPrefs ? {} : getAllDependenciesFromPackage(importer.pkg)
+          const optionalDependencies = importer.targetDependenciesField ? {} : importer.pkg.optionalDependencies || {}
+          const devDependencies = importer.targetDependenciesField ? {} : importer.pkg.devDependencies || {}
+          const wantedDeps = parseWantedDependencies(importer.dependencySelectors, {
+            allowNew: importer.allowNew !== false,
+            currentPrefs,
+            defaultTag: opts.tag,
+            dev: importer.targetDependenciesField === 'devDependencies',
+            devDependencies,
+            optional: importer.targetDependenciesField === 'optionalDependencies',
+            optionalDependencies,
+          })
+          importersToInstall.push({
+            pruneDirectDependencies: false,
+            ...importer,
+            linkedPackages: [],
+            newPkgRawSpecs: wantedDeps.map((wantedDependency) => wantedDependency.raw),
+            nonLinkedPackages: wantedDeps,
+            updatePackageJson: true,
+            usesExternalShrinkwrap: ctx.shrinkwrapDirectory !== importer.prefix,
+            wantedDeps,
+          })
+          break
+        }
+        case 'unlink': {
+          const packageDirs = await readModulesDirs(importer.modulesDir)
+          const externalPackages = await pFilter(
+            packageDirs,
+            (packageDir: string) => isExternalLink(ctx.storePath, importer.modulesDir, packageDir),
+          )
+          const allDeps = getAllDependenciesFromPackage(importer.pkg)
+          const packagesToInstall: string[] = []
+          for (const pkgName of externalPackages) {
+            await rimraf(path.join(importer.modulesDir, pkgName))
+            if (allDeps[pkgName]) {
+              packagesToInstall.push(pkgName)
+            }
+          }
+          if (!packagesToInstall.length) return
 
+          // TODO: install only those that were unlinked
+          // but don't update their version specs in package.json
+          await installCase({ ...importer, mutation: 'install' })
+          break
+        }
+        case 'unlinkSome': {
+          const packagesToInstall: string[] = []
+          const allDeps = getAllDependenciesFromPackage(importer.pkg)
+          for (const depName of importer.dependencyNames) {
+            try {
+              if (!await isExternalLink(ctx.storePath, importer.modulesDir, depName)) {
+                logger.warn({
+                  message: `${depName} is not an external link`,
+                  prefix: importer.prefix,
+                })
+                continue
+              }
+            } catch (err) {
+              if (err['code'] !== 'ENOENT') throw err // tslint:disable-line:no-string-literal
+            }
+            await rimraf(path.join(importer.modulesDir, depName))
+            if (allDeps[depName]) {
+              packagesToInstall.push(depName)
+            }
+          }
+          if (!packagesToInstall.length) return
+
+          // TODO: install only those that were unlinked
+          // but don't update their version specs in package.json
+          await installCase({ ...importer, mutation: 'install' })
+          break
+        }
+      }
+    }
+
+    async function installCase (importer: any) { // tslint:disable-line:no-any
       const wantedDeps = getWantedDependencies(importer.pkg)
 
       if (ctx.wantedShrinkwrap && ctx.wantedShrinkwrap.importers) {
         forgetResolutionsOfPrevWantedDeps(ctx.wantedShrinkwrap.importers[importer.id], wantedDeps)
       }
-
       const scripts = !opts.ignoreScripts && importer.pkg && importer.pkg.scripts || {}
       if (opts.ignoreScripts && importer.pkg && importer.pkg.scripts &&
         (importer.pkg.scripts.preinstall || importer.pkg.scripts.prepublish ||
@@ -210,6 +341,7 @@ export async function install (maybeOpts: InstallOptions & {
       }
 
       importersToInstall.push({
+        pruneDirectDependencies: false,
         ...importer,
         ...await partitionLinkedPackages(wantedDeps, {
           localPackages: opts.localPackages,
@@ -220,19 +352,30 @@ export async function install (maybeOpts: InstallOptions & {
           virtualStoreDir: ctx.virtualStoreDir,
         }),
         newPkgRawSpecs: [],
+        updatePackageJson: false,
         usesExternalShrinkwrap: ctx.shrinkwrapDirectory !== importer.prefix,
         wantedDeps,
       })
     }
+
+    // Unfortunately, the private shrinkwrap file may differ from the public one.
+    // A user might run named installations on a project that has a shrinkwrap.yaml file before running a noop install
+    const makePartialCurrentShrinkwrap = !installsOnly && (
+      ctx.existsWantedShrinkwrap && !ctx.existsCurrentShrinkwrap ||
+      // TODO: this operation is quite expensive. We'll have to find a better solution to do this.
+      // maybe in pnpm v2 it won't be needed. See: https://github.com/pnpm/pnpm/issues/841
+      !shrinkwrapsEqual(ctx.currentShrinkwrap, ctx.wantedShrinkwrap)
+    )
     await installInContext(importersToInstall, ctx, {
-      pruneDirectDependencies: false,
       ...opts,
-      makePartialCurrentShrinkwrap: false,
-      updatePackageJson: false,
+      makePartialCurrentShrinkwrap,
+      update: opts.update || !installsOnly,
       updateShrinkwrapMinorVersion: true,
     })
 
     for (const importer of ctx.importers) {
+      if (importer.mutation !== 'install') continue
+
       const scripts = !opts.ignoreScripts && importer.pkg && importer.pkg.scripts || {}
 
       const scriptsOpts = {
@@ -258,6 +401,14 @@ export async function install (maybeOpts: InstallOptions & {
       }
     }
   }
+}
+
+async function isExternalLink (store: string, modules: string, pkgName: string) {
+  const link = await isInnerLink(modules, pkgName)
+
+  // checking whether the link is pointing to the store is needed
+  // because packages are linked to store when independent-leaves = true
+  return !link.isInner && !isSubdir(store, link.target)
 }
 
 function pkgHasDependencies (pkg: PackageJson) {
@@ -377,118 +528,29 @@ function refIsLocalTarball (ref: string) {
 }
 
 export async function addDependenciesToPackage (
-  targetDependencies: string[],
+  dependencySelectors: string[],
   opts: InstallOptions & {
     allowNew?: boolean,
     prefix?: string,
-    saveExact?: boolean,
-    savePrefix?: string,
+    pinnedVersion?: 'major' | 'minor' | 'patch',
     targetDependenciesField?: DependenciesField,
   },
 ) {
-  return installPkgs({
-    ...opts,
-    importers: [
+  return mutateModules(
+    [
       {
         allowNew: opts.allowNew,
-        operation: 'add',
+        dependencySelectors,
+        mutation: 'installSome',
+        pinnedVersion: opts.pinnedVersion,
         prefix: opts.prefix || process.cwd(),
-        saveExact: opts.saveExact,
-        savePrefix: opts.savePrefix,
-        targetDependencies,
         targetDependenciesField: opts.targetDependenciesField,
       },
     ],
-    shrinkwrapDirectory: opts.shrinkwrapDirectory || opts.prefix,
-  })
-}
-
-export async function installPkgs (
-  maybeOpts: InstallOptions,
-) {
-  const reporter = maybeOpts && maybeOpts.reporter
-  if (reporter) {
-    streamParser.on('data', reporter)
-  }
-
-  if (maybeOpts.update === undefined) maybeOpts.update = true
-  const opts = await extendOptions(maybeOpts)
-
-  if (opts.lock) {
-    await lock(opts.shrinkwrapDirectory, _installPkgs, {
-      locks: opts.locks,
-      prefix: opts.shrinkwrapDirectory,
-      stale: opts.lockStaleDuration,
-      storeController: opts.storeController,
+    {
+      ...opts,
+      shrinkwrapDirectory: opts.shrinkwrapDirectory || opts.prefix,
     })
-  } else {
-    await _installPkgs()
-  }
-
-  // TODO: Reporter should be removed in case of exception
-  if (reporter) {
-    streamParser.removeListener('data', reporter)
-  }
-
-  async function _installPkgs () {
-    const ctx = await getContext(opts, 'named')
-
-    const importersToUpdate = [] as ImporterToUpdate[]
-    for (const importer of ctx.importers) {
-      if (importer.operation === 'remove') {
-        importersToUpdate.push({
-          ...importer,
-          linkedPackages: [],
-          newPkgRawSpecs: [],
-          nonLinkedPackages: [],
-          usesExternalShrinkwrap: ctx.shrinkwrapDirectory !== importer.prefix,
-          wantedDeps: [],
-        })
-        continue
-      }
-      const currentPrefs = opts.ignoreCurrentPrefs ? {} : getAllDependenciesFromPackage(importer.pkg)
-      const optionalDependencies = importer.targetDependenciesField ? {} : importer.pkg.optionalDependencies || {}
-      const devDependencies = importer.targetDependenciesField ? {} : importer.pkg.devDependencies || {}
-      const wantedDeps = parseWantedDependencies(importer.targetDependencies, {
-        allowNew: importer.allowNew !== false,
-        currentPrefs,
-        defaultTag: opts.tag,
-        dev: importer.targetDependenciesField === 'devDependencies',
-        devDependencies,
-        optional: importer.targetDependenciesField === 'optionalDependencies',
-        optionalDependencies,
-      })
-      importersToUpdate.push({
-        ...importer,
-        linkedPackages: [],
-        newPkgRawSpecs: wantedDeps.map((wantedDependency) => wantedDependency.raw),
-        nonLinkedPackages: wantedDeps,
-        usesExternalShrinkwrap: ctx.shrinkwrapDirectory !== importer.prefix,
-        wantedDeps,
-      })
-    }
-
-    // Unfortunately, the private shrinkwrap file may differ from the public one.
-    // A user might run named installations on a project that has a shrinkwrap.yaml file before running a noop install
-    const makePartialCurrentShrinkwrap = (
-      ctx.existsWantedShrinkwrap && !ctx.existsCurrentShrinkwrap ||
-      // TODO: this operation is quite expensive. We'll have to find a better solution to do this.
-      // maybe in pnpm v2 it won't be needed. See: https://github.com/pnpm/pnpm/issues/841
-      !shrinkwrapsEqual(ctx.currentShrinkwrap, ctx.wantedShrinkwrap)
-    )
-
-    return installInContext(
-      importersToUpdate,
-      ctx,
-      {
-        ...opts,
-        makePartialCurrentShrinkwrap,
-        pruneDirectDependencies: false,
-        updatePackageJson: true,
-        updateShrinkwrapMinorVersion: R.isEmpty(ctx.currentShrinkwrap.packages),
-      },
-    )
-  }
 }
 
 type ImporterToUpdate = {
@@ -501,17 +563,18 @@ type ImporterToUpdate = {
   nonLinkedPackages: WantedDependency[],
   pkg: PackageJson,
   prefix: string,
+  pruneDirectDependencies: boolean,
   shamefullyFlatten: boolean,
+  updatePackageJson: boolean,
   usesExternalShrinkwrap: boolean,
   wantedDeps: WantedDependency[],
-} & DependencyOperation
+} & DependenciesMutation
 
 async function installInContext (
   importers: ImporterToUpdate[],
-  ctx: PnpmContext<DependencyOperation>,
+  ctx: PnpmContext<DependenciesMutation>,
   opts: StrictInstallOptions & {
     makePartialCurrentShrinkwrap: boolean,
-    updatePackageJson: boolean,
     updateShrinkwrapMinorVersion: boolean,
     preferredVersions?: {
       [packageName: string]: {
@@ -519,7 +582,6 @@ async function installInContext (
         type: 'version' | 'range' | 'tag',
       },
     },
-    pruneDirectDependencies: boolean,
   },
 ) {
   if (opts.shrinkwrapOnly && ctx.existsCurrentShrinkwrap) {
@@ -549,10 +611,10 @@ async function installInContext (
 
   await Promise.all(
     importers
-      .filter((importer) => importer.operation === 'remove')
       .map(async (importer) => {
+        if (importer.mutation !== 'uninstallSome') return
         const pkgJsonPath = path.join(importer.prefix, 'package.json')
-        importer.pkg = await removeDeps(pkgJsonPath, importer.targetDependencies, {
+        importer.pkg = await removeDeps(pkgJsonPath, importer.dependencyNames, {
           prefix: importer.prefix,
           saveType: importer.targetDependenciesField,
         })
@@ -567,7 +629,22 @@ async function installInContext (
     resolvedPackagesByPackageId,
   } = await resolveDependencies({
     currentShrinkwrap: ctx.currentShrinkwrap,
-    depth: (() => {
+    dryRun: opts.shrinkwrapOnly,
+    engineStrict: opts.engineStrict,
+    force: opts.force,
+    hasManifestInShrinkwrap,
+    hooks: opts.hooks,
+    importers,
+    localPackages: opts.localPackages,
+    nodeVersion: opts.nodeVersion,
+    pnpmVersion: opts.packageManager.name === 'pnpm' ? opts.packageManager.version : '',
+    preferredVersions: opts.preferredVersions,
+    registries: opts.registries,
+    sideEffectsCache: opts.sideEffectsCache,
+    skipped: ctx.skipped,
+    storeController: opts.storeController,
+    tag: opts.tag,
+    updateDepth: (() => {
       // This can be remove from shrinkwrap v4
       if (!hasManifestInShrinkwrap) {
         // The shrinkwrap file has to be updated to contain
@@ -589,22 +666,6 @@ async function installInContext (
       }
       return Infinity
     })(),
-    dryRun: opts.shrinkwrapOnly,
-    engineStrict: opts.engineStrict,
-    force: opts.force,
-    hasManifestInShrinkwrap,
-    hooks: opts.hooks,
-    importers,
-    localPackages: opts.localPackages,
-    nodeVersion: opts.nodeVersion,
-    pnpmVersion: opts.packageManager.name === 'pnpm' ? opts.packageManager.version : '',
-    preferredVersions: opts.preferredVersions,
-    registries: opts.registries,
-    sideEffectsCache: opts.sideEffectsCache,
-    skipped: ctx.skipped,
-    storeController: opts.storeController,
-    tag: opts.tag,
-    update: opts.update,
     verifyStoreIntegrity: opts.verifyStoreIntegrity,
     virtualStoreDir: ctx.virtualStoreDir,
     wantedShrinkwrap: ctx.wantedShrinkwrap,
@@ -614,7 +675,7 @@ async function installInContext (
   const importersToLink = await Promise.all<ImporterToLink>(importers.map(async (importer) => {
     const resolvedImporter = resolvedImporters[importer.id]
     let newPkg: PackageJson | undefined = importer.pkg
-    if (opts.updatePackageJson && importer.operation !== 'remove') {
+    if (importer.updatePackageJson && importer.mutation === 'installSome') {
       if (!importer.pkg) {
         throw new Error('Cannot save because no package.json found')
       }
@@ -624,8 +685,7 @@ async function installInContext (
           return {
             name: dep.alias,
             pref: dep.normalizedPref || getPref(dep.alias, dep.name, dep.version, {
-              saveExact: importer.saveExact === true,
-              savePrefix: importer.savePrefix || '^',
+              pinnedVersion: importer.pinnedVersion,
             }),
             saveType: importer.targetDependenciesField,
           }
@@ -681,6 +741,7 @@ async function installInContext (
       modulesDir: importer.modulesDir,
       pkg: newPkg || importer.pkg,
       prefix: importer.prefix,
+      pruneDirectDependencies: importer.pruneDirectDependencies,
       shamefullyFlatten: importer.shamefullyFlatten,
       topParents,
       usesExternalShrinkwrap: importer.usesExternalShrinkwrap,
@@ -699,7 +760,6 @@ async function installInContext (
       independentLeaves: opts.independentLeaves,
       makePartialCurrentShrinkwrap: opts.makePartialCurrentShrinkwrap,
       outdatedDependencies,
-      pruneDirectDependencies: opts.pruneDirectDependencies,
       pruneStore: opts.pruneStore,
       registries: ctx.registries,
       shrinkwrapDirectory: opts.shrinkwrapDirectory,
