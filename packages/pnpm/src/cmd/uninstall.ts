@@ -18,7 +18,7 @@ export default async function uninstallCmd (
     return mutateModules([
       {
         bin: opts.bin,
-        mutation: 'remove',
+        mutation: 'uninstallSome',
         prefix: opts.prefix,
         targetDependencies: input,
       },

@@ -73,14 +73,14 @@ export type DependenciesMutation = {
   pruneDirectDependencies?: boolean,
 } | {
   allowNew?: boolean,
-  mutation: 'add',
+  mutation: 'installSome',
   pruneDirectDependencies?: boolean,
   saveExact?: boolean,
   savePrefix?: string,
   targetDependencies: string[],
   targetDependenciesField?: DependenciesField,
 } | {
-  mutation: 'remove',
+  mutation: 'uninstallSome',
   targetDependencies: string[],
   targetDependenciesField?: DependenciesField,
 }
@@ -203,7 +203,7 @@ export async function mutateModules (
     // TODO: make it concurrent
     for (const importer of ctx.importers) {
       switch (importer.mutation) {
-        case 'remove':
+        case 'uninstallSome':
           importersToInstall.push({
             pruneDirectDependencies: false,
             ...importer,
@@ -269,7 +269,7 @@ export async function mutateModules (
           })
           break
         }
-        case 'add': {
+        case 'installSome': {
           const currentPrefs = opts.ignoreCurrentPrefs ? {} : getAllDependenciesFromPackage(importer.pkg)
           const optionalDependencies = importer.targetDependenciesField ? {} : importer.pkg.optionalDependencies || {}
           const devDependencies = importer.targetDependenciesField ? {} : importer.pkg.devDependencies || {}
@@ -471,7 +471,7 @@ export async function addDependenciesToPackage (
     [
       {
         allowNew: opts.allowNew,
-        mutation: 'add',
+        mutation: 'installSome',
         prefix: opts.prefix || process.cwd(),
         saveExact: opts.saveExact,
         savePrefix: opts.savePrefix,
@@ -544,7 +544,7 @@ async function installInContext (
   await Promise.all(
     importers
       .map(async (importer) => {
-        if (importer.mutation !== 'remove') return
+        if (importer.mutation !== 'uninstallSome') return
         const pkgJsonPath = path.join(importer.prefix, 'package.json')
         importer.pkg = await removeDeps(pkgJsonPath, importer.targetDependencies, {
           prefix: importer.prefix,
@@ -608,7 +608,7 @@ async function installInContext (
   const importersToLink = await Promise.all<ImporterToLink>(importers.map(async (importer) => {
     const resolvedImporter = resolvedImporters[importer.id]
     let newPkg: PackageJson | undefined = importer.pkg
-    if (importer.updatePackageJson && importer.mutation === 'add') {
+    if (importer.updatePackageJson && importer.mutation === 'installSome') {
       if (!importer.pkg) {
         throw new Error('Cannot save because no package.json found')
       }

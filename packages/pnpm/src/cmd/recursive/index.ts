@@ -212,14 +212,14 @@ export async function recursive (
       pkgPaths = await pFilter(pkgPaths, async (pkgPath: string) => isFromWorkspace(await fs.realpath(pkgPath)))
       if (pkgPaths.length === 0) return true
       const hooks = opts.ignorePnpmfile ? {} : requireHooks(opts.shrinkwrapDirectory, opts)
-      const mutation = cmdFullName === 'uninstall' ? 'remove' : (input.length === 0 ? 'install' : 'add')
+      const mutation = cmdFullName === 'uninstall' ? 'uninstallSome' : (input.length === 0 ? 'install' : 'installSome')
       const importers = await Promise.all<MutatedImporter>(pkgPaths.map(async (prefix) => {
         const localConfigs = await memReadLocalConfigs(prefix)
         const shamefullyFlatten = typeof localConfigs.shamefullyFlatten === 'boolean'
           ? localConfigs.shamefullyFlatten
           : opts.shamefullyFlatten
         switch (mutation) {
-          case 'remove':
+          case 'uninstallSome':
             return {
               mutation,
               prefix,
@@ -227,7 +227,7 @@ export async function recursive (
               targetDependencies: input,
               targetDependenciesField: getSaveType(installOpts),
             } as MutatedImporter
-          case 'add':
+          case 'installSome':
             return {
               allowNew: cmdFullName === 'install',
               mutation,

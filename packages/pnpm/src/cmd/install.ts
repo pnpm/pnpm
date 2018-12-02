@@ -55,7 +55,7 @@ export default async function installCmd (
     await mutateModules([
       {
         bin: installOpts.bin,
-        mutation: 'add',
+        mutation: 'installSome',
         prefix: installOpts.prefix,
         targetDependencies: input,
         targetDependenciesField: getSaveType(installOpts),
