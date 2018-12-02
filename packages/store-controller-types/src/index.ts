@@ -21,6 +21,18 @@ export interface StoreController {
   saveState (): Promise<void>,
   upload (builtPkgLocation: string, opts: {pkgId: string, engine: string}): Promise<void>,
   getCacheByEngine (storePath: string, id: string): Promise<Map<string, string>>,
+  findPackageUsages (dependencies: WantedDependency[]): Promise<FindPackageUsagesResponse[]>,
+}
+
+export type FindPackageUsagesResponse = {
+  dependency: WantedDependency,
+  foundInStore: boolean,
+  packages: FindPackageUsagesEntry[]
+}
+
+export type FindPackageUsagesEntry = {
+  id: string,
+  usages: string[]
 }
 
 export type FetchPackageToStoreFunction = (
