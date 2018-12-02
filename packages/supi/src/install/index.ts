@@ -75,8 +75,7 @@ export type DependenciesMutation = {
   allowNew?: boolean,
   mutation: 'installSome',
   pruneDirectDependencies?: boolean,
-  saveExact?: boolean,
-  savePrefix?: string,
+  pinnedVersion?: 'major' | 'minor' | 'patch',
   targetDependencies: string[],
   targetDependenciesField?: DependenciesField,
 } | {
@@ -462,8 +461,7 @@ export async function addDependenciesToPackage (
   opts: InstallOptions & {
     allowNew?: boolean,
     prefix?: string,
-    saveExact?: boolean,
-    savePrefix?: string,
+    pinnedVersion?: 'major' | 'minor' | 'patch',
     targetDependenciesField?: DependenciesField,
   },
 ) {
@@ -472,9 +470,8 @@ export async function addDependenciesToPackage (
       {
         allowNew: opts.allowNew,
         mutation: 'installSome',
+        pinnedVersion: opts.pinnedVersion,
         prefix: opts.prefix || process.cwd(),
-        saveExact: opts.saveExact,
-        savePrefix: opts.savePrefix,
         targetDependencies,
         targetDependenciesField: opts.targetDependenciesField,
       },
@@ -617,8 +614,7 @@ async function installInContext (
           return {
             name: dep.alias,
             pref: dep.normalizedPref || getPref(dep.alias, dep.name, dep.version, {
-              saveExact: importer.saveExact === true,
-              savePrefix: importer.savePrefix || '^',
+              pinnedVersion: importer.pinnedVersion,
             }),
             saveType: importer.targetDependenciesField,
           }

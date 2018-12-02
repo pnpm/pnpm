@@ -14,7 +14,6 @@ import createPkgGraph, { PackageNode } from 'pkgs-graph'
 import readIniFile = require('read-ini-file')
 import {
   addDependenciesToPackage,
-  ImportersOptions,
   install,
   InstallOptions,
   MutatedImporter,
@@ -28,6 +27,7 @@ import {
 import createStoreController from '../../createStoreController'
 import findWorkspacePackages, { arrayOfLocalPackagesToMap } from '../../findWorkspacePackages'
 import getCommandFullName from '../../getCommandFullName'
+import getPinnedVersion from '../../getPinnedVersion'
 import parsePackageSelector, { PackageSelector } from '../../parsePackageSelectors'
 import requireHooks from '../../requireHooks'
 import { PnpmOptions } from '../../types'
@@ -231,13 +231,11 @@ export async function recursive (
             return {
               allowNew: cmdFullName === 'install',
               mutation,
+              pinnedVersion: getPinnedVersion({
+                saveExact: typeof localConfigs.saveExact === 'boolean' ? localConfigs.saveExact : opts.saveExact,
+                savePrefix: typeof localConfigs.savePrefix === 'string' ? localConfigs.savePrefix : opts.savePrefix,
+              }),
               prefix,
-              saveExact: typeof localConfigs.saveExact === 'boolean'
-                ? localConfigs.saveExact
-                : opts.saveExact,
-              savePrefix: typeof localConfigs.savePrefix === 'string'
-                ? localConfigs.savePrefix
-                : opts.savePrefix,
               shamefullyFlatten,
               targetDependencies: input,
               targetDependenciesField: getSaveType(installOpts),

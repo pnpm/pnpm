@@ -3,11 +3,16 @@ export default function getPref (
   name: string,
   version: string,
   opts: {
-    saveExact: boolean,
-    savePrefix: string,
+    pinnedVersion?: 'major' | 'minor' | 'patch',
   },
 ) {
   const prefix = alias !== name ? `npm:${name}@` : ''
-  if (opts.saveExact) return `${prefix}${version}`
-  return `${prefix}${opts.savePrefix}${version}`
+  switch (opts.pinnedVersion || 'major') {
+    case 'major':
+      return `${prefix}^${version}`
+    case 'minor':
+      return `${prefix}~${version}`
+    case 'patch':
+      return `${prefix}${version}`
+  }
 }

@@ -6,6 +6,7 @@ import {
 } from 'supi'
 import createStoreController from '../createStoreController'
 import findWorkspacePackages, { arrayOfLocalPackagesToMap } from '../findWorkspacePackages'
+import getPinnedVersion from '../getPinnedVersion'
 import requireHooks from '../requireHooks'
 import { PnpmOptions } from '../types'
 import { recursive } from './recursive'
@@ -46,6 +47,7 @@ export default async function installCmd (
     // so ignoring scripts for now
     ignoreScripts: !!localPackages || opts.ignoreScripts,
     localPackages,
+    pinnedVersion: getPinnedVersion(opts),
     store: store.path,
     storeController: store.ctrl,
   }

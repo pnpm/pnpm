@@ -68,8 +68,7 @@ export default async function link (
     specsToUpsert.push({
       name: linkedPkg.name,
       pref: getPref(linkedPkg.name, linkedPkg.name, linkedPkg.version, {
-        saveExact: opts.saveExact,
-        savePrefix: opts.savePrefix,
+        pinnedVersion: opts.pinnedVersion,
       }),
       saveType: (saveType || ctx.pkg && guessDependencyType(linkedPkg.name, ctx.pkg)) as DependenciesField,
     })
