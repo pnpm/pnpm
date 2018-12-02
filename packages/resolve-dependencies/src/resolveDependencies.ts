@@ -103,7 +103,7 @@ export interface ResolutionContext {
   dependenciesTree: DependenciesTree,
   force: boolean,
   prefix: string,
-  depth: number,
+  updateDepth: number,
   engineStrict: boolean,
   modulesDir: string,
   nodeVersion: string,
@@ -176,7 +176,6 @@ export default async function resolveDependencies (
     // via this option
     preferedDependencies?: ResolvedDependencies,
     parentIsInstallable?: boolean,
-    update: boolean,
     readPackageHook?: ReadPackageHook,
     hasManifestInShrinkwrap: boolean,
     sideEffectsCache: boolean,
@@ -186,7 +185,7 @@ export default async function resolveDependencies (
 ): Promise<PkgAddress[]> {
   const resolvedDependencies = options.resolvedDependencies || {}
   const preferedDependencies = options.preferedDependencies || {}
-  const update = options.update && options.currentDepth <= ctx.depth
+  const update = options.currentDepth <= ctx.updateDepth
   const extendedWantedDeps = []
   let proceedAll = options.parentDependsOnPeers
   for (const wantedDependency of wantedDependencies) {
@@ -346,7 +345,7 @@ async function resolveDependency (
     options.update ||
     options.localPackages &&
     wantedDepIsLocallyAvailable(options.localPackages, wantedDependency, { defaultTag: ctx.defaultTag, registry: ctx.registries.default }))
-  const proceed = update || options.proceed || !options.shrinkwrapResolution || ctx.force || keypath.length <= ctx.depth
+  const proceed = update || options.proceed || !options.shrinkwrapResolution || ctx.force || keypath.length <= ctx.updateDepth
     || options.dependencyShrinkwrap && options.dependencyShrinkwrap.peerDependencies
   const parentIsInstallable = options.parentIsInstallable === undefined || options.parentIsInstallable
 
@@ -414,7 +413,7 @@ async function resolveDependency (
 
   pkgResponse.body.id = encodePkgId(pkgResponse.body.id)
 
-  if (!options.parentDependsOnPeer && !pkgResponse.body.updated && options.update && options.currentDepth >= ctx.depth && options.relDepPath &&
+  if (!options.parentDependsOnPeer && !pkgResponse.body.updated && options.update && options.currentDepth >= ctx.updateDepth && options.relDepPath &&
     ctx.currentShrinkwrap.packages && ctx.currentShrinkwrap.packages[options.relDepPath] && !ctx.force) {
     return null
   }
@@ -622,7 +621,6 @@ async function resolveDependency (
           : options.resolvedDependencies,
         shamefullyFlatten: options.shamefullyFlatten,
         sideEffectsCache: options.sideEffectsCache,
-        update: options.update,
         useManifestInfoFromShrinkwrap,
       },
     )
@@ -703,7 +701,6 @@ async function resolveDependenciesOfPackage (
     optionalDependencyNames?: string[],
     parentDependsOnPeers: boolean,
     parentIsInstallable: boolean,
-    update: boolean,
     readPackageHook?: ReadPackageHook,
     hasManifestInShrinkwrap: boolean,
     useManifestInfoFromShrinkwrap: boolean,

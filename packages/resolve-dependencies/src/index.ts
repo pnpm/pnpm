@@ -33,7 +33,6 @@ export interface Importer {
 export default async function (
   opts: {
     currentShrinkwrap: Shrinkwrap,
-    depth: number,
     dryRun: boolean,
     engineStrict: boolean,
     force: boolean,
@@ -57,7 +56,7 @@ export default async function (
     verifyStoreIntegrity: boolean,
     virtualStoreDir: string,
     wantedShrinkwrap: Shrinkwrap,
-    update: boolean,
+    updateDepth?: number,
     hasManifestInShrinkwrap: boolean,
     localPackages: LocalPackages,
   },
@@ -70,7 +69,6 @@ export default async function (
     currentShrinkwrap: opts.currentShrinkwrap,
     defaultTag: opts.tag,
     dependenciesTree: {} as DependenciesTree,
-    depth: opts.depth,
     dryRun: opts.dryRun,
     engineStrict: opts.engineStrict,
     force: opts.force,
@@ -82,6 +80,7 @@ export default async function (
     resolvedPackagesByPackageId: {} as ResolvedPackagesByPackageId,
     skipped: opts.skipped,
     storeController: opts.storeController,
+    updateDepth: typeof opts.updateDepth === 'number' ? opts.updateDepth : -1,
     verifyStoreIntegrity: opts.verifyStoreIntegrity,
     virtualStoreDir: opts.virtualStoreDir,
     wantedShrinkwrap: opts.wantedShrinkwrap,
@@ -112,7 +111,6 @@ export default async function (
       },
       shamefullyFlatten: importer.shamefullyFlatten,
       sideEffectsCache: opts.sideEffectsCache,
-      update: opts.update,
     }
     const newDirectDeps = await resolveDependencies(
       resolveCtx,
@@ -130,12 +128,11 @@ export default async function (
         ...await resolveDependencies(
           {
             ...resolveCtx,
-            depth: 0,
+            updateDepth: -1,
           },
           getWantedDependencies(importer.pkg).filter((wantedDep) => newDirectDeps.every((newDep) => newDep.alias !== wantedDep.alias)),
           {
             ...resolveOpts,
-            update: false,
           },
         ),
       ]

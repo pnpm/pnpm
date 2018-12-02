@@ -561,7 +561,22 @@ async function installInContext (
     resolvedPackagesByPackageId,
   } = await resolveDependencies({
     currentShrinkwrap: ctx.currentShrinkwrap,
-    depth: (() => {
+    dryRun: opts.shrinkwrapOnly,
+    engineStrict: opts.engineStrict,
+    force: opts.force,
+    hasManifestInShrinkwrap,
+    hooks: opts.hooks,
+    importers,
+    localPackages: opts.localPackages,
+    nodeVersion: opts.nodeVersion,
+    pnpmVersion: opts.packageManager.name === 'pnpm' ? opts.packageManager.version : '',
+    preferredVersions: opts.preferredVersions,
+    registries: opts.registries,
+    sideEffectsCache: opts.sideEffectsCache,
+    skipped: ctx.skipped,
+    storeController: opts.storeController,
+    tag: opts.tag,
+    updateDepth: (() => {
       // This can be remove from shrinkwrap v4
       if (!hasManifestInShrinkwrap) {
         // The shrinkwrap file has to be updated to contain
@@ -583,22 +598,6 @@ async function installInContext (
       }
       return Infinity
     })(),
-    dryRun: opts.shrinkwrapOnly,
-    engineStrict: opts.engineStrict,
-    force: opts.force,
-    hasManifestInShrinkwrap,
-    hooks: opts.hooks,
-    importers,
-    localPackages: opts.localPackages,
-    nodeVersion: opts.nodeVersion,
-    pnpmVersion: opts.packageManager.name === 'pnpm' ? opts.packageManager.version : '',
-    preferredVersions: opts.preferredVersions,
-    registries: opts.registries,
-    sideEffectsCache: opts.sideEffectsCache,
-    skipped: ctx.skipped,
-    storeController: opts.storeController,
-    tag: opts.tag,
-    update: opts.update,
     verifyStoreIntegrity: opts.verifyStoreIntegrity,
     virtualStoreDir: ctx.virtualStoreDir,
     wantedShrinkwrap: ctx.wantedShrinkwrap,
