@@ -9,7 +9,7 @@ import {
   connectStoreController,
   createServer,
  } from '@pnpm/server'
-import { PackageFilesResponse } from '@pnpm/store-controller-types'
+import { FindPackageUsagesResponse, PackageFilesResponse } from '@pnpm/store-controller-types'
 import createFetcher from '@pnpm/tarball-fetcher'
 import got = require('got')
 import isPortReachable = require('is-port-reachable')
@@ -293,3 +293,57 @@ test('disallow store prune', async t => {
   await storeCtrlForServer.close()
   t.end()
 })
+
+test('find package usages', async t => {
+  const port = 5813
+  const hostname = '127.0.0.1'
+  const remotePrefix = `http://${hostname}:${port}`
+  const storeCtrlForServer = await createStoreController()
+  const server = createServer(storeCtrlForServer, {
+    hostname,
+    port,
+  })
+  const storeCtrl = await connectStoreController({ remotePrefix, concurrency: 100 })
+
+  const dependency = { alias: 'is-positive', pref: '1.0.0' };
+
+  // First install a dependency
+  const requestResponse = await storeCtrl.requestPackage(
+    dependency,
+    {
+      downloadPriority: 0,
+      loggedPkg: { rawSpec: 'sfdf' },
+      preferredVersions: {},
+      prefix: process.cwd(),
+      registry,
+      sideEffectsCache: false,
+      verifyStoreIntegrity: false,
+    }
+  );
+  await requestResponse['fetchingRawManifest'];
+  await requestResponse['finishing'];
+
+  // For debugging purposes
+  await storeCtrl.saveState();
+
+  // Now check if usages shows up
+  const deps = [dependency];
+  const packageUsagesResponses: FindPackageUsagesResponse[] = await storeCtrl.findPackageUsages(deps);
+
+  t.equal(packageUsagesResponses.length, 1, 'number of items in response should be 1');
+
+  const packageUsageResponse = packageUsagesResponses[0];
+
+  t.deepEqual(packageUsageResponse.dependency, dependency, 'query does not match');
+  t.true(packageUsageResponse.foundInStore, 'query not found in store');
+  t.equal(packageUsageResponse.packages.length, 1, 'there should only be 1 package returned from the query');
+
+  const packageUsed = packageUsageResponse.packages[0];
+
+  t.ok(packageUsed.id, 'there should be a package id');
+  t.equal(packageUsed.usages.length, 0, 'package should not be used by any projects');
+
+  await server.close();
+  await storeCtrl.close();
+  t.end()
+});

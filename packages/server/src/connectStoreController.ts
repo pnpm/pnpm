@@ -1,5 +1,5 @@
 import {
-  FetchPackageToStoreOptions,
+  FetchPackageToStoreOptions, FindPackageUsagesResponse,
   PackageFilesResponse,
   PackageResponse,
   RequestPackageOptions,
@@ -29,6 +29,12 @@ export default function (
     resolve({
       close: async () => { return },
       fetchPackage: fetchPackage.bind(null, remotePrefix, limitedFetch),
+      findPackageUsages: async (dependencies: WantedDependency[]): Promise<FindPackageUsagesResponse[]> => {
+        const response = await limitedFetch(`${remotePrefix}/findPackageUsages`, {
+          findUsageQueries: dependencies
+        });
+        return response.results as FindPackageUsagesResponse[];
+      },
       getCacheByEngine: async (storePath: string, id: string): Promise<Map<string, string>> => {
         return limitedFetch(`${remotePrefix}/getCacheByEngine`, {
           id,
