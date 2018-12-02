@@ -22,60 +22,9 @@ npm install @pnpm/logger@1
 
 ## API
 
-### `supi.installPkgs(pkgsToInstall, [options])`
+### `supi.mutateModules(importers, options)`
 
-Install packages.
-
-**Arguments:**
-
-* `pkgsToInstall` - *Object | String[]* - either an object that maps package names to version ranges or inputs usually passed to `npm install` (e.g., `foo@1.0.0`, `foo`).
-* `options.storeController` - *Object* - required. An object that does all the manipulations with the store.
-* `options.store` - *String* - required. Location of the store.
-* `options.saveProd` - *Boolean* - package will appear in `dependencies`.
-* `options.saveDev` - *Boolean* - package will appear in `devDependencies`.
-* `options.saveOptional` - *Boolean* - package will appear in `optionalDependencies`.
-* `options.saveExact` - *Boolean* - saved dependencies will be configured with an exact version rather than using npm's default semver range operator.
-* `options.global` - *Boolean* - the packages will be installed globally rather than locally.
-* `options.importers` - *Object[]* - the projects in which the installations will be performed. By default the `process.cwd()` value is used.
-  * `prefix` - *String* - the directory of the project.
-  * `bin` - *String* - the directory into which the binstubs of direct dependencies will be linked.
-  * `shamefullyFlatten` - *Boolean* - when true, a flat `node_modules` is created for the project.
-* `options.reporter` - *Function* - A function that listens for logs.
-* `options.packageManager` - *Object* - The `package.json` of the package manager.
-* `options.hooks` - *Object* - A property that contains installation hooks. Hooks are [documented separately](#hooks).
-* `options.shrinkwrap` - *Boolean* - `true` by default. When `false`, ignores the `shrinkwrap.yaml` file and doesn't create/update one.
-* `options.shrinkwrapOnly` - *Boolean* - `false` by default. When `true`, only updates `shrinkwrap.yaml` and `package.json` instead of checking `node_modules` and downloading dependencies.
-* `options.allowNew` - *Boolean* - `true` by default. When `true`, packages that are not yet in `package.json` may be installed.
-
-**Returns:** a Promise
-
-**Example:**
-
-```js
-const pnpm = require('pnpm')
-
-pnpm.installPkgs({
-  'is-positive': '1.0.0',
-  'hello-world': '^2.3.1'
-}, { saveDev: true })
-```
-
-### `supi.install([options])`
-
-Install all modules listed as dependencies in `package.json`.
-
-**Arguments:** (same as in named install and additionally)
-
-* `options.production` - *Boolean* - `true` by default. If `true`, packages listed in `dependencies` will be installed.
-* `options.development` - *Boolean* - `true` by default. If `true`, packages listed in `devDependencies` will be installed.
-* `options.optional` - *Boolean* - Has the value of `options.production` by default. If `true`, packages listed in `optionalDependencies` will be installed.
-  Can be `true` only when `options.production` is `true` as well.
-* `options.frozenShrinkwrap` - *Boolean* - `false` by default. When `true`, shrinkwrap file is not generated and installation fails if an update is needed.
-  With this option, a headless installation is performed. A headless installation is ~33% faster than a regular one because it skips
-  dependencies resolution and peers resolution.
-* `options.preferFrozenShrinkwrap` - *Boolean* - `true` by default. When `true`, a headless installation is performed if the shrinkwrap file
-  is up-to-date with the `package.json` file.
-* `options.ownLifecycleHooksStdio` - *'inherit' | 'pipe'* - the stdio of the project's lifecycle hooks. Does not affect the stdio of the dependencies' hooks.
+TODO
 
 ### `supi.uninstall(pkgsToUninstall, [options])`
 
@@ -119,27 +68,6 @@ Create symbolic links from the global `pkgName`s to the `linkTo/node_modules` fo
 * `pkgNames` - *String[]* - packages to link.
 * `linkTo` - *String* - package to link to.
 * `globalPrefix` - *String* - path to the global directory.
-* `options.reporter` - *Function* - A function that listens for logs.
-
-### `supi.unlink([options])`
-
-Unlinks all packages that were linked during development in a project. If the linked package is in `package.json` of the project,
-it is installed after unlinking.
-
-**Arguments:**
-
-* `options.prefix` - *String* - by default `process.cwd()`. Path to the project.
-* `options.reporter` - *Function* - A function that listens for logs.
-
-### `supi.unlinkPkgs(pkgsToUnlink, [options])`
-
-Unlinks the listed packages that were linked during development in a project. If the linked package is in `package.json` of the project,
-it is installed after unlinking.
-
-**Arguments:**
-
-* `pkgsToUnlink` - *String[]* - the list of packages that have to be unlinked. If the passed in package is not an external link, then a warning is reported.
-* `options.prefix` - *String* - by default `process.cwd()`. Path to the project.
 * `options.reporter` - *Function* - A function that listens for logs.
 
 ### `supi.storeStatus([options])`

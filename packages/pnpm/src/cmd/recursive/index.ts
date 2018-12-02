@@ -21,8 +21,6 @@ import {
   rebuild,
   rebuildPkgs,
   uninstall,
-  unlink,
-  unlinkPkgs,
 } from 'supi'
 import createStoreController from '../../createStoreController'
 import findWorkspacePackages, { arrayOfLocalPackagesToMap } from '../../findWorkspacePackages'
@@ -360,6 +358,31 @@ export async function recursive (
   throwOnFail(result)
 
   return true
+}
+
+function unlink (opts: any) { // tslint:disable-line:no-any
+  return mutateModules(
+    [
+      {
+        mutation: 'unlink',
+        prefix: opts.prefix,
+      },
+    ],
+    opts,
+  )
+}
+
+function unlinkPkgs (dependencyNames: string[], opts: any) { // tslint:disable-line:no-any
+  return mutateModules(
+    [
+      {
+        dependencyNames,
+        mutation: 'unlinkSome',
+        prefix: opts.prefix,
+      },
+    ],
+    opts,
+  )
 }
 
 function sortPackages (pkgGraph: {[nodeId: string]: PackageNode}): string[][] {

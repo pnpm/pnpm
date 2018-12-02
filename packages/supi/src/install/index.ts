@@ -10,6 +10,7 @@ import logger, {
   streamParser,
 } from '@pnpm/logger'
 import { write as writeModulesYaml } from '@pnpm/modules-yaml'
+import readModulesDirs from '@pnpm/read-modules-dir'
 import resolveDependencies, { ResolvedPackage } from '@pnpm/resolve-dependencies'
 import {
   LocalPackages,
@@ -28,7 +29,10 @@ import {
 } from '@pnpm/utils'
 import * as dp from 'dependency-path'
 import graphSequencer = require('graph-sequencer')
+import isInnerLink = require('is-inner-link')
+import isSubdir = require('is-subdir')
 import pEvery = require('p-every')
+import pFilter = require('p-filter')
 import pLimit = require('p-limit')
 import path = require('path')
 import {
@@ -40,6 +44,7 @@ import {
   writeWantedOnly as saveWantedShrinkwrapOnly,
 } from 'pnpm-shrinkwrap'
 import R = require('ramda')
+import rimraf = require('rimraf-then')
 import semver = require('semver')
 import {
   LAYOUT_VERSION,
@@ -82,6 +87,11 @@ export type DependenciesMutation = {
   mutation: 'uninstallSome',
   dependencyNames: string[],
   targetDependenciesField?: DependenciesField,
+} | {
+  mutation: 'unlink',
+} | {
+  mutation: 'unlinkSome',
+  dependencyNames: string[],
 }
 
 export function install (
@@ -215,57 +225,7 @@ export async function mutateModules (
           })
           break
         case 'install': {
-          const wantedDeps = getWantedDependencies(importer.pkg)
-
-          if (ctx.wantedShrinkwrap && ctx.wantedShrinkwrap.importers) {
-            forgetResolutionsOfPrevWantedDeps(ctx.wantedShrinkwrap.importers[importer.id], wantedDeps)
-          }
-          const scripts = !opts.ignoreScripts && importer.pkg && importer.pkg.scripts || {}
-          if (opts.ignoreScripts && importer.pkg && importer.pkg.scripts &&
-            (importer.pkg.scripts.preinstall || importer.pkg.scripts.prepublish ||
-              importer.pkg.scripts.install ||
-              importer.pkg.scripts.postinstall ||
-              importer.pkg.scripts.prepare)
-          ) {
-            ctx.pendingBuilds.push(importer.id)
-          }
-
-          if (scripts['prepublish']) { // tslint:disable-line:no-string-literal
-            logger.warn({
-              message: '`prepublish` scripts are deprecated. Use `prepare` for build steps and `prepublishOnly` for upload-only.',
-              prefix: importer.prefix,
-            })
-          }
-
-          const scriptsOpts = {
-            depPath: importer.prefix,
-            pkgRoot: importer.prefix,
-            rawNpmConfig: opts.rawNpmConfig,
-            rootNodeModulesDir: importer.modulesDir,
-            stdio: opts.ownLifecycleHooksStdio,
-            unsafePerm: opts.unsafePerm || false,
-          }
-
-          if (scripts.preinstall) {
-            await runLifecycleHooks('preinstall', importer.pkg, scriptsOpts)
-          }
-
-          importersToInstall.push({
-            pruneDirectDependencies: false,
-            ...importer,
-            ...await partitionLinkedPackages(wantedDeps, {
-              localPackages: opts.localPackages,
-              modulesDir: importer.modulesDir,
-              prefix: importer.prefix,
-              shrinkwrapOnly: opts.shrinkwrapOnly,
-              storePath: ctx.storePath,
-              virtualStoreDir: ctx.virtualStoreDir,
-            }),
-            newPkgRawSpecs: [],
-            updatePackageJson: false,
-            usesExternalShrinkwrap: ctx.shrinkwrapDirectory !== importer.prefix,
-            wantedDeps,
-          })
+          await installCase(importer)
           break
         }
         case 'installSome': {
@@ -293,8 +253,111 @@ export async function mutateModules (
           })
           break
         }
+        case 'unlink': {
+          const packageDirs = await readModulesDirs(importer.modulesDir)
+          const externalPackages = await pFilter(
+            packageDirs,
+            (packageDir: string) => isExternalLink(ctx.storePath, importer.modulesDir, packageDir),
+          )
+          const allDeps = getAllDependenciesFromPackage(importer.pkg)
+          const packagesToInstall: string[] = []
+          for (const pkgName of externalPackages) {
+            await rimraf(path.join(importer.modulesDir, pkgName))
+            if (allDeps[pkgName]) {
+              packagesToInstall.push(pkgName)
+            }
+          }
+          if (!packagesToInstall.length) return
+
+          // TODO: install only those that were unlinked
+          // but don't update their version specs in package.json
+          await installCase({ ...importer, mutation: 'install' })
+          break
+        }
+        case 'unlinkSome': {
+          const packagesToInstall: string[] = []
+          const allDeps = getAllDependenciesFromPackage(importer.pkg)
+          for (const depName of importer.dependencyNames) {
+            try {
+              if (!await isExternalLink(ctx.storePath, importer.modulesDir, depName)) {
+                logger.warn({
+                  message: `${depName} is not an external link`,
+                  prefix: importer.prefix,
+                })
+                continue
+              }
+            } catch (err) {
+              if (err['code'] !== 'ENOENT') throw err // tslint:disable-line:no-string-literal
+            }
+            await rimraf(path.join(importer.modulesDir, depName))
+            if (allDeps[depName]) {
+              packagesToInstall.push(depName)
+            }
+          }
+          if (!packagesToInstall.length) return
+
+          // TODO: install only those that were unlinked
+          // but don't update their version specs in package.json
+          await installCase({ ...importer, mutation: 'install' })
+          break
+        }
       }
     }
+
+    async function installCase (importer: any) { // tslint:disable-line:no-any
+      const wantedDeps = getWantedDependencies(importer.pkg)
+
+      if (ctx.wantedShrinkwrap && ctx.wantedShrinkwrap.importers) {
+        forgetResolutionsOfPrevWantedDeps(ctx.wantedShrinkwrap.importers[importer.id], wantedDeps)
+      }
+      const scripts = !opts.ignoreScripts && importer.pkg && importer.pkg.scripts || {}
+      if (opts.ignoreScripts && importer.pkg && importer.pkg.scripts &&
+        (importer.pkg.scripts.preinstall || importer.pkg.scripts.prepublish ||
+          importer.pkg.scripts.install ||
+          importer.pkg.scripts.postinstall ||
+          importer.pkg.scripts.prepare)
+      ) {
+        ctx.pendingBuilds.push(importer.id)
+      }
+
+      if (scripts['prepublish']) { // tslint:disable-line:no-string-literal
+        logger.warn({
+          message: '`prepublish` scripts are deprecated. Use `prepare` for build steps and `prepublishOnly` for upload-only.',
+          prefix: importer.prefix,
+        })
+      }
+
+      const scriptsOpts = {
+        depPath: importer.prefix,
+        pkgRoot: importer.prefix,
+        rawNpmConfig: opts.rawNpmConfig,
+        rootNodeModulesDir: importer.modulesDir,
+        stdio: opts.ownLifecycleHooksStdio,
+        unsafePerm: opts.unsafePerm || false,
+      }
+
+      if (scripts.preinstall) {
+        await runLifecycleHooks('preinstall', importer.pkg, scriptsOpts)
+      }
+
+      importersToInstall.push({
+        pruneDirectDependencies: false,
+        ...importer,
+        ...await partitionLinkedPackages(wantedDeps, {
+          localPackages: opts.localPackages,
+          modulesDir: importer.modulesDir,
+          prefix: importer.prefix,
+          shrinkwrapOnly: opts.shrinkwrapOnly,
+          storePath: ctx.storePath,
+          virtualStoreDir: ctx.virtualStoreDir,
+        }),
+        newPkgRawSpecs: [],
+        updatePackageJson: false,
+        usesExternalShrinkwrap: ctx.shrinkwrapDirectory !== importer.prefix,
+        wantedDeps,
+      })
+    }
+
     // Unfortunately, the private shrinkwrap file may differ from the public one.
     // A user might run named installations on a project that has a shrinkwrap.yaml file before running a noop install
     const makePartialCurrentShrinkwrap = !installsOnly && (
@@ -338,6 +401,14 @@ export async function mutateModules (
       }
     }
   }
+}
+
+async function isExternalLink (store: string, modules: string, pkgName: string) {
+  const link = await isInnerLink(modules, pkgName)
+
+  // checking whether the link is pointing to the store is needed
+  // because packages are linked to store when independent-leaves = true
+  return !link.isInner && !isSubdir(store, link.target)
 }
 
 function pkgHasDependencies (pkg: PackageJson) {
