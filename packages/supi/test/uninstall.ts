@@ -1,14 +1,15 @@
 import prepare, { preparePackages } from '@pnpm/prepare'
 import existsSymlink = require('exists-link')
-import loadYamlFile = require('load-yaml-file')
 import ncpCB = require('ncp')
 import path = require('path')
 import exists = require('path-exists')
+import { Shrinkwrap } from 'pnpm-shrinkwrap'
 import readPkg = require('read-pkg')
+import readYamlFile from 'read-yaml-file'
 import sinon = require('sinon')
 import {
+  addDependenciesToPackage,
   install,
-  installPkgs,
   link,
   PackageJsonLog,
   RootLog,
@@ -31,7 +32,7 @@ const ncp = promisify(ncpCB.ncp)
 test('uninstall package with no dependencies', async (t: tape.Test) => {
   const project = prepare(t)
 
-  await installPkgs(['is-negative@2.1.0'], await testDefaults({ save: true }))
+  await addDependenciesToPackage(['is-negative@2.1.0'], await testDefaults({ save: true }))
 
   const reporter = sinon.spy()
   await uninstall(['is-negative'], await testDefaults({ save: true, reporter }))
@@ -99,7 +100,7 @@ test('uninstall a dependency that is not present in node_modules', async (t) => 
 
 test('uninstall scoped package', async (t) => {
   const project = prepare(t)
-  await installPkgs(['@zkochan/logger@0.1.0'], await testDefaults({ save: true }))
+  await addDependenciesToPackage(['@zkochan/logger@0.1.0'], await testDefaults({ save: true }))
   await uninstall(['@zkochan/logger'], await testDefaults({ save: true }))
 
   await project.storeHas('@zkochan/logger', '0.1.0')
@@ -113,7 +114,7 @@ test('uninstall scoped package', async (t) => {
 test('uninstall tarball dependency', async (t: tape.Test) => {
   const project = prepare(t)
   const opts = await testDefaults({ save: true })
-  await installPkgs(['http://localhost:4873/is-array/-/is-array-1.0.1.tgz'], opts)
+  await addDependenciesToPackage(['http://localhost:4873/is-array/-/is-array-1.0.1.tgz'], opts)
   await uninstall(['is-array'], opts)
 
   t.ok(await exists(path.join(await project.getStorePath(), 'localhost+4873', 'is-array', '1.0.1')))
@@ -126,7 +127,7 @@ test('uninstall tarball dependency', async (t: tape.Test) => {
 
 test('uninstall package with dependencies and do not touch other deps', async (t) => {
   const project = prepare(t)
-  await installPkgs(['is-negative@2.1.0', 'camelcase-keys@3.0.0'], await testDefaults({ save: true }))
+  await addDependenciesToPackage(['is-negative@2.1.0', 'camelcase-keys@3.0.0'], await testDefaults({ save: true }))
   await uninstall(['camelcase-keys'], await testDefaults({ save: true }))
 
   await storePrune(await testDefaults())
@@ -157,7 +158,7 @@ test('uninstall package with dependencies and do not touch other deps', async (t
 
 test('uninstall package with its bin files', async (t) => {
   prepare(t)
-  await installPkgs(['sh-hello-world@1.0.1'], await testDefaults({ save: true }))
+  await addDependenciesToPackage(['sh-hello-world@1.0.1'], await testDefaults({ save: true }))
   await uninstall(['sh-hello-world'], await testDefaults({ save: true }))
 
   // check for both a symlink and a file because in some cases the file will be a proxied not symlinked
@@ -185,7 +186,7 @@ test('relative link is uninstalled', async (t: tape.Test) => {
 test('pendingBuilds gets updated after uninstall', async (t: tape.Test) => {
   const project = prepare(t)
 
-  await installPkgs(['pre-and-postinstall-scripts-example', 'with-postinstall-b'], await testDefaults({ save: true, ignoreScripts: true }))
+  await addDependenciesToPackage(['pre-and-postinstall-scripts-example', 'with-postinstall-b'], await testDefaults({ save: true, ignoreScripts: true }))
 
   const modules1 = await project.loadModules()
   t.ok(modules1)
@@ -258,7 +259,7 @@ test('uninstalling a dependency from package that uses shared shrinkwrap', async
   await projects['project-1'].hasNot('is-positive')
   await projects['project-2'].has('is-negative')
 
-  const shr = await loadYamlFile('shrinkwrap.yaml')
+  const shr = await readYamlFile<Shrinkwrap>('shrinkwrap.yaml')
 
   t.deepEqual(shr, {
     importers: {

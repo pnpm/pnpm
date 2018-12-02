@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/read-manifests",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "author": {
     "name": "Zoltan Kochan",
     "email": "z@kochan.io",
@@ -34,7 +34,7 @@
     "@pnpm/types": "2.0.0",
     "@pnpm/utils": "0.9.0",
     "@types/node": "10.12.10",
-    "pnpm-shrinkwrap": "8.1.4"
+    "pnpm-shrinkwrap": "8.1.5"
   },
   "devDependencies": {
     "@pnpm/logger": "2.1.0",

@@ -171,6 +171,9 @@ function getHelpText (command: string) {
           --parseable                     show parseable output instead of tree view
           -g, --global                    list packages in the global install prefix instead of in the current project
           --depth                         max display depth of the dependency tree
+          --depth 0                       display only direct dependencies
+          --depth -1                      display only projects. Useful in a monorepo.
+                                          \`pnpm recursive ls --depth -1\` lists all projects in a monorepo.
           --prod, --production            display only the dependency tree for packages in \`dependencies\`.
           --dev                           display only the dependency tree for packages in \`devDependencies\`.
       `

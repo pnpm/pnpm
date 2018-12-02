@@ -1,10 +1,10 @@
 import assertProject, { isExecutable } from '@pnpm/assert-project'
 import prepare from '@pnpm/prepare'
 import isWindows = require('is-windows')
-import loadYamlFile = require('load-yaml-file')
 import fs = require('mz/fs')
 import ncpCB = require('ncp')
 import path = require('path')
+import readYamlFile from 'read-yaml-file'
 import tape = require('tape')
 import promisifyTape from 'tape-promise'
 import promisify = require('util.promisify')
@@ -41,7 +41,7 @@ test('linking multiple packages', async (t: tape.Test) => {
   project.has('linked-foo')
   project.has('linked-bar')
 
-  const modules = await loadYamlFile('../linked-bar/node_modules/.modules.yaml')
+  const modules = await readYamlFile<object>('../linked-bar/node_modules/.modules.yaml')
   t.ok(modules['shamefullyFlatten'] === true, 'the linked package used its own configs during installation') // tslint:disable-line:no-string-literal
 })
 

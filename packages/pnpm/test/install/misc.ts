@@ -1,9 +1,10 @@
 import prepare from '@pnpm/prepare'
 import caw = require('caw')
 import isWindows = require('is-windows')
-import loadYamlFile = require('load-yaml-file')
 import path = require('path')
 import exists = require('path-exists')
+import { Shrinkwrap } from 'pnpm-shrinkwrap'
+import readYamlFile from 'read-yaml-file'
 import 'sepia'
 import tape = require('tape')
 import promisifyTape from 'tape-promise'
@@ -102,7 +103,7 @@ test('install with external shrinkwrap directory', async (t: tape.Test) => {
 
   await project.has('is-positive')
 
-  const shr = await loadYamlFile(path.resolve('..', 'shrinkwrap.yaml'))
+  const shr = await readYamlFile<Shrinkwrap>(path.resolve('..', 'shrinkwrap.yaml'))
 
-  t.deepEqual(Object.keys(shr['importers']), ['project'], 'shrinkwrap created in correct location')
+  t.deepEqual(Object.keys(shr.importers), ['project'], 'shrinkwrap created in correct location')
 })

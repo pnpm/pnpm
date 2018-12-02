@@ -13,6 +13,7 @@ import {
 } from 'pnpm-shrinkwrap'
 import { LAYOUT_VERSION } from '../constants'
 import { getContextForSingleImporter, PnpmSingleContext } from '../getContext'
+import { installPkgs } from '../install'
 import lock from '../lock'
 import shrinkwrapsEqual from '../shrinkwrapsEqual'
 import extendOptions, {
@@ -31,6 +32,21 @@ export default async function uninstall (
   }
 
   const opts = await extendOptions(maybeOpts)
+
+  // && opts.sharedWorkspaceShrin
+  if (opts.shrinkwrapDirectory !== opts.prefix) {
+    return installPkgs({
+      ...opts,
+      importers: [
+        {
+          // targetDependenciesField:
+          operation: 'remove',
+          prefix: opts.prefix,
+          targetDependencies: pkgsToUninstall,
+        }
+      ],
+    })
+  }
 
   if (opts.lock) {
     await lock(opts.prefix, _uninstall, {

@@ -58,11 +58,6 @@ declare module 'observatory' {
   export = anything;
 }
 
-declare module 'os-homedir' {
-  const anything: any;
-  export = anything;
-}
-
 declare module 'rimraf-then' {
   const anything: any;
   export = anything;
@@ -166,17 +161,6 @@ declare module 'read-pkg' {
 declare module 'mkdirp-promise' {
   const anything: any;
   export = anything;
-}
-
-declare module 'load-yaml-file' {
-  interface LoadYamlFile {
-    <T>(filepath: string): Promise<T>
-    sync<T>(filepath: string): T
-  }
-
-  const loadYamlFile: LoadYamlFile
-
-  export = loadYamlFile;
 }
 
 declare module 'normalize-ssh' {

@@ -49,7 +49,7 @@ test('recursive list', async (t: tape.Test) => {
 
     project-2@1.0.0 ${path.resolve('project-2')}
     └── is-negative@1.0.0
-  ` + '\n\n')
+  ` + '\n')
 })
 
 test('recursive list with shared-workspace-shrinkwrap', async (t: tape.Test) => {
@@ -92,7 +92,7 @@ test('recursive list with shared-workspace-shrinkwrap', async (t: tape.Test) => 
 
     project-2@1.0.0 ${path.resolve('project-2')}
     └── is-negative@1.0.0
-  ` + '\n\n')
+  ` + '\n')
 })
 
 test('recursive list --scope', async (t: tape.Test) => {
@@ -138,5 +138,5 @@ test('recursive list --scope', async (t: tape.Test) => {
 
     project-2@1.0.0 ${path.resolve('project-2')}
     └── is-negative@1.0.0
-  ` + '\n\n')
+  ` + '\n')
 })

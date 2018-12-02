@@ -1,6 +1,7 @@
 import { stageLogger } from '@pnpm/core-loggers'
 import logger from '@pnpm/logger'
 import { PackageJson } from '@pnpm/types'
+import { getSaveType } from '@pnpm/utils'
 import camelcaseKeys = require('camelcase-keys')
 import graphSequencer = require('graph-sequencer')
 import isSubdir = require('is-subdir')
@@ -12,6 +13,7 @@ import path = require('path')
 import createPkgGraph, { PackageNode } from 'pkgs-graph'
 import readIniFile = require('read-ini-file')
 import {
+  addDependenciesToPackage,
   install,
   InstallOptions,
   installPkgs,
@@ -186,6 +188,7 @@ export async function recursive (
     pruneShrinkwrapImporters: pkgs.length === allPkgs.length,
     store: store.path,
     storeController,
+    targetDependenciesField: getSaveType(opts),
   }) as InstallOptions
 
   const result = {
@@ -205,7 +208,7 @@ export async function recursive (
         action = uninstall.bind(null, input)
         break
       default:
-        action = (input.length === 0 ? install : installPkgs.bind(null, input))
+        action = (input.length === 0 ? install : (opts.shrinkwrapDirectory ? installPkgs : addDependenciesToPackage.bind(null, input)))
         break
     }
 
@@ -226,8 +229,20 @@ export async function recursive (
         importers: await Promise.all(pkgPaths.map(async (prefix) => {
           const localConfigs = await memReadLocalConfigs(prefix)
           return {
+            allowNew: cmdFullName === 'install',
+            operation: 'add',
             prefix,
-            shamefullyFlatten: localConfigs.shamefullyFlatten,
+            saveExact: typeof localConfigs.saveExact === 'boolean'
+              ? localConfigs.saveExact
+              : opts.saveExact,
+            savePrefix: typeof localConfigs.savePrefix === 'string'
+              ? localConfigs.savePrefix
+              : opts.savePrefix,
+            shamefullyFlatten: typeof localConfigs.shamefullyFlatten === 'boolean'
+              ? localConfigs.shamefullyFlatten
+              : opts.shamefullyFlatten,
+            targetDependencies: input,
+            targetDependenciesField: getSaveType(installOpts),
           }
         })),
         storeController: store.ctrl,

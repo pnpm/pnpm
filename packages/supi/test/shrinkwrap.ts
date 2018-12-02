@@ -1,7 +1,6 @@
 import prepare, { preparePackages } from '@pnpm/prepare'
 import { fromDir as readPackageJsonFromDir } from '@pnpm/read-package-json'
 import { stripIndent } from 'common-tags'
-import loadYamlFile = require('load-yaml-file')
 import mkdir = require('mkdirp-promise')
 import fs = require('mz/fs')
 import path = require('path')
@@ -9,11 +8,12 @@ import exists = require('path-exists')
 import { getIntegrity } from 'pnpm-registry-mock'
 import { Shrinkwrap } from 'pnpm-shrinkwrap'
 import R = require('ramda')
+import readYamlFile from 'read-yaml-file'
 import rimraf = require('rimraf-then')
 import sinon = require('sinon')
 import {
+  addDependenciesToPackage,
   install,
-  installPkgs,
   RootLog,
   uninstall,
 } from 'supi'
@@ -39,7 +39,12 @@ const SHRINKWRAP_WARN_LOG = {
 test('shrinkwrap file has correct format', async (t: tape.Test) => {
   const project = prepare(t)
 
-  await installPkgs(['pkg-with-1-dep', '@rstacruz/tap-spec@4.1.1', 'kevva/is-negative#1d7e288222b53a0cab90a331f1865220ec29560c'], await testDefaults({ save: true }))
+  await addDependenciesToPackage(
+    [
+      'pkg-with-1-dep',
+      '@rstacruz/tap-spec@4.1.1',
+      'kevva/is-negative#1d7e288222b53a0cab90a331f1865220ec29560c',
+    ], await testDefaults({ save: true }))
 
   const modules = await project.loadModules()
   t.ok(modules)
@@ -156,10 +161,10 @@ test("shrinkwrap doesn't lock subdependencies that don't satisfy the new specs",
   const project = prepare(t)
 
   // dependends on react-onclickoutside@5.9.0
-  await installPkgs(['react-datetime@2.8.8'], await testDefaults({ save: true }))
+  await addDependenciesToPackage(['react-datetime@2.8.8'], await testDefaults({ save: true }))
 
   // dependends on react-onclickoutside@0.3.4
-  await installPkgs(['react-datetime@1.3.0'], await testDefaults({ save: true }))
+  await addDependenciesToPackage(['react-datetime@1.3.0'], await testDefaults({ save: true }))
 
   t.equal(
     project.requireModule('.localhost+4873/react-datetime/1.3.0/node_modules/react-onclickoutside/package.json').version,
@@ -308,7 +313,7 @@ test('doing named installation when shrinkwrap.yaml exists already', async (t: t
 
   const reporter = sinon.spy()
 
-  await installPkgs(['is-positive'], await testDefaults({ reporter }))
+  await addDependenciesToPackage(['is-positive'], await testDefaults({ reporter }))
   await install(await testDefaults({ reporter }))
 
   t.notOk(reporter.calledWithMatch(SHRINKWRAP_WARN_LOG), 'no warning about ignoring shrinkwrap.yaml')
@@ -330,11 +335,11 @@ test('respects shrinkwrap.yaml for top dependencies', async (t: tape.Test) => {
   const pkgs = ['foo', 'bar', 'qar']
   await Promise.all(pkgs.map((pkgName) => addDistTag(pkgName, '100.0.0', 'latest')))
 
-  await installPkgs(['foo'], await testDefaults({ save: true, reporter }))
+  await addDependenciesToPackage(['foo'], await testDefaults({ save: true, reporter }))
   // t.equal(reporter.withArgs(fooProgress).callCount, 1, 'reported foo once')
-  await installPkgs(['bar'], await testDefaults({ saveOptional: true }))
-  await installPkgs(['qar'], await testDefaults({ saveDev: true }))
-  await installPkgs(['foobar'], await testDefaults({ save: true }))
+  await addDependenciesToPackage(['bar'], await testDefaults({ targetDependenciesField: 'optionalDependencies' }))
+  await addDependenciesToPackage(['qar'], await testDefaults({ addDependenciesToPackage: 'devDependencies' }))
+  await addDependenciesToPackage(['foobar'], await testDefaults({ save: true }))
 
   t.equal((await readPackageJsonFromDir(path.resolve('node_modules', 'foo'))).version, '100.0.0')
   t.equal((await readPackageJsonFromDir(path.resolve('node_modules', 'bar'))).version, '100.0.0')
@@ -374,7 +379,7 @@ test('subdeps are updated on repeat install if outer shrinkwrap.yaml does not ma
 
   await addDistTag('dep-of-pkg-with-1-dep', '100.0.0', 'latest')
 
-  await installPkgs(['pkg-with-1-dep'], await testDefaults())
+  await addDependenciesToPackage(['pkg-with-1-dep'], await testDefaults())
 
   await project.storeHas('dep-of-pkg-with-1-dep', '100.0.0')
 
@@ -402,9 +407,9 @@ test('subdeps are updated on repeat install if outer shrinkwrap.yaml does not ma
 test("recreates shrinkwrap file if it doesn't match the dependencies in package.json", async (t: tape.Test) => {
   const project = prepare(t)
 
-  await installPkgs(['is-negative@1.0.0'], await testDefaults({ saveExact: true, saveProd: true }))
-  await installPkgs(['is-positive@1.0.0'], await testDefaults({ saveExact: true, saveDev: true }))
-  await installPkgs(['map-obj@1.0.0'], await testDefaults({ saveExact: true, saveOptional: true }))
+  await addDependenciesToPackage(['is-negative@1.0.0'], await testDefaults({ saveExact: true, targetDependenciesField: 'dependencies' }))
+  await addDependenciesToPackage(['is-positive@1.0.0'], await testDefaults({ saveExact: true, targetDependenciesField: 'devDependencies' }))
+  await addDependenciesToPackage(['map-obj@1.0.0'], await testDefaults({ saveExact: true, targetDependenciesField: 'optionalDependencies' }))
 
   const shr1 = await project.loadShrinkwrap()
   t.equal(shr1.dependencies['is-negative'], '1.0.0')
@@ -435,7 +440,7 @@ test("recreates shrinkwrap file if it doesn't match the dependencies in package.
 test('repeat install with shrinkwrap should not mutate shrinkwrap when dependency has version specified with v prefix', async (t: tape.Test) => {
   const project = prepare(t)
 
-  await installPkgs(['highmaps-release@5.0.11'], await testDefaults())
+  await addDependenciesToPackage(['highmaps-release@5.0.11'], await testDefaults())
 
   const shr1 = await project.loadShrinkwrap()
 
@@ -455,11 +460,11 @@ test('package is not marked dev if it is also a subdep of a regular dependency',
 
   await addDistTag('dep-of-pkg-with-1-dep', '100.0.0', 'latest')
 
-  await installPkgs(['pkg-with-1-dep'], await testDefaults())
+  await addDependenciesToPackage(['pkg-with-1-dep'], await testDefaults())
 
   t.pass('installed pkg-with-1-dep')
 
-  await installPkgs(['dep-of-pkg-with-1-dep'], await testDefaults({ saveDev: true }))
+  await addDependenciesToPackage(['dep-of-pkg-with-1-dep'], await testDefaults({ targetDependenciesField: 'devDependencies' }))
 
   t.pass('installed optional dependency which is also a dependency of pkg-with-1-dep')
 
@@ -473,8 +478,8 @@ test('package is not marked optional if it is also a subdep of a regular depende
 
   await addDistTag('dep-of-pkg-with-1-dep', '100.0.0', 'latest')
 
-  await installPkgs(['pkg-with-1-dep'], await testDefaults())
-  await installPkgs(['dep-of-pkg-with-1-dep'], await testDefaults({ saveOptional: true }))
+  await addDependenciesToPackage(['pkg-with-1-dep'], await testDefaults())
+  await addDependenciesToPackage(['dep-of-pkg-with-1-dep'], await testDefaults({ targetDependenciesField: 'optionalDependencies' }))
 
   const shr = await project.loadShrinkwrap()
 
@@ -486,7 +491,7 @@ test('scoped module from different registry', async (t: tape.Test) => {
 
   const opts = await testDefaults()
   opts.registries!['@zkochan'] = 'https://registry.npmjs.org/' // tslint:disable-line
-  await installPkgs(['@zkochan/foo', 'is-positive'], opts)
+  await addDependenciesToPackage(['@zkochan/foo', 'is-positive'], opts)
 
   const m = project.requireModule('@zkochan/foo')
   t.ok(m, 'foo is available')
@@ -532,7 +537,7 @@ test('scoped module from different registry', async (t: tape.Test) => {
 test('repeat install with no inner shrinkwrap should not rewrite packages in node_modules', async (t: tape.Test) => {
   const project = prepare(t)
 
-  await installPkgs(['is-negative@1.0.0'], await testDefaults())
+  await addDependenciesToPackage(['is-negative@1.0.0'], await testDefaults())
 
   await rimraf('node_modules/.shrinkwrap.yaml')
 
@@ -550,7 +555,7 @@ test['skip']('installing from shrinkwrap when using npm enterprise', async (t: t
 
   const opts = await testDefaults({ registry: 'https://npm-registry.compass.com/' })
 
-  await installPkgs(['is-positive@3.1.0'], opts)
+  await addDependenciesToPackage(['is-positive@3.1.0'], opts)
 
   const shr = await project.loadShrinkwrap()
 
@@ -629,8 +634,8 @@ test('packages are placed in devDependencies even if they are present as non-dev
 test('updating package that has a github-hosted dependency', async (t: tape.Test) => {
   const project = prepare(t)
 
-  await installPkgs(['has-github-dep@1'], await testDefaults())
-  await installPkgs(['has-github-dep@latest'], await testDefaults())
+  await addDependenciesToPackage(['has-github-dep@1'], await testDefaults())
+  await addDependenciesToPackage(['has-github-dep@latest'], await testDefaults())
 
   t.pass('installation of latest did not fail')
 })
@@ -638,8 +643,8 @@ test('updating package that has a github-hosted dependency', async (t: tape.Test
 test('updating package that has deps with peers', async (t: tape.Test) => {
   const project = prepare(t)
 
-  await installPkgs(['abc-grand-parent-with-c@0'], await testDefaults())
-  await installPkgs(['abc-grand-parent-with-c@1'], await testDefaults())
+  await addDependenciesToPackage(['abc-grand-parent-with-c@0'], await testDefaults())
+  await addDependenciesToPackage(['abc-grand-parent-with-c@1'], await testDefaults())
 
   t.pass('installation of latest did not fail')
 })
@@ -734,8 +739,8 @@ test('pendingBuilds gets updated if install removes packages', async (t: tape.Te
 test('dev properties are correctly updated on named install', async (t: tape.Test) => {
   const project = prepare(t)
 
-  await installPkgs(['inflight@1.0.6'], await testDefaults({ saveDev: true }))
-  await installPkgs(['foo@npm:inflight@1.0.6'], await testDefaults({}))
+  await addDependenciesToPackage(['inflight@1.0.6'], await testDefaults({ targetDependenciesField: 'devDependencies' }))
+  await addDependenciesToPackage(['foo@npm:inflight@1.0.6'], await testDefaults({}))
 
   const shr = await project.loadShrinkwrap()
   t.deepEqual(R.values(shr.packages).filter((dep) => typeof dep.dev !== 'undefined'), [], 'there are 0 packages with dev property in shrinkwrap.yaml')
@@ -744,8 +749,8 @@ test('dev properties are correctly updated on named install', async (t: tape.Tes
 test('optional properties are correctly updated on named install', async (t: tape.Test) => {
   const project = prepare(t)
 
-  await installPkgs(['inflight@1.0.6'], await testDefaults({ saveOptional: true }))
-  await installPkgs(['foo@npm:inflight@1.0.6'], await testDefaults({}))
+  await addDependenciesToPackage(['inflight@1.0.6'], await testDefaults({ targetDependenciesField: 'optionalDependencies' }))
+  await addDependenciesToPackage(['foo@npm:inflight@1.0.6'], await testDefaults({}))
 
   const shr = await project.loadShrinkwrap()
   t.deepEqual(R.values(shr.packages).filter((dep) => typeof dep.optional !== 'undefined'), [], 'there are 0 packages with optional property in shrinkwrap.yaml')
@@ -755,7 +760,7 @@ test('dev property is correctly set for package that is duplicated to both the d
   const project = prepare(t)
 
   // TODO: use a smaller package for testing
-  await installPkgs(['overlap@2.2.8'], await testDefaults())
+  await addDependenciesToPackage(['overlap@2.2.8'], await testDefaults())
 
   const shr = await project.loadShrinkwrap()
   t.ok(shr.packages['/couleurs/5.0.0'].dev === false)
@@ -765,7 +770,7 @@ test('no shrinkwrap', async (t: tape.Test) => {
   const project = prepare(t)
   const reporter = sinon.spy()
 
-  await installPkgs(['is-positive'], await testDefaults({ shrinkwrap: false, reporter }))
+  await addDependenciesToPackage(['is-positive'], await testDefaults({ shrinkwrap: false, reporter }))
 
   t.notOk(reporter.calledWithMatch(SHRINKWRAP_WARN_LOG), 'no warning about ignoring shrinkwrap.yaml')
 
@@ -817,7 +822,7 @@ test("don't update shrinkwrap.yaml during uninstall when shrinkwrap: false", asy
   {
     const reporter = sinon.spy()
 
-    await installPkgs(['is-positive'], await testDefaults({ reporter }))
+    await addDependenciesToPackage(['is-positive'], await testDefaults({ reporter }))
 
     t.notOk(reporter.calledWithMatch(SHRINKWRAP_WARN_LOG), 'no warning about ignoring shrinkwrap.yaml')
   }
@@ -849,8 +854,8 @@ test('fail when installing with shrinkwrap: false and shrinkwrapOnly: true', asy
 test("don't remove packages during named install when shrinkwrap: false", async (t: tape.Test) => {
   const project = prepare(t)
 
-  await installPkgs(['is-positive'], await testDefaults({ shrinkwrap: false }))
-  await installPkgs(['is-negative'], await testDefaults({ shrinkwrap: false }))
+  await addDependenciesToPackage(['is-positive'], await testDefaults({ shrinkwrap: false }))
+  await addDependenciesToPackage(['is-negative'], await testDefaults({ shrinkwrap: false }))
 
   await project.has('is-positive')
   await project.has('is-negative')
@@ -859,7 +864,7 @@ test("don't remove packages during named install when shrinkwrap: false", async 
 test('save tarball URL when it is non-standard', async (t: tape.Test) => {
   const project = prepare(t)
 
-  await installPkgs(['esprima-fb@3001.1.0-dev-harmony-fb'], await testDefaults())
+  await addDependenciesToPackage(['esprima-fb@3001.1.0-dev-harmony-fb'], await testDefaults())
 
   const shr = await project.loadShrinkwrap()
 
@@ -869,7 +874,7 @@ test('save tarball URL when it is non-standard', async (t: tape.Test) => {
 test('when package registry differs from default one, save it to resolution field', async (t: tape.Test) => {
   const project = prepare(t)
 
-  await installPkgs(['@zkochan/git-config', 'is-positive'], await testDefaults({
+  await addDependenciesToPackage(['@zkochan/git-config', 'is-positive'], await testDefaults({
     rawNpmConfig: {
       '@zkochan:registry': 'https://registry.node-modules.io/',
       'registry': 'https://registry.npmjs.org/',
@@ -888,7 +893,7 @@ test('when package registry differs from default one, save it to resolution fiel
 test('packages installed via tarball URL from the default registry are normalized', async (t: tape.Test) => {
   const project = prepare(t)
 
-  await installPkgs([
+  await addDependenciesToPackage([
     'http://localhost:4873/pkg-with-tarball-dep-from-registry/-/pkg-with-tarball-dep-from-registry-1.0.0.tgz',
     'https://registry.npmjs.org/is-positive/-/is-positive-1.0.0.tgz',
   ], await testDefaults())
@@ -939,19 +944,19 @@ test('packages installed via tarball URL from the default registry are normalize
 test('shrinkwrap file has correct format when shrinkwrap directory does not equal the prefix directory', async (t: tape.Test) => {
   const project = prepare(t)
 
-  await installPkgs(['pkg-with-1-dep', '@rstacruz/tap-spec@4.1.1', 'kevva/is-negative#1d7e288222b53a0cab90a331f1865220ec29560c'],
+  await addDependenciesToPackage(['pkg-with-1-dep', '@rstacruz/tap-spec@4.1.1', 'kevva/is-negative#1d7e288222b53a0cab90a331f1865220ec29560c'],
     await testDefaults({ save: true, shrinkwrapDirectory: path.resolve('..') }))
 
   t.ok(!await exists('node_modules/.modules.yaml'), ".modules.yaml in importer's node_modules not created")
 
   process.chdir('..')
 
-  const modules = await loadYamlFile(path.resolve('node_modules', '.modules.yaml'))
+  const modules = await readYamlFile<object>(path.resolve('node_modules', '.modules.yaml'))
   t.ok(modules, '.modules.yaml in virtual store directory created')
   t.equal(modules['pendingBuilds'].length, 0) // tslint:disable-line:no-string-literal
 
   {
-    const shr = await loadYamlFile('shrinkwrap.yaml') as Shrinkwrap
+    const shr = await readYamlFile('shrinkwrap.yaml') as Shrinkwrap
     const id = '/pkg-with-1-dep/100.0.0'
 
     t.equal(shr.shrinkwrapVersion, 4, 'correct shrinkwrap version')
@@ -983,10 +988,10 @@ test('shrinkwrap file has correct format when shrinkwrap directory does not equa
 
   process.chdir('project-2')
 
-  await installPkgs(['is-positive'], await testDefaults({ save: true, shrinkwrapDirectory: path.resolve('..') }))
+  await addDependenciesToPackage(['is-positive'], await testDefaults({ save: true, shrinkwrapDirectory: path.resolve('..') }))
 
   {
-    const shr = await loadYamlFile(path.join('..', 'shrinkwrap.yaml')) as Shrinkwrap
+    const shr = await readYamlFile<Shrinkwrap>(path.join('..', 'shrinkwrap.yaml'))
 
     t.ok(shr.importers)
     t.ok(shr.importers['project-2'])
@@ -1070,9 +1075,15 @@ test('doing named installation when shared shrinkwrap.yaml exists already', asyn
     shrinkwrapVersion: 4,
   })
 
-  await installPkgs(['is-positive'], await testDefaults({ importers: [{ prefix: path.resolve('pkg2') }] }))
+  await addDependenciesToPackage(
+    ['is-positive'],
+    await testDefaults({
+      prefix: path.resolve('pkg2'),
+      shrinkwrapDirectory: process.cwd(),
+    }),
+  )
 
-  const currentShr = await loadYamlFile(path.resolve('node_modules', '.shrinkwrap.yaml'))
+  const currentShr = await readYamlFile<Shrinkwrap>(path.resolve('node_modules', '.shrinkwrap.yaml'))
 
   t.deepEqual(R.keys(currentShr['importers']), ['pkg2'], 'only pkg2 added to importers of current shrinkwrap')
 
@@ -1086,11 +1097,11 @@ test('doing named installation when shared shrinkwrap.yaml exists already', asyn
 test('use current shrinkwrap.yaml as initial wanted one, when wanted was removed', async (t) => {
   const project = prepare(t)
 
-  await installPkgs(['lodash@4.17.11', 'underscore@1.9.0'], await testDefaults())
+  await addDependenciesToPackage(['lodash@4.17.11', 'underscore@1.9.0'], await testDefaults())
 
   await rimraf('shrinkwrap.yaml')
 
-  await installPkgs(['underscore@1.9.1'], await testDefaults())
+  await addDependenciesToPackage(['underscore@1.9.1'], await testDefaults())
 
   await project.has('lodash')
   await project.has('underscore')

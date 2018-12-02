@@ -1,5 +1,4 @@
 import fs = require('fs')
-import loadYamlFile = require('load-yaml-file')
 import mkdirp = require('mkdirp-promise')
 import path = require('path')
 import {
@@ -8,10 +7,12 @@ import {
   readCurrent,
   readPrivate,
   readWanted,
+  Shrinkwrap,
   write,
   writeCurrentOnly,
   writeWantedOnly,
 } from 'pnpm-shrinkwrap'
+import readYamlFile from 'read-yaml-file'
 import test = require('tape')
 import tempy = require('tempy')
 import writeYamlFile = require('write-yaml-file')
@@ -359,7 +360,7 @@ test('write saves shrinkwrap version in correct fields', async t => {
     registry: 'https://registry.npmjs.org/',
     shrinkwrapVersion: 3.11,
   })
-  const shr = await loadYamlFile(path.join(projectPath, 'shrinkwrap.yaml'))
+  const shr = await readYamlFile<Shrinkwrap>(path.join(projectPath, 'shrinkwrap.yaml'))
   t.equal(shr['shrinkwrapVersion'], 3)
   t.equal(shr['shrinkwrapMinorVersion'], 11)
   t.end()

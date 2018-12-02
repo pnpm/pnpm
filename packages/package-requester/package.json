@@ -58,9 +58,9 @@
     "write-json-file": "3.0.2"
   },
   "devDependencies": {
-    "@pnpm/local-resolver": "1.0.2",
+    "@pnpm/local-resolver": "1.0.3",
     "@pnpm/logger": "2.1.0",
-    "@pnpm/npm-resolver": "2.2.6",
+    "@pnpm/npm-resolver": "2.2.7",
     "@pnpm/package-requester": "link:",
     "@pnpm/tarball-fetcher": "2.0.8",
     "@pnpm/tslint-config": "0.0.0",

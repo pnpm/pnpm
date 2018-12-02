@@ -1,15 +1,16 @@
 import { isExecutable } from '@pnpm/assert-project'
 import prepare from '@pnpm/prepare'
-import loadYamlFile = require('load-yaml-file')
 import fs = require('mz/fs')
 import ncpCB = require('ncp')
 import path = require('path')
 import exists = require('path-exists')
+import { Shrinkwrap } from 'pnpm-shrinkwrap'
 import readPkg = require('read-pkg')
+import readYamlFile from 'read-yaml-file'
 import sinon = require('sinon')
 import {
+  addDependenciesToPackage,
   install,
-  installPkgs,
   link,
   linkFromGlobal,
   linkToGlobal,
@@ -131,7 +132,7 @@ test('relative link is rewritten by named installation to regular dependency', a
     prefix: process.cwd(),
   } as RootLog), 'linked root dependency logged')
 
-  await installPkgs(['hello-world-js-bin'], opts)
+  await addDependenciesToPackage(['hello-world-js-bin'], opts)
 
   const pkg = await readPkg()
 
@@ -193,7 +194,7 @@ test('node_modules is pruned after linking', async (t: tape.Test) => {
 
   await writeJsonFile('../is-positive/package.json', { name: 'is-positive', version: '1.0.0' })
 
-  await installPkgs(['is-positive@1.0.0'], await testDefaults())
+  await addDependenciesToPackage(['is-positive@1.0.0'], await testDefaults())
 
   t.ok(await exists('node_modules/.localhost+4873/is-positive/1.0.0/node_modules/is-positive/package.json'))
 
@@ -257,7 +258,7 @@ test['skip']('relative link when an external shrinkwrap is used', async (t: tape
   const opts = await testDefaults({ shrinkwrapDirectory: path.join('..') })
   await link([process.cwd()], path.resolve(process.cwd(), 'node_modules'), opts)
 
-  const shr = await loadYamlFile(path.resolve('..', 'shrinkwrap.yaml'))
+  const shr = await readYamlFile<Shrinkwrap>(path.resolve('..', 'shrinkwrap.yaml'))
 
   t.deepEqual(shr && shr['importers'], {
     project: {
