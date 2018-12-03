@@ -167,7 +167,7 @@ importers:
       string-length: 2.0.0
       string.prototype.padstart: 3.0.0
       strip-ansi: 5.0.0
-      supi: 0.26.0-0
+      supi: 0.26.0
       tape: 4.9.1
       ts-node: 6.2.0
       tslint: 5.11.0
@@ -234,7 +234,7 @@ importers:
       typescript: 3.1.6
     specifiers:
       '@pnpm/logger': 2.1.0
-      '@pnpm/modules-yaml': 2.0.0
+      '@pnpm/modules-yaml': 2.0.1
       '@pnpm/read-modules-dir': 1.0.0
       '@pnpm/tslint-config': 0.0.0
       '@pnpm/types': 2.0.0
@@ -248,7 +248,7 @@ importers:
       mos-plugin-readme: 1.0.4
       mos-tap-diff: 1.0.0
       normalize-path: 3.0.0
-      pnpm-shrinkwrap: 8.1.5
+      pnpm-shrinkwrap: 8.1.6
       resolve-link-target: 1.0.1
       semver: 5.6.0
       tape: 4.9.1
@@ -340,19 +340,19 @@ importers:
       '@pnpm/assert-project': 'link:../../privatePackages/assert-project'
       '@pnpm/core-loggers': 1.0.0
       '@pnpm/default-fetcher': 2.0.6
-      '@pnpm/default-resolver': 2.0.6
+      '@pnpm/default-resolver': 2.0.7
       '@pnpm/headless': 'link:'
       '@pnpm/lifecycle': 3.0.2
       '@pnpm/link-bins': 3.0.2
       '@pnpm/logger': 2.1.0
-      '@pnpm/modules-cleaner': 1.0.11
-      '@pnpm/modules-yaml': 2.0.0
+      '@pnpm/modules-cleaner': 2.0.0
+      '@pnpm/modules-yaml': 2.0.1
       '@pnpm/package-requester': 4.1.10
-      '@pnpm/package-store': 1.2.0
+      '@pnpm/package-store': 1.2.1
       '@pnpm/pkgid-to-filename': 2.0.0
-      '@pnpm/read-manifests': 1.0.1
+      '@pnpm/read-manifests': 1.0.2
       '@pnpm/read-package-json': 1.0.1
-      '@pnpm/shamefully-flatten': 1.0.3
+      '@pnpm/shamefully-flatten': 1.0.4
       '@pnpm/store-controller-types': 1.1.0
       '@pnpm/store-path': 1.0.4
       '@pnpm/symlink-dependency': 1.1.0
@@ -378,7 +378,7 @@ importers:
       p-limit: 2.0.0
       path-exists: 3.0.0
       pnpm-registry-mock: 2.4.0
-      pnpm-shrinkwrap: 8.1.5
+      pnpm-shrinkwrap: 8.1.6
       ramda: 0.26.1
       rimraf: 2.6.2
       rimraf-then: 1.0.1
@@ -429,7 +429,7 @@ importers:
       archy: 1.0.0
       chalk: 2.4.1
       common-tags: 1.8.0
-      dependencies-hierarchy: 4.0.1
+      dependencies-hierarchy: 4.0.2
       mos: 2.0.0-alpha.3
       mos-plugin-readme: 1.0.4
       p-limit: 2.0.0
@@ -476,7 +476,7 @@ importers:
       '@types/ramda': 0.25.38
       dependency-path: 2.0.1
       fs-vacuum: 1.2.10
-      pnpm-shrinkwrap: 8.1.5
+      pnpm-shrinkwrap: 8.1.6
       ramda: 0.26.1
       rimraf: 2.6.2
       rimraf-then: 1.0.1
@@ -552,7 +552,7 @@ importers:
       dependency-path: 2.0.1
       mos: 2.0.0-alpha.3
       mos-plugin-readme: 1.0.4
-      pnpm-shrinkwrap: 8.1.5
+      pnpm-shrinkwrap: 8.1.6
       tape: 4.9.1
       ts-node: 7.0.1
       tslint: 5.11.0
@@ -843,15 +843,15 @@ importers:
       '@pnpm/config': 2.3.1
       '@pnpm/core-loggers': 1.0.0
       '@pnpm/default-fetcher': 2.0.6
-      '@pnpm/default-resolver': 2.0.6
+      '@pnpm/default-resolver': 2.0.7
       '@pnpm/lifecycle': 3.0.2
       '@pnpm/logger': 2.1.0
-      '@pnpm/modules-yaml': 2.0.0
-      '@pnpm/outdated': 1.0.8
-      '@pnpm/package-store': 1.2.0
+      '@pnpm/modules-yaml': 2.0.1
+      '@pnpm/outdated': 1.0.9
+      '@pnpm/package-store': 1.2.1
       '@pnpm/prepare': 0.0.0
       '@pnpm/read-package-json': 1.0.1
-      '@pnpm/server': 1.1.1
+      '@pnpm/server': 1.1.2
       '@pnpm/store-path': 1.0.4
       '@pnpm/tslint-config': 0.0.0
       '@pnpm/types': 2.0.0
@@ -915,11 +915,11 @@ importers:
       path-name: 1.0.0
       pkgs-graph: 2.0.2
       pnpm: 'link:'
-      pnpm-default-reporter: 0.20.15
+      pnpm-default-reporter: 0.20.16
       pnpm-file-reporter: 0.1.0
-      pnpm-list: 4.2.2
+      pnpm-list: 5.0.0
       pnpm-registry-mock: 2.4.0
-      pnpm-shrinkwrap: 8.1.5
+      pnpm-shrinkwrap: 8.1.6
       process-exists: 3.1.0
       ramda: 0.26.1
       read-ini-file: 2.0.0
@@ -931,7 +931,7 @@ importers:
       sepia: 2.0.2
       signal-exit: 3.0.2
       strip-color: 0.1.0
-      supi: 0.26.0-0
+      supi: 0.26.0
       symlink-dir: 2.0.2
       tape: 4.9.1
       tape-promise: 4.0.0
@@ -960,12 +960,12 @@ importers:
       typescript: 3.1.6
     specifiers:
       '@pnpm/logger': 2.1.0
-      '@pnpm/modules-yaml': 2.0.0
+      '@pnpm/modules-yaml': 2.0.1
       '@pnpm/tslint-config': 0.0.0
       '@pnpm/types': 2.0.0
       '@pnpm/utils': 0.9.0
       '@types/node': 10.12.11
-      pnpm-shrinkwrap: 8.1.5
+      pnpm-shrinkwrap: 8.1.6
       rimraf: 2.6.2
       tslint: 5.11.0
       typescript: 3.1.6
@@ -1029,7 +1029,7 @@ importers:
       dependency-path: 2.0.1
       path-exists: 3.0.0
       pnpm-install-checks: 1.1.0
-      pnpm-shrinkwrap: 8.1.5
+      pnpm-shrinkwrap: 8.1.6
       ramda: 0.26.1
       replace-string: 2.0.0
       rimraf: 2.6.2
@@ -1072,7 +1072,7 @@ importers:
       '@pnpm/logger': 2.1.0
       '@pnpm/npm-resolver': 2.2.7
       '@pnpm/package-requester': 4.1.10
-      '@pnpm/package-store': 1.2.0
+      '@pnpm/package-store': 1.2.1
       '@pnpm/server': 'link:'
       '@pnpm/store-controller-types': 1.1.0
       '@pnpm/tarball-fetcher': 2.0.8
@@ -1121,7 +1121,7 @@ importers:
       '@types/node': 10.12.11
       '@types/ramda': 0.25.34
       dependency-path: 2.0.1
-      pnpm-shrinkwrap: 8.1.5
+      pnpm-shrinkwrap: 8.1.6
       ramda: 0.26.1
       rimraf: 2.6.2
       ts-node: 6.2.0
@@ -1314,24 +1314,24 @@ importers:
       '@pnpm/check-package': 2.0.0
       '@pnpm/core-loggers': 1.0.0
       '@pnpm/default-fetcher': 2.0.6
-      '@pnpm/default-resolver': 2.0.6
+      '@pnpm/default-resolver': 2.0.7
       '@pnpm/fs-locker': 1.0.3
-      '@pnpm/headless': 1.0.3
+      '@pnpm/headless': 1.0.4
       '@pnpm/lifecycle': 3.0.2
       '@pnpm/link-bins': 3.0.2
       '@pnpm/logger': 2.1.0
-      '@pnpm/modules-cleaner': 1.0.11
-      '@pnpm/modules-yaml': 2.0.0
+      '@pnpm/modules-cleaner': 2.0.0
+      '@pnpm/modules-yaml': 2.0.1
       '@pnpm/package-requester': 4.1.10
-      '@pnpm/package-store': 1.2.0
+      '@pnpm/package-store': 1.2.1
       '@pnpm/pkgid-to-filename': 2.0.0
       '@pnpm/prepare': 0.0.0
-      '@pnpm/read-manifests': 1.0.1
+      '@pnpm/read-manifests': 1.0.2
       '@pnpm/read-modules-dir': 1.0.0
       '@pnpm/read-package-json': 1.0.1
-      '@pnpm/resolve-dependencies': 1.0.10
+      '@pnpm/resolve-dependencies': 2.0.0
       '@pnpm/resolver-base': 2.0.0
-      '@pnpm/shamefully-flatten': 1.0.3
+      '@pnpm/shamefully-flatten': 1.0.4
       '@pnpm/store-controller-types': 1.1.0
       '@pnpm/store-path': 1.0.4
       '@pnpm/symlink-dependency': 1.1.0
@@ -1389,7 +1389,7 @@ importers:
       path-exists: 3.0.0
       path-name: 1.0.0
       pnpm-registry-mock: 2.4.0
-      pnpm-shrinkwrap: 8.1.5
+      pnpm-shrinkwrap: 8.1.6
       ramda: 0.26.1
       read-pkg: 4.0.1
       read-yaml-file: 1.1.0
@@ -1510,7 +1510,7 @@ importers:
       typescript: 3.1.6
     specifiers:
       '@pnpm/assert-project': 'link:'
-      '@pnpm/modules-yaml': 2.0.0
+      '@pnpm/modules-yaml': 2.0.1
       '@types/mz': 0.0.32
       '@types/node': 10.12.11
       '@types/path-exists': 3.0.0
@@ -1547,7 +1547,7 @@ importers:
       typescript: 3.1.6
     specifiers:
       '@pnpm/assert-project': 2.0.0
-      '@pnpm/modules-yaml': 2.0.0
+      '@pnpm/modules-yaml': 2.0.1
       '@types/mkdirp': 0.5.2
       '@types/node': 10.12.11
       '@types/tape': 4.2.32

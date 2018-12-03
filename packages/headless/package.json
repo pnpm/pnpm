@@ -1,7 +1,7 @@
 {
   "name": "@pnpm/headless",
   "description": "Fast installation using only shrinkwrap.yaml",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "author": {
     "name": "Zoltan Kochan",
     "email": "z@kochan.io",
@@ -21,11 +21,11 @@
   "devDependencies": {
     "@pnpm/assert-project": "link:../../privatePackages/assert-project",
     "@pnpm/default-fetcher": "2.0.6",
-    "@pnpm/default-resolver": "2.0.6",
+    "@pnpm/default-resolver": "2.0.7",
     "@pnpm/headless": "link:",
     "@pnpm/logger": "2.1.0",
-    "@pnpm/package-store": "1.2.0",
-    "@pnpm/read-manifests": "1.0.1",
+    "@pnpm/package-store": "1.2.1",
+    "@pnpm/read-manifests": "1.0.2",
     "@pnpm/store-path": "1.0.4",
     "@pnpm/tslint-config": "0.0.0",
     "@types/fs-extra": "5.0.4",
@@ -86,12 +86,12 @@
     "@pnpm/core-loggers": "1.0.0",
     "@pnpm/lifecycle": "3.0.2",
     "@pnpm/link-bins": "3.0.2",
-    "@pnpm/modules-cleaner": "1.0.11",
-    "@pnpm/modules-yaml": "2.0.0",
+    "@pnpm/modules-cleaner": "2.0.0",
+    "@pnpm/modules-yaml": "2.0.1",
     "@pnpm/package-requester": "4.1.10",
     "@pnpm/pkgid-to-filename": "2.0.0",
     "@pnpm/read-package-json": "1.0.1",
-    "@pnpm/shamefully-flatten": "1.0.3",
+    "@pnpm/shamefully-flatten": "1.0.4",
     "@pnpm/store-controller-types": "1.1.0",
     "@pnpm/symlink-dependency": "1.1.0",
     "@pnpm/types": "2.0.0",
@@ -101,7 +101,7 @@
     "graph-sequencer": "2.0.0",
     "p-limit": "2.0.0",
     "path-exists": "3.0.0",
-    "pnpm-shrinkwrap": "8.1.5",
+    "pnpm-shrinkwrap": "8.1.6",
     "ramda": "0.26.1"
   }
 }
