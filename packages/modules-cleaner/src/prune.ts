@@ -30,13 +30,13 @@ export default async function prune (
       modulesDir: string,
       prefix: string,
       pruneDirectDependencies?: boolean,
+      removePackages?: string[],
       shamefullyFlatten: boolean,
     }>,
     newShrinkwrap: Shrinkwrap,
     oldShrinkwrap: Shrinkwrap,
     pruneStore?: boolean,
     registries: Registries,
-    removePackages?: string[],
     virtualStoreDir: string,
     shrinkwrapDirectory: string,
     storeController: StoreController,
@@ -48,12 +48,12 @@ export default async function prune (
     const newPkgs = R.toPairs(mergeDependencies(opts.newShrinkwrap.importers[importer.id]))
 
     const allCurrentPackages = new Set(
-      (importer.pruneDirectDependencies || opts.removePackages && opts.removePackages.length)
+      (importer.pruneDirectDependencies || importer.removePackages && importer.removePackages.length)
         ? (await readModulesDir(importer.modulesDir) || [])
         : [],
     )
     const depsToRemove = new Set([
-      ...(opts.removePackages || []).filter((removePackage) => allCurrentPackages.has(removePackage)),
+      ...(importer.removePackages || []).filter((removePackage) => allCurrentPackages.has(removePackage)),
       ...R.difference(oldPkgs, newPkgs).map(([depName]) => depName),
     ])
     if (importer.pruneDirectDependencies) {

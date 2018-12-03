@@ -37,16 +37,17 @@ export { DependenciesGraph }
 export interface Importer {
   bin: string,
   directNodeIdsByAlias: {[alias: string]: string},
-  usesExternalShrinkwrap: boolean,
   hoistedAliases: {[depPath: string]: string[]},
-  modulesDir: string,
   id: string,
+  linkedDependencies: LinkedDependency[],
+  modulesDir: string,
   pkg: PackageJson,
   prefix: string,
   pruneDirectDependencies: boolean,
-  linkedDependencies: LinkedDependency[],
+  removePackages?: string[],
   shamefullyFlatten: boolean,
   topParents: Array<{name: string, version: string}>,
+  usesExternalShrinkwrap: boolean,
 }
 
 export default async function linkPackages (

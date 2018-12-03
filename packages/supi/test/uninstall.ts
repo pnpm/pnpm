@@ -20,6 +20,7 @@ import {
 import tape = require('tape')
 import promisifyTape from 'tape-promise'
 import promisify = require('util.promisify')
+import writeJsonFile from 'write-json-file'
 import {
   pathToLocalPkg,
   testDefaults,
@@ -294,4 +295,25 @@ test('uninstalling a dependency from package that uses shared shrinkwrap', async
     },
     shrinkwrapVersion: 4,
   })
+})
+
+test('uninstall remove modules that is not in package.json', async (t) => {
+  const project = prepare(t)
+
+  await writeJsonFile('node_modules/foo/package.json', { name: 'foo', version: '1.0.0' })
+
+  await project.has('foo')
+
+  await mutateModules(
+    [
+      {
+        dependencyNames: ['foo'],
+        mutation: 'uninstallSome',
+        prefix: process.cwd(),
+      },
+    ],
+    await testDefaults(),
+  )
+
+  await project.hasNot('foo')
 })
