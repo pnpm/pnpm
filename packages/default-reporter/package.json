@@ -1,6 +1,6 @@
 {
   "name": "pnpm-default-reporter",
-  "version": "0.20.15",
+  "version": "0.20.16",
   "description": "The default reporter of pnpm",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
@@ -34,13 +34,13 @@
     "url": "https://github.com/pnpm/pnpm/issues"
   },
   "peerDependencies": {
-    "supi": ">=0.24.0 <0.26.0 || 0.24.11-0 || 0.24.13-0 || 0.24.13-1 || 0.24.13-2 || 0.24.13-3 || 0.25.8-0 || 0.25.8-1 || 0.25.8-2 || 0.26.0-0"
+    "supi": ">=0.24.0 <0.27.0 || 0.24.11-0 || 0.24.13-0 || 0.24.13-1 || 0.24.13-2 || 0.24.13-3 || 0.25.8-0 || 0.25.8-1 || 0.25.8-2 || 0.26.0-0"
   },
   "dependencies": {
     "@pnpm/config": "2.3.1",
     "@pnpm/types": "2.0.0",
     "@types/common-tags": "1.4.0",
-    "@types/node": "10.12.10",
+    "@types/node": "10.12.11",
     "@types/ramda": "0.25.34",
     "@types/semver": "5.5.0",
     "@types/strip-ansi": "3.0.0",
@@ -51,7 +51,7 @@
     "most": "1.7.3",
     "normalize-path": "3.0.0",
     "pretty-bytes": "5.1.0",
-    "ramda": "0.26.0",
+    "ramda": "0.26.1",
     "right-pad": "1.0.1",
     "semver": "5.6.0",
     "stacktracey": "1.2.106",
@@ -71,7 +71,7 @@
     "normalize-newline": "3.0.0",
     "pnpm-default-reporter": "link:",
     "rimraf": "2.6.2",
-    "supi": "0.26.0-0",
+    "supi": "0.26.0",
     "tape": "4.9.1",
     "ts-node": "6.2.0",
     "tslint": "5.11.0",

@@ -37,15 +37,17 @@ export { DependenciesGraph }
 export interface Importer {
   bin: string,
   directNodeIdsByAlias: {[alias: string]: string},
-  usesExternalShrinkwrap: boolean,
   hoistedAliases: {[depPath: string]: string[]},
-  modulesDir: string,
   id: string,
+  linkedDependencies: LinkedDependency[],
+  modulesDir: string,
   pkg: PackageJson,
   prefix: string,
-  linkedDependencies: LinkedDependency[],
+  pruneDirectDependencies: boolean,
+  removePackages?: string[],
   shamefullyFlatten: boolean,
   topParents: Array<{name: string, version: string}>,
+  usesExternalShrinkwrap: boolean,
 }
 
 export default async function linkPackages (
@@ -59,7 +61,6 @@ export default async function linkPackages (
     wantedShrinkwrap: Shrinkwrap,
     currentShrinkwrap: Shrinkwrap,
     makePartialCurrentShrinkwrap: boolean,
-    pruneDirectDependencies: boolean,
     pruneStore: boolean,
     registries: Registries,
     shrinkwrapDirectory: string,
@@ -143,7 +144,6 @@ export default async function linkPackages (
     importers,
     newShrinkwrap: filterShrinkwrap(newShrinkwrap, filterOpts),
     oldShrinkwrap: opts.currentShrinkwrap,
-    pruneDirectDependencies: opts.pruneDirectDependencies,
     pruneStore: opts.pruneStore,
     registries: opts.registries,
     shrinkwrapDirectory: opts.shrinkwrapDirectory,

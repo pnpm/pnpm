@@ -3,7 +3,7 @@ import { preparePackages } from '@pnpm/prepare'
 import path = require('path')
 import readPkg = require('read-pkg')
 import sinon = require('sinon')
-import { addDependenciesToPackage, install, installPkgs } from 'supi'
+import { addDependenciesToPackage, install, MutatedImporter, mutateModules } from 'supi'
 import tape = require('tape')
 import promisifyTape from 'tape-promise'
 import { testDefaults } from '../utils'
@@ -31,17 +31,19 @@ test('install only the dependencies of the specified importer', async (t) => {
     },
   ])
 
-  const importers = [
+  const importers: MutatedImporter[] = [
     {
+      mutation: 'install',
       prefix: path.resolve('project-1'),
     },
     {
+      mutation: 'install',
       prefix: path.resolve('project-2'),
     },
   ]
-  await install(await testDefaults({ importers, shrinkwrapOnly: true }))
+  await mutateModules(importers, await testDefaults({ shrinkwrapOnly: true }))
 
-  await install(await testDefaults({ importers: importers.slice(0, 1) }))
+  await mutateModules(importers.slice(0, 1), await testDefaults())
 
   await projects['project-1'].has('is-positive')
   await projects['project-2'].hasNot('is-negative')
@@ -71,16 +73,16 @@ test('dependencies of other importers are not pruned when installing for a subse
     },
   ])
 
-  await install(await testDefaults({
-    importers: [
-      {
-        prefix: path.resolve('project-1'),
-      },
-      {
-        prefix: path.resolve('project-2'),
-      },
-    ]
-  }))
+  await mutateModules([
+    {
+      mutation: 'install',
+      prefix: path.resolve('project-1'),
+    },
+    {
+      mutation: 'install',
+      prefix: path.resolve('project-2'),
+    },
+  ], await testDefaults())
 
   await addDependenciesToPackage(['is-positive@2'], await testDefaults({
     prefix: path.resolve('project-1'),
@@ -116,22 +118,24 @@ test('dependencies of other importers are not pruned when (headless) installing 
     },
   ])
 
-  const importers = [
+  const importers: MutatedImporter[] = [
     {
+      mutation: 'install',
       prefix: path.resolve('project-1'),
     },
     {
+      mutation: 'install',
       prefix: path.resolve('project-2'),
     },
   ]
-  await install(await testDefaults({ importers }))
+  await mutateModules(importers, await testDefaults())
 
   await addDependenciesToPackage(['is-positive@2'], await testDefaults({
     prefix: path.resolve('project-1'),
     shrinkwrapDirectory: process.cwd(),
     shrinkwrapOnly: true,
   }))
-  await install(await testDefaults({ importers: importers.slice(0, 1), frozenShrinkwrap: true }))
+  await mutateModules(importers.slice(0, 1), await testDefaults({ frozenShrinkwrap: true }))
 
   await projects['project-1'].has('is-positive')
   await projects['project-2'].has('is-negative')
@@ -154,12 +158,12 @@ test('adding a new dev dependency to project that uses a shared shrinkwrap', asy
     },
   ])
 
-  const importers = [
+  await mutateModules([
     {
+      mutation: 'install',
       prefix: path.resolve('project-1'),
     },
-  ]
-  await install(await testDefaults({ importers }))
+  ], await testDefaults())
   await addDependenciesToPackage(['is-negative@1.0.0'], await testDefaults({ prefix: path.resolve('project-1'), targetDependenciesField: 'devDependencies' }))
 
   const pkg = await readPkg({ cwd: 'project-1' })
@@ -189,18 +193,20 @@ test('headless install is used when package link to another package in the works
     },
   ])
 
-  const importers = [
+  const importers: MutatedImporter[] = [
     {
+      mutation: 'install',
       prefix: path.resolve('project-1'),
     },
     {
+      mutation: 'install',
       prefix: path.resolve('project-2'),
     },
   ]
-  await install(await testDefaults({ importers, shrinkwrapOnly: true }))
+  await mutateModules(importers, await testDefaults({ shrinkwrapOnly: true }))
 
   const reporter = sinon.spy()
-  await install(await testDefaults({ importers: importers.slice(0, 1), reporter }))
+  await mutateModules(importers.slice(0, 1), await testDefaults({ reporter }))
 
   t.ok(reporter.calledWithMatch({
     level: 'info',

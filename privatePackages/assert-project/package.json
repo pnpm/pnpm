@@ -44,9 +44,9 @@
     "test": "npm run lint && npm run lint-test && npm run tsc && ts-node test"
   },
   "dependencies": {
-    "@pnpm/modules-yaml": "2.0.0",
+    "@pnpm/modules-yaml": "2.0.1",
     "@types/mz": "0.0.32",
-    "@types/node": "10.12.10",
+    "@types/node": "10.12.11",
     "@types/path-exists": "3.0.0",
     "@types/tape": "4.2.32",
     "@types/write-pkg": "3.1.0",

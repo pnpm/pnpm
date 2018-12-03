@@ -429,7 +429,7 @@ test("don't refetch package to store if it has been modified and verify-store-in
 // tslint:disable-next-line:no-string-literal
 test['skip']('relink package to project if the dependency is not linked from store', async (t: tape.Test) => {
   const project = prepare(t)
-  await addDependenciesToPackage(['magic-hook@2.0.0'], await testDefaults({ save: true, saveExact: true }))
+  await addDependenciesToPackage(['magic-hook@2.0.0'], await testDefaults({ save: true, pinnedVersion: 'patch' }))
 
   const pkgJsonPath = path.resolve('node_modules', 'magic-hook', 'package.json')
 
@@ -755,8 +755,8 @@ test('ignores drive case in store path', async (t: tape.Test) => {
   const project = prepare(t)
 
   // paths are case-insensitive on windows, so we will test with an upper and lower-case store
-  const storePathUpper: string = path.resolve('node_modules/.store1').toUpperCase();
-  const storePathLower: string = storePathUpper.toLowerCase();
+  const storePathUpper: string = path.resolve('node_modules/.store1').toUpperCase()
+  const storePathLower: string = storePathUpper.toLowerCase()
 
   await addDependenciesToPackage(['rimraf@2.5.1'], await testDefaults({ store: storePathUpper }))
   await addDependenciesToPackage(['is-negative'], await testDefaults({ store: storePathLower }))

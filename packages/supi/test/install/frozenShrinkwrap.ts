@@ -1,7 +1,11 @@
 import prepare, { preparePackages } from '@pnpm/prepare'
 import path = require('path')
 import sinon = require('sinon')
-import { install } from 'supi'
+import {
+  install,
+  MutatedImporter,
+  mutateModules,
+} from 'supi'
 import tape = require('tape')
 import promisifyTape from 'tape-promise'
 import writeJsonFile from 'write-json-file'
@@ -74,15 +78,17 @@ test('frozen-shrinkwrap: fail on a shared shrinkwrap.yaml that does not satisfy 
     },
   ])
 
-  const importers = [
+  const importers: MutatedImporter[] = [
     {
+      mutation: 'install',
       prefix: path.resolve('p1'),
     },
     {
+      mutation: 'install',
       prefix: path.resolve('p2'),
     },
   ]
-  await install(await testDefaults({ importers }))
+  await mutateModules(importers, await testDefaults())
 
   await writeJsonFile('p1/package.json', {
     dependencies: {
@@ -91,7 +97,7 @@ test('frozen-shrinkwrap: fail on a shared shrinkwrap.yaml that does not satisfy 
   })
 
   try {
-    await install(await testDefaults({ frozenShrinkwrap: true, importers }))
+    await mutateModules(importers, await testDefaults({ frozenShrinkwrap: true }))
     t.fail()
   } catch (err) {
     t.equal(err.message, `Cannot install with "frozen-shrinkwrap" because shrinkwrap.yaml is not up-to-date with p1${path.sep}package.json`)
@@ -239,19 +245,20 @@ test('prefer-frozen-shrinkwrap: should prefer frozen-shrinkwrap when package has
     },
   ])
 
-  const importers = [
+  const importers: MutatedImporter[] = [
     {
+      mutation: 'install',
       prefix: path.resolve('p1'),
     },
     {
+      mutation: 'install',
       prefix: path.resolve('p2'),
     },
   ]
-  await install(await testDefaults({ importers }))
+  await mutateModules(importers, await testDefaults())
 
   const reporter = sinon.spy()
-  await install(await testDefaults({
-    importers,
+  await mutateModules(importers, await testDefaults({
     preferFrozenShrinkwrap: true,
     reporter,
   }))

@@ -3,30 +3,14 @@ import { IncludedDependencies } from '@pnpm/modules-yaml'
 import { LocalPackages } from '@pnpm/resolver-base'
 import { StoreController } from '@pnpm/store-controller-types'
 import {
-  DependenciesField,
   ReadPackageHook,
   Registries,
 } from '@pnpm/types'
 import { DEFAULT_REGISTRIES, normalizeRegistries } from '@pnpm/utils'
 import path = require('path')
 import { Shrinkwrap } from 'pnpm-shrinkwrap'
-import { ImportersOptions } from '../getContext'
 import pnpmPkgJson from '../pnpmPkgJson'
 import { ReporterFunction } from '../types'
-
-export type DependencyOperation = {
-  targetDependencies: string[],
-  targetDependenciesField?: DependenciesField,
-} & (
-  {
-    allowNew?: boolean,
-    operation: 'add',
-    saveExact?: boolean,
-    savePrefix?: string,
-  } | {
-    operation: 'remove',
-  }
-)
 
 export interface BaseInstallOptions {
   forceSharedShrinkwrap?: boolean,
@@ -59,7 +43,6 @@ export interface BaseInstallOptions {
   sideEffectsCache?: boolean,
   sideEffectsCacheReadonly?: boolean,
   strictPeerDependencies?: boolean,
-  importers?: (ImportersOptions & DependencyOperation)[],
   include?: IncludedDependencies,
   independentLeaves?: boolean,
   ignoreCurrentPrefs?: boolean,
@@ -109,7 +92,6 @@ export type StrictInstallOptions = BaseInstallOptions & {
   sideEffectsCache: boolean,
   sideEffectsCacheReadonly: boolean,
   strictPeerDependencies: boolean,
-  importers: (ImportersOptions & DependencyOperation)[],
   include: IncludedDependencies,
   independentLeaves: boolean,
   ignoreCurrentPrefs: boolean,
@@ -142,10 +124,6 @@ const defaults = async (opts: InstallOptions) => {
     hooks: {},
     ignoreCurrentPrefs: false,
     ignoreScripts: false,
-    importers: [{
-      bin: opts.bin,
-      prefix: opts.prefix || process.cwd(),
-    }],
     include: {
       dependencies: true,
       devDependencies: true,

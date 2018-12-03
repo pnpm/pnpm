@@ -1,7 +1,7 @@
 {
   "name": "@pnpm/package-store",
   "description": "A storage for packages",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "author": {
     "name": "Zoltan Kochan",
     "email": "z@kochan.io",
@@ -26,7 +26,7 @@
     "@pnpm/store-controller-types": "1.1.0",
     "@pnpm/types": "2.0.0",
     "@types/mz": "0.0.32",
-    "@types/node": "10.12.10",
+    "@types/node": "10.12.11",
     "@types/ramda": "0.25.39",
     "load-json-file": "5.1.0",
     "mkdirp-promise": "5.0.1",
@@ -36,7 +36,7 @@
     "p-limit": "2.0.0",
     "path-exists": "3.0.0",
     "path-temp": "1.0.0",
-    "ramda": "0.26.0",
+    "ramda": "0.26.1",
     "rename-overwrite": "1.0.3",
     "rimraf-then": "1.0.1",
     "util.promisify": "1.0.0",

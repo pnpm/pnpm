@@ -215,7 +215,7 @@ test('topological order of packages with self-dependencies in monorepo is correc
         test: `node -e "process.stdout.write('project-3')" | json-append ../output2.json`,
       },
     },
-  ]);
+  ])
   await fs.writeFile('.npmrc', 'link-workspace-packages = true', 'utf8')
   await writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
 
@@ -278,7 +278,7 @@ test('do not get confused by filtered dependencies when searching for dependents
         test: `node -e "process.stdout.write('project-4')" | json-append ../output.json`,
       },
     },
-  ]);
+  ])
   await fs.writeFile('.npmrc', 'link-workspace-packages = true', 'utf8')
   await writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
 
@@ -673,4 +673,89 @@ test('shared-workspace-shrinkwrap config is ignored if no pnpm-workspace.yaml is
 
   t.pass('install did not fail')
   await project.has('is-positive')
+})
+
+test('shared-workspace-shrinkwrap: uninstalling a package recursively', async (t: tape.Test) => {
+  const projects = preparePackages(t, [
+    {
+      name: 'project1',
+      version: '1.0.0',
+
+      dependencies: {
+        'is-positive': '2.0.0',
+      },
+    },
+    {
+      name: 'project2',
+      version: '1.0.0',
+
+      dependencies: {
+        'is-negative': '1.0.0',
+        'is-positive': '1.0.0',
+      },
+    },
+    {
+      name: 'project3',
+      version: '1.0.0',
+    },
+  ])
+
+  await writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
+  await fs.writeFile('.npmrc', 'shared-workspace-shrinkwrap = true\nlink-workspace-packages = true', 'utf8')
+
+  await execPnpm('recursive', 'install')
+
+  await execPnpm('recursive', 'uninstall', 'is-positive')
+
+  {
+    const pkg = await readPackageJsonFromDir('project1')
+
+    t.notOk(pkg.dependencies, 'is-positive removed from project1')
+  }
+
+  {
+    const pkg = await readPackageJsonFromDir('project2')
+
+    t.deepEqual(pkg.dependencies, { 'is-negative': '1.0.0' }, 'is-positive removed from project2')
+  }
+
+  const shr = await readYamlFile<Shrinkwrap>('shrinkwrap.yaml')
+
+  t.deepEqual(Object.keys(shr.packages || {}), ['/is-negative/1.0.0'], 'is-positive removed from shrinkwrap.yaml')
+})
+
+// Covers https://github.com/pnpm/pnpm/issues/1506
+test('peer dependency is grouped with dependent when the peer is a top dependency and external node_modules is used', async (t: tape.Test) => {
+  const project = prepare(t)
+  const shrinkwrapDirectory = path.resolve('..')
+
+  await execPnpm('install', 'ajv@4.10.4', 'ajv-keywords@1.5.0', '--shrinkwrap-directory', shrinkwrapDirectory)
+
+  {
+    const shr = await readYamlFile<Shrinkwrap>(path.resolve('..', 'shrinkwrap.yaml'))
+    t.deepEqual(shr.importers['project'], {
+      dependencies: {
+        'ajv': '4.10.4',
+        'ajv-keywords': '/ajv-keywords/1.5.0/ajv@4.10.4',
+      },
+      specifiers: {
+        'ajv': '^4.10.4',
+        'ajv-keywords': '^1.5.0',
+      },
+    })
+  }
+
+  await execPnpm('uninstall', '--shrinkwrap-directory', shrinkwrapDirectory, 'ajv')
+
+  {
+    const shr = await readYamlFile<Shrinkwrap>(path.resolve('..', 'shrinkwrap.yaml'))
+    t.deepEqual(shr.importers['project'], {
+      dependencies: {
+        'ajv-keywords': '1.5.0',
+      },
+      specifiers: {
+        'ajv-keywords': '^1.5.0',
+      },
+    })
+  }
 })

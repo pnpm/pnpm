@@ -1,8 +1,5 @@
 import prepare from '@pnpm/prepare'
-import {
-  addDependenciesToPackage,
-  installPkgs,
-} from 'supi'
+import { addDependenciesToPackage } from 'supi'
 import tape = require('tape')
 import promisifyTape from 'tape-promise'
 import { testDefaults } from './utils'

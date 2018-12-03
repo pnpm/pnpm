@@ -14,6 +14,7 @@ import sinon = require('sinon')
 import {
   addDependenciesToPackage,
   install,
+  mutateModules,
   RootLog,
   uninstall,
 } from 'supi'
@@ -407,9 +408,9 @@ test('subdeps are updated on repeat install if outer shrinkwrap.yaml does not ma
 test("recreates shrinkwrap file if it doesn't match the dependencies in package.json", async (t: tape.Test) => {
   const project = prepare(t)
 
-  await addDependenciesToPackage(['is-negative@1.0.0'], await testDefaults({ saveExact: true, targetDependenciesField: 'dependencies' }))
-  await addDependenciesToPackage(['is-positive@1.0.0'], await testDefaults({ saveExact: true, targetDependenciesField: 'devDependencies' }))
-  await addDependenciesToPackage(['map-obj@1.0.0'], await testDefaults({ saveExact: true, targetDependenciesField: 'optionalDependencies' }))
+  await addDependenciesToPackage(['is-negative@1.0.0'], await testDefaults({ pinnedVersion: 'patch', targetDependenciesField: 'dependencies' }))
+  await addDependenciesToPackage(['is-positive@1.0.0'], await testDefaults({ pinnedVersion: 'patch', targetDependenciesField: 'devDependencies' }))
+  await addDependenciesToPackage(['map-obj@1.0.0'], await testDefaults({ pinnedVersion: 'patch', targetDependenciesField: 'optionalDependencies' }))
 
   const shr1 = await project.loadShrinkwrap()
   t.equal(shr1.dependencies['is-negative'], '1.0.0')
@@ -1087,7 +1088,19 @@ test('doing named installation when shared shrinkwrap.yaml exists already', asyn
 
   t.deepEqual(R.keys(currentShr['importers']), ['pkg2'], 'only pkg2 added to importers of current shrinkwrap')
 
-  await install(await testDefaults({ importers: [{ prefix: path.resolve('pkg1') }, { prefix: path.resolve('pkg2') }] }))
+  await mutateModules(
+    [
+      {
+        mutation: 'install',
+        prefix: path.resolve('pkg1'),
+      },
+      {
+        mutation: 'install',
+        prefix: path.resolve('pkg2'),
+      },
+    ],
+    await testDefaults(),
+  )
 
   await projects['pkg1'].has('is-negative')
   await projects['pkg2'].has('is-positive')

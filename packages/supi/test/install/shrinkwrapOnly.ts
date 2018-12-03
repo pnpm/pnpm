@@ -17,7 +17,7 @@ const testOnly = promisifyTape(tape.only)
 test('install with shrinkwrapOnly = true', async (t: tape.Test) => {
   const project = prepare(t)
 
-  const opts = await testDefaults({ shrinkwrapOnly: true, saveExact: true })
+  const opts = await testDefaults({ shrinkwrapOnly: true, pinnedVersion: 'patch' })
   await addDependenciesToPackage(['pkg-with-1-dep@100.0.0'], opts)
 
   t.deepEqual(await fs.readdir(path.join(opts.store, 'localhost+4873', 'pkg-with-1-dep')), ['100.0.0', 'index.json'])

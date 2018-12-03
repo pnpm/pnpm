@@ -23,7 +23,6 @@ class StoreStatusError extends PnpmError {
 
 export default async function (input: string[], opts: PnpmOptions) {
   let store
-
   switch (input[0]) {
     case 'status':
       return statusCmd(opts)
