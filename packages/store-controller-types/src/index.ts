@@ -21,18 +21,18 @@ export interface StoreController {
   saveState (): Promise<void>,
   upload (builtPkgLocation: string, opts: {pkgId: string, engine: string}): Promise<void>,
   getCacheByEngine (storePath: string, id: string): Promise<Map<string, string>>,
-  findPackageUsages (dependencies: WantedDependency[]): Promise<FindPackageUsagesResponse[]>,
+  findPackageUsages (dependencies: WantedDependency[]): Promise<PackageUsage[]>,
 }
 
-export type FindPackageUsagesResponse = {
+export type PackageUsage = {
   dependency: WantedDependency,
   foundInStore: boolean,
-  packages: FindPackageUsagesEntry[]
+  packages: PackageUsageEntry[]
 }
 
-export type FindPackageUsagesEntry = {
+export type PackageUsageEntry = {
   id: string,
-  usages: string[]
+  usages: string[] // paths to node projects
 }
 
 export type FetchPackageToStoreFunction = (

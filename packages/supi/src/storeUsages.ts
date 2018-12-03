@@ -1,5 +1,5 @@
 import { storeLogger, streamParser } from '@pnpm/logger'
-import { FindPackageUsagesResponse, StoreController } from '@pnpm/store-controller-types'
+import { PackageUsage, StoreController } from '@pnpm/store-controller-types'
 import parseWantedDependencies from './parseWantedDependencies'
 import { ReporterFunction } from './types'
 
@@ -10,7 +10,7 @@ export default async function (
     storeController: StoreController,
     tag?: string
   },
-): Promise<FindPackageUsagesResponse[]> {
+): Promise<PackageUsage[]> {
   const reporter = opts && opts.reporter
   if (reporter) {
     streamParser.on('data', reporter)
@@ -26,7 +26,7 @@ export default async function (
     optionalDependencies: {},
   })
 
-  const packageUsages: FindPackageUsagesResponse[] = await opts.storeController.findPackageUsages(deps)
+  const packageUsages: PackageUsage[] = await opts.storeController.findPackageUsages(deps)
 
   if (!packageUsages) {
     storeLogger.error(new Error('Internal error retrieving package usages'))
@@ -36,5 +36,5 @@ export default async function (
     streamParser.removeListener('data', reporter)
   }
 
-  return packageUsages as FindPackageUsagesResponse[]
+  return packageUsages as PackageUsage[]
 }

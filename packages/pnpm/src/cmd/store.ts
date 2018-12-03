@@ -1,5 +1,5 @@
 import logger, { storeLogger } from '@pnpm/logger'
-import { FindPackageUsagesEntry, FindPackageUsagesResponse } from '@pnpm/store-controller-types'
+import { PackageUsage, PackageUsageEntry } from '@pnpm/store-controller-types'
 import storePath from '@pnpm/store-path'
 import archy = require('archy')
 import {
@@ -45,7 +45,7 @@ export default async function (input: string[], opts: PnpmOptions) {
       })
     case 'usages':
       store = await createStoreController(opts)
-      const packageUsages: FindPackageUsagesResponse[] = await storeUsages(input.slice(1), {
+      const packageUsages: PackageUsage[] = await storeUsages(input.slice(1), {
         reporter: opts.reporter,
         storeController: store.ctrl,
         tag: opts.tag,
@@ -79,12 +79,12 @@ async function statusCmd (opts: PnpmOptions) {
 
 /**
  * Uses archy to output package usages in a directory-tree like format.
- * @param packageUsagesResponses a list of package usages, one per query
+ * @param packageUsages a list of PackageUsage, one per query
  */
-function prettyPrintUsages (packageUsagesResponses: FindPackageUsagesResponse[]): void {
+function prettyPrintUsages (packageUsages: PackageUsage[]): void {
 
   // Create nodes for top level usage response
-  const packageUsageNodes: archy.Data[] = packageUsagesResponses.map(packageUsage => {
+  const packageUsageNodes: archy.Data[] = packageUsages.map(packageUsage => {
     if (!packageUsage.dependency) {
       storeLogger.error(new Error(`Internal error finding usages for ${JSON.stringify(packageUsage)}`))
       return {
@@ -111,11 +111,11 @@ function prettyPrintUsages (packageUsagesResponses: FindPackageUsagesResponse[])
     }
 
     // This package was found in the store, create children for all package ids
-    const foundPackages: FindPackageUsagesEntry[] = packageUsage.packages
+    const foundPackages: PackageUsageEntry[] = packageUsage.packages
     const foundPackagesNodes: archy.Data[] = foundPackages.map(foundPackage => {
       const label = 'Package in store: ' + foundPackage.id
 
-      // Now create children for all locations this package is used
+      // Now create children for all locations this package id is used
       const locations: string[] = foundPackage.usages
       const locationNodes: archy.Data[] = locations.map(location => {
         return {

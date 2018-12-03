@@ -1,5 +1,5 @@
 import prepare from '@pnpm/prepare'
-import { FindPackageUsagesResponse } from '@pnpm/store-controller-types'
+import { PackageUsage } from '@pnpm/store-controller-types'
 import {
   addDependenciesToPackage,
   storeUsages,
@@ -18,20 +18,19 @@ test('find usages for newly installed package', async (t: tape.Test) => {
   await project.storeHas('is-negative', '2.1.0')
 
   // Find usages
-  const packageUsagesResponses: FindPackageUsagesResponse[]
-    = await storeUsages(['is-negative'], await testDefaults())
+  const packageUsages: PackageUsage[] = await storeUsages(['is-negative'], await testDefaults())
 
   // Assert
-  t.equal(packageUsagesResponses.length, 1, 'number of items in response should be 1')
+  t.equal(packageUsages.length, 1, 'number of items in response should be 1')
 
-  const packageUsageResponse = packageUsagesResponses[0]
+  const packageUsage = packageUsages[0]
 
-  t.equal(packageUsageResponse.dependency.alias, 'is-negative', 'query does not match')
-  t.true(packageUsageResponse.foundInStore, 'query not found in store')
-  t.equal(packageUsageResponse.packages.length, 1, 'there should only be 1 package returned from the query')
+  t.equal(packageUsage.dependency.alias, 'is-negative', 'query does not match')
+  t.true(packageUsage.foundInStore, 'query not found in store')
+  t.equal(packageUsage.packages.length, 1, 'there should only be 1 package returned from the query')
 
-  const packageUsed = packageUsageResponse.packages[0]
+  const packageFound = packageUsage.packages[0]
 
-  t.ok(packageUsed.id, 'there should be a package id')
-  t.equal(packageUsed.usages.length, 0, 'package should not be used by any projects')
+  t.ok(packageFound.id, 'there should be a package id')
+  t.equal(packageFound.usages.length, 0, 'package should not be used by any projects')
 })

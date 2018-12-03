@@ -9,7 +9,7 @@ import {
   connectStoreController,
   createServer,
  } from '@pnpm/server'
-import { FindPackageUsagesResponse, PackageFilesResponse } from '@pnpm/store-controller-types'
+import { PackageFilesResponse, PackageUsage } from '@pnpm/store-controller-types'
 import createFetcher from '@pnpm/tarball-fetcher'
 import got = require('got')
 import isPortReachable = require('is-port-reachable')
@@ -328,20 +328,20 @@ test('find package usages', async t => {
 
   // Now check if usages shows up
   const deps = [dependency]
-  const packageUsagesResponses: FindPackageUsagesResponse[] = await storeCtrl.findPackageUsages(deps)
+  const packageUsages: PackageUsage[] = await storeCtrl.findPackageUsages(deps)
 
-  t.equal(packageUsagesResponses.length, 1, 'number of items in response should be 1')
+  t.equal(packageUsages.length, 1, 'number of items in response should be 1')
 
-  const packageUsageResponse = packageUsagesResponses[0]
+  const packageUsage = packageUsages[0]
 
-  t.deepEqual(packageUsageResponse.dependency, dependency, 'query does not match')
-  t.true(packageUsageResponse.foundInStore, 'query not found in store')
-  t.equal(packageUsageResponse.packages.length, 1, 'there should only be 1 package returned from the query')
+  t.deepEqual(packageUsage.dependency, dependency, 'query does not match')
+  t.true(packageUsage.foundInStore, 'query not found in store')
+  t.equal(packageUsage.packages.length, 1, 'there should only be 1 package returned from the query')
 
-  const packageUsed = packageUsageResponse.packages[0]
+  const packageFound = packageUsage.packages[0]
 
-  t.ok(packageUsed.id, 'there should be a package id')
-  t.equal(packageUsed.usages.length, 0, 'package should not be used by any projects')
+  t.ok(packageFound.id, 'there should be a package id')
+  t.equal(packageFound.usages.length, 0, 'package should not be used by any projects')
 
   await server.close()
   await storeCtrl.close()

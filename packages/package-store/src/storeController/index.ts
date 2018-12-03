@@ -4,8 +4,8 @@ import { storeLogger } from '@pnpm/logger'
 import createPackageRequester, { getCacheByEngine } from '@pnpm/package-requester'
 import { ResolveFunction } from '@pnpm/resolver-base'
 import {
-  FindPackageUsagesEntry,
-  FindPackageUsagesResponse,
+  PackageUsage,
+  PackageUsageEntry,
   StoreController,
   WantedDependency
 } from '@pnpm/store-controller-types'
@@ -106,7 +106,7 @@ export default async function (
 
   async function findPackageUsages (
     dependencies: WantedDependency[]
-  ): Promise<FindPackageUsagesResponse[]> {
+  ): Promise<PackageUsage[]> {
 
     /**
      * If `dependency` has no `alias`, then directly check against `pref`.
@@ -137,7 +137,7 @@ export default async function (
       return {
         dependency,
         foundInStore: false,
-        packages: [] as FindPackageUsagesEntry[]
+        packages: [] as PackageUsageEntry[]
       }
     })
 
@@ -164,7 +164,7 @@ export default async function (
       })
     })
 
-    return results as FindPackageUsagesResponse[]
+    return results as PackageUsage[]
   }
 
   async function upload (builtPkgLocation: string, opts: {pkgId: string, engine: string}) {
