@@ -148,21 +148,21 @@ export default function (
           storeLogger.info('Server stopped')
           break
         case '/getCacheByEngine':
-          body = await bodyPromise;
+          body = await bodyPromise
           res.end(JSON.stringify(await store.getCacheByEngine(body.storePath, body.id)))
-          break;
+          break
         case '/findPackageUsages':
-          body = (await bodyPromise) as RequestBody;
-          const queries = body.findUsageQueries as WantedDependency[];
-          const packageUsages = await store.findPackageUsages(queries);
+          body = (await bodyPromise) as RequestBody
+          const queries = body.findUsageQueries as WantedDependency[]
+          const packageUsages = await store.findPackageUsages(queries)
           const response = {
             results: packageUsages
-          };
-          res.end(JSON.stringify(response));
-          break;
+          }
+          res.end(JSON.stringify(response))
+          break
         default:
-          res.statusCode = 404;
-          const error = { error: `${req.url} does not match any route` };
+          res.statusCode = 404
+          const error = { error: `${req.url} does not match any route` }
           res.end(JSON.stringify(error))
       }
     } catch (e) {
@@ -173,7 +173,7 @@ export default function (
     }
   })
 
-  let listener: Server;
+  let listener: Server
   if (opts.path) {
     listener = server.listen(opts.path)
   } else {

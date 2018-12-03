@@ -32,14 +32,14 @@ export default function (
       findPackageUsages: async (dependencies: WantedDependency[]): Promise<FindPackageUsagesResponse[]> => {
         const response = await limitedFetch(`${remotePrefix}/findPackageUsages`, {
           findUsageQueries: dependencies
-        });
-        return response.results as FindPackageUsagesResponse[];
+        })
+        return response.results as FindPackageUsagesResponse[]
       },
       getCacheByEngine: async (storePath: string, id: string): Promise<Map<string, string>> => {
         return limitedFetch(`${remotePrefix}/getCacheByEngine`, {
           id,
           storePath,
-        });
+        })
       },
       importPackage: async (from: string, to: string, opts: {
         filesResponse: PackageFilesResponse,

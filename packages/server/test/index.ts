@@ -305,7 +305,7 @@ test('find package usages', async t => {
   })
   const storeCtrl = await connectStoreController({ remotePrefix, concurrency: 100 })
 
-  const dependency = { alias: 'is-positive', pref: '1.0.0' };
+  const dependency = { alias: 'is-positive', pref: '1.0.0' }
 
   // First install a dependency
   const requestResponse = await storeCtrl.requestPackage(
@@ -319,31 +319,31 @@ test('find package usages', async t => {
       sideEffectsCache: false,
       verifyStoreIntegrity: false,
     }
-  );
-  await requestResponse['fetchingRawManifest'];
-  await requestResponse['finishing'];
+  )
+  await requestResponse['fetchingRawManifest']
+  await requestResponse['finishing']
 
   // For debugging purposes
-  await storeCtrl.saveState();
+  await storeCtrl.saveState()
 
   // Now check if usages shows up
-  const deps = [dependency];
-  const packageUsagesResponses: FindPackageUsagesResponse[] = await storeCtrl.findPackageUsages(deps);
+  const deps = [dependency]
+  const packageUsagesResponses: FindPackageUsagesResponse[] = await storeCtrl.findPackageUsages(deps)
 
-  t.equal(packageUsagesResponses.length, 1, 'number of items in response should be 1');
+  t.equal(packageUsagesResponses.length, 1, 'number of items in response should be 1')
 
-  const packageUsageResponse = packageUsagesResponses[0];
+  const packageUsageResponse = packageUsagesResponses[0]
 
-  t.deepEqual(packageUsageResponse.dependency, dependency, 'query does not match');
-  t.true(packageUsageResponse.foundInStore, 'query not found in store');
-  t.equal(packageUsageResponse.packages.length, 1, 'there should only be 1 package returned from the query');
+  t.deepEqual(packageUsageResponse.dependency, dependency, 'query does not match')
+  t.true(packageUsageResponse.foundInStore, 'query not found in store')
+  t.equal(packageUsageResponse.packages.length, 1, 'there should only be 1 package returned from the query')
 
-  const packageUsed = packageUsageResponse.packages[0];
+  const packageUsed = packageUsageResponse.packages[0]
 
-  t.ok(packageUsed.id, 'there should be a package id');
-  t.equal(packageUsed.usages.length, 0, 'package should not be used by any projects');
+  t.ok(packageUsed.id, 'there should be a package id')
+  t.equal(packageUsed.usages.length, 0, 'package should not be used by any projects')
 
-  await server.close();
-  await storeCtrl.close();
+  await server.close()
+  await storeCtrl.close()
   t.end()
-});
+})

@@ -114,13 +114,13 @@ export default async function (
      * @param dependency the dependency to parse
      */
     function parseDependency (dependency: WantedDependency) {
-      let packageName;
-      let packageTag;
+      let packageName
+      let packageTag
       if (dependency.alias) {
-        packageName = `/${dependency.alias}/`;
-        packageTag = dependency.pref === 'latest' ? null : dependency.pref;
+        packageName = `/${dependency.alias}/`
+        packageTag = dependency.pref === 'latest' ? null : dependency.pref
       } else {
-        packageName = dependency.alias;
+        packageName = dependency.alias
       }
 
       return {
@@ -130,7 +130,7 @@ export default async function (
     }
 
     // Parse dependencies
-    const parsedDeps = dependencies.map(dep => parseDependency(dep));
+    const parsedDeps = dependencies.map(dep => parseDependency(dep))
 
     // Create initial results map for each dependency
     const results = dependencies.map(dependency => {
@@ -139,7 +139,7 @@ export default async function (
         foundInStore: false,
         packages: [] as FindPackageUsagesEntry[]
       }
-    });
+    })
 
     // FIXME Inefficient looping over all packages. Don't think there's a better way.
     // Note we can't directly resolve packages because user may not specify package version
@@ -154,17 +154,17 @@ export default async function (
           const packageEntry = {
             id: packageId,
             usages: storeIndex[packageId] as string[]
-          };
+          }
 
           // Update results with new entry
-          results[index].packages.push(packageEntry);
-          results[index].foundInStore = true;
+          results[index].packages.push(packageEntry)
+          results[index].foundInStore = true
         }
 
       })
-    });
+    })
 
-    return results as FindPackageUsagesResponse[];
+    return results as FindPackageUsagesResponse[]
   }
 
   async function upload (builtPkgLocation: string, opts: {pkgId: string, engine: string}) {

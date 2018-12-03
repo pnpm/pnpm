@@ -226,7 +226,7 @@ function getHelpText (command: string) {
             Pruning the store is not harmful, but might slow down future installations.
             Visit the documentation for more information on unreferenced packages and why they occur.
 
-      `;
+      `
 
     case 'root':
       return stripIndent`
