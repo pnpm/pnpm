@@ -1,7 +1,7 @@
 import prepare from '@pnpm/prepare'
 import { FindPackageUsagesResponse } from '@pnpm/store-controller-types'
 import {
-  installPkgs,
+  addDependenciesToPackage,
   storeUsages,
 } from 'supi'
 import tape = require('tape')
@@ -14,7 +14,7 @@ test('find usages for newly installed package', async (t: tape.Test) => {
   const project = prepare(t)
 
   // Install deps
-  await installPkgs(['is-negative@2.1.0'], await testDefaults({ save: true }))
+  await addDependenciesToPackage(['is-negative@2.1.0'], await testDefaults({ save: true }))
   await project.storeHas('is-negative', '2.1.0')
 
   // Find usages
