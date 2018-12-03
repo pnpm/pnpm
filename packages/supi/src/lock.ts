@@ -31,6 +31,6 @@ export default async function withLock<T> (
     // TODO: revise how store locking works
     // maybe it needs to happen outside of supi
     await opts.storeController.close()
-    throw err;
+    throw err
   }
 }

@@ -38,11 +38,11 @@ test('should fail if some packages can not be added', async (t: tape.Test) => {
   fs.mkdirSync('_')
   process.chdir('_')
 
-  let thrown = false;
+  let thrown = false
   try {
     await storeAdd(['@pnpm/this-does-not-exist'], await testDefaults())
   } catch (e) {
-    thrown = true;
+    thrown = true
     t.equal(e.code, 'ERR_PNPM_STORE_ADD_FAILURE', 'has thrown the correct error code')
     t.equal(e.message, 'Some packages have not been added correctly', 'has thrown the correct error')
   }

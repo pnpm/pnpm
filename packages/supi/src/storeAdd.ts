@@ -4,7 +4,7 @@ import {
 } from '@pnpm/logger'
 import { StoreController } from '@pnpm/store-controller-types'
 import normalizeRegistryUrl = require('normalize-registry-url')
-import parseWantedDependencies from './parseWantedDependencies';
+import parseWantedDependencies from './parseWantedDependencies'
 import { ReporterFunction } from './types'
 
 export default async function (
@@ -33,7 +33,7 @@ export default async function (
     optionalDependencies: {},
   })
 
-  let hasFailures = false;
+  let hasFailures = false
   const prefix = opts.prefix || process.cwd()
   await Promise.all(deps.map(async (dep) => {
     try {
@@ -50,8 +50,8 @@ export default async function (
       await pkgResponse['fetchingFiles'] // tslint:disable-line:no-string-literal
       storeLogger.info(`+ ${pkgResponse.body.id}`)
     } catch (e) {
-      hasFailures = true;
-      storeLogger.error(e);
+      hasFailures = true
+      storeLogger.error(e)
     }
   }))
 
