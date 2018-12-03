@@ -147,9 +147,9 @@ export default function (
           storeLogger.info('Server stopped')
           break
         case '/getCacheByEngine':
-          body = await bodyPromise;
+          body = await bodyPromise
           res.end(JSON.stringify(await store.getCacheByEngine(body.storePath, body.id)))
-          break;
+          break
         default:
           res.statusCode = 404
           res.end(`${req.url} does not match any route`)
@@ -162,7 +162,7 @@ export default function (
     }
   })
 
-  let listener: Server;
+  let listener: Server
   if (opts.path) {
     listener = server.listen(opts.path)
   } else {

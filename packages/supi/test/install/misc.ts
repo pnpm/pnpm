@@ -755,8 +755,8 @@ test('ignores drive case in store path', async (t: tape.Test) => {
   const project = prepare(t)
 
   // paths are case-insensitive on windows, so we will test with an upper and lower-case store
-  const storePathUpper: string = path.resolve('node_modules/.store1').toUpperCase();
-  const storePathLower: string = storePathUpper.toLowerCase();
+  const storePathUpper: string = path.resolve('node_modules/.store1').toUpperCase()
+  const storePathLower: string = storePathUpper.toLowerCase()
 
   await addDependenciesToPackage(['rimraf@2.5.1'], await testDefaults({ store: storePathUpper }))
   await addDependenciesToPackage(['is-negative'], await testDefaults({ store: storePathLower }))

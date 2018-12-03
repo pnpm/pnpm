@@ -63,7 +63,7 @@ export function refToRelative (
 
 export function parse (dependencyPath: string) {
   if (typeof dependencyPath !== 'string') {
-    throw new TypeError(`Expected \`dependencyPath\` to be of type \`string\`, got \`${typeof dependencyPath}\``);
+    throw new TypeError(`Expected \`dependencyPath\` to be of type \`string\`, got \`${typeof dependencyPath}\``)
   }
   const _isAbsolute = isAbsolute(dependencyPath)
   const parts = dependencyPath.split('/')

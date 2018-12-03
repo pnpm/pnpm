@@ -33,7 +33,7 @@ export default function (
         return limitedFetch(`${remotePrefix}/getCacheByEngine`, {
           id,
           storePath,
-        });
+        })
       },
       importPackage: async (from: string, to: string, opts: {
         filesResponse: PackageFilesResponse,

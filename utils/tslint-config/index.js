@@ -29,7 +29,6 @@ module.exports = {
     "quotemark": [true,
       "single",
       "avoid-escape"],
-    "semicolon": false,
     "typedef-whitespace": [true, {
       "call-signature": "nospace",
       "index-signature": "nospace",

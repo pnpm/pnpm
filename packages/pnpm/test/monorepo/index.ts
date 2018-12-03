@@ -215,7 +215,7 @@ test('topological order of packages with self-dependencies in monorepo is correc
         test: `node -e "process.stdout.write('project-3')" | json-append ../output2.json`,
       },
     },
-  ]);
+  ])
   await fs.writeFile('.npmrc', 'link-workspace-packages = true', 'utf8')
   await writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
 
@@ -278,7 +278,7 @@ test('do not get confused by filtered dependencies when searching for dependents
         test: `node -e "process.stdout.write('project-4')" | json-append ../output.json`,
       },
     },
-  ]);
+  ])
   await fs.writeFile('.npmrc', 'link-workspace-packages = true', 'utf8')
   await writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
 

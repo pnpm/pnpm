@@ -19,7 +19,7 @@ class StoreStatusError extends PnpmError {
 }
 
 export default async function (input: string[], opts: PnpmOptions) {
-  let store;
+  let store
   switch (input[0]) {
     case 'status':
       return statusCmd(opts)
@@ -31,7 +31,7 @@ export default async function (input: string[], opts: PnpmOptions) {
       })
       return storePrune(storePruneOptions)
     case 'add':
-      store = await createStoreController(opts);
+      store = await createStoreController(opts)
       return storeAdd(input.slice(1), {
         prefix: opts.prefix,
         registry: opts.registry,
@@ -39,7 +39,7 @@ export default async function (input: string[], opts: PnpmOptions) {
         storeController: store.ctrl,
         tag: opts.tag,
         verifyStoreIntegrity: opts.verifyStoreIntegrity,
-      });
+      })
     default:
       help(['store'])
       if (input[0]) {
