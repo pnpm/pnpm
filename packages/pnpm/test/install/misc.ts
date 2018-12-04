@@ -1,4 +1,5 @@
 import prepare from '@pnpm/prepare'
+import { fromDir as readPackageJsonFromDir } from '@pnpm/read-package-json'
 import caw = require('caw')
 import isWindows = require('is-windows')
 import path = require('path')
@@ -15,6 +16,7 @@ import {
 
 const IS_WINDOWS = isWindows()
 const test = promisifyTape(tape)
+const testOnly = promisifyTape(tape.only)
 
 if (!caw() && !IS_WINDOWS) {
   process.env.VCR_MODE = 'cache'
@@ -106,4 +108,16 @@ test('install with external shrinkwrap directory', async (t: tape.Test) => {
   const shr = await readYamlFile<Shrinkwrap>(path.resolve('..', 'shrinkwrap.yaml'))
 
   t.deepEqual(Object.keys(shr.importers), ['project'], 'shrinkwrap created in correct location')
+})
+
+test('install --save-exact', async (t: tape.Test) => {
+  const project = prepare(t)
+
+  await execPnpm('install', 'is-positive@3.1.0', '--save-exact', '--save-dev')
+
+  await project.has('is-positive')
+
+  const pkg = await readPackageJsonFromDir(process.cwd())
+
+  t.deepEqual(pkg.devDependencies, { 'is-positive': '3.1.0' })
 })

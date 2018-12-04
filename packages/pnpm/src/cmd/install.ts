@@ -47,7 +47,6 @@ export default async function installCmd (
     // so ignoring scripts for now
     ignoreScripts: !!localPackages || opts.ignoreScripts,
     localPackages,
-    pinnedVersion: getPinnedVersion(opts),
     store: store.path,
     storeController: store.ctrl,
   }
@@ -59,6 +58,7 @@ export default async function installCmd (
         bin: installOpts.bin,
         dependencySelectors: input,
         mutation: 'installSome',
+        pinnedVersion: getPinnedVersion(opts),
         prefix: installOpts.prefix,
         targetDependenciesField: getSaveType(installOpts),
       },
