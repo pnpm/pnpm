@@ -3,6 +3,7 @@ import {
   uninstall,
 } from 'supi'
 import createStoreController from '../createStoreController'
+import findWorkspacePackages, { arrayOfLocalPackagesToMap } from '../findWorkspacePackages'
 import { PnpmOptions } from '../types'
 
 export default async function uninstallCmd (
@@ -14,15 +15,18 @@ export default async function uninstallCmd (
     store: store.path,
     storeController: store.ctrl,
   })
-  if (opts.shrinkwrapDirectory !== opts.prefix) {
-    return mutateModules([
-      {
-        bin: opts.bin,
-        dependencyNames: input,
-        mutation: 'uninstallSome',
-        prefix: opts.prefix,
-      },
-    ], uninstallOpts)
+  if (opts.shrinkwrapDirectory === opts.prefix) {
+    return uninstall(input, uninstallOpts)
   }
-  return uninstall(input, uninstallOpts)
+  uninstallOpts['localPackages'] = opts.linkWorkspacePackages && opts.workspacePrefix
+    ? arrayOfLocalPackagesToMap(await findWorkspacePackages(opts.workspacePrefix))
+    : undefined
+  return mutateModules([
+    {
+      bin: opts.bin,
+      dependencyNames: input,
+      mutation: 'uninstallSome',
+      prefix: opts.prefix,
+    },
+  ], uninstallOpts)
 }
