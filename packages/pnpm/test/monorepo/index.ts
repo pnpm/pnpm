@@ -642,7 +642,7 @@ test('shared-workspace-shrinkwrap: entries of removed projects should be removed
 
   await writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
 
-  await execPnpm('install', '--store', 'store', '--shared-workspace-shrinkwrap', '--link-workspace-packages')
+  await execPnpm('recursive', 'install', '--store', 'store', '--shared-workspace-shrinkwrap', '--link-workspace-packages')
 
   {
     const shr = await readYamlFile<Shrinkwrap>('shrinkwrap.yaml')
@@ -651,7 +651,7 @@ test('shared-workspace-shrinkwrap: entries of removed projects should be removed
 
   await rimraf('package-2')
 
-  await execPnpm('install', '--store', 'store', '--shared-workspace-shrinkwrap', '--link-workspace-packages')
+  await execPnpm('recursive', 'install', '--store', 'store', '--shared-workspace-shrinkwrap', '--link-workspace-packages')
 
   {
     const shr = await readYamlFile<Shrinkwrap>('shrinkwrap.yaml')
@@ -726,35 +726,56 @@ test('shared-workspace-shrinkwrap: uninstalling a package recursively', async (t
 
 // Covers https://github.com/pnpm/pnpm/issues/1506
 test('peer dependency is grouped with dependent when the peer is a top dependency and external node_modules is used', async (t: tape.Test) => {
-  const project = prepare(t)
-  const shrinkwrapDirectory = path.resolve('..')
+  const project = preparePackages(t, [
+    {
+      name: 'foo',
+      version: '1.0.0',
 
-  await execPnpm('install', 'ajv@4.10.4', 'ajv-keywords@1.5.0', '--shrinkwrap-directory', shrinkwrapDirectory)
+      dependencies: {
+        'bar': '1.0.0',
+      },
+    },
+    {
+      name: 'bar',
+      version: '1.0.0',
+    },
+  ])
+
+  await writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
+  await fs.writeFile('.npmrc', 'shared-workspace-shrinkwrap = true\nlink-workspace-packages = true', 'utf8')
+
+  process.chdir('foo')
+
+  await execPnpm('install', 'ajv@4.10.4', 'ajv-keywords@1.5.0')
 
   {
     const shr = await readYamlFile<Shrinkwrap>(path.resolve('..', 'shrinkwrap.yaml'))
-    t.deepEqual(shr.importers['project'], {
+    t.deepEqual(shr.importers['foo'], {
       dependencies: {
         'ajv': '4.10.4',
         'ajv-keywords': '/ajv-keywords/1.5.0/ajv@4.10.4',
+        'bar': 'link:../bar',
       },
       specifiers: {
         'ajv': '^4.10.4',
         'ajv-keywords': '^1.5.0',
+        'bar': '1.0.0',
       },
     })
   }
 
-  await execPnpm('uninstall', '--shrinkwrap-directory', shrinkwrapDirectory, 'ajv')
+  await execPnpm('uninstall', 'ajv')
 
   {
     const shr = await readYamlFile<Shrinkwrap>(path.resolve('..', 'shrinkwrap.yaml'))
-    t.deepEqual(shr.importers['project'], {
+    t.deepEqual(shr.importers['foo'], {
       dependencies: {
         'ajv-keywords': '1.5.0',
+        'bar': 'link:../bar',
       },
       specifiers: {
         'ajv-keywords': '^1.5.0',
+        'bar': '1.0.0',
       },
     })
   }
