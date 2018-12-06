@@ -334,8 +334,8 @@ test('find package usages', async t => {
 
   const packageUsage = packageUsages[0]
 
-  t.deepEqual(packageUsage.dependency, dependency, 'query does not match')
-  t.true(packageUsage.foundInStore, 'query not found in store')
+  t.deepEqual(packageUsage.dependency, dependency, 'query should match')
+  t.true(packageUsage.foundInStore, 'query should be in store')
   t.equal(packageUsage.packages.length, 1, 'there should only be 1 package returned from the query')
 
   const packageFound = packageUsage.packages[0]
