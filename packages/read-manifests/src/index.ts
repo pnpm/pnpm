@@ -1,6 +1,6 @@
-import { read as readModulesYaml } from '@pnpm/modules-yaml'
+import { Modules, read as readModulesYaml } from '@pnpm/modules-yaml'
 import { getImporterId } from '@pnpm/shrinkwrap-file'
-import { PackageJson } from '@pnpm/types'
+import { PackageJson, Registries } from '@pnpm/types'
 import {
   normalizeRegistries,
   realNodeModulesDir,
@@ -20,7 +20,28 @@ export default async (
   opts: {
     shamefullyFlatten: boolean,
   },
-) => {
+): Promise<{
+  importers: Array<{
+    bin: string,
+    currentShamefullyFlatten: boolean | null,
+    hoistedAliases: { [depPath: string]: string[] },
+    id: string,
+    modulesDir: string,
+    pkg: PackageJson,
+    prefix: string,
+    shamefullyFlatten: boolean,
+  }>,
+  include: {
+    dependencies: boolean,
+    devDependencies: boolean,
+    optionalDependencies: boolean,
+  },
+  modules: Modules | null,
+  pendingBuilds: string[],
+  registries: Registries | null | undefined,
+  skipped: Set<string>,
+  virtualStoreDir: string,
+}> => {
   const virtualStoreDir = await realNodeModulesDir(shrinkwrapDirectory)
   const modules = await readModulesYaml(virtualStoreDir)
   return {
