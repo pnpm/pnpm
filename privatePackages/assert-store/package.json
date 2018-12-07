@@ -1,0 +1,59 @@
+{
+  "name": "assert-store",
+  "description": "Utils for testing pnpm store",
+  "version": "1.0.0",
+  "author": {
+    "name": "Zoltan Kochan",
+    "email": "z@kochan.io",
+    "url": "https://www.kochan.io/"
+  },
+  "contributors": [
+    {
+      "name": "Tejasvi Nareddy",
+      "email": "tejunareddy@gmail.com",
+      "url": "https://www.tejunareddy.com"
+    }
+  ],
+  "bugs": {
+    "url": "https://github.com/pnpm/pnpm/issues"
+  },
+  "private": true,
+  "main": "lib/index.js",
+  "typings": "lib/index.d.ts",
+  "files": [
+    "lib/"
+  ],
+  "devDependencies": {
+    "rimraf": "2.6.2",
+    "ts-node": "7.0.1",
+    "tslint": "5.11.0",
+    "typescript": "3.1.6"
+  },
+  "directories": {
+    "test": "test"
+  },
+  "homepage": "https://github.com/pnpm/pnpm/blob/master/privatePackages/assert-store#readme",
+  "keywords": [],
+  "license": "MIT",
+  "engines": {
+    "node": ">=6"
+  },
+  "repository": "https://github.com/pnpm/pnpm/blob/master/privatePackages/assert-store",
+  "scripts": {
+    "commit": "commit",
+    "commitmsg": "commitlint -e",
+    "lint": "tslint -c tslint.json src/**/*.ts test/**/*.ts",
+    "tsc": "rimraf lib && tsc",
+    "prepublishOnly": "npm run tsc",
+    "pretest": "cd test/fixture/project && pnpm i --force --no-shared-workspace-shrinkwrap && cd ../../..",
+    "test": "npm run lint && npm run tsc && ts-node test"
+  },
+  "dependencies": {
+    "@pnpm/assert-store": "link:",
+    "@types/node": "10.12.11",
+    "@types/path-exists": "3.0.0",
+    "@types/tape": "4.2.32",
+    "path-exists": "3.0.0",
+    "tape": "4.9.1"
+  }
+}
