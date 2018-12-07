@@ -21,7 +21,7 @@ test('a package that need authentication', async (t: tape.Test) => {
         password: 'bar',
         username: 'foo',
       },
-    }, (err: Error, d: object) => err ? reject(err) : resolve(d))
+    }, (err: Error, d: { token: string }) => err ? reject(err) : resolve(d))
   }) as {token: string}
 
   let rawNpmConfig = {
@@ -100,7 +100,7 @@ test('a scoped package that need authentication specific to scope', async (t: ta
         password: 'bar',
         username: 'foo',
       },
-    }, (err: Error, d: object) => err ? reject(err) : resolve(d))
+    }, (err: Error, d: { token: string }) => err ? reject(err) : resolve(d))
   }) as {token: string}
 
   const rawNpmConfig = {
@@ -146,7 +146,7 @@ test('a package that need authentication reuses authorization tokens for tarball
         password: 'bar',
         username: 'foo',
       },
-    }, (err: Error, d: object) => err ? reject(err) : resolve(d))
+    }, (err: Error, d: { token: string }) => err ? reject(err) : resolve(d))
   }) as {token: string}
 
   const rawNpmConfig = {
@@ -182,7 +182,7 @@ test('a package that need authentication reuses authorization tokens for tarball
         password: 'bar',
         username: 'foo',
       },
-    }, (err: Error, d: object) => err ? reject(err) : resolve(d))
+    }, (err: Error, d: { token: string }) => err ? reject(err) : resolve(d))
   }) as {token: string}
 
   const rawNpmConfig = {

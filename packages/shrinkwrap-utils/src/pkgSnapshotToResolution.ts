@@ -30,11 +30,11 @@ export default (
   } as Resolution
 
   function getTarball () {
-    const parsed = dp.parse(relDepPath)
-    if (!parsed.name || !parsed.version) {
+    const { name, version } = dp.parse(relDepPath)
+    if (!name || !version) {
       throw new Error(`Couldn't get tarball URL from dependency path ${relDepPath}`)
     }
-    return getNpmTarballUrl(parsed.name, parsed.version, { registry })
+    return getNpmTarballUrl(name, version, { registry })
   }
   // tslint:enable:no-string-literal
 }

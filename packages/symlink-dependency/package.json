@@ -24,7 +24,7 @@
     "rimraf": "2.6.2",
     "ts-node": "6.2.0",
     "tslint": "5.11.0",
-    "typescript": "3.1.6"
+    "typescript": "3.2.2"
   },
   "directories": {
     "test": "test"
