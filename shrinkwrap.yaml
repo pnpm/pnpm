@@ -805,7 +805,7 @@ importers:
       get-port: 4.0.0
       graceful-fs: 4.1.15
       graph-sequencer: 2.0.0
-      is-ci: 1.2.1
+      is-ci: 2.0.0
       is-subdir: 1.0.2
       is-windows: 1.0.2
       load-json-file: 5.1.0
@@ -936,7 +936,7 @@ importers:
       get-port: 4.0.0
       graceful-fs: 4.1.15
       graph-sequencer: 2.0.0
-      is-ci: 1.2.1
+      is-ci: 2.0.0
       is-subdir: 1.0.2
       is-windows: 1.0.2
       load-json-file: 5.1.0
@@ -1380,7 +1380,7 @@ importers:
       graceful-fs: 4.1.15
       graph-sequencer: 2.0.0
       import-from: 2.1.0
-      is-ci: 1.2.1
+      is-ci: 2.0.0
       is-inner-link: 2.0.2
       is-subdir: 1.0.2
       load-json-file: 5.1.0
@@ -1507,7 +1507,7 @@ importers:
       graceful-fs: 4.1.15
       graph-sequencer: 2.0.0
       import-from: 2.1.0
-      is-ci: 1.2.1
+      is-ci: 2.0.0
       is-inner-link: 2.0.2
       is-subdir: 1.0.2
       is-windows: 1.0.2
@@ -1665,6 +1665,30 @@ importers:
       typescript: 3.2.2
       util.promisify: 1.0.0
       write-pkg: 3.2.0
+  privatePackages/assert-store:
+    dependencies:
+      '@pnpm/assert-store': 'link:'
+      '@types/node': 10.12.11
+      '@types/path-exists': 3.0.0
+      '@types/tape': 4.2.32
+      path-exists: 3.0.0
+      tape: 4.9.1
+    devDependencies:
+      rimraf: 2.6.2
+      ts-node: 7.0.1
+      tslint: /tslint/5.11.0/typescript@3.2.2
+      typescript: 3.1.6
+    specifiers:
+      '@pnpm/assert-store': 'link:'
+      '@types/node': 10.12.11
+      '@types/path-exists': 3.0.0
+      '@types/tape': 4.2.32
+      path-exists: 3.0.0
+      rimraf: 2.6.2
+      tape: 4.9.1
+      ts-node: 7.0.1
+      tslint: 5.11.0
+      typescript: 3.1.6
   privatePackages/prepare:
     dependencies:
       '@pnpm/assert-project': 'link:../assert-project'
@@ -3547,6 +3571,10 @@ packages:
   /ci-info/1.6.0:
     resolution:
       integrity: sha512-vsGdkwSCDpWmP80ncATX7iea5DWQemg1UgCW5J8tqjU3lYw4FBYuj89J0CTVomA7BEfvSZd84GmHko+MxFQU2A==
+  /ci-info/2.0.0:
+    dev: false
+    resolution:
+      integrity: sha512-5tK7EtrZ0N+OLFMthtqOj4fI2Jeb88C4CAZPu25LDVUgXJ0A3Js4PMGqrn0JU1W0Mh1/Z8wZzYPxqUrXeBboCQ==
   /class-methods/1.0.10:
     dependencies:
       exclude-arr: 1.0.9
@@ -5645,6 +5673,13 @@ packages:
     hasBin: true
     resolution:
       integrity: sha512-s6tfsaQaQi3JNciBH6shVqEDvhGut0SUXr31ag8Pd8BBbVVlcGfWhpPmEOoM6RJ5TFhbypvf5yyRw/VXW1IiWg==
+  /is-ci/2.0.0:
+    dependencies:
+      ci-info: 2.0.0
+    dev: false
+    hasBin: true
+    resolution:
+      integrity: sha512-YfJT7rkpQB0updsdHLGWrvhBJfcfzNNawYDNIyQXJz0IViGf75O8EBPKSdvw2rF+LGCsX4FZ8tcr3b19LcZq4w==
   /is-data-descriptor/0.1.4:
     dependencies:
       kind-of: 3.2.2
@@ -9649,6 +9684,13 @@ packages:
   /typedarray/0.0.6:
     resolution:
       integrity: sha1-hnrHTjhkGHsdPUfZlqeOxciDB3c=
+  /typescript/3.1.6:
+    dev: true
+    engines:
+      node: '>=4.2.0'
+    hasBin: true
+    resolution:
+      integrity: sha512-tDMYfVtvpb96msS1lDX9MEdHrW4yOuZ4Kdc4Him9oU796XldPYF/t2+uKoX0BBa0hXXwDlqYQbXY5Rzjzc5hBA==
   /typescript/3.2.2:
     engines:
       node: '>=4.2.0'

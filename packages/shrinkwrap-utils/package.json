@@ -33,10 +33,10 @@
   },
   "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/shrinkwrap-utils#readme",
   "devDependencies": {
+    "@pnpm/shrinkwrap-utils": "link:",
     "@pnpm/tslint-config": "0.0.0",
     "@types/tape": "4.2.32",
     "@types/tempy": "0.2.0",
-    "@pnpm/shrinkwrap-utils": "link:",
     "rimraf": "2.6.2",
     "tape": "4.9.1",
     "tempy": "0.2.1",
