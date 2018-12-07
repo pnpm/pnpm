@@ -22,6 +22,7 @@ interface RequestBody {
   },
   storePath: string,
   id: string,
+  findUsageQueries: WantedDependency[]
 }
 
 export default function (
@@ -150,9 +151,19 @@ export default function (
           body = await bodyPromise
           res.end(JSON.stringify(await store.getCacheByEngine(body.storePath, body.id)))
           break
+        case '/findPackageUsages':
+          body = (await bodyPromise) as RequestBody
+          const queries = body.findUsageQueries as WantedDependency[]
+          const packageUsages = await store.findPackageUsages(queries)
+          const response = {
+            results: packageUsages
+          }
+          res.end(JSON.stringify(response))
+          break
         default:
           res.statusCode = 404
-          res.end(`${req.url} does not match any route`)
+          const error = { error: `${req.url} does not match any route` }
+          res.end(JSON.stringify(error))
       }
     } catch (e) {
       res.statusCode = 503

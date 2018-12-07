@@ -2,6 +2,7 @@ import {
   FetchPackageToStoreOptions,
   PackageFilesResponse,
   PackageResponse,
+  PackageUsage,
   RequestPackageOptions,
   StoreController,
   WantedDependency,
@@ -29,6 +30,12 @@ export default function (
     resolve({
       close: async () => { return },
       fetchPackage: fetchPackage.bind(null, remotePrefix, limitedFetch),
+      findPackageUsages: async (dependencies: WantedDependency[]): Promise<PackageUsage[]> => {
+        const response = await limitedFetch(`${remotePrefix}/findPackageUsages`, {
+          findUsageQueries: dependencies
+        })
+        return response.results as PackageUsage[]
+      },
       getCacheByEngine: async (storePath: string, id: string): Promise<Map<string, string>> => {
         return limitedFetch(`${remotePrefix}/getCacheByEngine`, {
           id,

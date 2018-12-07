@@ -784,15 +784,18 @@ importers:
       '@pnpm/outdated': 'link:../outdated'
       '@pnpm/package-store': 'link:../package-store'
       '@pnpm/server': 'link:../server'
+      '@pnpm/store-controller-types': 'link:../store-controller-types'
       '@pnpm/store-path': 1.0.4
       '@pnpm/types': 'link:../types'
       '@pnpm/utils': 'link:../utils'
+      '@types/archy': 0.0.31
       '@types/camelcase-keys': 4.0.0
       '@types/get-port': 4.0.0
       '@types/lru-cache': 4.1.1
       '@types/minimatch': 3.0.3
       '@types/mz': 0.0.32
       '@zkochan/libnpx': 10.0.0
+      archy: 1.0.0
       camelcase: 5.0.0
       camelcase-keys: 5.0.0
       chalk: 2.4.1
@@ -897,10 +900,12 @@ importers:
       '@pnpm/read-package-json': 1.0.1
       '@pnpm/server': 1.1.2
       '@pnpm/shrinkwrap-types': 0.0.0
+      '@pnpm/store-controller-types': 1.1.0
       '@pnpm/store-path': 1.0.4
       '@pnpm/tslint-config': 0.0.0
       '@pnpm/types': 2.0.0
       '@pnpm/utils': 0.9.0
+      '@types/archy': 0.0.31
       '@types/byline': 4.2.31
       '@types/camelcase-keys': 4.0.0
       '@types/common-tags': 1.4.0
@@ -920,6 +925,7 @@ importers:
       '@types/update-notifier': 2.5.0
       '@zkochan/libnpx': 10.0.0
       anonymous-npm-registry-client: 0.1.2
+      archy: 1.0.0
       byline: 5.0.0
       camelcase: 5.0.0
       camelcase-keys: 5.0.0

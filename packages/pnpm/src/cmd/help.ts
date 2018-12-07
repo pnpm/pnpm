@@ -197,25 +197,35 @@ function getHelpText (command: string) {
 
     case 'store':
       return stripIndent`
-        pnpm store status
+        pnpm store <command>
 
-        Returns a 0 exit code if packages in the store are not modified, i.e. the content of the package is the
-        same as it was at the time of unpacking.
+        Reads and performs actions on pnpm store that is on the current filesystem.
 
-        pnpm store add [pkg...]
+        Commands:
 
-        Adds new packages to the store. E.g.: pnpm store add express@4 typescript@2
+          status
 
-        pnpm store prune
+            Checks for modified packages in the store.
+            Returns exit code 0 if the content of the package is the same as it was at the time of unpacking.
 
-        Removes unreferenced (extraneous, orphan) packages from the store. Unreferenced packages are packages that are not used by
-        any projects on the system. Packages can become unreferenced after most installation operations. For instance, package
-        foo@1.0.0 is updated to foo@1.0.1. If package foo@1.0.0 is not used by any other project on the system, it becomes unreferenced.
+          add [<@scope>/]<pkg>...
 
-        It is good to keep unreferenced packages in the store for a while because frequently unreferenced packages are again needed
-        very soon. For instance, after changing branch on a project and installing from an older shrinkwrap file.
+            Adds new packages to the store.
 
-        Pruning the store makes no harm. It only makes installation a bit slower in case the unreferenced files will be needed again.
+            Example: pnpm store add express@4 typescript@2.1.0
+
+          usages [<@scope>/]<pkg>...
+
+            Lists all pnpm projects on the current filesystem that depend on the specified packages.
+
+            Example: pnpm store usages flatmap-stream
+
+          prune
+
+            Removes unreferenced (extraneous, orphan) packages from the store.
+            Pruning the store is not harmful, but might slow down future installations.
+            Visit the documentation for more information on unreferenced packages and why they occur.
+
       `
 
     case 'root':
