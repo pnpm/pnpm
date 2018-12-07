@@ -2,16 +2,6 @@ import assertStore from '@pnpm/assert-store'
 import path = require('path')
 import test = require('tape')
 
-test('assertStore() parameters', async (t) => {
-  const storePath = path.join(__dirname, 'fixture/store/2/')
-  const encodedRegistryName = 'registry.npmjs.org'
-  const store = assertStore(t, storePath, encodedRegistryName)
-
-  t.equal(await store.getStorePath(), storePath, 'store path should match')
-  t.equal(await store.getEncodedRegistryName(), encodedRegistryName, 'encoded registry name should match')
-  t.end()
-})
-
 test('assertStore() store assertions', async (t) => {
   const storePath = path.join(__dirname, 'fixture/store/2/')
   const encodedRegistryName = 'registry.npmjs.org'
