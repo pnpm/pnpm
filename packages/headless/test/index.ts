@@ -601,3 +601,35 @@ test('installing in a workspace', async (t) => {
 
   t.end()
 })
+
+test('independent-leaves: installing in a workspace', async (t) => {
+  const workspaceFixture = path.join(__dirname, 'workspace-fixture2')
+
+  const { importers } = await readManifests(
+    [
+      {
+        prefix: path.join(workspaceFixture, 'foo'),
+      },
+      {
+        prefix: path.join(workspaceFixture, 'bar'),
+      },
+    ],
+    workspaceFixture,
+    {
+      shamefullyFlatten: false,
+    },
+  )
+
+  await headless(await testDefaults({
+    importers,
+    independentLeaves: true,
+    shrinkwrapDirectory: workspaceFixture,
+  }))
+
+  const projectBar = assertProject(t, path.join(workspaceFixture, 'bar'))
+
+  await projectBar.has('foo')
+  t.ok(await exists(path.join(workspaceFixture, 'node_modules', '.localhost+4873', 'express', '4.16.4', 'node_modules', 'array-flatten')), 'independent package linked')
+
+  t.end()
+})

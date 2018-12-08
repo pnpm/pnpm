@@ -530,7 +530,7 @@ async function getChildrenPaths (
       const cache = !ctx.force && await getCache(ctx.storeController, ctx.store, pkgId)
       const pkgName = nameVerFromPkgSnapshot(childRelDepPath, childPkgSnapshot).name
       const inStoreLocation = pkgIdToFilename(pkgId, ctx.prefix)
-      children[alias] = cache || path.join(inStoreLocation, 'node_modules', pkgName)
+      children[alias] = cache || path.join(ctx.store, inStoreLocation, 'node_modules', pkgName)
     } else if (childPkgSnapshot) {
       const relDepPath = dp.relative(ctx.registry, childDepPath)
       const pkgName = nameVerFromPkgSnapshot(relDepPath, childPkgSnapshot).name
