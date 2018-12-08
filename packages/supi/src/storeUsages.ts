@@ -1,40 +1,43 @@
-import { storeLogger, streamParser } from '@pnpm/logger'
-import { PackageUsage, StoreController } from '@pnpm/store-controller-types'
-import parseWantedDependencies from './parseWantedDependencies'
+import { streamParser } from '@pnpm/logger'
+import { PackageUsages, StoreController } from '@pnpm/store-controller-types'
+import { parseWantedDependency } from './parseWantedDependencies'
 import { ReporterFunction } from './types'
 
 export default async function (
-  fuzzyDeps: string[],
+  packageSelectors: string[],
   opts: {
     reporter?: ReporterFunction,
     storeController: StoreController,
-    tag?: string
   },
-): Promise<PackageUsage[]> {
+): Promise<{ [packageSelector: string]: PackageUsages[] }> {
   const reporter = opts && opts.reporter
   if (reporter) {
     streamParser.on('data', reporter)
   }
 
-  const deps = parseWantedDependencies(fuzzyDeps, {
-    allowNew: true,
-    currentPrefs: {},
-    defaultTag: opts.tag || 'latest',
-    dev: false,
-    devDependencies: {},
-    optional: false,
-    optionalDependencies: {},
-  })
+  const packageSelectorsBySearchQueries = packageSelectors.reduce((acc, packageSelector) => {
+    const searchQuery = parsedPackageSelectorToSearchQuery(parseWantedDependency(packageSelector))
+    acc[searchQuery] = packageSelector
+    return acc
+  }, {})
 
-  const packageUsages: PackageUsage[] = await opts.storeController.findPackageUsages(deps)
+  const packageUsagesBySearchQueries = await opts.storeController.findPackageUsages(Object.keys(packageSelectorsBySearchQueries))
 
-  if (!packageUsages) {
-    storeLogger.error(new Error('Internal error retrieving package usages'))
+  const results = {}
+
+  for (const searchQuery of Object.keys(packageSelectorsBySearchQueries)) {
+    results[packageSelectorsBySearchQueries[searchQuery]] = packageUsagesBySearchQueries[searchQuery] || []
   }
 
   if (reporter) {
     streamParser.removeListener('data', reporter)
   }
 
-  return packageUsages as PackageUsage[]
+  return results
+}
+
+function parsedPackageSelectorToSearchQuery (parsedPackageSelector: {alias: string} | {pref: string} | {alias: string, pref: string}) {
+  if (!parsedPackageSelector['alias']) return parsedPackageSelector['pref']
+  if (!parsedPackageSelector['pref']) return `/${parsedPackageSelector['alias']}/`
+  return `/${parsedPackageSelector['alias']}/${parsedPackageSelector['pref']}`
 }

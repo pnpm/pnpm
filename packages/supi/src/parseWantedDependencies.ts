@@ -37,7 +37,7 @@ export default function parseWantedDependencies (
     .filter((wd) => wd !== null) as WantedDependency[]
 }
 
-function parseWantedDependency (
+export function parseWantedDependency (
   rawWantedDependency: string,
 ): {alias: string} | {pref: string} | {alias: string, pref: string} {
   const versionDelimiter = rawWantedDependency.indexOf('@', 1) // starting from 1 to skip the @ that marks scope

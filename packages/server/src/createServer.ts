@@ -22,7 +22,7 @@ interface RequestBody {
   },
   storePath: string,
   id: string,
-  findUsageQueries: WantedDependency[]
+  searchQueries: string[],
 }
 
 export default function (
@@ -152,13 +152,8 @@ export default function (
           res.end(JSON.stringify(await store.getCacheByEngine(body.storePath, body.id)))
           break
         case '/findPackageUsages':
-          body = (await bodyPromise) as RequestBody
-          const queries = body.findUsageQueries as WantedDependency[]
-          const packageUsages = await store.findPackageUsages(queries)
-          const response = {
-            results: packageUsages
-          }
-          res.end(JSON.stringify(response))
+          body = await bodyPromise
+          res.end(JSON.stringify(await store.findPackageUsages(body.searchQueries)))
           break
         default:
           res.statusCode = 404

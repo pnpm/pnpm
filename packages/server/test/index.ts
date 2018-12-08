@@ -8,8 +8,8 @@ import createStore from '@pnpm/package-store'
 import {
   connectStoreController,
   createServer,
- } from '@pnpm/server'
-import { PackageFilesResponse, PackageUsage } from '@pnpm/store-controller-types'
+} from '@pnpm/server'
+import { PackageFilesResponse } from '@pnpm/store-controller-types'
 import createFetcher from '@pnpm/tarball-fetcher'
 import got = require('got')
 import isPortReachable = require('is-port-reachable')
@@ -327,21 +327,19 @@ test('find package usages', async t => {
   await storeCtrl.saveState()
 
   // Now check if usages shows up
-  const deps = [dependency]
-  const packageUsages: PackageUsage[] = await storeCtrl.findPackageUsages(deps)
+  const packageUsagesByPackageSelectors = await storeCtrl.findPackageUsages(['/is-positive/1.0.0'])
 
-  t.equal(packageUsages.length, 1, 'number of items in response should be 1')
-
-  const packageUsage = packageUsages[0]
-
-  t.deepEqual(packageUsage.dependency, dependency, 'query should match')
-  t.true(packageUsage.foundInStore, 'query should be in store')
-  t.equal(packageUsage.packages.length, 1, 'there should only be 1 package returned from the query')
-
-  const packageFound = packageUsage.packages[0]
-
-  t.ok(packageFound.id, 'there should be a package id')
-  t.equal(packageFound.usages.length, 0, 'package should not be used by any projects')
+  t.deepEqual(
+    packageUsagesByPackageSelectors,
+    {
+      '/is-positive/1.0.0': [
+        {
+          packageId: 'registry.npmjs.org/is-positive/1.0.0',
+          usages: [],
+        },
+      ],
+    },
+  )
 
   await server.close()
   await storeCtrl.close()

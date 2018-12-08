@@ -1,5 +1,5 @@
 import logger, { storeLogger } from '@pnpm/logger'
-import { PackageUsage, PackageUsageEntry } from '@pnpm/store-controller-types'
+import { PackageUsages } from '@pnpm/store-controller-types'
 import storePath from '@pnpm/store-path'
 import archy = require('archy')
 import {
@@ -45,12 +45,12 @@ export default async function (input: string[], opts: PnpmOptions) {
       })
     case 'usages':
       store = await createStoreController(opts)
-      const packageUsages: PackageUsage[] = await storeUsages(input.slice(1), {
+      const packageSelectors = input.slice(1)
+      const packageUsagesBySelectors = await storeUsages(packageSelectors, {
         reporter: opts.reporter,
         storeController: store.ctrl,
-        tag: opts.tag,
       })
-      prettyPrintUsages(packageUsages)
+      prettyPrintUsages(packageSelectors, packageUsagesBySelectors)
       return
     default:
       help(['store'])
@@ -81,26 +81,14 @@ async function statusCmd (opts: PnpmOptions) {
  * Uses archy to output package usages in a directory-tree like format.
  * @param packageUsages a list of PackageUsage, one per query
  */
-function prettyPrintUsages (packageUsages: PackageUsage[]): void {
+function prettyPrintUsages (selectors: string[], packageUsagesBySelectors: { [packageSelector: string]: PackageUsages[] }): void {
 
   // Create nodes for top level usage response
-  const packageUsageNodes: archy.Data[] = packageUsages.map(packageUsage => {
-    if (!packageUsage.dependency) {
-      storeLogger.error(new Error(`Internal error finding usages for ${JSON.stringify(packageUsage)}`))
-      return {
-        label: 'Internal error finding packages',
-        nodes: []
-      } as archy.Data
-    }
-
+  const packageUsageNodes: archy.Data[] = selectors.map((selector) => {
     // Create label for root node
-    const name: string | undefined = packageUsage.dependency.alias
-    const tag: string | undefined = packageUsage.dependency.pref
-    const label = name ?
-      'Query: ' + name + (tag === 'latest' ? ' (any version)' : '@' + tag)
-      : tag
+    const label = `Package: ${selector}`
 
-    if (!packageUsage.foundInStore) {
+    if (!packageUsagesBySelectors[selector].length) {
       // If not found in store, just output string
       return {
         label,
@@ -111,9 +99,8 @@ function prettyPrintUsages (packageUsages: PackageUsage[]): void {
     }
 
     // This package was found in the store, create children for all package ids
-    const foundPackages: PackageUsageEntry[] = packageUsage.packages
-    const foundPackagesNodes: archy.Data[] = foundPackages.map(foundPackage => {
-      const label = 'Package in store: ' + foundPackage.id
+    const foundPackagesNodes: archy.Data[] = packageUsagesBySelectors[selector].map((foundPackage) => {
+      const label = `Package in store: ${foundPackage.packageId}`
 
       // Now create children for all locations this package id is used
       const locations: string[] = foundPackage.usages
