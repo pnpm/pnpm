@@ -2,7 +2,7 @@ import {
   FetchPackageToStoreOptions,
   PackageFilesResponse,
   PackageResponse,
-  PackageUsage,
+  PackageUsagesBySearchQueries,
   RequestPackageOptions,
   StoreController,
   WantedDependency,
@@ -30,11 +30,8 @@ export default function (
     resolve({
       close: async () => { return },
       fetchPackage: fetchPackage.bind(null, remotePrefix, limitedFetch),
-      findPackageUsages: async (dependencies: WantedDependency[]): Promise<PackageUsage[]> => {
-        const response = await limitedFetch(`${remotePrefix}/findPackageUsages`, {
-          findUsageQueries: dependencies
-        })
-        return response.results as PackageUsage[]
+      findPackageUsages: async (searchQueries: string[]): Promise<PackageUsagesBySearchQueries> => {
+        return limitedFetch(`${remotePrefix}/findPackageUsages`, { searchQueries })
       },
       getCacheByEngine: async (storePath: string, id: string): Promise<Map<string, string>> => {
         return limitedFetch(`${remotePrefix}/getCacheByEngine`, {

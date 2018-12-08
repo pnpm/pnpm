@@ -4,10 +4,8 @@ import { storeLogger } from '@pnpm/logger'
 import createPackageRequester, { getCacheByEngine } from '@pnpm/package-requester'
 import { ResolveFunction } from '@pnpm/resolver-base'
 import {
-  PackageUsage,
-  PackageUsageEntry,
+  PackageUsagesBySearchQueries,
   StoreController,
-  WantedDependency
 } from '@pnpm/store-controller-types'
 import { StoreIndex } from '@pnpm/types'
 import pFilter = require('p-filter')
@@ -104,67 +102,24 @@ export default async function (
     }
   }
 
-  async function findPackageUsages (
-    dependencies: WantedDependency[]
-  ): Promise<PackageUsage[]> {
-
-    /**
-     * If `dependency` has no `alias`, then directly check against `pref`.
-     * This is messy due to overloaded use WantedDependency (npm, github, tarball, etc.)
-     * @param dependency the dependency to parse
-     */
-    function parseDependency (dependency: WantedDependency) {
-      let packageName
-      let packageTag
-      if (dependency.alias) {
-        packageName = `/${dependency.alias}/`
-        packageTag = dependency.pref === 'latest' ? null : dependency.pref
-      } else {
-        packageName = dependency.alias
-      }
-
-      return {
-        packageName,
-        packageTag
-      }
-    }
-
-    // Parse dependencies
-    const parsedDeps = dependencies.map(dep => parseDependency(dep))
-
-    // Create initial results map for each dependency
-    const results = dependencies.map(dependency => {
-      return {
-        dependency,
-        foundInStore: false,
-        packages: [] as PackageUsageEntry[]
-      }
-    })
+  async function findPackageUsages (searchQueries: string[]): Promise<PackageUsagesBySearchQueries> {
+    const results = {} as PackageUsagesBySearchQueries
 
     // FIXME Inefficient looping over all packages. Don't think there's a better way.
     // Note we can't directly resolve packages because user may not specify package version
     Object.keys(storeIndex).forEach(packageId => {
-      parsedDeps.forEach((parsedDep, index) => {
-
-        // Check if package name and tag (if specified) match this package id
-        if (parsedDep.packageName && packageId.indexOf(parsedDep.packageName) > -1
-            && (!parsedDep.packageTag || packageId.indexOf(parsedDep.packageTag) > -1)) {
-
-          // Found match!
-          const packageEntry = {
-            id: packageId,
-            usages: storeIndex[packageId] as string[]
-          }
-
-          // Update results with new entry
-          results[index].packages.push(packageEntry)
-          results[index].foundInStore = true
-        }
-
-      })
+      searchQueries
+        .filter((searchQuery) => packageId.indexOf(searchQuery) > -1)
+        .forEach((searchQuery) => {
+          results[searchQuery] = results[searchQuery] || []
+          results[searchQuery].push({
+            packageId,
+            usages: storeIndex[packageId] as string[],
+          })
+        })
     })
 
-    return results as PackageUsage[]
+    return results
   }
 
   async function upload (builtPkgLocation: string, opts: {pkgId: string, engine: string}) {
