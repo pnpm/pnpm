@@ -956,6 +956,43 @@ test('recursive filter by location is relative to current working directory', as
   await projects['project-2'].hasNot('is-negative')
 })
 
+test('recursive command with filter from config', async (t: tape.Test) => {
+  const projects = preparePackages(t, [
+    {
+      name: 'project-1',
+      version: '1.0.0',
+
+      dependencies: {
+        'is-positive': '1.0.0',
+        'project-2': '1.0.0',
+      },
+    },
+    {
+      name: 'project-2',
+      version: '1.0.0',
+
+      dependencies: {
+        'is-negative': '1.0.0',
+      },
+    },
+    {
+      name: 'project-3',
+      version: '1.0.0',
+
+      dependencies: {
+        minimatch: '*',
+      },
+    },
+  ])
+
+  await fs.writeFile('.npmrc', 'filter=project-1 project-2', 'utf8')
+  await execPnpm('recursive', 'link')
+
+  projects['project-1'].has('is-positive')
+  projects['project-2'].has('is-negative')
+  projects['project-3'].hasNot('minimatch')
+})
+
 test('recursive install --no-bail', async (t: tape.Test) => {
   const projects = preparePackages(t, [
     {

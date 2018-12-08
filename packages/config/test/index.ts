@@ -166,3 +166,25 @@ test('registries of scoped packages are read', async (t) => {
 
   t.end()
 })
+
+test('filter is read from .npmrc as an array', async (t) => {
+  const tmp = tempy.directory()
+  t.comment(`temp dir created: ${tmp}`)
+
+  process.chdir(tmp)
+  await fs.writeFile('.npmrc', 'filter=foo bar...', 'utf8')
+  await fs.writeFile('pnpm-workspace.yaml', '', 'utf8')
+
+  const opts = await getConfigs({
+    cliArgs: {
+      'global': false,
+    },
+    packageManager: {
+      name: 'pnpm',
+      version: '1.0.0',
+    },
+  })
+  t.deepEqual(opts.filter, ['foo', 'bar...'])
+
+  t.end()
+})

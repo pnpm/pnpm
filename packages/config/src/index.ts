@@ -202,5 +202,9 @@ export default async (
     pnpmConfig.shrinkwrap = false
   }
 
+  if (typeof pnpmConfig.filter === 'string') {
+    pnpmConfig.filter = (pnpmConfig.filter as string).split(' ')
+  }
+
   return pnpmConfig
 }
