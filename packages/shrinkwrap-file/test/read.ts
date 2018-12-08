@@ -150,7 +150,6 @@ test('writeCurrentOnly()', async t => {
     registry: 'https://registry.npmjs.org',
     shrinkwrapVersion: 3,
   }
-  await mkdirp(path.join(projectPath, 'node_modules'))
   await writeCurrentOnly(projectPath, wantedShrinkwrap)
   t.equal(await readWanted(projectPath, { ignoreIncompatible: false }), null)
   t.deepEqual(await readCurrent(projectPath, { ignoreIncompatible: false }), wantedShrinkwrap)

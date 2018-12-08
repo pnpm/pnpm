@@ -32,13 +32,14 @@ export function writeWantedOnly (
   return writeShrinkwrap(WANTED_SHRINKWRAP_FILENAME, pkgPath, wantedShrinkwrap, opts)
 }
 
-export function writeCurrentOnly (
+export async function writeCurrentOnly (
   pkgPath: string,
   currentShrinkwrap: Shrinkwrap,
   opts?: {
     forceSharedFormat?: boolean,
   },
 ) {
+  await mkdirp(path.join(pkgPath, 'node_modules'))
   return writeShrinkwrap(CURRENT_SHRINKWRAP_FILENAME, pkgPath, currentShrinkwrap, opts)
 }
 
@@ -146,7 +147,10 @@ export default function write (
   if (wantedShrinkwrap === currentShrinkwrap) {
     return Promise.all([
       writeFileAtomic(wantedShrinkwrapPath, yamlDoc),
-      mkdirp(path.dirname(currentShrinkwrapPath)).then(() => writeFileAtomic(currentShrinkwrapPath, yamlDoc)),
+      (async () => {
+        await mkdirp(path.dirname(currentShrinkwrapPath))
+        await writeFileAtomic(currentShrinkwrapPath, yamlDoc)
+      })(),
     ])
   }
 
@@ -159,6 +163,9 @@ export default function write (
 
   return Promise.all([
     writeFileAtomic(wantedShrinkwrapPath, yamlDoc),
-    mkdirp(path.dirname(currentShrinkwrapPath)).then(() => writeFileAtomic(currentShrinkwrapPath, currentYamlDoc)),
+    (async () => {
+      await mkdirp(path.dirname(currentShrinkwrapPath))
+      await writeFileAtomic(currentShrinkwrapPath, currentYamlDoc)
+    })(),
   ])
 }
