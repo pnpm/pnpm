@@ -993,6 +993,45 @@ test('recursive command with filter from config', async (t: tape.Test) => {
   projects['project-3'].hasNot('minimatch')
 })
 
+test('non-recursive install ignores filter from config', async (t: tape.Test) => {
+  const projects = preparePackages(t, [
+    {
+      location: '.',
+      package: {
+        name: 'project-1',
+        version: '1.0.0',
+
+        dependencies: {
+          'is-positive': '1.0.0',
+        },
+      },
+    },
+    {
+      name: 'project-2',
+      version: '1.0.0',
+
+      dependencies: {
+        'is-negative': '1.0.0',
+      },
+    },
+    {
+      name: 'project-3',
+      version: '1.0.0',
+
+      dependencies: {
+        minimatch: '*',
+      },
+    },
+  ])
+
+  await fs.writeFile('.npmrc', 'filter=project-2', 'utf8')
+  await execPnpm('install')
+
+  projects['project-1'].has('is-positive')
+  projects['project-2'].hasNot('is-negative')
+  projects['project-3'].hasNot('minimatch')
+})
+
 test('recursive install --no-bail', async (t: tape.Test) => {
   const projects = preparePackages(t, [
     {

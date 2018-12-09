@@ -177,13 +177,15 @@ export default async function run (argv: string[]) {
         })
       }
 
-      if (
+      const dashDashFilterUsed = (
         (
-          cmd === 'recursive' && !COMMANDS_WITH_NO_DASHDASH_FILTER.has(subCmd) ||
-          cmd !== 'recursive' && !COMMANDS_WITH_NO_DASHDASH_FILTER.has(cmd)
-        ) &&
-        cliConf.argv.cooked.indexOf('--') !== -1
-      ) {
+          cmd === 'recursive' && !COMMANDS_WITH_NO_DASHDASH_FILTER.has(subCmd)
+          || cmd !== 'recursive' && !COMMANDS_WITH_NO_DASHDASH_FILTER.has(cmd)
+        )
+        && cliConf.argv.cooked.indexOf('--') !== -1
+      )
+
+      if (dashDashFilterUsed) {
         opts.filter = opts.filter || []
         const dashDashIndex = cliConf.argv.cooked.indexOf('--')
         Array.prototype.push.apply(opts.filter, cliConf.argv.cooked.slice(dashDashIndex + 1))
@@ -194,7 +196,7 @@ export default async function run (argv: string[]) {
       // `pnpm install ""` is going to be just `pnpm install`
       const cliArgs = cliConf.argv.remain.slice(1).filter(Boolean)
 
-      if (opts.filter && opts.filter.length && cmd !== 'recursive') {
+      if (cmd !== 'recursive' && (dashDashFilterUsed || argv.indexOf('--filter') !== -1)) {
         subCmd = cmd
         cmd = 'recursive'
         cliArgs.unshift(subCmd)
