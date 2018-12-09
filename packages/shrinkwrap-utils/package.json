@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/shrinkwrap-utils",
-  "version": "0.0.0",
+  "version": "1.0.0",
   "description": "Utils for dealing with shrinkwrap.yaml",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
@@ -48,7 +48,7 @@
   },
   "dependencies": {
     "@pnpm/resolver-base": "2.0.0",
-    "@pnpm/shrinkwrap-types": "0.0.0",
+    "@pnpm/shrinkwrap-types": "1.0.0",
     "@pnpm/types": "2.0.0",
     "@types/js-yaml": "3.11.2",
     "@types/node": "10.12.12",

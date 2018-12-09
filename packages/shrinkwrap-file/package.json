@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/shrinkwrap-file",
-  "version": "0.0.0",
+  "version": "1.0.0",
   "description": "Read/write shrinkwrap.yaml files",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
@@ -51,7 +51,7 @@
     "yaml-tag": "1.1.0"
   },
   "dependencies": {
-    "@pnpm/shrinkwrap-types": "0.0.0",
+    "@pnpm/shrinkwrap-types": "1.0.0",
     "@pnpm/types": "2.0.0",
     "@types/js-yaml": "3.11.2",
     "@types/node": "10.12.12",

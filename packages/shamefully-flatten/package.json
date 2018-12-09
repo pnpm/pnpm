@@ -1,7 +1,7 @@
 {
   "name": "@pnpm/shamefully-flatten",
   "description": "Flattening a node_modules created by pnpm",
-  "version": "1.0.4",
+  "version": "1.0.5",
   "author": {
     "name": "Zoltan Kochan",
     "email": "z@kochan.io",
@@ -47,8 +47,8 @@
   },
   "dependencies": {
     "@pnpm/pkgid-to-filename": "2.0.0",
-    "@pnpm/shrinkwrap-types": "0.0.0",
-    "@pnpm/shrinkwrap-utils": "0.0.0",
+    "@pnpm/shrinkwrap-types": "1.0.0",
+    "@pnpm/shrinkwrap-utils": "1.0.0",
     "@pnpm/symlink-dependency": "1.1.0",
     "@types/node": "10.12.12",
     "@types/ramda": "0.25.34",
