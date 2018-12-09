@@ -216,6 +216,41 @@ test('installing only optional deps', async (t) => {
   t.end()
 })
 
+// Covers https://github.com/pnpm/pnpm/issues/1547
+test.skip('installing with independent-leaves and shamefully-flatten', async (t) => {
+  const prefix = path.join(fixtures, 'simple')
+  await rimraf(path.join(prefix, 'node_modules'))
+
+  const { importers } = await readManifests(
+    [
+      {
+        prefix,
+      },
+    ],
+    prefix,
+    {
+      shamefullyFlatten: true,
+    },
+  )
+
+  await headless(await testDefaults({
+    importers,
+    independentLeaves: true,
+    shrinkwrapDirectory: prefix,
+  }))
+
+  const project = assertProject(t, prefix)
+  await project.has('is-positive')
+  await project.has('rimraf')
+  await project.has('is-negative')
+  await project.has('colors')
+  await project.has('path-is-absolute')
+
+  await project.isExecutable('.bin/rimraf')
+
+  t.end()
+})
+
 test('run pre/postinstall scripts', async (t) => {
   const prefix = path.join(fixtures, 'deps-have-lifecycle-scripts')
   const outputJsonPath = path.join(prefix, 'output.json')
