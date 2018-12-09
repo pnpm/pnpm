@@ -30,7 +30,7 @@
     "@pnpm/outdated": "1.0.9",
     "@pnpm/package-store": "1.2.1",
     "@pnpm/server": "1.1.2",
-    "@pnpm/store-controller-types": "1.1.0",
+    "@pnpm/store-controller-types": "1.2.0",
     "@pnpm/store-path": "1.0.4",
     "@pnpm/types": "2.0.0",
     "@pnpm/utils": "0.9.0",

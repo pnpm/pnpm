@@ -61,7 +61,7 @@
     }
   },
   "dependencies": {
-    "@pnpm/store-controller-types": "1.1.0",
+    "@pnpm/store-controller-types": "1.2.0",
     "@pnpm/types": "2.0.0",
     "@types/got": "8.3.4",
     "@types/node": "10.12.12",

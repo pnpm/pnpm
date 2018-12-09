@@ -95,7 +95,7 @@
     "@pnpm/shamefully-flatten": "1.0.4",
     "@pnpm/shrinkwrap-file": "0.0.0",
     "@pnpm/shrinkwrap-utils": "0.0.0",
-    "@pnpm/store-controller-types": "1.1.0",
+    "@pnpm/store-controller-types": "1.2.0",
     "@pnpm/symlink-dependency": "1.1.0",
     "@pnpm/types": "2.0.0",
     "@pnpm/utils": "0.9.0",
