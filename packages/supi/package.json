@@ -36,7 +36,7 @@
     "@pnpm/read-package-json": "1.0.1",
     "@pnpm/resolve-dependencies": "2.0.0",
     "@pnpm/resolver-base": "2.0.0",
-    "@pnpm/shamefully-flatten": "1.0.4",
+    "@pnpm/shamefully-flatten": "1.0.5",
     "@pnpm/shrinkwrap-file": "0.0.0",
     "@pnpm/shrinkwrap-utils": "0.0.0",
     "@pnpm/store-controller-types": "1.1.0",
