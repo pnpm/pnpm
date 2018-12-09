@@ -260,7 +260,13 @@ export default async function linkPackages (
       return acc
     }, {})
     currentShrinkwrap = { ...newShrinkwrap, packages, importers }
-  } else if (opts.include.dependencies && opts.include.devDependencies && opts.include.optionalDependencies && opts.skipped.size === 0) {
+  } else if (
+    opts.include.dependencies &&
+    opts.include.devDependencies &&
+    opts.include.optionalDependencies &&
+    opts.skipped.size === 0 &&
+    R.equals(importerIds.sort(), Object.keys(newShrinkwrap.importers).sort())
+  ) {
     currentShrinkwrap = newShrinkwrap
   } else {
     currentShrinkwrap = newCurrentShrinkwrap

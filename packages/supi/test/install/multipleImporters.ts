@@ -1,9 +1,14 @@
 import assertProject from '@pnpm/assert-project'
 import { preparePackages } from '@pnpm/prepare'
+import { readCurrent } from '@pnpm/shrinkwrap-file'
 import path = require('path')
 import readPkg = require('read-pkg')
 import sinon = require('sinon')
-import { addDependenciesToPackage, install, MutatedImporter, mutateModules } from 'supi'
+import {
+  addDependenciesToPackage,
+  MutatedImporter,
+  mutateModules,
+} from 'supi'
 import tape = require('tape')
 import promisifyTape from 'tape-promise'
 import { testDefaults } from '../utils'
@@ -217,4 +222,43 @@ test('headless install is used when package link to another package in the works
   await projects['project-1'].has('is-positive')
   await projects['project-1'].has('project-2')
   await projects['project-2'].hasNot('is-negative')
+})
+
+test('current shrinkwrap contains only installed dependencies when adding a new importer to workspace with shared shrinkwrap', async (t) => {
+  const projects = preparePackages(t, [
+    {
+      name: 'project-1',
+      version: '1.0.0',
+
+      dependencies: {
+        'is-positive': '1.0.0',
+      },
+    },
+    {
+      name: 'project-2',
+      version: '1.0.0',
+
+      dependencies: {
+        'is-negative': '1.0.0',
+      },
+    },
+  ])
+
+  await mutateModules([
+    {
+      mutation: 'install',
+      prefix: path.resolve('project-1'),
+    },
+  ], await testDefaults({ shrinkwrapOnly: true }))
+
+  await mutateModules([
+    {
+      mutation: 'install',
+      prefix: path.resolve('project-2'),
+    },
+  ], await testDefaults())
+
+  const currentShr = await readCurrent(process.cwd(), { ignoreIncompatible: false })
+
+  t.deepEqual(Object.keys(currentShr && currentShr.packages || {}), ['/is-negative/1.0.0'])
 })
