@@ -1,20 +1,6 @@
 import chalk from 'chalk'
 import most = require('most')
-import prettyBytes = require('pretty-bytes')
-import R = require('ramda')
-import semver = require('semver')
-import {
-  DeprecationLog,
-  InstallCheckLog,
-  LifecycleLog,
-  Log,
-  ProgressLog,
-  RegistryLog,
-} from 'supi'
-import getPkgsDiff, {
-  PackageDiff,
-  propertyByDependencyType,
-} from './pkgsDiff'
+import { Log } from 'supi'
 import reportError from './reportError'
 
 export default function (
