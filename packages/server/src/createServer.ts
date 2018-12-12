@@ -42,8 +42,10 @@ export default function (
 
   const server = http.createServer(async (req: IncomingMessage, res: ServerResponse) => {
     if (req.method !== 'POST') {
-      res.statusCode = 503
-      res.end(JSON.stringify(`Only POST is allowed, received ${req.method}`))
+      res.statusCode = 405  // Method Not Allowed
+      const responseError = { error: `Only POST is allowed, received ${req.method}` }
+      res.setHeader('Allow', 'POST')
+      res.end(JSON.stringify(responseError))
       return
     }
 

@@ -1,18 +1,15 @@
 ///<reference path="../typings/index.d.ts"/>
-import fs = require('mz/fs')
-import path = require('path')
-import rimraf = require('rimraf-then')
-
 import createResolver, { PackageMetaCache } from '@pnpm/npm-resolver'
 import createStore from '@pnpm/package-store'
-import {
-  connectStoreController,
-  createServer,
-} from '@pnpm/server'
+import { connectStoreController, createServer, } from '@pnpm/server'
 import { PackageFilesResponse } from '@pnpm/store-controller-types'
 import createFetcher from '@pnpm/tarball-fetcher'
 import got = require('got')
+import { HTTPError } from 'got'
 import isPortReachable = require('is-port-reachable')
+import fs = require('mz/fs')
+import path = require('path')
+import rimraf = require('rimraf-then')
 import test = require('tape')
 
 const registry = 'https://registry.npmjs.org/'
@@ -343,5 +340,67 @@ test('find package usages', async t => {
 
   await server.close()
   await storeCtrl.close()
+  t.end()
+})
+
+test('server should only allow POST', async (t) => {
+  const port = 5813
+  const hostname = '127.0.0.1'
+  const remotePrefix = `http://${hostname}:${port}`
+  const storeCtrlForServer = await createStoreController()
+  const server = createServer(storeCtrlForServer, {
+    hostname,
+    port,
+  })
+
+  t.ok(await isPortReachable(port), 'server is running')
+
+  // Try various methods (not including POST)
+  const methods = ['GET', 'PUT', 'PATCH', 'DELETE', 'OPTIONS']
+
+  for (let method of methods) {
+    t.comment(`Testing HTTP ${method}`)
+    // Ensure 405 error is received
+    try {
+      await got(`${remotePrefix}/a-random-endpoint`, { method: method })
+      t.fail('request should have failed')
+    } catch (err) {
+      // Ensure error is correct
+      // @ts-ignore
+      t.equal((err as HTTPError).statusCode, 405, 'response code should be a 504')
+      t.ok(JSON.parse(err.response.body).error, 'error field should be set in response body')
+    }
+  }
+
+  await server.close()
+  await storeCtrlForServer.close()
+  t.end()
+})
+
+test('server route not found', async (t) => {
+  const port = 5813
+  const hostname = '127.0.0.1'
+  const remotePrefix = `http://${hostname}:${port}`
+  const storeCtrlForServer = await createStoreController()
+  const server = createServer(storeCtrlForServer, {
+    hostname,
+    port,
+  })
+
+  t.ok(await isPortReachable(port), 'server is running')
+
+  // Ensure 404 error is received
+  try {
+    await got(`${remotePrefix}/a-random-endpoint`, { method: 'POST' })
+    t.fail('request should have failed')
+  } catch (err) {
+    // Ensure error is correct
+    // @ts-ignore
+    t.equal((err as HTTPError).statusCode, 404, 'response code should be a 404')
+    t.ok(JSON.parse(err.response.body).error, 'error field should be set in response body')
+  }
+
+  await server.close()
+  await storeCtrlForServer.close()
   t.end()
 })
