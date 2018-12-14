@@ -1,10 +1,12 @@
 import logger from '@pnpm/logger'
 import execa = require('execa')
 import pLimit = require('p-limit')
+import { PackageNode } from 'pkgs-graph'
 import RecursiveSummary from './recursiveSummary'
 
 export default async (
   packageChunks: string[][],
+  graph: {[id: string]: PackageNode},
   args: string[],
   cmd: string,
   opts: {
@@ -25,7 +27,14 @@ export default async (
     await Promise.all(chunk.map((prefix: string) =>
       limitRun(async () => {
         try {
-          await execa(args[0], args.slice(1), { cwd: prefix, stdio: 'inherit' })
+          await execa(args[0], args.slice(1), {
+            cwd: prefix,
+            env: {
+              ...process.env,
+              PNPM_PACKAGE_NAME: graph[prefix].manifest.name,
+            },
+            stdio: 'inherit',
+          })
           result.passes++
         } catch (err) {
           logger.info(err)
