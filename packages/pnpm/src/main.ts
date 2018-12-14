@@ -23,16 +23,35 @@ import checkForUpdates from './checkForUpdates'
 import pnpmCmds from './cmd'
 import getCommandFullName from './getCommandFullName'
 import getConfigs from './getConfigs'
+import { scopeLogger } from './loggers'
 import './logging/fileLogger'
 import packageManager from './pnpmPkgJson'
 import initReporter, { ReporterType } from './reporter'
 
 pnpmCmds['install-test'] = pnpmCmds.installTest
 
+type CANONICAL_COMMAND_NAMES = 'help'
+  | 'import'
+  | 'install-test'
+  | 'install'
+  | 'link'
+  | 'list'
+  | 'outdated'
+  | 'prune'
+  | 'rebuild'
+  | 'recursive'
+  | 'root'
+  | 'run'
+  | 'server'
+  | 'store'
+  | 'test'
+  | 'uninstall'
+  | 'unlink'
+  | 'update'
+
 const COMMANDS_WITH_NO_DASHDASH_FILTER = new Set(['run', 'exec', 'test'])
 
-const supportedCmds = new Set([
-  'add',
+const supportedCmds = new Set<CANONICAL_COMMAND_NAMES>([
   'install',
   'uninstall',
   'update',
@@ -104,7 +123,8 @@ export default async function run (argv: string[]) {
   // tslint:enable
   const cliConf = nopt(types, shortHands, argv, 0)
 
-  let cmd = getCommandFullName(cliConf.argv.remain[0]) || 'help'
+  let cmd = getCommandFullName(cliConf.argv.remain[0]) as CANONICAL_COMMAND_NAMES
+    || 'help'
   if (!supportedCmds.has(cmd)) {
     cmd = 'help'
   }
@@ -200,6 +220,13 @@ export default async function run (argv: string[]) {
         subCmd = cmd
         cmd = 'recursive'
         cliArgs.unshift(subCmd)
+      }
+
+      if (cmd !== 'recursive') {
+        scopeLogger.debug({
+          selected: 1,
+          workspacePrefix: opts.workspacePrefix,
+        })
       }
 
       try {
