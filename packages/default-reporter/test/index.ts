@@ -14,6 +14,7 @@ import { toOutput$ } from 'pnpm-default-reporter'
 import R = require('ramda')
 import StackTracey = require('stacktracey')
 import test = require('tape')
+import './reportingScope'
 
 const WARN = chalk.bgYellow.black('\u2009WARN\u2009')
 const ERROR = chalk.bgRed.black('\u2009ERROR\u2009')

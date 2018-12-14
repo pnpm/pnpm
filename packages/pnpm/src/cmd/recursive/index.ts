@@ -26,6 +26,7 @@ import createStoreController from '../../createStoreController'
 import findWorkspacePackages, { arrayOfLocalPackagesToMap } from '../../findWorkspacePackages'
 import getCommandFullName from '../../getCommandFullName'
 import getPinnedVersion from '../../getPinnedVersion'
+import { scopeLogger } from '../../loggers'
 import parsePackageSelector, { PackageSelector } from '../../parsePackageSelectors'
 import requireHooks from '../../requireHooks'
 import { PnpmOptions } from '../../types'
@@ -131,6 +132,12 @@ export async function recursive (
   if (pkgs.length === 0) {
     return false
   }
+
+  scopeLogger.debug({
+    selected: pkgs.length,
+    total: allPkgs.length,
+    workspacePrefix: opts.workspacePrefix,
+  })
 
   const throwOnFail = throwOnCommandFail.bind(null, `pnpm recursive ${cmd}`)
 

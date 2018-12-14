@@ -8,6 +8,7 @@ import reportInstallChecks from './reportInstallChecks'
 import reportLifecycleScripts from './reportLifecycleScripts'
 import reportMisc from './reportMisc'
 import reportProgress from './reportProgress'
+import reportScope from './reportScope'
 import reportSkippedOptionalDependencies from './reportSkippedOptionalDependencies'
 import reportStats from './reportStats'
 import reportSummary from './reportSummary'
@@ -28,6 +29,7 @@ export default function (
     other: most.Stream<supi.Log>,
     cli: most.Stream<supi.Log>,
     hook: most.Stream<supi.Log>,
+    scope: most.Stream<{ selected: number, total?: number, workspacePrefix?: string }>,
     skippedOptionalDependency: most.Stream<supi.SkippedOptionalDependencyLog>,
   },
   opts: {
@@ -66,6 +68,7 @@ export default function (
       width,
     }),
     reportInstallChecks(log$.installCheck, { cwd }),
+    reportScope(log$.scope, { isRecursive: opts.isRecursive, cmd: opts.cmd, subCmd: opts.subCmd }),
     reportSkippedOptionalDependencies(log$.skippedOptionalDependency, { cwd }),
     reportHooks(log$.hook, { cwd, isRecursive: opts.isRecursive }),
   ]
