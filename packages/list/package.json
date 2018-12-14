@@ -39,7 +39,7 @@
     "@pnpm/read-package-json": "1.0.1",
     "@pnpm/types": "2.0.0",
     "@types/archy": "0.0.31",
-    "@types/node": "10.12.12",
+    "@types/node": "10.12.15",
     "@types/ramda": "0.25.39",
     "@zkochan/npm-package-arg": "1.0.1",
     "archy": "1.0.0",
