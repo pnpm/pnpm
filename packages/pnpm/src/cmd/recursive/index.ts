@@ -165,7 +165,7 @@ export async function recursive (
       opts = { ...opts, update: true, allowNew: false } as any // tslint:disable-line:no-any
       break
     case 'exec':
-      throwOnFail(await exec(chunks, input, cmd, opts as any)) // tslint:disable-line:no-any
+      throwOnFail(await exec(chunks, pkgGraphResult.graph, input, cmd, opts as any)) // tslint:disable-line:no-any
       return true
   }
 

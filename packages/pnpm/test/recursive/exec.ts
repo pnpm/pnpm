@@ -3,9 +3,10 @@ import path = require('path')
 import rimraf = require('rimraf-then')
 import tape = require('tape')
 import promisifyTape from 'tape-promise'
-import { execPnpm } from '../utils'
+import { execPnpm, execPnpmSync } from '../utils'
 
 const test = promisifyTape(tape)
+const testOnly = promisifyTape(tape.only)
 
 test('pnpm recursive exec', async (t: tape.Test) => {
   const projects = preparePackages(t, [
@@ -61,6 +62,19 @@ test('pnpm recursive exec', async (t: tape.Test) => {
   t.ok(p1 < p2 && p1 < p3)
   t.ok(p1 < p2pre && p1 < p2post)
   t.ok(p2 < p2post && p2 > p2pre)
+})
+
+test('pnpm recursive exec sets PNPM_PACKAGE_NAME env var', async (t: tape.Test) => {
+  const projects = preparePackages(t, [
+    {
+      name: 'foo',
+      version: '1.0.0',
+    },
+  ])
+
+  const result = execPnpmSync('recursive', 'exec', '--', 'node', '-e', 'process.stdout.write(process.env.PNPM_PACKAGE_NAME)')
+
+  t.equal(result.stdout.toString(), 'foo', '$PNPM_PACKAGE_NAME is correct')
 })
 
 test('testing the bail config with "pnpm recursive exec"', async (t: tape.Test) => {
