@@ -57,8 +57,16 @@ export default (t: Test, projectPath: string, encodedRegistryName?: string) => {
       return store.resolve(pkgName, version)
     },
     async storeHasNot (pkgName: string, version?: string) {
-      const store = await getStoreInstance()
-      return store.storeHasNot(pkgName, version)
+      try {
+        const store = await getStoreInstance()
+        return store.storeHasNot(pkgName, version)
+      } catch (err) {
+        if (err.message.startsWith('Cannot find module store')) {
+          t.pass(`${pkgName}@${version} is not in store (store does not even exist)`)
+          return
+        }
+        throw err
+      }
     },
     isExecutable (pathToExe: string) {
       return isExecutable(t, path.join(modules, pathToExe))

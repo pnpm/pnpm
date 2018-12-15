@@ -5,6 +5,7 @@ import promisifyTape from 'tape-promise'
 import { testDefaults } from '../utils'
 
 const test = promisifyTape(tape)
+const testOnly = promisifyTape(tape.only)
 
 test('fail if installed package does not support the current engine and engine-strict = true', async (t) => {
   const project = prepare(t)
