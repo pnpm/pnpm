@@ -1,8 +1,8 @@
+import assertStore from '@pnpm/assert-store'
 import { tempDir } from '@pnpm/prepare'
 import fs = require('fs')
 import loadJsonFile from 'load-json-file'
 import path = require('path')
-import exists = require('path-exists')
 import { storeAdd } from 'supi'
 import tape = require('tape')
 import promisifyTape from 'tape-promise'
@@ -17,12 +17,15 @@ test('add packages to the store', async (t: tape.Test) => {
   process.chdir('_')
 
   const opts = await testDefaults()
+  const store = assertStore(t, opts.store)
+
   opts['registry'] = opts.registries!.default // tslint:disable-line
   await storeAdd(['express@4.16.3'], opts)
 
-  const pathToCheck = path.join(opts.store, 'localhost+4873', 'express', '4.16.3')
-  t.ok(await exists(pathToCheck), `express@4.16.3 is in store (at ${pathToCheck})`)
+  // Assert package in file structure
+  await store.storeHas('express', '4.16.3')
 
+  // Assert package in store index
   const storeIndex = await loadJsonFile(path.join(opts.store, 'store.json'))
   t.deepEqual(
     storeIndex,

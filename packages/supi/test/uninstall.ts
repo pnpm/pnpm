@@ -115,11 +115,11 @@ test('uninstall scoped package', async (t) => {
 test('uninstall tarball dependency', async (t: tape.Test) => {
   const project = prepare(t)
   const opts = await testDefaults({ save: true })
+
   await addDependenciesToPackage(['http://localhost:4873/is-array/-/is-array-1.0.1.tgz'], opts)
   await uninstall(['is-array'], opts)
 
-  t.ok(await exists(path.join(await project.getStorePath(), 'localhost+4873', 'is-array', '1.0.1')))
-
+  await project.storeHas('is-array', '1.0.1')
   await project.hasNot('is-array')
 
   const pkgJson = await readPkg()

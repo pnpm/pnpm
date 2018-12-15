@@ -1,6 +1,6 @@
+import assertStore from '@pnpm/assert-store'
 import prepare from '@pnpm/prepare'
 import { fromDir as readPackageJsonFromDir } from '@pnpm/read-package-json'
-import exists = require('path-exists')
 import R = require('ramda')
 import rimraf = require('rimraf-then')
 import sinon = require('sinon')
@@ -45,14 +45,14 @@ test('remove unreferenced packages', async (t: tape.Test) => {
 
 test('remove packages that are used by project that no longer exist', async (t: tape.Test) => {
   const project = prepare(t)
+  const opts = await testDefaults({ save: true })
+  const store = assertStore(t, opts.store)
 
-  await addDependenciesToPackage(['is-negative@2.1.0'], await testDefaults({ save: true }))
-
-  const pkgInStore = await project.resolve('is-negative', '2.1.0')
+  await addDependenciesToPackage(['is-negative@2.1.0'], opts)
 
   await rimraf('node_modules')
 
-  t.ok(await exists(pkgInStore))
+  await store.storeHas('is-negative', '2.1.0')
 
   const reporter = sinon.spy()
   await storePrune(await testDefaults({ reporter }))
@@ -62,7 +62,7 @@ test('remove packages that are used by project that no longer exist', async (t: 
     message: '- localhost+4873/is-negative/2.1.0',
   }))
 
-  t.notOk(await exists(pkgInStore))
+  await store.storeHasNot('is-negative', '2.1.0')
 })
 
 test('keep dependencies used by others', async (t: tape.Test) => {
