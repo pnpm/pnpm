@@ -34,6 +34,7 @@
     "@pnpm/logger": "^1.0.0 || ^2.0.0"
   },
   "dependencies": {
+    "@pnpm/core-loggers": "1.0.0",
     "@pnpm/read-package-json": "1.0.1",
     "@pnpm/types": "2.0.0",
     "@zkochan/npm-lifecycle": "2.1.1",
@@ -54,7 +55,7 @@
     "tape": "4.9.1",
     "ts-node": "7.0.1",
     "tslint": "5.11.0",
-    "typescript": "3.2.1"
+    "typescript": "3.2.2"
   },
   "mos": {
     "plugins": [

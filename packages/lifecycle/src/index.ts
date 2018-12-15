@@ -1,13 +1,11 @@
+import { lifecycleLogger } from '@pnpm/core-loggers'
 import {fromDir as readPackageJsonFromDir} from '@pnpm/read-package-json'
 import {PackageJson} from '@pnpm/types'
 import lifecycle = require('@zkochan/npm-lifecycle')
 import path = require('path')
 import exists = require('path-exists')
-import {LifecycleLog, lifecycleLogger} from './logger'
 
 function noop () {} // tslint:disable-line:no-empty
-
-export {LifecycleLog}
 
 export async function runPostinstallHooks (
   opts: {

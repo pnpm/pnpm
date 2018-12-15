@@ -435,6 +435,7 @@ importers:
       typescript: 3.2.2
   packages/lifecycle:
     dependencies:
+      '@pnpm/core-loggers': 'link:../core-loggers'
       '@pnpm/read-package-json': 1.0.1
       '@pnpm/types': 'link:../types'
       '@zkochan/npm-lifecycle': 2.1.1
@@ -454,8 +455,9 @@ importers:
       tape: 4.9.1
       ts-node: 7.0.1
       tslint: /tslint/5.11.0/typescript@3.2.2
-      typescript: 3.2.1
+      typescript: 3.2.2
     specifiers:
+      '@pnpm/core-loggers': 1.0.0
       '@pnpm/lifecycle': 'link:'
       '@pnpm/logger': 2.1.0
       '@pnpm/read-package-json': 1.0.1
@@ -474,7 +476,7 @@ importers:
       tape: 4.9.1
       ts-node: 7.0.1
       tslint: 5.11.0
-      typescript: 3.2.1
+      typescript: 3.2.2
   packages/list:
     dependencies:
       '@pnpm/read-package-json': 1.0.1
@@ -9732,13 +9734,6 @@ packages:
     hasBin: true
     resolution:
       integrity: sha512-tDMYfVtvpb96msS1lDX9MEdHrW4yOuZ4Kdc4Him9oU796XldPYF/t2+uKoX0BBa0hXXwDlqYQbXY5Rzjzc5hBA==
-  /typescript/3.2.1:
-    dev: true
-    engines:
-      node: '>=4.2.0'
-    hasBin: true
-    resolution:
-      integrity: sha512-jw7P2z/h6aPT4AENXDGjcfHTu5CSqzsbZc6YlUIebTyBAq8XaKp78x7VcSh30xwSCcsu5irZkYZUSFP1MrAMbg==
   /typescript/3.2.2:
     engines:
       node: '>=4.2.0'
