@@ -1,11 +1,11 @@
-# pnpm-default-reporter
+# @pnpm/default-reporter
 
 > The default reporter of pnpm
 
 ## Install
 
 ```
-npm install pnpm-default-reporter
+pnpm install @pnpm/default-reporter
 ```
 
 ## Style Guide

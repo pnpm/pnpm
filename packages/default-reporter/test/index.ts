@@ -12,6 +12,7 @@ import {
   statsLogger,
   summaryLogger,
 } from '@pnpm/core-loggers'
+import { toOutput$ } from '@pnpm/default-reporter'
 import logger, {
   createStreamParser,
 } from '@pnpm/logger'
@@ -22,7 +23,6 @@ import loadJsonFile from 'load-json-file'
 import most = require('most')
 import normalizeNewline = require('normalize-newline')
 import path = require('path')
-import { toOutput$ } from 'pnpm-default-reporter'
 import R = require('ramda')
 import StackTracey = require('stacktracey')
 import test = require('tape')

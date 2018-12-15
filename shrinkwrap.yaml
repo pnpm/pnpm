@@ -121,6 +121,7 @@ importers:
       strip-ansi: 5.0.0
       zen-push: 0.2.1
     devDependencies:
+      '@pnpm/default-reporter': 'link:'
       '@pnpm/logger': 2.1.0
       '@pnpm/tslint-config': 'link:../../utils/tslint-config'
       '@types/tape': 4.2.32
@@ -129,7 +130,6 @@ importers:
       load-json-file: 5.1.0
       mos-tap-diff: 1.0.0
       normalize-newline: 3.0.0
-      pnpm-default-reporter: 'link:'
       rimraf: 2.6.2
       tape: 4.9.1
       ts-node: 6.2.0
@@ -138,6 +138,7 @@ importers:
     specifiers:
       '@pnpm/config': 2.3.2
       '@pnpm/core-loggers': 1.0.0
+      '@pnpm/default-reporter': 'link:'
       '@pnpm/logger': 2.1.0
       '@pnpm/tslint-config': 0.0.0
       '@pnpm/types': 2.0.0
@@ -158,7 +159,6 @@ importers:
       most: 1.7.3
       normalize-newline: 3.0.0
       normalize-path: 3.0.0
-      pnpm-default-reporter: 'link:'
       pretty-bytes: 5.1.0
       ramda: 0.26.1
       right-pad: 1.0.1
@@ -782,6 +782,7 @@ importers:
       '@pnpm/config': 'link:../config'
       '@pnpm/core-loggers': 'link:../core-loggers'
       '@pnpm/default-fetcher': 'link:../default-fetcher'
+      '@pnpm/default-reporter': 'link:../default-reporter'
       '@pnpm/default-resolver': 'link:../default-resolver'
       '@pnpm/lifecycle': /@pnpm/lifecycle/3.0.2/@pnpm!logger@2.1.0
       '@pnpm/logger': 2.1.0
@@ -828,7 +829,6 @@ importers:
       path-absolute: 1.0.1
       path-name: 1.0.0
       pkgs-graph: 2.0.2
-      pnpm-default-reporter: 'link:../default-reporter'
       pnpm-file-reporter: 0.1.0
       pnpm-list: 'link:../list'
       process-exists: 3.1.0
@@ -894,6 +894,7 @@ importers:
       '@pnpm/config': 2.3.2
       '@pnpm/core-loggers': 1.0.0
       '@pnpm/default-fetcher': 2.0.6
+      '@pnpm/default-reporter': 0.0.0
       '@pnpm/default-resolver': 2.0.7
       '@pnpm/lifecycle': 3.0.2
       '@pnpm/logger': 2.1.0
@@ -970,7 +971,6 @@ importers:
       path-name: 1.0.0
       pkgs-graph: 2.0.2
       pnpm: 'link:'
-      pnpm-default-reporter: 0.20.17
       pnpm-file-reporter: 0.1.0
       pnpm-list: 5.0.1
       pnpm-registry-mock: 2.4.0

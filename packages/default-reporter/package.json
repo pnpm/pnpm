@@ -1,6 +1,6 @@
 {
-  "name": "pnpm-default-reporter",
-  "version": "0.20.17",
+  "name": "@pnpm/default-reporter",
+  "version": "0.0.0",
   "description": "The default reporter of pnpm",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
@@ -59,6 +59,7 @@
     "zen-push": "0.2.1"
   },
   "devDependencies": {
+    "@pnpm/default-reporter": "link:",
     "@pnpm/logger": "2.1.0",
     "@pnpm/tslint-config": "0.0.0",
     "@types/tape": "4.2.32",
@@ -67,7 +68,6 @@
     "load-json-file": "5.1.0",
     "mos-tap-diff": "1.0.0",
     "normalize-newline": "3.0.0",
-    "pnpm-default-reporter": "link:",
     "rimraf": "2.6.2",
     "tape": "4.9.1",
     "ts-node": "6.2.0",

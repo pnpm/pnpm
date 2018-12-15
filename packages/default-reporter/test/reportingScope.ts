@@ -1,7 +1,7 @@
+import { toOutput$ } from '@pnpm/default-reporter'
 import logger, {
   createStreamParser,
 } from '@pnpm/logger'
-import { toOutput$ } from 'pnpm-default-reporter'
 import test = require('tape')
 
 const scopeLogger = logger<object>('scope')
