@@ -43,6 +43,7 @@
   "devDependencies": {
     "@pnpm/lifecycle": "link:",
     "@pnpm/logger": "2.1.0",
+    "@pnpm/tslint-config": "0.0.0",
     "@types/load-json-file": "2.0.7",
     "@types/node": "10.12.15",
     "@types/rimraf": "2.0.2",

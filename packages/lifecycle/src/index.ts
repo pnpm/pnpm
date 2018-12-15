@@ -1,6 +1,6 @@
 import { lifecycleLogger } from '@pnpm/core-loggers'
-import {fromDir as readPackageJsonFromDir} from '@pnpm/read-package-json'
-import {PackageJson} from '@pnpm/types'
+import { fromDir as readPackageJsonFromDir } from '@pnpm/read-package-json'
+import { PackageJson } from '@pnpm/types'
 import lifecycle = require('@zkochan/npm-lifecycle')
 import path = require('path')
 import exists = require('path-exists')
@@ -56,7 +56,7 @@ export default async function runLifecycleHook (
   if (opts.stdio !== 'inherit') {
     lifecycleLogger.debug({
       depPath: opts.depPath,
-      script: pkg!.scripts![stage],
+      script: pkg.scripts![stage],
       stage,
       wd: opts.pkgRoot,
     })
