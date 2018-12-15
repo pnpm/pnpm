@@ -14,7 +14,7 @@ export default (t: Test, projectPath: string, encodedRegistryName?: string) => {
   const modules = path.join(projectPath, 'node_modules')
 
   let cachedStore: {
-    getStorePath (): Promise<string>;
+    storePath: string;
     storeHas (pkgName: string, version?: string | undefined): Promise<void>;
     storeHasNot (pkgName: string, version?: string | undefined): Promise<void>;
     resolve (pkgName: string, version?: string | undefined, relativePath?: string | undefined): Promise<string>
@@ -26,7 +26,10 @@ export default (t: Test, projectPath: string, encodedRegistryName?: string) => {
         throw new Error(`Cannot find module store. No .modules.yaml found at "${modules}"`)
       }
       const storePath = modulesYaml.store
-      cachedStore = assertStore(t, storePath, ern)
+      cachedStore = {
+        storePath,
+        ...assertStore(t, storePath, ern),
+      }
     }
     return cachedStore
   }
@@ -43,7 +46,7 @@ export default (t: Test, projectPath: string, encodedRegistryName?: string) => {
     },
     async getStorePath () {
       const store = await getStoreInstance()
-      return store.getStorePath()
+      return store.storePath
     },
     async resolve (pkgName: string, version?: string, relativePath?: string) {
       const store = await getStoreInstance()

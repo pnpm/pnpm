@@ -5,9 +5,6 @@ import { Test } from 'tape'
 export default (t: Test, storePath: string, encodedRegistryName?: string) => {
   const ern = encodedRegistryName || 'localhost+4873'
   const store = {
-    async getStorePath (): Promise<string> {
-      return storePath
-    },
     async storeHas (pkgName: string, version?: string): Promise<void> {
       const pathToCheck = await store.resolve(pkgName, version)
       t.ok(await exists(pathToCheck), `${pkgName}@${version} is in store (at ${pathToCheck})`)
