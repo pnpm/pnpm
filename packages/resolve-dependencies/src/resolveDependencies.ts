@@ -1,4 +1,5 @@
 import {
+  deprecationLogger,
   progressLogger,
   skippedOptionalDependencyLogger,
 } from '@pnpm/core-loggers'
@@ -42,9 +43,6 @@ import R = require('ramda')
 import semver = require('semver')
 import encodePkgId from './encodePkgId'
 import getIsInstallable, { nodeIdToParents } from './getIsInstallable'
-import {
-  deprecationLogger,
-} from './loggers'
 import wantedDepIsLocallyAvailable from './wantedDepIsLocallyAvailable'
 
 export interface DependenciesTreeNode {

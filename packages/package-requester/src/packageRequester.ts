@@ -1,4 +1,5 @@
 import checkPackage from '@pnpm/check-package'
+import { progressLogger } from '@pnpm/core-loggers'
 import {
   FetchFunction,
   FetchOptions,
@@ -35,7 +36,6 @@ import renameOverwrite = require('rename-overwrite')
 import rimraf = require('rimraf-then')
 import symlinkDir = require('symlink-dir')
 import writeJsonFile from 'write-json-file'
-import { progressLogger } from './loggers'
 
 const TARBALL_INTEGRITY_FILENAME = 'tarball-integrity'
 

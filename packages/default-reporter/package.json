@@ -33,11 +33,9 @@
   "bugs": {
     "url": "https://github.com/pnpm/pnpm/issues"
   },
-  "peerDependencies": {
-    "supi": ">=0.24.0 <0.27.0 || 0.24.11-0 || 0.24.13-0 || 0.24.13-1 || 0.24.13-2 || 0.24.13-3 || 0.25.8-0 || 0.25.8-1 || 0.25.8-2 || 0.26.0-0"
-  },
   "dependencies": {
     "@pnpm/config": "2.3.2",
+    "@pnpm/core-loggers": "1.0.0",
     "@pnpm/types": "2.0.0",
     "@types/common-tags": "1.8.0",
     "@types/node": "10.12.15",
@@ -71,7 +69,6 @@
     "normalize-newline": "3.0.0",
     "pnpm-default-reporter": "link:",
     "rimraf": "2.6.2",
-    "supi": "0.26.2",
     "tape": "4.9.1",
     "ts-node": "6.2.0",
     "tslint": "5.11.0",

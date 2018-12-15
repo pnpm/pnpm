@@ -1,10 +1,15 @@
 import { PnpmConfigs } from '@pnpm/config'
+import {
+  DeprecationLog,
+  PackageJsonLog,
+  RootLog,
+  SummaryLog,
+} from '@pnpm/core-loggers'
 import chalk from 'chalk'
 import most = require('most')
 import path = require('path')
 import R = require('ramda')
 import semver = require('semver')
-import * as supi from 'supi'
 import { EOL } from '../constants'
 import {
   ADDED_CHAR,
@@ -17,10 +22,10 @@ import getPkgsDiff, {
 
 export default (
   log$: {
-    deprecation: most.Stream<supi.DeprecationLog>,
-    summary: most.Stream<supi.SummaryLog>,
-    root: most.Stream<supi.RootLog>,
-    packageJson: most.Stream<supi.PackageJsonLog>,
+    deprecation: most.Stream<DeprecationLog>,
+    summary: most.Stream<SummaryLog>,
+    root: most.Stream<RootLog>,
+    packageJson: most.Stream<PackageJsonLog>,
   },
   opts: {
     cwd: string,

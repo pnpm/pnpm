@@ -1,8 +1,8 @@
+import { StatsLog } from '@pnpm/core-loggers'
 import chalk from 'chalk'
 import most = require('most')
 import R = require('ramda')
 import stringLength = require('string-length')
-import * as supi from 'supi'
 import { EOL } from '../constants'
 import {
   ADDED_CHAR,
@@ -12,7 +12,7 @@ import { zoomOut } from './utils/zooming'
 
 export default (
   log$: {
-    stats: most.Stream<supi.StatsLog>,
+    stats: most.Stream<StatsLog>,
   },
   opts: {
     cmd: string,
@@ -46,7 +46,7 @@ export default (
 }
 
 function statsForCurrentPackage (
-  stats$: most.Stream<supi.StatsLog>,
+  stats$: most.Stream<StatsLog>,
   opts: {
     cmd: string,
     currentPrefix: string,
@@ -87,7 +87,7 @@ function statsForCurrentPackage (
 }
 
 function statsForNotCurrentPackage (
-  stats$: most.Stream<supi.StatsLog>,
+  stats$: most.Stream<StatsLog>,
   opts: {
     currentPrefix: string,
     subCmd?: string,

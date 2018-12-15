@@ -98,6 +98,7 @@ importers:
   packages/default-reporter:
     dependencies:
       '@pnpm/config': 'link:../config'
+      '@pnpm/core-loggers': 'link:../core-loggers'
       '@pnpm/types': 'link:../types'
       '@types/common-tags': 1.8.0
       '@types/node': 10.12.15
@@ -130,13 +131,13 @@ importers:
       normalize-newline: 3.0.0
       pnpm-default-reporter: 'link:'
       rimraf: 2.6.2
-      supi: 'link:../supi'
       tape: 4.9.1
       ts-node: 6.2.0
       tslint: /tslint/5.11.0/typescript@3.2.2
       typescript: 3.2.2
     specifiers:
       '@pnpm/config': 2.3.2
+      '@pnpm/core-loggers': 1.0.0
       '@pnpm/logger': 2.1.0
       '@pnpm/tslint-config': 0.0.0
       '@pnpm/types': 2.0.0
@@ -167,7 +168,6 @@ importers:
       string-length: 2.0.0
       string.prototype.padstart: 3.0.0
       strip-ansi: 5.0.0
-      supi: 0.26.2
       tape: 4.9.1
       ts-node: 6.2.0
       tslint: 5.11.0
@@ -604,6 +604,7 @@ importers:
   packages/package-requester:
     dependencies:
       '@pnpm/check-package': 2.0.0
+      '@pnpm/core-loggers': 'link:../core-loggers'
       '@pnpm/fetcher-base': 2.0.0
       '@pnpm/pkgid-to-filename': 2.0.0
       '@pnpm/read-package-json': 1.0.1
@@ -652,6 +653,7 @@ importers:
       typescript: 3.2.2
     specifiers:
       '@pnpm/check-package': 2.0.0
+      '@pnpm/core-loggers': 1.0.0
       '@pnpm/fetcher-base': 2.0.0
       '@pnpm/local-resolver': 1.0.3
       '@pnpm/logger': 2.1.0
@@ -699,6 +701,7 @@ importers:
       write-json-file: 3.0.2
   packages/package-store:
     dependencies:
+      '@pnpm/core-loggers': 'link:../core-loggers'
       '@pnpm/fetcher-base': 2.0.0
       '@pnpm/fs-locker': 1.0.3
       '@pnpm/package-requester': 'link:../package-requester'
@@ -737,6 +740,7 @@ importers:
       tslint: /tslint/5.11.0/typescript@3.2.2
       typescript: 3.2.2
     specifiers:
+      '@pnpm/core-loggers': 1.0.0
       '@pnpm/fetcher-base': 2.0.0
       '@pnpm/fs-locker': 1.0.3
       '@pnpm/logger': 2.1.0

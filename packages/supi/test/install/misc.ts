@@ -1,3 +1,10 @@
+import {
+  PackageJsonLog,
+  ProgressLog,
+  RootLog,
+  StageLog,
+  StatsLog,
+} from '@pnpm/core-loggers'
 import prepare from '@pnpm/prepare'
 import caw = require('caw')
 import crossSpawn = require('cross-spawn')
@@ -16,11 +23,6 @@ import sinon = require('sinon')
 import {
   addDependenciesToPackage,
   install,
-  PackageJsonLog,
-  ProgressLog,
-  RootLog,
-  StageLog,
-  StatsLog,
   uninstall,
 } from 'supi'
 import tape = require('tape')

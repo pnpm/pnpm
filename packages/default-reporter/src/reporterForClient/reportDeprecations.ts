@@ -1,11 +1,11 @@
+import { DeprecationLog } from '@pnpm/core-loggers'
 import chalk from 'chalk'
 import most = require('most')
-import * as supi from 'supi'
 import formatWarn from './utils/formatWarn'
 import { zoomOut } from './utils/zooming'
 
 export default (
-  deprecation$: most.Stream<supi.DeprecationLog>,
+  deprecation$: most.Stream<DeprecationLog>,
   opts: {
     cwd: string,
     isRecursive: boolean,

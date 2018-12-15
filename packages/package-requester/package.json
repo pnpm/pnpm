@@ -35,6 +35,7 @@
   },
   "dependencies": {
     "@pnpm/check-package": "2.0.0",
+    "@pnpm/core-loggers": "1.0.0",
     "@pnpm/fetcher-base": "2.0.0",
     "@pnpm/pkgid-to-filename": "2.0.0",
     "@pnpm/read-package-json": "1.0.1",

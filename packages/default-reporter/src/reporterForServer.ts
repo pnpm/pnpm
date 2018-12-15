@@ -1,6 +1,6 @@
+import { Log } from '@pnpm/core-loggers'
 import chalk from 'chalk'
 import most = require('most')
-import { Log } from 'supi'
 import reportError from './reportError'
 
 export default function (

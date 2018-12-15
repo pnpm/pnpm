@@ -2,12 +2,15 @@ import baseLogger, {
   LogBase,
   Logger,
 } from '@pnpm/logger'
-import { LoggedPkg } from '@pnpm/store-controller-types'
 
 export const progressLogger = baseLogger('progress') as Logger<ProgressMessage> // tslint:disable-line
 
-// Not all of this message types are used in this project
-// some of them can be removed
+export interface LoggedPkg {
+  rawSpec: string,
+  name?: string, // sometimes known for the root dependency on named installation
+  dependentId?: string,
+}
+
 export type ProgressMessage = {
   pkgId: string,
   pkg: LoggedPkg,
@@ -24,8 +27,16 @@ export type ProgressMessage = {
   pkgId: string,
   status: 'fetching_progress',
   downloaded: number,
+} | {
+  pkg: LoggedPkg,
+  status: 'installing',
+} | {
+  status: 'downloaded_manifest',
+  pkgId: string,
+  pkgVersion: string,
+} | {
+  pkgId: string,
+  status: 'fetched' | 'found_in_store' | 'resolving_content',
 }
 
 export type ProgressLog = {name: 'pnpm:progress'} & LogBase & ProgressMessage
-
-export type Log = ProgressLog

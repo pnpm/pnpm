@@ -1,13 +1,13 @@
+import { CliLog, ProgressLog, StageLog } from '@pnpm/core-loggers'
 import most = require('most')
 import R = require('ramda')
-import * as supi from 'supi'
 import { hlValue } from './outputConstants'
 
 export default (
   log$: {
-    progress: most.Stream<supi.ProgressLog>,
-    cli: most.Stream<supi.Log>,
-    stage: most.Stream<supi.StageLog>,
+    progress: most.Stream<ProgressLog>,
+    cli: most.Stream<CliLog>,
+    stage: most.Stream<StageLog>,
   },
   opts: {
     cmd: string,
@@ -65,7 +65,7 @@ export default (
   if (typeof opts.throttleProgress === 'number' && opts.throttleProgress > 0) {
     const resolutionStarted$ = log$.stage
       .filter((log) => log.message === 'resolution_started' || log.message === 'importing_started').take(1)
-    const commandDone$ = log$.cli.filter((log) => log['message'] === 'command_done')
+    const commandDone$ = log$.cli.filter((log) => log.message === 'command_done')
 
     // Reporting is done every `throttleProgress` milliseconds
     // and once all packages are fetched.

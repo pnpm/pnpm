@@ -1,6 +1,6 @@
+import { ProgressLog } from '@pnpm/core-loggers'
 import most = require('most')
 import prettyBytes = require('pretty-bytes')
-import * as supi from 'supi'
 import {
   hlPkgId,
   hlValue,
@@ -10,7 +10,7 @@ const BIG_TARBALL_SIZE = 1024 * 1024 * 5 // 5 MB
 
 export default (
   log$: {
-    progress: most.Stream<supi.ProgressLog>,
+    progress: most.Stream<ProgressLog>,
   },
 ) => {
   return log$.progress

@@ -1,3 +1,8 @@
+import {
+  PackageJsonLog,
+  RootLog,
+  StatsLog,
+} from '@pnpm/core-loggers'
 import prepare, { preparePackages } from '@pnpm/prepare'
 import { Shrinkwrap } from '@pnpm/shrinkwrap-file'
 import existsSymlink = require('exists-link')
@@ -11,9 +16,6 @@ import {
   addDependenciesToPackage,
   link,
   mutateModules,
-  PackageJsonLog,
-  RootLog,
-  StatsLog,
   storePrune,
   uninstall,
 } from 'supi'

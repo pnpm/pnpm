@@ -19,6 +19,7 @@
     "@pnpm/logger": "^2.1.0"
   },
   "dependencies": {
+    "@pnpm/core-loggers": "1.0.0",
     "@pnpm/fetcher-base": "2.0.0",
     "@pnpm/fs-locker": "1.0.3",
     "@pnpm/package-requester": "4.1.11",

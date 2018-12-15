@@ -1,6 +1,5 @@
 import baseLogger, {
   LogBase,
-  Logger,
 } from '@pnpm/logger'
 
 export const importingLogger = baseLogger('importing')

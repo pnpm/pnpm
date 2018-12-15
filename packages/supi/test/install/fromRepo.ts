@@ -1,3 +1,4 @@
+import { RootLog } from '@pnpm/core-loggers'
 import prepare from '@pnpm/prepare'
 import isCI = require('is-ci')
 import path = require('path')
@@ -7,7 +8,6 @@ import sinon = require('sinon')
 import {
   addDependenciesToPackage,
   install,
-  RootLog,
 } from 'supi'
 import tape = require('tape')
 import promisifyTape from 'tape-promise'

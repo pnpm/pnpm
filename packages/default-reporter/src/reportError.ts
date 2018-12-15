@@ -1,8 +1,8 @@
+import { Log } from '@pnpm/core-loggers'
 import chalk from 'chalk'
 import commonTags = require('common-tags')
 import R = require('ramda')
 import StackTracey = require('stacktracey')
-import { Log } from 'supi'
 import { EOL } from './constants'
 
 StackTracey.maxColumnWidths = {

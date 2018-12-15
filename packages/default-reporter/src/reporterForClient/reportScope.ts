@@ -1,3 +1,4 @@
+import { ScopeLog } from '@pnpm/core-loggers'
 import most = require('most')
 
 const COMMANDS_THAT_REPORT_SCOPE = new Set([
@@ -13,7 +14,7 @@ const COMMANDS_THAT_REPORT_SCOPE = new Set([
 ])
 
 export default (
-  scope$: most.Stream<{ selected: number, total?: number, workspacePrefix?: string }>,
+  scope$: most.Stream<ScopeLog>,
   opts: {
     isRecursive: boolean,
     cmd: string,

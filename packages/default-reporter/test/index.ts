@@ -1,5 +1,17 @@
 ///<reference path="../typings/index.d.ts"/>
 import { PnpmConfigs } from '@pnpm/config'
+import {
+  deprecationLogger,
+  hookLogger,
+  lifecycleLogger,
+  packageJsonLogger,
+  progressLogger,
+  rootLogger,
+  skippedOptionalDependencyLogger,
+  stageLogger,
+  statsLogger,
+  summaryLogger,
+} from '@pnpm/core-loggers'
 import logger, {
   createStreamParser,
 } from '@pnpm/logger'
@@ -29,16 +41,6 @@ const POSTINSTALL = hlValue('postinstall')
 const PREINSTALL = hlValue(' preinstall')
 const INSTALL = hlValue('    install')
 
-const progressLogger = logger<object>('progress')
-const stageLogger = logger<string>('stage')
-const rootLogger = logger<object>('root')
-const deprecationLogger = logger<object>('deprecation')
-const summaryLogger = logger<object>('summary')
-const lifecycleLogger = logger<object>('lifecycle')
-const packageJsonLogger = logger<object>('package-json')
-const statsLogger = logger<object>('stats')
-const hookLogger = logger<object>('hook')
-const skippedOptionalDependencyLogger = logger<object>('skipped-optional-dependency')
 const EOL = '\n'
 
 test('prints progress beginning', t => {
@@ -222,6 +224,9 @@ test('prints summary (of current package only)', t => {
   statsLogger.debug({ removed: 1, prefix: `${prefix}/packages/foo` })
   packageJsonLogger.debug({
     initial: {
+      name: 'foo',
+      version: '1.0.0',
+
       dependencies: {
         'is-13': '^1.0.0',
       },
@@ -245,6 +250,7 @@ test('prints summary (of current package only)', t => {
       id: 'registry.npmjs.org/foo/1.0.0',
       latest: '2.0.0',
       name: 'foo',
+      realName: 'foo',
       version: '1.0.0',
     },
     prefix,
@@ -255,6 +261,7 @@ test('prints summary (of current package only)', t => {
       id: 'registry.npmjs.org/bar/2.0.0',
       latest: '1.0.0', // this won't be printed in summary because latest is less than current version
       name: 'bar',
+      realName: 'bar',
       version: '2.0.0',
     },
     prefix,
@@ -272,6 +279,7 @@ test('prints summary (of current package only)', t => {
       dependencyType: 'dev',
       id: 'registry.npmjs.org/qar/2.0.0',
       name: 'qar',
+      realName: 'qar',
       version: '2.0.0',
     },
     prefix,
@@ -282,6 +290,7 @@ test('prints summary (of current package only)', t => {
       dependencyType: 'optional',
       id: 'registry.npmjs.org/lala/2.0.0',
       name: 'lala',
+      realName: 'lala',
       version: '2.0.0',
     },
     prefix: `${prefix}/packages/foo`,
@@ -291,6 +300,7 @@ test('prints summary (of current package only)', t => {
       dependencyType: 'optional',
       id: 'registry.npmjs.org/lala/1.1.0',
       name: 'lala',
+      realName: 'lala',
       version: '1.1.0',
     },
     prefix,
@@ -397,6 +407,7 @@ test('prints summary for global installation', t => {
       id: 'registry.npmjs.org/foo/1.0.0',
       latest: '2.0.0',
       name: 'foo',
+      realName: 'foo',
       version: '1.0.0',
     },
     prefix,
@@ -407,6 +418,7 @@ test('prints summary for global installation', t => {
       id: 'registry.npmjs.org/bar/2.0.0',
       latest: '1.0.0', // this won't be printed in summary because latest is less than current version
       name: 'bar',
+      realName: 'bar',
       version: '2.0.0',
     },
     prefix,
@@ -453,6 +465,9 @@ test('prints summary correctly when the same package is specified both in option
 
   packageJsonLogger.debug({
     initial: {
+      name: 'foo',
+      version: '1.0.0',
+
       dependencies: {
         bar: '^2.0.0',
         foo: '^1.0.0',
@@ -468,6 +483,7 @@ test('prints summary correctly when the same package is specified both in option
       dependencyType: 'prod',
       id: 'registry.npmjs.org/bar/2.0.0',
       name: 'bar',
+      realName: 'bar',
       version: '2.0.0',
     },
     prefix,
@@ -507,70 +523,82 @@ test('groups lifecycle output', t => {
   })
 
   const pkgId = 'registry.npmjs.org/foo/1.0.0'
+  const wd = process.cwd()
 
   lifecycleLogger.debug({
     depPath: 'registry.npmjs.org/foo/1.0.0',
     script: 'node foo',
     stage: 'preinstall',
     stdio: 'stdout',
+    wd,
   })
   lifecycleLogger.debug({
     depPath: 'registry.npmjs.org/foo/1.0.0',
     line: 'foo 0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20',
     stage: 'preinstall',
     stdio: 'stdout',
+    wd,
   })
   lifecycleLogger.debug({
     depPath: 'registry.npmjs.org/foo/1.0.0',
     script: 'node foo',
     stage: 'postinstall',
     stdio: 'stdout',
+    wd,
   })
   lifecycleLogger.debug({
     depPath: 'registry.npmjs.org/foo/1.0.0',
     line: 'foo I',
     stage: 'postinstall',
     stdio: 'stdout',
+    wd,
   })
   lifecycleLogger.debug({
     depPath: 'registry.npmjs.org/bar/1.0.0',
     script: 'node bar',
     stage: 'postinstall',
     stdio: 'stdout',
+    wd,
   })
   lifecycleLogger.debug({
     depPath: 'registry.npmjs.org/bar/1.0.0',
     line: 'bar I',
     stage: 'postinstall',
     stdio: 'stdout',
+    wd,
   })
   lifecycleLogger.debug({
     depPath: 'registry.npmjs.org/foo/1.0.0',
     line: 'foo II',
     stage: 'postinstall',
     stdio: 'stdout',
+    wd,
   })
   lifecycleLogger.debug({
     depPath: 'registry.npmjs.org/foo/1.0.0',
     line: 'foo III',
     stage: 'postinstall',
     stdio: 'stdout',
+    wd,
   })
   lifecycleLogger.debug({
     depPath: 'registry.npmjs.org/qar/1.0.0',
     script: 'node qar',
     stage: 'install',
     stdio: 'stdout',
+    wd,
   })
   lifecycleLogger.debug({
     depPath: 'registry.npmjs.org/qar/1.0.0',
     exitCode: 0,
     stage: 'install',
+    wd,
   })
   lifecycleLogger.debug({
     depPath: 'registry.npmjs.org/foo/1.0.0',
     exitCode: 0,
     stage: 'postinstall',
+    wd,
   })
 
   t.plan(1)
@@ -605,28 +633,36 @@ test['skip']('prints lifecycle progress', t => {
     streamParser: createStreamParser(),
   })
 
-  const pkgId = 'registry.npmjs.org/foo/1.0.0'
+  const wd = process.cwd()
 
   lifecycleLogger.debug({
+    depPath: 'registry.npmjs.org/foo/1.0.0',
     line: 'foo I',
-    pkgId: 'registry.npmjs.org/foo/1.0.0',
     script: 'postinstall',
+    stage: 'postinstall',
+    wd,
   })
   lifecycleLogger.debug({
+    depPath: 'registry.npmjs.org/bar/1.0.0',
     line: 'bar I',
-    pkgId: 'registry.npmjs.org/bar/1.0.0',
     script: 'postinstall',
+    stage: 'postinstall',
+    wd,
   })
   lifecycleLogger.debug({
+    depPath: 'registry.npmjs.org/foo/1.0.0',
     line: 'foo II',
-    pkgId: 'registry.npmjs.org/foo/1.0.0',
     script: 'postinstall',
+    stage: 'postinstall',
     stdio: 'stderr',
+    wd,
   })
   lifecycleLogger.debug({
+    depPath: 'registry.npmjs.org/foo/1.0.0',
     line: 'foo III',
-    pkgId: 'registry.npmjs.org/foo/1.0.0',
     script: 'postinstall',
+    stage: 'postinstall',
+    wd,
   })
 
   t.plan(1)

@@ -18,7 +18,6 @@ import resolveDependencies, {
 } from './resolveDependencies'
 
 export { LinkedDependency, ResolvedPackage, DependenciesTree, DependenciesTreeNode } from './resolveDependencies'
-export { InstallCheckLog, DeprecationLog } from './loggers'
 
 export interface Importer {
   usesExternalShrinkwrap: boolean,

@@ -1,8 +1,8 @@
 import { PnpmConfigs } from '@pnpm/config'
+import * as logs from '@pnpm/core-loggers'
 import createDiffer = require('ansi-diff')
 import cliCursor = require('cli-cursor')
 import most = require('most')
-import * as supi from 'supi'
 import PushStream = require('zen-push')
 import { EOL } from './constants'
 import mergeOutputs from './mergeOutputs'
@@ -24,7 +24,7 @@ export default function (
   },
 ) {
   if (opts.context.argv[0] === 'server') {
-    const log$ = most.fromEvent<supi.Log>('data', opts.streamParser)
+    const log$ = most.fromEvent<logs.Log>('data', opts.streamParser)
     reporterForServer(log$)
     return
   }
@@ -87,8 +87,8 @@ export function toOutput$ (
   const skippedOptionalDependencyPushStream = new PushStream()
   const scopePushStream = new PushStream()
   setTimeout(() => { // setTimeout is a workaround for a strange bug in most https://github.com/cujojs/most/issues/491
-    opts.streamParser['on']('data', (log: supi.Log) => {
-      switch (log.name as string) { // TODO: remove "as string"
+    opts.streamParser['on']('data', (log: logs.Log) => {
+      switch (log.name) {
         case 'pnpm:progress':
           progressPushStream.next(log)
           break
@@ -119,13 +119,13 @@ export function toOutput$ (
         case 'pnpm:package-json':
           packageJsonPushStream.next(log)
           break
-        case 'pnpm:link' as any: // tslint:disable-line
+        case 'pnpm:link':
           linkPushStream.next(log)
           break
-        case 'pnpm:cli' as any: // tslint:disable-line
+        case 'pnpm:cli':
           cliPushStream.next(log)
           break
-        case 'pnpm:hook' as any: // tslint:disable-line
+        case 'pnpm:hook':
           hookPushStream.next(log)
           break
         case 'pnpm:skipped-optional-dependency':
@@ -143,22 +143,22 @@ export function toOutput$ (
     })
   }, 0)
   const log$ = {
-    cli: most.from<supi.Log>(cliPushStream.observable),
-    deprecation: most.from<supi.DeprecationLog>(deprecationPushStream.observable),
-    hook: most.from<supi.Log>(hookPushStream.observable),
-    installCheck: most.from<supi.InstallCheckLog>(installCheckPushStream.observable),
-    lifecycle: most.from<supi.LifecycleLog>(lifecyclePushStream.observable),
-    link: most.from<supi.Log>(linkPushStream.observable),
-    other: most.from<supi.Log>(otherPushStream.observable),
-    packageJson: most.from<supi.PackageJsonLog>(packageJsonPushStream.observable),
-    progress: most.from<supi.ProgressLog>(progressPushStream.observable),
-    registry: most.from<supi.RegistryLog>(registryPushStream.observable),
-    root: most.from<supi.RootLog>(rootPushStream.observable),
-    scope: most.from<{ selected: number, total?: number, workspacePrefix?: string }>(scopePushStream.observable),
-    skippedOptionalDependency: most.from<supi.SkippedOptionalDependencyLog>(skippedOptionalDependencyPushStream.observable),
-    stage: most.from<supi.StageLog>(stagePushStream.observable),
-    stats: most.from<supi.StatsLog>(statsPushStream.observable),
-    summary: most.from<supi.SummaryLog>(summaryPushStream.observable),
+    cli: most.from<logs.CliLog>(cliPushStream.observable),
+    deprecation: most.from<logs.DeprecationLog>(deprecationPushStream.observable),
+    hook: most.from<logs.HookLog>(hookPushStream.observable),
+    installCheck: most.from<logs.InstallCheckLog>(installCheckPushStream.observable),
+    lifecycle: most.from<logs.LifecycleLog>(lifecyclePushStream.observable),
+    link: most.from<logs.LinkLog>(linkPushStream.observable),
+    other: most.from<logs.Log>(otherPushStream.observable),
+    packageJson: most.from<logs.PackageJsonLog>(packageJsonPushStream.observable),
+    progress: most.from<logs.ProgressLog>(progressPushStream.observable),
+    registry: most.from<logs.RegistryLog>(registryPushStream.observable),
+    root: most.from<logs.RootLog>(rootPushStream.observable),
+    scope: most.from<logs.ScopeLog>(scopePushStream.observable),
+    skippedOptionalDependency: most.from<logs.SkippedOptionalDependencyLog>(skippedOptionalDependencyPushStream.observable),
+    stage: most.from<logs.StageLog>(stagePushStream.observable),
+    stats: most.from<logs.StatsLog>(statsPushStream.observable),
+    summary: most.from<logs.SummaryLog>(summaryPushStream.observable),
   }
   const outputs: Array<most.Stream<most.Stream<{msg: string}>>> = reporterForClient(
     log$,

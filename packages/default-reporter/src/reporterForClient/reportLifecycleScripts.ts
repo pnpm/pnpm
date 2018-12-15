@@ -1,9 +1,9 @@
+import { LifecycleLog } from '@pnpm/core-loggers'
 import chalk from 'chalk'
 import most = require('most')
 import rightPad = require('right-pad')
 import padStart = require('string.prototype.padstart')
 import stripAnsi = require('strip-ansi')
-import * as supi from 'supi'
 import PushStream = require('zen-push')
 import { EOL } from '../constants'
 import {
@@ -14,7 +14,7 @@ import formatPrefix from './utils/formatPrefix'
 
 export default (
   log$: {
-    lifecycle: most.Stream<supi.LifecycleLog>,
+    lifecycle: most.Stream<LifecycleLog>,
   },
   opts: {
     appendOnly?: boolean,
@@ -28,7 +28,7 @@ export default (
   if (opts.appendOnly) {
     return most.of(
       log$.lifecycle
-        .map((log: supi.LifecycleLog) => ({ msg: formatLifecycle(opts.cwd, log) })),
+        .map((log: LifecycleLog) => ({ msg: formatLifecycle(opts.cwd, log) })),
     )
   }
   const lifecycleMessages: {
@@ -48,7 +48,7 @@ export default (
 
   // TODO: handle promise of .forEach?!
   log$.lifecycle // tslint:disable-line
-    .forEach((log: supi.LifecycleLog) => {
+    .forEach((log: LifecycleLog) => {
       const key = `${log.stage}:${log.depPath}`
       lifecycleMessages[key] = lifecycleMessages[key] || { output: [] }
       if (log['script']) {
@@ -81,7 +81,7 @@ const ANSI_ESCAPES_LENGTH_OF_PREFIX = hlValue(' ').length - 1
 function formatLifecycleHideOverflow (
   maxWidth: number,
   cwd: string,
-  logObj: supi.LifecycleLog,
+  logObj: LifecycleLog,
 ) {
   const prefix = `${
     logObj.wd === logObj.depPath
@@ -99,7 +99,7 @@ function formatLifecycleHideOverflow (
   return `${prefix}: ${line}`
 }
 
-function formatLine (maxWidth: number, logObj: supi.LifecycleLog) {
+function formatLine (maxWidth: number, logObj: LifecycleLog) {
   if (typeof logObj['exitCode'] === 'number') return chalk.red(`Exited with ${logObj['exitCode']}`)
 
   const line = stripAnsi(logObj['line']).substr(0, maxWidth)

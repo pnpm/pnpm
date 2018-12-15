@@ -6,9 +6,4 @@ export {
 
 export default packageRequester
 
-export {
-  ProgressLog,
-  Log,
-} from './loggers'
-
 export { PackageResponse, PackageFilesResponse } from '@pnpm/store-controller-types'

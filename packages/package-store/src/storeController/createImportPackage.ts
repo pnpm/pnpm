@@ -1,3 +1,4 @@
+import { importingLogger } from '@pnpm/core-loggers'
 import { storeLogger } from '@pnpm/logger'
 import {
   ImportPackageFunction,
@@ -14,7 +15,6 @@ import pathTemp = require('path-temp')
 import renameOverwrite = require('rename-overwrite')
 import promisify = require('util.promisify')
 import linkIndexedDir from '../fs/linkIndexedDir'
-import { importingLogger } from '../loggers'
 
 const execFilePromise = promisify(child_process.execFile)
 const ncp = promisify(ncpCB)

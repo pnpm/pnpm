@@ -1,3 +1,4 @@
+import { LifecycleLog } from '@pnpm/core-loggers'
 import prepare from '@pnpm/prepare'
 import loadJsonFile from 'load-json-file'
 import path = require('path')
@@ -8,7 +9,6 @@ import sinon = require('sinon')
 import {
   addDependenciesToPackage,
   install,
-  LifecycleLog,
 } from 'supi'
 import tape = require('tape')
 import promisifyTape from 'tape-promise'

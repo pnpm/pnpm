@@ -1,8 +1,8 @@
+import { SkippedOptionalDependencyLog } from '@pnpm/core-loggers'
 import most = require('most')
-import * as supi from 'supi'
 
 export default (
-  skippedOptionalDependency$: most.Stream<supi.SkippedOptionalDependencyLog>,
+  skippedOptionalDependency$: most.Stream<SkippedOptionalDependencyLog>,
   opts: {
     cwd: string,
   }

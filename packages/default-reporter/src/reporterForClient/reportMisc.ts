@@ -1,22 +1,21 @@
+import { LinkLog, Log, RegistryLog } from '@pnpm/core-loggers'
 import most = require('most')
 import os = require('os')
-import * as supi from 'supi'
 import reportError from '../reportError'
 import formatWarn from './utils/formatWarn'
 import { autozoom } from './utils/zooming'
 
 export default (
   log$: {
-    registry: most.Stream<supi.RegistryLog>,
-    link: most.Stream<supi.Log>,
-    other: most.Stream<supi.Log>,
+    registry: most.Stream<RegistryLog>,
+    other: most.Stream<Log>,
   },
   opts: {
     cwd: string,
     zoomOutCurrent: boolean,
   },
 ) => {
-  return most.merge(log$.link, log$.registry, log$.other)
+  return most.merge(log$.registry, log$.other)
     .filter((obj) => obj.level !== 'debug' && (obj.level !== 'info' || !obj['prefix'] || obj['prefix'] === opts.cwd))
     .map((obj) => {
       switch (obj.level) {

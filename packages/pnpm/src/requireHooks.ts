@@ -1,3 +1,4 @@
+import { hookLogger } from '@pnpm/core-loggers'
 import logger from '@pnpm/logger'
 import path = require('path')
 import pathAbsolute = require('path-absolute')
@@ -49,9 +50,8 @@ export default function requireHooks (
 }
 
 function createReadPackageHookContext (calledFrom: string, prefix: string, hook: string) {
-  const readPackageHookLogger = logger('hook')
   return {
-    log: (message: string) => readPackageHookLogger.debug({
+    log: (message: string) => hookLogger.debug({
       from: calledFrom,
       hook,
       message,

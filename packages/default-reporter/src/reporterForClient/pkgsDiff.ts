@@ -1,7 +1,7 @@
+import * as logs from '@pnpm/core-loggers'
 import { PackageJson } from '@pnpm/types'
 import most = require('most')
 import R = require('ramda')
-import * as supi from 'supi'
 
 export interface PackageDiff {
   added: boolean,
@@ -26,10 +26,10 @@ export const propertyByDependencyType = {
 
 export default function (
   log$: {
-    deprecation: most.Stream<supi.DeprecationLog>,
-    summary: most.Stream<supi.SummaryLog>,
-    root: most.Stream<supi.RootLog>,
-    packageJson: most.Stream<supi.PackageJsonLog>,
+    deprecation: most.Stream<logs.DeprecationLog>,
+    summary: most.Stream<logs.SummaryLog>,
+    root: most.Stream<logs.RootLog>,
+    packageJson: most.Stream<logs.PackageJsonLog>,
   },
   opts: {
     prefix: string,

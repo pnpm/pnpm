@@ -1,8 +1,8 @@
+import { DeprecationLog } from '@pnpm/core-loggers'
 import prepare from '@pnpm/prepare'
 import sinon = require('sinon')
 import {
   addDependenciesToPackage,
-  DeprecationLog,
 } from 'supi'
 import tape = require('tape')
 import promisifyTape from 'tape-promise'

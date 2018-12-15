@@ -1,3 +1,4 @@
+import { RootLog } from '@pnpm/core-loggers'
 import prepare, { preparePackages } from '@pnpm/prepare'
 import { fromDir as readPackageJsonFromDir } from '@pnpm/read-package-json'
 import { Shrinkwrap } from '@pnpm/shrinkwrap-file'
@@ -15,7 +16,6 @@ import {
   addDependenciesToPackage,
   install,
   mutateModules,
-  RootLog,
   uninstall,
 } from 'supi'
 import tape = require('tape')

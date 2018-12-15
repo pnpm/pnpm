@@ -1,3 +1,4 @@
+import { RootLog } from '@pnpm/core-loggers'
 import prepare from '@pnpm/prepare'
 import path = require('path')
 import readPkg = require('read-pkg')
@@ -7,7 +8,6 @@ import {
   install,
   link,
   mutateModules,
-  RootLog,
 } from 'supi'
 import tape = require('tape')
 import promisifyTape from 'tape-promise'

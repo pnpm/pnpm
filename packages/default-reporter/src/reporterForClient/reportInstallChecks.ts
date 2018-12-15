@@ -1,10 +1,10 @@
+import { InstallCheckLog } from '@pnpm/core-loggers'
 import most = require('most')
-import * as supi from 'supi'
 import formatWarn from './utils/formatWarn'
 import { autozoom } from './utils/zooming'
 
 export default (
-  installCheck$: most.Stream<supi.InstallCheckLog>,
+  installCheck$: most.Stream<InstallCheckLog>,
   opts: {
     cwd: string,
   }
@@ -18,7 +18,7 @@ export default (
 
 function formatInstallCheck (
   currentPrefix: string,
-  logObj: supi.InstallCheckLog,
+  logObj: InstallCheckLog,
   opts: {
     zoomOutCurrent: boolean,
   },

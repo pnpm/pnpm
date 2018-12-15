@@ -1,6 +1,6 @@
 import { PnpmConfigs } from '@pnpm/config'
+import * as logs from '@pnpm/core-loggers'
 import most = require('most')
-import * as supi from 'supi'
 import reportBigTarballsProgress from './reportBigTarballsProgress'
 import reportDeprecations from './reportDeprecations'
 import reportHooks from './reportHooks'
@@ -15,22 +15,22 @@ import reportSummary from './reportSummary'
 
 export default function (
   log$: {
-    progress: most.Stream<supi.ProgressLog>,
-    stage: most.Stream<supi.StageLog>,
-    deprecation: most.Stream<supi.DeprecationLog>,
-    summary: most.Stream<supi.SummaryLog>,
-    lifecycle: most.Stream<supi.LifecycleLog>,
-    stats: most.Stream<supi.StatsLog>,
-    installCheck: most.Stream<supi.InstallCheckLog>,
-    registry: most.Stream<supi.RegistryLog>,
-    root: most.Stream<supi.RootLog>,
-    packageJson: most.Stream<supi.PackageJsonLog>,
-    link: most.Stream<supi.Log>,
-    other: most.Stream<supi.Log>,
-    cli: most.Stream<supi.Log>,
-    hook: most.Stream<supi.Log>,
-    scope: most.Stream<{ selected: number, total?: number, workspacePrefix?: string }>,
-    skippedOptionalDependency: most.Stream<supi.SkippedOptionalDependencyLog>,
+    progress: most.Stream<logs.ProgressLog>,
+    stage: most.Stream<logs.StageLog>,
+    deprecation: most.Stream<logs.DeprecationLog>,
+    summary: most.Stream<logs.SummaryLog>,
+    lifecycle: most.Stream<logs.LifecycleLog>,
+    stats: most.Stream<logs.StatsLog>,
+    installCheck: most.Stream<logs.InstallCheckLog>,
+    registry: most.Stream<logs.RegistryLog>,
+    root: most.Stream<logs.RootLog>,
+    packageJson: most.Stream<logs.PackageJsonLog>,
+    link: most.Stream<logs.LinkLog>,
+    other: most.Stream<logs.Log>,
+    cli: most.Stream<logs.CliLog>,
+    hook: most.Stream<logs.HookLog>,
+    scope: most.Stream<logs.ScopeLog>,
+    skippedOptionalDependency: most.Stream<logs.SkippedOptionalDependencyLog>,
   },
   opts: {
     isRecursive: boolean,
