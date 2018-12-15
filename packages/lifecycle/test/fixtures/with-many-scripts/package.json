@@ -1,0 +1,10 @@
+{
+  "name": "with-many-scripts",
+  "version": "1.0.0",
+  "scripts": {
+    "prepare": "node -e \"process.stdout.write('prepare')\" | json-append output.json",
+    "preinstall": "node -e \"process.stdout.write('preinstall')\" | json-append output.json",
+    "install": "node -e \"process.stdout.write('install')\" | json-append output.json",
+    "postinstall": "node -e \"process.stdout.write('postinstall')\" | json-append output.json"
+  }
+}

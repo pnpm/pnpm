@@ -1,0 +1,7 @@
+{
+  "name": "simple",
+  "version": "1.0.0",
+  "scripts": {
+    "postinstall": "rimraf output.json && node -e \"process.stdout.write('install')\" | json-append output.json"
+  }
+}
