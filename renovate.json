@@ -12,6 +12,7 @@
     "@pnpm/git-fetcher",
     "@pnpm/git-resolver",
     "@pnpm/headless",
+    "@pnpm/lifecycle",
     "@pnpm/local-resolver",
     "@pnpm/logger",
     "@pnpm/modules-cleaner",
