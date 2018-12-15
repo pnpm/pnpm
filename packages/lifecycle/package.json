@@ -43,7 +43,7 @@
     "@pnpm/lifecycle": "link:",
     "@pnpm/logger": "2.1.0",
     "@types/load-json-file": "2.0.7",
-    "@types/node": "10.12.3",
+    "@types/node": "10.12.15",
     "@types/rimraf": "2.0.2",
     "@types/tape": "4.2.32",
     "json-append": "1.1.1",
