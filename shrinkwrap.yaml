@@ -325,7 +325,7 @@ importers:
     dependencies:
       '@pnpm/core-loggers': 'link:../core-loggers'
       '@pnpm/filter-shrinkwrap': 'link:../filter-shrinkwrap'
-      '@pnpm/lifecycle': /@pnpm/lifecycle/3.0.2/@pnpm!logger@2.1.0
+      '@pnpm/lifecycle': 'link:../lifecycle'
       '@pnpm/link-bins': 3.0.2
       '@pnpm/modules-cleaner': 'link:../modules-cleaner'
       '@pnpm/modules-yaml': 'link:../modules-yaml'
@@ -433,6 +433,48 @@ importers:
       ts-node: 6.2.0
       tslint: 5.11.0
       typescript: 3.2.2
+  packages/lifecycle:
+    dependencies:
+      '@pnpm/read-package-json': 1.0.1
+      '@pnpm/types': 'link:../types'
+      '@zkochan/npm-lifecycle': 2.1.1
+      path-exists: 3.0.0
+    devDependencies:
+      '@pnpm/lifecycle': 'link:'
+      '@pnpm/logger': 2.1.0
+      '@types/load-json-file': 2.0.7
+      '@types/node': 10.12.3
+      '@types/rimraf': 2.0.2
+      '@types/tape': 4.2.32
+      json-append: 1.1.1
+      load-json-file: 5.1.0
+      mos: 2.0.0-alpha.3
+      mos-plugin-readme: 1.0.4
+      rimraf: 2.6.2
+      tape: 4.9.1
+      ts-node: 7.0.1
+      tslint: /tslint/5.11.0/typescript@3.2.2
+      typescript: 3.2.1
+    specifiers:
+      '@pnpm/lifecycle': 'link:.'
+      '@pnpm/logger': 2.1.0
+      '@pnpm/read-package-json': ^1.0.0
+      '@pnpm/types': ^2.0.0
+      '@types/load-json-file': 2.0.7
+      '@types/node': 10.12.3
+      '@types/rimraf': 2.0.2
+      '@types/tape': 4.2.32
+      '@zkochan/npm-lifecycle': 2.1.1
+      json-append: 1.1.1
+      load-json-file: 5.1.0
+      mos: 2.0.0-alpha.3
+      mos-plugin-readme: 1.0.4
+      path-exists: ^3.0.0
+      rimraf: 2.6.2
+      tape: 4.9.1
+      ts-node: 7.0.1
+      tslint: 5.11.0
+      typescript: 3.2.1
   packages/list:
     dependencies:
       '@pnpm/read-package-json': 1.0.1
@@ -784,7 +826,7 @@ importers:
       '@pnpm/default-fetcher': 'link:../default-fetcher'
       '@pnpm/default-reporter': 'link:../default-reporter'
       '@pnpm/default-resolver': 'link:../default-resolver'
-      '@pnpm/lifecycle': /@pnpm/lifecycle/3.0.2/@pnpm!logger@2.1.0
+      '@pnpm/lifecycle': 'link:../lifecycle'
       '@pnpm/logger': 2.1.0
       '@pnpm/outdated': 'link:../outdated'
       '@pnpm/package-store': 'link:../package-store'
@@ -1351,7 +1393,7 @@ importers:
       '@pnpm/filter-shrinkwrap': 'link:../filter-shrinkwrap'
       '@pnpm/fs-locker': 1.0.3
       '@pnpm/headless': 'link:../headless'
-      '@pnpm/lifecycle': /@pnpm/lifecycle/3.0.2/@pnpm!logger@2.1.0
+      '@pnpm/lifecycle': 'link:../lifecycle'
       '@pnpm/link-bins': 3.0.2
       '@pnpm/modules-cleaner': 'link:../modules-cleaner'
       '@pnpm/modules-yaml': 'link:../modules-yaml'
@@ -2024,21 +2066,6 @@ packages:
       node: '>=6'
     resolution:
       integrity: sha512-bEdhn+Be2+2wYa50M3c7gU4qK5BcgfZ14x8sx9bduPjWwTEAqVDbLX9UBuUBE5jNPbrJkrpCC6ewJI78xWdlAQ==
-  /@pnpm/lifecycle/3.0.2/@pnpm!logger@2.1.0:
-    dependencies:
-      '@pnpm/logger': 2.1.0
-      '@pnpm/read-package-json': 1.0.1
-      '@pnpm/types': 2.0.0
-      '@zkochan/npm-lifecycle': 2.1.1
-      path-exists: 3.0.0
-    dev: false
-    engines:
-      node: '>=6'
-    id: registry.npmjs.org/@pnpm/lifecycle/3.0.2
-    peerDependencies:
-      '@pnpm/logger': ^1.0.0 || ^2.0.0
-    resolution:
-      integrity: sha512-DiQZe/EwRUKQRqSllLn27qaSe0R3P5FtJwxMHy52BucpdP9rJJhhh7aDO7SUhrxvsX6CePuuZG+g4Byp2QV4VA==
   /@pnpm/link-bins/3.0.2:
     dependencies:
       '@pnpm/package-bins': 2.0.0
@@ -2329,6 +2356,10 @@ packages:
   /@types/node/10.12.15:
     resolution:
       integrity: sha512-9kROxduaN98QghwwHmxXO2Xz3MaWf+I1sLVAA6KJDF5xix+IyXVhds0MAfdNwtcpSrzhaTsNB0/jnL86fgUhqA==
+  /@types/node/10.12.3:
+    dev: true
+    resolution:
+      integrity: sha512-sfGmOtSMSbQ/AKG8V9xD1gmjquC9awIIZ/Kj309pHb2n3bcRAcGMQv5nJ6gCXZVsneGE4+ve8DXKRCsrg3TFzg==
   /@types/node/8.10.38:
     dev: false
     resolution:
@@ -6013,6 +6044,13 @@ packages:
     hasBin: true
     resolution:
       integrity: sha1-RsP+yMGJKxKwgz25vHYiF226s0s=
+  /json-append/1.1.1:
+    dependencies:
+      concat-stream: 1.6.2
+    dev: true
+    hasBin: true
+    resolution:
+      integrity: sha1-Pnu6YqBHvzHJjexDGaU5uyhrsQQ=
   /json-buffer/3.0.0:
     dev: false
     resolution:
@@ -9694,6 +9732,13 @@ packages:
     hasBin: true
     resolution:
       integrity: sha512-tDMYfVtvpb96msS1lDX9MEdHrW4yOuZ4Kdc4Him9oU796XldPYF/t2+uKoX0BBa0hXXwDlqYQbXY5Rzjzc5hBA==
+  /typescript/3.2.1:
+    dev: true
+    engines:
+      node: '>=4.2.0'
+    hasBin: true
+    resolution:
+      integrity: sha512-jw7P2z/h6aPT4AENXDGjcfHTu5CSqzsbZc6YlUIebTyBAq8XaKp78x7VcSh30xwSCcsu5irZkYZUSFP1MrAMbg==
   /typescript/3.2.2:
     engines:
       node: '>=4.2.0'
