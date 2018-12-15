@@ -443,7 +443,7 @@ importers:
       '@pnpm/lifecycle': 'link:'
       '@pnpm/logger': 2.1.0
       '@types/load-json-file': 2.0.7
-      '@types/node': 10.12.3
+      '@types/node': 10.12.15
       '@types/rimraf': 2.0.2
       '@types/tape': 4.2.32
       json-append: 1.1.1
@@ -456,12 +456,12 @@ importers:
       tslint: /tslint/5.11.0/typescript@3.2.2
       typescript: 3.2.1
     specifiers:
-      '@pnpm/lifecycle': 'link:.'
+      '@pnpm/lifecycle': 'link:'
       '@pnpm/logger': 2.1.0
-      '@pnpm/read-package-json': ^1.0.0
-      '@pnpm/types': ^2.0.0
+      '@pnpm/read-package-json': 1.0.1
+      '@pnpm/types': 2.0.0
       '@types/load-json-file': 2.0.7
-      '@types/node': 10.12.3
+      '@types/node': 10.12.15
       '@types/rimraf': 2.0.2
       '@types/tape': 4.2.32
       '@zkochan/npm-lifecycle': 2.1.1
@@ -469,7 +469,7 @@ importers:
       load-json-file: 5.1.0
       mos: 2.0.0-alpha.3
       mos-plugin-readme: 1.0.4
-      path-exists: ^3.0.0
+      path-exists: 3.0.0
       rimraf: 2.6.2
       tape: 4.9.1
       ts-node: 7.0.1
@@ -2360,10 +2360,6 @@ packages:
   /@types/node/10.12.15:
     resolution:
       integrity: sha512-9kROxduaN98QghwwHmxXO2Xz3MaWf+I1sLVAA6KJDF5xix+IyXVhds0MAfdNwtcpSrzhaTsNB0/jnL86fgUhqA==
-  /@types/node/10.12.3:
-    dev: true
-    resolution:
-      integrity: sha512-sfGmOtSMSbQ/AKG8V9xD1gmjquC9awIIZ/Kj309pHb2n3bcRAcGMQv5nJ6gCXZVsneGE4+ve8DXKRCsrg3TFzg==
   /@types/node/8.10.38:
     dev: false
     resolution:
