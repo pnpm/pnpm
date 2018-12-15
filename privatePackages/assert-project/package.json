@@ -44,6 +44,7 @@
     "test": "npm run lint && npm run lint-test && npm run tsc && ts-node test"
   },
   "dependencies": {
+    "@pnpm/assert-store": "link:../assert-store",
     "@pnpm/modules-yaml": "2.0.1",
     "@types/mz": "0.0.32",
     "@types/node": "10.12.15",

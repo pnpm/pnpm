@@ -1,3 +1,4 @@
+import assertStore from '@pnpm/assert-store'
 import { read as readModules } from '@pnpm/modules-yaml'
 import path = require('path')
 import exists = require('path-exists')
@@ -11,8 +12,29 @@ export { isExecutable }
 export default (t: Test, projectPath: string, encodedRegistryName?: string) => {
   const ern = encodedRegistryName || 'localhost+4873'
   const modules = path.join(projectPath, 'node_modules')
-  let cachedStorePath: string
-  const project = {
+
+  let cachedStore: {
+    storePath: string;
+    storeHas (pkgName: string, version?: string | undefined): Promise<void>;
+    storeHasNot (pkgName: string, version?: string | undefined): Promise<void>;
+    resolve (pkgName: string, version?: string | undefined, relativePath?: string | undefined): Promise<string>
+  }
+  async function getStoreInstance () {
+    if (!cachedStore) {
+      const modulesYaml = await readModules(modules)
+      if (!modulesYaml) {
+        throw new Error(`Cannot find module store. No .modules.yaml found at "${modules}"`)
+      }
+      const storePath = modulesYaml.store
+      cachedStore = {
+        storePath,
+        ...assertStore(t, storePath, ern),
+      }
+    }
+    return cachedStore
+  }
+
+  return {
     requireModule (pkgName: string) {
       return require(path.join(modules, pkgName))
     },
@@ -23,33 +45,24 @@ export default (t: Test, projectPath: string, encodedRegistryName?: string) => {
       t.notOk(await exists(path.join(modules, pkgName)), `${pkgName} is not in node_modules`)
     },
     async getStorePath () {
-      if (!cachedStorePath) {
-        const modulesYaml = await readModules(modules)
-        if (!modulesYaml) {
-          throw new Error(`Cannot find module store. No .modules.yaml found at "${modules}"`)
-        }
-        cachedStorePath = modulesYaml.store
-      }
-      return cachedStorePath
+      const store = await getStoreInstance()
+      return store.storePath
     },
     async resolve (pkgName: string, version?: string, relativePath?: string) {
-      const pkgFolder = version ? path.join(ern, pkgName, version) : pkgName
-      if (relativePath) {
-        return path.join(await project.getStorePath(), pkgFolder, 'package', relativePath)
-      }
-      return path.join(await project.getStorePath(), pkgFolder, 'package')
+      const store = await getStoreInstance()
+      return store.resolve(pkgName, version, relativePath)
     },
     async storeHas (pkgName: string, version?: string) {
-      const pathToCheck = await project.resolve(pkgName, version)
-      t.ok(await exists(pathToCheck), `${pkgName}@${version} is in store (at ${pathToCheck})`)
+      const store = await getStoreInstance()
+      return store.resolve(pkgName, version)
     },
     async storeHasNot (pkgName: string, version?: string) {
       try {
-        const pathToCheck = await project.resolve(pkgName, version)
-        t.notOk(await exists(pathToCheck), `${pkgName}@${version} is not in store (at ${pathToCheck})`)
+        const store = await getStoreInstance()
+        return store.storeHasNot(pkgName, version)
       } catch (err) {
         if (err.message.startsWith('Cannot find module store')) {
-          t.pass(`${pkgName}@${version} is not in store`)
+          t.pass(`${pkgName}@${version} is not in store (store does not even exist)`)
           return
         }
         throw err
@@ -79,5 +92,4 @@ export default (t: Test, projectPath: string, encodedRegistryName?: string) => {
       await writePkg(projectPath, pkgJson)
     },
   }
-  return project
 }

@@ -1,3 +1,4 @@
+import assertStore from '@pnpm/assert-store'
 import prepare from '@pnpm/prepare'
 import {
   addDependenciesToPackage,
@@ -51,9 +52,12 @@ test('find usages for single package in store (by version) and in a project', as
 
 test('find usages for package not in store', async (t: tape.Test) => {
   const project = prepare(t)
+  const opts = await testDefaults()
+  const store = assertStore(t, opts.store)
 
   // Find usages
-  const packageUsagesBySelectors = await storeUsages(['should-not-exist-uhsalzkj'], await testDefaults())
+  await store.storeHasNot('should-not-exist-uhsalzkj')
+  const packageUsagesBySelectors = await storeUsages(['should-not-exist-uhsalzkj'], opts)
 
   t.deepEqual(packageUsagesBySelectors, {
     'should-not-exist-uhsalzkj': [],
@@ -102,6 +106,7 @@ test('find usages for package in store but not in any projects', async (t: tape.
   const registries = opts.registries || {
     default: 'null'
   }
+  const store = assertStore(t, opts.store)
 
   // Add dependency directly to store (not to the project)
   await storeAdd(['is-negative'], {
@@ -109,6 +114,7 @@ test('find usages for package in store but not in any projects', async (t: tape.
     tag: '2.1.0',
     ...opts
   })
+  await store.storeHas('is-negative', '2.1.0')
 
   // Find usages
   const packageUsagesBySelectors = await storeUsages(['is-negative'], opts)
@@ -132,6 +138,7 @@ test('find usages for multiple packages in store but not in any projects', async
   const registries = opts.registries || {
     default: 'null'
   }
+  const store = assertStore(t, opts.store)
 
   // Add dependencies directly to store (not to the project). Note we add different versions of the same package
   await storeAdd(['is-negative'], {
@@ -139,11 +146,13 @@ test('find usages for multiple packages in store but not in any projects', async
     tag: '2.0.0',
     ...opts
   })
+  await store.storeHas('is-negative', '2.0.0')
   await storeAdd(['is-negative'], {
     registry: registries.default,
     tag: '2.1.0',
     ...opts
   })
+  await store.storeHas('is-negative', '2.1.0')
 
   // Find usages
   const packageUsagesBySelectors = await storeUsages(['is-negative'], opts)
