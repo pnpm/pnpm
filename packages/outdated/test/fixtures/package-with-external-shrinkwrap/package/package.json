@@ -3,6 +3,6 @@
   "version": "0.0.0",
   "dependencies": {
     "ajv-keywords": "3.2.0",
-    "ajv": "6.6.1"
+    "ajv": "6.6.2"
   }
 }
