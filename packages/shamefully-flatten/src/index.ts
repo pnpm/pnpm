@@ -2,6 +2,7 @@ import logger from '@pnpm/logger'
 import pkgIdToFilename from '@pnpm/pkgid-to-filename'
 import {
   nameVerFromPkgSnapshot,
+  PackageSnapshot,
   PackageSnapshots,
   Shrinkwrap,
 } from '@pnpm/shrinkwrap-utils'
@@ -15,6 +16,7 @@ export async function shamefullyFlattenByShrinkwrap (
   importerId: string,
   opts: {
     defaultRegistry: string,
+    getIndependentPackageLocation?: (packageId: string, packageName: string) => Promise<string>,
     modulesDir: string,
     prefix: string,
     virtualStoreDir: string,
@@ -32,7 +34,8 @@ export async function shamefullyFlattenByShrinkwrap (
   .map((pair) => dp.refToRelative(pair[1], pair[0]))
   .filter((nodeId) => nodeId !== null) as string[]
 
-  const deps = getDependencies(shr.packages, entryNodes, new Set(), 0, {
+  const deps = await getDependencies(shr.packages, entryNodes, new Set(), 0, {
+    getIndependentPackageLocation: opts.getIndependentPackageLocation,
     prefix: opts.prefix,
     registry: opts.defaultRegistry,
     virtualStoreDir: opts.virtualStoreDir,
@@ -44,17 +47,18 @@ export async function shamefullyFlattenByShrinkwrap (
   })
 }
 
-function getDependencies (
+async function getDependencies (
   pkgSnapshots: PackageSnapshots,
   depRelPaths: string[],
   walked: Set<string>,
   depth: number,
   opts: {
-    registry: string,
+    getIndependentPackageLocation?: (packageId: string, packageName: string) => Promise<string>,
     prefix: string,
+    registry: string,
     virtualStoreDir: string,
   },
-): Dependency[] {
+): Promise<Dependency[]> {
   if (depRelPaths.length === 0) return []
 
   const deps: Dependency[] = []
@@ -76,7 +80,7 @@ function getDependencies (
     const absolutePath = dp.resolve(opts.registry, depRelPath)
     const pkgName = nameVerFromPkgSnapshot(depRelPath, pkgSnapshot).name
     const modules = path.join(opts.virtualStoreDir, `.${pkgIdToFilename(absolutePath, opts.prefix)}`, 'node_modules')
-    const peripheralLocation = path.join(modules, pkgName)
+    const independent = opts.getIndependentPackageLocation && pkgIsIndependent(pkgSnapshot)
     const allDeps = {
       ...pkgSnapshot.dependencies,
       ...pkgSnapshot.optionalDependencies,
@@ -88,8 +92,10 @@ function getDependencies (
         return children
       }, {}),
       depth,
+      location: !independent
+        ? path.join(modules, pkgName)
+        : await opts.getIndependentPackageLocation!(pkgSnapshot.id || absolutePath, pkgName),
       name: pkgName,
-      peripheralLocation,
     })
 
     nextDepRelPaths = [
@@ -105,18 +111,18 @@ function getDependencies (
 
   return [
     ...deps,
-    ...getDependencies(pkgSnapshots, nextDepRelPaths, walked, depth + 1, opts),
+    ...await getDependencies(pkgSnapshots, nextDepRelPaths, walked, depth + 1, opts),
   ]
+}
+
+function pkgIsIndependent (pkgSnapshot: PackageSnapshot) {
+  return pkgSnapshot.dependencies === undefined && pkgSnapshot.optionalDependencies === undefined
 }
 
 export interface Dependency {
   name: string,
-  // TODO: support linking from central location.
-  //   it is needed to support --independent-leaves
-  // centralLocation: string,
-  peripheralLocation: string,
+  location: string,
   children: {[alias: string]: string},
-  // independent: boolean,
   depth: number,
   absolutePath: string,
 }
@@ -163,7 +169,7 @@ export default async function shamefullyFlattenGraph (
       // TODO look how it is done in linkPackages
       if (!opts.dryRun) {
         await Promise.all(pkgAliases.map(async (pkgAlias) => {
-          await symlinkDependency(depNode.peripheralLocation, opts.modulesDir, pkgAlias)
+          await symlinkDependency(depNode.location, opts.modulesDir, pkgAlias)
         }))
       }
     }))

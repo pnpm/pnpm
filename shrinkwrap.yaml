@@ -751,6 +751,7 @@ importers:
       '@pnpm/fetcher-base': 2.0.0
       '@pnpm/fs-locker': 1.0.3
       '@pnpm/package-requester': 'link:../package-requester'
+      '@pnpm/pkgid-to-filename': 2.0.0
       '@pnpm/resolver-base': 2.0.0
       '@pnpm/store-controller-types': 'link:../store-controller-types'
       '@pnpm/types': 'link:../types'
@@ -793,6 +794,7 @@ importers:
       '@pnpm/npm-resolver': 2.2.7
       '@pnpm/package-requester': 4.1.11
       '@pnpm/package-store': 'link:'
+      '@pnpm/pkgid-to-filename': 2.0.0
       '@pnpm/resolver-base': 2.0.0
       '@pnpm/store-controller-types': 1.2.0
       '@pnpm/tarball-fetcher': 2.0.8

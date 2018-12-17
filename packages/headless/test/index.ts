@@ -217,8 +217,8 @@ test('installing only optional deps', async (t) => {
 })
 
 // Covers https://github.com/pnpm/pnpm/issues/1547
-test.skip('installing with independent-leaves and shamefully-flatten', async (t) => {
-  const prefix = path.join(fixtures, 'simple')
+test('installing with independent-leaves and shamefully-flatten', async (t) => {
+  const prefix = path.join(fixtures, 'with-1-dep')
   await rimraf(path.join(prefix, 'node_modules'))
 
   const { importers } = await readManifests(
@@ -240,11 +240,15 @@ test.skip('installing with independent-leaves and shamefully-flatten', async (t)
   }))
 
   const project = assertProject(t, prefix)
-  await project.has('is-positive')
   await project.has('rimraf')
-  await project.has('is-negative')
-  await project.has('colors')
+  await project.has('glob')
   await project.has('path-is-absolute')
+
+  // wrappy is linked directly from the store
+  await project.hasNot('.localhost+4873/wrappy/1.0.2')
+  await project.storeHas('wrappy', '1.0.2')
+
+  await project.has('.localhost+4873/rimraf/2.5.1')
 
   await project.isExecutable('.bin/rimraf')
 

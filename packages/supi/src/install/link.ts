@@ -278,7 +278,13 @@ export default async function linkPackages (
       importers.filter((importer) => importer.shamefullyFlatten)
         .map(async (importer) => {
           importer.hoistedAliases = await shamefullyFlattenGraph(
-            depNodes,
+            depNodes.map((depNode) => ({
+              absolutePath: depNode.absolutePath,
+              children: depNode.children,
+              depth: depNode.depth,
+              location: depNode.independent ? depNode.centralLocation : depNode.peripheralLocation,
+              name: depNode.name,
+            })),
             currentShrinkwrap.importers[importer.id].specifiers,
             {
               dryRun: opts.dryRun,

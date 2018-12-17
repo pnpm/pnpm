@@ -33,10 +33,18 @@ export default function (
       findPackageUsages: async (searchQueries: string[]): Promise<PackageUsagesBySearchQueries> => {
         return limitedFetch(`${remotePrefix}/findPackageUsages`, { searchQueries })
       },
-      getCacheByEngine: async (storePath: string, id: string): Promise<Map<string, string>> => {
-        return limitedFetch(`${remotePrefix}/getCacheByEngine`, {
-          id,
-          storePath,
+      getPackageLocation: async (
+        packageId: string,
+        packageName: string,
+        opts: {
+          importerPrefix: string,
+          targetEngine?: string,
+        },
+      ): Promise<{ directory: string, isBuilt: boolean }> => {
+        return limitedFetch(`${remotePrefix}/getPackageLocation`, {
+          opts,
+          packageId,
+          packageName,
         })
       },
       importPackage: async (from: string, to: string, opts: {

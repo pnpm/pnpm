@@ -212,7 +212,7 @@ function resolvePeersOfNode (
 
   ctx.absolutePathsByNodeId[nodeId] = absolutePath
   if (!ctx.depGraph[absolutePath] || ctx.depGraph[absolutePath].depth > node.depth) {
-    const independent = ctx.independentLeaves && R.isEmpty(node.children) && R.isEmpty(node.resolvedPackage.peerDependencies)
+    const independent = ctx.independentLeaves && R.isEmpty(children) && R.isEmpty(node.resolvedPackage.peerDependencies)
     const centralLocation = node.resolvedPackage.engineCache || path.join(node.resolvedPackage.path, 'node_modules', node.resolvedPackage.name)
     const peripheralLocation = !independent
       ? path.join(modules, node.resolvedPackage.name)

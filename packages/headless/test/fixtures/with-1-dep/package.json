@@ -1,0 +1,7 @@
+{
+  "name": "with-1-dep",
+  "version": "1.0.0",
+  "dependencies": {
+    "rimraf": "2.5.1"
+  }
+}

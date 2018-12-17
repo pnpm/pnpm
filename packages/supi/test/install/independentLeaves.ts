@@ -5,6 +5,7 @@ import promisifyTape from 'tape-promise'
 import { testDefaults } from '../utils'
 
 const test = promisifyTape(tape)
+const testOnly = promisifyTape(tape.only)
 
 test('install with --independent-leaves', async (t: tape.Test) => {
   const project = prepare(t)
@@ -39,4 +40,22 @@ test('--no-independent-leaves throws exception when executed on node_modules ins
     t.equal(err['code'], 'ERR_PNPM_INDEPENDENT_LEAVES_WANTED') // tslint:disable-line:no-string-literal
     t.ok(err.message.indexOf('This "node_modules" folder was created using the --independent-leaves option.') === 0)
   }
+})
+
+// Covers https://github.com/pnpm/pnpm/issues/1547
+test('installing with independent-leaves and shamefully-flatten', async (t) => {
+  const project = prepare(t)
+  await addDependenciesToPackage(['rimraf@2.5.1'], await testDefaults({
+    independentLeaves: true,
+    shamefullyFlatten: true,
+  }))
+
+  await project.has('rimraf')
+  await project.has('minimatch')
+
+  // wrappy is linked directly from the store
+  await project.hasNot('.localhost+4873/wrappy/1.0.2')
+  await project.storeHas('wrappy', '1.0.2')
+
+  await project.has('.localhost+4873/rimraf/2.5.1')
 })

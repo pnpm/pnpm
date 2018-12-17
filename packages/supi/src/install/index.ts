@@ -47,6 +47,7 @@ import R = require('ramda')
 import rimraf = require('rimraf-then')
 import semver = require('semver')
 import {
+  ENGINE_NAME,
   LAYOUT_VERSION,
   SHRINKWRAP_NEXT_VERSION,
   SHRINKWRAP_VERSION,
@@ -70,8 +71,6 @@ import linkPackages, {
   Importer as ImporterToLink,
 } from './link'
 import { absolutePathToRef } from './shrinkwrap'
-
-const ENGINE_NAME = `${process.platform}-${process.arch}-node-${process.version.split('.')[0]}`
 
 export type DependenciesMutation = {
   mutation: 'install',
