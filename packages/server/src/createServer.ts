@@ -149,10 +149,12 @@ export default function (
           res.end(JSON.stringify('OK'))
           storeLogger.info('Server stopped')
           break
-        case '/getCacheByEngine':
-          body = await bodyPromise
-          res.end(JSON.stringify(await store.getCacheByEngine(body.storePath, body.id)))
+        case '/getPackageLocation': {
+          const { packageId, packageName, opts } = (await bodyPromise) as any // tslint:disable-line:no-any
+          const pkgLocation = await store.getPackageLocation(packageId, packageName, opts)
+          res.end(JSON.stringify(pkgLocation))
           break
+        }
         case '/findPackageUsages':
           body = await bodyPromise
           res.end(JSON.stringify(await store.findPackageUsages(body.searchQueries)))

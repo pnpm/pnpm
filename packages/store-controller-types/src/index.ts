@@ -12,6 +12,14 @@ import {
 export * from '@pnpm/resolver-base'
 
 export interface StoreController {
+  getPackageLocation (
+    packageId: string,
+    packageName: string,
+    opts: {
+      importerPrefix: string,
+      targetEngine?: string,
+    },
+  ): Promise<{ directory: string, isBuilt: boolean }>,
   requestPackage: RequestPackageFunction,
   fetchPackage: FetchPackageToStoreFunction,
   importPackage: ImportPackageFunction,
@@ -20,7 +28,6 @@ export interface StoreController {
   prune (): Promise<void>,
   saveState (): Promise<void>,
   upload (builtPkgLocation: string, opts: {pkgId: string, engine: string}): Promise<void>,
-  getCacheByEngine (storePath: string, id: string): Promise<Map<string, string>>,
   findPackageUsages (searchQueries: string[]): Promise<PackageUsagesBySearchQueries>,
 }
 

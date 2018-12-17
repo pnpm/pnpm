@@ -14,9 +14,10 @@ import test = require('tape')
 
 const registry = 'https://registry.npmjs.org/'
 
+const store = '.store'
+
 async function createStoreController () {
   const rawNpmConfig = { registry }
-  const store = '.store'
   const resolve = createResolver({
     metaCache: new Map<string, object>() as PackageMetaCache,
     rawNpmConfig,
@@ -87,10 +88,11 @@ test('fetchPackage', async t => {
     port,
   })
   const storeCtrl = await connectStoreController({ remotePrefix, concurrency: 100 })
+  const pkgId = 'registry.npmjs.org/is-positive/1.0.0'
   const response = await storeCtrl.fetchPackage({
     fetchRawManifest: true,
     force: false,
-    pkgId: 'registry.npmjs.org/is-positive/1.0.0',
+    pkgId,
     prefix: process.cwd(),
     resolution: {
       integrity: 'sha1-iACYVrZKLx632LsBeUGEJK4EUss=',
@@ -110,6 +112,18 @@ test('fetchPackage', async t => {
   t.ok(response['finishing'])
 
   await response['finishing']
+
+  t.comment('getPackageLocation()')
+
+  t.deepEqual(
+    await storeCtrl.getPackageLocation(pkgId, 'is-positive', {
+      importerPrefix: process.cwd(),
+    }),
+    {
+      directory: path.join(store, pkgId, 'node_modules', 'is-positive'),
+      isBuilt: false,
+    },
+  )
 
   await server.close()
   await storeCtrl.close()

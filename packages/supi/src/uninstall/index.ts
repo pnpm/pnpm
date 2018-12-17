@@ -11,7 +11,7 @@ import {
 import { getSaveType } from '@pnpm/utils'
 import * as dp from 'dependency-path'
 import path = require('path')
-import { LAYOUT_VERSION } from '../constants'
+import { ENGINE_NAME, LAYOUT_VERSION } from '../constants'
 import { getContextForSingleImporter, PnpmSingleContext } from '../getContext'
 import lock from '../lock'
 import shrinkwrapsEqual from '../shrinkwrapsEqual'
@@ -106,6 +106,15 @@ export async function uninstallInContext (
   if (opts.shamefullyFlatten) {
     ctx.hoistedAliases = await shamefullyFlattenByShrinkwrap(currentShrinkwrap, ctx.importerId, {
       defaultRegistry: ctx.registries.default,
+      getIndependentPackageLocation: opts.independentLeaves
+        ? async (packageId: string, packageName: string) => {
+          const { directory } = await opts.storeController.getPackageLocation(packageId, packageName, {
+            importerPrefix: ctx.prefix,
+            targetEngine: ENGINE_NAME,
+          })
+          return directory
+        }
+        : undefined,
       modulesDir: ctx.modulesDir,
       prefix: opts.prefix,
       virtualStoreDir: ctx.virtualStoreDir,

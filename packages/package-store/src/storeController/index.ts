@@ -2,6 +2,7 @@ import { FetchFunction } from '@pnpm/fetcher-base'
 import lock from '@pnpm/fs-locker'
 import { storeLogger } from '@pnpm/logger'
 import createPackageRequester, { getCacheByEngine } from '@pnpm/package-requester'
+import pkgIdToFilename from '@pnpm/pkgid-to-filename'
 import { ResolveFunction } from '@pnpm/resolver-base'
 import {
   PackageUsagesBySearchQueries,
@@ -53,7 +54,7 @@ export default async function (
     closeSync: unlock ? () => unlock.sync() : () => undefined,
     fetchPackage: packageRequester.fetchPackageToStore,
     findPackageUsages,
-    getCacheByEngine,
+    getPackageLocation,
     importPackage: createImportPackage(initOpts.packageImportMethod),
     prune,
     requestPackage: packageRequester.requestPackage,
@@ -64,6 +65,30 @@ export default async function (
       await addDependencies(prefix, opts.addDependencies)
     },
     upload,
+  }
+
+  async function getPackageLocation (
+    packageId: string,
+    packageName: string,
+    opts: {
+      importerPrefix: string,
+      targetEngine?: string,
+    }
+  ) {
+    if (opts.targetEngine) {
+      const sideEffectsCacheLocation = (await getCacheByEngine(initOpts.store, packageId))[opts.targetEngine]
+      if (sideEffectsCacheLocation) {
+        return {
+          directory: sideEffectsCacheLocation,
+          isBuilt: true,
+        }
+      }
+    }
+
+    return {
+      directory: path.join(initOpts.store, pkgIdToFilename(packageId, opts.importerPrefix), 'node_modules', packageName),
+      isBuilt: false,
+    }
   }
 
   async function removeDependencies (prefix: string, dependencyPkgIds: string[], opts: {prune: boolean}) {

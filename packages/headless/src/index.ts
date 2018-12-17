@@ -202,6 +202,15 @@ export default async (opts: HeadlessOptions) => {
     if (importer.shamefullyFlatten) {
       importer.hoistedAliases = await shamefullyFlattenByShrinkwrap(filteredShrinkwrap, importer.id, {
         defaultRegistry: opts.registries.default,
+        getIndependentPackageLocation: opts.independentLeaves
+          ? async (packageId: string, packageName: string) => {
+            const { directory } = await opts.storeController.getPackageLocation(packageId, packageName, {
+              importerPrefix: importer.prefix,
+              targetEngine: ENGINE_NAME,
+            })
+            return directory
+          }
+          : undefined,
         modulesDir: importer.modulesDir,
         prefix: importer.prefix,
         virtualStoreDir,
@@ -444,8 +453,10 @@ async function shrinkwrapToDepGraph (
               ? 'found_in_store' : 'fetched',
           })
         })
-      const cache = !opts.force && await getCache(opts.storeController, opts.store, pkgId)
-      const centralLocation = cache || path.join(fetchResponse.inStoreLocation, 'node_modules', pkgName)
+      const pkgLocation = await opts.storeController.getPackageLocation(pkgId, pkgName, {
+        importerPrefix: opts.prefix,
+        targetEngine: !opts.force && ENGINE_NAME || undefined, // TODO: pass target engine only when side effects cache is enabled
+      })
 
       // NOTE: This code will not convert the depPath with peer deps correctly
       // Unfortunately, there is currently no way to tell if the last dir in the path is originally there or added to separate
@@ -453,16 +464,16 @@ async function shrinkwrapToDepGraph (
       const modules = path.join(opts.virtualStoreDir, `.${pkgIdToFilename(depPath, opts.prefix)}`, 'node_modules')
       const peripheralLocation = !independent
         ? path.join(modules, pkgName)
-        : centralLocation
+        : pkgLocation.directory
       graph[peripheralLocation] = {
-        centralLocation,
+        centralLocation: pkgLocation.directory,
         children: {},
         fetchingFiles: fetchResponse.fetchingFiles,
         finishing: fetchResponse.finishing,
         hasBin: pkgSnapshot.hasBin === true,
         hasBundledDependencies: !!pkgSnapshot.bundledDependencies,
         independent,
-        isBuilt: !!cache,
+        isBuilt: pkgLocation.isBuilt,
         modules,
         optional: !!pkgSnapshot.optional,
         optionalDependencies: new Set(R.keys(pkgSnapshot.optionalDependencies)),
@@ -527,10 +538,12 @@ async function getChildrenPaths (
       children[alias] = ctx.graph[childDepPath].peripheralLocation
     } else if (ctx.independentLeaves && pkgIsIndependent(childPkgSnapshot)) {
       const pkgId = childPkgSnapshot.id || childDepPath
-      const cache = !ctx.force && await getCache(ctx.storeController, ctx.store, pkgId)
       const pkgName = nameVerFromPkgSnapshot(childRelDepPath, childPkgSnapshot).name
-      const inStoreLocation = pkgIdToFilename(pkgId, ctx.prefix)
-      children[alias] = cache || path.join(ctx.store, inStoreLocation, 'node_modules', pkgName)
+      const pkgLocation = await ctx.storeController.getPackageLocation(pkgId, pkgName, {
+        importerPrefix: ctx.prefix,
+        targetEngine: !ctx.force && ENGINE_NAME || undefined,
+      })
+      children[alias] = pkgLocation.directory
     } else if (childPkgSnapshot) {
       const relDepPath = dp.relative(ctx.registry, childDepPath)
       const pkgName = nameVerFromPkgSnapshot(relDepPath, childPkgSnapshot).name
@@ -542,10 +555,6 @@ async function getChildrenPaths (
     }
   }
   return children
-}
-
-async function getCache (store: StoreController, storePath: string, pkgId: string) {
-  return (await store.getCacheByEngine(storePath, pkgId))[ENGINE_NAME] as string
 }
 
 function pkgIsIndependent (pkgSnapshot: PackageSnapshot) {
