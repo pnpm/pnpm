@@ -877,18 +877,18 @@ test('when package registry differs from default one, save it to resolution fiel
 
   await addDependenciesToPackage(['@zkochan/git-config', 'is-positive'], await testDefaults({
     rawNpmConfig: {
-      '@zkochan:registry': 'https://registry.node-modules.io/',
+      '@zkochan:registry': 'https://registry.yarnpkg.com/',
       'registry': 'https://registry.npmjs.org/',
     },
     registries: {
-      '@zkochan': 'https://registry.node-modules.io/',
+      '@zkochan': 'https://registry.yarnpkg.com/',
       'default': 'https://registry.npmjs.org/',
     },
   }))
 
   const shr = await project.loadShrinkwrap()
 
-  t.equal(shr.packages['/@zkochan/git-config/0.1.0'].resolution.registry, 'https://registry.node-modules.io/')
+  t.equal(shr.packages['/@zkochan/git-config/0.1.0'].resolution.registry, 'https://registry.yarnpkg.com/')
 })
 
 test('packages installed via tarball URL from the default registry are normalized', async (t: tape.Test) => {
