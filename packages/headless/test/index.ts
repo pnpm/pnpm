@@ -595,7 +595,8 @@ test('using side effects cache', async (t) => {
   // We disable verifyStoreIntegrity because we are going to change the cache
   const opts = await testDefaults({
     shrinkwrapDirectory: prefix,
-    sideEffectsCache: true,
+    sideEffectsCacheRead: true,
+    sideEffectsCacheWrite: true,
     verifyStoreIntegrity: false,
   }, {}, {}, { packageImportMethod: 'copy' })
   await headless(opts)
@@ -607,6 +608,48 @@ test('using side effects cache', async (t) => {
   await headless(opts)
 
   t.ok(await exists(path.join(prefix, 'node_modules', 'runas', 'build', 'new-file.txt')), 'side effects cache correctly used')
+
+  t.end()
+})
+
+test('using side effects cache and shamefully-flatten', async (t) => {
+  const prefix = path.join(fixtures, 'side-effects-of-subdep')
+
+  const { importers } = await readManifests(
+    [
+      {
+        prefix,
+      },
+    ],
+    prefix,
+    {
+      shamefullyFlatten: true,
+    },
+  )
+
+  // Right now, hardlink does not work with side effects, so we specify copy as the packageImportMethod
+  // We disable verifyStoreIntegrity because we are going to change the cache
+  const opts = await testDefaults({
+    importers,
+    shrinkwrapDirectory: prefix,
+    sideEffectsCacheRead: true,
+    sideEffectsCacheWrite: true,
+    verifyStoreIntegrity: false,
+  }, {}, {}, { packageImportMethod: 'copy' })
+  await headless(opts)
+
+  const project = assertProject(t, prefix)
+  await project.has('es5-ext') // verifying that a flat node_modules was created
+
+  const cacheBuildDir = path.join(opts.store, 'localhost+4873', 'runas', '3.1.1', 'side_effects', `${process.platform}-${process.arch}-node-${process.version.split('.')[0]}`, 'package', 'build')
+  fse.writeFileSync(path.join(cacheBuildDir, 'new-file.txt'), 'some new content')
+
+  await rimraf(path.join(prefix, 'node_modules'))
+  await headless(opts)
+
+  t.ok(await exists(path.join(prefix, 'node_modules', 'runas', 'build', 'new-file.txt')), 'side effects cache correctly used')
+
+  await project.has('es5-ext') // verifying that a flat node_modules was created
 
   t.end()
 })

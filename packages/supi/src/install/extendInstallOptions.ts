@@ -40,8 +40,8 @@ export interface BaseInstallOptions {
     readPackage?: ReadPackageHook,
     afterAllResolved?: (shr: Shrinkwrap) => Shrinkwrap,
   },
-  sideEffectsCache?: boolean,
-  sideEffectsCacheReadonly?: boolean,
+  sideEffectsCacheRead?: boolean,
+  sideEffectsCacheWrite?: boolean,
   strictPeerDependencies?: boolean,
   include?: IncludedDependencies,
   independentLeaves?: boolean,
@@ -89,8 +89,8 @@ export type StrictInstallOptions = BaseInstallOptions & {
   hooks: {
     readPackage?: ReadPackageHook,
   },
-  sideEffectsCache: boolean,
-  sideEffectsCacheReadonly: boolean,
+  sideEffectsCacheRead: boolean,
+  sideEffectsCacheWrite: boolean,
   strictPeerDependencies: boolean,
   include: IncludedDependencies,
   independentLeaves: boolean,
@@ -147,8 +147,8 @@ const defaults = async (opts: InstallOptions) => {
     shrinkwrap: true,
     shrinkwrapDirectory: opts.shrinkwrapDirectory || opts.prefix || process.cwd(),
     shrinkwrapOnly: false,
-    sideEffectsCache: false,
-    sideEffectsCacheReadonly: false,
+    sideEffectsCacheRead: false,
+    sideEffectsCacheWrite: false,
     store: opts.store,
     storeController: opts.storeController,
     strictPeerDependencies: false,
@@ -188,13 +188,5 @@ export default async (
   }
   extendedOpts.registries = normalizeRegistries(extendedOpts.registries)
   extendedOpts.rawNpmConfig['registry'] = extendedOpts.registries.default // tslint:disable-line:no-string-literal
-  // if sideEffectsCacheReadonly is true, sideEffectsCache is necessarily true too
-  if (extendedOpts.sideEffectsCache && extendedOpts.sideEffectsCacheReadonly) {
-    logger.warn({
-      message: "--side-effects-cache-readonly turns on side effects cache too, you don't need to specify both",
-      prefix: extendedOpts.shrinkwrapDirectory || process.cwd(),
-    })
-  }
-  extendedOpts.sideEffectsCache = extendedOpts.sideEffectsCache || extendedOpts.sideEffectsCacheReadonly
   return extendedOpts
 }

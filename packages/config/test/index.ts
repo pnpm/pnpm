@@ -188,3 +188,39 @@ test('filter is read from .npmrc as an array', async (t) => {
 
   t.end()
 })
+
+test('--side-effects-cache and --side-effects-cache-readonly', async (t) => {
+  {
+    const configs = await getConfigs({
+      cliArgs: {
+        'side-effects-cache': true,
+      },
+      packageManager: {
+        name: 'pnpm',
+        version: '1.0.0',
+      },
+    })
+    t.ok(configs)
+    t.ok(configs.sideEffectsCache) // for backward compatibility
+    t.ok(configs.sideEffectsCacheRead)
+    t.ok(configs.sideEffectsCacheWrite)
+  }
+
+  {
+    const configs = await getConfigs({
+      cliArgs: {
+        'side-effects-cache-readonly': true,
+      },
+      packageManager: {
+        name: 'pnpm',
+        version: '1.0.0',
+      },
+    })
+    t.ok(configs)
+    t.ok(configs.sideEffectsCacheReadonly) // for backward compatibility
+    t.ok(configs.sideEffectsCacheRead)
+    t.notOk(configs.sideEffectsCacheWrite)
+  }
+
+  t.end()
+})

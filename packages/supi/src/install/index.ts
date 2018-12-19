@@ -194,8 +194,8 @@ export async function mutateModules (
           rawNpmConfig: opts.rawNpmConfig,
           registries: opts.registries,
           shrinkwrapDirectory: ctx.shrinkwrapDirectory,
-          sideEffectsCache: opts.sideEffectsCache,
-          sideEffectsCacheReadonly: opts.sideEffectsCacheReadonly,
+          sideEffectsCacheRead: opts.sideEffectsCacheRead,
+          sideEffectsCacheWrite: opts.sideEffectsCacheWrite,
           store: opts.store,
           storeController: opts.storeController,
           unsafePerm: opts.unsafePerm,
@@ -544,6 +544,7 @@ export async function addDependenciesToPackage (
         mutation: 'installSome',
         pinnedVersion: opts.pinnedVersion,
         prefix: opts.prefix || process.cwd(),
+        shamefullyFlatten: opts.shamefullyFlatten,
         targetDependenciesField: opts.targetDependenciesField,
       },
     ],
@@ -641,7 +642,7 @@ async function installInContext (
     pnpmVersion: opts.packageManager.name === 'pnpm' ? opts.packageManager.version : '',
     preferredVersions: opts.preferredVersions,
     registries: opts.registries,
-    sideEffectsCache: opts.sideEffectsCache,
+    sideEffectsCache: opts.sideEffectsCacheRead,
     skipped: ctx.skipped,
     storeController: opts.storeController,
     tag: opts.tag,
@@ -765,7 +766,6 @@ async function installInContext (
       pruneStore: opts.pruneStore,
       registries: ctx.registries,
       shrinkwrapDirectory: opts.shrinkwrapDirectory,
-      sideEffectsCache: opts.sideEffectsCache,
       skipped: ctx.skipped,
       storeController: opts.storeController,
       strictPeerDependencies: opts.strictPeerDependencies,
@@ -859,7 +859,7 @@ async function installInContext (
                 rootNodeModulesDir: ctx.virtualStoreDir,
                 unsafePerm: opts.unsafePerm || false,
               })
-              if (hasSideEffects && opts.sideEffectsCache && !opts.sideEffectsCacheReadonly) {
+              if (hasSideEffects && opts.sideEffectsCacheWrite) {
                 try {
                   await opts.storeController.upload(pkg.peripheralLocation, {
                     engine: ENGINE_NAME,

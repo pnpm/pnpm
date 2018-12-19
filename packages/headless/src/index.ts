@@ -73,8 +73,8 @@ export interface HeadlessOptions {
   shrinkwrapDirectory: string,
   storeController: StoreController,
   verifyStoreIntegrity: boolean,
-  sideEffectsCache: boolean,
-  sideEffectsCacheReadonly: boolean,
+  sideEffectsCacheRead: boolean,
+  sideEffectsCacheWrite: boolean,
   force: boolean,
   store: string,
   rawNpmConfig: object,
@@ -206,7 +206,7 @@ export default async (opts: HeadlessOptions) => {
           ? async (packageId: string, packageName: string) => {
             const { directory } = await opts.storeController.getPackageLocation(packageId, packageName, {
               importerPrefix: importer.prefix,
-              targetEngine: ENGINE_NAME,
+              targetEngine: opts.sideEffectsCacheRead && ENGINE_NAME || undefined,
             })
             return directory
           }
@@ -284,8 +284,7 @@ export default async (opts: HeadlessOptions) => {
         prefix: importer.prefix,
         rawNpmConfig: opts.rawNpmConfig,
         rootNodeModulesDir: importer.modulesDir,
-        sideEffectsCache: opts.sideEffectsCache,
-        sideEffectsCacheReadonly: opts.sideEffectsCacheReadonly,
+        sideEffectsCacheWrite: opts.sideEffectsCacheWrite,
         storeController: opts.storeController,
         unsafePerm: opts.unsafePerm,
         userAgent: opts.userAgent,
@@ -407,6 +406,7 @@ interface ShrinkwrapToDepGraphOptions {
   storeController: StoreController,
   store: string,
   prefix: string,
+  sideEffectsCacheRead: boolean,
   verifyStoreIntegrity: boolean,
   virtualStoreDir: string,
 }
@@ -455,7 +455,7 @@ async function shrinkwrapToDepGraph (
         })
       const pkgLocation = await opts.storeController.getPackageLocation(pkgId, pkgName, {
         importerPrefix: opts.prefix,
-        targetEngine: !opts.force && ENGINE_NAME || undefined, // TODO: pass target engine only when side effects cache is enabled
+        targetEngine: opts.sideEffectsCacheRead && !opts.force && ENGINE_NAME || undefined,
       })
 
       // NOTE: This code will not convert the depPath with peer deps correctly
@@ -492,6 +492,7 @@ async function shrinkwrapToDepGraph (
       pkgSnapshotsByRelDepPaths: shr.packages,
       prefix: opts.prefix,
       registry: opts.defaultRegistry,
+      sideEffectsCacheRead: opts.sideEffectsCacheRead,
       store: opts.store,
       storeController: opts.storeController,
       virtualStoreDir: opts.virtualStoreDir,
@@ -521,6 +522,7 @@ async function getChildrenPaths (
     store: string,
     pkgSnapshotsByRelDepPaths: {[relDepPath: string]: PackageSnapshot},
     prefix: string,
+    sideEffectsCacheRead: boolean,
     storeController: StoreController,
   },
   allDeps: {[alias: string]: string},
@@ -541,7 +543,7 @@ async function getChildrenPaths (
       const pkgName = nameVerFromPkgSnapshot(childRelDepPath, childPkgSnapshot).name
       const pkgLocation = await ctx.storeController.getPackageLocation(pkgId, pkgName, {
         importerPrefix: ctx.prefix,
-        targetEngine: !ctx.force && ENGINE_NAME || undefined,
+        targetEngine: ctx.sideEffectsCacheRead && !ctx.force && ENGINE_NAME || undefined,
       })
       children[alias] = pkgLocation.directory
     } else if (childPkgSnapshot) {
@@ -593,7 +595,6 @@ async function linkAllPkgs (
   depNodes: DependenciesGraphNode[],
   opts: {
     force: boolean,
-    sideEffectsCache: boolean,
   },
 ) {
   return Promise.all(
