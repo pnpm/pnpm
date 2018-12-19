@@ -110,7 +110,7 @@ export async function uninstallInContext (
         ? async (packageId: string, packageName: string) => {
           const { directory } = await opts.storeController.getPackageLocation(packageId, packageName, {
             importerPrefix: ctx.prefix,
-            targetEngine: ENGINE_NAME,
+            targetEngine: opts.sideEffectsCacheRead && ENGINE_NAME || undefined,
           })
           return directory
         }

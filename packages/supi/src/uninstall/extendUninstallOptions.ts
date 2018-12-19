@@ -16,6 +16,7 @@ export interface UninstallOptions {
   registries?: Registries,
   shrinkwrap?: boolean,
   shamefullyFlatten?: boolean,
+  sideEffectsCacheRead?: boolean,
 
   reporter?: ReporterFunction,
   lock?: boolean,
@@ -36,6 +37,7 @@ export type StrictUninstallOptions = UninstallOptions & {
   forceSharedShrinkwrap: boolean,
   shamefullyFlatten: boolean,
   shrinkwrapDirectory: string,
+  sideEffectsCacheRead: boolean,
   storeController: StoreController,
   registries: Registries,
   shrinkwrap: boolean,
@@ -71,6 +73,7 @@ const defaults = async (opts: UninstallOptions) => {
     shamefullyFlatten: false,
     shrinkwrap: true,
     shrinkwrapDirectory,
+    sideEffectsCacheRead: false,
     store: opts.store,
     storeController: opts.storeController,
   } as StrictUninstallOptions

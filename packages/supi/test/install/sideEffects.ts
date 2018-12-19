@@ -9,12 +9,15 @@ import promisifyTape from 'tape-promise'
 import { testDefaults } from '../utils'
 
 const test = promisifyTape(tape)
-test['only'] = promisifyTape(tape.only) // tslint:disable-line:no-string-literal
+const testOnly = promisifyTape(tape.only)
 
 test('caching side effects of native package', async (t) => {
   const project = prepare(t)
 
-  const opts = await testDefaults({ sideEffectsCache: true })
+  const opts = await testDefaults({
+    sideEffectsCacheRead: true,
+    sideEffectsCacheWrite: true,
+  })
   await addDependenciesToPackage(['runas@3.1.1'], opts)
   const cacheBuildDir = path.join(opts.store, 'localhost+4873', 'runas', '3.1.1', 'side_effects', `${process.platform}-${process.arch}-node-${process.version.split('.')[0]}`, 'package', 'build')
   const stat1 = await fs.stat(cacheBuildDir)
@@ -32,12 +35,44 @@ test('caching side effects of native package', async (t) => {
   t.notEqual(stat1.ino, stat3.ino, 'cache is overridden when force is true')
 })
 
+test('caching side effects of native package when shamefully-flatten is used', async (t) => {
+  const project = prepare(t)
+
+  const opts = await testDefaults({
+    shamefullyFlatten: true,
+    sideEffectsCacheRead: true,
+    sideEffectsCacheWrite: true,
+  })
+  await addDependenciesToPackage(['pathwatcher@7.1.1'], opts)
+  const cacheBuildDir = path.join(opts.store, 'localhost+4873', 'runas', '3.1.1', 'side_effects', `${process.platform}-${process.arch}-node-${process.version.split('.')[0]}`, 'package', 'build')
+  const stat1 = await fs.stat(cacheBuildDir)
+
+  t.ok(await exists(path.join('node_modules', 'runas', 'build')), 'build folder created')
+  t.ok(await exists(cacheBuildDir), 'build folder created in side effects cache')
+  await project.has('es5-ext') // verifying that a flat node_modules was created
+
+  await addDependenciesToPackage(['pathwatcher@7.1.1'], opts)
+  const stat2 = await fs.stat(cacheBuildDir)
+  t.equal(stat1.ino, stat2.ino, 'existing cache is not overridden')
+  await project.has('es5-ext') // verifying that a flat node_modules was created
+
+  opts.force = true
+  await addDependenciesToPackage(['pathwatcher@7.1.1'], opts)
+  const stat3 = await fs.stat(cacheBuildDir)
+  t.notEqual(stat1.ino, stat3.ino, 'cache is overridden when force is true')
+  await project.has('es5-ext') // verifying that a flat node_modules was created
+})
+
 test('using side effects cache', async (t) => {
   const project = prepare(t)
 
   // Right now, hardlink does not work with side effects, so we specify copy as the packageImportMethod
   // We disable verifyStoreIntegrity because we are going to change the cache
-  const opts = await testDefaults({ sideEffectsCache: true, verifyStoreIntegrity: false }, {}, {}, { packageImportMethod: 'copy' })
+  const opts = await testDefaults({
+    sideEffectsCacheRead: true,
+    sideEffectsCacheWrite: true,
+    verifyStoreIntegrity: false,
+  }, {}, {}, { packageImportMethod: 'copy' })
   await addDependenciesToPackage(['runas@3.1.1'], opts)
 
   const cacheBuildDir = path.join(opts.store, 'localhost+4873', 'runas', '3.1.1', 'side_effects', `${process.platform}-${process.arch}-node-${process.version.split('.')[0]}`, 'package', 'build')
@@ -52,7 +87,11 @@ test('using side effects cache', async (t) => {
 test('readonly side effects cache', async (t) => {
   const project = prepare(t)
 
-  const opts1 = await testDefaults({ sideEffectsCache: true, verifyStoreIntegrity: false })
+  const opts1 = await testDefaults({
+    sideEffectsCacheRead: true,
+    sideEffectsCacheWrite: true,
+    verifyStoreIntegrity: false,
+  })
   await addDependenciesToPackage(['runas@3.1.1'], opts1)
 
   // Modify the side effects cache to make sure we are using it
@@ -60,7 +99,11 @@ test('readonly side effects cache', async (t) => {
   await fs.writeFile(path.join(cacheBuildDir, 'new-file.txt'), 'some new content')
 
   await rimraf('node_modules')
-  const opts2 = await testDefaults({ sideEffectsCacheReadonly: true, verifyStoreIntegrity: false }, {}, {}, { packageImportMethod: 'copy' })
+  const opts2 = await testDefaults({
+    sideEffectsCacheRead: true,
+    sideEffectsCacheWrite: false,
+    verifyStoreIntegrity: false,
+  }, {}, {}, { packageImportMethod: 'copy' })
   await addDependenciesToPackage(['runas@3.1.1'], opts2)
 
   t.ok(await exists(path.join('node_modules', 'runas', 'build', 'new-file.txt')), 'side effects cache correctly used')
@@ -76,7 +119,10 @@ test('readonly side effects cache', async (t) => {
 test('uploading errors do not interrupt installation', async (t) => {
   const project = prepare(t)
 
-  const opts = await testDefaults({ sideEffectsCache: true })
+  const opts = await testDefaults({
+    sideEffectsCacheRead: true,
+    sideEffectsCacheWrite: true,
+  })
   opts.storeController.upload = async () => {
     throw new Error('an unexpected error')
   }

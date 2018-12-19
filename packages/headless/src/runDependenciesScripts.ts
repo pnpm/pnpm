@@ -21,8 +21,7 @@ export default async (
     rawNpmConfig: object,
     unsafePerm: boolean,
     userAgent: string,
-    sideEffectsCache: boolean,
-    sideEffectsCacheReadonly: boolean,
+    sideEffectsCacheWrite: boolean,
     storeController: StoreController,
     rootNodeModulesDir: string,
   },
@@ -60,7 +59,7 @@ export default async (
             rootNodeModulesDir: opts.rootNodeModulesDir,
             unsafePerm: opts.unsafePerm || false,
           })
-          if (hasSideEffects && opts.sideEffectsCache && !opts.sideEffectsCacheReadonly) {
+          if (hasSideEffects && opts.sideEffectsCacheWrite) {
             try {
               await opts.storeController.upload(depNode.peripheralLocation, {
                 engine: ENGINE_NAME,

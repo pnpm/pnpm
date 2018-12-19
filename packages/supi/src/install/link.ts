@@ -70,7 +70,6 @@ export default async function linkPackages (
     // This is only needed till shrinkwrap v4
     updateShrinkwrapMinorVersion: boolean,
     outdatedDependencies: {[pkgId: string]: string},
-    sideEffectsCache: boolean,
     strictPeerDependencies: boolean,
   },
 ): Promise<{

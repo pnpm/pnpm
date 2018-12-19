@@ -206,5 +206,8 @@ export default async (
     pnpmConfig.filter = (pnpmConfig.filter as string).split(' ')
   }
 
+  pnpmConfig.sideEffectsCacheRead = pnpmConfig.sideEffectsCache || pnpmConfig.sideEffectsCacheReadonly
+  pnpmConfig.sideEffectsCacheWrite = pnpmConfig.sideEffectsCache
+
   return pnpmConfig
 }
