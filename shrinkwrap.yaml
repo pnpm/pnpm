@@ -136,8 +136,8 @@ importers:
       tslint: /tslint/5.12.0/typescript@3.2.2
       typescript: 3.2.2
     specifiers:
-      '@pnpm/config': 2.3.2
-      '@pnpm/core-loggers': 1.0.0
+      '@pnpm/config': 2.4.0
+      '@pnpm/core-loggers': 1.1.0
       '@pnpm/default-reporter': 'link:'
       '@pnpm/logger': 2.1.0
       '@pnpm/tslint-config': 0.0.0
@@ -262,7 +262,7 @@ importers:
       semver: 5.6.0
     devDependencies:
       '@pnpm/tslint-config': 'link:../../utils/tslint-config'
-      '@types/tape': 4.2.32
+      '@types/tape': 4.2.33
       mos: 2.0.0-alpha.3
       mos-plugin-readme: 1.0.4
       tape: 4.9.1
@@ -380,27 +380,27 @@ importers:
       typescript: 3.2.2
     specifiers:
       '@pnpm/assert-project': 'link:../../privatePackages/assert-project'
-      '@pnpm/core-loggers': 1.0.0
+      '@pnpm/core-loggers': 1.1.0
       '@pnpm/default-fetcher': 2.0.6
       '@pnpm/default-resolver': 2.0.7
       '@pnpm/filter-shrinkwrap': 1.0.0
       '@pnpm/headless': 'link:'
-      '@pnpm/lifecycle': 3.0.2
+      '@pnpm/lifecycle': 4.0.0
       '@pnpm/link-bins': 3.0.2
       '@pnpm/logger': 2.1.0
-      '@pnpm/modules-cleaner': 2.0.1
+      '@pnpm/modules-cleaner': 2.0.2
       '@pnpm/modules-yaml': 2.0.1
-      '@pnpm/package-requester': 4.1.11
-      '@pnpm/package-store': 1.3.0
+      '@pnpm/package-requester': 5.0.0
+      '@pnpm/package-store': 2.0.0
       '@pnpm/pkgid-to-filename': 2.0.0
       '@pnpm/read-manifests': 1.0.3
       '@pnpm/read-package-json': 1.0.1
-      '@pnpm/shamefully-flatten': 1.0.5
+      '@pnpm/shamefully-flatten': 2.0.0
       '@pnpm/shrinkwrap-file': 1.0.0
       '@pnpm/shrinkwrap-utils': 1.0.0
-      '@pnpm/store-controller-types': 1.2.0
+      '@pnpm/store-controller-types': 2.0.0
       '@pnpm/store-path': 1.0.4
-      '@pnpm/symlink-dependency': 1.1.0
+      '@pnpm/symlink-dependency': 1.1.1
       '@pnpm/tslint-config': 0.0.0
       '@pnpm/types': 2.0.0
       '@pnpm/utils': 0.9.0
@@ -458,7 +458,7 @@ importers:
       tslint: /tslint/5.12.0/typescript@3.2.2
       typescript: 3.2.2
     specifiers:
-      '@pnpm/core-loggers': 1.0.0
+      '@pnpm/core-loggers': 1.1.0
       '@pnpm/lifecycle': 'link:'
       '@pnpm/logger': 2.1.0
       '@pnpm/read-package-json': 1.0.1
@@ -553,13 +553,13 @@ importers:
       tslint: /tslint/5.12.0/typescript@3.2.2
       typescript: 3.2.2
     specifiers:
-      '@pnpm/core-loggers': 1.0.0
+      '@pnpm/core-loggers': 1.1.0
       '@pnpm/logger': 2.1.0
       '@pnpm/modules-cleaner': 'link:'
       '@pnpm/package-bins': 2.0.0
       '@pnpm/read-modules-dir': 1.0.0
       '@pnpm/shrinkwrap-types': 1.0.0
-      '@pnpm/store-controller-types': 1.2.0
+      '@pnpm/store-controller-types': 2.0.0
       '@pnpm/tslint-config': 0.0.0
       '@pnpm/types': 2.0.0
       '@pnpm/utils': 0.9.0
@@ -699,7 +699,7 @@ importers:
       typescript: 3.2.2
     specifiers:
       '@pnpm/check-package': 2.0.0
-      '@pnpm/core-loggers': 1.0.0
+      '@pnpm/core-loggers': 1.1.0
       '@pnpm/fetcher-base': 2.0.0
       '@pnpm/local-resolver': 1.0.3
       '@pnpm/logger': 2.1.0
@@ -708,7 +708,7 @@ importers:
       '@pnpm/pkgid-to-filename': 2.0.0
       '@pnpm/read-package-json': 1.0.1
       '@pnpm/resolver-base': 2.0.0
-      '@pnpm/store-controller-types': 1.2.0
+      '@pnpm/store-controller-types': 2.0.0
       '@pnpm/tarball-fetcher': 2.0.8
       '@pnpm/tslint-config': 0.0.0
       '@pnpm/types': 2.0.0
@@ -787,16 +787,16 @@ importers:
       tslint: /tslint/5.12.0/typescript@3.2.2
       typescript: 3.2.2
     specifiers:
-      '@pnpm/core-loggers': 1.0.0
+      '@pnpm/core-loggers': 1.1.0
       '@pnpm/fetcher-base': 2.0.0
       '@pnpm/fs-locker': 1.0.3
       '@pnpm/logger': 2.1.0
       '@pnpm/npm-resolver': 2.2.7
-      '@pnpm/package-requester': 4.1.11
+      '@pnpm/package-requester': 5.0.0
       '@pnpm/package-store': 'link:'
       '@pnpm/pkgid-to-filename': 2.0.0
       '@pnpm/resolver-base': 2.0.0
-      '@pnpm/store-controller-types': 1.2.0
+      '@pnpm/store-controller-types': 2.0.0
       '@pnpm/tarball-fetcher': 2.0.8
       '@pnpm/tslint-config': 0.0.0
       '@pnpm/types': 2.0.0
@@ -939,21 +939,21 @@ importers:
       write-yaml-file: 2.0.0
     specifiers:
       '@pnpm/assert-project': 'link:../../privatePackages/assert-project'
-      '@pnpm/config': 2.3.2
-      '@pnpm/core-loggers': 1.0.0
+      '@pnpm/config': 2.4.0
+      '@pnpm/core-loggers': 1.1.0
       '@pnpm/default-fetcher': 2.0.6
-      '@pnpm/default-reporter': 0.0.0
+      '@pnpm/default-reporter': 1.0.0
       '@pnpm/default-resolver': 2.0.7
-      '@pnpm/lifecycle': 3.0.2
+      '@pnpm/lifecycle': 4.0.0
       '@pnpm/logger': 2.1.0
       '@pnpm/modules-yaml': 2.0.1
       '@pnpm/outdated': 1.0.10
-      '@pnpm/package-store': 1.3.0
+      '@pnpm/package-store': 2.0.0
       '@pnpm/prepare': 0.0.0
       '@pnpm/read-package-json': 1.0.1
-      '@pnpm/server': 1.2.0
+      '@pnpm/server': 2.0.0
       '@pnpm/shrinkwrap-types': 1.0.0
-      '@pnpm/store-controller-types': 1.2.0
+      '@pnpm/store-controller-types': 2.0.0
       '@pnpm/store-path': 1.0.4
       '@pnpm/tslint-config': 0.0.0
       '@pnpm/types': 2.0.0
@@ -1033,7 +1033,7 @@ importers:
       sepia: 2.0.2
       signal-exit: 3.0.2
       strip-color: 0.1.0
-      supi: 0.26.2
+      supi: 0.27.0
       symlink-dir: 2.0.2
       tape: 4.9.1
       tape-promise: 4.0.0
@@ -1149,14 +1149,14 @@ importers:
       tslint: /tslint/5.12.0/typescript@3.2.2
       typescript: 3.2.2
     specifiers:
-      '@pnpm/core-loggers': 1.0.0
+      '@pnpm/core-loggers': 1.1.0
       '@pnpm/logger': 2.1.0
       '@pnpm/npm-resolver': 2.2.7
       '@pnpm/resolve-dependencies': 'link:'
       '@pnpm/resolver-base': 2.0.0
       '@pnpm/shrinkwrap-types': 1.0.0
       '@pnpm/shrinkwrap-utils': 1.0.0
-      '@pnpm/store-controller-types': 1.2.0
+      '@pnpm/store-controller-types': 2.0.0
       '@pnpm/tslint-config': 0.0.0
       '@pnpm/types': 2.0.0
       '@pnpm/utils': 0.9.0
@@ -1207,10 +1207,10 @@ importers:
     specifiers:
       '@pnpm/logger': 2.1.0
       '@pnpm/npm-resolver': 2.2.7
-      '@pnpm/package-requester': 4.1.11
-      '@pnpm/package-store': 1.3.0
+      '@pnpm/package-requester': 5.0.0
+      '@pnpm/package-store': 2.0.0
       '@pnpm/server': 'link:'
-      '@pnpm/store-controller-types': 1.2.0
+      '@pnpm/store-controller-types': 2.0.0
       '@pnpm/tarball-fetcher': 2.0.8
       '@pnpm/tslint-config': 0.0.0
       '@pnpm/types': 2.0.0
@@ -1255,7 +1255,7 @@ importers:
       '@pnpm/pkgid-to-filename': 2.0.0
       '@pnpm/shrinkwrap-types': 1.0.0
       '@pnpm/shrinkwrap-utils': 1.0.0
-      '@pnpm/symlink-dependency': 1.1.0
+      '@pnpm/symlink-dependency': 1.1.1
       '@pnpm/tslint-config': 0.0.0
       '@types/node': 10.12.15
       '@types/ramda': 0.25.34
@@ -1506,33 +1506,33 @@ importers:
       '@pnpm/assert-project': 'link:../../privatePackages/assert-project'
       '@pnpm/assert-store': 'link:../../privatePackages/assert-store'
       '@pnpm/check-package': 2.0.0
-      '@pnpm/core-loggers': 1.0.0
+      '@pnpm/core-loggers': 1.1.0
       '@pnpm/default-fetcher': 2.0.6
       '@pnpm/default-resolver': 2.0.7
       '@pnpm/filter-shrinkwrap': 1.0.0
       '@pnpm/fs-locker': 1.0.3
-      '@pnpm/headless': 1.0.5
-      '@pnpm/lifecycle': 3.0.2
+      '@pnpm/headless': 2.0.0
+      '@pnpm/lifecycle': 4.0.0
       '@pnpm/link-bins': 3.0.2
       '@pnpm/logger': 2.1.0
-      '@pnpm/modules-cleaner': 2.0.1
+      '@pnpm/modules-cleaner': 2.0.2
       '@pnpm/modules-yaml': 2.0.1
-      '@pnpm/package-requester': 4.1.11
-      '@pnpm/package-store': 1.3.0
+      '@pnpm/package-requester': 5.0.0
+      '@pnpm/package-store': 2.0.0
       '@pnpm/pkgid-to-filename': 2.0.0
       '@pnpm/prepare': 0.0.0
       '@pnpm/prune-shrinkwrap': 1.0.0
       '@pnpm/read-manifests': 1.0.3
       '@pnpm/read-modules-dir': 1.0.0
       '@pnpm/read-package-json': 1.0.1
-      '@pnpm/resolve-dependencies': 2.0.1
+      '@pnpm/resolve-dependencies': 3.0.0
       '@pnpm/resolver-base': 2.0.0
-      '@pnpm/shamefully-flatten': 1.0.5
+      '@pnpm/shamefully-flatten': 2.0.0
       '@pnpm/shrinkwrap-file': 1.0.0
       '@pnpm/shrinkwrap-utils': 1.0.0
-      '@pnpm/store-controller-types': 1.2.0
+      '@pnpm/store-controller-types': 2.0.0
       '@pnpm/store-path': 1.0.4
-      '@pnpm/symlink-dependency': 1.1.0
+      '@pnpm/symlink-dependency': 1.1.1
       '@pnpm/tslint-config': 0.0.0
       '@pnpm/types': 2.0.0
       '@pnpm/utils': 0.9.0
@@ -1627,7 +1627,7 @@ importers:
       tslint: /tslint/5.12.0/typescript@3.2.2
       typescript: 3.2.2
     specifiers:
-      '@pnpm/core-loggers': 1.0.0
+      '@pnpm/core-loggers': 1.1.0
       '@pnpm/logger': 2.1.0
       '@pnpm/tslint-config': 0.0.0
       '@pnpm/types': 2.0.0
@@ -2051,7 +2051,7 @@ packages:
       integrity: sha512-ECFtJCNpqeyjSGwhv+IgnqDRLQclI/d6GRkq+UxyPW3jSvB7AK8qjxuMNFoNG78pwwi1zuJpMLgMvaYPHI/IMA==
   /@pnpm/git-fetcher/1.0.1:
     dependencies:
-      '@types/node': 10.12.15
+      '@types/node': 10.12.18
       dint: 3.0.2
       execa: 1.0.0
       path-temp: 1.0.0
@@ -2064,7 +2064,7 @@ packages:
   /@pnpm/git-resolver/1.0.1:
     dependencies:
       '@pnpm/resolver-base': 2.0.0
-      '@types/node': 10.12.15
+      '@types/node': 10.12.18
       '@types/semver': 5.5.0
       got: 8.3.2
       graceful-git: 2.0.0
@@ -2103,7 +2103,7 @@ packages:
       '@pnpm/resolver-base': 2.0.0
       '@pnpm/types': 2.0.0
       '@types/graceful-fs': 4.1.2
-      '@types/node': 10.12.15
+      '@types/node': 10.12.18
       graceful-fs: 4.1.15
       normalize-path: 3.0.0
       ssri: 6.0.1
@@ -2113,7 +2113,7 @@ packages:
       integrity: sha512-nGg1CRRTArx4pxRI2W8iWQqymb4yuvHae3tVt0IWhmG4kV31A3ZBUfFbPGqDWGYPdJyktuCDfDImNAJrmjEItQ==
   /@pnpm/logger/2.1.0:
     dependencies:
-      '@types/node': 10.12.15
+      '@types/node': 10.12.18
       bole: 3.0.2
       ndjson: 1.5.0
     engines:
@@ -2127,7 +2127,7 @@ packages:
       '@pnpm/types': 2.0.0
       '@types/load-json-file': 2.0.7
       '@types/mem': 1.1.2
-      '@types/node': 10.12.15
+      '@types/node': 10.12.18
       '@types/semver': 5.5.0
       credentials-by-uri: 1.0.0
       encode-registry: 1.1.0
@@ -2205,7 +2205,7 @@ packages:
       '@types/graceful-fs': 4.1.2
       '@types/mem': 1.1.2
       '@types/mz': 0.0.32
-      '@types/node': 10.12.15
+      '@types/node': 10.12.18
       '@types/retry': 0.10.2
       '@types/rimraf': 2.0.2
       credentials-by-uri: 1.0.0
@@ -2317,7 +2317,7 @@ packages:
       integrity: sha512-0AbIQzpqQafYPFg26nwg5PfNgPLYwHeTP6z5F1u+5oypLIdpx34o5r8wYTTj3X3YYF2yPHtZPO/KYwlI8Nu/hQ==
   /@types/graceful-fs/4.1.2:
     dependencies:
-      '@types/node': 10.12.15
+      '@types/node': 10.12.18
     resolution:
       integrity: sha512-epDhsJAVxJsWfeqpzEDFhLnhHMbHie/VMFY+2Hvt5p7FemeW5ELM+6gcVYL/ZsUwdu3zrWpDE3VUTddXW+EMYg==
   /@types/is-windows/0.2.0:
@@ -2366,14 +2366,17 @@ packages:
   /@types/node/10.12.15:
     resolution:
       integrity: sha512-9kROxduaN98QghwwHmxXO2Xz3MaWf+I1sLVAA6KJDF5xix+IyXVhds0MAfdNwtcpSrzhaTsNB0/jnL86fgUhqA==
-  /@types/node/8.10.38:
+  /@types/node/10.12.18:
+    resolution:
+      integrity: sha512-fh+pAqt4xRzPfqA6eh3Z2y6fyZavRIumvjhaCL753+TVkGKGhpPeyrJG2JftD0T9q4GF00KjefsQ+PQNDdWQaQ==
+  /@types/node/8.10.39:
     dev: false
     resolution:
-      integrity: sha512-EibsnbJerd0hBFaDjJStFrVbVBAtOy4dgL8zZFw0uOvPqzBAX59Ci8cgjg3+RgJIWhsB5A4c+pi+D4P9tQQh/A==
-  /@types/node/9.6.40:
+      integrity: sha512-rE7fktr02J8ybFf6eysife+WF+L4sAHWzw09DgdCebEu+qDwMvv4zl6Bc+825ttGZP73kCKxa3dhJOoGJ8+5mA==
+  /@types/node/9.6.41:
     dev: false
     resolution:
-      integrity: sha512-M3HHoXXndsho/sTbQML2BJr7/uwNhMg8P0D4lb+UsM65JQZx268faiz9hKpY4FpocWqpwlLwa8vevw8hLtKjOw==
+      integrity: sha512-sPZWEbFMz6qAy9SLY7jh5cgepmsiwqUUHjvEm8lpU6kug2hmmcyuTnwhoGw/GWpI5Npue4EqvsiQQI0eWjW/ZA==
   /@types/nopt/3.0.29:
     resolution:
       integrity: sha1-8Z3z20yX7hRZonQAKDIKcdcJZM4=
@@ -2452,6 +2455,12 @@ packages:
       '@types/node': 10.12.15
     resolution:
       integrity: sha512-xil0KO5wkPoixdBWGIGolPv9dekf6dVkjjJLAFYchfKcd4DICou67rgGCIO7wAh3i5Ff/6j9IDgZz+GU9cMaqQ==
+  /@types/tape/4.2.33:
+    dependencies:
+      '@types/node': 10.12.18
+    dev: true
+    resolution:
+      integrity: sha512-ltfyuY5BIkYlGuQfwqzTDT8f0q8Z5DGppvUnWGs39oqDmMd6/UWhNpX3ZMh/VYvfxs3rFGHMrLC/eGRdLiDGuw==
   /@types/tempy/0.2.0:
     dev: true
     resolution:
@@ -2642,14 +2651,14 @@ packages:
     dev: true
     resolution:
       integrity: sha1-c7Xuyj+rZT49P5Qis0GtQiBdyWU=
-  /ajv/6.6.1:
+  /ajv/6.6.2:
     dependencies:
       fast-deep-equal: 2.0.1
       fast-json-stable-stringify: 2.0.0
       json-schema-traverse: 0.4.1
       uri-js: 4.2.2
     resolution:
-      integrity: sha512-ZoJjft5B+EJBjUyu9C9Hc0OZyPZSSlOF+plzouTrg6UlA8f+e/n8NIgBFG/9tppJtpPWfthHakK7juJdNDODww==
+      integrity: sha512-FBHEW6Jf5TB9MGBgUUA9XHkTbjXYfAUjY43ACMfmdMRHniyoMHjHjzD50OK8LGDWQwp4rWEsIq5kEqq7rvIM1g==
   /align-text/0.1.4:
     dependencies:
       kind-of: 3.2.2
@@ -3055,7 +3064,7 @@ packages:
   /babel-polyfill/6.26.0:
     dependencies:
       babel-runtime: 6.26.0
-      core-js: 2.6.0
+      core-js: 2.6.1
       regenerator-runtime: 0.10.5
     dev: true
     resolution:
@@ -3064,7 +3073,7 @@ packages:
     dependencies:
       babel-core: 6.26.3
       babel-runtime: 6.26.0
-      core-js: 2.6.0
+      core-js: 2.6.1
       home-or-tmp: 2.0.0
       lodash: 4.17.11
       mkdirp: 0.5.1
@@ -3081,7 +3090,7 @@ packages:
       integrity: sha1-o0NCX802FY3++ucl0Dk+zkTsRZw=
   /babel-runtime/6.26.0:
     dependencies:
-      core-js: 2.6.0
+      core-js: 2.6.1
       regenerator-runtime: 0.11.1
     dev: true
     resolution:
@@ -3954,10 +3963,10 @@ packages:
       node: '>=0.10.0'
     resolution:
       integrity: sha1-Z29us8OZl8LuGsOpJP1hJHSPV40=
-  /core-js/2.6.0:
+  /core-js/2.6.1:
     dev: true
     resolution:
-      integrity: sha512-kLRC6ncVpuEW/1kwrOXYX6KQASCVtrh1gQr/UiaVgFlf9WE5Vp+lNe5+h3LuMr5PAucWnnEXwH0nQHRH/gpGtw==
+      integrity: sha512-L72mmmEayPJBejKIWe2pYtGis5r0tQ5NaJekdhyXgeMQTpJoBsH0NL4ElY2LfSoV15xeQWKQ+XTTOZdyero5Xg==
   /core-util-is/1.0.2:
     resolution:
       integrity: sha1-tf1UIgqivFq1eqtxQMlAdUUDwac=
@@ -4115,7 +4124,7 @@ packages:
       integrity: sha1-hTz6D3y+L+1d4gMmuN1YEDX24vA=
   /data-uri-to-buffer/2.0.0:
     dependencies:
-      '@types/node': 8.10.38
+      '@types/node': 8.10.39
     dev: false
     resolution:
       integrity: sha512-YbKCNLPPP4inc0E5If4OaalBc7gpaM2MRv77Pv2VThVComLKfbGYtJcdDCViDyp1Wd4SebhHLz94vp91zbK6bw==
@@ -4398,7 +4407,7 @@ packages:
       integrity: sha512-HygQCKUBSFl8wKQZBSemMywRWcEDNidvNbjGVyZu3nbZ8qq9ubiPoGLMdRDpfSrpkkm9BXYFkpKxxFX38o/76w==
   /dtrace-provider/0.8.7:
     dependencies:
-      nan: 2.11.1
+      nan: 2.12.1
     dev: true
     engines:
       node: '>=0.10'
@@ -4741,7 +4750,7 @@ packages:
       integrity: sha1-oB6c2cnkkXFcmKdaQtXwu9EH/3Y=
   /fetch-from-npm-registry/1.0.0:
     dependencies:
-      '@types/node': 10.12.15
+      '@types/node': 10.12.18
       make-fetch-happen: 4.0.1
     engines:
       node: '>=6'
@@ -4804,7 +4813,7 @@ packages:
       integrity: sha512-Y1GUDo39ez4aHAw7MysnUD5JzYX+WaIj8I57kO3aEPT1fFRL4sr7mjei97FgnwhAyyzRYmQZaTHb2+9uZ1dPtg==
   /find-packages/2.2.0:
     dependencies:
-      '@types/node': 9.6.40
+      '@types/node': 9.6.41
       fast-glob: 2.2.4
       p-filter: 1.0.0
       read-pkg: 3.0.0
@@ -5320,7 +5329,7 @@ packages:
       integrity: sha1-ukAsJmGU8VlW7xXg/PJCmT9qff0=
   /har-validator/5.1.3:
     dependencies:
-      ajv: 6.6.1
+      ajv: 6.6.2
       har-schema: 2.0.0
     engines:
       node: '>=6'
@@ -6825,7 +6834,7 @@ packages:
       babel-runtime: 6.26.0
       ccount: 1.0.3
       collapse-white-space: 1.0.4
-      core-js: 2.6.0
+      core-js: 2.6.1
       file-position: 0.0.0
       is-promise: 2.1.0
       longest-streak: 1.0.0
@@ -6848,7 +6857,7 @@ packages:
   /mos-init/1.1.2:
     dependencies:
       arr-exclude: 1.0.0
-      core-js: 2.6.0
+      core-js: 2.6.1
       cross-spawn: 4.0.2
       mos-read-pkg-up: 1.0.0
       the-argv: 1.0.0
@@ -7012,7 +7021,7 @@ packages:
     dependencies:
       babel-runtime: 6.26.0
       chalk: 1.1.3
-      core-js: 2.6.0
+      core-js: 2.6.1
       diff: 2.2.3
       duplexer: 0.1.1
       figures: 1.7.0
@@ -7106,11 +7115,11 @@ packages:
       thenify-all: 1.6.0
     resolution:
       integrity: sha512-z81GNO7nnYMEhrGh9LeymoE4+Yr0Wn5McHIZMK5cfQCl+NDX08sCZgUc9/6MHni9IWuFLm1Z3HTCXu2z9fN62Q==
-  /nan/2.11.1:
+  /nan/2.12.1:
     dev: true
     optional: true
     resolution:
-      integrity: sha512-iji6k87OSXa0CcrLl9z+ZiYSuR2o+c0bGuNmXdrhTQTakxytAFsC56SArGYoiHlJlFoHSnvmhpceZJaXkVuOtA==
+      integrity: sha512-JY7V6lRkStKcKTvHO5NVSQRv+RV+FIL5pvDoLiAtSL9pKlC5x9PKQcZDsq7m4FO4d57mkhC6Z+QhAh3Jdk5JFw==
   /nanomatch/1.2.13:
     dependencies:
       arr-diff: 4.0.0
@@ -7722,7 +7731,7 @@ packages:
       integrity: sha1-VjRtR0nXjyNDDKDHE4UK75GqNh0=
   /parse-npm-tarball-url/2.0.0:
     dependencies:
-      '@types/node': 10.12.15
+      '@types/node': 10.12.18
       semver-regex: 2.0.0
     engines:
       node: '>=6'
@@ -7913,7 +7922,7 @@ packages:
   /pnpm-file-reporter/0.1.0:
     dependencies:
       '@types/graceful-fs': 4.1.2
-      '@types/node': 9.6.40
+      '@types/node': 9.6.41
       graceful-fs: 4.1.15
       json2yaml: 1.1.0
       path-exists: 3.0.0
@@ -7933,7 +7942,7 @@ packages:
       anonymous-npm-registry-client: 0.1.2
       cpr: 3.0.1
       rimraf: 2.6.2
-      verdaccio: 3.10.0
+      verdaccio: 3.10.1
     dev: true
     engines:
       node: '>=6'
@@ -9047,7 +9056,7 @@ packages:
   /spdx-correct/3.1.0:
     dependencies:
       spdx-expression-parse: 3.0.0
-      spdx-license-ids: 3.0.2
+      spdx-license-ids: 3.0.3
     resolution:
       integrity: sha512-lr2EZCctC2BNR7j7WzJ2FpDznxky1sjfxvvYEyzxNyb6lZXHODmEoJeFu4JupYlkfha1KZpJyoqiJ7pgA1qq8Q==
   /spdx-exceptions/2.2.0:
@@ -9056,12 +9065,12 @@ packages:
   /spdx-expression-parse/3.0.0:
     dependencies:
       spdx-exceptions: 2.2.0
-      spdx-license-ids: 3.0.2
+      spdx-license-ids: 3.0.3
     resolution:
       integrity: sha512-Yg6D3XpRD4kkOmTpdgbUiEJFKghJH03fiC1OPll5h/0sO6neh2jqRDVHOQ4o/LMea0tgCkbMgea5ip/e+MkWyg==
-  /spdx-license-ids/3.0.2:
+  /spdx-license-ids/3.0.3:
     resolution:
-      integrity: sha512-qky9CVt0lVIECkEsYbNILVnPvycuEBkXoMFLRWsREkomQLevYhtRKC+R91a5TOAQ3bCMjikRwhyaRqj1VYatYg==
+      integrity: sha512-uBIcIl3Ih6Phe3XHK1NqboJLdGfwr1UN3k6wSD1dZpmPsIkb8AGNbZYJ1fOBk834+Gxy8rpfDxrS6XLEMZMY2g==
   /split-string/3.1.0:
     dependencies:
       extend-shallow: 3.0.2
@@ -9855,7 +9864,7 @@ packages:
       integrity: sha1-HAgkFQSBvHoB1J6Y8exmjYJBLzs=
   /unpack-stream/4.0.0:
     dependencies:
-      '@types/node': 10.12.15
+      '@types/node': 10.12.18
       decompress-maybe: 1.0.0
       ssri: 6.0.1
       tar-fs: 1.16.3
@@ -10022,7 +10031,7 @@ packages:
       node: '>=6.12.0'
     resolution:
       integrity: sha512-60R1AEAjKmIGms7gSfotWmUhw0JOPdeyx6DOATtCuOJNfgameiDm2gPlAGJ/XKHoXn96EaVfuhg2ruDmq1AQug==
-  /verdaccio/3.10.0:
+  /verdaccio/3.10.1:
     dependencies:
       '@verdaccio/file-locking': 0.0.7
       '@verdaccio/local-storage': 1.1.3
@@ -10064,7 +10073,7 @@ packages:
       npm: '>=3'
     hasBin: true
     resolution:
-      integrity: sha512-LZuP8ZfcChRsi5jVM4URlDfstr79Fzbq4W9EIbazF8IsFpM5cHFDEZrv7Fbx6hn5Aq0NWB51UuJIf5YbmMacNQ==
+      integrity: sha512-+vP2a0aDDPU90dU0Mj/wH8GLsuUl53ZY8XP/TXTTnXSRz73TRZkj8o6782r+S/OCv98z+TgrrbCGqVSLivna8A==
   /verror/1.10.0:
     dependencies:
       assert-plus: 1.0.0

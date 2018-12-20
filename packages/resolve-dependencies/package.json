@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/resolve-dependencies",
-  "version": "2.0.1",
+  "version": "3.0.0",
   "author": {
     "name": "Zoltan Kochan",
     "email": "z@kochan.io",
@@ -30,12 +30,12 @@
     "prepublishOnly": "npm run tsc"
   },
   "dependencies": {
-    "@pnpm/core-loggers": "1.0.0",
+    "@pnpm/core-loggers": "1.1.0",
     "@pnpm/npm-resolver": "2.2.7",
     "@pnpm/resolver-base": "2.0.0",
     "@pnpm/shrinkwrap-types": "1.0.0",
     "@pnpm/shrinkwrap-utils": "1.0.0",
-    "@pnpm/store-controller-types": "1.2.0",
+    "@pnpm/store-controller-types": "2.0.0",
     "@pnpm/types": "2.0.0",
     "@pnpm/utils": "0.9.0",
     "@types/node": "10.12.15",
