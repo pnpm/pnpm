@@ -18,6 +18,7 @@ export default async (
     background?: boolean,
     protocol?: 'auto' | 'tcp' | 'ipc',
     port?: number,
+    hostname?: string,
     ignoreStopRequests?: boolean,
     ignoreUploadRequests?: boolean,
   },
@@ -73,7 +74,7 @@ export default async (
     store: pathOfStore,
   }))
   const protocol = opts.protocol || opts.port && 'tcp' || 'auto'
-  const serverOptions = await getServerOptions(connectionInfoDir, { protocol, port: opts.port })
+  const serverOptions = await getServerOptions(connectionInfoDir, { protocol, port: opts.port, hostname: opts.hostname })
   const connectionOptions = {
     remotePrefix: serverOptions.path
       ? `http://unix:${serverOptions.path}:`
@@ -108,6 +109,7 @@ async function getServerOptions (
   opts: {
     protocol: 'auto' | 'tcp' | 'ipc',
     port?: number,
+    hostname?: string
   },
 ): Promise<{hostname?: string, port?: number, path?: string}> {
   switch (opts.protocol) {
@@ -123,13 +125,13 @@ async function getServerOptions (
         return getTcpOptions()
       }
       return getIpcOptions()
-    default:
+    default:connectionInfoDir
       throw new Error(`Protocol ${opts.protocol} is not supported`)
   }
 
   async function getTcpOptions () {
     return {
-      hostname: 'localhost',
+      hostname: opts.hostname || 'localhost',
       port: opts.port || await getPort({ port: 5813 }), // tslint:disable-line
     }
   }
