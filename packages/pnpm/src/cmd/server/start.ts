@@ -125,7 +125,7 @@ async function getServerOptions (
         return getTcpOptions()
       }
       return getIpcOptions()
-    default:connectionInfoDir
+    default:
       throw new Error(`Protocol ${opts.protocol} is not supported`)
   }
 
