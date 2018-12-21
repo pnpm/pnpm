@@ -67,7 +67,7 @@
     "@pnpm/tslint-config": "0.0.0",
     "@types/ncp": "2.0.1",
     "@types/nock": "9.3.0",
-    "@types/sinon": "7.0.0",
+    "@types/sinon": "7.0.2",
     "@types/tape": "4.2.32",
     "@types/tempy": "0.2.0",
     "delay": "4.1.0",
