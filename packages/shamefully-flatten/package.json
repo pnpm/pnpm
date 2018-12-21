@@ -50,7 +50,7 @@
     "@pnpm/shrinkwrap-types": "1.0.0",
     "@pnpm/shrinkwrap-utils": "1.0.0",
     "@pnpm/symlink-dependency": "1.1.1",
-    "@types/node": "10.12.15",
+    "@types/node": "10.12.18",
     "@types/ramda": "0.25.34",
     "dependency-path": "2.0.1",
     "ramda": "0.26.1"
