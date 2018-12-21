@@ -1033,7 +1033,7 @@ importers:
       sepia: 2.0.2
       signal-exit: 3.0.2
       strip-color: 0.1.0
-      supi: 0.27.0
+      supi: 0.27.1
       symlink-dir: 2.0.2
       tape: 4.9.1
       tape-promise: 4.0.0
@@ -1525,7 +1525,7 @@ importers:
       '@pnpm/read-manifests': 1.0.3
       '@pnpm/read-modules-dir': 1.0.0
       '@pnpm/read-package-json': 1.0.1
-      '@pnpm/resolve-dependencies': 3.0.0
+      '@pnpm/resolve-dependencies': 3.1.0
       '@pnpm/resolver-base': 2.0.0
       '@pnpm/shamefully-flatten': 2.0.0
       '@pnpm/shrinkwrap-file': 1.0.0
@@ -5476,7 +5476,7 @@ packages:
     dependencies:
       assert-plus: 1.0.0
       jsprim: 1.4.1
-      sshpk: 1.15.2
+      sshpk: 1.16.0
     engines:
       node: '>=0.8'
       npm: '>=1.3.7'
@@ -9087,7 +9087,7 @@ packages:
   /sprintf-js/1.0.3:
     resolution:
       integrity: sha1-BOaSb2YolTVPPdAVIDYzuFcpfiw=
-  /sshpk/1.15.2:
+  /sshpk/1.16.0:
     dependencies:
       asn1: 0.2.4
       assert-plus: 1.0.0
@@ -9102,7 +9102,7 @@ packages:
       node: '>=0.10.0'
     hasBin: true
     resolution:
-      integrity: sha512-Ra/OXQtuh0/enyl4ETZAfTaeksa6BXks5ZcjpSUNrjBr0DvrJKX+1fsKDPpT9TBXgHAFsa4510aNVgI8g/+SzA==
+      integrity: sha512-Zhev35/y7hRMcID/upReIvRse+I9SVhyVre/KTJSJQWMz3C3+G+HpO7m1wK/yckEtujKZ7dS4hkVxAnmHaIGVQ==
   /ssri/6.0.1:
     dependencies:
       figgy-pudding: 3.5.1

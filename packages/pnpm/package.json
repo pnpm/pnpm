@@ -1,7 +1,7 @@
 {
   "name": "pnpm",
   "description": "Fast, disk space efficient package manager",
-  "version": "2.22.0-0",
+  "version": "2.22.0",
   "author": {
     "name": "Zoltan Kochan",
     "email": "z@kochan.io",
@@ -79,7 +79,7 @@
     "read-yaml-file": "1.1.0",
     "signal-exit": "3.0.2",
     "strip-color": "0.1.0",
-    "supi": "0.27.0",
+    "supi": "0.27.1",
     "text-table": "0.2.0",
     "tree-kill": "1.2.1",
     "update-notifier": "2.5.0",
