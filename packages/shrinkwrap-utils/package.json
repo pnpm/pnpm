@@ -50,7 +50,7 @@
     "@pnpm/resolver-base": "2.0.0",
     "@pnpm/shrinkwrap-types": "1.0.0",
     "@pnpm/types": "2.0.0",
-    "@types/js-yaml": "3.11.2",
+    "@types/js-yaml": "3.11.4",
     "@types/node": "10.12.15",
     "@types/ramda": "0.25.39",
     "dependency-path": "2.0.1",
