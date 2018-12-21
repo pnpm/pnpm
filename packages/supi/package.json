@@ -52,7 +52,7 @@
     "@types/p-every": "1.0.0",
     "@types/p-series": "1.0.1",
     "@types/ramda": "0.25.34",
-    "@types/rc": "0.0.1",
+    "@types/rc": "0.0.2",
     "@types/semver": "5.5.0",
     "@zkochan/npm-package-arg": "1.0.1",
     "common-tags": "1.8.0",
