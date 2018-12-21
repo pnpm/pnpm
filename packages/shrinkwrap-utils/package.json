@@ -35,7 +35,7 @@
   "devDependencies": {
     "@pnpm/shrinkwrap-utils": "link:",
     "@pnpm/tslint-config": "0.0.0",
-    "@types/tape": "4.2.32",
+    "@types/tape": "4.2.33",
     "@types/tempy": "0.2.0",
     "rimraf": "2.6.2",
     "tape": "4.9.1",

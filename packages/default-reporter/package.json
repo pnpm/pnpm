@@ -62,7 +62,7 @@
     "@pnpm/default-reporter": "link:",
     "@pnpm/logger": "2.1.0",
     "@pnpm/tslint-config": "0.0.0",
-    "@types/tape": "4.2.32",
+    "@types/tape": "4.2.33",
     "delay": "4.1.0",
     "ghooks": "2.0.4",
     "load-json-file": "5.1.0",

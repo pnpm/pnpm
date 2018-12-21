@@ -102,7 +102,7 @@
     "@types/ramda": "0.25.34",
     "@types/retry": "0.10.2",
     "@types/semver": "5.5.0",
-    "@types/tape": "4.2.32",
+    "@types/tape": "4.2.33",
     "@types/update-notifier": "2.5.0",
     "anonymous-npm-registry-client": "0.1.2",
     "byline": "5.0.0",

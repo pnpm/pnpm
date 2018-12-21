@@ -52,7 +52,7 @@
   "devDependencies": {
     "@pnpm/logger": "2.1.0",
     "@pnpm/tslint-config": "0.0.0",
-    "@types/tape": "4.2.32",
+    "@types/tape": "4.2.33",
     "dependencies-hierarchy": "link:",
     "mos": "2.0.0-alpha.3",
     "mos-plugin-readme": "1.0.4",

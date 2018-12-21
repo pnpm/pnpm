@@ -100,7 +100,7 @@
     "@types/is-windows": "0.2.0",
     "@types/mkdirp": "0.5.2",
     "@types/sinon": "7.0.0",
-    "@types/tape": "4.2.32",
+    "@types/tape": "4.2.33",
     "anonymous-npm-registry-client": "0.1.2",
     "caw": "2.0.1",
     "cross-spawn": "6.0.5",

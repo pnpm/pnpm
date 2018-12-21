@@ -40,7 +40,7 @@
     "@pnpm/tarball-fetcher": "2.0.8",
     "@pnpm/tslint-config": "0.0.0",
     "@types/mz": "0.0.32",
-    "@types/tape": "4.2.32",
+    "@types/tape": "4.2.33",
     "is-port-reachable": "2.0.0",
     "mos": "2.0.0-alpha.3",
     "mos-plugin-readme": "1.0.4",

@@ -9,7 +9,7 @@
     "@pnpm/modules-yaml": "2.0.1",
     "@types/mkdirp": "0.5.2",
     "@types/node": "10.12.15",
-    "@types/tape": "4.2.32",
+    "@types/tape": "4.2.33",
     "@types/write-pkg": "3.1.0",
     "mkdirp": "0.5.1",
     "tape": "4.9.1",
