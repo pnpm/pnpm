@@ -145,6 +145,7 @@ export interface ResolvedPackage {
   optionalDependencies: Set<string>,
   hasBin: boolean,
   hasBundledDependencies: boolean,
+  independent: boolean,
   prepare: boolean,
   requiresBuild: boolean | undefined, // added to fix issue #1201
   additionalInfo: {
@@ -587,6 +588,9 @@ async function resolveDependency (
       hasBin,
       hasBundledDependencies: !!(pkg.bundledDependencies || pkg.bundleDependencies),
       id: pkgResponse.body.id,
+      independent: (pkg.dependencies === undefined || R.isEmpty(pkg.dependencies)) &&
+        (pkg.optionalDependencies === undefined || R.isEmpty(pkg.optionalDependencies)) &&
+        (pkg.peerDependencies === undefined || R.isEmpty(pkg.peerDependencies)),
       name: pkg.name,
       optional: wantedDependency.optional,
       optionalDependencies: new Set(R.keys(pkg.optionalDependencies)),

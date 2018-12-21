@@ -1,5 +1,8 @@
 import prepare from '@pnpm/prepare'
-import { addDependenciesToPackage } from 'supi'
+import isSubdir = require('is-subdir')
+import path = require('path')
+import resolveLinkTarget = require('resolve-link-target')
+import { addDependenciesToPackage, install } from 'supi'
 import tape = require('tape')
 import promisifyTape from 'tape-promise'
 import { testDefaults } from '../utils'
@@ -14,6 +17,10 @@ test('install with --independent-leaves', async (t: tape.Test) => {
   const m = project.requireModule('rimraf')
   t.ok(typeof m === 'function', 'rimraf() is available')
   await project.isExecutable('.bin/rimraf')
+
+  await install(await testDefaults({ independentLeaves: true, preferFrozenShrinkwrap: false }))
+
+  t.ok(isSubdir(path.resolve('node_modules'), await resolveLinkTarget(path.resolve('node_modules/rimraf'))), 'non-independent package is not symlinked directly from store')
 })
 
 test('--independent-leaves throws exception when executed on node_modules installed w/o the option', async (t: tape.Test) => {
