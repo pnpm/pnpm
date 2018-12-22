@@ -11,8 +11,8 @@ const hlValue = chalk.cyanBright
 const hlPkgId = chalk['whiteBright']
 
 const POSTINSTALL = hlValue('postinstall')
-const PREINSTALL = hlValue(' preinstall')
-const INSTALL = hlValue('    install')
+const PREINSTALL = hlValue('preinstall')
+const INSTALL = hlValue('install')
 const EOL = '\n'
 
 test('groups lifecycle output', t => {
@@ -22,85 +22,82 @@ test('groups lifecycle output', t => {
     streamParser: createStreamParser(),
   })
 
-  const pkgId = 'registry.npmjs.org/foo/1.0.0'
-  const wd = process.cwd()
-
   lifecycleLogger.debug({
-    depPath: 'registry.npmjs.org/foo/1.0.0',
+    depPath: 'packages/foo',
     optional: false,
     script: 'node foo',
     stage: 'preinstall',
-    wd,
+    wd: 'packages/foo',
   })
   lifecycleLogger.debug({
-    depPath: 'registry.npmjs.org/foo/1.0.0',
-    line: 'foo 0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20',
+    depPath: 'packages/foo',
+    line: 'foo 0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30',
     stage: 'preinstall',
     stdio: 'stdout',
-    wd,
+    wd: 'packages/foo',
   })
   lifecycleLogger.debug({
-    depPath: 'registry.npmjs.org/foo/1.0.0',
+    depPath: 'packages/foo',
     optional: false,
     script: 'node foo',
     stage: 'postinstall',
-    wd,
+    wd: 'packages/foo',
   })
   lifecycleLogger.debug({
-    depPath: 'registry.npmjs.org/foo/1.0.0',
+    depPath: 'packages/foo',
     line: 'foo I',
     stage: 'postinstall',
     stdio: 'stdout',
-    wd,
+    wd: 'packages/foo',
   })
   lifecycleLogger.debug({
-    depPath: 'registry.npmjs.org/bar/1.0.0',
+    depPath: 'packages/bar',
     optional: false,
     script: 'node bar',
     stage: 'postinstall',
-    wd,
+    wd: 'packages/bar',
   })
   lifecycleLogger.debug({
-    depPath: 'registry.npmjs.org/bar/1.0.0',
+    depPath: 'packages/bar',
     line: 'bar I',
     stage: 'postinstall',
     stdio: 'stdout',
-    wd,
+    wd: 'packages/bar',
   })
   lifecycleLogger.debug({
-    depPath: 'registry.npmjs.org/foo/1.0.0',
+    depPath: 'packages/foo',
     line: 'foo II',
     stage: 'postinstall',
     stdio: 'stdout',
-    wd,
+    wd: 'packages/foo',
   })
   lifecycleLogger.debug({
-    depPath: 'registry.npmjs.org/foo/1.0.0',
+    depPath: 'packages/foo',
     line: 'foo III',
     stage: 'postinstall',
     stdio: 'stdout',
-    wd,
+    wd: 'packages/foo',
   })
   lifecycleLogger.debug({
-    depPath: 'registry.npmjs.org/qar/1.0.0',
+    depPath: 'packages/qar',
     optional: false,
     script: 'node qar',
     stage: 'install',
-    wd,
+    wd: 'packages/qar',
   })
   lifecycleLogger.debug({
-    depPath: 'registry.npmjs.org/qar/1.0.0',
+    depPath: 'packages/qar',
     exitCode: 0,
     optional: false,
     stage: 'install',
-    wd,
+    wd: 'packages/qar'
   })
   lifecycleLogger.debug({
-    depPath: 'registry.npmjs.org/foo/1.0.0',
+    depPath: 'packages/foo',
     exitCode: 0,
     optional: false,
     stage: 'postinstall',
-    wd,
+    wd: 'packages/foo'
   })
 
   t.plan(1)
@@ -110,21 +107,134 @@ test('groups lifecycle output', t => {
     error: t.end,
     next: output => {
       t.equal(output, EOL + stripIndents`
-        registry.npmjs.org/foo/1.0.0             | ${PREINSTALL}$ node foo
-        registry.npmjs.org/foo/1.0.0             | ${PREINSTALL}: foo 0 1 2 3 4 5 6 7 8 9
+        packages/foo ${PREINSTALL}$ node foo
+        ${chalk.magentaBright('|')} foo 0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27
 
-        registry.npmjs.org/foo/1.0.0             | ${POSTINSTALL}$ node foo
-        registry.npmjs.org/foo/1.0.0             | ${POSTINSTALL}: foo I
-        registry.npmjs.org/foo/1.0.0             | ${POSTINSTALL}: foo II
-        registry.npmjs.org/foo/1.0.0             | ${POSTINSTALL}: foo III
+        packages/foo ${POSTINSTALL}$ node foo
+        ${chalk.magentaBright('|')} foo I
+        ${chalk.magentaBright('|')} foo II
+        ${chalk.magentaBright('|')} foo III
 
-        registry.npmjs.org/bar/1.0.0             | ${POSTINSTALL}$ node bar
-        registry.npmjs.org/bar/1.0.0             | ${POSTINSTALL}: bar I
+        packages/bar ${POSTINSTALL}$ node bar
+        ${chalk.magentaBright('|')} bar I
 
-        registry.npmjs.org/qar/1.0.0             | ${INSTALL}$ node qar
-        registry.npmjs.org/qar/1.0.0             | ${INSTALL}: done
+        packages/qar ${INSTALL}$ node qar
+        packages/qar ${INSTALL}: Done
       `)
     },
+  })
+})
+
+test('groups lifecycle output when append-only is used', t => {
+  const output$ = toOutput$({
+    context: { argv: ['install'] },
+    reportingOptions: {
+      appendOnly: true,
+      outputMaxWidth: 79,
+    },
+    streamParser: createStreamParser(),
+  })
+
+  lifecycleLogger.debug({
+    depPath: 'packages/foo',
+    optional: false,
+    script: 'node foo',
+    stage: 'preinstall',
+    wd: 'packages/foo',
+  })
+  lifecycleLogger.debug({
+    depPath: 'packages/foo',
+    line: 'foo 0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30',
+    stage: 'preinstall',
+    stdio: 'stdout',
+    wd: 'packages/foo',
+  })
+  lifecycleLogger.debug({
+    depPath: 'packages/foo',
+    optional: false,
+    script: 'node foo',
+    stage: 'postinstall',
+    wd: 'packages/foo',
+  })
+  lifecycleLogger.debug({
+    depPath: 'packages/foo',
+    line: 'foo I',
+    stage: 'postinstall',
+    stdio: 'stdout',
+    wd: 'packages/foo',
+  })
+  lifecycleLogger.debug({
+    depPath: 'packages/bar',
+    optional: false,
+    script: 'node bar',
+    stage: 'postinstall',
+    wd: 'packages/bar',
+  })
+  lifecycleLogger.debug({
+    depPath: 'packages/bar',
+    line: 'bar I',
+    stage: 'postinstall',
+    stdio: 'stdout',
+    wd: 'packages/bar',
+  })
+  lifecycleLogger.debug({
+    depPath: 'packages/foo',
+    line: 'foo II',
+    stage: 'postinstall',
+    stdio: 'stdout',
+    wd: 'packages/foo',
+  })
+  lifecycleLogger.debug({
+    depPath: 'packages/foo',
+    line: 'foo III',
+    stage: 'postinstall',
+    stdio: 'stdout',
+    wd: 'packages/foo',
+  })
+  lifecycleLogger.debug({
+    depPath: 'packages/qar',
+    optional: false,
+    script: 'node qar',
+    stage: 'install',
+    wd: 'packages/qar',
+  })
+  lifecycleLogger.debug({
+    depPath: 'packages/qar',
+    exitCode: 0,
+    optional: false,
+    stage: 'install',
+    wd: 'packages/qar'
+  })
+  lifecycleLogger.debug({
+    depPath: 'packages/foo',
+    exitCode: 0,
+    optional: false,
+    stage: 'postinstall',
+    wd: 'packages/foo'
+  })
+
+  t.plan(1)
+
+  let allOutputs = [] as string[]
+
+  output$.take(10).map(normalizeNewline).subscribe({
+    complete: () => {
+      t.equal(allOutputs.join(EOL), stripIndents`
+        packages/foo ${PREINSTALL}$ node foo
+        packages/foo ${PREINSTALL}: foo 0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30
+        packages/foo ${POSTINSTALL}$ node foo
+        packages/foo ${POSTINSTALL}: foo I
+        packages/bar ${POSTINSTALL}$ node bar
+        packages/bar ${POSTINSTALL}: bar I
+        packages/foo ${POSTINSTALL}: foo II
+        packages/foo ${POSTINSTALL}: foo III
+        packages/qar ${INSTALL}$ node qar
+        packages/qar ${INSTALL}: Done
+      `)
+      t.end()
+    },
+    error: t.end,
+    next: (output: string) => { allOutputs.push(output) },
   })
 })
 
@@ -317,8 +427,8 @@ test('output of failed non-optional dependency is printed', t => {
     next: (output: string) => {
       t.equal(output.replace(/failed in [^\s]+/g, 'failed in 1s'), stripIndents`
         ${chalk.gray('node_modules/.registry.npmjs.org/foo/1.0.0/node_modules/')}foo: Running install script, failed in 1s
-        registry.npmjs.org/foo/1.0.0             | ${INSTALL}$ node foo
-        registry.npmjs.org/foo/1.0.0             | ${INSTALL}: foo 0 1 2 3 4 5 6 7 8 9
+        .../foo/1.0.0/node_modules/foo ${INSTALL}$ node foo
+        ${chalk.magentaBright('|')} foo 0 1 2 3 4 5 6 7 8 9
       `)
     },
   })

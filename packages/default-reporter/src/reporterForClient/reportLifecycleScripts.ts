@@ -3,14 +3,11 @@ import chalk from 'chalk'
 import most = require('most')
 import path = require('path')
 import prettyTime = require('pretty-time')
-import rightPad = require('right-pad')
-import padStart = require('string.prototype.padstart')
 import stripAnsi = require('strip-ansi')
 import PushStream = require('zen-push')
 import { EOL } from '../constants'
 import {
   hlValue,
-  PREFIX_MAX_LENGTH,
 } from './outputConstants'
 import formatPrefix, { formatPrefixNoTrim } from './utils/formatPrefix'
 
@@ -28,7 +25,9 @@ export default (
 ) => {
 // When the reporter is not append-only, the length of output is limited
   // in order to reduce flickering
-  const formatLifecycle = formatLifecycleHideOverflow.bind(null, opts.appendOnly ? Infinity : opts.width)
+  const formatLifecycle = opts.appendOnly
+    ? formatLifecycleHideOverflowForAppendOnly
+    : formatLifecycleHideOverflow.bind(null, opts.width)
   if (opts.appendOnly) {
     return most.of(
       log$.lifecycle
@@ -61,11 +60,12 @@ export default (
         output: [],
         startTime: process.hrtime(),
       }
+      const exit = typeof log['exitCode'] === 'number'
       let msg: string
       if (lifecycleMessages[key].collapsed) {
         lifecycleMessages[key]['label'] = lifecycleMessages[key]['label'] ||
           `${highlightLastFolder(formatPrefixNoTrim(opts.cwd, log.wd))}: Running ${log.stage} script`
-        if (typeof log['exitCode'] === 'number') {
+        if (exit) {
           const time = prettyTime(process.hrtime(lifecycleMessages[key].startTime))
           if (log['exitCode'] === 0) {
             msg = `${lifecycleMessages[key]['label']}, done in ${time}`
@@ -77,7 +77,6 @@ export default (
               ...lifecycleMessages[key].output,
             ].join(EOL)
           }
-          delete lifecycleMessages[key]
         } else {
           lifecycleMessages[key].output.push(formatLifecycle(opts.cwd, log))
           msg = `${lifecycleMessages[key]['label']}...`
@@ -86,24 +85,26 @@ export default (
         if (log['script']) {
           lifecycleMessages[key].script = formatLifecycle(opts.cwd, log)
         } else {
-          if (!lifecycleMessages[key].output.length || log['exitCode'] !== 0) {
-            lifecycleMessages[key].output.push(formatLifecycle(opts.cwd, log))
-          }
-          if (lifecycleMessages[key].output.length > 3) {
-            lifecycleMessages[key].output.shift()
-          }
+          lifecycleMessages[key].output.push(formatLifecycle(opts.cwd, log))
         }
         msg = EOL + [
           lifecycleMessages[key].script,
-          ...lifecycleMessages[key].output,
+          ...(
+            exit && log['exitCode'] !== 0
+              ? lifecycleMessages[key].output
+              : lifecycleMessages[key].output.slice(lifecycleMessages[key].output.length - 10)
+          ),
         ].join(EOL)
+      }
+      if (exit) {
+        delete lifecycleMessages[key]
       }
       if (!lifecycleStreamByDepPath[key]) {
         lifecycleStreamByDepPath[key] = new PushStream()
         lifecyclePushStream.next(most.from(lifecycleStreamByDepPath[key].observable))
       }
       lifecycleStreamByDepPath[key].next({ msg })
-      if (typeof log['exitCode'] === 'number') {
+      if (exit) {
         lifecycleStreamByDepPath[key].complete()
       }
     })
@@ -118,35 +119,49 @@ function highlightLastFolder (p: string) {
 
 const ANSI_ESCAPES_LENGTH_OF_PREFIX = hlValue(' ').length - 1
 
+function formatLifecycleHideOverflowForAppendOnly (
+  cwd: string,
+  logObj: LifecycleLog,
+) {
+  const prefix = `${formatPrefix(cwd, logObj.wd)} ${hlValue(logObj.stage)}`
+  if (logObj['exitCode'] === 0) {
+    return `${prefix}: Done`
+  }
+  if (logObj['script']) {
+    return `${prefix}$ ${logObj['script']}`
+  }
+  const line = formatLine(Infinity, logObj)
+  return `${prefix}: ${line}`
+}
+
 function formatLifecycleHideOverflow (
   maxWidth: number,
   cwd: string,
   logObj: LifecycleLog,
 ) {
-  const prefix = `${
-    logObj.wd === logObj.depPath
-      ? rightPad(formatPrefix(cwd, logObj.wd), PREFIX_MAX_LENGTH)
-      : rightPad(logObj.depPath, PREFIX_MAX_LENGTH)
-  } | ${hlValue(padStart(logObj.stage, 11))}`
-  if (logObj['script']) {
-    return `${prefix}$ ${logObj['script']}`
-  }
-  if (logObj['exitCode'] === 0) {
-    return `${prefix}: done`
-  }
+  const prefix = `${formatPrefix(cwd, logObj.wd)} ${hlValue(logObj.stage)}`
   const maxLineWidth = maxWidth - prefix.length - 2 + ANSI_ESCAPES_LENGTH_OF_PREFIX
-  const line = formatLine(maxLineWidth, logObj)
-  return `${prefix}: ${line}`
+  if (logObj['exitCode'] === 0) {
+    return `${prefix}: Done`
+  }
+  if (logObj['script']) {
+    return `${prefix}$ ${cutLine(logObj['script'], maxLineWidth)}`
+  }
+  return `${chalk.magentaBright('|')} ${formatLine(maxWidth - 2, logObj)}`
 }
 
 function formatLine (maxWidth: number, logObj: LifecycleLog) {
   if (typeof logObj['exitCode'] === 'number') return chalk.red(`Exited with ${logObj['exitCode']}`)
 
-  const line = stripAnsi(logObj['line']).substr(0, maxWidth)
+  const line = cutLine(logObj['line'], maxWidth)
 
   // TODO: strip only the non-color/style ansi escape codes
   if (logObj['stdio'] === 'stderr') {
     return chalk.gray(line)
   }
   return line
+}
+
+function cutLine (line: string, maxLength: number) {
+  return stripAnsi(line).substr(0, maxLength)
 }
