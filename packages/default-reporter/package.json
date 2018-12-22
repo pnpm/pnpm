@@ -49,6 +49,7 @@
     "most": "1.7.3",
     "normalize-path": "3.0.0",
     "pretty-bytes": "5.1.0",
+    "pretty-time": "1.1.0",
     "ramda": "0.26.1",
     "right-pad": "1.0.1",
     "semver": "5.6.0",

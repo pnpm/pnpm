@@ -112,6 +112,7 @@ importers:
       most: /most/1.7.3/most@1.7.3
       normalize-path: 3.0.0
       pretty-bytes: 5.1.0
+      pretty-time: 1.1.0
       ramda: 0.26.1
       right-pad: 1.0.1
       semver: 5.6.0
@@ -160,6 +161,7 @@ importers:
       normalize-newline: 3.0.0
       normalize-path: 3.0.0
       pretty-bytes: 5.1.0
+      pretty-time: 1.1.0
       ramda: 0.26.1
       right-pad: 1.0.1
       rimraf: 2.6.2
@@ -7982,6 +7984,12 @@ packages:
       node: '>=0.10.0'
     resolution:
       integrity: sha1-QlfCVt8/sLRR1q/6qwIYhBJpgdw=
+  /pretty-time/1.1.0:
+    dev: false
+    engines:
+      node: '>=4'
+    resolution:
+      integrity: sha512-28iF6xPQrP8Oa6uxE6a1biz+lWeTOAPKggvjB8HAs6nVMKZwf5bG++632Dx614hIWgUPkgivRfG+a8uAXGTIbA==
   /printable-characters/1.0.42:
     dev: false
     resolution:

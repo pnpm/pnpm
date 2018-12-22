@@ -47,3 +47,8 @@ declare module 'string.prototype.padstart' {
   function padStart (s: string, targetLength: number, padString?: string): string;
   export = padStart;
 }
+
+declare module 'pretty-time' {
+  function prettyTime (time: [number, number]): string;
+  export = prettyTime;
+}

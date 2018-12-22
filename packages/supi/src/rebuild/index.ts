@@ -161,6 +161,7 @@ async function runLifecycleHooksInDir (
 ) {
   const scriptsOpts = {
     depPath: prefix,
+    optional: false,
     pkgRoot: prefix,
     rawNpmConfig: opts.rawNpmConfig,
     rootNodeModulesDir: opts.rootNodeModulesDir,
@@ -274,6 +275,7 @@ async function _rebuild (
           try {
             await runPostinstallHooks({
               depPath: depAbsolutePath,
+              optional: pkgSnapshot.optional === true,
               pkgRoot: path.join(modules, `.${depAbsolutePath}`, 'node_modules', pkgInfo.name),
               prepare: pkgSnapshot.prepare,
               rawNpmConfig: opts.rawNpmConfig,

@@ -10,10 +10,11 @@ function noop () {} // tslint:disable-line:no-empty
 export async function runPostinstallHooks (
   opts: {
     depPath: string,
-    rootNodeModulesDir: string,
-    rawNpmConfig: object,
+    optional?: boolean,
     pkgRoot: string,
     prepare?: boolean,
+    rawNpmConfig: object,
+    rootNodeModulesDir: string,
     unsafePerm: boolean,
   },
 ): Promise<boolean> {
@@ -46,16 +47,19 @@ export default async function runLifecycleHook (
   pkg: PackageJson,
   opts: {
     depPath: string,
-    rootNodeModulesDir: string,
-    rawNpmConfig: object,
+    optional?: boolean,
     pkgRoot: string,
+    rawNpmConfig: object,
+    rootNodeModulesDir: string,
     stdio?: string,
     unsafePerm: boolean,
   },
 ) {
+  const optional = opts.optional === true
   if (opts.stdio !== 'inherit') {
     lifecycleLogger.debug({
       depPath: opts.depPath,
+      optional,
       script: pkg.scripts![stage],
       stage,
       wd: opts.pkgRoot,
@@ -101,6 +105,7 @@ export default async function runLifecycleHook (
         lifecycleLogger.debug({
           depPath: opts.depPath,
           exitCode: code,
+          optional,
           stage,
           wd: opts.pkgRoot,
         })
