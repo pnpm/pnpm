@@ -42,14 +42,14 @@
     "@pnpm/store-path": "1.0.4",
     "@pnpm/types": "2.0.0",
     "@pnpm/utils": "0.9.0",
-    "@types/node": "10.12.15",
+    "@types/node": "10.12.18",
     "dependency-path": "2.0.1"
   },
   "devDependencies": {
     "@pnpm/logger": "2.1.0",
     "@pnpm/outdated": "link:",
     "@pnpm/tslint-config": "0.0.0",
-    "@types/tape": "4.2.32",
+    "@types/tape": "4.2.33",
     "mos": "2.0.0-alpha.3",
     "mos-plugin-readme": "1.0.4",
     "tape": "4.9.1",

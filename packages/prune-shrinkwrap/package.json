@@ -35,7 +35,7 @@
   "devDependencies": {
     "@pnpm/prune-shrinkwrap": "link:",
     "@pnpm/tslint-config": "0.0.0",
-    "@types/tape": "4.2.32",
+    "@types/tape": "4.2.33",
     "rimraf": "2.6.2",
     "tape": "4.9.1",
     "ts-node": "6.2.0",

@@ -38,7 +38,7 @@
     "@pnpm/default-fetcher": "link:",
     "@pnpm/logger": "2.1.0",
     "@pnpm/tslint-config": "0.0.0",
-    "@types/tape": "4.2.32",
+    "@types/tape": "4.2.33",
     "mos": "2.0.0-alpha.3",
     "mos-plugin-readme": "1.0.4",
     "rimraf": "2.6.2",
