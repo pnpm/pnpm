@@ -5,6 +5,7 @@
   "ignoreDeps": [
     "@pnpm/assert-project",
     "@pnpm/config",
+    "@pnpm/core-loggers",
     "@pnpm/default-fetcher",
     "@pnpm/default-reporter",
     "@pnpm/default-resolver",
@@ -31,6 +32,7 @@
     "@pnpm/shrinkwrap-utils",
     "@pnpm/store-controller-types",
     "@pnpm/store-path",
+    "@pnpm/symlink-dependency",
     "@pnpm/tarball-fetcher",
     "@pnpm/tarball-resolver",
     "@pnpm/types",
