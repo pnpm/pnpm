@@ -688,7 +688,7 @@ importers:
       mos: 2.0.0-alpha.3
       mos-plugin-readme: 1.0.4
       ncp: 2.0.0
-      nock: 10.0.4
+      nock: 10.0.5
       normalize-path: 3.0.0
       rimraf: 2.6.2
       sinon: 7.2.2
@@ -727,7 +727,7 @@ importers:
       mos-plugin-readme: 1.0.4
       mz: 2.7.0
       ncp: 2.0.0
-      nock: 10.0.4
+      nock: 10.0.5
       normalize-path: 3.0.0
       p-limit: 2.0.0
       p-queue: 3.0.0
@@ -7178,7 +7178,7 @@ packages:
     dev: true
     resolution:
       integrity: sha512-kGASVhuL4tlAV0tvA34yJYZIVihrUt/5bDwpp4tTluigxUr2bBlJeDXmivb6NuEdFkqvdv/Ybb9dm16PSKUhtw==
-  /nock/10.0.4:
+  /nock/10.0.5:
     dependencies:
       chai: 4.2.0
       debug: 4.1.1
@@ -7191,9 +7191,9 @@ packages:
       semver: 5.6.0
     dev: true
     engines:
-      '0': node >= 4.0
+      node: '>= 6.0'
     resolution:
-      integrity: sha512-+kzpiUmJHl2j/ZdJG4Mc3oHJc4F1Tm9j0KV/SLhLKZQGTQkeK2z1XxhVIbM2evP3yn0RVlp7L1xZNIy84J8/1A==
+      integrity: sha512-6roBPXKplUBYM/37RRUb0RyfXLHu+AU10OoaJN2H1S3pOniAx+8+NregAWDp8XS3ZWovJZKZ2tfgaphqDdqB7g==
   /node-fetch-npm/2.0.2:
     dependencies:
       encoding: 0.1.12
