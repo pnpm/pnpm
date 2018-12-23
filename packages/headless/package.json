@@ -96,7 +96,7 @@
     "@pnpm/shrinkwrap-file": "1.0.0",
     "@pnpm/shrinkwrap-utils": "1.0.0",
     "@pnpm/store-controller-types": "2.0.0",
-    "@pnpm/symlink-dependency": "1.1.1",
+    "@pnpm/symlink-dependency": "1.1.2",
     "@pnpm/types": "2.0.0",
     "@pnpm/utils": "0.9.0",
     "@types/ramda": "0.25.34",
