@@ -57,7 +57,7 @@ export default (
         collapsed: log.wd.includes(NODE_MODULES),
         output: [],
         startTime: process.hrtime(),
-        status: formatIndentedStatus('Running...'),
+        status: formatIndentedStatus(chalk.magentaBright('Running...')),
       }
       const exit = typeof log['exitCode'] === 'number'
       let msg: string
@@ -110,7 +110,7 @@ function renderCollapsedScriptOutput (
   if (log['optional'] === true) {
     return `${messageCache['label']}, failed in ${time} (skipped as optional)`
   }
-  return `${messageCache['label']}, failed in ${time}${renderScriptOutput(log, messageCache, opts)}`
+  return `${messageCache['label']}, failed in ${time}${EOL}${renderScriptOutput(log, messageCache, opts)}`
 }
 
 function renderScriptOutput (
@@ -130,21 +130,21 @@ function renderScriptOutput (
 ) {
   updateMessageCache(log, messageCache, opts)
   if (opts.exit && log['exitCode'] !== 0) {
-    return EOL + [
+    return [
       messageCache.script,
       ...messageCache.output,
       messageCache.status,
     ].join(EOL)
   }
   if (messageCache.output.length > 10) {
-    return EOL + [
+    return [
       messageCache.script,
       `[${messageCache.output.length - 10} lines collapsed]`,
       ...messageCache.output.slice(messageCache.output.length - 10),
       messageCache.status,
     ].join(EOL)
   }
-  return EOL + [
+  return [
     messageCache.script,
     ...messageCache.output,
     messageCache.status,
@@ -171,10 +171,11 @@ function updateMessageCache (
     const maxLineWidth = opts.maxWidth - prefix.length - 2 + ANSI_ESCAPES_LENGTH_OF_PREFIX
     messageCache.script = `${prefix}$ ${cutLine(log['script'], maxLineWidth)}`
   } else if (opts.exit) {
+    const time = prettyTime(process.hrtime(messageCache.startTime))
     if (log['exitCode'] === 0) {
-      messageCache.status = formatIndentedStatus('Done')
+      messageCache.status = formatIndentedStatus(chalk.magentaBright(`Done in ${time}`))
     } else {
-      messageCache.status = formatIndentedStatus('Failed')
+      messageCache.status = formatIndentedStatus(chalk.red(`Failed in ${time}`))
     }
   } else {
     messageCache.output.push(formatIndentedOutput(opts.maxWidth, log))

@@ -15,7 +15,18 @@ const PREINSTALL = hlValue('preinstall')
 const INSTALL = hlValue('install')
 const OUTPUT_INDENTATION = chalk.magentaBright('│')
 const STATUS_INDENTATION = chalk.magentaBright('└─')
+const STATUS_RUNNING = chalk.magentaBright('Running...')
+const STATUS_DONE = chalk.magentaBright('Done in 1s')
+const STATUS_FAILED = chalk.red('Failed in 1s')
 const EOL = '\n'
+
+function replaceTimeWith1Sec (text: string) {
+  return text
+    .replace(/Done in [a-z0-9μ]+/g, 'Done in 1s')
+    .replace(/done in [a-z0-9μ]+/g, 'done in 1s')
+    .replace(/Failed in [a-z0-9μ]+/g, 'Failed in 1s')
+    .replace(/failed in [a-z0-9μ]+/g, 'failed in 1s')
+}
 
 test('groups lifecycle output', t => {
   const output$ = toOutput$({
@@ -107,24 +118,21 @@ test('groups lifecycle output', t => {
   output$.skip(9).take(1).map(normalizeNewline).subscribe({
     complete: () => t.end(),
     error: t.end,
-    next: output => {
-      t.equal(output, EOL + stripIndents`
+    next: (output: string) => {
+      t.equal(replaceTimeWith1Sec(output), stripIndents`
         packages/foo ${PREINSTALL}$ node foo
         ${OUTPUT_INDENTATION} foo 0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27
-        ${STATUS_INDENTATION} Running...
-
+        ${STATUS_INDENTATION} ${STATUS_RUNNING}
         packages/foo ${POSTINSTALL}$ node foo
         ${OUTPUT_INDENTATION} foo I
         ${OUTPUT_INDENTATION} foo II
         ${OUTPUT_INDENTATION} foo III
-        ${STATUS_INDENTATION} Running...
-
+        ${STATUS_INDENTATION} ${STATUS_RUNNING}
         packages/bar ${POSTINSTALL}$ node bar
         ${OUTPUT_INDENTATION} bar I
-        ${STATUS_INDENTATION} Running...
-
+        ${STATUS_INDENTATION} ${STATUS_RUNNING}
         packages/qar ${INSTALL}$ node qar
-        ${STATUS_INDENTATION} Done
+        ${STATUS_INDENTATION} ${STATUS_DONE}
       `)
     },
   })
@@ -287,8 +295,8 @@ test('collapse lifecycle output when it has too many lines', t => {
   output$.skip(101).take(1).map(normalizeNewline).subscribe({
     complete: () => t.end(),
     error: t.end,
-    next: output => {
-      t.equal(output, EOL + stripIndents`
+    next: (output: string) => {
+      t.equal(replaceTimeWith1Sec(output), stripIndents`
         packages/foo ${POSTINSTALL}$ node foo
         [90 lines collapsed]
         ${OUTPUT_INDENTATION} foo 90
@@ -301,7 +309,7 @@ test('collapse lifecycle output when it has too many lines', t => {
         ${OUTPUT_INDENTATION} foo 97
         ${OUTPUT_INDENTATION} foo 98
         ${OUTPUT_INDENTATION} foo 99
-        ${STATUS_INDENTATION} Done
+        ${STATUS_INDENTATION} ${STATUS_DONE}
       `)
     },
   })
@@ -403,7 +411,7 @@ test('collapses lifecycle output of packages from node_modules', t => {
     complete: () => t.end(),
     error: t.end,
     next: (output: string) => {
-      t.equal(output.replace(/done in [^\s]+/g, 'done in 1s'), stripIndents`
+      t.equal(replaceTimeWith1Sec(output), stripIndents`
         ${chalk.gray('node_modules/.registry.npmjs.org/foo/1.0.0/node_modules/')}foo: Running preinstall script...
         ${chalk.gray('node_modules/.registry.npmjs.org/foo/1.0.0/node_modules/')}foo: Running postinstall script, done in 1s
         ${chalk.gray('node_modules/.registry.npmjs.org/bar/1.0.0/node_modules/')}bar: Running postinstall script...
@@ -450,7 +458,7 @@ test('output of failed optional dependency is not shown', t => {
     complete: () => t.end(),
     error: t.end,
     next: (output: string) => {
-      t.equal(output.replace(/failed in [^\s]+/g, 'failed in 1s'), stripIndents`
+      t.equal(replaceTimeWith1Sec(output), stripIndents`
         ${chalk.gray('node_modules/.registry.npmjs.org/foo/1.0.0/node_modules/')}foo: Running install script, failed in 1s (skipped as optional)
       `)
     },
@@ -494,11 +502,11 @@ test('output of failed non-optional dependency is printed', t => {
     complete: () => t.end(),
     error: t.end,
     next: (output: string) => {
-      t.equal(output.replace(/failed in [^\s]+/g, 'failed in 1s'), stripIndents`
+      t.equal(replaceTimeWith1Sec(output), stripIndents`
         ${chalk.gray('node_modules/.registry.npmjs.org/foo/1.0.0/node_modules/')}foo: Running install script, failed in 1s
         .../foo/1.0.0/node_modules/foo ${INSTALL}$ node foo
         ${OUTPUT_INDENTATION} foo 0 1 2 3 4 5 6 7 8 9
-        ${STATUS_INDENTATION} Failed
+        ${STATUS_INDENTATION} ${STATUS_FAILED}
       `)
     },
   })
