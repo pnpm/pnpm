@@ -87,14 +87,23 @@ export default (
         } else {
           lifecycleMessages[key].output.push(formatLifecycle(opts.cwd, log))
         }
-        msg = EOL + [
-          lifecycleMessages[key].script,
-          ...(
-            exit && log['exitCode'] !== 0
-              ? lifecycleMessages[key].output
-              : lifecycleMessages[key].output.slice(lifecycleMessages[key].output.length - 10)
-          ),
-        ].join(EOL)
+        if (exit && log['exitCode'] !== 0) {
+          msg = EOL + [
+            lifecycleMessages[key].script,
+            ...lifecycleMessages[key].output,
+          ].join(EOL)
+        } else if (lifecycleMessages[key].output.length > 10) {
+          msg = EOL + [
+            lifecycleMessages[key].script,
+            `[${lifecycleMessages[key].output.length - 10} lines collapsed]`,
+            ...lifecycleMessages[key].output.slice(lifecycleMessages[key].output.length - 10),
+          ].join(EOL)
+        } else {
+          msg = EOL + [
+            lifecycleMessages[key].script,
+            ...lifecycleMessages[key].output,
+          ].join(EOL)
+        }
       }
       if (exit) {
         delete lifecycleMessages[key]

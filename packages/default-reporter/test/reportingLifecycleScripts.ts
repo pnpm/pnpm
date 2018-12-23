@@ -238,6 +238,61 @@ test('groups lifecycle output when append-only is used', t => {
   })
 })
 
+test('collapse lifecycle output when it has too many lines', t => {
+  const output$ = toOutput$({
+    context: { argv: ['install'] },
+    reportingOptions: { outputMaxWidth: 79 },
+    streamParser: createStreamParser(),
+  })
+
+  lifecycleLogger.debug({
+    depPath: 'packages/foo',
+    optional: false,
+    script: 'node foo',
+    stage: 'postinstall',
+    wd: 'packages/foo',
+  })
+  for (let i = 0; i < 100; i++) {
+    lifecycleLogger.debug({
+      depPath: 'packages/foo',
+      line: `foo ${i}`,
+      stage: 'postinstall',
+      stdio: 'stdout',
+      wd: 'packages/foo',
+    })
+  }
+  lifecycleLogger.debug({
+    depPath: 'packages/foo',
+    exitCode: 0,
+    optional: false,
+    stage: 'postinstall',
+    wd: 'packages/foo'
+  })
+
+  t.plan(1)
+
+  output$.skip(101).take(1).map(normalizeNewline).subscribe({
+    complete: () => t.end(),
+    error: t.end,
+    next: output => {
+      t.equal(output, EOL + stripIndents`
+        packages/foo ${POSTINSTALL}$ node foo
+        [91 lines collapsed]
+        ${chalk.magentaBright('|')} foo 91
+        ${chalk.magentaBright('|')} foo 92
+        ${chalk.magentaBright('|')} foo 93
+        ${chalk.magentaBright('|')} foo 94
+        ${chalk.magentaBright('|')} foo 95
+        ${chalk.magentaBright('|')} foo 96
+        ${chalk.magentaBright('|')} foo 97
+        ${chalk.magentaBright('|')} foo 98
+        ${chalk.magentaBright('|')} foo 99
+        packages/foo ${POSTINSTALL}: Done
+      `)
+    },
+  })
+})
+
 test('collapses lifecycle output of packages from node_modules', t => {
   const output$ = toOutput$({
     context: { argv: ['install'] },
