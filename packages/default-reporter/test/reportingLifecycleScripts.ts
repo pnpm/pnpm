@@ -13,6 +13,8 @@ const hlPkgId = chalk['whiteBright']
 const POSTINSTALL = hlValue('postinstall')
 const PREINSTALL = hlValue('preinstall')
 const INSTALL = hlValue('install')
+const OUTPUT_INDENTATION = chalk.magentaBright('│')
+const STATUS_INDENTATION = chalk.magentaBright('└─')
 const EOL = '\n'
 
 test('groups lifecycle output', t => {
@@ -108,21 +110,21 @@ test('groups lifecycle output', t => {
     next: output => {
       t.equal(output, EOL + stripIndents`
         packages/foo ${PREINSTALL}$ node foo
-        ${chalk.magentaBright('|')} foo 0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27
-        Running...
+        ${OUTPUT_INDENTATION} foo 0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27
+        ${STATUS_INDENTATION} Running...
 
         packages/foo ${POSTINSTALL}$ node foo
-        ${chalk.magentaBright('|')} foo I
-        ${chalk.magentaBright('|')} foo II
-        ${chalk.magentaBright('|')} foo III
-        Running...
+        ${OUTPUT_INDENTATION} foo I
+        ${OUTPUT_INDENTATION} foo II
+        ${OUTPUT_INDENTATION} foo III
+        ${STATUS_INDENTATION} Running...
 
         packages/bar ${POSTINSTALL}$ node bar
-        ${chalk.magentaBright('|')} bar I
-        Running...
+        ${OUTPUT_INDENTATION} bar I
+        ${STATUS_INDENTATION} Running...
 
         packages/qar ${INSTALL}$ node qar
-        packages/qar ${INSTALL}: Done
+        ${STATUS_INDENTATION} Done
       `)
     },
   })
@@ -150,6 +152,13 @@ test('groups lifecycle output when append-only is used', t => {
     line: 'foo 0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30',
     stage: 'preinstall',
     stdio: 'stdout',
+    wd: 'packages/foo',
+  })
+  lifecycleLogger.debug({
+    depPath: 'packages/foo',
+    exitCode: 1,
+    optional: true,
+    stage: 'preinstall',
     wd: 'packages/foo',
   })
   lifecycleLogger.debug({
@@ -220,11 +229,12 @@ test('groups lifecycle output when append-only is used', t => {
 
   let allOutputs = [] as string[]
 
-  output$.take(10).map(normalizeNewline).subscribe({
+  output$.take(11).map(normalizeNewline).subscribe({
     complete: () => {
       t.equal(allOutputs.join(EOL), stripIndents`
         packages/foo ${PREINSTALL}$ node foo
         packages/foo ${PREINSTALL}: foo 0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30
+        packages/foo ${PREINSTALL}: Failed
         packages/foo ${POSTINSTALL}$ node foo
         packages/foo ${POSTINSTALL}: foo I
         packages/bar ${POSTINSTALL}$ node bar
@@ -281,17 +291,17 @@ test('collapse lifecycle output when it has too many lines', t => {
       t.equal(output, EOL + stripIndents`
         packages/foo ${POSTINSTALL}$ node foo
         [90 lines collapsed]
-        ${chalk.magentaBright('|')} foo 90
-        ${chalk.magentaBright('|')} foo 91
-        ${chalk.magentaBright('|')} foo 92
-        ${chalk.magentaBright('|')} foo 93
-        ${chalk.magentaBright('|')} foo 94
-        ${chalk.magentaBright('|')} foo 95
-        ${chalk.magentaBright('|')} foo 96
-        ${chalk.magentaBright('|')} foo 97
-        ${chalk.magentaBright('|')} foo 98
-        ${chalk.magentaBright('|')} foo 99
-        packages/foo ${POSTINSTALL}: Done
+        ${OUTPUT_INDENTATION} foo 90
+        ${OUTPUT_INDENTATION} foo 91
+        ${OUTPUT_INDENTATION} foo 92
+        ${OUTPUT_INDENTATION} foo 93
+        ${OUTPUT_INDENTATION} foo 94
+        ${OUTPUT_INDENTATION} foo 95
+        ${OUTPUT_INDENTATION} foo 96
+        ${OUTPUT_INDENTATION} foo 97
+        ${OUTPUT_INDENTATION} foo 98
+        ${OUTPUT_INDENTATION} foo 99
+        ${STATUS_INDENTATION} Done
       `)
     },
   })
@@ -487,7 +497,8 @@ test('output of failed non-optional dependency is printed', t => {
       t.equal(output.replace(/failed in [^\s]+/g, 'failed in 1s'), stripIndents`
         ${chalk.gray('node_modules/.registry.npmjs.org/foo/1.0.0/node_modules/')}foo: Running install script, failed in 1s
         .../foo/1.0.0/node_modules/foo ${INSTALL}$ node foo
-        ${chalk.magentaBright('|')} foo 0 1 2 3 4 5 6 7 8 9
+        ${OUTPUT_INDENTATION} foo 0 1 2 3 4 5 6 7 8 9
+        ${STATUS_INDENTATION} Failed
       `)
     },
   })

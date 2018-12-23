@@ -48,7 +48,6 @@ export default (
     },
   } = {}
   const lifecyclePushStream = new PushStream()
-  const formatLifecycle = formatLifecycleHideOverflow.bind(null, opts.width, opts.cwd)
 
   // TODO: handle promise of .forEach?!
   log$.lifecycle // tslint:disable-line
@@ -58,14 +57,14 @@ export default (
         collapsed: log.wd.includes(NODE_MODULES),
         output: [],
         startTime: process.hrtime(),
-        status: 'Running...',
+        status: formatIndentedStatus('Running...'),
       }
       const exit = typeof log['exitCode'] === 'number'
       let msg: string
       if (lifecycleMessages[key].collapsed) {
-        msg = renderCollapsedScriptOutput(formatLifecycle, log, lifecycleMessages[key], { cwd: opts.cwd, exit })
+        msg = renderCollapsedScriptOutput(log, lifecycleMessages[key], { cwd: opts.cwd, exit, maxWidth: opts.width })
       } else {
-        msg = renderScriptOutput(formatLifecycle, log, lifecycleMessages[key], { cwd: opts.cwd, exit })
+        msg = renderScriptOutput(log, lifecycleMessages[key], { cwd: opts.cwd, exit, maxWidth: opts.width })
       }
       if (exit) {
         delete lifecycleMessages[key]
@@ -84,7 +83,6 @@ export default (
 }
 
 function renderCollapsedScriptOutput (
-  formatLifecycle: (log: LifecycleLog) => string,
   log: LifecycleLog,
   messageCache: {
     collapsed: boolean,
@@ -96,12 +94,13 @@ function renderCollapsedScriptOutput (
   opts: {
     cwd: string,
     exit: boolean,
+    maxWidth: number,
   },
 ) {
   messageCache['label'] = messageCache['label'] ||
-  `${highlightLastFolder(formatPrefixNoTrim(opts.cwd, log.wd))}: Running ${log.stage} script`
+    `${highlightLastFolder(formatPrefixNoTrim(opts.cwd, log.wd))}: Running ${log.stage} script`
   if (!opts.exit) {
-    messageCache.output.push(formatLifecycle(log))
+    updateMessageCache(log, messageCache, opts)
     return `${messageCache['label']}...`
   }
   const time = prettyTime(process.hrtime(messageCache.startTime))
@@ -111,14 +110,10 @@ function renderCollapsedScriptOutput (
   if (log['optional'] === true) {
     return `${messageCache['label']}, failed in ${time} (skipped as optional)`
   }
-  return [
-    `${messageCache['label']}, failed in ${time}`,
-    ...messageCache.output,
-  ].join(EOL)
+  return `${messageCache['label']}, failed in ${time}${renderScriptOutput(log, messageCache, opts)}`
 }
 
 function renderScriptOutput (
-  formatLifecycle: (log: LifecycleLog) => string,
   log: LifecycleLog,
   messageCache: {
     collapsed: boolean,
@@ -130,15 +125,10 @@ function renderScriptOutput (
   opts: {
     cwd: string,
     exit: boolean,
+    maxWidth: number,
   },
 ) {
-  if (log['script']) {
-    messageCache.script = formatLifecycle(log)
-  } else if (opts.exit) {
-    messageCache.status = formatLifecycle(log)
-  } else {
-    messageCache.output.push(formatLifecycle(log))
-  }
+  updateMessageCache(log, messageCache, opts)
   if (opts.exit && log['exitCode'] !== 0) {
     return EOL + [
       messageCache.script,
@@ -161,6 +151,40 @@ function renderScriptOutput (
   ].join(EOL)
 }
 
+function updateMessageCache (
+  log: LifecycleLog,
+  messageCache: {
+    collapsed: boolean,
+    output: string[],
+    script: string,
+    startTime: [number, number],
+    status: string,
+  },
+  opts: {
+    cwd: string,
+    exit: boolean,
+    maxWidth: number,
+  },
+) {
+  if (log['script']) {
+    const prefix = formatLifecycleScriptPrefix(opts.cwd, log.wd, log.stage)
+    const maxLineWidth = opts.maxWidth - prefix.length - 2 + ANSI_ESCAPES_LENGTH_OF_PREFIX
+    messageCache.script = `${prefix}$ ${cutLine(log['script'], maxLineWidth)}`
+  } else if (opts.exit) {
+    if (log['exitCode'] === 0) {
+      messageCache.status = formatIndentedStatus('Done')
+    } else {
+      messageCache.status = formatIndentedStatus('Failed')
+    }
+  } else {
+    messageCache.output.push(formatIndentedOutput(opts.maxWidth, log))
+  }
+}
+
+function formatIndentedStatus (status: string) {
+  return `${chalk.magentaBright('└─')} ${status}`
+}
+
 function highlightLastFolder (p: string) {
   const lastSlash = p.lastIndexOf('/') + 1
   return `${chalk.gray(p.substr(0, lastSlash))}${p.substr(lastSlash)}`
@@ -173,8 +197,12 @@ function formatLifecycleHideOverflowForAppendOnly (
   logObj: LifecycleLog,
 ) {
   const prefix = formatLifecycleScriptPrefix(cwd, logObj.wd, logObj.stage)
-  if (logObj['exitCode'] === 0) {
-    return `${prefix}: Done`
+  if (typeof logObj['exitCode'] === 'number') {
+    if (logObj['exitCode'] === 0) {
+      return `${prefix}: Done`
+    } else {
+      return `${prefix}: Failed`
+    }
   }
   if (logObj['script']) {
     return `${prefix}$ ${logObj['script']}`
@@ -183,20 +211,8 @@ function formatLifecycleHideOverflowForAppendOnly (
   return `${prefix}: ${line}`
 }
 
-function formatLifecycleHideOverflow (
-  maxWidth: number,
-  cwd: string,
-  logObj: LifecycleLog,
-) {
-  const prefix = formatLifecycleScriptPrefix(cwd, logObj.wd, logObj.stage)
-  const maxLineWidth = maxWidth - prefix.length - 2 + ANSI_ESCAPES_LENGTH_OF_PREFIX
-  if (logObj['exitCode'] === 0) {
-    return `${prefix}: Done`
-  }
-  if (logObj['script']) {
-    return `${prefix}$ ${cutLine(logObj['script'], maxLineWidth)}`
-  }
-  return `${chalk.magentaBright('|')} ${formatLine(maxWidth - 2, logObj)}`
+function formatIndentedOutput (maxWidth: number, logObj: LifecycleLog) {
+  return `${chalk.magentaBright('│')} ${formatLine(maxWidth - 2, logObj)}`
 }
 
 function formatLifecycleScriptPrefix (cwd: string, wd: string, stage: string) {
@@ -204,8 +220,6 @@ function formatLifecycleScriptPrefix (cwd: string, wd: string, stage: string) {
 }
 
 function formatLine (maxWidth: number, logObj: LifecycleLog) {
-  if (typeof logObj['exitCode'] === 'number') return chalk.red(`Exited with ${logObj['exitCode']}`)
-
   const line = cutLine(logObj['line'], maxWidth)
 
   // TODO: strip only the non-color/style ansi escape codes
