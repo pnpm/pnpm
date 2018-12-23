@@ -22,7 +22,7 @@
   ],
   "dependencies": {
     "@pnpm/config": "2.4.0",
-    "@pnpm/core-loggers": "1.1.0",
+    "@pnpm/core-loggers": "1.2.0",
     "@pnpm/default-fetcher": "2.0.6",
     "@pnpm/default-reporter": "1.0.0",
     "@pnpm/default-resolver": "2.0.7",
