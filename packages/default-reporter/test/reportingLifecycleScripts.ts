@@ -109,14 +109,17 @@ test('groups lifecycle output', t => {
       t.equal(output, EOL + stripIndents`
         packages/foo ${PREINSTALL}$ node foo
         ${chalk.magentaBright('|')} foo 0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27
+        Running...
 
         packages/foo ${POSTINSTALL}$ node foo
         ${chalk.magentaBright('|')} foo I
         ${chalk.magentaBright('|')} foo II
         ${chalk.magentaBright('|')} foo III
+        Running...
 
         packages/bar ${POSTINSTALL}$ node bar
         ${chalk.magentaBright('|')} bar I
+        Running...
 
         packages/qar ${INSTALL}$ node qar
         packages/qar ${INSTALL}: Done
@@ -277,7 +280,8 @@ test('collapse lifecycle output when it has too many lines', t => {
     next: output => {
       t.equal(output, EOL + stripIndents`
         packages/foo ${POSTINSTALL}$ node foo
-        [91 lines collapsed]
+        [90 lines collapsed]
+        ${chalk.magentaBright('|')} foo 90
         ${chalk.magentaBright('|')} foo 91
         ${chalk.magentaBright('|')} foo 92
         ${chalk.magentaBright('|')} foo 93

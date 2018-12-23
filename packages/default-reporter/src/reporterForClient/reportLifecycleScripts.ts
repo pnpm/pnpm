@@ -23,15 +23,12 @@ export default (
     width: number,
   },
 ) => {
-// When the reporter is not append-only, the length of output is limited
+  // When the reporter is not append-only, the length of output is limited
   // in order to reduce flickering
-  const formatLifecycle = opts.appendOnly
-    ? formatLifecycleHideOverflowForAppendOnly
-    : formatLifecycleHideOverflow.bind(null, opts.width)
   if (opts.appendOnly) {
     return most.of(
       log$.lifecycle
-        .map((log: LifecycleLog) => ({ msg: formatLifecycle(opts.cwd, log) })),
+        .map((log: LifecycleLog) => ({ msg: formatLifecycleHideOverflowForAppendOnly(opts.cwd, log) })),
     )
   }
   const lifecycleMessages: {
@@ -40,6 +37,7 @@ export default (
       output: string[],
       script: string,
       startTime: [number, number],
+      status: string,
     },
   } = {}
   const lifecycleStreamByDepPath: {
@@ -50,6 +48,7 @@ export default (
     },
   } = {}
   const lifecyclePushStream = new PushStream()
+  const formatLifecycle = formatLifecycleHideOverflow.bind(null, opts.width)
 
   // TODO: handle promise of .forEach?!
   log$.lifecycle // tslint:disable-line
@@ -59,6 +58,7 @@ export default (
         collapsed: log.wd.includes(NODE_MODULES),
         output: [],
         startTime: process.hrtime(),
+        status: 'Running...',
       }
       const exit = typeof log['exitCode'] === 'number'
       let msg: string
@@ -84,6 +84,8 @@ export default (
       } else {
         if (log['script']) {
           lifecycleMessages[key].script = formatLifecycle(opts.cwd, log)
+        } else if (exit) {
+          lifecycleMessages[key].status = formatLifecycle(opts.cwd, log)
         } else {
           lifecycleMessages[key].output.push(formatLifecycle(opts.cwd, log))
         }
@@ -91,17 +93,20 @@ export default (
           msg = EOL + [
             lifecycleMessages[key].script,
             ...lifecycleMessages[key].output,
+            lifecycleMessages[key].status,
           ].join(EOL)
         } else if (lifecycleMessages[key].output.length > 10) {
           msg = EOL + [
             lifecycleMessages[key].script,
             `[${lifecycleMessages[key].output.length - 10} lines collapsed]`,
             ...lifecycleMessages[key].output.slice(lifecycleMessages[key].output.length - 10),
+            lifecycleMessages[key].status,
           ].join(EOL)
         } else {
           msg = EOL + [
             lifecycleMessages[key].script,
             ...lifecycleMessages[key].output,
+            lifecycleMessages[key].status,
           ].join(EOL)
         }
       }
