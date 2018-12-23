@@ -11,10 +11,11 @@ test('runLifecycleHook()', async (t) => {
   const pkgRoot = path.join(fixtures, 'simple')
   const pkg = require(path.join(pkgRoot, 'package.json'))
   await runLifecycleHook('postinstall', pkg, {
-    rootNodeModulesDir,
     depPath: '/simple/1.0.0',
-    rawNpmConfig: {},
+    optional: false,
     pkgRoot,
+    rawNpmConfig: {},
+    rootNodeModulesDir,
     unsafePerm: true,
   })
 
@@ -28,10 +29,11 @@ test('runPostinstallHooks()', async (t) => {
   const pkg = require(path.join(pkgRoot, 'package.json'))
   rimraf.sync(path.join(pkgRoot, 'output.json'))
   await runPostinstallHooks({
-    rootNodeModulesDir,
     depPath: '/with-many-scripts/1.0.0',
-    rawNpmConfig: {},
+    optional: false,
     pkgRoot,
+    rawNpmConfig: {},
+    rootNodeModulesDir,
     unsafePerm: true,
   })
 
@@ -45,11 +47,12 @@ test('runPostinstallHooks() with prepare = true', async (t) => {
   const pkg = require(path.join(pkgRoot, 'package.json'))
   rimraf.sync(path.join(pkgRoot, 'output.json'))
   await runPostinstallHooks({
-    rootNodeModulesDir,
     depPath: '/with-many-scripts/1.0.0',
-    rawNpmConfig: {},
-    prepare: true,
+    optional: false,
     pkgRoot,
+    prepare: true,
+    rawNpmConfig: {},
+    rootNodeModulesDir,
     unsafePerm: true,
   })
 

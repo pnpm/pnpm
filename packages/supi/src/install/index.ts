@@ -329,6 +329,7 @@ export async function mutateModules (
 
       const scriptsOpts = {
         depPath: importer.prefix,
+        optional: false,
         pkgRoot: importer.prefix,
         rawNpmConfig: opts.rawNpmConfig,
         rootNodeModulesDir: importer.modulesDir,
@@ -380,6 +381,7 @@ export async function mutateModules (
 
       const scriptsOpts = {
         depPath: importer.prefix,
+        optional: false,
         pkgRoot: importer.prefix,
         rawNpmConfig: opts.rawNpmConfig,
         rootNodeModulesDir: importer.modulesDir,
@@ -853,6 +855,7 @@ async function installInContext (
             try {
               const hasSideEffects = await runPostinstallHooks({
                 depPath: pkg.absolutePath,
+                optional: pkg.optional,
                 pkgRoot: pkg.peripheralLocation,
                 prepare: pkg.prepare,
                 rawNpmConfig: opts.rawNpmConfig,

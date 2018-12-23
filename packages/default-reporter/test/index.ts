@@ -3,7 +3,6 @@ import { PnpmConfigs } from '@pnpm/config'
 import {
   deprecationLogger,
   hookLogger,
-  lifecycleLogger,
   packageJsonLogger,
   progressLogger,
   rootLogger,
@@ -26,6 +25,7 @@ import path = require('path')
 import R = require('ramda')
 import StackTracey = require('stacktracey')
 import test = require('tape')
+import './reportingLifecycleScripts'
 import './reportingScope'
 
 const WARN = chalk.bgYellow.black('\u2009WARN\u2009')
@@ -37,9 +37,6 @@ const SUB = chalk.red('-')
 const h1 = chalk.cyanBright
 const hlValue = chalk.cyanBright
 const hlPkgId = chalk['whiteBright']
-const POSTINSTALL = hlValue('postinstall')
-const PREINSTALL = hlValue(' preinstall')
-const INSTALL = hlValue('    install')
 
 const EOL = '\n'
 
@@ -511,175 +508,6 @@ test('prints summary correctly when the same package is specified both in option
         ${h1('dependencies:')}
         ${ADD} bar ${versionColor('2.0.0')}
         ` + '\n')
-    },
-  })
-})
-
-test('groups lifecycle output', t => {
-  const output$ = toOutput$({
-    context: { argv: ['install'] },
-    reportingOptions: { outputMaxWidth: 79 },
-    streamParser: createStreamParser(),
-  })
-
-  const pkgId = 'registry.npmjs.org/foo/1.0.0'
-  const wd = process.cwd()
-
-  lifecycleLogger.debug({
-    depPath: 'registry.npmjs.org/foo/1.0.0',
-    script: 'node foo',
-    stage: 'preinstall',
-    stdio: 'stdout',
-    wd,
-  })
-  lifecycleLogger.debug({
-    depPath: 'registry.npmjs.org/foo/1.0.0',
-    line: 'foo 0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20',
-    stage: 'preinstall',
-    stdio: 'stdout',
-    wd,
-  })
-  lifecycleLogger.debug({
-    depPath: 'registry.npmjs.org/foo/1.0.0',
-    script: 'node foo',
-    stage: 'postinstall',
-    stdio: 'stdout',
-    wd,
-  })
-  lifecycleLogger.debug({
-    depPath: 'registry.npmjs.org/foo/1.0.0',
-    line: 'foo I',
-    stage: 'postinstall',
-    stdio: 'stdout',
-    wd,
-  })
-  lifecycleLogger.debug({
-    depPath: 'registry.npmjs.org/bar/1.0.0',
-    script: 'node bar',
-    stage: 'postinstall',
-    stdio: 'stdout',
-    wd,
-  })
-  lifecycleLogger.debug({
-    depPath: 'registry.npmjs.org/bar/1.0.0',
-    line: 'bar I',
-    stage: 'postinstall',
-    stdio: 'stdout',
-    wd,
-  })
-  lifecycleLogger.debug({
-    depPath: 'registry.npmjs.org/foo/1.0.0',
-    line: 'foo II',
-    stage: 'postinstall',
-    stdio: 'stdout',
-    wd,
-  })
-  lifecycleLogger.debug({
-    depPath: 'registry.npmjs.org/foo/1.0.0',
-    line: 'foo III',
-    stage: 'postinstall',
-    stdio: 'stdout',
-    wd,
-  })
-  lifecycleLogger.debug({
-    depPath: 'registry.npmjs.org/qar/1.0.0',
-    script: 'node qar',
-    stage: 'install',
-    stdio: 'stdout',
-    wd,
-  })
-  lifecycleLogger.debug({
-    depPath: 'registry.npmjs.org/qar/1.0.0',
-    exitCode: 0,
-    stage: 'install',
-    wd,
-  })
-  lifecycleLogger.debug({
-    depPath: 'registry.npmjs.org/foo/1.0.0',
-    exitCode: 0,
-    stage: 'postinstall',
-    wd,
-  })
-
-  t.plan(1)
-
-  output$.skip(9).take(1).map(normalizeNewline).subscribe({
-    complete: () => t.end(),
-    error: t.end,
-    next: output => {
-      t.equal(output, EOL + stripIndents`
-        registry.npmjs.org/foo/1.0.0             | ${PREINSTALL}$ node foo
-        registry.npmjs.org/foo/1.0.0             | ${PREINSTALL}: foo 0 1 2 3 4 5 6 7 8 9
-
-        registry.npmjs.org/foo/1.0.0             | ${POSTINSTALL}$ node foo
-        registry.npmjs.org/foo/1.0.0             | ${POSTINSTALL}: foo I
-        registry.npmjs.org/foo/1.0.0             | ${POSTINSTALL}: foo II
-        registry.npmjs.org/foo/1.0.0             | ${POSTINSTALL}: foo III
-
-        registry.npmjs.org/bar/1.0.0             | ${POSTINSTALL}$ node bar
-        registry.npmjs.org/bar/1.0.0             | ${POSTINSTALL}: bar I
-
-        registry.npmjs.org/qar/1.0.0             | ${INSTALL}$ node qar
-        registry.npmjs.org/qar/1.0.0             | ${INSTALL}: done
-      `)
-    },
-  })
-})
-
-// Many libs use stderr for logging, so showing all stderr adds not much value
-test['skip']('prints lifecycle progress', t => {
-  const output$ = toOutput$({
-    context: { argv: ['install'] },
-    streamParser: createStreamParser(),
-  })
-
-  const wd = process.cwd()
-
-  lifecycleLogger.debug({
-    depPath: 'registry.npmjs.org/foo/1.0.0',
-    line: 'foo I',
-    script: 'postinstall',
-    stage: 'postinstall',
-    wd,
-  })
-  lifecycleLogger.debug({
-    depPath: 'registry.npmjs.org/bar/1.0.0',
-    line: 'bar I',
-    script: 'postinstall',
-    stage: 'postinstall',
-    wd,
-  })
-  lifecycleLogger.debug({
-    depPath: 'registry.npmjs.org/foo/1.0.0',
-    line: 'foo II',
-    script: 'postinstall',
-    stage: 'postinstall',
-    stdio: 'stderr',
-    wd,
-  })
-  lifecycleLogger.debug({
-    depPath: 'registry.npmjs.org/foo/1.0.0',
-    line: 'foo III',
-    script: 'postinstall',
-    stage: 'postinstall',
-    wd,
-  })
-
-  t.plan(1)
-
-  const childOutputColor = chalk.grey
-  const childOutputError = chalk.red
-
-  output$.skip(3).take(1).map(normalizeNewline).subscribe({
-    complete: () => t.end(),
-    error: t.end,
-    next: output => {
-      t.equal(output, stripIndents`
-        Running ${POSTINSTALL} for ${hlPkgId('registry.npmjs.org/foo/1.0.0')}: ${childOutputColor('foo I')}
-        Running ${POSTINSTALL} for ${hlPkgId('registry.npmjs.org/foo/1.0.0')}! ${childOutputError('foo II')}
-        Running ${POSTINSTALL} for ${hlPkgId('registry.npmjs.org/foo/1.0.0')}: ${childOutputColor('foo III')}
-        Running ${POSTINSTALL} for ${hlPkgId('registry.npmjs.org/bar/1.0.0')}: ${childOutputColor('bar I')}
-      `)
     },
   })
 })

@@ -123,6 +123,7 @@ export default async (opts: HeadlessOptions) => {
 
       const scriptsOpts = {
         depPath: importer.prefix,
+        optional: false,
         pkgRoot: importer.prefix,
         rawNpmConfig: opts.rawNpmConfig,
         rootNodeModulesDir: importer.modulesDir,
@@ -305,6 +306,7 @@ export default async (opts: HeadlessOptions) => {
 
       const scriptsOpts = {
         depPath: importer.prefix,
+        optional: false,
         pkgRoot: importer.prefix,
         rawNpmConfig: opts.rawNpmConfig,
         rootNodeModulesDir: importer.modulesDir,

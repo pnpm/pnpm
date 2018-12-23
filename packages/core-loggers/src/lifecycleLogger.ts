@@ -14,8 +14,10 @@ export type LifecycleMessage = {
   stdio: 'stdout' | 'stderr',
 } | {
   exitCode: number,
+  optional: boolean,
 } | {
   script: string,
+  optional: boolean,
 })
 
 export type LifecycleLog = {name: 'pnpm:lifecycle'} & LogBase & LifecycleMessage
