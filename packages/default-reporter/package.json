@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/default-reporter",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "The default reporter of pnpm",
   "main": "lib/index.js",
   "typings": "lib/index.d.ts",
@@ -35,7 +35,7 @@
   },
   "dependencies": {
     "@pnpm/config": "2.4.0",
-    "@pnpm/core-loggers": "1.1.0",
+    "@pnpm/core-loggers": "1.2.0",
     "@pnpm/types": "2.0.0",
     "@types/common-tags": "1.8.0",
     "@types/node": "10.12.18",

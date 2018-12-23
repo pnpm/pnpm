@@ -1,7 +1,7 @@
 {
   "name": "@pnpm/core-loggers",
   "description": "Core loggers of pnpm",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "author": {
     "name": "Zoltan Kochan",
     "email": "z@kochan.io",

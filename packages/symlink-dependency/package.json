@@ -1,7 +1,7 @@
 {
   "name": "@pnpm/symlink-dependency",
   "description": "Symlink a dependency to node_modules",
-  "version": "1.1.1",
+  "version": "1.1.2",
   "author": {
     "name": "Zoltan Kochan",
     "email": "z@kochan.io",
@@ -46,7 +46,7 @@
     "prepublishOnly": "npm run tsc"
   },
   "dependencies": {
-    "@pnpm/core-loggers": "1.1.0",
+    "@pnpm/core-loggers": "1.2.0",
     "@pnpm/types": "2.0.0",
     "@types/mz": "0.0.32",
     "@types/node": "10.12.18",
