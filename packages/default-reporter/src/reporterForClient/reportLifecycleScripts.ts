@@ -48,7 +48,7 @@ export default (
     },
   } = {}
   const lifecyclePushStream = new PushStream()
-  const formatLifecycle = formatLifecycleHideOverflow.bind(null, opts.width)
+  const formatLifecycle = formatLifecycleHideOverflow.bind(null, opts.width, opts.cwd)
 
   // TODO: handle promise of .forEach?!
   log$.lifecycle // tslint:disable-line
@@ -63,52 +63,9 @@ export default (
       const exit = typeof log['exitCode'] === 'number'
       let msg: string
       if (lifecycleMessages[key].collapsed) {
-        lifecycleMessages[key]['label'] = lifecycleMessages[key]['label'] ||
-          `${highlightLastFolder(formatPrefixNoTrim(opts.cwd, log.wd))}: Running ${log.stage} script`
-        if (exit) {
-          const time = prettyTime(process.hrtime(lifecycleMessages[key].startTime))
-          if (log['exitCode'] === 0) {
-            msg = `${lifecycleMessages[key]['label']}, done in ${time}`
-          } else if (log['optional'] === true) {
-            msg = `${lifecycleMessages[key]['label']}, failed in ${time} (skipped as optional)`
-          } else {
-            msg = [
-              `${lifecycleMessages[key]['label']}, failed in ${time}`,
-              ...lifecycleMessages[key].output,
-            ].join(EOL)
-          }
-        } else {
-          lifecycleMessages[key].output.push(formatLifecycle(opts.cwd, log))
-          msg = `${lifecycleMessages[key]['label']}...`
-        }
+        msg = renderCollapsedScriptOutput(formatLifecycle, log, lifecycleMessages[key], { cwd: opts.cwd, exit })
       } else {
-        if (log['script']) {
-          lifecycleMessages[key].script = formatLifecycle(opts.cwd, log)
-        } else if (exit) {
-          lifecycleMessages[key].status = formatLifecycle(opts.cwd, log)
-        } else {
-          lifecycleMessages[key].output.push(formatLifecycle(opts.cwd, log))
-        }
-        if (exit && log['exitCode'] !== 0) {
-          msg = EOL + [
-            lifecycleMessages[key].script,
-            ...lifecycleMessages[key].output,
-            lifecycleMessages[key].status,
-          ].join(EOL)
-        } else if (lifecycleMessages[key].output.length > 10) {
-          msg = EOL + [
-            lifecycleMessages[key].script,
-            `[${lifecycleMessages[key].output.length - 10} lines collapsed]`,
-            ...lifecycleMessages[key].output.slice(lifecycleMessages[key].output.length - 10),
-            lifecycleMessages[key].status,
-          ].join(EOL)
-        } else {
-          msg = EOL + [
-            lifecycleMessages[key].script,
-            ...lifecycleMessages[key].output,
-            lifecycleMessages[key].status,
-          ].join(EOL)
-        }
+        msg = renderScriptOutput(formatLifecycle, log, lifecycleMessages[key], { cwd: opts.cwd, exit })
       }
       if (exit) {
         delete lifecycleMessages[key]
@@ -126,6 +83,84 @@ export default (
   return most.from(lifecyclePushStream.observable) as most.Stream<most.Stream<{ msg: string }>>
 }
 
+function renderCollapsedScriptOutput (
+  formatLifecycle: (log: LifecycleLog) => string,
+  log: LifecycleLog,
+  messageCache: {
+    collapsed: boolean,
+    output: string[],
+    script: string,
+    startTime: [number, number],
+    status: string,
+  },
+  opts: {
+    cwd: string,
+    exit: boolean,
+  },
+) {
+  messageCache['label'] = messageCache['label'] ||
+  `${highlightLastFolder(formatPrefixNoTrim(opts.cwd, log.wd))}: Running ${log.stage} script`
+  if (!opts.exit) {
+    messageCache.output.push(formatLifecycle(log))
+    return `${messageCache['label']}...`
+  }
+  const time = prettyTime(process.hrtime(messageCache.startTime))
+  if (log['exitCode'] === 0) {
+    return `${messageCache['label']}, done in ${time}`
+  }
+  if (log['optional'] === true) {
+    return `${messageCache['label']}, failed in ${time} (skipped as optional)`
+  }
+  return [
+    `${messageCache['label']}, failed in ${time}`,
+    ...messageCache.output,
+  ].join(EOL)
+}
+
+function renderScriptOutput (
+  formatLifecycle: (log: LifecycleLog) => string,
+  log: LifecycleLog,
+  messageCache: {
+    collapsed: boolean,
+    output: string[],
+    script: string,
+    startTime: [number, number],
+    status: string,
+  },
+  opts: {
+    cwd: string,
+    exit: boolean,
+  },
+) {
+  if (log['script']) {
+    messageCache.script = formatLifecycle(log)
+  } else if (opts.exit) {
+    messageCache.status = formatLifecycle(log)
+  } else {
+    messageCache.output.push(formatLifecycle(log))
+  }
+  if (opts.exit && log['exitCode'] !== 0) {
+    return EOL + [
+      messageCache.script,
+      ...messageCache.output,
+      messageCache.status,
+    ].join(EOL)
+  }
+  if (messageCache.output.length > 10) {
+    return EOL + [
+      messageCache.script,
+      `[${messageCache.output.length - 10} lines collapsed]`,
+      ...messageCache.output.slice(messageCache.output.length - 10),
+      messageCache.status,
+    ].join(EOL)
+  }
+  return EOL + [
+    messageCache.script,
+    ...messageCache.output,
+    messageCache.status,
+  ].join(EOL)
+}
+
 function highlightLastFolder (p: string) {
   const lastSlash = p.lastIndexOf('/') + 1
   return `${chalk.gray(p.substr(0, lastSlash))}${p.substr(lastSlash)}`
@@ -137,7 +172,7 @@ function formatLifecycleHideOverflowForAppendOnly (
   cwd: string,
   logObj: LifecycleLog,
 ) {
-  const prefix = `${formatPrefix(cwd, logObj.wd)} ${hlValue(logObj.stage)}`
+  const prefix = formatLifecycleScriptPrefix(cwd, logObj.wd, logObj.stage)
   if (logObj['exitCode'] === 0) {
     return `${prefix}: Done`
   }
@@ -153,7 +188,7 @@ function formatLifecycleHideOverflow (
   cwd: string,
   logObj: LifecycleLog,
 ) {
-  const prefix = `${formatPrefix(cwd, logObj.wd)} ${hlValue(logObj.stage)}`
+  const prefix = formatLifecycleScriptPrefix(cwd, logObj.wd, logObj.stage)
   const maxLineWidth = maxWidth - prefix.length - 2 + ANSI_ESCAPES_LENGTH_OF_PREFIX
   if (logObj['exitCode'] === 0) {
     return `${prefix}: Done`
@@ -162,6 +197,10 @@ function formatLifecycleHideOverflow (
     return `${prefix}$ ${cutLine(logObj['script'], maxLineWidth)}`
   }
   return `${chalk.magentaBright('|')} ${formatLine(maxWidth - 2, logObj)}`
+}
+
+function formatLifecycleScriptPrefix (cwd: string, wd: string, stage: string) {
+  return `${formatPrefix(cwd, wd)} ${hlValue(stage)}`
 }
 
 function formatLine (maxWidth: number, logObj: LifecycleLog) {
