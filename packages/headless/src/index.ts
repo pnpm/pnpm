@@ -240,7 +240,11 @@ export default async (opts: HeadlessOptions) => {
     })
   }))
 
+  if (currentShrinkwrap && !R.equals(opts.importers.map((importer) => importer.id).sort(), Object.keys(filteredShrinkwrap.importers).sort())) {
+    Object.assign(filteredShrinkwrap.packages, currentShrinkwrap.packages)
+  }
   await writeCurrentShrinkwrapOnly(shrinkwrapDirectory, filteredShrinkwrap)
+
   if (opts.ignoreScripts) {
     for (const importer of opts.importers) {
       if (opts.ignoreScripts && importer.pkg && importer.pkg.scripts &&

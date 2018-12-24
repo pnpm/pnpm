@@ -110,14 +110,14 @@ export default async function linkPackages (
       }
     }
   }
-  let { newShrinkwrap, pendingRequiresBuilds } = updateShrinkwrap(depGraph, opts.wantedShrinkwrap, opts.virtualStoreDir, opts.registries.default) // tslint:disable-line:prefer-const
-  if (opts.afterAllResolvedHook) {
-    newShrinkwrap = opts.afterAllResolvedHook(newShrinkwrap)
-  }
+  const { newShrinkwrap, pendingRequiresBuilds } = updateShrinkwrap(depGraph, opts.wantedShrinkwrap, opts.virtualStoreDir, opts.registries.default) // tslint:disable-line:prefer-const
+  let newWantedShrinkwrap = opts.afterAllResolvedHook
+    ? opts.afterAllResolvedHook(newShrinkwrap)
+    : newShrinkwrap
 
   let depNodes = R.values(depGraph).filter((depNode) => {
     const relDepPath = dp.relative(opts.registries.default, depNode.absolutePath)
-    if (newShrinkwrap.packages && newShrinkwrap.packages[relDepPath] && !newShrinkwrap.packages[relDepPath].optional) {
+    if (newWantedShrinkwrap.packages && newWantedShrinkwrap.packages[relDepPath] && !newWantedShrinkwrap.packages[relDepPath].optional) {
       opts.skipped.delete(depNode.id)
       return true
     }
@@ -140,7 +140,7 @@ export default async function linkPackages (
   const removedDepPaths = await prune({
     dryRun: opts.dryRun,
     importers,
-    newShrinkwrap: filterShrinkwrap(newShrinkwrap, filterOpts),
+    newShrinkwrap: filterShrinkwrap(newWantedShrinkwrap, filterOpts),
     oldShrinkwrap: opts.currentShrinkwrap,
     pruneStore: opts.pruneStore,
     registries: opts.registries,
@@ -151,7 +151,7 @@ export default async function linkPackages (
 
   stageLogger.debug('importing_started')
   const importerIds = importers.map((importer) => importer.id)
-  const newCurrentShrinkwrap = filterShrinkwrapByImporters(newShrinkwrap, importerIds, {
+  const newCurrentShrinkwrap = filterShrinkwrapByImporters(newWantedShrinkwrap, importerIds, {
     ...filterOpts,
     failOnMissingDependencies: true,
   })
@@ -216,7 +216,7 @@ export default async function linkPackages (
     // have new backward-compatible versions of `shrinkwrap.yaml`
     // w/o changing `shrinkwrapVersion`. From version 4, the
     // `shrinkwrapVersion` field allows numbers like 4.1
-    newShrinkwrap.shrinkwrapVersion = Math.floor(newShrinkwrap.shrinkwrapVersion) === Math.floor(SHRINKWRAP_VERSION)
+    newWantedShrinkwrap.shrinkwrapVersion = Math.floor(newWantedShrinkwrap.shrinkwrapVersion) === Math.floor(SHRINKWRAP_VERSION)
       ? SHRINKWRAP_VERSION
       : SHRINKWRAP_NEXT_VERSION
   }
@@ -238,35 +238,49 @@ export default async function linkPackages (
 
     // TODO: try to cover with unit test the case when entry is no longer available in shrinkwrap
     // It is an edge that probably happens if the entry is removed during shrinkwrap prune
-    if (depNode.requiresBuild && newShrinkwrap.packages![pendingRequiresBuild.relativeDepPath]) {
-      newShrinkwrap.packages![pendingRequiresBuild.relativeDepPath].requiresBuild = true
+    if (depNode.requiresBuild && newWantedShrinkwrap.packages![pendingRequiresBuild.relativeDepPath]) {
+      newWantedShrinkwrap.packages![pendingRequiresBuild.relativeDepPath].requiresBuild = true
     }
   }))
 
   let currentShrinkwrap: Shrinkwrap
-  if (opts.makePartialCurrentShrinkwrap) {
-    const packages = opts.currentShrinkwrap.packages || {}
-    if (newShrinkwrap.packages) {
-      for (const relDepPath in newShrinkwrap.packages) { // tslint:disable-line:forin
+  const allImportersIncluded = R.equals(importerIds.sort(), Object.keys(newWantedShrinkwrap.importers).sort())
+  if (
+    opts.makePartialCurrentShrinkwrap ||
+    !allImportersIncluded
+  ) {
+    const filteredCurrentShrinkwrap = allImportersIncluded
+      ? opts.currentShrinkwrap
+      : filterShrinkwrapByImporters(
+        opts.currentShrinkwrap,
+        Object.keys(newWantedShrinkwrap.importers)
+          .filter((importerId) => importerIds.indexOf(importerId) === -1 && opts.currentShrinkwrap.importers[importerId]),
+        {
+          ...filterOpts,
+          failOnMissingDependencies: false,
+        },
+      )
+    const packages = filteredCurrentShrinkwrap.packages || {}
+    if (newWantedShrinkwrap.packages) {
+      for (const relDepPath in newWantedShrinkwrap.packages) { // tslint:disable-line:forin
         const depPath = dp.resolve(opts.registries.default, relDepPath)
         if (depGraph[depPath]) {
-          packages[relDepPath] = newShrinkwrap.packages[relDepPath]
+          packages[relDepPath] = newWantedShrinkwrap.packages[relDepPath]
         }
       }
     }
     const importers = importerIds.reduce((acc, importerId) => {
-      acc[importerId] = newShrinkwrap.importers[importerId]
+      acc[importerId] = newWantedShrinkwrap.importers[importerId]
       return acc
     }, {})
-    currentShrinkwrap = { ...newShrinkwrap, packages, importers }
+    currentShrinkwrap = { ...newWantedShrinkwrap, packages, importers }
   } else if (
     opts.include.dependencies &&
     opts.include.devDependencies &&
     opts.include.optionalDependencies &&
-    opts.skipped.size === 0 &&
-    R.equals(importerIds.sort(), Object.keys(newShrinkwrap.importers).sort())
+    opts.skipped.size === 0
   ) {
-    currentShrinkwrap = newShrinkwrap
+    currentShrinkwrap = newWantedShrinkwrap
   } else {
     currentShrinkwrap = newCurrentShrinkwrap
   }
@@ -316,7 +330,7 @@ export default async function linkPackages (
     depGraph,
     newDepPaths,
     removedDepPaths,
-    wantedShrinkwrap: newShrinkwrap,
+    wantedShrinkwrap: newWantedShrinkwrap,
   }
 }
 

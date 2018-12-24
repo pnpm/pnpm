@@ -101,6 +101,12 @@ test('dependencies of other importers are not pruned when installing for a subse
   await rootNodeModules.has('.localhost+4873/is-positive/2.0.0')
   await rootNodeModules.hasNot('.localhost+4873/is-positive/1.0.0')
   await rootNodeModules.has('.localhost+4873/is-negative/1.0.0')
+
+  const shr = await rootNodeModules.loadCurrentShrinkwrap()
+  t.deepEqual(Object.keys(shr.packages), [
+    '/is-negative/1.0.0',
+    '/is-positive/2.0.0',
+  ], 'packages of importer that was not selected by last installation are not removed from current shrinkwrap.yaml')
 })
 
 test('dependencies of other importers are not pruned when (headless) installing for a subset of importers', async (t) => {

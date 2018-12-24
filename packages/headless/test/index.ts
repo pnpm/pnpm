@@ -681,6 +681,18 @@ test('installing in a workspace', async (t) => {
 
   await projectBar.has('foo')
 
+  await headless(await testDefaults({
+    importers: [manifests.importers[0]],
+    shrinkwrapDirectory: workspaceFixture,
+  }))
+
+  const rootNodeModules = assertProject(t, workspaceFixture)
+  const shr = await rootNodeModules.loadCurrentShrinkwrap()
+  t.deepEqual(Object.keys(shr.packages), [
+    '/is-negative/1.0.0',
+    '/is-positive/1.0.0',
+  ], 'packages of importer that was not selected by last installation are not removed from current shrinkwrap.yaml')
+
   t.end()
 })
 
