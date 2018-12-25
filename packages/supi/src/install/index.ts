@@ -188,6 +188,7 @@ export async function mutateModules (
           importers: ctx.importers,
           include: opts.include,
           independentLeaves: opts.independentLeaves,
+          ownLifecycleHooksStdio: opts.ownLifecycleHooksStdio,
           packageManager:  opts.packageManager,
           pendingBuilds: ctx.pendingBuilds,
           pruneStore: opts.pruneStore,
