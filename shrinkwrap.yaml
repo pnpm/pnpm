@@ -342,7 +342,7 @@ importers:
       '@types/ramda': 0.25.34
       dependency-path: 'link:../dependency-path'
       graph-sequencer: 2.0.0
-      p-limit: 2.0.0
+      p-limit: 2.1.0
       path-exists: 3.0.0
       ramda: 0.26.1
     devDependencies:
@@ -420,7 +420,7 @@ importers:
       isexe: 2.0.0
       mz: 2.7.0
       npm-run-all: 4.1.5
-      p-limit: 2.0.0
+      p-limit: 2.1.0
       path-exists: 3.0.0
       pnpm-registry-mock: 2.4.0
       ramda: 0.26.1
@@ -490,7 +490,7 @@ importers:
       archy: 1.0.0
       chalk: 2.4.1
       dependencies-hierarchy: 'link:../dependencies-hierarchy'
-      p-limit: 2.0.0
+      p-limit: 2.1.0
       ramda: 0.26.1
     devDependencies:
       '@pnpm/logger': 2.1.0
@@ -522,7 +522,7 @@ importers:
       dependencies-hierarchy: 4.0.3
       mos: 2.0.0-alpha.3
       mos-plugin-readme: 1.0.4
-      p-limit: 2.0.0
+      p-limit: 2.1.0
       pnpm-list: 'link:'
       ramda: 0.26.1
       tape: 4.9.1
@@ -663,7 +663,7 @@ importers:
       load-json-file: 5.1.0
       mkdirp-promise: 5.0.1
       mz: 2.7.0
-      p-limit: 2.0.0
+      p-limit: 2.1.0
       p-queue: 3.0.0
       path-exists: 3.0.0
       read-package-json: 2.0.13
@@ -729,7 +729,7 @@ importers:
       ncp: 2.0.0
       nock: 10.0.5
       normalize-path: 3.0.0
-      p-limit: 2.0.0
+      p-limit: 2.1.0
       p-queue: 3.0.0
       path-exists: 3.0.0
       read-package-json: 2.0.13
@@ -763,7 +763,7 @@ importers:
       mz: 2.7.0
       ncp: 2.0.0
       p-filter: 1.0.0
-      p-limit: 2.0.0
+      p-limit: 2.1.0
       path-exists: 3.0.0
       path-temp: 1.0.0
       ramda: 0.26.1
@@ -811,7 +811,7 @@ importers:
       ncp: 2.0.0
       npm-scripts-info: 0.3.9
       p-filter: 1.0.0
-      p-limit: 2.0.0
+      p-limit: 2.1.0
       path-exists: 3.0.0
       path-temp: 1.0.0
       ramda: 0.26.1
@@ -873,7 +873,7 @@ importers:
       mz: 2.7.0
       nopt: 4.0.1
       p-filter: 1.0.0
-      p-limit: 2.0.0
+      p-limit: 2.1.0
       path-absolute: 1.0.1
       path-name: 1.0.0
       pkgs-graph: 2.0.2
@@ -1013,7 +1013,7 @@ importers:
       npm-scripts-info: 0.3.9
       p-any: 1.1.0
       p-filter: 1.0.0
-      p-limit: 2.0.0
+      p-limit: 2.1.0
       path-absolute: 1.0.1
       path-exists: 3.0.0
       path-name: 1.0.0
@@ -1182,7 +1182,7 @@ importers:
       '@types/p-limit': 2.0.0
       '@types/uuid': 3.4.4
       got: 8.3.2
-      p-limit: 2.0.0
+      p-limit: 2.1.0
       uuid: 3.3.2
     devDependencies:
       '@pnpm/logger': 2.1.0
@@ -1225,7 +1225,7 @@ importers:
       mos: 2.0.0-alpha.3
       mos-plugin-readme: 1.0.4
       mz: 2.7.0
-      p-limit: 2.0.0
+      p-limit: 2.1.0
       rimraf: 2.6.2
       rimraf-then: 1.0.1
       tape: 4.9.1
@@ -1448,7 +1448,7 @@ importers:
       normalize-registry-url: 1.0.0
       p-every: 1.0.2
       p-filter: 1.0.0
-      p-limit: 2.0.0
+      p-limit: 2.1.0
       path-absolute: 1.0.1
       ramda: 0.26.1
       remove-all-except-outer-links: 1.0.3
@@ -1582,7 +1582,7 @@ importers:
       npm-scripts-info: 0.3.9
       p-every: 1.0.2
       p-filter: 1.0.0
-      p-limit: 2.0.0
+      p-limit: 2.1.0
       path-absolute: 1.0.1
       path-exists: 3.0.0
       path-name: 1.0.0
@@ -2135,7 +2135,7 @@ packages:
       load-json-file: 5.1.0
       mem: 4.0.0
       normalize-path: 3.0.0
-      p-limit: 2.0.0
+      p-limit: 2.1.0
       parse-npm-tarball-url: 2.0.0
       semver: 5.6.0
       ssri: 6.0.1
@@ -4355,7 +4355,7 @@ packages:
       graceful-fs: 4.1.15
       mz: 2.7.0
       p-every: 1.0.2
-      p-limit: 2.0.0
+      p-limit: 2.1.0
       ssri: 6.0.1
     dev: false
     engines:
@@ -4550,20 +4550,6 @@ packages:
     dev: false
     resolution:
       integrity: sha512-56pdiJngqQg7Rc4RR0ypVoOlm3GpJUkDNr0p8MKLWo4eavZEhYZDQmCM8QftvIuNjem4yoPf5xwQ9NKVq56VZA==
-  /execa/0.10.0:
-    dependencies:
-      cross-spawn: 6.0.5
-      get-stream: 3.0.0
-      is-stream: 1.1.0
-      npm-run-path: 2.0.2
-      p-finally: 1.0.0
-      signal-exit: 3.0.2
-      strip-eof: 1.0.0
-    dev: false
-    engines:
-      node: '>=4'
-    resolution:
-      integrity: sha512-7XOMnz8Ynx1gGo/3hyV9loYNPWM94jG3+3T3Y8tsfSstFmETmENCMU/A/zj8Lyaj1lkgEepKepvd6240tBRvlw==
   /execa/0.7.0:
     dependencies:
       cross-spawn: 5.1.0
@@ -7505,16 +7491,16 @@ packages:
       node: '>=0.10.0'
     resolution:
       integrity: sha1-/7xJiDNuDoM94MFox+8VISGqf7M=
-  /os-locale/3.0.1:
+  /os-locale/3.1.0:
     dependencies:
-      execa: 0.10.0
+      execa: 1.0.0
       lcid: 2.0.0
       mem: 4.0.0
     dev: false
     engines:
       node: '>=6'
     resolution:
-      integrity: sha512-7g5e7dmXPtzcP4bgsZ8ixDVqA7oWYuEz4lOSujeWyliPai4gfVDiFIcwBg3aGCPnmSGfzOKTK3ccPn0CKv3DBw==
+      integrity: sha512-Z8l3R4wYWM40/52Z+S265okfFj8Kt2cC2MKY+xNi3kFs+XGI7WXu/I309QQQYbRW4ijiZ+yxs9pqEhJh0DqW3Q==
   /os-tmpdir/1.0.2:
     engines:
       node: '>=0.10.0'
@@ -7587,13 +7573,13 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha512-vvcXsLAJ9Dr5rQOPk7toZQZJApBl2K4J6dANSsEuh6QI41JYcsS/qhTGa9ErIUUgK3WNQoJYvylxvjqmiqEA9Q==
-  /p-limit/2.0.0:
+  /p-limit/2.1.0:
     dependencies:
       p-try: 2.0.0
     engines:
       node: '>=6'
     resolution:
-      integrity: sha512-fl5s52lI5ahKCernzzIyAP0QAZbGIovtVHGwpcu1Jr/EpzLVDI2myISHwGqK7m8uQFugVWSrbxH7XnhGtvEc+A==
+      integrity: sha512-NhURkNcrVB+8hNfLuysU8enY5xn2KXphsHBaC2YmRNTZRc7RWusw6apSpdEj3jo4CMb6W9nrF6tTnsJsJeyu6g==
   /p-locate/2.0.0:
     dependencies:
       p-limit: 1.3.0
@@ -7604,7 +7590,7 @@ packages:
       integrity: sha1-IKAQOyIqcMj9OcwuWAaA893l7EM=
   /p-locate/3.0.0:
     dependencies:
-      p-limit: 2.0.0
+      p-limit: 2.1.0
     engines:
       node: '>=6'
     resolution:
@@ -10295,7 +10281,7 @@ packages:
       decamelize: 1.2.0
       find-up: 3.0.0
       get-caller-file: 1.0.3
-      os-locale: 3.0.1
+      os-locale: 3.1.0
       require-directory: 2.1.1
       require-main-filename: 1.0.1
       set-blocking: 2.0.0
