@@ -18,7 +18,7 @@ test('pnpm recursive test', async (t: tape.Test) => {
         'json-append': '1',
       },
       scripts: {
-        test: `node -e "process.stdout.write('project-1')" | json-append ../output.json`,
+        test: `node -e "process.stdout.write('project-1')" | json-append ../output1.json && node -e "process.stdout.write('project-1')" | json-append ../output2.json`,
       },
     },
     {
@@ -30,7 +30,7 @@ test('pnpm recursive test', async (t: tape.Test) => {
         'project-1': '1'
       },
       scripts: {
-        test: `node -e "process.stdout.write('project-2')" | json-append ../output.json`,
+        test: `node -e "process.stdout.write('project-2')" | json-append ../output1.json`,
       },
     },
     {
@@ -42,7 +42,7 @@ test('pnpm recursive test', async (t: tape.Test) => {
         'project-1': '1'
       },
       scripts: {
-        test: `node -e "process.stdout.write('project-3')" | json-append ../output.json`,
+        test: `node -e "process.stdout.write('project-3')" | json-append ../output2.json`,
       },
     },
     {
@@ -56,13 +56,11 @@ test('pnpm recursive test', async (t: tape.Test) => {
   await execPnpm('recursive', 'link')
   await execPnpm('recursive', 'test')
 
-  const outputs = await import(path.resolve('output.json')) as string[]
+  const outputs1 = await import(path.resolve('output1.json')) as string[]
+  const outputs2 = await import(path.resolve('output2.json')) as string[]
 
-  const p1 = outputs.indexOf('project-1')
-  const p2 = outputs.indexOf('project-2')
-  const p3 = outputs.indexOf('project-3')
-
-  t.ok(p1 < p2 && p1 < p3)
+  t.deepEqual(outputs1, ['project-1', 'project-2'])
+  t.deepEqual(outputs2, ['project-1', 'project-3'])
 })
 
 test('`pnpm recursive test` does not fail if none of the packaegs has a test command', async (t: tape.Test) => {
