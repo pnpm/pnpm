@@ -70,6 +70,41 @@ test('pnpm recursive run', async (t: tape.Test) => {
   t.ok(p2 < p2post && p2 > p2pre)
 })
 
+test('pnpm recursive run concurrently', async (t: tape.Test) => {
+  const projects = preparePackages(t, [
+    {
+      name: 'project-1',
+      version: '1.0.0',
+
+      dependencies: {
+        'json-append': '1',
+      },
+      scripts: {
+        build: `node -e "let i = 20;setInterval(() => {if (!--i) process.exit(0); require('json-append').append(Date.now(),'../output1.json');},50)"`,
+      },
+    },
+    {
+      name: 'project-2',
+      version: '1.0.0',
+
+      dependencies: {
+        'json-append': '1',
+      },
+      scripts: {
+        build: `node -e "let i = 40;setInterval(() => {if (!--i) process.exit(0); require('json-append').append(Date.now(),'../output2.json');},25)"`,
+      },
+    },
+  ])
+
+  await execPnpm('recursive', 'install')
+  await execPnpm('recursive', 'run', 'build')
+
+  const outputs1 = await import(path.resolve('output1.json')) as number[]
+  const outputs2 = await import(path.resolve('output2.json')) as number[]
+
+  t.ok(Math.max(outputs1[0], outputs2[0]) < Math.min(outputs1[outputs1.length - 1], outputs2[outputs2.length - 1]))
+})
+
 test('`pnpm recursive run` fails if none of the packaegs has the desired command', async (t: tape.Test) => {
   const projects = preparePackages(t, [
     {

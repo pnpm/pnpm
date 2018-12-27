@@ -438,7 +438,7 @@ importers:
       '@pnpm/core-loggers': 'link:../core-loggers'
       '@pnpm/read-package-json': 1.0.1
       '@pnpm/types': 'link:../types'
-      '@zkochan/npm-lifecycle': 2.1.1
+      '@zkochan/npm-lifecycle': 2.2.0
       path-exists: 3.0.0
     devDependencies:
       '@pnpm/lifecycle': 'link:'
@@ -468,7 +468,7 @@ importers:
       '@types/node': 10.12.18
       '@types/rimraf': 2.0.2
       '@types/tape': 4.2.33
-      '@zkochan/npm-lifecycle': 2.1.1
+      '@zkochan/npm-lifecycle': 2.2.0
       json-append: 1.1.1
       load-json-file: 5.1.0
       mos: 2.0.0-alpha.3
@@ -2550,7 +2550,7 @@ packages:
       node: '>=6'
     resolution:
       integrity: sha512-gOi/DytLOuWECjzwcVqiDzGqe4nPmRtxhiIl+PBdv61p+DJBHPKUwqIt/lkxgwhSM/EfuhcMFd3r8q+grNkwsw==
-  /@zkochan/npm-lifecycle/2.1.1:
+  /@zkochan/npm-lifecycle/2.2.0:
     dependencies:
       byline: 5.0.0
       graceful-fs: 4.1.15
@@ -2562,7 +2562,7 @@ packages:
       which: 1.3.1
     dev: false
     resolution:
-      integrity: sha512-Ngx98s/fDZU6CZwDor2WHcZ8HrGkrO9kt6xluqCtz1+7viWfJc1/XcFg3t7ifs+EBEqwwdEDgwRdniP9wOQS3w==
+      integrity: sha512-QY4b/j69gSD2BIdrs6TSIG9LRIcFzjTsPO4RyiulgnGgakeEQRVmIzAgf2DH4ncFdMVneDO8iQNmTRod9PB/BQ==
   /@zkochan/npm-package-arg/1.0.1:
     dependencies:
       hosted-git-info: 2.7.1

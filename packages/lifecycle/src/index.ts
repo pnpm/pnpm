@@ -80,6 +80,7 @@ export default async function runLifecycleHook (
       verbose: npmLog,
       warn: noop,
     },
+    runConcurrently: true,
     stdio: opts.stdio || 'pipe',
     unsafePerm: opts.unsafePerm,
   })
