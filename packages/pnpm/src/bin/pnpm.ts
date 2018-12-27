@@ -1,4 +1,8 @@
 'use strict'
+// Avoid "Possible EventEmitter memory leak detected" warnings
+// because it breaks pnpm's CLI output
+process.setMaxListeners(0)
+
 let argv = process.argv.slice(2)
 
 if (argv.indexOf('--help') !== -1 || argv.indexOf('-h') !== -1 || argv.indexOf('--h') !== -1) {
