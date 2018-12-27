@@ -1,7 +1,7 @@
 {
   "name": "@pnpm/package-store",
   "description": "A storage for packages",
-  "version": "2.0.1",
+  "version": "2.0.2",
   "author": {
     "name": "Zoltan Kochan",
     "email": "z@kochan.io",
@@ -22,7 +22,7 @@
     "@pnpm/core-loggers": "1.2.0",
     "@pnpm/fetcher-base": "2.0.0",
     "@pnpm/fs-locker": "1.0.3",
-    "@pnpm/package-requester": "5.0.1",
+    "@pnpm/package-requester": "5.0.2",
     "@pnpm/pkgid-to-filename": "2.0.0",
     "@pnpm/resolver-base": "2.0.0",
     "@pnpm/store-controller-types": "2.0.0",

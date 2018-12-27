@@ -1,7 +1,7 @@
 {
   "name": "@pnpm/headless",
   "description": "Fast installation using only shrinkwrap.yaml",
-  "version": "2.1.1",
+  "version": "2.1.2",
   "author": {
     "name": "Zoltan Kochan",
     "email": "z@kochan.io",
@@ -24,7 +24,7 @@
     "@pnpm/default-resolver": "2.0.7",
     "@pnpm/headless": "link:",
     "@pnpm/logger": "2.1.0",
-    "@pnpm/package-store": "2.0.1",
+    "@pnpm/package-store": "2.0.2",
     "@pnpm/read-manifests": "1.0.3",
     "@pnpm/store-path": "1.0.4",
     "@pnpm/tslint-config": "0.0.0",
@@ -85,11 +85,11 @@
   "dependencies": {
     "@pnpm/core-loggers": "1.2.0",
     "@pnpm/filter-shrinkwrap": "1.0.0",
-    "@pnpm/lifecycle": "4.1.0",
+    "@pnpm/lifecycle": "4.1.1",
     "@pnpm/link-bins": "3.0.2",
     "@pnpm/modules-cleaner": "2.0.3",
     "@pnpm/modules-yaml": "2.0.1",
-    "@pnpm/package-requester": "5.0.1",
+    "@pnpm/package-requester": "5.0.2",
     "@pnpm/pkgid-to-filename": "2.0.0",
     "@pnpm/read-package-json": "1.0.1",
     "@pnpm/shamefully-flatten": "2.0.1",
