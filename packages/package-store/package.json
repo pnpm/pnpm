@@ -54,7 +54,7 @@
     "@types/tempy": "0.2.0",
     "npm-scripts-info": "0.3.9",
     "rimraf": "2.6.2",
-    "tape": "4.9.1",
+    "tape": "4.9.2",
     "tempy": "0.2.1",
     "ts-node": "7.0.1",
     "tslint": "5.12.0",

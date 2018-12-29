@@ -19,7 +19,7 @@ importers:
       mos-plugin-readme: 1.0.4
       mz: 2.7.0
       rimraf: 2.6.2
-      tape: 4.9.1
+      tape: 4.9.2
       tempy: 0.2.1
       ts-node: 6.2.0
       tslint: /tslint/5.12.0/typescript@3.2.2
@@ -41,7 +41,7 @@ importers:
       mos-plugin-readme: 1.0.4
       mz: 2.7.0
       rimraf: 2.6.2
-      tape: 4.9.1
+      tape: 4.9.2
       tempy: 0.2.1
       ts-node: 6.2.0
       tslint: 5.12.0
@@ -76,7 +76,7 @@ importers:
       mos: 2.0.0-alpha.3
       mos-plugin-readme: 1.0.4
       rimraf: 2.6.2
-      tape: 4.9.1
+      tape: 4.9.2
       ts-node: 7.0.1
       tslint: /tslint/5.12.0/typescript@3.2.2
       typescript: 3.2.2
@@ -91,7 +91,7 @@ importers:
       mos: 2.0.0-alpha.3
       mos-plugin-readme: 1.0.4
       rimraf: 2.6.2
-      tape: 4.9.1
+      tape: 4.9.2
       ts-node: 7.0.1
       tslint: 5.12.0
       typescript: 3.2.2
@@ -131,7 +131,7 @@ importers:
       mos-tap-diff: 1.0.0
       normalize-newline: 3.0.0
       rimraf: 2.6.2
-      tape: 4.9.1
+      tape: 4.9.2
       ts-node: 6.2.0
       tslint: /tslint/5.12.0/typescript@3.2.2
       typescript: 3.2.2
@@ -168,7 +168,7 @@ importers:
       stacktracey: 1.2.106
       string-length: 2.0.0
       strip-ansi: 5.0.0
-      tape: 4.9.1
+      tape: 4.9.2
       ts-node: 6.2.0
       tslint: 5.12.0
       typescript: 3.2.2
@@ -187,7 +187,7 @@ importers:
       mos: 2.0.0-alpha.3
       mos-plugin-readme: 1.0.4
       rimraf: 2.6.2
-      tape: 4.9.1
+      tape: 4.9.2
       ts-node: 7.0.1
       tslint: /tslint/5.12.0/typescript@3.2.2
       typescript: 3.2.2
@@ -203,7 +203,7 @@ importers:
       mos: 2.0.0-alpha.3
       mos-plugin-readme: 1.0.4
       rimraf: 2.6.2
-      tape: 4.9.1
+      tape: 4.9.2
       ts-node: 7.0.1
       tslint: 5.12.0
       typescript: 3.2.2
@@ -228,7 +228,7 @@ importers:
       mos: 2.0.0-alpha.3
       mos-plugin-readme: 1.0.4
       mos-tap-diff: 1.0.0
-      tape: 4.9.1
+      tape: 4.9.2
       ts-node: 7.0.1
       tslint: /tslint/5.12.0/typescript@3.2.2
       typescript: 3.2.2
@@ -251,7 +251,7 @@ importers:
       normalize-path: 3.0.0
       resolve-link-target: 1.0.1
       semver: 5.6.0
-      tape: 4.9.1
+      tape: 4.9.2
       ts-node: 7.0.1
       tslint: 5.12.0
       typescript: 3.2.2
@@ -265,7 +265,7 @@ importers:
       '@types/tape': 4.2.33
       mos: 2.0.0-alpha.3
       mos-plugin-readme: 1.0.4
-      tape: 4.9.1
+      tape: 4.9.2
       ts-node: 7.0.1
       tslint: /tslint/5.12.0/typescript@3.2.2
       typescript: 3.2.2
@@ -295,7 +295,7 @@ importers:
       '@types/tape': 4.2.33
       '@types/tempy': 0.2.0
       rimraf: 2.6.2
-      tape: 4.9.1
+      tape: 4.9.2
       tempy: 0.2.1
       ts-node: 6.2.0
       tslint: /tslint/5.12.0/typescript@3.2.2
@@ -314,7 +314,7 @@ importers:
       dependency-path: 2.0.1
       ramda: 0.26.1
       rimraf: 2.6.2
-      tape: 4.9.1
+      tape: 4.9.2
       tempy: 0.2.1
       ts-node: 6.2.0
       tslint: 5.12.0
@@ -372,7 +372,7 @@ importers:
       rimraf: 2.6.2
       rimraf-then: 1.0.1
       sinon: 7.2.2
-      tape: 4.9.1
+      tape: 4.9.2
       tape-promise: 4.0.0
       tempy: 0.2.1
       ts-node: 6.2.0
@@ -427,7 +427,7 @@ importers:
       rimraf: 2.6.2
       rimraf-then: 1.0.1
       sinon: 7.2.2
-      tape: 4.9.1
+      tape: 4.9.2
       tape-promise: 4.0.0
       tempy: 0.2.1
       ts-node: 6.2.0
@@ -453,7 +453,7 @@ importers:
       mos: 2.0.0-alpha.3
       mos-plugin-readme: 1.0.4
       rimraf: 2.6.2
-      tape: 4.9.1
+      tape: 4.9.2
       ts-node: 7.0.1
       tslint: /tslint/5.12.0/typescript@3.2.2
       typescript: 3.2.2
@@ -475,7 +475,7 @@ importers:
       mos-plugin-readme: 1.0.4
       path-exists: 3.0.0
       rimraf: 2.6.2
-      tape: 4.9.1
+      tape: 4.9.2
       ts-node: 7.0.1
       tslint: 5.12.0
       typescript: 3.2.2
@@ -501,7 +501,7 @@ importers:
       mos: 2.0.0-alpha.3
       mos-plugin-readme: 1.0.4
       pnpm-list: 'link:'
-      tape: 4.9.1
+      tape: 4.9.2
       ts-node: 7.0.1
       tslint: /tslint/5.12.0/typescript@3.2.2
       typescript: 3.2.2
@@ -525,7 +525,7 @@ importers:
       p-limit: 2.1.0
       pnpm-list: 'link:'
       ramda: 0.26.1
-      tape: 4.9.1
+      tape: 4.9.2
       ts-node: 7.0.1
       tslint: 5.12.0
       typescript: 3.2.2
@@ -586,7 +586,7 @@ importers:
       mos: 2.0.0-alpha.3
       mos-plugin-readme: 1.0.4
       rimraf: 2.6.2
-      tape: 4.9.1
+      tape: 4.9.2
       tempy: 0.2.1
       ts-node: 7.0.1
       tslint: /tslint/5.12.0/typescript@3.2.2
@@ -601,7 +601,7 @@ importers:
       mos-plugin-readme: 1.0.4
       read-yaml-file: 1.1.0
       rimraf: 2.6.2
-      tape: 4.9.1
+      tape: 4.9.2
       tempy: 0.2.1
       ts-node: 7.0.1
       tslint: 5.12.0
@@ -624,7 +624,7 @@ importers:
       '@types/tape': 4.2.33
       mos: 2.0.0-alpha.3
       mos-plugin-readme: 1.0.4
-      tape: 4.9.1
+      tape: 4.9.2
       ts-node: 7.0.1
       tslint: /tslint/5.12.0/typescript@3.2.2
       typescript: 3.2.2
@@ -643,7 +643,7 @@ importers:
       dependency-path: 2.0.1
       mos: 2.0.0-alpha.3
       mos-plugin-readme: 1.0.4
-      tape: 4.9.1
+      tape: 4.9.2
       ts-node: 7.0.1
       tslint: 5.12.0
       typescript: 3.2.2
@@ -692,7 +692,7 @@ importers:
       normalize-path: 3.0.0
       rimraf: 2.6.2
       sinon: 7.2.2
-      tape: 4.9.1
+      tape: 4.9.2
       tempy: 0.2.1
       ts-node: 7.0.1
       tslint: /tslint/5.12.0/typescript@3.2.2
@@ -738,7 +738,7 @@ importers:
       rimraf-then: 1.0.1
       sinon: 7.2.2
       symlink-dir: 2.0.2
-      tape: 4.9.1
+      tape: 4.9.2
       tempy: 0.2.1
       ts-node: 7.0.1
       tslint: 5.12.0
@@ -781,7 +781,7 @@ importers:
       '@types/tempy': 0.2.0
       npm-scripts-info: 0.3.9
       rimraf: 2.6.2
-      tape: 4.9.1
+      tape: 4.9.2
       tempy: 0.2.1
       ts-node: 7.0.1
       tslint: /tslint/5.12.0/typescript@3.2.2
@@ -818,7 +818,7 @@ importers:
       rename-overwrite: 1.0.3
       rimraf: 2.6.2
       rimraf-then: 1.0.1
-      tape: 4.9.1
+      tape: 4.9.2
       tempy: 0.2.1
       ts-node: 7.0.1
       tslint: 5.12.0
@@ -929,7 +929,7 @@ importers:
       semver: 5.6.0
       sepia: 2.0.2
       symlink-dir: 2.0.2
-      tape: 4.9.1
+      tape: 4.9.2
       tape-promise: 4.0.0
       ts-node: 6.2.0
       tslint: /tslint/5.12.0/typescript@3.2.2
@@ -1035,7 +1035,7 @@ importers:
       strip-color: 0.1.0
       supi: 0.27.4
       symlink-dir: 2.0.2
-      tape: 4.9.1
+      tape: 4.9.2
       tape-promise: 4.0.0
       text-table: 0.2.0
       tree-kill: 1.2.1
@@ -1059,7 +1059,7 @@ importers:
       '@pnpm/tslint-config': 'link:../../utils/tslint-config'
       '@types/tape': 4.2.33
       rimraf: 2.6.2
-      tape: 4.9.1
+      tape: 4.9.2
       ts-node: 6.2.0
       tslint: /tslint/5.12.0/typescript@3.2.2
       typescript: 3.2.2
@@ -1074,7 +1074,7 @@ importers:
       dependency-path: 2.0.1
       ramda: 0.26.1
       rimraf: 2.6.2
-      tape: 4.9.1
+      tape: 4.9.2
       ts-node: 6.2.0
       tslint: 5.12.0
       typescript: 3.2.2
@@ -1200,7 +1200,7 @@ importers:
       mz: 2.7.0
       rimraf: 2.6.2
       rimraf-then: 1.0.1
-      tape: 4.9.1
+      tape: 4.9.2
       ts-node: 7.0.1
       tslint: /tslint/5.12.0/typescript@3.2.2
       typescript: 3.2.2
@@ -1228,7 +1228,7 @@ importers:
       p-limit: 2.1.0
       rimraf: 2.6.2
       rimraf-then: 1.0.1
-      tape: 4.9.1
+      tape: 4.9.2
       ts-node: 7.0.1
       tslint: 5.12.0
       typescript: 3.2.2
@@ -1287,7 +1287,7 @@ importers:
       '@types/tape': 4.2.33
       '@types/tempy': 0.2.0
       rimraf: 2.6.2
-      tape: 4.9.1
+      tape: 4.9.2
       tempy: 0.2.1
       ts-node: 6.2.0
       tslint: /tslint/5.12.0/typescript@3.2.2
@@ -1312,7 +1312,7 @@ importers:
       read-yaml-file: 1.1.0
       rimraf: 2.6.2
       rimraf-then: 1.0.1
-      tape: 4.9.1
+      tape: 4.9.2
       tempy: 0.2.1
       ts-node: 6.2.0
       tslint: 5.12.0
@@ -1347,7 +1347,7 @@ importers:
       '@types/tape': 4.2.33
       '@types/tempy': 0.2.0
       rimraf: 2.6.2
-      tape: 4.9.1
+      tape: 4.9.2
       tempy: 0.2.1
       ts-node: 6.2.0
       tslint: /tslint/5.12.0/typescript@3.2.2
@@ -1369,7 +1369,7 @@ importers:
       get-npm-tarball-url: 2.0.1
       ramda: 0.26.1
       rimraf: 2.6.2
-      tape: 4.9.1
+      tape: 4.9.2
       tempy: 0.2.1
       ts-node: 6.2.0
       tslint: 5.12.0
@@ -1495,7 +1495,7 @@ importers:
       sepia: 2.0.2
       sinon: 7.2.2
       supi: 'link:'
-      tape: 4.9.1
+      tape: 4.9.2
       tape-promise: 4.0.0
       ts-node: 6.2.0
       tslint: /tslint/5.12.0/typescript@3.2.2
@@ -1600,7 +1600,7 @@ importers:
       sinon: 7.2.2
       supi: 'link:'
       symlink-dir: 2.0.2
-      tape: 4.9.1
+      tape: 4.9.2
       tape-promise: 4.0.0
       ts-node: 6.2.0
       tslint: 5.12.0
@@ -1697,7 +1697,7 @@ importers:
       mz: 2.7.0
       path-exists: 3.0.0
       read-yaml-file: 1.1.0
-      tape: 4.9.1
+      tape: 4.9.2
       util.promisify: 1.0.0
       write-pkg: 3.2.0
     devDependencies:
@@ -1721,7 +1721,7 @@ importers:
       path-exists: 3.0.0
       read-yaml-file: 1.1.0
       rimraf: 2.6.2
-      tape: 4.9.1
+      tape: 4.9.2
       ts-node: 7.0.1
       tslint: 5.12.0
       typescript: 3.2.2
@@ -1734,7 +1734,7 @@ importers:
       '@types/path-exists': 3.0.0
       '@types/tape': 4.2.33
       path-exists: 3.0.0
-      tape: 4.9.1
+      tape: 4.9.2
     devDependencies:
       rimraf: 2.6.2
       ts-node: 7.0.1
@@ -1747,7 +1747,7 @@ importers:
       '@types/tape': 4.2.33
       path-exists: 3.0.0
       rimraf: 2.6.2
-      tape: 4.9.1
+      tape: 4.9.2
       ts-node: 7.0.1
       tslint: 5.12.0
       typescript: 3.2.2
@@ -1760,7 +1760,7 @@ importers:
       '@types/tape': 4.2.33
       '@types/write-pkg': 3.1.0
       mkdirp: 0.5.1
-      tape: 4.9.1
+      tape: 4.9.2
       write-pkg: 3.2.0
     devDependencies:
       rimraf: 2.6.2
@@ -1777,7 +1777,7 @@ importers:
       '@types/write-pkg': 3.1.0
       mkdirp: 0.5.1
       rimraf: 2.6.2
-      tape: 4.9.1
+      tape: 4.9.2
       tslint: 5.12.0
       tslint-config-standard: 8.0.1
       tslint-eslint-rules: 5.4.0
@@ -9354,7 +9354,7 @@ packages:
     hasBin: true
     resolution:
       integrity: sha1-K7PqGb3J9SJSF7P5fL95hsxMbow=
-  /tape/4.9.1:
+  /tape/4.9.2:
     dependencies:
       deep-equal: 1.0.1
       defined: 1.0.0
@@ -9371,7 +9371,7 @@ packages:
       through: 2.3.8
     hasBin: true
     resolution:
-      integrity: sha512-6fKIXknLpoe/Jp4rzHKFPpJUHDHDqn8jus99IfPnHIjyz78HYlefTGD3b5EkbQzuLfaEvmfPK3IolLgq2xT3kw==
+      integrity: sha512-lPXKRKILZ1kZaUy5ynWKs8ATGSUO7HAFHCFnBam6FaGSqPdOwMWbxXHq4EXFLE8WRTleo/YOMXkaUTRmTB1Fiw==
   /tar-fs/1.16.3:
     dependencies:
       chownr: 1.1.1
@@ -9635,7 +9635,7 @@ packages:
       doctrine: 0.7.2
       tslib: 1.9.0
       tslint: /tslint/5.12.0/typescript@3.2.2
-      tsutils: /tsutils/3.5.2/typescript@3.2.2
+      tsutils: /tsutils/3.6.0/typescript@3.2.2
       typescript: 3.2.2
     id: registry.npmjs.org/tslint-eslint-rules/5.4.0
     peerDependencies:
@@ -9675,17 +9675,17 @@ packages:
       typescript: '>=2.1.0 || >=2.1.0-dev || >=2.2.0-dev || >=2.3.0-dev || >=2.4.0-dev || >=2.5.0-dev || >=2.6.0-dev || >=2.7.0-dev || >=2.8.0-dev || >=2.9.0-dev || >= 3.0.0-dev || >= 3.1.0-dev'
     resolution:
       integrity: sha512-g5JVHCIJwzfISaXpXE1qvNalca5Jwob6FjI4AoPlqMusJ6ftFE7IkkFoMhVLRgK+4Kx3gkzb8UZK5t5yTTvEmA==
-  /tsutils/3.5.2/typescript@3.2.2:
+  /tsutils/3.6.0/typescript@3.2.2:
     dependencies:
       tslib: 1.9.3
       typescript: 3.2.2
     engines:
       node: '>= 6'
-    id: registry.npmjs.org/tsutils/3.5.2
+    id: registry.npmjs.org/tsutils/3.6.0
     peerDependencies:
       typescript: '>=2.8.0 || >= 3.2.0-dev || >= 3.3.0-dev || >= 3.4.0-dev'
     resolution:
-      integrity: sha512-qIlklNuI/1Dzfm+G+kJV5gg3gimZIX5haYtIVQe7qGyKd7eu8T1t1DY6pz4Sc2CGXAj9s1izycctm9Zfl9sRuQ==
+      integrity: sha512-hCG3lZz+uRmmiC4brr/kY6Yuypnl20PNe8t49DO4OUGlbxWkxYHF63EeG2XPSd0JcKiWmp9p55yQyrkxqSS5Dg==
   /tunnel-agent/0.6.0:
     dependencies:
       safe-buffer: 5.1.2

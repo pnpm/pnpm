@@ -56,7 +56,7 @@
     "mz": "2.7.0",
     "path-exists": "3.0.0",
     "read-yaml-file": "1.1.0",
-    "tape": "4.9.1",
+    "tape": "4.9.2",
     "util.promisify": "1.0.0",
     "write-pkg": "3.2.0"
   }
