@@ -20,11 +20,11 @@ dependencies:
 devDependencies:
   '@pnpm/logger': 2.1.0
   '@types/nock': 9.3.0
-  '@types/tape': 4.2.32
+  '@types/tape': 4.2.33
   '@types/tempy': 0.2.0
   nock: 10.0.5
   package-preview: 2.0.0
-  tape: 4.9.1
+  tape: 4.9.2
   tempy: 0.2.1
   ts-node: 7.0.1
   tslint: 5.12.0
@@ -143,12 +143,12 @@ packages:
     dev: false
     resolution:
       integrity: sha512-Hm/bnWq0TCy7jmjeN5bKYij9vw5GrDFWME4IuxV08278NtU/VdGbzsBohcCUJ7+QMqmUq5hpRKB39HeQWJjztQ==
-  /@types/tape/4.2.32:
+  /@types/tape/4.2.33:
     dependencies:
       '@types/node': 10.12.18
     dev: true
     resolution:
-      integrity: sha512-xil0KO5wkPoixdBWGIGolPv9dekf6dVkjjJLAFYchfKcd4DICou67rgGCIO7wAh3i5Ff/6j9IDgZz+GU9cMaqQ==
+      integrity: sha512-ltfyuY5BIkYlGuQfwqzTDT8f0q8Z5DGppvUnWGs39oqDmMd6/UWhNpX3ZMh/VYvfxs3rFGHMrLC/eGRdLiDGuw==
   /@types/tempy/0.2.0:
     dev: true
     resolution:
@@ -1670,7 +1670,7 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha512-QjVjwdXIt408MIiAqCX4oUKsgU2EqAGzs2Ppkm4aQYbjm+ZEWEcW4SfFNTr4uMNZma0ey4f5lgLrkB0aX0QMow==
-  /tape/4.9.1:
+  /tape/4.9.2:
     dependencies:
       deep-equal: 1.0.1
       defined: 1.0.0
@@ -1688,7 +1688,7 @@ packages:
     dev: true
     hasBin: true
     resolution:
-      integrity: sha512-6fKIXknLpoe/Jp4rzHKFPpJUHDHDqn8jus99IfPnHIjyz78HYlefTGD3b5EkbQzuLfaEvmfPK3IolLgq2xT3kw==
+      integrity: sha512-lPXKRKILZ1kZaUy5ynWKs8ATGSUO7HAFHCFnBam6FaGSqPdOwMWbxXHq4EXFLE8WRTleo/YOMXkaUTRmTB1Fiw==
   /tar-fs/1.16.3:
     dependencies:
       chownr: 1.1.1
@@ -1946,7 +1946,7 @@ specifiers:
   '@types/node': ^9.3.0 || 10
   '@types/retry': ^0.10.2
   '@types/rimraf': ^2.0.2
-  '@types/tape': 4.2.32
+  '@types/tape': 4.2.33
   '@types/tempy': 0.2.0
   credentials-by-uri: 1.0.0
   fetch-from-npm-registry: 1.0.0
@@ -1960,7 +1960,7 @@ specifiers:
   retry: 0.12.0
   rimraf: 2.6.2
   ssri: 6.0.1
-  tape: 4.9.1
+  tape: 4.9.2
   tempy: 0.2.1
   ts-node: 7.0.1
   tslint: 5.12.0
