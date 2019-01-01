@@ -105,6 +105,7 @@ importers:
       '@types/ramda': 0.25.34
       '@types/semver': 5.5.0
       '@types/strip-ansi': 3.0.0
+      '@zkochan/zen-push': 1.0.0
       ansi-diff: 1.1.1
       chalk: 2.4.1
       cli-cursor: 2.1.0
@@ -119,7 +120,6 @@ importers:
       stacktracey: 1.2.106
       string-length: 2.0.0
       strip-ansi: 5.0.0
-      zen-push: 0.2.1
     devDependencies:
       '@pnpm/default-reporter': 'link:'
       '@pnpm/logger': 2.1.0
@@ -148,6 +148,7 @@ importers:
       '@types/semver': 5.5.0
       '@types/strip-ansi': 3.0.0
       '@types/tape': 4.2.33
+      '@zkochan/zen-push': 1.0.0
       ansi-diff: 1.1.1
       chalk: 2.4.1
       cli-cursor: 2.1.0
@@ -172,7 +173,6 @@ importers:
       ts-node: 6.2.0
       tslint: 5.12.0
       typescript: 3.2.2
-      zen-push: 0.2.1
   packages/default-resolver:
     dependencies:
       '@pnpm/git-resolver': 1.0.1
@@ -2479,6 +2479,10 @@ packages:
     dev: false
     resolution:
       integrity: sha512-JRGsPEPCrYqTXU0Cr+Yu7esPBE2yvH7ucOHr+JuBy0F59kglPvO5gkmtyEvf3P6dASSkScvy/XQ6SC1QEBFDuA==
+  /@types/zen-observable/0.8.0:
+    dev: false
+    resolution:
+      integrity: sha512-te5lMAWii1uEJ4FwLjzdlbw3+n0FZNOvFXHxQDKeT0dilh7HOzdMzV2TrJVUzq8ep7J4Na8OUYPRLSQkJHAlrg==
   /@verdaccio/file-locking/0.0.7:
     dependencies:
       lockfile: 1.0.3
@@ -2571,6 +2575,15 @@ packages:
     dev: false
     resolution:
       integrity: sha512-+GTWIojbxb8DOuvoIRnJY1qnJnCT3L+SFC24DEAc6bcdstzh/cDGErstTqFRkQOaJ+hTCyrpjJej03coOLZlUQ==
+  /@zkochan/zen-push/1.0.0:
+    dependencies:
+      '@types/zen-observable': 0.8.0
+      zen-observable: 0.8.11
+    dev: false
+    engines:
+      node: '>=6'
+    resolution:
+      integrity: sha512-nHBmtlomBTExmjq9VlSqh33sJI08L4n6g4zkzSh8cHBz+J5uscuXLeLTAZwo9/6W6BngC2z+4G7RKDFgAtB0Fw==
   /JSONStream/1.3.3:
     dependencies:
       jsonparse: 1.3.1
@@ -10308,14 +10321,8 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha1-5a2ryKz0CPY4X8dklWhMiOavaJo=
-  /zen-observable/0.7.1:
+  /zen-observable/0.8.11:
     dev: false
     resolution:
-      integrity: sha512-OI6VMSe0yeqaouIXtedC+F55Sr6r9ppS7+wTbSexkYdHbdt4ctTuPNXP/rwm7GTVI63YBc+EBT0b0tl7YnJLRg==
-  /zen-push/0.2.1:
-    dependencies:
-      zen-observable: 0.7.1
-    dev: false
-    resolution:
-      integrity: sha512-Qv4qvc8ZIue51B/0zmeIMxpIGDVhz4GhJALBvnKs/FRa2T7jy4Ori9wFwaHVt0zWV7MIFglKAHbgnVxVTw7U1w==
+      integrity: sha512-N3xXQVr4L61rZvGMpWe8XoCGX8vhU35dPyQ4fm5CY/KDlG0F75un14hjbckPXTDuKUY6V0dqR2giT6xN8Y4GEQ==
 shrinkwrapVersion: 4

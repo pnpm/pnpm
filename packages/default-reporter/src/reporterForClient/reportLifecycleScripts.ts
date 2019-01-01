@@ -1,10 +1,10 @@
 import { LifecycleLog } from '@pnpm/core-loggers'
+import PushStream from '@zkochan/zen-push'
 import chalk from 'chalk'
 import most = require('most')
 import path = require('path')
 import prettyTime = require('pretty-time')
 import stripAnsi = require('strip-ansi')
-import PushStream = require('zen-push')
 import { EOL } from '../constants'
 import {
   hlValue,
@@ -41,11 +41,7 @@ export default (
     },
   } = {}
   const lifecycleStreamByDepPath: {
-    [depPath: string]: {
-      observable: most.Observable<{msg: string}>,
-      complete (): void,
-      next (obj: object): void,
-    },
+    [depPath: string]: PushStream<{ msg: string }>,
   } = {}
   const lifecyclePushStream = new PushStream()
 

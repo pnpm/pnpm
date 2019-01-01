@@ -42,6 +42,7 @@
     "@types/ramda": "0.25.34",
     "@types/semver": "5.5.0",
     "@types/strip-ansi": "3.0.0",
+    "@zkochan/zen-push": "1.0.0",
     "ansi-diff": "1.1.1",
     "chalk": "2.4.1",
     "cli-cursor": "2.1.0",
@@ -55,8 +56,7 @@
     "semver": "5.6.0",
     "stacktracey": "1.2.106",
     "string-length": "2.0.0",
-    "strip-ansi": "5.0.0",
-    "zen-push": "0.2.1"
+    "strip-ansi": "5.0.0"
   },
   "devDependencies": {
     "@pnpm/default-reporter": "link:",
