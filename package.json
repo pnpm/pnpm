@@ -58,7 +58,7 @@
     "@types/nock": "9.3.0",
     "@types/tape": "4.2.33",
     "@types/tempy": "0.2.0",
-    "nock": "10.0.5",
+    "nock": "10.0.6",
     "package-preview": "2.0.0",
     "tape": "4.9.2",
     "tempy": "0.2.1",

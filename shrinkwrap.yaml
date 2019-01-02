@@ -22,7 +22,7 @@ devDependencies:
   '@types/nock': 9.3.0
   '@types/tape': 4.2.33
   '@types/tempy': 0.2.0
-  nock: 10.0.5
+  nock: 10.0.6
   package-preview: 2.0.0
   tape: 4.9.2
   tempy: 0.2.1
@@ -1156,7 +1156,7 @@ packages:
     dev: true
     resolution:
       integrity: sha512-1nh45deeb5olNY7eX82BkPO7SSxR5SSYJiPTrTdFUVYwAl8CKMA5N9PjTYkHiRjisVcxcQ1HXdLhx2qxxJzLNQ==
-  /nock/10.0.5:
+  /nock/10.0.6:
     dependencies:
       chai: 4.2.0
       debug: 4.1.1
@@ -1171,7 +1171,7 @@ packages:
     engines:
       node: '>= 6.0'
     resolution:
-      integrity: sha512-6roBPXKplUBYM/37RRUb0RyfXLHu+AU10OoaJN2H1S3pOniAx+8+NregAWDp8XS3ZWovJZKZ2tfgaphqDdqB7g==
+      integrity: sha512-b47OWj1qf/LqSQYnmokNWM8D88KvUl2y7jT0567NB3ZBAZFz2bWp2PC81Xn7u8F2/vJxzkzNZybnemeFa7AZ2w==
   /node-fetch-npm/2.0.2:
     dependencies:
       encoding: 0.1.12
@@ -1954,7 +1954,7 @@ specifiers:
   mem: 4.0.0
   mkdirp-promise: 5.0.1
   mz: 2.7.0
-  nock: 10.0.5
+  nock: 10.0.6
   package-preview: 2.0.0
   path-temp: 1.0.0
   retry: 0.12.0
