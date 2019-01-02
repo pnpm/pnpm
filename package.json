@@ -49,7 +49,7 @@
     "mz": "2.7.0",
     "path-temp": "1.0.0",
     "retry": "0.12.0",
-    "rimraf": "2.6.2",
+    "rimraf": "2.6.3",
     "ssri": "6.0.1",
     "unpack-stream": "4.0.0"
   },
