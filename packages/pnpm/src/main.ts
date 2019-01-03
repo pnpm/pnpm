@@ -240,7 +240,14 @@ export default async function run (argv: string[]) {
           resolve()
         }
       } catch (err) {
-        reject(err)
+        if (err.message.startsWith("Invalid Name: ")) {
+          logger.warn({
+            message: err.message,
+            prefix: opts.prefix,
+          });
+        } else {
+          reject(err);
+        }
       }
     }, 0)
   })
