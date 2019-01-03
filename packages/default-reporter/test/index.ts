@@ -2,6 +2,7 @@
 import { PnpmConfigs } from '@pnpm/config'
 import {
   deprecationLogger,
+  fetchingProgressLogger,
   hookLogger,
   packageJsonLogger,
   progressLogger,
@@ -44,14 +45,18 @@ test('prints progress beginning', t => {
   const output$ = toOutput$({
     context: {
       argv: ['install'],
+      configs: { prefix: '/src/project' } as PnpmConfigs,
     },
     streamParser: createStreamParser(),
   })
 
-  const pkgId = 'registry.npmjs.org/foo/1.0.0'
-
+  stageLogger.debug({
+    prefix: '/src/project',
+    stage: 'resolution_started',
+  })
   progressLogger.debug({
-    pkgId,
+    context: '/src/project',
+    packageId: 'registry.npmjs.org/foo/1.0.0',
     status: 'resolving_content',
   })
 
@@ -64,21 +69,28 @@ test('prints progress beginning', t => {
       t.equal(output, `Resolving: total ${hlValue('1')}, reused ${hlValue('0')}, downloaded ${hlValue('0')}`)
     },
   })
+
 })
 
 test('prints progress beginning when appendOnly is true', t => {
   const output$ = toOutput$({
-    context: { argv: ['install'] },
+    context: {
+      argv: ['install'],
+      configs: { prefix: '/src/project' } as PnpmConfigs,
+    },
     reportingOptions: {
       appendOnly: true,
     },
     streamParser: createStreamParser(),
   })
 
-  const pkgId = 'registry.npmjs.org/foo/1.0.0'
-
+  stageLogger.debug({
+    prefix: '/src/project',
+    stage: 'resolution_started',
+  })
   progressLogger.debug({
-    pkgId,
+    context: '/src/project',
+    packageId: 'registry.npmjs.org/foo/1.0.0',
     status: 'resolving_content',
   })
 
@@ -95,14 +107,20 @@ test('prints progress beginning when appendOnly is true', t => {
 
 test('prints progress beginning during recursive install', t => {
   const output$ = toOutput$({
-    context: { argv: ['recursive'] },
+    context: {
+      argv: ['recursive'],
+      configs: { prefix: '/src/project' } as PnpmConfigs,
+    },
     streamParser: createStreamParser(),
   })
 
-  const pkgId = 'registry.npmjs.org/foo/1.0.0'
-
+  stageLogger.debug({
+    prefix: '/src/project',
+    stage: 'resolution_started',
+  })
   progressLogger.debug({
-    pkgId,
+    context: '/src/project',
+    packageId: 'registry.npmjs.org/foo/1.0.0',
     status: 'resolving_content',
   })
 
@@ -117,25 +135,17 @@ test('prints progress beginning during recursive install', t => {
   })
 })
 
-test('prints progress on first download', t => {
+test('prints progress on first download', async t => {
+  t.plan(1)
+
   const output$ = toOutput$({
-    context: { argv: ['install'] },
+    context: {
+      argv: ['install'],
+      configs: { prefix: '/src/project' } as PnpmConfigs,
+    },
     reportingOptions: { throttleProgress: 0 },
     streamParser: createStreamParser(),
   })
-
-  const pkgId = 'registry.npmjs.org/foo/1.0.0'
-
-  progressLogger.debug({
-    pkgId,
-    status: 'resolving_content',
-  })
-  progressLogger.debug({
-    pkgId,
-    status: 'fetched',
-  })
-
-  t.plan(1)
 
   output$.skip(1).take(1).subscribe({
     complete: () => t.end(),
@@ -144,18 +154,41 @@ test('prints progress on first download', t => {
       t.equal(output, `Resolving: total ${hlValue('1')}, reused ${hlValue('0')}, downloaded ${hlValue('1')}`)
     },
   })
+
+  const packageId = 'registry.npmjs.org/foo/1.0.0'
+
+  stageLogger.debug({
+    prefix: '/src/project',
+    stage: 'resolution_started',
+  })
+  progressLogger.debug({
+    context: '/src/project',
+    packageId,
+    status: 'resolving_content',
+  })
+
+  await delay(0)
+
+  progressLogger.debug({
+    context: '/src/project',
+    packageId,
+    status: 'fetched',
+  })
 })
 
 test('moves fixed line to the end', async t => {
-  const prefix = process.cwd()
+  const prefix = '/src/project'
   const output$ = toOutput$({
-    context: { argv: ['install'] },
+    context: {
+      argv: ['install'],
+      configs: { prefix } as PnpmConfigs,
+    },
     reportingOptions: { throttleProgress: 0 },
     streamParser: createStreamParser(),
   })
 
   output$.skip(3).take(1).map(normalizeNewline).subscribe({
-    complete: v => t.end(),
+    complete: () => t.end(),
     error: t.end,
     next: output => {
       t.equal(output, `${WARN} foo` + EOL +
@@ -163,22 +196,37 @@ test('moves fixed line to the end', async t => {
     },
   })
 
-  const pkgId = 'registry.npmjs.org/foo/1.0.0'
+  const packageId = 'registry.npmjs.org/foo/1.0.0'
 
-  progressLogger.debug({
-    pkgId,
-    status: 'resolving_content',
+  stageLogger.debug({
+    prefix,
+    stage: 'resolution_started',
   })
   progressLogger.debug({
-    pkgId,
+    context: prefix,
+    packageId,
+    status: 'resolving_content',
+  })
+
+  await delay(0)
+
+  progressLogger.debug({
+    context: prefix,
+    packageId,
     status: 'fetched',
   })
   logger.warn({ message: 'foo', prefix })
 
-  await delay(0) // w/o delay warning goes below for some reason. Started to happen after switch to most
+  await delay(10) // w/o delay warning goes below for some reason. Started to happen after switch to most
 
-  stageLogger.debug('resolution_done')
-  stageLogger.debug('importing_done')
+  stageLogger.debug({
+    prefix: prefix,
+    stage: 'resolution_done',
+  })
+  stageLogger.debug({
+    prefix: prefix,
+    stage: 'importing_done',
+  })
 
   t.plan(1)
 })
@@ -712,7 +760,10 @@ test('prints progress of big files download', async t => {
   t.plan(6)
 
   let output$ = toOutput$({
-    context: { argv: ['install'] },
+    context: {
+      argv: ['install'],
+      configs: { prefix: '/src/project' } as PnpmConfigs,
+    },
     reportingOptions: { throttleProgress: 0 },
     streamParser: createStreamParser(),
   })
@@ -787,68 +838,80 @@ test('prints progress of big files download', async t => {
       next: () => undefined,
     })
 
-  progressLogger.debug({
-    pkgId: pkgId1,
-    status: 'resolving_content',
+  stageLogger.debug({
+    prefix: '/src/project',
+    stage: 'resolution_started',
   })
 
   progressLogger.debug({
+    context: '/src/project',
+    packageId: pkgId1,
+    status: 'resolving_content',
+  })
+
+  await delay(10)
+
+  fetchingProgressLogger.debug({
     attempt: 1,
-    pkgId: pkgId1,
+    packageId: pkgId1,
     size: 1024 * 1024 * 10, // 10 MB
-    status: 'fetching_started',
+    status: 'started',
   })
 
-  await delay(0)
+  await delay(10)
 
-  progressLogger.debug({
+  fetchingProgressLogger.debug({
     downloaded: 1024 * 1024 * 5.5, // 5.5 MB
-    pkgId: pkgId1,
-    status: 'fetching_progress',
+    packageId: pkgId1,
+    status: 'in_progress',
   })
 
   progressLogger.debug({
-    pkgId: pkgId2,
+    context: '/src/project',
+    packageId: pkgId2,
     status: 'resolving_content',
   })
 
-  progressLogger.debug({
+  await delay(10)
+
+  fetchingProgressLogger.debug({
     attempt: 1,
-    pkgId: pkgId1,
+    packageId: pkgId1,
     size: 10, // 10 B
-    status: 'fetching_started',
+    status: 'started',
   })
 
-  progressLogger.debug({
+  fetchingProgressLogger.debug({
     downloaded: 1024 * 1024 * 7,
-    pkgId: pkgId1,
-    status: 'fetching_progress',
+    packageId: pkgId1,
+    status: 'in_progress',
   })
 
   progressLogger.debug({
-    pkgId: pkgId3,
+    context: '/src/project',
+    packageId: pkgId3,
     status: 'resolving_content',
   })
 
-  progressLogger.debug({
+  fetchingProgressLogger.debug({
     attempt: 1,
-    pkgId: pkgId3,
+    packageId: pkgId3,
     size: 1024 * 1024 * 20, // 20 MB
-    status: 'fetching_started',
+    status: 'started',
   })
 
-  await delay(0)
+  await delay(10)
 
-  progressLogger.debug({
+  fetchingProgressLogger.debug({
     downloaded: 1024 * 1024 * 19, // 19 MB
-    pkgId: pkgId3,
-    status: 'fetching_progress',
+    packageId: pkgId3,
+    status: 'in_progress',
   })
 
-  progressLogger.debug({
+  fetchingProgressLogger.debug({
     downloaded: 1024 * 1024 * 10, // 10 MB
-    pkgId: pkgId1,
-    status: 'fetching_progress',
+    packageId: pkgId1,
+    status: 'in_progress',
   })
 })
 

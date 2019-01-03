@@ -3,6 +3,7 @@ export * from './all'
 import {
   CliLog,
   DeprecationLog,
+  FetchingProgressLog,
   HookLog,
   ImportingLog,
   InstallCheckLog,
@@ -21,6 +22,7 @@ import {
 
 export type Log = CliLog
   | DeprecationLog
+  | FetchingProgressLog
   | HookLog
   | ImportingLog
   | InstallCheckLog

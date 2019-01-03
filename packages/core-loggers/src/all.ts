@@ -1,5 +1,6 @@
 export * from './cliLogger'
 export * from './deprecationLogger'
+export * from './fetchingProgressLogger'
 export * from './hookLogger'
 export * from './importingLogger'
 export * from './installCheckLogger'

@@ -1,11 +1,11 @@
 import checkPackage from '@pnpm/check-package'
-import { progressLogger } from '@pnpm/core-loggers'
+import { fetchingProgressLogger } from '@pnpm/core-loggers'
 import {
   FetchFunction,
   FetchOptions,
   FetchResult,
 } from '@pnpm/fetcher-base'
-import { storeLogger } from '@pnpm/logger'
+import pnpmLogger, { storeLogger } from '@pnpm/logger'
 import pkgIdToFilename from '@pnpm/pkgid-to-filename'
 import { fromDir as readPkgFromDir } from '@pnpm/read-package-json'
 import {
@@ -37,6 +37,7 @@ import rimraf = require('rimraf-then')
 import symlinkDir = require('symlink-dir')
 import writeJsonFile from 'write-json-file'
 
+const dependencyResolvedLogger = pnpmLogger('_dependency_resolved')
 const TARBALL_INTEGRITY_FILENAME = 'tarball-integrity'
 
 export default function (
@@ -164,7 +165,10 @@ async function resolveAndFetch (
 
     const id = pkgId as string
 
-    progressLogger.debug({ status: 'resolved', pkgId: id, pkg: options.loggedPkg })
+    dependencyResolvedLogger.debug({
+      resolution: id,
+      wanted: options.loggedPkg,
+    })
 
     if (resolution.type === 'directory') {
       if (!pkg) {
@@ -231,7 +235,6 @@ async function resolveAndFetch (
       finishing: fetchResult.finishing,
     } as PackageResponse
   } catch (err) {
-    progressLogger.debug({ status: 'error', pkg: options.loggedPkg })
     throw err
   }
 }
@@ -408,10 +411,19 @@ function fetchToStore (
           const fetchedPackage = await ctx.requestsQueue.add(() => ctx.fetch(opts.resolution, target, {
             cachedTarballLocation: path.join(ctx.storePath, opts.pkgId, 'packed.tgz'),
             onProgress: (downloaded) => {
-              progressLogger.debug({ status: 'fetching_progress', pkgId: opts.pkgId, downloaded })
+              fetchingProgressLogger.debug({
+                downloaded,
+                packageId: opts.pkgId,
+                status: 'in_progress',
+              })
             },
             onStart: (size, attempt) => {
-              progressLogger.debug({ status: 'fetching_started', pkgId: opts.pkgId, size, attempt })
+              fetchingProgressLogger.debug({
+                attempt,
+                packageId: opts.pkgId,
+                size,
+                status: 'started',
+              })
             },
             pkgId: opts.pkgId,
             prefix: opts.prefix,

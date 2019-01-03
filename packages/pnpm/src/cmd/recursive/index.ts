@@ -315,8 +315,6 @@ export async function recursive (
       }),
     ))
 
-    stageLogger.debug('recursive_importing_done')
-
     await saveState()
   }
 

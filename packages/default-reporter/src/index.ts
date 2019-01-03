@@ -70,6 +70,7 @@ export function toOutput$ (
   },
 ): most.Stream<string> {
   opts = opts || {}
+  const fetchingProgressPushStream = new PushStream()
   const progressPushStream = new PushStream()
   const stagePushStream = new PushStream()
   const deprecationPushStream = new PushStream()
@@ -89,6 +90,9 @@ export function toOutput$ (
   setTimeout(() => { // setTimeout is a workaround for a strange bug in most https://github.com/cujojs/most/issues/491
     opts.streamParser['on']('data', (log: logs.Log) => {
       switch (log.name) {
+        case 'pnpm:fetching-progress':
+          fetchingProgressPushStream.next(log)
+          break
         case 'pnpm:progress':
           progressPushStream.next(log)
           break
@@ -145,6 +149,7 @@ export function toOutput$ (
   const log$ = {
     cli: most.from<logs.CliLog>(cliPushStream.observable),
     deprecation: most.from<logs.DeprecationLog>(deprecationPushStream.observable),
+    fetchingProgress: most.from<logs.FetchingProgressLog>(fetchingProgressPushStream.observable),
     hook: most.from<logs.HookLog>(hookPushStream.observable),
     installCheck: most.from<logs.InstallCheckLog>(installCheckPushStream.observable),
     lifecycle: most.from<logs.LifecycleLog>(lifecyclePushStream.observable),

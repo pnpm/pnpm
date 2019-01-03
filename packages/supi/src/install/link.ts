@@ -149,7 +149,11 @@ export default async function linkPackages (
     virtualStoreDir: opts.virtualStoreDir,
   })
 
-  stageLogger.debug('importing_started')
+  stageLogger.debug({
+    prefix: opts.shrinkwrapDirectory,
+    stage: 'importing_started',
+  })
+
   const importerIds = importers.map((importer) => importer.id)
   const newCurrentShrinkwrap = filterShrinkwrapByImporters(newWantedShrinkwrap, importerIds, {
     ...filterOpts,
@@ -172,7 +176,11 @@ export default async function linkPackages (
       virtualStoreDir: opts.virtualStoreDir,
     },
   )
-  stageLogger.debug('importing_done')
+
+  stageLogger.debug({
+    prefix: opts.shrinkwrapDirectory,
+    stage: 'importing_done',
+  })
 
   const rootDepsByDepPath = depNodes
     .filter((depNode) => depNode.depth === 0)
