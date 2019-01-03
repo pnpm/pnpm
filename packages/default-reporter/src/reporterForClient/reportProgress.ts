@@ -52,7 +52,7 @@ function throttledProgressOutput (
   // Reporting is done every `throttleProgress` milliseconds
   // and once all packages are fetched.
   const sampler = most.merge(
-    most.periodic(throttleProgress).until(importingDone$),
+    most.periodic(throttleProgress).until(importingDone$.skip(1)),
     importingDone$,
   )
   return most.sample(
