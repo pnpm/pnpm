@@ -39,7 +39,7 @@
     "@types/mem": "^1.1.2",
     "@types/mz": "^0.0.32",
     "@types/node": "^9.3.0 || 10",
-    "@types/retry": "^0.10.2",
+    "@types/retry": "^0.12.0",
     "@types/rimraf": "^2.0.2",
     "credentials-by-uri": "1.0.0",
     "fetch-from-npm-registry": "1.0.0",

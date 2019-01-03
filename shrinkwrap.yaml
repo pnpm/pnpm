@@ -4,7 +4,7 @@ dependencies:
   '@types/mem': 1.1.2
   '@types/mz': 0.0.32
   '@types/node': 10.12.18
-  '@types/retry': 0.10.2
+  '@types/retry': 0.12.0
   '@types/rimraf': 2.0.2
   credentials-by-uri: 1.0.0
   fetch-from-npm-registry: 1.0.0
@@ -132,10 +132,10 @@ packages:
   /@types/node/10.12.18:
     resolution:
       integrity: sha512-fh+pAqt4xRzPfqA6eh3Z2y6fyZavRIumvjhaCL753+TVkGKGhpPeyrJG2JftD0T9q4GF00KjefsQ+PQNDdWQaQ==
-  /@types/retry/0.10.2:
+  /@types/retry/0.12.0:
     dev: false
     resolution:
-      integrity: sha512-LqJkY4VQ7S09XhI7kA3ON71AxauROhSv74639VsNXC9ish4IWHnIi98if+nP1MxQV3RMPqXSCYgpPsDHjlg9UQ==
+      integrity: sha512-wWKOClTTiizcZhXnPY4wikVAwmdYHp8q6DmC+EJUzAMsycb7HB32Kh9RN4+0gExjmPmZSAQjgURXIGATPegAvA==
   /@types/rimraf/2.0.2:
     dependencies:
       '@types/glob': 7.1.1
@@ -563,18 +563,19 @@ packages:
     dev: true
     resolution:
       integrity: sha512-7dFHNmqeFSEt2ZBsCriorKnn3Z2pj+fd9kmI6QoWw4//DL+icEBfc0U7qJCisqrTsKTjw4fNFy2pW9OqStD84g==
-  /es-abstract/1.12.0:
+  /es-abstract/1.13.0:
     dependencies:
       es-to-primitive: 1.2.0
       function-bind: 1.1.1
       has: 1.0.3
       is-callable: 1.1.4
       is-regex: 1.0.4
+      object-keys: 1.0.12
     dev: true
     engines:
       node: '>= 0.4'
     resolution:
-      integrity: sha512-C8Fx/0jFmV5IPoMOFPA9P9G5NtqW+4cOPit3MIuvR2t7Ag2K15EJTpxnHAYTzL+aYQJIESYeXZmDBfOBE1HcpA==
+      integrity: sha512-vDZfg/ykNxQVwup/8E1BZhVzFfBxs9NqMzGcvIJrqg5k2/5Za2bWo40dK2J1pgLngZ7c+Shh8lwYtLGyrwPutg==
   /es-to-primitive/1.2.0:
     dependencies:
       is-callable: 1.1.4
@@ -1624,7 +1625,7 @@ packages:
   /string.prototype.trim/1.1.2:
     dependencies:
       define-properties: 1.1.3
-      es-abstract: 1.12.0
+      es-abstract: 1.13.0
       function-bind: 1.1.1
     dev: true
     engines:
@@ -1944,7 +1945,7 @@ specifiers:
   '@types/mz': ^0.0.32
   '@types/nock': 9.3.0
   '@types/node': ^9.3.0 || 10
-  '@types/retry': ^0.10.2
+  '@types/retry': ^0.12.0
   '@types/rimraf': ^2.0.2
   '@types/tape': 4.2.33
   '@types/tempy': 0.2.0
