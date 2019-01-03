@@ -532,17 +532,17 @@ async function resolveDependency (
   }
   if (!ctx.resolvedPackagesByPackageId[pkgResponse.body.id]) {
     progressLogger.debug({
-      context: ctx.shrinkwrapDirectory,
       packageId: pkgResponse.body.id,
-      status: 'resolving_content',
+      requester: ctx.shrinkwrapDirectory,
+      status: 'resolved',
     })
     // tslint:disable:no-string-literal
     if (pkgResponse['fetchingFiles']) {
       pkgResponse['fetchingFiles']
         .then((fetchResult: PackageFilesResponse) => {
           progressLogger.debug({
-            context: ctx.shrinkwrapDirectory,
             packageId: pkgResponse.body.id,
+            requester: ctx.shrinkwrapDirectory,
             status: fetchResult.fromStore
               ? 'found_in_store' : 'fetched',
           })

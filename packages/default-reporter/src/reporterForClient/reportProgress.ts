@@ -110,32 +110,31 @@ export default (
     },
   } = {}
   log$.progress
-    .filter((log: ProgressLog) => !!log['context'])
     .forEach((log: ProgressLog) => {
-      if (!prevProgressByModulesDir[log['context']]) {
-        prevProgressByModulesDir[log['context']] = {
+      if (!prevProgressByModulesDir[log.requester]) {
+        prevProgressByModulesDir[log.requester] = {
           fetched: 0,
           resolved: 0,
           reused: 0,
         }
       } else {
-        prevProgressByModulesDir[log['context']] = {
-          ...prevProgressByModulesDir[log['context']]
+        prevProgressByModulesDir[log.requester] = {
+          ...prevProgressByModulesDir[log.requester]
         }
       }
       switch (log.status) {
-        case 'resolving_content':
-          prevProgressByModulesDir[log['context']].resolved++
+        case 'resolved':
+          prevProgressByModulesDir[log.requester].resolved++
           break
         case 'fetched':
-          prevProgressByModulesDir[log['context']].fetched++
+          prevProgressByModulesDir[log.requester].fetched++
           break
         case 'found_in_store':
-          prevProgressByModulesDir[log['context']].reused++
+          prevProgressByModulesDir[log.requester].reused++
           break
       }
-      progessPushStreamByModulesDir[log['context']] = progessPushStreamByModulesDir[log['context']] || new PushStream<ProgressLog>()
-      progessPushStreamByModulesDir[log['context']].next(prevProgressByModulesDir[log['context']])
+      progessPushStreamByModulesDir[log.requester] = progessPushStreamByModulesDir[log.requester] || new PushStream<ProgressLog>()
+      progessPushStreamByModulesDir[log.requester].next(prevProgressByModulesDir[log.requester])
     })
 
   return most.from(reportingPushStream.observable) as most.Stream<most.Stream<{ msg: string }>>

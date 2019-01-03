@@ -68,10 +68,10 @@ test('installing a simple project', async (t) => {
     stage: 'importing_done',
   } as StageLog), 'importing stage done logged')
   t.ok(reporter.calledWithMatch({
-    context: prefix,
     level: 'debug',
     packageId: 'localhost+4873/is-negative/2.1.0',
-    status: 'resolving_content',
+    requester: prefix,
+    status: 'resolved',
   }), 'logs that package is being resolved')
 
   t.end()
@@ -357,16 +357,16 @@ test('available packages are used when node_modules is not clean', async (t) => 
   await project.has('glob')
 
   t.notOk(reporter.calledWithMatch({
-    context: projectDir,
     level: 'debug',
     packageId: 'localhost+4873/balanced-match/1.0.0',
-    status: 'resolving_content',
+    requester: projectDir,
+    status: 'resolved',
   }), 'does not resolve already available package')
   t.ok(reporter.calledWithMatch({
-    context: projectDir,
     level: 'debug',
     packageId: 'localhost+4873/rimraf/2.6.2',
-    status: 'resolving_content',
+    requester: projectDir,
+    status: 'resolved',
   }), 'resolves rimraf')
 
   t.end()
@@ -397,16 +397,16 @@ test('available packages are relinked during forced install', async (t) => {
   await project.has('glob')
 
   t.ok(reporter.calledWithMatch({
-    context: projectDir,
     level: 'debug',
     packageId: 'localhost+4873/balanced-match/1.0.0',
-    status: 'resolving_content',
+    requester: projectDir,
+    status: 'resolved',
   }), 'does not resolve already available package')
   t.ok(reporter.calledWithMatch({
-    context: projectDir,
     level: 'debug',
     packageId: 'localhost+4873/rimraf/2.6.2',
-    status: 'resolving_content',
+    requester: projectDir,
+    status: 'resolved',
   }), 'resolves rimraf')
 
   t.end()
@@ -584,10 +584,10 @@ test('installing with shamefullyFlatten = true', async (t) => {
     stage: 'importing_done',
   } as StageLog), 'importing stage done logged')
   t.ok(reporter.calledWithMatch({
-    context: prefix,
     level: 'debug',
     packageId: 'localhost+4873/is-negative/2.1.0',
-    status: 'resolving_content',
+    requester: prefix,
+    status: 'resolved',
   }), 'logs that package is being resolved')
 
   const modules = await project.loadModules()

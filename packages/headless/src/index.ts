@@ -449,9 +449,9 @@ async function shrinkwrapToDepGraph (
       const pkgName = nameVerFromPkgSnapshot(relDepPath, pkgSnapshot).name
       const packageId = pkgSnapshot.id || depPath
       progressLogger.debug({
-        context: opts.shrinkwrapDirectory,
         packageId,
-        status: 'resolving_content',
+        requester: opts.shrinkwrapDirectory,
+        status: 'resolved',
       })
       let fetchResponse = opts.storeController.fetchPackage({
         force: false,
@@ -464,8 +464,8 @@ async function shrinkwrapToDepGraph (
       fetchResponse.fetchingFiles // tslint:disable-line
         .then((fetchResult) => {
           progressLogger.debug({
-            context: opts.shrinkwrapDirectory,
             packageId,
+            requester: opts.shrinkwrapDirectory,
             status: fetchResult.fromStore
               ? 'found_in_store' : 'fetched',
           })

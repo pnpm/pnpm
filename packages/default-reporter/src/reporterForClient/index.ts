@@ -28,7 +28,6 @@ export default function (
     packageJson: most.Stream<logs.PackageJsonLog>,
     link: most.Stream<logs.LinkLog>,
     other: most.Stream<logs.Log>,
-    cli: most.Stream<logs.CliLog>,
     hook: most.Stream<logs.HookLog>,
     scope: most.Stream<logs.ScopeLog>,
     skippedOptionalDependency: most.Stream<logs.SkippedOptionalDependencyLog>,

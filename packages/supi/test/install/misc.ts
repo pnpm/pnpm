@@ -782,16 +782,16 @@ test('shrinkwrap locks npm dependencies', async (t: tape.Test) => {
   await addDependenciesToPackage(['pkg-with-1-dep'], await testDefaults({ save: true, reporter }))
 
   t.ok(reporter.calledWithMatch({
-    context: process.cwd(),
     level: 'debug',
     name: 'pnpm:progress',
     packageId: 'localhost+4873/pkg-with-1-dep/100.0.0',
-    status: 'resolving_content',
+    requester: process.cwd(),
+    status: 'resolved',
   } as ProgressLog), 'logs that package is being resolved')
   t.ok(reporter.calledWithMatch({
-    context: process.cwd(),
     level: 'debug',
     packageId: 'localhost+4873/pkg-with-1-dep/100.0.0',
+    requester: process.cwd(),
     status: 'fetched',
   } as ProgressLog), 'logged that package was fetched from registry')
 
@@ -805,15 +805,15 @@ test('shrinkwrap locks npm dependencies', async (t: tape.Test) => {
   await install(await testDefaults({ reporter }))
 
   t.ok(reporter.calledWithMatch({
-    context: process.cwd(),
     level: 'debug',
     packageId: 'localhost+4873/pkg-with-1-dep/100.0.0',
-    status: 'resolving_content',
+    requester: process.cwd(),
+    status: 'resolved',
   } as ProgressLog), 'logs that package is being resolved')
   t.ok(reporter.calledWithMatch({
-    context: process.cwd(),
     level: 'debug',
     packageId: 'localhost+4873/pkg-with-1-dep/100.0.0',
+    requester: process.cwd(),
     status: 'found_in_store',
   } as ProgressLog), 'logged that package was found in store')
 

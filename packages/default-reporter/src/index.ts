@@ -82,7 +82,6 @@ export function toOutput$ (
   const rootPushStream = new PushStream()
   const packageJsonPushStream = new PushStream()
   const linkPushStream = new PushStream()
-  const cliPushStream = new PushStream()
   const otherPushStream = new PushStream()
   const hookPushStream = new PushStream()
   const skippedOptionalDependencyPushStream = new PushStream()
@@ -126,9 +125,6 @@ export function toOutput$ (
         case 'pnpm:link':
           linkPushStream.next(log)
           break
-        case 'pnpm:cli':
-          cliPushStream.next(log)
-          break
         case 'pnpm:hook':
           hookPushStream.next(log)
           break
@@ -147,7 +143,6 @@ export function toOutput$ (
     })
   }, 0)
   const log$ = {
-    cli: most.from<logs.CliLog>(cliPushStream.observable),
     deprecation: most.from<logs.DeprecationLog>(deprecationPushStream.observable),
     fetchingProgress: most.from<logs.FetchingProgressLog>(fetchingProgressPushStream.observable),
     hook: most.from<logs.HookLog>(hookPushStream.observable),
