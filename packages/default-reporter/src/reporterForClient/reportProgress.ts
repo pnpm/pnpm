@@ -11,9 +11,9 @@ type ProgressStats = {
 }
 
 type ModulesInstallProgress = {
+  importingDone$: most.Stream<boolean>,
   progress$: most.Stream<ProgressStats>,
   requirer: string,
-  stage$: most.Stream<StageLog>,
 }
 
 export default (
@@ -26,21 +26,12 @@ export default (
     throttleProgress?: number,
   },
 ) => {
-  const modulesInstallProgressPushStream = getModulesInstallProgressPushStream(log$.stage, log$.progress)
-
   const progressOutput = typeof opts.throttleProgress === 'number' && opts.throttleProgress > 0
     ? throttledProgressOutput.bind(null, opts.throttleProgress)
     : nonThrottledProgressOutput
 
-  return most.from(modulesInstallProgressPushStream.observable)
-    .map(({ stage$, progress$, requirer }: ModulesInstallProgress) => {
-      const importingDone$ = stage$
-        .filter((log: StageLog) => log.stage === 'importing_done')
-        .constant(true)
-        .take(1)
-        .startWith(false)
-        .multicast()
-
+  return getModulesInstallProgress$(log$.stage, log$.progress)
+    .map(({ importingDone$, progress$, requirer }: ModulesInstallProgress) => {
       const output$ = progressOutput(importingDone$, progress$)
 
       if (requirer === opts.cwd) {
@@ -86,7 +77,7 @@ function nonThrottledProgressOutput (
   )
 }
 
-function getModulesInstallProgressPushStream (
+function getModulesInstallProgress$ (
   stage$: most.Stream<StageLog>,
   progress$: most.Stream<ProgressLog>,
 ) {
@@ -104,9 +95,9 @@ function getModulesInstallProgressPushStream (
           progessStatsPushStreamByRequirer[log.prefix] = new PushStream()
         }
         modulesInstallProgressPushStream.next({
+          importingDone$: stage$ToImportingDone$(most.from(stagePushStreamByRequirer[log.prefix].observable)),
           progress$: most.from(progessStatsPushStreamByRequirer[log.prefix].observable),
           requirer: log.prefix,
-          stage$: most.from(stagePushStreamByRequirer[log.prefix].observable),
         })
       }
       stagePushStreamByRequirer[log.prefix].next(log)
@@ -116,7 +107,16 @@ function getModulesInstallProgressPushStream (
       }
     })
 
-  return modulesInstallProgressPushStream
+  return most.from(modulesInstallProgressPushStream.observable)
+}
+
+function stage$ToImportingDone$ (stage$: most.Stream<StageLog>) {
+  return stage$
+    .filter((log: StageLog) => log.stage === 'importing_done')
+    .constant(true)
+    .take(1)
+    .startWith(false)
+    .multicast()
 }
 
 function getProgessStatsPushStreamByRequirer (progress$: most.Stream<ProgressLog>) {
