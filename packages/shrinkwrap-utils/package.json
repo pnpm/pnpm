@@ -37,7 +37,7 @@
     "@pnpm/tslint-config": "0.0.0",
     "@types/tape": "4.2.33",
     "@types/tempy": "0.2.0",
-    "rimraf": "2.6.2",
+    "rimraf": "2.6.3",
     "tape": "4.9.2",
     "tempy": "0.2.1",
     "ts-node": "6.2.0",

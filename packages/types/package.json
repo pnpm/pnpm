@@ -30,7 +30,7 @@
     "@pnpm/tslint-config": "0.0.0",
     "mos": "2.0.0-alpha.3",
     "mos-plugin-readme": "1.0.4",
-    "rimraf": "2.6.2",
+    "rimraf": "2.6.3",
     "tslint": "5.12.0",
     "typescript": "3.2.2"
   },

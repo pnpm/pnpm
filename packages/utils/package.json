@@ -22,7 +22,7 @@
     "@pnpm/logger": "2.1.0",
     "@pnpm/tslint-config": "0.0.0",
     "@pnpm/utils": "link:",
-    "rimraf": "2.6.2",
+    "rimraf": "2.6.3",
     "tslint": "5.12.0",
     "typescript": "3.2.2"
   },
