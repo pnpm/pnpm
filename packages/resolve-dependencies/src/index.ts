@@ -43,6 +43,7 @@ export default async function (
     registries: Registries,
     pnpmVersion: string,
     sideEffectsCache: boolean,
+    shrinkwrapDirectory: string, // needed only for logging
     preferredVersions?: {
       [packageName: string]: {
         selector: string,
@@ -77,6 +78,7 @@ export default async function (
     pnpmVersion: opts.pnpmVersion,
     registries: opts.registries,
     resolvedPackagesByPackageId: {} as ResolvedPackagesByPackageId,
+    shrinkwrapDirectory: opts.shrinkwrapDirectory,
     skipped: opts.skipped,
     storeController: opts.storeController,
     updateDepth: typeof opts.updateDepth === 'number' ? opts.updateDepth : -1,

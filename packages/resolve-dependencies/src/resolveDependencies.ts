@@ -97,6 +97,7 @@ export interface ResolutionContext {
   pendingNodes: PendingNode[],
   wantedShrinkwrap: Shrinkwrap,
   currentShrinkwrap: Shrinkwrap,
+  shrinkwrapDirectory: string,
   storeController: StoreController,
   // the IDs of packages that are not installable
   skipped: Set<string>,
@@ -370,10 +371,6 @@ async function resolveDependency (
     name: wantedDependency.alias,
     rawSpec: wantedDependency.raw,
   }
-  progressLogger.debug({
-    pkg: loggedPkg,
-    status: 'installing',
-  })
 
   let pkgResponse!: PackageResponse
   try {
@@ -439,11 +436,6 @@ async function resolveDependency (
         version: manifest.version,
       })
     }
-    progressLogger.debug({
-      pkgId: pkgResponse.body.id,
-      pkgVersion: manifest.version,
-      status: 'downloaded_manifest',
-    })
     return null
   }
 
@@ -518,12 +510,6 @@ async function resolveDependency (
     })
   }
 
-  progressLogger.debug({
-    pkgId: pkgResponse.body.id,
-    pkgVersion: pkg.version,
-    status: 'downloaded_manifest',
-  })
-
   // using colon as it will never be used inside a package ID
   const nodeId = createNodeId(options.parentNodeId, pkgResponse.body.id)
 
@@ -546,15 +532,17 @@ async function resolveDependency (
   }
   if (!ctx.resolvedPackagesByPackageId[pkgResponse.body.id]) {
     progressLogger.debug({
-      pkgId: pkgResponse.body.id,
-      status: 'resolving_content',
+      packageId: pkgResponse.body.id,
+      requester: ctx.shrinkwrapDirectory,
+      status: 'resolved',
     })
     // tslint:disable:no-string-literal
     if (pkgResponse['fetchingFiles']) {
       pkgResponse['fetchingFiles']
         .then((fetchResult: PackageFilesResponse) => {
           progressLogger.debug({
-            pkgId: pkgResponse.body.id,
+            packageId: pkgResponse.body.id,
+            requester: ctx.shrinkwrapDirectory,
             status: fetchResult.fromStore
               ? 'found_in_store' : 'fetched',
           })

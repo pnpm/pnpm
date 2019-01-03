@@ -70,6 +70,7 @@ export function toOutput$ (
   },
 ): most.Stream<string> {
   opts = opts || {}
+  const fetchingProgressPushStream = new PushStream()
   const progressPushStream = new PushStream()
   const stagePushStream = new PushStream()
   const deprecationPushStream = new PushStream()
@@ -81,7 +82,6 @@ export function toOutput$ (
   const rootPushStream = new PushStream()
   const packageJsonPushStream = new PushStream()
   const linkPushStream = new PushStream()
-  const cliPushStream = new PushStream()
   const otherPushStream = new PushStream()
   const hookPushStream = new PushStream()
   const skippedOptionalDependencyPushStream = new PushStream()
@@ -89,6 +89,9 @@ export function toOutput$ (
   setTimeout(() => { // setTimeout is a workaround for a strange bug in most https://github.com/cujojs/most/issues/491
     opts.streamParser['on']('data', (log: logs.Log) => {
       switch (log.name) {
+        case 'pnpm:fetching-progress':
+          fetchingProgressPushStream.next(log)
+          break
         case 'pnpm:progress':
           progressPushStream.next(log)
           break
@@ -122,9 +125,6 @@ export function toOutput$ (
         case 'pnpm:link':
           linkPushStream.next(log)
           break
-        case 'pnpm:cli':
-          cliPushStream.next(log)
-          break
         case 'pnpm:hook':
           hookPushStream.next(log)
           break
@@ -143,8 +143,8 @@ export function toOutput$ (
     })
   }, 0)
   const log$ = {
-    cli: most.from<logs.CliLog>(cliPushStream.observable),
     deprecation: most.from<logs.DeprecationLog>(deprecationPushStream.observable),
+    fetchingProgress: most.from<logs.FetchingProgressLog>(fetchingProgressPushStream.observable),
     hook: most.from<logs.HookLog>(hookPushStream.observable),
     installCheck: most.from<logs.InstallCheckLog>(installCheckPushStream.observable),
     lifecycle: most.from<logs.LifecycleLog>(lifecyclePushStream.observable),

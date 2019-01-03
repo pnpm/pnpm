@@ -16,7 +16,6 @@ import {
   PnpmConfigs,
   types,
 } from '@pnpm/config'
-import { cliLogger } from '@pnpm/core-loggers'
 import logger from '@pnpm/logger'
 import isCI = require('is-ci')
 import nopt = require('nopt')
@@ -244,6 +243,4 @@ export default async function run (argv: string[]) {
       }
     }, 0)
   })
-
-  cliLogger.debug('command_done')
 }

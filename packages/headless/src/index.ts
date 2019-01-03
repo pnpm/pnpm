@@ -161,7 +161,11 @@ export default async (opts: HeadlessOptions) => {
     })
   }
 
-  stageLogger.debug('importing_started')
+  stageLogger.debug({
+    prefix: opts.shrinkwrapDirectory,
+    stage: 'importing_started',
+  })
+
   const filteredShrinkwrap = filterShrinkwrapByImporters(wantedShrinkwrap, opts.importers.map((importer) => importer.id), {
     ...filterOpts,
     failOnMissingDependencies: true,
@@ -188,7 +192,11 @@ export default async (opts: HeadlessOptions) => {
     linkAllModules(depGraph, { optional: opts.include.optionalDependencies }),
     linkAllPkgs(opts.storeController, R.values(depGraph), opts),
   ])
-  stageLogger.debug('importing_done')
+
+  stageLogger.debug({
+    prefix: opts.shrinkwrapDirectory,
+    stage: 'importing_done',
+  })
 
   function warn (message: string) {
     logger.warn({
@@ -409,6 +417,7 @@ interface ShrinkwrapToDepGraphOptions {
   force: boolean,
   independentLeaves: boolean,
   importerIds: string[],
+  shrinkwrapDirectory: string,
   storeController: StoreController,
   store: string,
   prefix: string,
@@ -438,14 +447,15 @@ async function shrinkwrapToDepGraph (
       const resolution = pkgSnapshotToResolution(relDepPath, pkgSnapshot, opts.defaultRegistry)
       // TODO: optimize. This info can be already returned by pkgSnapshotToResolution()
       const pkgName = nameVerFromPkgSnapshot(relDepPath, pkgSnapshot).name
-      const pkgId = pkgSnapshot.id || depPath
+      const packageId = pkgSnapshot.id || depPath
       progressLogger.debug({
-        pkgId,
-        status: 'resolving_content',
+        packageId,
+        requester: opts.shrinkwrapDirectory,
+        status: 'resolved',
       })
       let fetchResponse = opts.storeController.fetchPackage({
         force: false,
-        pkgId,
+        pkgId: packageId,
         prefix: opts.prefix,
         resolution,
         verifyStoreIntegrity: opts.verifyStoreIntegrity,
@@ -454,12 +464,13 @@ async function shrinkwrapToDepGraph (
       fetchResponse.fetchingFiles // tslint:disable-line
         .then((fetchResult) => {
           progressLogger.debug({
-            pkgId,
+            packageId,
+            requester: opts.shrinkwrapDirectory,
             status: fetchResult.fromStore
               ? 'found_in_store' : 'fetched',
           })
         })
-      const pkgLocation = await opts.storeController.getPackageLocation(pkgId, pkgName, {
+      const pkgLocation = await opts.storeController.getPackageLocation(packageId, pkgName, {
         importerPrefix: opts.prefix,
         targetEngine: opts.sideEffectsCacheRead && !opts.force && ENGINE_NAME || undefined,
       })
@@ -484,7 +495,7 @@ async function shrinkwrapToDepGraph (
         optional: !!pkgSnapshot.optional,
         optionalDependencies: new Set(R.keys(pkgSnapshot.optionalDependencies)),
         peripheralLocation,
-        pkgId,
+        pkgId: packageId,
         prepare: pkgSnapshot.prepare === true,
         relDepPath: depPath,
         requiresBuild: pkgSnapshot.requiresBuild === true,

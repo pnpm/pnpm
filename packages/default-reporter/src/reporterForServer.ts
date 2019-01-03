@@ -10,12 +10,8 @@ export default function (
     complete: () => undefined,
     error: () => undefined,
     next (log) {
-      if (log.name === 'pnpm:progress') {
-        switch (log.status) {
-          case 'fetched':
-          case 'fetching_started':
-            console.log(`${chalk.cyan(log.status)} ${log.pkgId}`)
-        }
+      if (log.name === 'pnpm:fetching-progress') {
+        console.log(`${chalk.cyan(`fetching_${log.status}`)} ${log.packageId}`)
         return
       }
       switch (log.level) {

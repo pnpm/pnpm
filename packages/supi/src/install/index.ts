@@ -626,7 +626,11 @@ async function installInContext (
       }),
   )
 
-  stageLogger.debug('resolution_started')
+  stageLogger.debug({
+    prefix: ctx.shrinkwrapDirectory,
+    stage: 'resolution_started',
+  })
+
   const {
     dependenciesTree,
     outdatedDependencies,
@@ -645,6 +649,7 @@ async function installInContext (
     pnpmVersion: opts.packageManager.name === 'pnpm' ? opts.packageManager.version : '',
     preferredVersions: opts.preferredVersions,
     registries: opts.registries,
+    shrinkwrapDirectory: opts.shrinkwrapDirectory, // needed only for logging
     sideEffectsCache: opts.sideEffectsCacheRead,
     skipped: ctx.skipped,
     storeController: opts.storeController,
@@ -675,7 +680,11 @@ async function installInContext (
     virtualStoreDir: ctx.virtualStoreDir,
     wantedShrinkwrap: ctx.wantedShrinkwrap,
   })
-  stageLogger.debug('resolution_done')
+
+  stageLogger.debug({
+    prefix: ctx.shrinkwrapDirectory,
+    stage: 'resolution_done',
+  })
 
   const importersToLink = await Promise.all<ImporterToLink>(importers.map(async (importer) => {
     const resolvedImporter = resolvedImporters[importer.id]

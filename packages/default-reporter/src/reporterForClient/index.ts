@@ -15,6 +15,7 @@ import reportSummary from './reportSummary'
 
 export default function (
   log$: {
+    fetchingProgress: most.Stream<logs.FetchingProgressLog>,
     progress: most.Stream<logs.ProgressLog>,
     stage: most.Stream<logs.StageLog>,
     deprecation: most.Stream<logs.DeprecationLog>,
@@ -27,7 +28,6 @@ export default function (
     packageJson: most.Stream<logs.PackageJsonLog>,
     link: most.Stream<logs.LinkLog>,
     other: most.Stream<logs.Log>,
-    cli: most.Stream<logs.CliLog>,
     hook: most.Stream<logs.HookLog>,
     scope: most.Stream<logs.ScopeLog>,
     skippedOptionalDependency: most.Stream<logs.SkippedOptionalDependencyLog>,
@@ -46,7 +46,10 @@ export default function (
   const cwd = opts.pnpmConfigs && opts.pnpmConfigs.prefix || process.cwd()
 
   const outputs: Array<most.Stream<most.Stream<{msg: string}>>> = [
-    reportProgress(log$, opts),
+    reportProgress(log$, {
+      cwd,
+      throttleProgress: opts.throttleProgress,
+    }),
     reportLifecycleScripts(log$, {
       appendOnly: opts.appendOnly,
       cwd,

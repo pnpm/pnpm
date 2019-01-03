@@ -63,13 +63,15 @@ test('installing a simple project', async (t) => {
   } as StatsLog), 'removed stat')
   t.ok(reporter.calledWithMatch({
     level: 'debug',
-    message: 'importing_done',
     name: 'pnpm:stage',
+    prefix,
+    stage: 'importing_done',
   } as StageLog), 'importing stage done logged')
   t.ok(reporter.calledWithMatch({
     level: 'debug',
-    pkgId: 'localhost+4873/is-negative/2.1.0',
-    status: 'resolving_content',
+    packageId: 'localhost+4873/is-negative/2.1.0',
+    requester: prefix,
+    status: 'resolved',
   }), 'logs that package is being resolved')
 
   t.end()
@@ -356,13 +358,15 @@ test('available packages are used when node_modules is not clean', async (t) => 
 
   t.notOk(reporter.calledWithMatch({
     level: 'debug',
-    pkgId: 'localhost+4873/balanced-match/1.0.0',
-    status: 'resolving_content',
+    packageId: 'localhost+4873/balanced-match/1.0.0',
+    requester: projectDir,
+    status: 'resolved',
   }), 'does not resolve already available package')
   t.ok(reporter.calledWithMatch({
     level: 'debug',
-    pkgId: 'localhost+4873/rimraf/2.6.2',
-    status: 'resolving_content',
+    packageId: 'localhost+4873/rimraf/2.6.2',
+    requester: projectDir,
+    status: 'resolved',
   }), 'resolves rimraf')
 
   t.end()
@@ -394,13 +398,15 @@ test('available packages are relinked during forced install', async (t) => {
 
   t.ok(reporter.calledWithMatch({
     level: 'debug',
-    pkgId: 'localhost+4873/balanced-match/1.0.0',
-    status: 'resolving_content',
+    packageId: 'localhost+4873/balanced-match/1.0.0',
+    requester: projectDir,
+    status: 'resolved',
   }), 'does not resolve already available package')
   t.ok(reporter.calledWithMatch({
     level: 'debug',
-    pkgId: 'localhost+4873/rimraf/2.6.2',
-    status: 'resolving_content',
+    packageId: 'localhost+4873/rimraf/2.6.2',
+    requester: projectDir,
+    status: 'resolved',
   }), 'resolves rimraf')
 
   t.end()
@@ -525,8 +531,9 @@ test('independent-leaves: installing a simple project', async (t) => {
   } as StatsLog), 'removed stat')
   t.ok(reporter.calledWithMatch({
     level: 'debug',
-    message: 'importing_done',
     name: 'pnpm:stage',
+    prefix,
+    stage: 'importing_done',
   } as StageLog), 'importing stage done logged')
 
   t.end()
@@ -572,13 +579,15 @@ test('installing with shamefullyFlatten = true', async (t) => {
   } as StatsLog), 'removed stat')
   t.ok(reporter.calledWithMatch({
     level: 'debug',
-    message: 'importing_done',
     name: 'pnpm:stage',
+    prefix,
+    stage: 'importing_done',
   } as StageLog), 'importing stage done logged')
   t.ok(reporter.calledWithMatch({
     level: 'debug',
-    pkgId: 'localhost+4873/is-negative/2.1.0',
-    status: 'resolving_content',
+    packageId: 'localhost+4873/is-negative/2.1.0',
+    requester: prefix,
+    status: 'resolved',
   }), 'logs that package is being resolved')
 
   const modules = await project.loadModules()

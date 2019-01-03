@@ -94,23 +94,27 @@ test('no dependencies (lodash)', async (t: tape.Test) => {
   } as PackageJsonLog)).callCount, 1, 'initial package.json logged')
   t.ok(reporter.calledWithMatch({
     level: 'debug',
-    message: 'resolution_started',
     name: 'pnpm:stage',
+    prefix: process.cwd(),
+    stage: 'resolution_started',
   } as StageLog), 'resolution stage start logged')
   t.ok(reporter.calledWithMatch({
     level: 'debug',
-    message: 'resolution_done',
     name: 'pnpm:stage',
+    prefix: process.cwd(),
+    stage: 'resolution_done',
   } as StageLog), 'resolution stage done logged')
   t.ok(reporter.calledWithMatch({
     level: 'debug',
-    message: 'importing_started',
     name: 'pnpm:stage',
+    prefix: process.cwd(),
+    stage: 'importing_started',
   } as StageLog), 'importing stage start logged')
   t.ok(reporter.calledWithMatch({
     level: 'debug',
-    message: 'importing_done',
     name: 'pnpm:stage',
+    prefix: process.cwd(),
+    stage: 'importing_done',
   } as StageLog), 'importing stage done logged')
   // Not logged for now
   // t.ok(reporter.calledWithMatch({
@@ -780,12 +784,14 @@ test('shrinkwrap locks npm dependencies', async (t: tape.Test) => {
   t.ok(reporter.calledWithMatch({
     level: 'debug',
     name: 'pnpm:progress',
-    pkgId: 'localhost+4873/pkg-with-1-dep/100.0.0',
-    status: 'resolving_content',
+    packageId: 'localhost+4873/pkg-with-1-dep/100.0.0',
+    requester: process.cwd(),
+    status: 'resolved',
   } as ProgressLog), 'logs that package is being resolved')
   t.ok(reporter.calledWithMatch({
     level: 'debug',
-    pkgId: 'localhost+4873/pkg-with-1-dep/100.0.0',
+    packageId: 'localhost+4873/pkg-with-1-dep/100.0.0',
+    requester: process.cwd(),
     status: 'fetched',
   } as ProgressLog), 'logged that package was fetched from registry')
 
@@ -800,12 +806,14 @@ test('shrinkwrap locks npm dependencies', async (t: tape.Test) => {
 
   t.ok(reporter.calledWithMatch({
     level: 'debug',
-    pkgId: 'localhost+4873/pkg-with-1-dep/100.0.0',
-    status: 'resolving_content',
+    packageId: 'localhost+4873/pkg-with-1-dep/100.0.0',
+    requester: process.cwd(),
+    status: 'resolved',
   } as ProgressLog), 'logs that package is being resolved')
   t.ok(reporter.calledWithMatch({
     level: 'debug',
-    pkgId: 'localhost+4873/pkg-with-1-dep/100.0.0',
+    packageId: 'localhost+4873/pkg-with-1-dep/100.0.0',
+    requester: process.cwd(),
     status: 'found_in_store',
   } as ProgressLog), 'logged that package was found in store')
 

@@ -4,10 +4,8 @@ import {
   deprecationLogger,
   hookLogger,
   packageJsonLogger,
-  progressLogger,
   rootLogger,
   skippedOptionalDependencyLogger,
-  stageLogger,
   statsLogger,
   summaryLogger,
 } from '@pnpm/core-loggers'
@@ -17,15 +15,14 @@ import logger, {
 } from '@pnpm/logger'
 import chalk from 'chalk'
 import { stripIndent, stripIndents } from 'common-tags'
-import delay from 'delay'
 import loadJsonFile from 'load-json-file'
-import most = require('most')
 import normalizeNewline = require('normalize-newline')
 import path = require('path')
 import R = require('ramda')
 import StackTracey = require('stacktracey')
 import test = require('tape')
 import './reportingLifecycleScripts'
+import './reportingProgress'
 import './reportingScope'
 
 const WARN = chalk.bgYellow.black('\u2009WARN\u2009')
@@ -35,177 +32,8 @@ const versionColor = chalk.grey
 const ADD = chalk.green('+')
 const SUB = chalk.red('-')
 const h1 = chalk.cyanBright
-const hlValue = chalk.cyanBright
-const hlPkgId = chalk['whiteBright']
 
 const EOL = '\n'
-
-test('prints progress beginning', t => {
-  const output$ = toOutput$({
-    context: {
-      argv: ['install'],
-    },
-    streamParser: createStreamParser(),
-  })
-
-  const pkgId = 'registry.npmjs.org/foo/1.0.0'
-
-  progressLogger.debug({
-    pkgId,
-    status: 'resolving_content',
-  })
-
-  t.plan(1)
-
-  output$.take(1).subscribe({
-    complete: () => t.end(),
-    error: t.end,
-    next: output => {
-      t.equal(output, `Resolving: total ${hlValue('1')}, reused ${hlValue('0')}, downloaded ${hlValue('0')}`)
-    },
-  })
-})
-
-test('prints progress beginning when appendOnly is true', t => {
-  const output$ = toOutput$({
-    context: { argv: ['install'] },
-    reportingOptions: {
-      appendOnly: true,
-    },
-    streamParser: createStreamParser(),
-  })
-
-  const pkgId = 'registry.npmjs.org/foo/1.0.0'
-
-  progressLogger.debug({
-    pkgId,
-    status: 'resolving_content',
-  })
-
-  t.plan(1)
-
-  output$.take(1).subscribe({
-    complete: () => t.end(),
-    error: t.end,
-    next: output => {
-      t.equal(output, `Resolving: total ${hlValue('1')}, reused ${hlValue('0')}, downloaded ${hlValue('0')}`)
-    },
-  })
-})
-
-test('prints progress beginning during recursive install', t => {
-  const output$ = toOutput$({
-    context: { argv: ['recursive'] },
-    streamParser: createStreamParser(),
-  })
-
-  const pkgId = 'registry.npmjs.org/foo/1.0.0'
-
-  progressLogger.debug({
-    pkgId,
-    status: 'resolving_content',
-  })
-
-  t.plan(1)
-
-  output$.take(1).subscribe({
-    complete: () => t.end(),
-    error: t.end,
-    next: output => {
-      t.equal(output, `Resolving: total ${hlValue('1')}, reused ${hlValue('0')}, downloaded ${hlValue('0')}`)
-    },
-  })
-})
-
-test('prints progress on first download', t => {
-  const output$ = toOutput$({
-    context: { argv: ['install'] },
-    reportingOptions: { throttleProgress: 0 },
-    streamParser: createStreamParser(),
-  })
-
-  const pkgId = 'registry.npmjs.org/foo/1.0.0'
-
-  progressLogger.debug({
-    pkgId,
-    status: 'resolving_content',
-  })
-  progressLogger.debug({
-    pkgId,
-    status: 'fetched',
-  })
-
-  t.plan(1)
-
-  output$.skip(1).take(1).subscribe({
-    complete: () => t.end(),
-    error: t.end,
-    next: output => {
-      t.equal(output, `Resolving: total ${hlValue('1')}, reused ${hlValue('0')}, downloaded ${hlValue('1')}`)
-    },
-  })
-})
-
-test('moves fixed line to the end', async t => {
-  const prefix = process.cwd()
-  const output$ = toOutput$({
-    context: { argv: ['install'] },
-    reportingOptions: { throttleProgress: 0 },
-    streamParser: createStreamParser(),
-  })
-
-  output$.skip(3).take(1).map(normalizeNewline).subscribe({
-    complete: v => t.end(),
-    error: t.end,
-    next: output => {
-      t.equal(output, `${WARN} foo` + EOL +
-        `Resolving: total ${hlValue('1')}, reused ${hlValue('0')}, downloaded ${hlValue('1')}, done`)
-    },
-  })
-
-  const pkgId = 'registry.npmjs.org/foo/1.0.0'
-
-  progressLogger.debug({
-    pkgId,
-    status: 'resolving_content',
-  })
-  progressLogger.debug({
-    pkgId,
-    status: 'fetched',
-  })
-  logger.warn({ message: 'foo', prefix })
-
-  await delay(0) // w/o delay warning goes below for some reason. Started to happen after switch to most
-
-  stageLogger.debug('resolution_done')
-  stageLogger.debug('importing_done')
-
-  t.plan(1)
-})
-
-test('prints "Already up-to-date"', t => {
-  const output$ = toOutput$({
-    context: { argv: ['install'] },
-    streamParser: createStreamParser(),
-  })
-
-  const prefix = process.cwd()
-
-  statsLogger.debug({ added: 0, prefix })
-  statsLogger.debug({ removed: 0, prefix })
-
-  t.plan(1)
-
-  output$.take(1).map(normalizeNewline).subscribe({
-    complete: () => t.end(),
-    error: t.end,
-    next: output => {
-      t.equal(output, stripIndents`
-        Already up-to-date
-      `)
-    },
-  })
-})
 
 test('prints summary (of current package only)', t => {
   const prefix = '/home/jane/project'
@@ -705,150 +533,6 @@ test('prints info', t => {
     next: output => {
       t.equal(output, 'info message')
     },
-  })
-})
-
-test('prints progress of big files download', async t => {
-  t.plan(6)
-
-  let output$ = toOutput$({
-    context: { argv: ['install'] },
-    reportingOptions: { throttleProgress: 0 },
-    streamParser: createStreamParser(),
-  })
-    .map(normalizeNewline) as most.Stream<string>
-  const stream$: most.Stream<string>[] = []
-
-  const pkgId1 = 'registry.npmjs.org/foo/1.0.0'
-  const pkgId2 = 'registry.npmjs.org/bar/2.0.0'
-  const pkgId3 = 'registry.npmjs.org/qar/3.0.0'
-
-  stream$.push(
-    output$.take(1)
-      .tap(output => t.equal(output, `Resolving: total ${hlValue('1')}, reused ${hlValue('0')}, downloaded ${hlValue('0')}`))
-  )
-
-  output$ = output$.skip(1)
-
-  stream$.push(
-    output$.take(1)
-      .tap(output => t.equal(output, stripIndents`
-        Resolving: total ${hlValue('1')}, reused ${hlValue('0')}, downloaded ${hlValue('0')}
-        Downloading ${hlPkgId(pkgId1)}: ${hlValue('0 B')}/${hlValue('10.5 MB')}
-      `))
-  )
-
-  output$ = output$.skip(1)
-
-  stream$.push(
-    output$.take(1)
-      .tap(output => t.equal(output, stripIndents`
-        Resolving: total ${hlValue('1')}, reused ${hlValue('0')}, downloaded ${hlValue('0')}
-        Downloading ${hlPkgId(pkgId1)}: ${hlValue('5.77 MB')}/${hlValue('10.5 MB')}
-      `))
-  )
-
-  output$ = output$.skip(2)
-
-  stream$.push(
-    output$.take(1)
-      .tap(output => t.equal(output, stripIndents`
-        Resolving: total ${hlValue('2')}, reused ${hlValue('0')}, downloaded ${hlValue('0')}
-        Downloading ${hlPkgId(pkgId1)}: ${hlValue('7.34 MB')}/${hlValue('10.5 MB')}
-      `, 'downloading of small package not reported'))
-  )
-
-  output$ = output$.skip(3)
-
-  stream$.push(
-    output$.take(1)
-      .tap(output => t.equal(output, stripIndents`
-        Resolving: total ${hlValue('3')}, reused ${hlValue('0')}, downloaded ${hlValue('0')}
-        Downloading ${hlPkgId(pkgId1)}: ${hlValue('7.34 MB')}/${hlValue('10.5 MB')}
-        Downloading ${hlPkgId(pkgId3)}: ${hlValue('19.9 MB')}/${hlValue('21 MB')}
-      `))
-  )
-
-  output$ = output$.skip(1)
-
-  stream$.push(
-    output$.take(1)
-      .tap(output => t.equal(output, stripIndents`
-        Downloading ${hlPkgId(pkgId1)}: ${hlValue('10.5 MB')}/${hlValue('10.5 MB')}, done
-        Resolving: total ${hlValue('3')}, reused ${hlValue('0')}, downloaded ${hlValue('0')}
-        Downloading ${hlPkgId(pkgId3)}: ${hlValue('19.9 MB')}/${hlValue('21 MB')}
-      `))
-  )
-
-  most.mergeArray(stream$)
-    .subscribe({
-      complete: () => t.end(),
-      error: t.end,
-      next: () => undefined,
-    })
-
-  progressLogger.debug({
-    pkgId: pkgId1,
-    status: 'resolving_content',
-  })
-
-  progressLogger.debug({
-    attempt: 1,
-    pkgId: pkgId1,
-    size: 1024 * 1024 * 10, // 10 MB
-    status: 'fetching_started',
-  })
-
-  await delay(0)
-
-  progressLogger.debug({
-    downloaded: 1024 * 1024 * 5.5, // 5.5 MB
-    pkgId: pkgId1,
-    status: 'fetching_progress',
-  })
-
-  progressLogger.debug({
-    pkgId: pkgId2,
-    status: 'resolving_content',
-  })
-
-  progressLogger.debug({
-    attempt: 1,
-    pkgId: pkgId1,
-    size: 10, // 10 B
-    status: 'fetching_started',
-  })
-
-  progressLogger.debug({
-    downloaded: 1024 * 1024 * 7,
-    pkgId: pkgId1,
-    status: 'fetching_progress',
-  })
-
-  progressLogger.debug({
-    pkgId: pkgId3,
-    status: 'resolving_content',
-  })
-
-  progressLogger.debug({
-    attempt: 1,
-    pkgId: pkgId3,
-    size: 1024 * 1024 * 20, // 20 MB
-    status: 'fetching_started',
-  })
-
-  await delay(0)
-
-  progressLogger.debug({
-    downloaded: 1024 * 1024 * 19, // 19 MB
-    pkgId: pkgId3,
-    status: 'fetching_progress',
-  })
-
-  progressLogger.debug({
-    downloaded: 1024 * 1024 * 10, // 10 MB
-    pkgId: pkgId1,
-    status: 'fetching_progress',
   })
 })
 

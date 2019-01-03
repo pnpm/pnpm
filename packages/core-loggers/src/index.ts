@@ -1,8 +1,8 @@
 export * from './all'
 
 import {
-  CliLog,
   DeprecationLog,
+  FetchingProgressLog,
   HookLog,
   ImportingLog,
   InstallCheckLog,
@@ -19,8 +19,8 @@ import {
   SummaryLog,
 } from './all'
 
-export type Log = CliLog
-  | DeprecationLog
+export type Log = DeprecationLog
+  | FetchingProgressLog
   | HookLog
   | ImportingLog
   | InstallCheckLog
