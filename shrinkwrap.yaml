@@ -137,7 +137,7 @@ importers:
       typescript: 3.2.2
     specifiers:
       '@pnpm/config': 2.4.0
-      '@pnpm/core-loggers': 1.2.0
+      '@pnpm/core-loggers': 2.0.0
       '@pnpm/default-reporter': 'link:'
       '@pnpm/logger': 2.1.0
       '@pnpm/tslint-config': 0.0.0
@@ -380,27 +380,27 @@ importers:
       typescript: 3.2.2
     specifiers:
       '@pnpm/assert-project': 'link:../../privatePackages/assert-project'
-      '@pnpm/core-loggers': 1.2.0
+      '@pnpm/core-loggers': 2.0.0
       '@pnpm/default-fetcher': 2.0.6
       '@pnpm/default-resolver': 2.0.7
       '@pnpm/filter-shrinkwrap': 1.0.0
       '@pnpm/headless': 'link:'
-      '@pnpm/lifecycle': 4.1.1
+      '@pnpm/lifecycle': 4.1.2
       '@pnpm/link-bins': 3.0.2
       '@pnpm/logger': 2.1.0
-      '@pnpm/modules-cleaner': 2.0.3
+      '@pnpm/modules-cleaner': 2.0.4
       '@pnpm/modules-yaml': 2.0.1
-      '@pnpm/package-requester': 5.0.2
-      '@pnpm/package-store': 2.0.2
+      '@pnpm/package-requester': 6.0.0
+      '@pnpm/package-store': 3.0.0
       '@pnpm/pkgid-to-filename': 2.0.0
       '@pnpm/read-manifests': 1.0.3
       '@pnpm/read-package-json': 1.0.1
-      '@pnpm/shamefully-flatten': 2.0.1
+      '@pnpm/shamefully-flatten': 2.0.2
       '@pnpm/shrinkwrap-file': 1.0.0
       '@pnpm/shrinkwrap-utils': 1.0.0
       '@pnpm/store-controller-types': 2.0.0
       '@pnpm/store-path': 1.0.4
-      '@pnpm/symlink-dependency': 1.1.2
+      '@pnpm/symlink-dependency': 1.1.3
       '@pnpm/tslint-config': 0.0.0
       '@pnpm/types': 2.0.0
       '@pnpm/utils': 0.9.0
@@ -458,7 +458,7 @@ importers:
       tslint: /tslint/5.12.0/typescript@3.2.2
       typescript: 3.2.2
     specifiers:
-      '@pnpm/core-loggers': 1.2.0
+      '@pnpm/core-loggers': 2.0.0
       '@pnpm/lifecycle': 'link:'
       '@pnpm/logger': 2.1.0
       '@pnpm/read-package-json': 1.0.1
@@ -553,7 +553,7 @@ importers:
       tslint: /tslint/5.12.0/typescript@3.2.2
       typescript: 3.2.2
     specifiers:
-      '@pnpm/core-loggers': 1.2.0
+      '@pnpm/core-loggers': 2.0.0
       '@pnpm/logger': 2.1.0
       '@pnpm/modules-cleaner': 'link:'
       '@pnpm/package-bins': 2.0.0
@@ -699,7 +699,7 @@ importers:
       typescript: 3.2.2
     specifiers:
       '@pnpm/check-package': 2.0.0
-      '@pnpm/core-loggers': 1.2.0
+      '@pnpm/core-loggers': 2.0.0
       '@pnpm/fetcher-base': 2.0.0
       '@pnpm/local-resolver': 1.0.3
       '@pnpm/logger': 2.1.0
@@ -787,12 +787,12 @@ importers:
       tslint: /tslint/5.12.0/typescript@3.2.2
       typescript: 3.2.2
     specifiers:
-      '@pnpm/core-loggers': 1.2.0
+      '@pnpm/core-loggers': 2.0.0
       '@pnpm/fetcher-base': 2.0.0
       '@pnpm/fs-locker': 1.0.3
       '@pnpm/logger': 2.1.0
       '@pnpm/npm-resolver': 2.2.7
-      '@pnpm/package-requester': 5.0.2
+      '@pnpm/package-requester': 6.0.0
       '@pnpm/package-store': 'link:'
       '@pnpm/pkgid-to-filename': 2.0.0
       '@pnpm/resolver-base': 2.0.0
@@ -940,15 +940,15 @@ importers:
     specifiers:
       '@pnpm/assert-project': 'link:../../privatePackages/assert-project'
       '@pnpm/config': 2.4.0
-      '@pnpm/core-loggers': 1.2.0
+      '@pnpm/core-loggers': 2.0.0
       '@pnpm/default-fetcher': 2.0.6
-      '@pnpm/default-reporter': 1.1.0
+      '@pnpm/default-reporter': 2.0.0
       '@pnpm/default-resolver': 2.0.7
-      '@pnpm/lifecycle': 4.1.1
+      '@pnpm/lifecycle': 4.1.2
       '@pnpm/logger': 2.1.0
       '@pnpm/modules-yaml': 2.0.1
       '@pnpm/outdated': 1.0.10
-      '@pnpm/package-store': 2.0.2
+      '@pnpm/package-store': 3.0.0
       '@pnpm/prepare': 0.0.0
       '@pnpm/read-package-json': 1.0.1
       '@pnpm/server': 2.0.1
@@ -1033,7 +1033,7 @@ importers:
       sepia: 2.0.2
       signal-exit: 3.0.2
       strip-color: 0.1.0
-      supi: 0.27.4
+      supi: 0.28.0
       symlink-dir: 2.0.2
       tape: 4.9.2
       tape-promise: 4.0.0
@@ -1149,7 +1149,7 @@ importers:
       tslint: /tslint/5.12.0/typescript@3.2.2
       typescript: 3.2.2
     specifiers:
-      '@pnpm/core-loggers': 1.2.0
+      '@pnpm/core-loggers': 2.0.0
       '@pnpm/logger': 2.1.0
       '@pnpm/npm-resolver': 2.2.7
       '@pnpm/resolve-dependencies': 'link:'
@@ -1207,8 +1207,8 @@ importers:
     specifiers:
       '@pnpm/logger': 2.1.0
       '@pnpm/npm-resolver': 2.2.7
-      '@pnpm/package-requester': 5.0.2
-      '@pnpm/package-store': 2.0.2
+      '@pnpm/package-requester': 6.0.0
+      '@pnpm/package-store': 3.0.0
       '@pnpm/server': 'link:'
       '@pnpm/store-controller-types': 2.0.0
       '@pnpm/tarball-fetcher': 2.0.9
@@ -1255,7 +1255,7 @@ importers:
       '@pnpm/pkgid-to-filename': 2.0.0
       '@pnpm/shrinkwrap-types': 1.0.0
       '@pnpm/shrinkwrap-utils': 1.0.0
-      '@pnpm/symlink-dependency': 1.1.2
+      '@pnpm/symlink-dependency': 1.1.3
       '@pnpm/tslint-config': 0.0.0
       '@types/node': 10.12.18
       '@types/ramda': 0.25.34
@@ -1506,33 +1506,33 @@ importers:
       '@pnpm/assert-project': 'link:../../privatePackages/assert-project'
       '@pnpm/assert-store': 'link:../../privatePackages/assert-store'
       '@pnpm/check-package': 2.0.0
-      '@pnpm/core-loggers': 1.2.0
+      '@pnpm/core-loggers': 2.0.0
       '@pnpm/default-fetcher': 2.0.6
       '@pnpm/default-resolver': 2.0.7
       '@pnpm/filter-shrinkwrap': 1.0.0
       '@pnpm/fs-locker': 1.0.3
-      '@pnpm/headless': 2.1.2
-      '@pnpm/lifecycle': 4.1.1
+      '@pnpm/headless': 3.0.1
+      '@pnpm/lifecycle': 4.1.2
       '@pnpm/link-bins': 3.0.2
       '@pnpm/logger': 2.1.0
-      '@pnpm/modules-cleaner': 2.0.3
+      '@pnpm/modules-cleaner': 2.0.4
       '@pnpm/modules-yaml': 2.0.1
-      '@pnpm/package-requester': 5.0.2
-      '@pnpm/package-store': 2.0.2
+      '@pnpm/package-requester': 6.0.0
+      '@pnpm/package-store': 3.0.0
       '@pnpm/pkgid-to-filename': 2.0.0
       '@pnpm/prepare': 0.0.0
       '@pnpm/prune-shrinkwrap': 1.0.0
       '@pnpm/read-manifests': 1.0.3
       '@pnpm/read-modules-dir': 1.0.0
       '@pnpm/read-package-json': 1.0.1
-      '@pnpm/resolve-dependencies': 3.1.1
+      '@pnpm/resolve-dependencies': 4.0.0
       '@pnpm/resolver-base': 2.0.0
-      '@pnpm/shamefully-flatten': 2.0.1
+      '@pnpm/shamefully-flatten': 2.0.2
       '@pnpm/shrinkwrap-file': 1.0.0
       '@pnpm/shrinkwrap-utils': 1.0.0
       '@pnpm/store-controller-types': 2.0.0
       '@pnpm/store-path': 1.0.4
-      '@pnpm/symlink-dependency': 1.1.2
+      '@pnpm/symlink-dependency': 1.1.3
       '@pnpm/tslint-config': 0.0.0
       '@pnpm/types': 2.0.0
       '@pnpm/utils': 0.9.0
@@ -1627,7 +1627,7 @@ importers:
       tslint: /tslint/5.12.0/typescript@3.2.2
       typescript: 3.2.2
     specifiers:
-      '@pnpm/core-loggers': 1.2.0
+      '@pnpm/core-loggers': 2.0.0
       '@pnpm/logger': 2.1.0
       '@pnpm/tslint-config': 0.0.0
       '@pnpm/types': 2.0.0
@@ -2728,10 +2728,10 @@ packages:
     dev: false
     resolution:
       integrity: sha1-lFwOcjLK9WdSFzdbPriJIAjBRik=
-  /ansi-parser/3.2.8:
+  /ansi-parser/3.2.9:
     dev: false
     resolution:
-      integrity: sha1-rYCmNRrF5YzH6Kdhq8A3tVBQQdA=
+      integrity: sha512-x2Xyol4vxAfYML/DPVaUZuUon+gXrr94Xk32HZh+omGwwxCeXr4bntDiTNxgPcGLGS091JiVjJ3yYQ/mG2gKPA==
   /ansi-regex/0.2.1:
     dev: true
     engines:
@@ -2783,7 +2783,7 @@ packages:
       ansi-styles: 3.2.1
       custom-return: 1.0.11
       supports-color: 3.2.3
-      ul: 5.2.13
+      ul: 5.2.14
     dev: false
     resolution:
       integrity: sha512-6EZU3oFiAFR5KdxMfBC7L9A5WtMSO9rXietMuQ0STnHx2n2qgrDld+7JkT2j9FHWRVOHekdH5nMs5Hry4oJzyg==
@@ -3310,11 +3310,11 @@ packages:
       integrity: sha1-pyyTb3e5a/UvX357RnGAYoVR3vs=
   /bug-killer/4.4.4:
     dependencies:
-      ansi-parser: 3.2.8
-      couleurs: 6.0.9
+      ansi-parser: 3.2.9
+      couleurs: 6.0.10
       daty: 1.1.5
       deffy: 2.2.3
-      typpy: 2.3.10
+      typpy: 2.3.11
     dev: false
     resolution:
       integrity: sha1-luAyK5Q3orBnLXiqzR7SvvEflFo=
@@ -3633,8 +3633,8 @@ packages:
   /class-methods/1.0.11:
     dependencies:
       exclude-arr: 1.0.10
-      static-methods: 1.0.10
-      ul: 5.2.13
+      static-methods: 1.0.11
+      ul: 5.2.14
     dev: false
     resolution:
       integrity: sha512-vwcPXDAv+7/peB7sGMwif6UG/S+7hM5lfNjLrZ/73drKAiO32Eq0g2Wdpl/CDbQJ/K8QHbJKOgFwYGYm+je81w==
@@ -4013,15 +4013,15 @@ packages:
     dev: false
     resolution:
       integrity: sha1-HNOs5cyhvsAEFXiydGSyZ2OH9ts=
-  /couleurs/6.0.9:
+  /couleurs/6.0.10:
     dependencies:
       ansy: 1.0.14
       color-convert: 1.9.3
       iterate-object: 1.3.3
-      typpy: 2.3.10
+      typpy: 2.3.11
     dev: false
     resolution:
-      integrity: sha1-srKj7jfa5Rh1ye/SQ+x+eJSvvJ4=
+      integrity: sha512-16ZvhVjVhEP75sMflsPtXcwbly+79os1zhBVcpRWNmnwifEbZChW+0URYING/A2ehBwp8i0pOXJYzdpiGO3Ivw==
   /cpr/3.0.1:
     dependencies:
       graceful-fs: 4.1.15
@@ -4104,7 +4104,7 @@ packages:
       integrity: sha1-mI3zP+qxke95mmE2nddsF635V+o=
   /custom-return/1.0.11:
     dependencies:
-      noop6: 1.0.7
+      noop6: 1.0.8
     dev: false
     resolution:
       integrity: sha512-CM64m2bV2IQ1MiKRErXR3mRlIiFkIjkQGktTMVPXbmmKCZEiO/YGUlrg69/Gg2tGTSNv+Kyd3+bNJEJIlxhZbA==
@@ -4248,13 +4248,13 @@ packages:
       integrity: sha1-ghlR7I3zWdul9hXzXXa+XJ1Y9Oc=
   /deffy/2.0.0:
     dependencies:
-      typpy: 2.3.10
+      typpy: 2.3.11
     dev: false
     resolution:
       integrity: sha1-+C4I7qUYxKCjCx8D7FBNJIryiTI=
   /deffy/2.2.3:
     dependencies:
-      typpy: 2.3.10
+      typpy: 2.3.11
     dev: false
     resolution:
       integrity: sha512-c5JD8Z6V1aBWVzn1+aELL97R1pHCwEjXeU3hZXdigkZkxb9vhgFP162kAxGXl992TtAg0btwQyx7d54CqcQaXQ==
@@ -4339,9 +4339,9 @@ packages:
     dependencies:
       bug-killer: 4.4.4
       clp: 3.2.1
-      spawno: 2.0.7
-      typpy: 2.3.10
-      ul: 5.2.13
+      spawno: 2.0.8
+      typpy: 2.3.11
+      ul: 5.2.14
     dev: false
     hasBin: true
     resolution:
@@ -4889,7 +4889,7 @@ packages:
       days: 1.1.1
       fillo: 1.0.12
       months: 1.2.0
-      parse-it: 1.0.8
+      parse-it: 1.0.9
     dev: false
     resolution:
       integrity: sha512-CkI0aK01nKhHoFZByDKw/yrNPy+g56DNIEmlq0Q67grdR/LLV8Orc9gsTGVP7XufM3bZg8iuD5UsVfkOdJo2yg==
@@ -4967,7 +4967,7 @@ packages:
       integrity: sha512-yIovAzMX49sF8Yl58fSCWJ5svSLuaibPxXQJFLmBObTuCr0Mf1KiPopGM9NiFjiYBCbfaa2Fh6breQ6ANVTI0A==
   /function.name/1.0.12:
     dependencies:
-      noop6: 1.0.7
+      noop6: 1.0.8
     dev: false
     resolution:
       integrity: sha512-C7Tu+rAFrWW5RjXqtKtXp2xOdCujq+4i8ZH3w0uz/xrYHBwXZrPt96x8cDAEHrIjeyEv/Jm6iDGyqupbaVQTlw==
@@ -5933,7 +5933,7 @@ packages:
       integrity: sha1-EaBgVotnM5REAz0BJaYaINVk+zQ=
   /is-ssh/1.3.1:
     dependencies:
-      protocols: 1.4.6
+      protocols: 1.4.7
     dev: false
     resolution:
       integrity: sha512-0eRIASHZt1E68/ixClI8bp2YK2wmBPVWEismTs6M+M099jKgrzl/3E976zIbImSIob48N2/XGe9y7ZiYdImSlg==
@@ -7235,10 +7235,10 @@ packages:
       node: '>=0.10.0'
     resolution:
       integrity: sha1-WuVUHQJGRdMqWPzdyc7s6nrjrC8=
-  /noop6/1.0.7:
+  /noop6/1.0.8:
     dev: false
     resolution:
-      integrity: sha1-lnZ78gWLpZyoy5FVk0fdyAI5+o4=
+      integrity: sha512-+Al5csMVc40I8xRfJsyBcN1IbpyvebOuQmMfxdw+AL6ECELey12ANgNTRhMfTwNIDU4W9W0g8EHLcsb3+3qPFA==
   /nopt/1.0.10:
     dependencies:
       abbrev: 1.1.1
@@ -7691,12 +7691,12 @@ packages:
     dev: true
     resolution:
       integrity: sha512-XXtDdOPLSB0sHecbEapQi6/58U/ODj/KWfIXmmMCJF/eRn8laX6LZbOyioMoETOOJoWRW8/qTSl5VQkUIfKM5g==
-  /parse-it/1.0.8:
+  /parse-it/1.0.9:
     dependencies:
-      regex-escape: 3.4.8
+      regex-escape: 3.4.9
     dev: false
     resolution:
-      integrity: sha1-6aU73hjIBJ57tBW3PhbTKS346uc=
+      integrity: sha512-8KW9XwW5+DFsvkkSXLZw7AGormnQ+/unnqmTPq7uoiAJNaeLo0T78zT/Ootc0HrdEgVvxM4+mOCRLKJOVtkogQ==
   /parse-json/2.2.0:
     dependencies:
       error-ex: 1.3.2
@@ -7730,7 +7730,7 @@ packages:
   /parse-url/1.3.11:
     dependencies:
       is-ssh: 1.3.1
-      protocols: 1.4.6
+      protocols: 1.4.7
     dev: false
     resolution:
       integrity: sha1-V8FUKKuKiSsfQ4aWRccR0OFEtVQ=
@@ -7988,10 +7988,10 @@ packages:
       node: '>= 0.6'
     resolution:
       integrity: sha512-VvivMrbvd2nKkiG38qjULzlc+4Vx4wm/whI9pQD35YrARNnhxeiRktSOhSukRLFNlzg6Br/cJPet5J/u19r/mg==
-  /proc-output/1.0.6:
+  /proc-output/1.0.7:
     dev: false
     resolution:
-      integrity: sha1-n/z7OsahVu4yt+vWnwJKT22JY1A=
+      integrity: sha512-/0vbJ1s2EAqW4ddiHfOgB2ui9sTHGtLVdVDnjyBFHq1g3cVH1Dt2EZoux5P19Ie+aiilB3j1dCgJTcXIp1T2Cw==
   /process-exists/3.1.0:
     dependencies:
       ps-list: 4.1.0
@@ -8043,10 +8043,10 @@ packages:
   /proto-list/1.2.4:
     resolution:
       integrity: sha1-IS1b/hMYMGpCD2QCuOJv85ZHqEk=
-  /protocols/1.4.6:
+  /protocols/1.4.7:
     dev: false
     resolution:
-      integrity: sha1-+LsmPqG1/Xp2BNJri+Ob13Z4v4o=
+      integrity: sha512-Fx65lf9/YDn3hUX08XUc0J8rSux36rEsyiv21ZGUC1mOyeM3lTRpZLcrm8aAolzS4itwVfm7TAPyxC2E5zd6xg==
   /proxy-addr/2.0.4:
     dependencies:
       forwarded: 0.1.2
@@ -8330,10 +8330,10 @@ packages:
     dev: true
     resolution:
       integrity: sha512-MguG95oij0fC3QV3URf4V2SDYGJhJnJGqvIIgdECeODCT98wSWDAJ94SSuVpYQUoTcGUIL6L4yNB7j1DFFHSBg==
-  /regex-escape/3.4.8:
+  /regex-escape/3.4.9:
     dev: false
     resolution:
-      integrity: sha512-DG0VFPTDwfl+XsuVaM/0RmGJvCpZNB9UG/limzbev50XQ44G4mbOG+0Eh5M7Al9JB68NbP7YeY1KhDzpnX7qSw==
+      integrity: sha512-Cv9rjwyQwVhn3L097ysanWsEElurmxDj6Cc4Ut23z7e6hzRbrNvF3Le7yAciMfuzyb0sZwSr0ZHunMNCIoy2/g==
   /regex-not/1.0.2:
     dependencies:
       extend-shallow: 3.0.2
@@ -9043,12 +9043,12 @@ packages:
     dev: true
     resolution:
       integrity: sha1-YvXpRmmBwbeW3Fkpk34RycaSG9A=
-  /spawno/2.0.7:
+  /spawno/2.0.8:
     dependencies:
-      proc-output: 1.0.6
+      proc-output: 1.0.7
     dev: false
     resolution:
-      integrity: sha512-LPtvlTBIRBUxlNedicsLu6BKS/Opjf2RNVTonBC9WleTzDIbm0ZNegACkhXsm/hVi6QcnORiUw/93TjOm7qOIA==
+      integrity: sha512-kZjZrFEiZaloW6iVIOLWOGYSQVFWxTvT5ShJgkxe3bY2HA6Yc2FP13KcmO0TbOZZ3ld35RlcIQvYKbIfIDscew==
   /spdx-correct/3.1.0:
     dependencies:
       spdx-expression-parse: 3.0.0
@@ -9120,10 +9120,10 @@ packages:
       node: '>=0.10.0'
     resolution:
       integrity: sha1-YICcOcv/VTNyJv1eC1IPNB8ftcY=
-  /static-methods/1.0.10:
+  /static-methods/1.0.11:
     dev: false
     resolution:
-      integrity: sha512-Xqx9JmW1KHrmk32aJ7pl5L7Kf2zwkJvenW5MaAdMSIGJEmfa+7XAIDyxqLCgz5SowvfeHoWKVRq1wlPMlotktw==
+      integrity: sha512-9h0jHGwhz6y3/5nsc9hf93u/37VQc6GctpLsnpGwB8al8qwycmLkmbDnACa64jAk0rI+i9S8hGU/ozmL7+/3sg==
   /statuses/1.4.0:
     dev: true
     engines:
@@ -9736,12 +9736,12 @@ packages:
     dev: false
     resolution:
       integrity: sha1-re87rMEv9Hr/kg+rA6j/MnnXN9Y=
-  /typpy/2.3.10:
+  /typpy/2.3.11:
     dependencies:
       function.name: 1.0.12
     dev: false
     resolution:
-      integrity: sha512-DKiSmYeXF4q+K0H999sVROLjwsngad5AloblLo72No+xVT9W09ytUIOCC/3puHsf+Dsf8M2hoPds0H1HwJgQqg==
+      integrity: sha512-Jh/fykZSaxeKO0ceMAs6agki9T5TNA9kiIR6fzKbvafKpIw8UlNlHhzuqKyi5lfJJ5VojJOx9tooIbyy7vHV/g==
   /uglify-js/2.8.29:
     dependencies:
       source-map: 0.5.7
@@ -9771,13 +9771,13 @@ packages:
     dev: false
     resolution:
       integrity: sha1-yoDXkwJfP9Xcm/g0aYGNMQp8mmI=
-  /ul/5.2.13:
+  /ul/5.2.14:
     dependencies:
       deffy: 2.2.3
-      typpy: 2.3.10
+      typpy: 2.3.11
     dev: false
     resolution:
-      integrity: sha1-n/BQTqNcofdMC/WeZIDe8Am617U=
+      integrity: sha512-VaIRQZ5nkEd8VtI3OYo5qNbhHQuBtPtu5k5GrYaKCmcP1H+FkuWtS+XFTSU1oz5GiuAg2FJL5ka8ufr9zdm8eg==
   /umask/1.1.0:
     dev: false
     resolution:

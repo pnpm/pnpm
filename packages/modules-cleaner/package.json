@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/modules-cleaner",
-  "version": "2.0.3",
+  "version": "2.0.4",
   "description": "Exports util functions to clean up node_modules",
   "author": {
     "name": "Zoltan Kochan",
@@ -30,7 +30,7 @@
     "prepublishOnly": "npm run tsc"
   },
   "dependencies": {
-    "@pnpm/core-loggers": "1.2.0",
+    "@pnpm/core-loggers": "2.0.0",
     "@pnpm/package-bins": "2.0.0",
     "@pnpm/read-modules-dir": "1.0.0",
     "@pnpm/shrinkwrap-types": "1.0.0",
