@@ -44,7 +44,7 @@
     "@types/strip-ansi": "3.0.0",
     "@zkochan/zen-push": "1.0.0",
     "ansi-diff": "1.1.1",
-    "chalk": "2.4.1",
+    "chalk": "2.4.2",
     "cli-cursor": "2.1.0",
     "common-tags": "1.8.0",
     "most": "1.7.3",

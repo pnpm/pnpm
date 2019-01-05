@@ -107,7 +107,7 @@ importers:
       '@types/strip-ansi': 3.0.0
       '@zkochan/zen-push': 1.0.0
       ansi-diff: 1.1.1
-      chalk: 2.4.1
+      chalk: 2.4.2
       cli-cursor: 2.1.0
       common-tags: 1.8.0
       most: /most/1.7.3/most@1.7.3
@@ -150,7 +150,7 @@ importers:
       '@types/tape': 4.2.33
       '@zkochan/zen-push': 1.0.0
       ansi-diff: 1.1.1
-      chalk: 2.4.1
+      chalk: 2.4.2
       cli-cursor: 2.1.0
       common-tags: 1.8.0
       delay: 4.1.0
@@ -488,7 +488,7 @@ importers:
       '@types/ramda': 0.25.39
       '@zkochan/npm-package-arg': 1.0.1
       archy: 1.0.0
-      chalk: 2.4.1
+      chalk: 2.4.2
       dependencies-hierarchy: 'link:../dependencies-hierarchy'
       p-limit: 2.1.0
       ramda: 0.26.1
@@ -517,7 +517,7 @@ importers:
       '@types/tape': 4.2.33
       '@zkochan/npm-package-arg': 1.0.1
       archy: 1.0.0
-      chalk: 2.4.1
+      chalk: 2.4.2
       common-tags: 1.8.0
       dependencies-hierarchy: 4.0.3
       mos: 2.0.0-alpha.3
@@ -851,7 +851,7 @@ importers:
       archy: 1.0.0
       camelcase: 5.0.0
       camelcase-keys: 5.0.0
-      chalk: 2.4.1
+      chalk: 2.4.2
       common-tags: 1.8.0
       cross-spawn: 6.0.5
       delay: 4.1.0
@@ -983,7 +983,7 @@ importers:
       camelcase: 5.0.0
       camelcase-keys: 5.0.0
       caw: 2.0.1
-      chalk: 2.4.1
+      chalk: 2.4.2
       common-tags: 1.8.0
       cross-spawn: 6.0.5
       deep-require-cwd: 1.0.0
@@ -1854,7 +1854,7 @@ packages:
   /@commitlint/format/7.2.1:
     dependencies:
       babel-runtime: 6.26.0
-      chalk: 2.4.1
+      chalk: 2.4.2
     dev: true
     engines:
       node: '>=4'
@@ -1924,7 +1924,7 @@ packages:
     dependencies:
       '@commitlint/load': 7.2.1
       babel-runtime: 6.26.0
-      chalk: 2.4.1
+      chalk: 2.4.2
       lodash.camelcase: 4.3.0
       lodash.kebabcase: 4.1.1
       lodash.snakecase: 4.1.1
@@ -3248,7 +3248,7 @@ packages:
     dependencies:
       ansi-align: 2.0.0
       camelcase: 4.1.0
-      chalk: 2.4.1
+      chalk: 2.4.2
       cli-boxes: 1.0.0
       string-width: 2.1.1
       term-size: 1.2.0
@@ -3600,10 +3600,20 @@ packages:
       ansi-styles: 3.2.1
       escape-string-regexp: 1.0.5
       supports-color: 5.5.0
+    dev: true
     engines:
       node: '>=4'
     resolution:
       integrity: sha512-ObN6h1v2fTJSmUXoS3nMQ92LbDK9be4TV+6G+omQlGJFdcUX5heKi1LZ1YnRMIgwTLEj3E24bT6tYni50rlCfQ==
+  /chalk/2.4.2:
+    dependencies:
+      ansi-styles: 3.2.1
+      escape-string-regexp: 1.0.5
+      supports-color: 5.5.0
+    engines:
+      node: '>=4'
+    resolution:
+      integrity: sha512-Mti+f9lpJNcwF4tWV8/OrTTtF1gZi+f8FqlyAdouralcFWFQWF2+NgCHShjkCb+IFBLq9buZwE1xckQU4peSuQ==
   /character-entities-html4/1.1.2:
     dev: true
     resolution:
@@ -7351,7 +7361,7 @@ packages:
   /npm-run-all/4.1.5:
     dependencies:
       ansi-styles: 3.2.1
-      chalk: 2.4.1
+      chalk: 2.4.2
       cross-spawn: 6.0.5
       memorystream: 0.3.1
       minimatch: 3.0.4
@@ -7374,7 +7384,7 @@ packages:
       integrity: sha1-NakjLfo11wZ7TLLd8jV7GHFTbF8=
   /npm-scripts-info/0.3.9:
     dependencies:
-      chalk: 2.4.1
+      chalk: 2.4.2
       meow: 4.0.1
       unquote: 1.1.1
     dev: true
@@ -9673,7 +9683,7 @@ packages:
     dependencies:
       babel-code-frame: 6.26.0
       builtin-modules: 1.1.1
-      chalk: 2.4.1
+      chalk: 2.4.2
       commander: 2.19.0
       diff: 3.5.0
       glob: 7.1.3
@@ -9919,7 +9929,7 @@ packages:
   /update-notifier/2.5.0:
     dependencies:
       boxen: 1.3.0
-      chalk: 2.4.1
+      chalk: 2.4.2
       configstore: 3.1.2
       import-lazy: 2.1.0
       is-ci: 1.2.1
