@@ -91,7 +91,7 @@
     "@pnpm/modules-yaml": "2.0.1",
     "@pnpm/package-requester": "6.0.0",
     "@pnpm/pkgid-to-filename": "2.0.0",
-    "@pnpm/read-package-json": "1.0.1",
+    "@pnpm/read-package-json": "1.1.1",
     "@pnpm/shamefully-flatten": "2.0.2",
     "@pnpm/shrinkwrap-file": "1.0.0",
     "@pnpm/shrinkwrap-utils": "1.0.0",

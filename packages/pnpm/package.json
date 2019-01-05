@@ -89,7 +89,7 @@
     "@pnpm/assert-project": "link:../../privatePackages/assert-project",
     "@pnpm/modules-yaml": "2.0.1",
     "@pnpm/prepare": "0.0.0",
-    "@pnpm/read-package-json": "1.0.1",
+    "@pnpm/read-package-json": "1.1.1",
     "@pnpm/shrinkwrap-types": "1.0.0",
     "@pnpm/tslint-config": "0.0.0",
     "@types/byline": "4.2.31",
