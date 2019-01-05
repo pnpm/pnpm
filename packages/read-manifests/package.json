@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/read-manifests",
-  "version": "1.0.4",
+  "version": "1.0.5",
   "author": {
     "name": "Zoltan Kochan",
     "email": "z@kochan.io",
@@ -31,7 +31,7 @@
   },
   "dependencies": {
     "@pnpm/modules-yaml": "2.0.1",
-    "@pnpm/shrinkwrap-file": "1.0.0",
+    "@pnpm/shrinkwrap-file": "1.0.1",
     "@pnpm/types": "2.0.0",
     "@pnpm/utils": "0.9.1",
     "@types/node": "10.12.18"
