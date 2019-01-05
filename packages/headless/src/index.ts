@@ -497,7 +497,7 @@ async function shrinkwrapToDepGraph (
         peripheralLocation,
         pkgId: packageId,
         prepare: pkgSnapshot.prepare === true,
-        relDepPath: depPath,
+        relDepPath,
         requiresBuild: pkgSnapshot.requiresBuild === true,
       }
       pkgSnapshotByLocation[peripheralLocation] = pkgSnapshot

@@ -780,3 +780,30 @@ test('peer dependency is grouped with dependent when the peer is a top dependenc
     })
   }
 })
+
+test('dependencies of workspace packages are built during headless installation', async (t: tape.Test) => {
+  const projects = preparePackages(t, [
+    {
+      name: 'project-1',
+      version: '1.0.0',
+
+      dependencies: {
+        'pre-and-postinstall-scripts-example': '1.0.0',
+      }
+    },
+  ])
+
+  await fs.writeFile('.npmrc', 'shared-workspace-shrinkwrap=false', 'utf8')
+  await writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
+
+  await execPnpm('recursive', 'install', '--shrinkwrap-only')
+  await execPnpm('recursive', 'install', '--frozen-shrinkwrap')
+
+  {
+    const generatedByPreinstall = projects['project-1'].requireModule('pre-and-postinstall-scripts-example/generated-by-preinstall')
+    t.ok(typeof generatedByPreinstall === 'function', 'generatedByPreinstall() is available')
+
+    const generatedByPostinstall = projects['project-1'].requireModule('pre-and-postinstall-scripts-example/generated-by-postinstall')
+    t.ok(typeof generatedByPostinstall === 'function', 'generatedByPostinstall() is available')
+  }
+})

@@ -285,7 +285,7 @@ test('run pre/postinstall scripts', async (t) => {
   t.ok(modulesYaml)
   t.deepEqual(
     modulesYaml!.pendingBuilds,
-    ['.', 'localhost+4873/pre-and-postinstall-scripts-example/1.0.0'],
+    ['.', '/pre-and-postinstall-scripts-example/1.0.0'],
   )
 
   t.end()

@@ -318,7 +318,10 @@ export async function recursive (
     await saveState()
   }
 
-  if (cmdFullName === 'rebuild' || !opts.ignoreScripts && (cmdFullName === 'install' || cmdFullName === 'update' || cmdFullName === 'unlink')) {
+  if (
+    cmdFullName === 'rebuild' ||
+    !opts.shrinkwrapOnly && !opts.ignoreScripts && (cmdFullName === 'install' || cmdFullName === 'update' || cmdFullName === 'unlink')
+  ) {
     const limitRebuild = pLimit(opts.workspaceConcurrency)
     const action = (cmdFullName !== 'rebuild' || input.length === 0 ? rebuild : rebuildPkgs.bind(null, input))
     for (const chunk of chunks) {
