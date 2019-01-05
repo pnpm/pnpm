@@ -31,7 +31,7 @@
   "homepage": "https://pnpm.js.org",
   "dependencies": {
     "@pnpm/git-resolver": "1.0.1",
-    "@pnpm/local-resolver": "1.0.3",
+    "@pnpm/local-resolver": "1.0.4",
     "@pnpm/npm-resolver": "2.2.7",
     "@pnpm/tarball-resolver": "1.0.1"
   },

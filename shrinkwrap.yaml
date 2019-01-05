@@ -176,7 +176,7 @@ importers:
   packages/default-resolver:
     dependencies:
       '@pnpm/git-resolver': 1.0.1
-      '@pnpm/local-resolver': 1.0.3
+      '@pnpm/local-resolver': 1.0.4
       '@pnpm/npm-resolver': /@pnpm/npm-resolver/2.2.7/@pnpm!logger@2.1.0
       '@pnpm/tarball-resolver': 1.0.1
     devDependencies:
@@ -194,7 +194,7 @@ importers:
     specifiers:
       '@pnpm/default-resolver': 'link:'
       '@pnpm/git-resolver': 1.0.1
-      '@pnpm/local-resolver': 1.0.3
+      '@pnpm/local-resolver': 1.0.4
       '@pnpm/logger': 2.1.0
       '@pnpm/npm-resolver': 2.2.7
       '@pnpm/tarball-resolver': 1.0.1
@@ -331,7 +331,7 @@ importers:
       '@pnpm/modules-yaml': 'link:../modules-yaml'
       '@pnpm/package-requester': 'link:../package-requester'
       '@pnpm/pkgid-to-filename': 2.0.0
-      '@pnpm/read-package-json': 1.0.1
+      '@pnpm/read-package-json': 1.1.1
       '@pnpm/shamefully-flatten': 'link:../shamefully-flatten'
       '@pnpm/shrinkwrap-file': 'link:../shrinkwrap-file'
       '@pnpm/shrinkwrap-utils': 'link:../shrinkwrap-utils'
@@ -394,7 +394,7 @@ importers:
       '@pnpm/package-store': 3.0.0
       '@pnpm/pkgid-to-filename': 2.0.0
       '@pnpm/read-manifests': 1.0.3
-      '@pnpm/read-package-json': 1.0.1
+      '@pnpm/read-package-json': 1.1.1
       '@pnpm/shamefully-flatten': 2.0.2
       '@pnpm/shrinkwrap-file': 1.0.0
       '@pnpm/shrinkwrap-utils': 1.0.0
@@ -436,7 +436,7 @@ importers:
   packages/lifecycle:
     dependencies:
       '@pnpm/core-loggers': 'link:../core-loggers'
-      '@pnpm/read-package-json': 1.0.1
+      '@pnpm/read-package-json': 1.1.1
       '@pnpm/types': 'link:../types'
       '@zkochan/npm-lifecycle': 2.2.0
       path-exists: 3.0.0
@@ -461,7 +461,7 @@ importers:
       '@pnpm/core-loggers': 2.0.0
       '@pnpm/lifecycle': 'link:'
       '@pnpm/logger': 2.1.0
-      '@pnpm/read-package-json': 1.0.1
+      '@pnpm/read-package-json': 1.1.1
       '@pnpm/tslint-config': 0.0.0
       '@pnpm/types': 2.0.0
       '@types/load-json-file': 2.0.7
@@ -481,7 +481,7 @@ importers:
       typescript: 3.2.2
   packages/list:
     dependencies:
-      '@pnpm/read-package-json': 1.0.1
+      '@pnpm/read-package-json': 1.1.1
       '@pnpm/types': 'link:../types'
       '@types/archy': 0.0.31
       '@types/node': 10.12.18
@@ -507,7 +507,7 @@ importers:
       typescript: 3.2.2
     specifiers:
       '@pnpm/logger': 2.1.0
-      '@pnpm/read-package-json': 1.0.1
+      '@pnpm/read-package-json': 1.1.1
       '@pnpm/tslint-config': 0.0.0
       '@pnpm/types': 2.0.0
       '@types/archy': 0.0.31
@@ -610,7 +610,7 @@ importers:
   packages/outdated:
     dependencies:
       '@pnpm/npm-resolver': /@pnpm/npm-resolver/2.2.7/@pnpm!logger@2.1.0
-      '@pnpm/read-package-json': 1.0.1
+      '@pnpm/read-package-json': 1.1.1
       '@pnpm/shrinkwrap-file': 'link:../shrinkwrap-file'
       '@pnpm/store-path': 1.0.4
       '@pnpm/types': 'link:../types'
@@ -632,7 +632,7 @@ importers:
       '@pnpm/logger': 2.1.0
       '@pnpm/npm-resolver': 2.2.7
       '@pnpm/outdated': 'link:'
-      '@pnpm/read-package-json': 1.0.1
+      '@pnpm/read-package-json': 1.1.1
       '@pnpm/shrinkwrap-file': 1.0.0
       '@pnpm/store-path': 1.0.4
       '@pnpm/tslint-config': 0.0.0
@@ -653,7 +653,7 @@ importers:
       '@pnpm/core-loggers': 'link:../core-loggers'
       '@pnpm/fetcher-base': 2.0.0
       '@pnpm/pkgid-to-filename': 2.0.0
-      '@pnpm/read-package-json': 1.0.1
+      '@pnpm/read-package-json': 1.1.1
       '@pnpm/resolver-base': 2.0.0
       '@pnpm/store-controller-types': 'link:../store-controller-types'
       '@pnpm/types': 'link:../types'
@@ -673,7 +673,7 @@ importers:
       util.promisify: 1.0.0
       write-json-file: 3.0.2
     devDependencies:
-      '@pnpm/local-resolver': 1.0.3
+      '@pnpm/local-resolver': 1.0.4
       '@pnpm/logger': 2.1.0
       '@pnpm/npm-resolver': /@pnpm/npm-resolver/2.2.7/@pnpm!logger@2.1.0
       '@pnpm/package-requester': 'link:'
@@ -701,12 +701,12 @@ importers:
       '@pnpm/check-package': 2.0.0
       '@pnpm/core-loggers': 2.0.0
       '@pnpm/fetcher-base': 2.0.0
-      '@pnpm/local-resolver': 1.0.3
+      '@pnpm/local-resolver': 1.0.4
       '@pnpm/logger': 2.1.0
       '@pnpm/npm-resolver': 2.2.7
       '@pnpm/package-requester': 'link:'
       '@pnpm/pkgid-to-filename': 2.0.0
-      '@pnpm/read-package-json': 1.0.1
+      '@pnpm/read-package-json': 1.1.1
       '@pnpm/resolver-base': 2.0.0
       '@pnpm/store-controller-types': 2.0.0
       '@pnpm/tarball-fetcher': 2.0.9
@@ -894,7 +894,7 @@ importers:
       '@pnpm/assert-project': 'link:../../privatePackages/assert-project'
       '@pnpm/modules-yaml': 'link:../modules-yaml'
       '@pnpm/prepare': 'link:../../privatePackages/prepare'
-      '@pnpm/read-package-json': 1.0.1
+      '@pnpm/read-package-json': 1.1.1
       '@pnpm/shrinkwrap-types': 'link:../shrinkwrap-types'
       '@pnpm/tslint-config': 'link:../../utils/tslint-config'
       '@types/byline': 4.2.31
@@ -950,7 +950,7 @@ importers:
       '@pnpm/outdated': 1.0.10
       '@pnpm/package-store': 3.0.0
       '@pnpm/prepare': 0.0.0
-      '@pnpm/read-package-json': 1.0.1
+      '@pnpm/read-package-json': 1.1.1
       '@pnpm/server': 2.0.1
       '@pnpm/shrinkwrap-types': 1.0.0
       '@pnpm/store-controller-types': 2.0.0
@@ -1408,7 +1408,7 @@ importers:
       '@pnpm/prune-shrinkwrap': 'link:../prune-shrinkwrap'
       '@pnpm/read-manifests': 'link:../read-manifests'
       '@pnpm/read-modules-dir': 'link:../read-modules-dir'
-      '@pnpm/read-package-json': 1.0.1
+      '@pnpm/read-package-json': 1.1.1
       '@pnpm/resolve-dependencies': 'link:../resolve-dependencies'
       '@pnpm/resolver-base': 2.0.0
       '@pnpm/shamefully-flatten': 'link:../shamefully-flatten'
@@ -1524,7 +1524,7 @@ importers:
       '@pnpm/prune-shrinkwrap': 1.0.0
       '@pnpm/read-manifests': 1.0.3
       '@pnpm/read-modules-dir': 1.0.0
-      '@pnpm/read-package-json': 1.0.1
+      '@pnpm/read-package-json': 1.1.1
       '@pnpm/resolve-dependencies': 4.0.0
       '@pnpm/resolver-base': 2.0.0
       '@pnpm/shamefully-flatten': 2.0.2
@@ -1657,7 +1657,7 @@ importers:
       typescript: 3.2.2
   packages/utils:
     dependencies:
-      '@pnpm/read-package-json': 1.0.1
+      '@pnpm/read-package-json': 1.1.1
       '@pnpm/types': 'link:../types'
       '@types/mz': 0.0.32
       '@types/node': 10.12.18
@@ -1672,7 +1672,7 @@ importers:
       typescript: 3.2.2
     specifiers:
       '@pnpm/logger': 2.1.0
-      '@pnpm/read-package-json': 1.0.1
+      '@pnpm/read-package-json': 1.1.1
       '@pnpm/tslint-config': 0.0.0
       '@pnpm/types': 2.0.0
       '@pnpm/utils': 'link:'
@@ -2079,7 +2079,7 @@ packages:
   /@pnpm/link-bins/3.0.2:
     dependencies:
       '@pnpm/package-bins': 2.0.0
-      '@pnpm/read-package-json': 1.0.1
+      '@pnpm/read-package-json': 1.1.1
       '@pnpm/types': 2.0.0
       '@types/mz': 0.0.32
       '@types/node': 10.12.18
@@ -2097,9 +2097,9 @@ packages:
       node: '>=6'
     resolution:
       integrity: sha512-0SIZP+wsqc+/gbm52ehzHGPjI+DQgIuldyXPyKeqkQ8K7dZIu3+i9RTCYjI0/kjImcQ/+FHnbbCu5BnSNL+dGg==
-  /@pnpm/local-resolver/1.0.3:
+  /@pnpm/local-resolver/1.0.4:
     dependencies:
-      '@pnpm/read-package-json': 1.0.1
+      '@pnpm/read-package-json': 1.1.1
       '@pnpm/resolver-base': 2.0.0
       '@pnpm/types': 2.0.0
       '@types/graceful-fs': 4.1.2
@@ -2110,7 +2110,7 @@ packages:
     engines:
       node: '>=6'
     resolution:
-      integrity: sha512-nGg1CRRTArx4pxRI2W8iWQqymb4yuvHae3tVt0IWhmG4kV31A3ZBUfFbPGqDWGYPdJyktuCDfDImNAJrmjEItQ==
+      integrity: sha512-3DPcavgnz3GUnmycMJyEkZrniUkwivIl+5eMIlVLg/sT02IRmukP5ddDykTc2CiL3Kn/dYY8ZmhRpPTquroAgw==
   /@pnpm/logger/2.1.0:
     dependencies:
       '@types/node': 10.12.18
@@ -2167,7 +2167,7 @@ packages:
       node: '>=6'
     resolution:
       integrity: sha512-5cf9ik7ntSpPYLXFPs8eoCNgXuDVqa58/9P0Hrb6KmsVpchKi72Xh5TRd6dctqH4mJtfK0eVRaSt4+VDyGxDkQ==
-  /@pnpm/read-package-json/1.0.1:
+  /@pnpm/read-package-json/1.1.1:
     dependencies:
       '@pnpm/types': 2.0.0
       read-package-json: 2.0.13
@@ -2175,7 +2175,7 @@ packages:
     engines:
       node: '>=6'
     resolution:
-      integrity: sha512-2ZUZ9v6V88ZMliGCV+qP2/mhUCj5IWjfkocS594RbMQ50ThbfWsagU1GRIE1EsXvQI4MBCjiRivXDw9fCHKe1Q==
+      integrity: sha512-x4nte9ex/SQ2oxFQ/fi5/Hgx692qt7pmqneePh4q+7CNs1Hv6Xn8kM7REerGGSdQQD+2xu54fmHxVMVcgW6gxQ==
   /@pnpm/resolver-base/2.0.0:
     dependencies:
       '@pnpm/types': 2.0.0
@@ -3990,7 +3990,7 @@ packages:
   /cosmiconfig/4.0.0:
     dependencies:
       is-directory: 0.3.1
-      js-yaml: 3.12.0
+      js-yaml: 3.12.1
       parse-json: 4.0.0
       require-from-string: 2.0.2
     dev: true
@@ -4002,7 +4002,7 @@ packages:
     dependencies:
       import-fresh: 2.0.0
       is-directory: 0.3.1
-      js-yaml: 3.12.0
+      js-yaml: 3.12.1
       parse-json: 4.0.0
     dev: true
     engines:
@@ -6046,6 +6046,13 @@ packages:
     hasBin: true
     resolution:
       integrity: sha512-PIt2cnwmPfL4hKNwqeiuz4bKfnzHTBv6HyVgjahA6mPLwPDzjDWrplJBMjHUFxku/N3FlmrbyPclad+I+4mJ3A==
+  /js-yaml/3.12.1:
+    dependencies:
+      argparse: 1.0.10
+      esprima: 4.0.1
+    hasBin: true
+    resolution:
+      integrity: sha512-um46hB9wNOKlwkHgiuyEVAybXBjwFUV0Z/RaHJblRd9DXltue9FTYvzCr9ErQrK9Adz5MU4gHWVaNUfdmrC8qA==
   /jsbn/0.1.1:
     resolution:
       integrity: sha1-peZUwuWi3rXyAdls77yoDA7y9RM=
@@ -8191,7 +8198,7 @@ packages:
   /rcfile/1.0.3:
     dependencies:
       debug: 2.6.9
-      js-yaml: 3.12.0
+      js-yaml: 3.12.1
       json5: 0.5.1
       object-assign: 4.1.1
       object-keys: 1.0.12
@@ -8282,7 +8289,7 @@ packages:
   /read-yaml-file/1.1.0:
     dependencies:
       graceful-fs: 4.1.15
-      js-yaml: 3.12.0
+      js-yaml: 3.12.1
       pify: 4.0.1
       strip-bom: 3.0.0
     engines:
@@ -9340,7 +9347,7 @@ packages:
     dependencies:
       events-to-array: 1.1.2
       inherits: 2.0.3
-      js-yaml: 3.12.0
+      js-yaml: 3.12.1
     dev: true
     hasBin: true
     optionalDependencies:
@@ -9669,7 +9676,7 @@ packages:
       commander: 2.19.0
       diff: 3.5.0
       glob: 7.1.3
-      js-yaml: 3.12.0
+      js-yaml: 3.12.1
       minimatch: 3.0.4
       resolve: 1.9.0
       semver: 5.6.0
@@ -10232,7 +10239,7 @@ packages:
   /write-yaml-file/2.0.0:
     dependencies:
       graceful-fs: 4.1.15
-      js-yaml: 3.12.0
+      js-yaml: 3.12.1
       mkdirp: 0.5.1
       pify: 4.0.1
       write-file-atomic: 2.3.0
@@ -10276,7 +10283,7 @@ packages:
       integrity: sha512-S+Zk8DEWE6oKpV+vI3qWkaK+jSbIK86pCwe2IF/xwIpQ8jEuxpw9NyaGjmp9+BoJv5FV2piqCDcoCtStppiq2A==
   /yaml-tag/1.1.0:
     dependencies:
-      js-yaml: 3.12.0
+      js-yaml: 3.12.1
     dev: true
     resolution:
       integrity: sha1-u6spj+0znbYDahinSCXevONvrmo=
