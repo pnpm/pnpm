@@ -1272,7 +1272,7 @@ importers:
       '@types/js-yaml': 3.11.4
       '@types/node': 10.12.18
       '@types/ramda': 0.25.39
-      js-yaml: 3.12.0
+      js-yaml: 3.12.1
       mkdirp-promise: 5.0.1
       normalize-path: 3.0.0
       ramda: 0.26.1
@@ -1305,7 +1305,7 @@ importers:
       '@types/ramda': 0.25.39
       '@types/tape': 4.2.33
       '@types/tempy': 0.2.0
-      js-yaml: 3.12.0
+      js-yaml: 3.12.1
       mkdirp-promise: 5.0.1
       normalize-path: 3.0.0
       ramda: 0.26.1
@@ -6043,6 +6043,7 @@ packages:
     dependencies:
       argparse: 1.0.10
       esprima: 4.0.1
+    dev: true
     hasBin: true
     resolution:
       integrity: sha512-PIt2cnwmPfL4hKNwqeiuz4bKfnzHTBv6HyVgjahA6mPLwPDzjDWrplJBMjHUFxku/N3FlmrbyPclad+I+4mJ3A==
