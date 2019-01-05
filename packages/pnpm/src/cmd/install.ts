@@ -84,6 +84,6 @@ export default async function installCmd (
 
     if (opts.ignoreScripts) return
 
-    await rebuild({ ...opts, pending: true } as any) // tslint:disable-line:no-any
+    await rebuild([{ prefix: opts.prefix }], { ...opts, pending: true } as any) // tslint:disable-line:no-any
   }
 }

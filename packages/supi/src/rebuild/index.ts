@@ -16,7 +16,7 @@ import path = require('path')
 import R = require('ramda')
 import semver = require('semver')
 import { LAYOUT_VERSION } from '../constants'
-import { getContextForSingleImporter } from '../getContext'
+import getContext from '../getContext'
 import extendOptions, {
   RebuildOptions,
   StrictRebuildOptions,
@@ -65,6 +65,7 @@ type PackageSelector = string | {
 }
 
 export async function rebuildPkgs (
+  importers: Array<{ prefix: string }>,
   pkgSpecs: string[],
   maybeOpts: RebuildOptions,
 ) {
@@ -73,7 +74,7 @@ export async function rebuildPkgs (
     streamParser.on('data', reporter)
   }
   const opts = await extendOptions(maybeOpts)
-  const ctx = await getContextForSingleImporter(opts)
+  const ctx = await getContext(importers, opts)
 
   if (!ctx.currentShrinkwrap || !ctx.currentShrinkwrap.packages) return
   const packages = ctx.currentShrinkwrap.packages
@@ -92,18 +93,33 @@ export async function rebuildPkgs (
     }
   })
 
-  const pkgs = findPackages(packages, searched, { prefix: ctx.prefix })
+  let pkgs = [] as string[]
+  for (const importer of importers) {
+    pkgs = [
+      ...pkgs,
+      ...findPackages(packages, searched, { prefix: importer.prefix }),
+    ]
+  }
 
-  await _rebuild(new Set(pkgs), ctx.virtualStoreDir, ctx.currentShrinkwrap, ctx.importerId, opts)
+  await _rebuild(
+    new Set(pkgs),
+    ctx.virtualStoreDir,
+    ctx.currentShrinkwrap,
+    ctx.importers.map((importer) => importer.id),
+    opts,
+  )
 }
 
-export async function rebuild (maybeOpts: RebuildOptions) {
+export async function rebuild (
+  importers: Array<{ prefix: string }>,
+  maybeOpts: RebuildOptions,
+) {
   const reporter = maybeOpts && maybeOpts.reporter
   if (reporter) {
     streamParser.on('data', reporter)
   }
   const opts = await extendOptions(maybeOpts)
-  const ctx = await getContextForSingleImporter(opts)
+  const ctx = await getContext(importers, opts)
 
   let idsToRebuild: string[] = []
 
@@ -116,28 +132,39 @@ export async function rebuild (maybeOpts: RebuildOptions) {
   }
   if (idsToRebuild.length === 0) return
 
-  const pkgsThatWereRebuilt = await _rebuild(new Set(idsToRebuild), ctx.virtualStoreDir, ctx.currentShrinkwrap, ctx.importerId, opts)
+  const pkgsThatWereRebuilt = await _rebuild(
+    new Set(idsToRebuild),
+    ctx.virtualStoreDir,
+    ctx.currentShrinkwrap,
+    ctx.importers.map((importer) => importer.id),
+    opts,
+  )
 
   ctx.pendingBuilds = ctx.pendingBuilds.filter((relDepPath) => !pkgsThatWereRebuilt.has(relDepPath))
 
-  if (ctx.pkg && ctx.pkg.scripts && (!opts.pending || ctx.pendingBuilds.indexOf(ctx.importerId) !== -1)) {
-    await runLifecycleHooksInDir(opts.prefix, ctx.pkg, {
-      rawNpmConfig: opts.rawNpmConfig,
-      rootNodeModulesDir: ctx.modulesDir,
-      unsafePerm: opts.unsafePerm,
-    })
+  for (const importer of ctx.importers) {
+    if (importer.pkg && importer.pkg.scripts && (!opts.pending || ctx.pendingBuilds.indexOf(importer.id) !== -1)) {
+      await runLifecycleHooksInDir(opts.prefix, importer.pkg, {
+        rawNpmConfig: opts.rawNpmConfig,
+        rootNodeModulesDir: importer.modulesDir,
+        unsafePerm: opts.unsafePerm,
+      })
 
-    ctx.pendingBuilds.splice(ctx.pendingBuilds.indexOf(ctx.importerId), 1)
+      ctx.pendingBuilds.splice(ctx.pendingBuilds.indexOf(importer.id), 1)
+    }
   }
 
   await writeModulesYaml(ctx.virtualStoreDir, {
     ...ctx.modulesFile,
     importers: {
       ...ctx.modulesFile && ctx.modulesFile.importers,
-      [ctx.importerId]: {
-        hoistedAliases: ctx.hoistedAliases,
-        shamefullyFlatten: opts.shamefullyFlatten,
-      },
+      ...ctx.importers.reduce((acc, importer) => {
+        acc[importer.id] = {
+          hoistedAliases: importer.hoistedAliases,
+          shamefullyFlatten: importer.shamefullyFlatten,
+        }
+        return acc
+      }, {}),
     },
     included: ctx.include,
     independentLeaves: opts.independentLeaves,
@@ -231,22 +258,29 @@ async function _rebuild (
   pkgsToRebuild: Set<string>,
   modules: string,
   shr: Shrinkwrap,
-  importerId: string,
+  importerIds: string[],
   opts: StrictRebuildOptions,
 ) {
   const pkgsThatWereRebuilt = new Set()
   const limitChild = pLimit(opts.childConcurrency)
   const graph = new Map()
   const pkgSnapshots: PackageSnapshots = shr.packages || {}
-  const shrImporter = shr.importers[importerId]
 
-  const entryNodes = R.toPairs({
-    ...(opts.development && shrImporter.devDependencies || {}),
-    ...(opts.production && shrImporter.dependencies || {}),
-    ...(opts.optional && shrImporter.optionalDependencies || {}),
+  const entryNodes = [] as string[]
+
+  importerIds.forEach((importerId) => {
+    const shrImporter = shr.importers[importerId]
+    R.toPairs({
+      ...(opts.development && shrImporter.devDependencies || {}),
+      ...(opts.production && shrImporter.dependencies || {}),
+      ...(opts.optional && shrImporter.optionalDependencies || {}),
+    })
+    .map((pair) => dp.refToRelative(pair[1], pair[0]))
+    .filter((nodeId) => nodeId !== null)
+    .forEach((relDepPath) => {
+      entryNodes.push(relDepPath as string)
+    })
   })
-  .map((pair) => dp.refToRelative(pair[1], pair[0]))
-  .filter((nodeId) => nodeId !== null) as string[]
 
   const nodesToBuildAndTransitive = new Set()
   getSubgraphToBuild(pkgSnapshots, entryNodes, nodesToBuildAndTransitive, new Set(), { optional: opts.optional === true, pkgsToRebuild })

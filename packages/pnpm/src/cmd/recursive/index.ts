@@ -322,8 +322,27 @@ export async function recursive (
     cmdFullName === 'rebuild' ||
     !opts.shrinkwrapOnly && !opts.ignoreScripts && (cmdFullName === 'install' || cmdFullName === 'update' || cmdFullName === 'unlink')
   ) {
+    const action = (
+      cmdFullName !== 'rebuild' || input.length === 0
+      ? rebuild
+      : (importers: any, opts: any) => rebuildPkgs(importers, input, opts) // tslint:disable-line
+    )
+    if (opts.shrinkwrapDirectory) {
+      let pkgPaths = chunks.length === 0
+        ? chunks[0]
+        : Object.keys(pkgGraphResult.graph).sort()
+      if (opts.ignoredPackages) {
+        pkgPaths = pkgPaths.filter((prefix) => !opts.ignoredPackages!.has(prefix))
+      }
+      await action(
+        pkgPaths.map((prefix) => ({ prefix })),
+        {
+        ...installOpts,
+        pending: cmdFullName !== 'rebuild' || opts.pending === true,
+      })
+      return true
+    }
     const limitRebuild = pLimit(opts.workspaceConcurrency)
-    const action = (cmdFullName !== 'rebuild' || input.length === 0 ? rebuild : rebuildPkgs.bind(null, input))
     for (const chunk of chunks) {
       await Promise.all(chunk.map((prefix: string) =>
         limitRebuild(async () => {
@@ -332,7 +351,8 @@ export async function recursive (
               return
             }
             const localConfigs = await memReadLocalConfigs(prefix)
-            await action({
+            await action([{ prefix }],
+              {
               ...installOpts,
               ...localConfigs,
               bin: path.join(prefix, 'node_modules', '.bin'),

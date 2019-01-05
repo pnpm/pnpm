@@ -30,7 +30,7 @@ test('rebuilds dependencies', async (t: tape.Test) => {
     'github.com/zkochan/install-scripts-example/2de638b8b572cd1e87b74f4540754145fb2c0ebb',
   ])
 
-  await rebuild(await testDefaults())
+  await rebuild([{ prefix: process.cwd() }], await testDefaults())
 
   modules = await project.loadModules()
   t.ok(modules)
@@ -62,7 +62,7 @@ test('rebuild does not fail when a linked package is present', async (t: tape.Te
 
   await addDependenciesToPackage(['link:../local-pkg', 'is-positive'], await testDefaults())
 
-  await rebuild(await testDefaults())
+  await rebuild([{ prefix: process.cwd() }], await testDefaults())
 
   // see related issue https://github.com/pnpm/pnpm/issues/1155
   t.pass('rebuild did not fail')
@@ -75,7 +75,7 @@ test('rebuilds specific dependencies', async (t: tape.Test) => {
     'zkochan/install-scripts-example'
   ], await testDefaults({ targetDependenciesField: 'devDependencies', ignoreScripts: true }))
 
-  await rebuildPkgs(['install-scripts-example-for-pnpm'], await testDefaults())
+  await rebuildPkgs([{ prefix: process.cwd() }], ['install-scripts-example-for-pnpm'], await testDefaults())
 
   await project.hasNot('pre-and-postinstall-scripts-example/generated-by-preinstall')
   await project.hasNot('pre-and-postinstall-scripts-example/generated-by-postinstall')
@@ -104,7 +104,7 @@ test('rebuild with pending option', async (t: tape.Test) => {
   await project.hasNot('install-scripts-example-for-pnpm/generated-by-preinstall')
   await project.hasNot('install-scripts-example-for-pnpm/generated-by-postinstall')
 
-  await rebuild(await testDefaults({ rawNpmConfig: { pending: true } }))
+  await rebuild([{ prefix: process.cwd() }], await testDefaults({ rawNpmConfig: { pending: true } }))
 
   modules = await project.loadModules()
   t.ok(modules)
@@ -139,7 +139,7 @@ test('rebuild dependencies in correct order', async (t: tape.Test) => {
   await project.hasNot('.localhost+4873/with-postinstall-b/1.0.0/node_modules/with-postinstall-b/output.json')
   await project.hasNot('with-postinstall-a/output.json')
 
-  await rebuild(await testDefaults({ rawNpmConfig: { pending: true } }))
+  await rebuild([{ prefix: process.cwd() }], await testDefaults({ rawNpmConfig: { pending: true } }))
 
   modules = await project.loadModules()
   t.ok(modules)
