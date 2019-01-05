@@ -100,11 +100,13 @@ function getModulesInstallProgress$ (
           requirer: log.prefix,
         })
       }
-      stagePushStreamByRequirer[log.prefix].next(log)
-      if (log.stage === 'importing_done') {
-        progessStatsPushStreamByRequirer[log.prefix].complete()
-        stagePushStreamByRequirer[log.prefix].complete()
-      }
+      setTimeout(() => { // without this, `pnpm m i` might hang in some cases
+        stagePushStreamByRequirer[log.prefix].next(log)
+        if (log.stage === 'importing_done') {
+          progessStatsPushStreamByRequirer[log.prefix].complete()
+          stagePushStreamByRequirer[log.prefix].complete()
+        }
+      }, 0)
     })
 
   return most.from(modulesInstallProgressPushStream.observable)
