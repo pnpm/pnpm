@@ -17,6 +17,7 @@ import {
 
 const ncp = promisify(ncpCB.ncp)
 const test = promisifyTape(tape)
+const testOnly = promisifyTape(tape.only)
 
 test('rebuilds dependencies', async (t: tape.Test) => {
   const project = prepare(t)
@@ -140,6 +141,27 @@ test('rebuild dependencies in correct order', async (t: tape.Test) => {
   await project.hasNot('with-postinstall-a/output.json')
 
   await rebuild([{ prefix: process.cwd() }], await testDefaults({ rawNpmConfig: { pending: true } }))
+
+  modules = await project.loadModules()
+  t.ok(modules)
+  t.equal(modules!.pendingBuilds.length, 0)
+
+  t.ok(+project.requireModule('.localhost+4873/with-postinstall-b/1.0.0/node_modules/with-postinstall-b/output.json')[0] < +project.requireModule('with-postinstall-a/output.json')[0])
+})
+
+test('rebuild dependencies in correct order when node_modules uses independent-leaves', async (t: tape.Test) => {
+  const project = prepare(t)
+
+  await addDependenciesToPackage(['with-postinstall-a'], await testDefaults({ ignoreScripts: true, independentLeaves: true }))
+
+  let modules = await project.loadModules()
+  t.ok(modules)
+  t.doesNotEqual(modules!.pendingBuilds.length, 0)
+
+  await project.hasNot('.localhost+4873/with-postinstall-b/1.0.0/node_modules/with-postinstall-b/output.json')
+  await project.hasNot('with-postinstall-a/output.json')
+
+  await rebuild([{ prefix: process.cwd() }], await testDefaults({ rawNpmConfig: { pending: true }, independentLeaves: true }))
 
   modules = await project.loadModules()
   t.ok(modules)

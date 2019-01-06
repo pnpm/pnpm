@@ -4,6 +4,7 @@ import logger, { streamParser } from '@pnpm/logger'
 import { write as writeModulesYaml } from '@pnpm/modules-yaml'
 import {
   nameVerFromPkgSnapshot,
+  packageIsIndependent,
   PackageSnapshots,
   Shrinkwrap,
 } from '@pnpm/shrinkwrap-utils'
@@ -15,7 +16,10 @@ import pLimit = require('p-limit')
 import path = require('path')
 import R = require('ramda')
 import semver = require('semver')
-import { LAYOUT_VERSION } from '../constants'
+import {
+  ENGINE_NAME,
+  LAYOUT_VERSION,
+} from '../constants'
 import getContext from '../getContext'
 import extendOptions, {
   RebuildOptions,
@@ -144,7 +148,7 @@ export async function rebuild (
 
   for (const importer of ctx.importers) {
     if (importer.pkg && importer.pkg.scripts && (!opts.pending || ctx.pendingBuilds.indexOf(importer.id) !== -1)) {
-      await runLifecycleHooksInDir(opts.prefix, importer.pkg, {
+      await runLifecycleHooksInDir(importer.prefix, importer.pkg, {
         rawNpmConfig: opts.rawNpmConfig,
         rootNodeModulesDir: importer.modulesDir,
         unsafePerm: opts.unsafePerm,
@@ -304,13 +308,25 @@ async function _rebuild (
       .map((relDepPath) => {
         const pkgSnapshot = pkgSnapshots[relDepPath]
         return limitChild(async () => {
-          const depAbsolutePath = dp.resolve(opts.registries.default, relDepPath)
+          const depPath = dp.resolve(opts.registries.default, relDepPath)
           const pkgInfo = nameVerFromPkgSnapshot(relDepPath, pkgSnapshot)
+          const independent = opts.independentLeaves && packageIsIndependent(pkgSnapshot)
+          const pkgRoot = !independent
+            ? path.join(modules, `.${depPath}`, 'node_modules', pkgInfo.name)
+            : await (
+              async () => {
+                const { directory } = await opts.storeController.getPackageLocation(pkgSnapshot.id || depPath, pkgInfo.name, {
+                  importerPrefix: opts.prefix,
+                  targetEngine: opts.sideEffectsCacheRead && !opts.force && ENGINE_NAME || undefined,
+                })
+                return directory
+              }
+            )()
           try {
             await runPostinstallHooks({
-              depPath: depAbsolutePath,
+              depPath,
               optional: pkgSnapshot.optional === true,
-              pkgRoot: path.join(modules, `.${depAbsolutePath}`, 'node_modules', pkgInfo.name),
+              pkgRoot,
               prepare: pkgSnapshot.prepare,
               rawNpmConfig: opts.rawNpmConfig,
               rootNodeModulesDir: modules,
@@ -323,7 +339,7 @@ async function _rebuild (
               skippedOptionalDependencyLogger.debug({
                 details: err.toString(),
                 package: {
-                  id: pkgSnapshot.id || depAbsolutePath,
+                  id: pkgSnapshot.id || depPath,
                   name: pkgInfo.name,
                   version: pkgInfo.version,
                 },

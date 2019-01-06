@@ -337,9 +337,10 @@ export async function recursive (
       await action(
         pkgPaths.map((prefix) => ({ prefix })),
         {
-        ...installOpts,
-        pending: cmdFullName !== 'rebuild' || opts.pending === true,
-      })
+          ...installOpts,
+          pending: cmdFullName !== 'rebuild' || opts.pending === true,
+        },
+      )
       return true
     }
     const limitRebuild = pLimit(opts.workspaceConcurrency)
@@ -351,18 +352,20 @@ export async function recursive (
               return
             }
             const localConfigs = await memReadLocalConfigs(prefix)
-            await action([{ prefix }],
+            await action(
+              [{ prefix }],
               {
-              ...installOpts,
-              ...localConfigs,
-              bin: path.join(prefix, 'node_modules', '.bin'),
-              pending: cmdFullName !== 'rebuild' || opts.pending === true,
-              prefix,
-              rawNpmConfig: {
-                ...installOpts.rawNpmConfig,
-                ...localConfigs.rawNpmConfig,
+                ...installOpts,
+                ...localConfigs,
+                bin: path.join(prefix, 'node_modules', '.bin'),
+                pending: cmdFullName !== 'rebuild' || opts.pending === true,
+                prefix,
+                rawNpmConfig: {
+                  ...installOpts.rawNpmConfig,
+                  ...localConfigs.rawNpmConfig,
+                },
               },
-            })
+            )
             result.passes++
           } catch (err) {
             logger.info(err)

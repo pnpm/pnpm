@@ -32,6 +32,7 @@ import {
 } from '@pnpm/shrinkwrap-file'
 import {
   nameVerFromPkgSnapshot,
+  packageIsIndependent,
   pkgSnapshotToResolution,
   satisfiesPackageJson,
 } from '@pnpm/shrinkwrap-utils'
@@ -443,7 +444,6 @@ async function shrinkwrapToDepGraph (
       }
       const depPath = dp.resolve(opts.defaultRegistry, relDepPath)
       const pkgSnapshot = shr.packages[relDepPath]
-      const independent = opts.independentLeaves && pkgIsIndependent(pkgSnapshot)
       const resolution = pkgSnapshotToResolution(relDepPath, pkgSnapshot, opts.defaultRegistry)
       // TODO: optimize. This info can be already returned by pkgSnapshotToResolution()
       const pkgName = nameVerFromPkgSnapshot(relDepPath, pkgSnapshot).name
@@ -475,10 +475,8 @@ async function shrinkwrapToDepGraph (
         targetEngine: opts.sideEffectsCacheRead && !opts.force && ENGINE_NAME || undefined,
       })
 
-      // NOTE: This code will not convert the depPath with peer deps correctly
-      // Unfortunately, there is currently no way to tell if the last dir in the path is originally there or added to separate
-      // the diferent peer dependency sets
       const modules = path.join(opts.virtualStoreDir, `.${pkgIdToFilename(depPath, opts.prefix)}`, 'node_modules')
+      const independent = opts.independentLeaves && packageIsIndependent(pkgSnapshot)
       const peripheralLocation = !independent
         ? path.join(modules, pkgName)
         : pkgLocation.directory
@@ -555,7 +553,7 @@ async function getChildrenPaths (
     const childPkgSnapshot = ctx.pkgSnapshotsByRelDepPaths[childRelDepPath]
     if (ctx.graph[childDepPath]) {
       children[alias] = ctx.graph[childDepPath].peripheralLocation
-    } else if (ctx.independentLeaves && pkgIsIndependent(childPkgSnapshot)) {
+    } else if (ctx.independentLeaves && packageIsIndependent(childPkgSnapshot)) {
       const pkgId = childPkgSnapshot.id || childDepPath
       const pkgName = nameVerFromPkgSnapshot(childRelDepPath, childPkgSnapshot).name
       const pkgLocation = await ctx.storeController.getPackageLocation(pkgId, pkgName, {
@@ -574,10 +572,6 @@ async function getChildrenPaths (
     }
   }
   return children
-}
-
-function pkgIsIndependent (pkgSnapshot: PackageSnapshot) {
-  return pkgSnapshot.dependencies === undefined && pkgSnapshot.optionalDependencies === undefined
 }
 
 export interface DependenciesGraphNode {

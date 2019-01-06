@@ -2,7 +2,7 @@ import logger from '@pnpm/logger'
 import pkgIdToFilename from '@pnpm/pkgid-to-filename'
 import {
   nameVerFromPkgSnapshot,
-  PackageSnapshot,
+  packageIsIndependent,
   PackageSnapshots,
   Shrinkwrap,
 } from '@pnpm/shrinkwrap-utils'
@@ -80,7 +80,7 @@ async function getDependencies (
     const absolutePath = dp.resolve(opts.registry, depRelPath)
     const pkgName = nameVerFromPkgSnapshot(depRelPath, pkgSnapshot).name
     const modules = path.join(opts.virtualStoreDir, `.${pkgIdToFilename(absolutePath, opts.prefix)}`, 'node_modules')
-    const independent = opts.getIndependentPackageLocation && pkgIsIndependent(pkgSnapshot)
+    const independent = opts.getIndependentPackageLocation && packageIsIndependent(pkgSnapshot)
     const allDeps = {
       ...pkgSnapshot.dependencies,
       ...pkgSnapshot.optionalDependencies,
@@ -113,10 +113,6 @@ async function getDependencies (
     ...deps,
     ...await getDependencies(pkgSnapshots, nextDepRelPaths, walked, depth + 1, opts),
   ]
-}
-
-function pkgIsIndependent (pkgSnapshot: PackageSnapshot) {
-  return pkgSnapshot.dependencies === undefined && pkgSnapshot.optionalDependencies === undefined
 }
 
 export interface Dependency {
