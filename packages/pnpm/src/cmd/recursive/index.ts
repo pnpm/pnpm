@@ -206,20 +206,28 @@ export async function recursive (
 
   const memReadLocalConfigs = mem(readLocalConfigs)
 
-  if (cmdFullName !== 'rebuild') {
-    let pkgPaths = chunks.length === 0
-      ? chunks[0]
-      : Object.keys(pkgGraphResult.graph).sort()
-    if (opts.shrinkwrapDirectory && ['install', 'uninstall', 'update'].indexOf(cmdFullName) !== -1) {
+  function getImporters () {
+    const importers = [] as Array<{ buildIndex: number, prefix: string }>
+    chunks.forEach((prefixes: string[], buildIndex) => {
       if (opts.ignoredPackages) {
-        pkgPaths = pkgPaths.filter((prefix) => !opts.ignoredPackages!.has(prefix))
+        prefixes = prefixes.filter((prefix) => !opts.ignoredPackages!.has(prefix))
       }
+      prefixes.forEach((prefix) => {
+        importers.push({ buildIndex, prefix })
+      })
+    })
+    return importers
+  }
+
+  if (cmdFullName !== 'rebuild') {
+    if (opts.shrinkwrapDirectory && ['install', 'uninstall', 'update'].indexOf(cmdFullName) !== -1) {
+      let importers = getImporters()
       const isFromWorkspace = isSubdir.bind(null, opts.shrinkwrapDirectory)
-      pkgPaths = await pFilter(pkgPaths, async (pkgPath: string) => isFromWorkspace(await fs.realpath(pkgPath)))
-      if (pkgPaths.length === 0) return true
+      importers = await pFilter(importers, async ({ prefix }: { prefix: string }) => isFromWorkspace(await fs.realpath(prefix)))
+      if (importers.length === 0) return true
       const hooks = opts.ignorePnpmfile ? {} : requireHooks(opts.shrinkwrapDirectory, opts)
       const mutation = cmdFullName === 'uninstall' ? 'uninstallSome' : (input.length === 0 ? 'install' : 'installSome')
-      const importers = await Promise.all<MutatedImporter>(pkgPaths.map(async (prefix) => {
+      const mutatedImporters = await Promise.all<MutatedImporter>(importers.map(async ({ buildIndex, prefix }) => {
         const localConfigs = await memReadLocalConfigs(prefix)
         const shamefullyFlatten = typeof localConfigs.shamefullyFlatten === 'boolean'
           ? localConfigs.shamefullyFlatten
@@ -248,19 +256,24 @@ export async function recursive (
             } as MutatedImporter
           case 'install':
             return {
+              buildIndex,
               mutation,
               prefix,
               shamefullyFlatten,
             } as MutatedImporter
         }
       }))
-      await mutateModules(importers, {
+      await mutateModules(mutatedImporters, {
         ...installOpts,
         hooks,
         storeController: store.ctrl,
       })
       return true
     }
+
+    let pkgPaths = chunks.length === 0
+      ? chunks[0]
+      : Object.keys(pkgGraphResult.graph).sort()
 
     let action!: any // tslint:disable-line:no-any
     switch (cmdFullName) {
@@ -328,14 +341,9 @@ export async function recursive (
       : (importers: any, opts: any) => rebuildPkgs(importers, input, opts) // tslint:disable-line
     )
     if (opts.shrinkwrapDirectory) {
-      let pkgPaths = chunks.length === 0
-        ? chunks[0]
-        : Object.keys(pkgGraphResult.graph).sort()
-      if (opts.ignoredPackages) {
-        pkgPaths = pkgPaths.filter((prefix) => !opts.ignoredPackages!.has(prefix))
-      }
+      const importers = getImporters()
       await action(
-        pkgPaths.map((prefix) => ({ prefix })),
+        importers,
         {
           ...installOpts,
           pending: cmdFullName !== 'rebuild' || opts.pending === true,
@@ -353,7 +361,7 @@ export async function recursive (
             }
             const localConfigs = await memReadLocalConfigs(prefix)
             await action(
-              [{ prefix }],
+              [{ buildIndex: 0, prefix }],
               {
                 ...installOpts,
                 ...localConfigs,

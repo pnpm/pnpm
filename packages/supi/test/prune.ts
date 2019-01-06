@@ -41,6 +41,7 @@ test('prune removes extraneous packages', async (t: tape.Test) => {
   await mutateModules(
     [
       {
+        buildIndex: 0,
         mutation: 'install',
         prefix: process.cwd(),
         pruneDirectDependencies: true,

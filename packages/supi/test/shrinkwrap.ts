@@ -1091,10 +1091,12 @@ test('doing named installation when shared shrinkwrap.yaml exists already', asyn
   await mutateModules(
     [
       {
+        buildIndex: 0,
         mutation: 'install',
         prefix: path.resolve('pkg1'),
       },
       {
+        buildIndex: 0,
         mutation: 'install',
         prefix: path.resolve('pkg2'),
       },

@@ -1,4 +1,4 @@
-import prepare from '@pnpm/prepare'
+import prepare, { preparePackages } from '@pnpm/prepare'
 import ncpCB = require('ncp')
 import path = require('path')
 import exists = require('path-exists')
@@ -6,6 +6,7 @@ import {
   addDependenciesToPackage,
   rebuild,
   rebuildPkgs,
+  mutateModules,
 } from 'supi'
 import tape = require('tape')
 import promisifyTape from 'tape-promise'
@@ -31,7 +32,7 @@ test('rebuilds dependencies', async (t: tape.Test) => {
     'github.com/zkochan/install-scripts-example/2de638b8b572cd1e87b74f4540754145fb2c0ebb',
   ])
 
-  await rebuild([{ prefix: process.cwd() }], await testDefaults())
+  await rebuild([{ buildIndex: 0, prefix: process.cwd() }], await testDefaults())
 
   modules = await project.loadModules()
   t.ok(modules)
@@ -63,7 +64,7 @@ test('rebuild does not fail when a linked package is present', async (t: tape.Te
 
   await addDependenciesToPackage(['link:../local-pkg', 'is-positive'], await testDefaults())
 
-  await rebuild([{ prefix: process.cwd() }], await testDefaults())
+  await rebuild([{ buildIndex: 0, prefix: process.cwd() }], await testDefaults())
 
   // see related issue https://github.com/pnpm/pnpm/issues/1155
   t.pass('rebuild did not fail')
@@ -105,7 +106,7 @@ test('rebuild with pending option', async (t: tape.Test) => {
   await project.hasNot('install-scripts-example-for-pnpm/generated-by-preinstall')
   await project.hasNot('install-scripts-example-for-pnpm/generated-by-postinstall')
 
-  await rebuild([{ prefix: process.cwd() }], await testDefaults({ rawNpmConfig: { pending: true } }))
+  await rebuild([{ buildIndex: 0, prefix: process.cwd() }], await testDefaults({ rawNpmConfig: { pending: true } }))
 
   modules = await project.loadModules()
   t.ok(modules)
@@ -140,7 +141,7 @@ test('rebuild dependencies in correct order', async (t: tape.Test) => {
   await project.hasNot('.localhost+4873/with-postinstall-b/1.0.0/node_modules/with-postinstall-b/output.json')
   await project.hasNot('with-postinstall-a/output.json')
 
-  await rebuild([{ prefix: process.cwd() }], await testDefaults({ rawNpmConfig: { pending: true } }))
+  await rebuild([{ buildIndex: 0, prefix: process.cwd() }], await testDefaults({ rawNpmConfig: { pending: true } }))
 
   modules = await project.loadModules()
   t.ok(modules)
@@ -161,11 +162,88 @@ test('rebuild dependencies in correct order when node_modules uses independent-l
   await project.hasNot('.localhost+4873/with-postinstall-b/1.0.0/node_modules/with-postinstall-b/output.json')
   await project.hasNot('with-postinstall-a/output.json')
 
-  await rebuild([{ prefix: process.cwd() }], await testDefaults({ rawNpmConfig: { pending: true }, independentLeaves: true }))
+  await rebuild([{ buildIndex: 0, prefix: process.cwd() }], await testDefaults({ rawNpmConfig: { pending: true }, independentLeaves: true }))
 
   modules = await project.loadModules()
   t.ok(modules)
   t.equal(modules!.pendingBuilds.length, 0)
 
   t.ok(+project.requireModule('.localhost+4873/with-postinstall-b/1.0.0/node_modules/with-postinstall-b/output.json')[0] < +project.requireModule('with-postinstall-a/output.json')[0])
+})
+
+test('rebuild multiple packages in correct order', async (t: tape.Test) => {
+  const projects = preparePackages(t, [
+    {
+      name: 'project-1',
+      version: '1.0.0',
+
+      dependencies: {
+        'json-append': '1',
+      },
+      scripts: {
+        postinstall: `node -e "process.stdout.write('project-1')" | json-append ../output1.json && node -e "process.stdout.write('project-1')" | json-append ../output2.json`,
+      },
+    },
+    {
+      name: 'project-2',
+      version: '1.0.0',
+
+      dependencies: {
+        'json-append': '1',
+        'project-1': '1'
+      },
+      scripts: {
+        postinstall: `node -e "process.stdout.write('project-2')" | json-append ../output1.json`,
+      },
+    },
+    {
+      name: 'project-3',
+      version: '1.0.0',
+
+      dependencies: {
+        'json-append': '1',
+        'project-1': '1'
+      },
+      scripts: {
+        postinstall: `node -e "process.stdout.write('project-3')" | json-append ../output2.json`,
+      },
+    },
+    {
+      name: 'project-0',
+      version: '1.0.0',
+
+      dependencies: {},
+    },
+  ])
+
+  const importers = [
+    {
+      buildIndex: 1,
+      prefix: path.resolve('project-3'),
+    },
+    {
+      buildIndex: 1,
+      prefix: path.resolve('project-2'),
+    },
+    {
+      buildIndex: 0,
+      prefix: path.resolve('project-1'),
+    },
+    {
+      buildIndex: 0,
+      prefix: path.resolve('project-0'),
+    },
+  ]
+  await mutateModules(
+    importers.map((importer) => ({ ...importer, mutation: 'install' as 'install' })),
+    await testDefaults({ ignoreScripts: true }),
+  )
+
+  await rebuild(importers, await testDefaults())
+
+  const outputs1 = await import(path.resolve('output1.json')) as string[]
+  const outputs2 = await import(path.resolve('output2.json')) as string[]
+
+  t.deepEqual(outputs1, ['project-1', 'project-2'])
+  t.deepEqual(outputs2, ['project-1', 'project-3'])
 })

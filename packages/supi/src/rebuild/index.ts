@@ -1,5 +1,8 @@
 import { skippedOptionalDependencyLogger } from '@pnpm/core-loggers'
-import runLifecycleHooks, { runPostinstallHooks } from '@pnpm/lifecycle'
+import {
+  runLifecycleHooksConcurrently,
+  runPostinstallHooks,
+} from '@pnpm/lifecycle'
 import logger, { streamParser } from '@pnpm/logger'
 import { write as writeModulesYaml } from '@pnpm/modules-yaml'
 import {
@@ -8,7 +11,6 @@ import {
   PackageSnapshots,
   Shrinkwrap,
 } from '@pnpm/shrinkwrap-utils'
-import { PackageJson } from '@pnpm/types'
 import npa = require('@zkochan/npm-package-arg')
 import * as dp from 'dependency-path'
 import graphSequencer = require('graph-sequencer')
@@ -115,7 +117,7 @@ export async function rebuildPkgs (
 }
 
 export async function rebuild (
-  importers: Array<{ prefix: string }>,
+  importers: Array<{ buildIndex: number, prefix: string }>,
   maybeOpts: RebuildOptions,
 ) {
   const reporter = maybeOpts && maybeOpts.reporter
@@ -146,14 +148,18 @@ export async function rebuild (
 
   ctx.pendingBuilds = ctx.pendingBuilds.filter((relDepPath) => !pkgsThatWereRebuilt.has(relDepPath))
 
+  const scriptsOpts = {
+    rawNpmConfig: opts.rawNpmConfig,
+    unsafePerm: opts.unsafePerm || false,
+  }
+  await runLifecycleHooksConcurrently(
+    ['preinstall', 'install', 'postinstall', 'prepublish', 'prepare'],
+    ctx.importers,
+    opts.childConcurrency || 5,
+    scriptsOpts,
+  )
   for (const importer of ctx.importers) {
     if (importer.pkg && importer.pkg.scripts && (!opts.pending || ctx.pendingBuilds.indexOf(importer.id) !== -1)) {
-      await runLifecycleHooksInDir(importer.prefix, importer.pkg, {
-        rawNpmConfig: opts.rawNpmConfig,
-        rootNodeModulesDir: importer.modulesDir,
-        unsafePerm: opts.unsafePerm,
-      })
-
       ctx.pendingBuilds.splice(ctx.pendingBuilds.indexOf(importer.id), 1)
     }
   }
@@ -179,40 +185,6 @@ export async function rebuild (
     skipped: Array.from(ctx.skipped),
     store: ctx.storePath,
   })
-}
-
-async function runLifecycleHooksInDir (
-  prefix: string,
-  pkg: PackageJson,
-  opts: {
-    rawNpmConfig: object,
-    rootNodeModulesDir: string,
-    unsafePerm: boolean,
-  },
-) {
-  const scriptsOpts = {
-    depPath: prefix,
-    optional: false,
-    pkgRoot: prefix,
-    rawNpmConfig: opts.rawNpmConfig,
-    rootNodeModulesDir: opts.rootNodeModulesDir,
-    unsafePerm: opts.unsafePerm || false,
-  }
-  if (pkg.scripts!.preinstall) {
-    await runLifecycleHooks('preinstall', pkg, scriptsOpts)
-  }
-  if (pkg.scripts!.install) {
-    await runLifecycleHooks('install', pkg, scriptsOpts)
-  }
-  if (pkg.scripts!.postinstall) {
-    await runLifecycleHooks('postinstall', pkg, scriptsOpts)
-  }
-  if (pkg.scripts!.prepublish) {
-    await runLifecycleHooks('prepublish', pkg, scriptsOpts)
-  }
-  if (pkg.scripts!.prepare) {
-    await runLifecycleHooks('prepare', pkg, scriptsOpts)
-  }
 }
 
 function getSubgraphToBuild (

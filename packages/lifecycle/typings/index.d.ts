@@ -17,3 +17,8 @@ declare module 'util.promisify' {
   const anything: any;
   export = anything;
 }
+
+declare module 'p-limit' {
+  const anything: any;
+  export = anything;
+}

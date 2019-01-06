@@ -17,7 +17,7 @@ export default async function (
   })
 
   if (args.length === 0) {
-    await rebuild([{ prefix: rebuildOpts.prefix }], rebuildOpts)
+    await rebuild([{ buildIndex: 0, prefix: rebuildOpts.prefix }], rebuildOpts)
   }
   await rebuildPkgs([{ prefix: rebuildOpts.prefix }], args, rebuildOpts)
 }

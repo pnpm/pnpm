@@ -292,7 +292,10 @@ test('rebuild should not fail on incomplete shrinkwrap.yaml', async (t: tape.Tes
 
   const reporter = sinon.spy()
 
-  await rebuild([{ prefix: process.cwd() }], await testDefaults({ pending: true, reporter }))
+  await rebuild([{
+    buildIndex: 0,
+    prefix: process.cwd(),
+  }], await testDefaults({ pending: true, reporter }))
 
   t.ok(reporter.calledWithMatch({
     level: 'debug',

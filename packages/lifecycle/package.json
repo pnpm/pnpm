@@ -38,6 +38,7 @@
     "@pnpm/read-package-json": "1.1.1",
     "@pnpm/types": "2.0.0",
     "@zkochan/npm-lifecycle": "2.2.0",
+    "p-limit": "2.1.0",
     "path-exists": "3.0.0"
   },
   "devDependencies": {

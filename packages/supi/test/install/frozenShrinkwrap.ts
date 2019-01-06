@@ -80,10 +80,12 @@ test('frozen-shrinkwrap: fail on a shared shrinkwrap.yaml that does not satisfy 
 
   const importers: MutatedImporter[] = [
     {
+      buildIndex: 0,
       mutation: 'install',
       prefix: path.resolve('p1'),
     },
     {
+      buildIndex: 0,
       mutation: 'install',
       prefix: path.resolve('p2'),
     },
@@ -247,10 +249,12 @@ test('prefer-frozen-shrinkwrap: should prefer frozen-shrinkwrap when package has
 
   const importers: MutatedImporter[] = [
     {
+      buildIndex: 0,
       mutation: 'install',
       prefix: path.resolve('p1'),
     },
     {
+      buildIndex: 0,
       mutation: 'install',
       prefix: path.resolve('p2'),
     },

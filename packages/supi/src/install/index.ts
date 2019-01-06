@@ -5,7 +5,10 @@ import {
   summaryLogger,
 } from '@pnpm/core-loggers'
 import headless from '@pnpm/headless'
-import runLifecycleHooks, { runPostinstallHooks } from '@pnpm/lifecycle'
+import {
+  runLifecycleHooksConcurrently,
+  runPostinstallHooks,
+} from '@pnpm/lifecycle'
 import logger, {
   streamParser,
 } from '@pnpm/logger'
@@ -73,6 +76,7 @@ import linkPackages, {
 import { absolutePathToRef } from './shrinkwrap'
 
 export type DependenciesMutation = {
+  buildIndex: number,
   mutation: 'install',
   pruneDirectDependencies?: boolean,
 } | {
@@ -103,7 +107,16 @@ export function install (
     },
   },
 ) {
-  return mutateModules([{ prefix: opts.prefix || process.cwd(), mutation: 'install' }], opts)
+  return mutateModules(
+    [
+      {
+        buildIndex: 0,
+        mutation: 'install',
+        prefix: opts.prefix || process.cwd(),
+      },
+    ],
+    opts,
+  )
 }
 
 export type MutatedImporter = ImportersOptions & DependenciesMutation
@@ -209,6 +222,22 @@ export async function mutateModules (
     }
 
     const importersToInstall = [] as ImporterToUpdate[]
+
+    const importersToBeInstalled = ctx.importers.filter((importer) => importer.mutation === 'install') as Array<{ buildIndex: number, prefix: string, pkg: PackageJson, modulesDir: string }>
+    const scriptsOpts = {
+      rawNpmConfig: opts.rawNpmConfig,
+      stdio: opts.ownLifecycleHooksStdio,
+      unsafePerm: opts.unsafePerm || false,
+    }
+    if (!opts.ignoreScripts) {
+      await runLifecycleHooksConcurrently(
+        ['preinstall'],
+        importersToBeInstalled,
+        opts.childConcurrency,
+        scriptsOpts,
+      )
+    }
+
     // TODO: make it concurrent
     for (const importer of ctx.importers) {
       switch (importer.mutation) {
@@ -328,20 +357,6 @@ export async function mutateModules (
         })
       }
 
-      const scriptsOpts = {
-        depPath: importer.prefix,
-        optional: false,
-        pkgRoot: importer.prefix,
-        rawNpmConfig: opts.rawNpmConfig,
-        rootNodeModulesDir: importer.modulesDir,
-        stdio: opts.ownLifecycleHooksStdio,
-        unsafePerm: opts.unsafePerm || false,
-      }
-
-      if (scripts.preinstall) {
-        await runLifecycleHooks('preinstall', importer.pkg, scriptsOpts)
-      }
-
       importersToInstall.push({
         pruneDirectDependencies: false,
         ...importer,
@@ -375,33 +390,12 @@ export async function mutateModules (
       updateShrinkwrapMinorVersion: true,
     })
 
-    for (const importer of ctx.importers) {
-      if (importer.mutation !== 'install') continue
-
-      const scripts = !opts.ignoreScripts && importer.pkg && importer.pkg.scripts || {}
-
-      const scriptsOpts = {
-        depPath: importer.prefix,
-        optional: false,
-        pkgRoot: importer.prefix,
-        rawNpmConfig: opts.rawNpmConfig,
-        rootNodeModulesDir: importer.modulesDir,
-        stdio: opts.ownLifecycleHooksStdio,
-        unsafePerm: opts.unsafePerm || false,
-      }
-
-      if (scripts.install) {
-        await runLifecycleHooks('install', importer.pkg, scriptsOpts)
-      }
-      if (scripts.postinstall) {
-        await runLifecycleHooks('postinstall', importer.pkg, scriptsOpts)
-      }
-      if (scripts.prepublish) {
-        await runLifecycleHooks('prepublish', importer.pkg, scriptsOpts)
-      }
-      if (scripts.prepare) {
-        await runLifecycleHooks('prepare', importer.pkg, scriptsOpts)
-      }
+    if (!opts.ignoreScripts) {
+      await runLifecycleHooksConcurrently(['install', 'postinstall', 'prepublish', 'prepare'],
+        importersToBeInstalled,
+        opts.childConcurrency,
+        scriptsOpts,
+      )
     }
   }
 }

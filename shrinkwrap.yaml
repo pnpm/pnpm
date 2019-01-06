@@ -439,6 +439,7 @@ importers:
       '@pnpm/read-package-json': 1.1.1
       '@pnpm/types': 'link:../types'
       '@zkochan/npm-lifecycle': 2.2.0
+      p-limit: 2.1.0
       path-exists: 3.0.0
     devDependencies:
       '@pnpm/lifecycle': 'link:'
@@ -473,6 +474,7 @@ importers:
       load-json-file: 5.1.0
       mos: 2.0.0-alpha.3
       mos-plugin-readme: 1.0.4
+      p-limit: 2.1.0
       path-exists: 3.0.0
       rimraf: 2.6.3
       tape: 4.9.2

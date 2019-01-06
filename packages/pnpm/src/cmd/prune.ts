@@ -6,6 +6,7 @@ export default async (input: string[], opts: PnpmOptions) => {
   const store = await createStoreController(opts)
   return mutateModules([
     {
+      buildIndex: 0,
       mutation: 'install',
       prefix: process.cwd(),
       pruneDirectDependencies: true,
