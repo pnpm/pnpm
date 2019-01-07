@@ -1,3 +1,4 @@
+import { StoreController } from '@pnpm/store-controller-types'
 import { Registries } from '@pnpm/types'
 import { DEFAULT_REGISTRIES, normalizeRegistries } from '@pnpm/utils'
 import path = require('path')
@@ -8,7 +9,9 @@ export interface RebuildOptions {
   childConcurrency?: number,
   prefix?: string,
   shrinkwrapDirectory?: string,
+  sideEffectsCacheRead?: boolean,
   store: string, // TODO: remove this property
+  storeController: StoreController,
   independentLeaves?: boolean,
   force?: boolean,
   forceSharedShrinkwrap?: boolean,
@@ -36,6 +39,7 @@ export type StrictRebuildOptions = RebuildOptions & {
   prefix: string,
   store: string,
   shrinkwrapDirectory: string,
+  sideEffectsCacheRead: boolean,
   independentLeaves: boolean,
   force: boolean,
   forceSharedShrinkwrap: boolean,
@@ -77,6 +81,7 @@ const defaults = async (opts: RebuildOptions) => {
     shamefullyFlatten: false,
     shrinkwrap: true,
     shrinkwrapDirectory,
+    sideEffectsCacheRead: false,
     store: opts.store,
     unsafePerm: process.platform === 'win32' ||
       process.platform === 'cygwin' ||

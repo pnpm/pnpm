@@ -38,10 +38,12 @@ test('install only the dependencies of the specified importer', async (t) => {
 
   const importers: MutatedImporter[] = [
     {
+      buildIndex: 0,
       mutation: 'install',
       prefix: path.resolve('project-1'),
     },
     {
+      buildIndex: 0,
       mutation: 'install',
       prefix: path.resolve('project-2'),
     },
@@ -80,10 +82,12 @@ test('dependencies of other importers are not pruned when installing for a subse
 
   await mutateModules([
     {
+      buildIndex: 0,
       mutation: 'install',
       prefix: path.resolve('project-1'),
     },
     {
+      buildIndex: 0,
       mutation: 'install',
       prefix: path.resolve('project-2'),
     },
@@ -131,10 +135,12 @@ test('dependencies of other importers are not pruned when (headless) installing 
 
   const importers: MutatedImporter[] = [
     {
+      buildIndex: 0,
       mutation: 'install',
       prefix: path.resolve('project-1'),
     },
     {
+      buildIndex: 0,
       mutation: 'install',
       prefix: path.resolve('project-2'),
     },
@@ -171,6 +177,7 @@ test('adding a new dev dependency to project that uses a shared shrinkwrap', asy
 
   await mutateModules([
     {
+      buildIndex: 0,
       mutation: 'install',
       prefix: path.resolve('project-1'),
     },
@@ -206,10 +213,12 @@ test('headless install is used when package link to another package in the works
 
   const importers: MutatedImporter[] = [
     {
+      buildIndex: 0,
       mutation: 'install',
       prefix: path.resolve('project-1'),
     },
     {
+      buildIndex: 0,
       mutation: 'install',
       prefix: path.resolve('project-2'),
     },
@@ -252,6 +261,7 @@ test('current shrinkwrap contains only installed dependencies when adding a new 
 
   await mutateModules([
     {
+      buildIndex: 0,
       mutation: 'install',
       prefix: path.resolve('project-1'),
     },
@@ -259,6 +269,7 @@ test('current shrinkwrap contains only installed dependencies when adding a new 
 
   await mutateModules([
     {
+      buildIndex: 0,
       mutation: 'install',
       prefix: path.resolve('project-2'),
     },

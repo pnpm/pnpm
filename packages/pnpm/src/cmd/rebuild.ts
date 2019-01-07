@@ -1,9 +1,8 @@
-import storePath from '@pnpm/store-path'
-import path = require('path')
 import {
   rebuild,
   rebuildPkgs,
 } from 'supi'
+import createStoreController from '../createStoreController'
 import { PnpmOptions } from '../types'
 
 export default async function (
@@ -11,12 +10,14 @@ export default async function (
   opts: PnpmOptions,
   command: string,
 ) {
+  const store = await createStoreController(opts)
   const rebuildOpts = Object.assign(opts, {
-    store: await storePath(opts.prefix, opts.store),
+    store: store.path,
+    storeController: store.ctrl,
   })
 
   if (args.length === 0) {
-    await rebuild(rebuildOpts)
+    await rebuild([{ buildIndex: 0, prefix: rebuildOpts.prefix }], rebuildOpts)
   }
-  await rebuildPkgs(args, rebuildOpts)
+  await rebuildPkgs([{ prefix: rebuildOpts.prefix }], args, rebuildOpts)
 }

@@ -80,6 +80,7 @@
     "replace-string": "2.0.0",
     "resolve-link-target": "1.0.1",
     "rimraf-then": "1.0.1",
+    "run-groups": "1.0.0",
     "semver": "5.6.0",
     "symlink-dir": "2.0.2",
     "util.promisify": "1.0.0",

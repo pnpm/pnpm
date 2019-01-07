@@ -228,10 +228,12 @@ test('uninstalling a dependency from package that uses shared shrinkwrap', async
   await mutateModules(
     [
       {
+        buildIndex: 0,
         mutation: 'install',
         prefix: path.resolve('project-1'),
       },
       {
+        buildIndex: 0,
         mutation: 'install',
         prefix: path.resolve('project-2'),
       },

@@ -5,7 +5,10 @@ import {
   summaryLogger,
 } from '@pnpm/core-loggers'
 import headless from '@pnpm/headless'
-import runLifecycleHooks, { runPostinstallHooks } from '@pnpm/lifecycle'
+import {
+  runLifecycleHooksConcurrently,
+  runPostinstallHooks,
+} from '@pnpm/lifecycle'
 import logger, {
   streamParser,
 } from '@pnpm/logger'
@@ -41,10 +44,10 @@ import isInnerLink = require('is-inner-link')
 import isSubdir = require('is-subdir')
 import pEvery = require('p-every')
 import pFilter = require('p-filter')
-import pLimit = require('p-limit')
 import path = require('path')
 import R = require('ramda')
 import rimraf = require('rimraf-then')
+import runGroups from 'run-groups'
 import semver = require('semver')
 import {
   ENGINE_NAME,
@@ -73,6 +76,7 @@ import linkPackages, {
 import { absolutePathToRef } from './shrinkwrap'
 
 export type DependenciesMutation = {
+  buildIndex: number,
   mutation: 'install',
   pruneDirectDependencies?: boolean,
 } | {
@@ -103,7 +107,16 @@ export function install (
     },
   },
 ) {
-  return mutateModules([{ prefix: opts.prefix || process.cwd(), mutation: 'install' }], opts)
+  return mutateModules(
+    [
+      {
+        buildIndex: 0,
+        mutation: 'install',
+        prefix: opts.prefix || process.cwd(),
+      },
+    ],
+    opts,
+  )
 }
 
 export type MutatedImporter = ImportersOptions & DependenciesMutation
@@ -185,7 +198,17 @@ export async function mutateModules (
           currentShrinkwrap: ctx.currentShrinkwrap,
           force: opts.force,
           ignoreScripts: opts.ignoreScripts,
-          importers: ctx.importers,
+          importers: ctx.importers as Array<{
+            bin: string,
+            buildIndex: number,
+            hoistedAliases: {[depPath: string]: string[]}
+            id: string,
+            modulesDir: string,
+            pkg: PackageJson,
+            prefix: string,
+            pruneDirectDependencies?: boolean,
+            shamefullyFlatten: boolean,
+          }>,
           include: opts.include,
           independentLeaves: opts.independentLeaves,
           ownLifecycleHooksStdio: opts.ownLifecycleHooksStdio,
@@ -209,6 +232,22 @@ export async function mutateModules (
     }
 
     const importersToInstall = [] as ImporterToUpdate[]
+
+    const importersToBeInstalled = ctx.importers.filter((importer) => importer.mutation === 'install') as Array<{ buildIndex: number, prefix: string, pkg: PackageJson, modulesDir: string }>
+    const scriptsOpts = {
+      rawNpmConfig: opts.rawNpmConfig,
+      stdio: opts.ownLifecycleHooksStdio,
+      unsafePerm: opts.unsafePerm || false,
+    }
+    if (!opts.ignoreScripts) {
+      await runLifecycleHooksConcurrently(
+        ['preinstall'],
+        importersToBeInstalled,
+        opts.childConcurrency,
+        scriptsOpts,
+      )
+    }
+
     // TODO: make it concurrent
     for (const importer of ctx.importers) {
       switch (importer.mutation) {
@@ -328,20 +367,6 @@ export async function mutateModules (
         })
       }
 
-      const scriptsOpts = {
-        depPath: importer.prefix,
-        optional: false,
-        pkgRoot: importer.prefix,
-        rawNpmConfig: opts.rawNpmConfig,
-        rootNodeModulesDir: importer.modulesDir,
-        stdio: opts.ownLifecycleHooksStdio,
-        unsafePerm: opts.unsafePerm || false,
-      }
-
-      if (scripts.preinstall) {
-        await runLifecycleHooks('preinstall', importer.pkg, scriptsOpts)
-      }
-
       importersToInstall.push({
         pruneDirectDependencies: false,
         ...importer,
@@ -375,33 +400,12 @@ export async function mutateModules (
       updateShrinkwrapMinorVersion: true,
     })
 
-    for (const importer of ctx.importers) {
-      if (importer.mutation !== 'install') continue
-
-      const scripts = !opts.ignoreScripts && importer.pkg && importer.pkg.scripts || {}
-
-      const scriptsOpts = {
-        depPath: importer.prefix,
-        optional: false,
-        pkgRoot: importer.prefix,
-        rawNpmConfig: opts.rawNpmConfig,
-        rootNodeModulesDir: importer.modulesDir,
-        stdio: opts.ownLifecycleHooksStdio,
-        unsafePerm: opts.unsafePerm || false,
-      }
-
-      if (scripts.install) {
-        await runLifecycleHooks('install', importer.pkg, scriptsOpts)
-      }
-      if (scripts.postinstall) {
-        await runLifecycleHooks('postinstall', importer.pkg, scriptsOpts)
-      }
-      if (scripts.prepublish) {
-        await runLifecycleHooks('prepublish', importer.pkg, scriptsOpts)
-      }
-      if (scripts.prepare) {
-        await runLifecycleHooks('prepare', importer.pkg, scriptsOpts)
-      }
+    if (!opts.ignoreScripts) {
+      await runLifecycleHooksConcurrently(['install', 'postinstall', 'prepublish', 'prepare'],
+        importersToBeInstalled,
+        opts.childConcurrency,
+        scriptsOpts,
+      )
     }
   }
 }
@@ -838,8 +842,6 @@ async function installInContext (
 
     // postinstall hooks
     if (!(opts.ignoreScripts || !result.newDepPaths || !result.newDepPaths.length)) {
-      const limitChild = pLimit(opts.childConcurrency)
-
       const depPaths = Object.keys(result.depGraph)
       const rootNodes = depPaths.filter((depPath) => result.depGraph[depPath].depth === 0)
       const nodesToBuild = new Set<string>()
@@ -856,63 +858,61 @@ async function installInContext (
         groups: [nodesToBuildArray],
       })
       const chunks = graphSequencerResult.chunks as string[][]
-
-      for (const chunk of chunks) {
-        await Promise.all(chunk
-          .filter((depPath) => result.depGraph[depPath].requiresBuild && !result.depGraph[depPath].isBuilt && result.newDepPaths.indexOf(depPath) !== -1)
-          .map((depPath) => result.depGraph[depPath])
-          .map((pkg) => limitChild(async () => {
-            try {
-              const hasSideEffects = await runPostinstallHooks({
-                depPath: pkg.absolutePath,
-                optional: pkg.optional,
-                pkgRoot: pkg.peripheralLocation,
-                prepare: pkg.prepare,
-                rawNpmConfig: opts.rawNpmConfig,
-                rootNodeModulesDir: ctx.virtualStoreDir,
-                unsafePerm: opts.unsafePerm || false,
-              })
-              if (hasSideEffects && opts.sideEffectsCacheWrite) {
-                try {
-                  await opts.storeController.upload(pkg.peripheralLocation, {
-                    engine: ENGINE_NAME,
-                    pkgId: pkg.id,
+      const groups = chunks.map((chunk) => chunk
+        .filter((depPath) => result.depGraph[depPath].requiresBuild && !result.depGraph[depPath].isBuilt && result.newDepPaths.indexOf(depPath) !== -1)
+        .map((depPath) => result.depGraph[depPath])
+        .map((pkg) => async () => {
+          try {
+            const hasSideEffects = await runPostinstallHooks({
+              depPath: pkg.absolutePath,
+              optional: pkg.optional,
+              pkgRoot: pkg.peripheralLocation,
+              prepare: pkg.prepare,
+              rawNpmConfig: opts.rawNpmConfig,
+              rootNodeModulesDir: ctx.virtualStoreDir,
+              unsafePerm: opts.unsafePerm || false,
+            })
+            if (hasSideEffects && opts.sideEffectsCacheWrite) {
+              try {
+                await opts.storeController.upload(pkg.peripheralLocation, {
+                  engine: ENGINE_NAME,
+                  pkgId: pkg.id,
+                })
+              } catch (err) {
+                if (err && err.statusCode === 403) {
+                  logger.warn({
+                    message: `The store server disabled upload requests, could not upload ${pkg.id}`,
+                    prefix: ctx.shrinkwrapDirectory,
                   })
-                } catch (err) {
-                  if (err && err.statusCode === 403) {
-                    logger.warn({
-                      message: `The store server disabled upload requests, could not upload ${pkg.id}`,
-                      prefix: ctx.shrinkwrapDirectory,
-                    })
-                  } else {
-                    logger.warn({
-                      error: err,
-                      message: `An error occurred while uploading ${pkg.id}`,
-                      prefix: ctx.shrinkwrapDirectory,
-                    })
-                  }
+                } else {
+                  logger.warn({
+                    error: err,
+                    message: `An error occurred while uploading ${pkg.id}`,
+                    prefix: ctx.shrinkwrapDirectory,
+                  })
                 }
               }
-            } catch (err) {
-              if (resolvedPackagesByPackageId[pkg.id].optional) {
-                // TODO: add parents field to the log
-                skippedOptionalDependencyLogger.debug({
-                  details: err.toString(),
-                  package: {
-                    id: pkg.id,
-                    name: pkg.name,
-                    version: pkg.version,
-                  },
-                  prefix: opts.shrinkwrapDirectory,
-                  reason: 'build_failure',
-                })
-                return
-              }
-              throw err
             }
-          },
-        )))
-      }
+          } catch (err) {
+            if (resolvedPackagesByPackageId[pkg.id].optional) {
+              // TODO: add parents field to the log
+              skippedOptionalDependencyLogger.debug({
+                details: err.toString(),
+                package: {
+                  id: pkg.id,
+                  name: pkg.name,
+                  version: pkg.version,
+                },
+                prefix: opts.shrinkwrapDirectory,
+                reason: 'build_failure',
+              })
+              return
+            }
+            throw err
+          }
+        }),
+      )
+      await runGroups(opts.childConcurrency, groups)
     }
   }
 

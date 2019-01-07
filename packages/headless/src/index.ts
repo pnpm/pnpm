@@ -9,7 +9,7 @@ import {
 import filterShrinkwrap, {
   filterByImporters as filterShrinkwrapByImporters,
 } from '@pnpm/filter-shrinkwrap'
-import runLifecycleHooks from '@pnpm/lifecycle'
+import { runLifecycleHooksConcurrently } from '@pnpm/lifecycle'
 import linkBins, { linkBinsOfPackages } from '@pnpm/link-bins'
 import logger, {
   LogBase,
@@ -32,6 +32,7 @@ import {
 } from '@pnpm/shrinkwrap-file'
 import {
   nameVerFromPkgSnapshot,
+  packageIsIndependent,
   pkgSnapshotToResolution,
   satisfiesPackageJson,
 } from '@pnpm/shrinkwrap-utils'
@@ -62,6 +63,7 @@ export interface HeadlessOptions {
   independentLeaves: boolean,
   importers: Array<{
     bin: string,
+    buildIndex: number,
     hoistedAliases: {[depPath: string]: string[]}
     modulesDir: string,
     id: string,
@@ -117,24 +119,20 @@ export default async (opts: HeadlessOptions) => {
     }
   }
 
+  const scriptsOpts = {
+    optional: false,
+    rawNpmConfig: opts.rawNpmConfig,
+    stdio: opts.ownLifecycleHooksStdio || 'inherit',
+    unsafePerm: opts.unsafePerm || false,
+  }
+
   if (!opts.ignoreScripts) {
-    for (const importer of opts.importers) {
-      const scripts = !opts.ignoreScripts && importer.pkg.scripts || {}
-
-      const scriptsOpts = {
-        depPath: importer.prefix,
-        optional: false,
-        pkgRoot: importer.prefix,
-        rawNpmConfig: opts.rawNpmConfig,
-        rootNodeModulesDir: importer.modulesDir,
-        stdio: opts.ownLifecycleHooksStdio || 'inherit',
-        unsafePerm: opts.unsafePerm || false,
-      }
-
-      if (scripts.preinstall) {
-        await runLifecycleHooks('preinstall', importer.pkg, scriptsOpts)
-      }
-    }
+    await runLifecycleHooksConcurrently(
+      ['preinstall'],
+      opts.importers,
+      opts.childConcurrency || 5,
+      scriptsOpts,
+    )
   }
 
   const filterOpts = {
@@ -313,32 +311,12 @@ export default async (opts: HeadlessOptions) => {
   await opts.storeController.close()
 
   if (!opts.ignoreScripts) {
-    for (const importer of opts.importers) {
-      if (!importer.pkg.scripts) continue
-
-      const scriptsOpts = {
-        depPath: importer.prefix,
-        optional: false,
-        pkgRoot: importer.prefix,
-        rawNpmConfig: opts.rawNpmConfig,
-        rootNodeModulesDir: importer.modulesDir,
-        stdio: opts.ownLifecycleHooksStdio || 'inherit',
-        unsafePerm: opts.unsafePerm || false,
-      }
-
-      if (importer.pkg.scripts.install) {
-        await runLifecycleHooks('install', importer.pkg, scriptsOpts)
-      }
-      if (importer.pkg.scripts.postinstall) {
-        await runLifecycleHooks('postinstall', importer.pkg, scriptsOpts)
-      }
-      if (importer.pkg.scripts.prepublish) {
-        await runLifecycleHooks('prepublish', importer.pkg, scriptsOpts)
-      }
-      if (importer.pkg.scripts.prepare) {
-        await runLifecycleHooks('prepare', importer.pkg, scriptsOpts)
-      }
-    }
+    await runLifecycleHooksConcurrently(
+      ['install', 'postinstall', 'prepublish', 'prepare'],
+      opts.importers,
+      opts.childConcurrency || 5,
+      scriptsOpts,
+    )
   }
 
   if (reporter) {
@@ -443,7 +421,6 @@ async function shrinkwrapToDepGraph (
       }
       const depPath = dp.resolve(opts.defaultRegistry, relDepPath)
       const pkgSnapshot = shr.packages[relDepPath]
-      const independent = opts.independentLeaves && pkgIsIndependent(pkgSnapshot)
       const resolution = pkgSnapshotToResolution(relDepPath, pkgSnapshot, opts.defaultRegistry)
       // TODO: optimize. This info can be already returned by pkgSnapshotToResolution()
       const pkgName = nameVerFromPkgSnapshot(relDepPath, pkgSnapshot).name
@@ -475,10 +452,8 @@ async function shrinkwrapToDepGraph (
         targetEngine: opts.sideEffectsCacheRead && !opts.force && ENGINE_NAME || undefined,
       })
 
-      // NOTE: This code will not convert the depPath with peer deps correctly
-      // Unfortunately, there is currently no way to tell if the last dir in the path is originally there or added to separate
-      // the diferent peer dependency sets
       const modules = path.join(opts.virtualStoreDir, `.${pkgIdToFilename(depPath, opts.prefix)}`, 'node_modules')
+      const independent = opts.independentLeaves && packageIsIndependent(pkgSnapshot)
       const peripheralLocation = !independent
         ? path.join(modules, pkgName)
         : pkgLocation.directory
@@ -555,7 +530,7 @@ async function getChildrenPaths (
     const childPkgSnapshot = ctx.pkgSnapshotsByRelDepPaths[childRelDepPath]
     if (ctx.graph[childDepPath]) {
       children[alias] = ctx.graph[childDepPath].peripheralLocation
-    } else if (ctx.independentLeaves && pkgIsIndependent(childPkgSnapshot)) {
+    } else if (ctx.independentLeaves && packageIsIndependent(childPkgSnapshot)) {
       const pkgId = childPkgSnapshot.id || childDepPath
       const pkgName = nameVerFromPkgSnapshot(childRelDepPath, childPkgSnapshot).name
       const pkgLocation = await ctx.storeController.getPackageLocation(pkgId, pkgName, {
@@ -574,10 +549,6 @@ async function getChildrenPaths (
     }
   }
   return children
-}
-
-function pkgIsIndependent (pkgSnapshot: PackageSnapshot) {
-  return pkgSnapshot.dependencies === undefined && pkgSnapshot.optionalDependencies === undefined
 }
 
 export interface DependenciesGraphNode {

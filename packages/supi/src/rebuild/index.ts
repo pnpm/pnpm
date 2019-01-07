@@ -1,22 +1,28 @@
 import { skippedOptionalDependencyLogger } from '@pnpm/core-loggers'
-import runLifecycleHooks, { runPostinstallHooks } from '@pnpm/lifecycle'
+import {
+  runLifecycleHooksConcurrently,
+  runPostinstallHooks,
+} from '@pnpm/lifecycle'
 import logger, { streamParser } from '@pnpm/logger'
 import { write as writeModulesYaml } from '@pnpm/modules-yaml'
 import {
   nameVerFromPkgSnapshot,
+  packageIsIndependent,
   PackageSnapshots,
   Shrinkwrap,
 } from '@pnpm/shrinkwrap-utils'
-import { PackageJson } from '@pnpm/types'
 import npa = require('@zkochan/npm-package-arg')
 import * as dp from 'dependency-path'
 import graphSequencer = require('graph-sequencer')
-import pLimit = require('p-limit')
 import path = require('path')
 import R = require('ramda')
+import runGroups from 'run-groups'
 import semver = require('semver')
-import { LAYOUT_VERSION } from '../constants'
-import { getContextForSingleImporter } from '../getContext'
+import {
+  ENGINE_NAME,
+  LAYOUT_VERSION,
+} from '../constants'
+import getContext from '../getContext'
 import extendOptions, {
   RebuildOptions,
   StrictRebuildOptions,
@@ -65,6 +71,7 @@ type PackageSelector = string | {
 }
 
 export async function rebuildPkgs (
+  importers: Array<{ prefix: string }>,
   pkgSpecs: string[],
   maybeOpts: RebuildOptions,
 ) {
@@ -73,7 +80,7 @@ export async function rebuildPkgs (
     streamParser.on('data', reporter)
   }
   const opts = await extendOptions(maybeOpts)
-  const ctx = await getContextForSingleImporter(opts)
+  const ctx = await getContext(importers, opts)
 
   if (!ctx.currentShrinkwrap || !ctx.currentShrinkwrap.packages) return
   const packages = ctx.currentShrinkwrap.packages
@@ -92,18 +99,33 @@ export async function rebuildPkgs (
     }
   })
 
-  const pkgs = findPackages(packages, searched, { prefix: ctx.prefix })
+  let pkgs = [] as string[]
+  for (const importer of importers) {
+    pkgs = [
+      ...pkgs,
+      ...findPackages(packages, searched, { prefix: importer.prefix }),
+    ]
+  }
 
-  await _rebuild(new Set(pkgs), ctx.virtualStoreDir, ctx.currentShrinkwrap, ctx.importerId, opts)
+  await _rebuild(
+    new Set(pkgs),
+    ctx.virtualStoreDir,
+    ctx.currentShrinkwrap,
+    ctx.importers.map((importer) => importer.id),
+    opts,
+  )
 }
 
-export async function rebuild (maybeOpts: RebuildOptions) {
+export async function rebuild (
+  importers: Array<{ buildIndex: number, prefix: string }>,
+  maybeOpts: RebuildOptions,
+) {
   const reporter = maybeOpts && maybeOpts.reporter
   if (reporter) {
     streamParser.on('data', reporter)
   }
   const opts = await extendOptions(maybeOpts)
-  const ctx = await getContextForSingleImporter(opts)
+  const ctx = await getContext(importers, opts)
 
   let idsToRebuild: string[] = []
 
@@ -116,28 +138,43 @@ export async function rebuild (maybeOpts: RebuildOptions) {
   }
   if (idsToRebuild.length === 0) return
 
-  const pkgsThatWereRebuilt = await _rebuild(new Set(idsToRebuild), ctx.virtualStoreDir, ctx.currentShrinkwrap, ctx.importerId, opts)
+  const pkgsThatWereRebuilt = await _rebuild(
+    new Set(idsToRebuild),
+    ctx.virtualStoreDir,
+    ctx.currentShrinkwrap,
+    ctx.importers.map((importer) => importer.id),
+    opts,
+  )
 
   ctx.pendingBuilds = ctx.pendingBuilds.filter((relDepPath) => !pkgsThatWereRebuilt.has(relDepPath))
 
-  if (ctx.pkg && ctx.pkg.scripts && (!opts.pending || ctx.pendingBuilds.indexOf(ctx.importerId) !== -1)) {
-    await runLifecycleHooksInDir(opts.prefix, ctx.pkg, {
-      rawNpmConfig: opts.rawNpmConfig,
-      rootNodeModulesDir: ctx.modulesDir,
-      unsafePerm: opts.unsafePerm,
-    })
-
-    ctx.pendingBuilds.splice(ctx.pendingBuilds.indexOf(ctx.importerId), 1)
+  const scriptsOpts = {
+    rawNpmConfig: opts.rawNpmConfig,
+    unsafePerm: opts.unsafePerm || false,
+  }
+  await runLifecycleHooksConcurrently(
+    ['preinstall', 'install', 'postinstall', 'prepublish', 'prepare'],
+    ctx.importers,
+    opts.childConcurrency || 5,
+    scriptsOpts,
+  )
+  for (const importer of ctx.importers) {
+    if (importer.pkg && importer.pkg.scripts && (!opts.pending || ctx.pendingBuilds.indexOf(importer.id) !== -1)) {
+      ctx.pendingBuilds.splice(ctx.pendingBuilds.indexOf(importer.id), 1)
+    }
   }
 
   await writeModulesYaml(ctx.virtualStoreDir, {
     ...ctx.modulesFile,
     importers: {
       ...ctx.modulesFile && ctx.modulesFile.importers,
-      [ctx.importerId]: {
-        hoistedAliases: ctx.hoistedAliases,
-        shamefullyFlatten: opts.shamefullyFlatten,
-      },
+      ...ctx.importers.reduce((acc, importer) => {
+        acc[importer.id] = {
+          hoistedAliases: importer.hoistedAliases,
+          shamefullyFlatten: importer.shamefullyFlatten,
+        }
+        return acc
+      }, {}),
     },
     included: ctx.include,
     independentLeaves: opts.independentLeaves,
@@ -148,40 +185,6 @@ export async function rebuild (maybeOpts: RebuildOptions) {
     skipped: Array.from(ctx.skipped),
     store: ctx.storePath,
   })
-}
-
-async function runLifecycleHooksInDir (
-  prefix: string,
-  pkg: PackageJson,
-  opts: {
-    rawNpmConfig: object,
-    rootNodeModulesDir: string,
-    unsafePerm: boolean,
-  },
-) {
-  const scriptsOpts = {
-    depPath: prefix,
-    optional: false,
-    pkgRoot: prefix,
-    rawNpmConfig: opts.rawNpmConfig,
-    rootNodeModulesDir: opts.rootNodeModulesDir,
-    unsafePerm: opts.unsafePerm || false,
-  }
-  if (pkg.scripts!.preinstall) {
-    await runLifecycleHooks('preinstall', pkg, scriptsOpts)
-  }
-  if (pkg.scripts!.install) {
-    await runLifecycleHooks('install', pkg, scriptsOpts)
-  }
-  if (pkg.scripts!.postinstall) {
-    await runLifecycleHooks('postinstall', pkg, scriptsOpts)
-  }
-  if (pkg.scripts!.prepublish) {
-    await runLifecycleHooks('prepublish', pkg, scriptsOpts)
-  }
-  if (pkg.scripts!.prepare) {
-    await runLifecycleHooks('prepare', pkg, scriptsOpts)
-  }
 }
 
 function getSubgraphToBuild (
@@ -231,22 +234,28 @@ async function _rebuild (
   pkgsToRebuild: Set<string>,
   modules: string,
   shr: Shrinkwrap,
-  importerId: string,
+  importerIds: string[],
   opts: StrictRebuildOptions,
 ) {
   const pkgsThatWereRebuilt = new Set()
-  const limitChild = pLimit(opts.childConcurrency)
   const graph = new Map()
   const pkgSnapshots: PackageSnapshots = shr.packages || {}
-  const shrImporter = shr.importers[importerId]
 
-  const entryNodes = R.toPairs({
-    ...(opts.development && shrImporter.devDependencies || {}),
-    ...(opts.production && shrImporter.dependencies || {}),
-    ...(opts.optional && shrImporter.optionalDependencies || {}),
+  const entryNodes = [] as string[]
+
+  importerIds.forEach((importerId) => {
+    const shrImporter = shr.importers[importerId]
+    R.toPairs({
+      ...(opts.development && shrImporter.devDependencies || {}),
+      ...(opts.production && shrImporter.dependencies || {}),
+      ...(opts.optional && shrImporter.optionalDependencies || {}),
+    })
+    .map((pair) => dp.refToRelative(pair[1], pair[0]))
+    .filter((nodeId) => nodeId !== null)
+    .forEach((relDepPath) => {
+      entryNodes.push(relDepPath as string)
+    })
   })
-  .map((pair) => dp.refToRelative(pair[1], pair[0]))
-  .filter((nodeId) => nodeId !== null) as string[]
 
   const nodesToBuildAndTransitive = new Set()
   getSubgraphToBuild(pkgSnapshots, entryNodes, nodesToBuildAndTransitive, new Set(), { optional: opts.optional === true, pkgsToRebuild })
@@ -264,46 +273,55 @@ async function _rebuild (
   })
   const chunks = graphSequencerResult.chunks as string[][]
 
-  for (const chunk of chunks) {
-    await Promise.all(chunk
-      .filter((relDepPath) => pkgsToRebuild.has(relDepPath))
-      .map((relDepPath) => {
-        const pkgSnapshot = pkgSnapshots[relDepPath]
-        return limitChild(async () => {
-          const depAbsolutePath = dp.resolve(opts.registries.default, relDepPath)
-          const pkgInfo = nameVerFromPkgSnapshot(relDepPath, pkgSnapshot)
-          try {
-            await runPostinstallHooks({
-              depPath: depAbsolutePath,
-              optional: pkgSnapshot.optional === true,
-              pkgRoot: path.join(modules, `.${depAbsolutePath}`, 'node_modules', pkgInfo.name),
-              prepare: pkgSnapshot.prepare,
-              rawNpmConfig: opts.rawNpmConfig,
-              rootNodeModulesDir: modules,
-              unsafePerm: opts.unsafePerm || false,
+  const groups = chunks.map((chunk) => chunk.filter((relDepPath) => pkgsToRebuild.has(relDepPath)).map((relDepPath) =>
+    async () => {
+      const pkgSnapshot = pkgSnapshots[relDepPath]
+      const depPath = dp.resolve(opts.registries.default, relDepPath)
+      const pkgInfo = nameVerFromPkgSnapshot(relDepPath, pkgSnapshot)
+      const independent = opts.independentLeaves && packageIsIndependent(pkgSnapshot)
+      const pkgRoot = !independent
+        ? path.join(modules, `.${depPath}`, 'node_modules', pkgInfo.name)
+        : await (
+          async () => {
+            const { directory } = await opts.storeController.getPackageLocation(pkgSnapshot.id || depPath, pkgInfo.name, {
+              importerPrefix: opts.prefix,
+              targetEngine: opts.sideEffectsCacheRead && !opts.force && ENGINE_NAME || undefined,
             })
-            pkgsThatWereRebuilt.add(relDepPath)
-          } catch (err) {
-            if (pkgSnapshot.optional) {
-              // TODO: add parents field to the log
-              skippedOptionalDependencyLogger.debug({
-                details: err.toString(),
-                package: {
-                  id: pkgSnapshot.id || depAbsolutePath,
-                  name: pkgInfo.name,
-                  version: pkgInfo.version,
-                },
-                prefix: opts.prefix,
-                reason: 'build_failure',
-              })
-              return
-            }
-            throw err
+            return directory
           }
+        )()
+      try {
+        await runPostinstallHooks({
+          depPath,
+          optional: pkgSnapshot.optional === true,
+          pkgRoot,
+          prepare: pkgSnapshot.prepare,
+          rawNpmConfig: opts.rawNpmConfig,
+          rootNodeModulesDir: modules,
+          unsafePerm: opts.unsafePerm || false,
         })
-      }),
-    )
-  }
+        pkgsThatWereRebuilt.add(relDepPath)
+      } catch (err) {
+        if (pkgSnapshot.optional) {
+          // TODO: add parents field to the log
+          skippedOptionalDependencyLogger.debug({
+            details: err.toString(),
+            package: {
+              id: pkgSnapshot.id || depPath,
+              name: pkgInfo.name,
+              version: pkgInfo.version,
+            },
+            prefix: opts.prefix,
+            reason: 'build_failure',
+          })
+          return
+        }
+        throw err
+      }
+    }
+  ))
+
+  await runGroups(opts.childConcurrency || 5, groups)
 
   return pkgsThatWereRebuilt
 }

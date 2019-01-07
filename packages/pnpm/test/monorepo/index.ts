@@ -463,6 +463,131 @@ test('recursive install with link-workspace-packages and shared-workspace-shrink
   }
 })
 
+test('recursive install with shared-workspace-shrinkwrap builds workspace packages in correct order', async (t: tape.Test) => {
+  const jsonAppend = (append: string, target: string) => `node -e "process.stdout.write('${append}')" | json-append ${target}`
+  const projects = preparePackages(t, [
+    {
+      name: 'project-999',
+      version: '1.0.0',
+
+      dependencies: {
+        'json-append': '1',
+      },
+      scripts: {
+        install: `${jsonAppend('project-999-install', '../output1.json')} && ${jsonAppend('project-999-install', '../output2.json')}`,
+        postinstall: `${jsonAppend('project-999-postinstall', '../output1.json')} && ${jsonAppend('project-999-postinstall', '../output2.json')}`,
+        prepare: `${jsonAppend('project-999-prepare', '../output1.json')} && ${jsonAppend('project-999-prepare', '../output2.json')}`,
+        prepublish: `${jsonAppend('project-999-prepublish', '../output1.json')} && ${jsonAppend('project-999-prepublish', '../output2.json')}`,
+      },
+    },
+    {
+      name: 'project-1',
+      version: '1.0.0',
+
+      devDependencies: {
+        'json-append': '1',
+        'project-999': '1.0.0',
+      },
+      scripts: {
+        install: jsonAppend('project-1-install', '../output1.json'),
+        postinstall: jsonAppend('project-1-postinstall', '../output1.json'),
+        prepare: jsonAppend('project-1-prepare', '../output1.json'),
+        prepublish: jsonAppend('project-1-prepublish', '../output1.json'),
+      },
+    },
+    {
+      name: 'project-2',
+      version: '1.0.0',
+
+      devDependencies: {
+        'json-append': '1',
+        'project-999': '1.0.0',
+      },
+      scripts: {
+        install: jsonAppend('project-2-install', '../output2.json'),
+        postinstall: jsonAppend('project-2-postinstall', '../output2.json'),
+        prepare: jsonAppend('project-2-prepare', '../output2.json'),
+        prepublish: jsonAppend('project-2-prepublish', '../output2.json'),
+      },
+    },
+  ])
+
+  await writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
+
+  await execPnpm('recursive', 'install', '--link-workspace-packages', '--shared-workspace-shrinkwrap=true', '--store', 'store')
+
+  {
+    const outputs1 = await import(path.resolve('output1.json')) as string[]
+    t.deepEqual(
+      outputs1,
+      [
+        'project-999-install',
+        'project-999-postinstall',
+        'project-999-prepublish',
+        'project-999-prepare',
+        'project-1-install',
+        'project-1-postinstall',
+        'project-1-prepublish',
+        'project-1-prepare',
+      ],
+    )
+
+    const outputs2 = await import(path.resolve('output2.json')) as string[]
+    t.deepEqual(
+      outputs2,
+      [
+        'project-999-install',
+        'project-999-postinstall',
+        'project-999-prepublish',
+        'project-999-prepare',
+        'project-2-install',
+        'project-2-postinstall',
+        'project-2-prepublish',
+        'project-2-prepare',
+      ],
+    )
+  }
+
+  await rimraf('node_modules')
+  await rimraf('output1.json')
+  await rimraf('output2.json')
+
+  // TODO: duplicate this test in @pnpm/headless
+  await execPnpm('recursive', 'install', '--frozen-shrinkwrap', '--link-workspace-packages', '--shared-workspace-shrinkwrap=true')
+
+  {
+    const outputs1 = await import(path.resolve('output1.json')) as string[]
+    t.deepEqual(
+      outputs1,
+      [
+        'project-999-install',
+        'project-999-postinstall',
+        'project-999-prepublish',
+        'project-999-prepare',
+        'project-1-install',
+        'project-1-postinstall',
+        'project-1-prepublish',
+        'project-1-prepare',
+      ],
+    )
+
+    const outputs2 = await import(path.resolve('output2.json')) as string[]
+    t.deepEqual(
+      outputs2,
+      [
+        'project-999-install',
+        'project-999-postinstall',
+        'project-999-prepublish',
+        'project-999-prepare',
+        'project-2-install',
+        'project-2-postinstall',
+        'project-2-prepublish',
+        'project-2-prepare',
+      ],
+    )
+  }
+})
+
 test('recursive installation with shared-workspace-shrinkwrap and a readPackage hook', async (t) => {
   const projects = preparePackages(t, [
     {

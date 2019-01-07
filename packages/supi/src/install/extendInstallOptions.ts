@@ -1,4 +1,3 @@
-import logger from '@pnpm/logger'
 import { IncludedDependencies } from '@pnpm/modules-yaml'
 import { LocalPackages } from '@pnpm/resolver-base'
 import { Shrinkwrap } from '@pnpm/shrinkwrap-file'

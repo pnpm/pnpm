@@ -945,8 +945,10 @@ test('packages installed via tarball URL from the default registry are normalize
 test('shrinkwrap file has correct format when shrinkwrap directory does not equal the prefix directory', async (t: tape.Test) => {
   const project = prepare(t)
 
+  const store = path.resolve('..', '.store')
+
   await addDependenciesToPackage(['pkg-with-1-dep', '@rstacruz/tap-spec@4.1.1', 'kevva/is-negative#1d7e288222b53a0cab90a331f1865220ec29560c'],
-    await testDefaults({ save: true, shrinkwrapDirectory: path.resolve('..') }))
+    await testDefaults({ save: true, shrinkwrapDirectory: path.resolve('..'), store }))
 
   t.ok(!await exists('node_modules/.modules.yaml'), ".modules.yaml in importer's node_modules not created")
 
@@ -989,7 +991,7 @@ test('shrinkwrap file has correct format when shrinkwrap directory does not equa
 
   process.chdir('project-2')
 
-  await addDependenciesToPackage(['is-positive'], await testDefaults({ save: true, shrinkwrapDirectory: path.resolve('..') }))
+  await addDependenciesToPackage(['is-positive'], await testDefaults({ save: true, shrinkwrapDirectory: path.resolve('..'), store }))
 
   {
     const shr = await readYamlFile<Shrinkwrap>(path.join('..', 'shrinkwrap.yaml'))
@@ -1091,10 +1093,12 @@ test('doing named installation when shared shrinkwrap.yaml exists already', asyn
   await mutateModules(
     [
       {
+        buildIndex: 0,
         mutation: 'install',
         prefix: path.resolve('pkg1'),
       },
       {
+        buildIndex: 0,
         mutation: 'install',
         prefix: path.resolve('pkg2'),
       },
