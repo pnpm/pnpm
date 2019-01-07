@@ -14,9 +14,9 @@ import {
 import npa = require('@zkochan/npm-package-arg')
 import * as dp from 'dependency-path'
 import graphSequencer = require('graph-sequencer')
-import pLimit = require('p-limit')
 import path = require('path')
 import R = require('ramda')
+import runGroups from 'run-groups'
 import semver = require('semver')
 import {
   ENGINE_NAME,
@@ -238,7 +238,6 @@ async function _rebuild (
   opts: StrictRebuildOptions,
 ) {
   const pkgsThatWereRebuilt = new Set()
-  const limitChild = pLimit(opts.childConcurrency)
   const graph = new Map()
   const pkgSnapshots: PackageSnapshots = shr.packages || {}
 
@@ -274,58 +273,55 @@ async function _rebuild (
   })
   const chunks = graphSequencerResult.chunks as string[][]
 
-  for (const chunk of chunks) {
-    await Promise.all(chunk
-      .filter((relDepPath) => pkgsToRebuild.has(relDepPath))
-      .map((relDepPath) => {
-        const pkgSnapshot = pkgSnapshots[relDepPath]
-        return limitChild(async () => {
-          const depPath = dp.resolve(opts.registries.default, relDepPath)
-          const pkgInfo = nameVerFromPkgSnapshot(relDepPath, pkgSnapshot)
-          const independent = opts.independentLeaves && packageIsIndependent(pkgSnapshot)
-          const pkgRoot = !independent
-            ? path.join(modules, `.${depPath}`, 'node_modules', pkgInfo.name)
-            : await (
-              async () => {
-                const { directory } = await opts.storeController.getPackageLocation(pkgSnapshot.id || depPath, pkgInfo.name, {
-                  importerPrefix: opts.prefix,
-                  targetEngine: opts.sideEffectsCacheRead && !opts.force && ENGINE_NAME || undefined,
-                })
-                return directory
-              }
-            )()
-          try {
-            await runPostinstallHooks({
-              depPath,
-              optional: pkgSnapshot.optional === true,
-              pkgRoot,
-              prepare: pkgSnapshot.prepare,
-              rawNpmConfig: opts.rawNpmConfig,
-              rootNodeModulesDir: modules,
-              unsafePerm: opts.unsafePerm || false,
+  const groups = chunks.map((chunk) => chunk.filter((relDepPath) => pkgsToRebuild.has(relDepPath)).map((relDepPath) =>
+    async () => {
+      const pkgSnapshot = pkgSnapshots[relDepPath]
+      const depPath = dp.resolve(opts.registries.default, relDepPath)
+      const pkgInfo = nameVerFromPkgSnapshot(relDepPath, pkgSnapshot)
+      const independent = opts.independentLeaves && packageIsIndependent(pkgSnapshot)
+      const pkgRoot = !independent
+        ? path.join(modules, `.${depPath}`, 'node_modules', pkgInfo.name)
+        : await (
+          async () => {
+            const { directory } = await opts.storeController.getPackageLocation(pkgSnapshot.id || depPath, pkgInfo.name, {
+              importerPrefix: opts.prefix,
+              targetEngine: opts.sideEffectsCacheRead && !opts.force && ENGINE_NAME || undefined,
             })
-            pkgsThatWereRebuilt.add(relDepPath)
-          } catch (err) {
-            if (pkgSnapshot.optional) {
-              // TODO: add parents field to the log
-              skippedOptionalDependencyLogger.debug({
-                details: err.toString(),
-                package: {
-                  id: pkgSnapshot.id || depPath,
-                  name: pkgInfo.name,
-                  version: pkgInfo.version,
-                },
-                prefix: opts.prefix,
-                reason: 'build_failure',
-              })
-              return
-            }
-            throw err
+            return directory
           }
+        )()
+      try {
+        await runPostinstallHooks({
+          depPath,
+          optional: pkgSnapshot.optional === true,
+          pkgRoot,
+          prepare: pkgSnapshot.prepare,
+          rawNpmConfig: opts.rawNpmConfig,
+          rootNodeModulesDir: modules,
+          unsafePerm: opts.unsafePerm || false,
         })
-      }),
-    )
-  }
+        pkgsThatWereRebuilt.add(relDepPath)
+      } catch (err) {
+        if (pkgSnapshot.optional) {
+          // TODO: add parents field to the log
+          skippedOptionalDependencyLogger.debug({
+            details: err.toString(),
+            package: {
+              id: pkgSnapshot.id || depPath,
+              name: pkgInfo.name,
+              version: pkgInfo.version,
+            },
+            prefix: opts.prefix,
+            reason: 'build_failure',
+          })
+          return
+        }
+        throw err
+      }
+    }
+  ))
+
+  await runGroups(opts.childConcurrency || 5, groups)
 
   return pkgsThatWereRebuilt
 }

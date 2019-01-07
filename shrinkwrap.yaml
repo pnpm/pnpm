@@ -339,12 +339,14 @@ importers:
       '@pnpm/symlink-dependency': 'link:../symlink-dependency'
       '@pnpm/types': 'link:../types'
       '@pnpm/utils': 'link:../utils'
+      '@types/p-limit': 2.0.0
       '@types/ramda': 0.25.34
       dependency-path: 'link:../dependency-path'
       graph-sequencer: 2.0.0
       p-limit: 2.1.0
       path-exists: 3.0.0
       ramda: 0.26.1
+      run-groups: 1.0.0
     devDependencies:
       '@pnpm/assert-project': 'link:../../privatePackages/assert-project'
       '@pnpm/default-fetcher': 'link:../default-fetcher'
@@ -407,6 +409,7 @@ importers:
       '@types/fs-extra': 5.0.4
       '@types/mz': 0.0.32
       '@types/node': 10.12.18
+      '@types/p-limit': 2.0.0
       '@types/path-exists': 3.0.0
       '@types/ramda': 0.25.34
       '@types/rimraf': 2.0.2
@@ -426,6 +429,7 @@ importers:
       ramda: 0.26.1
       rimraf: 2.6.3
       rimraf-then: 1.0.1
+      run-groups: 1.0.0
       sinon: 7.2.2
       tape: 4.9.2
       tape-promise: 4.0.0
@@ -439,8 +443,8 @@ importers:
       '@pnpm/read-package-json': 1.1.1
       '@pnpm/types': 'link:../types'
       '@zkochan/npm-lifecycle': 2.2.0
-      p-limit: 2.1.0
       path-exists: 3.0.0
+      run-groups: 1.0.0
     devDependencies:
       '@pnpm/lifecycle': 'link:'
       '@pnpm/logger': 2.1.0
@@ -474,9 +478,9 @@ importers:
       load-json-file: 5.1.0
       mos: 2.0.0-alpha.3
       mos-plugin-readme: 1.0.4
-      p-limit: 2.1.0
       path-exists: 3.0.0
       rimraf: 2.6.3
+      run-groups: 1.0.0
       tape: 4.9.2
       ts-node: 7.0.1
       tslint: 5.12.0
@@ -1457,6 +1461,7 @@ importers:
       replace-string: 2.0.0
       resolve-link-target: 1.0.1
       rimraf-then: 1.0.1
+      run-groups: 1.0.0
       semver: 5.6.0
       symlink-dir: 2.0.2
       util.promisify: 1.0.0
@@ -1597,6 +1602,7 @@ importers:
       resolve-link-target: 1.0.1
       rimraf: 2.6.3
       rimraf-then: 1.0.1
+      run-groups: 1.0.0
       semver: 5.6.0
       sepia: 2.0.2
       sinon: 7.2.2
@@ -8722,6 +8728,14 @@ packages:
     dev: true
     resolution:
       integrity: sha1-yK1KXhEGYeQCp9IbUw4AnyX444k=
+  /run-groups/1.0.0:
+    dependencies:
+      p-limit: 2.1.0
+    dev: false
+    engines:
+      node: '>=6'
+    resolution:
+      integrity: sha512-zB8L/p3NZd7st8jjMHyyiJQrQKM8hufFDyZRy5b2OZDmJWwPB+Sq9nR3ORFE1Vw2k4NLcCNlUuD1RsP2oQGw9w==
   /run-node/1.0.0:
     dev: true
     engines:

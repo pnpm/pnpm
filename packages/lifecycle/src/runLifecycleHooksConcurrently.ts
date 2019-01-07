@@ -1,5 +1,5 @@
 import { PackageJson } from '@pnpm/types'
-import pLimit = require('p-limit')
+import runGroups from 'run-groups'
 import runLifecycleHook from './runLifecycleHook'
 
 export default async function runLifecycleHooksConcurrently (
@@ -20,12 +20,11 @@ export default async function runLifecycleHooksConcurrently (
       importersByBuildIndex.get(importer.buildIndex)!.push(importer)
     }
   }
-  const limitChild = pLimit(childConcurrency)
   const sortedBuildIndexes = Array.from(importersByBuildIndex.keys()).sort()
-  for (const buildIndex of sortedBuildIndexes) {
+  const groups = sortedBuildIndexes.map((buildIndex) => {
     const importers = importersByBuildIndex.get(buildIndex) as Array<{ prefix: string, pkg: PackageJson, modulesDir: string }>
-    await Promise.all(
-      importers.map((importer) => limitChild(async () => {
+    return importers.map((importer) =>
+      async () => {
         const runLifecycleHookOpts = {
           depPath: importer.prefix,
           pkgRoot: importer.prefix,
@@ -38,7 +37,8 @@ export default async function runLifecycleHooksConcurrently (
           if (!importer.pkg.scripts || !importer.pkg.scripts[stage]) continue
           await runLifecycleHook(stage, importer.pkg, runLifecycleHookOpts)
         }
-      }))
+      }
     )
-  }
+  })
+  await runGroups(childConcurrency, groups)
 }
