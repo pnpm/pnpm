@@ -464,6 +464,7 @@ test('recursive install with link-workspace-packages and shared-workspace-shrink
 })
 
 test('recursive install with shared-workspace-shrinkwrap builds workspace packages in correct order', async (t: tape.Test) => {
+  const jsonAppend = (append: string, target: string) => `node -e "process.stdout.write('${append}')" | json-append ${target}`
   const projects = preparePackages(t, [
     {
       name: 'project-999',
@@ -473,8 +474,10 @@ test('recursive install with shared-workspace-shrinkwrap builds workspace packag
         'json-append': '1',
       },
       scripts: {
-        install: `node -e "process.stdout.write('project-999')" | json-append ../output1.json` +
-          `&& node -e "process.stdout.write('project-999')" | json-append ../output2.json`,
+        install: `${jsonAppend('project-999-install', '../output1.json')} && ${jsonAppend('project-999-install', '../output2.json')}`,
+        postinstall: `${jsonAppend('project-999-postinstall', '../output1.json')} && ${jsonAppend('project-999-postinstall', '../output2.json')}`,
+        prepare: `${jsonAppend('project-999-prepare', '../output1.json')} && ${jsonAppend('project-999-prepare', '../output2.json')}`,
+        prepublish: `${jsonAppend('project-999-prepublish', '../output1.json')} && ${jsonAppend('project-999-prepublish', '../output2.json')}`,
       },
     },
     {
@@ -486,7 +489,10 @@ test('recursive install with shared-workspace-shrinkwrap builds workspace packag
         'project-999': '1.0.0',
       },
       scripts: {
-        install: `node -e "process.stdout.write('project-1')" | json-append ../output1.json`,
+        install: jsonAppend('project-1-install', '../output1.json'),
+        postinstall: jsonAppend('project-1-postinstall', '../output1.json'),
+        prepare: jsonAppend('project-1-prepare', '../output1.json'),
+        prepublish: jsonAppend('project-1-prepublish', '../output1.json'),
       },
     },
     {
@@ -498,7 +504,10 @@ test('recursive install with shared-workspace-shrinkwrap builds workspace packag
         'project-999': '1.0.0',
       },
       scripts: {
-        install: `node -e "process.stdout.write('project-2')" | json-append ../output2.json`,
+        install: jsonAppend('project-2-install', '../output2.json'),
+        postinstall: jsonAppend('project-2-postinstall', '../output2.json'),
+        prepare: jsonAppend('project-2-prepare', '../output2.json'),
+        prepublish: jsonAppend('project-2-prepublish', '../output2.json'),
       },
     },
   ])
@@ -509,10 +518,34 @@ test('recursive install with shared-workspace-shrinkwrap builds workspace packag
 
   {
     const outputs1 = await import(path.resolve('output1.json')) as string[]
-    t.deepEqual(outputs1, ['project-999', 'project-1'])
+    t.deepEqual(
+      outputs1,
+      [
+        'project-999-install',
+        'project-999-postinstall',
+        'project-999-prepublish',
+        'project-999-prepare',
+        'project-1-install',
+        'project-1-postinstall',
+        'project-1-prepublish',
+        'project-1-prepare',
+      ],
+    )
 
     const outputs2 = await import(path.resolve('output2.json')) as string[]
-    t.deepEqual(outputs2, ['project-999', 'project-2'])
+    t.deepEqual(
+      outputs2,
+      [
+        'project-999-install',
+        'project-999-postinstall',
+        'project-999-prepublish',
+        'project-999-prepare',
+        'project-2-install',
+        'project-2-postinstall',
+        'project-2-prepublish',
+        'project-2-prepare',
+      ],
+    )
   }
 
   await rimraf('node_modules')
@@ -524,10 +557,34 @@ test('recursive install with shared-workspace-shrinkwrap builds workspace packag
 
   {
     const outputs1 = await import(path.resolve('output1.json')) as string[]
-    t.deepEqual(outputs1, ['project-999', 'project-1'])
+    t.deepEqual(
+      outputs1,
+      [
+        'project-999-install',
+        'project-999-postinstall',
+        'project-999-prepublish',
+        'project-999-prepare',
+        'project-1-install',
+        'project-1-postinstall',
+        'project-1-prepublish',
+        'project-1-prepare',
+      ],
+    )
 
     const outputs2 = await import(path.resolve('output2.json')) as string[]
-    t.deepEqual(outputs2, ['project-999', 'project-2'])
+    t.deepEqual(
+      outputs2,
+      [
+        'project-999-install',
+        'project-999-postinstall',
+        'project-999-prepublish',
+        'project-999-prepare',
+        'project-2-install',
+        'project-2-postinstall',
+        'project-2-prepublish',
+        'project-2-prepare',
+      ],
+    )
   }
 })
 
