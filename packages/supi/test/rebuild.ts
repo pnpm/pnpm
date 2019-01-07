@@ -4,9 +4,9 @@ import path = require('path')
 import exists = require('path-exists')
 import {
   addDependenciesToPackage,
+  mutateModules,
   rebuild,
   rebuildPkgs,
-  mutateModules,
 } from 'supi'
 import tape = require('tape')
 import promisifyTape from 'tape-promise'
