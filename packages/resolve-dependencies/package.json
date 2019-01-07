@@ -1,6 +1,6 @@
 {
   "name": "@pnpm/resolve-dependencies",
-  "version": "4.0.1",
+  "version": "4.0.2",
   "author": {
     "name": "Zoltan Kochan",
     "email": "z@kochan.io",
@@ -34,7 +34,7 @@
     "@pnpm/npm-resolver": "2.2.7",
     "@pnpm/resolver-base": "2.0.0",
     "@pnpm/shrinkwrap-types": "1.0.0",
-    "@pnpm/shrinkwrap-utils": "1.0.0",
+    "@pnpm/shrinkwrap-utils": "1.1.0",
     "@pnpm/store-controller-types": "2.0.0",
     "@pnpm/types": "2.0.0",
     "@pnpm/utils": "0.9.1",
