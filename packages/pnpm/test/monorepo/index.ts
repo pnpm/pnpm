@@ -463,6 +463,57 @@ test('recursive install with link-workspace-packages and shared-workspace-shrink
   }
 })
 
+test('recursive install with shared-workspace-shrinkwrap builds workspace packages in correct order', async (t: tape.Test) => {
+  const projects = preparePackages(t, [
+    {
+      name: 'project-999',
+      version: '1.0.0',
+
+      dependencies: {
+        'json-append': '1',
+      },
+      scripts: {
+        install: `node -e "process.stdout.write('project-999')" | json-append ../output1.json` +
+          `&& node -e "process.stdout.write('project-999')" | json-append ../output2.json`,
+      },
+    },
+    {
+      name: 'project-1',
+      version: '1.0.0',
+
+      devDependencies: {
+        'json-append': '1',
+        'project-999': '1.0.0',
+      },
+      scripts: {
+        install: `node -e "process.stdout.write('project-1')" | json-append ../output1.json`,
+      },
+    },
+    {
+      name: 'project-2',
+      version: '1.0.0',
+
+      devDependencies: {
+        'json-append': '1',
+        'project-999': '1.0.0',
+      },
+      scripts: {
+        install: `node -e "process.stdout.write('project-2')" | json-append ../output2.json`,
+      },
+    },
+  ])
+
+  await writeYamlFile('pnpm-workspace.yaml', { packages: ['**', '!store/**'] })
+
+  await execPnpm('recursive', 'install', '--link-workspace-packages', '--shared-workspace-shrinkwrap=true', '--store', 'store')
+
+  const outputs1 = await import(path.resolve('output1.json')) as string[]
+  t.deepEqual(outputs1, ['project-999', 'project-1'])
+
+  const outputs2 = await import(path.resolve('output2.json')) as string[]
+  t.deepEqual(outputs2, ['project-999', 'project-2'])
+})
+
 test('recursive installation with shared-workspace-shrinkwrap and a readPackage hook', async (t) => {
   const projects = preparePackages(t, [
     {
