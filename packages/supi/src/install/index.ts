@@ -198,7 +198,17 @@ export async function mutateModules (
           currentShrinkwrap: ctx.currentShrinkwrap,
           force: opts.force,
           ignoreScripts: opts.ignoreScripts,
-          importers: ctx.importers,
+          importers: ctx.importers as Array<{
+            bin: string,
+            buildIndex: number,
+            hoistedAliases: {[depPath: string]: string[]}
+            id: string,
+            modulesDir: string,
+            pkg: PackageJson,
+            prefix: string,
+            pruneDirectDependencies?: boolean,
+            shamefullyFlatten: boolean,
+          }>,
           include: opts.include,
           independentLeaves: opts.independentLeaves,
           ownLifecycleHooksStdio: opts.ownLifecycleHooksStdio,

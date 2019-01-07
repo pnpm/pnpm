@@ -9,7 +9,7 @@ import {
 import filterShrinkwrap, {
   filterByImporters as filterShrinkwrapByImporters,
 } from '@pnpm/filter-shrinkwrap'
-import runLifecycleHooks from '@pnpm/lifecycle'
+import { runLifecycleHooksConcurrently } from '@pnpm/lifecycle'
 import linkBins, { linkBinsOfPackages } from '@pnpm/link-bins'
 import logger, {
   LogBase,
@@ -63,6 +63,7 @@ export interface HeadlessOptions {
   independentLeaves: boolean,
   importers: Array<{
     bin: string,
+    buildIndex: number,
     hoistedAliases: {[depPath: string]: string[]}
     modulesDir: string,
     id: string,
@@ -118,24 +119,20 @@ export default async (opts: HeadlessOptions) => {
     }
   }
 
+  const scriptsOpts = {
+    optional: false,
+    rawNpmConfig: opts.rawNpmConfig,
+    stdio: opts.ownLifecycleHooksStdio || 'inherit',
+    unsafePerm: opts.unsafePerm || false,
+  }
+
   if (!opts.ignoreScripts) {
-    for (const importer of opts.importers) {
-      const scripts = !opts.ignoreScripts && importer.pkg.scripts || {}
-
-      const scriptsOpts = {
-        depPath: importer.prefix,
-        optional: false,
-        pkgRoot: importer.prefix,
-        rawNpmConfig: opts.rawNpmConfig,
-        rootNodeModulesDir: importer.modulesDir,
-        stdio: opts.ownLifecycleHooksStdio || 'inherit',
-        unsafePerm: opts.unsafePerm || false,
-      }
-
-      if (scripts.preinstall) {
-        await runLifecycleHooks('preinstall', importer.pkg, scriptsOpts)
-      }
-    }
+    await runLifecycleHooksConcurrently(
+      ['preinstall'],
+      opts.importers,
+      opts.childConcurrency || 5,
+      scriptsOpts,
+    )
   }
 
   const filterOpts = {
@@ -314,32 +311,12 @@ export default async (opts: HeadlessOptions) => {
   await opts.storeController.close()
 
   if (!opts.ignoreScripts) {
-    for (const importer of opts.importers) {
-      if (!importer.pkg.scripts) continue
-
-      const scriptsOpts = {
-        depPath: importer.prefix,
-        optional: false,
-        pkgRoot: importer.prefix,
-        rawNpmConfig: opts.rawNpmConfig,
-        rootNodeModulesDir: importer.modulesDir,
-        stdio: opts.ownLifecycleHooksStdio || 'inherit',
-        unsafePerm: opts.unsafePerm || false,
-      }
-
-      if (importer.pkg.scripts.install) {
-        await runLifecycleHooks('install', importer.pkg, scriptsOpts)
-      }
-      if (importer.pkg.scripts.postinstall) {
-        await runLifecycleHooks('postinstall', importer.pkg, scriptsOpts)
-      }
-      if (importer.pkg.scripts.prepublish) {
-        await runLifecycleHooks('prepublish', importer.pkg, scriptsOpts)
-      }
-      if (importer.pkg.scripts.prepare) {
-        await runLifecycleHooks('prepare', importer.pkg, scriptsOpts)
-      }
-    }
+    await runLifecycleHooksConcurrently(
+      ['install', 'postinstall', 'prepublish', 'prepare'],
+      opts.importers,
+      opts.childConcurrency || 5,
+      scriptsOpts,
+    )
   }
 
   if (reporter) {

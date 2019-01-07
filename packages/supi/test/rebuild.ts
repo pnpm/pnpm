@@ -14,7 +14,7 @@ import promisify = require('util.promisify')
 import {
   pathToLocalPkg,
   testDefaults,
- } from './utils'
+} from './utils'
 
 const ncp = promisify(ncpCB.ncp)
 const test = promisifyTape(tape)

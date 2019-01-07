@@ -507,11 +507,28 @@ test('recursive install with shared-workspace-shrinkwrap builds workspace packag
 
   await execPnpm('recursive', 'install', '--link-workspace-packages', '--shared-workspace-shrinkwrap=true', '--store', 'store')
 
-  const outputs1 = await import(path.resolve('output1.json')) as string[]
-  t.deepEqual(outputs1, ['project-999', 'project-1'])
+  {
+    const outputs1 = await import(path.resolve('output1.json')) as string[]
+    t.deepEqual(outputs1, ['project-999', 'project-1'])
 
-  const outputs2 = await import(path.resolve('output2.json')) as string[]
-  t.deepEqual(outputs2, ['project-999', 'project-2'])
+    const outputs2 = await import(path.resolve('output2.json')) as string[]
+    t.deepEqual(outputs2, ['project-999', 'project-2'])
+  }
+
+  await rimraf('node_modules')
+  await rimraf('output1.json')
+  await rimraf('output2.json')
+
+  // TODO: duplicate this test in @pnpm/headless
+  await execPnpm('recursive', 'install', '--frozen-shrinkwrap', '--link-workspace-packages', '--shared-workspace-shrinkwrap=true')
+
+  {
+    const outputs1 = await import(path.resolve('output1.json')) as string[]
+    t.deepEqual(outputs1, ['project-999', 'project-1'])
+
+    const outputs2 = await import(path.resolve('output2.json')) as string[]
+    t.deepEqual(outputs2, ['project-999', 'project-2'])
+  }
 })
 
 test('recursive installation with shared-workspace-shrinkwrap and a readPackage hook', async (t) => {
