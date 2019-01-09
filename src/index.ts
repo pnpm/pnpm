@@ -142,7 +142,7 @@ async function fetchFromRemoteTarball (
     }
 
     if (ctx.offline) {
-      throw new PnpmError('NO_OFFLINE_TARBALL', `Could not find ${opts.cachedTarballLocation} in local registry mirror`)
+      throw new PnpmError('ERR_PNPM_NO_OFFLINE_TARBALL', `Could not find ${opts.cachedTarballLocation} in local registry mirror`)
     }
     const auth = dist.registry ? ctx.getCredentialsByURI(dist.registry) : undefined
     return await ctx.download(dist.tarball, opts.cachedTarballLocation, {

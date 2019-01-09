@@ -36,7 +36,14 @@ test('fail when tarball size does not match content-length', async t => {
 
   const unpackTo = path.resolve('unpacked')
   const cachedTarballLocation = path.resolve('cached')
-  const resolution = { tarball: `${registry}foo.tgz` }
+  const resolution = {
+    // Even though the integrity of the downloaded tarball
+    // will not match this value, the error will be about
+    // Content-Length mismatch,
+    // which indicates bad network connection. (see https://github.com/pnpm/pnpm/issues/1235)
+    integrity: 'sha1-HssnaJydJVE+rbzZFKc/VAi+enY=',
+    tarball: `${registry}foo.tgz`,
+  }
 
   try {
     await fetch.tarball(resolution, unpackTo, {
@@ -47,7 +54,7 @@ test('fail when tarball size does not match content-length', async t => {
     t.fail('should have failed')
   } catch (err) {
     t.equal(err.message, 'Actual size (1279) of tarball (http://example.com/foo.tgz) did not match the one specified in \'Content-Length\' header (1048576)')
-    t.equal(err['code'], 'BAD_TARBALL_SIZE')
+    t.equal(err['code'], 'ERR_PNPM_BAD_TARBALL_SIZE')
     t.equal(err['expectedSize'], 1048576)
     t.equal(err['receivedSize'], tarballSize)
     t.equal(err['attempts'], 2)

@@ -160,18 +160,21 @@ export default (
 
             const tempLocation = pathTemp(opts.unpackTo)
             Promise.all([
-              opts.integrity && ssri.checkStream(res.body, opts.integrity),
+              opts.integrity && safeCheckStream(res.body, opts.integrity) || true,
               unpackStream.local(res.body, tempLocation, {
                 generateIntegrity: opts.generatePackageIntegrity,
                 ignore: opts.ignore,
               }),
               waitTillClosed({ stream, size, getDownloaded: () => downloaded, url }),
             ])
-            .then((vals) => {
+            .then(([integrityCheckResult, filesIndex]) => {
+              if (integrityCheckResult !== true) {
+                throw integrityCheckResult
+              }
               fs.rename(tempTarballLocation, saveto, (err) => {
                 // ignore
               })
-              resolve({ tempLocation, filesIndex: vals[1] })
+              resolve({ tempLocation, filesIndex })
             })
             .catch((err) => {
               rimraf(tempTarballLocation, (err) => {
@@ -190,6 +193,15 @@ export default (
         throw err
       }
     }
+  }
+}
+
+async function safeCheckStream (stream: any, integrity: string): Promise<true | Error> { // tslint:disable-line:any
+  try {
+    await ssri.checkStream(stream, integrity)
+    return true
+  } catch (err) {
+    return err
   }
 }
 
