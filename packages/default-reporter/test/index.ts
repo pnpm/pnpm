@@ -15,12 +15,11 @@ import logger, {
 } from '@pnpm/logger'
 import chalk from 'chalk'
 import { stripIndent, stripIndents } from 'common-tags'
-import loadJsonFile from 'load-json-file'
 import normalizeNewline = require('normalize-newline')
 import path = require('path')
 import R = require('ramda')
-import StackTracey = require('stacktracey')
 import test = require('tape')
+import './reportingErrors'
 import './reportingLifecycleScripts'
 import './reportingProgress'
 import './reportingScope'
@@ -338,115 +337,6 @@ test('prints summary correctly when the same package is specified both in option
         ` + '\n')
     },
   })
-})
-
-test('prints generic error', t => {
-  const output$ = toOutput$({
-    context: { argv: ['install'] },
-    streamParser: createStreamParser(),
-  })
-
-  const err = new Error('some error')
-  logger.error(err)
-
-  t.plan(1)
-
-  output$.take(1).map(normalizeNewline).subscribe({
-    complete: () => t.end(),
-    error: t.end,
-    next: output => {
-      t.equal(output, stripIndents`
-        ${ERROR} ${chalk.red('some error')}
-        ${new StackTracey(err.stack).pretty}
-      `)
-    },
-  })
-})
-
-test('prints generic error when recursive install fails', t => {
-  const output$ = toOutput$({
-    context: { argv: ['recursive'] },
-    streamParser: createStreamParser(),
-  })
-
-  const err = new Error('some error')
-  err['prefix'] = '/home/src/'
-  logger.error(err, err)
-
-  t.plan(1)
-
-  output$.take(1).map(normalizeNewline).subscribe({
-    complete: () => t.end(),
-    error: t.end,
-    next: output => {
-      t.equal(output, stripIndents`
-        /home/src/:
-        ${ERROR} ${chalk.red('some error')}
-        ${new StackTracey(err.stack).pretty}
-      `)
-    },
-  })
-})
-
-test('prints no matching version error when many dist-tags exist', async (t) => {
-  const output$ = toOutput$({
-    context: { argv: ['install'] },
-    streamParser: createStreamParser(),
-  })
-
-  t.plan(1)
-
-  output$.take(1).map(normalizeNewline).subscribe({
-    complete: () => t.end(),
-    error: t.end,
-    next: output => {
-      t.equal(output, stripIndent`
-        ${ERROR} ${chalk.red('No matching version found for pnpm@1000.0.0')}
-
-        The latest release of pnpm is "2.4.0".
-
-        Other releases are:
-          * stable: 2.2.2
-          * next: 2.4.0
-          * latest-1: 1.43.1
-
-        If you need the full list of all 281 published versions run "$ pnpm view pnpm versions".
-      `)
-    },
-  })
-
-  const err = new Error('No matching version found for pnpm@1000.0.0')
-  err['code'] = 'ERR_PNPM_NO_MATCHING_VERSION'
-  err['packageMeta'] = await loadJsonFile(path.join(__dirname, 'pnpm-meta.json'))
-  logger.error(err, err)
-})
-
-test('prints no matching version error when only the latest dist-tag exists', async (t) => {
-  const output$ = toOutput$({
-    context: { argv: ['install'] },
-    streamParser: createStreamParser(),
-  })
-
-  t.plan(1)
-
-  output$.take(1).map(normalizeNewline).subscribe({
-    complete: () => t.end(),
-    error: t.end,
-    next: output => {
-      t.equal(output, stripIndent`
-        ${ERROR} ${chalk.red('No matching version found for is-positive@1000.0.0')}
-
-        The latest release of is-positive is "3.1.0".
-
-        If you need the full list of all 4 published versions run "$ pnpm view is-positive versions".
-      `)
-    },
-  })
-
-  const err = new Error('No matching version found for is-positive@1000.0.0')
-  err['code'] = 'ERR_PNPM_NO_MATCHING_VERSION'
-  err['packageMeta'] = await loadJsonFile(path.join(__dirname, 'is-positive-meta.json'))
-  logger.error(err, err)
 })
 
 test('prints summary when some packages fail', async (t) => {
