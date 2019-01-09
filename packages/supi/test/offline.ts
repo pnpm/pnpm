@@ -29,7 +29,7 @@ test('offline installation fails when package tarball not found in local registr
     await addDependenciesToPackage(['is-positive@3.1.0'], await testDefaults({}, { offline: true }, { offline: true }))
     t.fail('installation should have failed')
   } catch (err) {
-    t.equal(err.code, 'NO_OFFLINE_TARBALL', 'failed with correct error code')
+    t.equal(err.code, 'ERR_PNPM_NO_OFFLINE_TARBALL', 'failed with correct error code')
   }
 })
 
