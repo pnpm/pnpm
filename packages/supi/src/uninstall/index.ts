@@ -109,14 +109,14 @@ export async function uninstallInContext (
       getIndependentPackageLocation: opts.independentLeaves
         ? async (packageId: string, packageName: string) => {
           const { directory } = await opts.storeController.getPackageLocation(packageId, packageName, {
-            importerPrefix: ctx.prefix,
+            importerPrefix: ctx.shrinkwrapDirectory,
             targetEngine: opts.sideEffectsCacheRead && ENGINE_NAME || undefined,
           })
           return directory
         }
         : undefined,
       modulesDir: ctx.modulesDir,
-      prefix: opts.prefix,
+      prefix: opts.shrinkwrapDirectory,
       virtualStoreDir: ctx.virtualStoreDir,
     }) || {}
   }

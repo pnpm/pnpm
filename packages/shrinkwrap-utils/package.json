@@ -47,7 +47,7 @@
     "yaml-tag": "1.1.0"
   },
   "dependencies": {
-    "@pnpm/resolver-base": "2.0.0",
+    "@pnpm/resolver-base": "2.1.0",
     "@pnpm/shrinkwrap-types": "1.0.0",
     "@pnpm/types": "2.0.0",
     "@types/js-yaml": "3.11.4",

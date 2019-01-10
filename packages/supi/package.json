@@ -35,7 +35,7 @@
     "@pnpm/read-modules-dir": "1.0.0",
     "@pnpm/read-package-json": "1.1.1",
     "@pnpm/resolve-dependencies": "4.0.2",
-    "@pnpm/resolver-base": "2.0.0",
+    "@pnpm/resolver-base": "2.1.0",
     "@pnpm/shamefully-flatten": "2.0.3",
     "@pnpm/shrinkwrap-file": "1.0.1",
     "@pnpm/shrinkwrap-utils": "1.1.0",

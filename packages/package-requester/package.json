@@ -39,7 +39,7 @@
     "@pnpm/fetcher-base": "2.0.0",
     "@pnpm/pkgid-to-filename": "2.0.0",
     "@pnpm/read-package-json": "1.1.1",
-    "@pnpm/resolver-base": "2.0.0",
+    "@pnpm/resolver-base": "2.1.0",
     "@pnpm/store-controller-types": "2.0.0",
     "@pnpm/types": "2.0.0",
     "@types/mz": "0.0.32",
@@ -59,7 +59,7 @@
     "write-json-file": "3.0.2"
   },
   "devDependencies": {
-    "@pnpm/local-resolver": "1.0.4",
+    "@pnpm/local-resolver": "1.0.5",
     "@pnpm/logger": "2.1.0",
     "@pnpm/npm-resolver": "2.2.7",
     "@pnpm/package-requester": "link:",

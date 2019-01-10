@@ -80,6 +80,7 @@ export default function (
     dependenciesTree: DependenciesTree,
     independentLeaves: boolean,
     virtualStoreDir: string,
+    shrinkwrapDirectory: string,
     strictPeerDependencies: boolean,
   },
 ): {
@@ -117,8 +118,9 @@ export default function (
       dependenciesTree: opts.dependenciesTree,
       depGraph,
       independentLeaves: opts.independentLeaves,
-      prefix,
+      prefix: importer.prefix,
       purePkgs: new Set(),
+      shrinkwrapDirectory: opts.shrinkwrapDirectory,
       strictPeerDependencies: opts.strictPeerDependencies,
       usesExternalShrinkwrap,
       virtualStoreDir: opts.virtualStoreDir,
@@ -157,6 +159,7 @@ function resolvePeersOfNode (
     virtualStoreDir: string,
     purePkgs: Set<string>, // pure packages are those that don't rely on externally resolved peers
     prefix: string,
+    shrinkwrapDirectory: string,
     strictPeerDependencies: boolean,
     usesExternalShrinkwrap: boolean,
   },
@@ -192,7 +195,7 @@ function resolvePeersOfNode (
 
   let modules: string
   let absolutePath: string
-  const localLocation = path.join(ctx.virtualStoreDir, `.${pkgIdToFilename(node.resolvedPackage.id, ctx.prefix)}`)
+  const localLocation = path.join(ctx.virtualStoreDir, `.${pkgIdToFilename(node.resolvedPackage.id, ctx.shrinkwrapDirectory)}`)
   const isPure = R.isEmpty(allResolvedPeers)
   if (isPure) {
     modules = path.join(localLocation, 'node_modules')
@@ -261,6 +264,7 @@ function resolvePeersOfChildren (
     depGraph: DependenciesGraph,
     dependenciesTree: DependenciesTree,
     prefix: string,
+    shrinkwrapDirectory: string,
     strictPeerDependencies: boolean,
     usesExternalShrinkwrap: boolean,
   },

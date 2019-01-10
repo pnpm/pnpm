@@ -33,7 +33,7 @@
     "typescript": "3.2.2"
   },
   "dependencies": {
-    "@pnpm/resolver-base": "2.0.0",
+    "@pnpm/resolver-base": "2.1.0",
     "@pnpm/types": "2.0.0"
   }
 }

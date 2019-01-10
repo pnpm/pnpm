@@ -5,6 +5,7 @@ import {
 } from '@pnpm/lifecycle'
 import logger, { streamParser } from '@pnpm/logger'
 import { write as writeModulesYaml } from '@pnpm/modules-yaml'
+import pkgIdToFilename from '@pnpm/pkgid-to-filename'
 import {
   nameVerFromPkgSnapshot,
   packageIsIndependent,
@@ -280,11 +281,11 @@ async function _rebuild (
       const pkgInfo = nameVerFromPkgSnapshot(relDepPath, pkgSnapshot)
       const independent = opts.independentLeaves && packageIsIndependent(pkgSnapshot)
       const pkgRoot = !independent
-        ? path.join(modules, `.${depPath}`, 'node_modules', pkgInfo.name)
+        ? path.join(modules, `.${pkgIdToFilename(depPath, opts.shrinkwrapDirectory)}`, 'node_modules', pkgInfo.name)
         : await (
           async () => {
             const { directory } = await opts.storeController.getPackageLocation(pkgSnapshot.id || depPath, pkgInfo.name, {
-              importerPrefix: opts.prefix,
+              importerPrefix: opts.shrinkwrapDirectory,
               targetEngine: opts.sideEffectsCacheRead && !opts.force && ENGINE_NAME || undefined,
             })
             return directory

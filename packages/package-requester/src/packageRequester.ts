@@ -100,6 +100,7 @@ async function resolveAndFetch (
     currentPkgId?: string,
     prefix: string,
     registry: string,
+    shrinkwrapDirectory: string,
     shrinkwrapResolution?: Resolution,
     update?: boolean,
     verifyStoreIntegrity: boolean,
@@ -137,6 +138,7 @@ async function resolveAndFetch (
         preferredVersions: options.preferredVersions,
         prefix: options.prefix,
         registry: options.registry,
+        shrinkwrapDirectory: options.shrinkwrapDirectory,
       }), { priority: options.downloadPriority })
 
       pkg = resolveResult.package
@@ -195,7 +197,7 @@ async function resolveAndFetch (
         body: {
           cacheByEngine: options.sideEffectsCache ? await getCacheByEngine(ctx.storePath, id) : new Map(),
           id,
-          inStoreLocation: path.join(ctx.storePath, pkgIdToFilename(id, options.prefix)),
+          inStoreLocation: path.join(ctx.storePath, pkgIdToFilename(id, options.shrinkwrapDirectory)),
           isLocal: false as false,
           latest,
           manifest: pkg,
@@ -212,7 +214,7 @@ async function resolveAndFetch (
       force: forceFetch,
       pkgId: id,
       pkgName: pkg && pkg.name,
-      prefix: options.prefix,
+      prefix: options.shrinkwrapDirectory,
       resolution: resolution,
       verifyStoreIntegrity: options.verifyStoreIntegrity,
     })
