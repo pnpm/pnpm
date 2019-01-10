@@ -120,3 +120,43 @@ test('prints no matching version error when only the latest dist-tag exists', as
   err['packageMeta'] = await loadJsonFile(path.join(__dirname, 'is-positive-meta.json'))
   logger.error(err, err)
 })
+
+test('prints suggestions when an internet-connection related error happens', async (t) => {
+  const output$ = toOutput$({
+    context: { argv: ['install'] },
+    streamParser: createStreamParser(),
+  })
+
+  t.plan(1)
+
+  output$.take(1).map(normalizeNewline).subscribe({
+    complete: () => t.end(),
+    error: t.end,
+    next: output => {
+      t.equal(output, stripIndent`
+        ${ERROR} ${chalk.red('Actual size (99) of tarball (https://foo) did not match the one specified in \'Content-Length\' header (100)')}
+
+        Seems like you have internet connection issues.
+        Try running the same command again.
+        If that doesn't help, try one of the following:
+
+        - Set a bigger value for the \`fetch-retries\` config.
+            To check the current value of \`fetch-retries\`, run \`pnpm get fetch-retries\`.
+            To set a new value, run \`pnpm set fetch-retries <number>\`.
+
+        - Set \`network-concurrency\` to 1.
+            This change will slow down installation times, so it is recommended to
+            delete the config once the internet connection is good again: \`pnpm config delete network-concurrency\`
+
+        NOTE: You may also override configs via flags.
+        For instance, \`pnpm install --fetch-retries 5 --network-concurrency 1\`
+      `)
+    },
+  })
+
+  const err = new Error('Actual size (99) of tarball (https://foo) did not match the one specified in \'Content-Length\' header (100)')
+  err['code'] = 'ERR_PNPM_BAD_TARBALL_SIZE'
+  err['expectedSize'] = 100
+  err['receivedSize'] = 99
+  logger.error(err, err)
+})

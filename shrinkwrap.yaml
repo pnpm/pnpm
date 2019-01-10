@@ -67,7 +67,7 @@ importers:
     dependencies:
       '@pnpm/git-fetcher': 1.0.1
       '@pnpm/resolver-base': 2.0.0
-      '@pnpm/tarball-fetcher': /@pnpm/tarball-fetcher/2.0.9/@pnpm!logger@2.1.0
+      '@pnpm/tarball-fetcher': /@pnpm/tarball-fetcher/2.0.10/@pnpm!logger@2.1.0
     devDependencies:
       '@pnpm/default-fetcher': 'link:'
       '@pnpm/logger': 2.1.0
@@ -85,7 +85,7 @@ importers:
       '@pnpm/git-fetcher': 1.0.1
       '@pnpm/logger': 2.1.0
       '@pnpm/resolver-base': 2.0.0
-      '@pnpm/tarball-fetcher': 2.0.9
+      '@pnpm/tarball-fetcher': 2.0.10
       '@pnpm/tslint-config': 0.0.0
       '@types/tape': 4.2.33
       mos: 2.0.0-alpha.3
@@ -683,7 +683,7 @@ importers:
       '@pnpm/logger': 2.1.0
       '@pnpm/npm-resolver': /@pnpm/npm-resolver/2.2.7/@pnpm!logger@2.1.0
       '@pnpm/package-requester': 'link:'
-      '@pnpm/tarball-fetcher': /@pnpm/tarball-fetcher/2.0.9/@pnpm!logger@2.1.0
+      '@pnpm/tarball-fetcher': /@pnpm/tarball-fetcher/2.0.10/@pnpm!logger@2.1.0
       '@pnpm/tslint-config': 'link:../../utils/tslint-config'
       '@types/ncp': 2.0.1
       '@types/nock': 9.3.0
@@ -715,7 +715,7 @@ importers:
       '@pnpm/read-package-json': 1.1.1
       '@pnpm/resolver-base': 2.0.0
       '@pnpm/store-controller-types': 2.0.0
-      '@pnpm/tarball-fetcher': 2.0.9
+      '@pnpm/tarball-fetcher': 2.0.10
       '@pnpm/tslint-config': 0.0.0
       '@pnpm/types': 2.0.0
       '@types/mz': 0.0.32
@@ -781,7 +781,7 @@ importers:
       '@pnpm/logger': 2.1.0
       '@pnpm/npm-resolver': /@pnpm/npm-resolver/2.2.7/@pnpm!logger@2.1.0
       '@pnpm/package-store': 'link:'
-      '@pnpm/tarball-fetcher': /@pnpm/tarball-fetcher/2.0.9/@pnpm!logger@2.1.0
+      '@pnpm/tarball-fetcher': /@pnpm/tarball-fetcher/2.0.10/@pnpm!logger@2.1.0
       '@pnpm/tslint-config': 'link:../../utils/tslint-config'
       '@types/tape': 4.2.33
       '@types/tempy': 0.2.0
@@ -803,7 +803,7 @@ importers:
       '@pnpm/pkgid-to-filename': 2.0.0
       '@pnpm/resolver-base': 2.0.0
       '@pnpm/store-controller-types': 2.0.0
-      '@pnpm/tarball-fetcher': 2.0.9
+      '@pnpm/tarball-fetcher': 2.0.10
       '@pnpm/tslint-config': 0.0.0
       '@pnpm/types': 2.0.0
       '@types/mz': 0.0.32
@@ -1196,7 +1196,7 @@ importers:
       '@pnpm/package-requester': 'link:../package-requester'
       '@pnpm/package-store': 'link:../package-store'
       '@pnpm/server': 'link:'
-      '@pnpm/tarball-fetcher': /@pnpm/tarball-fetcher/2.0.9/@pnpm!logger@2.1.0
+      '@pnpm/tarball-fetcher': /@pnpm/tarball-fetcher/2.0.10/@pnpm!logger@2.1.0
       '@pnpm/tslint-config': 'link:../../utils/tslint-config'
       '@types/mz': 0.0.32
       '@types/tape': 4.2.33
@@ -1217,7 +1217,7 @@ importers:
       '@pnpm/package-store': 3.0.1
       '@pnpm/server': 'link:'
       '@pnpm/store-controller-types': 2.0.0
-      '@pnpm/tarball-fetcher': 2.0.9
+      '@pnpm/tarball-fetcher': 2.0.10
       '@pnpm/tslint-config': 0.0.0
       '@pnpm/types': 2.0.0
       '@types/got': 8.3.4
@@ -2206,7 +2206,7 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha512-sGNnrjzNgzizIAiVIuXBQYWY8XvNBGUFbjEftIzKuXB/++Dr/JVinjLijm6iql7WDHolEf90pMNcBkL8Ni139w==
-  /@pnpm/tarball-fetcher/2.0.9/@pnpm!logger@2.1.0:
+  /@pnpm/tarball-fetcher/2.0.10/@pnpm!logger@2.1.0:
     dependencies:
       '@pnpm/fetcher-base': 2.0.0
       '@pnpm/logger': 2.1.0
@@ -2214,7 +2214,7 @@ packages:
       '@types/mem': 1.1.2
       '@types/mz': 0.0.32
       '@types/node': 10.12.18
-      '@types/retry': 0.10.2
+      '@types/retry': 0.12.0
       '@types/rimraf': 2.0.2
       credentials-by-uri: 1.0.0
       fetch-from-npm-registry: 1.0.0
@@ -2229,11 +2229,11 @@ packages:
       unpack-stream: 4.0.0
     engines:
       node: '>=6'
-    id: registry.npmjs.org/@pnpm/tarball-fetcher/2.0.9
+    id: registry.npmjs.org/@pnpm/tarball-fetcher/2.0.10
     peerDependencies:
       '@pnpm/logger': ^2.1.0
     resolution:
-      integrity: sha512-djmJU6AKILb+PLQzbDgV2pwzQsYUdJ+ZDUmNUAHyh6I5H0JL3u6ovlFvbJDDTKxHmzJh9a+KbiIzuxHU/5OYxA==
+      integrity: sha512-ToGJrQVhR25yE5wCE7fBNJWWicWOno26N1O1QHujyGbC9yqQj7AXq7IGoueAo4By2ZSeNJmBEm1SK901+0u7Jg==
   /@pnpm/tarball-resolver/1.0.1:
     dependencies:
       '@pnpm/resolver-base': 2.0.0
@@ -2435,11 +2435,7 @@ packages:
     dev: false
     resolution:
       integrity: sha512-qw1q31xPnaeExbOA1daA3nfeKW2uZQN4Xg8QqZDM3vsXPHK/lyDpjWXJQIcrByRDcBzZJ3ccchSMMTDtCWgFpA==
-  /@types/retry/0.10.2:
-    resolution:
-      integrity: sha512-LqJkY4VQ7S09XhI7kA3ON71AxauROhSv74639VsNXC9ish4IWHnIi98if+nP1MxQV3RMPqXSCYgpPsDHjlg9UQ==
   /@types/retry/0.12.0:
-    dev: true
     resolution:
       integrity: sha512-wWKOClTTiizcZhXnPY4wikVAwmdYHp8q6DmC+EJUzAMsycb7HB32Kh9RN4+0gExjmPmZSAQjgURXIGATPegAvA==
   /@types/rimraf/2.0.2:

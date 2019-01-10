@@ -36,6 +36,8 @@ export default function reportError (logObj: Log) {
         return formatNoMatchingVersion(err, logObj['message'])
       case 'ERR_PNPM_RECURSIVE_FAIL':
         return formatRecursiveCommandSummary(logObj['message'])
+      case 'ERR_PNPM_BAD_TARBALL_SIZE':
+        return reportBadTarballSize(err, logObj['message'])
       default:
         // Errors with known error codes are printed w/o stack trace
         if (err.code && err.code.startsWith && err.code.startsWith('ERR_PNPM_')) {
@@ -177,4 +179,25 @@ function formatRecursiveCommandSummary (msg: {fails: Error[], passes: number}) {
       return fail.prefix + ':' + EOL + formatErrorSummary(fail.message)
     }).join(EOL + EOL)
   return output
+}
+
+function reportBadTarballSize (err: Error, msg: object) {
+  return stripIndent`
+    ${formatErrorSummary(err.message)}
+
+    Seems like you have internet connection issues.
+    Try running the same command again.
+    If that doesn't help, try one of the following:
+
+    - Set a bigger value for the \`fetch-retries\` config.
+        To check the current value of \`fetch-retries\`, run \`pnpm get fetch-retries\`.
+        To set a new value, run \`pnpm set fetch-retries <number>\`.
+
+    - Set \`network-concurrency\` to 1.
+        This change will slow down installation times, so it is recommended to
+        delete the config once the internet connection is good again: \`pnpm config delete network-concurrency\`
+
+    NOTE: You may also override configs via flags.
+    For instance, \`pnpm install --fetch-retries 5 --network-concurrency 1\`
+  `
 }
