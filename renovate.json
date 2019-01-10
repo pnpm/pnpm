@@ -25,6 +25,7 @@
     "@pnpm/read-manifests",
     "@pnpm/read-modules-dir",
     "@pnpm/resolve-dependencies",
+    "@pnpm/resolver-base",
     "@pnpm/server",
     "@pnpm/shamefully-flatten",
     "@pnpm/shrinkwrap-file",
