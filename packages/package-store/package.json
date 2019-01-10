@@ -24,7 +24,7 @@
     "@pnpm/fs-locker": "1.0.3",
     "@pnpm/package-requester": "6.0.1",
     "@pnpm/pkgid-to-filename": "2.0.0",
-    "@pnpm/resolver-base": "2.0.0",
+    "@pnpm/resolver-base": "2.1.0",
     "@pnpm/store-controller-types": "2.0.0",
     "@pnpm/types": "2.0.0",
     "@types/mz": "0.0.32",

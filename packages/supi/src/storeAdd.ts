@@ -45,6 +45,7 @@ export default async function (
         preferredVersions: {},
         prefix,
         registry: normalizeRegistryUrl(opts.registry || 'https://registry.npmjs.org/'),
+        shrinkwrapDirectory: prefix,
         verifyStoreIntegrity: opts.verifyStoreIntegrity || true,
       })
       await pkgResponse['fetchingFiles'] // tslint:disable-line:no-string-literal

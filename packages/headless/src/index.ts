@@ -212,14 +212,14 @@ export default async (opts: HeadlessOptions) => {
         getIndependentPackageLocation: opts.independentLeaves
           ? async (packageId: string, packageName: string) => {
             const { directory } = await opts.storeController.getPackageLocation(packageId, packageName, {
-              importerPrefix: importer.prefix,
+              importerPrefix: opts.shrinkwrapDirectory,
               targetEngine: opts.sideEffectsCacheRead && ENGINE_NAME || undefined,
             })
             return directory
           }
           : undefined,
         modulesDir: importer.modulesDir,
-        prefix: importer.prefix,
+        prefix: opts.shrinkwrapDirectory,
         virtualStoreDir,
       })
     } else {
@@ -448,11 +448,11 @@ async function shrinkwrapToDepGraph (
           })
         })
       const pkgLocation = await opts.storeController.getPackageLocation(packageId, pkgName, {
-        importerPrefix: opts.prefix,
+        importerPrefix: opts.shrinkwrapDirectory,
         targetEngine: opts.sideEffectsCacheRead && !opts.force && ENGINE_NAME || undefined,
       })
 
-      const modules = path.join(opts.virtualStoreDir, `.${pkgIdToFilename(depPath, opts.prefix)}`, 'node_modules')
+      const modules = path.join(opts.virtualStoreDir, `.${pkgIdToFilename(depPath, opts.shrinkwrapDirectory)}`, 'node_modules')
       const independent = opts.independentLeaves && packageIsIndependent(pkgSnapshot)
       const peripheralLocation = !independent
         ? path.join(modules, pkgName)
@@ -484,6 +484,7 @@ async function shrinkwrapToDepGraph (
       pkgSnapshotsByRelDepPaths: shr.packages,
       prefix: opts.prefix,
       registry: opts.defaultRegistry,
+      shrinkwrapDirectory: opts.shrinkwrapDirectory,
       sideEffectsCacheRead: opts.sideEffectsCacheRead,
       store: opts.store,
       storeController: opts.storeController,
@@ -514,6 +515,7 @@ async function getChildrenPaths (
     store: string,
     pkgSnapshotsByRelDepPaths: {[relDepPath: string]: PackageSnapshot},
     prefix: string,
+    shrinkwrapDirectory: string,
     sideEffectsCacheRead: boolean,
     storeController: StoreController,
   },
@@ -534,14 +536,14 @@ async function getChildrenPaths (
       const pkgId = childPkgSnapshot.id || childDepPath
       const pkgName = nameVerFromPkgSnapshot(childRelDepPath, childPkgSnapshot).name
       const pkgLocation = await ctx.storeController.getPackageLocation(pkgId, pkgName, {
-        importerPrefix: ctx.prefix,
+        importerPrefix: ctx.shrinkwrapDirectory,
         targetEngine: ctx.sideEffectsCacheRead && !ctx.force && ENGINE_NAME || undefined,
       })
       children[alias] = pkgLocation.directory
     } else if (childPkgSnapshot) {
       const relDepPath = dp.relative(ctx.registry, childDepPath)
       const pkgName = nameVerFromPkgSnapshot(relDepPath, childPkgSnapshot).name
-      children[alias] = path.join(ctx.virtualStoreDir, `.${pkgIdToFilename(childDepPath, ctx.prefix)}`, 'node_modules', pkgName)
+      children[alias] = path.join(ctx.virtualStoreDir, `.${pkgIdToFilename(childDepPath, ctx.shrinkwrapDirectory)}`, 'node_modules', pkgName)
     } else if (allDeps[alias].indexOf('file:') === 0) {
       children[alias] = path.resolve(ctx.prefix, allDeps[alias].substr(5))
     } else {

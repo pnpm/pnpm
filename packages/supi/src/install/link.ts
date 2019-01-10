@@ -87,6 +87,7 @@ export default async function linkPackages (
     dependenciesTree,
     importers,
     independentLeaves: opts.independentLeaves,
+    shrinkwrapDirectory: opts.shrinkwrapDirectory,
     strictPeerDependencies: opts.strictPeerDependencies,
     virtualStoreDir: opts.virtualStoreDir,
   })

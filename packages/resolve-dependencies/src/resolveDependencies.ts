@@ -383,6 +383,7 @@ async function resolveDependency (
       preferredVersions: ctx.preferredVersions,
       prefix: ctx.prefix,
       registry,
+      shrinkwrapDirectory: ctx.shrinkwrapDirectory,
       shrinkwrapResolution: options.shrinkwrapResolution,
       sideEffectsCache: options.sideEffectsCache,
       // Unfortunately, even when run with --shrinkwrap-only, we need the *real* package.json
