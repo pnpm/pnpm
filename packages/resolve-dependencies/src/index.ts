@@ -43,7 +43,7 @@ export default async function (
     registries: Registries,
     pnpmVersion: string,
     sideEffectsCache: boolean,
-    shrinkwrapDirectory: string, // needed only for logging
+    shrinkwrapDirectory: string,
     preferredVersions?: {
       [packageName: string]: {
         selector: string,

@@ -653,7 +653,7 @@ async function installInContext (
     pnpmVersion: opts.packageManager.name === 'pnpm' ? opts.packageManager.version : '',
     preferredVersions: opts.preferredVersions,
     registries: opts.registries,
-    shrinkwrapDirectory: opts.shrinkwrapDirectory, // needed only for logging
+    shrinkwrapDirectory: opts.shrinkwrapDirectory,
     sideEffectsCache: opts.sideEffectsCacheRead,
     skipped: ctx.skipped,
     storeController: opts.storeController,
