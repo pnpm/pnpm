@@ -1793,14 +1793,14 @@ importers:
       write-pkg: 3.2.0
   tools:
     devDependencies:
-      '@commitlint/cli': 7.2.1
-      '@commitlint/config-conventional': 7.1.2
-      '@commitlint/prompt-cli': 7.2.1
+      '@commitlint/cli': 7.3.1
+      '@commitlint/config-conventional': 7.3.1
+      '@commitlint/prompt-cli': 7.3.1
       husky: 1.3.1
     specifiers:
-      '@commitlint/cli': 7.2.1
-      '@commitlint/config-conventional': 7.1.2
-      '@commitlint/prompt-cli': 7.2.1
+      '@commitlint/cli': 7.3.1
+      '@commitlint/config-conventional': 7.3.1
+      '@commitlint/prompt-cli': 7.3.1
       husky: 1.3.1
   utils/tslint-config:
     dependencies:
@@ -1815,7 +1815,7 @@ importers:
       tslint-eslint-rules: 5.4.0
       typescript: 3.2.2
 packages:
-  /@commitlint/cli/7.2.1:
+  /@commitlint/cli/7.3.1:
     dependencies:
       '@commitlint/format': 7.3.1
       '@commitlint/lint': 7.3.1
@@ -1824,8 +1824,7 @@ packages:
       babel-polyfill: 6.26.0
       chalk: 2.3.1
       get-stdin: 5.0.1
-      lodash.merge: 4.6.1
-      lodash.pick: 4.4.0
+      lodash: 4.17.11
       meow: 5.0.0
       resolve-from: 4.0.0
       resolve-global: 0.1.0
@@ -1834,11 +1833,11 @@ packages:
       node: '>=4'
     hasBin: true
     resolution:
-      integrity: sha512-PUHWGoQOx8m6ZSpZPSHb+YISFAvW7jiWvCJOQiViKHZC8CLKu4bjyc/AwP8gBte0RsTGAu1ekiitp5Q0NcLGcA==
-  /@commitlint/config-conventional/7.1.2:
+      integrity: sha512-/ySTlSegey0mOpz4TxikTCV1JaAPOpouMiGg18RI10lpL5cgD4FgbZUg5zsSv+ZzsobEBRdpuGAjg8vvCIkiWg==
+  /@commitlint/config-conventional/7.3.1:
     dev: true
     resolution:
-      integrity: sha512-DmA4ixkpv03qA1TVs1Bl25QsVym2bPL6pKapesALWIVggG3OpwqGZ55vN75Tx8xZoG7LFKrVyrt7kwhA7X8njQ==
+      integrity: sha512-KPgL+wvXReqi0tvmjV0NQI+d4QwK125K1qimJtM+/uArR7P4AAlQxdXGnZ5kBtsTIzg9O9FhUS49UwqffmxijA==
   /@commitlint/ensure/7.1.2:
     dependencies:
       lodash.camelcase: 4.3.0
@@ -1916,15 +1915,16 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha512-YqhRa6ktiNVUJ/3lOjCPjlZTPAhZ62X9GP68GUYwo1Ry0YsHdlW6s9yIB228d5OUijk1Jd2ZaeGLg3lqOOhQ8w==
-  /@commitlint/prompt-cli/7.2.1:
+  /@commitlint/prompt-cli/7.3.1:
     dependencies:
       '@commitlint/prompt': 7.3.1
       execa: 0.9.0
       meow: 3.7.0
+      string-to-stream: 1.1.1
     dev: true
     hasBin: true
     resolution:
-      integrity: sha512-aNLZtP9PC+bp7WFFWgPJn4e4pEov6OlLRBj5D7jCEjOZGK/Q0WwAiAkuG7oSoazVNSpK+g5/zBeC44aQ254TPw==
+      integrity: sha512-F9GT+41FDTR1kpzzsSNAlSaKfFhoem0yE3XIUlGJf7DSvq78PZG05gkpbMi73nKlK2BSS6lCzel6WxTWWd9NZg==
   /@commitlint/prompt/7.3.1:
     dependencies:
       '@commitlint/load': 7.3.1
@@ -6375,10 +6375,6 @@ packages:
     dev: true
     resolution:
       integrity: sha1-hImxyw0p/4gZXM7KRI/21swpXDY=
-  /lodash.merge/4.6.1:
-    dev: true
-    resolution:
-      integrity: sha512-AOYza4+Hf5z1/0Hztxpm2/xiPZgi/cjMqdnKTUWTBSKchJlxXXuUSxCCl8rJlf4g6yww/j6mA8nC8Hw/EZWxKQ==
   /lodash.once/4.1.1:
     dev: true
     resolution:
@@ -6387,10 +6383,6 @@ packages:
     dev: true
     resolution:
       integrity: sha1-o45GtzRp4EILDaEhLmbUFL42S6Q=
-  /lodash.pick/4.4.0:
-    dev: true
-    resolution:
-      integrity: sha1-UvBWEP/53tQiYRRB7R/BI6AwAbM=
   /lodash.snakecase/4.1.1:
     dev: true
     resolution:
@@ -9173,6 +9165,13 @@ packages:
       node: '>=4'
     resolution:
       integrity: sha1-1A27aGo6zpYMHP/KVivyxF+DY+0=
+  /string-to-stream/1.1.1:
+    dependencies:
+      inherits: 2.0.3
+      readable-stream: 2.3.6
+    dev: true
+    resolution:
+      integrity: sha512-QySF2+3Rwq0SdO3s7BAp4x+c3qsClpPQ6abAmb0DGViiSBAkT5kL6JT2iyzEVP+T1SmzHrQD1TwlP9QAHCc+Sw==
   /string-width/1.0.2:
     dependencies:
       code-point-at: 1.1.0
