@@ -18,13 +18,9 @@ export function pruneSharedShrinkwrap (
     warn?: (msg: string) => void,
   },
 ) {
-  const packages: PackageSnapshots = {}
-
-  copyShrinkwrap({
+  const copiedPackages = !shr.packages ? {} : copyPackageSnapshots(shr.packages, {
     devRelPaths: R.unnest(R.values(shr.importers).map((deps) => resolvedDepsToRelDepPaths(deps.devDependencies || {}))),
-    oldResolutions: shr.packages || {},
     optionalRelPaths: R.unnest(R.values(shr.importers).map((deps) => resolvedDepsToRelDepPaths(deps.optionalDependencies || {}))),
-    packages,
     prodRelPaths: R.unnest(R.values(shr.importers).map((deps) => resolvedDepsToRelDepPaths(deps.dependencies || {}))),
     registry: opts.defaultRegistry,
     warn: opts.warn || ((msg: string) => undefined),
@@ -32,7 +28,7 @@ export function pruneSharedShrinkwrap (
 
   const prunnedShr = {
     ...shr,
-    packages,
+    packages: copiedPackages,
   }
   if (R.isEmpty(prunnedShr.packages)) {
     delete prunnedShr.packages
@@ -117,41 +113,41 @@ export function prune (
   return pruneSharedShrinkwrap(prunnedShrinkwrap, opts)
 }
 
-function copyShrinkwrap (
+function copyPackageSnapshots (
+  originalPackages: PackageSnapshots,
   opts: {
     devRelPaths: string[],
-    oldResolutions: PackageSnapshots,
     optionalRelPaths: string[],
-    packages: PackageSnapshots,
     prodRelPaths: string[],
     registry: string,
     warn: (msg: string) => void,
   },
-) {
+): PackageSnapshots {
+  const copiedPackages: PackageSnapshots = {}
   const nonOptional = new Set()
   const notProdOnly = new Set()
 
-  copyDependencySubTree(opts.packages, opts.devRelPaths, opts.oldResolutions, new Set(), opts.warn, {
+  copyDependencySubGraph(copiedPackages, opts.devRelPaths, originalPackages, new Set(), opts.warn, {
     dev: true,
     nonOptional,
     notProdOnly,
     registry: opts.registry,
   })
 
-  copyDependencySubTree(opts.packages, opts.prodRelPaths, opts.oldResolutions, new Set(), opts.warn, {
+  copyDependencySubGraph(copiedPackages, opts.prodRelPaths, originalPackages, new Set(), opts.warn, {
     nonOptional,
     notProdOnly,
     registry: opts.registry,
   })
 
-  copyDependencySubTree(opts.packages, opts.optionalRelPaths, opts.oldResolutions, new Set(), opts.warn, {
+  copyDependencySubGraph(copiedPackages, opts.optionalRelPaths, originalPackages, new Set(), opts.warn, {
     nonOptional,
     notProdOnly,
     optional: true,
     registry: opts.registry,
   })
 
-  copyDependencySubTree(opts.packages, opts.devRelPaths, opts.oldResolutions, new Set(), opts.warn, {
+  copyDependencySubGraph(copiedPackages, opts.devRelPaths, originalPackages, new Set(), opts.warn, {
     dev: true,
     nonOptional,
     notProdOnly,
@@ -159,12 +155,14 @@ function copyShrinkwrap (
     walkOptionals: true,
   })
 
-  copyDependencySubTree(opts.packages, opts.prodRelPaths, opts.oldResolutions, new Set(), opts.warn, {
+  copyDependencySubGraph(copiedPackages, opts.prodRelPaths, originalPackages, new Set(), opts.warn, {
     nonOptional,
     notProdOnly,
     registry: opts.registry,
     walkOptionals: true,
   })
+
+  return copiedPackages
 }
 
 function resolvedDepsToRelDepPaths (deps: ResolvedDependencies) {
@@ -173,10 +171,10 @@ function resolvedDepsToRelDepPaths (deps: ResolvedDependencies) {
     .filter((relPath) => relPath !== null) as string[]
 }
 
-function copyDependencySubTree (
-  newResolutions: PackageSnapshots,
+function copyDependencySubGraph (
+  copiedSnapshots: PackageSnapshots,
   depRelativePaths: string[],
-  oldResolutions: PackageSnapshots,
+  originalPackages: PackageSnapshots,
   walked: Set<string>,
   warn: (msg: string) => void,
   opts: {
@@ -191,7 +189,7 @@ function copyDependencySubTree (
   for (const depRalativePath of depRelativePaths) {
     if (walked.has(depRalativePath)) continue
     walked.add(depRalativePath)
-    if (!oldResolutions[depRalativePath]) {
+    if (!originalPackages[depRalativePath]) {
       // local dependencies don't need to be resolved in shrinkwrap.yaml
       // except local tarball dependencies
       if (depRalativePath.startsWith('link:') || depRalativePath.startsWith('file:') && !depRalativePath.endsWith('.tar.gz')) continue
@@ -201,8 +199,8 @@ function copyDependencySubTree (
       warn(`Cannot find resolution of ${depRalativePath} in shrinkwrap file`)
       continue
     }
-    const depShr = oldResolutions[depRalativePath]
-    newResolutions[depRalativePath] = depShr
+    const depShr = originalPackages[depRalativePath]
+    copiedSnapshots[depRalativePath] = depShr
     if (opts.optional && !opts.nonOptional.has(depRalativePath)) {
       depShr.optional = true
     } else {
@@ -220,11 +218,11 @@ function copyDependencySubTree (
     const newDependencies = R.keys(depShr.dependencies)
       .map((pkgName: string) => refToRelative((depShr.dependencies && depShr.dependencies[pkgName]) as string, pkgName))
       .filter((relPath) => relPath !== null) as string[]
-    copyDependencySubTree(newResolutions, newDependencies, oldResolutions, walked, warn, opts)
+    copyDependencySubGraph(copiedSnapshots, newDependencies, originalPackages, walked, warn, opts)
     if (!opts.walkOptionals) continue
     const newOptionalDependencies = R.keys(depShr.optionalDependencies)
       .map((pkgName: string) => refToRelative((depShr.optionalDependencies && depShr.optionalDependencies[pkgName]) as string, pkgName))
       .filter((relPath) => relPath !== null) as string[]
-    copyDependencySubTree(newResolutions, newOptionalDependencies, oldResolutions, walked, warn, { ...opts, optional: true })
+    copyDependencySubGraph(copiedSnapshots, newOptionalDependencies, originalPackages, walked, warn, { ...opts, optional: true })
   }
 }
