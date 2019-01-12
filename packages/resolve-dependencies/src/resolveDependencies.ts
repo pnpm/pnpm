@@ -4,6 +4,7 @@ import {
   skippedOptionalDependencyLogger,
 } from '@pnpm/core-loggers'
 import logger from '@pnpm/logger'
+import packageIsInstallable from '@pnpm/package-is-installable'
 import {
   DirectoryResolution,
   LocalPackages,
@@ -34,6 +35,7 @@ import {
   createNodeId,
   getNonDevWantedDependencies,
   nodeIdContainsSequence,
+  splitNodeId,
   WantedDependency,
 } from '@pnpm/utils'
 import * as dp from 'dependency-path'
@@ -42,8 +44,23 @@ import exists = require('path-exists')
 import R = require('ramda')
 import semver = require('semver')
 import encodePkgId from './encodePkgId'
-import getIsInstallable, { nodeIdToParents } from './getIsInstallable'
 import wantedDepIsLocallyAvailable from './wantedDepIsLocallyAvailable'
+
+export function nodeIdToParents (
+  nodeId: string,
+  resolvedPackagesByPackageId: ResolvedPackagesByPackageId,
+) {
+  const pkgIds = splitNodeId(nodeId).slice(2, -2)
+  return pkgIds
+    .map((pkgId) => {
+      const pkg = resolvedPackagesByPackageId[pkgId]
+      return {
+        id: pkg.id,
+        name: pkg.name,
+        version: pkg.version,
+      }
+    })
+}
 
 export interface DependenciesTreeNode {
   children: (() => {[alias: string]: string}) | {[alias: string]: string}, // child nodeId by child alias name
@@ -516,14 +533,13 @@ async function resolveDependency (
 
   const currentIsInstallable = (
       ctx.force ||
-      await getIsInstallable(pkgResponse.body.id, pkg, {
+      await packageIsInstallable(pkgResponse.body.id, pkg, {
         engineStrict: ctx.engineStrict,
         nodeId,
         nodeVersion: ctx.nodeVersion,
         optional: wantedDependency.optional,
         pnpmVersion: ctx.pnpmVersion,
         prefix: ctx.prefix,
-        resolvedPackagesByPackageId: ctx.resolvedPackagesByPackageId,
       })
     )
   const installable = parentIsInstallable && currentIsInstallable

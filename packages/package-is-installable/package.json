@@ -1,0 +1,45 @@
+{
+  "name": "@pnpm/package-is-installable",
+  "version": "0.0.0",
+  "author": {
+    "name": "Zoltan Kochan",
+    "email": "z@kochan.io",
+    "url": "https://www.kochan.io/"
+  },
+  "description": "Checks if a package is installable on the current system",
+  "main": "lib/index.js",
+  "typings": "lib/index.d.ts",
+  "files": [
+    "lib"
+  ],
+  "keywords": [],
+  "license": "MIT",
+  "engines": {
+    "node": ">=6"
+  },
+  "peerDependencies": {
+    "@pnpm/logger": "^2.1.0"
+  },
+  "repository": "https://github.com/pnpm/pnpm/blob/master/packages/package-is-installable",
+  "homepage": "https://github.com/pnpm/pnpm/blob/master/packages/package-is-installable#readme",
+  "scripts": {
+    "start": "npm run tsc -- --watch",
+    "test": "npm run tsc && npm run lint",
+    "lint": "tslint -c tslint.json --project .",
+    "tsc": "rimraf lib && tsc",
+    "prepublishOnly": "npm run tsc"
+  },
+  "dependencies": {
+    "@pnpm/core-loggers": "2.0.0",
+    "@pnpm/types": "2.0.0",
+    "pnpm-install-checks": "1.1.0"
+  },
+  "devDependencies": {
+    "@pnpm/logger": "2.1.0",
+    "@pnpm/package-is-installable": "link:",
+    "@pnpm/tslint-config": "0.0.0",
+    "rimraf": "2.6.3",
+    "tslint": "5.12.0",
+    "typescript": "3.2.2"
+  }
+}

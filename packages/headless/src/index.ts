@@ -164,6 +164,8 @@ export default async (opts: HeadlessOptions) => {
     stage: 'importing_started',
   })
 
+  // migh be a good idea to move skipping to filterShrinkwrapByImporters
+  // or create a filterShrinkwrapByImportersAndEnvironment
   const filteredShrinkwrap = filterShrinkwrapByImporters(wantedShrinkwrap, opts.importers.map((importer) => importer.id), {
     ...filterOpts,
     failOnMissingDependencies: true,

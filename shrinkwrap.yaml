@@ -653,6 +653,28 @@ importers:
       ts-node: 7.0.1
       tslint: 5.12.1
       typescript: 3.2.2
+  packages/package-is-installable:
+    dependencies:
+      '@pnpm/core-loggers': 'link:../core-loggers'
+      '@pnpm/types': 'link:../types'
+      pnpm-install-checks: 1.1.0
+    devDependencies:
+      '@pnpm/logger': 2.1.0
+      '@pnpm/package-is-installable': 'link:'
+      '@pnpm/tslint-config': 'link:../../utils/tslint-config'
+      rimraf: 2.6.3
+      tslint: /tslint/5.12.0/typescript@3.2.2
+      typescript: 3.2.2
+    specifiers:
+      '@pnpm/core-loggers': 2.0.0
+      '@pnpm/logger': 2.1.0
+      '@pnpm/package-is-installable': 'link:'
+      '@pnpm/tslint-config': 0.0.0
+      '@pnpm/types': 2.0.0
+      pnpm-install-checks: 1.1.0
+      rimraf: 2.6.3
+      tslint: 5.12.0
+      typescript: 3.2.2
   packages/package-requester:
     dependencies:
       '@pnpm/check-package': 2.0.0
@@ -1131,6 +1153,7 @@ importers:
     dependencies:
       '@pnpm/core-loggers': 'link:../core-loggers'
       '@pnpm/npm-resolver': /@pnpm/npm-resolver/2.2.7/@pnpm!logger@2.1.0
+      '@pnpm/package-is-installable': 'link:../package-is-installable'
       '@pnpm/resolver-base': 2.1.0
       '@pnpm/shrinkwrap-types': 'link:../shrinkwrap-types'
       '@pnpm/shrinkwrap-utils': 'link:../shrinkwrap-utils'
@@ -1158,6 +1181,7 @@ importers:
       '@pnpm/core-loggers': 2.0.0
       '@pnpm/logger': 2.1.0
       '@pnpm/npm-resolver': 2.2.7
+      '@pnpm/package-is-installable': 0.0.0
       '@pnpm/resolve-dependencies': 'link:'
       '@pnpm/resolver-base': 2.1.0
       '@pnpm/shrinkwrap-types': 1.0.0

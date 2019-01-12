@@ -4,8 +4,9 @@ import path = require('path')
 import exists = require('path-exists')
 import R = require('ramda')
 import readYamlFile from 'read-yaml-file'
+import rimraf = require('rimraf-then')
 import sinon = require('sinon')
-import { addDependenciesToPackage, install, rebuild } from 'supi'
+import { addDependenciesToPackage, install, mutateModules, rebuild } from 'supi'
 import tape = require('tape')
 import promisifyTape from 'tape-promise'
 import { testDefaults } from '../utils'
@@ -57,7 +58,7 @@ test('skip non-existing optional dependency', async (t: tape.Test) => {
   t.deepEqual(shr.specifiers, { 'is-positive': '*' }, 'skipped optional dep not added to shrinkwrap.yaml')
 })
 
-test('skip optional dependency that does not support the current OS', async (t: tape.Test) => {
+testOnly('skip optional dependency that does not support the current OS', async (t: tape.Test) => {
   const project = prepare(t, {
     optionalDependencies: {
       'not-compatible-with-any-os': '*',
@@ -101,6 +102,13 @@ test('skip optional dependency that does not support the current OS', async (t: 
 
   await addDependenciesToPackage(['dep-of-optional-pkg'], await testDefaults())
 
+  await project.has('dep-of-optional-pkg')
+
+  await rimraf('node_modules')
+
+  await mutateModules([{ buildIndex: 0, mutation: 'install', prefix: process.cwd() }], await testDefaults({ frozenShrinkwrap: true }))
+
+  await project.hasNot('not-compatible-with-any-os')
   await project.has('dep-of-optional-pkg')
 })
 
