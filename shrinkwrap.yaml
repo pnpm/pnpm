@@ -283,7 +283,9 @@ importers:
       typescript: 3.2.2
   packages/filter-shrinkwrap:
     dependencies:
+      '@pnpm/package-is-installable': 'link:../package-is-installable'
       '@pnpm/shrinkwrap-types': 'link:../shrinkwrap-types'
+      '@pnpm/shrinkwrap-utils': 'link:../shrinkwrap-utils'
       '@pnpm/types': 'link:../types'
       '@types/ramda': 0.25.39
       dependency-path: 'link:../dependency-path'
@@ -292,6 +294,7 @@ importers:
       '@pnpm/filter-shrinkwrap': 'link:'
       '@pnpm/logger': 2.1.0
       '@pnpm/tslint-config': 'link:../../utils/tslint-config'
+      '@types/node': 10.12.18
       '@types/tape': 4.2.33
       '@types/tempy': 0.2.0
       rimraf: 2.6.3
@@ -305,9 +308,12 @@ importers:
     specifiers:
       '@pnpm/filter-shrinkwrap': 'link:'
       '@pnpm/logger': 2.1.0
+      '@pnpm/package-is-installable': 0.0.0
       '@pnpm/shrinkwrap-types': 1.0.0
+      '@pnpm/shrinkwrap-utils': 1.1.1
       '@pnpm/tslint-config': 0.0.0
       '@pnpm/types': 2.0.0
+      '@types/node': 10.12.18
       '@types/ramda': 0.25.39
       '@types/tape': 4.2.33
       '@types/tempy': 0.2.0

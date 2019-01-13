@@ -2,13 +2,21 @@ import {
   installCheckLogger,
   skippedOptionalDependencyLogger,
 } from '@pnpm/core-loggers'
-import { PackageManifest } from '@pnpm/types'
 import checkEngine from './checkEngine'
 import checkPlatform from './checkPlatform'
 
-export default function getIsInstallable (
+export default function packageIsInstallable (
   pkgId: string,
-  pkg: PackageManifest,
+  pkg: {
+    name: string,
+    version: string,
+    engines?: {
+      node?: string,
+      npm?: string,
+    },
+    cpu?: string[],
+    os?: string[],
+  },
   options: {
     engineStrict: boolean,
     nodeVersion: string,
